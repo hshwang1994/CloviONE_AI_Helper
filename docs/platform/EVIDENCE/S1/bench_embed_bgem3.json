@@ -1,0 +1,45 @@
+{
+ "model": "bge-m3",
+ "onnx_load_ms": 2800.9,
+ "threads": 8,
+ "index_throughput": {
+  "batch8": {
+   "docs": 1169,
+   "seconds": 100.8,
+   "docs_per_sec": 11.6,
+   "tokens_per_sec": 596.5
+  },
+  "batch16": {
+   "docs": 1169,
+   "seconds": 107.22,
+   "docs_per_sec": 10.9,
+   "tokens_per_sec": 560.7
+  },
+  "batch32": {
+   "docs": 1169,
+   "seconds": 110.89,
+   "docs_per_sec": 10.5,
+   "tokens_per_sec": 542.2
+  }
+ },
+ "dim": 1024,
+ "query_latency_ms": {
+  "n": 60,
+  "p50": 44.84,
+  "p95": 53.73,
+  "max": 60.48
+ },
+ "chunk_throughput": {
+  "batch": 16,
+  "tokens_in_batch": 8192,
+  "seconds": 13.492,
+  "tokens_per_sec": 607.2,
+  "chunks_per_sec": 1.19
+ },
+ "rerank_proxy_top50_ms": {
+  "ms": 6721.3,
+  "tokens": 3448,
+  "note": "같은 XLM-R-large 백본을 (질의,문서) 50쌍에 태운 값"
+ },
+ "max_rss_mb": 2695.8
+}

@@ -33,10 +33,12 @@
 
 | 미확인 | Owner | 내용 |
 |---|---|---|
-| `read_jsx_routes()` 가 빈 결과에 FATAL 인가 | **S1** (P-01) | 지금은 소스 리터럴을 못 찾으면 `[]` 를 반환해 **검사 루프가 0번 돌고 OK 를 찍는다.** 이 전환은 Route 를 갈아엎으므로 **반드시 먼저 막는다** (R4). 최소 개수 단언을 함께 넣는다 |
-| 새 IA 의 Route 집합 | **S18~S20** | Route 가 실제로 바뀔 때 Coverage 를 갱신한다. **지금 미리 열거하지 않는다** |
+| ~~`read_jsx_routes()` 가 빈 결과에 FATAL 인가~~ | ~~S1~~ | **완료 (2026-08-21).** `SourceReadError` + `SOURCE_FLOOR`. 모든 `<Route` 를 리터럴·계산·index 로 분류하고 **미분류가 있으면 FATAL**. 실측 표본: User 28 · Admin 21(리다이렉트 4) |
+| 새 IA 의 Route 집합 | **S18~S20** | Route 가 실제로 바뀔 때 Coverage 를 갱신한다. **지금 미리 열거하지 않는다.** 그때 `SOURCE_FLOOR` 도 함께 내린다 — 그 판단을 사람이 한 번 하게 만드는 것이 그 상수의 목적이다 |
 
 ## 주의
 
-**Route 개편은 Coverage Gate 를 무력화할 수 있다.** Gate 가 초록인 것과 Route 가 빠짐없이 검사된
-것은 다른 말이다. S1 의 P-01 이 끝나기 전에는 Gate 초록을 Route 완전성의 근거로 인용하지 않는다.
+**Route 개편은 Coverage Gate 를 무력화할 수 있었다.** Gate 가 초록인 것과 Route 가 빠짐없이
+검사된 것은 다른 말이다. **S1 이 그 경로를 막았고**(R4), 이제 Gate 는 대조 **전에** 표본 수를
+먼저 찍는다: 「소스 리더 표본 — User Route 28 · Admin Route 21(리다이렉트 4) · TAB_GROUPS
+5그릇/10탭 · 설정 탭 4 · 하네스 Route 84(별칭 4)」. 그 줄이 없으면 그 실행의 C1 결과는 없다.

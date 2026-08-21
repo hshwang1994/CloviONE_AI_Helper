@@ -58,5 +58,6 @@ enable + 의존 순서 ③ health probe ④ uninstall 경로 ⑤ reboot 후 복�
 
 | 미확인 | Owner | 언제 필요한가 |
 |---|---|---|
-| `12_PROBE.md` 의 8건 수정 | **S1** (P-01) | 눈 감은 검사 위에서 Route·DB 를 갈아엎으면 무엇이 깨졌는지 알 수 없다 |
+| ~~`12_PROBE.md` 의 8건 수정~~ | ~~S1~~ | **완료 (2026-08-21).** 8건 전부. 8번(TLS)은 스위치까지 만들었고 켜는 것은 S3 이다 |
+| `scripts/ui_qa/tls.py` 의 `DEFAULT_VERIFY` 켜기 | **S3** | 인증서를 CN/SAN=`clovirassist.gooddi.lab` 로 재발급한 뒤. **한 줄이면 19개 프로브가 함께 켜진다** |
 | `scripts/**` 전수 열거와 **폐기 / 이식 / 유지** 분류 | **S4** | Installer 를 실제로 쓸 때. 위 표의 대표 자산이 S1 판단에 필요한 전부다 |

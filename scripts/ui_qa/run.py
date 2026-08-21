@@ -31,7 +31,7 @@ if __package__ in (None, ""):  # allow `python scripts/ui_qa/run.py` too
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
     __package__ = "scripts.ui_qa"
 
-from . import assertions, capture, report, routes as routes_mod  # noqa: E402
+from . import assertions, capture, report, routes as routes_mod, tls  # noqa: E402
 from .auth import AuthError, ensure_session  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -272,7 +272,8 @@ def build_findings(pages: list[dict], *, label: str, surfaces: dict[str, str],
     return findings, sorted(unmapped)
 
 
-def unverified_gates(summary: dict, gates: list[str]) -> list[str]:
+def unverified_gates(summary: dict, gates: list[str],
+                     exempt: tuple[str, ...] = ()) -> list[str]:
     """`--fail-on` 으로 걸었는데 이번 실행에서 **판정을 하나도 내지 않은** 검사.
 
     `fatal` 은 `status == "fail"` 인 것만 모은다. 그래서 게이트로 건 검사가 전부 skip
@@ -281,12 +282,19 @@ def unverified_gates(summary: dict, gates: list[str]) -> list[str]:
     게이트가 통과했다"로 읽지만 사실은 **게이트가 꺼져 있었다** — QA-10 이 요약표에서
     고친 착시를 종료 코드가 그대로 되풀이하고 있었다.
 
-    `--fail-on all` 은 이 판정에서 뺀다(호출부). `all` 은 "돌아간 것 전부에 걸겠다"는
-    쓸어담기라 `--modals` 없는 실행에서 모달 7종이 늘 미실행이고, 그것까지 실패로 만들면
-    이 규칙은 첫날 꺼진다. 이름을 **직접 적은** 게이트만 의도로 본다.
+    🔴 **S1 이 좁힌 면제.** 예전에는 `--fail-on all` 이면 이 판정을 통째로 껐다(호출부에서
+    `blind = []`). 그 한 줄이 **뷰포트 게이트에 안 걸려 전부 skip 된 검사 6종**까지 함께
+    면제했다 — 1366/1920 만 찍은 실행이 `--fail-on all` 로 초록을 받을 수 있었다는 뜻이다.
+
+    이제 면제는 `exempt` 로 **이름을 받아서만** 한다(`assertions.MODAL_CLASSES`, `--modals`
+    없이 돌릴 때만). 실행 설정이 애초에 만들 수 없는 판정과, 뷰포트를 안 맞춰서 못 만든
+    판정은 다른 것이다. 그리고 무엇을 면제했는지는 **호출부가 출력한다** — 조용한 면제를
+    조용하지 않은 면제로 바꾸는 것이 이 변경의 전부다.
     """
     blind = []
     for name in gates:
+        if name in exempt:
+            continue
         counts = summary.get(name, {})
         if counts.get("pass", 0) == 0 and counts.get("fail", 0) == 0:
             blind.append(name)
@@ -346,6 +354,11 @@ def build_parser() -> argparse.ArgumentParser:
         help=("자체서명 인증서를 신뢰한다. 사내 서버(https://…gooddi.lab)를 겨눌 때 필요하다. "
               "SSH 터널로 http 로 우회하는 방법은 쓰지 마라 — 서버가 COOKIE_SECURE=true 라 "
               "Playwright 의 API 클라이언트가 http 로는 세션 쿠키를 안 실어 /api/me 가 401 이 된다."))
+    parser.add_argument(
+        "--verify-tls", action="store_true",
+        help=("인증서를 **검증한다**. 기본값은 `scripts/ui_qa/tls.py` 의 DEFAULT_VERIFY 하나가 "
+              "정한다 — 지금은 꺼져 있고 S3 이 인증서를 재발급한 뒤 켠다. 둘 다 주면 검증이 "
+              "이긴다(보안 스위치는 애매할 때 켜지는 쪽이 맞다)."))
     parser.add_argument("--headed", action="store_true")
     parser.add_argument("--settle-ms", type=int, default=capture.DEFAULT_SETTLE_MS)
     parser.add_argument("--timeout-ms", type=int, default=capture.DEFAULT_NAV_TIMEOUT_MS)
@@ -369,6 +382,9 @@ def main(argv: list[str] | None = None) -> int:
         pass
 
     args = build_parser().parse_args(argv)
+    # TLS 정책을 한 곳에서 정한다 — 아래 `args.insecure` 소비처 여덟 자리가 전부 이 값을 쓴다.
+    args.insecure = tls.from_args(args)
+    _log(tls.describe(cli_insecure=args.insecure, cli_verify=args.verify_tls))
 
     if args.list:
         for route in routes_mod.ALL_ROUTES:
@@ -698,7 +714,17 @@ def main(argv: list[str] | None = None) -> int:
             _log("       좁은 실행이 전체 실행의 목록을 덮었다면 --findings-out 경로를 "
                  "분리하거나 전체 범위로 다시 돌려라.")
 
-    blind = [] if fail_on_is_all else unverified_gates(summary, fail_on)
+    # `--modals` 없이 돌린 실행에서는 모달 7종이 **구조적으로** 판정을 만들 수 없다.
+    # 그것만 면제하고, 뷰포트를 안 맞춰서 못 돈 검사는 그대로 FATAL 이다.
+    gate_exempt = () if args.modals else assertions.MODAL_CLASSES
+    exempted = [c for c in fail_on if c in gate_exempt]
+    blind = unverified_gates(summary, fail_on, exempt=gate_exempt)
+    if exempted:
+        _log("")
+        _log(f"[면제] `--modals` 없이 돌아 판정을 만들 수 없는 검사 {len(exempted)}개를 "
+             f"미실행 판정에서 뺐습니다: {', '.join(exempted)}")
+        _log("       이 실행은 그 7종에 대해 **아무것도 확인하지 않았다** — "
+             "모달을 보려면 `--modals` 로 다시 돌려라.")
     if blind:
         _log("")
         _log(f"[FATAL] --fail-on 으로 건 검사 {len(blind)}개가 이번 실행에서 "

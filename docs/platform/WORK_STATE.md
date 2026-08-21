@@ -9,22 +9,24 @@
 
 ## CHECKPOINT
 
-- checkpoint_at: **2026-08-21** (S0)
+- checkpoint_at: **2026-08-21** (S1)
 - phase: **A — 기반**
-- session: **S0 완료.** 다음은 **S1**
+- session: **S1 완료.** 다음은 **S2 — PostgreSQL Foundation**
 - branch: `ui/mui-migration`
-- last_stable_commit: **`60f8fafb`** — S0 직전의 마지막 안정 커밋
-  (W5 문서 커밋). S0 커밋 해시는 아래 `s0_commit` 에 건다
-- s0_commit: **`3d489bbc`** — S0 문서 커밋. 이 커밋과 해시를 거는 다음 커밋이 S0 의 전부다
+- last_stable_commit: **`7612beb3`** — S1 직전의 마지막 안정 커밋.
+  **`check_test_strength.py` 가 이 값을 기준선으로 읽는다** — 그래서 이 줄은 장식이 아니다.
+  세션이 끝나면 **자기 커밋 해시로 올린다**(아래 `s1_commit` 과 같은 값). 그래야 다음
+  세션에서 «커밋된 시험 약화» 가 보인다
+- s1_commit: **`__PENDING__`** — S1 커밋 해시. S0 과 같은 방식으로 **후속 커밋이 건다**
 - working_tree: clean
-- **제품 코드 변경: 0** — S0 은 문서만 만들었다. `app/**` · `frontend/**` · `scripts/**` ·
-  `alembic/**` diff 0. 서버 변경 0 · PostgreSQL 설치 0 · Migration 실행 0 · n8n 제거 0
+- **제품 코드 변경: 0** — `app/**` · `frontend/**` · `alembic/**` · `runner/**` · `tests/**`
+  diff **0**. S1 이 고친 것은 `scripts/**`(Harness·Probe)와 `docs/**` 뿐이다
 
 ## 상태 — 전환 축 다섯
 
 | 축 | 현재 | 목표 | 소유 Session |
 |---|---|---|---|
-| **PostgreSQL** | **미설치.** 서버에 `psql`·`pg_config` 없음, 5432 미청취. `postgresql-16`·`postgresql-16-pgvector` 는 Ubuntu 24.04 공식 저장소에서 **설치 가능**함을 apt 로 확인 | PG16 + pgvector 0.6.0 + pg_trgm 이 System of Record | S1(검증) → S2(이식) |
+| **PostgreSQL** | **스택 검증 완료.** PG16.15 + pgvector 0.6.0 + pg_trgm 1.6 을 테스트 서버 CPU 에서 실측했고 인덱스 파라미터·임베딩 모델이 **확정**됐다(D-209~D-212). **서버 시스템 설치는 아직 0** — S4 Installer Stage 6·7 의 일이다 | PG16 + pgvector 0.6.0 + pg_trgm 이 System of Record | S2(이식) → S4(설치) |
 | **SQLite 제거** | **운영 정본.** `/var/lib/clovirone-web-assistant/web.sqlite3`, 75 테이블 · 257 인덱스 · alembic head `0061` · 22 MB | Runtime 의존 0 | S2 → S14 |
 | **Notion Migration** | **Runtime 의존 중이고 동기화 셋이 전부 실패 상태.** 미러 `ticket_cache` 1,124 · `document_cache` 110 | Notion Runtime 의존 0, 데이터는 PG 로 이관 | S13(Dry Run) → S14(Cutover) |
 | **AI** | **권한 필터 없음.** n8n → `claude-work-assistant`(8789) 가 Notion 전량을 모델에 싣는다 | Model Gateway + 권한이 앞서는 Hybrid Retrieval | S9 · S10 · S11 |
@@ -32,14 +34,25 @@
 
 ## 완료
 
-- **S0 — Plan 기록.** Plan Mode 에서 확정한 Architecture · Decision · S0~S22 실행계획을 Repository
-  지속 문서에 정착시켰다. 이제 **다음 세션은 이 저장소 문서만으로 이어받을 수 있다**
-  - 신규: `docs/platform/MASTER_PLAN.md` · `WORK_STATE.md`(이 파일) · `BACKLOG.md` ·
-    `INSTALLATION.md` · `INVENTORY/`(index + 12종)
-  - 기존 재사용: `docs/DECISIONS.md` 에 **D-187~D-208** 22건 추가 (새 파일을 만들지 않았다)
-  - 기존 갱신: `docs/ui-renewal/WORK_STATE.md` 에 **W5B~W15 동결 선언 + 재배치 표**
-  - 색인 정정: `docs/README.md` · `docs/WORK_PLAN_INDEX.md` 가 삭제된 문서를 가리키던 링크를
-    `docs/platform/*` 로 돌렸다
+- **S0 — Plan 기록.** Architecture · Decision · S0~S22 실행계획을 저장소 지속 문서로 정착시켰다.
+- **S1 — 기반 정직화 · 실측 · 성능 검증.** 넷 다 끝났다.
+  - **P-01 프로브 8건** — 거짓 통과 경로를 전부 막았다. Checker **5개**가 `--self-test` 를 새로
+    갖고(총 8개), `probe_selftest` 는 19 → **30 사례**(브라우저 없이 도는 로직 반례 11 추가,
+    `static_checks.sh` 가 매번 돌린다). 상세는 [`INVENTORY/12_PROBE.md`](INVENTORY/12_PROBE.md)
+  - **P-02** — S1 소유 미확인 항목이 전부 닫혔다. 전수 목록은 만들지 않았다(E9 · Inventory 규칙 4)
+  - **P-03 PG 스택 실측** — 실 PG16.15 에서 한국어 검색·벡터 인덱스·CPU 임베딩을 재고
+    **D-209~D-212** 로 확정했다
+  - **P-04 `VARCHAR(n)` 감사** — 선언 410 컬럼. 초과 **1건**이고 그 값을 **지금 코드가 만든다**
+    (D-214)
+
+### S1 이 드러낸 것 둘 — 둘 다 Owner 가 붙어 있다
+
+| 발견 | 성격 | Owner |
+|---|---|---|
+| **`/api/admin/approval-delegations` 표면 전체에 범위 게이트가 없다** — 부서 범위 admin 이 남의 부서 결재 대리를 만들고 취소할 수 있다 | 권한 결함 | **S5** (`BACKLOG.md` P-12a · `check_scope_gates.py::KNOWN_GAPS`) |
+| **`messages.message_id` 가 `VARCHAR(64)` 인데 코드가 77자를 만든다** — PG 에서 `INSERT` 가 거부된다 | 이식 차단 | **S2** (D-214) |
+
+**S1 은 제품 코드를 고치지 않는다.** 둘 다 기록하고 Owner 로 넘겼다 (E9).
 
 **UI 축(W0~W5)은 별개로 완료돼 있고 자산은 보존한다.** 근거와 수치는
 [`../ui-renewal/WORK_STATE.md`](../ui-renewal/WORK_STATE.md).
@@ -47,76 +60,75 @@
 
 ## 최근 테스트
 
-S0 은 제품 코드를 건드리지 않았으므로 **회귀를 새로 돌리지 않았다** (E1: 지문이 같으면 인용한다).
-`60f8fafb` 시점의 값을 그대로 인용한다 — 출처는 `docs/ui-renewal/WORK_STATE.md`:
+S1 은 `scripts/**` 와 `docs/**` 만 바꿨다. 변경 Surface 를 검증하고, **지문이 같은 고비용
+검증은 인용한다**(E1).
 
 | 대상 | 결과 | 지문 |
 |---|---|---|
-| backend `run_full_regression.sh` | **FULL_REGRESSION_OK** (unit·regression·security·integration) | `60f8fafb` |
-| frontend `npx vitest run` | **2,409 PASS / 0 FAIL** (파일 322) | `60f8fafb` |
-| runner `test_assistant.py` | **293 PASS** | `60f8fafb` |
-| `scripts/static_checks.sh` | **STATIC_CHECKS_OK** | `60f8fafb` |
-| `probe_selftest` | **PROBE_SELFTEST_OK (19 사례)** | `60f8fafb` |
-| `check_ui_renewal_coverage.py --stage wave`(W5) | **PASS** (억제 0건) | build `08b5525cb2f52618` |
-
-S0 이 실제로 돌린 것은 **문서 정합성 검사 하나**다 — `check_ui_renewal_coverage.py --stage plan`
-을 편집 전후로 실행해 둘 다 `UI_RENEWAL_COVERAGE_OK`.
+| `scripts/static_checks.sh` | **STATIC_CHECKS_OK** | S1 트리 |
+| `check_ui_renewal_coverage.py --self-test` | **OK** (사례 10 + 배선 2) | S1 트리 |
+| `check_ui_renewal_coverage.py --stage plan` / `--stage wave`(W5) | **UI_RENEWAL_COVERAGE_OK** (억제 0건) | S1 트리 |
+| `probe_selftest` (DOM 19 + 로직 11) | **PROBE_SELFTEST_OK (30 사례)** | S1 트리 |
+| `pytest` — `scripts/**` 를 소비하는 시험 5파일 | **30 PASS** | S1 트리 |
+| backend `run_full_regression.sh` | **FULL_REGRESSION_OK** — **인용** (`app`·`tests` diff 0) | `60f8fafb` |
+| frontend `npx vitest run` | **2,409 PASS / 0 FAIL** — **인용** (`frontend` diff 0) | `60f8fafb` |
+| runner `test_assistant.py` | **293 PASS** — **인용** (`runner` diff 0) | `60f8fafb` |
 
 ## NOW
 
-**S0 은 끝났다.** 이 저장소는 이제 계획을 스스로 갖고 있다.
+**S1 은 끝났다.** 이제 계획이 **숫자를 갖고 있다** — 인덱스 파라미터도, 모델도, 넘치는 컬럼도
+추정이 아니라 실측이다. 그리고 그 숫자를 재는 검사들이 더 이상 눈을 감지 않는다.
 
-S0 이 한 일은 문서를 쓴 것뿐이지만, 그것이 이 Session 의 전부인 이유는 하나다 — Plan Mode 의
-전수조사 결과가 대화 안에만 있으면 다음 `/clear` 에서 사라진다. **파일이 장기 기억이다**(D-01).
+S1 이 이 순서였던 이유는 하나다: **눈을 감은 검사 위에서 Route 와 DB 를 갈아엎으면 무엇이
+깨졌는지 알 수 없다.** 실제로 눈을 뜨자마자 권한 결함 하나와 이식 차단 하나가 나왔다.
 
-## NEXT — S1 부터 시작한다
+## NEXT — S2 부터 시작한다
 
-**S1 = 기반 정직화 · 실측 · 성능 검증.** 정확한 시작점은 아래 넷이고, **제품 코드 변경은 0** 이다.
+**S2 = PostgreSQL Foundation.** 앱 고유 ~60 테이블을 **도메인 변경 없이** 이식한다.
+정확한 범위와 Exit 는 [`MASTER_PLAN.md`](MASTER_PLAN.md) §9.1, 작업 목록은
+[`INVENTORY/08_SQLITE.md`](INVENTORY/08_SQLITE.md) 의 13항이다.
 
-1. **Probe 8건 수정** — `INVENTORY/12_PROBE.md` 의 표가 대상이다. 우선순위 1번
-   (`check_ui_renewal_coverage.py` 의 `read_tab_groups()`/`read_settings_tabs()`/`read_jsx_routes()`
-   **빈 결과 FATAL화**)부터. 신뢰할 만한 셋(`check_icon_props.py`·`check_ink_scale.py`·
-   `check_logical_border_props.py`)과 `probe_selftest.py` 가 템플릿이다 — **실제 스캔 전에 양방향
-   `--self-test` 를 돌리고 실패하면 아무것도 보고하지 않는다**
-2. **S1 결정에 필요한 미확인 항목만 확인** — **Plan Mode/S0 이 확보한 Inventory 는 재조사하지
-   않는다.** `INVENTORY/` 각 파일의 `미확인 항목과 Owner` 절이 무엇이 S1 것이고 무엇이 다른
-   Session 것인지를 지목한다. **API/Component/Dependency/Test 의 상세 전수 목록은 S1 필수 작업이
-   아니다** — 후속 Session 이 실제로 필요할 때 그 Owner Session 에서 갱신한다
-3. **PG 성능 검증** — 테스트 서버에 `postgresql-16` `postgresql-16-pgvector` `postgresql-contrib`
-   설치 후 실 Corpus(문서 1,238 + 티켓 1,119)로 HNSW/IVFFlat/exact 세 경로의 recall·지연 측정,
-   인덱스 파라미터(`m`·`ef_construction`·`ef_search`·`lists`) 결정, `pg_trgm` GIN 과 FTS 의 가중치
-   결정. CPU 임베딩/리랭킹 벤치 → 모델 확정.
-   **Version 은 판정 대상이 아니다 — D-188 로 확정돼 있다**
-4. **`VARCHAR(n)` 13개 컬럼 길이 감사** — `ticket_cache.title(500)` ·
-   `document_cache.original_url(1000)` · `trash_items.title(400)` 외 10개. SQLite 는 길이를 무시했고
-   PG 는 강제한다 (R7)
+S1 이 S2 에게 넘기는 것:
 
-**S1 Exit**: 프로브 self-test 통과 · 실측 수치와 인덱스 파라미터가 `DECISIONS.md` 에 기록 ·
-**제품 코드 diff 0** · Commit · Working Tree Clean.
-
-> S1 은 **제품 코드를 고치지 않는다.** 고치는 것은 Harness/Probe 와 문서다.
-> PG 이식은 S2 부터다.
+1. **`messages.message_id` 를 넓힌다** (D-214). 절단은 유니크 키를 깨므로 선택지가 아니다.
+   `0001_pg_baseline` 에서 폭을 정한다
+2. **인덱스 정책이 이미 정해져 있다** (D-210) — **Vector 인덱스를 처음부터 만들지 않는다.**
+   수천 규모에서 exact 가 1~9ms 다. 임계(384차원 ≈ 1.2만 벡터)를 넘으면 그때 HNSW
+   `m=32, ef_construction=200, ef_search=40`
+3. **키워드 검색은 `pg_trgm` GIN 이 정본**이다 (D-209). FTS `simple` 은 보조 가산점이고
+   단독 경로가 아니다
+4. **PG 를 어디서 띄우고 회귀를 돌릴 것인가** — 아래 「입력」 참조
 
 ## RISK — 지금 살아 있는 것
 
-전체 18건은 [`MASTER_PLAN.md`](MASTER_PLAN.md) §12. 다음 두 Session 이 실제로 만나는 것만 적는다.
+전체 18건은 [`MASTER_PLAN.md`](MASTER_PLAN.md) §12. S1 이 소유하던 넷은 **닫혔다**.
+
+| # | Risk | 상태 |
+|---|---|---|
+| ~~R4~~ | Coverage Gate 가 Route 개편 시 조용히 통과한다 | **해소** — 빈 결과 FATAL + 표본 수 출력 (D-213) |
+| ~~R5~~ | 한국어 검색 품질 회귀 | **해소** — `pg_trgm` GIN 이 어절 내부 부분일치 recall 1.000 (D-209) |
+| ~~R6~~ | CPU 리랭킹이 느림 | **확정** — 대리 측정 6.7초. **리랭커를 쓰지 않고 RRF 로 간다** (D-212) |
+| ~~R7~~ | `VARCHAR(n)` 초과로 Migration 실패 | **범위 확정** — 초과 1건, 대응은 «넓힌다» (D-214) |
+
+다음 Session 이 실제로 만나는 것:
 
 | # | Risk | Owner |
 |---|---|---|
-| R4 | **Coverage Gate 가 Route 개편 시 조용히 통과한다** — 빈 결과가 `[]` 라 검사 루프가 0번 돌고 OK 를 찍는다 | **S1** |
-| R5 | 한국어 검색 품질 회귀 — PG 기본 `to_tsvector` 는 한국어를 공백으로만 쪼갠다 | **S1** |
-| R6 | CPU 임베딩/리랭킹이 예상보다 느림 → 리랭커가 느리면 **RRF 융합으로 대체** | **S1** |
-| R7 | `VARCHAR(n)` 길이 초과로 Migration 실패 | **S1** |
 | R1 | **`is_write_conflict` 가 PG 에서 진짜 제약 위반을 재시도로 감춘다** | S2 |
 | R2 | **부분 유니크 인덱스 3개가 PG 에서 전체 유니크가 된다** | S2 |
 | R3 | **약 40개 동시성 테스트가 거짓 초록이 된다** | S2 |
+| R17 | pgvector 검색 품질 | **인덱스 파라미터는 확정됐다**(D-210). 남은 것은 S10 의 하이브리드 가중치다 |
 
 ## BLOCKERS
 
-- **없음.** 아래 넷은 Blocker 가 아니라 **대기 중인 외부 결정**이고, 어느 것도 S1~S5 를 막지 않는다.
+- **없음.**
 
-| 항목 | 처리 |
+## 입력 — Blocker 는 아니지만 다음 Session 이 알아야 하는 것
+
+| 항목 | 상태 |
 |---|---|
+| **테스트 서버 sudo 자격증명** | 이 Session 은 갖고 있지 않다(SSH 키 인증은 된다). S1 은 공식 `.deb` 를 **사용자 홈에 전개해** PG16.15+pgvector 를 띄워 실측을 끝냈다 — 바이너리·확장·CPU 가 같으므로 수치는 유효하다. **S2 의 `DATABASE_URL=postgresql://…` 회귀도 같은 방식으로 가능**하고, 시스템 설치 자체는 **S4 Installer Stage 6·7** 의 일이다 |
+| **운영 SQLite 읽기** | `/var/lib/clovirone-web-assistant/web.sqlite3` 는 root 소유라 못 읽었다. P-04 는 개발 사본(2026-08-17 · alembic `0059`)으로 쟀고 그 한계를 [`INVENTORY/05_DB.md`](INVENTORY/05_DB.md) 에 적었다. **운영 전량 확인은 S13 Dry Run 의 Exit 조건**이 이미 담당한다 |
 | 실 NFS/NAS 장비 정보 (현재 없음이 **확인됨**) | 시험 Storage 로 실검증. 실 정보 수령 시 **Configuration 만** 변경 (U8·U9) |
 | 20개 Project Key 명명 | **S6 에서** 초안표 제시 → 사용자 확인 → 적용. **확정 전 재채번 없음** (U11) |
 | 제품 Domain 밖 Notion DB 3종 (179 · 23 · 9) | 기본값 = 이관하지 않음. **Core Migration 은 이 결정과 무관하게 진행** (U19) |

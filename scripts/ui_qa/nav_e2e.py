@@ -32,7 +32,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import ssl
 import sys
 import time
 from pathlib import Path
@@ -49,6 +48,7 @@ for _stream in (sys.stdout, sys.stderr):
 
 from scripts.ui_qa.auth import ensure_session  # noqa: E402
 from scripts.ui_qa.capture import DEFAULT_BASE_URL, Viewport, new_context  # noqa: E402
+from scripts.ui_qa import tls  # noqa: E402
 
 OUT_DEFAULT = REPO_ROOT / "dist" / "ui-qa" / "w3-nav-e2e"
 
@@ -766,7 +766,8 @@ def main() -> int:
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     if args.insecure:
-        ssl._create_default_https_context = ssl._create_unverified_context
+        insecure = tls.apply_default_https_context()
+    print(tls.describe())
 
     from playwright.sync_api import sync_playwright
 

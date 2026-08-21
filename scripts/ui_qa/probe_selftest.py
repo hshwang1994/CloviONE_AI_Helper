@@ -331,6 +331,82 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8"><style>
 </style></head><body><main id="main-content">%s</main></body></html>"""
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# 판정 «규칙» 반례 — DOM 이 아니라 로직이다 (S1 · 12_PROBE #4 · #8)
+#
+# 위 `CASES` 는 합성 DOM 을 태워 Assertion 을 검증한다. 하지만 W5 가 실제로 아팠던 자리
+# 둘은 DOM 이 아니었다:
+#
+#   * `--fail-on` 으로 걸어 둔 검사가 **한 번도 돌지 않았는데** 종료 코드 0 이 나갔다.
+#   * 프로브 19개가 TLS 검증을 각자 꺼 두어 호스트 불일치가 **구조적으로** 안 보였다.
+#
+# 둘 다 브라우저 없이 증명된다. 브라우저가 없는 기계에서도 이 절은 돌아야 하므로
+# `--logic-only` 를 둔다.
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _logic_cases() -> list[dict]:
+    import os  # noqa: PLC0415
+
+    from . import run as run_mod  # noqa: PLC0415
+    from . import tls  # noqa: PLC0415
+
+    ug = run_mod.unverified_gates
+    modal = assertions.MODAL_CLASSES
+    all_classes = list(assertions.CLASSES)
+    rows: list[dict] = []
+
+    def case(name: str, got, want, why: str) -> None:
+        rows.append({"name": name, "assertion": "(로직)",
+                     "expect": repr(want), "got": repr(got),
+                     "ok": got == want, "why": why})
+
+    # ── #4 미실행 게이트 ──────────────────────────────────────────────────
+    case("unverified_gates/기록조차 없으면 미실행이다",
+         ug({}, ["tiny_text"]), ["tiny_text"],
+         "`--modals` 없이 건 모달 검사가 이 모양이었다 — classify 가 키를 아예 안 넣는다")
+    case("unverified_gates/전부 skip 이어도 미실행이다",
+         ug({"tiny_text": {"pass": 0, "fail": 0, "skip": 60}}, ["tiny_text"]), ["tiny_text"],
+         "QA-10: 폭 2200 미만에서 전부 skip 인데 요약은 «문제 없음» 으로 읽혔다")
+    case("unverified_gates/한 번이라도 판정했으면 미실행이 아니다",
+         ug({"tiny_text": {"pass": 6, "fail": 0}}, ["tiny_text"]), [],
+         "위양성이면 이 규칙은 첫날 꺼진다")
+    case("unverified_gates/`--modals` 없는 실행의 모달 7종은 면제다",
+         ug({}, list(modal), exempt=modal), [],
+         "실행 설정이 애초에 만들 수 없는 판정 — 이것까지 실패로 만들면 규칙이 죽는다")
+    # 🔴 회귀 잠금. 예전에는 `--fail-on all` 이면 이 판정을 통째로 껐고, 그 한 줄이
+    #    뷰포트 게이트 검사까지 함께 면제했다.
+    case("unverified_gates/`all` 로 걸어도 뷰포트 게이트 미실행은 남는다",
+         "tiny_text" in ug({}, all_classes, exempt=modal), True,
+         "면제는 이름을 적은 것만이다 — 1366/1920 만 찍은 실행이 `--fail-on all` 로 초록을 "
+         "받던 자리")
+    case("unverified_gates/`all` 로 걸어도 모달은 면제로 빠진다",
+         any(c in ug({}, all_classes, exempt=modal) for c in modal), False,
+         "좁힌 면제가 실제로 좁게 동작하는지 — 양방향")
+
+    # ── #8 TLS 정책 ─────────────────────────────────────────────────────
+    saved = os.environ.pop(tls.ENV_VAR, None)
+    try:
+        case("tls/기본값은 정책 파일 한 곳에서 온다",
+             tls.insecure(), not tls.DEFAULT_VERIFY,
+             "S3 이 `DEFAULT_VERIFY` 하나를 바꾸면 19개가 함께 켜져야 한다")
+        case("tls/`--verify-tls` 는 검증을 켠다",
+             tls.insecure(cli_verify=True), False,
+             "인증서를 재발급한 뒤 S3 이 쓰는 스위치")
+        os.environ[tls.ENV_VAR] = "1"
+        case("tls/환경변수로도 켤 수 있다", tls.insecure(), False,
+             "CI·스크립트에서 플래그 없이 켜는 경로")
+        case("tls/명시가 둘이면 검증이 이긴다", tls.insecure(cli_insecure=True), True,
+             "`--insecure` 는 명시적 요청이다 — 환경변수보다 가깝다")
+        os.environ[tls.ENV_VAR] = "0"
+        case("tls/환경변수로 끌 수도 있다", tls.insecure(), True,
+             "자체서명 설치처를 겨눌 때")
+    finally:
+        os.environ.pop(tls.ENV_VAR, None)
+        if saved is not None:
+            os.environ[tls.ENV_VAR] = saved
+    return rows
+
+
 def run(headed: bool = False) -> list[dict]:
     try:
         from playwright.sync_api import sync_playwright
@@ -373,9 +449,13 @@ def main() -> int:
     ap = argparse.ArgumentParser(description="W5 프로브 반례 검증")
     ap.add_argument("--json", action="store_true")
     ap.add_argument("--headed", action="store_true")
+    ap.add_argument("--logic-only", action="store_true",
+                    help="브라우저 없이 판정 «규칙» 반례만 돌린다")
     args = ap.parse_args()
 
-    rows = run(headed=args.headed)
+    rows = _logic_cases()
+    if not args.logic_only:
+        rows += run(headed=args.headed)
     if args.json:
         print(json.dumps(rows, ensure_ascii=False, indent=1))
     else:
@@ -388,7 +468,8 @@ def main() -> int:
     if bad:
         print("PROBE_SELFTEST_FAILED (%d/%d)" % (len(bad), len(rows)))
         return 1
-    print("PROBE_SELFTEST_OK (%d 사례 — 결함은 잡히고 정상은 안 잡힌다)" % len(rows))
+    print("PROBE_SELFTEST_OK (%d 사례%s — 결함은 잡히고 정상은 안 잡힌다)"
+          % (len(rows), " · 로직만" if args.logic_only else ""))
     return 0
 
 

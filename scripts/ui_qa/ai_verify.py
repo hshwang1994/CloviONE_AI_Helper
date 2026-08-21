@@ -8,7 +8,6 @@ AI-30 은 "낡은 CREATE 모드가 무관한 질문을 납치했다"는 주장�
 from __future__ import annotations
 
 import json
-import ssl
 import sys
 import time
 from pathlib import Path
@@ -19,6 +18,7 @@ if str(REPO_ROOT) not in sys.path:
 
 from scripts.ui_qa.auth import ensure_session  # noqa: E402
 from scripts.ui_qa.capture import DEFAULT_BASE_URL, Viewport, new_context  # noqa: E402
+from scripts.ui_qa import tls  # noqa: E402
 
 # 치는 곳은 `capture.DEFAULT_BASE_URL` 이 정한다 — 각자 문자열을 들면 이름이 바뀌는 날
 # 이런 파일 14개가 옛 호스트에 남는다(W5 · F-W5D-129).
@@ -43,16 +43,17 @@ def messages(ctx, cid):
 
 
 def main() -> int:
-    ssl._create_default_https_context = ssl._create_unverified_context
+    insecure = tls.apply_default_https_context()
+    print(tls.describe())
     from playwright.sync_api import sync_playwright
 
     out: dict = {}
     with sync_playwright() as pw:
         browser = pw.chromium.launch(headless=True)
-        s = ensure_session(browser, BASE, OUT, insecure=True, log=print)
+        s = ensure_session(browser, BASE, OUT, insecure=insecure, log=print)
         ctx = new_context(browser, storage_state=s.storage_state, user_id=s.user_id,
                           theme="light", viewport=Viewport("1600x1000", 1600, 1000),
-                          insecure=True)
+                          insecure=insecure)
         page = ctx.new_page()
         page.goto(f"{BASE}/#/chat", wait_until="domcontentloaded", timeout=60_000)
         page.wait_for_timeout(3500)

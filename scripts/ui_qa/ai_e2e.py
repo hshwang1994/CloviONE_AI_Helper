@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import ssl
 import sys
 import time
 from pathlib import Path
@@ -23,6 +22,7 @@ if str(REPO_ROOT) not in sys.path:
 
 from scripts.ui_qa.auth import ensure_session  # noqa: E402
 from scripts.ui_qa.capture import DEFAULT_BASE_URL, Viewport, new_context  # noqa: E402
+from scripts.ui_qa import tls  # noqa: E402
 
 SETTLE_MS = 1200
 REPLY_TIMEOUT_S = 200
@@ -229,12 +229,13 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--base-url", default=DEFAULT_BASE_URL)
     ap.add_argument("--out-dir", default="dist/ai-e2e")
-    ap.add_argument("--insecure", action="store_true")
+    tls.add_arguments(ap)
     ap.add_argument("--headed", action="store_true")
     args = ap.parse_args(argv)
-    if args.insecure:
-        ssl._create_default_https_context = ssl._create_unverified_context
-    return run(args.base_url, Path(args.out_dir), insecure=args.insecure, headed=args.headed)
+    insecure = tls.apply_default_https_context(
+        cli_insecure=args.insecure, cli_verify=args.verify_tls)
+    print(tls.describe(cli_insecure=args.insecure, cli_verify=args.verify_tls))
+    return run(args.base_url, Path(args.out_dir), insecure=insecure, headed=args.headed)
 
 
 if __name__ == "__main__":

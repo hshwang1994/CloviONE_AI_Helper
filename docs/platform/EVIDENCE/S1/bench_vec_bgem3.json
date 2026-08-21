@@ -1,0 +1,496 @@
+{
+ "dim": 1024,
+ "base_rows": 1169,
+ "queries": 50,
+ "scales": {
+  "real_1169": {
+   "rows": 1169,
+   "exact": {
+    "p50_ms": 8.255,
+    "p95_ms": 10.376,
+    "max_ms": 11.674
+   },
+   "hnsw": [
+    {
+     "m": 16,
+     "ef_construction": 64,
+     "ef_search": 10,
+     "recall@10": 0.902,
+     "build_s": 0.8,
+     "index_size": "9352 kB",
+     "p50_ms": 0.389,
+     "p95_ms": 0.67,
+     "max_ms": 2.657
+    },
+    {
+     "m": 16,
+     "ef_construction": 64,
+     "ef_search": 40,
+     "recall@10": 0.998,
+     "build_s": 0.8,
+     "index_size": "9352 kB",
+     "p50_ms": 0.462,
+     "p95_ms": 0.591,
+     "max_ms": 2.506
+    },
+    {
+     "m": 16,
+     "ef_construction": 64,
+     "ef_search": 100,
+     "recall@10": 0.998,
+     "build_s": 0.8,
+     "index_size": "9352 kB",
+     "p50_ms": 0.875,
+     "p95_ms": 1.693,
+     "max_ms": 4.013
+    },
+    {
+     "m": 16,
+     "ef_construction": 64,
+     "ef_search": 200,
+     "recall@10": 1.0,
+     "build_s": 0.8,
+     "index_size": "9352 kB",
+     "p50_ms": 1.292,
+     "p95_ms": 1.699,
+     "max_ms": 5.88
+    },
+    {
+     "m": 16,
+     "ef_construction": 200,
+     "ef_search": 10,
+     "recall@10": 0.902,
+     "build_s": 1.2,
+     "index_size": "9352 kB",
+     "p50_ms": 0.302,
+     "p95_ms": 0.49,
+     "max_ms": 1.448
+    },
+    {
+     "m": 16,
+     "ef_construction": 200,
+     "ef_search": 40,
+     "recall@10": 1.0,
+     "build_s": 1.2,
+     "index_size": "9352 kB",
+     "p50_ms": 0.495,
+     "p95_ms": 0.66,
+     "max_ms": 2.427
+    },
+    {
+     "m": 16,
+     "ef_construction": 200,
+     "ef_search": 100,
+     "recall@10": 1.0,
+     "build_s": 1.2,
+     "index_size": "9352 kB",
+     "p50_ms": 0.968,
+     "p95_ms": 1.138,
+     "max_ms": 4.2
+    },
+    {
+     "m": 16,
+     "ef_construction": 200,
+     "ef_search": 200,
+     "recall@10": 1.0,
+     "build_s": 1.2,
+     "index_size": "9352 kB",
+     "p50_ms": 1.335,
+     "p95_ms": 2.066,
+     "max_ms": 6.999
+    },
+    {
+     "m": 32,
+     "ef_construction": 200,
+     "ef_search": 10,
+     "recall@10": 0.902,
+     "build_s": 1.8,
+     "index_size": "9352 kB",
+     "p50_ms": 0.39,
+     "p95_ms": 0.636,
+     "max_ms": 2.393
+    },
+    {
+     "m": 32,
+     "ef_construction": 200,
+     "ef_search": 40,
+     "recall@10": 1.0,
+     "build_s": 1.8,
+     "index_size": "9352 kB",
+     "p50_ms": 0.842,
+     "p95_ms": 1.44,
+     "max_ms": 3.796
+    },
+    {
+     "m": 32,
+     "ef_construction": 200,
+     "ef_search": 100,
+     "recall@10": 1.0,
+     "build_s": 1.8,
+     "index_size": "9352 kB",
+     "p50_ms": 0.98,
+     "p95_ms": 1.481,
+     "max_ms": 4.133
+    },
+    {
+     "m": 32,
+     "ef_construction": 200,
+     "ef_search": 200,
+     "recall@10": 1.0,
+     "build_s": 1.8,
+     "index_size": "9352 kB",
+     "p50_ms": 5.486,
+     "p95_ms": 6.165,
+     "max_ms": 8.71
+    }
+   ],
+   "ivfflat": [
+    {
+     "lists": 10,
+     "probes": 1,
+     "recall@10": 0.898,
+     "build_s": 0.3,
+     "index_size": "9440 kB",
+     "p50_ms": 0.368,
+     "p95_ms": 0.653,
+     "max_ms": 1.508
+    },
+    {
+     "lists": 10,
+     "probes": 5,
+     "recall@10": 0.996,
+     "build_s": 0.3,
+     "index_size": "9440 kB",
+     "p50_ms": 0.887,
+     "p95_ms": 1.76,
+     "max_ms": 5.699
+    },
+    {
+     "lists": 10,
+     "probes": 10,
+     "recall@10": 1.0,
+     "build_s": 0.3,
+     "index_size": "9440 kB",
+     "p50_ms": 1.229,
+     "p95_ms": 1.508,
+     "max_ms": 3.932
+    },
+    {
+     "lists": 10,
+     "probes": 20,
+     "recall@10": 1.0,
+     "build_s": 0.3,
+     "index_size": "9440 kB",
+     "p50_ms": 1.424,
+     "p95_ms": 2.612,
+     "max_ms": 4.171
+    },
+    {
+     "lists": 34,
+     "probes": 1,
+     "recall@10": 0.686,
+     "build_s": 0.3,
+     "index_size": "9632 kB",
+     "p50_ms": 0.241,
+     "p95_ms": 0.407,
+     "max_ms": 0.91
+    },
+    {
+     "lists": 34,
+     "probes": 5,
+     "recall@10": 0.988,
+     "build_s": 0.3,
+     "index_size": "9632 kB",
+     "p50_ms": 0.373,
+     "p95_ms": 0.662,
+     "max_ms": 1.477
+    },
+    {
+     "lists": 34,
+     "probes": 10,
+     "recall@10": 0.994,
+     "build_s": 0.3,
+     "index_size": "9632 kB",
+     "p50_ms": 0.654,
+     "p95_ms": 0.997,
+     "max_ms": 4.328
+    },
+    {
+     "lists": 34,
+     "probes": 20,
+     "recall@10": 0.998,
+     "build_s": 0.3,
+     "index_size": "9632 kB",
+     "p50_ms": 0.817,
+     "p95_ms": 0.958,
+     "max_ms": 3.066
+    }
+   ]
+  },
+  "scaled_49098": {
+   "rows": 49098,
+   "exact": {
+    "p50_ms": 386.284,
+    "p95_ms": 393.238,
+    "max_ms": 467.194
+   },
+   "hnsw": [
+    {
+     "m": 16,
+     "ef_construction": 64,
+     "ef_search": 10,
+     "recall@10": 0.48,
+     "build_s": 40.1,
+     "index_size": "384 MB",
+     "p50_ms": 1.109,
+     "p95_ms": 2.549,
+     "max_ms": 4.173
+    },
+    {
+     "m": 16,
+     "ef_construction": 64,
+     "ef_search": 40,
+     "recall@10": 0.574,
+     "build_s": 40.1,
+     "index_size": "384 MB",
+     "p50_ms": 1.502,
+     "p95_ms": 4.13,
+     "max_ms": 9.7
+    },
+    {
+     "m": 16,
+     "ef_construction": 64,
+     "ef_search": 100,
+     "recall@10": 0.574,
+     "build_s": 40.1,
+     "index_size": "384 MB",
+     "p50_ms": 1.849,
+     "p95_ms": 3.977,
+     "max_ms": 12.065
+    },
+    {
+     "m": 16,
+     "ef_construction": 64,
+     "ef_search": 200,
+     "recall@10": 0.574,
+     "build_s": 40.1,
+     "index_size": "384 MB",
+     "p50_ms": 3.189,
+     "p95_ms": 7.488,
+     "max_ms": 17.652
+    },
+    {
+     "m": 16,
+     "ef_construction": 200,
+     "ef_search": 10,
+     "recall@10": 0.394,
+     "build_s": 88.3,
+     "index_size": "384 MB",
+     "p50_ms": 1.224,
+     "p95_ms": 3.425,
+     "max_ms": 7.105
+    },
+    {
+     "m": 16,
+     "ef_construction": 200,
+     "ef_search": 40,
+     "recall@10": 0.446,
+     "build_s": 88.3,
+     "index_size": "384 MB",
+     "p50_ms": 1.349,
+     "p95_ms": 4.0,
+     "max_ms": 8.73
+    },
+    {
+     "m": 16,
+     "ef_construction": 200,
+     "ef_search": 100,
+     "recall@10": 0.448,
+     "build_s": 88.3,
+     "index_size": "384 MB",
+     "p50_ms": 2.396,
+     "p95_ms": 6.411,
+     "max_ms": 13.198
+    },
+    {
+     "m": 16,
+     "ef_construction": 200,
+     "ef_search": 200,
+     "recall@10": 0.448,
+     "build_s": 88.3,
+     "index_size": "384 MB",
+     "p50_ms": 2.649,
+     "p95_ms": 5.712,
+     "max_ms": 12.917
+    },
+    {
+     "m": 32,
+     "ef_construction": 200,
+     "ef_search": 10,
+     "recall@10": 0.9,
+     "build_s": 162.1,
+     "index_size": "384 MB",
+     "p50_ms": 1.441,
+     "p95_ms": 3.502,
+     "max_ms": 5.01
+    },
+    {
+     "m": 32,
+     "ef_construction": 200,
+     "ef_search": 40,
+     "recall@10": 0.998,
+     "build_s": 162.1,
+     "index_size": "384 MB",
+     "p50_ms": 1.946,
+     "p95_ms": 5.092,
+     "max_ms": 6.647
+    },
+    {
+     "m": 32,
+     "ef_construction": 200,
+     "ef_search": 100,
+     "recall@10": 0.998,
+     "build_s": 162.1,
+     "index_size": "384 MB",
+     "p50_ms": 4.708,
+     "p95_ms": 12.866,
+     "max_ms": 25.172
+    },
+    {
+     "m": 32,
+     "ef_construction": 200,
+     "ef_search": 200,
+     "recall@10": 0.998,
+     "build_s": 162.1,
+     "index_size": "384 MB",
+     "p50_ms": 9.721,
+     "p95_ms": 15.534,
+     "max_ms": 36.381
+    }
+   ],
+   "ivfflat": [
+    {
+     "lists": 49,
+     "probes": 1,
+     "recall@10": 0.998,
+     "build_s": 5.2,
+     "index_size": "384 MB",
+     "p50_ms": 3.508,
+     "p95_ms": 8.436,
+     "max_ms": 15.156
+    },
+    {
+     "lists": 49,
+     "probes": 5,
+     "recall@10": 1.0,
+     "build_s": 5.2,
+     "index_size": "384 MB",
+     "p50_ms": 10.852,
+     "p95_ms": 19.178,
+     "max_ms": 24.508
+    },
+    {
+     "lists": 49,
+     "probes": 10,
+     "recall@10": 1.0,
+     "build_s": 5.2,
+     "index_size": "384 MB",
+     "p50_ms": 19.772,
+     "p95_ms": 31.441,
+     "max_ms": 38.156
+    },
+    {
+     "lists": 49,
+     "probes": 20,
+     "recall@10": 1.0,
+     "build_s": 5.2,
+     "index_size": "384 MB",
+     "p50_ms": 36.156,
+     "p95_ms": 41.728,
+     "max_ms": 94.061
+    },
+    {
+     "lists": 221,
+     "probes": 1,
+     "recall@10": 0.966,
+     "build_s": 9.7,
+     "index_size": "385 MB",
+     "p50_ms": 1.337,
+     "p95_ms": 2.552,
+     "max_ms": 5.194
+    },
+    {
+     "lists": 221,
+     "probes": 5,
+     "recall@10": 1.0,
+     "build_s": 9.7,
+     "index_size": "385 MB",
+     "p50_ms": 4.263,
+     "p95_ms": 7.857,
+     "max_ms": 13.134
+    },
+    {
+     "lists": 221,
+     "probes": 10,
+     "recall@10": 1.0,
+     "build_s": 9.7,
+     "index_size": "385 MB",
+     "p50_ms": 7.534,
+     "p95_ms": 13.069,
+     "max_ms": 17.003
+    },
+    {
+     "lists": 221,
+     "probes": 20,
+     "recall@10": 1.0,
+     "build_s": 9.7,
+     "index_size": "385 MB",
+     "p50_ms": 11.652,
+     "p95_ms": 20.531,
+     "max_ms": 24.347
+    },
+    {
+     "lists": 245,
+     "probes": 1,
+     "recall@10": 0.974,
+     "build_s": 10.7,
+     "index_size": "386 MB",
+     "p50_ms": 1.363,
+     "p95_ms": 2.836,
+     "max_ms": 4.335
+    },
+    {
+     "lists": 245,
+     "probes": 5,
+     "recall@10": 1.0,
+     "build_s": 10.7,
+     "index_size": "386 MB",
+     "p50_ms": 3.993,
+     "p95_ms": 7.672,
+     "max_ms": 10.94
+    },
+    {
+     "lists": 245,
+     "probes": 10,
+     "recall@10": 1.0,
+     "build_s": 10.7,
+     "index_size": "386 MB",
+     "p50_ms": 5.72,
+     "p95_ms": 9.085,
+     "max_ms": 11.71
+    },
+    {
+     "lists": 245,
+     "probes": 20,
+     "recall@10": 1.0,
+     "build_s": 10.7,
+     "index_size": "386 MB",
+     "p50_ms": 9.914,
+     "p95_ms": 18.436,
+     "max_ms": 23.208
+    }
+   ]
+  }
+ },
+ "scaled_note": "증폭판은 원본 벡터 + 균등잡음(±0.03)이다. recall 절대값은 «진짜 recall» 이 아니라 파라미터 상대 비교용이다."
+}

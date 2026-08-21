@@ -1,7 +1,7 @@
 # INVENTORY 06 — Dependency
 
 **정본**: `requirements*.txt` · `frontend/package.json` · 서버 apt 상태
-**측정**: 2026-08-20 (Plan Mode) — **전량 열거는 S1 이 채운다**
+**측정**: 2026-08-20 (Plan Mode) · **갱신**: 2026-08-21 (S1 — 모델 확정)
 
 ## 서버 런타임 (실측 10.100.64.71)
 
@@ -24,17 +24,22 @@
 
 | 패키지 | 상태 |
 |---|---|
-| `postgresql-16` | **설치 가능** — 16.14-0ubuntu0.24.04.1 (noble-updates/main) |
+| `postgresql-16` | **설치 가능** — **16.15-0ubuntu0.24.04.1** (noble-**security**/main). 2026-08-20 에 보이던 16.14(noble-updates)보다 최신이다. S4 는 버전을 고정하지 말고 **`postgresql-16` 을 그대로 쓰고 설치된 버전을 manifest 에 기록**한다 |
 | `postgresql-16-pgvector` | **설치 가능** — 0.6.0-1 (noble/universe) |
-| PostgreSQL / Redis / Ollama | 현재 **전부 미설치** (5432/6379/11434 미청취) |
+| `postgresql-contrib` | **설치 가능** — 16+257build1.1 |
+| PostgreSQL / Redis / Ollama | 시스템에는 여전히 **미설치** (5432/6379/11434 미청취). S1 은 실측을 위해 같은 `.deb` 를 **사용자 홈에 전개**해 띄웠다 — 시스템 설치는 S4 Stage 6·7 |
+
+**S1 실측 확인**: 위 셋을 실제로 전개해 `PostgreSQL 16.15` · `vector 0.6.0` · `pg_trgm 1.6` 이
+함께 뜨는 것을 확인했다. `CREATE EXTENSION vector; CREATE EXTENSION pg_trgm;` 둘 다 통과.
 
 ## 신규 도입 후보 — 전부 라이선스 확인 완료
 
 | 영역 | 채택 | 라이선스 |
 |---|---|---|
 | DB / Vector / Keyword | PostgreSQL 16 · pgvector 0.6.0 · pg_trgm · postgresql-contrib | PostgreSQL License |
-| Embedding | bge-m3 또는 multilingual-e5-base (CPU/ONNX) | MIT — **S1 실측 후 확정** |
-| Re-rank | bge-reranker-v2-m3 (CPU) 또는 RRF 융합 | Apache-2.0 — **S1 실측 후 확정** |
+| Embedding | **`intfloat/multilingual-e5-small` (384차원, ONNX)** — **확정 (D-211)** | MIT |
+| Re-rank | **쓰지 않는다. RRF 융합** — **확정 (D-212)** | — |
+| ONNX Runtime | `onnxruntime` (CPU) + `tokenizers` — **torch 없음** | MIT |
 | Editor | TipTap (**MIT extension 만**. Pro 는 상용이라 쓰지 않는다) | MIT |
 | DnD | dnd-kit | MIT |
 | Parser | pypdf/pdfplumber · python-docx · python-pptx · openpyxl | BSD/MIT |
@@ -52,11 +57,10 @@
 
 ## 미확인 항목과 Owner
 
-**S1 것은 모델 선택뿐이고 그것은 P-03 벤치의 산출물이다** — 별도 조사 작업이 아니다.
-
 | 미확인 | Owner | 언제 필요한가 |
 |---|---|---|
-| Embedding / Re-rank 모델 확정 | **S1** (P-03) | CPU 벤치 결과가 곧 답이다. 리랭커가 느리면 RRF 융합으로 대체한다 |
+| ~~Embedding / Re-rank 모델 확정~~ | ~~S1~~ | **완료 (2026-08-21).** `multilingual-e5-small`(384) · 리랭커 미채택 → RRF. 실측 표는 **D-211 · D-212** |
+| 긴 본문에서의 모델 재검토 | **S10** | S1 품질 측정은 **제목 부분구간** 질의였다(본문 캐시가 없다). S13 이 Notion 본문을 실어 온 뒤 S10 이 실제 본문으로 다시 잰다 — 필요하면 `bge-m3` 로 올린다(Adapter 뒤라 교체 비용은 재색인뿐이다) |
 | `requirements*.txt` · `frontend/package.json` 전량 열거와 충돌 확인 | **S4** | Installer Stage 1·4 를 쓸 때 |
 | 오프라인 Bundle **wheelhouse** 에 신규 Python 의존이 전부 들어가는지 | **S4** | 폐쇄망 설치가 여기서 깨진다 (`INSTALLATION.md` §3.1) |
 | 임베딩/리랭킹 모델 파일의 오프라인 캐시 배치 경로 | **S4 · S9** | Installer Stage 12 |

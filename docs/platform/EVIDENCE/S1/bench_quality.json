@@ -1,0 +1,28 @@
+{
+ "n_queries": 200,
+ "corpus": 1023,
+ "note": "제목 부분구간 질의 · 정답=그 문서 하나. 절대값이 아니라 모델 간 순위를 본다.",
+ "models": {
+  "e5-small": {
+   "dim": 384,
+   "recall@1": 0.735,
+   "recall@10": 0.96,
+   "mrr@10": 0.8198,
+   "encode_seconds": 10.0
+  },
+  "e5-base": {
+   "dim": 768,
+   "recall@1": 0.71,
+   "recall@10": 0.94,
+   "mrr@10": 0.7976,
+   "encode_seconds": 29.5
+  },
+  "bge-m3": {
+   "dim": 1024,
+   "recall@1": 0.76,
+   "recall@10": 0.97,
+   "mrr@10": 0.8424,
+   "encode_seconds": 98.4
+  }
+ }
+}

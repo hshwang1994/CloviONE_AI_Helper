@@ -43,5 +43,6 @@
 
 | 미확인 | Owner | 언제 필요한가 |
 |---|---|---|
-| `check_scope_gates.py` 의 중첩 라우터 사각지대 (`glob` → `rglob` + 헬퍼 본문 추적) | **S1** (P-01, 우선순위 2) | 공유 헬퍼 안에서 게이트를 지워도 통과한다 — 손으로 확인됐다 |
+| ~~`check_scope_gates.py` 사각지대~~ | ~~S1~~ | **완료 (2026-08-21).** 사각이 셋이었다 — 파일명이 `router.py` 가 아닌 4개 파일, 변수명이 `router` 가 아닌 **14 라우트**(`app/announcements/router.py` 는 파일 전체가 0개로 읽혔다), 그리고 헬퍼 본문. 라우트 선언 파일 44 → **48**, id 경로 123 → **129**. 상세는 [`12_PROBE.md`](12_PROBE.md) |
+| `revoke_delegation` 범위 게이트 | **S5** | 위 수정이 드러낸 **진짜 결함**이다. `/api/admin/approval-delegations` 표면 전체(`list`·`create`·`revoke`)가 `principal` 을 안 받는다 — 같은 파일의 승인 큐는 `visible_user_ids(db, principal.management)` 로 좁힌다. `check_scope_gates.py::KNOWN_GAPS` 에 등록돼 있고, **고친 뒤 그 항목을 지워야** 검사가 통과한다 |
 | 318 decorator 의 **경로 · 메서드 · 권한 게이트 · 소비 화면 전수 표** | **S2 · S5** | PG 이식과 `effective_visibility_clause` 단일화를 실제로 할 때. **미리 열거하지 않는다** |

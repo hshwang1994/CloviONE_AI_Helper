@@ -99,6 +99,21 @@ CLASSES = (
     "contrast",
 )
 
+# `--modals` 없이 돌리면 **구조적으로** 값이 채워질 수 없는 검사들.
+#
+# 이 목록이 따로 있는 이유: `run.py` 가 「`--fail-on` 으로 걸었는데 한 판정도 안 낸 검사」를
+# FATAL 로 잡는데, 예전에는 그 규칙을 `--fail-on all` **전체**에서 면제했다. 그러면 뷰포트
+# 게이트에 안 걸려 전부 skip 된 검사(1366/1920 의 `tiny_text`·`narrow_main` 등)까지 함께
+# 면제돼 요약이 "문제 없음" 으로 읽힌다 — QA-10·QA-13 이 요약표에서 고친 착시를 종료 코드가
+# 그대로 되풀이했다.
+#
+# 그래서 면제를 **이 목록으로 좁힌다**: 실행 설정이 애초에 만들 수 없는 것만 빼고, 뷰포트를
+# 안 맞춰서 못 돈 것은 그대로 FATAL 이다. 「못 켠다」와 「안 켤 것이다」는 다르다.
+MODAL_CLASSES = (
+    "modal_footer_outside_actions", "modal_full_width_buttons", "modal_offscreen",
+    "modal_no_close", "modal_cannot_close", "modal_radius", "modal_width_spread",
+)
+
 # 사용자가 올린 이미지를 비율을 무시하고 잘라 보여주는 것을 잡는다.
 # 실제 결함: 자유게시판 첨부 썸네일이 objectFit:"cover" + aspect-ratio:1/1 이라 정사각형이
 # 아닌 이미지를 전부 잘라냈다("이미지가 잘리고 콘텐츠 영역만 보인다" — 사용자 지시 §5).

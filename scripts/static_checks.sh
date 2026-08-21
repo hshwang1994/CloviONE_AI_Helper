@@ -416,6 +416,17 @@ else
   fail "npx 가 없어 REGISTRY 대조를 못 돌렸다 — 이 검사는 건너뛸 수 없다(Python 이 대신 못 한다)"
 fi
 
+step "프로브 판정 «규칙» 반례 (브라우저 없이 — S1)"
+# W5 가 아팠던 자리 둘은 DOM 이 아니라 로직이었다: `--fail-on` 으로 건 검사가 한 번도 돌지
+# 않았는데 종료 코드 0 이 나갔고, 프로브 19개가 각자 TLS 검증을 꺼서 호스트 불일치가
+# 구조적으로 안 보였다. 둘 다 브라우저 없이 증명된다 — 그래서 여기서 매번 돈다.
+# DOM 반례 19건은 브라우저가 필요해 `python -m scripts.ui_qa.probe_selftest` 로 따로 돌린다.
+if PSELF="$("$PY" -m scripts.ui_qa.probe_selftest --logic-only 2>&1)"; then
+  ok "$(echo "$PSELF" | tail -1)"
+else
+  echo "$PSELF" | tail -15; fail "프로브 판정 규칙이 반례를 통과하지 못한다"
+fi
+
 step "UI 리뉴얼 Control Plane Gate — 계획 구조 · 요구사항 추적표 (지시 56 · R-96)"
 # `check_traceability.py`(174줄)가 이 자리에 있었고, 삭제된 `docs/UI_RENEWAL_TRACEABILITY.md`
 # 를 요구하며 스크립트 전체를 빨갛게 만들고 있었다 — "static checks green" 을 전제로 쓰는

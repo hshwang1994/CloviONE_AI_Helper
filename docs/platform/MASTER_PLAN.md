@@ -74,8 +74,9 @@ Notion Console · Notion Mapping Console.
 | Vector | **pgvector 0.6.0** — `postgresql-16-pgvector`, noble/universe | PostgreSQL License | 별도 Vector DB 를 도입하지 않는다 |
 | Keyword(한국어) | **`pg_trgm`** GIN | contrib | **FTS5 `tokenize='trigram'` 의 정확한 대체물이다.** PG 기본 `to_tsvector` 는 한국어를 공백으로만 쪼개 부분일치가 안 된다 — 팀이 0030 에서 이미 기각한 `unicode61` 실패 모드다 |
 | Full Text | **PG FTS `simple` config** | contrib | 어절 단위 정확 일치·가중치용. `pg_trgm` 과 **함께** 쓴다 |
-| Embedding | **bge-m3 또는 multilingual-e5-base** (CPU/ONNX) | MIT | **S1 에서 이 서버 CPU 로 실측한 뒤 확정한다.** 지금 숫자를 약속하지 않는다 |
-| Re-rank | **bge-reranker-v2-m3** (CPU) 또는 **RRF 융합** | Apache-2.0 | Cross-encoder 가 CPU 에서 느리면 RRF 로 대체. S1 실측으로 결정 |
+| Embedding | **`intfloat/multilingual-e5-small`** (384차원 · CPU/ONNX) — **확정 (D-211)** | MIT | S1 이 이 서버 CPU 로 실측했다: 색인 120 docs/s · 질의 p50 **6.0ms**. `bge-m3` 는 품질 +2.5%p 에 값이 11배라 **상향 경로**로만 둔다 |
+| Re-rank | **쓰지 않는다 — RRF 융합** — **확정 (D-212)** | — | Cross-encoder 는 이 CPU 에서 top-50 에 **6.7초**다(백본 동일 대리 측정). 공식 ONNX 산출물도 없다. 계획이 적어 둔 대체안(R6)이 실측으로 확정됐다 |
+| Vector Index | **처음에는 만들지 않는다.** 임계 초과 시 HNSW `m=32 · ef_construction=200 · ef_search=40` — **확정 (D-210)** | — | 384차원 exact 가 수천 규모에서 1~9ms 다. 교차점 ≈ **1.2만 벡터** |
 | Editor | **TipTap (MIT extension 만)** | MIT | ProseMirror 기반 → 문서 정본이 곧 Block JSON. **Pro extension 은 상용이라 쓰지 않는다.** 번들 예산 때문에 **route-level lazy load 필수** |
 | DnD | **dnd-kit** | MIT | Backlog·Sprint·Kanban·Folder 공통 |
 | Parser | pypdf/pdfplumber · python-docx · python-pptx · openpyxl | BSD/MIT | **Docling 미채택** — torch 의존이 CPU-only 8 vCPU 에 과하다 |
@@ -470,7 +471,7 @@ Dry Run 완료 → 전체 검증 → 최종 Backup → Maintenance Mode → 마�
 | S | 이름 | 핵심 산출 | Exit 조건 |
 |---|---|---|---|
 | **S0** | Plan 기록 | Master Plan · Work State · Backlog · Decisions(D-187~D-208) · Inventory · Installation 을 `docs/` 에 저장. **W5B~W15 동결 선언** | 문서 커밋 · Tree clean |
-| **S1** | 기반 정직화 · 실측 · **성능 검증** | 프로브 8건 수정(빈 결과 FATAL화 포함) · **S1 결정에 필요한 미확인 항목만 확인**(Plan Mode/S0 이 확보한 Inventory 는 재조사하지 않는다) · **PG16+pgvector0.6+pg_trgm 설치 후 실 Corpus 로 recall/지연 측정 및 인덱스 파라미터 결정** · CPU 임베딩/리랭킹 벤치 → 모델 확정 · `VARCHAR(n)` 13개 컬럼 길이 감사 | 프로브 self-test 통과 · **실측 수치와 인덱스 파라미터가 Decisions 에 기록** · **제품 코드 변경 0** |
+| **S1** ✅ | 기반 정직화 · 실측 · **성능 검증** | 프로브 8건 수정 · S1 소유 미확인 항목 확인 · PG16.15+pgvector0.6+pg_trgm 실측 · CPU 임베딩/리랭킹 벤치 · `VARCHAR(n)` 감사 | **완료 (2026-08-21)** — self-test 통과 · 실측이 **D-209~D-214** 에 기록 · **제품 코드 diff 0** |
 | **S2** | PostgreSQL Foundation | 앱 고유 ~60 테이블 PG 이식(도메인 변경 없음) · `0001_pg_baseline` · `is_write_conflict` 재분류(115 호출부) · `SKIP LOCKED` · `jsonb` 이전 · 부분 유니크 3건 · rowid 제거 · 공유 rate-limit/lock → `--workers` 해제 · Test Harness 2계층 · PG Backup/Restore 기본형 | **SQLite Runtime 의존 0** · 전 회귀 통과 · 동시성 테스트 재작성분 통과 |
 | **S3** | Product Identity · Hostname · TLS | nginx `server_name` · TLS 재발급(CN/SAN=`clovirassist.gooddi.lab`) · `APP_BASE_URL` · cookie domain · QA base URL · 프로브 TLS 검증 활성화 · 옛 호스트 하드코딩 테스트 2건 정정 | `openssl s_client` CN/SAN 일치 · `ssl_verify_result=0` · 로그인/테마 유지 E2E |
 | **S4** | **설치 · 배포 자동화 Foundation** | GitLab Source 경로 · `deploy/install.sh` Entry Point · Preflight · Stage 0~18 · systemd 5유닛 + enable + 의존 순서 · Health · 실패 위치/원인 표시 · Idempotent · version · upgrade/rollback/uninstall · **LXD Clean 설치 리허설** | LXD 리허설 Clean 설치 성공 · 재실행 무해 · 의도적 실패 주입 시 위치·원인 표시 · upgrade/rollback/uninstall 각 1회 · **S4 시점 Component 범위(PG·web·worker·scheduler·nginx)의 Reboot 복구**. **전 시나리오 Acceptance 는 S22** |
@@ -489,7 +490,7 @@ Dry Run 완료 → 전체 검증 → 최종 Backup → Maintenance Mode → 마�
 | S | 이름 | 핵심 산출 | Exit 조건 |
 |---|---|---|---|
 | **S9** | AI Platform 1 — Gateway · Pipeline | `app/ai/gateway` contract/registry/adapters · 모델명 하드코딩 2곳 제거 · Parser(PDF/DOCX/PPTX/XLSX) · Chunk · Embedding · **`index` worker lane** · Index Lifecycle · Prompt Injection 경계 확대 | 생성 Adapter 비활성 상태에서 색인·임베딩 정상 · injection 회귀 |
-| **S10** | AI Platform 2 — Retrieval · Citation · 생성 | Hybrid Retrieval(pg_trgm ⊕ FTS ⊕ pgvector, RRF) · **권한을 LIMIT 앞에** · Re-rank · Citation 앵커 · AI 작업공간 · AI 문서 생성(`source_type=AI`) | **권한 없는 사용자 질의 시 Context 미포함을 음성 테스트로 증명** · Citation 클릭 이동 · 생성 Provider 차단 시 검색/인용 계속 동작 |
+| **S10** | AI Platform 2 — Retrieval · Citation · 생성 | Hybrid Retrieval(pg_trgm ⊕ FTS ⊕ pgvector, **RRF — Re-rank 없음, D-212**) · **권한을 LIMIT 앞에** · Citation 앵커 · AI 작업공간 · AI 문서 생성(`source_type=AI`) · **융합 가중치를 실제 relevance 로 재조정**(D-209 초기값에서 출발) · **실 본문으로 임베딩 모델 재검토**(D-211) | **권한 없는 사용자 질의 시 Context 미포함을 음성 테스트로 증명** · Citation 클릭 이동 · 생성 Provider 차단 시 검색/인용 계속 동작 |
 | **S11** | n8n · 외부 Runner 제거 | 워크플로 Export 보관 · 잔여 로직 이관 확인 · n8n + 3 runner 서비스 정지·제거 · 포트/유닛/백업/테스트/문서 정리 · `validate-*.sh:23` n8n 단언 제거 | 5678/5679/8787/8788/8789 미청취 · 회귀 통과 · Installer 에서 n8n 흔적 0 |
 
 #### Phase D — 운영 · 이관
@@ -639,10 +640,10 @@ python -m scripts.ui_qa.run --label final --fail-on <승격 클래스…>
 | R1 | **`is_write_conflict` 가 PG 에서 진짜 제약 위반을 10회 재시도 후 503 으로 감춘다** | 데이터 버그가 "일시적 오류" 로 위장 | 재분류 + 115 호출부 전수 감사 + 음성 테스트 | S2 |
 | R2 | **부분 유니크 인덱스 3개가 PG 에서 전체 유니크가 된다** | 승인 재요청·프롬프트 2차 버전·2회 offboarding 이 조용히 막힘 | `postgresql_where=` 명시 + 각각 회귀 테스트 | S2 |
 | R3 | **약 40개 동시성 테스트가 거짓 초록이 된다** | 잠금 회귀를 못 잡음 | 재작성 + `qa-contract-replaced-by:` | S2 |
-| R4 | **Coverage Gate 가 Route 개편 시 조용히 통과한다** | 누락 방지 장치 자체가 무력화 | 빈 결과 FATAL화 | S1 |
-| R5 | 한국어 검색 품질 회귀 | 부분일치 실패 → 검색이 죽은 것처럼 보임 | `pg_trgm` GIN 이 FTS5 trigram 의 직접 대체. 기존 1,238건으로 A/B 실측 | S1 |
-| R6 | CPU 임베딩/리랭킹이 예상보다 느림 | 색인·검색 지연 | 실측 후 모델 결정. 리랭커가 느리면 **RRF 융합으로 대체** | S1 |
-| R7 | 문자열 길이 초과로 Migration 실패 | `VARCHAR(n)` 이 SQLite 에선 무시됐다 | 13개 컬럼 실데이터 길이 감사 | S1 |
+| ~~R4~~ | **Coverage Gate 가 Route 개편 시 조용히 통과한다** | — | **해소 (S1)** — 빈 결과 FATAL + 리더 표본 수 출력 + 배선 반례 (D-213) | 닫힘 |
+| ~~R5~~ | 한국어 검색 품질 회귀 | — | **해소 (S1)** — `pg_trgm` GIN 이 어절 내부 부분일치 recall **1.000**, FTS `simple` 은 **0.083** (D-209) | 닫힘 |
+| ~~R6~~ | CPU 임베딩/리랭킹이 예상보다 느림 | — | **확정 (S1)** — 리랭커를 **쓰지 않고** RRF 로 간다. 임베딩은 `e5-small` (D-211 · D-212) | 닫힘 |
+| ~~R7~~ | 문자열 길이 초과로 Migration 실패 | — | **범위 확정 (S1)** — 선언 410 컬럼 중 초과 **1건**(`messages.message_id`), 대응은 «넓힌다» (D-214) | 닫힘 → S2 |
 | R8 | Notion 본문 재수집 중 rate limit / 원본 변경 | 본문 유실 | Idempotent Tool + `last_edited` 기준 delta + 재실행 가능 | S13 |
 | R9 | `assistant.py` 6,395줄 로직 이관 누락 | AI 기능 퇴행 | 293개 runner 테스트를 이관 대상 판별에 사용. 병행 운영 후 제거 | S9·S11 |
 | R10 | Editor + DnD 도입이 번들 예산 초과 | 초기 로드 회귀 | route-level lazy load 강제 + `check_bundle_size.sh` 게이트 유지 | S7 |

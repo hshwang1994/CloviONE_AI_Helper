@@ -409,40 +409,105 @@ def _line_of(text: str, index: int) -> int:
     return text.count("\n", 0, index) + 1
 
 
-def read_jsx_routes(path: str) -> dict:
+class SourceReadError(RuntimeError):
+    """리더가 소스에서 아무것도(또는 너무 적게) 읽지 못했다.
+
+    **이 예외가 이 파일에 있는 이유**: 리더 셋이 예전에는 못 읽으면 `[]`/`{}` 를 돌려줬다.
+    빈 목록을 도는 `for` 는 0번 돌고, 0번 도는 검사는 실패를 만들 수 없다 — Gate 는 초록을
+    찍는다. 이 전환은 **Route 집합을 통째로 바꾼다.** 정확히 그때 이 경로로 조용히
+    통과한다(R4).
+
+    「검사가 위반을 못 찾았다」와 「검사가 아무것도 안 봤다」는 다른 사실이고, 종료 코드가
+    같으면 그 둘을 구별할 수 없다.
+    """
+
+
+# 리더가 눈을 감았는지 판별하는 하한.
+#
+# 이 수는 «지금 몇 개인가» 가 아니라 **«리더가 정상이면 그 아래로 내려갈 수 없는 수»** 다.
+# 지금 값(2026-08-21 측정): User 28 · Admin 리터럴 21 · TAB_GROUPS 5그릇 10탭 · TAB_DEFS 4 ·
+# 하네스 84. 하한은 그 절반 언저리로 둔다 — 정규식이 조금씩 어긋나는 «부분 실명» 까지
+# 잡으면서, 화면을 한둘 지우는 정상 변경에는 안 걸리는 자리다.
+#
+# **Route 를 정말로 줄이는 변경은 이 값을 함께 내린다.** 그때 사람이 한 번 「정말 줄었나」를
+# 판단하게 되는 것이 이 상수의 목적이다. 자동으로 따라 내려가는 하한은 하한이 아니다.
+SOURCE_FLOOR = {
+    "UserRoutes.jsx": 14,
+    "AdminRoutes.jsx": 10,
+    "TAB_GROUPS": 3,
+    "TAB_DEFS": 3,
+    "harness": 40,
+}
+
+
+def parse_jsx_routes(text: str, rel: str, *, floor: int = 0) -> dict:
     """`<Route path="…">` 을 파일 위치와 함께 읽는다.
 
-    JSX 를 파싱하지 않는다(빌드 도구 없이는 무리다). `<Route` 부터 500자를 잘라 그 안의
+    JSX 를 파싱하지 않는다(빌드 도구 없이는 무리다). `<Route` 부터 600자를 잘라 그 안의
     첫 `path="…"` 와 `<Navigate to="…"` 를 본다 — `element={<Navigate … />}` 안에 `>` 가
     들어 있어서 `<Route[^>]*>` 류 정규식은 통째로 어긋난다.
 
-    `path={g.path}` 처럼 **계산된** 경로는 리터럴이 아니라 읽지 않는다. 그쪽은 TAB_GROUPS
-    리더와 JS 대조 테스트가 담당한다.
+    `path={g.path}` 처럼 **계산된** 경로는 리터럴이 아니라 여기서 읽지 않는다. 그쪽은
+    TAB_GROUPS 리더와 JS 대조 테스트가 담당한다.
+
+    **모든 `<Route` 는 셋 중 하나로 분류돼야 한다** — 리터럴 · 계산 · index. 어느 것도
+    아니면 그건 «이 리더가 못 읽은 Route» 이고, 예전에는 `continue` 로 조용히 버려졌다.
+    이제는 `SourceReadError` 다.
     """
-    text = read(path)
-    rel = os.path.relpath(path, ROOT).replace("\\", "/")
     out: dict[str, dict] = {}
     hits = list(re.finditer(r"<Route\b", text))
+    computed = index = 0
+    unread: list[str] = []
     for n, m in enumerate(hits):
         stop = hits[n + 1].start() if n + 1 < len(hits) else len(text)
         chunk = text[m.start():min(stop, m.start() + 600)]
+        line = _line_of(text, m.start())
         p = re.search(r'path="([^"]+)"', chunk)
         if not p:
+            if re.search(r"path=\{", chunk):
+                computed += 1
+            elif re.search(r"\bindex\b", chunk):
+                index += 1
+            else:
+                unread.append("%s:%d %s" % (rel, line, chunk.split("\n")[0][:60]))
             continue
         nav = re.search(r'<Navigate\s+to="([^"]+)"', chunk)
         out[p.group(1)] = {
-            "file": rel, "line": _line_of(text, m.start()),
+            "file": rel, "line": line,
             "navigate_to": nav.group(1) if nav else None,
         }
+    if unread:
+        raise SourceReadError(
+            "%s: `<Route` %d개 중 %d개를 리터럴·계산·index 어느 쪽으로도 읽지 못했다 — "
+            "이 리더가 그만큼 눈이 먼 상태다: %s"
+            % (rel, len(hits), len(unread), "; ".join(unread[:3])))
+    if len(out) < floor:
+        raise SourceReadError(
+            "%s: 리터럴 Route 를 %d개만 읽었다(하한 %d). 리더가 어긋났거나 Route 가 실제로 "
+            "줄었다 — 후자라면 `SOURCE_FLOOR` 를 함께 내려라(그 판단이 이 하한의 목적이다). "
+            "`<Route` %d개 · 계산 %d개 · index %d개"
+            % (rel, len(out), floor, len(hits), computed, index))
     return out
 
 
-def read_tab_groups() -> list[dict]:
-    """`AdminRoutes.jsx::TAB_GROUPS` — 그릇 경로와 그 안의 탭 키."""
-    text = read(ADMIN_ROUTES_JSX)
+def read_jsx_routes(path: str) -> dict:
+    rel = os.path.relpath(path, ROOT).replace("\\", "/")
+    if not os.path.exists(path):
+        raise SourceReadError("%s: 파일이 없다 — 읽지 못한 것을 «위반 0» 으로 세지 않는다" % rel)
+    return parse_jsx_routes(read(path), rel, floor=SOURCE_FLOOR.get(os.path.basename(path), 0))
+
+
+def parse_tab_groups(text: str, *, floor: int = 0) -> list[dict]:
+    """`AdminRoutes.jsx::TAB_GROUPS` — 그릇 경로와 그 안의 탭 키.
+
+    앵커(`export const TAB_GROUPS = [ … ];`)를 못 찾으면 예전에는 `[]` 였다. 상수 이름을
+    바꾸거나 배열을 함수 조립으로 바꾸는 것만으로 이 검사가 통째로 사라졌다는 뜻이다.
+    """
     m = re.search(r"export const TAB_GROUPS = \[(.*?)\n\];", text, re.S)
     if not m:
-        return []
+        raise SourceReadError(
+            "AdminRoutes.jsx: `export const TAB_GROUPS = [ … ];` 앵커를 못 찾았다. "
+            "상수 이름·형태가 바뀌었으면 이 리더를 함께 고쳐라 — 못 읽은 채 통과시키지 않는다")
     body = m.group(1)
     groups: list[dict] = []
     for gm in re.finditer(r'path:\s*"([^"]+)"', body):
@@ -454,13 +519,40 @@ def read_tab_groups() -> list[dict]:
             "tabs": re.findall(r'key:\s*"([^"]+)"', seg),
             "line": _line_of(text, m.start(1) + gm.start()),
         })
+    empty = [g["path"] for g in groups if not g["tabs"]]
+    if empty:
+        raise SourceReadError(
+            "AdminRoutes.jsx: TAB_GROUPS 그릇 %s 에서 탭 키를 하나도 읽지 못했다 — "
+            "그릇만 세고 본문을 못 세면 탭 Surface 가 통째로 검사 밖이다" % ", ".join(empty))
+    if len(groups) < floor:
+        raise SourceReadError(
+            "AdminRoutes.jsx: TAB_GROUPS 그릇을 %d개만 읽었다(하한 %d)" % (len(groups), floor))
     return groups
 
 
-def read_settings_tabs() -> list[str]:
-    text = read(SETTINGS_SHELL_JSX)
+def read_tab_groups() -> list[dict]:
+    if not os.path.exists(ADMIN_ROUTES_JSX):
+        raise SourceReadError("AdminRoutes.jsx: 파일이 없다")
+    return parse_tab_groups(read(ADMIN_ROUTES_JSX), floor=SOURCE_FLOOR["TAB_GROUPS"])
+
+
+def parse_settings_tabs(text: str, *, floor: int = 0) -> list[str]:
     m = re.search(r"export const TAB_DEFS = \[(.*?)\n\];", text, re.S)
-    return re.findall(r'key:\s*"([^"]+)"', m.group(1)) if m else []
+    if not m:
+        raise SourceReadError(
+            "SettingsShell.jsx: `export const TAB_DEFS = [ … ];` 앵커를 못 찾았다 — "
+            "이 리더가 조용해지면 설정 탭 본문 1,216줄이 검사 밖으로 나간다")
+    tabs = re.findall(r'key:\s*"([^"]+)"', m.group(1))
+    if len(tabs) < floor:
+        raise SourceReadError(
+            "SettingsShell.jsx: TAB_DEFS 탭을 %d개만 읽었다(하한 %d)" % (len(tabs), floor))
+    return tabs
+
+
+def read_settings_tabs() -> list[str]:
+    if not os.path.exists(SETTINGS_SHELL_JSX):
+        raise SourceReadError("SettingsShell.jsx: 파일이 없다")
+    return parse_settings_tabs(read(SETTINGS_SHELL_JSX), floor=SOURCE_FLOOR["TAB_DEFS"])
 
 
 def read_harness():
@@ -468,7 +560,50 @@ def read_harness():
     if ROOT not in sys.path:
         sys.path.insert(0, ROOT)
     from scripts.ui_qa.routes import ALIAS_ROUTES, ALL_ROUTES  # noqa: PLC0415
+    if len(ALL_ROUTES) < SOURCE_FLOOR["harness"]:
+        raise SourceReadError(
+            "scripts/ui_qa/routes.py: ALL_ROUTES 가 %d개다(하한 %d). 하네스가 비면 «찍히는데 "
+            "추적되지 않는 화면» 검사가 0번 돈다" % (len(ALL_ROUTES), SOURCE_FLOOR["harness"]))
     return ALL_ROUTES, ALIAS_ROUTES
+
+
+def c0_source_readers(rep: Report) -> dict | None:
+    """C0r — **리더 다섯이 실제로 무엇을 읽었는지 표본 수와 함께 먼저 말한다.**
+
+    C1 이 「위반 0」을 낼 수 있는 방법은 둘이다: 진짜로 일치하거나, 대조할 목록이 비어
+    있거나. 예전 출력은 그 둘을 구별하지 못했다 — 아래 한 줄이 그것을 구별한다.
+
+    리더가 하나라도 실패하면 `None` 을 돌려주고 **C1 을 아예 돌리지 않는다.** 눈이 먼
+    상태의 대조 결과는 통과도 실패도 아니라 그냥 무의미하다.
+    """
+    src: dict = {}
+    readers = (
+        ("user", lambda: read_jsx_routes(USER_ROUTES_JSX)),
+        ("admin", lambda: read_jsx_routes(ADMIN_ROUTES_JSX)),
+        ("tab_groups", read_tab_groups),
+        ("settings_tabs", read_settings_tabs),
+        ("harness", read_harness),
+    )
+    for key, fn in readers:
+        try:
+            src[key] = fn()
+        except SourceReadError as exc:
+            rep.fail("C0r 소스 리더가 읽지 못했다", str(exc))
+        except Exception as exc:  # noqa: BLE001
+            rep.fail("C0r 소스 리더가 읽지 못했다",
+                     "%s: %s: %s" % (key, type(exc).__name__, exc))
+    if rep.count("C0r"):
+        rep.fail("C0r 소스 리더가 읽지 못했다",
+                 "리더가 눈을 감은 채로는 C1 을 돌리지 않는다 — 이 실행의 C1 결과는 없다")
+        return None
+    all_routes, alias_routes = src["harness"]
+    rep.ok("소스 리더 표본 — User Route %d · Admin Route %d(리다이렉트 %d) · "
+           "TAB_GROUPS %d그릇/%d탭 · 설정 탭 %d · 하네스 Route %d(별칭 %d)"
+           % (len(src["user"]), len(src["admin"]),
+              sum(1 for v in src["admin"].values() if v["navigate_to"]),
+              len(src["tab_groups"]), sum(len(g["tabs"]) for g in src["tab_groups"]),
+              len(src["settings_tabs"]), len(all_routes), len(alias_routes)))
+    return src
 
 
 def base_path(route: str) -> str:
@@ -499,10 +634,14 @@ def real_evidence(items) -> list[str]:
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-def c1_source_vs_coverage(rep: Report, surfaces: list[dict]) -> None:
-    """C1 · C1b — 소스에 있는 화면이 커버리지에 있는가, 그리고 리다이렉트를 화면으로 세지 않는가."""
-    user = read_jsx_routes(USER_ROUTES_JSX)
-    admin = read_jsx_routes(ADMIN_ROUTES_JSX)
+def c1_source_vs_coverage(rep: Report, surfaces: list[dict], src: dict) -> None:
+    """C1 · C1b — 소스에 있는 화면이 커버리지에 있는가, 그리고 리다이렉트를 화면으로 세지 않는가.
+
+    리더는 여기서 부르지 않는다 — `c0_source_readers` 가 이미 읽었고, 읽지 못했으면 이
+    함수는 애초에 호출되지 않는다.
+    """
+    user = src["user"]
+    admin = src["admin"]
     by_route: dict[str, list[dict]] = {}
     for sf in surfaces:
         by_route.setdefault(base_path(sf.get("route")), []).append(sf)
@@ -510,8 +649,9 @@ def c1_source_vs_coverage(rep: Report, surfaces: list[dict]) -> None:
 
     literal = {}
     navigate = {}
-    for src in (user, admin):
-        for path, meta in src.items():
+    # 반복 변수를 `src` 로 두면 위 인자를 가린다 — 실제로 한 번 가렸고 `KeyError` 로 드러났다.
+    for in_file in (user, admin):
+        for path, meta in in_file.items():
             if path == "*":
                 continue
             (navigate if meta["navigate_to"] else literal)[path] = meta
@@ -525,7 +665,7 @@ def c1_source_vs_coverage(rep: Report, surfaces: list[dict]) -> None:
         rep.fail("C1 소스에 있는데 커버리지에 없는 Route", path)
 
     # 탭 그릇 · 탭 본문 · 설정 탭 — Route 리터럴이 아니라 계산돼 위 정규식이 못 본다.
-    for grp in read_tab_groups():
+    for grp in src["tab_groups"]:
         if not [x for x in by_route.get(grp["path"], []) if x.get("kind") in ("route", "tab")]:
             rep.fail("C1 소스에 있는데 커버리지에 없는 Route",
                      "%s (AdminRoutes.jsx:%d TAB_GROUPS 그릇)" % (grp["path"], grp["line"]))
@@ -538,7 +678,7 @@ def c1_source_vs_coverage(rep: Report, surfaces: list[dict]) -> None:
             if old != grp["path"] and not by_route.get(old):
                 rep.fail("C1 커버리지에 없는 옛 주소",
                          "%s (리다이렉트가 아니라 제자리 렌더다)" % old)
-    for tab in read_settings_tabs():
+    for tab in src["settings_tabs"]:
         want = "/settings?tab=%s" % tab
         if want not in exact:
             rep.fail("C1 커버리지에 없는 탭 본문",
@@ -560,11 +700,7 @@ def c1_source_vs_coverage(rep: Report, surfaces: list[dict]) -> None:
                             sf.get("id"), sf.get("kind"), sf.get("alias_of")))
 
     # 하네스 ↔ 커버리지 (리더 ⑤, 역방향)
-    try:
-        all_routes, alias_routes = read_harness()
-    except Exception as exc:  # noqa: BLE001
-        rep.fail("C1 하네스를 읽을 수 없다", "%s: %s" % (type(exc).__name__, exc))
-        return
+    all_routes, alias_routes = src["harness"]
     for r in all_routes:
         p = base_path(r.hash_template.replace("{id}", ":id") or r.hash_path)
         if not by_route.get(base_path(p)):
@@ -580,7 +716,8 @@ def c1_source_vs_coverage(rep: Report, surfaces: list[dict]) -> None:
 
     if not rep.count("C1"):
         rep.ok("소스 Route %d개 · 탭 본문 %d개 · 리다이렉트 %d개가 커버리지와 일치한다"
-               % (len(literal), len(read_settings_tabs()) + sum(len(g["tabs"]) for g in read_tab_groups()),
+               % (len(literal),
+                  len(src["settings_tabs"]) + sum(len(g["tabs"]) for g in src["tab_groups"]),
                   len(navigate)))
 
 
@@ -1249,7 +1386,9 @@ def _run_conditions(rep: Report, stage: str, wave: str) -> int:
     check_plan_structure(rep, waves)
     check_work_state(rep, waves)
     c_parity_test_alive(rep)
-    c1_source_vs_coverage(rep, surfaces)
+    sources = c0_source_readers(rep)
+    if sources is not None:
+        c1_source_vs_coverage(rep, surfaces, sources)
     c_shape(rep, surfaces)
     c2_statuses(rep, scoped)
     c3_requirement_mapping(rep, surfaces, waves)
@@ -1315,11 +1454,167 @@ def stage_plan() -> int:
     return code
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# 리더 자기검증 — 양방향
+#
+# 「빈 결과 FATAL」은 그 자체가 규칙이라 **규칙이 살아 있는지**를 따로 증명해야 한다.
+# 아래 사례는 합성 소스 문자열이다(제품 파일이 아니다) — 제품이 바뀌어도 반례는 살아 있어야
+# 다음 사람이 규칙을 되돌릴 때 걸린다(`scripts/ui_qa/probe_selftest.py` 와 같은 발상).
+# ─────────────────────────────────────────────────────────────────────────────
+
+_JSX_HEALTHY = '''
+  <Routes>
+    <Route path="/" element={<Home />} />
+    <Route path="/tickets" element={<Tickets />} />
+    <Route path="/old" element={<Navigate to="/tickets" replace />} />
+  </Routes>
+'''
+_JSX_COMPUTED = '''
+  <Routes>
+    <Route path="/keep" element={<Keep />} />
+    {TAB_GROUPS.map((g) => (
+      <Route key={g.path} path={g.path} element={<Shell />} />
+    ))}
+  </Routes>
+'''
+_JSX_BLIND = '''
+  <Routes>
+    <Route element={<Home />} />
+  </Routes>
+'''
+_TABS_HEALTHY = '''
+export const TAB_GROUPS = [
+  { path: "/backup", tabs: [{ key: "backup" }, { key: "restore" }] },
+  { path: "/audit", tabs: [{ key: "audit" }, { key: "integrity" }] },
+];
+'''
+_TABS_RENAMED = _TABS_HEALTHY.replace("TAB_GROUPS", "ADMIN_TAB_GROUPS")
+_TABS_EMPTY_GROUP = '''
+export const TAB_GROUPS = [
+  { path: "/backup", tabs: [{ id: "backup" }, { id: "restore" }] },
+];
+'''
+_DEFS_HEALTHY = '''
+export const TAB_DEFS = [
+  { key: "policy" }, { key: "os" }, { key: "integration" }, { key: "ai" },
+];
+'''
+_DEFS_RENAMED = _DEFS_HEALTHY.replace("TAB_DEFS", "SETTINGS_TABS")
+
+
+def _reader_case(fn, *, expect_raise: bool):
+    try:
+        value = fn()
+    except SourceReadError:
+        return expect_raise, "FATAL"
+    return (not expect_raise), value
+
+
+SELF_TEST_CASES = [
+    # (이름, 호출, FATAL 이어야 하는가, 무엇을 지키는 사례인가)
+    ("jsx/정상 소스는 통과한다",
+     lambda: parse_jsx_routes(_JSX_HEALTHY, "<self-test>", floor=3), False,
+     "리터럴 3개 — 하한을 넘으므로 읽히고, 위양성이면 안 된다"),
+    ("jsx/계산된 path 는 리터럴이 아니지만 미분류도 아니다",
+     lambda: parse_jsx_routes(_JSX_COMPUTED, "<self-test>", floor=1), False,
+     "`path={g.path}` 는 TAB_GROUPS 리더 담당이다 — 미분류로 세면 정상 소스가 빨개진다"),
+    ("jsx/path 없는 Route 는 FATAL",
+     lambda: parse_jsx_routes(_JSX_BLIND, "<self-test>", floor=0), True,
+     "리터럴도 계산도 index 도 아니면 이 리더가 못 읽은 것이다 — 예전엔 continue 였다"),
+    ("jsx/Route 가 하나도 없으면 FATAL",
+     lambda: parse_jsx_routes("<div/>", "<self-test>", floor=1), True,
+     "R4 그 자체 — 빈 결과를 도는 검사는 0번 돌고 OK 를 찍는다"),
+    ("jsx/하한 미달은 FATAL",
+     lambda: parse_jsx_routes(_JSX_HEALTHY, "<self-test>", floor=99), True,
+     "정규식이 «조금만» 어긋나는 부분 실명도 잡는다"),
+    ("tab_groups/정상 소스는 통과한다",
+     lambda: parse_tab_groups(_TABS_HEALTHY, floor=2), False,
+     "그릇 2개 · 각 2탭"),
+    ("tab_groups/상수 이름이 바뀌면 FATAL",
+     lambda: parse_tab_groups(_TABS_RENAMED, floor=1), True,
+     "앵커가 사라지면 예전엔 `[]` 였다 — 탭 Surface 가 통째로 검사 밖으로 나간다"),
+    ("tab_groups/탭 키를 못 읽으면 FATAL",
+     lambda: parse_tab_groups(_TABS_EMPTY_GROUP, floor=1), True,
+     "그릇만 세고 본문을 0개로 세는 것이 가장 조용한 실명이다"),
+    ("settings_tabs/정상 소스는 통과한다",
+     lambda: parse_settings_tabs(_DEFS_HEALTHY, floor=4), False,
+     "TAB_DEFS 4개"),
+    ("settings_tabs/상수 이름이 바뀌면 FATAL",
+     lambda: parse_settings_tabs(_DEFS_RENAMED, floor=1), True,
+     "설정 탭 본문 1,216줄이 이 앵커 하나에 달려 있다"),
+]
+
+
+def _wiring_cases() -> list[str]:
+    """리더의 FATAL 이 **Gate 실패로 실제로 옮겨지는가.**
+
+    `parse_*` 가 올바르게 던지는 것과 Gate 가 그것 때문에 빨개지는 것은 다른 사실이다.
+    W5 에서 아픈 것을 배운 자리가 정확히 여기다 — 「승격했다」고 적힌 검사가 한 번도 실제로
+    걸린 적이 없었다. 배선을 직접 태워 본다.
+    """
+    bad: list[str] = []
+
+    # ① 리더 하나가 눈을 감으면 → C0r 실패 + C1 미실행
+    rep = Report()
+    saved = globals()["read_tab_groups"]
+
+    def _blind():
+        raise SourceReadError("<self-test> 리더가 눈을 감았다")
+
+    globals()["read_tab_groups"] = _blind
+    try:
+        got = c0_source_readers(rep)
+    finally:
+        globals()["read_tab_groups"] = saved
+    if got is not None or rep.count("C0r") == 0:
+        bad.append("배선/리더 FATAL 이 Gate 실패로 안 옮겨진다 "
+                   "(반환 %s · C0r 실패 %d건) — 이게 곧 R4 다"
+                   % ("dict" if got is not None else "None", rep.count("C0r")))
+
+    # ② 정상 소스에서는 표본 수가 실제로 찍혀야 한다 — «아무것도 안 재고 통과» 의 반대편
+    rep2 = Report()
+    src = c0_source_readers(rep2)
+    if src is None or rep2.count("C0r"):
+        bad.append("배선/정상 소스인데 리더가 실패했다: %s"
+                   % ("; ".join(m for _c, m in rep2.fails[:2]) or "(사유 없음)"))
+    elif not src["user"] or not src["tab_groups"] or not src["settings_tabs"]:
+        bad.append("배선/리더가 빈 결과를 돌려주는데 실패로 안 잡혔다 — 표본 0")
+    return bad
+
+
+def self_test() -> int:
+    bad = []
+    for name, fn, expect_raise, why in SELF_TEST_CASES:
+        okay, got = _reader_case(fn, expect_raise=expect_raise)
+        if not okay:
+            bad.append("%s: 기대 %s / 실제 %s  (%s)"
+                       % (name, "FATAL" if expect_raise else "통과",
+                          "FATAL" if got == "FATAL" else "통과", why))
+    bad += _wiring_cases()
+    if bad:
+        print("[FAIL] 리더 자기검증 실패 — 이 게이트의 초록은 아무것도 증명하지 못한다:")
+        for line in bad:
+            print("  - %s" % line)
+        return EXIT_CANNOT_RUN
+    print("[OK ] COVERAGE_READER_SELF_TEST_OK (사례 %d개 + 배선 2건, FATAL·위양성 양방향)"
+          % len(SELF_TEST_CASES))
+    return EXIT_OK
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="UI 리뉴얼 Control Plane Gate")
     ap.add_argument("--stage", choices=["plan", "wave", "complete"], default="plan")
     ap.add_argument("--wave", default="")
+    ap.add_argument("--self-test", action="store_true",
+                    help="리더 자기검증만 돌리고 끝낸다 (본 실행도 이것을 먼저 통과해야 한다)")
     args = ap.parse_args()
+
+    if args.self_test:
+        return self_test()
+    # 실제 스캔 전에 자기검증을 먼저 돌린다. 실패하면 **아무것도 보고하지 않는다** —
+    # 눈이 먼 검사기의 «위반 0» 은 위반이 없다는 뜻이 아니다.
+    if self_test() != EXIT_OK:
+        return EXIT_CANNOT_RUN
 
     print("== UI 리뉴얼 커버리지 게이트 (stage=%s) ==" % args.stage)
     if args.stage == "plan":

@@ -7,7 +7,7 @@
 > 상태 값: `TODO` · `IN_PROGRESS` · `DONE` · `BLOCKED`(외부 원인만).
 > **한 항목을 "일부 했다" 로 닫지 않는다** — 남은 것은 사유와 Owner Session 을 적어 이관한다 (E9).
 
-**기록 시점**: 2026-08-21 (S0)
+**기록 시점**: 2026-08-21 (S0) · **갱신**: 2026-08-21 (S1 — P-01~P-04 DONE)
 
 ---
 
@@ -16,16 +16,16 @@
 | ID | 작업 | Session | 상태 | 완료의 정의 |
 |---|---|---|---|---|
 | **P-00** | Plan 을 Repository 지속 문서로 정착 | S0 | **DONE** | 다음 `/clear` 세션이 저장소 문서만으로 이어받을 수 있다 |
-| **P-01** | Probe 8건 신뢰성 수정 — **빈 결과 FATAL화 포함** | S1 | TODO | 8건 전부 양방향 `--self-test` 를 갖고, 실패 시 아무것도 보고하지 않는다 |
-| **P-02** | **S1 결정에 필요한 미확인 항목만 확인** (확보된 Inventory 재조사 금지) | S1 | TODO | S1 이 실제로 결정에 쓰는 값이 확인됐다. **상세 전수 목록은 이 항목의 완료 조건이 아니다** — Owner Session 이 필요할 때 갱신한다 |
-| **P-03** | PG 스택 성능 검증 — recall/지연/인덱스 파라미터/임베딩·리랭킹 모델 확정 | S1 | TODO | 실측 수치와 확정 파라미터가 `DECISIONS.md` 에 기록. **Version 판정이 아니다**(D-188 확정) |
-| **P-04** | `VARCHAR(n)` 13개 컬럼 실데이터 길이 감사 | S1 | TODO | 초과 건수와 대응(확장/절단/Exception)이 컬럼별로 결정됨 |
+| **P-01** | Probe 8건 신뢰성 수정 — **빈 결과 FATAL화 포함** | S1 | **DONE** | 8건 전부 수정. Checker 5개가 `--self-test` 를 새로 갖고, `probe_selftest` 는 19 → **30 사례**(로직 11 추가) |
+| **P-02** | **S1 결정에 필요한 미확인 항목만 확인** (확보된 Inventory 재조사 금지) | S1 | **DONE** | S1 소유 미확인 항목 넷(01·02·04·10 PROBE 계열 + 05·08 VARCHAR + 06 모델)이 전부 닫혔다. 전수 목록은 만들지 않았다 |
+| **P-03** | PG 스택 성능 검증 — recall/지연/인덱스 파라미터/임베딩·리랭킹 모델 확정 | S1 | **DONE** | 실 PG16.15 + pgvector 0.6.0 + pg_trgm 1.6 에서 실측. **D-209~D-212** 에 기록 |
+| **P-04** | `VARCHAR(n)` 실데이터 길이 감사 | S1 | **DONE** | 모델 선언 410 컬럼 감사. 초과 **1건**(`messages.message_id`)이고 대응은 «넓힌다» — 유니크 키의 일부라 절단이 불가능하다. 상세 `INVENTORY/05_DB.md` |
 | **P-05** | **PostgreSQL Foundation** — 앱 고유 ~60 테이블 이식, 도메인 변경 없음 | S2 | TODO | `DATABASE_URL=postgresql://…` 로 전 회귀 통과 · **SQLite Runtime 의존 0** |
 | **P-06** | `is_write_conflict()` 재분류 + 115 호출부 전수 감사 | S2 | TODO | 직렬화 실패만 재시도. 유니크 충돌은 호출부에서 국소 처리 + 음성 테스트 (R1) |
 | **P-07** | 부분 유니크 3건 · rowid 제거 · `jsonb` 이전 · `SKIP LOCKED` | S2 | TODO | 각각 회귀 테스트 동반. `postgresql_where=` 가 실제로 부분 유니크임을 단언 (R2) |
 | **P-08** | 공유 rate-limit/lock 저장소 → **`--workers` 잠금 해제** | S2 | TODO | **저장소를 먼저 만들고 그 다음에 워커를 올린다** (D-192) |
 | **P-09** | Test Harness 2계층 재구성 + **동시성 테스트 약 40개 재작성** | S2 | TODO | PG 의미(행 잠금·`SKIP LOCKED`·직렬화 실패)를 단언. `qa-contract-replaced-by:` 사용 (R3) |
-| **P-10** | Product Identity · Hostname · TLS | S3 | TODO | `openssl s_client` CN/SAN 일치 · `ssl_verify_result=0` · 프로브 TLS 검증 켠 채 통과 |
+| **P-10** | Product Identity · Hostname · TLS | S3 | TODO | `openssl s_client` CN/SAN 일치 · `ssl_verify_result=0` · 프로브 TLS 검증 켠 채 통과. **S1 이 스위치를 만들어 뒀다** — `scripts/ui_qa/tls.py` 의 `DEFAULT_VERIFY = True` 한 줄이면 19개 프로브가 함께 켜진다 |
 | **P-11** | **설치 · 배포 자동화 Foundation** — `deploy/install.sh` Stage 0~18 | S4 | TODO | LXD Clean 설치 성공 · 재실행 무해 · 실패 위치/원인 표시 · upgrade/rollback/uninstall 각 1회 · S4 범위 Reboot 복구 |
 
 ## Phase B — 도메인
@@ -33,6 +33,7 @@
 | ID | 작업 | Session | 상태 | 완료의 정의 |
 |---|---|---|---|---|
 | **P-12** | Identity & Access — roles/permissions/org_units/resource_ownership | S5 | TODO | RBAC allow/deny/scope 음성 테스트 · 기존 5역할 동등성 회귀 |
+| **P-12a** | **결재 대리(`/api/admin/approval-delegations`) 범위 게이트** — S1 이 드러낸 결함 | S5 | TODO | `list`·`create`·`revoke` 셋이 `principal` 을 안 받아 **부서 범위 admin 이 남의 부서 결재 대리를 만들고 취소**할 수 있다. 같은 파일의 승인 큐는 이미 `visible_user_ids(db, principal.management)` 로 좁힌다. 고친 뒤 `check_scope_gates.py::KNOWN_GAPS` 에서 그 항목을 **지워야** 검사가 통과한다 |
 | **P-13** | `effective_visibility_clause` 단일화 — 목록·상세·Search·**AI** | S5 | TODO | 넷이 **같은 함수**를 쓰는지 정적 검사로 증명 (D-194) |
 | **P-14** | Work Domain — Project Key · Ticket 3층 식별자 · 채번 · Relation · Workflow | S6 | TODO | **동시 부하에서 중복 0 · 번호 연속 · 롤백 시 미소비** · `GIT-142` resolution |
 | **P-15** | Backlog · Sprint · Kanban · DnD 공통화 | S6 | TODO | Drop 이 Status+Activity+Audit+Notification 을 한 트랜잭션으로 처리 |

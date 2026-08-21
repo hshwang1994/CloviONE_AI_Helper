@@ -37,5 +37,5 @@ Responsive/Zoom · Accessibility/Keyboard/Focus · 주요 Action 과 Feedback.
 
 | 미확인 | Owner | 내용 |
 |---|---|---|
-| `read_tab_groups()` / `read_settings_tabs()` 가 빈 결과에 FATAL 인가 | **S1** (P-01) | 위 `01_ROUTE.md` 와 같은 실패 모드다 |
+| ~~`read_tab_groups()` / `read_settings_tabs()` 가 빈 결과에 FATAL 인가~~ | ~~S1~~ | **완료 (2026-08-21).** 앵커(`export const TAB_GROUPS` · `TAB_DEFS`)를 못 찾으면 FATAL, 그릇은 찾았는데 **탭 키를 0개로 읽어도** FATAL — 그게 가장 조용한 실명이다 |
 | REGISTRY 28키를 소스에서 직접 읽는 리더 | **S20** (필요 시) | 다섯 번째 진실이 지금 검사되지 않는다. Admin registry 를 실제로 손대는 Session 이 그때 판단한다 — **S1 필수 작업이 아니다** |
