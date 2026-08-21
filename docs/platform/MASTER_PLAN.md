@@ -517,7 +517,7 @@ Dry Run 완료 → 전체 검증 → 최종 Backup → Maintenance Mode → 마�
 | S | 이름 | 원 Wave | Exit 조건 |
 |---|---|---|---|
 | **S21** | Functional E2E 전수 (27범주 + Backlog/Sprint/Board/Space/Citation/Storage) | W14 | C11~C14 통과 · `exists:true` Flow 에 `NOT_AUDITED` 0 |
-| **S22** | Final Audit · **Full Capture(최초이자 유일)** · **설치 Acceptance 완주** · **S21 Evidence 재사용** | W15 | §10 완료 조건 + CLAUDE.md §13 20항 + INSTALLATION §8 전 단계 |
+| **S22** | Final Audit · **Full Capture(최초이자 유일)** · **설치 Acceptance 완주** · **S21 Evidence 재사용** | W15 | 이 문서 §10 + CLAUDE.md §11 + INSTALLATION §8 전 단계 |
 
 ### 9.2 Dependency
 
@@ -572,7 +572,7 @@ S11 → S12 → S13 → S14 → S15 → S16 → S17 → S18 → S19 → S20 → 
 
 ## 10. 완료 조건
 
-**최종 완료는 S22 다.** CLAUDE.md §13 의 20항과 아래를 모두 만족해야 한다.
+**최종 완료는 S22 다.** 이 문서 §10 과 CLAUDE.md §11, 그리고 아래를 모두 만족해야 한다.
 
 1. Source 기준 전체 Route 가 Coverage 에 존재 · UNKNOWN/TODO/NOT_AUDITED 0건 · Critical/High Finding 0건
 2. **SQLite Runtime 의존 0 · Notion Runtime 의존 0 · n8n 흔적 0**(포트 5678/5679/8787/8788/8789 미청취)
@@ -695,7 +695,7 @@ AI         새 대화 · 지식 검색 · 작업공간 · 생성 기록
 | `/notion-mapping` · NotionConsole · Notion 설정키 | Project Member 관리 화면 | `/board` `/ideas` `/chat-rooms` `/games` |
 | `/backup` `/restore-drills` (SQLite 모양) | DnD 인프라 · Rich Editor | `/users` `/organizations` `/rbac` `/audit` … |
 
-**CLAUDE.md §145 위반 해소**: 일반 사용자 화면의 수동 동기화("지금 동기화") 6곳은
+**수동 동기화 UI 제거**(D-207 / S6·S7): 일반 사용자 화면의 수동 동기화("지금 동기화") 6곳은
 **동기화 개념 자체가 사라져** 자동으로 제거된다.
 
 ### 14.3 W5B~W15 재배치 (D-207)

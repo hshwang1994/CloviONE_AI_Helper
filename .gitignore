@@ -25,7 +25,7 @@ frontend/dist/
 frontend/.vite/
 
 # Claude Code scratch/worktrees/plans (may contain secrets)
-# 예외: settings.json 은 이 저장소의 Stop hook 배선(scripts/runner/stop_guard.py)이라 추적한다.
+# 예외: settings.json 만 추적한다.
 # `.claude/` 가 아니라 `.claude/*` 로 써야 negation 이 동작한다 — 디렉터리 자체를 무시하면
 # git 이 그 안으로 내려가지 않아 `!` 규칙이 평가되지 않는다.
 .claude/*
@@ -33,8 +33,7 @@ frontend/.vite/
 
 # Agent Skill 설치물이 저장소 안에 떨어지는 것을 막는 방어선. 2026-08-12에 한 번 실제로
 # 생겼다가(.agents/skills/{redesign-existing-projects,ux-writing} + lock, 외부 repo 통째 clone에
-# 미디어 파일까지 포함) ~/.claude/skills/ 사용자 전역으로 옮겨져 지금은 없다. 다시 생기면
-# 두 Supervisor의 dirty guard를 계속 건드리므로 규칙만 남겨 둔다.
+# 미디어 파일까지 포함) ~/.claude/skills/ 사용자 전역으로 옮겨져 지금은 없다.
 .agents/
 skills-lock.json
 *.bak

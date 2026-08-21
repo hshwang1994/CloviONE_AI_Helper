@@ -78,9 +78,8 @@
 
 현재 플랫폼 전환 진입점:
 - `docs/platform/WORK_STATE.md`
-- `docs/platform/MASTER_PLAN.md`
 
-필요할 때만 `BACKLOG.md`, `INSTALLATION.md`, `INVENTORY/`, `docs/DECISIONS.md`를 읽는다.
+필요할 때만 `docs/platform/MASTER_PLAN.md`, `docs/platform/BACKLOG.md`, `docs/platform/INSTALLATION.md`, `docs/platform/INVENTORY/`, `docs/DECISIONS.md`를 읽는다.
 UI 관련 작업에서는 필요할 때 `docs/ui-renewal/` Control Artifact를 읽는다.
 상세 계획과 진행 이력을 이 파일에 복제하지 않는다.
 

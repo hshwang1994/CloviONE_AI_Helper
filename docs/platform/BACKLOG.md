@@ -76,7 +76,7 @@
 | ID | 작업 | Session | 상태 | 완료의 정의 |
 |---|---|---|---|---|
 | **P-31** | Functional E2E 전수 (27범주 + Backlog/Sprint/Board/Space/Citation/Storage) | S21 | TODO | C11~C14 통과 · `exists:true` Flow 에 `NOT_AUDITED` 0 |
-| **P-32** | Final Audit · **Full Capture(최초이자 유일)** · 설치 Acceptance 완주 | S22 | TODO | `MASTER_PLAN.md` §10 + CLAUDE.md §13 20항 + `INSTALLATION.md` §8 전 단계 |
+| **P-32** | Final Audit · **Full Capture(최초이자 유일)** · 설치 Acceptance 완주 | S22 | TODO | `MASTER_PLAN.md` §10 + CLAUDE.md §11 + `INSTALLATION.md` §8 전 단계 |
 
 ---
 

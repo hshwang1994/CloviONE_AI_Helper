@@ -34,7 +34,7 @@
 
 | 부품 | 이유 |
 |---|---|
-| `MirrorNotice` 와 그 소비처 6곳 | **동기화 개념 자체가 사라진다.** CLAUDE.md §145 위반이 자동 해소된다 |
+| `MirrorNotice` 와 그 소비처 6곳 | **동기화 개념 자체가 사라진다.** 수동 동기화 UI 가 자동 해소된다 (D-207) |
 | NotionConsole · Notion Mapping Console | Notion Runtime 소멸 |
 
 ## 미확인 항목과 Owner

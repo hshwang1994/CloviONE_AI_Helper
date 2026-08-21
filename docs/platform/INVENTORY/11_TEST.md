@@ -63,7 +63,7 @@ PG 에서는 **행 잠금 · 직렬화 실패 · `SKIP LOCKED`** 를 단언해�
 기본 `--base HEAD` 라 **커밋된 약화는 영구히 안 보인다** → 기본 base 를 **직전 Session 커밋**으로
 (`12_PROBE.md` 우선순위 5).
 
-## 테스트 전략 (CLAUDE.md §9)
+## 테스트 전략 (CLAUDE.md §7)
 
 - 구현 중에는 Focused Test 를 자주, 전체 Regression 은 **Root Cause 묶음이 수렴한 뒤**
 - 과거 Test 가 Legacy DOM/CSS/Visual 을 고정하고 있다면 **새 계약을 검증하도록 갱신**한다

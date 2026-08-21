@@ -84,9 +84,9 @@ S1 은 `scripts/**` 와 `docs/**` 만 바꿨다. 변경 Surface 를 검증하고
 S1 이 이 순서였던 이유는 하나다: **눈을 감은 검사 위에서 Route 와 DB 를 갈아엎으면 무엇이
 깨졌는지 알 수 없다.** 실제로 눈을 뜨자마자 권한 결함 하나와 이식 차단 하나가 나왔다.
 
-## NEXT — S2 부터 시작한다
+## NEXT — 다음 시작점: S2 (요청 시)
 
-**S2 = PostgreSQL Foundation.** 앱 고유 ~60 테이블을 **도메인 변경 없이** 이식한다.
+**S2 = PostgreSQL Foundation.** 사용자 요청 없이 착수하지 않는다. 앱 고유 ~60 테이블을 **도메인 변경 없이** 이식한다.
 정확한 범위와 Exit 는 [`MASTER_PLAN.md`](MASTER_PLAN.md) §9.1, 작업 목록은
 [`INVENTORY/08_SQLITE.md`](INVENTORY/08_SQLITE.md) 의 13항이다.
 
