@@ -130,6 +130,7 @@ S1 이 S2 에게 넘기는 것:
 | 항목 | 상태 |
 |---|---|
 | **테스트 서버 sudo** | **쓸 수 있다** — 사용자가 2026-08-21 에 다시 제공했고 `10.100.64.71` 한정이다. **제품 자체에는 이 자격증명이 들어가지 않는다**: 설치 시 권한 상승은 운영자가 `sudo …/install.sh` 로 하거나 installer 가 요구한다([`INSTALLATION.md`](INSTALLATION.md) §1·§4). S1 이 실측에 쓴 **사용자 공간 PG**(`scripts/bench/pg_userspace_bootstrap.sh`)는 sudo 없이도 되므로 S2 회귀에 그대로 쓸 수 있다 — 시스템 설치는 **S4 Installer Stage 6·7** 의 일이다 |
+| **Notion 토큰** | 운영 정본은 `/etc/clovirone-web-assistant/secrets/notion_{docs,report}_token`(0640, sudo 필요), 개발 사본은 `var/secrets/`(gitignore). 코드는 **secret-ref** 로 다룬다 — 설정은 파일 이름만 들고 값은 파일에서 읽는다. **네 파일은 같은 값이고**(통합 하나를 두 ref 로 쓴다) 크기 차이는 개행뿐이다. 상세는 [`INVENTORY/07_NOTION.md`](INVENTORY/07_NOTION.md) 「토큰은 어디 있나」. **S13 의 본문 재수집이 이걸 쓴다** |
 | **운영 SQLite 읽기** | **가능하다.** P-04 는 운영 정본(alembic `0061`)을 `.backup` 무중단 스냅숏으로 재고 스냅숏을 지웠다 — 운영 DB 는 읽기만 했다. 원장은 [`EVIDENCE/S1/varchar_prod.json`](EVIDENCE/S1/varchar_prod.json) |
 | 실 NFS/NAS 장비 정보 (현재 없음이 **확인됨**) | 시험 Storage 로 실검증. 실 정보 수령 시 **Configuration 만** 변경 (U8·U9) |
 | 20개 Project Key 명명 | **S6 에서** 초안표 제시 → 사용자 확인 → 적용. **확정 전 재채번 없음** (U11) |
