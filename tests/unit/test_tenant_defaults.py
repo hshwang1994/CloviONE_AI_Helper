@@ -39,7 +39,10 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 CUSTOMER_NOTION_TASKS_DB = "262c5c5a568481fa9697ee5691cb558d"
 CUSTOMER_NOTION_DOCS_DB = "55efc3c0b58341a5b8d17f31fc2b152c"
 CUSTOMER_EMAIL_DOMAIN = "goodmit.co.kr"
-CUSTOMER_HOST = "clovirone-ai.gooddi.lab"
+# S3 이 정본 호스트를 옮겼다. **둘 다 든다** — 옛 이름은 되살아나는 것을 막고, 새 이름은
+# 지금 새는 것을 막는다. 하나만 들면 이름이 바뀔 때마다 검사가 한 칸씩 뒤처진다.
+LEGACY_CUSTOMER_HOST = "clovirone-ai.gooddi.lab"
+CUSTOMER_HOST = "clovirassist.gooddi.lab"
 
 
 def _bare_settings(**overrides) -> Settings:
@@ -56,8 +59,9 @@ def test_default_settings_have_no_customer_identifiers():
     assert s.allowed_email_domains == ""
     assert s.allowed_email_domain_list == []
     # 기본 base url 은 개발용 루프백이어야 한다. 고객사 호스트가 여기 있으면 메일 링크와
-    # 리다이렉트가 남의 서버를 가리킨다.
+    # 리다이렉트가 남의 서버를 가리킨다. `APP_BASE_URL` 은 설치처 env 가 정한다(S3).
     assert CUSTOMER_HOST not in s.app_base_url
+    assert LEGACY_CUSTOMER_HOST not in s.app_base_url
 
 
 def test_settings_registry_default_domain_list_is_empty():
@@ -271,3 +275,12 @@ def test_check_tenant_defaults_script_catches_reintroduced_identifier(tmp_path):
     )
     hits = module.scan_text(sample.name, sample.read_text(encoding="utf-8"))
     assert hits, "고객 DB id 를 도로 넣었는데 검사가 아무 말도 안 한다"
+
+    # S3 회귀: 정본 호스트가 바뀌면 검사도 따라와야 한다. 옛 이름만 들고 있으면 새 이름을
+    # 소스 기본값에 박아도 아무 데서도 안 걸리고, 그것은 검사가 있는데 없는 상태다.
+    for host in (CUSTOMER_HOST, LEGACY_CUSTOMER_HOST):
+        leaked = tmp_path / "leaked.py"
+        leaked.write_text(f'app_base_url: str = "https://{host}"\n', encoding="utf-8")
+        assert module.scan_text(leaked.name, leaked.read_text(encoding="utf-8")), (
+            f"소스 기본값에 {host} 를 박았는데 검사가 아무 말도 안 한다"
+        )

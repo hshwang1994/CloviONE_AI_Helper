@@ -1,0 +1,49 @@
+# S3 Exit — 새 origin 에서 로그인과 테마가 유지되는가
+# 대상: https://clovirassist.gooddi.lab (테스트 서버 10.100.64.71)
+# 채취: 2026-08-21
+
+## 왜 이 확인이 필요한가
+
+세션 쿠키는 `Domain` 없는 **host-only** 다(app/core/sessions.py::set_session_cookie).
+그래서 origin 이 바뀌면 세션도 localStorage 도 통째로 다른 서랍이 된다.
+「이름을 바꿨더니 아무도 못 들어온다」와 「테마가 매번 초기화된다」가 같은 원인에서 나온다.
+
+여기서 확인한 것은 그 계약이 **새 이름 위에서 실제로 서는가** 이다.
+`Domain=.gooddi.lab` 으로 «고치지» 않았다 — 그러면 같은 망의 공유 n8n 을 포함한
+gooddi.lab 전 호스트로 세션 쿠키가 나간다. 그 계약은 이제 시험이 지킨다
+(tests/integration/test_auth_login.py — `domain=` 이 없음을 단언).
+
+## 무엇을 썼는가
+
+제품 경로만 썼다. 서버가 그리는 `/login` 폼 → 강제 비밀번호 변경 화면 →
+`GET /api/me` → `theme-store.js` 가 실제로 쓰는 localStorage 키
+(`clovirone_theme`, `clovirone_theme:<user_id>`).
+하네스의 `scripts/ui_qa/auth.py::_submit_login` · `_complete_forced_change` 를 그대로 부른다.
+
+## 결과
+
+    로그인 후 착지: https://clovirassist.gooddi.lab/change-password
+    강제 변경 완료 — 이후 실행이 쓸 비밀번호를 저장했다
+
+    [OK  ] 새 origin 에서 로그인된다                기대 True / 실제 True
+    [OK  ] 새로고침 뒤에도 테마가 남는다             기대 'dark' / 실제 'dark'
+    [OK  ] 새로고침 뒤에도 로그인이 남는다           기대 True / 실제 True
+    [OK  ] 현재 URL 이 canonical origin 이다        기대 True / 실제 True
+    LOGIN_THEME_E2E_OK
+
+## 하네스 smoke (라우트 4 × light × 1920)
+
+    $ python -m scripts.ui_qa.run --base-url https://clovirassist.gooddi.lab \
+        --routes smoke --viewports 1920x1080 --themes light --label s3-hostname \
+        --fail-on auth_ok theme_applied console_errors page_errors
+
+    [server] HTTP 200 {"status":"ready"}
+    [build ] index fb19ecbe9fd8d36d (https://clovirassist.gooddi.lab/static/react/index.html) assets=7
+    [OK] 치명 검사 실패 없음 (--fail-on=auth_ok,theme_applied,console_errors,page_errors), 억제 0건
+
+## 계정 취급
+
+QA 계정 `ui-qa@goodmit.co.kr` 은 2026-08-19 에 **보관(archive)** 돼 있어 로그인이 막혀
+있었다. 이 확인을 위해 서버에서 `user_cli unarchive` → `passwd`(비밀번호는 stdin 으로만)
+로 열었고, **확인이 끝난 뒤 다시 `archive` 로 되돌렸다.** 서버는 찾은 상태 그대로다.
+비밀번호는 명령행·로그·저장소에 남기지 않았다(dist/ 는 gitignore).

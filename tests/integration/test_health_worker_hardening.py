@@ -130,7 +130,7 @@ def test_is_self_signed_cert_false_when_issuer_differs_from_subject(tmp_path, mo
     settings = SimpleNamespace(tls_cert_path=str(cert))
 
     fake_cert = {
-        "subject": ((("commonName", "clovirone-ai.gooddi.lab"),),),
+        "subject": ((("commonName", "clovirassist.gooddi.lab"),),),
         "issuer": ((("commonName", "Some Trusted CA"),),),
     }
     monkeypatch.setattr(health_service.ssl._ssl, "_test_decode_cert", lambda path: fake_cert)

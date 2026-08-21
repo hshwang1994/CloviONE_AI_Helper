@@ -21,6 +21,12 @@ def test_login_success_sets_cookie_and_returns_user(client, make_user):
     assert "clovirone_session=" in set_cookie
     assert "HttpOnly" in set_cookie
     assert "SameSite=strict" in set_cookie.lower() or "samesite=strict" in set_cookie.lower()
+    # S3: 세션 쿠키는 **host-only** 다 — `Domain` 을 붙이지 않는다.
+    # 호스트명을 바꾸면서 «옛 이름으로 로그인한 사람이 새 이름에서 다시 로그인해야 한다» 를
+    # 없애려고 `Domain=.gooddi.lab` 을 붙이고 싶어지는 자리다. 그러면 그 도메인의 **모든**
+    # 호스트로 세션 쿠키가 나간다 — 같은 망의 공유 n8n 을 포함해서. 1회 재로그인이 그것보다
+    # 싸다. 이 단언이 그 유혹을 막는다.
+    assert "domain=" not in set_cookie.lower()
 
     me = client.get("/api/me")
     assert me.status_code == 200

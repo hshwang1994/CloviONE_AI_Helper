@@ -346,6 +346,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8"><style>
 
 def _logic_cases() -> list[dict]:
     import os  # noqa: PLC0415
+    from pathlib import Path  # noqa: PLC0415
 
     from . import run as run_mod  # noqa: PLC0415
     from . import tls  # noqa: PLC0415
@@ -404,6 +405,32 @@ def _logic_cases() -> list[dict]:
         os.environ.pop(tls.ENV_VAR, None)
         if saved is not None:
             os.environ[tls.ENV_VAR] = saved
+
+    # ── #8 TLS 신뢰 기준점 (S3) ──────────────────────────────────────────
+    # 자체서명 설치처에서는 「검증을 켰다」와 「검증할 근거가 있다」가 다른 사실이다.
+    # 기준점을 못 찾은 실행이 조용히 시스템 저장소로 내려가면, 무엇을 믿고 통과했는지
+    # 실행 로그만 보고는 알 수 없다.
+    saved_ca = os.environ.pop(tls.CA_ENV_VAR, None)
+    try:
+        case("tls/기준점을 안 주면 빈 값이다", tls.ca_file(), "",
+             "시스템 저장소만 쓰는 정상 경로")
+        os.environ[tls.CA_ENV_VAR] = str(Path(__file__).resolve())
+        case("tls/실재하는 파일이면 그 경로를 준다",
+             tls.ca_file(), str(Path(__file__).resolve()),
+             "설치 스크립트가 남기는 인증서 사본을 그대로 받는 자리")
+        case("tls/기준점을 주면 실행 로그가 그것을 말한다",
+             tls.CA_ENV_VAR in tls.describe(), False,
+             "기준점이 있는 실행은 «기준점을 달라» 고 말하면 안 된다")
+        os.environ[tls.CA_ENV_VAR] = str(Path(__file__).resolve().parent / "없는파일.crt")
+        case("tls/오타 난 경로는 통과시키지 않는다", tls.ca_file(), "",
+             "없는 경로를 조용히 무시하면 «검증했다» 가 거짓이 된다")
+        case("tls/기준점이 없으면 실행 로그가 달라고 말한다",
+             tls.CA_ENV_VAR in tls.describe(), True,
+             "위 사례의 반대 방향 — 두 문장이 실제로 갈리는지 본다")
+    finally:
+        os.environ.pop(tls.CA_ENV_VAR, None)
+        if saved_ca is not None:
+            os.environ[tls.CA_ENV_VAR] = saved_ca
     return rows
 
 

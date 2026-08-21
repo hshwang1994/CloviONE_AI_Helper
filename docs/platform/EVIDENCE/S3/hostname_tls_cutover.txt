@@ -1,0 +1,131 @@
+# S3 — Product Identity · Hostname · TLS
+# 대상: 테스트 서버 10.100.64.71 (nginx 1.24.0 / Ubuntu)
+# 채취: 2026-08-21
+
+## 0. 바꾸기 전의 진실 (BEFORE)
+
+### DNS — 옛 이름은 이미 없다. 이 사실이 계획을 하나 지웠다.
+$ nslookup clovirone-ai.gooddi.lab   (개발 머신 → 권위 서버 gooddi-ad01.gooddi.lab)
+  *** gooddi-ad01.gooddi.lab can't find clovirone-ai.gooddi.lab: Non-existent domain
+$ nslookup clovirassist.gooddi.lab
+  Name: clovirassist.gooddi.lab   Address: 10.100.64.71
+
+  W13 런본 2·3·9 단계는 «옛 이름도 함께 서브하는 호환 창» 을 전제한다. 그 전제가
+  이미 깨져 있다 — A 레코드가 없으므로 어떤 클라이언트도 옛 이름을 풀 수 없다.
+  이중 이름 인증서와 __DNS_ALIASES__ 를 넣지 않은 이유가 이것이다(D-222).
+
+### nginx · 인증서 (BEFORE)
+  48:    listen 10.100.64.71:80;
+  49:    server_name clovirone-ai.gooddi.lab;
+  55:    listen 10.100.64.71:443 ssl;
+  56:    server_name clovirone-ai.gooddi.lab;
+  58:    ssl_certificate     /etc/clovirone-web-assistant/tls/clovirone-ai.gooddi.lab.crt;
+  59:    ssl_certificate_key /etc/clovirone-web-assistant/tls/clovirone-ai.gooddi.lab.key;
+
+  subject=CN = clovirone-ai.gooddi.lab
+  issuer =CN = clovirone-ai.gooddi.lab
+  notAfter=Jul 14 07:36:48 2027 GMT
+  X509v3 Subject Alternative Name:
+      DNS:clovirone-ai.gooddi.lab, IP Address:10.100.64.71
+
+  /etc/clovirone-web-assistant/web.env
+      APP_BASE_URL=https://clovirone-ai.gooddi.lab      <- DNS 에서 풀리지 않는 이름
+      TLS_CERT_PATH=/etc/clovirone-web-assistant/tls/clovirone-ai.gooddi.lab.crt
+
+  즉 **유일하게 풀리는 이름으로 접속하면 인증서 이름이 어긋난다.** 200 이 나오던 것은
+  그 IP:443 의 유일한 server block 이라 fallback 으로 받은 것이지 정식으로 서브한 것이
+  아니다. 그리고 APP_BASE_URL 이 죽은 이름이라 메일 링크·역링크가 이미 깨져 있었다.
+
+## 1. 되돌릴 지점
+  /root/s3-hostname-backup-20260821-220722/{nginx-vhost.conf,tls/,web.env}  (0700 root)
+  옛 인증서·키 파일은 /etc/clovirone-web-assistant/tls/ 에도 그대로 남아 있다.
+  살아 있는 설정 중 그것을 가리키는 곳은 없다(아래 5번 확인).
+
+## 2. AFTER — 실제로 서브되는 것
+
+$ openssl s_client -connect 10.100.64.71:443 -servername clovirassist.gooddi.lab
+  subject=CN = clovirassist.gooddi.lab
+  issuer=CN = clovirassist.gooddi.lab
+  notBefore=Aug 21 13:08:03 2026 GMT
+  notAfter=Aug 21 13:08:03 2027 GMT
+  X509v3 Subject Alternative Name: 
+      DNS:clovirassist.gooddi.lab, IP Address:10.100.64.71
+
+## 3. Exit 조건 — ssl_verify_result=0, 그리고 그것이 **거짓이 될 수 있는지**
+
+  이 설치처의 인증서는 자체서명이다. 그래서 «검증 통과» 는 신뢰 기준점을 함께 줄 때만
+  성립한다 — Exit 조건이 처음부터 `curl --cacert` 로 쓰여 있는 이유다.
+  기준점: /home/cloviradmin/clovirassist.gooddi.lab.crt (설치 스크립트가 두는 자리)
+
+  # 켜야 하는 쪽 (Known Good)
+    /healthz  http=200 ssl_verify_result=0
+    /readyz   http=200 ssl_verify_result=0
+    /login    http=200 ssl_verify_result=0
+
+  # 빨간불이 나와야 하는 쪽 (Known Bad — 초록이 무엇을 뜻하는지 정하는 것은 이쪽이다)
+    기준점 없이       http=000 ssl_verify_result=18   <- 18 = self signed in chain
+    이름이 다르면    http=000 ssl_verify_result=1    <- 1 = 검증 실패
+
+  # 80 -> 443 이 요청된 이름을 보존하는가
+    HTTP/1.1 301 Moved Permanently
+    Location: https://clovirassist.gooddi.lab/
+
+  주의: 개발 머신(Windows)의 curl 은 Schannel 이라 %{ssl_verify_result} 가 실패해도
+  0 을 준다 — 그 값으로 판정하면 안 된다. 위 수치는 서버의 curl(OpenSSL 3.0.13)이다.
+
+## 4. 개발 머신에서 같은 것을 파이썬 ssl(OpenSSL)로 — 하네스가 쓰는 경로
+  [OK  ] 기준점을 주고 canonical 이름으로: CN=['clovirassist.gooddi.lab'] SAN=['clovirassist.gooddi.lab', '10.100.64.71']
+  [FAIL] 기준점 없이 (시스템 저장소만): CERTIFICATE_VERIFY_FAILED: self-signed certificate
+  [FAIL] 기준점은 맞지만 이름이 다름  : CERTIFICATE_VERIFY_FAILED: Hostname mismatch
+
+  $ UI_QA_TLS_CA=dist/ops/clovirassist.gooddi.lab.crt python -m ...
+    describe        : TLS 검증 켜짐 … 신뢰 기준점 dist/ops/clovirassist.gooddi.lab.crt
+    _probe_server   : True  HTTP 200 {"status":"ready"}
+    build_fingerprint: https://clovirassist.gooddi.lab/static/react/index.html  (fb19ecbe9fd8d36d)
+  $ (기준점 없이 같은 호출)
+    _probe_server   : False URLError CERTIFICATE_VERIFY_FAILED   <- 장식이 아니라 실제로 켜져 있다
+
+## 5. 설치 검증 스크립트 — 이제 실제로 검증한다
+
+  예전 `validate-clovirone-web-assistant.sh` 는 healthz/readyz 를 `curl -k` 로 쳤다.
+  -k 는 아무것도 증명하지 않는다 — 이름이 어긋난 채로도 계속 [OK] 였다는 뜻이다.
+  그리고 이름만으로 자기 서버를 부르고 있었는데, 이 서버의 /etc/hosts 는 그 이름을
+  127.0.1.1 로 푼다(호스트명이 clovirassist 로 바뀌면서 생긴 줄). nginx 는 10.100.64.71:443
+  한 곳에만 묶여 있으므로 그 호출은 code=000 이다 — --resolve 로 고쳤다.
+
+$ DNS_NAME=clovirassist.gooddi.lab BIND_IP=10.100.64.71 bash scripts/validate-clovirone-web-assistant.sh
+  [OK ] web service active
+  [OK ] worker service active
+  [OK ] nginx active
+  [OK ] existing n8n still active
+  [OK ] app listening 127.0.0.1:8080
+  [OK ] nginx listening :443
+  [OK ] healthz via nginx (TLS 검증)
+  [OK ] readyz via nginx (TLS 검증)
+  [OK ] ssl_verify_result=0
+  [OK ] 80 -> 443 이 이름을 보존한다
+  [OK ] no failed units
+  [OK ] 인증서 CN 이 clovirassist.gooddi.lab
+  [OK ] 인증서 SAN 에 clovirassist.gooddi.lab
+  [OK ] server_name clovirassist.gooddi.lab 을 든 블록이 :80·:443 둘뿐
+  VALIDATE_OK
+
+  # 반례 — 틀린 이름을 주면 이 검사가 실제로 빨간불인가
+    [FAIL] healthz via nginx (TLS 검증)
+    [FAIL] readyz via nginx (TLS 검증)
+    [FAIL] ssl_verify_result=0
+    [FAIL] 인증서 CN 이 wrong.gooddi.lab
+    [FAIL] 인증서 SAN 에 wrong.gooddi.lab
+    [FAIL] server_name wrong.gooddi.lab 을 든 블록이 :80·:443 둘뿐
+    VALIDATE_FAILED
+
+## 6. 살아 있는 설정에 옛 이름이 남았는가
+  49:    server_name clovirassist.gooddi.lab;
+  56:    server_name clovirassist.gooddi.lab;
+  58:    ssl_certificate     /etc/clovirone-web-assistant/tls/clovirassist.gooddi.lab.crt;
+  59:    ssl_certificate_key /etc/clovirone-web-assistant/tls/clovirassist.gooddi.lab.key;
+  web.env:
+    7:APP_BASE_URL=https://clovirassist.gooddi.lab
+    24:TLS_CERT_PATH=/etc/clovirone-web-assistant/tls/clovirassist.gooddi.lab.crt
+  vhost 안의 옛 이름:
+    0

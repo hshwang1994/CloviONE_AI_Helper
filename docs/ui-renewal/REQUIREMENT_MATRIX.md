@@ -1740,8 +1740,8 @@
 - **Affected**: ALL
 - **Implementation**: `app/core/sessions.py`, `frontend/src/app/theme-store.js`, `deploy/nginx/clovirone-web-assistant.conf`, `scripts/install-clovirone-web-assistant.sh`
 - **Verification**: `openssl s_client -connect 10.100.64.71:443 -servername clovirassist.gooddi.lab`, `curl --resolve` 로 ssl_verify_result 0 확인, `pytest tests/unit/test_sysops_tls_paths.py`
-- **Status**: NOT_STARTED
-- **Evidence**: (없음 - Status 가 DONE 이 될 때 채운다)
+- **Status**: IN_PROGRESS
+- **Evidence**: `docs/platform/EVIDENCE/S3/hostname_tls_cutover.txt` — **호스트명·TLS·`APP_BASE_URL` 축은 S3 이 닫았다**. 서브되는 인증서 CN/SAN·nginx `server_name`·`APP_BASE_URL`·`TLS_CERT_PATH` 가 전부 `clovirassist.gooddi.lab` 이다. **남은 것은 slug 축**(`clovirone-web-assistant` 경로·유닛·시스템 사용자)이고 Owner 는 S4 Installer 다 (MASTER_PLAN R13).
 - **Findings**: (없음)
 - **Depends on**: (없음)
 
@@ -1754,8 +1754,8 @@
 - **Affected**: ALL
 - **Implementation**: `app/core/sessions.py`, `frontend/src/app/theme-store.js`, `deploy/nginx/clovirone-web-assistant.conf`, `scripts/install-clovirone-web-assistant.sh`
 - **Verification**: `openssl s_client -connect 10.100.64.71:443 -servername clovirassist.gooddi.lab`, `curl --resolve` 로 ssl_verify_result 0 확인, `pytest tests/unit/test_sysops_tls_paths.py`
-- **Status**: NOT_STARTED
-- **Evidence**: (없음 - Status 가 DONE 이 될 때 채운다)
+- **Status**: DONE
+- **Evidence**: `docs/platform/EVIDENCE/S3/hostname_tls_cutover.txt` (CN/SAN 일치 · `ssl_verify_result=0` · 반례 18·1 · 80→443 이름 보존 · `server_name` 블록 2개) · `docs/platform/EVIDENCE/S3/login_theme_e2e.txt` (새 origin 에서 로그인·테마 유지). 결정은 **D-222~D-224**.
 - **Findings**: (없음)
 - **Depends on**: (없음)
 

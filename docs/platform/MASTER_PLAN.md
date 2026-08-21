@@ -477,7 +477,7 @@ Dry Run 완료 → 전체 검증 → 최종 Backup → Maintenance Mode → 마�
 | **S0** | Plan 기록 | Master Plan · Work State · Backlog · Decisions(D-187~D-208) · Inventory · Installation 을 `docs/` 에 저장. **W5B~W15 동결 선언** | 문서 커밋 · Tree clean |
 | **S1** ✅ | 기반 정직화 · 실측 · **성능 검증** | 프로브 8건 수정 · S1 소유 미확인 항목 확인 · PG16.15+pgvector0.6+pg_trgm 실측 · CPU 임베딩/리랭킹 벤치 · `VARCHAR(n)` 감사 | **완료 (2026-08-21)** — self-test 통과 · 실측이 **D-209~D-214** 에 기록 · **제품 코드 diff 0** |
 | **S2** ✅ | PostgreSQL Foundation | 앱 고유 70 테이블 PG 이식(도메인 변경 없음) · `0001_pg_baseline`(256 인덱스 + 부트스트랩 5행) · `is_write_conflict` 재분류(**실측 40 호출부**) · `SKIP LOCKED` · `jsonb` 37 컬럼 · 부분 유니크 **4건** · rowid 제거 · 공유 rate-limit/lock → **`--workers 4`** · Test Harness 2계층 · PG Backup/Restore 기본형 | **완료 (2026-08-21)** — SQLite Runtime 의존 0 · 전 회귀 PG 통과 · 동시성 시험 재작성분 통과 · 실측 정정과 발견은 **D-215~D-221** |
-| **S3** | Product Identity · Hostname · TLS | nginx `server_name` · TLS 재발급(CN/SAN=`clovirassist.gooddi.lab`) · `APP_BASE_URL` · cookie domain · QA base URL · 프로브 TLS 검증 활성화 · 옛 호스트 하드코딩 테스트 2건 정정 | `openssl s_client` CN/SAN 일치 · `ssl_verify_result=0` · 로그인/테마 유지 E2E |
+| **S3** ✅ | Product Identity · Hostname · TLS | nginx `server_name` · TLS 재발급(CN/SAN=`clovirassist.gooddi.lab`) · `APP_BASE_URL` · cookie domain · QA base URL · 프로브 TLS 검증 활성화 · 옛 호스트 하드코딩 테스트 2건 정정 | **완료 (2026-08-21)** — CN/SAN 일치 · `ssl_verify_result=0`(반례 18·1 함께) · 로그인/테마 유지 E2E 통과. 발견과 결정은 **D-222~D-224** |
 | **S4** | **설치 · 배포 자동화 Foundation** | GitLab Source 경로 · `deploy/install.sh` Entry Point · Preflight · Stage 0~18 · systemd 5유닛 + enable + 의존 순서 · Health · 실패 위치/원인 표시 · Idempotent · version · upgrade/rollback/uninstall · **LXD Clean 설치 리허설** | LXD 리허설 Clean 설치 성공 · 재실행 무해 · 의도적 실패 주입 시 위치·원인 표시 · upgrade/rollback/uninstall 각 1회 · **S4 시점 Component 범위(PG·web·worker·scheduler·nginx)의 Reboot 복구**. **전 시나리오 Acceptance 는 S22** |
 
 #### Phase B — 도메인
@@ -653,7 +653,7 @@ python -m scripts.ui_qa.run --label final --fail-on <승격 클래스…>
 | R10 | Editor + DnD 도입이 번들 예산 초과 | 초기 로드 회귀 | route-level lazy load 강제 + `check_bundle_size.sh` 게이트 유지 | S7 |
 | R11 | 시험 Storage 가 실 NAS 와 다르다 | 실 장비에서 새 결함 | U9 대로 **과장하지 않고** 명시. 실 정보 수령 시 Configuration 만 변경 | S8 |
 | R12 | Cutover 후 부분 Rollback 만 가능 | Open 이후 입력분 유실 위험 | Open 직전 검증을 두껍게. Dry Run 반복으로 미리 소진 | S14 |
-| R13 | 제품 slug(`clovirone-web-assistant`)가 경로·유닛·백업 루트에 박혀 있다 | 정체성 잔존 | 사용자 노출 면은 `ClovirAssist` 로 통일. **Installer 가 새 slug `clovirassist` 로 설치**하므로 함께 정리 | S3·S4 |
+| R13 | 제품 slug(`clovirone-web-assistant`)가 경로·유닛·백업 루트에 박혀 있다 | 정체성 잔존 | 사용자 노출 면은 `ClovirAssist` 로 통일. **Installer 가 새 slug `clovirassist` 로 설치**하므로 함께 정리. **호스트명·TLS 축은 S3 이 닫았다**(D-222~D-224) — 남은 것은 경로·유닛·시스템 사용자이고 그것은 Installer 의 일이다 | ~~S3~~ · **S4** |
 | R14 | **설치 자동화를 마지막에 몰면 실패한다** | Clean 설치가 최종 단계에서만 깨진다 | S4 에서 골격 + **매 Session 이 Installer 계약 이행** | S4~ |
 | R15 | **LXD 컨테이너 리허설이 실 VM 과 다르다** | 설치는 통과하는데 실 장비에서 실패 | 역할 분리: 컨테이너=반복 설치 리허설, 실 VM=Storage·Reboot·TLS Acceptance. **컨테이너 통과를 "설치 검증 완료" 라고 쓰지 않는다** | S4·S22 |
 | R16 | GitLab Repository 가 아직 없다(현 origin=GitHub) | 제품 기준 Source 경로 미확정 | Installer 를 **Remote 중립**으로. 주소가 정해지면 **설정만** 바꾼다. 오프라인 Bundle 경로 계속 지원 | S4 |

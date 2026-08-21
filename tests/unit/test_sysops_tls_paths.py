@@ -24,22 +24,22 @@ pytestmark = pytest.mark.unit
 
 def test_uses_tls_cert_path_env_when_set():
     cert, key, cert_stage, key_stage = mod._resolve_tls_paths_for(
-        "/etc/clovirone-web-assistant/tls/clovirone-ai.gooddi.lab.crt"
+        "/etc/clovirone-web-assistant/tls/clovirassist.gooddi.lab.crt"
     )
-    assert cert == "/etc/clovirone-web-assistant/tls/clovirone-ai.gooddi.lab.crt"
+    assert cert == "/etc/clovirone-web-assistant/tls/clovirassist.gooddi.lab.crt"
 
 
 def test_derives_key_path_next_to_the_cert_same_basename():
     """nginx 템플릿과 같은 관례(같은 디렉터리·같은 basename, 확장자만 .key)."""
     _, key, _, _ = mod._resolve_tls_paths_for(
-        "/etc/clovirone-web-assistant/tls/clovirone-ai.gooddi.lab.crt"
+        "/etc/clovirone-web-assistant/tls/clovirassist.gooddi.lab.crt"
     )
-    assert key == "/etc/clovirone-web-assistant/tls/clovirone-ai.gooddi.lab.key"
+    assert key == "/etc/clovirone-web-assistant/tls/clovirassist.gooddi.lab.key"
 
 
 def test_stages_next_to_the_real_cert_not_in_the_old_hardcoded_dir():
     _, _, cert_stage, key_stage = mod._resolve_tls_paths_for(
-        "/etc/clovirone-web-assistant/tls/clovirone-ai.gooddi.lab.crt"
+        "/etc/clovirone-web-assistant/tls/clovirassist.gooddi.lab.crt"
     )
     assert cert_stage == "/etc/clovirone-web-assistant/tls/.staged.crt"
     assert key_stage == "/etc/clovirone-web-assistant/tls/.staged.key"
