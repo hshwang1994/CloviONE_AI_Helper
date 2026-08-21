@@ -34,7 +34,7 @@
 | 4 | [`04_API.md`](04_API.md) | FastAPI Route / Router | 개수·계약 확보. 경로별 열거는 **소비 Session(S2·S5) 필요 시** |
 | 5 | [`05_DB.md`](05_DB.md) | 현행 SQLite 스키마 · 데이터 규모 · 품질 | 확보 (가장 두꺼운 실측) |
 | 6 | [`06_DEPENDENCY.md`](06_DEPENDENCY.md) | Python / Node 의존과 신규 도입 후보 | 채택/미채택 확보. 전량 열거는 **소비 Session(S4) 필요 시** |
-| 7 | [`07_NOTION.md`](07_NOTION.md) | Notion 워크스페이스 실측 | 확보 (실 API 조회) |
+| 7 | [`07_NOTION.md`](07_NOTION.md) | Notion 워크스페이스 실측 + **토큰 위치** | 확보 (실 API 조회). S1 이 토큰 보관 위치와 **개발 사본 불일치 1건**을 더했다 |
 | 8 | [`08_SQLITE.md`](08_SQLITE.md) | SQLite 결합 지점 (코드 레벨) | 확보 (13항 실측 목록) |
 | 9 | [`09_N8N.md`](09_N8N.md) | n8n 워크플로 · 외부 Runner | 확보 |
 | 10 | [`10_HARNESS.md`](10_HARNESS.md) | 설치/배포/검증 Script | 확보 |

@@ -83,7 +83,46 @@
 - 삭제가 도메인 이벤트가 아니라 Notion 이벤트다(`notion_missing_at` + 유예 후 정리)
 - 감사 object_type 이 Notion 명사다: `notion_task` · `notion_document` · `notion_token`
 
+## 토큰은 어디 있나 (S1 확인 · 2026-08-21)
+
+**값은 이 저장소에 없고 앞으로도 없다.** 코드는 **secret-ref** 로 다룬다 — 설정이 들고 있는
+것은 파일 **이름**이고(`app/core/config.py`: `secrets_dir` · `notion_report_token_ref` ·
+`notion_docs_token_ref`), 값은 그 이름의 파일에서 읽는다. `OutboundClient` 단일 관문이
+그 참조를 주입한다(MASTER_PLAN §2.2).
+
+| 위치 | 파일 | 권한 |
+|---|---|---|
+| **운영 (정본)** | `/etc/clovirone-web-assistant/secrets/{notion_docs_token, notion_report_token}` | `root:clovirone-web` **0640** — 읽으려면 sudo |
+| 개발 기계 | `var/secrets/{notion_docs_token, notion_report_token}` (`secrets_dir` 기본값) | `.gitignore` 의 `var/` 로 제외 · **git 미추적 확인** |
+
+같은 디렉터리에 `assistant_runner_token` · `game_runner_token` 도 있다.
+
+### 🔴 개발 사본의 `notion_docs_token` 은 문서 통합 토큰이 아니다
+
+sha256 대조 결과(값은 찍지 않았다):
+
+| | `notion_docs_token` | `notion_report_token` |
+|---|---|---|
+| 개발 `var/secrets/` | `2abdd8cd…` (50 B) | `2abdd8cd…` (50 B) |
+| **운영 `/etc/…/secrets/`** | **`4f24558f…` (51 B)** | `2abdd8cd…` (50 B) |
+
+**개발 사본에서는 두 파일이 바이트 단위로 같다** — 즉 `notion_docs_token` 자리에 report
+토큰이 들어가 있다. 운영은 서로 다른 값 둘을 갖고 있다.
+
+**왜 S13 이 이걸 알아야 하나**: S13 은 **문서 본문 110건 전량**을 Notion block API 로 다시
+읽어야 한다(위 「데이터 품질」). 개발 기계에서 그대로 Migration Tool 을 돌리면 **문서 통합이
+아닌 토큰**으로 인증하게 된다. 운영 파일을 정본으로 쓰거나(읽으려면 sudo), 개발 사본을
+운영 값으로 맞춘 뒤 시작한다.
+
+> 토큰 **유효성**은 다시 재지 않았다 — 「Notion 연결 테스트는 매번 통과한다」가 이미
+> 실측으로 기록돼 있고(§1), 동기화 실패의 원인은 토큰이 아니라 **DB id 오설정**이다.
+> 확인이 다시 필요해지는 시점은 S13 이 실제로 본문을 읽을 때다.
+
 ## 미확인 항목과 Owner
 
-**없다.** 이 목록은 **S13 Migration Tool 의 입력으로 그대로 쓴다.** 재조사하지 않는다.
+| 미확인 | Owner | 내용 |
+|---|---|---|
+| 개발 사본 `notion_docs_token` 정정 | **S13** | 위 표. 본문 재수집을 시작하기 **전에** 맞춘다 |
+
+그 밖에는 **없다.** 이 목록은 **S13 Migration Tool 의 입력으로 그대로 쓴다.** 재조사하지 않는다.
 단 본문 재수집 시 `last_edited` 기준 delta 로 **재실행 가능해야 한다** (R8).
