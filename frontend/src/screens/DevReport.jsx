@@ -13,7 +13,7 @@ import Typography from "@mui/material/Typography";
 import { useTheme } from "@mui/material/styles";
 import { api } from "../lib/api.js";
 import { PageHeader, Card, Badge, Button, Callout, Skeleton, EmptyState, ErrorState, MetricStrip } from "../ui/kit.jsx";
-import { FONT_SIZE, FONT_WEIGHT } from "../ui/theme.js";
+import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
 import { BarSeries } from "../ui/charts/BarSeries.jsx";
 import { Donut } from "../ui/charts/Donut.jsx";
 import { resolveChartColor } from "../ui/charts/base.jsx";
@@ -353,7 +353,7 @@ export function DevReport() {
                     ...d.tickets.map((t) => (
                       <TableRow key={d.name + ":" + (t.tid || t.title) + ":" + t.status}>
                         <TableCell sx={{ whiteSpace: "nowrap" }}>{t.tid ? "GIT-" + t.tid : "-"}</TableCell>
-                        <TableCell sx={{ minWidth: "14rem", overflowWrap: "anywhere" }}>
+                        <TableCell sx={{ minWidth: "14rem", ...KO_WORD_BREAK }}>
                           {safeExternal(t.url)
                             ? <Link href={safeExternal(t.url)} target="_blank" rel="noreferrer noopener" underline="hover">{t.title}</Link>
                             : t.title}

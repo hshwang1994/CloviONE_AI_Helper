@@ -6,6 +6,9 @@ import "@testing-library/jest-dom/vitest";
 import { Callout, DataTable, EmptyState, ErrorState, MetaBar, SectionTitle, TechDetail } from "./kit.jsx";
 import { Note, SettingRow } from "./adminKit.jsx";
 import { COPY_LIMIT, CH_PER_HANGUL, COPY_TARGET_LINES, EMPTY_STATE_MAX_CH, ERROR_STATE_MAX_CH, copyLimitFromCh, createClovirTheme, KO_WORD_BREAK } from "./theme.js";
+import { readFileSync, readdirSync, statSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 /* 한국어 도움말이 **단어 중간에서** 줄바꿈되지 않는다 (사용자 지적 #11).
  *
@@ -30,9 +33,24 @@ describe("한국어 줄바꿈", () => {
   });
 
   it("줄바꿈은 body 에서 전역으로 정한다", () => {
-    const body = createClovirTheme("light").components.MuiCssBaseline.styleOverrides.body;
+    const theme = createClovirTheme("light");
+    const body = theme.components.MuiCssBaseline.styleOverrides.body;
     expect(body.wordBreak).toBe("keep-all");
-    expect(body.overflowWrap).toBe("break-word");
+    expect(body.overflowWrap, "overflow-wrap 을 body 에 두면 한글이 다시 글자 단위로 잘린다").toBeUndefined();
+    expect(theme.components.MuiTypography.styleOverrides.root.wordBreak).toBe("keep-all");
+  });
+
+  it("정적 CSS 에도 keep-all 이 있다", () => {
+    const here = path.dirname(fileURLToPath(import.meta.url));
+    const css = readFileSync(path.join(here, "..", "styles", "root.css"), "utf-8");
+    expect(css).toMatch(/html,\s*body,\s*#root\s*\{[^}]*word-break:\s*keep-all/);
+  });
+
+  it("본문 글꼴은 토큰 스택이다", () => {
+    const here = path.dirname(fileURLToPath(import.meta.url));
+    const css = readFileSync(path.join(here, "..", "styles", "global.css"), "utf-8");
+    expect(css).toMatch(/font-family:\s*var\(--font-stack\)/);
+    expect(css).not.toMatch(/body\s*\{[^}]*font-family:\s*-apple-system/);
   });
 
   it("짧은 UI 설명 한도는 칸 폭에서 계산된다", () => {
@@ -131,5 +149,38 @@ describe("한국어 줄바꿈 — 글을 담는 공용 부품 전부", () => {
     const cell = container.querySelector("tbody td");
     expect(cell).toBeTruthy();
     expect(getComputedStyle(cell).wordBreak).toBe("keep-all");
+  });
+});
+
+/* 테마 객체만 고치고 화면이 anywhere 로 덮으면 사용자는 예전과 같이 본다.
+ * JSON·UUID·로그 원문만 글자 단위가 필요하다. */
+const ANYWHERE_OK = new Set(["JsonBlock.jsx", "Users.jsx"]);
+function listJs(dir) {
+  const out = [];
+  for (const name of readdirSync(dir)) {
+    const full = path.join(dir, name);
+    if (statSync(full).isDirectory()) out.push(...listJs(full));
+    else if ((name.endsWith(".js") || name.endsWith(".jsx")) && !name.includes(".test.")) out.push(full);
+  }
+  return out;
+}
+
+describe("한글 화면이 전역 keep-all 을 덮지 않는다", () => {
+  it("overflow-wrap:anywhere 는 JSON·UUID 칸에만 남는다", () => {
+    const src = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
+    const hits = [];
+    for (const file of listJs(src)) {
+      const base = path.basename(file);
+      if (ANYWHERE_OK.has(base)) continue;
+      const lines = readFileSync(file, "utf-8").split(/\r?\n/);
+      lines.forEach((line, i) => {
+        if (/overflowWrap:\s*["']anywhere["']/.test(line)) {
+          const t = line.trim();
+          if (t.startsWith("//") || t.startsWith("*") || t.startsWith("/*") || t.startsWith("{/*")) return;
+          hits.push(`${path.relative(src, file)}:${i + 1}`);
+        }
+      });
+    }
+    expect(hits, hits.join("\n")).toEqual([]);
   });
 });

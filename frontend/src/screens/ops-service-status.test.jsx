@@ -104,7 +104,7 @@ describe("진단 — 서비스 중단 표시와 재시작 안내", () => {
     renderDiagnostics();
 
     // worker만 죽었으므로 worker 전용 유닛만 안내한다(web과 다른 유닛이라 섞으면 엉뚱한 로그를 보게 된다).
-    const guidance = await screen.findByText(/일부 서비스가 중단/);
+    const guidance = await screen.findByText(/일부 서비스가 응답하지/);
     expect(guidance).toHaveTextContent("clovirone-web-worker");
     expect(guidance).not.toHaveTextContent("clovirone-web-assistant.service");
 
@@ -129,7 +129,7 @@ describe("진단 — 서비스 중단 표시와 재시작 안내", () => {
     renderDiagnostics();
 
     expect(await screen.findByText("서비스 상태")).toBeInTheDocument();
-    expect(screen.queryByText(/일부 서비스가 중단/)).toBeNull();
+    expect(screen.queryByText(/일부 서비스가 응답하지/)).toBeNull();
   });
 });
 

@@ -15,7 +15,7 @@ import { diffFields } from "../lib/diffFields.js";
 import { fmtDateTime, shortUA } from "../lib/format.js";
 import { useAuth } from "../app/auth.jsx";
 import { PageHeader, Card, Badge, Button, DataTable, FormModal, Modal, OverflowMenu, Skeleton, EmptyState, ErrorState, Callout, useConfirm, useToast } from "../ui/kit.jsx";
-import { FONT_SIZE, FONT_WEIGHT } from "../ui/theme.js";
+import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
 import { useRowSelection, selectionColumn } from "../ui/bulkSelect.jsx";
 import { FilterActions, FilterRow, FilterSurface, ResultLine, ToolbarRow } from "../ui/FilterBar.jsx";
 import { BulkBar, CsvTools } from "./UsersBulk.jsx";
@@ -782,7 +782,7 @@ function Row({ label, children }) {
       py: 1.25, borderBottom: 1, borderColor: "divider", minWidth: 0,
     }}>
       <Typography variant="body2" color="text.secondary">{label}</Typography>
-      <Box sx={{ minWidth: 0, overflowWrap: "anywhere" }}>{children}</Box>
+      <Box sx={{ minWidth: 0, ...KO_WORD_BREAK }}>{children}</Box>
     </Box>
   );
 }

@@ -22,7 +22,7 @@ import { mentionNames } from "./chat-text.js";
 import { idlePollDelayMs } from "./teamchat-poll.js";
 import { markRoomRead } from "./teamchat-unread.js";
 import { ImageLightbox, useLightbox } from "../ui/ImageLightbox.jsx";
-import { FONT_SIZE, FONT_WEIGHT, RADIUS } from "../ui/theme.js";
+import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, RADIUS } from "../ui/theme.js";
 
 /* 팀 채팅 핵심 창(폴링 로그 + 입력). 방 페이지와 홈 위젯이 공유한다. 놀이(GameRoom) 폴링 패턴 이식:
  * since=0 로 최근 메시지를 받아 seq 커서로 따라오고, 내 메시지는 오른쪽 말풍선. 탭이 숨으면 폴링을
@@ -367,7 +367,7 @@ export function ChatPane({ roomId, compact = false, interval = 2000, idleMax = 0
                          모서리마다 다른 반지름(꼬리)과 강조색 번짐 그림자를 걷고, 화자 구분은
                          정렬 + 면으로만 한다. `MessageThread` 와 같은 규칙이다. */
                       px: 1.5, py: 1, borderRadius: `${RADIUS.lg}px`, minWidth: 0,
-                      fontSize: FONT_SIZE.body, lineHeight: 1.5, whiteSpace: "pre-wrap", wordBreak: "break-word",
+                      fontSize: FONT_SIZE.body, lineHeight: 1.5, whiteSpace: "pre-wrap", ...KO_WORD_BREAK,
                       ...(mine
                         ? { bgcolor: "primary.main", color: "primary.contrastText" }
                         : { bgcolor: "background.inset" }),

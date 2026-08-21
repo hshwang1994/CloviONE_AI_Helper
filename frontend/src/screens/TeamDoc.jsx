@@ -22,7 +22,7 @@ import {
   useToast,
 } from "../ui/kit.jsx";
 import { fmtDateTime } from "../lib/format.js";
-import { FONT_SIZE, FONT_WEIGHT, PROSE_MAX_WIDTH } from "../ui/theme.js";
+import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, PROSE_MAX_WIDTH } from "../ui/theme.js";
 import { BASELINE_TRACKS, GRID_GAP } from "../ui/density.js";
 import { safeExternal } from "../lib/safeUrl.js";
 import { ClickableImage, ImageLightbox, useLightbox } from "../ui/ImageLightbox.jsx";
@@ -169,7 +169,7 @@ export function DocBody({ blocks, blocksError, originalUrl }) {
   flush();
   // 산문 줄 길이 상한 — 3,000px짜리 한 줄은 눈이 다음 줄 첫 글자를 찾지 못한다.
   return (
-    <Box sx={{ maxWidth: PROSE_MAX_WIDTH, overflowWrap: "anywhere" }}>
+    <Box sx={{ maxWidth: PROSE_MAX_WIDTH, ...KO_WORD_BREAK }}>
       {out}
       <ImageLightbox {...lb.props} />
     </Box>

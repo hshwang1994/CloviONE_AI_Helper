@@ -5,7 +5,7 @@ import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { Button, EmptyState } from "../../ui/kit.jsx";
-import { FONT_SIZE, FONT_WEIGHT } from "../../ui/theme.js";
+import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../../ui/theme.js";
 import { fmtTime } from "./timeUtils.js";
 
 /* 오른쪽 레일 아래쪽 — 채팅. GameRoom.jsx 구조 분리(2026-08)로 값 변경 없이 이 파일로 옮겼다.
@@ -50,7 +50,7 @@ export function ChatPanel({ chatLogRef, chatMsgs, you, draft, setDraft, sendChat
               <Box sx={{ display: "flex", alignItems: "flex-end", gap: 0.75, flexDirection: mine ? "row-reverse" : "row" }}>
                 <Box component="span" sx={{
                   px: 1.5, py: 1, borderRadius: 3.5, fontSize: FONT_SIZE.body, lineHeight: 1.45,
-                  wordBreak: "break-word",
+                  ...KO_WORD_BREAK,
                   border: 1, borderColor: mine ? "transparent" : "divider",
                   bgcolor: mine ? "primary.main" : "action.hover",
                   color: mine ? "primary.contrastText" : "text.primary",

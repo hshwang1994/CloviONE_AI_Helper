@@ -619,7 +619,7 @@ function DashboardBody({ d, nav, role, stale }) {
                     gridTemplateColumns: { xs: "1fr", sm: "12rem minmax(0,1fr) auto" },
                   }}>
                   <Typography variant="body2" color="text.secondary" sx={{ fontVariantNumeric: "tabular-nums" }}>{fmtDateTime(a.created_at)}</Typography>
-                  <Typography variant="body2" sx={{ minWidth: 0, overflowWrap: "anywhere" }}>{actionKo(a.action)} ({a.actor || "시스템"})</Typography>
+                  <Typography variant="body2" sx={{ minWidth: 0, ...KO_WORD_BREAK }}>{actionKo(a.action)} ({a.actor || "시스템"})</Typography>
                   {/* 줄인 ID엔 …을 붙여 '전체 값'처럼 보이지 않게 하고, 대상 ID가 있으면 눌러서 복사할
                       수 있게 한다(title 툴팁은 터치, 스크린리더에서 안 보인다, 탭 가능한 대안). */}
                   {a.object_id ? (

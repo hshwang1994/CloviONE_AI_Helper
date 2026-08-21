@@ -7,7 +7,7 @@ import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
 import { fmtDateTime } from "../lib/format.js";
 import { Button, Card, ErrorState, Skeleton, useConfirm, useToast } from "../ui/kit.jsx";
-import { FONT_SIZE, PROSE_MAX_WIDTH } from "../ui/theme.js";
+import { FONT_SIZE, KO_WORD_BREAK, PROSE_MAX_WIDTH } from "../ui/theme.js";
 import { AuthorLine } from "./Board.jsx";
 
 /* 댓글 타래 (티켓 · 문서 공용).
@@ -70,7 +70,7 @@ function CommentRow({ comment, person, busy, onEdit, onDelete }) {
           <Button size="sm" variant="ghost" disabled={busy} onClick={onDelete}>삭제</Button>
         ) : null}
       </Stack>
-      <Typography variant="body2" sx={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
+      <Typography variant="body2" sx={{ whiteSpace: "pre-wrap", ...KO_WORD_BREAK }}>
         {comment.body}
       </Typography>
     </Box>

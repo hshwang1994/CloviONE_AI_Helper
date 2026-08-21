@@ -17,7 +17,7 @@ import {
   Badge, Button, Callout, Card, EmptyState, ErrorState, PageHeader, SectionTitle, Skeleton,
   useConfirm, useToast,
 } from "../ui/kit.jsx";
-import { FONT_WEIGHT } from "../ui/theme.js";
+import { FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
 import { Note } from "../ui/adminKit.jsx";
 
 /* 내 프로필 — 아바타 · 알림 설정 · 방해금지 · 내 기기(세션) (계획서 Phase 6 사용자).
@@ -370,7 +370,7 @@ function SessionsCard() {
                   </Typography>
                   {s.current ? <Badge value="현재" kind="ok" /> : null}
                 </Box>
-                <Typography variant="body2" color="text.secondary" sx={{ wordBreak: "break-word" }}>
+                <Typography variant="body2" color="text.secondary" sx={KO_WORD_BREAK}>
                   {s.client_ip || "IP 미상"}, 최근 활동 {fmtRelative(s.last_seen_at)}
                 </Typography>
                 {s.user_agent ? (
@@ -378,7 +378,7 @@ function SessionsCard() {
                   // 자른 표기 + Tooltip으로 전체 문구를 보존한다 — 원문 그대로 두면 긴 UA
                   // 문자열이 이 카드의 폭을 밀어냈다.
                   <Tooltip title={s.user_agent}>
-                    <Typography variant="caption" color="text.secondary" sx={{ display: "block", wordBreak: "break-word" }}>
+                    <Typography variant="caption" color="text.secondary" sx={{ display: "block", ...KO_WORD_BREAK }}>
                       {shortUA(s.user_agent)}
                     </Typography>
                   </Tooltip>

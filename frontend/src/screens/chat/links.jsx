@@ -4,7 +4,7 @@ import Link from "@mui/material/Link";
 import Tooltip from "@mui/material/Tooltip";
 import OpenInNewRoundedIcon from "@mui/icons-material/OpenInNewRounded";
 import { useToast } from "../../ui/kit.jsx";
-import { FONT_SIZE, FONT_WEIGHT } from "../../ui/theme.js";
+import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../../ui/theme.js";
 import { URL_RE, copyText, safeNotion } from "../chat-helpers.js";
 import { trimUrlTail } from "../chat-text.js";
 
@@ -24,7 +24,7 @@ export function PlainUrl({ url }) {
         onClick={() => copyText(url).then((ok) => toast(ok ? "주소를 복사했습니다." : "복사에 실패했습니다. 직접 선택해 복사하세요.", ok ? "success" : "error"))}
         sx={{
           font: "inherit", fontSize: FONT_SIZE.bodySm, border: 0, background: "none", p: 0, m: 0,
-          textAlign: "left", cursor: "pointer", color: "text.secondary", overflowWrap: "anywhere",
+          textAlign: "left", cursor: "pointer", color: "text.secondary", ...KO_WORD_BREAK,
           textDecoration: "underline dotted", textUnderlineOffset: "2px",
           "&:hover, &:focus-visible": { color: "text.primary", textDecorationStyle: "solid" },
         }}
@@ -40,7 +40,7 @@ export function NotionLink({ url, children }) {
   return (
     <Link
       href={url} target="_blank" rel="noreferrer noopener" underline="hover"
-      sx={{ fontSize: FONT_SIZE.bodySm, fontWeight: FONT_WEIGHT.bold, display: "inline-flex", alignItems: "center", gap: 0.5, overflowWrap: "anywhere" }}
+      sx={{ fontSize: FONT_SIZE.bodySm, fontWeight: FONT_WEIGHT.bold, display: "inline-flex", alignItems: "center", gap: 0.5, ...KO_WORD_BREAK }}
     >
       {children || "Notion에서 열기"}
       <OpenInNewRoundedIcon aria-hidden="true" sx={{ fontSize: "0.9375rem" }} />

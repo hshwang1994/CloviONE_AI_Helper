@@ -3,7 +3,7 @@ import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import { useTheme } from "@mui/material/styles";
 import { ChartEmpty, capSeries, resolveChartColor, useTrackColor } from "./base.jsx";
-import { FONT_WEIGHT } from "../theme.js";
+import { FONT_WEIGHT, KO_WORD_BREAK } from "../theme.js";
 
 /* 도넛 — 전체가 무엇으로 이루어져 있는지(구성비)를 보여준다. 크기 비교는 BarSeries가 낫다.
  *
@@ -99,7 +99,7 @@ export function Donut({
               aria-hidden="true"
               sx={{ width: "0.75rem", height: "0.75rem", borderRadius: 0.5, flex: "0 0 auto", bgcolor: arcs[i].color }}
             />
-            <Typography variant="body2" sx={{ minWidth: 0, overflowWrap: "anywhere" }}>
+            <Typography variant="body2" sx={{ minWidth: 0, ...KO_WORD_BREAK }}>
               {s.label} <Box component="span" sx={{ fontWeight: FONT_WEIGHT.extrabold, fontVariantNumeric: "tabular-nums" }}>{s.value}{unit}</Box>
               <Box component="span" sx={{ color: "text.secondary" }}> ({Math.round((s.value / total) * 100)}%)</Box>
             </Typography>
@@ -113,7 +113,7 @@ export function Donut({
               aria-hidden="true"
               sx={{ width: "0.75rem", height: "0.75rem", borderRadius: 0.5, flex: "0 0 auto", bgcolor: track }}
             />
-            <Typography variant="body2" color="text.secondary" sx={{ minWidth: 0, overflowWrap: "anywhere" }}>
+            <Typography variant="body2" color="text.secondary" sx={{ minWidth: 0, ...KO_WORD_BREAK }}>
               분류 없음 <Box component="span" sx={{ fontWeight: FONT_WEIGHT.extrabold, fontVariantNumeric: "tabular-nums" }}>{missing}{unit}</Box>
               <Box component="span"> ({Math.round((missing / total) * 100)}%)</Box>
             </Typography>

@@ -13,7 +13,7 @@ import {
   Badge, Button, Card, EmptyState, ErrorState, PageHeader, Skeleton,
 } from "../ui/kit.jsx";
 import { Pager } from "../ui/Pager.jsx";
-import { FONT_WEIGHT } from "../ui/theme.js";
+import { FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
 
 /* 내 활동 피드 — 내가 한 일 / 나에게 일어난 일 (계획서 Phase 6 사용자).
  *
@@ -74,14 +74,14 @@ function ActivityRow({ item, onOpen }) {
       </Box>
       <Box sx={{ flex: 1, minWidth: 0 }}>
         <Box sx={{ display: "flex", gap: 1, alignItems: "center", flexWrap: "wrap" }}>
-          <Typography sx={{ fontWeight: FONT_WEIGHT.semibold, minWidth: 0, wordBreak: "break-word" }}>
+          <Typography sx={{ fontWeight: FONT_WEIGHT.semibold, minWidth: 0, ...KO_WORD_BREAK }}>
             {item.title}
           </Typography>
           {failed ? <Badge value="실패" kind="danger" /> : null}
           {item.kind === "happened" && !item.read_at ? <Badge value="안 읽음" kind="warn" /> : null}
         </Box>
         {item.body ? (
-          <Typography variant="body2" color="text.secondary" sx={{ wordBreak: "break-word" }}>
+          <Typography variant="body2" color="text.secondary" sx={KO_WORD_BREAK}>
             {item.body}
           </Typography>
         ) : null}

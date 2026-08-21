@@ -15,7 +15,7 @@ import ThumbDownRoundedIcon from "@mui/icons-material/ThumbDownRounded";
 import ThumbUpOutlinedIcon from "@mui/icons-material/ThumbUpOutlined";
 import ThumbUpRoundedIcon from "@mui/icons-material/ThumbUpRounded";
 import { Button } from "../../ui/kit.jsx";
-import { FONT_SIZE, FONT_WEIGHT, RADIUS } from "../../ui/theme.js";
+import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, RADIUS } from "../../ui/theme.js";
 import {
   copyText, fmtDateSep, fmtTime, msgAgeMs, responseTimeLabel, structuredCards,
   stripDuplicatedTicketLines, ticketPageStart,
@@ -82,7 +82,7 @@ export function Message({
         elevation={0}
         sx={{
           px: 2, py: 1.5, minWidth: 0, maxWidth: "100%",
-          fontSize: FONT_SIZE.body, lineHeight: 1.6, overflowWrap: "anywhere",
+          fontSize: FONT_SIZE.body, lineHeight: 1.6, ...KO_WORD_BREAK,
           borderRadius: `${RADIUS.lg}px`,
           ...(isUser
             ? { bgcolor: "primary.main", color: "primary.contrastText" }
@@ -93,7 +93,7 @@ export function Message({
         <span className="sr-only">{isUser ? "나: " : "도우미: "}</span>
         {/* 어시스턴트 답은 머리글, 목록, 키-값으로 구조화(텍스트 노드 전용). 사용자 글은 친 그대로. */}
         {content ? (isAssistant ? <RichText text={content} /> : (
-          <Typography sx={{ m: 0, fontSize: FONT_SIZE.body, lineHeight: 1.6, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{content}</Typography>
+          <Typography sx={{ m: 0, fontSize: FONT_SIZE.body, lineHeight: 1.6, whiteSpace: "pre-wrap", ...KO_WORD_BREAK }}>{content}</Typography>
         )) : null}
         {attachments.length ? (
           <>

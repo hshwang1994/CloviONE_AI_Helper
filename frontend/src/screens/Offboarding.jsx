@@ -17,6 +17,7 @@ import {
   PageHeader, Card, Badge, Button, DataTable, Modal, Skeleton,
   EmptyState, ErrorState, Callout, useConfirm, useToast,
 } from "../ui/kit.jsx";
+import { KO_WORD_BREAK } from "../ui/theme.js";
 import { useRowSelection, selectionColumn } from "../ui/bulkSelect.jsx";
 import { invalidateTicketViews } from "./ticket-views.js";
 import { DateCell } from "../ui/cells.jsx";
@@ -306,7 +307,7 @@ function OffboardPlan({ preview, onDone, toast }) {
               <Badge value={check.ok ? "완료" : "미완"} kind={check.ok ? "ok" : "warn"} />
               <Box sx={{ minWidth: 0 }}>
                 <Typography variant="body2">{check.label}</Typography>
-                <Typography variant="caption" color="text.secondary" sx={{ overflowWrap: "anywhere" }}>{check.value}</Typography>
+                <Typography variant="caption" color="text.secondary" sx={KO_WORD_BREAK}>{check.value}</Typography>
               </Box>
             </Box>
           ))}
@@ -572,7 +573,7 @@ function Row({ label, children }) {
     <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "10rem minmax(0,1fr)" }, gap: 1,
                py: 1.25, borderBottom: 1, borderColor: "divider", minWidth: 0 }}>
       <Typography variant="body2" color="text.secondary">{label}</Typography>
-      <Box sx={{ minWidth: 0, overflowWrap: "anywhere" }}>{children}</Box>
+      <Box sx={{ minWidth: 0, ...KO_WORD_BREAK }}>{children}</Box>
     </Box>
   );
 }

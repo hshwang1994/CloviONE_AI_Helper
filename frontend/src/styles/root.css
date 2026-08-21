@@ -25,3 +25,11 @@
 html {
   font-size: var(--clv-root-fs);
 }
+
+/* 한글 줄바꿈. MUI CssBaseline 의 body 객체만 믿으면 Emotion 주입 전에
+ * (그리고 그 객체가 실제로 안 붙는 경우) 브라우저 기본값(음절 단위)이 남는다.
+ * 정적 CSS 에 두어 모든 페이지에 반드시 적용한다. overflow-wrap:anywhere 는
+ * 한글을 다시 글자 단위로 자르므로 여기에 두지 않는다. */
+html, body, #root {
+  word-break: keep-all;
+}

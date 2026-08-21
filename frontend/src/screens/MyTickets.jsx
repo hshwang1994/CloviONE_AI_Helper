@@ -29,7 +29,7 @@ import { useAuth } from "../app/auth.jsx";
 import { BodyEditor, editorContainerSx, editorSurfaceWidthSx } from "../ui/BodyEditor.jsx";
 import { useRowSelection, selectionColumn, BulkActions } from "../ui/bulkSelect.jsx";
 import { rowNameOf } from "../ui/rowName.js";
-import { FAB_CLEARANCE, FONT_SIZE, FONT_WEIGHT, TABLE_CARD_QUERY } from "../ui/theme.js";
+import { FAB_CLEARANCE, FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, TABLE_CARD_QUERY } from "../ui/theme.js";
 import { BASELINE_TRACKS, GRID_GAP } from "../ui/density.js";
 import { affiliation, needsOrg, personLabel } from "../lib/people.js";
 import { EMPTYABLE_SELECT, EntityCombobox } from "../ui/filters.jsx";
@@ -320,7 +320,7 @@ export function GroupedTickets({ rows, columns, empty, emptyHelp, emptyState, gr
                         {cols.map((c) => c.label ? (
                           <Box key={c.key} sx={{ display: "grid", gridTemplateColumns: "7rem minmax(0,1fr)", gap: 1, alignItems: "start" }}>
                             <Typography variant="caption" color="text.secondary">{cardFieldLabel(c)}</Typography>
-                            <Box sx={{ minWidth: 0, fontSize: FONT_SIZE.body, overflowWrap: "anywhere" }}>{groupedCell(c, t, ctx)}</Box>
+                            <Box sx={{ minWidth: 0, fontSize: FONT_SIZE.body, ...KO_WORD_BREAK }}>{groupedCell(c, t, ctx)}</Box>
                           </Box>
                         ) : (
                           // 라벨이 없는 열(선택 체크박스·행 작업)은 라벨 자리를 비우고 값만 보여준다.
@@ -381,7 +381,7 @@ export function GroupedTickets({ rows, columns, empty, emptyHelp, emptyState, gr
                 return (
                   <TableRow key={groupedRowKey(t, i)} hover>
                     {cols.map((c) => (
-                      <TableCell key={c.key} align={c.align || "left"} sx={{ overflowWrap: c.nowrap ? "normal" : "anywhere", whiteSpace: c.nowrap ? "nowrap" : undefined,
+                      <TableCell key={c.key} align={c.align || "left"} sx={{ ...(c.nowrap ? { overflowWrap: "normal", whiteSpace: "nowrap" } : KO_WORD_BREAK),
                                   minWidth: c.minWidth, fontVariantNumeric: "tabular-nums" }}>
                         {groupedCell(c, t, ctx)}
                       </TableCell>

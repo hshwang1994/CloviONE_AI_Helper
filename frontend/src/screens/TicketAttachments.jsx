@@ -9,7 +9,7 @@ import Typography from "@mui/material/Typography";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import { api } from "../lib/api.js";
 import { Button, Card, useConfirm, useToast } from "../ui/kit.jsx";
-import { FONT_SIZE } from "../ui/theme.js";
+import { FONT_SIZE, KO_WORD_BREAK } from "../ui/theme.js";
 import { ImageLightbox, useLightbox } from "../ui/ImageLightbox.jsx";
 import { Note } from "../ui/adminKit.jsx";
 
@@ -221,7 +221,7 @@ export function TicketAttachments({ ticketId, attachments, canEdit, onChanged })
                     </Tooltip>
                   ) : null}
                   <Typography variant="caption" color="text.secondary"
-                    sx={{ display: "block", mt: 0.5, overflowWrap: "anywhere" }}>
+                    sx={{ display: "block", mt: 0.5, ...KO_WORD_BREAK }}>
                     {a.filename}
                   </Typography>
                 </Box>
@@ -236,7 +236,7 @@ export function TicketAttachments({ ticketId, attachments, canEdit, onChanged })
                 <Stack key={a.id} component="li" direction="row"
                   sx={{ alignItems: "center", gap: 1, minWidth: 0 }}>
                   <Link href={a.url} target="_blank" rel="noreferrer noopener" underline="hover"
-                    sx={{ minWidth: 0, overflowWrap: "anywhere" }}>
+                    sx={{ minWidth: 0, ...KO_WORD_BREAK }}>
                     {a.filename}
                   </Link>
                   <Typography variant="caption" color="text.secondary" sx={{ flexShrink: 0 }}>

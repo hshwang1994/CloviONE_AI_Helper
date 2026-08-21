@@ -161,11 +161,19 @@ Secret은 문서에 기록하지 않는다.
 
 UI/UX:
 - 실제 Page 목적, 정보 위계, 밀도, Responsive, Empty/Loading/Error, Keyboard/Focus를 본다.
-- Test PASS와 Visual PASS를 같은 것으로 보지 않는다.
+- Test PASS와 Visual PASS를 같은 것으로 보지 않는다. 테마 객체·토큰만 바꾸고 브라우저가 받는 CSS에 안 넣지 않는다.
 - Purple/Indigo Brand와 Clovi 역할을 유지한다.
-- 한글 줄바꿈은 전역 `keep-all`이다. 화면마다 `KO_WORD_BREAK`를 다시 적지 않는다.
+- 한글 줄바꿈은 정적 CSS(`frontend/src/styles/root.css`)의 `keep-all`이다. `overflow-wrap: anywhere`로 덮지 않는다. JSON·UUID·코드만 글자 단위다.
 - 짧은 화면 설명에 `70ch`를 걸지 않는다. 긴 산문만 `PROSE_MAX_WIDTH`.
 - UI 문구에 `\n`/`<br>`를 넣지 않는다. 짧은 화면 설명·EmptyState·ErrorState 문구는 `COPY_LIMIT` 이하로 쓴다. 숫자를 직접 적지 않는다. 칸 폭은 `EMPTY_STATE_MAX_CH`/`ERROR_STATE_MAX_CH`이고, 글자 한도는 그 폭에서 계산된다.
+- 본문 글꼴은 Pretendard(`--font-stack`)다. `global.css`에 시스템 글꼴을 다시 박지 않는다.
+- 한국어(UI 문구·사용자에게 보이는 안내·코드 주석)는 아래처럼 쓴다.
+  - 결론을 먼저 쓰고, 주어와 서술어가 있는 완전한 문장으로 끝낸다.
+  - 조각 문장("한눈에.", "만 봅니다.", "고치기는 담당자만.")을 쓰지 않는다.
+  - 번역투 나열("상태, 기간, 진행률을 한눈에")을 쓰지 않는다.
+  - 권한·능력은 "할 수 있습니다"를 유지한다.
+  - "해당", "이를 통해", "수행한다", "잇습니다" 같은 서류 말투·잘못된 동사를 쓰지 않는다.
+  - 짧은 화면 설명도 한 문장으로 끝나게 한다. 예: "팀원과 자유롭게 이야기를 나눕니다."
 
 Runtime/Deployment:
 - 실제 Runtime/Config/Service/TLS를 확인한다.

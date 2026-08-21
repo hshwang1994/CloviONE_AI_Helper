@@ -5,7 +5,7 @@ import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { alpha } from "@mui/material/styles";
 import { Button } from "../../ui/kit.jsx";
-import { FONT_SIZE, FONT_WEIGHT, RADIUS } from "../../ui/theme.js";
+import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, RADIUS } from "../../ui/theme.js";
 import { rise, stageColumnSx, RPS_LABELS, RPS_EMOJI, rpsEmoji } from "./constants.js";
 import { ResultStage, StageHint, WinnerName } from "./StageShared.jsx";
 import { LadderBoard } from "./LadderBoard.jsx";
@@ -66,7 +66,7 @@ export function GameStage({ c }) {
                   <Paper component="li" key={a.user_id} variant="outlined" sx={{
                     display: "flex", alignItems: "center", gap: 1.5, px: 1.5, py: 1, animation: `${rise} .38s ease both`,
                   }}>
-                    <Box component="span" sx={{ flex: 1, minWidth: 0, overflowWrap: "anywhere" }}>{a.name}</Box>
+                    <Box component="span" sx={{ flex: 1, minWidth: 0, ...KO_WORD_BREAK }}>{a.name}</Box>
                     <Box component="span" aria-hidden="true" sx={{ color: "text.secondary" }}>→</Box>
                     <Box component="span" sx={{ fontWeight: FONT_WEIGHT.bold, color: "primary.dark" }}>{a.outcome}</Box>
                   </Paper>

@@ -21,7 +21,7 @@ import {
   hasTicketFilter, matchesTicketFilters, ticketFilterSpec,
 } from "./TicketFilterBar.jsx";
 import { BASELINE_TRACKS, TILE_GRID_GAP, TILE_PADDING } from "../ui/density.js";
-import { FONT_SIZE, FONT_WEIGHT } from "../ui/theme.js";
+import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
 import { Note } from "../ui/adminKit.jsx";
 
 /* 도우미 > 주간 스프린트 회의. 한 화면에서 (1) 그 주의 담당자별 티켓, (2) 계획 티켓을 본다.
@@ -226,7 +226,7 @@ function PersonCard({ person, active, onPick }) {
         "&:hover": onPick ? { borderColor: "primary.main" } : undefined,
       }}
     >
-      <Typography component="div" sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: FONT_SIZE.sectionTitle, overflowWrap: "anywhere" }}>
+      <Typography component="div" sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: FONT_SIZE.sectionTitle, ...KO_WORD_BREAK }}>
         {person.name}
       </Typography>
       <Box sx={{ display: "grid", gap: 1, gridTemplateColumns: "repeat(3, minmax(0, 1fr))" }}>

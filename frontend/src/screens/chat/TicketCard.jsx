@@ -6,7 +6,7 @@ import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { Badge, Button } from "../../ui/kit.jsx";
-import { FONT_SIZE, FONT_WEIGHT } from "../../ui/theme.js";
+import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../../ui/theme.js";
 import {
   fmtDue, peopleText, priorityKind, priorityKo, projectToneColor, safeNotion,
 } from "../chat-helpers.js";
@@ -27,7 +27,7 @@ function CardRow({ label, children }) {
   return (
     <Box sx={{ display: "grid", gridTemplateColumns: "minmax(4.5rem,auto) minmax(0,1fr)", columnGap: 1, alignItems: "center", justifyItems: "start", fontSize: FONT_SIZE.bodySm }}>
       <Typography component="span" sx={{ fontSize: FONT_SIZE.bodySm, color: "text.secondary" }}>{label}</Typography>
-      <Box sx={{ minWidth: 0, overflowWrap: "anywhere" }}>{children}</Box>
+      <Box sx={{ minWidth: 0, ...KO_WORD_BREAK }}>{children}</Box>
     </Box>
   );
 }
@@ -69,7 +69,7 @@ export function TicketCard({ t, index, onChoose, isTicket = true, sending }) {
         "&:hover": { boxShadow: 1 },
       }}
     >
-      <Typography sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: FONT_SIZE.body, lineHeight: 1.4, overflowWrap: "anywhere" }}>
+      <Typography sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: FONT_SIZE.body, lineHeight: 1.4, ...KO_WORD_BREAK }}>
         {prefix}{title}
       </Typography>
       {t.status ? <CardRow label="상태"><Badge value={t.status} /></CardRow> : null}

@@ -22,7 +22,7 @@ import {
   useToast,
 } from "../ui/kit.jsx";
 import { fmtDateTime } from "../lib/format.js";
-import { PROSE_MAX_WIDTH } from "../ui/theme.js";
+import { KO_WORD_BREAK, PROSE_MAX_WIDTH } from "../ui/theme.js";
 
 /* 본문(78ch)보다 조금 넓은 상한. 본문은 산문이라 78ch 에서 멈추는 게 맞지만,
    그 아래 댓글 목록까지 78ch 로 묶으면 답글 들여쓰기에서 또 좁아져 한 줄에
@@ -48,7 +48,7 @@ import { setItemTitle } from "../app/documentTitle.js";
 const PROSE_SX = {
   maxWidth: PROSE_MAX_WIDTH,
   whiteSpace: "pre-wrap",
-  overflowWrap: "anywhere",
+  ...KO_WORD_BREAK,
   lineHeight: 1.75,
   fontSize: "1rem",
 };
@@ -259,7 +259,7 @@ function CommentItem({ comment, postId, palette, isReply, person, onChanged }) {
           </Stack>
         </Box>
       ) : (
-        <Typography sx={{ my: 1, whiteSpace: "pre-wrap", overflowWrap: "anywhere", fontSize: "0.9375rem" }}>
+        <Typography sx={{ my: 1, whiteSpace: "pre-wrap", ...KO_WORD_BREAK, fontSize: "0.9375rem" }}>
           {comment.body}
         </Typography>
       )}

@@ -23,6 +23,7 @@ import { FILTER_GROUP_ORDER, FilterActions, FilterRow, FilterSurface, ResultLine
 import { SavedViews } from "../ui/SavedViews.jsx";
 import { SHELL_QUERY_KEYS, buildViewQuery, describeView, hashQuery, keepQueryKeys, ownedQueryKeys, parseView, withHashQuery } from "./datascreen-view.js";
 import { loginUrl } from "../lib/sessionRedirect.js";
+import { KO_WORD_BREAK } from "../ui/theme.js";
 // 아래 네 갈래는 원래 이 파일 안에 있던 것을 data-screen/ 로 옮긴 것이다(800줄 규칙, §23).
 // 이 파일이 그 뜻(설정 주도 목록 화면의 본체)을 그대로 갖고, 조각들은 여기서만 조립한다.
 import { JsonBlock } from "./data-screen/JsonBlock.jsx";
@@ -1120,7 +1121,7 @@ export function DataScreen({ config, embedded = false }) {
                 sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "10rem minmax(0,1fr)" }, gap: 1,
                       py: 1.25, borderBottom: 1, borderColor: "divider", minWidth: 0 }}>
                 <Typography variant="body2" color="text.secondary">{c.label}</Typography>
-                <Box sx={{ minWidth: 0, overflowWrap: "anywhere" }}>
+                <Box sx={{ minWidth: 0, ...KO_WORD_BREAK }}>
                   {c.render ? c.render(sel) : (sel[c.key] == null || sel[c.key] === "" ? "-" : String(sel[c.key]))}
                 </Box>
               </Box>

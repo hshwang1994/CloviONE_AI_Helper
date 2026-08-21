@@ -509,9 +509,9 @@ export const TABLE_CARD_QUERY = `(max-width:${BREAKPOINTS.md - 0.05}px)`;
 export const TABLE_COMPACT_QUERY = `(max-width:${BREAKPOINTS.lg - 0.05}px)`;
 
 /* 한글은 기본 `word-break: normal` 이 음절 단위로 잘라도 된다고 본다.
- * 값을 화면마다 붙이면 빠지는 자리가 생긴다 — CssBaseline `body` 가 상속한다.
- * 긴 URL·UUID 가 상자를 밀지 않게 overflowWrap 을 짝으로 둔다.
- * JSON·해시·말풍선처럼 글자 단위가 필요한 자리만 지역적으로 덮는다. */
+ * 전역 값은 정적 CSS(`styles/root.css`)와 CssBaseline `body`/`html` 이 같이 갖는다.
+ * overflow-wrap:anywhere 는 한글을 다시 글자 단위로 자르므로 전역에 두지 않는다.
+ * URL·UUID 칸만 이 토큰의 overflowWrap 을 쓴다. */
 export const KO_WORD_BREAK = { wordBreak: "keep-all", overflowWrap: "break-word" };
 
 export function createClovirTheme(mode = "light", accent = DEFAULT_ACCENT) {
@@ -657,9 +657,10 @@ export function createClovirTheme(mode = "light", accent = DEFAULT_ACCENT) {
             outline: `2px solid var(--clovir-focus-ring, ${t.focusRing})`,
             outlineOffset: 2,
           },
-          html: { minWidth: 320 },
-          /* 한글 줄바꿈은 여기서 전역으로 정한다. 화면마다 KO_WORD_BREAK 를 다시 적지 않는다. */
-          body: { minWidth: 320, letterSpacing: "-0.011em", ...KO_WORD_BREAK },
+          html: { minWidth: 320, wordBreak: "keep-all" },
+          /* 한글 줄바꿈은 정적 CSS(root.css)와 여기서 같이 정한다.
+           * overflow-wrap 은 body 에 두지 않는다 — anywhere/break-word 가 한글을 다시 자른다. */
+          body: { minWidth: 320, letterSpacing: "-0.011em", wordBreak: "keep-all" },
           "*": { boxSizing: "border-box" },
           "@media (prefers-reduced-motion: reduce)": {
             "*, *::before, *::after": {
@@ -1023,7 +1024,10 @@ export function createClovirTheme(mode = "light", accent = DEFAULT_ACCENT) {
           },
         },
       },
-      MuiTypography: { defaultProps: { variantMapping: { sectionTitle: "h2", statValue: "p" } } },
+      MuiTypography: {
+        defaultProps: { variantMapping: { sectionTitle: "h2", statValue: "p" } },
+        styleOverrides: { root: { wordBreak: "keep-all" } },
+      },
     },
   });
 }

@@ -12,7 +12,7 @@ import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
 import { Badge, Button, Callout, Card, EmptyState, ErrorState, Modal, ModalFooter, PageHeader, Skeleton, useConfirm, useToast } from "../ui/kit.jsx";
-import { FONT_SIZE, FONT_WEIGHT } from "../ui/theme.js";
+import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
 
 /* 팀 공간 > 놀이 (§5). 한 페이지에서 모든 게임방을 보고, 여기서 방을 만든다(별도 페이지 분리
  * 안 함). 목록은 3초 폴링으로 새 방을 실시간처럼 보여준다. 첫 게임=랜덤 추첨.
@@ -434,7 +434,7 @@ export function Games() {
                 <Badge value={STATUS_LABELS[r.status] || r.status} kind={STATUS_KIND[r.status] || "neutral"} />
                 <Typography variant="caption" color="text.secondary">{GAME_LABELS[r.game_type] || r.game_type}</Typography>
               </Stack>
-              <Typography sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: FONT_SIZE.sectionTitle, overflowWrap: "anywhere" }}>{r.title}</Typography>
+              <Typography sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: FONT_SIZE.sectionTitle, ...KO_WORD_BREAK }}>{r.title}</Typography>
               <Typography variant="body2" color="text.secondary">
                 참여 {r.player_count}/{r.max_players}{r.allow_spectators ? ", 관전 가능" : ""}
               </Typography>

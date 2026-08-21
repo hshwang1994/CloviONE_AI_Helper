@@ -15,7 +15,7 @@
 .c-kv { display: grid; grid-template-columns: 120px 1fr; gap: var(--space-sm, 10px); padding: var(--space-sm, 8px) 0; border-bottom: 1px solid var(--color-line); font-size: 0.875rem; }
 .c-kv:last-child { border-bottom: 0; }
 .c-kv-k { color: var(--color-muted); }
-.c-kv-v { color: var(--color-text); word-break: break-word; }
+.c-kv-v { color: var(--color-text); word-break: keep-all; overflow-wrap: break-word; }
 .c-detail-json { margin: 0; white-space: pre-wrap; word-break: break-word; font-size: 0.75rem; line-height: 1.5; background: var(--color-bg); padding: var(--space-sm, 10px) var(--space-md, 12px); border-radius: var(--radius-sm, 6px); max-height: 320px; overflow: auto; }
 /* '복사를 지원하지 않는 환경' 폴백은 이 값을 직접 선택해 복사하라고 안내한다 — UUID는 하이픈이
    섞여 있어 더블클릭만으로는 한 토막만 선택된다. 클릭 한 번으로 전체가 선택되게 한다(.c-temp-pw와 동일 취지). */
@@ -58,8 +58,8 @@
 .noti-item-type { grid-area: type; font-size: 0.75rem; font-weight: var(--fw-semibold, 600); color: var(--color-primary-strong); }
 .noti-item-time { grid-area: time; text-align: right; font-size: 0.6875rem; color: var(--color-muted); }
 /* 제목·본문은 2줄로 제한 — 긴 알림 하나가 팝오버 스크롤 영역을 부풀리지 않게. */
-.noti-item-title { grid-area: title; font-size: 0.8125rem; color: var(--color-text); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
-.noti-item-body { grid-area: body; font-size: 0.75rem; color: var(--color-muted); line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+.noti-item-title { grid-area: title; font-size: 0.8125rem; color: var(--color-text); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; word-break: keep-all; overflow-wrap: break-word; }
+.noti-item-body { grid-area: body; font-size: 0.75rem; color: var(--color-muted); line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; word-break: keep-all; overflow-wrap: break-word; }
 .noti-item-read { flex-shrink: 0; border: 0; background: transparent; color: var(--color-muted); cursor: pointer; padding: 0 12px; font-size: 0.8125rem; }
 .noti-item-read:hover { color: var(--color-primary); background: color-mix(in srgb, var(--color-primary) 8%, transparent); }
 .noti-item-read:focus-visible { outline: 2px solid var(--color-primary); outline-offset: -2px; }
@@ -115,7 +115,7 @@
    14px이던 예전 값은 자기 본문보다 작아 구조화 서식이 의도한 시각 위계를 오히려 뒤집었다. */
 .msg-h { margin: var(--space-sm, 10px) 0 var(--space-xs, 4px); font-size: var(--font-size-lg, 1.1875rem); font-weight: var(--fw-semibold, 600); color: var(--color-heading); }
 .msg-h:first-child { margin-top: 0; }
-.msg-p { margin: var(--space-sm, 6px) 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.msg-p { margin: var(--space-sm, 6px) 0 0; white-space: pre-wrap; word-break: keep-all; overflow-wrap: break-word; }
 .msg-p:first-child { margin-top: 0; }
 .msg-list { list-style: none; margin: var(--space-sm, 6px) 0 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-xs, 4px); }
 .msg-list:first-child { margin-top: 0; }
