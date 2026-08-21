@@ -26,7 +26,9 @@ from sqlalchemy import event
 
 from tests.conftest import DEFAULT_TEST_PASSWORD
 
-pytestmark = pytest.mark.integration
+# 이 파일은 전부 경합 시험이다 — 스레드 여럿이 각자 세션을 열어야 하므로 **전용 DB** 가
+# 필요하다(D-190).
+pytestmark = [pytest.mark.integration, pytest.mark.real_db]
 
 ADMIN_EMAIL = "quota-racer@goodmit.co.kr"
 

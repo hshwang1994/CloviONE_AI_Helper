@@ -1,0 +1,51 @@
+S2 — `pg_dump -Fc` 왕복 실측 (D-204 · 실행목록 12)
+====================================================
+
+**실 PostgreSQL 16.15 에서** 덤프→복원을 돌린 원문이다(테스트 서버 사용자 공간 PG,
+`~/s1pg`). 개발 머신(Windows)에는 `pg_dump` 가 없어 여기서 쟀다.
+
+무엇을 보려 했나 — 「덤프가 만들어졌다」가 아니라 **「그 덤프로 되돌리면 스키마의 성질이
+그대로인가」** 다. 특히 이 넷이 살아 오는지:
+
+  * 부분 유니크 인덱스의 `WHERE` 절   (D-189 가 경고한 그 자리)
+  * `gin_trgm_ops` GIN 인덱스        (D-209 의 검색 정본)
+  * `jsonb` 컬럼이 `jsonb` 인 채로     (D-215)
+  * `GENERATED ALWAYS AS IDENTITY`   (rowid 대체)
+
+그리고 **손상된 아카이브가 거부되는지** — 검증기가 통과시키면 «백업이 있다» 고 믿으면서
+아무것도 못 되돌린다.
+
+결과: 넷 다 살아서 복원됐고(아래 원문), 손상 아카이브는 `pg_restore --list` 가 rc=1 로
+거부했다.
+
+원문
+----
+
+== server ==
+PostgreSQL 16.15 (Ubuntu 16.15-0ubuntu0.24.04.1) on x86_64-pc-linux-gnu, compiled by gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0, 64-bit
+NOTICE:  database "s2src" does not exist, skipping
+== rows before ==
+500
+== pg_dump -Fc ==
+dump rc=0 size=6491
+sha256=e6a34dbb141148619ff486537281f6ac0ea8bd44a8f976a2b63e51f63a7b1fb4
+== pg_restore --list (구조 검증) ==
+toc entries: 9
+== 임시 DB 로 실제 복원 ==
+NOTICE:  database "s2restore" does not exist, skipping
+restore rc=0
+== rows after ==
+500
+== 인덱스가 함께 왔는가 ==
+ix_t_trgm
+t_pkey
+ux_t_partial
+== 부분 유니크의 WHERE 가 살아 있는가 ==
+CREATE UNIQUE INDEX ux_t_partial ON public.t USING btree (((payload ->> 'k'::text))) WHERE (title <> ''::text)
+== jsonb 가 jsonb 인가 ==
+jsonb
+== identity 가 identity 인가 ==
+YES
+== 손상 감지 ==
+broken archive --list rc=1 (0 이 아니어야 한다)
+S2_PG_BACKUP_ROUNDTRIP_DONE

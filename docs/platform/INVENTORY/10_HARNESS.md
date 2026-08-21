@@ -16,7 +16,7 @@
 | `scripts/validate-clovirone-web-assistant.sh` | **n8n 활성 단언**(`:23`) → n8n 제거 시 실패 (S11) |
 | `scripts/verify_deploy.sh` · `scripts/final_verify.sh` · `scripts/static_checks.sh` | 검증 진입점 |
 | `scripts/run_full_regression.sh` | backend 4청크 (unit·regression·security·integration) |
-| **`scripts/restore_rehearsal.py`** | **저장소에서 가장 정직한 검증 자산.** 8단계 중 7단계가 **복원된 DB 로 앱을 실제 기동해 읽기 경로를 호출**한다 → PG 기준으로 이식 (S12) |
+| **`scripts/restore_rehearsal.py`** | **저장소에서 가장 정직한 검증 자산.** 8단계 중 7단계가 **복원된 DB 로 앱을 실제 기동해 읽기 경로를 호출**한다 → PG 기준으로 이식 (S12). **S2 가 큰 소리로 멈추게 해 뒀다** — SQLite 전제가 깨졌는데 조용히 «통과» 를 찍으면 그 초록을 믿고 복원 계획을 세운다. 화면 안내도 그 사실을 말한다. 죽은 SQLite 구현은 지웠고, **첨부 확인(BKP-02)만 PG 로 옮겨 살려 뒀다** — 저장소 종류를 안 타는 질문이라서다 |
 | `scripts/check_ui_renewal_coverage.py` (66.8 KB) | UI Coverage Gate. **P-01 의 1순위 수정 대상** |
 | `scripts/ui_qa/**` · `scripts/apply-static-update.sh` | 브라우저 QA · 무인 배포 |
 | `scripts/check_git_secrets.py` · `check_bundle_fresh.py` · `check_bundle_size.sh` · `check_test_strength.py` | 위생 게이트 |

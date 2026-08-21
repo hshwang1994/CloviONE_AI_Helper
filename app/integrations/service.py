@@ -11,7 +11,7 @@ from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
 from app.core.allowlist import AllowlistRegistry
-from app.core.db import is_write_conflict
+from app.core.db import is_insert_race
 from app.core.errors import ConflictError, NotFoundError
 from app.core.http_client import OutboundClient, is_timeout_error, is_transport_error
 from app.core.secret_refs import FileSecretReferenceProvider
@@ -106,7 +106,7 @@ def create_integration(
             db.add(row)
             db.flush()
     except (IntegrityError, OperationalError) as exc:
-        if not is_write_conflict(exc):
+        if not is_insert_race(exc):
             raise
         raise ConflictError(f"이미 등록된 Integration 이름입니다: {config.name}") from exc
     snapshot_config(
@@ -153,7 +153,7 @@ def apply_integration_config(
         with db.begin_nested():
             db.flush()
     except (IntegrityError, OperationalError) as exc:
-        if not is_write_conflict(exc):
+        if not is_insert_race(exc):
             raise
         raise ConflictError(f"이미 등록된 Integration 이름입니다: {config.name}") from exc
     snapshot_config(

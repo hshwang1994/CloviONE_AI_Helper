@@ -423,6 +423,7 @@ def test_saved_views_are_private_to_their_owner(app, client, make_user, me):
     assert len(client.get("/api/me/views").json()["items"]) == 1
 
 
+@pytest.mark.real_db  # 스레드/별도 세션이 이 시험의 데이터를 봐야 한다 (D-190)
 def test_concurrent_duplicate_view_creation_returns_conflict_not_500(
     client, app, fake_clock, me, monkeypatch
 ):

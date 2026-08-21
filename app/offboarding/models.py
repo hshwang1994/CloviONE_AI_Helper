@@ -22,7 +22,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String, Text, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.models_base import (
@@ -63,6 +63,16 @@ class OffboardingRun(OrgScopedMixin, UUIDPrimaryKeyMixin, TimestampMixin, Base):
     """오프보딩 한 번. 대상 사용자·후임·무엇을 바꿨는지·되돌렸는지."""
 
     __tablename__ = "offboarding_runs"
+    __table_args__ = (
+        # 되돌리지 않은 실행은 사람당 하나뿐이다(마이그레이션 0056). 두 개가 열려 있으면
+        # 되돌리기가 어느 쪽 값을 복원해야 하는지 알 수 없다. **부분** 유니크라 이미 되돌린
+        # (`undone_at IS NOT NULL`) 이력은 몇 번이든 쌓인다 — 전체 유니크로 만들면 같은
+        # 사람을 두 번 오프보딩할 수 없게 된다.
+        Index(
+            "ux_offboarding_runs_open_user", "user_id", unique=True,
+            postgresql_where=text("undone_at IS NULL"),
+        ),
+    )
 
     # 대상(퇴사자). 계정은 지우지 않고 비활성/보관만 하므로 FK 가 끊길 일이 없다.
     user_id: Mapped[str] = mapped_column(

@@ -10,8 +10,11 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timedelta
 
-from sqlalchemy import and_, delete, or_, select
+from sqlalchemy import and_, cast, delete, func, or_, select
+from sqlalchemy.dialects.postgresql import JSONPATH
 from sqlalchemy.orm import Session
+
+from app.core.ratelimit import RateLimitBucket
 
 from app.conversations.models import Conversation, Message
 from app.core.db import batched
@@ -177,7 +180,15 @@ def strip_stale_job_attachments(db: Session, *, now: datetime, max_age_hours: in
                 Job.job_type == "chat_message",
                 Job.status.in_(["succeeded", "failed", "cancelled"]),
                 Job.updated_at < cutoff,
-                Job.payload_json.like('%"data"%'),
+                # 첨부 바이트가 아직 남아 있는 행만 고른다. 예전에는 원본 JSON **문자열**에
+                # `"data"` 가 들어 있는지를 봤다 — 첨부와 무관한 자리(파일 이름 등)에 그
+                # 글자가 있어도 걸리는 어림짐작이었다. `jsonb` 가 되면서 경로를 정확히
+                # 물어볼 수 있다: 첨부 배열 원소에 `data` 키가 있는가.
+                # 두 번째 인자는 `jsonpath` 타입이어야 한다 — 문자열 그대로 넘기면
+                # PG 가 함수를 못 찾는다("No function matches ...").
+                func.jsonb_path_exists(
+                    Job.payload_json, cast("$.attachments[*].data", JSONPATH)
+                ),
             )
         )
         .scalars()
@@ -276,6 +287,26 @@ def purge_used_reset_tokens(db: Session, *, now: datetime) -> int:
     return purge_expired(db, now=now)
 
 
+def purge_stale_rate_limit_buckets(db: Session, *, now: datetime, max_age_hours: int = 24) -> int:
+    """다 찬 토큰 버킷 행을 지운다 (D-192).
+
+    버킷은 **완전히 회복되면 없는 것과 같다** — `allow()` 는 모르는 키를 가득 찬 것으로
+    보기 때문이다. 그래서 오래 안 쓴 행은 지워도 판정이 달라지지 않는다.
+
+    안 지우면 이 표만 무한히 자란다(`purge_old_jobs` 와 같은 판단). 예전 인메모리 버전은
+    같은 걱정을 LRU 상한 1만 개로 막았는데, 표에서는 **상한이 아니라 나이**로 자르는 편이
+    맞다: 상한은 활발한 키를 밀어낼 수 있고(그 순간 제한이 풀린다) 나이는 그런 일이 없다.
+
+    24시간은 가장 느린 리필(로그인, 분당 10회 = 버킷 하나가 1분 안에 가득 찬다)보다 한참
+    길다 — 아직 제한이 걸려 있는 행을 지울 일이 없다.
+    """
+    cutoff = now - timedelta(hours=max_age_hours)
+    result = db.execute(
+        delete(RateLimitBucket).where(RateLimitBucket.updated_at < cutoff)
+    )
+    return int(result.rowcount or 0)
+
+
 def run_retention(db: Session, *, now: datetime, settings_cache, outbound=None, settings=None) -> dict:
     values = settings_cache.current()
     conv_days = int(values.get("conversation_retention_days", 365))
@@ -299,6 +330,8 @@ def run_retention(db: Session, *, now: datetime, settings_cache, outbound=None, 
         # 다 쓴 비밀의 해시를 필요 이상으로 오래 들고 있게 된다.
         "mail_history": purge_mail_history(db, now=now, retention_days=notif_days),
         "reset_tokens": purge_used_reset_tokens(db, now=now),
+        # 다 찬 rate limit 버킷(D-192). 표로 옮긴 대가가 무한 성장이 되지 않게 한다.
+        "rate_limit_buckets": purge_stale_rate_limit_buckets(db, now=now),
     }
     # 도달할 수 없는 업로드 파일 (C7).
     #

@@ -10,7 +10,6 @@
 
 from __future__ import annotations
 
-import threading
 
 from fastapi import APIRouter, Depends, File, Query, Request, UploadFile
 from fastapi.responses import FileResponse
@@ -44,6 +43,7 @@ from app.tickets.schemas import (
 )
 from app.users.models import User
 from app.settings.gate import block_if_maintenance
+from app.core.advisory_lock import NS_TICKET_SYNC, try_lock
 
 router = APIRouter(
     prefix="/api/tickets",
@@ -51,15 +51,12 @@ router = APIRouter(
     dependencies=[Depends(block_if_maintenance)],
 )
 
-# 수동 재동기화(C7)를 **한 번에 하나만** 진행한다. `app/tickets/claim_lock.py` 의
-# `claim_guard` 와 같은 이유(웹이 `--workers 1` 로 고정돼 있어 프로세스 안 잠금으로 충분,
-# 워커를 늘리려면 공유 저장소로 바꿔야 한다)로 여기서도 기다리지 않는 논블로킹 잠금을 쓴다.
+# 수동 재동기화(C7)는 **한 번에 하나만** 돈다. `app/tickets/claim_lock.py` 의 `claim_guard`
+# 와 같은 이유로, 잠금은 `app/core/advisory_lock.py::NS_TICKET_SYNC` 가 들고 있다 —
+# 기다리지 않는 논블로킹 잠금이라 이미 진행 중이면 바로 409 다.
 #
-# **못 막는 것**: 워커 프로세스(app/worker_main.py)가 따로 도는 정기 동기화 틱은 이 잠금과
-# 다른 프로세스라 못 막는다. 그 경합은 `sync_tickets` 자신의 예외 격리(전부 가둬서 상태에만
-# error 로 남긴다)가 이미 다루므로 크래시로 번지지 않는다 — 여기서 막는 것은 운영자가 이
-# 버튼을 신경질적으로 여러 번 누르는 경우다.
-_ticket_sync_lock = threading.Lock()
+# **예전에는 `threading.Lock()` 이었고, 워커 프로세스의 정기 동기화 틱을 못 막았다.**
+# advisory 잠금은 DB 가 들고 있어 그 구멍까지 닫힌다(D-192).
 
 
 def _sync_view(state) -> dict:
@@ -392,19 +389,18 @@ def trigger_sync(
 ):
     if not service.can_trigger_sync(me):
         raise ForbiddenError("티켓 동기화는 운영자만 실행할 수 있습니다.")
-    if not _ticket_sync_lock.acquire(blocking=False):
-        # 기다리지 않는다 — `claim_guard` 와 같은 이유. Notion 이 느린 날 요청이 쌓여
-        # 요청 스레드가 잠기는 것보다 "지금은 안 된다" 를 바로 알려 주는 편이 낫다.
-        raise ConflictError("이미 티켓 동기화가 진행 중입니다. 잠시 후 다시 시도해 주세요.")
-    try:
+    # 잠금은 이 `with` 동안만 산다 — 나가면 잠금 세션이 롤백되며 DB 가 푼다.
+    with try_lock(db, NS_TICKET_SYNC) as got_lock:
+        if not got_lock:
+            # 기다리지 않는다 — `claim_guard` 와 같은 이유. Notion 이 느린 날 요청이 쌓여
+            # 요청 스레드가 잠기는 것보다 "지금은 안 된다" 를 바로 알려 주는 편이 낫다.
+            raise ConflictError("이미 티켓 동기화가 진행 중입니다. 잠시 후 다시 시도해 주세요.")
         state = sync_tickets(
             db,
             outbound=request.app.state.outbound_client,
             settings=request.app.state.settings,
             now=request.app.state.clock.now(),
         )
-    finally:
-        _ticket_sync_lock.release()
     record_audit_from_request(
         request,
         db,

@@ -749,7 +749,9 @@ def test_backup_schedule_setting_validates_cron(client, login_as):
     assert client.get("/api/admin/backups/schedule").json()["schedule"]["enabled"] is True
 
 
-def test_scheduled_backup_is_due_only_once_per_fire_time(client, login_as, db, fake_clock):
+def test_scheduled_backup_is_due_only_once_per_fire_time(
+    client, login_as, db, fake_clock, stub_pg_dump
+):
     """멱등 판정 — 워커가 재시작해도 같은 예정 시각에 두 번 돌지 않는다."""
     from app.backups.service import due_for_scheduled_backup, run_scheduled_backup
 

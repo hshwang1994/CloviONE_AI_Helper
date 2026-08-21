@@ -28,7 +28,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import select, text
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core import people
@@ -106,10 +106,10 @@ def list_comments(db: Session, *, page_id: str, me: User) -> dict:
         # 동점(같은 created_at)일 때의 tie-break 가 **삽입 순서**여야 한다. id 로 깨면 UUID4 는
         # 무작위라 순서가 매번 동전 던지기가 된다 -- 시계가 멈춘 테스트에서는 항상 동점이라
         # 목록이 절반의 확률로 뒤집히고(플래키 테스트), 운영에서도 같은 순간에 달린 두 댓글이
-        # 답글보다 먼저 보이는 일이 생긴다. SQLite 의 rowid 는 삽입할 때마다 증가하는 숨은
-        # 정수다(UUID 문자열 PK 라 rowid 가 PK 로 흡수되지 않는다). 티켓 댓글과 같은 판단이고,
-        # 다른 DB 로 옮기면 이 줄은 조용히 틀리는 게 아니라 곧바로 에러가 난다.
-        .order_by(DocumentComment.created_at.asc(), text("document_comments.rowid ASC"))
+        # 답글보다 먼저 보이는 일이 생긴다. `seq` 가 그 삽입 순서다
+        # (`GENERATED ALWAYS AS IDENTITY`, models.py) — 예전에는 SQLite 의 숨은 `rowid`
+        # 였고 PG 에는 그것이 없다. 티켓 댓글과 같은 판단이다.
+        .order_by(DocumentComment.created_at.asc(), DocumentComment.seq.asc())
     ).scalars().all()
     authors = _authors_by_ids(db, [r.author_user_id for r in rows])
     names = {uid: (u.display_name or "") for uid, u in authors.items()}

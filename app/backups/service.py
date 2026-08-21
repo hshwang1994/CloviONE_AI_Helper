@@ -18,20 +18,28 @@ from app.backups.models import (
     STATUS_VERIFIED,
     Backup,
 )
-from app.backups.sqlite_backup import backup_database, restore_test, verify_backup
+from app.backups.pg_backup import (
+    BACKUP_SUFFIX,
+    backup_database,
+    restore_test,
+    verify_backup,
+)
 from app.core.config import Settings
 from app.core.elapsed import format_elapsed_korean
 
 logger = logging.getLogger("app.backups")
 
-# verify_backup()/restore_test() reason codes → 사용자 화면에 그대로 노출하던
-# "database_error: <raw sqlite3 exception text>" 같은 기술 원문을 한국어 안내로
-# 바꾼다. 원문은 버리지 않고 journalctl(logger)로만 남긴다 — 화면엔 조치 가능한
-# 안내를, 서버 로그엔 원인 추적용 상세를 둔다.
+# verify_backup()/restore_test() reason code → 한국어 안내. 기술 원문(도구 stderr 등)을
+# 화면에 그대로 내보내지 않는다 — 원문은 버리지 않고 journalctl(logger)로만 남긴다.
+# 화면엔 조치 가능한 안내를, 서버 로그엔 원인 추적용 상세를 둔다.
 _REASON_KO = {
     "file_missing": "백업 파일을 찾을 수 없습니다. 삭제되었거나 이동되었을 수 있습니다.",
     "checksum_mismatch": "백업 파일이 손상되었습니다(체크섬 불일치).",
+    "archive_empty": "백업 파일에 아무것도 담겨 있지 않습니다. 다시 백업해 주세요.",
 }
+
+# 부분 검증. **실패가 아니지만 «검증됨» 도 아니다** (D-204).
+PARTIAL_VERIFY_PREFIX = "structure_only"
 
 
 def _friendly_verify_reason(reason: str | None) -> str:
@@ -39,11 +47,28 @@ def _friendly_verify_reason(reason: str | None) -> str:
         return "알 수 없는 오류로 검증에 실패했습니다."
     if reason in _REASON_KO:
         return _REASON_KO[reason]
-    if reason.startswith("database_error"):
+    if reason.startswith("tool_missing"):
+        return (
+            "PostgreSQL 백업 도구를 찾을 수 없습니다. 설치 상태와 PG_BIN_DIR 설정을 "
+            "확인해 주세요."
+        )
+    if reason.startswith("archive_unreadable"):
         return "백업 파일을 열 수 없습니다(파일 손상 가능성)."
-    if reason.startswith("integrity_check"):
-        return "백업 파일의 무결성 검사에 실패했습니다(손상 가능성)."
+    if reason.startswith("restore_failed"):
+        return "백업 파일이 실제로는 복원되지 않습니다. 이 백업으로 되돌릴 수 없습니다."
     return "백업 검증에 실패했습니다."
+
+
+def _partial_verify_note(reason: str | None) -> str:
+    """구조까지만 확인했을 때 화면에 남길 말.
+
+    **조용히 «검증됨» 이라고 하지 않는다.** 그렇게 하면 정작 복원이 안 되는 백업이
+    대시보드에서 초록으로 보이고, 그 사실을 되돌려야 하는 날에 알게 된다(D-204).
+    """
+    return (
+        "백업 파일 구조는 확인했지만 임시 복원까지는 하지 못했습니다. "
+        "복원 가능 여부는 아직 확인되지 않았습니다."
+    )
 
 
 def _friendly_backup_failure(exc: Exception) -> str:
@@ -84,8 +109,10 @@ def run_backup(
     # (Same-second collisions previously aliased two DB rows to one file, letting
     # retention unlink a still-referenced backup.)
     stamp = now.strftime("%Y%m%d_%H%M%S_%f")
-    dest = Path(settings.data_dir) / "exports" / f"web-{stamp}.sqlite3"
-    row = Backup(backup_type="sqlite", path=str(dest), status="running", created_by=created_by,
+    dest = Path(settings.data_dir) / "exports" / f"web-{stamp}{BACKUP_SUFFIX}"
+    # `backup_type` 은 **덤프 형식**이다. 되돌릴 때 어떤 도구로 여는지가 이 값에 달렸다
+    # — 옛 `sqlite` 파일과 새 `pg_dump` 아카이브를 한 목록에서 구별할 수 있어야 한다.
+    row = Backup(backup_type="pg_dump", path=str(dest), status="running", created_by=created_by,
                  created_at=now)
     db.add(row)
     db.flush()
@@ -101,14 +128,25 @@ def run_backup(
     db.commit()
 
     try:
-        result = backup_database(settings.database_url, dest)
+        bin_dir = getattr(settings, "pg_bin_dir", "") or None
+        result = backup_database(settings.database_url, dest, bin_dir=bin_dir)
         size_bytes = result["size_bytes"]
         checksum = result["checksum"]
         # Immediate temp-restore verification (spec §6.3).
-        verify = restore_test(dest)
-        if verify["ok"]:
+        # **임시 DB 로 실제 복원해 본다**(D-204). 파일이 생겼다는 것만으로 SUCCESS 가
+        # 아니다 — `reason` 에 «structure_only» 가 오면 거기까지만 봤다는 뜻이다.
+        verify = restore_test(dest, database_url=settings.database_url, bin_dir=bin_dir)
+        reason = verify.get("reason") or ""
+        if verify["ok"] and reason.startswith(PARTIAL_VERIFY_PREFIX):
+            # 구조는 봤고 실복원은 못 했다. **`verified` 로 올리지 않는다** — 그 상태값의
+            # 뜻은 "되돌릴 수 있음을 확인했다" 이고, 여기서는 그걸 확인하지 못했다.
+            logger.warning("backup verified only structurally: %s (%s)", dest, reason)
+            status = STATUS_SUCCEEDED
+            verified_at: datetime | None = None
+            error_message = _partial_verify_note(reason)
+        elif verify["ok"]:
             status = STATUS_VERIFIED
-            verified_at: datetime | None = now
+            verified_at = now
             error_message = None
         else:
             logger.warning("backup restore-verify failed: %s (%s)", dest, verify.get("reason"))
@@ -135,8 +173,15 @@ def run_backup(
     return row
 
 
-def verify_existing(db: Session, row: Backup, *, now: datetime) -> dict:
-    result = verify_backup(Path(row.path), row.checksum)
+def verify_existing(
+    db: Session, row: Backup, *, now: datetime, settings: Settings | None = None
+) -> dict:
+    # `settings` 는 `pg_bin_dir` 하나 때문에 받는다. 안 주면 `PATH` 에서 찾는다 —
+    # 그 경로가 통하는 환경도 있으므로 필수로 만들지 않는다.
+    result = verify_backup(
+        Path(row.path), row.checksum,
+        bin_dir=getattr(settings, "pg_bin_dir", "") or None,
+    )
     if result["ok"]:
         row.verified_at = now
         if row.status == STATUS_SUCCEEDED:

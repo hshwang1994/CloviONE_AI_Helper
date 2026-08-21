@@ -10,9 +10,11 @@ from __future__ import annotations
 from datetime import datetime
 
 from sqlalchemy import (
+    BigInteger,
     Boolean,
     DateTime,
     ForeignKey,
+    Identity,
     Integer,
     String,
     Text,
@@ -246,6 +248,16 @@ class DocumentComment(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
     body: Mapped[str] = mapped_column(Text, nullable=False)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime, index=True)
+
+    # 삽입 순서를 **1급 컬럼으로** 들고 있는다 (실행목록 5).
+    #
+    # 예전에는 SQLite 의 숨은 `rowid` 로 동점을 깼다. PG 에는 그런 것이 없고, 없다는 사실이
+    # 조용히 드러나지 않는다: `ORDER BY created_at` 만 남기면 같은 순간에 달린 두 댓글의
+    # 순서가 **매번 달라진다**. 시계가 멈춘 테스트에서는 늘 동점이라 목록이 절반의 확률로
+    # 뒤집히고, 운영에서는 답글이 원글보다 먼저 보인다.
+    #
+    # `GENERATED ALWAYS AS IDENTITY` 라 앱이 값을 못 넣는다.
+    seq: Mapped[int] = mapped_column(BigInteger, Identity(always=True), nullable=False)
 
 
 class DocumentRecentView(UUIDPrimaryKeyMixin, Base):

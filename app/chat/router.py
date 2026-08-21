@@ -28,7 +28,7 @@ from app.chat.service import (
     set_conversation_archived,
     set_message_feedback,
 )
-from app.core.db import DEFAULT_WRITE_CONFLICT_RETRIES, is_write_conflict, write_conflict_backoff
+from app.core.db import DEFAULT_WRITE_CONFLICT_RETRIES, is_serialization_conflict, write_conflict_backoff
 from app.core.deps import (
     AuthContext,
     get_current_user,
@@ -234,7 +234,7 @@ def post_message(
                 db.commit()
             break
         except OperationalError as exc:
-            if not is_write_conflict(exc) or _attempt == _CHAT_WRITE_RETRIES - 1:
+            if not is_serialization_conflict(exc) or _attempt == _CHAT_WRITE_RETRIES - 1:
                 raise
             db.rollback()
             time.sleep(write_conflict_backoff(_attempt))

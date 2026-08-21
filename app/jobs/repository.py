@@ -1,8 +1,13 @@
 """Job queue persistence: atomic claim, retry with backoff, stuck recovery.
 
-The claim is a single UPDATE … RETURNING statement — atomic under SQLite WAL
-with busy_timeout, so N workers can never claim the same job twice
-(proven by tests/integration/test_job_claim_race.py).
+claim 은 `UPDATE … RETURNING` 한 문장이고, 고르는 하위 질의가
+**`FOR UPDATE SKIP LOCKED`** 로 행을 잠근다. 그래서 워커가 N개여도 같은 잡을 두 번
+가져갈 수 없다(`tests/integration/test_job_claim_race.py` 가 증명한다).
+
+**`SKIP LOCKED` 가 없으면 워커를 늘리는 것이 오히려 느려진다**: 잠긴 행을 기다리느라
+워커 N개가 같은 한 줄에 줄을 서고, 큐 앞머리의 잡 하나가 느리면 전부 멈춘다.
+`SKIP LOCKED` 는 '남이 잡은 것은 건너뛰고 다음 것을 본다' 라, 워커 수만큼 실제로
+병렬이 된다 — 이것이 D-192 가 `--workers` 를 올리는 대가가 아니라 보상이라고 적은 이유다.
 """
 
 from __future__ import annotations
@@ -144,10 +149,11 @@ def claim_next(
     degrade to today's single-lane behavior instead of silently never
     running.
     """
-    # Must match SQLAlchemy's SQLite DATETIME storage format exactly
-    # (microseconds always present) — string comparison depends on it.
-    now_str = now.strftime("%Y-%m-%d %H:%M:%S.%f")
-    params: dict[str, object] = {"now": now_str}
+    # **datetime 을 그대로 바인딩한다.** 예전에는 `strftime("%Y-%m-%d %H:%M:%S.%f")` 로
+    # 문자열을 만들어 넘겼다 — SQLite 가 DATETIME 을 문자열로 저장했고 비교가 문자열
+    # 비교였기 때문이다. PG 의 `timestamp` 는 진짜 타입이라 그 문자열은 매번 캐스트되고,
+    # 형식이 조금만 어긋나면(마이크로초가 0이라 잘리는 등) 비교가 조용히 틀린다.
+    params: dict[str, object] = {"now": now}
     extra_where = ""
     if include_types:
         placeholders = ", ".join(f":inc{i}" for i in range(len(include_types)))
@@ -161,7 +167,7 @@ def claim_next(
             extra_where = (
                 f" AND (job_type NOT IN ({placeholders}) OR created_at <= :takeover_cutoff)"
             )
-            params["takeover_cutoff"] = cutoff.strftime("%Y-%m-%d %H:%M:%S.%f")
+            params["takeover_cutoff"] = cutoff
         else:
             extra_where = f" AND job_type NOT IN ({placeholders})"
     row = db.execute(
@@ -176,6 +182,9 @@ def claim_next(
                 SELECT id FROM jobs
                 WHERE status = 'queued' AND available_at <= :now{extra_where}
                 ORDER BY created_at, id
+                -- 남이 이미 잡은 행은 **기다리지 않고 건너뛴다**. 기다리면 워커 N개가
+                -- 큐 앞머리 한 줄에 줄을 서서, 워커를 늘려도 처리량이 안 는다.
+                FOR UPDATE SKIP LOCKED
                 LIMIT 1
             )
             RETURNING id
@@ -248,7 +257,6 @@ def cancel_queued(db: Session, job: Job, *, now: datetime) -> Job:
     (이미 다른 상태로 넘어갔으면) 호출부가 `_terminalize_linked_record`로 더 진행하지 않게
     `ConflictError`를 던진다.
     """
-    now_str = now.strftime("%Y-%m-%d %H:%M:%S.%f")
     result = db.execute(
         text(
             """
@@ -260,7 +268,8 @@ def cancel_queued(db: Session, job: Job, *, now: datetime) -> Job:
             WHERE id = :id AND status = 'queued'
             """
         ),
-        {"now": now_str, "id": job.id},
+        # `claim_next` 와 같은 이유로 datetime 을 그대로 넘긴다(문자열 캐스트 없음).
+        {"now": now, "id": job.id},
     )
     if result.rowcount == 0:
         raise ConflictError("대기 상태의 Job만 취소할 수 있습니다.")

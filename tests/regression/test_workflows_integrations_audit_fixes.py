@@ -21,7 +21,10 @@ from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
-pytestmark = pytest.mark.regression
+# 이 파일의 시험은 **전용 DB** 가 필요하다(D-190) — 두 번째 커넥션이나 별도
+# 프로세스가 이 시험의 데이터를 봐야 하기 때문이다. 공유 DB + 트랜잭션 되감기
+# 계층에서는 그 데이터가 트랜잭션 밖으로 안 나가서 아무것도 증명하지 못한다.
+pytestmark = [pytest.mark.regression, pytest.mark.real_db]
 
 
 def _headers(csrf):
@@ -325,14 +328,14 @@ def test_health_check_redirect_is_not_reported_as_healthy(client, login_as, fake
 #    per thread against the same db file), matching this repo's own convention
 #    in tests/integration/test_job_claim_race.py.
 # --------------------------------------------------------------------------- #
-def test_concurrent_workflow_creates_with_same_name_never_leak_a_500(db_path, settings):
+def test_concurrent_workflow_creates_with_same_name_never_leak_a_500(db_url, settings):
     from app.core.allowlist import AllowlistRegistry
     from app.core.db import make_engine, make_session_factory
     from app.core.errors import ConflictError
     from app.workflows import service as workflows_service
     from app.workflows.schemas import WorkflowConfig
 
-    url = f"sqlite:///{db_path.as_posix()}"
+    url = db_url
     allowlists = AllowlistRegistry(settings.config_dir)
 
     # Prime the file into WAL mode via a single connection first — mirrors
@@ -375,14 +378,14 @@ def test_concurrent_workflow_creates_with_same_name_never_leak_a_500(db_path, se
     )
 
 
-def test_concurrent_integration_creates_with_same_name_never_leak_a_500(db_path, settings):
+def test_concurrent_integration_creates_with_same_name_never_leak_a_500(db_url, settings):
     from app.core.allowlist import AllowlistRegistry
     from app.core.db import make_engine, make_session_factory
     from app.core.errors import ConflictError
     from app.integrations import service as integrations_service
     from app.integrations.schemas import IntegrationConfig
 
-    url = f"sqlite:///{db_path.as_posix()}"
+    url = db_url
     allowlists = AllowlistRegistry(settings.config_dir)
 
     # Prime the file into WAL mode via a single connection first — see the

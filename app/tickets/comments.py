@@ -28,7 +28,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import select, text
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core import people
@@ -110,10 +110,10 @@ def list_comments(db: Session, *, ticket_uid: str | None, me: User) -> dict:
         # id 로 깨면 UUID4 는 무작위라 순서가 매번 동전 던지기가 된다 — 시계가 멈춘
         # 테스트에서는 항상 동점이라 목록이 절반의 확률로 뒤집히고(플래키 테스트), 운영에서도
         # 같은 순간에 달린 두 댓글이 답글보다 먼저 보이는 일이 생긴다.
-        # SQLite 의 rowid 는 삽입할 때마다 증가하는 숨은 정수다(UUID 문자열 PK 라 rowid 가
-        # PK 로 흡수되지 않는다). 이 앱은 SQLite 전용이고, 다른 DB 로 옮기면 이 줄은 조용히
-        # 틀리는 게 아니라 곧바로 에러가 난다.
-        .order_by(TicketComment.created_at.asc(), text("ticket_comments.rowid ASC"))
+        # `seq` 가 그 삽입 순서다(`GENERATED ALWAYS AS IDENTITY`, models.py). 예전에는
+        # SQLite 의 숨은 `rowid` 였고 PG 에는 그것이 없다 — 컬럼으로 올려 두면 어느 DB 에서도
+        # 같은 순서가 나온다.
+        .order_by(TicketComment.created_at.asc(), TicketComment.seq.asc())
     ).scalars().all()
     authors = _authors_by_ids(db, [r.author_user_id for r in rows])
     names = {uid: (u.display_name or "") for uid, u in authors.items()}

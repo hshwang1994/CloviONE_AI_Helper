@@ -17,7 +17,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
-from app.core.db import DEFAULT_WRITE_CONFLICT_RETRIES, is_write_conflict, write_conflict_backoff
+from app.core.db import DEFAULT_WRITE_CONFLICT_RETRIES, is_insert_race, write_conflict_backoff
 from app.core.errors import ConflictError, NotFoundError, ValidationAppError
 from app.notion_mapping.models import (
     SOURCE_MANUAL,
@@ -62,7 +62,7 @@ def get_or_create_mapping(db: Session, user_id: str) -> UserNotionMapping:
                 db.flush()
             return row
         except (IntegrityError, OperationalError) as exc:
-            if not is_write_conflict(exc):
+            if not is_insert_race(exc):
                 raise
             if attempt == _GET_OR_CREATE_RETRIES - 1:
                 # PA-RC-0008: 예산을 다 썼는데도 여전히 안 보이면(재조회에서도 승자의
@@ -77,7 +77,7 @@ def get_or_create_mapping(db: Session, user_id: str) -> UserNotionMapping:
             try:
                 db.commit()
             except (IntegrityError, OperationalError) as commit_exc:
-                if not is_write_conflict(commit_exc):
+                if not is_insert_race(commit_exc):
                     raise
                 db.rollback()
             time.sleep(write_conflict_backoff(attempt))

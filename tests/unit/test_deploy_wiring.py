@@ -221,10 +221,21 @@ def _line_of_text(text: str, needle: str):
 
 
 def test_the_guard_only_fires_for_an_existing_install():
-    """오탐 방지 - 신규 설치는 DB 가 없다. 거기서 멈추면 아무도 설치를 못 한다."""
+    """오탐 방지 - 신규 설치에서 멈추면 아무도 설치를 못 한다.
+
+    qa-contract-change: 「기존 설치인가」 판정 근거가 SQLite 파일 존재에서 `web.env` 의
+    DATABASE_URL 존재로 바뀌었다(D-187). 그 파일은 이제 없으므로 옛 판정은 **항상 «신규»** 가
+    되어 안내를 통째로 건너뛴다 — 못박는 성질(무조건 막지 않는다)은 그대로다.
+    """
     text = _text(INSTALL)
-    assert '[ -s "$DB_FILE" ]' in text or "[ -s \"$DB_FILE\" ]" in text, (
+    assert 'IS_EXISTING' in text, (
         "기존 설치인지 판정하지 않고 무조건 막는다 - 신규 설치가 불가능해진다"
+    )
+    assert 'grep -qE "^DATABASE_URL=" "$ETC_DIR/web.env"' in text, (
+        "판정 근거가 없다 - 무엇을 보고 «기존 설치» 라고 하는지 스크립트에 드러나야 한다"
+    )
+    assert 'if [ "$IS_EXISTING" = "1" ]; then' in text, (
+        "판정 결과로 분기하지 않는다"
     )
 
 
@@ -263,4 +274,68 @@ def test_the_backup_excludes_venv_and_the_rollback_recreates_it():
     )
     assert "requirements.txt" in rollback_text.split("python3 -m venv")[-1], (
         "venv를 만들었는데 requirements.txt로 채우는 단계가 없다"
+    )
+
+
+# ── PostgreSQL 기동 순서 (D-187) ─────────────────────────────────────────────
+
+
+@pytest.mark.parametrize(
+    "unit",
+    [
+        "clovirone-web-assistant.service",
+        "clovirone-web-worker.service",
+        "clovirone-web-worker-conversational.service",
+    ],
+)
+def test_units_start_after_postgresql(unit):
+    """DB 를 쓰는 유닛은 PostgreSQL 뒤에 뜬다.
+
+    SQLite 시절에는 DB 가 파일이라 기다릴 서비스가 없었고, 그래서 이 줄이 없었다. 지금
+    없으면 재부팅 때 유닛이 PG 보다 먼저 떠서 접속에 실패하고, `Restart=on-failure` 로
+    몇 번 죽었다 되살아난다 — 결과적으로 복구되지만 그건 **운이지 설계가 아니다**.
+    「재부팅 후 수동 명령 0회 복구」(U14)를 운에 맡기지 않는다.
+    """
+    text = _text(ROOT / "deploy" / "systemd" / unit)
+    after = [l for l in text.splitlines() if l.startswith("After=")]
+    assert after, f"{unit} 에 After= 가 없다"
+    assert "postgresql.service" in after[0], (
+        f"{unit} 이 PostgreSQL 을 안 기다린다: {after[0]}"
+    )
+
+
+@pytest.mark.parametrize(
+    "unit",
+    [
+        "clovirone-web-assistant.service",
+        "clovirone-web-worker.service",
+        "clovirone-web-worker-conversational.service",
+    ],
+)
+def test_postgresql_is_wanted_not_required(unit):
+    """`Requires=` 가 아니라 `Wants=` 다.
+
+    `Requires=` 면 PG 를 잠시 재시작하는 것만으로 이 유닛까지 함께 멈춘다. 접속이 끊긴
+    동안은 앱이 재시도로 버티는 편이 낫다.
+    """
+    text = _text(ROOT / "deploy" / "systemd" / unit)
+    wants = [l for l in text.splitlines() if l.startswith("Wants=")]
+    assert wants and "postgresql.service" in wants[0], f"{unit}: {wants}"
+    assert "Requires=postgresql" not in text, (
+        f"{unit} 이 PG 를 Requires= 로 묶었다 — PG 재시작이 서비스를 멈춘다"
+    )
+
+
+def test_the_web_unit_no_longer_pins_a_single_worker():
+    """`--workers 1` 고정이 풀렸는가 (D-192).
+
+    풀린 조건(공유 rate-limit 표·advisory lock·설정 캐시 TTL)이 먼저 갖춰졌기 때문이다.
+    누가 저장소를 되돌리면서 이 값만 남겨 두면 방어가 워커 수만큼 조용히 약해진다 —
+    그래서 유닛 주석이 «무엇을 옮겼기에 올릴 수 있는가» 를 함께 적고 있어야 한다.
+    """
+    text = _text(WEB_UNIT)
+    assert "--workers 1" not in text, "워커가 다시 1로 고정됐다"
+    assert "rate_limit_buckets" in text and "advisory lock" in text, (
+        "무엇을 옮겼기에 워커를 올릴 수 있는지가 유닛에 안 적혀 있다 — "
+        "그 근거가 없으면 다음 사람이 저장소를 되돌리면서 이 값만 남긴다"
     )

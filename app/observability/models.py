@@ -13,7 +13,7 @@ from datetime import datetime
 from sqlalchemy import Boolean, DateTime, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.core.models_base import Base, OrgScopedMixin, UUIDPrimaryKeyMixin, utcnow
+from app.core.models_base import Base, JsonText, OrgScopedMixin, UUIDPrimaryKeyMixin, utcnow
 
 # 상태 어휘는 document_sync_state / ticket_sync_state 와 **같은 말**을 쓴다 —
 # 운영자가 화면 세 개에서 같은 단어를 봐야 한다.
@@ -51,7 +51,7 @@ class UsageEvent(OrgScopedMixin, UUIDPrimaryKeyMixin, Base):
     object_type: Mapped[str | None] = mapped_column(String(48))
     object_id: Mapped[str | None] = mapped_column(String(64))
     # **개인정보·비밀은 넣지 않는다.** 기록 함수가 값을 검사하지 않으므로 부르는 쪽 책임이다.
-    meta_json: Mapped[str | None] = mapped_column(Text)
+    meta_json: Mapped[str | None] = mapped_column(JsonText)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, default=utcnow, index=True
     )
@@ -71,7 +71,7 @@ class SyncStatus(Base):
     # (계획 C4) — 그 사실을 화면에도 드러낸다.
     truncated: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     error: Mapped[str | None] = mapped_column(Text)
-    detail_json: Mapped[str | None] = mapped_column(Text)
+    detail_json: Mapped[str | None] = mapped_column(JsonText)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, default=utcnow, onupdate=utcnow
     )

@@ -51,9 +51,12 @@ def api(client, settings, notion, make_user, portal_project):
     def _login(email: str, *, role: str = "user", name: str = "사람"):
         from app.users.service import get_user_by_email
 
+        # 존재 확인 세션을 **먼저 닫고** 만든다. 열어 둔 채로 만들면, 그 세션이 닫힐 때
+        # 자기가 연 savepoint 로 되감으면서 방금 만든 사용자까지 함께 지운다.
         with client.app.state.session_factory() as db:
-            if get_user_by_email(db, email) is None:
-                make_user(email=email, role=role, display_name=name)
+            missing = get_user_by_email(db, email) is None
+        if missing:
+            make_user(email=email, role=role, display_name=name)
         response = client.post("/login", json={"email": email, "password": DEFAULT_TEST_PASSWORD})
         assert response.status_code == 200, response.text
         return response.json()["csrf_token"]

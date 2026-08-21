@@ -1108,13 +1108,13 @@ def claim_ticket(
     빈 담당자를 읽고 각자 자기를 써서, **뒤에 쓴 사람이 앞사람을 덮어쓰는데 둘 다 성공 토스트를
     본다.** 앞사람은 자기 티켓이라고 믿고 일을 시작한다.
 
-    잠금의 한계와 `--workers 1` 전제는 `app/tickets/claim_lock.py` 에 적었다.
+    잠금의 한계는 `app/tickets/claim_lock.py` 에 적었다.
     """
     if not my_notion_id(db, user):
         raise ValidationAppError("내 계정이 Notion 사용자와 연결되어 있지 않아 담당자로 배정할 수 없습니다.")
     from app.tickets.claim_lock import claim_guard
 
-    with claim_guard(page_id):
+    with claim_guard(db, page_id):
         return update_ticket(
             db, outbound, settings, user, page_id=page_id,
             changes={"assignee_user_ids": [user.id]}, now=now, repo=repo,

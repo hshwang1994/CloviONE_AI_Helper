@@ -23,7 +23,10 @@ import pytest
 
 from tests.conftest import DEFAULT_TEST_PASSWORD
 
-pytestmark = pytest.mark.integration
+# 이 파일의 시험은 **전용 DB** 가 필요하다(D-190) — 두 번째 커넥션이나 별도
+# 프로세스가 이 시험의 데이터를 봐야 하기 때문이다. 공유 DB + 트랜잭션 되감기
+# 계층에서는 그 데이터가 트랜잭션 밖으로 안 나가서 아무것도 증명하지 못한다.
+pytestmark = [pytest.mark.integration, pytest.mark.real_db]
 
 NEW_PASSWORD = "Reset-P4ssw0rd!"
 _TOKEN_RE = re.compile(r"token=([A-Za-z0-9_\-]{20,})")
@@ -224,21 +227,43 @@ def test_token_expires(client, app, fake_clock, issued_token):
     assert response.json()["error"]["code"] == "invalid_reset_token"
 
 
-def test_token_is_never_stored_in_plaintext(app, db_path, issued_token):
-    """DB 파일 바이트 전체를 훑는다 - 컬럼 하나를 확인하는 것으로는 부족하다.
+def test_token_is_never_stored_in_plaintext(app, db, issued_token):
+    """**DB 안 어디에도** 재설정 토큰 원문이 없어야 한다 — 컬럼 하나를 보는 것으로는 부족하다.
 
     잡 payload, 메일 아웃박스, 감사 로그 어디로도 새면 안 된다. 실제로 새기 쉬운 자리가
     잡 payload 다(메일 본문을 payload 에 실으면 그 순간 평문이 DB 에 앉는다).
+
+    qa-contract-change: 예전에는 SQLite 파일 바이트를 통째로 훑었다(`-wal`·`-shm` 포함).
+    PG 에는 그렇게 훑을 «파일» 이 없다 — 데이터는 서버가 들고 있다. 그래서 같은 성질을
+    스키마를 통해 확인한다: 문자열을 담을 수 있는 **모든 컬럼**(text·varchar·jsonb)을
+    전수로 훑는다. 오히려 이쪽이 정확하다 — 파일 스캔은 이미 지워진 페이지의 잔해까지
+    보므로 «아직 안 지워진 옛 값» 과 «지금 저장된 값» 을 구별하지 못했다.
     """
-    needle = issued_token.encode("utf-8")
-    checked = 0
-    for suffix in ("", "-wal", "-shm"):
-        path = db_path.with_name(db_path.name + suffix)
-        if not path.exists():
-            continue
-        checked += 1
-        assert needle not in path.read_bytes(), f"재설정 토큰 원문이 {path.name} 에 있다"
-    assert checked, "검사할 DB 파일을 못 찾았다"
+    from sqlalchemy import text as sql_text
+
+    columns = db.execute(sql_text("""
+        SELECT table_name, column_name, data_type
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND data_type IN ('text', 'character varying', 'jsonb')
+        ORDER BY table_name, column_name
+    """)).all()
+
+    # 빈 목록을 훑고 초록을 찍는 상태가 아님을 먼저 보인다(D-213).
+    assert len(columns) > 100, f"훑을 컬럼을 {len(columns)}개밖에 못 찾았다 - 검사가 헛돈다"
+
+    found = []
+    for table, column, _dtype in columns:
+        hits = db.execute(
+            sql_text(
+                f'SELECT count(*) FROM "{table}" WHERE CAST("{column}" AS text) LIKE :needle'  # noqa: S608
+            ),
+            {"needle": f"%{issued_token}%"},
+        ).scalar()
+        if hits:
+            found.append(f"{table}.{column} ({hits}행)")
+
+    assert not found, "재설정 토큰 원문이 DB 에 저장돼 있다: " + ", ".join(found)
 
 
 def test_stored_row_holds_only_a_hash(app, issued_token):

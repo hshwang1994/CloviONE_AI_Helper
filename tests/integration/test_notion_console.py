@@ -523,6 +523,12 @@ def test_create_database_reports_notion_failure_instead_of_claiming_success(
     assert client.app.state.settings.notion_documents_database_id == ""
 
 
+@pytest.mark.real_db  # 스레드/별도 세션이 이 시험의 데이터를 봐야 한다 (D-190)
+# **전용 DB 가 필요하다**(D-190·R3). 공유 계층은 두 스레드를 한 커넥션에 묶어 직렬화하므로,
+# 잠금이 망가져도 뒤 요청이 앞 요청의 결과를 보고 409 를 낸다 — 즉 **잠금 없이도 통과한다.**
+# 지금은 양쪽 계층에서 다 통과하는 것을 확인했지만, 마커가 없으면 이 시험은 advisory lock 의
+# 회귀를 못 잡는다. 확인하려는 것이 잠금이므로 잠금이 실제로 필요한 자리에서 돌린다.
+@pytest.mark.real_db
 def test_concurrent_create_requests_do_not_create_two_databases(
     client, login_as, fake_http, tokens_present
 ):

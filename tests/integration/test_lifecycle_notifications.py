@@ -346,7 +346,7 @@ def test_a_failed_scheduled_backup_reaches_the_admins_in_the_app(
     )
 
 
-def test_a_successful_backup_says_nothing(app, settings, make_user):
+def test_a_successful_backup_says_nothing(app, settings, make_user, stub_pg_dump):
     """값이 실제로 달라지는 표본 - 성공한 백업이 실패 알림을 만들면 안 된다."""
     import app.backups.service as backups_service
 
@@ -488,7 +488,7 @@ def test_a_failed_manual_backup_reaches_the_admins_in_the_app(app, client, login
     )
 
 
-def test_a_successful_manual_backup_says_nothing(app, client, login_as, make_user):
+def test_a_successful_manual_backup_says_nothing(app, client, login_as, make_user, stub_pg_dump):
     """값이 실제로 달라지는 표본 — 성공한 수동 백업이 실패 알림을 만들면 안 된다."""
     make_user("ops-noti-manual2@goodmit.co.kr", role="admin", display_name="운영자")
     csrf = login_as("system_admin", email="ops-noti-manual2-actor@goodmit.co.kr")

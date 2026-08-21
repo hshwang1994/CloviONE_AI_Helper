@@ -7,7 +7,7 @@ from datetime import datetime
 from sqlalchemy import DateTime, Index, String, Text, text
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.core.models_base import Base, UUIDPrimaryKeyMixin, utcnow
+from app.core.models_base import Base, JsonText, UUIDPrimaryKeyMixin, utcnow
 
 APPROVAL_PENDING = "pending"
 APPROVAL_APPROVED = "approved"
@@ -38,7 +38,10 @@ class Approval(UUIDPrimaryKeyMixin, Base):
             "object_id",
             "request_payload_json",
             unique=True,
-            sqlite_where=text("status = 'pending'"),
+            # `sqlite_where=` 였다. PG 에서 그 키워드는 **조용히 무시되고**, 남는 것은
+            # 전체 유니크다 — 그러면 의도된 재요청(다른 역할로 다시 올리기)까지 "이미
+            # 있습니다"로 막힌다. 원인은 마이그레이션 파일 안에 있고 증상은 화면에 있다.
+            postgresql_where=text("status = 'pending'"),
         ),
     )
 
@@ -50,7 +53,7 @@ class Approval(UUIDPrimaryKeyMixin, Base):
     status: Mapped[str] = mapped_column(
         String(16), nullable=False, default=APPROVAL_PENDING, index=True
     )
-    request_payload_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    request_payload_json: Mapped[str] = mapped_column(JsonText, nullable=False, default="{}")
     decision_comment: Mapped[str | None] = mapped_column(Text)
     requested_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
     decided_at: Mapped[datetime | None] = mapped_column(DateTime)

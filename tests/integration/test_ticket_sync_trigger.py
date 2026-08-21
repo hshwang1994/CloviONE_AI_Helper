@@ -80,19 +80,43 @@ def test_operator_sync_writes_audit_row(client, login_as, db):
     assert rows[0].user_id is not None
 
 
+# 이 시험만 **전용 DB** 가 필요하다(D-190) — 잠금을 두 번째 커넥션에서 선점하기 때문이다.
+# 공유 계층은 모든 세션을 한 커넥션에 묶으므로 «다른 커넥션» 자체가 성립하지 않는다.
+@pytest.mark.real_db
 def test_concurrent_trigger_is_rejected(client, login_as):
     """이미 진행 중인 동기화 위에 또 트리거하면 409 — 신경질적 더블클릭이 같은 Notion 왕복을
-    두 번 돌리지 않는다(app/tickets/claim_lock.py 와 같은 논블로킹 잠금 관용)."""
-    from app.tickets.router import _ticket_sync_lock
+    두 번 돌리지 않는다(app/tickets/claim_lock.py 와 같은 논블로킹 잠금 관용).
+
+    qa-contract-change: 잠금이 프로세스 안의 threading.Lock 에서 DB advisory lock 으로 바뀌어(D-192) 선점 방법을 별도 커넥션으로 옮겼다. 확인하는 계약(선점 중이면 409, 놓으면 200)은 그대로이고, 워커가 여럿일 때도 성립하는 형태로 오히려 강해졌다.
+
+    옛 `threading.Lock()` 은 이 시험 프로세스 안에서만 성립해서 **워커의 정기 동기화 틱을
+    못 막았다.** advisory lock 은 DB 가 들고 있으므로 다른 커넥션에서 선점할 수 있고,
+    여기서는 그 성질을 그대로 써서 잠금을 쥔 채 요청을 보낸다.
+    """
+    from sqlalchemy import text
+    from sqlalchemy.orm import Session
+
+    from app.core.advisory_lock import GLOBAL_KEY, NS_TICKET_SYNC
 
     csrf = login_as("operator", email="ticketsync-lock@goodmit.co.kr")
-    held = _ticket_sync_lock.acquire(blocking=False)
-    assert held, "잠금을 선점하지 못해 이 시험이 아무것도 증명하지 못한다"
+
+    # 요청이 쓰는 커넥션과 **다른** 커넥션에서 잠근다. 요청 세션에 걸면 잠긴 구간 안의
+    # 커밋 하나가 잠금을 조용히 풀어서, 이 시험이 아무것도 증명하지 못한다.
+    engine = client.app.state.engine
+    holder = Session(bind=getattr(engine, "engine", engine))
     try:
+        held = holder.execute(
+            text("SELECT pg_try_advisory_xact_lock(:ns, :key)"),
+            {"ns": NS_TICKET_SYNC, "key": GLOBAL_KEY},
+        ).scalar()
+        assert held is True, "잠금을 선점하지 못해 이 시험이 아무것도 증명하지 못한다"
+
         r = client.post("/api/tickets/sync", headers=_headers(csrf))
         assert r.status_code == 409
     finally:
-        _ticket_sync_lock.release()
+        # 커밋이 아니라 롤백이다. 트랜잭션이 끝나면서 잠금이 함께 풀린다.
+        holder.rollback()
+        holder.close()
 
     # 잠금이 풀린 뒤에는 정상적으로 다시 돈다 — 이 시험이 락을 영구히 눌러 놓은 채 끝나지
     # 않는다는 것을 스스로 증명한다.

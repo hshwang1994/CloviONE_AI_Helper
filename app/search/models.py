@@ -4,9 +4,10 @@
 사본인 이유: 검색 한 번에 네 개 표를 조인하면 유형이 늘 때마다 쿼리를 고쳐야 하고, 정렬·
 페이징이 유형별로 달라진다. 사본이면 검색은 표 하나만 보면 되고, 신선도는 워커가 책임진다.
 
-FTS5(`search_index`)는 이 표를 `content=` 로 가리키는 external content 인덱스이고,
-SQLite 트리거가 둘을 묶는다(마이그레이션 0030). 그래서 **이 ORM 으로 쓰기만 해도 인덱스가
-따라온다** — 애플리케이션이 인덱스를 따로 갱신하지 않는다.
+검색은 이 표 **하나**만 본다. 예전에는 FTS5 가상 표(`search_index`)가 옆에 있고 SQLite
+트리거가 둘을 묶었다 — PG 에는 그 문법이 없고, 필요도 없다: `gin_trgm_ops` 인덱스가
+`title`·`body` 컬럼에 직접 걸리므로 **이 ORM 으로 쓰기만 해도 인덱스가 따라온다.**
+트리거로 지키던 성질을 인덱스가 공짜로 준다(D-209 · `app/search/query.py`).
 
 ## v1 범위: 티켓 · 문서 · 게시판 · 사용자. 채팅은 제외한다
 
@@ -20,7 +21,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import DateTime, String, Text
+from sqlalchemy import DateTime, Index, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.models_base import Base, OrgScopedMixin, UUIDPrimaryKeyMixin, utcnow
@@ -73,6 +74,36 @@ class SearchDocument(OrgScopedMixin, UUIDPrimaryKeyMixin, Base):
     """검색 대상 한 건."""
 
     __tablename__ = "search_documents"
+    __table_args__ = (
+        # **후보 생성의 정본**(D-209). `ILIKE '%…%'` 를 이 인덱스가 받는다 —
+        # `app/search/query.py` 가 만드는 조건이 전부 그 모양이다.
+        #
+        # 한국어에서 이것 말고 다른 선택지가 없다는 것을 S1 이 실 PG16 에서 쟀다:
+        # 어절 내부 부분일치 질의 20건 중 전문검색(`to_tsvector('simple')`)은 **19건이
+        # 아무것도 못 찾았고**(recall 0.083), `gin_trgm_ops` 는 **recall 1.000** 에
+        # seqscan 보다 80배 빨랐다.
+        #
+        # 제목과 본문을 따로 거는 이유: 조건이 `title ILIKE … OR body ILIKE …` 라
+        # PG 가 두 인덱스를 각각 타고 BitmapOr 로 합친다. 이어 붙인 한 컬럼에 걸면
+        # 제목 가중치(`query.rank_expression`)를 줄 수 없다.
+        #
+        # ⚠️ **플래너가 항상 이 인덱스를 고르지는 않는다.** PG 는 `ILIKE '%…%'` 의
+        # 선택도를 추정하지 못해 «거의 다 걸린다»로 본다(실측: 20,000행에서 추정
+        # 19,998 · 실제 435). 그래서 작은 표에서는 seq scan 을 고르고, 그건 **틀린
+        # 판단이 아니다** — 현 색인 규모(1~2천 행)에서 seq scan 은 3ms 다(D-209).
+        #
+        # 코퍼스가 자란 뒤 검색이 느려지면 **인덱스를 의심하지 말고 통계·비용
+        # 파라미터를 본다.** 인덱스 자체는 이 조건을 받는다(강제하면 6.4ms 대 23.7ms).
+        # 원장: `docs/platform/EVIDENCE/S2/search_gin_index_is_usable.txt`
+        Index(
+            "ix_search_documents_title_trgm", "title",
+            postgresql_using="gin", postgresql_ops={"title": "gin_trgm_ops"},
+        ),
+        Index(
+            "ix_search_documents_body_trgm", "body",
+            postgresql_using="gin", postgresql_ops={"body": "gin_trgm_ops"},
+        ),
+    )
 
     kind: Mapped[str] = mapped_column(String(16), nullable=False, index=True)
     ref_id: Mapped[str] = mapped_column(String(64), nullable=False)

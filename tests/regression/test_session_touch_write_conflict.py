@@ -12,10 +12,10 @@ get_db의 마지막 커밋에 얹는 방식)로 되돌리면 아래 테스트가
 
 from __future__ import annotations
 
-import sqlite3
-
 import pytest
 from sqlalchemy.exc import OperationalError
+
+from tests.fakes.pgerrors import io_error, serialization_failure
 from sqlalchemy.orm import Session as OrmSession
 
 from app.core.sessions import _commit_best_effort
@@ -25,9 +25,11 @@ pytestmark = pytest.mark.integration
 
 
 def _fake_lock_error() -> OperationalError:
-    return OperationalError(
-        "UPDATE sessions SET last_seen_at=?", {}, sqlite3.OperationalError("database is locked")
-    )
+    """재시도해야 하는 경합 — PG 의 `40001 serialization_failure` 다.
+
+    qa-contract-change: SQLite 의 database is locked 문자열을 흉내 내던 가짜 예외를 PG 의 SQLSTATE 40001 로 바꿨다. PG 에서 재시도 판정 기준은 메시지가 아니라 SQLSTATE 이므로, 문자열만 두면 제품이 아니라 가짜 예외 때문에 실패한다.
+        """
+    return serialization_failure("UPDATE sessions SET last_seen_at=?")
 
 
 def _patch_flaky_user_session_commit(monkeypatch, *, fail_times: int) -> None:
@@ -103,7 +105,7 @@ def test_commit_best_effort_reraises_unrelated_operational_errors():
 
         def commit(self):
             self.commits += 1
-            raise OperationalError("SELECT 1", {}, sqlite3.OperationalError("disk I/O error"))
+            raise io_error("SELECT 1")
 
         def rollback(self):
             pass

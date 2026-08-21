@@ -94,6 +94,7 @@ def create_app(
     *,
     clock: Clock | None = None,
     outbound_transport=None,
+    bind=None,
 ) -> FastAPI:
     settings = settings or Settings()
     clock = clock or SystemClock()
@@ -111,7 +112,12 @@ def create_app(
     app.state.settings = settings
     app.state.clock = clock
 
-    engine = make_engine(settings.database_url)
+    # `bind` 는 **시험 하네스 전용 주입점**이다(D-190). 시험은 트랜잭션 하나를 열어 두고
+    # 끝날 때 되감는 방식으로 격리하는데, 그러려면 앱의 세션이 시험이 연 **그 커넥션**
+    # 위에서 만들어져야 한다. 안 넘기면 예전과 똑같이 `database_url` 로 엔진을 만든다.
+    #
+    # `clock`·`outbound_transport` 와 같은 성격의 인자다 — 제품 경로는 이 값을 안 준다.
+    engine = bind if bind is not None else make_engine(settings.database_url)
     app.state.engine = engine
     app.state.session_factory = make_session_factory(engine)
 
@@ -138,25 +144,35 @@ def create_app(
         )
 
     app.state.session_service = SessionService(settings, clock, app.state.settings_cache)
+    # 아래 넷은 **DB 표**(`rate_limit_buckets`)에 카운터를 둔다(D-192). `session_factory`
+    # 를 넘기는 이유는 리미터가 **요청 세션이 아니라 자기 세션**에서 커밋해야 하기
+    # 때문이다 — 요청 세션을 쓰면 로그인 실패가 세션을 롤백하면서 방금 쓴 토큰까지
+    # 되감고, 무차별 대입 방어가 정확히 필요한 순간에만 꺼진다
+    # (`app/core/ratelimit.py` 모듈 docstring).
+    #
     # Login brute-force guard (spec §25.2): ~10 attempts/min per client IP.
     app.state.login_ratelimiter = RateLimiter(
-        capacity=10, refill_per_second=10 / 60, clock=clock
+        capacity=10, refill_per_second=10 / 60, clock=clock,
+        session_factory=app.state.session_factory,
     )
     # Chat-send guard: 사용자당 채팅 전송 폭주가 단일 워커 잡 큐를 막고 다운스트림 러너/n8n에
     # 부하·비용을 주는 것을 막는다. 버스트 20건, 지속 ~30건/분(refill 0.5/s).
     app.state.chat_ratelimiter = RateLimiter(
-        capacity=20, refill_per_second=0.5, clock=clock
+        capacity=20, refill_per_second=0.5, clock=clock,
+        session_factory=app.state.session_factory,
     )
     # AI 퀴즈 생성 guard: LLM 호출은 비싸고 남용 가능하므로 채팅보다 더 조인다. 버스트 5건,
     # 지속 ~5건/분(refill 5/60). 러너의 동시성 슬롯(2)과 비용을 보호한다.
     app.state.game_ai_ratelimiter = RateLimiter(
-        capacity=5, refill_per_second=5 / 60, clock=clock
+        capacity=5, refill_per_second=5 / 60, clock=clock,
+        session_factory=app.state.session_factory,
     )
     # AI 도우미 요약 문장(브리핑·스탠드업·주간 다이제스트) guard. 화면 진입 길목이라 퀴즈보다
     # 조금 넉넉하되(버스트 6건, 지속 ~12건/분), 여전히 러너 슬롯을 보호한다. 문장 생성이 꺼져
     # 있으면 이 리미터는 아예 쓰이지 않는다(호출이 나가지 않으므로 토큰도 소비하지 않는다).
     app.state.assistant_ratelimiter = RateLimiter(
-        capacity=6, refill_per_second=12 / 60, clock=clock
+        capacity=6, refill_per_second=12 / 60, clock=clock,
+        session_factory=app.state.session_factory,
     )
 
     app.state.allowlists = AllowlistRegistry(settings.config_dir)

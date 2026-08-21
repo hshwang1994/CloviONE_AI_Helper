@@ -139,13 +139,17 @@ def list_jobs(
     # _link_ids(아래)가 응답에 싣는 것과 같은 세 키를 payload_json 안에서 찾는다. 인덱스가
     # 없는 컬럼 스캔이지만 크로스링크를 눌렀을 때 1회만 도는 조회라(목록 전체를 매번 훑는
     # 경로가 아니다) 감내할 수 있는 비용이다.
+    #
+    # `payload_json` 이 `jsonb` 라 `->>` 로 키를 뽑는다(예전에는 SQLite `json_extract`).
+    # 비용이 문제가 되는 날 **표현식 인덱스**를 걸 수 있다는 것이 이 타입 변경의 실제 이득이다 —
+    # `Text` 였을 때는 그 선택지 자체가 없었다.
     for key, value in (
         ("schedule_id", schedule_id),
         ("schedule_run_id", schedule_run_id),
         ("generation_id", generation_id),
     ):
         if value:
-            stmt = stmt.where(func.json_extract(Job.payload_json, "$." + key) == value)
+            stmt = stmt.where(Job.payload_json[key].astext == value)
 
     total = db.execute(select(func.count()).select_from(stmt.subquery())).scalar_one()
     rows = (

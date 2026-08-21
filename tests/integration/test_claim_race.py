@@ -25,19 +25,17 @@ from datetime import datetime
 
 import pytest
 
-pytestmark = pytest.mark.integration
+# 이 파일은 **전용 DB** 가 필요하다(D-190). 스레드 여럿이 각자 세션을 열어 경합을
+# 만드는데, 공유 DB 계층에서는 그 세션들이 **같은 커넥션 하나**를 나눠 쓴다 —
+# 경합이 재현되기는커녕 커넥션이 엉켜 엉뚱한 오류가 난다.
+pytestmark = [pytest.mark.integration, pytest.mark.real_db]
 
 PAGE = "page-claim"
 
 
-@pytest.fixture(autouse=True)
-def _fresh_locks():
-    """잠금 표를 테스트마다 비운다 - 앞 테스트가 남긴 잠금이 다음 테스트를 막으면 안 된다."""
-    from app.tickets import claim_lock
-
-    claim_lock._locks.clear()
-    yield
-    claim_lock._locks.clear()
+# 잠금 표를 비우는 픽스처가 여기 있었다. **이제 필요 없다** — 잠금은 프로세스 메모리가
+# 아니라 PostgreSQL 이 들고 있고(D-192), `pg_advisory_xact_lock` 은 트랜잭션이 끝나는
+# 순간 DB 가 놓는다. 앞 시험이 남긴 잠금이 다음 시험을 막을 자리 자체가 없다.
 
 
 class _SlowRepo:

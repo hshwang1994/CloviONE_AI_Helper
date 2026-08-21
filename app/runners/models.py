@@ -7,7 +7,7 @@ from datetime import datetime
 from sqlalchemy import Boolean, DateTime, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.core.models_base import Base, TimestampMixin, UUIDPrimaryKeyMixin
+from app.core.models_base import Base, JsonText, TimestampMixin, UUIDPrimaryKeyMixin
 
 MAINT_NORMAL = "normal"
 MAINT_DEGRADED = "degraded"
@@ -27,12 +27,12 @@ class Runner(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     base_url: Mapped[str] = mapped_column(String(500), nullable=False)
     health_url: Mapped[str | None] = mapped_column(String(500))
     version: Mapped[str | None] = mapped_column(String(64))
-    capabilities_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    capabilities_json: Mapped[str] = mapped_column(JsonText, nullable=False, default="{}")
     auth_type: Mapped[str] = mapped_column(String(32), nullable=False, default="none")
     secret_ref: Mapped[str | None] = mapped_column(String(128))
     timeout_seconds: Mapped[int] = mapped_column(Integer, nullable=False, default=60)
     concurrency_limit: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
-    retry_policy_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    retry_policy_json: Mapped[str] = mapped_column(JsonText, nullable=False, default="{}")
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     maintenance_state: Mapped[str] = mapped_column(
         String(16), nullable=False, default=MAINT_NORMAL
@@ -43,7 +43,7 @@ class Runner(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     last_health_at: Mapped[datetime | None] = mapped_column(DateTime)
     config_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     owner: Mapped[str | None] = mapped_column(String(120))
-    tags_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+    tags_json: Mapped[str] = mapped_column(JsonText, nullable=False, default="[]")
 
     # Circuit breaker (spec §15.6)
     consecutive_failures: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

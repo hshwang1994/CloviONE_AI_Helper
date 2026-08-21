@@ -16,7 +16,7 @@ from sqlalchemy import update
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
-from app.core.db import DEFAULT_WRITE_CONFLICT_RETRIES, is_write_conflict, write_conflict_backoff
+from app.core.db import DEFAULT_WRITE_CONFLICT_RETRIES, is_insert_race, is_serialization_conflict, write_conflict_backoff
 from app.core.errors import ConflictError, ForbiddenError, ValidationAppError
 from app.core.presence import should_touch
 from app.games import repository
@@ -88,7 +88,7 @@ def _append_event(db: Session, room: GameRoom, kind: str, *, actor_id, payload: 
             db.flush()
             return ev
         except (IntegrityError, OperationalError) as exc:
-            if not is_write_conflict(exc):
+            if not is_insert_race(exc):
                 raise
             db.refresh(room)  # 다른 요청이 먼저 붙였다 — 순번 다시 계산
             if attempt < _APPEND_EVENT_RETRIES - 1:
@@ -116,7 +116,7 @@ def _cas_update_state(db: Session, room: GameRoom, mutate) -> dict:
     ``rowcount == 0``(다른 요청이 먼저 썼다) 뿐 아니라, 정확한 트랜잭션 격리 아래서는 이
     UPDATE 자체가 `OperationalError`("database is locked")로 거부될 수도 있다 — 이
     세션이 먼저 읽은 스냅샷이 그 사이 다른 세션의 커밋보다 낡으면 WHERE 절 비교까지
-    가지도 못한다(`app/core/db.py::is_write_conflict` 참고). 이 함수는 이 UPDATE 가
+    가지도 못한다(`app/core/db.py::is_serialization_conflict` 참고). 이 함수는 이 UPDATE 가
     자기 요청의 **첫 쓰기**인 호출부에서만 쓰므로(투표 등, `_append_event` 는 항상 이
     함수 뒤에 온다) `db.rollback()` 으로 스냅샷을 새로 떠도 잃을 다른 변경이 없다."""
     for _ in range(5):
@@ -130,7 +130,7 @@ def _cas_update_state(db: Session, room: GameRoom, mutate) -> dict:
                 .values(state_json=new_json)
             )
         except OperationalError as exc:
-            if not is_write_conflict(exc):
+            if not is_serialization_conflict(exc):
                 raise
             db.rollback()
             db.refresh(room)

@@ -46,6 +46,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.models_base import (
     Base,
+    JsonText,
     OrgScopedMixin,
     TimestampMixin,
     UUIDPrimaryKeyMixin,
@@ -268,7 +269,7 @@ class ProjectHealthSnapshot(UUIDPrimaryKeyMixin, Base):
     # 달력 연도가 어긋나 12월 마지막 주가 다음 해로 튄다.
     week_of: Mapped[str] = mapped_column(String(10), nullable=False)
     score: Mapped[int] = mapped_column(Integer, nullable=False)
-    reasons_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+    reasons_json: Mapped[str] = mapped_column(JsonText, nullable=False, default="[]")
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
 
     __table_args__ = (

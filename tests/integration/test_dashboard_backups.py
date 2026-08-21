@@ -56,7 +56,7 @@ def test_dashboard_counts_active_workflows(client, admin_csrf):
     assert body["counts"]["active_workflows"] >= 1
 
 
-def test_backup_create_verify_and_list(client, login_as):
+def test_backup_create_verify_and_list(client, login_as, stub_pg_dump):
     csrf = login_as("system_admin")
     r = client.post("/api/admin/backups", headers=_headers(csrf))
     assert r.status_code == 201, r.text
@@ -71,7 +71,7 @@ def test_backup_create_verify_and_list(client, login_as):
     assert dashboard["last_backup_at"] is not None
 
 
-def test_verify_downgrades_status_on_failure(db, settings, fake_clock):
+def test_verify_downgrades_status_on_failure(db, settings, fake_clock, stub_pg_dump):
     # 재검증 실패 시 상태를 failed로 낮춰야 한다(손상된 백업이 '정상'으로 남지 않도록).
     from pathlib import Path
 

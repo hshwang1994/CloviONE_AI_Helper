@@ -29,7 +29,7 @@ from app.approvals.models import (
     Approval,
 )
 from app.core.authz import CONSOLE_WRITE_ROLES
-from app.core.db import is_write_conflict, write_conflict_backoff
+from app.core.db import is_insert_race, write_conflict_backoff
 from app.core.errors import ConflictError, ForbiddenError, NotFoundError
 from app.notifications.service import notify_approvers, notify_user
 from app.users.models import ROLE_SYSTEM_ADMIN, User
@@ -245,7 +245,7 @@ def create_approval(
                 db.flush()
             break
         except (IntegrityError, OperationalError) as exc:
-            if not is_write_conflict(exc):
+            if not is_insert_race(exc):
                 raise
             # 스냅샷을 새로 뜨는 이 commit 자체도 경합에서 같은 이유로 거부될 수 있다
             # (org/service.py::create_item과 같은 자리, D-75/PA-08과 같은 패턴) —
@@ -253,7 +253,7 @@ def create_approval(
             try:
                 db.commit()
             except (IntegrityError, OperationalError) as commit_exc:
-                if not is_write_conflict(commit_exc):
+                if not is_insert_race(commit_exc):
                     raise
                 db.rollback()
             winner = (

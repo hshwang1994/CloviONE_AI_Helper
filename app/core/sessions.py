@@ -17,27 +17,30 @@ from sqlalchemy.orm import Session
 from app.auth.models import UserSession
 from app.core.clock import Clock
 from app.core.config import Settings
-from app.core.db import is_write_conflict
+from app.core.db import is_serialization_conflict
 from app.core.security import hash_token, new_csrf_token, new_session_token
 from app.users.models import User
 
 SESSION_COOKIE_NAME = "clovirone_session"
 
-# last_seen_at writes are throttled to limit write amplification on SQLite.
+# last_seen_at 쓰기는 스로틀한다 — 요청마다 쓰면 이 한 컬럼이 전체 쓰기의 대부분을 차지한다.
 _LAST_SEEN_WRITE_INTERVAL_SECONDS = 60
 
 # validate() 안의 세 커밋(만료 revoke ×2, last_seen_at 스로틀 갱신)은 전부 인증 판단
 # 자체가 아니라 부수 효과다 — record/None을 뭘 돌려줄지는 이미 메모리 위에서 결정이
-# 끝나 있다. 이 커밋이 동시 요청의 다른 세션 쓰기와 SQLite 쓰기 충돌을 일으키면, 예전
-# 코드는 그 OperationalError("database is locked")를 그대로 올려 get_db(deps.py)의
-# 마지막 커밋까지 번지게 했다 — 그 결과 인증만 확인하면 끝인 순수 조회 API(예:
-# GET /api/notifications/unread-count, GET /api/team-chat/rooms — 사실상 인증이 걸린
-# 모든 API)까지 500이 났다(실측: QA 하네스 동시 접속 중 두 API 모두 이 UPDATE에서
-# "database is locked", request_id a2666aa6/5fbacfb3, 2026-08-11 23:58:48). 기존
-# `is_write_conflict()` 재시도 관용(app/core/versioning.py 등 13곳)을 그대로 쓰되,
-# 여기서는 다 실패해도 예외를 올리지 않고 그냥 넘어간다 — revoke는 이미 만료로 판단해
-# None을 돌려줄 참이었고, last_seen_at은 60초 스로틀 창이 이미 지연을 허용한다. 무관한
-# OperationalError(디스크 오류 등)는 여전히 그대로 올린다(is_write_conflict 문서 참고).
+# 끝나 있다. 이 커밋이 동시 요청의 다른 세션 쓰기와 부딪히면, 예전 코드는 그 오류를
+# 그대로 올려 get_db(deps.py)의 마지막 커밋까지 번지게 했다 — 그 결과 인증만 확인하면
+# 끝인 순수 조회 API(예: GET /api/notifications/unread-count, GET /api/team-chat/rooms
+# — 사실상 인증이 걸린 모든 API)까지 500이 났다(실측: QA 하네스 동시 접속 중 두 API 모두
+# 이 UPDATE에서, request_id a2666aa6/5fbacfb3, 2026-08-11 23:58:48).
+#
+# 그래서 짧게 재시도하고, 다 실패해도 예외를 올리지 않고 그냥 넘어간다 — revoke는 이미
+# 만료로 판단해 None을 돌려줄 참이었고, last_seen_at은 60초 스로틀 창이 이미 지연을
+# 허용한다.
+#
+# **여기서 보는 것은 직렬화 경합뿐이다**(D-191). 이 세 커밋은 전부 UPDATE 라 유니크
+# 위반이 나올 자리가 없다 — 그런데도 `IntegrityError` 를 삼키면, 세션 표에 FK/NOT NULL
+# 위반을 만드는 버그가 생겼을 때 아무 흔적 없이 조용히 넘어간다.
 _SIDE_EFFECT_COMMIT_ATTEMPTS = 2
 
 
@@ -49,7 +52,7 @@ def _commit_best_effort(db: Session, apply: Callable[[], None]) -> None:
             return
         except (IntegrityError, OperationalError) as exc:
             db.rollback()
-            if not is_write_conflict(exc):
+            if not is_serialization_conflict(exc):
                 raise
             if attempt == _SIDE_EFFECT_COMMIT_ATTEMPTS - 1:
                 return

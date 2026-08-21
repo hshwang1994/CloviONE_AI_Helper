@@ -12,17 +12,28 @@
 아무 오류도 안 난다. 화면의 숫자만 상한을 넘어 있고, 그것도 다음에 누가 볼 때까지는 아무도
 모른다. 창이 넓을수록 자주 일어나는데 하필 그 창 안에 **AI 호출 자체**(수 초)가 들어 있다.
 
-## 왜 프로세스 안 잠금으로 충분한가
+## 잠금은 **DB 가** 들고 있다 (D-192)
 
-웹은 **`--workers 1` 로 고정**돼 있다. systemd 유닛이 그렇게 못박고, 그 이유가 유닛 주석에
-적혀 있다(로그인 무차별 대입 제한, 채팅 전송 제한 카운터가 전부 프로세스 안 메모리에 있어서
-워커를 늘리면 제한이 N배 약해진다). 그래서 이 앱을 지나는 요청은 **전부 이 프로세스**를
-지나고, 프로세스 안 잠금이 곧 전역 잠금이다.
+예전에는 `threading.Lock()` 이었다 — 한 프로세스 안에서만 성립하므로 `--workers` 를 올리는
+순간 상한이 워커 수만큼 샌다. 증상은 "청구서가 예상보다 크다" 라서 몇 달 뒤에나 드러난다.
+`pg_advisory_xact_lock` 은 DB 가 들고 있어 프로세스가 몇 개든 하나다.
 
-🔴 **워커를 늘리려면 이 잠금도 함께 옮겨야 한다.** `app/tickets/claim_lock.py`, 레이트
-리미터와 **정확히 같은 조건**이다. 공유 저장소(Redis 또는 DB 행 잠금)로 바꾸기 전에는
-워커 수를 올리면 안 된다. 올리는 날 이 파일을 같이 고치지 않으면 상한은 다시 새는데,
-증상은 "청구서가 예상보다 크다" 라서 몇 달 뒤에나 드러난다.
+잠금은 **자기 전용 연결**에 걸리므로 수명이 `with` 블록 하나다 — 옛 `threading.Lock()` 과
+정확히 같다. 요청 세션이 블록 안에서 커밋하든 말든 잠금은 그대로 남는다.
+
+## 그 대신 커넥션을 하나 더 쓴다 (풀 크기를 정할 때 알아야 하는 것)
+
+이 블록 안에 **외부 AI 호출**이 들어 있어 수 초가 걸리고, 그동안 잠금 커넥션은 열린 채
+유휴 상태다. 즉 **동시에 AI 를 부르는 사람 수만큼 커넥션이 추가로 잡힌다** — 옛 인메모리
+잠금에는 없던 비용이다.
+
+기본 풀은 프로세스당 15(`pool_size 5 + max_overflow 10`, `app/core/db.py`)이고 요청 자체가
+하나를 이미 쓰므로, **동시 AI 요청이 7~8을 넘으면 풀이 마른다.** 그때 증상은 "느리다" 이지
+오류가 아니다.
+
+지금 그 수를 실제로 눌러 주는 것은 rate limiter 다(AI 도우미 버스트 6 · 퀴즈 5 · 채팅 20,
+전부 사용자당). 사람이 늘어 이 가정이 깨지면 **풀을 먼저 키우고**(그리고 PG 의
+`max_connections` 를 함께 본다) 워커 수를 정한다 — 순서는 `app/core/db.py` 주석과 같다.
 
 ## 왜 기다리는가 (claim_ticket 은 안 기다리는데)
 
@@ -38,53 +49,33 @@
 
 from __future__ import annotations
 
-import logging
-import threading
-
-logger = logging.getLogger("app.quotas")
+from app.core.advisory_lock import NS_QUOTA, lock_or_continue
 
 # 앞 요청을 기다려 주는 최대 시간(초). AI 호출 한 번의 상한(러너 타임아웃)보다 넉넉하되,
 # 스레드가 사람 하나 때문에 영원히 잠기지 않을 만큼 짧다.
 WAIT_SECONDS = 30.0
-
-# user_id -> Lock. 한 번 만든 잠금은 지우지 않는다 - 지우려면 "지금 아무도 안 쓴다" 를 다시
-# 잠금 없이 판정해야 해서 같은 종류의 경합이 하나 더 생긴다(claim_lock.py 와 같은 판단).
-# 사용자 수(1000명 규모)만큼 자라 봐야 Lock 객체 하나가 수십 바이트다.
-_locks: dict[str, threading.Lock] = {}
-_registry_guard = threading.Lock()
-
-
-def _lock_for(user_id: str) -> threading.Lock:
-    with _registry_guard:
-        lock = _locks.get(user_id)
-        if lock is None:
-            lock = threading.Lock()
-            _locks[user_id] = lock
-        return lock
 
 
 class quota_guard:
     """이 사람의 쿼터 판정을 한 번에 하나만 진행하게 한다.
 
     잠금을 못 잡아도 **예외를 던지지 않는다** - 모듈 docstring 의 마지막 문단이 이유다.
+
+    `db` 는 **어느 엔진에 붙을지** 알아내는 데에만 쓴다 — 잠금은 그 세션이 아니라 **별도 연결**에 걸린다. 요청 세션에 걸면
+    `reserve` 가 규약대로 블록 안에서 커밋하는 순간 잠금이 함께 풀려, 확인과 소비 사이가
+    다시 열린다 (`app/core/advisory_lock.py` 모듈 docstring).
     """
 
-    def __init__(self, user_id: str, *, wait_seconds: float = WAIT_SECONDS) -> None:
-        self._lock = _lock_for(str(user_id))
-        self._wait = wait_seconds
-        self._held = False
+    def __init__(self, db, user_id: str, *, wait_seconds: float = WAIT_SECONDS) -> None:
+        self._cm = lock_or_continue(
+            db, NS_QUOTA, str(user_id), wait_seconds=wait_seconds
+        )
+        self.held = False
 
     def __enter__(self) -> "quota_guard":
-        self._held = self._lock.acquire(timeout=self._wait)
-        if not self._held:
-            logger.warning(
-                "AI 쿼터 잠금을 %.0f초 안에 못 잡았다. 이번 판정은 잠금 없이 진행한다 "
-                "(동시 요청이 상한을 함께 지날 수 있다)",
-                self._wait,
-            )
+        self.held = self._cm.__enter__()
         return self
 
-    def __exit__(self, *_exc) -> None:
-        if self._held:
-            self._lock.release()
-            self._held = False
+    def __exit__(self, *exc) -> None:
+        self._cm.__exit__(*exc)
+        self.held = False

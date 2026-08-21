@@ -43,21 +43,25 @@ to the pre-existing outer-commit gap.
 from concurrent.futures import ThreadPoolExecutor
 
 import pytest
-from sqlalchemy.exc import IntegrityError
+
+from tests.fakes.pgerrors import unique_violation
 
 from app.core.db import make_engine, make_session_factory
 from app.org.constants import DEFAULT_ORG_ID
 
-pytestmark = pytest.mark.integration
+# 이 파일의 시험은 **전용 DB** 가 필요하다(D-190) — 두 번째 커넥션이나 별도
+# 프로세스가 이 시험의 데이터를 봐야 하기 때문이다. 공유 DB + 트랜잭션 되감기
+# 계층에서는 그 데이터가 트랜잭션 밖으로 안 나가서 아무것도 증명하지 못한다.
+pytestmark = [pytest.mark.integration, pytest.mark.real_db]
 
 THREADS = 8
 
 
-def test_concurrent_department_create_never_duplicates(db_path):
+def test_concurrent_department_create_never_duplicates(db_url):
     from app.org.models import Department
     from app.org.service import create_item
 
-    url = f"sqlite:///{db_path.as_posix()}"
+    url = db_url
 
     def attempt(_i: int):
         engine = make_engine(url)
@@ -104,13 +108,13 @@ def test_concurrent_department_create_never_duplicates(db_path):
         engine.dispose()
 
 
-def test_concurrent_job_title_create_never_duplicates(db_path):
+def test_concurrent_job_title_create_never_duplicates(db_url):
     """JobTitle은 이름이 **전역** UNIQUE라 Department와 dedup 판정 자리가 다르다
     (create_item의 dup_org 계산 분기) — 같은 함수의 다른 코드 경로를 실제로 태운다."""
     from app.org.models import JobTitle
     from app.org.service import create_item
 
-    url = f"sqlite:///{db_path.as_posix()}"
+    url = db_url
 
     def attempt(_i: int):
         engine = make_engine(url)
@@ -161,9 +165,7 @@ def test_create_item_gives_up_cleanly_after_exhausting_retries(db, monkeypatch):
 
     def _add_that_always_conflicts(_instance):
         attempts.append(1)
-        raise IntegrityError(
-            "INSERT INTO departments", {}, Exception("UNIQUE constraint failed (fake)")
-        )
+        raise unique_violation("INSERT INTO departments")
 
     monkeypatch.setattr(db, "add", _add_that_always_conflicts)
     monkeypatch.setattr(svc.time, "sleep", lambda _seconds: None)
@@ -183,9 +185,7 @@ def test_create_organization_gives_up_cleanly_after_exhausting_retries(db, monke
 
     def _add_that_always_conflicts(_instance):
         attempts.append(1)
-        raise IntegrityError(
-            "INSERT INTO organizations", {}, Exception("UNIQUE constraint failed (fake)")
-        )
+        raise unique_violation("INSERT INTO organizations")
 
     monkeypatch.setattr(db, "add", _add_that_always_conflicts)
     monkeypatch.setattr(router_mod.time, "sleep", lambda _seconds: None)

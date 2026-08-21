@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.core.models_base import Base, TimestampMixin, UUIDPrimaryKeyMixin, utcnow
+from app.core.models_base import Base, JsonText, TimestampMixin, UUIDPrimaryKeyMixin, utcnow
 
 TYPE_CRON = "cron"
 TYPE_ONCE = "once"
@@ -40,11 +40,11 @@ class Schedule(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     owner_user_id: Mapped[str | None] = mapped_column(String(36))
     target_type: Mapped[str] = mapped_column(String(16), nullable=False)
     target_ref: Mapped[str] = mapped_column(String(64), nullable=False)
-    payload_template_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    payload_template_json: Mapped[str] = mapped_column(JsonText, nullable=False, default="{}")
     prompt_id: Mapped[str | None] = mapped_column(String(36))
     runner_id: Mapped[str | None] = mapped_column(String(36))
-    approval_policy_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
-    retry_policy_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    approval_policy_json: Mapped[str] = mapped_column(JsonText, nullable=False, default="{}")
+    retry_policy_json: Mapped[str] = mapped_column(JsonText, nullable=False, default="{}")
     misfire_policy: Mapped[str] = mapped_column(
         String(16), nullable=False, default=MISFIRE_SKIP
     )
@@ -61,12 +61,15 @@ class Schedule(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
 class ScheduleRun(UUIDPrimaryKeyMixin, Base):
     __tablename__ = "schedule_runs"
+    __table_args__ = (
+        Index("ix_schedule_runs_created_at", "created_at"),
+    )
 
     schedule_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
     scheduled_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     idempotency_key: Mapped[str] = mapped_column(String(200), unique=True, nullable=False)
     status: Mapped[str] = mapped_column(String(16), nullable=False, default=RUN_QUEUED)
-    request_payload_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    request_payload_json: Mapped[str] = mapped_column(JsonText, nullable=False, default="{}")
     response_summary: Mapped[str | None] = mapped_column(Text)
     started_at: Mapped[datetime | None] = mapped_column(DateTime)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime)

@@ -5,7 +5,10 @@ from fastapi.testclient import TestClient
 
 from tests.conftest import DEFAULT_TEST_PASSWORD, PROJECT_ROOT
 
-pytestmark = pytest.mark.integration
+# 이 파일의 시험은 **전용 DB** 가 필요하다(D-190) — 두 번째 커넥션이나 별도
+# 프로세스가 이 시험의 데이터를 봐야 하기 때문이다. 공유 DB + 트랜잭션 되감기
+# 계층에서는 그 데이터가 트랜잭션 밖으로 안 나가서 아무것도 증명하지 못한다.
+pytestmark = [pytest.mark.integration, pytest.mark.real_db]
 
 CLIENT_MSG_ID = "m0123456789abcdef0123456789abcdef"
 
@@ -438,7 +441,7 @@ def test_retry_unknown_message_returns_404(client, user_csrf):
     assert r.status_code == 404
 
 
-def test_feature_flag_off_hides_chat_api_but_not_the_app_shell(db_path, tmp_path, fake_clock, fake_http):
+def test_feature_flag_off_hides_chat_api_but_not_the_app_shell(db_url, tmp_path, fake_clock, fake_http):
     """AI-45: chat_enabled=False로 채팅 API는 막히지만, "/"(React 앱 전체의 진입점)는
     채팅 전용 경로가 아니므로 계속 살아 있어야 한다 — 껐다고 앱 전체가 깨지면 안 된다."""
     import shutil
@@ -457,7 +460,7 @@ def test_feature_flag_off_hides_chat_api_but_not_the_app_shell(db_path, tmp_path
     settings = Settings(
         _env_file=None,
         app_env="test",
-        database_url=f"sqlite:///{db_path.as_posix()}",
+        database_url=db_url,
         session_secret="test-session-secret",
         cookie_secure=False,
         config_dir=cfg,

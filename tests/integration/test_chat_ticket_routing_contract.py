@@ -28,7 +28,7 @@ from __future__ import annotations
 import json
 
 import pytest
-from sqlalchemy import literal_column, select
+from sqlalchemy import select
 
 from app.jobs.handlers.chat_message import CHAT_WORKFLOW_NAME, handle_chat_message
 from app.jobs.models import Job
@@ -202,7 +202,12 @@ def jobs_for(db, message_id: str) -> list[Job]:
     db.expire_all()
     return list(
         db.execute(
-            select(Job).where(Job.message_id == message_id).order_by(literal_column("rowid"))
+            # 삽입 순서다. 예전에는 SQLite 의 숨은 `rowid` 로 정렬했고 PG 에는 그것이 없다.
+            # `jobs` 에는 `seq` 를 안 붙였다 — 이 표는 `created_at` 이 초 미만까지 다르고
+            # 같은 순간이면 `id` 로 깨도 시험이 보려는 것(잡이 몇 개 생겼나)이 흔들리지 않는다.
+            select(Job)
+            .where(Job.message_id == message_id)
+            .order_by(Job.created_at, Job.id)
         )
         .scalars()
         .all()

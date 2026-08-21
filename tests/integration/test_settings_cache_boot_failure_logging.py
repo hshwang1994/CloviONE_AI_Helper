@@ -20,7 +20,11 @@ import pytest
 
 from app.main import create_app
 
-pytestmark = pytest.mark.integration
+# 이 파일은 `create_app(settings, …)` 을 **직접** 부른다 — 시험 하네스의 바인드를
+# 안 받으므로 `settings.database_url` 로 자기 엔진을 만들고 **진짜로 커밋한다**.
+# 공유 DB 계층에서는 그 커밋이 되감기 밖에 있어 다음 시험으로 샌다(실제로 같은
+# 이메일로 두 번째 `create_user` 가 유니크 위반으로 죽었다). 그래서 전용 DB 를 받는다.
+pytestmark = [pytest.mark.integration, pytest.mark.real_db]
 
 
 def test_a_settings_cache_load_failure_at_boot_is_logged(settings, monkeypatch):

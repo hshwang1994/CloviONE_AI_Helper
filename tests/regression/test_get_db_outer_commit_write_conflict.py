@@ -16,10 +16,10 @@
 
 from __future__ import annotations
 
-import sqlite3
-
 import pytest
 from sqlalchemy.exc import IntegrityError, OperationalError
+
+from tests.fakes.pgerrors import io_error, serialization_failure, unique_violation
 
 from app.core.deps import get_db
 from app.core.errors import WriteUnavailableError
@@ -28,19 +28,25 @@ pytestmark = pytest.mark.unit
 
 
 def _fake_lock_error() -> OperationalError:
-    return OperationalError(
-        "COMMIT", {}, sqlite3.OperationalError("database is locked")
-    )
+    """재시도해야 하는 경합 — PG 의 `40001 serialization_failure` 다.
+
+    qa-contract-change: SQLite 의 database is locked 문자열을 흉내 내던 가짜 예외를 PG 의 SQLSTATE 40001 로 바꿨다. PG 에서 재시도 판정 기준은 메시지가 아니라 SQLSTATE 이므로, 문자열만 두면 제품이 아니라 가짜 예외 때문에 실패한다.
+        """
+    return serialization_failure("COMMIT")
 
 
 def _fake_disk_error() -> OperationalError:
-    return OperationalError("COMMIT", {}, sqlite3.OperationalError("disk I/O error"))
+    return io_error("COMMIT")
 
 
 def _fake_integrity_error() -> IntegrityError:
-    return IntegrityError(
-        "INSERT INTO x", {}, sqlite3.IntegrityError("UNIQUE constraint failed: x.y")
-    )
+    """진짜 유니크 위반. **503 으로 포장되면 안 된다**(D-191).
+
+    요청 끝 커밋에서 유니크 위반이 났다는 것은 그 라우트가 같은 행을 두 번 만들려
+    했다는 뜻이다 — "잠시 후 다시 시도해 주세요" 로 감싸면 다시 해도 같은 결과인데
+    사용자는 계속 재시도하고, 로그에는 진짜 원인이 안 남는다.
+    """
+    return unique_violation("INSERT INTO x", constraint="x_y_key")
 
 
 class _FakeDb:

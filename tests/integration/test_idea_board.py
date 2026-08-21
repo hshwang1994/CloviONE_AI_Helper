@@ -192,7 +192,9 @@ def test_posts_written_before_the_kind_column_still_show_up(client, login_as, db
             "INSERT INTO board_posts "
             "(id, org_id, author_user_id, category, title, body, is_pinned, view_count,"
             " created_at, updated_at) "
-            "VALUES (:id, :org, :uid, :cat, :title, '', 0, 0,"
+            # `is_pinned` 는 boolean 이다. SQLite 는 0/1 을 받았지만 PG 는 타입을 지킨다 —
+            # 정수를 넣으면 「column is of type boolean but expression is of type integer」다.
+            "VALUES (:id, :org, :uid, :cat, :title, '', false, 0,"
             " '2026-01-01 00:00:00', '2026-01-01 00:00:00')"
         ),
         {

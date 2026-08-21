@@ -9,7 +9,7 @@ from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
 from app.core.allowlist import AllowlistRegistry
-from app.core.db import is_write_conflict
+from app.core.db import is_insert_race
 from app.core.errors import ConflictError, NotFoundError
 from app.core.versioning import get_version, load_snapshot, snapshot_config
 from app.workflows.models import Workflow
@@ -111,7 +111,7 @@ def create_workflow(
             db.add(row)
             db.flush()
     except (IntegrityError, OperationalError) as exc:
-        if not is_write_conflict(exc):
+        if not is_insert_race(exc):
             raise
         raise ConflictError(f"이미 등록된 Workflow 이름입니다: {config.name}") from exc
     snapshot_config(
@@ -138,7 +138,7 @@ def apply_workflow_config(
         with db.begin_nested():
             db.flush()
     except (IntegrityError, OperationalError) as exc:
-        if not is_write_conflict(exc):
+        if not is_insert_race(exc):
             raise
         raise ConflictError(f"이미 등록된 Workflow 이름입니다: {config.name}") from exc
     snapshot_config(

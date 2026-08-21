@@ -17,7 +17,7 @@ from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
 from app.core import ownership
-from app.core.db import DEFAULT_WRITE_CONFLICT_RETRIES, is_write_conflict, write_conflict_backoff
+from app.core.db import DEFAULT_WRITE_CONFLICT_RETRIES, is_insert_race, write_conflict_backoff
 from app.core.errors import ForbiddenError, NotFoundError
 from app.team_docs import comments as doc_comments
 from app.team_docs import repository
@@ -364,7 +364,7 @@ def toggle_favorite(db: Session, *, user_id: str, page_id: str, on: bool, now: d
                 db.add(row)
                 db.flush()
         except (IntegrityError, OperationalError) as exc:
-            if not is_write_conflict(exc):
+            if not is_insert_race(exc):
                 raise
             pass  # 동시 요청이 먼저 추가 — 멱등
         return True
@@ -404,7 +404,7 @@ def record_view(db: Session, *, user_id: str, page_id: str, now: datetime) -> No
                 db.flush()
             return
         except (IntegrityError, OperationalError) as exc:
-            if not is_write_conflict(exc):
+            if not is_insert_race(exc):
                 raise
             if attempt == _RECORD_VIEW_RETRIES - 1:
                 logger.warning(

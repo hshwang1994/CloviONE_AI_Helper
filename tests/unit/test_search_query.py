@@ -1,11 +1,15 @@
 """검색 질의 규칙 — **한국어 부분일치가 실제로 걸리는가**를 인덱스에 대고 확인한다.
 
-계획서가 실험으로 확정한 두 사실을 여기서 회귀로 못박는다:
-  1. `trigram` 토크나이저면 `"린트 회"` 가 `스프린트 회의록 정리` 에 걸린다.
-  2. 그래도 **3자 미만은 FTS 가 0건**이다 → 1~2자는 LIKE 폴백이어야 한다.
+S1 이 실 PG16 에서 확정한 두 사실을 여기서 회귀로 못박는다(D-209):
+  1. `pg_trgm` 이면 `"린트 회"` 가 `스프린트 회의록 정리` 에 걸린다(어절 **내부** recall 1.000).
+  2. 그래도 **3자 미만은 트라이그램을 만들 수 없다** → 인덱스가 못 받고 전량 스캔이 된다.
 
 둘 중 하나라도 조용히 깨지면 검색은 "고장났다"가 아니라 "결과가 없다"로 보인다 — 아무도
 버그로 신고하지 않는 종류의 실패라 테스트가 유일한 방어선이다.
+
+qa-contract-change: FTS5 MATCH 질의 언어가 통째로 사라져 fts_expression() 단위 시험 둘도 함께 사라졌다. 주입 표면이 없어진 것이 아니라 ILIKE 패턴의 %·_ escape 로 옮겨 갔고, 그 자리를 새 시험 둘이 대신한다.
+사라졌다(질의 언어 자체가 없으므로 파싱될 연산자가 없다). 그 자리를 대신하는 것은 아래
+`ILIKE` 패턴 escape 시험 둘이다 — 주입 표면이 옮겨 간 것이지 없어진 것이 아니다.
 """
 
 from __future__ import annotations
@@ -13,7 +17,7 @@ from __future__ import annotations
 from datetime import datetime
 
 import pytest
-from sqlalchemy import text
+from sqlalchemy import select
 
 from app.search import query as q
 from app.search.models import SearchDocument
@@ -32,21 +36,14 @@ def _add(db, title: str, body: str = "", kind: str = "ticket", ref: str | None =
 
 
 def _fts(db, raw: str) -> list[str]:
-    """FTS 경로로만 조회한 제목들(서비스 계층을 거치지 않는다)."""
-    expression = q.fts_expression(q.normalize(raw))
-    rowids = db.execute(
-        text("SELECT rowid FROM search_index WHERE search_index MATCH :m ORDER BY rank"),
-        {"m": expression},
-    ).scalars().all()
-    if not rowids:
-        return []
-    rows = db.execute(
-        text(
-            "SELECT title FROM search_documents WHERE rowid IN ("
-            + ",".join(str(int(r)) for r in rowids) + ")"
-        )
-    ).scalars().all()
-    return list(rows)
+    """트라이그램 경로로만 조회한 제목들(서비스 계층을 거치지 않는다)."""
+    normalized = q.normalize(raw)
+    stmt = (
+        select(SearchDocument.title)
+        .where(q.trgm_clause(normalized))
+        .order_by(q.rank_expression(normalized).desc(), SearchDocument.title)
+    )
+    return list(db.execute(stmt).scalars().all())
 
 
 # ── 모드 판정 ────────────────────────────────────────────────────────────────
@@ -89,10 +86,19 @@ def test_korean_substring_matches_inside_a_word(db):
     assert _fts(db, "회의록") == ["회의록 템플릿 개선"]
 
 
-def test_two_char_query_finds_nothing_in_fts(db):
-    """왜 LIKE 폴백이 필요한가에 대한 증거. 2자는 예외도 오류도 아니고 **0건**이다."""
+def test_two_char_query_still_finds_the_row_but_takes_the_scan_path(db):
+    """2자 질의는 **찾기는 찾는다.** 다만 인덱스를 못 타서 전량 스캔이 된다.
+
+    qa-contract-change: FTS5 시절 2자 질의는 0건이었고 단언이 == [] 였다. pg_trgm 은 같은 질의를 정확히 찾으므로 결과가 강해졌다 — 바뀐 것은 recall 이 아니라 비용(인덱스를 못 타 전량 스캔)이라, 단언을 뒤집고 mode 까지 함께 못박는다.
+
+    즉 계약이 **강해졌다**. 그래서 여기서 못박는 것도 둘로 늘었다 — 결과가 맞는가,
+    그리고 화면이 그 사실을 정직하게 말하도록 모드가 여전히 `like` 인가
+    (`frontend/src/screens/Search.jsx` 가 그 값으로 "짧은 검색어라 부분 일치로
+    찾았습니다" 를 켠다).
+    """
     _add(db, "회의록 템플릿 개선")
-    assert _fts(db, "회의") == []
+    assert _fts(db, "회의") == ["회의록 템플릿 개선"]
+    assert q.mode_for(q.normalize("회의")) == q.MODE_LIKE
 
 
 def test_multi_word_query_matches_words_apart(db):
@@ -109,16 +115,29 @@ def test_body_is_searchable_not_only_title(db):
 # ── 주입 / 특수문자 ──────────────────────────────────────────────────────────
 
 
-def test_fts_expression_quotes_the_whole_query():
-    assert q.fts_expression("린트 회") == '"린트 회"'
+def test_percent_is_escaped_not_a_wildcard(db):
+    """`%` 를 그대로 넘기면 `ILIKE` 에서 **전부**가 걸린다. escape 해야 0건이다."""
+    _add(db, "정상 문서")
+    assert _fts(db, "abc%def") == []
 
 
-def test_fts_expression_escapes_double_quotes():
-    assert q.fts_expression('a"b') == '"a""b"'
+def test_underscore_is_escaped_not_a_single_char_wildcard(db):
+    """`_` 는 `ILIKE` 에서 아무 글자 하나다. escape 안 하면 `정상 문서` 가 걸린다."""
+    _add(db, "정상 문서")
+    assert _fts(db, "정_ 문서") == []
+
+
+def test_query_is_matched_case_insensitively(db):
+    """PG 의 `LIKE` 는 대소문자를 구분한다 — `ILIKE` 여야 한다.
+
+    한글만 쓰는 화면에서는 이 차이가 한참 뒤에야 드러난다.
+    """
+    _add(db, "Sprint 회고 문서")
+    assert _fts(db, "sprint") == ["Sprint 회고 문서"]
 
 
 def test_fts_operators_are_literal_not_parsed(db):
-    """`NEAR`/`*`/컬럼필터가 연산자로 해석되면 안 된다 — 큰따옴표 안은 전부 리터럴이다."""
+    """옛 FTS5 질의 문법(`NEAR`/컬럼필터)이 연산자로 해석되면 안 된다 — 이제는 문법 자체가 없다."""
     _add(db, "정상 문서")
     # FTS5 문법으로 해석되면 예외가 나거나 전 행이 걸린다. 리터럴이면 0건이다.
     assert _fts(db, 'title : NEAR("정상")') == []

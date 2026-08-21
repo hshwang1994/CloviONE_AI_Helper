@@ -11,7 +11,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
-from app.core.db import DEFAULT_WRITE_CONFLICT_RETRIES, is_write_conflict, write_conflict_backoff
+from app.core.db import DEFAULT_WRITE_CONFLICT_RETRIES, is_insert_race, write_conflict_backoff
 from app.core.errors import ConflictError, NotFoundError, ValidationAppError
 from app.prompts.models import (
     STATUS_ARCHIVED,
@@ -113,7 +113,7 @@ def transition(
             row.status = new_status
             db.flush()
     except (IntegrityError, OperationalError) as exc:
-        if not is_write_conflict(exc):
+        if not is_insert_race(exc):
             raise
         raise ConflictError(
             "다른 버전이 거의 동시에 발행돼 충돌했습니다. 최신 상태를 다시 불러오세요."
@@ -179,7 +179,7 @@ def new_version_from(
                 db.flush()
             return copy
         except (IntegrityError, OperationalError) as exc:
-            if not is_write_conflict(exc):
+            if not is_insert_race(exc):
                 raise
             if attempt == _NEW_VERSION_RETRIES - 1:
                 raise ConflictError(
@@ -191,7 +191,7 @@ def new_version_from(
             try:
                 db.commit()
             except (IntegrityError, OperationalError) as commit_exc:
-                if not is_write_conflict(commit_exc):
+                if not is_insert_race(commit_exc):
                     raise
                 db.rollback()
             time.sleep(write_conflict_backoff(attempt))

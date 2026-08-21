@@ -24,7 +24,17 @@ class Settings(BaseSettings):
     app_port: int = 8080
     app_base_url: str = "http://127.0.0.1:8080"
 
-    database_url: str = "sqlite:///./var/web.sqlite3"
+    # System of Record 는 PostgreSQL 이다(D-187). 기본값은 개발용 로컬 주소이고,
+    # 운영은 systemd EnvironmentFile 이 덮어쓴다. SQLite 주소를 넣으면 앱이 뜨지
+    # 않는다 — `app/core/db.py::normalize_database_url` 이 막는다.
+    database_url: str = "postgresql://cloviradmin@127.0.0.1:5432/clovir"
+    # `pg_dump`/`pg_restore`/`psql` 이 있는 디렉터리. 비우면 `PATH` 에서 찾는다.
+    #
+    # 비워 두면 안 되는 환경이 있다: Ubuntu 는 버전별 디렉터리에 둔다
+    # (`/usr/lib/postgresql/16/bin`). `PATH` 의 `pg_dump` 는 더 낮은 버전일 수 있고,
+    # **서버보다 낮은 `pg_dump` 는 실행을 거부한다** — 그러면 백업이 한 번도 성공한 적
+    # 없는데 그 사실이 백업을 되돌리려는 날에야 드러난다.
+    pg_bin_dir: str = ""
 
     n8n_work_assistant_url: str = "http://127.0.0.1:5678/webhook/clovirone-work-assistant"
     n8n_timeout_seconds: int = 180

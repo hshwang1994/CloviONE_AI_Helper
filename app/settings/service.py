@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import threading
+import time
 from datetime import datetime
 from typing import Any
 
@@ -29,15 +30,38 @@ from app.settings.registry import REGISTRY, get_spec, validate_value
 OBJECT_TYPE = "app_setting"
 
 
+# 캐시가 최대 이만큼 낡을 수 있다(초). **워커가 여럿일 때만 의미가 있는 값이다** —
+# 설정을 바꾼 프로세스는 그 자리에서 캐시를 새로 채우지만, 다른 워커 프로세스는 자기
+# 메모리에 옛 값을 들고 있다. 그 프로세스들이 이 간격으로 다시 읽는다(D-192).
+#
+# 30초인 이유: 설정 변경은 드물고 즉시성이 필요한 종류가 아니다(세션 정책·보존 기간·
+# 동기화 간격). 더 짧게 잡으면 요청마다 DB 를 한 번 더 보게 되는 구간이 늘고, 더 길게
+# 잡으면 관리자가 값을 바꾼 뒤 "안 먹는다" 고 느끼는 창이 길어진다.
+DEFAULT_CACHE_TTL_SECONDS = 30.0
+
+
 class SettingsCache:
     """Thread-safe effective-settings cache (registry defaults + DB overrides).
 
-    Loaded once at startup and refreshed on every write, so consumers can read
-    effective values synchronously without a DB session (``current()``)."""
+    시작할 때 한 번 읽고 쓰기가 있을 때마다 새로 채운다. 그래서 소비자는 DB 세션 없이
+    (``current()``) 유효 설정을 읽을 수 있다.
 
-    def __init__(self, settings=None) -> None:
+    **워커가 여럿이면 그것만으로는 부족하다**(D-192). 값을 바꾼 것은 한 프로세스인데
+    나머지는 자기 메모리의 옛 값을 계속 들고 있고, 그 사실이 아무 데도 안 드러난다 —
+    관리자는 설정을 바꿨는데 요청이 어느 워커로 가느냐에 따라 새 값과 옛 값이 번갈아
+    적용되는 것을 본다. 그래서 스냅숏에 나이를 달아 두고 ``refresh_if_stale()`` 이
+    ``DEFAULT_CACHE_TTL_SECONDS`` 마다 다시 읽는다.
+
+    나이를 재는 데 `time.monotonic()` 을 쓴다 — 주입된 `Clock` 이 아니다. 이건 도메인
+    시각이 아니라 "이 메모리가 얼마나 오래됐나" 이고, 시계를 멈춰 둔 시험에서 캐시가
+    영원히 안 늙거나 매번 늙는 쪽으로 기울면 안 된다.
+    """
+
+    def __init__(self, settings=None, *, ttl_seconds: float = DEFAULT_CACHE_TTL_SECONDS) -> None:
         self._lock = threading.Lock()
         self._values: dict[str, Any] | None = None
+        self._loaded_at: float | None = None
+        self._ttl = float(ttl_seconds)
         # 살아 있는 `Settings` 객체(선택). 있으면 load 마다 설치처 설정을 그 위에 얹는다 -
         # 이유는 app/core/tenant_config.py::apply_overrides 에 적어 뒀다. 없으면(테스트가
         # 캐시만 쓰는 경우) 아무 일도 안 한다.
@@ -54,6 +78,7 @@ class SettingsCache:
                 values[row.key] = json.loads(row.value_json)
         with self._lock:
             self._values = values
+            self._loaded_at = time.monotonic()
         # 락 밖에서 얹는다. 여기서 하는 일은 다른 객체의 속성 대입이라 이 락과 무관하고,
         # 락 안에서 하면 부팅 경로가 남의 객체를 잡은 채 도는 모양이 된다.
         from app.core.tenant_config import apply_overrides
@@ -93,6 +118,23 @@ class SettingsCache:
     def invalidate(self) -> None:
         with self._lock:
             self._values = None
+            self._loaded_at = None
+
+    def is_stale(self) -> bool:
+        with self._lock:
+            if self._values is None or self._loaded_at is None:
+                return True
+            return (time.monotonic() - self._loaded_at) >= self._ttl
+
+    def refresh_if_stale(self, db: Session) -> None:
+        """TTL 이 지났으면 DB 에서 다시 읽는다. 안 지났으면 아무 일도 안 한다.
+
+        요청 길목(`app/core/deps.py::get_db`)이 부른다 — 그래야 웹 프로세스가 여럿이어도
+        각자 이 간격으로 따라잡는다. 대부분의 호출은 타임스탬프 비교 하나로 끝난다.
+        """
+        if not self.is_stale():
+            return
+        self.load(db)
 
 
 def effective_settings(db: Session, cache: SettingsCache) -> dict[str, Any]:

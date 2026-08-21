@@ -24,7 +24,6 @@ id 는 설정 레지스트리를 지난다(`PUT /api/admin/settings/{key}`). 거
 
 from __future__ import annotations
 
-import threading
 
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field
@@ -33,7 +32,8 @@ from sqlalchemy.orm import Session
 from app.core.audit import record_audit_from_request
 from app.core.authz import SYSTEM_ADMIN_ONLY
 from app.core.deps import get_db, require_csrf, require_roles
-from app.core.errors import ValidationAppError
+from app.core.advisory_lock import NS_NOTION_CREATE, try_lock
+from app.core.errors import ConflictError, ValidationAppError
 from app.notion_console import service
 from app.notion_console.service import OBJECT_TYPE_DATABASE, OBJECT_TYPE_TOKEN
 
@@ -53,9 +53,10 @@ MAX_TOKEN_LENGTH = 500
 # 두 개 생기고 하나는 설정에 못 들어간 채 워크스페이스에 고아로 남는다 — guard_create의
 # docstring이 막으려는 바로 그 일이 검사와 쓰기 사이의 틈에서 그대로 재현된다.
 # 이 화면은 시스템 관리자만 쓰는, 설치 초기에 아주 드물게 누르는 화면이라 요청 전체를
-# 직렬화해도 정상 트래픽에 영향이 없다(프로세스가 단일 프로세스로 뜬다는 전제는
-# app/settings/service.py의 SettingsCache 주석과 같다).
-_create_database_lock = threading.Lock()
+# 직렬화해도 정상 트래픽에 영향이 없다.
+#
+# 잠금은 `app/core/advisory_lock.py::NS_NOTION_CREATE` 가 들고 있다 — 예전에는
+# `threading.Lock()` 이었고, 그건 이 프로세스 안에서만 성립했다(D-192).
 
 
 def _effective(request: Request, db: Session) -> dict:
@@ -179,7 +180,16 @@ def create_notion_database(
     from app.settings.service import apply_setting
 
     settings = request.app.state.settings
-    with _create_database_lock:
+    # 확인부터 저장까지를 하나로 묶는다 — 그 사이에 Notion 을 실제로 부르는 시간이 걸리는
+    # 호출이 있고, 잠금이 없으면 그 틈에 들어온 두 번째 요청도 같은 '아직 없음'을 보고
+    # 통과해 데이터베이스가 두 개 생긴다.
+    #
+    # 잠금은 **요청 세션이 아니라 별도 연결**에 걸린다. 아래 `db.commit()` 때문이다 —
+    # 요청 세션에 걸었다면 그 커밋이 잠금을 함께 풀어, 정작 가장 긴 구간(Notion 호출)이
+    # 잠기지 않은 채로 돈다(`app/core/advisory_lock.py` 모듈 docstring).
+    with try_lock(db, NS_NOTION_CREATE) as got_lock:
+        if not got_lock:
+            raise ConflictError("이미 Notion 데이터베이스를 만들고 있습니다. 잠시 후 다시 시도해 주세요.")
         spec = service.guard_create(
             payload.key, settings, _effective(request, db), confirm=payload.confirm
         )

@@ -24,6 +24,8 @@ from datetime import datetime
 import pytest
 from sqlalchemy.exc import OperationalError
 
+from tests.fakes.pgerrors import serialization_failure
+
 from app.team_docs import service as svc
 from app.team_docs.models import DocumentRecentView
 
@@ -36,7 +38,7 @@ PAGE_ID = "page-race-1234"
 def _locked_error() -> OperationalError:
     # is_write_conflict()가 sqlite_errorcode 우선, 없으면 메시지로 판정한다(app/core/db.py) —
     # 진짜 SQLite 예외를 스레드로 재현하는 대신, 그 메시지 판정 경로를 그대로 태운다.
-    return OperationalError("UPDATE document_recent_views ...", {}, Exception("database is locked"))
+    return serialization_failure("UPDATE document_recent_views ...")
 
 
 def test_record_view_creates_row_when_none_exists(db):

@@ -5,11 +5,14 @@ Convention: all datetime columns store naive UTC (see app.core.db docstring).
 
 from __future__ import annotations
 
+import json
 import uuid
 from datetime import datetime, timezone
 
 from sqlalchemy import DateTime, ForeignKey, String
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, declared_attr, mapped_column
+from sqlalchemy.types import TypeDecorator
 
 
 def utcnow() -> datetime:
@@ -39,6 +42,52 @@ def join_names(names) -> str:
 
 def split_names(joined: str) -> list[str]:
     return [p for p in (joined or "").split(NAMES_SEP) if p.strip()]
+
+
+class JsonText(TypeDecorator):
+    """저장은 **`jsonb`**, 파이썬 쪽 값은 **JSON 문자열** 그대로인 컬럼 (실행목록 6·7).
+
+    SQLite 시절 이 컬럼들은 전부 `Text` 였고 앱은 `json.dumps` / `json.loads` 로 직접
+    직렬화했다. PG 로 옮기면서 두 가지를 동시에 얻어야 했다:
+
+      * 저장 타입은 진짜 `jsonb` 여야 한다 — 그래야 `->>` 로 키를 뽑고(`json_extract`
+        대체) GIN 인덱스를 걸 수 있다. `Text` 로 두면 그 둘이 다 불가능하다.
+      * 그런데 **호출부 100곳 이상이 이 값을 문자열로 읽고 쓴다.** S2 는 "도메인 변경
+        없이 이식" 이므로 그 계약을 여기서 바꾸지 않는다.
+
+    그래서 경계를 이 타입 하나에 둔다. 컬럼은 `jsonb` 이고, 파이썬이 보는 값은 문자열이다.
+
+    **이 타입이 만드는 실제 변화 셋** — 전부 의도한 것이다:
+
+      1. **깨진 JSON 을 저장할 수 없다.** `Text` 는 깨진 조각도 받았고 그 행은 읽는 쪽에서
+         터졌다. 이제 쓰는 쪽에서 거부된다 — 틀린 값이 DB 에 들어가지 않는다.
+      2. **키 순서와 공백이 정규화된다.** 같은 내용을 키 순서만 바꿔 적은 두 값이 이제
+         같은 값이다. `approvals.request_payload_json` 이 유니크 키의 일부라 이 성질이
+         중요하다 — 예전에는 키 순서만 바꿔 보내면 중복 pending 요청이 만들어졌다.
+         **정규화 규약을 문서로 약속하는 대신 DB 가 강제한다.**
+      3. **`LIKE` 를 직접 못 쓴다.** `jsonb` 에는 `LIKE` 연산자가 없다. 문자열로 훑어야
+         하는 자리는 `payload_json.cast(Text)` 처럼 명시적으로 캐스트한다
+         (`app/core/retention.py` · `app/schedules/router.py`).
+    """
+
+    impl = JSONB
+    cache_ok = True
+
+    def process_bind_param(self, value, dialect):
+        if value is None:
+            return None
+        if not isinstance(value, str):
+            # 이미 dict/list 면 그대로 넘긴다 — 이 타입은 문자열 계약을 지키지만, 값을
+            # 만들어 주는 쪽이 객체를 넣었을 때 조용히 두 번 감싸는 것보다 낫다.
+            return value
+        return json.loads(value)
+
+    def process_result_value(self, value, dialect):
+        if value is None:
+            return None
+        # `ensure_ascii=False` 라야 한글이 이스케이프로 부풀지 않는다. 구분자는 파이썬
+        # 기본값 그대로다 — 기존 코드가 만들던 문자열과 같은 모양이다.
+        return json.dumps(value, ensure_ascii=False)
 
 
 class Base(DeclarativeBase):

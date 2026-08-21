@@ -436,7 +436,7 @@ class consume:
         self._org_id = org_id
         self._kind = kind
         self._now = now
-        self._guard = quota_lock.quota_guard(user_id)
+        self._guard = quota_lock.quota_guard(db, user_id)
 
     def __enter__(self) -> "consume":
         self._guard.__enter__()
@@ -465,16 +465,20 @@ class reserve:
             message, job = post_user_message(…)
             db.commit()   # 예약(잡 행)이 다른 요청에 보여야 뜻이 있다
 
-    ⚠️ **블록 안에서 커밋해야 한다.** SQLite 는 커밋 전 쓰기를 다른 커넥션에 보여 주지
-    않으므로, 잠금을 놓은 뒤에 커밋하면 그 사이에 들어온 요청이 이 잡을 못 보고 같은
-    한 칸을 또 가져간다 - 잠금을 걸어 놓고 아무것도 못 막는 상태가 된다.
+    ⚠️ **블록 안에서 커밋해야 한다.** 커밋 전 쓰기는 다른 트랜잭션에 안 보이므로, 잠금을
+    놓은 뒤에 커밋하면 그 사이에 들어온 요청이 이 잡을 못 보고 같은 한 칸을 또 가져간다 -
+    잠금을 걸어 놓고 아무것도 못 막는 상태가 된다.
+
+    advisory `xact` 잠금에서는 **그 커밋이 곧 해제**다(D-192). 즉 '보이게 만드는 것'과
+    '놓는 것'이 한 순간에 일어나 그 틈 자체가 사라진다 — 순서를 지켜야 하는 규약이
+    순서를 틀릴 수 없는 구조가 됐다.
     """
 
     def __init__(self, db: Session, *, user_id: str, now: datetime) -> None:
         self._db = db
         self._user_id = user_id
         self._now = now
-        self._guard = quota_lock.quota_guard(user_id)
+        self._guard = quota_lock.quota_guard(db, user_id)
 
     def __enter__(self) -> "reserve":
         self._guard.__enter__()

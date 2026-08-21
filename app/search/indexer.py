@@ -34,7 +34,6 @@ UPDATE** 한다(내용이 같으면 건드리지 않는다) — 안 그러면 �
 from __future__ import annotations
 
 import logging
-import threading
 from dataclasses import dataclass
 from datetime import datetime
 from urllib.parse import quote
@@ -74,18 +73,15 @@ BODY_CHARS = 2000
 # 워커 틱 하나가 조용히 수십 초를 먹는다.
 MAX_ROWS_PER_KIND = 5000
 
-# 수동 재색인(C7, POST /api/search/reindex)을 **한 번에 하나만** 진행한다.
-# `app/tickets/claim_lock.py` 와 같은 이유(웹이 `--workers 1` 로 고정돼 있어 프로세스 안
-# 잠금으로 충분하다) — 기다리지 않는 논블로킹 잠금이라 이미 진행 중이면 바로 409 다.
+# 수동 재색인(C7, POST /api/search/reindex)은 **한 번에 하나만** 돈다. 잠금은
+# `app/core/advisory_lock.py::NS_SEARCH_REINDEX` 가 들고 있고 거는 자리는
+# `reindex_router.py` 다 — 기다리지 않는 논블로킹 잠금이라 이미 진행 중이면 바로 409 다.
 #
-# **못 막는 것**: 워커 틱(app/worker_main.py `search_index_tick`)은 **다른 프로세스**라 이
-# 잠금이 못 막는다. `search_documents` 에는 (kind, ref_id) 유니크 제약이 없어서, 정기 틱과
-# 수동 트리거가 정말 같은 순간에 겹치면 중복 행이 생길 수 있다(다음 재구축에서 최신 내용으로
-# 갱신은 되지만, 그 사이 검색 결과에 같은 항목이 두 번 보일 수 있다) — 이건 이 잠금이 아니라
-# 원래 "재색인은 워커 틱 한 곳에서만 돈다"는 전제(§ 위 모듈 docstring)에 새 호출자(이 API)를
-# 더하면서 생기는 좁은 틈이다. 겹칠 확률은 낮고(재구축은 1초 안쪽), 웹 프로세스 쪽 중복은
-# 이 잠금이 완전히 막는다.
-reindex_lock = threading.Lock()
+# **예전에는 `threading.Lock()` 이었고, 워커 틱을 못 막았다**(app/worker_main.py
+# `search_index_tick` 은 다른 프로세스다). 그 틈에 정기 틱과 수동 트리거가 겹치면
+# `search_documents` 에 (kind, ref_id) 유니크가 없어 중복 행이 생길 수 있었다 —
+# 다음 재구축에서 갱신은 되지만 그 사이 같은 항목이 검색 결과에 두 번 보였다.
+# advisory 잠금은 DB 가 들고 있으므로 **그 구멍까지 닫힌다**(D-192).
 
 
 @dataclass(frozen=True)

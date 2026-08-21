@@ -1,7 +1,7 @@
 """검색 인덱스 강제 재색인 API — POST /api/search/reindex (C7).
 
-이 시험 파일은 **한 번도 티켓 동기화가 성공한 적 없는** 갓 만든 DB 위에서 돈다(다른 통합
-시험처럼 매 테스트가 새 sqlite 파일을 받는다 — tests/conftest.py `db_path`). 그래서
+이 시험 파일은 **한 번도 티켓 동기화가 성공한 적 없는** 갓 만든 DB 위에서 돈다(`real_db` 표시가
+있어 매 테스트가 전용 PostgreSQL 데이터베이스를 받는다 — tests/conftest.py `db_url`). 그래서
 `app/tickets/repository_notion.py::_cache_ready` 가 아직 캐시를 못 믿어 실시간 Notion 조회로
 떨어지고, 이 테스트 환경(fake_http 에 아무 경로도 등록하지 않음)에서는 그 조회가 실패한다 —
 team_docs/tickets 의 "faults gracefully without notion" 시험과 같은 모양으로, 여기서도
@@ -18,7 +18,10 @@ import pytest
 from app.audit.models import AuditLog
 from app.observability.models import COMPONENT_SEARCH, SyncStatus
 
-pytestmark = pytest.mark.integration
+# 이 파일의 시험은 **전용 DB** 가 필요하다(D-190) — 두 번째 커넥션이나 별도
+# 프로세스가 이 시험의 데이터를 봐야 하기 때문이다. 공유 DB + 트랜잭션 되감기
+# 계층에서는 그 데이터가 트랜잭션 밖으로 안 나가서 아무것도 증명하지 못한다.
+pytestmark = [pytest.mark.integration, pytest.mark.real_db]
 
 
 def _headers(csrf: str) -> dict:
@@ -90,17 +93,38 @@ def test_operator_reindex_writes_audit_row(client, login_as, db):
 
 
 def test_concurrent_trigger_is_rejected(client, login_as):
-    """이미 진행 중인 재색인 위에 또 트리거하면 409 (같은 논블로킹 잠금 관용)."""
-    from app.search.indexer import reindex_lock
+    """이미 진행 중인 재색인 위에 또 트리거하면 409 (같은 논블로킹 잠금 관용).
+
+    qa-contract-change: 잠금이 프로세스 안의 threading.Lock 에서 DB advisory lock 으로 바뀌어(D-192) 선점 방법을 별도 커넥션으로 옮겼다. 확인하는 계약(선점 중이면 409, 놓으면 200)은 그대로이고, 오히려 워커가 여럿일 때도 성립하는 형태로 강해졌다.
+
+    옛 `threading.Lock()` 은 이 시험 프로세스 안에서만 성립해서, 워커를 늘리면 잠금이
+    N벌이 되어 아무것도 막지 못했다. advisory lock 은 **DB 가 들고 있으므로** 다른
+    커넥션에서 선점할 수 있고, 여기서는 그 성질을 그대로 써서 잠금을 쥔 채 요청을 보낸다.
+    """
+    from sqlalchemy import text
+    from sqlalchemy.orm import Session
+
+    from app.core.advisory_lock import GLOBAL_KEY, NS_SEARCH_REINDEX
 
     csrf = login_as("operator", email="reindex-lock@goodmit.co.kr")
-    held = reindex_lock.acquire(blocking=False)
-    assert held, "잠금을 선점하지 못해 이 시험이 아무것도 증명하지 못한다"
+
+    # 요청이 쓰는 커넥션과 **다른** 커넥션에서 잠근다. 요청 세션에 걸면 잠긴 구간 안의
+    # 커밋 하나가 잠금을 조용히 풀어서, 이 시험이 아무것도 증명하지 못한다.
+    engine = client.app.state.engine
+    holder = Session(bind=getattr(engine, "engine", engine))
     try:
+        held = holder.execute(
+            text("SELECT pg_try_advisory_xact_lock(:ns, :key)"),
+            {"ns": NS_SEARCH_REINDEX, "key": GLOBAL_KEY},
+        ).scalar()
+        assert held is True, "잠금을 선점하지 못해 이 시험이 아무것도 증명하지 못한다"
+
         r = client.post("/api/search/reindex", headers=_headers(csrf))
         assert r.status_code == 409
     finally:
-        reindex_lock.release()
+        # 커밋이 아니라 롤백이다. 트랜잭션이 끝나면서 잠금이 함께 풀린다.
+        holder.rollback()
+        holder.close()
 
     r2 = client.post("/api/search/reindex", headers=_headers(csrf))
     assert r2.status_code == 200

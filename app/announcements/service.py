@@ -16,7 +16,7 @@ from app.announcements.models import (
     Announcement,
     AnnouncementDismissal,
 )
-from app.core.db import is_write_conflict
+from app.core.db import is_insert_race
 from app.core.errors import ValidationAppError
 from app.core.safe_url import is_safe_external_url, normalize_external_url
 
@@ -127,7 +127,7 @@ def dismiss(db: Session, *, announcement_id: str, user_id: str, now: datetime) -
     docstring 이 약속한 "멱등"과 반대로 두 번째 클릭이 사용자에게 오류로 보였다. 그
     예외를 "이미 남이 방금 닫았다"는 신호로 해석해 같은 멱등 결과(False)로 되돌린다.
     `IntegrityError`(UNIQUE 위반) 뿐 아니라 `OperationalError`("database is locked")도
-    같은 경합의 다른 얼굴이다(`app/core/db.py::is_write_conflict` 참고 — 정확한 트랜잭션
+    같은 경합의 다른 얼굴이다(`app/core/db.py::is_serialization_conflict` 참고 — 정확한 트랜잭션
     격리 아래서는 스냅샷이 낡은 쪽이 UNIQUE 검사까지 가지 못하고 여기서 먼저 걸린다).
     `db.rollback()`이 필요하다 — flush 실패로 세션이 pending-rollback 상태가 되면 이
     요청의 나머지(get_db 의 요청-끝 commit 포함)가 `PendingRollbackError`로 깨진다.
@@ -148,7 +148,7 @@ def dismiss(db: Session, *, announcement_id: str, user_id: str, now: datetime) -
     try:
         db.flush()
     except (IntegrityError, OperationalError) as exc:
-        if not is_write_conflict(exc):
+        if not is_insert_race(exc):
             raise
         db.rollback()
         return False

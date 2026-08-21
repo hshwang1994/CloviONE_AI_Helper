@@ -24,7 +24,10 @@ import pytest
 from app.core.db import make_engine, make_session_factory
 from app.core.errors import ConflictError
 
-pytestmark = pytest.mark.integration
+# 이 파일의 시험은 **전용 DB** 가 필요하다(D-190) — 두 번째 커넥션이나 별도
+# 프로세스가 이 시험의 데이터를 봐야 하기 때문이다. 공유 DB + 트랜잭션 되감기
+# 계층에서는 그 데이터가 트랜잭션 밖으로 안 나가서 아무것도 증명하지 못한다.
+pytestmark = [pytest.mark.integration, pytest.mark.real_db]
 
 THREADS = 8
 NAME = "race-prompt"
@@ -46,11 +49,11 @@ def _seed_two_review_versions(url: str) -> tuple[str, str]:
         engine.dispose()
 
 
-def test_concurrent_publish_of_two_versions_never_duplicates(db_path):
+def test_concurrent_publish_of_two_versions_never_duplicates(db_url):
     from app.prompts.models import STATUS_PUBLISHED, Prompt
     from app.prompts.service import transition
 
-    url = f"sqlite:///{db_path.as_posix()}"
+    url = db_url
     now = datetime(2026, 8, 10, 0, 0, 0)
     id_a, id_b = _seed_two_review_versions(url)
     target_ids = [id_a, id_b] * (THREADS // 2)

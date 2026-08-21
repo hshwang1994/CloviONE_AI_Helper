@@ -14,7 +14,9 @@ KEEP_N8N=4        # n8n DB 백업 보존 개수 (주 단위 실행 기준 4주)
 
 log() { echo "[backup-cron] $(date -Iseconds) $*"; }
 
-# 1) 플랫폼 백업 (기존 스크립트 재사용 — DB는 sqlite Backup API로 일관 스냅샷)
+# 1) 플랫폼 백업 (기존 스크립트 재사용 — DB 는 `pg_dump -Fc` 로 일관 온라인 덤프).
+#    그 스크립트는 덤프에 실패하면 **0 이 아닌 코드로 죽는다** — `set -e` 아래라 여기서
+#    함께 멈춘다. DB 없는 백업이 «성공» 으로 남는 것보다 낫다(D-204).
 if [ -x "$APP_DIR/scripts/backup-clovirone-web-assistant.sh" ]; then
   "$APP_DIR/scripts/backup-clovirone-web-assistant.sh"
 else

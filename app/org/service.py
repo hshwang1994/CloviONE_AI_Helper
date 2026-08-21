@@ -13,7 +13,7 @@ from sqlalchemy import and_ as sa_and, func, or_ as sa_or, select
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
-from app.core.db import DEFAULT_WRITE_CONFLICT_RETRIES, is_write_conflict, write_conflict_backoff
+from app.core.db import DEFAULT_WRITE_CONFLICT_RETRIES, is_insert_race, write_conflict_backoff
 from app.org.constants import DEFAULT_ORG_ID, ORG_SUSPENDED
 from app.core.errors import (
     ConflictError,
@@ -318,7 +318,7 @@ def create_item(
                 db.flush()
             break
         except (IntegrityError, OperationalError) as exc:
-            if not is_write_conflict(exc):
+            if not is_insert_race(exc):
                 raise
             if attempt == _CREATE_ITEM_RETRIES - 1:
                 # 예산 소진 — 진짜 동시 중복이든 낡은 스냅샷 재시도든, 사전 검사가
@@ -332,7 +332,7 @@ def create_item(
                 # 정리하고 다음 반복에서 begin_nested()를 새로 연다.
                 db.commit()
             except (IntegrityError, OperationalError) as commit_exc:
-                if not is_write_conflict(commit_exc):
+                if not is_insert_race(commit_exc):
                     raise
                 db.rollback()
             time.sleep(write_conflict_backoff(attempt))

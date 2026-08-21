@@ -16,10 +16,7 @@
 
 from __future__ import annotations
 
-import logging
-
-from sqlalchemy import column, literal_column, select, table, text
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.authz import CONSOLE_WRITE_ROLES
@@ -32,8 +29,6 @@ from app.search.models import (
     SearchDocument,
 )
 from app.search.scoping import not_restricted_clause, sql_clause
-
-logger = logging.getLogger("app.search")
 
 # 범위 필터 전에 뽑아 둘 후보 수. 부서 범위에서 대부분이 걸러질 수 있으므로 넉넉히 잡는다.
 CANDIDATE_LIMIT = 400
@@ -59,31 +54,10 @@ def allowed_kinds(role: str) -> tuple[str, ...]:
     return tuple(out)
 
 
-# FTS5 인덱스를 원본 표에 붙이기 위한 얇은 이름들. `search_index` 는 가상 표라 ORM 모델이
-# 없고, rowid 는 SQLAlchemy 가 자동으로 실어 주지 않는다.
-_SEARCH_INDEX = table("search_index", column("rowid"), column("rank"))
-_SD_ROWID = literal_column("search_documents.rowid")
-
-
-def _fts_candidates(db: Session, expression: str, *, conditions) -> list[int]:
-    """`search_index` 에서 관련도(rank) 순 rowid. 실패하면 빈 목록(호출측이 LIKE 로 내려간다).
-
-    ⚠️ **조건을 LIMIT 보다 먼저 건다** (Z6). 예전에는 인덱스만 보고 전역 상위 400건을
-    뽑은 뒤 그 400건 안에서 범위를 걸렀다 — 범위 밖이 400건을 채우면 내 범위 결과가
-    한 건도 안 남는다. 그래서 원본 표를 rowid 로 조인해 **범위와 유형을 질의 안에서**
-    거르고, 그 뒤에 상한을 건다.
-    """
-    stmt = (
-        select(_SD_ROWID)
-        .select_from(_SEARCH_INDEX)
-        .join(SearchDocument, onclause=_SD_ROWID == _SEARCH_INDEX.c.rowid)
-        .where(text("search_index MATCH :m").bindparams(m=expression))
-    )
-    for condition in conditions:
-        if condition is not None:
-            stmt = stmt.where(condition)
-    stmt = stmt.order_by(_SEARCH_INDEX.c.rank).limit(CANDIDATE_LIMIT)
-    return [int(r) for r in db.execute(stmt).scalars().all()]
+# 색인은 **원본 표 하나**다. FTS5 시절에는 `search_documents`(사실) + `search_index`
+# (가상 표) 둘이었고 SQLite 트리거가 둘을 묶었다 — PG 에는 그 문법이 없고, 무엇보다
+# **필요가 없다**: `gin_trgm_ops` 인덱스는 원본 컬럼에 그대로 걸리므로(models.py) 어떤
+# 경로로 써도 인덱스가 같이 움직인다. 트리거로 지키던 성질을 인덱스가 공짜로 준다.
 
 
 def _hit(row: SearchDocument) -> dict:
@@ -121,49 +95,36 @@ def search(
     if not kinds:
         return _empty(text_query, mode)
 
-    # 유형 게이트와 범위. **후보를 자르기 전에** 걸어야 하는 조건들이다 (Z6) —
-    # 두 질의(FTS 후보 뽑기, LIKE 폴백)가 같은 목록을 쓴다.
+    # 유형 게이트와 범위. **후보를 자르기 전에** 걸어야 하는 조건들이다 (Z6).
     kind_clause = SearchDocument.kind.in_(kinds)
     clause = sql_clause(principal.visibility)
     # 열람 제한 문서(SEC-10)는 색인에 안 담기지만, 제한을 켠 직후 다음 색인까지의 창을
     # 여기서 닫는다(app/search/scoping.py::not_restricted_clause).
     restricted = not_restricted_clause()
-    narrowing = (kind_clause, clause, restricted)
 
     stmt = select(SearchDocument).where(kind_clause).where(restricted)
     if clause is not None:
         stmt = stmt.where(clause)
 
-    rank_of: dict[str, int] = {}
-    if mode == q.MODE_FTS:
-        try:
-            rowids = _fts_candidates(
-                db, q.fts_expression(text_query), conditions=narrowing
-            )
-        except SQLAlchemyError:
-            # 인덱스가 없거나(마이그레이션 직후) 질의가 FTS5 문법에 걸렸다. 조용히 0건을
-            # 돌려주면 "검색이 안 된다"가 되고 아무도 이유를 모른다 — LIKE 로 내려가되
-            # 로그에는 남긴다.
-            logger.exception("FTS5 조회 실패: LIKE 폴백으로 내려간다")
-            mode = q.MODE_LIKE
-            rowids = []
-        if mode == q.MODE_FTS:
-            if not rowids:
-                return _empty(text_query, mode)
-            rowid_col = literal_column("search_documents.rowid")
-            stmt = stmt.where(rowid_col.in_(rowids)).add_columns(rowid_col.label("_rowid"))
-            rank_of = {str(rid): i for i, rid in enumerate(rowids)}
-
-    if mode == q.MODE_LIKE:
-        stmt = stmt.where(q.like_clause(text_query)).order_by(
-            SearchDocument.sort_key.desc(), SearchDocument.title
-        ).limit(CANDIDATE_LIMIT)
-        rows = list(db.execute(stmt).scalars().all())
+    # 본문 조건과 정렬. **두 모드가 같은 질의 하나**로 답한다 — 예전에는 FTS 가상 표에서
+    # rowid 를 먼저 뽑아 원본 표에 `IN (…)` 으로 되먹이는 2단 질의였고, 그래서 순서를
+    # 파이썬에서 복원해야 했다. `gin_trgm_ops` 는 원본 컬럼에 직접 걸리므로 그 왕복이 없다.
+    #
+    # ⚠️ **범위·유형 조건은 여전히 LIMIT 보다 먼저 걸린다** (Z6). 그 성질이 이 이식으로
+    # 흔들리지 않는 것이 중요하다 — 범위 밖 행이 상한을 채우면 내 범위 결과가 한 건도 안
+    # 남는데, 화면에는 오류가 아니라 "결과 없음"으로 보여 아무도 신고하지 않는다.
+    stmt = stmt.where(q.clause_for(text_query, mode))
+    if mode == q.MODE_TRGM:
+        # 관련도 순. 동점이면 최신 것이 먼저다.
+        stmt = stmt.order_by(
+            q.rank_expression(text_query).desc(),
+            SearchDocument.sort_key.desc(),
+            SearchDocument.title,
+        )
     else:
-        pairs = db.execute(stmt).all()
-        # FTS 관련도 순서를 복원한다. IN (…) 은 순서를 보존하지 않는다.
-        pairs.sort(key=lambda pair: rank_of.get(str(pair[1]), len(rank_of)))
-        rows = [pair[0] for pair in pairs]
+        # 1~2자 질의는 트라이그램 점수가 의미를 갖지 못한다(창을 만들 수 없다) — 최신 순으로 답한다.
+        stmt = stmt.order_by(SearchDocument.sort_key.desc(), SearchDocument.title)
+    rows = list(db.execute(stmt.limit(CANDIDATE_LIMIT)).scalars().all())
 
     # 파이썬 2차 판정은 없다 — 위 `sql_clause` 가 곧 판정이다(0060 §25). 예전에는 담당자
     # 집합이 문자열 안에 있어 SQL 로 정확히 쓸 수 없었고 그래서 두 벌이었다. Ownership 은

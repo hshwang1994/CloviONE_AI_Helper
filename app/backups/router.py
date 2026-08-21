@@ -107,7 +107,9 @@ def list_rehearsals(db: Session = Depends(get_db)):
         "command": ".venv/Scripts/python.exe scripts/restore_rehearsal.py --record",
         "note": (
             "복구 리허설은 앱을 한 번 더 띄워 실제 읽기 경로까지 확인하므로 워커가 아니라 "
-            "스크립트로 돌립니다. --record 를 붙이면 결과가 이 목록에 남습니다."
+            "스크립트로 돌립니다. --record 를 붙이면 결과가 이 목록에 남습니다. "
+            "다만 이 스크립트는 아직 PostgreSQL로 옮기지 않았습니다. 지금 실행하면 그 사실을 "
+            "알리고 멈춥니다. 백업 파일 자체의 검증은 위 «백업 실행»이 이미 수행합니다."
         ),
     }
 
@@ -149,7 +151,9 @@ def verify(request: Request, backup_id: str, db: Session = Depends(get_db)):
     # 있다**(verify_existing이 실패 시 status를 failed로 낮춘다).
     if row.status == STATUS_RUNNING:
         raise ConflictError("아직 진행 중인 백업입니다. 완료된 뒤 다시 시도하세요.")
-    result = verify_existing(db, row, now=request.app.state.clock.now())
+    result = verify_existing(
+        db, row, now=request.app.state.clock.now(), settings=request.app.state.settings
+    )
     record_audit_from_request(
         request, db, action="backup.verify", object_type="backup", object_id=row.id,
         after=result,
@@ -161,27 +165,32 @@ def verify(request: Request, backup_id: str, db: Session = Depends(get_db)):
 def restore_instructions():
     """Spec §14.6: 실제 Restore는 스크립트로만. 추가 확인 + Snapshot 필요.
 
-    주의: 이 화면이 나열하는 백업(웹 콘솔에서 '백업 실행'으로 만든 것)은 단일 파일
-    스냅샷(var/exports/web-*.sqlite3)이라 rollback 스크립트의 입력이 아니다. rollback은
-    cron/업그레이드 백업이 만든 '디렉터리'(web.sqlite3 + app.tar.gz + SHA256SUMS)를
+    주의: 이 화면이 나열하는 백업(웹 콘솔에서 '백업 실행'으로 만든 것)은 **DB 만 담은
+    `pg_dump` 아카이브**(var/exports/web-*.dump)라 rollback 스크립트의 입력이 아니다.
+    rollback 은 cron/업그레이드 백업이 만든 '디렉터리'(DB 덤프 + app.tar.gz + SHA256SUMS)를
     요구한다. 두 저장소가 다르다는 사실을 안내에 분명히 적어, 목록의 파일 경로를 그대로
-    rollback에 넣어 실패하는 일을 막는다.
+    rollback 에 넣어 실패하는 일을 막는다.
+
+    **이 안내는 운영자가 실제로 따라 하는 절차다.** SQLite 시절 문구("파일을 운영 DB 경로로
+    복사")를 그대로 두면, 그 말대로 해도 아무 일이 일어나지 않는다 — PG 는 파일 하나가
+    DB 가 아니다. 되돌려야 하는 날에 그 사실을 알게 되는 것이 가장 나쁘다.
     """
     return {
         "note": (
             "실제 복원은 웹에서 수행하지 않습니다. 아래 스크립트를 서버에서 실행하세요. "
-            "이 화면의 목록은 웹 콘솔에서 만든 단일 파일 DB 스냅샷"
-            "(var/exports/web-*.sqlite3)일 뿐이며, 아래 rollback 스크립트의 입력이 아닙니다."
+            "이 화면의 목록은 웹 콘솔에서 만든 DB 덤프"
+            "(var/exports/web-*.dump)일 뿐이며, 아래 rollback 스크립트의 입력이 아닙니다."
         ),
         "web_snapshot_note": (
-            "웹 콘솔 백업은 DB만 담은 단일 .sqlite3 파일입니다. 이 파일로 되돌리려면 "
-            "서비스를 멈춘 뒤 해당 파일을 운영 DB 경로로 직접 복사해야 합니다"
+            "웹 콘솔 백업은 DB만 담은 pg_dump 아카이브(.dump)입니다. 파일을 복사하는 "
+            "방식으로는 되돌릴 수 없습니다. PostgreSQL 은 파일 하나가 데이터베이스가 "
+            "아닙니다. 되돌리려면 서비스를 멈춘 뒤 pg_restore 로 복원해야 합니다"
             "(rollback 스크립트로는 복원되지 않습니다)."
         ),
         "rollback_input": (
             "rollback 스크립트의 <BACKUP_DIR>는 cron, 업그레이드 백업이 만든 디렉터리"
-            "(/var/backups/clovirone-web-assistant/<타임스탬프>/, web.sqlite3 + app.tar.gz "
-            "+ SHA256SUMS 포함)여야 합니다. 위 목록의 단일 파일 경로는 넣지 마세요."
+            "(/var/backups/clovirone-web-assistant/<타임스탬프>/, DB 덤프 + app.tar.gz "
+            "+ SHA256SUMS 포함)여야 합니다. 위 목록의 파일 경로는 넣지 마세요."
         ),
         "steps": [
             "1) 유지보수 모드로 전환하고 진행 중 Job이 없는지 확인",

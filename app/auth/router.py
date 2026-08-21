@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 
 from app.core.audit import record_audit, record_audit_from_request
 from app.core.config import Settings
-from app.core.db import DEFAULT_WRITE_CONFLICT_RETRIES, is_write_conflict, write_conflict_backoff
+from app.core.db import DEFAULT_WRITE_CONFLICT_RETRIES, is_serialization_conflict, write_conflict_backoff
 from app.core.deps import (
     AuthContext,
     get_client_ip,
@@ -500,7 +500,7 @@ def login(
             db.commit()
             break
         except OperationalError as exc:
-            if not is_write_conflict(exc) or _attempt == _LOGIN_WRITE_RETRIES - 1:
+            if not is_serialization_conflict(exc) or _attempt == _LOGIN_WRITE_RETRIES - 1:
                 raise
             db.rollback()
             # 지터를 준다 — 여러 스레드가 즉시 재시도만 하면 서로 계속 다시 부딪힌다
@@ -715,7 +715,7 @@ def change_password(
             db.commit()
             break
         except OperationalError as exc:
-            if not is_write_conflict(exc) or _attempt == _CHANGE_PW_RETRIES - 1:
+            if not is_serialization_conflict(exc) or _attempt == _CHANGE_PW_RETRIES - 1:
                 raise
             db.rollback()
             # 실패한 시도의 revoke/create/audit는 커밋 전이라 rollback으로 전부 되감긴다 —

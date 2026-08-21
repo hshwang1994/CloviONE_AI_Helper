@@ -7,7 +7,7 @@ from datetime import datetime
 from sqlalchemy import Boolean, DateTime, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.core.models_base import Base, TimestampMixin, UUIDPrimaryKeyMixin
+from app.core.models_base import Base, JsonText, TimestampMixin, UUIDPrimaryKeyMixin
 
 HEALTH_UP = "up"
 HEALTH_DOWN = "down"
@@ -24,7 +24,7 @@ class Integration(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     health_url: Mapped[str | None] = mapped_column(String(500))
     auth_type: Mapped[str] = mapped_column(String(32), nullable=False, default="none")
     secret_ref: Mapped[str | None] = mapped_column(String(128))
-    capabilities_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    capabilities_json: Mapped[str] = mapped_column(JsonText, nullable=False, default="{}")
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     last_health_status: Mapped[str] = mapped_column(
         String(16), nullable=False, default=HEALTH_UNKNOWN

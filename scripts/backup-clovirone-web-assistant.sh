@@ -34,10 +34,40 @@ for u in clovirone-web-assistant.service clovirone-web-worker.service clovirone-
 done
 [ -f /etc/nginx/sites-available/clovirone-web-assistant ] && cp /etc/nginx/sites-available/clovirone-web-assistant "$BACKUP_DIR/nginx-vhost.conf" || true
 
-# SQLite via Backup API (spec §6.1 — not a naive copy)
-DB="$VAR_DIR/web.sqlite3"
-if [ -f "$DB" ]; then
-  sqlite3 "$DB" ".backup '$BACKUP_DIR/web.sqlite3'"
+# PostgreSQL via pg_dump -Fc (spec §6.1 — 파일 복사가 아니다).
+#
+# ⚠️ **여기서 실패하면 백업 전체가 실패다.** 예전에는 `if [ -f "$DB" ]` 로 감싸 두어,
+# 파일이 없으면 조용히 건너뛰고 마지막에 `BACKUP_OK` 를 찍었다 — DB 가 안 담긴 백업이
+# «성공» 으로 남는다는 뜻이다. PG 로 옮긴 지금 그 조건은 **항상 거짓**이므로, 그대로 두면
+# 매일 밤 DB 없는 백업이 쌓이고 그 사실을 되돌려야 하는 날에 알게 된다.
+: "${DATABASE_URL:=}"
+if [ -z "$DATABASE_URL" ] && [ -f "$ETC_DIR/web.env" ]; then
+  DATABASE_URL="$(sed -n 's/^DATABASE_URL=//p' "$ETC_DIR/web.env" | head -1)"
+  PG_BIN_DIR="$(sed -n 's/^PG_BIN_DIR=//p' "$ETC_DIR/web.env" | head -1)"
+fi
+[ -n "$DATABASE_URL" ] || { echo "DATABASE_URL 을 찾을 수 없습니다 ($ETC_DIR/web.env)"; exit 3; }
+PGDUMP="${PG_BIN_DIR:+$PG_BIN_DIR/}pg_dump"
+command -v "$PGDUMP" >/dev/null 2>&1 || { echo "pg_dump 를 찾을 수 없습니다: $PGDUMP"; exit 3; }
+
+# `--no-owner --no-privileges`: 복원하는 쪽 역할을 따른다 — 원본과 같은 역할이 없는
+# 서버(재해 복구 대상)에서 복원이 통째로 실패하지 않게 한다.
+#
+# **서비스 사용자로 덤프하고, 파일은 root 가 만든다.** 운영은 유닉스 소켓 + peer 인증이라
+# root 로 붙으면 `root` 역할로 인증돼 거부된다 — 그래서 `runuser` 가 필요하다. 반대로
+# 백업 디렉터리는 0700 root 전용이라 그 사용자가 직접 못 쓴다. 그래서 덤프는 stdout 으로
+# 받고 리다이렉트를 root 쪽에서 한다.
+DUMP="$BACKUP_DIR/web.dump"
+if ! runuser -u "${SVC_USER:-clovirone-web}" -- "$PGDUMP"         --format=custom --no-owner --no-privileges         --dbname "$DATABASE_URL" > "$DUMP"; then
+  # 실패한 덤프 조각을 남기지 않는다 — 남으면 다음 검증이 그것을 «백업» 으로 본다.
+  rm -f "$DUMP"
+  echo "pg_dump 실패 — 백업을 성공으로 표시하지 않습니다"; exit 3
+fi
+chmod 0600 "$DUMP"
+
+# 파일이 생겼다는 것만으로 성공이 아니다(D-204). 목차를 읽을 수 있는지 확인한다.
+PGRESTORE="${PG_BIN_DIR:+$PG_BIN_DIR/}pg_restore"
+if ! "$PGRESTORE" --list "$DUMP" >/dev/null; then
+  echo "덤프를 읽을 수 없습니다 — 백업을 성공으로 표시하지 않습니다"; exit 3
 fi
 
 # Environment snapshot (masked-safe: statuses only)

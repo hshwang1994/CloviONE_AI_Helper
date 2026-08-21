@@ -33,7 +33,7 @@ from app.board.schemas import CommentUpdate, PostUpdate
 # 운영자군 = operator/admin/system_admin (계층 operator 이상). 게시판 중재 권한.
 # 정의는 app/core/authz.py 한 곳뿐이다 — 화면마다 다른 '운영자'가 생기지 않게.
 from app.core.authz import MODERATOR_ROLES
-from app.core.db import is_write_conflict
+from app.core.db import is_insert_race
 from app.core.errors import ConflictError, ForbiddenError, NotFoundError, ValidationAppError
 from app.users.models import User
 
@@ -450,7 +450,7 @@ def add_reaction(
             db.flush()
         return row
     except (IntegrityError, OperationalError) as exc:
-        if not is_write_conflict(exc):
+        if not is_insert_race(exc):
             raise
         # 경쟁에서 진 쪽 — 상대가 먼저 넣은 행을 다시 읽어 돌려준다.
         return repository.find_reaction(

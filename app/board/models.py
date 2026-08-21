@@ -13,6 +13,7 @@ from sqlalchemy import (
     Boolean,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
@@ -115,6 +116,9 @@ LIKE_EMOJI = REACTION_EMOJIS[0]
 
 class Post(OrgScopedMixin, UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "board_posts"
+    __table_args__ = (
+        Index("ix_board_posts_created_at", "created_at"),
+    )
 
     author_user_id: Mapped[str] = mapped_column(
         String(36), ForeignKey("users.id"), nullable=False, index=True

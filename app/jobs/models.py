@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import DateTime, Integer, String, Text
+from sqlalchemy import DateTime, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.core.models_base import Base, TimestampMixin, UUIDPrimaryKeyMixin
+from app.core.models_base import Base, JsonText, TimestampMixin, UUIDPrimaryKeyMixin
 
 STATUS_QUEUED = "queued"
 STATUS_RUNNING = "running"
@@ -27,12 +27,19 @@ JOB_TYPE_CHAT_MESSAGE = "chat_message"
 
 class Job(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "jobs"
+    __table_args__ = (
+        # 워커의 claim 질의가 매초 도는 그 인덱스다 — `WHERE status='queued' AND
+        # available_at <= now ORDER BY created_at, id`. 마이그레이션 0005 가 만들었지만
+        # 모델에는 없었다: 스키마를 모델에서 만드는 순간 조용히 사라져 claim 이 순차
+        # 스캔이 되고, 증상은 "큐가 밀린다" 로만 보인다.
+        Index("ix_jobs_claim", "status", "available_at", "created_at"),
+    )
 
     job_type: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     user_id: Mapped[str | None] = mapped_column(String(36), index=True)
     conversation_id: Mapped[str | None] = mapped_column(String(36))
     message_id: Mapped[str | None] = mapped_column(String(64))
-    payload_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    payload_json: Mapped[str] = mapped_column(JsonText, nullable=False, default="{}")
     status: Mapped[str] = mapped_column(
         String(16), nullable=False, default=STATUS_QUEUED, index=True
     )

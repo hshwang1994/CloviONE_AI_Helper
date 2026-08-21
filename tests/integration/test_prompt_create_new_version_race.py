@@ -27,7 +27,10 @@ from fastapi.testclient import TestClient
 
 from tests.conftest import DEFAULT_TEST_PASSWORD
 
-pytestmark = pytest.mark.integration
+# 이 파일은 전부 경합 시험이다 — 스레드 여럿이 각자 세션을 열어야 하므로 **전용 DB** 가
+# 필요하다(D-190). 공유 계층에서는 그 세션들이 같은 커넥션 하나를 나눠 써서 경합이
+# 재현되지 않는다.
+pytestmark = [pytest.mark.integration, pytest.mark.real_db]
 
 THREADS = 8
 ADMIN_EMAIL = "admin@goodmit.co.kr"

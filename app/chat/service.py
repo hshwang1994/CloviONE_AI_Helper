@@ -219,12 +219,9 @@ def delete_conversation(
 
 
 def list_messages(db: Session, conversation: Conversation, *, after: str | None = None):
-    # Order by SQLite rowid = true insertion order. Timestamp ordering is not
-    # reliable here: Windows/most OS clocks tick coarser than message inserts,
-    # so created_at ties are common. (Revisit if the DB moves to Postgres —
-    # repository layer isolates this.)
-    from sqlalchemy import literal_column
-
+    # `Message.seq`(GENERATED ALWAYS AS IDENTITY) 로 정렬한다 = 진짜 삽입 순서.
+    # `created_at` 으로는 못 한다: 대부분의 OS 시계는 메시지 삽입보다 굵게 tick 해서
+    # 동점이 흔하다. 예전에는 SQLite 의 숨은 `rowid` 를 썼고, PG 에는 그것이 없다.
     # AI-36: soft-deleted messages (user delete, or replaced by regenerate) never
     # come back. useChat.js refetches the whole list every poll (no `after=` cursor
     # client-side), so this filter alone is enough for the next poll to drop them —
@@ -232,7 +229,7 @@ def list_messages(db: Session, conversation: Conversation, *, after: str | None 
     stmt = select(Message).where(
         Message.conversation_id == conversation.id, Message.deleted_at.is_(None)
     )
-    rows = list(db.execute(stmt.order_by(literal_column("rowid"))).scalars().all())
+    rows = list(db.execute(stmt.order_by(Message.seq)).scalars().all())
     if after:
         index = next((i for i, m in enumerate(rows) if m.id == after), None)
         if index is None:

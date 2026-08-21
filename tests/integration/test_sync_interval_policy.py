@@ -23,7 +23,15 @@ from app import worker_main
 from app.core.errors import ValidationAppError
 from app.settings.registry import REGISTRY
 
-pytestmark = pytest.mark.integration
+# 이 파일의 시험 둘은 **전용 DB** 가 필요하다(D-190). `worker_main._bootstrap` 이
+# `settings.database_url` 로 **자기 엔진**을 만들기 때문이다 — 하네스가 열어 둔 바깥
+# 트랜잭션 밖의 커넥션이라, 워커가 커밋한 것은 시험이 끝나도 되감기지 않는다.
+#
+# 그대로 두면 이 파일이 **공유 DB 를 오염시킨다**: 워커 틱이 `ticket_sync_state` 싱글턴을
+# 'error' 로 바꿔 커밋하고, 같은 프로세스에서 나중에 도는
+# `test_ticket_sync_trigger.py` 가 그 행을 'idle' 로 기대하다 실패한다. 파일을 혼자 돌리면
+# 통과하고 청크로 돌리면 실패하는 모양이라, 원인을 파일 안에서 찾으면 안 보인다.
+pytestmark = [pytest.mark.integration, pytest.mark.real_db]
 
 INTERVAL_KEYS = (
     "notion_docs_sync_interval_seconds",

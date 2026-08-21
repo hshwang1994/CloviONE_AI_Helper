@@ -21,7 +21,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError, OperationalError
 
-from app.core.db import is_write_conflict
+from app.core.db import is_insert_race
 from app.core.errors import ConflictError, NotFoundError, ValidationAppError
 from app.core import ownership
 from app.core.models_base import split_names
@@ -206,7 +206,7 @@ def create_project(
             db.add(project)
             db.flush()
     except (IntegrityError, OperationalError) as exc:
-        if not is_write_conflict(exc):
+        if not is_insert_race(exc):
             raise
         raise ConflictError(f"이미 있는 프로젝트 코드입니다: {payload.code}") from exc
     return project
@@ -248,7 +248,7 @@ def update_project(
         with db.begin_nested():
             db.flush()
     except (IntegrityError, OperationalError) as exc:
-        if not is_write_conflict(exc):
+        if not is_insert_race(exc):
             raise
         raise ConflictError(f"이미 있는 프로젝트 코드입니다: {payload.code}") from exc
     return project

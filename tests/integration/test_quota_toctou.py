@@ -33,7 +33,10 @@ from datetime import datetime
 
 import pytest
 
-pytestmark = pytest.mark.integration
+# 이 파일은 **전용 DB** 가 필요하다(D-190). 스레드 여럿이 각자 세션을 열어 경합을
+# 만드는데, 공유 DB 계층에서는 그 세션들이 **같은 커넥션 하나**를 나눠 쓴다 —
+# 경합이 재현되기는커녕 커넥션이 엉켜 엉뚱한 오류가 난다.
+pytestmark = [pytest.mark.integration, pytest.mark.real_db]
 
 NOW = datetime(2026, 8, 3, 9, 0, 0)
 
@@ -214,15 +217,23 @@ def test_two_concurrent_calls_cannot_both_take_the_last_slot(app, db, capped, mo
 
 
 def test_committing_after_the_with_block_lets_a_second_request_slip_through(app, capped):
-    """UB-08 취약점 자체를 증명한다 — consume() 을 부르는 쪽이 with 블록 **밖**에서
-    커밋하면(고치기 전 두 라우터가 실제로 했던 방식), 잠금이 풀린 직후 ~ 커밋 사이에
-    들어온 같은 사용자의 다른 요청이 아직 안 보이는 사용량을 못 보고 상한(1회)을
-    통과해 **둘 다 성공**할 수 있다.
+    """UB-08 취약점 자체를 증명한다 — `consume()` 을 부르는 쪽이 `with` 블록 **밖**에서
+    커밋하면, 잠금이 풀린 직후 ~ 커밋 사이에 들어온 같은 사용자의 다른 요청이 아직 안 보이는
+    사용량을 못 보고 상한(1회)을 통과해 **둘 다 성공**할 수 있다.
 
-    이 시험은 `app/core/db.py`의 SQLite 트랜잭션 수정(연결마다 진짜 `BEGIN`을 명시
-    발행)이 함께 있어야 의미가 있다 — 그 수정 전에는 커밋 안 한 SAVEPOINT 쓰기가
-    이미(우연히) 다른 커넥션에 즉시 보였으므로 이 시험이 취약점을 못 잡았다(둘 다
-    실제 SQL 로그로 직접 확인한 사실이다).
+    **이 시험이 초록인 것이 곧 「이 순서로 쓰면 안 된다」의 증거다.** 아래
+    `test_committing_inside_the_with_block_closes_the_gap` 가 반대쪽(옳은 순서)을 못박는다.
+
+    ## S2 기록 — 이 시험이 한때 거짓 초록이었다
+
+    잠금을 PostgreSQL advisory lock 으로 옮기면서(D-192·D-216) 이 창이 닫혔다고 잠시
+    판단했다. **틀렸다.** 그때 이 시험은 공유 DB 계층에서 돌고 있었고, 두 스레드가 같은
+    커넥션 하나를 나눠 쓰는 바람에 경합 자체가 일어나지 않아 「막혔다」로 보였을 뿐이다.
+    전용 DB(`@pytest.mark.real_db`)로 옮기자마자 둘 다 통과하는 원래 모습이 다시 나왔다.
+
+    잠금 수명이 커밋보다 **앞서 끝난다**는 사실은 저장소를 바꿔도 그대로다 — advisory 잠금은
+    `with` 블록에서 풀리고, 사용량 행은 그 뒤 커밋에서야 다른 트랜잭션에 보인다. 고치는
+    것은 잠금이 아니라 **커밋 위치**이고, 그게 이 시험 쌍이 말하는 전부다.
     """
     from app.quotas import service as quotas
 

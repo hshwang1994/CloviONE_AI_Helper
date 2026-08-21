@@ -24,7 +24,10 @@ from datetime import datetime
 import pytest
 from sqlalchemy import Select
 
-pytestmark = pytest.mark.regression
+# 이 파일은 **전용 DB** 가 필요하다(D-190). 스레드 여럿이 각자 세션을 열어 경합을
+# 만드는데, 공유 DB 계층에서는 그 세션들이 **같은 커넥션 하나**를 나눠 쓴다 —
+# 경합이 재현되기는커녕 커넥션이 엉켜 엉뚱한 오류가 난다.
+pytestmark = [pytest.mark.regression, pytest.mark.real_db]
 
 NOW = datetime(2026, 8, 3, 9, 0, 0)
 

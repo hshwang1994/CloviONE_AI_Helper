@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 from app.core.audit import record_audit_from_request
 from app.core.authz import CONSOLE_READ_ROLES, CONSOLE_WRITE_ROLES
 from app.core.scope import Principal
-from app.core.db import is_write_conflict
+from app.core.db import is_insert_race
 from app.core.deps import get_current_user, get_db, get_principal, require_csrf, require_roles
 from app.core.errors import ConflictError, ForbiddenError, NotFoundError, ValidationAppError
 from app.quotas import service
@@ -224,7 +224,7 @@ def create_quota(
             db.add(row)
             db.flush()
     except (IntegrityError, OperationalError) as exc:
-        if not is_write_conflict(exc):
+        if not is_insert_race(exc):
             raise
         raise ConflictError("같은 범위, 기간의 쿼터가 이미 있습니다. 기존 항목을 수정하세요.") from None
     record_audit_from_request(

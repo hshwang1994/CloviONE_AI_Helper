@@ -13,7 +13,10 @@ from fastapi.testclient import TestClient
 
 from tests.conftest import DEFAULT_TEST_PASSWORD, PROJECT_ROOT
 
-pytestmark = pytest.mark.integration
+# 이 파일의 시험은 **전용 DB** 가 필요하다(D-190) — 두 번째 커넥션이나 별도
+# 프로세스가 이 시험의 데이터를 봐야 하기 때문이다. 공유 DB + 트랜잭션 되감기
+# 계층에서는 그 데이터가 트랜잭션 밖으로 안 나가서 아무것도 증명하지 못한다.
+pytestmark = [pytest.mark.integration, pytest.mark.real_db]
 
 
 def _login_other(app, email):
@@ -914,7 +917,7 @@ def test_quiz_generate_flag_off_and_csrf(client, login_as):
                        headers={"X-CSRF-Token": csrf}).status_code == 404
 
 
-def _ai_app(db_path, tmp_path, fake_clock, fake_http):
+def _ai_app(db_url, tmp_path, fake_clock, fake_http):
     import shutil
 
     from app.core.config import Settings
@@ -930,7 +933,7 @@ def _ai_app(db_path, tmp_path, fake_clock, fake_http):
     secrets_dir.mkdir()
     (secrets_dir / "game_runner_token").write_text("test-runner-token", encoding="utf-8")
     settings = Settings(
-        _env_file=None, app_env="test", database_url=f"sqlite:///{db_path.as_posix()}",
+        _env_file=None, app_env="test", database_url=db_url,
         session_secret="test-session-secret", cookie_secure=False,
         config_dir=cfg, secrets_dir=secrets_dir, data_dir=tmp_path,
     )
@@ -943,8 +946,8 @@ def _ai_app(db_path, tmp_path, fake_clock, fake_http):
     return app, settings
 
 
-def test_quiz_generate_flag_on_returns_cleaned(db_path, tmp_path, fake_clock, fake_http):
-    app, settings = _ai_app(db_path, tmp_path, fake_clock, fake_http)
+def test_quiz_generate_flag_on_returns_cleaned(db_url, tmp_path, fake_clock, fake_http):
+    app, settings = _ai_app(db_url, tmp_path, fake_clock, fake_http)
     # 러너가 정답이 보기에 있는 좋은 문제 + 정답 인덱스가 범위 밖인 나쁜 문제를 섞어 줘도,
     # 앱이 _clean_questions로 정제해 좋은 것만 남긴다(§11 모델 출력 불신).
     fake_http.on(settings.game_runner_url, json_body={"data": {"quiz": [
@@ -960,8 +963,8 @@ def test_quiz_generate_flag_on_returns_cleaned(db_path, tmp_path, fake_clock, fa
         assert r.json()["questions"] == [{"q": "1+1?", "options": ["1", "2"], "answer": 1}]
 
 
-def test_quiz_generate_no_valid_questions_is_422(db_path, tmp_path, fake_clock, fake_http):
-    app, settings = _ai_app(db_path, tmp_path, fake_clock, fake_http)
+def test_quiz_generate_no_valid_questions_is_422(db_url, tmp_path, fake_clock, fake_http):
+    app, settings = _ai_app(db_url, tmp_path, fake_clock, fake_http)
     fake_http.on(settings.game_runner_url, json_body={"data": {"quiz": [
         {"q": "보기부족", "options": ["a"], "answer": 0},
     ]}})
@@ -973,7 +976,7 @@ def test_quiz_generate_no_valid_questions_is_422(db_path, tmp_path, fake_clock, 
 
 
 def test_quiz_generate_missing_secret_reports_unconfigured_not_generic_failure(
-    db_path, tmp_path, fake_clock, fake_http
+    db_url, tmp_path, fake_clock, fake_http
 ):
     """`secret_refs.py`가 `FileNotFoundError`에서 `SecretMissingError`로 옮겨 간 뒤
     `games/ai.py`의 except 절이 갱신되지 않아, 러너 토큰이 아예 없는 상태("미설정")도
@@ -981,7 +984,7 @@ def test_quiz_generate_missing_secret_reports_unconfigured_not_generic_failure(
     같은 결함을 TEST SERVER 실측 중 발견 — 여기도 같은 근본 원인) — 이제는 더 구체적인
     "아직 설정되지 않았습니다"로 갈라진다.
     """
-    app, settings = _ai_app(db_path, tmp_path, fake_clock, fake_http)
+    app, settings = _ai_app(db_url, tmp_path, fake_clock, fake_http)
     (settings.secrets_dir / "game_runner_token").unlink()
     with TestClient(app, raise_server_exceptions=False) as c:
         c.post("/login", json={"email": "qa@goodmit.co.kr", "password": DEFAULT_TEST_PASSWORD})
@@ -992,7 +995,7 @@ def test_quiz_generate_missing_secret_reports_unconfigured_not_generic_failure(
         assert "아직 설정되지 않았습니다" in r.json()["error"]["message"]
 
 
-def test_feature_flag_off_hides_games(db_path, tmp_path, fake_clock, fake_http):
+def test_feature_flag_off_hides_games(db_url, tmp_path, fake_clock, fake_http):
     import shutil
 
     from app.core.config import Settings
@@ -1005,7 +1008,7 @@ def test_feature_flag_off_hides_games(db_path, tmp_path, fake_clock, fake_http):
     secrets_dir = tmp_path / "secrets"
     secrets_dir.mkdir()
     settings = Settings(
-        _env_file=None, app_env="test", database_url=f"sqlite:///{db_path.as_posix()}",
+        _env_file=None, app_env="test", database_url=db_url,
         session_secret="test-session-secret", cookie_secure=False,
         config_dir=cfg, secrets_dir=secrets_dir, data_dir=tmp_path,
     )

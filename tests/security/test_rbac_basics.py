@@ -6,7 +6,11 @@ from app.core.deps import require_roles
 from app.main import create_app
 from tests.conftest import DEFAULT_TEST_PASSWORD
 
-pytestmark = pytest.mark.security
+# 이 파일은 `create_app(settings, …)` 을 **직접** 부른다 — 시험 하네스의 바인드를
+# 안 받으므로 `settings.database_url` 로 자기 엔진을 만들고 **진짜로 커밋한다**.
+# 공유 DB 계층에서는 그 커밋이 되감기 밖에 있어 다음 시험으로 샌다(실제로 같은
+# 이메일로 두 번째 `create_user` 가 유니크 위반으로 죽었다). 그래서 전용 DB 를 받는다.
+pytestmark = [pytest.mark.security, pytest.mark.real_db]
 
 
 @pytest.fixture()

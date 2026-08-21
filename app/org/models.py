@@ -13,11 +13,12 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Index, String, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.models_base import (
     Base,
+    JsonText,
     OrgScopedMixin,
     UUIDPrimaryKeyMixin,
     new_uuid,
@@ -37,7 +38,7 @@ class Organization(Base):
     name: Mapped[str] = mapped_column(String(200), nullable=False, default="")
     status: Mapped[str] = mapped_column(String(16), nullable=False, default=ORG_ACTIVE)
     # 조직별 설정(브랜딩·쿼터 등)을 담을 자리. 지금은 항상 NULL — 스키마 churn 없이 나중에 채운다.
-    settings_json: Mapped[str | None] = mapped_column(Text)
+    settings_json: Mapped[str | None] = mapped_column(JsonText)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=utcnow, onupdate=utcnow, nullable=False

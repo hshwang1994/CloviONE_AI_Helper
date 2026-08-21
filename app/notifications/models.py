@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import DateTime, String, Text
+from sqlalchemy import DateTime, Index, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.models_base import Base, UUIDPrimaryKeyMixin, utcnow
@@ -21,6 +21,12 @@ AUDIENCES: frozenset[str] = frozenset({AUDIENCE_USER, AUDIENCE_ADMIN})
 
 class Notification(UUIDPrimaryKeyMixin, Base):
     __tablename__ = "notifications"
+    __table_args__ = (
+        # `user_id` 단일 인덱스는 이미 있지만 안읽음 개수 질의는
+        # `user_id = ? AND read_at IS NULL` 이고 **모든 화면에서 60초마다** 폴링된다.
+        # 복합이라야 뜻이 있다.
+        Index("ix_notifications_user_unread", "user_id", "read_at"),
+    )
 
     user_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
     type: Mapped[str] = mapped_column(String(64), nullable=False)

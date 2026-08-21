@@ -7,18 +7,29 @@ from datetime import datetime
 from sqlalchemy import BigInteger, Boolean, DateTime, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.core.models_base import Base, UUIDPrimaryKeyMixin, utcnow
+from app.core.models_base import Base, JsonText, UUIDPrimaryKeyMixin, utcnow
 
 STATUS_RUNNING = "running"
 STATUS_SUCCEEDED = "succeeded"
 STATUS_VERIFIED = "verified"
 STATUS_FAILED = "failed"
 
+# 덤프 형식. 옛 `sqlite` 행은 운영 DB 에 남아 있을 수 있다(S13 이 이관할 때 본다).
+BACKUP_TYPE_PG_DUMP = "pg_dump"
+
 
 class Backup(UUIDPrimaryKeyMixin, Base):
     __tablename__ = "backups"
 
-    backup_type: Mapped[str] = mapped_column(String(32), nullable=False, default="sqlite")
+    # 덤프 **형식**이다. 되돌릴 때 어떤 도구로 여는지가 이 값에 달렸다 —
+    # `pg_dump` custom format 은 `pg_restore` 로만 열린다.
+    #
+    # 기본값이 `sqlite` 로 남아 있었다. 쓰는 쪽(`run_backup`)은 이미 `pg_dump` 를 넣지만,
+    # 기본값을 그대로 두면 다른 경로로 만들어진 행이 **틀린 형식으로 이름표를 달고**
+    # 목록에 선다 — 그리고 그 사실은 되돌리려는 날에야 드러난다.
+    backup_type: Mapped[str] = mapped_column(
+        String(32), nullable=False, default=BACKUP_TYPE_PG_DUMP
+    )
     path: Mapped[str] = mapped_column(String(500), nullable=False)
     status: Mapped[str] = mapped_column(String(16), nullable=False, default=STATUS_RUNNING)
     size_bytes: Mapped[int | None] = mapped_column(BigInteger)
@@ -48,7 +59,7 @@ class RestoreRehearsal(UUIDPrimaryKeyMixin, Base):
     started_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, index=True)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime)
     ok: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    failures_json: Mapped[str | None] = mapped_column(Text)
-    summary_json: Mapped[str | None] = mapped_column(Text)
+    failures_json: Mapped[str | None] = mapped_column(JsonText)
+    summary_json: Mapped[str | None] = mapped_column(JsonText)
     created_by: Mapped[str | None] = mapped_column(String(36))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)

@@ -1,6 +1,10 @@
 import pytest
 
-pytestmark = pytest.mark.integration
+# 이 파일은 `create_app(settings, …)` 을 **직접** 부른다 — 시험 하네스의 바인드를
+# 안 받으므로 `settings.database_url` 로 자기 엔진을 만들고 **진짜로 커밋한다**.
+# 공유 DB 계층에서는 그 커밋이 되감기 밖에 있어 다음 시험으로 샌다(실제로 같은
+# 이메일로 두 번째 `create_user` 가 유니크 위반으로 죽었다). 그래서 전용 DB 를 받는다.
+pytestmark = [pytest.mark.integration, pytest.mark.real_db]
 
 
 def test_healthz(client):
@@ -78,12 +82,19 @@ def test_dashboard_reports_uploads_not_writable(client, login_as, monkeypatch):
 def test_readyz_reports_unready_when_db_is_broken(settings):
     from fastapi.testclient import TestClient
 
-    from app.core.db import make_engine, make_session_factory
+    from app.core.db import EngineOptions, make_engine, make_session_factory
     from app.main import create_app
 
     app = create_app(settings)
-    # Point the app at a database path that cannot exist.
-    broken = make_engine("sqlite:///Z:/nonexistent/definitely/missing.sqlite3")
+    # 붙을 수 없는 DB 를 가리킨다. **주소 자체는 유효해야 한다** — `make_engine` 이
+    # PostgreSQL 이 아닌 주소를 아예 거부하므로(D-187), 예전처럼 `sqlite:///Z:/…` 를 쓰면
+    # 「DB 가 고장났다」가 아니라 「설정이 틀렸다」를 시험하게 된다. 그 둘은 다른 사고다.
+    #
+    # 포트 1은 특권 포트라 아무도 안 듣는다 — 연결이 즉시 거부된다.
+    broken = make_engine(
+        "postgresql://nobody@127.0.0.1:1/definitely_missing",
+        EngineOptions(pool_pre_ping=False),
+    )
     app.state.session_factory = make_session_factory(broken)
 
     with TestClient(app, raise_server_exceptions=False) as client:

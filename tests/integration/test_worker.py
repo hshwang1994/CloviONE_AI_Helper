@@ -7,7 +7,10 @@ from app.jobs.exceptions import PermanentJobError
 from app.jobs.models import Job
 from app.jobs.worker import Worker, WorkerContext, parse_payload
 
-pytestmark = pytest.mark.integration
+# 이 파일은 **전용 DB** 가 필요하다(D-190). 스레드 여럿이 각자 세션을 열어 경합을
+# 만드는데, 공유 DB 계층에서는 그 세션들이 **같은 커넥션 하나**를 나눠 쓴다 —
+# 경합이 재현되기는커녕 커넥션이 엉켜 엉뚱한 오류가 난다.
+pytestmark = [pytest.mark.integration, pytest.mark.real_db]
 
 
 @pytest.fixture()
@@ -97,15 +100,39 @@ def test_worker_unknown_job_type_fails_permanently(worker_env, fake_clock):
     assert _job_status(factory, job_id) == "failed"
 
 
-def test_worker_corrupt_payload_is_permanent(worker_env, fake_clock):
+def test_a_corrupt_payload_cannot_even_be_stored(worker_env, fake_clock):
+    """깨진 payload 는 **DB 가 받지 않는다.**
+
+    qa-contract-change: 옛 계약은 「깨진 payload 를 만나면 잡이 영구 실패한다」였다 —
+    `Text` 컬럼이 `"{corrupt"` 를 그대로 받았고, 터지는 곳이 **읽는 쪽**이었기 때문이다.
+    `payload_json` 이 `jsonb` 가 되면서(D-215) 그 값은 **애초에 저장되지 않는다**:
+    틀린 값이 DB 에 들어가는 경로 자체가 없어졌다.
+
+    계약이 약해진 것이 아니라 **한 걸음 앞으로 옮겨졌다.** 그래서 여기서 못박는 것도 둘이다:
+    쓰기가 거부되는가, 그리고 그 거부가 **잡을 건드리지 않는가**(원래 payload 가 그대로
+    남아 워커가 정상 처리한다).
+    """
+    import json
+
+    from sqlalchemy.exc import StatementError
+
     worker, factory, executed = worker_env
-    job_id = _enqueue(factory, fake_clock, "ok")
+    job_id = _enqueue(factory, fake_clock, "ok", {"n": 1})
+
     with factory() as db:
         db.get(Job, job_id).payload_json = "{corrupt"
-        db.commit()
+        with pytest.raises(StatementError):
+            db.commit()
+        db.rollback()
+
+    # 잡은 멀쩡하다 — 거부된 쓰기는 아무것도 안 바꿨다.
+    with factory() as db:
+        payload = db.get(Job, job_id).payload_json
+    assert json.loads(payload) == {"n": 1}
+
     worker.run_once()
-    assert _job_status(factory, job_id) == "failed"
-    assert executed == []
+    assert _job_status(factory, job_id) == "succeeded"
+    assert executed == [("ok", {"n": 1})]
 
 
 def test_worker_startup_sweep_recovers_stuck_jobs(worker_env, fake_clock):

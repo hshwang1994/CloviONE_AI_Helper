@@ -326,6 +326,10 @@ DDL(0030·0050) → PG 에 문법 없음 · `sqlite_where=` 부분 유니크 **3
 
 ### 6.2 코드 수준 SQLite 의존 제거 — 실측 13항
 
+> **S2 가 12항을 이행했다**(10번 문자열 날짜 컬럼은 계획대로 S6·S7). 이행 결과와
+> 실측 정정은 [`INVENTORY/08_SQLITE.md`](INVENTORY/08_SQLITE.md) 가 정본이다 —
+> 여기 계획표는 그대로 둔다(계획과 실행 기록을 한 문서에 겹쳐 쓰지 않는다).
+
 | # | 자리 | 조치 |
 |---|---|---|
 | 1 | `app/core/db.py:74-102` PRAGMA 4종 · `check_same_thread` · `isolation_level=None` | 삭제. `pool_size`/`max_overflow` 실제 설정 |
@@ -472,7 +476,7 @@ Dry Run 완료 → 전체 검증 → 최종 Backup → Maintenance Mode → 마�
 |---|---|---|---|
 | **S0** | Plan 기록 | Master Plan · Work State · Backlog · Decisions(D-187~D-208) · Inventory · Installation 을 `docs/` 에 저장. **W5B~W15 동결 선언** | 문서 커밋 · Tree clean |
 | **S1** ✅ | 기반 정직화 · 실측 · **성능 검증** | 프로브 8건 수정 · S1 소유 미확인 항목 확인 · PG16.15+pgvector0.6+pg_trgm 실측 · CPU 임베딩/리랭킹 벤치 · `VARCHAR(n)` 감사 | **완료 (2026-08-21)** — self-test 통과 · 실측이 **D-209~D-214** 에 기록 · **제품 코드 diff 0** |
-| **S2** | PostgreSQL Foundation | 앱 고유 ~60 테이블 PG 이식(도메인 변경 없음) · `0001_pg_baseline` · `is_write_conflict` 재분류(115 호출부) · `SKIP LOCKED` · `jsonb` 이전 · 부분 유니크 3건 · rowid 제거 · 공유 rate-limit/lock → `--workers` 해제 · Test Harness 2계층 · PG Backup/Restore 기본형 | **SQLite Runtime 의존 0** · 전 회귀 통과 · 동시성 테스트 재작성분 통과 |
+| **S2** ✅ | PostgreSQL Foundation | 앱 고유 70 테이블 PG 이식(도메인 변경 없음) · `0001_pg_baseline`(256 인덱스 + 부트스트랩 5행) · `is_write_conflict` 재분류(**실측 40 호출부**) · `SKIP LOCKED` · `jsonb` 37 컬럼 · 부분 유니크 **4건** · rowid 제거 · 공유 rate-limit/lock → **`--workers 4`** · Test Harness 2계층 · PG Backup/Restore 기본형 | **완료 (2026-08-21)** — SQLite Runtime 의존 0 · 전 회귀 PG 통과 · 동시성 시험 재작성분 통과 · 실측 정정과 발견은 **D-215~D-221** |
 | **S3** | Product Identity · Hostname · TLS | nginx `server_name` · TLS 재발급(CN/SAN=`clovirassist.gooddi.lab`) · `APP_BASE_URL` · cookie domain · QA base URL · 프로브 TLS 검증 활성화 · 옛 호스트 하드코딩 테스트 2건 정정 | `openssl s_client` CN/SAN 일치 · `ssl_verify_result=0` · 로그인/테마 유지 E2E |
 | **S4** | **설치 · 배포 자동화 Foundation** | GitLab Source 경로 · `deploy/install.sh` Entry Point · Preflight · Stage 0~18 · systemd 5유닛 + enable + 의존 순서 · Health · 실패 위치/원인 표시 · Idempotent · version · upgrade/rollback/uninstall · **LXD Clean 설치 리허설** | LXD 리허설 Clean 설치 성공 · 재실행 무해 · 의도적 실패 주입 시 위치·원인 표시 · upgrade/rollback/uninstall 각 1회 · **S4 시점 Component 범위(PG·web·worker·scheduler·nginx)의 Reboot 복구**. **전 시나리오 Acceptance 는 S22** |
 

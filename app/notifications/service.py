@@ -13,7 +13,7 @@ from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
-from app.core.db import DEFAULT_WRITE_CONFLICT_RETRIES, is_write_conflict, write_conflict_backoff
+from app.core.db import DEFAULT_WRITE_CONFLICT_RETRIES, is_serialization_conflict, write_conflict_backoff
 from app.core.errors import WriteUnavailableError
 from app.notifications.models import AUDIENCE_ADMIN, AUDIENCE_USER, Notification
 from app.users.models import ROLE_ADMIN, ROLE_SYSTEM_ADMIN, ROLE_USER, User
@@ -237,7 +237,7 @@ def mark_read(db: Session, user_id: str, notification_id: str, *, now: datetime)
                     db.flush()
                 break
             except (IntegrityError, OperationalError) as exc:
-                if not is_write_conflict(exc):
+                if not is_serialization_conflict(exc):
                     raise
                 db.refresh(row)
                 if row.read_at is not None:
@@ -265,7 +265,7 @@ def mark_all_read(db: Session, user_id: str, *, now: datetime) -> int:
             db.flush()
             return int(result.rowcount or 0)
         except (IntegrityError, OperationalError) as exc:
-            if not is_write_conflict(exc):
+            if not is_serialization_conflict(exc):
                 raise
             if attempt < DEFAULT_WRITE_CONFLICT_RETRIES - 1:
                 time.sleep(write_conflict_backoff(attempt))
@@ -334,7 +334,7 @@ def mark_types_read(db: Session, user_id: str, types: list[str], *, now: datetim
             db.flush()
             return int(result.rowcount or 0)
         except (IntegrityError, OperationalError) as exc:
-            if not is_write_conflict(exc):
+            if not is_serialization_conflict(exc):
                 raise
             if attempt < DEFAULT_WRITE_CONFLICT_RETRIES - 1:
                 time.sleep(write_conflict_backoff(attempt))

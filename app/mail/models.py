@@ -26,10 +26,10 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import DateTime, Integer, String, Text
+from sqlalchemy import DateTime, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.core.models_base import Base, TimestampMixin, UUIDPrimaryKeyMixin
+from app.core.models_base import Base, JsonText, TimestampMixin, UUIDPrimaryKeyMixin
 
 MAIL_QUEUED = "queued"
 MAIL_SENT = "sent"
@@ -52,6 +52,9 @@ MAIL_STATUS_LABELS: dict[str, str] = {
 
 class MailDelivery(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "mail_deliveries"
+    __table_args__ = (
+        Index("ix_mail_deliveries_created_at", "created_at"),
+    )
 
     kind: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     to_email: Mapped[str] = mapped_column(String(320), nullable=False)
@@ -59,6 +62,6 @@ class MailDelivery(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     status: Mapped[str] = mapped_column(String(16), nullable=False, index=True)
     attempt_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     last_error: Mapped[str | None] = mapped_column(Text)
-    params_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    params_json: Mapped[str] = mapped_column(JsonText, nullable=False, default="{}")
     job_id: Mapped[str | None] = mapped_column(String(36))
     sent_at: Mapped[datetime | None] = mapped_column(DateTime)

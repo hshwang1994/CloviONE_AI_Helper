@@ -17,12 +17,20 @@ target_metadata = Base.metadata
 
 
 def _database_url() -> str:
-    url = os.environ.get("DATABASE_URL")
-    if url:
-        return url
-    from app.core.config import Settings
+    """마이그레이션이 붙을 PostgreSQL 주소.
 
-    return Settings().database_url
+    `normalize_database_url` 을 지나게 해서 앱과 **같은 드라이버**로 붙는다. 여기만
+    psycopg2 로 붙으면 타입 어댑터가 달라져, 마이그레이션에서는 되는데 런타임에서는
+    안 되는 자리가 생긴다.
+    """
+    from app.core.db import normalize_database_url
+
+    url = os.environ.get("DATABASE_URL")
+    if not url:
+        from app.core.config import Settings
+
+        url = Settings().database_url
+    return normalize_database_url(url)
 
 
 def run_migrations_offline() -> None:
@@ -30,7 +38,6 @@ def run_migrations_offline() -> None:
         url=_database_url(),
         target_metadata=target_metadata,
         literal_binds=True,
-        render_as_batch=True,
         dialect_opts={"paramstyle": "named"},
     )
     with context.begin_transaction():
@@ -43,7 +50,6 @@ def run_migrations_online() -> None:
         context.configure(
             connection=connection,
             target_metadata=target_metadata,
-            render_as_batch=True,
         )
         with context.begin_transaction():
             context.run_migrations()

@@ -19,12 +19,23 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    DateTime,
+    Float,
+    ForeignKey,
+    Identity,
+    Integer,
+    String,
+    Text,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.models_base import (  # noqa: F401 — join_names/split_names 재수출(동일 규약)
     NAMES_SEP,
     Base,
+    JsonText,
     OrgScopedMixin,
     TimestampMixin,
     UUIDPrimaryKeyMixin,
@@ -181,9 +192,12 @@ class TicketComment(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     문제다(그건 딥링크·감사 호환 때문이고, 여기는 우리 DB 안의 관계다).
 
     ON DELETE CASCADE 인 이유: Notion 에서 티켓이 사라지면 sync._prune 이 캐시 행을 지운다.
-    FK 가 걸린 댓글이 남아 있으면(SQLite 는 PRAGMA foreign_keys=ON) 그 DELETE 가 실패하고,
+    FK 가 걸린 댓글이 남아 있으면 그 DELETE 가 실패하고,
     sync 는 예외를 통째로 삼키므로 **동기화 전체가 조용히 멈춘다**. 도달할 수 없는 댓글을
     남기려다 티켓 미러를 멈추는 건 나쁜 거래다.
+
+    PG 로 옮기면서 이 이유는 **더 강해졌다**: SQLite 는 `PRAGMA foreign_keys` 로 FK 강제를
+    끌 수 있었지만 PG 에는 그 스위치가 없다. 걸어 둔 FK 는 반드시 지켜진다.
 
     삭제는 soft-delete(deleted_at) 다. 목록 API 는 삭제된 댓글도 본문 없는 툼스톤으로 계속
     돌려준다 — 이미 목록을 받아 둔 클라이언트가 '조용히 사라짐'이 아니라 '삭제됨'을 볼 수 있어야
@@ -202,6 +216,16 @@ class TicketComment(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     body: Mapped[str] = mapped_column(Text, nullable=False)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime, index=True)
 
+    # 삽입 순서를 **1급 컬럼으로** 들고 있는다 (실행목록 5).
+    #
+    # 예전에는 SQLite 의 숨은 `rowid` 로 동점을 깼다. PG 에는 그런 것이 없고, 없다는 사실이
+    # 조용히 드러나지 않는다: `ORDER BY created_at` 만 남기면 같은 순간에 달린 두 댓글의
+    # 순서가 **매번 달라진다**. 시계가 멈춘 테스트에서는 늘 동점이라 목록이 절반의 확률로
+    # 뒤집히고, 운영에서는 답글이 원글보다 먼저 보인다.
+    #
+    # `GENERATED ALWAYS AS IDENTITY` 라 앱이 값을 못 넣는다.
+    seq: Mapped[int] = mapped_column(BigInteger, Identity(always=True), nullable=False)
+
 
 class TicketMetaCache(Base):
     """편집·생성 폼용 스키마 파생값(상태/우선순위/난이도 옵션 + 프로젝트 목록) 싱글턴.
@@ -217,7 +241,7 @@ class TicketMetaCache(Base):
     priorities: Mapped[str] = mapped_column(Text, nullable=False, default="")
     difficulties: Mapped[str] = mapped_column(Text, nullable=False, default="")
     # [{"id": ..., "name": ...}] JSON. id/이름 쌍이라 NAMES_SEP 한 줄로는 못 담는다.
-    projects_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+    projects_json: Mapped[str] = mapped_column(JsonText, nullable=False, default="[]")
     synced_at: Mapped[datetime | None] = mapped_column(DateTime)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, default=utcnow, onupdate=utcnow

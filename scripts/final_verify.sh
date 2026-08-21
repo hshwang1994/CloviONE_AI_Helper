@@ -7,7 +7,7 @@
 # 순서에 이유가 있다:
 #   1) 정적 검사 먼저 — 몇 초 만에 끝나고, 여기서 걸리면 20분짜리 스위트를 돌릴 이유가 없다
 #   2) **번들 신선도 — 빌드 «전에», 커밋된 상태를 본다**
-#   3) 마이그레이션 왕복 — 스키마가 깨졌으면 그 뒤 전부가 무의미하다
+#   3) (마이그레이션 왕복은 은퇴했다 — 아래 48행 참조)
 #   4) 백엔드 스위트 — 가장 오래 걸린다
 #   5) 프런트
 #   6) **번들을 마지막에** 만들고 **그 자리에서** 기준을 적는다
@@ -45,7 +45,16 @@ build_and_stamp() {
 
 step "정적 검사" bash scripts/static_checks.sh
 step "번들 신선도(커밋된 상태)" "$PY" scripts/check_bundle_fresh.py
-step "마이그레이션 왕복" bash scripts/migration_rehearsal.sh
+# 「마이그레이션 왕복」 단계가 있던 자리다. 그 리허설은 **SQLite alembic 체인**의
+# upgrade→downgrade→upgrade 를 돌려 batch_alter_table 재생성이 컬럼·기본값·인덱스를
+# 흔들지 않았는지 봤다. 그 체인은 은퇴했고(D-189 · alembic/legacy_sqlite/) 되돌릴
+# 대상이 없다 — 지금은 revision 이 `0001_pg_baseline` 하나다.
+#
+# 그 자리를 대신하는 것 둘:
+#   * 기준선이 체인의 산출물을 빠짐없이 갖고 있는가 →
+#     tests/regression/test_migration_00*.py (회귀에 포함돼 있다)
+#   * 운영 데이터 이관 자체의 무결성 → **S13 Migration Tool 의 Dry Run**
+#     (MASTER_PLAN §9.3 의 면제 불가 검증 목록)
 step "백엔드 스위트" "$PY" -m pytest tests/ -q --tb=line -p no:randomly
 step "프런트 스위트" bash -c 'cd frontend && npx vitest run'
 step "번들 빌드 + 기준 기록" build_and_stamp

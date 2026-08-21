@@ -19,7 +19,7 @@ from sqlalchemy.orm import Session
 # 운영자 이상은 누가 버린 항목이든 복원/영구삭제할 수 있다(감사·정리 권한).
 # 역할 이름을 여기 문자열로 다시 적지 않는다 — authz 한 곳이 정본이다.
 from app.core.authz import MODERATOR_ROLES
-from app.core.db import is_write_conflict
+from app.core.db import is_insert_race
 from app.core.errors import NotFoundError, ConflictError, ForbiddenError
 from app.core.scope import visibility_scope
 from app.trash import repository
@@ -84,7 +84,7 @@ def move_to_trash(
             db.add(item)
             db.flush()
     except (IntegrityError, OperationalError) as exc:
-        if not is_write_conflict(exc):
+        if not is_insert_race(exc):
             raise
         raise ConflictError("이미 휴지통에 있습니다.") from None
     return item

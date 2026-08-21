@@ -36,7 +36,10 @@ from tests.regression.test_api_contract_golden import (
     _seed_users,
 )
 
-pytestmark = pytest.mark.regression
+# 이 파일의 시험은 **전용 DB** 가 필요하다(D-190) — 두 번째 커넥션이나 별도
+# 프로세스가 이 시험의 데이터를 봐야 하기 때문이다. 공유 DB + 트랜잭션 되감기
+# 계층에서는 그 데이터가 트랜잭션 밖으로 안 나가서 아무것도 증명하지 못한다.
+pytestmark = [pytest.mark.regression, pytest.mark.real_db]
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
@@ -55,7 +58,7 @@ PATHS = [
 ]
 
 
-def _run(db_path, tmp_path, ticket_source: str) -> dict[str, str]:
+def _run(db_url, tmp_path, ticket_source: str) -> dict[str, str]:
     """주어진 소스 설정으로 앱을 띄워 모든 경로의 정규화된 JSON을 돌려준다."""
     secrets_dir = tmp_path / f"secrets-{ticket_source}"
     secrets_dir.mkdir(exist_ok=True)
@@ -63,7 +66,7 @@ def _run(db_path, tmp_path, ticket_source: str) -> dict[str, str]:
     settings = Settings(
         _env_file=None,
         app_env="test",
-        database_url=f"sqlite:///{db_path.as_posix()}",
+        database_url=db_url,
         session_secret="test-session-secret",
         cookie_secure=False,
         config_dir=PROJECT_ROOT / "config",
@@ -97,11 +100,11 @@ def _run(db_path, tmp_path, ticket_source: str) -> dict[str, str]:
 
 
 @pytest.fixture()
-def seeded_db(db_path, app, db):
+def seeded_db(db_url, app, db):
     """골든과 같은 사용자·매핑을 심은 DB 파일 경로. ticket_cache 는 일부러 비워 둔다 —
     미러가 비면 notion_cache 모드도 실시간으로 폴백해야 하고, 그게 여기서 비교하는 성질이다."""
     _seed_users(db)
-    return db_path
+    return db_url
 
 
 def test_kill_switch_produces_byte_identical_payloads(seeded_db, tmp_path):

@@ -12,7 +12,10 @@ from fastapi.testclient import TestClient
 
 from tests.conftest import DEFAULT_TEST_PASSWORD, PROJECT_ROOT
 
-pytestmark = pytest.mark.integration
+# 이 파일의 시험은 **전용 DB** 가 필요하다(D-190) — 두 번째 커넥션이나 별도
+# 프로세스가 이 시험의 데이터를 봐야 하기 때문이다. 공유 DB + 트랜잭션 되감기
+# 계층에서는 그 데이터가 트랜잭션 밖으로 안 나가서 아무것도 증명하지 못한다.
+pytestmark = [pytest.mark.integration, pytest.mark.real_db]
 
 PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 64
 
@@ -435,7 +438,7 @@ def test_reaction_rejected_on_comment_under_deleted_post(client, login_as):
     assert r.status_code == 404
 
 
-def test_feature_flag_off_hides_board(db_path, tmp_path, fake_clock, fake_http):
+def test_feature_flag_off_hides_board(db_url, tmp_path, fake_clock, fake_http):
     import shutil
 
     from app.core.config import Settings
@@ -452,7 +455,7 @@ def test_feature_flag_off_hides_board(db_path, tmp_path, fake_clock, fake_http):
     settings = Settings(
         _env_file=None,
         app_env="test",
-        database_url=f"sqlite:///{db_path.as_posix()}",
+        database_url=db_url,
         session_secret="test-session-secret",
         cookie_secure=False,
         config_dir=cfg,

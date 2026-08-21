@@ -102,7 +102,10 @@ def last_messages_for_rooms(db: Session, room_ids: list[str]) -> dict[str, ChatM
 
     왜 두 번인가: 방마다 `ORDER BY seq DESC LIMIT 1` 을 돌리면 그게 곧 N+1 이다. 먼저
     방별 최대 seq 를 한 번에 구하고(집계), 그 seq 에 해당하는 행만 한 번 더 읽는다.
-    윈도 함수 한 방으로도 되지만 설치처의 sqlite3 버전에 기대게 되므로 쓰지 않는다.
+    윈도 함수(`row_number() OVER (PARTITION BY room_id ORDER BY seq DESC)`) 한 방으로도
+    된다 — 그것을 피하던 이유(설치처 sqlite3 버전 의존)는 **더 이상 없다**. 지금 이
+    모양인 것은 단지 바꿀 이유가 없어서다: 질의 두 번은 이미 방 개수와 무관하고,
+    아래 「같은 seq 다른 방」 걸러내기가 시험으로 고정돼 있다.
 
     두 번째 질의의 `seq IN (...)` 는 **다른 방의 같은 seq** 도 걸린다(seq 는 방 안에서만
     유일하다). 그래서 방별 최대값과 맞는 행만 남긴다 — 이 한 줄을 빼면 엉뚱한 방의

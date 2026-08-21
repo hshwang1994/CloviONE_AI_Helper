@@ -12,10 +12,10 @@ is locked`로 500이었다. 같은 파일의 `login()`은 이미 `is_write_confl
 
 from __future__ import annotations
 
-import sqlite3
-
 import pytest
 from sqlalchemy.exc import OperationalError
+
+from tests.fakes.pgerrors import serialization_failure
 from sqlalchemy.orm import Session as OrmSession
 
 from tests.conftest import DEFAULT_TEST_PASSWORD
@@ -26,31 +26,49 @@ NEW_PASSWORD = "N3w-Different-Pass!"
 
 
 def _fake_lock_error() -> OperationalError:
-    return OperationalError(
-        "UPDATE users SET password_hash=?", {}, sqlite3.OperationalError("database is locked")
-    )
+    """재시도해야 하는 경합 — PG 의 `40001 serialization_failure` 다.
+
+    qa-contract-change: SQLite 의 database is locked 문자열을 흉내 내던 가짜 예외를 PG 의 SQLSTATE 40001 로 바꿨다. PG 에서 재시도 판정 기준은 메시지가 아니라 SQLSTATE 이므로, 문자열만 두면 제품이 아니라 가짜 예외 때문에 실패한다.
+        """
+    return serialization_failure("UPDATE users SET password_hash=?")
 
 
 def _patch_flaky_commit(monkeypatch, *, fail_times: int) -> None:
-    """처음 fail_times번의 commit() 호출을 "database is locked"로 실패시킨다.
+    """앞 `fail_times` 번의 커밋을 직렬화 경합으로 실패시킨다.
 
-    dirty-type 필터링(test_session_touch_write_conflict.py의 패턴)은 여기서는 안 맞는다
-    — `session_service.create()`가 세션 행을 `db.add()+flush()`로 내부에서 먼저 반영해,
-    `change_password()`의 바깥쪽 `db.commit()` 시점엔 `user`가 이미 flush돼 dirty가 아니다
-    (flush는 커밋이 아니라 상태만 정리한다). 이 monkeypatch는 `_patch_flaky_commit` 적용
-    *이후* 첫 요청(login 이후에 건다)의 commit 횟수만 겨냥하면 되므로 무조건 카운트가 더
-    정확하고 단순하다."""
+    **rate limiter 의 커밋은 건드리지 않는다.** 리미터는 이제 자기 세션에서 곧바로
+    커밋하므로(D-192, `app/core/ratelimit.py`), 모든 `Session.commit` 을 무조건
+    실패시키면 주입한 고장이 정작 시험하려는 코드가 아니라 리미터 안에서 터진다 —
+    시험은 빨간불인데 원인은 제품이 아니라 주입 범위에 있다.
+    """
     original_commit = OrmSession.commit
     state = {"remaining": fail_times}
 
     def flaky_commit(self, *a, **kw):
-        if state["remaining"] > 0:
+        limiter_session = any(
+            "rate_limit_buckets" in str(getattr(obj, "table", ""))
+            for obj in getattr(self, "new", ())
+        )
+        if state["remaining"] > 0 and not limiter_session and not _is_limiter_frame():
             state["remaining"] -= 1
             raise _fake_lock_error()
         return original_commit(self, *a, **kw)
 
     monkeypatch.setattr(OrmSession, "commit", flaky_commit)
     monkeypatch.setattr("app.auth.router.time.sleep", lambda _seconds: None)
+def _is_limiter_frame() -> bool:
+    """지금 커밋을 부른 것이 rate limiter 인가.
+
+    호출 스택을 보는 것은 무딘 방법이지만, 여기서 필요한 것은 «이 커밋이 시험 대상인가»
+    하나뿐이고 리미터는 자기 모듈 안에서만 커밋한다. 세션 객체로는 구별할 수 없다 —
+    리미터도 같은 팩토리로 만든 `Session` 이다.
+    """
+    import inspect
+
+    return any(
+        frame.filename.replace("\\", "/").endswith("app/core/ratelimit.py")
+        for frame in inspect.stack()[:12]
+    )
 
 
 def _login(client, email, password=DEFAULT_TEST_PASSWORD):

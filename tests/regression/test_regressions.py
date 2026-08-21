@@ -8,8 +8,12 @@ pytestmark = pytest.mark.regression
 
 def test_message_ordering_stable_under_same_timestamp(db, settings, make_user):
     """Defect: Windows clock tick (~15ms) made message created_at ties common,
-    so user/assistant messages sometimes rendered out of order. Fixed by
-    ordering on rowid (insertion order)."""
+    so user/assistant messages sometimes rendered out of order.
+
+    삽입 순서로 정렬해서 고쳤다 — 예전에는 SQLite 의 숨은 `rowid` 였고, 지금은
+    `messages.seq`(`GENERATED ALWAYS AS IDENTITY`)다. 컬럼으로 올려 둔 덕에 어느 DB 에서도
+    같은 순서가 나온다(app/conversations/models.py).
+    """
     from datetime import datetime
 
     from app.chat.service import create_conversation, list_messages
@@ -58,14 +62,24 @@ def test_router_factory_bodies_are_recognized():
 
 
 def test_verify_backup_survives_malformed_image(tmp_path):
-    """Defect: PRAGMA integrity_check raised DatabaseError on a malformed image
-    and propagated instead of reporting not-ok."""
-    from app.backups.sqlite_backup import verify_backup
+    """깨진 백업 파일을 만나도 **예외가 아니라 not-ok 로 답한다.**
 
-    bad = tmp_path / "bad.sqlite3"
-    bad.write_bytes(b"this is definitely not a sqlite database" * 10)
+    원래 결함: `PRAGMA integrity_check` 가 깨진 이미지에서 `DatabaseError` 를 던졌고,
+    그것이 그대로 위로 새 나가 검증 화면이 500 이 됐다. 검증기는 «못 믿겠다» 를 말할 줄
+    알아야지 터지면 안 된다.
+
+    qa-contract-change: 대상이 `sqlite_backup.verify_backup` 에서 `pg_backup.verify_backup`
+    으로 바뀌었다(D-187). 못박는 성질은 같다 — 깨진 파일에 예외가 아니라 `ok=False` 다.
+    도구가 없는 개발 머신에서는 `tool_missing` 으로, 있는 서버에서는 `archive_unreadable`
+    로 답하는데 **둘 다 예외가 아니고 둘 다 not-ok** 라는 점이 이 시험이 보는 것이다.
+    """
+    from app.backups.pg_backup import verify_backup
+
+    bad = tmp_path / "bad.dump"
+    bad.write_bytes(b"this is definitely not a pg_dump archive" * 10)
     result = verify_backup(bad)
     assert result["ok"] is False  # graceful, no exception
+    assert result["reason"]  # 왜 못 믿는지 말한다
 
 
 def test_login_as_tolerates_precreated_user(client, make_user, login_as):

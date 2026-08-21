@@ -821,12 +821,15 @@ def cancel_run(request: Request, run_id: str, db: Session = Depends(get_db)):
         raise ConflictError("대기 또는 실행 중인 실행만 취소할 수 있습니다.")
     now = request.app.state.clock.now()
 
-    needle = f'"schedule_run_id": "{run.id}"'
+    # 예전에는 `'"schedule_run_id": "…"'` 라는 **문자열 조각**을 payload JSON 본문에서
+    # LIKE 로 찾았다. 그 방식은 직렬화 모양(콜론 뒤 공백·키 순서)에 의존한다 — `jsonb` 는
+    # 그 모양을 PG 가 정하므로, 문자열로 찾는 코드는 언젠가 조용히 0건을 돌려준다.
+    # `->>` 로 키를 직접 뽑으면 모양과 무관하게 정확하다.
     job = db.execute(
         select(Job).where(
             Job.job_type == "schedule_run",
             Job.status.in_([STATUS_QUEUED, STATUS_RUNNING]),
-            Job.payload_json.like(f"%{needle}%"),
+            Job.payload_json["schedule_run_id"].astext == run.id,
         )
     ).scalars().first()
     if job is not None:

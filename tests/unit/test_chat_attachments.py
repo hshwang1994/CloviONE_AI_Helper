@@ -80,32 +80,25 @@ def test_names_view_has_no_data():
     assert "data" not in names[0]
 
 
-def test_retention_strips_stale_terminal_job_attachments(tmp_path):
+def test_retention_strips_stale_terminal_job_attachments(db):
     """Never-retried failed jobs must lose their image bytes after the sweep window."""
     import json
     from datetime import datetime, timedelta
 
-    from sqlalchemy import create_engine
-    from sqlalchemy.orm import Session
-
     from app.core.retention import strip_stale_job_attachments
     from app.jobs.models import Job
-    from app.core.models_base import Base
 
-    engine = create_engine(f"sqlite:///{tmp_path/'t.sqlite3'}")
-    Base.metadata.create_all(engine)
     now = datetime(2026, 7, 15, 12, 0, 0)
-    with Session(engine) as db:
-        payload = {"content": "x", "attachments": [
-            {"filename": "a.png", "media_type": "image/png", "data": PNG_B64}]}
-        old = Job(job_type="chat_message", status="failed",
-                  payload_json=json.dumps(payload), available_at=now - timedelta(days=2),
-                  created_at=now - timedelta(days=2), updated_at=now - timedelta(days=2))
-        fresh = Job(job_type="chat_message", status="failed",
-                    payload_json=json.dumps(payload), available_at=now,
-                    created_at=now, updated_at=now)
-        db.add_all([old, fresh]); db.flush()
-        touched = strip_stale_job_attachments(db, now=now)
-        assert touched == 1
-        assert "data" not in json.loads(old.payload_json)["attachments"][0]
-        assert json.loads(fresh.payload_json)["attachments"][0]["data"] == PNG_B64
+    payload = {"content": "x", "attachments": [
+        {"filename": "a.png", "media_type": "image/png", "data": PNG_B64}]}
+    old = Job(job_type="chat_message", status="failed",
+              payload_json=json.dumps(payload), available_at=now - timedelta(days=2),
+              created_at=now - timedelta(days=2), updated_at=now - timedelta(days=2))
+    fresh = Job(job_type="chat_message", status="failed",
+                payload_json=json.dumps(payload), available_at=now,
+                created_at=now, updated_at=now)
+    db.add_all([old, fresh]); db.flush()
+    touched = strip_stale_job_attachments(db, now=now)
+    assert touched == 1
+    assert "data" not in json.loads(old.payload_json)["attachments"][0]
+    assert json.loads(fresh.payload_json)["attachments"][0]["data"] == PNG_B64

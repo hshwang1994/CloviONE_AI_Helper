@@ -9,8 +9,8 @@
 |---|---|
 | Route decorator | **318** |
 | Router 모듈 | **45** |
-| 프레임워크 | FastAPI (**sync**) · SQLAlchemy (**sync**) |
-| Uvicorn | `--workers 1` **고정** (D-192 로 풀린다) |
+| 프레임워크 | FastAPI (**sync**) · SQLAlchemy (**sync**) · psycopg3 |
+| Uvicorn | **`--workers 4`** — S2 가 풀었다(D-192). 공유 rate-limit 표·advisory lock·SettingsCache TTL 을 **먼저** 만든 뒤 올렸다 |
 | Bind | 127.0.0.1:8080 (nginx 뒤) |
 
 ## 유지하는 계약 — 재작성하지 않는다

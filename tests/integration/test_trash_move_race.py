@@ -22,7 +22,10 @@ import pytest
 
 from app.core.db import make_engine, make_session_factory
 
-pytestmark = pytest.mark.integration
+# 이 파일의 시험은 **전용 DB** 가 필요하다(D-190) — 두 번째 커넥션이나 별도
+# 프로세스가 이 시험의 데이터를 봐야 하기 때문이다. 공유 DB + 트랜잭션 되감기
+# 계층에서는 그 데이터가 트랜잭션 밖으로 안 나가서 아무것도 증명하지 못한다.
+pytestmark = [pytest.mark.integration, pytest.mark.real_db]
 
 THREADS = 8
 PAGE_ID = "race-trash-page"
@@ -49,13 +52,13 @@ def _seed_user(url: str) -> str:
         engine.dispose()
 
 
-def test_concurrent_move_to_trash_of_same_item_never_500s(db_path):
+def test_concurrent_move_to_trash_of_same_item_never_500s(db_url):
     from app.core.errors import ConflictError
     from app.trash.models import TRASH_TICKET, TrashItem
     from app.trash.service import move_to_trash
     from app.users.models import User
 
-    url = f"sqlite:///{db_path.as_posix()}"
+    url = db_url
     now = datetime(2026, 8, 13, 0, 0, 0)
     user_id = _seed_user(url)
 

@@ -77,18 +77,28 @@ if [ -f "$BACKUP_DIR/uploads.tar.gz" ]; then
   tar xzf "$BACKUP_DIR/uploads.tar.gz" -C "$VAR_DIR"
   chown -R clovirone-web:clovirone-web "$VAR_DIR/uploads"
 fi
-if [ -f "$BACKUP_DIR/web.sqlite3" ]; then
-  install -d -o clovirone-web -g clovirone-web -m 0750 "$VAR_DIR"
-  # Remove stale WAL/SHM sidecars first — copying a fresh DB over an old one
-  # while its -wal/-shm remain would corrupt the restored database.
-  rm -f "$VAR_DIR/web.sqlite3-wal" "$VAR_DIR/web.sqlite3-shm"
-  cp "$BACKUP_DIR/web.sqlite3" "$VAR_DIR/web.sqlite3"
-  chown clovirone-web:clovirone-web "$VAR_DIR/web.sqlite3"
-  chmod 0660 "$VAR_DIR/web.sqlite3"
-  # Verify the restored DB before bringing services back up.
-  if ! sqlite3 "$VAR_DIR/web.sqlite3" 'PRAGMA integrity_check;' | grep -q '^ok$'; then
-    echo "복원된 DB 무결성 검사 실패 — 중단"; exit 6
+# DB 복원. **파일 복사가 아니다** — PG 는 파일 하나가 데이터베이스가 아니다.
+if [ -f "$BACKUP_DIR/web.dump" ]; then
+  : "${DATABASE_URL:=}"
+  if [ -z "$DATABASE_URL" ] && [ -f "$ETC_DIR/web.env" ]; then
+    DATABASE_URL="$(sed -n 's/^DATABASE_URL=//p' "$ETC_DIR/web.env" | head -1)"
+    PG_BIN_DIR="$(sed -n 's/^PG_BIN_DIR=//p' "$ETC_DIR/web.env" | head -1)"
   fi
+  [ -n "$DATABASE_URL" ] || { echo "DATABASE_URL 을 찾을 수 없습니다 — 중단"; exit 6; }
+  PGRESTORE="${PG_BIN_DIR:+$PG_BIN_DIR/}pg_restore"
+  command -v "$PGRESTORE" >/dev/null 2>&1 || { echo "pg_restore 를 찾을 수 없습니다 — 중단"; exit 6; }
+
+  # 서비스는 위에서 이미 멈춰 있다. `--clean --if-exists` 로 기존 객체를 지우고 덮는다 —
+  # 안 지우면 이미 있는 표 때문에 복원이 절반만 되고, 그 상태가 «복원됨» 으로 남는다.
+  if ! "$PGRESTORE" --clean --if-exists --no-owner --no-privileges        --dbname "$DATABASE_URL" "$BACKUP_DIR/web.dump"; then
+    echo "DB 복원 실패 — 중단"; exit 6
+  fi
+elif [ -f "$BACKUP_DIR/web.sqlite3" ]; then
+  # SQLite 시절 백업이다. **조용히 건너뛰지 않는다** — 그 파일로는 지금 제품을 되돌릴 수
+  # 없고, 그 사실을 여기서 말하지 않으면 운영자는 롤백이 끝난 줄 안다.
+  echo "이 백업은 SQLite 시절 것입니다($BACKUP_DIR/web.sqlite3)."
+  echo "PostgreSQL 로 전환한 뒤에는 이 파일로 되돌릴 수 없습니다 — Migration 도구가 필요합니다."
+  exit 6
 fi
 # DEPLOY-04: privhelper 도 되살린다 - 예전엔 web·worker 만 복원해 healthz 는 통과하고
 # "ROLLBACK_OK" 가 찍히는데, 관리 콘솔의 시스템 설정(타임존·DNS·호스트명·프록시·인증서)은

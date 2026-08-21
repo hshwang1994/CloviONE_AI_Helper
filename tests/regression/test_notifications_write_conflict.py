@@ -12,10 +12,10 @@ journal 확인). 세 함수 다 SAVEPOINT 재시도 없이 `db.execute`/`db.flus
 
 from __future__ import annotations
 
-import sqlite3
-
 import pytest
 from sqlalchemy.exc import OperationalError
+
+from tests.fakes.pgerrors import serialization_failure
 from sqlalchemy.orm import Session as OrmSession
 from sqlalchemy.sql.dml import Update
 
@@ -25,9 +25,11 @@ pytestmark = pytest.mark.integration
 
 
 def _fake_lock_error() -> OperationalError:
-    return OperationalError(
-        "UPDATE notifications SET read_at=?", {}, sqlite3.OperationalError("database is locked")
-    )
+    """재시도해야 하는 경합 — PG 의 `40001 serialization_failure` 다.
+
+    qa-contract-change: SQLite 의 database is locked 문자열을 흉내 내던 가짜 예외를 PG 의 SQLSTATE 40001 로 바꿨다. PG 에서 재시도 판정 기준은 메시지가 아니라 SQLSTATE 이므로, 문자열만 두면 제품이 아니라 가짜 예외 때문에 실패한다.
+        """
+    return serialization_failure("UPDATE notifications SET read_at=?")
 
 
 def _patch_flaky_update(monkeypatch, *, fail_times: int) -> None:

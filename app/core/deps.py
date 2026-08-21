@@ -15,7 +15,7 @@ from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
 from app.auth.models import UserSession
-from app.core.db import is_write_conflict
+from app.core.db import is_serialization_conflict
 from app.core.errors import AppError, ForbiddenError, UnauthorizedError, WriteUnavailableError
 from app.core.sessions import SESSION_COOKIE_NAME, SessionService
 from app.users.models import User
@@ -92,6 +92,19 @@ def get_db(request: Request) -> Iterator[Session]:
     """
     factory = request.app.state.session_factory
     db = factory()
+    # 설정 캐시를 따라잡는다 (D-192). 워커가 여럿이면 설정을 바꾼 프로세스만 캐시를 새로
+    # 채우고 나머지는 옛 값을 계속 들고 있다 — 관리자는 요청이 어느 워커로 가느냐에 따라
+    # 새 값과 옛 값이 번갈아 적용되는 것을 본다. 대부분의 호출은 타임스탬프 비교 하나로
+    # 끝나고, TTL(30초)이 지난 요청 하나만 실제로 다시 읽는다.
+    #
+    # 실패해도 요청을 막지 않는다 — 낡은 설정으로 도는 것이 500 보다 낫다.
+    cache = getattr(request.app.state, "settings_cache", None)
+    if cache is not None:
+        try:
+            cache.refresh_if_stale(db)
+        except Exception:
+            logger.warning("설정 캐시 갱신에 실패했다. 이번 요청은 옛 값으로 간다", exc_info=True)
+            db.rollback()
     try:
         yield db
     except Exception:
@@ -102,7 +115,7 @@ def get_db(request: Request) -> Iterator[Session]:
             db.commit()
         except (IntegrityError, OperationalError) as exc:
             db.rollback()
-            if not is_write_conflict(exc):
+            if not is_serialization_conflict(exc):
                 raise
             logger.exception(
                 "get_db outer commit hit write conflict request_id=%s",

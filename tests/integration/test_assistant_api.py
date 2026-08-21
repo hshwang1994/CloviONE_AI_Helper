@@ -20,6 +20,11 @@ from pathlib import Path
 
 import pytest
 
+# 이 파일의 시험은 **전용 DB** 가 필요하다(D-190) — 두 번째 커넥션이나 별도
+# 프로세스가 이 시험의 데이터를 봐야 하기 때문이다. 공유 DB + 트랜잭션 되감기
+# 계층에서는 그 데이터가 트랜잭션 밖으로 안 나가서 아무것도 증명하지 못한다.
+pytestmark = pytest.mark.real_db
+
 from app.board.models import Post
 from app.core.security import hash_password
 from app.notifications.models import Notification
@@ -298,7 +303,7 @@ def test_assistant_requires_authentication(client):
 
 # ── 문장 생성을 켠 상태: 러너가 죽어도 숫자는 살아남는다 ───────────────────────
 
-def _narrative_app(db_path, tmp_path, fake_clock, fake_http):
+def _narrative_app(db_url, tmp_path, fake_clock, fake_http):
     """assistant_narrative_enabled=true 로 켠 별도 앱(+ 러너 토큰)."""
     from app.core.config import Settings
     from app.main import create_app
@@ -313,7 +318,7 @@ def _narrative_app(db_path, tmp_path, fake_clock, fake_http):
     (secrets_dir / "assistant_runner_token").write_text("test-runner-token", encoding="utf-8")
     (secrets_dir / TOKEN_REF).write_text("fake-notion-token", encoding="utf-8")
     settings = Settings(
-        _env_file=None, app_env="test", database_url=f"sqlite:///{db_path.as_posix()}",
+        _env_file=None, app_env="test", database_url=db_url,
         session_secret="test-session-secret", cookie_secure=False,
         config_dir=cfg, secrets_dir=secrets_dir, data_dir=tmp_path,
     )
@@ -324,10 +329,10 @@ def _narrative_app(db_path, tmp_path, fake_clock, fake_http):
 
 
 @pytest.fixture()
-def narrative_client(db_path, tmp_path, fake_clock, fake_http, notion):
+def narrative_client(db_url, tmp_path, fake_clock, fake_http, notion):
     from fastapi.testclient import TestClient
 
-    app, settings = _narrative_app(db_path, tmp_path, fake_clock, fake_http)
+    app, settings = _narrative_app(db_url, tmp_path, fake_clock, fake_http)
     with TestClient(app, raise_server_exceptions=False) as test_client:
         response = test_client.post("/login", json={"email": EMAIL, "password": DEFAULT_TEST_PASSWORD})
         assert response.status_code == 200, response.text

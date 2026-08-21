@@ -1,0 +1,121 @@
+S2 — `is_write_conflict` 재분류 전수 감사 원장 (D-191 · R1)
+==============================================================
+
+계획은 «115 호출부 · 30 모듈» 로 추정했다. 실측은 **40 호출부 · 24 모듈** 이다(D-221).
+아래가 그 전부이고, 각 줄의 분류가 «호출부가 무엇을 뜻했는가» 다.
+
+  is_serialization_conflict — 「지금은 안 됐다, 다시 하면 된다」 → 트랜잭션 재시도
+  is_insert_race            — 「남이 먼저 넣었다」 → 승자 행을 다시 읽거나 409
+
+둘 중 어디에도 안 걸리는 예외(FK 위반·NOT NULL·CHECK·정체 불명)는 **그대로 올라간다**.
+그것이 이 분류의 요점이다 — 예전에는 모든 IntegrityError 가 재시도 대상이었다.
+
+== 재시도 (is_serialization_conflict) — 9곳 ==
+
+  유니크 위반이 나올 수 없는 자리들이다: 순수 UPDATE · 요청 끝 커밋 · CAS.
+  여기서 IntegrityError 를 삼키면 그것이 바로 D-191 이 말한 «데이터 버그의 위장» 이다.
+
+  app/auth/router.py:503  login()
+      except OperationalError as exc:
+  app/auth/router.py:718  change_password()
+      except OperationalError as exc:
+  app/chat/router.py:237  post_message()
+      except OperationalError as exc:
+  app/core/deps.py:118  get_db()
+      except (IntegrityError, OperationalError) as exc:
+  app/core/sessions.py:55  _commit_best_effort()
+      except (IntegrityError, OperationalError) as exc:
+  app/games/service.py:133  _cas_update_state()
+      except OperationalError as exc:
+  app/notifications/service.py:240  mark_read()
+      except (IntegrityError, OperationalError) as exc:
+  app/notifications/service.py:268  mark_all_read()
+      except (IntegrityError, OperationalError) as exc:
+  app/notifications/service.py:337  mark_types_read()
+      except (IntegrityError, OperationalError) as exc:
+
+== insert-race (is_insert_race) — 31곳 ==
+
+  「넣어 보고 지면 남의 행을 읽는다」 관용구. 유니크 위반(23505)과 직렬화 실패를
+  삼키고, **FK · NOT NULL · CHECK 는 안 삼킨다**.
+
+  app/announcements/service.py:151  dismiss()
+      except (IntegrityError, OperationalError) as exc:
+  app/approvals/service.py:248  create_approval()
+      except (IntegrityError, OperationalError) as exc:
+  app/approvals/service.py:256  create_approval()
+      except (IntegrityError, OperationalError) as commit_exc:
+  app/board/service.py:453  add_reaction()
+      except (IntegrityError, OperationalError) as exc:
+  app/core/versioning.py:103  snapshot_config()
+      except (IntegrityError, OperationalError) as exc:
+  app/games/service.py:91  _append_event()
+      except (IntegrityError, OperationalError) as exc:
+  app/integrations/service.py:109  create_integration()
+      except (IntegrityError, OperationalError) as exc:
+  app/integrations/service.py:156  apply_integration_config()
+      except (IntegrityError, OperationalError) as exc:
+  app/notion_mapping/service.py:65  get_or_create_mapping()
+      except (IntegrityError, OperationalError) as exc:
+  app/notion_mapping/service.py:80  get_or_create_mapping()
+      except (IntegrityError, OperationalError) as commit_exc:
+  app/offboarding/service.py:244  run_offboarding()
+      except (IntegrityError, OperationalError) as exc:
+  app/org/router.py:407  create_organization()
+      except (IntegrityError, OperationalError) as exc:
+  app/org/router.py:417  create_organization()
+      except (IntegrityError, OperationalError) as commit_exc:
+  app/org/service.py:321  create_item()
+      except (IntegrityError, OperationalError) as exc:
+  app/org/service.py:335  create_item()
+      except (IntegrityError, OperationalError) as commit_exc:
+  app/profiles/service.py:399  create_view()
+      except (IntegrityError, OperationalError) as exc:
+  app/projects/service.py:209  create_project()
+      except (IntegrityError, OperationalError) as exc:
+  app/projects/service.py:251  update_project()
+      except (IntegrityError, OperationalError) as exc:
+  app/prompts/router.py:234  create()
+      except (IntegrityError, OperationalError) as exc:
+  app/prompts/service.py:116  transition()
+      except (IntegrityError, OperationalError) as exc:
+  app/prompts/service.py:182  new_version_from()
+      except (IntegrityError, OperationalError) as exc:
+  app/prompts/service.py:194  new_version_from()
+      except (IntegrityError, OperationalError) as commit_exc:
+  app/quotas/router.py:227  create_quota()
+      except (IntegrityError, OperationalError) as exc:
+  app/team_chat/service.py:85  _append_message()
+      except (IntegrityError, OperationalError) as exc:
+  app/team_chat/service.py:130  ensure_team_room()
+      except (IntegrityError, OperationalError) as exc:
+  app/team_chat/service.py:339  create_or_get_direct()
+      except (IntegrityError, OperationalError) as exc:
+  app/team_docs/service.py:367  toggle_favorite()
+      except (IntegrityError, OperationalError) as exc:
+  app/team_docs/service.py:407  record_view()
+      except (IntegrityError, OperationalError) as exc:
+  app/trash/service.py:87  move_to_trash()
+      except (IntegrityError, OperationalError) as exc:
+  app/workflows/service.py:114  create_workflow()
+      except (IntegrityError, OperationalError) as exc:
+  app/workflows/service.py:141  apply_workflow_config()
+      except (IntegrityError, OperationalError) as exc:
+
+== S2 가 새로 쓴 자리 (감사 대상이 아니다) ==
+
+  옛 호출부가 아니라 이번에 새로 만든 코드다. 위 숫자에 안 넣는다.
+
+  app/core/advisory_lock.py:131  lock_or_continue()  [is_serialization_conflict]
+      except (OperationalError, DBAPIError) as exc:
+
+== 합계 ==
+
+  옛 호출부 40  ·  모듈 24
+    재시도 9  ·  insert-race 31
+  S2 신규 1
+
+증명: tests/security/test_conflict_classification.py 가 실제 PG 에서 만든 FK 위반
+(23503)이 **어느 통에도 안 들어감**을 확인한다. 분류 함수만 시험하면 「호출부가 그
+함수를 실제로 쓰는가」는 증명되지 않으므로, 요청 끝 커밋이 유니크 위반을 503 으로
+포장하지 않는 것까지 함께 본다.

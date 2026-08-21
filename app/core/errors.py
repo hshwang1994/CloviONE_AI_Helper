@@ -184,8 +184,12 @@ class StorageUnavailableError(AppError):
 
 
 class WriteUnavailableError(AppError):
-    """요청 처리 자체는 끝까지 성공했는데, 마지막 커밋이 SQLite 쓰기 경합
-    (`is_write_conflict`, `app/core/db.py`)으로 실패했을 때(D-75).
+    """요청 처리 자체는 끝까지 성공했는데, 마지막 커밋이 직렬화 경합
+    (`is_serialization_conflict`, `app/core/db.py`)으로 실패했을 때(D-75).
+
+    **유니크 위반은 여기 오지 않는다**(D-191). 그것은 "다시 하면 된다"가 아니라 "그
+    라우트가 같은 행을 두 번 만들려 했다"는 뜻이라, 재시도를 권하는 503 으로 포장하면
+    진짜 원인이 로그에서 사라진다.
 
     `app/core/deps.py::get_db`의 요청-스코프 바깥 커밋에는 재시도가 없다 — 이미
     `db.rollback()`을 부른 뒤라 방금 flush됐던 행은 사라졌고, 안전하게 재시도하려면

@@ -102,7 +102,10 @@ fi
 # Internet reachability
 PYPI_CODE="$(curl -sI --max-time 10 https://pypi.org 2>/dev/null | head -1)"
 [ -n "$PYPI_CODE" ] && PYPI_OK=true || PYPI_OK=false
-APT_SIM="$(apt-get -s install python3.12-venv nginx openssl sqlite3 zip 2>&1 | tail -5)"
+# 이 목록은 `scripts/install-clovirone-web-assistant.sh` 가 실제로 설치하는 것과 **같아야**
+# 한다. 어긋나면 사전 점검이 초록인데 설치가 패키지에서 죽는다 — 사전 점검의 존재 이유가
+# 정확히 그것을 미리 보는 것이다. `sqlite3` 자리를 `postgresql-client-16` 이 대신한다(D-187).
+APT_SIM="$(apt-get -s install python3.12-venv nginx openssl postgresql-client-16 zip rsync 2>&1 | tail -5)"
 echo "$APT_SIM" | grep -qiE 'newly installed|already the newest|0 upgraded' && APT_OK=true || APT_OK=false
 
 # Existing clovirone-web install (re-run detection)

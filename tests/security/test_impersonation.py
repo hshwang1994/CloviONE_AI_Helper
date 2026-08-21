@@ -21,7 +21,11 @@ import pytest
 from fastapi.routing import APIRoute
 from sqlalchemy import select
 
-pytestmark = pytest.mark.security
+# 이 파일은 **전용 DB** 가 필요하다(D-190). `_count_blocked_write` 가 «요청이 롤백돼도
+# 숫자는 남아야 한다» 를 위해 일부러 **별도 세션**에서 커밋한다 — 공유 DB 계층에서는
+# 그 세션이 같은 커넥션의 SAVEPOINT 라, 요청 롤백이 그 SAVEPOINT 까지 되감아 카운트가
+# 언제나 0이 된다. 제품이 아니라 하네스 때문에 빨간불이 되는 자리다.
+pytestmark = [pytest.mark.security, pytest.mark.real_db]
 
 SAFE_METHODS = {"GET", "HEAD", "OPTIONS", "TRACE"}
 

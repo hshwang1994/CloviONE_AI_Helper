@@ -102,7 +102,10 @@ fi
 
 # 1. Packages ---------------------------------------------------------------
 NEED_PKGS=()
-for pkg in python3.12-venv nginx openssl sqlite3 zip rsync; do
+# `sqlite3` 자리를 `postgresql-client-16` 이 대신한다 — 백업(`pg_dump`)과 복원
+# (`pg_restore`)이 이 패키지에 있다. **서버 자체 설치는 S4 Installer Stage 6·7 의 일이다**
+# (이 스크립트는 그 전 세대다).
+for pkg in python3.12-venv nginx openssl postgresql-client-16 zip rsync; do
   dpkg -s "$pkg" >/dev/null 2>&1 || NEED_PKGS+=("$pkg")
 done
 if [ "${#NEED_PKGS[@]}" -gt 0 ]; then
@@ -233,8 +236,11 @@ done
 # 재생성/pip install)를 지난 뒤다. "아무것도 안 바꿨다"가 아니라 "코드는 새 버전, 스키마는
 # 옛 버전"인 상태로 exit 한다. 되돌리는 일은 이 스크립트의 몫이 아니다 - 호출자
 # (upgrade-clovirone-web-assistant.sh)가 install 실패 전체를 백업 복원으로 감싼다.
-DB_FILE="$VAR_DIR/web.sqlite3"
-if [ -s "$DB_FILE" ]; then
+# 「기존 설치인가」 판정. 예전에는 SQLite 파일이 있는지 봤다 — 그 파일은 이제 없다.
+# 이 스크립트를 그대로 두면 **항상 «새 설치»** 로 보고 아래 안내를 건너뛴다.
+IS_EXISTING=0
+grep -qE "^DATABASE_URL=" "$ETC_DIR/web.env" 2>/dev/null && IS_EXISTING=1
+if [ "$IS_EXISTING" = "1" ]; then
   MISSING_KEYS=""
   for key in NOTION_TASKS_DATABASE_ID NOTION_DOCUMENTS_DATABASE_ID; do
     grep -qE "^${key}=.+" "$ETC_DIR/web.env" || MISSING_KEYS="$MISSING_KEYS $key"
@@ -268,12 +274,12 @@ cd "$APP_DIR"
 log "alembic upgrade head"
 runuser -u "$SVC_USER" -- env $(grep -v '^#' "$ETC_DIR/web.env" | xargs) \
   "$APP_DIR/venv/bin/alembic" -c "$APP_DIR/alembic.ini" upgrade head >>"$LOG" 2>&1
-DB="$VAR_DIR/web.sqlite3"
-if [ -f "$DB" ]; then
-  chown "$SVC_USER":"$SVC_USER" "$DB"; chmod 0660 "$DB"
-  MODE="$(runuser -u "$SVC_USER" -- sqlite3 "$DB" 'PRAGMA journal_mode;')"
-  log "sqlite journal_mode=$MODE"
-fi
+# DB 파일 소유권·PRAGMA 확인이 있던 자리다. PG 에는 «그 파일» 이 없다 — 데이터는 서버가
+# 들고 있고 권한은 역할이 정한다. 대신 **마이그레이션이 실제로 붙었는지**를 확인한다:
+# `alembic upgrade head` 가 조용히 아무것도 안 한 경우를 잡는다.
+HEAD_REV="$(runuser -u "$SVC_USER" -- env $(grep -v '^#' "$ETC_DIR/web.env" | xargs)   "$APP_DIR/venv/bin/alembic" -c "$APP_DIR/alembic.ini" current 2>/dev/null | tail -1)"
+log "alembic current=${HEAD_REV:-<없음>}"
+[ -n "$HEAD_REV" ] || { log "STOP: 마이그레이션이 적용되지 않았다"; exit 22; }
 
 # 8. Discovery import (integrations + workflows) ---------------------------
 log "discovery import"

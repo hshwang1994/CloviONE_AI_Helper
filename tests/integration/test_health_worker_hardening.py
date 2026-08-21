@@ -26,7 +26,10 @@ from app.worker_main import (
 )
 from tests.fakes.clock import FakeClock
 
-pytestmark = pytest.mark.integration
+# 이 파일의 시험 일부는 **전용 DB** 가 필요하다(D-190) — CLI·워커처럼 `DATABASE_URL` 로
+# **따로 붙는** 코드가 이 시험이 만든 행을 봐야 하기 때문이다. 공유 DB + 트랜잭션
+# 되감기 계층에서는 그 행이 트랜잭션 밖으로 안 나가서 「사용자를 찾을 수 없습니다」가 된다.
+pytestmark = [pytest.mark.integration, pytest.mark.real_db]
 
 
 # A real self-signed certificate, notAfter = Jul 16 01:25:28 2036 GMT.

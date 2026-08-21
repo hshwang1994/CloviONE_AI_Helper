@@ -18,13 +18,13 @@ from __future__ import annotations
 import json
 from datetime import datetime
 
-from sqlalchemy import DateTime, Index, Integer, String, Text, func, select
+from sqlalchemy import DateTime, Index, Integer, String, func, select
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Mapped, Session, mapped_column
 
-from app.core.db import is_write_conflict
+from app.core.db import is_insert_race
 from app.core.errors import NotFoundError
-from app.core.models_base import Base, UUIDPrimaryKeyMixin, utcnow
+from app.core.models_base import Base, JsonText, UUIDPrimaryKeyMixin, utcnow
 
 
 class ConfigVersion(UUIDPrimaryKeyMixin, Base):
@@ -48,7 +48,7 @@ class ConfigVersion(UUIDPrimaryKeyMixin, Base):
     object_type: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     object_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     version: Mapped[int] = mapped_column(Integer, nullable=False)
-    snapshot_json: Mapped[str] = mapped_column(Text, nullable=False)
+    snapshot_json: Mapped[str] = mapped_column(JsonText, nullable=False)
     created_by: Mapped[str | None] = mapped_column(String(36))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
 
@@ -100,7 +100,7 @@ def snapshot_config(
                 db.add(row)
                 db.flush()
         except (IntegrityError, OperationalError) as exc:
-            if not is_write_conflict(exc):
+            if not is_insert_race(exc):
                 raise
             if attempt == 1:
                 raise

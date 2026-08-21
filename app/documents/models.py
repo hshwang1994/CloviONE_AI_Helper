@@ -8,7 +8,7 @@ from datetime import datetime
 from sqlalchemy import DateTime, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.core.models_base import Base, UUIDPrimaryKeyMixin, utcnow
+from app.core.models_base import Base, JsonText, UUIDPrimaryKeyMixin, utcnow
 
 MODE_PREVIEW_ONLY = "preview_only"
 MODE_PREVIEW_THEN_APPROVE = "preview_then_approve"
@@ -30,9 +30,9 @@ class DocumentGeneration(UUIDPrimaryKeyMixin, Base):
     mode: Mapped[str] = mapped_column(String(32), nullable=False)
     idempotency_key: Mapped[str] = mapped_column(String(300), unique=True, nullable=False)
     status: Mapped[str] = mapped_column(String(24), nullable=False, default=STATUS_PENDING)
-    config_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
-    preview_json: Mapped[str | None] = mapped_column(Text)
-    quality_problems_json: Mapped[str | None] = mapped_column(Text)
+    config_json: Mapped[str] = mapped_column(JsonText, nullable=False, default="{}")
+    preview_json: Mapped[str | None] = mapped_column(JsonText)
+    quality_problems_json: Mapped[str | None] = mapped_column(JsonText)
     published_ref: Mapped[str | None] = mapped_column(String(500))
     error_message: Mapped[str | None] = mapped_column(Text)
     requested_by: Mapped[str | None] = mapped_column(String(36))

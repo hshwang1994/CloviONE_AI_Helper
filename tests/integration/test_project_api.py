@@ -186,6 +186,7 @@ def test_a_duplicate_code_in_the_same_org_is_409_not_500(client, login_as, world
     assert second.status_code == 409, f"중복 코드가 409 가 아니다: {second.status_code}"
 
 
+@pytest.mark.real_db  # 스레드/별도 세션이 이 시험의 데이터를 봐야 한다 (D-190)
 def test_concurrent_create_same_code_never_500s(app, login_as, world):
     """PROJ-01: 순차 요청은 `ensure_code_is_free`(사전 SELECT)로 409를 준다 — 그런데 두
     요청이 같은 (org_id, code)로 동시에 도착하면 둘 다 그 SELECT를 통과할 수 있다. 결정적으로

@@ -101,7 +101,7 @@ sudo /opt/clovirassist/deploy/install.sh <subcommand> [options]
 | 3 | Source 배치 | git clone/checkout 또는 bundle 전개 (`rsync --delete`) | |
 | 4 | Python Runtime | venv + wheelhouse 우선 `pip install` | |
 | 5 | Frontend Artifact | **커밋된 빌드 산출물(`app/static/react/`) 사용이 기본.** `check_bundle_fresh.py` 로 신선도 검증. Node 가 있으면 소스 빌드 옵션 | 번들 stale 이면 중단 |
-| 6 | **PostgreSQL 설치·초기화** | cluster 확인 · `clovirassist` role/DB 생성 · locale/encoding(UTF-8) · `pg_hba` 최소 권한 · listen 127.0.0.1 · 접속 검증 | |
+| 6 | **PostgreSQL 설치·초기화** | cluster 확인 · `clovirassist` role/DB 생성 · locale/encoding(UTF-8) · `pg_hba` 최소 권한 · listen 127.0.0.1 · 접속 검증 · **`PG_BIN_DIR` 를 `web.env` 에 쓴다**(비우면 `PATH` 의 낮은 버전 `pg_dump` 를 집어 백업이 조용히 실패한다 — S2) · **`max_connections` ≥ 워커수 ×(pool 5 + overflow 10)** | |
 | 7 | **Extension** | `CREATE EXTENSION vector; CREATE EXTENSION pg_trgm;` + 버전 기록 | 미설치 원인 표시 |
 | 8 | Configuration/Secret 분리 | `/etc/clovirassist/clovirassist.env`(0640) + `/etc/clovirassist/secrets/`(0700). **DB 비밀번호는 DSN 이 아니라 `.pgpass`/파일 참조** | |
 | 9 | **DB Migration** | `alembic upgrade head`. 실행 전 현재 revision 과 목표 revision 출력 | revision 위치 표시 |
@@ -214,18 +214,18 @@ nginx)로 1회. **S22** 에서 Storage · AI · index lane 까지 포함한 **�
 
 ---
 
-## 9. 현재 자산 실측 — 있는 것과 없는 것 (2026-08-20)
+## 9. 현재 자산 실측 — 있는 것과 없는 것 (2026-08-20 · **S2 반영 2026-08-21**)
 
 | 있는 것 | 상태 |
 |---|---|
-| `scripts/install-clovirone-web-assistant.sh` (22.6 KB, 12 stage) | 존재하나 **SQLite·Notion·n8n 결합**. PostgreSQL·AI·Storage 개념 없음 |
-| `scripts/upgrade-*.sh` · `rollback-*.sh`(`--uninstall` 포함) · `update-from-git.sh` · `build-bundle.sh` | 존재. Rollback 모델이 **"백업한 DB 파일 되돌리기"** — 단일 파일 전제라 **PG 에서 성립하지 않는다** |
+| `scripts/install-clovirone-web-assistant.sh` (12 stage) | 존재. **S2 가 SQLite 자국만 걷어냈다**(`sqlite3` 패키지 → `postgresql-client-16`, PRAGMA 확인 → `alembic current` 확인, 「기존 설치인가」 판정을 `DATABASE_URL` 기준으로). 여전히 **Notion·n8n 결합**이고 PostgreSQL 설치·AI·Storage 개념이 없다 — 전면 재작성은 S4 |
+| `scripts/upgrade-*.sh` · `rollback-*.sh`(`--uninstall` 포함) · `update-from-git.sh` · `build-bundle.sh` | 존재. **S2 가 백업/롤백의 단일 파일 전제를 걷어냈다**: `backup-*.sh` 는 `pg_dump -Fc` + `pg_restore --list` 검증이고 **실패하면 죽는다**(예전엔 파일이 없으면 조용히 건너뛰고 `BACKUP_OK` 를 찍었다), `rollback-*.sh` 는 `pg_restore --clean --if-exists` 이고 **SQLite 시절 백업을 만나면 그렇게 말하고 멈춘다**. 운영 정책(Schedule·Retention·Manifest)은 여전히 **S12** |
 | `deploy/00-precheck.sh` · `deploy/nginx/*.conf`(`__DNS_NAME__` 템플릿) · systemd unit 4종 | **재사용 가능한 뼈대** |
 | `scripts/validate-clovirone-web-assistant.sh` | **n8n 활성 단언**(`:23`)이 박혀 있어 **n8n 제거 시 실패한다** → S11 |
 
 | 없는 것 |
 |---|
-| GitLab 기준 Source 경로 · PostgreSQL 설치/초기화 · Extension · Storage 준비 · AI Component · Scheduler 별도 인식 · **전 제품 Reboot 검증** · Clean OS 재현 설치 검증 |
+| GitLab 기준 Source 경로 · **PostgreSQL 서버 설치/초기화**(Stage 6·7 — S2 는 앱만 옮겼다) · Extension · Storage 준비 · AI Component · Scheduler 별도 인식 · **전 제품 Reboot 검증** · Clean OS 재현 설치 검증 |
 
 ### 9.1 nginx 하드 블로커
 

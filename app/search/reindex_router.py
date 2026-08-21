@@ -36,7 +36,8 @@ from app.core.deps import get_current_user, get_db, require_csrf
 from app.core.errors import ConflictError, ForbiddenError
 from app.observability.models import COMPONENT_SEARCH
 from app.observability.service import upsert_sync_status
-from app.search.indexer import reindex_all, reindex_lock
+from app.core.advisory_lock import NS_SEARCH_REINDEX, try_lock
+from app.search.indexer import reindex_all
 from app.settings.gate import block_if_maintenance
 from app.users.models import User
 
@@ -71,11 +72,13 @@ def trigger_reindex(
     """
     if me.role not in MODERATOR_ROLES:
         raise ForbiddenError("검색 재색인은 운영자만 실행할 수 있습니다.")
-    if not reindex_lock.acquire(blocking=False):
-        # 기다리지 않는다 — app/tickets/claim_lock.py 와 같은 이유. 신경질적 더블클릭이
-        # 같은 재구축을 두 번 돌리지 않는다.
-        raise ConflictError("이미 검색 재색인이 진행 중입니다. 잠시 후 다시 시도해 주세요.")
-    try:
+    # 잠금은 이 `with` 동안만 산다 — 나가면 잠금 세션이 롤백되며 DB 가 푼다. 예외로
+    # 빠져나가도 마찬가지라, 해제를 빠뜨려 잠금이 영원히 남는 경로가 없다.
+    with try_lock(db, NS_SEARCH_REINDEX) as got_lock:
+        if not got_lock:
+            # 기다리지 않는다 — app/tickets/claim_lock.py 와 같은 이유. 신경질적 더블클릭이
+            # 같은 재구축을 두 번 돌리지 않는다.
+            raise ConflictError("이미 검색 재색인이 진행 중입니다. 잠시 후 다시 시도해 주세요.")
         now = request.app.state.clock.now()
         result = reindex_all(
             db,
@@ -91,8 +94,6 @@ def trigger_reindex(
             item_count=result.item_count, truncated=result.truncated,
             error=result.error, detail={"per_kind": dict(result.per_kind)},
         )
-    finally:
-        reindex_lock.release()
     record_audit_from_request(
         request,
         db,

@@ -20,11 +20,14 @@
 | **P-02** | **S1 결정에 필요한 미확인 항목만 확인** (확보된 Inventory 재조사 금지) | S1 | **DONE** | S1 소유 미확인 항목 넷(01·02·04·10 PROBE 계열 + 05·08 VARCHAR + 06 모델)이 전부 닫혔다. 전수 목록은 만들지 않았다 |
 | **P-03** | PG 스택 성능 검증 — recall/지연/인덱스 파라미터/임베딩·리랭킹 모델 확정 | S1 | **DONE** | 실 PG16.15 + pgvector 0.6.0 + pg_trgm 1.6 에서 실측. **D-209~D-212** 에 기록 |
 | **P-04** | `VARCHAR(n)` 실데이터 길이 감사 | S1 | **DONE** | 모델 선언 410 컬럼 감사. 초과 **1건**(`messages.message_id`)이고 대응은 «넓힌다» — 유니크 키의 일부라 절단이 불가능하다. 상세 `INVENTORY/05_DB.md` |
-| **P-05** | **PostgreSQL Foundation** — 앱 고유 ~60 테이블 이식, 도메인 변경 없음 | S2 | TODO | `DATABASE_URL=postgresql://…` 로 전 회귀 통과 · **SQLite Runtime 의존 0** |
-| **P-06** | `is_write_conflict()` 재분류 + 115 호출부 전수 감사 | S2 | TODO | 직렬화 실패만 재시도. 유니크 충돌은 호출부에서 국소 처리 + 음성 테스트 (R1) |
-| **P-07** | 부분 유니크 3건 · rowid 제거 · `jsonb` 이전 · `SKIP LOCKED` | S2 | TODO | 각각 회귀 테스트 동반. `postgresql_where=` 가 실제로 부분 유니크임을 단언 (R2) |
-| **P-08** | 공유 rate-limit/lock 저장소 → **`--workers` 잠금 해제** | S2 | TODO | **저장소를 먼저 만들고 그 다음에 워커를 올린다** (D-192) |
-| **P-09** | Test Harness 2계층 재구성 + **동시성 테스트 약 40개 재작성** | S2 | TODO | PG 의미(행 잠금·`SKIP LOCKED`·직렬화 실패)를 단언. `qa-contract-replaced-by:` 사용 (R3) |
+| **P-05** | **PostgreSQL Foundation** — 앱 고유 표 이식, 도메인 변경 없음 | S2 | **DONE** | 70 표 · 248 인덱스가 `0001_pg_baseline` 하나로 선다(D-189). 전 회귀 PG 통과 · **SQLite Runtime 의존 0**(`app/**` 에서 `sqlite3` import 0) |
+| **P-06** | `is_write_conflict()` 재분류 + 호출부 전수 감사 | S2 | **DONE** | **40 호출부 · 24 모듈** 전수 감사(계획 추정 115/30 → 실측, D-221). **재시도 9 · insert-race 31**. **음성 테스트로 증명했다**: `tests/security/test_conflict_classification.py` 가 진짜 FK 위반(`23503`)을 실제 PG 에서 만들어 **어느 통에도 안 들어감**을 확인하고, 요청 끝 커밋이 유니크 위반을 503 으로 포장하지 않는 것까지 본다 (R1 닫힘) |
+| **P-07** | 부분 유니크 · rowid 제거 · `jsonb` 이전 · `SKIP LOCKED` | S2 | **DONE** | 부분 유니크 **4개**(실측) `postgresql_where=` · `seq` identity 3표 · `jsonb` **37 컬럼** · claim 에 `FOR UPDATE SKIP LOCKED` (R2 닫힘) |
+| **P-08** | 공유 rate-limit/lock 저장소 → **`--workers` 잠금 해제** | S2 | **DONE** | `rate_limit_buckets` 표 + advisory lock 5자리 + SettingsCache TTL. **저장소를 먼저 만들고** systemd 를 `--workers 4` 로 올렸다 (D-192·D-216·D-217) |
+| **P-09** | Test Harness 2계층 재구성 + 동시성 테스트 재작성 | S2 | **DONE** | 기본=트랜잭션 되감기 · `@pytest.mark.real_db`=전용 DB(D-218). 계약이 바뀐 시험은 `qa-contract-replaced-by:`/`qa-contract-change:` 로 표시했고 `check_test_strength.py` 가 통과한다 (R3 닫힘) |
+| **P-09a** | **`static_checks.sh` 가 지금 빨간불이다 — S2 가 만든 것이 아니다** | UI 축 | TODO | S1 이후 UI 커밋 둘이 남긴 것이고 S2 는 두 파일 다 안 건드렸다(증거: `git blame`). ① `4dd62181` 이 사용자 문구에 가운뎃점(·) **7건**을 넣었다(`Integrity.jsx`·`AccentPicker.jsx`·`Sprint.jsx`·registry 4곳) — 규약은 `clovi-allow-glyph` 를 같은 줄에 적거나 글자를 바꾸는 것. ② `dac17928` 이 `frontend/src/ui/theme.js`(토큰 정본)를 고치고 `node scripts/generate_design_tokens.mjs` 를 안 돌려 `tokens.css` 와 어긋났다. **둘 다 고칠 때까지 모든 Session 이 빨간 정적 검사를 본다** |
+| **P-09b** | **정의되지 않은 이름을 잡는 검사가 없다 — S2 가 그것 때문에 500 을 낼 뻔했다** | 플랫폼 축 | TODO | S2 가 `POST /api/tickets/sync` 의 잠금을 advisory lock 으로 바꾸면서 **import 를 빼먹었다.** 문법도 맞고 수집도 되므로 `compileall`·`pytest --collect-only` 다 초록이었고, **그 라우트를 실제로 부르는 시험 세 개**가 전 회귀 마지막 청크에서 빨간불을 내서야 드러났다. 그 시험이 없었으면 운영에서 500 이다. `pyflakes` 를 넣어 보니 전 저장소에 **F821 이 다섯 자리** 더 있다(아래 P-09c). 넣을 곳은 `scripts/static_checks.sh` 이고, `pyflakes` 를 개발 의존으로 올려야 한다 — S2 는 범위 밖이라 여기에 적어 둔다 |
+| **P-09c** | 이미 있던 F821 다섯 자리 (S2 와 무관, `git blame` 확인) | 플랫폼 축 | TODO | **`app/tickets/service.py:1369` 의 `split_names` 가 진짜 결함이다** — 그 줄에 닿으면 `NameError` 다(`0a082f36`, 2026-08-07). 쓰는 곳은 `service.py` 인데 import 는 `models.py:35` 에 있고 거기서는 안 쓰인다. `service.py:144` 의 `ProjectVisibility` 는 문자열 주석이라 실행 중에는 안 터지지만 `get_type_hints()` 가 부른다(`0427fd8e`). `scripts/bench/quality.py:78` 의 `sess`, `scripts/ui_qa/approval_e2e.py:35·41` 의 `insecure` 는 S1 도구다(`18aef2de`). 안 쓰이는 import 22건도 함께 남아 있다 |
 | **P-10** | Product Identity · Hostname · TLS | S3 | TODO | `openssl s_client` CN/SAN 일치 · `ssl_verify_result=0` · 프로브 TLS 검증 켠 채 통과. **S1 이 스위치를 만들어 뒀다** — `scripts/ui_qa/tls.py` 의 `DEFAULT_VERIFY = True` 한 줄이면 19개 프로브가 함께 켜진다 |
 | **P-11** | **설치 · 배포 자동화 Foundation** — `deploy/install.sh` Stage 0~18 | S4 | TODO | LXD Clean 설치 성공 · 재실행 무해 · 실패 위치/원인 표시 · upgrade/rollback/uninstall 각 1회 · S4 범위 Reboot 복구 |
 
@@ -55,6 +58,7 @@
 |---|---|---|---|---|
 | **P-22** | Backup / Restore 운영 | S12 | TODO | 복원 후 **앱 기동 + 읽기 경로 호출** 통과. **파일 생성만으로 SUCCESS 안 됨** |
 | **P-23** | Migration Tool + Dry Run (Notion + SQLite → 임시 PG) | S13 | TODO | 무결성 전항 0(또는 Exception 분류) · 길이 초과 0 · legacy/canonical 충돌 0 |
+| **P-23a** | `scripts/restore_rehearsal.py` PG 이식 | S12 | TODO | 8단계 중 7단계(**복원본으로 앱을 띄워 읽기 경로 호출**)가 저장소에서 가장 정직한 검증 자산이다. S2 가 SQLite 전제를 깨뜨렸고 **조용히 통과하지 않도록 큰 소리로 멈추게** 해 뒀다 — 그 초록을 믿고 복원 계획을 세우는 것이 가장 나쁘다. **죽은 SQLite 구현 340줄은 지웠다**(이미 없는 `app.backups.sqlite_backup` 을 import 하고 있었다) — 되살리지 말고 PG 기준으로 다시 써라. 옛 구현은 `95a89189` 에 있다. 다만 **8단계 중 첨부 확인(BKP-02)은 살아 있다** — `check_attachment_files()` 는 이미 PG 위에서 돌고 시험도 그대로다. 다시 쓰지 말고 부르면 된다 |
 | **P-24** | **Cutover + Legacy 제거** (단독 Session) | S14 | TODO | Notion/SQLite Runtime 의존 **0** · Legacy 잔존 0 · Rollback 지점 문서화 |
 
 ## Phase E — UI Renewal 재개 (동결 해제)

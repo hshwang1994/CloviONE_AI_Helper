@@ -39,22 +39,44 @@ NOW = datetime(2026, 8, 3, 9, 0, 0)
 
 
 def _plan(db, stmt) -> list[str]:
+    """실행 계획의 각 줄. PG 는 `EXPLAIN` 이다(SQLite 의 `EXPLAIN QUERY PLAN` 이 아니다).
+
+    실행은 하지 않는다 — 계획만 본다.
+    """
     compiled = stmt.compile(
         db.get_bind(), compile_kwargs={"literal_binds": True}
     )
-    return [row[3] for row in db.execute(text("EXPLAIN QUERY PLAN " + str(compiled))).all()]
+    return [row[0] for row in db.execute(text("EXPLAIN " + str(compiled))).all()]
 
 
-def test_author_search_does_not_scan_the_whole_user_table(db):
-    """`SCAN users` 가 계획에 남아 있으면 매 검색마다 사람 표를 통째로 읽는다."""
+def test_author_search_does_not_rescan_users_per_post(db):
+    """작성자 검색이 사람 표를 **글 하나마다 다시 읽지 않는가.**
+
+    qa-contract-change: 실행 계획을 읽는 어휘가 SQLite 와 PG 사이에서 통째로 달라져 단언을 다시 썼다. PG 는 이 질의를 해시 조인으로 풀어 users 를 한 번만 훑으므로, 옛 「users 를 스캔하면 안 된다」를 그대로 옮기면 더 나은 계획을 실패로 판정하게 된다.
+    `SCAN users`(전수) / `SEARCH users`(인덱스) 두 낱말로 말했고, 옛 단언은 "SEARCH 여야
+    한다" 였다 — 그건 SQLite 플래너가 `board_posts` 를 몰고 `users` 를 PK 로 찍는다는
+    전제였다.
+
+    PG 는 같은 질의를 **해시 조인**으로 푼다: `users` 를 **한 번** 훑어 해시를 만들고
+    글마다 그 해시를 본다. 그건 옛 계획보다 나쁘지 않고 대개 낫다. 그러므로 "users 를
+    스캔하면 안 된다" 를 그대로 옮기면 **더 나은 계획을 실패로 판정하게 된다.**
+
+    그래서 엔진과 무관하게 성립하는 성질로 다시 쓴다: **`users` 를 글마다 다시 읽지
+    않는다.** 그 실패 모양이 `Nested Loop` 안쪽의 `users` 스캔이고, 원래 이 시험이
+    막으려던 것도 정확히 그것이다(매 검색마다 사람 표를 반복해서 읽는 것).
+
+    `display_name ILIKE '%…%'` 자체는 어느 DB 에서도 인덱스를 못 탄다(선행 와일드카드) —
+    그러니 "users 를 한 번도 안 읽는다" 는 애초에 요구할 수 없는 성질이다.
+    """
     stmt = select(Post.id).where(author_search_clause("%김%"))
     steps = _plan(db, stmt)
+    joined = chr(10).join(steps)
 
-    assert not any(step.strip().startswith("SCAN users") for step in steps), (
-        f"작성자 검색이 users 를 전수 스캔한다: {steps}"
+    assert "Nested Loop" not in joined, (
+        f"작성자 검색이 users 를 글마다 다시 읽는다: {joined}"
     )
-    assert any("users" in step and "SEARCH" in step for step in steps), (
-        f"users 를 기본키로 찍지 않는다: {steps}"
+    assert joined.count("on users") <= 1, (
+        f"users 를 두 번 이상 읽는다: {joined}"
     )
 
 

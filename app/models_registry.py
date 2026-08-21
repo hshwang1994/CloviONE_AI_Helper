@@ -34,6 +34,7 @@ from app.settings import models as settings_models  # noqa: F401
 from app.team_docs import models as team_docs_models  # noqa: F401
 from app.tickets import models as tickets_models  # noqa: F401
 from app.team_chat import models as team_chat_models  # noqa: F401
+from app.core import ratelimit as ratelimit_models  # noqa: F401
 from app.core import versioning as versioning_models  # noqa: F401
 from app.integrations import models as integrations_models  # noqa: F401
 from app.jobs import models as jobs_models  # noqa: F401

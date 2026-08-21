@@ -26,7 +26,7 @@ from sqlalchemy.orm import Session
 
 from app.core.audit import record_audit_from_request
 from app.core.authz import CONSOLE_READ_ROLES, CONSOLE_WRITE_ROLES
-from app.core.db import is_write_conflict
+from app.core.db import is_insert_race
 from app.core.deps import get_db, require_csrf, require_roles
 from app.core.errors import ConflictError, ValidationAppError
 from app.prompts.models import STATUS_DRAFT, STATUS_PUBLISHED, Policy, Prompt
@@ -231,7 +231,7 @@ def _build_router(kind: str, model, view, create_schema, content_update_schema):
                 db.add(row)
                 db.flush()
         except (IntegrityError, OperationalError) as exc:
-            if not is_write_conflict(exc):
+            if not is_insert_race(exc):
                 raise
             raise ConflictError(
                 f"이미 존재하는 이름입니다: {payload.name}: new-version을 사용하세요."
@@ -321,8 +321,8 @@ def _build_router(kind: str, model, view, create_schema, content_update_schema):
         정면으로 배신하는 오탐이었다. 게다가 이름마다 쿼리를 하나씩 날려(N+1) 이름 수만큼
         LIKE 스캔(인덱스 불가)을 반복했다. `config_json`은 `documents/service.py`가
         `prompt_id`/`policy_id` 키로 정확한 버전 id를 저장하므로(`_resolve_published_binding`
-        결과), LIKE 대신 `json_extract`로 그 키를 **정확히** 뽑아 **한 번**의 질의로 전체
-        집계를 만든다(`jobs/router.py`가 이미 쓰는 것과 같은 `func.json_extract` 패턴).
+        결과), LIKE 대신 `jsonb` 의 `->>` 로 그 키를 **정확히** 뽑아 **한 번**의 질의로 전체
+        집계를 만든다(`jobs/router.py`가 이미 쓰는 것과 같은 패턴).
         표본이 아니라 전수이므로 상한(50)도, 이름당 반복 질의도 사라진다.
         """
         from app.documents.models import DocumentGeneration
@@ -347,7 +347,7 @@ def _build_router(kind: str, model, view, create_schema, content_update_schema):
             if kind == "prompts"
             else []
         )
-        extracted_id = func.json_extract(DocumentGeneration.config_json, "$." + id_field)
+        extracted_id = DocumentGeneration.config_json[id_field].astext
         doc_run_counts: dict[str, int] = dict(
             db.execute(
                 select(extracted_id, func.count())

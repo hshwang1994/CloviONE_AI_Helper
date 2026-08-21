@@ -37,7 +37,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
-from app.core.db import is_write_conflict
+from app.core.db import is_insert_race
 from app.core.errors import AppError, ConflictError, ValidationAppError
 from app.core.models_base import join_names, split_names, utcnow
 from app.core.scope import apply_user_scope
@@ -241,7 +241,7 @@ def run_offboarding(
     try:
         db.commit()
     except (IntegrityError, OperationalError) as exc:
-        if not is_write_conflict(exc):
+        if not is_insert_race(exc):
             raise
         db.rollback()
         raise ConflictError(

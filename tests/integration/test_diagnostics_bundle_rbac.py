@@ -72,7 +72,9 @@ def test_system_admin_diagnostics_bundle_shows_critical_audit(client, login_as, 
     assert "user.role_change" in actions
 
 
-def test_diagnostics_bundle_payload_keeps_fields_pa_rc_0028_stopped_rendering(client, login_as, db):
+def test_diagnostics_bundle_payload_keeps_fields_pa_rc_0028_stopped_rendering(
+    client, login_as, db, stub_pg_dump
+):
     """PA-RC-0028 removed the '백업'/'최근 주요 변경' sections from Diagnostics.jsx's
     body (they duplicated /dashboard's own always-visible sections 16/16 and 3/3) but
     acceptance criterion (3) requires the *payload* to stay whole — the bundle is a

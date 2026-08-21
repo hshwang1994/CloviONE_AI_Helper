@@ -18,7 +18,7 @@ from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
 from app.core.audit import record_audit_from_request
-from app.core.db import DEFAULT_WRITE_CONFLICT_RETRIES, is_write_conflict, write_conflict_backoff
+from app.core.db import DEFAULT_WRITE_CONFLICT_RETRIES, is_insert_race, write_conflict_backoff
 from app.core.errors import ForbiddenError, NotFoundError, ValidationAppError
 from app.core.authz import CONSOLE_WRITE_ROLES
 from app.core.scope import Principal
@@ -404,7 +404,7 @@ def create_organization(
                 db.flush()
             break
         except (IntegrityError, OperationalError) as exc:
-            if not is_write_conflict(exc):
+            if not is_insert_race(exc):
                 raise
             if attempt == _CREATE_ORG_RETRIES - 1:
                 # 예산 소진 — 사전 검사가 잡았을 때와 같은 오류로 통일한다.
@@ -414,7 +414,7 @@ def create_organization(
                 # commit 자체도 심한 경합에서 거부될 수 있다.
                 db.commit()
             except (IntegrityError, OperationalError) as commit_exc:
-                if not is_write_conflict(commit_exc):
+                if not is_insert_race(commit_exc):
                     raise
                 db.rollback()
             time.sleep(write_conflict_backoff(attempt))

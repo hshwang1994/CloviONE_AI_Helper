@@ -27,15 +27,18 @@ from app.jobs.lanes import CONVERSATIONAL_JOB_TYPES
 from app.jobs.worker import Worker, WorkerContext
 from tests.fakes.clock import FakeClock
 
-pytestmark = pytest.mark.integration
+# 이 파일의 시험은 **전용 DB** 가 필요하다(D-190) — 두 번째 커넥션이나 별도
+# 프로세스가 이 시험의 데이터를 봐야 하기 때문이다. 공유 DB + 트랜잭션 되감기
+# 계층에서는 그 데이터가 트랜잭션 밖으로 안 나가서 아무것도 증명하지 못한다.
+pytestmark = [pytest.mark.integration, pytest.mark.real_db]
 
 NOW = datetime(2026, 8, 17, 0, 0, 0)
 
 
-def _make_worker(db_path, handlers, clock, *, settings, **lane_kwargs):
+def _make_worker(db_url, handlers, clock, *, settings, **lane_kwargs):
     """A worker with its own engine/session_factory — a separate connection to the
     same on-disk file, standing in for a separate OS process."""
-    url = f"sqlite:///{db_path.as_posix()}"
+    url = db_url
     engine = make_engine(url)
     factory = make_session_factory(engine)
     ctx = WorkerContext(settings=settings, clock=clock)
@@ -43,8 +46,8 @@ def _make_worker(db_path, handlers, clock, *, settings, **lane_kwargs):
     return worker, engine
 
 
-def _enqueue(db_path, job_type, now, **kwargs):
-    url = f"sqlite:///{db_path.as_posix()}"
+def _enqueue(db_url, job_type, now, **kwargs):
+    url = db_url
     engine = make_engine(url)
     factory = make_session_factory(engine)
     try:
@@ -56,10 +59,10 @@ def _enqueue(db_path, job_type, now, **kwargs):
         engine.dispose()
 
 
-def _status(db_path, job_id):
+def _status(db_url, job_id):
     from app.jobs.models import Job
 
-    url = f"sqlite:///{db_path.as_posix()}"
+    url = db_url
     engine = make_engine(url)
     factory = make_session_factory(engine)
     try:
@@ -76,13 +79,13 @@ def lane_settings(settings: Settings) -> Settings:
     return settings
 
 
-def _claim_and_leave_running(db_path, now, **claim_kwargs):
+def _claim_and_leave_running(db_url, now, **claim_kwargs):
     """Simulate a job whose handler is genuinely still executing — `Worker.run_once`
     always finishes (or fails) the job in the same call once the handler returns, so
     to get a job stuck in `running` (the state a real long schedule_run sits in for
     up to 3600s) we claim it directly and stop there, exactly like
     test_worker.py::test_worker_startup_sweep_recovers_stuck_jobs does."""
-    url = f"sqlite:///{db_path.as_posix()}"
+    url = db_url
     engine = make_engine(url)
     factory = make_session_factory(engine)
     try:
@@ -93,47 +96,47 @@ def _claim_and_leave_running(db_path, now, **claim_kwargs):
         engine.dispose()
 
 
-def test_long_batch_job_does_not_block_a_chat_message(db_path, lane_settings):
+def test_long_batch_job_does_not_block_a_chat_message(db_url, lane_settings):
     executed = []
     conv_handlers = {"chat_message": lambda db, job, ctx: executed.append(job.id)}
     conv, conv_engine = _make_worker(
-        db_path, conv_handlers, FakeClock(NOW), settings=lane_settings,
+        db_url, conv_handlers, FakeClock(NOW), settings=lane_settings,
         include_types=CONVERSATIONAL_JOB_TYPES,
     )
     try:
-        schedule_id = _enqueue(db_path, "schedule_run", NOW)
-        chat_id = _enqueue(db_path, "chat_message", NOW)
+        schedule_id = _enqueue(db_url, "schedule_run", NOW)
+        chat_id = _enqueue(db_url, "chat_message", NOW)
 
         claimed = _claim_and_leave_running(
-            db_path, NOW, exclude_types=CONVERSATIONAL_JOB_TYPES,
+            db_url, NOW, exclude_types=CONVERSATIONAL_JOB_TYPES,
             takeover_after_seconds=lane_settings.worker_conversational_takeover_seconds,
         )
         assert claimed == schedule_id
-        assert _status(db_path, schedule_id) == "running"
+        assert _status(db_url, schedule_id) == "running"
 
         assert conv.run_once(NOW) is True  # unaffected by the stuck batch job
         assert executed == [chat_id]
-        assert _status(db_path, chat_id) == "succeeded"
+        assert _status(db_url, chat_id) == "succeeded"
     finally:
         conv_engine.dispose()
 
 
-def test_neither_lane_ever_claims_the_others_job_type(db_path, lane_settings):
+def test_neither_lane_ever_claims_the_others_job_type(db_url, lane_settings):
     claimed_by_batch, claimed_by_conv = [], []
     batch_handlers = {"schedule_run": lambda db, job, ctx: claimed_by_batch.append(job.id)}
     conv_handlers = {"chat_message": lambda db, job, ctx: claimed_by_conv.append(job.id)}
 
     batch, batch_engine = _make_worker(
-        db_path, batch_handlers, FakeClock(NOW), settings=lane_settings,
+        db_url, batch_handlers, FakeClock(NOW), settings=lane_settings,
         exclude_types=CONVERSATIONAL_JOB_TYPES, takeover_after_seconds=lane_settings.worker_conversational_takeover_seconds,
     )
     conv, conv_engine = _make_worker(
-        db_path, conv_handlers, FakeClock(NOW), settings=lane_settings,
+        db_url, conv_handlers, FakeClock(NOW), settings=lane_settings,
         include_types=CONVERSATIONAL_JOB_TYPES,
     )
     try:
-        chat_id = _enqueue(db_path, "chat_message", NOW)
-        schedule_id = _enqueue(db_path, "schedule_run", NOW, available_at=NOW + timedelta(seconds=1))
+        chat_id = _enqueue(db_url, "chat_message", NOW)
+        schedule_id = _enqueue(db_url, "schedule_run", NOW, available_at=NOW + timedelta(seconds=1))
 
         # Each lane polls repeatedly — a bug here would show up as cross-claiming, not
         # just on the first call.
@@ -148,32 +151,32 @@ def test_neither_lane_ever_claims_the_others_job_type(db_path, lane_settings):
         conv_engine.dispose()
 
 
-def test_conversational_sweep_does_not_touch_a_running_batch_job(db_path, lane_settings):
+def test_conversational_sweep_does_not_touch_a_running_batch_job(db_url, lane_settings):
     batch_handlers = {"schedule_run": lambda db, job, ctx: None}
     conv_handlers = {"chat_message": lambda db, job, ctx: None}
 
     batch, batch_engine = _make_worker(
-        db_path, batch_handlers, FakeClock(NOW), settings=lane_settings,
+        db_url, batch_handlers, FakeClock(NOW), settings=lane_settings,
         exclude_types=CONVERSATIONAL_JOB_TYPES, takeover_after_seconds=lane_settings.worker_conversational_takeover_seconds,
     )
     conv, conv_engine = _make_worker(
-        db_path, conv_handlers, FakeClock(NOW), settings=lane_settings,
+        db_url, conv_handlers, FakeClock(NOW), settings=lane_settings,
         include_types=CONVERSATIONAL_JOB_TYPES,
     )
     try:
-        schedule_id = _enqueue(db_path, "schedule_run", NOW)
+        schedule_id = _enqueue(db_url, "schedule_run", NOW)
         claimed = _claim_and_leave_running(
-            db_path, NOW, exclude_types=CONVERSATIONAL_JOB_TYPES,
+            db_url, NOW, exclude_types=CONVERSATIONAL_JOB_TYPES,
             takeover_after_seconds=lane_settings.worker_conversational_takeover_seconds,
         )
         assert claimed == schedule_id
-        assert _status(db_path, schedule_id) == "running"
+        assert _status(db_url, schedule_id) == "running"
 
         # Far past any running-timeout — a lane-blind sweep would recover this.
         later = NOW + timedelta(seconds=4000)
         recovered_by_conv = conv.sweep(later)
         assert recovered_by_conv == 0
-        assert _status(db_path, schedule_id) == "running", (
+        assert _status(db_url, schedule_id) == "running", (
             "대화형 sweep이 실행 중인 schedule_run을 건드렸다 — WorkerLock이 막으려는 "
             "이중 실행이 sweep 경로로 재발한다"
         )
@@ -187,31 +190,31 @@ def test_conversational_sweep_does_not_touch_a_running_batch_job(db_path, lane_s
         conv_engine.dispose()
 
 
-def test_flag_off_a_single_unfiltered_worker_still_processes_chat_exactly_as_before(db_path, settings):
+def test_flag_off_a_single_unfiltered_worker_still_processes_chat_exactly_as_before(db_url, settings):
     """settings.worker_conversational_lane_enabled defaults False — build_batch_worker
     then passes no lane kwargs at all, i.e. plain Worker(...) exactly like pre-D-118."""
     executed = []
     handlers = {"chat_message": lambda db, job, ctx: executed.append(job.id)}
-    worker, engine = _make_worker(db_path, handlers, FakeClock(NOW), settings=settings)
+    worker, engine = _make_worker(db_url, handlers, FakeClock(NOW), settings=settings)
     try:
-        chat_id = _enqueue(db_path, "chat_message", NOW)
+        chat_id = _enqueue(db_url, "chat_message", NOW)
         assert worker.run_once(NOW) is True
         assert executed == [chat_id]
     finally:
         engine.dispose()
 
 
-def test_takeover_fires_when_the_conversational_lane_never_shows_up(db_path, lane_settings):
+def test_takeover_fires_when_the_conversational_lane_never_shows_up(db_url, lane_settings):
     """The conversational lane process never starts (crashed, never installed) — the
     batch lane must eventually claim the stranded chat_message, not leave it forever."""
     executed = []
     handlers = {"chat_message": lambda db, job, ctx: executed.append(job.id)}
     batch, engine = _make_worker(
-        db_path, handlers, FakeClock(NOW), settings=lane_settings,
+        db_url, handlers, FakeClock(NOW), settings=lane_settings,
         exclude_types=CONVERSATIONAL_JOB_TYPES, takeover_after_seconds=120,
     )
     try:
-        chat_id = _enqueue(db_path, "chat_message", NOW)
+        chat_id = _enqueue(db_url, "chat_message", NOW)
 
         # Still within the grace period — batch must not grab it (the conversational
         # lane might just be a little slow to poll, not actually gone).

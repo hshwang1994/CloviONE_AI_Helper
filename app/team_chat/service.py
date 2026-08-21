@@ -16,7 +16,7 @@ from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
 from app.core import people
-from app.core.db import is_write_conflict, write_conflict_backoff
+from app.core.db import is_insert_race, write_conflict_backoff
 from app.core.errors import ConflictError, ForbiddenError, NotFoundError, ValidationAppError
 from app.core.presence import PRESENCE_THROTTLE_SECONDS, should_touch
 from app.notifications.service import notify_user
@@ -82,7 +82,7 @@ def _append_message(db: Session, room: ChatRoom, *, kind: str, sender_id: str | 
             db.flush()
             return msg
         except (IntegrityError, OperationalError) as exc:
-            if not is_write_conflict(exc):
+            if not is_insert_race(exc):
                 raise
             db.refresh(room)  # 다른 요청이 먼저 seq를 붙였다 — 다시 계산
             if attempt < _SEQ_RETRIES - 1:
@@ -127,7 +127,7 @@ def ensure_team_room(db: Session, user: User, *, now: datetime) -> ChatRoom | No
                 db.add(room)
                 db.flush()
         except (IntegrityError, OperationalError) as exc:
-            if not is_write_conflict(exc):
+            if not is_insert_race(exc):
                 raise
             room = repository.get_team_room(db, dept_id)
             if room is None:
@@ -336,7 +336,7 @@ def create_or_get_direct(db: Session, user: User, *, other_user_id: str, now: da
             db.add(room)
             db.flush()
     except (IntegrityError, OperationalError) as exc:
-        if not is_write_conflict(exc):
+        if not is_insert_race(exc):
             raise
         # 동시 생성 경쟁에서 졌다 — 먼저 만들어진 방을 돌려준다.
         won = repository.get_direct_by_key(db, key)

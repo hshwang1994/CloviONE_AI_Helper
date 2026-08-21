@@ -13,7 +13,7 @@ from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
 from app.auth.models import UserSession
-from app.core.db import is_write_conflict
+from app.core.db import is_insert_race
 from app.core.errors import ConflictError, NotFoundError, ValidationAppError
 from app.profiles import prefs
 from app.profiles.models import SavedView, UserPreference
@@ -396,7 +396,7 @@ def create_view(
             db.add(row)
             db.flush()
     except (IntegrityError, OperationalError) as exc:
-        if not is_write_conflict(exc):
+        if not is_insert_race(exc):
             raise
         raise ConflictError("같은 이름의 뷰가 이미 있습니다. 덮어쓸까요?") from exc
     return row

@@ -1,8 +1,8 @@
 """ConfigVersion 유니크 제약이 ORM 메타데이터에도 선언돼 있는지 (round8 감사).
 
-alembic 마이그레이션 0004(alembic/versions/0004_integrations_config_versions.py)는
-config_versions 테이블에 (object_type, object_id, version) 유니크 인덱스
-(`uq_config_versions_object_version`)를 DB 단에서 만든다. 하지만 ORM 모델
+마이그레이션(`0001_pg_baseline`)은 config_versions 테이블에
+(object_type, object_id, version) 유니크 인덱스(`uq_config_versions_object_version`)를
+DB 단에서 만든다. 하지만 ORM 모델
 (app.core.versioning.ConfigVersion)에 같은 제약이 __table_args__ 로 선언돼
 있지 않으면, alembic 을 거치지 않고 Base.metadata.create_all() 로 테이블을
 만드는 경로는 이 제약이 빠진 채 테이블이 만들어진다 - snapshot_config 의 동시
@@ -23,13 +23,24 @@ from sqlalchemy.orm import Session
 from app.core.models_base import Base
 from app.core.versioning import ConfigVersion
 
-pytestmark = pytest.mark.unit
+# 이 파일의 시험은 **전용 DB** 가 필요하다(D-190) — 두 번째 커넥션이나 별도
+# 프로세스가 이 시험의 데이터를 봐야 하기 때문이다. 공유 DB + 트랜잭션 되감기
+# 계층에서는 그 데이터가 트랜잭션 밖으로 안 나가서 아무것도 증명하지 못한다.
+pytestmark = [pytest.mark.unit, pytest.mark.real_db]
 
 
-def test_unique_constraint_survives_create_all_without_alembic(tmp_path):
-    db_path = tmp_path / "create_all_only.sqlite3"
-    engine = create_engine(f"sqlite:///{db_path}")
-    # alembic upgrade 를 전혀 거치지 않는다 - ORM 메타데이터만으로 테이블을 만든다.
+def test_unique_constraint_survives_create_all_without_alembic(db_url):
+    """마이그레이션이 만든 표를 지우고 **ORM 메타데이터만으로** 다시 만든다.
+
+    `db_url` 은 이 시험 전용 실제 DB 다 — 여러 커넥션이 필요해서가 아니라 `DROP TABLE` /
+    `CREATE TABLE` 을 하기 때문이다. 기본 계층(트랜잭션 되감기)에서 DDL 을 돌리면 같은
+    스키마를 쓰는 다른 시험과 부딪힌다.
+    """
+    from app.core.db import normalize_database_url
+
+    engine = create_engine(normalize_database_url(db_url))
+    # alembic 이 만든 것을 걷어내고, ORM 메타데이터만으로 다시 만든다.
+    ConfigVersion.__table__.drop(engine, checkfirst=True)
     Base.metadata.create_all(engine, tables=[ConfigVersion.__table__])
 
     with Session(engine) as session:

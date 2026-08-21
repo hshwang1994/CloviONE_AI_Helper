@@ -108,9 +108,13 @@ def test_a_lost_race_does_not_roll_back_other_pending_changes_in_the_same_sessio
     def failing_once(*args, **kwargs):
         calls["n"] += 1
         if calls["n"] == 1:
-            raise IntegrityError(
-                "INSERT INTO config_versions ...", {}, Exception("UNIQUE constraint failed")
-            )
+            # 진짜 유니크 위반처럼 **SQLSTATE 를 달아** 던진다. 안 달면
+            # `is_insert_race()` 가 «분류할 수 없는 예외» 로 보고 그대로 올린다 —
+            # 그리고 그게 맞는 동작이다(D-191: 정체를 모르는 IntegrityError 를
+            # 재시도로 삼키지 않는다).
+            orig = Exception("duplicate key value violates unique constraint")
+            orig.sqlstate = "23505"
+            raise IntegrityError("INSERT INTO config_versions ...", {}, orig)
         return orig_flush(*args, **kwargs)
 
     db.flush = failing_once

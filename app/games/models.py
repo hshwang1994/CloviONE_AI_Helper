@@ -12,11 +12,12 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.models_base import (
     Base,
+    JsonText,
     OrgScopedMixin,
     TimestampMixin,
     UUIDPrimaryKeyMixin,
@@ -79,8 +80,8 @@ class GameRoom(OrgScopedMixin, UUIDPrimaryKeyMixin, TimestampMixin, Base):
     status: Mapped[str] = mapped_column(String(16), nullable=False, default=ROOM_WAITING, index=True)
     max_players: Mapped[int] = mapped_column(Integer, nullable=False, default=8)
     allow_spectators: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    config_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
-    state_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    config_json: Mapped[str] = mapped_column(JsonText, nullable=False, default="{}")
+    state_json: Mapped[str] = mapped_column(JsonText, nullable=False, default="{}")
     # 이벤트 순번 카운터 — 방에 이벤트를 붙일 때마다 +1. 폴링 커서로 쓴다.
     event_seq: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     closed_at: Mapped[datetime | None] = mapped_column(DateTime, index=True)
@@ -110,7 +111,7 @@ class GameEvent(UUIDPrimaryKeyMixin, Base):
     seq: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
     kind: Mapped[str] = mapped_column(String(16), nullable=False)
     actor_user_id: Mapped[str | None] = mapped_column(String(36))
-    payload_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    payload_json: Mapped[str] = mapped_column(JsonText, nullable=False, default="{}")
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
 
     __table_args__ = (

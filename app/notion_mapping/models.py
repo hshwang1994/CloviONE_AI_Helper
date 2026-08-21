@@ -7,7 +7,7 @@ from datetime import datetime
 from sqlalchemy import DateTime, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.core.models_base import Base, UUIDPrimaryKeyMixin
+from app.core.models_base import Base, JsonText, UUIDPrimaryKeyMixin
 
 STATUS_UNMAPPED = "unmapped"
 STATUS_VERIFIED = "verified"
@@ -30,4 +30,4 @@ class UserNotionMapping(UUIDPrimaryKeyMixin, Base):
     last_verified_at: Mapped[datetime | None] = mapped_column(DateTime)
     error_message: Mapped[str | None] = mapped_column(Text)
     # Candidate matches captured on conflict so an admin can resolve it.
-    candidates_json: Mapped[str | None] = mapped_column(Text)
+    candidates_json: Mapped[str | None] = mapped_column(JsonText)
