@@ -13,12 +13,13 @@
 - phase: **A — 기반**
 - session: **S2 완료.** 다음은 **S3 — Product Identity · Hostname · TLS**
 - branch: `ui/mui-migration`
-- last_stable_commit: **`95a89189`** — 아직 **S1 의 마지막 커밋**이다.
+- last_stable_commit: **`eec4886c`** — S2 본체 커밋이다.
   **`check_test_strength.py` 가 이 값을 기준선으로 읽는다** — 그래서 이 줄은 장식이 아니다.
-  S2 의 시험 변경이 그 기준선과 비교돼야 하므로, **S2 본체를 커밋한 직후** 후속 커밋
-  하나로 이 값을 S2 해시로 올린다(S1 이 `2b890846` 로 한 것과 같은 순서). 그래야
-  **커밋된 시험 약화**가 다음 세션에 보인다
+  S2 의 시험 변경은 `95a89189` 와 비교해 이미 확인했고(TEST_STRENGTH_OK, 시험 파일 87개),
+  이제 기준선을 S2 로 올려 **S3 부터의 시험 약화**가 보이게 한다. S1 이 `2b890846` 로 한
+  것과 같은 순서다 — 본체를 먼저 커밋하고, 기준선은 그 다음 커밋에서 옮긴다
 - s1_commit: `95a89189`
+- s2_commit: `eec4886c`
 - working_tree: clean
 - **제품 코드가 크게 바뀌었다** — S1 과 정반대다. `app/**` · `alembic/**` · `tests/**` ·
   `deploy/**` · `scripts/**` 가 전부 움직였다. 앱은 이제 **PostgreSQL 로만 뜬다**
