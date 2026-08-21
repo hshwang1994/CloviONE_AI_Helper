@@ -45,7 +45,7 @@ import { prefersReducedMotion } from "../ui/motion.js";
 import { Banners } from "./Banners.jsx";
 import { useStatusNotices } from "./StatusNotices.jsx";
 import { NOTI_UNREAD, invalidateNotifications, notiUnreadKey } from "./notification-keys.js";
-import { BRAND_TAGLINE_MIN_PX, BREAKPOINTS, CONTENT_MAX_WIDTH, CONTROL, FONT_SIZE, FONT_WEIGHT, ICON,
+import { BREAKPOINTS, CONTENT_MAX_WIDTH, CONTROL, FONT_SIZE, FONT_WEIGHT, ICON,
   NAV_ANATOMY, RADIUS, remPx } from "../ui/theme.js";
 import { useThemeMode } from "../ui/ThemeModeProvider.jsx";
 import { applyTheme, storeTheme } from "./theme-store.js";
@@ -921,44 +921,6 @@ export function AppShell({
             label={minimal ? "로그인 화면으로" : "홈으로"}
             width={isNarrow ? undefined : DRAWER_WIDTH}
           />
-
-          {/* 제품 태그라인 — 락업 **옆**, 락업 칸 **밖**.
-           *
-           * W2(D-183 ⑦)가 상단바 락업에서 부제를 빼면서 근거로 든 두 자리 중 하나(사이드바
-           * 서랍 머리)는 전 뷰포트에서 이 AppBar 에 가려진 죽은 마크업이었고, 다른 하나
-           * (로그인 SVG 락업의 부제)는 캡 높이 5px 이었다 — 즉 제품의 태그라인은 **어느
-           * 폭·어느 테마에서도 화면에 없었다**. R-13 이 실제로 필요로 한 레버는 «줄 수»
-           * (=락업 높이)이므로, 한 줄 옆에 놓으면 그 레버는 그대로다.
-           *
-           * 락업 버튼 **안**에 넣지 않는 이유: 그 버튼은 사이드바 열과 같은 폭에 묶여 있어
-           * 내용이 넘치면 락업이 왼쪽에서 잘린다(실측으로 밟았다). 여기 두면 락업 칸의
-           * 경계는 그대로 두고 남는 상단바 폭만 쓴다(1920 33% · 3840 59% 실측).
-           * 좁은 화면(<1600)에서는 그리지 않는다 — 그 폭에서는 검색 막대를 밀어낸다.
-           * `aria-hidden`: 락업의 `aria-label` 이 이미 같은 문구를 낭독한다. */}
-          {!minimal ? (
-            <Box
-              component="span"
-              aria-hidden="true"
-              sx={{
-                display: "none",
-                [`@media (min-width:${BRAND_TAGLINE_MIN_PX}px)`]: { display: "inline-block" },
-                flexShrink: 0,
-                marginInlineStart: 1.5,
-                paddingInlineStart: 1.5,
-                borderInlineStartStyle: "solid",
-                borderInlineStartWidth: "1px",
-                borderInlineStartColor: (t) => t.palette.chrome.line,
-                fontSize: FONT_SIZE.caption,
-                fontWeight: FONT_WEIGHT.semibold,
-                letterSpacing: "0.06em",
-                lineHeight: 1.2,
-                whiteSpace: "nowrap",
-                color: (t) => t.palette.chrome.onShellMuted,
-              }}
-            >
-              SMART WORKSPACE ASSISTANT
-            </Box>
-          ) : null}
 
           {/* 검색은 브랜드 칸과 AI 앵커 **사이의 가운데**에 놓는다 (지시 13 «Global Search 와
               사용자 영역과의 균형»). 예전에는 브랜드 바로 뒤에 붙고 오른쪽이 통째로 비어

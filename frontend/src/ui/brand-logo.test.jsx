@@ -170,7 +170,7 @@ describe("BrandLogo 한 줄 모드 (subtitle=false)", () => {
       .find((el) => el.tagName.toLowerCase() === "svg" && el !== wordmark);
     const size = lastUnconditionalDeclaration(mark, "width");
     expect(size, "마크 폭 선언을 못 찾았다").toBeTruthy();
-    expect(size).not.toBe("3.37em");
+    expect(size).not.toBe("3.49em");
     expect(Number.parseFloat(size)).toBeLessThan(3.37);
     // 워드마크 잉크 상자(15em × 50/346 = 2.17em)보다는 커야 광학적으로 균형이 맞는다.
     expect(Number.parseFloat(size)).toBeGreaterThan(2.17);
@@ -212,17 +212,16 @@ describe("BrandLogo 락업 — 마크 + 2단 텍스트 블록", () => {
     }
   });
 
-  it("두 줄은 시작점이 아니라 가운데를 맞춘다", () => {
-    /* 두 줄의 폭은 정확히 같지 않다(부제 15.83em vs 워드마크 15em, 그리고 폰트가 폴백으로
-     * 떨어지면 부제가 더 좁아진다). 시작점만 맞추면 그 차이가 전부 오른쪽에 몰려 블록이
-     * 왼쪽으로 쏠려 보인다 — 사용자 지적("중앙 정렬이 어색하다")이 그것이다.
-     * letter-spacing 을 벌려 폭을 억지로 맞추는 대신 가운데를 맞춘다. */
+  it("두 줄은 같은 폭으로 왼쪽을 맞춘다 — 부제가 ClovirAssist 아래에 붙는다", () => {
     renderLogo();
     const wordmark = document.querySelector("svg.wordmark");
     const subtitle = screen.getByText("SMART WORKSPACE ASSISTANT", { selector: "span" });
+    const block = wordmark.parentElement;
 
-    expect(lastUnconditionalDeclaration(wordmark.parentElement, "align-items")).toBe("center");
-    expect(lastUnconditionalDeclaration(subtitle, "text-align")).toBe("center");
+    expect(lastUnconditionalDeclaration(block, "align-items")).toBe("stretch");
+    expect(lastUnconditionalDeclaration(subtitle, "text-align")).toBe("justify");
+    expect(lastUnconditionalDeclaration(subtitle, "text-align-last")).toBe("justify");
+    expect(lastUnconditionalDeclaration(subtitle, "width")).toBe("100%");
   });
 
   it("마크와 텍스트 블록은 가로로 나란히 놓인다", () => {

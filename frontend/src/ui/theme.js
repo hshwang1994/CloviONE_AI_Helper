@@ -501,15 +501,6 @@ export const DEBOUNCE_MS = { filter: 300, palette: 220 };
 
 export const BREAKPOINTS = { xs: 0, sm: 600, md: 900, lg: 1200, xl: 1536, xxl: 2200, uhd: 3000 };
 
-/* 상단바 브랜드 태그라인이 서는 최소 폭 (W5).
- *
- * 락업(약 197px)과 태그라인(약 190px)이 상단바 왼쪽에서 검색 막대를 밀어내지 않는 최소
- * 폭이다 — 1366 에서 상단바의 빈 폭은 6% 뿐이라 그 아래에서는 그리지 않는다(1920 33% ·
- * 3840 59% 실측). 기존 브레이크포인트 중에는 이 뜻을 가진 값이 없어 이름을 따로 준다 —
- * `xl`(1536)에 얹으면 «xl 이 무엇을 뜻하는가» 가 하나 더 늘고, 리터럴로 적으면
- * `root-scale-lever.test.js` 가 «셸에 해상도 리터럴» 로 잡는다(그 시험이 옳다). */
-export const BRAND_TAGLINE_MIN_PX = 1600;
-
 /* 표가 카드 목록으로 접히는 지점. 899.95 는 MUI 가 `down("md")` 에서 만드는 값과 같다. */
 export const TABLE_CARD_QUERY = `(max-width:${BREAKPOINTS.md - 0.05}px)`;
 
@@ -782,6 +773,24 @@ export function createClovirTheme(mode = "light", accent = DEFAULT_ACCENT) {
             height: remPx(CONTROL.button),
             padding: remPx(10),
           },
+          /* `size="small"` 은 손잡이가 16px, switchBase 패딩이 4px 이다. root 만 34/10 으로
+             키우면 손잡이가 상자 천장에 붙어 라벨보다 위로 뜬다(프로젝트 필터 실측).
+             상자 높이는 작은 버튼(30)과 같고, 패딩은 손잡이를 세로 가운데에 둔다. */
+          sizeSmall: {
+            height: remPx(CONTROL.buttonSm),
+            padding: remPx((CONTROL.buttonSm - 16) / 2),
+            "& .MuiSwitch-switchBase": {
+              padding: remPx((CONTROL.buttonSm - 16) / 2),
+            },
+          },
+        },
+      },
+      /* 라벨이 `<Typography>`(기본 <p>)이면 UA 마진이 글자를 컨트롤 아래로 민다.
+         스위치·체크박스 공통이다. */
+      MuiFormControlLabel: {
+        styleOverrides: {
+          root: { alignItems: "center" },
+          label: { "& .MuiTypography-root": { margin: 0 } },
         },
       },
       MuiCheckbox: {

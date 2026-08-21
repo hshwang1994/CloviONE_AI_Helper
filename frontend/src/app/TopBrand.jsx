@@ -62,28 +62,13 @@ export default function TopBrand({ onClick, label = "홈으로", width }) {
         minWidth: 0,
       }}
     >
-      {/* 락업은 **한 줄**이다 (R-13 "로고 영역을 현재보다 조금 줄인다").
-          부제 글자 크기는 줄일 수 없다 — QA 의 tiny_text 가 폭 2200 이상에서 12px 하한을
-          걸고, 그 폭에서 그 글자는 이미 12.24px 다(BrandLogo 의 BRAND_UNIT 주석). 즉 락업을
-          줄이는 유일한 레버는 **줄 수**다. 두 줄에서 한 줄로 내리면 락업이 216×37 →
-          약 197×27(면적 -33%)이 되고, 로고가 헤더의 시각적 중심을 과도하게 차지하지 않는다.
+      {/* 락업은 **두 줄**이다. 부제 "SMART WORKSPACE ASSISTANT" 가 ClovirAssist 바로
+          아래에, 같은 폭으로 붙는다. 옆에 세로 구분선으로 떼어 두지 않는다.
 
-          ── W5 정정: 태그라인이 **아무 데도 없었다** ────────────────────────────
-          W2(D-183 ⑦)는 부제를 빼면서 "태그라인은 사라지지 않는다 — 좁은 화면 사이드바
-          서랍 머리와 로그인 화면이 계속 보여 준다"고 적었다. 그 근거 두 개 중 하나는
-          **실재하지 않았다**: 사이드바 머리(`AppShell` 의 Toolbar)는 Drawer paper 가
-          `top:0` 에서 시작하는데 그 위를 `zIndex: drawer + 1` 인 fixed AppBar 가 같은
-          높이로 덮는다 — 서랍을 연 390 에서도 덮인다(`w4-nav-e2e/anatomy-*-390x844.png`
-          에 그 머리가 없다). 남은 하나(로그인)는 실재하지만 두 SVG 락업의 부제가 1920·3840
-          양쪽에서 **캡 높이 5px(≈7px 글자)** 이라 읽을 수 있는 크기가 아니다.
-          결과적으로 제품의 태그라인은 **어느 폭·어느 테마에서도 화면에 없었다.**
-
-          그래서 되돌리되 **줄 수는 늘리지 않는다** — 부제는 워드마크 **옆**에 인라인으로
-          놓는다. 다만 이 버튼 안이 아니라 **상단바 흐름**에 놓는다(`AppShell` 의 Toolbar):
-          이 칸은 사이드바 열과 같은 폭(`DRAWER_WIDTH`)에 묶여 있어서, 안에 넣으면 내용이
-          칸을 넘겨 락업이 왼쪽에서 잘린다(실측: 「ClovirAssist」가 「irAssist」로 잘렸다).
-          R-13 이 필요로 한 레버(높이)는 그대로 지켜진다. */}
-      <BrandLogo subtitle={false} sx={{ display: "none", [WIDE]: { display: "inline-flex" } }} />
+          이 칸은 사이드바 열과 같은 폭(`DRAWER_WIDTH`)이다. 2줄 락업(마크+워드마크+부제)은
+          그 폭 안에 들어간다. 예전처럼 부제를 워드마크 **옆**에 인라인으로 넣으면 칸을
+          넘겨 잘린다. */}
+      <BrandLogo sx={{ display: "none", [WIDE]: { display: "inline-flex" } }} />
       {/* 자르는 대신 같은 마크를 그린다 — 인라인 SVG라 자를 이유가 없다. */}
       <BrandLogo markOnly width={34} sx={{ [WIDE]: { display: "none" } }} />
     </Button>

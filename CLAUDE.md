@@ -59,6 +59,7 @@
 
 권한/환경 문제를 중간에 발견해 재작업이나 이상한 우회 구현을 만들지 않는 것이 목적이다.
 정상적인 기존 경로로 해결 가능하면 사용자에게 되묻지 말고 진행한다.
+랩 서버 SSH/sudo와 Notion 토큰은 `dist/ops/server.env`와 `var/secrets/`에 있다(gitignore). 파일이 있으면 읽고 묻지 않는다. 값을 tracked 파일·커밋·로그에 복사하지 않는다.
 사람만 해결 가능한 실제 Blocker는 큰 구현 전에 보고한다.
 
 ## 4. Session 시작과 Context 복구

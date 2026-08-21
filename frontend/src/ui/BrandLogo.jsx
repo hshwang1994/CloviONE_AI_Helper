@@ -119,25 +119,23 @@ function CloverMark({ uid, mode }) {
  *
  * 폭은 눈대중이 아니라 실측이다(PIL/FreeType 으로 폰트 파일에서 진행폭 측정):
  *   "SMART WORKSPACE ASSISTANT" — Pretendard Variable 600, 자간 없이 **15.58em**.
- *   letter-spacing 0.01em × 25자를 더해 15.83em → 1080p 기준 172px.
- *   워드마크는 15em(163px)으로 그보다 조금 좁게 두고 **가운데 정렬**한다. 공식 자산
- *   (clovirassist-logo-horizontal.svg)도 부제가 워드마크보다 1.6% 넓다 — 두 줄을 억지로
- *   같은 폭에 맞추려고 letter-spacing 을 벌리지 않는다.
+ *   letter-spacing 0.01em × 25자를 더해 **15.83em** → 1080p 기준 172px.
+ *   워드마크도 같은 15.83em 으로 둔다. 두 줄이 왼쪽(C와 S)과 오른쪽 끝을 같이 쓴다.
  *   폴백 폰트는 전부 이보다 좁아(Segoe UI Semibold 14.85em, Malgun 14.84em) 넘치지 않는다.
  *
  * 예전 값과 비교: 워드마크 192px → 163px(-15%), 락업 전체 240×41px → 216×37px.
  * 부제 글자 크기는 10.88px 그대로다 — **줄인 것은 부제의 letter-spacing(0.08em → 0.01em)이지
  * 글자 크기가 아니다.** 워드마크만 작아지고 부제는 읽을 수 있는 크기를 지킨다. */
 const BRAND_UNIT = "min(0.68rem, 12.4px)";
-const WORDMARK_WIDTH = "15em";
+const WORDMARK_WIDTH = "15.83em";
 const SUBTITLE_TRACKING = "0.01em";
 const SUBTITLE_LINE_HEIGHT = 1.2;
 /* 마크는 2줄 텍스트 블록과 같은 높이의 정사각형이다(아이콘이 2줄 블록과 균형).
- * 블록 높이 = 15em × 50/346(아래 viewBox 비율) + 1.2em = 3.37em. */
-const MARK_SIZE = "3.37em";
-/* 부제 없이 한 줄로 놓을 때(상단바). 워드마크 잉크 상자 높이가 15em × 50/346 = 2.17em 이고,
- * 마크는 그보다 약간 커야 광학적으로 같은 크기로 보인다(캡 하이트 대비 아이콘의 통상 비율).
- * 이 값이 R-13 "로고 영역을 조금 줄인다" 의 실제 레버다 — 글자 크기는 손대지 않는다. */
+ * 블록 높이 = 15.83em × 50/346(아래 viewBox 비율) + 1.2em = 3.49em. */
+const MARK_SIZE = "3.49em";
+/* 부제 없이 한 줄로 놓을 때(좁은 화면 마크만 쓰는 자리는 이 값을 안 탄다). 워드마크 잉크
+ * 상자 높이가 15.83em × 50/346 = 2.29em 이고, 마크는 그보다 약간 커야 광학적으로 같은
+ * 크기로 보인다(캡 하이트 대비 아이콘의 통상 비율). */
 const MARK_SIZE_ONE_LINE = "2.45em";
 const MARK_GAP = "0.65em";
 /* 글자에 맞춰 자른 워드마크 viewBox. 원본 좌표계(0 0 528 156)에서 글자는 x 160..506,
@@ -208,14 +206,12 @@ export default function BrandLogo({
    * 6~8px 로 그려지는데, QA 의 tiny_text 검사는 렌더 크기가 아니라 마크업의 명목값을 읽어
    * 통과로 오판한다(검사의 사각지대이지, 검사를 고칠 문제가 아니다).
    *
-   * 높이: 이 락업은 3.37em(1080p 기준 ≈37px)이다. Toolbar 의 `minHeight: APPBAR_HEIGHT`
-   * (64px)를 밀어 올리지 않는다 — AppBar 가 position:fixed 라 실제 높이가 본문의
-   * `pt: APPBAR_HEIGHT/8` 오프셋과 어긋나면 본문 위쪽이 가려진다.
+ * 높이: 이 락업은 3.49em(1080p 기준 ≈38px)이다. Toolbar 의 `minHeight: APPBAR_HEIGHT`
+ * (52px)를 밀어 올리지 않는다 — AppBar 가 position:fixed 라 실제 높이가 본문의
+ * `pt: APPBAR_HEIGHT` 오프셋과 어긋나면 본문 위쪽이 가려진다.
    *
-   * 정렬: 바깥 상자에 `fontSize: BRAND_UNIT` 을 한 번 주고 안쪽 치수는 전부 em 이다.
-   * 두 줄은 `alignItems: center` + 부제 `textAlign: center` 로 **가운데를 맞춘다** —
-   * 시작점만 맞추면 폭이 다른 두 줄이 왼쪽으로 쏠려 보이고, 폰트가 폴백으로 떨어져 부제가
-   * 좁아질 때 그 쏠림이 더 커진다. 가운데 정렬은 폭이 달라져도 균형이 유지된다. */
+ * 정렬: 바깥 상자에 `fontSize: BRAND_UNIT` 을 한 번 주고 안쪽 치수는 전부 em 이다.
+ * 두 줄은 같은 폭이고 **왼쪽을 맞춘다** — 부제가 ClovirAssist 바로 아래에 붙는다. */
   return (
     <Box
       component="span"
@@ -242,7 +238,7 @@ export default function BrandLogo({
 
       <Box
         component="span"
-        sx={{ display: "flex", flexDirection: "column", alignItems: "center", minWidth: 0 }}
+        sx={{ display: "flex", flexDirection: "column", alignItems: "stretch", minWidth: 0, width: w }}
       >
         <Box
           component="svg"
@@ -296,7 +292,9 @@ export default function BrandLogo({
               lineHeight: SUBTITLE_LINE_HEIGHT,
               fontWeight: FONT_WEIGHT.semibold,
               letterSpacing: SUBTITLE_TRACKING,
-              textAlign: "center",
+              textAlign: "justify",
+              textAlignLast: "justify",
+              width: "100%",
               color: inverse ? INVERSE_INK.subtitle : "currentColor",
               opacity: inverse ? undefined : 0.62,
             }}

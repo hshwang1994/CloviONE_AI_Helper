@@ -490,6 +490,15 @@ describe("컨트롤 높이는 한 곳에서 나온다", () => {
     expect(remValue(ib.root.height)).toBe(remValue(btn.root.minHeight));
   });
 
+  it("작은 스위치 손잡이가 상자 세로 가운데에 온다 — root 패딩만 키우면 위로 뜬다", () => {
+    const sw = createClovirTheme("light").components.MuiSwitch.styleOverrides;
+    expect(remValue(sw.root.height)).toBe(CONTROL.button);
+    expect(remValue(sw.sizeSmall.height)).toBe(CONTROL.buttonSm);
+    const pad = (CONTROL.buttonSm - 16) / 2;
+    expect(remValue(sw.sizeSmall.padding)).toBe(pad);
+    expect(remValue(sw.sizeSmall["& .MuiSwitch-switchBase"].padding)).toBe(pad);
+  });
+
   it("작은 아이콘 버튼도 포인터 목표는 40 이다 — 시각 크기만 줄인다", () => {
     const ib = createClovirTheme("light").components.MuiIconButton.styleOverrides;
     // `::after` 의 음수 inset 이 상자 밖으로 목표를 넓힌다.
