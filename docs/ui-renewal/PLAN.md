@@ -5,6 +5,21 @@
 >
 > **이번 세션의 실행 범위는 이 계획서와 인계 상태를 프로젝트 안에 기록하고 Gate로 검증하는 것까지다. 제품 코드는 이번 세션에서 구현하지 않는다** (→ 맨 끝 «이번 세션에서 할 일» 참조).
 
+> ## 적용 범위 (2026-08-21 추가)
+>
+> **W0~W5 는 이 계획대로 실행됐고 그 완료 기록과 Evidence 는 그대로 둔다.**
+> **W5B~W15 는 동결**이며, 재개는 Wave 가 아니라 Session **S15~S20** 이다 (`docs/DECISIONS.md` D-207).
+>
+> 재개되는 Session 의 **실행·검증 규칙은 `docs/platform/MASTER_PLAN.md` §9.3(D-208)이 우선한다.**
+> 이 문서의 «테스트 계획» 이 적은 **「Wave 종료마다 전체 Regression」·「전체 뷰포트 × 2테마 전량
+> 하네스 실행」 주기 조항은 W0~W5 의 실행 기록**이고 S15~S20 에 그대로 적용하지 않는다.
+> 앞으로의 Session 은 **영향 Surface/범위만** 검증하고 자기가 건드린 Surface 만 재캡처하며,
+> Whole-product Full Capture 는 **S22 최종 빌드에서 1회** 수행한다.
+> E2E 와 독립 Reviewer 도 기계적으로 붙이지 않고 **그 Session 의 Exit 조건이 요구할 때** 수행한다.
+>
+> 아래 Wave 설계·Archetype·요구사항·Assertion 내용은 그대로 유효하며, 재배치 표는
+> `docs/ui-renewal/WORK_STATE.md` 의 NEXT 절이다.
+
 ## Context — 왜 이 작업을 하는가
 
 지시서: `C:\Users\hshwa\Downloads\ClovirAssist_UIUX_Renewal_Ultracode_Restart_Final_v7.txt` (3,712줄, 전문 읽음). 최상위 지시 0-0~0-22 + 요구사항 1~84.
@@ -1031,7 +1046,9 @@ DOM 여섯 개(결함 셋 · 정상 셋)를 실브라우저에 띄워 「결함�
 
 **변경 영역별 검증**(요약): Brand/Theme → `theme-contract.test.js` 재작성(역할별 Brand 색상 + AA 대비 유지) · `tokens-generated.test.js` 재생성 · `brand_presence` ≥5/7 · 4개 Accent × 2모드. Shell/Nav → `topbar-contract`·`sidebar-*`·`nav-*` 재작성, `user-segment-routes`·`settings-route-redirects`, 390/768/860 drawer 경계 + 3840, skip-link·`route-change-focus`. 공유 Layout → `kit.test.jsx`·`skeleton-shapes`·`density-contract` 재작성 + primitive별 대표 소비처. Search/Filter → `filter-bar-grid`·`datascreen-search`·신규 `entity-combobox`, URL state 생존(`users-url-state`·`saved-views`), Combobox ARIA 1.2 키보드, **필터가 scope를 넓히지 않음**(`check_scope_gates.py`). Table → `DataTable` 단위 + 0/1/100/1000행 + 760px 카드모드 경계 양쪽 + 4개 Assertion Gate. Empty/Feedback → 12개 상태 열거 + alert로 포커스 이동 + `mascot_visible_size`. 사용자 Workflow → 화면별 + `cross-screen-invalidation` + share-scope 부정 케이스 + `hostile_data.py`의 Long/Many. 관리자 → `admin-tab-groups`·`registry-*` + 탭 딥링크와 `?tab=` 보존 + `rbac-matrix` + 5역할 하네스. Identity → 신규 `storage-migrate.test.js` + 쿠키 테스트 갱신 + **legacy 수용 테스트 신설** + "옛 빌드에서 로그인 → 배포 → 새로고침 → 로그인 유지·테마 유지" E2E. Hostname/TLS → 위 8단계 명령 + 3개 테스트 갱신.
 
-**주기**: focused test는 상시. Wave 종료마다 `bash scripts/run_full_regression.sh` + `cd frontend && npm test`(312파일) + runner 테스트. 전체 9뷰포트 × 2테마 하네스 실행은 W0·W8·W15 + 공유 파일 Wave 직후.
+**주기**(W0~W5 실행 기록): focused test는 상시. Wave 종료마다 `bash scripts/run_full_regression.sh` + `cd frontend && npm test`(312파일) + runner 테스트. 전체 9뷰포트 × 2테마 하네스 실행은 W0·W8·W15 + 공유 파일 Wave 직후.
+
+> **재개 Session(S15~S20)에는 위 주기를 그대로 적용하지 않는다.** `docs/platform/MASTER_PLAN.md` §9.3(D-208)이 우선한다 — 영향 Domain → Integration → 영향 Flow 순으로 **범위만** 검증하고, 전체 Regression은 Shared Foundation/전역 계약을 건드린 경우에 한한다. 전량 Capture는 **S22 1회**다. 위 문단은 W0~W5가 실제로 그렇게 실행했다는 기록으로 남긴다.
 
 **설계상 깨질 테스트 — 삭제·약화가 아니라 재작성**
 프런트 Contract: `theme-contract.test.js`(D-141 고정 — "chrome 은 발광하지 않는다"가 새 지시와 정면 충돌) · `tokens-generated.test.js`(**재생성, 손편집 금지**) · `density-contract.test.jsx`(`sx`에서 `gridTemplateColumns` 파싱 — 균등 격자가 내용 비례로 바뀌는 순간 깨진다) · `topbar-contract.test.jsx` · **`theme-link-contrast.test.js`(가장 취약한 종류 — 소스 텍스트를 정규식으로 매칭한다, 314·335줄)**.

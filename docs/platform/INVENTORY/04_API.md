@@ -37,8 +37,11 @@
 | 감사 `object_type` 이 Notion 명사다 (`notion_task`·`notion_document`·`notion_token`) | S14 |
 | `effective_visibility_clause` 단일화 — 목록·상세·Search·**AI** 가 같은 함수를 쓴다 | S5 |
 
-## 완성도 — S1 이 마저 할 것
+## 미확인 항목과 Owner
 
-- 318 decorator 를 **경로 · 메서드 · 권한 게이트 · 소비 화면**으로 열거한다
-- `check_scope_gates.py` 가 `ROOT.glob("app/*/router.py")` **단일 레벨**이라 중첩 라우터를 검사하지
-  않는다 — 열거는 그 사각지대를 드러내는 작업이기도 하다 (`12_PROBE.md` 우선순위 2)
+**S1 것은 프로브 하나뿐이다.** 318 decorator 의 전수 열거는 S1 결정에 필요하지 않다.
+
+| 미확인 | Owner | 언제 필요한가 |
+|---|---|---|
+| `check_scope_gates.py` 의 중첩 라우터 사각지대 (`glob` → `rglob` + 헬퍼 본문 추적) | **S1** (P-01, 우선순위 2) | 공유 헬퍼 안에서 게이트를 지워도 통과한다 — 손으로 확인됐다 |
+| 318 decorator 의 **경로 · 메서드 · 권한 게이트 · 소비 화면 전수 표** | **S2 · S5** | PG 이식과 `effective_visibility_clause` 단일화를 실제로 할 때. **미리 열거하지 않는다** |

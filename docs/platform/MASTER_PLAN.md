@@ -449,9 +449,13 @@ Dry Run 완료 → 전체 검증 → 최종 Backup → Maintenance Mode → 마�
 ### 9.0 모든 Session 이 지키는 종료 규약 (D-206)
 
 ```
-구현 → Targeted Test → 관련 E2E → 독립 Reviewer(구현하지 않은 에이전트)
-     → Finding 수정 → Exit Gate → Commit → Working Tree Clean
+구현 → Targeted Test → Static/Contract → 관련 Integration
+     → [필요 시] 영향 Flow/E2E → [필요 시] 독립 Reviewer
+     → Finding 수정 → 영향 범위 재검증 → Exit Gate → Commit → Working Tree Clean
 ```
+- **`[필요 시]` 두 단계는 기계적으로 붙이지 않는다.** 그 Session 의 성격과 **자기 Exit 조건이
+  요구할 때** 수행한다. Exit 조건에 없고 변경 성격상 필요하지도 않으면 생략한다 — 대신
+  §9.3 의 필수 검증은 **어떤 경우에도 면제되지 않는다**
 - **한 Session 은 위 사슬을 스스로 끝낼 수 있어야 한다.** 여러 대형 Wave 를 몰아 넣지 않는다
 - Runtime Component 를 추가하면 **Installer 계약**([INSTALLATION.md](INSTALLATION.md) §6)을
   같은 Session 에서 이행한다
@@ -466,7 +470,7 @@ Dry Run 완료 → 전체 검증 → 최종 Backup → Maintenance Mode → 마�
 | S | 이름 | 핵심 산출 | Exit 조건 |
 |---|---|---|---|
 | **S0** | Plan 기록 | Master Plan · Work State · Backlog · Decisions(D-187~D-208) · Inventory · Installation 을 `docs/` 에 저장. **W5B~W15 동결 선언** | 문서 커밋 · Tree clean |
-| **S1** | 기반 정직화 · 실측 · **성능 검증** | 프로브 8건 수정(빈 결과 FATAL화 포함) · Inventory 12종 완성 · **PG16+pgvector0.6+pg_trgm 설치 후 실 Corpus 로 recall/지연 측정 및 인덱스 파라미터 결정** · CPU 임베딩/리랭킹 벤치 → 모델 확정 · `VARCHAR(n)` 13개 컬럼 길이 감사 | 프로브 self-test 통과 · **실측 수치와 인덱스 파라미터가 Decisions 에 기록** · **제품 코드 변경 0** |
+| **S1** | 기반 정직화 · 실측 · **성능 검증** | 프로브 8건 수정(빈 결과 FATAL화 포함) · **S1 결정에 필요한 미확인 항목만 확인**(Plan Mode/S0 이 확보한 Inventory 는 재조사하지 않는다) · **PG16+pgvector0.6+pg_trgm 설치 후 실 Corpus 로 recall/지연 측정 및 인덱스 파라미터 결정** · CPU 임베딩/리랭킹 벤치 → 모델 확정 · `VARCHAR(n)` 13개 컬럼 길이 감사 | 프로브 self-test 통과 · **실측 수치와 인덱스 파라미터가 Decisions 에 기록** · **제품 코드 변경 0** |
 | **S2** | PostgreSQL Foundation | 앱 고유 ~60 테이블 PG 이식(도메인 변경 없음) · `0001_pg_baseline` · `is_write_conflict` 재분류(115 호출부) · `SKIP LOCKED` · `jsonb` 이전 · 부분 유니크 3건 · rowid 제거 · 공유 rate-limit/lock → `--workers` 해제 · Test Harness 2계층 · PG Backup/Restore 기본형 | **SQLite Runtime 의존 0** · 전 회귀 통과 · 동시성 테스트 재작성분 통과 |
 | **S3** | Product Identity · Hostname · TLS | nginx `server_name` · TLS 재발급(CN/SAN=`clovirassist.gooddi.lab`) · `APP_BASE_URL` · cookie domain · QA base URL · 프로브 TLS 검증 활성화 · 옛 호스트 하드코딩 테스트 2건 정정 | `openssl s_client` CN/SAN 일치 · `ssl_verify_result=0` · 로그인/테마 유지 E2E |
 | **S4** | **설치 · 배포 자동화 Foundation** | GitLab Source 경로 · `deploy/install.sh` Entry Point · Preflight · Stage 0~18 · systemd 5유닛 + enable + 의존 순서 · Health · 실패 위치/원인 표시 · Idempotent · version · upgrade/rollback/uninstall · **LXD Clean 설치 리허설** | LXD 리허설 Clean 설치 성공 · 재실행 무해 · 의도적 실패 주입 시 위치·원인 표시 · upgrade/rollback/uninstall 각 1회 · **S4 시점 Component 범위(PG·web·worker·scheduler·nginx)의 Reboot 복구**. **전 시나리오 Acceptance 는 S22** |
@@ -530,6 +534,12 @@ S11 → S12 → S13 → S14 → S15 → S16 → S17 → S18 → S19 → S20 → 
 - Phase E 는 순차다 — `kit.jsx`·`navConfig.js`·`DataScreen.jsx` 소유가 겹친다
 
 ### 9.3 검증 실행 경제 (D-208)
+
+**우선순위**: S0~S22 의 실행·검증 규칙은 이 절과 D-208 이 정본이다.
+`docs/ui-renewal/PLAN.md` 가 적어 둔 **과거 Wave 실행 규칙 중 「Wave 종료마다 전체 Regression」·
+「전체 뷰포트 × 2테마 전량 Capture」 조항은 재개되는 S15~S20 에 적용하지 않는다.**
+그 조항은 W0~W5 가 실제로 그렇게 실행했다는 **기록**이고, **W0~W5 의 완료 기록과 Evidence 는
+그대로 둔다.** 앞으로의 Session 은 아래 E1~E10 을 따른다.
 
 | # | 원칙 |
 |---|---|
@@ -690,6 +700,10 @@ AI         새 대화 · 지식 검색 · 작업공간 · 생성 기록
 ### 14.3 W5B~W15 재배치 (D-207)
 
 **즉시 동결.** 판정 확정은 새 IA 가 실재한 뒤(S10 종료 시점)에 하고, 실행은 Phase E 에서 한다.
+
+**재개 시 실행 규칙은 §9.3(D-208)이 우선한다.** S15~S20 은 **영향 Surface/범위만** 검증하고
+자기가 건드린 Surface 만 재캡처한다. Whole-product Full Capture 는 **S22 최종 빌드에서 1회**다.
+Wave 별 전체 Regression·전량 Capture 를 반복하지 않는다.
 
 | Wave | 원래 내용 | 판정 | 재배치 |
 |---|---|---|---|

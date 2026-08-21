@@ -83,7 +83,7 @@
 - 삭제가 도메인 이벤트가 아니라 Notion 이벤트다(`notion_missing_at` + 유예 후 정리)
 - 감사 object_type 이 Notion 명사다: `notion_task` · `notion_document` · `notion_token`
 
-## 완성도 — S1 이 마저 할 것
+## 미확인 항목과 Owner
 
-없다. 이 목록은 **S13 Migration Tool 의 입력으로 그대로 쓴다.**
+**없다.** 이 목록은 **S13 Migration Tool 의 입력으로 그대로 쓴다.** 재조사하지 않는다.
 단 본문 재수집 시 `last_edited` 기준 delta 로 **재실행 가능해야 한다** (R8).

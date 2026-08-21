@@ -8649,9 +8649,16 @@ installer 가 **자기 Source 위치를 안다**. 폐쇄망용 오프라인 Bund
 ## D-206 — Session 종료 규약: 한 Session 이 여러 대형 Wave 를 몰아 수행하지 않는다
 
 ```
-구현 → Targeted Test → 관련 E2E → 독립 Reviewer(구현하지 않은 에이전트)
-     → Finding 수정 → Exit Gate → Commit → Working Tree Clean
+구현 → Targeted Test → Static/Contract → 관련 Integration
+     → [필요 시] 영향 Flow/E2E → [필요 시] 독립 Reviewer
+     → Finding 수정 → 영향 범위 재검증 → Exit Gate → Commit → Working Tree Clean
 ```
+
+**`[필요 시]` 두 단계를 기계적으로 붙이지 않는다.** 그 Session 의 성격과 **자기 Exit 조건이
+요구할 때** 수행한다. Exit 조건에 적혀 있지도 않고 변경 성격상 필요하지도 않으면 넣지 않는다 —
+사슬을 길게 적는 것과 실제로 무엇이 검증되는가는 다른 일이고, 모든 Session 에 E2E 와 Reviewer 를
+자동으로 붙이면 **정작 그것이 꼭 필요한 Session 에서 그 신호가 묻힌다.**
+D-208 의 필수 검증 목록은 이 조항과 무관하게 그대로 유지된다.
 
 **한 Session 은 이 사슬을 스스로 끝낼 수 있어야 한다.**
 
@@ -8708,6 +8715,18 @@ W12 의 관리자 44 Surface 에는 Notion/SQLite 화면이 들어 있다. **지
 | E8 | Whole-product Full Capture 는 **S22 최종 빌드에서 1회만** |
 | E9 | 범위 밖 Finding 은 Owner Session 으로 Routing 할 수 있다. **단 현재 변경이 만든 Regression 은 넘기지 않는다** |
 | E10 | **비용을 이유로 필수 안전/기능 검증을 생략하지 않는다** |
+
+**과거 Wave 규칙과의 우선순위.** `docs/ui-renewal/PLAN.md` 는 「Wave 종료마다 전체 Regression」과
+「전체 뷰포트 × 2테마 전량 하네스 실행」을 주기로 적어 두었다. **그 조항은 W0~W5 가 실제로 그렇게
+실행했다는 기록이고, 재개되는 S15~S20 에는 적용하지 않는다** — 앞으로의 Session 은 E1~E10 을 따라
+**영향 Surface/범위만** 검증하고 Whole-product Full Capture 는 **S22 최종 빌드에서 1회**다.
+**W0~W5 의 완료 기록과 Evidence 는 변경하지 않는다.** 규칙을 낮춘 것이 아니라, 규칙이 만들어질 때
+전제했던 대상(Legacy Notion Query · 없어질 Route · Notion/SQLite 화면)이 사라지기 때문이다.
+
+**Inventory 도 같은 원칙을 받는다.** 확보된 Inventory 는 재조사하지 않고, 상세 전수 목록은
+**그것을 실제로 소비하는 Owner Session 이 필요할 때** 만든다. 「나중에 쓸지 모르니 지금 전부
+열거해 둔다」는 E1 이 없애려는 바로 그 중복 작업이고, 그 사이에 Route 집합과 스키마가 바뀌면
+열거한 것이 두 번 낡는다.
 
 **어떤 경우에도 면제되지 않는 것** — E1~E9 의 어떤 조항도 아래를 건너뛰는 근거가 되지 않는다.
 

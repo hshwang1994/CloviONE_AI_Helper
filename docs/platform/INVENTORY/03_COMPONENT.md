@@ -37,8 +37,11 @@
 | `MirrorNotice` 와 그 소비처 6곳 | **동기화 개념 자체가 사라진다.** CLAUDE.md §145 위반이 자동 해소된다 |
 | NotionConsole · Notion Mapping Console | Notion Runtime 소멸 |
 
-## 완성도 — S1 이 마저 할 것
+## 미확인 항목과 Owner
 
-- `frontend/src/components/**` 와 `kit.jsx` export 를 실제로 열거해 **부품 ↔ 소비처 표**를 만든다.
-  지금은 위 표가 「보존/신설/제거」 축만 갖고 있고 전량 목록이 아니다
-- Assertion 34종과 부품의 매핑 확인 (`12_PROBE.md` 와 짝)
+**S1 것은 없다.** 위 표의 「보존 / 신설 / 제거」 축이 이 전환의 판단에 필요한 전부다.
+
+| 미확인 | Owner | 언제 필요한가 |
+|---|---|---|
+| `frontend/src/components/**` · `kit.jsx` export 의 **부품 ↔ 소비처 전수 표** | **S7 · S16** | 부품을 실제로 고칠 때. **미리 열거하지 않는다** — 그 사이에 Route 집합이 바뀐다 |
+| Assertion 34종과 부품의 매핑 | **S16 · S17** | 승격 예정 Gate 를 실제로 켤 때 |

@@ -29,12 +29,12 @@
 |---|
 | Kanban Board · Backlog · Sprint · Knowledge Space · Folder 트리 · Ticket Relation UI · Project Member 관리 · AI 작업공간 |
 
-## 완성도 — S1 이 마저 할 것
+## 미확인 항목과 Owner
 
-- **`read_jsx_routes()` 의 빈 결과 FATAL화** (`12_PROBE.md` 우선순위 1). 지금은 소스 리터럴을
-  못 찾으면 `[]` 를 반환해 **검사 루프가 0번 돌고 OK 를 찍는다.** Route 를 갈아엎으면 정확히 이
-  경로로 조용히 통과한다 (R4) — 이 전환은 Route 를 갈아엎으므로 **반드시 먼저 막는다**
-- Source Route ↔ Coverage 대조를 최소 개수 단언과 함께 재실행
+| 미확인 | Owner | 내용 |
+|---|---|---|
+| `read_jsx_routes()` 가 빈 결과에 FATAL 인가 | **S1** (P-01) | 지금은 소스 리터럴을 못 찾으면 `[]` 를 반환해 **검사 루프가 0번 돌고 OK 를 찍는다.** 이 전환은 Route 를 갈아엎으므로 **반드시 먼저 막는다** (R4). 최소 개수 단언을 함께 넣는다 |
+| 새 IA 의 Route 집합 | **S18~S20** | Route 가 실제로 바뀔 때 Coverage 를 갱신한다. **지금 미리 열거하지 않는다** |
 
 ## 주의
 

@@ -17,7 +17,7 @@
 |---|---|---|---|---|
 | **P-00** | Plan 을 Repository 지속 문서로 정착 | S0 | **DONE** | 다음 `/clear` 세션이 저장소 문서만으로 이어받을 수 있다 |
 | **P-01** | Probe 8건 신뢰성 수정 — **빈 결과 FATAL화 포함** | S1 | TODO | 8건 전부 양방향 `--self-test` 를 갖고, 실패 시 아무것도 보고하지 않는다 |
-| **P-02** | Inventory 12종 완성 | S1 | TODO | `INVENTORY/` 12종이 전부 `완성` 상태. 미해결 불일치 0 |
+| **P-02** | **S1 결정에 필요한 미확인 항목만 확인** (확보된 Inventory 재조사 금지) | S1 | TODO | S1 이 실제로 결정에 쓰는 값이 확인됐다. **상세 전수 목록은 이 항목의 완료 조건이 아니다** — Owner Session 이 필요할 때 갱신한다 |
 | **P-03** | PG 스택 성능 검증 — recall/지연/인덱스 파라미터/임베딩·리랭킹 모델 확정 | S1 | TODO | 실측 수치와 확정 파라미터가 `DECISIONS.md` 에 기록. **Version 판정이 아니다**(D-188 확정) |
 | **P-04** | `VARCHAR(n)` 13개 컬럼 실데이터 길이 감사 | S1 | TODO | 초과 건수와 대응(확장/절단/Exception)이 컬럼별로 결정됨 |
 | **P-05** | **PostgreSQL Foundation** — 앱 고유 ~60 테이블 이식, 도메인 변경 없음 | S2 | TODO | `DATABASE_URL=postgresql://…` 로 전 회귀 통과 · **SQLite Runtime 의존 0** |

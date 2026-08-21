@@ -33,8 +33,9 @@ Responsive/Zoom · Accessibility/Keyboard/Focus · 주요 Action 과 Feedback.
 않는다.** 데이터가 적은 화면(승인·Empty List·놀이·기능 개선 제안·Sprint)도 Page 전체가 완성된
 제품처럼 보여야 한다.
 
-## 완성도 — S1 이 마저 할 것
+## 미확인 항목과 Owner
 
-- `read_tab_groups()` / `read_settings_tabs()` **빈 결과 FATAL화** (`12_PROBE.md` 우선순위 1)
-- REGISTRY 28키를 **소스에서 직접 읽는** 리더 추가 여부 판단 — 지금은 다섯 번째 진실이 검사되지
-  않는다
+| 미확인 | Owner | 내용 |
+|---|---|---|
+| `read_tab_groups()` / `read_settings_tabs()` 가 빈 결과에 FATAL 인가 | **S1** (P-01) | 위 `01_ROUTE.md` 와 같은 실패 모드다 |
+| REGISTRY 28키를 소스에서 직접 읽는 리더 | **S20** (필요 시) | 다섯 번째 진실이 지금 검사되지 않는다. Admin registry 를 실제로 손대는 Session 이 그때 판단한다 — **S1 필수 작업이 아니다** |

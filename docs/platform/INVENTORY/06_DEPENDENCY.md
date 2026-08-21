@@ -50,10 +50,13 @@
 | **OCR / ClamAV / LibreOffice** | 폐쇄망 사내 도구 + 현재 업로드 파일 4개. 설정 Hook 만 남긴다 |
 | **PGDG 저장소 (PG17 + pgvector 0.8.x)** | **지원되는 선택지로 문서화하되 제품 필수 의존이 아니다.** 고객이 PGDG 를 미러링하지 않으면 설치가 막힌다 (D-188) |
 
-## 완성도 — S1 이 마저 할 것
+## 미확인 항목과 Owner
 
-- `requirements*.txt` · `frontend/package.json` 을 실제로 열거하고, 신규 도입분이 기존 의존과
-  충돌하지 않는지 확인
-- 오프라인 Bundle 의 **wheelhouse** 에 신규 Python 의존이 전부 들어가는지 확인
-  (`INSTALLATION.md` §3.1 — 폐쇄망 설치가 여기서 깨진다)
-- 임베딩/리랭킹 모델 파일의 **오프라인 캐시 배치 경로** 결정 (Installer Stage 12)
+**S1 것은 모델 선택뿐이고 그것은 P-03 벤치의 산출물이다** — 별도 조사 작업이 아니다.
+
+| 미확인 | Owner | 언제 필요한가 |
+|---|---|---|
+| Embedding / Re-rank 모델 확정 | **S1** (P-03) | CPU 벤치 결과가 곧 답이다. 리랭커가 느리면 RRF 융합으로 대체한다 |
+| `requirements*.txt` · `frontend/package.json` 전량 열거와 충돌 확인 | **S4** | Installer Stage 1·4 를 쓸 때 |
+| 오프라인 Bundle **wheelhouse** 에 신규 Python 의존이 전부 들어가는지 | **S4** | 폐쇄망 설치가 여기서 깨진다 (`INSTALLATION.md` §3.1) |
+| 임베딩/리랭킹 모델 파일의 오프라인 캐시 배치 경로 | **S4 · S9** | Installer Stage 12 |

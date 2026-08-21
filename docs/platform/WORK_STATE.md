@@ -78,9 +78,10 @@ S0 이 한 일은 문서를 쓴 것뿐이지만, 그것이 이 Session 의 전�
    **빈 결과 FATAL화**)부터. 신뢰할 만한 셋(`check_icon_props.py`·`check_ink_scale.py`·
    `check_logical_border_props.py`)과 `probe_selftest.py` 가 템플릿이다 — **실제 스캔 전에 양방향
    `--self-test` 를 돌리고 실패하면 아무것도 보고하지 않는다**
-2. **Inventory 12종 완성** — `INVENTORY/` 각 파일의 `완성도` 절이 S1 이 채울 자리를 지목한다.
-   Plan Mode 실측치는 이미 들어 있다. **`11_TEST.md` 의 프런트 테스트 수 불일치(2,409 vs 1,987)를
-   실행으로 확정하는 것이 여기 포함된다**
+2. **S1 결정에 필요한 미확인 항목만 확인** — **Plan Mode/S0 이 확보한 Inventory 는 재조사하지
+   않는다.** `INVENTORY/` 각 파일의 `미확인 항목과 Owner` 절이 무엇이 S1 것이고 무엇이 다른
+   Session 것인지를 지목한다. **API/Component/Dependency/Test 의 상세 전수 목록은 S1 필수 작업이
+   아니다** — 후속 Session 이 실제로 필요할 때 그 Owner Session 에서 갱신한다
 3. **PG 성능 검증** — 테스트 서버에 `postgresql-16` `postgresql-16-pgvector` `postgresql-contrib`
    설치 후 실 Corpus(문서 1,238 + 티켓 1,119)로 HNSW/IVFFlat/exact 세 경로의 recall·지연 측정,
    인덱스 파라미터(`m`·`ef_construction`·`ef_search`·`lists`) 결정, `pg_trgm` GIN 과 FTS 의 가중치

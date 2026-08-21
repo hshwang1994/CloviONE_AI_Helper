@@ -86,8 +86,14 @@ UI 축 재개는 그 계획의 **Phase E** 이고, 그때 이 파일을 다시 �
 
 동결 해제 시 지키는 것: Session 마다 **CHECKPOINT 를 먼저 올린다** → 구현 → focused test → 배포 →
 **건드린 Surface 만** 재캡처 → `collect_evidence --into after` → `merge_qa_findings --write` →
-`--stage wave` → **구현하지 않은 에이전트**의 독립 검수. `check_test_strength.py` 는
-`--base <직전 Session 커밋>`. 전량 캡처는 **S22 에서 한 번뿐**이다(D-208 E8).
+`--stage wave` → **자기 Exit 조건이 요구하는 경우** 구현하지 않은 에이전트의 독립 검수.
+`check_test_strength.py` 는 `--base <직전 Session 커밋>`.
+
+**실행 규칙의 우선순위**: S15~S20 에는 `docs/platform/MASTER_PLAN.md` §9.3(**D-208**)이 우선한다.
+`PLAN.md` 의 「Wave 종료마다 전체 Regression」·「전체 뷰포트 × 2테마 전량 실행」 조항은 **W0~W5 가
+그렇게 했다는 기록**이고 재개되는 Session 에 적용하지 않는다 — **영향 Surface/범위만** 검증하고,
+Whole-product Full Capture 는 **S22 최종 빌드에서 1회**다. **W0~W5 의 완료 기록과 Evidence 는
+그대로 둔다.**
 
 ## BLOCKERS
 - 없음. 동결은 Blocker 가 아니라 **결정**이다(D-207).
