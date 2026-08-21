@@ -42,15 +42,16 @@
   - **P-02** — S1 소유 미확인 항목이 전부 닫혔다. 전수 목록은 만들지 않았다(E9 · Inventory 규칙 4)
   - **P-03 PG 스택 실측** — 실 PG16.15 에서 한국어 검색·벡터 인덱스·CPU 임베딩을 재고
     **D-209~D-212** 로 확정했다
-  - **P-04 `VARCHAR(n)` 감사** — 선언 410 컬럼. 초과 **1건**이고 그 값을 **지금 코드가 만든다**
-    (D-214)
+  - **P-04 `VARCHAR(n)` 감사** — **운영 정본**(alembic `0061`)에서 선언 410 컬럼을 쟀다.
+    초과 **1건**이고 그 값을 **지금 코드가 만든다**. S2 가 쓸 숫자는 관측 80 이 아니라
+    **계약상 최대 108** 이다 (D-214)
 
 ### S1 이 드러낸 것 둘 — 둘 다 Owner 가 붙어 있다
 
 | 발견 | 성격 | Owner |
 |---|---|---|
 | **`/api/admin/approval-delegations` 표면 전체에 범위 게이트가 없다** — 부서 범위 admin 이 남의 부서 결재 대리를 만들고 취소할 수 있다 | 권한 결함 | **S5** (`BACKLOG.md` P-12a · `check_scope_gates.py::KNOWN_GAPS`) |
-| **`messages.message_id` 가 `VARCHAR(64)` 인데 코드가 77자를 만든다** — PG 에서 `INSERT` 가 거부된다 | 이식 차단 | **S2** (D-214) |
+| **`messages.message_id` 가 `VARCHAR(64)` 인데 코드가 최대 108자를 만든다**(운영 관측 80 · 20/311행) — PG 에서 `INSERT` 가 거부된다 | 이식 차단 | **S2** (D-214) |
 
 **S1 은 제품 코드를 고치지 않는다.** 둘 다 기록하고 Owner 로 넘겼다 (E9).
 
@@ -90,8 +91,8 @@ S1 이 이 순서였던 이유는 하나다: **눈을 감은 검사 위에서 Ro
 
 S1 이 S2 에게 넘기는 것:
 
-1. **`messages.message_id` 를 넓힌다** (D-214). 절단은 유니크 키를 깨므로 선택지가 아니다.
-   `0001_pg_baseline` 에서 폭을 정한다
+1. **`messages.message_id` 를 `≥108` 로 넓힌다** (D-214). 절단은 유니크 키를 깨므로 선택지가
+   아니고, 관측값 80 에 맞추면 더 긴 유효 id 가 오는 날 다시 깨진다
 2. **인덱스 정책이 이미 정해져 있다** (D-210) — **Vector 인덱스를 처음부터 만들지 않는다.**
    수천 규모에서 exact 가 1~9ms 다. 임계(384차원 ≈ 1.2만 벡터)를 넘으면 그때 HNSW
    `m=32, ef_construction=200, ef_search=40`
@@ -127,8 +128,8 @@ S1 이 S2 에게 넘기는 것:
 
 | 항목 | 상태 |
 |---|---|
-| **테스트 서버 sudo 자격증명** | 이 Session 은 갖고 있지 않다(SSH 키 인증은 된다). S1 은 공식 `.deb` 를 **사용자 홈에 전개해** PG16.15+pgvector 를 띄워 실측을 끝냈다 — 바이너리·확장·CPU 가 같으므로 수치는 유효하다. **S2 의 `DATABASE_URL=postgresql://…` 회귀도 같은 방식으로 가능**하고, 시스템 설치 자체는 **S4 Installer Stage 6·7** 의 일이다 |
-| **운영 SQLite 읽기** | `/var/lib/clovirone-web-assistant/web.sqlite3` 는 root 소유라 못 읽었다. P-04 는 개발 사본(2026-08-17 · alembic `0059`)으로 쟀고 그 한계를 [`INVENTORY/05_DB.md`](INVENTORY/05_DB.md) 에 적었다. **운영 전량 확인은 S13 Dry Run 의 Exit 조건**이 이미 담당한다 |
+| **테스트 서버 sudo** | **쓸 수 있다** — 사용자가 2026-08-21 에 다시 제공했고 `10.100.64.71` 한정이다. **제품 자체에는 이 자격증명이 들어가지 않는다**: 설치 시 권한 상승은 운영자가 `sudo …/install.sh` 로 하거나 installer 가 요구한다([`INSTALLATION.md`](INSTALLATION.md) §1·§4). S1 이 실측에 쓴 **사용자 공간 PG**(`scripts/bench/pg_userspace_bootstrap.sh`)는 sudo 없이도 되므로 S2 회귀에 그대로 쓸 수 있다 — 시스템 설치는 **S4 Installer Stage 6·7** 의 일이다 |
+| **운영 SQLite 읽기** | **가능하다.** P-04 는 운영 정본(alembic `0061`)을 `.backup` 무중단 스냅숏으로 재고 스냅숏을 지웠다 — 운영 DB 는 읽기만 했다. 원장은 [`EVIDENCE/S1/varchar_prod.json`](EVIDENCE/S1/varchar_prod.json) |
 | 실 NFS/NAS 장비 정보 (현재 없음이 **확인됨**) | 시험 Storage 로 실검증. 실 정보 수령 시 **Configuration 만** 변경 (U8·U9) |
 | 20개 Project Key 명명 | **S6 에서** 초안표 제시 → 사용자 확인 → 적용. **확정 전 재채번 없음** (U11) |
 | 제품 Domain 밖 Notion DB 3종 (179 · 23 · 9) | 기본값 = 이관하지 않음. **Core Migration 은 이 결정과 무관하게 진행** (U19) |

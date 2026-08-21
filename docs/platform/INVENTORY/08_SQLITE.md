@@ -20,7 +20,7 @@
 | 8 | `sqlite_where=` **3곳** | **`postgresql_where=`** — PG 에서 제대로 동작한다(오히려 개선) | **높음 (R2)** |
 | 9 | `LIKE` 대소문자 3곳 — `search/query.py:94` · `retention.py:180` · `schedules/router.py:829` | PG `LIKE` 는 대소문자를 구분한다 → `ILIKE` 또는 `pg_trgm` 경로 | 중간 |
 | 10 | 문자열 날짜 컬럼 — `due_date`·`starts_on`·`last_edited`·`week_of`·`sort_key` 등 | 새 도메인에서 **`date`/`timestamptz` 정식 타입**. 문자열 비교 관용구 제거 | 중간 |
-| 11 | **`VARCHAR(n)`** — SQLite 는 무시, PG 는 강제 | **감사 완료 (S1).** 모델 선언 410 컬럼 중 초과 **1건 = `messages.message_id`(64 선언 / 77 실측)** 이고, 그 값을 **지금 코드가 만든다**(`app/jobs/handlers/chat_message.py:283·285·381`). 유니크 키의 일부라 **넓혀야 한다**. 상세는 [`05_DB.md`](05_DB.md) | **높음 (R7)** |
+| 11 | **`VARCHAR(n)`** — SQLite 는 무시, PG 는 강제 | **감사 완료 (S1, 운영 정본).** 모델 선언 410 컬럼 중 초과 **1건 = `messages.message_id`** — 선언 64 · 운영 최대 80 · 초과 20/311행 · **계약상 최대 108**. 그 값을 **지금 코드가 만든다**(`app/jobs/handlers/chat_message.py:283·285·381`). 유니크 키의 일부라 **≥108 로 넓힌다**. 상세는 [`05_DB.md`](05_DB.md) | **높음 (R7)** |
 | 12 | `app/backups/sqlite_backup.py` 전체 | `pg_dump -Fc` 기반 재작성 | 높음 |
 | 13 | `ID_BATCH_SIZE=500` 근거 주석 | PG 한계(65535)로 정정 | 낮음 |
 
@@ -54,6 +54,6 @@ PG 에서는 다르다. **진짜 제약 위반(유니크 충돌·FK 위반)이 1
 
 | 미확인 | Owner | 내용 |
 |---|---|---|
-| 11번 `messages.message_id` 확장 폭 | **S2** | S1 이 감사를 끝냈다([`05_DB.md`](05_DB.md)). 남은 것은 «얼마로 넓히나» 하나다 |
+| 11번 `messages.message_id` 확장 적용 | **S2** | S1 이 감사를 끝냈고 폭도 나왔다 — **≥108**([`05_DB.md`](05_DB.md)). 남은 것은 `0001_pg_baseline` 에 넣는 것뿐이다 |
 | 3번의 **115 호출부** 전수 감사 | **S2** | 재분류를 실제로 할 때 함께 한다. **S1 이 미리 뽑아 두지 않는다** — 목록만 있고 판정이 없으면 두 번 읽는다 |
 | 나머지 11항 | **S2** | 위 13항 표가 그대로 작업 목록이다 |

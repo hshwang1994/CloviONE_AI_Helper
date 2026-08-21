@@ -8897,26 +8897,41 @@ S1 이 여덟 개의 거짓 통과 경로를 고치면서 **규약**으로 고�
 ~20ms 로 같게 나왔는데 그건 PG 지연이 아니라 `psql` 프로세스 시작 시간이었다(같은 실행의
 `EXPLAIN` 은 0.23ms). **값이 전 표본에서 같으면 측정이 아니라 상수를 읽고 있는 것이다.**
 
-## D-214 — `VARCHAR(n)` 감사: 넘치는 것은 하나이고, 그건 **지금 코드가 만든다** (R7)
+## D-214 — `VARCHAR(n)` 감사: 넘치는 것은 하나이고, **S2 가 쓸 숫자는 108 이다** (R7)
 
-모델이 선언한 `VARCHAR(n)` **410 컬럼**을 감사했다(선언 정본 = `app/models_registry`,
-실데이터 = 접근 가능한 최신 스냅숏 `var/web.sqlite3` 2026-08-17 / alembic `0059`).
+선언 정본은 모델(`app/models_registry`, **410 컬럼**), 실데이터 정본은 **운영 SQLite** 다.
+`.backup` 무중단 스냅숏으로 재고 스냅숏은 지웠다 — 운영 DB 는 읽기만 했다.
+지문: alembic `0061` · 75 테이블 · 257 인덱스 · `messages` 311행.
+원장은 `docs/platform/EVIDENCE/S1/varchar_prod.json`.
 
-**초과 1건**: `messages.message_id` — 선언 `VARCHAR(64)` · 실측 최대 **77** · 초과 3행.
+측정 가능 **305** · 전부 NULL **105** · **초과 1건**.
 
-값 모양이 `a-{message_id 33}-fail-{job.id 36}` 이고 **`app/jobs/handlers/chat_message.py`
-`:283`(72자) · `:285`·`:381`(77자)이 지금 만든다.** legacy 데이터가 아니다.
-실 PG16 에 그 두 문자열을 넣어 확인했다 — 둘 다 `value too long for type character
-varying(64)` 로 거부된다. 즉 **Migration 이전에 이식 직후 런타임 채팅이 깨진다.**
+| 컬럼 | 선언 | 운영 최대 | 초과 행 | **계약상 최대** |
+|---|---|---|---|---|
+| `messages.message_id` | `VARCHAR(64)` | **80** | **20 / 311** | **108** |
+
+`app/jobs/handlers/chat_message.py` 가 `a-{client_message_id}-{job.id}`(`:283`)와
+`a-{client_message_id}-fail-{job.id}`(`:285`·`:381`)를 만든다. `job.id` 는 uuid4 36자이고
+`client_message_id` 는 **클라이언트가 준다** — 상한은 `app/chat/router.py:87` 의
+`Field(min_length=8, max_length=64)` 와 `app/chat/service.py:33` 의
+`^[A-Za-z0-9_-]{8,64}$` 가 잡는 **64** 다.
+
+```
+"a-" (2) + client_message_id (≤64) + "-fail-" (6) + job.id (36) = 108
+```
+
+**관측 80은 우연이다** — 지금 클라이언트가 36자 UUID 를 보내기 때문이고, 계약은 64자까지
+허용한다. **관측값에 맞춰 넓히면 더 긴(그러나 유효한) id 가 오는 날 다시 깨진다.**
+
+실 PG16 에 그 문자열을 넣어 확인했다 — `value too long for type character varying(64)` 로
+거부된다. 즉 Migration 이전에 **이식 직후 런타임 채팅이 깨진다.**
 
 **대응은 «넓힌다» 하나다.** 이 컬럼은 `uq_messages_conversation_message_id` 유니크 키의
-일부라 절단하면 키가 깨지고, Exception 으로 빼면 대화가 사라진다. 폭은 S2 가
-`0001_pg_baseline` 에서 정한다.
+일부라 절단하면 키가 깨지고, Exception 으로 빼면 대화가 사라진다.
 
-그 밖에 여유가 적은 자리: `chat_rooms.dm_key`(80 선언 / 73 실측 = 91%). 넘치지는 않지만
-UUID 두 개를 잇는 형식이라 **형식이 바뀌면 곧바로 넘친다**.
-`sessions.user_agent`(255)는 코드가 이미 `[:255]` 로 자른다 — 안전하다.
+그 밖에 여유가 적은 자리: `chat_rooms.dm_key`(80 선언 / 73 = 91%) — UUID 두 개를 잇는
+형식이라 **형식이 바뀌면 곧바로 넘친다**. `sessions.user_agent`(255)는 코드가 이미
+`[:255]` 로 자른다.
 
-**한계**: 스냅숏은 운영본이 아니라 개발 사본이고 앱 고유 표는 행 수가 훨씬 적다.
-Notion 미러 두 표는 운영의 약 94% 라 대표성이 있다. **운영 전량 확인은 S13 Dry Run 의
-Exit 조건(「길이 초과 0」)이 이미 담당한다.**
+**못 잰 105 컬럼**은 운영에도 값이 전부 NULL 인 자리(미사용 표·미사용 컬럼)다. 값이 생기는
+시점이 Migration 이후이므로 **S13 Dry Run 의 「길이 초과 0」이 그 자리를 이어서 본다.**

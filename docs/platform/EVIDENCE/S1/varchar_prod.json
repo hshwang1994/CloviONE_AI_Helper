@@ -1,0 +1,3705 @@
+{
+ "meta": {
+  "alembic_head": "0061",
+  "tables": 75,
+  "indexes": 257,
+  "ticket_cache": 1124,
+  "document_cache": 110,
+  "search_documents": 1238,
+  "messages": 311
+ },
+ "declared": 410,
+ "measurable": 305,
+ "rows": [
+  {
+   "table": "ai_quotas",
+   "column": "created_by",
+   "declared": 36,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "ai_quotas",
+   "column": "id",
+   "declared": 36,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "ai_quotas",
+   "column": "note",
+   "declared": 200,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "ai_quotas",
+   "column": "period",
+   "declared": 16,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "ai_quotas",
+   "column": "scope_type",
+   "declared": 16,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "ai_quotas",
+   "column": "user_id",
+   "declared": 36,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "announcement_dismissals",
+   "column": "announcement_id",
+   "declared": 36,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "announcement_dismissals",
+   "column": "id",
+   "declared": 36,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "announcement_dismissals",
+   "column": "user_id",
+   "declared": 36,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "announcements",
+   "column": "audience",
+   "declared": 16,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "announcements",
+   "column": "created_by",
+   "declared": 36,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "announcements",
+   "column": "id",
+   "declared": 36,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "announcements",
+   "column": "level",
+   "declared": 16,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "announcements",
+   "column": "link_label",
+   "declared": 80,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "announcements",
+   "column": "link_url",
+   "declared": 500,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "announcements",
+   "column": "title",
+   "declared": 200,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "app_settings",
+   "column": "key",
+   "declared": 64,
+   "rows": 5,
+   "maxlen": 28,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "app_settings",
+   "column": "secret_reference",
+   "declared": 128,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "app_settings",
+   "column": "updated_by",
+   "declared": 36,
+   "rows": 5,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "app_settings",
+   "column": "value_type",
+   "declared": 16,
+   "rows": 5,
+   "maxlen": 6,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "approval_delegations",
+   "column": "created_by",
+   "declared": 36,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "approval_delegations",
+   "column": "delegate_user_id",
+   "declared": 36,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "approval_delegations",
+   "column": "delegator_user_id",
+   "declared": 36,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "approval_delegations",
+   "column": "id",
+   "declared": 36,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "approval_delegations",
+   "column": "reason",
+   "declared": 500,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "approvals",
+   "column": "approver_id",
+   "declared": 36,
+   "rows": 1,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "approvals",
+   "column": "decided_on_behalf_of",
+   "declared": 36,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "approvals",
+   "column": "id",
+   "declared": 36,
+   "rows": 1,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "approvals",
+   "column": "object_id",
+   "declared": 64,
+   "rows": 1,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "approvals",
+   "column": "object_type",
+   "declared": 64,
+   "rows": 1,
+   "maxlen": 4,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "approvals",
+   "column": "request_type",
+   "declared": 64,
+   "rows": 1,
+   "maxlen": 16,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "approvals",
+   "column": "requested_by",
+   "declared": 36,
+   "rows": 1,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "approvals",
+   "column": "status",
+   "declared": 16,
+   "rows": 1,
+   "maxlen": 8,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "audit_logs",
+   "column": "action",
+   "declared": 64,
+   "rows": 1366,
+   "maxlen": 26,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "audit_logs",
+   "column": "client_ip",
+   "declared": 64,
+   "rows": 1219,
+   "maxlen": 15,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "audit_logs",
+   "column": "id",
+   "declared": 36,
+   "rows": 1366,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "audit_logs",
+   "column": "object_id",
+   "declared": 64,
+   "rows": 1366,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "audit_logs",
+   "column": "object_type",
+   "declared": 64,
+   "rows": 1366,
+   "maxlen": 19,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "audit_logs",
+   "column": "request_id",
+   "declared": 64,
+   "rows": 1220,
+   "maxlen": 34,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "audit_logs",
+   "column": "result",
+   "declared": 16,
+   "rows": 1366,
+   "maxlen": 7,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "audit_logs",
+   "column": "user_id",
+   "declared": 36,
+   "rows": 1220,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "automation_templates",
+   "column": "created_by",
+   "declared": 36,
+   "rows": 2,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "automation_templates",
+   "column": "id",
+   "declared": 36,
+   "rows": 2,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "automation_templates",
+   "column": "name",
+   "declared": 120,
+   "rows": 2,
+   "maxlen": 15,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "automation_templates",
+   "column": "policy_id",
+   "declared": 36,
+   "rows": 2,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "automation_templates",
+   "column": "prompt_id",
+   "declared": 36,
+   "rows": 2,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "automation_templates",
+   "column": "target_ref",
+   "declared": 64,
+   "rows": 2,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "automation_templates",
+   "column": "target_type",
+   "declared": 16,
+   "rows": 2,
+   "maxlen": 8,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "backups",
+   "column": "backup_type",
+   "declared": 32,
+   "rows": 2,
+   "maxlen": 6,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "backups",
+   "column": "checksum",
+   "declared": 64,
+   "rows": 2,
+   "maxlen": 64,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "backups",
+   "column": "created_by",
+   "declared": 36,
+   "rows": 2,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "backups",
+   "column": "id",
+   "declared": 36,
+   "rows": 2,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "backups",
+   "column": "path",
+   "declared": 500,
+   "rows": 2,
+   "maxlen": 75,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "backups",
+   "column": "status",
+   "declared": 16,
+   "rows": 2,
+   "maxlen": 8,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "board_attachments",
+   "column": "filename",
+   "declared": 255,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "board_attachments",
+   "column": "id",
+   "declared": 36,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "board_attachments",
+   "column": "media_type",
+   "declared": 100,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "board_attachments",
+   "column": "post_id",
+   "declared": 36,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "board_attachments",
+   "column": "stored_name",
+   "declared": 255,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "board_comments",
+   "column": "author_user_id",
+   "declared": 36,
+   "rows": 2,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "board_comments",
+   "column": "id",
+   "declared": 36,
+   "rows": 2,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "board_comments",
+   "column": "parent_comment_id",
+   "declared": 36,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "board_comments",
+   "column": "post_id",
+   "declared": 36,
+   "rows": 2,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "board_posts",
+   "column": "author_user_id",
+   "declared": 36,
+   "rows": 3,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "board_posts",
+   "column": "category",
+   "declared": 32,
+   "rows": 3,
+   "maxlen": 2,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "board_posts",
+   "column": "id",
+   "declared": 36,
+   "rows": 3,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "board_posts",
+   "column": "idea_status",
+   "declared": 16,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "board_posts",
+   "column": "kind",
+   "declared": 16,
+   "rows": 3,
+   "maxlen": 4,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "board_posts",
+   "column": "org_id",
+   "declared": 36,
+   "rows": 3,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "board_posts",
+   "column": "ticket_page_id",
+   "declared": 64,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "board_posts",
+   "column": "title",
+   "declared": 200,
+   "rows": 3,
+   "maxlen": 17,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "board_reactions",
+   "column": "emoji",
+   "declared": 16,
+   "rows": 1,
+   "maxlen": 1,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "board_reactions",
+   "column": "id",
+   "declared": 36,
+   "rows": 1,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "board_reactions",
+   "column": "target_id",
+   "declared": 36,
+   "rows": 1,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "board_reactions",
+   "column": "target_type",
+   "declared": 16,
+   "rows": 1,
+   "maxlen": 4,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "board_reactions",
+   "column": "user_id",
+   "declared": 36,
+   "rows": 1,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "chat_message_images",
+   "column": "filename",
+   "declared": 255,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "chat_message_images",
+   "column": "id",
+   "declared": 36,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "chat_message_images",
+   "column": "media_type",
+   "declared": 100,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "chat_message_images",
+   "column": "message_id",
+   "declared": 36,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "chat_message_images",
+   "column": "room_id",
+   "declared": 36,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "chat_message_images",
+   "column": "stored_name",
+   "declared": 255,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "chat_messages",
+   "column": "client_message_id",
+   "declared": 64,
+   "rows": 6,
+   "maxlen": 16,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "chat_messages",
+   "column": "id",
+   "declared": 36,
+   "rows": 14,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "chat_messages",
+   "column": "kind",
+   "declared": 16,
+   "rows": 14,
+   "maxlen": 6,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "chat_messages",
+   "column": "room_id",
+   "declared": 36,
+   "rows": 14,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "chat_messages",
+   "column": "sender_user_id",
+   "declared": 36,
+   "rows": 6,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "chat_read_cursors",
+   "column": "id",
+   "declared": 36,
+   "rows": 19,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "chat_read_cursors",
+   "column": "room_id",
+   "declared": 36,
+   "rows": 19,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "chat_read_cursors",
+   "column": "user_id",
+   "declared": 36,
+   "rows": 19,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "chat_room_members",
+   "column": "id",
+   "declared": 36,
+   "rows": 21,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "chat_room_members",
+   "column": "role",
+   "declared": 16,
+   "rows": 21,
+   "maxlen": 6,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "chat_room_members",
+   "column": "room_id",
+   "declared": 36,
+   "rows": 21,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "chat_room_members",
+   "column": "user_id",
+   "declared": 36,
+   "rows": 21,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "chat_rooms",
+   "column": "created_by_user_id",
+   "declared": 36,
+   "rows": 4,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "chat_rooms",
+   "column": "department_id",
+   "declared": 36,
+   "rows": 1,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "chat_rooms",
+   "column": "dm_key",
+   "declared": 80,
+   "rows": 1,
+   "maxlen": 73,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "chat_rooms",
+   "column": "id",
+   "declared": 36,
+   "rows": 6,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "chat_rooms",
+   "column": "kind",
+   "declared": 16,
+   "rows": 6,
+   "maxlen": 6,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "chat_rooms",
+   "column": "org_id",
+   "declared": 36,
+   "rows": 6,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "chat_rooms",
+   "column": "title",
+   "declared": 200,
+   "rows": 6,
+   "maxlen": 22,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "config_versions",
+   "column": "created_by",
+   "declared": 36,
+   "rows": 18,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "config_versions",
+   "column": "id",
+   "declared": 36,
+   "rows": 24,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "config_versions",
+   "column": "object_id",
+   "declared": 64,
+   "rows": 24,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "config_versions",
+   "column": "object_type",
+   "declared": 64,
+   "rows": 24,
+   "maxlen": 11,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "conversations",
+   "column": "backend_conversation_id",
+   "declared": 128,
+   "rows": 64,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "conversations",
+   "column": "id",
+   "declared": 36,
+   "rows": 87,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "conversations",
+   "column": "title",
+   "declared": 200,
+   "rows": 87,
+   "maxlen": 60,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "conversations",
+   "column": "user_id",
+   "declared": 36,
+   "rows": 87,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "departments",
+   "column": "id",
+   "declared": 36,
+   "rows": 2,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "departments",
+   "column": "name",
+   "declared": 120,
+   "rows": 2,
+   "maxlen": 10,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "departments",
+   "column": "org_id",
+   "declared": 36,
+   "rows": 2,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "departments",
+   "column": "parent_id",
+   "declared": 36,
+   "rows": 1,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "document_cache",
+   "column": "created_time",
+   "declared": 40,
+   "rows": 110,
+   "maxlen": 24,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "document_cache",
+   "column": "doc_date",
+   "declared": 40,
+   "rows": 12,
+   "maxlen": 10,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "document_cache",
+   "column": "document_type",
+   "declared": 32,
+   "rows": 110,
+   "maxlen": 2,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "document_cache",
+   "column": "id",
+   "declared": 36,
+   "rows": 110,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "document_cache",
+   "column": "last_edited",
+   "declared": 40,
+   "rows": 110,
+   "maxlen": 24,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "document_cache",
+   "column": "notion_page_id",
+   "declared": 64,
+   "rows": 110,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "document_cache",
+   "column": "org_id",
+   "declared": 36,
+   "rows": 110,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "document_cache",
+   "column": "orig_date",
+   "declared": 40,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "document_cache",
+   "column": "original_url",
+   "declared": 1000,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "document_cache",
+   "column": "owner",
+   "declared": 255,
+   "rows": 110,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "document_cache",
+   "column": "owner_dept_id",
+   "declared": 36,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "document_cache",
+   "column": "owner_kind",
+   "declared": 16,
+   "rows": 110,
+   "maxlen": 5,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "document_cache",
+   "column": "owner_project_id",
+   "declared": 36,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "document_cache",
+   "column": "priority",
+   "declared": 64,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "document_cache",
+   "column": "source_url",
+   "declared": 1000,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "document_cache",
+   "column": "status",
+   "declared": 64,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "document_cache",
+   "column": "title",
+   "declared": 500,
+   "rows": 110,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "document_cache",
+   "column": "url",
+   "declared": 500,
+   "rows": 110,
+   "maxlen": 94,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "document_cache",
+   "column": "work_field",
+   "declared": 32,
+   "rows": 110,
+   "maxlen": 2,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "document_comments",
+   "column": "author_user_id",
+   "declared": 36,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "document_comments",
+   "column": "document_id",
+   "declared": 36,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "document_comments",
+   "column": "id",
+   "declared": 36,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "document_comments",
+   "column": "notion_page_id",
+   "declared": 64,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "document_favorites",
+   "column": "document_id",
+   "declared": 36,
+   "rows": 1,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "document_favorites",
+   "column": "id",
+   "declared": 36,
+   "rows": 1,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "document_favorites",
+   "column": "notion_page_id",
+   "declared": 64,
+   "rows": 1,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "document_favorites",
+   "column": "user_id",
+   "declared": 36,
+   "rows": 1,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "document_generations",
+   "column": "id",
+   "declared": 36,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "document_generations",
+   "column": "idempotency_key",
+   "declared": 300,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "document_generations",
+   "column": "mode",
+   "declared": 32,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "document_generations",
+   "column": "published_ref",
+   "declared": 500,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "document_generations",
+   "column": "requested_by",
+   "declared": 36,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "document_generations",
+   "column": "status",
+   "declared": 24,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "document_generations",
+   "column": "template_id",
+   "declared": 36,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "document_generations",
+   "column": "workflow_id",
+   "declared": 36,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "document_recent_views",
+   "column": "document_id",
+   "declared": 36,
+   "rows": 49,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "document_recent_views",
+   "column": "id",
+   "declared": 36,
+   "rows": 50,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "document_recent_views",
+   "column": "notion_page_id",
+   "declared": 64,
+   "rows": 50,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "document_recent_views",
+   "column": "user_id",
+   "declared": 36,
+   "rows": 50,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "document_sync_state",
+   "column": "id",
+   "declared": 32,
+   "rows": 1,
+   "maxlen": 9,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "document_sync_state",
+   "column": "status",
+   "declared": 16,
+   "rows": 1,
+   "maxlen": 5,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "game_events",
+   "column": "actor_user_id",
+   "declared": 36,
+   "rows": 1,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "game_events",
+   "column": "id",
+   "declared": 36,
+   "rows": 1,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "game_events",
+   "column": "kind",
+   "declared": 16,
+   "rows": 1,
+   "maxlen": 4,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "game_events",
+   "column": "room_id",
+   "declared": 36,
+   "rows": 1,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "game_room_members",
+   "column": "display_name",
+   "declared": 120,
+   "rows": 1,
+   "maxlen": 3,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "game_room_members",
+   "column": "id",
+   "declared": 36,
+   "rows": 1,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "game_room_members",
+   "column": "role",
+   "declared": 16,
+   "rows": 1,
+   "maxlen": 4,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "game_room_members",
+   "column": "room_id",
+   "declared": 36,
+   "rows": 1,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "game_room_members",
+   "column": "user_id",
+   "declared": 36,
+   "rows": 1,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "game_rooms",
+   "column": "game_type",
+   "declared": 32,
+   "rows": 1,
+   "maxlen": 6,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "game_rooms",
+   "column": "host_user_id",
+   "declared": 36,
+   "rows": 1,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "game_rooms",
+   "column": "id",
+   "declared": 36,
+   "rows": 1,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "game_rooms",
+   "column": "org_id",
+   "declared": 36,
+   "rows": 1,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "game_rooms",
+   "column": "status",
+   "declared": 16,
+   "rows": 1,
+   "maxlen": 8,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "game_rooms",
+   "column": "title",
+   "declared": 120,
+   "rows": 1,
+   "maxlen": 13,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "heartbeats",
+   "column": "component",
+   "declared": 32,
+   "rows": 3,
+   "maxlen": 21,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "impersonation_sessions",
+   "column": "actor_user_id",
+   "declared": 36,
+   "rows": 1,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "impersonation_sessions",
+   "column": "client_ip",
+   "declared": 64,
+   "rows": 1,
+   "maxlen": 11,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "impersonation_sessions",
+   "column": "ended_reason",
+   "declared": 32,
+   "rows": 1,
+   "maxlen": 6,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "impersonation_sessions",
+   "column": "id",
+   "declared": 36,
+   "rows": 1,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "impersonation_sessions",
+   "column": "reason",
+   "declared": 500,
+   "rows": 1,
+   "maxlen": 30,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "impersonation_sessions",
+   "column": "session_id",
+   "declared": 36,
+   "rows": 1,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "impersonation_sessions",
+   "column": "target_user_id",
+   "declared": 36,
+   "rows": 1,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "integrations",
+   "column": "auth_type",
+   "declared": 32,
+   "rows": 4,
+   "maxlen": 4,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "integrations",
+   "column": "base_url",
+   "declared": 500,
+   "rows": 4,
+   "maxlen": 21,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "integrations",
+   "column": "health_url",
+   "declared": 500,
+   "rows": 4,
+   "maxlen": 29,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "integrations",
+   "column": "id",
+   "declared": 36,
+   "rows": 4,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "integrations",
+   "column": "last_health_status",
+   "declared": 16,
+   "rows": 4,
+   "maxlen": 2,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "integrations",
+   "column": "name",
+   "declared": 120,
+   "rows": 4,
+   "maxlen": 26,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "integrations",
+   "column": "provider_type",
+   "declared": 32,
+   "rows": 4,
+   "maxlen": 12,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "integrations",
+   "column": "secret_ref",
+   "declared": 128,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "job_titles",
+   "column": "id",
+   "declared": 36,
+   "rows": 5,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "job_titles",
+   "column": "name",
+   "declared": 120,
+   "rows": 5,
+   "maxlen": 2,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "job_titles",
+   "column": "org_id",
+   "declared": 36,
+   "rows": 5,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "jobs",
+   "column": "conversation_id",
+   "declared": 36,
+   "rows": 163,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "jobs",
+   "column": "id",
+   "declared": 36,
+   "rows": 165,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "jobs",
+   "column": "idempotency_key",
+   "declared": 200,
+   "rows": 165,
+   "maxlen": 71,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "jobs",
+   "column": "job_type",
+   "declared": 64,
+   "rows": 165,
+   "maxlen": 19,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "jobs",
+   "column": "message_id",
+   "declared": 64,
+   "rows": 163,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "jobs",
+   "column": "status",
+   "declared": 16,
+   "rows": 165,
+   "maxlen": 9,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "jobs",
+   "column": "user_id",
+   "declared": 36,
+   "rows": 163,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "mail_deliveries",
+   "column": "id",
+   "declared": 36,
+   "rows": 79,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "mail_deliveries",
+   "column": "job_id",
+   "declared": 36,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "mail_deliveries",
+   "column": "kind",
+   "declared": 64,
+   "rows": 79,
+   "maxlen": 18,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "mail_deliveries",
+   "column": "status",
+   "declared": 16,
+   "rows": 79,
+   "maxlen": 12,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "mail_deliveries",
+   "column": "subject",
+   "declared": 300,
+   "rows": 79,
+   "maxlen": 38,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "mail_deliveries",
+   "column": "to_email",
+   "declared": 320,
+   "rows": 79,
+   "maxlen": 32,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "messages",
+   "column": "conversation_id",
+   "declared": 36,
+   "rows": 311,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "messages",
+   "column": "error_code",
+   "declared": 64,
+   "rows": 4,
+   "maxlen": 15,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "messages",
+   "column": "feedback",
+   "declared": 16,
+   "rows": 4,
+   "maxlen": 2,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "messages",
+   "column": "id",
+   "declared": 36,
+   "rows": 311,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "messages",
+   "column": "message_id",
+   "declared": 64,
+   "rows": 311,
+   "maxlen": 80,
+   "over": 20,
+   "note": ""
+  },
+  {
+   "table": "messages",
+   "column": "processing_status",
+   "declared": 16,
+   "rows": 311,
+   "maxlen": 6,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "messages",
+   "column": "role",
+   "declared": 16,
+   "rows": 311,
+   "maxlen": 9,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "notifications",
+   "column": "audience",
+   "declared": 16,
+   "rows": 314,
+   "maxlen": 5,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "notifications",
+   "column": "id",
+   "declared": 36,
+   "rows": 314,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "notifications",
+   "column": "related_object_id",
+   "declared": 64,
+   "rows": 138,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "notifications",
+   "column": "related_object_type",
+   "declared": 64,
+   "rows": 214,
+   "maxlen": 9,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "notifications",
+   "column": "title",
+   "declared": 200,
+   "rows": 314,
+   "maxlen": 34,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "notifications",
+   "column": "type",
+   "declared": 64,
+   "rows": 314,
+   "maxlen": 24,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "notifications",
+   "column": "user_id",
+   "declared": 36,
+   "rows": 314,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "offboarding_runs",
+   "column": "actor_user_id",
+   "declared": 36,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "offboarding_runs",
+   "column": "id",
+   "declared": 36,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "offboarding_runs",
+   "column": "org_id",
+   "declared": 36,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "offboarding_runs",
+   "column": "status",
+   "declared": 16,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "offboarding_runs",
+   "column": "successor_user_id",
+   "declared": 36,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "offboarding_runs",
+   "column": "undone_by_user_id",
+   "declared": 36,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "offboarding_runs",
+   "column": "user_id",
+   "declared": 36,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "offboarding_ticket_moves",
+   "column": "id",
+   "declared": 36,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "offboarding_ticket_moves",
+   "column": "run_id",
+   "declared": 36,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "offboarding_ticket_moves",
+   "column": "status",
+   "declared": 16,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "offboarding_ticket_moves",
+   "column": "ticket_page_id",
+   "declared": 64,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "offboarding_ticket_moves",
+   "column": "ticket_title",
+   "declared": 500,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "offboarding_ticket_moves",
+   "column": "ticket_uid",
+   "declared": 36,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "organizations",
+   "column": "id",
+   "declared": 36,
+   "rows": 1,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "organizations",
+   "column": "name",
+   "declared": 200,
+   "rows": 1,
+   "maxlen": 6,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "organizations",
+   "column": "slug",
+   "declared": 80,
+   "rows": 1,
+   "maxlen": 7,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "organizations",
+   "column": "status",
+   "declared": 16,
+   "rows": 1,
+   "maxlen": 6,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "password_reset_tokens",
+   "column": "created_ip",
+   "declared": 64,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "password_reset_tokens",
+   "column": "id",
+   "declared": 36,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "password_reset_tokens",
+   "column": "purpose",
+   "declared": 32,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "password_reset_tokens",
+   "column": "token_hash",
+   "declared": 64,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "password_reset_tokens",
+   "column": "user_id",
+   "declared": 36,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "policies",
+   "column": "created_by",
+   "declared": 36,
+   "rows": 2,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "policies",
+   "column": "id",
+   "declared": 36,
+   "rows": 2,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "policies",
+   "column": "name",
+   "declared": 120,
+   "rows": 2,
+   "maxlen": 13,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "policies",
+   "column": "status",
+   "declared": 16,
+   "rows": 2,
+   "maxlen": 9,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "project_health_snapshots",
+   "column": "id",
+   "declared": 36,
+   "rows": 66,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "project_health_snapshots",
+   "column": "project_id",
+   "declared": 36,
+   "rows": 66,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "project_health_snapshots",
+   "column": "week_of",
+   "declared": 10,
+   "rows": 66,
+   "maxlen": 10,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "project_members",
+   "column": "id",
+   "declared": 36,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "project_members",
+   "column": "project_id",
+   "declared": 36,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "project_members",
+   "column": "role",
+   "declared": 16,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "project_members",
+   "column": "user_id",
+   "declared": 36,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "project_milestones",
+   "column": "due_on",
+   "declared": 40,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "project_milestones",
+   "column": "id",
+   "declared": 36,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "project_milestones",
+   "column": "name",
+   "declared": 200,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "project_milestones",
+   "column": "project_id",
+   "declared": 36,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "project_milestones",
+   "column": "status",
+   "declared": 32,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "project_sync_state",
+   "column": "id",
+   "declared": 32,
+   "rows": 1,
+   "maxlen": 8,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "project_sync_state",
+   "column": "status",
+   "declared": 16,
+   "rows": 1,
+   "maxlen": 5,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "project_weekly_reports",
+   "column": "id",
+   "declared": 36,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "project_weekly_reports",
+   "column": "project_id",
+   "declared": 36,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "project_weekly_reports",
+   "column": "source",
+   "declared": 8,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "project_weekly_reports",
+   "column": "week_of",
+   "declared": 10,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "projects",
+   "column": "biz_type",
+   "declared": 200,
+   "rows": 22,
+   "maxlen": 12,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "projects",
+   "column": "code",
+   "declared": 64,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "projects",
+   "column": "dept_id",
+   "declared": 36,
+   "rows": 22,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "projects",
+   "column": "ends_on",
+   "declared": 40,
+   "rows": 17,
+   "maxlen": 10,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "projects",
+   "column": "id",
+   "declared": 36,
+   "rows": 22,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "projects",
+   "column": "name",
+   "declared": 200,
+   "rows": 22,
+   "maxlen": 33,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "projects",
+   "column": "notion_last_edited",
+   "declared": 40,
+   "rows": 22,
+   "maxlen": 24,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "projects",
+   "column": "notion_page_id",
+   "declared": 64,
+   "rows": 22,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "projects",
+   "column": "notion_status",
+   "declared": 64,
+   "rows": 22,
+   "maxlen": 4,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "projects",
+   "column": "org_id",
+   "declared": 36,
+   "rows": 22,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "projects",
+   "column": "owner_user_id",
+   "declared": 36,
+   "rows": 18,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "projects",
+   "column": "product",
+   "declared": 200,
+   "rows": 22,
+   "maxlen": 14,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "projects",
+   "column": "starts_on",
+   "declared": 40,
+   "rows": 21,
+   "maxlen": 10,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "projects",
+   "column": "status",
+   "declared": 32,
+   "rows": 22,
+   "maxlen": 6,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "prompts",
+   "column": "created_by",
+   "declared": 36,
+   "rows": 3,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "prompts",
+   "column": "id",
+   "declared": 36,
+   "rows": 3,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "prompts",
+   "column": "name",
+   "declared": 120,
+   "rows": 3,
+   "maxlen": 12,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "prompts",
+   "column": "runner_id",
+   "declared": 36,
+   "rows": 3,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "prompts",
+   "column": "status",
+   "declared": 16,
+   "rows": 3,
+   "maxlen": 9,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "restore_rehearsals",
+   "column": "created_by",
+   "declared": 36,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "restore_rehearsals",
+   "column": "id",
+   "declared": 36,
+   "rows": 1,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "restore_rehearsals",
+   "column": "source_label",
+   "declared": 200,
+   "rows": 1,
+   "maxlen": 44,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "runners",
+   "column": "auth_type",
+   "declared": 32,
+   "rows": 3,
+   "maxlen": 4,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "runners",
+   "column": "base_url",
+   "declared": 500,
+   "rows": 3,
+   "maxlen": 21,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "runners",
+   "column": "health_url",
+   "declared": 500,
+   "rows": 3,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "runners",
+   "column": "id",
+   "declared": 36,
+   "rows": 3,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "runners",
+   "column": "integration_id",
+   "declared": 36,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "runners",
+   "column": "last_health_status",
+   "declared": 16,
+   "rows": 3,
+   "maxlen": 2,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "runners",
+   "column": "maintenance_state",
+   "declared": 16,
+   "rows": 3,
+   "maxlen": 6,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "runners",
+   "column": "name",
+   "declared": 120,
+   "rows": 3,
+   "maxlen": 6,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "runners",
+   "column": "owner",
+   "declared": 120,
+   "rows": 3,
+   "maxlen": 7,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "runners",
+   "column": "provider_type",
+   "declared": 32,
+   "rows": 3,
+   "maxlen": 10,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "runners",
+   "column": "secret_ref",
+   "declared": 128,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "runners",
+   "column": "version",
+   "declared": 64,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "saved_views",
+   "column": "id",
+   "declared": 36,
+   "rows": 1,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "saved_views",
+   "column": "name",
+   "declared": 80,
+   "rows": 1,
+   "maxlen": 8,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "saved_views",
+   "column": "screen_key",
+   "declared": 64,
+   "rows": 1,
+   "maxlen": 9,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "saved_views",
+   "column": "user_id",
+   "declared": 36,
+   "rows": 1,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "schedule_runs",
+   "column": "id",
+   "declared": 36,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "schedule_runs",
+   "column": "idempotency_key",
+   "declared": 200,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "schedule_runs",
+   "column": "schedule_id",
+   "declared": 36,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "schedule_runs",
+   "column": "status",
+   "declared": 16,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "schedules",
+   "column": "concurrency_policy",
+   "declared": 16,
+   "rows": 1,
+   "maxlen": 4,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "schedules",
+   "column": "cron_expression",
+   "declared": 120,
+   "rows": 1,
+   "maxlen": 9,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "schedules",
+   "column": "id",
+   "declared": 36,
+   "rows": 1,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "schedules",
+   "column": "misfire_policy",
+   "declared": 16,
+   "rows": 1,
+   "maxlen": 4,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "schedules",
+   "column": "name",
+   "declared": 120,
+   "rows": 1,
+   "maxlen": 21,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "schedules",
+   "column": "owner_user_id",
+   "declared": 36,
+   "rows": 1,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "schedules",
+   "column": "prompt_id",
+   "declared": 36,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "schedules",
+   "column": "runner_id",
+   "declared": 36,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "schedules",
+   "column": "schedule_type",
+   "declared": 16,
+   "rows": 1,
+   "maxlen": 4,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "schedules",
+   "column": "target_ref",
+   "declared": 64,
+   "rows": 1,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "schedules",
+   "column": "target_type",
+   "declared": 16,
+   "rows": 1,
+   "maxlen": 8,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "schedules",
+   "column": "timezone",
+   "declared": 64,
+   "rows": 1,
+   "maxlen": 10,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "search_documents",
+   "column": "id",
+   "declared": 36,
+   "rows": 1238,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "search_documents",
+   "column": "kind",
+   "declared": 16,
+   "rows": 1238,
+   "maxlen": 8,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "search_documents",
+   "column": "org_id",
+   "declared": 36,
+   "rows": 1238,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "search_documents",
+   "column": "owner_dept_id",
+   "declared": 36,
+   "rows": 1238,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "search_documents",
+   "column": "owner_kind",
+   "declared": 16,
+   "rows": 1238,
+   "maxlen": 12,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "search_documents",
+   "column": "owner_project_id",
+   "declared": 36,
+   "rows": 1238,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "search_documents",
+   "column": "ref_id",
+   "declared": 64,
+   "rows": 1238,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "search_documents",
+   "column": "route",
+   "declared": 300,
+   "rows": 1238,
+   "maxlen": 74,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "search_documents",
+   "column": "sort_key",
+   "declared": 40,
+   "rows": 917,
+   "maxlen": 26,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "search_documents",
+   "column": "subtitle",
+   "declared": 300,
+   "rows": 1238,
+   "maxlen": 65,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "search_documents",
+   "column": "url",
+   "declared": 1000,
+   "rows": 1113,
+   "maxlen": 135,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "sessions",
+   "column": "client_ip",
+   "declared": 64,
+   "rows": 743,
+   "maxlen": 15,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "sessions",
+   "column": "csrf_token",
+   "declared": 64,
+   "rows": 743,
+   "maxlen": 43,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "sessions",
+   "column": "id",
+   "declared": 36,
+   "rows": 743,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "sessions",
+   "column": "impersonated_user_id",
+   "declared": 36,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "sessions",
+   "column": "impersonation_id",
+   "declared": 36,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "sessions",
+   "column": "token_hash",
+   "declared": 64,
+   "rows": 743,
+   "maxlen": 64,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "sessions",
+   "column": "user_agent",
+   "declared": 255,
+   "rows": 743,
+   "maxlen": 141,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "sessions",
+   "column": "user_id",
+   "declared": 36,
+   "rows": 743,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "sync_status",
+   "column": "component",
+   "declared": 32,
+   "rows": 5,
+   "maxlen": 14,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "sync_status",
+   "column": "status",
+   "declared": 16,
+   "rows": 5,
+   "maxlen": 5,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "ticket_attachments",
+   "column": "filename",
+   "declared": 255,
+   "rows": 2,
+   "maxlen": 26,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "ticket_attachments",
+   "column": "id",
+   "declared": 36,
+   "rows": 2,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "ticket_attachments",
+   "column": "media_type",
+   "declared": 100,
+   "rows": 2,
+   "maxlen": 9,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "ticket_attachments",
+   "column": "stored_name",
+   "declared": 255,
+   "rows": 2,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "ticket_attachments",
+   "column": "ticket_uid",
+   "declared": 36,
+   "rows": 2,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "ticket_attachments",
+   "column": "uploaded_by_user_id",
+   "declared": 36,
+   "rows": 2,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "ticket_cache",
+   "column": "category",
+   "declared": 200,
+   "rows": 114,
+   "maxlen": 14,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "ticket_cache",
+   "column": "difficulty",
+   "declared": 64,
+   "rows": 195,
+   "maxlen": 1,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "ticket_cache",
+   "column": "due_date",
+   "declared": 40,
+   "rows": 812,
+   "maxlen": 10,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "ticket_cache",
+   "column": "id",
+   "declared": 36,
+   "rows": 1124,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "ticket_cache",
+   "column": "notion_created_time",
+   "declared": 40,
+   "rows": 1124,
+   "maxlen": 24,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "ticket_cache",
+   "column": "notion_last_edited",
+   "declared": 40,
+   "rows": 1124,
+   "maxlen": 24,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "ticket_cache",
+   "column": "notion_page_id",
+   "declared": 64,
+   "rows": 1124,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "ticket_cache",
+   "column": "org_id",
+   "declared": 36,
+   "rows": 1124,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "ticket_cache",
+   "column": "parent_page_id",
+   "declared": 64,
+   "rows": 74,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "ticket_cache",
+   "column": "priority",
+   "declared": 64,
+   "rows": 423,
+   "maxlen": 2,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "ticket_cache",
+   "column": "project_link",
+   "declared": 16,
+   "rows": 1124,
+   "maxlen": 9,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "ticket_cache",
+   "column": "project_uid",
+   "declared": 36,
+   "rows": 1118,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "ticket_cache",
+   "column": "source",
+   "declared": 16,
+   "rows": 1124,
+   "maxlen": 6,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "ticket_cache",
+   "column": "start_date",
+   "declared": 40,
+   "rows": 269,
+   "maxlen": 10,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "ticket_cache",
+   "column": "status",
+   "declared": 64,
+   "rows": 1124,
+   "maxlen": 2,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "ticket_cache",
+   "column": "title",
+   "declared": 500,
+   "rows": 1124,
+   "maxlen": 93,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "ticket_cache",
+   "column": "url",
+   "declared": 500,
+   "rows": 1124,
+   "maxlen": 135,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "ticket_comments",
+   "column": "author_user_id",
+   "declared": 36,
+   "rows": 9,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "ticket_comments",
+   "column": "id",
+   "declared": 36,
+   "rows": 9,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "ticket_comments",
+   "column": "ticket_uid",
+   "declared": 36,
+   "rows": 9,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "ticket_meta_cache",
+   "column": "id",
+   "declared": 32,
+   "rows": 1,
+   "maxlen": 7,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "ticket_sync_state",
+   "column": "id",
+   "declared": 32,
+   "rows": 1,
+   "maxlen": 7,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "ticket_sync_state",
+   "column": "status",
+   "declared": 16,
+   "rows": 1,
+   "maxlen": 5,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "trash_items",
+   "column": "deleted_by_name",
+   "declared": 200,
+   "rows": 2,
+   "maxlen": 3,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "trash_items",
+   "column": "deleted_by_user_id",
+   "declared": 36,
+   "rows": 2,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "trash_items",
+   "column": "id",
+   "declared": 36,
+   "rows": 2,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "trash_items",
+   "column": "item_type",
+   "declared": 16,
+   "rows": 2,
+   "maxlen": 6,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "trash_items",
+   "column": "notion_page_id",
+   "declared": 64,
+   "rows": 2,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "trash_items",
+   "column": "org_id",
+   "declared": 36,
+   "rows": 2,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "trash_items",
+   "column": "target_uid",
+   "declared": 36,
+   "rows": 2,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "trash_items",
+   "column": "title",
+   "declared": 400,
+   "rows": 2,
+   "maxlen": 33,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "trash_items",
+   "column": "url",
+   "declared": 1000,
+   "rows": 2,
+   "maxlen": 57,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "usage_events",
+   "column": "event",
+   "declared": 64,
+   "rows": 477,
+   "maxlen": 13,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "usage_events",
+   "column": "id",
+   "declared": 36,
+   "rows": 477,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "usage_events",
+   "column": "object_id",
+   "declared": 64,
+   "rows": 76,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "usage_events",
+   "column": "object_type",
+   "declared": 48,
+   "rows": 76,
+   "maxlen": 11,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "usage_events",
+   "column": "org_id",
+   "declared": 36,
+   "rows": 477,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "usage_events",
+   "column": "user_id",
+   "declared": 36,
+   "rows": 477,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "user_notion_mappings",
+   "column": "id",
+   "declared": 36,
+   "rows": 15,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "user_notion_mappings",
+   "column": "notion_email",
+   "declared": 255,
+   "rows": 13,
+   "maxlen": 25,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "user_notion_mappings",
+   "column": "notion_user_id",
+   "declared": 64,
+   "rows": 13,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "user_notion_mappings",
+   "column": "source",
+   "declared": 16,
+   "rows": 15,
+   "maxlen": 8,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "user_notion_mappings",
+   "column": "status",
+   "declared": 16,
+   "rows": 15,
+   "maxlen": 8,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "user_notion_mappings",
+   "column": "user_id",
+   "declared": 36,
+   "rows": 15,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "user_preferences",
+   "column": "avatar_media_type",
+   "declared": 64,
+   "rows": 1,
+   "maxlen": 10,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "user_preferences",
+   "column": "avatar_stored_name",
+   "declared": 64,
+   "rows": 1,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "user_preferences",
+   "column": "id",
+   "declared": 36,
+   "rows": 22,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "user_preferences",
+   "column": "quiet_end",
+   "declared": 5,
+   "rows": 22,
+   "maxlen": 5,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "user_preferences",
+   "column": "quiet_start",
+   "declared": 5,
+   "rows": 22,
+   "maxlen": 5,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "user_preferences",
+   "column": "user_id",
+   "declared": 36,
+   "rows": 22,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "users",
+   "column": "admin_scope",
+   "declared": 16,
+   "rows": 25,
+   "maxlen": 6,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "users",
+   "column": "created_by",
+   "declared": 36,
+   "rows": 3,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "users",
+   "column": "department_id",
+   "declared": 36,
+   "rows": 14,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "users",
+   "column": "display_name",
+   "declared": 120,
+   "rows": 25,
+   "maxlen": 16,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "users",
+   "column": "email",
+   "declared": 255,
+   "rows": 25,
+   "maxlen": 32,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "users",
+   "column": "id",
+   "declared": 36,
+   "rows": 25,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "users",
+   "column": "membership_kind",
+   "declared": 16,
+   "rows": 25,
+   "maxlen": 10,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "users",
+   "column": "org_id",
+   "declared": 36,
+   "rows": 25,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "users",
+   "column": "password_hash",
+   "declared": 255,
+   "rows": 25,
+   "maxlen": 97,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "users",
+   "column": "role",
+   "declared": 32,
+   "rows": 25,
+   "maxlen": 12,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "users",
+   "column": "scope_dept_id",
+   "declared": 36,
+   "rows": 1,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "users",
+   "column": "scope_org_id",
+   "declared": 36,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "users",
+   "column": "title_id",
+   "declared": 36,
+   "rows": 13,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "workflows",
+   "column": "http_method",
+   "declared": 8,
+   "rows": 2,
+   "maxlen": 4,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "workflows",
+   "column": "id",
+   "declared": 36,
+   "rows": 2,
+   "maxlen": 36,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "workflows",
+   "column": "last_test_status",
+   "declared": 16,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "workflows",
+   "column": "name",
+   "declared": 120,
+   "rows": 2,
+   "maxlen": 19,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "workflows",
+   "column": "operation_mode",
+   "declared": 8,
+   "rows": 2,
+   "maxlen": 5,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "workflows",
+   "column": "owner",
+   "declared": 120,
+   "rows": 0,
+   "maxlen": 0,
+   "over": 0,
+   "note": ""
+  },
+  {
+   "table": "workflows",
+   "column": "webhook_url",
+   "declared": 500,
+   "rows": 2,
+   "maxlen": 59,
+   "over": 0,
+   "note": ""
+  }
+ ]
+}
