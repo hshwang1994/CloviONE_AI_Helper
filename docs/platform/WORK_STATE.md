@@ -13,11 +13,12 @@
 - phase: **A — 기반**
 - session: **S1 완료.** 다음은 **S2 — PostgreSQL Foundation**
 - branch: `ui/mui-migration`
-- last_stable_commit: **`18aef2de`** — **S1 의 마지막 안정 커밋**(= `s1_commit`).
+- last_stable_commit: **`95a89189`** — **S1 의 마지막 안정 커밋**(= `s1_commit`).
   **`check_test_strength.py` 가 이 값을 기준선으로 읽는다** — 그래서 이 줄은 장식이 아니다.
   S2 는 여기서부터 비교되고, 끝날 때 자기 커밋 해시로 올린다. 그래야 **커밋된 시험 약화**가
   다음 세션에 보인다
-- s1_commit: **`18aef2de`** — S1 구현·문서 커밋. 이 커밋과 해시를 거는 이 줄이 S1 의 전부다
+- s1_commit: **`95a89189`** — S1 의 마지막 커밋(P-04 운영 재측정 반영). 구현 본체는
+  `18aef2de`, 해시 고정은 `2b890846` 이다
 - working_tree: clean
 - **제품 코드 변경: 0** — `app/**` · `frontend/**` · `alembic/**` · `runner/**` · `tests/**`
   diff **0**. S1 이 고친 것은 `scripts/**`(Harness·Probe)와 `docs/**` 뿐이다
