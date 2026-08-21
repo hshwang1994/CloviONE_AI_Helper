@@ -261,7 +261,9 @@ const BUTTON_VARIANT = {
 // (Tooltip은 호버 위치를 앵커에서 계산한다) — 일반 함수 컴포넌트면 그 ref가 조용히 버려진다.
 export const Button = React.forwardRef(function Button({ variant = "default", size, loading = false, disabled, children, sx, ...rest }, ref) {
   const v = BUTTON_VARIANT[variant] || BUTTON_VARIANT.default;
-  const isSm = size === "sm";
+  /* `sm` 은 키트 옛 어휘, `small` 은 MUI 어휘다. 둘 다 같은 작은 버튼(30)이다 —
+     `small` 만 빠지면 ChatRooms 「1:1」처럼 이름만 작고 높이는 medium(34)이 된다. */
+  const isSm = size === "sm" || size === "small";
   return (
     <MuiButton
       ref={ref}
@@ -348,12 +350,14 @@ export const Button = React.forwardRef(function Button({ variant = "default", si
  * 예전에는 `size="small"` 이 박혀 있었고, 그때는 `MuiIconButton` 의 최소 높이가 34 라 결과가
  * 우연히 옆 기본 버튼(34)과 맞았다. W5 가 「`size` 가 높이를 정한다」로 고치자 그 우연이
  * 깨져 화면 머리 동작 줄에서 30 vs 34 가 됐다(실측 `/team-docs`·`/users`·`/policies` 2560,
- * 4.5px). 기본은 이웃이 기본 버튼인 자리(화면 머리)라 **medium(34)** 이고, `size="sm"` 버튼과
- * 나란히 서는 자리(행 동작 줄)는 호출부가 `size="small"` 이라고 말한다. */
+ * 4.5px). 기본은 이웃이 기본 버튼인 자리(화면 머리)라 **medium(34)** 이고, 작은 버튼과
+ * 나란히 서는 자리(행 동작 줄)는 호출부가 `size="small"` 또는 `size="sm"` 이라고 말한다.
+ * 둘 다 MUI IconButton 의 `small`(30)이다 — `sm` 을 그대로 넘기면 MUI 가 무시해 34 가 된다. */
 export function OverflowMenu({ items, ariaLabel = "더 보기", size }) {
   const list = (items || []).filter(Boolean);
   const [anchorEl, setAnchorEl] = React.useState(null);
   if (!list.length) return null;
+  const iconSize = size === "sm" || size === "small" ? "small" : size;
 
   const close = () => setAnchorEl(null);
   return (
@@ -363,7 +367,7 @@ export function OverflowMenu({ items, ariaLabel = "더 보기", size }) {
         aria-haspopup="menu"
         aria-expanded={anchorEl ? true : undefined}
         onClick={(e) => setAnchorEl(e.currentTarget)}
-        size={size}
+        size={iconSize}
         sx={{ border: 1, borderColor: "divider", borderRadius: `${RADIUS.sm}px`, color: "text.secondary" }}
       >
         <MoreHorizRoundedIcon fontSize="small" />

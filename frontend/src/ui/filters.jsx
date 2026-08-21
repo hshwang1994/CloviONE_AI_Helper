@@ -281,7 +281,12 @@ export function EntityCombobox({
           </Box>
         );
       }}
-      renderInput={(params) => (
+      renderInput={(params) => {
+        /* 라벨이 있을 때만 노치를 연다. `shrink: true` 를 라벨 없이 넘기면 TextField 가
+           `notched=true` 를 강제하고, 윗테두리에 빈 구멍이 난다 — 폼의 `FieldLabel` 아래
+           entity 칸이 그 함정이다. 필터처럼 노치 라벨이 있는 자리는 그대로 항상 축소한다. */
+        const shownLabel = hideLabel ? undefined : label;
+        return (
         <TextField
           {...params}
           /* `hideLabel` 은 **이름이 이미 화면에 있는 자리**를 위한 것이다 — 상세 화면의
@@ -289,10 +294,10 @@ export function EntityCombobox({
              한 번 더 그린다. 이름을 지우는 게 아니라 **보이는 자리에서만 뺀다**: 접근
              이름은 아래 `aria-label` 로 그대로 남는다(이름 없는 combobox 는 스크린리더도
              시험도 부를 수 없다). */
-          label={hideLabel ? undefined : label}
+          label={shownLabel}
           required={required}
           helperText={helperText}
-          InputLabelProps={{ shrink: true }}
+          InputLabelProps={{ ...params.InputLabelProps, shrink: Boolean(shownLabel) }}
           placeholder={current ? placeholder : (placeholder || all.label)}
           /* **한 줄에 잉크 무게는 하나다** (W5 재정정 — 독립 검수 실측 2.68:1 vs 옆 select 17.24:1).
              값이 없을 때 이 상자가 말하는 「… 전체」는 자리표시자가 아니라 **고른 값**이다 —
@@ -300,7 +305,12 @@ export function EntityCombobox({
              기본 자리표시자 투명도(0.42)를 그대로 두면 같은 뜻이 한 줄 안에서 두 무게로 서고,
              사용자는 그 차이를 «이 칸만 비어 있다» 로 읽는다. 값을 **입력 글자로** 넣지 않는
              이유는 그대로다(타이핑이 그 글자 뒤에 덧붙는다) — 무게만 맞춘다. */
-          sx={{ "& .MuiInputBase-input::placeholder": { opacity: 1, color: "text.primary" } }}
+          sx={{
+            "& .MuiInputBase-input::placeholder": { opacity: 1, color: "text.primary" },
+            "& .MuiInputBase-input:focus::placeholder": { opacity: 1, color: "text.primary" },
+            "& .MuiInputBase-input::-webkit-input-placeholder": { opacity: 1, color: "text.primary" },
+            "& .MuiInputBase-input:focus::-webkit-input-placeholder": { opacity: 1, color: "text.primary" },
+          }}
           /* 잘려도 전체 값을 알 수 있어야 한다 (C2 «선택된 값 식별성»). */
           /* 라벨을 부품 밖(`FieldLabel`)이 그리는 자리에서는 이름을 **가리켜서** 잇는다 —
              `label` 을 안 넘기면 MUI 는 이름 없는 combobox 를 만들고, 그러면 스크린리더도
@@ -312,7 +322,8 @@ export function EntityCombobox({
             title: current ? current.label : undefined,
           }}
         />
-      )}
+        );
+      }}
     />
   );
 }

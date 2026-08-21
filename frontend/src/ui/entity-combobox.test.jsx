@@ -105,6 +105,28 @@ describe("EntityCombobox", () => {
     expect(input.getAttribute("title")).toBe("P. SK 하이닉스 [용인 클러스터 대비]");
   });
 
+  it("빈 값의 「… 전체」는 포커스해도 자리표시자로 남고, 입력 글자로 넣지 않는다", async () => {
+    const user = userEvent.setup();
+    const { container } = renderBox();
+    const input = screen.getByRole("combobox", { name: "프로젝트" });
+    expect(input.getAttribute("placeholder")).toBe("프로젝트 전체");
+    expect(input.value).toBe("");
+    expect(container.querySelector(".MuiInputLabel-shrink"), "필터 노치 라벨은 유지된다").toBeTruthy();
+    await user.click(input);
+    expect(input.getAttribute("placeholder")).toBe("프로젝트 전체");
+    expect(input.value).toBe("");
+  });
+
+  it("타이핑을 시작하면 「… 전체」 뒤에 글자가 붙지 않는다", async () => {
+    const user = userEvent.setup();
+    renderBox();
+    const input = screen.getByRole("combobox", { name: "프로젝트" });
+    await user.click(input);
+    await user.type(input, "D.");
+    expect(input.value).toBe("D.");
+    expect(input.value.includes("프로젝트 전체")).toBe(false);
+  });
+
   it("후보가 없을 때 «없다» 고 말한다 — 빈 목록은 고장으로 읽힌다", async () => {
     const user = userEvent.setup();
     renderBox({ options: [], noOptionsText: "일치하는 프로젝트가 없습니다" });

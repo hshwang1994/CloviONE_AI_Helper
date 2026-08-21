@@ -52,7 +52,11 @@ describe("KBD-01/02/03: 키보드 포커스 링", () => {
     const want = `2px solid var(--clovir-focus-ring, ${ring})`;
     expect(theme.components.MuiButtonBase.styleOverrides.root["&.Mui-focusVisible"].outline).toBe(want);
     expect(theme.components.MuiLink.styleOverrides.root["&:focus-visible"].outline).toBe(want);
-    expect(theme.components.MuiOutlinedInput.styleOverrides.root["&.Mui-focused"].outline).toBe(want);
+    /* 입력은 사각 outline 이 노치 라벨을 자르므로, 같은 색을 notchedOutline 2px 로 낸다. */
+    expect(theme.components.MuiOutlinedInput.styleOverrides.root["&.Mui-focused"]).toBeUndefined();
+    const notch = theme.components.MuiOutlinedInput.styleOverrides.root["&.Mui-focused:not(.Mui-error) .MuiOutlinedInput-notchedOutline"];
+    expect(notch.borderWidth).toBe(2);
+    expect(notch.borderColor).toBe(`var(--clovir-focus-ring, ${ring})`);
 
     /* 변수의 기본값은 `:root` 에서 나온다. 이 줄이 없으면 MUI 컴포넌트가 아닌 요소
        (예: `component="a"` 로 그린 '본문 바로가기')가 UA 기본 외곽선으로 떨어진다 —

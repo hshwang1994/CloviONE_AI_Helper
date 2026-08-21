@@ -850,9 +850,14 @@ export function createClovirTheme(mode = "light", accent = DEFAULT_ACCENT) {
             minHeight: remPx(CONTROL.input),
             borderRadius: RADIUS.sm,
             background: t.plate,
-            "&.Mui-focused": {
-              outline: `2px solid var(--clovir-focus-ring, ${t.focusRing})`,
-              outlineOffset: 0,
+            /* 포커스 표시는 사각 `outline` 이 아니라 notchedOutline 이다.
+               `outline` 은 노치 라벨(「부서」「프로젝트」) 뒤로 직사각형을 그어 글자를
+               자르고 테두리에 구멍을 낸다. 노치를 아는 선만 2px 포커스 색으로 굵게 한다.
+               버튼·링크의 focus-visible outline 은 그대로 둔다. 오류 칸은 MUI 의
+               error.main 테두리를 이 규칙이 덮지 않게 뺀다. */
+            "&.Mui-focused:not(.Mui-error) .MuiOutlinedInput-notchedOutline": {
+              borderWidth: 2,
+              borderColor: `var(--clovir-focus-ring, ${t.focusRing})`,
             },
           },
           input: { paddingTop: 7, paddingBottom: 7 },

@@ -44,6 +44,16 @@ describe("부서 필터", () => {
     expect(await screen.findByRole("option", { name: "내 범위 전체" })).toBeTruthy();
   });
 
+  it("빈 값의 「내 범위 전체」는 포커스해도 자리표시자로 남는다", async () => {
+    render(<DepartmentFilter departments={TWO} value="" onChange={() => {}} />);
+    const input = screen.getByRole("combobox");
+    expect(input.getAttribute("placeholder")).toBe("내 범위 전체");
+    expect(input.value).toBe("");
+    await userEvent.click(input);
+    expect(input.getAttribute("placeholder")).toBe("내 범위 전체");
+    expect(input.value).toBe("");
+  });
+
   it("고를 것이 하나뿐이면 아무것도 안 그린다", () => {
     const one = { options: [TWO.options[0]] };
     const { container } = render(

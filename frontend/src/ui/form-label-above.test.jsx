@@ -68,6 +68,21 @@ describe("필수 표기", () => {
   });
 });
 
+describe("entity 필드도 라벨은 위에 있다", () => {
+  it("떠 있는 라벨을 그리지 않아 빈 노치가 생기지 않는다", () => {
+    const { container } = renderField({
+      name: "dept",
+      label: "부서",
+      type: "entity",
+      options: [{ value: "d1", label: "개발팀" }],
+    });
+    expect(container.querySelector(".MuiInputLabel-root")).toBeNull();
+    expect(screen.getAllByText("부서")).toHaveLength(1);
+    expect(screen.getByRole("combobox", { name: "부서" })).toBeTruthy();
+    expect(screen.getByRole("combobox", { name: "부서" })).toHaveAttribute("placeholder", "선택 안 함");
+  });
+});
+
 describe("select 도 같은 규칙을 따른다", () => {
   it("라벨이 앞서고, 이름으로 찾을 수 있다", () => {
     const { container } = renderField(

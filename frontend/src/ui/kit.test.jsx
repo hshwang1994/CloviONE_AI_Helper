@@ -5,7 +5,7 @@ import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 import {
   Badge, Button, Callout, ConfirmProvider, DataTable, EmptyState, ErrorState,
-  Card, FormField, MetricStrip, Modal, PageHeader, SURFACE_EDGE_WIDTH, SURFACE_TONES, Section, Surface,
+  Card, FormField, MetricStrip, Modal, OverflowMenu, PageHeader, SURFACE_EDGE_WIDTH, SURFACE_TONES, Section, Surface,
   ToastProvider, statusKind, statusText, useConfirm,
 } from "./kit.jsx";
 import { ThemeModeProvider } from "./ThemeModeProvider.jsx";
@@ -61,6 +61,29 @@ describe("Button", () => {
     expect(btn).toHaveClass("MuiButton-sizeSmall");
     await userEvent.click(btn);
     expect(onClick).toHaveBeenCalledTimes(1);
+  });
+
+  it("size=\"sm\" 과 size=\"small\" 은 같은 작은 버튼이다", () => {
+    ui(
+      <>
+        <Button size="sm">지우기</Button>
+        <Button size="small">1:1</Button>
+      </>,
+    );
+    expect(screen.getByRole("button", { name: "지우기" })).toHaveClass("MuiButton-sizeSmall");
+    expect(screen.getByRole("button", { name: "1:1" })).toHaveClass("MuiButton-sizeSmall");
+  });
+
+  it("OverflowMenu 의 sm 과 small 도 같은 작은 아이콘 버튼이다", () => {
+    const item = { key: "a", label: "보관", onClick: () => {} };
+    ui(
+      <>
+        <OverflowMenu size="sm" ariaLabel="더 보기 sm" items={[item]} />
+        <OverflowMenu size="small" ariaLabel="더 보기 small" items={[item]} />
+      </>,
+    );
+    expect(screen.getByRole("button", { name: "더 보기 sm" })).toHaveClass("MuiIconButton-sizeSmall");
+    expect(screen.getByRole("button", { name: "더 보기 small" })).toHaveClass("MuiIconButton-sizeSmall");
   });
 
   /* W4 재작성 — 예전에는 `danger` 가 `containedError` 임을 단언했다. 그 단언이 고정하던
