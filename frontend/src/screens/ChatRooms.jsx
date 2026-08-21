@@ -342,7 +342,7 @@ export function ChatRooms() {
                   filteredTitle="검색과 맞는 채팅방이 없습니다"
                   filteredHelp={`'${roomQuery.trim()}' 으로 찾은 결과가 없습니다.`}
                   title="참여 중인 채팅방이 없습니다"
-                  help="위의 '새 그룹' 또는 '1:1'로 대화를 시작하세요. 전체 채팅은 누구나 참여할 수 있습니다."
+                  help="위의 ‘새 그룹’ 또는 ‘1:1’로 대화를 시작하세요. 전체 채팅은 누구나 참여할 수 있습니다."
                 />
               ) : items.map((r) => (
                 <RoomRow key={r.id} room={r} onOpen={open} active={activeId === r.id} />

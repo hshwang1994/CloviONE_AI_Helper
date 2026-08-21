@@ -27,7 +27,7 @@ import {
 } from "../ui/kit.jsx";
 import { bulkFailureNote, fmtDateTime } from "../lib/format.js";
 import { invalidateDocumentViews } from "./document-views.js";
-import { FONT_SIZE, FONT_WEIGHT, PROSE_MAX_WIDTH } from "../ui/theme.js";
+import { FONT_SIZE, FONT_WEIGHT } from "../ui/theme.js";
 import StarRoundedIcon from "@mui/icons-material/StarRounded";
 import { MirrorNotice } from "../ui/MirrorNotice.jsx";
 import { FilterActions, FilterRow, FilterSurface, ResultLine, ToolbarEnd, ToolbarRow, TOOLBAR_SEARCH_SX } from "../ui/FilterBar.jsx";
@@ -412,8 +412,8 @@ export function TeamDocs() {
           />
         </>}
       />
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 3, maxWidth: PROSE_MAX_WIDTH }}>
-        Notion 팀 문서를 검색하고 새 문서를 만들 수 있습니다.
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+        Notion 팀 문서를 검색하고 새 문서를 만듭니다.
       </Typography>
 
       <MirrorNotice
@@ -512,7 +512,7 @@ export function TeamDocs() {
           <EmptyState
             art="docs"
             title="문서가 없습니다"
-            help="아직 동기화되지 않았습니다. 운영자가 '지금 동기화'를 눌러 Notion 문서를 불러올 수 있습니다."
+            help="아직 동기화되지 않았습니다. 운영자가 ‘지금 동기화’를 누르면 Notion 문서를 불러옵니다."
           />
         ) : hasFilter ? (
           <EmptyState

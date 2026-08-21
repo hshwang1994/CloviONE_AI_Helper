@@ -289,8 +289,8 @@ export function Sprint() {
   return (
     <div className="c-screen">
       <PageHeader crumbRoot="도우미" area="스프린트 회의" title="스프린트 회의" spot="sprint" actions={nudge} />
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5, maxWidth: "70ch" }} aria-live="polite">
-        {weekLabel} ({start} ~ {sunday}) 기준입니다. 담당자별로 무엇을 끝냈고 무엇을 하고 있는지 함께 보고, 다음 계획을 논의하세요. 회의 중 바로 수정할 수 있습니다.
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }} aria-live="polite">
+        {weekLabel} ({start} ~ {sunday}) 기준입니다. 담당자별로 진행을 보고, 회의 중에 바로 수정할 수 있습니다.
       </Typography>
       {/* 조회 부서 — **필터가 아니라 화면 Context** 다(0060 §18). 필터처럼 목록 위에 작게
           두지 않고 화면 머리에 크게 둔다: 회의 참석자 전원이 "지금 어느 팀 이야기인가" 를
@@ -388,10 +388,8 @@ export function Sprint() {
                   {/* 그림이 무엇을 말하고 **무엇을 말하지 않는지**를 그림 옆에 쓴다. 완료 시각이
                       기록되지 않아 날짜별 실제 이력은 그릴 수 없다 — 그걸 숨기면 사람들은 이
                       그림을 실제 진행으로 읽는다. */}
-                  <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1.5, maxWidth: "60ch" }}>
-                    두 선 모두 <b>마감일</b>이 축입니다. ‘계획’은 그날 이후로 마감이 남아 있는 업무량,
-                    ‘아직 미완료’는 그중 끝나지 않은 것입니다. 두 선의 간격이 이미 끝낸 일입니다.
-                    완료 시각은 원본에 기록이 없어 날짜별 실제 이력은 그리지 않습니다.
+                  <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1.5 }}>
+                    두 선 모두 <b>마감일</b>이 축입니다. ‘계획’은 남은 양, ‘아직 미완료’는 끝나지 않은 일입니다. 완료 시각이 없어 날짜별 이력은 그리지 않습니다.
                   </Typography>
                   {(() => {
                     const bd = burndownSeries(d.burndown);
@@ -404,8 +402,8 @@ export function Sprint() {
                   <Typography component="h2" variant="h6" sx={{ fontSize: FONT_SIZE.sectionTitle, mb: 0.5 }}>
                     담당자별 업무량(WD)
                   </Typography>
-                  <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1.5, maxWidth: "60ch" }}>
-                    이 주에 마감인 티켓의 예상 업무량 합계입니다(취소 제외). 평균의 1.5배를 넘는 사람만 색으로 표시합니다.
+                  <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1.5 }}>
+                    이 주에 마감인 티켓의 업무량 합계입니다(취소 제외). 평균의 1.5배를 넘는 사람만 색으로 표시합니다.
                   </Typography>
                   {(() => {
                     const wd = wdBalanceItems(d.developers);
@@ -430,9 +428,8 @@ export function Sprint() {
                 <Typography component="h2" id="sprint-people" variant="h6" sx={{ fontSize: FONT_SIZE.sectionTitle, mb: 0.5 }}>
                   담당자 현황 ({busy.length}명)
                 </Typography>
-                <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1.5, maxWidth: "70ch" }}>
-                  이 주 전체 기준입니다(아래 조건을 걸어도 카드 숫자는 바뀌지 않습니다).
-                  {canPick ? " 카드를 누르면 아래 목록이 그 사람 티켓만 남습니다." : ""}
+                <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1.5 }}>
+                  이 주 전체 기준입니다.{canPick ? " 카드를 누르면 아래 목록이 그 사람 티켓만 남습니다." : ""}
                 </Typography>
                 {busy.length ? (
                   <Box sx={PEOPLE_GRID}>
@@ -467,8 +464,8 @@ export function Sprint() {
                   담당자별 티켓 ({people}명)
                 </Typography>
                 <Card>
-                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2, maxWidth: "70ch" }}>
-                    이 주에 담당자별로 맡은 티켓입니다. 제목을 누르면 티켓 상세가 열리고, ‘수정’으로 상태, 담당자, 마감을 바로 바꿀 수 있습니다.
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                    담당자별 티켓입니다. 제목을 누르면 상세가 열리고, ‘수정’으로 상태·담당자·마감을 바로 바꿀 수 있습니다.
                   </Typography>
                   <GroupedTickets
                     rows={rows}
@@ -504,10 +501,10 @@ export function Sprint() {
                   미할당 티켓 (배분 대상 {unassignedCount}건)
                 </Typography>
                 <Card>
-                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2, maxWidth: "70ch" }}>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                     {unassignedCount > 0
-                      ? `담당자가 없는 활성 티켓이 ${unassignedCount}건 있습니다. 회의에서 누가 가져갈지 정하고, 아래 화면에서 담당자를 지정하세요.`
-                      : "담당자가 없는 활성 티켓이 없습니다. 배분할 것이 없습니다."}
+                      ? `담당자가 없는 활성 티켓이 ${unassignedCount}건 있습니다. 회의에서 정한 뒤 아래 화면에서 담당자를 지정하세요.`
+                      : "담당자가 없는 활성 티켓이 없습니다."}
                   </Typography>
                   <Button variant={unassignedCount > 0 ? "primary" : "default"} onClick={() => nav("/unassigned")}>
                     ‘미할당 티켓’ 화면 열기

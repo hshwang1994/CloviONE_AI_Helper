@@ -88,7 +88,7 @@ export const ORG_SCREENS = {
     // 목(mock)은 애초에 감싸지 않은 응답을 흉내 내서 이 문제를 못 잡았다.
     selectKey: "department",
     help: "부서 이름을 한 곳에서 관리합니다. 사용자 폼의 '부서'는 여기 목록에서 고릅니다.", createLabel: "부서 추가",
-    emptyTitle: "추가된 부서가 없습니다", emptyHelp: "‘+ 부서 추가’로 부서를 추가하면 사용자 폼의 '부서' 목록에 바로 나타납니다.",
+    emptyTitle: "추가된 부서가 없습니다", emptyHelp: "‘+ 부서 추가’로 부서를 추가하면 사용자 폼의 ‘부서’ 목록에 바로 나타납니다.",
     // 이 화면은 paginated가 아니라 클라이언트 검색창이 항상 뜨는데, searchFields가 없으면 기본 검색이
     // JSON.stringify(row) 전체(원시 UUID·boolean·UTC-ISO created_at)를 훑어 화면에 보이는 값과 무관하게
     // 매칭했다(예: KST 생성일을 그대로 쳐도 자정 경계 근처에서 못 찾음) — 이름만 검색 대상으로 좁힌다(직책 화면과 동일).
@@ -146,7 +146,7 @@ export const ORG_SCREENS = {
   "job-titles": {
     key: "job-titles", area: "사용자와 권한", title: "직책 관리", endpoint: "/api/admin/job-titles",
     help: "직책 이름을 한 곳에서 관리합니다. 사용자 폼의 '직책'은 여기 목록에서 고릅니다.", createLabel: "직책 추가",
-    emptyTitle: "추가된 직책이 없습니다", emptyHelp: "‘+ 직책 추가’로 직책을 추가하면 사용자 폼의 '직책' 목록에 바로 나타납니다.",
+    emptyTitle: "추가된 직책이 없습니다", emptyHelp: "‘+ 직책 추가’로 직책을 추가하면 사용자 폼의 ‘직책’ 목록에 바로 나타납니다.",
     // 부서→직책→사용자 온보딩 체인(사용자 생성은 직책이 있어야 가능 — Users.jsx) — 연동→러너→워크플로
     // 체인처럼 다음 단계(사용자)로 이어 준다. 단계별 안내는 canOnboard가 쓰기 역할에만 보여준다.
     emptySituation: "부서, 직책, 사용자 온보딩 체인의 한 단계입니다. 아직 직책이 하나도 없습니다.",
@@ -261,7 +261,7 @@ export const ORG_SCREENS = {
     emptyTitle: "표시할 사용자가 없습니다",
     // 읽기 전용 역할(operator/auditor)에는 자기 권한 밖 버튼('자동 동기화' 등)을 누르라고 안내하지 않는다.
     emptyHelp: (role) => (role === "admin" || role === "system_admin")
-      ? "사용자 디렉터리의 계정이 여기에 나타납니다. ‘자동 동기화’로 Notion 사용자와 매칭하거나, 행에서 검증, 수동 연결하세요. (‘notion-user-mapping’ 워크플로가 필요합니다.)"
+      ? "사용자 디렉터리의 계정이 여기에 나타납니다. ‘자동 동기화’나 행에서 Notion 사용자를 연결하세요."
       : "사용자 디렉터리의 계정이 여기에 나타납니다. Notion 연결은 관리자가 수행합니다.",
     paginated: true, searchable: true,
     // 서버 검색(q)은 직원 이메일/이름만 매칭한다(app/notion_mapping/router.py) — notion_email은 검색

@@ -36,10 +36,10 @@ describe("문서 자동 생성 — 빈 상태 안내가 상시 배너·단계 �
 describe("문서 자동 생성 — 빈 상태가 '워크플로는 있는데 왜 안 되지'를 막는다 (DGEN-02)", () => {
   const config = REGISTRY.documents;
 
-  it("emptyPrerequisite가 채팅·Notion 매핑용 워크플로와는 별개라고 명시한다", () => {
+  it("emptyPrerequisite가 채팅·Notion 매핑용과 다른 문서 생성 전용 워크플로라고 명시한다", () => {
     expect(config.emptyPrerequisite).toContain("채팅");
     expect(config.emptyPrerequisite).toContain("Notion 매핑");
-    expect(config.emptyPrerequisite).toContain("별개");
+    expect(config.emptyPrerequisite).toContain("문서 생성 전용");
   });
 
   it("워크플로 목록으로 이동하는 링크가 여전히 있다(별개라는 사실을 안 뒤 바로 확인할 수 있게)", () => {

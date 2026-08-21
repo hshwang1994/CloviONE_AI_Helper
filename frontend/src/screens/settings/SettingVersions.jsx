@@ -74,8 +74,8 @@ export function SettingVersions({ settingKey, label, canWrite, onClose, onRolled
   );
   return (
     <Modal open onClose={onClose} title={label + ", 버전 기록"} size="lg" footer={footer}>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 2, maxWidth: "70ch" }}>
-        각 버전은 그 시점으로 되돌릴 수 있는 값 스냅샷입니다. 롤백은 현재 값을 선택한 버전으로 되돌리며 새 변경으로 다시 기록됩니다.
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+        각 버전은 그 시점의 값입니다. 롤백하면 현재 값이 그 버전으로 돌아가고, 그 변경이 새 기록으로 남습니다.
       </Typography>
       {/* 목록 자체는 페이지네이션 없이 전체를 보여준다(app/core/versioning.py list_versions에 상한 없음) —
           자주 손보는 설정은 기록이 눈에 안 띄게 계속 늘어날 수 있어, 최소한 개수라도 먼저 보여준다

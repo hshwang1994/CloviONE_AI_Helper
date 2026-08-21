@@ -7,7 +7,6 @@ import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
 import { Badge, Button, Card, DataTable, EmptyState, ErrorState, MetricStrip, PageHeader, useConfirm, useToast } from "../ui/kit.jsx";
 import { bulkFailureNote, fmtDateTime, toUTCDate } from "../lib/format.js";
-import { PROSE_MAX_WIDTH } from "../ui/theme.js";
 import { useRowSelection, selectionColumn, BulkActions } from "../ui/bulkSelect.jsx";
 import { safeExternal } from "../lib/safeUrl.js";
 import { invalidateTicketViews } from "./ticket-views.js";
@@ -176,8 +175,8 @@ export function Trash() {
           "문서"를 계속 하드코딩하면 PA-RC-0031이 그 그룹 이름을 바꿀 때 부모만 따라가고 이
           자식은 옛 이름에 남아 갈라진다. */}
       <PageHeader area="휴지통" title="휴지통" actions={headerActions} />
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 3, maxWidth: PROSE_MAX_WIDTH }}>
-        삭제한 티켓과 문서를 {days}일 동안 보관합니다. 그 전에 복원하면 원래 목록으로 돌아옵니다. 기간이 지나면 노션 원본이 자동으로 정리됩니다. 보관기간은 관리자 설정에서 바꿀 수 있습니다.
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+        삭제한 티켓과 문서를 {days}일 동안 보관합니다. 그 전에 복원하면 원래 목록으로 돌아옵니다. 기간이 지나면 원본이 정리됩니다.
       </Typography>
 
       {q.isError ? <ErrorState error={q.error} onRetry={() => q.refetch()} />

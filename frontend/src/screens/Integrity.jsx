@@ -172,7 +172,7 @@ export function Integrity() {
     <Box className="c-screen">
       <PageHeader
         area="운영" title="조직 정합성"
-        help="소속을 판정할 수 없어 화면에서 닫혀 있는 데이터를 모아 보여 줍니다. 여기서 지정하면 그 즉시 열립니다."
+        help="소속을 판정할 수 없어 화면에서 닫혀 있는 데이터를 모았습니다. 여기서 지정하면 바로 열립니다."
       />
 
       {data.total_issues === 0 ? (
@@ -204,7 +204,7 @@ export function Integrity() {
         <SectionTitle
           component="h2"
           title="관리자 범위 현황"
-          help="조직 관리자와 부서 관리자는 role=admin 과 관리 범위의 조합입니다. 전부 '전체 관리자'라면 범위 기능이 실제로는 쓰이지 않고 있다는 뜻입니다."
+          help="조직·부서 관리자는 admin과 범위의 조합입니다. 전부 ‘전체’면 범위 기능은 쓰이지 않는 것입니다."
         />
         <MetricStrip
           ariaLabel="관리자 범위 현황"

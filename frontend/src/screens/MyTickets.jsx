@@ -658,9 +658,9 @@ export function ticketConnState(data, onRetry) {
       <EmptyState
         art="tickets"
         title="Notion 연동이 아직 설정되지 않았습니다"
-        situation="티켓 데이터는 Notion 작업 DB에서 옵니다. 아직 연동 토큰이 추가되지 않아 목록을 불러올 수 없습니다."
+        situation="티켓은 Notion 작업 DB에서 옵니다. 연동 토큰이 없어 목록을 못 불러옵니다."
         prerequisite="관리자 권한과 Notion 통합 토큰"
-        steps={["관리자에게 Notion 연동 설정을 요청하세요.", "연동이 추가되면 이 화면을 새로고침하세요."]}
+        steps={["관리자에게 Notion 연동 설정을 요청하세요.", "연동이 끝나면 이 화면을 새로고침하세요."]}
         expected="연동이 끝나면 담당자, 상태, 마감이 담긴 티켓 목록이 이 자리에 표시됩니다."
         action={onRetry ? <Button onClick={onRetry}>다시 불러오기</Button> : null}
       />
@@ -671,7 +671,7 @@ export function ticketConnState(data, onRetry) {
       <EmptyState
         art="tickets"
         title="내 계정이 Notion 사용자와 연결되어 있지 않습니다"
-        situation="계정 연결이 없으면 어떤 티켓이 내 것인지 판단할 수 없어 목록을 불러올 수 없습니다."
+        situation="계정 연결이 없으면 내 티켓인지 알 수 없어 목록을 못 불러옵니다."
         steps={["관리자에게 ‘Notion 사용자 연결’을 요청하세요.", "연결이 끝나면 이 화면을 새로고침하세요."]}
         expected="연결되면 내 담당 티켓이 이 자리에 표시됩니다."
         action={onRetry ? <Button onClick={onRetry}>다시 불러오기</Button> : null}
@@ -830,8 +830,8 @@ export function Unassigned() {
               <MirrorNotice sync={data.sync} unit="티켓" />
               <TicketFilterBar fields={SELF_FILTER_FIELDS} value={filters} onChange={setFilters} total={data.total} />
               <Card>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 2, maxWidth: "70ch" }}>
-                  담당자가 지정되지 않은 활성 티켓입니다. ‘나에게 배정’을 누르면 담당자가 됩니다. 다른 사람 배정, 수정은 ‘수정’에서 하세요.
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                  담당자 없는 활성 티켓입니다. ‘나에게 배정’ 또는 ‘수정’으로 지정하세요.
                 </Typography>
                 <GroupedTickets
                   rows={rows} columns={cols}
@@ -1074,8 +1074,8 @@ export function NewTicket() {
            레일을 옆에 억지로 붙여 두면 폼이 짜부라져 정작 쓸 수가 없다. */
         <Box sx={NEW_TICKET_GRID}>
         <Card>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2.5, maxWidth: "70ch" }}>
-            간단한 티켓을 바로 만듭니다. 배경, 요구사항이 많은 티켓은 <Link href="#/chat" underline="hover">AI 도우미</Link>가 더 정확합니다.
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2.5 }}>
+            간단한 티켓은 여기서 바로 만듭니다. 긴 배경은 <Link href="#/chat" underline="hover">AI 도우미</Link>가 더 정확합니다.
           </Typography>
           {/* 본문(설명)은 산문이라 줄이 길어지면 읽기 어렵다 — 폼 자체를 CONTENT 폭 전체로 늘리지 않고
               읽기 좋은 폭에서 멈춘다. 짧은 값 입력들은 자기가 놓인 칸이 넓어지는 만큼만 접는다

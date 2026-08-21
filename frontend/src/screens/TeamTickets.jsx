@@ -132,8 +132,8 @@ export function TeamTickets() {
           />
         ) : null}
       />
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 2.5, maxWidth: "70ch" }}>
-        팀 전체 티켓을 담당자별로 묶어서 봅니다. 제목을 누르면 상세 내용이 열립니다. 수정은 담당자와 운영자만 할 수 있습니다.
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 2.5 }}>
+        팀 전체 티켓을 담당자별로 묶어서 봅니다. 제목을 누르면 상세가 열립니다. 수정은 담당자와 운영자만 할 수 있습니다.
       </Typography>
       {q.isPending ? <Card><Skeleton lines={6} /></Card>
         : q.isError ? <ErrorState error={q.error} onRetry={() => q.refetch()} />

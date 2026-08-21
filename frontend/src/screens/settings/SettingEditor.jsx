@@ -116,7 +116,7 @@ export function SettingEditor({ setting, canWrite, onClose, onSaved }) {
       if (settingKeyRef.current !== requestedKey || valRef.current !== requestedVal) return;
       // '저장할 수 있습니다'는 dirty일 때만 사실이다 — 값이 현재 저장된 값과 같으면 Save 버튼은
       // (아래 disabled={!dirty}로) 계속 비활성인 채라, 그 문구가 바로 옆 버튼 상태와 모순됐다.
-      setChecked(dirty ? "검증 통과, 저장할 수 있습니다." : "검증 통과, 현재 값과 동일합니다.");
+      setChecked(dirty ? "검증을 통과했습니다. 저장할 수 있습니다." : "검증을 통과했습니다. 현재 값과 같습니다.");
     }
     catch (e) { if (settingKeyRef.current === requestedKey && valRef.current === requestedVal) setErr(e.message); }
   }
@@ -182,7 +182,7 @@ export function SettingEditor({ setting, canWrite, onClose, onSaved }) {
     <>
     <Modal open={!!setting} onClose={requestClose} title={settingLabel(setting.key)} footer={footer}>
       <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>{setting.key} ({setting.is_default ? "기본값" : "수정됨"})</Typography>
-      <Typography variant="body2" id="setting-desc" sx={{ mt: 0.5, mb: 2.5, maxWidth: "70ch" }}>{setting.description}</Typography>
+      <Typography variant="body2" id="setting-desc" sx={{ mt: 0.5, mb: 2.5 }}>{setting.description}</Typography>
       {/* 읽기 전용 역할에겐 이 서랍이 '잠긴 편집 폼'이 아니라 '상세 보기'임을 분명히 한다(입력은 비활성). */}
       {!canWrite ? <Typography id="setting-locked-reason" variant="caption" color="text.secondary" sx={{ display: "block", mb: 2 }}>열람 전용입니다. 값은 수정할 수 없습니다. 수정은 관리자, 시스템 관리자만 할 수 있습니다.</Typography> : null}
       {/* bool select, document_automation_enabled(SETTING_LABELS에 라벨 추가됨, MAINTENANCE_KEYS로
@@ -240,7 +240,7 @@ export function SettingEditor({ setting, canWrite, onClose, onSaved }) {
         </Box>
       ) : null}
       {advanced && !advancedJsonValid ? <Typography color="error" variant="body2" role="alert" sx={{ mt: 1 }}>JSON 형식이 올바르지 않아 구조화된 입력으로 전환할 수 없습니다. 먼저 JSON을 고치세요.</Typography> : null}
-      {isObjectSetting(setting) && (!STRUCTURED_OBJECT_KEYS.includes(setting.key) || advanced) ? <Typography variant="caption" color="text.secondary" id="setting-help" sx={{ display: "block", mt: 1, maxWidth: "70ch" }}>{OBJECT_SCHEMA_HELP[setting.key] || "JSON 형식으로 입력하세요."}</Typography> : null}
+      {isObjectSetting(setting) && (!STRUCTURED_OBJECT_KEYS.includes(setting.key) || advanced) ? <Typography variant="caption" color="text.secondary" id="setting-help" sx={{ display: "block", mt: 1 }}>{OBJECT_SCHEMA_HELP[setting.key] || "JSON 형식으로 입력하세요."}</Typography> : null}
       {setting.restart_required ? <Typography variant="body2" sx={{ mt: 1.5 }}>이 설정은 저장 후 서비스를 수동으로 재시작해야 적용됩니다.</Typography> : null}
       {/* 검증 통과는 성공 신호이므로 흐린 힌트 대신 Callout로 확실히 표시한다.
           tone="success"로 '이 항목 저장 시도 예정' 같은 평범한 안내(info)와 구분한다. */}

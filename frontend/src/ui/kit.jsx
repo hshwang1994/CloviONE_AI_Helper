@@ -37,7 +37,7 @@ import { ART, SPOT } from "../lib/assets.js";
 import { maxLengthFor } from "../lib/fieldLimits.js";
 import { apiToKstLocal, kstLocalToApi } from "../lib/format.js";
 import { declaredRowName, rowNameOf } from "./rowName.js";
-import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, MOTION, NUMERIC, RADIUS, TABLE_CARD_QUERY, TABLE_COMPACT_QUERY } from "./theme.js";
+import { EMPTY_STATE_MAX_CH, ERROR_STATE_MAX_CH, FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, MOTION, NUMERIC, RADIUS, TABLE_CARD_QUERY, TABLE_COMPACT_QUERY } from "./theme.js";
 import { CARD_PADDING, SECTION_GAP } from "./density.js";
 import { EntityCombobox } from "./filters.jsx";
 import { loginUrl, redirectToLogin } from "../lib/sessionRedirect.js";
@@ -1025,7 +1025,8 @@ export function EmptyState({
   const stepList = Array.isArray(steps) ? steps.filter((s) => s != null && s !== "") : null;
   const artSrc = !compact && art && ART[art] ? ART[art] : null;
   const detail = [prerequisite, stepList && stepList.length ? stepList : null, expected].some(Boolean);
-  const bodySx = { maxWidth: "56ch", fontSize: compact ? FONT_SIZE.bodySm : FONT_SIZE.body, ...KO_WORD_BREAK };
+  /* 칸 폭은 EMPTY_STATE_MAX_CH. 문구 한도는 COPY_LIMIT.emptyHelp — 폭을 바꾸면 한도가 따라간다. */
+  const bodySx = { maxWidth: `${EMPTY_STATE_MAX_CH}ch`, fontSize: compact ? FONT_SIZE.bodySm : FONT_SIZE.body, ...KO_WORD_BREAK };
 
   /* 빈 상태 — 읽는 순서가 **제목 → 다음 행동 → 보조 설명**이다 (지시 18).
    *
@@ -1104,7 +1105,7 @@ export function EmptyState({
             {stepList && stepList.length ? (
               <Box
                 component="ol"
-                sx={{ m: 0, pl: 2.5, color: "text.secondary", fontSize: FONT_SIZE.bodySm, display: "grid", gap: 0.25, maxWidth: "56ch", ...KO_WORD_BREAK }}
+                sx={{ m: 0, pl: 2.5, color: "text.secondary", fontSize: FONT_SIZE.bodySm, display: "grid", gap: 0.25, maxWidth: `${EMPTY_STATE_MAX_CH}ch`, ...KO_WORD_BREAK }}
               >
                 {stepList.map((s, i) => <li key={i}>{s}</li>)}
               </Box>
@@ -1170,7 +1171,8 @@ export function ErrorState({ error, onRetry, size }) {
         />
       ) : null}
       <Typography role="heading" aria-level={2} sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: compact ? FONT_SIZE.body : FONT_SIZE.sectionTitle }}>{title}</Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ maxWidth: "60ch", fontSize: compact ? FONT_SIZE.bodySm : undefined }}>{help}</Typography>
+      {/* 칸 폭은 ERROR_STATE_MAX_CH. 문구 한도는 COPY_LIMIT.errorHelp. */}
+      <Typography variant="body2" color="text.secondary" sx={{ maxWidth: `${ERROR_STATE_MAX_CH}ch`, fontSize: compact ? FONT_SIZE.bodySm : undefined }}>{help}</Typography>
       <Box sx={{ mt: compact ? 0.5 : 1 }}>
         {isAuth
           /* 되돌아올 곳을 실어 보낸다 — 재로그인 뒤 보던 화면으로 돌아온다(지시 19). */
@@ -2288,7 +2290,7 @@ export function SectionTitle({ title, children, action, help, component = "h3", 
       <Box sx={{ minWidth: 0 }}>
         <Typography component={component} variant="sectionTitle">{label}</Typography>
         {help ? (
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, maxWidth: "70ch" }}>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
             {help}
           </Typography>
         ) : null}

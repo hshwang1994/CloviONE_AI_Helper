@@ -3,9 +3,9 @@ import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 
-import { Callout, DataTable, EmptyState, MetaBar, TechDetail } from "./kit.jsx";
+import { Callout, DataTable, EmptyState, ErrorState, MetaBar, SectionTitle, TechDetail } from "./kit.jsx";
 import { Note, SettingRow } from "./adminKit.jsx";
-import { KO_WORD_BREAK } from "./theme.js";
+import { COPY_LIMIT, CH_PER_HANGUL, COPY_TARGET_LINES, EMPTY_STATE_MAX_CH, ERROR_STATE_MAX_CH, copyLimitFromCh, createClovirTheme, KO_WORD_BREAK } from "./theme.js";
 
 /* 한국어 도움말이 **단어 중간에서** 줄바꿈되지 않는다 (사용자 지적 #11).
  *
@@ -27,6 +27,34 @@ describe("한국어 줄바꿈", () => {
     expect(KO_WORD_BREAK.wordBreak).toBe("keep-all");
     // 긴 URL·UUID 가 상자를 밀어내지 않게 하는 짝이다. 하나만 있으면 다른 쪽이 깨진다.
     expect(KO_WORD_BREAK.overflowWrap).toBe("break-word");
+  });
+
+  it("줄바꿈은 body 에서 전역으로 정한다", () => {
+    const body = createClovirTheme("light").components.MuiCssBaseline.styleOverrides.body;
+    expect(body.wordBreak).toBe("keep-all");
+    expect(body.overflowWrap).toBe("break-word");
+  });
+
+  it("짧은 UI 설명 한도는 칸 폭에서 계산된다", () => {
+    expect(COPY_LIMIT.emptyHelp).toBe(copyLimitFromCh(EMPTY_STATE_MAX_CH));
+    expect(COPY_LIMIT.errorHelp).toBe(copyLimitFromCh(ERROR_STATE_MAX_CH));
+    expect(COPY_LIMIT.emptyHelp).toBe(Math.floor(EMPTY_STATE_MAX_CH / CH_PER_HANGUL) * COPY_TARGET_LINES);
+    expect(COPY_LIMIT.pageLead).toBe(COPY_LIMIT.emptyHelp);
+    expect(COPY_LIMIT.sectionHelp).toBe(COPY_LIMIT.emptyHelp);
+  });
+
+  it("EmptyState·ErrorState 칸 폭이 토큰이다", () => {
+    const { unmount } = render(<EmptyState title="빈" help="도움말 문구입니다" />);
+    expect(getComputedStyle(screen.getByText("도움말 문구입니다")).maxWidth).toBe(`${EMPTY_STATE_MAX_CH}ch`);
+    unmount();
+    render(<ErrorState error={{ status: 404, message: "없음" }} />);
+    expect(getComputedStyle(screen.getByText("요청한 항목을 찾을 수 없습니다. 이미 삭제되었거나 이동했을 수 있습니다.")).maxWidth).toBe(`${ERROR_STATE_MAX_CH}ch`);
+  });
+
+  it("구획 도움말은 70ch 로 일찍 접히지 않는다", () => {
+    render(<SectionTitle title="번다운" help="두 선 모두 마감일이 축입니다" />);
+    const help = screen.getByText("두 선 모두 마감일이 축입니다");
+    expect(getComputedStyle(help).maxWidth).not.toBe("70ch");
   });
 
   it("Callout 본문에 실제로 적용된다", () => {

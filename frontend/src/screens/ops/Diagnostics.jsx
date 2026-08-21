@@ -285,7 +285,7 @@ export function Diagnostics() {
             <Box sx={{ mb: 3 }}>
               <Card sx={{ p: 2.5 }}>
                 <Typography variant="body2" color="text.secondary">
-                  백업 상태와 최근 주요 변경은 대시보드에서 상시 확인할 수 있습니다.
+                  백업 상태와 최근 주요 변경은 대시보드에서 항상 확인할 수 있습니다.
                 </Typography>
                 <Link component="button" type="button" variant="body2" underline="hover" onClick={() => nav("/dashboard")} sx={{ display: "inline-block", mt: 1 }}>
                   대시보드에서 보기 →

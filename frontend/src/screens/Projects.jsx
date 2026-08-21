@@ -286,8 +286,8 @@ export function Projects() {
           <Button variant="primary" onClick={() => setCreating(true)}>새 프로젝트</Button>
         ) : null}
       />
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 2.5, maxWidth: "70ch", ...KO_WORD_BREAK }}>
-        내가 볼 수 있는 프로젝트의 상태, 기간, 진행률, Health 를 한눈에 봅니다. 진행률은 포털이 작업을 다시 세어 계산한 값이고, 계산 근거는 상세 화면에서 봅니다.
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 2.5, ...KO_WORD_BREAK }}>
+        내가 볼 수 있는 프로젝트의 상태, 기간, 진행률, Health를 한눈에 봅니다.
       </Typography>
 
       <Summary query={dashboard} />

@@ -196,7 +196,7 @@ function Triage({ data }) {
   if (!data.total) {
     return (
       <EmptyState art="tickets" title="담당자 없는 티켓이 없습니다"
-        help="새로 들어온 티켓 중 담당자가 비어 있는 것이 생기면 여기에 급한 순서로 표시됩니다." />
+        help="새로 들어온 티켓 중 담당자가 비어 있으면 여기에 급한 순서로 표시됩니다." />
     );
   }
   return (

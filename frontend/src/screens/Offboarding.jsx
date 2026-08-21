@@ -324,7 +324,7 @@ function OffboardPlan({ preview, onDone, toast }) {
         </Box>
       ) : !preview.notion_mapped ? (
         <Box sx={{ mb: 2.5 }}>
-          <Callout tone="warn">이 계정은 Notion 사용자와 연결되어 있지 않아 담당 티켓을 조회할 수 없습니다. 계정 처리만 진행할 수 있습니다.</Callout>
+          <Callout tone="warn">이 계정은 Notion 사용자와 연결되어 있지 않아 담당 티켓을 조회하지 못합니다. 계정 처리만 진행합니다.</Callout>
         </Box>
       ) : null}
 

@@ -595,7 +595,7 @@ export function Users() {
           <Button variant="primary" onClick={() => setCreating(true)}>사용자 추가</Button>
         </>}
         help={<Box sx={{ "& p": { m: 0 }, "& p + p": { mt: 0.75 } }}>
-          <p>계정을 만들고 역할, 부서, 직책을 관리합니다. 행을 누르면 상세에서 비밀번호 재설정, 세션 해제, 잠금 해제 등을 할 수 있습니다.</p>
+          <p>계정을 만들고 역할, 부서, 직책을 관리합니다. 행을 누르면 상세에서 비밀번호 재설정, 세션 해제, 잠금 해제를 할 수 있습니다.</p>
           <p><strong>비활성화</strong>는 로그인만 막고(쉽게 되돌림), <strong>보관</strong>은 목록에서 감추되 기록은 남기고 복구할 수 있습니다.</p>
           <p>일반 사용자를 <strong>관리자</strong>로 올리면 승인 요청이 접수되어 승인 후 반영됩니다.</p>
           <p>임시 비밀번호는 생성, 재설정 시 화면에 한 번만 표시됩니다.</p>
@@ -672,7 +672,7 @@ export function Users() {
         showArchived ? (
           // 보관함을 보는 중엔 내용 필터만 지운다(clearContentFilters), clearFilters를 쓰면
           // showArchived까지 꺼져 조용히 보관함 밖으로 밀려난다(툴바의 동일 버튼과 같은 이유, 위 참고).
-          <EmptyState title="보관된 계정이 없습니다" help="보관 처리한 계정이 여기에 표시됩니다."
+          <EmptyState title="보관된 계정이 없습니다" help="보관한 계정이 여기에 표시됩니다."
             action={hasContentFilter ? <Button onClick={clearContentFilters}>필터 지우기</Button> : <Button onClick={() => setShowArchived(false)}>보관함 나가기</Button>} />
         ) : hasFilter ? (
           <EmptyState art="search" title="조건에 해당하는 사용자가 없습니다" help="검색어나 필터를 지우고 다시 확인하세요."
@@ -966,7 +966,7 @@ function UserDetail({ user, notFound, onClose, onEdit, onChanged, onTempPw, pwHe
           if (status === "verified") { setNotionNotice(null); return { msg: "Notion 연결을 확인했습니다.", kind: "success" }; }
           if (status === "conflict") { setNotionNotice("conflict"); return { msg: (detail || "일치하는 Notion 계정이 여러 개 발견되었습니다.") + " ‘Notion 사용자 연결’ 화면에서 충돌을 해결하세요.", kind: "info" }; }
           setNotionNotice("no-match");
-          return { msg: detail || "연결된 Notion 계정을 찾지 못했습니다. ‘Notion 사용자 연결’ 화면에서 매핑을 만들 수 있습니다.", kind: "info" };
+          return { msg: detail || "연결된 Notion 계정을 찾지 못했습니다. ‘Notion 사용자 연결’ 화면에서 연결할 수 있습니다.", kind: "info" };
         },
       }) },
     isSelf ? null : { key: "revoke", label: "세션 해제", disabled: actionsDisabled,

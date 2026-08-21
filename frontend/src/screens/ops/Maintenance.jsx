@@ -103,7 +103,7 @@ export function Maintenance({ embedded = false } = {}) {
   const [msgCheckErr, setMsgCheckErr] = React.useState("");
   async function onCheckMsg() {
     setMsgChecked(""); setMsgCheckErr("");
-    try { await dryRunMsg.mutateAsync(msg); setMsgChecked("검증 통과, 저장할 수 있습니다."); }
+    try { await dryRunMsg.mutateAsync(msg); setMsgChecked("검증을 통과했습니다. 저장할 수 있습니다."); }
     catch (e) { setMsgCheckErr(e.message); }
   }
   function changeMsg(next) { setMsg(next); setMsgChecked(""); setMsgCheckErr(""); }

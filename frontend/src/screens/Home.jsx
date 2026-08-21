@@ -169,7 +169,7 @@ function RecentDocuments({ items }) {
   if (!items.length) {
     return (
       <EmptyState art="docs" title="최근 바뀐 문서가 없습니다"
-        help="팀 문서가 수정되면 여기에 최신 순으로 표시됩니다." />
+        help="팀 문서가 바뀌면 여기에 최신 순으로 표시됩니다." />
     );
   }
   return (
@@ -366,7 +366,7 @@ function HomeBody({ data, focus, onFocus, onEdit, onOpen }) {
                 art="tickets"
                 title="담당한 티켓이 없습니다"
                 situation="지금 나에게 배정된 티켓이 없습니다."
-                steps={["미할당 티켓에서 가져오거나", "새 티켓을 직접 만들 수 있습니다."]}
+                steps={["미할당 티켓에서 가져오거나", "새 티켓을 직접 만듭니다."]}
                 action={<Button variant="primary" size="sm" href="#/unassigned">미할당 티켓 보기</Button>}
               />
             )}

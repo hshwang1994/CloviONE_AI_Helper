@@ -79,7 +79,7 @@ export const INTEGRATION_SCREENS = {
       { name: "health_url", label: "상태 확인 주소(Health URL)", type: "text", help: "비우면 Base URL로 헬스체크" },
       { name: "auth_type", label: "인증", type: "select", value: "none",
         options: role === "system_admin" ? AUTH_OPTS : AUTH_OPTS.filter((o) => o.value === "none"),
-        help: role === "system_admin" ? undefined : "admin은 인증 없는(‘없음’) 연동만 새로 만들 수 있습니다, Bearer, API 키가 필요한 연동은 system_admin에게 요청하세요." },
+        help: role === "system_admin" ? undefined : "admin은 인증 없는(‘없음’) 연동만 새로 만듭니다. Bearer, API 키가 필요하면 system_admin에게 요청하세요." },
       { name: "secret_ref", label: "인증 정보 이름(Secret)", type: "text", help: "서버 secrets 파일 이름(값 아님). ‘없음’이 아닌 인증이면 반드시 지정하세요." },
       { name: "description", label: "설명", type: "textarea" },
       { name: "enabled", label: "활성", type: "checkbox", value: false, checkLabel: "활성(비활성 상태로 추가만 하고 헬스체크 후 활성화할 수 있음)" },
@@ -140,16 +140,16 @@ export const INTEGRATION_SCREENS = {
     help: (role) => "추가, 헬스체크, 수동 테스트 대상 레지스트리입니다(실제 채팅, 문서 생성 처리는 ‘외부 연동’의 n8n 경로가 맡습니다). 상태 확인 후 활성화하세요. 성능 저하, 차단된 러너는 헬스 체크가 한 번 성공하면 자동 복구됩니다."
       + ((role === "admin" || role === "system_admin") ? " 강제로 멈추려면 ‘점검 상태 변경’을 누르세요." : ""),
     emptyTitle: "추가된 러너가 없습니다",
-    emptyHelp: writerEmptyHelp("‘+ 러너 추가’로 실행기를 추가하고 상태 확인 후 활성화하세요(추가, 헬스체크 대상입니다).", "러너는 관리자가 추가합니다. 추가되면 여기에 표시됩니다."),
+    emptyHelp: writerEmptyHelp("‘+ 러너 추가’로 실행기를 추가하고 상태 확인 후 활성화하세요.", "러너는 관리자가 추가합니다. 추가되면 여기에 표시됩니다."),
     // 첫 화면 진입 시 단계별 안내(§9) — 연동→러너→워크플로 체인의 두 번째 단계.
     emptySituation: "추가된 러너가 아직 하나도 없습니다.",
-    emptyPrerequisite: "이 러너가 사용할 서버 주소(Base URL)를 미리 확인하세요(SSRF allowlist에 있어야 합니다). 외부 연동과 묶을 계획이면 그 연동을 먼저 추가해 두세요.",
+    emptyPrerequisite: "서버 주소(Base URL)가 allowlist에 있어야 합니다. 연동과 묶을 거면 연동을 먼저 추가하세요.",
     emptySteps: ["‘+ 러너 추가’로 이름과 서버 주소를 입력합니다.", "저장 후 ‘헬스’, ‘테스트’로 연결을 확인합니다.", "정상이면 ‘활성화’로 추가를 마칩니다."],
     // 프롬프트의 '러너 ID'는 이미 참고용 메타데이터로만 안내되고(authoring.js: "이 값만으로
     // 실행되지는 않습니다"), 템플릿도 신규로는 러너를 대상 워크플로로 지정할 수 없다(registry/
     // shared.js TARGET_OPTS, app/templates/router.py의 동일 검증) — 여기서 "지정할 수 있다"고
     // 안내하면 두 화면 모두와 어긋난다.
-    emptyExpected: "추가한 러너는 목록에 상태, 점검 상태와 함께 표시됩니다.",
+    emptyExpected: "추가한 러너가 상태, 점검 결과와 함께 목록에 남습니다.",
     // 연동→러너→워크플로 체인의 두 번째 단계 — integrations는 이미 runners로의 다음 단계 링크를
     // 갖고 있었지만(반대 방향), runners 자신은 다음 단계(workflows)로의 링크가 없어 체인이 절반만
     // 이어졌다. EmptyState는 링크를 하나만 표시할 수 있어(kit.jsx), 이 화면은 '다음' 방향을 준다
@@ -196,7 +196,7 @@ export const INTEGRATION_SCREENS = {
       { name: "health_url", label: "상태 확인 주소(Health URL)", type: "text", help: "비우면 Base URL로 헬스체크" },
       { name: "auth_type", label: "인증", type: "select", value: "none",
         options: role === "system_admin" ? AUTH_OPTS : AUTH_OPTS.filter((o) => o.value === "none"),
-        help: role === "system_admin" ? undefined : "admin은 인증 없는(‘없음’) 러너만 새로 추가할 수 있습니다, Bearer, API 키가 필요한 러너는 system_admin에게 요청하세요." },
+        help: role === "system_admin" ? undefined : "admin은 인증 없는(‘없음’) 러너만 새로 추가할 수 있습니다. Bearer, API 키가 필요하면 system_admin에게 요청하세요." },
       { name: "secret_ref", label: "인증 정보 이름(Secret)", type: "text", help: "서버 secrets 디렉터리 파일 이름(값 아님). ‘없음’이 아닌 인증이면 반드시 지정하세요." },
       { name: "timeout_seconds", label: "타임아웃(초)", type: "number", value: 60 },
       { name: "concurrency_limit", label: "동시 실행 수", type: "number", value: 1 },
@@ -303,13 +303,13 @@ export const INTEGRATION_SCREENS = {
     emptyTitle: "추가된 워크플로가 없습니다",
     // 워크플로는 READ_ROLES(operator/auditor 포함)가 읽을 수 있지만 생성은 WRITE_ROLES 전용이다
     // (nav 항목엔 role 게이트가 없어 읽기 전용 역할도 이 화면에 닿는다) → 없는 버튼을 누르라고 안내하지 않는다.
-    emptyHelp: writerEmptyHelp("‘+ 워크플로 추가’로 n8n 워크플로의 수신 주소(Webhook)를 추가해 관리하세요.", "워크플로는 관리자가 추가합니다. 추가되면 여기에 상태와 함께 표시됩니다."),
+    emptyHelp: writerEmptyHelp("‘+ 워크플로 추가’로 n8n 워크플로의 수신 주소(Webhook)를 추가하세요.", "워크플로는 관리자가 추가합니다. 추가되면 여기에 상태와 함께 표시됩니다."),
     // 연동→러너→워크플로 체인의 세 번째(마지막) 단계 — 앞의 두 화면(integrations/runners)과 동일한
     // 단계별 안내(§9)를 준다(예전엔 워크플로만 emptyTitle/emptyHelp뿐이었다).
     emptySituation: "이 관리 콘솔이 아직 n8n 워크플로를 하나도 모릅니다.",
     emptyPrerequisite: "추가할 워크플로의 수신 주소(Webhook)가 allowlist에 있는지 확인하세요(config/allowed-workflows.json).",
     emptySteps: ["‘+ 워크플로 추가’로 이름과 수신 주소(Webhook)를 입력합니다.", "저장 후 ‘테스트’로 수신 주소 도달을 확인합니다.", "정상이면 ‘활성화’로 실제 사용을 시작합니다."],
-    emptyExpected: "추가한 워크플로는 목록에 상태와 함께 표시되고, 템플릿, 스케줄, 문서 자동 생성 화면에서 이 워크플로를 대상으로 지정할 수 있습니다.",
+    emptyExpected: "추가한 워크플로는 목록에 상태와 함께 표시되고, 템플릿·스케줄·문서 자동 생성 화면에서 대상으로 지정할 수 있습니다.",
     emptyRelatedLink: { href: "#/runners", label: "이전: 러너 목록 보기" },
     createLabel: "워크플로 추가",
     // 다른 화면(템플릿의 target_ref, 스케줄의 target_ref, 문서의 workflow_id)이 ?id=로 넘겨주는

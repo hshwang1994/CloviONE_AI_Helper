@@ -508,6 +508,12 @@ export const TABLE_CARD_QUERY = `(max-width:${BREAKPOINTS.md - 0.05}px)`;
  * `hideNarrow` 열을 뺀다(카드 뷰는 폭 제약이 없으니 전부 보여준다). */
 export const TABLE_COMPACT_QUERY = `(max-width:${BREAKPOINTS.lg - 0.05}px)`;
 
+/* 한글은 기본 `word-break: normal` 이 음절 단위로 잘라도 된다고 본다.
+ * 값을 화면마다 붙이면 빠지는 자리가 생긴다 — CssBaseline `body` 가 상속한다.
+ * 긴 URL·UUID 가 상자를 밀지 않게 overflowWrap 을 짝으로 둔다.
+ * JSON·해시·말풍선처럼 글자 단위가 필요한 자리만 지역적으로 덮는다. */
+export const KO_WORD_BREAK = { wordBreak: "keep-all", overflowWrap: "break-word" };
+
 export function createClovirTheme(mode = "light", accent = DEFAULT_ACCENT) {
   const primary = normalizeAccent(accent);
   const light = mode === "light";
@@ -652,7 +658,8 @@ export function createClovirTheme(mode = "light", accent = DEFAULT_ACCENT) {
             outlineOffset: 2,
           },
           html: { minWidth: 320 },
-          body: { minWidth: 320, letterSpacing: "-0.011em" },
+          /* 한글 줄바꿈은 여기서 전역으로 정한다. 화면마다 KO_WORD_BREAK 를 다시 적지 않는다. */
+          body: { minWidth: 320, letterSpacing: "-0.011em", ...KO_WORD_BREAK },
           "*": { boxSizing: "border-box" },
           "@media (prefers-reduced-motion: reduce)": {
             "*, *::before, *::after": {
@@ -1024,6 +1031,24 @@ export function createClovirTheme(mode = "light", accent = DEFAULT_ACCENT) {
 /* 본문 최대 폭. 넓은 화면에서 가운데 좁은 기둥을 만들지 않는다(지시 63) — 판독 밀도를
  * 유지하면서 열 수와 여백으로 공간을 쓴다. */
 export const CONTENT_MAX_WIDTH = { xs: "100%", lg: "100%", xl: 1720, xxl: 2320, uhd: 3080 };
-export const KO_WORD_BREAK = { wordBreak: "keep-all", overflowWrap: "break-word" };
+/* 긴 산문(티켓 본문·게시글·댓글) 전용. 짧은 화면 설명에 70ch 를 걸면 한글이 일찍 접히고
+ * 오른쪽이 빈다 — 페이지 머리글·구획 도움말에는 쓰지 않는다. */
 export const PROSE_MAX_WIDTH = "72ch";
+/* 짧은 UI 문구 한도. 칸 폭(ch)이 정본이고, 글자 수는 거기서 계산한다.
+ * 한글 1자 ≈ 2ch (`ch`는 `0` 폭). 목표 3줄. EmptyState 폭을 바꾸면 emptyHelp 가 따라간다.
+ * 페이지 머리·구획은 칸이 없어도 같은 짧은-UI 한도를 쓴다. 사용자 본문에는 적용하지 않는다. */
+export const CH_PER_HANGUL = 2;
+export const COPY_TARGET_LINES = 3;
+export const EMPTY_STATE_MAX_CH = 56;
+export const ERROR_STATE_MAX_CH = 60;
+export function copyLimitFromCh(maxCh) {
+  return Math.floor(maxCh / CH_PER_HANGUL) * COPY_TARGET_LINES;
+}
+const emptyHelp = copyLimitFromCh(EMPTY_STATE_MAX_CH);
+export const COPY_LIMIT = {
+  pageLead: emptyHelp,
+  sectionHelp: emptyHelp,
+  emptyHelp,
+  errorHelp: copyLimitFromCh(ERROR_STATE_MAX_CH),
+};
 export const FAB_CLEARANCE = "5rem";

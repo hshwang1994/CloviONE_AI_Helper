@@ -163,6 +163,9 @@ UI/UX:
 - 실제 Page 목적, 정보 위계, 밀도, Responsive, Empty/Loading/Error, Keyboard/Focus를 본다.
 - Test PASS와 Visual PASS를 같은 것으로 보지 않는다.
 - Purple/Indigo Brand와 Clovi 역할을 유지한다.
+- 한글 줄바꿈은 전역 `keep-all`이다. 화면마다 `KO_WORD_BREAK`를 다시 적지 않는다.
+- 짧은 화면 설명에 `70ch`를 걸지 않는다. 긴 산문만 `PROSE_MAX_WIDTH`.
+- UI 문구에 `\n`/`<br>`를 넣지 않는다. 짧은 화면 설명·EmptyState·ErrorState 문구는 `COPY_LIMIT` 이하로 쓴다. 숫자를 직접 적지 않는다. 칸 폭은 `EMPTY_STATE_MAX_CH`/`ERROR_STATE_MAX_CH`이고, 글자 한도는 그 폭에서 계산된다.
 
 Runtime/Deployment:
 - 실제 Runtime/Config/Service/TLS를 확인한다.

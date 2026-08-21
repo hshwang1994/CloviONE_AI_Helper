@@ -355,7 +355,7 @@ describe("프로젝트 목록 — 표", () => {
     await screen.findByText("배포 자동화");
 
     expect(screen.queryByText(/Notion 값을 나란히/)).toBeNull();
-    expect(screen.getByText(/포털이 작업을 다시 세어 계산한 값/)).toBeInTheDocument();
+    expect(screen.getByText(/한눈에 봅니다/)).toBeInTheDocument();
   });
 });
 

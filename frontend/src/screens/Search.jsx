@@ -232,7 +232,7 @@ export function Search() {
           <EmptyState
             title="무엇을 찾을까요?"
             situation={searchKindsSituation}
-            help="한 글자만 쳐도 찾습니다. Ctrl+K 로 어느 화면에서든 이 검색을 열 수 있습니다."
+            help="한 글자만 쳐도 찾습니다. 어느 화면에서든 Ctrl+K로 이 검색을 열 수 있습니다."
             art="search"
           />
         </Card>

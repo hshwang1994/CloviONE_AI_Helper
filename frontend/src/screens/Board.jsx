@@ -22,7 +22,7 @@ import {
   useToast,
 } from "../ui/kit.jsx";
 import { fmtDateTime, affiliationOf, ARCHIVED_SUFFIX } from "../lib/format.js";
-import { FONT_SIZE, FONT_WEIGHT, PROSE_MAX_WIDTH } from "../ui/theme.js";
+import { FONT_SIZE, FONT_WEIGHT } from "../ui/theme.js";
 import { ideaStatusKind } from "../lib/badges.js";
 import { buildPostsQuery, reactionMap } from "./board-helpers.js";
 import { useQueryState } from "../lib/useQueryState.js";
@@ -362,7 +362,7 @@ export const COPY = {
   free: {
     area: "자유게시판",
     title: "자유게시판",
-    lead: "팀원과 자유롭게 이야기를 나누는 공간입니다.",
+    lead: "팀원과 자유롭게 이야기를 나눕니다.",
     empty: "아직 게시글이 없습니다",
     emptyHelp: "위 ‘글쓰기’로 팀원과 나누고 싶은 첫 이야기를 남겨 보세요.",
     writeLabel: "글쓰기",
@@ -371,7 +371,7 @@ export const COPY = {
   idea: {
     area: "기능 개선 제안",
     title: "기능 개선 제안",
-    lead: "ClovirAssist 를 어떻게 고치면 좋을지 제안하고, 공감으로 우선순위를 정합니다.",
+    lead: "불편한 점이나 있으면 좋겠는 기능을 올리고, 공감으로 순서를 정합니다.",
     empty: "아직 제안이 없습니다",
     emptyHelp: "위 ‘제안하기’로 불편한 점이나 있으면 좋겠는 기능을 남겨 보세요.",
     writeLabel: "제안하기",
@@ -485,7 +485,7 @@ function BoardScreen({ kind = "free" }) {
   return (
     <div className="c-screen">
       <PageHeader crumbRoot="팀 공간" area={copy.area} title={copy.title} actions={writeBtn} spot="board" />
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 3, maxWidth: PROSE_MAX_WIDTH }}>
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
         {copy.lead}
       </Typography>
 

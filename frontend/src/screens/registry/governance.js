@@ -40,11 +40,11 @@ export const GOVERNANCE_SCREENS = {
     // self_approval_allowed는 서버 설정 파일에만 있고(app/core/feature_flags.py) 이 관리 콘솔에는
     // 그 값을 보거나 바꿀 화면이 없다 — '정책 설정에 따라 달라질 수 있어요'는 마치 이 화면 어딘가에
     // 바꿀 수 있는 정책 설정이 있는 것처럼 읽혀 없는 컨트롤을 찾게 만들었다. 서버 쪽 설정임을 명시한다.
-    help: "위험할 수 있는 작업의 승인 요청을 처리합니다. 본인 요청은 기본적으로 본인이 승인할 수 없습니다(서버 설정 파일로만 조정되며, 이 화면에서는 바꿀 수 없습니다). 승인 요청은 72시간(기본값)이 지나면 자동으로 만료됩니다. 처리하지 않고 두면 다음에 다시 열었을 때 '만료'로 바뀌어 있을 수 있습니다.",
+    help: "승인이 필요한 작업을 처리합니다. 본인 요청은 본인이 승인할 수 없습니다(서버 설정으로만 바뀌며, 이 화면에서는 바꿀 수 없습니다). 72시간이 지나면 만료됩니다.",
     // 실제 승인 실행자는 5종(app/approvals/service.py): schedule.enable, runner.change_config,
     // integration.change_config, user.role_change, document.publish. 예전 문구는 3종만 언급해
     // 스케줄 활성화·문서 발행 승인이 왜 여기 뜨는지 안내가 없었다.
-    emptyTitle: "승인 요청이 없습니다", emptyHelp: "스케줄 활성화, 연동/러너 설정 변경, 역할 변경, 문서 발행처럼 승인이 필요한 작업이 요청되면 여기에서 승인, 거절, 취소합니다.",
+    emptyTitle: "승인 요청이 없습니다", emptyHelp: "스케줄 활성화, 연동·러너 설정 변경, 역할 변경, 문서 발행처럼 승인이 필요한 작업이 요청되면 여기에서 승인, 거절, 취소합니다.",
     emptyRelatedLink: { href: "#/approval-delegations", label: "부재 시 대리 승인자 설정" },
     // 다른 화면/미래의 딥링크가 ?id=로 특정 승인 건을 곧바로 열 수 있게 한다(runners.onQuery와 동일한
     // 패턴 — 백엔드 GET /api/admin/approvals/{id}가 이미 존재하는데 지금까지 아무 화면도 호출하지 않았다).
@@ -189,7 +189,7 @@ export const GOVERNANCE_SCREENS = {
     emptySituation: "결재자가 휴가를 가면 승인 큐가 그동안 멈춥니다.",
     emptyPrerequisite: "위임하는 사람(승인 권한이 있는 계정)과 대신할 사람의 사용자 ID가 필요합니다.",
     emptySteps: ["‘+ 위임 추가’에 두 사람의 ID와 기간을 적습니다.", "기간이 시작되면 상태가 ‘진행 중’이 됩니다.", "일찍 끝내려면 ‘위임 거두기’를 누릅니다."],
-    emptyExpected: "위임 기간에는 대리 승인자가 승인, 거절을 할 수 있고, 결재 기록에 대신한 사람이 남습니다.",
+    emptyExpected: "위임 기간에는 대리 승인자가 승인·거절하고, 결재 기록에 대신한 사람이 남습니다.",
     createLabel: "위임 추가",
     searchFields: ["delegator_name", "delegate_name", "reason"],
     searchPlaceholder: "이름으로 검색",
@@ -219,7 +219,7 @@ export const GOVERNANCE_SCREENS = {
       /* W5: 「‘사용자’ 화면에서 ID를 복사하세요」 는 기능이 아니라 결함이다 — 사람이 UUID 를
          화면 사이로 나르게 만든다(R-5 · 지시 0-2.17). 후보는 위 `refLists.people` 이 준다. */
       { name: "delegator_user_id", label: "위임하는 사람", type: "select", kind: "entity", optionsFromRefList: "people", required: true, help: "승인 권한이 있는 계정이어야 합니다(관리자, 시스템 관리자)." },
-      { name: "delegate_user_id", label: "대리 승인자", type: "select", kind: "entity", optionsFromRefList: "people", required: true, help: "이 사람은 위임 기간에만 승인, 거절을 할 수 있습니다." },
+      { name: "delegate_user_id", label: "대리 승인자", type: "select", kind: "entity", optionsFromRefList: "people", required: true, help: "이 사람은 위임 기간에만 승인하거나 거절할 수 있습니다." },
       { name: "starts_at", label: "시작", type: "datetime-local", required: true },
       { name: "ends_at", label: "종료", type: "datetime-local", required: true, help: "최대 90일. 기간이 지나면 권한이 저절로 닫힙니다." },
       { name: "reason", label: "사유", type: "text", help: "예: 7/20~7/25 휴가" },
@@ -396,7 +396,7 @@ export const GOVERNANCE_SCREENS = {
     endpoint: "/api/admin/audit/anomalies",
     help: "감사 로그에서 눈여겨볼 만한 것을 규칙으로 골라냅니다. 통계 모델이나 AI가 아니라 셀 수 있는 사실만 봅니다. 그래서 같은 데이터면 언제 열어도 같은 결과가 나오고, 각 항목에 왜 걸렸는지(근거, 임계값)가 함께 표시됩니다. 여기 걸렸다고 곧바로 문제인 것은 아니며, 확인할 대상을 좁혀 주는 목록입니다.",
     emptyTitle: "눈여겨볼 징후가 없습니다",
-    emptyHelp: "선택한 기간의 감사 로그에서 규칙에 걸린 항목이 없습니다. 기간을 늘려 다시 확인할 수 있습니다.",
+    emptyHelp: "이 기간의 감사 로그에서 규칙에 걸린 항목이 없습니다. 기간을 늘려 다시 보세요.",
     filters: [{ key: "window_hours", type: "select", label: "기간", value: "24", options: opt([["6", "최근 6시간"], ["24", "최근 24시간"], ["168", "최근 7일"], ["720", "최근 30일"]]) }],
     columns: [
       { key: "severity", label: "중요도", render: (r) => React.createElement(Badge, {

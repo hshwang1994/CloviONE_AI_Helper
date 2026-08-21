@@ -12,7 +12,7 @@ import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
 import { Badge, Button, Callout, Card, EmptyState, ErrorState, Modal, ModalFooter, PageHeader, Skeleton, useConfirm, useToast } from "../ui/kit.jsx";
-import { FONT_SIZE, FONT_WEIGHT, PROSE_MAX_WIDTH } from "../ui/theme.js";
+import { FONT_SIZE, FONT_WEIGHT } from "../ui/theme.js";
 
 /* 팀 공간 > 놀이 (§5). 한 페이지에서 모든 게임방을 보고, 여기서 방을 만든다(별도 페이지 분리
  * 안 함). 목록은 3초 폴링으로 새 방을 실시간처럼 보여준다. 첫 게임=랜덤 추첨.
@@ -391,8 +391,8 @@ export function Games() {
   return (
     <div className="c-screen">
       <PageHeader crumbRoot="팀 공간" area="놀이" title="놀이" spot="games" actions={createBtn} />
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 3, maxWidth: PROSE_MAX_WIDTH }}>
-        팀원과 함께 실시간으로 즐기는 놀이 공간입니다.
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+        팀원과 실시간으로 같이 하는 게임입니다.
       </Typography>
 
       {list.isError ? (
