@@ -652,17 +652,23 @@ def test_lock_is_reported_only_after_correct_password(client, make_user, setting
 
 
 def test_unknown_account_still_runs_password_verification(client, monkeypatch):
-    """없는 계정이 Argon2 검증을 건너뛰면 타이밍으로 계정 존재가 드러난다."""
-    import app.auth.router as auth_router
+    """없는 계정이 Argon2 검증을 건너뛰면 타이밍으로 계정 존재가 드러난다.
+
+    S5 에서 **검증하는 자리가 옮겨 갔다** — `app/auth/router.py` 가 직접 부르던 것을
+    `app/auth/providers.py::LocalPasswordProvider` 가 맡는다(D-235). 지키는 성질은 그대로라
+    관찰 지점만 새 자리로 옮긴다. 옛 자리에 걸어 두면 **검증을 안 해도 통과한다** —
+    그 상태가 이 시험이 막으려던 바로 그것이다.
+    """
+    import app.auth.providers as providers
 
     calls = []
-    real_verify = auth_router.verify_password
+    real_verify = providers.verify_password
 
     def _counting_verify(password_hash, password):
         calls.append(password_hash)
         return real_verify(password_hash, password)
 
-    monkeypatch.setattr(auth_router, "verify_password", _counting_verify)
+    monkeypatch.setattr(providers, "verify_password", _counting_verify)
     r = client.post(
         "/login", json={"email": "r3-nobody@goodmit.co.kr", "password": "Wrong-Pass-123"}
     )

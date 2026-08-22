@@ -26,8 +26,8 @@ from app.backups.service import (
 )
 from app.core import people, product
 from app.core.audit import record_audit_from_request
-from app.core.authz import CONSOLE_READ_ROLES, SYSTEM_ADMIN_ONLY
-from app.core.deps import get_db, require_csrf, require_roles
+from app.authz.permissions import BACKUP_EXECUTE, BACKUP_READ
+from app.core.deps import get_db, require_csrf, require_permission
 from app.core.errors import ConflictError, NotFoundError
 
 router = APIRouter(
@@ -38,7 +38,7 @@ router = APIRouter(
 
 
 
-@router.get("", dependencies=[Depends(require_roles(*CONSOLE_READ_ROLES))])
+@router.get("", dependencies=[Depends(require_permission(BACKUP_READ))])
 def list_backups(request: Request, db: Session = Depends(get_db)):
     # UA-18: 오래 running으로 멈춘 행 정리는 이제 순수 읽기인 이 GET이 아니라
     # worker_main.py의 10분 백업 틱이 한다 — "화면을 열 때만 청소되고 require_csrf가
@@ -54,7 +54,7 @@ def list_backups(request: Request, db: Session = Depends(get_db)):
     return {"items": [backup_view(r, names) for r in rows]}
 
 
-@router.post("", status_code=201, dependencies=[Depends(require_roles(*SYSTEM_ADMIN_ONLY))])
+@router.post("", status_code=201, dependencies=[Depends(require_permission(BACKUP_EXECUTE))])
 def create_backup(request: Request, db: Session = Depends(get_db)):
     now = request.app.state.clock.now()
     row = run_backup(
@@ -85,7 +85,7 @@ def create_backup(request: Request, db: Session = Depends(get_db)):
 # 정적 경로는 `/{backup_id}/...` **앞에** 둔다 — 아래 verify 라우트가 먼저 등록돼 있으면
 # `/rehearsals` 가 backup_id 로 해석될 여지가 생긴다(경로 모양이 달라 지금은 충돌하지
 # 않지만, 규칙을 지켜 두면 나중에 세그먼트 하나를 더할 때 사고가 안 난다).
-@router.get("/rehearsals", dependencies=[Depends(require_roles(*CONSOLE_READ_ROLES))])
+@router.get("/rehearsals", dependencies=[Depends(require_permission(BACKUP_READ))])
 def list_rehearsals(db: Session = Depends(get_db)):
     """복구 리허설 기록 — "마지막으로 복원을 시험한 게 언제인가"에 답한다.
 
@@ -114,7 +114,7 @@ def list_rehearsals(db: Session = Depends(get_db)):
     }
 
 
-@router.get("/schedule", dependencies=[Depends(require_roles(*CONSOLE_READ_ROLES))])
+@router.get("/schedule", dependencies=[Depends(require_permission(BACKUP_READ))])
 def get_backup_schedule(request: Request, db: Session = Depends(get_db)):
     """자동 백업 일정 + 최근 성공 백업 + 최근 리허설을 한 화면에.
 
@@ -138,7 +138,7 @@ def get_backup_schedule(request: Request, db: Session = Depends(get_db)):
     }
 
 
-@router.post("/{backup_id}/verify", dependencies=[Depends(require_roles(*SYSTEM_ADMIN_ONLY))])
+@router.post("/{backup_id}/verify", dependencies=[Depends(require_permission(BACKUP_EXECUTE))])
 def verify(request: Request, backup_id: str, db: Session = Depends(get_db)):
     row = db.get(Backup, backup_id)
     if row is None:
@@ -161,7 +161,7 @@ def verify(request: Request, backup_id: str, db: Session = Depends(get_db)):
     return {"backup": backup_view(row), "verify": result}
 
 
-@router.get("/restore-instructions", dependencies=[Depends(require_roles(*SYSTEM_ADMIN_ONLY))])
+@router.get("/restore-instructions", dependencies=[Depends(require_permission(BACKUP_EXECUTE))])
 def restore_instructions():
     """Spec §14.6: 실제 Restore는 스크립트로만. 추가 확인 + Snapshot 필요.
 

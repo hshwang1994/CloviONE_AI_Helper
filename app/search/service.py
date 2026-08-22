@@ -28,7 +28,8 @@ from app.search.models import (
     SEARCH_KINDS,
     SearchDocument,
 )
-from app.search.scoping import not_restricted_clause, sql_clause
+from app.authz.visibility import visibility_context
+from app.search.scoping import sql_clause
 
 # 범위 필터 전에 뽑아 둘 후보 수. 부서 범위에서 대부분이 걸러질 수 있으므로 넉넉히 잡는다.
 CANDIDATE_LIMIT = 400
@@ -97,12 +98,12 @@ def search(
 
     # 유형 게이트와 범위. **후보를 자르기 전에** 걸어야 하는 조건들이다 (Z6).
     kind_clause = SearchDocument.kind.in_(kinds)
-    clause = sql_clause(principal.visibility)
-    # 열람 제한 문서(SEC-10)는 색인에 안 담기지만, 제한을 켠 직후 다음 색인까지의 창을
-    # 여기서 닫는다(app/search/scoping.py::not_restricted_clause).
-    restricted = not_restricted_clause()
+    # 소속과 열람 제한을 한 함수가 함께 만든다(app/authz/visibility.py). 제한 문서는 색인에
+    # 안 담기지만, 제한을 켠 직후 다음 색인까지의 창이 열려 있어 질의 단계에도 같은 판정을
+    # 둔다 — 그 창이 정확히 「지금 막 민감하다고 판단한 문서」의 창이다.
+    clause = sql_clause(visibility_context(db, principal))
 
-    stmt = select(SearchDocument).where(kind_clause).where(restricted)
+    stmt = select(SearchDocument).where(kind_clause)
     if clause is not None:
         stmt = stmt.where(clause)
 

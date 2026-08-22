@@ -21,15 +21,15 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.core.audit import record_audit_from_request
-from app.core.authz import SYSTEM_ADMIN_ONLY
-from app.core.deps import get_db, require_csrf, require_roles
+from app.authz.permissions import SYSTEM_CONFIGURE
+from app.core.deps import get_db, require_csrf, require_permission
 from app.sysops.actions import list_actions
 from app.sysops.client import STATUS_OK, SysopsClient
 
 router = APIRouter(
     prefix="/api/admin/system",
     tags=["admin-system"],
-    dependencies=[Depends(require_csrf), Depends(require_roles(*SYSTEM_ADMIN_ONLY))],
+    dependencies=[Depends(require_csrf), Depends(require_permission(SYSTEM_CONFIGURE))],
 )
 
 OBJECT_TYPE = "system_setting"

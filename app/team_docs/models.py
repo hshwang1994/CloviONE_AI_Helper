@@ -80,7 +80,7 @@ class DocumentCache(OrgScopedMixin, UUIDPrimaryKeyMixin, Base):
     # 부서 소유일 때의 부서 id. **이름이 아니라 id** — 부서명이 바뀌거나 상위 부서가
     # 새로 생겨도 연결이 끊기지 않아야 한다.
     owner_dept_id: Mapped[str | None] = mapped_column(
-        String(36), ForeignKey("departments.id"), nullable=True, index=True
+        String(36), ForeignKey("org_units.id"), nullable=True, index=True
     )
     # 프로젝트 소유일 때의 Portal 프로젝트 id. Notion relation **이름**이 아니라 id 로
     # 잇는다 — 이름은 바뀌고 중복될 수 있어 장기 키가 될 수 없다.

@@ -197,7 +197,7 @@ def test_preview_then_approve_approval_has_due_at_and_notifies_delegate(
     delegation_service.create(
         db, delegator=delegator, delegate=delegate,
         starts_at=now, ends_at=now + timedelta(days=1),
-        reason="휴가 대비", created_by=delegator.id, now=now,
+        reason="휴가 대비", created_by=delegator.id, now=now, visible=None,
     )
     db.commit()
 

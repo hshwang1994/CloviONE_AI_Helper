@@ -8,10 +8,12 @@ Notion 장애와 무관하게 응답한다(§17.4). 본문 블록만 상세 조�
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Query, Request
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.org import context as org_context
 from app.core.audit import record_audit_from_request
+from app.authz.visibility import context_for_user
 from app.core.authz import MODERATOR_ROLES
 from app.core.deps import AuthContext, get_current_auth, get_current_user, get_db, require_csrf
 from app.core.errors import AppError, ForbiddenError, NotFoundError
@@ -142,7 +144,7 @@ def list_documents(
     # 범위 밖 문서를 뺀다 (1순위 유출 #5). 판정은 문서 자신의 소속(0060)이고, 소속을 모르는
     # 문서는 전역 관리자만 본다 — `service.doc_in_scope` 에 이유가 있다.
     # 판정 재료(범위·볼 수 있는 프로젝트·내 매핑)를 한 번만 구해 문서마다 넘긴다(N+1 제거).
-    ctx = service.doc_scope_context(db, me, scope=org_context.filter_scope(db, me, department_id))
+    ctx = context_for_user(db, me, scope=org_context.filter_scope(db, me, department_id))
     visible = [r for r in all_matching if service.doc_in_scope(db, r, me, ctx=ctx)]
     total = len(visible)  # 이제 필터링 뒤의 **진짜** 전체 개수다(일부 페이지 근사가 아니다).
     rows = visible[page.offset : page.offset + page.page_size]
@@ -467,6 +469,55 @@ def set_restricted(
         object_id=page_id, after={"restricted": doc.restricted},
     )
     return {"ok": True, "restricted": doc.restricted}
+
+
+class AllowedUsersRequest(BaseModel):
+    """열람 제한 문서를 명시로 볼 수 있는 사람들. **전체 명단**을 보낸다(부분 추가가 아니다).
+
+    부분 추가/삭제 API 로 만들면 화면이 "지금 명단" 을 스스로 재구성해야 하고, 두 사람이
+    동시에 고치면 어느 쪽도 의도한 결과가 아니게 된다. 명단 전체를 보내면 마지막에 저장한
+    사람의 의도가 그대로 남는다.
+    """
+
+    user_ids: list[str] = Field(default_factory=list, max_length=200)
+
+
+@router.get("/{page_id}/allowed-users")
+def list_allowed_users(
+    page_id: str,
+    db: Session = Depends(get_db),
+    me: User = Depends(get_current_user),
+):
+    """이 문서를 명시로 볼 수 있는 사람들 (S5 · D-193).
+
+    범위 밖 문서는 **404** — 목록에서 가린 문서에 대해 "누가 볼 수 있는가" 를 답하면 그
+    자체가 정보다.
+    """
+    return {"user_ids": service.doc_allowed_users(db, user=me, page_id=page_id)}
+
+
+@router.put("/{page_id}/allowed-users", dependencies=[Depends(require_csrf)])
+def set_allowed_users(
+    request: Request,
+    page_id: str,
+    payload: AllowedUsersRequest,
+    db: Session = Depends(get_db),
+    me: User = Depends(get_current_user),
+):
+    """열람 제한 문서의 명시 열람자 명단을 통째로 바꾼다 — 운영자만.
+
+    `restricted` 를 켜는 것과 **같은 권한**이다. 제한을 걸 수 있는 사람이 그 예외도 정한다 —
+    둘을 다른 권한으로 나누면 "제한은 걸었는데 아무도 못 여는" 상태를 만든 사람이 그것을
+    풀 수 없다.
+    """
+    user_ids = service.set_doc_allowed_users(
+        db, user=me, page_id=page_id, user_ids=payload.user_ids
+    )
+    record_audit_from_request(
+        request, db, action="team_docs.allowed_users", object_type="notion_document",
+        object_id=page_id, after={"user_ids": user_ids},
+    )
+    return {"ok": True, "user_ids": user_ids}
 
 
 @router.post("/sync", dependencies=[Depends(require_csrf)])

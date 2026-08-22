@@ -103,9 +103,10 @@ def recent_documents(db: Session, *, limit: int = RECENT_LIMIT, viewer=None) -> 
     fetch_limit = limit * 4 if viewer is not None else limit
     rows = db.execute(stmt.limit(fetch_limit)).scalars().all()
     if viewer is not None:
-        from app.team_docs.service import doc_in_scope, doc_scope_context
+        from app.authz.visibility import context_for_user
+        from app.team_docs.service import doc_in_scope
 
-        ctx = doc_scope_context(db, viewer)
+        ctx = context_for_user(db, viewer)
         rows = [r for r in rows if doc_in_scope(db, r, viewer, ctx=ctx)][:limit]
     return [
         {
@@ -200,9 +201,10 @@ def documents_changed_between(
         .order_by(DocumentCache.last_edited.desc(), DocumentCache.title.asc())
     ).scalars().all()
     if viewer is not None:
-        from app.team_docs.service import doc_in_scope, doc_scope_context
+        from app.authz.visibility import context_for_user
+        from app.team_docs.service import doc_in_scope
 
-        ctx = doc_scope_context(db, viewer)
+        ctx = context_for_user(db, viewer)
         rows = [r for r in rows if doc_in_scope(db, r, viewer, ctx=ctx)]
     total = len(rows)
     rows = rows[:limit]

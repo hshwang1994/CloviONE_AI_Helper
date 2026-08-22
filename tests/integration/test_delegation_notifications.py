@@ -48,7 +48,7 @@ def test_the_delegate_is_told_they_were_delegated(db, pair):
     delegation.create(
         db, delegator=a, delegate=b,
         starts_at=now, ends_at=now + timedelta(days=3),
-        reason="휴가", created_by=a.id, now=now,
+        reason="휴가", created_by=a.id, now=now, visible=None,
     )
     db.commit()
 
@@ -67,7 +67,7 @@ def test_a_new_approval_request_reaches_the_delegate(db, pair, make_user):
     delegation.create(
         db, delegator=a, delegate=b,
         starts_at=now - timedelta(hours=1), ends_at=now + timedelta(days=3),
-        reason=None, created_by=a.id, now=now,
+        reason=None, created_by=a.id, now=now, visible=None,
     )
     db.commit()
     before = len([n for n in _notifications_for(db, b.id) if n.type == "approval_requested"])
@@ -100,7 +100,7 @@ def test_an_admin_does_not_get_the_same_thing_twice(db, pair, make_user):
     delegation.create(
         db, delegator=a, delegate=other_admin,
         starts_at=now - timedelta(hours=1), ends_at=now + timedelta(days=3),
-        reason=None, created_by=a.id, now=now,
+        reason=None, created_by=a.id, now=now, visible=None,
     )
     db.commit()
 
@@ -125,7 +125,7 @@ def test_an_expired_delegation_says_so_instead_of_permission_denied(db, pair):
     delegation.create(
         db, delegator=a, delegate=b,
         starts_at=start, ends_at=start + timedelta(days=1),
-        reason=None, created_by=a.id, now=start,
+        reason=None, created_by=a.id, now=start, visible=None,
     )
     db.commit()
 

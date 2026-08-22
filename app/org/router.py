@@ -20,9 +20,9 @@ from sqlalchemy.orm import Session
 from app.core.audit import record_audit_from_request
 from app.core.db import DEFAULT_WRITE_CONFLICT_RETRIES, is_insert_race, write_conflict_backoff
 from app.core.errors import ForbiddenError, NotFoundError, ValidationAppError
-from app.core.authz import CONSOLE_WRITE_ROLES
 from app.core.scope import Principal
-from app.core.deps import get_db, get_principal, require_csrf, require_roles
+from app.authz.permissions import ORG_MANAGE
+from app.core.deps import get_db, get_principal, require_csrf, require_permission
 from app.org.constants import ORG_ACTIVE, ORG_SUSPENDED
 from app.org.models import Department, JobTitle, Organization
 from app.org.schemas import (
@@ -82,7 +82,7 @@ def _make_org_router(
     router = APIRouter(
         prefix=prefix,
         tags=[tag],
-        dependencies=[Depends(require_roles(*CONSOLE_WRITE_ROLES)), Depends(require_csrf)],
+        dependencies=[Depends(require_permission(ORG_MANAGE)), Depends(require_csrf)],
     )
 
     @router.get("")
@@ -254,7 +254,7 @@ def _revoke_org_sessions(request: Request, db: Session, org_id: str) -> int:
 organizations_router = APIRouter(
     prefix="/api/admin/organizations",
     tags=["admin-organizations"],
-    dependencies=[Depends(require_roles(*CONSOLE_WRITE_ROLES)), Depends(require_csrf)],
+    dependencies=[Depends(require_permission(ORG_MANAGE)), Depends(require_csrf)],
 )
 
 
@@ -384,7 +384,7 @@ def create_organization(
     # UA-11: 목록·단건·수정은 scope.org_id로 좁히는데(_visible_org_or_404) 생성만 무방비였다
     # — 조직 자체를 만드는 것은 테넌트를 새로 여는 일이라 전역 관리자만 할 수 있어야 한다.
     # dept/org 범위 admin도 CONSOLE_WRITE_ROLES(role="admin")는 통과하므로(role과 admin_scope는
-    # 서로 다른 축이다) 라우터 데코레이터의 require_roles만으로는 못 막는다 — quotas/router.py
+    # 서로 다른 축이다) 라우터 데코레이터의 권한 게이트만으로는 못 막는다 — quotas/router.py
     # 의 _ensure_may_touch_global과 같은 이유로 403(그 행의 존재는 이미 화면에 드러나 있으니
     # 문제는 존재가 아니라 권한이다).
     if not principal.management.is_global:

@@ -89,7 +89,7 @@ class User(OrgScopedMixin, UUIDPrimaryKeyMixin, TimestampMixin, Base):
     # 바뀔 때마다 전 직원의 행을 고쳐야 하고, 'ClovirONE팀'과 'ClovirOne팀'이 서로 다른
     # 부서가 된다. 이름은 명부에만 있고 여기엔 참조만 둔다.
     department_id: Mapped[str | None] = mapped_column(
-        String(36), ForeignKey("departments.id", ondelete="SET NULL")
+        String(36), ForeignKey("org_units.id", ondelete="SET NULL")
     )
     title_id: Mapped[str | None] = mapped_column(
         String(36), ForeignKey("job_titles.id", ondelete="SET NULL")
@@ -119,12 +119,12 @@ class User(OrgScopedMixin, UUIDPrimaryKeyMixin, TimestampMixin, Base):
         String(36), ForeignKey("organizations.id")
     )
     scope_dept_id: Mapped[str | None] = mapped_column(
-        String(36), ForeignKey("departments.id", ondelete="SET NULL")
+        String(36), ForeignKey("org_units.id", ondelete="SET NULL")
     )
     # users → departments 경로가 두 개(department_id, scope_dept_id)라 어느 쪽으로 조인할지
     # 명시해야 한다. 안 하면 SQLAlchemy 가 AmbiguousForeignKeysError 로 매핑 자체를 거부한다.
     department_ref: Mapped[Department | None] = relationship(
-        "Department", lazy="joined", foreign_keys=[department_id]
+        "OrgUnit", lazy="joined", foreign_keys=[department_id]
     )
     title_ref: Mapped[JobTitle | None] = relationship("JobTitle", lazy="joined")
     role: Mapped[str] = mapped_column(String(32), nullable=False, default=ROLE_USER)

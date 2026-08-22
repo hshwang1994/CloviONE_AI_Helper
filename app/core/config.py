@@ -39,6 +39,12 @@ class Settings(BaseSettings):
     n8n_work_assistant_url: str = "http://127.0.0.1:5678/webhook/clovirone-work-assistant"
     n8n_timeout_seconds: int = 180
 
+    # 자격 증명을 무엇이 검증하는가 (S5). 지금 값은 `local` 하나뿐이고, LDAP·OIDC 가
+    # 들어오면 여기에 이름이 는다. **모르는 이름은 기동 시점이 아니라 첫 로그인에서
+    # 오류가 된다** — 조용히 local 로 떨어뜨리면 「켰다고 믿는데 안 켜진」 상태가 된다
+    # (`app/auth/providers.py::resolve_identity_provider`).
+    auth_provider: str = "local"
+
     session_secret: str = ""
     session_ttl_seconds: int = 28800
     session_idle_timeout_seconds: int = 1800

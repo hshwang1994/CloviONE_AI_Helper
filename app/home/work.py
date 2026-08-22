@@ -50,6 +50,7 @@ from datetime import date, datetime, timedelta
 
 from sqlalchemy.orm import Session
 
+from app.authz.visibility import visibility_context
 from app.core.scope import Principal
 from app.home import aggregate, service as home_service
 from app.projects import health as project_health
@@ -162,7 +163,7 @@ def _projects_and_milestones(db: Session, principal: Principal, *, today_iso: st
     자르면 "차질 0건" 이 사실인지 잘린 결과인지 아무도 모른다.
     """
     rows, total = projects_repo.list_in_scope(
-        db, principal.visibility, include_archived=False,
+        db, visibility_context(db, principal), include_archived=False,
         offset=0, limit=projects_service.OVERALL_PROJECT_LIMIT,
     )
     troubled: list[dict] = []

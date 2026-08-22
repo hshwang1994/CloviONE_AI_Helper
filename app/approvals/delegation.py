@@ -144,8 +144,13 @@ def create(
     reason: str | None,
     created_by: str,
     now: datetime,
+    visible: frozenset[str] | None,
 ) -> ApprovalDelegation:
     validate_window(starts_at, ends_at)
+    if visible is not None and not {delegator.id, delegate.id} <= visible:
+        # 범위 밖 계정은 **없는 것과 똑같다** — 「그 사람은 있지만 당신 부서가 아닙니다」로
+        # 답하면 남의 부서 명부를 id 로 열거할 수 있다(위 `get_scoped_or_404` 와 같은 이유).
+        raise NotFoundError("사용자를 찾을 수 없습니다.")
     if delegator.id == delegate.id:
         raise ValidationAppError("자기 자신에게 위임할 수 없습니다.")
     # 위임하는 쪽이 애초에 결재 권한이 없으면 빌려줄 것이 없다.
@@ -189,8 +194,44 @@ def revoke(db: Session, row: ApprovalDelegation, *, now: datetime) -> ApprovalDe
     return row
 
 
-def get_or_404(db: Session, row_id: str) -> ApprovalDelegation:
-    row = db.get(ApprovalDelegation, row_id)
+def scope_clause(visible: frozenset[str] | None):
+    """이 위임이 관리 범위 안인가. 전역(``visible is None``)이면 ``None`` = 조건 없음.
+
+    **양쪽 다** 범위 안이어야 한다. 위임은 「A 의 권한을 B 가 쓴다」라 한쪽만 봐도 되는
+    관계가 아니다 — 위임자만 보면 내 부서 사람의 권한이 남의 부서로 새는 것을 못 막고,
+    대리자만 보면 남의 부서 권한이 내 부서 사람에게 들어오는 것을 못 막는다.
+
+    ``None`` 을 돌려주는 이유는 `app/core/scope.py::scope_filter` 와 같다 — 부르는 쪽이
+    `if clause is None` 을 쓸 수밖에 없어 '범위를 고려했다'가 코드에 남는다.
+    """
+    if visible is None:
+        return None
+    ids = tuple(sorted(visible))
+    return ApprovalDelegation.delegator_user_id.in_(ids) & (
+        ApprovalDelegation.delegate_user_id.in_(ids)
+    )
+
+
+def apply_scope(stmt, visible: frozenset[str] | None):
+    clause = scope_clause(visible)
+    return stmt if clause is None else stmt.where(clause)
+
+
+def get_scoped_or_404(
+    db: Session, row_id: str, visible: frozenset[str] | None
+) -> ApprovalDelegation:
+    """단건 — 범위 밖은 **없는 것과 똑같이 404** 다 (P-12a).
+
+    403 은 "그 위임은 존재한다"를 알려 준다. id 를 찍어 보며 403/404 를 세면 다른 부서에
+    누가 누구에게 결재를 맡겼는지를 열거할 수 있다 — 인사 정보다. 같은 파일의 승인 큐가
+    이미 그 규칙을 쓰고 있었고 이쪽만 빠져 있었다.
+
+    조건을 **조회 자체에** 붙인다(`app/approvals/service.py::get_scoped_approval_or_404`
+    와 같은 관용): 먼저 꺼내 놓고 나중에 판정하면 판정을 빠뜨린 새 경로가 조용히 열린다.
+    """
+    row = db.execute(
+        apply_scope(select(ApprovalDelegation).where(ApprovalDelegation.id == row_id), visible)
+    ).scalar_one_or_none()
     if row is None:
         raise NotFoundError("위임을 찾을 수 없습니다.")
     return row

@@ -24,7 +24,16 @@ step() { echo ""; echo "== $1 =="; }
 run_suite() {
   local name="$1"; shift
   step "$name"
-  if "$PY" -m pytest "$@" -q; then
+  # 🔴 `< /dev/null` 이 없으면 **영원히 멈춘다** (P-09e). `tests/regression/
+  # test_stage_static_update.py` 가 `subprocess.run(capture_output=True, timeout=300)` 으로
+  # 셸 스크립트를 부르는데, 이 러너를 백그라운드로 돌리면 stdin 이 **안 닫힌 파이프**라
+  # 그 자식이 stdin 을 읽다 막힌다. 파이썬의 `timeout=` 은 **손자 프로세스를 안 죽여서**
+  # 파이프가 안 닫히고, 그래서 5분이 지나도 안 풀린다.
+  #
+  # 증상이 고약하다: pytest 가 한 자리에서 멈추고 **CPU 도 0** 이라 「오래 걸리는 시험」과
+  # 구별되지 않는다. S5 가 여기서 두 번 걸려 완주한 회귀를 두 번 버렸다.
+  # 근본 조치는 그 시험이 `stdin=subprocess.DEVNULL` 을 넘기는 것이다(P-09e).
+  if "$PY" -m pytest "$@" -q < /dev/null; then
     echo "[OK ] $name"
   else
     echo "[FAIL] $name"

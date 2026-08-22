@@ -393,11 +393,19 @@ def list_delegations(
     request: Request,
     db: Session = Depends(get_db),
     state: str | None = Query(default=None, max_length=16),
+    principal: Principal = Depends(get_principal),
 ):
+    # 범위 밖 위임은 보이지 않는다 (P-12a). 이 표면 셋(`list`·`create`·`revoke`)이 통째로
+    # `principal` 을 안 받고 있었고, 같은 파일의 승인 큐는 이미 관리 범위로 좁히고 있었다.
+    # `CONSOLE_WRITE_ROLES` 에는 **부서 범위 admin 이 들어올 수 있으므로**
+    # (`users.admin_scope`) 그 상태로는 남의 부서 결재 대리를 만들고 취소할 수 있었다.
+    #
+    # 조건은 `delegation.apply_scope` 한 곳에만 있다 — 단건 회수가 같은 함수를 지난다.
     now = request.app.state.clock.now()
+    visible = visible_user_ids(db, principal.management)
     rows = (
         db.execute(
-            select(ApprovalDelegation).order_by(
+            delegation_service.apply_scope(select(ApprovalDelegation), visible).order_by(
                 ApprovalDelegation.starts_at.desc(), ApprovalDelegation.id.desc()
             )
         )
@@ -421,6 +429,7 @@ def create_delegation(
     payload: DelegationRequest,
     db: Session = Depends(get_db),
     actor: User = Depends(get_current_user),
+    principal: Principal = Depends(get_principal),
 ):
     now = request.app.state.clock.now()
     row = delegation_service.create(
@@ -432,6 +441,7 @@ def create_delegation(
         reason=payload.reason,
         created_by=actor.id,
         now=now,
+        visible=visible_user_ids(db, principal.management),
     )
     record_audit_from_request(
         request, db, action="approval_delegation.create",
@@ -445,9 +455,16 @@ def create_delegation(
 @delegations_router.post(
     "/{delegation_id}/revoke", dependencies=[Depends(require_roles(*CONSOLE_WRITE_ROLES))]
 )
-def revoke_delegation(request: Request, delegation_id: str, db: Session = Depends(get_db)):
+def revoke_delegation(
+    request: Request,
+    delegation_id: str,
+    db: Session = Depends(get_db),
+    principal: Principal = Depends(get_principal),
+):
     now = request.app.state.clock.now()
-    row = delegation_service.get_or_404(db, delegation_id)
+    row = delegation_service.get_scoped_or_404(
+        db, delegation_id, visible_user_ids(db, principal.management)
+    )
     before = delegation_service.view(row, now)
     delegation_service.revoke(db, row, now=now)
     record_audit_from_request(

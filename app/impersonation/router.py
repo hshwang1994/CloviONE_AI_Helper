@@ -16,8 +16,8 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.core.audit import record_audit_from_request
-from app.core.authz import CONSOLE_WRITE_ROLES, SENSITIVE_READ_ROLES
 from app.core.db import batched
+from app.authz.permissions import AUDIT_READ, IMPERSONATE
 from app.core.deps import (
     AuthContext,
     get_client_ip,
@@ -25,7 +25,7 @@ from app.core.deps import (
     get_db,
     get_principal,
     require_csrf,
-    require_roles,
+    require_permission,
 )
 from app.core.errors import NotFoundError
 from app.core.pagination import PageParams
@@ -82,7 +82,7 @@ def current_state(auth: AuthContext = Depends(get_current_auth), db: Session = D
     }
 
 
-@router.post("/start", dependencies=[Depends(require_roles(*CONSOLE_WRITE_ROLES))])
+@router.post("/start", dependencies=[Depends(require_permission(IMPERSONATE))])
 def start_impersonation(
     request: Request,
     payload: StartRequest,
@@ -150,7 +150,7 @@ def stop_impersonation(
     return {"ok": True, "ended": row is not None}
 
 
-@router.get("/sessions", dependencies=[Depends(require_roles(*SENSITIVE_READ_ROLES))])
+@router.get("/sessions", dependencies=[Depends(require_permission(AUDIT_READ))])
 def list_sessions(
     db: Session = Depends(get_db),
     page: PageParams = Depends(),

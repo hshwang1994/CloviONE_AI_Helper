@@ -155,18 +155,18 @@ Notion Console · Notion Mapping Console.
 
 ### 5.1 Identity · RBAC (S5)
 
-| 지금 | 목표 |
+| 지금 (S5 완료) | 비고 |
 |---|---|
-| `users.role` VARCHAR(32) 5값 | `roles` · `permissions` · `role_permissions` · `user_roles` |
-| `CONSOLE_READ/WRITE/OPS_ROLES` 하드코딩 frozenset | Permission 조합으로 표현. 5역할은 **기본 제공 Role** 로 seed |
-| `departments`(self-parent) + `organizations` | `organizations` · `org_units`(트리) |
-| Ownership 이 테이블마다 흩어짐 | `resource_ownership` 공통 개념 + 상속 규칙 |
+| `users.role` = **주 역할**, `user_roles` = 추가 역할. 유효 권한은 **합집합** | 다섯 역할의 뜻은 안 바뀌었다 (D-230) |
+| `CONSOLE_READ/WRITE/OPS_ROLES` 는 **여전히 「역할 → 사람」의 정본**이고, `permissions.py` 가 그 위에 「권한 → 역할」을 얹는다 | 손으로 역할을 나열하면 시험이 잡는다 |
+| `org_units`(트리, `kind`) + `organizations`. `Department` 는 같은 클래스의 별칭 | 컬럼 이름은 그대로 (D-234) |
+| Ownership 은 **공통 개념**이고 표를 만들지 않았다. 대신 직접 부여를 `resource_grants` 가 담는다 | 근거 D-233 |
 
-Permission 목록(초안): `PROJECT_READ/WRITE/ADMIN` · `TICKET_READ/CREATE/UPDATE/DELETE/TRANSITION` ·
-`SPACE_READ/WRITE/ADMIN` · `DOCUMENT_READ/CREATE/UPDATE/DELETE/PUBLISH` ·
-`FILE_UPLOAD/DOWNLOAD/DELETE` · `USER_MANAGE` · `ORG_MANAGE` · `ROLE_MANAGE` ·
-`BACKUP_READ/EXECUTE/CONFIGURE` · `STORAGE_CONFIGURE` · `AI_USE/CONFIGURE` · `AUDIT_READ` ·
-`SYSTEM_CONFIGURE` · `IMPERSONATE`.
+Permission 목록 **32개**(정본은 `app/authz/permissions.py`): 위 초안 그대로에 `DOCUMENT_ADMIN`
+한 건을 더했다 — `confidential` 을 여는 `*_ADMIN` 이 문서 축에도 있어야 한다(D-230).
+`SPACE_*`(S7) · `STORAGE_CONFIGURE`(S8) · `AI_CONFIGURE`(S9) 는 그 Component 가 아직 없어
+소비처가 없다. 어휘를 먼저 고정한 이유는 그 Session 들이 각자 새 이름을 지어 오는 것을
+막기 위해서다.
 
 **상속 (D-193)**: `Organization ─ OrgUnit ─┐ ├→ Project ─ Knowledge Space ─ Folder ─ Document`,
 `User ─ Role ─┘ └ Ticket`. 유효 권한 = `Role ∪ Organization ∪ Project Member ∪ 직접 부여`,
@@ -484,7 +484,7 @@ Dry Run 완료 → 전체 검증 → 최종 Backup → Maintenance Mode → 마�
 
 | S | 이름 | 핵심 산출 | Exit 조건 |
 |---|---|---|---|
-| **S5** | Identity & Access | roles/permissions/user_roles/role_permissions · org_units · resource_ownership · **additive+fail-closed 상속** · `effective_visibility_clause` · `confidential` 단일 축소 원시연산 · auth provider 추상화 | RBAC allow/deny/scope 음성 테스트 · 기존 5역할 동등성 회귀 · 목록/상세/Search 가 **같은 함수**를 쓰는지 정적 검사 |
+| **S5** ✅ | Identity & Access | `permissions`(32) · `roles`(builtin 5) · `role_permissions`(107) · `user_roles` · `resource_grants` · `departments`→`org_units` · **additive+fail-closed 상속**(Project Member 항 신설) · `effective_visibility_clause`(SQL·행 두 렌더러) · `confidential` 단일 축소 원시연산 · auth provider 추상화 · P-12a 범위 게이트 | **완료 (2026-08-22)** — 5역할 동등성 전수(표 + 실제 요청) · 두 렌더러 대조(자원 3 × 사람 5) · 부여/축소 음성 15건 · `check_visibility_single_source.py`(자기검증 5사례) · `KNOWN_GAPS` 0건. 결정 **D-230~D-235** |
 | **S6** | Work Domain | `project_key_registry` · **Project Key 20건 확정(사용자 확인)** · Ticket 3층 식별자 · `last_seq` 채번 · Relation · Comment · Attachment · Activity · Status/Workflow · Backlog rank · Sprint · Kanban · DnD 공통 · 낙관적 잠금 | **동시 생성 부하에서 중복 0 · 번호 연속 · 롤백 시 미소비** · `GIT-142` resolution · Exception 임의 배정 0 |
 | **S7** | Knowledge Domain | Knowledge Space · Folder 트리 · Document · **Block JSON 정본** · Version/Restore · Tag · Relation · Mention · Editor(TipTap, lazy load) | Version diff/restore 동작 · 번들 예산 유지 |
 | **S8** | File Storage Providers | `storage_providers` · Local/NFS/SMB Adapter · 마운트 유닛 · `st_dev` 가드 · 업로드 파이프라인 · **16항 실검증(NFS·SMB 각각)** | **16항 매트릭스 전부 실측 로그 첨부** · 미마운트 시 쓰기 거부 확인 |

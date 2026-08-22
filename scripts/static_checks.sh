@@ -297,6 +297,15 @@ else
   echo "$GATES"; fail "범위 있는 모듈의 id 경로에 게이트가 없다"
 fi
 
+step "List, detail and Search share one visibility function"
+# D-194: 「같은 규칙을 따른다」는 주석은 증거가 아니다. S5 이전에는 소속 판정만 공유하고
+# 열람 제한(SEC-10)은 목록과 검색에 따로 있었다 — 절반만 사실이었다.
+if VIS="$("$PY" scripts/check_visibility_single_source.py 2>&1)"; then
+  ok "$(echo "$VIS" | tail -1)"
+else
+  echo "$VIS"; fail "가시성 판정이 app/authz/visibility.py 밖에서 갈라졌다"
+fi
+
 step "No customer-specific identifiers in source defaults / install scripts"
 # 출시 차단 사유였다. app/core/config.py 의 **기본값**에 개발 워크스페이스의 Notion DB id 두
 # 개와 최초 고객사의 이메일 도메인이, 설치 스크립트에 그 고객사의 호스트명·IP 가 박혀 있었다.

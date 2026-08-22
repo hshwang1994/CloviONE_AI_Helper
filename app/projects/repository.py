@@ -29,47 +29,50 @@ from __future__ import annotations
 from sqlalchemy import Select, func, select
 from sqlalchemy.orm import Session
 
-from app.core import ownership
-from app.core.scope import Scope
+from app.authz.visibility import (
+    RESOURCE_PROJECT,
+    VisibilityContext,
+    effective_visibility_clause,
+)
 from app.projects.models import MILESTONE_PLANNED, Project, ProjectMilestone
 from app.projects.progress import Task, task_from_ticket
 from app.tickets.models import TicketCache
 from app.tickets.query import token
 
 
-def scope_clause(scope: Scope):
+def scope_clause(ctx: VisibilityContext):
     """범위 안 프로젝트를 고르는 조건. 전역이면 ``None``(= 조건 없음).
 
     ``None`` 규약은 `core/scope.py::scope_filter` 그대로다 — 조건을 빼먹은 코드와 '전역이라
     조건이 없는' 코드를 눈으로 구별하기 위해서다.
 
-    **판정 자체는 여기 없다.** `app/core/ownership.py::project_scope_clause` 한 곳에 있고
-    이 함수는 그것을 부른다 — 티켓과 프로젝트 문서가 자기 가시성을 그 함수에서 그대로
-    물려받기 때문이다. 여기서 조건을 따로 적으면 "프로젝트는 보이는데 그 티켓은 안 보인다"
-    가 다시 생긴다(이 저장소가 네 번 반복한 실수의 정확한 모양).
+    **판정 자체는 여기 없다.** `app/authz/visibility.py::effective_visibility_clause` 한
+    곳에 있고 이 함수는 그것을 부른다 — 티켓과 프로젝트 문서가 자기 가시성을 그 함수에서
+    그대로 물려받기 때문이다. 여기서 조건을 따로 적으면 "프로젝트는 보이는데 그 티켓은
+    안 보인다" 가 다시 생긴다(이 저장소가 네 번 반복한 실수의 정확한 모양).
     """
-    return ownership.project_scope_clause(scope)
+    return effective_visibility_clause(ctx, RESOURCE_PROJECT)
 
 
-def apply_scope(stmt: Select, scope: Scope) -> Select:
-    clause = scope_clause(scope)
+def apply_scope(stmt: Select, ctx: VisibilityContext) -> Select:
+    clause = scope_clause(ctx)
     return stmt if clause is None else stmt.where(clause)
 
 
-def get_in_scope(db: Session, project_id: str, scope: Scope) -> Project | None:
+def get_in_scope(db: Session, project_id: str, ctx: VisibilityContext) -> Project | None:
     """단건 조회 — 범위 밖이면 **아예 안 나온다**(부르는 쪽이 404 로 만든다).
 
     보관(archive)된 프로젝트도 돌려준다. 보관은 범위가 아니라 상태라, 여기서 함께 가리면
     '되살리기'가 자기 자신 때문에 404 가 된다.
     """
     return db.execute(
-        apply_scope(select(Project).where(Project.id == project_id), scope)
+        apply_scope(select(Project).where(Project.id == project_id), ctx)
     ).scalar_one_or_none()
 
 
 def list_in_scope(
     db: Session,
-    scope: Scope,
+    ctx: VisibilityContext,
     *,
     include_archived: bool = False,
     offset: int = 0,
@@ -81,7 +84,7 @@ def list_in_scope(
     없으면 같은 시각에 갱신된 행들의 상대 순서를 DB 가 마음대로 정하고, 그러면 OFFSET
     페이지네이션이 같은 행을 두 번 보여 주거나 빠뜨린다(app/tickets/query.py 의 Z9 와 같다).
     """
-    stmt = apply_scope(select(Project), scope)
+    stmt = apply_scope(select(Project), ctx)
     if not include_archived:
         stmt = stmt.where(Project.archived_at.is_(None))
     total = db.execute(select(func.count()).select_from(stmt.subquery())).scalar_one()
@@ -93,7 +96,7 @@ def list_in_scope(
     return list(rows), int(total)
 
 
-def summary_rows_in_scope(db: Session, scope: Scope) -> list:
+def summary_rows_in_scope(db: Session, ctx: VisibilityContext) -> list:
     """대시보드가 집계할 **범위 안 프로젝트 전부**(보관 제외). 페이지로 자르지 않는다.
 
     ## 왜 `list_in_scope` 를 안 쓰는가
@@ -121,12 +124,12 @@ def summary_rows_in_scope(db: Session, scope: Scope) -> list:
             Project.dept_id, Project.progress_pct, Project.health_score,
             Project.notion_status,
         ).where(Project.archived_at.is_(None)),
-        scope,
+        ctx,
     ).order_by(Project.updated_at.desc(), Project.id.asc())
     return list(db.execute(stmt).all())
 
 
-def overdue_milestones_in_scope(db: Session, scope: Scope, *, today: str) -> list:
+def overdue_milestones_in_scope(db: Session, ctx: VisibilityContext, *, today: str) -> list:
     """기한이 지났는데 아직 예정인 마일스톤 - **범위 안 프로젝트 전부**에서 한 질의로.
 
     프로젝트마다 `milestones_for_project` 를 부르면 질의가 프로젝트 수만큼 늘어난다
@@ -153,7 +156,7 @@ def overdue_milestones_in_scope(db: Session, scope: Scope, *, today: str) -> lis
             ProjectMilestone.due_on < today,
             ProjectMilestone.status == MILESTONE_PLANNED,
         ),
-        scope,
+        ctx,
     ).order_by(
         ProjectMilestone.due_on.asc(),
         Project.name.asc(),

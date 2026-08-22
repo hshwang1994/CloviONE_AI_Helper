@@ -1,9 +1,9 @@
-"""조직·부서·직책 명부 모델.
+"""조직·조직 단위(부서)·직책 명부 모델.
 
-Department/JobTitle 두 모델은 모양이 같다(id, name, active, created_at). 이름 하나만 다른 두
-테이블이지만 합치지 않는다 — 'kind' 컬럼 하나로 묶으면 유일 제약이 (kind, name) 복합이 되어
-실수로 부서와 직책이 같은 이름 공간을 나눠 쓰게 되고, FK도 어느 쪽을 가리키는지 스키마가
-말해 주지 못한다.
+OrgUnit/JobTitle 두 모델은 모양이 같다(id, name, active, created_at). 이름 하나만 다른 두
+테이블이지만 합치지 않는다 — 한 표에 담으면 유일 제약이 (kind, name) 복합이 되어 실수로
+부서와 직책이 같은 이름 공간을 나눠 쓰게 되고, FK도 어느 쪽을 가리키는지 스키마가
+말해 주지 못한다. `OrgUnit.kind` 는 **조직도 안의** 마디 종류이고 직책은 조직도 밖이다.
 
 Organization 은 제품화 대비(§7.1.A)로 먼저 심는 1급 엔티티다. 0022 가 DEFAULT_ORG_ID 한 행을
 시드했고, 0024 부터 부서·직책·내용물 테이블이 org_id 로 그 행을 가리킨다.
@@ -52,31 +52,61 @@ class _OrgNameMixin:
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
 
 
-class Department(_OrgNameMixin, OrgScopedMixin, UUIDPrimaryKeyMixin, Base):
-    """부서 한 곳. 0024 부터 **트리**다(parent_id 자기참조).
+# ── 조직 단위의 종류 (S5) ────────────────────────────────────────────────────
+# 트리에 담기는 마디의 성격이다. 지금은 부서 하나뿐이고, 본부·팀·파트는 **깊이**로
+# 표현된다(그것이 0024 이후의 실제 데이터다). 값을 미리 늘려 두지 않는다 — 쓰지 않는
+# 종류는 화면마다 "그건 뭐죠" 를 만들고, 필요해지는 Session 이 자기 뜻과 함께 추가한다.
+ORG_UNIT_DEPARTMENT = "department"
 
-    이름 유일성은 전역이 아니라 **조직 안에서** 성립한다(`uq_departments_org_name`).
+ALL_ORG_UNIT_KINDS = frozenset({ORG_UNIT_DEPARTMENT})
+
+
+class OrgUnit(_OrgNameMixin, OrgScopedMixin, UUIDPrimaryKeyMixin, Base):
+    """조직 안의 단위 한 곳 — **트리**다(parent_id 자기참조).
+
+    ## 왜 `departments` 가 아니라 `org_units` 인가 (S5)
+
+    이 표가 담는 것은 처음부터 「부서」가 아니라 **조직도의 마디**였다. 0024 가 트리로 만든
+    뒤로 같은 표에 본부·팀·파트가 함께 들어 있고, 그 셋을 부서라는 한 단어로 부르면
+    권한 상속을 설명할 때마다 「부서의 부서」 같은 말을 하게 된다. 이름을 마디의 이름으로
+    바꾸고 `kind` 를 붙여, 나중에 다른 성격의 마디가 필요해질 때 **표를 하나 더 만들지
+    않도록** 한다.
+
+    컬럼 이름(`users.department_id` · `projects.dept_id`)은 그대로 둔다. 그쪽은 API 응답과
+    화면 어휘에 그대로 나가는 이름이라, 바꾸면 이 Session 의 범위가 아니라 사용자에게
+    보이는 말이 바뀐다.
+
+    이름 유일성은 전역이 아니라 **조직 안에서** 성립한다(`uq_org_units_org_name`).
     조직이 둘 이상이 되는 순간 전역 유니크는 다른 회사의 '개발팀' 등록을 막아 버린다.
 
-    트리를 별도 closure 테이블 없이 parent_id 하나로 두는 이유: 부서 수가 수십 규모라
+    트리를 별도 closure 테이블 없이 parent_id 하나로 두는 이유: 마디 수가 수십 규모라
     재귀 조회 비용이 무의미하고, closure 테이블은 이동·삭제 때마다 동기화해야 하는
-    두 번째 진실이 된다. 하위 부서 전개는 `app/core/scope.py::department_subtree_ids`
-    한 곳에서만 한다.
+    두 번째 진실이 된다. 하위 전개는 `app/core/org_tree.py` 한 곳에서만 한다.
     """
 
-    __tablename__ = "departments"
+    __tablename__ = "org_units"
 
     # 이름이 유일해야 목록을 둔 의미가 있다 — 같은 부서가 둘이면 다시 'ClovirONE팀'과
     # 'ClovirOne팀' 문제로 돌아간다. 유일성은 아래 복합 인덱스가 건다.
     name: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
-    # 최상위 부서는 NULL. 부모가 지워지면 자식은 사라지지 않고 최상위로 올라온다.
+    kind: Mapped[str] = mapped_column(
+        String(16), nullable=False, default=ORG_UNIT_DEPARTMENT,
+        server_default=ORG_UNIT_DEPARTMENT,
+    )
+    # 최상위 마디는 NULL. 부모가 지워지면 자식은 사라지지 않고 최상위로 올라온다.
     parent_id: Mapped[str | None] = mapped_column(
-        String(36), ForeignKey("departments.id", ondelete="SET NULL"), index=True
+        String(36), ForeignKey("org_units.id", ondelete="SET NULL"), index=True
     )
 
     __table_args__ = (
-        Index("uq_departments_org_name", "org_id", "name", unique=True),
+        Index("uq_org_units_org_name", "org_id", "name", unique=True),
     )
+
+
+# 옛 이름. 부서는 지금도 이 표의 유일한 종류이고, 도메인 코드 열일곱 곳이 이 이름으로
+# 부른다. 별칭 하나로 두는 이유는 「같은 표를 두 이름으로 부르는 것」과 「표가 둘인 것」이
+# 전혀 다른 상태이기 때문이다 — 여기서는 표도 클래스도 하나다.
+Department = OrgUnit
 
 
 class JobTitle(_OrgNameMixin, OrgScopedMixin, UUIDPrimaryKeyMixin, Base):

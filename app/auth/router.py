@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import functools
 import time
 from datetime import timedelta, timezone
 from urllib.parse import quote as _urlquote
@@ -31,6 +30,7 @@ from app.core.errors import (
     UnauthorizedError,
     ValidationAppError,
 )
+from app.auth.providers import resolve_identity_provider
 from app.core.security import (
     hash_password,
     validate_password_policy,
@@ -138,25 +138,6 @@ def _verify_login_origin(request: Request) -> None:
     host = request.headers.get("host", "")
     if source_host and host and source_host != host:
         raise OriginMismatchError()
-
-
-@functools.lru_cache(maxsize=1)
-def _dummy_password_hash() -> str:
-    """Argon2 해시 1개를 만들어 두고 '없는 계정' 검증에 쓴다 (import 시점 비용 회피).
-
-    존재하지 않는 계정이라고 검증을 건너뛰면 응답 시간만으로 계정 존재가 드러난다.
-    """
-    from app.core.security import generate_temp_password
-
-    return hash_password(generate_temp_password())
-
-
-def _password_matches(user, password: str) -> bool:
-    """계정 유무와 무관하게 항상 Argon2 검증 1회를 수행한다 (타이밍 동일화)."""
-    if user is None:
-        verify_password(_dummy_password_hash(), password)
-        return False
-    return verify_password(user.password_hash, password)
 
 
 def _effective_lockout_policy(request: Request, settings: Settings) -> tuple[int, int]:
@@ -384,15 +365,20 @@ def login(
         )
 
     email, password = credentials
-    user = get_user_by_email(db, email)
     now = clock.now()
 
     # 인증 실패 응답은 계정 존재 여부를 드러내면 안 된다: 잠금 여부와 상관없이 먼저
-    # 비밀번호를 검증하고(없는 계정도 더미 해시로 동일 비용), 잠금 사실은 자격 증명이
+    # 자격 증명을 검증하고(없는 계정도 더미 해시로 동일 비용), 잠금 사실은 자격 증명이
     # 맞는 사람에게만 알린다. 잠금 검사를 앞에 두면 403/401 차이로 계정이 열거된다.
+    #
+    # 검증 **그 조각만** Provider 가 한다(S5, `app/auth/providers.py`). 잠금·실패 누적·
+    # 보관/비활성/조직 정지·세션 발급·감사는 이 제품의 계정 정책이라 Provider 가 바뀌어도
+    # 그대로다 — 경계를 여기 그어야 새 Provider 마다 그 정책을 다시 구현하지 않는다.
+    auth_result = resolve_identity_provider(settings).verify(db, email, password)
+    user = auth_result.user
     locked = user is not None and user.locked_until is not None and user.locked_until > now
 
-    if not _password_matches(user, password):
+    if not auth_result.ok:
         # '누가 언제 로그인/실패했나'는 감사 로그의 핵심 도메인인데 지금까지 이 라우터는
         # 한 번도 record_audit를 부르지 않았다(감사 화면의 존재 목적과 어긋난다). 계정이
         # 존재할 때만 남긴다 — 없는 계정에 대한 시도는 object_id가 없어 계정 열거에

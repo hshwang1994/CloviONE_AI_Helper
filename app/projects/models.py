@@ -115,7 +115,7 @@ class Project(OrgScopedMixin, TimestampMixin, UUIDPrimaryKeyMixin, Base):
     status: Mapped[str] = mapped_column(String(32), nullable=False, default=PROJECT_ACTIVE)
 
     dept_id: Mapped[str | None] = mapped_column(
-        String(36), ForeignKey("departments.id"), index=True
+        String(36), ForeignKey("org_units.id"), index=True
     )
     owner_user_id: Mapped[str | None] = mapped_column(
         String(36), ForeignKey("users.id"), index=True

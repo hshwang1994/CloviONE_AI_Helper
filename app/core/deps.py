@@ -322,6 +322,33 @@ def require_roles(*roles: str):
     return dependency
 
 
+def require_permission(*permissions: str):
+    """권한 게이트 — `require_roles` 의 짝이자, 새 역할이 생겨도 안 고쳐도 되는 쪽 (S5).
+
+    `require_roles` 는 **역할 이름의 목록**을 본다. 그래서 역할이 하나 늘 때마다 그 목록을
+    들고 있는 모든 자리를 다시 봐야 하고, 한 곳을 빠뜨려도 아무 시험이 빨개지지 않는다.
+    이쪽은 **무엇을 할 수 있는가**만 묻는다 — 누가 그 권한을 갖는지는 `roles` 표가 답한다.
+
+    여러 개를 주면 **하나라도** 있으면 통과한다(OR). 「둘 다 필요하다」는 요구가 실제로
+    생기면 그때 별도 게이트를 만든다 — 지금 없는 요구를 위해 문법을 늘리지 않는다.
+
+    다섯 역할에 대해서는 `require_roles` 와 **같은 답**을 낸다. 그것이
+    `tests/security/test_builtin_role_equivalence.py` 가 전수로 확인하는 사실이다.
+    """
+    wanted = frozenset(permissions)
+
+    def dependency(
+        db: Session = Depends(get_db), user: User = Depends(get_current_user)
+    ) -> User:
+        from app.authz.service import effective_permissions
+
+        if not (wanted & effective_permissions(db, user)):
+            raise ForbiddenError()
+        return user
+
+    return dependency
+
+
 def get_principal(
     request: Request,
     db: Session = Depends(get_db),

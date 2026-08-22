@@ -175,7 +175,7 @@ def test_a_delegate_can_still_decide(client, login_as, db, world, fake_clock):
     delegation.create(
         db, delegator=delegator, delegate=delegate,
         starts_at=now - timedelta(hours=1), ends_at=now + timedelta(days=3),
-        reason="휴가", created_by=delegator.id, now=now,
+        reason="휴가", created_by=delegator.id, now=now, visible=None,
     )
     db.commit()
 
@@ -200,7 +200,7 @@ def test_a_delegate_sees_can_decide_before_deciding(client, login_as, db, world,
     delegation.create(
         db, delegator=delegator, delegate=delegate,
         starts_at=now - timedelta(hours=1), ends_at=now + timedelta(days=3),
-        reason="휴가", created_by=delegator.id, now=now,
+        reason="휴가", created_by=delegator.id, now=now, visible=None,
     )
     db.commit()
 

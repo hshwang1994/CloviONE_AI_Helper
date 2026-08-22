@@ -11,6 +11,7 @@ from app.core.models_base import Base  # noqa: F401
 # Milestone model imports (append as they are created):
 from app.announcements import models as announcements_models  # noqa: F401
 from app.approvals import models as approvals_models  # noqa: F401
+from app.authz import models as authz_models  # noqa: F401
 from app.audit import models as audit_models  # noqa: F401
 from app.board import models as board_models  # noqa: F401
 from app.games import models as games_models  # noqa: F401

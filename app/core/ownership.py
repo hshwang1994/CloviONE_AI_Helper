@@ -22,7 +22,15 @@ ClovirONE팀이 쓴 문서가 작성자의 이직 한 번으로 다른 팀 문�
 
 모든 자원의 소속을 한 표에 모으면 조인이 늘고 자원마다 자연스러운 관계(프로젝트의
 `dept_id`, 채팅방의 멤버 표)를 버리게 된다. 저장은 각 테이블이 자기 방식대로 하고,
-**판정만 여기 하나로 모은다.** 그래서 이 파일에는 테이블이 없고 함수와 어휘만 있다.
+**판정만 한 곳으로 모은다.** 그래서 이 파일에는 테이블이 없고 함수와 어휘만 있다.
+
+## 조회 판정은 S5 에서 이 파일을 떠났다
+
+「무엇이 보이는가」는 `app/authz/visibility.py::effective_visibility_clause` 한 곳이 답한다.
+여기 남은 것은 **소속 어휘**(무엇이 어디 것인가)와 **관리 판정**(누가 그것을 옮길 수
+있는가)이다. 둘을 갈라 둔 이유는 축이 다르기 때문이다 — 조회는 `visibility` 범위를,
+관리는 `management` 범위를 본다. 그 둘을 한 함수가 답하면 「볼 수는 있는데 옮길 수는 없는」
+상태를 표현할 수 없다.
 
 ## 판정할 수 없으면 닫는다
 
@@ -35,7 +43,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from app.core.scope import Scope, scope_filter
+from app.core.scope import Scope
 
 # ── 소속 어휘 ────────────────────────────────────────────────────────────────
 # 자원의 성격에 맞는 것 하나를 고른다. 모든 자원에 부서를 억지로 붙이지 않는다.
@@ -143,46 +151,6 @@ def _scope_allows(scope: Scope, ownership: Ownership) -> bool:
     return False
 
 
-def scope_can_view(scope: Scope, ownership: Ownership) -> bool:
-    """범위 하나가 소속 하나를 포함하는가 — `Principal` 없이 묻는 판.
-
-    "이 자원을 볼 수 있는 사람이 누구인가" 를 거꾸로 묻는 곳이 쓴다(담당자 후보 목록 등).
-    사람마다 `Principal` 을 만들면 요청이 사람 수만큼 늘어나는데, 범위 계산은 부서 트리만
-    있으면 질의 없이 끝나므로 그 트리 하나로 전원을 판정할 수 있다.
-
-    `can_view` 와 **같은 표**(`_scope_allows`)를 쓴다 — 두 곳이 갈라지면 "목록에는 후보로
-    떴는데 그 사람은 그 자원을 못 본다" 가 된다.
-    """
-    return _scope_allows(scope, ownership)
-
-
-def can_view(ownership: Ownership, principal) -> bool:
-    """이 사람이 이 자원을 **볼 수 있는가**.
-
-    `OWNER_MEMBERSHIP` 은 여기서 판정하지 않는다 — 방 멤버인지는 멤버 표가 답할 질문이라
-    범위로 답할 수 없다. 실수로 넘어오면 닫는다(호출부가 멤버 판정을 빠뜨린 것이다).
-    `OWNER_GLOBAL` 은 역할 게이트(`require_roles`)가 판정하므로 여기서는 통과시킨다.
-    """
-    kind = ownership.kind
-    if kind == OWNER_GLOBAL:
-        return True
-    if kind == OWNER_PERSONAL:
-        return bool(ownership.user_id) and ownership.user_id == principal.user_id
-    if kind == OWNER_MEMBERSHIP:
-        return False
-    return _scope_allows(principal.visibility, ownership)
-
-
-def can_write(ownership: Ownership, principal) -> bool:
-    """이 사람이 이 자원의 내용을 **고칠 수 있는가**.
-
-    조회와 같은 범위를 쓴다 — 같은 줄기 안에서는 협업이 가능해야 한다(상위 부서 사람이
-    하위 팀 프로젝트의 티켓을 처리할 수 있어야 한다). 조직 구조 자체를 바꾸는 것은
-    쓰기가 아니라 **관리**이고 그건 `can_manage` 다.
-    """
-    return can_view(ownership, principal)
-
-
 def can_manage(ownership: Ownership, principal) -> bool:
     """이 사람이 이 자원을 **관리**할 수 있는가(소속 변경·삭제 등 조직 결정).
 
@@ -197,89 +165,3 @@ def can_manage(ownership: Ownership, principal) -> bool:
     if kind == OWNER_MEMBERSHIP:
         return False
     return _scope_allows(principal.management, ownership)
-
-
-# ── SQL 조립 ─────────────────────────────────────────────────────────────────
-
-def project_scope_clause(scope: Scope):
-    """`projects` 행을 범위로 거르는 조건. 전역이면 ``None``(= 조건 없음).
-
-    **프로젝트 소속 판정이 사는 단 하나의 자리다.** 티켓·프로젝트 문서·주간 리포트가 전부
-    이 조건을 통해 자기 가시성을 얻으므로, 여기가 갈라지면 "프로젝트는 보이는데 그 티켓은
-    안 보인다" 가 다시 생긴다.
-
-    `dept_id IS NULL` 인 프로젝트(= 조직 공통)는 **부서 범위에서도 보인다**. 예전에는
-    `dept_id IN (...)` 이 NULL 을 못 잡아 조직 공통 프로젝트가 부서 사용자에게 통째로
-    사라졌다 — `for_project()` 가 그것을 조직 공통으로 읽기로 한 이상 질의도 같아야 한다.
-    """
-    from sqlalchemy import or_
-
-    from app.projects.models import Project
-
-    if scope.is_global:
-        return None
-    if scope.is_none:
-        from app.core.scope import MATCH_NOTHING
-        return MATCH_NOTHING
-    if scope.is_org:
-        from app.core.scope import MATCH_NOTHING
-        return (Project.org_id == scope.org_id) if scope.org_id else MATCH_NOTHING
-    # 부서 범위: 내 줄기의 부서 프로젝트 + 내 조직의 공통 프로젝트
-    from app.core.scope import MATCH_NOTHING
-
-    if not scope.dept_ids:
-        return MATCH_NOTHING
-    dept_hit = Project.dept_id.in_(tuple(sorted(scope.dept_ids)))
-    if not scope.org_id:
-        return dept_hit
-    org_common = (Project.dept_id.is_(None)) & (Project.org_id == scope.org_id)
-    return or_(dept_hit, org_common)
-
-
-def visible_project_ids(scope: Scope):
-    """범위 안 프로젝트 id 를 고르는 **서브쿼리**(`select(Project.id)`).
-
-    티켓·문서가 `IN (...)` 로 쓴다. 파이썬으로 id 를 먼저 뽑아 오지 않는 이유: 프로젝트가
-    수백 개가 되면 그 목록이 그대로 SQL 파라미터가 되고, 무엇보다 목록 질의가 **페이지를
-    자르기 전에** 걸려야 하는데 파이썬 왕복이 끼면 그 순서를 지키기 어렵다.
-    """
-    from sqlalchemy import select
-
-    from app.projects.models import Project
-
-    stmt = select(Project.id)
-    clause = project_scope_clause(scope)
-    return stmt if clause is None else stmt.where(clause)
-
-
-def stored_ownership_clause(scope: Scope, *, kind_col, org_col, dept_col, project_col):
-    """`owner_kind` + 세 컬럼을 저장하는 표(문서 등)의 가시성 조건.
-
-    전역이면 ``None``. 그 밖에는 세 갈래의 OR 이고, `unset` 은 어느 갈래에도 안 걸린다
-    (= fail-closed). 목록과 단건이 같은 답을 내도록 판정 규칙은 위 `can_view` 와 나란히
-    둔다 — 한쪽만 고치면 목록에 없는데 열리는(또는 그 반대) 상태가 된다.
-    """
-    from sqlalchemy import or_
-
-    from app.core.scope import MATCH_NOTHING
-
-    if scope.is_global:
-        return None
-    if scope.is_none:
-        return MATCH_NOTHING
-
-    branches = []
-    if scope.org_id:
-        branches.append((kind_col == OWNER_ORGANIZATION) & (org_col == scope.org_id))
-    if scope.is_org:
-        if scope.org_id:
-            branches.append((kind_col == OWNER_DEPARTMENT) & (org_col == scope.org_id))
-    elif scope.dept_ids:
-        branches.append(
-            (kind_col == OWNER_DEPARTMENT)
-            & dept_col.in_(tuple(sorted(scope.dept_ids)))
-        )
-    branches.append(
-        (kind_col == OWNER_PROJECT) & project_col.in_(visible_project_ids(scope))
-    )
-    return or_(*branches) if branches else MATCH_NOTHING

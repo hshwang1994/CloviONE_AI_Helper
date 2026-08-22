@@ -23,6 +23,7 @@ from sqlalchemy.orm import Session
 
 from app.core.audit import record_audit_from_request
 from app.core.authz import CONSOLE_OPS_ROLES
+from app.authz.visibility import visibility_context
 from app.core.deps import get_current_user, get_db, get_principal, require_csrf, require_roles
 from app.core.pagination import PageParams
 from app.core.scope import Principal
@@ -127,7 +128,7 @@ def list_projects(
     picked = org_context.filter_scope(db, user, department_id)
     rows, total = repository.list_in_scope(
         db,
-        picked if picked is not None else principal.visibility,
+        visibility_context(db, principal, scope=picked),
         include_archived=include_archived,
         offset=page.offset,
         limit=page.page_size,

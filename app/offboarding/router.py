@@ -15,8 +15,8 @@ from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
 
 from app.core.audit import record_audit_from_request
-from app.core.authz import CONSOLE_WRITE_ROLES
-from app.core.deps import get_db, get_principal, require_csrf, require_roles
+from app.authz.permissions import USER_MANAGE
+from app.core.deps import get_db, get_principal, require_csrf, require_permission
 from app.core.pagination import PageParams
 from app.core.scope import Principal
 from app.offboarding import service
@@ -25,7 +25,7 @@ from app.offboarding.schemas import OffboardingRunRequest
 router = APIRouter(
     prefix="/api/admin/offboarding",
     tags=["admin-offboarding"],
-    dependencies=[Depends(require_roles(*CONSOLE_WRITE_ROLES)), Depends(require_csrf)],
+    dependencies=[Depends(require_permission(USER_MANAGE)), Depends(require_csrf)],
 )
 
 

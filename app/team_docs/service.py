@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import logging
 import time
-from dataclasses import dataclass
 from datetime import datetime
 from typing import TYPE_CHECKING
 
@@ -39,8 +38,10 @@ from app.team_docs.models import (
 from app.core.authz import MODERATOR_ROLES
 from app.users.models import User
 
+from app.authz.visibility import context_for_user
+
 if TYPE_CHECKING:  # 타입 표기 전용 — 런타임 순환 임포트를 만들지 않는다
-    from app.core.scope import Scope
+    from app.authz.visibility import VisibilityContext
 
 logger = logging.getLogger(__name__)
 
@@ -97,89 +98,7 @@ def ensure_can_delete_doc(doc: DocumentCache, user: User, db: Session | None = N
     raise ForbiddenError("이 문서를 삭제할 권한이 없습니다(작성자 또는 운영자만 가능).")
 
 
-def _is_doc_author(db: Session, doc, viewer: User) -> bool:
-    """`ensure_can_delete_doc` 의 작성자 판정과 같은 규칙(id 우선, id 없으면 이름 폴백) —
-    거기서 새 함수로 뽑아 `doc_in_scope` 의 제한 문서 판정과 함께 쓴다(판정 두 벌 방지)."""
-    author_ids = [a for a in split_names(doc.author_notion_ids or "") if a]
-    if author_ids:
-        from app.tickets.service import my_notion_id
-
-        mine = my_notion_id(db, viewer)
-        if mine and mine in author_ids:
-            return True
-        return False
-    name = (viewer.display_name or "").strip()
-    authors = {a.strip() for a in split_names(doc.author_names or "")}
-    return bool(name) and (name in authors or name == (doc.owner or "").strip())
-
-
-@dataclass(frozen=True)
-class DocScopeContext:
-    """문서 가시성 판정에 필요한 것들을 **요청당 한 번** 모아 둔 값.
-
-    문서 목록은 행마다 이 판정을 부른다. 예전에는 그때마다 매핑표를 다시 읽어 N+1 이 됐고
-    (FN-41), 이제는 프로젝트 집합까지 필요하므로 그대로 두면 질의가 두 배가 된다. 한 번
-    만들어 넘긴다.
-
-    `visible_projects` 가 `None` 이면 제한 없음(전역)이다. 빈 집합은 아무것도 안 보인다 —
-    둘을 같은 값으로 표현하면 범위 계산이 빈 답을 낸 순간 조용히 전 포탈이 열린다.
-    """
-
-    scope: "Scope"
-    visible_projects: frozenset[str] | None
-    my_notion_id: str | None
-    is_moderator: bool
-
-
-def doc_scope_context(db: Session, viewer: User, scope=None) -> DocScopeContext:
-    """판정 재료 한 벌. `scope` 를 주면 **그것으로 더 좁힌다**(넓히지 못한다).
-
-    목록 화면의 부서 필터가 그 인자를 쓴다(`app/org/context.py::filter_scope`) — 부르는
-    쪽이 이미 그 사람의 조회 범위 안에서 검증한 값만 넘긴다. 여기서 다시 계산하면 필터가
-    범위를 넓히는 길이 열린다.
-    """
-    from app.core.scope import visibility_scope
-    from app.projects.models import Project
-    from app.tickets.service import my_notion_id as _my_notion_id
-
-    scope = scope if scope is not None else visibility_scope(db, viewer)
-    if scope.is_global:
-        projects: frozenset[str] | None = None
-    else:
-        projects = frozenset(
-            db.execute(ownership.visible_project_ids(scope)).scalars().all()
-        )
-    return DocScopeContext(
-        scope=scope,
-        visible_projects=projects,
-        my_notion_id=_my_notion_id(db, viewer),
-        is_moderator=viewer.role in MODERATOR_ROLES,
-    )
-
-
-def document_ownership(doc) -> ownership.Ownership:
-    """문서 행 → 소속. **Portal 이 저장한 값만 읽는다.**
-
-    작성자(`author_notion_ids`)를 보지 않는 것이 핵심이다. 작성자와 소유는 다른 개념이고,
-    작성자가 다른 부서로 옮겨도 그 사람이 예전에 쓴 문서가 따라 움직이면 안 된다.
-    """
-    kind = getattr(doc, "owner_kind", None) or ownership.OWNER_UNSET
-    if kind == ownership.OWNER_PROJECT:
-        return ownership.Ownership(
-            ownership.OWNER_PROJECT,
-            org_id=getattr(doc, "org_id", None),
-            project_id=getattr(doc, "owner_project_id", None),
-        )
-    if kind == ownership.OWNER_DEPARTMENT:
-        return ownership.for_department(
-            getattr(doc, "owner_dept_id", None), getattr(doc, "org_id", None)
-        )
-    if kind == ownership.OWNER_ORGANIZATION:
-        return ownership.for_organization(getattr(doc, "org_id", None))
-    return ownership.UNSET
-
-
-def doc_in_scope(db: Session, doc, viewer, *, ctx: DocScopeContext | None = None) -> bool:
+def doc_in_scope(db: Session, doc, viewer, *, ctx: "VisibilityContext | None" = None) -> bool:
     """이 사람이 이 문서를 볼 수 있는가 — **목록·상세·쓰기가 모두 지나는 단 하나의 문**.
 
     ## 소속은 Portal 이 정한다 (0060 에서 바뀐 규칙)
@@ -200,19 +119,13 @@ def doc_in_scope(db: Session, doc, viewer, *, ctx: DocScopeContext | None = None
 
     `viewer is None`(내부 호출, 범위 무관)은 그대로 통과시킨다.
     """
+    from app.authz.visibility import RESOURCE_DOCUMENT, is_visible
+
     if viewer is None:
         return True
     if ctx is None:
-        ctx = doc_scope_context(db, viewer)
-    if getattr(doc, "restricted", False):
-        if not ctx.is_moderator and not _is_doc_author(db, doc, viewer):
-            return False
-    owner = document_ownership(doc)
-    if owner.kind == ownership.OWNER_PROJECT:
-        if ctx.visible_projects is None:
-            return True
-        return bool(owner.project_id) and owner.project_id in ctx.visible_projects
-    return ownership.scope_can_view(ctx.scope, owner)
+        ctx = context_for_user(db, viewer)
+    return is_visible(db, ctx, RESOURCE_DOCUMENT, doc)
 
 
 def get_doc_in_scope(db: Session, page_id: str, viewer: User) -> DocumentCache | None:
@@ -287,6 +200,78 @@ def set_doc_restricted(db: Session, *, user: User, page_id: str, restricted: boo
     return doc
 
 
+def set_doc_allowed_users(
+    db: Session, *, user: User, page_id: str, user_ids: list[str]
+) -> list[str]:
+    """열람 제한 문서를 **명시로** 볼 수 있는 사람들을 지정한다 (S5 · D-193).
+
+    ## 왜 필요한가
+
+    `confidential` 의 뜻은 D-193 이 한 문장으로 고정했다 — 「소유자 + **명시 부여자** +
+    `*_ADMIN` 보유자만」. 명시 부여를 저장할 곳이 없으면 그 뜻은 「작성자와 운영자만」이 되고,
+    그건 축소 플래그가 아니라 잠금이다. 실제로 이 제품에서 문서를 제한하는 이유는 대개
+    「이 셋만 봐야 한다」이지 「아무도 보면 안 된다」가 아니다.
+
+    권한은 제한 토글과 **같은 선**이다(운영자만). 작성자 본인에게도 주지 않는 이유도 같다 —
+    스스로 명단을 늘릴 수 있으면 제한의 의미가 없다.
+
+    부여 대상은 **범위 안 사용자만**이다. 범위 밖 계정은 없는 것과 똑같이 404 로 답한다 —
+    id 를 찍어 보며 남의 부서 명부를 열거할 수 있으면 안 된다.
+
+    돌려주는 값은 **지금 명단 전부**다. 부른 쪽이 무엇이 남았는지 다시 묻지 않게 한다.
+    """
+    from app.authz.models import GRANTEE_USER
+    from app.authz.service import (
+        grant_resource_access,
+        resource_grantee_ids,
+        revoke_resource_access,
+    )
+    from app.authz.visibility import RESOURCE_DOCUMENT
+    from app.core.scope import visible_user_ids
+    from app.core.scope import management_scope
+
+    doc = get_doc_in_scope(db, page_id, user)
+    if doc is None:
+        raise NotFoundError("문서를 찾을 수 없습니다.")
+    if user.role not in MODERATOR_ROLES:
+        raise ForbiddenError("문서 열람 제한은 운영자만 변경할 수 있습니다.")
+
+    wanted = {uid for uid in user_ids if uid}
+    visible = visible_user_ids(db, management_scope(db, user))
+    if visible is not None and not wanted <= visible:
+        raise NotFoundError("사용자를 찾을 수 없습니다.")
+
+    current = set(resource_grantee_ids(
+        db, resource_type=RESOURCE_DOCUMENT, resource_id=page_id
+    ))
+    for uid in sorted(wanted - current):
+        grant_resource_access(
+            db, resource_type=RESOURCE_DOCUMENT, resource_id=page_id,
+            grantee_kind=GRANTEE_USER, grantee_id=uid, granted_by=user.id,
+        )
+    for uid in sorted(current - wanted):
+        revoke_resource_access(
+            db, resource_type=RESOURCE_DOCUMENT, resource_id=page_id,
+            grantee_kind=GRANTEE_USER, grantee_id=uid,
+        )
+    return resource_grantee_ids(
+        db, resource_type=RESOURCE_DOCUMENT, resource_id=page_id
+    )
+
+
+def doc_allowed_users(db: Session, *, user: User, page_id: str) -> list[str]:
+    """이 문서를 명시로 볼 수 있는 사람들. 화면이 「누구에게 열려 있는가」를 보여 준다."""
+    from app.authz.service import resource_grantee_ids
+    from app.authz.visibility import RESOURCE_DOCUMENT
+
+    doc = get_doc_in_scope(db, page_id, user)
+    if doc is None:
+        raise NotFoundError("문서를 찾을 수 없습니다.")
+    return resource_grantee_ids(
+        db, resource_type=RESOURCE_DOCUMENT, resource_id=page_id
+    )
+
+
 def filter_options(db: Session, viewer: User) -> dict:
     """필터·작성 폼 옵션. 문서 종류·업무 분야·기술 태그는 고정 상수(공통), 프로젝트·상태는
     **그 사람이 볼 수 있는** 캐시 문서에서 실제 쓰이는 값.
@@ -318,7 +303,7 @@ def filter_options(db: Session, viewer: User) -> dict:
     """
     from app.team_docs.classify import DOC_TYPES, TECH_TAGS, WORK_FIELDS
 
-    ctx = doc_scope_context(db, viewer) if viewer is not None else None
+    ctx = context_for_user(db, viewer) if viewer is not None else None
     projects: set[str] = set()
     statuses: set[str] = set()
     for row in repository.all_active(db):
@@ -479,7 +464,7 @@ def recent_documents(db: Session, user_id: str, *, limit: int = 10, viewer: User
     계속 보인다 — SEC-10 제한 기능 자체를 우회하는 구멍이라 여기서 함께 닫는다.
     """
     views = repository.recent_views(db, user_id, limit=limit)
-    ctx = doc_scope_context(db, viewer) if viewer is not None else None
+    ctx = context_for_user(db, viewer) if viewer is not None else None
     out = []
     for v in views:
         doc = repository.get_by_page_id(db, v.notion_page_id)

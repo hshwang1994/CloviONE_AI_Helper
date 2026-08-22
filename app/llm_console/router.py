@@ -27,8 +27,8 @@ from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
 
 from app.core.audit import record_audit_from_request
-from app.core.authz import SYSTEM_ADMIN_ONLY
-from app.core.deps import get_db, require_csrf, require_roles
+from app.authz.permissions import AI_CONFIGURE
+from app.core.deps import get_db, require_csrf, require_permission
 from app.core.errors import NotFoundError
 from app.jobs.models import (
     STATUS_CANCELLED,
@@ -45,7 +45,7 @@ from app.llm_console import service
 router = APIRouter(
     prefix="/api/admin/llm",
     tags=["admin-llm"],
-    dependencies=[Depends(require_csrf), Depends(require_roles(*SYSTEM_ADMIN_ONLY))],
+    dependencies=[Depends(require_csrf), Depends(require_permission(AI_CONFIGURE))],
 )
 
 

@@ -217,6 +217,8 @@ nginx)로 1회. **S22** 에서 Storage · AI · index lane 까지 포함한 **�
 **S4 에서 1회 수행함 (2026-08-22)**: 테스트 서버를 실제로 재부팅했고(`boot_id` 가 바뀐 것으로
 확인) 사람이 아무 명령도 치지 않은 채 컨테이너 → PG · nginx · privhelper · worker · scheduler ·
 web 이 전부 돌아왔다. `/healthz` · `/readyz` 200, 표 71개 그대로, `install.sh verify` 통과.
+(**표 수는 스키마와 함께 움직인다** — S5 가 권한 표 다섯을 더해 지금은 더 많다. 리허설은
+절대 수가 아니라 **재설치 전후가 같은지**를 본다.)
 원장 [`EVIDENCE/S4/reboot_recovery.txt`](EVIDENCE/S4/reboot_recovery.txt).
 「로그인 → 대표 데이터 조회」와 「Storage 쓰기/읽기」는 **아직 안 했다** — 관리자 계정 생성과
 Storage Provider 가 이 시점 제품에 없다. S22 가 전 Component 로 다시 한다.

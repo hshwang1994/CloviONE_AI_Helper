@@ -17,7 +17,7 @@ from datetime import datetime
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.core import ownership, people
+from app.core import people
 from app.core.errors import (
     ConflictError,
     ForbiddenError,
@@ -159,15 +159,15 @@ def _project_visibility(db: Session, viewer, scope=None) -> "ProjectVisibility |
     """
     if viewer is None:
         return None
-    from app.core.scope import visibility_scope
+    from app.authz.visibility import context_for_user, visible_project_ids
     from app.projects.models import Project
     from app.tickets.repository import ProjectVisibility
 
-    scope = scope if scope is not None else visibility_scope(db, viewer)
-    if scope.is_global:
+    ctx = context_for_user(db, viewer, scope=scope)
+    if ctx.scope.is_global:
         return None
     rows = db.execute(
-        ownership.visible_project_ids(scope).add_columns(Project.notion_page_id)
+        visible_project_ids(ctx).add_columns(Project.notion_page_id)
     ).all()
     return ProjectVisibility(
         uids=frozenset(r[0] for r in rows),
@@ -622,14 +622,18 @@ def list_projects(db: Session, viewer: User) -> list[dict]:
     사용자의 화면에서는 언제나 빈 값이었다 — 그래서 부서 프로젝트를 골라도 공유 범위가
     늘 "조직 전체 공통" 이라고 표시됐다. 정확히 반대로 안내한 셈이다.
     """
+    from app.authz.visibility import (
+        RESOURCE_PROJECT,
+        context_for_user,
+        effective_visibility_clause,
+    )
     from app.core.org_tree import DeptTree
-    from app.core.scope import visibility_scope
     from app.projects.models import Project
 
-    scope = visibility_scope(db, viewer)
+    ctx = context_for_user(db, viewer)
     tree = DeptTree.load(db)
     stmt = select(Project).where(Project.archived_at.is_(None))
-    clause = ownership.project_scope_clause(scope)
+    clause = effective_visibility_clause(ctx, RESOURCE_PROJECT)
     if clause is not None:
         stmt = stmt.where(clause)
     rows = db.execute(stmt.order_by(Project.name.asc(), Project.id.asc())).scalars().all()
@@ -661,7 +665,7 @@ def list_assignees(
     배정하면 그 사람은 **자기가 담당한 티켓을 못 여는** 상태가 된다(목록에도 안 뜬다).
     화면에서 고를 수 없게 막는 편이 그 상태를 만들고 나서 설명하는 것보다 낫다.
 
-    판정은 화면 판정과 **같은 표**(`ownership.scope_can_view`)를 쓴다. 사람마다 질의를
+    판정은 화면 판정과 **같은 표**(`app/authz/visibility.py`)를 쓴다. 사람마다 질의를
     돌리지 않는다 — 범위 계산은 부서 트리 하나로 끝나므로 트리를 한 번 읽어 전원을
     메모리에서 판정한다.
 
@@ -702,20 +706,15 @@ def list_assignees(
 
 
 def _users_who_can_reach_project(db: Session, users: list[User], project_id: str) -> list[User]:
-    """이 프로젝트를 **볼 수 있는** 사람만 남긴다. 프로젝트가 없으면 빈 목록(fail-closed)."""
-    from app.core.org_tree import DeptTree
-    from app.core.scope import visibility_scope
+    """이 프로젝트를 **볼 수 있는** 사람만 남긴다. 프로젝트가 없으면 빈 목록(fail-closed).
+
+    판정은 화면이 쓰는 그 함수(`app/authz/visibility.py`)가 한다 — 사람마다 다시 적으면
+    「담당자 후보로는 떴는데 그 사람은 그 프로젝트를 못 본다」가 된다.
+    """
+    from app.authz.visibility import users_who_can_view_project
     from app.projects.models import Project
 
-    project = db.get(Project, project_id)
-    if project is None:
-        return []
-    owner = ownership.for_project(project)
-    tree = DeptTree.load(db)
-    return [
-        u for u in users
-        if ownership.scope_can_view(visibility_scope(db, u, tree), owner)
-    ]
+    return users_who_can_view_project(db, users, db.get(Project, project_id))
 
 
 # ── 강제 재동기화 (C7) ────────────────────────────────────────────────────────
@@ -1128,12 +1127,16 @@ def _resolve_writable_project(db: Session, user: User, project_id: str) -> str:
     프로젝트는 존재한다" 를 알 수 있고, id 를 찍어 보며 조직의 프로젝트 목록을 열거할 수
     있다(`app/core/scope.py` 모듈 docstring 의 규칙).
     """
-    from app.core.scope import visibility_scope
+    from app.authz.visibility import (
+        RESOURCE_PROJECT,
+        context_for_user,
+        effective_visibility_clause,
+    )
     from app.projects.models import Project
 
-    scope = visibility_scope(db, user)
+    ctx = context_for_user(db, user)
     stmt = select(Project).where(Project.id == project_id)
-    clause = ownership.project_scope_clause(scope)
+    clause = effective_visibility_clause(ctx, RESOURCE_PROJECT)
     if clause is not None:
         stmt = stmt.where(clause)
     project = db.execute(stmt).scalar_one_or_none()

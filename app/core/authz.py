@@ -204,6 +204,21 @@ CAPABILITIES: tuple[Capability, ...] = (
 )
 
 
+def _permission_rows() -> list[dict]:
+    from app.authz.permissions import PERMISSIONS
+
+    return [
+        {
+            "key": spec.key,
+            "label": spec.label,
+            "area": spec.area,
+            "note": spec.note,
+            "allowed": [role for role in ROLE_ORDER if role in spec.roles],
+        }
+        for spec in PERMISSIONS
+    ]
+
+
 def rbac_matrix() -> dict:
     """화면이 그대로 그리는 매트릭스. **역할 목록도 여기서 나간다.**
 
@@ -228,6 +243,13 @@ def rbac_matrix() -> dict:
             {"value": value, "label": label, "help": help_text}
             for value, (label, help_text) in SCOPE_LABELS.items()
         ],
+        # 권한(Permission) 목록 (S5). 위 `items` 가 **관리 콘솔이 할 수 있는 일**의 표라면
+        # 이쪽은 **제품 전체의 권한 어휘**다. 둘을 한 응답에 싣는 이유는 화면이 둘을 나란히
+        # 놓아야 「관리자가 왜 이걸 할 수 있는가」를 설명할 수 있기 때문이다.
+        #
+        # 지연 import 인 이유: `app/authz/permissions.py` 가 이 파일의 그룹 상수를 읽는다.
+        # 위에서 부르면 순환이 된다 — 방향은 언제나 authz → permissions 한쪽이다.
+        "permissions": _permission_rows(),
         # admin_scope(조직/부서로 좁히기)가 실제로 걸리는 역할. 화면이 "admin" 을 직접
         # 하드코딩하면 tests/security/test_rbac_matrix.py 가 잡는다 — 역할 이름은 여기서만 안다.
         "scoped_role": "admin",

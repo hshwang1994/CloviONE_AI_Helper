@@ -8,6 +8,8 @@ qa-contract-change: 옛 파일은 SQLite alembic 체인의 upgrade→downgrade�
 PG 도 같은 NULL 규칙이라 이 검사는 여기서도 그대로 의미가 있다.
 
 데이터 이관 자체의 무결성은 S13 Migration Tool 의 Dry Run 이 본다.
+
+qa-contract-change: S5 가 조직도 마디 표의 이름을 `departments` 에서 `org_units` 로 옮겼다(app/org/models.py::OrgUnit · 0002_identity_access). 단언의 뜻과 수는 그대로이고 가리키는 표 이름만 새 이름으로 맞춘다 — 옛 이름을 그대로 두면 이 시험이 없는 표를 찾는다.
 """
 
 from __future__ import annotations
@@ -24,7 +26,7 @@ def _cols(db, table: str) -> set[str]:
 
 @pytest.mark.parametrize(
     "table",
-    ["departments", "board_posts", "chat_rooms", "trash_items", "search_documents"],
+    ["org_units", "board_posts", "chat_rooms", "trash_items", "search_documents"],
 )
 def test_org_scoped_tables_all_carry_org_id(db, table):
     """`org_id` 가 없는 표는 스코프 필터가 아예 닿지 못한다."""
@@ -75,9 +77,9 @@ def test_the_same_name_in_a_different_org_is_allowed(db, two_orgs):
     db.flush()  # 예외가 나면 실패다.
 
 
-def test_departments_form_a_tree(db):
+def test_org_units_form_a_tree(db):
     """`parent_id` 가 있어야 부서 계층이 표현된다."""
-    assert "parent_id" in _cols(db, "departments")
+    assert "parent_id" in _cols(db, "org_units")
 
 
 def test_admin_scope_defaults_to_global(db, make_user):

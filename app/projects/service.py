@@ -23,6 +23,7 @@ from sqlalchemy.exc import IntegrityError, OperationalError
 
 from app.core.db import is_insert_race
 from app.core.errors import ConflictError, NotFoundError, ValidationAppError
+from app.authz.visibility import visibility_context
 from app.core import ownership
 from app.core.models_base import split_names
 from app.core.scope import Principal
@@ -88,7 +89,7 @@ def get_scoped_project_or_404(
     `db.get(Project, id)` 로 먼저 꺼내 놓고 나중에 판정하지 않는다 — 조건을 조회 자체에
     붙여 두면 새로 생긴 경로가 판정을 빠뜨릴 자리가 없다(`repository.get_in_scope`).
     """
-    project = repository.get_in_scope(db, project_id, principal.visibility)
+    project = repository.get_in_scope(db, project_id, visibility_context(db, principal))
     if project is None:
         raise NotFoundError(NOT_FOUND_MESSAGE)
     return project
@@ -418,7 +419,7 @@ def overall_weekly_report(
     그때 사용자는 어느 쪽도 믿지 않는다.
     """
     rows, total = repository.list_in_scope(
-        db, principal.visibility, include_archived=False,
+        db, visibility_context(db, principal), include_archived=False,
         offset=0, limit=OVERALL_PROJECT_LIMIT,
     )
     keys = [key for key, _title in weekly.SECTION_TITLES]
@@ -500,7 +501,7 @@ def project_dashboard(
     # 범위 전체다. 요약이 목록과 다른 범위를 세면 "전체 4 / 총 2건" 처럼 한 화면이 서로
     # 다른 숫자를 말한다 — 사용자는 둘 중 하나가 거짓말이라고 읽는다.
     rows = repository.summary_rows_in_scope(
-        db, scope if scope is not None else principal.visibility
+        db, visibility_context(db, principal, scope=scope)
     )
 
     by_status = {status: 0 for status in PROJECT_STATUSES}
@@ -545,7 +546,9 @@ def project_dashboard(
             "status": milestone.status,
         }
         for milestone, project_id, project_name
-        in repository.overdue_milestones_in_scope(db, principal.visibility, today=today)
+        in repository.overdue_milestones_in_scope(
+            db, visibility_context(db, principal), today=today
+        )
     ]
 
     return {

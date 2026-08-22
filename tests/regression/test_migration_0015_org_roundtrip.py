@@ -8,6 +8,8 @@ qa-contract-change: 옛 파일은 SQLite alembic 체인의 upgrade→downgrade�
 
 데이터 이관 자체(운영 SQLite → PG)의 무결성은 S13 Migration Tool 의 Dry Run 이 본다
 (MASTER_PLAN §9.3 의 면제 불가 검증 목록).
+
+qa-contract-change: S5 가 조직도 마디 표의 이름을 `departments` 에서 `org_units` 로 옮겼다(app/org/models.py::OrgUnit · 0002_identity_access). 단언의 뜻과 수는 그대로이고 가리키는 표 이름만 새 이름으로 맞춘다 — 옛 이름을 그대로 두면 이 시험이 없는 표를 찾는다.
 """
 
 from __future__ import annotations
@@ -26,16 +28,16 @@ def _tables(db) -> set[str]:
     return set(inspect(db.get_bind()).get_table_names())
 
 
-def test_departments_and_job_titles_are_tables_not_strings(db):
+def test_org_units_and_job_titles_are_tables_not_strings(db):
     """이 둘이 표여야 "한 곳만 고치면 전원에 반영" 이 참이 된다.
 
     문자열 컬럼으로 두면 같은 부서가 표기만 다른 여러 값으로 갈라지고, 그걸 되돌릴 방법이
     없다. 0015 가 옮긴 것이 이것이고, 기준선이 그 결과를 그대로 갖고 있어야 한다.
     """
-    assert {"departments", "job_titles"} <= _tables(db)
+    assert {"org_units", "job_titles"} <= _tables(db)
 
 
-@pytest.mark.parametrize("table", ["departments", "job_titles"])
+@pytest.mark.parametrize("table", ["org_units", "job_titles"])
 def test_the_lookup_tables_keep_their_shape(db, table):
     assert {"id", "name", "active", "created_at"} <= _cols(db, table)
 
@@ -51,7 +53,7 @@ def test_the_foreign_keys_are_declared_not_just_the_columns(db):
     """컬럼만 있고 FK 가 없으면 지워진 부서를 가리키는 사람이 남는다."""
     fks = inspect(db.get_bind()).get_foreign_keys("users")
     referred = {tuple(fk["constrained_columns"]): fk["referred_table"] for fk in fks}
-    assert referred.get(("department_id",)) == "departments"
+    assert referred.get(("department_id",)) == "org_units"
     assert referred.get(("title_id",)) == "job_titles"
 
 

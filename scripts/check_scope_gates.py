@@ -172,15 +172,11 @@ EXEMPT: dict[str, str] = {
 #   3. 여기 적힌 경로가 스캔에서 사라지면 **실패한다**(아래 staleness 검사). 고쳐졌거나
 #      경로가 바뀌었으면 이 표를 함께 지워야 한다. 늙은 면제는 면제가 아니라 거짓말이다.
 KNOWN_GAPS: dict[str, str] = {
-    "app/approvals/router.py::revoke_delegation":
-        "Owner **S5**(P-12/P-13) · 원장 docs/platform/BACKLOG.md. "
-        "`/api/admin/approval-delegations` 표면 전체(`list`·`create`·`revoke`)가 "
-        "`principal` 을 아예 안 받는다 — 같은 파일의 승인 큐는 "
-        "`visible_user_ids(db, principal.management)` 로 좁히는데 이쪽만 전량이다. "
-        "`CONSOLE_WRITE_ROLES = (admin, system_admin)` 이고 `admin` 은 **부서 범위일 수 "
-        "있으므로**(`users.admin_scope`), 부서 admin 이 남의 부서 결재 대리를 만들고 "
-        "취소할 수 있다. 공지(UB-01)·쿼터(`_ensure_may_touch_global`)에서 이미 두 번 "
-        "고친 것과 같은 계열이다. **S1 은 제품 코드를 고치지 않는다** — 기록하고 넘긴다.",
+    # 비어 있다. S5 가 마지막 한 건(`app/approvals/router.py::revoke_delegation` — 결재 대리
+    # 표면 전체가 `principal` 을 안 받던 것, P-12a)을 닫았다.
+    #
+    # 여기에 항목을 남길 때는 **Owner Session 과 원장 문서**를 함께 적는다. 이유 없는 면제는
+    # 검사를 조용히 죽이는 가장 흔한 방법이고, 그 상태는 「위반 0」과 구별되지 않는다.
 }
 
 # `@router.` 만 보면 **변수 이름이 다른 라우터가 통째로 사라진다.** 실제로

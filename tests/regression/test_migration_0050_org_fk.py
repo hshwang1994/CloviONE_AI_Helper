@@ -9,6 +9,8 @@ PG 는 끌 수 없지만, 그 사실을 믿고 검사를 없애면 **다음에 �
 
 한 가지는 여기서 볼 수 없다: 옛 파일이 확인하던 **고아 행을 기본 조직으로 옮긴다**는 백필은
 새 설치에 옮길 고아가 없다. 그건 S13 Migration Tool 이 운영 데이터를 옮길 때 보는 일이다.
+
+qa-contract-change: S5 가 조직도 마디 표의 이름을 `departments` 에서 `org_units` 로 옮겼다(app/org/models.py::OrgUnit · 0002_identity_access). 단언의 뜻과 수는 그대로이고 가리키는 표 이름만 새 이름으로 맞춘다 — 옛 이름을 그대로 두면 이 시험이 없는 표를 찾는다.
 """
 
 from __future__ import annotations
@@ -20,7 +22,7 @@ pytestmark = pytest.mark.regression
 
 # 0050 이 FK 를 건 표들. 스코프 판정이 이 컬럼 하나에 매달려 있다.
 TABLES = (
-    "departments",
+    "org_units",
     "board_posts",
     "document_cache",
     "chat_rooms",
@@ -57,7 +59,7 @@ def test_a_bogus_org_id_is_actually_rejected(db):
 
     with pytest.raises(IntegrityError):
         db.execute(
-            text("UPDATE departments SET org_id = :bogus WHERE id = :id"),
+            text("UPDATE org_units SET org_id = :bogus WHERE id = :id"),
             {"bogus": "no-such-org", "id": row.id},
         )
         db.flush()
