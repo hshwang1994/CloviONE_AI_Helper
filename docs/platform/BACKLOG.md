@@ -45,7 +45,7 @@
 | **P-15** | Backlog · Sprint · Kanban · DnD 공통화 | S6 | **DONE** | `/api/work/board`·`/backlog`·`/sprints` + `sprints` 표 + `backlog_rank`(소수 순위, D-241). Drop 이 Status+Activity+Audit+`updated_at`+Notification 을 **한 트랜잭션**으로 처리하고(D-242), 실패를 주입해 다섯이 함께 사라지는지까지 본다. DnD 는 `frontend/src/ui/DragDrop.jsx` **한 부품**이고 키보드가 1급이다(스페이스로 집고 화살표로 옮긴다) |
 | **P-14a** | **문자열 날짜 컬럼 → `date`/`timestamp`** (SQLite 실측 10번) | S7 | **DONE** | **16컬럼을 한 번에 옮겼다** — 달력일 11(`date`) · 시각 5(`timestamp`), `0005_real_dates`. 반씩 하면 더 나쁘다는 판단 그대로다: 티켓·프로젝트·문서가 같은 규약을 공유하고 동기화 파서·필터·리포트·번다운·홈 위젯이 전부 그 규약으로 비교한다. **화면 계약(ISO 문자열)은 안 바뀌었고** 경계는 `app/core/dates.py` 하나다. 옮기면서 조용한 결함 둘이 드러났다 — `_last_activity_on` 의 `isinstance(str)` 갈래(컬럼이 timestamp 가 되면 영영 거짓이라 「저쪽에서 만진 시각」이 버려진다)와 `projects/sync.py::_apply` 의 값 비교(문자열 vs date 는 영영 다르라서 매 회차 전 프로젝트의 `updated_at` 이 덮인다). 둘 다 오류를 안 낸다. 결정 **D-248** · 시험 `tests/regression/test_real_date_columns.py` |
 | **P-16** | Knowledge Domain — Space · Folder · Document · **Block JSON 정본** · Version | S7 | TODO | Version diff/restore 동작 · Editor lazy load 후 번들 예산 유지 |
-| **P-17** | File Storage Providers — Local/NFS/SMB | S8 | TODO | **16항 매트릭스를 NFS·SMB 각각에서 실행한 로그** · 미마운트 시 쓰기 거부 |
+| **P-17** | File Storage Providers — Local/NFS/SMB | S8 | **DONE** | 실 NFS·실 SMB 각각 **16/16 PASS**([`EVIDENCE/S8/`](EVIDENCE/S8/README.md)) · 마운트를 실제로 뗀 상태에서 쓰기 거부 확인 · 실 재부팅 뒤 수동 명령 0회 복귀. 결정 **D-249~D-253** |
 
 ## Phase C — AI
 
@@ -99,7 +99,7 @@
 |---|---|---|
 | ~~20개 Project Key 명명~~ | ~~S6~~ | **해소 (2026-08-22)** — 초안표 그대로 확정(D-243). 정본은 `app/work/project_keys.py::CONFIRMED`, 사본은 `PROJECT_KEYS.md`. 적용은 S13 이 적재 직후에 `apply_confirmed()` 로 한다 |
 | GitLab Repository 주소·자격증명 | S4(권장) · S22(Acceptance) | Remote 중립 Installer + 오프라인 Bundle 로 진행 |
-| 실 NFS/NAS 장비 정보 | S8(있으면 좋음) | 시험 Storage 로 실검증. 실 정보 수령 시 Configuration 만 변경 |
+| 실 NFS/NAS 장비 정보 | ~~S8~~ (받으면 설정만) | **S8 은 시험 Storage 로 끝났다.** 실 정보를 받으면 `storage_providers` 행의 `source`·`options` 만 바꾸고 `deploy/install.sh storage` 를 다시 돌린다 — Application 수정은 없다(D-199) |
 | 제품 Domain 밖 Notion DB 3종 이관 여부 | 언제든 | 기본값 = 이관하지 않음. Core Migration 은 무관하게 진행 |
 
 ---

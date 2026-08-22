@@ -122,6 +122,28 @@ RULES: tuple[tuple[str, tuple[str, ...], str, str], ...] = (
         r"DocumentMention\s*\(",
         "「나를 언급한 문서」에 3년 전 지워진 문장이 계속 나온다",
     ),
+    # ── File Storage (S8) ───────────────────────────────────────────────────
+    (
+        "마운트 판정",
+        ("app/storage/mount.py",),
+        # 장치 번호를 **직접 읽거나 비교하는** 자리만 본다. 판정 결과(`state.st_dev`)를
+        # 로그와 화면에 싣는 것은 판정이 아니므로 통과해야 한다 — 그것까지 막으면
+        # 증거를 남길 자리가 없어지고, 그러면 사람이 이 검사를 끈다.
+        r"os\.stat\([^)]*\)\.st_dev|st_dev\s*[!=]=|proc/self/mountinfo",
+        "마운트 판정이 두 곳이면 그중 하나가 빠진 날 로컬 디스크에 조용히 쌓인다 (D-199 13번)",
+    ),
+    (
+        "첨부 연결",
+        ("app/knowledge/attachments.py",),
+        r"DocumentAttachment\s*\(",
+        "파일은 올라갔는데 문서에 안 붙거나 그 반대가 되고, 둘 다 오류를 안 낸다",
+    ),
+    (
+        "파일 행 생성",
+        ("app/storage/service.py",),
+        r"storage_key\s*=(?!=)",
+        "바이트를 쓰는 자리와 행을 만드는 자리가 갈리면 「행은 있는데 파일이 없다」가 생긴다 (D-199 9번)",
+    ),
 )
 
 # 계층을 **읽는** 자리. 미러 컬럼을 직접 읽으면 관계 표와 갈라진다.
@@ -155,6 +177,7 @@ SCHEMA_FILES = (
     "app/work/models.py",
     "app/tickets/models.py",
     "app/knowledge/models.py",
+    "app/storage/models.py",
 )
 
 
@@ -260,6 +283,38 @@ def self_test() -> int:
             "다른 곳에서 멘션 행을 만든다",
             {other: "def f(db):\n    db.add(DocumentMention(block_id='b'))\n"},
             True,
+        ),
+        # ── File Storage (S8) ──────────────────────────────────────────────
+        (
+            "다른 곳에서 장치 번호를 비교한다",
+            {other: "import os\ndef f(p, q):\n    return os.stat(p).st_dev == os.stat(q).st_dev\n"},
+            True,
+        ),
+        (
+            "다른 곳에서 mountinfo 를 읽는다",
+            {other: "def f():\n    return open('/proc/self/mountinfo').read()\n"},
+            True,
+        ),
+        (
+            "다른 곳에서 첨부 연결을 만든다",
+            {other: "def f(db):\n    db.add(DocumentAttachment(file_id='f'))\n"},
+            True,
+        ),
+        (
+            "다른 곳에서 파일 행을 만든다",
+            {other: "def f(db, key):\n    db.add(File(storage_key=key))\n"},
+            True,
+        ),
+        # 위양성 쪽 — 판정 **결과**를 로그와 화면에 싣는 것은 판정이 아니다. 여기서
+        # 걸리면 증거를 남길 자리가 없어지고, 그러면 사람이 검사를 끈다.
+        (
+            "판정 결과를 로그에 싣는다",
+            {
+                other: "def f(state, log):\n"
+                "    log.info('st_dev=%s', state.st_dev)\n"
+                "    return {'st_dev': state.st_dev}\n"
+            },
+            False,
         ),
         # 위양성 쪽 — 폴더가 아닌 것의 `.path`·`.depth` 는 통과해야 한다. 둘 다 흔한
         # 속성 이름이라, 여기서 걸리면 관계없는 파일이 전부 위반이 되고 검사가 꺼진다.

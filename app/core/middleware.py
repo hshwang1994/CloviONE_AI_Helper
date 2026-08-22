@@ -87,6 +87,9 @@ _UPLOAD_ROUTE_RES = (
     re.compile(r"^/api/team-chat/rooms/[^/]+/images$"),
     re.compile(r"^/api/tickets/[^/]+/attachments$"),
     re.compile(r"^/api/me/avatar$"),
+    # 지식 문서 첨부(S8). 이 줄이 없으면 「10MB 까지 올릴 수 있습니다」라고 말해 놓고
+    # 256k 에서 413 이 난다 — 위 주석이 경고한 그 반복이다.
+    re.compile(r"^/api/knowledge/documents/[^/]+/attachments$"),
 )
 
 STATIC_CACHE_CONTROL = "public, max-age=3600"

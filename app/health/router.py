@@ -55,6 +55,24 @@ def readyz(request: Request):
             status_code=503,
             content={"status": "unready", "reason": "uploads_not_writable"},
         )
+    # S8: 켜진 운영 저장소에 **지금 쓸 수 있는가**. 위의 `uploads_writable` 과 다른
+    # 결함을 잡는다 — 저 검사는 로컬 `data_dir` 만 보므로, NFS/SMB 저장소가 안 붙은
+    # 상태를 못 본다. 그 상태에서 뜨면 업로드가 로컬 디스크에 쌓인다(D-199 13번).
+    # 저장소가 아직 하나도 없는 설치(설치 중)는 `unready` 가 아니다 — 그때는 Stage 11
+    # 이 아직 안 돈 것이고, 그 사실은 설치 로그가 말한다.
+    from app.storage.service import storage_health
+
+    try:
+        with session_factory() as db:
+            health = storage_health(db)
+    except Exception:
+        logger.exception("storage readiness check failed")
+        return JSONResponse(status_code=503, content={"status": "unready", "reason": "storage"})
+    if health["providers"] and not health["operational_ok"]:
+        return JSONResponse(
+            status_code=503,
+            content={"status": "unready", "reason": "storage_not_writable"},
+        )
     return {"status": "ready"}
 
 

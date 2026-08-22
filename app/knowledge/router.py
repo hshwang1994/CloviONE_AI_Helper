@@ -18,11 +18,14 @@ S5 가 `SPACE_READ`·`SPACE_WRITE`·`SPACE_ADMIN` 을 미리 고정해 뒀다. *
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, File, Form, Query, Request, UploadFile
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
+from app.core import uploads
 from app.core.audit import record_audit_from_request
 from app.core.deps import get_db, require_csrf, require_permission
+from app.knowledge import attachments as attachments_mod
 from app.knowledge import relations as relations_mod
 from app.knowledge import service, tags as tags_mod, versions as versions_mod
 from app.knowledge.schemas import (
@@ -37,6 +40,7 @@ from app.knowledge.schemas import (
     VersionRestore,
 )
 from app.settings.gate import block_if_maintenance
+from app.storage import service as storage_service
 from app.users.models import User
 
 router = APIRouter(
@@ -296,6 +300,10 @@ def get_document(
         "current": _version_json(detail["version"], body=True),
         "relations": detail["relations"],
         "backlinks": detail["backlinks"],
+        "attachments": [
+            attachments_mod.json_of(link, record)
+            for link, record in attachments_mod.of_document(db, document_id)
+        ],
     }
 
 
@@ -481,3 +489,112 @@ def list_tags(
     stmt = select(Tag).where(Tag.org_id.is_(None) if org_id is None else Tag.org_id == org_id)
     rows = db.execute(stmt.order_by(Tag.slug)).scalars().all()
     return {"items": [{"id": t.id, "name": t.name, "slug": t.slug} for t in rows]}
+
+
+# ── 첨부 (S8) ────────────────────────────────────────────────────────────────
+#
+# 접근권은 **부모 문서가 정한다.** 그래서 세 라우트가 전부 먼저
+# `get_scoped_document_or_404` 를 지난다 — 첨부에 판정을 따로 적으면 두 벌이 되고,
+# 그중 하나가 빠진 자리에서 문서는 404 인데 첨부 URL 은 열린다.
+
+
+@router.get("/documents/{document_id}/attachments")
+def list_attachments(
+    document_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("DOCUMENT_READ")),
+) -> dict:
+    service.get_scoped_document_or_404(db, user, document_id)
+    return {
+        "items": [
+            attachments_mod.json_of(link, record)
+            for link, record in attachments_mod.of_document(db, document_id)
+        ]
+    }
+
+
+@router.post(
+    "/documents/{document_id}/attachments",
+    dependencies=[Depends(require_csrf), Depends(require_permission("FILE_UPLOAD"))],
+)
+def upload_attachment(
+    document_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("DOCUMENT_UPDATE")),
+    file: UploadFile = File(...),
+    caption: str = Form(default=""),
+) -> dict:
+    """문서에 파일을 붙인다. **권한 둘과 범위 하나를 함께 본다.**
+
+    권한이 둘인 이유: 파일을 올릴 수 있는가(`FILE_UPLOAD`)와 **이 문서를 고칠 수
+    있는가**(`DOCUMENT_UPDATE`)는 다른 질문이다. 지금은 둘 다 전원에게 열려 있어서
+    같은 답이 나오지만, 「올리기만 되는 역할」이 생기는 날 하나만 걸어 두면 그 역할이
+    남의 문서를 고칠 수 있게 된다.
+
+    범위는 권한이 안 답한다. `get_scoped_document_or_404` 가 답한다 — 권한만 보고
+    범위를 안 보면 올릴 수 있는 사람이 남의 부서 문서에 파일을 붙인다.
+    """
+    document = service.get_scoped_document_or_404(db, user, document_id)
+    # sync 핸들러에서는 UploadFile 의 내부 파일 객체를 직접 읽는다(불변 §1).
+    # 상한보다 한 바이트 더 읽는다 — 정확히 상한인 파일과 넘는 파일을 구별해야 한다.
+    content = file.file.read(uploads.MAX_UPLOAD_BYTES + 1)
+    link, record = attachments_mod.attach(
+        db, document,
+        filename=file.filename or "file", content=content,
+        created_by=user.id, caption=(caption.strip() or None),
+    )
+    record_audit_from_request(
+        request, db, action="knowledge.attachment.add", object_type="knowledge_document",
+        object_id=document.id,
+        after={"file_id": record.id, "filename": record.filename, "size": record.size_bytes},
+    )
+    return attachments_mod.json_of(link, record)
+
+
+@router.get(
+    "/attachments/{attachment_id}/content",
+    dependencies=[Depends(require_permission("FILE_DOWNLOAD"))],
+)
+def serve_attachment(
+    attachment_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("DOCUMENT_READ")),
+):
+    """원본 바이트. **판정된 형식만 신뢰하고 실행은 못 하게 보낸다.**
+
+    이미지와 PDF 만 탭 안에서 펼친다. 나머지는 내려받기로 준다 — `nosniff` 가 실행을
+    막지만, 「받아서 여는 것」과 「탭 안에서 열리는 것」은 사용자가 느끼는 위험이 다르다.
+    """
+    link, record = attachments_mod.get_or_404(db, attachment_id)
+    # 부모 문서를 못 보면 첨부도 없는 것이다. 403 이 아니라 404 인 이유는 403 이
+    # 「그 문서에 그런 첨부가 있다」를 확인해 주기 때문이다.
+    service.get_scoped_document_or_404(db, user, link.document_id)
+    path = storage_service.file_path(db, record)
+    inline = record.mime_type in uploads.INLINE_MEDIA_TYPES
+    return FileResponse(
+        str(path),
+        media_type=record.mime_type,
+        headers={
+            "Content-Disposition": uploads.content_disposition(record.filename, inline=inline),
+            "X-Content-Type-Options": "nosniff",
+            "Cache-Control": "private, max-age=300",
+        },
+    )
+
+
+@router.delete("/attachments/{attachment_id}", dependencies=[Depends(require_csrf)])
+def delete_attachment(
+    attachment_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("DOCUMENT_UPDATE")),
+) -> dict:
+    link, record = attachments_mod.get_or_404(db, attachment_id)
+    document = service.get_scoped_document_or_404(db, user, link.document_id)
+    attachments_mod.detach(db, link)
+    record_audit_from_request(
+        request, db, action="knowledge.attachment.remove", object_type="knowledge_document",
+        object_id=document.id, before={"file_id": record.id, "filename": record.filename},
+    )
+    return {"ok": True}

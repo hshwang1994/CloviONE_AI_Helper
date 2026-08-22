@@ -27,6 +27,7 @@ from app.jobs.models import (
 )
 from app.runners.models import Runner
 from app.schedules.models import Schedule
+from app.storage.service import storage_health
 from app.users.models import User
 from app.workflows.models import Workflow
 
@@ -378,6 +379,10 @@ def build_dashboard(
         # — OPS-01처럼 용량은 멀쩡한데 소유권 드리프트로 못 쓰는 경우를 며칠씩 아무도
         # 모르고 지나가지 않게 한다.
         "uploads_writable": uploads.uploads_writable(settings.data_dir),
+        # S8: 파일 저장소. `uploads_writable` 과 다른 결함을 잡는다 — 저쪽은 로컬
+        # `data_dir` 만 보므로 NFS/SMB 가 안 붙은 상태를 못 본다. 운영과 백업이 같은
+        # 장치일 때의 경고도 여기 실린다(D-199 16번).
+        "storage": storage_health(db),
         "memory": _memory_usage(),
         "cert_days_remaining": _cert_days_remaining(settings, now),
         "last_backup_at": last_backup.created_at.isoformat() if last_backup else None,

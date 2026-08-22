@@ -39,6 +39,59 @@ _EXT_BY_MEDIA = {
     "application/pdf": ".pdf",
 }
 ALLOWED_MEDIA_TYPES = frozenset(_EXT_BY_MEDIA)
+
+# ── 확장 판정 (S8) ───────────────────────────────────────────────────────────
+#
+# 지식 문서 첨부는 이미지와 PDF 만으로 부족하다 — 회의록에 붙는 것은 보통 문서와
+# 스프레드시트다. 그런데 **판정기를 새로 만들지 않는다.** 두 벌이 되면 한쪽만 아는
+# 형식이 생기고, 그 차이는 「어떤 화면에서는 되는데 어떤 화면에서는 안 된다」로만
+# 드러난다. 그래서 이 파일의 `sniff_media_type` 하나를 넓히고, **무엇을 받을지는
+# 네임스페이스가 `allowed_media_types` 로 좁힌다.** 게시판·채팅·티켓의 허용 집합은
+# 그대로다.
+#
+# OOXML(docx·xlsx·pptx)은 앞부분 바이트가 전부 ZIP 이라 `head` 만으로는 못 가른다.
+# 그래서 `full=` 을 받아 zip 안의 항목 이름을 본다 — 확장자나 선언된 Content-Type 을
+# 믿지 않는다는 원칙은 그대로다.
+_EXT_BY_MEDIA_EXTENDED = {
+    **_EXT_BY_MEDIA,
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": ".docx",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": ".xlsx",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation": ".pptx",
+    "application/zip": ".zip",
+    "text/plain": ".txt",
+}
+
+#: 지식 문서 첨부가 받는 형식. 일반 ZIP 은 **일부러 뺐다** — 안에 무엇이 들었는지
+#: 서버가 판정할 수 없는데 받으면, 「판정된 형식만 신뢰한다」는 이 모듈의 원칙이
+#: 그 한 줄에서 깨진다. 판정기는 `application/zip` 을 여전히 **알아본다**(그래야
+#: OOXML 인 척하는 zip 을 「모르는 형식」이 아니라 정확한 이유로 거절한다).
+DOCUMENT_MEDIA_TYPES = frozenset(
+    {
+        "image/png",
+        "image/jpeg",
+        "image/gif",
+        "image/webp",
+        "application/pdf",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        "text/plain",
+    }
+)
+
+#: 브라우저 안에서 그대로 펼쳐도 되는 형식. 나머지는 내려받기로 준다 — `nosniff` 가
+#: 실행을 막지만, 「받아서 여는 것」과 「탭 안에서 열리는 것」은 사용자가 느끼는
+#: 위험이 다르다.
+INLINE_MEDIA_TYPES = frozenset(
+    {"image/png", "image/jpeg", "image/gif", "image/webp", "application/pdf"}
+)
+
+
+def extension_for(media_type: str) -> str:
+    """판정된 형식의 저장 확장자. 모르는 형식은 확장자가 없다."""
+    return _EXT_BY_MEDIA_EXTENDED.get(media_type, "")
+
+
 # 이미지 전용 네임스페이스(채팅 붙여넣기 등) — PDF는 말풍선에 인라인으로 그릴 수 없다.
 IMAGE_MEDIA_TYPES = frozenset(
     {"image/png", "image/jpeg", "image/gif", "image/webp"}
@@ -63,8 +116,13 @@ _NAMESPACE_RE = re.compile(r"^[a-z][a-z0-9_]{0,31}$")
 _STORED_NAME_RE = re.compile(r"^[0-9a-f]{32}\.[a-z0-9]{2,5}$")
 
 
-def sniff_media_type(head: bytes) -> str | None:
-    """앞부분 바이트로 형식을 판정한다. 허용 목록 밖이면 None."""
+def sniff_media_type(head: bytes, *, full: bytes | None = None) -> str | None:
+    """앞부분 바이트로 형식을 판정한다. 판정 못 하면 None.
+
+    `full` 을 주면 **전체 내용이 있어야 답할 수 있는 형식**까지 본다(OOXML · 평문).
+    안 주면 예전과 **바이트 단위로 같은 답**을 낸다 — 게시판·채팅·티켓·프로필은
+    그대로 다섯 형식만 안다.
+    """
     if head.startswith(b"\x89PNG\r\n\x1a\n"):
         return "image/png"
     if head.startswith(b"\xff\xd8\xff"):
@@ -75,7 +133,60 @@ def sniff_media_type(head: bytes) -> str | None:
         return "image/webp"
     if head.startswith(b"%PDF-"):
         return "application/pdf"
-    return None
+    if full is None:
+        return None
+    if head.startswith(b"PK\x03\x04"):
+        return _sniff_zip_family(full)
+    return _sniff_text(full)
+
+
+def _sniff_zip_family(content: bytes) -> str | None:
+    """ZIP 안을 들여다봐서 OOXML 셋을 가른다. 압축은 풀지 않는다(목록만 읽는다).
+
+    확장자를 안 믿는 것과 같은 이유로 `[Content_Types].xml` 의 선언도 안 믿는다 —
+    **실제로 들어 있는 항목**을 본다. `word/` 가 없는 파일은 아무리 docx 라고 적혀
+    있어도 워드 문서가 아니다.
+    """
+    import io
+    import zipfile
+
+    try:
+        with zipfile.ZipFile(io.BytesIO(content)) as zf:
+            names = set(zf.namelist())
+    except (zipfile.BadZipFile, OSError, ValueError):
+        return None
+    if "word/document.xml" in names:
+        return "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    if "xl/workbook.xml" in names:
+        return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    if "ppt/presentation.xml" in names:
+        return "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+    return "application/zip"
+
+
+# 평문에서 허용하는 제어문자. 탭·줄바꿈만이다.
+_TEXT_ALLOWED_CONTROL = frozenset({0x09, 0x0A, 0x0D})
+
+
+def _sniff_text(content: bytes) -> str | None:
+    """UTF-8 로 읽히고 제어문자가 없으면 평문. 아니면 None.
+
+    평문에는 매직바이트가 없어서 「아닌 것을 배제하는」 방식으로만 판정할 수 있다.
+    그래서 **엄격하게** 본다: UTF-8 디코딩 실패, 널바이트, 탭·줄바꿈 아닌 제어문자
+    중 하나라도 있으면 평문이 아니다. BOM 은 떼고 본다(윈도우 메모장이 붙인다).
+    """
+    if not content:
+        return None
+    body = content[3:] if content.startswith(b"\xef\xbb\xbf") else content
+    try:
+        body.decode("utf-8")
+    except UnicodeDecodeError:
+        return None
+    if any(b < 0x20 and b not in _TEXT_ALLOWED_CONTROL for b in body):
+        return None
+    if 0x7F in body:
+        return None
+    return "text/plain"
 
 
 def sanitize_filename(name: str) -> str:
@@ -168,7 +279,7 @@ def save_upload(
             "허용되지 않은 파일 형식입니다. 이미지(PNG, JPEG, GIF, WebP) 또는 PDF만 올릴 수 있습니다."
         )
 
-    stored_name = f"{uuid.uuid4().hex}{_EXT_BY_MEDIA[media_type]}"
+    stored_name = f"{uuid.uuid4().hex}{extension_for(media_type)}"
     target_dir = _owner_dir(data_dir, namespace, owner_id)
     try:
         target_dir.mkdir(parents=True, exist_ok=True)

@@ -477,12 +477,61 @@ def test_verify_does_not_use_curl_dash_k():
 
 def test_stages_that_have_no_component_yet_say_skip_not_ok():
     """OK 로 찍으면 「설치했다」는 거짓말이 로그에 남는다. S22 는 전 Stage OK 를 요구하므로
-    SKIP 이 남아 있으면 그때 걸린다."""
+    SKIP 이 남아 있으면 그때 걸린다.
+
+    **Stage 11 은 S8 이 채웠다.** 이제 SKIP 이면 안 된다 — 저장소 Component 가 제품에
+    있는데 설치가 「아직 없다」고 말하면 그것이 새로운 거짓말이다.
+    """
     text = _install_sh()
     storage = text.split("stage_11_storage() {", 1)[1].split("\n}", 1)[0]
     ai = text.split("stage_12_ai() {", 1)[1].split("\n}", 1)[0]
-    assert "skip " in storage and "S8" in storage
+    assert "skip " not in storage, "저장소는 S8 에서 제품에 들어왔다 — SKIP 이 남아 있으면 안 된다"
     assert "skip " in ai and "S9" in ai
+
+
+def test_storage_stage_asks_the_product_not_the_shell(deploy_root=None):
+    """🔴 Stage 11 이 셸에서 장치 번호를 비교하면 마운트 판정이 두 벌이 된다 (D-199 13번).
+
+    두 벌이 되면 그중 하나가 빠진 날 로컬 디스크에 조용히 쌓인다. 파이썬 쪽은
+    `scripts/check_domain_single_source.py` 가 같은 규칙을 지킨다.
+    """
+    text = _install_sh()
+    storage = _code_only(text.split("stage_11_storage() {", 1)[1].split("\n}", 1)[0])
+    assert "storage_cli status" in storage, "제품의 판정을 안 부르고 OK 를 찍는다"
+    assert "storage_cli bootstrap" in storage
+    assert "storage_cli units" in storage, "마운트 유닛을 제품이 만들지 않는다"
+    assert "st_dev" not in storage, "셸이 장치 번호를 직접 본다 — 판정이 두 벌이 된다"
+    assert "stat -c" not in storage
+
+
+def test_storage_can_be_reinstalled_without_a_full_reinstall():
+    """저장소를 추가한 뒤 마운트 유닛을 다시 깔 길이 있어야 한다.
+
+    전체 재설치를 시키면 사람이 안 한다. 안 하면 **유닛 없이 도는 저장소**가 남고,
+    그 설치는 재부팅 한 번에 마운트를 잃는다(INSTALLATION.md §6.1 Installer 계약).
+    """
+    text = _install_sh()
+    assert "install|upgrade|rollback|uninstall|verify|version|preflight|storage)" in text, \
+        "storage 서브커맨드가 dispatch 화이트리스트에 없다"
+    assert "storage)   open_log; run_stage 11 STORAGE stage_11_storage" in text
+    assert "  storage     " in text, "usage 에 안 적혀 있으면 아무도 그 명령을 모른다"
+
+
+def test_every_app_unit_waits_for_the_mount():
+    """🔴 웹만 기다리게 하면 워커가 마운트 전에 떠서 같은 사고를 낸다 (D-199 12번)."""
+    text = _install_sh()
+    storage = _code_only(text.split("stage_11_storage() {", 1)[1].split("\n}", 1)[0])
+    assert 'for u in "${ALL_UNITS[@]}"' in storage, "drop-in 을 유닛 전부에 얹지 않는다"
+    assert "10-storage-mounts.conf" in storage
+
+
+def test_uninstall_removes_only_the_mounts_the_product_installed():
+    """제품 제거가 사람이 손으로 만든 마운트까지 떼면, 같은 서버의 다른 것이 조용히
+    안 보이게 된다."""
+    text = _install_sh()
+    block = _code_only(text.split("do_uninstall() {", 1)[1].split("\n}\n", 1)[0])
+    assert "*.mount" in block, "저장소 마운트 유닛이 제거 경로에 없다"
+    assert "ClovirAssist" in block, "제품이 깐 것과 아닌 것을 구별하지 않는다"
 
 
 def test_a_component_that_appears_without_its_stage_is_caught():

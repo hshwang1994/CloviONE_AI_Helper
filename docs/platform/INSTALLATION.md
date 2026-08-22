@@ -108,7 +108,7 @@ sudo /opt/clovirassist/deploy/install.sh <subcommand> [options]
 | 8 | Configuration/Secret 분리 | `/etc/clovirassist/clovirassist.env`(0640) + `/etc/clovirassist/secrets/`(0700). **DB 비밀번호는 DSN 이 아니라 `.pgpass`/파일 참조** | |
 | 9 | **DB Migration** | `alembic upgrade head`. 실행 전 현재 revision 과 목표 revision 출력 | revision 위치 표시 |
 | 10 | Seed/부트스트랩 | 최초 관리자 · 기본 Role/Permission · 기본 Storage Provider(Local) | |
-| 11 | **File Storage 준비** | 디렉터리 생성/권한 · 마운트 유닛 설치(NFS/SMB 설정 시) · **`st_dev` 마운트 검증** | 미마운트면 쓰기 거부 상태로 표시 |
+| 11 | **File Storage 준비** ✅ | 디렉터리 생성/권한 · 기본 LOCAL Provider 부트스트랩 · **마운트 유닛과 `RequiresMountsFor=` drop-in 을 제품이 만들어 설치** · `systemctl enable --now` · **제품 코드로 `st_dev` 마운트 검증**(`storage_cli status` 의 종료코드가 계약이다) | 미마운트면 **쓰기를 거부하는 상태**라고 표시하고 멈춘다. 붙일 유닛 이름을 함께 낸다 |
 | 12 | **AI Component** | Embedding/Rerank 모델 파일 배치(오프라인 캐시 지원) · ONNX Runtime · 로드 검증 | 모델 부재 원인 표시 |
 | 13 | systemd unit 생성/설치 | **지금 다섯**: `clovirassist-web` · `-worker` · `-worker-conversational` · `-scheduler` · `-privhelper`. **`-index` 는 아직 없다** — 색인 레인 Component 자체가 S9(P-18)에서 생기고, §6.1 계약대로 그 Session 이 유닛·probe·uninstall·복구를 함께 넣는다. 소스에 레인이 생겼는데 유닛이 없으면 이 Stage 가 막는다 | |
 | 14 | `systemctl enable` + 의존 순서 | §6 | |
@@ -125,9 +125,10 @@ sudo /opt/clovirassist/deploy/install.sh <subcommand> [options]
 형식으로 출력하고 `/var/log/clovirassist/install-<ts>.log` + `install_state.json` 에 남긴다.
 **어느 단계에서 왜 멈췄는지가 표준 출력만 보고 판별돼야 한다.**
 
-**`SKIP` 이 있는 이유(S4)**: 아직 제품에 없는 Component 의 Stage(11 Storage=S8, 12 AI=S9)를
-`OK` 로 찍으면 「설치했다」는 거짓말이 로그에 남는다. 그 Session 이 Component 를 넣을 때
-`SKIP` 이 `OK` 로 바뀐다 — §8 Acceptance 가 **전 Stage `OK`** 를 요구하므로 남아 있으면 그때 걸린다.
+**`SKIP` 이 있는 이유(S4)**: 아직 제품에 없는 Component 의 Stage 를 `OK` 로 찍으면 「설치했다」는
+거짓말이 로그에 남는다. 그 Session 이 Component 를 넣을 때 `SKIP` 이 `OK` 로 바뀐다 —
+§8 Acceptance 가 **전 Stage `OK`** 를 요구하므로 남아 있으면 그때 걸린다.
+**Stage 11 은 S8 이 채웠다**(이제 SKIP 이 아니다). 남은 것은 12(AI=S9)뿐이다.
 
 **Idempotent 재실행**: 모든 Stage 가 "이미 되어 있음" 을 감지하고 건너뛴다. 재실행이 데이터·설정을
 파괴하지 않는다. 실패 후 재실행은 실패 지점부터 의미 있게 이어진다.
@@ -155,7 +156,7 @@ network-online.target
         ├─ clovirassist-worker-conversational…   After=postgresql   (D-118, 기본 대기)
         ├─ clovirassist-scheduler.service        After=postgresql   (D-225)
         └─ clovirassist-index.service            After=postgresql   ← 아직 없다 (S9 · P-18)
-   (Storage 사용 시) RequiresMountsFor=/var/lib/clovirassist/files  ← 아직 없다 (S8 · P-17)
+   (Storage 사용 시) RequiresMountsFor=<마운트포인트>  ← Stage 11 이 유닛 넷에 drop-in 으로 얹는다 (S8 ✅)
 ```
 
 **「떠 있어야 하는 유닛」과 「설치되는 유닛」은 다르다.** 대화형 레인은
@@ -169,8 +170,14 @@ network-online.target
 - 기동 시 **PG 준비 대기**(재시도) — `After=` 만으로는 PG 가 접속 가능하다는 보장이 없다.
   `deploy/wait-for-postgres.sh` 를 네 유닛이 `ExecStartPre=-` 로 부른다. 실패해도 기동을
   막지 않는다 — 이 대기의 일은 흔한 몇 초를 없애는 것이지 PG 장애를 판정하는 것이 아니다
-- **Storage 마운트 전 기동 문제**: `RequiresMountsFor=` + 기동 시 `st_dev` 검사.
-  마운트 안 됐으면 **쓰기를 거부**한다 — 로컬 디스크에 조용히 쌓이는 사고 방지
+- **Storage 마운트 전 기동 문제**: `RequiresMountsFor=` + 매 쓰기마다 `st_dev` 검사.
+  마운트 안 됐으면 **쓰기를 거부**한다 — 로컬 디스크에 조용히 쌓이는 사고 방지.
+  **둘 다 필요하다**: 순서는 「실패 자체가 없다」이고 가드는 「사용자가 실패를 본다」이다.
+  drop-in 은 웹만이 아니라 **유닛 넷 전부**에 얹는다 — 워커가 먼저 뜨면 같은 사고가 난다.
+  `/readyz` 도 저장소를 본다: 켜진 운영 저장소에 못 쓰면 `storage_not_writable` 로 503 이다
+- **마운트 옵션의 기본값은 제품이 정한다**(D-251). NFS `soft,timeo=50,retrans=2` ·
+  SMB `uid`·`gid`·`file_mode=0640`·`dir_mode=0750`. 운영자가 적은 값은 덮지 않는다.
+  S8 실검증이 찾은 결함 둘이 전부 이 한 줄이었다 — 둘 다 마운트는 멀쩡했다
 
 ### 6.1 Installer 계약 — 모든 Session 에 적용 (D-205)
 
@@ -190,7 +197,7 @@ network-online.target
 
 | 환경 | 용도 | 한계 (과장하지 않는다) |
 |---|---|---|
-| **LXD/Incus Ubuntu 24.04 시스템 컨테이너** (테스트 서버 위) | **반복 가능한 Clean 설치 리허설.** 폐기·재생성이 싸서 idempotency · 실패지점 표시 · upgrade/rollback/uninstall 을 몇 번이고 돌린다 | 커널을 공유한다. **비특권 컨테이너에서는 NFS/CIFS 마운트가 제한된다** → Storage 검증은 여기서 하지 않는다. **진짜 reboot 도 아니다** |
+| **LXD/Incus Ubuntu 24.04 시스템 컨테이너** (테스트 서버 위) | **반복 가능한 Clean 설치 리허설.** 폐기·재생성이 싸서 idempotency · 실패지점 표시 · upgrade/rollback/uninstall 을 몇 번이고 돌린다 | 커널을 공유한다. **비특권 컨테이너에서는 NFS/CIFS 마운트가 제한된다** → Storage 검증은 여기서 하지 않는다(S8 은 **호스트에서** 돌렸다). **진짜 reboot 도 아니다** |
 | **실 Ubuntu 24.04 VM** 또는 **테스트 서버 자체** | **최종 Acceptance**: Storage(NFS/SMB) · 실제 Reboot · TLS · 성능 | 테스트 서버를 쓰는 경우 재부팅 창이 필요하다 |
 
 **컨테이너 통과를 "설치 검증 완료" 라고 쓰지 않는다** (R15).

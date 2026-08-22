@@ -278,6 +278,7 @@ ClovirAssist 설치 진입점
   verify      설치가 실제로 동작하는지 확인(TLS 검증 포함). 아무것도 바꾸지 않는다
   version     VERSION · git ref/commit · alembic head · PG/extension 버전 · 유닛 상태
   preflight   Stage 0 만 실행한다. 아무것도 바꾸지 않는다
+  storage     Stage 11 만 실행한다. 저장소를 추가한 뒤 마운트 유닛을 다시 깐다(S8)
 
 옵션
   --dns-name <name>     설치처 호스트명. 인증서 CN/SAN 과 nginx server_name 이 이 값이다
@@ -297,7 +298,7 @@ SUBCOMMAND="${1:-}"
 [ -n "$SUBCOMMAND" ] || { usage; exit 64; }
 shift || true
 case "$SUBCOMMAND" in
-  install|upgrade|rollback|uninstall|verify|version|preflight) ;;
+  install|upgrade|rollback|uninstall|verify|version|preflight|storage) ;;
   -h|--help) usage; exit 0 ;;
   *) echo "모르는 서브커맨드: $SUBCOMMAND"; usage; exit 64 ;;
 esac
@@ -798,13 +799,61 @@ stage_10_seed() {
 # Stage 11 — File Storage 준비
 # ═════════════════════════════════════════════════════════════════════════════
 stage_11_storage() {
+  # 옛 미러(게시판·채팅·티켓·프로필)가 쓰는 로컬 업로드 뿌리. S14 까지 남는다.
   install -d -o "$SVC_USER" -g "$SVC_USER" -m 0750 "$VAR_DIR/uploads"
   runuser -u "$SVC_USER" -- test -w "$VAR_DIR/uploads" \
     || { fail "$VAR_DIR/uploads 에 서비스 계정이 쓸 수 없습니다" "소유권을 $SVC_USER 로 맞추십시오(OPS-01)" 31 || return $?; }
-  # NFS/SMB Provider · 마운트 유닛 · st_dev 가드는 아직 제품에 없다 — S8(P-17)의 일이다.
-  # 여기서 OK 를 찍으면 「Storage 를 설치했다」는 거짓말이 로그에 남는다.
-  skip "로컬 업로드 디렉터리만 준비했습니다. NFS/SMB Provider·마운트 유닛·st_dev 가드는 아직 제품에 없습니다" \
-       "S8(P-17)이 이 Stage 를 OK 로 바꿉니다" || return $?
+  # 새 Storage 뿌리(S8). 기본 LOCAL Provider 가 이 경로를 가리킨다.
+  install -d -o "$SVC_USER" -g "$SVC_USER" -m 0750 "$VAR_DIR/files"
+
+  # 기본 저장소를 세운다. **경로 판정을 셸에서 다시 하지 않는다** — `stat` 으로 장치
+  # 번호를 비교하는 순간 판정이 두 벌이 되고, 그 둘은 언젠가 갈린다(D-199 13번).
+  run_as_app "$APP_DIR/venv/bin/python" -m app.cli.storage_cli bootstrap >>"$LOG" 2>&1 \
+    || { fail "기본 저장소를 세우지 못했습니다" "$LOG 의 traceback 을 보십시오" 31 || return $?; }
+
+  # 마운트 유닛과 RequiresMountsFor drop-in. 켜진 NFS/SMB Provider 가 없으면 유닛은
+  # 0개이고 drop-in 은 빈 지시자 한 줄이 된다(옛 경로를 기다리는 상태를 지운다).
+  local staged; staged="$(mktemp -d)"
+  if ! run_as_app "$APP_DIR/venv/bin/python" -m app.cli.storage_cli units --out "$staged" >>"$LOG" 2>&1; then
+    rm -rf "$staged"
+    fail "마운트 유닛을 만들지 못했습니다" "저장소의 마운트 소스(source)가 비어 있는지 확인하십시오" 31 || return $?
+  fi
+  local nmount=0 f base
+  for f in "$staged"/*.mount; do
+    [ -e "$f" ] || break
+    base="$(basename "$f")"
+    install -o root -g root -m 0644 "$f" "/etc/systemd/system/$base"
+    nmount=$((nmount + 1))
+  done
+  # drop-in 은 유닛 넷 전부에 같은 내용으로 얹는다. 웹만 기다리게 하면 워커가 마운트
+  # 전에 떠서 같은 사고를 낸다.
+  local u
+  for u in "${ALL_UNITS[@]}"; do
+    install -d -o root -g root -m 0755 "/etc/systemd/system/$u.d"
+    install -o root -g root -m 0644 "$staged/10-storage-mounts.conf" "/etc/systemd/system/$u.d/10-storage-mounts.conf"
+  done
+  rm -rf "$staged"
+  systemctl daemon-reload
+  local mu
+  for mu in $(ls /etc/systemd/system/*.mount 2>/dev/null); do
+    base="$(basename "$mu")"
+    grep -q "ClovirAssist" "$mu" 2>/dev/null || continue
+    systemctl enable "$base" >>"$LOG" 2>&1 || log "mount enable 실패: $base"
+    systemctl start "$base" >>"$LOG" 2>&1 || log "mount start 실패: $base"
+  done
+
+  # 마지막으로 **제품 코드가** 지금 쓸 수 있는지 판정한다. 종료코드가 계약이다.
+  local status_out; status_out="$(mktemp)"
+  if run_as_app "$APP_DIR/venv/bin/python" -m app.cli.storage_cli status >"$status_out" 2>>"$LOG"; then
+    _reason="저장소 준비 완료 · 마운트 유닛 ${nmount}개 · drop-in ${#ALL_UNITS[@]}유닛"
+    rm -f "$status_out"
+    return 0
+  fi
+  cat "$status_out" >>"$LOG" 2>/dev/null || true
+  rm -f "$status_out"
+  fail "저장소가 지금 **쓰기를 거부하는 상태**입니다(마운트 미확인)" \
+    "systemctl start <마운트 유닛> 으로 붙인 뒤 다시 실행하십시오. 상태: $APP_DIR/venv/bin/python -m app.cli.storage_cli status" 31 \
+    || return $?
 }
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -1297,6 +1346,17 @@ do_uninstall() {
     rm -f "/etc/systemd/system/$u"
     rm -rf "/etc/systemd/system/$u.d"
   done
+  # 저장소 마운트 유닛(S8). 제품이 깐 것만 지운다 — 사람이 손으로 만든 마운트를
+  # 제품 제거가 함께 떼어 내면, 같은 서버의 다른 것이 조용히 안 보이게 된다.
+  local mu base
+  for mu in /etc/systemd/system/*.mount; do
+    [ -e "$mu" ] || break
+    grep -q "ClovirAssist" "$mu" 2>/dev/null || continue
+    base="$(basename "$mu")"
+    systemctl stop "$base" >>"$LOG" 2>&1 || true
+    systemctl disable "$base" >>"$LOG" 2>&1 || true
+    rm -f "$mu"
+  done
   systemctl daemon-reload
   rm -f "/etc/nginx/sites-enabled/$NGINX_SITE" "/etc/nginx/sites-available/$NGINX_SITE" "/etc/logrotate.d/$SLUG"
   nginx -t >>"$LOG" 2>&1 && { systemctl reload nginx >>"$LOG" 2>&1 || true; }
@@ -1378,4 +1438,8 @@ case "$SUBCOMMAND" in
   uninstall) open_log; do_uninstall ;;
   verify)    do_verify || exit 1 ;;
   version)   do_version ;;
+  # 저장소를 추가·변경한 뒤 마운트 유닛을 다시 까는 경로. 전체 재설치를 시키지
+  # 않는 이유는 하나다 — 그러면 사람이 안 하고, 안 하면 유닛 없이 도는 저장소가
+  # 남는다(INSTALLATION.md §6.1 Installer 계약).
+  storage)   open_log; run_stage 11 STORAGE stage_11_storage; say "STORAGE_OK log=$LOG" ;;
 esac

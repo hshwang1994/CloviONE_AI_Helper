@@ -1,0 +1,206 @@
+{
+  "kind": "SMB",
+  "host": "clovirassist",
+  "generated_at": "2026-08-23T00:43:33+0900",
+  "items": [
+    {
+      "item": 1,
+      "name": "Mount",
+      "status": "PASS",
+      "by": "real-mount",
+      "detail": "ok · fstype=cifs · unit=mnt-clv\\x2dsmb.mount(active)",
+      "data": {
+        "mount": {
+          "status": "ok",
+          "path": "/mnt/clv-smb",
+          "st_dev": 53,
+          "parent_st_dev": 64512,
+          "fstype": "cifs",
+          "source": "//127.0.0.1/clvtest",
+          "detail": "마운트되어 있습니다."
+        },
+        "unit": "mnt-clv\\x2dsmb.mount",
+        "unit_active": "active"
+      }
+    },
+    {
+      "item": 2,
+      "name": "Read/Write",
+      "status": "PASS",
+      "by": "real-mount",
+      "detail": "2091바이트를 쓰고 그대로 읽었다",
+      "data": {
+        "key": "1d/06/1d067e595a0146caba9c7bfd37536b47.bin",
+        "bytes": 2091
+      }
+    },
+    {
+      "item": 3,
+      "name": "Permission",
+      "status": "PASS",
+      "by": "real-mount",
+      "detail": "서비스 계정 clvsvc 이 저장 경로에 쓸 수 있고(`ok`), 권한 없는 자리는 거절된다(`PermissionError:Permission denied`) · uid=1003 gid=1003 mode=0o750 · cifs 는 공유 안의 모드 비트를 강제하지 않는다 — 접근을 정하는 것은 마운트 옵션(`uid`·`gid`·`file_mode`)이다",
+      "data": {
+        "owner": "uid=1003 gid=1003 mode=0o750",
+        "as_user": "clvsvc",
+        "allowed": "ok",
+        "denied": "PermissionError:Permission denied",
+        "denied_probe_path": "/var/lib/clv-matrix-denied"
+      }
+    },
+    {
+      "item": 4,
+      "name": "Create/Delete",
+      "status": "PASS",
+      "by": "real-mount",
+      "detail": "만들고 지웠고, 없는 것을 다시 지우는 것은 오류가 아니다",
+      "data": null
+    },
+    {
+      "item": 5,
+      "name": "Checksum",
+      "status": "PASS",
+      "by": "real-mount",
+      "detail": "sha256=5e94246e8a1fc694… (쓰기·읽기·기대값 일치)",
+      "data": {
+        "sha256": "5e94246e8a1fc69402a4c017ff9292d329f8ff6085e1a818616e0c814f569492"
+      }
+    },
+    {
+      "item": 6,
+      "name": "Capacity",
+      "status": "PASS",
+      "by": "real-mount",
+      "detail": "전체 1005.6 GiB · 남은 928.0 GiB",
+      "data": {
+        "total_bytes": 1079797907456,
+        "free_bytes": 996451311616,
+        "used_bytes": 83346595840
+      }
+    },
+    {
+      "item": 7,
+      "name": "Storage unavailable (503, not 500)",
+      "status": "PASS",
+      "by": "real-mount + pytest",
+      "detail": "거부 status=missing · HTTP 503(500 아님)은 tests/regression/test_storage_write_refusal.py 가 실제 앱으로 확인한다",
+      "data": null
+    },
+    {
+      "item": 8,
+      "name": "Reconnect (재시작 불필요)",
+      "status": "PASS",
+      "by": "real-mount",
+      "detail": "smbd 재기동 뒤 **앱 재시작 없이** 다시 썼다 · 장애 중 쓰기는 21초 만에 StorageNotReady(missing) 로 돌아왔다",
+      "data": {
+        "while_down": "StorageNotReady(missing)",
+        "while_down_seconds": 20.6,
+        "after_restart": "ok"
+      }
+    },
+    {
+      "item": 9,
+      "name": "동작 중 장애 시 부분 파일 미커밋 + DB 행 미생성",
+      "status": "PASS",
+      "by": "real-mount + pytest",
+      "detail": "커밋 실패([Errno 21] Is a directory: '/mnt/clv-smb/files/.tmp/d0248a7eaff043e2a25fdf204fd2) 후 최종 이름 없음 · 임시 파일 없음 · DB 행 미생성은 tests/regression/test_storage_write_refusal.py 가 확인한다",
+      "data": null
+    },
+    {
+      "item": 10,
+      "name": "Reboot",
+      "status": "PASS",
+      "by": "reboot-phase",
+      "detail": "boot_id 가 바뀌었다 — 실제로 재부팅됐다",
+      "data": {
+        "boot_id_before": "4a16b59b-dcbf-4d9d-81fd-e093e5d7da61",
+        "boot_id_after": "8de9720b-f01e-47d0-bac7-93f741e474c4"
+      }
+    },
+    {
+      "item": 11,
+      "name": "Reboot 후 자동 Mount",
+      "status": "PASS",
+      "by": "reboot-phase",
+      "detail": "수동 명령 0회로 마운트가 돌아왔고(unit=active) 재부팅 전 파일이 그대로다",
+      "data": {
+        "mount": {
+          "status": "ok",
+          "path": "/mnt/clv-smb",
+          "st_dev": 53,
+          "parent_st_dev": 64512,
+          "fstype": "cifs",
+          "source": "//127.0.0.1/clvtest",
+          "detail": "마운트되어 있습니다."
+        },
+        "unit_active": "active",
+        "marker_ok": true
+      }
+    },
+    {
+      "item": 12,
+      "name": "Mount 완료 전 App 기동 (RequiresMountsFor=)",
+      "status": "PASS",
+      "by": "real-mount",
+      "detail": "유닛 4종이 이 마운트를 기다린다",
+      "data": {
+        "clovirassist-web": "/mnt/clv-nfs /var/tmp /mnt/clv-smb /opt/clovirassist",
+        "clovirassist-worker": "/var/tmp /mnt/clv-nfs /mnt/clv-smb /opt/clovirassist",
+        "clovirassist-scheduler": "/mnt/clv-nfs /opt/clovirassist /mnt/clv-smb /var/tmp",
+        "clovirassist-privhelper": "/opt/clovirassist /var/log/clovirassist /mnt/clv-nfs /run/clovirassist /mnt/clv-smb /var/tmp"
+      }
+    },
+    {
+      "item": 13,
+      "name": "잘못된 Local Path 기록 방지 (st_dev)",
+      "status": "PASS",
+      "by": "real-mount",
+      "detail": "마운트를 떼자 쓰기를 거부했고(status=not_mounted) 로컬에 아무것도 안 남았다",
+      "data": {
+        "write_result": "StorageNotReady(not_mounted)",
+        "mount": {
+          "status": "not_mounted",
+          "path": "/mnt/clv-smb",
+          "st_dev": 64512,
+          "parent_st_dev": 64512,
+          "fstype": null,
+          "source": null,
+          "detail": "마운트되지 않았습니다. 이 자리에 쓰면 로컬 디스크에 쌓입니다."
+        },
+        "local_entries": [],
+        "entries_before_umount": [
+          "files"
+        ]
+      }
+    },
+    {
+      "item": 14,
+      "name": "Backup",
+      "status": "PASS",
+      "by": "real-mount + pytest",
+      "detail": "3/3건을 백업 저장소로 옮기고 **다시 읽어** 체크섬을 맞췄다 · 행 기준 이관은 tests/integration/test_storage_archive.py 가 확인한다",
+      "data": null
+    },
+    {
+      "item": 15,
+      "name": "Restore",
+      "status": "PASS",
+      "by": "real-mount + pytest",
+      "detail": "3/3건을 되돌리고 원본 체크섬과 맞췄다",
+      "data": null
+    },
+    {
+      "item": 16,
+      "name": "운영/백업 동일 저장소 경고",
+      "status": "PASS",
+      "by": "real-mount",
+      "detail": "운영과 백업이 다른 장치다 (자기 자신과의 비교는 True — 판정이 살아 있다)",
+      "data": {
+        "same_device": false,
+        "self_check": true
+      }
+    }
+  ],
+  "all_passed": true,
+  "caveat": "시험 Storage 이지 실 NAS 장비가 아니다. 실 장비에서 새 결함이 나올 수 있다."
+}

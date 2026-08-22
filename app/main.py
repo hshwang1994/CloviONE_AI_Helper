@@ -80,6 +80,7 @@ from app.team_docs.router import router as team_docs_router
 from app.trash.router import router as trash_router
 from app.sprints.router import router as sprint_router
 from app.knowledge.router import router as knowledge_router
+from app.storage.router import router as storage_router
 from app.work.router import router as work_router
 from app.team_chat.router import router as team_chat_router
 from app.templates.router import router as templates_router
@@ -254,6 +255,9 @@ def create_app(
     # 이유는 소비자다: 저쪽은 표, 이쪽은 판이고 순서다.
     app.include_router(work_router)
     app.include_router(knowledge_router)
+    # 파일 저장소 설정(S8). 권한은 S5 가 미리 고정한 `STORAGE_CONFIGURE` 이고, 이
+    # 라우터가 그 이름의 첫 소비처다.
+    app.include_router(storage_router)
     # 홈 '오늘' 커맨드 센터와 AI 도우미 심화(계획서 Phase 5). 둘 다 조회 전용이고
     # 티켓은 저장소 seam 을 통해서만 읽는다(미러가 채워져 있으면 Notion 왕복 0회).
     app.include_router(home_router)

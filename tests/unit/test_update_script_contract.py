@@ -384,15 +384,40 @@ def test_nginx_does_not_rate_limit_static_assets():
     assert "limit_req" not in block, "정적 자산에 속도 제한이 걸려 있다"
 
 
+def _upload_route_patterns() -> list[str]:
+    """앱이 「업로드 라우트」로 아는 경로 전부. **목록을 여기 다시 적지 않는다.**
+
+    손으로 적으면 새 업로드 라우트가 생긴 날 이 시험만 옛 목록을 보고 통과한다 —
+    그리고 그 라우트는 「10MB 까지 올릴 수 있습니다」라고 말해 놓고 256k 에서 413 을
+    낸다. `app/core/middleware.py` 의 주석이 그 반복을 이미 한 번 겪었다고 적어 뒀다.
+    """
+    from app.core.middleware import _UPLOAD_ROUTE_RES
+
+    return [rx.pattern for rx in _UPLOAD_ROUTE_RES]
+
+
+#: 제품 vhost. `NGINX` 는 옛 slug 설치가 쓰는 파일이고(S14 가 걷어낸다), 새 설치는
+#: `deploy/install.sh` Stage 16 이 이쪽을 깐다. 업로드 경로 계약은 **제품 쪽**을 본다.
+NGINX_PRODUCT = ROOT / "deploy" / "nginx" / "clovirassist.conf"
+
+
+def test_nginx_raises_the_body_limit_for_every_upload_route():
+    """🔴 앱만 올리고 nginx 를 안 올리면 운영에서만 413 이 난다(방어 이중화)."""
+    text = _read(NGINX_PRODUCT)
+    patterns = _upload_route_patterns()
+    assert len(patterns) >= 5, "업로드 라우트 목록을 못 읽었다"
+    for pattern in patterns:
+        header = f"location ~ {pattern} {{"
+        assert header in text, f"nginx 에 {pattern} 예외가 없다 — 운영에서 413 이 난다"
+        block = _without_comments(_nginx_block(text, header))
+        assert "client_max_body_size 12m" in block, f"{pattern} 의 상한이 12m 이 아니다"
+
+
 def test_nginx_does_not_rate_limit_uploads():
     """10MB 업로드가 속도 제한에 걸려 중간에 끊기면 원인을 찾기 어렵다."""
-    text = _read(NGINX)
-    for header in (
-        "location ~ ^/api/board/posts/[^/]+/attachments$ {",
-        "location ~ ^/api/tickets/[^/]+/attachments$ {",
-        "location ~ ^/api/team-chat/rooms/[^/]+/images$ {",
-        "location ~ ^/api/me/avatar$ {",
-    ):
+    text = _read(NGINX_PRODUCT)
+    for pattern in _upload_route_patterns():
+        header = f"location ~ {pattern} {{"
         block = _without_comments(_nginx_block(text, header))
         assert "limit_req" not in block, f"{header} 에 제한이 걸려 있다"
 

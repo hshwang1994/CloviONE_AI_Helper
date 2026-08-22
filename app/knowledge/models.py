@@ -461,6 +461,50 @@ class DocumentTag(Base):
     )
 
 
+class DocumentAttachment(UUIDPrimaryKeyMixin, Base):
+    """문서 ↔ 파일. **S7 이 이 표를 일부러 안 만들었다** (S8 이 만든다).
+
+    첨부는 `files` 를 가리키고 `files` 는 `storage_providers` 를 가리킨다(D-199).
+    저장소 없이 첨부 표만 만들면 그 컬럼이 무엇을 가리키는지 정하지 못한 채 굳는다.
+
+    ## CASCADE 규약은 `document_tags` 와 같다
+
+    문서를 지우면 그 문서의 첨부 **연결**이 사라진다. 파일 자체(`files` 행과 바이트)는
+    남는다 — 한 파일이 여러 문서에 붙어 있을 수 있고, 여기서 함께 지우면 남의 문서의
+    첨부가 조용히 깨진다. 아무도 안 가리키게 된 파일은
+    `app/storage/service.py::sweep_orphans` 가 치운다.
+
+    ## 접근 판정을 여기 적지 않는다
+
+    첨부의 접근권은 **부모 문서가 정한다.** 첨부에 판정을 따로 적으면 두 벌이 되고,
+    그중 하나가 빠진 자리에서 문서는 404 인데 첨부 URL 은 열리게 된다(`app/board`
+    에서 실제로 있었던 일이다).
+    """
+
+    __tablename__ = "document_attachments"
+
+    document_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("documents.id", ondelete="CASCADE"),
+        nullable=False, index=True,
+    )
+    file_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("files.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    caption: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    # 폴더와 백로그가 쓰는 것과 같은 수다(D-241). 두 이웃 사이에 언제나 중점이 있어
+    # 하나를 옮길 때 형제 전부를 다시 매기지 않는다.
+    sort_order: Mapped[Decimal] = mapped_column(Numeric(), nullable=False)
+    created_by: Mapped[str | None] = mapped_column(String(36), ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
+
+    __table_args__ = (
+        # 같은 파일을 한 문서에 두 번 붙이지 않는다. 화면에 같은 이름이 두 줄 나오면
+        # 사용자는 둘 중 하나가 다른 판이라고 읽는다.
+        Index("uq_dattach_document_file", "document_id", "file_id", unique=True),
+        Index("ix_dattach_order", "document_id", "sort_order"),
+    )
+
+
 class DocumentMention(UUIDPrimaryKeyMixin, Base):
     """본문이 가리키는 것 — 사람 · 다른 문서 · 티켓.
 

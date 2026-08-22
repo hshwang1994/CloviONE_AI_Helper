@@ -32,6 +32,7 @@ from app.projects import models as projects_models  # noqa: F401
 from app.quotas import models as quotas_models  # noqa: F401
 from app.search import models as search_models  # noqa: F401
 from app.settings import models as settings_models  # noqa: F401
+from app.storage import models as storage_models  # noqa: F401
 from app.team_docs import models as team_docs_models  # noqa: F401
 from app.tickets import models as tickets_models  # noqa: F401
 from app.team_chat import models as team_chat_models  # noqa: F401
