@@ -36,6 +36,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import date
 
+from app.core.dates import parse_date
 from app.projects.models import MILESTONE_DONE
 from app.projects.progress import STATUS_CANCELLED, STATUS_DONE
 
@@ -95,7 +96,8 @@ CLOSED_STATUSES = frozenset({STATUS_DONE, STATUS_CANCELLED})
 class MilestoneFact:
     """마일스톤 한 건에서 규칙이 보는 것 전부. 표에서 읽지만 이 함수는 표를 모른다."""
 
-    due_on: str | None
+    # `date` 도 문자열도 받는다 — 미러(외부 소스 원문)와 자체 표가 섞여 들어온다.
+    due_on: date | str | None
     status: str
 
 
@@ -109,7 +111,7 @@ class TaskFact:
     """
 
     status: str | None
-    due_on: str | None
+    due_on: date | str | None
     assigned: bool
 
 
@@ -180,20 +182,13 @@ class HealthResult:
         }
 
 
-def _as_date(value) -> date | None:
-    """ISO 'YYYY-MM-DD' 만 날짜로 인정한다.
-
-    미러 컬럼은 빈 문자열, None, 노션의 datetime 원문('2026-08-06T05:00:00.000Z')이 섞여
-    들어온다. 앞 10글자만 떼어 보는 이유는 그 datetime 원문도 날짜로는 읽을 수 있어야 하기
-    때문이다. 읽을 수 없으면 **'기한 없음' 과 같이** 다룬다 - 여기서 예외를 올리면 미러 한
-    줄이 이상해진 날 프로젝트 화면 전체가 500이 된다.
-    """
-    if not isinstance(value, str):
-        return None
-    try:
-        return date.fromisoformat(value[:10])
-    except ValueError:
-        return None
+# 날짜 읽기는 **공용 경계 한 곳**이다 (`app/core/dates.py`).
+#
+# 예전에는 이 파일이 자기 파서(`_as_date`)를 들고 있었고, 그것이 `str` 만 받았다.
+# P-14a 가 컬럼을 `date` 로 바꾸자 그 파서는 **날짜 객체를 전부 버렸다** — 판정이
+# 조용히 「기한 없음」이 되어 헬스 점수가 근거 없이 좋아졌을 자리다. 파서가 두 벌이면
+# 그중 하나는 반드시 이런 날 뒤처진다.
+_as_date = parse_date
 
 
 def _is_open(task: TaskFact) -> bool:

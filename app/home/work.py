@@ -51,6 +51,7 @@ from datetime import date, datetime, timedelta
 from sqlalchemy.orm import Session
 
 from app.authz.visibility import visibility_context
+from app.core.dates import iso_date, parse_date
 from app.core.scope import Principal
 from app.home import aggregate, service as home_service
 from app.projects import health as project_health
@@ -149,7 +150,8 @@ def _milestone_row(project, milestone) -> dict:
         "project_id": project.id,
         "project_name": project.name,
         "name": milestone.name,
-        "due_on": milestone.due_on,
+        # 화면은 'YYYY-MM-DD' 문자열을 읽는다 (S7 · P-14a).
+        "due_on": iso_date(milestone.due_on),
         "status": milestone.status,
     }
 
@@ -191,7 +193,11 @@ def _projects_and_milestones(db: Session, principal: Principal, *, today_iso: st
             # 지연 = 기한이 **오늘(KST)보다 이전**인데 아직 예정 상태. 기한이 오늘이면 아직
             # 늦은 것이 아니다(오늘 자정까지 남아 있다). 완료·놓침 처리된 것은 지연이 아니다
             # — 이미 결론이 난 일을 계속 빨갛게 띄우면 진짜 지연이 묻힌다.
-            if milestone.due_on and milestone.due_on < today_iso \
+            # 컬럼이 `date` 라 창도 날짜로 비교한다 (S7 · P-14a). 예전에는 둘 다
+            # 문자열이라 사전순 비교가 우연히 맞았는데, 그 우연은 값 하나가 이상해지는
+            # 날 조용히 깨진다.
+            due_on = parse_date(milestone.due_on)
+            if due_on is not None and due_on < parse_date(today_iso) \
                     and milestone.status == MILESTONE_PLANNED:
                 overdue.append(_milestone_row(project, milestone))
 

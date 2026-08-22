@@ -13,6 +13,7 @@ from datetime import datetime
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.dates import parse_date, parse_dt
 from app.core.sync_prune import PruneResult, prune_missing
 from app.org.constants import DEFAULT_ORG_ID
 from app.team_docs import notion_docs
@@ -87,10 +88,12 @@ def _upsert(db: Session, d: dict, rel_maps: dict, now: datetime) -> None:
     row.author_names = join_names(d.get("author_names") or [])
     row.author_notion_ids = join_names(d.get("author_notion_ids") or [])
     row.owner = d.get("owner") or ""
-    row.doc_date = d.get("doc_date")
-    row.orig_date = d.get("orig_date")
-    row.created_time = d.get("created_time")
-    row.last_edited = d.get("last_edited")
+    # 소스 문자열의 경계 (S7 · P-14a). 앞 둘은 달력일, 뒤 둘은 시각이다 —
+    # 달력일에 시간대를 적용하면 자정 근처의 날짜가 하루 밀린다.
+    row.doc_date = parse_date(d.get("doc_date"))
+    row.orig_date = parse_date(d.get("orig_date"))
+    row.created_time = parse_dt(d.get("created_time"))
+    row.last_edited = parse_dt(d.get("last_edited"))
     row.original_url = d.get("original_url")
     row.source_url = d.get("source_url")
     row.memo = d.get("memo") or ""

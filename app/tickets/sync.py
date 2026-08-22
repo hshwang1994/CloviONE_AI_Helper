@@ -17,6 +17,7 @@ from datetime import datetime
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.dates import parse_date, parse_dt
 from app.core.sync_prune import PruneResult, prune_missing
 from app.org.constants import DEFAULT_ORG_ID
 from app.reports import notion_source
@@ -109,8 +110,10 @@ def _upsert(
     row.difficulty = t.get("difficulty")
     row.est_wd = t.get("est_wd")
     row.act_wd = t.get("act_wd")
-    row.due_date = t.get("due")
-    row.start_date = t.get("start")
+    # 소스는 문자열을 준다. 여기가 경계다 — 못 읽는 값은 NULL 이고, 그 하나 때문에
+    # 미러 한 회차가 통째로 멈추지 않는다 (S7 · P-14a).
+    row.due_date = parse_date(t.get("due"))
+    row.start_date = parse_date(t.get("start"))
     row.category = t.get("category")
     row.project_ids = join_names(project_ids)
     row.project_names = join_names([proj_map.get(p, "") for p in project_ids])
@@ -123,8 +126,8 @@ def _upsert(
     # 단계라 그때까지 NULL 로 남는다(있는 척하지 않는다). 자리를 지금 잡는 이유는 진행률의
     # '리프만 세기'가 이 컬럼 없이는 부모와 자식을 구별할 수 없기 때문이다.
     row.parent_page_id = t.get("parent_page_id")
-    row.notion_created_time = t.get("created_time")
-    row.notion_last_edited = t.get("last_edited")
+    row.notion_created_time = parse_dt(t.get("created_time"))
+    row.notion_last_edited = parse_dt(t.get("last_edited"))
     row.source = SOURCE_NOTION
     # 돌아왔다 — 지난 회차에 "안 보임" 으로 표시됐더라도 아무 일 없었던 것이 된다(0043).
     row.notion_missing_at = None

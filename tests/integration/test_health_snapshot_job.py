@@ -29,7 +29,7 @@ UTC 로 뽑으면 '08-02'(일)가 되어 스냅샷이 **지난 주 칸**에 들�
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 
 import pytest
 from sqlalchemy import select
@@ -112,7 +112,8 @@ def test_the_sweep_writes_history_for_every_project_it_could_score(db, settings)
     saved = {r.project_id: r for r in _snapshots(db)}
     assert set(saved) == {alpha.id, beta.id}, "이력이 안 쌓였다(추세선이 영원히 빈다)"
     for row in saved.values():
-        assert row.week_of == WEEK, (
+        # 컬럼이 `date` 다 (S7 · P-14a). `WEEK` 는 화면 계약(문자열)이라 그대로 둔다.
+        assert row.week_of == date.fromisoformat(WEEK), (
             f"판정 기준일이 KST 가 아니다 - 월요일 오전 9시 이전 저장이 지난 주 칸에 들어갔다: "
             f"{row.week_of}"
         )
@@ -347,7 +348,7 @@ def test_the_worker_tick_records_history_and_respects_its_interval(
     db.expire_all()
     rows = _snapshots(db, alpha.id)
     assert len(rows) == 1, f"주기 실행이 이력을 안 만들었다: {rows}"
-    assert rows[0].week_of == WEEK
+    assert rows[0].week_of == date.fromisoformat(WEEK)
 
     # 같은 분에 여러 번 불려도 한 번만 돈다(그리고 행이 늘지 않는다).
     fake_clock.advance(5)

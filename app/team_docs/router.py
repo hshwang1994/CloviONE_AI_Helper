@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+from app.core.dates import iso_date, iso_dt
 from app.org import context as org_context
 from app.core.audit import record_audit_from_request
 from app.authz.visibility import context_for_user
@@ -73,8 +74,9 @@ def _doc_view(row, *, is_favorite: bool, can_restrict: bool = False) -> dict:
         "priority": row.priority,
         "owner": row.owner,
         "author_names": split_names(row.author_names),
-        "doc_date": row.doc_date,
-        "last_edited": row.last_edited,
+        # 화면 계약은 ISO 문자열이다. 앞은 달력일, 뒤는 시각 (S7 · P-14a).
+        "doc_date": iso_date(row.doc_date),
+        "last_edited": iso_dt(row.last_edited),
         "url": row.url,
         "original_url": row.original_url,
         "source_url": row.source_url,

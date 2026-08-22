@@ -164,9 +164,9 @@ Notion Console · Notion Mapping Console.
 
 Permission 목록 **32개**(정본은 `app/authz/permissions.py`): 위 초안 그대로에 `DOCUMENT_ADMIN`
 한 건을 더했다 — `confidential` 을 여는 `*_ADMIN` 이 문서 축에도 있어야 한다(D-230).
-`SPACE_*`(S7) · `STORAGE_CONFIGURE`(S8) · `AI_CONFIGURE`(S9) 는 그 Component 가 아직 없어
-소비처가 없다. 어휘를 먼저 고정한 이유는 그 Session 들이 각자 새 이름을 지어 오는 것을
-막기 위해서다.
+`STORAGE_CONFIGURE`(S8) · `AI_CONFIGURE`(S9) 는 그 Component 가 아직 없어 소비처가 없다.
+어휘를 먼저 고정한 이유는 그 Session 들이 각자 새 이름을 지어 오는 것을 막기 위해서다 —
+실제로 **`SPACE_*` 는 S7 이 새 이름을 안 짓고 그대로 소비했다**(`app/knowledge/router.py`).
 
 **상속 (D-193)**: `Organization ─ OrgUnit ─┐ ├→ Project ─ Knowledge Space ─ Folder ─ Document`,
 `User ─ Role ─┘ └ Ticket`. 유효 권한 = `Role ∪ Organization ∪ Project Member ∪ 직접 부여`,
@@ -264,7 +264,7 @@ storage_providers(id, kind LOCAL|NFS|SMB, config jsonb, role OPERATIONAL|BACKUP,
 
 **본문 정본 = Block 구조 JSON (D-198).** 파생으로 Markdown·Plain Text 를 함께 저장한다.
 블록 id 가 **Citation 의 안정적 앵커**이고, Markdown 만으로는 "이 문장의 출처 위치"를 못 가리킨다.
-Notion API 한계에서 온 `MAX_BLOCKS=100` · `MAX_LINE_CHARS=1900` **본문 길이 거절은 삭제한다.**
+Notion API 한계에서 온 `MAX_BLOCKS=100` · `MAX_LINE_CHARS=1900` **본문 길이 거절은 삭제한다** — 새 도메인에서 삭제했다(S7). 옛 미러(`app/team_docs`·`app/tickets`)의 거절은 **S14 까지 남는다**: 저쪽은 아직 Notion 으로 나가고 `markdown_to_blocks` 가 상한에서 조용히 자르므로, 거절만 없애면 명시적 거절이 조용한 데이터 손실로 바뀐다(D-247).
 
 **Folder 이동이 Permission 이나 Project Relation 을 바꾸지 않는다** — 별개 축이다.
 
@@ -332,7 +332,7 @@ DDL(0030·0050) → PG 에 문법 없음 · `sqlite_where=` 부분 유니크 **3
 
 ### 6.2 코드 수준 SQLite 의존 제거 — 실측 13항
 
-> **S2 가 12항을 이행했다**(10번 문자열 날짜 컬럼은 계획대로 S6·S7). 이행 결과와
+> **S2 가 12항을 이행했고 10번(문자열 날짜 컬럼)은 S7 이 닫았다**(P-14a · D-248). 이행 결과와
 > 실측 정정은 [`INVENTORY/08_SQLITE.md`](INVENTORY/08_SQLITE.md) 가 정본이다 —
 > 여기 계획표는 그대로 둔다(계획과 실행 기록을 한 문서에 겹쳐 쓰지 않는다).
 
@@ -492,7 +492,7 @@ Dry Run 완료 → 전체 검증 → 최종 Backup → Maintenance Mode → 마�
 |---|---|---|---|
 | **S5** ✅ | Identity & Access | `permissions`(32) · `roles`(builtin 5) · `role_permissions`(107) · `user_roles` · `resource_grants` · `departments`→`org_units` · **additive+fail-closed 상속**(Project Member 항 신설) · `effective_visibility_clause`(SQL·행 두 렌더러) · `confidential` 단일 축소 원시연산 · auth provider 추상화 · P-12a 범위 게이트 | **완료 (2026-08-22)** — 5역할 동등성 전수(표 + 실제 요청) · 두 렌더러 대조(자원 3 × 사람 5) · 부여/축소 음성 15건 · `check_visibility_single_source.py`(자기검증 5사례) · `KNOWN_GAPS` 0건. 결정 **D-230~D-235** |
 | **S6** ✅ | Work Domain | `project_key_registry` · **Project Key 20건 확정(사용자 확인 완료 — [`PROJECT_KEYS.md`](PROJECT_KEYS.md), D-243)** · Ticket 3층 식별자 · `last_seq` 채번 · Relation · Comment · Attachment · Activity · Status/Workflow · Backlog rank · Sprint · Kanban · DnD 공통 · 낙관적 잠금 | **완료 (2026-08-22)** — 동시 12건에서 1..12 가 정확히 한 번씩(반례 포함) · 롤백 시 미소비 · `GIT-142` 가 Key 변경 뒤에도 같은 티켓 · Exception 임의 배정 0. 결정 **D-236~D-242**. Key 20건은 **확정됐고**(D-243) 적용 함수(`project_keys.apply_confirmed`)까지 섰다 — 실제 프로젝트에 붙는 것은 적재 이후라 S13 이다 |
-| **S7** | Knowledge Domain | Knowledge Space · Folder 트리 · Document · **Block JSON 정본** · Version/Restore · Tag · Relation · Mention · Editor(TipTap, lazy load) | Version diff/restore 동작 · 번들 예산 유지 |
+| **S7** ✅ | Knowledge Domain | `knowledge_spaces` · `folders`(트리 — `path`·`depth` **트리거 파생**) · `documents` · `document_versions`(**Block JSON 정본**) · Version/Diff/Restore · `tags` · `document_relations` · `document_mentions` · Editor(TipTap MIT, route-level lazy) · **문자열 날짜 16컬럼 → `date`/`timestamp`(P-14a)** | **완료 (2026-08-22)** — 판이 쌓이고(같은 본문이면 안 쌓인다) 차이가 블록 단위로 나오고 되돌리기가 이력을 남긴 채 새 판을 만든다(낙관적 잠금 포함). 초기 번들 gzip **265KB → 265KB**(예산 280) — 편집기는 지연 청크 309KB. 결정 **D-244~D-248** |
 | **S8** | File Storage Providers | `storage_providers` · Local/NFS/SMB Adapter · 마운트 유닛 · `st_dev` 가드 · 업로드 파이프라인 · **16항 실검증(NFS·SMB 각각)** | **16항 매트릭스 전부 실측 로그 첨부** · 미마운트 시 쓰기 거부 확인 |
 
 #### Phase C — AI

@@ -21,19 +21,22 @@
 한 번도 안 돈 프로젝트가 화면에서 '전혀 진행 안 됨'으로 보이고, 그 거짓말은 신고되지 않는다
 (그럴듯하기 때문이다).
 
-## 날짜는 ISO 문자열
+## 날짜는 `date` 다 (S7 · P-14a)
 
-`starts_on` / `ends_on` / `due_on` / `week_of` 는 'YYYY-MM-DD' 문자열이다.
-`ticket_cache.due_date` 가 이미 그 규약이고, 한 화면에서 두 규약을 섞으면 비교가 조용히
-어긋난다(문자열 정렬과 날짜 정렬은 ISO 에서 일치하므로 잃는 것이 없다).
+`starts_on` / `ends_on` / `due_on` / `week_of` 는 **달력일**이고 컬럼 타입이 `date` 다.
+예전에는 'YYYY-MM-DD' 문자열이었다 — ISO 는 사전순이 날짜순과 같아서 비교가 그냥
+됐기 때문이다. 그런데 문자열은 **틀린 값을 막지 못한다**: `'2026-02-31'` 도 `'TBD'` 도
+들어갔고, 그 값 하나가 기간 필터와 번다운을 조용히 왜곡했다. 이제 DB 가 막는다.
+바깥 문자열과의 경계는 `app/core/dates.py` 한 곳이다.
 """
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 
 from sqlalchemy import (
     Boolean,
+    Date,
     DateTime,
     Float,
     ForeignKey,
@@ -121,8 +124,8 @@ class Project(OrgScopedMixin, TimestampMixin, UUIDPrimaryKeyMixin, Base):
         String(36), ForeignKey("users.id"), index=True
     )
 
-    starts_on: Mapped[str | None] = mapped_column(String(40))
-    ends_on: Mapped[str | None] = mapped_column(String(40))
+    starts_on: Mapped[date | None] = mapped_column(Date)
+    ends_on: Mapped[date | None] = mapped_column(Date)
     goal: Mapped[str | None] = mapped_column(Text)
     biz_type: Mapped[str | None] = mapped_column(String(200))
     product: Mapped[str | None] = mapped_column(String(200))
@@ -169,7 +172,7 @@ class Project(OrgScopedMixin, TimestampMixin, UUIDPrimaryKeyMixin, Base):
     # 감추는 것이 맞지만, 프로젝트 행은 앱 정본이라 Notion 이 한 회차 깜빡였다고 포털의
     # 마일스톤·주간 리포트가 화면에서 통째로 사라지면 안 된다. 이 값은 배지용 사실이다.
     notion_missing_at: Mapped[datetime | None] = mapped_column(DateTime, index=True)
-    notion_last_edited: Mapped[str | None] = mapped_column(String(40))
+    notion_last_edited: Mapped[datetime | None] = mapped_column(DateTime)
     # **노션 값을 이 행에 반영한 시각**이지 "언제 확인했나" 가 아니다. 확인만 하고 값이
     # 같았던 회차는 행을 아예 안 건드린다 - 건드리면 `updated_at` 의 onupdate 가 딸려 붙어
     # 회차마다 전 프로젝트의 갱신 시각이 덮이고, 목록 정렬(updated_at DESC)이 무너진다
@@ -250,7 +253,7 @@ class ProjectMilestone(TimestampMixin, UUIDPrimaryKeyMixin, Base):
         nullable=False, index=True,
     )
     name: Mapped[str] = mapped_column(String(200), nullable=False)
-    due_on: Mapped[str | None] = mapped_column(String(40))
+    due_on: Mapped[date | None] = mapped_column(Date)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default=MILESTONE_PLANNED)
     # `order` 가 아닌 이유: SQL 예약어라 raw text() 질의에서 따옴표를 빠뜨리면 조용히 깨진다
     # (이 저장소는 실제로 raw 질의를 쓴다 — app/jobs/repository.py::claim_next). 뜻은 같다.
@@ -274,9 +277,9 @@ class ProjectHealthSnapshot(UUIDPrimaryKeyMixin, Base):
         String(36), ForeignKey("projects.id", ondelete="CASCADE"),
         nullable=False, index=True,
     )
-    # 그 주의 월요일(ISO 'YYYY-MM-DD'). (연도, 주차) 정수 쌍으로 두면 연말에 ISO 주차와
-    # 달력 연도가 어긋나 12월 마지막 주가 다음 해로 튄다.
-    week_of: Mapped[str] = mapped_column(String(10), nullable=False)
+    # 그 주의 월요일. (연도, 주차) 정수 쌍으로 두면 연말에 ISO 주차와 달력 연도가
+    # 어긋나 12월 마지막 주가 다음 해로 튄다.
+    week_of: Mapped[date] = mapped_column(Date, nullable=False)
     score: Mapped[int] = mapped_column(Integer, nullable=False)
     reasons_json: Mapped[str] = mapped_column(JsonText, nullable=False, default="[]")
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
@@ -300,7 +303,7 @@ class ProjectWeeklyReport(TimestampMixin, UUIDPrimaryKeyMixin, Base):
         String(36), ForeignKey("projects.id", ondelete="CASCADE"),
         nullable=False, index=True,
     )
-    week_of: Mapped[str] = mapped_column(String(10), nullable=False)
+    week_of: Mapped[date] = mapped_column(Date, nullable=False)
     summary_md: Mapped[str] = mapped_column(Text, nullable=False, default="")
     source: Mapped[str] = mapped_column(String(8), nullable=False, default=REPORT_SOURCE_RULE)
     generated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)

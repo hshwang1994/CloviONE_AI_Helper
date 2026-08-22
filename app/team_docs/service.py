@@ -16,6 +16,7 @@ from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
 from app.core import ownership
+from app.core.dates import parse_dt
 from app.core.db import DEFAULT_WRITE_CONFLICT_RETRIES, is_insert_race, write_conflict_backoff
 from app.core.errors import ForbiddenError, NotFoundError
 from app.team_docs import comments as doc_comments
@@ -441,8 +442,8 @@ def cache_created_document(
     row.owner = owner or ""
     row.memo = memo or ""
     row.author_names = join_names([author_name]) if author_name else ""
-    row.last_edited = page.get("last_edited_time")
-    row.created_time = page.get("created_time")
+    row.last_edited = parse_dt(page.get("last_edited_time"))
+    row.created_time = parse_dt(page.get("created_time"))
     row.original_url = None
     row.source_url = None
     row.has_files = False

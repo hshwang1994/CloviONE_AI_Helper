@@ -13,7 +13,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 
 import pytest
 
@@ -100,7 +100,9 @@ def test_first_sync_fills_cache_and_meta(db, settings, outbound, notion, clock):
     assert first.title == "첫 티켓"
     assert first.notion_ticket_number == 1
     assert first.url == "https://www.notion.so/sync-0001"
-    assert first.due_date == "2026-08-01"
+    # 저장은 이제 `date` 다 (S7 · P-14a) — 소스가 준 문자열은 동기화 경계에서
+    # 한 번 파싱된다. 문자열로 단언하면 「저장했는데 못 읽는 값」을 못 잡는다.
+    assert first.due_date == date(2026, 8, 1)
     assert split_names(first.assignee_notion_ids) == [N_DEV]
     assert split_names(first.project_ids) == [P_ALPHA]
     assert split_names(first.project_names) == ["알파 프로젝트"]

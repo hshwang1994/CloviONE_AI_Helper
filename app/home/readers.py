@@ -20,6 +20,7 @@ from __future__ import annotations
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.core.dates import iso_dt, parse_dt
 from app.board import repository as board_repo
 from app.board.models import Post
 from app.core.db import batched
@@ -70,7 +71,8 @@ def chat_unread(db: Session, user, *, config_dir) -> int | None:
 def recent_documents(db: Session, *, limit: int = RECENT_LIMIT, viewer=None) -> list[dict]:
     """최근 수정된 팀 문서. 문서 목록 화면의 기본 정렬(recent)과 같은 순서를 쓴다.
 
-    last_edited 는 Notion 이 준 ISO 문자열이라 사전순 정렬이 곧 시간순이다(모델 주석 참조).
+    `last_edited` 는 이제 `timestamp` 다 (S7 · P-14a). 정렬은 그대로고, 화면에 나가는
+    값만 ISO 문자열로 옮긴다.
 
     휴지통 문서는 뺀다 -- `GET /api/team-docs` 목록은 이미 `exclude_page_ids`(trashed_page_ids)
     로 거르는데 이 위젯만 `archived` 만 보고 있었다. 그래서 문서를 지운 뒤에도 홈 '최근 문서'에는
@@ -115,7 +117,7 @@ def recent_documents(db: Session, *, limit: int = RECENT_LIMIT, viewer=None) -> 
             "title": r.title or "(제목 없음)",
             "document_type": r.document_type,
             "owner": r.owner or "",
-            "last_edited": r.last_edited,
+            "last_edited": iso_dt(r.last_edited),
         }
         for r in rows
     ]
@@ -190,8 +192,11 @@ def documents_changed_between(
     trashed = trash_repo.trashed_page_ids(db, TRASH_DOCUMENT)
     base = (
         DocumentCache.archived.is_(False),
-        DocumentCache.last_edited >= since_iso,
-        DocumentCache.last_edited < until_iso,
+        # 창 경계는 naive UTC ISO 문자열로 들어온다(`home.service.utc_iso_bounds`).
+        # 컬럼이 `timestamp` 라 여기서 한 번 옮긴다 — 문자열 비교로 자르던 M4 시절의
+        # 관용구가 아직 남아 있는 자리다 (S7 · P-14a).
+        DocumentCache.last_edited >= parse_dt(since_iso),
+        DocumentCache.last_edited < parse_dt(until_iso),
     )
     if trashed:
         base = (*base, DocumentCache.notion_page_id.notin_(trashed))
@@ -213,7 +218,7 @@ def documents_changed_between(
         "items": [
             {"id": r.notion_page_id, "title": r.title or "(제목 없음)",
              "document_type": r.document_type, "owner": r.owner or "",
-             "last_edited": r.last_edited}
+             "last_edited": iso_dt(r.last_edited)}
             for r in rows
         ],
     }

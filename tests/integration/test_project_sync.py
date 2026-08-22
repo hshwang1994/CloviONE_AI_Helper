@@ -22,7 +22,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 
 import pytest
 
@@ -152,8 +152,9 @@ def test_first_sync_mirrors_projects_without_touching_app_only_fields(
     assert set(rows) == {PAGE_ALPHA, PAGE_BETA}
     alpha = rows[PAGE_ALPHA]
     assert alpha.name == "알파 프로젝트"
-    assert alpha.starts_on == "2026-07-01"
-    assert alpha.ends_on == "2026-09-30", "기간의 끝 날짜가 유실됐다(date range 를 하루로 읽었다)"
+    # 저장은 이제 `date` 다 (S7 · P-14a) — 소스 문자열은 동기화 경계에서 파싱된다.
+    assert alpha.starts_on == date(2026, 7, 1)
+    assert alpha.ends_on == date(2026, 9, 30), "기간의 끝 날짜가 유실됐다(date range 를 하루로 읽었다)"
     assert alpha.biz_type == "SI"
     assert alpha.product == "클라우드"
     # 진행 상태는 **원문 그대로**. 앱 status 어휘로 뭉개면 '차질' 이 표현되지 않는다.

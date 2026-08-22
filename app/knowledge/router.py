@@ -22,7 +22,7 @@ from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.orm import Session
 
 from app.core.audit import record_audit_from_request
-from app.core.deps import get_current_user, get_db, require_csrf, require_permission
+from app.core.deps import get_db, require_csrf, require_permission
 from app.knowledge import relations as relations_mod
 from app.knowledge import service, tags as tags_mod, versions as versions_mod
 from app.knowledge.schemas import (

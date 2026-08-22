@@ -18,13 +18,12 @@
 
 from __future__ import annotations
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.authz.visibility import (
     RESOURCE_KNOWLEDGE_DOC,
     RESOURCE_SPACE,
-    annotate_rows,
     context_for_user,
     effective_visibility_clause,
     is_visible,

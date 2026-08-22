@@ -37,6 +37,7 @@ from datetime import datetime
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.dates import iso_date, parse_date, parse_dt
 from app.core.errors import ConflictError
 from app.core.models_base import join_names, split_names
 from app.core.sync_prune import PruneResult, prune_missing
@@ -185,14 +186,17 @@ def _upsert(db: Session, p: dict, id_to_user: dict[str, str], now: datetime) -> 
     # 이름이 빈 채로 온 페이지(제목 속성을 지웠거나 이름을 바꾼 경우)까지 그대로 받아 적으면
     # 목록에 이름 없는 줄이 생긴다. 그때는 page id 를 이름으로 세워 최소한 열 수 있게 한다.
     changed |= _apply(row, "name", (p.get("title") or "").strip() or f"(제목 없음) {page_id}")
-    changed |= _apply(row, "starts_on", p.get("start"))
-    changed |= _apply(row, "ends_on", p.get("end"))
+    # ⚠️ `_apply` 는 **같은 값이면 안 쓴다**로 회차마다의 변화를 판정한다. 소스가 준
+    # 문자열을 `date` 컬럼과 그대로 비교하면 **영영 다르다** — 매 회차 전 프로젝트의
+    # `updated_at` 이 덮이고 목록 정렬(updated_at DESC)이 무너진다 (S7 · P-14a).
+    changed |= _apply(row, "starts_on", parse_date(p.get("start")))
+    changed |= _apply(row, "ends_on", parse_date(p.get("end")))
     changed |= _apply(row, "biz_type", p.get("biz_type"))
     changed |= _apply(row, "product", p.get("product"))
     changed |= _apply(row, "notion_status", p.get("status"))
     changed |= _apply(row, "notion_progress_pct", p.get("notion_progress_pct"))
     changed |= _apply(row, "notion_owner_ids", join_names(owner_ids))
-    changed |= _apply(row, "notion_last_edited", p.get("last_edited"))
+    changed |= _apply(row, "notion_last_edited", parse_dt(p.get("last_edited")))
 
     resolved = next((id_to_user[i] for i in owner_ids if i in id_to_user), None)
     if resolved is not None:
@@ -436,8 +440,9 @@ def push_project(db: Session, project: Project, *, outbound, settings, now: date
             status=project.notion_status,
             # 시작이 비어 있어도 `""` 로 넘겨 '지움' 이 되게 한다. None 을 넘기면 '안 건드림'
             # 이라 포털에서 기간을 지운 것이 저쪽에 반영되지 않는다.
-            start=project.starts_on or "",
-            end=project.ends_on or "",
+            # 저쪽 API 는 문자열을 받는다. 컬럼은 `date` 다 (S7 · P-14a).
+            start=iso_date(project.starts_on) or "",
+            end=iso_date(project.ends_on) or "",
             owner_notion_ids=_push_owner_ids(db, project),
         )
         if not properties:

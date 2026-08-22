@@ -29,6 +29,7 @@ from __future__ import annotations
 from sqlalchemy import Select, func, select
 from sqlalchemy.orm import Session
 
+from app.core.dates import parse_date
 from app.authz.visibility import (
     RESOURCE_PROJECT,
     VisibilityContext,
@@ -142,8 +143,9 @@ def overdue_milestones_in_scope(db: Session, ctx: VisibilityContext, *, today: s
       * 기한이 **오늘(KST)보다 이전**이다 (오늘이 기한이면 아직 자정까지 남았다)
       * 아직 `planned` 다 (완료·놓침은 이미 결론이 난 일이라 계속 빨갛게 띄우면 진짜 지연이 묻힌다)
 
-    `due_on` 은 'YYYY-MM-DD' 문자열이라 사전순이 날짜순과 일치한다(models.py 가 날짜를
-    문자열로 두는 근거와 같다). 그래서 문자열 비교로 자를 수 있다.
+    `due_on` 은 이제 `date` 컬럼이다 (S7 · P-14a). 부르는 쪽은 여전히 'YYYY-MM-DD'
+    문자열을 주므로 여기서 한 번 옮긴다 — 문자열을 그대로 바인드해도 PG 가 캐스트하지만,
+    그건 **못 읽는 값이 올 때만** 드러나는 동작이다.
 
     보관된 프로젝트의 마일스톤은 빼는 것이 목록과 같은 규약이다 - 끝난 프로젝트의 지난
     기한이 계속 쌓이면 '지금 볼 것' 이 죽은 일로 찬다.
@@ -154,7 +156,7 @@ def overdue_milestones_in_scope(db: Session, ctx: VisibilityContext, *, today: s
         .where(
             Project.archived_at.is_(None),
             ProjectMilestone.due_on.is_not(None),
-            ProjectMilestone.due_on < today,
+            ProjectMilestone.due_on < parse_date(today),
             ProjectMilestone.status == MILESTONE_PLANNED,
         ),
         ctx,

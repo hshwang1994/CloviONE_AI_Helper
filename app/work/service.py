@@ -41,6 +41,7 @@ from app.authz.visibility import (
     context_for_user,
     effective_visibility_clause,
 )
+from app.core.dates import iso_date, parse_date
 from app.core.errors import ConflictError, NotFoundError, ValidationAppError
 from app.core.models_base import utcnow
 from app.projects.models import Project
@@ -156,7 +157,7 @@ def _card(ticket: Ticket) -> dict:
         "status": ticket.status,
         "category": workflow.category_of(ticket.status),
         "priority": ticket.priority,
-        "due": ticket.due_date,
+        "due": iso_date(ticket.due_date),
         "est_wd": ticket.est_wd,
         "sprint_id": ticket.sprint_id,
         "rank": str(ticket.backlog_rank) if ticket.backlog_rank is not None else None,
@@ -420,8 +421,9 @@ def _sprint_view(sprint: Sprint) -> dict:
         "id": sprint.id,
         "name": sprint.name,
         "project_id": sprint.project_id,
-        "starts_on": sprint.starts_on,
-        "ends_on": sprint.ends_on,
+        # 화면은 'YYYY-MM-DD' 문자열을 읽는다. 컬럼은 `date` 다 (S7 · P-14a).
+        "starts_on": iso_date(sprint.starts_on),
+        "ends_on": iso_date(sprint.ends_on),
         "state": sprint.state,
         "goal": sprint.goal,
     }
@@ -462,14 +464,17 @@ def create_sprint(
     label = (name or "").strip()
     if not label:
         raise ValidationAppError("스프린트 이름을 입력해 주세요.")
-    if not (starts_on and ends_on) or starts_on >= ends_on:
+    # 여기서 한 번 날짜로 읽는다 — 못 읽는 값을 그대로 두면 DB 가 거절하고,
+    # 그 실패는 422 가 아니라 500 이 된다 (S7 · P-14a).
+    first, last = parse_date(starts_on), parse_date(ends_on)
+    if first is None or last is None or first >= last:
         raise ValidationAppError("스프린트 기간은 시작일이 종료일보다 앞이어야 합니다.")
     if project_id is not None:
         # 남의 팀 프로젝트에 회차를 만들 수 있으면, 그 팀의 백로그에 내 회차가 나타난다.
         get_scoped_project_or_404(db, project_id, user)
 
     row = Sprint(
-        name=label, project_id=project_id, starts_on=starts_on, ends_on=ends_on,
+        name=label, project_id=project_id, starts_on=first, ends_on=last,
         state=SPRINT_PLANNED, goal=(goal or None),
         created_at=now or utcnow(), updated_at=now or utcnow(),
     )

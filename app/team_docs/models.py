@@ -7,11 +7,12 @@ Notion이 장애여도 마지막 정상 동기화 데이터로 목록을 계속 
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 
 from sqlalchemy import (
     BigInteger,
     Boolean,
+    Date,
     DateTime,
     ForeignKey,
     Identity,
@@ -128,10 +129,10 @@ class DocumentCache(OrgScopedMixin, UUIDPrimaryKeyMixin, Base):
     # 매핑(`user_notion_mappings`)을 거쳐 앱 사용자로 해석한다.
     author_notion_ids: Mapped[str] = mapped_column(Text, nullable=False, default="")
     owner: Mapped[str] = mapped_column(String(255), nullable=False, default="")
-    doc_date: Mapped[str | None] = mapped_column(String(40))
-    orig_date: Mapped[str | None] = mapped_column(String(40))
-    created_time: Mapped[str | None] = mapped_column(String(40))
-    last_edited: Mapped[str | None] = mapped_column(String(40))
+    doc_date: Mapped[date | None] = mapped_column(Date)
+    orig_date: Mapped[date | None] = mapped_column(Date)
+    created_time: Mapped[datetime | None] = mapped_column(DateTime)
+    last_edited: Mapped[datetime | None] = mapped_column(DateTime)
     original_url: Mapped[str | None] = mapped_column(String(1000))
     source_url: Mapped[str | None] = mapped_column(String(1000))
     memo: Mapped[str] = mapped_column(Text, nullable=False, default="")

@@ -23,6 +23,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.core.dates import iso_date, parse_date
 from app.core.errors import ValidationAppError
 from app.core.models_base import utcnow
 from app.core.notion_blocks import markdown_to_blocks
@@ -118,8 +119,11 @@ class NotionTicketRepository:
             url=row.url,
             title=row.title or "",
             status=row.status,
-            due=row.due_date,
-            start=row.start_date,
+            # DTO 는 화면·외부 소스가 읽는 **문자열 계약**이다. 저장은 `date` 이고
+            # (S7 · P-14a) 그 둘 사이를 옮기는 자리가 여기 하나다 — 두 벌이 되면
+            # 어떤 응답은 날짜 객체, 어떤 응답은 문자열이 되어 프런트가 갈라진다.
+            due=iso_date(row.due_date),
+            start=iso_date(row.start_date),
             category=row.category,
             est_wd=row.est_wd,
             act_wd=row.act_wd,
@@ -305,13 +309,18 @@ class NotionTicketRepository:
         self, db: Session, *, start: str, end: str,
         filters: TicketFilters | None = None, page: PageSpec | None = None,
     ) -> TicketList:
-        """마감일이 [start, end) 인 티켓. 날짜는 ISO 문자열이라 문자열 비교로 범위가 맞다."""
+        """마감일이 [start, end) 인 티켓.
+
+        인자는 ISO 문자열이다 — 부르는 쪽(리포트·번다운)이 그 규약으로 창을 만든다.
+        컬럼은 `date` 라 여기서 옮긴다 (S7 · P-14a). 외부 소스 경로는 문자열 그대로
+        보낸다 — 저쪽 API 가 문자열을 받는다.
+        """
         ready, state = self._cache_ready(db)
         if ready:
             stmt = select(TicketCache).where(
                 TicketCache.due_date.is_not(None),
-                TicketCache.due_date >= start,
-                TicketCache.due_date < end,
+                TicketCache.due_date >= parse_date(start),
+                TicketCache.due_date < parse_date(end),
             )
             return self._cached_list(db, stmt, state, filters, page)
         rows = notion_source.query_tasks_for_period(
@@ -699,8 +708,8 @@ class NotionTicketRepository:
         row.difficulty = dto.difficulty
         row.est_wd = dto.est_wd
         row.act_wd = dto.act_wd
-        row.due_date = dto.due
-        row.start_date = dto.start
+        row.due_date = parse_date(dto.due)
+        row.start_date = parse_date(dto.start)
         row.category = dto.category
         row.project_ids = join_names(dto.project_ids)
         # 이름은 DTO 에 없을 수 있다(쓰기 응답은 relation 이름을 해석하지 않는다) — 메타 캐시로 채운다.

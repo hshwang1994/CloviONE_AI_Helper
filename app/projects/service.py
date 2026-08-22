@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError, OperationalError
 
+from app.core.dates import iso_date, parse_date
 from app.core.db import is_insert_race
 from app.core.errors import ConflictError, NotFoundError, ValidationAppError
 from app.authz.visibility import visibility_context
@@ -84,6 +85,11 @@ EDITABLE_FIELDS = (
 # 그대로 넣으면 flush 에서 IntegrityError 가 나 사용자는 400 이 아니라 **500** 을 본다 —
 # 화면은 "서버 오류" 라고 말하지만 원인은 입력이라, 아무도 자기 입력을 의심하지 않는다.
 REQUIRED_FIELDS = frozenset({"name", "status"})
+
+# 컬럼이 `date` 인 필드 (S7 · P-14a). 요청 스키마는 'YYYY-MM-DD' **문자열 계약**을
+# 지킨다 — 빈 문자열이 「지우기」라는 뜻을 갖고 있어서, 타입을 바꾸면 그 뜻이 사라진다.
+# 그래서 옮기는 자리를 여기 하나로 둔다.
+DATE_FIELDS = frozenset({"starts_on", "ends_on"})
 
 # 헬스 이력을 한 번에 돌려주는 주 수. 추세를 보려는 것이지 원장을 뜨려는 것이 아니라
 # 상한을 둔다 - 한 해가 넘어가면 스파크라인이 화면 폭에서 뭉개져 아무것도 안 보인다.
@@ -203,8 +209,8 @@ def create_project(
         dept_id=dept_id,
         org_id=org_id,
         owner_user_id=payload.owner_user_id or principal.user_id,
-        starts_on=payload.starts_on,
-        ends_on=payload.ends_on,
+        starts_on=parse_date(payload.starts_on),
+        ends_on=parse_date(payload.ends_on),
         goal=payload.goal,
         biz_type=payload.biz_type,
         product=payload.product,
@@ -266,6 +272,8 @@ def update_project(
         value = getattr(payload, field)
         if value is None and field in REQUIRED_FIELDS:
             raise ValidationAppError(f"{field} 값은 비울 수 없습니다.")
+        if field in DATE_FIELDS:
+            value = parse_date(value)
         setattr(project, field, value)
     project.updated_at = now
     # 낙관적 잠금 (S6). 저장할 때마다 1 씩 는다 — 안 올리면 같은 폼을 두 번 저장해도
@@ -570,7 +578,7 @@ def project_dashboard(
             "project_id": project_id,
             "project_name": project_name,
             "name": milestone.name,
-            "due_on": milestone.due_on,
+            "due_on": iso_date(milestone.due_on),
             "status": milestone.status,
         }
         for milestone, project_id, project_name
@@ -601,11 +609,11 @@ def project_dashboard(
     }
 
 
-def _saved_report(db: Session, project_id: str, week_of: str) -> ProjectWeeklyReport | None:
+def _saved_report(db: Session, project_id: str, week_of) -> ProjectWeeklyReport | None:
     return db.execute(
         select(ProjectWeeklyReport).where(
             ProjectWeeklyReport.project_id == project_id,
-            ProjectWeeklyReport.week_of == week_of,
+            ProjectWeeklyReport.week_of == parse_date(week_of),
         )
     ).scalar_one_or_none()
 
@@ -614,7 +622,7 @@ def _saved_view(row: ProjectWeeklyReport | None) -> dict | None:
     if row is None:
         return None
     return {
-        "week_of": row.week_of,
+        "week_of": iso_date(row.week_of),
         "summary_md": row.summary_md,
         "source": row.source,
         "generated_at": row.generated_at.isoformat(),
@@ -638,7 +646,9 @@ def save_weekly_report(
     row = _saved_report(db, project.id, week.week_of)
     if row is None:
         row = ProjectWeeklyReport(
-            project_id=project.id, week_of=week.week_of,
+            # `week.week_of` 는 화면·주소가 쓰는 'YYYY-MM-DD' 문자열이고 컬럼은
+            # `date` 다 (S7 · P-14a). 경계가 여기다.
+            project_id=project.id, week_of=parse_date(week.week_of),
             created_at=now, updated_at=now,
         )
         db.add(row)
@@ -663,7 +673,7 @@ def save_llm_weekly_summary(
     row = _saved_report(db, project.id, week.week_of)
     if row is None:
         row = ProjectWeeklyReport(
-            project_id=project.id, week_of=week.week_of,
+            project_id=project.id, week_of=parse_date(week.week_of),
             created_at=now, updated_at=now,
         )
         db.add(row)
@@ -724,13 +734,16 @@ def _last_activity_on(rows) -> str | None:
     """
     days = []
     for row in rows:
-        edited = row.notion_last_edited
-        if isinstance(edited, str) and len(edited) >= 10:
-            days.append(edited[:10])
+        # ⚠️ 여기가 타입 판정으로 갈릴 수 있는 자리다. 예전에는 `isinstance(edited, str)`
+        # 였고, P-14a 가 컬럼을 `timestamp` 로 바꾸면 그 조건이 **영영 거짓**이 되어
+        # 「저쪽에서 사람이 만진 시각」이 조용히 버려진다 — 그러면 이 프로젝트는
+        # 미러가 스쳐 지나간 시각만으로 「활동 중」이 된다. 값이 있으면 쓴다.
+        edited = parse_date(row.notion_last_edited)
+        if edited is not None:
+            days.append(edited)
         elif row.updated_at is not None:
-            days.append(row.updated_at.date().isoformat())
-    # ISO 문자열은 사전순과 날짜순이 일치한다(models.py 가 날짜를 문자열로 두는 근거와 같다).
-    return max(days) if days else None
+            days.append(row.updated_at.date())
+    return max(days).isoformat() if days else None
 
 
 def health_input(db: Session, project: Project, *, today: str) -> HealthInput:
@@ -820,12 +833,12 @@ def record_health_snapshot(
     row = db.execute(
         select(ProjectHealthSnapshot).where(
             ProjectHealthSnapshot.project_id == project.id,
-            ProjectHealthSnapshot.week_of == week_of,
+            ProjectHealthSnapshot.week_of == parse_date(week_of),
         )
     ).scalar_one_or_none()
     if row is None:
         row = ProjectHealthSnapshot(
-            project_id=project.id, week_of=week_of, score=result.score,
+            project_id=project.id, week_of=parse_date(week_of), score=result.score,
             reasons_json=payload, created_at=now,
         )
         db.add(row)

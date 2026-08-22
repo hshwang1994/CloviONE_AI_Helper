@@ -27,6 +27,7 @@ from datetime import datetime
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.dates import parse_date
 from app.core.errors import NotFoundError, ValidationAppError
 from app.projects import repository
 from app.projects.models import Project, ProjectMilestone
@@ -44,6 +45,11 @@ EDITABLE_FIELDS = ("name", "due_on", "status", "sort_order")
 # NOT NULL 컬럼. 명시적 null 이 오면 '지우기' 가 아니라 잘못된 입력이다. 그대로 넣으면
 # flush 에서 IntegrityError 가 나 사용자는 400 대가 아니라 **500** 을 본다.
 REQUIRED_FIELDS = frozenset({"name", "status", "sort_order"})
+
+# 컬럼이 `date` 인 필드 (S7 · P-14a). 요청 스키마는 'YYYY-MM-DD' **문자열 계약**을
+# 지킨다 — 빈 문자열이 「지우기」라는 뜻을 갖고 있어서, 타입을 바꾸면 그 뜻이 사라진다.
+# 그래서 옮기는 자리를 여기 하나로 둔다.
+DATE_FIELDS = frozenset({"due_on"})
 
 def list_for_project(db: Session, project: Project) -> list[ProjectMilestone]:
     """목록. 질의는 `repository.milestones_for_project` **하나**를 쓴다.
@@ -76,7 +82,7 @@ def create(
     milestone = ProjectMilestone(
         project_id=project.id,
         name=payload.name,
-        due_on=payload.due_on,
+        due_on=parse_date(payload.due_on),
         status=payload.status,
         sort_order=payload.sort_order,
         created_at=now,
@@ -103,6 +109,8 @@ def update(
         value = getattr(payload, field)
         if value is None and field in REQUIRED_FIELDS:
             raise ValidationAppError(f"{field} 값은 비울 수 없습니다.")
+        if field in DATE_FIELDS:
+            value = parse_date(value)
         setattr(milestone, field, value)
     milestone.updated_at = now
     db.flush()

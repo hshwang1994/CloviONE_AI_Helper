@@ -71,7 +71,7 @@ def list_documents(
 
     if sort == "title":
         order = [DocumentCache.title.asc()]
-    else:  # recent = 최근 수정순(원본 last_edited 문자열 ISO라 정렬 가능)
+    else:  # recent = 최근 수정순. `last_edited` 는 `timestamp` 다 (S7 · P-14a)
         order = [DocumentCache.last_edited.desc().nulls_last(), DocumentCache.title.asc()]
     rows = db.execute(stmt.order_by(*order).offset(offset).limit(limit)).scalars().all()
     return list(rows), int(total)

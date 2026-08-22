@@ -15,6 +15,7 @@ from __future__ import annotations
 
 from sqlalchemy import false, or_
 
+from app.core.dates import parse_date
 from app.core.models_base import NAMES_SEP
 from app.tickets.models import PROJECT_LINK_OK, TicketCache
 from app.tickets.repository import PageSpec, TicketFilters
@@ -83,7 +84,11 @@ def filter_clauses(f: TicketFilters | None) -> list:
         # icontains = 대소문자 무시 LIKE. autoescape 로 사용자가 넣은 %/_ 가 와일드카드가
         # 되지 않게 막는다(안 막으면 '%' 한 글자가 전체 조회가 된다).
         out.append(TicketCache.title.icontains(f.search, autoescape=True))
-    start, end = f.due_range
+    # 기간은 **문자열로 들어와 `date` 로 나간다** (S7 · P-14a). 필터 DTO 는
+    # 실시간 폴백 경로(`TicketFilters.matches`)와 공유하는 값이라 문자열 계약을
+    # 지키고, 컬럼 쪽 경계인 여기서 한 번 옮긴다. 문자열을 그대로 바인드하면
+    # PG 가 알아서 캐스트하지만, 그건 **못 읽는 값이 올 때만** 드러나는 동작이다.
+    start, end = (parse_date(v) for v in f.due_range)
     if start is not None or end is not None:
         out.append(TicketCache.due_date.is_not(None))
         if start is not None:

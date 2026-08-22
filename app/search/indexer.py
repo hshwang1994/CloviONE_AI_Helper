@@ -41,6 +41,7 @@ from urllib.parse import quote
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.dates import iso_date, iso_dt
 from app.board.models import Post
 from app.tickets.models import PROJECT_LINK_OK, TicketCache
 from app.core.models_base import split_names
@@ -244,7 +245,11 @@ def _document_rows(db: Session, repo, maps) -> tuple[list[dict], bool]:
             "subtitle": _clip(_joined_sep([d.document_type, d.work_field, d.owner]), 300),
             "route": f"/team-docs/{d.notion_page_id}",
             "url": d.original_url or d.source_url,
-            "sort_key": d.last_edited or d.doc_date,
+            # `sort_key` 는 종류가 다른 행들을 한 축으로 세우는 **문자열**이다
+            # (게시글은 `created_at.isoformat()` 을 넣는다). 저장이 `date`/`datetime`
+            # 으로 바뀌었으니 여기서 옮긴다 — 안 옮기면 변경 감지가 매 회차 전부를
+            # 「바뀜」으로 보고 색인을 통째로 다시 쓴다 (S7 · P-14a).
+            "sort_key": iso_dt(d.last_edited) or iso_date(d.doc_date),
         })
     return out, truncated
 

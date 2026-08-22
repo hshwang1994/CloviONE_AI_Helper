@@ -16,8 +16,9 @@
 
 이 파일에 들어오는 값은 두 종류다.
 
-  * 마감일(`due_date`) / 마일스톤 기한(`due_on`) — 'YYYY-MM-DD' **달력일** 문자열이다.
-    시각이 아니라 날짜라 창(KST 달력일)과 같은 축이고, 그래서 문자열 그대로 비교한다.
+  * 마감일(`due_date`) / 마일스톤 기한(`due_on`) — **달력일**이다. 표에서는 `date` 이고
+    (S7 · P-14a) 이 파일에 들어올 때 'YYYY-MM-DD' 문자열로 옮겨진다 — 시각이 아니라
+    날짜라 창(KST 달력일)과 같은 축이고, 그래서 문자열 그대로 비교해도 맞는다.
   * 마일스톤 갱신 시각(`updated_at`) — DB 에 **naive UTC** 로 저장된 타임스탬프다.
     창과 축이 다르므로 반드시 UTC 경계로 바꿔서 넣어야 한다. 그 변환은 이 파일이 하지
     않고(설정이 필요하다) `service.py` 가 `home.service.window_utc_bounds` 한 곳에서 한다.
@@ -40,6 +41,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 
+from app.core.dates import iso_date
 from app.projects.models import MILESTONE_DONE, MILESTONE_MISSED, MILESTONE_PLANNED
 from app.sprints.service import default_sprint_window
 
@@ -154,7 +156,7 @@ def item_from_ticket(row) -> Item:
         tid=row.notion_ticket_number,
         title=row.title or "",
         status=row.status,
-        due=row.due_date,
+        due=iso_date(row.due_date),
         est_wd=row.est_wd,
     )
 
@@ -185,7 +187,9 @@ def milestone_from_row(row) -> MilestoneItem:
     return MilestoneItem(
         id=row.id,
         name=row.name,
-        due_on=row.due_on,
+        # DTO 는 'YYYY-MM-DD' 문자열 계약이다 — 아래 정렬 키와 창 비교가 그 규약에
+        # 기대고 있고, 그 둘은 창(`week.start`)도 문자열이라 축이 맞는다 (S7 · P-14a).
+        due_on=iso_date(row.due_on),
         status=row.status,
         updated_at=row.updated_at.isoformat() if row.updated_at else "",
     )

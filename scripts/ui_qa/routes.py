@@ -6,7 +6,8 @@ Sources (re-derive from these if the app's routing changes):
     * ``UserBody()``  — the ``<Route>`` elements of the user console
       (/me, /my-tickets, /unassigned, /new-ticket, /tickets/:id, /team-tickets,
       /work-board, /sprint, /chat, /chat-rooms, /chat-rooms/:id, /board, /board/:id,
-      /team-docs, /team-docs/trash, /team-docs/:id, /games, /games/:id,
+      /team-docs, /team-docs/trash, /team-docs/:id, /knowledge, /knowledge/:id,
+      /games, /games/:id,
       /notifications).
     * ``AdminBody()`` — the hard-coded admin ``<Route>`` elements
       (/dashboard, /users, /settings, /diagnostics, /maintenance, /dev-report)
@@ -183,6 +184,12 @@ USER_ROUTES: tuple[Route, ...] = (
     _u("user_team-docs-trash", "/team-docs/trash", "문서 휴지통"),
     _u("user_team-doc-detail", "/team-docs", "문서 상세",
        hash_template="/team-docs/{id}", discover=("/api/team-docs",)),
+    # 지식 공간(S7). **사이드바 항목이 없다** — 사용자 서랍 한 그룹이 여섯 항목을 넘지
+    # 않는다는 계약 때문이고, 입구는 「문서」 화면에 있다(navConfig.js ROUTE_OWNER 주석).
+    # 캡처 대상이 아닌 것은 아니다: 화면은 있고 주소로 도달한다.
+    _u("user_knowledge", "/knowledge", "지식 공간"),
+    _u("user_knowledge-doc", "/knowledge", "지식 문서 상세",
+       hash_template="/knowledge/{id}", discover=("/api/knowledge/documents",)),
     # 통합 검색(0030). 두 콘솔 양쪽에 같은 경로로 등록돼 있지만 같은 컴포넌트라 한 번만 찍는다.
     # **빈 상태와 결과 상태를 둘 다** 찍는다 — 검색 화면의 회귀는 "결과가 그려지는가"보다
     # "아직 안 쳤다 / 쳤는데 없다"의 얼굴에서 더 자주 난다.

@@ -22,13 +22,14 @@ S6 이 티켓 번호·표시 이름·상태·순서를 이 표에 붙이면서 �
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 
 from sqlalchemy import (
     BigInteger,
     Boolean,
     CheckConstraint,
+    Date,
     DateTime,
     Float,
     ForeignKey,
@@ -161,11 +162,13 @@ class Ticket(OrgScopedMixin, TimestampMixin, UUIDPrimaryKeyMixin, Base):
     difficulty: Mapped[str | None] = mapped_column(String(64))
     est_wd: Mapped[float | None] = mapped_column(Float)
     act_wd: Mapped[float | None] = mapped_column(Float)
-    # ISO 'YYYY-MM-DD' 문자열 그대로 저장한다(원본이 문자열이고 문자열 비교로 정렬·범위가 맞다).
-    due_date: Mapped[str | None] = mapped_column(String(40), index=True)
+    # 달력일이다 (S7 · P-14a). 예전에는 소스가 준 ISO 문자열을 그대로 담았는데,
+    # 문자열은 `'2026-02-31'` 도 `'TBD'` 도 받았고 그 값 하나가 기간 필터와 번다운을
+    # 조용히 왜곡했다. 소스 문자열과의 경계는 `app/core/dates.py` 한 곳이다 (D-248).
+    due_date: Mapped[date | None] = mapped_column(Date, index=True)
     # 시작일·대분류는 리포트(공수 집계)에는 안 쓰지만 **포털에서 편집해야** 해서 미러링한다
     # (2026-08-04 제품화 지시 — 이 값을 고치려고 노션을 여는 상태를 없앤다).
-    start_date: Mapped[str | None] = mapped_column(String(40))
+    start_date: Mapped[date | None] = mapped_column(Date)
     category: Mapped[str | None] = mapped_column(String(200))
 
     # 아래 셋은 NAMES_SEP 로 감싼 다중값. project_ids 는 원본 relation id, project_names 는
@@ -185,8 +188,8 @@ class Ticket(OrgScopedMixin, TimestampMixin, UUIDPrimaryKeyMixin, Base):
     body_sync_error: Mapped[str | None] = mapped_column(Text)
     source: Mapped[str] = mapped_column(String(16), nullable=False, default=SOURCE_NOTION)
 
-    notion_created_time: Mapped[str | None] = mapped_column(String(40))
-    notion_last_edited: Mapped[str | None] = mapped_column(String(40))
+    notion_created_time: Mapped[datetime | None] = mapped_column(DateTime)
+    notion_last_edited: Mapped[datetime | None] = mapped_column(DateTime)
     synced_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
 
     # ── 세 층의 이름 (S6 · D-195) ───────────────────────────────────────────

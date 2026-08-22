@@ -21,6 +21,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.orm import Session
 
+from app.core.dates import iso_date
 from app.core.audit import record_audit_from_request
 from app.core.authz import CONSOLE_OPS_ROLES
 from app.authz.visibility import visibility_context
@@ -74,8 +75,11 @@ def _project_view(project: Project) -> dict:
         "status": project.status,
         "dept_id": project.dept_id,
         "owner_user_id": project.owner_user_id,
-        "starts_on": project.starts_on,
-        "ends_on": project.ends_on,
+        # 화면 계약은 'YYYY-MM-DD' 문자열이다. 컬럼은 `date` 다 (S7 · P-14a) —
+        # FastAPI 도 같은 글자를 내지만, 이 파일의 다른 시각 필드가 이미 명시적으로
+        # 옮기고 있어(`created_at.isoformat()`) 같은 규약을 쓴다.
+        "starts_on": iso_date(project.starts_on),
+        "ends_on": iso_date(project.ends_on),
         "goal": project.goal,
         "biz_type": project.biz_type,
         "product": project.product,
@@ -422,7 +426,7 @@ def _milestone_view(milestone: ProjectMilestone) -> dict:
         "id": milestone.id,
         "project_id": milestone.project_id,
         "name": milestone.name,
-        "due_on": milestone.due_on,
+        "due_on": iso_date(milestone.due_on),
         "status": milestone.status,
         "sort_order": milestone.sort_order,
         "created_at": milestone.created_at.isoformat(),
@@ -512,7 +516,7 @@ def delete_milestone(
 
 def _snapshot_view(row: ProjectHealthSnapshot) -> dict:
     return {
-        "week_of": row.week_of,
+        "week_of": iso_date(row.week_of),
         "score": row.score,
         **service.health_snapshot_reasons(row),
         "created_at": row.created_at.isoformat(),

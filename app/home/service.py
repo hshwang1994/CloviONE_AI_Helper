@@ -56,16 +56,15 @@ def window_utc_bounds(settings, start: str, end: str) -> tuple[datetime, datetim
 def utc_iso_bounds(settings, start: str, end: str) -> tuple[str, str]:
     """같은 창을 **문자열 비교용** naive UTC ISO 로. 변환은 위 함수 하나만 쓴다.
 
-    왜 문자열이냐면 비교 대상이 datetime 이 아니기 때문이다. `document_cache.last_edited`
-    는 Notion 이 준 'YYYY-MM-DDTHH:MM:SS.sssZ' **원문을 String 컬럼에 그대로** 담는다
-    (app/team_docs/models.py). 그 컬럼을 datetime 과 비교하면 SQLite 는 조용히 아무 행도
-    안 고르거나 엉뚱한 행을 고른다 - 화면에는 그럴듯한 숫자가 남아서 신고되지 않는다.
+    ⚠️ **문자열인 이유가 사라졌다** (S7 · P-14a). 예전에는 `document_cache.last_edited`
+    가 Notion 원문을 담은 String 컬럼이라 datetime 과 비교할 수 없었다. 지금 그 컬럼은
+    `timestamp` 이고, 비교하는 쪽이 `app/core/dates.py::parse_dt` 로 한 번 옮긴다.
 
-    ISO 는 자리수가 같은 접두사끼리 사전순 비교가 곧 시간순 비교라 파싱 없이 자를 수 있다.
-    경계값('...T15:00:00')보다 소수 이하가 붙은 원문('...T15:00:00.000Z')이 사전순으로
-    뒤라서, 시작은 포함하고 끝은 배타인 반열린 창이 문자열에서도 그대로 성립한다.
+    그래도 이 함수를 남기는 이유는 **게시판**이다 — 그쪽은 아직 이 문자열 규약을 쓴다.
+    두 소비자가 같은 창을 봐야 하므로 창 만드는 자리를 하나로 둔다. 게시판까지 옮기면
+    이 함수는 `window_utc_bounds` 하나로 합쳐진다.
 
-    변환을 여기 한 곳에 두는 이유는 M4 다: KST 달력일을 UTC 문자열과 그대로 비교하면
+    변환을 여기 한 곳에 두는 이유는 M4 다: KST 달력일을 UTC 와 그대로 비교하면
     KST 월요일 오전 9시간이 통째로 지난 주로 새어 나간다. 실제로 이 저장소의 주간
     다이제스트가 그 상태였다(`readers.documents_changed_between` 주석).
     """

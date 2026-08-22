@@ -23,7 +23,7 @@ LLM 은 아직 붙지 않았다. 그래서 `source` 는 항상 `rule` 이고 `ll
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 
 import pytest
 
@@ -387,7 +387,8 @@ def test_generating_saves_one_rule_row_per_week(client, login_as, db, world):
     db.expire_all()
     rows = db.query(ProjectWeeklyReport).filter_by(project_id=world["alpha"]).all()
     assert len(rows) == 1, f"같은 주에 리포트가 {len(rows)}행 쌓였다"
-    assert rows[0].week_of == WEEK
+    # 컬럼이 `date` 다 (S7 · P-14a). `WEEK` 는 주소·응답이 쓰는 문자열이라 그대로 둔다.
+    assert rows[0].week_of == date.fromisoformat(WEEK)
     assert rows[0].source == "rule"
 
 

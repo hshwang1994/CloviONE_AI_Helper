@@ -22,13 +22,14 @@ PostgreSQL `SEQUENCE` 는 롤백해도 번호를 되돌리지 않는다 — 티�
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 
 from sqlalchemy import (
     BigInteger,
     Boolean,
     CheckConstraint,
+    Date,
     DateTime,
     ForeignKey,
     Identity,
@@ -365,10 +366,11 @@ class Sprint(OrgScopedMixin, TimestampMixin, UUIDPrimaryKeyMixin, Base):
     project_id: Mapped[str | None] = mapped_column(
         String(36), ForeignKey("projects.id", ondelete="CASCADE"), index=True
     )
-    # 'YYYY-MM-DD'. `ticket_cache.due_date`·`projects.starts_on` 과 같은 규약이다 —
+    # 달력일이다. `tickets.due_date`·`projects.starts_on` 과 **같은 타입**이고
+    # (S7 · P-14a), 바깥 문자열과의 경계는 `app/core/dates.py` 한 곳이다 —
     # 한 화면에서 두 규약을 섞으면 비교가 조용히 어긋난다.
-    starts_on: Mapped[str] = mapped_column(String(10), nullable=False)
-    ends_on: Mapped[str] = mapped_column(String(10), nullable=False)
+    starts_on: Mapped[date] = mapped_column(Date, nullable=False)
+    ends_on: Mapped[date] = mapped_column(Date, nullable=False)
     state: Mapped[str] = mapped_column(String(16), nullable=False, default=SPRINT_PLANNED)
     goal: Mapped[str | None] = mapped_column(Text)
 
