@@ -190,12 +190,15 @@ def test_a_parent_outside_the_sample_does_not_hide_its_child():
     assert result.basis.counted_tasks == 2
 
 
-def test_it_reads_the_ticket_mirror_columns_it_claims_to_read():
-    """`task_from_ticket` 이 실제로 미러 컬럼 네 개를 읽는지.
+def test_it_reads_the_ticket_columns_it_claims_to_read():
+    """`task_from_ticket` 이 실제로 읽는 것과 **받는 것**을 가른다 (S6).
 
-    특히 **키는 `notion_page_id`** 여야 한다. 자체 UUID(`id`)를 키로 쓰면 부모를 가리키는
-    값(`parent_page_id`, Notion page id)과 축이 달라 부모와 자식이 영원히 안 만나고,
-    그러면 리프 판정이 조용히 전부 리프가 된다(= Notion 과 똑같이 이중 계산).
+    키는 **티켓 UUID** 다. 0044 때는 `notion_page_id` 였는데, 그때는 계층의 출처가
+    미러의 `parent_page_id`(page id 축)였기 때문이다. S6 이 계층의 정본을
+    `ticket_relations`(uuid 축)로 옮기면서 키도 그 축으로 갔다 — 두 축을 섞으면 부모와
+    자식이 영원히 안 만나고, 리프 판정이 조용히 전부 리프가 된다(= 이중 계산).
+
+    상위는 **인자로 받는다.** 행에서 읽으면 이 순수 함수가 DB 를 아는 두 번째 자리가 된다.
     """
     from app.projects.progress import task_from_ticket
     from app.tickets.models import TicketCache
@@ -204,9 +207,27 @@ def test_it_reads_the_ticket_mirror_columns_it_claims_to_read():
         id="uid-1", notion_page_id="page-child", parent_page_id="page-parent",
         status=STATUS_DONE, est_wd=2.5,
     )
-    task = task_from_ticket(row)
+    task = task_from_ticket(row, "uid-parent")
 
-    assert task.key == "page-child", "자체 UUID 를 키로 쓰면 부모와 축이 어긋난다"
-    assert task.parent_key == "page-parent"
+    assert task.key == "uid-1", "계층과 같은 축(티켓 UUID)이어야 부모와 자식이 만난다"
+    assert task.parent_key == "uid-parent"
     assert task.status == STATUS_DONE
     assert task.est_wd == 2.5
+
+
+def test_it_does_not_read_the_hierarchy_off_the_mirror_column():
+    """**미러 컬럼을 안 본다** — 계층은 `ticket_relations` 가 답한다 (S6).
+
+    이 단정이 없으면 「인자를 받도록 바꿨는데 행도 계속 읽는」 상태가 통과한다. 그
+    상태에서는 두 값이 다를 때 어느 쪽이 이기는지가 코드 순서에 달려 있다.
+    """
+    from app.projects.progress import task_from_ticket
+    from app.tickets.models import TicketCache
+
+    row = TicketCache(
+        id="uid-1", notion_page_id="page-child", parent_page_id="page-parent",
+        status=STATUS_DONE, est_wd=2.5,
+    )
+    assert task_from_ticket(row).parent_key is None, (
+        "관계 표가 상위를 안 준 티켓인데 미러 컬럼에서 상위를 읽어 왔다"
+    )

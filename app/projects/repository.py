@@ -38,6 +38,7 @@ from app.projects.models import MILESTONE_PLANNED, Project, ProjectMilestone
 from app.projects.progress import Task, task_from_ticket
 from app.tickets.models import TicketCache
 from app.tickets.query import token
+from app.work import relations
 
 
 def scope_clause(ctx: VisibilityContext):
@@ -179,12 +180,15 @@ def ticket_rows_for_project(db: Session, project: Project) -> list[TicketCache]:
     분모에 남아** 진행률이 이유 없이 낮게 나온다. 다음 회차에 돌아오면 표시가 지워지고
     다시 세어진다 - 그게 0043 의 설계다.
 
-    ## 왜 Notion page id 로 잇는가
+    ## 왜 Notion page id 로 프로젝트를 잇는가
 
-    `ticket_cache.project_ids` 는 Notion relation id 목록이고 `parent_page_id` 도 page id 다.
-    `Project.notion_page_id` 가 없는(포털 전용) 프로젝트는 아직 걸린 작업이 있을 수 없으므로
-    **빈 목록**을 돌려준다. 여기서 '전체 티켓'으로 폴백하면 포털 전용 프로젝트가 회사의 모든
-    작업을 자기 분모로 세게 된다.
+    `tickets.project_ids` 는 외부 소스의 relation id 목록이다. `Project.notion_page_id`
+    가 없는(포털 전용) 프로젝트는 아직 걸린 작업이 있을 수 없으므로 **빈 목록**을
+    돌려준다. 여기서 '전체 티켓'으로 폴백하면 포털 전용 프로젝트가 회사의 모든 작업을
+    자기 분모로 세게 된다.
+
+    **작업 사이의 계층은 이 축이 아니다** (S6). 상하위는 `ticket_relations` 가 정본이고
+    티켓 UUID 로 잇는다 — `tasks_for_project` 가 그 표를 한 번에 읽어 넘긴다.
 
     다중값 열은 `token()` 으로 감싸 맞춘다 - 안 감싸면 page id 접두사가 겹치는 남의
     프로젝트 티켓이 섞인다(app/tickets/query.py::filter_clauses 가 같은 함정을 기록한다).
@@ -211,7 +215,9 @@ def tasks_for_project(db: Session, project: Project) -> list[Task]:
     가시성 규칙(토큰 매칭, 0043 소프트 프룬)이 한 곳에만 있다. 두 벌이 되면 한쪽만 고쳐지고
     같은 화면의 두 숫자가 갈라진다.
     """
-    return [task_from_ticket(row) for row in ticket_rows_for_project(db, project)]
+    rows = ticket_rows_for_project(db, project)
+    parents = relations.parent_map(db, [row.id for row in rows])
+    return [task_from_ticket(row, parents.get(row.id)) for row in rows]
 
 
 def milestones_for_project(db: Session, project: Project) -> list[ProjectMilestone]:

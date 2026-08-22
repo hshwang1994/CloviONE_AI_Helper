@@ -45,4 +45,5 @@ from app.schedules import models as schedules_models  # noqa: F401
 from app.templates import models as templates_models  # noqa: F401
 from app.trash import models as trash_models  # noqa: F401
 from app.users import models as users_models  # noqa: F401
+from app.work import models as work_models  # noqa: F401
 from app.workflows import models as workflows_models  # noqa: F401

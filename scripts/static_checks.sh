@@ -306,6 +306,16 @@ else
   echo "$VIS"; fail "가시성 판정이 app/authz/visibility.py 밖에서 갈라졌다"
 fi
 
+step "Ticket key, number and hierarchy have one writer each"
+# S6: canonical_key 는 트리거만, 번호는 numbering.py 만, Key 는 keys.py 만, 상하위는
+# relations.py 만 쓴다. 넷 다 어겨도 오류가 안 나고, 증상은 한참 뒤 「링크가 안 열린다」·
+# 「번호가 겹친다」로 나타난다 (D-195 · D-196).
+if WORK="$("$PY" scripts/check_work_domain_single_source.py 2>&1)"; then
+  ok "$(echo "$WORK" | tail -1)"
+else
+  echo "$WORK"; fail "티켓 이름·번호·계층의 쓰기 입구가 갈라졌다"
+fi
+
 step "No customer-specific identifiers in source defaults / install scripts"
 # 출시 차단 사유였다. app/core/config.py 의 **기본값**에 개발 워크스페이스의 Notion DB id 두
 # 개와 최초 고객사의 이메일 도메인이, 설치 스크립트에 그 고객사의 호스트명·IP 가 박혀 있었다.

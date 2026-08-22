@@ -32,6 +32,7 @@ from app.tickets.models import (
     TicketSyncState,
     join_names,
 )
+from app.work import relations
 
 
 def get_or_create_state(db: Session) -> TicketSyncState:
@@ -206,6 +207,14 @@ def sync_tickets(db: Session, *, outbound, settings, now: datetime) -> TicketSyn
         # 상한(_MAX_PAGES)에 걸려 일부만 받아왔다면 prune 하지 않는다 — 안 받아온 티켓을
         # 'Notion에서 삭제됨'으로 오인해 캐시에서 지우면 앱 전체에서 티켓이 사라진다.
         pruned = _prune(db, keep, now) if not truncated else PruneResult()
+
+        # 계층을 `ticket_relations` 로 **파생**시킨다 (S6). `parent_page_id` 는 이
+        # 한 방향의 입력이고, 읽는 쪽은 전부 그 표만 본다 — 두 벌이 되면 갈라진 뒤
+        # 갈라진 쪽을 아무도 못 고친다(0044 가 적어 둔 그대로다).
+        #
+        # prune 뒤에 부르는 이유: 사라진 티켓의 관계는 CASCADE 로 이미 없다.
+        db.flush()
+        relations.sync_parent_links(db, now=now)
 
         _sync_meta(db, schema, projects, now)
 

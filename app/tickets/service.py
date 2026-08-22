@@ -1182,6 +1182,10 @@ def create_ticket(
     )
     stamp = now or utcnow()
     created = _repo(settings, outbound, repo).create(db, draft=draft, now=stamp)
+    # 번호는 **로컬 행이 생긴 뒤에** 붙인다 (S6 · D-196). 저장소가 캐시 행을 써 넣은
+    # 다음이라야 그 행에 `seq` 를 줄 수 있고, 채번과 티켓 삽입이 같은 트랜잭션에 있어야
+    # 롤백될 때 번호도 함께 돌아간다.
+    _number_new_ticket(db, page_id=created.page_id, actor=user, now=stamp)
     # 생성과 동시에 남에게 배정하는 것도 배정이다. 여기가 빠지면 "남이 나에게 일을 만든"
     # 경우만 조용해지는데, 그게 배정 알림이 가장 필요한 자리 중 하나다.
     _notify_assignees_added(
@@ -1190,6 +1194,31 @@ def create_ticket(
         after=resolve_assignee_user_ids(db, created.assignee_ids), now=stamp,
     )
     return {"ticket": ticket_views(db, [created])[0], "after": snapshot(created)}
+
+
+def _number_new_ticket(db: Session, *, page_id: str | None, actor: User, now: datetime) -> None:
+    """새 티켓에 번호와 첫 활동을 남긴다 (S6).
+
+    **프로젝트에 Key 가 없으면 아무것도 안 한다.** Project Key 20건은 아직 사용자 확인
+    전이고(D-197), 확정 전에 번호를 요구하면 그때까지 티켓 생성이 통째로 막힌다.
+    번호 없는 티켓은 옛 이름으로 계속 불린다 — 3층 식별자를 두는 이유가 그것이다.
+    """
+    if not page_id:
+        return
+    from app.tickets.models import Ticket
+    from app.work import activity as work_activity
+    from app.work import service as work_service
+
+    row = db.execute(
+        select(Ticket).where(Ticket.notion_page_id == page_id)
+    ).scalar_one_or_none()
+    if row is None:
+        return
+    work_activity.record(
+        db, ticket_id=row.id, kind=work_activity.ACT_CREATED, actor_id=actor.id,
+        to_value=row.status, now=now,
+    )
+    work_service.number_if_possible(db, row, now=now)
 
 
 # ── 본문 편집 ─────────────────────────────────────────────────────────────────

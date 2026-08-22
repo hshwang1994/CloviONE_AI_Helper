@@ -106,9 +106,10 @@ def _project_view(project: Project) -> dict:
         ),
         # 저장은 됐는데 노션에 못 밀어 넣은 상태면 그 이유. 화면이 배너로 보여준다.
         "notion_sync_error": project.notion_sync_error,
-        # 편집 시작 시점의 지문. 저장할 때 `base_notion_version` 으로 그대로 돌려보내면 그
-        # 사이 누가 먼저 저장한 경우 409 로 막힌다 — 안 보내면 예전처럼 덮어쓴다.
-        "notion_version": sync.project_notion_version(project),
+        # 편집 시작 시점의 판. 저장할 때 `base_version` 으로 그대로 돌려보내면 그 사이
+        # 누가 먼저 저장한 경우 409 로 막힌다 — 안 보내면 예전처럼 덮어쓴다.
+        # 티켓·문서와 **같은 이름의 같은 규약**이다 (S6).
+        "version": project.version,
         "created_at": project.created_at.isoformat(),
         "updated_at": project.updated_at.isoformat(),
     }

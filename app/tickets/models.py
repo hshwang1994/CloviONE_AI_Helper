@@ -1,13 +1,18 @@
-"""티켓 로컬 미러 캐시 모델 (§7.1.A, NEXT_SESSION_PLAN §A).
+"""티켓 표 (§7.1.A → S6). **표 이름은 `tickets` 다.**
 
-문서(team_docs)와 같은 구조다: 워커가 주기적으로 Notion "작업" DB를 통째로 읽어 여기에
-미러링하고, 화면은 로컬만 읽는다. 그래서 (1) 목록이 Notion 왕복 없이 즉시 뜨고 (2) Notion이
-죽어도 마지막 정상 동기화 데이터로 계속 보인다(§17.4 장애 격리).
+0023 이 이 표를 `ticket_cache` 라는 이름으로 만들었고, 그때는 그 이름이 정직했다 —
+워커가 Notion "작업" DB 를 통째로 읽어 여기 미러링하고 화면은 로컬만 읽었다. 그래서
+(1) 목록이 Notion 왕복 없이 즉시 뜨고 (2) Notion 이 죽어도 마지막 정상 동기화
+데이터로 계속 보인다(§17.4 장애 격리).
 
-문서 캐시와 다른 점 두 가지:
-  * `ticket_cache` 는 '얇은 읽기 캐시'가 아니라 **나중에 자체 소스가 될 수 있는 완전한 표**다
-    (§7.1.A). 그래서 자체 UUID PK 를 갖고 notion_page_id 는 nullable 보조 외부키이며,
-    본문 정본(body_markdown)과 source 컬럼을 처음부터 갖는다.
+S6 이 티켓 번호·표시 이름·상태·순서를 이 표에 붙이면서 그 이름이 틀린 말이 됐다.
+캐시는 지워도 되는 것이고, 이 표는 지우면 티켓 번호가 사라진다 — `tickets` 로 옮겼다
+(D-234 가 `departments` → `org_units` 에 쓴 것과 같은 이전이고, **컬럼 이름은 그대로**).
+`TicketCache` 는 같은 클래스의 별칭으로 남아 기존 호출부가 그대로 동작한다.
+
+처음부터 이 표가 '얇은 읽기 캐시' 가 아니었던 자리 둘:
+  * 자체 UUID PK 를 갖고 `notion_page_id` 는 nullable 보조 외부키이며, 본문 정본
+    (`body_markdown`)과 `source` 컬럼을 처음부터 갖는다.
   * 다중값(프로젝트 id/이름, 담당자 Notion id)은 문서 캐시와 **같은** sentinel-wrapped
     구분자 규약(app.core.models_base.NAMES_SEP)으로 저장한다. 새 규약을 만들지 않는다.
 
@@ -18,17 +23,22 @@
 from __future__ import annotations
 
 from datetime import datetime
+from decimal import Decimal
 
 from sqlalchemy import (
     BigInteger,
     Boolean,
+    CheckConstraint,
     DateTime,
     Float,
     ForeignKey,
     Identity,
+    Index,
     Integer,
+    Numeric,
     String,
     Text,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -74,10 +84,30 @@ PROJECT_LINK_STATES: tuple[str, ...] = (
 PROJECT_LINK_USABLE: frozenset[str] = frozenset({PROJECT_LINK_OK})
 
 
-class TicketCache(OrgScopedMixin, TimestampMixin, UUIDPrimaryKeyMixin, Base):
-    """Notion "작업" DB 한 행의 로컬 미러(장차 자체 티켓 표)."""
+class Ticket(OrgScopedMixin, TimestampMixin, UUIDPrimaryKeyMixin, Base):
+    """티켓 한 건. **표 이름이 `tickets` 다** (S6).
 
-    __tablename__ = "ticket_cache"
+    0023 이 이 표를 만들 때 이름이 `ticket_cache` 였고 그 이름은 정직했다 — 그때는
+    Notion 미러였다. S6 이 식별자·채번·상태·순서를 여기 붙이면서 그 이름이 틀린 말이
+    됐다: 캐시는 지워도 되는 것이고 이 표는 지우면 티켓 번호가 사라진다.
+
+    D-234(`departments` → `org_units`)와 같은 이전이다. **컬럼 이름은 그대로 둔다** —
+    `project_uid` 는 API 응답에 그대로 나가는 이름이고(`ticket_view`), 바꾸면 사용자와
+    프런트가 보는 말이 함께 바뀐다. `TicketCache` 는 이 클래스의 별칭으로 남는다.
+
+    ## 세 층의 이름 (D-195)
+
+    | 층 | 컬럼 | 성격 |
+    |---|---|---|
+    | Internal | `id` (uuid) | 영구 불변. 내부 참조는 전부 이것이다 |
+    | Canonical | `canonical_key` (`SKH-37`) | **트리거가 파생한다.** 앱이 직접 쓰지 않는다 |
+    | Legacy | `legacy_key` (`GIT-142`) | immutable · 재사용 금지 |
+
+    `canonical_key` 를 Generated Column 으로 만들 수 없는 이유는 D-195 에 있다 —
+    PostgreSQL Generated Column 은 다른 표(`projects.code`)를 참조할 수 없다.
+    """
+
+    __tablename__ = "tickets"
 
     # nullable 인 이유: source='native' 로 만든 티켓은 Notion 페이지가 없다. unique 는 유지 —
     # 같은 Notion 페이지가 두 행이 되면 목록에 중복이 뜬다(SQLite는 NULL을 서로 다르게 본다).
@@ -159,6 +189,82 @@ class TicketCache(OrgScopedMixin, TimestampMixin, UUIDPrimaryKeyMixin, Base):
     notion_last_edited: Mapped[str | None] = mapped_column(String(40))
     synced_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
 
+    # ── 세 층의 이름 (S6 · D-195) ───────────────────────────────────────────
+    #
+    # `seq` 는 프로젝트 안의 번호이고 `project_ticket_counters` 가 발급한다(D-196).
+    # `canonical_key` 는 **앱이 쓰지 않는다** — BEFORE INSERT/UPDATE 트리거가
+    # `projects.code || '-' || seq` 로 파생시킨다. 앱이 쓰면 둘이 어긋날 수 있고,
+    # 어긋난 티켓은 검색으로도 링크로도 못 찾는다.
+    seq: Mapped[int | None] = mapped_column(Integer)
+    canonical_key: Mapped[str | None] = mapped_column(String(64))
+    # `GIT-142`. 옛 시스템이 부르던 이름이고 **영원히 같은 티켓을 가리킨다.**
+    # `notion_ticket_number` 에서 왔지만 그 컬럼과 뜻이 다르다 — 저쪽은 외부 소스의
+    # 속성값이라 소스가 바뀌면 의미를 잃고, 이쪽은 우리가 보증하는 영구 별칭이다.
+    legacy_key: Mapped[str | None] = mapped_column(String(64))
+
+    # ── 낙관적 잠금 (S6) ────────────────────────────────────────────────────
+    #
+    # 저장할 때마다 1 씩 는다. 편집을 시작할 때 받은 값과 다르면 409 다.
+    # 프로젝트가 쓰던 `notion_version`(Notion 페이로드 해시)을 대신한다 — 해시는
+    # **외부 소스에 실려 나가는 필드 집합**을 지문으로 삼아서, 소스에 안 보내는 값
+    # (담당자·스프린트·순서)이 바뀌어도 충돌을 못 잡았다.
+    version: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=1, server_default="1"
+    )
+
+    # ── 스프린트와 백로그 순서 (S6) ─────────────────────────────────────────
+    #
+    # `backlog_rank` 는 `priority` 와 **다른 축**이다. 우선순위는 "얼마나 급한가"고
+    # 순서는 "다음에 무엇을 하는가"다 — 높음 3건의 선후는 우선순위가 답하지 못한다.
+    #
+    # 정밀도를 지정하지 않은 `numeric` 이라 두 값 사이에 언제나 중점이 있다. 전체
+    # 재번호 없이 삽입할 수 있고, 자리수는 `app/work/rank.py` 가 재조정한다.
+    sprint_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("sprints.id", ondelete="SET NULL"), index=True
+    )
+    backlog_rank: Mapped[Decimal | None] = mapped_column(Numeric())
+
+    __table_args__ = (
+        CheckConstraint("seq IS NULL OR seq > 0", name="ck_tickets_seq_positive"),
+        # **번호와 표시 이름은 함께 있거나 함께 없다.** 그리고 번호가 있으면 소속
+        # 프로젝트가 있다.
+        #
+        # 초안(§5.2)은 `project_id` 까지 셋을 한 묶음으로 묶었다 — 「배정됐거나 전부
+        # NULL 이거나」. 지금 그 제약을 걸면 **미러 1,124행이 전부 위반**이다:
+        # 프로젝트에는 연결돼 있는데 Project Key 가 아직 하나도 없어서(22건 전부
+        # `code IS NULL`) 번호를 줄 수가 없다. 재채번은 D-197 이 사용자 확인 뒤
+        # S13 으로 정해 둔 일이다.
+        #
+        # 그래서 실제로 지켜야 하는 불변식만 남긴다: **번호는 Key 를 가진 프로젝트
+        # 안에서만 발급된다.** 그 절반은 여기가, 나머지 절반(프로젝트에 Key 가
+        # 있는가)은 트리거가 막는다.
+        CheckConstraint(
+            "(seq IS NULL AND canonical_key IS NULL) OR "
+            "(seq IS NOT NULL AND canonical_key IS NOT NULL AND project_uid IS NOT NULL)",
+            name="ck_tickets_key_assigned",
+        ),
+        CheckConstraint("version > 0", name="ck_tickets_version_positive"),
+        Index(
+            "uq_tickets_project_seq", "project_uid", "seq", unique=True,
+            postgresql_where=text("project_uid IS NOT NULL AND seq IS NOT NULL"),
+        ),
+        Index(
+            "uq_tickets_canonical", "canonical_key", unique=True,
+            postgresql_where=text("canonical_key IS NOT NULL"),
+        ),
+        Index(
+            "uq_tickets_legacy", "legacy_key", unique=True,
+            postgresql_where=text("legacy_key IS NOT NULL"),
+        ),
+        # 백로그 화면은 프로젝트별로 순서대로 읽는다.
+        Index("ix_tickets_backlog", "project_uid", "backlog_rank"),
+    )
+
+
+# 옛 이름. 0023~S5 의 호출부 57곳이 이 이름을 쓴다 — 같은 클래스의 별칭이라
+# `isinstance` 도 질의도 그대로 동작한다 (D-234 가 `Department` 에 쓴 것과 같은 수법).
+TicketCache = Ticket
+
 
 class TicketSyncState(Base):
     """동기화 싱글턴. DocumentSyncState 와 같은 모양 + truncated(상한 도달) 신호."""
@@ -207,7 +313,7 @@ class TicketComment(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "ticket_comments"
 
     ticket_uid: Mapped[str] = mapped_column(
-        String(36), ForeignKey("ticket_cache.id", ondelete="CASCADE"),
+        String(36), ForeignKey("tickets.id", ondelete="CASCADE"),
         nullable=False, index=True,
     )
     author_user_id: Mapped[str] = mapped_column(
@@ -267,7 +373,7 @@ class TicketAttachment(UUIDPrimaryKeyMixin, Base):
     __tablename__ = "ticket_attachments"
 
     ticket_uid: Mapped[str] = mapped_column(
-        String(36), ForeignKey("ticket_cache.id", ondelete="CASCADE"),
+        String(36), ForeignKey("tickets.id", ondelete="CASCADE"),
         nullable=False, index=True,
     )
     uploaded_by_user_id: Mapped[str] = mapped_column(

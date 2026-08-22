@@ -140,10 +140,14 @@ class ProjectUpdate(ProjectCreate):
     # 늘린 날 포털이 정상 값을 거절하게 된다. 판정은 push 직전에 **실제 스키마**로 한다
     # (app/projects/notion_write.py::_status_value).
     notion_status: str | None = None
-    # 낙관적 잠금 지문. 편집을 시작할 때 받은 값을 그대로 돌려보낸다 — 그 사이 누가 먼저
-    # 저장했으면 409 로 막힌다. 안 보내면 예전처럼 덮어쓴다(구버전 클라이언트 호환).
-    # 저장되는 값이 아니라 **비교용 토큰**이라 EDITABLE_FIELDS 에 없다.
-    base_notion_version: str | None = None
+    # 낙관적 잠금 (S6). 편집을 시작할 때 받은 `version` 을 그대로 돌려보낸다 — 그 사이
+    # 누가 먼저 저장했으면 409 로 막힌다. 안 보내면 예전처럼 덮어쓴다(구버전 클라이언트
+    # 호환). 저장되는 값이 아니라 **비교용**이라 EDITABLE_FIELDS 에 없다.
+    #
+    # 예전 이름은 `base_notion_version` 이었고 값은 해시였다. 이름과 타입이 함께 바뀐
+    # 이유는 `app/projects/sync.py::ensure_not_changed` 에 있다 — 옛 이름을 남겨 두면
+    # 옛 클라이언트가 해시를 보내고 서버가 그것을 정수로 읽으려다 조용히 통과한다.
+    base_version: int | None = None
 
     # `ProjectCreate` 에는 위 두 필드가 없다. 새로 만드는 프로젝트는 Notion 페이지가 아직
     # 없으므로 밀어 넣을 상태도, 충돌할 앞사람도 없다.

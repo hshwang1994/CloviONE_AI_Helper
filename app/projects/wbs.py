@@ -1,9 +1,11 @@
-"""WBS 트리 — 미러의 `parent_page_id` 로 작업 계층을 만든다 (순수 함수, DB 없음).
+"""WBS 트리 — `ticket_relations` 의 상하위로 작업 계층을 만든다 (순수 함수, DB 없음).
 
 ## 계층을 새로 만들지 않는다
 
-노션 작업 DB 에 상위, 하위 self-relation 이 이미 있고 그것을 0044 가 `parent_page_id` 로
-미러링해 뒀다. 앱에서 계층을 한 벌 더 만들면 둘이 갈라지고, 갈라진 쪽을 아무도 못 고친다.
+노션 작업 DB 에 상위, 하위 self-relation 이 있고 0044 가 그것을 `parent_page_id` 로
+미러링했다. S6 이 그 값을 `ticket_relations` 로 **파생**시키면서 계층의 정본이 그 표
+하나가 됐다(`app/work/relations.py::sync_parent_links`). 이 파일은 여전히 계층을 만들지
+않는다 — 받아서 그릴 뿐이고, 달라진 것은 어느 표에서 오는가뿐이다.
 
 ## 진행률은 `compute_progress` 를 그대로 쓴다
 
@@ -57,8 +59,8 @@ class WbsItem:
     """트리 한 칸. 진행률에 쓰는 사실(`task`)과 화면에 그릴 사실을 나눠 둔다.
 
     `task` 를 재사용하는 이유: 키, 부모, 상태, 예상 WD 를 여기서 다시 뽑으면 헤더와 트리가
-    **서로 다른 규칙으로 같은 값을 만들게 된다.** 특히 키를 `notion_page_id` 로 잡는 규약이
-    갈리면 부모와 자식이 영원히 안 만난다(progress.py::task_from_ticket).
+    **서로 다른 규칙으로 같은 값을 만들게 된다.** 특히 키 축(티켓 UUID)이 갈리면 부모와
+    자식이 영원히 안 만난다(progress.py::task_from_ticket).
     """
 
     task: Task
@@ -122,10 +124,15 @@ class WbsResult:
         }
 
 
-def wbs_item_from_ticket(row) -> WbsItem:
-    """`ticket_cache` 행 하나를 트리 한 칸으로. 질의는 repository 가 한다."""
+def wbs_item_from_ticket(row, parent_key: str | None = None) -> WbsItem:
+    """`tickets` 행 하나를 트리 한 칸으로. 질의는 repository 가 한다.
+
+    상위는 **인자로 받는다** — 진행률과 같은 규약이다(progress.py::task_from_ticket).
+    여기서 표를 읽으면 이 파일이 순수 함수가 아니게 되고, 트리가 헤더와 다른 계층을
+    쓸 자리가 생긴다.
+    """
     return WbsItem(
-        task=task_from_ticket(row),
+        task=task_from_ticket(row, parent_key),
         title=row.title or "",
         url=row.url,
         ticket_number=row.notion_ticket_number,

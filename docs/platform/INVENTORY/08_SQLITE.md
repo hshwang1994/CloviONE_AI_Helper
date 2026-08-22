@@ -20,7 +20,7 @@
 | 7 | `*_json` Text 컬럼 | **37개**(계획 27 → 실측 37) 전부 `JsonText`(저장 `jsonb`, 파이썬 문자열)로 이전. `approvals.request_payload_json` 의 정규화는 **jsonb 가 강제한다** — 규약을 문서로 약속하지 않는다 (D-215) | **완료** |
 | 8 | `sqlite_where=` | **`postgresql_where=`**. 실제로는 **4개**다(0053 이 두 표에 건다, D-221) | **완료 (R2 닫힘)** |
 | 9 | `LIKE` 대소문자 | `search/query.py` → `ILIKE`. `retention.py` 는 JSON 문자열 훑기 → `jsonb_path_exists`, `schedules/router.py` 는 문자열 조각 → `->>` 로 **더 정확해졌다**. 나머지 `.like()` 는 `func.lower()` 로 이미 대소문자 무관하거나(3곳) 생성 id 접두 일치라 구분이 옳다(2곳) | **완료** |
-| 10 | 문자열 날짜 컬럼 | **S2 범위 아님** — 계획이 "새 도메인에서" 로 적었다. 도메인 재설계와 함께 S6·S7 | **S6·S7 로 이월** |
+| 10 | 문자열 날짜 컬럼 | **S2 범위 아님** — 계획이 "새 도메인에서" 로 적었다. 도메인 재설계와 함께 S6·S7 | **소유가 정해졌다: `BACKLOG.md` P-14a (S7).** S6 은 안 했다 — 반씩 나눠 하면 같은 화면에서 문자열 비교와 날짜 비교가 섞인다 |
 | 11 | **`VARCHAR(n)`** | `messages.message_id` `VARCHAR(64)` → **`VARCHAR(128)`** (D-214 의 계약상 최대 108). `jobs.message_id`(64)는 감사 결과 **넓힐 필요 없다** — `retry`/`regenerate` 가 `role != user` 를 거부하므로 사용자 메시지 id(≤64)만 들어온다 | **완료 (R7 닫힘)** |
 | 12 | `app/backups/sqlite_backup.py` | **삭제.** `app/backups/pg_backup.py` 가 `pg_dump -Fc` + 체크섬 + `pg_restore --list` + **임시 DB 실복원**을 한다. 실복원을 못 하면 `structure_only` 로 **어디까지 봤는지 말한다** (D-204) | **완료** |
 | 13 | `ID_BATCH_SIZE=500` 근거 주석 | PG 한계(**65535** 바인드 파라미터)로 정정. 500 을 유지하는 이유는 상한이 아니라 **계획 품질**이라고 적었다 | **완료** |

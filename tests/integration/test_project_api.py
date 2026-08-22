@@ -139,11 +139,17 @@ def test_a_portal_only_project_counts_nothing_rather_than_everything(
 
 
 def test_the_child_and_the_parent_are_not_counted_twice(client, login_as, db, world):
-    """미러의 `parent_page_id` 가 리프 판정까지 실제로 이어지는지."""
+    """미러의 `parent_page_id` 가 관계 표를 지나 리프 판정까지 실제로 이어지는지 (S6)."""
+    from app.work import relations
+
     _ticket(db, uid="t-parent", page_id="page-parent", projects=(PROJ_PAGE,),
             status="진행", est=100)
     _ticket(db, uid="t-child", page_id="page-child", projects=(PROJ_PAGE,),
             status="완료", est=10, parent="page-parent")
+    db.flush()
+    # 계층의 정본은 `ticket_relations` 다. 동기화가 부르는 그 함수를 여기서도 부른다 —
+    # 관계 행을 손으로 넣으면 파생이 실제로 도는지는 아무도 안 본다.
+    relations.sync_parent_links(db)
     db.commit()
 
     body = client.get(
@@ -179,10 +185,10 @@ def test_recompute_caches_the_percent_on_the_row(client, login_as, db, world):
 def test_a_duplicate_code_in_the_same_org_is_409_not_500(client, login_as, world):
     """유니크 제약에 맡기면 IntegrityError 가 500 으로 나간다."""
     hdr = _hdr(login_as)
-    first = client.post("/api/projects", json={"name": "가", "code": "PRJ-1"}, headers=hdr)
+    first = client.post("/api/projects", json={"name": "가", "code": "PRJ1"}, headers=hdr)
     assert first.status_code == 200, first.text
 
-    second = client.post("/api/projects", json={"name": "나", "code": "PRJ-1"}, headers=hdr)
+    second = client.post("/api/projects", json={"name": "나", "code": "PRJ1"}, headers=hdr)
     assert second.status_code == 409, f"중복 코드가 409 가 아니다: {second.status_code}"
 
 
@@ -208,7 +214,7 @@ def test_concurrent_create_same_code_never_500s(app, login_as, world):
 
     def _pause_before_insert_races(conn, cursor, statement, parameters, context, executemany):
         nonlocal hits
-        if "FROM projects" not in statement or "race-code" not in str(parameters):
+        if "FROM projects" not in statement or "RACECODE" not in str(parameters):
             return
         with hits_lock:
             hits += 1
@@ -222,7 +228,7 @@ def test_concurrent_create_same_code_never_500s(app, login_as, world):
             assert r.status_code == 200, r.text
             token = r.json()["csrf_token"]
             resp = c.post(
-                "/api/projects", json={"name": f"동시생성{i}", "code": "race-code"},
+                "/api/projects", json={"name": f"동시생성{i}", "code": "RACECODE"},
                 headers={"X-CSRF-Token": token},
             )
             return resp.status_code

@@ -49,7 +49,7 @@ function project(over) {
     notion_page_id: "np-1",
     notion_progress_pct: 70, notion_status: "진행 중",
     notion_missing_at: null, notion_synced_at: "2026-08-06T00:00:00",
-    notion_sync_error: null, notion_version: "v1",
+    notion_sync_error: null, version: 1,
     created_at: "2026-07-01T00:00:00", updated_at: "2026-08-06T00:00:00",
     ...over,
   };
@@ -714,7 +714,7 @@ describe("프로젝트 수정", () => {
     // 폼은 열려 있던 값을 그대로 되보낸다 - 이름이 빠지면 서버가 지우기로 읽을 수 있다.
     expect(sent.body.name).toBe("배포 자동화");
     // 지문을 안 보내면 두 사람이 같은 폼을 열었을 때 나중 사람이 조용히 덮어쓴다.
-    expect(sent.body.base_notion_version).toBe("v1");
+    expect(sent.body.base_version).toBe(1);
   });
 
   it("🔴 저장 뒤 목록·요약·상세 캐시를 전부 무효화한다", async () => {
@@ -794,7 +794,7 @@ describe("프로젝트 상세 — 부서 지정 (VIS-02)", () => {
     const sent = lastWrite("/api/projects/p-1", "PATCH");
     expect(sent.body.dept_id).toBe("d-2");
     // 편집 폼과 같은 낙관적 잠금 지문을 쓴다 — 새 경로라고 그 규약을 빼먹지 않는다.
-    expect(sent.body.base_notion_version).toBe("v1");
+    expect(sent.body.base_version).toBe(1);
   });
 
   it("일반 사용자에게는 select가 아니라 읽기 전용 글자다 — 빈 선택기를 보여주지 않는다", async () => {

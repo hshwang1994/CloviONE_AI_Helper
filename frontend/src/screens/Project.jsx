@@ -362,7 +362,7 @@ export function Project() {
    * 양쪽 다 성공 화면을 본다(app/projects/sync.py::ensure_not_changed). 서버가 이미 그
    * 계약을 갖고 있는데 화면이 안 쓰면 배관만 깔려 있고 양 끝이 끊긴 상태다. */
   async function submitEdit(body) {
-    await update.mutateAsync({ ...body, base_notion_version: project.notion_version });
+    await update.mutateAsync({ ...body, base_version: project.version });
     setEditing(false);
     toast("프로젝트를 저장했습니다.", "success");
   }
@@ -372,7 +372,7 @@ export function Project() {
   // 응답을 받아(DEPT_ROLES) 운영자에게는 빈 선택기가 된다(project-format.js의 경고 그대로).
   async function handleAssignDept(deptId) {
     try {
-      await update.mutateAsync({ dept_id: deptId, base_notion_version: project.notion_version });
+      await update.mutateAsync({ dept_id: deptId, base_version: project.version });
       toast(deptId ? "부서를 지정했습니다." : "부서 지정을 해제했습니다.", "success");
     } catch (e) {
       toast((e && e.message) || "부서를 저장하지 못했습니다. 다시 시도해 주세요.", "error");

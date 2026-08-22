@@ -485,7 +485,7 @@ def test_editing_in_the_portal_pushes_to_notion(client, db, notion, portal):
             "notion_status": "차질",
             "starts_on": "2026-07-05",
             "ends_on": "2026-10-31",
-            "base_notion_version": portal["view"]["notion_version"],
+            "base_version": portal["view"]["version"],
         },
         headers={"X-CSRF-Token": portal["token"]},
     )
@@ -513,7 +513,7 @@ def test_what_the_portal_pushed_survives_the_next_sync(
     r = client.patch(
         f"/api/projects/{portal['id']}",
         json={"name": "포털이 정한 이름", "notion_status": "차질",
-              "base_notion_version": portal["view"]["notion_version"]},
+              "base_version": portal["view"]["version"]},
         headers={"X-CSRF-Token": portal["token"]},
     )
     assert r.status_code == 200, r.text
@@ -535,11 +535,11 @@ def test_a_second_saver_is_stopped_instead_of_overwriting_the_first(
 
     양쪽 다 성공 화면을 보기 때문에 아무도 무엇이 사라졌는지 모른다. 그래서 막는다.
     """
-    stale_version = portal["view"]["notion_version"]
+    stale_version = portal["view"]["version"]
 
     first = client.patch(
         f"/api/projects/{portal['id']}",
-        json={"name": "앞사람이 저장한 이름", "base_notion_version": stale_version},
+        json={"name": "앞사람이 저장한 이름", "base_version": stale_version},
         headers={"X-CSRF-Token": portal["token"]},
     )
     assert first.status_code == 200, first.text
@@ -547,7 +547,7 @@ def test_a_second_saver_is_stopped_instead_of_overwriting_the_first(
 
     second = client.patch(
         f"/api/projects/{portal['id']}",
-        json={"name": "뒷사람이 저장한 이름", "base_notion_version": stale_version},
+        json={"name": "뒷사람이 저장한 이름", "base_version": stale_version},
         headers={"X-CSRF-Token": portal["token"]},
     )
     assert second.status_code == 409, (
@@ -566,7 +566,7 @@ def test_a_fresh_version_lets_the_second_save_through(client, db, notion, portal
     """잠금이 정상 저장까지 막으면 안 된다 - 새로고침한 사람은 통과해야 한다."""
     first = client.patch(
         f"/api/projects/{portal['id']}",
-        json={"name": "첫 저장", "base_notion_version": portal["view"]["notion_version"]},
+        json={"name": "첫 저장", "base_version": portal["view"]["version"]},
         headers={"X-CSRF-Token": portal["token"]},
     )
     assert first.status_code == 200, first.text
@@ -574,7 +574,7 @@ def test_a_fresh_version_lets_the_second_save_through(client, db, notion, portal
     second = client.patch(
         f"/api/projects/{portal['id']}",
         json={"name": "새로고침 뒤 저장",
-              "base_notion_version": first.json()["project"]["notion_version"]},
+              "base_version": first.json()["project"]["version"]},
         headers={"X-CSRF-Token": portal["token"]},
     )
     assert second.status_code == 200, second.text
@@ -595,7 +595,7 @@ def test_a_status_notion_does_not_know_is_refused_before_it_is_sent(
     r = client.patch(
         f"/api/projects/{portal['id']}",
         json={"notion_status": "이런 상태는 노션에 없다",
-              "base_notion_version": portal["view"]["notion_version"]},
+              "base_version": portal["view"]["version"]},
         headers={"X-CSRF-Token": portal["token"]},
     )
     assert r.status_code == 200, r.text
@@ -613,7 +613,7 @@ def test_a_push_failure_does_not_roll_back_what_the_user_typed(
     r = client.patch(
         f"/api/projects/{portal['id']}",
         json={"name": "노션이 죽은 동안 고친 이름",
-              "base_notion_version": portal["view"]["notion_version"]},
+              "base_version": portal["view"]["version"]},
         headers={"X-CSRF-Token": portal["token"]},
     )
     assert r.status_code == 200, r.text

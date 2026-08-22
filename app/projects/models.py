@@ -135,6 +135,15 @@ class Project(OrgScopedMixin, TimestampMixin, UUIDPrimaryKeyMixin, Base):
     # 사라지는데 그 둘은 재계산으로 돌아오지 않는다(그때의 판단 기록이기 때문이다).
     archived_at: Mapped[datetime | None] = mapped_column(DateTime, index=True)
 
+    # 낙관적 잠금 (S6). 저장할 때마다 1 씩 늘고, 편집을 시작할 때 받은 값과 다르면 409 다.
+    #
+    # 예전에는 `notion_version` — **Notion 에 실려 나가는 필드 집합의 해시**였다. 그 지문은
+    # 두 가지를 못 잡았다: (1) 소스에 안 보내는 값(담당자·마일스톤·헬스)이 바뀐 것과
+    # (2) 소스가 바뀌면 지문 계산의 입력 목록도 함께 바뀐다는 것. 정수는 그 둘과 무관하다.
+    version: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=1, server_default="1"
+    )
+
     # NULL 이면 포털 전용 프로젝트. unique 는 유지한다(같은 페이지가 두 행이면 목록 중복).
     notion_page_id: Mapped[str | None] = mapped_column(String(64), unique=True, index=True)
 

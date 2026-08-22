@@ -60,17 +60,22 @@ def test_the_ticket_mirror_keeps_parent_page_id_and_soft_prune(db):
     이 컬럼이 없으면 티켓이 소스 응답에서 한 회차 깜빡일 때 행이 지워지고, 붙어 있던
     댓글·첨부·미push 본문이 CASCADE 로 함께 사라진다 — 셋 다 Notion 에 없어서 재동기화로
     돌아오지 않는다(`tests/regression/test_comment_survives_resync.py` 가 그 사고를 재현한다).
+
+    `parent_page_id` 는 S6 이후 **계층의 정본이 아니라 그 표로 들어가는 입력**이다
+    (D-239) — 그래도 이 컬럼이 없으면 파생할 것이 없으므로 계약은 그대로다.
     """
-    cols = _cols(db, "ticket_cache")
-    assert "parent_page_id" in cols, "상위 작업 미러 컬럼이 없다 - 리프 판정을 할 수 없다"
+    # 표 이름은 S6 이 `tickets` 로 옮겼다(D-238). **컬럼 계약은 그대로**다 —
+    # 이 시험이 지키는 것은 이름이 아니라 두 컬럼이다.
+    cols = _cols(db, "tickets")
+    assert "parent_page_id" in cols, "상위 작업 미러 컬럼이 없다 - 계층 파생의 입력이다"
     assert "notion_missing_at" in cols, "소프트 프룬 컬럼이 없다 - 깜빡임이 곧 데이터 손실이다"
 
 
 def test_the_soft_prune_indexes_are_there(db):
     """보존 정리와 리프 집계가 매번 전수 스캔이 되지 않게 하는 인덱스들이다."""
-    indexes = _indexes(db, "ticket_cache")
-    assert "ix_ticket_cache_notion_missing_at" in indexes
-    assert "ix_ticket_cache_parent_page_id" in indexes
+    indexes = _indexes(db, "tickets")
+    assert "ix_tickets_notion_missing_at" in indexes
+    assert "ix_tickets_parent_page_id" in indexes
 
 
 def test_deleting_a_project_takes_its_children_with_it(db):

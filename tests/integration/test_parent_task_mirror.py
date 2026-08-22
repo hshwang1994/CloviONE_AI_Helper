@@ -82,6 +82,17 @@ def test_the_parent_relation_actually_reaches_the_mirror(client, settings, notio
     )
     assert _row(db, PARENT).parent_page_id is None, "부모에게 부모가 생겼다"
 
+    # S6: 미러 컬럼은 **입력**이고 계층의 정본은 `ticket_relations` 다. 동기화가 그
+    # 파생까지 돌지 않으면 진행률과 트리는 계층을 못 본다 — 컬럼만 확인하면 그 상태가
+    # 초록으로 통과한다(이 파일이 처음 잡은 결함이 정확히 그 모양이었다).
+    from app.work import relations
+
+    parent_row = _row(db, PARENT)
+    assert relations.parent_of(db, child.id) == parent_row.id, (
+        "미러 컬럼은 찼는데 관계 표가 비어 있다 — 리프 판정이 아무 효과가 없다"
+    )
+    assert relations.parent_of(db, parent_row.id) is None, "부모에게 부모가 생겼다"
+
 
 def test_the_leaf_rule_now_changes_the_number(client, settings, notion, db):
     """🔴 여기가 핵심이다 — **값이 실제로 달라져야** 리프 판정이 사는 것이다.
@@ -92,22 +103,18 @@ def test_the_leaf_rule_now_changes_the_number(client, settings, notion, db):
     두 값이 다르므로, 이 테스트는 리프 판정이 **실제로 적용됐는지**를 가른다.
     (입력이 비어 있으면 둘 다 50% 라 아무것도 증명하지 못한다.)
     """
-    from app.projects.progress import Task, compute_progress
+    from app.projects.progress import compute_progress, task_from_ticket
+    from app.work import relations
 
     (settings.secrets_dir / TOKEN_REF).write_text("fake-token", encoding="utf-8")
     _sync(client, db)
     db.expire_all()
 
     rows = db.execute(select(TicketCache)).scalars().all()
-    tasks = [
-        Task(
-            key=r.notion_page_id,
-            parent_key=r.parent_page_id,
-            status=r.status,
-            est_wd=r.est_wd,
-        )
-        for r in rows
-    ]
+    # 제품이 쓰는 함수 그대로 만든다. 손으로 `Task(...)` 를 조립하면 축을 바꾸는 날
+    # 이 시험만 옛 축으로 남아 초록을 찍는다.
+    parents = relations.parent_map(db, [r.id for r in rows])
+    tasks = [task_from_ticket(r, parents.get(r.id)) for r in rows]
     result = compute_progress(tasks)
 
     assert result.basis.parent_tasks_excluded == 1, (

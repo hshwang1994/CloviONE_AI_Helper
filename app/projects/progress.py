@@ -58,9 +58,16 @@ FALLBACK_WEIGHT = 1.0
 class Task:
     """진행률 계산에 필요한 최소 사실.
 
-    `parent_key` 는 Notion 작업 DB 의 상위 작업 page id 다. 계층을 앱에서 새로 만들지 않고
-    거기 이미 있는 것을 그대로 쓴다(`ticket_cache.parent_page_id`, 0044) — 계층이 두 벌이
-    되면 둘이 갈라지고, 갈라진 쪽을 아무도 못 고친다.
+    `key` 와 `parent_key` 는 **티켓의 자체 UUID** 다 (S6).
+
+    0044 는 이 축이 Notion page id 였다 — 계층의 출처가 미러의 `parent_page_id` 였기
+    때문이다. S6 이 `ticket_relations` 를 도메인 정본으로 세우면서 축을 옮겼다. 두
+    축을 섞으면 부모와 자식이 영원히 안 만나고, 그 증상은 「진행률이 이상하다」뿐이라
+    원인까지 가는 데 오래 걸린다.
+
+    계층을 여기서 새로 만들지 않는 원칙은 그대로다. 달라진 것은 **어느 표가 계층의
+    정본인가**뿐이고, 미러의 `parent_page_id` 는 이제 그 표로 들어가는 입력이다
+    (`app/work/relations.py::sync_parent_links`).
     """
 
     key: str
@@ -195,16 +202,18 @@ def compute_progress(tasks) -> ProgressResult:
     return ProgressResult(percent=percent, basis=basis)
 
 
-def task_from_ticket(row) -> Task:
-    """`ticket_cache` 행 하나를 `Task` 로. 이 파일에서 DB 를 아는 유일한 자리이고, 아는 것은
-    **컬럼 이름 네 개뿐**이다(질의는 repository 가 한다).
+def task_from_ticket(row, parent_key: str | None = None) -> Task:
+    """`tickets` 행 하나를 `Task` 로. 이 파일에서 DB 를 아는 유일한 자리이고, 아는 것은
+    **컬럼 이름 세 개뿐**이다(질의는 repository 가 한다).
 
-    `notion_page_id` 를 키로 쓰는 이유: 부모를 가리키는 값(`parent_page_id`)이 Notion page id
-    라서 같은 축이어야 이어진다. 자체 UUID(`id`)를 키로 쓰면 부모/자식이 영원히 안 만난다.
+    `parent_key` 를 **인자로 받는다** — 행에서 읽지 않는다. 계층의 정본이
+    `ticket_relations` 로 옮겨 갔고(S6), 그 표를 이 순수 함수가 직접 읽으면 여기가
+    DB 를 아는 두 번째 자리가 된다. 부르는 쪽(`repository.tasks_for_project`)이 한
+    번에 읽어 넘긴다.
     """
     return Task(
-        key=row.notion_page_id or row.id,
-        parent_key=row.parent_page_id,
+        key=row.id,
+        parent_key=parent_key,
         status=row.status,
         est_wd=row.est_wd,
     )

@@ -79,6 +79,7 @@ from app.sysops.router import router as sysops_router
 from app.team_docs.router import router as team_docs_router
 from app.trash.router import router as trash_router
 from app.sprints.router import router as sprint_router
+from app.work.router import router as work_router
 from app.team_chat.router import router as team_chat_router
 from app.templates.router import router as templates_router
 from app.users.router import router as users_admin_router
@@ -248,6 +249,9 @@ def create_app(
     app.include_router(projects_router)
     app.include_router(trash_router)
     app.include_router(sprint_router)
+    # Work Domain(S6) — 판·백로그·스프린트·이름 세 층·예외. 티켓 목록 API 와 나뉜
+    # 이유는 소비자다: 저쪽은 표, 이쪽은 판이고 순서다.
+    app.include_router(work_router)
     # 홈 '오늘' 커맨드 센터와 AI 도우미 심화(계획서 Phase 5). 둘 다 조회 전용이고
     # 티켓은 저장소 seam 을 통해서만 읽는다(미러가 채워져 있으면 Notion 왕복 0회).
     app.include_router(home_router)

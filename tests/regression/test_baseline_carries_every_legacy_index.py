@@ -53,6 +53,20 @@ KNOWN_RETIRED = {
     "uq_messages_message_id",
 }
 
+# **사라진 것이 아니라 옮겨 간 이름.** `KNOWN_RETIRED` 와 다른 것이다 — 저쪽은 「이제
+# 없다」이고 여기는 「같은 인덱스가 새 이름으로 있다」다.
+#
+# 둘을 한 목록에 담으면 표 이름을 옮기면서 **인덱스를 빠뜨린 경우**가 면제로 통과한다.
+# 그래서 여기 적은 이름은 오른쪽 값이 모델에 실제로 있는지까지 확인한다
+# (`test_renamed_indexes_landed_under_their_new_name`).
+KNOWN_RENAMED = {
+    # S6 이 `ticket_cache` 표를 `tickets` 로 옮겼다(D-238). 인덱스 이름도 함께 옮긴다 —
+    # PostgreSQL 의 `RENAME TO` 는 인덱스를 옛 이름 그대로 데려가서, 안 옮기면 다음
+    # 사람이 `ix_ticket_cache_status` 를 보고 없는 표를 찾는다.
+    "ix_ticket_cache_project_link": "ix_tickets_project_link",
+    "ix_ticket_cache_project_uid": "ix_tickets_project_uid",
+}
+
 
 def _legacy_names() -> dict[str, str]:
     """옛 체인이 만들고 **안 지운** 이름 → 그 이름이 처음 나온 파일."""
@@ -101,6 +115,21 @@ def test_the_detector_actually_finds_things():
     assert len(names) >= 60, f"옛 체인에서 이름을 {len(names)}개밖에 못 찾았다 — 검사가 헛돈다"
 
 
+def test_renamed_indexes_landed_under_their_new_name():
+    """옮겼다고 적은 이름이 **새 이름으로 실제로 있는가.**
+
+    이 단정이 없으면 `KNOWN_RENAMED` 가 그냥 면제 목록이 된다 — 표를 옮기면서 인덱스를
+    빠뜨려도 「옮겼다」고 한 줄 적으면 통과한다. 사라진 인덱스는 오류를 내지 않고
+    느려지기만 하므로, 그때 아무도 못 알아챈다.
+    """
+    models = _model_names()
+    lost = {old: new for old, new in KNOWN_RENAMED.items() if new not in models}
+    assert not lost, (
+        "옮겼다고 적었는데 새 이름이 모델에 없다 — 이름만 바뀐 것이 아니라 인덱스가 "
+        f"사라진 것이다: {lost}"
+    )
+
+
 def test_no_legacy_index_was_silently_dropped():
     """옛 체인이 만든 것 중 모델에 없는 것이 있으면 **기준선에서 사라진다.**"""
     legacy = _legacy_names()
@@ -108,7 +137,9 @@ def test_no_legacy_index_was_silently_dropped():
     missing = {
         name: origin
         for name, origin in sorted(legacy.items())
-        if name not in models and name not in KNOWN_RETIRED
+        if name not in models
+        and name not in KNOWN_RETIRED
+        and name not in KNOWN_RENAMED
     }
     assert not missing, (
         "옛 체인이 만든 인덱스·제약이 모델에 없다 — 기준선을 모델에서 만들면 그대로 "

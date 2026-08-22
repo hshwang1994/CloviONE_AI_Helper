@@ -31,7 +31,6 @@ Notion 의 `티켓 진행률`(rollup) / `프로젝트 진행률`(formula)은 **�
 
 from __future__ import annotations
 
-import hashlib
 import logging
 from datetime import datetime
 
@@ -61,9 +60,11 @@ _MIRRORED = (
     "notion_status", "notion_progress_pct", "notion_owner_ids", "notion_last_edited",
 )
 
-# 포털에서 고치면 Notion 으로 push 하는 필드(사용자 지시). 낙관적 잠금의 지문도 **이 목록
-# 하나**에서 만든다 - 두 벌이 되면 push 하는데 잠금이 안 보는 필드가 생기고, 그 필드는
-# 두 사람이 동시에 고쳐도 조용히 덮어써진다.
+# 포털에서 고치면 Notion 으로 push 하는 필드(사용자 지시).
+#
+# 예전에는 낙관적 잠금의 지문도 이 목록에서 만들었다. S6 이 그 결합을 끊었다 —
+# 여기 없는 필드(부서·목표·마일스톤)를 두 사람이 동시에 고치는 것도 충돌이고, 지문이
+# 이 목록에 묶여 있으면 그 충돌이 안 잡혔다(`ensure_not_changed` 참조).
 PUSHED_FIELDS: tuple[str, ...] = (
     "name", "notion_status", "starts_on", "ends_on", "owner_user_id",
 )
@@ -81,33 +82,30 @@ def get_or_create_state(db: Session) -> ProjectSyncState:
 # ── 낙관적 잠금 ────────────────────────────────────────────────────────────────
 
 
-def project_notion_version(project: Project) -> str:
-    """Notion 에 실려 나가는 값들의 지문. 편집을 시작할 때 받아 저장할 때 그대로 돌려보낸다.
-
-    타임스탬프가 아니라 **내용의 해시**를 쓰는 이유는 티켓 본문(`body_version`)과 같다:
-    타임스탬프는 내용이 안 바뀐 저장에도 달라져 헛 충돌을 만들고, 반대로 같은 초에 두 번
-    저장되면 못 잡는다. 해시는 정말로 내용이 달라졌을 때만 다르다.
+def ensure_not_changed(project: Project, base_version: int | None) -> None:
+    """그 사이 누가 먼저 저장했으면 막는다. **정수 `version` 을 본다** (S6).
 
     **왜 필요한가**: 프로젝트는 여러 사람이 같은 화면을 연다. 두 사람이 동시에 기간을
     고치면 나중 사람이 앞사람 변경을 덮어쓰고 **양쪽 다 성공 화면을 본다.** 사람이 이미 한
     일을 조용히 파괴하는 부류라 어떤 성능 문제보다 아프다.
 
-    동기화가 Notion 에서 새 값을 가져와도 지문이 달라진다. 그것도 충돌이 맞다 - 내가 폼을
-    열어 둔 사이 저쪽에서 바뀐 값을 내 화면의 옛 값으로 되돌려 보내면 안 된다.
-    """
-    raw = "\x1f".join(str(getattr(project, f) or "") for f in PUSHED_FIELDS)
-    return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
+    ## 예전에는 `PUSHED_FIELDS` 의 해시였다 — 왜 물러났나
 
+    그 지문은 **Notion 에 실려 나가는 필드 집합**으로 만들었다. 그래서 소스에 안 보내는
+    값(부서·소유자 표시·목표)이 바뀐 것은 충돌로 안 잡혔고, 반대로 `PUSHED_FIELDS` 를
+    한 줄 고치는 날 **모든 열린 폼의 지문이 한꺼번에 무효**가 됐다. 정수는 둘 다와
+    무관하다 — 그 행이 저장될 때마다 1 씩 늘 뿐이다.
 
-def ensure_not_changed(project: Project, base_version: str | None) -> None:
-    """그 사이 누가 먼저 저장했으면 막는다.
+    동기화가 Notion 에서 새 값을 가져와도 `version` 이 는다(`_upsert` 참조). 그것도
+    충돌이 맞다 — 내가 폼을 열어 둔 사이 저쪽에서 바뀐 값을 내 화면의 옛 값으로
+    되돌려 보내면 안 된다.
 
     `base_version` 이 없으면(구버전 클라이언트·CLI) 예전대로 동작한다 - 새 계약을 강제해
     기존 경로를 깨뜨리지 않는다(티켓 본문 `_ensure_body_not_changed` 와 같은 규약).
     """
-    if not base_version:
+    if base_version is None:
         return
-    if project_notion_version(project) != base_version:
+    if int(base_version) != int(project.version or 1):
         raise ConflictError(
             "다른 사람이 먼저 저장했습니다. 새로고침해 최신 내용을 확인한 뒤 다시 저장해 주세요."
         )
@@ -232,6 +230,13 @@ def _upsert(db: Session, p: dict, id_to_user: dict[str, str], now: datetime) -> 
     # 이 답한다(그쪽은 회차마다 갱신된다).
     row.notion_synced_at = now
     row.updated_at = now
+    # 낙관적 잠금도 함께 는다 (S6). 예전 지문(`PUSHED_FIELDS` 해시)은 저쪽 값이 바뀌면
+    # 자동으로 달라졌지만 정수는 누가 올려 주지 않으면 안 는다 — 안 올리면 내가 폼을
+    # 열어 둔 사이 동기화가 가져온 값을 내 화면의 옛 값으로 조용히 되돌려 보낸다.
+    #
+    # **값이 실제로 바뀐 회차에만** 는다. 위 `if not (changed or created)` 를 지난
+    # 자리라 그것이 보장된다.
+    row.version = int(row.version or 1) + 1
     return row
 
 

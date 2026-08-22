@@ -192,7 +192,13 @@ CREATE UNIQUE INDEX uq_pkr_key_ci ON project_key_registry (upper(key));
 
 **Ticket 식별자 (D-195)**: `canonical_key GENERATED ALWAYS AS (project_key || '-' || seq)` 는
 **구현할 수 없다** — PostgreSQL Generated Column 은 다른 테이블 값을 참조할 수 없다. 실제 저장
-컬럼 + **BEFORE INSERT/UPDATE 트리거**로 `projects.key + seq` 에서 파생시킨다.
+컬럼 + **BEFORE INSERT/UPDATE 트리거**로 `projects.code + seq` 에서 파생시킨다.
+
+> **S6 이 실제로 만든 모양은 아래 초안과 두 자리가 다르다** (D-236~D-238):
+> 표 이름은 `tickets`(`ticket_cache` 에서 이전) · 프로젝트 컬럼은 **`project_uid` 그대로**
+> (API 응답에 나가는 이름이라 안 바꿨다) · Key 는 `projects.code` · `ck_tickets_assigned` 는
+> 「번호와 표시 이름은 함께 있거나 함께 없다」로 좁혔다(초안대로면 미러 전량이 위반이다 —
+> Project Key 가 아직 하나도 없어서 번호를 줄 수가 없다).
 
 ```sql
 tickets(id uuid PK, project_id uuid REFERENCES projects(id),   -- Exception 은 NULL
@@ -485,7 +491,7 @@ Dry Run 완료 → 전체 검증 → 최종 Backup → Maintenance Mode → 마�
 | S | 이름 | 핵심 산출 | Exit 조건 |
 |---|---|---|---|
 | **S5** ✅ | Identity & Access | `permissions`(32) · `roles`(builtin 5) · `role_permissions`(107) · `user_roles` · `resource_grants` · `departments`→`org_units` · **additive+fail-closed 상속**(Project Member 항 신설) · `effective_visibility_clause`(SQL·행 두 렌더러) · `confidential` 단일 축소 원시연산 · auth provider 추상화 · P-12a 범위 게이트 | **완료 (2026-08-22)** — 5역할 동등성 전수(표 + 실제 요청) · 두 렌더러 대조(자원 3 × 사람 5) · 부여/축소 음성 15건 · `check_visibility_single_source.py`(자기검증 5사례) · `KNOWN_GAPS` 0건. 결정 **D-230~D-235** |
-| **S6** | Work Domain | `project_key_registry` · **Project Key 20건 확정(사용자 확인)** · Ticket 3층 식별자 · `last_seq` 채번 · Relation · Comment · Attachment · Activity · Status/Workflow · Backlog rank · Sprint · Kanban · DnD 공통 · 낙관적 잠금 | **동시 생성 부하에서 중복 0 · 번호 연속 · 롤백 시 미소비** · `GIT-142` resolution · Exception 임의 배정 0 |
+| **S6** ✅ | Work Domain | `project_key_registry` · **Project Key 20건 초안표(확인 대기 — [`PROJECT_KEYS.md`](PROJECT_KEYS.md))** · Ticket 3층 식별자 · `last_seq` 채번 · Relation · Comment · Attachment · Activity · Status/Workflow · Backlog rank · Sprint · Kanban · DnD 공통 · 낙관적 잠금 | **완료 (2026-08-22)** — 동시 12건에서 1..12 가 정확히 한 번씩(반례 포함) · 롤백 시 미소비 · `GIT-142` 가 Key 변경 뒤에도 같은 티켓 · Exception 임의 배정 0. 결정 **D-236~D-242**. Key 확정은 사용자 결정이고 재채번은 S13 이다(D-197) |
 | **S7** | Knowledge Domain | Knowledge Space · Folder 트리 · Document · **Block JSON 정본** · Version/Restore · Tag · Relation · Mention · Editor(TipTap, lazy load) | Version diff/restore 동작 · 번들 예산 유지 |
 | **S8** | File Storage Providers | `storage_providers` · Local/NFS/SMB Adapter · 마운트 유닛 · `st_dev` 가드 · 업로드 파이프라인 · **16항 실검증(NFS·SMB 각각)** | **16항 매트릭스 전부 실측 로그 첨부** · 미마운트 시 쓰기 거부 확인 |
 
@@ -673,7 +679,7 @@ python -m scripts.ui_qa.run --label final --fail-on <승격 클래스…>
 | 항목 | 성격 | 처리 |
 |---|---|---|
 | 실 NFS/NAS 장비 정보 | 현재 없음이 **확인됨** | **Blocker 가 아니다.** 시험 Storage 로 실검증하고, 실 정보 수령 시 Configuration 만 변경 |
-| **20개 Project Key 명명** | **제품 결정 — 사용자 확인 필요** | S6 에서 초안표 제시 → 확인 → 적용. **확정 전 재채번 없음** |
+| **20개 Project Key 명명** | **제품 결정 — 사용자 확인 필요** | **초안표는 나왔다** → [`PROJECT_KEYS.md`](PROJECT_KEYS.md) (S6). 확인 → 적용. **확정 전 재채번 없음**(S13) |
 | **제품 Domain 밖 Notion DB 3종** (오라클 버그수정 179 · 휴일근무 23 · 교육 9) | **Core Migration 과 분리된 별도 결정사항** | 기본값 = 이관하지 않음. Core Migration 은 이 결정과 무관하게 진행 |
 | GitLab Repository 주소·자격증명 | 외부 제공 필요 | **없어도 S4 는 진행한다**(Remote 중립 + 오프라인 Bundle). 주소 수령 시 설정 반영 |
 

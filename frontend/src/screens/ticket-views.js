@@ -33,6 +33,9 @@
  *               편집 모달이 바꾸는 상태·담당자·마감·WD·난이도가 전부 이 집계에 들어간다.
  *               빠져 있으면 리포트를 이미 열어 본 뒤 다른 화면에서 티켓을 고쳐도 '새로고침'을
  *               다시 누르기 전까진 옛 집계가 남는다.
+ *   work-board    작업 보드 칸반(WorkBoard.jsx, /api/work/board) — 상태가 열을 정한다.
+ *   work-backlog  작업 보드 백로그(/api/work/backlog) — 완료·취소는 목록에서 빠지므로
+ *                 상태를 바꾸면 이 목록의 구성 자체가 달라진다.
  */
 export const TICKET_VIEW_KEYS = [
   ["tickets"],
@@ -42,6 +45,8 @@ export const TICKET_VIEW_KEYS = [
   ["my-stats"],
   ["projects"],
   ["dev-report"],
+  ["work-board"],
+  ["work-backlog"],
 ];
 
 /* 티켓을 고친 뒤 부른다.

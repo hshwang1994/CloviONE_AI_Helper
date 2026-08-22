@@ -68,6 +68,11 @@ OBJECT_LABELS: dict[str, str] = {
     "chat_room": "채팅방",
     "ticket_comment": "티켓 댓글",
     "ticket_attachment": "티켓 첨부",
+    # S6. `notion_task` 와 **다른 이름인 이유**: 저쪽은 외부 미러 행을 가리키는 옛 이름
+    # (page id 를 object_id 로 쓴다)이고, 이쪽은 자체 표의 티켓(uuid)이다. 한 이름으로
+    # 뭉치면 감사 화면의 「관련 항목」 링크가 어느 축인지 몰라 절반이 안 열린다.
+    "ticket": "티켓",
+    "sprint": "스프린트",
     "organization": "조직",
     "project": "프로젝트",
     "project_milestone": "마일스톤",

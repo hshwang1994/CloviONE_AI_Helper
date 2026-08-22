@@ -91,6 +91,12 @@ class DocumentCache(OrgScopedMixin, UUIDPrimaryKeyMixin, Base):
     notion_page_id: Mapped[str] = mapped_column(
         String(64), nullable=False, unique=True, index=True
     )
+    # 낙관적 잠금 (S6). 티켓·프로젝트와 **같은 이름의 같은 규약**이다 — 세 화면이 같은
+    # 충돌을 서로 다른 필드 이름으로 다루면 프런트가 세 벌의 처리를 갖게 되고, 그중
+    # 하나가 빠진 화면에서 덮어쓰기가 조용히 일어난다.
+    version: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=1, server_default="1"
+    )
     url: Mapped[str | None] = mapped_column(String(500))
     title: Mapped[str] = mapped_column(String(500), nullable=False, default="")
     # relation 이름들은 콤마로 합쳐 저장(표시·검색용). 필터 매칭은 콤마 분리로 처리.

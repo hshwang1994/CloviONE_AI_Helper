@@ -5,7 +5,7 @@ Sources (re-derive from these if the app's routing changes):
   frontend/src/app/App.jsx
     * ``UserBody()``  — the ``<Route>`` elements of the user console
       (/me, /my-tickets, /unassigned, /new-ticket, /tickets/:id, /team-tickets,
-      /sprint, /chat, /chat-rooms, /chat-rooms/:id, /board, /board/:id,
+      /work-board, /sprint, /chat, /chat-rooms, /chat-rooms/:id, /board, /board/:id,
       /team-docs, /team-docs/trash, /team-docs/:id, /games, /games/:id,
       /notifications).
     * ``AdminBody()`` — the hard-coded admin ``<Route>`` elements
@@ -169,6 +169,8 @@ USER_ROUTES: tuple[Route, ...] = (
        hash_template="/tickets/{id}",
        discover=("/api/tickets/mine", "/api/tickets/team?active=false")),
     _u("user_team-tickets", "/team-tickets", "팀 티켓"),
+    # 작업 보드(S6) — 칸반과 백로그 두 탭. 캡처는 기본 탭(칸반)을 찍는다.
+    _u("user_work-board", "/work-board", "작업 보드"),
     _u("user_sprint", "/sprint", "스프린트 회의"),
     _u("user_chat", "/chat", "AI 도우미"),
     _u("user_chat-rooms", "/chat-rooms", "채팅방"),

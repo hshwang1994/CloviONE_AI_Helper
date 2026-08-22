@@ -272,6 +272,7 @@ export const USER_NAV = [
     // 미할당은 "우리 팀이 함께 나눠 가질 일" 이다 — 개인 업무가 아니라 팀의 일이고,
     // 0060 부터 실제로도 팀(프로젝트) 범위로 좁혀진다.
     { to: "/unassigned", label: "미할당 티켓" },
+    { to: "/work-board", label: "작업 보드" },
     { to: "/sprint", label: "스프린트 회의" },
     { to: "/team-docs", label: "문서" },
   ] },
@@ -295,7 +296,7 @@ export const USER_NAV = [
  * role=user 는 세그먼트와 무관하게 항상 UserBody. */
 export const USER_SEG_PATHS = [
   "/me", "/my-tickets", "/unassigned", "/new-ticket", "/tickets", "/team-tickets",
-  "/chat", "/chat-rooms", "/sprint", "/board", "/ideas", "/team-docs", "/games",
+  "/chat", "/chat-rooms", "/sprint", "/work-board", "/board", "/ideas", "/team-docs", "/games",
   // 프로젝트는 사용자 콘솔 소유다. 관리자 세그먼트에 두면 관리자군이 프로젝트를 열 때
   // 사이드바가 관리자 메뉴로 통째로 바뀌고, 그 메뉴에는 프로젝트 항목이 없어 선택이 사라진다.
   "/projects",

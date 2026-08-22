@@ -52,6 +52,7 @@ from app.projects.models import (
 from app.projects.progress import ProgressResult, compute_progress
 from app.projects.schemas import ProjectCreate, ProjectUpdate
 from app.projects.wbs import WbsResult, build_wbs, wbs_item_from_ticket
+from app.work import keys as work_keys
 
 # 범위 밖과 없는 것은 **같은 문구**로 답한다. 문구가 갈리면 응답 본문만 읽어도 존재 여부가
 # 새어 나가고, 그러면 404 로 만든 의미가 없다.
@@ -66,8 +67,16 @@ NOT_FOUND_MESSAGE = "프로젝트를 찾을 수 없습니다."
 # 지시). 반대로 `notion_progress_pct` / `notion_missing_at` / `notion_synced_at` 은 없다 —
 # 저것들은 저쪽이 말한 사실이지 사람이 정하는 값이 아니고, 손으로 고칠 수 있게 두면 화면이
 # 자기가 보고 싶은 숫자를 써 넣을 수 있다.
+# `code` 는 **여기 없다** (S6). 그 컬럼은 이제 Project Key 이고, 소유가 영구다(D-196).
+#
+# 예전에는 이 목록에 있어서 PATCH 한 번으로 갈아 끼울 수 있었다. 지금 그렇게 하면 세 가지가
+# 조용히 깨진다: 대장(`project_key_registry`)이 모르는 Key 가 생기고, 옛 canonical 이
+# 별칭으로 안 남아 **옛 링크가 전부 죽고**, 티켓의 `canonical_key` 는 트리거를 안 타서
+# 옛 Key 그대로 남는다. 셋 다 오류를 내지 않는다.
+#
+# 유일한 입구는 `PUT /api/work/projects/{id}/key` 다(`app/work/keys.py::claim`·`change`).
 EDITABLE_FIELDS = (
-    "name", "code", "status", "dept_id", "owner_user_id",
+    "name", "status", "dept_id", "owner_user_id",
     "starts_on", "ends_on", "goal", "biz_type", "product", "notion_status",
 )
 
@@ -179,13 +188,17 @@ def create_project(
     dept_id = payload.dept_id if payload.dept_id else principal.department_id
     ensure_dept_in_scope(db, principal, dept_id)
     org_id = principal.org_id or DEFAULT_ORG_ID
+    # `code` 는 Project Key 다 (S6 · §5.2). 모양을 **여기서 먼저** 맞춘다 — 아래 유니크
+    # 검사와 대장 등록이 같은 문자열(대문자 정규화 후)을 봐야 하고, 모양이 틀렸다면
+    # 행을 만들기 전에 거절하는 편이 정직하다.
+    code = work_keys.validate(payload.code) if payload.code else None
     # 검사와 저장이 **같은 식**으로 조직을 정한다. 두 벌이 되면 검사가 통과한 뒤 저장이
     # 유니크 제약에 걸린다(app/org/service.py 가 같은 함정을 기록한다).
-    ensure_code_is_free(db, payload.code, org_id)
+    ensure_code_is_free(db, code, org_id)
 
     project = Project(
         name=payload.name,
-        code=payload.code,
+        code=code,
         status=payload.status,
         dept_id=dept_id,
         org_id=org_id,
@@ -210,6 +223,12 @@ def create_project(
         if not is_insert_race(exc):
             raise
         raise ConflictError(f"이미 있는 프로젝트 코드입니다: {payload.code}") from exc
+    # **대장에도 등록한다** (S6 · D-196). 여기가 빠지면 `projects.code` 에는 Key 가
+    # 있는데 `project_key_registry` 는 그것을 모르는 상태가 되고, 다른 조직의 프로젝트가
+    # 같은 이름을 가져갈 수 있다 — Key 소유가 영구라는 근거가 무너진다.
+    #
+    # 위 `db.add(project)` 다음이라야 FK 가 성립한다.
+    work_keys.register_existing(db, project=project, now=now)
     return project
 
 
@@ -229,12 +248,18 @@ def update_project(
     given = payload.model_fields_set
     # 두 사람이 같은 폼을 열어 두면 나중 사람이 앞사람 변경을 조용히 덮어쓰고 **양쪽 다
     # 성공 화면을 본다.** 지문을 안 보내는 클라이언트는 예전대로 동작한다(sync.ensure_not_changed).
-    sync.ensure_not_changed(project, payload.base_notion_version)
+    sync.ensure_not_changed(project, payload.base_version)
     if "dept_id" in given:
         # 남의 팀으로 옮기면 그 행은 내 범위에서 사라진다 — 되돌릴 수도 없다.
         ensure_dept_in_scope(db, principal, payload.dept_id)
-    if "code" in given:
-        ensure_code_is_free(db, payload.code, project.org_id, exclude_id=project.id)
+    if "code" in given and (payload.code or None) != project.code:
+        # **여기서 조용히 무시하지 않는다.** `code` 는 이제 Project Key 이고 소유가
+        # 영구다(D-196). 이 경로로 갈아 끼우면 대장이 모르는 Key 가 생기고 옛 canonical 이
+        # 별칭으로 안 남아 옛 링크가 전부 죽는다. 요청을 받은 척하고 안 바꾸면 사용자는
+        # 저장됐다고 믿는다.
+        raise ValidationAppError(
+            "프로젝트 키는 여기서 바꿀 수 없습니다. 프로젝트 키 변경을 써 주세요."
+        )
     for field in EDITABLE_FIELDS:
         if field not in given:
             continue
@@ -243,6 +268,9 @@ def update_project(
             raise ValidationAppError(f"{field} 값은 비울 수 없습니다.")
         setattr(project, field, value)
     project.updated_at = now
+    # 낙관적 잠금 (S6). 저장할 때마다 1 씩 는다 — 안 올리면 같은 폼을 두 번 저장해도
+    # 충돌이 안 잡히고, 잠금이 있는 척만 하는 상태가 된다.
+    project.version = int(project.version or 1) + 1
     try:
         # PROJ-01: create_project와 같은 이유 — code를 동시에 같은 값으로 바꾸는 두 요청이
         # 위 ensure_code_is_free를 둘 다 통과할 수 있다.
@@ -675,8 +703,13 @@ def project_wbs(db: Session, project: Project) -> WbsResult:
     따라온다. 트리만 다른 질의를 쓰면 "트리에는 있는데 진행률에는 없는 작업" 이 생기고,
     그 순간 같은 화면의 두 숫자가 갈라진다.
     """
+    from app.work import relations
+
     rows = repository.ticket_rows_for_project(db, project)
-    return build_wbs(wbs_item_from_ticket(row) for row in rows)
+    # 계층은 `ticket_relations` 하나가 답한다 (S6). 진행률(`tasks_for_project`)과 같은
+    # 표를 같은 방식으로 읽는다 — 두 화면이 다른 계층을 보면 숫자가 갈라진다.
+    parents = relations.parent_map(db, [row.id for row in rows])
+    return build_wbs(wbs_item_from_ticket(row, parents.get(row.id)) for row in rows)
 
 
 def _last_activity_on(rows) -> str | None:
