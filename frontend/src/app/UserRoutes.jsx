@@ -45,6 +45,10 @@ import { Skeleton, ErrorState, EmptyState } from "../ui/kit.jsx";
 const Chat = React.lazy(() => import("../screens/Chat.jsx").then((m) => ({ default: m.Chat })));
 const GameRoom = React.lazy(() => import("../screens/GameRoom.jsx").then((m) => ({ default: m.GameRoom })));
 const WorkBoard = React.lazy(() => import("../screens/WorkBoard.jsx").then((m) => ({ default: m.WorkBoard })));
+/* 지식 공간(S7). 상세는 TipTap 편집기를 한 겹 더 늦게 싣는다(KnowledgeDoc.jsx) —
+ * 목록만 보는 사람은 편집기를 아예 안 받는다. */
+const Knowledge = React.lazy(() => import("../screens/Knowledge.jsx").then((m) => ({ default: m.Knowledge })));
+const KnowledgeDoc = React.lazy(() => import("../screens/KnowledgeDoc.jsx").then((m) => ({ default: m.KnowledgeDoc })));
 
 /* 라우트 청크가 통째로 아직 없다 — 회색 줄 여섯 개는 "무언가 온다"까지만 말하고, 실제
  * 화면이 도착하면 제목·지표·본문이 한꺼번에 튀어 들어온다. 들어올 배치를 미리 잡는다
@@ -110,6 +114,10 @@ function UserRoutes() {
       {/* 작업 보드(S6) — dnd-kit 세 묶음을 끌고 오므로 라우트 단위로 늦게 싣는다.
           이 화면을 안 여는 사람의 첫 로딩에 그 무게를 얹지 않는다. */}
       <Route path="/work-board" element={<Lazy><WorkBoard /></Lazy>} />
+      {/* 지식 공간(S7). `/knowledge/:id` 가 `/knowledge` 보다 뒤에 있어도 되는 이유는
+          react-router 가 더 구체적인 경로를 먼저 고르기 때문이다. */}
+      <Route path="/knowledge" element={<Lazy><Knowledge /></Lazy>} />
+      <Route path="/knowledge/:id" element={<Lazy><KnowledgeDoc /></Lazy>} />
       <Route path="/chat" element={<div className="c-chat-embed"><Lazy><Chat /></Lazy></div>} />
       {/* 두 경로가 **같은 껍데기**를 그린다(S1). 오른쪽 칸만 바뀌므로 방을 옮겨도 목록이
           그대로 있고, 알림 딥링크(`/chat-rooms/<id>`)와 새로고침·뒤로가기도 그대로 동작한다. */}

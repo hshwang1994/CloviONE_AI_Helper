@@ -297,6 +297,7 @@ export const USER_NAV = [
 export const USER_SEG_PATHS = [
   "/me", "/my-tickets", "/unassigned", "/new-ticket", "/tickets", "/team-tickets",
   "/chat", "/chat-rooms", "/sprint", "/work-board", "/board", "/ideas", "/team-docs", "/games",
+  "/knowledge",
   // 프로젝트는 사용자 콘솔 소유다. 관리자 세그먼트에 두면 관리자군이 프로젝트를 열 때
   // 사이드바가 관리자 메뉴로 통째로 바뀌고, 그 메뉴에는 프로젝트 항목이 없어 선택이 사라진다.
   "/projects",
@@ -400,6 +401,18 @@ export const ROUTE_OWNER = {
    * (registry/org.js의 "조직도에서 보기"/"부서 관리로 이동" 액션은 `window.location.hash`
    * 직접 대입이라 state가 없다, Users.jsx의 부서 안내 링크는 새 탭이라 애초에 history state가
    * 없다, 북마크·주소창 직접 입력도 마찬가지) 사이드바 선택 표시가 통째로 사라졌다. */
+  /* 지식 공간(S7)은 **자기 사이드바 항목이 없다.** `/tickets/:id`·`/search` 와 같은
+   * 부류이고, 여기 적어 두면 그 화면에서도 사이드바 선택 표시가 안 사라진다.
+   *
+   * 왜 항목을 안 만들었는가: 사용자 사이드바는 한 그룹이 여섯 항목을 넘지 않는다
+   * (`nav-ia-taxonomy.test.js` — "넘으면 서랍이 아니라 목록이다"). 「팀 업무」는 이미 여섯이고,
+   * 「팀 공간」은 소통·놀이로 성격을 갈라 둔 서랍이라 지식 저장소가 갈 자리가 아니다
+   * (이 파일 위쪽 ③ 참조). 그래서 입구를 「문서」 화면에 둔다 — 사용자에게 그 둘은 같은
+   * 종류의 일이고, 이관(S13·S14)이 끝나면 실제로 한 화면이 된다.
+   *
+   * IA 를 다시 짜는 것은 Phase E(S19)의 일이다. 그때 이 화면이 자기 슬롯을 갖게 되면
+   * 이 줄을 지운다. */
+  "/knowledge": "/team-docs",
   "/departments": "/organizations",
   "/org-tree": "/organizations",
 };

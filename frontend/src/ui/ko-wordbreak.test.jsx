@@ -154,7 +154,10 @@ describe("한국어 줄바꿈 — 글을 담는 공용 부품 전부", () => {
 
 /* 테마 객체만 고치고 화면이 anywhere 로 덮으면 사용자는 예전과 같이 본다.
  * JSON·UUID·로그 원문만 글자 단위가 필요하다. */
-const ANYWHERE_OK = new Set(["JsonBlock.jsx", "Users.jsx"]);
+// `BlockEditor.jsx` 는 **코드 블록**에만 건다. CLAUDE.md 가 정한 예외 그대로다 —
+// 「JSON·UUID·코드만 글자 단위다」. 코드 안의 긴 식별자를 어절로 끊으면 줄이 상자를
+// 밀어내고, 코드는 애초에 한글 어절 규칙이 적용되는 글이 아니다.
+const ANYWHERE_OK = new Set(["JsonBlock.jsx", "Users.jsx", "BlockEditor.jsx"]);
 function listJs(dir) {
   const out = [];
   for (const name of readdirSync(dir)) {

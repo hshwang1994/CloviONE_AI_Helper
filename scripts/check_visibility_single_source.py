@@ -50,6 +50,7 @@ CONSUMERS: dict[str, str] = {
     "app/team_docs/service.py": "문서 목록·상세",
     "app/search/scoping.py": "Search",
     "app/tickets/service.py": "티켓(프로젝트 가시성 상속)",
+    "app/knowledge/service.py": "지식 공간·문서(공간 가시성 상속)",
 }
 
 # `app/authz/visibility.py` 의 공개 입구. 하나라도 부르면 「그 함수에 닿았다」로 본다.

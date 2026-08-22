@@ -306,14 +306,17 @@ else
   echo "$VIS"; fail "가시성 판정이 app/authz/visibility.py 밖에서 갈라졌다"
 fi
 
-step "Ticket key, number and hierarchy have one writer each"
+step "Each derived value in a domain has exactly one writer"
 # S6: canonical_key 는 트리거만, 번호는 numbering.py 만, Key 는 keys.py 만, 상하위는
-# relations.py 만 쓴다. 넷 다 어겨도 오류가 안 나고, 증상은 한참 뒤 「링크가 안 열린다」·
-# 「번호가 겹친다」로 나타난다 (D-195 · D-196).
-if WORK="$("$PY" scripts/check_work_domain_single_source.py 2>&1)"; then
-  ok "$(echo "$WORK" | tail -1)"
+# relations.py 만 쓴다 (D-195 · D-196).
+# S7: 본문 파생은 blocks.py 만, 판은 versions.py 만, 폴더 path·depth 는 트리거만,
+# 멘션은 mentions.py 만 쓴다 (D-198 · D-244).
+# 전부 어겨도 오류가 안 나고, 증상은 한참 뒤 「링크가 안 열린다」·「번호가 겹친다」·
+# 「검색해도 안 나오는 문서」로 나타난다.
+if DOMAIN="$("$PY" scripts/check_domain_single_source.py 2>&1)"; then
+  ok "$(echo "$DOMAIN" | tail -1)"
 else
-  echo "$WORK"; fail "티켓 이름·번호·계층의 쓰기 입구가 갈라졌다"
+  echo "$DOMAIN"; fail "도메인 파생 값의 쓰기 입구가 갈라졌다"
 fi
 
 step "No customer-specific identifiers in source defaults / install scripts"

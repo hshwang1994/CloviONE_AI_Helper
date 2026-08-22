@@ -26,6 +26,11 @@ const FRONTEND = path.resolve(SRC, "..");
 const ALLOWED_WITHOUT_IMPORT = {
   "@emotion/react": "MUI 7 이 런타임에 요구하는 peer 의존성. 우리 코드가 직접 부르지 않는다.",
   "@emotion/styled": "위와 같음 — MUI 의 styled 엔진.",
+  // TipTap 이 요구하는 ProseMirror 묶음(S7). 우리 코드는 `@tiptap/react`·`@tiptap/core`
+  // 만 부르지만, 이 패키지가 없으면 TipTap 이 런타임에 ProseMirror 를 못 찾는다.
+  // 직접 import 하지 않는 것이 **의도**다 — 부르면 버전이 두 벌이 되고, ProseMirror 는
+  // 인스턴스가 둘이면 조용히 오동작한다.
+  "@tiptap/pm": "TipTap 이 런타임에 요구하는 ProseMirror 묶음. 직접 부르지 않는다.",
 };
 
 /* **테스트 파일은 세지 않는다.** 이 파일 자체가 "framer-motion" 이라는 글자를 들고 있어서,

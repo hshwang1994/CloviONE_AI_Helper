@@ -39,6 +39,7 @@ from app.core import ratelimit as ratelimit_models  # noqa: F401
 from app.core import versioning as versioning_models  # noqa: F401
 from app.integrations import models as integrations_models  # noqa: F401
 from app.jobs import models as jobs_models  # noqa: F401
+from app.knowledge import models as knowledge_models  # noqa: F401
 from app.prompts import models as prompts_models  # noqa: F401
 from app.runners import models as runners_models  # noqa: F401
 from app.schedules import models as schedules_models  # noqa: F401

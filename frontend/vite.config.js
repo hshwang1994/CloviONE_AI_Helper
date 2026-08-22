@@ -76,7 +76,17 @@ export default defineConfig({
              실측: 초기 gzip 288KB(예산 280KB) 중 MUI 만 110KB. 이름을 안 주면 rollup 이
              쓰는 화면 쪽으로 갈라 준다. */
           if (id.includes("@emotion")) return "emotion";
-          if (id.includes("react-dom") || id.includes("/react/") || id.includes("scheduler")) return "react";
+          /* ⚠️ **패키지 경로로 정확히 짚는다.** 예전에는 `id.includes("/react/")` 였고,
+             그것은 이름에 `react` 가 들어간 **모든 패키지**를 초기 청크로 끌어왔다.
+             S7 이 `@tiptap/react` 를 들이자 그 한 줄이 TipTap 과 ProseMirror 전부를
+             `react` 청크에 넣었다 — 편집기를 `React.lazy` 로 뺀 것이 아무 소용이 없어졌고,
+             초기 예산이 gzip 348KB(예산 280KB)로 넘어갔다. **오류는 안 났다.**
+             `node_modules/react/` 는 그 패키지 자신만 맞는다(중첩 설치도 같은 모양이다). */
+          if (
+            id.includes("node_modules/react-dom/")
+            || id.includes("node_modules/react/")
+            || id.includes("node_modules/scheduler/")
+          ) return "react";
           if (id.includes("@tanstack")) return "query";
           return undefined;
         },

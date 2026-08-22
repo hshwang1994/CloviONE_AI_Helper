@@ -296,7 +296,7 @@ export function WorkBoard() {
                 것은 권한 보장이 아니라 **누를 수 없는 버튼을 안 보여 주는 것**이다 —
                 눌러서 403 을 보는 것은 안내가 아니다. */}
             {canPlanSprint ? (
-              <Button onClick={() => setSprintFormOpen(true)}>스프린트 만들기</Button>
+              <Button onClick={() => setSprintFormOpen(true)}>스프린트 추가</Button>
             ) : null}
           </Stack>
         }

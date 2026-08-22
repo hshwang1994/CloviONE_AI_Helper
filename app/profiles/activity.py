@@ -73,6 +73,8 @@ OBJECT_LABELS: dict[str, str] = {
     # 뭉치면 감사 화면의 「관련 항목」 링크가 어느 축인지 몰라 절반이 안 열린다.
     "ticket": "티켓",
     "sprint": "스프린트",
+    # S7. 공간은 **권한 경계**라 감사 화면에서 프로젝트·부서와 같은 급으로 읽혀야 한다.
+    "knowledge_space": "지식 공간",
     "organization": "조직",
     "project": "프로젝트",
     "project_milestone": "마일스톤",

@@ -9,7 +9,7 @@ S6 이 `ticket_relations` 를 만들면서 정확히 그 위험이 생겼다. �
 둔다: 동기화가 `parent_page_id` 를 읽어 `subtask_of` 행을 만들고(`sync_parent_links`),
 **읽는 쪽은 전부 이 표만 본다.** `parent_page_id` 는 입력이지 두 번째 정본이 아니다.
 
-한 방향이라는 것을 코드가 지키는지는 `scripts/check_work_domain_single_source.py`
+한 방향이라는 것을 코드가 지키는지는 `scripts/check_domain_single_source.py`
 가 본다 — 주석으로 약속할 수 있는 성질이 아니다(D-231 이 배운 것).
 
 ## 순환은 DB 가 아니라 여기서 막는다
@@ -223,7 +223,7 @@ def sync_parent_links(db: Session, *, now: datetime | None = None) -> dict[str, 
 
     동기화가 끝난 뒤에 부른다. 여기가 유일한 쓰기 경로이므로 두 표현이 갈라질 자리가
     없다 — 갈라지려면 누군가 이 함수 말고 다른 데서 `subtask_of` 를 만들어야 하고,
-    그것은 `check_work_domain_single_source.py` 가 본다.
+    그것은 `check_domain_single_source.py` 가 본다.
 
     순환은 만들지 않는다: 소스가 순환을 주면 그 변(邊)만 건너뛴다. 동기화 전체를
     세우는 것보다 낫다 — 한 티켓의 상위가 안 보이는 것과 미러가 멈추는 것은 다른

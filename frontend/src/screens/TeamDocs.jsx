@@ -395,6 +395,11 @@ export function TeamDocs() {
               형제 메뉴가 아니었다) 이 화면 안의 진입점으로 옮긴다 — 라우트(#/team-docs/trash)
               자체는 그대로 살아 있다, 도달하는 방법만 바뀐다. */}
           <Button href="#/team-docs/trash">휴지통</Button>
+          {/* 지식 공간(S7)의 입구. 사이드바 항목을 안 만든 이유는 navConfig.js 의
+              ROUTE_OWNER 주석에 적었다 — 한 그룹이 여섯 항목을 넘지 않는다는 계약이
+              있고, 사용자에게 이 화면과 지식 공간은 같은 종류의 일이다. 이관(S13·S14)이
+              끝나면 두 화면이 실제로 하나가 된다. */}
+          <Button href="#/knowledge">지식 공간</Button>
           <Button variant="primary" onClick={() => setComposing(true)}>새 문서</Button>
           {/* 수동 동기화는 운영 동작이다 — 예전에는 화면 맨 위 상시 배너 옆에서 첫 번째
               버튼 자리를 차지했다(지시 29). 기능은 그대로 두고 자리만 넘침 메뉴로 옮긴다.

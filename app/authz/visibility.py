@@ -53,6 +53,8 @@ from app.core.scope import MATCH_NOTHING, Scope
 __all__ = [
     "RESOURCE_PROJECT",
     "RESOURCE_DOCUMENT",
+    "RESOURCE_SPACE",
+    "RESOURCE_KNOWLEDGE_DOC",
     "RESOURCE_SEARCH",
     "ALL_RESOURCE_TYPES",
     "VisibilityContext",
@@ -74,7 +76,22 @@ RESOURCE_PROJECT = "project"
 RESOURCE_DOCUMENT = "document"
 RESOURCE_SEARCH = "search"
 
-ALL_RESOURCE_TYPES = frozenset({RESOURCE_PROJECT, RESOURCE_DOCUMENT, RESOURCE_SEARCH})
+# ── Knowledge Domain (S7) ────────────────────────────────────────────────────
+#
+# 공간이 권한의 단위이고, 문서는 자기 공간의 가시성을 물려받는다(§5.3). 폴더는 여기에
+# 없다 — **폴더 이동이 권한을 바꾸지 않는다**는 것이 그 설계의 한 문장이다.
+RESOURCE_SPACE = "space"
+
+# 새 `documents` 표. `RESOURCE_DOCUMENT` 를 같이 쓸 수 없다: 그쪽은 Notion 미러
+# (`document_cache`)이고 부여 표에서 `notion_page_id` 로 불린다(아래 `RESOURCE_ID_ATTR`).
+# 한 문자열이 두 표를 뜻하면 어느 id 공간인지가 행마다 달라진다. **S14 가 미러를
+# 걷어내면** 이름은 하나로 합칠 수 있고, 그때까지는 둘이 나란히 산다.
+RESOURCE_KNOWLEDGE_DOC = "knowledge_document"
+
+ALL_RESOURCE_TYPES = frozenset({
+    RESOURCE_PROJECT, RESOURCE_DOCUMENT, RESOURCE_SEARCH,
+    RESOURCE_SPACE, RESOURCE_KNOWLEDGE_DOC,
+})
 
 # ── `confidential` 을 어떻게 해석하는가 ──────────────────────────────────────
 CONFIDENTIAL_NONE = "none"              # 이 자원에는 축소 플래그가 없다
@@ -85,6 +102,8 @@ CONFIDENTIAL_MODE: dict[str, str] = {
     RESOURCE_PROJECT: CONFIDENTIAL_NONE,
     RESOURCE_DOCUMENT: CONFIDENTIAL_OWNER_ADMIN,
     RESOURCE_SEARCH: CONFIDENTIAL_NOBODY,
+    RESOURCE_SPACE: CONFIDENTIAL_OWNER_ADMIN,
+    RESOURCE_KNOWLEDGE_DOC: CONFIDENTIAL_OWNER_ADMIN,
 }
 
 # `confidential` 을 여는 `*_ADMIN`. 없으면 아무 권한도 그것을 열지 못한다.
@@ -92,6 +111,11 @@ ADMIN_PERMISSION: dict[str, str | None] = {
     RESOURCE_PROJECT: perms.PROJECT_ADMIN,
     RESOURCE_DOCUMENT: perms.DOCUMENT_ADMIN,
     RESOURCE_SEARCH: None,
+    # 공간을 여는 것은 `SPACE_ADMIN` 이고 문서를 여는 것은 `DOCUMENT_ADMIN` 이다.
+    # 하나로 묶지 않는 이유: 「이 공간 전체를 볼 수 있다」와 「이 문서 하나를 볼 수
+    # 있다」는 다른 크기의 권한이고, 큰 쪽으로 묶으면 작은 쪽을 줄 방법이 없어진다.
+    RESOURCE_SPACE: perms.SPACE_ADMIN,
+    RESOURCE_KNOWLEDGE_DOC: perms.DOCUMENT_ADMIN,
 }
 
 
@@ -294,6 +318,8 @@ RESOURCE_ID_ATTR: dict[str, str] = {
     RESOURCE_PROJECT: "id",
     RESOURCE_DOCUMENT: "notion_page_id",
     RESOURCE_SEARCH: "ref_id",
+    RESOURCE_SPACE: "id",
+    RESOURCE_KNOWLEDGE_DOC: "id",
 }
 
 
@@ -323,9 +349,36 @@ def annotate_rows(db: Session, ctx: VisibilityContext, resource_type: str, rows)
     행 판정이 집합 조회로 끝난다 — 행마다 물으면 그대로 N+1 이다(FN-41).
     """
     rows = [r for r in rows if r is not None]
-    if not rows or resource_type != RESOURCE_SEARCH:
+    if not rows:
         return
-    _annotate_search_restricted(db, rows)
+    if resource_type == RESOURCE_SEARCH:
+        _annotate_search_restricted(db, rows)
+    elif resource_type == RESOURCE_KNOWLEDGE_DOC:
+        _annotate_space_visible(db, ctx, rows)
+
+
+def _annotate_space_visible(db: Session, ctx: VisibilityContext, rows) -> None:
+    """지식 문서 행에 「이 문서의 공간이 보이는가」를 붙인다 — **질의 한 번**이다 (S7).
+
+    문서가 소속 컬럼을 갖지 않기 때문에(§5.3) 행만 봐서는 답할 수 없다. 페이지에 나온
+    공간은 대개 한두 개라 이 질의는 작다. 행마다 물으면 그대로 N+1 이다(FN-41).
+    """
+    from app.knowledge.models import KnowledgeSpace
+
+    space_ids = {
+        str(getattr(r, "space_id"))
+        for r in rows
+        if getattr(r, "space_id", None)
+    }
+    visible: frozenset[str] = frozenset()
+    if space_ids:
+        stmt = select(KnowledgeSpace.id).where(KnowledgeSpace.id.in_(tuple(sorted(space_ids))))
+        clause = effective_visibility_clause(ctx, RESOURCE_SPACE)
+        if clause is not None:
+            stmt = stmt.where(clause)
+        visible = frozenset(str(v) for v in db.execute(stmt).scalars().all())
+    for row in rows:
+        row._authz_space_visible = str(getattr(row, "space_id", "")) in visible
 
 
 def _annotate_search_restricted(db: Session, rows) -> None:
@@ -613,10 +666,124 @@ def _search_plan(ctx: VisibilityContext) -> _Plan:
     return _Plan(widen=tuple(rules), narrow=narrow)
 
 
+def _space_plan(ctx: VisibilityContext) -> _Plan:
+    """지식 공간 (S7). 소속 컬럼이 문서 미러와 **같은 이름**이라 갈래를 다시 쓰지 않는다.
+
+    좁히는 축은 `confidential` 하나이고, 여는 것은 소유자(만든 사람) · 명시 부여자 ·
+    `SPACE_ADMIN` 셋뿐이다 (D-193). 문서의 「작성자」 판정이 Notion id 폴백을 갖는 것과
+    달리 여기는 `created_by` 하나다 — 공간은 이 제품이 처음부터 만드는 자원이라
+    외부 시스템의 사람 id 를 거칠 이유가 없다.
+    """
+    from app.knowledge.models import KnowledgeSpace
+
+    narrow = (_confidential_rule_for_space(ctx),)
+    if ctx.scope.is_global:
+        return _Plan(widen=(_Rule(sql=None, row=lambda obj: True),), narrow=narrow)
+
+    rules = _stored_ownership_rules(
+        ctx,
+        kind_col=KnowledgeSpace.owner_kind,
+        org_col=KnowledgeSpace.org_id,
+        dept_col=KnowledgeSpace.owner_dept_id,
+        project_col=KnowledgeSpace.owner_project_id,
+    )
+    rules.append(_grant_rule(
+        ctx, resource_type_col=RESOURCE_SPACE, resource_id_col=KnowledgeSpace.id,
+        resource_type=RESOURCE_SPACE,
+    ))
+    return _Plan(widen=tuple(rules), narrow=narrow)
+
+
+def _confidential_rule_for_space(ctx: VisibilityContext) -> _Rule:
+    from app.knowledge.models import KnowledgeSpace
+
+    admin_key = ADMIN_PERMISSION[RESOURCE_SPACE]
+    if admin_key and admin_key in ctx.permissions:
+        return _Rule(sql=None, row=lambda obj: True)
+
+    grant = _grant_rule(
+        ctx, resource_type_col=RESOURCE_SPACE, resource_id_col=KnowledgeSpace.id,
+        resource_type=RESOURCE_SPACE,
+    )
+    me = ctx.principal.user_id
+    open_sql = or_(
+        KnowledgeSpace.confidential.is_(False),
+        KnowledgeSpace.created_by == me,
+    )
+
+    def row(obj) -> bool:
+        if not getattr(obj, "confidential", False):
+            return True
+        if getattr(obj, "created_by", None) == me:
+            return True
+        return grant.row(obj)
+
+    return _Rule(sql=or_(open_sql, grant.sql), row=row)
+
+
+def _knowledge_document_plan(ctx: VisibilityContext) -> _Plan:
+    """지식 문서 (S7). **가시성은 자기 공간에서 온다** (§5.3).
+
+    문서에 소속 컬럼을 또 두지 않은 이유가 여기 있다: 두 벌이면 공간을 옮길 때 어긋나고,
+    어긋난 문서는 「목록에는 없는데 링크로는 열린다」가 된다. 폴더는 이 판정에 안 들어온다 —
+    **정리하다가 권한이 바뀌는 일은 없다.**
+
+    행 판정이 공간을 직접 못 보므로 `annotate_rows` 가 페이지 단위로 한 번 실어 준다.
+    색인 행이 `_authz_restricted` 를 받는 것과 같은 방식이다(행마다 물으면 N+1).
+    """
+    from app.knowledge.models import Document, KnowledgeSpace
+
+    narrow = (_confidential_rule_for_knowledge_document(ctx),)
+
+    space_clause = effective_visibility_clause(ctx, RESOURCE_SPACE)
+    space_ids = select(KnowledgeSpace.id)
+    if space_clause is not None:
+        space_ids = space_ids.where(space_clause)
+
+    inherited = _Rule(
+        sql=Document.space_id.in_(space_ids),
+        row=lambda obj: bool(getattr(obj, "_authz_space_visible", False)),
+    )
+    grant = _grant_rule(
+        ctx, resource_type_col=RESOURCE_KNOWLEDGE_DOC, resource_id_col=Document.id,
+        resource_type=RESOURCE_KNOWLEDGE_DOC,
+    )
+    return _Plan(widen=(inherited, grant), narrow=narrow)
+
+
+def _confidential_rule_for_knowledge_document(ctx: VisibilityContext) -> _Rule:
+    from app.knowledge.models import Document
+
+    admin_key = ADMIN_PERMISSION[RESOURCE_KNOWLEDGE_DOC]
+    if admin_key and admin_key in ctx.permissions:
+        return _Rule(sql=None, row=lambda obj: True)
+
+    grant = _grant_rule(
+        ctx, resource_type_col=RESOURCE_KNOWLEDGE_DOC, resource_id_col=Document.id,
+        resource_type=RESOURCE_KNOWLEDGE_DOC,
+    )
+    me = ctx.principal.user_id
+    open_sql = or_(
+        Document.confidential.is_(False),
+        Document.created_by == me,
+    )
+
+    def row(obj) -> bool:
+        if not getattr(obj, "confidential", False):
+            return True
+        if getattr(obj, "created_by", None) == me:
+            return True
+        return grant.row(obj)
+
+    return _Rule(sql=or_(open_sql, grant.sql), row=row)
+
+
 _PLANS: dict[str, Callable[[VisibilityContext], _Plan]] = {
     RESOURCE_PROJECT: _project_plan,
     RESOURCE_DOCUMENT: _document_plan,
     RESOURCE_SEARCH: _search_plan,
+    RESOURCE_SPACE: _space_plan,
+    RESOURCE_KNOWLEDGE_DOC: _knowledge_document_plan,
 }
 
 
@@ -666,6 +833,8 @@ def is_visible(db: Session, ctx: VisibilityContext, resource_type: str, row) -> 
     문서·프로젝트 판정에는 **질의가 아예 없다.**
     """
     if resource_type == RESOURCE_SEARCH and not hasattr(row, "_authz_restricted"):
+        annotate_rows(db, ctx, resource_type, [row])
+    if resource_type == RESOURCE_KNOWLEDGE_DOC and not hasattr(row, "_authz_space_visible"):
         annotate_rows(db, ctx, resource_type, [row])
     plan = _plan(ctx, resource_type)
     if plan.unrestricted:
