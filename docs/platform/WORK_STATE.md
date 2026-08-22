@@ -14,8 +14,8 @@
 - session: **S6 완료.** 다음은 **S7 — Knowledge Domain**
 - branch: `ui/mui-migration`
 - last_stable_commit: **`eec4886c`** — S2 본체 커밋이고 `check_test_strength.py` 가 이 값을 읽는다.
-  **S6 도 옮기지 않는다.** S6 의 시험 변경은 전부 강화 방향이다 — **시험 8파일 · 74건 신설**
-  (integration 11 · regression 15 · security 10 · unit 38) + 프런트 10건. 옛 시험에서 줄인
+  **S6 도 옮기지 않는다.** S6 의 시험 변경은 전부 강화 방향이다 — **시험 10파일 · 91건 신설**
+  (integration 19 · regression 15 · security 10 · unit 47) + 프런트 10건. 옛 시험에서 줄인
   것은 없고, 축이 바뀐 자리 셋(WBS·부모 미러·진행률 순수함수)은 **같은 성질을 새 축으로
   다시 단언**한다
 - s1_commit: `95a89189` · s2_commit: `eec4886c` · s3_commit: `e88e4de3` · s4_commit: `6909bb96` ·
@@ -33,6 +33,7 @@
 | **세 층의 이름** | `id`(uuid) · `canonical_key`(`SKH-37`) · `legacy_key`(`GIT-142`). 해석 순서는 canonical → legacy → alias → uuid 이고 **순서가 계약이다** (D-195) |
 | **canonical 을 앱이 안 쓴다** | BEFORE INSERT/UPDATE 트리거가 `projects.code + seq` 로 파생시킨다. 앱이 무엇을 적든 트리거가 덮어쓴다 — 어긋날 자리가 없다 (**D-236**) |
 | **Key 소유는 영구** | `project_key_registry`. `retired` 는 「해제」가 아니라 「더 쓰지 않는다」다 — 행이 남아 있어야 `<KEY>-<SEQ>` 가 전역에서 안 겹친다. `GIT` 은 예약어다 |
+| **Key 20건 확정** | 사용자가 초안표 그대로 승인했다(2026-08-22). 정본은 `app/work/project_keys.py::CONFIRMED` 이고 문서가 사본이다 — 문서만 두면 S13 이 20줄을 손으로 옮겨 적는다 (**D-243**) |
 | **채번** | `INSERT … ON CONFLICT DO UPDATE … RETURNING`. 롤백되면 번호도 돌아온다 — `SEQUENCE` 는 안 돌아와서 안 쓴다 (D-196) |
 | **표 이름** | `ticket_cache` → **`tickets`** (인덱스 8 · 제약 3 함께). `TicketCache` 는 별칭이고 **컬럼 이름은 그대로**다 (**D-238**) |
 | **계층** | `ticket_relations` 한 곳이다. `parent_page_id` 는 그 표의 **입력**이고, 진행률·WBS 가 `parent_map` 하나를 지난다 (**D-239**) |
@@ -83,7 +84,9 @@ Project Key 가 하나도 없어서(22건 전부 `code IS NULL`) 번호를 줄 �
    **컬럼 이름은 둘 다 그대로**다(`department_id`·`dept_id`·`project_uid`).
 2. 적재 직후 `app/work/numbering.py::seed_counters()` 를 부른다 — 안 부르면 첫 신규 티켓이
    마지막 기존 티켓과 같은 번호를 받는다.
-3. 재채번 전에 [`PROJECT_KEYS.md`](PROJECT_KEYS.md) 의 20건이 **확정돼 있어야 한다**(D-197).
+3. **Project Key 20건은 확정됐다**(2026-08-22 · D-243). 적재 직후 순서가 하나다 —
+   프로젝트 적재 → `app/work/project_keys.py::apply_confirmed(db)` →
+   `numbering.seed_counters(db)` → 재채번. 뒤바뀌면 번호가 겹친다.
 
 ## 상태 — 전환 축 다섯
 
@@ -116,6 +119,7 @@ S6 은 **공유 계층 셋**을 바꿨다 — 티켓 표 이름, 계층의 정�
 | **Exception 임의 배정 0** | **7건.** 네 갈래(ambiguous·missing·unresolved·source_missing)를 실제로 잡는지 먼저 보이고, 그 티켓들에 **프로젝트도 번호도 안 붙는지** 확인한다. 재실행해도 줄이 안 쌓이고, 사람이 지정하는 순간 채번이 돈다 |
 | **Drop 한 트랜잭션** | **6건.** 다섯이 함께 남는지, 그리고 **실패를 주입해 다섯이 함께 사라지는지**. 낡은 판은 409 · 모르는 상태는 422 · 빈 이동은 422 |
 | **보드 범위 (음성)** | **10건.** 판·백로그·이동·이름 해석·관계 잇기·상세가 전부 범위를 지킨다(**404**, 403 이 아니다). 각 단정에 「우리 것은 보인다」를 함께 둬서 전부 막는 구현이 통과하지 못하게 한다 |
+| **확정 Key 적용** | **17건.** 문서와 코드가 같은 20쌍인지(순서까지) · 확정 Key 가 제품 규칙을 통과하는지 · 예약어와 안 겹치는지 · 그리고 **표에 없는 프로젝트는 안 건드리는지**(U11). 잘린 이름 `OKE` 를 다음 사람이 「오타 같다」며 완성하지 못하게 못박는다 |
 | `check_work_domain_single_source.py` | **신설.** 자기검증 8사례(검출 7 · 위양성 1) · 규칙 6개를 app 340파일에서 확인. `canonical_key` 는 **어느 파일도** 못 쓴다(트리거만) |
 | 마이그레이션 왕복 | `upgrade` → `downgrade` → `upgrade` 를 실 PG 에서 돌렸다. 표 76→85 · 인덱스 276→313 · 제약 162→201 · 트리거 1 이 **대칭으로** 돌아온다 |
 | 프런트 | `npx vitest run` — **2,431건 / 324파일 중 3 실패**(전부 S6 이전 커밋이 남긴 것, 아래 참조). DnD 자리 계산 10건 신설 |
@@ -185,15 +189,13 @@ S6 이 다음 Session 에게 넘기는 것:
 
 ## BLOCKERS
 
-- **없음.** Project Key 20건은 확인을 기다리지만 **아무 작업도 막지 않는다** —
-  Key 없는 프로젝트의 티켓은 번호를 안 받을 뿐이고(3층 식별자가 그래서 있다), 막히는
-  것은 S13 의 재채번 하나다.
+- **없음.** Project Key 20건이 확정되면서(D-243) 마지막 결정 대기도 닫혔다.
 
 ## 입력 — Blocker 는 아니지만 다음 Session 이 알아야 하는 것
 
 | 항목 | 상태 |
 |---|---|
-| **20개 Project Key 명명** | **초안표가 나왔다** → [`PROJECT_KEYS.md`](PROJECT_KEYS.md). 확인하면 `PUT /api/work/projects/{id}/key` 로 넣는다. **확정 전 재채번 없음**(U11 · D-197) |
+| **20개 Project Key 명명** | **확정됐다** (2026-08-22 · D-243). 정본은 `app/work/project_keys.py::CONFIRMED`, 사람이 읽는 사본은 [`PROJECT_KEYS.md`](PROJECT_KEYS.md). **지금 적용된 프로젝트는 0건이고 그것이 정상이다** — PG 의 `projects` 가 비어 있다(적재는 S13). 한 건씩 손으로 넣을 때는 `PUT /api/work/projects/{id}/key` |
 | **테스트 서버 접속** | **쓸 수 있다** — `10.100.64.71` 한정. SSH 키 인증 · sudo 는 `dist/ops/server.env`(gitignore). 값을 tracked 파일·커밋·로그에 복사하지 않는다 |
 | **LXD** | 이 서버에 **초기화해 뒀다**(dir 스토리지 풀 + `lxdbr0`). `sudo bash scripts/lxd_rehearsal.sh <src.tar.gz>` 로 언제든 다시 돈다. **`/dev/kvm` 이 없어 LXD VM 은 못 쓴다** — 실 재부팅이 필요하면 서버 자체를 재부팅한다 |
 | **리허설 소스 tarball** | 작업 트리를 그대로 tar 로 만들어 넣는다(`.git`·`node_modules`·`docs`·`tests`·`var` 제외). **LF 로 저장돼 있어야 한다** |

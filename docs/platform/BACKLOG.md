@@ -41,7 +41,7 @@
 | **P-12** | Identity & Access — roles/permissions/org_units/resource_ownership | S5 | **DONE** | `permissions` 32 · `roles` 5(builtin) · `role_permissions` 107 · `user_roles` · `resource_grants` 가 `0002_identity_access` 로 선다. **다섯 역할의 뜻은 안 바뀌었다** — 옮긴 게이트 7종 × 5역할을 표와 실제 요청 양쪽에서 전수 대조했다(`test_builtin_role_equivalence.py`). `departments` → `org_units`(D-234) · auth Provider 분리(D-235). `resource_ownership` 은 **개념**으로 남기고 대신 D-193 의 빠져 있던 항 `Project Member` 를 실제 갈래로 넣었다(D-233) |
 | **P-12a** | **결재 대리(`/api/admin/approval-delegations`) 범위 게이트** — S1 이 드러낸 결함 | S5 | **DONE** | 셋 다 `principal` 을 받는다. `list` 는 `delegation.apply_scope`, `revoke` 는 `get_scoped_or_404`(범위 밖 **404**), `create` 는 **위임자와 대리자 양쪽**이 범위 안이어야 한다 — 한쪽만 보면 내 부서 권한이 남으로 새거나 남의 권한이 내 부서로 들어온다. `check_scope_gates.py::KNOWN_GAPS` 는 이제 **비어 있고**, 검사가 「미해결 GAP 0건」을 찍는다 |
 | **P-13** | `effective_visibility_clause` 단일화 — 목록·상세·Search·**AI** | S5 | **DONE**(AI 는 S10) | 판정이 `app/authz/visibility.py` 한 곳이다. **규칙 하나가 SQL 절과 행 판정 두 표현을 함께 든다**(D-231) — 옛 상태는 공용 파일 안에서도 판정이 넷이었다(소속 2 · 열람 제한 2). `scripts/check_visibility_single_source.py`(자기검증 5사례)가 소비자 4개의 도달을 확인하고, `test_visibility_two_renderers_agree.py` 가 자원 3종 × 사람 5명을 진짜 행으로 대조한다. **AI 경로는 그 Component 가 아직 없다** — S10 이 같은 함수에 연결하고 음성 테스트로 증명한다 |
-| **P-14** | Work Domain — Project Key · Ticket 3층 식별자 · 채번 · Relation · Workflow | S6 | **DONE** | `project_key_registry`(예약 `GIT`) · `ticket_cache` → `tickets`(D-238) · `seq`/`canonical_key`/`legacy_key` + BEFORE 트리거(D-236) · `project_ticket_counters` 채번(D-196) · `ticket_key_aliases` · `ticket_relations`(계층 정본, D-239) · `ticket_statuses` + `app/work/workflow.py`. **동시 12건에서 1..12 가 정확히 한 번씩**(반례 포함) · 롤백 시 미소비 · `GIT-142` 가 Key 변경 뒤에도 같은 티켓 · Exception 임의 배정 0. Project Key 20건은 [`PROJECT_KEYS.md`](PROJECT_KEYS.md) 에서 **확인 대기**이고 재채번은 S13 이다(D-197) |
+| **P-14** | Work Domain — Project Key · Ticket 3층 식별자 · 채번 · Relation · Workflow | S6 | **DONE** | `project_key_registry`(예약 `GIT`) · `ticket_cache` → `tickets`(D-238) · `seq`/`canonical_key`/`legacy_key` + BEFORE 트리거(D-236) · `project_ticket_counters` 채번(D-196) · `ticket_key_aliases` · `ticket_relations`(계층 정본, D-239) · `ticket_statuses` + `app/work/workflow.py`. **동시 12건에서 1..12 가 정확히 한 번씩**(반례 포함) · 롤백 시 미소비 · `GIT-142` 가 Key 변경 뒤에도 같은 티켓 · Exception 임의 배정 0. Project Key 20건은 **확정됐고**(D-243) `apply_confirmed()` 가 이름으로 잇는다 — 못 찾으면 배정하지 않는다. 재채번은 S13 이다(D-197) |
 | **P-15** | Backlog · Sprint · Kanban · DnD 공통화 | S6 | **DONE** | `/api/work/board`·`/backlog`·`/sprints` + `sprints` 표 + `backlog_rank`(소수 순위, D-241). Drop 이 Status+Activity+Audit+`updated_at`+Notification 을 **한 트랜잭션**으로 처리하고(D-242), 실패를 주입해 다섯이 함께 사라지는지까지 본다. DnD 는 `frontend/src/ui/DragDrop.jsx` **한 부품**이고 키보드가 1급이다(스페이스로 집고 화살표로 옮긴다) |
 | **P-14a** | **문자열 날짜 컬럼 → `date`/`timestamptz`** (SQLite 실측 10번) | S7 | TODO | `INVENTORY/08_SQLITE.md` 10번이 「S6·S7 로 이월」이라고만 적어 두어 소유가 갈려 있었다. **S6 은 안 했다** — MASTER_PLAN §9.1 의 S6 산출·Exit 어디에도 없고(정본은 그 절이다), 무엇보다 **반씩 나눠 하면 더 나쁘다**: `tickets.due_date`·`start_date` 와 `projects.starts_on`·`ends_on`·`week_of` 와 문서 쪽 컬럼이 같은 규약을 공유하고, 동기화 파서·필터(`due_window`)·리포트·번다운·홈 위젯이 전부 그 규약으로 비교한다. 한쪽만 바꾸면 같은 화면에서 문자열 비교와 날짜 비교가 섞인다. S6 이 새로 만든 `sprints.starts_on`·`ends_on` 도 **일부러 같은 문자열 규약**을 따랐다 — 그래야 이 작업이 한 번에 끝난다 |
 | **P-16** | Knowledge Domain — Space · Folder · Document · **Block JSON 정본** · Version | S7 | TODO | Version diff/restore 동작 · Editor lazy load 후 번들 예산 유지 |
@@ -91,12 +91,13 @@
 
 ## 외부 결정 대기 — Backlog 항목이 아니다
 
-이 넷은 **작업이 아니라 입력**이다. 어느 것도 Phase A~B 를 막지 않는다.
+이 셋은 **작업이 아니라 입력**이다. 어느 것도 Phase A~B 를 막지 않는다.
+(20개 Project Key 는 2026-08-22 에 확정돼 목록에서 빠졌다 — D-243.)
 상세는 [`MASTER_PLAN.md`](MASTER_PLAN.md) §13.
 
 | 항목 | 필요 시점 | 없을 때 |
 |---|---|---|
-| 20개 Project Key 명명 | **S6** | S6 이 초안표를 만들어 확인을 받는다. **확정 전 재채번 없음** |
+| ~~20개 Project Key 명명~~ | ~~S6~~ | **해소 (2026-08-22)** — 초안표 그대로 확정(D-243). 정본은 `app/work/project_keys.py::CONFIRMED`, 사본은 `PROJECT_KEYS.md`. 적용은 S13 이 적재 직후에 `apply_confirmed()` 로 한다 |
 | GitLab Repository 주소·자격증명 | S4(권장) · S22(Acceptance) | Remote 중립 Installer + 오프라인 Bundle 로 진행 |
 | 실 NFS/NAS 장비 정보 | S8(있으면 좋음) | 시험 Storage 로 실검증. 실 정보 수령 시 Configuration 만 변경 |
 | 제품 Domain 밖 Notion DB 3종 이관 여부 | 언제든 | 기본값 = 이관하지 않음. Core Migration 은 무관하게 진행 |
