@@ -248,11 +248,11 @@ describe("링크", () => {
     expect(anchor.getAttribute("href")).toBe(SETUP_LINKS.llm.href);
   });
 
-  it("SYS-06: llm 항목은 러너 화면으로 보낸다 — probe_llm의 안내 문구가 실제로 말하는 곳과 같다", () => {
-    // app/setup/probes.py::probe_llm의 세 안내(등록·활성화·헬스체크)가 전부 "관리 콘솔의
-    // 러너 화면에서"라고 말한다 — 링크가 AI 관리(/llm-console)로 가면 그 문구를 따라도
-    // 이 항목을 고칠 수 있는 화면에 도달하지 못한다.
-    expect(SETUP_LINKS.llm.href).toBe("#/runners");
+  it("SYS-06: llm 항목은 AI 설정으로 보낸다 — probe_llm의 안내 문구가 실제로 말하는 곳과 같다", () => {
+    // app/setup/probes.py::probe_llm 은 이제 Model Gateway 의 capabilities 를 읽고, 그
+    // 안내가 「AI 설정을 확인하세요」라고 말한다(S11 이전에는 러너 화면이었다). 링크가
+    // 다른 곳으로 가면 그 문구를 따라도 이 항목을 고칠 수 있는 화면에 도달하지 못한다.
+    expect(SETUP_LINKS.llm.href).toBe("#/settings?tab=ai");
   });
 });
 

@@ -1,3 +1,4 @@
+/* qa-contract-change: 행별 접근 이름을 확인하던 화면 중 «문서 자동 생성» 하나가 S11 로 사라져 그 케이스가 빠졌다. 나머지 화면들의 rowName 단언은 형태도 기대값도 그대로이고, 규칙 자체(행마다 서로 다른 접근 이름)는 안 바뀌었다. */
 import { describe, it, expect } from "vitest";
 
 import { REGISTRY } from "./registry.js";
@@ -95,14 +96,6 @@ describe("SEM-01 — 등록 화면 목록의 행별 접근 이름", () => {
     const b = declaredRowName(cols, { scope_type: "user", user_name: "사용자B", period: "day" });
     expect(a).toBe("사용자A / 하루");
     expect(b).toBe("사용자B / 하루");
-  });
-
-  it("문서 자동 생성(documents): 미리보기 제목, 없으면 기간+상태로 구별된다", () => {
-    const cols = REGISTRY.documents.columns;
-    const a = declaredRowName(cols, { preview: { title: "8월 보고서" } });
-    const b = declaredRowName(cols, { status: "pending", period: "2026-08" });
-    expect(a).toBe("8월 보고서");
-    expect(b).toBe("기간 2026-08 문서 (대기)");
   });
 
   it("조직도(org-tree): 조직/부서 구분 + 이름으로 구별된다", () => {

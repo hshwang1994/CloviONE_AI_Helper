@@ -135,7 +135,6 @@ def list_quotas(
         # 화면이 "쿼터를 어디에 거는가"를 스스로 지어내지 않게 서버가 말해 준다.
         "enforced_on": [
             {"kind": service.KIND_ASSISTANT_NARRATIVE, "label": "AI 도우미 문장 생성"},
-            {"kind": service.KIND_DOCUMENT_GENERATE, "label": "문서 자동 생성 요청"},
             {"kind": service.KIND_CHAT_MESSAGE, "label": "AI 도우미 채팅"},
         ],
         "periods": list(ALL_PERIODS),

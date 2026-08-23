@@ -380,7 +380,7 @@ def announce_backup_failure(db, *, reason: str, now, title: str = "예약 백업
 # 사실을 몰랐다 — /restore-drills 화면을 직접 열어야만 보이는데 아무도 그 화면을 안 봤다.
 BACKUP_STALE_ALERT_DAYS = 7
 # 이 틱은 10분마다 돈다(worker_main.py) — "꺼져 있음"·"오래 안 돎"은 다음 백업이 생기거나
-# 설정이 바뀌기 전까지 계속 참이라, 매 틱 알리면 관리자 알림함이 도배된다. runner_unavailable
+# 설정이 바뀌기 전까지 계속 참이라, 매 틱 알리면 관리자 알림함이 도배된다. 다른 반복 경보
 # (app/runners/service.py::record_runner_result)이 이미 쓰는 원칙과 같다 — "정상→나쁨 전환"
 # 에만 보낸다. 백업은 전환을 표시할 전용 상태 컬럼이 없으므로, 최근 이미 같은 유형의 관리자
 # 알림을 보냈는지(Notification 테이블 자체가 이미 갖고 있는 사실) 확인하는 것으로 대신한다 —

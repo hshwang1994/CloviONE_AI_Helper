@@ -21,7 +21,6 @@ from app.backups import models as backups_models  # noqa: F401
 from app.conversations import models as conversations_models  # noqa: F401
 from app.health import models as health_models  # noqa: F401
 from app.impersonation import models as impersonation_models  # noqa: F401
-from app.documents import models as documents_models  # noqa: F401
 from app.mail import models as mail_models  # noqa: F401
 from app.notifications import models as notifications_models  # noqa: F401
 from app.notion_mapping import models as notion_mapping_models  # noqa: F401
@@ -43,10 +42,7 @@ from app.integrations import models as integrations_models  # noqa: F401
 from app.jobs import models as jobs_models  # noqa: F401
 from app.knowledge import models as knowledge_models  # noqa: F401
 from app.prompts import models as prompts_models  # noqa: F401
-from app.runners import models as runners_models  # noqa: F401
 from app.schedules import models as schedules_models  # noqa: F401
-from app.templates import models as templates_models  # noqa: F401
 from app.trash import models as trash_models  # noqa: F401
 from app.users import models as users_models  # noqa: F401
 from app.work import models as work_models  # noqa: F401
-from app.workflows import models as workflows_models  # noqa: F401

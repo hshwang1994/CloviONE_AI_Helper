@@ -116,7 +116,7 @@ export function buildAlerts(d, role) {
     alerts.push({ src: "comp:worker", label: serviceLabel("worker") + procNote, value: comps.worker === "down" ? "중단" : "응답 없음", kind: comps.worker === "down" ? "danger" : "warn", to: procTo });
   if (comps.scheduler && comps.scheduler !== "up")
     alerts.push({ src: "comp:scheduler", label: serviceLabel("scheduler") + procNote, value: comps.scheduler === "down" ? "중단" : "응답 없음", kind: comps.scheduler === "down" ? "danger" : "warn", to: procTo });
-  // 핵심 연동(n8n·Notion·러너 등)이 down/degraded면 큐가 비어 있어도 업무가 멈춘다 — 서비스 상태 배지로만
+  // 핵심 연동(Notion 등)이 down/degraded면 큐가 비어 있어도 업무가 멈춘다 — 서비스 상태 배지로만
   // 두지 않고 상단 경보로 올린다(비활성 연동은 제외). enabled!==false인 것만.
   Object.entries(d.integrations || {}).forEach(([name, v]) => {
     if (v && v.enabled !== false && v.last_health === "down")
@@ -179,7 +179,6 @@ export function headlineStats({ services, counts, jobs, disk, goto, jobsNote, di
       kind: down > 0 ? "danger" : total ? "ok" : undefined,
       to: null,
     },
-    { key: "workflows", value: fmtNum((counts || {}).active_workflows), label: "활성 워크플로", to: "/workflows" },
     {
       key: "rate",
       value: rate != null ? rate + "%" : "-",
@@ -204,8 +203,8 @@ export function headlineStats({ services, counts, jobs, disk, goto, jobsNote, di
   ];
 }
 
-// 위 다섯 지표 중 지금 경보 중이면(buildAlerts의 src) 스트립에서 빼는 대응표.
-// services/workflows는 대응하는 경보 자체가 없다(항상 스트립에 남는다).
+// 위 네 지표 중 지금 경보 중이면(buildAlerts의 src) 스트립에서 빼는 대응표.
+// services는 대응하는 경보 자체가 없다(항상 스트립에 남는다).
 const HEALTHY_SRC_FOR_KEY = { rate: "job:rate", failed: "job:failed", disk: "disk" };
 
 // 경보 행의 기본 조치 버튼 — 라벨은 "어디로 가는가"로 정한다(경보 종류가 아니라). 워커·
@@ -524,7 +523,7 @@ function DashboardBody({ d, nav, role, stale }) {
 
       {/* PA-RC-0028: 예전엔 내부 컴포넌트+외부 연동을 '서비스 상태' 한 묶음으로 합쳐 그렸는데
           /diagnostics는 같은 데이터를 '서비스 상태'/'외부 연동' 2분류로 나눠 그리고 있었다 —
-          같은 8개 서비스가 화면마다 다르게 묶여 "n8n이 서비스인가 연동인가"가 어느 화면에
+          같은 서비스가 화면마다 다르게 묶여 "이것이 서비스인가 연동인가"가 어느 화면에
           있었는지에 달렸다. 진단의 분류(내부 프로세스 vs 외부 의존 — 장애 대응에서 실제로
           다른 행동을 낳는다)를 정본으로 삼아 대시보드도 같은 어휘를 쓴다. 도넛도 없앤다 —
           100% 정상일 때 도넛이 화면에서 가장 큰 시각 요소가 되어 '볼 것 없음'에 최대 면적을

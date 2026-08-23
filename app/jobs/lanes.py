@@ -35,7 +35,7 @@ LANE_INDEX = "index"
 
 # 대화형 job_type. chat_message는 사용자가 화면 앞에서 기다리는 요청이고, llm_connection_test도
 # 같은 이유로 최근 이 큐로 옮겨졌다(핸들러 자신의 주석 참고 — 웹 요청에서 기다리면 처리 칸이
-# 수십 초 잠긴다). 배치 잡(schedule_run·document_generate·notion_mapping_sync·mail_send·
+# 수십 초 잠긴다). 배치 잡(schedule_run·mail_send·
 # project_weekly_summary)은 전부 여기 없다 — 기본값(제외 목록 없음)이 배치 레인이 된다.
 CONVERSATIONAL_JOB_TYPES: tuple[str, ...] = ("chat_message", JOB_TYPE_TEST)
 

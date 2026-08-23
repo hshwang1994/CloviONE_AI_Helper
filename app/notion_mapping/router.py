@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import datetime
 
 from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel, Field
@@ -14,16 +13,12 @@ from app.core.authz import CONSOLE_READ_ROLES, CONSOLE_WRITE_ROLES
 from app.core.deps import get_db, get_principal, require_csrf, require_roles
 from app.core.scope import Principal
 from app.core.pagination import PageParams
-from app.jobs import repository as jobs_repo
-from app.jobs.models import STATUS_QUEUED, STATUS_RUNNING, Job
 from app.notion_mapping.models import STATUS_UNMAPPED, UserNotionMapping
 from app.notion_mapping.service import (
     manual_map,
     mapping_view,
     mapping_view_for_user,
-    resolve_conflict,
     unmap,
-    verify_mapping,
 )
 from app.users.service import ensure_can_manage_target, get_scoped_user_or_404
 
@@ -38,101 +33,6 @@ router = APIRouter(
 class ManualMapRequest(BaseModel):
     notion_user_id: str = Field(min_length=8, max_length=64)
     notion_email: str | None = Field(default=None, max_length=255)
-
-
-class ResolveConflictRequest(BaseModel):
-    notion_user_id: str = Field(min_length=8, max_length=64)
-
-
-def _sync_idempotency_key(now: datetime) -> str:
-    """초 단위로만 결정되는 키.
-
-    이전에는 여기에 난수 조각(``uuid.uuid4().hex[:8]``)을 더 붙였는데, 그러면 호출마다
-    키가 무조건 달라져 `jobs_repo.enqueue`의 유니크 제약(unique idempotency_key)이 절대
-    걸리지 않는다 — 바로 위 '진행 중인 잡' 조회는 조회와 삽입 사이에 진짜 동시 요청이 끼면
-    (둘 다 조회 시점엔 진행 중인 잡을 못 본다) 막지 못하는데, 그 틈을 막아 주는 것이 바로
-    이 유니크 키였다. 초 단위 키로 두면 같은 초 안의 진짜 동시 요청은 같은 키로 부딪혀
-    두 번째 삽입이 `IntegrityError`로 막히고 첫 번째 잡을 그대로 돌려받는다 — 그러면서도
-    분 단위 키가 가졌던 "새 사용자 추가 직후 재동기화가 늦게 반영되는" 문제는 재현하지
-    않는다(초 단위라 한 자리만 지나도 새 키를 받는다).
-    """
-    return f"notionsync:{now.strftime('%Y%m%d%H%M%S')}"
-
-
-@router.post("/sync", status_code=202, dependencies=[Depends(require_roles(*CONSOLE_WRITE_ROLES))])
-def sync_all(request: Request, db: Session = Depends(get_db)):
-    """전원의 Notion 매핑을 한 번에 맞춘다. 잡을 만들고 바로 돌려준다(202).
-
-    ## 왜 이 "동기화" 버튼만 admin+ 인가 (SEC-04)
-
-    `tickets/sync`·`team-docs/sync`·`search/reindex`는 전부 operator+(`MODERATOR_ROLES`)로
-    실행할 수 있는데 이 엔드포인트만 admin+(`CONSOLE_WRITE_ROLES`)다 — 겉보기엔 셋 다 "동기화"
-    버튼이라 불일치처럼 보이지만 의도한 차이다.
-
-    1. 이 라우터의 형제 쓰기 엔드포인트(`/verify`·`/map`·`/unmap`·`/resolve-conflict`)는
-       전부 이미 admin+다 — `/sync`는 그 개별 조작을 사람 전원에 대해 한 번에 하는 벌크 형태일
-       뿐이라, 여기만 낮추면 오히려 이 라우터 안에서 스스로 모순된다.
-    2. 다른 세 동기화는 **읽기 전용 캐시/미러**(Notion→DB 미러, DB→검색 색인)를 새로고침할
-       뿐이지만, 이건 로그인 계정↔Notion 신원의 **결속 자체**(`UserNotionMapping`)를 다시
-       쓴다 — 이후 담당자/작성자 판정(`is_first_person_request`)의 근거가 되는 데이터라 잘못되면
-       조용히 신원이 뒤바뀐다.
-    3. `sync_all`은 스코프 필터가 전혀 없다(`select(User).where(archived_at.is_(None))`,
-       부서/조직 무관) — 한 번 눌러 시스템 전체 사용자의 신원 결속을 바꾼다. 다른 세 동기화보다
-       영향 범위가 구조적으로 크다.
-
-    이 라우터는 Notion 신원 결속을 이미 한 번 더 엄격하게 다룬 전례가 있다(SEC-01 —
-    부서범위 admin이 system_admin의 매핑을 바꿀 수 있던 것을 막음, `tests/security/
-    test_admin_authority_boundary.py` 참고). 상세 판단 근거는 `docs/DECISIONS.md`.
-
-    사용자당 '검증'을 누르는 방식은 n8n을 **동기로** 부른다. 그 워크플로는 Notion의 작업·
-    프로젝트 DB를 통째로 읽어 9~13초가 걸리고(실측), 12명이면 브라우저를 2분 붙잡으면서
-    같은 조회를 12번 반복한다. 한 번 읽어서 전원에게 나눠 주는 것이 맞다.
-
-    화면은 이 잡이 끝나면 매핑 목록을 다시 불러 결과를 본다 — 매핑 행 자체가 결과다.
-    """
-    now = request.app.state.clock.now()
-    # 이미 진행 중(대기·실행)인 동기화 잡이 있으면 그걸 돌려준다 — 신경질적 더블클릭이 같은
-    # 조회를 두 번 돌리지 않는다. 진행 중인 게 없으면(예: 사용자를 막 추가한 뒤 다시 누름)
-    # 새 조회를 돈다. 분 단위 시간창 키의 "새 사용자 매핑 지연" 문제와 더블클릭 중복을 동시에 해결.
-    active = db.execute(
-        select(Job)
-        .where(Job.job_type == "notion_mapping_sync", Job.status.in_([STATUS_QUEUED, STATUS_RUNNING]))
-        .order_by(Job.created_at.desc())
-        .limit(1)
-    ).scalar_one_or_none()
-    if active is not None:
-        # 이미 진행 중인 잡을 돌려줄 때 deduplicated 플래그를 명시한다 — 화면은 이 플래그로
-        # '이미 진행 중입니다'와 '새로 시작했습니다'를 구분해 안내한다(이 신호가 없으면
-        # 더블클릭이 항상 '새로 시작'으로 잘못 보고된다).
-        return {"job_id": active.id, "status": active.status, "deduplicated": True}
-    key = _sync_idempotency_key(now)
-    job = jobs_repo.enqueue(
-        db,
-        job_type="notion_mapping_sync",
-        payload={},
-        now=now,
-        user_id=request.state.user.id,
-        idempotency_key=key,
-    )
-    if job.status not in (STATUS_QUEUED, STATUS_RUNNING):
-        # `enqueue`'s idempotency lookup matches on key alone, regardless of status. The
-        # `active` check above already established there is no in-progress job, so a
-        # terminal job returned here means the key collided with one that finished within
-        # the same second (fast/mocked worker) — that is a fresh sync request, not a
-        # duplicate. Retry with a key that cannot collide with the finished job.
-        job = jobs_repo.enqueue(
-            db,
-            job_type="notion_mapping_sync",
-            payload={},
-            now=now,
-            user_id=request.state.user.id,
-            idempotency_key=f"{key}:{job.id}",
-        )
-    record_audit_from_request(
-        request, db, action="notion_mapping.sync", object_type="user_notion_mapping",
-        object_id=None, after={"job_id": job.id},
-    )
-    return {"job_id": job.id, "status": job.status}
 
 
 @router.get("", dependencies=[Depends(require_roles(*CONSOLE_READ_ROLES))])
@@ -235,24 +135,6 @@ def get_mapping(user_id: str, db: Session = Depends(get_db), principal: Principa
     return {"mapping": mapping_view_for_user(user, row)}
 
 
-@router.post("/{user_id}/verify", dependencies=[Depends(require_roles(*CONSOLE_WRITE_ROLES))])
-def verify(request: Request, user_id: str, db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
-    # 범위 밖은 **404** (저장소 규칙 — 관리자 라우터의 모든 /{user_id} 경로가
-    # `get_scoped_user_or_404` 하나를 통과해야 한다). 여기만 예외였다.
-    user = get_scoped_user_or_404(db, user_id, principal.management)
-    ensure_can_manage_target(request.state.user.role, user)  # authority boundary
-    row = verify_mapping(
-        db, user,
-        outbound=request.app.state.outbound_client,
-        now=request.app.state.clock.now(),
-    )
-    record_audit_from_request(
-        request, db, action="notion_mapping.verify", object_type="user_notion_mapping",
-        object_id=user_id, after={"status": row.status},
-    )
-    return {"mapping": mapping_view(row, user)}
-
-
 @router.post("/{user_id}/map", dependencies=[Depends(require_roles(*CONSOLE_WRITE_ROLES))])
 def map_manual(
     request: Request, user_id: str, payload: ManualMapRequest, db: Session = Depends(get_db),
@@ -289,20 +171,3 @@ def unmap_user(request: Request, user_id: str, db: Session = Depends(get_db), pr
     return {"mapping": mapping_view(row, user)}
 
 
-@router.post("/{user_id}/resolve-conflict", dependencies=[Depends(require_roles(*CONSOLE_WRITE_ROLES))])
-def resolve(
-    request: Request, user_id: str, payload: ResolveConflictRequest, db: Session = Depends(get_db),
-    principal: Principal = Depends(get_principal),
-):
-    # 범위 밖은 **404** (저장소 규칙 — 관리자 라우터의 모든 /{user_id} 경로가
-    # `get_scoped_user_or_404` 하나를 통과해야 한다). 여기만 예외였다.
-    user = get_scoped_user_or_404(db, user_id, principal.management)
-    ensure_can_manage_target(request.state.user.role, user)  # authority boundary
-    row = resolve_conflict(
-        db, user, notion_user_id=payload.notion_user_id, now=request.app.state.clock.now()
-    )
-    record_audit_from_request(
-        request, db, action="notion_mapping.resolve_conflict",
-        object_type="user_notion_mapping", object_id=user_id, after={"status": row.status},
-    )
-    return {"mapping": mapping_view(row, user)}

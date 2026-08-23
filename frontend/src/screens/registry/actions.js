@@ -76,7 +76,7 @@ export const snapCol = (key, label, map) => ({ key: "snap_" + key, label, render
 // 위한 선택적 오버라이드. DataScreen.jsx의 SubListDrawer.act()가 confirm을 (하위 행, 부모 행) 두
 // 인자로 호출하므로 parent(부모 행)를 읽어 경고 문구를 만들 수 있다.
 // namedCreator — RG-07: 셋 다 "변경자"를 쓰지만 이름을 실제로 주는 건 워크플로뿐이다(연동·러너의
-// /versions는 정말 이름을 안 준다, app/{integrations,runners}/router.py 확인함) — 그래서
+// /versions는 정말 이름을 안 준다, app/integrations/router.py 확인함) — 그래서
 // personField를 기본으로 못 켠다. 이름을 주는 쪽만 true로 켠다.
 export const versionsAction = (base, extraCols, confirmFn, namedCreator) => ({
   label: "버전 기록",
@@ -144,97 +144,3 @@ export const nameVersionsAction = (base, title) => ({
 // health_url을 잘못 설정했거나 비워 뒀을 때, 토스트만 보고는 실제 대체(base_url)가 일어났는지
 // 알 수 없었다(app/integrations/service.py run_health_check가 이미 checked_url을 돌려주는데도 버려졌었다).
 export const healthResult = (res) => ({ ok: res.status === "up", msg: (res.status === "up" ? "정상" + (res.latency_ms != null ? ` (${res.latency_ms}ms)` : "") : "중단: " + (res.detail || "확인 실패")) + (res.checked_url ? " (" + res.checked_url + ")" : "") });
-// '테스트'는 연결 확인일 뿐, 러너가 실제로 작업을 받을 수 있는지(can_dispatch)와는 별개다 —
-// 백엔드가 의도적으로 비활성/점검 상태 러너도 테스트만은 통과시킨다(새 러너를 켜기 전에 미리
-// 확인할 수 있게). 통과 문구가 '작업이 실제로 배분된다'는 뜻으로 오해되지 않게 구분해 둔다.
-// 백엔드 POST /{id}/test(app/runners/router.py)는 {ok, status_code}만 돌려주고 status 필드는 절대
-// 주지 않는다 — res.status 검사는 항상 undefined라 사실상 죽은 코드였다. res.ok만으로 판정한다.
-export const testResult = (res) => ({ ok: res.ok !== false, msg: (res.ok !== false) ? "테스트 통과(연결 확인됨), 비활성/점검 상태면 실제 작업은 배분되지 않습니다." : "테스트 실패: " + (res.detail || ("HTTP " + (res.status_code || "?"))) });
-// 워크플로 '테스트'는 GET 도달성만 확인한다(실제 실행/POST 검증 아님) — 통과를 과장하지 않게 문구를 분리한다.
-// 백엔드 provider_n8n.test()는 'reachable'/'unreachable'만 반환한다(ok/failed 필드 없음) — healthResult처럼
-// 정확 일치로 판정해야 timeout/connection_refused('unreachable')가 올바로 '연결 실패'로 표시된다.
-export const reachResult = (res) => { const ok = res.status === "reachable"; return { ok, msg: ok ? "연결 확인됨(도달 가능)" : "연결 실패: " + (res.detail || res.status || ("HTTP " + (res.status_code || "?"))) }; };
-
-// 문서 생성 폼 필드 — '+ 문서 생성' 헤더 작업과 실패/품질미달 행의 '재시도' 행 작업이 공유한다
-// (재시도는 같은 폼을 워크플로/모드/설정은 물려받고 기간만 비운 채로 다시 연다).
-// 문서 생성 폼 — 예전엔 config 전체를 raw JSON으로 손수 적게 해 무슨 키를 넣어야 할지 알기 어려웠다.
-// 실제로 백엔드(app/documents/service.py)가 읽는 키를 명명 입력으로 펼치고, 그 외 드문 키만 '고급(JSON)'
-// 하나로 남긴다. 제출 시 docConfigTransform이 이들을 다시 config dict로 조립한다(백엔드 계약 유지).
-export const DOC_GENERATE_FIELDS = [
-  // DGEN-01: 자유 텍스트 ID 받아쓰기 대신 이름으로 고른다 — documents 화면의 config.refLists
-  // (registry/automation.js)가 이 화면에 로드된 워크플로/템플릿 목록을 DataScreen.jsx의
-  // withOptionsFrom을 통해 select 옵션으로 준다.
-  { name: "workflow_id", label: "워크플로", type: "select", kind: "entity", required: true, optionsFromRefList: "workflows", help: "생성을 실행할 워크플로. ‘업무 자동화 흐름’ 화면에서 추가하고 활성화합니다." },
-  { name: "period", label: "기간", type: "text", required: true, help: "예: 2026-07 또는 2026-W29 (문서가 다룰 기간)" },
-  { name: "mode", label: "모드", type: "select", value: "preview_then_approve", options: opt([["preview_then_approve", "미리보기 후 승인"], ["preview_only", "미리보기만"], ["auto_publish", "자동 발행"]]), help: "‘자동 발행’이라도 대상 워크플로/템플릿이 승인을 요구하면 미리보기 후 승인 흐름으로 전환됩니다." },
-  { name: "template_id", label: "템플릿(선택)", type: "select", kind: "entity", optionsFromRefList: "templates", extraOptions: [{ value: "", label: "(템플릿 없음)" }], help: "고르면 그 템플릿의 프롬프트, 정책, 기본값이 함께 적용됩니다." },
-  { name: "source_database", label: "원본 Notion DB(선택)", type: "text", help: "문서에 담을 데이터를 읽어올 Notion 데이터베이스 ID(또는 이름).", freeTextReason: "외부 Notion 데이터베이스 식별자다. 이 제품에 후보 목록이 없다." },
-  { name: "output_format", label: "출력 형식", type: "select", value: "", options: opt([["", "(기본: 마크다운)"], ["markdown", "마크다운"], ["html", "HTML"]]) },
-  { name: "title_rule", label: "제목 규칙(선택)", type: "text", help: "생성 문서 제목 규칙. 예: 주간 보고서 {week}" },
-  { name: "date_range_start", label: "대상 기간 시작(선택)", type: "date", help: "문서가 다룰 데이터의 시작일." },
-  { name: "date_range_end", label: "대상 기간 끝(선택)", type: "date" },
-  { name: "target_parent_page", label: "발행 위치: 상위 페이지 ID(선택)", type: "text", help: "생성된 문서를 붙일 Notion 상위 페이지 ID.", freeTextReason: "외부 Notion 페이지 식별자다. 이 제품에 후보 목록이 없다." },
-  { name: "target_database", label: "발행 위치: DB ID(선택)", type: "text", help: "생성된 문서를 추가할 Notion 데이터베이스 ID.", freeTextReason: "외부 Notion 데이터베이스 식별자다. 이 제품에 후보 목록이 없다." },
-  { name: "config_extra", label: "고급 설정(JSON, 선택)", type: "json", jsonObject: true, help: '위에 없는 키(filter, grouping, prompt_template, prompt_id, policy_id, template_version 등)를 직접 넣습니다. 같은 키가 있으면 이 값이 우선합니다. 예: {"filter":{"상태":"완료"},"template_version":1}' },
-];
-// 명명 필드 → config dict 조립(빈 값은 넣지 않는다). date_range는 {start,end} 중첩.
-export const _DOC_STR_KEYS = ["template_id", "source_database", "output_format", "title_rule", "target_parent_page", "target_database"];
-export function docConfigTransform(body) {
-  const { template_id, source_database, output_format, title_rule, target_parent_page, target_database,
-    date_range_start, date_range_end, config_extra, ...rest } = body;
-  const named = { template_id, source_database, output_format, title_rule, target_parent_page, target_database };
-  const config = {};
-  _DOC_STR_KEYS.forEach((k) => { const v = named[k]; if (v != null && String(v).trim() !== "") config[k] = v; });
-  if ((date_range_start && String(date_range_start).trim()) || (date_range_end && String(date_range_end).trim())) {
-    config.date_range = { start: date_range_start || "", end: date_range_end || "" };
-  }
-  if (config_extra && typeof config_extra === "object" && !Array.isArray(config_extra)) Object.assign(config, config_extra);
-  return { ...rest, config };  // rest = workflow_id·period·mode
-}
-// config dict → 명명 필드(재시도 프리필·템플릿 프리필). 알려진 키 외에는 config_extra로 모은다.
-export function docConfigInitial({ workflow_id = "", mode = "preview_then_approve", config = {}, period = "" } = {}) {
-  const c = config || {};
-  const dr = c.date_range || {};
-  const known = new Set([..._DOC_STR_KEYS, "date_range", "period"]);
-  const extra = {};
-  Object.keys(c).forEach((k) => { if (!known.has(k)) extra[k] = c[k]; });
-  const out = {
-    workflow_id: workflow_id || "", period, mode: mode || "preview_then_approve",
-    template_id: c.template_id || "", source_database: c.source_database || "",
-    output_format: c.output_format || "", title_rule: c.title_rule || "",
-    target_parent_page: c.target_parent_page || "", target_database: c.target_database || "",
-    date_range_start: dr.start || "", date_range_end: dr.end || "",
-  };
-  if (Object.keys(extra).length) out.config_extra = extra;
-  return out;
-}
-export const docGenerateResult = () => ({ ok: true, msg: "문서 생성을 요청했습니다(진행 중). 잠시 후 목록이 자동으로 새로고침됩니다." });
-
-// 템플릿의 '문서 생성 기본값(input_schema)'도 raw JSON이었다 — 문서 생성 폼과 같은 방식으로 명명
-// 필드로 펼친다(템플릿은 재사용 기본값이라 template_id·기간·모드는 없다). toApiBody/fromRow가 input_schema
-// dict와 상호 변환한다.
-export const _TPL_STR_KEYS = ["source_database", "output_format", "title_rule", "target_parent_page", "target_database"];
-export const TEMPLATE_SCHEMA_FIELDS = [
-  { name: "source_database", label: "원본 Notion DB(선택)", type: "text", help: "이 템플릿으로 만드는 문서가 데이터를 읽어올 Notion 데이터베이스 ID(또는 이름). 문서 생성 시 기본값으로 채워집니다.", freeTextReason: "외부 Notion 데이터베이스 식별자다. 이 제품에 후보 목록이 없다." },
-  { name: "output_format", label: "출력 형식", type: "select", value: "", options: opt([["", "(기본: 마크다운)"], ["markdown", "마크다운"], ["html", "HTML"]]) },
-  { name: "title_rule", label: "제목 규칙(선택)", type: "text", help: "생성 문서 제목 규칙. 예: 주간 보고서 {week}" },
-  { name: "target_parent_page", label: "발행 위치: 상위 페이지 ID(선택)", type: "text", help: "생성된 문서를 붙일 Notion 상위 페이지 ID.", freeTextReason: "외부 Notion 페이지 식별자다. 이 제품에 후보 목록이 없다." },
-  { name: "target_database", label: "발행 위치: DB ID(선택)", type: "text", help: "생성된 문서를 추가할 Notion 데이터베이스 ID.", freeTextReason: "외부 Notion 데이터베이스 식별자다. 이 제품에 후보 목록이 없다." },
-  { name: "input_schema_extra", label: "고급 기본값(JSON, 선택)", type: "json", jsonObject: true, help: '위에 없는 키(filter, grouping, prompt_template 등)를 직접 넣습니다. 같은 키가 있으면 이 값이 우선합니다.' },
-];
-export function assembleInputSchema(body) {
-  const named = { source_database: body.source_database, output_format: body.output_format, title_rule: body.title_rule, target_parent_page: body.target_parent_page, target_database: body.target_database };
-  const schema = {};
-  _TPL_STR_KEYS.forEach((k) => { const v = named[k]; if (v != null && String(v).trim() !== "") schema[k] = v; });
-  if (body.input_schema_extra && typeof body.input_schema_extra === "object" && !Array.isArray(body.input_schema_extra)) Object.assign(schema, body.input_schema_extra);
-  return schema;
-}
-export function disassembleInputSchema(is) {
-  const s = is || {};
-  const extra = {};
-  Object.keys(s).forEach((k) => { if (!_TPL_STR_KEYS.includes(k)) extra[k] = s[k]; });
-  const out = { source_database: s.source_database || "", output_format: s.output_format || "", title_rule: s.title_rule || "", target_parent_page: s.target_parent_page || "", target_database: s.target_database || "" };
-  if (Object.keys(extra).length) out.input_schema_extra = extra;
-  return out;
-}
-

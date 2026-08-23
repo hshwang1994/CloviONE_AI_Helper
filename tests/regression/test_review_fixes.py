@@ -1,3 +1,5 @@
+"""qa-contract-change: 러너 롤백 승인 게이트 시험이 그 화면과 함께 사라졌다 — 같은 규칙(민감 필드 변경은 승인 대상)은 연동 쪽 시험 둘이 그대로 지고 있고 test_review2_fixes 도 같은 것을 본다. 스케줄 실행 취소 시험은 대상만 system 으로 바꿨다(지키는 것은 「잡을 취소하면 실행 행이 terminal 이 된다」이지 대상 종류가 아니다)."""
+
 """Regression tests for defects found by the §32 review loop (iteration 1)."""
 
 import pytest
@@ -79,31 +81,6 @@ def test_system_admin_can_create_admin(client, login_as):
     assert r.status_code == 201
 
 
-def test_runner_rollback_sensitive_change_gated(client, login_as):
-    """#2: rollback that changes base_url/secret_ref goes through the approval gate."""
-    sys_csrf = login_as("system_admin", email="runner-rb-owner@goodmit.co.kr")
-    runner = client.post(
-        "/api/admin/runners",
-        json={"name": "rb-runner", "base_url": "http://127.0.0.1:8787"},
-        headers=_headers(sys_csrf),
-    ).json()["runner"]
-    # system_admin changes the URL (creates version 2 with a different base_url).
-    client.patch(
-        f"/api/admin/runners/{runner['id']}",
-        json={"base_url": "http://127.0.0.1:8788"},
-        headers=_headers(sys_csrf),
-    )
-    # A plain admin rolling back to v1 (different base_url) must be gated.
-    admin_csrf = login_as("admin", email="runner-rb-admin@goodmit.co.kr")
-    r = client.post(
-        f"/api/admin/runners/{runner['id']}/rollback",
-        json={"version": 1},
-        headers=_headers(admin_csrf),
-    )
-    assert r.status_code == 202
-    assert r.json()["status"] == "approval_pending"
-
-
 def test_integration_secret_change_gated(client, login_as, settings):
     """#2: integration secret_ref change is approval-gated for non-sysadmin."""
     (settings.secrets_dir / "int-sec").write_text("v", encoding="utf-8")
@@ -111,7 +88,7 @@ def test_integration_secret_change_gated(client, login_as, settings):
     integ = client.post(
         "/api/admin/integrations",
         json={"name": "gated-int", "provider_type": "http_service",
-              "base_url": "http://127.0.0.1:8787"},
+              "base_url": "https://api.notion.com"},
         headers=_headers(sys_csrf),
     ).json()["integration"]
     admin_csrf = login_as("admin", email="int-editor@goodmit.co.kr")
@@ -131,14 +108,11 @@ def test_cancelling_schedule_run_job_terminalizes_run(client, login_as, app, fak
     from app.schedules.scheduler import create_run_and_enqueue
 
     csrf = login_as("system_admin")
-    wf = client.post(
-        "/api/admin/workflows",
-        json={"name": "wedge", "webhook_url": "http://127.0.0.1:5678/webhook/w"},
-        headers=_headers(csrf),
-    ).json()["workflow"]
     with app.state.session_factory() as s:
+        # S11 이후 스케줄 대상은 `system` 하나다. 이 시험이 지키는 것은 대상 종류가 아니라
+        # 「잡을 취소하면 실행 행이 terminal 이 된다」이므로 대상만 바꾼다.
         sched = Schedule(name="wedge-sched", schedule_type="cron", cron_expression="0 * * * *",
-                         timezone="UTC", target_type="workflow", target_ref=wf["id"], enabled=True)
+                         timezone="UTC", target_type="system", target_ref="noop", enabled=True)
         s.add(sched); s.commit()
         run = create_run_and_enqueue(s, sched, scheduled_at=fake_clock.now(), now=fake_clock.now())
         s.commit()

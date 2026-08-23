@@ -29,19 +29,19 @@ describe("알림 목록의 '관련 항목 보기' — 서버가 계산한 relate
   });
 
   it("related_route가 없으면(서버가 아직 모르는 유형) 로컬 표로 폴백한다 — 기존 동작 유지", () => {
-    const row = { related_object_type: "runner", related_object_id: "r-1" };
+    const row = { related_object_type: "schedule", related_object_id: "s-1" };
     expect(action().when(row, { role: "operator" })).toBe(true);
-    expect(action().navigate(row)).toBe("#/runners?id=r-1");
+    expect(action().navigate(row)).toBe("#/schedules?id=s-1");
   });
 
   it("로컬 표 폴백 대상은 여전히 일반 사용자에게 숨는다(관리자 콘솔 경로라서)", () => {
-    const row = { related_object_type: "runner", related_object_id: "r-1" };
+    const row = { related_object_type: "schedule", related_object_id: "s-1" };
     expect(action().when(row, { role: "user" })).toBe(false);
   });
 
   it("프로토콜 상대 URL(//evil.example)은 related_route로 받아도 무시하고 로컬 표로 폴백한다", () => {
-    const row = { related_object_type: "runner", related_object_id: "r-1", related_route: "//evil.example" };
-    expect(action().navigate(row)).toBe("#/runners?id=r-1");
+    const row = { related_object_type: "schedule", related_object_id: "s-1", related_route: "//evil.example" };
+    expect(action().navigate(row)).toBe("#/schedules?id=s-1");
   });
 
   it("'관련 목록 열기'는 related_route가 있는 행에서는 안 뜬다(항목 보기와 상호 배타)", () => {
@@ -52,7 +52,7 @@ describe("알림 목록의 '관련 항목 보기' — 서버가 계산한 relate
 });
 
 /* APPR-01 후속 — serverHref만 보고 무조건 통과시키면 관리 콘솔 대상(job/approval/schedule/
- * runner/user)에서 회귀가 났다. job_failed는 그 작업을 만든 사람(어떤 role이든)에게 가는데
+ * schedule/user)에서 회귀가 났다. job_failed는 그 작업을 만든 사람(어떤 role이든)에게 가는데
  * /jobs는 operator+ 전용이라, 서버가 related_route를 계산해 준다고 role 게이트를 건너뛰면
  * 일반 사용자에게 늘 403인 클릭 가능한 링크가 생긴다 — RG-02 커밋 직후 발견해 같은 커밋에서
  * 고쳤다(reachableAdminTarget). */

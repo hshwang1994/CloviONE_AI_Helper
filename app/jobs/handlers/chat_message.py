@@ -1,8 +1,30 @@
-"""chat_message job handler — calls the n8n work-assistant webhook (spec §22).
+"""chat_message job handler — **답을 제품 안에서 만든다** (S11 · D-202).
 
-Transient failures (timeout, 5xx, connection) are retried by the queue;
-4xx and malformed payloads are permanent. When the job finally fails,
-``on_failure`` marks the user message failed so the UI can offer retry.
+## 무엇이 바뀌었나
+
+예전에는 이 핸들러가 n8n 웹훅(`127.0.0.1:5678`)을 부르고, n8n 이 Notion 작업 DB **전량**을
+읽어 러너(`127.0.0.1:8789`)에 넘겼다. 러너는 그 목록을 그대로 모델 프롬프트에 실었고,
+**요청자는 대명사 해석에만 쓰이고 필터로는 쓰이지 않았다.** 즉 화면에서 볼 수 없는 문서가
+답변의 근거가 될 수 있었다.
+
+이제는 `app/ai/retrieval` 이 답을 만든다. 그 경로는 `effective_visibility_clause` 가 만든
+후보 집합 **안에서만** 검색하므로, 사용자가 볼 수 없는 문서는 Context 에 들어갈 자리가
+없다(D-256). 권한 판정이 `LIMIT` 앞에 있다는 뜻이고, 그것이 옛 경로를 걷어낸 이유다 —
+「기능이 겹친다」가 아니라 **「하나는 권한을 안 본다」**다.
+
+## 생성으로 가는 문은 하나다
+
+`app/ai/retrieval/answer.py::answer()` 를 부른다. AI 작업공간(`/ai`)이 부르는 것과 같은
+함수이고, 그래서 두 화면의 답이 같은 권한·같은 프롬프트 경계·같은 인용 규약을 지난다.
+여기서 `Gateway.generate()` 를 직접 부르지 않는다 — 부르는 순간 방어가 한쪽에만 걸리는
+두 번째 경로가 생긴다.
+
+## 실패는 세 종류이고 셋을 구별한다
+
+- **답했다**: 인용과 함께 저장하고 쿼터를 센다.
+- **근거가 없다**: 그것도 답이다. 실패로 표시하지 않는다 — 다시 눌러도 같은 결과다.
+- **생성이 막혔다**(모델 없음·시간 초과·다른 작업 중): 인용은 그대로 내보내고 왜인지
+  말한다. 사용자 메시지는 실패로 남겨 「다시 시도」를 살린다.
 """
 
 from __future__ import annotations
@@ -13,6 +35,8 @@ import logging
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.ai.gateway import contract
+from app.ai.retrieval import answer as answer_mod
 from app.conversations.models import (
     PROC_DONE,
     PROC_FAILED,
@@ -21,86 +45,50 @@ from app.conversations.models import (
     Conversation,
     Message,
 )
-from app.core.allowlist import URLNotAllowedError
-from app.core.http_client import is_timeout_error, is_transport_error
 from app.jobs.exceptions import PermanentJobError
 from app.jobs.models import Job
 from app.jobs.worker import WorkerContext, parse_payload
-from app.workflows.models import Workflow
+from app.users.models import User
 
 logger = logging.getLogger("app.handlers.chat")
 
-# Name of the seeded Workflow registry row for this handler (must match
-# app/workflows/service.py:seed_known_workflows). The admin console's
-# Workflows screen lets an admin edit webhook_url and enable/disable this row —
-# if this handler ignored it and always called settings.n8n_work_assistant_url
-# directly, every control on that screen for this row would be a dead
-# affordance (edits/disables with zero effect on real chat behavior).
-CHAT_WORKFLOW_NAME = "ClovirONE AI 업무 도우미"
+#: 근거를 한 건도 못 찾았을 때. 「실패」가 아니라 **답**이다 — 다시 눌러도 같은 결과이므로
+#: 재시도를 권하지 않는다.
+NO_EVIDENCE_TEXT = (
+    "질문에 답할 근거를 사내 문서에서 찾지 못했습니다. "
+    "다른 낱말로 다시 물어보시거나, 찾는 내용이 담긴 문서를 먼저 등록해 주세요."
+)
+
+#: 이미지를 읽는 어댑터가 없다. 조용히 무시하면 사용자는 그림을 보고 답한 줄 안다.
+ATTACHMENT_NOTICE = "첨부한 이미지는 읽지 못했습니다. 필요한 내용은 글로 적어 주세요."
 
 
-class ChatWorkflowMisconfiguredError(PermanentJobError):
-    """워크플로 설정이 잘못돼 요청이 의미 있게 전달될 수 없는 상태.
+def _requester(db: Session, conversation: Conversation) -> User:
+    """권한 판정의 주체. **대화 주인이지 잡을 넣은 프로세스가 아니다.**
 
-    재시도해도 같은 결과라 영구 실패로 다룬다 — 사용자에게는 관리자가 무엇을 고쳐야 하는지
-    그대로 보여준다(원인을 모른 채 '실패'만 보는 것보다 낫다).
+    `answer()` 가 이 사람의 가시성으로 후보 집합을 만든다. 여기서 사람을 못 찾으면
+    답을 만들 수 없다 — 필터 없이 부르는 갈래를 두지 않는다.
     """
+    user = db.get(User, conversation.user_id)
+    if user is None:
+        raise PermanentJobError("대화 주인을 찾을 수 없어 권한을 판정할 수 없습니다.")
+    return user
 
 
-class ChatWorkflowDisabledError(PermanentJobError):
-    pass
+def _gateway(ctx: WorkerContext):
+    """프로세스에 하나뿐인 Gateway (`app/worker_main.py`).
 
-
-def _resolve_chat_endpoint(db: Session, settings) -> tuple[str, str]:
-    """Resolve the webhook URL/method for chat, honoring the Workflow registry
-    row when it has been seeded. Falls back to the static settings URL only
-    when the row doesn't exist yet (fresh install before seeding, or tests
-    that don't seed the registry) — never when it exists but is disabled."""
-    workflow = db.execute(
-        select(Workflow).where(Workflow.name == CHAT_WORKFLOW_NAME)
-    ).scalar_one_or_none()
-    if workflow is None:
-        return settings.n8n_work_assistant_url, "POST"
-    if not workflow.enabled:
-        raise ChatWorkflowDisabledError(
-            "채팅 워크플로가 비활성화되어 있습니다. 관리자 콘솔의 Workflow 레지스트리에서 "
-            f"'{CHAT_WORKFLOW_NAME}'를 활성화해 주세요."
-        )
-    # 이 워크플로는 본문(요청자·메시지·대화 id)이 있어야 동작한다. 그런데 관리자 콘솔은
-    # http_method로 GET도 고를 수 있고, GET이면 아래에서 json 본문이 통째로 버려졌다 —
-    # 러너는 빈 요청을 받고, 그럼에도 2xx를 돌려주면 작업은 '성공'으로 끝나고 사용자는
-    # 엉뚱한 답을 받는다. 조용한 실패라 아무도 원인을 못 찾는다. 여기서 크게 실패시킨다.
-    method = (workflow.http_method or "").upper()
-    if method != "POST":
-        raise ChatWorkflowMisconfiguredError(
-            f"채팅 워크플로 '{CHAT_WORKFLOW_NAME}'의 HTTP 메서드가 {method or '(없음)'}입니다. "
-            "이 워크플로는 요청 본문이 필요하므로 POST여야 합니다. 관리자 콘솔 > 업무 자동화 흐름에서 "
-            "메서드를 POST로 바꿔 주세요."
-        )
-    return workflow.webhook_url, method
-
-
-# Keys the assistant/n8n side may use for the display text, in priority order.
-# `response_text` is the runner/n8n canonical answer field (must come first — else
-# every reply fell back to the generic default and the real answer stayed hidden
-# in the structured payload).
-_TEXT_KEYS = ("response_text", "reply", "text", "message", "output", "answer", "result")
-
-
-def _extract_text(data: dict) -> tuple[str, bool]:
-    """(표시 텍스트, 실제로 답이 있었는지)를 돌려준다.
-
-    예전에는 답이 하나도 없어도 "요청이 처리되었습니다."를 돌려줬다. 러너가 빈 2xx({})를
-    주는 경우 — 워크플로가 중간에 끊겼거나 조건 분기에서 아무것도 안 만든 경우 — 사용자에게는
-    성공처럼 보이고 작업도 succeeded로 끝나서, 티켓이 실제로 만들어졌는지 아무도 알 수 없었다.
-    이제 '답이 없었다'는 사실을 호출측이 알 수 있게 함께 돌려준다.
+    잡마다 만들면 그때마다 새 Adapter 가 생기고, 임베딩 Adapter 는 첫 호출에 ONNX
+    세션을 만든다 — S1 실측 2.3초다. `app/ai/router.py::_gateway` 와 같은 폴백을 둔다.
     """
-    for key in _TEXT_KEYS:
-        value = data.get(key)
-        if isinstance(value, str) and value.strip():
-            return value.strip(), True
-    return ("요청은 전달됐지만 도우미가 답을 돌려주지 않았습니다. "
-            "잠시 후 다시 시도하거나, 계속되면 관리자에게 알려 주세요."), False
+    gateway = (ctx.extras or {}).get("ai_gateway")
+    if gateway is None:
+        from app.ai.gateway.registry import build_gateway
+
+        gateway = build_gateway(ctx.settings, outbound=ctx.outbound_client)
+        if ctx.extras is not None:
+            ctx.extras["ai_gateway"] = gateway
+    return gateway
 
 
 def strip_attachment_bytes(job: Job, payload: dict) -> None:
@@ -145,6 +133,47 @@ def _load_message(db: Session, job: Job, payload: dict) -> Message:
     return message
 
 
+def _has_attachments(payload: dict) -> bool:
+    attachments = payload.get("attachments")
+    return isinstance(attachments, list) and any(
+        isinstance(a, dict) and not a.get("stripped") for a in attachments
+    )
+
+
+def _reply(ans: answer_mod.Answer, *, had_attachments: bool) -> tuple[str, dict, bool]:
+    """(화면에 실을 글, 저장할 구조, 답을 냈는가).
+
+    인용은 **어느 갈래에서도** 함께 나간다. 생성이 막혀도 근거 문서로는 갈 수 있어야
+    한다(S10 Exit) — 그 성질을 채팅에서도 그대로 지킨다.
+    """
+    stored = ans.as_dict()
+    if had_attachments:
+        stored = {**stored, "attachments_ignored": True}
+
+    if ans.ok:
+        text = ans.text
+        if had_attachments:
+            text = f"{text}\n\n{ATTACHMENT_NOTICE}"
+        return text, stored, True
+
+    if ans.retrieval.empty:
+        # 근거가 0 이면 모델을 아예 안 불렀다(answer.py). 빈 Context 로 부르면 모델은
+        # 무언가를 지어내고 그 문장에는 인용이 하나도 안 붙는다.
+        text = NO_EVIDENCE_TEXT
+        if had_attachments:
+            text = f"{text}\n\n{ATTACHMENT_NOTICE}"
+        return text, {**stored, "no_evidence": True}, False
+
+    # 근거는 찾았는데 문장을 못 만들었다. 왜인지 말한다 — 「안 됩니다」만 남기면 운영자가
+    # 고칠 수 있는 상태(모델 파일을 안 넣었다)와 못 고치는 상태를 구별하지 못한다.
+    notice = ans.notice or contract.FALLBACK_NOTICE
+    text = (
+        f"{notice} 찾은 근거 {len(ans.retrieval.citations)}건은 아래에 그대로 두었으니 "
+        "문서를 직접 열어 확인해 주세요."
+    )
+    return text, {**stored, "error_notice": True}, False
+
+
 def handle_chat_message(db: Session, job: Job, ctx: WorkerContext) -> None:
     payload = parse_payload(job)
     requester = payload.get("requester") or {}
@@ -154,115 +183,18 @@ def handle_chat_message(db: Session, job: Job, ctx: WorkerContext) -> None:
     message = _load_message(db, job, payload)
     message.processing_status = PROC_PROCESSING
 
-    settings = ctx.settings
-    # DBTX: 이 조회를 아래 pre-call commit **앞으로** 당겨 둔다. commit 뒤에 실행되는 DB
-    # 읽기는(예전엔 이 조회가 여기 있었다) 새 트랜잭션을 연다 — 그 상태로 느린 아웃바운드
-    # 호출(n8n, 5~28초)을 통과하면 스냅샷이 낡고, 응답을 받은 뒤의 마지막 커밋이
-    # "database is locked"로 거부된다(다른 세션이 그 사이 아무 것도 안 썼어도 그렇다 —
-    # WAL 스냅샷이 낡았다는 뜻이지 "지금 누가 잠갔다"가 아니라 busy_timeout으로도 못
-    # 구한다, app/core/db.py의 "begin" 이벤트 주석 참고). 실측: TEST SERVER에서 배포 직후
-    # 연속 두 번(2026-08-15/16) 재현 — 워커가 응답을 이미 받았는데 그 응답(assistant
-    # 메시지 포함)이 롤백돼 사라지고 사용자에게는 "연결 문제" 안내만 남았다. 여기로
-    # 옮기면 pre-call commit이 정말 그 호출 앞의 마지막 DB 접촉이 되어, 응답을 받은 뒤
-    # 첫 읽기(conversation 조회)가 새 트랜잭션을 현재 시점 스냅샷으로 연다.
-    # revert-to-verify: tests/integration/test_chat_handler.py::
-    # test_reply_survives_a_concurrent_write_that_lands_during_the_outbound_call가
-    # 이 조회를 여기서 pre-call commit 뒤로 되돌리면 바로 이 정확한 OperationalError로
-    # 재현·실패한다(2026-08-16 직접 확인).
-    webhook_url, http_method = _resolve_chat_endpoint(db, settings)
+    conversation = db.get(Conversation, message.conversation_id)
+    if conversation is None:
+        raise PermanentJobError("대상 대화가 존재하지 않습니다.")
+    user = _requester(db, conversation)
 
     db.flush()
-    db.commit()
 
-    # First-person requests ("내 티켓" 등) are forwarded even for unmapped users —
-    # the runner matches the requester by name/email against the live Notion people
-    # directory and answers with its own guidance only when it truly cannot identify
-    # them. Admin-verified mapping remains an accuracy booster, not a gate.
-    # (The old platform-side refusal blocked users the runner could resolve fine.)
+    ans = answer_mod.answer(
+        db, user, raw_query=payload.get("content"), gateway=_gateway(ctx)
+    )
+    text, stored, answered = _reply(ans, had_attachments=_has_attachments(payload))
 
-    request_body = {
-        "requester": requester,
-        "message": payload["content"],
-        # Fall back to the platform conversation UUID on the first message — a None
-        # here made n8n coalesce EVERY conversation into one shared bucket
-        # ('powershell-local'), bleeding runner context/image notes across
-        # conversations and co-locating all users' images in one directory.
-        "conversation_id": payload.get("backend_conversation_id")
-        or payload.get("conversation_id"),
-        "message_id": payload["message_id"],
-        # §32.8 스타일 멱등성: the POST carries no idempotency key of its own, so if
-        # n8n completes a WRITE (e.g. creates a ticket) but the HTTP response is lost
-        # and the job requeues, the retry re-POSTs and n8n performs the write twice.
-        # message_id is stable across every retry of the same message (same payload),
-        # so n8n can dedupe on it. Mirrors document_generate's idempotency_key.
-        #
-        # **job.idempotency_key 를 쓰면 안 된다.** 그러면 사용자 재시도마다 값이 달라지는데,
-        # 재시도는 오직 '실패한' 메시지에만 열려 있다(chat/service.py:retry_message 가
-        # 그 외에는 409). 즉 재시도가 가능한 경우란 "n8n 이 티켓을 만들었는데 응답만
-        # 유실됐을 수 있는" 상황이고, 여기서 키가 달라지면 원격은 새 요청으로 보고
-        # **두 번째 티켓을 만든다**. 값이 같아야 저장된 응답이 돌아와 티켓이 한 장으로
-        # 남는다. tests/integration/test_chat_ticket_routing_contract.py 가 못 박는다.
-        "idempotency_key": f"chatmsg:{payload['message_id']}",
-    }
-    # AI-30(Med): "현재 문맥: X"가 실제로는 아무 데도 전달되지 않던 것을 고치는 자리 —
-    # 플랫폼→러너까지는 이제 실려 간다. n8n 워크플로가 이 필드를 러너 호출(POST
-    # /v1/assistant/message)로 그대로 넘겨야 마지막 구간이 완성된다(이 저장소가 소유하지
-    # 않는 n8n 워크플로 정의 쪽 변경 — docs/RUNNER_HANDOFF.md의 기존 미해결 항목과 같은 종류).
-    screen_context = payload.get("screen_context")
-    if screen_context:
-        request_body = {**request_body, "screen_context": screen_context}
-    attachments = payload.get("attachments")
-    if isinstance(attachments, list) and attachments:
-        request_body = {**request_body, "attachments": attachments}
-
-    try:
-        response = ctx.outbound_client.request(
-            http_method,
-            webhook_url,
-            allowlist="workflows",
-            json=request_body,   # _resolve_chat_endpoint가 POST를 보장한다
-            timeout=float(settings.n8n_timeout_seconds),
-        )
-    except URLNotAllowedError as exc:
-        # allowlist 거부는 설정이 바뀌기 전에는 몇 번을 다시 던져도 같은 결과다. 예전에는
-        # 일반 예외로 새어 나가 큐가 3회까지 재시도했다 — 요청이 실제로 나가지는 않으니
-        # 위험하진 않지만, 사용자는 그만큼 오래 기다린 뒤에야 실패를 본다.
-        raise PermanentJobError(
-            f"워크플로 주소가 허용 목록에 없습니다: {exc}. "
-            "관리자 콘솔 > 업무 자동화 흐름에서 주소를 확인하거나, 허용 목록에 추가해 주세요."
-        ) from exc
-    except Exception as exc:
-        if is_timeout_error(exc):
-            raise RuntimeError("n8n 응답 시간 초과") from exc
-        if is_transport_error(exc):
-            raise RuntimeError("n8n 연결 실패") from exc
-        raise
-
-    if response.status_code >= 500:
-        raise RuntimeError(f"n8n 서버 오류 HTTP {response.status_code}")
-    if response.status_code >= 400:
-        raise PermanentJobError(f"n8n 요청 거부 HTTP {response.status_code}")
-
-    try:
-        data = response.json()
-    except (json.JSONDecodeError, ValueError) as exc:
-        raise RuntimeError("n8n 응답이 올바른 JSON이 아닙니다") from exc
-    if not isinstance(data, dict):
-        data = {"reply": str(data)}
-
-    conversation = db.get(Conversation, message.conversation_id)
-    backend_id = data.get("conversation_id")
-    if isinstance(backend_id, str) and backend_id:
-        conversation.backend_conversation_id = backend_id
-
-    text, answered = _extract_text(data)
-    # AI-49: 답이 없는 2xx는 성공으로 뭉개지 않는다 — structured에 표시해 두면 화면이 다르게
-    # 그릴 수 있고, 나중에 '왜 티켓이 안 생겼나'를 로그에서 구분해 셀 수 있다. 안내 말풍선
-    # 자신은 정상 전달됐으니 PROC_DONE 그대로 두지만(on_failure의 guidance 메시지와 같은
-    # 규약), **사용자 메시지**는 PROC_FAILED로 남겨 '다시 시도' 버튼(retry_message는
-    # PROC_FAILED만 허용)을 되살린다 — 예전엔 PROC_DONE으로 끝나 사용자가 새 메시지를 다시
-    # 치는 것 말고는 복구할 방법이 없었다.
-    stored = data if answered else {**data, "empty_response": True, "error_notice": True}
     # '-fail-{job.id}' ID는 on_failure의 안내 메시지와 같은 규약이다 — retry_message가 그
     # 패턴으로 옛 안내를 지운다(재시도가 성공해도 '답을 못 받았다' 안내가 새 답변 옆에 그대로
     # 남는 걸 막는다).
@@ -270,19 +202,17 @@ def handle_chat_message(db: Session, job: Job, ctx: WorkerContext) -> None:
     # answered일 때도 **job.id**를 쓴다(attempt_count가 아니다) — TEST SERVER 실사용
     # (재생성 버튼) 실측으로 발견: attempt_count는 "이 잡 자신의" 재시도 횟수일 뿐이라,
     # regenerate_message/retry_message가 만드는 **새 Job**은 매번 attempt_count=1부터
-    # 다시 센다. 원래 답변이 최초 시도(attempt_count=1)에 성공해 있으면 그 행이
-    # messages.deleted_at으로 soft-delete만 되고 UNIQUE(conversation_id, message_id)
-    # 제약에는 여전히 걸리므로, 재생성이 새 Job의 attempt_count=1로 똑같은 message_id를
-    # 다시 만들려다 IntegrityError로 거부됐다 — AI가 실제로 만든 좋은 답변이 그대로
-    # 버려지고 사용자에게는 "연결 문제" 안내만 남았다. job.id(UUID)는 매 Job마다
-    # 전역적으로 유일해 이 충돌 자체가 구조적으로 불가능하다 — 실패 경로가 이미 쓰던
-    # 것과 같은 계약으로 통일한다.
+    # 다시 센다. job.id(UUID)는 매 Job마다 전역적으로 유일해 그 충돌이 구조적으로 불가능하다.
+    #
+    # 「근거가 없다」는 답이므로 `-fail-` 을 안 붙인다. 그 접미사는 retry_message 가
+    # 지우는 대상이고, 지워도 되는 것은 안내뿐이다.
+    failed_suffix = not answered and not stored.get("no_evidence")
     assistant = Message(
         conversation_id=conversation.id,
         message_id=(
-            f"a-{message.message_id}-{job.id}"
-            if answered
-            else f"a-{message.message_id}-fail-{job.id}"
+            f"a-{message.message_id}-fail-{job.id}"
+            if failed_suffix
+            else f"a-{message.message_id}-{job.id}"
         ),
         role=ROLE_ASSISTANT_MSG,
         content=text,
@@ -290,25 +220,30 @@ def handle_chat_message(db: Session, job: Job, ctx: WorkerContext) -> None:
         processing_status=PROC_DONE,
     )
     db.add(assistant)
-    message.processing_status = PROC_DONE if answered else PROC_FAILED
-    message.error_code = None if answered else "assistant_empty_response"
+
+    # 「근거가 없다」로 끝난 메시지는 실패가 아니다 — 같은 질문을 다시 넣어도 같은 답이고,
+    # 「다시 시도」를 켜 두면 사용자를 헛수고시킨다. 생성이 막힌 경우만 실패로 남긴다.
+    if failed_suffix:
+        message.processing_status = PROC_FAILED
+        message.error_code = f"assistant_{ans.status}"
+    else:
+        message.processing_status = PROC_DONE
+        message.error_code = None
     conversation.updated_at = ctx.clock.now()
 
-    # 쿼터는 **성공한 호출만** 센다(assistant 쪽과 같은 규약). 큐에 넣을 때 세면 러너가
-    # 죽은 날 사용자가 답을 못 받고 상한만 잃고, 재시도 세 번이 한 답변에 세 번 세어진다 —
-    # 우리 실패를 사용자에게 청구하는 셈이다.
-    from app.quotas.service import KIND_CHAT_MESSAGE, record_call
+    # 쿼터는 **모델이 실제로 답한 경우만** 센다. 검색은 서버 CPU 이지 구독 호출이 아니고
+    # (S10), 우리 쪽 실패를 사용자에게 청구하지 않는다.
+    if answered:
+        from app.quotas.service import KIND_CHAT_MESSAGE, record_call
 
-    from app.users.models import User
-
-    owner = db.get(User, conversation.user_id)
-    record_call(
-        db, user_id=conversation.user_id,
-        # 조직은 사람에게서 읽는다 — `conversations` 에는 org 컬럼이 없다(0024 가 제외).
-        # 멀티테넌트에서 사용량 집계가 조직 없이 쌓이면 나중에 되살릴 수가 없다.
-        org_id=getattr(owner, "org_id", None),
-        kind=KIND_CHAT_MESSAGE, now=ctx.clock.now(),
-    )
+        owner = db.get(User, conversation.user_id)
+        record_call(
+            db, user_id=conversation.user_id,
+            # 조직은 사람에게서 읽는다 — `conversations` 에는 org 컬럼이 없다(0024 가 제외).
+            # 멀티테넌트에서 사용량 집계가 조직 없이 쌓이면 나중에 되살릴 수가 없다.
+            org_id=getattr(owner, "org_id", None),
+            kind=KIND_CHAT_MESSAGE, now=ctx.clock.now(),
+        )
 
     strip_attachment_bytes(job, payload)  # terminal path — no bytes at rest
     db.flush()
@@ -338,41 +273,7 @@ def on_failure(db: Session, job: Job, ctx: WorkerContext, error: str) -> None:
         db.flush()
         return
     message.processing_status = PROC_FAILED
-    # The '실패' badge alone tells the user nothing — say what happened and what
-    # to do next, in the conversation itself (지시서 11장). This previously
-    # collapsed every terminal failure (timeout, a permanent 4xx rejection from
-    # n8n, an admin-disabled workflow, transient connection/server errors) into
-    # the same two-way branch and the same fixed error_code, losing the
-    # diagnostic distinction the worker already captured (timeout raises
-    # RuntimeError("n8n 응답 시간 초과"); a permanent rejection raises
-    # PermanentJobError with "n8n 요청 거부 HTTP …" or the disabled-workflow
-    # message; everything else is a transient RuntimeError). Differentiate at
-    # least those three buckets in both the stored error_code and the guidance
-    # text so a future UI (and anyone reading the DB/audit trail directly) can
-    # tell "retrying is pointless without admin action" apart from "just retry".
-    err_text = error or ""
-    if "시간 초과" in err_text:
-        message.error_code = "assistant_timeout"
-        guidance = (
-            "요청 처리가 제한 시간을 넘겨 완료하지 못했습니다. 잠시 후 '다시 시도' 버튼을 "
-            "누르거나 같은 내용을 한 번 더 보내 주세요. 계속 반복되면 관리자에게 알려주세요."
-        )
-    elif "요청 거부 HTTP" in err_text or "비활성화되어 있습니다" in err_text:
-        # Permanent: n8n itself rejected the request (4xx), or an admin disabled
-        # the chat workflow. Retrying the identical content will very likely
-        # fail the same way — the guidance says so instead of implying retry
-        # is a reliable fix.
-        message.error_code = "assistant_rejected"
-        guidance = (
-            "요청이 업무 처리 서버에서 거부되었습니다. 같은 내용으로 다시 시도해도 대부분 "
-            "동일하게 실패합니다. 요청 내용을 확인하거나 관리자에게 문의해 주세요."
-        )
-    else:
-        message.error_code = "assistant_error"
-        guidance = (
-            "업무 처리 서버와의 연결에 문제가 있어 요청을 완료하지 못했습니다. '다시 시도' "
-            "버튼을 누르면 같은 내용으로 다시 처리합니다. 계속 실패하면 관리자에게 알려주세요."
-        )
+    message.error_code = "assistant_error"
     db.add(Message(
         conversation_id=message.conversation_id,
         # job.id in the id: a retried-then-failed message would collide on a fixed
@@ -380,10 +281,14 @@ def on_failure(db: Session, job: Job, ctx: WorkerContext, error: str) -> None:
         # freezing the message at '처리 중' forever.
         message_id=f"a-{message.message_id}-fail-{job.id}",
         role=ROLE_ASSISTANT_MSG,
-        content=guidance,
+        content=(
+            "답변을 만드는 중에 문제가 생겨 요청을 끝내지 못했습니다. '다시 시도' 버튼을 "
+            "누르면 같은 내용으로 다시 처리합니다. 계속 실패하면 관리자에게 알려주세요."
+        ),
         structured_payload_json=json.dumps({"error_notice": True}, ensure_ascii=False),
         processing_status=PROC_DONE,
     ))
+    strip_attachment_bytes(job, payload)  # terminal path — no bytes at rest
     db.flush()
     logger.warning("chat message %s marked failed: %s", message.message_id, error)
 

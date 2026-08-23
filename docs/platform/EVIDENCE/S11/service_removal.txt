@@ -1,0 +1,51 @@
+# S11 — n8n · 외부 Runner 제거 실측 (10.100.64.71)
+# 이 파일은 서버에서 그대로 받아 적은 것이다. 손으로 고치지 않는다.
+
+host: clovirassist   kernel: 6.8.0-138-generic
+2026-08-23T14:13:10+09:00
+
+## 1. Exit — 5678 / 5679 / 8787 / 8788 / 8789 미청취
+PASS: 다섯 포트 전부 미청취
+
+## 2. systemd 가 그 유닛을 더는 모른다 (재부팅해도 안 돌아온다)
+### list-unit-files
+0건
+### list-units --all
+0건
+
+## 3. 파일 시스템
+### /etc/systemd/system
+0건
+### /opt
+0건
+### /etc
+0건
+### n8n 실행 파일
+없음
+### /var/lib/n8n
+없음 (치워 둔 자리: /var/lib/n8n.removed-s11)
+
+## 4. 제품 서비스는 그대로 산다
+active
+active
+active
+active
+active
+### failed units
+
+## 5. 되돌릴 수 있는 자리 (지우지 않고 옮겼다)
+total 154064
+drwx------ 5 root root      4096 Aug 23 14:11 .
+drwxr-xr-x 7 root root      4096 Aug 23 12:32 ..
+-rw-r--r-- 1 root root 152576000 Aug 23 12:32 database.sqlite
+-rw-r--r-- 1 root root    133905 Aug 23 12:32 n8n-workflows-s11.tar.gz
+drwx------ 5 root root      4096 Aug 23 14:11 removed-etc
+drwx------ 6 root root      4096 Aug 23 14:11 removed-opt
+drwx------ 3 root root      4096 Aug 23 14:11 removed-units
+-rw-r--r-- 1 root root       264 Aug 23 12:32 SHA256SUMS
+-rw-r--r-- 1 root root   5023959 Aug 23 12:32 units-and-runners.tar.gz
+fb72d0fcc83b7dbb72da16a5c2560efce8dc9af6155a21cf42e7ebf48c85ca5b  database.sqlite
+0cebd83937754771857dab65d65d60d6957b2af49465455bf34a077a67a80d06  n8n-workflows-s11.tar.gz
+244cbc270d81d2145d1cf1ad3025f5fb650c41279b616108e54afe1184f14f25  units-and-runners.tar.gz
+2.7G	/var/backups/n8n-s11
+738M	/var/lib/n8n.removed-s11

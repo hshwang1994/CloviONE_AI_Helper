@@ -1,18 +1,20 @@
-"""사실 → 문장. **여기만 러너를 부른다.**
+"""사실 → 문장. **모델로 가는 문은 Gateway 하나다** (S11 · D-201 · D-202).
 
-저장소 불변 §2: 앱은 Claude/LLM API 를 직접 부르지 않는다. 팀 공간 놀이의 AI 퀴즈
-(app/games/ai.py)와 **같은 경로**를 쓴다 — OutboundClient(allowlist="runners", redirect 금지,
-SSRF allowlist, secret 주입)로 러너의 전용 엔드포인트를 부르고, 러너가 Claude 를 실행한다.
-새 외부 호출 관문을 만들지 않는다.
+예전에는 이 파일이 러너(`127.0.0.1:8789/v1/assistant/summarize`)를 직접 불렀다. S11 이
+그 러너를 걷어내면서 `Gateway.generate(task=, data=)` 로 옮겼다 — 저장소에 생성 경로를
+두 벌 두지 않는다는 D-201 의 결론 그대로다. 부수 효과가 하나 있고 그것이 이 이전의 값이다:
+사실 dict 가 `data` 로 넘어가므로 **난스 구분자 안에 갇히고 구분자 흉내가 걷어내진다**
+(D-202). 러너 시절에는 그 방어가 이 경로에 안 걸려 있었다.
 
-설계의 핵심은 한 줄이다: **이 파일은 절대 예외를 밖으로 던지지 않는다.** 계획서 Phase 5
-요구사항 — *"러너가 죽어도 숫자는 그대로 보여야 한다(문장만 빠진다)"* — 를 구조로 보장하기
-위해서다. 실패는 전부 {"text": None, "error": ...} 로 접힌다. 호출측(router)은 사실 dict 에
-이 결과를 덧붙이기만 하므로, 러너 상태와 무관하게 숫자 필드는 언제나 그대로 나간다.
+설계의 핵심은 그대로 한 줄이다: **이 파일은 절대 예외를 밖으로 던지지 않는다.** 계획서
+Phase 5 요구사항 — *"러너가 죽어도 숫자는 그대로 보여야 한다(문장만 빠진다)"* — 를 구조로
+보장하기 위해서다. 실패는 전부 {"text": None, "error": ...} 로 접힌다. 호출측(router)은
+사실 dict 에 이 결과를 덧붙이기만 하므로, 모델 상태와 무관하게 숫자 필드는 언제나 그대로
+나간다. `Gateway.generate()` 도 같은 규약이라(실패를 예외가 아니라 값으로 돌려준다) 두
+계약이 어긋나는 자리가 없다.
 
 기본은 꺼져 있다(feature flag `assistant_narrative_enabled`, fail-closed). 켜지 않으면
-러너를 부르지도 않고 `enabled: false` 만 붙는다 — 설정 안 한 설치에서 매 요청마다 연결
-거부를 기다리는 일이 없다.
+모델을 부르지도 않고 `enabled: false` 만 붙는다.
 
 모델 출력은 신뢰하지 않는다(§11): 문자열인지, 길이는 얼마인지, 제어문자는 없는지 검사한 뒤
 통과시킨다.
@@ -20,27 +22,30 @@ SSRF allowlist, secret 주입)로 러너의 전용 엔드포인트를 부르고,
 
 from __future__ import annotations
 
+import json
 import logging
 
+from app.ai.gateway import contract
 from app.core.feature_flags import load_feature_flags
-from app.core.http_client import AUTH_BEARER, is_timeout_error, is_transport_error
-from app.core.secret_refs import SecretMissingError
 
 logger = logging.getLogger("app.assistant.narrate")
 
 FLAG = "assistant_narrative_enabled"
 
-# 사람이 화면 상단에서 한눈에 읽는 분량. 러너가 장문을 보내도 여기서 자른다.
+# 사람이 화면 상단에서 한눈에 읽는 분량. 모델이 장문을 보내도 여기서 자른다.
 MAX_TEXT_CHARS = 1200
 
-# 러너 응답에서 문장을 찾을 키(우선순위 순). chat_message 핸들러의 _TEXT_KEYS 와 같은 발상.
-_TEXT_KEYS = ("text", "narrative", "summary", "response_text", "reply", "message", "output")
+#: **우리가 쓴 문장만 여기 있다.** 사실 dict 는 `data` 로 따로 간다 — 섞는 순간 그 값이
+#: 지시가 된다(D-202).
+TASK = "\n".join([
+    "아래는 화면에 이미 표시된 숫자입니다.",
+    "이 숫자만 근거로 오늘 무엇을 먼저 보면 되는지 한국어로 세 문장 이내로 알려 주세요.",
+    "숫자를 새로 계산하거나 없는 값을 만들지 마세요.",
+    "제목이나 목록 없이 문장으로만 씁니다.",
+])
 
-# 실패 사유는 사용자에게 보여줄 수 있는 짧은 한국어로만 나간다(러너 주소·secret_ref 미노출).
+# 실패 사유는 사용자에게 보여줄 수 있는 짧은 한국어로만 나간다.
 _ERR_DISABLED = "요약 문장 생성이 꺼져 있습니다(숫자는 그대로 표시됩니다)."
-_ERR_UNCONFIGURED = "요약 문장 생성이 아직 설정되지 않았습니다(숫자는 그대로 표시됩니다)."
-_ERR_TIMEOUT = "요약 문장 생성이 지연되어 숫자만 표시합니다."
-_ERR_UNAVAILABLE = "요약 문장을 만들지 못해 숫자만 표시합니다."
 _ERR_EMPTY = "요약 문장이 비어 있어 숫자만 표시합니다."
 
 
@@ -49,12 +54,12 @@ def is_enabled(settings) -> bool:
 
 
 def disabled_result() -> dict:
-    """기능이 꺼져 있을 때의 narrative 블록. 러너를 부르지 않는다."""
+    """기능이 꺼져 있을 때의 narrative 블록. 모델을 부르지 않는다."""
     return {"enabled": False, "text": None, "error": _ERR_DISABLED}
 
 
 def _clean(value) -> str | None:
-    """러너가 준 값을 화면에 실을 수 있는 문자열로 정제한다. 아니면 None."""
+    """모델이 준 값을 화면에 실을 수 있는 문자열로 정제한다. 아니면 None."""
     if not isinstance(value, str):
         return None
     # 제어문자(줄바꿈/탭 제외)는 버린다 — 터미널 이스케이프가 로그·화면으로 새는 경로를 막는다.
@@ -62,74 +67,42 @@ def _clean(value) -> str | None:
     return text[:MAX_TEXT_CHARS] if text else None
 
 
-def _extract(body) -> str | None:
-    """{"data": {...}} 로 감싸 오는 러너 규약과 평평한 응답을 모두 받는다."""
-    if not isinstance(body, dict):
-        return None
-    scopes = [body]
-    if isinstance(body.get("data"), dict):
-        scopes.insert(0, body["data"])
-    for scope in scopes:
-        for key in _TEXT_KEYS:
-            text = _clean(scope.get(key))
-            if text:
-                return text
-    return None
-
-
-def narrate(outbound, settings, *, kind: str, facts: dict, requester: dict) -> dict:
+def narrate(gateway, settings, *, kind: str, facts: dict, requester: dict) -> dict:
     """사실 dict → {"enabled", "text", "error"}. **절대 예외를 던지지 않는다.**
 
-    러너에는 이미 계산된 사실만 보낸다 — 원본 티켓 목록 전체나 사용자 식별자를 넘기지
-    않는다. 러너가 숫자를 다시 세지 않으므로, 문장이 화면의 숫자와 어긋날 여지가 구조적으로
-    없다(러너는 우리가 준 값을 문장으로 옮기기만 한다).
+    모델에는 이미 계산된 사실만 보낸다 — 원본 티켓 목록 전체나 사용자 식별자를 넘기지
+    않는다. 모델이 숫자를 다시 세지 않으므로, 문장이 화면의 숫자와 어긋날 여지가 구조적으로
+    없다(모델은 우리가 준 값을 문장으로 옮기기만 한다).
     """
     if not is_enabled(settings):
         return disabled_result()
 
     payload = {
         "kind": kind,
-        "locale": "ko-KR",
-        "requester": {"name": requester.get("display_name") or "", "user_id": requester.get("user_id")},
-        # 사실은 그대로 넘긴다. 러너 프롬프트가 "여기 있는 숫자만 쓰라"고 지시하는 대상이다.
+        "requester": requester.get("display_name") or "",
+        # 사실은 그대로 넘긴다. 지시문이 "여기 있는 숫자만 쓰라"고 가리키는 대상이다.
         "facts": facts,
     }
     try:
-        response = outbound.request(
-            "POST",
-            settings.assistant_runner_url,
-            allowlist="runners",
-            json=payload,
-            timeout=float(settings.assistant_runner_timeout_seconds),
-            auth_type=AUTH_BEARER,
-            secret_ref=settings.assistant_runner_token_ref,
+        result = gateway.generate(
+            task=TASK, data=json.dumps(payload, ensure_ascii=False, default=str)
         )
-    except SecretMissingError:  # 러너 토큰 secret 파일 없음 = 기능 미설정
-        # secret_refs.py가 SecretMissingError(AppError)로 옮겨 간 뒤 이 except가 갱신되지
-        # 않았다 — FileNotFoundError는 이제 여기서 안 올라온다(실측: 이 갈래가 한 번도
-        # 안 잡히고 매번 아래 except Exception → _ERR_UNAVAILABLE로 빠졌다). 사용자에게는
-        # "지연/실패"와 "아직 설정 안 됨"이 다른 문구라 실제로 갈라져야 한다.
-        return {"enabled": True, "text": None, "error": _ERR_UNCONFIGURED}
-    except Exception as exc:  # noqa: BLE001 — 어떤 실패든 숫자는 살아야 한다(계획서 Phase 5)
-        if is_timeout_error(exc):
-            logger.warning("assistant narrate timeout (kind=%s)", kind)
-            return {"enabled": True, "text": None, "error": _ERR_TIMEOUT}
-        if is_transport_error(exc):
-            logger.warning("assistant narrate transport failure (kind=%s)", kind)
-            return {"enabled": True, "text": None, "error": _ERR_UNAVAILABLE}
-        # secret_ref 이름이 예외 문자열에 섞여 나올 수 있어 원문을 사용자에게 노출하지 않는다.
-        logger.warning("assistant narrate failed (kind=%s): %s", kind, type(exc).__name__)
-        return {"enabled": True, "text": None, "error": _ERR_UNAVAILABLE}
+    except Exception:  # noqa: BLE001 — 어떤 실패든 숫자는 살아야 한다(계획서 Phase 5)
+        # Gateway 는 실패를 값으로 돌려주는 계약이라 여기 오면 안 된다. 그래도 남겨 둔다 —
+        # 이 함수의 계약은 「예외를 안 던진다」이고, 그 계약이 Gateway 의 계약에 기대면
+        # 언젠가 어댑터 하나가 그것을 깨는 날 화면의 숫자가 함께 사라진다.
+        logger.exception("assistant narrate 가 예상 못 한 예외를 냈다 (kind=%s)", kind)
+        return {"enabled": True, "text": None,
+                "error": contract.notice_for(contract.STATUS_FAILED)}
 
-    if response.status_code >= 400:
-        logger.warning("assistant narrate HTTP %s (kind=%s)", response.status_code, kind)
-        return {"enabled": True, "text": None, "error": _ERR_UNAVAILABLE}
-    try:
-        body = response.json()
-    except ValueError:
-        return {"enabled": True, "text": None, "error": _ERR_UNAVAILABLE}
+    if not result.ok:
+        # 「안 됩니다」만 남기지 않는다 — 운영자가 고칠 수 있는 상태(모델 파일을 안 넣었다)와
+        # 못 고치는 상태를 Gateway 의 상태 어휘가 이미 구별해 둔다.
+        logger.warning("assistant narrate 실패 (kind=%s status=%s)", kind, result.status)
+        return {"enabled": True, "text": None,
+                "error": result.notice or contract.FALLBACK_NOTICE}
 
-    text = _extract(body)
+    text = _clean(result.text)
     if text is None:
         return {"enabled": True, "text": None, "error": _ERR_EMPTY}
     return {"enabled": True, "text": text, "error": None}

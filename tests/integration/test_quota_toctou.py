@@ -10,7 +10,7 @@
 
 두 갈래로 새는데 증상은 같다("숫자가 상한을 넘어 있다"):
 
-1. **동기 경로**(문서 생성, 도우미 문장) — 확인과 기록이 한 요청 안이지만 그 사이에
+1. **동기 경로**(도우미 문장) — 확인과 기록이 한 요청 안이지만 그 사이에
    AI 호출(수 초)이 들어간다. 그동안 같은 사람의 다른 요청이 같은 숫자를 읽는다.
 2. **큐 경로**(AI 도우미 채팅) — 기록은 **워커가** 잡을 끝낸 뒤에 한다. 확인과 기록 사이에
    큐가 통째로 들어 있어서, 큐에 든 호출은 아무 데도 세어지지 않는다. 연속으로 보내면
@@ -156,7 +156,7 @@ def test_two_concurrent_calls_cannot_both_take_the_last_slot(app, db, capped, mo
         try:
             with quotas.consume(
                 session, user_id=capped.id, org_id=None,
-                kind=quotas.KIND_DOCUMENT_GENERATE, now=NOW,
+                kind=quotas.KIND_ASSISTANT_NARRATIVE, now=NOW,
             ) as slot:
                 slot.record()
             session.commit()
@@ -198,7 +198,7 @@ def test_two_concurrent_calls_cannot_both_take_the_last_slot(app, db, capped, mo
 # enforce() 를 나중에 부르므로, 그 barrier 는 사실상 "잠금이 풀린 뒤"에만 두 스레드가
 # 함께 도달한다. 그런데 그 barrier 의 0.5초 timeout 이 우연히 "첫 스레드가 커밋을 끝내기에
 # 충분한 시간"이 돼 버려서, consume() 을 호출하는 쪽이 with 블록 **밖**(요청 맨 끝)에서
-# 커밋해도 이 시험은 우연히 통과한다 — 실제 취약점(documents/router.py·assistant/router.py
+# 커밋해도 이 시험은 우연히 통과한다 — 실제 취약점(assistant/router.py
 # 가 고치기 전에 정확히 이 패턴이었다)을 못 잡는다. 아래 두 시험은 그 창을 스레드
 # 스케줄링에 기대지 않고 이벤트로 못박아 직접 겨눈다.
 #
@@ -247,7 +247,7 @@ def test_committing_after_the_with_block_lets_a_second_request_slip_through(app,
         try:
             with quotas.consume(
                 session, user_id=capped.id, org_id=None,
-                kind=quotas.KIND_DOCUMENT_GENERATE, now=NOW,
+                kind=quotas.KIND_ASSISTANT_NARRATIVE, now=NOW,
             ) as slot:
                 slot.record()
             # 옛 방식: with 블록이 끝난(=잠금이 풀린) 뒤에야 커밋한다.
@@ -269,7 +269,7 @@ def test_committing_after_the_with_block_lets_a_second_request_slip_through(app,
         try:
             with quotas.consume(
                 session, user_id=capped.id, org_id=None,
-                kind=quotas.KIND_DOCUMENT_GENERATE, now=NOW,
+                kind=quotas.KIND_ASSISTANT_NARRATIVE, now=NOW,
             ) as slot:
                 slot.record()
             session.commit()
@@ -299,7 +299,7 @@ def test_committing_after_the_with_block_lets_a_second_request_slip_through(app,
 
 def test_committing_inside_the_with_block_closes_the_gap(app, capped):
     """UB-08 고친 뒤 — `slot.record()` 직후, with 블록이 끝나기 **전에** 커밋하면
-    (documents/router.py·assistant/router.py 가 실제로 고친 방식) 잠금이 풀릴 때는 이미
+    (assistant/router.py 가 실제로 고친 방식) 잠금이 풀릴 때는 이미
     커밋이 끝나 있어 두 번째 요청이 정확히 429 를 받는다."""
     from app.core.errors import RateLimitedError
     from app.quotas import service as quotas
@@ -313,7 +313,7 @@ def test_committing_inside_the_with_block_closes_the_gap(app, capped):
         try:
             with quotas.consume(
                 session, user_id=capped.id, org_id=None,
-                kind=quotas.KIND_DOCUMENT_GENERATE, now=NOW,
+                kind=quotas.KIND_ASSISTANT_NARRATIVE, now=NOW,
             ) as slot:
                 slot.record()
                 session.commit()  # 고친 방식: 잠금이 풀리기 전에 커밋
@@ -333,7 +333,7 @@ def test_committing_inside_the_with_block_closes_the_gap(app, capped):
         try:
             with quotas.consume(
                 session, user_id=capped.id, org_id=None,
-                kind=quotas.KIND_DOCUMENT_GENERATE, now=NOW,
+                kind=quotas.KIND_ASSISTANT_NARRATIVE, now=NOW,
             ) as slot:
                 slot.record()
                 session.commit()
@@ -366,7 +366,7 @@ def test_a_failed_call_does_not_burn_the_slot(app, db, capped):
     try:
         with quotas.consume(
             session, user_id=capped.id, org_id=None,
-            kind=quotas.KIND_DOCUMENT_GENERATE, now=NOW,
+            kind=quotas.KIND_ASSISTANT_NARRATIVE, now=NOW,
         ):
             pass  # slot.record() 를 부르지 않는다 = 호출이 실패했다
         session.commit()

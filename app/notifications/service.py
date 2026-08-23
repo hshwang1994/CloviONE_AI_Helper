@@ -22,7 +22,7 @@ from app.users.models import ROLE_ADMIN, ROLE_SYSTEM_ADMIN, ROLE_USER, User
 # audience="admin"을 넘기지만, 그건 "이 함수를 거쳐 갔다"는 사실에 기대는 것이다. 나중에
 # 실수로 notify_user를 직접 호출해 같은 유형을 보내도(또는 새 호출부가 생겨도) 사용자
 # 알림 벨에 새지 않도록 유형 자체로 한 번 더 못박는다.
-_ADMIN_ONLY_TYPES = frozenset({"backup_failed", "runner_unavailable"})
+_ADMIN_ONLY_TYPES = frozenset({"backup_failed"})
 
 # ── 어느 콘솔의 일인가 (0060) ─────────────────────────────────────────────────
 #
@@ -36,7 +36,7 @@ _ADMIN_ONLY_TYPES = frozenset({"backup_failed", "runner_unavailable"})
 # 그래서 관리 콘솔 화면을 가리키는 유형이라도 수신자가 일반 사용자면 사용자 알림으로 간다
 # (목적지도 그에 맞춰 갈린다, `app/notifications/destinations.py`).
 _ADMIN_CONSOLE_TYPES = frozenset({
-    "backup_failed", "runner_unavailable", "account_locked",
+    "backup_failed", "account_locked",
     "job_failed", "schedule_failed",
     "approval_requested", "approval_overdue",
 })
@@ -45,7 +45,7 @@ _ADMIN_CONSOLE_TYPES = frozenset({
 def audience_for(type_: str, recipient_role: str | None, fallback: str = AUDIENCE_USER) -> str:
     """이 알림을 어느 콘솔의 것으로 볼 것인가.
 
-    `_ADMIN_ONLY_TYPES` 는 수신자와 무관하게 관리자 알림이다(백업·러너 장애는 애초에
+    `_ADMIN_ONLY_TYPES` 는 수신자와 무관하게 관리자 알림이다(백업 실패는 애초에
     일반 사용자에게 안 간다). 그 밖의 관리 콘솔 유형은 **수신자가 관리 콘솔을 쓸 수 있을
     때만** 관리자 알림이 된다 — 아니면 그 사람에게는 보이지 않는 알림이 된다.
     """

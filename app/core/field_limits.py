@@ -20,7 +20,7 @@ registry 밖의 손으로 쓴 화면도 그 상세/생성/수정 폼이 이미 `
 
 ## Pydantic max_length가 없는 필드는 결과에 없다
 
-`runner_id`처럼 `Field(max_length=)`가 없는 필드(DB 컬럼엔 `String(36)`이 있어도)는 결과에
+`prompt_id`처럼 `Field(max_length=)`가 없는 필드(DB 컬럼엔 `String(36)`이 있어도)는 결과에
 아예 나오지 않는다. 백엔드가 실제로 길이 때문에 422를 내는 필드만 프런트에 약속한다 — DB
 컬럼 길이만 있고 API 계층 검증이 없는 필드까지 넣으면, 서버가 실제로는 안 막는 상한을 화면이
 거짓으로 강제하게 된다(constraints: 서버 검증을 정본으로 삼는다).
@@ -49,11 +49,8 @@ from app.prompts.router import (
     PromptCreateRequest,
 )
 from app.quotas.router import QuotaPatch, QuotaRequest
-from app.runners.schemas import RunnerConfig, RunnerUpdateRequest
 from app.schedules.router import ScheduleRequest
-from app.templates.router import TemplateRequest
 from app.users.schemas import UserCreateRequest, UserUpdateRequest
-from app.workflows.schemas import WorkflowConfig, WorkflowUpdateRequest
 
 
 def _extract_max_length(prop: dict) -> int | None:
@@ -82,12 +79,10 @@ def schema_max_lengths(model: type[BaseModel]) -> dict[str, int]:
 #
 # edit 스키마는 그 화면의 실제 PATCH/PUT 바디와 일치해야 한다 — 라우터가 다른 스키마를 쓰면
 # (예: create.fields에는 있는데 edit 스키마엔 없는 필드) 여기서 자동으로 걸러진다(그 필드는
-# 결과에 없는 채로 남는다). templates는 create/edit이 같은 스키마(TemplateRequest)를 쓴다
-# (app/templates/router.py — PUT이 생성 때와 같은 바디 형태를 받는다).
+# 결과에 없는 채로 남는다). schedules처럼 create/edit이 같은 스키마를 쓰는 화면도 있다.
 FORM_SCHEMAS: dict[str, dict[str, type[BaseModel]]] = {
     "prompts": {"create": PromptCreateRequest, "edit": PromptContentUpdateRequest},
     "policies": {"create": PolicyCreateRequest, "edit": PolicyContentUpdateRequest},
-    "templates": {"create": TemplateRequest, "edit": TemplateRequest},
     "departments": {"create": DepartmentCreateRequest, "edit": DepartmentUpdateRequest},
     "job-titles": {"create": OrgItemCreateRequest, "edit": OrgItemUpdateRequest},
     "organizations": {"create": OrganizationCreateRequest, "edit": OrganizationUpdateRequest},
@@ -95,8 +90,6 @@ FORM_SCHEMAS: dict[str, dict[str, type[BaseModel]]] = {
     # 위임(delegation)은 생성 후 편집 폼이 없다(회수만 가능 — governance.js) — "edit" 키 자체가 없다.
     "approval-delegations": {"create": DelegationRequest},
     "integrations": {"create": IntegrationConfig, "edit": IntegrationUpdateRequest},
-    "runners": {"create": RunnerConfig, "edit": RunnerUpdateRequest},
-    "workflows": {"create": WorkflowConfig, "edit": WorkflowUpdateRequest},
     "announcements": {"create": AnnouncementRequest, "edit": AnnouncementPatch},
     "ai-quotas": {"create": QuotaRequest, "edit": QuotaPatch},
     "users": {"create": UserCreateRequest, "edit": UserUpdateRequest},

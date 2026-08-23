@@ -25,25 +25,17 @@ from app.jobs.models import (
     STATUS_SUCCEEDED,
     Job,
 )
-from app.runners.models import Runner
 from app.schedules.models import Schedule
 from app.storage.service import storage_health
 from app.users.models import User
-from app.workflows.models import Workflow
 
 logger = logging.getLogger("app.health")
 
 HEARTBEAT_STALE_SECONDS = 90
 
 CRITICAL_ACTIONS = (
-    "user.disable", "user.role_change", "runner.rollback", "setting.rollback",
+    "user.disable", "user.role_change", "setting.rollback",
     "approval.approve",
-    # workflow.rollback (app/workflows/router.py) can silently swap out the
-    # live chat-webhook or Notion-mapping workflow config — the codebase's
-    # own registry.js RESERVED_WORKFLOW_NOTES calls this the highest-blast-
-    # radius action available, so it belongs here at least as much as the
-    # less consequential runner.rollback already does.
-    "workflow.rollback",
     # "backup.restore" deliberately excluded: actual restore is script-only,
     # out-of-band, and never writes to this app's audit_log table (spec
     # §14.6, see app/backups/router.py:restore_instructions). Including it
@@ -365,10 +357,6 @@ def build_dashboard(
             for i in db.execute(select(Integration)).scalars().all()
         },
         "counts": {
-            "runners": db.execute(select(func.count()).select_from(Runner)).scalar_one(),
-            "active_workflows": db.execute(
-                select(func.count()).select_from(Workflow).where(Workflow.enabled.is_(True))
-            ).scalar_one(),
             "active_schedules": db.execute(
                 select(func.count()).select_from(Schedule).where(Schedule.enabled.is_(True))
             ).scalar_one(),

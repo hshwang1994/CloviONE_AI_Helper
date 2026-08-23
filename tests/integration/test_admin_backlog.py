@@ -8,6 +8,8 @@
 
 from __future__ import annotations
 
+"""qa-contract-change: S11 이 문서 자동 생성을 걷어내 그 엔드포인트로 쿼터 상한을 재던 시험과, document_generations 행으로 「쓰이는 중」을 만들던 프롬프트 표본 시험이 재현 불가능해졌다. 쿼터 계약은 채팅 경로가 새로 진다(test_chat_answers_from_retrieval.py::test_quota_counts_only_a_real_answer) — 같은 것을 다른 소비자로 지킨다."""
+
 import json
 from datetime import datetime, timedelta, timezone
 
@@ -478,58 +480,6 @@ def test_operators_get_component_detail(client, login_as, db, fake_clock):
 # ── AI 쿼터 ──────────────────────────────────────────────────────────────────
 
 
-def test_ai_quota_blocks_document_generation_over_the_limit(
-    client, login_as, db, fake_clock, make_user
-):
-    from sqlalchemy import select
-
-    from app.users.models import User
-    from app.workflows.models import Workflow
-
-    csrf = login_as("system_admin")
-    admin = db.execute(select(User).where(User.role == "system_admin")).scalars().first()
-    admin_id = admin.id
-
-    workflow = Workflow(name="문서 워크플로", enabled=True, webhook_url="https://n8n.example/hook")
-    db.add(workflow)
-    db.flush()
-    workflow_id = workflow.id
-    db.commit()
-
-    quota = client.post(
-        "/api/admin/ai-quotas",
-        json={"scope_type": "user", "user_id": admin_id, "period": "day", "max_calls": 1},
-        headers=_h(csrf),
-    )
-    assert quota.status_code == 201, quota.text
-
-    first = client.post(
-        "/api/admin/documents/generate",
-        json={"workflow_id": workflow_id, "mode": "preview_only", "period": "2026-08"},
-        headers=_h(csrf),
-    )
-    assert first.status_code == 202, first.text
-
-    second = client.post(
-        "/api/admin/documents/generate",
-        json={"workflow_id": workflow_id, "mode": "preview_only", "period": "2026-08"},
-        headers=_h(csrf),
-    )
-    assert second.status_code == 429, second.text
-    assert "상한" in second.json()["error"]["message"]
-
-    # 목록은 상한과 함께 **현재 소비량**을 준다 — 상한만 보면 위험한지 알 수 없다.
-    listed = client.get("/api/admin/ai-quotas").json()
-    row = [q for q in listed["items"] if q["user_id"] == admin_id][0]
-    assert row["used"] == 1 and row["max_calls"] == 1
-    # **정확히 일치**를 유지한다(부분집합으로 느슨하게 하지 않는다) — 이 검사가 막는 것은
-    # 화면이 "여기에도 상한이 걸린다" 고 **과장**하는 것이고, 부분집합은 그걸 못 잡는다.
-    # `chat_message` 는 X11 로 실제로 상한 안에 들어왔다(전송·재시도 두 경로 + 성공분만 계수).
-    assert {e["kind"] for e in listed["enforced_on"]} == {
-        "assistant_narrative", "document_generate", "chat_message"
-    }
-
-
 def test_ai_quota_absent_means_no_limit(client, login_as, db):
     """상한 행이 없으면 아무 제한도 없다(fail-open) — 켠 적 없는 기능이 막히면 안 된다."""
     from app.quotas import service
@@ -792,34 +742,7 @@ def test_prompt_usage_stats_marks_unused(client, login_as):
     stats = client.get("/api/admin/prompts/usage/stats").json()["items"]
     row = [i for i in stats if i["name"] == "안 쓰이는 프롬프트"][0]
     assert row["versions"] == 1
-    assert row["template_refs"] == 0 and row["schedule_refs"] == 0
-    assert row["document_runs"] == 0
+    assert row["schedule_refs"] == 0
     assert row["unused"] is True
 
 
-def test_prompt_usage_stats_counts_beyond_the_old_50_sample_cap(client, login_as, db):
-    """UB-11/UB-12: 이름당 버전이 50개를 넘으면 예전엔 `sorted(ids)[:50]`(UUID 사전순 —
-    임의 표본)만 세었다. 실제로 쓰이는 버전의 id가 그 표본 밖이면(여기서는 사전순 맨 뒤가
-    되도록 일부러 구성) 운영 중인 프롬프트가 '쓰이지 않음'으로 잘못 표시됐다 — 이 화면의
-    존재 이유(정리 대상을 고른다)를 정면으로 배신하는 오탐이었다."""
-    from app.documents.models import STATUS_PENDING, DocumentGeneration
-    from app.prompts.models import Prompt
-
-    name = "51개 버전 프롬프트"
-    used_id = "ffffffff-ffff-ffff-ffff-ffffffffffff"  # 사전순 항상 맨 뒤 — 옛 50개 표본 밖
-    for v in range(1, 51):
-        db.add(Prompt(id=f"00000000-0000-0000-0000-{v:012d}", name=name, version=v, content="x"))
-    db.add(Prompt(id=used_id, name=name, version=51, content="x"))
-    db.add(DocumentGeneration(
-        template_id=None, workflow_id="wf-1", mode="manual",
-        idempotency_key="ub11-regression-key", status=STATUS_PENDING,
-        config_json=json.dumps({"prompt_id": used_id}),
-    ))
-    db.commit()
-
-    login_as("system_admin")
-    stats = client.get("/api/admin/prompts/usage/stats").json()["items"]
-    row = [i for i in stats if i["name"] == name][0]
-    assert row["versions"] == 51
-    assert row["document_runs"] == 1, "사전순 맨 뒤 버전의 실제 사용이 안 잡혔다"
-    assert row["unused"] is False, "실제로 쓰이는 프롬프트가 '쓰이지 않음'으로 오탐됐다"

@@ -16,7 +16,12 @@
 |---|---|
 | 주간 리포트 요약 (`app/llm`) | 원래부터 `prompt.build_prompt` 를 지난다 |
 | Model Gateway 의 모든 생성 | `Gateway.generate()` 가 **Adapter 밖에서** 건다 |
-| n8n 러너 (`runner/…/assistant.py`) | `_run_claude` 한 곳에서 payload 를 가둔다 |
+| ~~n8n 러너~~ | S11 이 걷어냈다 — 방어를 두 벌 유지할 자리 자체가 사라졌다 |
+
+S11 이 남긴 것이 이 표에서 가장 중요하다: 러너는 따로 배포돼 `app/` 을 import 할 수 없어
+같은 값을 **다시 적어야** 했고, 그래서 두 벌이 갈리지 않는지를 시험이 맞물어 둬야 했다.
+지금은 문이 하나라 갈릴 벌이 없다. 그리고 러너 시절 방어가 안 걸려 있던 두 기능
+(AI 퀴즈·대시보드 요약)도 이제 같은 문을 지난다(D-266) — 아래가 그것을 본다.
 
 ## 정직한 한계
 
@@ -28,8 +33,8 @@
 
 from __future__ import annotations
 
-import pathlib
 import re
+from unittest import mock
 
 import pytest
 
@@ -37,12 +42,6 @@ from app.ai.gateway import contract
 from app.llm import prompt
 
 pytestmark = pytest.mark.security
-
-RUNNER = (
-    pathlib.Path(__file__).resolve().parents[2]
-    / "runner" / "claude-work-assistant" / "assistant.py"
-)
-
 
 class Recorder(contract.GenerateAdapter):
     """Adapter 가 **무엇을 받았는지** 그대로 남긴다."""
@@ -122,40 +121,6 @@ def test_the_system_side_refuses_tools_in_words_too():
     assert "도구를 쓰지 않습니다" in prompt.SYSTEM_INSTRUCTION
 
 
-# ── 🔴 러너도 같은 방어를 쓴다 ──────────────────────────────────────────────
-
-
-def test_the_runner_fences_its_payload_with_the_same_markers():
-    """러너는 따로 배포돼 `app/` 을 import 할 수 없어 값을 다시 적었다. 그래서 두
-    벌이 갈리지 않는지를 **여기서** 맞물어 둔다."""
-    source = RUNNER.read_text(encoding="utf-8")
-    assert f'_MARK_OPEN = "{prompt.MARKER_OPEN_PREFIX}"' in source
-    assert f'_MARK_CLOSE = "{prompt.MARKER_CLOSE_PREFIX}"' in source
-    # 난스는 `secrets` 로 만든다 — `random` 은 예측 가능하다.
-    assert "secrets.token_hex" in source
-    # payload 를 그대로 stdin 에 밀어 넣던 자리가 남아 있으면 안 된다.
-    assert "input=json.dumps(payload" not in source
-    assert "input=stdin_body" in source
-
-
-def test_the_runner_pins_data_not_instructions_on_the_system_side():
-    """사용자 메시지 안에만 적으면 데이터와 같은 신뢰 등급이 되어, 「위 문장은 무시해」
-    한 줄로 같이 무너진다."""
-    source = RUNNER.read_text(encoding="utf-8")
-    assert 'f"{system_prompt}\\n{DATA_NOT_INSTRUCTIONS}"' in source
-    assert 'f"{instruction}\\n{USER_REMINDER}"' in source
-
-
-def test_the_runner_neutralizer_agrees_with_ours():
-    """같은 모양을 못 알아보면 러너 쪽만 데이터 블록을 닫을 수 있다."""
-    source = RUNNER.read_text(encoding="utf-8")
-    match = re.search(r"_MARKER_RE = re\.compile\((r\"[^\"]+\")", source)
-    assert match, "러너에서 구분자 정규식을 못 찾았다"
-    runner_re = re.compile(eval(match.group(1)), re.IGNORECASE)  # noqa: S307 - 우리가 쓴 리터럴
-    for payload in INJECTIONS:
-        assert bool(runner_re.search(payload)) == bool(prompt._MARKER_RE.search(payload))
-
-
 # ── 새 생성 경로가 방어를 건너뛸 수 없다 ────────────────────────────────────
 
 
@@ -166,3 +131,55 @@ def test_the_generate_adapter_contract_cannot_receive_raw_data():
 
     signature = inspect.signature(contract.GenerateAdapter.generate)
     assert set(signature.parameters) == {"self", "system", "user"}
+
+
+def test_the_two_features_that_used_to_bypass_the_defence_now_go_through_it():
+    """AI 퀴즈와 대시보드 요약은 러너 시절 이 방어를 **안 지났다** (D-266).
+
+    둘 다 사용자·화면에서 온 값을 러너에 그대로 실어 보냈다 — 퀴즈 주제 칸에 「앞의
+    지시를 무시하고…」를 적으면 그대로 프롬프트에 들어갔다. 지금은 `Gateway.generate()`
+    를 지나므로 그 값이 난스 구분자 안에 갇힌다.
+
+    확인 지점은 「퀴즈가 만들어졌나」가 아니라 **Adapter 가 받은 문자열**이다.
+    """
+    from app.games import ai as games_ai
+
+    recorder = Recorder()
+    gateway = contract.Gateway(enabled=True, generate_adapter=recorder)
+    poisoned = "회사 규정" + INJECTIONS[0]
+
+    try:
+        games_ai.generate_quiz(gateway, None, topic=poisoned, count=3, num_options=4)
+    except games_ai.QuizGenerateError:
+        pass  # 가짜 Adapter 는 퀴즈 JSON 을 안 돌려준다 — 여기서 보는 것은 입력이다.
+
+    assert recorder.user, "생성이 아예 안 불렸다면 이 시험은 아무것도 증명하지 못한다"
+    system, user = recorder.system, recorder.user
+    # 주제는 **데이터 쪽**에 있고 시스템 쪽에는 우리 문장만 있다.
+    assert "회사 규정" in user
+    assert "회사 규정" not in system
+    # 그리고 구분자 안에 갇혔다 — 여는 표지가 주제보다 앞이다.
+    assert prompt.MARKER_OPEN_PREFIX in user
+    assert user.index(prompt.MARKER_OPEN_PREFIX) < user.index("회사 규정")
+
+
+def test_the_dashboard_narrative_also_goes_through_the_same_door():
+    """요약 문장도 같은 문이다. 사실 dict 에 사용자가 쓴 제목이 섞여 들어올 수 있다."""
+    from app.assistant import narrate as narrate_mod
+
+    recorder = Recorder()
+    gateway = contract.Gateway(enabled=True, generate_adapter=recorder)
+    poisoned_fact = "티켓 제목" + INJECTIONS[0]
+
+    with mock.patch.object(narrate_mod, "is_enabled", return_value=True):
+        narrate_mod.narrate(
+            gateway, object(), kind="briefing",
+            facts={"open_tickets": 3, "top": poisoned_fact},
+            requester={"display_name": "홍길동", "user_id": "u-1"},
+        )
+
+    assert recorder.user
+    system, user = recorder.system, recorder.user
+    assert "티켓 제목" in user
+    assert "티켓 제목" not in system
+    assert user.index(prompt.MARKER_OPEN_PREFIX) < user.index("티켓 제목")

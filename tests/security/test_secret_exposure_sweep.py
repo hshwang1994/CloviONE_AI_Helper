@@ -17,14 +17,8 @@ def seeded(client, login_as, settings):
     client.post(
         "/api/admin/integrations",
         json={"name": "sweep-int", "provider_type": "http_service",
-              "base_url": "http://127.0.0.1:8787", "auth_type": "bearer",
+              "base_url": "https://api.notion.com", "auth_type": "bearer",
               "secret_ref": "sweep-secret"},
-        headers=h,
-    )
-    client.post(
-        "/api/admin/runners",
-        json={"name": "sweep-runner", "base_url": "http://127.0.0.1:8787",
-              "auth_type": "bearer", "secret_ref": "sweep-secret"},
         headers=h,
     )
     return h
@@ -33,17 +27,13 @@ def seeded(client, login_as, settings):
 ADMIN_GET_ENDPOINTS = [
     "/api/admin/users",
     "/api/admin/integrations",
-    "/api/admin/runners",
-    "/api/admin/workflows",
     "/api/admin/prompts",
     "/api/admin/policies",
-    "/api/admin/templates",
     "/api/admin/schedules",
     "/api/admin/approvals",
     "/api/admin/audit",
     "/api/admin/settings",
     "/api/admin/backups",
-    "/api/admin/documents",
     "/api/admin/notion-mapping",
     "/api/admin/dashboard",
     "/api/admin/diagnostics/bundle",

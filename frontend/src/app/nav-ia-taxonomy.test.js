@@ -60,7 +60,7 @@ describe("관리자 사이드바 — 그룹이 질문에 답한다 (지시 30)",
 
   it("AI 재료가 한 자리에 모인다 — 예전엔 자동화·연동·감사 셋에 흩어져 있었다", () => {
     expect(pathsOf(NAV, "AI")).toEqual([
-      "/prompts", "/policies", "/templates", "/ai-quotas", "/ai-usage",
+      "/prompts", "/policies", "/ai-quotas", "/ai-usage",
     ]);
   });
 
@@ -90,9 +90,16 @@ describe("짝을 이루는 화면은 형제 항목이 아니라 한 화면의 �
     expect(allPaths()).toContain(host);
   });
 
-  it("합쳐서 36항목이 31항목이 됐다 — 기능은 하나도 안 없어졌다", () => {
+  // S11 이 n8n·러너 화면 넷을 걷어내 31 → 27 이 됐다. 이 숫자는 「합치기로 줄었다」와
+  // 「기능이 사라져 줄었다」를 구별하지 못하므로, 사라진 넷을 이름으로 함께 못 박는다.
+  it("합쳐서 36항목이 27항목이 됐다", () => {
     const total = NAV.reduce((sum, g) => sum + g.items.length, 0);
-    expect(total).toBe(31);
+    expect(total).toBe(27);
+    const all = NAV.flatMap((g) => g.items.map((i) => i.to));
+    expect(all).not.toContain("/runners");
+    expect(all).not.toContain("/workflows");
+    expect(all).not.toContain("/documents");
+    expect(all).not.toContain("/templates");
   });
 });
 

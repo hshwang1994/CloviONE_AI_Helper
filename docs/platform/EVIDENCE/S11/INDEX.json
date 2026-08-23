@@ -1,0 +1,408 @@
+{
+  "workflow_count": 22,
+  "workflows": [
+    {
+      "file": "reuSafmsRzO1tIzX.json",
+      "id": "reuSafmsRzO1tIzX",
+      "name": "ClovirONE AI 업무 도우미",
+      "active": true,
+      "updated_at": "2026-07-16T08:49:25.000Z",
+      "nodes": 34,
+      "node_types": [
+        "n8n-nodes-base.code",
+        "n8n-nodes-base.httpRequest",
+        "n8n-nodes-base.if",
+        "n8n-nodes-base.merge",
+        "n8n-nodes-base.notion",
+        "n8n-nodes-base.readWriteFile",
+        "n8n-nodes-base.respondToWebhook",
+        "n8n-nodes-base.webhook"
+      ],
+      "stripped": [
+        "staticData"
+      ],
+      "bytes": 51873
+    },
+    {
+      "file": "ClovNotionMap001.json",
+      "id": "ClovNotionMap001",
+      "name": "notion-user-mapping",
+      "active": true,
+      "updated_at": "2026-07-16T06:16:14.000Z",
+      "nodes": 8,
+      "node_types": [
+        "n8n-nodes-base.code",
+        "n8n-nodes-base.notion",
+        "n8n-nodes-base.respondToWebhook",
+        "n8n-nodes-base.webhook"
+      ],
+      "stripped": [],
+      "bytes": 10690
+    },
+    {
+      "file": "Xbo4SCdO4WUFQ8cR.json",
+      "id": "Xbo4SCdO4WUFQ8cR",
+      "name": "Claude Ticket Runner - Test",
+      "active": false,
+      "updated_at": "2026-07-13T04:35:00.000Z",
+      "nodes": 3,
+      "node_types": [
+        "n8n-nodes-base.httpRequest",
+        "n8n-nodes-base.manualTrigger",
+        "n8n-nodes-base.set"
+      ],
+      "stripped": [],
+      "bytes": 3867
+    },
+    {
+      "file": "XVx3yxF8y1B7Qbdv.json",
+      "id": "XVx3yxF8y1B7Qbdv",
+      "name": "ClovirONE - AI 요구사항 검토 및 티켓 생성 v4",
+      "active": false,
+      "updated_at": "2026-07-13T04:35:04.000Z",
+      "nodes": 16,
+      "node_types": [
+        "n8n-nodes-base.code",
+        "n8n-nodes-base.httpRequest",
+        "n8n-nodes-base.if",
+        "n8n-nodes-base.notion",
+        "n8n-nodes-base.respondToWebhook",
+        "n8n-nodes-base.webhook"
+      ],
+      "stripped": [
+        "staticData"
+      ],
+      "bytes": 38116
+    },
+    {
+      "file": "GIcuN470NjhM5pqm.json",
+      "id": "GIcuN470NjhM5pqm",
+      "name": "ClovirONE - AI 요구사항 검토 및 티켓 생성 v4.1",
+      "active": false,
+      "updated_at": "2026-07-13T04:35:05.000Z",
+      "nodes": 17,
+      "node_types": [
+        "n8n-nodes-base.code",
+        "n8n-nodes-base.httpRequest",
+        "n8n-nodes-base.if",
+        "n8n-nodes-base.notion",
+        "n8n-nodes-base.respondToWebhook",
+        "n8n-nodes-base.webhook"
+      ],
+      "stripped": [],
+      "bytes": 44143
+    },
+    {
+      "file": "P16zWbQxUBWE0Kxc.json",
+      "id": "P16zWbQxUBWE0Kxc",
+      "name": "ClovirONE - AI 요구사항 검토 및 티켓 생성 v4.1.1",
+      "active": false,
+      "updated_at": "2026-07-13T04:35:07.000Z",
+      "nodes": 17,
+      "node_types": [
+        "n8n-nodes-base.code",
+        "n8n-nodes-base.httpRequest",
+        "n8n-nodes-base.if",
+        "n8n-nodes-base.notion",
+        "n8n-nodes-base.respondToWebhook",
+        "n8n-nodes-base.webhook"
+      ],
+      "stripped": [
+        "staticData"
+      ],
+      "bytes": 44600
+    },
+    {
+      "file": "Rg83IQEW0cgmhcBi.json",
+      "id": "Rg83IQEW0cgmhcBi",
+      "name": "ClovirONE - AI 요구사항 검토 및 티켓 생성 v4.2",
+      "active": false,
+      "updated_at": "2026-07-13T04:35:12.000Z",
+      "nodes": 20,
+      "node_types": [
+        "n8n-nodes-base.code",
+        "n8n-nodes-base.httpRequest",
+        "n8n-nodes-base.if",
+        "n8n-nodes-base.notion",
+        "n8n-nodes-base.respondToWebhook",
+        "n8n-nodes-base.webhook"
+      ],
+      "stripped": [],
+      "bytes": 56713
+    },
+    {
+      "file": "AECPkSJMjcc9oUFR.json",
+      "id": "AECPkSJMjcc9oUFR",
+      "name": "ClovirONE - AI 티켓 생성",
+      "active": false,
+      "updated_at": "2026-07-13T04:39:02.000Z",
+      "nodes": 35,
+      "node_types": [
+        "n8n-nodes-base.code",
+        "n8n-nodes-base.httpRequest",
+        "n8n-nodes-base.if",
+        "n8n-nodes-base.notion",
+        "n8n-nodes-base.respondToWebhook",
+        "n8n-nodes-base.webhook"
+      ],
+      "stripped": [],
+      "bytes": 88208
+    },
+    {
+      "file": "g7JdEVzgMaLRML5p.json",
+      "id": "g7JdEVzgMaLRML5p",
+      "name": "ClovirONE - AI 티켓 생성",
+      "active": false,
+      "updated_at": "2026-07-13T05:34:18.000Z",
+      "nodes": 20,
+      "node_types": [
+        "n8n-nodes-base.code",
+        "n8n-nodes-base.httpRequest",
+        "n8n-nodes-base.if",
+        "n8n-nodes-base.notion",
+        "n8n-nodes-base.respondToWebhook",
+        "n8n-nodes-base.webhook"
+      ],
+      "stripped": [
+        "staticData"
+      ],
+      "bytes": 59528
+    },
+    {
+      "file": "Fp6Ra8nFKeLsGu35.json",
+      "id": "Fp6Ra8nFKeLsGu35",
+      "name": "ClovirONE - 티켓 생성 API",
+      "active": false,
+      "updated_at": "2026-07-13T01:29:45.000Z",
+      "nodes": 15,
+      "node_types": [
+        "n8n-nodes-base.code",
+        "n8n-nodes-base.httpRequest",
+        "n8n-nodes-base.if",
+        "n8n-nodes-base.notion",
+        "n8n-nodes-base.respondToWebhook",
+        "n8n-nodes-base.webhook"
+      ],
+      "stripped": [],
+      "bytes": 32982
+    },
+    {
+      "file": "qyJeAeS62iNtkrfu.json",
+      "id": "qyJeAeS62iNtkrfu",
+      "name": "ClovirONE - 티켓 생성 API v2",
+      "active": false,
+      "updated_at": "2026-07-13T04:35:03.000Z",
+      "nodes": 15,
+      "node_types": [
+        "n8n-nodes-base.code",
+        "n8n-nodes-base.httpRequest",
+        "n8n-nodes-base.if",
+        "n8n-nodes-base.notion",
+        "n8n-nodes-base.respondToWebhook",
+        "n8n-nodes-base.webhook"
+      ],
+      "stripped": [
+        "staticData"
+      ],
+      "bytes": 34402
+    },
+    {
+      "file": "L7hsE06APBvosDCw.json",
+      "id": "L7hsE06APBvosDCw",
+      "name": "ClovirONE - 티켓 조회 및 상태 변경 API",
+      "active": false,
+      "updated_at": "2026-07-13T05:34:19.000Z",
+      "nodes": 15,
+      "node_types": [
+        "n8n-nodes-base.code",
+        "n8n-nodes-base.httpRequest",
+        "n8n-nodes-base.if",
+        "n8n-nodes-base.notion",
+        "n8n-nodes-base.respondToWebhook",
+        "n8n-nodes-base.webhook"
+      ],
+      "stripped": [],
+      "bytes": 29963
+    },
+    {
+      "file": "jh6XGzuUAH7z2g0W.json",
+      "id": "jh6XGzuUAH7z2g0W",
+      "name": "ClovirONE - 프로젝트 조회 테스트",
+      "active": false,
+      "updated_at": "2026-07-13T04:35:02.000Z",
+      "nodes": 9,
+      "node_types": [
+        "n8n-nodes-base.code",
+        "n8n-nodes-base.httpRequest",
+        "n8n-nodes-base.manualTrigger",
+        "n8n-nodes-base.notion",
+        "n8n-nodes-base.set"
+      ],
+      "stripped": [],
+      "bytes": 13831
+    },
+    {
+      "file": "HkgmikM7F7DCVXx1.json",
+      "id": "HkgmikM7F7DCVXx1",
+      "name": "ClovirONE AI 업무 도우미",
+      "active": false,
+      "updated_at": "2026-07-13T08:17:45.000Z",
+      "nodes": 20,
+      "node_types": [
+        "n8n-nodes-base.code",
+        "n8n-nodes-base.httpRequest",
+        "n8n-nodes-base.if",
+        "n8n-nodes-base.notion",
+        "n8n-nodes-base.respondToWebhook",
+        "n8n-nodes-base.webhook"
+      ],
+      "stripped": [
+        "staticData"
+      ],
+      "bytes": 25138
+    },
+    {
+      "file": "Z8b9Hx1HTdEFqjBL.json",
+      "id": "Z8b9Hx1HTdEFqjBL",
+      "name": "ClovirONE AI 업무 도우미",
+      "active": false,
+      "updated_at": "2026-07-14T01:32:33.000Z",
+      "nodes": 22,
+      "node_types": [
+        "n8n-nodes-base.code",
+        "n8n-nodes-base.httpRequest",
+        "n8n-nodes-base.if",
+        "n8n-nodes-base.notion",
+        "n8n-nodes-base.respondToWebhook",
+        "n8n-nodes-base.webhook"
+      ],
+      "stripped": [
+        "staticData"
+      ],
+      "bytes": 30066
+    },
+    {
+      "file": "Zd3u2XeJjq9BMgis.json",
+      "id": "Zd3u2XeJjq9BMgis",
+      "name": "ClovirONE AI 업무 도우미",
+      "active": false,
+      "updated_at": "2026-07-15T10:50:50.000Z",
+      "nodes": 22,
+      "node_types": [
+        "n8n-nodes-base.code",
+        "n8n-nodes-base.httpRequest",
+        "n8n-nodes-base.if",
+        "n8n-nodes-base.notion",
+        "n8n-nodes-base.respondToWebhook",
+        "n8n-nodes-base.webhook"
+      ],
+      "stripped": [
+        "staticData"
+      ],
+      "bytes": 31129
+    },
+    {
+      "file": "smvEhbm3KLK4cYpr.json",
+      "id": "smvEhbm3KLK4cYpr",
+      "name": "ClovirONE AI 업무 도우미",
+      "active": false,
+      "updated_at": "2026-07-13T09:54:59.000Z",
+      "nodes": 20,
+      "node_types": [
+        "n8n-nodes-base.code",
+        "n8n-nodes-base.httpRequest",
+        "n8n-nodes-base.if",
+        "n8n-nodes-base.notion",
+        "n8n-nodes-base.respondToWebhook",
+        "n8n-nodes-base.webhook"
+      ],
+      "stripped": [
+        "staticData"
+      ],
+      "bytes": 25138
+    },
+    {
+      "file": "t5lGK4kJo1hEF0Mj.json",
+      "id": "t5lGK4kJo1hEF0Mj",
+      "name": "ClovirONE AI 업무 도우미",
+      "active": false,
+      "updated_at": "2026-07-13T06:21:59.000Z",
+      "nodes": 20,
+      "node_types": [
+        "n8n-nodes-base.code",
+        "n8n-nodes-base.httpRequest",
+        "n8n-nodes-base.if",
+        "n8n-nodes-base.notion",
+        "n8n-nodes-base.respondToWebhook",
+        "n8n-nodes-base.webhook"
+      ],
+      "stripped": [
+        "staticData"
+      ],
+      "bytes": 25138
+    },
+    {
+      "file": "zmea3rGPdmJmlcpF.json",
+      "id": "zmea3rGPdmJmlcpF",
+      "name": "ClovirONE AI 업무 도우미",
+      "active": false,
+      "updated_at": "2026-07-15T10:51:13.000Z",
+      "nodes": 24,
+      "node_types": [
+        "n8n-nodes-base.code",
+        "n8n-nodes-base.httpRequest",
+        "n8n-nodes-base.if",
+        "n8n-nodes-base.notion",
+        "n8n-nodes-base.respondToWebhook",
+        "n8n-nodes-base.webhook"
+      ],
+      "stripped": [],
+      "bytes": 33824
+    },
+    {
+      "file": "9DTKbOq9AF6acc0M.json",
+      "id": "9DTKbOq9AF6acc0M",
+      "name": "ClovirONE Teams 이벤트 진단",
+      "active": false,
+      "updated_at": "2026-07-14T01:32:34.000Z",
+      "nodes": 8,
+      "node_types": [
+        "n8n-nodes-base.code",
+        "n8n-nodes-base.httpRequest",
+        "n8n-nodes-base.if",
+        "n8n-nodes-base.microsoftTeams",
+        "n8n-nodes-base.microsoftTeamsTrigger"
+      ],
+      "stripped": [],
+      "bytes": 13359
+    },
+    {
+      "file": "aNnk1cir5HZqX0Ux.json",
+      "id": "aNnk1cir5HZqX0Ux",
+      "name": "ClovirONE Teams 이벤트 진단",
+      "active": false,
+      "updated_at": "2026-07-13T09:55:01.000Z",
+      "nodes": 2,
+      "node_types": [
+        "n8n-nodes-base.code",
+        "n8n-nodes-base.microsoftTeamsTrigger"
+      ],
+      "stripped": [],
+      "bytes": 3279
+    },
+    {
+      "file": "kT1sZH1cvrg8Vpf1.json",
+      "id": "kT1sZH1cvrg8Vpf1",
+      "name": "ClovirONE Teams 이벤트 진단",
+      "active": false,
+      "updated_at": "2026-07-13T06:22:48.000Z",
+      "nodes": 2,
+      "node_types": [
+        "n8n-nodes-base.code",
+        "n8n-nodes-base.microsoftTeamsTrigger"
+      ],
+      "stripped": [],
+      "bytes": 3279
+    }
+  ]
+}

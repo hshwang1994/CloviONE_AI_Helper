@@ -62,7 +62,7 @@ describe("canGo — 정본 한 표에서 읽는다", () => {
 });
 
 
-/* 머리 지표 다섯 (6단계) — 맨 위 한 줄에서 끝나는 질문들.
+/* 머리 지표 넷 (6단계) — 맨 위 한 줄에서 끝나는 질문들.
  *
  * 예전에는 같은 값들이 여섯 구역에 흩어져 있어 "지금 괜찮은가" 를 알려면 끝까지 스크롤하며
  * 여섯 번 찾아야 했다. 운영 화면에서는 매일 반복되는 비용이다.
@@ -127,10 +127,11 @@ describe("머리 지표", () => {
     expect(label).toBe("미해결 실패 작업");
   });
 
-  it("다섯 개 전부 어디로 갈지(또는 갈 곳 없음)를 분명히 정한다", () => {
+  it("넷 전부 어디로 갈지(또는 갈 곳 없음)를 분명히 정한다", () => {
     const t = headlineStats(ARGS);
-    expect(t).toHaveLength(5);
-    expect(t.map((x) => x.key)).toEqual(["services", "workflows", "rate", "failed", "disk"]);
+    // S11 이 '활성 워크플로' 타일을 걷어냈다 — 그 화면이 없어졌다.
+    expect(t).toHaveLength(4);
+    expect(t.map((x) => x.key)).toEqual(["services", "rate", "failed", "disk"]);
     // 서비스 타일은 이 화면 자체가 상세라 이동 대상이 없다(막다른 클릭을 만들지 않는다).
     expect(t.find((x) => x.key === "services").to).toBeNull();
     expect(t.filter((x) => x.key !== "services").every((x) => !!x.to)).toBe(true);

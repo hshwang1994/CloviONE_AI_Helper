@@ -33,8 +33,8 @@ from app.observability.models import COMPONENT_DOCUMENTS, COMPONENT_TICKETS
 logger = logging.getLogger("app.worker")
 
 # Liveness heartbeat: written from a dedicated thread so it keeps beating even
-# while the worker loop is blocked inside a long run_once (schedule workflows up
-# to 3600s, notion sync up to 90s). HEARTBEAT_STALE_SECONDS is 90 on the health
+# while the worker loop is blocked inside a long run_once (schedule runs up to
+# 3600s, notion sync up to 90s). HEARTBEAT_STALE_SECONDS is 90 on the health
 # side, so ~30s cadence leaves comfortable margin (spec §14.1).
 HEARTBEAT_INTERVAL_SECONDS = 30.0
 # 배치 워커가 **스케줄러까지 안고 돌 때** 찍는 컴포넌트 둘. 스케줄러 레인이 켜져 있으면
@@ -85,7 +85,7 @@ def run_heartbeat_loop(
     워커 싱글턴 리스(``lock``)도 여기서 갱신한다 — 이미 30초마다 도는 스레드가 있는데
     두 번째 타이머 스레드를 만들 이유가 없다. 갱신에 실패하면(= 리스를 남이 가져갔다)
     **즉시 멈춘다**: 워커가 둘 도는 것보다 하나도 안 도는 편이 안전하다(잡이 두 번
-    실행되면 워크플로가 두 번 호출되고 스케줄이 두 번 발화한다).
+    실행되면 스케줄이 두 번 발화한다).
     """
     while not stop_event.is_set():
         beat_liveness(session_factory, clock, components)
@@ -263,10 +263,8 @@ def register_health_snapshot_tick(worker, session_factory, settings, *, interval
 def build_handlers() -> dict:
     """Job handler registry."""
     from app.jobs.handlers.chat_message import handle_chat_message
-    from app.jobs.handlers.document_generate import handle_document_generate
     from app.jobs.handlers.llm_connection_test import handle_llm_connection_test
     from app.jobs.handlers.mail_send import handle_mail_send
-    from app.jobs.handlers.notion_mapping_sync import handle_notion_mapping_sync
     from app.jobs.handlers.project_weekly_summary import handle_project_weekly_summary
     from app.jobs.handlers.schedule_run import handle_schedule_run
     from app.llm_console.service import JOB_TYPE_TEST
@@ -274,8 +272,6 @@ def build_handlers() -> dict:
     return {
         "chat_message": handle_chat_message,
         "schedule_run": handle_schedule_run,
-        "document_generate": handle_document_generate,
-        "notion_mapping_sync": handle_notion_mapping_sync,
         # 메일은 **여기서만** 나간다(9-9 P4). 새 큐를 만들지 않는 이유: 재시도, 백오프,
         # 좀비 회수, 실패 알림이 이미 이 큐에 있다.
         "mail_send": handle_mail_send,
@@ -304,11 +300,21 @@ def _bootstrap(settings: Settings, clock: Clock):
     with session_factory() as db:
         settings_cache.load(db)
 
+    # 프로세스에 하나뿐인 Gateway. `app/main.py` 가 웹에서 하는 것과 같은 이유다 —
+    # 잡마다 만들면 임베딩 Adapter 가 매번 ONNX 세션을 새로 연다(S1 실측 2.3초).
+    # `build_gateway` 는 어떤 이유로도 예외를 안 올리므로 모델이 없는 설치에서도
+    # 워커 기동을 막지 않는다.
+    from app.ai.gateway.registry import build_gateway
+
     ctx = WorkerContext(
         settings=settings, clock=clock, outbound_client=outbound,
         # secret_provider 는 메일 발송(SMTP 비밀번호)이 쓴다. OutboundClient 가 이미 같은
         # 제공자를 쥐고 있지만 그 안에 갇혀 있어 잡 핸들러가 꺼내 쓸 수 없었다.
-        extras={"settings_cache": settings_cache, "secret_provider": secrets},
+        extras={
+            "settings_cache": settings_cache,
+            "secret_provider": secrets,
+            "ai_gateway": build_gateway(settings, outbound=outbound),
+        },
     )
     return session_factory, ctx, settings_cache, outbound
 
@@ -324,7 +330,7 @@ def build_conversational_worker(session_factory, clock: Clock, ctx: WorkerContex
     Phase 3 실측(D-118)에서 발견: 배치 레인의 기본 `running_timeout_seconds`(3900초,
     3600초짜리 schedule_run 기준)를 그대로 두면, SQLite 쓰기 경합으로 잡이 멈춰도
     최대 65분 동안 sweep이 회수하지 않는다 — 채팅은 수십 초 안에 끝나는 레인이라 그
-    격차가 훨씬 크게 느껴진다. n8n 타임아웃(180초) 기준의 훨씬 짧은 값을 쓴다."""
+    격차가 훨씬 크게 느껴진다. 모델 응답 상한(180초) 기준의 훨씬 짧은 값을 쓴다."""
     from app.jobs.lanes import CONVERSATIONAL_JOB_TYPES
 
     handlers = {k: v for k, v in build_handlers().items() if k in CONVERSATIONAL_JOB_TYPES}
@@ -649,31 +655,10 @@ def build_batch_worker(session_factory, clock: Clock, ctx: WorkerContext, settin
 
     worker.tick_callbacks.append(retention_tick)
 
-    # Runner 헬스 자동 점검 (spec §15) — 90초 간격. 수동 점검이 없으면 last_health_status 가
-    # 영원히 'unknown'이라 대시보드/러너 목록이 실제 상태를 못 보였다. 워커가 주기적으로 전 러너를
-    # 점검해 채운다(첫 tick은 즉시 실행 → 워커 기동 직후 상태가 뜬다). 스윕이 아웃바운드 호출로
-    # 잠깐 루프를 잡을 수 있으나 liveness는 별도 스레드라 영향 없다.
-    from app.runners.service import run_all_runner_health_checks
-
-    _last_runner_health: list = [None]
-    RUNNER_HEALTH_INTERVAL_SECONDS = 90.0
-
-    def runner_health_tick(now):
-        if _last_runner_health[0] is None or (now - _last_runner_health[0]).total_seconds() >= RUNNER_HEALTH_INTERVAL_SECONDS:
-            _last_runner_health[0] = now
-            try:
-                with session_factory() as db:
-                    run_all_runner_health_checks(db, outbound=outbound, now=now)
-                    db.commit()
-            except Exception:
-                logger.exception("runner health sweep failed")
-
-    worker.tick_callbacks.append(runner_health_tick)
-
-    # 연동(Integration) 헬스 자동 점검 — 러너와 같은 이유·같은 90초 간격(WF1 감사: 수동
-    # POST /{id}/health만 있어 25일 전 점검 결과가 지금 상태처럼 초록 「정상」으로 보였다).
-    # 러너 스윕과 별도 tick으로 두는 이유: 한쪽이 느려지거나 실패해도(outbound 호출이라
-    # 잠깐 걸릴 수 있다) 다른 쪽 스윕 주기에 영향을 주지 않는다.
+    # 연동(Integration) 헬스 자동 점검 — 90초 간격(WF1 감사: 수동 POST /{id}/health만 있어
+    # 25일 전 점검 결과가 지금 상태처럼 초록 「정상」으로 보였다). 다른 스윕과 별도 tick 으로
+    # 두는 이유: 한쪽이 느려지거나 실패해도(outbound 호출이라 잠깐 걸릴 수 있다) 다른 쪽
+    # 스윕 주기에 영향을 주지 않는다.
     from app.integrations.service import run_all_integration_health_checks
 
     _last_integration_health: list = [None]

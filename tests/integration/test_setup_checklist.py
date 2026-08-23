@@ -215,69 +215,6 @@ def test_creating_a_department_flips_only_the_organization_item(client, db, sysa
     assert changed == {"organization"}, f"부서 하나를 만들었는데 {changed} 가 함께 변했다"
 
 
-def test_registering_a_runner_flips_only_the_llm_item(client, db, sysadmin):
-    from app.runners.models import Runner
-
-    before = {i["key"]: i["state"] for i in _items(client)["items"]}
-    assert before["llm"] == STATE_TODO
-
-    db.add(
-        Runner(
-            name="claude-ticket-runner",
-            provider_type="http_service",
-            base_url="http://127.0.0.1:8787",
-            enabled=True,
-            last_health_status="up",
-        )
-    )
-    db.commit()
-
-    after = {i["key"]: i["state"] for i in _items(client)["items"]}
-    assert after["llm"] == STATE_DONE
-    changed = {k for k in before if before[k] != after[k]}
-    assert changed == {"llm"}, f"러너 하나를 등록했는데 {changed} 가 함께 변했다"
-
-
-def test_healthy_runner_detail_does_not_imply_real_dispatch(client, db, sysadmin):
-    """RN-10: "모두 정상"은 헬스체크 응답일 뿐이다. 이 레지스트리는 지금 실제 업무 처리
-    경로에 연결돼 있지 않으므로(app/jobs/handlers/의 어떤 핸들러도 러너를 부르지 않는다),
-    상태 문구가 그 사실과 무관하다는 것을 밝혀야 관리자가 등록 개수만큼 실제로 일이
-    나뉘어 처리된다고 오해하지 않는다."""
-    from app.runners.models import Runner
-
-    db.add(
-        Runner(
-            name="claude-ticket-runner",
-            provider_type="http_service",
-            base_url="http://127.0.0.1:8787",
-            enabled=True,
-            last_health_status="up",
-        )
-    )
-    db.commit()
-
-    item = _by_key(_items(client))["llm"]
-    assert item["state"] == STATE_DONE
-    assert "실제 업무 처리 여부와는 별개" in item["detail"]
-
-
-def test_a_registered_but_never_health_checked_runner_is_unknown(client, db, sysadmin):
-    """등록됐다는 사실과 살아 있다는 사실은 다르다."""
-    from app.runners.models import Runner
-
-    db.add(
-        Runner(
-            name="claude-ticket-runner",
-            provider_type="http_service",
-            base_url="http://127.0.0.1:8787",
-            enabled=True,
-            last_health_status="unknown",
-        )
-    )
-    db.commit()
-    assert _by_key(_items(client))["llm"]["state"] == STATE_UNKNOWN
-
-
 # ── ④ 끝난 뒤에도 계속 보인다 ────────────────────────────────────────────────
 
 
@@ -379,27 +316,25 @@ def test_a_new_unmapped_user_does_not_reopen_the_banner(client, login_as, setup_
     assert [n for n in notices if n["id"] == USER_NOTICE_ID] == []
 
 
-def test_the_user_banner_reopens_when_the_only_gap_is_an_unknown_runner(
+def test_the_user_banner_reopens_when_the_only_gap_is_unknown_not_todo(
     client, login_as, setup_complete, db
 ):
-    """setup_complete 는 러너를 헬스체크 통과(up) 상태로 만든다. 그 러너를 '아직 헬스체크
-    안 됨(unknown)' 으로 되돌리면, 사람이 할 일은 없지만(확인 불가) AI 기능은 실제로
-    답하지 않을 수 있다 - 배너 문구("AI 기능이 답하지 않을 수 있습니다")가 그대로 말하는
-    상황이다.
+    """setup_complete 는 연동을 헬스체크 통과(up) 상태로 만든다. 그것을 '아직 점검 안 됨
+    (unknown)' 으로 되돌리면, 사람이 할 일은 없지만(확인 불가) 화면은 실제로 빌 수 있다.
 
     setup_notice() 가 STATE_TODO 만 보고 STATE_UNKNOWN 을 빼먹으면 이 상태에서 배너가
     조용해진다 - 이 기능이 없애려던 바로 그 침묵이다.
     """
-    from app.runners.models import Runner
+    from app.integrations.models import Integration
 
-    runner = db.query(Runner).one()
-    runner.last_health_status = "unknown"
+    integ = db.query(Integration).one()
+    integ.last_health_status = "unknown"
     db.commit()
 
     login_as("user")
     notices = client.get("/api/system/status").json()["notices"]
     setup = [n for n in notices if n["id"] == USER_NOTICE_ID]
-    assert setup, "러너가 확인 불가(unknown) 상태인데도 사용자 배너가 조용하다"
+    assert setup, "연동이 확인 불가(unknown) 상태인데도 사용자 배너가 조용하다"
 
 
 def test_the_admin_notice_points_at_the_wizard(client, login_as):
@@ -450,40 +385,6 @@ def test_a_sync_error_after_configuration_is_a_persons_problem(
     assert notion["action"]
     # 사람에게 보이는 문구에 원본 예외를 그대로 싣지 않는다.
     assert "401" not in notion["detail"]
-
-
-def test_a_disabled_runner_is_not_an_llm(client, db, sysadmin):
-    from app.runners.models import Runner
-
-    db.add(
-        Runner(
-            name="off-runner", provider_type="http_service",
-            base_url="http://127.0.0.1:8789", enabled=False, last_health_status="up",
-        )
-    )
-    db.commit()
-    assert _by_key(_items(client))["llm"]["state"] == STATE_TODO
-
-
-def test_a_down_runner_beats_an_unchecked_one(client, db, sysadmin):
-    """죽은 것이 하나라도 있으면 '미점검' 이 아니라 '안 됨' 이다."""
-    from app.runners.models import Runner
-
-    db.add_all(
-        [
-            Runner(
-                name="down-runner", provider_type="http_service",
-                base_url="http://127.0.0.1:8787", enabled=True, last_health_status="down",
-            ),
-            Runner(
-                name="new-runner", provider_type="http_service",
-                base_url="http://127.0.0.1:8789", enabled=True,
-                last_health_status="unknown",
-            ),
-        ]
-    )
-    db.commit()
-    assert _by_key(_items(client))["llm"]["state"] == STATE_TODO
 
 
 def test_a_departed_users_stale_mapping_does_not_count_as_connected(
@@ -672,3 +573,75 @@ def test_a_garbage_cert_file_is_unanswerable_not_missing(client, tmp_path, sysad
     tls = _by_key(_items(client))["tls"]
     assert tls["state"] == STATE_UNKNOWN
     assert tls["question"]
+
+
+# ── AI 항목은 이제 Model Gateway 를 읽는다 (S11 · D-266) ──────────────────────
+#
+# 예전에는 러너 레지스트리 행의 헬스체크 결과였다. 그래서 「정상」이 「응답은 한다」까지만
+# 뜻했고 항목 문구에 "실제 업무 처리 여부와는 별개입니다" 라는 단서를 달아야 했다.
+# 지금은 답변·초안·요약이 전부 이 Gateway 를 지나므로 그 단서가 필요 없다.
+
+
+class _Cap:
+    """`available` 하나만 정하는 최소 Adapter. 상태 어휘는 contract 가 든다."""
+
+    def __init__(self, cap_name, *, available=True, status=None):
+        from app.ai.gateway import contract
+
+        self.name = "scripted"
+        self.model = "scripted-model"
+        self.dim = 384
+        self._cap = cap_name
+        self._available = available
+        self._status = status or contract.STATUS_MODEL_MISSING
+
+    def capability(self):
+        from app.ai.gateway import contract
+
+        if self._available:
+            return contract.available(self._cap, model=self.model)
+        return contract.unavailable(self._cap, self._status, model=self.model)
+
+
+def _set_gateway(client, *, embed=True, generate=True):
+    """이 앱의 Gateway 를 바꾼다 — 체크리스트가 실제로 읽는 그 객체다."""
+    from app.ai.gateway import contract
+
+    client.app.state.ai_gateway = contract.Gateway(
+        enabled=True,
+        embed_adapter=_Cap(contract.CAP_EMBED, available=embed),
+        generate_adapter=_Cap(contract.CAP_GENERATE, available=generate) if generate else None,
+    )
+
+
+
+def test_a_working_gateway_flips_only_the_llm_item(client, sysadmin):
+    before = {i["key"]: i["state"] for i in _items(client)["items"]}
+    assert before["llm"] == STATE_TODO
+
+    _set_gateway(client, embed=True, generate=True)
+
+    after = {i["key"]: i["state"] for i in _items(client)["items"]}
+    assert after["llm"] == STATE_DONE
+    changed = {k for k in before if before[k] != after[k]}
+    assert changed == {"llm"}, f"AI 를 켰는데 {changed} 가 함께 변했다"
+
+
+def test_search_without_generation_is_a_half_state_not_a_failure(client, sysadmin):
+    """D-201: 생성 Provider 없이도 검색·인용은 동작한다 — 그것은 반쪽 실패가 아니라
+    설계된 상태다. 그래도 「전부 된다」고 말하면 안 된다."""
+    _set_gateway(client, embed=True, generate=False)
+    item = _by_key(_items(client))["llm"]
+    assert item["state"] == STATE_TODO
+    assert "문서 검색은 동작" in item["detail"]
+    # 「안 됩니다」로 끝나면 안 된다 — 운영자가 무엇을 할지 말해야 한다.
+    assert "확인하세요" in item["action"]
+    assert item["question"] is None
+
+
+def test_no_model_at_all_says_so(client, sysadmin):
+    _set_gateway(client, embed=False, generate=False)
+    item = _by_key(_items(client))["llm"]
+    assert item["state"] == STATE_TODO
+    assert "쓸 수 없습니다" in item["detail"]
+

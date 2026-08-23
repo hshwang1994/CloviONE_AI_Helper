@@ -58,7 +58,7 @@ export const SETUP_LINKS = {
   organization: { href: "#/departments", label: "부서 화면 열기" },
   notion: { href: "#/notion-console", label: "Notion 관리 화면 열기" },
   user_mapping: { href: "#/notion-mapping", label: "Notion 연결 화면 열기" },
-  llm: { href: "#/runners", label: "러너 화면 열기" },
+  llm: { href: "#/settings?tab=ai", label: "AI 설정 열기" },
   integrations: { href: "#/integrations", label: "외부 연동 화면 열기" },
   tls: { href: "#/diagnostics", label: "진단에서 인증서 확인" },
 };

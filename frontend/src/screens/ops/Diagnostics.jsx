@@ -263,14 +263,12 @@ export function Diagnostics() {
             {Object.keys(counts).length ? (
               <DashSection title="현재 리소스">
                 {/* Dashboard.jsx의 동일한 인벤토리 판독과 똑같이 해당 레지스트리로 드릴다운한다 -
-                    이 화면은 admin/system_admin 전용이라 세 화면 모두 항상 도달 가능하다(대시보드처럼
+                    이 화면은 admin/system_admin 전용이라 항상 도달 가능하다(대시보드처럼
                     역할별 canGo 분기가 필요 없다). */}
                 <MetricStrip
                   ariaLabel="현재 리소스"
                   items={[
-                    { key: "workflows", value: fmtNum(counts.active_workflows), label: "활성 워크플로", onClick: () => nav("/workflows") },
                     { key: "schedules", value: fmtNum(counts.active_schedules), label: "활성 스케줄", onClick: () => nav("/schedules") },
-                    { key: "runners", value: fmtNum(counts.runners), label: "추가된 러너", onClick: () => nav("/runners") },
                   ]}
                 />
               </DashSection>

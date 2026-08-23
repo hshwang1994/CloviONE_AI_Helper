@@ -75,7 +75,7 @@ fi
   echo "# state snapshot $(date -Iseconds)"
   ss -lntp 2>/dev/null || true
   echo "---"
-  systemctl is-active clovirone-web-assistant clovirone-web-worker nginx n8n 2>/dev/null || true
+  systemctl is-active clovirone-web-assistant clovirone-web-worker nginx 2>/dev/null || true
   echo "---"
   df -h "$VAR_DIR" 2>/dev/null || true
 } > "$BACKUP_DIR/state.txt"

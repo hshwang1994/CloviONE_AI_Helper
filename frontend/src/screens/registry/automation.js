@@ -11,31 +11,27 @@
  */
 import React from "react";
 import Link from "@mui/material/Link";
-import { CONCURRENCY_OPTS, DOC_MODE, JOB_TYPE, MISFIRE_OPTS, OPS_ROLES, SCHEDT_OPTS, SCHED_PRESET_OPTS, SCHED_RUN, SCHED_TARGET_OPTS, SCHED_TYPE, WRITE_ROLES, badgeCol, col, dateCol, enabledCol, field, fmtDateTime, jsonField, linkCol, listField, mapCol, opt, personField, previewField, schedSkipReasonText } from "./shared.js";
-import { DOC_GENERATE_FIELDS, docConfigInitial, docConfigTransform, docGenerateResult, onoff } from "./actions.js";
+import { CONCURRENCY_OPTS, JOB_TYPE, MISFIRE_OPTS, OPS_ROLES, SCHEDT_OPTS, SCHED_PRESET_OPTS, SCHED_RUN, SCHED_TARGET_OPTS, SCHED_TYPE, WRITE_ROLES, badgeCol, col, dateCol, enabledCol, field, fmtDateTime, jsonField, mapCol, opt, personField, schedSkipReasonText } from "./shared.js";
+import { onoff } from "./actions.js";
 
 export const AUTOMATION_SCREENS = {
   schedules: {
     key: "schedules", area: "자동화와 연동", title: "실행 일정", endpoint: "/api/admin/schedules",
     help: "정해진 시간에 자동 실행을 예약합니다.",
     emptyTitle: "예약된 일정이 없습니다",
-    // 문서 화면의 '정기 실행으로 예약'에서 넘어온 ?workflow_id= 쿼리를 생성 폼 프리필로 소비한다
-    // (템플릿 → 문서 생성 프리필과 동일한 onQuery 패턴). 대상 유형은 워크플로로 고정해 시작한다.
-    // ?id=는 다른 화면(승인의 '대상 보기' 등)이 특정 스케줄로 딥링크할 때 쓴다 — runners.onQuery와
-    // 동일한 패턴으로 그 스케줄의 상세 드로어를 곧바로 연다.
+    // ?id=는 다른 화면(승인의 '대상 보기' 등)이 특정 스케줄로 딥링크할 때 쓴다 — 그 스케줄의
+    // 상세 드로어를 곧바로 연다.
     onQuery: (p) => p.id
       ? { open: "select", id: p.id }
-      : (p.workflow_id ? { open: "create", initial: { target_type: "workflow", target_ref: p.workflow_id } } : null),
+      : null,
     selectKey: "schedule",
-    // USE-04/SCHD-02: create/edit의 target_ref select가 쓴다(DataScreen.jsx의 refListOptions).
-    refLists: [{ key: "workflows", endpoint: "/api/admin/workflows" }],
-    // 생성 권한이 없는 역할(operator/auditor)에게는 없는 버튼('+ 스케줄 추가')을 누르라고 안내하지 않는다(백업·문서 화면과 동일 패턴).
+    // 생성 권한이 없는 역할(operator/auditor)에게는 없는 버튼('+ 스케줄 추가')을 누르라고 안내하지 않는다(백업 화면과 동일 패턴).
     emptyHelp: (role) => (role === "admin" || role === "system_admin")
-      ? "‘+ 스케줄 추가’로 Cron 또는 1회 실행 일정을 추가해 워크플로를 자동 실행하세요."
+      ? "‘+ 스케줄 추가’로 Cron 또는 1회 실행 일정을 추가해 시스템 작업을 자동 실행하세요."
       : "실행 일정은 관리자가 추가합니다. 추가되면 예약과 다음 실행 시각이 여기에 표시됩니다.",
     createLabel: "스케줄 추가",
     // list_schedules(app/schedules/router.py)는 쿼리 파라미터를 전혀 받지 않는다(항상 전체 목록) —
-    // clientFilter:true로 이미 받아 온 목록을 화면에서 직접 거른다(workflows.filters와 동일 패턴).
+    // clientFilter:true로 이미 받아 온 목록을 화면에서 직접 거른다.
     // 스케줄은 삭제/보관 엔드포인트가 없어 비활성·완료된 once형도 계속 목록에 남으므로, 활성만
     // 보고 싶을 때 걸러낼 방법이 지금까지 없었다.
     filters: [
@@ -44,18 +40,12 @@ export const AUTOMATION_SCREENS = {
       { key: "target_type", type: "select", label: "대상 유형", clientFilter: true, options: SCHED_TARGET_OPTS },
     ],
     // 1회(once) 일정은 Cron 식이 없다 → 빈 칸 대신 유형 라벨을 보여준다(실제 실행 시각은 '다음 실행' 열).
-    // target_type/target_ref도 목록 열로 노출 — 이 일정이 실제로 무엇을 실행하는지(어느 워크플로/
-    // 시스템)가 예전엔 상세를 하나씩 열어야만 보였다. target_ref는 대상이 워크플로일 때 그 화면으로
-    // 바로 이동하는 링크로 보여준다(러너 상세의 integration_id와 동일한 패턴).
+    // target_type/target_ref도 목록 열로 노출 — 이 일정이 실제로 무엇을 실행하는지가 예전엔
+    // 상세를 하나씩 열어야만 보였다.
     columns: [{ ...col("name", "이름"), identifier: true }, mapCol("schedule_type", "유형", SCHED_TYPE),
       { key: "cron_expression", label: "실행 일정(Cron)", render: (r) => r.schedule_type === "once" ? "1회 실행(‘다음 실행’ 참고)" : (r.cron_expression == null || r.cron_expression === "" ? "-" : String(r.cron_expression)) },
-      mapCol("target_type", "대상 유형", { workflow: "워크플로", system: "시스템" }),
-      // 워크플로 화면의 ?id= 딥링크(onQuery)로 그 워크플로 상세를 곧바로 연다(무필터 전체 목록 아님).
-      // USE-04: 서버가 target_name을 함께 준다(app/schedules/router.py _view) — 원시 UUID 대신
-      // 이름을 보여주고, id는 계속 옆에 남긴다(다른 이름-해석 열과 같은 관용, personField 참고).
-      { key: "target_ref", label: "대상", render: (r) => (r.target_ref && r.target_type === "workflow")
-        ? React.createElement(Link, { underline: "hover", href: "#/workflows?id=" + encodeURIComponent(r.target_ref) }, r.target_name || r.target_ref)
-        : (r.target_ref || "-") },
+      mapCol("target_type", "대상 유형", { system: "시스템" }),
+      { key: "target_ref", label: "대상", render: (r) => r.target_ref || "-" },
       enabledCol("활성"),
       // 비활성화(disable_schedule)는 next_run_at을 지우지 않는다(백엔드가 enabled만 끈다) — 그대로
       // 보여주면 '이 시각에 다시 실행될 것'처럼 읽힌다. 비활성 행은 활성 배지로 알 수 있으니 이 열은
@@ -84,14 +74,12 @@ export const AUTOMATION_SCREENS = {
       { name: "cron_expression", label: "Cron 식", type: "text", help: "예: 0 9 * * 1 (매주 월 09:00). 간편 주기를 골랐으면 비워도 됩니다. (유형이 ‘1회 실행’이면 이 값은 쓰이지 않습니다.)" },
       { name: "run_at", label: "실행 시각(1회형, ISO)", type: "text", help: "예: 2026-08-01T09:00:00+09:00, 시간대 표기가 없으면 UTC로 해석됩니다(KST면 +09:00을 붙이세요). (유형이 ‘Cron 반복’이면 이 값은 쓰이지 않습니다.)" },
       { name: "timezone", label: "시간대", type: "text", value: "Asia/Seoul", help: "Cron 평가에 쓰이는 시간대(run_at에는 적용되지 않음)." },
-      { name: "target_type", label: "대상 유형", type: "select", value: "workflow", options: SCHED_TARGET_OPTS },
-      // USE-04/SCHD-02: 워크플로 UUID를 손으로 옮겨 적던 것을 이름으로 고르게 한다(refLists,
-      // 아래 참고). '대상 유형'을 '시스템'으로 바꿔도 고를 수 있게 유일한 시스템 값(noop)을
-      // 같은 목록 끝에 얹는다 — 두 필드를 서로 맞춰 조건부로 보여주는 것보다 단순하다.
-      { name: "target_ref", label: "대상", type: "select", kind: "entity", required: true, optionsFromRefList: "workflows",
-        extraOptions: [{ value: "noop", label: "시스템 (noop)" }],
-        help: "‘대상 유형’이 워크플로면 여기서 워크플로를 고르세요(승인 필요 없음으로 설정된 것만 실제 실행됩니다). 시스템이면 목록 끝의 ‘시스템 (noop)’을 고르세요." },
-      { name: "payload_template", label: "실행 입력값(JSON)", type: "json", help: "워크플로에 보낼 기본 입력값. 비우면 빈 값으로 실행됩니다." },
+      { name: "target_type", label: "대상 유형", type: "select", value: "system", options: SCHED_TARGET_OPTS },
+      // 대상은 시스템 하나뿐이고 그 값도 하나뿐이다(백엔드 SYSTEM_TARGETS = {"noop"}).
+      { name: "target_ref", label: "대상", type: "select", required: true, value: "noop",
+        options: opt([["noop", "시스템 (noop)"]]),
+        help: "지금 예약할 수 있는 대상은 시스템 작업 하나입니다." },
+      { name: "payload_template", label: "실행 입력값(JSON)", type: "json", help: "실행에 넘길 기본 입력값. 비우면 빈 값으로 실행됩니다." },
       { name: "retry_policy", label: "재시도 정책(JSON)", type: "json", help: '예: {"max_attempts": 3}, 일시 오류 시 최대 재시도 횟수(1~10, 기본 3). app/schedules/scheduler.py가 이 값으로 재시도/백오프를 결정합니다.' },
       // 기본값을 명시하지 않으면 FormModal이 null을 보내 백엔드(non-Optional str)가 422로 거절한다
       // → 모든 기본 경로 스케줄 생성이 실패했다. 백엔드 기본값(skip)과 맞춘다.
@@ -200,9 +188,9 @@ export const AUTOMATION_SCREENS = {
       { name: "run_at", label: "실행 시각(1회형, ISO)", type: "text", help: "시간대 표기가 없으면 UTC로 해석됩니다(KST면 +09:00). 유형이 ‘Cron 반복’이면 이 값은 쓰이지 않습니다. 이미 실행된 1회형 일정은 이 칸이 비어 있습니다. 다시 저장하려면 새 실행 시각을 입력하세요(비워 두면 저장이 거절됩니다)." },
       { name: "timezone", label: "시간대", type: "text" },
       { name: "target_type", label: "대상 유형", type: "select", options: SCHED_TARGET_OPTS },
-      { name: "target_ref", label: "대상", type: "select", kind: "entity", required: true, optionsFromRefList: "workflows",
-        extraOptions: [{ value: "noop", label: "시스템 (noop)" }],
-        help: "‘대상 유형’이 워크플로면 여기서 워크플로를 고르세요(승인 필요 없음인 것만). 시스템이면 ‘시스템 (noop)’을 고르세요." },
+      { name: "target_ref", label: "대상", type: "select", required: true,
+        options: opt([["noop", "시스템 (noop)"]]),
+        help: "지금 예약할 수 있는 대상은 시스템 작업 하나입니다." },
       { name: "payload_template", label: "실행 페이로드(JSON)", type: "json" },
       { name: "retry_policy", label: "재시도 정책(JSON)", type: "json", help: '예: {"max_attempts": 3}, 일시 오류 시 최대 재시도 횟수(1~10, 기본 3).' },
       { name: "misfire_policy", label: "누락 처리 정책", type: "select", options: MISFIRE_OPTS },
@@ -212,133 +200,6 @@ export const AUTOMATION_SCREENS = {
       { name: "end_at", label: "종료 시각(ISO, 선택)", type: "text" },
     ] },
   },
-  documents: {
-    key: "documents", area: "자동화와 연동", title: "문서 자동 생성", endpoint: "/api/admin/documents",
-    help: "Notion 문서를 자동으로 만듭니다. ‘+ 문서 생성’으로 워크플로와 기간을 지정하면 생성 결과가 아래 기록에 남고, ‘승인 대기’ 문서는 ‘승인’ 화면에서 발행합니다.",
-    emptyTitle: "생성된 문서가 없습니다",
-    // WF1 R5 — 쓰기 역할(admin/system_admin)에게는 emptyHelp가 위 help 배너 및 아래
-    // emptySteps[0]와 거의 같은 문장("'+ 문서 생성'으로 워크플로와 기간을 지정하면...")을
-    // 세 번째로 또 반복했다(DataScreen.jsx가 canOnboard일 때만 situation/prerequisite/
-    // steps/expected를 함께 보여준다 — 그 구조가 이미 "무엇을 할지"를 충분히 말한다).
-    // 읽기 전용 역할(operator/auditor)에는 그 4단 구조 자체가 안 보이므로(canOnboard=false)
-    // emptyHelp가 유일한 안내다 — 그쪽만 남긴다.
-    emptyHelp: (role) => (role === "admin" || role === "system_admin")
-      ? null
-      : "문서 생성 권한이 있는 관리자가 생성하면 여기에 기록이 남습니다.",
-    // 연동/러너 화면처럼 단계별 온보딩 안내를 준다(canOnboard가 primary 헤더 작업 '+ 문서 생성'을 근거로
-    // 쓰기 역할에만 보여준다). 문서 자동화가 설정에서 꺼져 있으면 '+ 문서 생성'이 409로 실패하므로
-    // 선행 조건과 설정 화면 확인을 안내하고, 워크플로 등록이 선행이라 relatedLink로 이어 준다.
-    emptySituation: "아직 자동 생성된 Notion 문서가 없습니다.",
-    // DGEN-02: "워크플로가 등록돼 있어야 한다"는 문구만으로는, 채팅용(AI 업무 도우미)이나
-    // Notion 매핑용 워크플로가 이미 있는 설치의 관리자가 "워크플로는 있는데 왜 안 되지"로
-    // 헤맬 수 있다 — 문서 생성은 그 워크플로들과 무관한 별도 워크플로가 필요하다는 사실
-    // 자체를 이 문구가 말하지 않았다(실측: 설치 하나에 등록 워크플로 2개, 둘 다 문서
-    // 생성용이 아니었는데 빈 상태는 그 사실을 말하지 않고 그냥 "등록해라"라고만 했다).
-    emptyPrerequisite: "채팅·Notion 매핑용과 다른, 문서 생성 전용 워크플로가 필요합니다. 설정에서 ‘문서 자동화’도 켜 두세요.",
-    emptySteps: ["‘+ 문서 생성’으로 대상 워크플로와 기간을 지정합니다.", "모드에 따라 미리보기/승인 대기/발행으로 진행됩니다.", "‘승인 대기’ 문서는 ‘승인’ 화면에서 발행합니다."],
-    emptyExpected: "요청한 문서 생성 건이 상태와 함께 이 목록에 남고, 발행되면 Notion 링크가 표시됩니다.",
-    emptyRelatedLink: { href: "#/workflows", label: "먼저: 워크플로 추가로 이동" },
-    // DGEN-01: '+ 문서 생성' 폼의 워크플로/템플릿 ID가 손으로 옮겨 적는 자유 텍스트였다 — 이
-    // 화면이 이미 아는 목록(워크플로/템플릿 이름)을 select로 보여준다(DataScreen.jsx의
-    // refListOptions/withOptionsFrom, DOC_GENERATE_FIELDS의 optionsFromRefList가 소비).
-    refLists: [
-      { key: "workflows", endpoint: "/api/admin/workflows" },
-      { key: "templates", endpoint: "/api/admin/templates" },
-    ],
-    // 템플릿 화면의 '이 템플릿으로 문서 생성'에서 넘어온 해시 쿼리를 생성 폼에 프리필한다(DataScreen이 소비).
-    // template_id는 config JSON 안으로 넣고, 워크플로 템플릿의 대상 ID를 workflow_id로 채운다.
-    // ?id=는 다른 화면(승인의 '대상 보기' 등)이 특정 문서 생성 건으로 딥링크할 때 쓴다 — runners.onQuery와
-    // 동일한 패턴으로 그 문서의 상세 드로어를 곧바로 연다.
-    onQuery: (p) => p.id
-      ? { open: "select", id: p.id }
-      : (p.template_id ? { open: "header", label: "문서 생성", initial: docConfigInitial({ workflow_id: p.workflow_id, config: { template_id: p.template_id } }) } : null),
-    selectKey: "generation",
-    paginated: true,
-    // 비동기 생성(pending→미리보기/승인대기 등) 상태 전이를 화면이 자동으로 따라간다.
-    // '승인 대기'는 다른 화면(승인)에서만 풀리므로 여기서 무한 폴링하지 않는다 — pending만 추적한다.
-    pollWhile: (r) => r.status === "pending",
-    // status는 백엔드가 지원하는 서버 필터. mode는 백엔드 목록이 받지 않으므로(list_generations는
-    // status만 받는다 — app/documents/router.py) clientFilter로 현재 페이지에서만 거른다.
-    // ⚠ 이 화면은 paginated라, 모드 필터는 구조적으로 '지금 페이지 안'까지가 한계다. 위
-    // paginated+clientFilter 경고 Callout이 그 필터 이름을 지목해 함께 알린다 — 조용히 반만
-    // 거르지는 않는다. 제대로 된 해결은 서버가 mode를 받는 것이고(status 바로 옆 3줄), 그건 이
-    // 작업의 소유 범위(registry.js와 그 부품) 밖이라 손대지 않고 여기에 적어 둔다.
-    filters: [{ key: "status", type: "select", label: "상태", options: opt([["pending", "대기"], ["preview_ready", "미리보기 완료"], ["quality_failed", "품질 미달"], ["awaiting_approval", "승인 대기"], ["published", "발행됨"], ["failed", "실패"]]) },
-      { key: "mode", type: "select", label: "모드", clientFilter: true, options: opt([["preview_then_approve", "미리보기 후 승인"], ["preview_only", "미리보기만"], ["auto_publish", "자동 발행"]]) }],
-    headerActions: [
-      { label: "문서 생성", variant: "primary", primary: true, roles: WRITE_ROLES, path: () => "/api/admin/documents/generate",
-        result: docGenerateResult, fields: DOC_GENERATE_FIELDS, transform: docConfigTransform },
-    ],
-    // 첫 열은 원시 UUID 대신 사람이 읽는 식별자(미리보기 제목 → 없으면 UUID)로 행을 구분한다.
-    // 실제 UUID(id)는 감사 로그 대조·API 문의 등에 필요한데 어디에도 안 보였다 — 두 분기 모두 끝에
-    // 붙여 항상 보이게 한다(제목이 있어도 UUID를 확인·복사할 방법이 있어야 한다).
-    columns: [{ key: "id", label: "문서", identifier: true, render: (r) => {
-      const idSuffix = r.id ? ", " + r.id : "";
-      if (r.preview && r.preview.title) return String(r.preview.title) + idSuffix;
-      // 미리보기 제목이 없는 행(대기·품질 미달·실패 — 정확히 운영자가 가장 자주 찾아보는 상태들)은
-      // 원시 UUID 대신 기간·상태로 사람이 알아볼 수 있는 라벨을 만든다(스케줄 실행 이력의 동일한
-      // 문제와 같은 이유 — 목록을 훑을 때 UUID만으로는 어느 행인지 구분할 수 없었다).
-      const st = { pending: "대기", preview_ready: "미리보기 완료", quality_failed: "품질 미달", awaiting_approval: "승인 대기", published: "발행됨", failed: "실패" }[r.status] || r.status || "?";
-      return "기간 " + (r.period || "?") + " 문서 (" + st + ")" + idSuffix;
-    },
-      // SEM-01: 이 열이 render라 표식 없이는 전부 "상세 보기"였다 — 위 render와 같은 값(단
-      // 낭독 시 장황한 UUID는 뺀다)을 rowName으로 노출해 행마다 실제로 다른 이름을 만든다.
-      rowName: (r) => {
-        if (r.preview && r.preview.title) return String(r.preview.title);
-        const st = { pending: "대기", preview_ready: "미리보기 완료", quality_failed: "품질 미달", awaiting_approval: "승인 대기", published: "발행됨", failed: "실패" }[r.status] || r.status || "?";
-        return "기간 " + (r.period || "?") + " 문서 (" + st + ")";
-      } },
-      col("period", "기간"), mapCol("mode", "모드", DOC_MODE), badgeCol("status", "상태"),
-      // generation_view가 requested_by를 최상위로 이미 돌려주는데 목록엔 없어 각 행을 요청한 사람을
-      // 보려면 상세를 하나씩 열어야 했다(승인 화면은 이미 목록에서 요청자를 바로 보여준다).
-      // RG-07: 서버(app/documents/router.py)가 requested_by_name/_email을 이미 매 페이지
-      // 계산해 주는데 화면이 raw UUID만 그렸다 — approvals/audit와 같은 personField로 맞춘다.
-      personField("requested_by", "요청자", "requested_by_name", "requested_by_email"),
-      linkCol("published_ref", "발행 링크"), dateCol("created_at", "생성")],
-    // 미리보기 본문·품질 문제·오류를 상세에서 읽는다(미리보기만/품질미달 결과 확인).
-    // requested_by는 generation_view가 최상위로 준다 — 누가 요청했는지 상세에서 바로 본다(원시 UUID라 'ID'로 라벨링).
-    // template_id는 generation_view가 감사·운영 조회를 위해 일부러 최상위로 승격한 필드다(어느
-    // 템플릿이 이 문서를 만들었는지) — config JSON 안에 묻히지 않게 직접 노출한다.
-    // id는 이미 목록 첫 열(제목 없으면 원시 UUID로 표시)이라 상세에서 중복 제거(드로어는 열+detailFields 합집합을 그린다).
-    // workflow_id·template_id는 다른 화면 엔티티의 ID다 — 러너 상세의 integration_id와 동일한
-    // 이유로 원시 텍스트 대신 그 화면으로 바로 이동하는 링크로 보여준다.
-    detailFields: [
-      // 워크플로 화면의 ?id= 딥링크(onQuery)로 그 워크플로 상세를 곧바로 연다(무필터 전체 목록 아님).
-      { key: "workflow_id", label: "워크플로 ID", render: (r) => r.workflow_id ? React.createElement(Link, { underline: "hover", href: "#/workflows?id=" + encodeURIComponent(r.workflow_id) }, r.workflow_id) : "-" },
-      // 템플릿 화면이 이제 ?id=로 특정 템플릿 상세를 곧바로 여는 딥링크(onQuery)를 지원한다 — 무필터
-      // 전체 목록에만 떨어지던 죽은 앵커가 아니라 실제로 그 템플릿으로 데려간다.
-      { key: "template_id", label: "템플릿 ID", render: (r) => r.template_id ? React.createElement(Link, { underline: "hover", href: "#/templates?id=" + encodeURIComponent(r.template_id) }, r.template_id) : "-" },
-      // requested_by는 이제 목록 열(요청자)이라 상세에서 중복 제거(드로어는 열+detailFields 합집합을 그린다).
-      jsonField("config", "요청 설정"), previewField("preview", "미리보기"), listField("quality_problems", "품질 문제"), field("error_message", "오류"), dateCol("updated_at", "수정")],
-    // '승인 대기' 문서는 여기서 발행할 수 없다(백엔드에 문서별 발행 API 없음) — 승인 화면으로 안내한다.
-    actions: [
-      // '문서 자동 생성' 화면 자체엔 반복/예약 실행 경로가 없다(수동 '+ 문서 생성' 버튼뿐) — 새 인프라를
-      // 만드는 대신 이미 있는 스케줄 화면으로 보내 같은 워크플로를 대상으로 한 Schedule을 만들게 한다
-      // (템플릿의 '이 템플릿으로 문서 생성'과 동일한 화면 간 프리필 패턴, schedules.onQuery가 소비).
-      { label: "정기 실행으로 예약", roles: WRITE_ROLES, when: (r) => !!r.workflow_id,
-        navigate: (r) => "#/schedules?workflow_id=" + encodeURIComponent(r.workflow_id) },
-      // 특정 문서의 승인 요청으로 딥링크할 수단은 없지만(document.publish 승인은 이 생성 건의 id를
-      // approval.object_id로 직접 담지 않는다), 최소한 '대기' 상태로는 걸러 보여준다 — approvals.onQuery가
-      // 이제 ?status=를 소비해 실제로 '대기' 큐만 남기고 승인/거절/만료/취소 이력에 묻히지 않게 한다.
-      { label: "승인 대기 목록으로", when: (r) => r.status === "awaiting_approval", navigate: () => "#/approvals?status=pending" },
-      // FN-07: '+ 문서 생성' 폼을 재오픈해 같은 기간·대상으로 다시 제출하면 idempotency
-      // 충돌로 409 막다른 길이었다(round30 감사 E High) — 그래서 백엔드에 같은 레코드를
-      // 그대로 재큐잉하는 전용 POST /{id}/retry 가 이미 있는데, 이 버튼은 계속 옛 재오픈
-      // 경로(/generate)를 불렀다. jobs·schedule-runs 재시도와 같은 confirm+path 패턴으로
-      // 바꾼다 — 새 생성이 아니라 진짜 재시도가 되게.
-      { label: "재시도", roles: WRITE_ROLES, when: (r) => r.status === "failed" || r.status === "quality_failed",
-        path: (r) => "/api/admin/documents/" + r.id + "/retry", confirm: "이 문서 생성을 같은 설정으로 다시 시도할까요?" },
-      // document_generation은 감사 로그의 유효한 object_type이고(app/documents/router.py가 이 이름으로
-      // 기록한다) OBJTYPE_OPTS에도 이미 있다 — 부서·직책과 동일한 딥링크를 추가한다.
-      // operator는 이 화면(READ_ROLES)엔 들어오지만 /audit 화면엔 못 들어간다(App.jsx SCREEN_ROLES) —
-      // 다른 화면들의 동일한 '감사 로그에서 보기'와 동일한 이유로 admin/system_admin/auditor에만 노출한다.
-      { label: "감사 로그에서 보기", roles: ["admin", "system_admin", "auditor"], navigate: (r) => "#/audit?object_type=document_generation&object_id=" + r.id },
-      // 이 생성 건을 실제로 처리한 작업(큐)으로 가는 링크(FN-13/IA-02 반대 방향) — jobs.onQuery의
-      // generation_id 필터가 소비한다. 진행 상황(대기·재시도 횟수)이나 워커의 원시 오류를 보려면
-      // 예전엔 작업 큐에서 이 문서의 generation_id를 손으로 찾는 것 말고는 길이 없었다.
-      { label: "작업 큐에서 보기", navigate: (r) => "#/jobs?generation_id=" + encodeURIComponent(r.id) },
-    ],
-  },
   jobs: {
     key: "jobs", area: "운영", title: "작업 큐", endpoint: "/api/admin/jobs",
     // 이 화면이 순수 관찰용(모니터링)으로 읽히지 않게, 실제로 조작 가능한 액션(재시도/취소)이
@@ -346,17 +207,17 @@ export const AUTOMATION_SCREENS = {
     help: "채팅, 문서 생성, Notion 동기화, 예약 실행 같은 백그라운드 작업의 처리 현황과 실패를 봅니다. 실패한 작업은 ‘재시도’, 대기 중인 작업은 ‘취소’할 수 있습니다.",
     // job_type은 chat_message/document_generate뿐 아니라 notion_mapping_sync·schedule_run도
     // 이 화면에 똑같이 나타난다(아래 filters의 job_type 옵션과 JOB_TYPE 맵 참고) — 두 유형만
-    // 예시로 들면 처음 보는 사람은 이 화면이 Notion 동기화·예약 실행 작업도 보여준다는 걸 모른다.
-    emptyTitle: "처리된 작업이 없습니다", emptyHelp: "채팅, 문서 생성, Notion 동기화, 예약 실행 같은 백그라운드 작업이 실행되면 처리 현황과 실패 내역이 여기에 표시됩니다.",
+    // 예시로 들면 처음 보는 사람은 이 화면이 예약 실행 작업도 보여준다는 걸 모른다.
+    emptyTitle: "처리된 작업이 없습니다", emptyHelp: "채팅, 예약 실행, 메일 발송 같은 백그라운드 작업이 실행되면 처리 현황과 실패 내역이 여기에 표시됩니다.",
     // 감사 로그·알림에서 특정 작업으로 딥링크할 때(?job_id=) 무필터 전체 목록 대신 그 작업의 상세
     // 드로어를 곧바로 연다 — GET /api/admin/jobs/{id}는 이미 pollJobUntilDone이 쓰는 엔드포인트다.
-    // schedule_id/schedule_run_id/generation_id는 그 반대 방향(FN-13/IA-02) — 스케줄 실행
-    // 이력·문서 생성 상세가 "이 실행을 담당한 작업"으로 오는 딥링크다. 특정 행 하나가 아니라
-    // 목록을 그 값으로 미리 걸러서 연다(schedule_id/generation_id는 여러 작업과 매칭될 수 있다 —
-    // schedule_run_id만 사실상 1건이지만 같은 방식으로 다뤄 일관성을 지킨다).
+    // schedule_id/schedule_run_id는 그 반대 방향(FN-13/IA-02) — 스케줄 실행 이력이 "이 실행을
+    // 담당한 작업"으로 오는 딥링크다. 특정 행 하나가 아니라 목록을 그 값으로 미리 걸러서 연다
+    // (schedule_id는 여러 작업과 매칭될 수 있다 — schedule_run_id만 사실상 1건이지만 같은
+    // 방식으로 다뤄 일관성을 지킨다).
     onQuery: (p) => p.job_id ? { open: "select", id: p.job_id }
-      : (p.schedule_id || p.schedule_run_id || p.generation_id)
-        ? { open: "filter", values: { schedule_id: p.schedule_id, schedule_run_id: p.schedule_run_id, generation_id: p.generation_id } }
+      : (p.schedule_id || p.schedule_run_id)
+        ? { open: "filter", values: { schedule_id: p.schedule_id, schedule_run_id: p.schedule_run_id } }
         : null,
     selectKey: "job",
     paginated: true,
@@ -420,11 +281,10 @@ export const AUTOMATION_SCREENS = {
     pollWhile: (r) => r.status === "queued" || r.status === "running",
     refLists: [
       { key: "schedules", endpoint: "/api/admin/schedules" },
-      { key: "generations", endpoint: "/api/admin/documents", labelKey: "id" },
     ],
     filters: [
       { key: "status", type: "select", label: "상태", options: opt([["queued", "대기"], ["running", "실행 중"], ["succeeded", "완료"], ["failed", "실패"], ["cancelled", "취소됨"]]) },
-      { key: "job_type", type: "select", label: "유형", options: opt([["chat_message", "채팅 메시지"], ["document_generate", "문서 생성"], ["notion_mapping_sync", "Notion 동기화"], ["schedule_run", "예약 실행"]]) },
+      { key: "job_type", type: "select", label: "유형", options: opt([["chat_message", "채팅 메시지"], ["schedule_run", "예약 실행"], ["mail_send", "메일 발송"]]) },
       /* 크로스링크(onQuery)가 채우기도 하지만 운영자가 직접 고르기도 하는 자리다.
          W5: 셋 중 **전역 목록이 있는 둘**은 이름으로 고르게 바꾼다 — 사람이 UUID 를
          외워서 붙여넣는 것은 검색 기능이 아니다(R-5). 「실행 건 ID」는 일정 하나에
@@ -433,7 +293,6 @@ export const AUTOMATION_SCREENS = {
       { key: "schedule_id", type: "select", kind: "entity", label: "연결된 스케줄", optionsFromRefList: "schedules" },
       { key: "schedule_run_id", type: "text", label: "실행 건 ID",
         freeTextReason: "일정 하나에 종속된 값이라 전역 후보 목록이 없다. 실제 경로는 일정 상세의 크로스링크다." },
-      { key: "generation_id", type: "select", kind: "entity", label: "연결된 문서 생성", optionsFromRefList: "generations" },
     ],
     // SEM-01: 첫 열(생성 시각)이 dateCol(render 있음)이라 표식 없이는 100건이 전부 "상세
     // 보기"였다. job_type 필터로 좁혀 보는 게 흔한 사용 패턴이라 유형만으로는 부족해
@@ -486,8 +345,6 @@ export const AUTOMATION_SCREENS = {
       { key: "schedule_id", label: "연결된 스케줄", render: (r) => r.schedule_id
         ? React.createElement(Link, { underline: "hover", href: "#/schedules?id=" + encodeURIComponent(r.schedule_id) }, r.schedule_id) : "-" },
       { key: "schedule_run_id", label: "실행 건 ID", render: (r) => r.schedule_run_id || "-" },
-      { key: "generation_id", label: "연결된 문서 생성", render: (r) => r.generation_id
-        ? React.createElement(Link, { underline: "hover", href: "#/documents?id=" + encodeURIComponent(r.generation_id) }, r.generation_id) : "-" },
       { key: "available_at_full", label: "실행 예정", render: (r) => fmtDateTime(r.available_at) },
       dateCol("started_at", "시작"), dateCol("finished_at", "종료"),
       { key: "duration_ms", label: "소요 시간", render: (r) => r.duration_ms != null ? (Math.round(r.duration_ms / 100) / 10) + "초" : "-" }, // 백엔드 오류 문자열(f"{type(exc).__name__}: {exc}", worker.py)은 pydantic ValidationError 등에서

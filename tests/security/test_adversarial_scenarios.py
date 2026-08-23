@@ -1,3 +1,5 @@
+"""qa-contract-change: 러너가 잘못된 JSON 을 보낼 때의 처리 시험이 그 provider 와 함께 사라졌다. 잘못된 URL 을 저장 시점에 막는다는 시험은 러너에서 연동으로 옮겼다 — 같은 관문(OutboundClient allowlist)이고 남은 소비자가 연동이다. 스케줄 중복 발화 시험은 대상만 system 으로 바꿨다."""
+
 """Adversarial scenarios from spec §32.8 walked item by item."""
 
 import pytest
@@ -11,12 +13,14 @@ def _headers(csrf):
     return {"X-CSRF-Token": csrf}
 
 
-def test_admin_invalid_runner_url_rejected(client, login_as):
-    # "관리자가 잘못된 Runner URL을 넣으면?" → allowlist rejects at save time.
+def test_admin_invalid_integration_url_rejected(client, login_as):
+    # "관리자가 잘못된 URL을 넣으면?" → allowlist rejects at save time.
+    # (S11 이전에는 러너로 봤다 — 같은 관문이고 남은 소비자가 연동이다.)
     csrf = login_as("admin")
     r = client.post(
-        "/api/admin/runners",
-        json={"name": "bad", "base_url": "http://169.254.169.254/latest"},
+        "/api/admin/integrations",
+        json={"name": "bad", "provider_type": "http_service",
+              "base_url": "http://169.254.169.254/latest"},
         headers=_headers(csrf),
     )
     assert r.status_code == 400
@@ -43,16 +47,10 @@ def test_schedule_double_fire_prevented(app, login_as, client, fake_clock):
     from app.schedules.models import Schedule, ScheduleRun
     from app.schedules.scheduler import create_run_and_enqueue
 
-    csrf = login_as("system_admin")
-    wf = client.post(
-        "/api/admin/workflows",
-        json={"name": "dbl", "webhook_url": "http://127.0.0.1:5678/webhook/dbl"},
-        headers=_headers(csrf),
-    ).json()["workflow"]
     with app.state.session_factory() as db:
         sched = Schedule(
             name="중복방지", schedule_type="cron", cron_expression="0 * * * *",
-            timezone="UTC", target_type="workflow", target_ref=wf["id"],
+            timezone="UTC", target_type="system", target_ref="noop",
             enabled=True,
         )
         db.add(sched); db.commit()
@@ -103,25 +101,3 @@ def test_browser_refresh_does_not_duplicate_ticket(client, login_as):
     assert len([m for m in msgs if m["role"] == "user"]) == 1
 
 
-def test_runner_bad_json_response_handled(app, login_as, client, fake_http, fake_clock, settings):
-    # "Runner가 잘못된 JSON을 보내면?"
-    from app.runners.provider_http import RunnerHttpProvider, RunnerUnavailableError
-    from app.runners.schemas import RunnerConfig
-    from app.runners.service import create_runner
-
-    with app.state.session_factory() as db:
-        runner = create_runner(
-            db, RunnerConfig(name="badjson", base_url="http://127.0.0.1:8787", enabled=True),
-            allowlists=app.state.allowlists, created_by=None,
-        )
-        runner.enabled = True
-        db.commit()
-        rid = runner.id
-    fake_http.on_invalid_json("http://127.0.0.1:8787")
-    provider = RunnerHttpProvider(app.state.outbound_client)
-    with app.state.session_factory() as db:
-        from app.runners.models import Runner
-
-        runner = db.get(Runner, rid)
-        with pytest.raises(RunnerUnavailableError):
-            provider.invoke(db, runner, {"x": 1}, now=fake_clock.now())

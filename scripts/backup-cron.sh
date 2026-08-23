@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 정기 백업 cron 진입점 (root). 매일: 플랫폼 백업 + 보존 정리. 일요일: n8n DB 백업 추가.
+# 정기 백업 cron 진입점 (root). 매일: 플랫폼 백업 + 보존 정리.
 # 설치: scripts/install-backup-cron.sh 참조. 수동 실행도 안전(멱등).
 set -euo pipefail
 export LC_ALL=C.UTF-8
@@ -7,10 +7,7 @@ export LC_ALL=C.UTF-8
 
 APP_DIR=/opt/clovirone-web-assistant
 BACKUP_ROOT=/var/backups/clovirone-web-assistant
-N8N_BACKUP_ROOT=/var/backups/n8n
-N8N_DB=/var/lib/n8n/.n8n/database.sqlite
 KEEP_PLATFORM_DAYS=7   # 플랫폼 백업 보존 기간(일)
-KEEP_N8N=4        # n8n DB 백업 보존 개수 (주 단위 실행 기준 4주)
 
 log() { echo "[backup-cron] $(date -Iseconds) $*"; }
 
@@ -38,23 +35,6 @@ if [ -d "$BACKUP_ROOT" ]; then
     log "prune platform backup: $d"
     rm -rf -- "$d"
   done
-fi
-
-# 3) n8n DB 백업 (일요일에만) — 온라인 스냅샷은 sqlite Backup API 사용(WAL 안전)
-if [ "$(date +%u)" = "7" ] && [ -f "$N8N_DB" ]; then
-  install -d -o root -g root -m 0700 "$N8N_BACKUP_ROOT"
-  out="$N8N_BACKUP_ROOT/database-$(date +%Y%m%d_%H%M%S).sqlite"
-  sqlite3 "$N8N_DB" ".backup '$out'"
-  gzip -f "$out"
-  log "n8n DB backup: $out.gz ($(du -h "$out.gz" | cut -f1))"
-  mapfile -t n8nbaks < <(find "$N8N_BACKUP_ROOT" -maxdepth 1 -name 'database-*.sqlite.gz' | sort)
-  n8ncount=${#n8nbaks[@]}
-  if (( n8ncount > KEEP_N8N )); then
-    for f in "${n8nbaks[@]:0:n8ncount-KEEP_N8N}"; do
-      log "prune n8n backup: $f"
-      rm -f -- "$f"
-    done
-  fi
 fi
 
 log "BACKUP_CRON_OK"

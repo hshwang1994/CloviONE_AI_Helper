@@ -35,18 +35,10 @@ def _headers(csrf):
     return {"X-CSRF-Token": csrf}
 
 
+# S11 이후 스케줄 대상은 `system` 하나다(D-267).
 @pytest.fixture()
-def workflow_id(client, admin_csrf):
-    r = client.post(
-        "/api/admin/workflows",
-        json={
-            "name": "보고서 생성",
-            "webhook_url": "http://127.0.0.1:5678/webhook/report",
-            "operation_mode": "read",
-        },
-        headers=_headers(admin_csrf),
-    )
-    return r.json()["workflow"]["id"]
+def workflow_id():
+    return "noop"
 
 
 def _once_payload(workflow_id, **overrides):
@@ -56,7 +48,7 @@ def _once_payload(workflow_id, **overrides):
         "cron_expression": None,
         "run_at": "2026-07-14T05:00:00",
         "timezone": "UTC",
-        "target_type": "workflow",
+        "target_type": "system",
         "target_ref": workflow_id,
         "payload_template": {"scope": "weekly"},
         **overrides,
@@ -69,7 +61,7 @@ def _cron_payload(workflow_id, **overrides):
         "schedule_type": "cron",
         "cron_expression": "0 * * * *",
         "timezone": "UTC",
-        "target_type": "workflow",
+        "target_type": "system",
         "target_ref": workflow_id,
         "payload_template": {"scope": "weekly"},
         **overrides,

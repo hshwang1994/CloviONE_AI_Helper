@@ -8,6 +8,8 @@ app/org/schemas.py, app/templates/router.py) — 스키마가 바뀌면 이 테�
 
 from __future__ import annotations
 
+"""qa-contract-change: 폼 필드 상한을 스키마에서 그대로 읽는다는 계약의 화면이 셋 줄었다(runners·workflows·templates). 남은 연동 쪽 단언은 그대로이고, 그 자리에 **반대 방향 단언**을 넣었다 — 사라진 세 화면이 결과에 되살아나면 실패한다. 화면 없는 상한이 생기는 것을 그것이 막는다."""
+
 import pytest
 from pydantic import BaseModel, Field
 
@@ -34,13 +36,6 @@ def test_prompts_and_policies_limits_match_the_schema_declarations():
     assert limits["prompts"]["edit"] == {"content": 100000, "purpose": 2000}
     assert limits["policies"]["create"] == {"name": 120, "purpose": 2000, "content": 100000}
     assert limits["policies"]["edit"] == {"content": 100000, "purpose": 2000}
-
-
-def test_templates_limits_match_the_schema_declaration():
-    limits = all_field_limits()
-    expected = {"name": 120, "description": 2000, "target_ref": 64}
-    assert limits["templates"]["create"] == expected
-    assert limits["templates"]["edit"] == expected
 
 
 def test_org_screens_limits_match_the_schema_declarations():
@@ -79,31 +74,22 @@ def test_approval_delegations_has_create_only_no_edit_key():
     assert "edit" not in limits["approval-delegations"]
 
 
-def test_integrations_and_runners_and_workflows_limits_match_the_schema_declarations():
-    """세 화면 다 create/edit 스키마 이름이 다르다(Config/UpdateRequest) — runners.description과
-    workflows.purpose는 edit 스키마에 Field(max_length=)가 없어(RunnerUpdateRequest.description
-    등은 그냥 str | None = None) create에만 있고 edit에는 없어야 한다(비대칭이 실제로 반영됨)."""
+def test_integrations_limits_match_the_schema_declarations():
+    """create/edit 스키마 이름이 다르다(Config/UpdateRequest). 연동은 우연히 대칭이라
+    두 벌이 같은 값이어야 한다 — 한쪽만 고치면 여기서 걸린다.
+
+    S11 이전에는 러너·워크플로도 함께 봤고, 그 둘은 **비대칭**이었다(edit 스키마에
+    `Field(max_length=)` 가 없는 필드가 있었다). 두 화면과 함께 사라졌다."""
     limits = all_field_limits()
     assert limits["integrations"]["create"] == {
         "name": 120, "description": 2000, "base_url": 500, "health_url": 500, "secret_ref": 128,
     }
-    assert limits["integrations"]["edit"] == limits["integrations"]["create"]  # 이 셋은 우연히 대칭이다
+    assert limits["integrations"]["edit"] == limits["integrations"]["create"]
 
-    assert limits["runners"]["create"] == {
-        "name": 120, "description": 2000, "base_url": 500, "health_url": 500,
-        "version": 64, "secret_ref": 128, "owner": 120,
-    }
-    assert "description" not in limits["runners"]["edit"], (
-        "RunnerUpdateRequest.description은 max_length가 없다 — 있다고 나오면 서버가 안 지키는 "
-        "상한을 화면이 강제하게 된다"
-    )
-
-    assert limits["workflows"]["create"] == {
-        "name": 120, "purpose": 2000, "webhook_url": 500, "owner": 120,
-    }
-    assert "purpose" not in limits["workflows"]["edit"], (
-        "WorkflowUpdateRequest.purpose도 max_length가 없다 — 위와 같은 이유"
-    )
+    # 사라진 세 화면이 결과에 되살아나면 안 된다 — FORM_SCHEMAS 에 다시 얹히는 순간
+    # 화면 없는 상한이 생긴다.
+    for gone in ("runners", "workflows", "templates"):
+        assert gone not in limits, f"{gone} 화면이 없는데 필드 상한이 남아 있다"
 
 
 def test_announcements_and_ai_quotas_limits_match_the_schema_declarations():

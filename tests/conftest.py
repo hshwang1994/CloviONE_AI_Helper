@@ -558,18 +558,39 @@ def two_orgs(db, make_user) -> "OrgWorld":
 
 
 @pytest.fixture()
-def setup_complete(db, settings, make_user, fake_clock):
+def setup_complete(db, app, settings, make_user, fake_clock):
     """셋업 체크리스트가 일반 사용자에게 말할 것이 없는 상태로 만든다.
 
-    사용자에게 보이는 항목(조직, Notion, 매핑, 러너, 연동)만 채운다. 관리자 계정과 TLS 는
+    사용자에게 보이는 항목(조직, Notion, 매핑, AI, 연동)만 채운다. 관리자 계정과 TLS 는
     사용자 화면이 비는 이유가 아니라 배너에 쓰이지 않는다(app/setup/steps.py).
+
+    AI 항목은 S11 부터 Model Gateway 가 판정한다 — 러너 행을 심는 것으로는 안 되고,
+    이 앱이 실제로 읽는 `app.state.ai_gateway` 를 「둘 다 된다」로 바꿔야 한다.
     """
+    from app.ai.gateway import contract
+
+    class _Ok:
+        name = "seeded"
+        model = "seeded-model"
+        dim = 384
+
+        def __init__(self, cap):
+            self._cap = cap
+
+        def capability(self):
+            return contract.available(self._cap, model=self.model)
+
+    app.state.ai_gateway = contract.Gateway(
+        enabled=True,
+        embed_adapter=_Ok(contract.CAP_EMBED),
+        generate_adapter=_Ok(contract.CAP_GENERATE),
+    )
+
     from app.integrations.models import HEALTH_UP, Integration
     from app.notion_mapping.models import STATUS_VERIFIED, UserNotionMapping
     from app.observability.models import COMPONENT_DOCUMENTS, SYNC_OK, SyncStatus
     from app.org.constants import DEFAULT_ORG_ID
     from app.org.models import Department
-    from app.runners.models import Runner
 
     now = fake_clock.now()
     for ref in (settings.notion_report_token_ref, settings.notion_docs_token_ref):
@@ -584,14 +605,9 @@ def setup_complete(db, settings, make_user, fake_clock):
         )
     )
     db.add(
-        Runner(
-            name="setup-runner", provider_type="http_service",
-            base_url="http://127.0.0.1:8789", enabled=True, last_health_status=HEALTH_UP,
-        )
-    )
-    db.add(
         Integration(
-            name="setup-n8n", provider_type="n8n", base_url="http://127.0.0.1:5678",
+            name="setup-notion", provider_type="notion",
+            base_url="https://api.notion.com",
             capabilities_json="{}", enabled=True, last_health_status=HEALTH_UP,
         )
     )

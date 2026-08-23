@@ -19,8 +19,6 @@ export const NO_WRITE_REASON = "관리자, 시스템 관리자만 변경할 수 
 // service.py::build_dashboard)과 외부 연동 4종을 아래 serviceLabel()이 함께 조회한다.
 export const SERVICE_LABELS = {
   web: "웹 서버", worker: "백그라운드 워커", scheduler: "스케줄러", worker_conversational: "대화형 워커",
-  n8n: "n8n 엔진", "clovirone-work-assistant": "업무 도우미",
-  "claude-ticket-runner": "티켓 러너", "claude-request-interpreter": "요청 해석기",
   notion: "Notion",
 };
 // 연동(Integration)은 관리자가 자유 텍스트로 이름을 만들 수 있어(§ Integrations 화면) SERVICE_LABELS의

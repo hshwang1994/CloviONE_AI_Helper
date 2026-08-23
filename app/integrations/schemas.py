@@ -8,7 +8,9 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.core.http_client import AUTH_TYPES
 
-PROVIDER_TYPES = frozenset({"n8n", "http_service", "notion_via_n8n"})
+#: S11 이 n8n 과 러너 셋을 걷어내 그 provider 이름들이 사라졌다. 남은 것은 Notion 하나이고
+#: 그것도 S14 에서 함께 사라진다.
+PROVIDER_TYPES = frozenset({"http_service", "notion"})
 
 
 class IntegrationConfig(BaseModel):

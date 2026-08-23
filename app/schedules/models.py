@@ -25,7 +25,7 @@ RUN_SUCCEEDED = "succeeded"
 RUN_FAILED = "failed"
 RUN_SKIPPED = "skipped"
 
-TARGET_WORKFLOW = "workflow"
+#: 대상은 하나뿐이다. `workflow` 는 S11 이 n8n 과 함께 걷어냈다.
 TARGET_SYSTEM = "system"
 
 
@@ -42,7 +42,6 @@ class Schedule(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     target_ref: Mapped[str] = mapped_column(String(64), nullable=False)
     payload_template_json: Mapped[str] = mapped_column(JsonText, nullable=False, default="{}")
     prompt_id: Mapped[str | None] = mapped_column(String(36))
-    runner_id: Mapped[str | None] = mapped_column(String(36))
     approval_policy_json: Mapped[str] = mapped_column(JsonText, nullable=False, default="{}")
     retry_policy_json: Mapped[str] = mapped_column(JsonText, nullable=False, default="{}")
     misfire_policy: Mapped[str] = mapped_column(

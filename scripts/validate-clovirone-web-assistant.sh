@@ -30,7 +30,6 @@ systemctl status clovirone-web-worker --no-pager 2>/dev/null | head -3 || true
 chk "web service active" "systemctl is-active --quiet clovirone-web-assistant"
 chk "worker service active" "systemctl is-active --quiet clovirone-web-worker"
 chk "nginx active" "systemctl is-active --quiet nginx"
-chk "existing n8n still active" "systemctl is-active --quiet n8n"
 
 chk "app listening 127.0.0.1:8080" "ss -lntp 2>/dev/null | grep -q '127.0.0.1:8080'"
 chk "nginx listening :443" "ss -lntp 2>/dev/null | grep -qE ':443'"

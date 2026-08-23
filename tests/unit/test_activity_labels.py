@@ -35,9 +35,7 @@ DYNAMIC_OBJECT_TYPES = {
     "prompt": "app/prompts/router.py object_type=kind",
     "policy": "app/prompts/router.py object_type=kind",
     "app_setting": "app/settings/service.py OBJECT_TYPE",
-    "workflow": "app/workflows/service.py OBJECT_TYPE",
     "integration": "app/integrations/service.py OBJECT_TYPE",
-    "runner": "app/runners/service.py OBJECT_TYPE",
     # app/trash/router.py 는 f"notion_{item_type}" 로 만든다(notion_task / notion_document).
     "notion_task": "app/trash/router.py f-string",
     "notion_document": "app/trash/router.py f-string",

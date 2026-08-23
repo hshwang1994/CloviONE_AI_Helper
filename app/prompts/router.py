@@ -46,7 +46,6 @@ class PromptCreateRequest(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     purpose: str | None = Field(default=None, max_length=2000)
     content: str = Field(default="", max_length=100000)
-    runner_id: str | None = None
 
 
 class PolicyCreateRequest(BaseModel):
@@ -67,7 +66,6 @@ class PolicyCreateRequest(BaseModel):
 class PromptContentUpdateRequest(BaseModel):
     content: str = Field(max_length=100000)
     purpose: str | None = Field(default=None, max_length=2000)
-    runner_id: str | None = None
 
 
 class PolicyContentUpdateRequest(BaseModel):
@@ -110,7 +108,6 @@ def _prompt_view(row: Prompt, names: dict | None = None) -> dict:
         "version": row.version,
         "content": row.content,
         "status": row.status,
-        "runner_id": row.runner_id,
         **_creator_fields(row.created_by, names or {}),
         "created_at": row.created_at.isoformat(),
         "published_at": row.published_at.isoformat() if row.published_at else None,
@@ -217,7 +214,7 @@ def _build_router(kind: str, model, view, create_schema, content_update_schema):
             row = Prompt(
                 name=payload.name, purpose=payload.purpose, version=1,
                 content=content, status=STATUS_DRAFT,
-                runner_id=payload.runner_id, created_by=request.state.user.id,
+                created_by=request.state.user.id,
             )
         # UB-21: 위 존재 확인~삽입 사이는 잠기지 않는다(커밋은 요청 끝에 한 번). 같은
         # 이름으로 두 생성 요청이 거의 동시에 오면(더블클릭) 둘 다 "기존 없음"을 보고
@@ -260,13 +257,9 @@ def _build_router(kind: str, model, view, create_schema, content_update_schema):
         if model is Policy:
             validate_policy_content(payload.content)
         update_content(db, row, payload.content)
-        # WF1 단독 결함 — purpose는 이제 Prompt/Policy 둘 다 있다(runner_id는 여전히
-        # Prompt 전용, Policy에는 실행 대상 러너 개념이 없다).
+        # WF1 단독 결함 — purpose는 이제 Prompt/Policy 둘 다 있다.
         if payload.purpose is not None:
             row.purpose = payload.purpose
-        if model is Prompt:
-            if payload.runner_id is not None:
-                row.runner_id = payload.runner_id or None
         record_audit_from_request(
             request, db, action=f"{kind}.update_content", object_type=kind,
             object_id=row.id, after={"name": row.name, "version": row.version},
@@ -306,40 +299,19 @@ def _build_router(kind: str, model, view, create_schema, content_update_schema):
         """이름별 사용 통계 (0033, PLAN Phase 6).
 
         **무엇을 세는가**: 버전 수·발행 버전·마지막 발행 시각은 이 표 자체에서 나오고,
-        "실제로 쓰이는가"는 **그것을 가리키는 것**에서 나온다 — 템플릿·스케줄이 이 이름의
-        어느 버전을 참조하는지, 그리고 그 버전으로 실제 문서 생성이 몇 번 돌았는지.
+        "실제로 쓰이는가"는 **그것을 가리키는 것**에서 나온다 — 스케줄이 이 이름의 어느
+        버전을 참조하는지다. 템플릿과 문서 생성 회차는 S11 이 n8n 과 함께 걷어냈다.
 
         추측하지 않는다: 참조가 0이면 0으로 보여 준다. "쓰이지 않는 프롬프트"를 알아보는
         것이 이 화면의 목적이므로, 애매하게 감추면 목적이 사라진다.
-
-        ## `doc_runs` 는 정확한 값이어야 한다 (UB-11/UB-12)
-
-        예전엔 이름당 버전 id를 `sorted(ids)[:50]`으로 잘라(UUID 사전순 — **임의 표본**)
-        그것들만 `config_json LIKE '%id%'`로 찾았다. 버전이 50개를 넘는 이름에서 실제로
-        쓰이는 버전의 id가 하필 그 50개 밖이면 `doc_runs=0`이 나와 **운영 중인 프롬프트가
-        "쓰이지 않음"으로 잘못 표시됐다** — 이 화면의 존재 이유(정리 대상을 고른다)를
-        정면으로 배신하는 오탐이었다. 게다가 이름마다 쿼리를 하나씩 날려(N+1) 이름 수만큼
-        LIKE 스캔(인덱스 불가)을 반복했다. `config_json`은 `documents/service.py`가
-        `prompt_id`/`policy_id` 키로 정확한 버전 id를 저장하므로(`_resolve_published_binding`
-        결과), LIKE 대신 `jsonb` 의 `->>` 로 그 키를 **정확히** 뽑아 **한 번**의 질의로 전체
-        집계를 만든다(`jobs/router.py`가 이미 쓰는 것과 같은 패턴).
-        표본이 아니라 전수이므로 상한(50)도, 이름당 반복 질의도 사라진다.
         """
-        from app.documents.models import DocumentGeneration
         from app.schedules.models import Schedule
-        from app.templates.models import AutomationTemplate as Template
 
         rows = db.execute(select(model).order_by(model.name, model.version)).scalars().all()
         by_name: dict[str, list] = {}
         for row in rows:
             by_name.setdefault(row.name, []).append(row)
 
-        id_field = "prompt_id" if kind == "prompts" else "policy_id"
-        template_refs = db.execute(
-            select(getattr(Template, id_field), Template.name).where(
-                getattr(Template, id_field).is_not(None)
-            )
-        ).all()
         schedule_refs = (
             db.execute(
                 select(Schedule.prompt_id, Schedule.name).where(Schedule.prompt_id.is_not(None))
@@ -347,23 +319,11 @@ def _build_router(kind: str, model, view, create_schema, content_update_schema):
             if kind == "prompts"
             else []
         )
-        extracted_id = DocumentGeneration.config_json[id_field].astext
-        doc_run_counts: dict[str, int] = dict(
-            db.execute(
-                select(extracted_id, func.count())
-                .select_from(DocumentGeneration)
-                .where(extracted_id.is_not(None))
-                .group_by(extracted_id)
-            ).all()
-        )
-
         items = []
         for name, versions in by_name.items():
             ids = {v.id for v in versions}
             published = [v for v in versions if v.status == STATUS_PUBLISHED]
-            templates_using = sorted({n for vid, n in template_refs if vid in ids})
             schedules_using = sorted({n for vid, n in schedule_refs if vid in ids})
-            doc_runs = sum(doc_run_counts.get(vid, 0) for vid in ids)
             items.append({
                 "name": name,
                 "versions": len(versions),
@@ -375,12 +335,9 @@ def _build_router(kind: str, model, view, create_schema, content_update_schema):
                     if published and published[-1].published_at
                     else None
                 ),
-                "template_refs": len(templates_using),
-                "template_names": templates_using,
                 "schedule_refs": len(schedules_using),
                 "schedule_names": schedules_using,
-                "document_runs": doc_runs,
-                "unused": not templates_using and not schedules_using and doc_runs == 0,
+                "unused": not schedules_using,
             })
         items.sort(key=lambda i: (i["unused"], i["name"]))
         return {"items": items, "kind": kind}

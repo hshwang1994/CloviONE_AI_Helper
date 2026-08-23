@@ -1,11 +1,11 @@
 """schedule_run job handler — executes a schedule occurrence (spec §18).
 
-Supported targets:
-- workflow: invoke the registered n8n workflow (enabled, allowlisted).
-  Write workflows with approval_required are NOT auto-executed (spec §19.3);
-  the run fails with approval_required until the approval flow (M9/M10)
-  creates pre-approved runs.
-- system:noop — used by dry-run tests and health verification.
+Supported target: **`system` 하나뿐이다.**
+
+예전에는 `workflow` 도 있었고 그것이 등록된 n8n 워크플로를 불렀다. S11 이 n8n 을
+걷어내면서 그 갈래를 지웠다 — 부를 곳이 없는 갈래를 남겨 두면, 스케줄 화면은 고를 수
+있는 대상으로 계속 보여 주고 실행은 매번 실패한다. 모르는 `target_type` 은 아래에서
+확정 실패로 끝난다(fail-closed).
 """
 
 from __future__ import annotations
@@ -15,7 +15,6 @@ import logging
 
 from sqlalchemy.orm import Session
 
-from app.core.http_client import is_timeout_error, is_transport_error
 from app.jobs.exceptions import PermanentJobError
 from app.jobs.models import Job
 from app.jobs.worker import WorkerContext, parse_payload
@@ -24,12 +23,9 @@ from app.schedules.models import (
     RUN_RUNNING,
     RUN_SUCCEEDED,
     TARGET_SYSTEM,
-    TARGET_WORKFLOW,
     Schedule,
     ScheduleRun,
 )
-from app.workflows.models import Workflow
-from app.workflows.provider_n8n import N8nWorkflowProvider
 
 logger = logging.getLogger("app.handlers.schedule")
 
@@ -52,49 +48,8 @@ def handle_schedule_run(db: Session, job: Job, ctx: WorkerContext) -> None:
     db.flush()
     db.commit()
 
-    request_payload = json.loads(run.request_payload_json or "{}")
-
     if schedule.target_type == TARGET_SYSTEM:
         result: dict = {"target": schedule.target_ref, "ok": True}
-    elif schedule.target_type == TARGET_WORKFLOW:
-        workflow = db.get(Workflow, schedule.target_ref)
-        if workflow is None:
-            raise PermanentJobError("대상 Workflow가 존재하지 않습니다.")
-        if workflow.operation_mode == "write" and workflow.approval_required:
-            if not payload.get("approved", False):
-                raise PermanentJobError(
-                    "승인이 필요한 write workflow는 자동 실행되지 않습니다 (approval_required)."
-                )
-        provider = N8nWorkflowProvider(ctx.outbound_client)
-        # §32.8 스타일 멱등성: n8n이 쓰기를 이미 처리했는데 HTTP 응답만 유실되면(타임아웃/
-        # 5xx) `repository.fail`이 이 job을 백오프 후 재큐잉하고 동일한 request_payload가
-        # 다시 POST된다. `chat_message`/`document_generate` 핸들러는 각각 이 위험을 문서화
-        # 하고 안정적인 idempotency_key를 실어 n8n이 중복 쓰기를 걸러낼 수 있게 하는데, 이
-        # 핸들러만 빠져 있었다. `Job.idempotency_key`(스케줄 occurrence 중복 방지)와 달리
-        # `run.idempotency_key`는 이 run의 재시도 전체에서 안정적이므로 그대로 쓴다.
-        invoke_payload = (
-            {**request_payload, "idempotency_key": run.idempotency_key}
-            if isinstance(request_payload, dict)
-            else request_payload
-        )
-        # DBTX: 아웃바운드 호출 직전 커밋 — 위 db.get(Workflow, ...) 읽기가 연 스냅샷을
-        # 쥔 채로 호출을 통과하면, 응답을 받은 뒤의 쓰기가 "database is locked"로
-        # 거부될 수 있다(app/core/db.py의 "begin" 이벤트 주석, app/jobs/handlers/
-        # chat_message.py의 실측 사고와 같은 근거).
-        db.commit()
-        try:
-            result = provider.invoke(
-                workflow, invoke_payload, timeout=float(schedule.timeout_seconds)
-            )
-        except Exception as exc:
-            # 타임아웃·연결 실패는 일시적일 수 있으니 큐가 재시도한다(그대로 올린다). 그 외
-            # (잘못된 webhook_url, 허용 목록 불일치, n8n의 비-JSON 응답 등)는 재시도해도
-            # 똑같이 실패하는 확정적 오류다 — notion_mapping_sync.py의 분류와 맞춘다.
-            # 그렇지 않으면 worker.py의 기본 재시도 경로가 이런 결정적 오류를 백오프하며
-            # 반복해서 재시도만 하다가 워커 용량을 낭비한다.
-            if is_timeout_error(exc) or is_transport_error(exc):
-                raise
-            raise PermanentJobError(f"Workflow 호출 실패: {type(exc).__name__}") from exc
     else:
         raise PermanentJobError(f"지원하지 않는 target_type: {schedule.target_type}")
 

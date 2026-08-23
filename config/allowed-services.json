@@ -1,14 +1,6 @@
 {
-  "_comment": "SSRF allowlist for outbound HTTP to integration services (spec §25.3). Exact host:port matches only; http/https only. Production copy lives in /etc/clovirone-web-assistant/.",
+  "_comment": "SSRF allowlist for outbound HTTP to integration services (spec §25.3). Exact host:port matches only; http/https only. Production copy lives in /etc/clovirassist/. S11 removed the n8n (5678) and runner (8787/8788/8789) hosts along with those services.",
   "hosts": [
-    "127.0.0.1:5678",
-    "127.0.0.1:8787",
-    "127.0.0.1:8788",
-    "127.0.0.1:8789",
-    "localhost:5678",
-    "localhost:8787",
-    "localhost:8788",
-    "localhost:8789",
     "api.notion.com:443",
     "api.anthropic.com:443"
   ]

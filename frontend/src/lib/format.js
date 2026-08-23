@@ -147,7 +147,9 @@ export const VERB_KO = {
   manual_map: "수동 연결", unmap: "연결 해제", sync: "동기화", run: "실행", undo: "되돌리기", verify: "검증",
   test: "테스트", login: "로그인", login_failed: "로그인 실패", logout: "로그아웃", unlock: "잠금 해제",
   reset_password: "비밀번호 재설정", "reset-password": "비밀번호 재설정",
-  "revoke-sessions": "세션 해제", "new-version": "새 버전", "resolve-conflict": "충돌 해결",
+  "revoke-sessions": "세션 해제", "new-version": "새 버전",
+  // 새로 만들 수 있는 경로는 없다(S11). 옛 감사 기록이 raw 로 보이지 않게 라벨은 남긴다.
+  "resolve-conflict": "충돌 해결",
   role_change: "역할 변경", change_config: "설정 변경", role_grant: "역할 부여",
   // 라우터가 실제로 쓰는 언더스코어 동작명(감사 로그) — 없으면 '작업' 칸에 영어 원문이 샌다.
   update_content: "내용 수정", new_version: "새 버전", revoke_sessions: "세션 해제", set_role: "역할 변경",
@@ -181,9 +183,9 @@ export const jobTypeKo = (t) => (t == null || t === "" ? "-" : (JOB_TYPE_KO[t] |
 // 따로 있어 서로 어긋났다(같은 유형이 벨과 목록에서 다르게 표시). 여기 하나로 모아 양쪽이 참조한다.
 // 백엔드(notify_user/notify_admins)가 실제로 내보내는 유형만 담는다 — approval_approved/
 // approval_rejected/document_ready/system 등은 발신되지 않아 표에 남기면 '온 적 없는 알림'을 암시한다.
-// (product-quality-audit AREA=D/E: 이전엔 runner_unavailable/maintenance_announcement/
-// password_change_required 세 개가 실제로 발신됨에도 빠져 있어 이 주석 자체가 틀렸었다 —
-// app/runners/service.py:222, app/settings/router.py:71, app/users/service.py:361.)
+// (product-quality-audit AREA=D/E: 이전엔 maintenance_announcement/password_change_required
+// 가 실제로 발신됨에도 빠져 있어 이 주석 자체가 틀렸었다 — app/settings/router.py:71,
+// app/users/service.py:361. runner_unavailable 은 S11 이 러너와 함께 걷어냈다.)
 export const TYPE_KO = {
   account_locked: "계정 잠금", job_failed: "작업 실패", approval_requested: "승인 요청",
   approval_decided: "승인 결정", approval_expired: "승인 만료", schedule_failed: "스케줄 실패",
@@ -196,7 +198,7 @@ export const TYPE_KO = {
   // 위임받은 사실 자체를 당사자에게 알린다(X7). 예전에는 통보가 없어 자기에게 권한이
   // 생긴 줄도 몰랐다 — 여기 빠뜨리면 알림 목록에 원시 코드가 그대로 보인다.
   approval_delegated: "승인 권한 위임",
-  runner_unavailable: "러너 장애", maintenance_announcement: "점검 공지",
+  maintenance_announcement: "점검 공지",
   password_change_required: "비밀번호 변경 필요",
   // 그룹 채팅 생성·1:1 대화 시작 시 초대된 본인에게 간다(app/team_chat/service.py의
   // _notify_invited). related=("chat_room", room_id) 이고, 벨은 서버가 계산한
@@ -227,7 +229,7 @@ export const typeKo = (t) => (t == null || t === "" ? "알림" : (TYPE_KO[t] || 
 // 장애/실패류 알림 유형 — 나머지(승인 결정, 점검 공지 등 정보성)와 시각적으로 구분해야
 // 뒤섞인 목록에서 급한 것부터 훑을 수 있다(NotificationBell 팝오버, product-quality-audit AREA=D).
 // backup_failed 도 여기 든다 — 백업이 멈춘 것은 정보성 공지가 아니라 오늘 손써야 하는 장애다.
-export const NOTI_FAILURE_TYPES = new Set(["account_locked", "job_failed", "schedule_failed", "runner_unavailable", "backup_failed"]);
+export const NOTI_FAILURE_TYPES = new Set(["account_locked", "job_failed", "schedule_failed", "backup_failed"]);
 export const objKo = (v) => (v == null || v === "" ? "-" : (OBJECT_KO[v] || String(v)));
 // "대상.동작" 및 다중 세그먼트(cli.user.enable, user.role_change_requested)를 한국어로.
 export const actionKo = (v) => {

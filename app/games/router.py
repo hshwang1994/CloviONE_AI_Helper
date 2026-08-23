@@ -1,6 +1,6 @@
 """팀 공간 > 놀이 API (§5·§6·§13·§14).
 
-거의 순수 내부 기능(게임방 채팅도 n8n 안 거침, §13.2). 예외로 AI 퀴즈 생성(POST /quiz/generate,
+거의 순수 내부 기능(게임방 채팅은 외부로 안 나감, §13.2). 예외로 AI 퀴즈 생성(POST /quiz/generate,
 §7-9)만 러너를 통해 Claude를 호출하며, 그 유일한 외부 호출은 app/games/ai.py에 격리돼 있다
 (service.py는 외부 호출 없음). 이 엔드포인트는 game_ai_enabled 플래그(기본 OFF)로 fail-closed.
 조회는 인증만, 상태변경은 CSRF. 결과는 서버가 확정(§13.1). 폴링(GET .../state?since=<seq>)으로 흐른다.
@@ -271,7 +271,7 @@ def quiz_generate(
             retry_after_seconds=request.app.state.game_ai_ratelimiter.retry_after_seconds(limit_key),
         )
     questions = ai.generate_quiz(
-        request.app.state.outbound_client,
+        request.app.state.ai_gateway,
         request.app.state.settings,
         topic=payload.topic,
         count=payload.count,

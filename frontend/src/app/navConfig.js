@@ -45,14 +45,10 @@ export const SCREEN_ROLES = {
   diagnostics: CONSOLE_OPS,
   mail: CONSOLE_READ,
   schedules: CONSOLE_READ,
-  documents: CONSOLE_READ,
   approvals: CONSOLE_READ,
   integrations: CONSOLE_READ,
-  runners: CONSOLE_READ,
-  workflows: CONSOLE_READ,
   prompts: CONSOLE_READ,
   policies: CONSOLE_READ,
-  templates: CONSOLE_READ,
   integrity: CONSOLE_READ,
   "notion-mapping": CONSOLE_READ,
   "dev-report": SENSITIVE_READ,
@@ -213,15 +209,11 @@ export const NAV = withRoles([
   { group: "자동화와 연동", icon: AutoAwesomeOutlinedIcon, items: [
     // 실행 일정 화면은 '달력' 탭을 함께 갖는다 — 같은 데이터의 두 표현이다.
     { to: "/schedules", label: "실행 일정" },
-    { to: "/documents", label: "문서 자동 생성" },
     { to: "/integrations", label: "외부 연동" },
-    { to: "/runners", label: "자동화 작업 실행기" },
-    { to: "/workflows", label: "업무 자동화 흐름" },
   ] },
   { group: "AI", icon: SmartToyOutlinedIcon, items: [
     { to: "/prompts", label: "프롬프트" },
     { to: "/policies", label: "정책" },
-    { to: "/templates", label: "템플릿" },
     { to: "/ai-quotas", label: "사용 상한" },
     // 정책 사용 통계와 프롬프트 사용 통계는 같은 모양의 리포트 둘이었다 — 한 화면의 탭이다.
     { to: "/ai-usage", label: "사용 통계" },
@@ -420,8 +412,9 @@ export const ROUTE_OWNER = {
   /* AI 작업공간(S10)도 **자기 사이드바 항목이 없다.** 「내 업무」가 이미 여섯 항목이고
    * (`nav-ia-taxonomy.test.js` — "넘으면 서랍이 아니라 목록이다") IA 를 다시 짜는 것은
    * Phase E 의 일이다. 그래서 입구를 「AI 도우미」 화면에 두고 소속도 그쪽으로 적는다 —
-   * 사용자에게 그 둘은 같은 종류의 일이고, S11 이 n8n 경로를 걷어내면 실제로 한 화면이
-   * 될 자리다. */
+   * 사용자에게 그 둘은 같은 종류의 일이다. S11 이 n8n 경로를 걷어내면서 두 화면이 이제
+   * **같은 답 경로**를 지난다(`app/ai/retrieval`) — 화면 둘을 하나로 합치는 IA 작업 자체는
+   * Phase E 의 몫이라 여기서는 소속만 그렇게 적어 둔다. */
   "/ai": "/chat",
   "/departments": "/organizations",
   "/org-tree": "/organizations",

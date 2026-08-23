@@ -1,3 +1,4 @@
+/* qa-contract-change: refLists/optionsFromRefList 계약을 쓰던 화면 둘(문서 생성·워크플로)이 S11 로 사라져 그 둘을 겨누던 단언이 빠졌다. 배선 자체를 확인하는 합성 설정 시험은 그대로 살아 있고, 실제 레지스트리 쪽은 살아남은 소비자(작업 큐 → 스케줄)로 **다시 겨눴다** — 기계만 돌고 아무도 안 쓰는 상태를 막는다. */
 import React from "react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
@@ -26,7 +27,6 @@ import { DataScreen } from "./DataScreen.jsx";
 import { ConfirmProvider, ToastProvider } from "../ui/kit.jsx";
 import { ThemeModeProvider } from "../ui/ThemeModeProvider.jsx";
 import { REGISTRY } from "./registry.js";
-import { DOC_GENERATE_FIELDS } from "./registry/actions.js";
 
 const CONFIG = {
   key: "x-refs",
@@ -97,27 +97,25 @@ describe("config.refLists — 다른 화면의 리소스를 이름 붙은 select
   });
 });
 
-describe("DGEN-01/USE-04/SCHD-02 계약 — 실제 화면 설정에 실제로 걸려 있다", () => {
-  it("문서 생성 폼(DOC_GENERATE_FIELDS)의 워크플로/템플릿이 자유 텍스트가 아니라 select다", () => {
-    const workflowField = DOC_GENERATE_FIELDS.find((f) => f.name === "workflow_id");
-    expect(workflowField.type).toBe("select");
-    expect(workflowField.optionsFromRefList).toBe("workflows");
-    const templateField = DOC_GENERATE_FIELDS.find((f) => f.name === "template_id");
-    expect(templateField.type).toBe("select");
-    expect(templateField.optionsFromRefList).toBe("templates");
+describe("USE-04 계약 — 실제 화면 설정에 실제로 걸려 있다", () => {
+  /* S11 이 문서 생성·워크플로 화면을 걷어내면서 이 계약을 쓰는 화면이 하나 남았다:
+     작업 큐의 '연결된 스케줄' 필터. 배선 자체(refLists + optionsFromRefList)는 위
+     describe 가 합성 설정으로 이미 확인하고, 여기서는 **실제 레지스트리에 그 배선이
+     남아 있는지**를 본다 — 둘 다 필요하다(기계는 도는데 아무도 안 쓰면 죽은 배선이다). */
+  it("작업 큐가 schedules refList 를 선언하고, 그 필터가 자유 텍스트가 아니라 select 다", () => {
+    expect(REGISTRY.jobs.refLists.map((r) => r.key)).toEqual(["schedules"]);
+    const field = REGISTRY.jobs.filters.find((f) => f.key === "schedule_id");
+    expect(field.type).toBe("select");
+    expect(field.optionsFromRefList).toBe("schedules");
   });
 
-  it("documents 화면이 workflows/templates refLists를 선언한다", () => {
-    expect(REGISTRY.documents.refLists.map((r) => r.key).sort()).toEqual(["templates", "workflows"]);
-  });
-
-  it("schedules 생성/수정 폼의 대상 필드가 select이고 시스템(noop) 선택지를 포함한다", () => {
+  it("스케줄 생성/수정 폼의 대상은 시스템(noop) 하나뿐이다", () => {
+    // 워크플로 대상이 사라져 후보 목록 자체가 필요 없다 — refList 를 안 물어본다.
+    expect(REGISTRY.schedules.refLists).toBeUndefined();
     for (const formKey of ["create", "edit"]) {
       const field = REGISTRY.schedules[formKey].fields.find((f) => f.name === "target_ref");
       expect(field.type, formKey + ".target_ref").toBe("select");
-      expect(field.optionsFromRefList, formKey + ".target_ref").toBe("workflows");
-      expect(field.extraOptions, formKey + ".target_ref").toEqual([{ value: "noop", label: "시스템 (noop)" }]);
+      expect(field.options, formKey + ".target_ref").toEqual([{ value: "noop", label: "시스템 (noop)" }]);
     }
-    expect(REGISTRY.schedules.refLists.map((r) => r.key)).toEqual(["workflows"]);
   });
 });

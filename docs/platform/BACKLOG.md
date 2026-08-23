@@ -7,7 +7,7 @@
 > 상태 값: `TODO` · `IN_PROGRESS` · `DONE` · `BLOCKED`(외부 원인만).
 > **한 항목을 "일부 했다" 로 닫지 않는다** — 남은 것은 사유와 Owner Session 을 적어 이관한다 (E9).
 
-**기록 시점**: 2026-08-21 (S0) · **갱신**: 2026-08-23 (S10 — P-13·P-20 DONE)
+**기록 시점**: 2026-08-21 (S0) · **갱신**: 2026-08-23 (S11 — P-21 DONE)
 
 ---
 
@@ -54,7 +54,7 @@
 | **P-18** | Model Gateway + Parsing/Indexing Pipeline + `index` worker lane | S9 | **DONE** | 생성 Adapter 를 끈 채로 **실 모델 17/17 PASS**([`EVIDENCE/S9/`](EVIDENCE/S9/README.md)) · 임베딩 모델까지 없어도 chunk 는 서고 벡터 칸만 NULL · injection 회귀 13건. 결정 **D-254~D-259** |
 | **P-19** | 모델명 하드코딩 2곳 제거 (`app/llm/provider.py` · runner `assistant.py`) | S9 | **DONE** | 둘 다 제거. 비어 있으면 **설정 안 됨**이고(fail-closed) `build_argv()` 가 예외를 던진다. 임베딩 모델만 `app/ai/catalog.py` 에 있고 정적 검사가 그 파일만 면제한다 (**D-254**) |
 | **P-20** | Hybrid Retrieval · **권한을 LIMIT 앞에** · Citation · AI 작업공간 · 생성 | S10 | **DONE** | 세 레인이 `effective_visibility_clause` 가 만든 후보 집합 안에서만 돈다 — 음성 시험 10건이 「답변에 안 나왔다」가 아니라 **모델에게 실제로 넘어간 문자열**을 본다. 권한 변경의 반영 지연은 **0**(chunk 를 한 줄도 안 다시 만든다, D-256). 인용은 `?block=` 까지 가고(D-263), 생성이 막혀도 검색·인용은 그대로 돈다. 가중치·상한은 실측으로 정했다(D-260·D-261). Re-rank 는 없다(D-212 · D-255) |
-| **P-21** | n8n · 외부 Runner 3종 제거 | S11 | TODO | 5678/5679/8787/8788/8789 미청취 · Installer·backup-cron·validate script 에 n8n 흔적 0 |
+| **P-21** | n8n · 외부 Runner 3종 제거 | S11 | **DONE** | 다섯 포트 전부 **미청취**이고 `systemctl list-unit-files` 가 **0건**이다 — 정지만 하면 재부팅에 돌아오므로 유닛 파일까지 걷어냈다. Installer·backup-cron·validate script 의 n8n 흔적 **0**(`test_external_automation_removed.py` 가 회귀로 지킨다). 러너를 직접 부르던 기능 셋(채팅·대시보드 요약·AI 퀴즈)은 **Gateway 로 옮겼다**(D-266) — 그 김에 프롬프트 방어가 셋 다에 걸렸다. 표 넷과 컬럼 둘은 `0009` 가 내렸다(D-267). 원장 [`EVIDENCE/S11/`](EVIDENCE/S11/README.md) |
 
 ## Phase D — 운영 · 이관
 

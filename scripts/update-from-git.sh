@@ -305,7 +305,7 @@ fi
 
 # ── 7. 검증 ─────────────────────────────────────────────────────────────────
 # validate-clovirone-web-assistant.sh 를 판정 기준으로 쓰지 않는 이유: 그 스크립트는
-# 같은 서버의 n8n 까지 확인한다. n8n 이 없는 설치에서는 우리와 무관한 이유로 FAIL 이
+# 우리 것이 아닌 유닛까지 확인한다. 그런 유닛이 없는 설치에서는 우리와 무관한 이유로 FAIL 이
 # 나고, 그러면 멀쩡한 업데이트가 롤백된다. 여기서는 **우리 것만** 본다.
 say "검증..."
 VERIFY_FAIL=""
@@ -331,7 +331,7 @@ fi
 
 hr
 say "[OK ] healthz / readyz / web / worker"
-# 여기서부터는 참고용이다. 실패해도 롤백하지 않는다(n8n 등 우리 것이 아닌 항목이 섞여 있다).
+# 여기서부터는 참고용이다. 실패해도 롤백하지 않는다(우리 것이 아닌 항목이 섞여 있다).
 if [ -x "$REPO_DIR/scripts/validate-clovirone-web-assistant.sh" ] || [ -f "$REPO_DIR/scripts/validate-clovirone-web-assistant.sh" ]; then
   say "참고: 전체 검증 스크립트 결과(판정에는 쓰지 않습니다)"
   DNS_NAME="$DNS_NAME" bash "$REPO_DIR/scripts/validate-clovirone-web-assistant.sh" 2>&1 | sed 's/^/  /' || true

@@ -39,9 +39,9 @@ def _duration_ms(job: Job) -> int | None:
 
 # payload_json에서 '연결 식별자'만 골라 노출한다 — 내용(채팅 원문·이메일·설정 본문)은
 # 절대 포함하지 않는다. conversation_id/message_id가 이미 참조값으로 노출되는 것과 같은
-# 성격의 링크 ID다. 이게 없으면 schedule_run/document_generate job이 자신이 구동하는
-# 스케줄/문서로 갈 길이 idempotency_key 문자열 파싱뿐이었다(round30 감사 E).
-_LINK_ID_KEYS = ("schedule_id", "schedule_run_id", "generation_id")
+# 성격의 링크 ID다. 이게 없으면 schedule_run job이 자신이 구동하는 스케줄로 갈 길이
+# idempotency_key 문자열 파싱뿐이었다(round30 감사 E).
+_LINK_ID_KEYS = ("schedule_id", "schedule_run_id")
 
 
 def _link_ids(job: Job) -> dict:
@@ -88,7 +88,7 @@ def _job_view(job: Job) -> dict:
         "duration_ms": _duration_ms(job),
         "last_error": job.last_error,
         "created_at": job.created_at.isoformat(),
-        # schedule_run → schedule_id/schedule_run_id, document_generate → generation_id.
+        # schedule_run → schedule_id/schedule_run_id.
         **_link_ids(job),
     }
 
@@ -97,7 +97,7 @@ def _scoped_job_or_404(db: Session, job_id: str, principal: Principal) -> Job:
     """단건·재시도·취소가 **전부 여기를 지난다** (§0-A 2순위).
 
     목록만 가려서는 아무 의미가 없다 — 세 경로 모두 `id` 를 직접 받는다. 그리고 새는 것이
-    조회로 끝나지 않는다: **재시도는 남의 범위에서 n8n·Notion 쓰기를 다시 실행한다.**
+    조회로 끝나지 않는다: **재시도는 남의 범위에서 쓰기를 다시 실행한다.**
 
     판정은 목록과 같은 `repository.scope_clause` 하나다. 범위 밖은 **404** — 403 은
     "그 id 는 존재한다" 를 알려 주고, 상태 충돌(409)도 마찬가지로 존재와 상태를 알려 준다.
@@ -117,12 +117,11 @@ def list_jobs(
     job_type: str | None = Query(default=None, max_length=64),
     schedule_id: str | None = Query(default=None, max_length=64),
     schedule_run_id: str | None = Query(default=None, max_length=64),
-    generation_id: str | None = Query(default=None, max_length=64),
     principal: Principal = Depends(get_principal),
 ):
     stmt = select(Job)
     # 범위 밖 사람의 작업은 안 보인다 (2순위 #6). 잡에는 **요청자의 입력이 payload 로 들어
-    # 있다**(문서 생성 요청의 제목·기간, 채팅 메시지 등) — 큐를 훑는 것은 그 사람이 무엇을
+    # 있다**(채팅 메시지 등) — 큐를 훑는 것은 그 사람이 무엇을
     # 요청했는지 읽는 것과 같다.
     #
     # 조건은 단건·재시도·취소와 **같은 것 하나**다(`repository.scope_clause` — 시스템 잡을
@@ -135,8 +134,8 @@ def list_jobs(
         stmt = stmt.where(Job.status == status)
     if job_type:
         stmt = stmt.where(Job.job_type == job_type)
-    # 스케줄/문서 생성이 자신을 실행한 작업으로 역추적하는 경로(FN-13, IA-02의 반대 방향) —
-    # _link_ids(아래)가 응답에 싣는 것과 같은 세 키를 payload_json 안에서 찾는다. 인덱스가
+    # 스케줄이 자신을 실행한 작업으로 역추적하는 경로(FN-13, IA-02의 반대 방향) —
+    # _link_ids(아래)가 응답에 싣는 것과 같은 두 키를 payload_json 안에서 찾는다. 인덱스가
     # 없는 컬럼 스캔이지만 크로스링크를 눌렀을 때 1회만 도는 조회라(목록 전체를 매번 훑는
     # 경로가 아니다) 감내할 수 있는 비용이다.
     #
@@ -146,7 +145,6 @@ def list_jobs(
     for key, value in (
         ("schedule_id", schedule_id),
         ("schedule_run_id", schedule_run_id),
-        ("generation_id", generation_id),
     ):
         if value:
             stmt = stmt.where(Job.payload_json[key].astext == value)
@@ -236,22 +234,6 @@ def _terminalize_linked_record(db: Session, job: Job, now) -> None:
             run.status = RUN_SKIPPED
             run.finished_at = now
             run.error_message = "job cancelled by operator"
-            db.flush()
-    elif job.job_type == "document_generate":
-        from app.documents.models import (
-            STATUS_AWAITING_APPROVAL,
-            STATUS_FAILED,
-            STATUS_PENDING,
-            DocumentGeneration,
-        )
-
-        gen = db.get(DocumentGeneration, payload.get("generation_id", ""))
-        # 이 문서를 다음 상태로 옮기는 것은 취소된 job뿐이다. 승인 후 발행 job을
-        # 취소한 경우(status=awaiting_approval)까지 종결하지 않으면 문서가
-        # awaiting_approval에 영구히 남아 어느 화면에서도 되살릴 수 없다.
-        if gen is not None and gen.status in (STATUS_PENDING, STATUS_AWAITING_APPROVAL):
-            gen.status = STATUS_FAILED
-            gen.error_message = "job cancelled by operator"
             db.flush()
     elif job.job_type == "chat_message":
         from app.conversations.models import PROC_FAILED, Message

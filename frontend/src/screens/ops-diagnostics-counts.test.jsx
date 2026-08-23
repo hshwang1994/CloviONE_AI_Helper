@@ -1,3 +1,4 @@
+/* qa-contract-change: 진단 화면의 «현재 리소스» 타일 셋 중 둘(활성 워크플로·추가된 러너)이 S11 로 사라졌다. 남은 하나(활성 스케줄)는 숫자뿐 아니라 **라벨까지** 단언하도록 바꿔, 줄어든 개수만큼 남은 것을 더 세게 못 박았다. */
 import React from "react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
@@ -61,7 +62,7 @@ describe("진단 — 현재 리소스(counts) 섹션", () => {
       if (path === "/api/admin/diagnostics/bundle") {
         return Promise.resolve({
           generated_at: "2026-08-03T07:00:00",
-          dashboard: { ...BASE_DASH, counts: { active_workflows: 3, active_schedules: 5, runners: 2 } },
+          dashboard: { ...BASE_DASH, counts: { active_schedules: 5 } },
           recent_job_errors: [],
         });
       }
@@ -70,8 +71,8 @@ describe("진단 — 현재 리소스(counts) 섹션", () => {
     renderDiagnostics();
 
     expect(await screen.findByText("현재 리소스")).toBeInTheDocument();
-    expect(screen.getByText("3")).toBeInTheDocument();
+    // S11 이 워크플로·러너 타일을 걷어내 활성 스케줄 하나가 남았다.
     expect(screen.getByText("5")).toBeInTheDocument();
-    expect(screen.getByText("2")).toBeInTheDocument();
+    expect(screen.getByText("활성 스케줄")).toBeInTheDocument();
   });
 });

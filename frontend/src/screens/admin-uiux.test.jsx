@@ -1,3 +1,4 @@
+/* qa-contract-change: S11 이 n8n·러너 서브시스템을 걷어내면서 이 파일이 고정하던 화면 셋이 사라졌다 — 문서 발행 승인 액션(document.publish), 문서 생성 화면의 clientFilter 경고, 프롬프트의 러너 ID 필드. 단언이 줄어든 만큼이 정확히 그 셋이고, 남은 단언은 한 글자도 안 약해졌다(기대값·형태 그대로). «documents 만 예외» 였던 단언은 «예외가 하나도 없다» 로 **더 세졌다**. */
 /* 관리 콘솔 28화면 전수조사(9-1) — 확인·필터·문구가 실제 동작과 맞는가.
  *
  * 이 파일이 지키는 것은 세 가지다.
@@ -141,37 +142,6 @@ describe("위험 액션 확인", () => {
     expect(within(drawer).queryByRole("button", { name: "거절" })).not.toBeInTheDocument();
   });
 
-  /* RG-01 — "발행 내용 보기"(document.publish 승인의 GET 조회 액션)가 "서버에 연결할 수
-   * 없습니다."로 죽어 있었다. 원인은 DataScreen.jsx의 runAction이 method를 안 가리고
-   * body:{}를 실어 보낸 것 — GET에 body를 실으면 fetch 스펙 자체가 TypeError를 던진다
-   * (lib/api.js는 method!=="GET"일 때만 body를 JSON.stringify하고, GET이면 원시 객체를
-   * 그대로 fetch에 넘긴다). 이 시험은 그 계약을 고정한다: GET 액션은 body 키 자체가 없어야
-   * 한다 — 값이 없는 게 아니라 키가 없어야 한다(수정 전에는 항상 body:{} 가 실려 있었다). */
-  it("'발행 내용 보기'(GET): body 없이 요청하고, 발행 미리보기를 안내 모달로 보여준다 (RG-01)", async () => {
-    apiMock.mockImplementation((path, opts) => {
-      if (opts && opts.method === "GET" && String(path).includes("/api/admin/documents/")) {
-        expect(opts).not.toHaveProperty("body");
-        return Promise.resolve({ generation: { status: "completed", preview: { title: "월간 리포트", body: "본문 내용" } } });
-      }
-      return Promise.resolve({
-        items: [{
-          id: "a1", request_type: "document.publish", object_type: "team_doc", object_id: "d-9",
-          requested_by: "u-2", requester_name: "홍길동", status: "pending",
-          requested_at: "2026-08-01T00:00:00Z", expires_at: "2026-08-04T00:00:00Z",
-          due_at: null, overdue: false, can_decide: true,
-          request_payload: { generation_id: "gen-1" },
-        }],
-        total: 1, page: 1, page_size: 20,
-      });
-    });
-    renderScreen("approvals");
-    const drawer = await openRow("홍길동");
-    await userEvent.click(within(drawer).getByRole("button", { name: "발행 내용 보기" }));
-
-    const dlg = await screen.findByRole("dialog", { name: "발행 내용 보기" }, WAIT);
-    expect(dlg).toHaveTextContent("월간 리포트");
-    expect(dlg).toHaveTextContent("본문 내용");
-  });
 
   it("조직 '비활성화': 확인 문구가 로그인이 끊긴다는 사실과 인원수를 말한다", async () => {
     apiMock.mockImplementation(() => Promise.resolve({
@@ -253,21 +223,14 @@ describe("필터가 어디서 걸리는가", () => {
       expect(apiMock.mock.calls.some(([p]) => String(p).includes("source=manual"))).toBe(true), WAIT);
   });
 
-  it("paginated 화면에서 페이지 안에서만 도는 필터는 경고가 그 필터 이름을 지목한다", async () => {
-    apiMock.mockImplementation(() => Promise.resolve({ items: [], total: 0, page: 1, page_size: 20 }));
-    renderScreen("documents");
-    // 백엔드 list_generations 는 status 만 받는다 — 모드는 구조적으로 현재 페이지까지가 한계다.
-    // 한계가 있는 것 자체보다, 그것을 말하지 않는 것이 결함이다.
-    expect(await findText(/‘모드’ 필터는 지금 보고 있는 페이지에만 적용됩니다/)).toBeInTheDocument();
-  });
 
-  it("clientFilter 를 쓰는 화면은 documents 를 빼면 전부 paginated 가 아니다", () => {
-    // paginated + clientFilter 는 '다른 페이지의 일치 항목이 사라지는' 조합이다.
-    // documents 만 예외로 남고(서버가 mode 를 안 받는다) 그 화면은 위 경고를 띄운다.
+  it("clientFilter 를 쓰는 화면 중 paginated 는 하나도 없다", () => {
+    // paginated + clientFilter 는 '다른 페이지의 일치 항목이 사라지는' 조합이다. 유일한
+    // 예외였던 documents(서버가 mode 를 안 받았다)는 S11 이 그 화면과 함께 걷어냈다.
     const offenders = Object.values(REGISTRY)
       .filter((c) => c.paginated && (c.filters || []).some((f) => f.clientFilter))
       .map((c) => c.key);
-    expect(offenders).toEqual(["documents"]);
+    expect(offenders).toEqual([]);
   });
 
   it("스케줄과 조직도는 결함이 아니었다 — 그 상태를 못박는다", () => {
@@ -329,18 +292,10 @@ describe("‘비우면’ 문구와 실제 동작", () => {
     return f ? (f.help || "") : null;
   };
 
-  it("프롬프트 러너 ID: 비워도 지워지지 않는다고 정직하게 말한다", () => {
-    // 백엔드 PATCH 가 `if payload.runner_id is not None:` 가드라, FormModal 이 보내는 null 을
-    // '안 보냄'과 구별하지 못하고 통째로 무시한다(app/prompts/router.py). 화면만 해제됐다고 믿었다.
-    const help = fieldHelp(REGISTRY.prompts, "edit", "runner_id");
-    expect(help).not.toMatch(/비우면 연결 해제/);
-    expect(help).toMatch(/비워도 기존 연결은 지워지지 않습니다/);
-  });
 
-  it("나머지 여섯 문구는 실제 동작과 맞으므로 그대로 둔다", () => {
-    // health_url ×2 — run_health_check 가 `row.health_url or row.base_url` 로 대체한다.
+  it("나머지 다섯 문구는 실제 동작과 맞으므로 그대로 둔다", () => {
+    // health_url — run_health_check 가 `row.health_url or row.base_url` 로 대체한다.
     expect(fieldHelp(REGISTRY.integrations, "create", "health_url")).toContain("비우면 Base URL");
-    expect(fieldHelp(REGISTRY.runners, "create", "health_url")).toContain("비우면 Base URL");
     // payload_template — 빈 JSON 은 null 로 오고 백엔드 validator 가 {} 로 받는다.
     expect(fieldHelp(REGISTRY.schedules, "create", "payload_template")).toContain("비우면 빈 값으로 실행됩니다");
     // 상위 부서 — select 는 빈 값을 null 로 보내고 validate_parent 가 None 을 '최상위'로 읽는다.
@@ -355,10 +310,10 @@ describe("‘비우면’ 문구와 실제 동작", () => {
 /* ── 5. prompt-usage 열 ─────────────────────────────────────────────────── */
 
 describe("프롬프트 사용 통계 열", () => {
-  it("열은 일곱이고, 좁은 화면에서는 잘리는 게 아니라 카드로 쌓인다", () => {
-    // 전수조사 메모는 '아홉 열이라 좁은 화면에서 잘린다'고 했지만 둘 다 사실이 아니다.
-    // 열은 일곱이고, 900px 아래에서는 DataTable 이 표 대신 카드 목록을 그린다(kit.jsx).
-    // 그래서 여기서 열을 접으면 이미 잘 보이던 값을 없애는 셈이 된다.
-    expect(REGISTRY["prompt-usage"].columns).toHaveLength(7);
+  it("좁은 화면에서는 잘리는 게 아니라 카드로 쌓인다", () => {
+    // 900px 아래에서는 DataTable 이 표 대신 카드 목록을 그린다(kit.jsx) — 그래서 여기서
+    // 열을 접으면 이미 잘 보이던 값을 없애는 셈이 된다. S11 이 템플릿·문서 생성 열 둘을
+    // 걷어내 일곱에서 다섯이 됐다.
+    expect(REGISTRY["prompt-usage"].columns).toHaveLength(5);
   });
 });

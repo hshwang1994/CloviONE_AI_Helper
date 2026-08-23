@@ -706,26 +706,3 @@ def revoke_sessions(
         object_id=user.id, after={"revoked_count": count},
     )
     return {"ok": True, "revoked_count": count}
-
-
-@router.post("/{user_id}/notion-mapping/verify")
-def verify_notion_mapping(
-    request: Request,
-    user_id: str,
-    db: Session = Depends(get_db),
-    principal: Principal = Depends(get_principal),
-):
-    user = get_scoped_user_or_404(db, user_id, principal.management)
-    ensure_can_manage_target(request.state.user.role, user)  # authority boundary
-    from app.notion_mapping.service import mapping_view, verify_mapping
-
-    row = verify_mapping(
-        db, user,
-        outbound=request.app.state.outbound_client,
-        now=request.app.state.clock.now(),
-    )
-    record_audit_from_request(
-        request, db, action="notion_mapping.verify", object_type="user_notion_mapping",
-        object_id=user_id, after={"status": row.status},
-    )
-    return {"mapping": mapping_view(row, user)}

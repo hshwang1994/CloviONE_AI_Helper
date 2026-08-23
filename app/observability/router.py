@@ -97,35 +97,6 @@ def _notice_for(row: SyncStatus, label: str, now: datetime) -> dict | None:
     }
 
 
-def _runner_notice(db: Session, now: datetime) -> dict | None:
-    """러너 헬스 → 사용자 한 줄. 어떤 러너인지, 왜 죽었는지는 말하지 않는다."""
-    from app.runners.models import Runner
-
-    rows = (
-        db.execute(select(Runner).where(Runner.enabled.is_(True))).scalars().all()
-    )
-    if not rows:
-        return None
-    down = [r for r in rows if r.last_health_status == "down"]
-    if not down:
-        return None
-    if len(down) == len(rows):
-        return {
-            "id": "runner.all_down",
-            "level": LEVEL_CRITICAL,
-            "message": "지금 자동화, AI 기능이 응답하지 않습니다. 복구 중이니 잠시 후 다시 시도해 주세요.",
-            "since": max((r.last_health_at for r in down if r.last_health_at), default=None).isoformat()
-            if any(r.last_health_at for r in down)
-            else None,
-        }
-    return {
-        "id": "runner.some_down",
-        "level": LEVEL_WARNING,
-        "message": "일부 자동화, AI 기능이 평소보다 느리거나 실패할 수 있습니다.",
-        "since": None,
-    }
-
-
 @router.get("/status")
 def system_status(
     request: Request,
@@ -146,9 +117,6 @@ def system_status(
         notice = _notice_for(row, label, now)
         if notice is not None:
             notices.append(notice)
-    runner = _runner_notice(db, now)
-    if runner is not None:
-        notices.append(runner)
     # 최초 실행 셋업이 안 끝났다는 사실도 사용자가 "지금 목록이 비어 있는 이유" 로 알아야
     # 한다(9-3). 셋업이 안 끝났을 때 로그인을 막지 않기로 한 대신, 조용히 빈 목록을 주지
     # 않는다 — 그 침묵이 이 과제가 없애려는 상태다. 판정은 셋업 체크리스트 한 곳에서만
@@ -160,6 +128,7 @@ def system_status(
         request.app.state.settings,
         secrets=request.app.state.secret_provider,
         cache=request.app.state.settings_cache,
+        gateway=getattr(request.app.state, "ai_gateway", None),
         for_admin=user.role in CONSOLE_READ_ROLES,
     )
     if setup is not None:

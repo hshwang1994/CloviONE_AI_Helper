@@ -20,8 +20,7 @@ import { APPROVAL_DONE } from "./actions.js";
 // app/approvals/service.py의 _REQUEST_TYPE_KO(APPR-02)와 정본이 같다 — 라벨은 actionKo로 만들어
 // 목록 열(actionCol("request_type", ...))과 항상 같은 말을 쓰게 한다.
 const APPROVAL_REQUEST_TYPES = [
-  "user.role_change", "integration.change_config", "runner.change_config",
-  "schedule.enable", "document.publish",
+  "user.role_change", "integration.change_config", "schedule.enable",
 ];
 
 /* app/core/authz.py `rbac_matrix()` 가 돌려주는 `scopes`(전체/조직/부서 + 각 설명)를
@@ -41,12 +40,12 @@ export const GOVERNANCE_SCREENS = {
     // 그 값을 보거나 바꿀 화면이 없다 — '정책 설정에 따라 달라질 수 있어요'는 마치 이 화면 어딘가에
     // 바꿀 수 있는 정책 설정이 있는 것처럼 읽혀 없는 컨트롤을 찾게 만들었다. 서버 쪽 설정임을 명시한다.
     help: "승인이 필요한 작업을 처리합니다. 본인 요청은 본인이 승인할 수 없습니다(서버 설정으로만 바뀌며, 이 화면에서는 바꿀 수 없습니다). 72시간이 지나면 만료됩니다.",
-    // 실제 승인 실행자는 5종(app/approvals/service.py): schedule.enable, runner.change_config,
-    // integration.change_config, user.role_change, document.publish. 예전 문구는 3종만 언급해
-    // 스케줄 활성화·문서 발행 승인이 왜 여기 뜨는지 안내가 없었다.
-    emptyTitle: "승인 요청이 없습니다", emptyHelp: "스케줄 활성화, 연동·러너 설정 변경, 역할 변경, 문서 발행처럼 승인이 필요한 작업이 요청되면 여기에서 승인, 거절, 취소합니다.",
+    // 실제 승인 실행자는 3종(app/approvals/service.py): schedule.enable,
+    // integration.change_config, user.role_change. 러너 설정 변경과 문서 발행은 S11 이
+    // 그 두 기능과 함께 걷어냈다.
+    emptyTitle: "승인 요청이 없습니다", emptyHelp: "스케줄 활성화, 연동 설정 변경, 역할 변경처럼 승인이 필요한 작업이 요청되면 여기에서 승인, 거절, 취소합니다.",
     emptyRelatedLink: { href: "#/approval-delegations", label: "부재 시 대리 승인자 설정" },
-    // 다른 화면/미래의 딥링크가 ?id=로 특정 승인 건을 곧바로 열 수 있게 한다(runners.onQuery와 동일한
+    // 다른 화면/미래의 딥링크가 ?id=로 특정 승인 건을 곧바로 열 수 있게 한다(다른 화면들과 동일한
     // 패턴 — 백엔드 GET /api/admin/approvals/{id}가 이미 존재하는데 지금까지 아무 화면도 호출하지 않았다).
     // 문서 화면의 '승인 대기 목록으로'가 ?status=pending을 붙여 넘어온다 — 감사 화면의 open:'filter'
     // 인텐트와 동일한 방식으로 소비해 무필터 전체 목록이 아니라 실제로 '대기' 상태만 걸러 보여준다.
@@ -79,8 +78,8 @@ export const GOVERNANCE_SCREENS = {
     // "상세 보기"로 읽혔다 — 요청자까지 합쳐 행마다 실제로 다른 이름을 만든다(둘 다 이미
     // 목록에 보이는 값). requester_name 폴백은 바로 아래 요청자 열과 동일한 우선순위.
     columns: [{ ...actionCol("request_type", "유형"), rowName: (r) => actionKo(r.request_type) + " / " + (r.requester_name || r.requester_email || (r.requested_by === "system" ? "시스템(자동)" : r.requested_by) || "-") }, objCol("object_type", "대상"),
-      // 예약/시스템이 자동 생성한 document.publish 승인은 requested_by="system"이다(사람이 아니므로
-      // resolve_names가 못 찾는다) — 그 원시 영어 리터럴이 그대로 새지 않게 한국어로 특별 취급한다.
+      // 시스템이 자동 생성한 승인은 requested_by="system"이다(사람이 아니므로 resolve_names가
+      // 못 찾는다) — 그 원시 영어 리터럴이 그대로 새지 않게 한국어로 특별 취급한다.
       { key: "requester_name", label: "요청자", identifier: true, render: (r) => r.requester_name || r.requester_email || (r.requested_by === "system" ? "시스템(자동)" : r.requested_by) || "-" },
       badgeCol("status", "상태"), dateCol("requested_at", "요청 시각"),
       // 기한(SLA, 0033)은 만료와 **다른 축**이다: 만료는 요청이 죽는 시각, 기한은 사람이 답해야
@@ -99,8 +98,8 @@ export const GOVERNANCE_SCREENS = {
     // 요청자는 위 columns에서 이름/이메일로 이미 보여주므로 여기선 원시 ID만(대조용). 결정자는
     // approval_view가 requester_name과 마찬가지로 approver_name/approver_email을 함께 돌려준다
     // (app/approvals/service.py) — 원시 UUID 대신 그 이름을 보여준다.
-    // request_payload를 원시 JSON 한 덩어리(예: document.publish의 {"generation_id":...})가 아니라 최상위
-    // 키/값 행으로 펼쳐 승인 전에 '무엇을 적용하는지' 읽기 쉽게 보여준다(내용 없이 승인 금지). 중첩은 JSON.
+    // request_payload를 원시 JSON 한 덩어리가 아니라 최상위 키/값 행으로 펼쳐 승인 전에
+    // '무엇을 적용하는지' 읽기 쉽게 보여준다(내용 없이 승인 금지). 중첩은 JSON.
     detailFields: [field("object_id", "대상 ID"),
       // 요청자는 서버가 이름/이메일을 함께 준다(app/approvals/service.py approval_view).
       // 예전에는 목록에만 이름을 쓰고 상세는 UUID 만 남겼는데, 상세는 **결재하기 직전에
@@ -144,12 +143,9 @@ export const GOVERNANCE_SCREENS = {
       // 거절은 되돌릴 수 없다 — 한 번 결정된 요청은 백엔드가 어떤 재결정도 409로 막는다
       // ("이미 처리된 승인 요청입니다", app/approvals/service.py). 사유 입력 폼은 '무엇을 적을지'만
       // 묻지 '무슨 일이 일어나는지'는 말하지 않았다 — 같은 저장소의 다른 되돌릴 수 없는 액션(공지
-      // 삭제·상한 삭제)처럼 확인을 먼저 받는다. document.publish 거절은 대상 문서 생성까지 실패로
-      // 확정한다(_fail_pending_document_publish) — 그 파급을 요청 유형별로 밝힌다.
+      // 삭제·상한 삭제)처럼 확인을 먼저 받는다.
       { label: "거절", variant: "danger", when: (r, ctx) => !APPROVAL_DONE.includes(r.status) && (!ctx || r.requested_by !== ctx.userId) && !!r.can_decide, path: (r) => "/api/admin/approvals/" + r.id + "/reject",
-        confirm: (r) => "이 요청을 거절하면 되돌릴 수 없습니다. 같은 건을 다시 승인할 방법이 없고 요청자가 새로 요청해야 합니다."
-          + (r.request_type === "document.publish" ? " 이 요청은 문서 발행 건이라, 거절하면 대상 문서 생성도 실패로 확정됩니다." : "")
-          + " 계속 거절할까요?",
+        confirm: "이 요청을 거절하면 되돌릴 수 없습니다. 같은 건을 다시 승인할 방법이 없고 요청자가 새로 요청해야 합니다. 계속 거절할까요?",
         fields: [{ name: "comment", label: "거절 사유(선택)", type: "textarea", help: "거절 사유를 남기면 감사 기록에 함께 저장됩니다." }] },
       // operator는 '본인 요청'만 취소 가능(백엔드 RBAC) → 남의 요청엔 항상 403이 되는 취소 버튼을 숨긴다.
       // admin/system_admin은 모든 요청을 취소할 수 있다.
@@ -160,20 +156,6 @@ export const GOVERNANCE_SCREENS = {
       // 대상 화면이 id 기반 딥링크를 지원하면(OBJ_ID_PARAM) 목록 전체가 아니라 바로 그 대상으로
       // 이동한다 — 그렇지 않은 대상 유형은 예전처럼 목록으로만 이동한다(objRouteHref가 그대로 base 반환).
       { label: "대상 보기", when: (r, ctx) => !!OBJ_ROUTE[r.object_type] && canReachObjRoute(r.object_type, ctx && ctx.role), navigate: (r) => objRouteHref(r.object_type, r.object_id) },
-      // document.publish 승인은 request_payload가 {"generation_id":...}뿐이라(app/jobs/handlers/document_generate.py)
-      // 실제로 무엇을 발행하는지 이 화면만으로는 알 수 없었다 — 대상 문서를 조회해 제목·본문을 바로 보여준다
-      // (내용 없이 승인 금지 원칙을 이 요청 유형에도 지킨다).
-      { label: "발행 내용 보기", when: (r) => r.request_type === "document.publish" && !!(r.request_payload && r.request_payload.generation_id),
-        method: "GET", path: (r) => "/api/admin/documents/" + r.request_payload.generation_id,
-        info: (res) => {
-          const g = (res && res.generation) || res || {};
-          const p = g.preview || {};
-          const lines = ["상태: " + (g.status || "?")];
-          if (p.title) lines.push("제목: " + p.title);
-          if (p.body) lines.push("\n본문:\n" + p.body);
-          if (g.quality_problems && g.quality_problems.length) lines.push("\n품질 문제:\n" + g.quality_problems.map((x) => ", " + x).join("\n"));
-          return lines.join("\n");
-        } },
       // 승인/거절/취소 결정은 모두 object_type='approval'로 감사 로그에 기록된다(app/approvals/router.py).
       // operator는 승인 화면(OPS_ROLES)엔 들어오지만 감사 화면엔 못 들어간다(App.jsx SCREEN_ROLES) —
       // '대상 보기'의 canReachObjRoute와 동일한 이유로 admin/system_admin/auditor에만 노출한다.
@@ -378,8 +360,8 @@ export const GOVERNANCE_SCREENS = {
     actions: [
       // 대상 화면 중 일부(사용자·부서·직책·작업 큐)는 role이 이 감사 화면 자체보다 더 좁게 제한된다
       // (App.jsx SCREEN_ROLES) — auditor가 그 화면들에 못 들어가는데 버튼만 보이면 클릭 즉시 403이다.
-      // 대상 유형이 OBJ_ID_PARAM에 있으면(workflow/integration/schedule/runner/job/user_notion_mapping/
-      // document_generation) 그 화면이 ?id= 딥링크를 지원하므로 목록이 아니라 그 행 하나를 직접 연다
+      // 대상 유형이 OBJ_ID_PARAM에 있으면(integration/schedule/job/user_notion_mapping)
+      // 그 화면이 ?id= 딥링크를 지원하므로 목록이 아니라 그 행 하나를 직접 연다
       // — 라벨도 실제 동작대로 '관련 항목 보기'로 구분한다(예전엔 이 딥링크 인프라가 있는데도 아무
       // 곳에서도 쓰지 않아, jobs.onQuery의 '감사 로그/알림에서 딥링크' 주석이 거짓이었다).
       { label: "관련 항목 보기", when: (r, ctx) => !!OBJ_ROUTE[r.object_type] && !!OBJ_ID_PARAM[r.object_type] && !!r.object_id && canReachObjRoute(r.object_type, ctx && ctx.role), navigate: (r) => objRouteHref(r.object_type, r.object_id) },

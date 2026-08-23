@@ -32,7 +32,6 @@ pytestmark = pytest.mark.unit
         # job은 다른 셋과 파라미터 이름이 다르다(jobs.onQuery가 job_id를 본다) — 실수로
         # ?id=를 쓰면 조용히 무필터 전체 목록이 열리므로 이름 자체를 못박는다.
         ("job", "j-1", "/jobs?job_id=j-1"),
-        ("runner", "r-1", "/runners?id=r-1"),
         ("user", "u-1", "/users?id=u-1"),
         # 기존(이번 변경 전부터 있던) 항목들도 회귀 방지로 같이 고정한다.
         ("chat_room", "c-1", "/chat-rooms/c-1"),
@@ -70,13 +69,13 @@ def test_types_without_a_single_row_deep_link_stay_null(object_type):
     assert destination_for(object_type, "some-id") is None
 
 
-@pytest.mark.parametrize("object_type", ["approval", "schedule", "job", "runner", "user"])
+@pytest.mark.parametrize("object_type", ["approval", "schedule", "job", "user"])
 def test_id_required_types_return_null_without_an_id(object_type):
     assert destination_for(object_type, None) is None
     assert destination_for(object_type, "") is None
 
 
-@pytest.mark.parametrize("object_type", ["approval", "schedule", "job", "runner", "user"])
+@pytest.mark.parametrize("object_type", ["approval", "schedule", "job", "user"])
 @pytest.mark.parametrize("bad_id", ["a/b", "a?b", "a#b", "a b", "a\\b"])
 def test_ids_that_could_break_the_route_are_rejected(object_type, bad_id):
     """id는 서버가 만든 UUID여야 한다 — 그래도 경로를 깨뜨릴 문자는 통과시키지 않는다

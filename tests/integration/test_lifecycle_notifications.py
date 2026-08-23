@@ -16,6 +16,8 @@
 
 from __future__ import annotations
 
+"""qa-contract-change: 문서 생성 완료 알림 절이 S11 과 함께 사라졌고, AI 쿼터 소진 알림의 소비 경로를 문서 생성에서 채팅으로 옮겼다. 그 김에 시험이 더 정확해졌다 — 채팅은 워커가 답을 만든 뒤에 기록하므로 「보낸 즉시」가 아니라 「처리된 뒤」 소진을 본다."""
+
 import pytest
 
 from app.notion_mapping.models import SOURCE_MANUAL, STATUS_VERIFIED, UserNotionMapping
@@ -42,6 +44,10 @@ def _count(app, user_id: str, kind: str) -> int:
         )
 
 
+def _me_id(client) -> str:
+    return client.get("/api/me").json()["user"]["id"]
+
+
 def _rows(app, kind: str) -> list:
     from app.notifications.models import Notification
 
@@ -50,97 +56,10 @@ def _rows(app, kind: str) -> list:
 
 
 # ── 1. 문서 생성 성공 ─────────────────────────────────────────────────────────
-
-@pytest.fixture()
-def doc_worker(app, settings, fake_clock):
-    from app.jobs.handlers.document_generate import handle_document_generate
-    from app.jobs.worker import Worker, WorkerContext
-
-    ctx = WorkerContext(
-        settings=settings, clock=fake_clock, outbound_client=app.state.outbound_client
-    )
-    return Worker(
-        app.state.session_factory, fake_clock,
-        {"document_generate": handle_document_generate}, ctx,
-    )
-
-
-def _workflow(client, csrf, *, approval_required: bool) -> str:
-    return client.post(
-        "/api/admin/workflows",
-        json={"name": "문서 생성", "webhook_url": DOC_URL,
-              "operation_mode": "write", "approval_required": approval_required},
-        headers={"X-CSRF-Token": csrf},
-    ).json()["workflow"]["id"]
-
-
-def _generate(client, csrf, workflow_id, mode, period="2026-W28"):
-    return client.post(
-        "/api/admin/documents/generate",
-        json={"workflow_id": workflow_id, "mode": mode, "period": period,
-              "config": {"target_parent_page": "page-123", "template_version": 1,
-                         "prompt_template": "weekly"}},
-        headers={"X-CSRF-Token": csrf},
-    )
-
-
-def _me_id(client) -> str:
-    return client.get("/api/me").json()["user"]["id"]
-
-
-def test_a_published_document_tells_the_person_who_asked_for_it(
-    client, app, login_as, doc_worker, fake_http
-):
-    csrf = login_as("admin", email="doc-admin@goodmit.co.kr")
-    me = _me_id(client)
-    fake_http.on(
-        DOC_URL,
-        json_body={"title": "주간 보고서", "body": "완료된 작업 요약입니다. " * 3,
-                   "source_row_count": 4, "published_ref": "https://www.notion.so/pub123"},
-    )
-    workflow_id = _workflow(client, csrf, approval_required=False)
-    response = _generate(client, csrf, workflow_id, "auto_publish")
-    assert response.status_code == 202, response.text
-    gen_id = response.json()["generation"]["id"]
-
-    # 아직 큐에 있을 뿐이다 - 여기서 알림이 있으면 '요청했다'를 '만들어졌다'로 속인 것이다.
-    assert _count(app, me, "document_ready") == 0, "만들어지기도 전에 완료 알림이 갔다"
-
-    doc_worker.run_once()
-    assert client.get(f"/api/admin/documents/{gen_id}").json()["generation"]["status"] == "published"
-    assert _count(app, me, "document_ready") == 1, "문서가 다 만들어졌는데 요청자가 모른다"
-
-
-def test_a_preview_only_document_also_reports_when_it_is_ready(
-    client, app, login_as, doc_worker, fake_http
-):
-    """미리보기만 만드는 모드도 '요청한 산출물이 준비됐다'는 같은 사건이다."""
-    csrf = login_as("admin", email="doc-admin2@goodmit.co.kr")
-    me = _me_id(client)
-    fake_http.on(
-        DOC_URL,
-        json_body={"title": "주간 보고서", "body": "완료된 작업 요약입니다. " * 3,
-                   "source_row_count": 4},
-    )
-    workflow_id = _workflow(client, csrf, approval_required=True)
-    _generate(client, csrf, workflow_id, "preview_only")
-    doc_worker.run_once()
-
-    assert _count(app, me, "document_ready") == 1, "미리보기가 준비됐는데 요청자가 모른다"
-
-
-def test_a_failed_document_does_not_claim_success(
-    client, app, login_as, doc_worker, fake_http
-):
-    """값이 실제로 달라지는 표본. 품질 게이트에 걸린 문서는 '완료'가 아니다."""
-    csrf = login_as("admin", email="doc-admin3@goodmit.co.kr")
-    me = _me_id(client)
-    fake_http.on(DOC_URL, json_body={"title": "", "body": "짧", "source_row_count": 0})
-    workflow_id = _workflow(client, csrf, approval_required=True)
-    _generate(client, csrf, workflow_id, "auto_publish")
-    doc_worker.run_once()
-
-    assert _count(app, me, "document_ready") == 0, "실패한 문서를 완료로 알렸다"
+#
+# S11 이 n8n 기반 문서 생성을 걷어냈다. 그 절이 지키던 「요청한 사람이 결과를 안다」는
+# 지금 채팅이 진다 — 답변이든 「근거가 없다」든 그 사람의 대화에 바로 남는다
+# (tests/integration/test_chat_answers_from_retrieval.py).
 
 
 # ── 2. 오프보딩 후임자 ────────────────────────────────────────────────────────
@@ -265,6 +184,10 @@ def test_an_admin_who_hands_over_to_themselves_gets_nothing(
 
 
 # ── 3. AI 쿼터 소진 ───────────────────────────────────────────────────────────
+#
+# 상한을 소비하는 경로가 S11 로 하나 줄었다(문서 생성). 남은 것은 채팅이고, 그 경로는
+# **워커가 답을 만든 뒤에** 기록한다 — 그래서 「보낸 즉시 소진」이 아니라 「처리된 뒤 소진」이다.
+
 
 def _set_quota(client, csrf, user_id: str, max_calls: int):
     return client.post(
@@ -275,44 +198,124 @@ def _set_quota(client, csrf, user_id: str, max_calls: int):
     )
 
 
+class _AlwaysAnswers:
+    name = "scripted"
+    model = "scripted-model"
+    dim = 384
+
+    def __init__(self, cap):
+        self._cap = cap
+
+    def capability(self):
+        from app.ai.gateway import contract
+
+        return contract.available(self._cap, model=self.model)
+
+    def embed(self, texts, *, kind=None):
+        from app.ai.gateway import contract
+
+        one = tuple([1.0] + [0.0] * 383)
+        return contract.EmbedResult(status=contract.STATUS_OK, model=self.model,
+                                    dim=384, vectors=tuple(one for _ in texts))
+
+    def generate(self, *, system, user):
+        from app.ai.gateway import contract
+
+        return contract.GenerateResult(status=contract.STATUS_OK, model=self.model,
+                                       text="답변입니다.")
+
+
+@pytest.fixture()
+def chat_quota_world(client, app, login_as, db, settings, fake_clock):
+    """상한이 걸린 사용자 + 근거가 될 문서 하나 + 그 답을 만드는 워커."""
+    from app.ai.gateway import contract
+    from app.ai.index import service as index_service
+    from app.jobs.handlers.chat_message import handle_chat_message
+    from app.jobs.worker import Worker, WorkerContext
+    from app.knowledge import versions
+    from app.knowledge.models import Document, KnowledgeSpace
+    from app.org.constants import DEFAULT_ORG_ID
+
+    gateway = contract.Gateway(
+        enabled=True,
+        embed_adapter=_AlwaysAnswers(contract.CAP_EMBED),
+        generate_adapter=_AlwaysAnswers(contract.CAP_GENERATE),
+    )
+    app.state.ai_gateway = gateway
+
+    space = KnowledgeSpace(org_id=DEFAULT_ORG_ID, name="규정", slug="rules",
+                           owner_kind="organization")
+    db.add(space)
+    db.flush()
+    doc = Document(space_id=space.id, title="연차 규정", archived=False)
+    db.add(doc)
+    db.flush()
+    versions.snapshot(db, doc, {"type": "doc", "content": [
+        {"type": "paragraph", "content": [{"type": "text", "text": "연차는 15일이다."}]}
+    ]}, author_id=None)
+    db.flush()
+    index_service.run_once(db, gateway=gateway, limit=50)
+    db.commit()
+
+    ctx = WorkerContext(settings=settings, clock=fake_clock,
+                        outbound_client=app.state.outbound_client,
+                        extras={"ai_gateway": gateway})
+    worker = Worker(app.state.session_factory, fake_clock,
+                    {"chat_message": handle_chat_message}, ctx, poll_interval=0.01)
+    return worker
+
+
+_msg = iter(range(1000, 9999))
+
+
+def _ask(client, csrf, conv_id):
+    return client.post(
+        f"/api/conversations/{conv_id}/messages",
+        json={"content": "연차 며칠인가요", "client_message_id": f"quota{next(_msg)}" + "0" * 24},
+        headers={"X-CSRF-Token": csrf},
+    )
+
+
 def test_the_user_hears_about_the_quota_when_it_runs_out(
-    client, app, login_as, doc_worker, fake_http
+    client, app, login_as, db, chat_quota_world
 ):
     """상한에 **닿는 순간** 알린다. 다음에 쓰려다 429 를 보고 아는 것은 너무 늦다."""
-    csrf = login_as("admin", email="quota-admin@goodmit.co.kr")
+    admin_csrf = login_as("system_admin", email="quota-admin@goodmit.co.kr")
+    csrf = login_as("user", email="quota-user@goodmit.co.kr")
     me = _me_id(client)
-    fake_http.on(
-        DOC_URL,
-        json_body={"title": "보고서", "body": "완료된 작업 요약입니다. " * 3,
-                   "source_row_count": 4},
-    )
-    workflow_id = _workflow(client, csrf, approval_required=True)
-    assert _set_quota(client, csrf, me, 2).status_code == 201
+    admin_csrf = login_as("system_admin", email="quota-admin@goodmit.co.kr")
+    assert _set_quota(client, admin_csrf, me, 2).status_code == 201
 
-    assert _generate(client, csrf, workflow_id, "preview_only", period="2026-W31").status_code == 202
+    csrf = login_as("user", email="quota-user@goodmit.co.kr")
+    conv = client.post("/api/conversations", json={},
+                       headers={"X-CSRF-Token": csrf}).json()["conversation"]["id"]
+
+    assert _ask(client, csrf, conv).status_code == 202
+    chat_quota_world.run_once()
     assert _count(app, me, "ai_quota_exhausted") == 0, "아직 한 번 남았는데 소진을 알렸다"
 
-    assert _generate(client, csrf, workflow_id, "preview_only", period="2026-W32").status_code == 202
+    assert _ask(client, csrf, conv).status_code == 202
+    chat_quota_world.run_once()
     assert _count(app, me, "ai_quota_exhausted") == 1, "상한에 닿았는데 알림이 없다"
 
 
 def test_the_quota_notice_is_sent_once_not_on_every_rejected_call(
-    client, app, login_as, fake_http
+    client, app, login_as, db, chat_quota_world
 ):
     """상한에 걸린 뒤에도 계속 시도한다. 시도마다 알리면 배지가 그 사람만 폭주한다."""
-    csrf = login_as("admin", email="quota-admin2@goodmit.co.kr")
+    csrf = login_as("user", email="quota-user2@goodmit.co.kr")
     me = _me_id(client)
-    fake_http.on(
-        DOC_URL,
-        json_body={"title": "보고서", "body": "완료된 작업 요약입니다. " * 3,
-                   "source_row_count": 4},
-    )
-    workflow_id = _workflow(client, csrf, approval_required=True)
-    assert _set_quota(client, csrf, me, 1).status_code == 201
+    admin_csrf = login_as("system_admin", email="quota-admin2@goodmit.co.kr")
+    assert _set_quota(client, admin_csrf, me, 1).status_code == 201
 
-    assert _generate(client, csrf, workflow_id, "preview_only", period="2026-W33").status_code == 202
-    for period in ("2026-W34", "2026-W35"):
-        assert _generate(client, csrf, workflow_id, "preview_only", period=period).status_code == 429
+    csrf = login_as("user", email="quota-user2@goodmit.co.kr")
+    conv = client.post("/api/conversations", json={},
+                       headers={"X-CSRF-Token": csrf}).json()["conversation"]["id"]
+
+    assert _ask(client, csrf, conv).status_code == 202
+    chat_quota_world.run_once()
+    for _ in range(2):
+        assert _ask(client, csrf, conv).status_code == 429
 
     assert _count(app, me, "ai_quota_exhausted") == 1, "거절될 때마다 알림이 쌓인다"
 
@@ -426,7 +429,7 @@ def test_enabled_but_stale_backup_gets_a_reason(app):
 
 
 def test_a_disabled_schedule_reaches_the_admins_once_a_day_not_every_tick(app, make_user):
-    """runner_unavailable과 같은 원칙 — 나쁜 상태가 계속 참이어도 매 틱(10분)마다 알리면
+    """반복 경보와 같은 원칙 — 나쁜 상태가 계속 참이어도 매 틱(10분)마다 알리면
     관리자 알림함이 도배된다. 하루 한 번으로 눌러 둔다."""
     import app.backups.service as backups_service
 
@@ -506,6 +509,6 @@ def test_every_new_type_is_in_the_preference_registry(client, login_as):
     login_as("user", email="prefs@goodmit.co.kr")
     catalog = client.get("/api/me/preferences").json()["notifications"]["catalog"]
     keys = {t["key"] for t in catalog}
-    for kind in ("ticket_assigned", "document_ready", "offboarding_handover",
+    for kind in ("ticket_assigned", "offboarding_handover",
                  "ai_quota_exhausted", "backup_failed"):
         assert kind in keys, f"{kind} 을(를) 설정 화면에서 끌 수 없다"

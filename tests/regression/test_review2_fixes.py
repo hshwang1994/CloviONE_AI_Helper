@@ -14,12 +14,12 @@ def test_integration_rollback_sensitive_change_gated(client, login_as):
     sys_csrf = login_as("system_admin", email="int-rb-owner@goodmit.co.kr")
     integ = client.post(
         "/api/admin/integrations",
-        json={"name": "int-rb", "provider_type": "http_service", "base_url": "http://127.0.0.1:8787"},
+        json={"name": "int-rb", "provider_type": "http_service", "base_url": "https://api.notion.com"},
         headers=_headers(sys_csrf),
     ).json()["integration"]
     client.patch(
         f"/api/admin/integrations/{integ['id']}",
-        json={"base_url": "http://127.0.0.1:8788"},
+        json={"base_url": "https://api.anthropic.com"},
         headers=_headers(sys_csrf),
     )
     admin_csrf = login_as("admin", email="int-rb-admin@goodmit.co.kr")

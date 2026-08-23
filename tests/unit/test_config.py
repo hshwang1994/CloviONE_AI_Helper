@@ -1,3 +1,5 @@
+"""qa-contract-change: S11 이 n8n 설정 둘(n8n_work_assistant_url · n8n_timeout_seconds)을 Settings 에서 걷어냈다 — 그 기본값을 못 박던 단언 둘이 함께 사라졌다. 나머지 기본값 단언은 값도 형태도 그대로이고, 사라진 두 값이 되살아나면 test_external_automation_removed.py 가 배포 산출물 쪽에서 잡는다."""
+
 import pytest
 
 from app.core.config import Settings
@@ -14,13 +16,9 @@ def test_spec_28_defaults():
     assert s.session_ttl_seconds == 28800
     assert s.session_idle_timeout_seconds == 1800
     assert s.max_message_length == 5000
-    assert s.n8n_timeout_seconds == 180
     assert s.login_max_failures == 5
     assert s.login_lock_seconds == 900
     assert s.timezone == "Asia/Seoul"
-    assert s.n8n_work_assistant_url == (
-        "http://127.0.0.1:5678/webhook/clovirone-work-assistant"
-    )
 
 
 def test_allowed_email_domain_list_parses_and_normalizes():

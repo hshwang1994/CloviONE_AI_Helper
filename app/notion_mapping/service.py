@@ -3,7 +3,7 @@
 Mapping is keyed on the login account email matching a Notion People email.
 The web app never sends the email string as a People property value and never
 accepts a Notion user id from the browser (spec §12.3) — the id is resolved
-only via the approved mapping workflow, or set explicitly by an admin.
+only by an admin — S11 이 n8n 을 걷어내면서 자동 조회 경로가 사라졌다.
 """
 
 from __future__ import annotations
@@ -21,18 +21,12 @@ from app.core.db import DEFAULT_WRITE_CONFLICT_RETRIES, is_insert_race, write_co
 from app.core.errors import ConflictError, NotFoundError, ValidationAppError
 from app.notion_mapping.models import (
     SOURCE_MANUAL,
-    SOURCE_WORKFLOW,
-    STATUS_CONFLICT,
     STATUS_UNMAPPED,
     STATUS_VERIFIED,
     UserNotionMapping,
 )
 from app.users.models import User
-from app.workflows.models import Workflow
-from app.workflows.provider_n8n import N8nWorkflowProvider
 
-# Reserved workflow name that resolves login email → Notion People user.
-MAPPING_WORKFLOW_NAME = "notion-user-mapping"
 
 _NOTION_USER_ID = re.compile(r"^[A-Za-z0-9-]{8,64}$")
 
@@ -91,12 +85,6 @@ def mapping_status(db: Session, user_id: str) -> str:
     return row.status if row is not None else STATUS_UNMAPPED
 
 
-def get_mapping_workflow(db: Session) -> Workflow | None:
-    return db.execute(
-        select(Workflow).where(Workflow.name == MAPPING_WORKFLOW_NAME)
-    ).scalar_one_or_none()
-
-
 def _mask_notion_id(notion_id: str | None) -> str | None:
     if not notion_id:
         return None
@@ -142,88 +130,6 @@ def mapping_view_for_user(user: User, row: UserNotionMapping | None) -> dict:
     }
 
 
-def verify_mapping(
-    db: Session,
-    user: User,
-    *,
-    outbound,
-    now: datetime,
-) -> UserNotionMapping:
-    """Query the mapping workflow and cache the result (spec §12.1)."""
-    row = get_or_create_mapping(db, user.id)
-    workflow = get_mapping_workflow(db)
-    if workflow is None or not workflow.enabled:
-        # Clear any previously cached mapping so a now-disabled workflow does not
-        # leave a stale verified notion_user_id/source behind (must read as unmapped).
-        row.status = STATUS_UNMAPPED
-        row.notion_user_id = None
-        row.notion_email = None
-        row.source = None
-        row.candidates_json = None
-        row.error_message = "Notion 매핑 Workflow가 구성/활성화되지 않았습니다."
-        row.last_verified_at = now
-        db.flush()
-        return row
-
-    provider = N8nWorkflowProvider(outbound)
-    # DBTX: 아웃바운드 호출 앞에서 커밋해 스냅샷을 새로 뜬다 — 위 get_or_create_mapping/
-    # get_mapping_workflow 읽기가 이 세션의 스냅샷을 이미 고정했다. 커밋 없이 호출을
-    # 통과하면, 아래 row 쓰기(성공/실패 양쪽 경로 다)가 요청 종료 시점 커밋(`get_db`)에서
-    # "database is locked"로 거부될 수 있다(app/core/db.py의 "begin" 이벤트 주석,
-    # app/jobs/handlers/chat_message.py의 실측 사고와 같은 근거).
-    db.commit()
-    try:
-        result = provider.invoke(
-            workflow, {"action": "lookup_user", "email": user.email}, timeout=30.0
-        )
-    except Exception as exc:
-        # 실패한 시도를 '방금 확인함'으로 보이게 하지 않는다 — last_verified_at은 건드리지
-        # 않는다. 배치 핸들러(app/jobs/handlers/notion_mapping_sync.py)도 워크플로 호출
-        # 자체가 실패하면 개별 행에 손대지 않는다(핸들러 진입 전에 raise). 여기만 예외였다:
-        # 조회가 실패했는데 error_message 옆에 방금 찍힌 시각이 남으면 화면은 '막 확인했는데
-        # 실패했다'가 아니라 '방금 검증됨'처럼 보인다.
-        row.error_message = f"매핑 조회 실패: {type(exc).__name__}"
-        db.flush()
-        return row
-
-    matches = result.get("matches", []) if isinstance(result, dict) else []
-    if not isinstance(matches, list):
-        matches = []
-
-    row.last_verified_at = now
-    row.source = SOURCE_WORKFLOW
-    if len(matches) == 1 and (matches[0].get("notion_user_id") or "").strip():
-        m = matches[0]
-        row.status = STATUS_VERIFIED
-        row.notion_user_id = str(m.get("notion_user_id")).strip()
-        row.notion_email = m.get("notion_email")
-        row.error_message = None
-        row.candidates_json = None
-    elif len(matches) == 1:
-        # A single match with no usable notion_user_id is not a valid mapping.
-        row.status = STATUS_UNMAPPED
-        row.notion_user_id = None
-        row.notion_email = None
-        row.error_message = "일치 항목에 Notion user id가 없습니다."
-        row.candidates_json = None
-    elif len(matches) == 0:
-        row.status = STATUS_UNMAPPED
-        row.notion_user_id = None
-        row.notion_email = None
-        row.error_message = "일치하는 Notion 사용자가 없습니다."
-        row.candidates_json = None
-    else:
-        # 충돌로 내려갈 때도 이전에 검증됐던 notion_email을 지운다 — 안 지우면 배지는
-        # '충돌'인데 목록/상세엔 더 이상 유효하지 않은 옛 이메일이 그대로 남는다.
-        row.status = STATUS_CONFLICT
-        row.notion_user_id = None
-        row.notion_email = None
-        row.error_message = f"{len(matches)}명이 일치하여 충돌합니다. 관리자 해결 필요."
-        row.candidates_json = json.dumps(matches, ensure_ascii=False)
-    db.flush()
-    return row
-
-
 def manual_map(
     db: Session, user: User, *, notion_user_id: str, notion_email: str | None, now: datetime
 ) -> UserNotionMapping:
@@ -253,32 +159,3 @@ def unmap(db: Session, user_id: str) -> UserNotionMapping:
     row.candidates_json = None
     db.flush()
     return row
-
-
-def resolve_conflict(
-    db: Session, user: User, *, notion_user_id: str, now: datetime
-) -> UserNotionMapping:
-    row = get_or_create_mapping(db, user.id)
-    if row.status != STATUS_CONFLICT:
-        raise ConflictError("충돌 상태의 매핑만 해결할 수 있습니다.")
-    candidates = json.loads(row.candidates_json or "[]")
-    chosen = next(
-        (c for c in candidates if str(c.get("notion_user_id")) == notion_user_id), None
-    )
-    if chosen is None:
-        raise ValidationAppError("후보 목록에 없는 Notion user id입니다.")
-    return manual_map(
-        db, user, notion_user_id=notion_user_id,
-        notion_email=chosen.get("notion_email"), now=now,
-    )
-
-
-# First-person request detection for safe-refusal (spec §12.3).
-_FIRST_PERSON = re.compile(
-    r"(내\s*(티켓|프로젝트|담당|할당|업무|작업)|나의|제\s*(티켓|프로젝트)|my\s+(ticket|project))",
-    re.IGNORECASE,
-)
-
-
-def is_first_person_request(content: str) -> bool:
-    return bool(_FIRST_PERSON.search(content or ""))

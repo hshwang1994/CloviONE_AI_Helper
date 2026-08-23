@@ -24,22 +24,21 @@ import { NoticeRow, userFacingNotices } from "./StatusNotices.jsx";
 // related_object_type → 이동할 화면(딥링크 리졸버). 백엔드가 실제로 보내고, 대상 화면에서
 // 그 행에 닿을 수 있는 유형만 남긴다. schedule_run은 개별 실행을 보여 주는 화면이 없어
 // /schedules 목록으로 보내도 대상을 못 찾으므로 뺀다(정적 항목으로 자연스럽게 강등).
-// workflow/integration은 알림 관련 유형으로 발신되지 않는다. runner는 실제로
-// 발신된다 — app/runners/service.py가 서킷브레이커가 degraded로 트립할 때마다
-// notify_admins(type_="runner_unavailable", related=("runner", runner.id))를 보낸다
+// workflow/integration/runner는 알림 관련 유형으로 발신되지 않는다 — 앞의 둘은 애초에
+// 안 보냈고, runner 는 S11 이 러너 셋과 그 서킷브레이커를 함께 걷어냈다
 // (product-quality-audit AREA=D: 이 항목의 이전 주석이 틀렸었다).
 // document(team_docs 댓글, app/team_docs/service.py::_notify_document_comment)는 이 표에
 // 없다 — 여기 없어도 딥링크가 빠지지 않는다: 서버가 app/notifications/destinations.py의
 // RELATED_DESTINATIONS에서 이미 "/team-docs/{id}"를 계산해 related_route로 실어 주므로
 // serverRoute(n)가 이 폴백 표보다 먼저 잡는다(위 42번째 줄 주석 참고).
 const OBJ_ROUTE = {
-  approval: "/approvals", job: "/jobs", user: "/users", schedule: "/schedules", runner: "/runners",
+  approval: "/approvals", job: "/jobs", user: "/users", schedule: "/schedules",
 };
 // related_object_id로 그 행 하나를 바로 여는 대상 화면만(?파라미터=id 딥링크를 실제로 소비하는
 // onQuery가 있는 화면) — registry.js의 OBJ_ID_PARAM과 같은 값이지만, 벨은 registry.js를 import하지
 // 않으므로(순환 의존 방지) 여기 필요한 것만 로컬로 둔다. user도 이제 포함한다 — Users.jsx가
 // NOTI-04R로 ?id= 딥링크(onQuery와 같은 계약)를 갖췄다.
-const OBJ_ID_PARAM = { approval: "id", job: "job_id", schedule: "id", runner: "id", user: "id" };
+const OBJ_ID_PARAM = { approval: "id", job: "job_id", schedule: "id", user: "id" };
 function objRouteHref(objType, objId) {
   const base = OBJ_ROUTE[objType];
   const param = OBJ_ID_PARAM[objType];
@@ -59,14 +58,13 @@ function serverRoute(n) {
 // 대상 라우트의 접근 역할 — 화면 자체(App.jsx SCREEN_ROLES)가 열려 있어도, 그 화면이 부르는
 // API가 더 좁게 막으면(app/core/authz.py CONSOLE_READ_ROLES 등) 눌러도 그 자리에서 403이
 // 뜬다 — 이 표는 "실제로 읽을 수 있는가"를 백엔드 라우터 기준으로 맞춘다.
-// /approvals·/schedules·/runners는 CONSOLE_READ_ROLES(operator/admin/system_admin/auditor)를,
+// /approvals·/schedules는 CONSOLE_READ_ROLES(operator/admin/system_admin/auditor)를,
 // /jobs는 그보다 좁은 별도 게이트(auditor 제외, app/jobs/router.py)를 쓴다.
 const ROUTE_ROLES = {
   "/users": ["admin", "system_admin"],
   "/jobs": ["operator", "admin", "system_admin"],
   "/approvals": ["operator", "admin", "system_admin", "auditor"],
   "/schedules": ["operator", "admin", "system_admin", "auditor"],
-  "/runners": ["operator", "admin", "system_admin", "auditor"],
 };
 const FOCUSABLE = 'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])';
 

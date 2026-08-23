@@ -68,7 +68,7 @@ def test_auditor_is_read_only(app, make_user):
     # …but cannot mutate anything (e.g. create integration).
     r = c.post(
         "/api/admin/integrations",
-        json={"name": "x", "provider_type": "http_service", "base_url": "http://127.0.0.1:8787"},
+        json={"name": "x", "provider_type": "http_service", "base_url": "https://api.notion.com"},
         headers={"X-CSRF-Token": csrf},
     )
     assert r.status_code == 403
@@ -77,6 +77,6 @@ def test_auditor_is_read_only(app, make_user):
 def test_user_cannot_reach_any_admin_namespace(app, make_user):
     make_user("plain-esc@goodmit.co.kr")
     c = _client_as(app, "plain-esc@goodmit.co.kr")
-    for path in ["/api/admin/users", "/api/admin/runners", "/api/admin/audit",
+    for path in ["/api/admin/users", "/api/admin/integrations", "/api/admin/audit",
                  "/api/admin/dashboard", "/api/admin/backups", "/api/admin/schedules"]:
         assert c.get(path).status_code == 403, path

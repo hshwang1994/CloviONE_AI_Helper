@@ -9,7 +9,7 @@ CRON_FILE=/etc/cron.d/clovirone-backups
 install -o root -g root -m 0755 "$APP_DIR/scripts/backup-cron.sh" /usr/local/sbin/clovirone-backup-cron
 
 cat > "$CRON_FILE" <<'CRON'
-# ClovirONE 정기 백업 — 매일 03:30 플랫폼 백업(+보존 7), 일요일엔 n8n DB 백업(+보존 4)
+# ClovirONE 정기 백업 — 매일 03:30 플랫폼 백업(+보존 7일)
 SHELL=/bin/bash
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 30 3 * * * root /usr/local/sbin/clovirone-backup-cron >> /var/log/clovirone-backup.log 2>&1

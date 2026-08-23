@@ -1,8 +1,8 @@
 """Provider interfaces for future extension (spec §7.3).
 
-Initial implementations: Local HTTP Runner Provider (M6), n8n Webhook
+Initial implementations: Local HTTP Runner Provider (M6), Webhook
 Provider (M5/M6), Local Account Identity Provider (built into auth),
-In-app Notification Provider (M9), Notion-via-n8n Document Provider (M10),
+In-app Notification Provider (M9),
 File-based Secret Reference Provider (core.secret_refs).
 """
 

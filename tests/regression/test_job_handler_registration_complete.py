@@ -16,20 +16,22 @@ from app.llm_console.service import JOB_TYPE_TEST
 from app.mail.service import MAIL_JOB_TYPE
 from app.worker_main import build_handlers
 
-# 아래 리터럴 넷(schedule_run/document_generate/notion_mapping_sync/project_weekly_summary)은
-# 전용 상수가 없어 app/schedules/scheduler.py, app/documents/service.py,
-# app/notion_mapping/service.py, app/projects/service.py의 실제 enqueue(job_type=...) 호출부와
+# 아래 리터럴 둘(schedule_run/project_weekly_summary)은 전용 상수가 없어
+# app/schedules/scheduler.py, app/projects/service.py의 실제 enqueue(job_type=...) 호출부와
 # 문자 그대로 대조해 뽑았다(2026-08-11 grep 확인) — 새 호출부가 다른 문자열을 쓰면 여기도
-# 갱신해야 한다.
+# 갱신해야 한다. `document_generate`·`notion_mapping_sync` 는 S11 이 그 기능과 함께
+# 걷어냈다 — 아래 반대 방향 시험이 그 둘이 되살아나는 것을 막는다.
 _ALL_ENQUEUED_JOB_TYPES = {
     JOB_TYPE_CHAT_MESSAGE,
     MAIL_JOB_TYPE,
     JOB_TYPE_TEST,
     "schedule_run",
-    "document_generate",
-    "notion_mapping_sync",
     "project_weekly_summary",
 }
+
+#: 큐에 들어갈 수 없게 된 종류. 핸들러만 남으면 «부를 곳 없는 핸들러» 가 되고, 그 상태는
+#: 아무 오류도 안 낸다.
+_RETIRED_JOB_TYPES = {"document_generate", "notion_mapping_sync"}
 
 
 def test_every_enqueued_job_type_has_a_registered_handler():
@@ -40,3 +42,13 @@ def test_every_enqueued_job_type_has_a_registered_handler():
         "worker_main.py::build_handlers()에 등록을 추가하라. 등록이 없으면 그 잡은 "
         "'등록되지 않은 job_type' 영구 실패로 조용히 죽는다(app/jobs/worker.py)."
     )
+
+
+def test_no_handler_survives_for_a_retired_job_type():
+    """반대 방향 — 넣을 수 없는 잡의 핸들러가 남아 있으면 그것도 결함이다.
+
+    위 시험만 있으면 «등록은 남기고 호출부만 지웠다» 가 영원히 안 잡힌다. 그 상태는
+    아무 오류도 안 내면서 읽는 사람에게 «아직 쓰는 기능» 이라고 거짓말한다.
+    """
+    leftover = _RETIRED_JOB_TYPES & set(build_handlers())
+    assert not leftover, f"부를 곳이 없는 잡 핸들러가 남아 있다: {leftover}"

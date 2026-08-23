@@ -251,17 +251,17 @@ export const ORG_SCREENS = {
   },
   "notion-mapping": {
     key: "notion-mapping", area: "사용자와 권한", title: "Notion 사용자 연결", endpoint: "/api/admin/notion-mapping",
-    help: "직원 계정과 Notion 사용자를 연결합니다. 자동 매칭되며 수동 지정도 가능합니다. (‘notion-user-mapping’ 워크플로가 추가, 활성화되어 있어야 자동 동기화, 검증이 동작합니다.)",
-    // 사용자 화면(Users.jsx)의 'Notion 연결 확인' 링크가 ?user_id=를 붙여 이 화면으로 온다 — 다른
-    // 9개 id 딥링크 화면(runners.onQuery 등)과 동일하게 GET /{user_id}({"mapping":...} 응답,
+    help: "직원 계정과 Notion 사용자를 연결합니다. 지금은 사람이 직접 지정합니다.",
+    // 사용자 화면(Users.jsx)의 'Notion 연결 확인' 링크가 ?user_id=를 붙여 이 화면으로 온다 —
+    // 다른 id 딥링크 화면과 동일하게 GET /{user_id}({"mapping":...} 응답,
     // app/notion_mapping/router.py get_mapping)로 그 사용자의 상세 드로어를 곧바로 연다(예전엔 필터만
     // 채워 목록에서 다시 찾아야 했다).
     onQuery: (p) => p.user_id ? { open: "select", id: p.user_id } : null,
     selectKey: "mapping",
     emptyTitle: "표시할 사용자가 없습니다",
-    // 읽기 전용 역할(operator/auditor)에는 자기 권한 밖 버튼('자동 동기화' 등)을 누르라고 안내하지 않는다.
+    // 읽기 전용 역할(operator/auditor)에는 자기 권한 밖 버튼을 누르라고 안내하지 않는다.
     emptyHelp: (role) => (role === "admin" || role === "system_admin")
-      ? "사용자 디렉터리의 계정이 여기에 나타납니다. ‘자동 동기화’나 행에서 Notion 사용자를 연결하세요."
+      ? "사용자 디렉터리의 계정이 여기에 나타납니다. 행에서 ‘수동 연결’로 Notion 사용자를 지정하세요."
       : "사용자 디렉터리의 계정이 여기에 나타납니다. Notion 연결은 관리자가 수행합니다.",
     paginated: true, searchable: true,
     // 서버 검색(q)은 직원 이메일/이름만 매칭한다(app/notion_mapping/router.py) — notion_email은 검색
@@ -277,7 +277,7 @@ export const ORG_SCREENS = {
       // paginated라, 예전처럼 clientFilter로 두면 지금 페이지 안의 일치 항목만 남고 다른 페이지의
       // 수동 매핑은 화면에서 사라진다 — 그리고 사용자는 그걸 '그런 연결이 없다'로 읽는다.
       // 백엔드는 이미 고쳐졌는데 이 줄만 옛 사실("지원하지 않는다")을 붙들고 있었다.
-      { key: "source", type: "select", label: "출처", options: opt([["workflow", "워크플로 자동"], ["manual", "수동 지정"]]) }],
+      { key: "source", type: "select", label: "출처", options: opt([["workflow", "워크플로 자동(옛 방식)"], ["manual", "수동 지정"]]) }],
     columns: [{ ...col("user_email", "사용자"), identifier: true }, col("user_display_name", "이름"), badgeCol("status", "상태"),
       // 실패로 'unmapped'로 되돌아온 행을 '한 번도 시도 안 함'과 구분한다 — 대량 트리아지 때 각 행을
       // 열지 않아도 사유를 바로 읽을 수 있게 실제 메시지를 보여준다(길면 말줄임, title 속성으로 전체 확인).
@@ -303,73 +303,22 @@ export const ORG_SCREENS = {
     // 이미 title 속성으로 전체 텍스트를 마우스 오버 시 보여주며, 드로어도 열+detailFields 합집합을
     // 그리므로 그 열이 그대로 드로어 안에도 나타난다. 예전엔 같은 내용을 자른 버전/전체 버전으로
     // 두 번(혼란스러운 near-duplicate로) 보여줬다.
-    headerActions: [
-      // '자동 동기화'는 POST /sync가 즉시 202로 큐잉될 뿐 30초를 기다리지 않는다(그 30초 문구는
-      // 개별 '검증' 액션의 것 — verify_mapping이 실제로 동기 30초 타임아웃이다). 백그라운드 작업
-      // 자체는 SYNC_TIMEOUT_SECONDS=90초까지 걸릴 수 있다(app/jobs/handlers/notion_mapping_sync.py).
-      // primary:true — 백업(+ 백업 실행)·문서(+ 문서 생성) 화면과 동일하게, 이 화면의 headline
-      // 액션을 EmptyState CTA로도 승격한다(그렇지 않으면 목록이 완전히 비어 있을 때 이 버튼이 안 보였다).
-      // PA-RC-0023: variant:"primary"가 빠져 있었다 — DataScreen.jsx는 헤더 툴바에서
-      // variant(없으면 default)만 보고, primary:true는 EmptyState CTA로 승격할 때만 본다.
-      // 그래서 이 화면에 실제 대상이 있는 보통 상태에서는 "headline 액션"이라는 의도와 달리
-      // 툴바에 외곽선 버튼으로 떠 있었다(+ 백업 실행/+ 문서 생성과 다르게).
-      { label: "자동 동기화", variant: "primary", primary: true, roles: WRITE_ROLES, path: () => "/api/admin/notion-mapping/sync", confirm: "Notion 사용자와 자동 매칭을 다시 실행할까요? 수동으로 지정한 연결도 일치하는 후보가 없으면 해제될 수 있습니다. Notion 조회에 최대 1~2분 정도 걸릴 수 있으며, 화면은 진행 상태를 자동으로 갱신합니다.",
-        // 202 큐 작업 — 완료를 단정하지 않고 실제 상태를 반영해 안내한다.
-        result: (res) => {
-          const running = res && (res.status === "running" || res.deduplicated);
-          return { ok: true, kind: "info", msg: running
-            ? "이미 동기화가 진행 중입니다. 완료되면 목록이 자동으로 갱신됩니다."
-            : "동기화 작업을 시작했습니다(진행 중). 완료되면 목록이 자동으로 갱신됩니다." };
-        },
-        // 큐 작업이 끝날 때까지 폴링해 완료 시점에 목록을 갱신하고 결과를 알린다(화면에서 완료 피드백 제공).
-        // 폴링은 최대 40초(20×2s)까지만 기다린다 — SYNC_TIMEOUT_SECONDS보다 짧게 끝나면 그 뒤로는
-        // 아무도 다시 목록을 갱신하지 않는다(QueryClient가 refetchOnWindowFocus:false). '자동으로
-        // 갱신됩니다'는 지키지 못할 약속이었다 — 새로고침이 필요하다고 정직하게 안내한다.
-        pollJob: { getId: (res) => res && res.job_id, interval: 2000, maxTries: 20,
-          doneMsg: "자동 동기화가 완료되었습니다. 목록을 갱신했습니다.",
-          failMsg: "자동 동기화 작업이 실패했습니다. 다시 시도해 주세요.",
-          timeoutMsg: "동기화가 아직 진행 중입니다. 이 화면은 자동으로 갱신되지 않을 수 있으니, 잠시 후 새로고침해 확인하세요." } },
-    ],
-    // 검증·수동 연결·충돌 해결·연결 해제는 모두 상태 변경(쓰기) — 백엔드 RBAC와 일치시켜 쓰기 역할만 노출.
+    // 수동 연결·충돌 해결·연결 해제는 모두 상태 변경(쓰기) — 백엔드 RBAC와 일치시켜 쓰기 역할만 노출.
+    // 자동 매칭(‘자동 동기화’·‘검증’)은 n8n 워크플로가 하던 일이라 S11 이 함께 걷어냈다.
     actions: [
-      { label: "검증", roles: WRITE_ROLES, path: (r) => "/api/admin/notion-mapping/" + r.user_id + "/verify",
-        // 자동 검증은 워크플로 재소스로 매칭한다 — 수동으로 지정한 연결(source==='manual')을
-        // 무일치로 덮어써 지울 수 있으므로(service.py no-match 처리) 그 경우만 별도로 경고한다.
-        confirm: (r) => r.source === "manual"
-          ? "이 사용자를 지금 검증할까요? 수동으로 지정한 연결입니다. 자동 검증이 일치를 못 찾으면 연결이 해제될 수 있습니다. (Notion에 직접 조회하므로 최대 30초까지 걸릴 수 있습니다.)"
-          : "이 사용자를 지금 검증할까요? Notion에 직접 조회하므로 최대 30초까지 걸릴 수 있습니다.",
-        result: (res) => {
-          const m = (res && res.mapping) || res || {};   // res===null(빈 2xx)이면 res.mapping 접근이 throw — 널가드
-          // status==='verified'인데 error_message가 새로 채워졌다면 이번 조회 자체가 실패한 것이다
-          // (백엔드 verify_mapping이 n8n 조회 예외를 삼키고 상태는 건드리지 않은 채 error_message만
-          // 채워 돌려준다 — 상태만 보면 '검증됨'이라 거짓 성공 토스트가 뜬다). 기존 연결은 유지되지만
-          // 이번 시도는 실패로 알린다.
-          if (m.status === "verified" && !m.error_message) return { ok: true, msg: "검증 완료: 연결됨" };
-          if (m.status === "verified" && m.error_message) return { ok: false, kind: "warn", msg: "검증 중 오류가 발생했습니다(기존 연결은 유지됨): " + m.error_message };
-          // 충돌은 실패가 아니라 '관리자 해결이 필요한' 정상 분기 — 오류 톤으로 표시하지 않는다.
-          if (m.status === "conflict") return { ok: false, kind: "info", msg: "충돌 감지: 여러 Notion 사용자가 일치합니다. 아래 ‘충돌 해결’에서 지정하세요." };
-          // '미연결(unmapped)'은 시스템 실패가 아니라 정상적인 검증 결과다 → 정보 톤으로 안내(오류 톤 과장 금지).
-          // 백엔드 verify_mapping은 no-match에도 error_message('일치하는 Notion 사용자가 없습니다.')를 채우므로
-          // error_message 유무로 갈라선 안 된다(그렇게 하면 이 정보 분기가 죽고 정상 결과가 빨간 오류로 뜬다).
-          if (m.status === "unmapped") return { ok: false, kind: "info", msg: (m.error_message || "연결된 Notion 사용자를 찾지 못했습니다") + " 필요하면 ‘수동 연결’로 지정하세요." };
-          // 예상 밖 상태(verified/conflict/unmapped 외)만 진짜 실패로 표시한다.
-          return { ok: false, msg: "검증 실패: " + (m.error_message || m.status || "일치하는 Notion 사용자를 찾지 못했습니다. 다시 시도해 주세요.") };
-        } },
-      { label: "수동 연결", roles: WRITE_ROLES, path: (r) => "/api/admin/notion-mapping/" + r.user_id + "/map", fields: [
+      // 이 화면의 핵심 동작이다. S11 이 자동 매칭(‘자동 동기화’·‘검증’)을 걷어내면서
+      // 사람이 직접 지정하는 것이 유일한 길이 됐다 — 화면의 primary 도 그리로 옮긴다.
+      { label: "수동 연결", variant: "primary", roles: WRITE_ROLES, path: (r) => "/api/admin/notion-mapping/" + r.user_id + "/map", fields: [
         { name: "notion_user_id", label: "Notion 사용자 ID", type: "text", required: true, help: "Notion 워크스페이스의 사용자 ID(8~64자, 영문, 숫자, 하이픈).",
           freeTextReason: "외부 워크스페이스의 식별자다. 이 제품에 후보 목록이 없다." },
         { name: "notion_email", label: "Notion 이메일(선택)", type: "text" },
       ] },
-      { label: "충돌 해결", roles: WRITE_ROLES, when: (r) => r.status === "conflict", path: (r) => "/api/admin/notion-mapping/" + r.user_id + "/resolve-conflict", fields: [
-        // 후보 목록에서 바로 고른다(원시 JSON에서 8~64자 id를 복사·붙여넣는 실수 방지).
-        { name: "notion_user_id", label: "연결할 Notion 사용자", type: "select", required: true,
-          optionsFrom: (r) => (r.candidates || []).map((c) => ({ value: c.notion_user_id, label: (c.notion_email ? c.notion_email + ", " : "") + c.notion_user_id })),
-          help: "이 사용자와 충돌한 Notion 후보 중 올바른 사람을 고르세요." },
-      ] },
-      // 충돌 행도 해제 가능(후보가 모두 오답일 때 '미연결'로 초기화). 백엔드 unmap은 어떤 상태에서도 동작한다.
+      // 옛 충돌 행도 해제할 수 있다 — 백엔드 unmap 은 어떤 상태에서도 동작한다.
+      // 충돌을 만들던 자동 매칭이 S11 로 사라져 새 충돌은 안 생기지만, 남아 있는
+      // 행은 여기서 풀고 ‘수동 연결’로 다시 지정한다.
       { label: "연결 해제", variant: "danger", roles: WRITE_ROLES, when: (r) => r.status === "verified" || r.status === "conflict" || r.source === "manual", path: (r) => "/api/admin/notion-mapping/" + r.user_id + "/unmap", confirm: "이 사용자의 Notion 연결을 해제할까요?" },
       // user_notion_mapping은 감사 로그의 유효한 object_type이고(OBJTYPE_OPTS, object_id=user_id) 이
-      // 화면의 검증/수동 연결/충돌 해결/해제/동기화가 모두 이 타입으로 기록된다 — 부서·직책과 동일한 딥링크.
+      // 화면의 수동 연결/해제가 모두 이 타입으로 기록된다 — 부서·직책과 동일한 딥링크.
       // operator는 이 화면(READ_ROLES)엔 들어오지만 /audit 화면엔 못 들어간다(App.jsx SCREEN_ROLES)
       // — 다른 화면들의 동일한 '감사 로그에서 보기'와 동일한 이유로 admin/system_admin/auditor에만 노출한다.
       { label: "감사 로그에서 보기", roles: ["admin", "system_admin", "auditor"], navigate: (r) => "#/audit?object_type=user_notion_mapping&object_id=" + r.user_id },

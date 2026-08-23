@@ -23,7 +23,7 @@ ExecStartPre=-/opt/clovirassist/deploy/wait-for-postgres.sh
 ExecStart=/opt/clovirassist/venv/bin/python -m app.worker_main --lane=conversational
 Restart=on-failure
 RestartSec=10
-# 배치 워커와 달리 이 레인의 잡(chat_message/llm_connection_test)은 전부 n8n 타임아웃
+# 배치 워커와 달리 이 레인의 잡(chat_message/llm_connection_test)은 전부 모델 응답 상한
 # (기본 180초) 안에서 끝나거나 실패한다 — schedule_run류의 3600초짜리 예외가 없으므로
 # 200초면 정상 종료를 충분히 덮는다(배치 유닛의 같은 값이 세운 근거를 그대로 따른다).
 KillSignal=SIGTERM

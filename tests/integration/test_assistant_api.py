@@ -301,10 +301,53 @@ def test_assistant_requires_authentication(client):
         assert client.get("/api/assistant" + path).status_code == 401
 
 
-# ── 문장 생성을 켠 상태: 러너가 죽어도 숫자는 살아남는다 ───────────────────────
+# ── 문장 생성을 켠 상태: **모델이 죽어도 숫자는 살아남는다** ──────────────────
+#
+# S11 이전에는 이 절이 러너 HTTP(`assistant_runner_url`)를 가짜로 세웠다. 지금은 요약
+# 문장이 `Gateway.generate()` 를 지나므로(D-266) 가짜를 세울 자리도 Gateway 다. 지키는
+# 것은 한 글자도 안 바뀌었다: **숫자는 언제나 완전하고, 빠지는 것은 문장뿐이다.**
+
+
+class ScriptedGenerate:
+    """넘어온 (system, user) 쌍을 그대로 들고 있는다. 상태는 시험이 정한다."""
+
+    name = "scripted"
+    model = "scripted-model"
+
+    def __init__(self, *, status=None, text="요약 문장입니다."):
+        from app.ai.gateway import contract
+
+        self._status = status or contract.STATUS_OK
+        self._text = text
+        self.calls: list[tuple[str, str]] = []
+
+    def capability(self):
+        from app.ai.gateway import contract
+
+        if self._status != contract.STATUS_OK:
+            return contract.unavailable(contract.CAP_GENERATE, self._status, model=self.model)
+        return contract.available(contract.CAP_GENERATE, model=self.model)
+
+    def generate(self, *, system: str, user: str):
+        from app.ai.gateway import contract
+
+        self.calls.append((system, user))
+        return contract.GenerateResult(
+            status=self._status, model=self.model,
+            text=self._text if self._status == contract.STATUS_OK else None,
+        )
+
+
+def _use(app, adapter):
+    """이 앱의 Gateway 를 그 Adapter 하나짜리로 바꾼다."""
+    from app.ai.gateway import contract
+
+    app.state.ai_gateway = contract.Gateway(enabled=True, generate_adapter=adapter)
+    return adapter
+
 
 def _narrative_app(db_url, tmp_path, fake_clock, fake_http):
-    """assistant_narrative_enabled=true 로 켠 별도 앱(+ 러너 토큰)."""
+    """assistant_narrative_enabled=true 로 켠 별도 앱."""
     from app.core.config import Settings
     from app.main import create_app
 
@@ -315,7 +358,6 @@ def _narrative_app(db_url, tmp_path, fake_clock, fake_http):
     (cfg / "feature-flags.json").write_text(json.dumps(flags), encoding="utf-8")
     secrets_dir = tmp_path / "secrets"
     secrets_dir.mkdir(exist_ok=True)
-    (secrets_dir / "assistant_runner_token").write_text("test-runner-token", encoding="utf-8")
     (secrets_dir / TOKEN_REF).write_text("fake-notion-token", encoding="utf-8")
     settings = Settings(
         _env_file=None, app_env="test", database_url=db_url,
@@ -337,17 +379,16 @@ def narrative_client(db_url, tmp_path, fake_clock, fake_http, notion):
         response = test_client.post("/login", json={"email": EMAIL, "password": DEFAULT_TEST_PASSWORD})
         assert response.status_code == 200, response.text
         test_client.headers["X-CSRF-Token"] = response.json()["csrf_token"]
-        yield test_client, settings
+        yield test_client, app
 
 
 def _facts_only(body: dict) -> dict:
     return {k: v for k, v in body.items() if k != "narrative"}
 
 
-def test_narrative_is_added_when_the_runner_answers(narrative_client, fake_http):
-    client, settings = narrative_client
-    fake_http.on(settings.assistant_runner_url,
-                 json_body={"data": {"text": "오늘 마감 1건, 지연 1건입니다."}})
+def test_narrative_is_added_when_the_model_answers(narrative_client):
+    client, app = narrative_client
+    _use(app, ScriptedGenerate(text="오늘 마감 1건, 지연 1건입니다."))
     body = _get(client, "/api/assistant/briefing?narrate=true")
     assert body["narrative"]["enabled"] is True
     assert body["narrative"]["text"] == "오늘 마감 1건, 지연 1건입니다."
@@ -355,25 +396,26 @@ def test_narrative_is_added_when_the_runner_answers(narrative_client, fake_http)
     assert body["tickets"]["due_today"]["count"] == 1
 
 
-@pytest.mark.parametrize("break_runner", ["timeout", "connect_error", "server_error", "empty"])
-def test_numbers_survive_every_runner_failure_mode(narrative_client, fake_http, break_runner):
+@pytest.mark.parametrize("break_model", ["timeout", "busy", "not_logged_in", "empty"])
+def test_numbers_survive_every_model_failure_mode(narrative_client, break_model):
     """계획서 Phase 5: '러너가 죽어도 숫자는 그대로 보여야 한다(문장만 빠진다).'
 
-    문장을 끄고 받은 응답과 러너가 죽은 채로 받은 응답의 **사실 부분이 바이트 동일**한지
+    문장을 끄고 받은 응답과 모델이 죽은 채로 받은 응답의 **사실 부분이 바이트 동일**한지
     dict 비교로 직접 확인한다. 한 필드라도 사라지면 여기서 깨진다.
     """
-    client, settings = narrative_client
+    from app.ai.gateway import contract
+
+    client, app = narrative_client
+    _use(app, ScriptedGenerate())
     baseline = _facts_only(_get(client, "/api/assistant/briefing"))
 
-    url = settings.assistant_runner_url
-    if break_runner == "timeout":
-        fake_http.on_timeout(url)
-    elif break_runner == "connect_error":
-        fake_http.on_connect_error(url)
-    elif break_runner == "server_error":
-        fake_http.on(url, status=503, json_body={"error": "runner down"})
-    else:
-        fake_http.on(url, json_body={"data": {}})       # 2xx 인데 문장이 없다
+    status = {
+        "timeout": contract.STATUS_TIMEOUT,
+        "busy": contract.STATUS_BUSY,
+        "not_logged_in": contract.STATUS_NOT_LOGGED_IN,
+        "empty": contract.STATUS_EMPTY,
+    }[break_model]
+    _use(app, ScriptedGenerate(status=status))
 
     body = _get(client, "/api/assistant/briefing?narrate=true")
     assert _facts_only(body) == baseline               # 숫자는 한 글자도 안 변했다
@@ -382,50 +424,55 @@ def test_numbers_survive_every_runner_failure_mode(narrative_client, fake_http, 
     assert body["narrative"]["error"]                  # 왜 문장이 없는지 화면이 말할 수 있다
 
 
-def test_missing_runner_secret_reports_unconfigured_not_generic_failure(narrative_client):
-    """`secret_refs.py`가 `FileNotFoundError`에서 `SecretMissingError`로 옮겨 간 뒤
-    `narrate.py`의 except 절이 갱신되지 않아, 러너 토큰이 아예 없는 상태("미설정")가
-    타임아웃/전송 오류와 똑같이 애매한 `_ERR_UNAVAILABLE` 문구로 뭉개지고 있었다(TEST
-    SERVER 실측 중 재현·발견) — 이제는 더 구체적인 "아직 설정되지 않았습니다"로 갈라진다.
-    """
-    client, settings = narrative_client
-    (settings.secrets_dir / "assistant_runner_token").unlink()
+def test_an_unconfigured_model_reports_that_not_a_generic_failure(narrative_client):
+    """「아직 설정 안 됨」과 「지연/실패」는 운영자가 할 일이 다르다. 예전에는 러너 토큰
+    파일이 없는 상태가 애매한 실패 문구로 뭉개졌다 — 지금은 Gateway 의 상태 어휘가
+    그 구별을 들고 온다."""
+    from app.ai.gateway import contract
+
+    client, app = narrative_client
+    # 어댑터가 아예 없는 앱 — 모델을 안 넣은 설치다.
+    app.state.ai_gateway = contract.Gateway(enabled=True, generate_adapter=None)
     body = _get(client, "/api/assistant/briefing?narrate=true")
     assert body["narrative"]["enabled"] is True
     assert body["narrative"]["text"] is None
-    assert "아직 설정되지 않았습니다" in body["narrative"]["error"]
+    assert "설정되지 않았습니다" in body["narrative"]["error"]
 
 
-def test_runner_output_is_not_trusted_verbatim(narrative_client, fake_http):
+def test_model_output_is_not_trusted_verbatim(narrative_client):
     """모델 출력 불신(§11): 제어문자는 버리고 길이는 자른다."""
     from app.assistant.narrate import MAX_TEXT_CHARS
 
-    client, settings = narrative_client
-    fake_http.on(settings.assistant_runner_url,
-                 json_body={"text": "머리\x1b[31m글\x00자" + "가" * (MAX_TEXT_CHARS + 500)})
-    text = _get(client, "/api/assistant/briefing?narrate=true")["narrative"]["text"]
-    assert "\x1b" not in text and "\x00" not in text
-    assert len(text) == MAX_TEXT_CHARS
+    esc, nul = chr(27), chr(0)
+    client, app = narrative_client
+    _use(app, ScriptedGenerate(text=f"머리{esc}[31m글{nul}자" + "가" * (MAX_TEXT_CHARS + 500)))
+    out = _get(client, "/api/assistant/briefing?narrate=true")["narrative"]["text"]
+    assert esc not in out and nul not in out
+    assert len(out) == MAX_TEXT_CHARS
 
 
-def test_runner_receives_only_precomputed_facts(narrative_client, fake_http):
-    """러너는 숫자를 다시 세지 않는다 — 우리가 계산한 사실만 넘어간다."""
-    client, settings = narrative_client
-    fake_http.on(settings.assistant_runner_url, json_body={"text": "요약"})
+def test_the_model_receives_only_precomputed_facts(narrative_client):
+    """모델은 숫자를 다시 세지 않는다 — 우리가 계산한 사실만 넘어간다.
+
+    그리고 그 사실은 **`data` 로** 간다(D-202) — 시스템 쪽에는 우리 문장만 있다.
+    """
+    client, app = narrative_client
+    adapter = _use(app, ScriptedGenerate())
     _get(client, "/api/assistant/standup?narrate=true")
-    sent = [r for r in fake_http.requests if str(r.url).startswith(settings.assistant_runner_url)]
-    assert len(sent) == 1
-    payload = json.loads(sent[0].content.decode("utf-8"))
-    assert payload["kind"] == "standup"
-    assert payload["locale"] == "ko-KR"
-    assert payload["facts"]["blocked"]["count"] == 1
+
+    assert len(adapter.calls) == 1
+    system, user = adapter.calls[0]
+    assert '"kind": "standup"' in user
+    assert '"blocked"' in user
     # 원본 Notion 사용자 id 는 절대 나가지 않는다(§12.3).
-    assert N_ME not in json.dumps(payload, ensure_ascii=False)
+    assert N_ME not in user and N_ME not in system
+    # 사실은 데이터 쪽에만 있다 — 지시문 자리에 섞이면 그 값이 지시가 된다.
+    assert '"blocked"' not in system
 
 
-def test_narrate_is_rate_limited_per_user(narrative_client, fake_http):
-    client, settings = narrative_client
-    fake_http.on(settings.assistant_runner_url, json_body={"text": "요약"})
+def test_narrate_is_rate_limited_per_user(narrative_client):
+    client, app = narrative_client
+    _use(app, ScriptedGenerate())
     statuses = [client.get("/api/assistant/briefing?narrate=true").status_code for _ in range(9)]
     assert 429 in statuses, "문장 생성에 레이트리밋이 걸려 있지 않다"
     # 문장을 끄면 리미터를 지나지 않으므로 계속 200 이다(숫자는 언제나 볼 수 있어야 한다).

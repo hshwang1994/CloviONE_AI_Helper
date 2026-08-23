@@ -1,3 +1,5 @@
+"""qa-contract-change: notion-mapping 자동 조회(/verify)가 S11 로 사라졌다. 그 응답 모양을 보던 단언을 「라우트가 없다(404)」로 바꿨다 — 남겨 두면 눌러도 아무 일도 안 일어나는 버튼이 된다. 단언 하나가 줄었지만 지키는 것은 더 강해졌다: 상태 값이 아니라 존재 자체를 못 박는다."""
+
 import pytest
 
 from tests.conftest import DEFAULT_TEST_PASSWORD
@@ -344,14 +346,14 @@ def test_list_sessions_authority_boundary(client, login_as, make_user):
     assert r.status_code == 403
 
 
-def test_notion_mapping_verify_returns_status(client, admin_csrf, make_user):
+def test_notion_mapping_verify_is_gone(client, admin_csrf, make_user):
+    """자동 조회는 n8n 워크플로가 하던 일이라 S11 이 걷어냈다. 남긴 채로 두면
+    「눌러도 아무 일도 안 일어나는 버튼」이 된다 — 라우트 자체가 없어야 한다."""
     target = make_user("notion@goodmit.co.kr")
     r = client.post(
         f"/api/admin/users/{target.id}/notion-mapping/verify", headers=_headers(admin_csrf)
     )
-    assert r.status_code == 200
-    # No mapping workflow configured in this test → unmapped with a clear reason.
-    assert r.json()["mapping"]["status"] == "unmapped"
+    assert r.status_code == 404
 
 
 def test_unknown_user_id_404(client, admin_csrf):

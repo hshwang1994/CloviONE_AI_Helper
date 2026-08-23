@@ -53,7 +53,7 @@ def test_admin_only_event_types_are_always_admin_audience(db, fake_clock):
     from app.notifications.service import notify_user
 
     row = notify_user(
-        db, "u1", type_="runner_unavailable", title="Runner 장애", now=fake_clock.now(),
+        db, "u1", type_="backup_failed", title="백업 실패", now=fake_clock.now(),
     )
     db.commit()
 

@@ -1,7 +1,7 @@
 """SSRF guard: outbound URL allowlists (spec §25.3).
 
-Allowlists live in JSON files (allowed-services.json / allowed-runners.json /
-allowed-workflows.json) under settings.config_dir. Matching is exact
+Allowlists live in JSON files (allowed-services.json) under
+settings.config_dir. Matching is exact
 ``host:port`` after scheme-default port resolution. http/https only,
 no userinfo, redirects are never followed (enforced by OutboundClient).
 """
@@ -16,8 +16,6 @@ from app.core.errors import AppError
 
 ALLOWLIST_FILES = {
     "services": "allowed-services.json",
-    "runners": "allowed-runners.json",
-    "workflows": "allowed-workflows.json",
 }
 
 _DEFAULT_PORTS = {"http": 80, "https": 443}

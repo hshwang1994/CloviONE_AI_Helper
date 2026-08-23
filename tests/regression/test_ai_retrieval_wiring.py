@@ -127,13 +127,27 @@ def test_the_retrieval_migration_follows_the_index_one():
 
 
 def test_no_revision_follows_the_retrieval_one():
-    """`0008` 이 head 다. 두 갈래가 되면 `upgrade head` 가 어느 쪽인지 못 고른다."""
+    """`0008` 뒤에는 **한 갈래만** 온다. 두 갈래가 되면 `upgrade head` 가 어느 쪽인지
+    못 고른다. S11 이 `0009` 를 그 자리에 뒀다 — 「head 다」가 아니라 「갈래가 하나다」가
+    이 시험이 지키던 것이고, 그 성질은 그대로다."""
     versions = ROOT / "alembic" / "versions"
     followers = [
         path.name for path in versions.glob("*.py")
         if "down_revision = '0008_ai_retrieval'" in path.read_text(encoding="utf-8")
     ]
-    assert followers == []
+    assert followers == ["0009_drop_external_automation.py"]
+
+    # 그리고 사슬 전체에 head 가 하나여야 한다 — 위 한 줄만으로는 다른 자리에서 갈라진
+    # 것을 못 본다. 「어느 revision 도 안 가리키는 revision」이 정확히 하나다.
+    revisions, parents = set(), set()
+    for path in versions.glob("*.py"):
+        text = path.read_text(encoding="utf-8")
+        for line, bucket in (("revision = '", revisions), ("down_revision = '", parents)):
+            for raw in text.splitlines():
+                if raw.startswith(line):
+                    bucket.add(raw.split("'")[1])
+    heads = sorted(revisions - parents)
+    assert heads == ["0009_drop_external_automation"], f"head 가 하나가 아니다: {heads}"
 
 
 def test_no_vector_index_is_created_yet():

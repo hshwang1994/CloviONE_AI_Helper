@@ -1,6 +1,7 @@
 """Chat image attachment validation (spec §13 확장 — #34 Phase 2 이미지).
 
-Images ride the message POST as base64 and are passed through to n8n → runner for
+Images ride the message POST as base64. The answer path cannot read them (no vision
+adapter) — the handler says so instead of ignoring them silently. They are kept for
 vision analysis. They are NOT persisted on the platform (사용자 결정: 서버 미보관,
 Notion에만 첨부) — only the transient job payload carries the bytes, and the worker
 strips them after a successful handoff. The stored user message keeps names only.

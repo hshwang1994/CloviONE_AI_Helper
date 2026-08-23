@@ -44,7 +44,6 @@ class Prompt(UUIDPrimaryKeyMixin, Base):
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     content: Mapped[str] = mapped_column(Text, nullable=False, default="")
     status: Mapped[str] = mapped_column(String(16), nullable=False, default=STATUS_DRAFT)
-    runner_id: Mapped[str | None] = mapped_column(String(36))
     created_by: Mapped[str | None] = mapped_column(String(36))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
     published_at: Mapped[datetime | None] = mapped_column(DateTime)

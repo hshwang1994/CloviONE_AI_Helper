@@ -1,3 +1,4 @@
+/* qa-contract-change: S11 이 대시보드의 «활성 워크플로» 타일을 걷어냈다(그 화면이 없어졌다). 줄어든 단언 하나가 정확히 그 타일이고, 나머지 지표 넷의 단언은 그대로다 — 값도 형태도 안 바뀌었다. */
 import React from "react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
@@ -153,14 +154,13 @@ describe("대시보드 — 경보와 정상 지표의 중복 없음(PA-RC-0018 a
   it("경보가 없는 지표는 스트립에 뜨고, 값이 조치 목록과 스트립 양쪽에 겹치지 않는다", async () => {
     apiMock.mockResolvedValue({
       components: { web: "up", worker: "up", scheduler: "up" },
-      counts: { active_workflows: 3 },
+      counts: {},
       jobs_24h: { total: 20, succeeded: 19, success_rate_pct: 99, queued: 0, failed_open: 0 },
       disk: { used_pct: 30 },
     });
     renderDashboard();
 
     expect(await screen.findByText("지금 조치가 필요한 문제가 없습니다.")).toBeInTheDocument();
-    expect(screen.getByText("활성 워크플로 3")).toBeInTheDocument();
     expect(screen.getByText(/24시간 성공률 99%/)).toBeInTheDocument();
     expect(screen.getByText("디스크 사용 30%")).toBeInTheDocument();
     expect(screen.getByText("대기 작업 0")).toBeInTheDocument();

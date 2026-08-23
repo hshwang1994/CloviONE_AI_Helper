@@ -40,7 +40,6 @@ _KST = ZoneInfo("Asia/Seoul")
 # 결국 갈라진다.
 
 KIND_ASSISTANT_NARRATIVE = "assistant_narrative"
-KIND_DOCUMENT_GENERATE = "document_generate"
 # AI 도우미 채팅 — **가장 큰 비용 축인데 상한 밖에 있었다**(X11).
 KIND_CHAT_MESSAGE = "chat_message"
 # AI 작업공간 (S10). 질의와 문서 초안을 **따로 센다** — 둘은 같은 문(`Gateway.generate`)을

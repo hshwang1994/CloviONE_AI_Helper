@@ -24,7 +24,7 @@ ExecStart=/opt/clovirassist/venv/bin/python -m app.worker_main --lane=batch
 Restart=on-failure
 RestartSec=10
 # Graceful shutdown: stop claiming new jobs and finish the in-flight one, then
-# exit (spec §26.2). 200s covers the common jobs (n8n chat timeout 180s). A rare
+# exit (spec §26.2). 200s covers the common jobs (chat answer cap 180s). A rare
 # long schedule job (timeout up to 3600s) is SIGKILLed at this deadline and then
 # recovered by the stuck-job sweeper on restart (recover_stuck, 3900s cutoff) —
 # a deliberate trade-off to keep restarts/upgrades from stalling up to an hour.

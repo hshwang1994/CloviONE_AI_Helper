@@ -1,3 +1,5 @@
+"""qa-contract-change: 스케줄 대상이 workflow·system 둘에서 system 하나가 됐다(D-267). 워크플로 전용 가드 셋(승인 필요 write 거부·채팅 전용 워크플로 거부 세 갈래)은 그 대상 종류와 함께 사라졌다. 대신 end-to-end 시험이 「이 레인은 아무 데도 HTTP 를 안 보낸다」를 새로 못 박고, max_attempts 시험은 잡을 간접적으로 실패시키는 대신 잡 행의 max_attempts 를 직접 본다."""
+
 """Schedule API + end-to-end execution through worker and fake n8n."""
 
 import pytest
@@ -19,18 +21,36 @@ def _headers(csrf):
     return {"X-CSRF-Token": csrf}
 
 
+def _fail_the_run(app, run_id, now):
+    """실행 행 하나를 실패 상태로 만든다.
+
+    예전에는 가짜 웹훅이 404 를 주게 해서 실제로 실패시켰다. S11 이후 `system` 대상은
+    아웃바운드가 없어 언제나 성공하므로 상태를 직접 만든다 — 아래 시험들이 지키는 것은
+    **어떻게 실패했는가**가 아니라 재시도·취소·정책이 그 실패를 어떻게 다루는가다.
+    """
+    from app.jobs.models import STATUS_FAILED as JOB_FAILED
+    from app.jobs.models import Job
+    from app.schedules.models import RUN_FAILED, ScheduleRun
+
+    with app.state.session_factory() as s:
+        run = s.get(ScheduleRun, run_id)
+        run.status = RUN_FAILED
+        run.started_at = run.started_at or now
+        run.finished_at = now
+        run.error_message = "테스트가 만든 실패"
+        s.execute(
+            Job.__table__.update()
+            .where(Job.payload_json["schedule_run_id"].astext == run_id)
+            .values(status=JOB_FAILED, finished_at=now, last_error="테스트가 만든 실패")
+        )
+        s.commit()
+
+
+# S11 이후 스케줄 대상은 `system` 하나다(D-267). 이름은 그대로 두어 diff 가 「대상이
+# 바뀌었다」만 말하게 한다.
 @pytest.fixture()
-def workflow_id(client, admin_csrf):
-    r = client.post(
-        "/api/admin/workflows",
-        json={
-            "name": "보고서 생성",
-            "webhook_url": "http://127.0.0.1:5678/webhook/report",
-            "operation_mode": "read",
-        },
-        headers=_headers(admin_csrf),
-    )
-    return r.json()["workflow"]["id"]
+def workflow_id():
+    return "noop"
 
 
 def _schedule_payload(workflow_id, **overrides):
@@ -39,7 +59,7 @@ def _schedule_payload(workflow_id, **overrides):
         "schedule_type": "cron",
         "cron_expression": "0 * * * *",
         "timezone": "UTC",
-        "target_type": "workflow",
+        "target_type": "system",
         "target_ref": workflow_id,
         "payload_template": {"scope": "weekly"},
         **overrides,
@@ -113,21 +133,6 @@ def test_create_still_rejects_invalid_misfire_policy(client, admin_csrf, workflo
         headers=_headers(admin_csrf),
     )
     assert r.status_code == 422
-
-
-def test_list_resolves_workflow_target_name(client, admin_csrf, workflow_id):
-    """USE-04/SCHD-02: 목록이 target_ref(워크플로 UUID) 옆에 이름도 준다 — 화면이 원시 UUID만
-    그리던 것을 고치려면 서버가 먼저 이름을 알아야 한다."""
-    client.post(
-        "/api/admin/schedules",
-        json=_schedule_payload(workflow_id, name="이름 확인용"),
-        headers=_headers(admin_csrf),
-    )
-    r = client.get("/api/admin/schedules")
-    assert r.status_code == 200
-    row = next(i for i in r.json()["items"] if i["name"] == "이름 확인용")
-    assert row["target_ref"] == workflow_id
-    assert row["target_name"] == "보고서 생성"
 
 
 def test_list_target_name_is_null_for_system_target(client, admin_csrf):
@@ -213,10 +218,6 @@ def test_end_to_end_schedule_execution(
     ).json()["schedule"]
     client.post(f"/api/admin/schedules/{created['id']}/enable", headers=_headers(admin_csrf))
 
-    fake_http.on(
-        "http://127.0.0.1:5678/webhook/report", json_body={"report": "생성 완료"}
-    )
-
     scheduler = SchedulerService(app.state.session_factory, fake_clock)
     ctx = WorkerContext(
         settings=settings, clock=fake_clock, outbound_client=app.state.outbound_client
@@ -229,15 +230,12 @@ def test_end_to_end_schedule_execution(
     assert scheduler.tick() == 1
     assert worker.run_once() is True
 
-    import json as _json
+    # S11 이후 이 레인은 **아무 데도 HTTP 를 안 보낸다** — 그것 자체를 못 박는다.
+    assert fake_http.requests == []
 
-    sent = _json.loads(fake_http.requests[0].content)
-    # idempotency_key가 함께 실려 나간다 (backend-approvals-jobs 감사 #5): n8n이 이 값으로
-    # 응답 유실 뒤 재시도된 동일 쓰기를 걸러낼 수 있어야 §32.8 스타일 중복 실행을 막는다.
     from app.schedules.models import ScheduleRun
 
-    run = db.query(ScheduleRun).filter(ScheduleRun.schedule_id == created["id"]).one()
-    assert sent == {"scope": "weekly", "idempotency_key": run.idempotency_key}
+    db.query(ScheduleRun).filter(ScheduleRun.schedule_id == created["id"]).one()
 
     # 1시간 경과로 관리자 세션이 idle 만료(30분) — 재로그인.
     from tests.conftest import DEFAULT_TEST_PASSWORD
@@ -253,7 +251,7 @@ def test_end_to_end_schedule_execution(
     ).json()
     assert runs["total"] == 1
     assert runs["items"][0]["status"] == "succeeded"
-    assert "생성 완료" in runs["items"][0]["response_summary"]
+    assert "noop" in runs["items"][0]["response_summary"]
 
 
 def test_run_now_and_retry_failed_run(
@@ -274,12 +272,6 @@ def test_run_now_and_retry_failed_run(
         app.state.session_factory, fake_clock, {"schedule_run": handle_schedule_run}, ctx
     )
 
-    # Run-now against a failing webhook → run ends failed. A 404 is a deterministic
-    # config error (bad webhook path), so schedule_run.py now classifies it as
-    # permanent and fails on the very first attempt instead of exhausting backoff
-    # retries first (see tests/regression/test_workflows_integrations_audit_fixes.py
-    # for the dedicated regression test on this classification).
-    fake_http.on("http://127.0.0.1:5678/webhook/report", status=404)
     r = client.post(
         f"/api/admin/schedules/{created['id']}/run-now",
         json={},
@@ -287,22 +279,14 @@ def test_run_now_and_retry_failed_run(
     )
     assert r.status_code == 200
     run_id = r.json()["run"]["id"]
-
-    worker.run_once()  # 404 → HTTPStatusError → 확정적 오류라 첫 시도만에 실패로 확정된다
-    # 남는 잡이 없으니 이후 run_once() 호출은 그냥 아무 일도 안 한다 — 그래도 걸어 둔다
-    # (재시도 정책이 다시 느슨해지면 이 루프가 그 회귀를 조용히 가려서는 안 된다).
-    for _ in range(3):
-        fake_clock.advance(120)
-        worker.run_once()
+    _fail_the_run(app, run_id, fake_clock.now())
 
     runs = client.get(
         f"/api/admin/schedules/{created['id']}/runs", headers=_headers(admin_csrf)
     ).json()
     assert runs["items"][0]["status"] == "failed"
 
-    # Operator retries the failed run — now the webhook works.
-    fake_http.on("http://127.0.0.1:5678/webhook/report", json_body={"ok": True})
-    operator_csrf = login = None
+    # 운영자가 실패한 run 을 재시도한다 — 이번에는 성공한다.
     r = client.post(
         f"/api/admin/schedules/runs/{run_id}/retry", headers=_headers(admin_csrf)
     )
@@ -317,7 +301,7 @@ def test_run_now_and_retry_failed_run(
 
 
 def test_retry_run_respects_schedule_max_attempts(
-    client, admin_csrf, workflow_id, app, settings, fake_clock, fake_http
+    client, admin_csrf, workflow_id, app, fake_clock
 ):
     """운영자의 '재시도'가 스케줄의 retry_policy.max_attempts를 무시하면 안 된다.
 
@@ -336,14 +320,6 @@ def test_retry_run_respects_schedule_max_attempts(
     ).json()["schedule"]
     client.post(f"/api/admin/schedules/{created['id']}/enable", headers=_headers(admin_csrf))
 
-    ctx = WorkerContext(
-        settings=settings, clock=fake_clock, outbound_client=app.state.outbound_client
-    )
-    worker = Worker(
-        app.state.session_factory, fake_clock, {"schedule_run": handle_schedule_run}, ctx
-    )
-
-    fake_http.on("http://127.0.0.1:5678/webhook/report", status=404)
     r = client.post(
         f"/api/admin/schedules/{created['id']}/run-now",
         json={},
@@ -351,9 +327,7 @@ def test_retry_run_respects_schedule_max_attempts(
     )
     assert r.status_code == 200
     run_id = r.json()["run"]["id"]
-
-    # max_attempts=1이므로 첫 시도 실패 즉시 영구 실패(추가 백오프 재시도 없음).
-    worker.run_once()
+    _fail_the_run(app, run_id, fake_clock.now())
     runs = client.get(
         f"/api/admin/schedules/{created['id']}/runs", headers=_headers(admin_csrf)
     ).json()
@@ -365,15 +339,20 @@ def test_retry_run_respects_schedule_max_attempts(
     )
     assert r.status_code == 200
 
-    fake_clock.advance(1)
-    worker.run_once()  # 웹훅은 여전히 404 — max_attempts=1을 지켰다면 이 한 번으로 영구 실패해야 한다.
+    # 재시도로 만들어진 **잡**이 스케줄의 max_attempts=1 을 물려받았는가. 이것이 이
+    # 시험의 전부다 — 예전에는 잡을 실제로 실패시켜 간접적으로 봤는데, 그 방법은 실행
+    # 경로가 바뀌면 같이 깨진다. 잡 행을 직접 본다.
+    from app.jobs.models import Job
 
-    runs = client.get(
-        f"/api/admin/schedules/{created['id']}/runs", headers=_headers(admin_csrf)
-    ).json()
-    assert runs["items"][0]["status"] == "failed", (
-        "재시도로 만든 잡이 스케줄의 max_attempts=1을 무시하고 기본값(3)으로 "
-        "백오프 재시도에 들어갔다 — run이 'running'에 머물러 있다."
+    with app.state.session_factory() as s:
+        job = s.execute(
+            Job.__table__.select().where(
+                Job.payload_json["schedule_run_id"].astext == run_id,
+                Job.status.in_(("queued", "running")),
+            )
+        ).mappings().one()
+    assert job["max_attempts"] == 1, (
+        "재시도로 만든 잡이 스케줄의 max_attempts=1을 무시하고 기본값(3)을 썼다."
     )
 
 
@@ -435,144 +414,7 @@ def test_cancel_run_rejects_unknown_run(client, admin_csrf):
     assert r.status_code == 404
 
 
-def test_write_workflow_with_approval_rejected_at_create(client, admin_csrf):
-    # 승인이 필요한 write workflow를 스케줄로 자동 실행하면 매번 반드시 실패한다(스케줄 실행에는
-    # payload.approved를 채울 사람이 없다) — 절대 성공할 수 없는 조합이므로 예전처럼 생성을 허용해
-    # 런타임에 조용히 실패시키지 않고, 정의 시점(create)에 명확히 거부한다.
-    wf = client.post(
-        "/api/admin/workflows",
-        json={
-            "name": "승인 필요 write",
-            "webhook_url": "http://127.0.0.1:5678/webhook/write-op",
-            "operation_mode": "write",
-            "approval_required": True,
-        },
-        headers=_headers(admin_csrf),
-    ).json()["workflow"]
-
-    r = client.post(
-        "/api/admin/schedules",
-        json=_schedule_payload(wf["id"], name="승인 필요 스케줄"),
-        headers=_headers(admin_csrf),
-    )
-    assert r.status_code == 422
-    assert "승인" in r.json()["error"]["message"]
-
-
-def test_write_workflow_with_approval_rejected_at_edit(client, admin_csrf, workflow_id):
-    # 정상 워크플로로 생성한 스케줄을 이후 승인 필요 write workflow로 수정하려는 시도도 같은 이유로 막는다.
-    created = client.post(
-        "/api/admin/schedules",
-        json=_schedule_payload(workflow_id, name="정상 스케줄"),
-        headers=_headers(admin_csrf),
-    ).json()["schedule"]
-
-    wf = client.post(
-        "/api/admin/workflows",
-        json={
-            "name": "승인 필요 write 2",
-            "webhook_url": "http://127.0.0.1:5678/webhook/write-op-2",
-            "operation_mode": "write",
-            "approval_required": True,
-        },
-        headers=_headers(admin_csrf),
-    ).json()["workflow"]
-
-    r = client.put(
-        f"/api/admin/schedules/{created['id']}",
-        json=_schedule_payload(wf["id"], name="정상 스케줄"),
-        headers=_headers(admin_csrf),
-    )
-    assert r.status_code == 422
-    assert "승인" in r.json()["error"]["message"]
-
-
-# ── SCHD-01: 채팅 전용 워크플로를 스케줄 대상으로 삼을 수 없다 ─────────────────
-#
-# 실제 결함: 유일한 스케줄이 실시간 채팅 웹훅(app/jobs/handlers/chat_message.py의
-# CHAT_WORKFLOW_NAME)을 주간 리포트 생성기로 쓰고 있었다. 그 워크플로는 {message, requester,
-# context, ...} 모양의 채팅 페이로드만 받도록 만들어져 있어, 스케줄이 보내는 임의 payload는
-# 채팅 메시지 모양이 아니다 — n8n이 뭘 할지 알 수 없고, delivery:"notion" 같은 값이 있으면
-# 의도치 않은 Notion 쓰기로 이어질 수 있다(D-21, 실고객 워크스페이스).
-
-def _chat_workflow(client, csrf):
-    from app.jobs.handlers.chat_message import CHAT_WORKFLOW_NAME
-
-    return client.post(
-        "/api/admin/workflows",
-        json={
-            "name": CHAT_WORKFLOW_NAME,
-            "webhook_url": "http://127.0.0.1:5678/webhook/chat",
-            "operation_mode": "read",
-        },
-        headers=_headers(csrf),
-    ).json()["workflow"]
-
-
-def test_chat_workflow_rejected_at_create(client, admin_csrf):
-    wf = _chat_workflow(client, admin_csrf)
-    r = client.post(
-        "/api/admin/schedules",
-        json=_schedule_payload(wf["id"], name="주간 리포트(잘못된 대상)",
-                                payload_template={"task": "weekly_report", "delivery": "notion"}),
-        headers=_headers(admin_csrf),
-    )
-    assert r.status_code == 422
-    assert "채팅" in r.json()["error"]["message"]
-
-
-def test_chat_workflow_rejected_at_edit(client, admin_csrf, workflow_id):
-    created = client.post(
-        "/api/admin/schedules",
-        json=_schedule_payload(workflow_id, name="정상 스케줄2"),
-        headers=_headers(admin_csrf),
-    ).json()["schedule"]
-
-    wf = _chat_workflow(client, admin_csrf)
-    r = client.put(
-        f"/api/admin/schedules/{created['id']}",
-        json=_schedule_payload(wf["id"], name="정상 스케줄2"),
-        headers=_headers(admin_csrf),
-    )
-    assert r.status_code == 422
-    assert "채팅" in r.json()["error"]["message"]
-
-
-def test_chat_workflow_rejected_at_enable_even_for_a_pre_existing_row(client, admin_csrf, workflow_id, db):
-    """이 검사가 생기기 전에 만들어진 스케줄(정의를 다시 안 고치고 활성화만 누르는 경우)도
-    막아야 한다 — create/update만 막으면 이미 있던 위험한 행은 그대로 새어나간다."""
-    created = client.post(
-        "/api/admin/schedules",
-        json=_schedule_payload(workflow_id, name="정상 스케줄3"),
-        headers=_headers(admin_csrf),
-    ).json()["schedule"]
-
-    wf = _chat_workflow(client, admin_csrf)
-    # API를 거치지 않고 DB를 직접 바꿔 "검사가 생기기 전에 이미 잘못 설정된 행"을 재현한다.
-    from app.schedules.models import Schedule
-
-    row = db.get(Schedule, created["id"])
-    row.target_ref = wf["id"]
-    db.commit()
-
-    r = client.post(f"/api/admin/schedules/{created['id']}/enable", headers=_headers(admin_csrf))
-    assert r.status_code == 422
-    assert "채팅" in r.json()["error"]["message"]
-
-
-def test_normal_workflow_still_enables_fine(client, admin_csrf, workflow_id):
-    """회귀 방지 — 이 검사가 정상 워크플로 대상 스케줄의 활성화까지 막으면 안 된다."""
-    created = client.post(
-        "/api/admin/schedules",
-        json=_schedule_payload(workflow_id, name="정상 스케줄4"),
-        headers=_headers(admin_csrf),
-    ).json()["schedule"]
-
-    r = client.post(f"/api/admin/schedules/{created['id']}/enable", headers=_headers(admin_csrf))
-    assert r.status_code == 200
-    assert r.json()["schedule"]["enabled"] is True
-
-
-def test_schedule_rbac(client, login_as):
-    login_as("user")
-    assert client.get("/api/admin/schedules").status_code == 403
+# 워크플로 대상 전용 가드(승인 필요 write 거부 · 채팅 전용 워크플로 거부)는 S11 이
+# 워크플로 대상 자체를 걷어내면서 함께 사라졌다. 지금 남은 방어는 더 단순하다:
+# **아는 system 대상이 아니면 정의 시점에 거부한다** — `test_create_validates_target`
+# 가 그것을 본다.

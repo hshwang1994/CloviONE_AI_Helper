@@ -61,7 +61,7 @@ def create_integration_endpoint(
     # Spec §20: secret을 대상에 묶는 것(auth_type != none 이면 OutboundClient가 secret_ref를
     # 실어 보낸다)은 승인 대상이다. PATCH가 막는 '기존 대상의 목적지 바꾸기'를 '새로 만들기'로
     # 그대로 달성할 수 있으면 게이트는 무의미하다 — allowlist는 외부 유출만 막고, 허용된 내부
-    # 서비스끼리(n8n:5678 → 러너:8787) secret을 옮기는 것은 막지 못한다. 그래서 secret 바인딩
+    # 서비스끼리 secret을 옮기는 것은 막지 못한다. 그래서 secret 바인딩
     # 생성은 PATCH와 같은 권한(system_admin)을 요구한다. (승인 실행기는 '기존 객체 수정'만
     # 재생하므로, 생성은 승인-대기 대신 즉시 거절로 게이트한다.)
     _guard_secret_binding_create(request, config)
@@ -105,8 +105,7 @@ def update_integration(
     # 그 주소로 secret을 실어 보내므로(service.py run_health_check: url = health_url or base_url),
     # 이 값을 바꾸는 것은 secret을 다른 대상에게 보내는 일이다.
     # allowlist는 '외부로 못 나간다'만 보장한다. 허용된 내부 서비스끼리는 자유롭게 옮길 수 있어서
-    # (n8n:5678 → 러너:8787), '어느 내부 서비스로 가느냐'는 이 게이트가 지켜야 한다.
-    # 같은 판정이 runners/router.py에는 이유 주석까지 달려 이미 있었다 — 복붙이 갈라진 자리였다.
+    # '어느 내부 서비스로 가느냐'는 이 게이트가 지켜야 한다.
     # auth_type도 포함: secret_ref·base_url이 이미 잡힌 객체를 none→bearer로 바꾸면 그 순간
     # secret이 흐르기 시작한다(활성화). auth_type이 빠져 있으면 create(none) → patch(auth_type)로
     # create 게이트를 우회한다.

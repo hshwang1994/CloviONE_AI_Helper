@@ -61,7 +61,7 @@ def _with_narrative(
 
     def _call():
         return narrate_service.narrate(
-            request.app.state.outbound_client, settings,
+            request.app.state.ai_gateway, settings,
             kind=body.get("kind", ""), facts=body,
             requester={"user_id": user.id, "display_name": user.display_name},
         )

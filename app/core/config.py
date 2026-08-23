@@ -36,9 +36,6 @@ class Settings(BaseSettings):
     # 없는데 그 사실이 백업을 되돌리려는 날에야 드러난다.
     pg_bin_dir: str = ""
 
-    n8n_work_assistant_url: str = "http://127.0.0.1:5678/webhook/clovirone-work-assistant"
-    n8n_timeout_seconds: int = 180
-
     # 자격 증명을 무엇이 검증하는가 (S5). 지금 값은 `local` 하나뿐이고, LDAP·OIDC 가
     # 들어오면 여기에 이름이 는다. **모르는 이름은 기동 시점이 아니라 첫 로그인에서
     # 오류가 된다** — 조용히 local 로 떨어뜨리면 「켰다고 믿는데 안 켜진」 상태가 된다
@@ -64,9 +61,8 @@ class Settings(BaseSettings):
     # 계정을 못 만든다.
     allowed_email_domains: str = ""
 
-    # Directory holding allowed-services.json / allowed-runners.json /
-    # allowed-workflows.json / feature-flags.json (spec §8: /etc/clovirassist
-    # in production, ./config in development).
+    # Directory holding allowed-services.json / feature-flags.json
+    # (spec §8: /etc/clovirassist in production, ./config in development).
     config_dir: Path = Path("config")
     secrets_dir: Path = Path("var/secrets")
     data_dir: Path = Path("var")
@@ -137,7 +133,7 @@ class Settings(BaseSettings):
     # `running_timeout_seconds`(repository.DEFAULT_RUNNING_TIMEOUT_SECONDS=3900,
     # 3600초짜리 schedule_run에 맞춘 값)를 대화형 레인이 그대로 물려받으면 이런 잡이
     # 최대 65분 동안 "처리 중"인 것처럼 멈춰 있다 — 채팅은 수십 초 안에 끝나야 정상인
-    # 레인이라 그 격차가 훨씬 크게 느껴진다. n8n 타임아웃(180초) 기준 3회 재시도 여유를
+    # 레인이라 그 격차가 훨씬 크게 느껴진다. 모델 응답 상한(180초) 기준 3회 재시도 여유를
     # 두고 훨씬 짧게 잡는다.
     worker_conversational_running_timeout_seconds: int = 840
 
@@ -166,31 +162,11 @@ class Settings(BaseSettings):
     # (app/projects/service.py::record_health_snapshot).
     project_health_snapshot_interval_seconds: int = 3600
 
-    # 팀 공간 놀이 > AI 퀴즈 생성(§7-9). 앱은 Claude를 직접 부르지 않고(불변 §10 임의 shell 금지)
-    # 러너의 전용 엔드포인트(/v1/assistant/quiz)를 OutboundClient(allowlist=runners)로 호출한다.
-    # 러너 토큰은 secrets_dir/<game_runner_token_ref> 파일로만 읽는다(평문 미노출). game_ai_enabled
-    # 플래그가 꺼져 있으면(기본) 엔드포인트가 404라 이 설정은 켤 때까지 무해하다.
-    game_runner_url: str = "http://127.0.0.1:8789/v1/assistant/quiz"
-    game_runner_token_ref: str = "game_runner_token"
-    game_runner_timeout_seconds: int = 50
-
-    # AI 도우미 심화(계획서 Phase 5) — 오늘 브리핑·스탠드업·주간 다이제스트의 **문장만**
-    # 러너에 맡긴다. 숫자는 app/assistant/facts.py 가 로컬에서 결정적으로 만들고, 이 호출이
-    # 실패해도 숫자는 그대로 나간다(문장만 빠진다). 퀴즈와 같은 러너·같은 관문
-    # (OutboundClient allowlist="runners")을 쓴다 — 새 외부 호출 경로를 만들지 않는다.
-    # assistant_narrative_enabled 플래그가 꺼져 있으면(기본) 호출 자체가 나가지 않는다.
-    # 타임아웃이 퀴즈(50s)보다 짧은 이유: 이건 화면을 여는 길목이라 사람이 기다리고 있다.
-    assistant_runner_url: str = "http://127.0.0.1:8789/v1/assistant/summarize"
-    assistant_runner_token_ref: str = "assistant_runner_token"
-    assistant_runner_timeout_seconds: int = 25
-
-    # AI-16: 대화 삭제 시 러너의 미러(conversation_state)도 지운다 — 위와 같은 러너·같은
-    # 토큰·같은 관문(runners allowlist)이라 새 secret이 필요 없다. 이건 화면을 여는 길목이
-    # 아니라 삭제 버튼 하나의 뒤처리라 사람이 기다리는 정도가 훨씬 짧다 — 짧게 잡아 삭제
-    # 자체가 러너 장애로 느려지지 않게 한다. 실패해도 삭제는 그대로 성공한다(위생 실패,
-    # 데이터 무결성 문제 아님) — TTL 스윕(CONTEXT_MODE_TTL_SECONDS)이 그물을 겹쳐 준다.
-    assistant_context_delete_url: str = "http://127.0.0.1:8789/v1/assistant/context/delete"
-    assistant_context_delete_timeout_seconds: int = 5
+    # 팀 공간 놀이 > AI 퀴즈 생성(§7-9)과 AI 도우미의 요약 문장(계획서 Phase 5)은 둘 다
+    # **Model Gateway 를 지난다** — S11 이전에는 각자 러너 HTTP 를 직접 불렀고, 그래서
+    # 주소·토큰·타임아웃 설정이 기능마다 세 벌이었다. 지금은 모델 설정이 한 곳
+    # (`app/ai/gateway/registry.py`)이라 여기에 남길 값이 없다. 두 기능의 기능 플래그
+    # (`game_ai_enabled` · `assistant_narrative_enabled`)는 그대로다.
 
     # 소스 스위치(§7.1.C). 저장소 배선을 바꾸는 재시작급 변경이라 DB 설정이 아니라 env 에 둔다.
     # 값: 'notion' | 'notion_cache' | 'native'. 'native'(자체 DB 정본)는 아직 구현체가 없어

@@ -162,9 +162,24 @@ SELF_TEST_CASES = [
      "    with pytest.raises(ValueError):\n        f()", False, "그대로면 통과"),
 ]
 
+#: 삭제 선언 파싱의 자기검증 — (파일 머리 문자열, 그 머리가 명명하는 경로들).
+#: 뒤의 둘이 **반례**다: 선언이 없거나 머리 40줄 밖이면 못 찾아야 한다. 이것이 없으면
+#: 「여러 개를 받는다」는 완화가 「아무거나 통과한다」로 조용히 미끄러질 수 있다.
+REPLACED_SELF_TEST = [
+    ("qa-contract-replaced-by: tests/a.py\n", ["tests/a.py"]),
+    ("qa-contract-replaced-by: tests/a.py\nqa-contract-replaced-by: tests/b.py\n",
+     ["tests/a.py", "tests/b.py"]),
+    ("삭제했지만 아무 선언도 안 적었다\n", []),
+    ("\n" * (HEADER_LINES + 1) + "qa-contract-replaced-by: tests/late.py\n", []),
+]
+
 
 def self_test() -> int:
     bad = []
+    for text, expected in REPLACED_SELF_TEST:
+        found = [m.group(1).strip() for m in REPLACED_RE.finditer(header(text))]
+        if found != expected:
+            bad.append(f"삭제 선언 파싱: 기대 {expected} / 실제 {found}")
     for path, before, after, should_flag, why in SELF_TEST_CASES:
         weakened = strong(path, after) < strong(path, before)
         if weakened != should_flag:
@@ -177,7 +192,8 @@ def self_test() -> int:
         for line in bad:
             print(f"  - {line}")
         return 1
-    print(f"[OK ] TEST_STRENGTH_SELF_TEST_OK (사례 {len(SELF_TEST_CASES)}개, 약화·재작성 양방향)")
+    print("[OK ] TEST_STRENGTH_SELF_TEST_OK (약화·재작성 %d사례 + 삭제 선언 %d사례)"
+          % (len(SELF_TEST_CASES), len(REPLACED_SELF_TEST)))
     return 0
 
 
@@ -232,12 +248,17 @@ def main() -> int:
             rows.append((status, path))
 
     # 대체 선언을 먼저 모은다 — 삭제 판정이 그것에 기대기 때문이다.
+    #
+    # **한 파일이 여러 삭제를 대신할 수 있다**(`finditer`). 기능 하나가 통째로 사라지면
+    # (S11 의 n8n·러너) 그 기능의 시험 열일곱 개가 함께 사라지는데, 1:1 을 강제하면
+    # 아무것도 안 지키는 껍데기 파일 열일곱 개를 만들게 된다 — 그것이 더 나쁘다.
+    # 규칙의 뜻은 「1:1」이 아니라 **「지운 파일마다 이름이 명시적으로 적혀 있다」**이고,
+    # 그 뜻은 그대로다: 선언 없는 삭제는 여전히 실패한다(아래 self-test 두 사례).
     for _status, path in rows:
         p = ROOT / path
         if not p.exists():
             continue
-        m = REPLACED_RE.search(header(p.read_text(encoding="utf-8", errors="replace")))
-        if m:
+        for m in REPLACED_RE.finditer(header(p.read_text(encoding="utf-8", errors="replace"))):
             replaced_by[m.group(1).strip()] = path
 
     for status, path in rows:

@@ -931,7 +931,6 @@ def _ai_app(db_url, tmp_path, fake_clock, fake_http):
     (cfg / "feature-flags.json").write_text(json.dumps(flags), encoding="utf-8")
     secrets_dir = tmp_path / "secrets"
     secrets_dir.mkdir()
-    (secrets_dir / "game_runner_token").write_text("test-runner-token", encoding="utf-8")
     settings = Settings(
         _env_file=None, app_env="test", database_url=db_url,
         session_secret="test-session-secret", cookie_secure=False,
@@ -946,14 +945,55 @@ def _ai_app(db_url, tmp_path, fake_clock, fake_http):
     return app, settings
 
 
+class _ScriptedGenerate:
+    """S11 이후 퀴즈는 `Gateway.generate()` 를 지난다(D-266) — 가짜를 세울 자리도 거기다."""
+
+    name = "scripted"
+    model = "scripted-model"
+
+    def __init__(self, *, text="", status=None):
+        from app.ai.gateway import contract
+
+        self._text = text
+        self._status = status or contract.STATUS_OK
+
+    def capability(self):
+        from app.ai.gateway import contract
+
+        if self._status != contract.STATUS_OK:
+            return contract.unavailable(contract.CAP_GENERATE, self._status, model=self.model)
+        return contract.available(contract.CAP_GENERATE, model=self.model)
+
+    def generate(self, *, system, user):
+        from app.ai.gateway import contract
+
+        return contract.GenerateResult(
+            status=self._status, model=self.model,
+            text=self._text if self._status == contract.STATUS_OK else None,
+        )
+
+
+def _use_model(app, adapter):
+    from app.ai.gateway import contract
+
+    app.state.ai_gateway = contract.Gateway(enabled=True, generate_adapter=adapter)
+
+
 def test_quiz_generate_flag_on_returns_cleaned(db_url, tmp_path, fake_clock, fake_http):
     app, settings = _ai_app(db_url, tmp_path, fake_clock, fake_http)
-    # 러너가 정답이 보기에 있는 좋은 문제 + 정답 인덱스가 범위 밖인 나쁜 문제를 섞어 줘도,
+    # 모델이 정답이 보기에 있는 좋은 문제 + 정답 인덱스가 범위 밖인 나쁜 문제를 섞어 줘도,
     # 앱이 _clean_questions로 정제해 좋은 것만 남긴다(§11 모델 출력 불신).
-    fake_http.on(settings.game_runner_url, json_body={"data": {"quiz": [
-        {"q": "1+1?", "options": ["1", "2"], "answer": 1},
-        {"q": "bad", "options": ["a", "b"], "answer": 9},
-    ]}})
+    # 그리고 모델은 **글로 답한다** — ```json 울타리째 줘도 파서가 배열을 꺼낸다.
+    fenced = "\n".join([
+        "네, 만들었습니다.",
+        "```json",
+        json.dumps([
+            {"q": "1+1?", "options": ["1", "2"], "answer": 1},
+            {"q": "bad", "options": ["a", "b"], "answer": 9},
+        ], ensure_ascii=False),
+        "```",
+    ])
+    _use_model(app, _ScriptedGenerate(text=fenced))
     with TestClient(app, raise_server_exceptions=False) as c:
         c.post("/login", json={"email": "qa@goodmit.co.kr", "password": DEFAULT_TEST_PASSWORD})
         csrf = c.get("/api/me").json()["csrf_token"]
@@ -965,9 +1005,8 @@ def test_quiz_generate_flag_on_returns_cleaned(db_url, tmp_path, fake_clock, fak
 
 def test_quiz_generate_no_valid_questions_is_422(db_url, tmp_path, fake_clock, fake_http):
     app, settings = _ai_app(db_url, tmp_path, fake_clock, fake_http)
-    fake_http.on(settings.game_runner_url, json_body={"data": {"quiz": [
-        {"q": "보기부족", "options": ["a"], "answer": 0},
-    ]}})
+    _use_model(app, _ScriptedGenerate(text=json.dumps(
+        [{"q": "보기부족", "options": ["a"], "answer": 0}], ensure_ascii=False)))
     with TestClient(app, raise_server_exceptions=False) as c:
         c.post("/login", json={"email": "qa@goodmit.co.kr", "password": DEFAULT_TEST_PASSWORD})
         csrf = c.get("/api/me").json()["csrf_token"]
@@ -975,24 +1014,34 @@ def test_quiz_generate_no_valid_questions_is_422(db_url, tmp_path, fake_clock, f
         assert r.status_code == 422 and r.json()["error"]["code"] == "quiz_generate_failed"
 
 
-def test_quiz_generate_missing_secret_reports_unconfigured_not_generic_failure(
+def test_quiz_generate_with_prose_only_answer_is_422_not_a_500(db_url, tmp_path, fake_clock, fake_http):
+    """모델이 「못 만들겠습니다」라고 글로만 답할 수 있다. 그것을 파싱 실패로 흘리면 500 이다."""
+    app, settings = _ai_app(db_url, tmp_path, fake_clock, fake_http)
+    _use_model(app, _ScriptedGenerate(text="죄송합니다. 그 주제로는 문제를 만들 수 없습니다."))
+    with TestClient(app, raise_server_exceptions=False) as c:
+        c.post("/login", json={"email": "qa@goodmit.co.kr", "password": DEFAULT_TEST_PASSWORD})
+        csrf = c.get("/api/me").json()["csrf_token"]
+        r = c.post("/api/games/quiz/generate", json={"topic": "x"}, headers={"X-CSRF-Token": csrf})
+        assert r.status_code == 422 and r.json()["error"]["code"] == "quiz_generate_failed"
+
+
+def test_quiz_generate_without_a_model_reports_unconfigured_not_generic_failure(
     db_url, tmp_path, fake_clock, fake_http
 ):
-    """`secret_refs.py`가 `FileNotFoundError`에서 `SecretMissingError`로 옮겨 간 뒤
-    `games/ai.py`의 except 절이 갱신되지 않아, 러너 토큰이 아예 없는 상태("미설정")도
-    타임아웃/전송 오류와 똑같이 애매한 일반 문구로 뭉개지고 있었다(app/assistant/narrate.py의
-    같은 결함을 TEST SERVER 실측 중 발견 — 여기도 같은 근본 원인) — 이제는 더 구체적인
-    "아직 설정되지 않았습니다"로 갈라진다.
-    """
+    """「아직 설정 안 됨」과 「지연/실패」는 사용자가 할 일이 다르다 — 앞은 다시 시도해도
+    소용없다. 러너 시절에는 그 구별이 토큰 파일 유무였고, 지금은 Gateway 의 상태 어휘가
+    들고 온다."""
+    from app.ai.gateway import contract
+
     app, settings = _ai_app(db_url, tmp_path, fake_clock, fake_http)
-    (settings.secrets_dir / "game_runner_token").unlink()
+    app.state.ai_gateway = contract.Gateway(enabled=True, generate_adapter=None)
     with TestClient(app, raise_server_exceptions=False) as c:
         c.post("/login", json={"email": "qa@goodmit.co.kr", "password": DEFAULT_TEST_PASSWORD})
         csrf = c.get("/api/me").json()["csrf_token"]
         r = c.post("/api/games/quiz/generate", json={"topic": "상식", "count": 2},
                    headers={"X-CSRF-Token": csrf})
         assert r.status_code == 422
-        assert "아직 설정되지 않았습니다" in r.json()["error"]["message"]
+        assert "관리자에게 문의하세요" in r.json()["error"]["message"]
 
 
 def test_feature_flag_off_hides_games(db_url, tmp_path, fake_clock, fake_http):

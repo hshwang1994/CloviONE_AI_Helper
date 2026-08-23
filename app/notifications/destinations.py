@@ -44,9 +44,6 @@ RELATED_DESTINATIONS: dict[str, str] = {
     # (frontend/src/screens/TeamDoc.jsx). app/team_docs/service.py::_notify_document_comment 가
     # related=("document", doc.notion_page_id) 로 이미 이 유형을 보내고 있었는데 표에 칸이
     # 없어 related_route 가 늘 null 이었다 — 알림은 뜨는데 눌러도 아무 데도 안 갔다.
-    #
-    # 아래 document_ready 의 "document_generation" 과 이름이 비슷하지만 다른 자원이다 —
-    # 이건 team_docs(§17, Notion "문서" DB 미러)이고 그건 관리 콘솔의 문서 생성 작업이다.
     "document": "/team-docs/{id}",
     # 게시판 댓글(board_comment) / 제안 상태 변경(idea_status_changed) — 그 글로 바로
     # 들어간다. id 는 board_posts.id 이고 `/board/:id`(BoardPost.jsx)가 그 값을 그대로
@@ -78,10 +75,6 @@ RELATED_DESTINATIONS: dict[str, str] = {
     # 작업 큐(job_failed 등, app/jobs/worker.py) — id는 jobs.id인데 화면의 파라미터 이름은
     # `job_id`다(다른 셋과 다름, registry/automation.js의 jobs.onQuery: `p.job_id ? ... : ...`).
     "job": "/jobs?job_id={id}",
-    # 러너(runner_unavailable, app/runners/service.py 서킷브레이커 degraded) — id는
-    # runners.id, `/runners`(registry/integrations.js)가
-    # `onQuery: p.id ? {open:"select", id:p.id} : ...`.
-    "runner": "/runners?id={id}",
     # 사용자(account_locked 등, app/auth/router.py) — id는 users.id. Users.jsx는 registry
     # 기반이 아니라 수제 화면이라 다른 화면들의 onQuery 배선을 그대로 못 쓰는데, NOTI-04R로
     # 같은 계약(단건 GET, `?id=` 쿼리, 실패 시 이유 안내)을 직접 만들었다 — 그 전까지는
@@ -89,19 +82,11 @@ RELATED_DESTINATIONS: dict[str, str] = {
     "user": "/users?id={id}",
 }
 
-# 문서 생성 완료(document_ready)는 일부러 여기 없다. 관리 콘솔의 문서 화면은 목록 화면이라
-# 경로가 `#/documents?id=…` 형태이고, 그 질의 파라미터 지식은 이미 프런트 표
-# (frontend/src/screens/registry.js 의 OBJ_ROUTE/OBJ_ID_PARAM)가 `document_generation` 으로
-# 들고 있다. 같은 지식을 여기 한 벌 더 쓰면 두 표가 어긋나는 날이 온다 — 그 화면이 단건
-# 라우트(`/documents/{id}`)를 갖게 되면 그때 여기 한 줄 추가하고 프런트 쪽을 지운다.
-# (related_object_type 은 "document_generation" 이라 위 team_docs 의 "document" 와 겹치지
-# 않는다 — app/jobs/handlers/document_generate.py 참고.)
-
 # 아직 표에 없는 관련 유형(schedule_run)은 **일부러** 비워 둔다. '#/schedules'로 보내도
 # 특정 실행 한 건을 찾아 주는 딥링크가 없다(스케줄 자체와 달리 실행 이력에는 onQuery가 없다)
 # — 위 docstring의 첫 번째 규칙("그 화면이 실제로 그 id를 소비해야 한다")에 걸린다. 그 화면이
 # 단건 딥링크를 갖게 되는 날 여기 한 줄 추가하면 프런트는 손대지 않는다(approval/schedule/
-# job/runner/user가 방금 그 경로를 그대로 밟았다).
+# job/user가 방금 그 경로를 그대로 밟았다).
 #
 # ⚠️ 이 표에 유형을 추가할 때 role도 함께 확인한다 — 대상 화면이 role 제한이 있으면(예:
 # /jobs·/approvals·/users는 CONSOLE_READ_ROLES 이상만) 그 알림의 실제 수신자가 항상 그

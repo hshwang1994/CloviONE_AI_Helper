@@ -62,10 +62,10 @@ else
 fi
 
 FAILED_UNITS="$(systemctl --failed --no-pager 2>/dev/null)"
-UNIT_FILES="$(systemctl list-unit-files --type=service 2>/dev/null | grep -Ei 'n8n|claude|clovir|nginx' || true)"
+UNIT_FILES="$(systemctl list-unit-files --type=service 2>/dev/null | grep -Ei 'clovir|nginx' || true)"
 
 # Existing service metadata (path/user only — no env contents)
-declare -a KNOWN_UNITS=(n8n nginx claude-work-assistant claude-ticket-runner claude-request-interpreter clovirone-web-assistant clovirone-web-worker)
+declare -a KNOWN_UNITS=(nginx clovirone-web-assistant clovirone-web-worker)
 SERVICES_JSON=""
 for unit in "${KNOWN_UNITS[@]}"; do
   props="$(systemctl show -p LoadState,ActiveState,SubState,User,ExecStart,EnvironmentFiles,Restart "$unit" 2>/dev/null)"
@@ -83,7 +83,7 @@ SERVICES_JSON="[${SERVICES_JSON%,}]"
 
 # Ports of interest
 declare -A PORT_OWNER=()
-for p in 80 443 8080 5678 8787 8788 8789; do
+for p in 80 443 8080; do
   line="$(printf '%s\n' "$SS_LNTP" | grep -E "[:.]$p " | head -1)"
   PORT_OWNER[$p]="$line"
 done
@@ -184,7 +184,7 @@ fi
   echo "  \"services\": $SERVICES_JSON,"
   echo "  \"ports\": {"
   psep=""
-  for p in 80 443 8080 5678 8787 8788 8789; do
+  for p in 80 443 8080; do
     echo "    ${psep}\"$p\": $(printf '%s' "${PORT_OWNER[$p]}" | json_escape)"
     psep=","
   done
@@ -231,7 +231,7 @@ fi
   echo '```'
   echo "## 리스닝 포트 (관심 대상)"
   echo '```'
-  for p in 80 443 8080 5678 8787 8788 8789; do
+  for p in 80 443 8080; do
     printf '%-5s %s\n' "$p" "${PORT_OWNER[$p]:-(free)}"
   done
   echo '```'

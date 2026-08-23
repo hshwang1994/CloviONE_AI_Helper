@@ -1,3 +1,5 @@
+"""qa-contract-change: 선택 JSON 을 비우면 콘솔이 null 을 보낸다는 계약의 소비자가 셋에서 하나로 줄었다 — 템플릿·문서 생성 화면이 S11 과 함께 사라지고 스케줄만 남았다. 남은 스케줄 쪽 단언은 그대로이고, 계약(널을 기본값으로 받는다) 자체는 안 바뀌었다."""
+
 """관리자 콘솔의 JSON 입력 필드가 실제로 보내는 페이로드로 각 생성/수정을 검증한다.
 
 콘솔(common.js)은 `type:"json"` 필드를 **파싱된 객체**로, 비워 두면 **null**로 보낸다.
@@ -18,16 +20,10 @@ def _h(csrf):
     return {"X-CSRF-Token": csrf}
 
 
+# S11 이후 스케줄 대상은 `system` 하나다(D-267).
 @pytest.fixture()
-def workflow_id(client, admin_csrf):
-    r = client.post(
-        "/api/admin/workflows",
-        json={"name": "콘솔계약 WF", "webhook_url": "http://127.0.0.1:5678/webhook/weekly-report",
-              "operation_mode": "write"},
-        headers=_h(admin_csrf),
-    )
-    assert r.status_code == 201, r.text
-    return r.json()["workflow"]["id"]
+def workflow_id():
+    return "noop"
 
 
 def test_policy_create_accepts_parsed_object(client, admin_csrf):
@@ -67,25 +63,11 @@ def test_prompt_content_still_free_text(client, admin_csrf):
     assert r.json()["item"]["content"] == "이건 그냥 문장입니다."
 
 
-def test_template_create_with_null_optional_json(client, admin_csrf, workflow_id):
-    # B2(MED): 선택 JSON(input_schema/approval_policy)을 비우면 콘솔은 null을 보낸다. 기본값으로 받는다.
-    r = client.post(
-        "/api/admin/templates",
-        json={"name": "빈스키마 템플릿", "target_type": "workflow", "target_ref": workflow_id,
-              "input_schema": None, "approval_policy": None},
-        headers=_h(admin_csrf),
-    )
-    assert r.status_code == 201, r.text  # 옛 코드는 null → 422였다
-    body = r.json()
-    item = body.get("item") or body.get("template") or body
-    assert item.get("input_schema") == {} and item.get("approval_policy") == {}, body
-
-
 def test_schedule_create_with_null_optional_json(client, admin_csrf, workflow_id):
     # B2(MED): 스케줄의 payload_template/retry_policy를 비우면 null. 기본값으로 받는다.
     r = client.post(
         "/api/admin/schedules",
-        json={"name": "빈페이로드 스케줄", "target_type": "workflow", "target_ref": workflow_id,
+        json={"name": "빈페이로드 스케줄", "target_type": "system", "target_ref": workflow_id,
               "cron_expression": "0 9 * * *", "payload_template": None, "retry_policy": None,
               "concurrency_policy": "skip", "misfire_policy": "skip"},
         headers=_h(admin_csrf),
@@ -93,12 +75,5 @@ def test_schedule_create_with_null_optional_json(client, admin_csrf, workflow_id
     assert r.status_code == 201, r.text
 
 
-def test_document_generate_auto_publish_mode(client, admin_csrf, workflow_id):
-    # B4(MED): 콘솔의 '자동 발행' 모드 값은 auto_publish여야 한다(옛 'auto'는 유효값이 아니라 실패).
-    r = client.post(
-        "/api/admin/documents/generate",
-        json={"workflow_id": workflow_id, "period": "2026-W29", "mode": "auto_publish", "config": None},
-        headers=_h(admin_csrf),
-    )
-    # 성공(202/201) 또는 승인 필요 등 도메인 응답. 422(계약 불일치)만 아니면 된다.
-    assert r.status_code != 422, r.text
+# 템플릿·문서 생성의 같은 계약(선택 JSON 을 비우면 null 이 온다)은 S11 이 그 두 화면과
+# 함께 걷어냈다. 남은 소비자는 스케줄 하나이고 위 시험이 그것을 본다.

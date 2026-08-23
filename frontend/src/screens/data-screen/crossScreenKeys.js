@@ -39,12 +39,12 @@ export const CROSS_SCREEN_KEYS = {
   // 쪽 재시도/취소 mutation에서 이 키를 함께 무효화해 맞춘다).
   schedules: [["scheduler-calendar"]],
   // 승인(WF7 재감사, L축): 승인 실행기 5종(app/approvals/service.py APPROVAL_EXECUTORS)이
-  // 각각 users/integrations/runners/schedules/documents 중 하나를 실제로 바꾼다 — "승인"을
+  // 각각 users/integrations/schedules 중 하나를 실제로 바꾼다 — "승인"을
   // 누른 화면과 그 대상 화면이 다른 탭에 함께 열려 있으면(관리 콘솔에서 드물지 않은 사용
   // 패턴 — 한 탭에서 승인, 다른 탭에서 대상 확인), 대상 화면은 자기 폴링/재마운트 전까지
   // 옛 값을 계속 보여줬다. 어느 승인이 어느 화면을 바꿨는지 여기서 다시 나누지 않는다 —
   // 무효화는 값싸고(그 화면이 열려 있지 않으면 아무 일도 안 한다), 거절·취소처럼 대상을
   // 안 바꾸는 액션까지 함께 걸려도 해가 없다(jobs→dashboard와 같은 "거칠지만 안전한" 판단).
   // users는 registry.js에 없는 전용 화면(Users.jsx)이라 그 자체 쿼리 키 접두어를 그대로 쓴다.
-  approvals: [["users"], ["integrations"], ["runners"], ["schedules"], ["documents"]],
+  approvals: [["users"], ["integrations"], ["schedules"]],
 };

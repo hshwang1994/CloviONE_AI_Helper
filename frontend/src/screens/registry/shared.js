@@ -32,6 +32,8 @@ export const SCHED_RUN = { queued: "대기", running: "실행 중", succeeded: "
 // 감사 로그 대상 필터 옵션 — 값은 백엔드가 실제로 저장하는 object_type 문자열과 정확히 일치해야 한다
 // (백엔드가 == 정확 일치로 필터하므로 어긋나면 항상 0건). prompt/policy/setting/document는 복수형·접미
 // 형태로 저장되고('prompts'/'policies'/'app_setting'/'document_generation'), 'role'은 저장되지 않는다.
+// runner/workflow/template/document_generation 은 S11 이 그 화면들을 걷어냈지만 **옛 감사 기록은
+// 남아 있다** — 목록에서 빼면 그 기록을 걸러 볼 방법이 사라진다. 필터는 역사도 봐야 한다.
 export const OBJTYPE_OPTS = [["user", "사용자"], ["integration", "외부 연동"], ["runner", "러너"], ["workflow", "워크플로"],
   ["prompts", "프롬프트"], ["policies", "정책"], ["template", "템플릿"], ["schedule", "스케줄"], ["schedule_run", "예약 실행"],
   ["approval", "승인"], ["backup", "백업"], ["app_setting", "설정"], ["document_generation", "문서"],
@@ -82,15 +84,13 @@ export const objField = (key, label) => ({ key, label, render: (r) => objKo(r[ke
 
 /* 목록 화면 설정 — 열/엔드포인트만 다르고 렌더는 DataScreen이 공통 처리한다.
  * 상태 열은 badgeCol(배지), enum 열은 mapCol/actionKo(한국어)로. 값은 서버 계약 그대로. */
-export const PROVIDER = { n8n: "n8n", http_service: "HTTP 서비스", notion_via_n8n: "Notion(n8n 경유)" };
-export const WF_MODE = { read: "읽기", write: "쓰기" };
+export const PROVIDER = { http_service: "HTTP 서비스", notion: "Notion" };
 export const SCHED_TYPE = { cron: "Cron 반복", once: "1회 실행" };
-export const DOC_MODE = { preview_then_approve: "미리보기 후 승인", preview_only: "미리보기만", auto_publish: "자동 발행" };
-export const MAP_SOURCE = { workflow: "워크플로 자동", manual: "수동 지정" };
-// 실제 enqueue되는 job_type 문자열과 정확히 일치해야 한다(chat_message·document_generate·notion_mapping_sync).
-// 실제 enqueue되는 job_type만 매핑한다(backup은 큐에 없어 제거 — 오해 방지).
-export const JOB_TYPE = { chat_message: "채팅 메시지", document_generate: "문서 생성", notion_mapping_sync: "Notion 동기화", schedule_run: "예약 실행" };
-export const RUNNER_MAINT_OPTS = [["normal", "정상"], ["degraded", "성능 저하"], ["maintenance", "점검"]].map((p) => ({ value: p[0], label: p[1] }));
+// `workflow` 를 새로 만드는 경로는 없다(S11). 옛 행이 raw 문자열로 보이지 않게 라벨은 남긴다.
+export const MAP_SOURCE = { workflow: "워크플로 자동(옛 방식)", manual: "수동 지정" };
+// 실제 enqueue되는 job_type 문자열과 정확히 일치해야 한다. 큐에 안 들어가는 것은 안 적는다
+// (backup 은 큐에 없어서, document_generate·notion_mapping_sync 는 S11 이 걷어내서 — 오해 방지).
+export const JOB_TYPE = { chat_message: "채팅 메시지", schedule_run: "예약 실행", mail_send: "메일 발송" };
 
 // 감사/승인 enum 한국어화는 공용 lib/format.js(objKo·actionKo)에서 온다.
 export const objCol = (key, label) => ({ key, label, render: (r) => objKo(r[key]) });
@@ -103,30 +103,16 @@ export const col = (key, label) => ({ key, label });
 export const opt = (pairs) => pairs.map((p) => ({ value: p[0], label: p[1] }));
 // 백엔드 허용값과 정확히 일치해야 한다(none/bearer/api_key_header) — 옛 header/basic은 422였다.
 export const AUTH_OPTS = opt([["none", "없음"], ["bearer", "Bearer 토큰"], ["api_key_header", "API 키(헤더)"]]);
-export const PROVIDER_OPTS = opt([["http_service", "HTTP 서비스"], ["n8n", "n8n"], ["notion_via_n8n", "Notion(n8n 경유)"]]);
-export const WFMODE_OPTS = opt([["read", "읽기"], ["write", "쓰기"]]);
+export const PROVIDER_OPTS = opt([["http_service", "HTTP 서비스"], ["notion", "Notion"]]);
 // 워크플로 백엔드는 POST/GET만 허용한다(WorkflowConfig._method_known).
-export const HTTP_OPTS = opt([["POST", "POST"], ["GET", "GET"]]);
 export const SCHEDT_OPTS = opt([["cron", "Cron 반복"], ["once", "1회 실행"]]);
 // 간편 주기 — 고르면 백엔드가 Cron 식을 생성한다(cron.PRESETS). 빈 값은 '직접 입력'.
 export const SCHED_PRESET_OPTS = opt([["", "사용 안 함(직접 입력)"], ["daily", "매일"], ["weekly", "매주"], ["monthly", "매월"]]);
 // 스케줄 고급 정책 — 백엔드 허용값과 정확히 일치(misfire: skip/run_once, concurrency: skip/allow).
 export const MISFIRE_OPTS = opt([["skip", "건너뛰기(skip)"], ["run_once", "한 번만 실행(run_once)"]]);
 export const CONCURRENCY_OPTS = opt([["skip", "건너뛰기(skip)"], ["allow", "동시 실행 허용(allow)"]]);
-// 'runner' 대상은 target_ref가 가리키는 워크플로 실행 경로만 백엔드가 소비하지 않는다
-// (apply_template_bindings의 워크플로 재지정은 target_type===workflow일 때만 동작 —
-// app/documents/service.py). 반면 prompt_id/policy_id/input_schema/approval_policy 바인딩은
-// target_type과 무관하게 config.template_id로 여전히 적용된다 — '아무 효과 없음'이 아니라
-// '대상 워크플로 재지정만' 안 되는 것이다. 그래도 이 화면의 '이 템플릿으로 문서 생성' 버튼은 대상
-// 워크플로가 필요하므로(templates.actions 참고) 신규 생성은 워크플로만 선택 가능하게 한다.
-export const TARGET_OPTS = opt([["workflow", "워크플로"]]);
-// 백엔드는 템플릿의 target_type=runner도 검증·저장은 해 주고(app/templates/router.py), 실제로
-// prompt/policy/입력 스키마/승인 정책 바인딩도 target_type과 무관하게 계속 적용한다(위 주석 참고) —
-// 다만 apply_template_bindings의 대상 워크플로 재지정만 target_type==workflow일 때만 동작한다.
-// '이 템플릿으로 문서 생성' 버튼이 대상 워크플로를 필요로 하므로, 신규 생성은 워크플로만 선택
-// 가능하게 한다(기존 러너 대상 행은 detailFields의 _runner_target_note로 별도 안내).
-export const TEMPLATE_TARGET_OPTS = TARGET_OPTS;
-export const SCHED_TARGET_OPTS = opt([["workflow", "워크플로"], ["system", "시스템"]]);
+// 대상은 시스템 하나뿐이다 — 워크플로 대상은 S11 이 n8n 과 함께 걷어냈다.
+export const SCHED_TARGET_OPTS = opt([["system", "시스템"]]);
 // 상태 변경(쓰기) 액션 role 게이트 — 백엔드 RBAC와 일치시켜 읽기 전용 역할(operator/auditor)에게
 // 항상 403이 되는 버튼을 애초에 숨긴다(DataScreen canDo가 a.roles로 필터).
 export const WRITE_ROLES = CONSOLE_WRITE_ROLES;                  // 생성/수정/onoff/발행/롤백/승인·거절/동기화 등
@@ -135,7 +121,7 @@ export const OPS_ROLES = CONSOLE_OPS_ROLES;                      // 운영성 �
 // 이동하는 액션을 일반 사용자에게 숨긴다(일반 사용자가 누르면 채팅으로 튕겨 나간다).
 export const ADMIN_VIEW_ROLES = CONSOLE_READ_ROLES;
 // 생성 권한이 없는 역할(operator/auditor)에게는 렌더되지도 않는 '추가' 버튼을 누르라고 안내하지 않는다.
-// 쓰기 역할(admin/system_admin)에겐 CTA 안내를, 그 외엔 읽기 전용 안내를 준다(schedules/documents/backup 패턴).
+// 쓰기 역할(admin/system_admin)에겐 CTA 안내를, 그 외엔 읽기 전용 안내를 준다(schedules/backup 패턴).
 export const writerEmptyHelp = (writerMsg, readerMsg) => (role) => (role === "admin" || role === "system_admin") ? writerMsg : readerMsg;
 // 알림의 관련 대상(related_object_type) → 해당 관리 화면 해시 경로(문서 화면 navigate 방식과 동일).
 // 값은 REGISTRY 키(App.jsx가 "/"+key로 라우팅) 및 별도 화면(users/settings) 경로와 일치해야 한다.
@@ -146,10 +132,10 @@ export const writerEmptyHelp = (writerMsg, readerMsg) => (role) => (role === "ad
 // ?object_type=feature_flag 딥링크를 감사 화면으로 걸어 두고 있어(org.js organizations.actions,
 // platform.js feature-flags.actions) 한쪽 방향 링크만 있고 되돌아오는 버튼이 없었다.
 export const OBJ_ROUTE = {
-  integration: "#/integrations", runner: "#/runners", workflow: "#/workflows",
-  prompts: "#/prompts", policies: "#/policies", template: "#/templates",
+  integration: "#/integrations",
+  prompts: "#/prompts", policies: "#/policies",
   schedule: "#/schedules", schedule_run: "#/schedules", approval: "#/approvals",
-  backup: "#/backup", document_generation: "#/documents", document: "#/documents",
+  backup: "#/backup",
   user_notion_mapping: "#/notion-mapping", job: "#/jobs",
   department: "#/departments", job_title: "#/job-titles", user: "#/users",
   app_setting: "#/settings", organization: "#/organizations", feature_flag: "#/feature-flags",
@@ -176,16 +162,12 @@ export const OBJ_ROUTE = {
 export const OBJ_ROUTE_ROLES = { user: WRITE_ROLES, department: WRITE_ROLES, job_title: WRITE_ROLES, job: OPS_ROLES, organization: WRITE_ROLES, offboarding_run: WRITE_ROLES };
 export const canReachObjRoute = (objType, role) => !OBJ_ROUTE_ROLES[objType] || (role != null && OBJ_ROUTE_ROLES[objType].includes(role));
 // 대상 화면 중 일부는 이제 id 기반 딥링크(onQuery: p.<param> → 상세 드로어를 곧바로 연다)를 지원한다
-// (runners: ?id=, jobs: ?job_id=, notion-mapping: ?user_id= — 이 셋은 object_id가 곧 그 파라미터 값).
-// workflow/integration/schedule/document_generation도 각 화면이 이제 ?id= 딥링크(onQuery)를 지원해
-// 여기 추가한다(runners와 동일한 패턴 — 백엔드 GET .../{id} 단건 조회가 이미 존재함).
-// 여기 없는 object_type은 대상 화면에 그런 딥링크가 없어 여전히 목록 전체로만 이동한다.
-// document_generation과 document는 둘 다 OBJ_ROUTE에서 같은 문서 화면(#/documents)을 가리키는
-// object_type 별칭이다(감사/알림은 'document_generation', 승인의 object_type은 'document') — 문서
-// 화면의 onQuery가 둘 다 ?id=를 같은 방식으로 소비하므로 두 별칭 모두 등록해 어느 쪽에서 와도 동작한다.
-export const OBJ_ID_PARAM = { runner: "id", job: "job_id", user_notion_mapping: "user_id",
-  workflow: "id", integration: "id", schedule: "id", document_generation: "id", document: "id",
-  approval: "id", template: "id",
+// (jobs: ?job_id=, notion-mapping: ?user_id= — 이 둘은 object_id가 곧 그 파라미터 값).
+// integration/schedule도 각 화면이 ?id= 딥링크(onQuery)를 지원해 여기 있다(백엔드 GET .../{id}
+// 단건 조회가 이미 존재한다). 여기 없는 object_type은 대상 화면에 그런 딥링크가 없어 여전히
+// 목록 전체로만 이동한다.
+export const OBJ_ID_PARAM = { job: "job_id", user_notion_mapping: "user_id",
+  integration: "id", schedule: "id", approval: "id",
   // prompts/policies는 이름 기준 버전 관리 화면이지만 각 버전 행의 id로도 상세를 곧바로 연다
   // (onQuery: { open: 'select', id }가 GET /{id}로 단건 조회 — nameVersionsAction과 별개 경로).
   // 감사/알림의 '관련 항목 보기'가 이 두 object_type만 빠져 있어 늘 '관련 목록 열기'로 격하됐었다.
@@ -199,21 +181,6 @@ export const objRouteHref = (objType, objId) => {
   const param = OBJ_ID_PARAM[objType];
   return (base && param && objId != null && objId !== "") ? base + "?" + param + "=" + encodeURIComponent(objId) : base;
 };
-// 이름이 곧 계약인 워크플로 — 편집·비활성화가 실제로는 그 시스템에 영향을 주지 않거나(채팅), 다른
-// 모듈이 정확 일치로 찾는 식별자다(Notion 동기화). 이 화면만 보면 '평범한 워크플로 하나'로 보이지만
-// 실제로는 특별 취급해야 한다 — 상세에 경고를 보여준다(app/workflows/service.py:152,161,165 참고).
-// 이 두 행도 '수정'으로 값을 고칠 수 있다(백엔드 PATCH가 지원) — 다만 다른 모듈이 정확 일치로
-// 찾는 계약 식별자인 '이름'만은 이 화면에서 바꿀 수 없게 편집 폼에서 뺀다(그 외 수신 주소·용도·
-// 담당자·태그·모드는 편집 가능). 이름 변경이 꼭 필요하면 시스템 관리자에게 문의한다.
-export const RESERVED_EDIT_HINT = " ‘수정’에서 수신 주소, 용도, 담당자, 태그, 모드는 바꿀 수 있지만, 이름(다른 모듈이 계약으로 찾는 식별자)은 이 화면에서 바꿀 수 없습니다. 이름 수정이 꼭 필요하면 시스템 관리자에게 문의하세요.";
-export const RESERVED_WORKFLOW_NOTES = {
-  "ClovirONE AI 업무 도우미": "이 행은 실제 채팅이 사용하는 수신 주소입니다. 여기서 수신 주소를 바꾸거나 비활성화하면 전 사용자의 채팅이 즉시 멈춥니다(미시딩된 새 설치에서만 서버 기본값으로 대체됩니다). 수정, 비활성화는 반드시 확인 후 진행하세요." + RESERVED_EDIT_HINT,
-  "notion-user-mapping": "이 이름은 'Notion 사용자 연결' 화면의 자동 동기화, 검증이 정확히 일치시켜 찾는 식별자입니다. 이름을 바꾸거나 비활성화하면 전 사용자의 Notion 매핑 조회가 조용히 멈추고(오류: 'Notion 매핑 Workflow가 구성/활성화되지 않았습니다'), 자동 동기화도 이 워크플로를 더 이상 찾지 못합니다." + RESERVED_EDIT_HINT,
-};
-// 위 예약 워크플로는 비활성화가 실제 서비스를 멈춘다 — onoff() 공통 확인 문구 대신 행별 강한 경고를 준다.
-export const reservedDisableConfirm = (r) => RESERVED_WORKFLOW_NOTES[r.name]
-  ? RESERVED_WORKFLOW_NOTES[r.name] + "\n\n정말 비활성화하시겠습니까?"
-  : "비활성화하시겠습니까?";
 // 백업 오류는 SQLite/파일시스템 원시 예외 문자열을 그대로 담아 온다 — 알려진 사유 코드만 한국어로
 // 치환하고, 그 외(원시 예외 등)는 원문을 그대로 보여준다(정보 손실 방지).
 export const BACKUP_REASON_KO = { file_missing: "백업 파일 없음", checksum_mismatch: "체크섬 불일치", database_error: "데이터베이스 오류", integrity_check: "무결성 검사 실패" };
@@ -238,6 +205,6 @@ export const ROLE_KO = { user: "일반 사용자", operator: "운영자", audito
 // 승인 요청 내용(request_payload)의 최상위 키를 한국어로 — 나머지는 온통 한국어인 콘솔에서 이
 // 값들만 raw 영어 식별자로 남아 있었다. 알 수 없는 키는 원문 그대로 보여준다(정보 손실 방지).
 export const APPROVAL_PAYLOAD_KEY_KO = { role: "역할", previous_role: "이전 역할", target_name: "대상 이름",
-  target_email: "대상 이메일", target_user_id: "대상 사용자 ID", source_row_count: "원본 행 수",
-  target_parent_page: "대상 페이지", generation_id: "문서 생성 ID", config: "설정", definition: "정의",
+  target_email: "대상 이메일", target_user_id: "대상 사용자 ID",
+  config: "설정", definition: "정의",
   period: "기간", mode: "모드", reason: "사유", comment: "메모" };

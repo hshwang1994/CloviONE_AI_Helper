@@ -5,7 +5,7 @@ health_url은 헬스체크 때 secret과 함께 호출되는 주소다(service.p
 보낸다). 그래서 이 값을 바꾸는 것은 **secret을 다른 대상에게 보내는 일**이다.
 
 base_url·secret_ref는 승인 게이트를 지나는데 health_url만 빠져 있었다. 그래서 일반 admin이
-승인 없이 health_url을 다른 allowlist 호스트로 돌리고 헬스체크를 눌러 n8n 토큰을 그쪽으로
+승인 없이 health_url을 다른 allowlist 호스트로 돌리고 헬스체크를 눌러 토큰을 그쪽으로
 보낼 수 있었다. allowlist는 '외부로 못 나간다'만 보장한다 — '어느 내부 서비스로 가느냐'는
 승인 게이트가 지켜야 한다.
 
@@ -22,10 +22,10 @@ def _integration(client, csrf):
     r = client.post(
         "/api/admin/integrations",
         json={
-            "name": "n8n-gate-test",
-            "provider_type": "n8n",
-            "base_url": "http://127.0.0.1:5678",
-            "health_url": "http://127.0.0.1:5678/healthz",
+            "name": "health-url-gate-test",
+            "provider_type": "http_service",
+            "base_url": "https://api.notion.com",
+            "health_url": "https://api.notion.com/healthz",
             "auth_type": "none",
             "enabled": True,
         },
@@ -44,7 +44,7 @@ def test_health_url_change_is_approval_gated_for_admin(client, login_as):
     csrf = login_as("admin")   # system_admin이 아닌 admin
     r = client.patch(
         f"/api/admin/integrations/{integration_id}",
-        json={"health_url": "http://127.0.0.1:8787/collect"},
+        json={"health_url": "https://api.notion.com/collect"},
         headers={"X-CSRF-Token": csrf},
     )
     assert r.status_code == 202, (
@@ -61,7 +61,7 @@ def test_health_url_rollback_is_approval_gated_for_admin(client, login_as):
     # system_admin이 health_url을 바꿔 새 버전을 만든다(v2).
     r = client.patch(
         f"/api/admin/integrations/{integration_id}",
-        json={"health_url": "http://127.0.0.1:8787/collect"},
+        json={"health_url": "https://api.notion.com/collect"},
         headers={"X-CSRF-Token": csrf},
     )
     assert r.status_code == 200, r.text

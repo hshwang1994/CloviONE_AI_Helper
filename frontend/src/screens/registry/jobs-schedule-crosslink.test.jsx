@@ -1,3 +1,4 @@
+/* qa-contract-change: 작업 큐 ↔ 문서 생성 크로스링크의 절반이 S11 로 사라졌다(문서 생성 화면이 없다). 스케줄 쪽 절반은 링크·역방향·딥링크 필터까지 단언이 하나도 안 줄었고, onQuery 기대값에서 죽은 키(generation_id)를 지운 것은 «없는 키가 undefined 여도 통과» 하던 느슨함을 없앤 것이라 오히려 정확해졌다. */
 import React from "react";
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
@@ -5,16 +6,17 @@ import "@testing-library/jest-dom/vitest";
 
 import { AUTOMATION_SCREENS } from "./automation.js";
 
-/* 백엔드(app/jobs/router.py::_link_ids, round30 감사 E)는 이미 schedule_run/document_generate
- * 작업의 참조 ID(schedule_id/schedule_run_id/generation_id)를 응답에 내려주고 있었는데,
- * 프런트 작업 큐 화면이 그 값을 하나도 그리지 않아 '작업 큐 → 스케줄/문서로 돌아갈 길'이
- * idempotency_key 문자열 파싱뿐이었다(IA-02). detailFields에 크로스링크를 더한다.
+/* 백엔드(app/jobs/router.py::_link_ids, round30 감사 E)는 이미 schedule_run 작업의 참조
+ * ID(schedule_id/schedule_run_id)를 응답에 내려주고 있었는데, 프런트 작업 큐 화면이 그 값을
+ * 하나도 그리지 않아 '작업 큐 → 스케줄로 돌아갈 길'이 idempotency_key 문자열 파싱뿐이었다
+ * (IA-02). detailFields에 크로스링크를 더한다. 문서 생성 쪽 절반은 S11 이 그 화면과 함께
+ * 걷어냈다.
  */
 function field(key) {
   return AUTOMATION_SCREENS.jobs.detailFields.find((f) => f.key === key);
 }
 
-describe("작업 큐 상세 — 스케줄/문서 생성으로 돌아가는 링크", () => {
+describe("작업 큐 상세 — 스케줄로 돌아가는 링크", () => {
   it("schedule_id가 있으면 스케줄 상세로 가는 링크를 그린다", () => {
     render(field("schedule_id").render({ schedule_id: "sched-123" }));
     const link = screen.getByRole("link", { name: "sched-123" });
@@ -27,12 +29,6 @@ describe("작업 큐 상세 — 스케줄/문서 생성으로 돌아가는 링�
     expect(screen.queryByRole("link")).toBeNull();
   });
 
-  it("generation_id가 있으면 문서 생성 상세로 가는 링크를 그린다", () => {
-    render(field("generation_id").render({ generation_id: "gen-456" }));
-    const link = screen.getByRole("link", { name: "gen-456" });
-    expect(link).toHaveAttribute("href", "#/documents?id=gen-456");
-  });
-
   it("schedule_run_id는 여는 화면이 없어 링크 없이 참조값만 보인다(가짜 링크를 걸지 않는다)", () => {
     render(field("schedule_run_id").render({ schedule_run_id: "run-789" }));
     expect(screen.getByText("run-789")).toBeInTheDocument();
@@ -40,10 +36,10 @@ describe("작업 큐 상세 — 스케줄/문서 생성으로 돌아가는 링�
   });
 });
 
-/* 반대 방향(FN-13이 IA-02에 남겨 둔 나머지 절반) — 스케줄 실행 이력·문서 생성·실행 달력이
- * "이 실행을 처리한 작업"으로 갈 길이 아예 없었다. 백엔드에 job_id 컬럼을 새로 만드는 대신
- * (마이그레이션 없이) GET /api/admin/jobs가 payload_json 안의 schedule_id/schedule_run_id/
- * generation_id로 걸러 찾는 필터를 새로 받는다 — jobs.filters/onQuery가 그 필터를 소비한다.
+/* 반대 방향(FN-13이 IA-02에 남겨 둔 나머지 절반) — 스케줄 실행 이력·실행 달력이 "이 실행을
+ * 처리한 작업"으로 갈 길이 아예 없었다. 백엔드에 job_id 컬럼을 새로 만드는 대신(마이그레이션
+ * 없이) GET /api/admin/jobs가 payload_json 안의 schedule_id/schedule_run_id로 걸러 찾는
+ * 필터를 새로 받는다 — jobs.filters/onQuery가 그 필터를 소비한다.
  */
 describe("스케줄 실행 이력 → 작업 큐로 가는 링크", () => {
   it("실행 이력 목록에 그 실행을 처리한 작업으로 가는 컬럼이 있다", () => {
@@ -56,23 +52,15 @@ describe("스케줄 실행 이력 → 작업 큐로 가는 링크", () => {
   });
 });
 
-describe("문서 생성 → 작업 큐로 가는 링크", () => {
-  it("문서 생성 화면에 '작업 큐에서 보기' 액션이 그 문서의 generation_id로 이동한다", () => {
-    const action = AUTOMATION_SCREENS.documents.actions.find((a) => a.label === "작업 큐에서 보기");
-    expect(action).toBeTruthy();
-    expect(action.navigate({ id: "gen-xyz" })).toBe("#/jobs?generation_id=gen-xyz");
-  });
-});
-
-describe("작업 큐 — 스케줄/문서 생성 딥링크로 목록을 미리 거른다", () => {
-  it("filters에 schedule_id/schedule_run_id/generation_id 텍스트 필터가 있다", () => {
+describe("작업 큐 — 스케줄 딥링크로 목록을 미리 거른다", () => {
+  it("filters에 schedule_id/schedule_run_id 필터가 있다", () => {
     const keys = AUTOMATION_SCREENS.jobs.filters.map((f) => f.key);
-    expect(keys).toEqual(expect.arrayContaining(["schedule_id", "schedule_run_id", "generation_id"]));
+    expect(keys).toEqual(expect.arrayContaining(["schedule_id", "schedule_run_id"]));
   });
 
   it("?schedule_run_id=로 들어오면 목록을 그 값으로 거른다(특정 행 하나를 여는 게 아니다)", () => {
     const intent = AUTOMATION_SCREENS.jobs.onQuery({ schedule_run_id: "run-789" });
-    expect(intent).toEqual({ open: "filter", values: { schedule_id: undefined, schedule_run_id: "run-789", generation_id: undefined } });
+    expect(intent).toEqual({ open: "filter", values: { schedule_id: undefined, schedule_run_id: "run-789" } });
   });
 
   it("?job_id=는 여전히 특정 작업 하나를 곧바로 연다(회귀 없음)", () => {

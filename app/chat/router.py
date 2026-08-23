@@ -153,12 +153,7 @@ def delete_conversation_endpoint(
     user: User = Depends(get_current_user),
 ):
     conversation = get_owned_conversation(db, user, conversation_id)
-    # AI-16: 러너 미러도 함께 지운다(위생, 실패해도 이 삭제 자체는 진행됨 — delete_conversation
-    # 내부에서 outbound 호출을 별도로 감쌈).
-    delete_conversation(
-        db, conversation,
-        outbound=request.app.state.outbound_client, settings=request.app.state.settings, user=user,
-    )
+    delete_conversation(db, conversation)
     return {"ok": True}
 
 
@@ -256,7 +251,7 @@ def retry(
 ):
     # retry enqueues an identical chat_message job to POST
     # /api/conversations/{id}/messages (see post_message above) — the same
-    # per-user chat_ratelimiter guards the job queue/n8n from burst abuse
+    # per-user chat_ratelimiter guards the job queue from burst abuse
     # there, but this endpoint had no equivalent check, so a user could
     # bypass the send-rate limit entirely by hammering '다시 시도' instead.
     chat_limit_key = f"chat:{user.id}"
@@ -294,7 +289,7 @@ def regenerate(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    # AI-36: 재생성도 새 n8n 호출을 만드는 잡이라 retry/전송과 같은 두 문지기(버스트 차단·
+    # AI-36: 재생성도 새 답변을 만드는 잡이라 retry/전송과 같은 두 문지기(버스트 차단·
     # AI 쿼터)를 지난다 — 한쪽만 묶으면 '다시 생성'으로 우회한다(retry 엔드포인트의 같은 주석 참고).
     chat_limit_key = f"chat:{user.id}"
     if not request.app.state.chat_ratelimiter.allow(chat_limit_key):

@@ -23,9 +23,9 @@ Sources (re-derive from these if the app's routing changes):
       for a long while), assembled from 7 domain files under
       ``frontend/src/screens/registry/`` and each rendered by ``AdminRoutes`` at
       ``"/" + key``:
-        integrations.js  integrations runners workflows
-        authoring.js     prompts policies templates prompt-usage policy-usage
-        automation.js    schedules documents jobs
+        integrations.js  integrations
+        authoring.js     prompts policies prompt-usage policy-usage
+        automation.js    schedules jobs
         org.js           organizations departments job-titles org-tree notion-mapping
         governance.js    approvals approval-delegations audit audit-anomalies rbac impersonation
         platform.js      backup restore-drills announcements ai-quotas feature-flags
@@ -265,13 +265,9 @@ ADMIN_ROUTES: tuple[Route, ...] = (
        ("admin", "system_admin", "auditor")),
     # REGISTRY keys — "/" + key, gated by SCREEN_ROLES when listed there.
     _a("admin_integrations", "/integrations", "외부 연동"),
-    _a("admin_runners", "/runners", "자동화 작업 실행기(러너)"),
-    _a("admin_workflows", "/workflows", "업무 자동화 흐름(워크플로)"),
     _a("admin_prompts", "/prompts", "프롬프트"),
     _a("admin_policies", "/policies", "정책"),
-    _a("admin_templates", "/templates", "템플릿"),
     _a("admin_schedules", "/schedules", "실행 일정(스케줄)"),
-    _a("admin_documents", "/documents", "문서 자동 생성"),
     _a("admin_approvals", "/approvals", "승인"),
     _a("admin_organizations", "/organizations", "조직 관리", "admin", ("admin", "system_admin")),
     _a("admin_departments", "/departments", "부서 관리", "admin", ("admin", "system_admin")),
@@ -286,7 +282,7 @@ ADMIN_ROUTES: tuple[Route, ...] = (
     _a("admin_rbac", "/rbac", "권한 매트릭스", "operator",
        ("operator", "admin", "system_admin", "auditor")),
     _a("admin_notion-mapping", "/notion-mapping", "Notion 사용자 연결"),
-    # REGISTRY 28키 중 하나(`screens/registry/notifications.js::admin-notifications`).
+    # REGISTRY 키 하나(`screens/registry/notifications.js::admin-notifications`).
     # 하네스에도 커버리지에도 없어서 한 번도 캡처된 적이 없다 — Python 정규식이 계산된
     # 경로(`path={"/" + key}`)를 못 읽어 조용히 놓친 바로 그 한 개다
     # (`frontend/src/screens/registry-surface-parity.test.js` 가 JS 로 잡았다).
@@ -301,8 +297,6 @@ ADMIN_ROUTES: tuple[Route, ...] = (
     # ``OBJ_ID_PARAM`` names the parameter per object type (id / job_id / user_id).
     _a("admin_integration-detail", "/integrations", "외부 연동 상세",
        hash_template="/integrations?id={id}", discover=("/api/admin/integrations",)),
-    _a("admin_runner-detail", "/runners", "러너 상세",
-       hash_template="/runners?id={id}", discover=("/api/admin/runners",)),
     _a("admin_job-detail", "/jobs", "작업 상세", "operator",
        ("operator", "admin", "system_admin"),
        hash_template="/jobs?job_id={id}", discover=("/api/admin/jobs",)),

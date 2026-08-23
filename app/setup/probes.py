@@ -73,6 +73,10 @@ class ProbeContext:
     # 이미 따뜻한 app.state.settings_cache. 없으면 관리 콘솔에서 바꾼 값을 못 보고
     # env 만 읽어 "설정 안 함" 이라고 잘못 말한다(tenant_config.py 의 같은 주의).
     effective: dict
+    # 프로세스에 하나뿐인 Gateway(`app.state.ai_gateway`). 여기서 새로 만들면 임베딩
+    # Adapter 가 매번 ONNX 세션을 열고(S1 실측 2.3초), 무엇보다 **화면이 실제로 쓰는
+    # 것과 다른 객체**를 재게 된다. None 이면 설정에서 만든다(스크립트 호출부).
+    gateway: object | None = None
 
 
 # ── 관리자 계정 ──────────────────────────────────────────────────────────────
@@ -240,7 +244,6 @@ def probe_user_mapping(ctx: ProbeContext) -> Outcome:
         STATUS_VERIFIED,
         UserNotionMapping,
     )
-    from app.notion_mapping.service import MAPPING_WORKFLOW_NAME, get_mapping_workflow
     from app.users.models import User
 
     active_users = ctx.db.execute(
@@ -286,47 +289,48 @@ def probe_user_mapping(ctx: ProbeContext) -> Outcome:
             f"이름이 겹쳐 사람이 정해 줘야 하는 연결이 {conflicts}건 있고, 연결된 사람은 아직 없습니다.",
             "관리 콘솔의 Notion 연결 화면에서 충돌을 정리하세요.",
         )
-    detail = f"활성 사용자 {active_users}명 중 아무도 Notion 사용자와 연결되지 않았습니다."
-    if get_mapping_workflow(ctx.db) is None:
-        return _todo(
-            detail,
-            f"Notion 사용자 매핑 워크플로({MAPPING_WORKFLOW_NAME})를 등록한 뒤 동기화를 실행하세요.",
-        )
-    return _todo(detail, "관리 콘솔의 Notion 연결 화면에서 매핑 동기화를 실행하세요.")
+    return _todo(
+        f"활성 사용자 {active_users}명 중 아무도 Notion 사용자와 연결되지 않았습니다.",
+        "관리 콘솔의 Notion 연결 화면에서 사람마다 Notion 사용자를 지정하세요.",
+    )
 
 
-# ── AI 러너 ──────────────────────────────────────────────────────────────────
+# ── AI 모델 ──────────────────────────────────────────────────────────────────
 
 
 def probe_llm(ctx: ProbeContext) -> Outcome:
-    from app.runners.models import Runner
+    """AI 가 지금 되는가. **Gateway 가 이미 아는 것을 읽는다.**
 
-    rows = ctx.db.execute(select(Runner)).scalars().all()
-    if not rows:
+    S11 이전에는 러너 레지스트리 행의 헬스체크 결과를 읽었다. 그 판정은 「응답은 하는가」
+    까지였고, 실제 업무 처리는 그 레지스트리를 안 지났다 — 그래서 여기 "실제 업무 처리
+    여부와는 별개입니다" 라는 단서를 달아야 했다. 이제 그 단서가 필요 없다: 답변·초안·
+    요약이 전부 이 Gateway 를 지나므로 **여기서 되면 실제로 되는 것**이다.
+    """
+    gateway = ctx.gateway
+    if gateway is None:
+        from app.ai.gateway.registry import build_gateway
+
+        gateway = build_gateway(ctx.settings)
+    caps = gateway.capabilities()
+    embed, generate = caps.embed, caps.generate
+    if embed.available and generate.available:
+        return _done("문서 검색과 답변 생성이 모두 동작합니다.")
+    if embed.available:
+        # 검색은 되고 생성만 안 된다. 이것은 반쪽 실패가 아니라 **설계된 상태**다
+        # (D-201) — 근거와 인용은 그대로 나온다.
         return _todo(
-            "AI 러너가 하나도 등록되지 않았습니다.",
-            "관리 콘솔의 러너 화면에서 AI 러너를 등록하고 활성화하세요.",
+            f"문서 검색은 동작하지만 답변 생성이 되지 않습니다. {generate.notice}",
+            "서버의 AI 명령줄 도구 로그인과 AI 설정을 확인하세요.",
         )
-    enabled = [row for row in rows if row.enabled]
-    if not enabled:
+    if generate.available:
         return _todo(
-            f"러너 {len(rows)}개가 등록됐지만 전부 비활성 상태입니다.",
-            "관리 콘솔의 러너 화면에서 사용할 러너를 활성화하세요.",
+            f"답변 생성은 동작하지만 문서 검색이 되지 않습니다. {embed.notice}",
+            "설치 스크립트의 AI 단계(deploy/install.sh ai)로 임베딩 모델을 넣으세요.",
         )
-    outcome = _health_outcome(
-        [row.last_health_status for row in enabled],
-        noun="러너",
-        fix="러너 서비스가 실행 중인지, 주소와 토큰이 맞는지 확인하세요.",
-        ask="관리 콘솔의 러너 화면에서 헬스체크를 한 번 실행해 주세요.",
+    return _todo(
+        f"AI 기능을 아직 쓸 수 없습니다. {embed.notice}",
+        "설치 스크립트의 AI 단계(deploy/install.sh ai)를 실행하고 AI 기능을 켜세요.",
     )
-    if outcome.state != STATE_DONE:
-        return outcome
-    # RN-10: "정상"은 여기서 딱 헬스체크 응답 하나만 뜻한다. 채팅·문서 생성 같은 실제 업무
-    # 처리는 이 러너 레지스트리가 아니라 외부 연동(n8n) 경로로 나간다(app/jobs/handlers/의
-    # 어떤 핸들러도 RunnerHttpProvider.invoke를 부르지 않는다 — 부르는 곳은 관리 콘솔의
-    # 수동 '테스트' 버튼뿐이다). 이 구분 없이 "모두 정상"만 보이면 관리자는 등록된 러너
-    # 수만큼 실제로 일이 나뉘어 처리되는 것으로 읽는다(그런 경로가 아직 없다).
-    return _done(f"{outcome.detail} (헬스체크 응답 기준이며, 실제 업무 처리 여부와는 별개입니다)")
 
 
 # ── 외부 연동 ────────────────────────────────────────────────────────────────

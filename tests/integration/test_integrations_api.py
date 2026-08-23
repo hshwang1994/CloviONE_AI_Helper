@@ -5,8 +5,8 @@ pytestmark = pytest.mark.integration
 VALID = {
     "name": "test-service",
     "provider_type": "http_service",
-    "base_url": "http://127.0.0.1:8787",
-    "health_url": "http://127.0.0.1:8787",
+    "base_url": "https://api.notion.com",
+    "health_url": "https://api.notion.com",
     "auth_type": "none",
     "enabled": True,
 }
@@ -73,7 +73,7 @@ def test_rollback_restores_previous_config(client, admin_csrf):
     ).json()["integration"]
     client.patch(
         f"/api/admin/integrations/{created['id']}",
-        json={"base_url": "http://127.0.0.1:8788"},
+        json={"base_url": "https://api.anthropic.com"},
         headers=_headers(admin_csrf),
     )
 
@@ -84,7 +84,7 @@ def test_rollback_restores_previous_config(client, admin_csrf):
     )
     assert r.status_code == 200
     rolled = r.json()["integration"]
-    assert rolled["base_url"] == "http://127.0.0.1:8787"
+    assert rolled["base_url"] == "https://api.notion.com"
     assert rolled["config_version"] == 3  # rollback = new version, append-only
 
 
@@ -96,12 +96,15 @@ def test_integration_config_approval_rejects_stale_config(client, login_as, admi
     """
     created = client.post(
         "/api/admin/integrations", json=VALID, headers=_headers(admin_csrf)
-    ).json()["integration"]  # base_url = 127.0.0.1:8787
+    ).json()["integration"]  # base_url = VALID 의 값
+
+    # 세 주소가 서로 달라야 staleness 를 볼 수 있다 — 허용 목록은 host:port 만 보므로
+    # 경로로 가른다(S11 이 내부 러너 호스트를 목록에서 걷어냈다).
 
     requester_csrf = login_as("admin", email="int-requester@goodmit.co.kr")
     r = client.patch(
         f"/api/admin/integrations/{created['id']}",
-        json={"base_url": "http://127.0.0.1:8788"},
+        json={"base_url": "https://api.anthropic.com"},
         headers=_headers(requester_csrf),
     )
     assert r.status_code == 202
@@ -114,7 +117,7 @@ def test_integration_config_approval_rejects_stale_config(client, login_as, admi
     # 승인 대기 중 system_admin이 직접 설정을 바꾼다 — 즉시 적용된다.
     r2 = client.patch(
         f"/api/admin/integrations/{created['id']}",
-        json={"base_url": "http://127.0.0.1:8789"},
+        json={"base_url": "https://api.notion.com/v1"},
         headers=_headers(admin_csrf),
     )
     assert r2.status_code == 200
@@ -128,7 +131,7 @@ def test_integration_config_approval_rejects_stale_config(client, login_as, admi
     detail = client.get(
         f"/api/admin/integrations/{created['id']}", headers=_headers(admin_csrf)
     ).json()["integration"]
-    assert detail["base_url"] == "http://127.0.0.1:8789"  # 옛 설정으로 되돌아가지 않는다
+    assert detail["base_url"] == "https://api.notion.com/v1"  # 옛 설정으로 되돌아가지 않는다
 
 
 def test_rollback_to_unknown_version_404(client, admin_csrf):
@@ -162,14 +165,14 @@ def test_health_check_up_and_down(client, admin_csrf, fake_http, fake_clock):
         "/api/admin/integrations", json=VALID, headers=_headers(admin_csrf)
     ).json()["integration"]
 
-    fake_http.on("http://127.0.0.1:8787", json_body={"status": "ok"})
+    fake_http.on("https://api.notion.com", json_body={"status": "ok"})
     r = client.post(
         f"/api/admin/integrations/{created['id']}/health", headers=_headers(admin_csrf)
     )
     assert r.status_code == 200
     assert r.json()["status"] == "up"
 
-    fake_http.on_connect_error("http://127.0.0.1:8787")
+    fake_http.on_connect_error("https://api.notion.com")
     r = client.post(
         f"/api/admin/integrations/{created['id']}/health", headers=_headers(admin_csrf)
     )
@@ -187,7 +190,7 @@ def test_health_check_timeout(client, admin_csrf, fake_http):
     created = client.post(
         "/api/admin/integrations", json=VALID, headers=_headers(admin_csrf)
     ).json()["integration"]
-    fake_http.on_timeout("http://127.0.0.1:8787")
+    fake_http.on_timeout("https://api.notion.com")
     r = client.post(
         f"/api/admin/integrations/{created['id']}/health", headers=_headers(admin_csrf)
     )
@@ -222,7 +225,7 @@ def test_operator_can_read_and_health_but_not_mutate(client, login_as, make_user
     operator_csrf = login_as("operator")
     assert client.get("/api/admin/integrations").status_code == 200
 
-    fake_http.on("http://127.0.0.1:8787", json_body={})
+    fake_http.on("https://api.notion.com", json_body={})
     r = client.post(
         f"/api/admin/integrations/{created['id']}/health", headers=_headers(operator_csrf)
     )
@@ -248,11 +251,7 @@ def test_discovery_seed_idempotent(db, settings):
     allowlists = AllowlistRegistry(settings.config_dir)
     first = seed_known_integrations(db, allowlists=allowlists)
     db.commit()
-    assert set(first) == {
-        "n8n",
-        "clovirone-work-assistant",
-        "claude-ticket-runner",
-        "claude-request-interpreter",
-    }
+    # S11 이 n8n·러너 셋의 시드를 걷어냈다 — 남은 것은 Notion 하나이고 그것도 S14 다.
+    assert set(first) == {"notion"}
     second = seed_known_integrations(db, allowlists=allowlists)
     assert second == []

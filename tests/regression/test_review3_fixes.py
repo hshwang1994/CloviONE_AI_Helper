@@ -1,3 +1,5 @@
+"""qa-contract-change: 문서 발행 승인 정책 절(승인 필요 워크플로를 auto_publish 로 우회 · 템플릿 승인 정책 강제)이 S11 과 함께 사라졌다 — 그 기능이 없다. 스케줄 승인 게이트 쪽 단언은 전부 그대로이고 대상만 workflow 에서 system 으로 바뀌었다."""
+
 """Regression tests pinned to the iteration-3 review findings.
 
 Each test reproduces the concrete defect statement, not just the fixed code path.
@@ -104,21 +106,14 @@ def test_job_queue_does_not_leak_attachment_bytes(client, login_as):
 # --- 2. run_now must respect the enable (approval) gate ---------------------
 
 
+# S11 이후 스케줄 대상은 `system` 하나다(D-267). 이 절의 시험들이 지키는 것은 대상 종류가
+# 아니라 **승인 게이트**이므로 대상만 바꾼다.
 @pytest.fixture()
-def sched_workflow_id(client, login_as):
-    csrf = login_as("system_admin", email="r3-sched-owner@goodmit.co.kr")
-    return client.post(
-        "/api/admin/workflows",
-        json={
-            "name": "r3 쓰기 워크플로",
-            "webhook_url": "http://127.0.0.1:5678/webhook/r3-write",
-            "operation_mode": "write",
-        },
-        headers=_headers(csrf),
-    ).json()["workflow"]["id"]
+def sched_target():
+    return "noop"
 
 
-def _make_schedule(client, csrf, workflow_id, name):
+def _make_schedule(client, csrf, target_ref, name):
     return client.post(
         "/api/admin/schedules",
         json={
@@ -126,8 +121,8 @@ def _make_schedule(client, csrf, workflow_id, name):
             "schedule_type": "cron",
             "cron_expression": "0 * * * *",
             "timezone": "UTC",
-            "target_type": "workflow",
-            "target_ref": workflow_id,
+            "target_type": "system",
+            "target_ref": target_ref,
             "payload_template": {"scope": "all"},
         },
         headers=_headers(csrf),
@@ -135,11 +130,11 @@ def _make_schedule(client, csrf, workflow_id, name):
 
 
 def test_run_now_refuses_schedule_that_never_passed_the_enable_gate(
-    client, login_as, sched_workflow_id, db
+    client, login_as, sched_target, db
 ):
     """High: 승인 게이트를 통과하지 않은 비활성 스케줄을 run_now로 즉시 실행하던 결함."""
     admin_csrf = login_as("admin", email="r3-runner@goodmit.co.kr")
-    schedule = _make_schedule(client, admin_csrf, sched_workflow_id, "게이트 미통과")
+    schedule = _make_schedule(client, admin_csrf, sched_target, "게이트 미통과")
     assert schedule["enabled"] is False
 
     # 활성화 요청은 승인 대기로만 남는다.
@@ -163,11 +158,11 @@ def test_run_now_refuses_schedule_that_never_passed_the_enable_gate(
 
 
 def test_run_now_dry_run_still_allowed_while_disabled(
-    client, login_as, sched_workflow_id
+    client, login_as, sched_target
 ):
     """dry_run은 실행이 아니라 미리보기 — 게이트 대상이 아니다."""
     admin_csrf = login_as("admin", email="r3-dry@goodmit.co.kr")
-    schedule = _make_schedule(client, admin_csrf, sched_workflow_id, "드라이런")
+    schedule = _make_schedule(client, admin_csrf, sched_target, "드라이런")
     r = client.post(
         f"/api/admin/schedules/{schedule['id']}/run-now",
         json={"dry_run": True},
@@ -177,9 +172,9 @@ def test_run_now_dry_run_still_allowed_while_disabled(
     assert r.json()["payload_preview"] == {"scope": "all"}
 
 
-def test_run_now_allowed_once_enabled(client, login_as, sched_workflow_id):
+def test_run_now_allowed_once_enabled(client, login_as, sched_target):
     sys_csrf = login_as("system_admin", email="r3-enabler@goodmit.co.kr")
-    schedule = _make_schedule(client, sys_csrf, sched_workflow_id, "활성 후 실행")
+    schedule = _make_schedule(client, sys_csrf, sched_target, "활성 후 실행")
     client.post(
         f"/api/admin/schedules/{schedule['id']}/enable", headers=_headers(sys_csrf)
     )
@@ -192,124 +187,15 @@ def test_run_now_allowed_once_enabled(client, login_as, sched_workflow_id):
     assert r.json()["run"]["status"] == "queued"
 
 
-# --- 3. Publish approval policy is server-enforced, not requester-chosen ----
-
-
-DOC_URL = "http://127.0.0.1:5678/webhook/r3-doc"
-
-
-def _doc_workflow(client, csrf, *, name, approval_required):
-    return client.post(
-        "/api/admin/workflows",
-        json={
-            "name": name,
-            "webhook_url": DOC_URL,
-            "operation_mode": "write",
-            "approval_required": approval_required,
-        },
-        headers=_headers(csrf),
-    ).json()["workflow"]["id"]
-
-
-def _generate(client, csrf, workflow_id, mode, *, period="2026-W40", config=None):
-    return client.post(
-        "/api/admin/documents/generate",
-        json={
-            "workflow_id": workflow_id,
-            "mode": mode,
-            "period": period,
-            "config": config or {"target_parent_page": "r3-page", "template_version": 1},
-        },
-        headers=_headers(csrf),
-    )
-
-
-def test_requester_cannot_bypass_workflow_approval_with_auto_publish(
-    client, login_as, fake_http, app, settings, fake_clock
-):
-    """High: approval_required workflow인데 mode=auto_publish면 무승인 발행되던 결함."""
-    from app.jobs.handlers.document_generate import handle_document_generate
-    from app.jobs.worker import Worker, WorkerContext
-
-    csrf = login_as("admin", email="r3-doc-admin@goodmit.co.kr")
-    workflow_id = _doc_workflow(
-        client, csrf, name="r3 승인필요 문서", approval_required=True
-    )
-    fake_http.on(
-        DOC_URL,
-        json_body={
-            "title": "몰래 발행",
-            "body": "본문 내용 충분히 깁니다. " * 3,
-            "source_row_count": 5,
-            "published_ref": "https://www.notion.so/should-not-happen",
-        },
-    )
-
-    r = _generate(client, csrf, workflow_id, "auto_publish")
-    assert r.status_code == 202
-    gen = r.json()["generation"]
-    # 서버가 mode를 강제로 승인 경로로 바꾼다.
-    assert gen["mode"] == "preview_then_approve"
-
-    ctx = WorkerContext(
-        settings=settings, clock=fake_clock, outbound_client=app.state.outbound_client
-    )
-    Worker(
-        app.state.session_factory, fake_clock,
-        {"document_generate": handle_document_generate}, ctx,
-    ).run_once()
-
-    detail = client.get(f"/api/admin/documents/{gen['id']}").json()["generation"]
-    assert detail["status"] == "awaiting_approval"
-    assert detail["published_ref"] is None
-    # preview만 호출됐고 publish는 나가지 않았다.
-    actions = [json.loads(req.content)["action"] for req in fake_http.requests]
-    assert actions == ["preview"]
-
-
-def test_template_approval_policy_also_forces_approval(client, login_as, db):
-    """Medium: 템플릿 approval_policy.required도 요청자의 mode보다 우선한다."""
-    csrf = login_as("admin", email="r3-tmpl-admin@goodmit.co.kr")
-    workflow_id = _doc_workflow(
-        client, csrf, name="r3 무승인 워크플로", approval_required=False
-    )
-
-    from app.templates.models import AutomationTemplate
-
-    template = AutomationTemplate(
-        name="r3 승인 템플릿",
-        target_type="workflow",
-        target_ref=workflow_id,
-        approval_policy_json=json.dumps({"required": True}),
-        enabled=True,
-    )
-    db.add(template)
-    db.commit()
-
-    r = _generate(
-        client, csrf, workflow_id, "auto_publish",
-        config={
-            "target_parent_page": "r3-tmpl-page",
-            "template_version": 1,
-            "template_id": template.id,
-        },
-    )
-    assert r.status_code == 202
-    assert r.json()["generation"]["mode"] == "preview_then_approve"
-
-
-# --- 4. schedule.enable approval is bound to the definition it approved -----
-
-
 def test_schedule_definition_changed_after_request_invalidates_approval(
-    app, client, login_as, sched_workflow_id, db
+    app, client, login_as, sched_target, db
 ):
     """Medium(TOCTOU): 승인 대기 중 PUT으로 정의를 바꾸면 승인자가 본 적 없는 내용이
     활성화되던 결함."""
     from fastapi.testclient import TestClient
 
     requester_csrf = login_as("admin", email="r3-toctou@goodmit.co.kr")
-    schedule = _make_schedule(client, requester_csrf, sched_workflow_id, "정의 교체")
+    schedule = _make_schedule(client, requester_csrf, sched_target, "정의 교체")
     approval = client.post(
         f"/api/admin/schedules/{schedule['id']}/enable", headers=_headers(requester_csrf)
     ).json()["approval"]
@@ -327,8 +213,8 @@ def test_schedule_definition_changed_after_request_invalidates_approval(
             "schedule_type": "cron",
             "cron_expression": "* * * * *",
             "timezone": "UTC",
-            "target_type": "workflow",
-            "target_ref": sched_workflow_id,
+            "target_type": "system",
+            "target_ref": sched_target,
             "payload_template": {"scope": "everything", "delete": True},
         },
         headers=_headers(requester_csrf),
@@ -360,13 +246,13 @@ def test_schedule_definition_changed_after_request_invalidates_approval(
         assert detail["enabled"] is False
 
 
-def test_unchanged_definition_still_approves(app, client, login_as, sched_workflow_id, db):
+def test_unchanged_definition_still_approves(app, client, login_as, sched_target, db):
     """정의가 그대로면 승인은 정상 적용된다 (게이트가 과하게 막지 않는다)."""
     from fastapi.testclient import TestClient
     from app.users.service import create_user
 
     requester_csrf = login_as("admin", email="r3-stable@goodmit.co.kr")
-    schedule = _make_schedule(client, requester_csrf, sched_workflow_id, "정의 유지")
+    schedule = _make_schedule(client, requester_csrf, sched_target, "정의 유지")
     approval = client.post(
         f"/api/admin/schedules/{schedule['id']}/enable", headers=_headers(requester_csrf)
     ).json()["approval"]
@@ -413,7 +299,7 @@ def _approve_as_second_admin(app, db, approval_id, email):
         )
 
 
-def _put_definition(client, csrf, schedule_id, workflow_id, *, cron, payload_template):
+def _put_definition(client, csrf, schedule_id, target_ref, *, cron, payload_template):
     return client.put(
         f"/api/admin/schedules/{schedule_id}",
         json={
@@ -421,8 +307,8 @@ def _put_definition(client, csrf, schedule_id, workflow_id, *, cron, payload_tem
             "schedule_type": "cron",
             "cron_expression": cron,
             "timezone": "UTC",
-            "target_type": "workflow",
-            "target_ref": workflow_id,
+            "target_type": "system",
+            "target_ref": target_ref,
             "payload_template": payload_template,
         },
         headers=_headers(csrf),
@@ -430,7 +316,7 @@ def _put_definition(client, csrf, schedule_id, workflow_id, *, cron, payload_tem
 
 
 def test_put_after_approval_cannot_run_an_unapproved_definition(
-    app, client, login_as, sched_workflow_id, db
+    app, client, login_as, sched_target, db
 ):
     """승인 후 PUT으로 정의를 갈아끼우면 승인받은 적 없는 정의가 실행되던 결함.
 
@@ -438,7 +324,7 @@ def test_put_after_approval_cannot_run_an_unapproved_definition(
     무해한 정의로 승인을 받아 enabled를 얻은 뒤 PUT 한 번이면 그만이다.
     """
     csrf = login_as("admin", email="r3-postput@goodmit.co.kr")
-    schedule = _make_schedule(client, csrf, sched_workflow_id, "게이트 검증")
+    schedule = _make_schedule(client, csrf, sched_target, "게이트 검증")
     approval = client.post(
         f"/api/admin/schedules/{schedule['id']}/enable", headers=_headers(csrf)
     ).json()["approval"]
@@ -450,7 +336,7 @@ def test_put_after_approval_cannot_run_an_unapproved_definition(
     )
 
     r = _put_definition(
-        client, csrf, schedule["id"], sched_workflow_id,
+        client, csrf, schedule["id"], sched_target,
         cron="* * * * *", payload_template={"scope": "everything", "delete": True},
     )
     assert r.status_code == 200
@@ -469,33 +355,33 @@ def test_put_after_approval_cannot_run_an_unapproved_definition(
 
 
 def test_put_without_definition_change_keeps_schedule_enabled(
-    app, client, login_as, sched_workflow_id, db
+    app, client, login_as, sched_target, db
 ):
     """정의가 그대로인 PUT은 활성 상태를 건드리지 않는다 (과잉 차단 방지)."""
     csrf = login_as("admin", email="r3-noop-put@goodmit.co.kr")
-    schedule = _make_schedule(client, csrf, sched_workflow_id, "게이트 검증")
+    schedule = _make_schedule(client, csrf, sched_target, "게이트 검증")
     approval = client.post(
         f"/api/admin/schedules/{schedule['id']}/enable", headers=_headers(csrf)
     ).json()["approval"]
     _approve_as_second_admin(app, db, approval["id"], "r3-noop-approver@goodmit.co.kr")
 
     r = _put_definition(
-        client, csrf, schedule["id"], sched_workflow_id,
+        client, csrf, schedule["id"], sched_target,
         cron="0 * * * *", payload_template={"scope": "all"},
     )
     assert r.status_code == 200
     assert r.json()["schedule"]["enabled"] is True
 
 
-def test_system_admin_put_keeps_schedule_enabled(client, login_as, sched_workflow_id):
+def test_system_admin_put_keeps_schedule_enabled(client, login_as, sched_target):
     """system_admin은 승인 대상이 아니다 (직접 활성화 가능) — 재승인을 요구하지 않는다."""
     csrf = login_as("system_admin", email="r3-sysadmin-put@goodmit.co.kr")
-    schedule = _make_schedule(client, csrf, sched_workflow_id, "게이트 검증")
+    schedule = _make_schedule(client, csrf, sched_target, "게이트 검증")
     client.post(
         f"/api/admin/schedules/{schedule['id']}/enable", headers=_headers(csrf)
     )
     r = _put_definition(
-        client, csrf, schedule["id"], sched_workflow_id,
+        client, csrf, schedule["id"], sched_target,
         cron="*/5 * * * *", payload_template={"scope": "some"},
     )
     assert r.status_code == 200

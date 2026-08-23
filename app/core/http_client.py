@@ -121,7 +121,7 @@ class OutboundClient:
             elif auth_type == AUTH_API_KEY_HEADER:
                 final_headers["X-API-Key"] = secret.reveal()
 
-        # 재시도는 **부르는 쪽이 켠다**(기본 0). 여기서 무조건 켜면 n8n 웹훅처럼 두 번 보내면
+        # 재시도는 **부르는 쪽이 켠다**(기본 0). 여기서 무조건 켜면 쓰기 웹훅처럼 두 번 보내면
         # 안 되는 경로까지 함께 재시도하게 되고, 그 판단은 이 파일이 할 수 없다.
         for attempt in range(rate_limit_retries + 1):
             response = self._client.request(

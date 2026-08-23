@@ -49,6 +49,5 @@ SENSITIVE_ACTION_PREFIXES: tuple[str, ...] = (
     "feature_flag.",
     "app_setting.",
     "backup.",
-    "runner.change_config",
     "integration.change_config",
 )

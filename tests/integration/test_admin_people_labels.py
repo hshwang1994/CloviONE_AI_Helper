@@ -30,18 +30,10 @@ def admin_csrf(login_as):
     return login_as("system_admin")
 
 
+# S11 이후 스케줄 대상은 `system` 하나다(D-267).
 @pytest.fixture()
-def workflow_id(client, admin_csrf):
-    r = client.post(
-        "/api/admin/workflows",
-        json={
-            "name": "주간 보고서",
-            "webhook_url": "http://127.0.0.1:5678/webhook/weekly",
-            "operation_mode": "read",
-        },
-        headers=_headers(admin_csrf),
-    )
-    return r.json()["workflow"]["id"]
+def workflow_id():
+    return "noop"
 
 
 def test_schedule_list_names_its_owner(client, admin_csrf, workflow_id):
@@ -52,7 +44,7 @@ def test_schedule_list_names_its_owner(client, admin_csrf, workflow_id):
             "schedule_type": "cron",
             "cron_expression": "0 * * * *",
             "timezone": "UTC",
-            "target_type": "workflow",
+            "target_type": "system",
             "target_ref": workflow_id,
             "payload_template": {},
         },
@@ -118,7 +110,7 @@ def test_owner_names_are_resolved_in_one_query(client, admin_csrf, workflow_id):
                 "schedule_type": "cron",
                 "cron_expression": "0 * * * *",
                 "timezone": "UTC",
-                "target_type": "workflow",
+                "target_type": "system",
                 "target_ref": workflow_id,
                 "payload_template": {},
             },

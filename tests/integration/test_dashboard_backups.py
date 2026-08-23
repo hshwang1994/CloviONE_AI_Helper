@@ -46,14 +46,14 @@ def test_dashboard_stale_heartbeat(client, login_as, db, fake_clock):
     assert body["components"]["scheduler"] == "down"
 
 
-def test_dashboard_counts_active_workflows(client, admin_csrf):
-    client.post(
-        "/api/admin/workflows",
-        json={"name": "활성 wf", "webhook_url": "http://127.0.0.1:5678/webhook/a"},
-        headers=_headers(admin_csrf),
-    )
-    body = client.get("/api/admin/dashboard").json()
-    assert body["counts"]["active_workflows"] >= 1
+def test_dashboard_counts_no_longer_advertise_removed_registries(client, admin_csrf):
+    """S11 이 워크플로·러너 화면을 걷어냈다. 지표가 남아 있으면 대시보드가 없는 화면으로
+    가는 타일을 계속 그린다 — 눌러도 아무 데도 안 가는 숫자다."""
+    counts = client.get("/api/admin/dashboard").json()["counts"]
+    assert "active_workflows" not in counts
+    assert "runners" not in counts
+    # 살아남은 지표는 그대로다.
+    assert "active_schedules" in counts
 
 
 def test_backup_create_verify_and_list(client, login_as, stub_pg_dump):
@@ -194,7 +194,7 @@ def test_diagnostic_bundle_masks_and_excludes_secrets(client, login_as, settings
         "/api/admin/integrations",
         json={
             "name": "diag-int", "provider_type": "http_service",
-            "base_url": "http://127.0.0.1:8787", "auth_type": "bearer",
+            "base_url": "https://api.notion.com", "auth_type": "bearer",
             "secret_ref": "diag-secret",
         },
         headers=_headers(csrf),

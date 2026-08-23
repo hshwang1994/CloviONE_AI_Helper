@@ -19,8 +19,8 @@ import { ADMIN_VIEW_ROLES, Badge, OBJ_ID_PARAM, OBJ_ROUTE, TYPE_KO, canReachObjR
  * 그걸 최우선으로 쓴다. 아래 OBJ_ROUTE/OBJ_ID_PARAM(프런트의 로컬 표, 승인·작업 큐처럼
  * 목록 화면뿐인 관리자 대상용)은 서버가 아직 모르는 유형의 폴백일 뿐이다 — 팀 문서 댓글
  * (document)이 정확히 이 순서를 안 지켜서 겪은 문제였다: 서버는 `/team-docs/{id}`를
- * 계산해 주는데 이 화면이 그걸 버리고 로컬 표로 `#/documents?id=<id>`(관리 콘솔의 "문서
- * 생성" 화면, 전혀 다른 자원)를 만들어 404로 갔다. NotificationBell.jsx의 `serverRoute()`와
+ * 계산해 주는데 이 화면이 그걸 버리고 로컬 표로 옛 관리 콘솔 문서 화면(전혀 다른 자원)을
+ * 만들어 404로 갔다. NotificationBell.jsx의 `serverRoute()`와
  * 같은 검증(내부 상대 경로만, `//`로 시작하는 프로토콜 상대 URL 거부)이지만, 벨은 이 파일을
  * import하지 않으므로(순환 의존 회피, 벨의 자체 주석 참고) 3줄을 그대로 여기 독립적으로 둔다. */
 function serverHref(r) {
@@ -32,13 +32,13 @@ function serverHref(r) {
 // 무조건 통과시키면 일반 사용자에게 늘 403인 클릭 가능한 링크가 생긴다(approval_decided의
 // 요청자·schedule_failed의 소유자·job_failed의 소유자가 전부 이 경로를 탈 수 있다).
 //
-// 이 다섯 유형만 명시적으로 나열한다 — "OBJ_ROUTE에 등록됐는가"로 판정하면 안 된다:
-// notifications의 related_object_type="document"(팀 문서 댓글, 사용자 콘솔, role 제한 없음)와
-// 감사 로그가 쓰는 OBJ_ROUTE.document(관리 콘솔 "문서 생성" 화면의 별칭, role 제한 있음)가
-// 같은 문자열의 서로 다른 자원이라 — 실제로 이 혼동으로 team-docs 댓글 딥링크가 한 번
-// 회귀했었다(고쳐서 아래 시험에 고정). 나머지(document/ticket/board_post/chat_room/
-// chat_mention)는 전부 사용자 콘솔 화면이라 role 제한이 없어 그냥 통과한다.
-const ADMIN_CONSOLE_RELATED_TYPES = new Set(["approval", "schedule", "job", "runner", "user"]);
+// 이 네 유형만 명시적으로 나열한다 — "OBJ_ROUTE에 등록됐는가"로 판정하면 안 된다:
+// 예전에는 notifications 의 related_object_type="document"(팀 문서 댓글, 사용자 콘솔)와
+// 감사 로그의 OBJ_ROUTE.document(관리 콘솔 문서 생성 화면의 별칭)가 같은 문자열의 서로
+// 다른 자원이었고, 그 혼동으로 team-docs 댓글 딥링크가 한 번 회귀했다(고쳐서 아래 시험에
+// 고정). 나머지(document/ticket/board_post/chat_room/chat_mention)는 전부 사용자 콘솔
+// 화면이라 role 제한이 없어 그냥 통과한다.
+const ADMIN_CONSOLE_RELATED_TYPES = new Set(["approval", "schedule", "job", "user"]);
 function reachableAdminTarget(r, ctx) {
   const t = r && r.related_object_type;
   if (!t || !ADMIN_CONSOLE_RELATED_TYPES.has(t)) return true;

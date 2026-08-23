@@ -57,7 +57,7 @@ export async function api(path, options = {}) {
   try { body = await r.json(); } catch (e) { parseFailed = true; }
   if (r.ok && parseFailed) {
     /* 200 인데 본문이 JSON 이 아니다 — 프록시 중간 페이지·SSO 리다이렉트·WAF 차단면이
-       전부 이 모양이다(실제 사례: n8n 이 HTML 을 돌려준 적이 있다). 예전엔 여기서
+       전부 이 모양이다(실제 사례: 프록시가 HTML 을 돌려준 적이 있다). 예전엔 여기서
        `body = null` 로 조용히 넘어가 화면이 "빈 상태"로 보였다(FAIL-01) — 실패인데
        "데이터가 없다"고 말하는 것보다 나쁜 게 없다. 반드시 던져서 화면의 `isError` 로
        흐르게 한다. */

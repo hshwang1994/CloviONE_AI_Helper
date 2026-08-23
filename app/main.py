@@ -44,7 +44,6 @@ from app.core.middleware import BodySizeLimitMiddleware, RequestContextMiddlewar
 from app.core.ratelimit import RateLimiter
 from app.core.secret_refs import FileSecretReferenceProvider
 from app.core.sessions import SessionService
-from app.documents.router import router as documents_router
 from app.health.router import router as health_router
 from app.home.router import router as home_router
 from app.impersonation.router import router as impersonation_router
@@ -70,7 +69,6 @@ from app.reports.router import router as reports_router
 from app.search.reindex_router import router as search_reindex_router
 from app.search.router import router as search_router
 from app.tickets.router import router as tickets_router
-from app.runners.router import router as runners_router
 from app.schedules.router import router as schedules_router
 from app.settings.router import router as settings_router
 from app.settings.service import SettingsCache
@@ -84,9 +82,7 @@ from app.knowledge.router import router as knowledge_router
 from app.storage.router import router as storage_router
 from app.work.router import router as work_router
 from app.team_chat.router import router as team_chat_router
-from app.templates.router import router as templates_router
 from app.users.router import router as users_admin_router
-from app.workflows.router import router as workflows_router
 
 APP_DIR = Path(__file__).resolve().parent
 
@@ -159,8 +155,8 @@ def create_app(
         capacity=10, refill_per_second=10 / 60, clock=clock,
         session_factory=app.state.session_factory,
     )
-    # Chat-send guard: 사용자당 채팅 전송 폭주가 단일 워커 잡 큐를 막고 다운스트림 러너/n8n에
-    # 부하·비용을 주는 것을 막는다. 버스트 20건, 지속 ~30건/분(refill 0.5/s).
+    # Chat-send guard: 사용자당 채팅 전송 폭주가 단일 워커 잡 큐를 막고 모델에 부하·비용을
+    # 주는 것을 막는다. 버스트 20건, 지속 ~30건/분(refill 0.5/s).
     app.state.chat_ratelimiter = RateLimiter(
         capacity=20, refill_per_second=0.5, clock=clock,
         session_factory=app.state.session_factory,
@@ -233,11 +229,8 @@ def create_app(
     app.include_router(audit_router)
     app.include_router(integrations_router)
     app.include_router(jobs_router)
-    app.include_router(runners_router)
-    app.include_router(workflows_router)
     app.include_router(prompts_router)
     app.include_router(policies_router)
-    app.include_router(templates_router)
     app.include_router(schedules_router)
     app.include_router(approvals_router)
     # 개인 결재함(0060) — 관리자 콘솔 큐와 **다른 경로**다. 위임받은 일반 사용자가
@@ -252,7 +245,6 @@ def create_app(
     app.include_router(games_router)
     app.include_router(team_docs_router)
     app.include_router(settings_router)
-    app.include_router(documents_router)
     app.include_router(notion_mapping_router)
     app.include_router(reports_router)
     app.include_router(search_router)

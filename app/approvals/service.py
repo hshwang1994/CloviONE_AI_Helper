@@ -39,14 +39,13 @@ APPROVAL_EXECUTORS: dict[str, Callable] = {}
 
 # APPR-02: 알림 제목·메일 제목이 request_type 코드 상수를 그대로 노출했다("승인 요청:
 # user.role_change") — 사람이 읽는 화면에 내부 식별자가 새는 것이다. 실제로 쓰이는 값은
-# request_type= 리터럴을 등록하는 5개 호출부(users/router.py, integrations/router.py,
-# runners/router.py, schedules/router.py, jobs/handlers/document_generate.py)뿐이다.
+# request_type= 리터럴을 등록하는 3개 호출부(users/router.py, integrations/router.py,
+# schedules/router.py)뿐이다. 러너 설정 변경과 문서 발행은 S11 이 그 두 기능과 함께
+# 걷어냈다 — 등록되지 않는 유형을 표에 남겨 두면 죽은 문구가 된다.
 _REQUEST_TYPE_KO = {
     "user.role_change": "역할 변경",
     "integration.change_config": "연동 설정 변경",
-    "runner.change_config": "러너 설정 변경",
     "schedule.enable": "스케줄 활성화",
-    "document.publish": "문서 발행",
 }
 
 
@@ -402,32 +401,9 @@ def _ensure_decidable(row: Approval, now: datetime) -> None:
         # 이 함수는 `decide()`/`cancel()`을 거쳐 라우터에서 곧장 호출되고, 아래 줄에서 던지는
         # ConflictError는 `app/core/deps.py::get_db`의 `except Exception: db.rollback(); raise`
         # 를 그대로 타고 나가 요청 트랜잭션 전체를 롤백한다 — flush조차 되기 전에 대입이
-        # 사라진다. 실제 만료 영속화는 별도 백그라운드 스윕(`expire_pending`)만 한다 — 그
-        # 쪽은 `_fail_pending_document_publish`도 같이 호출해 연결된 문서 발행까지 정리한다.
+        # 사라진다. 실제 만료 영속화는 별도 백그라운드 스윕(`expire_pending`)만 한다.
         # (표시용 만료 판정은 `approval_view`가 이 컬럼과 무관하게 조회 시점에 한다.)
         raise ConflictError("만료된 승인 요청입니다.")
-
-
-def _fail_pending_document_publish(db: Session, row: Approval, *, message: str) -> None:
-    """document.publish 승인이 거절/만료되면 연결된 DocumentGeneration도 실패로 표시한다.
-
-    그러지 않으면 DocumentGeneration.status가 'awaiting_approval'에 영원히 머무른다 —
-    문서 화면의 유일한 복구 액션인 '재시도'는 이 상태를 절대 만나지 못하고, 관리자는
-    거절/만료된 발행 요청을 다시 발견할 방법이 없다.
-    """
-    if row.request_type != "document.publish":
-        return
-    from app.documents.models import (
-        STATUS_AWAITING_APPROVAL,
-        STATUS_FAILED,
-        DocumentGeneration,
-    )
-
-    gen = db.get(DocumentGeneration, row.object_id)
-    if gen is None or gen.status != STATUS_AWAITING_APPROVAL:
-        return
-    gen.status = STATUS_FAILED
-    gen.error_message = message
 
 
 def decide(
@@ -461,7 +437,6 @@ def decide(
         row.status = APPROVAL_APPROVED
     else:
         row.status = APPROVAL_REJECTED
-        _fail_pending_document_publish(db, row, message="발행 승인이 거절되었습니다.")
 
     notify_user(
         db,
@@ -514,7 +489,6 @@ def expire_pending(db: Session, *, now: datetime) -> int:
     for row in rows:
         row.status = APPROVAL_EXPIRED
         row.decided_at = now
-        _fail_pending_document_publish(db, row, message="발행 승인이 만료되었습니다.")
         notify_user(
             db,
             row.requested_by,
@@ -568,36 +542,6 @@ def _execute_schedule_enable(db: Session, approval: Approval, app_state) -> None
     )
 
 
-def _execute_runner_config(db: Session, approval: Approval, app_state) -> None:
-    from app.core.audit import record_audit
-    from app.runners.schemas import RunnerConfig
-    from app.runners.service import apply_runner_config, get_runner_or_404, runner_snapshot
-
-    payload = json.loads(approval.request_payload_json)
-    runner = get_runner_or_404(db, approval.object_id)
-    # 승인은 요청 시점에 승인자가 본 runner 상태에 대한 것이다. 대기 중 직접 수정이나
-    # 다른 승인이 먼저 적용돼 그 상태가 바뀌었다면, 이 승인을 그대로 적용하는 것은
-    # 승인자가 검토한 적 없는 변경(옛 설정으로의 조용한 되돌림)을 만든다 — STALE로
-    # 거절한다. (스냅샷이 없는 예전 승인도 대조가 불가능하므로 같은 취급 — fail-closed,
-    # `_execute_schedule_enable`과 같은 패턴.)
-    before = payload.get("before")
-    if before is None or runner_snapshot(runner) != before:
-        raise ConflictError(
-            "요청 이후 Runner 설정이 변경되어 이 승인은 적용할 수 없습니다 (stale). "
-            "변경된 설정으로 다시 요청하세요."
-        )
-    config = RunnerConfig.model_validate(payload["config"])
-    apply_runner_config(
-        db, runner, config,
-        allowlists=app_state.allowlists,
-        updated_by=approval.requested_by,
-    )
-    record_audit(
-        db, actor_id=approval.approver_id, action="runner.change_config",
-        object_type="runner", object_id=runner.id, after={"config": payload.get("config")},
-    )
-
-
 def _execute_user_role_change(db: Session, approval: Approval, app_state) -> None:
     from app.core.audit import record_audit
     from app.users.models import ROLE_SYSTEM_ADMIN
@@ -638,32 +582,6 @@ def _execute_user_role_change(db: Session, approval: Approval, app_state) -> Non
     )
 
 
-def _execute_document_publish(db: Session, approval: Approval, app_state) -> None:
-    """승인된 문서를 발행한다 — 승인자가 검토한 그 미리보기를 그대로 발행한다 (spec §19.3).
-
-    mode를 auto_publish로 바꿔 재생성을 큐에 넣지 않는다. 그렇게 하면 발행되는 것은
-    '승인자가 본 문서'가 아니라 '발행 시점에 새로 만든 문서'가 된다.
-    """
-    from app.core.audit import record_audit
-    from app.documents.models import STATUS_AWAITING_APPROVAL, DocumentGeneration
-    from app.documents.service import enqueue_approved_publish
-
-    gen = db.get(DocumentGeneration, approval.object_id)
-    if gen is None:
-        raise ConflictError("대상 문서 생성 레코드가 없습니다.")
-    if gen.status != STATUS_AWAITING_APPROVAL:
-        raise ConflictError(f"발행 승인 대상이 아닙니다 (status={gen.status}).")
-    # 승인은 '승인자가 본 산출물'에 대한 것이다. 그 내용이 없으면 무엇을 승인한 것인지
-    # 확정할 수 없으므로 발행하지 않는다 (fail-closed).
-    if not gen.preview_json:
-        raise ConflictError("승인 대상 미리보기 내용이 없어 발행할 수 없습니다.")
-    enqueue_approved_publish(db, gen, now=app_state.clock.now())
-    record_audit(
-        db, actor_id=approval.approver_id, action="document.publish",
-        object_type="document_generation", object_id=gen.id, after={"status": gen.status},
-    )
-
-
 def _execute_integration_config(db: Session, approval: Approval, app_state) -> None:
     from app.core.audit import record_audit
     from app.integrations.schemas import IntegrationConfig
@@ -700,7 +618,5 @@ def _execute_integration_config(db: Session, approval: Approval, app_state) -> N
 
 
 APPROVAL_EXECUTORS["schedule.enable"] = _execute_schedule_enable
-APPROVAL_EXECUTORS["runner.change_config"] = _execute_runner_config
 APPROVAL_EXECUTORS["integration.change_config"] = _execute_integration_config
 APPROVAL_EXECUTORS["user.role_change"] = _execute_user_role_change
-APPROVAL_EXECUTORS["document.publish"] = _execute_document_publish

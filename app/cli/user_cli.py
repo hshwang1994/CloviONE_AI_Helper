@@ -297,28 +297,6 @@ def cmd_org_list(db, session_service, settings, args) -> int:
     return 0
 
 
-def cmd_verify_notion(db, session_service, settings, args) -> int:
-    user = _require_user(db, args.email)
-    from app.core.allowlist import AllowlistRegistry
-    from app.core.http_client import OutboundClient
-    from app.core.secret_refs import FileSecretReferenceProvider
-    from app.notion_mapping.service import verify_mapping
-
-    outbound = OutboundClient(
-        AllowlistRegistry(settings.config_dir),
-        FileSecretReferenceProvider(settings.secrets_dir),
-    )
-    try:
-        row = verify_mapping(db, user, outbound=outbound, now=SystemClock().now())
-        db.commit()
-    finally:
-        outbound.close()
-    print(f"Notion 매핑: {user.email} → {row.status}")
-    if row.error_message:
-        print(f"  사유: {row.error_message}")
-    return 0
-
-
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="clovirassist-user", description="ClovirAssist 사용자 관리 CLI"
@@ -351,7 +329,6 @@ def build_parser() -> argparse.ArgumentParser:
         ("unlock", cmd_unlock, "로그인 잠금 해제"),
         ("sessions", cmd_sessions, "활성 세션 조회"),
         ("revoke-sessions", cmd_revoke_sessions, "모든 세션 폐기"),
-        ("verify-notion", cmd_verify_notion, "Notion 매핑 검증"),
     ]:
         p = sub.add_parser(name, help=help_text)
         p.add_argument("--email", required=True)

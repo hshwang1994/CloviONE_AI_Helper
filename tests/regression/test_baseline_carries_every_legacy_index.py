@@ -51,6 +51,12 @@ KNOWN_RETIRED = {
     # 전역 유니크였을 때는 "이 문자열이 어딘가에 있는가" 를 아무나 물어볼 수 있는
     # 오라클이었다(UB-23).
     "uq_messages_message_id",
+    # ── S11: 표가 통째로 사라졌다(`0009_drop_external_automation`, D-267) ──────
+    # n8n·러너를 걷어내면서 그 넷을 등록하던 표가 없어졌다. 인덱스만 남길 수는 없다.
+    "ix_workflows_name",            # workflows 표 (0007_runners_workflows)
+    "ix_runners_name",              # runners 표 (0007_runners_workflows)
+    "ix_automation_templates_name",  # automation_templates 표 (0008_prompts_policies_templates)
+    "uq_document_generations_idempotency_key",  # document_generations 표 (0011_settings_documents)
 }
 
 # **사라진 것이 아니라 옮겨 간 이름.** `KNOWN_RETIRED` 와 다른 것이다 — 저쪽은 「이제

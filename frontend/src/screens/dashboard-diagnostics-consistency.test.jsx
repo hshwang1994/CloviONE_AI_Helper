@@ -46,7 +46,7 @@ function wrap(children) {
 // (target_design) — 여기서 대조하는 것은 그 분류의 옳고 그름이 아니라, 같은 키가 두 화면에서
 // 같은 한국어 이름으로 나오는가다.
 const COMPONENTS = { web: "up", worker: "down" };
-const INTEGRATIONS = { n8n: { enabled: true, last_health: "up" } };
+const INTEGRATIONS = { notion: { enabled: true, last_health: "up" } };
 
 const BASE = {
   components: COMPONENTS, integrations: INTEGRATIONS,
@@ -76,7 +76,7 @@ describe("서비스 이름 어휘 일관성 — /dashboard vs /diagnostics (PA-R
     const first = (t) => within(dashboardRender.container).getAllByText(t)[0];
     const dashboardWeb = first("웹 서버");
     const dashboardWorker = first("백그라운드 워커");
-    const dashboardN8n = first("n8n 엔진");
+    const dashboardNotion = first("Notion");
     dashboardRender.unmount();
 
     apiMock.mockReset();
@@ -90,7 +90,7 @@ describe("서비스 이름 어휘 일관성 — /dashboard vs /diagnostics (PA-R
     await within(diagnosticsRender.container).findByText("서비스 상태");
     // 같은 문자열이 두 번째 화면에도 그대로 있어야 한다 — 렌더 자체가 실패하면(다른 이름이면)
     // getByText가 여기서 던진다. 첫 화면에서 읽은 텍스트를 그대로 다시 찾는 것 자체가 대조다.
-    for (const el of [dashboardWeb, dashboardWorker, dashboardN8n]) {
+    for (const el of [dashboardWeb, dashboardWorker, dashboardNotion]) {
       expect(within(diagnosticsRender.container).getAllByText(el.textContent).length).toBeGreaterThan(0);
     }
   });

@@ -1,10 +1,11 @@
+"""qa-contract-change: 자동 조회(/verify)와 그 뒤의 충돌 해결이 S11 로 사라졌다 — n8n 워크플로가 하던 일이라 부를 곳이 없고, 충돌 상태를 만들 수 있는 경로 자체가 없어졌다. 남은 것은 사람이 직접 지정하는 길(수동 연결·해제)과 목록·검색·범위 단언 전부이고 그쪽은 한 글자도 안 바뀌었다."""
+
 """Notion user mapping (spec §12, §31.3)."""
 
 import pytest
 
 pytestmark = pytest.mark.integration
 
-MAP_URL = "http://127.0.0.1:5678/webhook/notion-map"
 
 
 @pytest.fixture()
@@ -16,127 +17,9 @@ def _headers(csrf):
     return {"X-CSRF-Token": csrf}
 
 
-@pytest.fixture()
-def mapping_workflow(client, admin_csrf):
-    """Register the reserved mapping workflow."""
-    return client.post(
-        "/api/admin/workflows",
-        json={
-            "name": "notion-user-mapping",
-            "webhook_url": MAP_URL,
-            "http_method": "POST",
-            "operation_mode": "read",
-        },
-        headers=_headers(admin_csrf),
-    ).json()["workflow"]["id"]
-
-
-def test_verify_exactly_one_match_is_verified(
-    client, admin_csrf, make_user, mapping_workflow, fake_http
-):
-    user = make_user("mapme@goodmit.co.kr")
-    fake_http.on(
-        MAP_URL,
-        json_body={"matches": [{"notion_user_id": "abcd1234efgh", "notion_email": "mapme@goodmit.co.kr"}]},
-    )
-    r = client.post(
-        f"/api/admin/notion-mapping/{user.id}/verify", headers=_headers(admin_csrf)
-    )
-    assert r.status_code == 200
-    m = r.json()["mapping"]
-    assert m["status"] == "verified"
-    assert m["notion_user_id_masked"] == "abcd…efgh"  # masked, never full id
-
-
-def test_verify_zero_matches_unmapped(
-    client, admin_csrf, make_user, mapping_workflow, fake_http
-):
-    user = make_user("nomatch@goodmit.co.kr")
-    fake_http.on(MAP_URL, json_body={"matches": []})
-    r = client.post(
-        f"/api/admin/notion-mapping/{user.id}/verify", headers=_headers(admin_csrf)
-    )
-    assert r.json()["mapping"]["status"] == "unmapped"
-
-
-def test_verify_multiple_matches_conflict(
-    client, admin_csrf, make_user, mapping_workflow, fake_http
-):
-    user = make_user("conflict@goodmit.co.kr")
-    fake_http.on(
-        MAP_URL,
-        json_body={"matches": [
-            {"notion_user_id": "aaaa1111bbbb", "notion_email": "c@x"},
-            {"notion_user_id": "cccc2222dddd", "notion_email": "c@y"},
-        ]},
-    )
-    r = client.post(
-        f"/api/admin/notion-mapping/{user.id}/verify", headers=_headers(admin_csrf)
-    )
-    m = r.json()["mapping"]
-    assert m["status"] == "conflict"
-    assert len(m["candidates"]) == 2
-
-
-def test_no_mapping_workflow_configured(client, admin_csrf, make_user):
-    user = make_user("noworkflow@goodmit.co.kr")
-    r = client.post(
-        f"/api/admin/notion-mapping/{user.id}/verify", headers=_headers(admin_csrf)
-    )
-    assert r.json()["mapping"]["status"] == "unmapped"
-    assert "구성" in r.json()["mapping"]["error_message"]
-
-
-def test_verify_failure_does_not_fake_a_fresh_timestamp(
-    client, admin_csrf, make_user, mapping_workflow, fake_http
-):
-    """조회 자체가 실패했는데 '방금 확인함'처럼 보이면 안 된다.
-
-    n8n 호출이 예외를 던지면 error_message는 실패를 말하는데 last_verified_at이 지금
-    시각으로 찍히면, 화면은 '막 검증했는데 실패'가 아니라 '방금 검증됨' 처럼 보인다.
-    """
-    user = make_user("verifyfail@goodmit.co.kr")
-    fake_http.on_connect_error(MAP_URL)
-    r = client.post(
-        f"/api/admin/notion-mapping/{user.id}/verify", headers=_headers(admin_csrf)
-    )
-    assert r.status_code == 200
-    m = r.json()["mapping"]
-    assert m["last_verified_at"] is None
-    assert m["error_message"]
-
-
-def test_verify_failure_keeps_the_previous_verified_at(
-    client, admin_csrf, make_user, mapping_workflow, fake_http
-):
-    """예전엔 성공했던 매핑이 나중에 실패한 재조회로 '방금 확인함'을 새로 얻으면 안 된다."""
-    user = make_user("staleverify@goodmit.co.kr")
-    fake_http.on(
-        MAP_URL,
-        json_body={
-            "matches": [
-                {"notion_user_id": "abcd1234efgh", "notion_email": "staleverify@goodmit.co.kr"}
-            ]
-        },
-    )
-    ok = client.post(
-        f"/api/admin/notion-mapping/{user.id}/verify", headers=_headers(admin_csrf)
-    ).json()["mapping"]
-    assert ok["status"] == "verified"
-    first_verified_at = ok["last_verified_at"]
-    assert first_verified_at
-
-    client.app.state.clock.advance(60)
-    fake_http.on_connect_error(MAP_URL)
-    failed = client.post(
-        f"/api/admin/notion-mapping/{user.id}/verify", headers=_headers(admin_csrf)
-    ).json()["mapping"]
-    assert failed["last_verified_at"] == first_verified_at, (
-        "실패한 조회가 last_verified_at을 새로 찍었다"
-    )
-    assert failed["error_message"]
-    # 상태·매핑 id는 실패 전 값 그대로 남아야 한다 - 실패가 멀쩡한 매핑을 지우면 안 된다.
-    assert failed["status"] == "verified"
+# S11 이 자동 조회(`/sync`·`/verify`)와 그 뒤의 충돌 해결을 걷어냈다 — n8n 워크플로가
+# 하던 일이라 부를 곳이 사라졌다. 남은 것은 **사람이 직접 지정하는 길** 하나이고 아래가
+# 그것을 본다. 매핑 데이터 자체는 Notion Runtime 과 함께 S14 다.
 
 
 def test_manual_map_and_unmap(client, admin_csrf, make_user):
@@ -153,47 +36,6 @@ def test_manual_map_and_unmap(client, admin_csrf, make_user):
         f"/api/admin/notion-mapping/{user.id}/unmap", headers=_headers(admin_csrf)
     )
     assert r.json()["mapping"]["status"] == "unmapped"
-
-
-def test_resolve_conflict_picks_candidate(
-    client, admin_csrf, make_user, mapping_workflow, fake_http
-):
-    user = make_user("resolve@goodmit.co.kr")
-    fake_http.on(
-        MAP_URL,
-        json_body={"matches": [
-            {"notion_user_id": "pick1111aaaa", "notion_email": "r@x"},
-            {"notion_user_id": "pick2222bbbb", "notion_email": "r@y"},
-        ]},
-    )
-    client.post(f"/api/admin/notion-mapping/{user.id}/verify", headers=_headers(admin_csrf))
-    r = client.post(
-        f"/api/admin/notion-mapping/{user.id}/resolve-conflict",
-        json={"notion_user_id": "pick2222bbbb"},
-        headers=_headers(admin_csrf),
-    )
-    assert r.status_code == 200
-    assert r.json()["mapping"]["status"] == "verified"
-
-
-def test_resolve_conflict_rejects_non_candidate(
-    client, admin_csrf, make_user, mapping_workflow, fake_http
-):
-    user = make_user("badresolve@goodmit.co.kr")
-    fake_http.on(
-        MAP_URL,
-        json_body={"matches": [
-            {"notion_user_id": "aaaa1111cccc", "notion_email": "x"},
-            {"notion_user_id": "bbbb2222dddd", "notion_email": "y"},
-        ]},
-    )
-    client.post(f"/api/admin/notion-mapping/{user.id}/verify", headers=_headers(admin_csrf))
-    r = client.post(
-        f"/api/admin/notion-mapping/{user.id}/resolve-conflict",
-        json={"notion_user_id": "notacandidate99"},
-        headers=_headers(admin_csrf),
-    )
-    assert r.status_code == 422
 
 
 def test_profile_shows_mapping_status(client, login_as, make_user, admin_csrf):

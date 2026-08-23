@@ -1,3 +1,5 @@
+"""qa-contract-change: secret 을 목적지에 묶는 생성·활성화·복제를 admin 이 승인 없이 못 한다는 규칙의 소비자가 둘에서 하나로 줄었다 — 러너 화면이 S11 과 함께 사라졌다. 연동 쪽 절이 create·patch(활성화) 세 갈래를 전부 그대로 보고 있고, 규칙과 그 판정 코드는 한 줄도 안 바뀌었다."""
+
 """승인 게이트 우회: '만들기'로 '목적지 바꾸기'를 달성할 수 있으면 안 된다.
 
 오늘 PATCH/rollback에 base_url·health_url·secret_ref 변경을 승인 대상으로 넣었다.
@@ -37,7 +39,7 @@ def _post_integration(client, csrf, **overrides):
     payload = {
         "name": "gate-int",
         "provider_type": "http_service",
-        "base_url": "http://127.0.0.1:8787",
+        "base_url": "https://api.notion.com",
         "auth_type": "none",
         "enabled": True,
     }
@@ -99,118 +101,6 @@ def test_admin_patch_activating_auth_is_gated_integration(client, login_as):
     )
 
 
-# --- Runners ----------------------------------------------------------------
-
-def _post_runner(client, csrf, **overrides):
-    payload = {
-        "name": "gate-runner",
-        "provider_type": "local_http",
-        "base_url": "http://127.0.0.1:8787",
-        "timeout_seconds": 30,
-        "auth_type": "none",
-    }
-    payload.update(overrides)
-    return client.post("/api/admin/runners", json=payload, headers=_h(csrf))
-
-
-def test_admin_cannot_create_secret_bound_runner(client, login_as):
-    """admin(비-system_admin)이 secret을 목적지에 묶는 Runner를 승인 없이 만들 수 없다."""
-    csrf = login_as("admin")
-    r = _post_runner(
-        client, csrf, name="exfil-runner", secret_ref="n8n_token", auth_type="bearer"
-    )
-    assert r.status_code == 403, (
-        "일반 admin이 secret 바인딩 Runner를 즉시 생성했다. "
-        f"응답: {r.status_code} {r.text[:300]}"
-    )
-
-
-def test_system_admin_can_create_secret_bound_runner(client, login_as):
-    csrf = login_as("system_admin")
-    r = _post_runner(
-        client, csrf, name="ok-runner", secret_ref="svc-secret", auth_type="bearer"
-    )
-    assert r.status_code == 201, r.text
-
-
-def test_admin_can_create_secretless_runner(client, login_as):
-    csrf = login_as("admin")
-    r = _post_runner(client, csrf, name="plain-runner", auth_type="none")
-    assert r.status_code == 201, r.text
-
-
-def test_admin_patch_activating_auth_is_gated_runner(client, login_as):
-    """Runner도 create-none → patch(auth_type) 우회를 막는다."""
-    sa = login_as("system_admin")
-    created = _post_runner(
-        client, sa, name="activate-runner", secret_ref="svc-secret", auth_type="none"
-    )
-    assert created.status_code == 201, created.text
-    runner_id = created.json()["runner"]["id"]
-
-    admin = login_as("admin")
-    r = client.patch(
-        f"/api/admin/runners/{runner_id}",
-        json={"auth_type": "bearer"},
-        headers=_h(admin),
-    )
-    assert r.status_code == 202, (
-        "Runner auth_type none→bearer 변경이 승인 없이 적용됐다. "
-        f"응답: {r.status_code} {r.text[:300]}"
-    )
-
-
-def test_admin_cannot_clone_secret_bound_runner(client, login_as):
-    """복제(clone)로 create 게이트를 우회하지 못한다(round16 제품 스윕).
-
-    system_admin이 secret 바인딩 러너를 만든다. 그 뒤 admin이 그 러너를 복제하면 clone_runner가
-    원본의 auth_type·secret_ref를 그대로 복사한 새 secret 바인딩 러너를 만든다 — create/patch가
-    막는 것을 복제로 그대로 달성한다. 복제도 같은 게이트를 거쳐야 한다.
-    """
-    sa = login_as("system_admin")
-    created = _post_runner(
-        client, sa, name="secret-source-runner", secret_ref="svc-secret", auth_type="bearer"
-    )
-    assert created.status_code == 201, created.text
-    runner_id = created.json()["runner"]["id"]
-
-    admin = login_as("admin")
-    r = client.post(
-        f"/api/admin/runners/{runner_id}/clone",
-        json={"name": "cloned-secret-runner"},
-        headers=_h(admin),
-    )
-    assert r.status_code == 403, (
-        "일반 admin이 secret 바인딩 러너를 복제로 새로 만들었다 — create 게이트 우회. "
-        f"응답: {r.status_code} {r.text[:300]}"
-    )
-
-
-def test_system_admin_can_clone_secret_bound_runner(client, login_as):
-    """system_admin은 복제도 그대로 할 수 있어야 한다(과잉 수정 방지)."""
-    sa = login_as("system_admin")
-    created = _post_runner(
-        client, sa, name="clone-src-ok", secret_ref="svc-secret", auth_type="bearer"
-    )
-    assert created.status_code == 201, created.text
-    runner_id = created.json()["runner"]["id"]
-    r = client.post(
-        f"/api/admin/runners/{runner_id}/clone",
-        json={"name": "clone-dst-ok"},
-        headers=_h(sa),
-    )
-    assert r.status_code == 200, r.text
-
-
-def test_admin_can_clone_secretless_runner(client, login_as):
-    """secret을 안 묶은 러너 복제는 admin의 정상 작업 — 막지 않는다."""
-    admin = login_as("admin")
-    created = _post_runner(client, admin, name="plain-src", auth_type="none")
-    assert created.status_code == 201, created.text
-    runner_id = created.json()["runner"]["id"]
-    r = client.post(
-        f"/api/admin/runners/{runner_id}/clone",
-        json={"name": "plain-dst"},
-        headers=_h(admin),
-    )
-    assert r.status_code == 200, r.text
+# Runner 절은 S11 이 그 화면과 함께 걷어냈다. 같은 게이트를 지는 것은 이제 연동 하나이고,
+# 위 절이 create · patch(활성화) · 세 갈래를 전부 본다 — 규칙이 사라진 것이 아니라
+# 그것을 지나던 자원 하나가 사라졌다.

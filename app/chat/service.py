@@ -152,70 +152,17 @@ def purge_conversation_job_payloads(db: Session, conversation_ids) -> int:
     return len(rows)
 
 
-def notify_runner_conversation_deleted(
-    outbound, settings: Settings, *, user: User, conversation: Conversation
-) -> None:
-    """AI-16: 대화 삭제를 러너에도 알려 미러(conversation_state)를 지운다.
-
-    **절대 예외를 던지지 않는다**(app/assistant/narrate.py와 같은 원칙) — 이건 삭제 자체의
-    성공 조건이 아니라 위생(privacy hygiene)이다. 러너가 죽어 있어도 플랫폼의 삭제는
-    그대로 성공해야 한다. 실패하면 그저 기존 안전망(CONTEXT_MODE_TTL_SECONDS, 24h)에
-    맡긴다 — "무기한 잔존"을 막는 이 기능이 생기기 전과 같은 상태로 되돌아갈 뿐, 더 나빠지지
-    않는다.
-
-    러너가 대화를 식별하는 키는 `_build_job_payload`와 동일한 폴백을 따른다
-    (`backend_conversation_id` 있으면 그것, 없으면 플랫폼 conversation_id) — 다른 키를
-    쓰면 애초에 저장된 적 없는 키를 지우려는 셈이라 아무 효과가 없다.
-    """
-    from app.core.http_client import AUTH_BEARER, is_timeout_error, is_transport_error
-
-    conv_key = conversation.backend_conversation_id or conversation.id
-    try:
-        outbound.request(
-            "POST",
-            settings.assistant_context_delete_url,
-            allowlist="runners",
-            json={
-                "requester": {"user_id": user.id, "email": user.email, "name": user.display_name},
-                "conversation_id": conv_key,
-            },
-            timeout=float(settings.assistant_context_delete_timeout_seconds),
-            auth_type=AUTH_BEARER,
-            secret_ref=settings.assistant_runner_token_ref,
-        )
-    except FileNotFoundError:
-        pass  # 러너 토큰 secret 파일 없음 = 기능 미설정(다른 러너 호출들과 같은 관례)
-    except Exception as exc:  # noqa: BLE001 — 삭제 자체를 절대 막지 않는다
-        if is_timeout_error(exc):
-            logger.warning("runner context-delete timeout (conversation_id=%s)", conv_key)
-        elif is_transport_error(exc):
-            logger.warning("runner context-delete transport failure (conversation_id=%s)", conv_key)
-        else:
-            logger.warning("runner context-delete unexpected error (conversation_id=%s): %s", conv_key, exc)
-
-
-def delete_conversation(
-    db: Session, conversation: Conversation, *, outbound=None, settings: Settings | None = None,
-    user: User | None = None,
-) -> None:
+def delete_conversation(db: Session, conversation: Conversation) -> None:
     """Hard-delete a conversation and its messages (owner-checked by caller).
 
-    outbound/settings/user는 선택 인자다 — 기존 호출부(테스트 등)를 깨지 않으면서
-    AI-16의 러너 알림을 추가하기 위함이다. 셋 다 있을 때만 알린다(플랫폼 삭제는 이
-    알림과 무관하게 항상 진행된다)."""
+    예전에는 러너에도 삭제를 알려 그쪽 미러(`conversation_state`)를 지웠다(AI-16).
+    S11 이 러너를 걷어내면서 지울 미러가 없어졌다 — 대화 내용은 이제 이 DB 밖으로
+    나간 적이 없으므로 여기서 지우면 끝이다.
+    """
     purge_conversation_job_payloads(db, [conversation.id])
     db.execute(delete(Message).where(Message.conversation_id == conversation.id))
     db.delete(conversation)
     db.flush()
-    if outbound is not None and settings is not None and user is not None:
-        # DBTX: 러너 알림(느린 아웃바운드 호출) 앞에서 커밋해 위 삭제를 먼저 확정한다.
-        # 커밋 없이 호출을 통과하면, 이 요청의 db 세션이 앞서 읽은 스냅샷이 그 사이
-        # 다른 세션의 커밋으로 낡을 수 있고 — 그러면 요청 종료 시 get_db()의 커밋이
-        # "database is locked"로 거부되며 방금 한 삭제까지 롤백된다. 그러면 위 docstring이
-        # 약속한 "플랫폼 삭제는 이 알림과 무관하게 항상 진행된다"가 깨진다(app/core/db.py의
-        # "begin" 이벤트 주석, app/jobs/handlers/chat_message.py의 실측 사고와 같은 근거).
-        db.commit()
-        notify_runner_conversation_deleted(outbound, settings, user=user, conversation=conversation)
 
 
 def list_messages(db: Session, conversation: Conversation, *, after: str | None = None):
@@ -252,7 +199,7 @@ def post_user_message(
     attachments: list | None = None,
     screen_context: str | None = None,
 ):
-    """Save the user message and enqueue the n8n job. Returns (message, job)."""
+    """Save the user message and enqueue the answer job. Returns (message, job)."""
     import json as _json
 
     from app.chat.attachments import attachment_names, validate_attachments
@@ -332,7 +279,6 @@ def _build_job_payload(
     # Requester comes ONLY from the authenticated session user (spec §11.2).
     payload = {
         "conversation_id": conversation.id,
-        "backend_conversation_id": conversation.backend_conversation_id,
         "message_id": message.message_id,
         "content": message.content,
         "requester": {

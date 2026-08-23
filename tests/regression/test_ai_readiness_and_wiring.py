@@ -206,12 +206,10 @@ def test_the_api_backend_refuses_an_unconfigured_model():
     assert backend.run(system="시스템", user="사용자").status == provider.STATUS_UNCONFIGURED
 
 
-def test_the_runner_has_no_default_model_either():
-    source = (
-        ROOT / "runner" / "claude-work-assistant" / "assistant.py"
-    ).read_text(encoding="utf-8")
-    assert 'MODEL = os.environ.get("ASSISTANT_MODEL", "").strip()' in source
-    assert "ASSISTANT_MODEL 환경변수가 설정되지 않았습니다." in source
+def test_the_runner_that_had_a_default_model_is_gone():
+    """D-254 가 지우게 한 하드코딩 둘 중 하나는 러너에 있었다. S11 이 그 러너를 통째로
+    걷어냈으니, 이제 지킬 것은 「기본 모델이 없다」가 아니라 **「그 파일이 없다」**다."""
+    assert not (ROOT / "runner").exists(), "지운 러너 소스가 되살아났다"
 
 
 def test_the_embedding_model_lives_only_in_the_catalog():

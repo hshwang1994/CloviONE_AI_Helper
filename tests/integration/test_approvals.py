@@ -12,18 +12,11 @@ def _headers(csrf):
     return {"X-CSRF-Token": csrf}
 
 
+# S11 이후 스케줄 대상은 `system` 하나다(D-267). 이 파일이 지키는 것은 승인 게이트이므로
+# 대상만 바꾼다.
 @pytest.fixture()
-def workflow_id(client, login_as):
-    csrf = login_as("system_admin", email="boot-sysadmin@goodmit.co.kr")
-    r = client.post(
-        "/api/admin/workflows",
-        json={
-            "name": "승인 테스트 workflow",
-            "webhook_url": "http://127.0.0.1:5678/webhook/approve-test",
-        },
-        headers=_headers(csrf),
-    )
-    return r.json()["workflow"]["id"]
+def workflow_id():
+    return "noop"
 
 
 def _make_schedule(client, csrf, workflow_id, name="승인 스케줄"):
@@ -34,7 +27,7 @@ def _make_schedule(client, csrf, workflow_id, name="승인 스케줄"):
             "schedule_type": "cron",
             "cron_expression": "0 * * * *",
             "timezone": "UTC",
-            "target_type": "workflow",
+            "target_type": "system",
             "target_ref": workflow_id,
         },
         headers=_headers(csrf),
@@ -301,18 +294,24 @@ def test_list_accepts_all_five_known_statuses(client, login_as):
         assert r.status_code == 200, (status, r.text)
 
 
-def test_runner_endpoint_change_gated_for_admin(client, login_as):
-    sys_csrf = login_as("system_admin", email="runner-owner@goodmit.co.kr")
-    runner = client.post(
-        "/api/admin/runners",
-        json={"name": "게이트 러너", "base_url": "http://127.0.0.1:8787"},
-        headers=_headers(sys_csrf),
-    ).json()["runner"]
+def test_integration_endpoint_change_gated_for_admin(client, login_as):
+    """목적지를 바꾸는 것은 승인 대상이고 설명을 바꾸는 것은 아니다.
 
-    admin_csrf = login_as("admin", email="runner-editor@goodmit.co.kr")
+    S11 이전에는 러너로도 같은 것을 봤다 — 그 화면이 사라져 연동 하나가 남았고,
+    규칙(민감 필드만 게이트)은 그대로다.
+    """
+    sys_csrf = login_as("system_admin", email="integ-owner@goodmit.co.kr")
+    integ = client.post(
+        "/api/admin/integrations",
+        json={"name": "게이트 연동", "provider_type": "http_service",
+              "base_url": "https://api.notion.com"},
+        headers=_headers(sys_csrf),
+    ).json()["integration"]
+
+    admin_csrf = login_as("admin", email="integ-editor@goodmit.co.kr")
     r = client.patch(
-        f"/api/admin/runners/{runner['id']}",
-        json={"base_url": "http://127.0.0.1:8788"},
+        f"/api/admin/integrations/{integ['id']}",
+        json={"base_url": "https://api.anthropic.com"},
         headers=_headers(admin_csrf),
     )
     assert r.status_code == 202
@@ -320,7 +319,7 @@ def test_runner_endpoint_change_gated_for_admin(client, login_as):
 
     # 민감하지 않은 변경(설명)은 즉시 적용.
     r = client.patch(
-        f"/api/admin/runners/{runner['id']}",
+        f"/api/admin/integrations/{integ['id']}",
         json={"description": "설명만 변경"},
         headers=_headers(admin_csrf),
     )
