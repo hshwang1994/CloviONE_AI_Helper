@@ -190,6 +190,14 @@ USER_ROUTES: tuple[Route, ...] = (
     _u("user_knowledge", "/knowledge", "지식 공간"),
     _u("user_knowledge-doc", "/knowledge", "지식 문서 상세",
        hash_template="/knowledge/{id}", discover=("/api/knowledge/documents",)),
+    # AI 작업공간(S10). 지식 공간과 같은 부류다 — **사이드바 항목이 없고** 입구는
+    # 「AI 도우미」 화면에 있다(navConfig.js ROUTE_OWNER). 캡처 대상이 아닌 것은 아니다.
+    #
+    # **세 얼굴을 찍는다.** 이 화면의 회귀는 「결과가 그려지는가」보다 못 쓰는 상태의
+    # 얼굴에서 더 자주 난다: 아직 안 물었다 · 물었는데 근거가 없다 · 생성이 막혀 있다.
+    # 마지막 것은 서버 상태라 주소로 못 만든다 — 앞의 둘만 여기서 고정한다.
+    _u("user_ai-workspace", "/ai", "AI 작업공간"),
+    _u("user_ai-workspace-empty", "/ai?q=존재하지않는검색어zz", "AI 작업공간 — 근거 없음"),
     # 통합 검색(0030). 두 콘솔 양쪽에 같은 경로로 등록돼 있지만 같은 컴포넌트라 한 번만 찍는다.
     # **빈 상태와 결과 상태를 둘 다** 찍는다 — 검색 화면의 회귀는 "결과가 그려지는가"보다
     # "아직 안 쳤다 / 쳤는데 없다"의 얼굴에서 더 자주 난다.

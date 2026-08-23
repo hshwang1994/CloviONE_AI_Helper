@@ -43,6 +43,13 @@ KIND_ASSISTANT_NARRATIVE = "assistant_narrative"
 KIND_DOCUMENT_GENERATE = "document_generate"
 # AI 도우미 채팅 — **가장 큰 비용 축인데 상한 밖에 있었다**(X11).
 KIND_CHAT_MESSAGE = "chat_message"
+# AI 작업공간 (S10). 질의와 문서 초안을 **따로 센다** — 둘은 같은 문(`Gateway.generate`)을
+# 지나지만 비용이 다르고, 한 이름으로 합치면 「누가 무엇을 쓰는가」를 나중에 못 가른다.
+#
+# ⚠️ **검색만 하는 경로(`/api/ai/search`)는 안 센다.** 거기서 도는 임베딩은 서버의 CPU
+# 이지 구독 호출이 아니다(D-200). 쿼터는 비용 축이라 CPU 를 세면 뜻이 달라진다.
+KIND_AI_ASK = "ai_ask"
+KIND_AI_DRAFT = "ai_draft"
 
 # `pending()`이 "아직 record_call이 안 불렸지만 이미 큐에 들어간" 것으로 셀 잡 유형(UB-09).
 # `ai_quotas.reserve()`(확인→큐 적재를 한 덩어리로 묶는 예약형 경로 — consume()과 달리

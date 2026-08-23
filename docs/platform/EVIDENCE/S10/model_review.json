@@ -1,0 +1,116 @@
+{
+ "corpus": {
+  "seed": 20260823,
+  "chunks": 849,
+  "documents": 25,
+  "chunk_chars": {
+   "min": 41,
+   "p50": 705,
+   "p90": 921,
+   "max": 998,
+   "sum": 588208
+  },
+  "queries": {
+   "span": 200,
+   "infix": 200,
+   "recall": 200
+  }
+ },
+ "note": "S1(D-211)은 중앙값 96자 Corpus 에 제목 부분구간 질의였다. 여기는 중앙값 705자에 질의 세 종류다. 미러에 업무 본문이 없어(2026-08-23 실측) 업무 기록으로는 아직 못 잰다 — 그 축은 S13 이후다.",
+ "models": {
+  "e5-small": {
+   "span": {
+    "n": 200,
+    "recall@1": 0.11,
+    "recall@10": 0.28,
+    "mrr@10": 0.1597
+   },
+   "all": {
+    "n": 600,
+    "recall@1": 0.1583,
+    "recall@10": 0.37,
+    "mrr@10": 0.2187
+   },
+   "infix": {
+    "n": 200,
+    "recall@1": 0.12,
+    "recall@10": 0.335,
+    "mrr@10": 0.1819
+   },
+   "recall": {
+    "n": 200,
+    "recall@1": 0.245,
+    "recall@10": 0.495,
+    "mrr@10": 0.3144
+   },
+   "distance": {
+    "gold": {
+     "p10": 0.1227,
+     "p50": 0.1504,
+     "p90": 0.1759
+    },
+    "nearest_non_gold": {
+     "p10": 0.1201,
+     "p50": 0.1375,
+     "p90": 0.1534
+    }
+   },
+   "dim": 384,
+   "speed": {
+    "path": "제품 Adapter (app/ai/gateway/adapters/local_embed.py)",
+    "dim": 384,
+    "chunk_seconds": 72.5,
+    "chunks_per_second": 11.7,
+    "query_seconds": 4.19,
+    "query_ms_each": 10.48
+   }
+  },
+  "bge-m3": {
+   "span": {
+    "n": 200,
+    "recall@1": 0.09,
+    "recall@10": 0.27,
+    "mrr@10": 0.1366
+   },
+   "all": {
+    "n": 600,
+    "recall@1": 0.1733,
+    "recall@10": 0.36,
+    "mrr@10": 0.2245
+   },
+   "infix": {
+    "n": 200,
+    "recall@1": 0.16,
+    "recall@10": 0.325,
+    "mrr@10": 0.2053
+   },
+   "recall": {
+    "n": 200,
+    "recall@1": 0.27,
+    "recall@10": 0.485,
+    "mrr@10": 0.3318
+   },
+   "distance": {
+    "gold": {
+     "p10": 0.4296,
+     "p50": 0.5247,
+     "p90": 0.6062
+    },
+    "nearest_non_gold": {
+     "p10": 0.4122,
+     "p50": 0.4675,
+     "p90": 0.5267
+    }
+   },
+   "dim": 1024,
+   "speed": {
+    "path": "비교용 raw ONNX (카탈로그에 없는 모델이라 제품 Adapter 가 안 받는다)",
+    "dim": 1024,
+    "chunk_seconds": 693.3,
+    "chunks_per_second": 1.2,
+    "query_seconds": 10.67,
+    "query_ms_each": 26.67
+   }
+  }
+ }
+}

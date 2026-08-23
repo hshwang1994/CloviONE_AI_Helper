@@ -195,6 +195,24 @@ RULES: tuple[tuple[str, tuple[str, ...], str, str], ...] = (
         r"""|["'][A-Za-z0-9_\-]+/(?:multilingual-e5|bge)[A-Za-z0-9.\-]*["']""",
         "모델은 구독·약관·가격이 정하는 운영 선택이라 제품이 대신 고를 자리가 아니다 (D-201)",
     ),
+    # ── AI Retrieval (S10) ──────────────────────────────────────────────────
+    (
+        "검색 레인 SQL",
+        ("app/ai/retrieval/query.py",),
+        # 세 레인의 연산자와 함수. 다른 곳에서 다시 쓰면 FTS 설정이나 거리 상한이
+        # 한쪽에만 걸린다.
+        r"to_tsvector\s*\(|plainto_tsquery\s*\(|op\(\s*[\"']<=>[\"']",
+        "레인 SQL 이 두 곳이면 인덱스 식과 질의 식이 갈리고, 그러면 인덱스를 못 타거나 "
+        "거리 상한이 빠진 채 「언제나 근거가 있는」 검색이 된다 (D-209 · D-210)",
+    ),
+    (
+        "AI 후보 집합",
+        ("app/ai/retrieval/service.py",),
+        # chunk 를 문서 집합으로 좁히는 자리. **여기가 유일한 권한 판정이다**(D-256).
+        r"DocumentChunk\.document_id\.in_\s*\(",
+        "🔴 chunk 에 권한 컬럼이 없으므로 이 질의가 유일한 권한 판정이다. 두 곳이 되면 "
+        "한쪽이 조건을 빠뜨리고, 그 실패는 오류를 안 낸다 (D-202 · D-256)",
+    ),
 )
 
 # 계층을 **읽는** 자리. 미러 컬럼을 직접 읽으면 관계 표와 갈라진다.
@@ -392,6 +410,29 @@ def self_test() -> int:
             "다른 곳에 임베딩 모델 id 가 박혀 있다",
             {other: "M = 'intfloat/multilingual-e5-small'\n"},
             True,
+        ),
+        # ── AI Retrieval (S10) ─────────────────────────────────────────────
+        (
+            "다른 곳에서 FTS 식을 만든다",
+            {other: "def f(c, q):\n    return to_tsvector('simple', c) @ q\n"},
+            True,
+        ),
+        (
+            "다른 곳에서 벡터 거리를 만든다",
+            {other: "def f(col, v):\n    return col.op('<=>')(v)\n"},
+            True,
+        ),
+        (
+            "다른 곳에서 AI 후보 집합을 좁힌다",
+            {other: "def f(ids):\n    return DocumentChunk.document_id.in_(ids)\n"},
+            True,
+        ),
+        # 위양성 쪽 — 같은 컬럼을 **다른 뜻으로** 좁히는 것은 권한 판정이 아니다.
+        # 색인 서비스가 「이 문서들의 chunk 를 지운다」로 쓰는 자리가 실제로 그렇다.
+        (
+            "chunk 를 문서 id 로 지운다",
+            {other: "def f(db, ids):\n    return delete(DocumentChunk).where(DocumentChunk.id.in_(ids))\n"},
+            False,
         ),
         # 위양성 쪽 — 모델 **설정 키**와 능력 이름은 모델 이름이 아니다. 여기서 걸리면
         # 설정을 읽는 코드를 못 쓰게 된다.

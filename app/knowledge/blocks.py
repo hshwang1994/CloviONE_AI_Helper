@@ -39,6 +39,7 @@ __all__ = [
     "BlockError",
     "Derived",
     "empty_doc",
+    "from_plain_text",
     "normalize",
     "derive",
     "to_markdown",
@@ -91,6 +92,30 @@ EMPTY_DOC: dict[str, Any] = {"type": "doc", "content": []}
 def empty_doc() -> dict[str, Any]:
     """빈 본문 **새 사전**. 상수를 그대로 주면 부르는 쪽이 그것을 고친다."""
     return {"type": "doc", "content": []}
+
+
+def from_plain_text(text: str) -> dict[str, Any]:
+    """줄글 → 본문. **AI 초안이 문서가 되는 자리다** (S10).
+
+    여기 두는 이유는 이 파일이 「본문을 만드는 유일한 자리」이기 때문이다. 부르는 쪽이
+    `{"type": "paragraph", ...}` 를 직접 조립하면 노드 이름을 아는 곳이 하나 늘고,
+    스키마가 바뀌는 날 그쪽만 낡는다.
+
+    **마크다운으로 읽지 않는다.** 모델이 낸 글에 `#` 이나 `**` 가 섞여 있어도 그것을
+    제목이나 굵은 글씨로 해석하지 않는다 — 해석하려면 마크다운 파서가 필요하고, 그
+    파서는 모델이 반쯤 만든 표를 만나는 순간 사람이 쓴 적 없는 구조를 만든다. 초안은
+    문단으로만 들어오고, 꾸미는 것은 사람이 편집기에서 한다.
+
+    빈 줄은 문단을 나누고 문단 자체로는 안 남는다. 연달아 친 빈 줄이 그대로 남으면
+    편집기에 빈 문단이 줄줄이 생긴다.
+    """
+    body = str(text or "").replace("\r\n", "\n").replace("\r", "\n")
+    paragraphs = [part.strip() for part in body.split("\n\n")]
+    content = [
+        {"type": "paragraph", "content": [{"type": "text", "text": part}]}
+        for part in paragraphs if part
+    ]
+    return {"type": "doc", "content": content} if content else empty_doc()
 
 
 @dataclass(frozen=True)

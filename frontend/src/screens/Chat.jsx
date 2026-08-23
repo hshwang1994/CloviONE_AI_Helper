@@ -155,7 +155,17 @@ export function Chat() {
     <Box className="c-screen">
       {/* SEM-03 재확인(2026-08-13) — PageHeader에 실제(동적) 대화 제목을 넘긴다. 예전엔
           여기가 항상 "AI 도우미"라 아래 대화 제목 막대가 별도 h1을 또 만들어야 했다. */}
-      <PageHeader crumbRoot="도우미" area="AI 도우미" title={cid ? activeTitle : "AI 도우미"} />
+      {/* AI 작업공간으로 가는 입구(S10). 사이드바에 자기 항목을 안 만든 이유는
+          `navConfig.js` 의 `/knowledge` 와 같다 — 한 그룹이 여섯 항목을 넘지 않고, IA 를
+          다시 짜는 것은 Phase E 의 일이다. 그래서 **성격이 같은 화면**에 입구를 둔다.
+          이 화면은 사내 기록 전체를 모델에 싣고(S11 이 걷어낸다), 저쪽은 권한을 통과한
+          문서만 근거로 쓴다 — 사용자에게는 같은 종류의 일이라 여기가 정확한 자리다. */}
+      <PageHeader
+        crumbRoot="도우미"
+        area="AI 도우미"
+        title={cid ? activeTitle : "AI 도우미"}
+        actions={<Button href="#/ai">문서에서 찾기</Button>}
+      />
       <Card
         sx={{
           p: 0, overflow: "hidden",

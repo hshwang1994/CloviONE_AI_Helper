@@ -18,6 +18,8 @@ import re
 
 import pytest
 from sqlalchemy import inspect, text
+from sqlalchemy.ext.compiler import compiles
+from sqlalchemy.sql.expression import ClauseElement, Executable
 
 from app.ai import catalog
 from app.ai.models import ANCHOR_KINDS, SOURCE_KINDS, STATES
@@ -131,3 +133,80 @@ def test_there_is_no_vector_index_yet(db):
         )
     ).scalars().all()
     assert not any("hnsw" in d.lower() or "ivfflat" in d.lower() for d in kinds)
+
+
+# ── S10 — 키워드 두 레인의 인덱스 ────────────────────────────────────────────
+#
+# `0008` 이 만든 것이 실제로 서 있는가, 그리고 **인덱스 식과 질의 식이 같은가**.
+# 둘이 다르면 아무 오류도 안 나고 인덱스만 안 탄다 — 코퍼스가 자란 뒤에야 느려진다.
+
+RETRIEVAL_MIGRATION = (
+    pathlib.Path(__file__).resolve().parents[2]
+    / "alembic" / "versions" / "0008_ai_retrieval_indexes.py"
+)
+
+
+def test_the_frozen_fts_config_matches_the_catalog():
+    source = RETRIEVAL_MIGRATION.read_text(encoding="utf-8")
+    match = re.search(r'^_FTS_CONFIG\s*=\s*"([^"]+)"', source, re.M)
+    assert match, "마이그레이션에서 _FTS_CONFIG 를 못 찾았다"
+    assert match.group(1) == catalog.FTS_CONFIG
+
+
+def test_both_keyword_lanes_have_an_index(db):
+    defs = {
+        name: definition
+        for name, definition in db.execute(
+            text(
+                "SELECT indexname, indexdef FROM pg_indexes "
+                "WHERE tablename = 'document_chunks'"
+            )
+        ).all()
+    }
+    assert "gin_trgm_ops" in defs["ix_chunk_text_trgm"]
+    assert "to_tsvector" in defs["ix_chunk_text_fts"]
+    assert f"'{catalog.FTS_CONFIG}'" in defs["ix_chunk_text_fts"]
+
+
+class _Explain(Executable, ClauseElement):
+    """`EXPLAIN <select>` — **바인드 파라미터를 그대로 둔 채** 계획을 묻는다.
+
+    SQL 을 문자열로 렌더링해서 묻지 않는다. `literal_binds` 는 `%` 와 escape 문자를
+    이스케이프하므로 `ILIKE '%…%' ESCAPE '\'` 가 **문법 오류**가 된다 — 그러면 검사가
+    제품이 아니라 렌더링을 시험하게 된다(실제로 한 번 그렇게 빨개졌다).
+    """
+
+    inherit_cache = False
+
+    def __init__(self, statement):
+        self.statement = statement
+
+
+@compiles(_Explain, "postgresql")
+def _compile_explain(element, compiler, **kw):  # pragma: no cover - 컴파일러 훅
+    return "EXPLAIN " + compiler.process(element.statement, **kw)
+
+
+def _plan_for(db, statement) -> str:
+    """이 질의의 계획. `enable_seqscan=off` 로 강제한다.
+
+    현 코퍼스가 작아서 플래너가 seq scan 을 고르는 것은 **맞는 판단**이다(D-209).
+    우리가 확인하려는 것은 「지금 쓰는가」가 아니라 **「쓸 수 있는가」**다 — 인덱스 식과
+    질의 식이 어긋나면 강제해도 못 쓴다.
+    """
+    db.execute(text("SET LOCAL enable_seqscan = off"))
+    return "\n".join(db.execute(_Explain(statement)).scalars().all())
+
+
+def test_the_query_expression_is_the_indexed_expression(db):
+    """🔴 **글자가 아니라 플래너에게 물어본다.** 「같아 보인다」는 증거가 아니다."""
+    from app.ai.retrieval import query as query_mod
+
+    assert "ix_chunk_text_fts" in _plan_for(db, query_mod.fts_lane("연차 규정", limit=5))
+
+
+def test_the_trigram_lane_can_use_its_index_too(db):
+    """`ILIKE '%…%'` 를 `gin_trgm_ops` 가 받는다 (D-209 · S2 원장)."""
+    from app.ai.retrieval import query as query_mod
+
+    assert "ix_chunk_text_trgm" in _plan_for(db, query_mod.trgm_lane("연차 규정", limit=5))

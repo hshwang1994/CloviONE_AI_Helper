@@ -51,6 +51,10 @@ CONSUMERS: dict[str, str] = {
     "app/search/scoping.py": "Search",
     "app/tickets/service.py": "티켓(프로젝트 가시성 상속)",
     "app/knowledge/service.py": "지식 공간·문서(공간 가시성 상속)",
+    # 🔴 S10. chunk 에 권한 컬럼이 없으므로(D-256) **이 파일의 질의가 유일한 판정**이다.
+    # 여기가 그 함수를 안 지나면 AI 답변이 권한 밖 문서를 근거로 삼는다 — 그리고 그
+    # 실패는 오류를 안 낸다.
+    "app/ai/retrieval/service.py": "AI Retrieval(Context 에 들어갈 chunk)",
 }
 
 # `app/authz/visibility.py` 의 공개 입구. 하나라도 부르면 「그 함수에 닿았다」로 본다.

@@ -7,7 +7,7 @@
 > 상태 값: `TODO` · `IN_PROGRESS` · `DONE` · `BLOCKED`(외부 원인만).
 > **한 항목을 "일부 했다" 로 닫지 않는다** — 남은 것은 사유와 Owner Session 을 적어 이관한다 (E9).
 
-**기록 시점**: 2026-08-21 (S0) · **갱신**: 2026-08-22 (S5 — P-12·P-12a·P-13 DONE)
+**기록 시점**: 2026-08-21 (S0) · **갱신**: 2026-08-23 (S10 — P-13·P-20 DONE)
 
 ---
 
@@ -40,7 +40,7 @@
 |---|---|---|---|---|
 | **P-12** | Identity & Access — roles/permissions/org_units/resource_ownership | S5 | **DONE** | `permissions` 32 · `roles` 5(builtin) · `role_permissions` 107 · `user_roles` · `resource_grants` 가 `0002_identity_access` 로 선다. **다섯 역할의 뜻은 안 바뀌었다** — 옮긴 게이트 7종 × 5역할을 표와 실제 요청 양쪽에서 전수 대조했다(`test_builtin_role_equivalence.py`). `departments` → `org_units`(D-234) · auth Provider 분리(D-235). `resource_ownership` 은 **개념**으로 남기고 대신 D-193 의 빠져 있던 항 `Project Member` 를 실제 갈래로 넣었다(D-233) |
 | **P-12a** | **결재 대리(`/api/admin/approval-delegations`) 범위 게이트** — S1 이 드러낸 결함 | S5 | **DONE** | 셋 다 `principal` 을 받는다. `list` 는 `delegation.apply_scope`, `revoke` 는 `get_scoped_or_404`(범위 밖 **404**), `create` 는 **위임자와 대리자 양쪽**이 범위 안이어야 한다 — 한쪽만 보면 내 부서 권한이 남으로 새거나 남의 권한이 내 부서로 들어온다. `check_scope_gates.py::KNOWN_GAPS` 는 이제 **비어 있고**, 검사가 「미해결 GAP 0건」을 찍는다 |
-| **P-13** | `effective_visibility_clause` 단일화 — 목록·상세·Search·**AI** | S5 | **DONE**(AI 는 S10) | 판정이 `app/authz/visibility.py` 한 곳이다. **규칙 하나가 SQL 절과 행 판정 두 표현을 함께 든다**(D-231) — 옛 상태는 공용 파일 안에서도 판정이 넷이었다(소속 2 · 열람 제한 2). `scripts/check_visibility_single_source.py`(자기검증 5사례)가 소비자 4개의 도달을 확인하고, `test_visibility_two_renderers_agree.py` 가 자원 3종 × 사람 5명을 진짜 행으로 대조한다. **AI 경로는 그 Component 가 아직 없다** — S10 이 같은 함수에 연결하고 음성 테스트로 증명한다 |
+| **P-13** | `effective_visibility_clause` 단일화 — 목록·상세·Search·**AI** | S5 · S10 | **DONE** | 판정이 `app/authz/visibility.py` 한 곳이다. **규칙 하나가 SQL 절과 행 판정 두 표현을 함께 든다**(D-231) — 옛 상태는 공용 파일 안에서도 판정이 넷이었다(소속 2 · 열람 제한 2). `scripts/check_visibility_single_source.py`(자기검증 5사례)가 소비자 **6개**의 도달을 확인하고, `test_visibility_two_renderers_agree.py` 가 자원 3종 × 사람 5명을 진짜 행으로 대조한다. **AI 경로도 S10 이 같은 함수에 연결했다** — `app/ai/retrieval/service.py::visible_document_ids` 가 소비자 여섯 번째이고, `check_visibility_single_source.py` 가 그 도달을 확인한다. chunk 에 권한 컬럼이 없으므로(D-256) 그 질의가 **유일한 판정**이다 |
 | **P-14** | Work Domain — Project Key · Ticket 3층 식별자 · 채번 · Relation · Workflow | S6 | **DONE** | `project_key_registry`(예약 `GIT`) · `ticket_cache` → `tickets`(D-238) · `seq`/`canonical_key`/`legacy_key` + BEFORE 트리거(D-236) · `project_ticket_counters` 채번(D-196) · `ticket_key_aliases` · `ticket_relations`(계층 정본, D-239) · `ticket_statuses` + `app/work/workflow.py`. **동시 12건에서 1..12 가 정확히 한 번씩**(반례 포함) · 롤백 시 미소비 · `GIT-142` 가 Key 변경 뒤에도 같은 티켓 · Exception 임의 배정 0. Project Key 20건은 **확정됐고**(D-243) `apply_confirmed()` 가 이름으로 잇는다 — 못 찾으면 배정하지 않는다. 재채번은 S13 이다(D-197) |
 | **P-15** | Backlog · Sprint · Kanban · DnD 공통화 | S6 | **DONE** | `/api/work/board`·`/backlog`·`/sprints` + `sprints` 표 + `backlog_rank`(소수 순위, D-241). Drop 이 Status+Activity+Audit+`updated_at`+Notification 을 **한 트랜잭션**으로 처리하고(D-242), 실패를 주입해 다섯이 함께 사라지는지까지 본다. DnD 는 `frontend/src/ui/DragDrop.jsx` **한 부품**이고 키보드가 1급이다(스페이스로 집고 화살표로 옮긴다) |
 | **P-14a** | **문자열 날짜 컬럼 → `date`/`timestamp`** (SQLite 실측 10번) | S7 | **DONE** | **16컬럼을 한 번에 옮겼다** — 달력일 11(`date`) · 시각 5(`timestamp`), `0005_real_dates`. 반씩 하면 더 나쁘다는 판단 그대로다: 티켓·프로젝트·문서가 같은 규약을 공유하고 동기화 파서·필터·리포트·번다운·홈 위젯이 전부 그 규약으로 비교한다. **화면 계약(ISO 문자열)은 안 바뀌었고** 경계는 `app/core/dates.py` 하나다. 옮기면서 조용한 결함 둘이 드러났다 — `_last_activity_on` 의 `isinstance(str)` 갈래(컬럼이 timestamp 가 되면 영영 거짓이라 「저쪽에서 만진 시각」이 버려진다)와 `projects/sync.py::_apply` 의 값 비교(문자열 vs date 는 영영 다르라서 매 회차 전 프로젝트의 `updated_at` 이 덮인다). 둘 다 오류를 안 낸다. 결정 **D-248** · 시험 `tests/regression/test_real_date_columns.py` |
@@ -53,7 +53,7 @@
 |---|---|---|---|---|
 | **P-18** | Model Gateway + Parsing/Indexing Pipeline + `index` worker lane | S9 | **DONE** | 생성 Adapter 를 끈 채로 **실 모델 17/17 PASS**([`EVIDENCE/S9/`](EVIDENCE/S9/README.md)) · 임베딩 모델까지 없어도 chunk 는 서고 벡터 칸만 NULL · injection 회귀 13건. 결정 **D-254~D-259** |
 | **P-19** | 모델명 하드코딩 2곳 제거 (`app/llm/provider.py` · runner `assistant.py`) | S9 | **DONE** | 둘 다 제거. 비어 있으면 **설정 안 됨**이고(fail-closed) `build_argv()` 가 예외를 던진다. 임베딩 모델만 `app/ai/catalog.py` 에 있고 정적 검사가 그 파일만 면제한다 (**D-254**) |
-| **P-20** | Hybrid Retrieval · **권한을 LIMIT 앞에** · Citation · AI 작업공간 · 생성 | S10 | TODO | **권한 없는 사용자 질의 시 Context 미포함을 음성 테스트로 증명** · Citation 클릭 이동. Re-rank 는 없다(D-212 · D-255) |
+| **P-20** | Hybrid Retrieval · **권한을 LIMIT 앞에** · Citation · AI 작업공간 · 생성 | S10 | **DONE** | 세 레인이 `effective_visibility_clause` 가 만든 후보 집합 안에서만 돈다 — 음성 시험 10건이 「답변에 안 나왔다」가 아니라 **모델에게 실제로 넘어간 문자열**을 본다. 권한 변경의 반영 지연은 **0**(chunk 를 한 줄도 안 다시 만든다, D-256). 인용은 `?block=` 까지 가고(D-263), 생성이 막혀도 검색·인용은 그대로 돈다. 가중치·상한은 실측으로 정했다(D-260·D-261). Re-rank 는 없다(D-212 · D-255) |
 | **P-21** | n8n · 외부 Runner 3종 제거 | S11 | TODO | 5678/5679/8787/8788/8789 미청취 · Installer·backup-cron·validate script 에 n8n 흔적 0 |
 
 ## Phase D — 운영 · 이관

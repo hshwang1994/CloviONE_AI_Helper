@@ -359,3 +359,20 @@
 
 /* 게임방 만들기 — 빠른 투표 선택지 입력 */
 .games-options { display: flex; flex-direction: column; gap: var(--space-sm, 8px); }
+
+/* 인용을 눌러서 도착한 문단 (S10). 잠깐 표시했다가 스스로 사라진다.
+ *
+ * **색이 아니라 테두리로 표시한다.** 배경색을 칠하면 그 문단이 다른 종류의 내용처럼
+ * 읽히고, 표시가 사라진 뒤에도 사람이 그 자리를 «강조된 문단»으로 기억한다. 왼쪽
+ * 세로선은 «여기가 그 자리다»만 말하고 글의 뜻을 바꾸지 않는다.
+ *
+ * 동작 감소를 켠 사용자에게는 전환 없이 그대로 나타났다 사라진다. */
+.k-cited {
+  box-shadow: inset 3px 0 0 0 var(--color-primary);
+  border-radius: var(--radius-sm, 6px);
+  transition: box-shadow 240ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .k-cited { transition: none; }
+}

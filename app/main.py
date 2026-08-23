@@ -79,6 +79,7 @@ from app.sysops.router import router as sysops_router
 from app.team_docs.router import router as team_docs_router
 from app.trash.router import router as trash_router
 from app.sprints.router import router as sprint_router
+from app.ai.router import router as ai_router
 from app.knowledge.router import router as knowledge_router
 from app.storage.router import router as storage_router
 from app.work.router import router as work_router
@@ -190,6 +191,17 @@ def create_app(
 
     install_repositories(app)
 
+    # Model Gateway 는 **프로세스에 하나**다 (S10). 요청마다 만들면 그때마다 새
+    # Adapter 가 생기고, 임베딩 Adapter 는 첫 호출에 ONNX 세션을 만든다 — S1 실측 2.3초다.
+    # 질의마다 그 시간을 다시 내면 AI 작업공간이 쓸 수 없게 느려진다.
+    #
+    # 여기서 만들어도 모델 파일은 아직 안 읽는다(세션은 첫 `embed()` 에 생긴다). 그리고
+    # `build_gateway` 는 **어떤 이유로도 예외를 안 올린다** — 모델을 안 넣은 설치에서
+    # 앱이 아예 안 뜨는 것을 그 계약이 막는다.
+    from app.ai.gateway.registry import build_gateway
+
+    app.state.ai_gateway = build_gateway(settings, outbound=app.state.outbound_client)
+
     # add_middleware: last added runs outermost — RequestContext must wrap everything.
     app.add_middleware(BodySizeLimitMiddleware)
     app.add_middleware(RequestContextMiddleware)
@@ -258,6 +270,9 @@ def create_app(
     # 파일 저장소 설정(S8). 권한은 S5 가 미리 고정한 `STORAGE_CONFIGURE` 이고, 이
     # 라우터가 그 이름의 첫 소비처다.
     app.include_router(storage_router)
+    # AI 작업공간(S10) — 검색·질의·문서 초안. 지식 라우터 옆에 두는 이유는 소비자가
+    # 같은 자원(문서와 그 첨부)이고, 권한 판정도 같은 함수를 지나기 때문이다(D-202).
+    app.include_router(ai_router)
     # 홈 '오늘' 커맨드 센터와 AI 도우미 심화(계획서 Phase 5). 둘 다 조회 전용이고
     # 티켓은 저장소 seam 을 통해서만 읽는다(미러가 채워져 있으면 Notion 왕복 0회).
     app.include_router(home_router)

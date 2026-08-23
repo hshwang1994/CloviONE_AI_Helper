@@ -86,7 +86,7 @@ function FolderTree({ spaceId, folders, selected, onSelect, onReorder, onCreate,
       <Stack spacing={1}>
         <EmptyState
           title="폴더가 아직 없습니다."
-          body="폴더를 만들면 문서를 주제별로 모아 둘 수 있습니다."
+          help="폴더를 만들면 문서를 주제별로 모아 둘 수 있습니다."
           action={<Button onClick={onCreate}>폴더 추가</Button>}
         />
       </Stack>
@@ -170,16 +170,16 @@ export function Knowledge() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["knowledge", "tree", spaceId] });
       setFolderForm(false);
-      toast.show("폴더를 만들었습니다.");
+      toast("폴더를 만들었습니다.");
     },
-    onError: (e) => toast.show(e.message, "error"),
+    onError: (e) => toast(e.message, "error"),
   });
 
   const moveFolder = useMutation({
     mutationFn: ({ id, before_id, after_id }) =>
       api(`/api/knowledge/folders/${id}`, { method: "PATCH", body: { before_id, after_id } }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["knowledge", "tree", spaceId] }),
-    onError: (e) => toast.show(e.message, "error"),
+    onError: (e) => toast(e.message, "error"),
   });
 
   const removeFolder = useMutation({
@@ -188,13 +188,13 @@ export function Knowledge() {
       qc.invalidateQueries({ queryKey: ["knowledge", "tree", spaceId] });
       qc.invalidateQueries({ queryKey: ["knowledge", "documents"] });
       const moved = data?.documents_moved_to_root || 0;
-      toast.show(
+      toast(
         moved
           ? `폴더를 지웠고 문서 ${moved}건이 공간 첫 화면으로 올라왔습니다.`
           : "폴더를 지웠습니다.",
       );
     },
-    onError: (e) => toast.show(e.message, "error"),
+    onError: (e) => toast(e.message, "error"),
   });
 
   const createDocument = useMutation({
@@ -204,7 +204,7 @@ export function Knowledge() {
       setDocForm(false);
       navigate(`/knowledge/${doc.id}`);
     },
-    onError: (e) => toast.show(e.message, "error"),
+    onError: (e) => toast(e.message, "error"),
   });
 
   if (spaces.isLoading) return <Skeleton kind="page" lines={4} />;
@@ -218,7 +218,7 @@ export function Knowledge() {
         <PageHeader area="팀 업무" title="지식 공간" />
         <EmptyState
           title="볼 수 있는 지식 공간이 없습니다."
-          body="관리자가 공간을 만들면 여기에 나타납니다."
+          help="관리자가 공간을 만들면 여기에 나타납니다."
         />
       </>
     );
@@ -304,7 +304,7 @@ export function Knowledge() {
             {!documents.isLoading && !documents.isError && rows.length === 0 && (
               <EmptyState
                 title="문서가 아직 없습니다."
-                body="새 문서를 만들면 이 목록에 나타납니다."
+                help="새 문서를 만들면 이 목록에 나타납니다."
                 action={<Button onClick={() => setDocForm(true)}>새 문서</Button>}
               />
             )}

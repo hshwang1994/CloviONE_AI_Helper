@@ -1,6 +1,6 @@
 import React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router-dom";
 import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
 import Tab from "@mui/material/Tab";
@@ -20,6 +20,7 @@ import {
   useConfirm,
   useToast,
 } from "../ui/kit.jsx";
+import { prefersReducedMotion } from "../ui/motion.js";
 import { FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
 
 /* 문서 한 건 — 본문 · 이력 · 차이 · 되돌리기 (S7 Exit).
@@ -91,7 +92,7 @@ function VersionDiff({ documentId, base, target }) {
     return (
       <EmptyState
         title="두 판의 본문이 같습니다."
-        body="고른 두 판 사이에 바뀐 문단이 없습니다."
+        help="고른 두 판 사이에 바뀐 문단이 없습니다."
       />
     );
   }
@@ -127,8 +128,42 @@ function VersionDiff({ documentId, base, target }) {
   );
 }
 
+/* 인용을 눌러서 온 자리로 데려간다 (S10).
+ *
+ * 주소의 `?block=<블록 id>` 를 읽어 그 문단까지 스크롤하고 잠깐 표시한다. 블록 id 는
+ * 판이 올라도 안 바뀌므로(D-198) 어제 만든 인용이 오늘도 같은 문장을 가리킨다.
+ *
+ * **못 찾으면 아무 일도 안 한다.** 문서 맨 위에 그대로 서는 것이 맞다 — 그 블록이 지워진
+ * 문서에서 엉뚱한 문단을 표시하면 사람은 그것을 인용된 문장으로 읽는다.
+ *
+ * 편집기가 늦게 실려 오므로 한 번만 보고 포기하지 않는다. 짧은 간격으로 몇 번 다시 본다.
+ */
+function useBlockAnchor(blockId, ready) {
+  React.useEffect(() => {
+    if (!blockId || !ready) return undefined;
+    let attempts = 0;
+    let timer = 0;
+    const look = () => {
+      const target = document.querySelector(`[data-block-id="${CSS.escape(blockId)}"]`);
+      if (target) {
+        target.scrollIntoView({
+          block: "center",
+          behavior: prefersReducedMotion() ? "auto" : "smooth",
+        });
+        target.classList.add("k-cited");
+        window.setTimeout(() => target.classList.remove("k-cited"), 2400);
+        return;
+      }
+      if (attempts++ < 20) timer = window.setTimeout(look, 150);
+    };
+    look();
+    return () => window.clearTimeout(timer);
+  }, [blockId, ready]);
+}
+
 export function KnowledgeDoc() {
   const { id } = useParams();
+  const [params] = useSearchParams();
   const toast = useToast();
   const confirm = useConfirm();
   const qc = useQueryClient();
@@ -150,19 +185,21 @@ export function KnowledgeDoc() {
     setCompareTo(null);
   }, [doc.data?.id]);
 
+  useBlockAnchor(params.get("block"), Boolean(body));
+
   const save = useMutation({
     mutationFn: (payload) =>
       api(`/api/knowledge/documents/${id}`, { method: "PUT", body: payload }),
     onSuccess: (result) => {
       qc.invalidateQueries({ queryKey: ["knowledge", "document", id] });
       qc.invalidateQueries({ queryKey: ["knowledge", "versions", id] });
-      toast.show(
+      toast(
         result.created_version
           ? "저장했고 새 판을 이력에 남겼습니다."
           : "저장했습니다. 본문이 그대로라 새 판은 만들지 않았습니다.",
       );
     },
-    onError: (e) => toast.show(e.message, "error"),
+    onError: (e) => toast(e.message, "error"),
   });
 
   const restore = useMutation({
@@ -174,9 +211,9 @@ export function KnowledgeDoc() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["knowledge", "document", id] });
       qc.invalidateQueries({ queryKey: ["knowledge", "versions", id] });
-      toast.show("옛 판의 본문으로 새 판을 만들었습니다. 이력은 그대로 남아 있습니다.");
+      toast("옛 판의 본문으로 새 판을 만들었습니다. 이력은 그대로 남아 있습니다.");
     },
-    onError: (e) => toast.show(e.message, "error"),
+    onError: (e) => toast(e.message, "error"),
   });
 
   if (doc.isLoading) return <Skeleton kind="page" lines={5} />;
@@ -235,7 +272,7 @@ export function KnowledgeDoc() {
               {!versions.isLoading && history.length === 0 && (
                 <EmptyState
                   title="아직 판이 없습니다."
-                  body="본문을 저장하면 판이 하나씩 쌓입니다."
+                  help="본문을 저장하면 판이 하나씩 쌓입니다."
                 />
               )}
               <Stack spacing={1} component="ul" sx={{ listStyle: "none", p: 0, m: 0 }}>

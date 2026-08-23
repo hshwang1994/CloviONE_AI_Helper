@@ -40,7 +40,14 @@ const ANCHORED_NODES = [
   "codeBlock", "horizontalRule",
 ];
 
-/* 서버가 준 `blockId` 를 편집 중에도 들고 있다가 그대로 돌려주는 전역 속성. */
+/* 서버가 준 `blockId` 를 편집 중에도 들고 있다가 그대로 돌려주는 전역 속성.
+ *
+ * **DOM 에도 싣는다** (S10). 인용을 누르면 그 문단까지 가야 하는데(`?block=<id>`),
+ * JSON 에만 있으면 화면이 그 자리를 찾을 방법이 없다 — 본문 글자를 맞춰 보는 수밖에
+ * 없고 그것은 같은 문장이 두 번 나오는 순간 틀린다.
+ *
+ * 붙여넣기로 같은 id 가 두 개 생길 수 있지만 서버의 `normalize` 가 중복을 보면 새 id 를
+ * 발급하므로(app/knowledge/blocks.py) 저장 시점에 정리된다. */
 const BlockId = Extension.create({
   name: "blockId",
   addGlobalAttributes() {
@@ -49,8 +56,9 @@ const BlockId = Extension.create({
       attributes: {
         [BLOCK_ID_ATTR]: {
           default: null,
-          // DOM 을 거치지 않는다 — 이 값은 화면에 그릴 것이 아니라 JSON 에만 사는 값이다.
-          rendered: false,
+          parseHTML: (element) => element.getAttribute("data-block-id"),
+          renderHTML: (attributes) =>
+            attributes[BLOCK_ID_ATTR] ? { "data-block-id": attributes[BLOCK_ID_ATTR] } : {},
         },
       },
     }];

@@ -298,6 +298,10 @@ export const USER_SEG_PATHS = [
   "/me", "/my-tickets", "/unassigned", "/new-ticket", "/tickets", "/team-tickets",
   "/chat", "/chat-rooms", "/sprint", "/work-board", "/board", "/ideas", "/team-docs", "/games",
   "/knowledge",
+  // AI 작업공간(S10). `/knowledge` 와 같은 부류다 — 자기 사이드바 항목이 없고 사용자
+  // 콘솔이 소유한다. 여기 빠뜨리면 관리자군이 이 화면을 열 때 사이드바가 통째로 관리자
+  // 메뉴로 바뀐다(`/projects`·`/search`·`/notifications` 가 전부 그 결함을 겪었다).
+  "/ai",
   // 프로젝트는 사용자 콘솔 소유다. 관리자 세그먼트에 두면 관리자군이 프로젝트를 열 때
   // 사이드바가 관리자 메뉴로 통째로 바뀌고, 그 메뉴에는 프로젝트 항목이 없어 선택이 사라진다.
   "/projects",
@@ -413,6 +417,12 @@ export const ROUTE_OWNER = {
    * IA 를 다시 짜는 것은 Phase E(S19)의 일이다. 그때 이 화면이 자기 슬롯을 갖게 되면
    * 이 줄을 지운다. */
   "/knowledge": "/team-docs",
+  /* AI 작업공간(S10)도 **자기 사이드바 항목이 없다.** 「내 업무」가 이미 여섯 항목이고
+   * (`nav-ia-taxonomy.test.js` — "넘으면 서랍이 아니라 목록이다") IA 를 다시 짜는 것은
+   * Phase E 의 일이다. 그래서 입구를 「AI 도우미」 화면에 두고 소속도 그쪽으로 적는다 —
+   * 사용자에게 그 둘은 같은 종류의 일이고, S11 이 n8n 경로를 걷어내면 실제로 한 화면이
+   * 될 자리다. */
+  "/ai": "/chat",
   "/departments": "/organizations",
   "/org-tree": "/organizations",
 };

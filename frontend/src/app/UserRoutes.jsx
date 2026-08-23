@@ -49,6 +49,9 @@ const WorkBoard = React.lazy(() => import("../screens/WorkBoard.jsx").then((m) =
  * 목록만 보는 사람은 편집기를 아예 안 받는다. */
 const Knowledge = React.lazy(() => import("../screens/Knowledge.jsx").then((m) => ({ default: m.Knowledge })));
 const KnowledgeDoc = React.lazy(() => import("../screens/KnowledgeDoc.jsx").then((m) => ({ default: m.KnowledgeDoc })));
+/* AI 작업공간(S10). 늦게 싣는 이유는 다른 화면들과 같다 — 이 화면을 안 여는 사람의
+ * 첫 로딩에 그 무게를 얹지 않는다. */
+const AiWorkspace = React.lazy(() => import("../screens/AiWorkspace.jsx").then((m) => ({ default: m.AiWorkspace })));
 
 /* 라우트 청크가 통째로 아직 없다 — 회색 줄 여섯 개는 "무언가 온다"까지만 말하고, 실제
  * 화면이 도착하면 제목·지표·본문이 한꺼번에 튀어 들어온다. 들어올 배치를 미리 잡는다
@@ -118,6 +121,8 @@ function UserRoutes() {
           react-router 가 더 구체적인 경로를 먼저 고르기 때문이다. */}
       <Route path="/knowledge" element={<Lazy><Knowledge /></Lazy>} />
       <Route path="/knowledge/:id" element={<Lazy><KnowledgeDoc /></Lazy>} />
+      {/* AI 작업공간(S10) — 사내 문서에서 근거를 찾아 답하고 그 자리로 데려간다. */}
+      <Route path="/ai" element={<Lazy><AiWorkspace /></Lazy>} />
       <Route path="/chat" element={<div className="c-chat-embed"><Lazy><Chat /></Lazy></div>} />
       {/* 두 경로가 **같은 껍데기**를 그린다(S1). 오른쪽 칸만 바뀌므로 방을 옮겨도 목록이
           그대로 있고, 알림 딥링크(`/chat-rooms/<id>`)와 새로고침·뒤로가기도 그대로 동작한다. */}

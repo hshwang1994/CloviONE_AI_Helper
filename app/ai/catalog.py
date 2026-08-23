@@ -37,6 +37,12 @@ EMBEDDING_VERSION = "1"
 #: 것은 설정 한 줄이 아니라 **마이그레이션 + 전량 재색인**이다 (D-211 상향 경로).
 VECTOR_DIM = 384
 
+#: 전문검색 설정 이름. **인덱스와 질의가 같은 값을 써야 한다** — 다르면 색인은 A 로
+#: 토큰을 만들고 질의는 B 로 만들어서, 오류 하나 없이 결과만 조용히 비뜨거나 인덱스를
+#: 못 탄다. `simple` 인 이유는 PG 에 한국어 stemmer 가 없기 때문이고(그래서 FTS 는
+#: 어절 정확일치만 한다), 그 한계가 곧 D-209 가 후보 생성을 트라이그램에 맡긴 이유다.
+FTS_CONFIG = "simple"
+
 
 @dataclass(frozen=True)
 class EmbeddingModel:

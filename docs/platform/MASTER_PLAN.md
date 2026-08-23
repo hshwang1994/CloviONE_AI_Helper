@@ -504,7 +504,7 @@ Dry Run 완료 → 전체 검증 → 최종 Backup → Maintenance Mode → 마�
 | S | 이름 | 핵심 산출 | Exit 조건 |
 |---|---|---|---|
 | **S9** ✅ | AI Platform 1 — Gateway · Pipeline | `app/ai/gateway` contract/registry/adapters · 모델명 하드코딩 2곳 제거 · Parser(PDF/DOCX/PPTX/XLSX) · Chunk · Embedding · **`index` worker lane** · Index Lifecycle · Prompt Injection 경계 확대 · Installer Stage 12 + `-index` 유닛 | **완료 (2026-08-23)** — 생성 Adapter 를 끈 채로 실 모델 **17/17 PASS**([`EVIDENCE/S9/`](EVIDENCE/S9/README.md)) · 임베딩 모델까지 없어도 chunk 는 서고 벡터 칸만 NULL · injection 회귀 13건 · `document_chunks` 에 **권한 컬럼이 없다**(D-256). 결정 **D-254~D-259** |
-| **S10** | AI Platform 2 — Retrieval · Citation · 생성 | Hybrid Retrieval(pg_trgm ⊕ FTS ⊕ pgvector, **RRF — Re-rank 없음, D-212 · D-255**) · **권한을 LIMIT 앞에** · Citation 앵커 · AI 작업공간 · AI 문서 생성(`source_type=AI`) · **융합 가중치를 실제 relevance 로 재조정**(D-209 초기값에서 출발) · **실 본문으로 임베딩 모델 재검토**(D-211) | **권한 없는 사용자 질의 시 Context 미포함을 음성 테스트로 증명** · Citation 클릭 이동 · 생성 Provider 차단 시 검색/인용 계속 동작 |
+| **S10** ✅ | AI Platform 2 — Retrieval · Citation · 생성 | `app/ai/retrieval`(query·fusion·citation·service·answer) · `0008` 키워드 인덱스 둘 · **권한을 LIMIT 앞에** · Citation 앵커 → `?block=` · `/api/ai` 넷 · AI 작업공간 화면 · AI 문서 생성(`source_type=AI`) · **융합 가중치 실측 재조정**(D-260) · **벡터 거리 상한**(D-261) · **임베딩 모델 재검토**(D-262) | **완료 (2026-08-23)** — 권한 음성 시험 10건이 **Context 에 안 들어감**을 모델에 넘어간 문자열로 증명 · 인용이 블록 앵커까지 이동 · 생성 차단 상태에서 검색·인용 정상. 융합 MRR@10 **0.7553 → 0.8869**. 결정 **D-260~D-264**, 원장 [`EVIDENCE/S10/`](EVIDENCE/S10/README.md) |
 | **S11** | n8n · 외부 Runner 제거 | 워크플로 Export 보관 · 잔여 로직 이관 확인 · n8n + 3 runner 서비스 정지·제거 · 포트/유닛/백업/테스트/문서 정리 · `validate-*.sh:23` n8n 단언 제거 | 5678/5679/8787/8788/8789 미청취 · 회귀 통과 · Installer 에서 n8n 흔적 0 |
 
 #### Phase D — 운영 · 이관
@@ -673,7 +673,7 @@ python -m scripts.ui_qa.run --label final --fail-on <승격 클래스…>
 | R14 | **설치 자동화를 마지막에 몰면 실패한다** | **골격 해소, 계약은 계속** | S4 가 골격을 세웠고 리허설로 확인했다. 남은 위험은 「이후 Session 이 자기 Component 의 Stage 를 안 넣는 것」이라 Stage 12·13 이 **소스에 Component 가 생겼는데 Stage 가 비어 있으면 FAIL** 을 낸다(D-227) — 문서가 아니라 스크립트가 §6.1 을 지킨다 | ~~S4~~ · S5~ |
 | R15 | **LXD 컨테이너 리허설이 실 VM 과 다르다** | **절반 해소** | 재부팅 축은 닫혔다 — 이 서버에 `/dev/kvm` 이 없어 LXD VM 을 못 써서 **테스트 서버 자체를 재부팅**했다(D-229). **Storage 축도 닫혔다** — S8 이 컨테이너가 아니라 **테스트 서버 호스트에서** 실 NFS·실 SMB 로 16항을 돌렸고 실 재부팅까지 포함했다. 컨테이너 통과를 "설치 검증 완료" 라고 쓰지 않는 규칙은 그대로다 | ~~S4~~ · ~~S8~~ · S22 |
 | R16 | GitLab Repository 가 아직 없다(현 origin=GitHub) | **완화** | Installer 가 Remote 중립으로 완성됐다 — `--git-remote`/`--ref` 를 받고 없으면 `installed_manifest.json` 에서 읽는다. `--source local|bundle` 로 오프라인 경로도 그대로다(리허설이 `local` 경로로 돈다). 주소가 정해지면 **설정만** 바꾼다 | 외부 입력 대기 |
-| R17 | pgvector 0.6.0 의 검색 품질/지연이 요구에 못 미칠 수 있다 | 검색 체감 저하 | **Version 결정(D-188)은 확정이고 이 Risk 의 대상이 아니다.** 인덱스 파라미터와 하이브리드 가중치로 대응 | S1·S10 |
+| ~~R17~~ | pgvector 0.6.0 의 검색 품질/지연이 요구에 못 미칠 수 있다 | — | **해소 (S10)** — 가중치를 실측으로 다시 정해 MRR@10 0.7553 → **0.8869**(D-260), 벡터 레인에 거리 상한(D-261), 지연은 세 레인 p50 1~3.4ms. 모델 재검토도 끝났다(D-262) | S1 ✅ · S10 ✅ |
 | R18 | Ticket canonical_key Trigger 가 대량 UPDATE 에서 느릴 수 있다 | Project Key 변경 시 지연 | Key 변경은 드문 명시적 Migration 동작. 프로젝트당 최대 416건이라 실질 영향 없음. 트랜잭션 시간 측정·기록 | S6 |
 
 ---

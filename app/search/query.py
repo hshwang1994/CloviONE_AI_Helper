@@ -86,10 +86,19 @@ def mode_for(query: str) -> str:
     return MODE_TRGM if len(query.replace(" ", "")) >= MIN_TRGM_CHARS else MODE_LIKE
 
 
-def _pattern(text: str) -> str:
-    """`ILIKE` 패턴 하나. `\\`·`%`·`_` 를 escape 한다(순서가 중요하다 — `\\` 가 먼저다)."""
+def ilike_pattern(text: str) -> str:
+    """`ILIKE` 패턴 하나. `\\`·`%`·`_` 를 escape 한다(순서가 중요하다 — `\\` 가 먼저다).
+
+    **공개 이름인 이유**: AI Retrieval 의 트라이그램 레인이 같은 escape 를 쓴다
+    (`app/ai/retrieval/query.py`). 두 벌로 적으면 한쪽만 `\\` 를 먼저 바꾸는 날이 오고,
+    그때 `%` 하나가 든 질의가 조용히 전 행에 걸린다.
+    """
     escaped = text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
     return f"%{escaped}%"
+
+
+#: 옛 이름. 이 파일 안에서만 쓴다.
+_pattern = ilike_pattern
 
 
 def _contains(pattern: str):
@@ -100,8 +109,13 @@ def _contains(pattern: str):
     )
 
 
-def trgm_clause(query: str):
-    """3자 이상 질의의 조건. 트라이그램 GIN 이 받는다.
+def trgm_condition(query: str, contains):
+    """트라이그램 조건 하나. `contains(pattern) -> 조건` 을 주면 어느 표에든 건다.
+
+    **공개 이름인 이유**: AI Retrieval 의 트라이그램 레인이 같은 가지를 쓴다
+    (`app/ai/retrieval/query.py`). 두 벌로 적으면 한쪽에만 낱말 가지가 생기고, 그러면
+    「검색에서는 나오는데 AI 는 못 찾는다」가 된다 — 실제로 S10 이 그 상태를 한 번
+    만들었고 융합 실측에서 「기억나는 대로」 질의의 MRR 이 0.01 로 나왔다.
 
     기본은 **질의 전체를 한 덩이로** 본다 — 트라이그램은 공백까지 포함해 색인하므로
     `린트 회` 가 `스프린트 회의록 정리` 에 걸린다.
@@ -111,11 +125,16 @@ def trgm_clause(query: str):
     하나라도 섞이면 그 조합은 붙이지 않는다 — 그 낱말은 인덱스를 못 타서 AND 전체를
     전량 스캔으로 끌어내린다.
     """
-    branches = [_contains(_pattern(query))]
+    branches = [contains(ilike_pattern(query))]
     words = query.split()
     if len(words) > 1 and all(len(w) >= MIN_TRGM_CHARS for w in words):
-        branches.append(and_(*[_contains(_pattern(w)) for w in words]))
+        branches.append(and_(*[contains(ilike_pattern(w)) for w in words]))
     return or_(*branches)
+
+
+def trgm_clause(query: str):
+    """3자 이상 질의의 조건. 트라이그램 GIN 이 받는다."""
+    return trgm_condition(query, _contains)
 
 
 def like_clause(query: str):

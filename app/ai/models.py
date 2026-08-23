@@ -46,7 +46,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.types import UserDefinedType
 
-from app.ai.catalog import VECTOR_DIM
+from app.ai.catalog import FTS_CONFIG, VECTOR_DIM
 from app.core.models_base import Base, UUIDPrimaryKeyMixin, utcnow
 
 # ── 색인 대상의 종류 ─────────────────────────────────────────────────────────
@@ -226,6 +226,26 @@ class DocumentChunk(UUIDPrimaryKeyMixin, Base):
         Index(
             "ix_chunk_pending_embedding", "document_id",
             postgresql_where=text("embedding IS NULL"),
+        ),
+        # ── 키워드 두 레인 (S10 · D-209) ──────────────────────────────────────
+        #
+        # **후보 생성의 정본은 트라이그램이다.** 한국어는 조사·접미가 어절에 붙어서
+        # 어절 내부 부분일치가 예외가 아니라 기본이고, PG 의 전문검색은 그것을 못 한다
+        # (S1 실측 recall 0.083 대 1.000).
+        #
+        # FTS 를 함께 거는 것은 recall 때문이 아니라 **어절 정확일치를 판별하기**
+        # 위해서다 — 융합 가중치가 그 사실을 그대로 적는다(`app/ai/retrieval/fusion.py`).
+        #
+        # S9 가 이 둘을 안 만든 이유도 적어 둔다: 그때는 아무도 이 컬럼으로 검색하지
+        # 않았고, 안 쓰는 인덱스는 chunk 를 넣을 때마다 쓰기만 늘린다.
+        Index(
+            "ix_chunk_text_trgm", "text",
+            postgresql_using="gin", postgresql_ops={"text": "gin_trgm_ops"},
+        ),
+        Index(
+            "ix_chunk_text_fts",
+            text(f"to_tsvector('{FTS_CONFIG}', text)"),
+            postgresql_using="gin",
         ),
     )
 

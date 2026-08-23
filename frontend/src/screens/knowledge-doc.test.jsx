@@ -30,7 +30,11 @@ vi.mock("../ui/kit.jsx", async (importOriginal) => {
   const actual = await importOriginal();
   return {
     ...actual,
-    useToast: () => ({ show: (m) => toasts.push(m) }),
+    /* 🔴 `useToast()` 는 **함수**를 돌려준다(kit.jsx 의 `ToastCtx.Provider value={push}`).
+       예전에는 이 대역이 `{ show }` 객체였고, 그래서 화면이 `toast.show(...)` 를 부르는
+       동안에도 시험이 초록이었다 — 실제 브라우저에서는 그 줄이 전부 TypeError 였다.
+       대역이 진짜 계약과 다르면 시험은 제품이 아니라 대역을 확인한다. */
+    useToast: () => (m) => toasts.push(m),
     useConfirm: () => async () => true,
   };
 });
