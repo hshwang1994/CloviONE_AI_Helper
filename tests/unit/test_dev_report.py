@@ -13,6 +13,13 @@ from app.notion_mapping.models import STATUS_VERIFIED, UserNotionMapping
 from app.reports import notion_source
 from app.reports.service import build_dev_monthly_report, month_range
 
+# 이 파일은 **Notion 저장소 구현체**를 시험한다 — 픽스처가 전부 가짜 Notion 서버다.
+# 제품 기본 소스는 S14 부터 `native` 이므로 여기서 되돌려 놓는다. 안 되돌리면 이 시험들이
+# 빈 결과 위에서 통과하거나(거짓 초록) 엉뚱한 오류로 죽는다.
+#
+# 이 표는 동시에 **Notion 을 걷어낼 때 다시 쓸 파일의 목록**이다.
+pytestmark = pytest.mark.notion_source
+
 
 class _Resp:
     def __init__(self, status_code: int, body: dict):

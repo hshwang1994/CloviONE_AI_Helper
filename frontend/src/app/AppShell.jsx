@@ -64,7 +64,7 @@ const APPBAR_HEIGHT = { xs: 52, xxl: 60, uhd: 68 };
 
 /* 그룹 접힘 상태는 새로고침에도 유지한다(테마와 같은 이유). 5그룹 20여 항목 트리를 접어
  * 정리한 배치가 새로고침마다 초기화되던 문제. 공용 PC를 위해 계정별로 키를 나눈다. */
-const NAV_COLLAPSE_KEY = "clovirone_nav_collapsed";
+const NAV_COLLAPSE_KEY = "clovirassist_nav_collapsed";
 function navCollapseKey(userId) { return userId ? NAV_COLLAPSE_KEY + ":" + userId : NAV_COLLAPSE_KEY; }
 function getStoredCollapsed(userId) {
   try {
@@ -270,7 +270,7 @@ function SidebarNav({ groups, activePath, onNavigate, userId, showFilter, groups
 
   /* `userId` 가 **마운트 뒤에 바뀌면** 그 계정의 접힘 기록을 다시 읽는다.
    *
-   * 접힘 키는 계정별이다(`clovirone_nav_collapsed:<userId>`) — 공용 PC 에서 남의 배치가
+   * 접힘 키는 계정별이다(`clovirassist_nav_collapsed:<userId>`) — 공용 PC 에서 남의 배치가
    * 넘어오지 않게 나눠 둔 것이다. 그런데 `useState` 초기화 함수는 **한 번만** 돌기 때문에,
    * 이 컴포넌트가 마운트된 채로 신원이 바뀌는 경로(대리 보기 시작·종료, 재로그인 handoff)
    * 에서는 앞 계정의 상태가 그대로 남는다. 더 나쁜 것은 그 다음 `toggle` 이 **새 계정의

@@ -78,12 +78,12 @@ DROPPED_COLUMNS: dict[tuple[str, str], str] = {
 #          거절한다(0003).
 #
 # `projects.code` 는 더 조용하고 더 나쁘다. 소스에서 22건 전부 NULL 이라, 2회차 복사가
-# 1회차에 붙인 Project Key 를 **지운다** — 그러면 `canonical_key` 를 만들 근거가
-# 사라지고 `project_key_registry` 와 어긋난다.
+# 1회차에 붙인 코드를 **지운다** — 그러면 `canonical_key` 를 만들 근거가 사라지고,
+# 「같은 프로젝트는 회차가 달라도 같은 코드」라는 계약도 함께 무너진다(D-282).
 #
 # 값 하나에 주인은 하나다.
 DERIVED_COLUMNS: dict[tuple[str, str], str] = {
-    ("projects", "code"): "Project Key 는 `apply_confirmed` 가 정한다(D-243).",
+    ("projects", "code"): "프로젝트 코드는 `assign_project_codes` 가 짓는다(D-282).",
     ("ticket_cache", "project_uid"): "소속은 재채번이 소스 relation 에서 다시 푼다(U11).",
     ("ticket_cache", "project_link"): "같은 판정의 결과다. 재채번이 함께 적는다.",
 }

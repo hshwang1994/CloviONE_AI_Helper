@@ -33,33 +33,41 @@ PROJECT_ID = "11111111-1111-1111-1111-111111111111"
 OTHER_PROJECT_ID = "22222222-2222-2222-2222-222222222222"
 
 
-def _seed_projects(url: str) -> None:
-    """Key 를 가진 프로젝트 둘. 두 번째는 **번호 공간이 따로**임을 보이는 데 쓴다.
+def _seed_projects(url: str) -> dict[str, str]:
+    """코드를 가진 프로젝트 둘. 두 번째는 **번호 공간이 따로**임을 보이는 데 쓴다.
 
     ORM 으로 만든다 — 원시 INSERT 는 모델 기본값(`notion_owner_ids` 등)을 안 채워서
     시험이 제품과 무관한 NOT NULL 위반으로 죽는다.
+
+    코드는 **제품의 생성기가 짓는다**(`app/work/codes.py`, D-282). 시험이 `"RACE"` 처럼
+    읽기 좋은 문자열을 직접 고르면 그 값이 정책의 여섯 글자 알파벳과 갈라지고, 갈라진
+    사실은 DB 의 `ck_projects_code_shape` 가 INSERT 를 거절할 때까지 아무에게도 안 보인다.
+
+    지어진 코드를 돌려주는 이유는 아래 시험이 `<CODE>-<SEQ>` 를 글자 그대로 비교하기
+    때문이다. 기대값을 손으로 적어 두면 생성기가 바뀌는 날 제품이 아니라 시험이 먼저
+    틀리고, 그 빨간불은 채번과 아무 관계가 없다.
     """
     from app.org.constants import DEFAULT_ORG_ID
     from app.projects.models import Project
-    from app.work.models import KEY_ACTIVE, ProjectKeyRegistry
+    from app.work import codes
 
     engine = make_engine(url)
     factory = make_session_factory(engine)
+    minted: dict[str, str] = {}
     try:
         with factory() as db:
-            for pid, name, code in (
-                (PROJECT_ID, "채번 프로젝트", "RACE"),
-                (OTHER_PROJECT_ID, "다른 프로젝트", "OTHER"),
+            for pid, name in (
+                (PROJECT_ID, "채번 프로젝트"),
+                (OTHER_PROJECT_ID, "다른 프로젝트"),
             ):
-                db.add(
-                    Project(id=pid, name=name, code=code, org_id=DEFAULT_ORG_ID)
+                project = codes.insert_with_code(
+                    db, Project(id=pid, name=name, org_id=DEFAULT_ORG_ID)
                 )
-                db.add(
-                    ProjectKeyRegistry(key=code, project_id=pid, state=KEY_ACTIVE)
-                )
+                minted[pid] = project.code
             db.commit()
     finally:
         engine.dispose()
+    return minted
 
 
 def _allocate_and_insert(url: str, barrier: threading.Barrier, index: int) -> tuple[str, object]:
@@ -121,7 +129,7 @@ def test_concurrent_creation_never_duplicates_and_stays_contiguous(db_url):
     다른 쪽 결함에 초록을 찍는다 — 예를 들어 번호가 1,1,3,4… 면 중복만 보는 시험은
     잡지만 연속만 보는 시험은 개수가 맞아 통과한다.
     """
-    _seed_projects(db_url)
+    project_codes = _seed_projects(db_url)
     barrier = threading.Barrier(THREADS)
 
     with ThreadPoolExecutor(max_workers=THREADS) as pool:
@@ -138,7 +146,9 @@ def test_concurrent_creation_never_duplicates_and_stays_contiguous(db_url):
     rows = _read_rows(db_url)
     assert [r[0] for r in rows] == list(range(1, THREADS + 1))
     # 표시 이름은 **트리거가** 만든다. 앱은 canonical_key 를 한 번도 쓰지 않았다.
-    assert [r[1] for r in rows] == [f"RACE-{n}" for n in range(1, THREADS + 1)]
+    # 기대값의 앞부분은 이 프로젝트가 실제로 받은 코드다 — 시험이 고른 값이 아니다.
+    code = project_codes[PROJECT_ID]
+    assert [r[1] for r in rows] == [f"{code}-{n}" for n in range(1, THREADS + 1)]
 
 
 def test_rollback_does_not_consume_a_number(db_url):

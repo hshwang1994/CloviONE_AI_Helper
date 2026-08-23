@@ -348,7 +348,7 @@ describe("행 높이와 접힘 기본값", () => {
   });
 
   it("마운트 뒤 신원이 바뀌면 **그 계정의** 접힘 기록을 다시 읽는다 (대리 보기·재로그인)", async () => {
-    /* 접힘 키는 계정별이다(`clovirone_nav_collapsed:<userId>`) — 공용 PC 에서 남의 배치가
+    /* 접힘 키는 계정별이다(`clovirassist_nav_collapsed:<userId>`) — 공용 PC 에서 남의 배치가
        넘어오지 않게 나눈 것이다. 그런데 `useState` 초기화 함수는 한 번만 도니까, 이 컴포넌트가
        마운트된 채로 신원이 바뀌면(대리 보기 시작·종료, 재로그인 handoff) 앞 계정의 상태가
        남고 다음 `toggle` 이 **새 계정 키에 앞 계정 상태를 쓴다** — 키를 나눈 이유가 그
@@ -356,7 +356,7 @@ describe("행 높이와 접힘 기본값", () => {
        평상시 새로고침은 이 경로가 아니다(셸이 `auth.isLoading` 동안 스켈레톤을 그려
        `SidebarNav` 는 userId 가 있는 채로 마운트된다). 여기서는 신원이 **뒤늦게** 들어오는
        순서를 실제 훅으로 재현한다. */
-    window.localStorage.setItem("clovirone_nav_collapsed:u1", JSON.stringify({ "팀 공간": true }));
+    window.localStorage.setItem("clovirassist_nav_collapsed:u1", JSON.stringify({ "팀 공간": true }));
     authMock.mockImplementation(function useLateAuth() {
       const [data, setData] = React.useState(undefined);
       React.useEffect(() => { setData({ role: "user", id: "u1" }); }, []);
@@ -414,13 +414,13 @@ describe("행 높이와 접힘 기본값", () => {
        것으로 기록된다 — `sidebar-group-sticky-open.test.jsx`). 뒤의 절반이 이 Wave 가
        더한 것이다: 기록이 **없는** 그룹은 활성이어도 저장하지 않는다. 그래야 화면 형편으로
        접힌 상태가 사용자 선택으로 굳지 않는다. */
-    window.localStorage.setItem("clovirone_nav_collapsed:u1", JSON.stringify({ "팀 공간": true }));
+    window.localStorage.setItem("clovirassist_nav_collapsed:u1", JSON.stringify({ "팀 공간": true }));
     renderShell({ nav: USER_NAV, isUser: true, initialPath: "/chat-rooms", role: "user" });
     const nav = await screen.findByRole("navigation");
     await waitFor(() =>
       expect(within(nav).getByRole("button", { name: /팀 공간/ }))
         .toHaveAttribute("aria-expanded", "true"));
-    const stored = JSON.parse(window.localStorage.getItem("clovirone_nav_collapsed:u1"));
+    const stored = JSON.parse(window.localStorage.getItem("clovirassist_nav_collapsed:u1"));
     expect(stored["팀 공간"], "명시적으로 접었던 그룹이 활성 진입으로 펼침 기록이 된다").toBe(false);
     for (const name of ["내 업무", "팀 업무", "내 정보"]) {
       expect(name in stored, `${name} 는 사용자가 손댄 적이 없는데 기록이 생겼다`).toBe(false);

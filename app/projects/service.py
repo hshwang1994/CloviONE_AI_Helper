@@ -16,14 +16,11 @@ import logging
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from sqlalchemy import func, select
-from sqlalchemy.exc import IntegrityError, OperationalError
-
 from app.core.dates import iso_date, parse_date
-from app.core.db import is_insert_race
-from app.core.errors import ConflictError, NotFoundError, ValidationAppError
+from app.core.errors import NotFoundError, ValidationAppError
 from app.authz.visibility import visibility_context
 from app.core import ownership
 from app.core.models_base import split_names
@@ -53,7 +50,7 @@ from app.projects.models import (
 from app.projects.progress import ProgressResult, compute_progress
 from app.projects.schemas import ProjectCreate, ProjectUpdate
 from app.projects.wbs import WbsResult, build_wbs, wbs_item_from_ticket
-from app.work import keys as work_keys
+from app.work import codes as work_codes
 
 # 범위 밖과 없는 것은 **같은 문구**로 답한다. 문구가 갈리면 응답 본문만 읽어도 존재 여부가
 # 새어 나가고, 그러면 404 로 만든 의미가 없다.
@@ -68,14 +65,15 @@ NOT_FOUND_MESSAGE = "프로젝트를 찾을 수 없습니다."
 # 지시). 반대로 `notion_progress_pct` / `notion_missing_at` / `notion_synced_at` 은 없다 —
 # 저것들은 저쪽이 말한 사실이지 사람이 정하는 값이 아니고, 손으로 고칠 수 있게 두면 화면이
 # 자기가 보고 싶은 숫자를 써 넣을 수 있다.
-# `code` 는 **여기 없다** (S6). 그 컬럼은 이제 Project Key 이고, 소유가 영구다(D-196).
+# `code` 는 **여기 없다** (D-282). 서버가 짓고 **아무도 못 고친다** — 바꾸는 입구가
+# 제품 어디에도 없다.
 #
-# 예전에는 이 목록에 있어서 PATCH 한 번으로 갈아 끼울 수 있었다. 지금 그렇게 하면 세 가지가
-# 조용히 깨진다: 대장(`project_key_registry`)이 모르는 Key 가 생기고, 옛 canonical 이
-# 별칭으로 안 남아 **옛 링크가 전부 죽고**, 티켓의 `canonical_key` 는 트리거를 안 타서
-# 옛 Key 그대로 남는다. 셋 다 오류를 내지 않는다.
+# 예전에는 이 목록에 있었고, 그 뒤에는 전용 입구(`PUT .../key`)가 있었다. 둘 다 없앤
+# 이유는 하나다: 코드가 바뀌면 그 프로젝트 티켓 전부의 `canonical_key` 가 바뀌고,
+# **어제 공유한 링크가 오늘 아무 데도 닿지 않는다.** 그 링크는 문서·대화·메일에 이미
+# 뿌려져 있어서 되돌릴 방법이 없다.
 #
-# 유일한 입구는 `PUT /api/work/projects/{id}/key` 다(`app/work/keys.py::claim`·`change`).
+# 이름은 얼마든지 바꿔도 된다. 코드는 이름에서 오지 않는다.
 EDITABLE_FIELDS = (
     "name", "status", "dept_id", "owner_user_id",
     "starts_on", "ends_on", "goal", "biz_type", "product", "notion_status",
@@ -161,27 +159,6 @@ def ensure_dept_in_scope(db: Session, principal: Principal, dept_id: str | None)
         raise NotFoundError(NOT_FOUND_MESSAGE)
 
 
-def ensure_code_is_free(
-    db: Session, code: str | None, org_id: str | None, *, exclude_id: str | None = None
-) -> None:
-    """프로젝트 코드는 **조직 안에서만** 유일하다(`uq_projects_org_code`).
-
-    제약에 맡기고 IntegrityError 를 흘리면 사용자는 500 을 본다. 미리 보고 409 로 답한다
-    (`app/org/service.py::create_named` 와 같은 관용).
-
-    중복을 **만들려는 조직 안에서만** 찾는 것이 중요하다. 전역으로 보면 남의 조직이 어떤
-    코드를 쓰는지 409 응답으로 하나씩 확인할 수 있다.
-    """
-    if not code:
-        # NULL 은 서로 다른 값이다(SQLite). 코드 없는 프로젝트는 몇 개든 있을 수 있다.
-        return
-    stmt = select(Project.id).where(Project.code == code, Project.org_id == org_id)
-    if exclude_id is not None:
-        stmt = stmt.where(Project.id != exclude_id)
-    if db.execute(stmt).first() is not None:
-        raise ConflictError(f"이미 있는 프로젝트 코드입니다: {code}")
-
-
 def create_project(
     db: Session, payload: ProjectCreate, principal: Principal, *, now: datetime
 ) -> Project:
@@ -194,17 +171,9 @@ def create_project(
     dept_id = payload.dept_id if payload.dept_id else principal.department_id
     ensure_dept_in_scope(db, principal, dept_id)
     org_id = principal.org_id or DEFAULT_ORG_ID
-    # `code` 는 Project Key 다 (S6 · §5.2). 모양을 **여기서 먼저** 맞춘다 — 아래 유니크
-    # 검사와 대장 등록이 같은 문자열(대문자 정규화 후)을 봐야 하고, 모양이 틀렸다면
-    # 행을 만들기 전에 거절하는 편이 정직하다.
-    code = work_keys.validate(payload.code) if payload.code else None
-    # 검사와 저장이 **같은 식**으로 조직을 정한다. 두 벌이 되면 검사가 통과한 뒤 저장이
-    # 유니크 제약에 걸린다(app/org/service.py 가 같은 함정을 기록한다).
-    ensure_code_is_free(db, code, org_id)
 
     project = Project(
         name=payload.name,
-        code=code,
         status=payload.status,
         dept_id=dept_id,
         org_id=org_id,
@@ -217,24 +186,10 @@ def create_project(
         created_at=now,
         updated_at=now,
     )
-    try:
-        # PROJ-01: 위 ensure_code_is_free는 순차 요청에서만 409를 준다 — 두 요청이 같은
-        # (org_id, code)로 동시에 도착하면 둘 다 그 사전검사를 통과할 수 있다. SAVEPOINT로
-        # 감싸 진 쪽의 uq_projects_org_code 위반이 세션 전체를 망가뜨리지 않게 하고, 같은
-        # 메시지의 409로 두 경로를 수렴시킨다(profiles/service.py::create_view와 같은 관용).
-        with db.begin_nested():
-            db.add(project)
-            db.flush()
-    except (IntegrityError, OperationalError) as exc:
-        if not is_insert_race(exc):
-            raise
-        raise ConflictError(f"이미 있는 프로젝트 코드입니다: {payload.code}") from exc
-    # **대장에도 등록한다** (S6 · D-196). 여기가 빠지면 `projects.code` 에는 Key 가
-    # 있는데 `project_key_registry` 는 그것을 모르는 상태가 되고, 다른 조직의 프로젝트가
-    # 같은 이름을 가져갈 수 있다 — Key 소유가 영구라는 근거가 무너진다.
-    #
-    # 위 `db.add(project)` 다음이라야 FK 가 성립한다.
-    work_keys.register_existing(db, project=project, now=now)
+    # 코드를 붙이면서 넣는다 (D-282). 사용자는 코드를 안 골랐으므로 겹쳐도 409 를 주지
+    # 않는다 — 서버가 다음 후보로 다시 지어서 **성공시킨다.** 그 재시도와 SAVEPOINT
+    # 는 전부 `work_codes.insert_with_code` 안에 있다.
+    work_codes.insert_with_code(db, project)
     return project
 
 
@@ -258,14 +213,9 @@ def update_project(
     if "dept_id" in given:
         # 남의 팀으로 옮기면 그 행은 내 범위에서 사라진다 — 되돌릴 수도 없다.
         ensure_dept_in_scope(db, principal, payload.dept_id)
-    if "code" in given and (payload.code or None) != project.code:
-        # **여기서 조용히 무시하지 않는다.** `code` 는 이제 Project Key 이고 소유가
-        # 영구다(D-196). 이 경로로 갈아 끼우면 대장이 모르는 Key 가 생기고 옛 canonical 이
-        # 별칭으로 안 남아 옛 링크가 전부 죽는다. 요청을 받은 척하고 안 바꾸면 사용자는
-        # 저장됐다고 믿는다.
-        raise ValidationAppError(
-            "프로젝트 키는 여기서 바꿀 수 없습니다. 프로젝트 키 변경을 써 주세요."
-        )
+    # `code` 는 요청 스키마에 아예 없다 (D-282). 실려 오면 `extra="forbid"` 가 422 로
+    # 막으므로 여기서 다시 볼 것이 없다 — 이름을 바꾸는 이 경로가 코드를 못 건드린다는
+    # 것이 「이름 변경은 코드와 티켓 번호에 영향을 주지 않는다」의 실체다.
     for field in EDITABLE_FIELDS:
         if field not in given:
             continue
@@ -279,15 +229,7 @@ def update_project(
     # 낙관적 잠금 (S6). 저장할 때마다 1 씩 는다 — 안 올리면 같은 폼을 두 번 저장해도
     # 충돌이 안 잡히고, 잠금이 있는 척만 하는 상태가 된다.
     project.version = int(project.version or 1) + 1
-    try:
-        # PROJ-01: create_project와 같은 이유 — code를 동시에 같은 값으로 바꾸는 두 요청이
-        # 위 ensure_code_is_free를 둘 다 통과할 수 있다.
-        with db.begin_nested():
-            db.flush()
-    except (IntegrityError, OperationalError) as exc:
-        if not is_insert_race(exc):
-            raise
-        raise ConflictError(f"이미 있는 프로젝트 코드입니다: {payload.code}") from exc
+    db.flush()
     return project
 
 

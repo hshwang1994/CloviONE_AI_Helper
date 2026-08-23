@@ -132,11 +132,13 @@ def resolve_week(value: str | None, *, today: date) -> Week:
 class Item:
     """리포트 한 줄. `id` 는 앱 티켓 uid 라 화면이 /tickets/:id 로 딥링크할 수 있다.
 
-    raw Notion id 는 싣지 않는다(§12.3). `tid` 는 화면이 'GIT-101' 로 보여 주는 번호다.
+    raw Notion id 는 싣지 않는다(§12.3). `tid` 는 옛 소스가 매긴 번호이고 **이름이
+    아니다** — 화면과 요약이 부르는 이름은 `key`(`<CODE>-<SEQ>`)다 (D-282).
     """
 
     id: str
     tid: int | None
+    key: str | None
     title: str
     status: str | None
     due: str | None
@@ -144,7 +146,7 @@ class Item:
 
     def as_dict(self) -> dict:
         return {
-            "id": self.id, "tid": self.tid, "title": self.title,
+            "id": self.id, "tid": self.tid, "key": self.key, "title": self.title,
             "status": self.status, "due": self.due, "est_wd": self.est_wd,
         }
 
@@ -154,6 +156,7 @@ def item_from_ticket(row) -> Item:
     return Item(
         id=row.id,
         tid=row.notion_ticket_number,
+        key=row.canonical_key,
         title=row.title or "",
         status=row.status,
         due=iso_date(row.due_date),
@@ -323,7 +326,7 @@ RULE_NOTE = (
 
 
 def _line(item: dict) -> str:
-    head = f"GIT-{item['tid']}" if item.get("tid") else "번호 없음"
+    head = item.get("key") or "이름 없음"
     due = item.get("due") or "기한 없음"
     return f"- [{head}] {item['title']} ({item.get('status') or '상태 없음'}, 마감 {due})"
 

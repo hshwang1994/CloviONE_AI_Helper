@@ -246,7 +246,7 @@ function OffboardPlan({ preview, onDone, toast }) {
   const chosen = ids.filter((id) => selection.selected.has(id));
   const columns = [
     selectionColumn(selection, ids),
-    { key: "tid", label: "티켓", render: (t) => (t.tid != null ? "GIT-" + t.tid : "-") },
+    { key: "tid", label: "티켓", render: (t) => t.key || "-" },
     { key: "title", label: "제목" },
     { key: "status", label: "상태", render: (t) => <Badge value={t.status} /> },
     { key: "due", label: "마감", render: (t) => t.due || "-" },
@@ -408,7 +408,7 @@ function RunResult({ result }) {
 }
 
 const MOVE_COLUMNS = [
-  { key: "tid", label: "티켓", render: (m) => (m.tid != null ? "GIT-" + m.tid : m.ticket_page_id) },
+  { key: "tid", label: "티켓", render: (m) => m.key || m.ticket_page_id },
   { key: "title", label: "제목", render: (m) => m.title || "-" },
   { key: "status", label: "결과", render: (m) => <Badge value={MOVE_STATUS_KO[m.status] || m.status} kind={MOVE_STATUS_KIND[m.status]} /> },
   { key: "error", label: "사유", render: (m) => m.error || "-" },

@@ -207,8 +207,15 @@ def test_a_deleted_source_row_is_pruned(db, app, seeded):
 # ── 소스가 죽었을 때 ─────────────────────────────────────────────────────────
 
 
-def test_a_dead_ticket_source_keeps_the_existing_ticket_index(db, app, seeded):
-    """PLAN C4 와 같은 함정: 빈 목록을 prune 에 흘리면 장애가 데이터 소멸이 된다."""
+@pytest.mark.notion_source
+def test_a_dead_notion_ticket_source_keeps_the_existing_ticket_index(db, app, seeded):
+    """PLAN C4 와 같은 함정: 빈 목록을 prune 에 흘리면 장애가 데이터 소멸이 된다.
+
+    **미러 경로 전용이다** (S14). 「미러가 한 번도 성공한 적 없다」는 상태를 만들어
+    저장소를 실시간(미설정 → 예외)으로 보내는 방식인데, 자체 DB 경로에는 그 상태가
+    아예 없다 — 표가 정본이라 「아직 안 찼다」가 성립하지 않는다. 같은 성질을 자체 DB
+    에서 보는 시험은 바로 아래에 있다.
+    """
     _run(db, app)
     assert len(_by_kind(db, KIND_TICKET)) == 1
 
@@ -221,6 +228,35 @@ def test_a_dead_ticket_source_keeps_the_existing_ticket_index(db, app, seeded):
     assert result.status == "error" and "ticket" in (result.error or "")
     assert len(_by_kind(db, KIND_TICKET)) == 1, "소스 장애로 티켓 검색이 통째로 사라졌다"
     # 다른 유형은 계속 인덱싱된다(장애 격리).
+    assert _by_kind(db, KIND_BOARD)
+
+
+def test_a_dead_ticket_source_keeps_the_existing_ticket_index(db, app, seeded):
+    """같은 성질을 **자체 DB 경로**에서 본다 (S14).
+
+    자체 DB 라고 소스가 안 죽는 것이 아니다 — 질의가 실패하면 목록은 여전히 「없다」로
+    보이고, 그 빈 목록을 prune 에 흘리면 장애 한 번에 티켓 검색이 통째로 사라진다.
+    그것이 PLAN C4 가 이름 붙인 함정이고, 소스가 바뀐다고 없어지지 않는다.
+
+    실패를 저장소 **경계**에서 만든다. 표를 지우면 「없다」가 사실이 되어 prune 이 옳게
+    도는 것이라, 그때의 초록은 이 시험이 보려는 것과 정반대다.
+    """
+    _run(db, app)
+    assert len(_by_kind(db, KIND_TICKET)) == 1
+
+    class _DeadTickets:
+        def __getattr__(self, name):
+            def _boom(*a, **kw):
+                raise RuntimeError("ticket source is down")
+            return _boom
+
+    result = reindex_all(
+        db, tickets=_DeadTickets(),
+        documents=app.state.repositories.documents, now=LATER,
+    )
+    db.commit()
+    assert result.status == "error" and "ticket" in (result.error or "")
+    assert len(_by_kind(db, KIND_TICKET)) == 1, "소스 장애로 티켓 검색이 통째로 사라졌다"
     assert _by_kind(db, KIND_BOARD)
 
 

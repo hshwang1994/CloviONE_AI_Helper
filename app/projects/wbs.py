@@ -66,7 +66,11 @@ class WbsItem:
     task: Task
     title: str
     url: str | None = None
+    # 옛 소스의 번호. **형제 정렬에만** 쓴다 — 이름이 아니다.
     ticket_number: int | None = None
+    # 화면이 부르는 이름 `<CODE>-<SEQ>` (D-282). 화면이 접두사를 붙여 이름을 지어내면
+    # 그 문자열은 제품 어디에도 없는 이름이 된다.
+    ticket_key: str | None = None
 
 
 @dataclass(frozen=True)
@@ -79,6 +83,7 @@ class WbsNode:
     est_wd: float | None
     url: str | None
     ticket_number: int | None
+    ticket_key: str | None
     depth: int
     children: tuple["WbsNode", ...]
     progress: ProgressResult
@@ -91,6 +96,7 @@ class WbsNode:
             "est_wd": self.est_wd,
             "url": self.url,
             "ticket_number": self.ticket_number,
+            "ticket_key": self.ticket_key,
             "depth": self.depth,
             "progress": self.progress.as_dict(),
             "children": [c.as_dict() for c in self.children],
@@ -136,6 +142,7 @@ def wbs_item_from_ticket(row, parent_key: str | None = None) -> WbsItem:
         title=row.title or "",
         url=row.url,
         ticket_number=row.notion_ticket_number,
+        ticket_key=row.canonical_key,
     )
 
 
@@ -232,6 +239,7 @@ def build_wbs(items) -> WbsResult:
             est_wd=item.task.est_wd,
             url=item.url,
             ticket_number=item.ticket_number,
+            ticket_key=item.ticket_key,
             depth=depth,
             children=tuple(kids),
             # 하위 트리만 센다. 자기 자신은 자식이 있으면 `compute_progress` 가 부모로

@@ -9,7 +9,7 @@
  * 로그인 화면은 이 파일을 읽지 않는다. 인증 전이고, 히어로가 라이트 고정으로 설계돼 있다.
  */
 (function () {
-  var STORAGE_KEY = "clovirone_theme";
+  var STORAGE_KEY = "clovirassist_theme";
 
   function applyTheme(theme) {
     document.documentElement.setAttribute("data-theme", theme);

@@ -63,6 +63,7 @@
           "due": "2026-07-15",
           "est_wd": 1.5,
           "id": "page-0002",
+          "key": null,
           "priority": "보통",
           "project": "알파 프로젝트",
           "project_ids": [
@@ -100,6 +101,7 @@
           "due": "2026-07-15",
           "est_wd": 1.5,
           "id": "page-0002",
+          "key": null,
           "priority": "보통",
           "project": "알파 프로젝트",
           "project_ids": [
@@ -151,6 +153,7 @@
           "difficulty": "5",
           "due": "2026-07-15",
           "est_wd": 1.5,
+          "key": null,
           "overdue": false,
           "priority": "보통",
           "status": "완료",
@@ -182,6 +185,7 @@
           "difficulty": "5",
           "due": "2026-07-15",
           "est_wd": 1.5,
+          "key": null,
           "overdue": false,
           "priority": "보통",
           "status": "완료",
@@ -223,6 +227,7 @@
       "due": "2026-07-25",
       "est_wd": 0.5,
       "id": "page-0004",
+      "key": null,
       "priority": null,
       "project": "베타 프로젝트",
       "project_ids": [
@@ -261,6 +266,7 @@
       "due": "2026-07-25",
       "est_wd": 0.5,
       "id": "page-0004",
+      "key": null,
       "priority": null,
       "project": "베타 프로젝트",
       "project_ids": [

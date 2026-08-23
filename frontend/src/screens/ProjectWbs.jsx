@@ -54,9 +54,9 @@ function WbsRow({ node }) {
           py: 1, pl: `${steps * INDENT_REM}rem`, borderBottom: 1, borderColor: "divider", minWidth: 0,
         }}
       >
-        {node.ticket_number != null ? (
+        {node.ticket_key ? (
           <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: "nowrap" }}>
-            {"GIT-" + node.ticket_number}
+            {node.ticket_key}
           </Typography>
         ) : null}
         <Typography sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: FONT_SIZE.body, minWidth: 0, ...KO_WORD_BREAK }}>

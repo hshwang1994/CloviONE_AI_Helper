@@ -108,9 +108,9 @@ Notion Console · Notion Mapping Console.
 | **D-192** | `--workers 1` 은 공유 저장소를 만든 **다음에만** 푼다 |
 | **D-193** | Permission 은 **additive grant + fail-closed** 다. 일반 Deny 를 만들지 않는다 (구 D-E) |
 | **D-194** | 목록·상세·Search·**AI Retrieval** 이 같은 `effective_visibility_clause` 를 쓴다 |
-| **D-195** | Ticket 식별자는 3층이다 — `UUID` · `<KEY>-<SEQ>` · `GIT-n`(immutable) |
-| **D-196** | Project Key 소유는 영구다. 채번은 `INSERT … ON CONFLICT DO UPDATE … RETURNING` 으로 한다 |
-| **D-197** | Project Key 20건 확정 **전에는** 재채번을 시작하지 않는다 |
+| ~~D-195~~ | Ticket 식별자는 **2층**이다 — `UUID` · `<CODE>-<SEQ>`. Legacy 층은 폐기했다 (D-283) |
+| **D-196** | 코드 소유는 영구다. 채번은 `INSERT … ON CONFLICT DO UPDATE … RETURNING` 으로 한다 |
+| ~~D-197~~ ~~D-243~~ ~~D-278~~ | 확정 20건 정책은 폐기했다 — **서버가 코드를 짓는다** (D-282) |
 | **D-198** | Document 정본은 **Block JSON** 이다 (구 D-C) |
 | **D-199** | File Binary 는 DB 에 넣지 않는다. Storage Provider 는 **접근 Protocol 기준**이다 |
 | **D-200** | GPU 를 전제하지 않는다. Retrieval 전 계층은 **CPU Local** 이다 |
@@ -138,8 +138,8 @@ Notion Console · Notion Mapping Console.
 | U7 | W5B 의 **목적(Search/Filter 기능 정확성 전 사슬 검증)은 반드시 남긴다.** 단 Legacy Notion Query 를 대상으로 지금 실행하지 않는다 |
 | U8 | 실 NFS/NAS 장비 정보 없음. **접근 Protocol 기준으로 추상화하고 재현 가능한 시험 Storage 로 실제 검증한다.** 인터페이스만 남기는 완료 처리 금지 |
 | U9 | 시험 Storage 는 실 NAS 검증과 동일하다고 과장하지 않는다. 실 정보 수령 시 **Application 수정 없이 Configuration 만으로** 연결 가능해야 한다 |
-| U10 | Ticket 식별자 3층: `Internal ID = UUID` · `Canonical Display Key = <PROJECT_KEY>-<SEQ>` · `Legacy Alias = GIT-n` |
-| U11 | 재채번 **전에** 실제 Project Relation 과 20개 Project Key 를 먼저 확정한다. 임의 배정 금지 → **Migration Exception** |
+| ~~U10~~ → **U10′** (2026-08-24) | Ticket 식별자 **2층**: `Internal ID = UUID` · `Canonical Display Key = <PROJECT_CODE>-<SEQ>`. Legacy Alias(`GIT-n`)는 **이관하지 않고 폐기한다** (D-283) |
+| ~~U11~~ → **U11′** (2026-08-24) | Project Code 는 **서버가 자동으로** 붙인다 — 확정 표도 사람의 확인도 없다 (D-282). **임의 배정 금지는 그대로다**: 티켓의 소속은 여전히 추측하지 않고 **Migration Exception** 으로 남긴다 |
 | U12 | Migrated/신규 Ticket Sequence 충돌 없도록 **PostgreSQL 수준에서** 번호 배정과 동시성 안전성 보장 |
 | U13 | **제품 설치 자동화가 필수 범위다.** Clean Ubuntu 24.04 에서 GitLab 기준 Source 를 확보해 Entry Point 하나로 전체 자동 설치·구성 |
 | U14 | 장기 실행 Service 는 **서버 재기동 후 수동 명령 없이 자동 시작**. **제품 전체 Reboot Test** 수행 |
@@ -177,28 +177,35 @@ Permission 목록 **32개**(정본은 `app/authz/permissions.py`): 위 초안 �
 
 ### 5.2 Work Domain (S6)
 
-**Project Key**: `projects.code` 가 22건 전부 NULL 이다. 규칙 = 2~10자 · 영문 대문자 시작 ·
-대문자+숫자 · 대소문자 무관 유일 · 예약어 금지 · **재사용 금지** · URL 안전.
+**Project Code (D-282 · 2026-08-24 로 개정)**: **서버가 짓는 대문자 여섯 글자**다. 문자 집합은
+`ABCDEFGHJKMNPQRSTUVWXYZ` 스물셋(`I`·`L`·`O` 는 사람이 `1`·`1`·`0` 과 헷갈려서 뺐다). 사용자는
+입력할 수도 바꿀 수도 없고, **프로젝트 이름을 바꿔도 코드와 티켓 이름은 안 움직인다.**
 
 ```sql
-project_key_registry(
-  key text PRIMARY KEY CHECK (key ~ '^[A-Z][A-Z0-9]{1,9}$'),
-  project_id uuid,                       -- NULL 이면 예약어
-  state text NOT NULL CHECK (state IN ('active','retired','reserved')),
-  created_at timestamptz NOT NULL);
-CREATE UNIQUE INDEX uq_pkr_key_ci ON project_key_registry (upper(key));
--- 'GIT' 은 Legacy namespace 로 reserved seed → 어떤 Project 도 가져갈 수 없다
+-- 대장 표는 없다. 유일성의 정본이 컬럼 하나다.
+ALTER TABLE projects ADD CONSTRAINT ck_projects_code_shape
+  CHECK (code IS NULL OR code ~ '^[ABCDEFGHJKMNPQRSTUVWXYZ]{6}$');
+CREATE UNIQUE INDEX uq_projects_code ON projects (code) WHERE code IS NOT NULL;
+-- 겹치면 서버가 다시 짓는다. 코드는 씨앗(notion_page_id → 없으면 projects.id)의
+-- SHA-256 에서 파생하므로 **같은 프로젝트는 Dry Run 과 Cutover 에서 같은 코드**를 받는다.
 ```
 
-**Ticket 식별자 (D-195)**: `canonical_key GENERATED ALWAYS AS (project_key || '-' || seq)` 는
+> 앞 판은 `project_key_registry` 표에 예약(`GIT`)·회수(`retired`)·소유를 담았다. 셋 다 대상이
+> 없어져 표를 내렸다 — 예약과 회수는 D-283 이, 소유는 「프로젝트는 하드 삭제가 없다」가 이미
+> 답한다.
+
+**Ticket 식별자**: `canonical_key GENERATED ALWAYS AS (project_code || '-' || seq)` 는
 **구현할 수 없다** — PostgreSQL Generated Column 은 다른 테이블 값을 참조할 수 없다. 실제 저장
 컬럼 + **BEFORE INSERT/UPDATE 트리거**로 `projects.code + seq` 에서 파생시킨다.
 
 > **S6 이 실제로 만든 모양은 아래 초안과 두 자리가 다르다** (D-236~D-238):
 > 표 이름은 `tickets`(`ticket_cache` 에서 이전) · 프로젝트 컬럼은 **`project_uid` 그대로**
-> (API 응답에 나가는 이름이라 안 바꿨다) · Key 는 `projects.code` · `ck_tickets_assigned` 는
+> (API 응답에 나가는 이름이라 안 바꿨다) · 코드는 `projects.code` · `ck_tickets_assigned` 는
 > 「번호와 표시 이름은 함께 있거나 함께 없다」로 좁혔다(초안대로면 미러 전량이 위반이다 —
-> Project Key 가 아직 하나도 없어서 번호를 줄 수가 없다).
+> 적재는 표를 먼저 복사하고 코드를 뒤에 붙이므로 그 사이 번호가 없다).
+>
+> **그리고 `legacy_key` 는 없다** (D-283 · 2026-08-24). 아래 초안에 남아 있는 그 컬럼은
+> `0012` 가 내렸다.
 
 ```sql
 tickets(id uuid PK, project_id uuid REFERENCES projects(id),   -- Exception 은 NULL
@@ -383,7 +390,7 @@ WAL 단일 writer 의미를 단언한다. 그대로 두면 **거짓 초록**이 
 | 구분 | 대상 | 결정 |
 |---|---|---|
 | **Core Migration — 확정. 사용자 결정 불필요** | Notion 작업(1,119) · 프로젝트(21) · 문서(110) · 문서유형(15) · 카테고리(11) · 첨부(9) + **SQLite 앱 고유 데이터 전량** | **이관한다.** 재확인하지 않는다 |
-| **제품 결정 — 사용자 확인 필요** | 20개 Project Key 명명 | 초안 제시 → 확인 → 적용. 확정 전 재채번 없음 |
+| ~~제품 결정 — 사용자 확인 필요~~ | ~~20개 Project Key 명명~~ | **대상이 없어졌다 (2026-08-24 · D-282)** — 코드는 서버가 짓는다. 사용자 확인 단계 자체가 없다 |
 | **제품 Domain 밖 — 별개 외부 결정** | Notion `오라클 버그 수정`(179) · `휴일 근무 지원내역`(23) · `교육 커리큘럼`(9) | **기본값 = 이관하지 않음.** Core Migration 은 이 결정과 무관하게 진행된다 |
 
 ### 7.2 Source 는 둘 다 정본이다
@@ -501,7 +508,7 @@ SHA256SUMS}` 세트다. 파생 넷은 **행만** 빠지고(`--exclude-table-data
 | S | 이름 | 핵심 산출 | Exit 조건 |
 |---|---|---|---|
 | **S5** ✅ | Identity & Access | `permissions`(32) · `roles`(builtin 5) · `role_permissions`(107) · `user_roles` · `resource_grants` · `departments`→`org_units` · **additive+fail-closed 상속**(Project Member 항 신설) · `effective_visibility_clause`(SQL·행 두 렌더러) · `confidential` 단일 축소 원시연산 · auth provider 추상화 · P-12a 범위 게이트 | **완료 (2026-08-22)** — 5역할 동등성 전수(표 + 실제 요청) · 두 렌더러 대조(자원 3 × 사람 5) · 부여/축소 음성 15건 · `check_visibility_single_source.py`(자기검증 5사례) · `KNOWN_GAPS` 0건. 결정 **D-230~D-235** |
-| **S6** ✅ | Work Domain | `project_key_registry` · **Project Key 20건 확정(사용자 확인 완료 — [`PROJECT_KEYS.md`](PROJECT_KEYS.md), D-243)** · Ticket 3층 식별자 · `last_seq` 채번 · Relation · Comment · Attachment · Activity · Status/Workflow · Backlog rank · Sprint · Kanban · DnD 공통 · 낙관적 잠금 | **완료 (2026-08-22)** — 동시 12건에서 1..12 가 정확히 한 번씩(반례 포함) · 롤백 시 미소비 · `GIT-142` 가 Key 변경 뒤에도 같은 티켓 · Exception 임의 배정 0. 결정 **D-236~D-242**. Key 20건은 **확정됐고**(D-243) 적용 함수(`project_keys.apply_confirmed`)까지 섰다 — 실제 프로젝트에 붙는 것은 적재 이후라 S13 이다 |
+| **S6** ✅ | Work Domain | `project_key_registry`(**S14 가 내렸다** — D-282) · Project Key 20건 확정(**폐기 — D-282**) · Ticket 3층 식별자(**2층으로 줄었다** — D-283) · `last_seq` 채번 · Relation · Comment · Attachment · Activity · Status/Workflow · Backlog rank · Sprint · Kanban · DnD 공통 · 낙관적 잠금 | **완료 (2026-08-22)** — 동시 12건에서 1..12 가 정확히 한 번씩(반례 포함) · 롤백 시 미소비 · `GIT-142` 가 Key 변경 뒤에도 같은 티켓 · Exception 임의 배정 0. 결정 **D-236~D-242**. Key 20건은 확정됐고 S13 이 적용했다 — 그 뒤 **정책이 바뀌어**(2026-08-24 · D-282) 확정표·대장·Legacy 층은 전부 폐기했다. S6 이 세운 채번(D-196)과 트리거(D-236)는 그대로 산다 |
 | **S7** ✅ | Knowledge Domain | `knowledge_spaces` · `folders`(트리 — `path`·`depth` **트리거 파생**) · `documents` · `document_versions`(**Block JSON 정본**) · Version/Diff/Restore · `tags` · `document_relations` · `document_mentions` · Editor(TipTap MIT, route-level lazy) · **문자열 날짜 16컬럼 → `date`/`timestamp`(P-14a)** | **완료 (2026-08-22)** — 판이 쌓이고(같은 본문이면 안 쌓인다) 차이가 블록 단위로 나오고 되돌리기가 이력을 남긴 채 새 판을 만든다(낙관적 잠금 포함). 초기 번들 gzip **265KB → 265KB**(예산 280) — 편집기는 지연 청크 309KB. 결정 **D-244~D-248** |
 | **S8** ✅ | File Storage Providers | `storage_providers` · `files` · `document_attachments` · Local/NFS/SMB Adapter · 마운트 유닛 + `RequiresMountsFor=` drop-in · `st_dev` 가드 · 업로드 파이프라인(원자적 커밋) · 저장소 백업/복원 · Installer Stage 11 · **16항 실검증(NFS·SMB 각각)** | **완료 (2026-08-23)** — 실 NFS·실 SMB 각각 **16/16 PASS**, 실측 로그는 [`EVIDENCE/S8/`](EVIDENCE/S8/README.md). 실 재부팅 뒤 **수동 명령 0회**로 두 마운트가 복귀했고, 마운트를 실제로 뗀 상태에서 쓰기를 거부하며 로컬에 아무것도 안 남는다. 검증이 제품 결함 셋을 찾아냈고(NFS `hard` 무한 대기 · SMB `uid=0` 로 서비스 계정 쓰기 불가 · 유닛 이름 역슬래시) 전부 고쳤다. 결정 **D-249~D-253** |
 
@@ -518,7 +525,7 @@ SHA256SUMS}` 세트다. 파생 넷은 **행만** 빠지고(`--exclude-table-data
 | S | 이름 | 핵심 산출 | Exit 조건 |
 |---|---|---|---|
 | **S12** ✅ | Backup / Restore 운영 | 백업 **세트**(덤프+매니페스트+`SHA256SUMS`, D-269) · 범위 정책이 `pg_dump` 인자까지(D-270) · 보존 두 바닥(D-271) + 배포 스냅숏 보존 · Local 다운로드와 **사람이 답한 뒤** 서버 삭제(D-272) · NFS/SMB Backup Provider 사본 · 동일 저장소 경고 · `restore_rehearsal.py` **PG 8단계 이식** | **완료 (2026-08-23)** — 실 PG 16.15 + 실 `pg_dump` 에서 8단계 전부 통과하고 복원본을 물고 띄운 앱이 읽기 경로 **13개를 전부 200** 으로 답했다. 판정이 틀린 쪽으로도 움직이는 것을 **반례 셋**으로 보였다(파일만 생긴 덤프 · 401 만 나오는 앱 · 정책이 안 걸린 덤프). 🔴 첫 회차가 초록인데 인증 경로 11개가 401 이었고, 그 회차를 지우지 않고 원장에 남겼다(D-273). 결정 **D-269~D-273**, 원장 [`EVIDENCE/S12/`](EVIDENCE/S12/README.md) |
-| **S13** ✅ | Migration Tool + Dry Run | Extract(Notion+SQLite) · Transform · Validate · Load · Idempotent 재실행 · **임시 PG Dry Run** · Report · **Migration Exception 분류** · Project Key 적용 · 재채번 · `legacy_mapping` | **완료 (2026-08-23)** — 실 운영 SQLite + 실 Notion → 임시 PG 에서 **검사 64건 전부 통과**(길이 초과 0 · legacy/canonical 충돌 0 · 무결성 전항 0). 못 옮긴 것은 **분류된 예외 14건**이고 전부 사유가 붙어 있다. **재실행 2회차의 신규가 0** 이다. 회차를 두 번 돌려 결함 둘을 찾았다 — 표 복사와 재채번이 같은 컬럼의 주인이던 것(D-275)과 첨부 크기 한도가 둘이던 것(D-280). 그리고 「문서 분류 110건이 전부 비어 있다」의 **원인**을 찾았다: Notion 속성 이름이 안 맞았다(D-277). 결정 **D-274~D-281**, 원장 [`EVIDENCE/S13/`](EVIDENCE/S13/README.md) |
+| **S13** ✅ | Migration Tool + Dry Run | Extract(Notion+SQLite) · Transform · Validate · Load · Idempotent 재실행 · **임시 PG Dry Run** · Report · **Migration Exception 분류** · 프로젝트 코드 배정 · 재채번 · `legacy_mapping` | **완료 (2026-08-23)** — 실 운영 SQLite + 실 Notion → 임시 PG 에서 **검사 64건 전부 통과**(길이 초과 0 · legacy/canonical 충돌 0 · 무결성 전항 0). 못 옮긴 것은 **분류된 예외 14건**이고 전부 사유가 붙어 있다. **재실행 2회차의 신규가 0** 이다. 회차를 두 번 돌려 결함 둘을 찾았다 — 표 복사와 재채번이 같은 컬럼의 주인이던 것(D-275)과 첨부 크기 한도가 둘이던 것(D-280). 그리고 「문서 분류 110건이 전부 비어 있다」의 **원인**을 찾았다: Notion 속성 이름이 안 맞았다(D-277). 결정 **D-274~D-281**, 원장 [`EVIDENCE/S13/`](EVIDENCE/S13/README.md). 🔴 **Project Code 정책이 그 뒤 바뀌었고**(D-282 · D-283) Dry Run 을 새 정책으로 다시 돌렸다 — 그 회차의 원장은 [`EVIDENCE/S14/`](EVIDENCE/S14/README.md) 다 |
 | **S14** | **Cutover + Legacy 제거** (단독) | 최종 Backup → Maintenance → 마지막 Delta → PG 전환 → File/Relation/Application 검증 → AI Index → Open → **Notion·SQLite Runtime 차단** → Legacy 코드·문서·Harness 제거 | Notion/SQLite Runtime 의존 **0** · Legacy 잔존 0 · Rollback 지점 문서화 |
 
 #### Phase E — UI Renewal 재개 (동결 해제, 각 Session 독립 종료)
@@ -598,8 +605,11 @@ S11 → S12 → S13 → S14 → S15 → S16 → S17 → S18 → S19 → S20 → 
 2. **SQLite Runtime 의존 0 · Notion Runtime 의존 0 · n8n 흔적 0**(포트 5678/5679/8787/8788/8789 미청취)
 3. **PostgreSQL 이 System of Record** — `DATABASE_URL=postgresql://…` 로 전 회귀 통과
 4. **권한 없는 사용자 질의 시 해당 데이터가 AI Context 에 들어가지 않음을 음성 테스트로 증명**
-5. **Ticket 채번**: 동시 부하에서 중복 0 · 번호 연속 · 롤백 시 미소비 · `GIT-n` 영구 resolution
-6. **Migration 무결성 전항 0**(또는 Exception 분류) · 길이 초과 0 · legacy/canonical 충돌 0
+5. **Ticket 채번**: 동시 부하에서 중복 0 · 번호 연속 · 롤백 시 미소비 · 재실행이 번호를 안 움직임
+6. **Migration 무결성 전항 0**(또는 Exception 분류) · 길이 초과 0 · 코드 없는 프로젝트 0 ·
+   모양이 틀린 코드 0 · 겹친 코드 0
+6a. **Project Code 결정성**: 같은 프로젝트가 Dry Run 재실행과 실제 Cutover 에서 **같은 코드**를
+   받는다. 소스가 주는 안 변하는 값에서 파생하므로 성립한다 (D-282)
 7. **Backup**: 체크섬 → `pg_restore --list` → 임시 복원 → **앱 기동 + 읽기 경로 호출** 통과
 8. **Storage 16항 매트릭스**를 NFS·SMB 각각에서 실행한 로그 · 미마운트 시 로컬 디스크에 안 쓰임
 9. **설치 Acceptance 완주** — Clean Ubuntu 24.04 3줄 → 설치 → Health → **Reboot → 수동 명령 0회 복구**
@@ -680,7 +690,7 @@ python -m scripts.ui_qa.run --label final --fail-on <승격 클래스…>
 | R15 | **LXD 컨테이너 리허설이 실 VM 과 다르다** | **절반 해소** | 재부팅 축은 닫혔다 — 이 서버에 `/dev/kvm` 이 없어 LXD VM 을 못 써서 **테스트 서버 자체를 재부팅**했다(D-229). **Storage 축도 닫혔다** — S8 이 컨테이너가 아니라 **테스트 서버 호스트에서** 실 NFS·실 SMB 로 16항을 돌렸고 실 재부팅까지 포함했다. 컨테이너 통과를 "설치 검증 완료" 라고 쓰지 않는 규칙은 그대로다 | ~~S4~~ · ~~S8~~ · S22 |
 | R16 | GitLab Repository 가 아직 없다(현 origin=GitHub) | **완화** | Installer 가 Remote 중립으로 완성됐다 — `--git-remote`/`--ref` 를 받고 없으면 `installed_manifest.json` 에서 읽는다. `--source local|bundle` 로 오프라인 경로도 그대로다(리허설이 `local` 경로로 돈다). 주소가 정해지면 **설정만** 바꾼다 | 외부 입력 대기 |
 | ~~R17~~ | pgvector 0.6.0 의 검색 품질/지연이 요구에 못 미칠 수 있다 | — | **해소 (S10)** — 가중치를 실측으로 다시 정해 MRR@10 0.7553 → **0.8869**(D-260), 벡터 레인에 거리 상한(D-261), 지연은 세 레인 p50 1~3.4ms. 모델 재검토도 끝났다(D-262) | S1 ✅ · S10 ✅ |
-| R18 | Ticket canonical_key Trigger 가 대량 UPDATE 에서 느릴 수 있다 | Project Key 변경 시 지연 | Key 변경은 드문 명시적 Migration 동작. 프로젝트당 최대 416건이라 실질 영향 없음. 트랜잭션 시간 측정·기록 | S6 |
+| ~~R18~~ | Ticket canonical_key Trigger 가 대량 UPDATE 에서 느릴 수 있다 | **해소 (2026-08-24)** — 대량 재계산을 부르던 것은 Key 변경 하나였고, 코드는 이제 안 바뀐다 (D-282) | S6 |
 
 ---
 
@@ -689,7 +699,7 @@ python -m scripts.ui_qa.run --label final --fail-on <승격 클래스…>
 | 항목 | 성격 | 처리 |
 |---|---|---|
 | 실 NFS/NAS 장비 정보 | 현재 없음이 **확인됨** | **Blocker 가 아니다.** 시험 Storage 로 실검증하고, 실 정보 수령 시 Configuration 만 변경 |
-| ~~20개 Project Key 명명~~ | **해소 (2026-08-22)** | 초안표 그대로 확정 → [`PROJECT_KEYS.md`](PROJECT_KEYS.md) · **D-243**. 정본은 `app/work/project_keys.py::CONFIRMED` 이고 적용은 S13 이 적재 직후에 한다 |
+| ~~20개 Project Key 명명~~ | **대상 소멸 (2026-08-24)** | 확정표와 `PROJECT_KEYS.md` 를 폐기했다. 코드는 서버가 짓는다 — **D-282** |
 | **제품 Domain 밖 Notion DB 3종** (오라클 버그수정 179 · 휴일근무 23 · 교육 9) | **Core Migration 과 분리된 별도 결정사항** | 기본값 = 이관하지 않음. Core Migration 은 이 결정과 무관하게 진행 |
 | GitLab Repository 주소·자격증명 | 외부 제공 필요 | **없어도 S4 는 진행한다**(Remote 중립 + 오프라인 Bundle). 주소 수령 시 설정 반영 |
 

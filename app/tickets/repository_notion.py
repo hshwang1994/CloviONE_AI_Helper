@@ -116,6 +116,7 @@ class NotionTicketRepository:
             page_id=row.notion_page_id,
             uid=row.id,
             number=row.notion_ticket_number,
+            key=row.canonical_key,
             url=row.url,
             title=row.title or "",
             status=row.status,

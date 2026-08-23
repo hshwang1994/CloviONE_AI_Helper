@@ -35,7 +35,10 @@ def fake_clock():
 
 @pytest.fixture()
 def project(db):
-    row = Project(name="감마", code="GAMMA", org_id=DEFAULT_ORG_ID)
+    # 프로젝트 코드는 서버가 짓는 대문자 여섯 글자이고 `I`·`L`·`O` 가 없다 (D-282).
+    # 이 시험이 확인하는 것은 요약 배선이지 코드 값이 아니므로, 실패 메시지에서 어느
+    # 프로젝트인지 바로 읽히도록 이름의 첫 글자를 여섯 번 쓴다.
+    row = Project(name="감마", code="GGGGGG", org_id=DEFAULT_ORG_ID)
     db.add(row)
     db.commit()
     return row
@@ -162,7 +165,7 @@ def test_trigger_is_404_for_a_project_outside_scope(client, login_as, project, d
     other_org = Organization(name="다른 회사", slug="other-co")
     db.add(other_org)
     db.commit()
-    other = Project(name="델타", code="DELTA", org_id=other_org.id)
+    other = Project(name="델타", code="DDDDDD", org_id=other_org.id)
     db.add(other)
     db.commit()
 

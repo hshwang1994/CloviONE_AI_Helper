@@ -76,7 +76,7 @@ describe("관리자 사이드바 — 유형별 배지", () => {
     // 시딩 없이도 통과했지만, 지금은 "기록 없음 = 접힘"이 기본값이다(AppShell.jsx isOpen
     // 주석 참조 — 관리자 레일이 스크롤 없이 5그룹만 보이려면 그래야 한다).
     window.localStorage.setItem(
-      "clovirone_nav_collapsed:a1",
+      "clovirassist_nav_collapsed:a1",
       JSON.stringify({ "운영": false, "자동화": false }),
     );
   });

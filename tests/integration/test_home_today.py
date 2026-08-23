@@ -6,6 +6,12 @@
   2. **숫자가 맞다.** 오늘 마감 / 지연 / 진행 중 / 곧 마감 + 스프린트 내 몫 + 안 읽은 알림·채팅
      + 최근 문서·게시판.
   3. **장애 격리.** 티켓 소스가 죽어도 200 이고, 알림·문서·게시판 블록은 그대로 나온다.
+
+이 파일은 기본 소스(`native`) 위에서 돈다. 다만 **미러가 있어야만 성립하는 두 가지**는
+따로 `@pytest.mark.notion_source` 를 달아 옛 경로로 되돌려 놓는다(S14): 신선도(`sync`)
+블록과 「티켓 소스만 죽는」 상황이 그것이다. 자체 DB 에는 낡을 사본이 없고, 티켓을 읽는
+SELECT 가 죽으면 요청 전체가 죽으므로 그 둘은 자체 DB 에서 만들 수 없는 상황이다.
+표를 단 시험은 **Notion 을 걷어낼 때 지울 목록**이기도 하다.
 """
 
 from __future__ import annotations
@@ -203,13 +209,28 @@ def test_today_excludes_a_trashed_document_from_recent(home_client, db, fake_clo
     )
 
 
+@pytest.mark.notion_source
 def test_today_includes_mirror_freshness(home_client):
+    """**이 시험만 소스를 되돌린다** (S14). 신선도는 「지금 보는 값이 얼마나 낡았나」인데,
+    자체 DB 에는 낡을 사본이 없어 응답에 `sync` 키 자체가 없다
+    (`app/tickets/repository_native.py::sync_state` 는 언제나 `None` 이다). 표를 안 붙이면
+    이 시험은 없는 키를 읽다 죽고, 그 죽음은 제품 결함이 아니라 옛 계약을 읽은 결과다.
+    """
     sync = _today(home_client)["sync"]
     assert sync["status"] == "ok" and sync["ticket_count"] == 7 and sync["truncated"] is False
 
 
+@pytest.mark.notion_source
 def test_today_survives_a_dead_ticket_source(home_client, notion, db):
-    """티켓 미러를 비우고 Notion 도 죽이면 — 티켓 블록만 실패하고 화면은 계속 뜬다."""
+    """티켓 미러를 비우고 Notion 도 죽이면 — 티켓 블록만 실패하고 화면은 계속 뜬다.
+
+    **이 시험만 소스를 되돌린다** (S14). 「티켓 소스만 죽는다」는 미러가 있을 때만 만들 수
+    있는 상황이다 — 자체 DB 에서는 티켓을 읽는 SELECT 가 죽으면 같은 세션의 알림·문서도
+    함께 죽어 요청 전체가 죽는다. 표를 안 붙이면 빈 표는 그냥 「티켓이 0건이다」라서
+    `tickets.ok` 가 참으로 나오고, 이 시험은 격리를 확인하지 못한 채 빨간불이 된다.
+    여기서 지키는 격리 규칙(`app/home/service.py::build_today` 의 `usable` 판정) 자체는
+    소스와 무관하므로, 그 코드는 이 경로에서 계속 검사된다.
+    """
     db.query(TicketCache).delete()
     db.commit()
     notion.fail_status = 502

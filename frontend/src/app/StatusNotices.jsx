@@ -53,7 +53,7 @@ export function userFacingNotices(notices) {
   return all.filter((n) => (n.kind === "sync" ? n.level !== "info" : true));
 }
 
-const DISMISS_STORAGE_KEY = "clovirone_dismissed_status_notices_v1";
+const DISMISS_STORAGE_KEY = "clovirassist_dismissed_status_notices_v1";
 
 function loadDismissed() {
   try {

@@ -31,7 +31,7 @@ const STATE = {
     hostname: "srv1",
     timezone: "Asia/Seoul",
     ntp_synchronized: "yes",
-    units: { "clovirone-web-assistant.service": "active", "nginx.service": "failed" },
+    units: { "clovirassist-web.service": "active", "nginx.service": "failed" },
   },
   certificate: { known: true, days_remaining: 41, self_signed: false },
   actions: [

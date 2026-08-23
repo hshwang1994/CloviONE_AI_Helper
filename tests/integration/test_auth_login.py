@@ -1,5 +1,7 @@
 import pytest
 
+from app.core.sessions import SESSION_COOKIE_NAME
+
 from tests.conftest import DEFAULT_TEST_PASSWORD
 
 pytestmark = pytest.mark.integration
@@ -18,7 +20,7 @@ def test_login_success_sets_cookie_and_returns_user(client, make_user):
     assert body["csrf_token"]
 
     set_cookie = r.headers["set-cookie"]
-    assert "clovirone_session=" in set_cookie
+    assert f"{SESSION_COOKIE_NAME}=" in set_cookie
     assert "HttpOnly" in set_cookie
     assert "SameSite=strict" in set_cookie.lower() or "samesite=strict" in set_cookie.lower()
     # S3: 세션 쿠키는 **host-only** 다 — `Domain` 을 붙이지 않는다.

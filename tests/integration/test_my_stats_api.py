@@ -6,6 +6,11 @@
   2. **내 것만 센다.** 동료 티켓·미할당 티켓은 내 통계에 들어오지 않는다.
   3. **장애 격리.** 소스가 죽어도 200 이고 `source.configured/ok/mapped` 로 이유를 말한다 —
      화면 전체가 오류로 덮이지 않는다(§17.4).
+
+이 파일은 기본 소스(`native`) 위에서 돈다. 다만 **미러가 있어야만 성립하는 두 가지**에는
+`@pytest.mark.notion_source` 를 달아 옛 경로로 되돌려 놓는다(S14): 신선도(`sync`) 블록과
+「소스가 설정되지 않았다」는 상태가 그것이다. 자체 DB 에는 낡을 사본도, 사람이 채워 넣어야
+하는 접속 설정도 없다. 표를 단 시험은 **Notion 을 걷어낼 때 지울 목록**이기도 하다.
 """
 
 from __future__ import annotations
@@ -173,7 +178,12 @@ def test_weekly_load_shows_where_the_remaining_work_sits(stats_client):
     assert extra["no_due"]["count"] == 1
 
 
+@pytest.mark.notion_source
 def test_stats_report_mirror_freshness(stats_client):
+    """**이 시험만 소스를 되돌린다** (S14). 신선도는 사본이 있을 때만 뜻이 있는 말이고,
+    자체 DB 로 답한 응답에는 `sync` 키가 아예 없다
+    (`app/tickets/repository_native.py::sync_state` 가 언제나 `None` 을 준다).
+    """
     sync = _stats(stats_client)["sync"]
     assert sync["status"] == "ok" and sync["ticket_count"] == 8
 
@@ -198,8 +208,13 @@ def test_stats_survive_an_unmapped_account(client, db, settings, notion, make_us
     assert "months" not in body
 
 
+@pytest.mark.notion_source
 def test_stats_survive_a_dead_source(client, db, notion):
     """소스가 안 잡혀 있으면 503 이 아니라 200 + `configured: false` 다 — 화면을 오류로 덮지 않는다.
+
+    **이 시험만 소스를 되돌린다** (S14). 「소스가 설정되지 않았다」는 사람이 토큰과 DB id 를
+    채워 넣어야 하는 외부 소스에만 있는 상태다 — 자체 DB 는 앱이 이미 붙어 있는 곳이라
+    `configured` 가 언제나 참이고, 표를 안 붙이면 이 시험은 그 참값을 보고 빨간불이 된다.
 
     이 경로를 타려면 **연결됐고(mapped) 미러도 비어 있어야** 한다. 미매핑 계정은 소스를
     부르기 전에 멈추고(`mapped: false`), 미러가 차 있으면 토큰 없이도 답이 나온다

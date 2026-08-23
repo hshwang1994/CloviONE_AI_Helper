@@ -100,6 +100,7 @@ def _ticket_detail(t, *, overdue: bool) -> dict:
     """담당자별 상세 목록에 담을 티켓 한 건. 내용을 자세히 담되 민감 정보는 없다."""
     return {
         "tid": t.number,
+        "key": t.key,
         "title": t.title or "(제목 없음)",
         "status": t.status,
         "due": t.due,

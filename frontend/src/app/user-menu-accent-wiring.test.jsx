@@ -32,7 +32,7 @@ describe("UserMenu → ThemeModeProvider 강조색 배선", () => {
   });
 
   it("userId로 저장된 강조색이 UserMenu 마운트만으로 실제로 적용된다", async () => {
-    window.localStorage.setItem("clovirone_accent:acct-1", "#327C98");
+    window.localStorage.setItem("clovirassist_accent:acct-1", "#327C98");
 
     render(
       <MemoryRouter>

@@ -491,10 +491,17 @@ def test_my_tickets_are_paged_and_filtered_too(client, login_as, db, me):
 
 # ── 실시간 폴백 경로도 같은 답을 낸다 ─────────────────────────────────────────
 
+@pytest.mark.notion_source
 def test_the_live_fallback_applies_the_same_filters_and_page(client, login_as, settings,
                                                              fake_http, db, admin):
     """미러가 비면(첫 기동·킬 스위치) 실시간으로 답한다 — 그 경로에서 필터가 무시되면
-    "필터를 걸었는데 전체가 나왔다" 가 되고, 사용자는 그걸 알아챌 수 없다."""
+    "필터를 걸었는데 전체가 나왔다" 가 되고, 사용자는 그걸 알아챌 수 없다.
+
+    **이 시험만 소스를 되돌린다** (S14). 제품 기본은 `native` 이고 그쪽에는 실시간
+    폴백이라는 개념이 없다 — 자체 DB 가 정본이라 「미러가 아직 안 찼다」는 상태가
+    존재하지 않는다. 표를 안 붙이면 이 시험은 빈 목록을 받고, 그 빈 목록으로도
+    「필터가 걸렸다」가 성립해 **조용히 통과한다.**
+    """
     from tests.fakes.notion import (
         DEFAULT_PROJECTS_DB,
         FakeNotionTasksDB,

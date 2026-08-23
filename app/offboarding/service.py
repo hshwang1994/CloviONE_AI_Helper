@@ -385,6 +385,7 @@ def _move_tickets(
             ticket = result.get("ticket") or {}
             move.ticket_uid = ticket.get("uid")
             move.ticket_number = ticket.get("tid")
+            move.ticket_key = ticket.get("key")
             move.ticket_title = (ticket.get("title") or "")[:500]
             move.before_user_ids = join_names(result["before_user_ids"])
             move.after_user_ids = join_names(result["after_user_ids"])
@@ -559,6 +560,7 @@ def move_view(move: OffboardingTicketMove) -> dict:
         "ticket_page_id": move.ticket_page_id,
         "ticket_uid": move.ticket_uid,
         "tid": move.ticket_number,
+        "key": move.ticket_key,
         "title": move.ticket_title,
         "before_user_ids": split_names(move.before_user_ids),
         "after_user_ids": split_names(move.after_user_ids),

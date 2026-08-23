@@ -33,7 +33,7 @@ import { clickAction } from "../test-helpers/actions.js";
 
 const STATE = {
   available: true,
-  info: { hostname: "srv1", timezone: "Asia/Seoul", ntp_synchronized: "yes", units: { "clovirone-web-assistant.service": "active" } },
+  info: { hostname: "srv1", timezone: "Asia/Seoul", ntp_synchronized: "yes", units: { "clovirassist-web.service": "active" } },
   actions: [{ name: "cert.install", mutating: true }],
 };
 

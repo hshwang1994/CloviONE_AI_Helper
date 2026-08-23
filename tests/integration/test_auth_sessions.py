@@ -1,4 +1,6 @@
 import pytest
+
+from app.core.sessions import SESSION_COOKIE_NAME
 from sqlalchemy import select
 
 from app.auth.models import UserSession
@@ -29,7 +31,7 @@ def test_unauthenticated_page_redirects_to_login(client):
 
 def test_session_fixation_cookie_is_replaced_on_login(client, make_user):
     make_user("fix@goodmit.co.kr")
-    client.cookies.set("clovirone_session", "attacker-chosen-token")
+    client.cookies.set(SESSION_COOKIE_NAME, "attacker-chosen-token")
     r = _login(client, "fix@goodmit.co.kr")
     new_cookie = r.headers["set-cookie"]
     assert "attacker-chosen-token" not in new_cookie

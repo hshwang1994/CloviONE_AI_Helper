@@ -295,14 +295,33 @@ TEST_DOCS_DB = "docs-db-0001"
 
 
 @pytest.fixture()
-def settings(_bound_connection, _test_database, tmp_path: Path) -> Settings:
+def settings(request, _bound_connection, _test_database, tmp_path: Path) -> Settings:
+    """이 시험이 볼 설정 한 벌.
+
+    ## 저장소 소스는 **제품 기본값**이다 (S14)
+
+    제품이 `native` 로 돌므로 시험도 기본으로 그것을 본다. 시험 세계만 옛 값을 쓰면
+    시험이 「배포되는 것」을 안 보게 되고, 그 사실은 배포한 뒤에 드러난다.
+
+    Notion 경로를 **일부러** 보는 시험은 `@pytest.mark.notion_source` 를 단다. 그 표는
+    「이 파일은 되돌리기 경로를 시험한다」는 선언이고, 동시에 **Notion 을 걷어낼 때
+    지울 파일의 목록**이다 — 표를 세면 남은 일이 몇 건인지 바로 나온다.
+    """
     from tests.fakes.notion import DEFAULT_TASKS_DB
 
     secrets_dir = tmp_path / "secrets"
     secrets_dir.mkdir(exist_ok=True)
+    marker = request.node.get_closest_marker("notion_source")
+    sources: dict = {}
+    if marker is not None:
+        sources = {
+            "ticket_source": marker.kwargs.get("tickets", "notion_cache"),
+            "document_source": marker.kwargs.get("documents", "notion"),
+        }
     return Settings(
         _env_file=None,
         app_env="test",
+        **sources,
         # 앱은 이 주소로 엔진을 만들지 않는다 — `create_app(bind=…)` 가 시험이 준
         # 바인드를 그대로 받는다. 그래도 **맞는 값이어야 한다**: `Settings` 를 읽어
         # 스스로 붙는 경로(CLI·백업·마이그레이션)가 이 문자열을 쓴다.
@@ -645,9 +664,14 @@ def make_project(db):
 
     `external_id`(외부 소스 page id)를 주면 티켓 동기화가 그 프로젝트로 해석할 수 있다 —
     안 주면 포털 전용 프로젝트라 외부 티켓이 붙을 수 없다(실제 제품과 같은 성질).
+
+    **코드는 제품의 생성기가 짓는다** (D-282). 시험이 직접 문자열을 고르면 그 문자열이
+    정책과 갈라지고(길이·글자), 갈라진 사실은 DB 제약이 잡을 때까지 안 보인다. 코드를
+    직접 줘야 하는 시험은 `code=` 로 주되 **정책에 맞는 값**이어야 한다.
     """
     from app.org.constants import DEFAULT_ORG_ID
     from app.projects.models import Project
+    from app.work import codes as work_codes
 
     def _make(
         *,
@@ -660,11 +684,15 @@ def make_project(db):
         dept_id = getattr(dept, "id", dept)
         resolved_org = org_id or getattr(dept, "org_id", None) or DEFAULT_ORG_ID
         project = Project(
-            name=name, code=code, dept_id=dept_id, org_id=resolved_org,
+            name=name, dept_id=dept_id, org_id=resolved_org,
             notion_page_id=external_id,
         )
-        db.add(project)
-        db.flush()
+        if code:
+            project.code = code
+            db.add(project)
+            db.flush()
+        else:
+            work_codes.insert_with_code(db, project)
         db.commit()
         return project
 

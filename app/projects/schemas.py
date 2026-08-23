@@ -23,7 +23,6 @@ from app.projects.models import (
 )
 
 MAX_NAME = 200
-MAX_CODE = 64
 MAX_GOAL = 20000
 MAX_SHORT_TEXT = 200
 # 정렬 순번의 상한. 컬럼은 Integer 라 큰 값도 들어가지만, 화면이 손으로 정하는 순서에
@@ -57,7 +56,11 @@ class ProjectCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     name: str
-    code: str | None = None
+    # `code` 는 **여기 없다** (D-282). Project Code 는 서버가 짓고 사람은 못 고친다 —
+    # 요청 본문에 실려 오면 `extra="forbid"` 가 422 로 막는다.
+    #
+    # 조용히 무시하지 않는 이유: 무시하면 클라이언트는 자기가 보낸 코드가 들어갔다고
+    # 믿고, 그 믿음은 화면에 다른 코드가 뜰 때까지 안 깨진다.
     status: str = PROJECT_ACTIVE
     dept_id: str | None = None
     owner_user_id: str | None = None
@@ -75,18 +78,6 @@ class ProjectCreate(BaseModel):
             raise ValueError("프로젝트 이름을 입력하세요.")
         if len(v) > MAX_NAME:
             raise ValueError(f"프로젝트 이름은 {MAX_NAME}자 이하여야 합니다.")
-        return v
-
-    @field_validator("code")
-    @classmethod
-    def _code(cls, v):
-        v = _stripped(v)
-        if v in (None, ""):
-            # 빈 문자열이 아니라 NULL 로 둔다. 빈 문자열은 조직 안에서 유일해야 해서
-            # 코드 없는 두 번째 프로젝트를 유니크가 막는다(0044 주석 참조).
-            return None
-        if len(v) > MAX_CODE:
-            raise ValueError(f"프로젝트 코드는 {MAX_CODE}자 이하여야 합니다.")
         return v
 
     @field_validator("status")

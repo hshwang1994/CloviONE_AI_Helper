@@ -13,17 +13,19 @@ import { fmtNum, serviceLabel, fmtCertDays, copyText } from "./opsHelpers.js";
 export function ServiceStatusPanel({ disk, mem, certDaysRemaining, comps, nav }) {
   const toast = useToast();
   // 실제로 중단·응답 없음 상태인 컴포넌트의 systemd 유닛만 안내한다 — web과 worker/scheduler는
-  // 서로 다른 유닛(clovirone-web-assistant.service / clovirone-web-worker.service)이라, 웹만 죽었을
-  // 때 워커 로그를 보라고 하면 실제 장애 순간에 엉뚱한 곳을 가리키게 된다. worker_conversational
-  // (D-118)은 배치 워커와 또 다른 세 번째 유닛이다 — 예전의 이분법(web이 아니면 무조건
-  // clovirone-web-worker)을 그대로 두면 대화형 레인이 죽었을 때도 배치 워커 로그를 보라고
-  // 안내해, 실제 장애 유닛과 다른 곳을 가리키는 바로 그 문제가 재발한다.
+  // 서로 다른 유닛이라, 웹만 죽었을 때 워커 로그를 보라고 하면 실제 장애 순간에 엉뚱한 곳을
+  // 가리키게 된다. worker_conversational (D-118)은 배치 워커와 또 다른 세 번째 유닛이다 —
+  // 예전의 이분법(web이 아니면 무조건 배치 워커)을 그대로 두면 대화형 레인이 죽었을 때도
+  // 배치 워커 로그를 보라고 안내해, 실제 장애 유닛과 다른 곳을 가리키는 바로 그 문제가 재발한다.
+  //
+  // 이름은 제품 slug 를 따른다(app/core/product.py). 여기 옛 slug 가 남으면 장애 중에
+  // **없는 유닛**의 로그를 보라고 안내하게 되고, 그 순간 이 화면은 안내가 아니라 방해다.
   const DOWN_UNIT_FOR = {
-    web: "clovirone-web-assistant",
-    worker_conversational: "clovirone-web-worker-conversational",
+    web: "clovirassist-web",
+    worker_conversational: "clovirassist-worker-conversational",
   };
   const downComponentKeys = Object.keys(comps).filter((k) => comps[k] && comps[k] !== "up");
-  const downUnits = Array.from(new Set(downComponentKeys.map((k) => DOWN_UNIT_FOR[k] || "clovirone-web-worker")));
+  const downUnits = Array.from(new Set(downComponentKeys.map((k) => DOWN_UNIT_FOR[k] || "clovirassist-worker")));
 
   return (
     <>

@@ -67,10 +67,12 @@ export const MILESTONE_STATUS_OPTIONS = optionsFrom(MILESTONE_STATUS_KO);
  *                    빈 선택기는 "고를 것이 없다" 가 아니라 "고장" 으로 읽힌다.
  *   `owner_user_id`  같은 이유(사용자 명부가 필요하다). 게다가 잘못 고르면 그 프로젝트가
  *                    내 범위 밖으로 나갈 수 있고, 나가면 되돌릴 수도 없다.
+ *   `code`           서버가 짓는다(D-282). 사용자가 고를 수 없고 나중에 바꿀 수도 없다 —
+ *                    코드가 바뀌면 그 프로젝트 티켓 전부의 이름이 바뀌고, 어제 공유한
+ *                    링크가 아무 데도 닿지 않는다. 읽기로만 보여 준다.
  */
 export const PROJECT_FORM_FIELDS = [
   { name: "name", label: "이름", required: true },
-  { name: "code", label: "코드", help: "조직 안에서 유일해야 합니다. 비워 둘 수 있습니다." },
   { name: "status", label: "상태", type: "select", required: true, options: PROJECT_STATUS_OPTIONS },
   { name: "starts_on", label: "시작일", type: "date" },
   { name: "ends_on", label: "종료일", type: "date" },

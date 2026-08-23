@@ -1,0 +1,52 @@
+사용자                             : 25
+프로젝트                          : 22
+  코드 있는 것                   : 22
+  모양 위반(재계산)            : 0
+  겹친 코드                       : 0
+티켓                                : 1133
+  이름 있는 것                   : 1120
+  코드에서 안 나온 이름      : 0
+문서                                : 110
+  판                                 : 110
+관계                                : 121
+첨부 파일                         : 6
+다리(legacy_mapping)                : 1372
+미해결 예외                      : 13
+감사 로그                         : 1402
+옛 이름 표                        : 0
+tickets.legacy_key                    : 0
+파생 — document_chunks            : 0
+파생 — ai_index_state             : 0
+파생 — search_documents           : 0
+유지보수 모드                   : true
+
+샘플 티켓 이름 5건:
+AEGGBJ-1 | 서버 모니터닝에 서버 생성일자 항목 추가
+AEGGBJ-10 | 1차 테스트 및 적용
+AEGGBJ-11 | 2차 테스트 및 적용
+AEGGBJ-12 | hostname 명명규칙 수정
+AEGGBJ-13 | 서버 반납 시 정보보호, 네트워크 담당자에게 알람
+
+프로젝트 코드 22건:
+AEGGBJ | NH손해보험 [ClovirSM 구축]
+DHJRQP | NH손해보험 [금융소비자보호 포털 구축]
+EEQFAP | 암센터 [NCDC 데이터 분석 포털 구축]
+EYWYRY | KISA, 한국인터넷진흥원 [ClovirSM 구축]
+FAWYYY | 현대모비스 [OKE KVM 윈도우 기능 개선]
+GWDWJM | 새마을금고 [ClovirSM 구축]
+HAASFT | 인천국제공항공사 [클라우드 인프라 고도화]
+HQUCQH | 굿모닝아이텍 [NEXTHub ERP 시스템 개발]
+HSDFXZ | 스마일게이트홀딩스 [ClovirONE 2.0 포털 구축]
+NXGNXD | 굿모닝아이텍 [사내 디자인 개선]
+PWWQEV | 한국수력원자력 [포털 구축]
+RMVTND | 브로드컴 [VCF9 Value Pack 제작]
+RYPDYW | 현대모비스 [MDIP 시스템 운영/개선]
+SFVHJG | SK하이닉스 [ITAP 포털 유지보수]
+SNGZRK | 굿모닝아이텍 [ClovirONE 2.0 제품 개발]
+TMRWGY | 포스코DX [P-Cloud 2.0 포털 구축]
+TWFUBG | 엔씨소프트 [NCSpace 포털 구축]
+UBVQDT | M. 고려대학교 [NSX-T 구축]
+VWMETX | 한강홍수통제소 [통합운영관리시스템 구축]
+WUWCYY | S협회 [빅데이터 포털 구축]
+XDTBCC | KB국민카드 [빅데이터 포털 내부시스템 EOS/디자인 변경]
+ZCYMPW | SK하이닉스 [용인 클러스터 대비]

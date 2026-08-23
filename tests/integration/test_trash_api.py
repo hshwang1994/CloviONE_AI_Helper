@@ -1,6 +1,6 @@
 """휴지통 — 이동/복원/권한/만료정리 + API 목록·복원.
 
-노션 호출(archive)은 만료 정리에서만 나므로 그 부분은 _archive_notion 을 모킹해 격리한다.
+노션 호출(archive)은 만료 정리에서만 나므로 그 부분은 _archive_source 을 모킹해 격리한다.
 이동/복원/권한/필터는 순수 로컬 DB 로직이라 노션 없이 검증한다.
 """
 
@@ -50,8 +50,8 @@ def test_manage_permission(db, make_user):
 
 def test_purge_expired_skips_recent(db, make_user, monkeypatch):
     archived: list[str] = []
-    monkeypatch.setattr(service, "_archive_notion",
-                        lambda item, *, outbound, settings: archived.append(item.notion_page_id))
+    monkeypatch.setattr(service, "_archive_source",
+                        lambda db, item, *, outbound, settings: archived.append(item.notion_page_id))
     u = make_user(email="pex@goodmit.co.kr", display_name="정리")
     base = datetime(2026, 7, 29, 0, 0, 0)
     service.move_to_trash(db, item_type=TRASH_TICKET, notion_page_id="old",
@@ -65,10 +65,10 @@ def test_purge_expired_skips_recent(db, make_user, monkeypatch):
 
 
 def test_purge_expired_isolates_notion_failure(db, make_user, monkeypatch):
-    def boom(item, *, outbound, settings):
+    def boom(db, item, *, outbound, settings):
         raise RuntimeError("notion down")
 
-    monkeypatch.setattr(service, "_archive_notion", boom)
+    monkeypatch.setattr(service, "_archive_source", boom)
     u = make_user(email="pfail@goodmit.co.kr", display_name="실패")
     base = datetime(2026, 7, 29)
     service.move_to_trash(db, item_type=TRASH_TICKET, notion_page_id="x",
@@ -98,8 +98,8 @@ def test_bulk_trash_documents(db, make_user):
 def test_bulk_restore_and_purge(db, make_user, monkeypatch):
     """일괄 복원/영구삭제 — 복원은 노션 무손상, 영구삭제는 노션 보관처리 후 제거. 없는 id는 실패로."""
     archived: list[str] = []
-    monkeypatch.setattr(service, "_archive_notion",
-                        lambda item, *, outbound, settings: archived.append(item.notion_page_id))
+    monkeypatch.setattr(service, "_archive_source",
+                        lambda db, item, *, outbound, settings: archived.append(item.notion_page_id))
     u = make_user(email="tbulk@goodmit.co.kr", display_name="벌크")
     now = datetime(2026, 7, 29)
     a = service.move_to_trash(db, item_type=TRASH_TICKET, notion_page_id="a", title="A", url=None, user=u, now=now)

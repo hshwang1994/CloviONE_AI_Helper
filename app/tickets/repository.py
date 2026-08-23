@@ -178,7 +178,12 @@ class TicketDTO:
 
     page_id: str | None
     uid: str | None = None
-    number: int | None = None          # 화면이 'GIT-<번호>' 로 보여주는 티켓 번호
+    # 옛 소스가 매긴 번호. **이름이 아니다** — 채번 순서를 정하는 데만 쓴다(D-281).
+    # 화면이 부르는 이름은 아래 `key` 다.
+    number: int | None = None
+    # `<CODE>-<SEQ>`. 트리거가 파생시킨 `tickets.canonical_key` 그대로다 (D-282).
+    # 아직 번호를 못 받은 티켓은 `None` 이고, 그때 화면은 제목을 쓴다.
+    key: str | None = None
     url: str | None = None
     title: str = ""
     status: str | None = None

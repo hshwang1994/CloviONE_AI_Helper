@@ -59,6 +59,16 @@ KNOWN_RETIRED = {
     "uq_document_generations_idempotency_key",  # document_generations 표 (0011_settings_documents)
 }
 
+# **좁아지지 않고 넓어진 것.** `KNOWN_RENAMED` 로 적을 수 없다 — 이름만 바뀐 것이 아니라
+# 덮는 범위가 달라졌기 때문이다.
+KNOWN_WIDENED = {
+    # S14: 프로젝트 코드 유일성이 **조직 안**에서 **전역**으로 올라갔다(D-282).
+    # 옛 `(org_id, code)` 는 `org_id` 가 NULL 인 행끼리 서로 다른 값이라 사실상 아무것도
+    # 막지 않았다. 티켓 이름 `<CODE>-<SEQ>` 는 조직을 지고 다니지 않으므로 유일성도
+    # 조직을 지면 안 된다. 대신 선 것이 `uq_projects_code`(부분 유니크)다.
+    "uq_projects_org_code": "uq_projects_code",
+}
+
 # **사라진 것이 아니라 옮겨 간 이름.** `KNOWN_RETIRED` 와 다른 것이다 — 저쪽은 「이제
 # 없다」이고 여기는 「같은 인덱스가 새 이름으로 있다」다.
 #
@@ -134,6 +144,13 @@ def test_renamed_indexes_landed_under_their_new_name():
         "옮겼다고 적었는데 새 이름이 모델에 없다 — 이름만 바뀐 것이 아니라 인덱스가 "
         f"사라진 것이다: {lost}"
     )
+    # 넓어졌다고 적은 것도 같은 방식으로 본다. 안 보면 「넓혔다」 한 줄로 인덱스를
+    # 통째로 없앨 수 있다.
+    widened_lost = {old: new for old, new in KNOWN_WIDENED.items() if new not in models}
+    assert not widened_lost, (
+        "넓혔다고 적었는데 새 이름이 모델에 없다 — 유일성이 통째로 사라진 것이다: "
+        f"{widened_lost}"
+    )
 
 
 def test_no_legacy_index_was_silently_dropped():
@@ -146,6 +163,7 @@ def test_no_legacy_index_was_silently_dropped():
         if name not in models
         and name not in KNOWN_RETIRED
         and name not in KNOWN_RENAMED
+        and name not in KNOWN_WIDENED
     }
     assert not missing, (
         "옛 체인이 만든 인덱스·제약이 모델에 없다 — 기준선을 모델에서 만들면 그대로 "

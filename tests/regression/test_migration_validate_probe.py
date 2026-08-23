@@ -101,7 +101,6 @@ def test_known_good_passes_and_actually_counted_something(loaded):
 
 def test_a_missing_row_is_caught(loaded):
     revalidate, sql, _path = loaded
-    sql("DELETE FROM ticket_key_aliases WHERE ticket_id = :id", id=TICKET_A)
     sql("DELETE FROM tickets WHERE id = :id", id=TICKET_A)
     failed = _failed(revalidate())
     assert "누락 ticket_cache → tickets" in failed
@@ -205,32 +204,58 @@ def test_a_counter_left_behind_is_caught(loaded):
     assert "채번 카운터가 뒤처진 프로젝트" in failed
 
 
-def test_an_orphan_alias_is_caught(loaded):
+def test_a_project_without_a_code_is_caught(loaded):
+    """코드가 없으면 그 프로젝트의 티켓은 이름을 못 받는다 (D-282).
+
+    이 자리가 조용히 통과하면 「이름 없는 티켓」이 든 DB 가 초록으로 Cutover 를 지난다.
+    """
     revalidate, sql, _path = loaded
-    sql("ALTER TABLE ticket_key_aliases DROP CONSTRAINT ticket_key_aliases_ticket_id_fkey")
-    sql("UPDATE ticket_key_aliases SET ticket_id = :ghost WHERE alias = 'GIT-100'",
-        ghost="00000000-0000-0000-0000-0000000dead0")
+    sql("UPDATE tickets SET seq = NULL WHERE project_uid = :p", p=PROJECT)
+    sql("UPDATE projects SET code = NULL WHERE id = :p", p=PROJECT)
     failed = _failed(revalidate())
-    assert "고아 별칭" in failed
+    assert "코드 없는 프로젝트" in failed
 
 
-def test_a_legacy_canonical_collision_is_caught(loaded):
-    """`GIT` 예약어가 풀리면 새 `GIT-142` 가 옛 `GIT-142` 와 같은 문자열이 된다."""
+def test_a_code_outside_the_alphabet_is_caught(loaded):
+    """옛 정책의 값(`SKH`)이 남아 있으면 **모양 검사가 잡는다** (D-282).
+
+    DB 의 `ck_projects_code_shape` 를 잠깐 떼고 넣는다 — 제약이 막는다는 사실과 **검사가
+    본다는 사실**은 다른 것이고, 제약이 없는 DB(옛 판에서 올라온 것)를 만날 수 있다.
+    """
     revalidate, sql, _path = loaded
-    sql(
-        "INSERT INTO ticket_key_aliases (alias, ticket_id, kind, created_at) "
-        "SELECT 'SKH-1', id, 'legacy', now() FROM tickets WHERE id <> :a LIMIT 1",
-        a=TICKET_A,
-    )
+    sql("ALTER TABLE projects DROP CONSTRAINT ck_projects_code_shape")
+    sql("UPDATE projects SET code = 'SKH' WHERE id = :p", p=PROJECT)
     failed = _failed(revalidate())
-    assert "legacy/canonical 충돌" in failed
+    assert "모양이 틀린 코드" in failed
 
 
-def test_the_reserved_key_disappearing_is_caught(loaded):
+def test_two_projects_sharing_a_code_is_caught(loaded):
+    """같은 코드가 둘이면 `<CODE>-1` 이 두 티켓을 가리킨다."""
     revalidate, sql, _path = loaded
-    sql("DELETE FROM project_key_registry WHERE key = 'GIT'")
+    sql("DROP INDEX uq_projects_code")
+    # 컬럼을 손으로 나열하지 않는다 — `projects` 에는 NOT NULL 컬럼이 여럿이고, 하나
+    # 빠뜨릴 때마다 이 시험이 「검사가 안 잡는다」가 아니라 「INSERT 가 실패한다」로
+    # 빨개진다. 행을 통째로 복사하고 id 만 바꾼다.
+    sql("CREATE TEMP TABLE _dup AS SELECT * FROM projects WHERE id = :p", p=PROJECT)
+    sql("UPDATE _dup SET id = :new, notion_page_id = NULL",
+        new="00000000-0000-0000-0000-00000000dup0")
+    sql("INSERT INTO projects SELECT * FROM _dup")
     failed = _failed(revalidate())
-    assert "예약 Key 가 서 있는가" in failed
+    assert "겹친 코드" in failed
+
+
+def test_a_database_without_projects_is_not_a_pass(loaded):
+    """**반례** — 볼 것이 없는 회차가 「전 항 통과」로 읽히면 안 된다.
+
+    프로젝트가 0건이면 위 세 검사가 전부 0 을 돌려주고 전부 통과한다. 그 통과는
+    「검사했다」가 아니라 「아무것도 안 봤다」이므로, 표본 수를 세는 검사가 따로 있다.
+    """
+    revalidate, sql, _path = loaded
+    sql("UPDATE tickets SET seq = NULL, project_uid = NULL")
+    sql("DELETE FROM project_ticket_counters")
+    sql("DELETE FROM projects")
+    failed = _failed(revalidate())
+    assert "코드를 본 프로젝트" in failed
 
 
 def test_a_value_longer_than_the_column_is_caught_even_where_pg_allows_it(loaded):

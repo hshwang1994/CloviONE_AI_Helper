@@ -269,7 +269,14 @@ alembic_current_db() {
 }
 
 legacy_present() {
-  [ -d "/opt/$LEGACY_SLUG" ] || [ -f "/etc/$LEGACY_SLUG/web.env" ] || unit_exists "${LEGACY_UNITS[0]}"
+  # 🔴 **옛 자리에 뭐라도 남아 있으면 이전이 안 끝난 것이다** (S14).
+  #
+  # 예전에는 `/opt` · `web.env` · 유닛 셋만 봤다. 그 셋이 먼저 사라지고 `/etc/<옛>/secrets`
+  # 만 남는 상태가 실제로 생겼고(디렉터리 병합 버그), 그때 이 함수가 「이전할 것 없음」을
+  # 돌려주는 바람에 **다시 실행해도 그 비밀들이 영원히 안 옮겨졌다.**
+  #
+  # 남은 것을 보는 쪽이 옳다: 이전이 끝났으면 옛 디렉터리 자체가 없다.
+  [ -d "/opt/$LEGACY_SLUG" ] || [ -d "/etc/$LEGACY_SLUG" ] || [ -d "/var/lib/$LEGACY_SLUG" ]     || unit_exists "${LEGACY_UNITS[0]}"
 }
 
 # ── 인자 ─────────────────────────────────────────────────────────────────────
@@ -472,6 +479,23 @@ stage_1_apt() {
 # ═════════════════════════════════════════════════════════════════════════════
 # Stage 2 — 계정 · 디렉터리 (+ 옛 slug 이전)
 # ═════════════════════════════════════════════════════════════════════════════
+_merge_move() {
+  # `$1` 아래의 모든 것을 `$2` 로 옮긴다. **같은 이름이 이미 있으면 그것만 건너뛰고**,
+  # 디렉터리는 한 겹 더 들어가 같은 규칙을 다시 적용한다.
+  local src="$1" dst="$2" f base
+  mkdir -p "$dst"
+  ( shopt -s dotglob nullglob
+    for f in "$src"/*; do
+      base="$(basename "$f")"
+      if [ -d "$f" ] && [ -d "$dst/$base" ]; then
+        _merge_move "$f" "$dst/$base"
+        rmdir "$f" 2>/dev/null || true
+      elif [ ! -e "$dst/$base" ]; then
+        mv "$f" "$dst/"
+      fi
+    done )
+}
+
 migrate_legacy_paths() {
   legacy_present || return 0
   log "옛 slug 설치를 이전합니다($LEGACY_SLUG → $SLUG)"
@@ -491,10 +515,17 @@ migrate_legacy_paths() {
     src="${pair%%:*}"; dst="${pair##*:}"
     [ -d "$src" ] || continue
     mkdir -p "$dst"
-    # 이미 새 자리에 있는 것은 덮지 않는다(재실행 안전).
-    ( shopt -s dotglob nullglob; for f in "$src"/*; do
-        [ -e "$dst/$(basename "$f")" ] || mv "$f" "$dst/"
-      done )
+    # 이미 새 자리에 있는 파일은 덮지 않는다(재실행 안전). 다만 **디렉터리는 파고든다.**
+    #
+    # 🔴 예전에는 최상위 항목 하나만 보고 「있으면 건너뛴다」였다. 그래서 새 자리에
+    # `secrets/` 가 이미 있으면(S8 이 SMB 자격증명을 거기 넣어 둔다) 옛 `secrets/` 가
+    # **통째로 안 옮겨졌다** — 그 안의 Notion 토큰 넷이 옛 경로에 남고, 설치는 OK 를
+    # 찍는다. 제품은 토큰이 없는 채로 뜨고, 그 사실은 첫 동기화가 실패할 때 처음 보인다.
+    # 실제로 Cutover 첫 회차가 그 상태로 지나갔다 (S14).
+    #
+    # `cp -a --no-clobber` 뒤 원본을 지우는 대신 파일 단위로 옮기는 이유: 부분 실패 뒤
+    # 원본이 남아 있어야 사람이 무엇이 안 옮겨졌는지 볼 수 있다.
+    _merge_move "$src" "$dst"
     rmdir "$src" 2>/dev/null || true
   done
   # web.env → clovirassist.env. 안의 경로 값도 함께 옮긴다.
@@ -740,22 +771,55 @@ stage_8_config() {
   env_set CONFIG_DIR "$ETC_DIR"
   env_set SECRETS_DIR "$SECRETS_DIR"
   env_set DATA_DIR "$VAR_DIR"
-  # DATABASE_URL 은 **기존 값을 존중한다.** 옛 slug 설치를 이전한 경우 그 DB 를 계속 쓴다 —
-  # 데이터가 거기 있고, 이름을 바꾸는 것은 이 스크립트의 일이 아니다.
-  if [ "$created" = 1 ] || ! grep -qE '^DATABASE_URL=.+' "$ENV_FILE"; then
+  # DATABASE_URL 은 **기존 값을 존중한다.** 이미 PostgreSQL 을 가리키고 있으면 그 DB 를
+  # 계속 쓴다 — 데이터가 거기 있고, 이름을 바꾸는 것은 이 스크립트의 일이 아니다.
+  #
+  # 🔴 **`sqlite://` 는 예외다** (S14). 옛 slug 설치를 이전하면 그 설치의 `web.env` 가
+  # 그대로 넘어오는데, 거기 적힌 것은 SQLite 파일 경로다. 그 값을 존중하면 Stage 9 가
+  # `alembic upgrade head` 에서 죽는다 — 제품이 PG 전용이라 `normalize_database_url` 이
+  # 스킴을 보고 거절하기 때문이다(D-215). 실제로 Cutover 첫 회차가 거기서 멈췄다.
+  #
+  # 「존중」의 뜻은 **운영자가 정한 PostgreSQL 주소를 안 덮어쓴다**이지, 이 제품이 못 쓰는
+  # 주소를 지킨다는 것이 아니다. SQLite 주소는 이전 전의 잔재이지 운영자의 선택이 아니다.
+  _dburl="$(grep -E '^DATABASE_URL=' "$ENV_FILE" 2>/dev/null | head -1 | cut -d= -f2- | tr -d "'\"")"
+  case "$_dburl" in
+    sqlite*) _dburl="" ;;
+  esac
+  if [ "$created" = 1 ] || [ -z "$_dburl" ]; then
     env_set DATABASE_URL "postgresql://$PG_ROLE@/$PG_DB?host=/var/run/postgresql"
   fi
 
   ai_env_apply
 
+  # 목록을 손으로 적지 않고 `config/` 에 실제로 있는 것을 전부 옮긴다.
+  #
+  # 손으로 적었을 때 실제로 이런 일이 났다: S11 이 `allowed-runners.json` 과
+  # `allowed-workflows.json` 을 지웠는데 이 목록에는 남아 있어서 `cp` 가 매번 실패했다.
+  # 그런데 `run_stage` 가 `set -e` 를 끄고 부르므로 **Stage 는 그대로 OK 를 찍었다** —
+  # 없는 파일을 복사하려다 실패한 사실이 로그에만 남고 판정에는 안 잡혔다.
+  #
+  # 반대 방향도 있었다: S13 이 만든 `allowed-migration-sources.json` 은 목록에 없어서
+  # 서버로 안 갔고, `AllowlistRegistry` 는 파일이 없으면 **전부 거절**이라 Cutover 회차의
+  # Notion 호출이 전부 400 이 됐을 것이다. 그 400 은 설정 실수처럼 안 보인다.
   local f
-  for f in allowed-services.json allowed-runners.json allowed-workflows.json feature-flags.json; do
-    if [ ! -f "$ETC_DIR/$f" ]; then
-      cp "$APP_DIR/config/$f" "$ETC_DIR/$f"
+  for f in "$APP_DIR"/config/*.json; do
+    [ -f "$f" ] || continue
+    local base; base="$(basename "$f")"
+    if [ ! -f "$ETC_DIR/$base" ]; then
+      cp "$f" "$ETC_DIR/$base"
     fi
-    chown root:"$SVC_USER" "$ETC_DIR/$f"; chmod 0640 "$ETC_DIR/$f"
+    chown root:"$SVC_USER" "$ETC_DIR/$base"; chmod 0640 "$ETC_DIR/$base"
   done
-  chmod 0700 "$SECRETS_DIR"; chown root:"$SVC_USER" "$SECRETS_DIR"
+  # 🔴 **0750 이지 0700 이 아니다** (S14). 소유자는 root 이고 그룹이 서비스 계정이다 —
+  # `0700` 이면 그룹에 아무 권한이 없어서 **제품이 자기 비밀을 못 읽는다.** 파일이 0640
+  # 이어도 소용없다: 디렉터리를 통과(x)하지 못하면 그 안의 파일에 닿을 수가 없다.
+  #
+  # 실제로 그 상태로 설치가 `OK` 를 찍었고, 처음 드러난 자리는 Cutover 이관이 Notion
+  # 토큰을 읽으려다 `PermissionError` 를 낸 것이었다. 「비밀을 못 읽는다」는 기동 때
+  # 안 보인다 — 그 비밀을 실제로 쓰는 첫 요청까지 조용하다.
+  #
+  # `others` 는 여전히 아무것도 못 한다. 좁히려던 목적은 그대로다.
+  chmod 0750 "$SECRETS_DIR"; chown root:"$SVC_USER" "$SECRETS_DIR"
   find "$SECRETS_DIR" -type f -exec chmod 0640 {} + 2>/dev/null || true
   find "$SECRETS_DIR" -type f -exec chown root:"$SVC_USER" {} + 2>/dev/null || true
 

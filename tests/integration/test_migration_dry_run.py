@@ -25,6 +25,7 @@ from app.core.config import Settings
 from app.core.db import make_engine, make_session_factory
 from app.migration import runner
 from app.migration.report import SEVERITY_BLOCKING
+from app.work import codes
 
 pytestmark = [pytest.mark.integration, pytest.mark.real_db]
 
@@ -42,8 +43,11 @@ PAGE_B = "bbbb0000-0000-0000-0000-0000000000b1"
 PAGE_C = "bbbb0000-0000-0000-0000-0000000000c1"
 PAGE_DOC = "cccc0000-0000-0000-0000-0000000000d1"
 
-# 확정표의 첫 줄. 이 이름이어야 Key 가 실제로 붙는다.
-KEYED_PROJECT_NAME = "SK하이닉스 [용인 클러스터 대비]"
+# 프로젝트 이름. **코드와 아무 상관이 없다** (D-282) — 코드는 이름이 아니라 소스가 주는
+# 안 변하는 값(여기서는 `PAGE_PROJECT`)에서 나온다. 앞 판에서는 이 문자열이 확정표의
+# 첫 줄과 글자 하나까지 같아야 Key 가 붙었고, 소스가 이름을 바꾼 날 그 결합이 실제로
+# 끊어졌다(옛 D-278).
+PROJECT_NAME = "SK하이닉스 [용인 클러스터 대비]"
 
 
 def _write_source(path: Path) -> None:
@@ -84,7 +88,7 @@ def _write_source(path: Path) -> None:
     )
     conn.execute(
         "INSERT INTO projects VALUES (?,?,?,?,?,?,?,?,?,?)",
-        (PROJECT, KEYED_PROJECT_NAME, None, "active", ORG, PAGE_PROJECT,
+        (PROJECT, PROJECT_NAME, None, "active", ORG, PAGE_PROJECT,
          "2026-01-01 00:00:00", "2026-01-01 00:00:00", None, ""),
     )
     rows = [
@@ -146,7 +150,7 @@ class FakeNotion:
             return [{
                 "id": PAGE_PROJECT, "last_edited_time": "2026-08-20T00:00:00.000Z",
                 "properties": {
-                    "프로젝트명": {"type": "title", "title": [_rich(KEYED_PROJECT_NAME)]},
+                    "프로젝트명": {"type": "title", "title": [_rich(PROJECT_NAME)]},
                     "진행 상태": {"type": "status", "status": {"name": "진행 중"}},
                 },
             }]
@@ -255,27 +259,68 @@ def test_a_full_pass_lands_and_every_check_holds(dry_run):
         ).scalar_one() == 1
 
 
-def test_the_ticket_that_can_be_placed_gets_all_three_names(dry_run):
-    """Internal · Canonical · Legacy 가 함께 선다 (D-195)."""
+def test_the_ticket_that_can_be_placed_is_named_after_its_project_code(dry_run):
+    """Internal · Canonical 두 층이 함께 선다 (D-282).
+
+    문자열을 여기 적지 않는 이유: 적으면 시험이 **생성기의 답을 미리 아는** 상태가 되고,
+    생성기를 고치는 날 시험이 「정책이 깨졌다」가 아니라 「내가 적어 둔 값과 다르다」로
+    빨개진다. 봐야 하는 것은 코드가 정책의 모양이고 이름이 그 코드에서 나왔다는 것이다.
+    """
     run, factory = dry_run
     run()
     with factory() as db:
+        code = db.execute(sa.text(
+            "SELECT code FROM projects WHERE id = :id"
+        ), {"id": PROJECT}).scalar_one()
         row = db.execute(sa.text(
-            "SELECT canonical_key, legacy_key, seq FROM tickets WHERE id = :id"
+            "SELECT canonical_key, seq FROM tickets WHERE id = :id"
         ), {"id": TICKET_A}).one()
-    assert row.canonical_key == "SKH-1"
-    assert row.legacy_key == "GIT-100"
+    assert codes.is_valid(code), f"«{code}» 는 정책의 모양이 아니다"
     assert row.seq == 1
+    assert row.canonical_key == f"{code}-1"
 
 
-def test_the_old_name_keeps_opening_the_same_ticket(dry_run):
+def test_the_code_comes_from_the_source_identity_not_from_the_name(dry_run):
+    """**Cutover 가 Dry Run 과 같은 코드를 받는 근거**를 직접 잰다 (D-282).
+
+    Dry Run 과 Cutover 는 같은 도구가 서로 다른 DB 에 대고 도는 회차다. 코드가 소스가
+    주는 값에서 나오지 않으면 같은 프로젝트가 두 회차에서 다른 이름을 받고, 그때 Dry Run
+    이 검증한 티켓 이름 전부가 Cutover 에서 무효가 된다.
+
+    「재실행해도 같다」로는 이것을 못 잡는다 — 재실행은 이미 붙은 코드를 안 건드리기만
+    하면 통과하기 때문이다. 그래서 **소스 값에서 직접 다시 계산해** 대조한다.
+    """
     run, factory = dry_run
     run()
     with factory() as db:
-        owner = db.execute(sa.text(
-            "SELECT ticket_id FROM ticket_key_aliases WHERE alias = 'GIT-100'"
+        code = db.execute(sa.text(
+            "SELECT code FROM projects WHERE id = :id"
+        ), {"id": PROJECT}).scalar_one()
+    assert code == codes.derive(PAGE_PROJECT)
+
+
+def test_the_old_ticket_name_is_not_carried_over(dry_run):
+    """**반례** — 옛 이름(`GIT-100`)이 어디에도 남지 않는다 (D-283).
+
+    이 시험이 없으면 「폐기했다」가 코드 주석으로만 존재하고, 어딘가 한 자리가 계속
+    옛 이름을 쓰고 있어도 아무도 모른다.
+    """
+    from app.work.resolve import resolve
+
+    run, factory = dry_run
+    run()
+    with factory() as db:
+        assert resolve(db, "GIT-100") is None
+        columns = db.execute(sa.text(
+            "SELECT count(*) FROM information_schema.columns "
+            "WHERE table_name = 'tickets' AND column_name = 'legacy_key'"
         )).scalar_one()
-    assert owner == TICKET_A
+        tables = db.execute(sa.text(
+            "SELECT count(*) FROM information_schema.tables "
+            "WHERE table_name IN ('ticket_key_aliases', 'project_key_registry')"
+        )).scalar_one()
+    assert columns == 0, "`tickets.legacy_key` 가 아직 있다"
+    assert tables == 0, "옛 이름 표가 아직 있다"
 
 
 def test_tickets_that_cannot_be_placed_get_a_reason_not_a_guess(dry_run):
@@ -426,6 +471,9 @@ def test_running_it_twice_changes_nothing(dry_run):
         versions_before = db.execute(
             sa.text("SELECT count(*) FROM document_versions")
         ).scalar_one()
+        codes_before = dict(db.execute(sa.text(
+            "SELECT id, code FROM projects ORDER BY id"
+        )).all())
 
     second = run()
     assert second.passed, [c.line() for c in second.failed_checks] + [
@@ -447,6 +495,16 @@ def test_running_it_twice_changes_nothing(dry_run):
         ).scalar_one()
     assert after == before, "재실행이 표시 이름을 움직였다 — 옛 링크가 죽는다"
     assert versions_after == versions_before, "같은 본문에 판이 또 쌓였다 (D-247)"
+
+    # 프로젝트 코드도 함께 본다 (D-282). 위 `canonical_key` 만 보면 **코드가 바뀌고
+    # 번호가 반대로 바뀌어** 같은 문자열이 되는 경우를 못 잡는다 — 억지처럼 들리지만,
+    # 실제로 S13 이 만난 결함이 정확히 「2회차가 코드를 지운다」였다(D-275).
+    with factory() as db:
+        codes_after = dict(db.execute(sa.text(
+            "SELECT id, code FROM projects ORDER BY id"
+        )).all())
+    assert codes_before, "코드를 가진 프로젝트가 하나도 없다 — 이 시험이 아무것도 안 봤다"
+    assert codes_after == codes_before, "재실행이 프로젝트 코드를 움직였다"
 
 
 def test_derived_tables_stay_empty_because_the_product_refills_them(dry_run):
@@ -484,8 +542,9 @@ def test_a_run_without_notion_says_so_instead_of_passing_quietly(dry_run, tmp_pa
         engine.dispose()
     skipped = [f for f in report.findings if f.kind == "notion_skipped"]
     assert skipped, "Notion 을 안 읽었다는 사실이 보고서에 없다"
-    # 확정 Key 는 이름으로 붙는데 그 이름은 Notion 이 갱신한다 — 안 읽으면 못 붙는다.
-    assert [f for f in report.findings if f.kind.startswith("project_key_")]
+    # 코드는 Notion 없이도 붙는다 (D-282) — 씨앗이 소스에 있기 때문이다. 그래서 여기서
+    # 봐야 하는 것은 「코드를 못 붙였다」가 아니라 **회차가 통과로 읽히지 않는다**이다.
+    assert not [f for f in report.findings if f.kind == "project_code_missing"]
 
 
 def test_a_value_too_long_is_refused_and_counted(tmp_path, db_url):

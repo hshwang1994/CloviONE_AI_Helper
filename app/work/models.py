@@ -51,21 +51,6 @@ from app.core.models_base import (
     utcnow,
 )
 
-# ── Project Key 상태 ─────────────────────────────────────────────────────────
-#
-# `retired` 는 「해제」가 아니라 「더 쓰지 않는다」다. 행이 남아 있어야 다음 프로젝트가
-# 그 Key 를 가져가지 못하고, 그것이 `<KEY>-<SEQ>` 가 전역에서 충돌하지 않는 근거다
-# (D-196). 지우면 근거가 사라진다.
-KEY_ACTIVE = "active"
-KEY_RETIRED = "retired"
-KEY_RESERVED = "reserved"
-KEY_STATES: tuple[str, ...] = (KEY_ACTIVE, KEY_RETIRED, KEY_RESERVED)
-
-# ── Alias 종류 ───────────────────────────────────────────────────────────────
-ALIAS_LEGACY = "legacy"          # 옛 시스템이 부르던 이름 (`GIT-142`)
-ALIAS_SUPERSEDED = "superseded"  # Project Key 를 바꾸기 전의 canonical
-ALIAS_KINDS: tuple[str, ...] = (ALIAS_LEGACY, ALIAS_SUPERSEDED)
-
 # ── Migration Exception 사유 (U11 · D-197) ───────────────────────────────────
 EXC_AMBIGUOUS = "ambiguous"          # 소스 relation 이 2개 이상
 EXC_MISSING = "missing"              # 소스 relation 이 0개
@@ -114,47 +99,6 @@ def _in_list(column: str, values: tuple[str, ...]) -> str:
     return f"{column} IN ({joined})"
 
 
-class ProjectKeyRegistry(Base):
-    """Project Key 의 소유 대장. **행을 지우지 않는다.**
-
-    `project_id` 가 NULL 이면 예약어다 — 어떤 프로젝트도 가져갈 수 없다. `GIT` 이
-    그것이다(옛 namespace 라 `GIT-142` 와 새 `<KEY>-142` 가 절대 같은 문자열이 될 수
-    없어야 한다).
-
-    프로젝트 하나가 동시에 두 개의 `active` Key 를 가질 수 없다 — 부분 유니크
-    인덱스가 막는다. 「지금 이 프로젝트의 Key 는 무엇인가」에 답이 둘이면 canonical
-    이라는 말 자체가 성립하지 않는다.
-    """
-
-    __tablename__ = "project_key_registry"
-
-    key: Mapped[str] = mapped_column(String(10), primary_key=True)
-    project_id: Mapped[str | None] = mapped_column(
-        String(36), ForeignKey("projects.id", ondelete="SET NULL"), index=True
-    )
-    state: Mapped[str] = mapped_column(String(16), nullable=False, default=KEY_ACTIVE)
-    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
-
-    __table_args__ = (
-        # 2~10자 · 영문 대문자 시작 · 대문자+숫자 (§5.2). URL 안전은 이 모양의 부산물이다.
-        CheckConstraint(r"key ~ '^[A-Z][A-Z0-9]{1,9}$'", name="ck_pkr_key_shape"),
-        CheckConstraint(_in_list("state", KEY_STATES), name="ck_pkr_state"),
-        # 예약어는 프로젝트를 갖지 않고, 프로젝트를 가진 Key 는 예약어가 아니다.
-        CheckConstraint(
-            "(state = 'reserved' AND project_id IS NULL) OR "
-            "(state <> 'reserved' AND project_id IS NOT NULL)",
-            name="ck_pkr_reserved_has_no_project",
-        ),
-        # 대소문자 무관 유일 (§5.2). 위 shape 제약이 이미 대문자를 강제하므로 지금은
-        # 같은 것을 두 번 말하지만, 이 인덱스가 **shape 이 느슨해지는 날의 안전망**이다.
-        Index("uq_pkr_key_ci", text("upper(key)"), unique=True),
-        Index(
-            "uq_pkr_active_project", "project_id", unique=True,
-            postgresql_where=text("state = 'active'"),
-        ),
-    )
-
-
 class ProjectTicketCounter(Base):
     """프로젝트별 **지금까지 발급된 마지막 번호** (D-196).
 
@@ -171,28 +115,6 @@ class ProjectTicketCounter(Base):
 
     __table_args__ = (
         CheckConstraint("last_seq >= 0", name="ck_ptc_last_seq_nonneg"),
-    )
-
-
-class TicketKeyAlias(Base):
-    """옛 이름 → 티켓. **영구 Resolution 의 실체** (D-195).
-
-    `GIT-142` 는 여기 `legacy` 로 들어가고, Project Key 를 바꾸면 그 전의 canonical 이
-    `superseded` 로 들어간다. 둘 다 영구다 — 옛 링크·옛 문서·옛 대화가 계속 같은
-    티켓으로 간다.
-    """
-
-    __tablename__ = "ticket_key_aliases"
-
-    alias: Mapped[str] = mapped_column(String(64), primary_key=True)
-    ticket_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("tickets.id", ondelete="CASCADE"), nullable=False, index=True
-    )
-    kind: Mapped[str] = mapped_column(String(16), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
-
-    __table_args__ = (
-        CheckConstraint(_in_list("kind", ALIAS_KINDS), name="ck_tka_kind"),
     )
 
 

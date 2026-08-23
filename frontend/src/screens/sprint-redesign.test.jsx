@@ -37,8 +37,8 @@ const PAYLOAD = {
     {
       name: "서윤경", has_tickets: true, done: 1, prog: 1, verify: 0, plan: 1, est_done: 2,
       tickets: [
-        { tid: 12, title: "로그인 오류 수정", status: "계획", due: "2026-08-05", est_wd: 1 },
-        { tid: 34, title: "배포 스크립트 정리", status: "진행", due: "2026-08-07", est_wd: 2 },
+        { tid: 12, key: "ABCDEF-12", title: "로그인 오류 수정", status: "계획", due: "2026-08-05", est_wd: 1 },
+        { tid: 34, key: "ABCDEF-34", title: "배포 스크립트 정리", status: "진행", due: "2026-08-07", est_wd: 2 },
       ],
     },
     // 이번 주 티켓이 없는 팀원 — 담당자별 목록에 빈 그룹으로 나오면 안 된다(예전 카운트 표는
@@ -46,7 +46,7 @@ const PAYLOAD = {
     { name: "홍길동", has_tickets: false, done: 0, prog: 0, verify: 0, plan: 0, est_done: 0, tickets: [] },
   ],
   unassigned: [{ id: "u-9", tid: 99, title: "담당자 없는 티켓", status: "계획" }],
-  planned: [{ id: "p-12", tid: 12, title: "로그인 오류 수정", status: "계획", assignee_names: ["서윤경"] }],
+  planned: [{ id: "p-12", tid: 12, key: "ABCDEF-12", title: "로그인 오류 수정", status: "계획", assignee_names: ["서윤경"] }],
 };
 
 beforeEach(() => {
@@ -110,8 +110,8 @@ describe("스프린트 회의 재설계", () => {
     await user.click(within(section).getByRole("button", { name: /서윤경/ }));
     // 각 티켓 제목과 티켓 번호가 실제로 목록에 있다.
     expect(within(section).getByText("배포 스크립트 정리")).toBeInTheDocument();
-    expect(within(section).getByText("GIT-12")).toBeInTheDocument();
-    expect(within(section).getByText("GIT-34")).toBeInTheDocument();
+    expect(within(section).getByText("ABCDEF-12")).toBeInTheDocument();
+    expect(within(section).getByText("ABCDEF-34")).toBeInTheDocument();
   });
 
   it("제목을 누르면 그 티켓의 /tickets/:id 상세로 이동한다", async () => {
@@ -210,7 +210,7 @@ describe("assigneeTicketRows", () => {
  * ────────────────────────────────────────────────────────────────────────────*/
 
 const T34 = {
-  id: "t-34", tid: 34, title: "배포 스크립트 정리", status: "진행", due: "2026-08-07",
+  id: "t-34", tid: 34, key: "ABCDEF-34", title: "배포 스크립트 정리", status: "진행", due: "2026-08-07",
   est_wd: 2, project_ids: ["p-b"], project: "인프라", assignee_user_ids: ["u-1", "u-2"],
 };
 
@@ -228,7 +228,7 @@ const WEEKLY = {
   ],
   by_assignee: [
     { user_id: "u-1", name: "서윤경", tickets: [
-      { id: "t-12", tid: 12, title: "로그인 오류 수정", status: "계획", due: "2026-08-05",
+      { id: "t-12", tid: 12, key: "ABCDEF-12", title: "로그인 오류 수정", status: "계획", due: "2026-08-05",
         est_wd: 1, project_ids: ["p-a"], project: "포털", assignee_user_ids: ["u-1"] },
       T34,
     ] },
@@ -236,7 +236,7 @@ const WEEKLY = {
     { user_id: "u-2", name: "김철수", tickets: [T34] },
   ],
   unassigned: [{ id: "un-9", tid: 99, title: "담당자 없는 티켓", status: "계획" }],
-  planned: [{ id: "t-12", tid: 12, title: "로그인 오류 수정", status: "계획", assignee_names: ["서윤경"] }],
+  planned: [{ id: "t-12", tid: 12, key: "ABCDEF-12", title: "로그인 오류 수정", status: "계획", assignee_names: ["서윤경"] }],
   burndown: {
     total_est_wd: 3,
     points: [

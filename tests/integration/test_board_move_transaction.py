@@ -19,7 +19,7 @@ from app.notifications.models import Notification
 from app.org.constants import DEFAULT_ORG_ID
 from app.projects.models import Project
 from app.tickets.models import PROJECT_LINK_OK, Ticket
-from app.work import keys as work_keys
+from app.work import codes as work_codes
 from app.work.models import TicketActivity, TicketWatcher
 
 pytestmark = pytest.mark.integration
@@ -82,17 +82,20 @@ def world(db, make_user):
     watcher = make_user(WATCHER, role="user", display_name="지켜보는 사람")
     db.commit()
 
-    project = Project(
-        name="보드 프로젝트", org_id=DEFAULT_ORG_ID, notion_page_id="proj-board"
+    # 코드는 제품의 생성기가 짓는다(D-282). 이 시험의 관심사는 이동의 트랜잭션성이라
+    # 코드가 무엇인지는 아무 데도 안 쓰이지만, 시험이 문자열을 직접 고르면 그 값이
+    # 정책의 여섯 글자와 갈라진 채로 남는다.
+    project = work_codes.insert_with_code(
+        db,
+        Project(
+            name="보드 프로젝트", org_id=DEFAULT_ORG_ID, notion_page_id="proj-board"
+        ),
     )
-    db.add(project)
-    db.flush()
-    work_keys.claim(db, project_id=project.id, key="BRD")
 
     ticket = Ticket(
         title="옮길 티켓", notion_page_id=PAGE, project_uid=project.id,
         project_link=PROJECT_LINK_OK, status="계획", org_id=DEFAULT_ORG_ID,
-        source="notion", notion_ticket_number=7, legacy_key="GIT-7",
+        source="notion", notion_ticket_number=7,
     )
     db.add(ticket)
     db.flush()

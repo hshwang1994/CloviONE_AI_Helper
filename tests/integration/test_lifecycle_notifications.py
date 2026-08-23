@@ -20,13 +20,14 @@ from __future__ import annotations
 
 import pytest
 
+from app.core.models_base import join_names
 from app.notion_mapping.models import SOURCE_MANUAL, STATUS_VERIFIED, UserNotionMapping
+from app.org.constants import DEFAULT_ORG_ID
+from app.tickets.models import PROJECT_LINK_OK, TicketCache
 from tests.conftest import DEFAULT_TEST_PASSWORD
-from tests.fakes.notion import DEFAULT_PROJECTS_DB, FakeNotionTasksDB, project_row, task_row
 
 pytestmark = pytest.mark.integration
 
-TOKEN_REF = "notion_report_token"
 DOC_URL = "http://127.0.0.1:5678/webhook/doc-gen"
 
 LEAVER_NID = "notion-leaver"
@@ -65,22 +66,30 @@ def _rows(app, kind: str) -> list:
 # ── 2. 오프보딩 후임자 ────────────────────────────────────────────────────────
 
 @pytest.fixture()
-def notion(fake_http) -> FakeNotionTasksDB:
-    return FakeNotionTasksDB(
-        rows=[
-            task_row(page_id="page-1", tid=101, title="혼자 담당 A", status="진행",
-                     due="2026-09-01", people=[LEAVER_NID]),
-            task_row(page_id="page-2", tid=102, title="혼자 담당 B", status="진행",
-                     due="2026-09-02", people=[LEAVER_NID]),
-        ],
-        projects=[project_row(page_id="proj-1", name="알파")],
-        projects_db=DEFAULT_PROJECTS_DB,
-    ).install(fake_http)
+def tickets(db, make_project):
+    """퇴사자가 들고 있는 두 건. S14 이후 티켓의 정본은 자체 DB(`tickets`)다.
+
+    통보 시험이라고 티켓을 흉내만 내면 안 된다 — 실제로 옮겨진 건수가 알림 문구와 발송
+    여부를 정하기 때문에, 넘어갈 티켓이 없으면 「안 보냈다」가 저절로 참이 된다.
+    """
+    project = make_project(name="알파", external_id="proj-1")
+    for page_id, tid, title, due in (
+        ("page-1", 101, "혼자 담당 A", "2026-09-01"),
+        ("page-2", 102, "혼자 담당 B", "2026-09-02"),
+    ):
+        db.add(TicketCache(
+            notion_page_id=page_id, org_id=DEFAULT_ORG_ID, notion_ticket_number=tid,
+            title=title, status="진행", due_date=due,
+            project_ids=join_names(["proj-1"]), project_uid=project.id,
+            project_link=PROJECT_LINK_OK, project_names=join_names([project.name]),
+            assignee_notion_ids=join_names([LEAVER_NID]),
+        ))
+    db.commit()
+    return project
 
 
 @pytest.fixture()
-def people(db, make_user, settings, notion) -> dict[str, str]:
-    (settings.secrets_dir / TOKEN_REF).write_text("fake-token", encoding="utf-8")
+def people(db, make_user) -> dict[str, str]:
     made: dict[str, str] = {}
     for key, email, nid, name in (
         ("leaver", "leaver@goodmit.co.kr", LEAVER_NID, "퇴사자"),
@@ -106,7 +115,7 @@ def admin(client, make_user, db) -> str:
     return response.json()["csrf_token"]
 
 
-def test_the_successor_is_told_what_they_inherited(client, app, admin, people, notion):
+def test_the_successor_is_told_what_they_inherited(client, app, admin, people, tickets):
     response = client.post(
         f"/api/admin/offboarding/run/{people['leaver']}",
         json={"ticket_page_ids": ["page-1", "page-2"],
@@ -123,7 +132,7 @@ def test_the_successor_is_told_what_they_inherited(client, app, admin, people, n
 
 
 def test_a_handover_is_one_summary_not_one_notification_per_ticket(
-    client, app, admin, people, notion
+    client, app, admin, people, tickets
 ):
     """100건을 넘겨받은 사람에게 알림 100건을 보내면 그건 통보가 아니라 사고다."""
     client.post(
@@ -140,19 +149,21 @@ def test_a_handover_is_one_summary_not_one_notification_per_ticket(
     assert _count(app, people["successor"], "offboarding_handover") == 1
 
 
-def test_no_successor_means_no_handover_notification(client, app, admin, people, notion):
+def test_no_successor_means_no_handover_notification(client, app, admin, people, tickets):
     """후임 없이 미할당으로 보내는 경우 - 받을 사람이 없으면 아무에게도 안 보낸다."""
-    client.post(
+    response = client.post(
         f"/api/admin/offboarding/run/{people['leaver']}",
         json={"ticket_page_ids": ["page-1"], "deactivate": False, "archive": False},
         headers={"X-CSRF-Token": admin},
     )
 
+    # 옮긴 것이 실제로 있어야 「안 보냈다」가 의미를 갖는다 - 0건이면 저절로 참이 된다.
+    assert response.json()["run"]["ticket_moved"] == 1, response.text
     assert _rows(app, "offboarding_handover") == [], "받을 사람이 없는데 알림이 생겼다"
 
 
 def test_an_admin_who_hands_over_to_themselves_gets_nothing(
-    client, app, make_user, db, settings, notion
+    client, app, make_user, db, tickets
 ):
     """자기 자신을 후임으로 지정한 관리자는 자기가 한 일을 이미 안다."""
     boss = make_user(email="boss2@goodmit.co.kr", role="system_admin", display_name="관리자")
@@ -166,18 +177,19 @@ def test_an_admin_who_hands_over_to_themselves_gets_nothing(
         status=STATUS_VERIFIED, source=SOURCE_MANUAL,
     ))
     db.commit()
-    (settings.secrets_dir / TOKEN_REF).write_text("fake-token", encoding="utf-8")
 
     csrf = client.post(
         "/login", json={"email": "boss2@goodmit.co.kr", "password": DEFAULT_TEST_PASSWORD}
     ).json()["csrf_token"]
-    client.post(
+    response = client.post(
         f"/api/admin/offboarding/run/{leaver.id}",
         json={"ticket_page_ids": ["page-1"], "successor_user_id": boss.id,
               "deactivate": False, "archive": False},
         headers={"X-CSRF-Token": csrf},
     )
 
+    # 위와 같은 이유 - 넘어간 티켓이 있어야 「나에게는 안 왔다」가 시험이 된다.
+    assert response.json()["run"]["ticket_moved"] == 1, response.text
     assert _count(app, boss.id, "offboarding_handover") == 0, (
         "내가 나에게 넘긴 일이 나에게 알림으로 왔다"
     )

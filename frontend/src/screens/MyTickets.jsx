@@ -76,7 +76,10 @@ function useBulkTrash(path, qc, toast, onDone) {
  * font-size:14px 등)에 묶여 있어 4K에서 글자만 그대로 남고 여백만 커졌다 — 이제 전부 rem/테마
  * 값이라 styles/root.css의 루트 폰트사이즈 레버 하나로 같이 커진다. px 폰트사이즈는 새로 쓰지 않는다. */
 
-function ticketId(t) { return t.tid != null ? "GIT-" + t.tid : "-"; }
+/* 티켓 이름은 서버가 준다(`key` = `<CODE>-<SEQ>`). 여기서 접두사를 붙여 이름을
+   만들어 내지 않는다 — 그렇게 만든 문자열은 제품 어디에도 없는 이름이라, 복사해
+   붙여 넣어도 아무 티켓이 안 열린다. */
+function ticketId(t) { return (t && t.key) || "-"; }
 
 // 행/‘상세’ 클릭 → 우리 화면의 티켓 상세로 간다(문서처럼). 원본(노션)은 상세에서 '원본 열기'로.
 function ticketPath(t) { return "/tickets/" + (t && t.id); }
@@ -560,7 +563,7 @@ export function TicketEditModal({ ticket, open, onClose }) {
   const diffOpts = withCurrent(meta.difficulties, form.difficulty);
   const projects = (projectsQ.data && projectsQ.data.projects) || [];
   return (
-    <Modal open={open} onClose={onClose} title={"티켓 수정" + (ticket.tid != null ? ", GIT-" + ticket.tid : "")} size="md" footer={footer} dirty={dirty}>
+    <Modal open={open} onClose={onClose} title={"티켓 수정" + (ticket.key ? ", " + ticket.key : "")} size="md" footer={footer} dirty={dirty}>
       <form onSubmit={(e) => { e.preventDefault(); submit(); }}>
         {/* 제목이 맨 위다 — 이 화면에서 바꾸는 값 중 사용자가 가장 먼저 보는 것이다.
             예전에는 아예 없어서 제목 오타 하나 때문에 노션을 열어야 했다. */}

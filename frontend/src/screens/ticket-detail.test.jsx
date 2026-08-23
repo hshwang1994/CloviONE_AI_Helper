@@ -34,7 +34,7 @@ import { ConfirmProvider, ToastProvider } from "../ui/kit.jsx";
 import { ThemeModeProvider } from "../ui/ThemeModeProvider.jsx";
 
 const TICKET = {
-  id: "page-1", uid: "uid-1", tid: 42, title: "샘플 티켓", status: "진행",
+  id: "page-1", uid: "uid-1", tid: 42, key: "ABCDEF-42", title: "샘플 티켓", status: "진행",
   priority: "높음", difficulty: "3", est_wd: 2, due: "2026-09-01",
   project: "알파", assignee_names: ["나"], url: "https://notion.so/page-1",
 };
@@ -85,7 +85,7 @@ beforeEach(() => {
 
 /* SEM-03 재검증(2026-08-13) — 2026-08-12 "구현완료" 기록은 이 파일 소스의 리터럴
  * component="h1"만 grep으로 셌다(1개) — PageHeader(kit.jsx)가 내부적으로 만드는 h1은
- * 다른 파일이라 안 잡혀, 실제로는 PageHeader의 옛 title(ticketId, 예: "GIT-42")과 카드
+ * 다른 파일이라 안 잡혀, 실제로는 PageHeader의 옛 title(ticketId, 예: "ABCDEF-42")과 카드
  * 안 진짜 제목까지 h1이 둘이었다(VIS-133과 같은 원인 — 실제 렌더로 재확인). */
 describe("페이지에 h1이 하나뿐이다 (SEM-03 재검증)", () => {
   it("PageHeader가 진짜 제목을 h1으로 보여주고, 티켓 번호는 사라지지 않고 메타로 남는다", async () => {
@@ -98,8 +98,9 @@ describe("페이지에 h1이 하나뿐이다 (SEM-03 재검증)", () => {
     const headings = screen.getAllByRole("heading", { level: 1 });
     expect(headings).toHaveLength(1);
     expect(headings[0]).toHaveTextContent("샘플 티켓");
-    // GIT-42(ticketId)는 더 이상 h1이 아니지만 화면에서 완전히 사라지지 않는다 — 메타로 남는다.
-    expect(screen.getByText("GIT-42")).toBeInTheDocument();
+    // 티켓 이름(ticketId)은 더 이상 h1이 아니지만 화면에서 완전히 사라지지 않는다 — 메타로 남는다.
+    // 이름은 서버가 준 `key`(`<CODE>-<SEQ>`)다 — 화면이 `tid` 앞에 접두사를 붙여 만들지 않는다(D-282).
+    expect(screen.getByText("ABCDEF-42")).toBeInTheDocument();
   });
 });
 

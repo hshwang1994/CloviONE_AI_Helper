@@ -1,0 +1,1310 @@
+{
+  "mode": "dry-run",
+  "started_at": "2026-08-23T16:27:18+00:00",
+  "finished_at": "2026-08-23T16:27:50+00:00",
+  "source_sqlite": "/home/cloviradmin/s14/work/legacy.sqlite3",
+  "target_database": "local:/clovir_s14b",
+  "source_fingerprint": {
+    "tables": 75,
+    "ticket_cache": 1123,
+    "document_cache": 110,
+    "users": 25,
+    "audit_logs": 1401,
+    "projects": 22,
+    "alembic": "0061"
+  },
+  "notion": {
+    "property_coverage": {
+      "작업": {
+        "title": 1124,
+        "ticket_id": 1125,
+        "status": 1125,
+        "priority": 423,
+        "difficulty": 195,
+        "est_wd": 104,
+        "act_wd": 36,
+        "start": 271,
+        "due": 813,
+        "category": 114,
+        "assignees": 949,
+        "project": 1122,
+        "parent": 76,
+        "predecessors": 30,
+        "successors": 26
+      },
+      "문서": {
+        "title": 108,
+        "type": 93,
+        "category": 61,
+        "project": 34,
+        "status": 110,
+        "priority": 2,
+        "author": 41,
+        "owner": 5,
+        "date": 12,
+        "source": 0,
+        "memo": 1,
+        "favorite": 110,
+        "archived": 110
+      },
+      "프로젝트": {
+        "title": 21,
+        "status": 21,
+        "progress": 21,
+        "owner": 19,
+        "biz_type": 21,
+        "product": 21,
+        "period": 21,
+        "summary": 21
+      }
+    },
+    "api_calls": 18,
+    "pages_fetched": 1282,
+    "blocks_fetched": 0,
+    "blocks_from_cache": 1235,
+    "bytes_downloaded": 60945149,
+    "databases": {
+      "tasks": "262c5c5a-5684-81fa-9697-ee5691cb558d",
+      "projects": "262c5c5a-5684-8108-a949-c4503dd5f9a7",
+      "documents": "262c5c5a-5684-8110-bdaf-de605ac15487",
+      "doc_types": "262c5c5a-5684-811b-86f3-fd88af5a2c40",
+      "categories": "262c5c5a-5684-812f-8bfb-dea96dcceb86"
+    },
+    "out_of_scope": [
+      "오라클 버그 수정",
+      "휴일 근무 지원내역",
+      "교육 커리큘럼"
+    ]
+  },
+  "passed": true,
+  "counts": {
+    "users": 25,
+    "org_units": 2,
+    "projects": 22,
+    "tickets": 1133,
+    "ticket_relations": 121,
+    "migration_exceptions": 13,
+    "documents": 110,
+    "document_versions": 110,
+    "document_attachments": 2,
+    "document_tags": 70,
+    "tags": 11,
+    "files": 6,
+    "knowledge_spaces": 1,
+    "legacy_mapping": 1372,
+    "user_notion_mappings": 15
+  },
+  "stages": [
+    {
+      "name": "copy ai_quotas",
+      "inserted": 0,
+      "updated": 0,
+      "skipped": 0,
+      "source_rows": 0,
+      "seconds": 0.0004691459907917306
+    },
+    {
+      "name": "copy announcements",
+      "inserted": 0,
+      "updated": 0,
+      "skipped": 0,
+      "source_rows": 0,
+      "seconds": 0.00031707200105302036
+    },
+    {
+      "name": "copy app_settings",
+      "inserted": 5,
+      "updated": 0,
+      "skipped": 0,
+      "source_rows": 5,
+      "seconds": 0.02112091200251598
+    },
+    {
+      "name": "copy approval_delegations",
+      "inserted": 0,
+      "updated": 0,
+      "skipped": 0,
+      "source_rows": 0,
+      "seconds": 0.0003268160071456805
+    },
+    {
+      "name": "copy approvals",
+      "inserted": 1,
+      "updated": 0,
+      "skipped": 0,
+      "source_rows": 1,
+      "seconds": 0.00546565699914936
+    },
+    {
+      "name": "copy audit_logs",
+      "inserted": 1401,
+      "updated": 0,
+      "skipped": 0,
+      "source_rows": 1401,
+      "seconds": 0.6317275869951118
+    },
+    {
+      "name": "copy backups",
+      "inserted": 2,
+      "updated": 0,
+      "skipped": 0,
+      "source_rows": 2,
+      "seconds": 0.004801609000423923
+    },
+    {
+      "name": "copy config_versions",
+      "inserted": 24,
+      "updated": 0,
+      "skipped": 0,
+      "source_rows": 24,
+      "seconds": 0.009461315989028662
+    },
+    {
+      "name": "copy document_favorites",
+      "inserted": 1,
+      "updated": 0,
+      "skipped": 0,
+      "source_rows": 1,
+      "seconds": 0.0037750670016976073
+    },
+    {
+      "name": "copy document_recent_views",
+      "inserted": 50,
+      "updated": 0,
+      "skipped": 0,
+      "source_rows": 50,
+      "seconds": 0.011705880999215879
+    },
+    {
+      "name": "copy document_sync_state",
+      "inserted": 0,
+      "updated": 1,
+      "skipped": 0,
+      "source_rows": 1,
+      "seconds": 0.0036362399987410754
+    },
+    {
+      "name": "copy heartbeats",
+      "inserted": 3,
+      "updated": 0,
+      "skipped": 0,
+      "source_rows": 3,
+      "seconds": 0.003302561992313713
+    },
+    {
+      "name": "copy impersonation_sessions",
+      "inserted": 1,
+      "updated": 0,
+      "skipped": 0,
+      "source_rows": 1,
+      "seconds": 0.004341434992966242
+    },
+    {
+      "name": "copy integrations",
+      "inserted": 4,
+      "updated": 0,
+      "skipped": 0,
+      "source_rows": 4,
+      "seconds": 0.006891442011692561
+    },
+    {
+      "name": "copy jobs",
+      "inserted": 165,
+      "updated": 0,
+      "skipped": 0,
+      "source_rows": 165,
+      "seconds": 0.09165882699016947
+    },
+    {
+      "name": "copy mail_deliveries",
+      "inserted": 82,
+      "updated": 0,
+      "skipped": 0,
+      "source_rows": 82,
+      "seconds": 0.034745395998470485
+    },
+    {
+      "name": "copy notifications",
+      "inserted": 345,
+      "updated": 0,
+      "skipped": 0,
+      "source_rows": 345,
+      "seconds": 0.09689128999889363
+    },
+    {
+      "name": "copy organizations",
+      "inserted": 0,
+      "updated": 1,
+      "skipped": 0,
+      "source_rows": 1,
+      "seconds": 0.003912951011443511
+    },
+    {
+      "name": "copy policies",
+      "inserted": 2,
+      "updated": 0,
+      "skipped": 0,
+      "source_rows": 2,
+      "seconds": 0.004180374991847202
+    },
+    {
+      "name": "copy project_sync_state",
+      "inserted": 1,
+      "updated": 0,
+      "skipped": 0,
+      "source_rows": 1,
+      "seconds": 0.004226406992529519
+    },
+    {
+      "name": "copy prompts",
+      "inserted": 3,
+      "updated": 0,
+      "skipped": 0,
+      "source_rows": 3,
+      "seconds": 0.004625767003744841
+    },
+    {
+      "name": "copy restore_rehearsals",
+      "inserted": 1,
+      "updated": 0,
+      "skipped": 0,
+      "source_rows": 1,
+      "seconds": 0.003857520001474768
+    },
+    {
+      "name": "copy schedule_runs",
+      "inserted": 0,
+      "updated": 0,
+      "skipped": 0,
+      "source_rows": 0,
+      "seconds": 0.00025861000176519156
+    },
+    {
+      "name": "copy schedules",
+      "inserted": 1,
+      "updated": 0,
+      "skipped": 0,
+      "source_rows": 1,
+      "seconds": 0.004756850001285784
+    },
+    {
+      "name": "copy sync_status",
+      "inserted": 5,
+      "updated": 0,
+      "skipped": 0,
+      "source_rows": 5,
+      "seconds": 0.0047286229964811355
+    },
+    {
+      "name": "copy ticket_meta_cache",
+      "inserted": 0,
+      "updated": 1,
+      "skipped": 0,
+      "source_rows": 1,
+      "seconds": 0.005159174994332716
+    },
+    {
+      "name": "copy ticket_sync_state",
+      "inserted": 0,
+      "updated": 1,
+      "skipped": 0,
+      "source_rows": 1,
+      "seconds": 0.005083233001641929
+    },
+    {
+      "name": "copy announcement_dismissals",
+      "inserted": 0,
+      "updated": 0,
+      "skipped": 0,
+      "source_rows": 0,
+      "seconds": 0.00035578900133259594
+    },
+    {
+      "name": "copy chat_rooms",
+      "inserted": 5,
+      "updated": 1,
+      "skipped": 0,
+      "source_rows": 6,
+      "seconds": 0.010906965006142855
+    },
+    {
+      "name": "copy game_rooms",
+      "inserted": 1,
+      "updated": 0,
+      "skipped": 0,
+      "source_rows": 1,
+      "seconds": 0.007006275991443545
+    },
+    {
+      "name": "copy job_titles",
+      "inserted": 5,
+      "updated": 0,
+      "skipped": 0,
+      "source_rows": 5,
+      "seconds": 0.006832318002125248
+    },
+    {
+      "name": "copy departments → org_units",
+      "inserted": 2,
+      "updated": 0,
+      "skipped": 0,
+      "source_rows": 2,
+      "seconds": 0.006961199003853835
+    },
+    {
+      "name": "copy trash_items",
+      "inserted": 2,
+      "updated": 0,
+      "skipped": 0,
+      "source_rows": 2,
+      "seconds": 0.007788502000039443
+    },
+    {
+      "name": "copy usage_events",
+      "inserted": 496,
+      "updated": 0,
+      "skipped": 0,
+      "source_rows": 496,
+      "seconds": 0.1289739979984006
+    },
+    {
+      "name": "copy chat_messages",
+      "inserted": 14,
+      "updated": 0,
+      "skipped": 0,
+      "source_rows": 14,
+      "seconds": 0.009078450995730236
+    },
+    {
+      "name": "copy chat_read_cursors",
+      "inserted": 19,
+      "updated": 0,
+      "skipped": 0,
+      "source_rows": 19,
+      "seconds": 0.00736387399956584
+    },
+    {
+      "name": "copy chat_room_members",
+      "inserted": 21,
+      "updated": 0,
+      "skipped": 0,
+      "source_rows": 21,
+      "seconds": 0.008362737004063092
+    },
+    {
+      "name": "copy game_events",
+      "inserted": 1,
+      "updated": 0,
+      "skipped": 0,
+      "source_rows": 1,
+      "seconds": 0.0037322050047805533
+    },
+    {
+      "name": "copy game_room_members",
+      "inserted": 1,
+      "updated": 0,
+      "skipped": 0,
+      "source_rows": 1,
+      "seconds": 0.003545876999851316
+    },
+    {
+      "name": "copy users",
+      "inserted": 25,
+      "updated": 0,
+      "skipped": 0,
+      "source_rows": 25,
+      "seconds": 0.020518896999419667
+    },
+    {
+      "name": "copy board_posts",
+      "inserted": 3,
+      "updated": 0,
+      "skipped": 0,
+      "source_rows": 3,
+      "seconds": 0.00641310001083184
+    },
+    {
+      "name": "copy board_reactions",
+      "inserted": 1,
+      "updated": 0,
+      "skipped": 0,
+      "source_rows": 1,
+      "seconds": 0.003385313000762835
+    },
+    {
+      "name": "copy chat_message_images",
+      "inserted": 0,
+      "updated": 0,
+      "skipped": 0,
+      "source_rows": 0,
+      "seconds": 0.00022913399152457714
+    },
+    {
+      "name": "copy conversations",
+      "inserted": 87,
+      "updated": 0,
+      "skipped": 0,
+      "source_rows": 87,
+      "seconds": 0.0227548770053545
+    },
+    {
+      "name": "copy offboarding_runs",
+      "inserted": 0,
+      "updated": 0,
+      "skipped": 0,
+      "source_rows": 0,
+      "seconds": 0.0003597470058593899
+    },
+    {
+      "name": "copy password_reset_tokens",
+      "inserted": 0,
+      "updated": 0,
+      "skipped": 0,
+      "source_rows": 0,
+      "seconds": 0.00022491399431601167
+    },
+    {
+      "name": "copy projects",
+      "inserted": 22,
+      "updated": 0,
+      "skipped": 0,
+      "source_rows": 22,
+      "seconds": 0.02174602400918957
+    },
+    {
+      "name": "copy saved_views",
+      "inserted": 1,
+      "updated": 0,
+      "skipped": 0,
+      "source_rows": 1,
+      "seconds": 0.003717580999364145
+    },
+    {
+      "name": "copy sessions",
+      "inserted": 763,
+      "updated": 0,
+      "skipped": 0,
+      "source_rows": 763,
+      "seconds": 0.34244172798935324
+    },
+    {
+      "name": "copy user_notion_mappings",
+      "inserted": 15,
+      "updated": 0,
+      "skipped": 0,
+      "source_rows": 15,
+      "seconds": 0.008977273988421075
+    },
+    {
+      "name": "copy user_preferences",
+      "inserted": 22,
+      "updated": 0,
+      "skipped": 0,
+      "source_rows": 22,
+      "seconds": 0.013469423007336445
+    },
+    {
+      "name": "copy board_attachments",
+      "inserted": 0,
+      "updated": 0,
+      "skipped": 0,
+      "source_rows": 0,
+      "seconds": 0.0003168359980918467
+    },
+    {
+      "name": "copy board_comments",
+      "inserted": 2,
+      "updated": 0,
+      "skipped": 0,
+      "source_rows": 2,
+      "seconds": 0.00476514600450173
+    },
+    {
+      "name": "copy document_cache",
+      "inserted": 110,
+      "updated": 0,
+      "skipped": 0,
+      "source_rows": 110,
+      "seconds": 0.11054357299872208
+    },
+    {
+      "name": "copy messages",
+      "inserted": 311,
+      "updated": 0,
+      "skipped": 0,
+      "source_rows": 311,
+      "seconds": 0.24465908600541297
+    },
+    {
+      "name": "copy offboarding_ticket_moves",
+      "inserted": 0,
+      "updated": 0,
+      "skipped": 0,
+      "source_rows": 0,
+      "seconds": 0.00042750600550789386
+    },
+    {
+      "name": "copy project_health_snapshots",
+      "inserted": 66,
+      "updated": 0,
+      "skipped": 0,
+      "source_rows": 66,
+      "seconds": 0.020716925006126985
+    },
+    {
+      "name": "copy project_members",
+      "inserted": 0,
+      "updated": 0,
+      "skipped": 0,
+      "source_rows": 0,
+      "seconds": 0.000313923999783583
+    },
+    {
+      "name": "copy project_milestones",
+      "inserted": 0,
+      "updated": 0,
+      "skipped": 0,
+      "source_rows": 0,
+      "seconds": 0.00023489799059461802
+    },
+    {
+      "name": "copy project_weekly_reports",
+      "inserted": 0,
+      "updated": 0,
+      "skipped": 0,
+      "source_rows": 0,
+      "seconds": 0.00020863600366283208
+    },
+    {
+      "name": "copy document_comments",
+      "inserted": 0,
+      "updated": 0,
+      "skipped": 0,
+      "source_rows": 0,
+      "seconds": 0.0002000279928324744
+    },
+    {
+      "name": "copy ticket_cache → tickets",
+      "inserted": 1123,
+      "updated": 0,
+      "skipped": 0,
+      "source_rows": 1123,
+      "seconds": 1.2386790879972978
+    },
+    {
+      "name": "copy ticket_attachments",
+      "inserted": 2,
+      "updated": 0,
+      "skipped": 0,
+      "source_rows": 2,
+      "seconds": 0.006890901000588201
+    },
+    {
+      "name": "copy ticket_comments",
+      "inserted": 9,
+      "updated": 0,
+      "skipped": 0,
+      "source_rows": 9,
+      "seconds": 0.008761250996030867
+    },
+    {
+      "name": "projects (Notion)",
+      "inserted": 0,
+      "updated": 21,
+      "skipped": 0,
+      "source_rows": 21,
+      "seconds": 0.08413782900606748
+    },
+    {
+      "name": "project codes",
+      "inserted": 22,
+      "updated": 0,
+      "skipped": 0,
+      "source_rows": 22,
+      "seconds": 0.007432450001942925
+    },
+    {
+      "name": "tickets (Notion)",
+      "inserted": 10,
+      "updated": 1115,
+      "skipped": 8,
+      "source_rows": 1125,
+      "seconds": 0.6742302210041089
+    },
+    {
+      "name": "renumber + exceptions",
+      "inserted": 1120,
+      "updated": 0,
+      "skipped": 13,
+      "source_rows": 1133,
+      "seconds": 0.33069346999400295
+    },
+    {
+      "name": "ticket counters",
+      "inserted": 0,
+      "updated": 20,
+      "skipped": 0,
+      "source_rows": 0,
+      "seconds": 0.004697527998359874
+    },
+    {
+      "name": "ticket relations",
+      "inserted": 121,
+      "updated": 0,
+      "skipped": 0,
+      "source_rows": 121,
+      "seconds": 0.25589906999084633
+    },
+    {
+      "name": "user mappings",
+      "inserted": 0,
+      "updated": 13,
+      "skipped": 3,
+      "source_rows": 16,
+      "seconds": 0.0062999840010888875
+    },
+    {
+      "name": "documents",
+      "inserted": 110,
+      "updated": 0,
+      "skipped": 0,
+      "source_rows": 110,
+      "seconds": 0.7747131659998558
+    },
+    {
+      "name": "attachments",
+      "inserted": 6,
+      "updated": 0,
+      "skipped": 3,
+      "source_rows": 9,
+      "seconds": 7.092538587996387
+    }
+  ],
+  "checks": [
+    {
+      "name": "수 users → users",
+      "ok": true,
+      "expected": 25,
+      "actual": 25,
+      "detail": ""
+    },
+    {
+      "name": "수 departments → org_units",
+      "ok": true,
+      "expected": 2,
+      "actual": 2,
+      "detail": ""
+    },
+    {
+      "name": "수 job_titles → job_titles",
+      "ok": true,
+      "expected": 5,
+      "actual": 5,
+      "detail": ""
+    },
+    {
+      "name": "수 audit_logs → audit_logs",
+      "ok": true,
+      "expected": 1401,
+      "actual": 1401,
+      "detail": ""
+    },
+    {
+      "name": "수 conversations → conversations",
+      "ok": true,
+      "expected": 87,
+      "actual": 87,
+      "detail": ""
+    },
+    {
+      "name": "수 messages → messages",
+      "ok": true,
+      "expected": 311,
+      "actual": 311,
+      "detail": ""
+    },
+    {
+      "name": "수 notifications → notifications",
+      "ok": true,
+      "expected": 345,
+      "actual": 345,
+      "detail": ""
+    },
+    {
+      "name": "수 jobs → jobs",
+      "ok": true,
+      "expected": 165,
+      "actual": 165,
+      "detail": ""
+    },
+    {
+      "name": "수 ticket_comments → ticket_comments",
+      "ok": true,
+      "expected": 9,
+      "actual": 9,
+      "detail": ""
+    },
+    {
+      "name": "수 ticket_attachments → ticket_attachments",
+      "ok": true,
+      "expected": 2,
+      "actual": 2,
+      "detail": ""
+    },
+    {
+      "name": "수 document_comments → document_comments",
+      "ok": true,
+      "expected": 0,
+      "actual": 0,
+      "detail": ""
+    },
+    {
+      "name": "수 document_favorites → document_favorites",
+      "ok": true,
+      "expected": 1,
+      "actual": 1,
+      "detail": ""
+    },
+    {
+      "name": "수 document_recent_views → document_recent_views",
+      "ok": true,
+      "expected": 50,
+      "actual": 50,
+      "detail": ""
+    },
+    {
+      "name": "수 board_posts → board_posts",
+      "ok": true,
+      "expected": 3,
+      "actual": 3,
+      "detail": ""
+    },
+    {
+      "name": "수 chat_messages → chat_messages",
+      "ok": true,
+      "expected": 14,
+      "actual": 14,
+      "detail": ""
+    },
+    {
+      "name": "수 app_settings → app_settings",
+      "ok": true,
+      "expected": 5,
+      "actual": 5,
+      "detail": ""
+    },
+    {
+      "name": "수 config_versions → config_versions",
+      "ok": true,
+      "expected": 24,
+      "actual": 24,
+      "detail": ""
+    },
+    {
+      "name": "수 integrations → integrations",
+      "ok": true,
+      "expected": 4,
+      "actual": 4,
+      "detail": ""
+    },
+    {
+      "name": "수 prompts → prompts",
+      "ok": true,
+      "expected": 3,
+      "actual": 3,
+      "detail": ""
+    },
+    {
+      "name": "수 policies → policies",
+      "ok": true,
+      "expected": 2,
+      "actual": 2,
+      "detail": ""
+    },
+    {
+      "name": "수 backups → backups",
+      "ok": true,
+      "expected": 2,
+      "actual": 2,
+      "detail": ""
+    },
+    {
+      "name": "수 sessions → sessions",
+      "ok": true,
+      "expected": 763,
+      "actual": 763,
+      "detail": ""
+    },
+    {
+      "name": "수 usage_events → usage_events",
+      "ok": true,
+      "expected": 496,
+      "actual": 496,
+      "detail": ""
+    },
+    {
+      "name": "수 project_health_snapshots → project_health_snapshots",
+      "ok": true,
+      "expected": 66,
+      "actual": 66,
+      "detail": ""
+    },
+    {
+      "name": "수를 대조한 표",
+      "ok": true,
+      "expected": "> 0",
+      "actual": 24,
+      "detail": "목록 24쌍 중 이 소스에 있는 것"
+    },
+    {
+      "name": "수 대조 목록에 오타가 없는가",
+      "ok": true,
+      "expected": 0,
+      "actual": 0,
+      "detail": ""
+    },
+    {
+      "name": "수 티켓 (Notion 1125 이상)",
+      "ok": true,
+      "expected": ">= 1125",
+      "actual": 1133,
+      "detail": "지우지 않으므로 대상이 더 많을 수 있습니다."
+    },
+    {
+      "name": "수 문서 (Notion 110 이상)",
+      "ok": true,
+      "expected": ">= 110",
+      "actual": 110,
+      "detail": "지우지 않으므로 대상이 더 많을 수 있습니다."
+    },
+    {
+      "name": "수 프로젝트 (Notion 21 이상)",
+      "ok": true,
+      "expected": ">= 21",
+      "actual": 22,
+      "detail": "지우지 않으므로 대상이 더 많을 수 있습니다."
+    },
+    {
+      "name": "누락 ticket_cache → tickets",
+      "ok": true,
+      "expected": 0,
+      "actual": 0,
+      "detail": ""
+    },
+    {
+      "name": "누락 document_cache → documents",
+      "ok": true,
+      "expected": 0,
+      "actual": 0,
+      "detail": ""
+    },
+    {
+      "name": "누락 users",
+      "ok": true,
+      "expected": 0,
+      "actual": 0,
+      "detail": ""
+    },
+    {
+      "name": "중복 canonical_key",
+      "ok": true,
+      "expected": 0,
+      "actual": 0,
+      "detail": ""
+    },
+    {
+      "name": "중복 documents.legacy_page_id",
+      "ok": true,
+      "expected": 0,
+      "actual": 0,
+      "detail": ""
+    },
+    {
+      "name": "중복 legacy_mapping",
+      "ok": true,
+      "expected": 0,
+      "actual": 0,
+      "detail": ""
+    },
+    {
+      "name": "legacy_mapping 행",
+      "ok": true,
+      "expected": "> 0",
+      "actual": 1372,
+      "detail": ""
+    },
+    {
+      "name": "코드를 본 프로젝트",
+      "ok": true,
+      "expected": "> 0",
+      "actual": 22,
+      "detail": ""
+    },
+    {
+      "name": "코드 없는 프로젝트",
+      "ok": true,
+      "expected": 0,
+      "actual": 0,
+      "detail": ""
+    },
+    {
+      "name": "모양이 틀린 코드",
+      "ok": true,
+      "expected": 0,
+      "actual": 0,
+      "detail": ""
+    },
+    {
+      "name": "겹친 코드",
+      "ok": true,
+      "expected": 0,
+      "actual": 0,
+      "detail": ""
+    },
+    {
+      "name": "깨진 ticket_relations",
+      "ok": true,
+      "expected": 0,
+      "actual": 0,
+      "detail": ""
+    },
+    {
+      "name": "부모가 둘인 티켓",
+      "ok": true,
+      "expected": 0,
+      "actual": 0,
+      "detail": ""
+    },
+    {
+      "name": "소속 프로젝트가 없는 티켓",
+      "ok": true,
+      "expected": 0,
+      "actual": 0,
+      "detail": ""
+    },
+    {
+      "name": "공간이 없는 문서",
+      "ok": true,
+      "expected": 0,
+      "actual": 0,
+      "detail": ""
+    },
+    {
+      "name": "판이 없는 문서",
+      "ok": true,
+      "expected": 0,
+      "actual": 0,
+      "detail": ""
+    },
+    {
+      "name": "깨진 document_attachments",
+      "ok": true,
+      "expected": 0,
+      "actual": 0,
+      "detail": ""
+    },
+    {
+      "name": "저장소 없는 파일 행",
+      "ok": true,
+      "expected": 0,
+      "actual": 0,
+      "detail": ""
+    },
+    {
+      "name": "체크섬이 없는 파일 행",
+      "ok": true,
+      "expected": 0,
+      "actual": 0,
+      "detail": ""
+    },
+    {
+      "name": "길이 초과",
+      "ok": true,
+      "expected": 0,
+      "actual": 0,
+      "detail": ""
+    },
+    {
+      "name": "길이를 본 컬럼",
+      "ok": true,
+      "expected": ">= 300",
+      "actual": 465,
+      "detail": ""
+    },
+    {
+      "name": "Notion 임시 파일 주소",
+      "ok": true,
+      "expected": 0,
+      "actual": 0,
+      "detail": ""
+    },
+    {
+      "name": "임시 주소를 본 컬럼",
+      "ok": true,
+      "expected": ">= 300",
+      "actual": 567,
+      "detail": ""
+    },
+    {
+      "name": "번호 없는 티켓 = 열린 예외",
+      "ok": true,
+      "expected": 13,
+      "actual": 13,
+      "detail": ""
+    },
+    {
+      "name": "사유 없이 번호가 없는 티켓",
+      "ok": true,
+      "expected": 0,
+      "actual": 0,
+      "detail": ""
+    },
+    {
+      "name": "번호가 있는데 예외가 열린 티켓",
+      "ok": true,
+      "expected": 0,
+      "actual": 0,
+      "detail": ""
+    },
+    {
+      "name": "번호와 표시 이름이 어긋난 티켓",
+      "ok": true,
+      "expected": 0,
+      "actual": 0,
+      "detail": ""
+    },
+    {
+      "name": "파생 document_chunks 비어 있음",
+      "ok": true,
+      "expected": 0,
+      "actual": 0,
+      "detail": ""
+    },
+    {
+      "name": "파생 ai_index_state 비어 있음",
+      "ok": true,
+      "expected": 0,
+      "actual": 0,
+      "detail": ""
+    },
+    {
+      "name": "파생 search_documents 비어 있음",
+      "ok": true,
+      "expected": 0,
+      "actual": 0,
+      "detail": ""
+    },
+    {
+      "name": "파생 rate_limit_buckets 비어 있음",
+      "ok": true,
+      "expected": 0,
+      "actual": 0,
+      "detail": ""
+    },
+    {
+      "name": "변환 실패 (길이)",
+      "ok": true,
+      "expected": 0,
+      "actual": 0,
+      "detail": ""
+    },
+    {
+      "name": "변환 실패 (읽기)",
+      "ok": true,
+      "expected": 0,
+      "actual": 0,
+      "detail": ""
+    },
+    {
+      "name": "거절된 행",
+      "ok": true,
+      "expected": 0,
+      "actual": 0,
+      "detail": ""
+    },
+    {
+      "name": "채번 카운터가 뒤처진 프로젝트",
+      "ok": true,
+      "expected": 0,
+      "actual": 0,
+      "detail": ""
+    }
+  ],
+  "findings": [
+    {
+      "severity": "note",
+      "kind": "table_dropped",
+      "where": "alembic_version",
+      "detail": "스키마 판 번호다. 새 체인이 자기 값을 갖는다(D-189).",
+      "ref": null
+    },
+    {
+      "severity": "note",
+      "kind": "table_dropped",
+      "where": "automation_templates",
+      "detail": "S11 이 외부 자동화를 걷었다. 부를 곳이 없다(D-267, 0009).",
+      "ref": null
+    },
+    {
+      "severity": "note",
+      "kind": "table_dropped",
+      "where": "document_generations",
+      "detail": "같은 이유다. 문서 생성 러너가 사라졌다(0009).",
+      "ref": null
+    },
+    {
+      "severity": "note",
+      "kind": "table_dropped",
+      "where": "runners",
+      "detail": "같은 이유다. 러너 레지스트리를 내렸다(D-267, 0009).",
+      "ref": null
+    },
+    {
+      "severity": "note",
+      "kind": "table_dropped",
+      "where": "search_index",
+      "detail": "SQLite FTS5 가상 표다. PG 에는 문법 자체가 없다(D-189).",
+      "ref": null
+    },
+    {
+      "severity": "note",
+      "kind": "table_dropped",
+      "where": "search_index_config",
+      "detail": "위 FTS5 의 그림자 표다.",
+      "ref": null
+    },
+    {
+      "severity": "note",
+      "kind": "table_dropped",
+      "where": "search_index_data",
+      "detail": "위 FTS5 의 그림자 표다.",
+      "ref": null
+    },
+    {
+      "severity": "note",
+      "kind": "table_dropped",
+      "where": "search_index_docsize",
+      "detail": "위 FTS5 의 그림자 표다.",
+      "ref": null
+    },
+    {
+      "severity": "note",
+      "kind": "table_dropped",
+      "where": "search_index_idx",
+      "detail": "위 FTS5 의 그림자 표다.",
+      "ref": null
+    },
+    {
+      "severity": "note",
+      "kind": "table_dropped",
+      "where": "workflows",
+      "detail": "같은 이유다. n8n 워크플로 목록이었다(0009).",
+      "ref": null
+    },
+    {
+      "severity": "note",
+      "kind": "table_derived",
+      "where": "search_documents",
+      "detail": "파생 데이터라 행을 넣지 않습니다. 제품이 원본에서 다시 만듭니다(D-270).",
+      "ref": null
+    },
+    {
+      "severity": "classified",
+      "kind": "property_never_filled",
+      "where": "notion:문서",
+      "detail": "« 출처 » 이 110행 중 한 번도 값을 내지 않았습니다. 정말 비어 있거나 속성 이름이 바뀐 것입니다.",
+      "ref": "source"
+    },
+    {
+      "severity": "classified",
+      "kind": "project_source_missing",
+      "where": "projects",
+      "detail": "Notion 응답에 없는 프로젝트입니다. 지우지 않고 그대로 둡니다.",
+      "ref": "262c5c5a-5684-8095-bbbe-e4d19184ae3b"
+    },
+    {
+      "severity": "classified",
+      "kind": "ticket_multiple_parents",
+      "where": "tickets",
+      "detail": "상위 작업이 2건이라 첫 번째만 씁니다.",
+      "ref": "2b1c5c5a-5684-80fe-8744-d03091cd1a97"
+    },
+    {
+      "severity": "classified",
+      "kind": "ticket_multiple_parents",
+      "where": "tickets",
+      "detail": "상위 작업이 3건이라 첫 번째만 씁니다.",
+      "ref": "2a9c5c5a-5684-800f-a5b9-fb39bef1b069"
+    },
+    {
+      "severity": "classified",
+      "kind": "ticket_multiple_parents",
+      "where": "tickets",
+      "detail": "상위 작업이 3건이라 첫 번째만 씁니다.",
+      "ref": "2a9c5c5a-5684-806b-8536-f1410086d4ee"
+    },
+    {
+      "severity": "classified",
+      "kind": "ticket_multiple_parents",
+      "where": "tickets",
+      "detail": "상위 작업이 3건이라 첫 번째만 씁니다.",
+      "ref": "2a9c5c5a-5684-801c-baea-ca4b0959e5e5"
+    },
+    {
+      "severity": "classified",
+      "kind": "ticket_multiple_parents",
+      "where": "tickets",
+      "detail": "상위 작업이 2건이라 첫 번째만 씁니다.",
+      "ref": "2a1c5c5a-5684-805d-a45e-d1893a5c45a0"
+    },
+    {
+      "severity": "classified",
+      "kind": "ticket_multiple_parents",
+      "where": "tickets",
+      "detail": "상위 작업이 3건이라 첫 번째만 씁니다.",
+      "ref": "29cc5c5a-5684-8016-b444-f2dea71480bd"
+    },
+    {
+      "severity": "classified",
+      "kind": "user_unmapped",
+      "where": "user_notion_mappings",
+      "detail": "239d872b-594c-8163-8d87-0002f63584a1 의 포털 사용자를 못 찾았습니다.",
+      "ref": "239d872b-594c-8163-8d87-0002f63584a1"
+    },
+    {
+      "severity": "classified",
+      "kind": "user_unmapped",
+      "where": "user_notion_mappings",
+      "detail": "조민 의 포털 사용자를 못 찾았습니다.",
+      "ref": "239d872b-594c-817a-a6b6-0002b567c53f"
+    },
+    {
+      "severity": "classified",
+      "kind": "user_unmapped",
+      "where": "user_notion_mappings",
+      "detail": "최유정 의 포털 사용자를 못 찾았습니다.",
+      "ref": "239d872b-594c-81d6-89b4-0002f813a876"
+    },
+    {
+      "severity": "classified",
+      "kind": "attachment_rejected",
+      "where": "files",
+      "detail": "4월 20일 암센터 회의.m4a: 파일이 너무 큽니다. 최대 10MB까지 올릴 수 있습니다.",
+      "ref": "348c5c5a-5684-80cc-a461-dc8cfa75a919:0"
+    },
+    {
+      "severity": "classified",
+      "kind": "attachment_rejected",
+      "where": "files",
+      "detail": "Network_TCPIP.pdf: 파일이 너무 큽니다. 최대 10MB까지 올릴 수 있습니다.",
+      "ref": "325c5c5a-5684-8039-834d-d77e95d66a56:0"
+    },
+    {
+      "severity": "classified",
+      "kind": "attachment_external_link",
+      "where": "files",
+      "detail": "바깥 링크라 바이트가 없습니다: https://goodmorningit.sharepoint.com/:x:/s/msteams_0d63ce/ETbOXkOMgyNFihRVAWgt8SMBhMFxlKiWWR45qPnFfNLyFw?e=s1jhdb",
+      "ref": "27dc5c5a-5684-8033-9b29-d0e045f2612c:0"
+    }
+  ]
+}

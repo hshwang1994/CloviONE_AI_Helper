@@ -51,20 +51,20 @@ def _purge(db, settings, *, failing_page: str | None):
     class _Boom(RuntimeError):
         pass
 
-    original = service._archive_notion
+    original = service._archive_source
 
-    def _fake(item, *, outbound, settings):
+    def _fake(db, item, *, outbound, settings):
         if failing_page and item.notion_page_id == failing_page:
             raise _Boom("소스가 거절했다")
         return None
 
-    service._archive_notion = _fake
+    service._archive_source = _fake
     try:
         return service.purge_expired(
             db, outbound=None, settings=settings, retention_days=30, now=NOW
         )
     finally:
-        service._archive_notion = original
+        service._archive_source = original
 
 
 def test_the_sample_actually_has_one_failure_and_one_success(db, settings, expired_items):

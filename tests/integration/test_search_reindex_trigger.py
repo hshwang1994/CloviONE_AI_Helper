@@ -1,14 +1,21 @@
 """검색 인덱스 강제 재색인 API — POST /api/search/reindex (C7).
 
-이 시험 파일은 **한 번도 티켓 동기화가 성공한 적 없는** 갓 만든 DB 위에서 돈다(`real_db` 표시가
-있어 매 테스트가 전용 PostgreSQL 데이터베이스를 받는다 — tests/conftest.py `db_url`). 그래서
-`app/tickets/repository_notion.py::_cache_ready` 가 아직 캐시를 못 믿어 실시간 Notion 조회로
-떨어지고, 이 테스트 환경(fake_http 에 아무 경로도 등록하지 않음)에서는 그 조회가 실패한다 —
-team_docs/tickets 의 "faults gracefully without notion" 시험과 같은 모양으로, 여기서도
-`status == "error"` 를 기대한다. 단 **게시판·사용자**는 로컬 DB만 읽으므로 티켓 쪽이 실패해도
-그 두 유형은 정상적으로 색인된다(app/search/indexer.py::reindex_all 의 유형별 격리) — 그래서
-이 파일은 '검색 재색인이 완전히 실패하지 않는다' 가 아니라 '방금 로그인한 사용자 자신이
-실제로 인덱스에 들어갔다' 로 "진짜 돌았음"을 증명한다.
+이 시험 파일은 **티켓이 한 건도 없는** 갓 만든 DB 위에서 돈다(`real_db` 표시가 있어 매
+테스트가 전용 PostgreSQL 데이터베이스를 받는다 — tests/conftest.py `db_url`). 티켓 색인은
+자체 DB 표를 읽고 그 표가 비어 있을 뿐이므로 **성공한다** — 0건은 사고가 아니라 사실이고,
+그래서 전체 결과도 `ok` 다.
+
+S14 전에는 같은 자리에서 `status == "error"` 를 기대했다. 그때는 티켓 저장소가 미러를 아직
+못 믿으면 실시간 Notion 조회로 떨어졌고(`app/tickets/repository_notion.py::_cache_ready`),
+이 테스트 환경(fake_http 에 아무 경로도 등록하지 않음)에서는 그 조회가 반드시 실패했기
+때문이다. 자체 DB 소스에는 그 폴백이 없어서 실패할 바깥 구간 자체가 사라졌다.
+
+유형 하나가 죽어도 나머지는 색인된다는 격리(app/search/indexer.py::reindex_all)는 여기서
+보지 않는다. `tests/unit/test_search_indexer.py::test_a_dead_ticket_source_keeps_the_existing_ticket_index`
+가 소스를 직접 고장 내며 그 성질만 보고 있어서, 여기서 같은 것을 환경 사정으로 한 번 더
+확인하면 시험이 무엇을 지키는지가 흐려진다. 이 파일이 증명하는 것은 하나다 — 더미 응답이
+아니라 진짜 `reindex_all` 이 돌았고, 그 증거로 방금 로그인한 사용자 자신이 인덱스에 들어가
+있다.
 """
 
 from __future__ import annotations
@@ -43,10 +50,9 @@ def test_operator_reindex_actually_runs(client, login_as, db):
     검색 인덱스에 들어간 것으로 확인한다 — `app/search/indexer.py::_user_rows` 는 활성 사용자를
     전부 색인하므로, 방금 로그인한 운영자 자신이 그 안에 있어야 한다.
 
-    전체 `status` 는 'error' 다(모듈 docstring 참조 — 이 DB는 티켓 동기화가 한 번도 성공한
-    적이 없어 티켓 쪽이 실시간 Notion 조회로 떨어지고, 이 테스트 환경엔 그 응답이 없다).
-    그래도 사용자 유형은 로컬 DB만 읽으므로 실패하지 않는다 — '완전 성공' 이 아니라 '진짜
-    실행됐고 유형별 실패가 격리된다' 는 것을 이 비대칭 자체로 보여준다.
+    전체 `status` 는 'ok' 다(모듈 docstring 참조 — 자체 DB 소스에는 실패할 바깥 구간이 없다).
+    티켓이 0건이라는 것은 실패가 아니므로 `per_kind['ticket']` 이 0 이어도 결과는 성공이고,
+    사용자 유형에 최소 한 행이 잡히는 것이 이 재색인이 실제로 일한 증거다.
     """
     before = db.get(SyncStatus, COMPONENT_SEARCH)
     assert before is None
@@ -55,7 +61,11 @@ def test_operator_reindex_actually_runs(client, login_as, db):
     r = client.post("/api/search/reindex", headers=_headers(csrf))
     assert r.status_code == 200, r.text
     body = r.json()["reindex"]
-    assert body["status"] == "error"
+    assert body["status"] == "ok"
+    # 사유 칸도 함께 본다. 지금은 상태값과 같은 곳에서 나오지만(reindex_all 의 errors 목록),
+    # 화면과 운영 대시보드가 실제로 읽어 사람에게 보여주는 것은 이 칸이라 둘이 갈라지면
+    # 사용자에게는 사유만 보인다.
+    assert body["error"] is None
     assert body["per_kind"].get("user", 0) >= 1
     assert body["item_count"] >= 1
 
@@ -65,7 +75,7 @@ def test_operator_reindex_actually_runs(client, login_as, db):
     db.expire_all()
     status = db.get(SyncStatus, COMPONENT_SEARCH)
     assert status is not None
-    assert status.status == "error"
+    assert status.status == "ok"
     assert status.last_run_at is not None
 
     # 인덱스에 실제로 행이 들어갔다는 것을 DB로 직접 본다(화면 응답 계약은 이 파일의 관심사가

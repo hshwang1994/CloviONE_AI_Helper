@@ -3,14 +3,16 @@
 ## 순서가 계약이다
 
 ```
-표 복사 → 프로젝트(Notion) → Project Key → 티켓(Notion) → 재채번 → 채번 시드
+표 복사 → 프로젝트(Notion) → 프로젝트 코드 → 티켓(Notion) → 재채번 → 채번 시드
         → 관계 → 사용자 매핑 → 문서 → 첨부 → 다리 → 검증
 ```
 
 두 자리가 특히 못 바뀐다:
 
-* **Project Key 는 재채번보다 앞이다.** `canonical_key` 를 만드는 트리거가
-  `projects.code` 를 읽는다 — Key 가 없으면 번호를 주는 순간 트리거가 거절한다(0003).
+* **프로젝트 코드는 재채번보다 앞이다.** `canonical_key` 를 만드는 트리거가
+  `projects.code` 를 읽는다 — 코드가 없으면 번호를 주는 순간 트리거가 거절한다(0003).
+  그리고 코드는 **프로젝트 적재보다 뒤**여야 한다: 씨앗으로 쓰는 `notion_page_id` 가
+  그 단계에서 붙는다(D-282).
 * **채번 시드는 재채번보다 뒤다.** `seed_counters()` 는 `MAX(seq)` 를 읽는다. 앞에서
   부르면 아직 아무 티켓에도 번호가 없어 **아무 일도 하지 않고** 통과한다 — 그리고
   그 사실은 첫 신규 티켓이 1번을 받아 기존 티켓과 부딪힐 때 드러난다.
@@ -96,7 +98,7 @@ def run(
 
         notion_rows = _extract_notion(report, options, notion)
         loader.load_projects(notion_rows["projects"])
-        loader.apply_project_keys()
+        loader.assign_project_codes()
         loader.load_tickets(notion_rows["tasks"], notion_rows["ticket_bodies"])
         loader.renumber()
         loader.seed_counters()
@@ -302,9 +304,9 @@ def _counts(db: Session) -> dict:
     out: dict = {}
     for table in (
         "users", "org_units", "projects", "tickets", "ticket_relations",
-        "ticket_key_aliases", "migration_exceptions", "documents",
+        "migration_exceptions", "documents",
         "document_versions", "document_attachments", "document_tags", "tags",
-        "files", "knowledge_spaces", "legacy_mapping", "project_key_registry",
+        "files", "knowledge_spaces", "legacy_mapping",
         "user_notion_mappings",
     ):
         out[table] = int(

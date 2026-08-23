@@ -36,6 +36,7 @@ from datetime import date, datetime
 
 from sqlalchemy import (
     Boolean,
+    CheckConstraint,
     Date,
     DateTime,
     Float,
@@ -44,6 +45,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -112,8 +114,15 @@ class Project(OrgScopedMixin, TimestampMixin, UUIDPrimaryKeyMixin, Base):
     __tablename__ = "projects"
 
     name: Mapped[str] = mapped_column(String(200), nullable=False)
-    # 조직 안에서만 유일하다(uq_projects_org_code). 없을 수 있으므로 nullable — 빈 문자열로
-    # 채우면 코드 없는 두 번째 프로젝트를 유니크가 막는다.
+    # Project Code. **서버가 짓고 사람은 못 고친다** (D-282). 규칙과 생성은
+    # `app/work/codes.py` 가 정본이고, 이 컬럼은 그 결과를 담는 자리다.
+    #
+    # 전역 유일이다(`uq_projects_code`) — 조직 안에서만 유일하던 앞 정책은 폐기했다.
+    # 티켓 이름 `<CODE>-<SEQ>` 는 조직을 안 지고 다니므로, 조직마다 같은 코드를 허용하면
+    # 같은 문자열이 두 티켓을 가리킨다.
+    #
+    # 아직 nullable 인 이유는 하나뿐이다: 이관이 표를 먼저 복사하고 코드를 뒤에 붙인다
+    # (D-281 의 순서). 그 사이 잠깐 비어 있고, 그 뒤로는 비는 경로가 없다.
     code: Mapped[str | None] = mapped_column(String(64))
     status: Mapped[str] = mapped_column(String(32), nullable=False, default=PROJECT_ACTIVE)
 
@@ -185,7 +194,21 @@ class Project(OrgScopedMixin, TimestampMixin, UUIDPrimaryKeyMixin, Base):
     notion_sync_error: Mapped[str | None] = mapped_column(Text)
 
     __table_args__ = (
-        Index("uq_projects_org_code", "org_id", "code", unique=True),
+        # 코드는 **전역에서** 하나다. 부분 유니크인 이유는 위 컬럼 주석의 그 잠깐 —
+        # 표 복사와 코드 부여 사이에 여러 행이 NULL 이다. NULL 은 서로 다른 값이므로
+        # 그 상태를 이 인덱스가 막지 않는다.
+        Index(
+            "uq_projects_code", "code", unique=True,
+            postgresql_where=text("code IS NOT NULL"),
+        ),
+        # 앱이 만든 모양을 DB 가 다시 잰다. 두 벌이라서가 아니라, 이관·수동 SQL·되감기
+        # 처럼 **앱을 안 거치는 쓰기**가 실제로 있기 때문이다. 정본은
+        # `app/work/codes.py::CODE_ALPHABET` 이고 이 정규식은 그 사본이다 —
+        # `tests/unit/test_project_codes.py` 가 둘이 같은지 확인한다.
+        CheckConstraint(
+            r"code IS NULL OR code ~ '^[ABCDEFGHJKMNPQRSTUVWXYZ]{6}$'",
+            name="ck_projects_code_shape",
+        ),
     )
 
 

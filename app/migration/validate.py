@@ -3,8 +3,12 @@
 ## 검증 항목은 계획이 정했다
 
 §7.3 이 이름을 댄 것들이다: 수 · 누락 · 중복 · 변환 실패 · 깨진 Relation ·
-깨진 File Link · **문자열 길이 초과** · `legacy_key` 유일성 · `canonical_key` 충돌 ·
-Exception 분류 결과. 여기서 항목을 늘리거나 줄이지 않는다.
+깨진 File Link · **문자열 길이 초과** · `canonical_key` 충돌 · Exception 분류 결과.
+여기에 **프로젝트 코드**가 더해졌다(D-282) — 모든 프로젝트가 코드를 받았는가 ·
+그 코드가 정해진 모양인가 · 두 프로젝트가 같은 코드를 쓰지 않는가.
+
+`legacy_key` 유일성은 **뺐다.** 그 컬럼이 사라졌고(D-283), 없는 컬럼을 세는 검사는
+언제나 0 을 돌려주며 통과한다 — 아래 「아무것도 안 세고 통과」가 바로 그것이다.
 
 ## 「본 것의 수」를 함께 남긴다
 
@@ -30,7 +34,7 @@ from app.core.models_base import Base
 from app.migration import plan as plan_mod
 from app.migration.convert import text_length_limit
 from app.migration.report import MigrationReport
-from app.work import keys as keys_mod
+from app.work import codes as codes_mod
 from app.work import numbering
 
 __all__ = ["validate"]
@@ -73,7 +77,7 @@ def validate(db: Session, source, report: MigrationReport, *, notion) -> Migrati
     _notion_counts(db, report, notion=notion)
     _no_missing(db, source, report)
     _uniqueness(db, report)
-    _key_collision(db, report)
+    _project_codes(db, report)
     _relations(db, report)
     _file_links(db, report)
     _lengths(db, report)
@@ -188,16 +192,6 @@ def _no_missing(db: Session, source, report: MigrationReport) -> None:
 def _uniqueness(db: Session, report: MigrationReport) -> None:
     """중복 — 하나여야 하는 것이 하나인가."""
     report.check(
-        "중복 legacy_key",
-        _scalar(db, "SELECT count(*) FROM (SELECT legacy_key FROM tickets "
-                    "WHERE legacy_key IS NOT NULL GROUP BY legacy_key "
-                    "HAVING count(*) > 1) d") == 0,
-        0,
-        _scalar(db, "SELECT count(*) FROM (SELECT legacy_key FROM tickets "
-                    "WHERE legacy_key IS NOT NULL GROUP BY legacy_key "
-                    "HAVING count(*) > 1) d"),
-    )
-    report.check(
         "중복 canonical_key",
         _scalar(db, "SELECT count(*) FROM (SELECT canonical_key FROM tickets "
                     "WHERE canonical_key IS NOT NULL GROUP BY canonical_key "
@@ -227,37 +221,42 @@ def _uniqueness(db: Session, report: MigrationReport) -> None:
     report.check("legacy_mapping 행", total_map > 0, "> 0", total_map)
 
 
-def _key_collision(db: Session, report: MigrationReport) -> None:
-    """legacy / canonical 충돌 — 같은 문자열이 두 티켓을 가리키지 않는가.
+def _project_codes(db: Session, report: MigrationReport) -> None:
+    """프로젝트 코드 — **전부 받았는가 · 모양이 맞는가 · 겹치지 않는가** (D-282).
 
-    `GIT` 이 예약어인 이유가 여기다(D-196): 예약어가 풀리면 어떤 프로젝트가 `GIT` 를
-    가져갈 수 있고, 그 순간 새 `GIT-142` 가 옛 `GIT-142` 와 같은 문자열이 된다.
+    셋을 따로 세는 이유는 고칠 방법이 다르기 때문이다. 「못 받았다」는 앞 단계가 안
+    돈 것이고, 「모양이 틀렸다」는 옛 정책의 값이 남은 것이며, 「겹쳤다」는 생성기가
+    충돌을 안 푼 것이다. 하나로 뭉치면 세 원인 중 무엇인지 보고서만 보고는 모른다.
+
+    **표본 수를 함께 남긴다.** 프로젝트가 0건인 DB 에서는 셋 다 0 이라 전부 통과하는데,
+    그 통과는 「검사했다」가 아니라 「볼 것이 없었다」다.
     """
-    collisions = db.execute(sa.text(
-        "SELECT t.canonical_key, t.id, a.ticket_id FROM tickets t "
-        "JOIN ticket_key_aliases a ON a.alias = t.canonical_key "
-        "WHERE t.canonical_key IS NOT NULL AND a.ticket_id <> t.id"
+    total = _scalar(db, "SELECT count(*) FROM projects")
+    report.check("코드를 본 프로젝트", total > 0, "> 0", total)
+
+    without = _scalar(db, "SELECT count(*) FROM projects WHERE code IS NULL OR code = ''")
+    report.check("코드 없는 프로젝트", without == 0, 0, without)
+
+    shape = "^[" + codes_mod.CODE_ALPHABET + "]{" + str(codes_mod.CODE_LENGTH) + "}$"
+    bad = db.execute(
+        sa.text(
+            "SELECT id, code FROM projects "
+            "WHERE code IS NOT NULL AND code !~ :shape"
+        ),
+        {"shape": shape},
+    ).all()
+    report.check(
+        "모양이 틀린 코드", not bad, 0, len(bad),
+        _sample([str(row[1]) for row in bad]),
+    )
+
+    dup = db.execute(sa.text(
+        "SELECT code FROM projects WHERE code IS NOT NULL "
+        "GROUP BY code HAVING count(*) > 1"
     )).all()
     report.check(
-        "legacy/canonical 충돌", not collisions, 0, len(collisions),
-        _sample([str(row[0]) for row in collisions]),
+        "겹친 코드", not dup, 0, len(dup), _sample([str(row[0]) for row in dup])
     )
-    reserved = _scalar(
-        db,
-        "SELECT count(*) FROM project_key_registry "
-        "WHERE state = 'reserved' AND key = ANY(:keys)",
-        {"keys": list(keys_mod.RESERVED_KEYS)},
-    )
-    report.check(
-        "예약 Key 가 서 있는가", reserved == len(keys_mod.RESERVED_KEYS),
-        len(keys_mod.RESERVED_KEYS), reserved,
-    )
-    orphan_alias = _scalar(
-        db,
-        "SELECT count(*) FROM ticket_key_aliases a "
-        "LEFT JOIN tickets t ON t.id = a.ticket_id WHERE t.id IS NULL",
-    )
-    report.check("고아 별칭", orphan_alias == 0, 0, orphan_alias)
 
 
 def _relations(db: Session, report: MigrationReport) -> None:

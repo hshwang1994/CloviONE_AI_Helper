@@ -17,6 +17,11 @@
      * 티켓 소스가 죽음      → 내 몫을 **모른다**(0건이 아니다 → mine 은 null)
 
    0 으로 뭉개면 화면에서 셋이 똑같아 보이고, 그럴듯해서 아무도 신고하지 않는다.
+
+이 파일은 기본 소스(`native`) 위에서 돈다. 세 번째 항목의 마지막 줄(**티켓 소스가 죽음**)만
+`@pytest.mark.notion_source` 로 옛 경로에 남긴다(S14) — 자체 DB 에서는 티켓을 읽는 SELECT 가
+죽으면 프로젝트·마일스톤도 같은 세션에서 함께 죽으므로 「티켓만 죽은」 상황을 만들 수 없다.
+표를 단 시험은 **Notion 을 걷어낼 때 지울 목록**이기도 하다.
 """
 
 from __future__ import annotations
@@ -301,8 +306,15 @@ def test_low_confidence_counts_partially_checked_projects_separately(work_client
     assert projects["low_confidence"] == 1
 
 
+@pytest.mark.notion_source
 def test_a_dead_ticket_source_says_unknown_not_zero(work_client, notion, db):
-    """티켓을 못 읽으면 mine 은 **null** 이다. 0 으로 그리면 '할 일이 없다'는 거짓말이 된다."""
+    """티켓을 못 읽으면 mine 은 **null** 이다. 0 으로 그리면 '할 일이 없다'는 거짓말이 된다.
+
+    **이 시험만 소스를 되돌린다** (S14). 자체 DB 에서 표를 비우는 것은 장애가 아니라
+    「티켓이 0건이다」라는 사실이고, 그때는 0 이 정답이라 이 시험이 보려는 상황 자체가
+    만들어지지 않는다. 여기서 지키는 판정(`app/home/work.py` 의 `usable` — 못 읽었으면
+    `mine` 과 추이를 통째로 `null` 로 둔다)은 소스와 무관한 코드라 그대로 검사된다.
+    """
     db.query(TicketCache).delete()
     db.commit()
     notion.fail_status = 502

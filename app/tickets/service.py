@@ -114,6 +114,10 @@ def ticket_view(t: TicketDTO, id_to_name: dict[str, str], id_to_user: dict[str, 
         "uid": t.uid,
         "url": t.url,
         "tid": t.number,
+        # 화면이 보여 주는 이름 (D-282). `tid` 는 옛 소스의 번호라 이름이 아니다 —
+        # 화면이 그 앞에 접두사를 붙여 이름을 **만들어 내면** 그 문자열은 제품 어디에도
+        # 없는 이름이 되고, 붙여 넣어도 아무 티켓이 안 열린다.
+        "key": t.key,
         "title": t.title,
         "status": t.status,
         "due": t.due,
@@ -239,26 +243,58 @@ def ensure_in_scope(db: Session, page_id: str, viewer: "User | None") -> None:
     이제 소속은 담당자가 아니라 프로젝트이므로 그 예외가 필요 없다. 목록도 단건도 같은
     조건(`project_link='ok'` + 프로젝트가 범위 안)을 본다.
 
-    캐시에 행이 없으면 통과시킨다. 판정할 근거가 없는 것이지 범위 밖인 것이 아니다
-    (동기화 직전에 만든 티켓이 자기 눈에 안 보이면 그것도 고장이다).
+    행이 없으면 통과시킨다. 판정할 근거가 없는 것이지 범위 밖인 것이 아니다
+    (막 만든 티켓이 자기 눈에 안 보이면 그것도 고장이다).
+
+    ## 🔴 **두 축으로 찾는다** (S14)
+
+    `page_id` 는 이관해 온 티켓에서는 `notion_page_id` 이고, 자체 DB 에서 만든 티켓에서는
+    **행의 uuid** 다(`app/tickets/repository_native.py` 의 식별자 규약).
+
+    한 축만 보면 조용히 열린다: 자체 DB 티켓은 `notion_page_id` 가 NULL 이라 조회가 아무
+    행도 못 찾고, 바로 위 「행이 없으면 통과」에 걸려 **범위 문을 통째로 지나간다.**
+    0060 이 담당자 축을 버리고 닫은 그 구멍이 새 티켓에서 다시 열리는 것이고, 증상은
+    「어떤 티켓만 아무에게나 보인다」라 아무도 신고하지 않는다.
     """
     if viewer is None:
         return
-    from app.tickets.models import PROJECT_LINK_OK, TicketCache   # 지연 import(순환 참조)
+    from app.tickets.models import PROJECT_LINK_OK   # 지연 import(순환 참조)
 
     visible = _project_visibility(db, viewer)
     if visible is None:
         return
-    row = db.execute(
-        select(TicketCache.project_uid, TicketCache.project_link)
-        .where(TicketCache.notion_page_id == page_id)
-    ).first()
-    if row is None:
+    found = ticket_row_for(db, page_id)
+    if found is None:
         return
-    project_uid, link = row
+    project_uid, link = found.project_uid, found.project_link
     if link == PROJECT_LINK_OK and project_uid in visible.uids:
         return
     raise NotFoundError("티켓을 찾을 수 없습니다.")
+
+
+
+def ticket_row_for(db: Session, page_id: str | None):
+    """API 가 부르는 `page_id` → 우리 표의 행. **두 축을 이 함수 하나가 안다** (S14).
+
+    `page_id` 는 이관해 온 티켓에서는 `notion_page_id` 이고, 자체 DB 에서 만든 티켓에서는
+    **행의 uuid** 다(`app/tickets/repository_native.py` 의 식별자 규약). 그 사실을 아는
+    자리가 여러 곳이 되면 한 곳이 빠지고, 빠진 곳은 오류를 안 낸다 — 그냥 「행이 없다」로
+    읽혀서 범위 판정이 통과하거나 낙관적 잠금이 안 걸리거나 알림이 안 간다.
+
+    `OR` 하나로 묻지 않고 두 번 묻는 이유: 두 컬럼이 우연히 같은 문자열을 담는 날
+    `OR` 는 두 행을 돌려주고 `scalar_one_or_none()` 이 500 을 낸다. 순서가 있는 두 조회는
+    그때도 한 행을 고르고, 그 순서가 저장소 구현체와 같다.
+    """
+    if not page_id:
+        return None
+    from app.tickets.models import TicketCache
+
+    row = db.execute(
+        select(TicketCache).where(TicketCache.notion_page_id == page_id)
+    ).scalar_one_or_none()
+    if row is not None:
+        return row
+    return db.get(TicketCache, page_id)
 
 
 def ensure_not_trashed(db: Session, page_id: str) -> None:
@@ -1144,13 +1180,18 @@ def _resolve_writable_project(db: Session, user: User, project_id: str) -> str:
         raise NotFoundError("프로젝트를 찾을 수 없습니다.")
     if project.archived_at is not None:
         raise ValidationAppError("보관된 프로젝트에는 새 티켓을 만들 수 없습니다.")
-    if not project.notion_page_id:
-        # 포털 전용 프로젝트다. 티켓 본체는 아직 외부 소스에 사는데 그 프로젝트에는 짝이
-        # 없으므로 relation 을 걸 수 없다 — 조용히 프로젝트 없이 만들면 그 티켓이 유령이 된다.
-        raise ValidationAppError(
-            "이 프로젝트는 아직 외부 작업 DB와 연결되지 않아 티켓을 만들 수 없습니다."
-        )
-    return project.notion_page_id
+    # 외부 짝(`notion_page_id`)이 있으면 그 값을, 없으면 **우리 id** 를 돌려준다 (S14).
+    #
+    # 예전에는 짝이 없는 프로젝트에서 티켓 생성을 막았다. 그때는 그것이 옳았다 — 티켓
+    # 본체가 외부 소스에 살아서 relation 을 걸 자리가 없었고, 조용히 프로젝트 없이
+    # 만들면 그 티켓이 유령이 됐다.
+    #
+    # 자체 DB 가 정본이 된 뒤에는 그 근거가 없다. 그리고 **막아 두면 새 정책과 정면으로
+    # 부딪힌다**: Cutover 이후에 만드는 프로젝트에는 `notion_page_id` 가 영원히 없으므로,
+    # 그 프로젝트에서는 티켓을 하나도 못 만들게 된다.
+    #
+    # 저장소 구현체는 두 모양을 다 받는다(`repository_native._resolve_project`).
+    return project.notion_page_id or project.id
 
 
 def create_ticket(
@@ -1199,19 +1240,20 @@ def create_ticket(
 def _number_new_ticket(db: Session, *, page_id: str | None, actor: User, now: datetime) -> None:
     """새 티켓에 번호와 첫 활동을 남긴다 (S6).
 
-    **프로젝트에 Key 가 없으면 아무것도 안 한다.** Project Key 20건은 아직 사용자 확인
-    전이고(D-197), 확정 전에 번호를 요구하면 그때까지 티켓 생성이 통째로 막힌다.
-    번호 없는 티켓은 옛 이름으로 계속 불린다 — 3층 식별자를 두는 이유가 그것이다.
+    **프로젝트에 코드가 없으면 번호를 안 준다.** 그 상태에서 번호를 요구하면 티켓 생성이
+    통째로 막힌다 — 번호 없는 티켓은 화면에서 제목으로 불린다(`work/resolve.display_key`).
+
+    **행을 두 축으로 찾는다 (S14).** `page_id` 는 이관해 온 티켓에서는 `notion_page_id`
+    이고 자체 DB 에서 만든 티켓에서는 행의 uuid 다. 한 축만 보면 자체 DB 티켓에서 이
+    함수가 조용히 아무 일도 안 하고, 그러면 그 티켓만 **생성 활동이 없는 채로** 남는다 —
+    번호는 저장소 구현체가 이미 붙였으므로 오류도 안 난다.
     """
     if not page_id:
         return
-    from app.tickets.models import Ticket
     from app.work import activity as work_activity
     from app.work import service as work_service
 
-    row = db.execute(
-        select(Ticket).where(Ticket.notion_page_id == page_id)
-    ).scalar_one_or_none()
+    row = ticket_row_for(db, page_id)
     if row is None:
         return
     work_activity.record(
@@ -1247,11 +1289,7 @@ def _ensure_body_not_changed(db: Session, *, page_id: str, base_version: str | N
     """
     if not base_version:
         return
-    from app.tickets.models import TicketCache
-
-    row = db.execute(
-        select(TicketCache).where(TicketCache.notion_page_id == page_id)
-    ).scalar_one_or_none()
+    row = ticket_row_for(db, page_id)
     if row is None:
         return
     if row.body_markdown is None:
@@ -1387,12 +1425,8 @@ def _notify_ticket_comment(db: Session, *, page_id: str, uid: str, author: User,
     `notify_user` 가 터져도 이 함수 밖으로 나가지 않는다. 알림은 본 작업(댓글)보다 약한
     관심사이고, 그 반대로 만들면 알림 표 하나가 협업을 멈춘다.
     """
-    from app.tickets.models import TicketCache
-
     try:
-        row = db.execute(
-            select(TicketCache).where(TicketCache.notion_page_id == page_id)
-        ).scalar_one_or_none()
+        row = ticket_row_for(db, page_id)
         if row is None:
             return
         id_to_user = _verified_id_to_user(db)

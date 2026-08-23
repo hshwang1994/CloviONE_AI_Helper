@@ -30,7 +30,7 @@ import { prefersReducedMotion } from "../ui/motion.js";
 /** 로그인 페이지와 공유하는 열쇠. app/static/js/login.js 가 같은 문자열을 쓴다 —
  *  두 층이 각자 문자열을 들고 있으면 한쪽만 바뀌는 순간 조용히 끊긴다.
  *  login-first-impression.test.jsx 가 두 값이 같은지 확인한다. */
-export const LOGIN_HANDOFF_KEY = "clovirone_login_welcome";
+export const LOGIN_HANDOFF_KEY = "clovirassist_login_welcome";
 
 /** 표식의 유효 시간. 이보다 오래된 표식은 이번 로그인의 것이 아니다. */
 export const HANDOFF_FRESH_MS = 15000;

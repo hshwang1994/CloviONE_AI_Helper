@@ -96,16 +96,19 @@ class Ticket(OrgScopedMixin, TimestampMixin, UUIDPrimaryKeyMixin, Base):
     `project_uid` 는 API 응답에 그대로 나가는 이름이고(`ticket_view`), 바꾸면 사용자와
     프런트가 보는 말이 함께 바뀐다. `TicketCache` 는 이 클래스의 별칭으로 남는다.
 
-    ## 세 층의 이름 (D-195)
+    ## 두 층의 이름 (D-282)
 
     | 층 | 컬럼 | 성격 |
     |---|---|---|
     | Internal | `id` (uuid) | 영구 불변. 내부 참조는 전부 이것이다 |
-    | Canonical | `canonical_key` (`SKH-37`) | **트리거가 파생한다.** 앱이 직접 쓰지 않는다 |
-    | Legacy | `legacy_key` (`GIT-142`) | immutable · 재사용 금지 |
+    | Canonical | `canonical_key` (`ABCDEF-37`) | **트리거가 파생한다.** 앱이 직접 쓰지 않는다 |
 
-    `canonical_key` 를 Generated Column 으로 만들 수 없는 이유는 D-195 에 있다 —
-    PostgreSQL Generated Column 은 다른 표(`projects.code`)를 참조할 수 없다.
+    세 번째 층(`legacy_key` · `GIT-142`)이 있었고 **없앴다**. 옛 코드를 이관하지 않기로
+    했으므로(D-283) 그 층에 들어올 값이 없다. Project Code 가 안 바뀌므로 canonical 이
+    별칭으로 밀려나는 일도 없다 — 그래서 `ticket_key_aliases` 도 함께 사라졌다.
+
+    `canonical_key` 를 Generated Column 으로 만들 수 없는 이유는 그대로다 — PostgreSQL
+    Generated Column 은 다른 표(`projects.code`)를 참조할 수 없다.
     """
 
     __tablename__ = "tickets"
@@ -192,18 +195,18 @@ class Ticket(OrgScopedMixin, TimestampMixin, UUIDPrimaryKeyMixin, Base):
     notion_last_edited: Mapped[datetime | None] = mapped_column(DateTime)
     synced_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
 
-    # ── 세 층의 이름 (S6 · D-195) ───────────────────────────────────────────
+    # ── 두 층의 이름 (S6 · D-282) ───────────────────────────────────────────
     #
     # `seq` 는 프로젝트 안의 번호이고 `project_ticket_counters` 가 발급한다(D-196).
     # `canonical_key` 는 **앱이 쓰지 않는다** — BEFORE INSERT/UPDATE 트리거가
     # `projects.code || '-' || seq` 로 파생시킨다. 앱이 쓰면 둘이 어긋날 수 있고,
     # 어긋난 티켓은 검색으로도 링크로도 못 찾는다.
+    #
+    # 이 이름이 **영원히 같은 티켓을 가리키는** 근거는 Project Code 가 안 바뀌고
+    # 재사용되지 않는다는 것 하나다(D-282). 그 근거가 무너지면 여기에 유니크 제약을
+    # 걸어도 못 잡는다 — 같은 문자열이 서로 다른 시각에 서로 다른 티켓을 뜻하게 된다.
     seq: Mapped[int | None] = mapped_column(Integer)
     canonical_key: Mapped[str | None] = mapped_column(String(64))
-    # `GIT-142`. 옛 시스템이 부르던 이름이고 **영원히 같은 티켓을 가리킨다.**
-    # `notion_ticket_number` 에서 왔지만 그 컬럼과 뜻이 다르다 — 저쪽은 외부 소스의
-    # 속성값이라 소스가 바뀌면 의미를 잃고, 이쪽은 우리가 보증하는 영구 별칭이다.
-    legacy_key: Mapped[str | None] = mapped_column(String(64))
 
     # ── 낙관적 잠금 (S6) ────────────────────────────────────────────────────
     #
@@ -233,13 +236,12 @@ class Ticket(OrgScopedMixin, TimestampMixin, UUIDPrimaryKeyMixin, Base):
         # 프로젝트가 있다.
         #
         # 초안(§5.2)은 `project_id` 까지 셋을 한 묶음으로 묶었다 — 「배정됐거나 전부
-        # NULL 이거나」. 지금 그 제약을 걸면 **미러 1,124행이 전부 위반**이다:
-        # 프로젝트에는 연결돼 있는데 Project Key 가 아직 하나도 없어서(22건 전부
-        # `code IS NULL`) 번호를 줄 수가 없다. 재채번은 D-197 이 사용자 확인 뒤
-        # S13 으로 정해 둔 일이다.
+        # NULL 이거나」. 그 제약은 지금도 못 건다: 이관은 표를 먼저 복사하고 코드를
+        # 뒤에 붙이므로(D-281 의 순서) 그 사이 티켓 1,124행이 프로젝트에는 연결돼
+        # 있는데 번호는 없는 상태로 존재한다.
         #
-        # 그래서 실제로 지켜야 하는 불변식만 남긴다: **번호는 Key 를 가진 프로젝트
-        # 안에서만 발급된다.** 그 절반은 여기가, 나머지 절반(프로젝트에 Key 가
+        # 그래서 실제로 지켜야 하는 불변식만 남긴다: **번호는 코드를 가진 프로젝트
+        # 안에서만 발급된다.** 그 절반은 여기가, 나머지 절반(프로젝트에 코드가
         # 있는가)은 트리거가 막는다.
         CheckConstraint(
             "(seq IS NULL AND canonical_key IS NULL) OR "
@@ -254,10 +256,6 @@ class Ticket(OrgScopedMixin, TimestampMixin, UUIDPrimaryKeyMixin, Base):
         Index(
             "uq_tickets_canonical", "canonical_key", unique=True,
             postgresql_where=text("canonical_key IS NOT NULL"),
-        ),
-        Index(
-            "uq_tickets_legacy", "legacy_key", unique=True,
-            postgresql_where=text("legacy_key IS NOT NULL"),
         ),
         # 백로그 화면은 프로젝트별로 순서대로 읽는다.
         Index("ix_tickets_backlog", "project_uid", "backlog_rank"),

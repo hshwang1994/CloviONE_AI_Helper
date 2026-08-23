@@ -15,7 +15,13 @@ import pytest
 from tests.conftest import DEFAULT_TEST_PASSWORD
 from tests.fakes.notion import DEFAULT_PROJECTS_DB, FakeNotionTasksDB, project_row, task_row
 
-pytestmark = pytest.mark.integration
+
+# 이 파일은 **Notion 저장소 구현체 위에서** 티켓을 만들고 고친다(가짜 Notion 서버가
+# 픽스처다). 제품 기본 소스는 S14 부터 `native` 이므로 여기서 되돌려 놓는다.
+#
+# 이 표는 동시에 **Notion 을 걷어낼 때 다시 쓸 파일의 목록**이다 — 여기서 지키는 성질은
+# 소스와 무관하게 지켜야 하는 것이고, 자체 DB 위에서 다시 서야 한다.
+pytestmark = [pytest.mark.integration, pytest.mark.notion_source]
 
 PAGE = "page-lock"
 

@@ -1,5 +1,7 @@
 """소스의 모양이 우리 도메인의 모양으로 **정확히** 바뀌는가 (S13).
 
+qa-contract-change: 옛 정책은 소스 `티켓 ID` 의 접두사(`GIT`)를 이름의 근거로 삼아 파서가 `legacy_prefix` 를 함께 돌려줬고 이 파일이 그 값을 못박고 있었다. 지금은 프로젝트 코드를 서버가 짓고 접두사는 이름의 근거가 아니므로(D-282) 파서가 그 키를 더 내지 않는다 — 없는 키를 재는 단언은 성립하지 않아 지웠고, 같은 속성의 `number` 는 재번호 순서로 여전히 쓰이므로 그 단언은 그대로 남겼다.
+
 여기 있는 표본은 전부 실제 Notion 응답의 모양이다. 파서를 응답 없이 시험하면
 「우리가 상상한 응답」만 확인하게 된다.
 """
@@ -66,8 +68,9 @@ TASK_ROW = {
 def test_a_task_row_lands_in_ticket_columns():
     parsed = transform.parse_task(TASK_ROW)
     assert parsed["title"] == "포털 로그인 개선"
+    # 이 번호는 이름이 아니라 **재번호를 매기는 순서**다. 순서를 잃으면 소스에서 먼저
+    # 만든 작업이 뒤로 밀려, 옮긴 뒤의 티켓 번호가 소스와 다른 차례로 붙는다.
     assert parsed["notion_ticket_number"] == 142
-    assert parsed["legacy_prefix"] == "GIT"
     assert parsed["status"] == "진행"
     assert parsed["priority"] == "높음"
     assert parsed["difficulty"] == "3"

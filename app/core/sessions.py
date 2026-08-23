@@ -18,10 +18,19 @@ from app.auth.models import UserSession
 from app.core.clock import Clock
 from app.core.config import Settings
 from app.core.db import is_serialization_conflict
+from app.core.product import SLUG
 from app.core.security import hash_token, new_csrf_token, new_session_token
 from app.users.models import User
 
-SESSION_COOKIE_NAME = "clovirone_session"
+# 세션 쿠키 이름 (P-33 · S14). **제품 slug 에서 만든다** — 손으로 적으면 slug 를 갈
+# 때 이 한 줄만 남는다. 실제로 그렇게 됐다: S4 가 열두 자리를 옮겼는데 이 이름만
+# 옛 정체성으로 남아 있었다(D-226).
+#
+# 바꾸는 순간 **전원이 로그아웃된다.** 브라우저가 든 옛 이름의 쿠키는 서버가 더 이상
+# 안 읽으므로 안 보내는 것과 같고, 그래서 반쪽 상태가 없다 — 값을 옮길 수도 있었지만
+# 그러면 옛 이름을 읽는 코드가 영원히 남는다. Cutover 는 어차피 세션이 끊기는 자리라
+# 그때 함께 바꿨다.
+SESSION_COOKIE_NAME = f"{SLUG}_session"
 
 # last_seen_at 쓰기는 스로틀한다 — 요청마다 쓰면 이 한 컬럼이 전체 쓰기의 대부분을 차지한다.
 _LAST_SEEN_WRITE_INTERVAL_SECONDS = 60

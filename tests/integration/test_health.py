@@ -8,9 +8,12 @@ pytestmark = [pytest.mark.integration, pytest.mark.real_db]
 
 
 def test_healthz(client):
+    # 여기서 기다리는 값은 **제품이 배포되는 기본값**이다 — S14 부터 티켓 정본은 자체 DB
+    # (`native`) 이고, 이 한 줄이 배포된 기본 소스를 밖에서 읽을 수 있는 유일한 자리다.
+    # 시험 세계만 옛 값을 적어 두면 되돌리기 창을 닫는 날 아무도 그 사실을 모른다.
     r = client.get("/healthz")
     assert r.status_code == 200
-    assert r.json() == {"status": "ok", "ticket_source": "notion_cache"}
+    assert r.json() == {"status": "ok", "ticket_source": "native"}
 
 
 def test_healthz_reports_configured_ticket_source(settings, fake_clock, fake_http):

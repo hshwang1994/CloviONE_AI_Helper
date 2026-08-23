@@ -117,7 +117,7 @@ def restore(db: Session, item: TrashItem, user: User) -> None:
 
 def purge_item(db: Session, item: TrashItem, *, outbound, settings) -> None:
     """영구 삭제 — 노션 페이지를 보관처리(archive)한 뒤 휴지통 행을 지운다."""
-    _archive_notion(item, outbound=outbound, settings=settings)
+    _archive_source(db, item, outbound=outbound, settings=settings)
     db.delete(item)
     db.flush()
 
@@ -213,7 +213,7 @@ def purge_expired(db: Session, *, now: datetime, retention_days: int, outbound, 
     failures: list[dict] = []
     for target in expired:
         try:
-            _archive_notion(target, outbound=outbound, settings=settings)
+            _archive_source(db, target, outbound=outbound, settings=settings)
         except Exception as exc:  # noqa: BLE001 — 개별 실패 격리, 행은 남겨 다음 주기 재시도
             reason = type(exc).__name__
             logger.warning(
@@ -240,18 +240,25 @@ def purge_expired(db: Session, *, now: datetime, retention_days: int, outbound, 
     }
 
 
-def _archive_notion(item: "_PurgeTarget | TrashItem", *, outbound, settings) -> None:
-    """항목 종류에 맞는 저장소로 원본 페이지를 보관처리한다.
+def _archive_source(
+    db: Session, item: "_PurgeTarget | TrashItem", *, outbound, settings
+) -> None:
+    """항목 종류에 맞는 저장소로 원본을 보관처리한다.
 
-    저장소 seam 을 지나는 이유: 소스가 바뀌면 '보관처리'의 뜻도 바뀌는데 여기서 Notion 모듈을
+    저장소 seam 을 지나는 이유: 소스가 바뀌면 '보관처리'의 뜻도 바뀌는데 여기서 구현 모듈을
     직접 부르면 그때 고칠 곳이 하나 더 숨는다(경계 정적검사가 이걸 막는다). 지연 import 로
     순환 참조를 피한다.
 
-    db 를 넘기지 않는 이유: 이 지점은 '외부 원본을 보관처리한다'만 한다. 캐시 행 정리는 바로
-    다음 미러 동기화가 알아서 한다(보관처리된 페이지는 소스 조회 결과에서 빠진다)."""
+    **`db` 를 넘긴다 (S14).** 예전에는 안 넘겼고, 그때는 그것이 옳았다 — 이 지점이 하는 일은
+    저쪽 페이지를 보관처리하는 것뿐이었고 우리 캐시 행은 **다음 미러 동기화가** 정리했다.
+    자체 DB 가 정본이 되면서 그 「다음 동기화」가 없어졌으므로, 보관처리 자체가 로컬 쓰기다.
+
+    안 넘긴 채로 두면 조용히 틀린다: 휴지통 행은 지워지는데 원본 행은 살아남고, 목록은
+    휴지통 행으로 그것을 숨기고 있었으므로 **영구 삭제한 티켓이 목록에 다시 나타난다.**
+    """
     from app.core.source_registry import build_document_repository, build_ticket_repository
 
     if item.item_type == TRASH_TICKET:
-        build_ticket_repository(settings, outbound).archive(None, page_id=item.notion_page_id)
+        build_ticket_repository(settings, outbound).archive(db, page_id=item.notion_page_id)
     elif item.item_type == TRASH_DOCUMENT:
-        build_document_repository(settings, outbound).archive(None, page_id=item.notion_page_id)
+        build_document_repository(settings, outbound).archive(db, page_id=item.notion_page_id)

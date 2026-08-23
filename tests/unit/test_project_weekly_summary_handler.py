@@ -41,7 +41,7 @@ def test_missing_project_id_raises_permanent_error_without_calling_llm(db, setti
 
 def test_missing_week_of_raises_permanent_error(db, settings, fake_clock):
     now = fake_clock.now()
-    row = Project(name="감마", code="GAMMA-WKUNIT", org_id=DEFAULT_ORG_ID)
+    row = Project(name="감마", code="GKWUNT", org_id=DEFAULT_ORG_ID)
     db.add(row)
     db.commit()
     job = _enqueue(db, now, {"project_id": row.id})  # week_of 없음

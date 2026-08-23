@@ -111,7 +111,7 @@ sudo /opt/clovirassist/deploy/install.sh <subcommand> [options]
 | 5 | Frontend Artifact | **커밋된 빌드 산출물(`app/static/react/`) 사용이 기본.** `check_bundle_fresh.py` 로 신선도 검증. Node 가 있으면 소스 빌드 옵션 | 번들 stale 이면 중단 |
 | 6 | **PostgreSQL 설치·초기화** | cluster 확인 · `clovirassist` role/DB 생성 · locale/encoding(UTF-8) · `pg_hba` 최소 권한 · listen 127.0.0.1 · 접속 검증 · **`PG_BIN_DIR` 를 `web.env` 에 쓴다**(비우면 `PATH` 의 낮은 버전 `pg_dump` 를 집어 백업이 조용히 실패한다 — S2) · **`max_connections` ≥ 워커수 ×(pool 5 + overflow 10)** | |
 | 7 | **Extension** | `CREATE EXTENSION vector; CREATE EXTENSION pg_trgm;` + 버전 기록 | 미설치 원인 표시 |
-| 8 | Configuration/Secret 분리 | `/etc/clovirassist/clovirassist.env`(0640) + `/etc/clovirassist/secrets/`(0700). **DB 비밀번호는 DSN 이 아니라 `.pgpass`/파일 참조** | |
+| 8 | Configuration/Secret 분리 | `/etc/clovirassist/clovirassist.env`(0640) + `/etc/clovirassist/secrets/`(**0750** — 소유 `root`, 그룹이 서비스 계정이다. `0700` 이면 제품이 자기 비밀을 못 읽는다. S14 가 실측으로 고쳤다). **DB 비밀번호는 DSN 이 아니라 `.pgpass`/파일 참조** | |
 | 9 | **DB Migration** | `alembic upgrade head`. 실행 전 현재 revision 과 목표 revision 출력 | revision 위치 표시 |
 | 10 | Seed/부트스트랩 | 최초 관리자 · 기본 Role/Permission · 기본 Storage Provider(Local) | |
 | 11 | **File Storage 준비** ✅ | 디렉터리 생성/권한 · 기본 LOCAL Provider 부트스트랩 · **마운트 유닛과 `RequiresMountsFor=` drop-in 을 제품이 만들어 설치** · `systemctl enable --now` · **제품 코드로 `st_dev` 마운트 검증**(`storage_cli status` 의 종료코드가 계약이다) | 미마운트면 **쓰기를 거부하는 상태**라고 표시하고 멈춘다. 붙일 유닛 이름을 함께 낸다 |

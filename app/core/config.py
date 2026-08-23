@@ -169,10 +169,12 @@ class Settings(BaseSettings):
     # (`game_ai_enabled` · `assistant_narrative_enabled`)는 그대로다.
 
     # 소스 스위치(§7.1.C). 저장소 배선을 바꾸는 재시작급 변경이라 DB 설정이 아니라 env 에 둔다.
-    # 값: 'notion' | 'notion_cache' | 'native'. 'native'(자체 DB 정본)는 아직 구현체가 없어
-    # 시작 시 거절된다 — 문만 열어 둔 상태다.
-    #   ticket_source='notion' 은 **운영 킬 스위치**다: 로컬 미러를 아예 보지 않고 캐시 도입
-    #   전과 똑같은 실시간 경로로 돌아간다. 미러가 이상하면 이 값 하나만 바꿔 재시작하면 된다.
+    # 값: 'notion' | 'notion_cache' | 'native'.
+    #
+    # **기본이 `native` 다 (S14).** 자체 DB 가 정본이고, 그 구현체가 실제로 선다
+    # (`app/tickets/repository_native.py` · `app/team_docs/repository_native.py`).
+    # 나머지 둘은 Cutover 되돌리기 창에서만 쓰는 값이다 — 되돌리면 미러가 다시 정본이
+    # 되므로 그때는 옛 값이 맞다. 서비스 Open 뒤에는 쓸 자리가 없다.
     # ── LLM (9-5) ────────────────────────────────────────────────────────────
     #
     # `app/llm/provider.py::resolve_config` 는 이미 `Settings` 필드 → 환경변수 → 기본값
@@ -224,9 +226,9 @@ class Settings(BaseSettings):
     # 길어져 종료 신호에 늦게 답한다.
     index_batch_documents: int = 20
 
-    ticket_source: str = "notion_cache"
+    ticket_source: str = "native"
     # 문서는 이미 로컬 미러에서 읽으므로 notion / notion_cache 가 같은 구현체를 가리킨다.
-    document_source: str = "notion"
+    document_source: str = "native"
 
     @property
     def allowed_email_domain_list(self) -> list[str]:

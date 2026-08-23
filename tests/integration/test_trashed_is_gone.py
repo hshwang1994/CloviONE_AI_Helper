@@ -21,28 +21,52 @@ from __future__ import annotations
 
 import pytest
 
+from app.core.models_base import utcnow
+from app.org.constants import DEFAULT_ORG_ID
+from app.tickets.models import PROJECT_LINK_OK, TicketCache
 from tests.conftest import DEFAULT_TEST_PASSWORD
-from tests.fakes.notion import DEFAULT_PROJECTS_DB, FakeNotionTasksDB, project_row, task_row
 
 pytestmark = pytest.mark.integration
 
 PAGE_ID = "page-t900"
-TOKEN_REF = "notion_report_token"
 
 
 @pytest.fixture()
-def notion(fake_http) -> FakeNotionTasksDB:
-    return FakeNotionTasksDB(
-        rows=[task_row(page_id=PAGE_ID, tid=900, title="지울 티켓", status="진행",
-                       due="2026-09-01", people=[])],
-        projects=[project_row(page_id="proj-1", name="알파")],
-        projects_db=DEFAULT_PROJECTS_DB,
-    ).install(fake_http)
+def ticket(db, portal_project) -> TicketCache:
+    """지울 티켓 한 건을 **자체 DB 표에 진짜로 넣는다** (S14).
+
+    예전에는 이 자리에 가짜 Notion 서버가 있었다. 소스가 미러이던 동안에는 그 페이크가
+    티켓의 유일한 출처였지만, 자체 DB 가 정본이 된 뒤로는 페이크만 두면 티켓이 **처음부터
+    없는** 상태가 된다. 그러면 이 파일의 시험 넷이 전부 조용히 통과한다 — 없는 티켓도
+    상세·수정·댓글이 404 이고, 없는 티켓은 색인에도 안 들어가기 때문이다. 휴지통이 한 일이
+    하나도 없이 초록불이 나는 것이 이 파일에서 가장 나쁜 결과다.
+
+    소속은 조직 공통 프로젝트(`portal_project`)가 든다. 안 주면 `project_link` 가 'missing'
+    이라 전역 관리자 말고는 아무에게도 안 보이고, 그러면 「휴지통에 넣어서 안 보인다」와
+    「소속이 없어서 안 보인다」를 구별할 수 없다.
+    """
+    row = TicketCache(
+        notion_page_id=PAGE_ID,
+        org_id=DEFAULT_ORG_ID,
+        notion_ticket_number=900,
+        url="https://example.invalid/t900",
+        title="지울 티켓",
+        status="진행",
+        due_date="2026-09-01",
+        project_uid=portal_project.id,
+        project_link=PROJECT_LINK_OK,
+        project_ids="",
+        project_names="",
+        assignee_notion_ids="",
+        synced_at=utcnow(),
+    )
+    db.add(row)
+    db.commit()
+    return row
 
 
 @pytest.fixture()
-def signed_in(client, settings, notion, make_user):
-    (settings.secrets_dir / TOKEN_REF).write_text("fake-token", encoding="utf-8")
+def signed_in(client, ticket, make_user):
     make_user(email="trash@goodmit.co.kr", role="user", display_name="휴지통 확인")
     r = client.post("/login", json={"email": "trash@goodmit.co.kr", "password": DEFAULT_TEST_PASSWORD})
     assert r.status_code == 200, r.text

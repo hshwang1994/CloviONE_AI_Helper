@@ -23,7 +23,7 @@ import { ACCENT_PRESETS, createClovirTheme, normalizeAccent } from "./theme.js";
  * 계정 무관 키를 지우는 것은 app/UserMenu.jsx의 clearBootTheme() 호출부가 함께 한다
  * (clearBootAccent, 이 파일 하단에서 내보낸다). */
 
-const ACCENT_KEY = "clovirone_accent";
+const ACCENT_KEY = "clovirassist_accent";
 const ThemeModeCtx = React.createContext({
   mode: "light",
   accent: ACCENT_PRESETS[0],

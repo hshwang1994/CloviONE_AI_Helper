@@ -72,12 +72,13 @@ BOARD_COLUMN_LIMIT = 200
 
 
 def number_if_possible(db: Session, ticket: Ticket, *, now: datetime | None = None) -> bool:
-    """번호가 없고 프로젝트에 Key 가 있으면 번호를 준다. 아니면 아무것도 안 한다.
+    """번호가 없고 프로젝트에 코드가 있으면 번호를 준다. 아니면 아무것도 안 한다.
 
-    **조용히 실패하는 것이 여기서는 옳다.** Project Key 20건은 아직 사용자 확인 전이고
-    (D-197), 확정 전에는 프로젝트 대부분이 Key 를 갖지 않는다. 그때 티켓 생성을 막으면
-    Key 확정이 끝날 때까지 제품이 멈춘다. 번호 없는 티켓은 옛 이름(`GIT-n`)으로 계속
-    불린다 — 그것이 3층 식별자를 두는 이유다.
+    **조용히 실패하는 것이 여기서는 옳다.** 코드는 이제 프로젝트를 만들 때 서버가 함께
+    붙이므로(D-282) 코드 없는 프로젝트는 사실상 이관 중간 상태 하나뿐이다. 그래도
+    막지 않는 이유는 같다: 여기서 예외를 던지면 그 한 상태 때문에 티켓 생성이 통째로
+    멈춘다. 번호 없는 티켓은 화면에서 **제목으로** 불린다
+    (`app/work/resolve.py::display_key` 가 `None` 을 돌려주는 그 상태다).
     """
     if ticket.seq is not None or not ticket.project_uid:
         return False
@@ -546,11 +547,10 @@ def sprint_scope(db: Session, sprint_id: str, user: User) -> dict:
 
 
 def ticket_detail_extras(db: Session, ticket: Ticket) -> dict:
-    """상세 화면이 새로 얻는 것 — 이름 세 층 · 관계 · 활동."""
+    """상세 화면이 새로 얻는 것 — 이름 · 관계 · 활동."""
     return {
         "key": display_key(ticket),
         "canonical_key": ticket.canonical_key,
-        "legacy_key": ticket.legacy_key,
         "version": ticket.version,
         "sprint_id": ticket.sprint_id,
         "relations": relations.for_ticket(db, ticket.id),

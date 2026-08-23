@@ -105,13 +105,13 @@ describe("진단 — 서비스 중단 표시와 재시작 안내", () => {
 
     // worker만 죽었으므로 worker 전용 유닛만 안내한다(web과 다른 유닛이라 섞으면 엉뚱한 로그를 보게 된다).
     const guidance = await screen.findByText(/일부 서비스가 응답하지/);
-    expect(guidance).toHaveTextContent("clovirone-web-worker");
-    expect(guidance).not.toHaveTextContent("clovirone-web-assistant.service");
+    expect(guidance).toHaveTextContent("clovirassist-worker");
+    expect(guidance).not.toHaveTextContent("clovirassist-web.service");
 
     const copyBtn = within(guidance).getByRole("button", { name: "복사" });
     await user.click(copyBtn);
 
-    expect(writeTextSpy).toHaveBeenCalledWith("journalctl -u clovirone-web-worker");
+    expect(writeTextSpy).toHaveBeenCalledWith("journalctl -u clovirassist-worker");
     expect(await screen.findByText("명령을 복사했습니다.")).toBeInTheDocument();
   });
 

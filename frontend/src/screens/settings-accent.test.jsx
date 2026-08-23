@@ -78,12 +78,12 @@ describe("화면 강조색 선택기 (내 화면 설정, PA-RC-0022)", () => {
     const pressed = buttons.filter((b) => b.getAttribute("aria-pressed") === "true");
     expect(pressed).toHaveLength(1);
     expect(pressed[0]).toHaveTextContent("보라");
-    expect(window.localStorage.getItem("clovirone_accent")).toBe("#6B5BC7");
+    expect(window.localStorage.getItem("clovirassist_accent")).toBe("#6B5BC7");
     expect(apiMock).not.toHaveBeenCalled();
   });
 
   it("이전에 고른 색이 있으면 그 색이 선택된 채로 열린다", async () => {
-    window.localStorage.setItem("clovirone_accent", "#327C98");
+    window.localStorage.setItem("clovirassist_accent", "#327C98");
     renderScreen();
     const pressed = within(group()).getAllByRole("button").filter((b) => b.getAttribute("aria-pressed") === "true");
     expect(pressed).toHaveLength(1);

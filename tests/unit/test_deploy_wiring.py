@@ -662,3 +662,109 @@ def test_the_entry_point_is_executable_straight_out_of_a_clone():
     for line in out.splitlines():
         mode, _, rest = line.partition(" ")
         assert mode == "100755", f"실행 비트가 없다: {rest.split()[-1]} (mode={mode})"
+
+
+def test_the_installer_copies_every_config_file_that_exists():
+    """설정 파일 목록을 **손으로 적지 않는다** (S14).
+
+    손으로 적었을 때 두 방향으로 다 틀렸다.
+
+    * S11 이 `allowed-runners.json` · `allowed-workflows.json` 을 지웠는데 목록에는
+      남아 있어서 `cp` 가 매번 실패했다. `run_stage` 가 `set -e` 를 끄고 부르므로
+      **Stage 는 그대로 `OK` 를 찍었다** — 설정 복사가 실패한 사실이 판정에 안 잡힌다.
+    * S13 이 만든 `allowed-migration-sources.json` 은 목록에 없어서 서버로 안 갔다.
+      `AllowlistRegistry` 는 파일이 없으면 **전부 거절**이라, Cutover 회차의 Notion
+      호출이 전부 400 이 됐을 것이다 — 그 400 은 설정 실수처럼 안 보인다.
+
+    그래서 성질을 고정한다: **`config/` 에 있는 것을 전부 옮긴다.** 파일이 늘거나
+    줄어도 이 검사와 설치기가 함께 따라간다.
+    """
+    text = (ROOT / "deploy" / "install.sh").read_text(encoding="utf-8")
+    assert '"$APP_DIR"/config/*.json' in text, (
+        "설정 복사가 다시 손으로 적은 목록으로 돌아갔다"
+    )
+    present = sorted(p.name for p in (ROOT / "config").glob("*.json"))
+    assert present, "config/ 에 설정 파일이 하나도 없다 — 이 검사가 아무것도 안 봤다"
+    for gone in ("allowed-runners.json", "allowed-workflows.json"):
+        assert gone not in present, f"{gone} 이 되살아났다 (S11 이 지웠다)"
+    assert "allowed-migration-sources.json" in present
+
+
+def test_the_installer_replaces_a_legacy_sqlite_dsn():
+    """옛 설치를 이전할 때 **SQLite 주소를 존중하지 않는다** (S14).
+
+    옛 slug 설치의 `web.env` 는 `DATABASE_URL=sqlite:///…` 를 들고 있고, 이전은 그 파일을
+    그대로 새 이름으로 옮긴다. 그 값을 「기존 값 존중」으로 지키면 Stage 9 가
+    `alembic upgrade head` 에서 죽는다 — 제품이 PG 전용이라 `normalize_database_url` 이
+    스킴을 보고 거절하기 때문이다(D-215).
+
+    **실제로 Cutover 첫 회차가 거기서 멈췄다.** 그래서 성질을 고정한다: 스킴이 `sqlite`
+    면 비어 있는 것으로 보고 PostgreSQL 주소를 쓴다. 반대로 이미 PostgreSQL 을 가리키는
+    값은 그대로 둔다 — 운영자가 정한 주소를 덮어쓰면 그쪽이 진짜 사고다.
+    """
+    text = (ROOT / "deploy" / "install.sh").read_text(encoding="utf-8")
+    assert "sqlite*) _dburl=\"\" ;;" in text, (
+        "SQLite 주소를 비우는 분기가 사라졌다 — 옛 설치 이전이 Stage 9 에서 죽는다"
+    )
+    # 반례: 「무조건 덮어쓴다」로 바뀌지 않았는지 본다. 그렇게 고치면 운영자가 정한
+    # PostgreSQL 주소가 매 업그레이드마다 기본값으로 되돌아간다.
+    assert '[ -z "$_dburl" ]' in text, (
+        "기존 PostgreSQL 주소를 존중하는 조건이 사라졌다"
+    )
+
+
+def test_the_legacy_migration_merges_directories_instead_of_skipping_them():
+    """옛 설치를 이전할 때 **디렉터리를 파고든다** (S14).
+
+    예전에는 최상위 항목 하나만 보고 「새 자리에 있으면 건너뛴다」였다. 그래서 새 자리에
+    `secrets/` 가 이미 있으면(S8 이 SMB 자격증명을 거기 넣어 둔다) 옛 `secrets/` 가
+    **통째로 안 옮겨졌다** — 그 안의 Notion 토큰 넷이 옛 경로에 남는데 설치는 `OK` 를
+    찍는다. 제품은 토큰 없이 뜨고, 그 사실은 첫 동기화가 실패할 때 처음 보인다.
+
+    **Cutover 첫 회차가 실제로 그 상태로 지나갔다.** 그래서 성질을 고정한다: 같은 이름의
+    파일은 건너뛰되(재실행 안전) 같은 이름의 **디렉터리는 한 겹 더 들어간다**.
+    """
+    text = (ROOT / "deploy" / "install.sh").read_text(encoding="utf-8")
+    assert "_merge_move()" in text, "디렉터리 병합 함수가 사라졌다"
+    # 재귀가 실제로 있는가 — 함수만 있고 자기를 안 부르면 한 겹만 파고든다.
+    assert text.count("_merge_move ") >= 2, "병합이 재귀가 아니다(한 겹만 파고든다)"
+    # 반례: 「덮어쓴다」로 바뀌지 않았는지 본다. 덮어쓰면 재실행이 새 설정을 옛 값으로
+    # 되돌리고, 그 사고는 업그레이드마다 조용히 반복된다.
+    assert '[ ! -e "$dst/$base" ]' in text, "같은 이름 파일을 덮지 않는 조건이 사라졌다"
+
+
+def test_legacy_detection_sees_a_half_migrated_install():
+    """이전이 **안 끝난 상태**를 이전 대상으로 본다 (S14).
+
+    예전에는 `/opt/<옛>` · `/etc/<옛>/web.env` · 옛 유닛 셋만 봤다. 그 셋이 먼저 사라지고
+    `/etc/<옛>/secrets` 만 남는 상태가 실제로 생겼고, 그때 이 판정이 「이전할 것 없음」을
+    돌려주는 바람에 **다시 실행해도 그 비밀들이 영원히 안 옮겨졌다.** 설치는 매번 `OK` 다.
+
+    남은 것을 보는 쪽이 옳다: 이전이 끝났으면 옛 디렉터리 자체가 없다.
+    """
+    text = (ROOT / "deploy" / "install.sh").read_text(encoding="utf-8")
+    for probe in ('[ -d "/opt/$LEGACY_SLUG" ]',
+                  '[ -d "/etc/$LEGACY_SLUG" ]',
+                  '[ -d "/var/lib/$LEGACY_SLUG" ]'):
+        assert probe in text, f"옛 자리 판정에서 {probe} 가 빠졌다"
+
+
+def test_the_service_account_can_read_its_own_secrets():
+    """비밀 디렉터리는 **0750** 이다 — `0700` 이면 제품이 자기 비밀을 못 읽는다 (S14).
+
+    소유자는 `root` 이고 그룹이 서비스 계정이다. `0700` 은 그룹에 아무 권한도 안 주므로,
+    안의 파일이 `0640 root:<서비스>` 여도 **디렉터리를 통과(x)할 수 없어** 닿지 못한다.
+
+    그 상태로 설치가 `OK` 를 찍는다는 것이 이 검사의 이유다. 「비밀을 못 읽는다」는 기동
+    때 안 보이고, 그 비밀을 실제로 쓰는 첫 요청까지 조용하다 — Cutover 이관이 Notion
+    토큰을 읽으려다 `PermissionError` 를 냈을 때 처음 드러났다.
+
+    **반례도 함께 본다**: `others` 에 권한이 붙으면 좁히려던 목적 자체가 없어진다.
+    """
+    text = (ROOT / "deploy" / "install.sh").read_text(encoding="utf-8")
+    assert 'chmod 0750 "$SECRETS_DIR"' in text, (
+        "비밀 디렉터리 권한이 0700 으로 돌아갔다 — 제품이 자기 비밀을 못 읽는다"
+    )
+    assert 'chmod 0700 "$SECRETS_DIR"' not in text
+    # 파일은 계속 0640 이어야 한다 — 디렉터리를 연 대가로 파일까지 열면 안 된다.
+    assert 'find "$SECRETS_DIR" -type f -exec chmod 0640' in text

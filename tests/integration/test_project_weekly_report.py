@@ -109,13 +109,17 @@ def world(db, make_user):
     boss.admin_scope = "global"
     db.commit()
 
+    # 프로젝트 코드는 서버가 짓는 대문자 여섯 글자이고 `I`·`L`·`O` 가 없다 (D-282).
+    # 이 파일은 코드 값을 되읽는 단언이 없으므로, 실패 메시지에서 어느 프로젝트인지
+    # 바로 읽히도록 이름의 첫 글자를 여섯 번 쓴다. 모양이 정책과 갈라지면
+    # `ck_projects_code_shape` 가 INSERT 를 거절해 시험이 시작도 못 한다.
     alpha = Project(
-        name="알파", code="ALPHA", org_id=DEFAULT_ORG_ID, notion_page_id=ALPHA_PAGE,
+        name="알파", code="AAAAAA", org_id=DEFAULT_ORG_ID, notion_page_id=ALPHA_PAGE,
     )
     beta = Project(
-        name="베타", code="BETA", org_id=DEFAULT_ORG_ID, notion_page_id=BETA_PAGE,
+        name="베타", code="BBBBBB", org_id=DEFAULT_ORG_ID, notion_page_id=BETA_PAGE,
     )
-    portal_only = Project(name="포털 전용", code="PORTAL", org_id=DEFAULT_ORG_ID)
+    portal_only = Project(name="포털 전용", code="PPPPPP", org_id=DEFAULT_ORG_ID)
     db.add_all([alpha, beta, portal_only])
     db.flush()
 

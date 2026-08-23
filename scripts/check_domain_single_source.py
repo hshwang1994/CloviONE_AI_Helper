@@ -11,7 +11,7 @@ S5 가 배운 것을 그대로 적용한다: **「같은 규칙을 따른다」�
 |---|---|
 | `canonical_key` 는 **트리거만** 쓴다 (D-195) | 앱이 쓴 값과 트리거가 만들 값이 갈리고, 그 티켓은 검색으로도 링크로도 못 찾는다 |
 | 번호는 **`app/work/numbering.py`** 만 발급한다 (D-196) | 「읽고 +1」이 한 군데만 생겨도 중복 번호가 나오고, 유니크가 잡을 때는 사용자가 저장을 누른 뒤다 |
-| Key 는 **`app/work/keys.py`** 만 잡는다 (D-196) | 대장이 모르는 Key 가 생기고, 옛 canonical 이 별칭으로 안 남아 옛 링크가 전부 죽는다 |
+| 코드는 **`app/work/codes.py`** 만 붙인다 (D-282) | 같은 프로젝트가 회차마다 다른 코드를 받고, 어제 공유한 티켓 링크가 죽는다 |
 | 상하위는 **`app/work/relations.py`** 만 쓴다 | 계층이 두 벌이 되고, 갈라진 뒤에는 갈라진 쪽을 아무도 못 고친다 |
 
 ### Knowledge Domain (S7)
@@ -63,16 +63,10 @@ RULES: tuple[tuple[str, tuple[str, ...], str, str], ...] = (
         "채번이 두 곳이 되면 같은 번호가 두 번 나온다 (D-196)",
     ),
     (
-        "project_key_registry",
-        ("app/work/keys.py",),
-        r"ProjectKeyRegistry\s*\(",
-        "대장이 모르는 Key 가 생기고, Key 소유가 영구라는 근거가 무너진다 (D-196)",
-    ),
-    (
         "projects.code 대입",
-        ("app/work/keys.py",),
+        ("app/work/codes.py",),
         r"\.code\s*=\s*(?!=)(?!None)",
-        "옛 canonical 이 별칭으로 안 남아 옛 링크가 전부 죽는다 (D-195)",
+        "같은 프로젝트가 회차마다 다른 코드를 받고, 어제 공유한 티켓 링크가 죽는다 (D-282)",
     ),
     (
         "subtask_of 관계",
@@ -92,6 +86,10 @@ RULES: tuple[tuple[str, tuple[str, ...], str, str], ...] = (
             # 정적 검사는 이름만 보므로 여기서 이름으로 열어 준다 — S14 가 미러를
             # 걷어내면 이 다섯 줄도 함께 사라지고, 그때 규칙은 저절로 더 좁아진다.
             "app/team_docs/repository_notion.py",
+            # 문서 쪽 자체 DB 구현체도 **같은 컬럼**(`document_cache.body_markdown`)에 쓴다.
+            # 티켓 쪽과 같은 이유다: 자체 DB 에서는 그 칸이 미러가 아니라 정본이라
+            # 「파생」이라는 개념이 없다 — 사용자가 친 글 그 자체다.
+            "app/team_docs/repository_native.py",
             "app/team_docs/router.py",
             "app/team_docs/service.py",
             # 같은 이유로 이관도 미러 컬럼(`tickets.body_markdown`)을 쓴다 — 소스가
@@ -99,6 +97,10 @@ RULES: tuple[tuple[str, tuple[str, ...], str, str], ...] = (
             # `app/migration/load.py::_snapshot` 은 `versions.snapshot` 을 부른다.
             "app/migration/load.py",
             "app/tickets/repository_notion.py",
+            # 자체 DB 구현체도 **같은 컬럼**(`tickets.body_markdown`)에 쓴다. 여기서는
+            # 그 컬럼이 미러가 아니라 정본이라 「파생」이라는 개념이 아예 없다 —
+            # Block JSON 에서 만들어지는 값이 아니라 사용자가 친 글 그 자체다.
+            "app/tickets/repository_native.py",
             "app/tickets/router.py",
             "app/tickets/service.py",
         ),
@@ -313,11 +315,6 @@ def self_test() -> int:
                 victim: "def f(db):\n"
                 "    db.execute('UPDATE project_ticket_counters SET last_seq = 1')\n"
             },
-            True,
-        ),
-        (
-            "다른 곳에서 Key 를 잡는다",
-            {victim: "def f(db):\n    db.add(ProjectKeyRegistry(key='X'))\n"},
             True,
         ),
         (

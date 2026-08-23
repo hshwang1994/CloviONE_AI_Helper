@@ -14,14 +14,19 @@
   4. 진행 전환이 티켓을 만들고 **연결**하는가 — 제안이 실제 일이 되는 지점이다.
   5. 조직 범위 — 게시판이 이미 지나는 축을 아이디어도 그대로 지나는가.
 
-🔴 4번은 티켓 생성이 **실제로 나갔는지**를 본다. 응답 200 만 보면 '만들었다고 말만 하는'
-구현이 통과한다 — 이 저장소에서 이미 여러 번 당한 함정이다(가짜 초록불).
+🔴 4번은 티켓이 **정말로 생겼는지**를 본다. 응답 200 만 보면 '만들었다고 말만 하는'
+구현이 통과한다 — 이 저장소에서 이미 여러 번 당한 함정이다(가짜 초록불). 예전에는 가짜
+Notion 서버가 받은 생성 요청을 셌지만, S14 부터 티켓 정본은 자체 DB 라 **`tickets` 표에
+행이 생겼는지**를 직접 본다. 밖으로 나간 요청이 0 이라는 것도 함께 단언한다 — 그 둘이
+같이 있어야 「자체 DB 에 만들었다」가 증명된다.
 """
 
 from __future__ import annotations
 
 import pytest
-from sqlalchemy import text
+from sqlalchemy import or_, select, text
+
+from app.tickets.models import Ticket
 
 from tests.fakes.notion import (
     DEFAULT_PROJECTS_DB,
@@ -94,6 +99,24 @@ def _set_status(client, csrf, post_id, status, **extra):
         json={"status": status, **extra},
         headers={"X-CSRF-Token": csrf},
     )
+
+
+def _ticket_row(db, page_id):
+    """게시글이 들고 있는 `ticket_page_id` 로 티켓 행을 찾는다 — **두 축을 다 본다**(S14).
+
+    그 값은 모양이 두 가지다: 이관해 온 티켓에서는 `tickets.notion_page_id` 이고, 자체
+    DB 에서 만든 티켓에서는 행의 uuid 다(`app/tickets/repository_native.py` 의 식별자
+    규약). 한 축만 보면 소스를 되돌리는 날 이 검사가 아무 행도 못 찾고, 그 실패는 제안
+    게시판과 아무 관계가 없다.
+    """
+    return db.execute(
+        select(Ticket).where(or_(Ticket.notion_page_id == page_id, Ticket.id == page_id))
+    ).scalar_one_or_none()
+
+
+def _tickets_titled(db, title):
+    """제목이 이것인 티켓이 몇 건인가. 중복 발주를 세는 자리라 **수**가 답이다."""
+    return db.execute(select(Ticket).where(Ticket.title == title)).scalars().all()
 
 
 def _ideas(client, **params):
@@ -254,9 +277,9 @@ def test_a_free_post_has_no_status_at_all(client, login_as):
 
 # ── 4. 진행 전환이 티켓을 만들고 연결한다 ───────────────────────────────────
 def test_moving_to_progress_creates_a_ticket_and_links_it(
-    client, login_as, notion, portal_project
+    client, login_as, notion, portal_project, db
 ):
-    """제안이 실제 일이 되는 지점. **티켓이 실제로 만들어졌는지**를 소스에서 확인한다."""
+    """제안이 실제 일이 되는 지점. **티켓 행이 실제로 생겼는지**를 저장소에서 확인한다."""
     author = login_as("user", email="member@goodmit.co.kr")
     idea = _write_idea(
         client, author, title="티켓 자동 생성", body="진행으로 넘길 때 티켓을 만든다"
@@ -270,14 +293,22 @@ def test_moving_to_progress_creates_a_ticket_and_links_it(
     assert post["idea_status"] == "진행"
     assert post["ticket_page_id"], "티켓을 만들었다면서 연결을 남기지 않았다"
 
-    # 응답 200 만 보면 '만들었다고 말만 하는' 구현이 통과한다 - 소스에 실제로 나갔는지 본다.
-    assert notion.created, "티켓 생성 요청이 한 번도 나가지 않았다"
-    sent_title = notion.created[-1]["properties"]["제목"]["title"][0]["text"]["content"]
-    assert "티켓 자동 생성" in sent_title, f"제안 제목이 티켓에 안 실렸다: {sent_title}"
+    # 응답 200 만 보면 '만들었다고 말만 하는' 구현이 통과한다 - 표에 행이 있는지 본다.
+    row = _ticket_row(db, post["ticket_page_id"])
+    assert row is not None, (
+        f"티켓을 만들었다는데 표에 행이 없다: ticket_page_id={post['ticket_page_id']}"
+    )
+    assert "티켓 자동 생성" in (row.title or ""), f"제안 제목이 티켓에 안 실렸다: {row.title}"
+    assert "진행으로 넘길 때 티켓을 만든다" in (row.body_markdown or ""), (
+        "제안 본문이 티켓 설명으로 안 옮겨졌다"
+    )
+    # 그리고 그 티켓은 **밖으로 나가지 않았다**(S14) - 자체 DB 가 정본이므로 왕복이 0 이다.
+    # 이 반례가 있어야 위 검사가 "표에 있다"와 "노션에도 만들었다"를 구별한다.
+    assert notion.created == [], "자체 DB 경로인데 Notion 으로 생성 요청이 나갔다"
 
 
 def test_a_failed_ticket_leaves_the_status_untouched(
-    client, login_as, settings, fake_http, portal_project
+    client, login_as, db, monkeypatch, portal_project
 ):
     """티켓을 못 만들면 '진행' 도 남기지 않는다.
 
@@ -286,10 +317,19 @@ def test_a_failed_ticket_leaves_the_status_untouched(
     티켓 없이 진행으로 적히면 게시판은 "이 일은 시작됐다"고 말하는데 아무도 그 일을 찾을
     수 없다 - 되돌릴 방법도, 다시 시도할 자리도 없는 거짓말이 영구히 남는다.
     """
-    # 🔴 '설정이 안 돼서' 실패하는 것과 '소스가 거절해서' 실패하는 것은 다른 사건이다.
-    # 배선을 똑같이 해 두고 **소스만 500 을 뱉게** 해야 이 검사가 티켓 실패를 본다.
-    _wire_notion(settings)
-    FakeNotionTasksDB(rows=[], fail_status=500).install(fake_http)
+    # 🔴 '설정이 안 돼서' 실패하는 것과 '저장소가 쓰다가 죽는' 것은 다른 사건이다. 앞엣것은
+    # 티켓 생성에 닿기도 전에 막혀서, 되감기가 정말 도는지를 하나도 검사하지 못한다.
+    # 그래서 저장소가 **행을 다 만든 다음에** 죽게 한다(S14 · 자체 DB 경로). 예전에는 가짜
+    # Notion 서버를 500 으로 세웠고, 그것이 이 자리에서 같은 뜻이었다.
+    from app.tickets.repository_native import NativeTicketRepository
+
+    real_create = NativeTicketRepository.create
+
+    def _write_then_die(self, session, *, draft, now=None):
+        real_create(self, session, draft=draft, now=now)
+        raise RuntimeError("저장소가 티켓 쓰기를 끝내지 못했다")
+
+    monkeypatch.setattr(NativeTicketRepository, "create", _write_then_die)
 
     author = login_as("user", email="member@goodmit.co.kr")
     idea = _write_idea(client, author, title="티켓이 실패하는 제안")
@@ -308,6 +348,9 @@ def test_a_failed_ticket_leaves_the_status_untouched(
         f"티켓 없이 상태만 진행으로 남았다: {after['idea_status']}"
     )
     assert not after["ticket_page_id"]
+    # 반대쪽도 남으면 안 된다 - 제안이 안 가리키는 **고아 티켓**이 표에 남으면 아무도
+    # 그 일을 자기 일로 여기지 않는다. 요청이 통째로 되감겼는지를 여기서 본다.
+    assert _tickets_titled(db, "티켓이 실패하는 제안") == [], "되감기지 않은 고아 티켓이 남았다"
 
 
 def test_a_long_single_paragraph_idea_still_becomes_a_ticket(
@@ -330,12 +373,15 @@ def test_a_long_single_paragraph_idea_still_becomes_a_ticket(
 
 
 def test_moving_to_progress_twice_does_not_make_a_second_ticket(
-    client, login_as, notion, portal_project
+    client, login_as, notion, portal_project, db
 ):
     """이미 티켓이 붙은 제안을 다시 진행으로 밀어도 티켓은 하나다(중복 발주 방지).
 
     완료로 닫았다가 되살리는 것이 실제로 일어나는 경로다 - 그때 티켓이 하나 더 생기면
     같은 일이 두 장으로 발주된다.
+
+    세는 자리가 **표**여야 한다(S14). 가짜 Notion 서버가 받은 요청을 세면 자체 DB 경로에서는
+    처음부터 0 이라, 두 번 만들어도 `0 == 0` 으로 통과한다 - 이 검사가 아무것도 안 보게 된다.
     """
     author = login_as("user", email="member@goodmit.co.kr")
     idea = _write_idea(client, author, title="중복 발주 방지")
@@ -343,10 +389,10 @@ def test_moving_to_progress_twice_does_not_make_a_second_ticket(
 
     assert _set_status(client, op, idea["id"], "검토중").status_code == 200
     assert _set_status(client, op, idea["id"], "진행", project_id=portal_project.id).status_code == 200
-    first = len(notion.created)
+    assert len(_tickets_titled(db, "중복 발주 방지")) == 1, "첫 진행에서 티켓이 안 생겼다"
     assert _set_status(client, op, idea["id"], "완료").status_code == 200
     assert _set_status(client, op, idea["id"], "진행", project_id=portal_project.id).status_code == 200
-    assert len(notion.created) == first, "같은 제안으로 티켓이 두 번 만들어졌다"
+    assert len(_tickets_titled(db, "중복 발주 방지")) == 1, "같은 제안으로 티켓이 두 번 만들어졌다"
 
 
 # ── 5. 조직 범위 ────────────────────────────────────────────────────────────

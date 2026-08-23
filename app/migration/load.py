@@ -4,9 +4,9 @@
 
 1. **표 복사** — 이름이 같고 컬럼이 그대로인 61 표 + 이름만 바뀐 2 표. 옛 `id` 를
    그대로 쓰므로 표 사이 참조가 저절로 맞는다. 재실행은 `ON CONFLICT DO UPDATE` 다.
-2. **도메인 이전** — 모양이 바뀐 자리. 티켓의 세 층 이름(D-195)·재채번(D-196)·
+2. **도메인 이전** — 모양이 바뀐 자리. 프로젝트 코드(D-282)·재채번(D-196)·
    문서 본문(D-198)·첨부(D-250)가 여기다.
-3. **다리 놓기** — `legacy_mapping` · `ticket_key_aliases` · `migration_exceptions`.
+3. **다리 놓기** — `legacy_mapping` · `migration_exceptions`.
 
 ## 왜 `id` 를 새로 만들지 않는가
 
@@ -68,14 +68,8 @@ from app.projects.models import Project
 from app.storage import service as storage_service
 from app.tickets.models import Ticket
 from app.users.models import User
-from app.work import keys as keys_mod
-from app.work import numbering, project_keys, relations
-from app.work.models import (
-    ALIAS_LEGACY,
-    REL_BLOCKS,
-    MigrationException,
-    TicketKeyAlias,
-)
+from app.work import codes, numbering, relations
+from app.work.models import REL_BLOCKS, MigrationException
 
 logger = logging.getLogger("app.migration.load")
 
@@ -303,27 +297,52 @@ class Loader:
         self.report.add(stage)
         return stage
 
-    def apply_project_keys(self) -> StageResult:
-        """확정 Key 20건을 적용한다 (D-243). **골라 주지 않는다.**"""
+    def assign_project_codes(self) -> StageResult:
+        """프로젝트마다 코드를 붙인다 (D-282). **이름은 안 본다.**
+
+        ## 왜 씨앗이 `notion_page_id or id` 인가
+
+        Dry Run 과 Cutover 는 같은 도구가 **서로 다른 데이터베이스**에 대고 도는 회차다.
+        같은 프로젝트가 두 회차에서 같은 코드를 받으려면 코드가 **두 DB 에서 같은 값**
+        에서 나와야 한다.
+
+        * Notion 이 준 프로젝트는 `notion_page_id` 가 그 값이다. 소스가 주는 값이라
+          어느 DB 에 적재하든 같다.
+        * Notion 응답에 없는 미러 프로젝트는 `id` 가 그 값이다. 표 복사가 소스의 기본키를
+          **그대로** 옮기므로(모듈 docstring) 이것도 두 DB 에서 같다.
+
+        `id` 를 먼저 보면 안 된다: Notion 에만 있는 프로젝트의 `id` 는 `load_projects` 가
+        회차마다 새로 만드는 uuid 라, 그 프로젝트만 두 DB 에서 다른 코드를 받는다.
+
+        ## 이미 코드가 있으면 건드리지 않는다
+
+        재실행 2회차가 아무것도 안 바꾸는 근거가 이 한 줄이다. 코드를 다시 지으면 그
+        프로젝트 티켓 전부의 `canonical_key` 가 바뀌고, 1회차가 검증한 이름이 전부
+        무효가 된다.
+
+        보관된 프로젝트도 받는다. 안 주면 그 프로젝트의 티켓이 **영원히** 번호 없는
+        예외로 남는다 — 보관은 「끝난 일」이지 「이름이 없어도 되는 일」이 아니다.
+        """
         started = time.monotonic()
-        stage = StageResult(
-            name="project keys", source_rows=len(project_keys.CONFIRMED)
-        )
-        # 예약어(`GIT`)가 먼저 서 있어야 한다. 0003 이 심지만, 빈 DB 로 시작한 회차나
-        # 되감았다 올린 DB 에서는 없을 수 있다 — 없으면 `GIT-142` 별칭과 새 canonical 이
-        # 같은 문자열이 될 수 있는 문이 열린다.
-        keys_mod.seed_reserved(self.db)
-        result = project_keys.apply_confirmed(self.db)
-        stage.inserted = len(result[project_keys.APPLIED])
-        stage.updated = len(result[project_keys.ALREADY])
-        for kind in (project_keys.NOT_FOUND, project_keys.AMBIGUOUS, project_keys.OTHER_KEY):
-            for entry in result[kind]:
-                stage.skipped += 1
-                self.report.finding(
-                    SEVERITY_CLASSIFIED, f"project_key_{kind}", "projects",
-                    f"«{entry['name']}» 에 {entry['key']} 를 붙이지 않았습니다.",
-                    ref=entry.get("project_id") or entry.get("current"),
-                )
+        projects = self.db.execute(sa.select(Project)).scalars().all()
+        stage = StageResult(name="project codes", source_rows=len(projects))
+        already = sum(1 for project in projects if project.code)
+        seeds = {
+            project.id: (project.notion_page_id or project.id) for project in projects
+        }
+        assigned = codes.assign_many(self.db, projects, seed_of=seeds)
+        stage.inserted = len(assigned)
+        stage.updated = already
+        missing = [project.id for project in projects if not project.code]
+        for project_id in missing:
+            # 여기 오면 코드를 못 지은 것이고, 그 프로젝트의 티켓은 번호를 못 받는다.
+            # **classified 로 적지 않는다** — classified 는 회차를 통과시키고, 통과한
+            # 회차는 「이름 없는 티켓」을 만든 채로 초록이 된다.
+            self.report.finding(
+                SEVERITY_BLOCKING, "project_code_missing", "projects",
+                "프로젝트 코드를 붙이지 못했습니다.", ref=project_id,
+            )
+        stage.skipped = len(missing)
         self.db.commit()
         stage.seconds = time.monotonic() - started
         self.report.add(stage)
@@ -400,10 +419,9 @@ class Loader:
                     ref=page_id,
                 )
 
-            prefix = parsed["legacy_prefix"] or "GIT"
-            number = parsed["notion_ticket_number"]
-            if number is not None:
-                ticket.legacy_key = f"{prefix}-{number}"
+            # 옛 티켓 이름(`GIT-142`)은 **안 옮긴다** (D-283). 소스의 번호
+            # (`notion_ticket_number`)는 계속 읽는다 — 그것은 이름이 아니라 **채번
+            # 순서**이고, 그 순서가 있어야 재실행이 같은 번호를 매긴다(D-281).
             self.ticket_by_page[page_id] = ticket.id
             self._map(SRC_NOTION, page_id, T_TICKET, ticket.id)
 
@@ -418,45 +436,23 @@ class Loader:
             stage.skipped += 1
 
         self.db.flush()
-        self._write_aliases()
         self.db.commit()
         stage.seconds = time.monotonic() - started
         self.report.add(stage)
         return stage
-
-    def _write_aliases(self) -> None:
-        """`GIT-142` → 티켓. **영구다** (D-195)."""
-        rows = self.db.execute(
-            sa.select(Ticket.id, Ticket.legacy_key).where(Ticket.legacy_key.is_not(None))
-        ).all()
-        if not rows:
-            return
-        payload = [
-            {"alias": legacy_key, "ticket_id": ticket_id,
-             "kind": ALIAS_LEGACY, "created_at": utcnow()}
-            for ticket_id, legacy_key in rows
-        ]
-        table = TicketKeyAlias.__table__
-        for chunk in _chunks(payload, 2000):
-            stmt = pg_insert(table).values(chunk)
-            self.db.execute(stmt.on_conflict_do_update(
-                index_elements=["alias"],
-                set_={"ticket_id": stmt.excluded.ticket_id},
-            ))
-
-    # ── 2층: 재채번과 예외 ───────────────────────────────────────────────────
 
     def renumber(self) -> StageResult:
         """소속을 정하고 번호를 매긴다. **못 정하면 안 매기고 사유를 남긴다** (U11)."""
         started = time.monotonic()
         stage = StageResult(name="renumber + exceptions")
 
+        # 코드가 있는 프로젝트 전부. **보관된 것도 센다** — 보관은 「끝난 일」이지
+        # 「이름이 없어도 되는 일」이 아니고, 빼 두면 그 티켓들이 영원히 번호 없는
+        # 예외로 남는다.
         keyed = {
             project_id
             for (project_id,) in self.db.execute(
-                sa.select(Project.id).where(
-                    Project.code.is_not(None), Project.archived_at.is_(None)
-                )
+                sa.select(Project.id).where(Project.code.is_not(None))
             ).all()
         }
         by_notion_page = dict(self.project_by_page)
@@ -495,10 +491,13 @@ class Loader:
             if verdict.excepted:
                 continue
             if resolved not in keyed:
-                # 프로젝트는 정해졌는데 그 프로젝트에 Key 가 없다. 번호를 주면 트리거가
-                # 거절한다 — 「미해결」로 분류하고 사람이 Key 를 정하면 다음 회차가 매긴다.
+                # 프로젝트는 정해졌는데 그 프로젝트에 코드가 없다. 번호를 주면 트리거가
+                # 거절한다. **이 자리는 이제 닿지 않는 자리다** — 앞 단계가 모든
+                # 프로젝트에 코드를 붙이기 때문이다(D-282). 그래도 안 지우는 이유:
+                # 닿았다면 앞 단계가 실패한 것이고, 그 사실이 여기서 조용히 번호 없는
+                # 티켓으로 새는 것보다 예외로 남는 편이 낫다.
                 verdicts[ticket.id] = transform.TicketExceptionVerdict(
-                    "unresolved", {"project_id": resolved, "reason": "project_key_missing"}
+                    "unresolved", {"project_id": resolved, "reason": "project_code_missing"}
                 )
                 continue
             buckets.setdefault(resolved, []).append(

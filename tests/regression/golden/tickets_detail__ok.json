@@ -47,6 +47,7 @@
     "due": "2026-07-10",
     "est_wd": 2.0,
     "id": "page-0001",
+    "key": null,
     "priority": "높음",
     "project": "알파 프로젝트",
     "project_ids": [

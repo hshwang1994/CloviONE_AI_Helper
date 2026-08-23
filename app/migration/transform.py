@@ -311,13 +311,14 @@ def parse_task(row: dict) -> dict:
 
     날짜는 여기서 `date` 로 바꾼다 — 문자열을 그대로 넘기면 적재가 `500` 을 낸다(D-248).
     """
-    prefix, number = _unique_id(_prop(row, TASK_PROPS["ticket_id"]))
+    # 접두사(`GIT`)는 버린다 — 옛 티켓 이름을 이관하지 않는다(D-283).
+    # 번호는 **채번 순서**로 계속 쓴다(D-281).
+    _, number = _unique_id(_prop(row, TASK_PROPS["ticket_id"]))
     parents = _relations(_prop(row, TASK_PROPS["parent"]))
     return {
         "notion_page_id": row.get("id"),
         "url": row.get("url"),
         "title": _title(_prop(row, TASK_PROPS["title"])),
-        "legacy_prefix": prefix,
         "notion_ticket_number": number,
         "status": _status(_prop(row, TASK_PROPS["status"])),
         "priority": _select(_prop(row, TASK_PROPS["priority"])),

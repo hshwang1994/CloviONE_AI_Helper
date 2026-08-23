@@ -27,7 +27,14 @@ from app.users.models import User
 from tests.fakes.clock import FakeClock
 from tests.fakes.notion import DEFAULT_PROJECTS_DB, FakeNotionTasksDB, project_row, task_row
 
-pytestmark = pytest.mark.regression
+
+# 이 파일은 **미러(Notion) 경로의 성질**을 고정한다 — 「미러가 차 있으면 소스가 죽어도
+# 200 이다」와 「write-through 로 방금 만든 티켓이 바로 보인다」는 둘 다 미러가 있어야
+# 성립하는 말이다. 제품 기본 소스는 S14 부터 `native` 이고 그쪽에는 미러도 신선도도
+# 없으므로 여기서 소스를 되돌려 놓는다.
+#
+# 이 표는 동시에 **Notion 을 걷어낼 때 지울 파일의 목록**이다.
+pytestmark = [pytest.mark.regression, pytest.mark.notion_source]
 
 NOW = datetime(2026, 8, 3, 9, 0, 0)
 SYNCED_AT = datetime(2026, 8, 3, 8, 57, 0)

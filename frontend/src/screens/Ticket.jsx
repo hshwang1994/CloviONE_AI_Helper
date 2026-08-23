@@ -31,7 +31,8 @@ import { setItemTitle } from "../app/documentTitle.js";
  * 좁은 화면에서는 레일이 본문 '위'로 온다(order) — 아래로 밀면 담당자·마감을 보려고 본문 전체를
  * 스크롤해 지나가야 한다. */
 
-function ticketId(t) { return t && t.tid != null ? "GIT-" + t.tid : "티켓"; }
+/* 서버가 준 이름을 그대로 쓴다. 접두사를 붙여 만들지 않는 이유는 MyTickets.jsx 와 같다. */
+function ticketId(t) { return (t && t.key) || "티켓"; }
 
 /* 두 열 그리드 — 기준선 `.ticket-layout` 을 그대로 쓴다.
  *

@@ -13,17 +13,20 @@
 
 from __future__ import annotations
 
+from datetime import date
+
 import pytest
 from sqlalchemy import select
 
-from app.tickets.models import TicketAttachment, TicketCache
+from app.tickets.models import PROJECT_LINK_OK, TicketAttachment, TicketCache, join_names
 from tests.conftest import DEFAULT_TEST_PASSWORD
-from tests.fakes.notion import DEFAULT_PROJECTS_DB, FakeNotionTasksDB, project_row, task_row
+from tests.fakes.notion import DEFAULT_PROJECTS_DB, FakeNotionTasksDB, project_row
 
 pytestmark = pytest.mark.integration
 
 PAGE_ID = "page-a001"
 OTHERS_PAGE_ID = "page-a002"
+SOMEONE_ELSE = "notion-someone-else"
 TOKEN_REF = "notion_report_token"
 PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 64
 PDF = b"%PDF-1.4\n" + b"\x00" * 64
@@ -31,21 +34,55 @@ PDF = b"%PDF-1.4\n" + b"\x00" * 64
 
 @pytest.fixture()
 def notion(fake_http) -> FakeNotionTasksDB:
+    """가짜 Notion 서버는 남기되 **티켓은 한 건도 놓지 않는다**(S14).
+
+    티켓의 정본이 자체 DB 표로 옮겨 왔으므로 첨부가 붙을 티켓은 아래 `tickets` 픽스처가
+    심는다. 페이크를 그대로 설치해 두는 것은 반례를 남기기 위해서다 — 첨부 경로가 다시
+    바깥을 읽게 되면 이 빈 작업 DB 가 티켓을 못 찾아 시험이 소리 내어 깨진다.
+    """
     return FakeNotionTasksDB(
-        rows=[
-            task_row(page_id=PAGE_ID, tid=901, title="첨부 붙일 티켓", status="진행",
-                     due="2026-09-01", people=[]),
-            # 남이 맡고 있는 티켓 — 편집 권한 선을 확인하는 데 쓴다.
-            task_row(page_id=OTHERS_PAGE_ID, tid=902, title="남의 티켓", status="진행",
-                     due="2026-09-01", people=["notion-someone-else"]),
-        ],
+        rows=[],
         projects=[project_row(page_id="proj-1", name="알파")],
         projects_db=DEFAULT_PROJECTS_DB,
     ).install(fake_http)
 
 
 @pytest.fixture()
-def api(client, settings, notion, make_user, portal_project):
+def tickets(db, portal_project) -> tuple[TicketCache, TicketCache]:
+    """첨부를 붙일 티켓 두 건을 자체 DB 표에 심는다.
+
+    한 건은 담당자가 없다(미할당이라 범위 안이면 누구나 편집할 수 있다). 다른 한 건은
+    앱 사용자로 해석되지 않는 사람이 맡고 있어서, 편집 권한 선이 실제로 걸리는지
+    확인하는 데 쓴다 — 이 파일이 보려는 것은 첨부이지 소유권 규칙 자체가 아니지만,
+    그 선이 없으면 「남의 티켓에 파일을 붙인다」를 확인할 수가 없다.
+
+    둘 다 프로젝트를 매단다. 소속이 `ok` 로 풀리지 않으면 `ensure_in_scope` 가 티켓을
+    404 로 감춰 첨부 시험 전부가 「없는 티켓」 위에서 죽는다.
+    """
+    def _row(page_id: str, tid: int, title: str, assignees: list[str]) -> TicketCache:
+        return TicketCache(
+            notion_page_id=page_id,
+            org_id=portal_project.org_id,
+            notion_ticket_number=tid,
+            title=title,
+            status="진행",
+            due_date=date(2026, 9, 1),
+            project_uid=portal_project.id,
+            project_link=PROJECT_LINK_OK,
+            # 다중값은 구분자 규약(NAMES_SEP)으로 담는다 — 맨 문자열로 넣으면 읽는 쪽이
+            # 담당자를 못 알아보고 티켓이 조용히 미할당이 된다.
+            assignee_notion_ids=join_names(assignees),
+        )
+
+    mine = _row(PAGE_ID, 901, "첨부 붙일 티켓", [])
+    others = _row(OTHERS_PAGE_ID, 902, "남의 티켓", [SOMEONE_ELSE])
+    db.add_all([mine, others])
+    db.commit()
+    return mine, others
+
+
+@pytest.fixture()
+def api(client, settings, notion, make_user, portal_project, tickets):
     (settings.secrets_dir / TOKEN_REF).write_text("fake-token", encoding="utf-8")
 
     def _login(email: str, *, role: str = "user", name: str = "사람"):

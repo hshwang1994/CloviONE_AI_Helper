@@ -75,7 +75,16 @@ def filter_clauses(f: TicketFilters | None) -> list:
     if f.category:
         out.append(TicketCache.category == f.category)
     if f.project_id:
-        out.append(TicketCache.project_ids.contains(token(f.project_id), autoescape=True))
+        # **두 축을 함께 본다** (S14). 옛 축은 외부 소스의 relation id 를 이어 붙인
+        # `project_ids` 이고, 자체 DB 가 정본이 된 뒤의 축은 해석된 `project_uid` 다.
+        #
+        # 한 축만 보면 조용히 반쪽이 된다: `project_ids` 만 보면 Cutover 이후에 만든
+        # 프로젝트(외부 짝이 없다)의 티켓이 **그 프로젝트로 걸러지지 않고**, `project_uid`
+        # 만 보면 아직 소속을 못 푼 이관 티켓이 사라진다. 둘 다 오류를 안 낸다.
+        out.append(or_(
+            TicketCache.project_ids.contains(token(f.project_id), autoescape=True),
+            TicketCache.project_uid == f.project_id,
+        ))
     if f.assignee_id:
         out.append(
             TicketCache.assignee_notion_ids.contains(token(f.assignee_id), autoescape=True)
@@ -101,10 +110,20 @@ def filter_clauses(f: TicketFilters | None) -> list:
             TicketCache.status.notin_(tuple(sorted(f.exclude_statuses))),
         ))
     if f.exclude_page_ids:
+        # 휴지통에 있는 티켓을 뺀다. **행의 id 도 함께 본다** (S14).
+        #
+        # 예전에는 `notion_page_id` 만 봤고, `NULL` 인 행(자체 DB 에서 만든 티켓)은 조건
+        # 자체를 통과시켰다 — 그때는 그 행이 아직 없었으므로 「빼지 말라」는 뜻으로 옳았다.
+        # 이제는 자체 DB 티켓이 실제로 생기고, 그 티켓의 휴지통 키는 **행의 uuid** 다
+        # (`repository_native` 의 식별자 규약). 안 보면 영구 삭제 대기 중인 티켓이 목록에
+        # 남고, 파이썬 그물(`service._drop_trashed`)이 뒤늦게 걸러도 **자르기 뒤**라
+        # `total` 이 실제보다 크게 나온다.
+        excluded = tuple(sorted(f.exclude_page_ids))
         out.append(or_(
             TicketCache.notion_page_id.is_(None),
-            TicketCache.notion_page_id.notin_(tuple(sorted(f.exclude_page_ids))),
+            TicketCache.notion_page_id.notin_(excluded),
         ))
+        out.append(TicketCache.id.notin_(excluded))
     if f.project_any_of is not None:
         # 범위 판정의 질의판(0060). 티켓의 소속은 **프로젝트**이고, 그 소속은 동기화가
         # 이미 한 컬럼으로 해석해 뒀다(`app/tickets/project_link.py`).

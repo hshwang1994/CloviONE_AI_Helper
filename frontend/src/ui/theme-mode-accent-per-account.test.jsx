@@ -41,7 +41,7 @@ describe("강조색의 계정별 저장", () => {
 
   it("사용자 A가 강조색을 바꿔도 사용자 B의 저장된 색과 화면에는 영향이 없다", async () => {
     // B는 이미 자기 색을 골라 둔 상태(청록)로 시작한다.
-    window.localStorage.setItem("clovirone_accent:userB", "#327C98");
+    window.localStorage.setItem("clovirassist_accent:userB", "#327C98");
 
     const user = userEvent.setup();
     const { unmount } = renderFor("userA");
@@ -49,9 +49,9 @@ describe("강조색의 계정별 저장", () => {
     unmount();
 
     // A의 선택은 A 자신의 계정 키에만 쓰인다.
-    expect(window.localStorage.getItem("clovirone_accent:userA")).toBe("#6B5BC7");
+    expect(window.localStorage.getItem("clovirassist_accent:userA")).toBe("#6B5BC7");
     // B의 계정 키는 그대로다 — A의 변경에 영향받지 않는다.
-    expect(window.localStorage.getItem("clovirone_accent:userB")).toBe("#327C98");
+    expect(window.localStorage.getItem("clovirassist_accent:userB")).toBe("#327C98");
 
     // B로 새로 마운트하면(다음 로그인) 자기 계정에 저장된 색이 보인다 — A의 색이 아니다.
     renderFor("userB");
@@ -68,12 +68,12 @@ describe("강조색의 계정별 저장", () => {
   });
 
   it("clearBootAccent는 계정 무관 키만 지우고 계정별 키는 남긴다", () => {
-    window.localStorage.setItem("clovirone_accent", "#6B5BC7");
-    window.localStorage.setItem("clovirone_accent:userA", "#327C98");
+    window.localStorage.setItem("clovirassist_accent", "#6B5BC7");
+    window.localStorage.setItem("clovirassist_accent:userA", "#327C98");
 
     clearBootAccent();
 
-    expect(window.localStorage.getItem("clovirone_accent")).toBeNull();
-    expect(window.localStorage.getItem("clovirone_accent:userA")).toBe("#327C98");
+    expect(window.localStorage.getItem("clovirassist_accent")).toBeNull();
+    expect(window.localStorage.getItem("clovirassist_accent:userA")).toBe("#327C98");
   });
 });

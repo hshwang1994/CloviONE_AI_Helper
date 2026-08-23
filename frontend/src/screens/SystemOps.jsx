@@ -47,17 +47,32 @@ import { SettingList, SettingRow } from "../ui/adminKit.jsx";
  * 사용자는 시스템이 반쯤 바뀐 것은 아닌지 알 수 없다. 되돌아갔다는 사실 자체가 정보다.
  */
 
+/* 유닛 이름은 서버가 정한다(app/core/product.py). 여기 있는 것은 **그 이름에 붙는 우리말
+   이름과 설명**뿐이고, 목록 자체는 서버 응답이 준다 — 여기 없는 유닛이 와도 화면은 원래
+   이름을 그대로 보여 준다.
+
+   이 표가 낡으면 조용히 틀린다: 응답의 유닛 이름과 안 맞으면 사용자는 «웹 서버» 대신
+   `clovirassist-web.service` 를 보고, 장애 중에 그 화면을 읽는 사람에게는 그 차이가 크다.
+   S4 가 slug 를 옮길 때 이 표만 옛 이름으로 남아 있었다. */
 const UNIT_LABELS = {
-  "clovirone-web-assistant.service": "웹 서버",
-  "clovirone-web-worker.service": "백그라운드 워커",
+  "clovirassist-web.service": "웹 서버",
+  "clovirassist-worker.service": "백그라운드 워커",
+  "clovirassist-worker-conversational.service": "대화 워커",
+  "clovirassist-scheduler.service": "예약 실행",
+  "clovirassist-index.service": "검색 색인",
+  "clovirassist-privhelper.service": "시스템 설정 도우미",
   "nginx.service": "웹 프록시(nginx)",
   "systemd-timesyncd.service": "시각 동기화",
   "systemd-resolved.service": "이름 풀이(DNS)",
 };
 
 const UNIT_ROLES = {
-  "clovirone-web-assistant.service": "이 화면을 포함해 포털 웹 요청을 처리합니다.",
-  "clovirone-web-worker.service": "동기화, 메일 발송, 예약 실행을 뒤에서 처리합니다.",
+  "clovirassist-web.service": "이 화면을 포함해 포털 웹 요청을 처리합니다.",
+  "clovirassist-worker.service": "메일 발송과 일괄 작업을 뒤에서 처리합니다.",
+  "clovirassist-worker-conversational.service": "AI 도우미의 대화 요청을 처리합니다.",
+  "clovirassist-scheduler.service": "예약된 작업을 정해진 시각에 시작합니다.",
+  "clovirassist-index.service": "문서를 읽어 검색 색인을 갱신합니다.",
+  "clovirassist-privhelper.service": "이 화면이 요청한 시스템 설정 변경만 대신 수행합니다.",
   "nginx.service": "바깥에서 들어오는 요청을 받아 포털로 넘깁니다.",
   "systemd-timesyncd.service": "서버 시각을 표준 시각에 맞춥니다.",
   "systemd-resolved.service": "도메인 이름을 주소로 바꿉니다.",

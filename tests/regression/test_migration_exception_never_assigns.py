@@ -28,7 +28,7 @@ from app.tickets.models import (
     Ticket,
     join_names,
 )
-from app.work import keys as keys_mod
+from app.work import codes as codes_mod
 from app.work import triage
 from app.work.models import (
     EXC_AMBIGUOUS,
@@ -43,10 +43,10 @@ pytestmark = pytest.mark.regression
 
 @pytest.fixture()
 def project(db):
+    # 코드는 제품의 생성기가 짓는다 (D-282). 시험이 문자열을 직접 고르면 그 값이 정책과
+    # 갈라지고, 갈라진 사실은 DB 제약이 잡을 때까지 안 보인다.
     row = Project(name="정상 프로젝트", org_id=DEFAULT_ORG_ID, notion_page_id="proj-ok")
-    db.add(row)
-    db.flush()
-    keys_mod.claim(db, project_id=row.id, key="OK")
+    codes_mod.insert_with_code(db, row)
     db.flush()
     return row
 
@@ -176,8 +176,10 @@ def test_a_person_assigning_the_project_runs_the_numbering(db, world, project, m
     )
     db.refresh(ticket)
 
-    assert result["seq"] == 1 and result["canonical_key"] == "OK-1"
-    assert ticket.project_uid == project.id and ticket.canonical_key == "OK-1"
+    # 코드를 서버가 지으므로 기대값도 그 프로젝트가 실제로 받은 코드에서 만든다.
+    expected_key = f"{project.code}-1"
+    assert result["seq"] == 1 and result["canonical_key"] == expected_key
+    assert ticket.project_uid == project.id and ticket.canonical_key == expected_key
 
     row = (
         db.query(MigrationException)

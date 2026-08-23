@@ -68,11 +68,11 @@ def test_the_web_can_still_write_while_retention_talks_to_notion(
     web = _second_connection(db_url)
     attempts: list[str] = []
 
-    def archive_and_check_the_lock(item, *, outbound, settings):
+    def archive_and_check_the_lock(db, item, *, outbound, settings):
         """Notion 왕복을 흉내내면서, 바로 그 순간 그 항목 행이 잠겨 있는지 확인한다."""
         attempts.append(_try_lock_row(web, "trash_items", item.id))
 
-    monkeypatch.setattr(service, "_archive_notion", archive_and_check_the_lock)
+    monkeypatch.setattr(service, "_archive_source", archive_and_check_the_lock)
 
     u = make_user(email="s7@goodmit.co.kr", display_name="보존")
     base = datetime(2026, 7, 29)

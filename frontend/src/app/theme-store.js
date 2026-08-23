@@ -5,14 +5,14 @@
  * 번쩍이는(FOUC)' 문제가 났다.
  *
  * 키가 두 벌인 이유:
- *   - 계정별 키(clovirone_theme:<id>) — 공용/키오스크 PC에서 한 사람의 선택이 다음 사람에게
+ *   - 계정별 키(clovirassist_theme:<id>) — 공용/키오스크 PC에서 한 사람의 선택이 다음 사람에게
  *     넘어가지 않게 한다.
- *   - 부팅 키(clovirone_theme) — 부팅 시점(모듈 로드, 아직 인증 전)에는 누가 로그인할지 모른다.
+ *   - 부팅 키(clovirassist_theme) — 부팅 시점(모듈 로드, 아직 인증 전)에는 누가 로그인할지 모른다.
  *     첫 페인트 전에 테마를 정하려면 계정과 무관한 키가 하나 필요하다. 그래서 선택할 때마다
  *     양쪽에 함께 쓴다. 로그아웃 때는 부팅 키만 지운다.
  */
 
-const THEME_KEY = "clovirone_theme";
+const THEME_KEY = "clovirassist_theme";
 
 function accountKey(userId) {
   return userId ? THEME_KEY + ":" + userId : THEME_KEY;

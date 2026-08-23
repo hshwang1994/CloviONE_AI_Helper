@@ -1,0 +1,24 @@
+로그인 사용자: hshwang@goodmit.co.kr
+  200  /api/me
+  200  /api/tickets/mine
+  200  /api/tickets/team
+  200  /api/tickets/unassigned
+  200  /api/projects
+  200  /api/team-docs
+  200  /api/work/board
+  200  /api/work/backlog
+  200  /api/home/today
+  200  /api/notifications
+  200  /api/search?q=포털
+  200  /api/trash
+  200  /api/admin/settings
+  200  /api/admin/audit
+  200  /api/work/statuses
+  200  /api/work/exceptions
+
+팀 티켓 total: 192
+첫 티켓 이름: HAASFT-1
+프로젝트 응답 키: ['departments', 'items', 'page', 'page_size', 'total']
+프로젝트 수: 20 · 첫 코드: ZCYMPW
+
+APP_READ_OK (경로 16개 전부 200)

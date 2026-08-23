@@ -26,7 +26,14 @@ import pytest
 from tests.conftest import DEFAULT_TEST_PASSWORD
 from tests.fakes.notion import DEFAULT_PROJECTS_DB, FakeNotionTasksDB, project_row, task_row
 
-pytestmark = pytest.mark.regression
+
+# 이 파일이 못박는 결함은 **미러 경로의 것**이다 — 「로컬 본문이 NULL 이면 화면이 받은
+# 지문은 Notion 블록에서, 서버가 비교하는 지문은 빈 문자열에서 나온다」. 자체 DB 경로에는
+# 그 두 출처가 없으므로(본문의 정본이 하나다) 같은 결함이 성립하지 않는다.
+#
+# 제품 기본 소스는 S14 부터 `native` 라서 여기서 되돌려 놓는다. 이 표는 동시에
+# **Notion 을 걷어낼 때 지울 파일의 목록**이다.
+pytestmark = [pytest.mark.regression, pytest.mark.notion_source]
 
 PAGE = "page-with-body"
 

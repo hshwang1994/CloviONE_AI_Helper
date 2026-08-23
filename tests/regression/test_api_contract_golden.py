@@ -58,6 +58,13 @@ Deliberate contract changes recorded here (each landed with its golden edit):
     creates — canonical body stored, push to Notion failed. That save answers
     200 by design (the user's text is safe), so the screen needs this field to
     avoid pretending the two sides agree.
+  * every ticket now carries ``key`` — the canonical display name
+    ``<PROJECT_CODE>-<SEQ>`` derived by the DB trigger (S14 · D-282). It is
+    ``null`` for a ticket that has no number yet, and it is ``null`` throughout
+    these goldens because they serve **live** Notion rows, which never carry
+    one. The field exists because the screens used to build the name themselves
+    by prefixing ``tid`` with ``"GIT-"``; once the old codes are discarded
+    (D-283) that string names nothing, so the name has to come from the server.
     ``body_is_local`` says whether ``body_markdown`` is our canonical copy or a
     read-back approximation of the source. Our body pipeline is plain markdown,
     so saving an approximation flattens inline formatting (bold, links) and
@@ -133,7 +140,15 @@ from tests.fakes.notion import (
     task_row,
 )
 
-pytestmark = pytest.mark.regression
+# 이 파일이 고정하는 것은 **Notion 경로**의 응답이다 — 픽스처가 전부 Notion 가짜 서버이고
+# 시험 이름도 그렇게 말한다. 제품 기본은 S14 부터 `native` 이므로 소스를 여기서 되돌려
+# 놓는다. 안 되돌리면 이 시험들은 빈 목록을 「계약」으로 굳히고, 그 초록은 아무 뜻이 없다.
+#
+# 응답의 **모양**은 두 경로가 같다 — 둘 다 `app/tickets/service.py::ticket_view` 하나를
+# 지나기 때문이다. 그래서 이 골든은 소스가 무엇이든 필드 집합을 고정한다. 어느 행이
+# 담기는가만 경로마다 다르고, 자체 DB 경로의 그것은
+# `tests/integration/test_native_ticket_repository.py` 가 본다.
+pytestmark = [pytest.mark.regression, pytest.mark.notion_source]
 
 GOLDEN_DIR = Path(__file__).parent / "golden"
 

@@ -12,7 +12,11 @@ from __future__ import annotations
 
 import concurrent.futures
 
-from app.core.errors import AppError, ValidationAppError
+# TicketNotFoundError 의 정의는 app/core/errors.py 에 있다(NotionNotConfiguredError·
+# NotionQueryError 와 같은 이유 — 저장소 구현체가 둘이 되면서 소스를 안 부르는 쪽도 이
+# 오류를 올려야 한다). 여기서는 이름을 그대로 재수출한다: 기존 호출부
+# (`notion_write.TicketNotFoundError`)와 응답 계약이 바뀌지 않는다.
+from app.core.errors import AppError, TicketNotFoundError, ValidationAppError
 from app.core.secret_refs import SecretMissingError
 from app.reports.notion_source import (
     PROP_ACT,
@@ -60,14 +64,6 @@ def schema_prop(schema: dict, names: list[str]) -> tuple[str | None, dict | None
 def schema_prop_for(schema: dict, field: str) -> tuple[str | None, dict | None]:
     """도메인 필드 이름으로 스키마 속성을 찾는다(EDIT_PROP_ALIASES 경유)."""
     return schema_prop(schema, EDIT_PROP_ALIASES.get(field) or [])
-
-
-class TicketNotFoundError(AppError):
-    """대상 티켓(Notion 페이지)이 없거나 접근할 수 없다."""
-
-    status_code = 404
-    code = "ticket_not_found"
-    default_message = "티켓을 찾을 수 없습니다."
 
 
 def _headers(settings) -> dict[str, str]:

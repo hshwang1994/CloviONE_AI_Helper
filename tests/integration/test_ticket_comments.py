@@ -11,12 +11,14 @@
 
 from __future__ import annotations
 
+from datetime import date
+
 import pytest
 from sqlalchemy import select
 
-from app.tickets.models import TicketCache, TicketComment
+from app.tickets.models import PROJECT_LINK_OK, TicketCache, TicketComment
 from tests.conftest import DEFAULT_TEST_PASSWORD
-from tests.fakes.notion import DEFAULT_PROJECTS_DB, FakeNotionTasksDB, project_row, task_row
+from tests.fakes.notion import DEFAULT_PROJECTS_DB, FakeNotionTasksDB, project_row
 
 pytestmark = pytest.mark.integration
 
@@ -26,16 +28,50 @@ TOKEN_REF = "notion_report_token"
 
 @pytest.fixture()
 def notion(fake_http) -> FakeNotionTasksDB:
+    """가짜 Notion 서버는 여기 남지만 **티켓은 한 건도 놓지 않는다**(S14).
+
+    티켓의 정본이 자체 DB 표로 옮겨 왔으므로 이 파일이 다루는 티켓은 아래 `ticket`
+    픽스처가 심는다. 그래도 이 페이크를 설치해 두는 이유는 둘이다. 하나는 바깥으로
+    나가는 왕복을 세는 계측기가 필요해서이고(`test_listing_needs_no_notion_round_trip`),
+    다른 하나는 반례를 만들기 위해서다 — 댓글 경로가 다시 Notion 을 읽게 되면 이 빈
+    작업 DB 가 티켓을 못 찾아 시험이 소리 내어 깨진다.
+    """
     return FakeNotionTasksDB(
-        rows=[task_row(page_id=PAGE_ID, tid=501, title="댓글 달 티켓", status="진행",
-                       due="2026-09-01", people=[])],
+        rows=[],
         projects=[project_row(page_id="proj-1", name="알파")],
         projects_db=DEFAULT_PROJECTS_DB,
     ).install(fake_http)
 
 
 @pytest.fixture()
-def api(client, settings, notion, make_user, portal_project):
+def ticket(db, portal_project) -> TicketCache:
+    """댓글이 매달릴 티켓 한 건을 자체 DB 표에 심는다.
+
+    담당자를 비워 두는 이유는 이 파일이 고정하려는 것이 댓글의 권한이지 티켓의 편집
+    권한이 아니기 때문이다. 미할당 티켓은 범위 안이면 누구나 손댈 수 있어서, 여기서
+    보려던 것(작성자·운영자·남)이 티켓 소유권 게이트에 가리지 않는다.
+
+    프로젝트를 반드시 매단다. 소속이 `ok` 로 풀리지 않으면 `ensure_in_scope` 가 티켓
+    자체를 404 로 감추고, 그러면 댓글 시험 전부가 「없는 티켓」 위에서 죽는다.
+    """
+    row = TicketCache(
+        notion_page_id=PAGE_ID,
+        org_id=portal_project.org_id,
+        notion_ticket_number=501,
+        title="댓글 달 티켓",
+        status="진행",
+        due_date=date(2026, 9, 1),
+        project_uid=portal_project.id,
+        project_link=PROJECT_LINK_OK,
+        assignee_notion_ids="",
+    )
+    db.add(row)
+    db.commit()
+    return row
+
+
+@pytest.fixture()
+def api(client, settings, notion, make_user, portal_project, ticket):
     """Notion 토큰이 있고 페이크가 붙은 앱 + 로그인 헬퍼."""
     (settings.secrets_dir / TOKEN_REF).write_text("fake-token", encoding="utf-8")
 
@@ -88,12 +124,14 @@ def test_listing_needs_no_notion_round_trip(client, api, notion):
 
 
 def test_unknown_ticket_lists_empty_without_creating_a_row(client, api, db):
-    """GET 이 쓰기를 하면 안 된다 — 존재하지 않는 티켓을 열어도 캐시 행이 생기지 않는다."""
+    """GET 이 쓰기를 하면 안 된다 — 존재하지 않는 티켓을 열어도 티켓 행이 생기지 않는다."""
     api("a@goodmit.co.kr", name="가")
     r = client.get("/api/tickets/page-does-not-exist/comments")
     assert r.status_code == 200
     assert r.json()["comments"] == []
-    assert db.execute(select(TicketCache)).scalars().all() == []
+    # 표에는 픽스처가 심은 티켓 하나뿐이다 — 모르는 식별자로 부른 조회가 행을 만들지 않았다.
+    rows = db.execute(select(TicketCache)).scalars().all()
+    assert [r.notion_page_id for r in rows] == [PAGE_ID]
 
 
 def test_unknown_ticket_lists_empty_people_too(client, api):

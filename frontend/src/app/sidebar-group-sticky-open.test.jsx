@@ -66,7 +66,7 @@ describe("사이드바 그룹이 저절로 접히지 않는다", () => {
     // isOpen 주석 참조) 명시적으로 펼쳐 둔다. 접힌 채로 두면 "홈" 링크 자체가 안 보여
     // 시험이 본론(그룹의 펼침 유지)에 닿기도 전에 죽는다.
     window.localStorage.setItem(
-      "clovirone_nav_collapsed:u1",
+      "clovirassist_nav_collapsed:u1",
       JSON.stringify({ "팀 업무": true, "내 업무": false }),
     );
   });

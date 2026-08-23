@@ -11,8 +11,10 @@
   3. Notion 짝이 없는 포털 전용 프로젝트에서 폴백으로 '전체 티켓'을 세면 회사의 모든
      작업이 그 프로젝트의 분모가 된다.
 
-입력 쪽도 함께 본다. 유니크 제약과 NOT NULL 을 DB 에 맡기면 사용자는 400 이 아니라 **500**
-을 보고, 화면은 "서버 오류"라고 말한다 - 아무도 자기 입력을 의심하지 않는다.
+입력 쪽도 함께 본다. FK 와 NOT NULL 을 DB 에 맡기면 사용자는 400 이 아니라 **500** 을 보고,
+화면은 "서버 오류"라고 말한다 - 아무도 자기 입력을 의심하지 않는다. 프로젝트 코드는 그
+반대편에 있다. 코드는 서버가 짓고 사람은 고를 수 없으므로(D-282), 여기서 보는 것은 "잘못된
+값을 막는가" 가 아니라 **"보내면 거절하고, 안 보내면 반드시 지어 주는가"** 다.
 """
 
 from __future__ import annotations
@@ -182,28 +184,56 @@ def test_recompute_caches_the_percent_on_the_row(client, login_as, db, world):
     assert db.get(Project, world["linked"]).progress_pct == 25.0
 
 
-def test_a_duplicate_code_in_the_same_org_is_409_not_500(client, login_as, world):
-    """유니크 제약에 맡기면 IntegrityError 가 500 으로 나간다."""
-    hdr = _hdr(login_as)
-    first = client.post("/api/projects", json={"name": "가", "code": "PRJ1"}, headers=hdr)
-    assert first.status_code == 200, first.text
+def test_the_client_cannot_choose_the_code_and_the_server_always_gives_one(
+    client, login_as, world
+):
+    """코드는 서버가 짓고 사람은 고를 수 없다 (D-282).
 
-    second = client.post("/api/projects", json={"name": "나", "code": "PRJ1"}, headers=hdr)
-    assert second.status_code == 409, f"중복 코드가 409 가 아니다: {second.status_code}"
+    보내온 `code` 를 조용히 버리지 않고 422 로 거절한다. 버리면 보낸 쪽은 자기가 고른
+    코드가 들어갔다고 믿고, 그 믿음은 화면에 다른 코드가 뜰 때까지 안 깨진다 — 그 사이
+    옛 코드로 만든 링크를 사람들에게 뿌린다.
+
+    반대로 안 보냈을 때는 **반드시** 정책에 맞는 코드가 붙어 나와야 한다. 코드가 비어
+    있으면 그 프로젝트의 티켓은 `<CODE>-<SEQ>` 라는 이름을 가질 수 없고, 이름이 없는
+    티켓은 대화에서도 문서에서도 가리킬 방법이 없다.
+    """
+    from app.work import codes
+
+    hdr = _hdr(login_as)
+    supplied = client.post(
+        "/api/projects", json={"name": "가", "code": "ABCDEF"}, headers=hdr
+    )
+    assert supplied.status_code == 422, (
+        f"클라이언트가 프로젝트 코드를 정할 수 있다: {supplied.status_code} {supplied.text}"
+    )
+
+    made = client.post("/api/projects", json={"name": "나"}, headers=hdr)
+    assert made.status_code == 200, made.text
+    minted = made.json()["project"]["code"]
+    assert codes.is_valid(minted), f"서버가 지은 코드가 정책과 다르다: {minted!r}"
 
 
 @pytest.mark.real_db  # 스레드/별도 세션이 이 시험의 데이터를 봐야 한다 (D-190)
-def test_concurrent_create_same_code_never_500s(app, login_as, world):
-    """PROJ-01: 순차 요청은 `ensure_code_is_free`(사전 SELECT)로 409를 준다 — 그런데 두
-    요청이 같은 (org_id, code)로 동시에 도착하면 둘 다 그 SELECT를 통과할 수 있다. 결정적으로
-    겹치게 만들려고 그 SELECT를 `threading.Barrier(2)`에 세운다(test_prompt_create_new_
-    version_race.py와 동일 기법) — 둘 다 "없음"을 본 다음에야 동시에 INSERT로 넘어가게 한다.
+def test_two_concurrent_creations_both_succeed_with_different_codes(app, login_as, world):
+    """PROJ-01 의 뒤집힌 판정 (D-282).
+
+    사용자가 코드를 고르던 시절에는 같은 코드로 동시에 온 두 요청 중 하나가 409 를 받는
+    것이 정답이었다. 이제 코드를 고르는 사람이 없다 — 서버가 행의 uuid 에서 파생하므로
+    두 요청은 애초에 다른 코드를 짓고, 따라서 **둘 다 성공해야 한다.** 여기서 한쪽이
+    실패하면 사용자는 자기가 아무것도 고르지 않은 값 때문에 거절당한 셈이라 무엇을
+    고쳐야 하는지 알 수 없다.
+
+    그래도 동시성을 실제로 겹쳐 봐야 하는 이유는 INSERT 다. 두 INSERT 가 진짜로 겹칠 때만
+    유니크 위반이 세션을 망가뜨리는 경로(500)와 두 프로젝트가 같은 코드를 갖는 경로가
+    드러난다. `threading.Barrier(2)` 를 INSERT 직전에 세워(test_prompt_create_new_version_
+    race.py 와 동일 기법) 둘이 같은 순간에 DB 로 들어가게 만든다.
     """
     import threading
 
     from fastapi.testclient import TestClient
     from sqlalchemy import event
 
+    from app.work import codes
     from tests.conftest import DEFAULT_TEST_PASSWORD
 
     login_as("admin", email=BOSS_EMAIL)  # 관리자 계정을 미리 만들어 둔다.
@@ -214,7 +244,7 @@ def test_concurrent_create_same_code_never_500s(app, login_as, world):
 
     def _pause_before_insert_races(conn, cursor, statement, parameters, context, executemany):
         nonlocal hits
-        if "FROM projects" not in statement or "RACECODE" not in str(parameters):
+        if "INSERT INTO projects" not in statement or "동시생성" not in str(parameters):
             return
         with hits_lock:
             hits += 1
@@ -228,29 +258,61 @@ def test_concurrent_create_same_code_never_500s(app, login_as, world):
             assert r.status_code == 200, r.text
             token = r.json()["csrf_token"]
             resp = c.post(
-                "/api/projects", json={"name": f"동시생성{i}", "code": "RACECODE"},
+                "/api/projects", json={"name": f"동시생성{i}"},
                 headers={"X-CSRF-Token": token},
             )
-            return resp.status_code
+            body = resp.json() if resp.status_code == 200 else {}
+            return resp.status_code, body.get("project", {}).get("code")
 
     event.listen(engine, "before_cursor_execute", _pause_before_insert_races)
     try:
         from concurrent.futures import ThreadPoolExecutor
 
         with ThreadPoolExecutor(max_workers=2) as pool:
-            codes = list(pool.map(attempt, range(2)))
+            results = list(pool.map(attempt, range(2)))
     finally:
         event.remove(engine, "before_cursor_execute", _pause_before_insert_races)
 
-    assert codes.count(200) == 1, f"정확히 하나만 성공해야 한다: {codes}"
-    assert all(c in (200, 409) for c in codes), f"500이 섞였다(처리 안 된 경합): {codes}"
+    # 이 시험이 정말로 겹치게 만들었는지 먼저 묻는다. 필터가 INSERT 를 못 잡으면 아무도
+    # 기다리지 않고 두 요청은 그냥 차례로 지나가는데, 그때도 아래 단언은 전부 통과한다 —
+    # 경합을 한 번도 안 본 초록이다.
+    assert hits >= 2, f"INSERT 를 못 잡아 경합이 만들어지지 않았다: hits={hits}"
+
+    statuses = [status for status, _ in results]
+    minted = [code for _, code in results]
+    assert statuses == [200, 200], (
+        f"코드를 고른 사람이 없는데 한쪽이 거절당했다(409 든 500 이든): {results}"
+    )
+    assert all(codes.is_valid(code) for code in minted), (
+        f"경합 뒤에 정책과 다른 코드가 남았다: {minted}"
+    )
+    assert len(set(minted)) == 2, (
+        f"동시에 만든 두 프로젝트가 같은 코드를 받았다 — 티켓 이름이 겹친다: {minted}"
+    )
 
 
-def test_projects_without_a_code_do_not_collide(client, login_as, world):
-    """코드는 없을 수 있다. NULL 끼리는 충돌하지 않는다(그래서 빈 문자열로 안 채운다)."""
+def test_every_new_project_comes_back_with_its_own_code(client, login_as, world):
+    """코드 없는 프로젝트는 이제 만들어지지 않는다 (D-282).
+
+    예전에는 코드가 선택이라 NULL 인 프로젝트가 정상 상태였다. 지금은 서버가 생성 때마다
+    짓는다 — 그래서 여기서 볼 것이 뒤집혔다. "NULL 끼리 안 부딪히는가" 가 아니라 **"두
+    프로젝트가 서로 다른 코드를 받았는가"** 다. 둘이 같은 코드를 받으면 그 순간부터 두
+    프로젝트의 티켓이 같은 이름을 쓰고, 링크를 눌렀을 때 어느 쪽이 열릴지 아무도 답할 수
+    없다.
+    """
+    from app.work import codes
+
     hdr = _hdr(login_as)
-    assert client.post("/api/projects", json={"name": "코드 없음 1"}, headers=hdr).status_code == 200
-    assert client.post("/api/projects", json={"name": "코드 없음 2"}, headers=hdr).status_code == 200
+    first = client.post("/api/projects", json={"name": "코드 하나"}, headers=hdr)
+    second = client.post("/api/projects", json={"name": "코드 둘"}, headers=hdr)
+    assert first.status_code == 200, first.text
+    assert second.status_code == 200, second.text
+
+    minted = [first.json()["project"]["code"], second.json()["project"]["code"]]
+    assert all(codes.is_valid(code) for code in minted), (
+        f"코드가 비었거나 정책과 다르다: {minted}"
+    )
+    assert minted[0] != minted[1], f"두 프로젝트가 같은 코드를 받았다: {minted}"
 
 
 def test_an_unknown_department_is_404_not_500(client, login_as, world):
@@ -284,3 +346,53 @@ def test_progress_is_not_settable_from_the_client(client, login_as, world):
         headers=_hdr(login_as),
     )
     assert r.status_code == 422, f"클라이언트가 진행률을 직접 넣을 수 있다: {r.status_code}"
+
+
+def test_the_code_is_not_settable_from_the_client(client, login_as, world):
+    """코드를 바꾸는 입구는 제품 어디에도 없다 (D-282).
+
+    코드가 바뀌면 그 프로젝트 티켓 전부의 이름(`<CODE>-<SEQ>`)이 함께 바뀐다. 그 이름은
+    이미 문서와 대화와 메일에 뿌려져 있어서, 바꾼 순간 어제 공유한 링크가 아무 데도 닿지
+    않는다 — 그리고 그것을 되돌릴 방법이 없다. 그래서 수정 본문에 실려 온 `code` 는
+    진행률과 **같은 이유로** 422 다.
+    """
+    r = client.patch(
+        f"/api/projects/{world['linked']}",
+        json={"code": "ABCDEF"},
+        headers=_hdr(login_as),
+    )
+    assert r.status_code == 422, f"클라이언트가 프로젝트 코드를 바꿀 수 있다: {r.status_code}"
+
+
+def test_renaming_a_project_leaves_its_code_alone(client, login_as, db, world):
+    """이름을 바꿔도 코드는 한 글자도 안 움직인다 (D-282).
+
+    앞 정책은 사람이 이름을 보고 코드를 정했고, 그래서 소스의 이름이 바뀐 날 확정해 둔
+    20건이 **전부** 못 찾는 값이 됐다(옛 D-278). 지금 코드는 이름이 아니라 행의 씨앗에서
+    나오므로 이름은 얼마든지 바꿔도 된다 — 이 시험이 그 자유를 지킨다.
+
+    응답만 보지 않고 행까지 다시 읽는 이유는, 응답이 수정 전 값을 그대로 되돌려 주면서
+    행은 바뀌어 있는 경우를 응답만으로는 구별할 수 없기 때문이다.
+    """
+    hdr = _hdr(login_as)
+    made = client.post("/api/projects", json={"name": "옛 이름"}, headers=hdr)
+    assert made.status_code == 200, made.text
+    project_id = made.json()["project"]["id"]
+    before = made.json()["project"]["code"]
+
+    renamed = client.patch(
+        f"/api/projects/{project_id}", json={"name": "새 이름"}, headers=hdr
+    )
+    assert renamed.status_code == 200, renamed.text
+    assert renamed.json()["project"]["name"] == "새 이름", (
+        "이름이 안 바뀌었다면 이 시험은 코드가 안 움직였다는 것을 확인한 것이 아니다"
+    )
+    assert renamed.json()["project"]["code"] == before, (
+        f"이름을 바꿨더니 코드가 따라 바뀌었다: {before} → {renamed.json()['project']['code']}"
+    )
+
+    db.commit()  # 스냅샷을 새로 뜬다 — 위 recompute 시험과 같은 이유다
+    db.expire_all()
+    assert db.get(Project, project_id).code == before, (
+        "응답은 옛 코드를 말하는데 행은 바뀌어 있다 — 화면과 DB 가 갈렸다"
+    )

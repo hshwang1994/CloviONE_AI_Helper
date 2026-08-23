@@ -1,13 +1,12 @@
 """마이그레이션이 심은 Work Domain 값이 **코드의 표와 같은가** (S6 · 0002 와 같은 관용).
 
-마이그레이션은 앱 코드를 import 하지 않는다 — 그 시점 스키마의 얼어붙은 스냅숏이어야
-하기 때문이다. 그래서 상태 어휘와 예약 Key 가 두 곳에 적히고, **두 곳에 적힌 값이
-어긋나면 조용히 깨진다**:
+qa-contract-change: 예약 Key 네임스페이스는 옛 `GIT-*` 이름을 남이 먼저 가져가지 못하게 막으려고만 있었고, 새 코드 정책은 그 옛 이름을 아예 옮기지 않으며 코드도 서버가 짓는다(D-283). 그래서 「예약 Key 가 코드와 DB 에 같이 적혀 있는가」는 지킬 대상이 사라진 성질이고, 대장 표(`project_key_registry`)도 0012 가 지웠다. 상태 어휘를 못박는 단언은 한 줄도 줄이지 않았다.
 
-  * 코드에 상태를 하나 늘리고 마이그레이션을 안 고치면 → 새 설치에서만 그 상태가
-    칸반 열로 안 나온다. 그 티켓들은 「분류되지 않음」에 모이고, 아무도 원인을 모른다.
-  * 예약 Key 를 코드에서만 늘리면 → 이미 설치된 곳에서는 그 이름을 누군가 가져갈 수
-    있다. Key 소유는 영구라 되돌릴 수 없다.
+마이그레이션은 앱 코드를 import 하지 않는다 — 그 시점 스키마의 얼어붙은 스냅숏이어야
+하기 때문이다. 그래서 상태 어휘가 코드와 마이그레이션 두 곳에 적히고, **두 곳에 적힌
+값이 어긋나면 조용히 깨진다**: 코드에 상태를 하나 늘리고 마이그레이션을 안 고치면 새
+설치에서만 그 상태가 칸반 열로 안 나온다. 그 티켓들은 「분류되지 않음」에 모이고,
+아무도 원인을 모른다.
 """
 
 from __future__ import annotations
@@ -19,8 +18,7 @@ import pytest
 from sqlalchemy import select
 
 from app.work import workflow
-from app.work.keys import RESERVED_KEYS
-from app.work.models import KEY_RESERVED, ProjectKeyRegistry, TicketStatus
+from app.work.models import TicketStatus
 
 pytestmark = pytest.mark.unit
 
@@ -51,20 +49,6 @@ def test_exactly_one_default_status(db):
     )
 
 
-def test_reserved_keys_are_seeded_and_own_no_project(db):
-    rows = {
-        r.key: r
-        for r in db.execute(
-            select(ProjectKeyRegistry).where(ProjectKeyRegistry.state == KEY_RESERVED)
-        ).scalars()
-    }
-    assert set(rows) == set(RESERVED_KEYS), (
-        f"예약 Key 가 코드와 다르다 — 코드 {sorted(RESERVED_KEYS)} · DB {sorted(rows)}"
-    )
-    for key, row in rows.items():
-        assert row.project_id is None, f"예약 Key «{key}» 가 프로젝트를 갖고 있다"
-
-
 def test_migration_literals_match_the_code_tables():
     """마이그레이션 **파일의 리터럴**이 코드와 같은가.
 
@@ -89,13 +73,6 @@ def test_migration_literals_match_the_code_tables():
     }
     assert from_file == from_code, (
         "마이그레이션 리터럴과 `app/work/workflow.py::STATUSES` 가 다르다"
-    )
-
-    reserved = re.search(r'_RESERVED_KEYS:[^=]*=\s*\(([^)]*)\)', src)
-    assert reserved is not None, "마이그레이션에서 예약 Key 목록을 못 찾았다"
-    file_keys = tuple(re.findall(r'"([^"]+)"', reserved.group(1)))
-    assert file_keys == RESERVED_KEYS, (
-        f"예약 Key 가 다르다 — 파일 {file_keys} · 코드 {RESERVED_KEYS}"
     )
 
 

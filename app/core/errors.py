@@ -170,6 +170,21 @@ class NotionQueryError(AppError):
     default_message = "Notion 조회에 실패했습니다."
 
 
+# 위 둘과 **같은 이유로** 여기 있다. 이 오류는 원래 app/tickets/notion_write.py 가
+# 정의했는데, 티켓 저장소 구현체가 둘(Notion · 자체 DB)이 되면서 소스를 안 부르는 쪽도
+# 「그 티켓이 없다」를 말해야 하게 됐다. 정의가 Notion 구현 모듈에 남아 있으면 자체 DB
+# 구현체가 그 모듈을 import 해야 하고, 그러면 저장소 seam 경계 정적검사에 걸린다
+# (그리고 그 import 하나 때문에 소스를 걷어낼 때 고칠 곳이 하나 더 숨는다).
+# notion_write 는 이 이름을 그대로 재수출한다 — 클래스 이름과 code 문자열은 응답
+# 계약이라 바꾸지 않는다.
+class TicketNotFoundError(AppError):
+    """대상 티켓이 없거나 접근할 수 없다."""
+
+    status_code = 404
+    code = "ticket_not_found"
+    default_message = "티켓을 찾을 수 없습니다."
+
+
 class StorageUnavailableError(AppError):
     """서버 로컬 파일시스템에 쓸 수 없을 때(디스크 풀, 권한 드리프트 등, OPS-05).
 

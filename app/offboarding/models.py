@@ -123,7 +123,11 @@ class OffboardingTicketMove(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     # (모듈 docstring 참조).
     ticket_page_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     ticket_uid: Mapped[str | None] = mapped_column(String(36))
+    # 옛 소스가 매긴 번호. 이름이 아니다 — 아래 `ticket_key` 가 이름이다.
     ticket_number: Mapped[int | None] = mapped_column(Integer)
+    # 옮길 때 이 티켓이 불리던 이름 `<CODE>-<SEQ>` (D-282). `ticket_title` 과 같은
+    # 이유로 스냅숏이다 — 되돌리기 화면은 「그때 무엇을 옮겼는가」를 보여 준다.
+    ticket_key: Mapped[str | None] = mapped_column(String(64))
     ticket_title: Mapped[str] = mapped_column(String(500), nullable=False, default="")
 
     before_user_ids: Mapped[str] = mapped_column(Text, nullable=False, default="")

@@ -8,15 +8,9 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
-from app.work.models import KEY_STATES, REL_KINDS, SPRINT_STATES
+from app.work.models import REL_KINDS, SPRINT_STATES
 
 _ISO_DATE = r"^\d{4}-\d{2}-\d{2}$"
-
-
-class ProjectKeyAssign(BaseModel):
-    """프로젝트에 Key 를 준다. 처음 주는 경우와 바꾸는 경우가 **다른 동작**이다."""
-
-    key: str = Field(min_length=2, max_length=10)
 
 
 class BoardMove(BaseModel):
@@ -69,6 +63,3 @@ class ExceptionAssign(BaseModel):
 
     project_id: str = Field(min_length=1, max_length=36)
 
-
-class KeyStateFilter(BaseModel):
-    state: str = Field(pattern="^(" + "|".join(KEY_STATES) + ")$")

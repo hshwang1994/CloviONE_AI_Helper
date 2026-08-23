@@ -352,7 +352,7 @@ export function DevReport() {
                     </TableRow>,
                     ...d.tickets.map((t) => (
                       <TableRow key={d.name + ":" + (t.tid || t.title) + ":" + t.status}>
-                        <TableCell sx={{ whiteSpace: "nowrap" }}>{t.tid ? "GIT-" + t.tid : "-"}</TableCell>
+                        <TableCell sx={{ whiteSpace: "nowrap" }}>{t.key || "-"}</TableCell>
                         <TableCell sx={{ minWidth: "14rem", ...KO_WORD_BREAK }}>
                           {safeExternal(t.url)
                             ? <Link href={safeExternal(t.url)} target="_blank" rel="noreferrer noopener" underline="hover">{t.title}</Link>

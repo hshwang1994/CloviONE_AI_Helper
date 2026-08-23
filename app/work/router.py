@@ -22,15 +22,13 @@ from app.core.deps import get_current_user, get_db, require_csrf, require_permis
 from app.core.errors import NotFoundError
 from app.settings.gate import block_if_maintenance
 from app.users.models import User
-from app.work import keys as keys_mod
 from app.work import relations as relations_mod
 from app.work import service, triage, workflow
-from app.work.models import MigrationException, ProjectKeyRegistry, TicketStatus
+from app.work.models import MigrationException, TicketStatus
 from app.work.resolve import resolve
 from app.work.schemas import (
     BoardMove,
     ExceptionAssign,
-    ProjectKeyAssign,
     RelationCreate,
     SprintClose,
     SprintCreate,
@@ -213,7 +211,7 @@ def resolve_key(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> dict:
-    """`GIT-142` 든 `SKH-37` 이든 uuid 든 **같은 티켓**으로 간다 (D-195).
+    """`ABCDEF-37` 이든 uuid 든 **같은 티켓**으로 간다 (D-282).
 
     범위 판정은 티켓 서비스가 한다 — 여기서 함께 하면 「없는 티켓」과 「안 보이는
     티켓」이 같은 답이 되고, 그 둘을 구별하지 못하면 관리자가 예외 티켓을 못 찾는다.
@@ -229,74 +227,7 @@ def resolve_key(
         "page_id": found.ticket.notion_page_id,
         "matched_by": found.matched_by,
         "is_current_name": found.is_current_name,
-        "key": found.ticket.canonical_key or found.ticket.legacy_key,
-    }
-
-
-@router.get("/keys")
-def list_keys(
-    db: Session = Depends(get_db),
-    user: User = Depends(require_permission("PROJECT_READ")),
-) -> dict:
-    """Key 대장 전체. **`retired` 도 보인다** — 왜 그 이름을 못 쓰는지 알아야 한다."""
-    rows = db.execute(
-        ProjectKeyRegistry.__table__.select().order_by(ProjectKeyRegistry.key)
-    ).all()
-    return {
-        "keys": [
-            {
-                "key": r.key, "project_id": r.project_id, "state": r.state,
-                "created_at": r.created_at.isoformat() if r.created_at else None,
-            }
-            for r in rows
-        ]
-    }
-
-
-@router.put("/projects/{project_id}/key", dependencies=[Depends(require_csrf)])
-def set_project_key(
-    project_id: str,
-    payload: ProjectKeyAssign,
-    request: Request,
-    db: Session = Depends(get_db),
-    user: User = Depends(require_permission("PROJECT_ADMIN")),
-) -> dict:
-    """Key 를 정하거나 바꾼다. **바꾸는 쪽은 옛 이름을 별칭으로 남긴다** (D-195).
-
-    처음 주는 것과 바꾸는 것을 한 입구로 받는 이유: 화면에서 그 둘은 같은 동작이다
-    ("이 프로젝트의 키"를 채운다). 다른 것은 서버가 하는 일이고, 그 차이를 사용자에게
-    묻게 하면 잘못 고르는 사람이 생긴다.
-    """
-    project = service.get_scoped_project_or_404(db, project_id, user)
-    before = project.code
-    if before:
-        result = keys_mod.change(db, project_id=project_id, key=payload.key)
-    else:
-        row = keys_mod.claim(db, project_id=project_id, key=payload.key)
-        result = {"changed": True, "old_key": None, "new_key": row.key, "aliased": 0}
-    record_audit_from_request(
-        request, db, action="project.key_change", object_type="project",
-        object_id=project_id, before={"code": before}, after=result,
-    )
-    return result
-
-
-@router.get("/projects/{project_id}/key/suggest")
-def suggest_project_key(
-    project_id: str,
-    db: Session = Depends(get_db),
-    user: User = Depends(require_permission("PROJECT_ADMIN")),
-) -> dict:
-    """이름에서 뽑은 초안. **확정이 아니다** (D-197) — 사람이 보고 고친다."""
-    project = service.get_scoped_project_or_404(db, project_id, user)
-    taken = {
-        r.key for r in db.execute(ProjectKeyRegistry.__table__.select()).all()
-    }
-    return {
-        "project_id": project_id,
-        "name": project.name,
-        "current": project.code,
-        "suggestion": keys_mod.suggest(project.name, taken=taken),
+        "key": found.ticket.canonical_key,
     }
 
 

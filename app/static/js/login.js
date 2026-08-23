@@ -239,7 +239,7 @@ const SUBMIT_TIMEOUT_MS = 15000;
    *
    * 키 문자열은 LoginHandoff.jsx 와 한 벌이다. 한쪽만 바꾸면 조용히 끊기므로
    * frontend/src/screens/login-first-impression.test.jsx 가 두 값이 같은지 확인한다. */
-  const HANDOFF_KEY = "clovirone_login_welcome";
+  const HANDOFF_KEY = "clovirassist_login_welcome";
   function markLoginHandoff() {
     try {
       window.sessionStorage.setItem(HANDOFF_KEY, String(Date.now()));

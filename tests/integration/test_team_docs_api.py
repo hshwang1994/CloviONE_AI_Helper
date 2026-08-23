@@ -94,21 +94,25 @@ def test_favorite_requires_csrf(client, login_as, db):
     assert client.post("/api/team-docs/c1/favorite?on=true").status_code == 403
 
 
-def test_detail_blocks_and_records_recent(client, login_as, db, settings, fake_http):
-    (settings.secrets_dir / "notion_docs_token").write_text("faketoken", encoding="utf-8")
-    fake_http.on(
-        "https://api.notion.com/v1/blocks/x1/children",
-        json_body={"results": [
-            {"type": "heading_1", "heading_1": {"rich_text": [{"plain_text": "머리말"}]}},
-            {"type": "paragraph", "paragraph": {"rich_text": [{"plain_text": "본문 내용"}]}},
-            {"type": "image", "image": {}},
-        ], "has_more": False},
-    )
+def test_detail_blocks_and_records_recent(client, login_as, db):
+    """상세는 저장된 본문을 화면 블록으로 풀어 주고, 그 열람을 최근 목록에 남긴다.
+
+    본문을 가짜 Notion 서버가 아니라 **문서 행에 직접 심는다** (S14). 자체 DB 가 정본이 된
+    뒤에는 상세가 저장된 마크다운만 읽으므로, 페이크만 두면 블록이 빈 목록으로 와서 이
+    시험이 아무것도 증명하지 못한다.
+
+    옛 기대값에 있던 `unsupported` 는 미러에만 있는 종류였다 — 편집기가 표현할 수 없는
+    Notion 블록(이미지·표·컬럼)을 그 자리표시자로 바꾸는 것이
+    `app/team_docs/notion_docs.py` 이고, 마크다운 본문에는 그런 블록이 아예 없다. 그
+    자리표시자 자체의 규칙은 `tests/unit/test_notion_blocks_roundtrip.py` 가 따로 고정한다.
+    """
     login_as("user", email="det@goodmit.co.kr")
-    _add_doc(db, "x1", "문서 상세", original_url="https://orig")
+    _add_doc(db, "x1", "문서 상세", original_url="https://orig",
+             body_markdown="# 머리말\n본문 내용")
     r = client.get("/api/team-docs/x1").json()
     assert r["document"]["title"] == "문서 상세"
-    assert [b["kind"] for b in r["blocks"]] == ["heading_1", "paragraph", "unsupported"]
+    assert [b["kind"] for b in r["blocks"]] == ["heading_1", "paragraph"]
+    assert [b["text"] for b in r["blocks"]] == ["머리말", "본문 내용"]
     assert r["blocks_error"] is None
     assert any(d["id"] == "x1" for d in client.get("/api/team-docs/filters").json()["recent"])
 
@@ -170,14 +174,17 @@ def _notion_write_fakes(fake_http):
     )
 
 
-def test_create_document(client, login_as, db, settings, fake_http):
-    (settings.secrets_dir / "notion_docs_token").write_text("faketoken", encoding="utf-8")
-    _notion_write_fakes(fake_http)
-    fake_http.on(
-        "https://api.notion.com/v1/pages",
-        json_body={"id": "newdoc", "url": "https://notion/newdoc",
-                   "created_time": "2026-07-28T00:00:00.000Z", "last_edited_time": "2026-07-28T00:00:00.000Z"},
-    )
+def test_create_document(client, login_as, db):
+    """새 문서가 만들어지고, 분류·프로젝트·작성자가 채워진 채 목록에 바로 나온다.
+
+    가짜 Notion 서버를 **일부러 안 깐다** (S14). 자체 DB 소스의 생성은 나가는 호출이 없어야
+    하고, 페이크를 깔아 두면 몰래 나가는 왕복이 하나 생겨도 이 시험이 그대로 통과한다.
+    등록하지 않은 주소로 나가면 `fake_http` 가 실패로 답하므로, 안 까는 것 자체가 검사다.
+
+    page id 도 이제 **우리가 짓는다**(`app/team_docs/repository_native.py::create` 의 UUID).
+    응답이 준 그 id 로 목록에서 찾는다 — 시험이 미리 정한 문자열로 찾으면 소스가 정하던
+    시절의 값을 고정하게 되고, 그건 지금 아무도 지키지 않는 계약이다.
+    """
     csrf = login_as("user", email="mk@goodmit.co.kr")
     r = client.post(
         "/api/team-docs",
@@ -192,7 +199,8 @@ def test_create_document(client, login_as, db, settings, fake_http):
     assert doc["projects"] == ["포스코DX"]
     # 작성자 자동 채움: 만든 사람 이름이 채워진다(매핑 없어도 앱 캐시엔 표시).
     assert doc["author_names"] == ["테스트 사용자"]
-    assert any(d["id"] == "newdoc" for d in client.get("/api/team-docs").json()["items"])
+    assert doc["id"], "만든 문서의 딥링크 키가 없으면 화면이 상세로 갈 수 없다"
+    assert any(d["id"] == doc["id"] for d in client.get("/api/team-docs").json()["items"])
 
 
 def test_create_document_requires_csrf(client, login_as):
@@ -208,6 +216,11 @@ def test_create_document_rejects_bad_taxonomy(client, login_as):
                        headers={"X-CSRF-Token": csrf}).status_code == 422
 
 
+# **이 시험만 소스를 되돌린다** (S14). 「원본이 쓰기를 거부했다」는 상태는 미러 경로에만
+# 있다 — 자체 DB 소스의 생성은 우리 표에 행을 하나 넣는 일이라 거부할 상대가 없고, 표를
+# 안 붙이면 이 시험은 403 대신 200 을 받는다. 이 표는 동시에 **Notion 을 걷어낼 때 지울
+# 자리의 목록**이고, 그때 `notion_docs_write_forbidden` 코드도 함께 없어진다.
+@pytest.mark.notion_source
 def test_create_document_maps_write_forbidden(client, login_as, db, settings, fake_http):
     (settings.secrets_dir / "notion_docs_token").write_text("faketoken", encoding="utf-8")
     _notion_write_fakes(fake_http)
@@ -223,7 +236,11 @@ def test_create_document_maps_write_forbidden(client, login_as, db, settings, fa
 
 
 def test_projects_endpoint_falls_back_to_cache_without_notion(client, login_as, db):
-    # Notion 토큰 미설정 → 전체 프로젝트 조회 실패 → 캐시(문서 보유) 프로젝트로 폴백(§17.4 격리).
+    # 고를 프로젝트가 한 건도 안 나오면 **문서가 이미 쓰고 있는** 프로젝트 이름으로 폴백한다
+    # (§17.4 격리). 미러 시절에는 그 「안 나온다」가 Notion 조회 실패였고, 자체 DB 소스에서는
+    # 프로젝트 표가 비어 있는 경우다 — 어느 쪽이든 작성 폼이 빈 선택지로 열리면 안 된다는
+    # 것이 이 시험이 지키는 계약이고, 그 폴백은 `app/team_docs/router.py::all_projects` 에
+    # 한 곳으로 있다.
     login_as("user", email="projfb@goodmit.co.kr")
     _add_doc(db, "pj1", "문서", project_names=["프로젝트X"])
     r = client.get("/api/team-docs/projects")
