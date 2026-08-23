@@ -1,0 +1,176 @@
+# Migration dry-run
+소스   <운영 SQLite 무중단 스냅숏>
+대상   local:/clovir_s13
+기간   2026-08-23T14:35:48+00:00 ~ 2026-08-23T14:36:18+00:00
+지문   alembic=0061  audit_logs=1401  document_cache=110  projects=22  tables=75  ticket_cache=1123  users=25
+Notion api_calls=18  blocks_fetched=0  blocks_from_cache=1235  bytes_downloaded=60945149  pages_fetched=1282  property_coverage={'작업': {'title': 1124, 'ticket_id': 1125, 'status': 1125, 'priority': 423, 'difficulty': 195, 'est_wd': 104, 'act_wd': 36, 'start': 271, 'due': 813, 'category': 114, 'assignees': 949, 'project': 1122, 'parent': 76, 'predecessors': 30, 'successors': 26}, '문서': {'title': 108, 'type': 93, 'category': 61, 'project': 34, 'status': 110, 'priority': 2, 'author': 41, 'owner': 5, 'date': 12, 'source': 0, 'memo': 1, 'favorite': 110, 'archived': 110}, '프로젝트': {'title': 21, 'status': 21, 'progress': 21, 'owner': 19, 'biz_type': 21, 'product': 21, 'period': 21, 'summary': 21}}
+
+## 단계
+  copy ai_quotas: 소스 0 → 신규 0 · 갱신 0 · 건너뜀 0 (0.0s)
+  copy announcements: 소스 0 → 신규 0 · 갱신 0 · 건너뜀 0 (0.0s)
+  copy app_settings: 소스 5 → 신규 5 · 갱신 0 · 건너뜀 0 (0.0s)
+  copy approval_delegations: 소스 0 → 신규 0 · 갱신 0 · 건너뜀 0 (0.0s)
+  copy approvals: 소스 1 → 신규 1 · 갱신 0 · 건너뜀 0 (0.0s)
+  copy audit_logs: 소스 1401 → 신규 1401 · 갱신 0 · 건너뜀 0 (0.6s)
+  copy backups: 소스 2 → 신규 2 · 갱신 0 · 건너뜀 0 (0.0s)
+  copy config_versions: 소스 24 → 신규 24 · 갱신 0 · 건너뜀 0 (0.0s)
+  copy document_favorites: 소스 1 → 신규 1 · 갱신 0 · 건너뜀 0 (0.0s)
+  copy document_recent_views: 소스 50 → 신규 50 · 갱신 0 · 건너뜀 0 (0.0s)
+  copy document_sync_state: 소스 1 → 신규 0 · 갱신 1 · 건너뜀 0 (0.0s)
+  copy heartbeats: 소스 3 → 신규 3 · 갱신 0 · 건너뜀 0 (0.0s)
+  copy impersonation_sessions: 소스 1 → 신규 1 · 갱신 0 · 건너뜀 0 (0.0s)
+  copy integrations: 소스 4 → 신규 4 · 갱신 0 · 건너뜀 0 (0.0s)
+  copy jobs: 소스 165 → 신규 165 · 갱신 0 · 건너뜀 0 (0.1s)
+  copy mail_deliveries: 소스 82 → 신규 82 · 갱신 0 · 건너뜀 0 (0.0s)
+  copy notifications: 소스 345 → 신규 345 · 갱신 0 · 건너뜀 0 (0.1s)
+  copy organizations: 소스 1 → 신규 0 · 갱신 1 · 건너뜀 0 (0.0s)
+  copy policies: 소스 2 → 신규 2 · 갱신 0 · 건너뜀 0 (0.0s)
+  copy project_sync_state: 소스 1 → 신규 1 · 갱신 0 · 건너뜀 0 (0.0s)
+  copy prompts: 소스 3 → 신규 3 · 갱신 0 · 건너뜀 0 (0.0s)
+  copy restore_rehearsals: 소스 1 → 신규 1 · 갱신 0 · 건너뜀 0 (0.0s)
+  copy schedule_runs: 소스 0 → 신규 0 · 갱신 0 · 건너뜀 0 (0.0s)
+  copy schedules: 소스 1 → 신규 1 · 갱신 0 · 건너뜀 0 (0.0s)
+  copy sync_status: 소스 5 → 신규 5 · 갱신 0 · 건너뜀 0 (0.0s)
+  copy ticket_meta_cache: 소스 1 → 신규 0 · 갱신 1 · 건너뜀 0 (0.0s)
+  copy ticket_sync_state: 소스 1 → 신규 0 · 갱신 1 · 건너뜀 0 (0.0s)
+  copy announcement_dismissals: 소스 0 → 신규 0 · 갱신 0 · 건너뜀 0 (0.0s)
+  copy chat_rooms: 소스 6 → 신규 5 · 갱신 1 · 건너뜀 0 (0.0s)
+  copy game_rooms: 소스 1 → 신규 1 · 갱신 0 · 건너뜀 0 (0.0s)
+  copy job_titles: 소스 5 → 신규 5 · 갱신 0 · 건너뜀 0 (0.0s)
+  copy departments → org_units: 소스 2 → 신규 2 · 갱신 0 · 건너뜀 0 (0.0s)
+  copy trash_items: 소스 2 → 신규 2 · 갱신 0 · 건너뜀 0 (0.0s)
+  copy usage_events: 소스 496 → 신규 496 · 갱신 0 · 건너뜀 0 (0.1s)
+  copy chat_messages: 소스 14 → 신규 14 · 갱신 0 · 건너뜀 0 (0.0s)
+  copy chat_read_cursors: 소스 19 → 신규 19 · 갱신 0 · 건너뜀 0 (0.0s)
+  copy chat_room_members: 소스 21 → 신규 21 · 갱신 0 · 건너뜀 0 (0.0s)
+  copy game_events: 소스 1 → 신규 1 · 갱신 0 · 건너뜀 0 (0.0s)
+  copy game_room_members: 소스 1 → 신규 1 · 갱신 0 · 건너뜀 0 (0.0s)
+  copy users: 소스 25 → 신규 25 · 갱신 0 · 건너뜀 0 (0.0s)
+  copy board_posts: 소스 3 → 신규 3 · 갱신 0 · 건너뜀 0 (0.0s)
+  copy board_reactions: 소스 1 → 신규 1 · 갱신 0 · 건너뜀 0 (0.0s)
+  copy chat_message_images: 소스 0 → 신규 0 · 갱신 0 · 건너뜀 0 (0.0s)
+  copy conversations: 소스 87 → 신규 87 · 갱신 0 · 건너뜀 0 (0.0s)
+  copy offboarding_runs: 소스 0 → 신규 0 · 갱신 0 · 건너뜀 0 (0.0s)
+  copy password_reset_tokens: 소스 0 → 신규 0 · 갱신 0 · 건너뜀 0 (0.0s)
+  copy projects: 소스 22 → 신규 22 · 갱신 0 · 건너뜀 0 (0.0s)
+  copy saved_views: 소스 1 → 신규 1 · 갱신 0 · 건너뜀 0 (0.0s)
+  copy sessions: 소스 763 → 신규 763 · 갱신 0 · 건너뜀 0 (0.3s)
+  copy user_notion_mappings: 소스 15 → 신규 15 · 갱신 0 · 건너뜀 0 (0.0s)
+  copy user_preferences: 소스 22 → 신규 22 · 갱신 0 · 건너뜀 0 (0.0s)
+  copy board_attachments: 소스 0 → 신규 0 · 갱신 0 · 건너뜀 0 (0.0s)
+  copy board_comments: 소스 2 → 신규 2 · 갱신 0 · 건너뜀 0 (0.0s)
+  copy document_cache: 소스 110 → 신규 110 · 갱신 0 · 건너뜀 0 (0.1s)
+  copy messages: 소스 311 → 신규 311 · 갱신 0 · 건너뜀 0 (0.3s)
+  copy offboarding_ticket_moves: 소스 0 → 신규 0 · 갱신 0 · 건너뜀 0 (0.0s)
+  copy project_health_snapshots: 소스 66 → 신규 66 · 갱신 0 · 건너뜀 0 (0.0s)
+  copy project_members: 소스 0 → 신규 0 · 갱신 0 · 건너뜀 0 (0.0s)
+  copy project_milestones: 소스 0 → 신규 0 · 갱신 0 · 건너뜀 0 (0.0s)
+  copy project_weekly_reports: 소스 0 → 신규 0 · 갱신 0 · 건너뜀 0 (0.0s)
+  copy document_comments: 소스 0 → 신규 0 · 갱신 0 · 건너뜀 0 (0.0s)
+  copy ticket_cache → tickets: 소스 1123 → 신규 1123 · 갱신 0 · 건너뜀 0 (1.2s)
+  copy ticket_attachments: 소스 2 → 신규 2 · 갱신 0 · 건너뜀 0 (0.0s)
+  copy ticket_comments: 소스 9 → 신규 9 · 갱신 0 · 건너뜀 0 (0.0s)
+  projects (Notion): 소스 21 → 신규 0 · 갱신 21 · 건너뜀 0 (0.1s)
+  project keys: 소스 20 → 신규 20 · 갱신 0 · 건너뜀 0 (0.1s)
+  tickets (Notion): 소스 1125 → 신규 10 · 갱신 1115 · 건너뜀 8 (1.1s)
+  renumber + exceptions: 소스 1133 → 신규 1120 · 갱신 0 · 건너뜀 13 (0.3s)
+  ticket counters: 소스 0 → 신규 0 · 갱신 20 · 건너뜀 0 (0.0s)
+  ticket relations: 소스 121 → 신규 121 · 갱신 0 · 건너뜀 0 (0.3s)
+  user mappings: 소스 16 → 신규 0 · 갱신 13 · 건너뜀 3 (0.0s)
+  documents: 소스 110 → 신규 110 · 갱신 0 · 건너뜀 0 (0.9s)
+  attachments: 소스 9 → 신규 6 · 갱신 0 · 건너뜀 3 (7.9s)
+
+## 검증
+  OK   수 users → users: 기대 25 / 실제 25
+  OK   수 departments → org_units: 기대 2 / 실제 2
+  OK   수 job_titles → job_titles: 기대 5 / 실제 5
+  OK   수 audit_logs → audit_logs: 기대 1401 / 실제 1401
+  OK   수 conversations → conversations: 기대 87 / 실제 87
+  OK   수 messages → messages: 기대 311 / 실제 311
+  OK   수 notifications → notifications: 기대 345 / 실제 345
+  OK   수 jobs → jobs: 기대 165 / 실제 165
+  OK   수 ticket_comments → ticket_comments: 기대 9 / 실제 9
+  OK   수 ticket_attachments → ticket_attachments: 기대 2 / 실제 2
+  OK   수 document_comments → document_comments: 기대 0 / 실제 0
+  OK   수 document_favorites → document_favorites: 기대 1 / 실제 1
+  OK   수 document_recent_views → document_recent_views: 기대 50 / 실제 50
+  OK   수 board_posts → board_posts: 기대 3 / 실제 3
+  OK   수 chat_messages → chat_messages: 기대 14 / 실제 14
+  OK   수 app_settings → app_settings: 기대 5 / 실제 5
+  OK   수 config_versions → config_versions: 기대 24 / 실제 24
+  OK   수 integrations → integrations: 기대 4 / 실제 4
+  OK   수 prompts → prompts: 기대 3 / 실제 3
+  OK   수 policies → policies: 기대 2 / 실제 2
+  OK   수 backups → backups: 기대 2 / 실제 2
+  OK   수 sessions → sessions: 기대 763 / 실제 763
+  OK   수 usage_events → usage_events: 기대 496 / 실제 496
+  OK   수 project_health_snapshots → project_health_snapshots: 기대 66 / 실제 66
+  OK   수를 대조한 표: 기대 '> 0' / 실제 24 — 목록 24쌍 중 이 소스에 있는 것
+  OK   수 대조 목록에 오타가 없는가: 기대 0 / 실제 0
+  OK   수 티켓 (Notion 1125 이상): 기대 '>= 1125' / 실제 1133 — 지우지 않으므로 대상이 더 많을 수 있습니다.
+  OK   수 문서 (Notion 110 이상): 기대 '>= 110' / 실제 110 — 지우지 않으므로 대상이 더 많을 수 있습니다.
+  OK   수 프로젝트 (Notion 21 이상): 기대 '>= 21' / 실제 22 — 지우지 않으므로 대상이 더 많을 수 있습니다.
+  OK   누락 ticket_cache → tickets: 기대 0 / 실제 0
+  OK   누락 document_cache → documents: 기대 0 / 실제 0
+  OK   누락 users: 기대 0 / 실제 0
+  OK   중복 legacy_key: 기대 0 / 실제 0
+  OK   중복 canonical_key: 기대 0 / 실제 0
+  OK   중복 documents.legacy_page_id: 기대 0 / 실제 0
+  OK   중복 legacy_mapping: 기대 0 / 실제 0
+  OK   legacy_mapping 행: 기대 '> 0' / 실제 1372
+  OK   legacy/canonical 충돌: 기대 0 / 실제 0
+  OK   예약 Key 가 서 있는가: 기대 1 / 실제 1
+  OK   고아 별칭: 기대 0 / 실제 0
+  OK   깨진 ticket_relations: 기대 0 / 실제 0
+  OK   부모가 둘인 티켓: 기대 0 / 실제 0
+  OK   소속 프로젝트가 없는 티켓: 기대 0 / 실제 0
+  OK   공간이 없는 문서: 기대 0 / 실제 0
+  OK   판이 없는 문서: 기대 0 / 실제 0
+  OK   깨진 document_attachments: 기대 0 / 실제 0
+  OK   저장소 없는 파일 행: 기대 0 / 실제 0
+  OK   체크섬이 없는 파일 행: 기대 0 / 실제 0
+  OK   길이 초과: 기대 0 / 실제 0
+  OK   길이를 본 컬럼: 기대 '>= 300' / 실제 471
+  OK   Notion 임시 파일 주소: 기대 0 / 실제 0
+  OK   임시 주소를 본 컬럼: 기대 '>= 300' / 실제 573
+  OK   번호 없는 티켓 = 열린 예외: 기대 13 / 실제 13
+  OK   사유 없이 번호가 없는 티켓: 기대 0 / 실제 0
+  OK   번호가 있는데 예외가 열린 티켓: 기대 0 / 실제 0
+  OK   번호와 표시 이름이 어긋난 티켓: 기대 0 / 실제 0
+  OK   파생 document_chunks 비어 있음: 기대 0 / 실제 0
+  OK   파생 ai_index_state 비어 있음: 기대 0 / 실제 0
+  OK   파생 search_documents 비어 있음: 기대 0 / 실제 0
+  OK   파생 rate_limit_buckets 비어 있음: 기대 0 / 실제 0
+  OK   변환 실패 (길이): 기대 0 / 실제 0
+  OK   변환 실패 (읽기): 기대 0 / 실제 0
+  OK   거절된 행: 기대 0 / 실제 0
+  OK   채번 카운터가 뒤처진 프로젝트: 기대 0 / 실제 0
+
+## Finding
+  [note/table_dropped] alembic_version: 스키마 판 번호다. 새 체인이 자기 값을 갖는다(D-189).
+  [note/table_dropped] automation_templates: S11 이 외부 자동화를 걷었다. 부를 곳이 없다(D-267, 0009).
+  [note/table_dropped] document_generations: 같은 이유다. 문서 생성 러너가 사라졌다(0009).
+  [note/table_dropped] runners: 같은 이유다. 러너 레지스트리를 내렸다(D-267, 0009).
+  [note/table_dropped] search_index: SQLite FTS5 가상 표다. PG 에는 문법 자체가 없다(D-189).
+  [note/table_dropped] search_index_config: 위 FTS5 의 그림자 표다.
+  [note/table_dropped] search_index_data: 위 FTS5 의 그림자 표다.
+  [note/table_dropped] search_index_docsize: 위 FTS5 의 그림자 표다.
+  [note/table_dropped] search_index_idx: 위 FTS5 의 그림자 표다.
+  [note/table_dropped] workflows: 같은 이유다. n8n 워크플로 목록이었다(0009).
+  [note/table_derived] search_documents: 파생 데이터라 행을 넣지 않습니다. 제품이 원본에서 다시 만듭니다(D-270).
+  [classified/property_never_filled] notion:문서: « 출처 » 이 110행 중 한 번도 값을 내지 않았습니다. 정말 비어 있거나 속성 이름이 바뀐 것입니다. (source)
+  [classified/project_source_missing] projects: Notion 응답에 없는 프로젝트입니다. 지우지 않고 그대로 둡니다. (262c5c5a-5684-8095-bbbe-e4d19184ae3b)
+  [classified/ticket_multiple_parents] tickets: 상위 작업이 2건이라 첫 번째만 씁니다. (2b1c5c5a-5684-80fe-8744-d03091cd1a97)
+  [classified/ticket_multiple_parents] tickets: 상위 작업이 3건이라 첫 번째만 씁니다. (2a9c5c5a-5684-800f-a5b9-fb39bef1b069)
+  [classified/ticket_multiple_parents] tickets: 상위 작업이 3건이라 첫 번째만 씁니다. (2a9c5c5a-5684-806b-8536-f1410086d4ee)
+  [classified/ticket_multiple_parents] tickets: 상위 작업이 3건이라 첫 번째만 씁니다. (2a9c5c5a-5684-801c-baea-ca4b0959e5e5)
+  [classified/ticket_multiple_parents] tickets: 상위 작업이 2건이라 첫 번째만 씁니다. (2a1c5c5a-5684-805d-a45e-d1893a5c45a0)
+  [classified/ticket_multiple_parents] tickets: 상위 작업이 3건이라 첫 번째만 씁니다. (29cc5c5a-5684-8016-b444-f2dea71480bd)
+  [classified/user_unmapped] user_notion_mappings: 239d872b-594c-8163-8d87-0002f63584a1 의 포털 사용자를 못 찾았습니다. (239d872b-594c-8163-8d87-0002f63584a1)
+  [classified/user_unmapped] user_notion_mappings: 조민 의 포털 사용자를 못 찾았습니다. (239d872b-594c-817a-a6b6-0002b567c53f)
+  [classified/user_unmapped] user_notion_mappings: 최유정 의 포털 사용자를 못 찾았습니다. (239d872b-594c-81d6-89b4-0002f813a876)
+  [classified/attachment_rejected] files: 4월 20일 암센터 회의.m4a: 파일이 너무 큽니다. 최대 10MB까지 올릴 수 있습니다. (348c5c5a-5684-80cc-a461-dc8cfa75a919:0)
+  [classified/attachment_rejected] files: Network_TCPIP.pdf: 파일이 너무 큽니다. 최대 10MB까지 올릴 수 있습니다. (325c5c5a-5684-8039-834d-d77e95d66a56:0)
+  [classified/attachment_external_link] files: 바깥 링크라 바이트가 없습니다: https://goodmorningit.sharepoint.com/:x:/s/msteams_0d63ce/ETbOXkOMgyNFihRVAWgt8SMBhMFxlKiWWR45qPnFfNLyFw?e=s1jhdb (27dc5c5a-5684-8033-9b29-d0e045f2612c:0)
+
+판정: PASS — 검사 64건 중 실패 0 · blocking 0 · 분류된 예외 14

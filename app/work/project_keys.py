@@ -18,11 +18,26 @@ S5 의 `permissions.py` · S6 의 `workflow.py` 와 같은 배치다: 코드가 
 으로 보고한다. 이름이 비슷하다고 골라 주면 그 티켓들이 남의 프로젝트로 새고, 그 사고는
 화면이 정상으로 보이기 때문에 아무도 신고하지 않는다(U11 이 금지한 그것이다).
 
-## `OKE` 의 이름은 잘려 있다 — 그대로 둔다
+## 이름은 바뀌었고 Key 는 안 바뀌었다 (2026-08-23 · S13)
 
-`M. 현대모비스 [OKE KVM 윈도우 기능 개` 는 닫는 괄호가 없다. 실측이 그렇다. 여기서
-완성해 적으면 **정확히 일치하는 이름이 하나도 없게 되고**, 그 프로젝트만 조용히
-«못 찾음» 이 된다. 소스에서 이름을 고치면 그때 이 줄도 함께 고친다.
+확정 당시(2026-08-22) Notion 프로젝트 제목에는 `P. `·`M. `·`D. ` 접두사가 붙어 있었고
+14번은 `M. 현대모비스 [OKE KVM 윈도우 기능 개` 로 **잘려 있었다.** 하루 뒤 소스에서
+그 접두사가 전부 사라지고 14번 이름도 완성됐다 — 그 상태로는 20건 **전부**가
+«못 찾음» 이다(실측: 0/21 일치).
+
+이 파일의 앞 판이 이미 그때 할 일을 적어 두었다: 「소스에서 이름을 고치면 그때 이 줄도
+함께 고친다.」 그래서 아래 표의 **이름만** 지금 실측으로 갈고 **Key 는 한 글자도 안
+바꿨다.** Key 소유는 영구이고 이름은 그 Key 를 프로젝트에 처음 붙일 때 쓰는 손잡이일
+뿐이다 — 한 번 붙고 나면 `projects.code` 가 정본이라 이름이 또 바뀌어도 상관없다.
+
+짝이 맞는지는 이름이 아니라 **티켓 수**로 확인했다(20/20). 이름만 보고 「비슷하니까」로
+정하면 그것이 U11 이 금지한 임의 배정이다.
+
+## 옛 이름도 함께 든다 — 추측이 아니라 기록이다
+
+`SUPERSEDED_NAMES` 는 앞 판의 이름 20건이다. 소스가 되돌아가거나 아직 안 따라온 미러를
+만나도 같은 Key 로 붙는다. 「비슷한 이름」을 고르는 것이 아니라 **사람이 확인한 정확한
+문자열 둘**을 둘 다 아는 것이다.
 """
 
 from __future__ import annotations
@@ -47,6 +62,31 @@ CONFIRMED_ON = "2026-08-22"
 # 아니라 그 프로젝트의 시스템/제품 이름으로 갈랐다. 고객사 약어에 번호를 붙이면
 # (`SKH1`·`SKH2`) 사람이 말할 때 어느 쪽인지 알 수 없다.
 CONFIRMED: tuple[tuple[str, str], ...] = (
+    ("SKH", "SK하이닉스 [용인 클러스터 대비]"),
+    ("GMDS", "굿모닝아이텍 [사내 디자인 개선]"),
+    ("PDX", "포스코DX [P-Cloud 2.0 포털 구축]"),
+    ("BRCM", "브로드컴 [VCF9 Value Pack 제작]"),
+    ("SGH", "스마일게이트홀딩스 [ClovirONE 2.0 포털 구축]"),
+    ("CLV", "굿모닝아이텍 [ClovirONE 2.0 제품 개발]"),
+    ("NHFC", "NH손해보험 [금융소비자보호 포털 구축]"),
+    ("IIAC", "인천국제공항공사 [클라우드 인프라 고도화]"),
+    ("ITAP", "SK하이닉스 [ITAP 포털 유지보수]"),
+    ("NHUB", "굿모닝아이텍 [NEXTHub ERP 시스템 개발]"),
+    ("MDIP", "현대모비스 [MDIP 시스템 운영/개선]"),
+    ("NCDC", "암센터 [NCDC 데이터 분석 포털 구축]"),
+    ("NHSM", "NH손해보험 [ClovirSM 구축]"),
+    ("OKE", "현대모비스 [OKE KVM 윈도우 기능 개선]"),
+    ("NCSP", "엔씨소프트 [NCSpace 포털 구축]"),
+    ("KBBD", "KB국민카드 [빅데이터 포털 내부시스템 EOS/디자인 변경]"),
+    ("HRFC", "한강홍수통제소 [통합운영관리시스템 구축]"),
+    ("MGSM", "새마을금고 [ClovirSM 구축]"),
+    ("KISA", "KISA, 한국인터넷진흥원 [ClovirSM 구축]"),
+    ("KHNP", "한국수력원자력 [포털 구축]"),
+)
+
+# 확정 당시(2026-08-22)의 이름. **버리지 않는다** — 이 문자열을 지우면 「무엇이 무엇으로
+# 바뀌었는가」가 이 저장소에서 사라지고, 옛 이름을 든 미러를 만났을 때 붙일 근거도 없다.
+SUPERSEDED_NAMES: tuple[tuple[str, str], ...] = (
     ("SKH", "P. SK하이닉스 [용인 클러스터 대비]"),
     ("GMDS", "D. 굿모닝아이텍 [사내 디자인 개선]"),
     ("PDX", "P. 포스코DX [P-Cloud 2.0 포털 구축]"),
@@ -60,7 +100,7 @@ CONFIRMED: tuple[tuple[str, str], ...] = (
     ("MDIP", "M. 현대모비스 [MDIP 시스템 운영/개선]"),
     ("NCDC", "M. 암센터 [NCDC 데이터 분석 포털 구축]"),
     ("NHSM", "P. NH손해보험 ClovirSM"),
-    # 닫는 괄호가 없는 것이 **실측 그대로**다. 위 docstring 참조.
+    # 잘린 채로 확정됐던 이름. 소스가 완성했다.
     ("OKE", "M. 현대모비스 [OKE KVM 윈도우 기능 개"),
     ("NCSP", "M. 엔씨소프트 [NCSpace 포털 구축]"),
     ("KBBD", "M. KB국민카드 [빅데이터 포털 내부시스템 EOS/디자인 변경]"),
@@ -92,11 +132,18 @@ def normalize_name(raw: str | None) -> str:
 
 BY_NAME: dict[str, str] = {normalize_name(name): key for key, name in CONFIRMED}
 BY_KEY: dict[str, str] = {key: name for key, name in CONFIRMED}
+BY_OLD_NAME: dict[str, str] = {
+    normalize_name(name): key for key, name in SUPERSEDED_NAMES
+}
 
 
 def key_for_name(name: str | None) -> str | None:
-    """이 이름의 확정 Key. 표에 없으면 `None` — **비슷한 것을 고르지 않는다.**"""
-    return BY_NAME.get(normalize_name(name))
+    """이 이름의 확정 Key. 표에 없으면 `None` — **비슷한 것을 고르지 않는다.**
+
+    옛 이름도 본다. 옛 이름은 추측이 아니라 **앞 판에 적혀 있던 정확한 문자열**이다.
+    """
+    normalized = normalize_name(name)
+    return BY_NAME.get(normalized) or BY_OLD_NAME.get(normalized)
 
 
 def apply_confirmed(db: Session, *, now: datetime | None = None) -> dict:
@@ -119,9 +166,16 @@ def apply_confirmed(db: Session, *, now: datetime | None = None) -> dict:
     report: dict[str, list[dict]] = {
         APPLIED: [], ALREADY: [], NOT_FOUND: [], AMBIGUOUS: [], OTHER_KEY: [],
     }
+    superseded = dict(SUPERSEDED_NAMES)
     for key, name in CONFIRMED:
         found = by_name.get(normalize_name(name), [])
         entry = {"key": key, "name": name}
+        if not found and key in superseded:
+            # 지금 이름으로 못 찾았다. 앞 판의 이름으로 한 번 더 본다 — 소스가 아직
+            # 안 따라왔거나 되돌아간 경우다. 이것은 추측이 아니라 기록 조회다.
+            found = by_name.get(normalize_name(superseded[key]), [])
+            if found:
+                entry["matched_name"] = superseded[key]
         if not found:
             report[NOT_FOUND].append(entry)
             continue

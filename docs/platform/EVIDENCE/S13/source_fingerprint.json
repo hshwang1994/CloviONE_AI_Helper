@@ -1,0 +1,17 @@
+{
+  "app/migration/__init__.py": "c1bdc3892b4aa12a",
+  "app/migration/convert.py": "7c20dfe2986d2162",
+  "app/migration/load.py": "2f958c9ec99e14ec",
+  "app/migration/models.py": "3a2d59c03fb8f8d2",
+  "app/migration/plan.py": "6c1a0f37a3151270",
+  "app/migration/report.py": "382cba7d0effb0b4",
+  "app/migration/runner.py": "c331915d986ae888",
+  "app/migration/source_notion.py": "f0584bd81e75a556",
+  "app/migration/source_sqlite.py": "7dbcbdfbf8f73f86",
+  "app/migration/transform.py": "966a3dcdbd54ac54",
+  "app/migration/validate.py": "dc4d30a052aba890",
+  "app/cli/migrate_cli.py": "749a5f8b5f0e7164",
+  "alembic/versions/0011_legacy_mapping.py": "521cce185bc3a5c0",
+  "config/allowed-migration-sources.json": "22c85fbd3496761d",
+  "app/work/project_keys.py": "644fe927ba57aa89"
+}

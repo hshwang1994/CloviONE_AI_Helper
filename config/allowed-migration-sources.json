@@ -1,0 +1,7 @@
+{
+  "_comment": "S13 Migration Tool 전용 SSRF allowlist. 런타임(allowed-services.json)과 일부러 분리했다 — 이관은 Notion 이 내주는 임시 파일 주소에서 첨부를 내려받아야 하는데, 그 호스트를 런타임 목록에 넣으면 한 번 쓰는 도구 때문에 매일 도는 요청의 허용 범위가 영구히 넓어진다. Cutover(S14) 이후 이 파일은 필요 없다.",
+  "hosts": [
+    "api.notion.com:443",
+    "prod-files-secure.s3.us-west-2.amazonaws.com:443"
+  ]
+}

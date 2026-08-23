@@ -94,6 +94,10 @@ RULES: tuple[tuple[str, tuple[str, ...], str, str], ...] = (
             "app/team_docs/repository_notion.py",
             "app/team_docs/router.py",
             "app/team_docs/service.py",
+            # 같은 이유로 이관도 미러 컬럼(`tickets.body_markdown`)을 쓴다 — 소스가
+            # 준 본문을 미러에 받아 적는 자리다. **문서 본문**은 이 파일에서 안 만든다:
+            # `app/migration/load.py::_snapshot` 은 `versions.snapshot` 을 부른다.
+            "app/migration/load.py",
             "app/tickets/repository_notion.py",
             "app/tickets/router.py",
             "app/tickets/service.py",
@@ -220,6 +224,9 @@ HIERARCHY_READERS_FORBIDDEN = r"\.parent_page_id\b"
 HIERARCHY_ALLOWED = (
     "app/tickets/models.py",      # 컬럼 정의
     "app/tickets/sync.py",        # 미러에 받아 적는 자리 (파생의 입력)
+    # 이관도 같은 자리다: 소스의 상위 작업을 미러 컬럼에 받아 적고, 관계로 옮기는 것은
+    # `relations.sync_parent_links` 를 부른다 (S13 · app/migration/load.py).
+    "app/migration/load.py",
     "app/work/relations.py",      # 그 입력을 관계로 옮기는 유일한 함수
     "app/reports/notion_source.py",  # 외부 응답 파서 — 아직 도메인이 아니다
     "app/notion_console/router.py",  # Notion 콘솔의 요청 필드(다른 뜻의 같은 이름)

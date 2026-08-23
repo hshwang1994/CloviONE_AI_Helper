@@ -14,8 +14,14 @@ from urllib.parse import urlsplit
 
 from app.core.errors import AppError
 
+# `migration` 이 `services` 와 **다른 목록인 이유** (S13): 이관은 Notion 이 내주는
+# 임시 S3 주소에서 첨부 9개를 내려받아야 하는데(MASTER_PLAN §7.3), 그 호스트를
+# `services` 에 넣으면 **런타임 아웃바운드의 SSRF 경계가 영구히 넓어진다** — 한 번
+# 쓰는 도구 때문에 매일 도는 요청의 허용 범위를 넓히는 셈이다. 목록을 나누면 이관
+# 도구만 그 호스트에 닿고, 런타임은 예전 그대로다.
 ALLOWLIST_FILES = {
     "services": "allowed-services.json",
+    "migration": "allowed-migration-sources.json",
 }
 
 _DEFAULT_PORTS = {"http": 80, "https": 443}

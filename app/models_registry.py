@@ -22,6 +22,7 @@ from app.conversations import models as conversations_models  # noqa: F401
 from app.health import models as health_models  # noqa: F401
 from app.impersonation import models as impersonation_models  # noqa: F401
 from app.mail import models as mail_models  # noqa: F401
+from app.migration import models as migration_models  # noqa: F401
 from app.notifications import models as notifications_models  # noqa: F401
 from app.notion_mapping import models as notion_mapping_models  # noqa: F401
 from app.observability import models as observability_models  # noqa: F401

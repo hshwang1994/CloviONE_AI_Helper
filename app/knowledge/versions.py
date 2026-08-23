@@ -52,11 +52,17 @@ def snapshot(
     change_reason: str | None = None,
     ai_used: bool = False,
     source: str = VSRC_USER,
+    reindex: bool = True,
 ) -> DocumentVersion | None:
     """새 판을 쌓고 `current_version_id` 를 옮긴다. 내용이 같으면 `None`.
 
     파생 셋(`body`·`body_markdown`·`body_text`)을 `blocks.derive()` 하나가 함께 만든다 —
     이 함수가 그 결과를 나눠 담는 유일한 자리다.
+
+    `reindex=False` 는 **이관 전용**이다 (S13). 적재 직후 `ai_index_state` 는 비어 있는
+    것이 정상이고(D-270), 상태 행이 없는 문서는 색인 레인의 훑기가 스스로 찾아 돈다
+    (S9). 여기서 110건을 미리 넣으면 훑기가 할 일을 두 번 하는 것이고, 무엇보다
+    「적재 직후 파생 넷은 비어 있다」는 이관 검증의 불변식이 깨진다.
     """
     previous = current(db, document)
     try:
@@ -88,7 +94,8 @@ def snapshot(
     db.flush()
     document.current_version_id = version.id
     db.flush()
-    _reindex(db, document.id)
+    if reindex:
+        _reindex(db, document.id)
     return version
 
 

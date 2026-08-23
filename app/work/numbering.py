@@ -100,3 +100,26 @@ def seed_counters(db: Session) -> int:
             "SET last_seq = GREATEST(project_ticket_counters.last_seq, EXCLUDED.last_seq)"
         )
     ).rowcount
+
+
+def projects_behind(db: Session) -> int:
+    """카운터가 실제 최대 번호보다 **작은** 프로젝트 수. 0 이어야 한다.
+
+    이 질의가 여기 있는 이유는 `seed_counters` 와 같다 — 카운터를 아는 코드가 두
+    곳이면 한쪽이 「다음 번호」와 「마지막 번호」를 반대로 읽고, 그 어긋남은 사용자가
+    「저장」을 누른 뒤 유니크 위반으로만 드러난다(D-196).
+
+    S13 의 Dry Run 검증이 이 값을 읽는다.
+    """
+    return int(
+        db.execute(
+            sa_text(
+                "SELECT count(*) FROM ("
+                "  SELECT t.project_uid AS pid, MAX(t.seq) AS mx FROM tickets t"
+                "  WHERE t.project_uid IS NOT NULL AND t.seq IS NOT NULL"
+                "  GROUP BY t.project_uid) s "
+                "LEFT JOIN project_ticket_counters c ON c.project_id = s.pid "
+                "WHERE c.last_seq IS NULL OR c.last_seq < s.mx"
+            )
+        ).scalar_one()
+    )

@@ -20,7 +20,14 @@ import re
 import pytest
 
 from app.work import keys as keys_mod
-from app.work.project_keys import BY_KEY, BY_NAME, CONFIRMED, CONFIRMED_ON, key_for_name
+from app.work.project_keys import (
+    BY_KEY,
+    BY_NAME,
+    CONFIRMED,
+    CONFIRMED_ON,
+    SUPERSEDED_NAMES,
+    key_for_name,
+)
 
 pytestmark = pytest.mark.unit
 
@@ -105,13 +112,34 @@ def test_lookup_is_exact_and_does_not_guess():
     assert key_for_name(None) is None
 
 
-def test_the_truncated_name_is_kept_as_measured():
-    """14번 이름은 **닫는 괄호가 없다.** 완성해 적으면 그 프로젝트만 «못 찾음» 이 된다.
+def test_the_rename_moved_names_and_left_keys_alone():
+    """2026-08-23 에 소스가 이름을 바꿨다. **Key 는 안 바뀌었다** (S13).
 
-    이 단정이 없으면 다음 사람이 「오타 같다」며 고치고, 그 순간 적용이 조용히 19건이 된다.
+    이 시험이 지키는 것은 이름 스무 개가 아니라 **Key 스무 개의 불변성**이다. 다음
+    사람이 이름을 또 갈 때 Key 까지 함께 건드리면 그 프로젝트의 티켓 전부가 다른
+    이름으로 불리고, 소유는 영구라 되돌릴 수 없다(D-196).
     """
-    assert BY_KEY["OKE"] == "M. 현대모비스 [OKE KVM 윈도우 기능 개"
-    assert not BY_KEY["OKE"].endswith("]"), (
-        "실측 이름은 닫는 괄호가 없다 — 소스에서 이름을 고쳤다면 이 시험과 "
-        "`app/work/project_keys.py` 를 함께 고쳐라"
+    assert [key for key, _ in CONFIRMED] == [key for key, _ in SUPERSEDED_NAMES], (
+        "Key 목록과 순서는 앞 판과 같아야 한다 — 이름만 갈았다"
     )
+    # 14번은 잘린 채로 확정됐고 소스가 완성했다. 두 판이 다 남아 있어야 한다.
+    assert BY_KEY["OKE"] == "현대모비스 [OKE KVM 윈도우 기능 개선]"
+    assert dict(SUPERSEDED_NAMES)["OKE"] == "M. 현대모비스 [OKE KVM 윈도우 기능 개"
+
+
+def test_no_name_survived_the_rename_unchanged():
+    """앞 판과 지금 판에 **같은 문자열이 있으면** 그 줄은 안 바뀐 것이다.
+
+    안 바뀐 줄이 섞여 있으면 「소스가 전부 바뀌었다」는 이 회차의 판단이 틀렸다는
+    뜻이고, 그때는 바뀐 줄과 안 바뀐 줄을 구별해서 다시 확인해야 한다.
+    """
+    same = sorted(set(dict(CONFIRMED).values()) & set(dict(SUPERSEDED_NAMES).values()))
+    assert not same, f"이름이 안 바뀐 줄이 있다: {same}"
+
+
+def test_old_names_still_resolve_to_the_same_key():
+    """옛 이름을 든 소스를 만나도 같은 Key 로 붙는다 — **추측이 아니라 기록 조회다.**"""
+    for key, old_name in SUPERSEDED_NAMES:
+        assert key_for_name(old_name) == key, f"옛 이름이 {key} 로 안 붙는다"
+    # 그렇다고 아무 이름이나 붙지는 않는다.
+    assert key_for_name("P. 없는 프로젝트") is None

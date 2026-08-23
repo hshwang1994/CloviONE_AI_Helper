@@ -518,7 +518,7 @@ SHA256SUMS}` 세트다. 파생 넷은 **행만** 빠지고(`--exclude-table-data
 | S | 이름 | 핵심 산출 | Exit 조건 |
 |---|---|---|---|
 | **S12** ✅ | Backup / Restore 운영 | 백업 **세트**(덤프+매니페스트+`SHA256SUMS`, D-269) · 범위 정책이 `pg_dump` 인자까지(D-270) · 보존 두 바닥(D-271) + 배포 스냅숏 보존 · Local 다운로드와 **사람이 답한 뒤** 서버 삭제(D-272) · NFS/SMB Backup Provider 사본 · 동일 저장소 경고 · `restore_rehearsal.py` **PG 8단계 이식** | **완료 (2026-08-23)** — 실 PG 16.15 + 실 `pg_dump` 에서 8단계 전부 통과하고 복원본을 물고 띄운 앱이 읽기 경로 **13개를 전부 200** 으로 답했다. 판정이 틀린 쪽으로도 움직이는 것을 **반례 셋**으로 보였다(파일만 생긴 덤프 · 401 만 나오는 앱 · 정책이 안 걸린 덤프). 🔴 첫 회차가 초록인데 인증 경로 11개가 401 이었고, 그 회차를 지우지 않고 원장에 남겼다(D-273). 결정 **D-269~D-273**, 원장 [`EVIDENCE/S12/`](EVIDENCE/S12/README.md) |
-| **S13** | Migration Tool + Dry Run | Extract(Notion+SQLite) · Transform · Validate · Load · Idempotent 재실행 · **임시 PG Dry Run** · Report · **Migration Exception 분류** · Project Key 적용 · 재채번 · `legacy_mapping` | Dry Run 무결성 전항 0(또는 Exception 분류) · 길이 초과 0 · legacy/canonical 충돌 0 |
+| **S13** ✅ | Migration Tool + Dry Run | Extract(Notion+SQLite) · Transform · Validate · Load · Idempotent 재실행 · **임시 PG Dry Run** · Report · **Migration Exception 분류** · Project Key 적용 · 재채번 · `legacy_mapping` | **완료 (2026-08-23)** — 실 운영 SQLite + 실 Notion → 임시 PG 에서 **검사 64건 전부 통과**(길이 초과 0 · legacy/canonical 충돌 0 · 무결성 전항 0). 못 옮긴 것은 **분류된 예외 14건**이고 전부 사유가 붙어 있다. **재실행 2회차의 신규가 0** 이다. 회차를 두 번 돌려 결함 둘을 찾았다 — 표 복사와 재채번이 같은 컬럼의 주인이던 것(D-275)과 첨부 크기 한도가 둘이던 것(D-280). 그리고 「문서 분류 110건이 전부 비어 있다」의 **원인**을 찾았다: Notion 속성 이름이 안 맞았다(D-277). 결정 **D-274~D-281**, 원장 [`EVIDENCE/S13/`](EVIDENCE/S13/README.md) |
 | **S14** | **Cutover + Legacy 제거** (단독) | 최종 Backup → Maintenance → 마지막 Delta → PG 전환 → File/Relation/Application 검증 → AI Index → Open → **Notion·SQLite Runtime 차단** → Legacy 코드·문서·Harness 제거 | Notion/SQLite Runtime 의존 **0** · Legacy 잔존 0 · Rollback 지점 문서화 |
 
 #### Phase E — UI Renewal 재개 (동결 해제, 각 Session 독립 종료)
@@ -670,7 +670,7 @@ python -m scripts.ui_qa.run --label final --fail-on <승격 클래스…>
 | ~~R5~~ | 한국어 검색 품질 회귀 | — | **해소 (S1)** — `pg_trgm` GIN 이 어절 내부 부분일치 recall **1.000**, FTS `simple` 은 **0.083** (D-209) | 닫힘 |
 | ~~R6~~ | CPU 임베딩/리랭킹이 예상보다 느림 | — | **확정 (S1)** — 리랭커를 **쓰지 않고** RRF 로 간다. 임베딩은 `e5-small` (D-211 · D-212) | 닫힘 |
 | ~~R7~~ | 문자열 길이 초과로 Migration 실패 | — | **범위 확정 (S1)** — 선언 410 컬럼 중 초과 **1건**(`messages.message_id`), 대응은 «넓힌다» (D-214) | 닫힘 → S2 |
-| R8 | Notion 본문 재수집 중 rate limit / 원본 변경 | 본문 유실 | Idempotent Tool + `last_edited` 기준 delta + 재실행 가능 | S13 |
+| ~~R8~~ | Notion 본문 재수집 중 rate limit / 원본 변경 | **해소 (S13)** — 캐시가 `last_edited` 로 delta 를 잡고 재실행 2회차의 신규가 0 이다. 본문이 티켓 613건·문서 103건에 들어왔다(미러에는 31·0 이었다) | 해소 |
 | R9 | `assistant.py` 6,395줄 로직 이관 누락 | AI 기능 퇴행 | 293개 runner 테스트를 이관 대상 판별에 사용. 병행 운영 후 제거 | S9·S11 |
 | R10 | Editor + DnD 도입이 번들 예산 초과 | 초기 로드 회귀 | route-level lazy load 강제 + `check_bundle_size.sh` 게이트 유지 | S7 |
 | R11 | 시험 Storage 가 실 NAS 와 다르다 | 실 장비에서 새 결함 | **살아 있다(의도한 대로)** — S8 이 같은 서버의 NFS export·Samba share 로 16항을 실측했고, 증거 파일과 [`EVIDENCE/S8/`](EVIDENCE/S8/README.md) 양쪽에 「실 NAS 가 아니다」를 그대로 적었다. 실 정보 수령 시 Configuration 만 변경 | ~~S8~~ · U8/U9 |
