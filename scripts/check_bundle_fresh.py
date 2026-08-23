@@ -170,11 +170,15 @@ def main(argv: list[str] | None = None) -> int:
         if not BUNDLE.is_dir():
             print(f"[FAIL] 번들이 없다: {BUNDLE}", file=sys.stderr)
             return 1
+        # `newline="\n"` — 안 적으면 윈도에서 `\n` 이 **CRLF 로 바뀐다**. `.gitattributes`
+        # 가 커밋 때 되돌려 주지만, 그러면 빌드할 때마다 작업 트리가 「수정됨」으로 남아
+        # 진짜 변경과 섞인다. 쓰는 쪽에서 맞춘다.
         STAMP.write_text(
             json.dumps({"source_hash": current, "input_count": count,
                         "note": "scripts/check_bundle_fresh.py --write 가 적는다. 손으로 고치지 마라."},
                        ensure_ascii=False, indent=2) + "\n",
             encoding="utf-8",
+            newline="\n",
         )
         print(f"BUNDLE_STAMP_WRITTEN ({count}개 입력, {current[:12]})")
         return 0

@@ -60,9 +60,9 @@
 
 | ID | 작업 | Session | 상태 | 완료의 정의 |
 |---|---|---|---|---|
-| **P-22** | Backup / Restore 운영 | S12 | TODO | 복원 후 **앱 기동 + 읽기 경로 호출** 통과. **파일 생성만으로 SUCCESS 안 됨** |
+| **P-22** | Backup / Restore 운영 | S12 | **DONE** | 백업 하나가 **세트**가 됐다 — 덤프 + 매니페스트 + `SHA256SUMS`(D-269). 매니페스트가 백업과 **함께 이동**하므로 낯선 서버에서도 스키마 판과 「무엇이 안 담겼는가」를 읽는다. 파생 넷은 **행만** 빠지고 누가 다시 만드는지가 함께 적힌다(D-270) — 그 정책이 실제로 `pg_dump` 인자까지 가는지를 시험과 리허설 5단계가 **양방향으로** 본다. 보존은 **개수와 나이 둘 다** 넘어야 지운다(D-271, 배포 스냅숏 보존도 함께 세웠다). 다운로드 뒤 서버 파일 삭제는 **사람이 답한 뒤에만**이고 다운로드는 `BACKUP_EXECUTE` 다(D-272). 실 PG + 실 `pg_dump` 에서 **8단계 전부 통과**했고 반례 셋으로 판정이 틀린 쪽으로도 움직이는 것을 보였다(D-273, 원장 [`EVIDENCE/S12/`](EVIDENCE/S12/README.md)) |
 | **P-23** | Migration Tool + Dry Run (Notion + SQLite → 임시 PG) | S13 | TODO | 무결성 전항 0(또는 Exception 분류) · 길이 초과 0 · legacy/canonical 충돌 0 |
-| **P-23a** | `scripts/restore_rehearsal.py` PG 이식 | S12 | TODO | 8단계 중 7단계(**복원본으로 앱을 띄워 읽기 경로 호출**)가 저장소에서 가장 정직한 검증 자산이다. S2 가 SQLite 전제를 깨뜨렸고 **조용히 통과하지 않도록 큰 소리로 멈추게** 해 뒀다 — 그 초록을 믿고 복원 계획을 세우는 것이 가장 나쁘다. **죽은 SQLite 구현 340줄은 지웠다**(이미 없는 `app.backups.sqlite_backup` 을 import 하고 있었다) — 되살리지 말고 PG 기준으로 다시 써라. 옛 구현은 `95a89189` 에 있다. 다만 **8단계 중 첨부 확인(BKP-02)은 살아 있다** — `check_attachment_files()` 는 이미 PG 위에서 돌고 시험도 그대로다. 다시 쓰지 말고 부르면 된다 |
+| **P-23a** | `scripts/restore_rehearsal.py` PG 이식 | S12 | **DONE** | 여덟 단계가 PG 기준으로 다시 섰다 — 앱 자신의 코드로 백업 → 앱 자신의 판정(`verified` 아니면 멈춘다) → **새 데이터베이스**로 복원 → 스키마 성질 대조(부분 유니크의 `WHERE` 원문 포함) → 표·행 수와 **정책** 대조 → `alembic_version` → **복원본으로 앱을 띄워 읽기 경로 13개 호출** → 첨부. 첨부 확인(BKP-02)은 다시 쓰지 않고 그대로 불렀다. 🔴 **첫 회차가 초록인데 인증 경로 11개가 401 이었다** — 판정을 「200 이 아니면 실패」로 고치고 그 회차를 반례로 남겼다(D-273). 하네스 자신도 Known Good/Known Bad/반례로 먼저 검증한다(`tests/regression/test_restore_rehearsal_probe.py`) |
 | **P-33** | **세션 쿠키 이름에 옛 정체성이 남아 있다** (`clovirone_session`) | S14 | TODO | `app/core/sessions.py::SESSION_COOKIE_NAME`. 바꾸는 순간 **전원이 로그아웃**되므로 S4 가 건드리지 않았다(D-226). Cutover 는 어차피 세션이 끊기는 자리라 그때 함께 바꾼다. MASTER_PLAN §10-13 「Product-owned Artifact 에 Legacy Identity 잔존 없음」이 이 한 건을 본다 |
 | **P-24** | **Cutover + Legacy 제거** (단독 Session) | S14 | TODO | Notion/SQLite Runtime 의존 **0** · Legacy 잔존 0 · Rollback 지점 문서화 |
 

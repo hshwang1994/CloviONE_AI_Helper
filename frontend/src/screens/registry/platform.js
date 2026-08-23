@@ -14,21 +14,27 @@ import { Badge, WRITE_ROLES, activeCol, backupReasonText, badgeCol, col, dateCol
 export const PLATFORM_SCREENS = {
   backup: {
     key: "backup", area: "운영", title: "백업", endpoint: "/api/admin/backups",
-    // 웹 콘솔에서 실행되는 이 백업은 단일 파일 스냅샷(var/exports/web-*.sqlite3)이며, 웹에서
-    // 복원할 수 없고 rollback 스크립트의 입력도 아니다(system_admin이 '복원 안내'에서 상세를 볼 수
-    // 있지만, 그 경고가 role 게이트된 모달 안에만 있어 다른 역할은 볼 방법이 없었다 — 항상 보이는
-    // help로 옮겨 어떤 역할이 봐도 오해하지 않게 한다).
+    // 백업 하나는 파일 하나가 아니라 **세트 디렉터리**다(S12) — 덤프 + 매니페스트 +
+    // 체크섬. 매니페스트에는 스키마 판과 «무엇이 안 담겼는가» 가 적혀 있고, 그 파일이
+    // 백업과 함께 이동하므로 낯선 서버에서도 범위를 읽을 수 있다.
+    // 웹에서 복원하지 않는다는 사실은 항상 보이는 help 에 둔다(system_admin 만 여는 모달
+    // 안에 두면 다른 역할은 볼 방법이 없다).
     // 이 목록이 최근 50건까지만 온다는 사실(app/backups/router.py list_backups의 .limit(50))이
     // 화면 어디에도 없었다 — 51번째 백업부터는 조용히 사라진다. 필터를 붙이기 전에 그 경계부터
     // 밝힌다(안 그러면 '필터에 안 걸림'과 '애초에 안 옴'을 구별할 수 없다).
-    help: "데이터베이스를 백업합니다. 오래된 백업은 자동 정리됩니다. 이 목록은 웹 콘솔 DB 스냅샷입니다. 웹에서 복원할 수 없으며 서버의 rollback 스크립트 입력도 아닙니다. 복원은 시스템 관리자가 서버에서 별도 스크립트로만 수행합니다. 목록에는 최근 50건까지만 표시됩니다.",
+    help: "데이터베이스를 백업합니다. 백업 하나는 덤프와 매니페스트가 함께 든 세트입니다. 오래된 백업은 정한 개수와 기간에 따라 정리됩니다. 복원은 시스템 관리자가 서버에서 별도 스크립트로 수행합니다. 목록에는 최근 50건까지만 표시됩니다.",
     emptyTitle: "아직 백업이 없습니다",
     // 상태 필터가 하나도 없어 '실패한 백업만' 같은 질문에 답할 방법이 없었다. 이 엔드포인트는
     // 쿼리 파라미터를 받지 않고 페이지네이션도 하지 않는다(위 50건 상한이 전부) — 받아 온 것이
     // 곧 전부이므로 clientFilter로 걸러도 다른 페이지에 숨는 행이 생기지 않는다.
     // 검색도 대상 필드를 못박는다. 기본 검색은 JSON.stringify(row) 전체를 훑어 원시 UUID·체크섬·
     // UTC ISO 시각까지 매칭했다(화면에 보이지 않는 값으로 결과가 걸린다 — 부서/직책 화면과 같은 함정).
-    filters: [{ key: "status", type: "select", label: "상태", clientFilter: true, options: opt([["verified", "확인됨"], ["succeeded", "성공"], ["failed", "실패"], ["running", "진행 중"]]) }],
+    // 「파일이 서버에 남아 있는가」는 상태와 다른 축이다 — 내려받고 지운 백업은 성공한
+    // 백업이지만 **복원 지점이 아니다.** 한 열에 섞으면 그 둘을 구별할 방법이 없다.
+    filters: [
+      { key: "status", type: "select", label: "상태", clientFilter: true, options: opt([["verified", "확인됨"], ["succeeded", "성공"], ["failed", "실패"], ["running", "진행 중"]]) },
+      { key: "file_state", type: "select", label: "서버 파일", clientFilter: true, options: opt([["present", "있음"], ["removed", "삭제함"]]) },
+    ],
     searchFields: ["path"],
     searchPlaceholder: "백업 파일 이름으로 검색",
     // 백업 프로세스가 도중에 죽으면(OOM-kill·systemd 재시작) 행이 status='running'인 채로 남고,
@@ -38,14 +44,14 @@ export const PLATFORM_SCREENS = {
     pollWhile: (r) => r.status === "running",
     // 백업 실행·복원·검증은 모두 system_admin 전용(백엔드 RBAC). 그 외 역할에는 CTA 대신 읽기 전용 안내를 준다.
     emptyHelp: (role) => role === "system_admin"
-      ? "‘+ 백업 실행’으로 지금 데이터베이스를 백업하세요. 오래된 백업은 자동 정리됩니다."
+      ? "‘+ 백업 실행’으로 지금 데이터베이스를 백업하세요. 오래된 백업은 정한 개수와 기간에 따라 정리됩니다."
       : "아직 백업이 없습니다. 백업은 시스템 관리자가 실행할 수 있습니다.",
     // 첫 실행 시스템 관리자에게 단계별 안내를 준다(canOnboard가 primary 헤더 작업 '+ 백업 실행'을
     // 근거로 system_admin에만 보여준다). 다른 운영 화면(연동/러너)의 온보딩 패턴과 통일.
     emptySituation: "아직 데이터베이스 백업이 하나도 없습니다.",
-    emptyPrerequisite: "백업은 웹 콘솔 DB 스냅샷입니다. 웹에서 복원할 수 없고 복원은 서버에서 별도 스크립트로만 수행합니다.",
-    emptySteps: ["‘+ 백업 실행’으로 지금 스냅샷을 만듭니다.", "상태가 ‘확인됨(verified)’이 되는지 확인합니다.", "정기적으로 백업하는 습관을 들입니다(오래된 백업은 자동 정리됩니다)."],
-    emptyExpected: "실행한 백업이 상태, 크기와 함께 목록에 남고, 최근의 정상 백업이 자동 보관됩니다.",
+    emptyPrerequisite: "백업 세트는 서버에 만들어집니다. 복원은 서버에서 별도 스크립트로 수행합니다.",
+    emptySteps: ["‘+ 백업 실행’으로 지금 세트를 만듭니다.", "상태가 ‘확인됨(verified)’이 되는지 확인합니다. 임시 데이터베이스에 실제로 복원해 본 상태입니다.", "필요하면 ‘내려받기’로 받아 두고, 받은 뒤에 ‘서버에서 삭제’를 고를 수 있습니다."],
+    emptyExpected: "실행한 백업이 상태, 크기와 함께 목록에 남고, 정한 개수와 기간만큼 보관됩니다.",
     headerActions: [
       { label: "복원 안내", method: "GET", roles: ["system_admin"], path: () => "/api/admin/backups/restore-instructions",
         // 웹 콘솔 스냅샷의 실제 복원법(web_snapshot_note)과 rollback 입력 규칙(rollback_input)까지 함께 보여준다.
@@ -58,7 +64,7 @@ export const PLATFORM_SCREENS = {
           return parts.join("\n\n");
         } },
       // primary:true → 백업이 하나도 없는 첫 실행 화면의 CTA가 '복원 안내'가 아니라 이 버튼이 된다(system_admin에게만).
-      // 백업 실패 사유는 sqlite3 원시 예외 텍스트가 그대로 올 수 있다(app/backups/sqlite_backup.py) —
+      // 백업 실패 사유는 외부 도구(pg_dump/pg_restore)의 stderr 가 섞여 올 수 있다 —
       // 알려진 사유 코드만 한국어로 치환해 영어가 그대로 새지 않게 한다(backupReasonText).
       { label: "백업 실행", variant: "primary", primary: true, roles: ["system_admin"], path: () => "/api/admin/backups", confirm: "지금 데이터베이스 백업을 실행할까요?",
         result: (res) => { const s = res.backup && res.backup.status; const ok = s === "verified" || s === "succeeded"; return { ok, msg: ok ? "백업 완료" : ("백업 실패: " + backupReasonText((res.backup && res.backup.error_message) || "확인 실패")) }; } },
@@ -73,27 +79,50 @@ export const PLATFORM_SCREENS = {
       const i = Math.max(s.lastIndexOf("/"), s.lastIndexOf("\\"));
       return i >= 0 ? s.slice(i + 1) : s;
     } }, badgeCol("status", "상태"), { key: "size_bytes", label: "크기", align: "right", render: (r) => fmtBytes(r.size_bytes) },
-      { key: "path", label: "파일", render: (r) => { const p = r.path; if (p == null || p === "") return "-"; const s = String(p); const i = Math.max(s.lastIndexOf("/"), s.lastIndexOf("\\")); return i >= 0 ? s.slice(i + 1) : s; } }],
+      { key: "path", label: "파일", render: (r) => { const p = r.path; if (p == null || p === "") return "-"; const s = String(p); const i = Math.max(s.lastIndexOf("/"), s.lastIndexOf("\\")); return i >= 0 ? s.slice(i + 1) : s; } },
+      // 「성공한 백업」과 「지금 되돌릴 수 있는 백업」은 다르다. 내려받고 서버에서 지운
+      // 백업은 전자이지 후자가 아니고, 그 차이가 목록에서 보여야 한다.
+      { key: "file_state", label: "서버 파일", render: (r) => React.createElement(Badge, { value: r.file_state === "removed" ? "삭제함" : "있음", kind: r.file_state === "removed" ? "warn" : "ok" }) }],
     // 목록 열은 파일명만 보여주고(위 columns "파일") 상세는 전체 경로를 보여준다 — 둘 다 실제로는
     // r.path를 읽지만 표시가 다르므로(파일명 vs 전체 경로), 새 드로어 중복 제거(key 기준, DataScreen.jsx
     // mergeDetailFields)가 이 상세 전용 항목을 columns의 "파일"과 같은 것으로 오인해 지우지 않도록
     // key를 다르게 둔다.
     // id는 감사 로그의 object_id(object_type=backup)와 대조할 때 필요한데, 템플릿·감사 기록 상세와
     // 달리 이 화면만 id를 어디에도 보여주지 않아 대조할 방법이 없었다.
-    // backup_type은 현재 항상 "sqlite"뿐이지만(app/backups/models.py 하드코딩), 다른 상태 열(status)처럼
-    // mapCol/badgeCol 대신 raw 값을 그대로 보여주고 있었다 — 미래에 두 번째 유형이 생겨도 번역 없는
-    // 원문이 새지 않게 지금부터 작은 맵으로 감싼다.
-    detailFields: [field("id", "백업 ID"), mapCol("backup_type", "유형", { sqlite: "SQLite" }), { key: "path_full", label: "전체 경로", render: (r) => r.path || "-" }, personField("created_by", "실행한 사람", "created_by_name", "created_by_email"), field("checksum", "체크섬"), dateCol("verified_at", "검증 시각"),
+    // backup_type 은 **덤프 형식**이다 — 되돌릴 때 어떤 도구로 여는지가 이 값에 달렸다.
+    // 옛 설치에는 `sqlite` 행이 남아 있을 수 있어 둘 다 이름을 붙인다(원문이 새지 않게).
+    detailFields: [field("id", "백업 ID"), mapCol("backup_type", "유형", { pg_dump: "PostgreSQL 덤프", sqlite: "SQLite(옛 형식)" }), { key: "path_full", label: "세트 경로", render: (r) => r.path || "-" }, personField("created_by", "실행한 사람", "created_by_name", "created_by_email"), field("checksum", "체크섬"), field("alembic_head", "스키마 판"), dateCol("verified_at", "검증 시각"), dateCol("downloaded_at", "내려받은 시각"),
+      // 「무엇이 안 담겼는가」를 상세에서 읽을 수 있어야 한다 — 복원한 뒤 검색이 비어 있는
+      // 것을 보고 사고로 오해하는 일이 이 한 줄로 없어진다.
+      { key: "excluded_table_data", label: "담지 않은 것", render: (r) => (r.excluded_table_data || []).join(", ") || "-" },
+      { key: "destination_name", label: "백업 저장소 사본", render: (r) => {
+        if (!r.destination_name) return "보내지 않았습니다";
+        return r.destination_name + (r.destination_ok ? " (확인됨)" : " (실패)");
+      } },
+      { key: "warnings", label: "경고", render: (r) => (r.warnings || []).join(" ") || "-" },
       { key: "error_message", label: "오류", render: (r) => r.error_message ? backupReasonText(r.error_message) : "-" }],
     // 검증 엔드포인트는 상태와 무관하게 어떤 backup id도 받아들인다(app/backups/router.py) — 예전엔
     // status===verified|succeeded일 때만 버튼을 보여줘서, 한 번 failed가 된 행은 재검증할 방법이
     // 영영 사라졌다(백엔드는 지원하는데 UI만 막고 있었다). 상태와 무관하게 항상 노출한다.
     actions: [
-      // status==='running'인 동안은 백업 파일이 아직 쓰이는 중이고 체크섬도 null이다(app/backups/service.py
-      // run_backup()) — 이 창에 '검증'을 누르면 expected_checksum=None이라 체크섬 비교를 건너뛰고
-      // PRAGMA integrity_check만 돈다(app/backups/sqlite_backup.py). 완료된 백업에만 노출한다.
+      // status==='running'인 동안은 덤프가 아직 쓰이는 중이고 체크섬도 null이다(app/backups/service.py
+      // run_backup()) — 그 창에 '검증'을 누르면 체크섬 비교를 건너뛰고 그 순간의 불완전한 파일만
+      // 보게 되어, 정상적으로 진행 중인 백업을 failed로 격하시킬 수 있다. 서버도 독립적으로 막지만
+      // (409) 화면에서도 안 보여준다. 완료된 백업에만 노출한다.
       { label: "검증", roles: ["system_admin"], when: (r) => r.status !== "running", path: (r) => "/api/admin/backups/" + r.id + "/verify",
         result: (res) => ({ ok: !!(res.verify && res.verify.ok), msg: (res.verify && res.verify.ok) ? "검증 완료: 정상" : "검증 실패: " + backupReasonText((res.verify && res.verify.reason) || "손상 가능성") }) },
+      // 내려받기 — 브라우저가 직접 그 주소로 가야 Content-Disposition 이 먹는다
+      // (DataScreen.runAction 주석 참조). 진행 중이면 반쪽 덤프를 받게 되므로 감춘다.
+      { label: "내려받기", roles: ["system_admin"], when: (r) => r.status !== "running" && r.file_state !== "removed",
+        download: (_qs, r) => "/api/admin/backups/" + r.id + "/download" },
+      // 🔴 **자동으로 지우지 않는다**(D-204). 브라우저가 받다 만 것과 다 받은 것을 서버는
+      // 구별하지 못하므로, 지우는 것은 받은 사람이 답한 뒤여야 한다. 그래서 이 작업은
+      // 내려받은 적이 있는 행에만 뜨고, 누르면 확인을 한 번 더 묻는다.
+      { label: "서버에서 삭제", variant: "danger", roles: ["system_admin"],
+        when: (r) => r.file_state === "present" && !!r.downloaded_at,
+        confirm: "서버에 저장된 백업 파일을 삭제하시겠습니까? 내려받은 파일과 백업 저장소 사본은 그대로 남고, 이 서버에서는 이 백업으로 되돌릴 수 없게 됩니다.",
+        path: (r) => "/api/admin/backups/" + r.id + "/discard-file",
+        result: () => ({ ok: true, msg: "서버에서 삭제했습니다" }) },
       // operator는 백업 화면(READ_ROLES)엔 들어오지만 /audit 화면엔 못 들어간다(App.jsx SCREEN_ROLES)
       // — approvals.registry.js:990과 동일한 이유로 admin/system_admin/auditor에만 노출한다.
       { label: "감사 로그에서 보기", roles: ["admin", "system_admin", "auditor"], navigate: (r) => "#/audit?object_type=backup&object_id=" + r.id },
@@ -102,7 +131,7 @@ export const PLATFORM_SCREENS = {
   "restore-drills": {
     key: "restore-drills", area: "운영", title: "복구 리허설",
     endpoint: "/api/admin/backups/rehearsals",
-    help: "백업은 복원해 본 적이 없으면 백업이 아닙니다. 리허설은 백업을 실제로 되돌려 무결성, 행 수, 스키마를 대조하고, 복원본으로 앱을 띄워 읽기 경로까지 확인합니다. 앱이 스스로 돌리지 않으므로(메모리를 두 배로 쓰기 때문) 서버에서 명령을 실행하면 결과가 여기에 남습니다. 목록에는 최근 20건까지만 표시됩니다.",
+    help: "백업은 복원해 본 적이 없으면 백업이 아닙니다. 리허설은 백업을 임시 데이터베이스로 실제로 되돌려 무결성, 행 수, 스키마를 대조하고, 복원본으로 앱을 띄워 읽기 경로까지 확인합니다. 앱이 스스로 돌리지 않으므로(메모리를 두 배로 쓰기 때문) 서버에서 명령을 실행하면 결과가 여기에 남습니다. 목록에는 최근 20건까지만 표시됩니다.",
     // RG-06: 이 화면은 create도 primary headerAction도 없다(리허설은 웹 버튼이 아니라 서버
     // CLI로 돈다, 아래 emptySteps 참고) — DataScreen.jsx의 canOnboard 게이트가 그 둘만 보므로
     // 그대로 두면 situation/prerequisite/steps/expected 4종이 어떤 역할에서도 안 그려진다.
@@ -113,8 +142,9 @@ export const PLATFORM_SCREENS = {
     emptySituation: "백업 파일은 쌓이는데, 그것으로 실제 복원이 되는지는 아무도 확인한 적이 없습니다.",
     emptyPrerequisite: "서버에 접속할 수 있어야 합니다(웹에서 실행하지 않습니다).",
     emptySteps: [
-      "서버에서 scripts/restore_rehearsal.py --record 를 실행합니다.",
-      "백업 → 검증 → 복원 → 무결성 → 행 수 대조 → 스키마 → 실제 부팅 순으로 7단계가 돕니다.",
+      "서버에서 python scripts/restore_rehearsal.py --record 를 실행합니다.",
+      "백업 → 검증 → 새 데이터베이스로 복원 → 무결성 → 행 수 대조 → 스키마 → 실제 부팅 → 첨부 순으로 여덟 단계가 돕니다.",
+      "복원은 임시 데이터베이스에만 하므로 운영 데이터를 건드리지 않습니다.",
       "끝나면 결과 한 줄이 이 목록에 남습니다(실패하면 실패한 단계도 함께).",
     ],
     emptyExpected: "‘마지막으로 복원을 시험한 게 언제인가’에 이 화면 하나로 답할 수 있게 됩니다.",
@@ -141,6 +171,12 @@ export const PLATFORM_SCREENS = {
           { value: last ? fmtDateTime(last.created_at) : "없음", label: "마지막 백업", kind: last ? "ok" : "danger" },
           { value: drill ? (drill.ok ? "통과" : "실패") : "한 번도 안 함", label: "마지막 리허설", kind: drill ? (drill.ok ? "ok" : "danger") : "warn" },
           { value: s.keep == null ? "-" : String(s.keep), label: "보관 개수" },
+          { value: s.keep_days == null ? "-" : (String(s.keep_days) + "일"), label: "보관 기간" },
+          // 경고가 있으면 그 개수를 카드로 세운다. 「백업이 돌고 있다」와 「그 백업을
+          // 믿을 수 있다」는 다른 질문이고, 후자의 답이 여기에 있다.
+          ...(((data && data.warnings) || []).length
+            ? [{ value: String(data.warnings.length) + "건", label: "백업 경고", kind: "warn" }]
+            : []),
         ];
       },
     },

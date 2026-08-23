@@ -129,7 +129,13 @@ def test_the_retrieval_migration_follows_the_index_one():
 def test_no_revision_follows_the_retrieval_one():
     """`0008` 뒤에는 **한 갈래만** 온다. 두 갈래가 되면 `upgrade head` 가 어느 쪽인지
     못 고른다. S11 이 `0009` 를 그 자리에 뒀다 — 「head 다」가 아니라 「갈래가 하나다」가
-    이 시험이 지키던 것이고, 그 성질은 그대로다."""
+    이 시험이 지키던 것이고, 그 성질은 그대로다.
+
+    qa-contract-change: 아래 head 단언이 **이름을 못박고 있었다**(`0009_…`). 그것은 이
+    시험이 지키려는 성질이 아니다 — 마이그레이션을 하나 더할 때마다 이 문자열을 고쳐야
+    하고, 고치는 사람은 「갈래가 하나인가」를 생각하지 않고 이름만 바꾼다. S12 가 `0010`
+    을 더하면서 그것이 드러났다. 성질 그대로 **「head 가 정확히 하나」**를 본다.
+    """
     versions = ROOT / "alembic" / "versions"
     followers = [
         path.name for path in versions.glob("*.py")
@@ -147,7 +153,12 @@ def test_no_revision_follows_the_retrieval_one():
                 if raw.startswith(line):
                     bucket.add(raw.split("'")[1])
     heads = sorted(revisions - parents)
-    assert heads == ["0009_drop_external_automation"], f"head 가 하나가 아니다: {heads}"
+    assert len(heads) == 1, f"head 가 하나가 아니다: {heads}"
+    # 사슬이 실제로 이어져 있는가 — head 하나만으로는 **고아 사슬 둘**을 못 본다
+    # (각자 head 가 있는 두 덩어리는 위 검사에서 heads 가 2 가 되지만, 한 덩어리가
+    # 통째로 빠져도 남은 쪽은 head 1 로 통과한다). 부모가 전부 실재하는지 함께 본다.
+    missing = sorted(parents - revisions - {"None"})
+    assert missing == [], f"가리키는 revision 이 없다: {missing}"
 
 
 def test_no_vector_index_is_created_yet():

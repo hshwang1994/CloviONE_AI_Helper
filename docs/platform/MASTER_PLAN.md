@@ -457,6 +457,12 @@ Dry Run 완료 → 전체 검증 → 최종 Backup → Maintenance Mode → 마�
   기존 `scripts/restore_rehearsal.py` 의 8단계(특히 **복원된 DB 로 앱을 실제 기동해 읽기 경로를
   호출하는 7단계**)를 PG 기준으로 이식한다 — 저장소에서 가장 정직한 검증 자산이다
 
+**S12 가 이행한 모양** (D-269~D-273): 백업 하나는 `backup-<stamp>/{database.dump, manifest.json,
+SHA256SUMS}` 세트다. 파생 넷은 **행만** 빠지고(`--exclude-table-data`) 무엇을 왜 뺐는지가
+매니페스트에 실려 함께 이동한다. 보존은 **개수와 나이 둘 다** 넘어야 지우고, 배포 스냅숏도
+같은 규칙으로 `deploy/install.sh` 가 만들 때 치운다. 리허설은 `python scripts/restore_rehearsal.py
+--record` 이고 결과가 관리 콘솔의 「복구 리허설」 화면에 남는다
+
 ---
 
 ## 9. Session 계획 S0~S22
@@ -511,7 +517,7 @@ Dry Run 완료 → 전체 검증 → 최종 Backup → Maintenance Mode → 마�
 
 | S | 이름 | 핵심 산출 | Exit 조건 |
 |---|---|---|---|
-| **S12** | Backup / Restore 운영 | Policy · Schedule · Retention · Manifest · 무결성(체크섬+`pg_restore --list`+임시 복원) · Local 다운로드 UX · NFS/SMB Backup Provider · Restore Validation · 동일 저장소 경고 | 복원 후 **앱 기동 + 읽기 경로 호출** 통과 · 파일 생성만으로 SUCCESS 안 됨 확인 |
+| **S12** ✅ | Backup / Restore 운영 | 백업 **세트**(덤프+매니페스트+`SHA256SUMS`, D-269) · 범위 정책이 `pg_dump` 인자까지(D-270) · 보존 두 바닥(D-271) + 배포 스냅숏 보존 · Local 다운로드와 **사람이 답한 뒤** 서버 삭제(D-272) · NFS/SMB Backup Provider 사본 · 동일 저장소 경고 · `restore_rehearsal.py` **PG 8단계 이식** | **완료 (2026-08-23)** — 실 PG 16.15 + 실 `pg_dump` 에서 8단계 전부 통과하고 복원본을 물고 띄운 앱이 읽기 경로 **13개를 전부 200** 으로 답했다. 판정이 틀린 쪽으로도 움직이는 것을 **반례 셋**으로 보였다(파일만 생긴 덤프 · 401 만 나오는 앱 · 정책이 안 걸린 덤프). 🔴 첫 회차가 초록인데 인증 경로 11개가 401 이었고, 그 회차를 지우지 않고 원장에 남겼다(D-273). 결정 **D-269~D-273**, 원장 [`EVIDENCE/S12/`](EVIDENCE/S12/README.md) |
 | **S13** | Migration Tool + Dry Run | Extract(Notion+SQLite) · Transform · Validate · Load · Idempotent 재실행 · **임시 PG Dry Run** · Report · **Migration Exception 분류** · Project Key 적용 · 재채번 · `legacy_mapping` | Dry Run 무결성 전항 0(또는 Exception 분류) · 길이 초과 0 · legacy/canonical 충돌 0 |
 | **S14** | **Cutover + Legacy 제거** (단독) | 최종 Backup → Maintenance → 마지막 Delta → PG 전환 → File/Relation/Application 검증 → AI Index → Open → **Notion·SQLite Runtime 차단** → Legacy 코드·문서·Harness 제거 | Notion/SQLite Runtime 의존 **0** · Legacy 잔존 0 · Rollback 지점 문서화 |
 

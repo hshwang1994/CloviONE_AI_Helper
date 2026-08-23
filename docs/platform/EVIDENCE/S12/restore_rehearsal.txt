@@ -1,0 +1,366 @@
+S12 — 복구 리허설 실측 (P-23a · D-204 · MASTER_PLAN §9.1 Exit)
+==============================================================
+
+실 PostgreSQL 16.15 + 실 pg_dump/pg_restore 에서 돌린 원문이다.
+테스트 서버 10.100.64.71 의 사용자 공간 PG(~/s1pg, 포트 55432, 유닉스 소켓)를 쓴다 —
+개발 머신(Windows)에는 pg_dump 가 없다(S2 가 같은 이유로 여기서 쟀다).
+
+무엇을 보려 했나 — 「덤프가 만들어졌다」가 아니라 **「그 덤프로 되돌리면 앱이 실제로
+도는가」** 다. 그리고 그 판정이 **틀린 쪽으로도 움직이는가**(반례 셋).
+
+원본 DB: s12src (94 표 · 사용자 1 · 문서 5 · 파생 표에 16행을 일부러 심었다)
+
+───────────────────────────────────────────────────────────────
+정상 회차 — 8단계 전부 통과
+───────────────────────────────────────────────────────────────
+== server ==
+PostgreSQL 16.15 (Ubuntu 16.15-0ubuntu0.24.04.1) on x86_64-pc-linux-gnu, compiled by gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0, 64-bit
+== pg_dump ==
+pg_dump (PostgreSQL) 16.15 (Ubuntu 16.15-0ubuntu0.24.04.1)
+
+== 정상 회차 ==
+[1/8] 백업 — 앱 자신의 코드로
+  세트: /home/cloviradmin/s12rehearsal/var/exports/backup-20260823_101538_350648
+[2/8] 검증 — 앱이 스스로 «되돌릴 수 있다» 고 말하는가
+[3/8] 복원 — 새 데이터베이스 clovir_rehearsal_b99be92faf
+[4/8] 무결성 — 제약·인덱스가 실제로 다시 섰는가
+[5/8] 행 수 — 유실과 정책을 함께 본다
+[6/8] 스키마 — 코드가 아는 head 와 같은가
+[8/8] 첨부 — DB 가 가리키는 바이트가 디스크에 있는가
+[7/8] 앱 기동 — 복원본을 물고 실제 읽기 경로를 부른다
+  로그인 성공: s12-admin@goodmit.co.kr
+기록했다: restore_rehearsals
+
+{
+  "alembic_head": "0010_backup_operations",
+  "attachments_missing": 0,
+  "authenticated": true,
+  "backup_path": "/home/cloviradmin/s12rehearsal/var/exports/backup-20260823_101538_350648",
+  "backup_sha256": "b8246411bda0a0d142042dc438c8fd443ebc6da1d415680706da1473b79f9bd6",
+  "code_alembic_head": "0010_backup_operations",
+  "excluded_tables": [
+    "ai_index_state",
+    "document_chunks",
+    "rate_limit_buckets",
+    "search_documents"
+  ],
+  "label": "backup-20260823_101538_350648",
+  "manifest_version": 1,
+  "read_paths_called": 13,
+  "read_paths_ok": 13,
+  "restored_alembic_head": "0010_backup_operations",
+  "restored_database": "clovir_rehearsal_b99be92faf",
+  "rows": 173,
+  "shape": {
+    "check_constraints": 49,
+    "foreign_keys": 108,
+    "identity_columns": 4,
+    "jsonb_columns": 30,
+    "partial_unique_indexes": 16,
+    "trgm_gin_indexes": 3
+  },
+  "tables": 94
+}
+RESTORE_REHEARSAL_OK
+EXIT=0
+
+== 세트 안에 무엇이 있는가 ==
+total 292
+drwxrwxr-x 2 cloviradmin cloviradmin   4096 Aug 23 19:15 .
+drwxrwxr-x 9 cloviradmin cloviradmin   4096 Aug 23 19:15 ..
+-rw-rw-r-- 1 cloviradmin cloviradmin 281038 Aug 23 19:15 database.dump
+-rw-rw-r-- 1 cloviradmin cloviradmin   2089 Aug 23 19:15 manifest.json
+-rw-rw-r-- 1 cloviradmin cloviradmin    160 Aug 23 19:15 SHA256SUMS
+-- SHA256SUMS --
+b8246411bda0a0d142042dc438c8fd443ebc6da1d415680706da1473b79f9bd6  database.dump
+13edbed3558c4c9f4191ac7c2c5c6ac58b7819f0f1e20ded9d0c1fd44c361a7a  manifest.json
+-- sha256sum -c (우리 도구 없이 확인된다) --
+database.dump: OK
+manifest.json: OK
+-- manifest.json --
+{
+  "created_at": "2026-08-23T10:15:38.350648",
+  "created_by": null,
+  "database": {
+    "file": "database.dump",
+    "format": "pg_dump custom (-Fc)",
+    "sha256": "b8246411bda0a0d142042dc438c8fd443ebc6da1d415680706da1473b79f9bd6",
+    "size_bytes": 281038,
+    "verified": true
+  },
+  "destination": null,
+  "files": {
+    "ok": false,
+    "reason": "저장소가 없습니다(원본 OPERATIONAL=False, 대상 BACKUP=False)."
+  },
+  "manifest_version": 1,
+  "product": {
+    "slug": "clovirassist"
+  },
+  "schema": {
+    "alembic_head_code": "0010_backup_operations",
+    "alembic_head_database": "0010_backup_operations",
+    "matches": true
+  },
+  "scope": {
+    "excluded_table_data": [
+      {
+        "label": "AI 색인 조각과 임베딩",
+        "regenerated_by": "색인 레인이 문서 원본에서 다시 만듭니다.",
+        "table": "document_chunks"
+      },
+      {
+        "label": "AI 색인 진행 상태",
+        "regenerated_by": "상태 행이 없는 문서를 색인 레인이 스스로 찾아 다시 돕니다.",
+        "table": "ai_index_state"
+      },
+      {
+        "label": "검색 색인",
+        "regenerated_by": "검색 색인 갱신이 원본에서 전체를 다시 만듭니다.",
+        "table": "search_documents"
+      },
+      {
+        "label": "요청 제한 카운터",
+        "regenerated_by": "다음 요청이 다시 만듭니다.",
+        "table": "rate_limit_buckets"
+      }
+    ],
+    "included": [
+      "PostgreSQL 데이터베이스 전체",
+      "업로드 원본 파일과 첨부",
+      "설정",
+      "감사 로그"
+    ],
+    "note": "제외한 것은 표가 아니라 행입니다. 표는 그대로 복원되고 비어 있으며, 제품이 원본에서 다시 채웁니다."
+  },
+  "warnings": [
+    "백업 저장소가 설정되지 않아 백업이 앱과 같은 디스크에만 있습니다. 그 디스크가 고장 나면 백업도 함께 잃습니다.",
+    "업로드 파일을 백업 저장소로 옮기지 못했습니다: 저장소가 없습니다(원본 OPERATIONAL=False, 대상 BACKUP=False)."
+  ]
+}
+
+== 기록된 리허설 ==
+t|backup-20260823_101538_350648|13
+t|backup-20260823_101344_312240|13
+t|backup-20260823_101204_501462|
+
+
+───────────────────────────────────────────────────────────────
+커밋될 코드로 다시 한 번 (지문 대조)
+───────────────────────────────────────────────────────────────
+위 회차 뒤에 몇 군데를 더 다듬어서, **실제로 커밋되는 코드**로 다시 돌렸다.
+증거가 나온 코드와 배포되는 코드가 다르면 그 증거는 다른 물건의 증거다.
+
+== 커밋될 코드의 지문 ==
+b37e36bc1a72ed7e5dd5a540a4fd353e  app/backups/service.py
+b03008d03864e7c3c68781358ceef965  app/backups/manifest.py
+26036b00ff9b3c77a9e683d6fd2d085b  app/backups/policy.py
+d3e9e27f2cc88dc02344ce5e79880ea9  app/backups/destination.py
+58b4dd80cea4a81a1f94215cf7bced4b  app/backups/pg_backup.py
+0b8b4a3a55ed7bb1a78438b641448b98  scripts/restore_rehearsal.py
+
+[1/8] 백업 — 앱 자신의 코드로
+  세트: /home/cloviradmin/s12rehearsal/var/exports/backup-20260823_110507_465595
+[2/8] 검증 — 앱이 스스로 «되돌릴 수 있다» 고 말하는가
+[3/8] 복원 — 새 데이터베이스 clovir_rehearsal_27a3f9ba42
+[4/8] 무결성 — 제약·인덱스가 실제로 다시 섰는가
+[5/8] 행 수 — 유실과 정책을 함께 본다
+[6/8] 스키마 — 코드가 아는 head 와 같은가
+[8/8] 첨부 — DB 가 가리키는 바이트가 디스크에 있는가
+[7/8] 앱 기동 — 복원본을 물고 실제 읽기 경로를 부른다
+  로그인 성공: s12-admin@goodmit.co.kr
+기록했다: restore_rehearsals
+
+{
+  "alembic_head": "0010_backup_operations",
+  "attachments_missing": 0,
+  "authenticated": true,
+  "backup_path": "/home/cloviradmin/s12rehearsal/var/exports/backup-20260823_110507_465595",
+  "backup_sha256": "56d0ee9b8832cf76325c9efb15e23dfc6edaf97c6f234edb42e3da8d743adbc0",
+  "code_alembic_head": "0010_backup_operations",
+  "excluded_tables": [
+    "ai_index_state",
+    "document_chunks",
+    "rate_limit_buckets",
+    "search_documents"
+  ],
+  "label": "backup-20260823_110507_465595",
+  "manifest_version": 1,
+  "read_paths_called": 13,
+  "read_paths_ok": 13,
+  "restored_alembic_head": "0010_backup_operations",
+  "restored_database": "clovir_rehearsal_27a3f9ba42",
+  "rows": 175,
+  "shape": {
+    "check_constraints": 49,
+    "foreign_keys": 108,
+    "identity_columns": 4,
+    "jsonb_columns": 30,
+    "partial_unique_indexes": 16,
+    "trgm_gin_indexes": 3
+  },
+  "tables": 94
+}
+RESTORE_REHEARSAL_OK
+EXIT=0
+
+== 리허설이 복원본을 치웠는가 ==
+0
+
+마지막 줄의 0 은 **리허설이 만든 복원본 데이터베이스를 스스로 다 치웠다**는 뜻이다.
+
+───────────────────────────────────────────────────────────────
+반례 A — 파일은 생기지만 복원되지 않는 덤프
+───────────────────────────────────────────────────────────────
+pg_dump 자리에 «rc=0 으로 끝나고 아카이브가 아닌 파일을 쓰는» 껍데기를 놓았다.
+D-204 의 «파일 생성만으로 SUCCESS 가 아니다» 를 실 도구로 증명하는 자리다.
+
+=== 반례 A: 파일은 생기지만 복원되지 않는 덤프 ===
+[1/8] 백업 — 앱 자신의 코드로
+backup restore-verify failed: /home/cloviradmin/s12rehearsal/var/exports/backup-20260823_101424_153048/database.dump (archive_unreadable: pg_restore: error: input file does not appear to be a valid archive (too short?))
+  세트: /home/cloviradmin/s12rehearsal/var/exports/backup-20260823_101424_153048
+[2/8] 검증 — 앱이 스스로 «되돌릴 수 있다» 고 말하는가
+  FAIL 2-검증: 상태가 failed 다 (백업 파일을 열 수 없습니다(파일 손상 가능성).)
+
+{
+  "backup_path": "/home/cloviradmin/s12rehearsal/var/exports/backup-20260823_101424_153048",
+  "backup_sha256": "ec78733eaee548dfd6a2b5189ce75ad44d184a5c7425860263f4dfd3cbb0d59a"
+}
+RESTORE_REHEARSAL_FAILED (1건)
+  - 2-검증: 상태가 failed 다 (백업 파일을 열 수 없습니다(파일 손상 가능성).)
+EXIT=1
+
+───────────────────────────────────────────────────────────────
+반례 B — 앱은 떴지만 읽기 경로가 실제로는 안 읽힌다
+───────────────────────────────────────────────────────────────
+세션 쿠키가 Secure 라 http:// 로 부르면 안 실린다. 로그인은 200 인데 뒤따르는
+요청이 전부 401 이 되는 상태 — **첫 회차가 실제로 이 상태였고 그때는 초록이었다**
+(5xx 만 실패로 봤다). 판정을 «200 이 아니면 실패» 로 바꾼 뒤 다시 만든 결과다.
+
+=== 반례 B: 앱은 떴지만 읽기 경로가 실제로는 안 읽힌다 ===
+[1/8] 백업 — 앱 자신의 코드로
+  세트: /home/cloviradmin/s12rehearsal/var/exports/backup-20260823_101441_147039
+[2/8] 검증 — 앱이 스스로 «되돌릴 수 있다» 고 말하는가
+[3/8] 복원 — 새 데이터베이스 clovir_rehearsal_4c0d026cc7
+[4/8] 무결성 — 제약·인덱스가 실제로 다시 섰는가
+[5/8] 행 수 — 유실과 정책을 함께 본다
+[6/8] 스키마 — 코드가 아는 head 와 같은가
+[8/8] 첨부 — DB 가 가리키는 바이트가 디스크에 있는가
+[7/8] 앱 기동 — 복원본을 물고 실제 읽기 경로를 부른다
+  로그인 성공: s12-admin@goodmit.co.kr
+  FAIL 7-앱기동: GET /api/me → 401 {"error":{"code":"unauthorized","message":"로그인이 필요합니다. 다시 로그인해 주세요.","request_id":"9b6b8ba2f75c40bb8d927a4e31787a6f"}}
+  FAIL 7-앱기동: GET /api/tickets/mine → 401 {"error":{"code":"unauthorized","message":"로그인이 필요합니다. 다시 로그인해 주세요.","request_id":"596d5579191b4b1dade456ea20be739d"}}
+  FAIL 7-앱기동: GET /api/tickets/meta → 401 {"error":{"code":"unauthorized","message":"로그인이 필요합니다. 다시 로그인해 주세요.","request_id":"8588fe83f7834df29b5219c2fddc44c4"}}
+  FAIL 7-앱기동: GET /api/projects → 401 {"error":{"code":"unauthorized","message":"로그인이 필요합니다. 다시 로그인해 주세요.","request_id":"4f50937a589a4bc984f2c91e085984c1"}}
+  FAIL 7-앱기동: GET /api/knowledge/documents?limit=5 → 401 {"error":{"code":"unauthorized","message":"로그인이 필요합니다. 다시 로그인해 주세요.","request_id":"9cd9e2c44cfe48b8b3f1fb777b7a6fa5"}}
+  FAIL 7-앱기동: GET /api/notifications?limit=5 → 401 {"error":{"code":"unauthorized","message":"로그인이 필요합니다. 다시 로그인해 주세요.","request_id":"6db00d736a6e46b29e5a9312382a96bf"}}
+  FAIL 7-앱기동: GET /api/admin/users?limit=5 → 401 {"error":{"code":"unauthorized","message":"로그인이 필요합니다. 다시 로그인해 주세요.","request_id":"5dde2c2daa0d4278baafb94f9b569789"}}
+  FAIL 7-앱기동: GET /api/admin/audit?limit=5 → 401 {"error":{"code":"unauthorized","message":"로그인이 필요합니다. 다시 로그인해 주세요.","request_id":"eae23ac6bd3042c7921a31b96805361e"}}
+  FAIL 7-앱기동: GET /api/admin/backups → 401 {"error":{"code":"unauthorized","message":"로그인이 필요합니다. 다시 로그인해 주세요.","request_id":"517776a2d4744d978afe3737b7bf5497"}}
+  FAIL 7-앱기동: GET /api/storage/providers → 401 {"error":{"code":"unauthorized","message":"로그인이 필요합니다. 다시 로그인해 주세요.","request_id":"050815edbf704cd6840d1f7c2ff40835"}}
+  FAIL 7-앱기동: GET /api/search?q=test → 401 {"error":{"code":"unauthorized","message":"로그인이 필요합니다. 다시 로그인해 주세요.","request_id":"eb8f4d07ee16439aa0e67546be769293"}}
+
+{
+  "alembic_head": "0010_backup_operations",
+  "attachments_missing": 0,
+  "authenticated": true,
+  "backup_path": "/home/cloviradmin/s12rehearsal/var/exports/backup-20260823_101441_147039",
+  "backup_sha256": "56357b5028d33789f5fb1d6cde4b3e4840f60a66536b96a3267b857dc5b9e450",
+  "code_alembic_head": "0010_backup_operations",
+  "excluded_tables": [
+    "ai_index_state",
+    "document_chunks",
+    "rate_limit_buckets",
+    "search_documents"
+  ],
+  "label": "backup-20260823_101441_147039",
+  "manifest_version": 1,
+  "read_paths_called": 13,
+  "read_paths_ok": 2,
+  "restored_alembic_head": "0010_backup_operations",
+  "restored_database": "clovir_rehearsal_4c0d026cc7",
+  "rows": 171,
+  "shape": {
+    "check_constraints": 49,
+    "foreign_keys": 108,
+    "identity_columns": 4,
+    "jsonb_columns": 30,
+    "partial_unique_indexes": 16,
+    "trgm_gin_indexes": 3
+  },
+  "tables": 94
+}
+RESTORE_REHEARSAL_FAILED (11건)
+  - 7-앱기동: GET /api/me → 401 {"error":{"code":"unauthorized","message":"로그인이 필요합니다. 다시 로그인해 주세요.","request_id":"9b6b8ba2f75c40bb8d927a4e31787a6f"}}
+  - 7-앱기동: GET /api/tickets/mine → 401 {"error":{"code":"unauthorized","message":"로그인이 필요합니다. 다시 로그인해 주세요.","request_id":"596d5579191b4b1dade456ea20be739d"}}
+  - 7-앱기동: GET /api/tickets/meta → 401 {"error":{"code":"unauthorized","message":"로그인이 필요합니다. 다시 로그인해 주세요.","request_id":"8588fe83f7834df29b5219c2fddc44c4"}}
+  - 7-앱기동: GET /api/projects → 401 {"error":{"code":"unauthorized","message":"로그인이 필요합니다. 다시 로그인해 주세요.","request_id":"4f50937a589a4bc984f2c91e085984c1"}}
+  - 7-앱기동: GET /api/knowledge/documents?limit=5 → 401 {"error":{"code":"unauthorized","message":"로그인이 필요합니다. 다시 로그인해 주세요.","request_id":"9cd9e2c44cfe48b8b3f1fb777b7a6fa5"}}
+  - 7-앱기동: GET /api/notifications?limit=5 → 401 {"error":{"code":"unauthorized","message":"로그인이 필요합니다. 다시 로그인해 주세요.","request_id":"6db00d736a6e46b29e5a9312382a96bf"}}
+  - 7-앱기동: GET /api/admin/users?limit=5 → 401 {"error":{"code":"unauthorized","message":"로그인이 필요합니다. 다시 로그인해 주세요.","request_id":"5dde2c2daa0d4278baafb94f9b569789"}}
+  - 7-앱기동: GET /api/admin/audit?limit=5 → 401 {"error":{"code":"unauthorized","message":"로그인이 필요합니다. 다시 로그인해 주세요.","request_id":"eae23ac6bd3042c7921a31b96805361e"}}
+  - 7-앱기동: GET /api/admin/backups → 401 {"error":{"code":"unauthorized","message":"로그인이 필요합니다. 다시 로그인해 주세요.","request_id":"517776a2d4744d978afe3737b7bf5497"}}
+  - 7-앱기동: GET /api/storage/providers → 401 {"error":{"code":"unauthorized","message":"로그인이 필요합니다. 다시 로그인해 주세요.","request_id":"050815edbf704cd6840d1f7c2ff40835"}}
+  - 7-앱기동: GET /api/search?q=test → 401 {"error":{"code":"unauthorized","message":"로그인이 필요합니다. 다시 로그인해 주세요.","request_id":"eb8f4d07ee16439aa0e67546be769293"}}
+EXIT=1
+276:BASE_URL = "https://testserver"
+
+───────────────────────────────────────────────────────────────
+반례 C — 정책이 실제로는 안 걸린 덤프
+───────────────────────────────────────────────────────────────
+pg_dump 자리에 «--exclude-table-data 를 떨어뜨리는» 껍데기를 놓았다.
+매니페스트는 「제외했습니다」라고 적는데 덤프에는 그 행이 그대로 있는 상태 —
+문서만 맞고 실제는 다른, 복원해 보기 전까지 안 보이는 차이다.
+
+=== 반례 C: 정책이 실제로는 안 걸린 덤프 ===
+[1/8] 백업 — 앱 자신의 코드로
+[2/8] 검증 — 앱이 스스로 «되돌릴 수 있다» 고 말하는가
+[3/8] 복원 — 새 데이터베이스 clovir_rehearsal_9ab1c6e9dd
+[4/8] 무결성 — 제약·인덱스가 실제로 다시 섰는가
+[5/8] 행 수 — 유실과 정책을 함께 본다
+  FAIL 5-행수: ai_index_state 은 제외 대상인데 복원본에 5행이 있다
+  FAIL 5-행수: document_chunks 은 제외 대상인데 복원본에 10행이 있다
+  FAIL 5-행수: rate_limit_buckets 은 제외 대상인데 복원본에 1행이 있다
+[6/8] 스키마 — 코드가 아는 head 와 같은가
+[8/8] 첨부 — DB 가 가리키는 바이트가 디스크에 있는가
+[7/8] 앱 기동 — 복원본을 물고 실제 읽기 경로를 부른다
+RESTORE_REHEARSAL_FAILED (3건)
+  - 5-행수: ai_index_state 은 제외 대상인데 복원본에 5행이 있다
+  - 5-행수: document_chunks 은 제외 대상인데 복원본에 10행이 있다
+  - 5-행수: rate_limit_buckets 은 제외 대상인데 복원본에 1행이 있다
+EXIT=1
+
+───────────────────────────────────────────────────────────────
+배포 스냅숏 보존 — install.sh::prune_snapshots (D-271)
+───────────────────────────────────────────────────────────────
+`deploy/install.sh` 은 upgrade 마다 스냅숏을 만드는데 **지우는 코드가 없었다.**
+S12 가 만드는 자리에서 나이로 치우게 했다. 아래는 그 함수만 떼어 내 실 리눅스에서
+돌린 결과다 — 알려진 좋음(오래된 둘은 지운다)과 알려진 나쁨(최근 것과 사람이 손으로
+둔 디렉터리는 안 지운다)을 함께 본다. 이름 구분자 두 가지(하이픈·밑줄)를 다 받는다.
+
+== 정리 전 ==
+20260701-120000
+20260710_120000
+20260823-120000
+keep-this-by-hand
+[log] 스냅샷 정리(14일 초과): /tmp/tmp.rV32Y3efOj/backups/20260701-120000
+[log] 스냅샷 정리(14일 초과): /tmp/tmp.rV32Y3efOj/backups/20260710_120000
+== 정리 후 ==
+20260823-120000
+keep-this-by-hand
+
+───────────────────────────────────────────────────────────────
+장부가 그 차이를 보여 준다 (restore_rehearsals)
+───────────────────────────────────────────────────────────────
+관리 콘솔의 「복구 리허설」 화면이 읽는 표다. 맨 아래 행이 **첫 회차** — 통과로
+기록돼 있는데 read_paths_ok 칸이 비어 있다. 그 칸이 없던 판이고, 없으니 「13건
+호출」과 「13건 성공」이 구별되지 않았다. 위 세 행에는 13 이 적혀 있다.
+
+         started_at         | ok | read_paths_ok |         source_label          
+----------------------------+----+---------------+-------------------------------
+ 2026-08-23 11:05:07.37533  | t  | 13            | backup-20260823_110507_465595
+ 2026-08-23 10:15:38.259253 | t  | 13            | backup-20260823_101538_350648
+ 2026-08-23 10:13:44.222772 | t  | 13            | backup-20260823_101344_312240
+ 2026-08-23 10:12:04.401832 | t  |               | backup-20260823_101204_501462
+(4 rows)
+

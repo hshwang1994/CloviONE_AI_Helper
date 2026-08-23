@@ -183,7 +183,7 @@ export const objRouteHref = (objType, objId) => {
 };
 // 백업 오류는 SQLite/파일시스템 원시 예외 문자열을 그대로 담아 온다 — 알려진 사유 코드만 한국어로
 // 치환하고, 그 외(원시 예외 등)는 원문을 그대로 보여준다(정보 손실 방지).
-export const BACKUP_REASON_KO = { file_missing: "백업 파일 없음", checksum_mismatch: "체크섬 불일치", database_error: "데이터베이스 오류", integrity_check: "무결성 검사 실패" };
+export const BACKUP_REASON_KO = { file_missing: "백업 파일 없음", checksum_mismatch: "체크섬 불일치", database_error: "데이터베이스 오류", integrity_check: "무결성 검사 실패", set_missing: "백업 세트를 찾을 수 없음", checksums_missing: "체크섬 파일 없음", set_modified: "백업 세트가 만든 뒤에 바뀜", file_removed: "서버에서 삭제한 백업" };
 export const backupReasonText = (raw) => {
   if (raw == null || raw === "") return "";
   const s = String(raw);

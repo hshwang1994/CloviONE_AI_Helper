@@ -72,17 +72,19 @@ def test_backup_create_verify_and_list(client, login_as, stub_pg_dump):
 
 
 def test_verify_downgrades_status_on_failure(db, settings, fake_clock, stub_pg_dump):
-    # 재검증 실패 시 상태를 failed로 낮춰야 한다(손상된 백업이 '정상'으로 남지 않도록).
-    from pathlib import Path
+    """재검증 실패 시 상태를 failed로 낮춰야 한다(손상된 백업이 '정상'으로 남지 않도록).
 
+    qa-contract-change: S12 부터 `path` 는 **세트 디렉터리**다. 손상시킬 대상은 그
+    디렉터리가 아니라 안의 덤프 파일이다.
+    """
     from app.backups.models import STATUS_FAILED
-    from app.backups.service import run_backup, verify_existing
+    from app.backups.service import dump_path, run_backup, verify_existing
 
     row = run_backup(db, settings, created_by="tester", now=fake_clock.now())
     db.commit()
     assert row.status in ("succeeded", "verified")
-    Path(row.path).write_text("corrupted-not-a-sqlite-db")  # 파일 손상
-    result = verify_existing(db, row, now=fake_clock.now())
+    dump_path(row.path).write_text("corrupted-not-an-archive")  # 파일 손상
+    result = verify_existing(db, row, now=fake_clock.now(), settings=settings)
     assert result["ok"] is False
     assert row.status == STATUS_FAILED
 
@@ -131,6 +133,11 @@ def test_manual_backup_respects_configured_retention(client, login_as, db, fake_
     수동 생성(POST /api/admin/backups → create_backup)은 apply_retention(db) 를 인자 없이
     불러 하드코딩된 기본값(14)을 쓴다 — 관리자가 keep 을 14 미만으로 좁혀도 수동 백업을
     누르면 정책이 지켜지지 않고 오래된 백업이 그대로 쌓인다.
+
+    qa-contract-change: S12 가 보존에 **나이 바닥**(`keep_days`)을 더했다 — 개수와 나이를
+    둘 다 넘겨야 지운다. 그래서 이 시험은 `keep_days: 0` 을 **명시적으로** 골라 개수 축만
+    본다. 나이 축은 아래 `test_retention_age_floor_keeps_recent_backups` 가 따로 본다.
+    둘을 한 시험에서 보면 어느 바닥이 걸렸는지 실패 메시지가 말해 주지 못한다.
     """
     from datetime import timedelta
 
@@ -139,7 +146,8 @@ def test_manual_backup_respects_configured_retention(client, login_as, db, fake_
     csrf = login_as("system_admin")
     r = client.put(
         "/api/admin/settings/backup_schedule",
-        json={"value": {"enabled": True, "cron": "0 3 * * *", "timezone": "Asia/Seoul", "keep": 2}},
+        json={"value": {"enabled": True, "cron": "0 3 * * *", "timezone": "Asia/Seoul",
+                        "keep": 2, "keep_days": 0}},
         headers=_headers(csrf),
     )
     assert r.status_code == 200, r.text
@@ -174,16 +182,32 @@ def test_backup_requires_system_admin(client, login_as):
 
 def test_restore_instructions_are_script_only(client, login_as):
     """복원은 화면이 아니라 스크립트가 한다 — 그 안내가 **실제로 존재하는 명령**을 가리켜야
-    한다. S4 가 진입점을 `deploy/install.sh rollback` 하나로 모았으므로(R13) 안내도 그것을
-    말한다. 없는 스크립트 이름을 안내하면 사고 당일에야 그 사실을 안다.
+    한다. 없는 스크립트 이름을 안내하면 사고 당일에야 그 사실을 안다.
+
+    qa-contract-change: S12 가 **두 가지 되돌리기를 갈랐다**. `steps` 는 이제 「데이터를
+    되돌린다」(세트 → `pg_restore`)이고, 「배포를 되돌린다」(`install.sh rollback`)는
+    입력이 다른 별개라 `rollback_input` 이 진다. 둘을 한 목록에 두면 목록의 세트 경로를
+    rollback 에 넣어 실패한다 — 그 혼동을 막는 것이 이 분리의 이유다.
     """
     login_as("system_admin")
     r = client.get("/api/admin/backups/restore-instructions")
     assert r.status_code == 200
-    steps = str(r.json()["steps"])
-    assert "deploy/install.sh rollback" in steps
+    body = r.json()
+
+    steps = str(body["steps"])
+    # 데이터 복원의 실제 명령. 「파일을 제자리에 복사」 같은 SQLite 시절 문구가 아니다.
+    assert "pg_restore" in steps
+    assert "sha256sum -c" in steps, "세트가 적힌 그대로인지 확인하는 걸음이 빠졌다"
+
+    # 배포 되돌리기는 별개 키에 남아 있어야 한다 — 사라지면 그 길을 아무도 못 찾는다.
+    assert "install.sh rollback" in body["rollback_input"]
+
+    # 복원 직후 검색이 비어 있는 것은 정상이라는 사실이 안내에 있어야 한다(D-270) —
+    # 없으면 정상 복원을 장애로 신고하게 된다.
+    assert body["scope_note"]
+
     # 옛 진입점 이름이 되살아나지 않는지 (R13).
-    assert "clovirone" not in steps
+    assert "clovirone" not in str(body)
 
 
 def test_diagnostic_bundle_masks_and_excludes_secrets(client, login_as, settings, db):

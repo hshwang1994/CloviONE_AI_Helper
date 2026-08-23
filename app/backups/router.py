@@ -10,17 +10,31 @@ from __future__ import annotations
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, Request
+from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.backups.models import Backup, RestoreRehearsal, STATUS_FAILED, STATUS_RUNNING
+from app.backups.models import (
+    FILE_REMOVED,
+    STATUS_FAILED,
+    STATUS_RUNNING,
+    Backup,
+    RestoreRehearsal,
+)
+from app.backups.policy import scope_manifest
 from app.backups.service import (
     announce_backup_failure,
     apply_retention,
     backup_schedule_config,
     backup_view,
+    backup_warnings,
+    discard_file,
+    dump_path,
+    is_set,
     last_successful_backup,
+    mark_downloaded,
     rehearsal_view,
+    retention_from_config,
     run_backup,
     verify_existing,
 )
@@ -69,12 +83,12 @@ def create_backup(request: Request, db: Session = Depends(get_db)):
             db, reason=row.error_message or "원인이 기록되지 않았습니다.",
             now=now, title="수동 백업이 실패했습니다",
         )
-    # 예약 백업(run_scheduled_backup)은 backup_schedule.keep 을 읽어 보관 개수를 정하는데,
-    # 여기서 인자 없이 apply_retention(db) 를 부르면 하드코딩된 기본값(14)이 적용돼
-    # 관리자가 설정 화면에서 좁힌 keep 이 수동 '지금 백업'에는 지켜지지 않았다.
+    # 예약 백업(run_scheduled_backup)은 backup_schedule 을 읽어 보존을 정하는데, 여기서
+    # 인자 없이 apply_retention(db) 를 부르면 하드코딩된 기본값이 적용돼 관리자가 설정
+    # 화면에서 좁힌 값이 수동 '지금 백업'에는 지켜지지 않았다. 뽑는 자리는 하나다
+    # (service.retention_from_config).
     config = backup_schedule_config(getattr(request.app.state, "settings_cache", None))
-    keep = int(config.get("keep", 14) or 14)
-    apply_retention(db, keep=keep)
+    apply_retention(db, now=now, **retention_from_config(config))
     record_audit_from_request(
         request, db, action="backup.create", object_type="backup", object_id=row.id,
         after={"status": row.status, "path": row.path},
@@ -104,12 +118,11 @@ def list_rehearsals(db: Session = Depends(get_db)):
     )
     return {
         "items": [rehearsal_view(r) for r in rows],
-        "command": ".venv/Scripts/python.exe scripts/restore_rehearsal.py --record",
+        "command": "python scripts/restore_rehearsal.py --record",
         "note": (
             "복구 리허설은 앱을 한 번 더 띄워 실제 읽기 경로까지 확인하므로 워커가 아니라 "
             "스크립트로 돌립니다. --record 를 붙이면 결과가 이 목록에 남습니다. "
-            "다만 이 스크립트는 아직 PostgreSQL로 옮기지 않았습니다. 지금 실행하면 그 사실을 "
-            "알리고 멈춥니다. 백업 파일 자체의 검증은 위 «백업 실행»이 이미 수행합니다."
+            "리허설은 임시 데이터베이스에만 복원하므로 운영 데이터를 건드리지 않습니다."
         ),
     }
 
@@ -135,6 +148,11 @@ def get_backup_schedule(request: Request, db: Session = Depends(get_db)):
         "edit_hint": "일정은 관리 콘솔 '설정' 화면의 backup_schedule 에서 바꿉니다.",
         "last_backup": backup_view(last) if last is not None else None,
         "last_rehearsal": rehearsal_view(rehearsal) if rehearsal is not None else None,
+        # 무엇이 담기고 무엇이 안 담기는가. 백업을 만들기 **전에** 읽을 수 있어야 한다 —
+        # 복원한 뒤 「검색이 비어 있는데 정상인가」를 묻게 되는 것이 그 다음으로 나쁘다.
+        "scope": scope_manifest(),
+        # 지금 이 설치에서 백업을 믿을 수 없게 만드는 것들(같은 장치 · 백업 저장소 없음).
+        "warnings": backup_warnings(db),
     }
 
 
@@ -161,42 +179,128 @@ def verify(request: Request, backup_id: str, db: Session = Depends(get_db)):
     return {"backup": backup_view(row), "verify": result}
 
 
+@router.get(
+    "/{backup_id}/download", dependencies=[Depends(require_permission(BACKUP_EXECUTE))]
+)
+def download(request: Request, backup_id: str, db: Session = Depends(get_db)):
+    """백업 덤프를 내려받는다. **`BACKUP_EXECUTE` 다** — 읽기 권한이 아니다.
+
+    이 파일은 데이터베이스 전체다. 목록을 볼 수 있는 역할(operator 포함)이 그것을 받아
+    갈 수 있으면 「백업 목록 조회」 권한이 사실상 「전체 데이터 반출」이 된다. 그래서
+    실행 권한과 같은 칸에 둔다.
+
+    세트에서는 **덤프 하나만** 내보낸다. 매니페스트는 `GET /api/admin/backups` 가 이미
+    행에 실어 보내므로, 받는 쪽이 tar 를 풀 이유를 만들지 않는다.
+    """
+    row = db.get(Backup, backup_id)
+    if row is None:
+        raise NotFoundError("백업을 찾을 수 없습니다.")
+    if row.status == STATUS_RUNNING:
+        raise ConflictError("아직 진행 중인 백업입니다. 완료된 뒤 다시 시도하세요.")
+    if row.file_state == FILE_REMOVED:
+        raise ConflictError("이 백업 파일은 서버에서 이미 삭제했습니다.")
+    target = dump_path(row.path)
+    if not target.is_file():
+        raise NotFoundError("백업 파일이 서버에 없습니다.")
+    now = request.app.state.clock.now()
+    # 받아 간 사실만 적는다. **이 값 때문에 서버가 파일을 지우지 않는다**(D-204).
+    mark_downloaded(db, row, now=now)
+    record_audit_from_request(
+        request, db, action="backup.download", object_type="backup", object_id=row.id,
+        after={"path": row.path},
+    )
+    # 파일 이름은 세트 이름을 따른다 — 받는 사람의 다운로드 폴더에서 `database.dump` 가
+    # 여럿 쌓이면 어느 것이 언제 것인지 알 수 없다.
+    name = Path(row.path).name
+    filename = f"{name}.dump" if is_set(row.path) else name
+    return FileResponse(
+        target,
+        media_type="application/octet-stream",
+        filename=filename,
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+@router.post(
+    "/{backup_id}/discard-file",
+    dependencies=[Depends(require_permission(BACKUP_EXECUTE))],
+)
+def discard(request: Request, backup_id: str, db: Session = Depends(get_db)):
+    """내려받은 뒤 **사람이 지우기로 답했을 때** 서버 파일을 지운다 (D-204).
+
+    자동으로 하지 않는 이유는 하나다: 브라우저가 받다 만 것과 다 받은 것을 서버는
+    구별하지 못한다. 다 받았다고 답할 수 있는 것은 사람뿐이다.
+
+    행은 남긴다 — 「그때 백업을 만들어 받아 갔다」는 사실은 감사 로그와 짝을 이룬다.
+    """
+    row = db.get(Backup, backup_id)
+    if row is None:
+        raise NotFoundError("백업을 찾을 수 없습니다.")
+    if row.status == STATUS_RUNNING:
+        raise ConflictError("아직 진행 중인 백업입니다. 완료된 뒤 다시 시도하세요.")
+    if row.file_state == FILE_REMOVED:
+        raise ConflictError("이미 서버에서 삭제한 백업입니다.")
+    now = request.app.state.clock.now()
+    result = discard_file(db, row, now=now)
+    record_audit_from_request(
+        request, db, action="backup.discard_file", object_type="backup", object_id=row.id,
+        after={"path": row.path, **result},
+    )
+    return {"backup": backup_view(row), "removed": result}
+
+
 @router.get("/restore-instructions", dependencies=[Depends(require_permission(BACKUP_EXECUTE))])
 def restore_instructions():
     """Spec §14.6: 실제 Restore는 스크립트로만. 추가 확인 + Snapshot 필요.
 
-    주의: 이 화면이 나열하는 백업(웹 콘솔에서 '백업 실행'으로 만든 것)은 **DB 만 담은
-    `pg_dump` 아카이브**(var/exports/web-*.dump)라 rollback 스크립트의 입력이 아니다.
-    rollback 은 cron/업그레이드 백업이 만든 '디렉터리'(DB 덤프 + app.tar.gz + SHA256SUMS)를
-    요구한다. 두 저장소가 다르다는 사실을 안내에 분명히 적어, 목록의 파일 경로를 그대로
-    rollback 에 넣어 실패하는 일을 막는다.
+    **두 가지 되돌리기가 있고 입력이 서로 다르다.** 그 사실을 여기서 분명히 적지 않으면
+    목록의 경로를 rollback 에 넣어 실패하고, 그 실패는 되돌려야 하는 날에 일어난다.
 
-    **이 안내는 운영자가 실제로 따라 하는 절차다.** SQLite 시절 문구("파일을 운영 DB 경로로
-    복사")를 그대로 두면, 그 말대로 해도 아무 일이 일어나지 않는다 — PG 는 파일 하나가
-    DB 가 아니다. 되돌려야 하는 날에 그 사실을 알게 되는 것이 가장 나쁘다.
+      * **데이터를 되돌린다** — 이 화면의 백업 세트(`backup-<타임스탬프>/`)로 `pg_restore`.
+      * **배포를 되돌린다** — `install.sh rollback` 이고 입력은 업그레이드 스냅숏
+        디렉터리(DB 덤프 + `app.tar.gz` + `SHA256SUMS`)다. **이 목록의 세트가 아니다.**
+
+    절차는 D-204 가 정한 순서 그대로다: 유지보수 모드 → 복원 → PG 검증 → 파일 검증 →
+    관계 검증 → 필요한 재색인 → 앱 검증 → 서비스 개방. 재색인이 **절차에 들어 있는 이유**는
+    백업이 파생 데이터를 일부러 안 담기 때문이다(D-270) — 복원 직후 검색이 비어 있는 것은
+    사고가 아니라 예정된 상태이고, 그 사실을 모르면 정상 복원을 장애로 신고하게 된다.
+
+    **미리 해 보는 자리가 따로 있다**: `scripts/restore_rehearsal.py` 는 임시 데이터베이스에만
+    복원하므로 운영 데이터를 건드리지 않는다. 사고 당일에 이 절차를 처음 밟지 않으려면
+    그것을 정기적으로 돌린다.
     """
     return {
         "note": (
-            "실제 복원은 웹에서 수행하지 않습니다. 아래 스크립트를 서버에서 실행하세요. "
-            "이 화면의 목록은 웹 콘솔에서 만든 DB 덤프"
-            "(var/exports/web-*.dump)일 뿐이며, 아래 rollback 스크립트의 입력이 아닙니다."
+            "실제 복원은 웹에서 수행하지 않습니다. 서버에서 아래 순서대로 진행하세요. "
+            "미리 시험해 보려면 복구 리허설을 쓰세요. 임시 데이터베이스에만 복원하므로 "
+            "운영 데이터를 건드리지 않습니다."
         ),
         "web_snapshot_note": (
-            "웹 콘솔 백업은 DB만 담은 pg_dump 아카이브(.dump)입니다. 파일을 복사하는 "
-            "방식으로는 되돌릴 수 없습니다. PostgreSQL 은 파일 하나가 데이터베이스가 "
-            "아닙니다. 되돌리려면 서비스를 멈춘 뒤 pg_restore 로 복원해야 합니다"
-            "(rollback 스크립트로는 복원되지 않습니다)."
+            "이 목록의 백업은 세트 디렉터리입니다(데이터베이스 덤프 + manifest.json + "
+            "SHA256SUMS). 파일을 복사하는 방식으로는 되돌릴 수 없습니다. PostgreSQL 은 "
+            "파일 하나가 데이터베이스가 아닙니다. 되돌리려면 서비스를 멈춘 뒤 pg_restore "
+            "로 복원해야 합니다."
         ),
         "rollback_input": (
-            "rollback 의 <BACKUP_DIR>는 cron 또는 업그레이드 스냅샷이 만든 디렉터리"
-            f"({product.BACKUP_DIR}/<타임스탬프>/, DB 덤프 + app.tar.gz "
-            "+ SHA256SUMS 포함)여야 합니다. 위 목록의 파일 경로는 넣지 마세요."
+            "배포를 되돌리는 것은 별개입니다. install.sh rollback 의 <BACKUP_DIR>는 "
+            f"업그레이드 스냅숏 디렉터리({product.BACKUP_DIR}/<타임스탬프>/, DB 덤프 + "
+            "app.tar.gz + SHA256SUMS 포함)여야 합니다. 위 목록의 세트 경로는 넣지 마세요."
         ),
+        "scope_note": (
+            "복원 직후 검색과 AI 색인이 비어 있는 것은 정상입니다. 백업은 다시 만들 수 "
+            "있는 데이터를 일부러 담지 않습니다. 색인 레인과 검색 색인 갱신이 원본에서 "
+            "다시 채웁니다."
+        ),
+        "rehearsal_command": "python scripts/restore_rehearsal.py --record",
         "steps": [
-            "1) 유지보수 모드로 전환하고 진행 중 Job이 없는지 확인",
-            "2) 현재 상태를 별도 백업(스냅샷)으로 보존",
-            f"3) sudo {product.APP_DIR}/deploy/install.sh rollback --target "
-            f"{product.BACKUP_DIR}/<타임스탬프>",
-            "4) systemctl 상태 및 /healthz, /readyz 확인 후 유지보수 모드 해제",
+            "1) 유지보수 모드를 켜고 진행 중인 작업이 없는지 확인합니다.",
+            "2) 지금 상태를 백업으로 먼저 남깁니다. 되돌린 뒤에 되돌아올 지점입니다.",
+            "3) 세트의 SHA256SUMS 를 확인합니다: cd <세트> && sha256sum -c SHA256SUMS",
+            "4) manifest.json 의 스키마 판이 지금 코드와 같은지 확인합니다.",
+            "5) 서비스를 멈추고 pg_restore --clean --if-exists 로 database.dump 를 "
+            "복원합니다.",
+            "6) 파일과 관계를 확인합니다. 업로드 파일은 백업 저장소에서 되돌립니다.",
+            "7) 서비스를 올리고 /healthz, /readyz 와 실제 화면 몇 개를 확인합니다.",
+            "8) 색인이 다시 도는지 확인한 뒤 유지보수 모드를 끕니다.",
         ],
     }

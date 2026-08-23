@@ -1,31 +1,47 @@
-"""Backup service (spec §14.6, §6). Restore is documented/script-only —
-this service performs backups + verification, never an in-process restore of
-live data (spec §14.6: 실제 Restore는 system_admin, 별도 확인)."""
+"""Backup service (spec §14.6, §6) — **백업 세트**를 만들고 검증한다 (S12 · D-204).
+
+살아 있는 데이터를 이 자리에서 되돌리지는 않는다(spec §14.6: 실제 Restore는 system_admin,
+별도 확인). 복원이 실제로 되는지는 `scripts/restore_rehearsal.py` 가 별도 프로세스로
+증명한다 — 복원본으로 **앱을 띄워** 읽기 경로까지 부르기 때문에 웹 요청 안에서 할 일이
+아니다.
+
+## 백업 하나는 파일 하나가 아니라 **디렉터리 하나**다
+
+S2 까지는 `web-<stamp>.dump` 파일 하나였다. S12 가 세트로 바꾼 이유는 **매니페스트**다
+(D-204). 스키마 판·범위·체크섬은 백업과 **함께 이동해야** 의미가 있고, 그러려면 덤프
+옆에 있어야 한다. 그래서:
+
+    <data_dir>/exports/backup-<stamp>/{database.dump, manifest.json, SHA256SUMS}
+
+옛 `.dump` 파일 행은 그대로 목록에 선다(`is_set()` 이 둘을 가른다). 되돌려야 하는 날에
+「이 행은 무엇인가」를 못 읽는 것이 가장 나쁘다.
+"""
 
 from __future__ import annotations
 
 import logging
+import shutil
 from datetime import datetime, timedelta
 from pathlib import Path
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.backups import manifest as manifest_mod
+from app.backups import policy
 from app.backups.models import (
+    FILE_PRESENT,
+    FILE_REMOVED,
     STATUS_FAILED,
     STATUS_RUNNING,
     STATUS_SUCCEEDED,
     STATUS_VERIFIED,
     Backup,
 )
-from app.backups.pg_backup import (
-    BACKUP_SUFFIX,
-    backup_database,
-    restore_test,
-    verify_backup,
-)
+from app.backups.pg_backup import backup_database, restore_test, verify_backup
 from app.core.config import Settings
 from app.core.elapsed import format_elapsed_korean
+from app.core.models_base import utcnow
 
 logger = logging.getLogger("app.backups")
 
@@ -36,6 +52,14 @@ _REASON_KO = {
     "file_missing": "백업 파일을 찾을 수 없습니다. 삭제되었거나 이동되었을 수 있습니다.",
     "checksum_mismatch": "백업 파일이 손상되었습니다(체크섬 불일치).",
     "archive_empty": "백업 파일에 아무것도 담겨 있지 않습니다. 다시 백업해 주세요.",
+    # 세트 단위 검증(S12). 「덤프는 멀쩡한데 세트가 바뀌었다」는 별개의 사고다 —
+    # 범위를 말하는 파일이 바뀌면 「무엇이 안 담겼나」의 답이 조용히 달라진다.
+    "set_missing": "백업 세트를 찾을 수 없습니다. 삭제되었거나 이동되었을 수 있습니다.",
+    "checksums_missing": (
+        "백업 세트에 체크섬 파일이 없어 내용을 확인할 수 없습니다. 다시 백업해 주세요."
+    ),
+    "set_modified": "백업을 만든 뒤에 세트 안의 파일이 바뀌었습니다.",
+    "file_removed": "이 백업 파일은 서버에서 삭제했습니다(손상이 아닙니다).",
 }
 
 # 부분 검증. **실패가 아니지만 «검증됨» 도 아니다** (D-204).
@@ -78,6 +102,25 @@ def _friendly_backup_failure(exc: Exception) -> str:
     )
 
 
+# ── 세트인가 낱개 파일인가 ───────────────────────────────────
+#
+# S2 까지의 행은 `path` 가 `.dump` **파일**을 가리킨다. S12 부터는 **디렉터리**다.
+# 둘을 가르는 것은 이름 접두사가 아니라 **실제 디스크 모양**이다 — 이름 규칙으로
+# 판정하면 누가 파일을 옮긴 순간 그 행은 영원히 틀린 종류로 읽힌다.
+SET_PREFIX = "backup-"
+
+
+def is_set(path: str | Path) -> bool:
+    """세트 디렉터리를 가리키는 행인가."""
+    return Path(path).is_dir()
+
+
+def dump_path(path: str | Path) -> Path:
+    """행의 `path` 에서 **덤프 파일**을 얻는다. 낱개 행이면 그 자신이다."""
+    target = Path(path)
+    return target / manifest_mod.DATABASE_DUMP_NAME if target.is_dir() else target
+
+
 def backup_view(row: Backup, names: dict | None = None) -> dict:
     """`names` 는 {user_id: {display_name, email}} (app/core/people.py::name_map).
 
@@ -85,7 +128,18 @@ def backup_view(row: Backup, names: dict | None = None) -> dict:
     **더하는** 것이지 id 를 감추는 것이 아니다 — id 는 감사 로그 대조에 그대로 쓴다.
     `names` 를 안 주면 이름은 None 이다(모르는 것을 지어내지 않는다).
     """
+    import json as _json
+
     creator = (names or {}).get(row.created_by) or {}
+    stored = None
+    if row.manifest_json:
+        try:
+            stored = _json.loads(row.manifest_json)
+        except ValueError:
+            stored = None
+    scope = (stored or {}).get("scope") or {}
+    schema = (stored or {}).get("schema") or {}
+    destination = (stored or {}).get("destination") or None
     return {
         "id": row.id,
         "backup_type": row.backup_type,
@@ -99,24 +153,67 @@ def backup_view(row: Backup, names: dict | None = None) -> dict:
         "created_at": row.created_at.isoformat(),
         "verified_at": row.verified_at.isoformat() if row.verified_at else None,
         "error_message": row.error_message,
+        # ── S12 ────────────────────────────────────────────────────
+        "file_state": row.file_state,
+        "downloaded_at": row.downloaded_at.isoformat() if row.downloaded_at else None,
+        "alembic_head": schema.get("alembic_head_database"),
+        "excluded_table_data": [
+            item.get("label") for item in scope.get("excluded_table_data") or []
+        ],
+        "warnings": (stored or {}).get("warnings") or [],
+        # 「사본이 백업 저장소에 갔는가」. 안 갔으면 안 갔다고 말한다 — 이 칸이 비어 있는
+        # 것과 「보냈는데 실패」는 화면에서 다르게 보여야 한다.
+        "destination_name": (destination or {}).get("provider_name"),
+        "destination_ok": None if destination is None else bool(destination.get("ok")),
     }
+
+
+def backup_warnings(db: Session) -> list[str]:
+    """이 백업을 지금 믿어도 되는가에 대한 **경고**. 매니페스트와 화면이 함께 읽는다."""
+    from app.backups import destination as destination_mod
+    from app.storage import service as storage_service
+
+    warnings: list[str] = []
+    try:
+        same_device = storage_service.same_device_warning(db)
+    except Exception:
+        logger.warning("동일 장치 판정에 실패했습니다", exc_info=True)
+        same_device = None
+    if same_device:
+        warnings.append(same_device)
+    try:
+        if destination_mod.backup_provider(db) is None:
+            warnings.append(
+                "백업 저장소가 설정되지 않아 백업이 앱과 같은 디스크에만 있습니다. "
+                "그 디스크가 고장 나면 백업도 함께 잃습니다."
+            )
+    except Exception:
+        logger.warning("백업 저장소 확인에 실패했습니다", exc_info=True)
+    return warnings
 
 
 def run_backup(
     db: Session, settings: Settings, *, created_by: str | None, now: datetime
 ) -> Backup:
-    # Include microseconds so two backups in the same second get distinct files.
+    """백업 세트 하나. **파일이 생겼다는 것만으로 성공이 아니다** (D-204)."""
+    # Include microseconds so two backups in the same second get distinct sets.
     # (Same-second collisions previously aliased two DB rows to one file, letting
     # retention unlink a still-referenced backup.)
     stamp = now.strftime("%Y%m%d_%H%M%S_%f")
-    dest = Path(settings.data_dir) / "exports" / f"web-{stamp}{BACKUP_SUFFIX}"
+    set_dir = Path(settings.data_dir) / "exports" / f"{SET_PREFIX}{stamp}"
+    dest = set_dir / manifest_mod.DATABASE_DUMP_NAME
     # `backup_type` 은 **덤프 형식**이다. 되돌릴 때 어떤 도구로 여는지가 이 값에 달렸다
     # — 옛 `sqlite` 파일과 새 `pg_dump` 아카이브를 한 목록에서 구별할 수 있어야 한다.
-    row = Backup(backup_type="pg_dump", path=str(dest), status="running", created_by=created_by,
-                 created_at=now)
+    row = Backup(backup_type="pg_dump", path=str(set_dir), status="running",
+                 created_by=created_by, created_at=now)
     db.add(row)
     db.flush()
     row_id = row.id
+
+    # 경고와 스키마 판은 **커밋 전에** 읽는다 — 아래 느린 구간은 세션을 오래 안 쓴다.
+    warnings = backup_warnings(db)
+    head_db = manifest_mod.db_alembic_version(db)
+    head_code = manifest_mod.code_alembic_head()
 
     # UA-03: 쓰기 락을 쥔 채 느린 I/O 를 하지 않는다 (trash/service.py::purge_expired 의
     # S7과 같은 실패 양식). 이 지점까지의 `db.flush()`가 SQLite 의 쓰기 락을 잡았는데,
@@ -127,9 +224,15 @@ def run_backup(
     # `reap_stuck_running`이 정리한다 — 원래 있던 실패 처리 그대로다.
     db.commit()
 
+    stored_manifest: dict | None = None
     try:
         bin_dir = getattr(settings, "pg_bin_dir", "") or None
-        result = backup_database(settings.database_url, dest, bin_dir=bin_dir)
+        # 파생 데이터의 **행**은 안 담는다(D-203 · D-204). 무엇을 왜 빼는지는
+        # `app/backups/policy.py` 하나가 정하고 매니페스트가 그대로 싣는다.
+        result = backup_database(
+            settings.database_url, dest, bin_dir=bin_dir,
+            exclude_table_data=policy.excluded_tables(),
+        )
         size_bytes = result["size_bytes"]
         checksum = result["checksum"]
         # Immediate temp-restore verification (spec §6.3).
@@ -153,8 +256,44 @@ def run_backup(
             status = STATUS_FAILED
             verified_at = None
             error_message = _friendly_verify_reason(verify.get("reason"))
+
+        # 원본 파일·첨부와 세트 사본을 백업 저장소로. **실패해도 덤프 검증 결과를 뒤집지
+        # 않는다** — 「DB 백업은 됐고 사본 전송은 실패했다」가 사실이고, 그 둘을 한 상태값
+        # 으로 뭉개면 어느 쪽이 문제인지 화면에서 못 읽는다. 경고로 남긴다.
+        files_result = _archive_files(db, warnings)
+        destination_result = None
+        if status != STATUS_FAILED:
+            destination_result = _copy_to_destination(db, set_dir, warnings)
+
+        stored_manifest = manifest_mod.build(
+            created_at=now,
+            created_by=created_by,
+            database={
+                "file": manifest_mod.DATABASE_DUMP_NAME,
+                "size_bytes": size_bytes,
+                "sha256": checksum,
+                "format": "pg_dump custom (-Fc)",
+                "verified": status == STATUS_VERIFIED,
+            },
+            alembic_head_code=head_code,
+            alembic_head_db=head_db,
+            destination=destination_result,
+            files=files_result,
+            warnings=warnings,
+        )
+        manifest_mod.write(set_dir, stored_manifest)
+        # 매니페스트를 쓴 뒤에 사본을 다시 맞춘다 — 안 그러면 저쪽 세트에 매니페스트가
+        # 빠진 채로 남고, 그 사본만 들고 있는 서버에서는 범위를 읽을 방법이 없다.
+        #
+        # **덤프는 다시 안 보낸다.** 위 회차가 이미 보냈고, 통째로 다시 보내면 수 GB 를
+        # 두 번 쓴다 — 백업 회차 길이가 곧 실패 확률이다.
+        if destination_result is not None and destination_result.get("ok"):
+            _copy_to_destination(
+                db, set_dir, warnings,
+                only={manifest_mod.MANIFEST_NAME, manifest_mod.CHECKSUMS_NAME},
+            )
     except Exception as exc:
-        logger.exception("backup creation failed: %s", dest)
+        logger.exception("backup creation failed: %s", set_dir)
         size_bytes = checksum = None
         status = STATUS_FAILED
         verified_at = None
@@ -167,21 +306,93 @@ def run_backup(
     row.checksum = checksum
     row.status = status
     row.error_message = error_message
+    if stored_manifest is not None:
+        import json as _json
+
+        row.manifest_json = _json.dumps(stored_manifest, ensure_ascii=False)
     if verified_at is not None:
         row.verified_at = verified_at
     db.flush()
     return row
 
 
+def _archive_files(db: Session, warnings: list[str]) -> dict | None:
+    """업로드 원본·첨부를 백업 저장소로 (S8 `archive_to_backup`).
+
+    **정본 범위에 들어 있다**(D-204: 원본 파일 · 첨부). DB 덤프만 뜨고 파일을 안 옮기면
+    복원본은 행이 가리키는 바이트가 없는 상태가 되고, 그 사실은 첨부를 여는 사람이 처음
+    발견한다.
+    """
+    from app.backups import destination as destination_mod
+    from app.storage import archive
+
+    try:
+        return archive.archive_to_backup(db)
+    except archive.ArchiveNotPossible as exc:
+        # 「백업 저장소가 아예 없다」는 `backup_warnings` 가 이미 한 문장으로 말했다.
+        # 여기서 또 말하면 화면에 같은 사실이 두 번 뜨고, 두 번째 문장에는 내부 역할
+        # 이름(`OPERATIONAL`/`BACKUP`)까지 섞여 나간다. 저장소가 **있는데** 실패한
+        # 경우만 새로 알린다 — 그것이 새 사실이다.
+        if destination_mod.backup_provider(db) is not None:
+            warnings.append(f"업로드 파일을 백업 저장소로 옮기지 못했습니다: {exc}")
+        return {"ok": False, "reason": str(exc)}
+    except Exception as exc:
+        logger.exception("파일 저장소 아카이브 실패")
+        warnings.append(f"업로드 파일 사본에 실패했습니다: {type(exc).__name__}")
+        return {"ok": False, "reason": type(exc).__name__}
+
+
+def _copy_to_destination(
+    db: Session, set_dir: Path, warnings: list[str], *, only: set[str] | None = None
+) -> dict | None:
+    from app.backups import destination as destination_mod
+
+    try:
+        result = destination_mod.copy_set(db, set_dir, only=only)
+    except destination_mod.DestinationUnavailable as exc:
+        # 「설정 안 함」은 이미 `backup_warnings` 가 말했다. 여기서 또 말하면 같은 문장이
+        # 두 번 뜬다 — 준비 안 된 마운트만 새로 알린다.
+        message = f"백업 세트를 백업 저장소로 못 보냈습니다: {exc}"
+        if destination_mod.backup_provider(db) is not None and message not in warnings:
+            warnings.append(message)
+        return None
+    except Exception as exc:
+        logger.exception("백업 세트 사본 실패: %s", set_dir)
+        warnings.append(f"백업 세트 사본에 실패했습니다: {type(exc).__name__}")
+        return {"ok": False, "reason": type(exc).__name__}
+    if not result["ok"]:
+        warnings.append(
+            "백업 저장소에 쓴 파일이 원본과 달랐습니다: " + ", ".join(result["mismatched"])
+        )
+    return result
+
+
 def verify_existing(
     db: Session, row: Backup, *, now: datetime, settings: Settings | None = None
 ) -> dict:
+    """다시 확인한다 — **세트 전체**를, 그리고 덤프 아카이브를.
+
+    세트 검증(`SHA256SUMS`)을 먼저 하는 이유: 덤프만 보면 매니페스트가 바뀐 것을 못 잡고,
+    그러면 「무엇이 안 담겼나」에 대한 답이 조용히 달라진다.
+    """
+    if row.file_state == FILE_REMOVED:
+        # 「사람이 지웠다」와 「없어졌다」는 다르다. 후자만 손상이다.
+        return {"ok": False, "reason": "file_removed"}
+    bin_dir = getattr(settings, "pg_bin_dir", "") or None
+    target = Path(row.path)
+    set_result = None
+    if is_set(target):
+        set_result = manifest_mod.verify_set(target)
+        if not set_result["ok"]:
+            row.status = STATUS_FAILED
+            row.error_message = _friendly_verify_reason(set_result["reason"])
+            db.flush()
+            return {"ok": False, "reason": set_result["reason"], "set": set_result}
     # `settings` 는 `pg_bin_dir` 하나 때문에 받는다. 안 주면 `PATH` 에서 찾는다 —
     # 그 경로가 통하는 환경도 있으므로 필수로 만들지 않는다.
-    result = verify_backup(
-        Path(row.path), row.checksum,
-        bin_dir=getattr(settings, "pg_bin_dir", "") or None,
-    )
+    result = verify_backup(dump_path(target), row.checksum, bin_dir=bin_dir)
+    if set_result is not None:
+        result = dict(result, set=set_result)
     if result["ok"]:
         row.verified_at = now
         if row.status == STATUS_SUCCEEDED:
@@ -194,6 +405,54 @@ def verify_existing(
         row.error_message = _friendly_verify_reason(result.get("reason"))
     db.flush()
     return result
+
+
+# ── 다운로드와 그 뒤 (D-204: 자동 삭제하지 않는다) ───────────────────
+
+
+def mark_downloaded(db: Session, row: Backup, *, now: datetime) -> None:
+    """내려받은 사실만 적는다. **이 값 때문에 서버가 파일을 지우지 않는다.**
+
+    자동 삭제가 편해 보이지만, 브라우저가 받다 만 것과 다 받은 것을 서버는 구별하지
+    못한다. 지우는 것은 사람이 「받았다」고 답한 뒤여야 한다.
+    """
+    row.downloaded_at = now
+    db.flush()
+
+
+def discard_file(db: Session, row: Backup, *, now: datetime) -> dict:
+    """세트를 **앱 디스크에서** 지운다 — 행도, 백업 저장소 사본도 남긴다.
+
+    행까지 지우면 「그때 백업을 만들어 받아 갔다」는 사실이 사라진다. 그 사실은 감사
+    로그와 짝을 이루므로 지울 이유가 없다.
+
+    🔴 **백업 저장소 사본은 안 지운다.** 사람이 답한 질문은 「서버에 저장된 백업 파일을
+    지울까요」이고, 그 사람이 원한 것은 앱 디스크의 공간이다. 백업 저장소의 사본은
+    **재해 복구용 사본**이라 이 요청과 다른 물건이다 — 공간 회수의 부수 효과로 그것까지
+    지우면, 정작 필요한 날 물어본 적 없는 삭제로 사라진 것을 알게 된다.
+
+    저쪽 사본이 영원히 남지는 않는다: 행은 살아 있으므로 보존 정리가 나중에 그 행을
+    지울 때 사본도 함께 지운다(`apply_retention`).
+    """
+    removed_local = _unlink_target(Path(row.path))
+    row.file_state = FILE_REMOVED
+    row.error_message = None
+    db.flush()
+    return {"removed_local": removed_local, "removed_remote": False}
+
+
+def _unlink_target(target: Path) -> bool:
+    """파일이든 디렉터리든 치운다. 이미 없으면 False."""
+    try:
+        if target.is_dir():
+            shutil.rmtree(target)
+            return True
+        if target.exists():
+            target.unlink()
+            return True
+    except OSError:
+        logger.warning("백업 파일을 지우지 못했습니다: %s", target, exc_info=True)
+    return False
 
 
 # 정상적인 백업은 수 초~수십 초 안에 running에서 succeeded/verified/failed로 넘어간다
@@ -234,15 +493,47 @@ def last_successful_backup(db: Session) -> Backup | None:
     ).scalar_one_or_none()
 
 
-def apply_retention(db: Session, *, keep: int = 14) -> int:
-    """Keep the most recent N GOOD (succeeded/verified) backups plus prune failed
-    ones — never delete a good backup just because newer attempts failed."""
-    good = db.execute(
+#: 며칠은 무조건 남긴다. 개수만으로 자르면 **하루에 여러 번 돌린 날**이 그 전 며칠치
+#: 복원 지점을 한꺼번에 밀어낸다 — `scripts/backup-cron.sh` 가 배포 스냅숏에서 겪고
+#: 「개수가 아니라 나이로 지운다」로 고쳤던 바로 그 실패다. 여기서는 **둘 다** 건다.
+DEFAULT_KEEP_DAYS = 7
+
+
+def apply_retention(
+    db: Session,
+    *,
+    keep: int = 14,
+    keep_days: int = DEFAULT_KEEP_DAYS,
+    now: datetime | None = None,
+) -> int:
+    """보존 정책 한 번. **개수 바닥과 나이 바닥을 둘 다** 지킨다.
+
+    정상 백업은 다음 둘을 **모두** 만족할 때만 지워진다:
+
+      * 최근 `keep` 개 안에 없다 (개수 바닥)
+      * 만든 지 `keep_days` 일이 넘었다 (나이 바닥)
+
+    둘 중 하나만 걸면 각각 다른 방식으로 복원 지점을 잃는다. 개수만 걸면 하루에 여러 번
+    돌린 날이 지난 주를 통째로 밀어내고, 나이만 걸면 하루에 수백 번 도는 사고에서
+    디스크가 찬다. 그래서 **둘 다** 통과해야 지운다 — 지우는 쪽이 더 어렵게.
+
+    실패 행과 파일이 이미 없는 행(`file_state=removed`)은 복원 지점이 아니므로 개수
+    바닥을 안 준다. 다만 **가장 최근 실패 하나**는 장애 추적을 위해 남긴다.
+    """
+    from app.backups import destination as destination_mod
+
+    now = now or utcnow()
+    age_floor = now - timedelta(days=max(int(keep_days), 0))
+
+    restorable = db.execute(
         select(Backup)
-        .where(Backup.status.in_([STATUS_SUCCEEDED, STATUS_VERIFIED]))
+        .where(
+            Backup.status.in_([STATUS_SUCCEEDED, STATUS_VERIFIED]),
+            Backup.file_state == FILE_PRESENT,
+        )
         .order_by(Backup.created_at.desc())
     ).scalars().all()
-    keep_ids = {row.id for row in good[:keep]}
+    keep_ids = {row.id for row in restorable[:keep]}
 
     all_rows = db.execute(select(Backup).order_by(Backup.created_at.desc())).scalars().all()
     # 진행 중(running)인 백업은 건드리지 않는다 — 파일이 쓰이는 중일 수 있다.
@@ -256,11 +547,12 @@ def apply_retention(db: Session, *, keep: int = 14) -> int:
             continue
         if row.id == latest_failed_id:
             continue
-        # Delete old failed backups and good backups beyond the keep window.
-        try:
-            Path(row.path).unlink(missing_ok=True)
-        except OSError:
-            pass
+        if row.created_at > age_floor:
+            continue
+        target = Path(row.path)
+        _unlink_target(target)
+        if target.name.startswith(SET_PREFIX):
+            destination_mod.remove_set(db, target.name)
         db.delete(row)
         removed += 1
     db.flush()
@@ -274,7 +566,25 @@ DEFAULT_BACKUP_SCHEDULE = {
     "cron": "0 3 * * *",
     "timezone": "Asia/Seoul",
     "keep": 14,
+    # 나이 바닥. `apply_retention` 이 개수와 **함께** 본다 — 왜 둘 다인지는 그 함수에 있다.
+    "keep_days": DEFAULT_KEEP_DAYS,
 }
+
+
+def retention_from_config(config: dict) -> dict:
+    """설정 dict 에서 보존 인자만 뽑는다.
+
+    예약 경로와 수동 경로가 각자 `config.get("keep", 14)` 를 적으면, 하나만 고친 날
+    같은 설치에서 **보존이 두 가지로 동작한다.** 실제로 그런 적이 있다(수동 백업이
+    하드코딩 14 를 썼다). 뽑는 자리를 하나로 둔다.
+    """
+    # `or` 로 기본값을 주지 않는다 — `keep_days: 0`(「개수만으로 자른다」를 **명시적으로**
+    # 고른 값)이 falsy 라서 조용히 7 로 바뀐다. 없는 것과 0 은 다른 뜻이다.
+    def _int(key: str, fallback: int) -> int:
+        value = config.get(key)
+        return fallback if value is None else int(value)
+
+    return {"keep": _int("keep", 14), "keep_days": _int("keep_days", DEFAULT_KEEP_DAYS)}
 
 
 def backup_schedule_config(settings_cache) -> dict:
@@ -434,8 +744,7 @@ def run_scheduled_backup(db, settings, config: dict, *, now):
     """
     try:
         row = run_backup(db, settings, created_by=None, now=now)
-        keep = int(config.get("keep", 14) or 14)
-        apply_retention(db, keep=keep)
+        apply_retention(db, now=now, **retention_from_config(config))
         if row is not None and row.status == STATUS_FAILED:
             announce_backup_failure(
                 db,

@@ -126,6 +126,16 @@ def _backup_schedule(value: Any) -> None:
     keep = value.get("keep", 14)
     if not isinstance(keep, int) or isinstance(keep, bool) or keep < 1 or keep > 365:
         raise ValidationAppError("keep은 1~365 정수여야 합니다.")
+    # 나이 바닥(S12). 0 을 허용한다 — 「개수만으로 자른다」를 명시적으로 고르는 값이다.
+    # 그 선택이 왜 위험한지는 `app/backups/service.py::apply_retention` 에 적혀 있다.
+    keep_days = value.get("keep_days", 7)
+    if (
+        not isinstance(keep_days, int)
+        or isinstance(keep_days, bool)
+        or keep_days < 0
+        or keep_days > 365
+    ):
+        raise ValidationAppError("keep_days는 0~365 정수여야 합니다.")
     from app.schedules import cron as _cron
 
     tz_name = value.get("timezone", "Asia/Seoul")
@@ -332,12 +342,13 @@ REGISTRY: dict[str, SettingSpec] = {
         # (app/worker_main.py::backup_schedule_tick) — '되는 척하는 스위치'가 아니다.
         # 기본은 꺼짐: 켜는 순간 디스크를 쓰기 시작하므로 운영자가 의도해서 켜야 한다.
         SettingSpec("backup_schedule", "object",
-                    {"enabled": False, "cron": "0 3 * * *", "timezone": "Asia/Seoul", "keep": 14},
+                    {"enabled": False, "cron": "0 3 * * *", "timezone": "Asia/Seoul",
+                     "keep": 14, "keep_days": 7},
                     False,
                     # 지시 36: 설명은 화면에 그대로 나간다 — 내부 어휘(cron·keep·워커)로
                     # 쓰면 관리자가 무엇을 정하는 값인지 알 수 없다. 무엇이 언제 일어나고
                     # 무엇이 남는지로 쓴다.
-                    "정해진 시각마다 데이터베이스를 자동으로 백업하고, 정한 개수만큼만 남깁니다",
+                    "정해진 시각마다 데이터베이스를 자동으로 백업하고, 정한 개수와 기간만큼 남깁니다",
                     _backup_schedule),
         # 메일 발송(9-9 P4). 소비자가 넷 붙어 있다: 비밀번호 재설정, 초대, 백업 실패,
         # 승인 요청. '되는 척하는 스위치'가 아니라는 뜻이다. 기본은 꺼짐이고, 꺼져 있으면

@@ -159,6 +159,33 @@ EXEMPT: dict[str, str] = {
         "공지는 부서별로 좁혀 저장되지 않는다 — `all`/`admin` 둘 다 **포탈 전체**에 뜬다"
         "(`_ensure_may_touch_announcements` docstring, UB-01). 좁힐 범위가 없고, 닫기는 "
         "`(공지, 나)` 행 하나를 만드는 **자기 상태 변경**이다.",
+    # ── 백업 (S12) ────────────────────────────────────────────────────────────
+    #
+    # 🔴 **이 모듈은 범위 축이 없다.** `backups` 표에 `org_id` 가 없고
+    # `OrgScopedMixin` 도 안 탄다 — 백업은 데이터베이스 **전체** 하나이지 조직마다 하나가
+    # 아니다. 좁힐 범위가 존재하지 않으므로 범위 게이트를 걸 자리가 없다.
+    #
+    # 그런데 왜 검사에 걸렸나: `GET /schedule` 이 「이 백업에 무엇이 담기는가」를
+    # `scope_manifest()` 로 돌려주는데, `LOOSE_SIGNALS` 의 `"scope"` 가 그 이름을
+    # **가시성 범위**로 읽는다. 이름이 같을 뿐 다른 뜻이다(백업 **범위** vs 가시성 범위).
+    #
+    # `LOOSE_SIGNALS` 를 좁히지 않는다 — 그 목록이 느슨한 것은 **의도**다(느슨하면 검사할
+    # 모듈이 늘어날 뿐이고, 반대 방향의 착오가 위험하다). 대신 여기에 사실을 적는다.
+    #
+    # **이 면제가 언제 무효가 되는가**: `backups` 가 `org_id` 를 갖거나 목록이 사람에 따라
+    # 달라지는 날. 그날 이 세 줄을 지우고 진짜 게이트를 걸어야 한다.
+    #
+    # 지금 이 셋을 지키는 것은 권한이다 — `BACKUP_EXECUTE`(system_admin 전용).
+    # 음성 시험은 `tests/security/test_backup_export_permission.py` 다.
+    "app/backups/router.py::verify":
+        "백업은 조직 범위가 없다(`backups` 에 `org_id` 없음) — 좁힐 범위가 없다. "
+        "`BACKUP_EXECUTE`(system_admin) 가 지킨다.",
+    "app/backups/router.py::download":
+        "백업은 조직 범위가 없다(`backups` 에 `org_id` 없음) — 좁힐 범위가 없다. "
+        "`BACKUP_EXECUTE`(system_admin) 가 지킨다.",
+    "app/backups/router.py::discard":
+        "백업은 조직 범위가 없다(`backups` 에 `org_id` 없음) — 좁힐 범위가 없다. "
+        "`BACKUP_EXECUTE`(system_admin) 가 지킨다.",
 }
 
 # ── 알려진 미해결 gap ────────────────────────────────────────────────────────

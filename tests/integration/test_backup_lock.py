@@ -57,7 +57,8 @@ def test_the_web_can_still_write_while_a_backup_is_running(
     web = _second_connection(db_url)
     attempts: list[str] = []
 
-    def backup_and_check_the_lock(database_url, dest_path, *, bin_dir=None):
+    def backup_and_check_the_lock(database_url, dest_path, *, bin_dir=None,
+                                  exclude_table_data=()):
         """느린 덤프를 흉내내면서, 바로 그 순간 백업 행이 잠겨 있는지 확인한다."""
         row_id = db.execute(
             text("SELECT id FROM backups ORDER BY created_at DESC LIMIT 1")

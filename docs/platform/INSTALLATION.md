@@ -269,7 +269,7 @@ Storage Provider 가 이 시점 제품에 없다. S22 가 전 Component 로 다�
 | 있는 것 | 상태 |
 |---|---|
 | `scripts/install-clovirone-web-assistant.sh` (12 stage) | 존재. **S2 가 SQLite 자국만 걷어냈다**(`sqlite3` 패키지 → `postgresql-client-16`, PRAGMA 확인 → `alembic current` 확인, 「기존 설치인가」 판정을 `DATABASE_URL` 기준으로). 여전히 **Notion·n8n 결합**이고 PostgreSQL 설치·AI·Storage 개념이 없다 — 전면 재작성은 S4 |
-| `scripts/upgrade-*.sh` · `rollback-*.sh`(`--uninstall` 포함) · `update-from-git.sh` · `build-bundle.sh` | 존재. **S2 가 백업/롤백의 단일 파일 전제를 걷어냈다**: `backup-*.sh` 는 `pg_dump -Fc` + `pg_restore --list` 검증이고 **실패하면 죽는다**(예전엔 파일이 없으면 조용히 건너뛰고 `BACKUP_OK` 를 찍었다), `rollback-*.sh` 는 `pg_restore --clean --if-exists` 이고 **SQLite 시절 백업을 만나면 그렇게 말하고 멈춘다**. 운영 정책(Schedule·Retention·Manifest)은 여전히 **S12** |
+| `scripts/upgrade-*.sh` · `rollback-*.sh`(`--uninstall` 포함) · `update-from-git.sh` · `build-bundle.sh` | 존재. **S2 가 백업/롤백의 단일 파일 전제를 걷어냈다**: `backup-*.sh` 는 `pg_dump -Fc` + `pg_restore --list` 검증이고 **실패하면 죽는다**(예전엔 파일이 없으면 조용히 건너뛰고 `BACKUP_OK` 를 찍었다), `rollback-*.sh` 는 `pg_restore --clean --if-exists` 이고 **SQLite 시절 백업을 만나면 그렇게 말하고 멈춘다**. 운영 정책(Schedule·Retention·Manifest)은 **S12 가 제품 안에 세웠다**(`app/backups/`, D-269~D-272) — 이 옛 스크립트들은 아직 옛 slug 설치가 쓰고 있고 걷어내는 것은 S14 다. **배포 스냅숏 보존은 `deploy/install.sh::prune_snapshots` 가 만드는 자리에서 한다**(S12) |
 | `deploy/00-precheck.sh` · `deploy/nginx/*.conf`(`__DNS_NAME__` 템플릿) · systemd unit 4종 | **재사용 가능한 뼈대** |
 | `scripts/validate-clovirone-web-assistant.sh` | **n8n 활성 단언**(`:23`)이 박혀 있어 **n8n 제거 시 실패한다** → S11 |
 

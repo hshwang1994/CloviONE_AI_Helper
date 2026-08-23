@@ -1251,8 +1251,10 @@ do_version() {
 # ═════════════════════════════════════════════════════════════════════════════
 # 스냅샷 · rollback · uninstall
 # ═════════════════════════════════════════════════════════════════════════════
-# S12 가 만들 Backup **정책**(Schedule·Retention·Manifest)이 아니다. upgrade 가 되돌릴
-# 지점을 남기기 위한 최소 스냅샷이다 — 그 이상을 여기서 만들면 S12 와 역할이 겹친다.
+# 제품의 Backup **정책**(Schedule·Retention·Manifest)이 아니다. 그것은 S12 가 제품 안에
+# 세웠다(`app/backups/`). 여기는 upgrade 가 되돌릴 지점을 남기기 위한 최소 스냅샷이고,
+# 둘은 대상이 다르다 — 이쪽은 **배포**(코드 + 그 시점 DB)를 되돌리고, 제품 백업은
+# **데이터**를 되돌린다.
 # 결과는 **전역 `SNAPSHOT_DIR`** 로 준다. 예전에는 마지막에 경로를 `echo` 하고 호출부가
 # `$(take_snapshot)` 로 받았는데, 같은 함수 안의 `log` 도 표준 출력으로 나가는 바람에
 # 「[17:03:54] 스냅샷: /var/backups/…」 한 줄이 통째로 경로 값이 됐다. rollback 대상이
@@ -1329,6 +1331,30 @@ take_snapshot() {
     chown root:"$SVC_USER" "$dir"/* 2>/dev/null || true
     chmod 0640 "$dir"/* 2>/dev/null || true
   fi
+  prune_snapshots
+}
+
+# 스냅샷 보존(S12). 스냅샷을 만드는 자리에서 함께 지운다 — 별도 cron 을 두면 그 cron 이
+# 안 도는 설치에서 `$BACKUP_ROOT` 가 무한히 자라고, 그 사실은 디스크가 찰 때 처음 드러난다.
+# 스냅샷은 install.sh 가 돌 때만 생기므로, 만들 때 치우는 것으로 충분하다.
+#
+# **개수가 아니라 나이로 지운다.** 배포가 잦은 날 하루 만에 일주일치 복원 지점이 증발하는
+# 것을 막는다(배포 N번 = 그날 슬롯 N개 소모). 제품 쪽 보존이 개수와 나이를 **둘 다** 거는
+# 것과 같은 이유이고, 여기서는 만드는 주체가 하나뿐이라 나이 하나로 충분하다.
+SNAPSHOT_KEEP_DAYS="${SNAPSHOT_KEEP_DAYS:-14}"
+
+prune_snapshots() {
+  [ -d "$BACKUP_ROOT" ] || return 0
+  local old
+  # 타임스탬프 디렉터리만 대상이다(`_ts` 가 만드는 이름). 사람이 손으로 둔 디렉터리를
+  # 지우지 않는다 — 되돌릴 자료를 따로 챙겨 둔 자리일 수 있다.
+  while IFS= read -r old; do
+    [ -n "$old" ] || continue
+    log "스냅샷 정리(${SNAPSHOT_KEEP_DAYS}일 초과): $old"
+    rm -rf -- "$old"
+  done < <(find "$BACKUP_ROOT" -maxdepth 1 -mindepth 1 -type d \
+             -regextype posix-extended -regex '.*/[0-9]{8}[-_][0-9]{6}' \
+             -mtime "+$SNAPSHOT_KEEP_DAYS" 2>/dev/null)
 }
 
 do_rollback() {

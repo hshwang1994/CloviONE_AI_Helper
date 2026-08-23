@@ -145,6 +145,38 @@ def test_dump_suffix_is_not_sql(tmp_path):
     assert pg_backup.BACKUP_SUFFIX == ".dump"
 
 
+# ── 옆 데이터베이스를 가리키기 (S12 — 복구 리허설이 복원본을 앱에 물릴 때) ────
+
+
+def test_sibling_url_keeps_the_socket_shape():
+    """🔴 유닉스 소켓 + peer 인증(`postgresql:///db`)이 **운영의 모양**이다.
+
+    `urlunparse` 로 다시 조립하면 `netloc` 이 비어 `//` 가 떨어지고 `postgresql:/db` 가
+    된다 — `normalize_database_url` 이 그것을 「PostgreSQL 주소가 아니다」로 거절한다.
+    실 서버 리허설에서 실제로 여기서 멈췄다.
+    """
+    from app.core.db import normalize_database_url
+
+    url = pg_backup.sibling_url("postgresql:///clovirassist", "restored_1")
+    assert url == "postgresql:///restored_1"
+    normalize_database_url(url)  # 거절하면 여기서 예외가 난다
+
+
+def test_sibling_url_does_not_re_encode_the_password():
+    """자격증명을 다시 조립하면 `@`·`/` 의 퍼센트 인코딩이 풀려 인증이 조용히 실패한다."""
+    url = pg_backup.sibling_url("postgresql://a%40b:p%2Fw@db:5433/clovir", "restored_2")
+    assert url == "postgresql://a%40b:p%2Fw@db:5433/restored_2"
+    env, dbname = pg_backup.libpq_env(url)
+    assert env["PGUSER"] == "a@b" and env["PGPASSWORD"] == "p/w" and dbname == "restored_2"
+
+
+def test_sibling_url_carries_the_query_string():
+    """`?host=/run/postgresql` 은 **어디에 붙는지**다. 떨어뜨리면 다른 서버를 가리킨다."""
+    assert pg_backup.sibling_url(
+        "postgresql://svc@/clovir?host=/run/postgresql", "restored_3"
+    ) == "postgresql://svc@/restored_3?host=/run/postgresql"
+
+
 # ── 부분 검증을 «검증됨» 이라고 하지 않는가 (D-204) ──────────────────────────
 
 
@@ -159,7 +191,7 @@ def test_partial_verification_does_not_claim_verified(db, settings, monkeypatch)
     from app.backups import service
     from app.backups.models import STATUS_SUCCEEDED
 
-    def fake_backup(database_url, dest_path, *, bin_dir=None):
+    def fake_backup(database_url, dest_path, *, bin_dir=None, exclude_table_data=()):
         dest_path.parent.mkdir(parents=True, exist_ok=True)
         dest_path.write_text("fake", encoding="utf-8")
         return {"size_bytes": 4, "checksum": "abc"}
@@ -182,7 +214,7 @@ def test_a_real_restore_check_does_claim_verified(db, settings, monkeypatch):
     from app.backups import service
     from app.backups.models import STATUS_VERIFIED
 
-    def fake_backup(database_url, dest_path, *, bin_dir=None):
+    def fake_backup(database_url, dest_path, *, bin_dir=None, exclude_table_data=()):
         dest_path.parent.mkdir(parents=True, exist_ok=True)
         dest_path.write_text("fake", encoding="utf-8")
         return {"size_bytes": 4, "checksum": "abc"}

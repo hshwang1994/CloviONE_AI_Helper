@@ -22,8 +22,9 @@ PG 에서는 파일 복사가 아예 성립하지 않는다 — 데이터 디렉
 3번을 못 하는 환경(DB 생성 권한이 없는 역할)에서는 그 사실을 `reason` 에 적어 돌려준다 —
 **조용히 2번까지만 하고 «검증됨» 이라고 말하지 않는다.** 그게 이 파일이 막으려는 실패다.
 
-**복원 후 앱 기동 검증**은 여기 없다. 그건 운영 정책·보존·매니페스트와 함께 S12 의 일이다
-(D-204). 여기는 그 아래 계층인 «덤프 하나를 믿을 수 있는가» 다.
+**복원 후 앱 기동 검증**은 여기 없다. 여기는 그 아래 계층인 «덤프 하나를 믿을 수 있는가» 다.
+그 위층은 S12 가 세웠다 — 운영 정책·보존·매니페스트는 `app/backups/{policy,manifest}.py`,
+「복원본을 물고 앱이 실제로 도는가」는 `scripts/restore_rehearsal.py` 7단계다(D-204·D-273).
 
 ## 왜 `pg_bin_dir` 가 필요한가
 
@@ -124,28 +125,38 @@ def _run(argv: list[str], env: dict[str, str], timeout: int) -> subprocess.Compl
     )
 
 
-def backup_database(database_url: str, dest_path: Path, *, bin_dir: str | None = None) -> dict:
-    """`pg_dump -Fc` 로 일관된 온라인 덤프를 만든다."""
+def backup_database(
+    database_url: str,
+    dest_path: Path,
+    *,
+    bin_dir: str | None = None,
+    exclude_table_data: tuple[str, ...] | list[str] = (),
+) -> dict:
+    """`pg_dump -Fc` 로 일관된 온라인 덤프를 만든다.
+
+    `exclude_table_data` 는 **행만** 뺀다(표는 그대로 선다). 무엇을 왜 빼는지는
+    `app/backups/policy.py` 가 정하고, 여기서는 그 목록을 받기만 한다 — 정책이 두 곳에
+    있으면 매니페스트가 말하는 범위와 실제로 뺀 것이 어긋나는 날이 온다.
+    """
     dump = resolve_tool("pg_dump", bin_dir)
     env, dbname = libpq_env(database_url)
     if not dbname:
         raise ValueError("database_url 에 데이터베이스 이름이 없습니다.")
     dest_path.parent.mkdir(parents=True, exist_ok=True)
 
-    result = _run(
-        [
-            dump,
-            "--format=custom",
-            # 소유자·권한은 복원하는 쪽 역할을 따른다. 안 그러면 원본과 같은 역할이 없는
-            # 서버(재해 복구 대상)에서 복원이 통째로 실패한다.
-            "--no-owner",
-            "--no-privileges",
-            "--file", str(dest_path),
-            "--dbname", dbname,
-        ],
-        env,
-        DUMP_TIMEOUT_SECONDS,
-    )
+    argv = [
+        dump,
+        "--format=custom",
+        # 소유자·권한은 복원하는 쪽 역할을 따른다. 안 그러면 원본과 같은 역할이 없는
+        # 서버(재해 복구 대상)에서 복원이 통째로 실패한다.
+        "--no-owner",
+        "--no-privileges",
+    ]
+    for table in exclude_table_data:
+        argv.append(f"--exclude-table-data={table}")
+    argv += ["--file", str(dest_path), "--dbname", dbname]
+
+    result = _run(argv, env, DUMP_TIMEOUT_SECONDS)
     if result.returncode != 0:
         # 실패했는데 파일이 남으면 다음 검증이 그 조각을 «백업» 으로 본다.
         dest_path.unlink(missing_ok=True)
@@ -184,6 +195,86 @@ def verify_backup(
     return {"ok": True, "reason": None}
 
 
+def admin_env_for(database_url: str) -> dict[str, str]:
+    """`postgres` 에 붙는 관리 연결 환경.
+
+    복원 대상 DB 를 만들거나 지우려면 **그 DB 밖에** 있어야 한다. 자기 자신에 붙어서는
+    자기를 지울 수 없다.
+    """
+    env, _ = libpq_env(database_url)
+    env = dict(env)
+    env["PGDATABASE"] = "postgres"
+    return env
+
+
+def sibling_url(database_url: str, dbname: str) -> str:
+    """같은 서버의 다른 데이터베이스를 가리키는 URL.
+
+    복구 리허설이 복원본을 **앱에 물릴** 때 쓴다. 자격증명 부분(`netloc`)을 **손대지 않고
+    그대로 옮긴다** — 다시 조립하면 비밀번호에 든 `@`·`/` 의 퍼센트 인코딩이 풀려 인증이
+    조용히 실패한다.
+
+    `urlunparse` 를 안 쓰는 이유: `netloc` 이 비면(`postgresql:///db` — 유닉스 소켓 +
+    peer 인증인 운영 모양이다) `//` 를 떨어뜨려 `postgresql:/db` 를 만든다. 그 문자열은
+    스킴이 통째로 달라 보이고, `normalize_database_url` 이 「PostgreSQL 주소가 아니다」로
+    거절한다. 실 서버 리허설에서 실제로 여기서 멈췄다.
+
+    질의 문자열은 함께 옮긴다 — `?host=/run/postgresql` 처럼 **어디에 붙는지**가 거기
+    적혀 있을 수 있다.
+    """
+    parsed = urlparse(database_url)
+    query = f"?{parsed.query}" if parsed.query else ""
+    return f"{parsed.scheme}://{parsed.netloc}/{dbname}{query}"
+
+
+def create_database(database_url: str, dbname: str, *, bin_dir: str | None = None) -> None:
+    """빈 데이터베이스 하나. 실패하면 `RuntimeError`."""
+    psql = resolve_tool("psql", bin_dir)
+    result = _run(
+        [psql, "-v", "ON_ERROR_STOP=1", "-c", f'CREATE DATABASE "{dbname}"'],
+        admin_env_for(database_url),
+        LIST_TIMEOUT_SECONDS,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(f"CREATE DATABASE 실패: {result.stderr.strip()[:300]}")
+
+
+def drop_database(database_url: str, dbname: str, *, bin_dir: str | None = None) -> None:
+    """지운다. 없으면 아무 일도 안 한다 — 치우는 코드가 죽으면 쓰레기가 남는다."""
+    try:
+        psql = resolve_tool("psql", bin_dir)
+    except PgToolMissing:
+        return
+    _run(
+        [psql, "-c", f'DROP DATABASE IF EXISTS "{dbname}" WITH (FORCE)'],
+        admin_env_for(database_url),
+        LIST_TIMEOUT_SECONDS,
+    )
+
+
+def restore_into(
+    backup_path: Path, dbname: str, *, database_url: str, bin_dir: str | None = None
+) -> dict:
+    """아카이브를 **이미 있는** 데이터베이스에 푼다.
+
+    PG 에는 「파일을 제자리에 되돌린다」가 없다. 되돌린다는 것은 언제나 **어떤 데이터베이스에
+    푼다**는 뜻이고, 그래서 대상 이름을 받는다. 살아 있는 DB 를 대상으로 부르지 않는 것은
+    호출부의 책임이다 — 이 함수는 시키는 대로 푼다.
+    """
+    restore = resolve_tool("pg_restore", bin_dir)
+    env = admin_env_for(database_url)
+    result = _run(
+        [restore, "--dbname", dbname, "--no-owner", "--no-privileges", str(backup_path)],
+        env,
+        RESTORE_TIMEOUT_SECONDS,
+    )
+    return {
+        "ok": result.returncode == 0,
+        "returncode": result.returncode,
+        "stderr": result.stderr.strip()[:2000],
+    }
+
+
 def restore_test(
     backup_path: Path, *, database_url: str | None = None, bin_dir: str | None = None
 ) -> dict:
@@ -200,45 +291,29 @@ def restore_test(
         return {"ok": True, "reason": "structure_only: 복원 대상 서버를 몰라 구조만 확인했습니다."}
 
     try:
-        restore = resolve_tool("pg_restore", bin_dir)
+        resolve_tool("pg_restore", bin_dir)
     except PgToolMissing as exc:
         return {"ok": False, "reason": f"tool_missing: {exc}"}
 
-    # 관리 연결은 `postgres` 로 붙는다 — 복원 대상 DB 를 만들려면 그 DB 밖에 있어야 한다.
-    env, _ = libpq_env(database_url)
-    admin_env = dict(env)
-    admin_env["PGDATABASE"] = "postgres"
     temp_db = f"clovir_restore_test_{uuid.uuid4().hex[:12]}"
 
     try:
-        psql = resolve_tool("psql", bin_dir)
+        resolve_tool("psql", bin_dir)
     except PgToolMissing as exc:
         return {"ok": False, "reason": f"tool_missing: {exc}"}
 
-    created = _run(
-        [psql, "-v", "ON_ERROR_STOP=1", "-c", f'CREATE DATABASE "{temp_db}"'],
-        admin_env,
-        LIST_TIMEOUT_SECONDS,
-    )
-    if created.returncode != 0:
+    try:
+        create_database(database_url, temp_db, bin_dir=bin_dir)
+    except RuntimeError as exc:
         # 권한이 없어 임시 DB 를 못 만드는 환경이 있다. 구조 검증은 통과했으므로 거짓말은
         # 아니지만, **어디까지 봤는지**를 반드시 함께 말한다.
-        return {
-            "ok": True,
-            "reason": f"structure_only: 임시 DB 를 만들지 못했습니다({created.stderr.strip()[:160]}).",
-        }
+        return {"ok": True, "reason": f"structure_only: 임시 DB 를 만들지 못했습니다({exc})."}
     try:
-        restored = _run(
-            [restore, "--dbname", temp_db, "--no-owner", "--no-privileges", str(backup_path)],
-            admin_env,
-            RESTORE_TIMEOUT_SECONDS,
+        restored = restore_into(
+            backup_path, temp_db, database_url=database_url, bin_dir=bin_dir
         )
-        if restored.returncode != 0:
-            return {"ok": False, "reason": f"restore_failed: {restored.stderr.strip()[:200]}"}
+        if not restored["ok"]:
+            return {"ok": False, "reason": f"restore_failed: {restored['stderr'][:200]}"}
         return {"ok": True, "reason": None}
     finally:
-        _run(
-            [psql, "-c", f'DROP DATABASE IF EXISTS "{temp_db}"'],
-            admin_env,
-            LIST_TIMEOUT_SECONDS,
-        )
+        drop_database(database_url, temp_db, bin_dir=bin_dir)

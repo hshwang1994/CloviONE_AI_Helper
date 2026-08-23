@@ -76,24 +76,31 @@ def test_backup_list_names_who_ran_it(client, admin_csrf):
 
 def test_scheduled_backup_has_no_person_and_says_so():
     """예약(자동) 백업은 실행한 사람이 없다. 그 사실이 그대로 나와야 한다 — 없는 사람을
-    지어내면 감사 기록이 거짓이 된다(불변 6)."""
+    지어내면 감사 기록이 거짓이 된다(불변 6).
+
+    qa-contract-change: 손으로 만든 stub 클래스를 **진짜 `Backup` 모델**로 바꿨다. stub 은
+    컬럼이 늘 때마다 조용히 뒤처지고, 그때 나는 실패는 「이름을 지어냈다」가 아니라
+    `AttributeError` 다 — 시험이 지키려던 성질과 아무 상관 없는 이유로 빨개진다. S12 가
+    컬럼 셋을 더하면서 실제로 그렇게 됐다. 모델을 그대로 쓰면 다시는 어긋나지 않는다
+    (DB 는 여전히 필요 없다 — 세션에 넣지 않는다).
+    """
     from datetime import datetime
 
+    from app.backups.models import Backup
     from app.backups.service import backup_view
 
-    class _Auto:
-        id = "b-auto"
-        backup_type = "sqlite"
-        path = "/tmp/auto.sqlite3"
-        status = "succeeded"
-        size_bytes = 10
-        checksum = "abc"
-        created_by = None
-        created_at = datetime(2026, 8, 7, 3, 0, 0)
-        verified_at = None
-        error_message = None
-
-    view = backup_view(_Auto(), {})
+    view = backup_view(
+        Backup(
+            backup_type="pg_dump",
+            path="/tmp/backup-auto",
+            status="succeeded",
+            size_bytes=10,
+            checksum="abc",
+            created_by=None,
+            created_at=datetime(2026, 8, 7, 3, 0, 0),
+        ),
+        {},
+    )
     assert view["created_by"] is None
     assert view["created_by_name"] is None, "실행자가 없는데 이름을 지어냈다"
 

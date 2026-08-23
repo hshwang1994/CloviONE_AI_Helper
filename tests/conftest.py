@@ -342,9 +342,15 @@ def stub_pg_dump(monkeypatch):
     # 파일이 덮어써졌는지를 도구 없이도 알아볼 수 있게 하는 최소한의 장치다.
     magic = b"PGDMP fake archive"
 
-    def fake_backup(database_url, dest_path, *, bin_dir=None):
+    # 서비스가 **무엇을 빼라고 시켰는지**를 시험이 볼 수 있게 남긴다(S12). 정책이 실제로
+    # `pg_dump` 인자까지 갔는지는 여기서만 확인할 수 있다 — 도구가 없는 머신에서는
+    # 명령행을 볼 방법이 없다.
+    calls: list[dict] = []
+
+    def fake_backup(database_url, dest_path, *, bin_dir=None, exclude_table_data=()):
         dest_path.parent.mkdir(parents=True, exist_ok=True)
         dest_path.write_bytes(magic)
+        calls.append({"dest": dest_path, "exclude_table_data": tuple(exclude_table_data)})
         return {
             "path": str(dest_path),
             "size_bytes": dest_path.stat().st_size,
@@ -352,6 +358,8 @@ def stub_pg_dump(monkeypatch):
             # 잡아내는지는 바로 이 값에 달려 있다 — 가짜로 두면 그 시험이 헛돈다.
             "checksum": pg_backup.sha256_file(dest_path),
         }
+
+    fake_backup.calls = calls
 
     def fake_verify(backup_path, expected_checksum=None, *, bin_dir=None):
         """체크섬은 **진짜로** 보고, `pg_restore --list` 자리만 가짜다."""

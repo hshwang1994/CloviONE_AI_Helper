@@ -17,6 +17,11 @@ STATUS_FAILED = "failed"
 # 덤프 형식. 옛 `sqlite` 행은 운영 DB 에 남아 있을 수 있다(S13 이 이관할 때 본다).
 BACKUP_TYPE_PG_DUMP = "pg_dump"
 
+# 서버에 파일이 아직 있는가 (S12). 다운로드한 뒤 「서버에서도 지울까요」에 **사람이
+# 답한 결과**가 이 값이다 — 자동으로 바뀌지 않는다(D-204).
+FILE_PRESENT = "present"
+FILE_REMOVED = "removed"
+
 
 class Backup(UUIDPrimaryKeyMixin, Base):
     __tablename__ = "backups"
@@ -38,6 +43,22 @@ class Backup(UUIDPrimaryKeyMixin, Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
     verified_at: Mapped[datetime | None] = mapped_column(DateTime)
     error_message: Mapped[str | None] = mapped_column(Text)
+
+    # ── S12 ──────────────────────────────────────────────────────────────────
+    #
+    # 매니페스트 **사본**이다. 정본은 세트 디렉터리 안의 `manifest.json` 이고
+    # (`app/backups/manifest.py` 참조), 이 칸은 목록 화면이 행마다 디스크를 읽지 않게
+    # 하려고 둔다. 둘이 어긋나면 파일 쪽이 옳다 — 그쪽이 백업과 함께 이동한다.
+    manifest_json: Mapped[str | None] = mapped_column(JsonText)
+
+    #: 서버에 파일이 아직 있는가. `removed` 는 **사람이 지우기로 답한** 결과다.
+    #: 행은 남는다 — 「그때 백업을 만들었고 받아 갔다」는 사실까지 지울 이유가 없다.
+    file_state: Mapped[str] = mapped_column(
+        String(16), nullable=False, default=FILE_PRESENT, server_default=FILE_PRESENT
+    )
+    #: 마지막으로 내려받은 시각. 기록만 한다 — 이 값 때문에 서버가 파일을 지우는 일은
+    #: 없다(D-204: 자동 삭제하지 않는다).
+    downloaded_at: Mapped[datetime | None] = mapped_column(DateTime)
 
 
 class RestoreRehearsal(UUIDPrimaryKeyMixin, Base):
