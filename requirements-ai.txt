@@ -1,0 +1,18 @@
+# AI 실행 환경 — **Installer Stage 12 가 깐다.** `requirements.txt` 와 따로 두는 이유.
+#
+# 이 셋은 합쳐서 200MB 가 넘는 이진 wheel 이다. `requirements.txt` 에 넣으면 AI 를 안
+# 쓰는 설치도 전부 그것을 받아야 하고, 폐쇄망 wheelhouse 도 그만큼 커진다. AI 는
+# 이 제품에서 **끌 수 있는 Component** 이므로(D-201) 의존도 그렇게 나눈다.
+#
+# 제품 코드는 이 셋을 **함수 안에서** import 한다. 안 깔린 설치에서 웹과 워커가
+# 통째로 안 뜨면 안 되기 때문이다 — 못 쓰는 상태는 `ai_cli status` 와 `/readyz` 가
+# 말한다(`app/ai/gateway/adapters/local_embed.py` 머리말).
+#
+# torch 는 없다(D-200). CPU 추론에 그 무게가 필요 없고 GPU 도 없다.
+
+# ONNX Runtime CPU 빌드. S1 이 이 서버에서 실측한 판이다(D-211 · 1.20.1).
+onnxruntime==1.20.1
+# XLM-RoBERTa SentencePiece 토크나이저. `transformers` 없이 이것 하나면 된다.
+tokenizers==0.23.1
+# onnxruntime 의 입출력이 numpy 배열이다. 풀링·정규화도 여기서 돈다.
+numpy==2.5.2

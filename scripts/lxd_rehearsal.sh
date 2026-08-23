@@ -89,8 +89,14 @@ for n in 0 1 2 3 4 5 6 7 8 9 10 13 14 15 16 17 18; do
   grep -qE "^STAGE_${n}_[A-Z]+: OK" <<<"$OUT" || { bad "STAGE_$n 이 OK 가 아니다"; break; }
 done
 grep -qE "^STAGE_18_VERIFY: OK" <<<"$OUT" && ok "Stage 0~18 이 전부 OK(11·12 는 SKIP)"
-expect_in "$OUT" "STAGE_11_STORAGE: SKIP" "아직 없는 Storage Component 를 SKIP 이라고 말한다"
-expect_in "$OUT" "STAGE_12_AI: SKIP" "아직 없는 AI Component 를 SKIP 이라고 말한다"
+# Stage 11 은 S8 이, Stage 12 는 S9 이 채웠다. 예전에는 둘 다 `SKIP` 을 기대했는데
+# 그 단언이 낡은 채로 남아 이 리허설이 **늘 빨간불**이 됐다. 늘 실패하는 검사는 없는
+# 검사보다 나쁘다 — 운영자가 그 줄을 정상으로 학습하면 진짜 실패도 똑같아 보인다.
+expect_in "$OUT" "STAGE_11_STORAGE: OK" "저장소 Component 를 실제로 설치한다"
+# AI 는 `--with-ai` 없이 설치했으므로 모델 캐시 자리만 만들고 OK 다(D-259). 「끄고
+# 설치한 것」과 「깔려다 깨진 것」은 다른 사실이고, 로그에서 그 둘이 같아 보이면 안 된다.
+expect_in "$OUT" "STAGE_12_AI: OK" "AI 를 끄고 설치해도 Stage 12 가 OK 다"
+expect_in "$OUT" "AI 를 끄고 설치했습니다" "무엇을 안 깔았는지 로그가 그대로 말한다"
 
 banner "설치 직후 상태 — 유닛 · 매니페스트"
 cx 'systemctl is-active postgresql nginx clovirassist-privhelper clovirassist-worker clovirassist-scheduler clovirassist-web; echo "--- enabled ---"; systemctl is-enabled postgresql nginx clovirassist-privhelper clovirassist-worker clovirassist-worker-conversational clovirassist-scheduler clovirassist-web'

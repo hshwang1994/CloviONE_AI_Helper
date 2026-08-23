@@ -55,7 +55,14 @@ NOT_LOGGED_IN_JSON = json.dumps({
 }, ensure_ascii=False)
 
 
+#: 이 시험들이 쓰는 모델 이름. **제품은 기본 모델을 안 고른다**(P-19 · D-201) —
+#: 예전에는 `LlmConfig()` 가 이름 하나를 들고 있어서 시험이 그것에 기대고 있었다.
+#: 이제 안 정하면 「설정 안 됨」이라, 시험도 운영자처럼 값을 정해서 준다.
+TEST_MODEL = "시험용-모델"
+
+
 def make_config(**over) -> provider.LlmConfig:
+    over.setdefault("model", TEST_MODEL)
     return replace(provider.LlmConfig(), enabled=True, backend=provider.BACKEND_CLI, **over)
 
 

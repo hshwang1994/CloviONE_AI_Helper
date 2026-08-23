@@ -86,7 +86,13 @@ alembic head · PG/extension 버전 · 설치 시각 · Stage 결과)을 남긴�
 sudo /opt/clovirassist/deploy/install.sh <subcommand> [options]
 ```
 
-서브커맨드: `install` · `upgrade` · `rollback` · `uninstall` · `verify` · `version` · `preflight`.
+서브커맨드: `install` · `upgrade` · `rollback` · `uninstall` · `verify` · `version` ·
+`preflight` · `storage`(Stage 11 만) · `ai`(Stage 12 만).
+
+**AI 는 기본이 꺼짐이다**(D-259). 켜려면 설치 때 `--ai-model-dir <모델 디렉터리>` 를 주거나,
+모델 파일을 나중에 서버에 넣고 `sudo deploy/install.sh ai --ai-model-dir <디렉터리>` 를 돌린다.
+**모델을 네트워크로 받지 않는다** — 폐쇄망이 기본 전제이고, 설치 중에 바깥 호스트를 새로
+여는 것은 그 전제와 정반대다.
 
 `upgrade` 는 `installed_manifest.json` 의 remote 를 읽어 스스로 `git fetch` → 원하는 tag checkout →
 재설치한다. **사용자가 Source 위치를 다시 알려 줄 필요가 없다.**
@@ -109,8 +115,8 @@ sudo /opt/clovirassist/deploy/install.sh <subcommand> [options]
 | 9 | **DB Migration** | `alembic upgrade head`. 실행 전 현재 revision 과 목표 revision 출력 | revision 위치 표시 |
 | 10 | Seed/부트스트랩 | 최초 관리자 · 기본 Role/Permission · 기본 Storage Provider(Local) | |
 | 11 | **File Storage 준비** ✅ | 디렉터리 생성/권한 · 기본 LOCAL Provider 부트스트랩 · **마운트 유닛과 `RequiresMountsFor=` drop-in 을 제품이 만들어 설치** · `systemctl enable --now` · **제품 코드로 `st_dev` 마운트 검증**(`storage_cli status` 의 종료코드가 계약이다) | 미마운트면 **쓰기를 거부하는 상태**라고 표시하고 멈춘다. 붙일 유닛 이름을 함께 낸다 |
-| 12 | **AI Component** | Embedding/Rerank 모델 파일 배치(오프라인 캐시 지원) · ONNX Runtime · 로드 검증 | 모델 부재 원인 표시 |
-| 13 | systemd unit 생성/설치 | **지금 다섯**: `clovirassist-web` · `-worker` · `-worker-conversational` · `-scheduler` · `-privhelper`. **`-index` 는 아직 없다** — 색인 레인 Component 자체가 S9(P-18)에서 생기고, §6.1 계약대로 그 Session 이 유닛·probe·uninstall·복구를 함께 넣는다. 소스에 레인이 생겼는데 유닛이 없으면 이 Stage 가 막는다 | |
+| 12 | **AI Component** ✅ | 모델 캐시 디렉터리 · (`--with-ai` 일 때) `requirements-ai.txt` 설치 · 모델 파일 배치(**오프라인만** — 네트워크로 안 받는다) · **제품 CLI 로 로드 검증**(`ai_cli status` 의 종료코드가 계약이고, `ai_cli selftest` 가 실제로 벡터를 만들어 길이까지 본다). AI 를 끄고 설치하면 캐시 자리만 만들고 **OK** 다 (D-259) | 켰는데 못 쓰면 **멈춘다**. 어느 파일이 없는지는 로그가 말한다 |
+| 13 | systemd unit 생성/설치 | **지금 여섯**: `clovirassist-web` · `-worker` · `-worker-conversational` · `-scheduler` · `-index` · `-privhelper`. `-index` 는 S9 이 넣었다(P-18 · D-257). 소스에 레인이 있는데 유닛이 없으면 이 Stage 가 막는다 | |
 | 14 | `systemctl enable` + 의존 순서 | §6 | |
 | 15 | **TLS** | 인증서 존재 확인 또는 자체 서명 생성. **CN/SAN = `--dns-name`**. 있으면 SAN 이 그 이름을 담는지까지 본다(있다 ≠ 맞다) | |
 | 16 | nginx | 템플릿 치환 + **미치환 플레이스홀더 거부** + `nginx -t` + `server_name` 중복 검사 | |
@@ -128,7 +134,7 @@ sudo /opt/clovirassist/deploy/install.sh <subcommand> [options]
 **`SKIP` 이 있는 이유(S4)**: 아직 제품에 없는 Component 의 Stage 를 `OK` 로 찍으면 「설치했다」는
 거짓말이 로그에 남는다. 그 Session 이 Component 를 넣을 때 `SKIP` 이 `OK` 로 바뀐다 —
 §8 Acceptance 가 **전 Stage `OK`** 를 요구하므로 남아 있으면 그때 걸린다.
-**Stage 11 은 S8 이 채웠다**(이제 SKIP 이 아니다). 남은 것은 12(AI=S9)뿐이다.
+**Stage 11 은 S8 이, Stage 12 는 S9 이 채웠다.** 이제 `SKIP` 을 찍는 Stage 는 **하나도 없다**.
 
 **Idempotent 재실행**: 모든 Stage 가 "이미 되어 있음" 을 감지하고 건너뛴다. 재실행이 데이터·설정을
 파괴하지 않는다. 실패 후 재실행은 실패 지점부터 의미 있게 이어진다.
@@ -155,7 +161,7 @@ network-online.target
         ├─ clovirassist-worker.service           After=postgresql   (배치 레인)
         ├─ clovirassist-worker-conversational…   After=postgresql   (D-118, 기본 대기)
         ├─ clovirassist-scheduler.service        After=postgresql   (D-225)
-        └─ clovirassist-index.service            After=postgresql   ← 아직 없다 (S9 · P-18)
+        └─ clovirassist-index.service            After=postgresql   (S9 ✅ · D-257)
    (Storage 사용 시) RequiresMountsFor=<마운트포인트>  ← Stage 11 이 유닛 넷에 drop-in 으로 얹는다 (S8 ✅)
 ```
 
@@ -280,8 +286,8 @@ Storage Provider 가 이 시점 제품에 없다. S22 가 전 Component 로 다�
 |---|---|
 | GitLab 기준 Source 주소(Installer 는 Remote 중립이라 주소만 넣으면 된다) | 외부 입력 (R16) |
 | Storage 준비 실체(NFS/SMB Provider · 마운트 유닛 · `st_dev` 가드) — Stage 11 은 `SKIP` 이다 | S8 (P-17) |
-| AI Component(모델 배치 · ONNX Runtime) — Stage 12 는 `SKIP` 이다 | S9 (P-18) |
-| `clovirassist-index.service` | S9 (P-18) |
+| ~~AI Component(모델 배치 · ONNX Runtime)~~ | ~~S9 (P-18)~~ — **완료 (2026-08-23)**. 실검증 원장은 [`EVIDENCE/S9/`](EVIDENCE/S9/README.md) |
+| ~~`clovirassist-index.service`~~ | ~~S9 (P-18)~~ — **완료 (2026-08-23)** |
 | **전 Component** Reboot 검증(Storage·AI 포함) | S22 |
 
 ### 9.1 nginx 하드 블로커

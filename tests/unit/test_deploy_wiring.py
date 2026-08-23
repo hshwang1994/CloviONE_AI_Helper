@@ -475,18 +475,64 @@ def test_verify_does_not_use_curl_dash_k():
     assert "ssl_verify_result" in block
 
 
-def test_stages_that_have_no_component_yet_say_skip_not_ok():
+def test_no_stage_says_skip_anymore():
     """OK 로 찍으면 「설치했다」는 거짓말이 로그에 남는다. S22 는 전 Stage OK 를 요구하므로
     SKIP 이 남아 있으면 그때 걸린다.
 
-    **Stage 11 은 S8 이 채웠다.** 이제 SKIP 이면 안 된다 — 저장소 Component 가 제품에
-    있는데 설치가 「아직 없다」고 말하면 그것이 새로운 거짓말이다.
+    **Stage 11 은 S8 이, Stage 12 는 S9 가 채웠다.** 둘 다 이제 SKIP 이면 안 된다 —
+    Component 가 제품에 있는데 설치가 「아직 없다」고 말하면 그것이 새로운 거짓말이다.
+    남은 SKIP 이 하나도 없다는 것이 이 시험의 값이다.
     """
     text = _install_sh()
     storage = text.split("stage_11_storage() {", 1)[1].split("\n}", 1)[0]
     ai = text.split("stage_12_ai() {", 1)[1].split("\n}", 1)[0]
     assert "skip " not in storage, "저장소는 S8 에서 제품에 들어왔다 — SKIP 이 남아 있으면 안 된다"
-    assert "skip " in ai and "S9" in ai
+    assert "skip " not in ai, "AI 는 S9 에서 제품에 들어왔다 — SKIP 이 남아 있으면 안 된다"
+
+
+def test_the_ai_stage_asks_the_product_not_the_shell():
+    """🔴 Stage 12 가 셸에서 모델 파일을 세면 판정이 두 벌이 된다. Stage 11 과 같은
+    규율이다 — 제품 CLI 를 부르고 **종료코드를 계약으로 삼는다.**"""
+    text = _install_sh()
+    ai = _code_only(text.split("stage_12_ai() {", 1)[1].split("\n}", 1)[0])
+    assert "ai_cli status" in ai, "제품의 판정을 안 부르고 OK 를 찍는다"
+    # 「있다」가 아니라 「된다」까지 본다 — 받다 만 model.onnx 는 이름도 크기도 맞다.
+    assert "ai_cli selftest" in ai, "모델이 실제로 도는지를 안 본다"
+    assert "requirements-ai.txt" in ai, "임베딩 런타임을 안 깐다"
+    # 셸이 모델 디렉터리의 **구조**를 알면 판정이 두 벌이 된다. 파일 이름을 아는 자리는
+    # `app/ai/catalog.py::EmbeddingModel.required_files` 하나여야 한다.
+    assert "model.onnx" not in ai
+    assert "tokenizer.json" not in ai
+    assert "install-model --from" in ai, "모델 배치도 제품 CLI 가 한다"
+
+
+def test_the_ai_stage_is_ok_when_ai_is_deliberately_off():
+    """끄고 설치하는 것은 정상 선택이다. 여기서 실패하면 AI 를 안 쓰는 설치가
+    영영 Acceptance 를 못 지난다."""
+    text = _install_sh()
+    ai = _code_only(text.split("stage_12_ai() {", 1)[1].split("\n}", 1)[0])
+    assert 'if [ "$WITH_AI" != 1 ]; then' in ai
+    assert "return 0" in ai
+
+
+def test_ai_can_be_installed_later_without_a_full_reinstall():
+    """모델 파일 465MB 를 나중에 넣는 것이 흔한 순서다. 전체 재설치를 시키면 사람이
+    안 하고, 안 하면 AI 가 꺼진 채로 남는다(INSTALLATION.md §6.1 Installer 계약)."""
+    text = _install_sh()
+    assert "install|upgrade|rollback|uninstall|verify|version|preflight|storage|ai)" in text, \
+        "ai 서브커맨드가 dispatch 화이트리스트에 없다"
+    assert "run_stage 12 AI stage_12_ai" in text
+    assert "  ai          " in text, "usage 에 안 적혀 있으면 아무도 그 명령을 모른다"
+    # 유닛을 다시 시작하지 않으면 색인 레인이 옛 설정을 든 채로 계속 돈다.
+    assert 'systemctl restart "$INDEX_UNIT"' in text
+
+
+def test_the_model_cache_is_removed_on_uninstall():
+    """모델은 재생성 가능한 자산이라 「데이터를 남겼습니다」에 넣으면 안 된다 —
+    제품을 지운 뒤에도 465MB 가 안 돌아온다 (D-203 · D-204)."""
+    text = _install_sh()
+    block = _code_only(text.split("do_uninstall() {", 1)[1].split("\n}\n", 1)[0])
+    assert 'rm -rf "$VAR_DIR/ai"' in block
 
 
 def test_storage_stage_asks_the_product_not_the_shell(deploy_root=None):
@@ -511,10 +557,29 @@ def test_storage_can_be_reinstalled_without_a_full_reinstall():
     그 설치는 재부팅 한 번에 마운트를 잃는다(INSTALLATION.md §6.1 Installer 계약).
     """
     text = _install_sh()
-    assert "install|upgrade|rollback|uninstall|verify|version|preflight|storage)" in text, \
+    assert "|preflight|storage|ai)" in text, \
         "storage 서브커맨드가 dispatch 화이트리스트에 없다"
     assert "storage)   open_log; run_stage 11 STORAGE stage_11_storage" in text
     assert "  storage     " in text, "usage 에 안 적혀 있으면 아무도 그 명령을 모른다"
+
+
+def test_a_staging_dir_handed_to_the_service_account_is_owned_by_it():
+    """🔴 `mktemp -d` 는 **root 소유 0700** 이다. 그 안에 파일을 쓰는 것이 `run_as_app`
+    으로 띄운 서비스 계정이면 `PermissionError` 로 죽고, 그 Stage 가 설치를 통째로 세운다.
+
+    S9 의 LXD 리허설이 Stage 11 에서 실제로 이렇게 죽는 것을 잡았다 — Clean 설치 경로가
+    그때 처음 그 자리를 지났다(S8 은 호스트에서 root 로 검증했다).
+
+    **파일을 쓰는 쪽이 누구인지**로 가른다: `> "$out"` 은 이 셸(root)이 쓰는 것이라
+    소유를 안 넘겨도 된다. `--out <디렉터리>` 는 자식이 쓴다.
+    """
+    text = _install_sh()
+    storage = _code_only(text.split("stage_11_storage() {", 1)[1].split("\n}", 1)[0])
+    assert 'chown "$SVC_USER":"$SVC_USER" "$staged"' in storage, (
+        "서비스 계정이 쓸 디렉터리의 소유를 안 넘긴다 — 그 Stage 가 PermissionError 로 죽는다"
+    )
+    # 소유를 넘기는 줄이 **CLI 를 부르기 전**에 있어야 한다.
+    assert storage.index("chown") < storage.index("storage_cli units")
 
 
 def test_every_app_unit_waits_for_the_mount():
@@ -539,7 +604,6 @@ def test_a_component_that_appears_without_its_stage_is_caught():
     「나중에 설치 붙이기」를 허용하지 않으려면 검사가 있어야 한다."""
     text = _install_sh()
     assert "LANE_INDEX" in text, "색인 레인이 생겼는데 유닛이 없는 상태를 아무도 안 잡는다"
-    assert 'app/ai/gateway' in text, "AI Gateway 가 생겼는데 Stage 12 가 비어 있는 상태를 안 잡는다"
 
 
 def test_the_installer_waits_for_postgres_before_starting():
@@ -548,7 +612,8 @@ def test_the_installer_waits_for_postgres_before_starting():
     wait = ROOT / "deploy" / "wait-for-postgres.sh"
     assert wait.is_file(), "PG 준비 대기 스크립트가 없다"
     for unit in ("clovirassist-web.service", "clovirassist-worker.service",
-                 "clovirassist-scheduler.service", "clovirassist-worker-conversational.service"):
+                 "clovirassist-scheduler.service", "clovirassist-worker-conversational.service",
+                 "clovirassist-index.service"):
         text = _text(ROOT / "deploy" / "systemd" / unit)
         assert "ExecStartPre=-/opt/clovirassist/deploy/wait-for-postgres.sh" in text, (
             f"{unit}: PG 준비를 안 기다린다"

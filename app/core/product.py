@@ -55,13 +55,14 @@ NGINX_SITE = SLUG
 SSL_FALLBACK_DIR = f"/etc/ssl/{SLUG}"
 
 # ── systemd 유닛 ──────────────────────────────────────────────────────────────
-# INSTALLATION.md §5 Stage 13 의 이름이 정본이다. `index` 는 아직 없다 — 색인 레인은
-# S9 이 만들고(P-18), 그 Session 이 유닛·health probe·uninstall·복구까지 함께 넣는다
+# INSTALLATION.md §5 Stage 13 의 이름이 정본이다. 색인 레인(`index`)은 S9 이 넣었고,
+# 그 Session 이 유닛·health probe·uninstall·복구까지 함께 넣었다
 # (INSTALLATION.md §6.1 Installer 계약).
 WEB_UNIT = f"{SLUG}-web.service"
 WORKER_UNIT = f"{SLUG}-worker.service"
 WORKER_CONVERSATIONAL_UNIT = f"{SLUG}-worker-conversational.service"
 SCHEDULER_UNIT = f"{SLUG}-scheduler.service"
+INDEX_UNIT = f"{SLUG}-index.service"
 PRIVHELPER_UNIT = f"{SLUG}-privhelper.service"
 
 #: 설치 스크립트가 설치·활성화하는 유닛 전부. 순서가 곧 기동 순서다.
@@ -70,15 +71,20 @@ ALL_UNITS: tuple[str, ...] = (
     WORKER_UNIT,
     WORKER_CONVERSATIONAL_UNIT,
     SCHEDULER_UNIT,
+    INDEX_UNIT,
     WEB_UNIT,
 )
 
 #: 재부팅 뒤 **떠 있어야** 하는 유닛. 대화형 레인은 설정 플래그가 꺼져 있으면 정상적으로
 #: exit(0) 해 `inactive (dead)` 가 되므로 여기 없다 (D-118).
+#:
+#: 색인 레인은 **여기 있다** — 스케줄러와 같이 기본이 켜짐이기 때문이다(D-203). 임베딩
+#: 모델이 없어도 파싱과 chunk 는 돌아야 하므로, 「모델이 없으니 안 떠도 된다」가 아니다.
 ALWAYS_ACTIVE_UNITS: tuple[str, ...] = (
     PRIVHELPER_UNIT,
     WORKER_UNIT,
     SCHEDULER_UNIT,
+    INDEX_UNIT,
     WEB_UNIT,
 )
 

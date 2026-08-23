@@ -143,8 +143,16 @@ def clamp_timeout(seconds) -> int:
     return max(MIN_TIMEOUT_SECONDS, min(MAX_TIMEOUT_SECONDS, value))
 
 
+class ModelNotConfiguredError(ValueError):
+    """모델 이름이 비어 있다. 기본값으로 메우지 않는다 (P-19 · D-201)."""
+
+
 def build_argv(config: provider.LlmConfig, *, system_prompt: str) -> list[str]:
     """띄울 명령 전부. **본문은 여기 없다** - 이 함수에 본문을 넘길 방법 자체가 없다."""
+    if not config.model:
+        # 빈 문자열을 `--model` 에 넘기면 CLI 가 자기 기본 모델로 돈다. 그건 우리가
+        # 고른 모델이 아니고, 로그에도 "무엇으로 돌았는지" 가 안 남는다.
+        raise ModelNotConfiguredError("모델 이름이 설정되지 않았습니다.")
     return [
         config.executable,
         "-p",
@@ -226,14 +234,29 @@ class ClaudeCliBackend:
             # 사람이 볼 자리에만 남긴다. 프롬프트에는 적지 않는다(prompt.py 참조).
             logger.warning("본문에 구분자 흉내가 있어 걷어냈다")
 
-        argv = build_argv(self._config, system_prompt=built.system)
+        return self.run(system=built.system, user=built.user)
+
+    def run(self, *, system: str, user: str) -> provider.LlmResult:
+        """조립이 끝난 프롬프트를 실행한다. **프로세스를 띄우는 유일한 자리** (D-202).
+
+        `summarize()` 가 방어를 걸고 이것을 부르고, Model Gateway 도 자기가 건 뒤
+        이것을 부른다. 여기서 다시 조립하지 않는 것이 요점이다 — 두 번 감싸면
+        구분자가 중첩되고, 안 감싸는 경로가 하나 생기면 방어가 통째로 없다.
+        """
+        # 🔴 모델 이름의 기본값을 제품이 정하지 않는다(P-19). 안 정해진 채로 부르면
+        # CLI 가 자기 기본 모델을 고르고, 그것은 우리가 고른 것이 아니다.
+        if not self._config.model:
+            logger.warning("모델 이름이 설정되지 않아 AI 호출을 하지 않는다")
+            return provider.failure(provider.STATUS_UNCONFIGURED, self.name)
+
+        argv = build_argv(self._config, system_prompt=system)
         timeout = clamp_timeout(self._config.timeout_seconds)
 
         with self._workdir_factory(prefix="clovi-llm-") as workdir:
             try:
                 completed = self._run(
                     argv,
-                    input=built.user,
+                    input=user,
                     cwd=workdir,
                     env=child_env(),
                     shell=False,

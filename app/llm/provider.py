@@ -71,7 +71,15 @@ NOTICES: dict[str, str] = {
 # 목록에 없는 상태가 들어와도 화면이 비지 않게. "무슨 일인지 모른다" 를 숨기지 않는다.
 FALLBACK_NOTICE = "AI 요약을 쓸 수 없어 규칙으로 만든 요약을 보여줍니다."
 
-DEFAULT_MODEL = "sonnet"
+# 🔴 **모델 이름의 기본값을 제품이 정하지 않는다** (D-201 · P-19).
+# 예전에는 여기에 모델 이름 하나가 박혀 있었다. 그 한 줄이 「설정에서 모델을 지운다」와
+# 「그 모델을 쓴다」를 같은 상태로 만들었다 — 운영자가 화면에서 모델 칸을 비우면 꺼지는
+# 것이 아니라 우리가 정해 둔 이름으로 조용히 돌았다. 모델은 구독·약관·가격이 정하는
+# 운영 선택이라 제품이 대신 고를 자리가 아니다.
+#
+# 비어 있으면 **설정 안 됨**이다(fail-closed). 백엔드가 그 사실을 값으로 돌려주고
+# 화면이 "AI 요약이 아직 설정되지 않아 …" 를 말한다.
+DEFAULT_MODEL = ""
 DEFAULT_EXECUTABLE = "claude"
 # 주간 리포트는 사람이 화면 앞에서 기다리는 것이 아니라 워커가 만든다. 그래서 채팅(25초)보다
 # 넉넉하다. 그래도 무한은 아니다 - 상한은 cli_backend.MAX_TIMEOUT_SECONDS 가 강제한다.
@@ -86,6 +94,7 @@ class LlmConfig:
 
     enabled: bool = False
     backend: str = BACKEND_CLI
+    #: 비어 있으면 「안 정했다」이고, 그 상태로는 백엔드를 부르지 않는다 (P-19).
     model: str = DEFAULT_MODEL
     timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS
     executable: str = DEFAULT_EXECUTABLE
@@ -152,6 +161,16 @@ class LlmBackend:
     name: str = ""
 
     def summarize(self, *, body: str) -> LlmResult:  # pragma: no cover - 계약 선언
+        raise NotImplementedError
+
+    def run(self, *, system: str, user: str) -> LlmResult:  # pragma: no cover - 계약 선언
+        """**이미 조립된** (system, user) 쌍을 그대로 실행한다.
+
+        `summarize()` 는 본문을 받아 `prompt.build_prompt()` 를 거친 뒤 이것을 부른다.
+        둘로 나눈 이유는 D-202 다 — Model Gateway 가 프롬프트 방어를 **자기가** 걸고
+        백엔드에는 조립이 끝난 것만 넘긴다. 그래야 새 호출 경로가 하나 생겨도 방어를
+        빠뜨릴 자리가 없다.
+        """
         raise NotImplementedError
 
 

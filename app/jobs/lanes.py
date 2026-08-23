@@ -23,6 +23,15 @@ LANE_CONVERSATIONAL = "conversational"
 # 3600초짜리 schedule_run 하나가 도는 동안 워커 루프가 그 잡 안에 있어 스케줄 발화가
 # 통째로 밀렸다(화면상 «다음 실행» 은 지났는데 아무 일도 안 일어난다).
 LANE_SCHEDULER = "scheduler"
+# 색인 레인(S9 · D-203). 스케줄러와 성격이 같다 — **잡을 하나도 클레임하지 않는다.**
+# 할 일 목록이 이미 `ai_index_state` 표이기 때문이다: 문서를 저장할 때 그 행이
+# `pending` 이 되고, 레인은 그 행을 훑는다. 잡 큐를 하나 더 두면 「큐에서는 사라졌는데
+# 결과가 없는」 상태가 만들어지고 그 상태는 아무 화면에도 안 나온다.
+#
+# 배치 레인과 나누는 이유는 하나다 — **임베딩이 배치 틱을 굶기지 않게.** 한 문서의
+# 첨부를 파싱하고 임베딩하는 데 수 초가 걸리는데, 그것이 배치 워커 안에 있으면 그동안
+# 메일·동기화·스케줄 발화가 통째로 밀린다.
+LANE_INDEX = "index"
 
 # 대화형 job_type. chat_message는 사용자가 화면 앞에서 기다리는 요청이고, llm_connection_test도
 # 같은 이유로 최근 이 큐로 옮겨졌다(핸들러 자신의 주석 참고 — 웹 요청에서 기다리면 처리 칸이
@@ -39,6 +48,8 @@ def lock_filename(lane: str) -> str:
         return "worker-conversational.lock"
     if lane == LANE_SCHEDULER:
         return "scheduler.lock"
+    if lane == LANE_INDEX:
+        return "index.lock"
     return "worker.lock"
 
 
@@ -54,4 +65,6 @@ def liveness_component(lane: str) -> str:
         return "worker_conversational"
     if lane == LANE_SCHEDULER:
         return "scheduler"
+    if lane == LANE_INDEX:
+        return "index"
     return "worker"

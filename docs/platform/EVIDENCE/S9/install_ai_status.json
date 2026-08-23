@@ -1,0 +1,45 @@
+{
+  "enabled": true,
+  "model_root": "/var/lib/clovirassist/ai/models",
+  "model_dir": "/var/lib/clovirassist/ai/models/intfloat__multilingual-e5-small",
+  "capabilities": {
+    "embed": {
+      "name": "embed",
+      "available": true,
+      "status": "ok",
+      "model": "intfloat/multilingual-e5-small",
+      "notice": null,
+      "detail": ""
+    },
+    "rerank": {
+      "name": "rerank",
+      "available": false,
+      "status": "unsupported",
+      "model": "",
+      "notice": "이 기능을 하는 AI 어댑터가 없습니다.",
+      "detail": "RRF 융합으로 대신합니다(D-212)."
+    },
+    "generate": {
+      "name": "generate",
+      "available": false,
+      "status": "unconfigured",
+      "model": "",
+      "notice": "AI 모델이 아직 설정되지 않았습니다.",
+      "detail": ""
+    }
+  },
+  "parser_version": "1",
+  "embedding_version": "1",
+  "vector_dim": 384,
+  "index": {
+    "chunks": 0,
+    "embedded": 0,
+    "pending_embedding": 0,
+    "documents": {
+      "pending": 0,
+      "ok": 0,
+      "failed": 0
+    },
+    "vector_index_recommended": false
+  }
+}

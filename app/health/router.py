@@ -73,6 +73,27 @@ def readyz(request: Request):
             status_code=503,
             content={"status": "unready", "reason": "storage_not_writable"},
         )
+    # S9: AI 를 **켜기로 해 놓고** 못 쓰는 상태만 unready 다. 끄고 설치한 것은 정상이고,
+    # 생성 Provider 가 없는 것도 정상이다 — 그때 정지하는 것은 요약·분석·문서생성뿐이고
+    # 검색·Retrieval 은 그대로 돈다(D-201). 임베딩이 안 되는 것은 다르다: 켜기로 했는데
+    # 런타임이나 모델이 없다는 뜻이고, 그 상태로 뜨면 색인이 조용히 벡터 없이 쌓인다.
+    #
+    # 꺼져 있으면 Gateway 를 만들지도 않는다. 이 엔드포인트는 배포 게이트로 자주 불리는데,
+    # AI 를 안 쓰는 설치에서 매번 모델 디렉터리를 stat 할 이유가 없다.
+    from app.ai.gateway import registry as ai_registry
+
+    settings = request.app.state.settings
+    if ai_registry.resolve_config(settings).enabled:
+        try:
+            embed = ai_registry.build_gateway(settings).capabilities().embed
+        except Exception:
+            logger.exception("AI readiness check failed")
+            return JSONResponse(status_code=503, content={"status": "unready", "reason": "ai"})
+        if not embed.available:
+            return JSONResponse(
+                status_code=503,
+                content={"status": "unready", "reason": f"ai_{embed.status}"},
+            )
     return {"status": "ready"}
 
 

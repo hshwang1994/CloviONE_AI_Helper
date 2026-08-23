@@ -394,7 +394,8 @@ REGISTRY: dict[str, SettingSpec] = {
                     "명령줄 도구의 실행 파일 이름 또는 절대 경로. 비우면 claude 를 씁니다",
                     _llm_text),
         SettingSpec("llm_model", "string", "", False,
-                    "사용할 모델 이름. 비우면 sonnet 을 씁니다",
+                    "사용할 모델 이름. 비우면 서버 환경변수(LLM_MODEL)를 따르고, 그것도 "
+                    "없으면 AI 요약을 쓰지 않습니다",
                     _llm_text),
         SettingSpec("llm_timeout_seconds", "int", 0, False,
                     "AI 호출 하나의 제한 시간(초). 0이면 기본값(120초)을 씁니다",

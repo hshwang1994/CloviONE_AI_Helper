@@ -291,10 +291,14 @@ Create/Delete · Checksum · Capacity · **Storage unavailable(503, 500 아님)*
 app/ai/gateway/
   contract.py     # embed() · rerank() · generate() · capabilities()
   registry.py     # 설정 기반 Adapter 선택. 모델명은 어디에도 하드코딩하지 않는다
-  adapters/claude_cli.py · local_embed.py · local_rerank.py
+  adapters/claude_cli.py · local_embed.py
 ```
-현재 하드코딩 두 곳(`app/llm/provider.py` `DEFAULT_MODEL="sonnet"` · runner `assistant.py`
-`ASSISTANT_MODEL`)을 제거하고 설정으로 일원화한다.
+**`local_rerank.py` 는 만들지 않았다** — D-212 가 그 뒤에 실측으로 리랭커 미채택을
+정했다(D-255). `rerank()` 는 계약에만 남고 능력은 `unsupported` 다.
+
+현재 하드코딩 두 곳(`app/llm/provider.py` · runner `assistant.py`)을 제거하고 설정으로
+일원화한다. **S9 이 둘 다 제거했고 기본값을 새로 만들지 않았다**(D-254) — 비어 있으면
+「설정 안 됨」이다.
 
 **Retrieval — 권한이 먼저다 (D-202)**
 
@@ -499,8 +503,8 @@ Dry Run 완료 → 전체 검증 → 최종 Backup → Maintenance Mode → 마�
 
 | S | 이름 | 핵심 산출 | Exit 조건 |
 |---|---|---|---|
-| **S9** | AI Platform 1 — Gateway · Pipeline | `app/ai/gateway` contract/registry/adapters · 모델명 하드코딩 2곳 제거 · Parser(PDF/DOCX/PPTX/XLSX) · Chunk · Embedding · **`index` worker lane** · Index Lifecycle · Prompt Injection 경계 확대 | 생성 Adapter 비활성 상태에서 색인·임베딩 정상 · injection 회귀 |
-| **S10** | AI Platform 2 — Retrieval · Citation · 생성 | Hybrid Retrieval(pg_trgm ⊕ FTS ⊕ pgvector, **RRF — Re-rank 없음, D-212**) · **권한을 LIMIT 앞에** · Citation 앵커 · AI 작업공간 · AI 문서 생성(`source_type=AI`) · **융합 가중치를 실제 relevance 로 재조정**(D-209 초기값에서 출발) · **실 본문으로 임베딩 모델 재검토**(D-211) | **권한 없는 사용자 질의 시 Context 미포함을 음성 테스트로 증명** · Citation 클릭 이동 · 생성 Provider 차단 시 검색/인용 계속 동작 |
+| **S9** ✅ | AI Platform 1 — Gateway · Pipeline | `app/ai/gateway` contract/registry/adapters · 모델명 하드코딩 2곳 제거 · Parser(PDF/DOCX/PPTX/XLSX) · Chunk · Embedding · **`index` worker lane** · Index Lifecycle · Prompt Injection 경계 확대 · Installer Stage 12 + `-index` 유닛 | **완료 (2026-08-23)** — 생성 Adapter 를 끈 채로 실 모델 **17/17 PASS**([`EVIDENCE/S9/`](EVIDENCE/S9/README.md)) · 임베딩 모델까지 없어도 chunk 는 서고 벡터 칸만 NULL · injection 회귀 13건 · `document_chunks` 에 **권한 컬럼이 없다**(D-256). 결정 **D-254~D-259** |
+| **S10** | AI Platform 2 — Retrieval · Citation · 생성 | Hybrid Retrieval(pg_trgm ⊕ FTS ⊕ pgvector, **RRF — Re-rank 없음, D-212 · D-255**) · **권한을 LIMIT 앞에** · Citation 앵커 · AI 작업공간 · AI 문서 생성(`source_type=AI`) · **융합 가중치를 실제 relevance 로 재조정**(D-209 초기값에서 출발) · **실 본문으로 임베딩 모델 재검토**(D-211) | **권한 없는 사용자 질의 시 Context 미포함을 음성 테스트로 증명** · Citation 클릭 이동 · 생성 Provider 차단 시 검색/인용 계속 동작 |
 | **S11** | n8n · 외부 Runner 제거 | 워크플로 Export 보관 · 잔여 로직 이관 확인 · n8n + 3 runner 서비스 정지·제거 · 포트/유닛/백업/테스트/문서 정리 · `validate-*.sh:23` n8n 단언 제거 | 5678/5679/8787/8788/8789 미청취 · 회귀 통과 · Installer 에서 n8n 흔적 0 |
 
 #### Phase D — 운영 · 이관

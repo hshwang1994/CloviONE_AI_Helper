@@ -70,10 +70,6 @@ class AnthropicApiBackend:
 
     def summarize(self, *, body: str, task: str = prompt.TASK_WEEKLY) -> provider.LlmResult:
         """본문 → 요약. CLI 백엔드와 마찬가지로 **예외를 던지지 않는다.**"""
-        if self._outbound is None or not self._config.api_secret_ref or not self._config.api_url:
-            # 설정이 안 됐다는 사실을 성공처럼 접지 않는다. 화면이 그대로 말한다.
-            return provider.failure(provider.STATUS_UNCONFIGURED, self.name)
-
         try:
             built = prompt.build_prompt(body=body, nonce=self._nonce_factory(), task=task)
         except prompt.EmptyBodyError:
@@ -85,12 +81,27 @@ class AnthropicApiBackend:
         if built.delimiter_conflict:
             logger.warning("본문에 구분자 흉내가 있어 걷어냈다")
 
+        return self.run(system=built.system, user=built.user)
+
+    def run(self, *, system: str, user: str) -> provider.LlmResult:
+        """조립이 끝난 프롬프트를 실행한다. CLI 백엔드의 `run()` 과 같은 자리다 (D-202)."""
+        if self._outbound is None or not self._config.api_secret_ref or not self._config.api_url:
+            # 설정이 안 됐다는 사실을 성공처럼 접지 않는다. 화면이 그대로 말한다.
+            return provider.failure(provider.STATUS_UNCONFIGURED, self.name)
+
+        # 🔴 모델 기본값을 제품이 정하지 않는다(P-19). API 는 `model` 이 필수라 빈 값이면
+        # 400 이 오는데, 그 400 은 "설정 안 됨" 이 아니라 "실패" 로 읽혀 원인이 가려진다.
+        model = self._config.api_model or self._config.model
+        if not model:
+            logger.warning("모델 이름이 설정되지 않아 AI 호출을 하지 않는다")
+            return provider.failure(provider.STATUS_UNCONFIGURED, self.name)
+
         payload = {
-            "model": self._config.api_model or self._config.model,
+            "model": model,
             "max_tokens": self._config.api_max_tokens,
             # 시스템 쪽에 못박는 위치가 CLI 의 `--system-prompt` 와 같은 자리다.
-            "system": built.system,
-            "messages": [{"role": "user", "content": built.user}],
+            "system": system,
+            "messages": [{"role": "user", "content": user}],
         }
 
         try:

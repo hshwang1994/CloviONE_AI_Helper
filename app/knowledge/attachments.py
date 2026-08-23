@@ -16,6 +16,7 @@ S6·S7 이 세운 규칙 그대로다. 첨부는 두 표에 걸쳐 있다(`files
 
 from __future__ import annotations
 
+import logging
 from decimal import Decimal
 
 from sqlalchemy import func, select
@@ -26,6 +27,8 @@ from app.knowledge.models import Document, DocumentAttachment
 from app.storage import service as storage_service
 from app.storage.models import File
 from app.work import rank
+
+logger = logging.getLogger("app.knowledge.attachments")
 
 
 def of_document(db: Session, document_id: str) -> list[tuple[DocumentAttachment, File]]:
@@ -81,6 +84,7 @@ def attach(
     )
     db.add(link)
     db.flush()
+    _reindex(db, document.id)
     return link, record
 
 
@@ -103,8 +107,10 @@ def detach(db: Session, link: DocumentAttachment) -> None:
     세다가 놓친 것은 `storage_service.sweep_orphans` 가 나중에 치운다.
     """
     file_id = link.file_id
+    document_id = link.document_id
     db.delete(link)
     db.flush()
+    _reindex(db, document_id)
     still_used = db.execute(
         select(func.count())
         .select_from(DocumentAttachment)
@@ -115,6 +121,27 @@ def detach(db: Session, link: DocumentAttachment) -> None:
     record = db.get(File, file_id)
     if record is not None:
         storage_service.delete_file(db, record)
+
+
+def _reindex(db: Session, document_id: str) -> None:
+    """첨부가 바뀌었으니 이 문서를 다시 색인해야 한다고 적는다 (S9 · D-203).
+
+    본문이 그대로여도 첨부가 붙거나 떨어지면 색인은 낡는다. 훑기(`sweep_stale`)가
+    첨부 지문으로 그것을 결국 잡지만, 신호를 여기서 함께 보내면 다음 tick 에 바로 돈다.
+
+    import 를 함수 안에서 하는 이유는 순환이다 — 색인 쪽이 `app/knowledge/models.py` 를
+    읽는다. 그리고 색인이 지식 도메인의 저장을 막으면 안 된다: 여기서 실패해도 훑기가
+    같은 일을 한다.
+    """
+    from app.ai.index import service as index_service
+
+    try:
+        # SAVEPOINT 로 감싸는 것이 요점이다. 그냥 잡기만 하면 실패한 flush 가 바깥
+        # 트랜잭션을 이미 망가뜨린 뒤라, 「저장을 안 막는다」가 말뿐이 된다.
+        with db.begin_nested():
+            index_service.enqueue(db, document_id)
+    except Exception:  # noqa: BLE001 - 색인 신호 하나 때문에 첨부 저장이 실패하지 않는다
+        logger.exception("색인 신호를 남기지 못했다 document_id=%s", document_id)
 
 
 def json_of(link: DocumentAttachment, record: File) -> dict:

@@ -1,0 +1,64 @@
+[Unit]
+Description=ClovirAssist Index (parsing, chunking, embedding)
+# **PostgreSQL 이 먼저 떠야 한다** (D-187). 근거는 웹 유닛과 같다.
+After=network-online.target postgresql.service
+Wants=network-online.target postgresql.service
+# 배치 워커와 같은 이유(OPS-10) — 리스를 못 쓰는 상황이 스스로 풀릴 시간을 준다.
+StartLimitIntervalSec=300
+StartLimitBurst=10
+
+# 색인이 별도 프로세스인 이유 (S9 · D-203)
+#
+# 이유는 하나다 — **임베딩이 배치 틱을 굶기지 않게.** 첨부 하나를 파싱하고 임베딩하는
+# 데 수 초가 걸리는데, 그것이 배치 워커 안에 있으면 그동안 메일·동기화·보존·미러
+# 동기화가 통째로 밀린다. 스케줄러를 꺼낸 것(D-225)과 같은 종류의 결정이다.
+#
+# 이 레인은 **잡을 하나도 클레임하지 않는다.** 할 일 목록이 이미 `ai_index_state` 표다.
+# 잡 큐를 하나 더 두면 「큐에서는 사라졌는데 결과가 없는」 상태가 만들어지고, 그 상태는
+# 아무 화면에도 안 나온다.
+#
+# 되돌리는 스위치: `worker_index_lane_enabled=false`. 끄면 이 프로세스는 리스를 잡기
+# 전에 exit(0) 한다. **스케줄러와 달리 배치 워커가 대신 하지 않는다** — 되돌리면 색인이
+# 배치 틱을 굶기던 상태로 돌아가는데 그것이 이 레인을 만든 이유이기 때문이다. 끈 동안
+# `ai_index_state` 가 pending 으로 쌓이고 `ai_cli status` 와 대시보드가 그 숫자를 말한다.
+#
+# 임베딩 모델이 없어도 이 유닛은 정상이다: 파싱과 chunk 는 그대로 돌고 벡터 칸이 NULL 로
+# 남는다(D-201 의 경계). 모델이 생기면 그 chunk 만 따라잡는다.
+
+[Service]
+Type=simple
+User=clovirassist
+Group=clovirassist
+WorkingDirectory=/opt/clovirassist
+EnvironmentFile=/etc/clovirassist/clovirassist.env
+ExecStartPre=-/opt/clovirassist/deploy/wait-for-postgres.sh
+ExecStart=/opt/clovirassist/venv/bin/python -m app.worker_main --lane=index
+Restart=on-failure
+RestartSec=10
+# 한 판이 문서 스무 건이고 그 안에 임베딩이 있다. 스케줄러(30초)보다 넉넉히 준다 —
+# 짧게 잡으면 배포 때마다 도는 중인 판이 잘려 그 문서가 다음 판에 처음부터 다시 된다.
+KillSignal=SIGTERM
+TimeoutStopSec=90
+
+# Hardening (spec §26.1)
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+# MemoryDenyWriteExecute 를 **일부러 안 켠다**. 다른 넷과 다른 유일한 자리다:
+# ONNX Runtime 은 CPU 커널을 실행 시점에 만들어(JIT) 쓸 수 있고, 그때 쓰기 가능한
+# 메모리를 실행 가능하게 바꾼다. 이 옵션이 켜져 있으면 그 순간 프로세스가 SIGSEGV 로
+# 죽는데, 증상은 「색인 레인이 조용히 재시작만 반복한다」로만 보인다.
+RestrictRealtime=true
+UMask=0027
+# 모델 파일은 `/var/lib/clovirassist/ai/models` 에 있다. 그 아래를 읽기만 하면 되지만
+# 리스 파일(`index.lock`)을 같은 뿌리에 쓰므로 경로 하나로 충분하다.
+ReadWritePaths=/var/lib/clovirassist
+
+[Install]
+WantedBy=multi-user.target

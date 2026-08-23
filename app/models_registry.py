@@ -9,6 +9,7 @@ from __future__ import annotations
 from app.core.models_base import Base  # noqa: F401
 
 # Milestone model imports (append as they are created):
+from app.ai import models as ai_models  # noqa: F401
 from app.announcements import models as announcements_models  # noqa: F401
 from app.approvals import models as approvals_models  # noqa: F401
 from app.authz import models as authz_models  # noqa: F401

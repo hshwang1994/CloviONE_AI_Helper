@@ -22,6 +22,7 @@
 
 from __future__ import annotations
 
+import logging
 import uuid
 from typing import Any
 
@@ -38,6 +39,8 @@ from app.knowledge.models import (
 )
 
 __all__ = ["snapshot", "history", "get", "current", "restore", "compare"]
+
+logger = logging.getLogger("app.knowledge.versions")
 
 
 def snapshot(
@@ -85,7 +88,33 @@ def snapshot(
     db.flush()
     document.current_version_id = version.id
     db.flush()
+    _reindex(db, document.id)
     return version
+
+
+def _reindex(db: Session, document_id: str) -> None:
+    """본문이 바뀌었으니 이 문서를 다시 색인해야 한다고 적는다 (S9 · D-203).
+
+    이 자리에 두는 이유: `current_version_id` 를 옮기는 곳이 이 함수 하나다. 라우터마다
+    신호를 걸면 새 저장 경로가 하나 생길 때 그것만 신호를 빠뜨리고, 그 문서는 **영원히**
+    옛 내용으로 검색된다. 훑기(`sweep_stale`)가 결국 잡지만 그것은 안전망이지 설계가
+    아니다.
+
+    같은 트랜잭션이라 「저장은 됐는데 색인 신호는 안 갔다」가 안 생긴다. 그리고 색인이
+    본문 저장을 막지도 않는다 — 여기서 실패해도 훑기가 같은 일을 한다.
+
+    import 를 함수 안에서 하는 이유는 순환이다: 색인 쪽이 `app/knowledge/models.py` 와
+    `app/knowledge/blocks.py` 를 읽는다.
+    """
+    from app.ai.index import service as index_service
+
+    try:
+        # SAVEPOINT 로 감싸는 것이 요점이다. 그냥 잡기만 하면 실패한 flush 가 바깥
+        # 트랜잭션을 이미 망가뜨린 뒤라, 「저장을 안 막는다」가 말뿐이 된다.
+        with db.begin_nested():
+            index_service.enqueue(db, document_id)
+    except Exception:  # noqa: BLE001 - 색인 신호 하나 때문에 본문 저장이 실패하지 않는다
+        logger.exception("색인 신호를 남기지 못했다 document_id=%s", document_id)
 
 
 def current(db: Session, document: Document) -> DocumentVersion | None:

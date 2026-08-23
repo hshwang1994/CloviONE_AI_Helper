@@ -42,7 +42,7 @@
 | ONNX Runtime | `onnxruntime` (CPU) + `tokenizers` — **torch 없음** | MIT |
 | Editor | TipTap (**MIT extension 만**. Pro 는 상용이라 쓰지 않는다) | MIT |
 | DnD | dnd-kit | MIT |
-| Parser | pypdf/pdfplumber · python-docx · python-pptx · openpyxl | BSD/MIT |
+| Parser | **`pypdf` 하나만 채택 (S9 · D-258)**. DOCX·PPTX·XLSX 는 표준 라이브러리(`zipfile`+`xml.etree`)로 읽는다 — 글자와 앵커만 필요해서 패키지 셋을 늘리지 않았다 | BSD-3 |
 | ONNX Runtime | CPU 빌드 | MIT |
 
 ## 도입하지 않는 것 — 결정으로 기록한다
@@ -62,5 +62,5 @@
 | ~~Embedding / Re-rank 모델 확정~~ | ~~S1~~ | **완료 (2026-08-21).** `multilingual-e5-small`(384) · 리랭커 미채택 → RRF. 실측 표는 **D-211 · D-212** |
 | 긴 본문에서의 모델 재검토 | **S10** | S1 품질 측정은 **제목 부분구간** 질의였다(본문 캐시가 없다). S13 이 Notion 본문을 실어 온 뒤 S10 이 실제 본문으로 다시 잰다 — 필요하면 `bge-m3` 로 올린다(Adapter 뒤라 교체 비용은 재색인뿐이다) |
 | `requirements*.txt` · `frontend/package.json` 전량 열거와 충돌 확인 | **S4** | Installer Stage 1·4 를 쓸 때 |
-| 오프라인 Bundle **wheelhouse** 에 신규 Python 의존이 전부 들어가는지 | **S4** | 폐쇄망 설치가 여기서 깨진다 (`INSTALLATION.md` §3.1) |
-| 임베딩/리랭킹 모델 파일의 오프라인 캐시 배치 경로 | **S4 · S9** | Installer Stage 12 |
+| ~~오프라인 Bundle wheelhouse 에 신규 Python 의존~~ | ~~S4~~ | **S9 이 실측했다 (2026-08-23)** — `requirements.txt` + `requirements-ai.txt` 를 Ubuntu 24.04 / Python 3.12 에 함께 깔아 확인했다(테스트 서버). AI 의존은 별도 파일이고 **Stage 12 가 깐다**(D-258) |
+| ~~임베딩 모델 파일의 오프라인 캐시 배치 경로~~ | ~~S4 · S9~~ | **확정 (2026-08-23)** — `<data_dir>/ai/models/<모델 디렉터리>`. `storage_providers` 와 **별개**다(재생성 가능한 자산이라 백업 대상이 아니다 — D-203·D-204). 배치는 `ai_cli install-model --from`, 판정은 `ai_cli status` 의 종료코드 (D-259) |

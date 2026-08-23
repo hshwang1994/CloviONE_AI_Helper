@@ -220,6 +220,34 @@ class Settings(BaseSettings):
     # 동시 실행 슬롯 수. 소비자는 app/llm/service.py 의 슬롯 락이다.
     llm_max_concurrency: int = 1
 
+    # ── AI Platform (S9 · D-200~D-203) ───────────────────────────────────────
+    #
+    # `app/ai/gateway/registry.py::resolve_config` 가 `Settings` 필드 → 환경변수 →
+    # 기본값 순으로 읽는다. `llm_*` 와 같은 규약이고, 이유도 같다 — 빈 값이 「안 정함」
+    # 이라 이미 환경변수로 켜 둔 설치가 업그레이드에서 꺼지지 않는다.
+    #
+    # 🔴 기본이 **꺼짐**이다. AI 기능을 기본 ON 으로 두는 관례가 이 저장소에 없다.
+    ai_enabled: str = ""
+    # 임베딩 모델 파일이 사는 뿌리. 비우면 `data_dir/ai/models` 다. `storage_providers`
+    # 와 **별개**다 — 모델은 사용자 데이터가 아니라 재생성 가능한 자산이고 백업 대상이
+    # 아니다(D-203 · D-204).
+    ai_model_root: str = ""
+    # `app/ai/catalog.py` 가 아는 id 중 하나. 모르는 이름이면 임베딩이 「설정 안 됨」이
+    # 된다 — 조용히 기본 모델로 떨어뜨리지 않는다(그러면 벡터가 바꾼 줄 알았던 모델의
+    # 것이 아니다).
+    ai_embed_model: str = ""
+    ai_embed_batch_size: int = 0
+    # ONNX Runtime intra-op 스레드. 0 이면 런타임 기본값(코어 수)이다.
+    ai_embed_threads: int = 0
+
+    # 색인 레인(D-203). 배치·대화형과 분리하는 이유는 하나다 — **임베딩이 배치 틱을
+    # 굶기지 않게.** 기본 켬이고, 그래서 `clovirassist-index.service` 는 재부팅 뒤
+    # 떠 있어야 하는 유닛이다(`app/core/product.py::ALWAYS_ACTIVE_UNITS`).
+    worker_index_lane_enabled: bool = True
+    # 색인 파이프라인이 한 번의 tick 에서 처리하는 대상 수. 크게 잡으면 한 tick 이
+    # 길어져 종료 신호에 늦게 답한다.
+    index_batch_documents: int = 20
+
     ticket_source: str = "notion_cache"
     # 문서는 이미 로컬 미러에서 읽으므로 notion / notion_cache 가 같은 구현체를 가리킨다.
     document_source: str = "notion"

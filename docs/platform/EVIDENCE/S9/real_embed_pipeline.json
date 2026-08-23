@@ -1,0 +1,174 @@
+{
+ "model_root": "/home/cloviradmin/s1bench/models",
+ "capabilities": {
+  "embed": {
+   "name": "embed",
+   "available": true,
+   "status": "ok",
+   "model": "intfloat/multilingual-e5-small",
+   "notice": null,
+   "detail": ""
+  },
+  "rerank": {
+   "name": "rerank",
+   "available": false,
+   "status": "unsupported",
+   "model": "",
+   "notice": "이 기능을 하는 AI 어댑터가 없습니다.",
+   "detail": "RRF 융합으로 대신합니다(D-212)."
+  },
+  "generate": {
+   "name": "generate",
+   "available": false,
+   "status": "unconfigured",
+   "model": "",
+   "notice": "AI 모델이 아직 설정되지 않았습니다.",
+   "detail": ""
+  }
+ },
+ "model": "intfloat/multilingual-e5-small",
+ "first_call_seconds": 3.91,
+ "similarity": {
+  "near": 0.8849,
+  "far": 0.8016
+ },
+ "prefix_gap": 0.060378,
+ "files": {
+  "회의록.docx": {
+   "status": "ok",
+   "units": 2,
+   "chunks": 2,
+   "anchors": [
+    "section"
+   ],
+   "sample_anchor": "s1"
+  },
+  "발표.pptx": {
+   "status": "ok",
+   "units": 2,
+   "chunks": 2,
+   "anchors": [
+    "slide"
+   ],
+   "sample_anchor": "1"
+  },
+  "예산.xlsx": {
+   "status": "ok",
+   "units": 1,
+   "chunks": 1,
+   "anchors": [
+    "sheet"
+   ],
+   "sample_anchor": "예산!A1:B5"
+  },
+  "규격서.pdf": {
+   "status": "ok",
+   "units": 2,
+   "chunks": 2,
+   "anchors": [
+    "page"
+   ],
+   "sample_anchor": "1"
+  }
+ },
+ "throughput": {
+  "docs": 256,
+  "seconds": 3.19,
+  "docs_per_sec": 80.2
+ },
+ "query_latency_ms": {
+  "n": 20,
+  "p50": 5.31,
+  "max": 5.99
+ },
+ "max_rss_mb": 1001.7,
+ "checks": [
+  {
+   "name": "생성 Adapter 가 비활성이다 (S9 Exit 의 전제)",
+   "ok": true,
+   "detail": "status=unconfigured"
+  },
+  {
+   "name": "임베딩을 쓸 수 있다",
+   "ok": true,
+   "detail": "status=ok"
+  },
+  {
+   "name": "반례 — 모델이 없는 뿌리는 거절한다",
+   "ok": true,
+   "detail": "status=model_missing"
+  },
+  {
+   "name": "임베딩 호출이 성공했다",
+   "ok": true,
+   "detail": "status=ok/ok"
+  },
+  {
+   "name": "차원이 384 이다",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "모든 벡터가 길이 1 이다",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "반례 — 정규화 안 된 벡터는 길이 검사가 잡는다",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "같은 글은 같은 벡터다",
+   "ok": true,
+   "detail": "최대 차이 0.00e+00"
+  },
+  {
+   "name": "맞는 본문이 상관없는 본문보다 가깝다",
+   "ok": true,
+   "detail": "near=0.8849 far=0.8016"
+  },
+  {
+   "name": "query 접두사와 passage 접두사가 다른 벡터를 만든다",
+   "ok": true,
+   "detail": "코사인 거리 0.060378"
+  },
+  {
+   "name": "상한을 넘는 글에서도 죽지 않는다(자르기가 걸려 있다)",
+   "ok": true,
+   "detail": "status=ok"
+  },
+  {
+   "name": "길이가 제각각인 배치가 한 번에 돈다(패딩이 걸려 있다)",
+   "ok": true,
+   "detail": "status=ok"
+  },
+  {
+   "name": "네 형식 모두 글과 앵커가 나온다",
+   "ok": true,
+   "detail": "회의록.docx=2, 발표.pptx=2, 예산.xlsx=1, 규격서.pdf=2"
+  },
+  {
+   "name": "형식마다 자기 앵커를 쓴다",
+   "ok": true,
+   "detail": "{'회의록.docx': ['section'], '발표.pptx': ['slide'], '예산.xlsx': ['sheet'], '규격서.pdf': ['page']}"
+  },
+  {
+   "name": "그 chunk 전부가 벡터가 된다",
+   "ok": true,
+   "detail": "chunk 7건"
+  },
+  {
+   "name": "대량 임베딩이 성공했다",
+   "ok": true,
+   "detail": "{'docs': 256, 'seconds': 3.19, 'docs_per_sec': 80.2}"
+  },
+  {
+   "name": "질의 지연이 상수가 아니다(진짜로 재고 있다)",
+   "ok": true,
+   "detail": "p50=5.31ms"
+  }
+ ],
+ "failed": [],
+ "passed": 17
+}

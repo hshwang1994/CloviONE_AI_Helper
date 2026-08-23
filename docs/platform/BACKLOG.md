@@ -51,9 +51,9 @@
 
 | ID | 작업 | Session | 상태 | 완료의 정의 |
 |---|---|---|---|---|
-| **P-18** | Model Gateway + Parsing/Indexing Pipeline + `index` worker lane | S9 | TODO | **생성 Adapter 비활성 상태에서** 파싱·색인·임베딩 정상 · injection 회귀 |
-| **P-19** | 모델명 하드코딩 2곳 제거 (`app/llm/provider.py` · runner `assistant.py`) | S9 | TODO | 설정으로 일원화. 어디에도 모델명이 박혀 있지 않다 |
-| **P-20** | Hybrid Retrieval · **권한을 LIMIT 앞에** · Re-rank · Citation · AI 작업공간 | S10 | TODO | **권한 없는 사용자 질의 시 Context 미포함을 음성 테스트로 증명** · Citation 클릭 이동 |
+| **P-18** | Model Gateway + Parsing/Indexing Pipeline + `index` worker lane | S9 | **DONE** | 생성 Adapter 를 끈 채로 **실 모델 17/17 PASS**([`EVIDENCE/S9/`](EVIDENCE/S9/README.md)) · 임베딩 모델까지 없어도 chunk 는 서고 벡터 칸만 NULL · injection 회귀 13건. 결정 **D-254~D-259** |
+| **P-19** | 모델명 하드코딩 2곳 제거 (`app/llm/provider.py` · runner `assistant.py`) | S9 | **DONE** | 둘 다 제거. 비어 있으면 **설정 안 됨**이고(fail-closed) `build_argv()` 가 예외를 던진다. 임베딩 모델만 `app/ai/catalog.py` 에 있고 정적 검사가 그 파일만 면제한다 (**D-254**) |
+| **P-20** | Hybrid Retrieval · **권한을 LIMIT 앞에** · Citation · AI 작업공간 · 생성 | S10 | TODO | **권한 없는 사용자 질의 시 Context 미포함을 음성 테스트로 증명** · Citation 클릭 이동. Re-rank 는 없다(D-212 · D-255) |
 | **P-21** | n8n · 외부 Runner 3종 제거 | S11 | TODO | 5678/5679/8787/8788/8789 미청취 · Installer·backup-cron·validate script 에 n8n 흔적 0 |
 
 ## Phase D — 운영 · 이관

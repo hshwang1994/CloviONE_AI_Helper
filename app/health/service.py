@@ -90,6 +90,30 @@ def _component_status(db: Session, component: str, now: datetime) -> str:
     return "up"
 
 
+def _ai_health(db: Session, settings: Settings) -> dict:
+    """AI 축 한 벌 (S9). **어떤 경우에도 예외를 안 올린다.**
+
+    대시보드는 운영자가 「무엇이 잘못됐나」를 보러 오는 화면이다. 그 화면이 AI 상태를
+    읽다가 500 이 나면, 정작 봐야 할 나머지 열몇 칸도 함께 안 보인다.
+    """
+    from app.ai.gateway.registry import build_gateway
+    from app.ai.index.service import index_health
+
+    try:
+        gateway = build_gateway(settings)
+        caps = gateway.capabilities()
+        out = {"enabled": gateway.enabled, "capabilities": caps.as_dict()}
+    except Exception:  # noqa: BLE001
+        logger.exception("AI 상태를 읽지 못했다")
+        return {"enabled": None, "capabilities": {}, "index": {}}
+    try:
+        out["index"] = index_health(db)
+    except Exception:  # noqa: BLE001 - 표가 아직 없는 설치도 있다
+        logger.exception("색인 상태를 읽지 못했다")
+        out["index"] = {}
+    return out
+
+
 def _disk_usage(path: str) -> dict:
     try:
         usage = shutil.disk_usage(path)
@@ -383,6 +407,10 @@ def build_dashboard(
         # `data_dir` 만 보므로 NFS/SMB 가 안 붙은 상태를 못 본다. 운영과 백업이 같은
         # 장치일 때의 경고도 여기 실린다(D-199 16번).
         "storage": storage_health(db),
+        # S9: AI. 「켜져 있는가」와 「지금 쓸 수 있는가」를 나눠 싣는다 — 끄고 설치한
+        # 것과 켜 놓고 못 쓰는 것은 운영자가 할 일이 다르다. 색인이 밀린 건수와 벡터가
+        # 없는 chunk 수도 함께 보인다(조용히 낡는 것이 이 축의 가장 나쁜 실패다).
+        "ai": _ai_health(db, settings),
         "memory": _memory_usage(),
         "cert_days_remaining": _cert_days_remaining(settings, now),
         "last_backup_at": last_backup.created_at.isoformat() if last_backup else None,

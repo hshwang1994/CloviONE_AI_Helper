@@ -46,6 +46,7 @@ __all__ = [
     "extract_mentions",
     "diff",
     "block_ids",
+    "iter_block_text",
 ]
 
 
@@ -458,6 +459,27 @@ def _walk_mentions(node: dict[str, Any]):
     for child in node.get("content") or []:
         if isinstance(child, dict):
             yield from _walk_mentions(child)
+
+
+def iter_block_text(doc: dict[str, Any]):
+    """`(블록 id, 종류, 글)` 을 최상위 블록 순서대로.
+
+    `to_text()` 는 문서 전체를 한 덩어리로 준다. 색인은 그것으로 부족하다 — 인용이
+    「이 문서 어딘가」가 아니라 **「이 블록」**을 가리켜야 하기 때문이다(D-198).
+    그래서 같은 규칙으로 블록마다 끊어서 준다.
+
+    이 함수가 `app/ai/` 가 아니라 여기 있는 이유: TipTap 노드 이름과 블록 앵커의 뜻을
+    아는 자리는 이 파일 하나다. 색인 쪽에 같은 지식을 다시 적으면 노드를 하나 늘리는
+    날 한쪽만 고치게 되고, 그때 그 블록은 **검색에서만 조용히 사라진다.**
+    """
+    for block in doc.get("content") or []:
+        block_id = (block.get("attrs") or {}).get(BLOCK_ID_ATTR)
+        if not isinstance(block_id, str) or not block_id:
+            continue
+        lines: list[str] = []
+        _block_text(block, lines)
+        text = "\n".join(line for line in lines if line.strip())
+        yield block_id, str(block.get("type") or ""), text
 
 
 def block_ids(doc: dict[str, Any]) -> tuple[str, ...]:

@@ -67,6 +67,17 @@ echo "== build offline wheelhouse (manylinux cp312) =="
   --implementation cp --python-version 3.12 --abi cp312 --abi abi3 --abi none \
   -d "$STAGE/wheels" -r requirements.txt || {
     echo "WARN: platform-specific wheel download had issues; retrying generic"; }
+# AI 실행 환경(S9 · D-258). 같은 wheelhouse 에 넣는 이유: Stage 12 는 `--offline` 일 때
+# 이 wheelhouse 하나만 본다. 안 넣으면 폐쇄망에서 `--with-ai` 가 그 자리에서 막힌다.
+#
+# **실패해도 번들을 안 죽인다.** AI 를 안 쓰는 설치가 훨씬 흔하고, 그 번들도 여전히
+# 쓸 수 있어야 한다. 대신 경고를 남긴다 — 조용히 빠지면 폐쇄망에서 처음 알게 된다.
+"$PY" -m pip download \
+  --only-binary=:all: \
+  --platform manylinux2014_x86_64 --platform manylinux_2_17_x86_64 --platform manylinux_2_28_x86_64 \
+  --implementation cp --python-version 3.12 --abi cp312 --abi abi3 --abi none \
+  -d "$STAGE/wheels" -r requirements-ai.txt || {
+    echo "WARN: AI wheel 을 못 받았다 — 이 번들로는 --offline --with-ai 설치가 안 된다"; }
 "$PY" -m pip download --only-binary=:all: -d "$STAGE/wheels" pip setuptools wheel || true
 
 echo "== manifest =="

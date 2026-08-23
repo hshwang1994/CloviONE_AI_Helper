@@ -11,3 +11,10 @@ argon2-cffi==23.1.0
 cronsim==2.6
 python-multipart==0.0.20
 tzdata==2025.2
+# PDF 에서 글자를 뽑는다(S9 색인 파이프라인). 순수 파이썬이고 컴파일 의존이 0 이라
+# 폐쇄망 wheelhouse 에 그대로 들어간다. DOCX·PPTX·XLSX 는 표준 라이브러리로 읽으므로
+# (`app/ai/parsing/ooxml.py`) 파서 의존은 이 하나뿐이다.
+#
+# 임베딩 런타임(onnxruntime·tokenizers·numpy)은 여기 없다 — `requirements-ai.txt` 가
+# 들고 Installer Stage 12 가 깐다. 파싱은 AI 가 아니라 문서 처리라 항상 되어야 한다.
+pypdf==6.1.1

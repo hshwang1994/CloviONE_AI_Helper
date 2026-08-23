@@ -3,6 +3,7 @@
     python -m app.worker_main --lane batch          # clovirassist-worker.service
     python -m app.worker_main --lane conversational # clovirassist-worker-conversational.service
     python -m app.worker_main --lane scheduler      # clovirassist-scheduler.service
+    python -m app.worker_main --lane index          # clovirassist-index.service
 
 SIGTERM/SIGINT 을 받아 진행 중인 일을 마치고 내려간다.
 
@@ -409,6 +410,57 @@ def run_scheduler_loop(
     logger.info("스케줄러 레인 정상 종료")
 
 
+#: 색인 레인이 한 판 돌고 다음 판까지 쉬는 시간. 스케줄러(1초)보다 훨씬 길다 —
+#: 색인은 사람이 화면 앞에서 기다리는 일이 아니고, 매초 훑기 질의를 던질 이유가 없다.
+INDEX_IDLE_SECONDS = 10.0
+#: 할 일이 있었으면 곧바로 다음 판을 돈다. 밀린 문서 백 건을 10초 간격으로 처리하면
+#: 「색인이 안 된다」로 보인다.
+INDEX_BUSY_SECONDS = 0.5
+
+
+def run_index_loop(
+    session_factory,
+    clock: Clock,
+    stop_event: threading.Event,
+    settings: Settings,
+    *,
+    idle_seconds: float = INDEX_IDLE_SECONDS,
+) -> None:
+    """색인 레인의 루프 (S9 · D-203). **잡을 하나도 클레임하지 않는다.**
+
+    스케줄러 레인과 같은 모양이다. `Worker` 를 쓰지 않는 것이 의도다 — 이 프로세스가
+    잡을 집으면 색인이 다시 잡 실행 뒤로 밀리고, 분리한 이유가 사라진다. 핸들러가 아예
+    없으니 실수로도 잡을 못 집는다.
+
+    Gateway 는 **한 번만** 만든다. ONNX 세션 로드가 2.3초라(D-211) 매 tick 마다 만들면
+    그 시간이 곧 색인 시간이 된다.
+
+    한 판이 예외로 죽어도 루프는 계속 돈다. 색인이 조용히 멈추는 것이 이 레인의 가장
+    나쁜 실패다 — 아무 오류도 안 나고 그냥 검색 결과가 낡는다.
+    """
+    from app.ai.gateway.registry import build_gateway
+    from app.ai.index import service as index_service
+
+    gateway = build_gateway(settings)
+    caps = gateway.capabilities()
+    logger.info(
+        "색인 레인 시작(embed=%s status=%s)", caps.embed.available, caps.embed.status
+    )
+    while not stop_event.is_set():
+        processed = 0
+        try:
+            now = clock.now()
+            with session_factory() as db:
+                processed = index_service.run_once(
+                    db, gateway=gateway, now=now, limit=settings.index_batch_documents
+                )
+                db.commit()
+        except Exception:
+            logger.exception("색인 tick 이 실패했다")
+        stop_event.wait(INDEX_BUSY_SECONDS if processed else idle_seconds)
+    logger.info("색인 레인 정상 종료")
+
+
 def build_batch_worker(session_factory, clock: Clock, ctx: WorkerContext, settings: Settings, settings_cache, outbound) -> Worker:
     """배치 레인 — 기존 워커 전체(잡 핸들러 전부 + tick 15개)를 그대로 옮긴 것이다.
 
@@ -757,7 +809,8 @@ def build_batch_worker(session_factory, clock: Clock, ctx: WorkerContext, settin
 
 
 def main(argv: list[str] | None = None) -> int:
-    """워커 진입점. `--lane batch`(기본)|`conversational`(D-118)|`scheduler`(D-225).
+    """워커 진입점.
+    `--lane batch`(기본)|`conversational`(D-118)|`scheduler`(D-225)|`index`(D-203).
 
     인자 없이 부르면 `argparse`의 `default=LANE_BATCH`가 배치 레인으로 떨어진다 — 옛
     유닛처럼 `--lane`을 안 주는 호출도 그대로 배치 워커가 된다.
@@ -771,6 +824,7 @@ def main(argv: list[str] | None = None) -> int:
     from app.jobs.lanes import (
         LANE_BATCH,
         LANE_CONVERSATIONAL,
+        LANE_INDEX,
         LANE_SCHEDULER,
         liveness_component,
     )
@@ -779,7 +833,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--lane",
         default=LANE_BATCH,
-        choices=(LANE_BATCH, LANE_CONVERSATIONAL, LANE_SCHEDULER),
+        choices=(LANE_BATCH, LANE_CONVERSATIONAL, LANE_INDEX, LANE_SCHEDULER),
     )
     args = parser.parse_args(argv)
     lane = args.lane
@@ -813,6 +867,18 @@ def main(argv: list[str] | None = None) -> int:
         logger.info(
             "lane=scheduler이지만 worker_scheduler_lane_enabled가 꺼져 있다. "
             "리스를 잡지 않고 정상 종료한다(D-225) — 스케줄은 배치 워커가 계속 평가한다."
+        )
+        return 0
+
+    # 색인 레인도 같은 모양이다(S9 · D-203). 기본이 켜짐이라 이 문도 되돌릴 때만 열린다.
+    # **꺼도 배치 워커가 대신 색인하지 않는다** — 스케줄러와 다른 점이 이것이다. 색인을
+    # 배치 레인에 되돌리면 임베딩이 배치 틱을 굶기는 상태로 돌아가는데, 그것이 이 레인을
+    # 만든 이유다. 끄면 색인이 **멈춘다**: `ai_index_state` 가 `pending` 으로 쌓이고
+    # `ai_cli status` 와 대시보드가 그 숫자를 그대로 말한다.
+    if lane == LANE_INDEX and not settings.worker_index_lane_enabled:
+        logger.info(
+            "lane=index이지만 worker_index_lane_enabled가 꺼져 있다. "
+            "리스를 잡지 않고 정상 종료한다(D-203). 이 상태에서는 색인이 멈춘다."
         )
         return 0
 
@@ -852,6 +918,8 @@ def main(argv: list[str] | None = None) -> int:
         components = (liveness_component(LANE_CONVERSATIONAL),)
     elif lane == LANE_SCHEDULER:
         components = (liveness_component(LANE_SCHEDULER),)
+    elif lane == LANE_INDEX:
+        components = (liveness_component(LANE_INDEX),)
     else:
         worker = build_batch_worker(session_factory, clock, ctx, settings, settings_cache, outbound)
         # 스케줄러를 별도 프로세스로 꺼냈으면 그 하트비트도 그쪽이 찍는다. 여기서도 찍으면
@@ -891,6 +959,8 @@ def main(argv: list[str] | None = None) -> int:
                 session_factory, clock, stop_event,
                 tick_seconds=settings.worker_scheduler_tick_seconds,
             )
+        elif lane == LANE_INDEX:
+            run_index_loop(session_factory, clock, stop_event, settings)
         else:
             worker.run_forever(stop_event)
         heartbeat_thread.join(timeout=5.0)

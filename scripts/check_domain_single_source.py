@@ -144,6 +144,57 @@ RULES: tuple[tuple[str, tuple[str, ...], str, str], ...] = (
         r"storage_key\s*=(?!=)",
         "바이트를 쓰는 자리와 행을 만드는 자리가 갈리면 「행은 있는데 파일이 없다」가 생긴다 (D-199 9번)",
     ),
+    # ── AI Platform (S9) ────────────────────────────────────────────────────
+    (
+        "chunk 행 생성",
+        ("app/ai/index/service.py",),
+        r"DocumentChunk\s*\(",
+        "chunk 를 만드는 자리가 둘이면 한쪽이 앵커나 지문을 안 채우고, 그 인용은 "
+        "눌러도 그 자리에 그 문장이 없다 (D-203)",
+    ),
+    (
+        "색인 상태 행 생성",
+        ("app/ai/index/service.py",),
+        r"AiIndexState\s*\(",
+        "상태 행이 두 곳에서 만들어지면 문서 하나에 「할 일」이 둘이 되고 chunk 가 두 벌 생긴다",
+    ),
+    (
+        "모델 세션 생성",
+        ("app/ai/gateway/adapters/local_embed.py",),
+        r"InferenceSession\s*\(",
+        "ONNX 세션 로드가 2.3초다(D-211). 두 곳에서 만들면 그 시간이 색인 시간이 되고, "
+        "토크나이저 설정(자르기·패딩)이 한쪽에만 걸린다",
+    ),
+    (
+        "프롬프트 조립",
+        (
+            "app/llm/cli_backend.py",
+            "app/llm/api_backend.py",
+            "app/ai/gateway/contract.py",
+        ),
+        # **정의는 호출이 아니다.** `app/llm/prompt.py` 가 이 함수를 만드는 자리라
+        # `def` 뒤는 빼고 본다 — 안 그러면 정의 파일 자신이 위반이 되고, 그 예외를
+        # 목록에 적으면 그 파일에서의 진짜 호출도 함께 통과한다.
+        r"(?<!def )build_prompt\s*\(",
+        "🔴 난스 구분자와 neutralize 를 안 지나는 생성 경로가 하나라도 생기면 그 경로에서 "
+        "프롬프트 주입 방어가 통째로 없다 (D-202)",
+    ),
+    (
+        "모델 이름",
+        ("app/ai/catalog.py",),
+        # 생성 모델 별칭(sonnet·opus·haiku)과 정식 id, 그리고 임베딩 모델 id. 모델
+        # 이름이 호출부 옆에 박히면 「설정에서 지운다」와 「그 모델을 쓴다」가 같은
+        # 상태가 된다 (D-201 · P-19).
+        #
+        # `claude-…` 를 그냥 걸면 안 된다: 이 저장소에는 `claude-ticket-runner` 처럼
+        # **서비스 이름**이 있고(app/integrations/discovery.py), 그것까지 위반이 되면
+        # 사람이 검사를 끈다. 모델 id 를 가르는 것은 계열 이름이나 버전 숫자다.
+        r"""["'](?:sonnet|opus|haiku)["']"""
+        r"""|["']claude-[A-Za-z0-9.\-]*(?:sonnet|opus|haiku|instant)[A-Za-z0-9.\-]*["']"""
+        r"""|["']gpt-[0-9][A-Za-z0-9.\-]*["']"""
+        r"""|["'][A-Za-z0-9_\-]+/(?:multilingual-e5|bge)[A-Za-z0-9.\-]*["']""",
+        "모델은 구독·약관·가격이 정하는 운영 선택이라 제품이 대신 고를 자리가 아니다 (D-201)",
+    ),
 )
 
 # 계층을 **읽는** 자리. 미러 컬럼을 직접 읽으면 관계 표와 갈라진다.
@@ -178,6 +229,7 @@ SCHEMA_FILES = (
     "app/tickets/models.py",
     "app/knowledge/models.py",
     "app/storage/models.py",
+    "app/ai/models.py",
 )
 
 
@@ -304,6 +356,65 @@ def self_test() -> int:
             "다른 곳에서 파일 행을 만든다",
             {other: "def f(db, key):\n    db.add(File(storage_key=key))\n"},
             True,
+        ),
+        # ── AI Platform (S9) ───────────────────────────────────────────────
+        (
+            "다른 곳에서 chunk 행을 만든다",
+            {other: "def f(db):\n    db.add(DocumentChunk(ordinal=0))\n"},
+            True,
+        ),
+        (
+            "다른 곳에서 색인 상태 행을 만든다",
+            {other: "def f(db):\n    db.add(AiIndexState(document_id='d'))\n"},
+            True,
+        ),
+        (
+            "다른 곳에서 ONNX 세션을 만든다",
+            {other: "def f(p):\n    return InferenceSession(p)\n"},
+            True,
+        ),
+        (
+            "다른 곳에서 프롬프트를 조립한다",
+            {other: "def f(body, n):\n    return build_prompt(body=body, nonce=n)\n"},
+            True,
+        ),
+        (
+            "다른 곳에 생성 모델 이름이 박혀 있다",
+            {other: "DEFAULT = 'sonnet'\n"},
+            True,
+        ),
+        (
+            "다른 곳에 정식 모델 id 가 박혀 있다",
+            {other: "M = 'claude-sonnet-5'\n"},
+            True,
+        ),
+        (
+            "다른 곳에 임베딩 모델 id 가 박혀 있다",
+            {other: "M = 'intfloat/multilingual-e5-small'\n"},
+            True,
+        ),
+        # 위양성 쪽 — 모델 **설정 키**와 능력 이름은 모델 이름이 아니다. 여기서 걸리면
+        # 설정을 읽는 코드를 못 쓰게 된다.
+        (
+            "모델 이름이 아니라 설정 키를 읽는다",
+            {
+                other: "def f(s):\n"
+                "    return getattr(s, 'ai_embed_model', '') or s.llm_model\n"
+            },
+            False,
+        ),
+        # 위양성 쪽 — `claude-` 로 시작하는 **서비스 이름**은 모델 이름이 아니다.
+        # 실제로 `app/integrations/discovery.py` 에 둘 있다.
+        (
+            "claude 로 시작하는 서비스 이름",
+            {other: "SERVICES = ['claude-ticket-runner', 'claude-request-interpreter']\n"},
+            False,
+        ),
+        # 위양성 쪽 — 프롬프트 조립 함수를 **정의**하는 것은 호출이 아니다.
+        (
+            "프롬프트 조립 함수를 정의한다",
+            {other: "def build_prompt(*, body, nonce):\n    return (body, nonce)\n"},
+            False,
         ),
         # 위양성 쪽 — 판정 **결과**를 로그와 화면에 싣는 것은 판정이 아니다. 여기서
         # 걸리면 증거를 남길 자리가 없어지고, 그러면 사람이 검사를 끈다.

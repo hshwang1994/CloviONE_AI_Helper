@@ -52,13 +52,16 @@ WEB_UNIT="$SLUG-web.service"
 WORKER_UNIT="$SLUG-worker.service"
 WORKER_CONV_UNIT="$SLUG-worker-conversational.service"
 SCHEDULER_UNIT="$SLUG-scheduler.service"
+INDEX_UNIT="$SLUG-index.service"
 PRIVHELPER_UNIT="$SLUG-privhelper.service"
 # 기동 순서. privhelper 가 먼저(관리 화면이 「도우미 없음」을 안 보이게), 웹이 마지막
 # (VIS-109R: 워커가 새 job_type 을 이해하기 전에 웹이 그 잡을 넣을 수 있는 창을 없앤다).
-ALL_UNITS=("$PRIVHELPER_UNIT" "$WORKER_UNIT" "$WORKER_CONV_UNIT" "$SCHEDULER_UNIT" "$WEB_UNIT")
+ALL_UNITS=("$PRIVHELPER_UNIT" "$WORKER_UNIT" "$WORKER_CONV_UNIT" "$SCHEDULER_UNIT" "$INDEX_UNIT" "$WEB_UNIT")
 # 재부팅 뒤 **떠 있어야** 하는 유닛. 대화형 레인은 설정 플래그가 꺼져 있으면 정상적으로
 # exit(0) 해 inactive(dead) 가 된다 — 그것이 그 유닛의 정상 대기 상태다 (D-118).
-ALWAYS_ACTIVE_UNITS=("$PRIVHELPER_UNIT" "$WORKER_UNIT" "$SCHEDULER_UNIT" "$WEB_UNIT")
+# 색인 레인은 기본이 켜짐이라 여기 있다 (S9 · D-203) — 임베딩 모델이 없어도 파싱과
+# chunk 는 돌아야 하므로 「모델이 없으니 안 떠도 된다」가 아니다.
+ALWAYS_ACTIVE_UNITS=("$PRIVHELPER_UNIT" "$WORKER_UNIT" "$SCHEDULER_UNIT" "$INDEX_UNIT" "$WEB_UNIT")
 
 LEGACY_SLUG=clovirone-web-assistant
 LEGACY_SVC_USER=clovirone-web
@@ -96,6 +99,12 @@ ASSUME_YES=0
 INJECT_FAILURE=""         # 리허설용 — INSTALLATION.md §8 부가검증 3
 ROLLBACK_TARGET=""
 PURGE=0
+# AI Component(S9). **기본이 꺼짐이다** — AI 기능을 기본 ON 으로 두는 관례가 이 저장소에
+# 없고(`llm_enabled`·`game_ai_enabled`·`assistant_narrative_enabled` 전부 기본 OFF),
+# 켜려면 임베딩 모델 파일 465MB 가 서버에 들어와 있어야 한다. `--ai-model-dir` 를 주면
+# 「켠다」는 뜻이므로 함께 켜진다.
+WITH_AI=0
+AI_MODEL_DIR="${AI_MODEL_DIR:-}"
 
 SCRIPT_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
 SRC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -279,6 +288,7 @@ ClovirAssist 설치 진입점
   version     VERSION · git ref/commit · alembic head · PG/extension 버전 · 유닛 상태
   preflight   Stage 0 만 실행한다. 아무것도 바꾸지 않는다
   storage     Stage 11 만 실행한다. 저장소를 추가한 뒤 마운트 유닛을 다시 깐다(S8)
+  ai          Stage 12 만 실행한다. 모델을 나중에 넣고 AI 를 켤 때 쓴다(S9)
 
 옵션
   --dns-name <name>     설치처 호스트명. 인증서 CN/SAN 과 nginx server_name 이 이 값이다
@@ -288,6 +298,8 @@ ClovirAssist 설치 진입점
   --ref <tag>           고정할 tag. 브랜치 추적은 하지 않는다
   --wheelhouse <dir>    오프라인 wheel 디렉터리
   --offline             네트워크를 쓰지 않는다(wheelhouse·번들 필수)
+  --with-ai             AI Component 를 함께 설치한다(임베딩 런타임 + 모델 로드 검증)
+  --ai-model-dir <dir>  임베딩 모델 파일이 있는 디렉터리. 주면 --with-ai 가 함께 켜진다
   --inject-failure <n>  Stage n 에서 일부러 멈춘다(리허설 전용)
   --purge               uninstall 에서 데이터·백업까지 지운다
   --yes                 되돌리기 어려운 동작을 묻지 않고 진행한다
@@ -298,7 +310,7 @@ SUBCOMMAND="${1:-}"
 [ -n "$SUBCOMMAND" ] || { usage; exit 64; }
 shift || true
 case "$SUBCOMMAND" in
-  install|upgrade|rollback|uninstall|verify|version|preflight|storage) ;;
+  install|upgrade|rollback|uninstall|verify|version|preflight|storage|ai) ;;
   -h|--help) usage; exit 0 ;;
   *) echo "모르는 서브커맨드: $SUBCOMMAND"; usage; exit 64 ;;
 esac
@@ -312,6 +324,10 @@ while [ $# -gt 0 ]; do
     --ref) GIT_REF="${2:-}"; shift 2 ;;
     --wheelhouse) WHEELHOUSE="${2:-}"; shift 2 ;;
     --offline) OFFLINE=1; shift ;;
+    --with-ai) WITH_AI=1; shift ;;
+    # 모델 디렉터리를 주는 것은 「AI 를 켠다」는 뜻이다. 둘을 따로 주게 하면 하나만
+    # 준 설치가 «켰는데 모델이 없다»/«모델은 넣었는데 안 켜진다» 로 끝난다.
+    --ai-model-dir) AI_MODEL_DIR="${2:-}"; WITH_AI=1; shift 2 ;;
     --inject-failure) INJECT_FAILURE="${2:-}"; shift 2 ;;
     --purge) PURGE=1; shift ;;
     --yes|-y) ASSUME_YES=1; shift ;;
@@ -730,6 +746,8 @@ stage_8_config() {
     env_set DATABASE_URL "postgresql://$PG_ROLE@/$PG_DB?host=/var/run/postgresql"
   fi
 
+  ai_env_apply
+
   local f
   for f in allowed-services.json allowed-runners.json allowed-workflows.json feature-flags.json; do
     if [ ! -f "$ETC_DIR/$f" ]; then
@@ -814,6 +832,14 @@ stage_11_storage() {
   # 마운트 유닛과 RequiresMountsFor drop-in. 켜진 NFS/SMB Provider 가 없으면 유닛은
   # 0개이고 drop-in 은 빈 지시자 한 줄이 된다(옛 경로를 기다리는 상태를 지운다).
   local staged; staged="$(mktemp -d)"
+  # 🔴 `mktemp -d` 는 **root 소유 0700** 이다. 그 안에 파일을 쓰는 것은 이 셸이 아니라
+  # `run_as_app` 으로 띄운 **서비스 계정**이라, 소유를 안 넘기면 `PermissionError` 로
+  # 죽는다 — Stage 11 이 그 자리에서 설치를 통째로 세운다.
+  #
+  # S8 이 이 결함을 못 본 이유는 정직하게 적어 둔다: Storage 를 **호스트에서** 검증했고
+  # 그때는 root 로 CLI 를 불렀다. Clean 설치 경로(서비스 계정으로 부른다)는 S9 의 LXD
+  # 리허설이 처음 지났고, 첫 통과에서 바로 걸렸다.
+  chown "$SVC_USER":"$SVC_USER" "$staged"
   if ! run_as_app "$APP_DIR/venv/bin/python" -m app.cli.storage_cli units --out "$staged" >>"$LOG" 2>&1; then
     rm -rf "$staged"
     fail "마운트 유닛을 만들지 못했습니다" "저장소의 마운트 소스(source)가 비어 있는지 확인하십시오" 31 || return $?
@@ -859,13 +885,78 @@ stage_11_storage() {
 # ═════════════════════════════════════════════════════════════════════════════
 # Stage 12 — AI Component
 # ═════════════════════════════════════════════════════════════════════════════
-stage_12_ai() {
-  if [ -d "$APP_DIR/app/ai/gateway" ]; then
-    fail "AI Gateway 가 소스에 있는데 이 Stage 가 아직 그것을 설치하지 않습니다" \
-      "S9(P-18)이 이 Stage 를 채워야 합니다 — INSTALLATION.md §6.1 Installer 계약" 32 || return $?
+# AI 설정 두 줄을 env 에 반영한다. Stage 8 과 `ai` 서브커맨드가 **같은 함수**를 부른다 —
+# 두 자리에 각자 적으면 한쪽만 고치는 날이 오고, 그때 「모델은 넣었는데 안 켜진다」가 된다.
+#
+# 기존 값을 존중하지 않는 것이 의도다: `--with-ai` 없이 다시 설치하는 것은 「AI 를 끄고
+# 설치한다」는 뜻이고, 그때 env 에 옛 `AI_ENABLED=true` 가 남아 있으면 모델도 런타임도
+# 없이 켜진 상태가 된다.
+ai_env_apply() {
+  if [ "$WITH_AI" = 1 ]; then
+    env_set AI_ENABLED "true"
+    env_set AI_MODEL_ROOT "$VAR_DIR/ai/models"
+  else
+    env_set AI_ENABLED "false"
   fi
-  skip "Model Gateway·임베딩/리랭킹 모델·ONNX Runtime 이 아직 제품에 없습니다" \
-       "S9(P-18)이 이 Stage 를 OK 로 바꿉니다" || return $?
+}
+
+stage_12_ai() {
+  # 모델 캐시 뿌리. **`storage_providers` 와 별개다** — 모델은 사용자 데이터가 아니라
+  # 재생성 가능한 자산이고 백업 대상이 아니다(D-203 · D-204). 저장소 표에 안 넣는다.
+  install -d -o "$SVC_USER" -g "$SVC_USER" -m 0750 "$VAR_DIR/ai"
+  install -d -o "$SVC_USER" -g "$SVC_USER" -m 0750 "$VAR_DIR/ai/models"
+
+  # AI 를 끄고 설치하는 것은 **정상 선택**이다. 그때는 런타임도 모델도 안 깐다.
+  if [ "$WITH_AI" != 1 ]; then
+    _reason="AI 를 끄고 설치했습니다(--with-ai 로 켭니다) · 모델 캐시 자리만 만들었습니다"
+    return 0
+  fi
+
+  # ① 임베딩 런타임. 기본 의존과 따로 두는 이유는 requirements-ai.txt 머리말에 있다.
+  local wheels="${WHEELHOUSE:-$APP_DIR/wheelhouse}"
+  if [ -d "$wheels" ] && [ -n "$(ls -A "$wheels" 2>/dev/null)" ]; then
+    "$APP_DIR/venv/bin/pip" install --no-index --find-links "$wheels" -r "$APP_DIR/requirements-ai.txt" >>"$LOG" 2>&1 \
+      || { fail "오프라인 wheelhouse 로 AI 런타임을 못 깔았습니다" \
+           "wheelhouse 에 requirements-ai.txt 전부가 있는지 확인하십시오" 32 || return $?; }
+  else
+    [ "$OFFLINE" = 1 ] && { fail "--offline 인데 wheelhouse 가 비어 있습니다($wheels)" \
+      "AI wheel 을 미리 받아 두십시오" 32 || return $?; }
+    "$APP_DIR/venv/bin/pip" install -r "$APP_DIR/requirements-ai.txt" >>"$LOG" 2>&1 \
+      || { fail "AI 런타임 설치에 실패했습니다" "pypi.org 도달 여부를 확인하십시오" 32 || return $?; }
+  fi
+
+  # ② 모델 파일. **네트워크로 받지 않는다** — 폐쇄망이 기본 전제이고, 설치 중에 바깥
+  # 호스트를 새로 여는 것은 그 전제와 정반대다(D-205). 오프라인 번들이나 --ai-model-dir
+  # 로 들어오고, 이미 캐시에 있으면 그대로 쓴다.
+  local source=""
+  if [ -n "$AI_MODEL_DIR" ]; then source="$AI_MODEL_DIR"
+  elif [ -d "$APP_DIR/ai-models" ]; then source="$APP_DIR/ai-models"
+  fi
+  if [ -n "$source" ]; then
+    run_as_app "$APP_DIR/venv/bin/python" -m app.cli.ai_cli install-model --from "$source" >>"$LOG" 2>&1 \
+      || { fail "모델 파일을 캐시 자리에 놓지 못했습니다(원본: $source)" \
+           "$LOG 에 어느 파일이 없는지 적혀 있습니다. 그 파일들을 갖춘 뒤 다시 실행하십시오" 32 || return $?; }
+  fi
+
+  # ③ **제품 코드가** 지금 쓸 수 있는지 판정한다. 종료코드가 계약이다 — 셸이 모델
+  # 디렉터리에 ls 를 걸어 다시 판정하지 않는다(Stage 11 과 같은 규율).
+  local out; out="$(mktemp)"
+  if ! run_as_app "$APP_DIR/venv/bin/python" -m app.cli.ai_cli status >"$out" 2>>"$LOG"; then
+    cat "$out" >>"$LOG" 2>/dev/null || true; rm -f "$out"
+    fail "AI 를 켜고 설치했는데 임베딩을 쓸 수 없는 상태입니다" \
+      "모델 파일을 --ai-model-dir <디렉터리> 로 주고 다시 실행하십시오. 상태: $APP_DIR/venv/bin/python -m app.cli.ai_cli status" 32 \
+      || return $?
+  fi
+  rm -f "$out"
+  # ④ **있다 ≠ 된다.** 받다 만 model.onnx 는 크기도 있고 이름도 맞는데 세션을 만들다
+  # 죽는다. 실제로 벡터를 하나 만들어 보고 그것이 길이 1 인지까지 본다.
+  if ! run_as_app "$APP_DIR/venv/bin/python" -m app.cli.ai_cli selftest >>"$LOG" 2>&1; then
+    fail "모델 파일은 있는데 실제로 벡터를 만들지 못했습니다" \
+      "$LOG 의 traceback 을 보십시오. 모델 파일이 온전한지(받다 말지 않았는지) 확인하십시오" 32 \
+      || return $?
+  fi
+  _reason="AI 런타임 + 모델 로드 검증 통과"
+  return 0
 }
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -878,12 +969,12 @@ stage_13_units() {
       || { fail "유닛 파일이 배포본에 없습니다: deploy/systemd/$u" "저장소에 그 파일이 있는지 확인하십시오" 33 || return $?; }
     install -o root -g root -m 0644 "$APP_DIR/deploy/systemd/$u" "/etc/systemd/system/$u"
   done
-  # 색인 레인 유닛(clovirassist-index.service)은 여기 없다 — 그 Component 자체가 아직
-  # 제품에 없다(S9 · P-18). INSTALLATION.md §6.1 대로 그 Session 이 유닛·probe·uninstall·
-  # 복구를 함께 넣는다. 소스에 레인이 생겼는데 유닛이 없으면 아래에서 걸린다.
-  if grep -q 'LANE_INDEX' "$APP_DIR/app/jobs/lanes.py" 2>/dev/null && [ ! -f "$APP_DIR/deploy/systemd/$SLUG-index.service" ]; then
+  # 색인 레인 유닛은 S9 이 넣었고 위 루프가 그것을 깐다(ALL_UNITS 에 있다). 이 가드는
+  # 남겨 둔다 — 유닛을 지우면서 레인은 남기는 실수를 잡는 자리이고, 그 상태의 증상은
+  # 「색인이 안 되는데 아무 오류도 없다」뿐이다.
+  if grep -q 'LANE_INDEX' "$APP_DIR/app/jobs/lanes.py" 2>/dev/null && [ ! -f "$APP_DIR/deploy/systemd/$INDEX_UNIT" ]; then
     fail "색인 레인이 소스에 있는데 systemd 유닛이 없습니다" \
-      "deploy/systemd/$SLUG-index.service 를 추가하고 ALL_UNITS 에 넣으십시오" 33 || return $?
+      "deploy/systemd/$INDEX_UNIT 를 추가하고 ALL_UNITS 에 넣으십시오" 33 || return $?
   fi
   systemctl daemon-reload
   for u in "${ALL_UNITS[@]}"; do
@@ -1362,6 +1453,10 @@ do_uninstall() {
   nginx -t >>"$LOG" 2>&1 && { systemctl reload nginx >>"$LOG" 2>&1 || true; }
   rm -rf "$APP_DIR" "$SSL_FALLBACK_DIR"
   rm -f /etc/systemd/timesyncd.conf.d/99-"$SLUG".conf /etc/systemd/resolved.conf.d/99-"$SLUG".conf
+  # AI 모델 캐시(S9). **`--purge` 가 아니어도 지운다** — 모델은 사용자 데이터가 아니라
+  # 재생성 가능한 자산이고(D-203 · D-204), 465MB 짜리 파일을 「데이터를 남겼습니다」에
+  # 넣어 두면 제품을 지운 뒤에도 디스크가 안 돌아온다. 다시 깔면 다시 넣는다.
+  rm -rf "$VAR_DIR/ai"
   if [ "$PURGE" = 1 ]; then
     rm -rf "$ETC_DIR" "$VAR_DIR" "$BACKUP_ROOT"
     runuser -u postgres -- dropdb --if-exists "$PG_DB" >>"$LOG" 2>&1 || true
@@ -1442,4 +1537,12 @@ case "$SUBCOMMAND" in
   # 않는 이유는 하나다 — 그러면 사람이 안 하고, 안 하면 유닛 없이 도는 저장소가
   # 남는다(INSTALLATION.md §6.1 Installer 계약).
   storage)   open_log; run_stage 11 STORAGE stage_11_storage; say "STORAGE_OK log=$LOG" ;;
+  # 모델 파일을 나중에 넣고 AI 를 켜는 경로(S9). 저장소와 같은 이유로 전체 재설치를
+  # 시키지 않는다. 유닛을 다시 시작하는 것까지가 이 명령의 일이다 — 안 하면 색인
+  # 레인이 옛 설정을 든 채로 계속 돌고, 화면은 「켰다」고 말한다.
+  ai)        open_log
+             ai_env_apply
+             run_stage 12 AI stage_12_ai
+             systemctl restart "$INDEX_UNIT" >>"$LOG" 2>&1 || log "색인 유닛 재시작 실패"
+             say "AI_OK log=$LOG" ;;
 esac
