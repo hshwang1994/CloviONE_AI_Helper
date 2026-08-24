@@ -42,7 +42,7 @@
   1366 에서 155px 까지 눌려 카드 제목이 스무 줄로 접히던 것은 균등의 문제가 아니라 바닥값의
   문제라 `minmax(14rem, 1fr)` 로 따로 고쳤다. 실행 요약이 「억제가 실패보다 많다」고 경고하는
   것이 정상이고, 만료는 2026-10-20 이다
-- commit: `COMMIT_TBD` (S16 본체)
+- commit: `51c926ee` (S16 본체)
 - plan: `docs/ui-renewal/PLAN.md`(UI 축 정본) · `DIRECTIVE_v7.txt`(원 지시서) ·
   **`docs/platform/MASTER_PLAN.md`(제품 전체 정본 — 여기가 상위다)**
 
