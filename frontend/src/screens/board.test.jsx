@@ -202,3 +202,59 @@ describe("목록 표시", () => {
     expect(screen.getByText("👍 7")).toBeInTheDocument();
   });
 });
+
+/* 🔴 서버가 자른 목록에는 **쪽을 넘길 길**이 있어야 한다 (S15 · C7).
+ *
+ * `/api/board/posts` 는 처음부터 20건에서 자르고 `total` 을 함께 줬다. 화면은 그 총 건수를
+ * 「총 87건」이라고 적어 놓고 페이저를 안 그렸다 — 21번째 글부터는 **있다는 사실만 보이고
+ * 열 방법이 없었다.** 오류가 아니라 침묵이라 아무도 신고하지 않는다. */
+describe("쪽 넘기기", () => {
+  const page = (n, total) => ({
+    items: Array.from({ length: Math.min(20, total - (n - 1) * 20) }, (_, i) => ({
+      id: `p${(n - 1) * 20 + i}`, title: `글 ${(n - 1) * 20 + i}`, category: "자유",
+      author_name: "작성자", view_count: 0, comment_count: 0, created_at: "2026-08-01T01:00:00",
+    })),
+    total, page: n, page_size: 20,
+  });
+
+  it("총 건수가 한 쪽을 넘으면 다음 쪽을 실제로 요청한다", async () => {
+    const asked = [];
+    apiMock.mockImplementation((url) => {
+      if (url === "/api/board/meta") return Promise.resolve(META);
+      const s = String(url);
+      if (!s.startsWith("/api/board/posts")) return Promise.resolve({});
+      asked.push(s);
+      const n = Number(new URLSearchParams(s.slice(s.indexOf("?") + 1)).get("page") || 1);
+      return Promise.resolve(page(n, 45));
+    });
+    renderBoard();
+    expect(await screen.findByText("글 0")).toBeInTheDocument();
+    // 결과 줄이 말하는 45건이 실제로 닿을 수 있는 숫자인가.
+    expect(screen.getByText("1 / 3, 총 45건")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "다음" }));
+    await waitFor(() => expect(asked.some((u) => u.includes("page=2"))).toBe(true));
+    expect(await screen.findByText("글 20")).toBeInTheDocument();
+  });
+
+  it("조건을 바꾸면 첫 쪽으로 돌아온다 — 3쪽에서 걸러 놓고 빈 화면을 보면 안 된다", async () => {
+    const asked = [];
+    apiMock.mockImplementation((url) => {
+      if (url === "/api/board/meta") return Promise.resolve(META);
+      const s = String(url);
+      if (!s.startsWith("/api/board/posts")) return Promise.resolve({});
+      asked.push(s);
+      const n = Number(new URLSearchParams(s.slice(s.indexOf("?") + 1)).get("page") || 1);
+      return Promise.resolve(page(n, 45));
+    });
+    renderBoard();
+    expect(await screen.findByText("글 0")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "다음" }));
+    await waitFor(() => expect(asked.some((u) => u.includes("page=2"))).toBe(true));
+
+    await userEvent.click(screen.getByRole("button", { name: "공지" }));
+    await waitFor(() => expect(asked.some((u) => u.includes("category=%EA%B3%B5%EC%A7%80"))).toBe(true));
+    const last = asked[asked.length - 1];
+    expect(last).not.toContain("page=2");
+  });
+});

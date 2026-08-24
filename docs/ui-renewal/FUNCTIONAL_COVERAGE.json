@@ -416,112 +416,259 @@
      "category": "search",
      "name": "제목 검색어(q)로 거른다 — 디바운스 검색 상자",
      "exists": true,
-     "status": "NOT_AUDITED",
+     "status": "PASS",
      "source": "frontend/src/screens/TicketFilterBar.jsx:204",
      "api": "",
-     "chain": {},
-     "expected": {},
+     "chain": {
+      "ui_action": "q=알파",
+      "frontend_state": "q=알파",
+      "url_state": "/api/tickets/mine?q=%EC%95%8C%ED%8C%8C",
+      "api_request": "GET /api/tickets/mine?active=false&q=%EC%95%8C%ED%8C%8C",
+      "backend_query": "list_by_assignee(나) + filter_clauses(title ILIKE)",
+      "data_relation": "",
+      "api_response": {
+       "total": 2,
+       "count": 2
+      },
+      "rendered": {
+       "rows": 2,
+       "total_shown": 2
+      }
+     },
+     "expected": {
+      "source": "known-data",
+      "total": 2,
+      "universe": 4
+     },
      "cross_surface": [],
-     "evidence": [],
+     "evidence": [
+      "ev:test:tests/regression/test_filter_chain.py"
+     ],
      "findings": [],
-     "audited_at": "",
-     "by": ""
+     "audited_at": "2026-08-24",
+     "by": "S15 — tests/regression/test_filter_chain.py (실 PostgreSQL · 알려진 데이터 대조)"
     },
     {
      "id": "FF-0023",
      "category": "filter",
      "name": "프로젝트로 거른다",
      "exists": true,
-     "status": "NOT_AUDITED",
+     "status": "PASS",
      "source": "frontend/src/screens/TicketFilterBar.jsx:211",
      "api": "",
-     "chain": {},
-     "expected": {},
+     "chain": {
+      "ui_action": "project_id=d65ccf7d-ffbf-4729-a256-f535fc21fb4f",
+      "frontend_state": "project_id=d65ccf7d-ffbf-4729-a256-f535fc21fb4f",
+      "url_state": "/api/tickets/mine?project_id=d65ccf7d-ffbf-4729-a256-f535fc21fb4f",
+      "api_request": "GET /api/tickets/mine?active=false&project_id=d65ccf7d-ffbf-4729-a256-f535fc21fb4f",
+      "backend_query": "list_by_assignee(나) + filter_clauses(project)",
+      "data_relation": "tickets.project_uid → projects.id",
+      "api_response": {
+       "total": 2,
+       "count": 2
+      },
+      "rendered": {
+       "rows": 2,
+       "total_shown": 2
+      }
+     },
+     "expected": {
+      "source": "known-data",
+      "total": 2,
+      "universe": 4
+     },
      "cross_surface": [],
-     "evidence": [],
+     "evidence": [
+      "ev:test:tests/regression/test_filter_chain.py"
+     ],
      "findings": [],
-     "audited_at": "",
-     "by": ""
+     "audited_at": "2026-08-24",
+     "by": "S15 — tests/regression/test_filter_chain.py (실 PostgreSQL · 알려진 데이터 대조)"
     },
     {
      "id": "FF-0024",
      "category": "filter",
      "name": "진행상태로 거른다",
      "exists": true,
-     "status": "NOT_AUDITED",
+     "status": "PASS",
      "source": "frontend/src/screens/TicketFilterBar.jsx:220",
      "api": "",
-     "chain": {},
-     "expected": {},
+     "chain": {
+      "ui_action": "status=진행",
+      "frontend_state": "status=진행",
+      "url_state": "/api/tickets/mine?status=%EC%A7%84%ED%96%89",
+      "api_request": "GET /api/tickets/mine?active=false&status=%EC%A7%84%ED%96%89",
+      "backend_query": "list_by_assignee(나) + filter_clauses(status)",
+      "data_relation": "users.id → 담당자 토큰(assignee_token)",
+      "api_response": {
+       "total": 2,
+       "count": 2
+      },
+      "rendered": {
+       "rows": 2,
+       "total_shown": 2
+      }
+     },
+     "expected": {
+      "source": "known-data",
+      "total": 2,
+      "universe": 4
+     },
      "cross_surface": [],
-     "evidence": [],
+     "evidence": [
+      "ev:test:tests/regression/test_filter_chain.py"
+     ],
      "findings": [],
-     "audited_at": "",
-     "by": ""
+     "audited_at": "2026-08-24",
+     "by": "S15 — tests/regression/test_filter_chain.py (실 PostgreSQL · 알려진 데이터 대조)"
     },
     {
      "id": "FF-0025",
      "category": "filter",
      "name": "우선순위로 거른다",
      "exists": true,
-     "status": "NOT_AUDITED",
+     "status": "PASS",
      "source": "frontend/src/screens/TicketFilterBar.jsx:224",
      "api": "",
-     "chain": {},
-     "expected": {},
+     "chain": {
+      "ui_action": "priority=High",
+      "frontend_state": "priority=High",
+      "url_state": "/api/tickets/mine?priority=High",
+      "api_request": "GET /api/tickets/mine?active=false&priority=High",
+      "backend_query": "list_by_assignee(나) + filter_clauses(priority)",
+      "data_relation": "",
+      "api_response": {
+       "total": 1,
+       "count": 1
+      },
+      "rendered": {
+       "rows": 1,
+       "total_shown": 1
+      }
+     },
+     "expected": {
+      "source": "known-data",
+      "total": 1,
+      "universe": 4
+     },
      "cross_surface": [],
-     "evidence": [],
+     "evidence": [
+      "ev:test:tests/regression/test_filter_chain.py"
+     ],
      "findings": [],
-     "audited_at": "",
-     "by": ""
+     "audited_at": "2026-08-24",
+     "by": "S15 — tests/regression/test_filter_chain.py (실 PostgreSQL · 알려진 데이터 대조)"
     },
     {
      "id": "FF-0026",
      "category": "filter",
      "name": "난이도로 거른다",
      "exists": true,
-     "status": "NOT_AUDITED",
+     "status": "PASS",
      "source": "frontend/src/screens/TicketFilterBar.jsx:229",
      "api": "",
-     "chain": {},
-     "expected": {},
+     "chain": {
+      "ui_action": "difficulty=중",
+      "frontend_state": "difficulty=중",
+      "url_state": "/api/tickets/mine?difficulty=%EC%A4%91",
+      "api_request": "GET /api/tickets/mine?active=false&difficulty=%EC%A4%91",
+      "backend_query": "list_by_assignee(나) + filter_clauses(difficulty)",
+      "data_relation": "",
+      "api_response": {
+       "total": 2,
+       "count": 2
+      },
+      "rendered": {
+       "rows": 2,
+       "total_shown": 2
+      }
+     },
+     "expected": {
+      "source": "known-data",
+      "total": 2,
+      "universe": 4
+     },
      "cross_surface": [],
-     "evidence": [],
+     "evidence": [
+      "ev:test:tests/regression/test_filter_chain.py"
+     ],
      "findings": [],
-     "audited_at": "",
-     "by": ""
+     "audited_at": "2026-08-24",
+     "by": "S15 — tests/regression/test_filter_chain.py (실 PostgreSQL · 알려진 데이터 대조)"
     },
     {
      "id": "FF-0027",
      "category": "filter",
      "name": "기한 버킷(지연·이번 주·다음 주)으로 거른다",
      "exists": true,
-     "status": "NOT_AUDITED",
+     "status": "PASS",
      "source": "frontend/src/screens/TicketFilterBar.jsx:239",
      "api": "",
-     "chain": {},
-     "expected": {},
+     "chain": {
+      "ui_action": "due=overdue",
+      "frontend_state": "due=overdue",
+      "url_state": "/api/tickets/mine?due=overdue",
+      "api_request": "GET /api/tickets/mine?active=false&due=overdue",
+      "backend_query": "list_by_assignee(나) + filter_clauses(due_date < today)",
+      "data_relation": "",
+      "api_response": {
+       "total": 1,
+       "count": 1
+      },
+      "rendered": {
+       "rows": 1,
+       "total_shown": 1
+      }
+     },
+     "expected": {
+      "source": "known-data",
+      "total": 1,
+      "universe": 4
+     },
      "cross_surface": [],
-     "evidence": [],
+     "evidence": [
+      "ev:test:tests/regression/test_filter_chain.py"
+     ],
      "findings": [],
-     "audited_at": "",
-     "by": ""
+     "audited_at": "2026-08-24",
+     "by": "S15 — tests/regression/test_filter_chain.py (실 PostgreSQL · 알려진 데이터 대조)"
     },
     {
      "id": "FF-0028",
      "category": "filter",
      "name": "대분류(category) 텍스트로 거른다",
      "exists": true,
-     "status": "NOT_AUDITED",
+     "status": "PASS",
      "source": "frontend/src/screens/TicketFilterBar.jsx:242",
      "api": "",
-     "chain": {},
-     "expected": {},
+     "chain": {
+      "ui_action": "category=인프라",
+      "frontend_state": "category=인프라",
+      "url_state": "/api/tickets/mine?category=%EC%9D%B8%ED%94%84%EB%9D%BC",
+      "api_request": "GET /api/tickets/mine?active=false&category=%EC%9D%B8%ED%94%84%EB%9D%BC",
+      "backend_query": "list_by_assignee(나) + filter_clauses(category)",
+      "data_relation": "",
+      "api_response": {
+       "total": 2,
+       "count": 2
+      },
+      "rendered": {
+       "rows": 2,
+       "total_shown": 2
+      }
+     },
+     "expected": {
+      "source": "known-data",
+      "total": 2,
+      "universe": 4
+     },
      "cross_surface": [],
-     "evidence": [],
+     "evidence": [
+      "ev:test:tests/regression/test_filter_chain.py"
+     ],
      "findings": [],
-     "audited_at": "",
-     "by": ""
+     "audited_at": "2026-08-24",
+     "by": "S15 — tests/regression/test_filter_chain.py (실 PostgreSQL · 알려진 데이터 대조)"
     },
     {
      "id": "FF-0029",
@@ -784,14 +931,30 @@
      "category": "filter",
      "name": "프로젝트 단독 Filter 가 실제로 연결된 티켓을 전부 반환한다",
      "exists": true,
-     "status": "FAIL",
-     "chain": {},
+     "status": "PASS",
+     "chain": {
+      "ui_action": "project_id=d65ccf7d-ffbf-4729-a256-f535fc21fb4f",
+      "frontend_state": "project_id=d65ccf7d-ffbf-4729-a256-f535fc21fb4f",
+      "url_state": "/api/tickets/mine?project_id=d65ccf7d-ffbf-4729-a256-f535fc21fb4f",
+      "api_request": "GET /api/tickets/mine?active=false&project_id=d65ccf7d-ffbf-4729-a256-f535fc21fb4f",
+      "backend_query": "list_by_assignee(나) + filter_clauses(project)",
+      "data_relation": "tickets.project_uid → projects.id",
+      "api_response": {
+       "total": 2,
+       "count": 2
+      },
+      "rendered": {
+       "rows": 2,
+       "total_shown": 2
+      }
+     },
      "expected": {
       "source": "known-data",
-      "note": "사용자가 실제로 겪은 증상 - 연결된 티켓이 Filter 결과에서 누락됐다"
+      "note": "그 프로젝트에 연결된 티켓 전부 — 기대 집합은 전량 목록에서 직접 셌다"
      },
      "evidence": [
-      "ev:note:사용자 보고 (2026-08-19 계획 세션)"
+      "ev:test:tests/regression/test_filter_chain.py",
+      "ev:test:frontend/src/screens/ticket-filters.test.jsx"
      ],
      "findings": [
       {
@@ -805,13 +968,228 @@
         "R-85",
         "R-86"
        ],
-       "status": "OPEN",
-       "closed_by": [],
+       "status": "CLOSED",
+       "closed_by": [
+        "ev:test:tests/regression/test_filter_chain.py",
+        "ev:test:frontend/src/screens/ticket-filters.test.jsx",
+        "ev:commit:S15 — 프로젝트 축은 해석된 Portal id 를 먼저 본다"
+       ],
        "accepted_reason": null
       }
      ],
-     "audited_at": "",
-     "by": ""
+     "audited_at": "2026-08-24",
+     "by": "S15 — tests/regression/test_filter_chain.py (실 PostgreSQL · 알려진 데이터 대조)"
+    },
+    {
+     "id": "FF-1328",
+     "category": "filter",
+     "name": "복합 — 프로젝트 × 상태",
+     "exists": true,
+     "status": "PASS",
+     "source": "",
+     "api": "",
+     "chain": {
+      "ui_action": "project_id=d65ccf7d-ffbf-4729-a256-f535fc21fb4f, status=진행",
+      "frontend_state": "project_id=d65ccf7d-ffbf-4729-a256-f535fc21fb4f, status=진행",
+      "url_state": "/api/tickets/mine?project_id=d65ccf7d-ffbf-4729-a256-f535fc21fb4f&status=%EC%A7%84%ED%96%89",
+      "api_request": "GET /api/tickets/mine?active=false&project_id=d65ccf7d-ffbf-4729-a256-f535fc21fb4f&status=%EC%A7%84%ED%96%89",
+      "backend_query": "list_by_assignee(나) + 두 절이 AND 로 함께 걸린다",
+      "data_relation": "tickets.project_uid → projects.id",
+      "api_response": {
+       "total": 1,
+       "count": 1
+      },
+      "rendered": {
+       "rows": 1,
+       "total_shown": 1
+      }
+     },
+     "expected": {
+      "source": "known-data",
+      "total": 1,
+      "universe": 4
+     },
+     "cross_surface": [],
+     "evidence": [
+      "ev:test:tests/regression/test_filter_chain.py"
+     ],
+     "findings": [],
+     "audited_at": "2026-08-24",
+     "by": "S15 — tests/regression/test_filter_chain.py (실 PostgreSQL · 알려진 데이터 대조)"
+    },
+    {
+     "id": "FF-1329",
+     "category": "filter",
+     "name": "기본 Scope(담당자=나)와 사용자 조건의 결합",
+     "exists": true,
+     "status": "PASS",
+     "source": "",
+     "api": "",
+     "chain": {
+      "ui_action": "화면 기본 Scope(담당자=나) + status=진행",
+      "frontend_state": "화면 기본 Scope(담당자=나) + status=진행",
+      "url_state": "#/my-tickets?status=진행",
+      "api_request": "GET /api/tickets/mine?active=false&status=진행",
+      "backend_query": "list_by_assignee(assignee_token) + filter_clauses(status)",
+      "data_relation": "users.id → 담당자 토큰(assignee_token)",
+      "api_response": {
+       "total": 2,
+       "count": 2
+      },
+      "rendered": {
+       "rows": 2,
+       "total_shown": 2
+      }
+     },
+     "expected": {
+      "source": "derived-check",
+      "note": "기본 Scope 결과 ∩ 같은 조건의 전체 결과"
+     },
+     "cross_surface": [],
+     "evidence": [
+      "ev:test:tests/regression/test_filter_chain.py"
+     ],
+     "findings": [],
+     "audited_at": "2026-08-24",
+     "by": "S15 — tests/regression/test_filter_chain.py (실 PostgreSQL · 알려진 데이터 대조)"
+    },
+    {
+     "id": "FF-1330",
+     "category": "pagination",
+     "name": "조건을 바꾸면 쪽이 초기화된다",
+     "exists": true,
+     "status": "PASS",
+     "source": "",
+     "api": "",
+     "chain": {
+      "ui_action": "3쪽에서 상태=진행 선택",
+      "frontend_state": "useQueryState(reset:[page])",
+      "url_state": "#/my-tickets?page=3 → #/my-tickets?status=진행",
+      "api_request": "GET /api/tickets/mine?status=진행 (page 없음 = 1쪽)",
+      "backend_query": "PageParams(page=1) + filter_clauses(status)",
+      "data_relation": "",
+      "api_response": {
+       "page": 1
+      },
+      "rendered": {
+       "rows": 1,
+       "total_shown": 60
+      }
+     },
+     "expected": {
+      "source": "derived-check",
+      "note": "주소에서 page 가 빠지고 질의에도 안 실린다"
+     },
+     "cross_surface": [],
+     "evidence": [
+      "ev:test:frontend/src/screens/filter-chain-contract.test.jsx"
+     ],
+     "findings": [],
+     "audited_at": "2026-08-24",
+     "by": "S15 — tests/regression/test_filter_chain.py (실 PostgreSQL · 알려진 데이터 대조)"
+    },
+    {
+     "id": "FF-1331",
+     "category": "filter",
+     "name": "조건을 빠르게 바꿔도 옛 응답이 최신 조건을 덮지 않는다(경합)",
+     "exists": true,
+     "status": "PASS",
+     "source": "",
+     "api": "",
+     "chain": {
+      "ui_action": "상태=진행 → 상태=완료 를 연달아 고르고, 「진행」 응답을 **나중에** 풀어 준다",
+      "frontend_state": "react-query 는 조건마다 다른 캐시 항목을 쓴다",
+      "url_state": "#/my-tickets?status=완료",
+      "api_request": "GET /api/tickets/mine?status=진행 · GET /api/tickets/mine?status=완료",
+      "backend_query": "두 요청은 서로 다른 질의다 — 늦은 응답은 자기 키에만 들어간다",
+      "data_relation": "",
+      "api_response": {
+       "note": "완료 응답이 먼저, 진행 응답이 나중에 도착"
+      },
+      "rendered": {
+       "rows": 1,
+       "shown": "완료 조건의 행"
+      }
+     },
+     "expected": {
+      "source": "derived-check",
+      "note": "늦게 도착한 옛 조건의 결과가 화면을 덮지 않는다"
+     },
+     "cross_surface": [],
+     "evidence": [
+      "ev:test:frontend/src/screens/filter-chain-contract.test.jsx"
+     ],
+     "findings": [],
+     "audited_at": "2026-08-24",
+     "by": "S15 — tests/regression/test_filter_chain.py (실 PostgreSQL · 알려진 데이터 대조)"
+    },
+    {
+     "id": "FF-1332",
+     "category": "filter",
+     "name": "다른 조건이 같은 캐시를 재사용하지 않는다(캐시 키)",
+     "exists": true,
+     "status": "PASS",
+     "source": "",
+     "api": "",
+     "chain": {
+      "ui_action": "상태 전체 → 진행 → 완료 → 진행",
+      "frontend_state": "queryKey = [tickets, path, 질의문자열 전체]",
+      "url_state": "#/my-tickets?status=…",
+      "api_request": "조건마다 별도 요청",
+      "backend_query": "조건이 키에 전부 들어 있어 다른 조건의 결과가 재사용되지 않는다",
+      "data_relation": "",
+      "api_response": {
+       "note": "조건별로 다른 행"
+      },
+      "rendered": {
+       "note": "앞 조건의 행이 화면에 남지 않는다"
+      }
+     },
+     "expected": {
+      "source": "derived-check",
+      "note": "앞 조건의 결과가 남아 있으면 키에 조건이 안 들어간 것이다"
+     },
+     "cross_surface": [],
+     "evidence": [
+      "ev:test:frontend/src/screens/filter-chain-contract.test.jsx"
+     ],
+     "findings": [],
+     "audited_at": "2026-08-24",
+     "by": "S15 — tests/regression/test_filter_chain.py (실 PostgreSQL · 알려진 데이터 대조)"
+    },
+    {
+     "id": "FF-1333",
+     "category": "back_forward",
+     "name": "뒤로가기처럼 주소만 바뀌어도 조건 상자와 목록이 함께 따라온다",
+     "exists": true,
+     "status": "PASS",
+     "source": "",
+     "api": "",
+     "chain": {
+      "ui_action": "상태=진행 을 고른 뒤 주소만 status=완료 로 바뀐다",
+      "frontend_state": "주소가 유일한 진실(useQueryState) — 상태 사본을 따로 안 든다",
+      "url_state": "#/my-tickets?status=완료",
+      "api_request": "GET /api/tickets/mine?status=완료",
+      "backend_query": "filter_clauses(status=완료)",
+      "data_relation": "",
+      "api_response": {
+       "note": "완료 조건의 행"
+      },
+      "rendered": {
+       "note": "조건 상자도 «완료» 를 가리킨다"
+      }
+     },
+     "expected": {
+      "source": "derived-check",
+      "note": "화면이 말하는 조건과 실제 질의 조건이 같다"
+     },
+     "cross_surface": [],
+     "evidence": [
+      "ev:test:frontend/src/screens/filter-chain-contract.test.jsx"
+     ],
+     "findings": [],
+     "audited_at": "2026-08-24",
+     "by": "S15 — tests/regression/test_filter_chain.py (실 PostgreSQL · 알려진 데이터 대조)"
     }
    ]
   },
@@ -891,80 +1269,185 @@
      "category": "search",
      "name": "제목 검색어(q)로 거른다",
      "exists": true,
-     "status": "NOT_AUDITED",
+     "status": "PASS",
      "source": "frontend/src/screens/TicketFilterBar.jsx:204",
      "api": "",
-     "chain": {},
-     "expected": {},
+     "chain": {
+      "ui_action": "q=알파",
+      "frontend_state": "q=알파",
+      "url_state": "/api/tickets/unassigned?q=%EC%95%8C%ED%8C%8C",
+      "api_request": "GET /api/tickets/unassigned?active=false&q=%EC%95%8C%ED%8C%8C",
+      "backend_query": "list_unassigned(담당자 없음) + filter_clauses(title ILIKE)",
+      "data_relation": "",
+      "api_response": {
+       "total": 1,
+       "count": 1
+      },
+      "rendered": {
+       "rows": 1,
+       "total_shown": 1
+      }
+     },
+     "expected": {
+      "source": "known-data",
+      "total": 1,
+      "universe": 2
+     },
      "cross_surface": [],
-     "evidence": [],
+     "evidence": [
+      "ev:test:tests/regression/test_filter_chain.py"
+     ],
      "findings": [],
-     "audited_at": "",
-     "by": ""
+     "audited_at": "2026-08-24",
+     "by": "S15 — tests/regression/test_filter_chain.py (실 PostgreSQL · 알려진 데이터 대조)"
     },
     {
      "id": "FF-0050",
      "category": "filter",
      "name": "프로젝트로 거른다",
      "exists": true,
-     "status": "NOT_AUDITED",
+     "status": "PASS",
      "source": "frontend/src/screens/TicketFilterBar.jsx:211",
      "api": "",
-     "chain": {},
-     "expected": {},
+     "chain": {
+      "ui_action": "project_id=d65ccf7d-ffbf-4729-a256-f535fc21fb4f",
+      "frontend_state": "project_id=d65ccf7d-ffbf-4729-a256-f535fc21fb4f",
+      "url_state": "/api/tickets/unassigned?project_id=d65ccf7d-ffbf-4729-a256-f535fc21fb4f",
+      "api_request": "GET /api/tickets/unassigned?active=false&project_id=d65ccf7d-ffbf-4729-a256-f535fc21fb4f",
+      "backend_query": "list_unassigned(담당자 없음) + filter_clauses(project)",
+      "data_relation": "tickets.project_uid → projects.id",
+      "api_response": {
+       "total": 1,
+       "count": 1
+      },
+      "rendered": {
+       "rows": 1,
+       "total_shown": 1
+      }
+     },
+     "expected": {
+      "source": "known-data",
+      "total": 1,
+      "universe": 2
+     },
      "cross_surface": [],
-     "evidence": [],
+     "evidence": [
+      "ev:test:tests/regression/test_filter_chain.py"
+     ],
      "findings": [],
-     "audited_at": "",
-     "by": ""
+     "audited_at": "2026-08-24",
+     "by": "S15 — tests/regression/test_filter_chain.py (실 PostgreSQL · 알려진 데이터 대조)"
     },
     {
      "id": "FF-0051",
      "category": "filter",
      "name": "진행상태로 거른다",
      "exists": true,
-     "status": "NOT_AUDITED",
+     "status": "PASS",
      "source": "frontend/src/screens/TicketFilterBar.jsx:220",
      "api": "",
-     "chain": {},
-     "expected": {},
+     "chain": {
+      "ui_action": "status=진행",
+      "frontend_state": "status=진행",
+      "url_state": "/api/tickets/unassigned?status=%EC%A7%84%ED%96%89",
+      "api_request": "GET /api/tickets/unassigned?active=false&status=%EC%A7%84%ED%96%89",
+      "backend_query": "list_unassigned(담당자 없음) + filter_clauses(status)",
+      "data_relation": "",
+      "api_response": {
+       "total": 1,
+       "count": 1
+      },
+      "rendered": {
+       "rows": 1,
+       "total_shown": 1
+      }
+     },
+     "expected": {
+      "source": "known-data",
+      "total": 1,
+      "universe": 2
+     },
      "cross_surface": [],
-     "evidence": [],
+     "evidence": [
+      "ev:test:tests/regression/test_filter_chain.py"
+     ],
      "findings": [],
-     "audited_at": "",
-     "by": ""
+     "audited_at": "2026-08-24",
+     "by": "S15 — tests/regression/test_filter_chain.py (실 PostgreSQL · 알려진 데이터 대조)"
     },
     {
      "id": "FF-0052",
      "category": "filter",
      "name": "우선순위로 거른다",
      "exists": true,
-     "status": "NOT_AUDITED",
+     "status": "PASS",
      "source": "frontend/src/screens/TicketFilterBar.jsx:224",
      "api": "",
-     "chain": {},
-     "expected": {},
+     "chain": {
+      "ui_action": "priority=High",
+      "frontend_state": "priority=High",
+      "url_state": "/api/tickets/unassigned?priority=High",
+      "api_request": "GET /api/tickets/unassigned?active=false&priority=High",
+      "backend_query": "list_unassigned(담당자 없음) + filter_clauses(priority)",
+      "data_relation": "",
+      "api_response": {
+       "total": 1,
+       "count": 1
+      },
+      "rendered": {
+       "rows": 1,
+       "total_shown": 1
+      }
+     },
+     "expected": {
+      "source": "known-data",
+      "total": 1,
+      "universe": 2
+     },
      "cross_surface": [],
-     "evidence": [],
+     "evidence": [
+      "ev:test:tests/regression/test_filter_chain.py"
+     ],
      "findings": [],
-     "audited_at": "",
-     "by": ""
+     "audited_at": "2026-08-24",
+     "by": "S15 — tests/regression/test_filter_chain.py (실 PostgreSQL · 알려진 데이터 대조)"
     },
     {
      "id": "FF-0053",
      "category": "filter",
      "name": "난이도로 거른다",
      "exists": true,
-     "status": "NOT_AUDITED",
+     "status": "PASS",
      "source": "frontend/src/screens/TicketFilterBar.jsx:229",
      "api": "",
-     "chain": {},
-     "expected": {},
+     "chain": {
+      "ui_action": "difficulty=중",
+      "frontend_state": "difficulty=중",
+      "url_state": "/api/tickets/unassigned?difficulty=%EC%A4%91",
+      "api_request": "GET /api/tickets/unassigned?active=false&difficulty=%EC%A4%91",
+      "backend_query": "list_unassigned(담당자 없음) + filter_clauses(difficulty)",
+      "data_relation": "",
+      "api_response": {
+       "total": 1,
+       "count": 1
+      },
+      "rendered": {
+       "rows": 1,
+       "total_shown": 1
+      }
+     },
+     "expected": {
+      "source": "known-data",
+      "total": 1,
+      "universe": 2
+     },
      "cross_surface": [],
-     "evidence": [],
+     "evidence": [
+      "ev:test:tests/regression/test_filter_chain.py"
+     ],
      "findings": [],
-     "audited_at": "",
-     "by": ""
+     "audited_at": "2026-08-24",
+     "by": "S15 — tests/regression/test_filter_chain.py (실 PostgreSQL · 알려진 데이터 대조)"
     },
     {
      "id": "FF-0054",
@@ -987,16 +1470,37 @@
      "category": "filter",
      "name": "대분류 텍스트로 거른다",
      "exists": true,
-     "status": "NOT_AUDITED",
+     "status": "PASS",
      "source": "frontend/src/screens/TicketFilterBar.jsx:242",
      "api": "",
-     "chain": {},
-     "expected": {},
+     "chain": {
+      "ui_action": "category=인프라",
+      "frontend_state": "category=인프라",
+      "url_state": "/api/tickets/unassigned?category=%EC%9D%B8%ED%94%84%EB%9D%BC",
+      "api_request": "GET /api/tickets/unassigned?active=false&category=%EC%9D%B8%ED%94%84%EB%9D%BC",
+      "backend_query": "list_unassigned(담당자 없음) + filter_clauses(category)",
+      "data_relation": "",
+      "api_response": {
+       "total": 1,
+       "count": 1
+      },
+      "rendered": {
+       "rows": 1,
+       "total_shown": 1
+      }
+     },
+     "expected": {
+      "source": "known-data",
+      "total": 1,
+      "universe": 2
+     },
      "cross_surface": [],
-     "evidence": [],
+     "evidence": [
+      "ev:test:tests/regression/test_filter_chain.py"
+     ],
      "findings": [],
-     "audited_at": "",
-     "by": ""
+     "audited_at": "2026-08-24",
+     "by": "S15 — tests/regression/test_filter_chain.py (실 PostgreSQL · 알려진 데이터 대조)"
     },
     {
      "id": "FF-0056",
@@ -1197,6 +1701,107 @@
      "exists": true,
      "status": "NOT_AUDITED",
      "source": "frontend/src/screens/MyTickets.jsx:794",
+     "api": "",
+     "chain": {},
+     "expected": {},
+     "cross_surface": [],
+     "evidence": [],
+     "findings": [],
+     "audited_at": "",
+     "by": ""
+    },
+    {
+     "id": "FF-1334",
+     "category": "filter",
+     "name": "복합 — 프로젝트 × 상태",
+     "exists": true,
+     "status": "PASS",
+     "source": "",
+     "api": "",
+     "chain": {
+      "ui_action": "project_id=d65ccf7d-ffbf-4729-a256-f535fc21fb4f, status=계획",
+      "frontend_state": "project_id=d65ccf7d-ffbf-4729-a256-f535fc21fb4f, status=계획",
+      "url_state": "/api/tickets/unassigned?project_id=d65ccf7d-ffbf-4729-a256-f535fc21fb4f&status=%EA%B3%84%ED%9A%8D",
+      "api_request": "GET /api/tickets/unassigned?active=false&project_id=d65ccf7d-ffbf-4729-a256-f535fc21fb4f&status=%EA%B3%84%ED%9A%8D",
+      "backend_query": "list_unassigned(담당자 없음) + 두 절이 AND 로 함께 걸린다",
+      "data_relation": "tickets.project_uid → projects.id",
+      "api_response": {
+       "total": 1,
+       "count": 1
+      },
+      "rendered": {
+       "rows": 1,
+       "total_shown": 1
+      }
+     },
+     "expected": {
+      "source": "known-data",
+      "total": 1,
+      "universe": 2
+     },
+     "cross_surface": [],
+     "evidence": [
+      "ev:test:tests/regression/test_filter_chain.py"
+     ],
+     "findings": [],
+     "audited_at": "2026-08-24",
+     "by": "S15 — tests/regression/test_filter_chain.py (실 PostgreSQL · 알려진 데이터 대조)"
+    },
+    {
+     "id": "FF-1335",
+     "category": "filter",
+     "name": "조건을 바꾸면 쪽이 초기화된다",
+     "exists": true,
+     "status": "NOT_AUDITED",
+     "source": "frontend/src/screens/MyTickets.jsx (Unassigned)",
+     "api": "",
+     "chain": {},
+     "expected": {},
+     "cross_surface": [],
+     "evidence": [],
+     "findings": [],
+     "audited_at": "",
+     "by": ""
+    },
+    {
+     "id": "FF-1336",
+     "category": "filter",
+     "name": "조건을 빠르게 바꿔도 옛 응답이 최신 조건을 덮지 않는다(경합)",
+     "exists": true,
+     "status": "NOT_AUDITED",
+     "source": "frontend/src/screens/MyTickets.jsx (Unassigned)",
+     "api": "",
+     "chain": {},
+     "expected": {},
+     "cross_surface": [],
+     "evidence": [],
+     "findings": [],
+     "audited_at": "",
+     "by": ""
+    },
+    {
+     "id": "FF-1337",
+     "category": "filter",
+     "name": "다른 조건이 같은 캐시를 재사용하지 않는다(캐시 키)",
+     "exists": true,
+     "status": "NOT_AUDITED",
+     "source": "frontend/src/screens/MyTickets.jsx (Unassigned)",
+     "api": "",
+     "chain": {},
+     "expected": {},
+     "cross_surface": [],
+     "evidence": [],
+     "findings": [],
+     "audited_at": "",
+     "by": ""
+    },
+    {
+     "id": "FF-1338",
+     "category": "filter",
+     "name": "뒤로가기에서 화면이 말하는 조건과 실제 질의가 같다",
+     "exists": true,
+     "status": "NOT_AUDITED",
+     "source": "frontend/src/screens/MyTickets.jsx (Unassigned)",
      "api": "",
      "chain": {},
      "expected": {},
@@ -1702,128 +2307,296 @@
      "category": "search",
      "name": "제목 검색어(q)로 거른다",
      "exists": true,
-     "status": "NOT_AUDITED",
+     "status": "PASS",
      "source": "frontend/src/screens/TicketFilterBar.jsx:204",
      "api": "",
-     "chain": {},
-     "expected": {},
+     "chain": {
+      "ui_action": "q=동료",
+      "frontend_state": "q=동료",
+      "url_state": "/api/tickets/team?q=%EB%8F%99%EB%A3%8C",
+      "api_request": "GET /api/tickets/team?active=false&q=%EB%8F%99%EB%A3%8C",
+      "backend_query": "filter_clauses: tickets.title ILIKE %?%",
+      "data_relation": "",
+      "api_response": {
+       "total": 2,
+       "count": 2
+      },
+      "rendered": {
+       "rows": 2,
+       "total_shown": 2
+      }
+     },
+     "expected": {
+      "source": "known-data",
+      "total": 2,
+      "universe": 8
+     },
      "cross_surface": [],
-     "evidence": [],
+     "evidence": [
+      "ev:test:tests/regression/test_filter_chain.py"
+     ],
      "findings": [],
-     "audited_at": "",
-     "by": ""
+     "audited_at": "2026-08-24",
+     "by": "S15 — tests/regression/test_filter_chain.py (실 PostgreSQL · 알려진 데이터 대조)"
     },
     {
      "id": "FF-0099",
      "category": "filter",
      "name": "프로젝트로 거른다",
      "exists": true,
-     "status": "NOT_AUDITED",
+     "status": "PASS",
      "source": "frontend/src/screens/TicketFilterBar.jsx:211",
      "api": "",
-     "chain": {},
-     "expected": {},
+     "chain": {
+      "ui_action": "project_id=d65ccf7d-ffbf-4729-a256-f535fc21fb4f",
+      "frontend_state": "project_id=d65ccf7d-ffbf-4729-a256-f535fc21fb4f",
+      "url_state": "/api/tickets/team?project_id=d65ccf7d-ffbf-4729-a256-f535fc21fb4f",
+      "api_request": "GET /api/tickets/team?active=false&project_id=d65ccf7d-ffbf-4729-a256-f535fc21fb4f",
+      "backend_query": "filter_clauses: project_uid = ? OR project_ids ⊇ {?}",
+      "data_relation": "tickets.project_uid → projects.id",
+      "api_response": {
+       "total": 4,
+       "count": 4
+      },
+      "rendered": {
+       "rows": 4,
+       "total_shown": 4
+      }
+     },
+     "expected": {
+      "source": "known-data",
+      "total": 4,
+      "universe": 8
+     },
      "cross_surface": [],
-     "evidence": [],
+     "evidence": [
+      "ev:test:tests/regression/test_filter_chain.py"
+     ],
      "findings": [],
-     "audited_at": "",
-     "by": ""
+     "audited_at": "2026-08-24",
+     "by": "S15 — tests/regression/test_filter_chain.py (실 PostgreSQL · 알려진 데이터 대조)"
     },
     {
      "id": "FF-0100",
      "category": "filter",
      "name": "진행상태로 거른다",
      "exists": true,
-     "status": "NOT_AUDITED",
+     "status": "PASS",
      "source": "frontend/src/screens/TicketFilterBar.jsx:220",
      "api": "",
-     "chain": {},
-     "expected": {},
+     "chain": {
+      "ui_action": "status=진행",
+      "frontend_state": "status=진행",
+      "url_state": "/api/tickets/team?status=%EC%A7%84%ED%96%89",
+      "api_request": "GET /api/tickets/team?active=false&status=%EC%A7%84%ED%96%89",
+      "backend_query": "filter_clauses: tickets.status = ?",
+      "data_relation": "",
+      "api_response": {
+       "total": 4,
+       "count": 4
+      },
+      "rendered": {
+       "rows": 4,
+       "total_shown": 4
+      }
+     },
+     "expected": {
+      "source": "known-data",
+      "total": 4,
+      "universe": 8
+     },
      "cross_surface": [],
-     "evidence": [],
+     "evidence": [
+      "ev:test:tests/regression/test_filter_chain.py"
+     ],
      "findings": [],
-     "audited_at": "",
-     "by": ""
+     "audited_at": "2026-08-24",
+     "by": "S15 — tests/regression/test_filter_chain.py (실 PostgreSQL · 알려진 데이터 대조)"
     },
     {
      "id": "FF-0101",
      "category": "filter",
      "name": "우선순위로 거른다",
      "exists": true,
-     "status": "NOT_AUDITED",
+     "status": "PASS",
      "source": "frontend/src/screens/TicketFilterBar.jsx:224",
      "api": "",
-     "chain": {},
-     "expected": {},
+     "chain": {
+      "ui_action": "priority=High",
+      "frontend_state": "priority=High",
+      "url_state": "/api/tickets/team?priority=High",
+      "api_request": "GET /api/tickets/team?active=false&priority=High",
+      "backend_query": "filter_clauses: tickets.priority = ?",
+      "data_relation": "",
+      "api_response": {
+       "total": 3,
+       "count": 3
+      },
+      "rendered": {
+       "rows": 3,
+       "total_shown": 3
+      }
+     },
+     "expected": {
+      "source": "known-data",
+      "total": 3,
+      "universe": 8
+     },
      "cross_surface": [],
-     "evidence": [],
+     "evidence": [
+      "ev:test:tests/regression/test_filter_chain.py"
+     ],
      "findings": [],
-     "audited_at": "",
-     "by": ""
+     "audited_at": "2026-08-24",
+     "by": "S15 — tests/regression/test_filter_chain.py (실 PostgreSQL · 알려진 데이터 대조)"
     },
     {
      "id": "FF-0102",
      "category": "filter",
      "name": "난이도로 거른다",
      "exists": true,
-     "status": "NOT_AUDITED",
+     "status": "PASS",
      "source": "frontend/src/screens/TicketFilterBar.jsx:229",
      "api": "",
-     "chain": {},
-     "expected": {},
+     "chain": {
+      "ui_action": "difficulty=상",
+      "frontend_state": "difficulty=상",
+      "url_state": "/api/tickets/team?difficulty=%EC%83%81",
+      "api_request": "GET /api/tickets/team?active=false&difficulty=%EC%83%81",
+      "backend_query": "filter_clauses: tickets.difficulty = ?",
+      "data_relation": "",
+      "api_response": {
+       "total": 3,
+       "count": 3
+      },
+      "rendered": {
+       "rows": 3,
+       "total_shown": 3
+      }
+     },
+     "expected": {
+      "source": "known-data",
+      "total": 3,
+      "universe": 8
+     },
      "cross_surface": [],
-     "evidence": [],
+     "evidence": [
+      "ev:test:tests/regression/test_filter_chain.py"
+     ],
      "findings": [],
-     "audited_at": "",
-     "by": ""
+     "audited_at": "2026-08-24",
+     "by": "S15 — tests/regression/test_filter_chain.py (실 PostgreSQL · 알려진 데이터 대조)"
     },
     {
      "id": "FF-0103",
      "category": "filter",
      "name": "담당자(앱 user_id)로 거른다 — 이 화면에만 있는 축",
      "exists": true,
-     "status": "NOT_AUDITED",
+     "status": "PASS",
      "source": "frontend/src/screens/TicketFilterBar.jsx:232",
      "api": "",
-     "chain": {},
-     "expected": {},
+     "chain": {
+      "ui_action": "assignee_user_id=232dc8ba-8ed3-4d9b-aa82-3e1a55221f91",
+      "frontend_state": "assignee_user_id=232dc8ba-8ed3-4d9b-aa82-3e1a55221f91",
+      "url_state": "/api/tickets/team?assignee_user_id=232dc8ba-8ed3-4d9b-aa82-3e1a55221f91",
+      "api_request": "GET /api/tickets/team?active=false&assignee_user_id=232dc8ba-8ed3-4d9b-aa82-3e1a55221f91",
+      "backend_query": "filter_clauses: assignee_notion_ids ⊇ {token}",
+      "data_relation": "users.id → 담당자 토큰(assignee_token)",
+      "api_response": {
+       "total": 2,
+       "count": 2
+      },
+      "rendered": {
+       "rows": 2,
+       "total_shown": 2
+      }
+     },
+     "expected": {
+      "source": "known-data",
+      "total": 2,
+      "universe": 8
+     },
      "cross_surface": [],
-     "evidence": [],
+     "evidence": [
+      "ev:test:tests/regression/test_filter_chain.py"
+     ],
      "findings": [],
-     "audited_at": "",
-     "by": ""
+     "audited_at": "2026-08-24",
+     "by": "S15 — tests/regression/test_filter_chain.py (실 PostgreSQL · 알려진 데이터 대조)"
     },
     {
      "id": "FF-0104",
      "category": "filter",
      "name": "기한 버킷으로 거른다",
      "exists": true,
-     "status": "NOT_AUDITED",
+     "status": "PASS",
      "source": "frontend/src/screens/TicketFilterBar.jsx:239",
      "api": "",
-     "chain": {},
-     "expected": {},
+     "chain": {
+      "ui_action": "due=overdue",
+      "frontend_state": "due=overdue",
+      "url_state": "/api/tickets/team?due=overdue",
+      "api_request": "GET /api/tickets/team?active=false&due=overdue",
+      "backend_query": "filter_clauses: due_date < today",
+      "data_relation": "",
+      "api_response": {
+       "total": 1,
+       "count": 1
+      },
+      "rendered": {
+       "rows": 1,
+       "total_shown": 1
+      }
+     },
+     "expected": {
+      "source": "known-data",
+      "total": 1,
+      "universe": 8
+     },
      "cross_surface": [],
-     "evidence": [],
+     "evidence": [
+      "ev:test:tests/regression/test_filter_chain.py"
+     ],
      "findings": [],
-     "audited_at": "",
-     "by": ""
+     "audited_at": "2026-08-24",
+     "by": "S15 — tests/regression/test_filter_chain.py (실 PostgreSQL · 알려진 데이터 대조)"
     },
     {
      "id": "FF-0105",
      "category": "filter",
      "name": "대분류 텍스트로 거른다",
      "exists": true,
-     "status": "NOT_AUDITED",
+     "status": "PASS",
      "source": "frontend/src/screens/TicketFilterBar.jsx:242",
      "api": "",
-     "chain": {},
-     "expected": {},
+     "chain": {
+      "ui_action": "category=인프라",
+      "frontend_state": "category=인프라",
+      "url_state": "/api/tickets/team?category=%EC%9D%B8%ED%94%84%EB%9D%BC",
+      "api_request": "GET /api/tickets/team?active=false&category=%EC%9D%B8%ED%94%84%EB%9D%BC",
+      "backend_query": "filter_clauses: tickets.category = ?",
+      "data_relation": "",
+      "api_response": {
+       "total": 4,
+       "count": 4
+      },
+      "rendered": {
+       "rows": 4,
+       "total_shown": 4
+      }
+     },
+     "expected": {
+      "source": "known-data",
+      "total": 4,
+      "universe": 8
+     },
      "cross_surface": [],
-     "evidence": [],
+     "evidence": [
+      "ev:test:tests/regression/test_filter_chain.py"
+     ],
      "findings": [],
-     "audited_at": "",
-     "by": ""
+     "audited_at": "2026-08-24",
+     "by": "S15 — tests/regression/test_filter_chain.py (실 PostgreSQL · 알려진 데이터 대조)"
     },
     {
      "id": "FF-0106",
@@ -1894,16 +2667,36 @@
      "category": "pagination",
      "name": "Pager 로 페이지를 옮긴다",
      "exists": true,
-     "status": "NOT_AUDITED",
+     "status": "PASS",
      "source": "frontend/src/screens/TeamTickets.jsx:175",
      "api": "",
-     "chain": {},
-     "expected": {},
+     "chain": {
+      "ui_action": "Pager 로 1→2→3쪽",
+      "frontend_state": "status=진행",
+      "url_state": "/api/tickets/team?status=%EC%A7%84%ED%96%89",
+      "api_request": "GET /api/tickets/team?active=false&page=N&page_size=3",
+      "backend_query": "ORDER BY due_date, notion_ticket_number, id (전순서) + OFFSET/LIMIT",
+      "data_relation": "",
+      "api_response": {
+       "total": 4,
+       "count": 4
+      },
+      "rendered": {
+       "rows": 4,
+       "total_shown": 4
+      }
+     },
+     "expected": {
+      "source": "derived-check",
+      "note": "쪽 셋을 이어 붙였을 때 중복 0 · 누락 0 · 쪽마다 total 이 같다"
+     },
      "cross_surface": [],
-     "evidence": [],
+     "evidence": [
+      "ev:test:tests/regression/test_filter_chain.py"
+     ],
      "findings": [],
-     "audited_at": "",
-     "by": ""
+     "audited_at": "2026-08-24",
+     "by": "S15 — tests/regression/test_filter_chain.py (실 PostgreSQL · 알려진 데이터 대조)"
     },
     {
      "id": "FF-0111",
@@ -2080,6 +2873,180 @@
      "findings": [],
      "audited_at": "",
      "by": ""
+    },
+    {
+     "id": "FF-1322",
+     "category": "filter",
+     "name": "복합 — 프로젝트 × 상태를 함께 걸면 교집합이 나온다",
+     "exists": true,
+     "status": "PASS",
+     "source": "",
+     "api": "",
+     "chain": {
+      "ui_action": "project_id=d65ccf7d-ffbf-4729-a256-f535fc21fb4f, status=진행",
+      "frontend_state": "project_id=d65ccf7d-ffbf-4729-a256-f535fc21fb4f, status=진행",
+      "url_state": "/api/tickets/team?project_id=d65ccf7d-ffbf-4729-a256-f535fc21fb4f&status=%EC%A7%84%ED%96%89",
+      "api_request": "GET /api/tickets/team?active=false&project_id=d65ccf7d-ffbf-4729-a256-f535fc21fb4f&status=%EC%A7%84%ED%96%89",
+      "backend_query": "filter_clauses: 두 절이 AND 로 함께 걸린다",
+      "data_relation": "tickets.project_uid → projects.id",
+      "api_response": {
+       "total": 2,
+       "count": 2
+      },
+      "rendered": {
+       "rows": 2,
+       "total_shown": 2
+      }
+     },
+     "expected": {
+      "source": "known-data",
+      "total": 2,
+      "universe": 8
+     },
+     "cross_surface": [],
+     "evidence": [
+      "ev:test:tests/regression/test_filter_chain.py"
+     ],
+     "findings": [],
+     "audited_at": "2026-08-24",
+     "by": "S15 — tests/regression/test_filter_chain.py (실 PostgreSQL · 알려진 데이터 대조)"
+    },
+    {
+     "id": "FF-1323",
+     "category": "filter",
+     "name": "복합 — 프로젝트 × 담당자",
+     "exists": true,
+     "status": "PASS",
+     "source": "",
+     "api": "",
+     "chain": {
+      "ui_action": "project_id=baeaf2bf-e7ef-4eb1-9e3f-980875b67989, assignee_user_id=232dc8ba-8ed3-4d9b-aa82-3e1a55221f91",
+      "frontend_state": "project_id=baeaf2bf-e7ef-4eb1-9e3f-980875b67989, assignee_user_id=232dc8ba-8ed3-4d9b-aa82-3e1a55221f91",
+      "url_state": "/api/tickets/team?project_id=baeaf2bf-e7ef-4eb1-9e3f-980875b67989&assignee_user_id=232dc8ba-8ed3-4d9b-aa82-3e1a55221f91",
+      "api_request": "GET /api/tickets/team?active=false&project_id=baeaf2bf-e7ef-4eb1-9e3f-980875b67989&assignee_user_id=232dc8ba-8ed3-4d9b-aa82-3e1a55221f91",
+      "backend_query": "filter_clauses: 두 절이 AND 로 함께 걸린다",
+      "data_relation": "tickets.project_uid → projects.id · 담당자 토큰",
+      "api_response": {
+       "total": 1,
+       "count": 1
+      },
+      "rendered": {
+       "rows": 1,
+       "total_shown": 1
+      }
+     },
+     "expected": {
+      "source": "known-data",
+      "total": 1,
+      "universe": 8
+     },
+     "cross_surface": [],
+     "evidence": [
+      "ev:test:tests/regression/test_filter_chain.py"
+     ],
+     "findings": [],
+     "audited_at": "2026-08-24",
+     "by": "S15 — tests/regression/test_filter_chain.py (실 PostgreSQL · 알려진 데이터 대조)"
+    },
+    {
+     "id": "FF-1324",
+     "category": "filter",
+     "name": "조건을 바꾸면 쪽이 초기화된다",
+     "exists": true,
+     "status": "NOT_AUDITED",
+     "source": "frontend/src/screens/TeamTickets.jsx",
+     "api": "",
+     "chain": {},
+     "expected": {},
+     "cross_surface": [],
+     "evidence": [],
+     "findings": [],
+     "audited_at": "",
+     "by": ""
+    },
+    {
+     "id": "FF-1325",
+     "category": "filter",
+     "name": "조건을 빠르게 바꿔도 옛 응답이 최신 조건을 덮지 않는다(경합)",
+     "exists": true,
+     "status": "NOT_AUDITED",
+     "source": "frontend/src/screens/TeamTickets.jsx",
+     "api": "",
+     "chain": {},
+     "expected": {},
+     "cross_surface": [],
+     "evidence": [],
+     "findings": [],
+     "audited_at": "",
+     "by": ""
+    },
+    {
+     "id": "FF-1326",
+     "category": "filter",
+     "name": "다른 조건이 같은 캐시를 재사용하지 않는다(캐시 키)",
+     "exists": true,
+     "status": "NOT_AUDITED",
+     "source": "frontend/src/screens/TeamTickets.jsx",
+     "api": "",
+     "chain": {},
+     "expected": {},
+     "cross_surface": [],
+     "evidence": [],
+     "findings": [],
+     "audited_at": "",
+     "by": ""
+    },
+    {
+     "id": "FF-1327",
+     "category": "filter",
+     "name": "뒤로가기·새로고침에서 화면이 말하는 조건과 실제 질의가 같다",
+     "exists": true,
+     "status": "NOT_AUDITED",
+     "source": "frontend/src/screens/TeamTickets.jsx",
+     "api": "",
+     "chain": {},
+     "expected": {},
+     "cross_surface": [],
+     "evidence": [],
+     "findings": [],
+     "audited_at": "",
+     "by": ""
+    },
+    {
+     "id": "FF-1372",
+     "category": "combobox",
+     "name": "담당자 후보에 옛 소스 짝이 없는 계정도 나온다",
+     "exists": true,
+     "status": "PASS",
+     "source": "",
+     "api": "",
+     "chain": {
+      "ui_action": "assignee_user_id=232dc8ba-8ed3-4d9b-aa82-3e1a55221f91",
+      "frontend_state": "assignee_user_id=232dc8ba-8ed3-4d9b-aa82-3e1a55221f91",
+      "url_state": "/api/tickets/team?assignee_user_id=232dc8ba-8ed3-4d9b-aa82-3e1a55221f91",
+      "api_request": "GET /api/tickets/team?active=false&assignee_user_id=232dc8ba-8ed3-4d9b-aa82-3e1a55221f91",
+      "backend_query": "filter_clauses: assignee_notion_ids ⊇ {token}",
+      "data_relation": "users.id → 담당자 토큰(assignee_token)",
+      "api_response": {
+       "total": 2,
+       "count": 2
+      },
+      "rendered": {
+       "rows": 2,
+       "total_shown": 2
+      }
+     },
+     "expected": {
+      "source": "known-data",
+      "note": "🔴 활성 15명 중 2명이 후보에서 빠져 있었고, 그중 하나는 그날 만든 계정이다"
+     },
+     "cross_surface": [],
+     "evidence": [
+      "ev:test:tests/regression/test_assignee_axis_reaches_native_accounts.py"
+     ],
+     "findings": [],
+     "audited_at": "2026-08-24",
+     "by": "S15 — tests/regression/test_filter_chain.py (실 PostgreSQL · 알려진 데이터 대조)"
     }
    ]
   },
@@ -2769,16 +3736,35 @@
      "category": "filter",
      "name": "프로젝트 조건",
      "exists": true,
-     "status": "NOT_AUDITED",
+     "status": "PASS",
      "source": "frontend/src/screens/TicketFilterBar.jsx:211",
      "api": "",
-     "chain": {},
-     "expected": {},
+     "chain": {
+      "ui_action": "프로젝트 = 포털",
+      "frontend_state": "?project_id=p-a",
+      "url_state": "#/sprint?project_id=p-a",
+      "api_request": "GET /api/sprint/summary (그 주치 전량 — 페이지가 없다)",
+      "backend_query": "sprints/service.py::summary → tickets_service.ticket_views()",
+      "data_relation": "행의 `project_uid`(해석된 Portal id) — 옛 relation id 가 아니다",
+      "api_response": {
+       "note": "by_assignee 버킷 전량"
+      },
+      "rendered": {
+       "note": "그 프로젝트 티켓만 남는다"
+      }
+     },
+     "expected": {
+      "source": "derived-check",
+      "note": "🔴 예전에는 화면이 옛 relation id 축만 봐서 이 조건이 언제나 0건이었다"
+     },
      "cross_surface": [],
-     "evidence": [],
+     "evidence": [
+      "ev:test:frontend/src/screens/sprint-redesign.test.jsx",
+      "ev:test:frontend/src/screens/ticket-filters.test.jsx"
+     ],
      "findings": [],
-     "audited_at": "",
-     "by": ""
+     "audited_at": "2026-08-24",
+     "by": "S15 — tests/regression/test_filter_chain.py (실 PostgreSQL · 알려진 데이터 대조)"
     },
     {
      "id": "FF-0164",
@@ -3011,6 +3997,86 @@
      "exists": true,
      "status": "NOT_AUDITED",
      "source": "frontend/src/screens/Sprint.jsx:334",
+     "api": "",
+     "chain": {},
+     "expected": {},
+     "cross_surface": [],
+     "evidence": [],
+     "findings": [],
+     "audited_at": "",
+     "by": ""
+    },
+    {
+     "id": "FF-1361",
+     "category": "filter",
+     "name": "복합 — 프로젝트 × 상태",
+     "exists": true,
+     "status": "NOT_AUDITED",
+     "source": "frontend/src/screens/Sprint.jsx",
+     "api": "",
+     "chain": {},
+     "expected": {},
+     "cross_surface": [],
+     "evidence": [],
+     "findings": [],
+     "audited_at": "",
+     "by": ""
+    },
+    {
+     "id": "FF-1362",
+     "category": "filter",
+     "name": "조건을 바꿔도 쪽 초기화가 필요 없다 — 그 주치를 전량 받는다",
+     "exists": true,
+     "status": "NOT_AUDITED",
+     "source": "frontend/src/screens/Sprint.jsx",
+     "api": "",
+     "chain": {},
+     "expected": {},
+     "cross_surface": [],
+     "evidence": [],
+     "findings": [],
+     "audited_at": "",
+     "by": ""
+    },
+    {
+     "id": "FF-1363",
+     "category": "filter",
+     "name": "조건을 빠르게 바꿔도 옛 응답이 최신 조건을 덮지 않는다(경합)",
+     "exists": true,
+     "status": "NOT_AUDITED",
+     "source": "frontend/src/screens/Sprint.jsx",
+     "api": "",
+     "chain": {},
+     "expected": {},
+     "cross_surface": [],
+     "evidence": [],
+     "findings": [],
+     "audited_at": "",
+     "by": ""
+    },
+    {
+     "id": "FF-1364",
+     "category": "filter",
+     "name": "다른 조건이 같은 캐시를 재사용하지 않는다(캐시 키)",
+     "exists": true,
+     "status": "NOT_AUDITED",
+     "source": "frontend/src/screens/Sprint.jsx",
+     "api": "",
+     "chain": {},
+     "expected": {},
+     "cross_surface": [],
+     "evidence": [],
+     "findings": [],
+     "audited_at": "",
+     "by": ""
+    },
+    {
+     "id": "FF-1365",
+     "category": "filter",
+     "name": "뒤로가기에서 화면이 말하는 조건과 실제 질의가 같다",
+     "exists": true,
+     "status": "NOT_AUDITED",
+     "source": "frontend/src/screens/Sprint.jsx",
      "api": "",
      "chain": {},
      "expected": {},
@@ -3797,48 +4863,109 @@
      "category": "search",
      "name": "제목·내용·작성자 검색(디바운스 후 주소에 확정)",
      "exists": true,
-     "status": "NOT_AUDITED",
+     "status": "PASS",
      "source": "frontend/src/screens/Board.jsx:503",
      "api": "GET /api/board/posts?q=",
-     "chain": {},
-     "expected": {},
+     "chain": {
+      "ui_action": "q=자유",
+      "frontend_state": "q=자유",
+      "url_state": "/api/board/posts?q=%EC%9E%90%EC%9C%A0",
+      "api_request": "GET /api/board/posts?q=%EC%9E%90%EC%9C%A0",
+      "backend_query": "list_posts: title/body/author ILIKE %?%",
+      "data_relation": "",
+      "api_response": {
+       "total": 2,
+       "count": 2
+      },
+      "rendered": {
+       "rows": 2,
+       "total_shown": 2
+      }
+     },
+     "expected": {
+      "source": "known-data",
+      "total": 2,
+      "universe": 5
+     },
      "cross_surface": [],
-     "evidence": [],
+     "evidence": [
+      "ev:test:tests/regression/test_filter_chain.py"
+     ],
      "findings": [],
-     "audited_at": "",
-     "by": ""
+     "audited_at": "2026-08-24",
+     "by": "S15 — tests/regression/test_filter_chain.py (실 PostgreSQL · 알려진 데이터 대조)"
     },
     {
      "id": "FF-0226",
      "category": "sort",
      "name": "최신순/조회순/공감순 정렬",
      "exists": true,
-     "status": "NOT_AUDITED",
+     "status": "PASS",
      "source": "frontend/src/screens/Board.jsx:510",
      "api": "GET /api/board/posts?sort=",
-     "chain": {},
-     "expected": {},
+     "chain": {
+      "ui_action": "sort=recent",
+      "frontend_state": "sort=recent",
+      "url_state": "#/board?sort=recent",
+      "api_request": "GET /api/board/posts?sort=recent",
+      "backend_query": "list_posts: ORDER BY is_pinned DESC, created_at DESC, id DESC",
+      "data_relation": "",
+      "api_response": {
+       "count": 5
+      },
+      "rendered": {
+       "rows": 5,
+       "total_shown": 5
+      }
+     },
+     "expected": {
+      "source": "derived-check",
+      "note": "고정 글이 맨 위 · 나머지는 시간 역순"
+     },
      "cross_surface": [],
-     "evidence": [],
+     "evidence": [
+      "ev:test:tests/regression/test_filter_chain.py"
+     ],
      "findings": [],
-     "audited_at": "",
-     "by": ""
+     "audited_at": "2026-08-24",
+     "by": "S15 — tests/regression/test_filter_chain.py (실 PostgreSQL · 알려진 데이터 대조)"
     },
     {
      "id": "FF-0227",
      "category": "filter",
      "name": "카테고리 칩으로 목록을 좁힌다(전체 포함)",
      "exists": true,
-     "status": "NOT_AUDITED",
+     "status": "PASS",
      "source": "frontend/src/screens/Board.jsx:518",
      "api": "GET /api/board/posts?category=",
-     "chain": {},
-     "expected": {},
+     "chain": {
+      "ui_action": "category=공지",
+      "frontend_state": "category=공지",
+      "url_state": "/api/board/posts?category=%EA%B3%B5%EC%A7%80",
+      "api_request": "GET /api/board/posts?category=%EA%B3%B5%EC%A7%80",
+      "backend_query": "list_posts: board_posts.category = ?",
+      "data_relation": "",
+      "api_response": {
+       "total": 2,
+       "count": 2
+      },
+      "rendered": {
+       "rows": 2,
+       "total_shown": 2
+      }
+     },
+     "expected": {
+      "source": "known-data",
+      "total": 2,
+      "universe": 5
+     },
      "cross_surface": [],
-     "evidence": [],
+     "evidence": [
+      "ev:test:tests/regression/test_filter_chain.py"
+     ],
      "findings": [],
-     "audited_at": "",
-     "by": ""
+     "audited_at": "2026-08-24",
+     "by": "S15 — tests/regression/test_filter_chain.py (실 PostgreSQL · 알려진 데이터 대조)"
     },
     {
      "id": "FF-0228",
@@ -3959,6 +5086,141 @@
      "exists": true,
      "status": "NOT_AUDITED",
      "source": "frontend/src/screens/Board.jsx:567",
+     "api": "",
+     "chain": {},
+     "expected": {},
+     "cross_surface": [],
+     "evidence": [],
+     "findings": [],
+     "audited_at": "",
+     "by": ""
+    },
+    {
+     "id": "FF-1344",
+     "category": "pagination",
+     "name": "쪽을 넘긴다 — 서버가 20건에서 자른다",
+     "exists": true,
+     "status": "PASS",
+     "source": "",
+     "api": "",
+     "chain": {
+      "ui_action": "「다음」 클릭",
+      "frontend_state": "?page=2",
+      "url_state": "#/board?page=2",
+      "api_request": "GET /api/board/posts?sort=recent&page=2",
+      "backend_query": "list_posts: ORDER BY is_pinned DESC, created_at DESC, id DESC + OFFSET/LIMIT",
+      "data_relation": "",
+      "api_response": {
+       "total": 45,
+       "page": 2,
+       "page_size": 20
+      },
+      "rendered": {
+       "rows": 20,
+       "total_shown": 45
+      }
+     },
+     "expected": {
+      "source": "derived-check",
+      "note": "결과 줄이 말하는 건수에 실제로 닿을 수 있다"
+     },
+     "cross_surface": [],
+     "evidence": [
+      "ev:test:frontend/src/screens/board.test.jsx"
+     ],
+     "findings": [],
+     "audited_at": "2026-08-24",
+     "by": "S15 — tests/regression/test_filter_chain.py (실 PostgreSQL · 알려진 데이터 대조)"
+    },
+    {
+     "id": "FF-1345",
+     "category": "filter",
+     "name": "조건을 바꾸면 쪽이 초기화된다",
+     "exists": true,
+     "status": "PASS",
+     "source": "",
+     "api": "",
+     "chain": {
+      "ui_action": "2쪽에서 카테고리 선택",
+      "frontend_state": "useQueryState(reset:[page])",
+      "url_state": "#/board?category=공지",
+      "api_request": "GET /api/board/posts?category=공지&sort=recent (page 없음)",
+      "backend_query": "PageParams(page=1)",
+      "data_relation": "",
+      "api_response": {
+       "page": 1
+      },
+      "rendered": {
+       "note": "첫 쪽"
+      }
+     },
+     "expected": {
+      "source": "derived-check",
+      "note": "조건을 바꾸면 page 가 주소에서도 질의에서도 빠진다"
+     },
+     "cross_surface": [],
+     "evidence": [
+      "ev:test:frontend/src/screens/board.test.jsx"
+     ],
+     "findings": [],
+     "audited_at": "2026-08-24",
+     "by": "S15 — tests/regression/test_filter_chain.py (실 PostgreSQL · 알려진 데이터 대조)"
+    },
+    {
+     "id": "FF-1346",
+     "category": "filter",
+     "name": "복합 — 검색어 × 카테고리",
+     "exists": true,
+     "status": "NOT_AUDITED",
+     "source": "frontend/src/screens/Board.jsx",
+     "api": "",
+     "chain": {},
+     "expected": {},
+     "cross_surface": [],
+     "evidence": [],
+     "findings": [],
+     "audited_at": "",
+     "by": ""
+    },
+    {
+     "id": "FF-1347",
+     "category": "filter",
+     "name": "조건을 빠르게 바꿔도 옛 응답이 최신 조건을 덮지 않는다(경합)",
+     "exists": true,
+     "status": "NOT_AUDITED",
+     "source": "frontend/src/screens/Board.jsx",
+     "api": "",
+     "chain": {},
+     "expected": {},
+     "cross_surface": [],
+     "evidence": [],
+     "findings": [],
+     "audited_at": "",
+     "by": ""
+    },
+    {
+     "id": "FF-1348",
+     "category": "filter",
+     "name": "다른 조건이 같은 캐시를 재사용하지 않는다(캐시 키)",
+     "exists": true,
+     "status": "NOT_AUDITED",
+     "source": "frontend/src/screens/Board.jsx",
+     "api": "",
+     "chain": {},
+     "expected": {},
+     "cross_surface": [],
+     "evidence": [],
+     "findings": [],
+     "audited_at": "",
+     "by": ""
+    },
+    {
+     "id": "FF-1349",
+     "category": "filter",
+     "name": "뒤로가기에서 화면이 말하는 조건과 실제 질의가 같다",
+     "exists": true,
+     "status": "NOT_AUDITED",
+     "source": "frontend/src/screens/Board.jsx",
      "api": "",
      "chain": {},
      "expected": {},
@@ -5837,32 +7099,72 @@
      "category": "filter",
      "name": "'안 읽음만'으로 목록을 좁힌다",
      "exists": true,
-     "status": "NOT_AUDITED",
+     "status": "PASS",
      "source": "frontend/src/screens/registry/notifications.js:76",
      "api": "GET /api/notifications?unread_only=true",
-     "chain": {},
-     "expected": {},
+     "chain": {
+      "ui_action": "unread_only=true",
+      "frontend_state": "unread_only=true",
+      "url_state": "/api/notifications?unread_only=true",
+      "api_request": "GET /api/notifications?unread_only=true",
+      "backend_query": "list_notifications: notifications.read_at IS NULL",
+      "data_relation": "",
+      "api_response": {
+       "total": 4,
+       "count": 4
+      },
+      "rendered": {
+       "rows": 4,
+       "total_shown": 4
+      }
+     },
+     "expected": {
+      "source": "known-data",
+      "total": 4,
+      "universe": 6
+     },
      "cross_surface": [],
-     "evidence": [],
+     "evidence": [
+      "ev:test:tests/regression/test_filter_chain.py",
+      "ev:test:frontend/src/screens/datascreen-endpoint-query.test.jsx"
+     ],
      "findings": [],
-     "audited_at": "",
-     "by": ""
+     "audited_at": "2026-08-24",
+     "by": "S15 — tests/regression/test_filter_chain.py (실 PostgreSQL · 알려진 데이터 대조)"
     },
     {
      "id": "FF-0349",
      "category": "pagination",
      "name": "페이지를 앞뒤로 넘긴다(위·아래 두 곳의 페이저)",
      "exists": true,
-     "status": "NOT_AUDITED",
+     "status": "PASS",
      "source": "frontend/src/screens/DataScreen.jsx:714",
      "api": "GET /api/notifications?page=",
-     "chain": {},
-     "expected": {},
+     "chain": {
+      "ui_action": "「다음」 클릭",
+      "frontend_state": "DataScreen page=2",
+      "url_state": "#/notifications",
+      "api_request": "GET /api/notifications?audience=user&page=2&page_size=20",
+      "backend_query": "list_notifications: ORDER BY created_at DESC, id DESC + OFFSET/LIMIT",
+      "data_relation": "",
+      "api_response": {
+       "page": 2
+      },
+      "rendered": {
+       "note": "다음 20건"
+      }
+     },
+     "expected": {
+      "source": "derived-check",
+      "note": "🔴 예전에는 `page` 가 주소에 안 실려 「다음」을 눌러도 같은 20건이 왔다"
+     },
      "cross_surface": [],
-     "evidence": [],
+     "evidence": [
+      "ev:test:frontend/src/screens/datascreen-endpoint-query.test.jsx"
+     ],
      "findings": [],
-     "audited_at": "",
-     "by": ""
+     "audited_at": "2026-08-24",
+     "by": "S15 — tests/regression/test_filter_chain.py (실 PostgreSQL · 알려진 데이터 대조)"
     },
     {
      "id": "FF-0350",
@@ -6007,6 +7309,144 @@
      "findings": [],
      "audited_at": "",
      "by": ""
+    },
+    {
+     "id": "FF-1350",
+     "category": "filter",
+     "name": "대상(audience)이 이 콘솔의 알림만 남긴다",
+     "exists": true,
+     "status": "PASS",
+     "source": "",
+     "api": "",
+     "chain": {
+      "ui_action": "audience=user",
+      "frontend_state": "audience=user",
+      "url_state": "/api/notifications?audience=user",
+      "api_request": "GET /api/notifications?audience=user",
+      "backend_query": "list_notifications: notifications.audience = ?",
+      "data_relation": "",
+      "api_response": {
+       "total": 3,
+       "count": 3
+      },
+      "rendered": {
+       "rows": 3,
+       "total_shown": 3
+      }
+     },
+     "expected": {
+      "source": "known-data",
+      "note": "🔴 예전에는 이 조건이 주소 조립에서 깨져 서버가 통째로 버렸다 — 사용자 알림 화면에 관리 알림이 섞였다"
+     },
+     "cross_surface": [],
+     "evidence": [
+      "ev:test:tests/regression/test_filter_chain.py",
+      "ev:test:frontend/src/screens/datascreen-endpoint-query.test.jsx"
+     ],
+     "findings": [],
+     "audited_at": "2026-08-24",
+     "by": "S15 — tests/regression/test_filter_chain.py (실 PostgreSQL · 알려진 데이터 대조)"
+    },
+    {
+     "id": "FF-1351",
+     "category": "filter",
+     "name": "복합 — 대상 × 읽음 상태",
+     "exists": true,
+     "status": "PASS",
+     "source": "",
+     "api": "",
+     "chain": {
+      "ui_action": "audience=user, unread_only=true",
+      "frontend_state": "audience=user, unread_only=true",
+      "url_state": "/api/notifications?audience=user&unread_only=true",
+      "api_request": "GET /api/notifications?audience=user&unread_only=true",
+      "backend_query": "list_notifications: 두 절이 AND 로 함께 걸린다",
+      "data_relation": "",
+      "api_response": {
+       "total": 2,
+       "count": 2
+      },
+      "rendered": {
+       "rows": 2,
+       "total_shown": 2
+      }
+     },
+     "expected": {
+      "source": "known-data",
+      "total": 2,
+      "universe": 6
+     },
+     "cross_surface": [],
+     "evidence": [
+      "ev:test:tests/regression/test_filter_chain.py"
+     ],
+     "findings": [],
+     "audited_at": "2026-08-24",
+     "by": "S15 — tests/regression/test_filter_chain.py (실 PostgreSQL · 알려진 데이터 대조)"
+    },
+    {
+     "id": "FF-1352",
+     "category": "filter",
+     "name": "조건을 바꾸면 쪽이 초기화된다",
+     "exists": true,
+     "status": "NOT_AUDITED",
+     "source": "frontend/src/screens/DataScreen.jsx",
+     "api": "",
+     "chain": {},
+     "expected": {},
+     "cross_surface": [],
+     "evidence": [],
+     "findings": [],
+     "audited_at": "",
+     "by": ""
+    },
+    {
+     "id": "FF-1353",
+     "category": "filter",
+     "name": "조건을 빠르게 바꿔도 옛 응답이 최신 조건을 덮지 않는다(경합)",
+     "exists": true,
+     "status": "NOT_AUDITED",
+     "source": "frontend/src/screens/DataScreen.jsx",
+     "api": "",
+     "chain": {},
+     "expected": {},
+     "cross_surface": [],
+     "evidence": [],
+     "findings": [],
+     "audited_at": "",
+     "by": ""
+    },
+    {
+     "id": "FF-1354",
+     "category": "filter",
+     "name": "다른 조건이 같은 캐시를 재사용하지 않는다(캐시 키)",
+     "exists": true,
+     "status": "NOT_AUDITED",
+     "source": "frontend/src/screens/DataScreen.jsx",
+     "api": "",
+     "chain": {},
+     "expected": {},
+     "cross_surface": [],
+     "evidence": [],
+     "findings": [],
+     "audited_at": "",
+     "by": ""
+    },
+    {
+     "id": "FF-1355",
+     "category": "filter",
+     "name": "뒤로가기에서 화면이 말하는 조건과 실제 질의가 같다",
+     "exists": true,
+     "status": "NOT_AUDITED",
+     "source": "frontend/src/screens/DataScreen.jsx",
+     "api": "",
+     "chain": {},
+     "expected": {},
+     "cross_surface": [],
+     "evidence": [],
+     "findings": [],
+     "audited_at": "",
+     "by": ""
     }
    ]
   },
@@ -6136,6 +7576,141 @@
      "exists": true,
      "status": "NOT_AUDITED",
      "source": "frontend/src/screens/MyApprovals.jsx:138",
+     "api": "",
+     "chain": {},
+     "expected": {},
+     "cross_surface": [],
+     "evidence": [],
+     "findings": [],
+     "audited_at": "",
+     "by": ""
+    },
+    {
+     "id": "FF-1366",
+     "category": "pagination",
+     "name": "쪽을 넘긴다 — 서버가 20건에서 자른다",
+     "exists": true,
+     "status": "PASS",
+     "source": "",
+     "api": "",
+     "chain": {
+      "ui_action": "「다음」 클릭",
+      "frontend_state": "?page=2",
+      "url_state": "#/my-approvals?page=2",
+      "api_request": "GET /api/approvals/mine?box=todo&page=2",
+      "backend_query": "ORDER BY requested_at DESC, id DESC + OFFSET/LIMIT",
+      "data_relation": "",
+      "api_response": {
+       "total": 45,
+       "page": 2,
+       "page_size": 20
+      },
+      "rendered": {
+       "rows": 20,
+       "total_shown": 45
+      }
+     },
+     "expected": {
+      "source": "derived-check",
+      "note": "🔴 예전에는 21번째 결재 건이 있다는 사실조차 화면에 없었다"
+     },
+     "cross_surface": [],
+     "evidence": [
+      "ev:test:frontend/src/screens/my-approvals-paging.test.jsx"
+     ],
+     "findings": [],
+     "audited_at": "2026-08-24",
+     "by": "S15 — tests/regression/test_filter_chain.py (실 PostgreSQL · 알려진 데이터 대조)"
+    },
+    {
+     "id": "FF-1367",
+     "category": "filter",
+     "name": "칸을 바꾸면 쪽이 초기화된다",
+     "exists": true,
+     "status": "PASS",
+     "source": "",
+     "api": "",
+     "chain": {
+      "ui_action": "2쪽에서 「내가 올린 요청」 탭",
+      "frontend_state": "useQueryState(reset:[page])",
+      "url_state": "#/my-approvals?box=requested",
+      "api_request": "GET /api/approvals/mine?box=requested",
+      "backend_query": "PageParams(page=1)",
+      "data_relation": "",
+      "api_response": {
+       "page": 1
+      },
+      "rendered": {
+       "note": "첫 쪽"
+      }
+     },
+     "expected": {
+      "source": "derived-check",
+      "note": "칸을 바꾸면 page 가 주소에서도 질의에서도 빠진다"
+     },
+     "cross_surface": [],
+     "evidence": [
+      "ev:test:frontend/src/screens/my-approvals-paging.test.jsx"
+     ],
+     "findings": [],
+     "audited_at": "2026-08-24",
+     "by": "S15 — tests/regression/test_filter_chain.py (실 PostgreSQL · 알려진 데이터 대조)"
+    },
+    {
+     "id": "FF-1368",
+     "category": "filter",
+     "name": "복합 — 칸 × 쪽",
+     "exists": true,
+     "status": "NOT_AUDITED",
+     "source": "frontend/src/screens/MyApprovals.jsx",
+     "api": "",
+     "chain": {},
+     "expected": {},
+     "cross_surface": [],
+     "evidence": [],
+     "findings": [],
+     "audited_at": "",
+     "by": ""
+    },
+    {
+     "id": "FF-1369",
+     "category": "filter",
+     "name": "조건을 빠르게 바꿔도 옛 응답이 최신 조건을 덮지 않는다(경합)",
+     "exists": true,
+     "status": "NOT_AUDITED",
+     "source": "frontend/src/screens/MyApprovals.jsx",
+     "api": "",
+     "chain": {},
+     "expected": {},
+     "cross_surface": [],
+     "evidence": [],
+     "findings": [],
+     "audited_at": "",
+     "by": ""
+    },
+    {
+     "id": "FF-1370",
+     "category": "filter",
+     "name": "다른 조건이 같은 캐시를 재사용하지 않는다(캐시 키)",
+     "exists": true,
+     "status": "NOT_AUDITED",
+     "source": "frontend/src/screens/MyApprovals.jsx",
+     "api": "",
+     "chain": {},
+     "expected": {},
+     "cross_surface": [],
+     "evidence": [],
+     "findings": [],
+     "audited_at": "",
+     "by": ""
+    },
+    {
+     "id": "FF-1371",
+     "category": "filter",
+     "name": "뒤로가기에서 화면이 말하는 조건과 실제 질의가 같다",
+     "exists": true,
+     "status": "NOT_AUDITED",
+     "source": "frontend/src/screens/MyApprovals.jsx",
      "api": "",
      "chain": {},
      "expected": {},
@@ -7102,32 +8677,74 @@
      "category": "search",
      "name": "이메일 또는 이름 검색(250ms 디바운스)",
      "exists": true,
-     "status": "NOT_AUDITED",
+     "status": "PASS",
      "source": "frontend/src/screens/Users.jsx:611",
      "api": "",
-     "chain": {},
-     "expected": {},
+     "chain": {
+      "ui_action": "q=체인 동료",
+      "frontend_state": "q=체인 동료",
+      "url_state": "/api/admin/users?q=%EC%B2%B4%EC%9D%B8+%EB%8F%99%EB%A3%8C",
+      "api_request": "GET /api/admin/users?q=%EC%B2%B4%EC%9D%B8+%EB%8F%99%EB%A3%8C",
+      "backend_query": "list_users: display_name/email ILIKE %?%",
+      "data_relation": "",
+      "api_response": {
+       "total": 1,
+       "count": 1
+      },
+      "rendered": {
+       "rows": 1,
+       "total_shown": 1
+      }
+     },
+     "expected": {
+      "source": "known-data",
+      "total": 1,
+      "universe": 2
+     },
      "cross_surface": [],
-     "evidence": [],
+     "evidence": [
+      "ev:test:tests/regression/test_filter_chain.py"
+     ],
      "findings": [],
-     "audited_at": "",
-     "by": ""
+     "audited_at": "2026-08-24",
+     "by": "S15 — tests/regression/test_filter_chain.py (실 PostgreSQL · 알려진 데이터 대조)"
     },
     {
      "id": "FF-0423",
      "category": "filter",
      "name": "역할 필터",
      "exists": true,
-     "status": "NOT_AUDITED",
+     "status": "PASS",
      "source": "frontend/src/screens/Users.jsx:618",
      "api": "",
-     "chain": {},
-     "expected": {},
+     "chain": {
+      "ui_action": "role=user",
+      "frontend_state": "role=user",
+      "url_state": "/api/admin/users?role=user",
+      "api_request": "GET /api/admin/users?role=user",
+      "backend_query": "list_users: users.role = ?",
+      "data_relation": "",
+      "api_response": {
+       "total": 1,
+       "count": 1
+      },
+      "rendered": {
+       "rows": 1,
+       "total_shown": 1
+      }
+     },
+     "expected": {
+      "source": "known-data",
+      "total": 1,
+      "universe": 2
+     },
      "cross_surface": [],
-     "evidence": [],
+     "evidence": [
+      "ev:test:tests/regression/test_filter_chain.py"
+     ],
      "findings": [],
-     "audited_at": "",
-     "by": ""
+     "audited_at": "2026-08-24",
+     "by": "S15 — tests/regression/test_filter_chain.py (실 PostgreSQL · 알려진 데이터 대조)"
     },
     {
      "id": "FF-0424",
@@ -7446,6 +9063,86 @@
      ],
      "audited_at": "2026-08-19",
      "by": "W0 — 실사용"
+    },
+    {
+     "id": "FF-1356",
+     "category": "filter",
+     "name": "복합 — 역할 × 검색어",
+     "exists": true,
+     "status": "NOT_AUDITED",
+     "source": "frontend/src/screens/Users.jsx",
+     "api": "",
+     "chain": {},
+     "expected": {},
+     "cross_surface": [],
+     "evidence": [],
+     "findings": [],
+     "audited_at": "",
+     "by": ""
+    },
+    {
+     "id": "FF-1357",
+     "category": "filter",
+     "name": "조건을 바꾸면 쪽이 초기화된다",
+     "exists": true,
+     "status": "NOT_AUDITED",
+     "source": "frontend/src/screens/Users.jsx",
+     "api": "",
+     "chain": {},
+     "expected": {},
+     "cross_surface": [],
+     "evidence": [],
+     "findings": [],
+     "audited_at": "",
+     "by": ""
+    },
+    {
+     "id": "FF-1358",
+     "category": "filter",
+     "name": "조건을 빠르게 바꿔도 옛 응답이 최신 조건을 덮지 않는다(경합)",
+     "exists": true,
+     "status": "NOT_AUDITED",
+     "source": "frontend/src/screens/Users.jsx",
+     "api": "",
+     "chain": {},
+     "expected": {},
+     "cross_surface": [],
+     "evidence": [],
+     "findings": [],
+     "audited_at": "",
+     "by": ""
+    },
+    {
+     "id": "FF-1359",
+     "category": "filter",
+     "name": "다른 조건이 같은 캐시를 재사용하지 않는다(캐시 키)",
+     "exists": true,
+     "status": "NOT_AUDITED",
+     "source": "frontend/src/screens/Users.jsx",
+     "api": "",
+     "chain": {},
+     "expected": {},
+     "cross_surface": [],
+     "evidence": [],
+     "findings": [],
+     "audited_at": "",
+     "by": ""
+    },
+    {
+     "id": "FF-1360",
+     "category": "filter",
+     "name": "뒤로가기에서 화면이 말하는 조건과 실제 질의가 같다",
+     "exists": true,
+     "status": "NOT_AUDITED",
+     "source": "frontend/src/screens/Users.jsx",
+     "api": "",
+     "chain": {},
+     "expected": {},
+     "cross_surface": [],
+     "evidence": [],
+     "findings": [],
+     "audited_at": "",
+     "by": ""
     }
    ]
   },
@@ -20677,6 +22374,590 @@
      "evidence": [
       "ev:note:URL 상태로 승격할지는 화면(Home)의 결정이고 공유 부품의 계약이 아니다 — 그 판단은 화면 Wave 로 넘긴다"
      ],
+     "findings": [],
+     "audited_at": "",
+     "by": ""
+    }
+   ]
+  },
+  {
+   "surface": "user_knowledge",
+   "console": "user",
+   "inventory_status": "INVENTORIED",
+   "inventoried_at": "2026-08-24",
+   "inventoried_by": "S15 — 소스에서 직접 세었다(이 화면들은 W0 실측 이후에 생겼다)",
+   "flows": [
+    {
+     "id": "FF-1301",
+     "category": "read",
+     "name": "공간을 고르면 그 공간의 폴더 트리와 문서 목록을 받는다",
+     "exists": true,
+     "status": "NOT_AUDITED",
+     "source": "frontend/src/screens/Knowledge.jsx:210",
+     "api": "GET /api/knowledge/documents",
+     "chain": {},
+     "expected": {},
+     "cross_surface": [],
+     "evidence": [],
+     "findings": [],
+     "audited_at": "",
+     "by": ""
+    },
+    {
+     "id": "FF-1302",
+     "category": "search",
+     "name": "제목 검색어(q)로 거른다 — 공용 검색 상자(디바운스)",
+     "exists": true,
+     "status": "PASS",
+     "source": "frontend/src/screens/Knowledge.jsx:358",
+     "api": "GET /api/knowledge/documents?q=",
+     "chain": {
+      "ui_action": "q=회의록",
+      "frontend_state": "q=회의록",
+      "url_state": "/api/knowledge/documents?q=%ED%9A%8C%EC%9D%98%EB%A1%9D",
+      "api_request": "GET /api/knowledge/documents?space_id=b2e49d65-54b9-4c48-842d-9b4addf19cc3&q=%ED%9A%8C%EC%9D%98%EB%A1%9D",
+      "backend_query": "list_documents: documents.title ILIKE %?%",
+      "data_relation": "",
+      "api_response": {
+       "total": 2,
+       "count": 2
+      },
+      "rendered": {
+       "rows": 2,
+       "total_shown": 2
+      }
+     },
+     "expected": {
+      "source": "known-data",
+      "total": 2,
+      "universe": 6
+     },
+     "cross_surface": [],
+     "evidence": [
+      "ev:test:tests/regression/test_filter_chain.py",
+      "ev:test:frontend/src/screens/knowledge-list.test.jsx"
+     ],
+     "findings": [],
+     "audited_at": "2026-08-24",
+     "by": "S15 — tests/regression/test_filter_chain.py (실 PostgreSQL · 알려진 데이터 대조)"
+    },
+    {
+     "id": "FF-1303",
+     "category": "filter",
+     "name": "분류(태그)로 거른다",
+     "exists": true,
+     "status": "PASS",
+     "source": "frontend/src/screens/Knowledge.jsx:373",
+     "api": "GET /api/knowledge/documents?tag=",
+     "chain": {
+      "ui_action": "tag=meeting",
+      "frontend_state": "tag=meeting",
+      "url_state": "/api/knowledge/documents?tag=meeting",
+      "api_request": "GET /api/knowledge/documents?space_id=b2e49d65-54b9-4c48-842d-9b4addf19cc3&tag=meeting",
+      "backend_query": "list_documents: documents.id IN (SELECT document_id FROM document_tags …)",
+      "data_relation": "document_tags → tags.slug",
+      "api_response": {
+       "total": 2,
+       "count": 2
+      },
+      "rendered": {
+       "rows": 2,
+       "total_shown": 2
+      }
+     },
+     "expected": {
+      "source": "known-data",
+      "total": 2,
+      "universe": 6
+     },
+     "cross_surface": [],
+     "evidence": [
+      "ev:test:tests/regression/test_filter_chain.py",
+      "ev:test:frontend/src/screens/knowledge-list.test.jsx"
+     ],
+     "findings": [],
+     "audited_at": "2026-08-24",
+     "by": "S15 — tests/regression/test_filter_chain.py (실 PostgreSQL · 알려진 데이터 대조)"
+    },
+    {
+     "id": "FF-1304",
+     "category": "filter",
+     "name": "즐겨찾기만 보기로 좁힌다",
+     "exists": true,
+     "status": "NOT_AUDITED",
+     "source": "frontend/src/screens/Knowledge.jsx:388",
+     "api": "GET /api/knowledge/documents?favorites=true",
+     "chain": {},
+     "expected": {},
+     "cross_surface": [],
+     "evidence": [],
+     "findings": [],
+     "audited_at": "",
+     "by": ""
+    },
+    {
+     "id": "FF-1305",
+     "category": "filter",
+     "name": "폴더를 고르면 그 아래 전부로 좁힌다",
+     "exists": true,
+     "status": "NOT_AUDITED",
+     "source": "frontend/src/screens/Knowledge.jsx:333",
+     "api": "GET /api/knowledge/documents?folder_id=",
+     "chain": {},
+     "expected": {},
+     "cross_surface": [],
+     "evidence": [],
+     "findings": [],
+     "audited_at": "",
+     "by": ""
+    },
+    {
+     "id": "FF-1306",
+     "category": "pagination",
+     "name": "쪽을 넘긴다 — 서버가 50건에서 자른다",
+     "exists": true,
+     "status": "PASS",
+     "source": "frontend/src/screens/Knowledge.jsx:463",
+     "api": "GET /api/knowledge/documents?offset=",
+     "chain": {
+      "ui_action": "「다음」 클릭",
+      "frontend_state": "?page=2",
+      "url_state": "#/knowledge?space=…&page=2",
+      "api_request": "GET /api/knowledge/documents?limit=50&offset=50",
+      "backend_query": "list_documents: ORDER BY updated_at DESC, id ASC (전순서) + LIMIT/OFFSET",
+      "data_relation": "",
+      "api_response": {
+       "total": 110,
+       "limit": 50,
+       "offset": 50
+      },
+      "rendered": {
+       "rows": 50,
+       "total_shown": 110
+      }
+     },
+     "expected": {
+      "source": "derived-check",
+      "note": "쪽을 다 넘겼을 때 중복 0 · 누락 0(같은 시각 문서 열둘로 확인)"
+     },
+     "cross_surface": [],
+     "evidence": [
+      "ev:test:frontend/src/screens/knowledge-list.test.jsx",
+      "ev:test:tests/regression/test_document_pages_do_not_repeat.py"
+     ],
+     "findings": [],
+     "audited_at": "2026-08-24",
+     "by": "S15 — tests/regression/test_filter_chain.py (실 PostgreSQL · 알려진 데이터 대조)"
+    },
+    {
+     "id": "FF-1307",
+     "category": "create",
+     "name": "문서를 만든다",
+     "exists": true,
+     "status": "NOT_AUDITED",
+     "source": "frontend/src/screens/Knowledge.jsx:250",
+     "api": "POST /api/knowledge/documents",
+     "chain": {},
+     "expected": {},
+     "cross_surface": [],
+     "evidence": [],
+     "findings": [],
+     "audited_at": "",
+     "by": ""
+    },
+    {
+     "id": "FF-1308",
+     "category": "navigation",
+     "name": "문서 줄을 눌러 상세로 간다",
+     "exists": true,
+     "status": "NOT_AUDITED",
+     "source": "frontend/src/screens/Knowledge.jsx:430",
+     "api": "",
+     "chain": {},
+     "expected": {},
+     "cross_surface": [],
+     "evidence": [],
+     "findings": [],
+     "audited_at": "",
+     "by": ""
+    },
+    {
+     "id": "FF-1309",
+     "category": "permission_state",
+     "name": "범위 밖 공간은 목록에도 상세에도 없다",
+     "exists": true,
+     "status": "NOT_AUDITED",
+     "source": "app/knowledge/service.py::list_documents",
+     "api": "",
+     "chain": {},
+     "expected": {},
+     "cross_surface": [],
+     "evidence": [],
+     "findings": [],
+     "audited_at": "",
+     "by": ""
+    },
+    {
+     "id": "FF-1339",
+     "category": "filter",
+     "name": "복합 — 검색어 × 분류",
+     "exists": true,
+     "status": "PASS",
+     "source": "",
+     "api": "",
+     "chain": {
+      "ui_action": "q=배포, tag=meeting",
+      "frontend_state": "q=배포, tag=meeting",
+      "url_state": "/api/knowledge/documents?q=%EB%B0%B0%ED%8F%AC&tag=meeting",
+      "api_request": "GET /api/knowledge/documents?space_id=b2e49d65-54b9-4c48-842d-9b4addf19cc3&q=%EB%B0%B0%ED%8F%AC&tag=meeting",
+      "backend_query": "list_documents: 두 절이 AND 로 함께 걸린다",
+      "data_relation": "document_tags → tags.slug",
+      "api_response": {
+       "total": 1,
+       "count": 1
+      },
+      "rendered": {
+       "rows": 1,
+       "total_shown": 1
+      }
+     },
+     "expected": {
+      "source": "known-data",
+      "total": 1,
+      "universe": 6
+     },
+     "cross_surface": [],
+     "evidence": [
+      "ev:test:tests/regression/test_filter_chain.py"
+     ],
+     "findings": [],
+     "audited_at": "2026-08-24",
+     "by": "S15 — tests/regression/test_filter_chain.py (실 PostgreSQL · 알려진 데이터 대조)"
+    },
+    {
+     "id": "FF-1340",
+     "category": "filter",
+     "name": "조건을 바꾸면 쪽이 초기화된다",
+     "exists": true,
+     "status": "PASS",
+     "source": "",
+     "api": "",
+     "chain": {
+      "ui_action": "2쪽에서 즐겨찾기/분류 선택",
+      "frontend_state": "setQuery({..., page: null})",
+      "url_state": "#/knowledge?space=…&tag=meeting",
+      "api_request": "GET /api/knowledge/documents?tag=meeting&limit=50&offset=0",
+      "backend_query": "offset=0",
+      "data_relation": "",
+      "api_response": {
+       "offset": 0
+      },
+      "rendered": {
+       "note": "첫 쪽"
+      }
+     },
+     "expected": {
+      "source": "derived-check",
+      "note": "조건을 바꾸면 offset 이 0 으로 돌아온다"
+     },
+     "cross_surface": [],
+     "evidence": [
+      "ev:test:frontend/src/screens/knowledge-list.test.jsx"
+     ],
+     "findings": [],
+     "audited_at": "2026-08-24",
+     "by": "S15 — tests/regression/test_filter_chain.py (실 PostgreSQL · 알려진 데이터 대조)"
+    },
+    {
+     "id": "FF-1341",
+     "category": "back_forward",
+     "name": "조건을 지우거나 뒤로 오면 검색 상자도 함께 비워진다",
+     "exists": true,
+     "status": "PASS",
+     "source": "",
+     "api": "",
+     "chain": {
+      "ui_action": "검색어를 넣은 뒤 「검색, 필터 지우기」",
+      "frontend_state": "주소가 유일한 진실 — 공용 SearchBox 가 바깥 값을 따라간다",
+      "url_state": "#/knowledge?space=…",
+      "api_request": "GET /api/knowledge/documents?limit=50&offset=0",
+      "backend_query": "조건 없음",
+      "data_relation": "",
+      "api_response": {
+       "note": "조건 없는 목록"
+      },
+      "rendered": {
+       "note": "검색 상자가 비어 있다"
+      }
+     },
+     "expected": {
+      "source": "derived-check",
+      "note": "화면이 말하는 조건과 실제 질의 조건이 같다"
+     },
+     "cross_surface": [],
+     "evidence": [
+      "ev:test:frontend/src/screens/knowledge-list.test.jsx"
+     ],
+     "findings": [],
+     "audited_at": "2026-08-24",
+     "by": "S15 — tests/regression/test_filter_chain.py (실 PostgreSQL · 알려진 데이터 대조)"
+    },
+    {
+     "id": "FF-1342",
+     "category": "filter",
+     "name": "조건을 빠르게 바꿔도 옛 응답이 최신 조건을 덮지 않는다(경합)",
+     "exists": true,
+     "status": "NOT_AUDITED",
+     "source": "frontend/src/screens/Knowledge.jsx:78",
+     "api": "",
+     "chain": {},
+     "expected": {},
+     "cross_surface": [],
+     "evidence": [],
+     "findings": [],
+     "audited_at": "",
+     "by": ""
+    },
+    {
+     "id": "FF-1343",
+     "category": "filter",
+     "name": "다른 조건이 같은 캐시를 재사용하지 않는다(캐시 키)",
+     "exists": true,
+     "status": "NOT_AUDITED",
+     "source": "frontend/src/screens/Knowledge.jsx:78",
+     "api": "",
+     "chain": {},
+     "expected": {},
+     "cross_surface": [],
+     "evidence": [],
+     "findings": [],
+     "audited_at": "",
+     "by": ""
+    }
+   ]
+  },
+  {
+   "surface": "user_knowledge-doc",
+   "console": "user",
+   "inventory_status": "INVENTORIED",
+   "inventoried_at": "2026-08-24",
+   "inventoried_by": "S15 — 소스에서 직접 세었다(이 화면들은 W0 실측 이후에 생겼다)",
+   "flows": [
+    {
+     "id": "FF-1310",
+     "category": "read",
+     "name": "문서 본문과 메타데이터를 받는다",
+     "exists": true,
+     "status": "NOT_AUDITED",
+     "source": "frontend/src/screens/KnowledgeDoc.jsx:67",
+     "api": "GET /api/knowledge/documents/{id}",
+     "chain": {},
+     "expected": {},
+     "cross_surface": [],
+     "evidence": [],
+     "findings": [],
+     "audited_at": "",
+     "by": ""
+    },
+    {
+     "id": "FF-1311",
+     "category": "edit",
+     "name": "본문을 고치고 저장한다(낙관적 잠금)",
+     "exists": true,
+     "status": "NOT_AUDITED",
+     "source": "frontend/src/screens/KnowledgeDoc.jsx:193",
+     "api": "PUT /api/knowledge/documents/{id}",
+     "chain": {},
+     "expected": {},
+     "cross_surface": [],
+     "evidence": [],
+     "findings": [],
+     "audited_at": "",
+     "by": ""
+    },
+    {
+     "id": "FF-1312",
+     "category": "read",
+     "name": "판 목록과 판 사이 차이를 본다",
+     "exists": true,
+     "status": "NOT_AUDITED",
+     "source": "frontend/src/screens/KnowledgeDoc.jsx:84",
+     "api": "GET /api/knowledge/documents/{id}/diff",
+     "chain": {},
+     "expected": {},
+     "cross_surface": [],
+     "evidence": [],
+     "findings": [],
+     "audited_at": "",
+     "by": ""
+    },
+    {
+     "id": "FF-1313",
+     "category": "modal_action",
+     "name": "옛 판으로 되돌린다",
+     "exists": true,
+     "status": "NOT_AUDITED",
+     "source": "frontend/src/screens/KnowledgeDoc.jsx:222",
+     "api": "POST /api/knowledge/documents/{id}/versions/{n}/restore",
+     "chain": {},
+     "expected": {},
+     "cross_surface": [],
+     "evidence": [],
+     "findings": [],
+     "audited_at": "",
+     "by": ""
+    },
+    {
+     "id": "FF-1314",
+     "category": "row_action",
+     "name": "즐겨찾기에 담고 뺀다",
+     "exists": true,
+     "status": "NOT_AUDITED",
+     "source": "frontend/src/screens/KnowledgeDoc.jsx:210",
+     "api": "POST /api/knowledge/documents/{id}/favorite",
+     "chain": {},
+     "expected": {},
+     "cross_surface": [],
+     "evidence": [],
+     "findings": [],
+     "audited_at": "",
+     "by": ""
+    }
+   ]
+  },
+  {
+   "surface": "user_ai-workspace",
+   "console": "user",
+   "inventory_status": "INVENTORIED",
+   "inventoried_at": "2026-08-24",
+   "inventoried_by": "S15 — 소스에서 직접 세었다(이 화면들은 W0 실측 이후에 생겼다)",
+   "flows": [
+    {
+     "id": "FF-1315",
+     "category": "search",
+     "name": "질문을 보내고 답과 근거를 받는다",
+     "exists": true,
+     "status": "NOT_AUDITED",
+     "source": "frontend/src/screens/AiWorkspace.jsx",
+     "api": "POST /api/ai/answer",
+     "chain": {},
+     "expected": {},
+     "cross_surface": [],
+     "evidence": [],
+     "findings": [],
+     "audited_at": "",
+     "by": ""
+    },
+    {
+     "id": "FF-1316",
+     "category": "navigation",
+     "name": "근거를 눌러 그 문단으로 간다",
+     "exists": true,
+     "status": "NOT_AUDITED",
+     "source": "frontend/src/screens/AiWorkspace.jsx",
+     "api": "",
+     "chain": {},
+     "expected": {},
+     "cross_surface": [],
+     "evidence": [],
+     "findings": [],
+     "audited_at": "",
+     "by": ""
+    },
+    {
+     "id": "FF-1317",
+     "category": "permission_state",
+     "name": "권한 밖 문서는 근거에 안 들어간다",
+     "exists": true,
+     "status": "NOT_AUDITED",
+     "source": "app/ai/retrieval/query.py",
+     "api": "",
+     "chain": {},
+     "expected": {},
+     "cross_surface": [],
+     "evidence": [],
+     "findings": [],
+     "audited_at": "",
+     "by": ""
+    }
+   ]
+  },
+  {
+   "surface": "user_work-board",
+   "console": "user",
+   "inventory_status": "INVENTORIED",
+   "inventoried_at": "2026-08-24",
+   "inventoried_by": "S15 — 소스에서 직접 세었다(이 화면들은 W0 실측 이후에 생겼다)",
+   "flows": [
+    {
+     "id": "FF-1318",
+     "category": "read",
+     "name": "칸반 열과 백로그를 받는다",
+     "exists": true,
+     "status": "NOT_AUDITED",
+     "source": "frontend/src/screens/WorkBoard.jsx",
+     "api": "GET /api/work/board",
+     "chain": {},
+     "expected": {},
+     "cross_surface": [],
+     "evidence": [],
+     "findings": [],
+     "audited_at": "",
+     "by": ""
+    },
+    {
+     "id": "FF-1319",
+     "category": "status_change",
+     "name": "카드를 옮겨 상태를 바꾼다",
+     "exists": true,
+     "status": "NOT_AUDITED",
+     "source": "frontend/src/screens/WorkBoard.jsx",
+     "api": "POST /api/work/board/move",
+     "chain": {},
+     "expected": {},
+     "cross_surface": [],
+     "evidence": [],
+     "findings": [],
+     "audited_at": "",
+     "by": ""
+    },
+    {
+     "id": "FF-1320",
+     "category": "filter",
+     "name": "프로젝트로 판을 좁힌다",
+     "exists": true,
+     "status": "NOT_AUDITED",
+     "source": "frontend/src/screens/WorkBoard.jsx",
+     "api": "GET /api/work/board?project_id=",
+     "chain": {},
+     "expected": {},
+     "cross_surface": [],
+     "evidence": [],
+     "findings": [],
+     "audited_at": "",
+     "by": ""
+    }
+   ]
+  },
+  {
+   "surface": "user_legacy-doc-redirect",
+   "console": "user",
+   "inventory_status": "INVENTORIED",
+   "inventoried_at": "2026-08-24",
+   "inventoried_by": "S15 — 소스에서 직접 세었다(이 화면들은 W0 실측 이후에 생겼다)",
+   "flows": [
+    {
+     "id": "FF-1321",
+     "category": "deep_link",
+     "name": "옛 문서 주소를 지금 문서로 데려간다",
+     "exists": true,
+     "status": "NOT_AUDITED",
+     "source": "frontend/src/screens/LegacyDocRedirect.jsx",
+     "api": "GET /api/knowledge/documents/by-legacy/{page_id}",
+     "chain": {},
+     "expected": {},
+     "cross_surface": [],
+     "evidence": [],
      "findings": [],
      "audited_at": "",
      "by": ""

@@ -183,7 +183,7 @@ def test_today_buckets_my_tickets_by_kst_calendar_day(home_client):
     body = _today(home_client)
     assert body["today"] == TODAY            # UTC 로 계산했다면 2026-08-03 이 아니다
     t = body["tickets"]
-    assert t["configured"] is True and t["ok"] is True and t["mapped"] is True
+    assert t["configured"] is True and t["ok"] is True
     assert t["due_today"]["count"] == 1
     assert t["overdue"]["count"] == 1
     assert t["due_soon"]["count"] == 1
@@ -277,10 +277,17 @@ def test_today_folds_a_ticket_read_failure_into_its_block(home_client, monkeypat
     assert [p["title"] for p in body["recent"]["board"]] == ["최근 글"]
 
 
-def test_today_omits_ticket_buckets_when_unmapped(client, db, settings, notion, make_user):
-    """PA-RC-0027: 매핑이 없으면 오늘 마감/지연/진행 중/곧 마감/막힘 버킷이 아예 없다 —
-    빈 리스트로 집계해 전부 0을 내면 "모른다"가 "없다"로 보인다(work.py의 sprint 판정과
-    같은 원칙, 이 테스트가 새로 그 원칙을 `tickets` 블록에도 고정한다)."""
+def test_today_answers_for_an_account_with_no_legacy_link(client, db, settings, notion, make_user):
+    """옛 소스와 짝이 없는 계정도 **자기 버킷을 받는다** (S15 · D-285).
+
+    예전에는 이 자리가 「매핑이 없으면 버킷을 아예 안 싣는다」였다(PA-RC-0027). 그때는
+    담당자를 가리키는 값이 옛 소스의 user id 뿐이라 「이 사람 티켓이 무엇인지 모른다」가
+    실제 상태였기 때문이다. 지금은 사람마다 가리킬 값이 언제나 있으므로(`assignee_token`)
+    그 상태가 없다 — 0건은 「모른다」가 아니라 **사실**이고, 그때는 진짜 0을 그린다.
+
+    「모른다」로 남는 갈래는 저장소가 실제로 실패했을 때 하나뿐이고, 그건 바로 위 시험이
+    본다. 두 상태를 구별하는 것이 이 두 시험의 존재 이유다.
+    """
     (settings.secrets_dir / TOKEN_REF).write_text("fake-notion-token", encoding="utf-8")
     make_user("home-nomap@goodmit.co.kr", password=PASSWORD)
     r = client.post("/login", json={"email": "home-nomap@goodmit.co.kr", "password": PASSWORD})
@@ -289,10 +296,10 @@ def test_today_omits_ticket_buckets_when_unmapped(client, db, settings, notion, 
 
     body = _today(client)
     assert body["ok"] is True
-    assert body["tickets"]["mapped"] is False
+    assert body["tickets"]["ok"] is True
     for bucket in ("due_today", "overdue", "in_progress", "due_soon", "blocked"):
-        assert bucket not in body["tickets"], f"{bucket}가 매핑 없는 응답에 남아 있다"
-    assert body["sprint"] is None
+        assert bucket in body["tickets"], f"{bucket}가 없다 — 이 계정은 답을 못 받고 있다"
+        assert body["tickets"][bucket]["count"] == 0
     # 장애 격리 — 티켓과 무관한 블록은 그대로 나온다.
     assert "inbox" in body and "recent" in body
 
@@ -302,7 +309,7 @@ def test_today_mapped_with_zero_tickets_still_shows_real_zero(home_client, db):
     db.query(TicketCache).delete()
     db.commit()
     body = _today(home_client)
-    assert body["tickets"]["mapped"] is True and body["tickets"]["ok"] is True
+    assert body["tickets"]["ok"] is True
     assert body["tickets"]["due_today"]["count"] == 0
     assert body["tickets"]["in_progress"]["count"] == 0
 

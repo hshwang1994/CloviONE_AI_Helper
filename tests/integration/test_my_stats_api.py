@@ -4,7 +4,7 @@
   1. **티켓은 저장소 seam 으로만 읽는다.** 미러가 채워져 있으면 Notion 왕복 0회다
      (Notion 구현 모듈을 직접 import 하지 않는다는 규칙의 실행 시점 확인).
   2. **내 것만 센다.** 동료 티켓·미할당 티켓은 내 통계에 들어오지 않는다.
-  3. **장애 격리.** 소스가 죽어도 200 이고 `source.configured/ok/mapped` 로 이유를 말한다 —
+  3. **장애 격리.** 티켓을 못 읽어도 200 이고 `source.configured/ok` 로 이유를 말한다 —
      화면 전체가 오류로 덮이지 않는다(§17.4).
 
 S14 가 미러를 걷어내면서 두 가지가 뒤집혔다(D-284). 신선도(`sync`) 블록은 **없어야**
@@ -134,7 +134,7 @@ def _stats(test_client, query: str = "") -> dict:
 def test_stats_answer_without_a_single_notion_round_trip(stats_client, fake_http, notion):
     fake_http.requests.clear()
     body = _stats(stats_client)
-    assert body["ok"] is True and body["source"]["mapped"] is True
+    assert body["ok"] is True and body["source"]["ok"] is True
     notion_calls = [
         r for r in fake_http.requests if str(r.url).startswith("https://api.notion.com")
     ]
@@ -191,13 +191,15 @@ def test_stats_no_longer_report_mirror_freshness(stats_client):
     )
 
 
-def test_stats_survive_an_unmapped_account(client, db, settings, notion, make_user):
-    """Notion 연결이 없으면 숫자를 지어내지 않고 `mapped: false` 로 말한다.
+def test_stats_answer_for_an_account_with_no_legacy_link(client, db, settings, notion, make_user):
+    """옛 소스와 짝이 없는 계정도 **진짜 숫자를 받는다** (S15 · D-285).
 
-    PA-RC-0027: 이 테스트가 원래 `totals["all"] == 0` 을 단언했다 — 그게 정확히 이
-    Root Cause다("모른다"를 "0건"으로 지어내면 이 테스트가 그것을 green 으로 고정한다).
-    이제는 `totals`/`workload`/`months` 자체가 응답에 없다 — 화면이 숫자 대신 "모른다"를
-    그릴 수 있게, 있는 척(0)을 하지 않는다.
+    예전에는 이 자리가 「매핑이 없으면 `totals` 자체를 안 싣는다」였다(PA-RC-0027).
+    그때는 그 사람의 티켓이 무엇인지 정말 몰랐기 때문이다. 지금은 사람마다 담당자로
+    가리킬 값이 언제나 있으므로 그 상태가 없다 — 0건은 「모른다」가 아니라 사실이고,
+    사실을 「모른다」로 그리면 새 계정의 통계 화면이 영원히 비어 있다.
+
+    「모른다」로 남는 갈래는 **티켓을 못 읽었을 때** 하나뿐이고, 그건 아래 시험이 본다.
     """
     (settings.secrets_dir / TOKEN_REF).write_text("fake-notion-token", encoding="utf-8")
     make_user("nomap@goodmit.co.kr")
@@ -205,10 +207,9 @@ def test_stats_survive_an_unmapped_account(client, db, settings, notion, make_us
         "/login", json={"email": "nomap@goodmit.co.kr", "password": "Str0ng-Passw0rd!"}
     ).status_code == 200
     body = _stats(client)
-    assert body["source"]["mapped"] is False
-    assert "totals" not in body
-    assert "workload" not in body
-    assert "months" not in body
+    assert body["source"]["ok"] is True
+    assert body["totals"]["all"] == 0
+    assert "workload" in body and "months" in body
 
 
 def test_stats_fold_a_read_failure_instead_of_erroring_the_screen(client, db, monkeypatch):
@@ -219,8 +220,8 @@ def test_stats_fold_a_read_failure_instead_of_erroring_the_screen(client, db, mo
     계약」이라고 적어 둔 자리다. 그 모양이 살아 있는 동안은 **실제로 접히는지**를 확인해
     둔다. 접기가 깨지면 통계 화면 하나가 500 으로 덮인다.
 
-    PA-RC-0027: 소스를 못 읽으면 `usable = ok and mapped` 에 걸려 `totals` 등이 통째로
-    빠진다 — 위 미매핑 시험과 같은 원칙("소스 장애면 버킷 자체가 없다")의 다른 발생 지점이다.
+    PA-RC-0027: 티켓을 못 읽으면 `usable = ok` 에 걸려 `totals` 등이 통째로 빠진다 —
+    「모른다」와 「0건이다」를 가르는 자리가 이제 여기 하나뿐이다.
     """
     from app.core.errors import NotionQueryError
     from app.home import service as home_service
@@ -242,7 +243,7 @@ def test_stats_fold_a_read_failure_instead_of_erroring_the_screen(client, db, mo
 
 
 def test_stats_totals_are_real_zero_when_mapped_with_no_tickets(client, db, settings, notion, make_user):
-    """PA-RC-0027 acceptance (과잉 수정 방지): 매핑은 됐고 실제로 티켓이 0건인 사용자는
+    """PA-RC-0027 acceptance (과잉 수정 방지): 옛 짝이 있고 실제로 티켓이 0건인 사용자는
     여전히 진짜 0을 본다 — "모른다"만 감추지 "0건이다"까지 감추면 반대 방향의 거짓말이 된다."""
     (settings.secrets_dir / TOKEN_REF).write_text("fake-notion-token", encoding="utf-8")
     user = make_user("mapped-empty@goodmit.co.kr")
@@ -261,7 +262,7 @@ def test_stats_totals_are_real_zero_when_mapped_with_no_tickets(client, db, sett
         "/login", json={"email": "mapped-empty@goodmit.co.kr", "password": "Str0ng-Passw0rd!"}
     ).status_code == 200
     body = _stats(client)
-    assert body["source"]["mapped"] is True
+    assert body["source"]["ok"] is True
     assert body["totals"]["all"] == 0
 
 

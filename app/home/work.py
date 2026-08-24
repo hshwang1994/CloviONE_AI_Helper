@@ -239,9 +239,10 @@ def build_work_dashboard(
 
     state = home_service.load_my_tickets(db, outbound, settings, user, repo=repo)
     tickets = state["tickets"]
-    # 미러가 비어 있거나 매핑이 없으면 **모른다**. 0 으로 그리지 않는다(홈 '오늘'의
-    # sprint 블록이 같은 판단을 한다 — 두 화면이 같은 상황에서 다른 말을 하면 안 된다).
-    usable = state["ok"] and state["mapped"]
+    # 티켓을 못 읽었으면 **모른다**. 0 으로 그리지 않는다(홈 '오늘'의 sprint 블록이 같은
+    # 판단을 한다 — 두 화면이 같은 상황에서 다른 말을 하면 안 된다). 「매핑이 없다」는
+    # 갈래는 없어졌다 (S15 · D-285).
+    usable = state["ok"]
 
     mine = None
     trend = None

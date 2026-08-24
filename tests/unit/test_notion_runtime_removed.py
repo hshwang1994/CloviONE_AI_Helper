@@ -135,37 +135,41 @@ def test_the_worker_registers_no_mirror_sync_tick():
     assert "app.projects.sync" not in text
 
 
-def test_a_document_comment_survives_its_cache_row(db, make_user):
-    """**옮겨 온 성질** — 문서 캐시 행이 사라져도 댓글은 남는다.
+def test_a_document_comment_no_longer_hangs_off_the_mirror(db, make_user):
+    """**옮겨 온 성질** — 사람이 쓴 댓글이 미러의 사정으로 사라질 수 없다.
 
-    예전에는 「재동기화가 지운 뒤에도 남는가」로 봤다. 재동기화가 없어졌지만 지키는 것은
-    그대로다: `document_comments.document_id` 가 `ON DELETE SET NULL` 이고, 댓글은
-    `notion_page_id` 로도 자기 문서를 찾는다. 그 설계가 있어야 문서 행이 어떤 이유로든
-    사라져도 **사람이 쓴 글이 함께 사라지지 않는다.**
+    예전에는 「재동기화가 문서 캐시 행을 지워도 댓글은 남는가」로 봤고, 그것을 지키는 것은
+    `ON DELETE SET NULL` 이었다. 그 방어가 필요했던 이유는 **댓글의 주인이 미러 행**이었기
+    때문이다.
 
-    이제는 행을 직접 지워서 본다. 그쪽이 오히려 정확하다 — 지키는 것은 제약이지 동기화가
-    아니고, 동기화를 거치면 「무엇이 그 성질을 지켰는가」가 흐려진다.
+    S14 가 그 소유를 옮겼다(`0016_document_axis_to_documents`). 이제 댓글은 정본 문서
+    (`documents`)에 달리고, 미러 표는 그 글을 **가리키지도 못한다** — 그래서 미러가 어떤
+    이유로 사라지든 사람이 쓴 글에는 아무 일도 일어나지 않는다. 방어가 사라진 것이 아니라
+    방어할 상황이 없어진 것이고, 이 시험은 그 사실을 못박는다.
     """
-    from app.team_docs.models import DocumentCache, DocumentComment
+    import app.team_docs.models as legacy_models
+    from app.knowledge.models import Document, DocumentComment, KnowledgeSpace
+    from app.org.constants import DEFAULT_ORG_ID
 
-    author = make_user(email="doc-comment@goodmit.co.kr")
-    db.add(DocumentCache(id="dc-survive", notion_page_id="page-survive", title="문서"))
-    db.flush()
-    db.add(DocumentComment(
-        document_id="dc-survive", notion_page_id="page-survive",
-        author_user_id=author.id, body="이 글은 사라지면 안 된다",
-    ))
-    db.flush()
-
-    db.query(DocumentCache).filter(DocumentCache.id == "dc-survive").delete()
-    db.flush()
-    db.expire_all()
-
-    rows = db.query(DocumentComment).filter(
-        DocumentComment.notion_page_id == "page-survive"
-    ).all()
-    assert len(rows) == 1, "문서 행이 사라지자 댓글이 함께 사라졌다"
-    assert rows[0].body == "이 글은 사라지면 안 된다"
-    assert rows[0].document_id is None, (
-        "FK 가 SET NULL 이 아니다 — CASCADE 였다면 위 단언이 애초에 성립하지 않는다"
+    # ① 옛 소유 자리가 없다 — 있으면 댓글이 두 곳에 살 수 있고, 그때부터 어느 쪽이
+    #    정본인지 아무도 모른다.
+    assert not hasattr(legacy_models, "DocumentComment"), (
+        "미러 표가 다시 댓글의 주인이 됐다 — 정본이 둘이 되면 한쪽이 조용히 사라진다"
     )
+
+    # ② 정본에서는 문서와 함께 산다. 문서를 지우는 것은 사람이 하는 결정이고, 그때
+    #    딸린 글이 함께 지워지는 것은 사고가 아니라 계약이다(S14 · C2).
+    author = make_user(email="doc-comment@goodmit.co.kr")
+    space = KnowledgeSpace(name="공간", slug="nrr-space", owner_kind="organization",
+                           org_id=DEFAULT_ORG_ID)
+    db.add(space)
+    db.flush()
+    doc = Document(space_id=space.id, title="문서")
+    db.add(doc)
+    db.flush()
+    db.add(DocumentComment(document_id=doc.id, author_user_id=author.id,
+                           body="이 글은 정본 문서에 달린다"))
+    db.flush()
+
+    rows = db.query(DocumentComment).filter(DocumentComment.document_id == doc.id).all()
+    assert [r.body for r in rows] == ["이 글은 정본 문서에 달린다"]

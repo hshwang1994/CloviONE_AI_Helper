@@ -34,7 +34,7 @@ import { affiliation, needsOrg, personLabel } from "../lib/people.js";
 import { EMPTYABLE_SELECT, EntityCombobox } from "../ui/filters.jsx";
 import { Pager } from "../ui/Pager.jsx";
 import { useQueryState } from "../lib/useQueryState.js";
-import { useAssigneeOptions, useTicketList, useTicketMeta, useTicketProjects, ticketRows } from "./ticket-options.js";
+import { useAssigneeOptions, useTicketList, useTicketMeta, useTicketProjects, ticketProjectId, ticketRows } from "./ticket-options.js";
 import { invalidateTicketViews } from "./ticket-views.js";
 import { bulkFailureNote, fmtDateTime } from "../lib/format.js";
 import { PATH_SEP } from "../ui/OrgPath.jsx";
@@ -489,7 +489,9 @@ export function TicketEditModal({ ticket, open, onClose }) {
     if (!open || !ticket) { setForm(null); return; }
     setForm({
       title: ticket.title || "",
-      project_id: (ticket.project_ids || [])[0] || "",
+      // 프로젝트 축은 `ticket-options.js` 한 곳이 고른다 — 옛 relation id 를 그대로 넣으면
+      // 후보 목록(Portal id)에 그 값이 없어 프로젝트가 **없는 것처럼** 보인다.
+      project_id: ticketProjectId(ticket),
       status: ticket.status || "",
       priority: ticket.priority || "",
       difficulty: ticket.difficulty || "",
@@ -518,7 +520,7 @@ export function TicketEditModal({ ticket, open, onClose }) {
   function buildChanges() {
     const c = {};
     if (form.title.trim() !== (ticket.title || "")) c.title = form.title.trim();
-    if (form.project_id !== ((ticket.project_ids || [])[0] || "")) c.project_id = form.project_id;
+    if (form.project_id !== ticketProjectId(ticket)) c.project_id = form.project_id;
     if (form.status !== (ticket.status || "")) c.status = form.status;
     if (form.priority !== (ticket.priority || "")) c.priority = form.priority;
     if (form.difficulty !== (ticket.difficulty || "")) c.difficulty = form.difficulty;
@@ -640,7 +642,7 @@ export function useClaim() {
     onError: (e) => { toast((e && e.message) || "배정하지 못했습니다. 잠시 후 다시 시도해 주세요.", "error"); }, });
 }
 
-// configured=false(토큰 미설정) / mapped=false(내 Notion 계정 미연결) 공통 안내.
+// configured=false(서버가 티켓을 읽지 못함) 공통 안내.
 // 반드시 '일반 함수'다, 컴포넌트로 <ConnState/>를 만들면 그 JSX 요소가 항상 truthy라
 // `if (conn) return conn`가 언제나 참이 되어 본문(카드, 표)이 통째로 안 그려졌다(빈 화면 버그).
 // 문제가 없으면 null을 돌려주고, 호출부는 그 null을 보고 본문을 그린다.
@@ -670,18 +672,13 @@ export function ticketConnState(data, onRetry) {
       />
     );
   }
-  if (data && data.mapped === false) {
-    return (
-      <EmptyState
-        art="tickets"
-        title="내 계정이 Notion 사용자와 연결되어 있지 않습니다"
-        situation="계정 연결이 없으면 내 티켓인지 알 수 없어 목록을 못 불러옵니다."
-        steps={["관리자에게 ‘Notion 사용자 연결’을 요청하세요.", "연결이 끝나면 이 화면을 새로고침하세요."]}
-        expected="연결되면 내 담당 티켓이 이 자리에 표시됩니다."
-        action={onRetry ? <Button onClick={onRetry}>다시 불러오기</Button> : null}
-      />
-    );
-  }
+  /* 여기 「내 계정이 Notion 사용자와 연결되어 있지 않습니다」 갈래가 있었다 (S15).
+   *
+   * 그 문장은 두 번 틀렸다. 첫째, 안내한 절차(‘관리자에게 Notion 사용자 연결을
+   * 요청하세요’)를 아무도 수행할 수 없다 — 연결할 상대가 없어졌다. 둘째, 그 상태는
+   * 이제 존재하지 않는다: 사람마다 담당자로 가리킬 값이 언제나 있다(D-285). 실제로
+   * 그 갈래에 걸려 있던 계정 둘은 「연결을 기다리라」는 말을 읽으며 자기 티켓 목록을
+   * 영원히 못 보고 있었다. */
   if (data && data.ok === false && data.error) {
     return <Callout tone="danger">{data.error}</Callout>;
   }

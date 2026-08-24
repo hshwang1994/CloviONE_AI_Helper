@@ -47,14 +47,20 @@ class DisplayMaps:
     (응답 계약 유지) 각 행에 user_id 를 실어 앞으로 이름 대신 그 값을 쓸 수 있게 한다.
     """
 
-    id_to_name: dict[str, str] = field(default_factory=dict)   # 소스 user id → 표시 이름
-    id_to_user: dict[str, str] = field(default_factory=dict)   # 소스 user id → 앱 user_id
+    id_to_name: dict[str, str] = field(default_factory=dict)   # 담당자 토큰 → 표시 이름
+    id_to_user: dict[str, str] = field(default_factory=dict)   # 담당자 토큰 → 앱 user_id
     name_to_user: dict[str, str] = field(default_factory=dict)  # 표시 이름 → 앱 user_id(첫 사람)
     active_names: list[str] = field(default_factory=list)
 
 
 def load_display_maps(db: Session) -> DisplayMaps:
-    """활성 사용자 한 번 조회로 이름·식별자 해석표를 만든다."""
+    """활성 사용자 한 번 조회로 이름·식별자 해석표를 만든다.
+
+    키는 **담당자 토큰**이다(`app/tickets/service.py::assignee_token`) — 옛 소스의 user id
+    와 **자기 user id** 를 함께 받는다. 뒤엣것을 빼면 자체 DB 에서 만든 계정이 담당한 티켓이
+    이름 없이(그리고 `assignee_user_ids` 없이) 나가고, 리포트·스프린트·검색 색인이 그
+    사람을 통째로 못 센다.
+    """
     rows = db.execute(
         select(User.id, User.display_name, UserNotionMapping.notion_user_id)
         .outerjoin(UserNotionMapping, UserNotionMapping.user_id == User.id)
@@ -70,6 +76,8 @@ def load_display_maps(db: Session) -> DisplayMaps:
         if notion_id:
             id_to_name[notion_id] = display_name
             id_to_user[notion_id] = user_id
+        id_to_name.setdefault(user_id, display_name)
+        id_to_user.setdefault(user_id, user_id)
     return DisplayMaps(
         id_to_name=id_to_name, id_to_user=id_to_user,
         name_to_user=name_to_user, active_names=sorted(set(active_names)),

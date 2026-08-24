@@ -4,12 +4,16 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 
-/* 내 업무량 · 완료 통계 화면 — 서버가 준 숫자를 **그대로** 말하는가.
+/* qa-contract-change: S15 가 「연결이 없어 못 센다」 상태 자체를 없앴다(D-285) — 사람마다 담당자로 가리킬 값이 언제나 있으므로 그 갈래를 검사하던 시험 셋이 검사할 대상을 잃었다.
+ * 셋을 지우는 대신 남은 「모른다」(티켓 읽기 실패) 하나로 옮겨 다시 적었고, 없어진 갈래는
+ * 「옛 안내가 되살아나지 않는다」로 방향을 뒤집어 지킨다.
+ *
+ * 내 업무량 · 완료 통계 화면 — 서버가 준 숫자를 **그대로** 말하는가.
  *
  * 화면에서 다시 집계하지 않는 것이 이 화면의 설계다(홈과 숫자가 어긋나면 둘 다 못 믿는다).
  * 그래서 여기서 확인하는 것은 계산이 아니라 '전달'과 '빈/장애 상태의 구분'이다:
- *   1) 티켓이 0건인 것과 소스가 죽은 것은 **다른 화면**이다.
- *   2) 연결이 없어서 못 세는 것도 0건이 아니다 — 이유를 말해야 사용자가 뭘 할지 안다.
+ *   1) 티켓이 0건인 것과 티켓을 못 읽은 것은 **다른 화면**이다.
+ *   2) 없어진 안내(«Notion 연결»)가 되살아나지 않는다.
  */
 
 const apiMock = vi.fn();
@@ -122,49 +126,31 @@ describe("내 업무량 · 완료 통계", () => {
     expect(screen.getByText("내 티켓으로")).toBeInTheDocument();
   });
 
-  it("연결이 없으면 0건이 아니라 '연결이 없다'고 말한다", async () => {
+  /* 「연결이 없다」 갈래가 여기 셋 있었다 (S15). 그 상태는 없어졌다 — 사람마다 담당자로
+   * 가리킬 값이 언제나 있다(D-285). 옛 응답 모양이 실려 와도 화면은 **없어진 절차를
+   * 안내하지 않는다.** 남은 「모른다」는 티켓 읽기 실패 하나뿐이고, 그때 카드는 0 이 아니라
+   * '-' 를 그린다(과거엔 totals.all===0 이 undefined 에서 거짓이라 아래 차트 분기로 빠져
+   * load.by_week.map() 에서 죽었다). */
+  it("옛 연결 안내가 되살아나지 않는다", async () => {
     apiMock.mockResolvedValue(stats({ source: { configured: true, ok: true, mapped: false } }));
     renderStats();
-    expect(await screen.findByText(/Notion 사용자와 연결되어 있지 않아/)).toBeInTheDocument();
+    await screen.findByText("남은 일");
+    expect(screen.queryByText(/Notion/)).toBeNull();
   });
 
-  // PA-RC-0027: 위 시험은 totals/workload/months를 그대로 둔 채 source만 바꿔 프런트의
-  // source 분기만 본다. 실제 백엔드는 이제 mapped:false일 때 그 세 키를 아예 안 싣는다
-  // (app/profiles/router.py::my_stats) — 그 모양 그대로 줘도 죽지 않고 카드가 '-'를
-  // 그리는지, 그리고 EmptyState가 뜨는지(과거엔 totals.all===0이 undefined에서 거짓이라
-  // 아래 차트 분기로 빠져 load.by_week.map()에서 죽었다)를 여기서 직접 확인한다.
-  it("백엔드가 totals/workload/months를 아예 안 실어도 카드는 '-'를 그리고 안 죽는다", async () => {
+  it("티켓을 못 읽어 totals/workload/months가 아예 안 실려도 카드는 '-'를 그리고 안 죽는다", async () => {
     apiMock.mockResolvedValue({
       ok: true,
-      source: { configured: true, ok: true, mapped: false },
+      source: { configured: true, ok: false, error: "티켓을 읽지 못했습니다." },
       today: "2026-08-03",
       sync: null,
     });
     renderStats();
-    expect(await screen.findByText(/Notion 사용자와 연결되어 있지 않아/)).toBeInTheDocument();
+    expect(await screen.findByText("티켓을 읽지 못했습니다.")).toBeInTheDocument();
     expect(screen.getByText("아직 집계할 티켓이 없습니다")).toBeInTheDocument();
     const remaining = screen.getAllByText("남은 일")[0].closest(".k-readout");
     expect(remaining).not.toBeNull();
     expect(remaining.textContent).toContain("-");
-  });
-
-  /* WF1 R4 — 위 시험은 totals를 안 바꿔 항상 6건이라, 연결이 없는 계정이 실제로도
-   * 거의 항상 함께 겪는 "담당 티켓 0건" 조합을 재현하지 않았다(그래서 이 결함을
-   * 가리고 있었다). 그 조합에서는 배너("계정 연결을 요청하세요")와 빈 상태("담당
-   * 티켓이 하나도 없어서" + "내 티켓으로")가 서로 다른 원인을 말했고, CTA가 데려가는
-   * /my-tickets도 같은 이유(연결 안 됨)로 똑같이 비어 있는 막다른 길이었다. */
-  it("연결이 없고 0건이면, 빈 상태가 배너와 같은 원인을 말하고 막다른 CTA를 안 준다", async () => {
-    apiMock.mockResolvedValue(stats({
-      source: { configured: true, ok: true, mapped: false },
-      totals: { all: 0, active: 0, done: 0, cancelled: 0, overdue: 0, due_today: 0, due_soon: 0, blocked: 0, no_due: 0, completion_rate: null },
-    }));
-    renderStats();
-    expect(await screen.findByText(/Notion 사용자와 연결되어 있지 않아/)).toBeInTheDocument();
-    expect(await screen.findByText("아직 집계할 티켓이 없습니다")).toBeInTheDocument();
-    // 옛 문구("담당인 티켓이 하나도 없어서")와 그 CTA("내 티켓으로")는 이 조합에서 안 보인다 —
-    // 배너가 이미 말한 원인(연결 안 됨)을 빈 상태가 반복하거나, 못 고치는 CTA를 주지 않는다.
-    expect(screen.queryByText(/담당인 티켓이 하나도 없어서/)).not.toBeInTheDocument();
-    expect(screen.queryByText("내 티켓으로")).not.toBeInTheDocument();
   });
 
   it("소스가 미설정이면 그 사실을 말한다", async () => {

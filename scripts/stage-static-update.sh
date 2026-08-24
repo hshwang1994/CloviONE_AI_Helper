@@ -31,7 +31,11 @@ if [ -z "$SERVER" ] || [ -z "$BASE_URL" ]; then
   echo "예: SERVER=admin@10.0.0.10 BASE_URL=https://portal.example.internal bash $0"
   exit 2
 fi
-APP_DIR="/opt/clovirone-web-assistant"
+# 설치 경로는 **제품 정체성 한 곳**에서 온다 (D-226 · `app/core/product.py::APP_DIR`).
+# 여기 문자열로 박아 두면 이름이 바뀌는 날 이 줄만 안 따라온다 — 실제로 그랬다: S3 가
+# slug 를 `clovirassist` 로 갈았는데 이 두 스크립트는 `/opt/clovirone-web-assistant` 를
+# 가리킨 채로 남아, 「배포했다」고 말하면서 아무것도 안 바꿀 수 있는 상태였다(S15 발견).
+APP_DIR="$(PYTHONPATH=. "${PY:-python}" -c 'from app.core.product import APP_DIR; print(APP_DIR)' 2>/dev/null || echo /opt/clovirassist)"
 REMOTE_STAGE="~/deploy-static-update"
 OUT="${OUT:-dist/static-update}"   # 테스트가 임시 디렉터리로 돌릴 수 있게 열어 둔다
 

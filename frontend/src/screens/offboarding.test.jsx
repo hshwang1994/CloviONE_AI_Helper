@@ -41,7 +41,6 @@ const PREVIEW = {
     { key: "department", label: "부서 배정", ok: true, value: "개발팀" },
     { key: "notion", label: "Notion 사용자 연결", ok: true, value: "verified" },
   ],
-  notion_mapped: true,
   tickets: [
     { id: "page-1", tid: 101, title: "혼자 담당 A", status: "진행", due: "2026-09-01", assignee_names: ["퇴사자"] },
     { id: "page-2", tid: 102, title: "공동 담당", status: "진행", due: "2026-09-02", assignee_names: ["퇴사자", "동료"] },

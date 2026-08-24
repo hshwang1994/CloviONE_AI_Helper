@@ -9,14 +9,16 @@
 
 ## CHECKPOINT
 
-- checkpoint_at: **2026-08-24** (S14)
-- phase: **D — 운영 · 이관. 끝났다.** 다음은 Phase E (S15~S20)
-- session: **S14 완료.** 다음은 **S15 — Search/Filter 기능 정확성 (사용자 요청 시)**
+- checkpoint_at: **2026-08-24** (S15)
+- phase: **E — UI Renewal 재개.** S15 가 끝났고 다음은 S16~S20
+- session: **S15 완료.** 다음은 **S16 — Table / Grid / Metadata / Alignment + Chart (요청 시)**
 - branch: `ui/mui-migration`
 - last_stable_commit: **`eec4886c`** — S2 본체 커밋이고 `check_test_strength.py` 가 이 값을 읽는다.
   **S14 도 옮기지 않는다.** 이유는 S11~S13 과 같다 — 그 기준을 옮기는 순간 그동안 지운
   시험들이 검사 시야에서 사라진다.
 - working_tree: clean
+- ui_gate: **UI_RENEWAL_COVERAGE_OK (stage=wave, wave=W5B, 억제 0건)** — S15 가 UI 축의
+  CHECKPOINT 를 W5B 로 올렸다. 그쪽 상세는 [`../ui-renewal/WORK_STATE.md`](../ui-renewal/WORK_STATE.md)
 - 스키마는 **93 표**다. `0013~0016` 은 표를 안 늘린다(칸·데이터만 옮긴다). alembic head 는
   `0016_document_axis_to_documents` 다
 
@@ -254,6 +256,8 @@ S4 가 설치·업그레이드·롤백·백업을 `deploy/install.sh` 하나로 
   결정 **D-274~D-281**, 원장 [`EVIDENCE/S13/`](EVIDENCE/S13/README.md).
 - **S14 — Cutover + Legacy 제거.** 위 절. 결정 **D-282~D-284**, 원장
   [`EVIDENCE/S14/`](EVIDENCE/S14/README.md).
+- **S15 — Search/Filter 기능 정확성.** 조건이 맞는지를 **두 구현의 대조**로 봤다 — 결함 여섯을
+  뿌리에서 고쳤고 전부 오류를 안 내는 종류였다. 결정 **D-285~D-287**.
 
 ## 상태 — 전환 축 다섯
 
@@ -273,21 +277,24 @@ systemd 이름도 함께 갈았다.
 [`../ui-renewal/WORK_STATE.md`](../ui-renewal/WORK_STATE.md).
 **W5B~W15 는 동결**이었고 재개는 Phase E(S15~S20)다 (D-207).
 
-## NEXT — 다음 시작점: S15 (요청 시)
+## NEXT — 다음 시작점: S16 (요청 시)
 
-**S15 = Search/Filter 기능 정확성 — 새 PG Backend 대상.** 사용자 요청 없이 착수하지 않는다.
-범위와 Exit 는 [`MASTER_PLAN.md`](MASTER_PLAN.md) §9.1, Backlog 는 **P-25**.
+**S16 = Table / Grid / Metadata / Alignment + Chart.** 사용자 요청 없이 착수하지 않는다.
+범위와 Exit 는 [`MASTER_PLAN.md`](MASTER_PLAN.md) §9.1, Backlog 는 **P-26**.
 
-S14 가 다음 Session 에게 넘기는 것 다섯:
+S15 가 다음 Session 에게 넘기는 것 다섯:
 
-1. **검색 품질을 이제 업무 기록으로 잴 수 있다.** 본문이 들어왔고(티켓 613 · 문서 103) 색인
-   레인이 실제로 채운다. 재는 자리가 여기다(D-262).
-2. **`@pytest.mark.notion_source` 는 이제 없다.** 그 표가 붙어 있던 파일들은 지웠거나 자체 DB
-   위에서 다시 섰다. 되돌리기 경로가 사라졌으므로 표 자체가 뜻을 잃었다.
-3. **분류된 예외 14건 + 티켓 예외 13건은 사람이 하나씩 정할 목록이다.** 서비스 Open 을
-   막지 않는다 — 소속 없는 티켓은 fail-closed 로 전역 관리자에게만 보인다(의도한 동작).
-4. **아직 남은 Notion 이름들은 데이터다.** `notion_page_id` · `assignee_notion_ids` ·
-   `user_notion_mappings` · `NotionNotConfiguredError` 는 지우려면 **데이터 이전이나 화면과
-   함께** 움직여야 한다. 무엇이 왜 남았는지는 D-284 가 표로 적었다.
-5. **프런트 시험 셋이 S14 이전부터 빨갛다** — P-34. S14 가 만든 것이 아니고(변경을 stash 한
-   채로 같은 셋이 실패한다) 소유는 S17 이다.
+1. **표 정렬 부채가 실측으로 남아 있다.** `numeric_alignment` 8건 —
+   `dist/ui-qa/s15-after/results.json` 이 어느 화면의 어느 칸인지 적었고, W5 가 이미 그 부채를
+   S16 소유로 배정했다.
+2. **조건 사슬을 다시 잴 수 있다.** `tests/regression/test_filter_chain.py` 에 목록을 한 줄
+   더하면 그 화면이 같은 방식으로 검증된다 — 기대값을 손으로 적지 않는다(전량 목록에서 센다).
+3. **캡처를 설치처 없이 찍는다.** `python -m scripts.ui_qa.local_capture --label <라벨>
+   --routes <화면들>` 이 임시 데이터베이스 위에 앱을 띄우고 그 주소로 하네스를 부른다.
+   ⚠️ **S15 는 설치처에 배포하지 않았다** — 고친 화면이 사람들에게 닿으려면 배포가 따로 필요하다.
+4. **담당자 축은 아직 두 종류의 토큰을 담고 있다** — 서비스 계층이 둘 다 해석하지만(D-285)
+   데이터는 안 합쳤다. 합치는 일은 **P-37** 이고 되돌리기 어려운 변경이라 자기 회차를 가져야 한다.
+5. **범위 밖으로 넘긴 것 넷**: `user_knowledge`/`brand_presence`(S19) · 프런트 시험 셋(**P-34**,
+   S17) · 시험 강도 선언 미비 15건(**P-38**) · 백엔드 회귀 넷(**P-39**). 뒤의 셋은 전부 S13·S14
+   가 남겼고 **S15 가 변경을 stash 한 채로 같은 것들이 그대로 뜬다** — S15 가 만든 것은
+   `my-stats.test.jsx` 선언 하나뿐이고 그 자리에서 적었다.

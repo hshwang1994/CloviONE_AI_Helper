@@ -136,6 +136,38 @@ describe("문서 목록의 쪽 넘기기", () => {
     expect(await screen.findByText("인프라")).toBeTruthy();
   });
 
+  /* 🔴 **화면이 말하는 조건과 실제 질의 조건이 같아야 한다** (S15 · C7).
+   *
+   * 이 검색 상자는 맨 `TextField` 에 `defaultValue={q}` 였다 — 값을 **처음 한 번만** 읽는
+   * 입력이라, 주소가 바깥에서 바뀌어도 상자는 따라오지 않았다. 그래서 「검색, 필터 지우기」를
+   * 누르면 목록은 조건 없이 다시 받아 오는데 상자에는 방금 지운 검색어가 그대로 남았다.
+   * 뒤로가기도 같다. 사용자는 걸려 있지도 않은 조건을 화면에서 읽는다. */
+  it("검색어를 지우면 상자도 함께 빈다 — 화면이 없는 조건을 말하지 않는다", async () => {
+    renderList();
+    await screen.findByText("문서 0");
+
+    const box = screen.getByRole("searchbox", { name: "문서 찾기" });
+    await userEvent.type(box, "회의");
+    await waitFor(() => expect(documentCalls().some((p) => p.includes("q=%ED%9A%8C%EC%9D%98"))).toBe(true),
+                  { timeout: 2000 });
+    expect(box.value).toBe("회의");
+
+    // 0건이 되는 응답으로 갈아 끼워 「검색, 필터 지우기」 버튼을 띄운다.
+    apiMock.mockImplementation((path) => {
+      calls.push(String(path));
+      if (String(path).startsWith("/api/knowledge/spaces/")) return Promise.resolve({ folders: [] });
+      if (String(path) === "/api/knowledge/spaces") return Promise.resolve({ items: [{ id: SPACE, name: "우리 공간" }] });
+      if (String(path) === "/api/knowledge/tags") return Promise.resolve({ items: [] });
+      return Promise.resolve({ items: [], total: 0, limit: 50, offset: 0 });
+    });
+    await userEvent.clear(box);
+    await userEvent.type(box, "없는말");
+    const clear = await screen.findByRole("button", { name: "검색, 필터 지우기" }, { timeout: 3000 });
+    await userEvent.click(clear);
+
+    await waitFor(() => expect(screen.getByRole("searchbox", { name: "문서 찾기" }).value).toBe(""));
+  });
+
   it("분류(태그) 조건도 서버 질의에 실려 나간다 — 옛 화면의 문서 종류·업무 분야·기술 태그를 대신한다", async () => {
     renderList();
     await screen.findByText("문서 0");

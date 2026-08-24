@@ -101,7 +101,7 @@ def weekly_digest_facts(
     my_state = home_service.load_my_tickets(db, outbound, settings, user, repo=repo)
     mine = (
         aggregate.sprint_progress(my_state["tickets"], start=start, end=end, today=today)
-        if my_state["ok"] and my_state["mapped"] else None
+        if my_state["ok"] else None
     )
 
     team = None

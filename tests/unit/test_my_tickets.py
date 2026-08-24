@@ -81,7 +81,6 @@ def test_list_my_tickets_returns_only_my_own(db, settings, make_user, project):
             people=["notion-mate"])
 
     out = service.list_my_tickets(db, None, settings, me)
-    assert out["mapped"] is True
     assert [t["tid"] for t in out["tickets"]] == [1, 2]
     assert out["total"] == 2
     # 공동 담당 티켓의 담당자 이름이 해석된다.
@@ -92,13 +91,26 @@ def test_list_my_tickets_returns_only_my_own(db, settings, make_user, project):
     assert out["tickets"][1]["assignee_user_ids"] == [me.id, mate.id]
 
 
-def test_list_my_tickets_unmapped(db, settings, make_user, project):
-    u = make_user(email="u@goodmit.co.kr", display_name="미매핑", role="user")
-    # 티켓이 있어도 매핑이 없으면 「내 것」을 정할 수 없다 — 남의 것을 주는 것보다 낫다.
+def test_list_my_tickets_answers_for_an_account_with_no_legacy_link(
+    db, settings, make_user, project
+):
+    """옛 소스와 짝이 없는 계정도 **자기 목록을 받는다** (S15 · D-285).
+
+    예전에는 이 자리가 「매핑이 없으면 `{mapped: False}` 로 답한다」였다. 그때는 담당자를
+    가리키는 값이 옛 소스의 user id 뿐이라 「이 사람 것이 무엇인지 모른다」가 실제 상태였다.
+    지금은 사람마다 가리킬 값이 언제나 있으므로(`assignee_token`) 그 상태가 없다 —
+    남의 것을 주지 않는다는 성질은 그대로다.
+    """
+    u = make_user(email="u@goodmit.co.kr", display_name="새 계정", role="user")
     _ticket(db, project, tid=7, title="누군가의 것", status="진행", due="2026-08-05",
             people=["notion-someone"])
+    _ticket(db, project, tid=8, title="내 것", status="진행", due="2026-08-06",
+            people=[u.id])
     out = service.list_my_tickets(db, None, settings, u)
-    assert out == {"mapped": False, "tickets": [], "total": 0}
+    assert [t["tid"] for t in out["tickets"]] == [8]
+    assert out["total"] == 1
+    # 「연결이 없다」는 갈래 자체가 없어졌다 — 언제나 참인 필드를 응답에 남기지 않는다.
+    assert "mapped" not in out
 
 
 def test_list_unassigned_excludes_terminal(db, settings, make_user, project):
@@ -115,11 +127,22 @@ def test_list_unassigned_excludes_terminal(db, settings, make_user, project):
     assert tickets[0]["assignee_user_ids"] == []  # 미할당의 정의 그대로
 
 
-def test_list_assignees_only_active_verified(db, make_user):
+def test_list_assignees_is_every_active_account(db, make_user):
+    """담당자 후보는 **활성 사용자 전원**이다 (S15 · D-285).
+
+    예전에는 verified 매핑이 있는 사람만 후보였다. 그 짝은 이제 새로 만들 수 없으므로
+    (S14 가 Notion 런타임을 걷었다) 그 조건은 **새 계정을 영원히 후보에서 빼는** 조건이
+    된다 — 누구도 그 사람에게 일을 줄 수 없다.
+
+    반례는 그대로다: 비활성·보관 계정은 후보가 아니다.
+    """
     a = make_user(email="a2@goodmit.co.kr", display_name="에이", role="user")
     b = make_user(email="b2@goodmit.co.kr", display_name="비", role="user")
-    make_user(email="c2@goodmit.co.kr", display_name="씨(미매핑)", role="user")  # 매핑 없음
+    make_user(email="c2@goodmit.co.kr", display_name="씨(짝 없음)", role="user")
+    off = make_user(email="d2@goodmit.co.kr", display_name="디(비활성)", role="user",
+                    active=False)
     _map(db, a, "notion-a2")
-    _map(db, b, "notion-b2", status=STATUS_UNMAPPED)  # 미검증
+    _map(db, b, "notion-b2", status=STATUS_UNMAPPED)  # 미검증 — 그래도 후보다
     names = [x["display_name"] for x in service.list_assignees(db)]
-    assert names == ["에이"]  # verified 매핑 있는 사람만
+    assert names == ["비", "씨(짝 없음)", "에이"]
+    assert off.display_name not in names

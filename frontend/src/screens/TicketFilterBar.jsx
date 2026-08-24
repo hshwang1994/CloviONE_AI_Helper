@@ -117,10 +117,31 @@ export function ticketQueryParams(state, fields, extra) {
  * 판정은 app/tickets/repository.py 의 TicketFilters.matches 와 같은 규칙이다. */
 const CLIENT_JUDGED = ["status", "priority", "difficulty"];
 
-/* 티켓 하나가 **여러 개**를 가질 수 있는 조건 → 그 값이 들어 있는 배열 필드.
+/* 티켓 하나가 **여러 개**를 가질 수 있는 조건 → 그 값이 들어 있는 자리들.
  * 스칼라로 비교하면 프로젝트가 둘인 티켓·담당자가 둘인 티켓이 조용히 떨어진다.
- * 판정은 서버와 같다: 하나라도 맞으면 통과(app/tickets/repository.py 의 TicketFilters.matches). */
-const CLIENT_JUDGED_MULTI = { project_id: "project_ids", assignee_user_id: "assignee_user_ids" };
+ * 판정은 서버와 같다: 하나라도 맞으면 통과(app/tickets/query.py 의 filter_clauses).
+ *
+ * 🔴 프로젝트는 **자리가 둘**이다. 화면이 고르는 값은 Portal 프로젝트 id 인데
+ * (`/api/tickets/projects`), 이관해 온 티켓의 `project_ids` 에 들어 있는 것은 옛 소스의
+ * relation id 다 — 두 축은 절대 같은 문자열이 되지 않는다. 옛 축만 보면 스프린트의
+ * 프로젝트 조건이 **모든 티켓에서 언제나 거짓**이 되고, 화면에는 "이 프로젝트엔 티켓이
+ * 없다" 로 보인다(오류가 아니라 빈 목록이라 아무도 신고하지 않는다). 서버는 이미 두 축을
+ * `OR` 로 함께 본다 — 그 판정을 여기서도 그대로 쓴다. */
+const CLIENT_JUDGED_MULTI = {
+  project_id: ["project_uid", "project_ids"],
+  assignee_user_id: ["assignee_user_ids"],
+};
+
+/** 행의 여러 자리에서 값을 모은다 — 스칼라 한 칸이든 배열이든 같은 목록으로 편다. */
+function valuesAt(ticket, keys) {
+  const out = [];
+  for (const key of keys) {
+    const v = ticket[key];
+    if (Array.isArray(v)) out.push(...v);
+    else if (v) out.push(v);
+  }
+  return out;
+}
 
 export function matchesTicketFilters(ticket, state, fields) {
   for (const key of fields) {
@@ -132,8 +153,7 @@ export function matchesTicketFilters(ticket, state, fields) {
     }
     const multi = CLIENT_JUDGED_MULTI[key];
     if (multi) {
-      const have = Array.isArray(ticket[multi]) ? ticket[multi] : [];
-      if (!have.includes(want)) return false;
+      if (!valuesAt(ticket, multi).includes(want)) return false;
       continue;
     }
     /* 화면이 판단할 수 없는 조건이면 **소리를 낸다**. 조용히 통과시키면 "필터를 걸었는데

@@ -210,7 +210,12 @@ describe("assigneeTicketRows", () => {
 
 const T34 = {
   id: "t-34", tid: 34, key: "ABCDEF-34", title: "배포 스크립트 정리", status: "진행", due: "2026-08-07",
-  est_wd: 2, project_ids: ["p-b"], project: "인프라", assignee_user_ids: ["u-1", "u-2"],
+  // 🔴 응답 모양 그대로다 (S15): 해석된 Portal id 는 `project_uid` 고, `project_ids` 에
+  // 들어 있는 것은 **옛 소스의 relation id** 다. 필터가 고르는 값은 앞엣것이다 —
+  // 예전 이 픽스처는 `project_ids` 에 Portal id 를 넣어 두어, 화면이 옛 축만 보던
+  // 동안에도 초록이었다(시험이 응답 모양을 흉내 내지 않으면 결함을 못 본다).
+  est_wd: 2, project_uid: "p-b", project_ids: ["rel-b"], project: "인프라",
+  assignee_user_ids: ["u-1", "u-2"],
 };
 
 const WEEKLY = {
@@ -228,7 +233,7 @@ const WEEKLY = {
   by_assignee: [
     { user_id: "u-1", name: "서윤경", tickets: [
       { id: "t-12", tid: 12, key: "ABCDEF-12", title: "로그인 오류 수정", status: "계획", due: "2026-08-05",
-        est_wd: 1, project_ids: ["p-a"], project: "포털", assignee_user_ids: ["u-1"] },
+        est_wd: 1, project_uid: "p-a", project_ids: ["rel-a"], project: "포털", assignee_user_ids: ["u-1"] },
       T34,
     ] },
     // 34번은 담당자가 둘이라 양쪽 버킷에 들어 있다 — 담당자 조건의 함정이 여기 있다.

@@ -48,12 +48,15 @@ from scripts.ui_qa import tls  # noqa: E402
 OUT_DEFAULT = REPO_ROOT / "dist" / "ui-qa" / "w5-filter-e2e"
 
 # 탐색 줄이 있는 화면 넷. **서로 다른 렌더 경로**를 하나씩 고른다 —
-# 티켓 필터 바 · 설정 주도(DataScreen) · 손수 만든 목록(TeamDocs) · 도구 줄만 있는 화면(Board).
+# 티켓 필터 바 · 설정 주도(DataScreen) · 손수 만든 목록(문서) · 도구 줄만 있는 화면(Board).
 # 한 경로만 재면 "그 화면은 고쳤다" 밖에 말하지 못한다.
 ROUTES = [
     ("my-tickets", "/my-tickets"),
     ("policies", "/policies"),
-    ("team-docs", "/team-docs"),
+    # 문서는 `/knowledge` 다 (S14 · C2). 옛 `/team-docs` 는 그쪽으로 가는 리다이렉트라,
+    # 그대로 두면 이 하네스가 **도착지 화면을 찍고 옛 이름으로 기록**한다 — 어느 화면을
+    # 쟀는지가 거짓이 되는 자리다.
+    ("knowledge", "/knowledge"),
     ("board", "/board"),
 ]
 

@@ -102,11 +102,11 @@ def my_tickets(
             page=_page_spec(page),
         )
     except NotionNotConfiguredError as exc:
-        return {"configured": False, "ok": False, "message": exc.message, "mapped": True, "tickets": []}
+        return {"configured": False, "ok": False, "message": exc.message, "tickets": []}
     except NotionQueryError as exc:
-        return {"configured": True, "ok": False, "error": exc.message, "mapped": True, "tickets": []}
+        return {"configured": True, "ok": False, "error": exc.message, "tickets": []}
     return {
-        "configured": True, "ok": True, "mapped": result["mapped"],
+        "configured": True, "ok": True,
         **_paged(result["tickets"], result["total"], page),
     }
 

@@ -312,7 +312,13 @@ def list_documents(
 
     rows = list(
         db.execute(
-            stmt.order_by(Document.updated_at.desc())
+            # 정렬은 **전순서**여야 한다 (Z9 · 티켓 목록이 이미 같은 규칙을 쓴다,
+            # `app/tickets/query.py::ORDER`). `updated_at` 하나로만 정렬하면 같은 시각의
+            # 행들 사이 순서를 DB 가 매번 마음대로 정하고, 그 순간 OFFSET 페이지네이션이
+            # **1쪽에 나온 문서를 2쪽에 또 내거나 아예 빠뜨린다** — 사용자에게는 "문서가
+            # 사라졌다" 로 보이고 새로고침하면 돌아와서 재현조차 안 된다. 이관은 문서
+            # 여럿을 한 회차에 적재하므로 같은 시각이 실제로 생긴다.
+            stmt.order_by(Document.updated_at.desc(), Document.id.asc())
             .limit(max(1, min(limit, PAGE_MAX)))
             .offset(max(0, offset))
         ).scalars().all()

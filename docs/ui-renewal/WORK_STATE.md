@@ -4,72 +4,90 @@
      이력은 이 파일의 git log 다. 최대 120줄 - 초과하면 Gate 가 실패한다. -->
 
 ## CHECKPOINT
-- checkpoint_at: 2026-08-21T00:00:00+09:00
-- wave: W5
-- wave_status: **완료.** 그리고 **W5B~W15 는 이 시점부터 동결**이다 — 근거 **D-207**.
-  이 축의 재개는 Wave 가 아니라 **Session S15~S20** 이다. 아래 NEXT 의 재배치 표가 정본이고,
-  계획 전체는 `docs/platform/MASTER_PLAN.md` §14 다
-- **동결 중 이 파일이 뜻하는 것**: `wave: W5` 는 「W5 까지 끝났다」는 사실이고, Gate 를
-  `--stage wave`(W5)로 돌리면 그 범위를 검사한다. **W5B 로 올리지 않는다** — 올리면 게이트가
-  아직 시작하지 않은 범위를 검사한다
-- build_index_sha256: `08b5525cb2f52618` — 서버가 서브 중인 것이자 **After 의 지문**.
-  W4 `1a48d92ee9e55127` · W3 `c03113861aaa5138` · W2 `344ce7e7fc221246` · W1 `104e49366bf030f4`
-  · Before `9ab4d470163e475a`. 소스 지문 `BUILD_STAMP.source_hash` `bc8008f97def`
-- coverage_gate: `--stage plan` **PASS** · `--stage wave`(**W5**) **PASS** (억제 0건).
-  W5 가 게이트에 둘을 더했다. **C10c** — 「승격된 Assertion 이 실제로 `--fail-on` 으로 걸린 채
-  돌았는가」(W0~W4 는 승격을 **선언만** 했다). **C0** — 「선언한 After 가 이번 Wave 의 전량
-  실행인가」(`capture_labels.after` 가 W1 값 그대로여서 W2·W3·W4 게이트가 W1 의 측정을 보고
-  초록이 됐다). 뿌리는 증거를 **모으는 손과 가리키는 손이 달랐다**는 것이다
-- static_checks: **STATIC_CHECKS_OK** (`check_label_above.py` · `check_qa_target_host.py` 포함)
-- tests: frontend `npx vitest run` **2,409 PASS / 0 FAIL**(파일 322) ·
-  `check_test_strength.py --base 1c7d8c07` **OK** · runner `test_assistant.py` **293 PASS** ·
-  backend `run_full_regression.sh` **FULL_REGRESSION_OK**(4청크). W5 는 `app/**/*.py` diff 0 이다
-- 프로브 반례: `probe_selftest` **PROBE_SELFTEST_OK (19 사례)**. W5 는 판정 규칙을 **여덟 번 좁히고
-  세 번 넓혔다 — 한 번도 끄지 않았다**
-- 실측 (`w5-after` 9뷰포트 × 2테마 전량 — **W1~W4 가 한 번도 안 돌린 범위다**):
-  승격 다섯 중 넷이 fail 0 — `header_cell_alignment_mismatch` 578/0 · `plain_dropdown_for_entity`
-  306/0 · `isolated_control_row` 1,089/0 · `control_baseline_mismatch` **1,381/0**.
-  다섯째 `numeric_alignment` 는 18/182 — 13 Route 의 표 정렬 부채로 **S16(구 W6) 소유**
-- open_findings: Surface Finding **339건 전수** · 별도 원장 **173건** 중 **81건 CLOSED**.
-  남은 **92건은 전부 소유 Wave 가 있고**, 그 Wave 는 아래 표대로 Session 으로 이관됐다.
-  **W5 소유 잔여 0**
-- reviewers: 구현하지 않은 독립 3 렌즈가 **24건** 제기 → 상위 10건 반증 검증 → **확정 6 · 기각 4**.
-  핵심은 «내가 만든 검사가 내가 만든 결함을 못 봤다» — 노치 라벨이 absolute 라 **모든 MUI 입력**이
-  «두 줄» 로 세져 탈락률 100% 였고, 반례 17 사례는 전부 맨 `<button>` 이라 그 실명을 구조적으로
-  못 잡았다. 근거·수치는 **D-186**
-- test_server: https://clovirassist.gooddi.lab = 10.100.64.71. 접속·배포·QA 값은
-  `dist/ops/server.env`(gitignore). 배포는 사람 없이 돈다 — `scripts/apply-static-update.sh`
-- commit: `d41d94e5`(W5 구현·번들·캡처 995장·Control Plane) · `60f8fafb`(W5 문서) ·
-  동결 선언 `3d489bbc`(S0)
+- checkpoint_at: 2026-08-24T20:00:00+09:00
+- wave: W5B
+- wave_status: **완료 (S15).** 동결이 풀렸고 진행 단위는 Wave 가 아니라 **Session S15~S20**
+  이다 — 재배치 표는 아래 NEXT, 계획 전체는 `docs/platform/MASTER_PLAN.md` §14 다
+- build_index_sha256: `c9cab277de958811` — **S15 캡처(`s15-after`)가 찍은 번들**.
+  W5 `08b5525cb2f52618` · W4 `1a48d92ee9e55127` · W3 `c03113861aaa5138` ·
+  W2 `344ce7e7fc221246` · W1 `104e49366bf030f4` · Before `9ab4d470163e475a`.
+  소스 지문 `BUILD_STAMP.source_hash` `9477754b5121`
+- coverage_gate: `--stage plan` **PASS** · `--stage wave`(**W5B**) **PASS** (억제 0건).
+  S15 가 셋을 더했다. **C11 의 검사 범위가 Wave 가 아니다** — 조건 Flow 를 PASS 라고 적은
+  Surface 는 전부 검사한다(조건 축을 고치는 Session 은 화면을 소유하지 않아서 이 조건은 그동안
+  **아무 Surface 도 안 보고 있었다**). **PASS 에 증거를 요구한다**. 그리고 **「이 머신에 없다」와
+  「없다」를 가른다** — 캡처 실행이 하나도 없으면 종료코드 3 이고 통과로 접지 않는다
+- static_checks: **FAILED — S15 가 만든 것이 아니다.** `check_test_strength.py` 가 기준
+  `eec4886c` 대비 **15건**을 드는데 전부 S13·S14 가 남긴 선언 미비다(변경을 stash 한 채로 같은
+  열다섯이 뜬다). S15 가 만든 한 건(`my-stats.test.jsx`)은 그 자리에서 선언했다. 소유는 **P-38**
+- tests: frontend `npx vitest run` **2,379 PASS / 3 FAIL**(파일 320) — 그 셋은 **P-34**(S14
+  이전부터 빨갛다, 소유 S17). backend `tests/unit` **1,362 PASS** · `tests/security` **759 PASS** ·
+  `tests/integration` 4청크 전부 **OK** · `tests/regression` **445 PASS / 4 FAIL** — 그 넷은
+  전부 S14 가 남겼다(**P-39**, 변경을 stash 한 채로 같은 넷이 뜬다). S15 신규 시험 19건 PASS
+- 실측 (`s15-after` — 건드린 화면 11개 × 2뷰포트 × 2테마 = **44페이지**, E5 대로 변경
+  Surface 만): 승격 다섯 중 넷이 fail 0. 다섯째 `numeric_alignment` 8건은 **S16 소유**의 표
+  정렬 부채다. 실브라우저가 결함 하나를 새로 잡았다 — `/knowledge` 의 공간 선택기가 평범한
+  드롭다운이었다(`plain_dropdown_for_entity`). 고치고 같은 검사로 확인했다(4 → 0)
+- 조건 사슬 실측: `tests/regression/test_filter_chain.py` 가 목록 일곱 곳에서 **38회차**를
+  돌린다. 기대 집합은 **전량 목록에 파이썬 술어를 적용해 직접 세고**, 서버의 SQL 과 갈리면
+  실패다(표본이 판정력을 잃어도 실패). 원장은 `dist/ui-qa/s15-filter-chain/chain.json`
+- open_findings: S15 가 **F-0010(Critical)** 을 닫았다 — 사용자가 신고한 「연결된 티켓이
+  Filter 결과에서 누락된다」. 새로 등록 2건(`user_board`/`numeric_alignment` → S16 ·
+  `user_knowledge`/`brand_presence` → S19), 재측정으로 닫힘 18건
+- reviewers: 독립 에이전트 검수는 안 썼다 — 판정을 **두 구현의 대조**(SQL ↔ 술어)와 실브라우저
+  검사로 세웠고, 고친 것마다 Known-Bad 를 되돌려 빨개지는 것을 확인했다(다섯 건)
+- test_server: https://clovirassist.gooddi.lab = 10.100.64.71. 값은 `dist/ops/server.env`.
+  ⚠️ **S15 는 배포하지 않았다** — 캡처는 임시 데이터베이스 위에 앱을 띄워 찍었다
+  (`scripts/ui_qa/local_capture.py`). 설치처 배포는 캡처의 전제가 아니라 별개의 결정이다
+- commit: 아래 NEXT 참조 (S15 본체)
 - plan: `docs/ui-renewal/PLAN.md`(UI 축 정본) · `DIRECTIVE_v7.txt`(원 지시서) ·
   **`docs/platform/MASTER_PLAN.md`(제품 전체 정본 — 여기가 상위다)**
 
 ## NOW
-**W5B~W15 동결.** UI 축은 여기서 멈추고, 제품은 데이터 계층부터 다시 세운다.
+**동결이 풀렸다. S15 가 W5B 를 끝냈다** — 목적은 그대로였고 대상만 바뀌었다(U7): Legacy
+Notion Query 가 아니라 **새 PG Query 와 Relation** 위에서 조건이 맞는지를 봤다.
 
-동결하는 이유는 UI 작업이 덜 중요해서가 아니라 **W5B~W15 의 검증 대상이 곧 사라지기 때문**이다.
-W5B 는 Legacy Notion Query 를 대상으로 Search/Filter 정확성을 재려 하고, W8 의 Pilot 8종에는
-없어질 Route 가 들어 있으며, W12 의 관리자 44 Surface 에는 Notion·SQLite 화면이 있다.
-**지금 실행하면 두 번 일한다.**
+이번 회차가 답한 질문은 하나다 — **결과가 맞는가.** 화면에서 값이 바뀌는 것은 정상 동작의
+증거가 아니므로, 목록 일곱 곳에서 조건을 걸고 그 결과를 **전량 목록에서 직접 센 기대 집합**과
+대조했다. 서버의 SQL 과 시험의 술어가 같은 질문에 따로 답한다.
 
-Notion 을 System of Record 에서 내리고 PostgreSQL 을 정본으로 세우는 전환이 시작됐다(**D-187**).
-그 전환은 Route 집합과 도메인 어휘를 바꾸므로, **새 IA 가 실재한 뒤에** UI 축을 재개한다.
+그렇게 해서 나온 결함 여섯은 전부 **오류를 내지 않는** 종류였다:
 
-**W0~W5 자산은 폐기하지 않는다**(U6) — `theme.js` · `kit.jsx` · `FilterBar`/`filters.jsx` ·
-`EntityCombobox` · `navConfig` · Control Plane 3종 · Assertion 34종 · `probe_selftest.py` ·
-프런트 테스트 전량. 이 축이 만든 것은 부품과 계측이고, 그 둘은 데이터 계층이 바뀌어도 산다.
+* 담당자 축이 **새 계정을 가리키지 못했다** — 활성 15명 중 2명이 「내 티켓」이 영원히 비고
+  담당자 후보에도 없었다. 화면은 **없어진 시스템에 연결을 요청하라**고 안내했다 (D-285)
+* 주소에 이미 질의가 달린 목록은 조건이 **서버에 안 닿았다** — 알림 화면에 관리 알림이
+  섞였고 「다음」을 눌러도 같은 20건이 왔다 (D-286)
+* 스프린트의 프로젝트 조건이 **1,133건 전부에서 언제나 거짓**이었다 — 화면이 옛 relation
+  축만 봤다. 같은 뿌리로 편집 모달의 프로젝트 칸도 늘 비어 보였다 (D-287)
+* 문서 검색 상자가 주소와 갈라졌다 — 조건을 지워도 글자가 남아 화면이 없는 조건을 말했다
+* 게시판·결재함이 **20건에서 조용히 잘렸다** — 건수를 적어 놓고 21번째부터는 열 길이 없었다
+* 문서 목록 정렬이 전순서가 아니었다 — 같은 시각 문서 사이에서 쪽 경계가 행을 반복하거나
+  빠뜨릴 수 있다(이관은 여럿을 한 회차에 적재한다)
 
-**W5B 의 목적은 반드시 남긴다**(U7). 없애는 것은 **대상**이지 목적이 아니다.
+**시험이 응답 모양을 흉내 내지 않으면 결함을 못 본다**는 것을 이번에도 겪었다 — 스프린트
+픽스처가 `project_ids` 에 Portal id 를 넣어 두어, 화면이 옛 축만 보던 동안에도 초록이었다.
 
 ## NEXT
-**이 파일이 지목하는 다음 작업은 없다.** 다음 작업은 `docs/platform/WORK_STATE.md` 가 지목한다.
-UI 축 재개는 그 계획의 **Phase E** 이고, 그때 이 파일을 다시 연다.
+다음 작업은 **S16 — Table / Grid / Metadata / Alignment + Chart** 다 (Backlog **P-26**).
+`numeric_alignment` 8건이 그 회차를 기다리고 있고, S15 의 캡처(`s15-after`)가 그 실측을
+남겨 뒀다. 시작점은 `docs/platform/WORK_STATE.md` 이고 이 파일은 그 회차가 다시 연다.
+
+S15 가 다음 Session 에게 넘기는 것 넷:
+
+1. **조건 사슬을 다시 잴 수 있다.** `tests/regression/test_filter_chain.py` 에 목록을 한 줄
+   더하면 그 화면의 조건이 같은 방식으로 검증된다 — 기대값을 손으로 적지 않는다.
+2. **캡처를 설치처 없이 찍는다** — `scripts/ui_qa/local_capture.py` 가 임시 데이터베이스
+   위에 앱을 띄우고 그 주소로 하네스를 부른다.
+3. **C11 이 이제 실제로 검사한다.** 조건 Flow 를 PASS 라고 적으면 그 화면의 복합·쪽 초기화·
+   경합·캐시 키·뒤로가기 Flow 가 함께 있어야 하고, PASS 에는 증거가 있어야 한다.
+4. **범위 밖으로 넘긴 것 셋**: `numeric_alignment`(S16) · `user_knowledge`/`brand_presence`
+   (S19) · 시험 강도 선언 미비 15건(**P-38**, S13·S14 가 남겼다).
 
 재배치 표(정본은 **D-207** · `docs/platform/MASTER_PLAN.md` §14.3):
 
 | Wave | 판정 | 재배치 | 넘긴 Finding |
 |---|---|---|---|
-| **W5B** | **REDEFINE** — 목적 보존, 대상 교체 | **S15** (새 PG Query·Relation 대상 8단계 사슬) | — |
+| **W5B** | **REDEFINE** — 목적 보존, 대상 교체 | **S15 완료** (새 PG Query·Relation 대상 8단계 사슬) | — |
 | W6 | KEEP(공유 부품) + MERGE(Inline Edit → Ticket 도메인) | **S16** | 20 |
 | W7 | KEEP | **S17** | 4 |
 | W8 | REDEFINE — Pilot 집합을 새 IA Archetype 으로 | **S18** | 26 |

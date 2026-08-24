@@ -58,6 +58,24 @@ export function useTicketList(path, qs) {
   });
 }
 
+/* 티켓 한 건의 **프로젝트 축**. 행이 두 자리로 실어 오기 때문에 여기 한 곳에서만 고른다.
+ *
+ *   `project_uid`  해석된 Portal 프로젝트 id — 화면이 고르는 값과 **같은 축**이다
+ *                  (`/api/tickets/projects` 가 주는 것이 `projects.id` 다).
+ *   `project_ids`  이관해 온 티켓이 아직 달고 있는 옛 소스의 relation id 목록.
+ *
+ * 옛 축만 읽으면 화면은 **자기가 준 적 없는 값**을 들고 있게 된다. 그 값은 어느 후보와도
+ * 안 맞으므로, 필터는 언제나 0건이 되고 편집 폼의 프로젝트 칸은 언제나 비어 보인다 —
+ * 둘 다 오류를 안 내고 「이 프로젝트엔 티켓이 없다」·「이 티켓엔 프로젝트가 없다」로
+ * 읽힌다. 서버는 이미 두 축을 함께 본다(`app/tickets/query.py::filter_clauses`).
+ */
+export function ticketProjectId(ticket) {
+  const t = ticket || {};
+  if (t.project_uid) return t.project_uid;
+  const legacy = Array.isArray(t.project_ids) ? t.project_ids : [];
+  return legacy[0] || "";
+}
+
 /** 응답의 목록. 서버는 `items` 를 정본으로 주고 `tickets` 는 옛 화면 호환용 별칭이다. */
 export function ticketRows(data) {
   const d = data || {};

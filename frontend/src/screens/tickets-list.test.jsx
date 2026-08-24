@@ -97,11 +97,14 @@ describe("내 티켓 — 목록을 못 읽었을 때", () => {
     expect(screen.queryByRole("table")).toBeNull();
   });
 
-  it("내 Notion 계정이 연결되지 않은 경우는 다른 안내를 보여준다", async () => {
-    mockMine({ configured: true, mapped: false, tickets: [] });
+  /* 「내 계정이 Notion 사용자와 연결되어 있지 않습니다」 갈래가 여기 있었다 (S15).
+     그 상태는 없어졌다 — 사람마다 담당자로 가리킬 값이 언제나 있다(D-285). 서버가 옛
+     응답 모양을 흉내 내 그 값을 실어 보내도 화면은 **없어진 절차를 안내하지 않는다.** */
+  it("연결을 요청하라는 옛 안내가 되살아나지 않는다", async () => {
+    mockMine({ configured: true, mapped: false, tickets: [], total: 0 });
     renderMyTickets();
-    expect(await screen.findByText("내 계정이 Notion 사용자와 연결되어 있지 않습니다")).toBeInTheDocument();
-    expect(screen.getByText(/‘Notion 사용자 연결’을 요청하세요/)).toBeInTheDocument();
+    expect(await screen.findByText("담당한 티켓이 없습니다")).toBeInTheDocument();
+    expect(screen.queryByText(/Notion/)).toBeNull();
   });
 });
 

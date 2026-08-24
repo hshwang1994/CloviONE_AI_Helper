@@ -532,7 +532,7 @@ SHA256SUMS}` 세트다. 파생 넷은 **행만** 빠지고(`--exclude-table-data
 
 | S | 이름 | 원 Wave | Exit 조건 |
 |---|---|---|---|
-| **S15** | Search/Filter **기능 정확성** — 새 PG Backend 대상 | W5B (REDEFINE) | C7 8단계 사슬이 전 Consumer 에서 PASS · 조합 필터 · 주소 복원 · page 리셋 · race · cache key |
+| **S15** ✅ | Search/Filter **기능 정확성** — 새 PG Backend 대상 | W5B (REDEFINE) | **완료 (2026-08-24)** — 조건 사슬을 목록 일곱 곳(`/api/tickets` 셋 · 문서 · 게시판 · 알림 · 관리자 사용자)에서 **38회차** 실측했다. 기대 집합을 손으로 적지 않는다: 전량 목록에 파이썬 술어를 적용해 직접 세고 서버의 SQL 과 대조한다 — 같은 질문에 두 구현이 따로 답하고 갈리면 실패다(`tests/regression/test_filter_chain.py`). 표본이 판정력을 잃으면(전부 통과·전부 탈락) 그것도 실패로 본다. 화면 쪽 성질 넷(쪽 초기화·경합·캐시 키·뒤로가기)은 공용 부품 위에서 계약 시험이 지킨다. 🔴 **결함 여섯을 뿌리에서 고쳤고 전부 오류를 안 내는 종류였다**: 담당자 축이 새 계정을 못 가리켜 활성 15명 중 2명의 「내 티켓」이 영원히 비어 있었고 화면은 없어진 시스템에 연결을 요청하라고 안내했다(D-285) · 주소에 이미 질의가 달린 목록은 조건이 서버에 안 닿아 사용자 알림에 관리 알림이 섞이고 「다음」이 같은 20건을 돌려줬다(D-286) · 스프린트의 프로젝트 조건이 1,133건 전부에서 언제나 거짓이었다(D-287) · 문서 검색 상자가 주소와 갈라졌다 · 게시판·결재함이 20건에서 조용히 잘렸다 · 문서 목록 정렬이 전순서가 아니었다. 고친 것마다 Known-Bad 를 되돌려 시험이 빨개지는 것을 확인했다. 실브라우저 캡처(`s15-after`, 44페이지)가 결함 하나를 더 잡았고(`/knowledge` 공간 선택기) 고친 뒤 같은 검사로 확인했다. 게이트 **UI_RENEWAL_COVERAGE_OK (stage=wave, wave=W5B)**. 결정 **D-285~D-287** |
 | **S16** | Table / Grid / Metadata / Alignment + Chart | W6 | 4개 Table Assertion `--fail-on` 승격 초록 · C9 통과 |
 | **S17** | Empty / Loading / Error / Feedback + Clovi + Detail Metadata | W7 | `mascot_visible_size` 초록 · 빈 데이터에서 차트·표·Pager 언마운트 |
 | **S18** | Pilot Archetype 8종 — 새 IA 기준 | W8 (REDEFINE) | Pilot Exit Gate 9문항 + Functional Flow PASS |

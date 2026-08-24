@@ -329,14 +329,39 @@ describe("스프린트 — 화면이 직접 거르는 조건", () => {
   /* 프로젝트와 담당자는 티켓 하나가 **여럿**을 가질 수 있다. 스칼라로 비교하면 둘 이상 달린
      티켓이 조용히 떨어진다 — 판정은 서버와 같게 "하나라도 맞으면 통과"다. */
   it("프로젝트와 담당자는 배열 안에 있는지로 판단한다", () => {
-    const multi = { ...row, project_ids: ["p-1", "p-2"], assignee_user_ids: ["u-1", "u-2"] };
-    expect(matchesTicketFilters(multi, { project_id: "p-2" }, SPRINT_FIELDS)).toBe(true);
+    const multi = { ...row, project_uid: "p-1", project_ids: ["rel-1", "rel-2"],
+                    assignee_user_ids: ["u-1", "u-2"] };
+    expect(matchesTicketFilters(multi, { project_id: "p-1" }, SPRINT_FIELDS)).toBe(true);
+    expect(matchesTicketFilters(multi, { project_id: "rel-2" }, SPRINT_FIELDS)).toBe(true);
     expect(matchesTicketFilters(multi, { project_id: "p-9" }, SPRINT_FIELDS)).toBe(false);
     expect(matchesTicketFilters(multi, { assignee_user_id: "u-2" }, SPRINT_FIELDS)).toBe(true);
     expect(matchesTicketFilters(multi, { assignee_user_id: "u-9" }, SPRINT_FIELDS)).toBe(false);
     // 그 값을 아예 안 싣는 행(옛 리포트 경로)은 통과하지 못한다 — 그래서 화면이 그 응답
     // 모양에서는 두 조건을 **내놓지 않는다**(SPRINT_REPORT_FIELDS).
     expect(matchesTicketFilters(row, { project_id: "p-1" }, SPRINT_FIELDS)).toBe(false);
+  });
+
+  /* 🔴 프로젝트 축이 **두 자리**라는 것이 이 시험의 전부다 (S15).
+   *
+   * 화면이 고르는 값은 `/api/tickets/projects` 가 준 **Portal 프로젝트 id** 다. 그런데
+   * 이관해 온 티켓의 `project_ids` 에 든 것은 옛 소스의 relation id 라 그 둘은 절대 같은
+   * 문자열이 되지 않는다. 옛 축만 보던 동안 스프린트의 프로젝트 조건은 **1,133건 전부에서
+   * 언제나 거짓**이었고, 화면에는 "이 프로젝트엔 티켓이 없다" 로 보였다.
+   *
+   * 서버는 이미 두 축을 OR 로 본다(app/tickets/query.py::filter_clauses) — 여기서도 같다. */
+  it("이관해 온 티켓은 해석된 Portal id(project_uid)로 걸린다 — 옛 relation id 와 다른 값이다", () => {
+    const migrated = {
+      ...row,
+      project_uid: "9c1e-portal-uuid",
+      project_ids: ["1f2a3b4c5d6e7f8091a2b3c4d5e6f708"],  // 옛 소스의 relation id
+    };
+    expect(matchesTicketFilters(migrated, { project_id: "9c1e-portal-uuid" }, SPRINT_FIELDS)).toBe(true);
+    expect(matchesTicketFilters(migrated, { project_id: "다른-프로젝트" }, SPRINT_FIELDS)).toBe(false);
+  });
+
+  it("자체 DB 에서 만든 티켓은 옛 축이 아예 비어 있어도 걸린다", () => {
+    const native = { ...row, project_uid: "9c1e-portal-uuid", project_ids: [] };
+    expect(matchesTicketFilters(native, { project_id: "9c1e-portal-uuid" }, SPRINT_FIELDS)).toBe(true);
   });
 
   it("판단할 수 없는 조건은 조용히 넘기지 않고 소리를 낸다", () => {

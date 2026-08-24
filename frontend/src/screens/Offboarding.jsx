@@ -323,10 +323,6 @@ function OffboardPlan({ preview, onDone, toast }) {
         <Box sx={{ mb: 2.5 }}>
           <Callout tone="danger">보유 티켓을 불러오지 못했습니다: {preview.tickets_error}: 이 상태로 실행하면 옮기지 못한 티켓이 그대로 남습니다.</Callout>
         </Box>
-      ) : !preview.notion_mapped ? (
-        <Box sx={{ mb: 2.5 }}>
-          <Callout tone="warn">이 계정은 Notion 사용자와 연결되어 있지 않아 담당 티켓을 조회하지 못합니다. 계정 처리만 진행합니다.</Callout>
-        </Box>
       ) : null}
 
       <Card sx={{ mb: 2.5 }}>

@@ -75,19 +75,19 @@ def utc_iso_bounds(settings, start: str, end: str) -> tuple[str, str]:
 def load_my_tickets(db: Session, outbound, settings, user: User, *, repo) -> dict:
     """내 티켓을 저장소 seam 으로 한 번 읽고, 실패를 응답 가능한 상태로 접는다.
 
-    반환은 항상 같은 모양이다: {configured, ok, mapped, tickets, message?, error?}.
+    반환은 항상 같은 모양이다: {configured, ok, tickets, message?, error?}.
     예외를 밖으로 던지지 않는 이유는 홈이 티켓 하나 때문에 통째로 죽으면 안 되기 때문이다.
     (/api/tickets/mine 라우터가 하는 것과 같은 접기 — 어휘도 같은 값을 쓴다.)
     """
     try:
         result = tickets_service.list_my_tickets(db, outbound, settings, user, repo=repo)
     except NotionNotConfiguredError as exc:
-        return {"configured": False, "ok": False, "mapped": True,
+        return {"configured": False, "ok": False,
                 "message": exc.message, "tickets": []}
     except NotionQueryError as exc:
-        return {"configured": True, "ok": False, "mapped": True,
+        return {"configured": True, "ok": False,
                 "error": exc.message, "tickets": []}
-    return {"configured": True, "ok": True, "mapped": bool(result.get("mapped")),
+    return {"configured": True, "ok": True,
             "tickets": list(result.get("tickets") or [])}
 
 
@@ -102,12 +102,12 @@ def build_today(
 
     state = load_my_tickets(db, outbound, settings, user, repo=repo)
     tickets = state["tickets"]
-    # PA-RC-0027: 소스를 못 읽었거나 매핑이 없으면(usable=False) 버킷 자체를 안 싣는다 —
+    # PA-RC-0027: 티켓을 못 읽었으면(usable=False) 버킷 자체를 안 싣는다 —
     # tickets가 이미 빈 리스트라 bucket_my_tickets를 그대로 돌리면 전부 count=0으로
     # 나와 '모른다'가 '0건이다'로 보인다(work.py의 usable 판정·주석과 같은 원칙, 두
     # 화면이 같은 상황에서 다른 말을 하면 안 된다). Home.jsx:309가 이미 버킷 부재를
     # `null`로 처리하므로 프런트 변경은 필요 없다.
-    usable = state["ok"] and state["mapped"]
+    usable = state["ok"]
     ticket_block = {
         **{k: v for k, v in state.items() if k != "tickets"},
         **(aggregate.bucket_my_tickets(tickets, today=today_iso, limit=item_limit) if usable else {}),

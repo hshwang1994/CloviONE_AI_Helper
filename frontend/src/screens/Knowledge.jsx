@@ -19,6 +19,7 @@ import {
   useToast,
 } from "../ui/kit.jsx";
 import { DragItem, SortableList } from "../ui/DragDrop.jsx";
+import { EntityCombobox, SearchBox } from "../ui/filters.jsx";
 import { Pager } from "../ui/Pager.jsx";
 import Chip from "@mui/material/Chip";
 import StarRoundedIcon from "@mui/icons-material/StarRounded";
@@ -195,6 +196,16 @@ export function Knowledge() {
     setParams(next);
   };
 
+  /* 검색 확정은 `SearchBox` 가 디바운스해서 부른다. **참조가 고정**돼야 한다 — 매 렌더마다
+     새로 만들면 `React.memo` 가 깨져 글자마다 목록 전체가 다시 그려진다(다른 목록 화면과
+     같은 규칙이다). `setQuery` 는 렌더마다 새로 만들어지므로 최신 값을 ref 로 읽는다. */
+  const setQueryRef = React.useRef(setQuery);
+  setQueryRef.current = setQuery;
+  const commitSearch = React.useCallback(
+    (next) => setQueryRef.current({ q: next || null, page: null }),
+    [],
+  );
+
   const spaces = useSpaces();
   const items = spaces.data?.items || [];
 
@@ -297,18 +308,19 @@ export function Knowledge() {
       <Stack direction={{ xs: "column", md: "row" }} spacing={2} alignItems="flex-start">
         <Card sx={{ width: { xs: "100%", md: "20rem" }, flexShrink: 0 }}>
           <Stack spacing={2}>
-            <TextField
-              select
-              size="small"
+            {/* 공간은 **기수가 무한히 자라는 대상**이다 — 팀이 늘면 공간도 는다. 평범한
+                드롭다운으로 두면 데이터가 쌓이는 만큼 목록을 눈으로 훑게 되고, 이름을
+                알면서도 못 찾는 상태가 된다(C2 · R-5). 실브라우저 검사(S15 캡처의
+                `plain_dropdown_for_entity`)가 이 자리를 지목했다. */}
+            <EntityCombobox
               label="공간"
-              InputLabelProps={{ shrink: true }}
               value={spaceId}
-              onChange={(e) => setParams({ space: e.target.value })}
-            >
-              {items.map((s) => (
-                <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>
-              ))}
-            </TextField>
+              onChange={(next) => { if (next) setParams({ space: next }); }}
+              loading={spaces.isLoading}
+              options={items.map((s) => ({ value: s.id, label: s.name }))}
+              allLabel="공간 고르기"
+              sx={{ width: "100%", maxWidth: "none" }}
+            />
 
             <Box
               component="button"
@@ -343,16 +355,18 @@ export function Knowledge() {
         <Card sx={{ flex: 1, minWidth: 0 }}>
           <Stack spacing={2}>
             <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} alignItems={{ sm: "center" }}>
-              <TextField
-                size="small"
-                label="문서 찾기"
-                InputLabelProps={{ shrink: true }}
-                defaultValue={q}
+              {/* 공용 검색 상자를 쓴다 (W5 · `ui/filters.jsx`). 예전에는 이 자리가 맨
+                  `TextField` 에 `defaultValue={q}` 였다 — 값을 **처음 한 번만** 읽는 입력이라,
+                  주소가 바깥에서 바뀌는 세 가지 이동에서 상자가 따라오지 않았다: 뒤로가기·
+                  앞으로가기, 그리고 「검색, 필터 지우기」. 목록은 조건 없이 다시 받아 오는데
+                  상자에는 방금 지운 검색어가 그대로 남아 있어, 화면이 말하는 조건과 실제
+                  질의 조건이 어긋난다(C7). 공용 부품은 바깥 값이 바뀌면 초안을 맞춘다. */}
+              <SearchBox
+                value={q}
+                onSearch={commitSearch}
+                placeholder="문서 찾기"
+                ariaLabel="문서 찾기"
                 sx={{ flex: 1, minWidth: 0 }}
-                onKeyDown={(e) => {
-                  if (e.key !== "Enter") return;
-                  setQuery({ q: e.target.value.trim(), page: null });
-                }}
               />
               {/* 옛 문서 종류·업무 분야·기술 태그 필터를 대신한다 — 그 축은 태그로 손실 없이
                   들어왔다(S14 · C2, D6). 태그가 하나도 없으면 상자를 안 그린다: 빈 상자는

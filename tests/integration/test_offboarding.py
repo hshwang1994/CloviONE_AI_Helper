@@ -109,7 +109,6 @@ def _assignee_ids(db, page_id: str) -> list[str]:
 def test_preview_lists_the_tickets_the_leaver_actually_holds(client, admin, people, tickets):
     body = client.get(f"/api/admin/offboarding/preview/{people['leaver']}").json()
 
-    assert body["notion_mapped"] is True
     assert body["ticket_count"] == 3
     assert {t["tid"] for t in body["tickets"]} == {101, 102, 103}
     assert body["tickets_error"] is None
@@ -145,7 +144,6 @@ def test_preview_checklist_flags_a_missing_notion_link(client, admin, make_user,
 
     checks = {c["key"]: c for c in body["onboarding"]}
     assert checks["notion"]["ok"] is False
-    assert body["notion_mapped"] is False
 
 
 # ── 실행 ──────────────────────────────────────────────────────────────────────

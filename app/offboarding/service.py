@@ -16,8 +16,8 @@
 4. **순서가 계약이다.** 티켓을 먼저 옮기고 그다음 계정을 비활성화한다. 되돌리기는 정확히
    반대 순서다 — 계정을 먼저 살리고 그다음 티켓을 되돌린다.
 
-   왜냐하면 담당자 해석(`app/tickets/service.py::_verified_id_to_user`)이 **active + 미보관**
-   사용자만 본다. 비활성화가 먼저 일어나면 퇴사자의 소스 id 가 '앱이 모르는 외부 담당자'로
+   왜냐하면 담당자 해석(`app/tickets/service.py::_assignee_id_to_user`)이 **active + 미보관**
+   사용자만 본다. 비활성화가 먼저 일어나면 퇴사자의 담당자 토큰이 '앱이 모르는 외부 담당자'로
    보여 쓰기 경로가 그를 **보존**해 버린다 — 즉 티켓이 옮겨지지 않는다. 되돌리기에서도 계정을
    먼저 살리지 않으면 퇴사자를 담당자로 다시 넣을 수 없다(`_resolve_assignee_ids` 가 거절한다).
    이 두 문장이 이 모듈에서 가장 잘 깨지기 쉬운 부분이라 테스트로 못박아 두었다.
@@ -87,10 +87,8 @@ def preview(
     """
     tickets_error: str | None = None
     held: list[dict] = []
-    mapped = True
     try:
         result = tickets.list_my_tickets(db, outbound, settings, target, repo=repo)
-        mapped = bool(result.get("mapped"))
         held = list(result.get("tickets") or [])
     except Exception as exc:  # noqa: BLE001 — 원인은 화면에 그대로 알린다
         tickets_error = getattr(exc, "message", None) or f"티켓 조회 실패: {type(exc).__name__}"
@@ -99,7 +97,6 @@ def preview(
         "user": _user_brief(target),
         # 온보딩 점검표 — 같은 화면에서 '들어올 때 갖춰야 할 것'을 그대로 뒤집어 쓴다.
         "onboarding": _onboarding_checklist(db, target),
-        "notion_mapped": mapped,
         "tickets": held,
         "ticket_count": len(held),
         "tickets_error": tickets_error,

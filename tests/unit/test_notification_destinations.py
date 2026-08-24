@@ -37,7 +37,9 @@ pytestmark = pytest.mark.unit
         ("chat_room", "c-1", "/chat-rooms/c-1"),
         ("chat_mention", "c-2", "/chat-rooms/c-2"),
         ("ticket", "t-1", "/tickets/t-1"),
-        ("document", "d-1", "/team-docs/d-1"),
+        # 문서의 정본 화면은 `/knowledge` 다 (S14 · C2 — `/team-docs` 는 그쪽으로
+        # 가는 리다이렉트가 됐다). 알림이 옛 주소를 가리키면 한 번 더 튕겨야 열린다.
+        ("document", "d-1", "/knowledge/d-1"),
         ("board_post", "b-1", "/board/b-1"),
     ],
 )

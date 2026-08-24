@@ -170,14 +170,17 @@ describe("홈 '오늘' — 커맨드 센터", () => {
     expect(screen.queryByText(/해당하는 티켓이 없습니다/)).toBeNull();
   });
 
-  // PA-RC-0027: 매핑이 없으면(usable=false) 백엔드가 버킷 키를 아예 안 싣는다 —
-  // EMPTY_BUCKETS(mapped:true, count:0)와 겉보기엔 같은 "숫자 없음"이지만 뜻이 다르다
+  // PA-RC-0027: 티켓을 못 읽으면(usable=false) 백엔드가 버킷 키를 아예 안 싣는다 —
+  // EMPTY_BUCKETS(count:0)와 겉보기엔 같은 "숫자 없음"이지만 뜻이 다르다
   // ("0건이다" vs "모른다"). 카드가 "0"이 아니라 "-"를 그려야 그 구분이 지켜진다.
-  it("매핑이 없으면 개수 카드가 '0'이 아니라 '-'를 그린다", async () => {
+  //
+  // 「매핑이 없다」가 이 자리의 옛 원인이었다 — 그 상태는 없어졌고(S15 · D-285) 남은
+  // 원인은 읽기 실패 하나뿐이다.
+  it("티켓을 못 읽으면 개수 카드가 '0'이 아니라 '-'를 그린다", async () => {
     routeApi({
       today: {
         ...TODAY_OK,
-        tickets: { configured: true, ok: true, mapped: false },
+        tickets: { configured: true, ok: false, error: "티켓을 읽지 못했습니다." },
         sprint: null,
       },
     });

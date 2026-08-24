@@ -64,14 +64,9 @@ function SourceNotice({ source }) {
       </Callout>
     );
   }
-  if (source.mapped === false) {
-    return (
-      <Callout tone="warn">
-        내 계정이 Notion 사용자와 연결되어 있지 않아 담당 티켓을 찾을 수 없습니다.
-        관리자에게 계정 연결을 요청하세요.
-      </Callout>
-    );
-  }
+  /* 여기 「내 계정이 Notion 사용자와 연결되어 있지 않습니다」 갈래가 있었다 (S15).
+     그 상태는 없어졌다 — 사람마다 담당자로 가리킬 값이 언제나 있다(D-285). 그리고 그
+     안내가 시키던 절차(관리자에게 연결 요청)는 아무도 수행할 수 없다. */
   return null;
 }
 
@@ -136,33 +131,21 @@ export function MyStats() {
             ]}
           />
 
-          {/* PA-RC-0027: `totals.all`이 이제 소스를 못 읽었을 때 0이 아니라 undefined다
+          {/* PA-RC-0027: `totals.all`이 티켓을 못 읽었을 때 0이 아니라 undefined다
               (totals={}) — `=== 0`만 보면 이 경우 아래 차트 분기로 빠져 load.by_week 등
-              없는 값에 접근해 죽는다. `!totals.all`은 "0건"과 "모른다"를 같은 EmptyState
-              분기로 보내고, 그 안의 source.mapped 체크가 둘을 다시 정확히 갈라 말한다. */}
+              없는 값에 접근해 죽는다. `!totals.all`은 두 경우를 같은 EmptyState 로 보내고,
+              「왜 모르는가」는 위 SourceNotice 배너가 말한다.
+              0건의 이유는 이제 하나다 — 담당인 티켓이 없다. 「계정이 연결되지 않았다」는
+              갈래는 그 상태 자체가 없어져 함께 걷었다(S15 · D-285). */}
           {!totals.all ? (
             <Card>
-              {/* WF1 R4 — 계정이 Notion과 안 연결된 사람은 위 SourceNotice("관리자에게 계정
-                  연결을 요청하세요")와 여기 아래 EmptyState가 **서로 다른 원인**을 말했다
-                  ("담당 티켓이 하나도 없어서") — 게다가 그 CTA("내 티켓으로")가 데려가는
-                  /my-tickets도 같은 원인(연결 안 됨)으로 똑같이 비어 있어 막다른 길이었다.
-                  진단이 이미 위 배너에 있으니 여기서 반복하거나 못 고치는 CTA를 주지 않는다. */}
-              {source && source.mapped === false ? (
-                <EmptyState
-                  art="tickets"
-                  title="아직 집계할 티켓이 없습니다"
-                  situation="계정이 Notion 사용자와 아직 연결되지 않아 담당 티켓을 알 수 없습니다."
-                  help="위 안내대로 관리자에게 계정 연결을 요청하세요. 연결되면 그때부터 여기에 업무량과 완료 추이가 쌓입니다."
-                />
-              ) : (
-                <EmptyState
-                  art="tickets"
-                  title="아직 집계할 티켓이 없습니다"
-                  situation="내가 담당인 티켓이 하나도 없어서 그릴 숫자가 없습니다."
-                  help="티켓을 맡거나 새로 만들면 여기에 업무량과 완료 추이가 쌓입니다."
-                  relatedLink={{ href: "#/my-tickets", label: "내 티켓으로" }}
-                />
-              )}
+              <EmptyState
+                art="tickets"
+                title="아직 집계할 티켓이 없습니다"
+                situation="내가 담당인 티켓이 하나도 없어서 그릴 숫자가 없습니다."
+                help="티켓을 맡거나 새로 만들면 여기에 업무량과 완료 추이가 쌓입니다."
+                relatedLink={{ href: "#/my-tickets", label: "내 티켓으로" }}
+              />
             </Card>
           ) : (
             <Box sx={BODY_GRID}>

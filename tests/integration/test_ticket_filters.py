@@ -483,7 +483,6 @@ def test_my_tickets_are_paged_and_filtered_too(client, login_as, db, me):
     login_as("user", email="tf-me@goodmit.co.kr")
 
     body = client.get("/api/tickets/mine?status=검증").json()
-    assert body["mapped"] is True
     assert _ids(body) == ["page-m-1"], "내 티켓 목록에 서버 필터가 안 걸렸다"
     assert body["total"] == 1
 

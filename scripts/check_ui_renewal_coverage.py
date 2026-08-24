@@ -71,9 +71,18 @@ class Report:
     def __init__(self) -> None:
         self.fails: list[tuple[str, str]] = []
         self.oks: list[str] = []
+        # **이 머신에 증거가 없다** 는 «증거가 없다» 와 다른 사실이다 (S15).
+        # `dist/` 는 gitignore 라, 다른 작업 트리에서 돌린 캡처 실행은 여기 없다.
+        # 그 상태를 위반으로 세면 「빠뜨렸다」와 「못 본다」가 한 색이 되고, 그 색을
+        # 없애려고 사람은 포인터를 지우거나 아무 실행이나 가리키게 된다.
+        # 그래서 색을 따로 둔다 — 그리고 **통과로 접지 않는다**(종료코드 3).
+        self.unseen: list[str] = []
 
     def fail(self, cond: str, msg: str) -> None:
         self.fails.append((cond, msg))
+
+    def cannot_see(self, msg: str) -> None:
+        self.unseen.append(msg)
 
     def ok(self, msg: str) -> None:
         self.oks.append(msg)
@@ -95,7 +104,11 @@ class Report:
                 print("       - %s" % msg)
             if len(by_cond[cond]) > 20:
                 print("       ... 그리고 %d건 더" % (len(by_cond[cond]) - 20))
-        return EXIT_VIOLATION if self.fails else EXIT_OK
+        for msg in self.unseen:
+            print("[NO_EVIDENCE] %s" % msg)
+        if self.fails:
+            return EXIT_VIOLATION
+        return EXIT_NO_EVIDENCE if self.unseen else EXIT_OK
 
 
 def read(path: str) -> str:
@@ -833,11 +846,30 @@ def c3_requirement_mapping(rep: Report, surfaces: list[dict], waves: set[str]) -
     _ = waves
 
 
+def _born_after_before_window(cap) -> str:
+    """Before 가 **없을 수밖에 없는** 화면인가 — 그 사실이 적혀 있으면 사유를 돌려준다.
+
+    Before 는 제품 코드가 바뀌기 전에만 찍을 수 있고 그 창은 W0 에 한 번뿐이었다. 그 뒤에
+    생긴 화면(S6~S14 가 만든 것들)에는 찍을 수 있는 «리뉴얼 이전» 상태가 **존재하지 않는다** —
+    지금 찍어 Before 라고 부르면 그 이름이 거짓말이 된다.
+
+    그래서 면제하되 **선언을 요구한다.** 사유가 없으면 「안 찍었다」와 「찍을 수 없다」가
+    구별되지 않고, 그 순간 이 예외는 빠뜨림을 숨기는 구멍이 된다. 면제 건수는 통과 줄에
+    함께 찍는다 — 초록이 얼마나 봐줬는지 숨기지 않는다.
+    """
+    if not isinstance(cap, dict):
+        return ""
+    reason = (cap.get("absent_reason") or "").strip()
+    return reason if len(reason) >= 40 else ""
+
+
 def _cap_ok(cap) -> tuple[bool, str]:
     if not isinstance(cap, dict):
         return False, "없음"
     path = cap.get("path")
     if not path:
+        if isinstance(cap, dict) and cap.get("absent_reason"):
+            return False, "absent_reason 이 40자 미만이다 — 왜 찍을 수 없는지 적어야 면제된다"
         return False, "path 없음"
     if not os.path.exists(os.path.join(ROOT, path)):
         return False, "파일이 없다: %s" % path
@@ -852,14 +884,19 @@ def c4_c6_evidence(rep: Report, surfaces: list[dict], scoped: list[dict], build_
     Before 는 Wave 로 봐주지 않는다 — 제품 코드가 바뀌기 전에만 찍을 수 있고 그 창은 W0 에
     한 번뿐이다. 나중에 "이 Wave 것만 찍겠다"는 선택지가 애초에 없다.
     """
+    born_later = 0
     for sf in surfaces:
         if not is_major(sf):
+            continue
+        if _born_after_before_window(sf.get("before_capture")):
+            born_later += 1
             continue
         ok, why = _cap_ok(sf.get("before_capture"))
         if not ok:
             rep.fail("C6 Before 캡처 없음", "%s: %s" % (sf.get("id"), why))
     if not rep.count("C6 Before"):
-        rep.ok("주요 Surface 전부에 Before 캡처가 있다")
+        rep.ok("주요 Surface 전부에 Before 캡처가 있다 (Before 창 이후에 생긴 화면 %d개는 "
+               "사유를 적고 면제)" % born_later)
 
     for sf in scoped:
         sid = sf.get("id")
@@ -916,6 +953,22 @@ def c5_audits(rep: Report, scoped: list[dict], profiles: dict) -> None:
                          "%s: %d/%d (profile=%s)" % (sid, got, want, resp.get("required_profile")))
 
 
+def _no_capture_run_here() -> bool:
+    """이 작업 트리에 캡처 **실행이 하나도 없는가**.
+
+    하나라도 있으면 「가리키는 라벨이 그중에 없다」는 진짜 모순이다(누군가 라벨을 안 옮겼거나
+    실행을 지웠다). 하나도 없으면 그건 이 머신이 그 증거를 **볼 수 없는** 상태일 뿐이다 —
+    `dist/` 는 gitignore 라 다른 작업 트리의 실행은 여기 오지 않는다.
+    """
+    root = os.path.join(ROOT, "dist", "ui-qa")
+    if not os.path.isdir(root):
+        return True
+    for name in os.listdir(root):
+        if os.path.exists(os.path.join(root, name, "results.json")):
+            return False
+    return True
+
+
 def _latest_results(rep: Report, label: str = "", cov: dict | None = None) -> dict:
     """이 Wave 의 **After 실행** 결과. Coverage 의 finding 행이 아니라 측정 원본을 다시 읽는다.
 
@@ -950,8 +1003,15 @@ def _latest_results(rep: Report, label: str = "", cov: dict | None = None) -> di
             pages = 0
         cands.append((pages, os.path.getmtime(path), name, path))
     if not cands and want:
-        rep.fail("C10 After 라벨의 QA 결과가 없다",
-                 "capture_labels.after=%s — dist/ui-qa/%s/results.json 를 찾지 못했다" % (want, want))
+        if _no_capture_run_here():
+            rep.cannot_see(
+                "C10 캡처 실행이 이 작업 트리에 하나도 없다 (capture_labels.after=%s). "
+                "`dist/` 는 gitignore 라 다른 머신에서 돌린 실행은 여기 오지 않는다 — "
+                "«증거가 없다» 가 아니라 «이 머신이 못 본다» 이고, 통과로 접지 않는다" % want)
+        else:
+            rep.fail("C10 After 라벨의 QA 결과가 없다",
+                     "capture_labels.after=%s — dist/ui-qa/%s/results.json 를 찾지 못했다"
+                     % (want, want))
         return {}
     if not cands:
         return {}
@@ -1011,8 +1071,13 @@ def c0_after_label_current(rep: Report, cov: dict) -> None:
         except Exception:  # noqa: BLE001 - 깨진 실행은 후보가 아니다
             continue
     if want not in sizes:
-        rep.fail("C0 선언한 After 실행이 없다",
-                 "capture_labels.after=%s — dist/ui-qa/%s/results.json 이 없다" % (want, want))
+        if not sizes:
+            rep.cannot_see(
+                "C0 캡처 실행이 이 작업 트리에 하나도 없다 (capture_labels.after=%s) — "
+                "이 머신이 시각 원장을 못 본다" % want)
+        else:
+            rep.fail("C0 선언한 After 실행이 없다",
+                     "capture_labels.after=%s — dist/ui-qa/%s/results.json 이 없다" % (want, want))
         return
     bigger = sorted(((n, c) for n, c in sizes.items() if c > sizes[want]),
                     key=lambda x: -x[1])
@@ -1190,7 +1255,24 @@ def c11_c14_functional(rep: Report, surfaces: list[dict], func: dict, scoped_ids
             else:
                 seen_flow_ids[fid] = sid
 
-    for sid in sorted(scoped_ids):
+    # C11 의 **조건 검사 범위는 Wave 가 아니다.**
+    #
+    # 이 검사는 원래 «지금 Wave 가 담당하는 Surface» 만 봤다. 그런데 Search/Filter 를 고치는
+    # Session(S15)은 화면을 소유하지 않는다 — 화면의 Wave 는 그 화면을 다시 그리는 Session
+    # 것이다. 그래서 이 검사는 **아무 Surface 도 안 보는 상태**로 오래 서 있었다: 필터
+    # 정확성을 보라고 만든 조건이 정작 필터를 고친 회차를 검사하지 않았다.
+    #
+    # 범위를 「조건 Flow 가 **PASS 라고 적힌** Surface」로 넓힌다. 뜻은 이렇다 — *어떤 축
+    # 하나가 맞는다고 선언하면, 그 화면에서 조건이 함께 지켜야 하는 다섯(복합·쪽 초기화·
+    # 경합·캐시 키·뒤로가기)도 함께 보였어야 한다.* 단독 축만 보고 초록을 찍는 것이 바로
+    # 이 조건이 막으려던 상태다. 아직 아무도 안 본 화면은 그대로 `NOT_AUDITED` 로 남고
+    # 소유 Session 이 볼 때 이 규칙을 만난다.
+    claimed = {
+        sid for sid, entry in fsurf.items()
+        for fl in (entry.get("flows") or [])
+        if fl.get("category") in FILTERISH and fl.get("status") == "PASS"
+    }
+    for sid in sorted(set(scoped_ids) | claimed):
         entry = fsurf.get(sid)
         if entry is None:
             continue
@@ -1201,10 +1283,20 @@ def c11_c14_functional(rep: Report, surfaces: list[dict], func: dict, scoped_ids
                 rep.fail("C12 없는 범주", "%s/%s: %r" % (sid, fl.get("id"), fl.get("category")))
             if fl.get("status") not in FLOW_STATUSES:
                 rep.fail("C12 Flow status 값이 잘못됐다", "%s/%s: %r" % (sid, fl.get("id"), fl.get("status")))
-            if fl.get("exists") and fl.get("status") == "NOT_AUDITED":
+            # 「아직 안 본 Flow 가 남아 있다」는 **그 화면을 소유한 Wave** 의 조건이다.
+            # 조건 축 하나를 고친 회차에게 그 화면의 스물일곱 범주를 다 물으면, 그 회차는
+            # 자기 범위 밖 작업을 하거나 거짓으로 PASS 를 찍게 된다.
+            if (sid in scoped_ids and fl.get("exists")
+                    and fl.get("status") == "NOT_AUDITED"):
                 rep.fail("C12 검증하지 않은 Flow 가 남아 있다", "%s/%s (%s)"
                          % (sid, fl.get("id"), fl.get("category")))
             if fl.get("status") == "PASS":
+                # PASS 는 **실제로 돌린 것**을 가리켜야 한다 (R-95). `ev:note:` 는 사람이
+                # 적은 메모라 증거가 아니다 — 그것만 있으면 「그렇다고 적었다」가 전부다.
+                if not real_evidence(fl.get("evidence")):
+                    rep.fail("C11 PASS 인데 증거가 없다",
+                             "%s/%s — 화면에서 값이 바뀐 것은 정상 동작의 증거가 아니다"
+                             % (sid, fl.get("id")))
                 chain = fl.get("chain") or {}
                 gap = [k for k in CHAIN_MIN if not chain.get(k)]
                 if gap:
@@ -1214,7 +1306,9 @@ def c11_c14_functional(rep: Report, surfaces: list[dict], func: dict, scoped_ids
                 bad = [k for k in chain if k not in CHAIN_STEPS]
                 if bad:
                     rep.fail("C11 사슬에 없는 단계", "%s/%s: %s" % (sid, fl.get("id"), bad))
-            if fl.get("status") == "FAIL":
+            # C14 도 **그 화면을 소유한 Wave** 의 조건이다 — 조건 축을 고친 회차에게
+            # 그 화면의 죽은 Action 을 함께 닫으라고 하면 범위가 무한히 번진다.
+            if fl.get("status") == "FAIL" and sid in scoped_ids:
                 for fd in fl.get("findings") or []:
                     if fd.get("class") in DEAD_CLASSES and fd.get("status") != "CLOSED":
                         rep.fail("C14 죽은 Action / Backend 미연결 잔존",

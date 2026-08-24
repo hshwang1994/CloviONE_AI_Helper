@@ -124,6 +124,16 @@ Deliberate contract changes recorded here (each landed with its golden edit):
     ``notion_status`` left ``EDITABLE_FIELDS`` with them. Nothing writes those
     columns any more, so the values froze at import time and the screens turned
     them into a badge and a banner that no user action could ever clear.
+  * 🔴 **S15 — ``/api/tickets/mine`` dropped ``mapped``.** The field carried one
+    state: "this account has no verified link to the old source, so we cannot
+    tell which tickets are yours". Since S15 every account has a value that
+    points at it (``assignee_token``, D-285), so that state does not exist and
+    the field is always ``true``. A field that is always true is not a contract,
+    it is an invitation: a screen written against it revives a failure branch the
+    product cannot produce — and the branch that existed told two of the fifteen
+    live accounts to ask an administrator for a Notion link that can no longer be
+    created. The same axis left ``/api/home/today``, ``/api/me/stats`` and the
+    offboarding preview (``notion_mapped``) in the same change.
 """
 
 from __future__ import annotations

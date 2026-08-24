@@ -536,10 +536,13 @@ def my_stats(
         repo=request.app.state.repositories.tickets,
     )
     tickets = state["tickets"]
-    # PA-RC-0027: 소스를 못 읽었거나 매핑이 없으면 통계 자체를 안 싣는다 — tickets가
-    # 이미 빈 리스트라 build_stats를 그대로 돌리면 totals.all 등이 전부 0으로 나와
-    # '모른다'가 '0건이다'로 보인다(app/home/service.py::build_today와 같은 원칙).
-    usable = state["ok"] and state["mapped"]
+    # PA-RC-0027: 티켓을 못 읽었으면 통계 자체를 안 싣는다 — tickets가 이미 빈 리스트라
+    # build_stats를 그대로 돌리면 totals.all 등이 전부 0으로 나와 '모른다'가 '0건이다'로
+    # 보인다(app/home/service.py::build_today와 같은 원칙).
+    #
+    # 「매핑이 없다」는 갈래는 없어졌다 (S15 · D-285) — 사람마다 담당자로 가리킬 값이
+    # 언제나 있으므로 0건은 모른다가 아니라 **사실**이다.
+    usable = state["ok"]
     body = {
         "ok": True,
         "source": {k: v for k, v in state.items() if k != "tickets"},

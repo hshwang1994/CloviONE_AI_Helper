@@ -77,25 +77,59 @@ def my_notion_id(db: Session, user: User) -> str | None:
     return row[0] if row and row[0] else None
 
 
-def _verified_id_to_user(db: Session) -> dict[str, str]:
-    """verified·active 매핑의 notion_user_id → 앱 user_id. 담당자 편집(해석/보존/역표시)에 쓴다.
+def assignee_token(db: Session, user: User) -> str:
+    """이 사람을 **티켓 담당자로 가리키는 값** (D-285).
+
+    티켓의 담당자 칸(`tickets.assignee_notion_ids`)은 이관해 온 행에 옛 소스의 user id 를
+    담고 있다. 그래서 담당자 축 전체가 `user_notion_mappings` 에 verified 행이 있는
+    사람만 가리킬 수 있었다.
+
+    🔴 그 짝은 이제 **새로 만들 수 없다.** Notion 런타임을 걷어낸 뒤(S14 · D-284) 새
+    계정에는 그 행이 영원히 안 생긴다. 그런데 담당자 축은 그 값이 없으면 조용히 닫힌다:
+
+      · `/my-tickets` 가 영원히 비어 있다(그리고 「Notion 계정 미연결」이라고 말한다 —
+        없어진 시스템의 이름으로).
+      · 담당자 후보 목록에 그 사람이 안 나온다 → 아무도 그 사람에게 일을 줄 수 없다.
+      · 팀 티켓의 담당자 조건으로 그 사람을 고를 수 없다.
+
+    실측(2026-08-24 운영): 활성 15명 중 **2명**이 이 상태였고, 그중 하나는 그날 만든
+    계정이다 — 앞으로 만드는 계정은 **전부** 이 상태로 태어난다.
+
+    그래서 담당자를 가리키는 값을 「옛 짝이 있으면 그것, 없으면 **자기 user id**」로 정한다.
+    이관해 온 행은 한 글자도 안 건드리고(옛 토큰이 그대로 산다), 새 행은 자체 id 로 선다.
+    두 값이 겹칠 수는 없다 — 서로 다른 시스템이 발급한 UUID 다.
+
+    ⚠️ 뒤늦게 verified 매핑을 붙이면 그 사람의 토큰이 바뀌므로, 그때는 이미 쌓인 행의
+    토큰을 함께 옮겨야 한다. 축을 하나로 합치는 일(옛 토큰 → user id 데이터 이전)은
+    Backlog **P-36** 이다.
+    """
+    return my_notion_id(db, user) or user.id
+
+
+def _assignee_id_to_user(db: Session) -> dict[str, str]:
+    """담당자 토큰 → 앱 user_id. 담당자 편집(해석/보존/역표시)에 쓴다.
+
+    두 갈래를 함께 담는다: verified·active 매핑의 notion_user_id 와, **활성 사용자
+    자신의 id**(`assignee_token` 참조). 후자를 빼면 자체 계정이 자기 티켓의 담당자로
+    해석되지 않아 화면에서 이름이 사라진다.
 
     _load_name_map 은 표시용 이름(전 사용자 포함)이라 편집엔 못 쓴다 — 편집 후보/보존 판정은
-    반드시 'verified + active' 로만 한다(스펙 §12.3).
+    반드시 'active + 미보관' 으로만 한다(스펙 §12.3).
     """
     rows = db.execute(
-        select(UserNotionMapping.notion_user_id, User.id)
-        .join(User, User.id == UserNotionMapping.user_id)
-        .where(
-            UserNotionMapping.status == STATUS_VERIFIED,
-            UserNotionMapping.notion_user_id.is_not(None),
-            User.active.is_(True),
-            User.archived_at.is_(None),
+        select(User.id, UserNotionMapping.notion_user_id)
+        .outerjoin(
+            UserNotionMapping,
+            (UserNotionMapping.user_id == User.id)
+            & (UserNotionMapping.status == STATUS_VERIFIED),
         )
+        .where(User.active.is_(True), User.archived_at.is_(None))
     ).all()
     out: dict[str, str] = {}
-    for nid, uid in rows:
-        out.setdefault(nid, uid)
+    for uid, nid in rows:
+        if nid:
+            out.setdefault(nid, uid)
+        out.setdefault(uid, uid)
     return out
 
 
@@ -143,7 +177,7 @@ def ticket_view(t: TicketDTO, id_to_name: dict[str, str], id_to_user: dict[str, 
 def ticket_views(db: Session, tickets, *, with_names: bool = True) -> list[dict]:
     """DTO 목록 → API 응답 dict 목록. 스프린트의 담당자별 리스트도 이걸 써서 모양이 같다."""
     id_to_name = _load_name_map(db)[0] if with_names else {}
-    id_to_user = _verified_id_to_user(db) if with_names else {}
+    id_to_user = _assignee_id_to_user(db) if with_names else {}
     return [ticket_view(t, id_to_name, id_to_user) for t in tickets]
 
 
@@ -348,16 +382,33 @@ def _drop_trashed(db: Session, rows: list[dict]) -> list[dict]:
 # 일부를 파이썬 뒤처리로 남기면 페이지네이션이 그 뒤처리 **앞에서** 일어나고, 그 순간
 # "20건을 달랬는데 13건이 왔다" + "total 이 사용자가 세는 수와 다르다" 가 동시에 난다.
 
-def _notion_id_for_user(db: Session, user_id: str) -> str | None:
-    """앱 user_id → verified·active 소스 user id. 없으면 None.
+def _assignee_token_for_user(db: Session, user_id: str) -> str | None:
+    """앱 user_id → 담당자 토큰(`assignee_token` 참조). 활성 사용자가 아니면 None.
 
     브라우저는 소스 user id 를 주지도 받지도 않는다(§12.3) — 담당자 필터도 앱 user_id 로만
-    받고 여기서 한 번 해석한다.
+    받고 여기서 한 번 해석한다. 옛 짝이 있으면 그 값이, 없으면 자기 id 가 토큰이다.
+
+    🔴 **`users.id` 로만 찾는다.** 옛 토큰을 그대로 넣어도 통하게 하면 계약이 두 벌이 되고,
+    그 순간 브라우저가 소스 id 를 말할 수 있는 길이 생긴다(§12.3). 활성 사용자가 아니면
+    `None` 이고, 부르는 쪽은 그때 목록을 **닫는다**(전체를 열지 않는다).
     """
-    for nid, uid in _verified_id_to_user(db).items():
-        if uid == user_id:
-            return nid
-    return None
+    row = db.execute(
+        select(User.id, UserNotionMapping.notion_user_id)
+        .outerjoin(
+            UserNotionMapping,
+            (UserNotionMapping.user_id == User.id)
+            & (UserNotionMapping.status == STATUS_VERIFIED),
+        )
+        .where(
+            User.id == user_id,
+            User.active.is_(True),
+            User.archived_at.is_(None),
+        )
+    ).first()
+    if row is None:
+        return None
+    uid, nid = row
+    return nid or uid
 
 
 def build_filters(
@@ -386,9 +437,9 @@ def build_filters(
     close_everything = False
     if (allow_assignee_filter and query is not None
             and query.assignee_user_id and assignee_id is None):
-        resolved = _notion_id_for_user(db, query.assignee_user_id)
+        resolved = _assignee_token_for_user(db, query.assignee_user_id)
         if resolved is None:
-            # 매핑이 없는 사람으로 거르면 걸릴 티켓이 없다. 조건을 조용히 버리면 **필터 없는
+            # 가리킬 수 없는 사람으로 거르면 걸릴 티켓이 없다. 조건을 조용히 버리면 **필터 없는
             # 전체 목록**이 나가는데, 그건 사용자가 알아챌 수 없는 방향의 오류다 — 닫는다.
             close_everything = True
         else:
@@ -426,18 +477,19 @@ def list_my_tickets(
     db: Session, outbound, settings, user: User, *, repo=None,
     filters: TicketFilters | None = None, page: PageSpec | None = None,
 ) -> dict:
-    """로그인 사용자가 담당한 티켓(마감 무관). 매핑이 없으면 {mapped: False}.
+    """로그인 사용자가 담당한 티켓(마감 무관).
 
     `total` 은 **필터 뒤·페이지 자르기 전** 건수다. 화면이 "N건 중 1-20" 을 쓸 수 있어야 한다.
+
+    여기 「연결된 계정이 없어 답할 수 없다」는 갈래가 있었다(`mapped: False`). 사람마다
+    가리킬 값이 언제나 있으므로(`assignee_token`) 그 상태는 이제 존재하지 않는다 —
+    0건은 사고가 아니라 사실이고, 그때는 빈 목록이 정답이다.
     """
-    nid = my_notion_id(db, user)
-    if not nid:
-        return {"mapped": False, "tickets": [], "total": 0}
     result = _repo(settings, outbound, repo).list_by_assignee(
-        db, assignee_id=nid, filters=filters, page=page
+        db, assignee_id=assignee_token(db, user), filters=filters, page=page
     )
     views = _drop_trashed(db, ticket_views(db, result.tickets))
-    return {"mapped": True, "tickets": views, "total": _total(result, views)}
+    return {"tickets": views, "total": _total(result, views)}
 
 
 def list_unassigned_page(
@@ -568,7 +620,7 @@ def ticket_detail(
     # 화면이 '눌러 봐야 거절당하는 버튼'을 안 그리게 한다. 판정 자체는 쓰기 경로가 다시 하므로
     # (ensure_can_edit) 이 값은 표시용이지 접근 통제가 아니다 — 클라이언트를 신뢰하지 않는다.
     try:
-        ensure_can_edit(dto, user, my_notion_id(db, user))
+        ensure_can_edit(dto, user, assignee_token(db, user))
         can_edit = True
     except ForbiddenError:
         can_edit = False
@@ -675,7 +727,12 @@ def list_projects(db: Session, viewer: User) -> list[dict]:
 def list_assignees(
     db: Session, *, org_id: str | None = None, project_id: str | None = None,
 ) -> list[dict]:
-    """담당자로 배정 가능한 사람 목록 — active + verified 매핑 사용자.
+    """담당자로 배정 가능한 사람 목록 — **활성 사용자 전원**.
+
+    예전에는 여기에 `user_notion_mappings` 의 verified 행이 있는 사람만 나왔다. 그 짝은
+    이제 새로 만들 수 없으므로(S14 가 Notion 런타임을 걷었다) 그 조건은 **새 계정을
+    영원히 후보에서 빼는** 조건이 된다 — 누구도 그 사람에게 일을 줄 수 없다. 가리키는
+    값은 `assignee_token` 이 언제나 만들어 낸다(D-285).
 
     ## `project_id` 를 주면 **그 프로젝트에 닿을 수 있는 사람만** (0060)
 
@@ -688,7 +745,7 @@ def list_assignees(
     메모리에서 판정한다.
 
     raw notion_user_id 는 응답에 넣지 않는다(브라우저 미노출, 스펙 §12.3). 편집 API 가 user_id 를
-    받아 서버에서 소스 id 로 해석한다.
+    받아 서버에서 담당자 토큰으로 해석한다.
 
     **부서·직책·조직을 함께 싣는다**(사용자 지시 2026-08-04). 예전에는 {user_id, display_name}
     뿐이라 '김하나'가 둘이면 담당자 선택 목록에 같은 줄이 두 번 떴고, 어느 쪽이 내가 찾는
@@ -697,16 +754,7 @@ def list_assignees(
     행 대신 User 객체를 부르는 이유: `department`/`title` 은 관계에서 이름을 꺼내는
     프로퍼티라 컬럼 select 로는 안 나온다. 관계가 lazy="joined" 라 질의 수는 그대로다.
     """
-    stmt = (
-        select(User)
-        .join(UserNotionMapping, UserNotionMapping.user_id == User.id)
-        .where(
-            User.active.is_(True),
-            User.archived_at.is_(None),
-            UserNotionMapping.status == STATUS_VERIFIED,
-            UserNotionMapping.notion_user_id.is_not(None),
-        )
-    )
+    stmt = select(User).where(User.active.is_(True), User.archived_at.is_(None))
     # 조직 밖 사람은 담당자 후보가 아니다 (1순위 유출 #7). 이 목록은 이름·부서·직책·조직을
     # 그대로 실어 주므로(사용자 지시로 그렇게 만들었다) **조직도 열거**가 된다 — 검색이
     # 사용자 종류를 역할로 막는 결정을 이 목록이 옆문으로 무효화하고 있었다.
@@ -755,7 +803,7 @@ def trash_ticket(db: Session, outbound, settings, user: User, *, page_id: str, n
     ensure_not_trashed(db, page_id)   # H2 — 휴지통 항목은 없는 것으로 본다
     ensure_in_scope(db, page_id, user)   # 쓰기도 범위 밖은 404 (3순위 IDOR)
     current = _repo(settings, outbound, repo).get_live(db, page_id=page_id)
-    ensure_can_edit(current, user, my_notion_id(db, user))
+    ensure_can_edit(current, user, assignee_token(db, user))
     item = trash_service.move_to_trash(
         db, item_type=TRASH_TICKET, notion_page_id=page_id,
         title=current.title or "(제목 없음)", url=current.url,
@@ -780,7 +828,7 @@ def trash_tickets_bulk(
     from app.core.errors import AppError
 
     r = _repo(settings, outbound, repo)
-    nid = my_notion_id(db, user)
+    nid = assignee_token(db, user)
     trashed: list[dict] = []
     failed: list[dict] = []
     for pid in page_ids:
@@ -802,7 +850,7 @@ def trash_tickets_bulk(
 
 # ── 수동 편집(쓰기) ────────────────────────────────────────────────────────────
 
-def ensure_can_edit(ticket: TicketDTO, user: User, my_notion_id_value: str | None) -> None:
+def ensure_can_edit(ticket: TicketDTO, user: User, my_token: str | None) -> None:
     """소유권 검증(스펙 §25.5·IDOR). 운영/관리자군은 우회, 그 외는 본인 담당 또는 미할당만.
 
     소스에서 **방금 읽은** '현재' 티켓의 담당자로 판정한다(프런트가 준 값도, 캐시 값도 아니다).
@@ -826,33 +874,36 @@ def ensure_can_edit(ticket: TicketDTO, user: User, my_notion_id_value: str | Non
     assignees = ticket.assignee_ids
     if not assignees:
         return  # 미할당 — 담당자가 필요한 일이므로 (범위 안이면) 누구나 손댈 수 있다
-    if my_notion_id_value and my_notion_id_value in assignees:
+    if my_token and my_token in assignees:
         return  # 본인 담당
     raise ForbiddenError("이 티켓을 편집할 권한이 없습니다(담당자 또는 미할당 티켓만 편집할 수 있습니다).")
 
 
 def _resolve_assignee_ids(db: Session, user_ids: list[str]) -> list[str]:
-    """앱 user_id 목록 → 소스 user_id 목록(verified·active 매핑만). 하나라도 해석 불가면 거절.
+    """앱 user_id 목록 → 담당자 토큰 목록. 하나라도 해석 불가면 거절.
 
-    브라우저는 절대 소스 id 를 주지 않는다 — 항상 서버에서 매핑으로 해석한다(스펙 §12.3).
+    브라우저는 절대 소스 id 를 주지 않는다 — 항상 서버에서 해석한다(스펙 §12.3).
+    거절하는 것은 **활성 사용자가 아닌 id** 뿐이다(`assignee_token` 참조).
     """
     if not user_ids:
         return []
     rows = db.execute(
         select(User.id, UserNotionMapping.notion_user_id)
-        .join(UserNotionMapping, UserNotionMapping.user_id == User.id)
+        .outerjoin(
+            UserNotionMapping,
+            (UserNotionMapping.user_id == User.id)
+            & (UserNotionMapping.status == STATUS_VERIFIED),
+        )
         .where(
             User.id.in_(user_ids),
-            UserNotionMapping.status == STATUS_VERIFIED,
-            UserNotionMapping.notion_user_id.is_not(None),
             User.active.is_(True),
             User.archived_at.is_(None),
         )
     ).all()
-    found = {uid: nid for uid, nid in rows}
+    found = {uid: (nid or uid) for uid, nid in rows}
     missing = [uid for uid in user_ids if uid not in found]
     if missing:
-        raise ValidationAppError("담당자로 지정할 수 없는 사용자가 있습니다(Notion 계정 미연결).")
+        raise ValidationAppError("담당자로 지정할 수 없는 사용자가 있습니다(활성 계정이 아닙니다).")
     seen: set[str] = set()
     out: list[str] = []
     for uid in user_ids:
@@ -864,13 +915,13 @@ def _resolve_assignee_ids(db: Session, user_ids: list[str]) -> list[str]:
 
 
 def _build_assignee_people(db: Session, current_assignees, user_ids: list[str]) -> list[str]:
-    """새 담당자(people) 소스 id 목록을 만든다.
+    """새 담당자 토큰 목록을 만든다.
 
-    앱에 연결되지 않은(verified 매핑이 없는) 기존 담당자는 **보존**하고, 앱 사용자 담당자만
-    user_ids 로 교체한다 — 이렇게 하면 편집 화면(앱 사용자 체크박스)으로 손대지 않은 외부/미연결
-    담당자를 조용히 지우지 않는다.
+    앱 사용자로 해석되지 않는 기존 담당자(퇴사자·외부 사람의 옛 토큰)는 **보존**하고, 앱
+    사용자 담당자만 user_ids 로 교체한다 — 이렇게 하면 편집 화면(앱 사용자 체크박스)으로
+    손대지 않은 담당자를 조용히 지우지 않는다.
     """
-    mapped_ids = set(_verified_id_to_user(db))
+    mapped_ids = set(_assignee_id_to_user(db))
     preserved = [nid for nid in current_assignees if nid not in mapped_ids]
     resolved = _resolve_assignee_ids(db, user_ids)
     merged: list[str] = []
@@ -950,7 +1001,7 @@ def update_ticket(
     ensure_not_trashed(db, page_id)   # H2 — 휴지통 항목은 없는 것으로 본다
     ensure_in_scope(db, page_id, user)   # 쓰기도 범위 밖은 404 (3순위 IDOR)
     current = r.get_live(db, page_id=page_id)
-    ensure_can_edit(current, user, my_notion_id(db, user))
+    ensure_can_edit(current, user, assignee_token(db, user))
 
     repo_changes = dict(changes)
     if "assignee_user_ids" in repo_changes:
@@ -1005,7 +1056,7 @@ def resolve_assignee_user_ids(db: Session, assignee_source_ids) -> list[str]:
     쓰기 경로(`_build_assignee_people`)가 그런 담당자를 언제나 보존하기 때문이다 — 즉
     "앱이 아는 담당자 집합"만 재배정의 대상이고, 나머지는 우리가 건드리지 않는다.
     """
-    id_to_user = _verified_id_to_user(db)
+    id_to_user = _assignee_id_to_user(db)
     out: list[str] = []
     for nid in assignee_source_ids:
         uid = id_to_user.get(nid)
@@ -1021,7 +1072,7 @@ def _apply_assignees(
     """현재 담당자를 읽고 `wanted` 로 맞춘다. 이미 같으면 소스를 부르지 않는다."""
     ensure_not_trashed(db, page_id)   # H2 — 휴지통 항목은 없는 것으로 본다
     current = r.get_live(db, page_id=page_id)
-    ensure_can_edit(current, user, my_notion_id(db, user))
+    ensure_can_edit(current, user, assignee_token(db, user))
     before = resolve_assignee_user_ids(db, current.assignee_ids)
     if before == wanted:
         return {
@@ -1070,7 +1121,7 @@ def replace_ticket_assignee(
     ensure_not_trashed(db, page_id)   # H2 — 휴지통 항목은 없는 것으로 본다
     ensure_in_scope(db, page_id, user)   # 쓰기도 범위 밖은 404 (3순위 IDOR)
     current = r.get_live(db, page_id=page_id)
-    ensure_can_edit(current, user, my_notion_id(db, user))
+    ensure_can_edit(current, user, assignee_token(db, user))
     before = resolve_assignee_user_ids(db, current.assignee_ids)
     wanted = [uid for uid in before if uid != from_user_id]
     if to_user_id and to_user_id not in wanted:
@@ -1122,7 +1173,7 @@ def claim_ticket(
     db: Session, outbound, settings, user: User, *, page_id: str,
     now: datetime | None = None, repo=None,
 ) -> dict:
-    """미할당(또는 본인 담당) 티켓의 담당자에 '나'를 배정한다. 내 계정이 Notion 미연결이면 거절.
+    """미할당(또는 본인 담당) 티켓의 담당자에 '나'를 배정한다.
 
     🔴 **한 번에 한 사람만 진행한다** (Z1). 담당자를 읽고 쓰는 사이에 Notion 왕복이 두 번
     (0.5~3초) 들어간다. 트리아지 화면에서 두 사람이 같은 티켓을 거의 동시에 누르면 둘 다
@@ -1131,8 +1182,6 @@ def claim_ticket(
 
     잠금의 한계는 `app/tickets/claim_lock.py` 에 적었다.
     """
-    if not my_notion_id(db, user):
-        raise ValidationAppError("내 계정이 Notion 사용자와 연결되어 있지 않아 담당자로 배정할 수 없습니다.")
     from app.tickets.claim_lock import claim_guard
 
     with claim_guard(db, page_id):
@@ -1317,7 +1366,7 @@ def save_ticket_body(
     ensure_not_trashed(db, page_id)   # H2 — 휴지통 항목은 없는 것으로 본다
     ensure_in_scope(db, page_id, user)   # 쓰기도 범위 밖은 404 (3순위 IDOR)
     current = r.get_live(db, page_id=page_id)
-    ensure_can_edit(current, user, my_notion_id(db, user))
+    ensure_can_edit(current, user, assignee_token(db, user))
     _ensure_body_not_changed(db, page_id=page_id, base_version=base_version)
     result = r.save_body(
         db, page_id=page_id, body_markdown=body_markdown, now=now or utcnow()
@@ -1412,7 +1461,7 @@ def _notify_ticket_comment(db: Session, *, page_id: str, uid: str, author: User,
         row = ticket_row_for(db, page_id)
         if row is None:
             return
-        id_to_user = _verified_id_to_user(db)
+        id_to_user = _assignee_id_to_user(db)
         targets = {
             id_to_user.get(n)
             for n in split_names(row.assignee_notion_ids or "")
@@ -1472,7 +1521,7 @@ def add_ticket_attachment(
     r = _repo(settings, outbound, repo)
     ensure_not_trashed(db, page_id)   # H2 — 휴지통 항목은 없는 것으로 본다
     current = r.get_live(db, page_id=page_id)
-    ensure_can_edit(current, user, my_notion_id(db, user))
+    ensure_can_edit(current, user, assignee_token(db, user))
     ensure_not_trashed(db, page_id)   # H2 — 첨부도 같은 이유
     ensure_in_scope(db, page_id, user)   # 쓰기도 범위 밖은 404 (3순위 IDOR)
     uid = r.ensure_local(db, page_id=page_id, now=stamp)
@@ -1504,7 +1553,7 @@ def delete_ticket_attachment(
         r = _repo(settings, outbound, repo)
         ensure_not_trashed(db, page_id)   # H2
         ensure_in_scope(db, page_id, user)   # 쓰기도 범위 밖은 404 (3순위 IDOR)
-        ensure_can_edit(r.get_live(db, page_id=page_id), user, my_notion_id(db, user))
+        ensure_can_edit(r.get_live(db, page_id=page_id), user, assignee_token(db, user))
     ticket_attachments.remove_attachment(db, att)
     return {"attachments": ticket_attachments.attachment_views(db, ticket_uid=uid)}
 

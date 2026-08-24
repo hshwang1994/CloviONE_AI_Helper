@@ -1,5 +1,5 @@
 import React from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import Box from "@mui/material/Box";
 import Tab from "@mui/material/Tab";
 import Tabs from "@mui/material/Tabs";
@@ -11,6 +11,8 @@ import {
 } from "../ui/kit.jsx";
 import { OrgPath } from "../ui/OrgPath.jsx";
 import { DateCell } from "../ui/cells.jsx";
+import { Pager } from "../ui/Pager.jsx";
+import { useQueryState } from "../lib/useQueryState.js";
 
 /* 개인 결재함 — **승인은 개인 업무이기도 하다** (0060 §22).
  *
@@ -44,17 +46,29 @@ const STATUS_KO = {
   expired: "만료", cancelled: "취소됨",
 };
 
+/* 고른 칸과 쪽은 **주소에** 둔다 (S15 · `lib/useQueryState.js`).
+ *
+ * 그리고 `page` 가 여기 생긴 이유를 적어 둔다: 서버는 이 목록을 **20건에서 자르고**
+ * 총 건수를 함께 준다(app/approvals/router.py). 화면은 그 둘을 다 무시하고 첫 20건만
+ * 그렸다 — 21번째 결재 건은 있다는 사실조차 화면에 없었고, 결재는 **놓치면 남이 못 하는**
+ * 일이라 그 침묵이 그대로 지연이 된다. */
+const APPROVAL_SPEC = { box: "todo", page: 1 };
+const PAGE_RESET = { reset: ["page"] };
+
 export function MyApprovals() {
-  const [box, setBox] = React.useState("todo");
+  const [view, setView] = useQueryState(APPROVAL_SPEC, PAGE_RESET);
+  const { box, page } = view;
+  const setBox = (next) => setView({ box: next });
   const toast = useToast();
   const qc = useQueryClient();
 
   const q = useQuery({
-    queryKey: ["my-approvals", box],
-    queryFn: () => api(`/api/approvals/mine?box=${box}`),
+    queryKey: ["my-approvals", box, page],
+    queryFn: () => api(`/api/approvals/mine?box=${box}` + (page > 1 ? `&page=${page}` : "")),
     // 승인 큐는 여러 사람과 자동 만료(72h)가 동시에 건드리는 경합 자원이다 — 열어 둔 채로
     // 남이 먼저 처리한 건을 눌러 낡은 409 를 보지 않도록 주기적으로 다시 읽는다.
     refetchInterval: box === "todo" ? 30 * 1000 : false,
+    placeholderData: keepPreviousData,
   });
 
   const decide = useMutation({
@@ -154,6 +168,10 @@ export function MyApprovals() {
         ) : (
           <Card>
             <DataTable columns={columns} rows={data.items} rowKey={(r) => r.id} />
+            <Pager
+              page={data.page} pageSize={data.page_size} total={data.total}
+              onPage={(next) => setView({ page: next })}
+            />
           </Card>
         )
       ) : null}

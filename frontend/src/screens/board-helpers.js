@@ -9,13 +9,15 @@ const SORTS = new Set(["recent", "views", "likes"]);
  * 예전 주소·북마크(`/api/board/posts?sort=recent`)와 글자 그대로 같은 요청이 된다.
  * `status` 도 마찬가지로 고른 것이 있을 때만 붙는다 — 주소만 보고 "지금 필터가 걸려
  * 있나"를 알 수 있어야 한다. */
-export function buildPostsQuery({ category, q, sort, kind, status } = {}) {
+export function buildPostsQuery({ category, q, sort, kind, status, page } = {}) {
   const p = new URLSearchParams();
   if (kind && kind !== "free") p.set("kind", kind);
   if (category) p.set("category", category);
   if (q) p.set("q", q);
   p.set("sort", SORTS.has(sort) ? sort : "recent");
   if (status) p.set("status", status);
+  // 첫 쪽은 안 싣는다 — 기본값을 안 싣는 주소 규칙과 같다(useQueryState).
+  if (page > 1) p.set("page", String(page));
   return p.toString();
 }
 

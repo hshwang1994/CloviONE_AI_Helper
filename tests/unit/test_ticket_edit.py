@@ -201,22 +201,39 @@ def test_assignee_unknown_user_rejected(db, settings, make_user, project):
         _edit(db, settings, op, {"assignee_user_ids": ["no-such-user"]})
 
 
-def test_assignee_unverified_user_rejected(db, settings, make_user, project):
+def test_assignee_must_be_an_active_account(db, settings, make_user, project):
+    """담당자로 지정할 수 없는 사람은 **비활성 계정**이다 (S15 · D-285).
+
+    예전에는 그 조건이 「verified 매핑이 없는 사람」이었다. 그 짝을 새로 만들 수 없게 된
+    뒤로 그 조건은 새 계정 전부를 거절하는 규칙이 됐다 — 아무도 그 사람에게 일을 줄 수 없다.
+    거절해야 하는 것은 **가리킬 수 없는 사람**이고, 그건 활성 계정이 아닌 경우뿐이다.
+    """
     op = make_user(email="op@goodmit.co.kr", display_name="운영", role="operator")
-    ghost = make_user(email="ghost@goodmit.co.kr", display_name="유령", role="user")
-    _map(db, ghost, "notion-ghost", status=STATUS_UNMAPPED)  # 미검증 → 후보 아님
+    fresh = make_user(email="fresh@goodmit.co.kr", display_name="새 계정", role="user")
+    gone = make_user(email="gone@goodmit.co.kr", display_name="비활성", role="user",
+                     active=False)
     _seed(db, project, people=[])
+    # 옛 짝이 없어도 배정된다.
+    out = _edit(db, settings, op, {"assignee_user_ids": [fresh.id]})
+    assert fresh.id in out["ticket"]["assignee_user_ids"]
+    # 반례 — 비활성 계정은 여전히 거절한다.
     with pytest.raises(ValidationAppError):
-        _edit(db, settings, op, {"assignee_user_ids": [ghost.id]})
+        _edit(db, settings, op, {"assignee_user_ids": [gone.id]})
 
 
 # ── claim ───────────────────────────────────────────────────────────────────
 
-def test_claim_requires_mapping(db, settings, make_user, project):
-    me = make_user(email="me@goodmit.co.kr", display_name="나", role="user")  # 매핑 없음
+def test_claim_works_without_a_legacy_link(db, settings, make_user, project):
+    """옛 짝이 없는 계정도 미할당 티켓을 **가져갈 수 있다** (S15 · D-285).
+
+    예전에는 「내 계정이 Notion 사용자와 연결되어 있지 않아 담당자로 배정할 수 없습니다」로
+    거절했다. 연결할 상대가 없어졌으므로 그 거절은 영원히 풀리지 않는 문이 됐다.
+    """
+    me = make_user(email="me@goodmit.co.kr", display_name="나", role="user")  # 옛 짝 없음
     _seed(db, project, people=[])
-    with pytest.raises(ValidationAppError):
-        service.claim_ticket(db, None, settings, me, page_id=PAGE_ID)
+    out = service.claim_ticket(db, None, settings, me, page_id=PAGE_ID)
+    assert _row(db).assignee_notion_ids == join_names([me.id])
+    assert me.id in out["ticket"]["assignee_user_ids"]
 
 
 def test_claim_assigns_me(db, settings, make_user, project):

@@ -21,7 +21,7 @@ import { DebouncedTextField, EMPTYABLE_SELECT, EntityCombobox, FilterSelect, Sea
    폭은 격자 트랙이 아니라 컨트롤의 종류가 정한다(C2 «폭 배분»). */
 import { FILTER_GROUP_ORDER, FilterActions, FilterRow, FilterSurface, ResultLine, ToolbarEnd, ToolbarRow, filterGroupOf } from "../ui/FilterBar.jsx";
 import { SavedViews } from "../ui/SavedViews.jsx";
-import { SHELL_QUERY_KEYS, buildViewQuery, describeView, hashQuery, keepQueryKeys, ownedQueryKeys, parseView, withHashQuery } from "./datascreen-view.js";
+import { SHELL_QUERY_KEYS, buildViewQuery, describeView, hashQuery, keepQueryKeys, ownedQueryKeys, parseView, withHashQuery, withQuery } from "./datascreen-view.js";
 import { loginUrl } from "../lib/sessionRedirect.js";
 import { KO_WORD_BREAK } from "../ui/theme.js";
 // 아래 네 갈래는 원래 이 파일 안에 있던 것을 data-screen/ 로 옮긴 것이다(800줄 규칙, §23).
@@ -185,7 +185,7 @@ export function DataScreen({ config, embedded = false }) {
       p.push(f.key + "=" + encodeURIComponent(sendVal));
     });
     if (config.paginated) { p.push("page=" + page); if (config.pageSize) p.push("page_size=" + config.pageSize); }
-    return config.endpoint + (p.length ? "?" + p.join("&") : "");
+    return withQuery(config.endpoint, p);
   }
   // queryKey는 서버로 실제 전송되는 필터만 반영한다 — clientFilter 값이 바뀌어도 같은 데이터를 다시
   // 받아올 필요가 없다(그 값은 아래 filtered 계산에서만 쓰인다).

@@ -35,7 +35,11 @@ set -a; . "$ENV_FILE"; set +a
 : "${BASE_URL:?BASE_URL 가 $ENV_FILE 에 없다}"
 : "${SUDO_PW:?SUDO_PW 가 $ENV_FILE 에 없다}"
 
-APP_DIR="/opt/clovirone-web-assistant"
+# 설치 경로는 **제품 정체성 한 곳**에서 온다 (D-226 · `app/core/product.py::APP_DIR`).
+# 여기 문자열로 박아 두면 이름이 바뀌는 날 이 줄만 안 따라온다 — 실제로 그랬다: S3 가
+# slug 를 `clovirassist` 로 갈았는데 이 두 스크립트는 `/opt/clovirone-web-assistant` 를
+# 가리킨 채로 남아, 「배포했다」고 말하면서 아무것도 안 바꿀 수 있는 상태였다(S15 발견).
+APP_DIR="$(PYTHONPATH=. "${PY:-python}" -c 'from app.core.product import APP_DIR; print(APP_DIR)' 2>/dev/null || echo /opt/clovirassist)"
 REMOTE_STAGE="deploy-static-update"
 OUT="dist/static-update"
 

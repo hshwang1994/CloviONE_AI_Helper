@@ -2088,10 +2088,10 @@
 - **Wave**: W5B
 - **Requirement**: Search/Filter/Sort/Pagination/Autocomplete/Combobox 를 쓰는 전체 화면을 조사하고, 실제 데이터 기준으로 UI 선택 상태 → Frontend State → URL Query/Route State → API Request Parameter → Backend Query → DB 및 실제 Data Relation → API Response(Total Count 포함) → Rendering 된 목록의 여덟 단계가 전부 일치함을 확인한다. Frontend 에서 선택된 Filter 값만 바뀐 것을 정상 동작으로 판단하지 않는다.
 - **Affected**: CONSOLE:user, CONSOLE:admin
-- **Implementation**: `frontend/src/screens/TicketFilterBar.jsx`, `frontend/src/lib/useQueryState.js`, `app/tickets/repository.py`, `app/tickets/router.py`
-- **Verification**: `docs/ui-renewal/FUNCTIONAL_COVERAGE.json` 의 filter/search/pagination Flow, `python -m scripts.ui_qa.run --fail-on plain_dropdown_for_entity`, Known Data 대조 transcript
-- **Status**: NOT_STARTED
-- **Evidence**: (없음 - Status 가 DONE 이 될 때 채운다)
+- **Implementation**: `app/tickets/service.py::assignee_token`, `app/tickets/query.py::filter_clauses`, `frontend/src/screens/datascreen-view.js::withQuery`, `frontend/src/screens/ticket-options.js::ticketProjectId`, `frontend/src/lib/useQueryState.js`, `app/knowledge/service.py::list_documents`
+- **Verification**: `tests/regression/test_filter_chain.py`, `frontend/src/screens/filter-chain-contract.test.jsx`, `python -m scripts.ui_qa.local_capture --label s15-after --fail-on plain_dropdown_for_entity`
+- **Status**: DONE
+- **Evidence**: `ev:test:tests/regression/test_filter_chain.py`, `ev:test:frontend/src/screens/filter-chain-contract.test.jsx`, `ev:qa_run:s15-after (dist/ui-qa/s15-after/results.json)`, `ev:commit:S15` — 조건 사슬 **38회차**의 원장은 `dist/ui-qa/s15-filter-chain/chain.json` 이다. 기대 집합은 전량 목록에서 직접 세고, 서버의 SQL 과 갈리면 실패다.
 - **Findings**: (없음)
 - **Depends on**: (없음)
 
@@ -2102,10 +2102,10 @@
 - **Wave**: W5B
 - **Requirement**: 존재하는 축(프로젝트·상태·우선순위·난이도·기한·담당자·카테고리·검색어)마다 단독 적용과 복합 적용 결과가 실제 데이터와 일치하는지 확인한다. 다른 Resource 와 연결된 Filter 는 표시 문자열이 아니라 실제 Relation 과 안정적 Identifier 를 기준으로 동작해야 한다. 미할당 티켓처럼 Page 기본 Scope 가 있는 화면은 기본 Scope 와 사용자 Filter 의 결합을 분리해 Known Data 와 대조한다. 누락이 나오면 Frontend 에서 멈추지 않고 API Parameter, Backend Join 과 Relation, Permission Scope, Query Condition 까지 추적해 Root Cause 를 고친다.
 - **Affected**: CONSOLE:user, CONSOLE:admin
-- **Implementation**: `frontend/src/screens/TicketFilterBar.jsx`, `frontend/src/lib/useQueryState.js`, `app/tickets/repository.py`, `app/tickets/router.py`
-- **Verification**: `docs/ui-renewal/FUNCTIONAL_COVERAGE.json` 의 filter/search/pagination Flow, `python -m scripts.ui_qa.run --fail-on plain_dropdown_for_entity`, Known Data 대조 transcript
-- **Status**: NOT_STARTED
-- **Evidence**: (없음 - Status 가 DONE 이 될 때 채운다)
+- **Implementation**: `app/tickets/service.py::assignee_token`, `app/tickets/query.py::filter_clauses`, `frontend/src/screens/datascreen-view.js::withQuery`, `frontend/src/screens/ticket-options.js::ticketProjectId`, `frontend/src/lib/useQueryState.js`, `app/knowledge/service.py::list_documents`
+- **Verification**: `tests/regression/test_filter_chain.py`, `frontend/src/screens/filter-chain-contract.test.jsx`, `python -m scripts.ui_qa.local_capture --label s15-after --fail-on plain_dropdown_for_entity`
+- **Status**: DONE
+- **Evidence**: `ev:test:tests/regression/test_filter_chain.py`, `ev:test:frontend/src/screens/filter-chain-contract.test.jsx`, `ev:qa_run:s15-after (dist/ui-qa/s15-after/results.json)`, `ev:commit:S15` — 단독 축 스물넷 · 복합 다섯 · 기본 Scope 결합 하나를 실측했다. 관계 축(프로젝트·담당자)은 표시 문자열이 아니라 해석된 Portal id 와 담당자 토큰으로 걸린다(D-285·D-287).
 - **Findings**: (없음)
 - **Depends on**: (없음)
 
@@ -2116,10 +2116,10 @@
 - **Wave**: W5B
 - **Requirement**: Filter 를 바꿀 때 Pagination 이 이전 Page 에 남아 0건처럼 보이지 않아야 한다. 빠르게 Filter 를 변경했을 때 오래된 API 응답이 최신 조건을 덮어쓰지 않아야 한다. Cache 또는 Query Key 오류 때문에 다른 Filter 를 선택해도 같은 결과가 재사용되지 않아야 한다. Refresh 와 Browser Back/Forward 이후 화면에 표시된 조건과 실제 Query 조건이 일치해야 한다.
 - **Affected**: CONSOLE:user, CONSOLE:admin
-- **Implementation**: `frontend/src/screens/TicketFilterBar.jsx`, `frontend/src/lib/useQueryState.js`, `app/tickets/repository.py`, `app/tickets/router.py`
-- **Verification**: `docs/ui-renewal/FUNCTIONAL_COVERAGE.json` 의 filter/search/pagination Flow, `python -m scripts.ui_qa.run --fail-on plain_dropdown_for_entity`, Known Data 대조 transcript
-- **Status**: NOT_STARTED
-- **Evidence**: (없음 - Status 가 DONE 이 될 때 채운다)
+- **Implementation**: `app/tickets/service.py::assignee_token`, `app/tickets/query.py::filter_clauses`, `frontend/src/screens/datascreen-view.js::withQuery`, `frontend/src/screens/ticket-options.js::ticketProjectId`, `frontend/src/lib/useQueryState.js`, `app/knowledge/service.py::list_documents`
+- **Verification**: `tests/regression/test_filter_chain.py`, `frontend/src/screens/filter-chain-contract.test.jsx`, `python -m scripts.ui_qa.local_capture --label s15-after --fail-on plain_dropdown_for_entity`
+- **Status**: DONE
+- **Evidence**: `ev:test:tests/regression/test_filter_chain.py`, `ev:test:frontend/src/screens/filter-chain-contract.test.jsx`, `ev:qa_run:s15-after (dist/ui-qa/s15-after/results.json)`, `ev:commit:S15` — 쪽 초기화·경합·캐시 키·뒤로가기를 공용 부품 위에서 계약 시험이 지킨다. 쪽이 아예 없던 화면 둘(게시판·결재함)에는 페이저를 만들고 그 성질을 함께 못박았다.
 - **Findings**: (없음)
 - **Depends on**: (없음)
 

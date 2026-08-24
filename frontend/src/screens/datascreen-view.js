@@ -30,6 +30,32 @@ export function hashPath(hash) {
   return at < 0 ? raw : raw.slice(0, at);
 }
 
+/* API 주소에 질의 조각을 붙인다 — **주소가 이미 질의를 달고 있어도** 안전하게.
+ *
+ * 예전에는 부르는 쪽이 `endpoint + "?" + parts.join("&")` 를 직접 썼다. 목록 주소 대부분은
+ * 맨 경로라 잘 돌았지만, 알림 화면 하나는 대상(audience)을 주소에 박고 있었다
+ * (`/api/notifications?audience=user`). 그래서 실제로 나간 주소가 이랬다:
+ *
+ *     /api/notifications?audience=user?page=1&page_size=20
+ *
+ * 질의는 **첫 `?` 뒤 전부**다. 그래서 서버가 읽은 값은 `audience="user?page=1"` 이었고,
+ * `page` 라는 파라미터는 아예 도착하지 않았다. 결과는 둘 다 조용하다:
+ *
+ *   · 서버는 모르는 audience 를 «전체 보기» 로 떨어뜨린다(그 코드의 의도된 관용이다) —
+ *     그래서 사용자 알림 화면에 관리 알림이 섞여 나오고, 그 반대도 마찬가지다.
+ *   · 「다음」을 눌러도 늘 같은 20건이 온다. 페이저는 «2 / 4» 로 바뀌므로 화면은
+ *     넘어간 것처럼 보인다.
+ *
+ * 두 증상 다 오류를 안 내고, 화면은 정상으로 보인다. 붙이는 규칙을 한 곳에 두고
+ * 이미 있는 `?` 를 보게 한다.
+ */
+export function withQuery(endpoint, parts) {
+  const base = String(endpoint || "");
+  const q = (parts || []).filter(Boolean).join("&");
+  if (!q) return base;
+  return base + (base.includes("?") ? "&" : "?") + q;
+}
+
 /** config.filters 의 키 집합. filters 가 없으면 빈 배열. */
 function filterKeys(config) {
   return ((config && config.filters) || []).map((f) => f.key).filter(Boolean);

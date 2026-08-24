@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import Box from "@mui/material/Box";
 import Chip from "@mui/material/Chip";
@@ -29,6 +29,7 @@ import { useQueryState } from "../lib/useQueryState.js";
 import { SearchBox } from "../ui/filters.jsx";
 import { FilterRow, FilterSurface, ResultLine, ToolbarEnd, ToolbarRow } from "../ui/FilterBar.jsx";
 import { DateCell } from "../ui/cells.jsx";
+import { Pager } from "../ui/Pager.jsx";
 
 /* 게시판 목록 (팀 공간 §18). 순수 내부 기능 — 외부 호출 없음. 카테고리 필터·검색·정렬은
  * 페이지 안에서 처리하고, 글쓰기는 이 페이지의 버튼(모달)이다. 행을 누르면 상세로 이동한다.
@@ -350,9 +351,16 @@ export function Reactions({ targetType, targetId, reactions, palette, onChanged 
  * **모듈 상수여야 한다.** 렌더마다 새 객체를 만들면 훅 안의 메모가 매번 깨진다.
  * 종류마다 다른 이유는 두 가지뿐이다: 아이디어에는 `status` 가 있고, 기본 정렬이 공감순이다
  * (제안 게시판에서 먼저 보고 싶은 것은 최신 글이 아니라 **많이 공감한 제안**이다). */
-const FREE_SPEC = { category: "", q: "", sort: "recent" };
-const IDEA_SPEC = { category: "", q: "", sort: "likes", status: "" };
+/* `page` 도 여기 있다 (S15).
+ *
+ * 서버는 이 목록을 **20건에서 자르고 총 건수를 함께 준다**(app/board/router.py). 그런데
+ * 화면은 그 총 건수를 「총 87건」이라고 적어 놓고 쪽을 넘길 길을 주지 않았다 — 21번째
+ * 글부터는 존재한다는 사실만 보이고 열 방법이 없었다. 조건을 바꾸면 첫 쪽으로 돌아온다
+ * (`PAGE_RESET`): 세 번째 쪽을 보다가 검색을 하면 결과가 한 쪽뿐인데 빈 화면이 뜬다. */
+const FREE_SPEC = { category: "", q: "", sort: "recent", page: 1 };
+const IDEA_SPEC = { category: "", q: "", sort: "likes", status: "", page: 1 };
 const SPEC_BY_KIND = { free: FREE_SPEC, idea: IDEA_SPEC };
+const PAGE_RESET = { reset: ["page"] };
 
 /* 종류마다 다른 것은 문구뿐이다. 화면 구조는 하나다.
  * BoardPost.jsx(상세)도 같은 표를 쓴다 — area(빵부스러기)가 "자유게시판"으로 박혀 있으면
@@ -383,8 +391,8 @@ function BoardScreen({ kind = "free" }) {
   const nav = useNavigate();
   const isIdea = kind === "idea";
   const copy = COPY[kind] || COPY.free;
-  const [query, setQuery] = useQueryState(SPEC_BY_KIND[kind] || FREE_SPEC);
-  const { category, q, sort } = query;
+  const [query, setQuery] = useQueryState(SPEC_BY_KIND[kind] || FREE_SPEC, PAGE_RESET);
+  const { category, q, sort, page } = query;
   // 자유게시판 스펙에는 `status` 자체가 없다 — 주소에 실려 와도 읽지 않는다.
   const status = isIdea ? query.status : "";
   const [composing, setComposing] = useState(false);
@@ -407,8 +415,10 @@ function BoardScreen({ kind = "free" }) {
   const statuses = (isIdea && meta.data && meta.data.statuses) || [];
 
   const list = useQuery({
-    queryKey: ["board", kind, category, q, sort, status],
-    queryFn: () => api("/api/board/posts?" + buildPostsQuery({ kind, category, q, sort, status })),
+    queryKey: ["board", kind, category, q, sort, status, page],
+    queryFn: () => api("/api/board/posts?" + buildPostsQuery({ kind, category, q, sort, status, page })),
+    // 쪽을 넘길 때 목록이 통째로 스켈레톤으로 사라졌다 나타나지 않게 한다(다른 목록과 같다).
+    placeholderData: keepPreviousData,
   });
 
   /* 작성자 신원 묶음(부서·직책·사진). 사람 한 명당 한 줄만 오고 행은 uid 로 찾아 쓴다 —
@@ -597,6 +607,14 @@ function BoardScreen({ kind = "free" }) {
             fixed
             ellipsis
             onRow={(p) => nav(copy.route + p.id)}
+          />
+          {/* 서버가 자른 목록에는 쪽을 넘길 길이 있어야 한다 — 없으면 위 결과 줄이 말하는
+              건수의 대부분이 열 수 없는 숫자가 된다. */}
+          <Pager
+            page={list.data.page}
+            pageSize={list.data.page_size}
+            total={list.data.total}
+            onPage={(next) => setQuery({ page: next })}
           />
         </Card>
       )}
