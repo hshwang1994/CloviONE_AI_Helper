@@ -37,7 +37,7 @@
 - test_server: https://clovirassist.gooddi.lab = 10.100.64.71. 값은 `dist/ops/server.env`.
   **S17 은 배포했다** — S15~S17 세 회차의 변경이 이 회차에서 함께 설치처로 나갔다
 - suppressions: **1건 (SUP-01)** — 칸반 레인의 균등 격자. 만료 2026-10-20. S16 이 적은 근거 그대로다
-- commit: (S17 본체 — 아래 NEXT 참조)
+- commit: `d6eb48cf` (S17 본체)
 - plan: `docs/ui-renewal/PLAN.md`(UI 축 정본) · `DIRECTIVE_v7.txt`(원 지시서) ·
   **`docs/platform/MASTER_PLAN.md`(제품 전체 정본 — 여기가 상위다)**
 
