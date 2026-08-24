@@ -21,6 +21,7 @@ import {
   useToast,
 } from "../ui/kit.jsx";
 import { prefersReducedMotion } from "../ui/motion.js";
+import { DocComments } from "./DocComments.jsx";
 import { FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
 
 /* 문서 한 건 — 본문 · 이력 · 차이 · 되돌리기 (S7 Exit).
@@ -202,6 +203,20 @@ export function KnowledgeDoc() {
     onError: (e) => toast(e.message, "error"),
   });
 
+  /* 즐겨찾기는 **내 목록**을 고치는 일이다 — 문서를 고치는 것이 아니라서 볼 수 있는
+   * 사람이면 담을 수 있고, 담아도 남의 화면은 달라지지 않는다. */
+  const favorite = useMutation({
+    mutationFn: (on) =>
+      api(`/api/knowledge/documents/${id}/favorite?on=${on ? "true" : "false"}`,
+        { method: "POST" }),
+    onSuccess: (result) => {
+      qc.invalidateQueries({ queryKey: ["knowledge", "document", id] });
+      qc.invalidateQueries({ queryKey: ["knowledge", "documents"] });
+      toast(result.is_favorite ? "즐겨찾기에 담았습니다." : "즐겨찾기에서 뺐습니다.");
+    },
+    onError: (e) => toast(e.message, "error"),
+  });
+
   const restore = useMutation({
     mutationFn: (versionNo) =>
       api(`/api/knowledge/documents/${id}/versions/${versionNo}/restore`, {
@@ -225,16 +240,24 @@ export function KnowledgeDoc() {
   return (
     <>
       <PageHeader
-        area="지식 공간"
+        area="문서"
         title={doc.data.title}
         actions={
-          <Button
-            variant="primary"
-            loading={save.isPending}
-            onClick={() => save.mutate({ title, body, base_version: doc.data.version })}
-          >
-            저장
-          </Button>
+          <>
+            <Button
+              loading={favorite.isPending}
+              onClick={() => favorite.mutate(!doc.data.is_favorite)}
+            >
+              {doc.data.is_favorite ? "즐겨찾기 해제" : "즐겨찾기"}
+            </Button>
+            <Button
+              variant="primary"
+              loading={save.isPending}
+              onClick={() => save.mutate({ title, body, base_version: doc.data.version })}
+            >
+              저장
+            </Button>
+          </>
         }
       />
 
@@ -258,6 +281,16 @@ export function KnowledgeDoc() {
               <BlockEditor value={body} onChange={setBody} />
             </React.Suspense>
           </Stack>
+        </Card>
+      )}
+
+      {/* 논의는 본문 아래에 그대로 둔다. 탭 뒤에 감추면 「질문이 하나도 없다」와 「질문 칸이
+          어디 있는지 모르겠다」가 화면에서 똑같이 보인다. */}
+      {tab === 0 && (
+        <Card sx={{ mt: 2 }}>
+          <Section title="댓글">
+            <DocComments documentId={id} />
+          </Section>
         </Card>
       )}
 

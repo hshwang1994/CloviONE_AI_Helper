@@ -2,6 +2,8 @@
 
 목록·상세·즐겨찾기·최근·필터(문서 종류/업무 분야/프로젝트/기술 태그)·생성·동기화 게이트
 + 인증/CSRF/기능플래그 + 장애 격리.
+
+qa-contract-change: 세 시험이 문서 미러 동기화 라우트(POST /api/team-docs/sync)와 노션 쓰기 403 매핑을 확인했고 S14 가 그 라우트와 그 구현체를 함께 지웠다(D-284) — 거부할 상대도 부를 라우트도 없으므로, 권한 단언 둘을 «라우트가 돌아오지 않는다» 하나로 바꾸고 쓰기 거부 매핑 시험은 걷었다.
 """
 
 from __future__ import annotations
@@ -78,24 +80,12 @@ def test_view_exposes_new_taxonomy(client, login_as, db):
     assert set(item["tech_tags"]) == {"Docker", "Linux"}
 
 
-def test_favorite_toggle_and_favorites_only(client, login_as, db):
-    csrf = login_as("user", email="fav@goodmit.co.kr")
-    _add_doc(db, "f1", "문서")
-    r = client.post("/api/team-docs/f1/favorite?on=true", headers={"X-CSRF-Token": csrf})
-    assert r.status_code == 200 and r.json()["is_favorite"] is True
-    assert client.get("/api/team-docs?favorites=true").json()["total"] == 1
-    client.post("/api/team-docs/f1/favorite?on=false", headers={"X-CSRF-Token": csrf})
-    assert client.get("/api/team-docs?favorites=true").json()["total"] == 0
+# 즐겨찾기 시험은 여기 없다 (S14 · C2) — 그 축은 정본 문서로 옮겼고
+# `tests/integration/test_knowledge_favorites.py` 가 고정한다.
 
 
-def test_favorite_requires_csrf(client, login_as, db):
-    login_as("user", email="csrfd@goodmit.co.kr")
-    _add_doc(db, "c1", "문서")
-    assert client.post("/api/team-docs/c1/favorite?on=true").status_code == 403
-
-
-def test_detail_blocks_and_records_recent(client, login_as, db):
-    """상세는 저장된 본문을 화면 블록으로 풀어 주고, 그 열람을 최근 목록에 남긴다.
+def test_detail_unpacks_the_saved_body_into_blocks(client, login_as, db):
+    """상세는 저장된 본문을 화면 블록으로 풀어 준다.
 
     본문을 가짜 Notion 서버가 아니라 **문서 행에 직접 심는다** (S14). 자체 DB 가 정본이 된
     뒤에는 상세가 저장된 마크다운만 읽으므로, 페이크만 두면 블록이 빈 목록으로 와서 이
@@ -114,7 +104,6 @@ def test_detail_blocks_and_records_recent(client, login_as, db):
     assert [b["kind"] for b in r["blocks"]] == ["heading_1", "paragraph"]
     assert [b["text"] for b in r["blocks"]] == ["머리말", "본문 내용"]
     assert r["blocks_error"] is None
-    assert any(d["id"] == "x1" for d in client.get("/api/team-docs/filters").json()["recent"])
 
 
 def test_detail_missing_returns_404(client, login_as):
@@ -137,20 +126,9 @@ def test_trashed_document_detail_is_not_found(client, login_as, db):
     assert detail.status_code == 404, f"휴지통 문서가 상세로 열린다: {detail.status_code} {detail.text}"
 
 
-def test_trashed_document_comments_are_not_found(client, login_as, db):
-    """댓글 목록·작성도 상세와 같은 판정을 지나야 한다 — 안 그러면 지운 문서의 논의가
-    보관기간 동안 계속된다(상세는 막혀도 딥링크로 댓글만 열리는 구멍)."""
-    csrf = login_as("operator", email="trashcom@goodmit.co.kr")
-    _add_doc(db, "td2", "지울 문서 2")
-    r = client.post("/api/team-docs/td2/trash", headers={"X-CSRF-Token": csrf})
-    assert r.status_code == 200, r.text
-
-    listing = client.get("/api/team-docs/td2/comments")
-    assert listing.status_code == 404, f"휴지통 문서의 댓글 목록이 열린다: {listing.status_code} {listing.text}"
-
-    created = client.post("/api/team-docs/td2/comments", json={"body": "댓글"},
-                          headers={"X-CSRF-Token": csrf})
-    assert created.status_code == 404, f"휴지통 문서에 댓글을 달 수 있다: {created.status_code} {created.text}"
+# 휴지통 문서의 댓글 시험도 여기 없다 (S14 · C2). 댓글은 정본 문서에 붙었고, 그쪽의
+# 「범위 밖은 404」는 `tests/integration/test_knowledge_comments.py` 가 네 경로 전부에서
+# 고정한다.
 
 
 def test_filters_endpoint_returns_fixed_lists_and_projects(client, login_as, db):
@@ -160,18 +138,6 @@ def test_filters_endpoint_returns_fixed_lists_and_projects(client, login_as, db)
     f = client.get("/api/team-docs/filters").json()
     assert "회의록" in f["doc_types"] and "보안" in f["work_fields"] and "Docker" in f["tech_tags"]
     assert set(f["projects"]) == {"포스코DX", "하이닉스"}
-
-
-def _notion_write_fakes(fake_http):
-    fake_http.on(
-        # 문서 DB id 는 설치처 고유값이라 소스 기본값이 없다 - 테스트 설정이 쓰는 값을 그대로 쓴다.
-        f"https://api.notion.com/v1/databases/{TEST_DOCS_DB}",
-        json_body={"properties": {"프로젝트": {"type": "relation", "relation": {"database_id": "projdb"}}}},
-    )
-    fake_http.on(
-        "https://api.notion.com/v1/databases/projdb/query",
-        json_body={"results": [{"id": "pj1", "properties": {"Name": {"type": "title", "title": [{"plain_text": "포스코DX"}]}}}], "has_more": False},
-    )
 
 
 def test_create_document(client, login_as, db):
@@ -216,23 +182,10 @@ def test_create_document_rejects_bad_taxonomy(client, login_as):
                        headers={"X-CSRF-Token": csrf}).status_code == 422
 
 
-# **이 시험만 소스를 되돌린다** (S14). 「원본이 쓰기를 거부했다」는 상태는 미러 경로에만
-# 있다 — 자체 DB 소스의 생성은 우리 표에 행을 하나 넣는 일이라 거부할 상대가 없고, 표를
-# 안 붙이면 이 시험은 403 대신 200 을 받는다. 이 표는 동시에 **Notion 을 걷어낼 때 지울
-# 자리의 목록**이고, 그때 `notion_docs_write_forbidden` 코드도 함께 없어진다.
-@pytest.mark.notion_source
-def test_create_document_maps_write_forbidden(client, login_as, db, settings, fake_http):
-    (settings.secrets_dir / "notion_docs_token").write_text("faketoken", encoding="utf-8")
-    _notion_write_fakes(fake_http)
-    fake_http.on("https://api.notion.com/v1/pages", status=403, json_body={"message": "no write"})
-    csrf = login_as("user", email="mkforbid@goodmit.co.kr")
-    r = client.post(
-        "/api/team-docs",
-        json={"title": "권한없음 문서", "document_type": "회의록", "work_field": "개발"},
-        headers={"X-CSRF-Token": csrf},
-    )
-    assert r.status_code == 403
-    assert r.json()["error"]["code"] == "notion_docs_write_forbidden"
+# 여기 있던 `test_create_document_maps_write_forbidden` 을 걷었다. 문서 생성이 소스의
+# 403 을 `notion_docs_write_forbidden` 으로 옮겨 담는지 보던 시험인데, S14 뒤로 생성은
+# **우리 표에 행을 하나 넣는 일**이라 거부할 상대가 없다(D-284). 권한 자체는 위
+# `test_create_document` 와 아래 범위 시험들이 본다.
 
 
 def test_projects_endpoint_falls_back_to_cache_without_notion(client, login_as, db):
@@ -248,16 +201,23 @@ def test_projects_endpoint_falls_back_to_cache_without_notion(client, login_as, 
     assert "프로젝트X" in r.json()["projects"]
 
 
-def test_sync_requires_operator(client, login_as):
-    csrf = login_as("user", email="synguser@goodmit.co.kr")
-    assert client.post("/api/team-docs/sync", headers={"X-CSRF-Token": csrf}).status_code == 403
+def test_the_sync_endpoint_is_gone_for_everyone(client, login_as):
+    """🔴 `POST /api/team-docs/sync` 가 **없다** (S14 · D-284).
 
+    예전에는 이 자리에 둘이 있었다: 「운영자만 부를 수 있다」와 「노션이 없으면 곱게
+    실패한다」. 문서 미러 동기화가 사라지면서 라우트째 없어졌으므로 그 둘은 지킬 대상이
+    없다 — 대신 **되살아나지 않는 것**을 본다.
 
-def test_operator_sync_faults_gracefully_without_notion(client, login_as):
-    csrf = login_as("operator", email="op@goodmit.co.kr")
-    r = client.post("/api/team-docs/sync", headers={"X-CSRF-Token": csrf})
-    assert r.status_code == 200
-    assert r.json()["sync"]["status"] == "error"
+    권한으로 확인하지 않고 **없음**으로 확인하는 이유: 라우트가 돌아오면 그 순간 제품이
+    정본 표에 외부 소스를 덮어쓰는 경로를 다시 갖는다. 그때 403 을 단언하는 시험은
+    「막혀 있다」로 초록을 내며 그 사실을 감춘다.
+    """
+    for role, email in (("user", "synguser@goodmit.co.kr"), ("operator", "op@goodmit.co.kr")):
+        csrf = login_as(role, email=email)
+        r = client.post("/api/team-docs/sync", headers={"X-CSRF-Token": csrf})
+        assert r.status_code == 405, (
+            f"{role} 에게 문서 동기화 라우트가 살아 있다: {r.status_code} {r.text[:200]}"
+        )
 
 
 def test_feature_flag_off_hides_team_docs(db_url, tmp_path, fake_clock, fake_http):

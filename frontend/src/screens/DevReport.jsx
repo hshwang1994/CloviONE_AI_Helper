@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import Box from "@mui/material/Box";
-import Link from "@mui/material/Link";
 import MenuItem from "@mui/material/MenuItem";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
@@ -17,7 +16,6 @@ import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
 import { BarSeries } from "../ui/charts/BarSeries.jsx";
 import { Donut } from "../ui/charts/Donut.jsx";
 import { resolveChartColor } from "../ui/charts/base.jsx";
-import { safeExternal } from "../lib/safeUrl.js";
 import { Note } from "../ui/adminKit.jsx";
 
 // 이번 달을 'YYYY-MM'으로. 리포트는 마감일 기준이라 월만 쓴다.
@@ -107,7 +105,7 @@ function Th({ children, title, align = "right", width }) {
   );
 }
 
-/* 개발자 월간 리포트 — 앱이 Notion "작업" DB를 라이브로 읽어 담당자별 업무를 보여준다.
+/* 개발자 월간 리포트 — 마감일이 그 달인 티켓을 담당자별로 묶어 보여준다.
  * KPI 타일·상태 구성 도넛·담당자별 업무량 막대로 요약을 먼저 주고, 표는 그 아래에 둔다.
  * 그림은 전부 ui/charts의 의존성 없는 SVG다(차트 라이브러리를 들이지 않는다 — 번들 예산). */
 export function DevReport() {
@@ -151,7 +149,7 @@ export function DevReport() {
 
       <Box sx={{ mb: 3 }}>
         <Note sx={{ mt: 0 }}>
-          마감일이 선택한 달인 티켓을 Notion에서 실시간으로 읽어 담당자별로 집계합니다. 각자 얼마나 일했는지는 완료 건수와 예상 WD로 보고, 지금 안고 있는 부담과 위험은 진행 중 업무와 지연으로 함께 봅니다. 예상 WD와 난이도는 티켓 내용을 바탕으로 추정한 값이고, 실제 WD는 완료한 담당자가 입력합니다.
+          마감일이 선택한 달인 티켓을 담당자별로 집계합니다. 각자 얼마나 일했는지는 완료 건수와 예상 WD로 보고, 지금 안고 있는 부담과 위험은 진행 중 업무와 지연으로 함께 봅니다. 예상 WD와 난이도는 티켓 내용을 바탕으로 추정한 값이고, 실제 WD는 완료한 담당자가 입력합니다.
         </Note>
       </Box>
 
@@ -182,9 +180,12 @@ export function DevReport() {
       ) : query.isError ? (
         <ErrorState error={query.error} onRetry={() => query.refetch()} />
       ) : data && data.configured === false ? (
+        // 이 갈래는 더 이상 안 열린다 — 티켓의 정본이 이 서버라 사람이 채워 넣을 접속
+        // 설정이 없다(S14 · D-284). 응답 모양은 남아 있으므로 갈래도 남기되, 없어진
+        // 절차를 안내하지는 않는다.
         <Card>
           <Callout tone="warn">
-            이 화면을 쓰려면 앱 서버가 Notion을 읽을 수 있도록 연동 토큰이 설정되어야 합니다. 토큰이 아직 없어 데이터를 불러오지 못했습니다. 관리자가 Notion 통합 토큰을 서버에 설정하면 새로고침만으로 실제 데이터가 나옵니다.
+            지금은 리포트를 만들 수 없습니다. 잠시 뒤 새로고침해 보시고, 계속 같으면 관리자에게 문의하세요.
           </Callout>
         </Card>
       ) : data && ok === false ? (
@@ -226,7 +227,7 @@ export function DevReport() {
                 <TableWrap minWidth="52rem" fixed>
                   <TableHead>
                     <TableRow>
-                      <Th align="left" width="11%" title="티켓 담당자입니다. 이름은 앱의 Notion 사용자 연결로 해석했습니다.">개발자</Th>
+                      <Th align="left" width="11%" title="티켓 담당자입니다. 이름은 사용자 연결로 해석했습니다.">개발자</Th>
                       <Th align="left" width="26%" title="담당한 티켓의 상태 비율을 색 막대로 나타냅니다. 오른쪽 도넛의 범례와 같은 색입니다.">상태 구성</Th>
                       <Th title="이번 달 마감분 가운데 완료 상태인 티켓 수입니다.">완료</Th>
                       <Th title="진행 상태인 티켓 수입니다.">진행</Th>
@@ -282,7 +283,7 @@ export function DevReport() {
                   <Th title="진행과 검증을 합한 티켓 수입니다.">진행 중</Th>
                   <Th title="이번 달 완료한 티켓들의 예상 공수 합(인일). 예상 기준으로 이 사람이 이번 달에 끝낸 업무량입니다.">완료 업무량</Th>
                   <Th title="맡은 티켓 전체(취소 제외, 아직 안 끝낸 것 포함)의 예상 공수 합(인일). '완료 업무량'보다 크거나 같고, 둘의 차이가 남은 업무량입니다.">맡은 업무량</Th>
-                  <Th title="완료한 티켓에 실제로 든 공수입니다. 담당자가 Notion에 직접 입력해야 채워지는 값이라, 아무도 안 적었으면 0으로 집계돼 '-'로 보입니다(예상치로 대신 채우지 않습니다).">실제 WD</Th>
+                  <Th title="완료한 티켓에 실제로 든 공수입니다. 담당자가 직접 입력해야 채워지는 값이라, 아무도 안 적었으면 0으로 집계돼 '-'로 보입니다(예상치로 대신 채우지 않습니다).">실제 WD</Th>
                   <Th title="이 사람이 완료한 티켓 1건당 평균 실제 공수입니다. 실제 WD를 완료 건수로 나눈 값이라, 티켓 크기가 다른 사람끼리 부담을 비교할 때 씁니다.">평균 실제WD/건</Th>
                   <Th title="완료 티켓의 실제 공수를 예상 공수로 나눈 비율입니다. 100%면 예상과 같고, 100%보다 크면 예상보다 오래 걸렸다는 뜻입니다(견적 정확도).">예상 정확도</Th>
                   <Th title="맡은 티켓들의 난이도 평균입니다. 1에서 6까지이고 취소는 제외하며, 추정치입니다.">난이도 평균</Th>
@@ -325,8 +326,8 @@ export function DevReport() {
               <TableWrap minWidth="56rem">
                 <TableHead>
                   <TableRow>
-                    <Th align="left" title="티켓 번호입니다(Notion 자동 번호).">번호</Th>
-                    <Th align="left" title="티켓 제목입니다. 누르면 Notion 원본으로 이동합니다.">제목</Th>
+                    <Th align="left" title="티켓 이름입니다(프로젝트 코드와 순번).">번호</Th>
+                    <Th align="left" title="티켓 제목입니다. 원본 링크가 있는 티켓은 누르면 그 링크로 이동합니다.">제목</Th>
                     <Th align="left" title="티켓의 진행 상태입니다.">상태</Th>
                     <Th title="티켓 마감일입니다.">마감일</Th>
                     <Th title="티켓 우선순위입니다(높음, 중간, 낮음).">우선순위</Th>
@@ -353,11 +354,10 @@ export function DevReport() {
                     ...d.tickets.map((t) => (
                       <TableRow key={d.name + ":" + (t.tid || t.title) + ":" + t.status}>
                         <TableCell sx={{ whiteSpace: "nowrap" }}>{t.key || "-"}</TableCell>
-                        <TableCell sx={{ minWidth: "14rem", ...KO_WORD_BREAK }}>
-                          {safeExternal(t.url)
-                            ? <Link href={safeExternal(t.url)} target="_blank" rel="noreferrer noopener" underline="hover">{t.title}</Link>
-                            : t.title}
-                        </TableCell>
+                        {/* 제목은 평문이다. 예전에는 옛 Notion 주소로 나가는 링크였는데,
+                            정본이 이 서버로 넘어온 뒤로 그 주소가 여는 것은 우리가 더 이상
+                            쓰지 않는 낡은 사본이다. 서버도 응답에서 `url` 을 걷었다. */}
+                        <TableCell sx={{ minWidth: "14rem", ...KO_WORD_BREAK }}>{t.title}</TableCell>
                         <TableCell><Badge value={t.status || "-"} /></TableCell>
                         <TableCell align="right" sx={{ whiteSpace: "nowrap" }}>{t.due || "-"}</TableCell>
                         <TableCell align="right" sx={{ whiteSpace: "nowrap" }}>{t.priority || "-"}</TableCell>

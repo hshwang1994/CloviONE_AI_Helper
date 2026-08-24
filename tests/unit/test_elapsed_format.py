@@ -3,13 +3,12 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+import re
+from pathlib import Path
 
 import pytest
 
 from app.core.elapsed import format_elapsed_korean
-from app.observability.models import SYNC_ERROR, SYNC_OK, SyncStatus
-from app.observability.router import _notice_for
 
 pytestmark = pytest.mark.unit
 
@@ -34,42 +33,31 @@ def test_negative_is_treated_as_zero_not_shown_raw():
     assert format_elapsed_korean(-5) == "0분"
 
 
-def test_critical_stall_never_shows_a_four_digit_minute_number():
-    """🔴 revert-to-verify 대상 — `minutes = int(age // 60)`으로 되돌리면 이 시험이
-    "17976분"류 4자리 숫자를 만들며 실패해야 한다."""
-    now = datetime(2026, 8, 16, 12, 0, 0)
-    row = SyncStatus(
-        component="tickets",
-        status=SYNC_OK,
-        last_success_at=now - timedelta(days=12, hours=13, minutes=20),
-    )
-    notice = _notice_for(row, "티켓", now)
-    assert notice is not None
-    assert "일 지났습니다" in notice["message"], notice["message"]
-    assert "12일" in notice["message"], notice["message"]
-    import re
-
-    assert not re.search(r"\d{4,}분", notice["message"]), notice["message"]
+def test_long_stalls_are_never_rendered_as_a_four_digit_minute_number():
+    """🔴 revert-to-verify 대상 — `minutes = int(seconds // 60)`으로 되돌리면 이 시험이
+    "17976분"류 4자리 숫자를 만들며 실패해야 한다. 실측 사고(12.5일)와 같은 크기다."""
+    text = format_elapsed_korean(12 * 86400 + 13 * 3600 + 20 * 60)
+    assert text == "12일", text
+    assert not re.search(r"\d{4,}분", text), text
+    assert "분" not in text, text
 
 
-def test_warning_band_unaffected_by_the_upgrade():
-    """WARNING 구간(15~60분)은 예전처럼 분 단위로 남는다 — 회귀 없음."""
-    now = datetime(2026, 8, 16, 12, 0, 0)
-    row = SyncStatus(
-        component="tickets", status=SYNC_OK,
-        last_success_at=now - timedelta(minutes=22),
-    )
-    notice = _notice_for(row, "티켓", now)
-    assert notice is not None
-    assert "22분 지났습니다" in notice["message"], notice["message"]
+def test_the_permanent_mirror_staleness_banner_is_gone():
+    """티켓·문서 미러 신선도 알림이 사용자 배너에서 사라졌다는 것을 소스로 못박는다.
 
+    예전에는 이 파일이 `app/observability/router.py::_notice_for` 를 직접 불러
+    "지금 티켓 동기화가 멈춰 있습니다" 의 경과 시간 표기를 검사했다. 그 판정 자체가
+    없어졌다 — 미러에 쓰는 코드가 사라진 뒤로 `sync_status` 의 마지막 성공 시각은 매일
+    조금씩 더 낡아지기만 해서, 판정이 남아 있으면 모든 화면에 영원히 붙는 critical
+    배너가 된다. 되살리면 이 시험이 빨개진다.
+    """
+    from app.observability import router as obs_router
 
-def test_transient_error_band_still_uses_the_shared_formatter():
-    now = datetime(2026, 8, 16, 12, 0, 0)
-    row = SyncStatus(
-        component="documents", status=SYNC_ERROR,
-        last_success_at=now - timedelta(minutes=3),
-    )
-    notice = _notice_for(row, "문서", now)
-    assert notice is not None
-    assert "3분 지났습니다" in notice["message"], notice["message"]
+    assert hasattr(obs_router, "_notice_for") is False
+    assert hasattr(obs_router, "USER_VISIBLE") is False
+    assert hasattr(obs_router, "LATE_AFTER_SECONDS") is False
+    assert hasattr(obs_router, "STALLED_AFTER_SECONDS") is False
+    src = Path(obs_router.__file__).read_text(encoding="utf-8")
+    body = src.split('"""', 2)[-1]
+    assert "동기화가" not in body, body
+    assert "sync." not in body, body

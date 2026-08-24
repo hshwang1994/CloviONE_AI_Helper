@@ -2,10 +2,13 @@
 
 ## 이 파일이 고정하는 성질
 
-  1. **읽기 답이 안 바뀐다.** 네 목록(내 티켓·미할당·전체·기간)이 Notion 구현체의
-     미러 모드와 **같은 행을 같은 순서로** 돌려준다. 컷오버는 소스를 바꾸는 일이지
-     목록을 바꾸는 일이 아니다 — 같은 데이터에서 다른 답이 나오면 그건 이관이 아니라
-     사고다.
+  1. **네 목록이 정해진 행을 정해진 순서로 돌려준다.** 내 티켓·미할당·전체·기간이 각각
+     어떤 행을 어떤 차례로 내놓는지 이 파일이 값으로 적어 둔다.
+
+     S14 때는 같은 성질을 Notion 구현체의 미러 모드와 비교해 증명했다 — 컷오버가 목록을
+     바꾸지 않았다는 것을 보여야 했기 때문이다. 그 구현체는 이제 없으므로 비교할 짝도
+     없다. 비교를 지우고 나면 남는 것은 「어떤 답이 나오든 그 답」이라는 동어반복이라,
+     기대값을 여기에 직접 적는다. 정렬 규칙이 바뀌면 이 목록이 소리 내어 깨진다.
   2. **필터와 페이지가 자르기 전에 걸린다.** `total` 은 필터를 다 건 뒤·자르기 전
      건수다. 자른 뒤에 세면 화면이 "2건 중 3-4" 라는 말이 안 되는 문장을 쓴다.
   3. **새 티켓이 이름을 받는다.** `<CODE>-<SEQ>` 는 트리거가 파생시키고 앱은 그 컬럼을
@@ -14,8 +17,8 @@
      자체 uuid 로 열린다. 모르는 값은 **거절한다** — 빈 티켓을 돌려주면 「없는 티켓」과
      「빈 티켓」이 같은 답이 되고, 사용자는 자기가 지운 줄 안다.
   5. **밖으로 한 번도 안 나간다.** import 로도(정적) 실행으로도(왕복 기록) 확인한다.
-     0건이 「안 봤다」와 구별되도록 **같은 픽스처에서 Notion 구현체는 왕복을 남기는
-     것**을 함께 본다.
+     0건이 「안 봤다」와 구별되도록 **같은 픽스처에서 다른 호출은 왕복을 남기는 것**을
+     함께 본다.
 """
 
 from __future__ import annotations
@@ -39,7 +42,6 @@ from app.tickets.models import (
 )
 from app.tickets.repository import PageSpec, TicketDraft, TicketFilters
 from app.tickets.repository_native import NativeTicketRepository
-from app.tickets.repository_notion import NotionTicketRepository
 
 pytestmark = pytest.mark.integration
 
@@ -98,11 +100,13 @@ def _row(
     return row
 
 
-def _mirror_ready(db, count: int) -> None:
-    """Notion 구현체가 **미러로 답하게** 만든다.
+def _stale_sync_state(db, count: int) -> None:
+    """옛 동기화 싱글턴 행을 **일부러 채워 둔다**.
 
-    안 채우면 저쪽이 실시간 폴백으로 가고, 그러면 이 파일의 비교 시험이 「같은 답」이
-    아니라 「Notion 페이크의 답」을 보게 된다 — 증명하려던 것과 다른 것이 검사된다.
+    이 행은 미러 시절의 유물이고 이관해 온 데이터베이스에 그대로 남아 있다. 채워 두는
+    이유는 `test_the_answer_carries_no_freshness_contract` 때문이다 — 행이 아예 없으면 그
+    시험은 「저장소가 신선도를 안 싣는다」가 아니라 「읽을 행이 없었다」를 확인하게 되고,
+    저장소가 다시 이 행을 읽기 시작해도 조용히 초록으로 남는다.
     """
     state = db.get(TicketSyncState, SYNC_STATE_ID)
     if state is None:
@@ -123,10 +127,9 @@ def native() -> NativeTicketRepository:
 
 
 @pytest.fixture()
-def notion(app, settings) -> NotionTicketRepository:
-    """비교 대상 — **미러 모드**의 Notion 구현체."""
-    (settings.secrets_dir / "notion_report_token").write_text("t", encoding="utf-8")
-    return NotionTicketRepository(settings, app.state.outbound_client, use_cache=True)
+def outbound(app):
+    """이 앱이 실제로 쓰는 Outbound Client. 반례 시험이 계측기를 흔들어 보는 데 쓴다."""
+    return app.state.outbound_client
 
 
 @pytest.fixture()
@@ -148,7 +151,7 @@ def catalog(db, project):
     # 「소스에서 사라졌다」로 표시된 행 — 어느 목록에도 나오면 안 된다.
     _row(db, uid="n-missing", tid=6, assignees=(NID_ME,), missing_at=NOW)
     db.commit()
-    _mirror_ready(db, 7)
+    _stale_sync_state(db, 7)
     return project
 
 
@@ -158,25 +161,40 @@ def _ids(result) -> list[str]:
 
 # ── 1. 읽기 답이 안 바뀐다 ────────────────────────────────────────────────────
 
+# 정렬은 마감 빠른 순 → 티켓 번호 순 → id 순이다(`app/tickets/query.py::ORDER`). 아래 기대값은
+# 그 규칙을 `catalog` 의 행에 손으로 적용한 결과이고, 규칙이 바뀌면 여기가 먼저 깨진다.
+# 「소스에서 사라졌다」로 표시된 `n-missing` 은 어느 목록에도 없어야 한다.
+_MINE = ["page-n-mine-1", "page-n-mine-2"]
+_UNASSIGNED = ["page-n-free-1", "page-n-free-2", "page-n-nodue"]
+_ALL = [
+    "page-n-mine-1", "page-n-mine-2", "page-n-mate",
+    "page-n-free-1", "page-n-free-2", "page-n-nodue",
+]
+# 기간 목록은 마감일이 있는 행만 본다 — `n-nodue` 가 여기서 빠지는 것이 그 증거다.
+_PERIOD = ["page-n-mine-1", "page-n-mine-2", "page-n-mate", "page-n-free-1", "page-n-free-2"]
+
+
 @pytest.mark.parametrize(
-    "call",
+    ("call", "expected"),
     [
-        pytest.param(lambda repo, db: repo.list_by_assignee(db, assignee_id=NID_ME), id="mine"),
-        pytest.param(lambda repo, db: repo.list_unassigned(db), id="unassigned"),
-        pytest.param(lambda repo, db: repo.list_all(db), id="all"),
+        pytest.param(
+            lambda repo, db: repo.list_by_assignee(db, assignee_id=NID_ME), _MINE, id="mine",
+        ),
+        pytest.param(lambda repo, db: repo.list_unassigned(db), _UNASSIGNED, id="unassigned"),
+        pytest.param(lambda repo, db: repo.list_all(db), _ALL, id="all"),
         pytest.param(
             lambda repo, db: repo.list_for_period(db, start="2026-07-13", end="2026-09-30"),
+            _PERIOD,
             id="period",
         ),
     ],
 )
-def test_the_four_lists_answer_exactly_what_the_mirror_answered(catalog, db, native, notion, call):
-    """같은 데이터에서 같은 행이 같은 순서로 나온다."""
-    mine = call(native, db)
-    theirs = call(notion, db)
-    assert _ids(mine) == _ids(theirs)
-    assert mine.total == theirs.total
-    assert mine.tickets == theirs.tickets
+def test_the_four_lists_answer_the_rows_the_order_rule_predicts(catalog, db, native, call, expected):
+    """네 목록이 정해진 행을 정해진 차례로 돌려준다."""
+    result = call(native, db)
+    assert _ids(result) == expected
+    # `total` 은 자르기 전 건수다. 목록 길이와 따로 확인해야 둘이 갈라진 것을 잡는다.
+    assert result.total == len(expected)
 
 
 def test_the_missing_marker_still_hides_the_ticket(catalog, db, native):
@@ -185,12 +203,22 @@ def test_the_missing_marker_still_hides_the_ticket(catalog, db, native):
     assert "page-n-missing" not in _ids(native.list_by_assignee(db, assignee_id=NID_ME))
 
 
-def test_the_answer_says_it_is_not_a_copy(catalog, db, native):
-    """정본으로 답했으므로 신선도를 싣지 않는다 — 화면의 「N분 전 동기화」 배지가 사라진다."""
+def test_the_answer_carries_no_freshness_contract(catalog, db, native):
+    """정본으로 답했으므로 신선도라는 계약 자체가 없다.
+
+    예전에는 이 시험이 `result.sync is None` 과 `native.sync_state(db) is None` 을
+    단언했다 — 「값이 비어 있다」는 필드가 되살아나는 것을 못 막는다. 낡은 `sync_status`
+    행이 위 `_stale_sync_state` 로 채워져 있는데도 그 값을 실어 나를 자리가 아예 없어야
+    한다. 되살리면 이 시험이 빨개진다.
+    """
     result = native.list_all(db)
     assert result.from_cache is False
-    assert result.sync is None
-    assert native.sync_state(db) is None
+    assert hasattr(result, "sync") is False, result
+    assert hasattr(native, "sync_state") is False, "신선도 계약이 되살아났다"
+    from app.tickets import repository as repo_mod
+
+    assert hasattr(repo_mod, "SyncStatus") is False
+    assert hasattr(repo_mod.TicketRepository, "sync_state") is False
 
 
 # ── 2. 필터와 페이지는 자르기 **전에** 걸린다 ─────────────────────────────────
@@ -366,11 +394,16 @@ def test_local_uid_and_ensure_local(catalog, db, native):
 
 # ── 5. 본문 ──────────────────────────────────────────────────────────────────
 
-def test_save_body_is_always_synced(catalog, db, native):
-    """밀어 넣을 곳이 없으므로 「못 밀어 넣었다」는 상태가 없다."""
+def test_save_body_carries_no_push_state(catalog, db, native):
+    """밀어 넣을 곳이 없으므로 「못 밀어 넣었다」는 상태가 **필드째** 없다.
+
+    예전에는 `result.synced is True` 를 단언했다. 언제나 참인 필드가 참인지 보는 것은
+    아무것도 막지 못하고, 그 필드가 응답까지 실려 나가는 동안 화면은 그것을 보고 없는
+    실패 갈래를 되살린다. 되살리면 이 시험이 빨개진다.
+    """
     result = native.save_body(db, page_id="page-n-mine-1", body_markdown="# 제목\n- 하나", now=NOW)
-    assert result.synced is True
-    assert result.sync_error is None
+    assert hasattr(result, "synced") is False, result
+    assert hasattr(result, "sync_error") is False, result
     assert result.uid == "n-mine-1"
     row = db.get(TicketCache, "n-mine-1")
     assert row.body_markdown == "# 제목\n- 하나"
@@ -488,7 +521,6 @@ def test_no_request_leaves_the_process(catalog, db, native, fake_http, project):
     native.body_blocks(db, page_id="page-n-mine-1")
     native.meta(db)
     native.projects(db)
-    native.sync_state(db)
     native.local_uid(db, page_id="page-n-mine-1")
     native.ensure_local(db, page_id="page-n-mine-1")
     made = native.create(db, draft=TicketDraft(title="왕복 없음", project_id=PROJECT_PAGE), now=NOW)
@@ -499,13 +531,13 @@ def test_no_request_leaves_the_process(catalog, db, native, fake_http, project):
     assert fake_http.requests == []
 
 
-def test_the_probe_can_actually_see_a_request(catalog, db, notion, fake_http):
-    """반례 — 같은 픽스처에서 Notion 구현체는 왕복을 남긴다.
+def test_the_probe_can_actually_see_a_request(outbound, fake_http):
+    """반례 — 같은 픽스처에서 **밖으로 나가는 호출은 기록에 남는다**.
 
-    이것이 없으면 위 시험의 「0건」이 「아무것도 안 봤다」와 구별되지 않는다.
+    이것이 없으면 위 시험의 「0건」이 「아무것도 안 봤다」와 구별되지 않는다. 예전에는
+    Notion 구현체를 불러 반례를 만들었지만 그 구현체가 사라졌으므로, 이 앱이 실제로 쓰는
+    Outbound Client 로 허용된 주소를 한 번 부른다.
     """
-    from app.core.errors import NotionQueryError
-
-    with pytest.raises(NotionQueryError):
-        notion.get_live(db, page_id="page-n-mine-1")
+    fake_http.on("https://api.anthropic.com/", json_body={"ok": True})
+    outbound.get("https://api.anthropic.com/v1/models", allowlist="services")
     assert fake_http.requests != []

@@ -24,8 +24,8 @@ def _integration(client, csrf):
         json={
             "name": "health-url-gate-test",
             "provider_type": "http_service",
-            "base_url": "https://api.notion.com",
-            "health_url": "https://api.notion.com/healthz",
+            "base_url": "https://api.anthropic.com",
+            "health_url": "https://api.anthropic.com/healthz",
             "auth_type": "none",
             "enabled": True,
         },
@@ -44,7 +44,7 @@ def test_health_url_change_is_approval_gated_for_admin(client, login_as):
     csrf = login_as("admin")   # system_admin이 아닌 admin
     r = client.patch(
         f"/api/admin/integrations/{integration_id}",
-        json={"health_url": "https://api.notion.com/collect"},
+        json={"health_url": "https://api.anthropic.com/collect"},
         headers={"X-CSRF-Token": csrf},
     )
     assert r.status_code == 202, (
@@ -61,7 +61,7 @@ def test_health_url_rollback_is_approval_gated_for_admin(client, login_as):
     # system_admin이 health_url을 바꿔 새 버전을 만든다(v2).
     r = client.patch(
         f"/api/admin/integrations/{integration_id}",
-        json={"health_url": "https://api.notion.com/collect"},
+        json={"health_url": "https://api.anthropic.com/collect"},
         headers={"X-CSRF-Token": csrf},
     )
     assert r.status_code == 200, r.text

@@ -285,43 +285,28 @@ def _bound_connection(_test_database, _shared_engine):
         engine.dispose()
 
 
-# 노션 DB id 는 설치처 고유값이라 소스 기본값이 **비어 있다**(app/core/tenant_config.py).
-# 테스트 세계는 '설정을 마친 설치'를 흉내 낸다: 비워 두면 티켓·문서 경로가 '설정 안 됨'으로
-# 먼저 막혀, 정작 검증하려던 로직에 닿지도 못한 채 초록불이 나온다(가짜 안전감).
-# 값 자체는 아무 문자열이어도 되지만 가짜 노션 서버가 URL 로 알아봐야 하므로
-# tests/fakes/notion.py 의 DEFAULT_TASKS_DB 와 같은 값을 쓴다.
-# 비어 있을 때의 동작은 tests/unit/test_tenant_defaults.py 가 따로 고정한다.
+# 옛 문서 데이터베이스 id. 설정에는 더 이상 이 값이 없다 — 제품이 노션을 안 부르므로
+# 읽을 곳이 사라졌다(app/core/config.py). 아직 옛 경로를 흉내 내는 시험이 URL 을 조립할
+# 때만 쓰는 상수라서 이름만 남겨 둔다.
 TEST_DOCS_DB = "docs-db-0001"
 
 
 @pytest.fixture()
-def settings(request, _bound_connection, _test_database, tmp_path: Path) -> Settings:
+def settings(_bound_connection, _test_database, tmp_path: Path) -> Settings:
     """이 시험이 볼 설정 한 벌.
 
-    ## 저장소 소스는 **제품 기본값**이다 (S14)
+    ## 저장소를 고르는 값이 없다
 
-    제품이 `native` 로 돌므로 시험도 기본으로 그것을 본다. 시험 세계만 옛 값을 쓰면
-    시험이 「배포되는 것」을 안 보게 되고, 그 사실은 배포한 뒤에 드러난다.
-
-    Notion 경로를 **일부러** 보는 시험은 `@pytest.mark.notion_source` 를 단다. 그 표는
-    「이 파일은 되돌리기 경로를 시험한다」는 선언이고, 동시에 **Notion 을 걷어낼 때
-    지울 파일의 목록**이다 — 표를 세면 남은 일이 몇 건인지 바로 나온다.
+    티켓·문서·프로젝트의 정본은 이 서버의 데이터베이스 하나뿐이고, 노션을 읽고 쓰던
+    구현체는 전부 사라졌다. 그래서 시험도 고를 것이 없다 — 예전에 여기서 넘기던
+    `ticket_source`·`document_source`·노션 데이터베이스 id 는 설정에서 함께 없어졌고,
+    배선은 이제 코드가 정한다(`app/core/source_registry.py`).
     """
-    from tests.fakes.notion import DEFAULT_TASKS_DB
-
     secrets_dir = tmp_path / "secrets"
     secrets_dir.mkdir(exist_ok=True)
-    marker = request.node.get_closest_marker("notion_source")
-    sources: dict = {}
-    if marker is not None:
-        sources = {
-            "ticket_source": marker.kwargs.get("tickets", "notion_cache"),
-            "document_source": marker.kwargs.get("documents", "notion"),
-        }
     return Settings(
         _env_file=None,
         app_env="test",
-        **sources,
         # 앱은 이 주소로 엔진을 만들지 않는다 — `create_app(bind=…)` 가 시험이 준
         # 바인드를 그대로 받는다. 그래도 **맞는 값이어야 한다**: `Settings` 를 읽어
         # 스스로 붙는 경로(CLI·백업·마이그레이션)가 이 문자열을 쓴다.
@@ -331,8 +316,6 @@ def settings(request, _bound_connection, _test_database, tmp_path: Path) -> Sett
         config_dir=PROJECT_ROOT / "config",
         secrets_dir=secrets_dir,
         data_dir=tmp_path,
-        notion_tasks_database_id=DEFAULT_TASKS_DB,
-        notion_documents_database_id=TEST_DOCS_DB,
     )
 
 
@@ -620,8 +603,11 @@ def setup_complete(db, app, settings, make_user, fake_clock):
     from app.org.models import Department
 
     now = fake_clock.now()
-    for ref in (settings.notion_report_token_ref, settings.notion_docs_token_ref):
-        (settings.secrets_dir / ref).write_text("test-token", encoding="utf-8")
+    # 남은 노션 시크릿 참조는 하나뿐이다 — 이관 CLI 가 옛 데이터를 한 번 읽어 올 때 쓴다
+    # (`app/cli/migrate_cli.py`). 리포트 토큰은 그 소비자와 함께 사라졌다.
+    (settings.secrets_dir / settings.notion_docs_token_ref).write_text(
+        "test-token", encoding="utf-8"
+    )
 
     db.add(Department(name="개발팀", org_id=DEFAULT_ORG_ID))
     # 티켓이 아니라 문서 쪽에 성공 이력을 둔다 - 티켓 동기화 지연을 검사하는 테스트가
@@ -699,11 +685,18 @@ def make_project(db):
     return _make
 
 
+# 이관해 온 티켓이 달고 있는 외부 page id 의 기본값. 예전에는 가짜 노션 서버가 이 값을
+# 정했고 `portal_project` 가 그 짝을 만들었다. 가짜 서버가 사라진 지금도 이 상수는
+# 필요하다 — 이관 데이터에는 여전히 외부 page id 가 남아 있고, `make_ticket` 이 그 세계를
+# 그대로 재현한다.
+DEFAULT_PROJECT_PAGE_ID = "proj-1"
+
+
 @pytest.fixture()
 def portal_project(make_project):
-    """페이크 소스가 매다는 기본 프로젝트(`DEFAULT_PROJECT_PAGE_ID`)의 **Portal 짝**.
+    """티켓이 기본으로 매달릴 **조직 공통 프로젝트** 한 건.
 
-    0060 부터 티켓의 소속은 프로젝트가 정한다. Portal 에 짝이 없으면 그 티켓은
+    0060 부터 티켓의 소속은 프로젝트가 정한다. 프로젝트가 없는 티켓은
     `project_link='unresolved'` 로 남고, 그건 전역 관리자 말고는 아무에게도 안 보인다 —
     티켓을 다루는 시험은 대개 그 상태를 보려는 것이 아니므로 이 픽스처를 함께 쓴다.
 
@@ -711,9 +704,104 @@ def portal_project(make_project):
     속한 사람이면 누구나 보이는 상태라, 소속 게이트가 아니라 시험하려던 것이 검사된다.
     부서별 격리를 보려면 `tests/fixtures/org_tree.py` 의 세계를 쓴다.
     """
-    from tests.fakes.notion import DEFAULT_PROJECT_PAGE_ID
-
     return make_project(name="기본 프로젝트", external_id=DEFAULT_PROJECT_PAGE_ID)
+
+
+@pytest.fixture()
+def make_ticket(db):
+    """티켓 한 건을 **정본 표에 직접** 심는다.
+
+    예전에는 시험이 가짜 노션 서버에 행을 올려 두고 `sync_tickets` 를 돌려 티켓을 만들었다.
+    그 경로는 사라졌다 — 티켓의 정본이 이 서버의 데이터베이스이고, 노션에서 끌어오는 코드는
+    남아 있으면 안 되기 때문이다. 그래서 시험도 제품이 실제로 읽는 자리에 바로 심는다.
+
+    **소속은 프로젝트가 정한다**(0060). `project` 를 주면 그 프로젝트 것이고, 외부 page id
+    목록(`external_project_ids`)을 주면 이관 데이터와 같은 모양이 되어 제품의 해석기
+    (`app/tickets/project_link.py`)가 소속을 판정한다. 둘 다 안 주면 `missing` 으로 남아
+    전역 관리자 말고는 아무에게도 안 보인다 — "판정할 수 없으면 닫는다" 를 시험 세계도
+    그대로 따른다.
+
+    `page_id` 를 주면 이관해 온 티켓(옛 링크가 계속 사는 행)이 되고, 안 주면 자체 UUID 로만
+    열리는 티켓이 된다. `source` 기본값도 그 사실을 따라간다.
+    """
+    from app.core.models_base import join_names
+    from app.org.constants import DEFAULT_ORG_ID
+    from app.tickets import project_link as project_link_module
+    from app.tickets.models import (
+        PROJECT_LINK_OK,
+        SOURCE_NATIVE,
+        SOURCE_NOTION,
+        TicketCache,
+    )
+
+    def _make(
+        *,
+        page_id: str | None = None,
+        project=None,
+        external_project_ids: list[str] | None = None,
+        title: str = "티켓",
+        status: str | None = "진행",
+        tid: int | None = None,
+        due: str | None = None,
+        start: str | None = None,
+        priority: str | None = None,
+        difficulty: str | None = None,
+        category: str | None = None,
+        est_wd: float | None = None,
+        act_wd: float | None = None,
+        assignees: list[str] | None = None,
+        org_id: str | None = None,
+        source: str | None = None,
+        body: str | None = None,
+        parent_page_id: str | None = None,
+        url: str | None = None,
+        missing_at=None,
+        uid: str | None = None,
+    ):
+        externals = external_project_ids
+        if externals is None:
+            externals = (
+                [project.notion_page_id]
+                if project is not None and project.notion_page_id
+                else []
+            )
+        uid_resolved, link = project_link_module.resolve(
+            externals, project_link_module.portal_project_map(db)
+        )
+        if uid_resolved is None and project is not None and not externals:
+            # 외부 짝이 없는 포털 전용 프로젝트다. 해석할 relation 이 없을 뿐 소속은 분명하다.
+            uid_resolved, link = project.id, PROJECT_LINK_OK
+        row = TicketCache(
+            notion_page_id=page_id,
+            org_id=org_id or getattr(project, "org_id", None) or DEFAULT_ORG_ID,
+            notion_ticket_number=tid,
+            url=url or (f"https://example.invalid/{page_id}" if page_id else None),
+            title=title,
+            status=status,
+            due_date=due,
+            start_date=start,
+            priority=priority,
+            difficulty=difficulty,
+            category=category,
+            est_wd=est_wd,
+            act_wd=act_wd,
+            parent_page_id=parent_page_id,
+            project_ids=join_names(list(externals)),
+            project_uid=uid_resolved,
+            project_link=link,
+            project_names="",
+            assignee_notion_ids=join_names(list(assignees or [])),
+            body_markdown=body,
+            notion_missing_at=missing_at,
+            source=source or (SOURCE_NOTION if page_id else SOURCE_NATIVE),
+        )
+        if uid is not None:
+            row.id = uid
+        db.add(row)
+        db.commit()
+        return row
+
+    return _make
 
 
 @pytest.fixture()
@@ -777,5 +865,129 @@ def make_document(db):
         db.flush()
         db.commit()
         return row
+
+    return _make
+
+
+@pytest.fixture()
+def make_space(db):
+    """지식 공간 하나. **권한의 단위는 이것**이고 문서가 아니다 (D-245).
+
+    `dept` 를 주면 부서 소유, `project` 를 주면 프로젝트 소유, `org_wide=True` 면 조직
+    공통, 아무 것도 안 주면 **미지정**이다. 미지정이 기본값인 이유는 "안 정하면 닫힌다"
+    가 이 모델의 핵심 성질이라, 시험이 그 상태를 손쉽게 만들 수 있어야 하기 때문이다.
+    """
+    from app.core import ownership
+    from app.knowledge.models import KnowledgeSpace
+    from app.org.constants import DEFAULT_ORG_ID
+
+    counter = {"n": 0}
+
+    def _make(
+        *,
+        name: str = "공간",
+        slug: str | None = None,
+        dept=None,
+        project=None,
+        org_wide: bool = False,
+        org_id: str | None = None,
+        confidential: bool = False,
+        created_by=None,
+    ):
+        counter["n"] += 1
+        dept_id = getattr(dept, "id", dept)
+        if project is not None:
+            kind, owner_project, owner_dept = ownership.OWNER_PROJECT, project.id, None
+        elif dept_id:
+            kind, owner_project, owner_dept = ownership.OWNER_DEPARTMENT, None, dept_id
+        elif org_wide:
+            kind, owner_project, owner_dept = ownership.OWNER_ORGANIZATION, None, None
+        else:
+            kind, owner_project, owner_dept = ownership.OWNER_UNSET, None, None
+        row = KnowledgeSpace(
+            org_id=(
+                org_id
+                or getattr(project, "org_id", None)
+                or getattr(dept, "org_id", None)
+                or DEFAULT_ORG_ID
+            ),
+            name=name,
+            slug=slug or f"space-{counter['n']}",
+            owner_kind=kind,
+            owner_dept_id=owner_dept,
+            owner_project_id=owner_project,
+            confidential=confidential,
+            created_by=getattr(created_by, "id", created_by),
+        )
+        db.add(row)
+        db.flush()
+        db.commit()
+        return row
+
+    return _make
+
+
+@pytest.fixture()
+def make_knowledge_document(db):
+    """정본 문서 한 건 + 현재 판.
+
+    본문을 `body_text` 로 직접 적지 않고 Block JSON 에서 파생시킨다 — 파생을 손으로 적을
+    수 있으면 시험이 실제 코드가 만드는 것과 다른 글을 검사하게 된다(D-198).
+    """
+    from app.knowledge import blocks
+    from app.knowledge.models import Document, DocumentVersion
+
+    def _make(
+        *,
+        space,
+        title: str = "문서",
+        body=None,
+        text: str | None = None,
+        doc_type: str | None = None,
+        archived: bool = False,
+        confidential: bool = False,
+        created_by=None,
+        legacy_page_id: str | None = None,
+        tag_names: list[str] | None = None,
+        updated_at=None,
+    ):
+        document = Document(
+            space_id=space.id,
+            title=title,
+            doc_type=doc_type,
+            archived=archived,
+            confidential=confidential,
+            created_by=getattr(created_by, "id", created_by),
+            legacy_page_id=legacy_page_id,
+        )
+        db.add(document)
+        db.flush()
+
+        doc_json = body if body is not None else blocks.from_plain_text(text or "")
+        derived = blocks.derive(doc_json)
+        version = DocumentVersion(
+            id=str(uuid.uuid4()),
+            document_id=document.id,
+            version_no=1,
+            body=derived.body,
+            body_markdown=derived.markdown,
+            body_text=derived.text,
+            author_id=document.created_by,
+        )
+        db.add(version)
+        db.flush()
+        document.current_version_id = version.id
+        # `updated_at` 은 `onupdate` 가 달려 있어 UPDATE 마다 지금으로 덮인다. 같은 flush
+        # 안에서 **명시로 적어야** 그 값이 남는다 — 시험이 정렬과 기간 창을 보려면 이 축을
+        # 손으로 잡을 수 있어야 한다.
+        if updated_at is not None:
+            document.updated_at = updated_at
+        if tag_names:
+            from app.knowledge import tags as knowledge_tags
+
+            knowledge_tags.set_for_document(db, document, tag_names)
+        db.flush()
+        db.commit()
+        return document
 
     return _make

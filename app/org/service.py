@@ -391,27 +391,48 @@ def update_item(
 def dependents(db: Session, dept_id: str) -> dict[str, int]:
     """이 부서를 **가리키고 있는 것**들의 건수 (0060 §33). 0 이 아닌 항목만 담는다.
 
-    부서를 지우면 이것들이 어떻게 되는지가 문제다. FK 는 전부 `SET NULL` 이라 **오류가
-    나지 않는다** — 자식 부서는 조용히 최상위로 올라오고, 프로젝트와 문서는 소속이 빈칸이
-    되며, 소속이 빈 문서는 그 순간부터 아무에게도 안 보인다(fail-closed). 셋 다 삭제한
-    사람에게는 성공으로 보인다.
+    부서를 지우면 이것들이 어떻게 되는지가 문제다. 사용자·프로젝트 쪽 FK 는 `SET NULL`
+    이라 **오류가 나지 않는다** — 자식 부서는 조용히 최상위로 올라오고, 프로젝트는 소속이
+    빈칸이 되며, 소속이 빈 프로젝트는 그 순간부터 아무에게도 안 보인다(fail-closed).
+    삭제한 사람에게는 성공으로 보인다.
+
+    지식 공간(`knowledge_spaces.owner_dept_id`)만 다르게 걸려 있다. 그 FK 는 `SET NULL`
+    이 아니라서 DB 가 삭제 자체를 거절하는데, 사용자가 보는 것은 원인이 안 적힌 500 이다.
+    여기서 미리 세어 `delete_item` 이 무엇이 몇 건 매달려 있는지 말해 주게 한다.
 
     사용자 수(`usage_count`)만 세던 예전 판정은 사람이 한 명도 없는 부서를 "안 쓰는
     부서" 로 읽었다. 실제로는 프로젝트 수십 개와 그 아래 티켓 전부가 거기 매달려 있을 수
     있다.
     """
+    from app.knowledge.models import Document, KnowledgeSpace
     from app.projects.models import Project
-    from app.team_docs.models import DocumentCache
     from app.users.models import User
 
     def _count(clause) -> int:
         return int(db.execute(select(func.count()).where(clause)).scalar_one())
 
+    # 문서는 **공간을 거쳐** 이 부서에 매달린다 (D-245). `documents` 에는 소속 컬럼이
+    # 아예 없다 — 권한을 공간이 정하기 때문이고, 그래서 부서를 지웠을 때 실제로 닫히는
+    # 것은 「그 부서 소유 공간에 든 문서 전부」다.
+    #
+    # 공간과 문서를 **둘 다** 센다. 문서만 세면 문서가 아직 없는 공간이 0 건으로 나와
+    # 삭제가 통과하는 것처럼 보이는데, 그때 DB 가 FK 로 거절해 원인이 안 적힌 오류가 된다.
+    # 공간만 세면 반대로 "공간 1개" 라고만 말해 사람이 문서 수십 건을 잃는 줄 모른다.
+    documents_in_dept_spaces = int(
+        db.execute(
+            select(func.count())
+            .select_from(Document)
+            .join(KnowledgeSpace, KnowledgeSpace.id == Document.space_id)
+            .where(KnowledgeSpace.owner_dept_id == dept_id)
+        ).scalar_one()
+    )
+
     found = {
         "users": _count(User.department_id == dept_id),
         "child_departments": _count(Department.parent_id == dept_id),
         "projects": _count(Project.dept_id == dept_id),
-        "documents": _count(DocumentCache.owner_dept_id == dept_id),
+        "knowledge_spaces": _count(KnowledgeSpace.owner_dept_id == dept_id),
+        "documents": documents_in_dept_spaces,
         # 이 부서를 **관리 범위로 배정받은** 관리자. 지우면 그 계정은 관리 대상이 없는
         # 상태가 되는데, 화면에는 "관리 범위: 지정된 부서 없음" 으로만 보인다.
         "scoped_admins": _count(User.scope_dept_id == dept_id),
@@ -423,7 +444,8 @@ _DEPENDENT_LABELS = {
     "users": "소속 사용자",
     "child_departments": "하위 부서",
     "projects": "프로젝트",
-    "documents": "문서",
+    "knowledge_spaces": "지식 공간",
+    "documents": "그 공간에 든 문서",
     "scoped_admins": "이 부서를 관리 범위로 가진 관리자",
 }
 

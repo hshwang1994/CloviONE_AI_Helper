@@ -1,5 +1,24 @@
 {
   "configured": true,
   "ok": true,
-  "projects": []
+  "projects": [
+    {
+      "can_create_ticket": true,
+      "code": null,
+      "dept_id": null,
+      "dept_path": [],
+      "id": "00000000-0000-4000-8000-00000000c002",
+      "name": "베타 프로젝트",
+      "org_id": "00000000-0000-0000-0000-00000000org1"
+    },
+    {
+      "can_create_ticket": true,
+      "code": null,
+      "dept_id": null,
+      "dept_path": [],
+      "id": "00000000-0000-4000-8000-00000000c001",
+      "name": "알파 프로젝트",
+      "org_id": "00000000-0000-0000-0000-00000000org1"
+    }
+  ]
 }

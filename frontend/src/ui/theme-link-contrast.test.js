@@ -573,19 +573,15 @@ describe("PA-RC-0021 — NavBadge가 색을 하드코딩하지 않고 error.cont
   }
 });
 
-describe("QAH-07 — TeamDocs·ChatPane·AccentPicker·WelcomeStatus의 raw .main 텍스트가 대비 보강 색을 쓴다", () => {
+describe("QAH-07 — ChatPane·AccentPicker·WelcomeStatus의 raw .main 텍스트가 대비 보강 색을 쓴다", () => {
   const screensDir = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "screens");
 
   function readSite(...segments) {
     return readFileSync(path.join(...segments), "utf-8");
   }
 
-  it("TeamDocs.jsx 테이블뷰 제목 링크 hover가 primary.dark를 쓴다", () => {
-    const src = readSite(screensDir, "TeamDocs.jsx");
-    const hits = src.match(/"&:hover":\s*{\s*color:\s*"primary\.dark"\s*}/g) || [];
-    expect(hits.length, "테이블뷰·DocCard 두 곳 모두 primary.dark를 써야 한다").toBe(2);
-    expect(src).not.toMatch(/"&:hover":\s*{\s*color:\s*"primary\.main"\s*}/);
-  });
+  // 옛 문서 목록(TeamDocs.jsx)의 제목 링크 hover 검사는 여기 없다 (S14 · C2) — 그 화면이
+  // 사라졌다. 남은 세 곳은 그대로 본다.
 
   it("ChatPane.jsx 읽음 표시가 primary.dark를 쓴다", () => {
     const src = readSite(screensDir, "ChatPane.jsx");
@@ -606,7 +602,7 @@ describe("QAH-07 — TeamDocs·ChatPane·AccentPicker·WelcomeStatus의 raw .mai
   // ── 계산된 대비: 각 자리의 실제 배경과 비교 ──────────────────────────────────────
   for (const mode of ["light", "dark"]) {
     for (const accent of ACCENT_PRESETS) {
-      it(`${mode} 모드, accent=${accent} — background.paper 위 4곳(TeamDocs×2·ChatPane·AccentPicker)`, () => {
+      it(`${mode} 모드, accent=${accent} — background.paper 위(ChatPane·AccentPicker)`, () => {
         const theme = createClovirTheme(mode, accent);
         const ratio = contrastRatio(theme.palette.primary.dark, theme.palette.background.paper);
         expect(

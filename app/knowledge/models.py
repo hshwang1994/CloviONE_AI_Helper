@@ -29,15 +29,18 @@ from datetime import datetime
 from decimal import Decimal
 
 from sqlalchemy import (
+    BigInteger,
     Boolean,
     CheckConstraint,
     DateTime,
     ForeignKey,
+    Identity,
     Index,
     Integer,
     Numeric,
     String,
     Text,
+    UniqueConstraint,
     text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
@@ -311,6 +314,14 @@ class Document(TimestampMixin, UUIDPrimaryKeyMixin, Base):
     )
     # S13 이 채운다. 지금은 전부 NULL 이고 그것이 정상이다.
     legacy_page_id: Mapped[str | None] = mapped_column(String(64))
+    # 옛 시스템이 말한 「이 문서가 생긴 날」과 「마지막으로 고친 날」 (S14).
+    #
+    # `created_at`·`updated_at` 은 **우리 행이 생긴 날**이라 이관한 문서 110건이 전부
+    # 이관일 하루에 몰린다. 그러면 목록의 기본 정렬이 3년치 문서를 같은 날로 보여 주고,
+    # 「최근에 고친 문서」가 아무 뜻도 없는 값이 된다. 두 축은 다른 질문에 답하므로
+    # 우리 시각을 옛 값으로 덮지 않고 칸을 따로 둔다. UTC 저장 규약은 그대로다.
+    legacy_created_at: Mapped[datetime | None] = mapped_column(DateTime)
+    legacy_updated_at: Mapped[datetime | None] = mapped_column(DateTime, index=True)
 
     __table_args__ = (
         CheckConstraint(_in_list("source_type", SOURCE_TYPES), name="ck_document_source_type"),
@@ -545,4 +556,88 @@ class DocumentMention(UUIDPrimaryKeyMixin, Base):
         ),
         # 역방향 — 「나를 언급한 문서」. 이 표가 존재하는 이유다.
         Index("ix_dmention_target", "target_kind", "target_id"),
+    )
+
+
+# ── 사람이 문서에 남긴 것 (S14 · C2) ─────────────────────────────────────────
+#
+# 세 표(`document_comments` · `document_favorites` · `document_recent_views`)는 원래
+# `app/team_docs/models.py` 에 있었고 옛 미러(`document_cache.notion_page_id`)를 조회 키로
+# 썼다. 그 자리에 있었던 이유는 「소스가 Notion 인 동안 page id 가 안정적인 키」였는데,
+# 소스가 이 서버로 넘어오면서 그 전제가 사라졌다 — 지금 문서의 정본은 `documents` 다.
+#
+# 그래서 셋 다 `document_id` 를 조회 키로 든다. 옛 값(`notion_page_id`)은 컬럼째 없앴고,
+# 옛 링크가 가리킬 자리는 `documents.legacy_page_id` 한 곳이 든다(다리가 둘이면 언젠가
+# 서로 다른 답을 낸다).
+#
+# ## 이제는 CASCADE 가 맞다
+#
+# 옛 배치는 CASCADE 를 일부러 피했다. 미러 동기화가 문서를 한 회차 prune 하면 캐시 행이
+# 지워지고 사람이 쓴 댓글이 딸려 나갔기 때문이다. `documents` 에는 그 prune 이 없다 —
+# 문서를 지우는 동작은 **보관**(archived)이고 행은 남는다. 부모 행이 실제로 사라지는
+# 경우는 사람이 그 문서를 영구히 없애기로 한 때뿐이고, 그때 댓글만 남으면 그것은
+# 가리킬 데 없는 쓰레기다.
+
+
+class DocumentComment(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """문서 댓글.
+
+    삭제는 soft-delete(툼스톤)다. 목록은 삭제된 댓글도 본문 없이 계속 돌려준다 — 행이
+    그냥 사라지면 이미 목록을 받아 둔 클라이언트는 자기 화면이 낡았는지조차 알 수 없다.
+    """
+
+    __tablename__ = "document_comments"
+
+    document_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("documents.id", ondelete="CASCADE"),
+        nullable=False, index=True,
+    )
+    author_user_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("users.id"), nullable=False, index=True
+    )
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime, index=True)
+
+    # 삽입 순서를 **1급 컬럼으로** 든다. `ORDER BY created_at` 만 남기면 같은 순간에 달린
+    # 두 댓글의 순서가 매번 달라진다 — 시계가 멈춘 시험에서는 늘 동점이라 목록이 절반의
+    # 확률로 뒤집히고, 운영에서는 답글이 원글보다 먼저 보인다.
+    # `GENERATED ALWAYS AS IDENTITY` 라 앱이 값을 못 넣는다.
+    seq: Mapped[int] = mapped_column(BigInteger, Identity(always=True), nullable=False)
+
+
+class DocumentFavorite(UUIDPrimaryKeyMixin, Base):
+    """사용자별 문서 즐겨찾기. 한 사람이 한 문서를 두 번 담을 수 없다."""
+
+    __tablename__ = "document_favorites"
+
+    # 사람 쪽에는 FK 를 걸지 않는다 — 옛 배치가 그랬고, 그것을 바꾸는 것은 이 작업의
+    # 범위가 아니다(사용자 삭제 규약을 함께 정해야 하는 별개의 결정이다).
+    user_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    document_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("documents.id", ondelete="CASCADE"),
+        nullable=False, index=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "document_id", name="uq_doc_favorite_document"),
+    )
+
+
+class DocumentRecentView(UUIDPrimaryKeyMixin, Base):
+    """사용자별 최근 열람. 한 사람 · 한 문서에 **한 행**이고 시각만 갱신한다."""
+
+    __tablename__ = "document_recent_views"
+
+    # 사람 쪽에는 FK 를 걸지 않는다 — 옛 배치가 그랬고, 그것을 바꾸는 것은 이 작업의
+    # 범위가 아니다(사용자 삭제 규약을 함께 정해야 하는 별개의 결정이다).
+    user_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    document_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("documents.id", ondelete="CASCADE"),
+        nullable=False, index=True,
+    )
+    viewed_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "document_id", name="uq_doc_recent_document"),
     )

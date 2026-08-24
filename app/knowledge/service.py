@@ -30,7 +30,17 @@ from app.authz.visibility import (
 )
 from app.core.errors import ConflictError, NotFoundError, ValidationAppError
 from app.core.models_base import utcnow
-from app.knowledge import blocks, folders, mentions, relations, tags, versions
+from app.knowledge import (
+    blocks,
+    comments as doc_comments,
+    favorites as doc_favorites,
+    folders,
+    mentions,
+    recent_views,
+    relations,
+    tags,
+    versions,
+)
 from app.knowledge.models import (
     SOURCE_TYPES,
     SOURCE_USER,
@@ -59,6 +69,13 @@ __all__ = [
     "delete_document",
     "document_detail",
     "restore_document_version",
+    "get_scoped_document_by_legacy_page_id",
+    "toggle_favorite",
+    "record_view",
+    "list_comments",
+    "add_comment",
+    "edit_comment",
+    "delete_comment",
 ]
 
 # 목록 한 페이지의 최대 건수. 상한이 없으면 한 요청이 공간 전체를 실어 나른다.
@@ -243,7 +260,7 @@ def _document_scope(db: Session, user: User):
 
 def list_documents(
     db: Session, user: User, *, space_id: str | None = None, folder_id: str | None = None,
-    q: str | None = None, tag: str | None = None,
+    q: str | None = None, tag: str | None = None, favorites: bool = False,
     include_archived: bool = False, limit: int = 50, offset: int = 0,
 ) -> tuple[list[Document], int]:
     """문서 목록. **권한 조건이 상한 앞에 걸린다**(Z6 · D-202).
@@ -275,6 +292,17 @@ def list_documents(
                 select(DocumentTag.document_id)
                 .join(Tag, Tag.id == DocumentTag.tag_id)
                 .where(Tag.slug == tags.slugify(tag))
+            )
+        )
+    if favorites:
+        # 즐겨찾기는 **내용 필터**다(무엇을 볼지). 권한 조건과 나란히 걸리므로, 남이 담아 둔
+        # 문서가 이 목록에 새어 들어올 수 없다.
+        from app.knowledge.models import DocumentFavorite
+
+        stmt = stmt.where(
+            Document.id.in_(
+                select(DocumentFavorite.document_id)
+                .where(DocumentFavorite.user_id == user.id)
             )
         )
 
@@ -488,3 +516,122 @@ def restore_document_version(
     mentions.sync(db, document, version.body)
     db.flush()
     return {"document": document, "version": version}
+
+
+# ── 옛 주소를 지금 문서로 (S14 · C2) ─────────────────────────────────────────
+
+
+def get_scoped_document_by_legacy_page_id(db: Session, user: User, legacy_page_id: str) -> Document:
+    """옛 문서 화면의 주소(`/team-docs/<page id>`)가 가리키던 문서.
+
+    알림 딥링크 · 감사 로그 · 사람들이 걸어 둔 북마크에 옛 page id 가 박혀 있다. 그 주소가
+    죽으면 「문서가 사라졌다」로 보이므로, 다리(`documents.legacy_page_id`)로 지금 문서를
+    찾아 준다.
+
+    **못 찾는 것과 못 보는 것을 구별하지 않는다.** 둘 다 404 다 — 범위 밖에 403 을 주면
+    남의 부서 문서의 존재를 옛 id 하나로 확인할 수 있게 된다.
+    """
+    key = (legacy_page_id or "").strip()
+    if not key:
+        raise NotFoundError("옛 주소에서 문서를 찾지 못했습니다.")
+    document = db.execute(
+        select(Document).where(Document.legacy_page_id == key)
+    ).scalar_one_or_none()
+    if document is None:
+        raise NotFoundError("옛 주소에서 문서를 찾지 못했습니다.")
+    ctx = context_for_user(db, user)
+    if not is_visible(db, ctx, RESOURCE_KNOWLEDGE_DOC, document):
+        raise NotFoundError("옛 주소에서 문서를 찾지 못했습니다.")
+    return document
+
+
+# ── 즐겨찾기 · 최근 열람 ─────────────────────────────────────────────────────
+#
+# 둘 다 **범위 판정을 먼저 지난다**. 목록에 안 나오는 문서를 id 하나로 담거나 열람 기록에
+# 남길 수 있으면, 그 기록이 나중에 「내가 본 문서」 목록을 통해 그 문서의 존재를 알려 준다.
+
+
+def toggle_favorite(db: Session, user: User, document_id: str, *, on: bool, now) -> bool:
+    document = get_scoped_document_or_404(db, user, document_id)
+    return doc_favorites.toggle(
+        db, user_id=user.id, document_id=document.id, on=on, now=now
+    )
+
+
+def favorite_ids(db: Session, user: User, document_ids: list[str] | None = None) -> set[str]:
+    return doc_favorites.ids_for(db, user.id, document_ids)
+
+
+def record_view(db: Session, user: User, document_id: str, *, now) -> None:
+    """문서 상세를 열었다는 기록. 부수효과라 실패해도 조회를 막지 않는다."""
+    recent_views.record(db, user_id=user.id, document_id=document_id, now=now)
+
+
+# ── 댓글 ─────────────────────────────────────────────────────────────────────
+#
+# 네 함수가 전부 `get_scoped_document_or_404` 한 곳을 지난다. 응답이 늘 **목록 전체**라
+# 쓰기 경로의 범위 판정이 곧 조회 판정이기도 하다 — 판정 없이 삭제를 한 번 던지면 그
+# 문서의 댓글 전체가 응답으로 돌아온다. 티켓 댓글에서 정확히 이 자리가 뚫려 있었다.
+
+
+def list_comments(db: Session, user: User, document_id: str) -> dict:
+    document = get_scoped_document_or_404(db, user, document_id)
+    return doc_comments.list_comments(db, document_id=document.id, me=user)
+
+
+def add_comment(db: Session, user: User, document_id: str, *, body: str, now) -> dict:
+    document = get_scoped_document_or_404(db, user, document_id)
+    created = doc_comments.create_comment(
+        db, document_id=document.id, author=user, body=body, now=now
+    )
+    _notify_comment(db, document=document, author=user, now=now)
+    return {
+        "comment_id": created.id,
+        **doc_comments.list_comments(db, document_id=document.id, me=user),
+    }
+
+
+def edit_comment(db: Session, user: User, comment_id: str, *, body: str, now) -> dict:
+    # 범위 판정이 권한 판정보다 **먼저**다. 순서가 뒤집히면 범위 밖 댓글에 403 이 나가고,
+    # 403 은 「그 id 는 존재한다」를 알려 준다.
+    comment = doc_comments.get_or_404(db, comment_id)
+    get_scoped_document_or_404(db, user, comment.document_id)
+    doc_comments.ensure_can_edit(comment, user)
+    doc_comments.update_comment(db, comment, body=body, now=now)
+    return doc_comments.list_comments(db, document_id=comment.document_id, me=user)
+
+
+def delete_comment(db: Session, user: User, comment_id: str, *, now) -> dict:
+    # 범위 밖은 404 — 모더레이션 권한(운영자군)은 **자기 범위 안에서만** 있다.
+    comment = doc_comments.get_or_404(db, comment_id)
+    get_scoped_document_or_404(db, user, comment.document_id)
+    doc_comments.ensure_can_delete(comment, user)
+    doc_comments.soft_delete_comment(db, comment, now=now)
+    return doc_comments.list_comments(db, document_id=comment.document_id, me=user)
+
+
+def _notify_comment(db: Session, *, document: Document, author: User, now) -> None:
+    """내 문서에 댓글이 달리면 알린다 (티켓 댓글과 같은 규약).
+
+    받는 사람은 문서를 만든 사람이고, 자기 글에 자기가 단 댓글은 알리지 않는다 — 그러면
+    배지가 늘 켜져 있다. 만든 사람을 모르는 문서(이관해 온 문서 중 작성자를 앱 계정으로
+    해석하지 못한 것)는 조용히 넘어간다. 알림 하나 때문에 댓글 저장을 실패시키지 않는다.
+    """
+    target = document.created_by
+    if not target or target == author.id:
+        return
+    try:
+        from app.notifications.service import notify_user
+
+        notify_user(
+            db, target, type_="document_comment",
+            title=f"문서에 새 댓글: {author.display_name}",
+            body=(document.title or "")[:200],
+            related=("document", document.id), now=now,
+        )
+    except Exception:  # noqa: BLE001 — 알림이 댓글 저장을 막으면 안 된다
+        import logging
+
+        logging.getLogger(__name__).exception(
+            "문서 댓글 알림에 실패했습니다 (document_id=%s)", document.id
+        )

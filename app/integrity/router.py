@@ -34,14 +34,6 @@ class MembershipAssignRequest(BaseModel):
     organization_direct: bool = False
 
 
-class DocumentOwnershipRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    page_ids: list[str] = Field(min_length=1, max_length=500)
-    department_id: str | None = Field(default=None, max_length=36)
-    project_id: str | None = Field(default=None, max_length=36)
-
-
 def _require_global(principal: Principal) -> None:
     # 403 이지 404 가 아니다 — 이 화면의 존재는 이미 드러나 있고, 문제는 존재가 아니라 권한이다
     # (`app/org/router.py::create_organization` 과 같은 판단).
@@ -82,33 +74,6 @@ def assign_membership(
             "count": changed,
             "department_id": payload.department_id,
             "organization_direct": payload.organization_direct,
-        },
-    )
-    return {"ok": True, "changed": changed}
-
-
-@router.post("/document-ownership", dependencies=[Depends(require_roles(*CONSOLE_WRITE_ROLES))])
-def assign_document_ownership(
-    request: Request,
-    payload: DocumentOwnershipRequest,
-    db: Session = Depends(get_db),
-    principal: Principal = Depends(get_principal),
-):
-    """소속 미지정 문서에 부서 또는 프로젝트 소유를 **일괄 지정**한다."""
-    _require_global(principal)
-    changed = service.assign_document_ownership(
-        db,
-        page_ids=payload.page_ids,
-        department_id=payload.department_id,
-        project_id=payload.project_id,
-    )
-    record_audit_from_request(
-        request, db, action="integrity.assign_document_ownership", object_type="document",
-        object_id=None,
-        after={
-            "count": changed,
-            "department_id": payload.department_id,
-            "project_id": payload.project_id,
         },
     )
     return {"ok": True, "changed": changed}

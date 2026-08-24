@@ -18,10 +18,8 @@
 
    0 으로 뭉개면 화면에서 셋이 똑같아 보이고, 그럴듯해서 아무도 신고하지 않는다.
 
-이 파일은 기본 소스(`native`) 위에서 돈다. 세 번째 항목의 마지막 줄(**티켓 소스가 죽음**)만
-`@pytest.mark.notion_source` 로 옛 경로에 남긴다(S14) — 자체 DB 에서는 티켓을 읽는 SELECT 가
-죽으면 프로젝트·마일스톤도 같은 세션에서 함께 죽으므로 「티켓만 죽은」 상황을 만들 수 없다.
-표를 단 시험은 **Notion 을 걷어낼 때 지울 목록**이기도 하다.
+세 번째 항목의 마지막 줄(**티켓을 못 읽음**)은 표를 비우는 것으로는 못 만든다 — 그건
+장애가 아니라 「0건이다」라는 사실이다. 읽는 자리를 직접 실패시켜 만든다.
 """
 
 from __future__ import annotations
@@ -266,8 +264,12 @@ def test_zero_is_a_measurement_but_null_is_not(work_client):
     assert "prj-zero" in troubled
     assert "prj-none" not in troubled
     assert "prj-low" in troubled          # 30점
-    assert "prj-notion" in troubled       # 점수는 100 이지만 노션이 차질이라 한다
-    assert projects["troubled"]["count"] == 3
+    # prj-notion(100점)은 **차질이 아니다.** 예전에는 여기서 차질로 셌다 - 미러 컬럼
+    # `notion_status` 가 '차질' 이면 점수와 무관하게 걸리는 규칙이 있었다. 그 컬럼에
+    # 쓰는 코드가 없어져 값이 이관 시점에 얼어붙었고, 얼어붙은 값으로 매기는 차질은
+    # 팀이 무엇을 고쳐도 사라지지 않아 진짜 차질을 묻는다.
+    assert "prj-notion" not in troubled
+    assert projects["troubled"]["count"] == 2
     # '못 잼' 을 0 으로 뭉개지 않고 따로 센다.
     assert projects["unscored"] == 1
 
@@ -276,10 +278,10 @@ def test_low_confidence_counts_partially_checked_projects_separately(work_client
     """점수가 있어도 규칙을 다 재지 못했으면 `unscored`가 아니라 `low_confidence`로 센다(FN-42).
 
     `unscored`는 점수 자체가 없는 경우다(위 테스트) — 이건 다른 축이다: 점수는 있는데
-    5개 규칙 중 일부만 판정됐다. 감점이 없으면 그 상태로도 만점처럼 보이므로, 화면이
+    규칙 넷 중 일부만 판정됐다. 감점이 없으면 그 상태로도 만점처럼 보이므로, 화면이
     "다 재서 건강함"과 "몇 개만 재서 우연히 만점"을 구별하려면 이 수가 따로 있어야 한다.
     """
-    # prj-low(30점) — 최근 스냅샷이 5개 규칙 중 2개만 checked. low_confidence에 잡힌다.
+    # prj-low(30점) — 최근 스냅샷이 규칙 넷 중 2개만 checked. low_confidence에 잡힌다.
     db.add(ProjectHealthSnapshot(
         project_id="prj-low", week_of="2026-07-27", score=30,
         reasons_json=json.dumps({
@@ -287,13 +289,13 @@ def test_low_confidence_counts_partially_checked_projects_separately(work_client
         }),
         created_at=SYNCED_AT,
     ))
-    # prj-zero(0점) — 5개 다 checked. 점수는 나쁘지만 신뢰도는 낮지 않다 — low_confidence에
+    # prj-zero(0점) — 규칙 넷을 다 checked. 점수는 나쁘지만 신뢰도는 낮지 않다 — low_confidence에
     # 안 잡혀야 차질(troubled)과 신뢰도가 서로 다른 축이라는 게 실제로 증명된다.
     db.add(ProjectHealthSnapshot(
         project_id="prj-zero", week_of="2026-07-27", score=0,
         reasons_json=json.dumps({
             "score": 0, "reasons": [], "checked": [
-                "notion_trouble", "milestone_overdue", "task_overdue", "unassigned", "stale",
+                "milestone_overdue", "task_overdue", "unassigned", "stale",
             ], "unknown": [],
         }),
         created_at=SYNCED_AT,
@@ -306,18 +308,23 @@ def test_low_confidence_counts_partially_checked_projects_separately(work_client
     assert projects["low_confidence"] == 1
 
 
-@pytest.mark.notion_source
-def test_a_dead_ticket_source_says_unknown_not_zero(work_client, notion, db):
+def test_a_dead_ticket_source_says_unknown_not_zero(work_client, db, monkeypatch):
     """티켓을 못 읽으면 mine 은 **null** 이다. 0 으로 그리면 '할 일이 없다'는 거짓말이 된다.
 
-    **이 시험만 소스를 되돌린다** (S14). 자체 DB 에서 표를 비우는 것은 장애가 아니라
-    「티켓이 0건이다」라는 사실이고, 그때는 0 이 정답이라 이 시험이 보려는 상황 자체가
-    만들어지지 않는다. 여기서 지키는 판정(`app/home/work.py` 의 `usable` — 못 읽었으면
-    `mine` 과 추이를 통째로 `null` 로 둔다)은 소스와 무관한 코드라 그대로 검사된다.
+    표를 비우는 것으로는 이 상황을 못 만든다 — 그건 장애가 아니라 「티켓이 0건이다」라는
+    사실이고 그때는 0 이 정답이다(바로 아래 반례 시험이 그쪽을 지킨다). 그래서 읽는
+    자리를 직접 실패시킨다.
+
+    지금 이 예외를 올리는 코드는 없다(S14 · D-284). 잡는 쪽과 그 응답 모양은 남아 있고
+    프런트가 그 모양을 읽는다 — 살아 있는 동안은 **실제로 접히는지**를 확인해 둔다.
     """
-    db.query(TicketCache).delete()
-    db.commit()
-    notion.fail_status = 502
+    from app.core.errors import NotionQueryError
+    from app.home import service as home_service
+
+    def boom(*args, **kwargs):
+        raise NotionQueryError("티켓을 읽지 못했습니다.")
+
+    monkeypatch.setattr(home_service.tickets_service, "list_my_tickets", boom)
     body = _work(work_client)
     assert body["ok"] is True
     # 왜 비었는지를 블록이 스스로 말한다(configured 면 error, 아니면 message - 홈과 같은 어휘).

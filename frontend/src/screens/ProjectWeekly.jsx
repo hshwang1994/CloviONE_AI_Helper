@@ -178,7 +178,7 @@ export function ProjectWeekly({ projectId, week, onWeek, query }) {
         {basis.tickets_linked === false ? (
           <Box sx={{ mt: 1.5 }}>
             <Callout tone="info">
-              이 프로젝트는 노션 작업과 연결되어 있지 않아 작업 기준 집계를 낼 수 없습니다. 아래 숫자는 전부 0건입니다.
+              이 프로젝트에 걸린 작업이 없어 작업 기준 집계를 낼 수 없습니다. 아래 숫자는 전부 0건입니다.
             </Callout>
           </Box>
         ) : null}

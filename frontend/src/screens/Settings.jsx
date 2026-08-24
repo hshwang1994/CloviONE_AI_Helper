@@ -11,7 +11,7 @@
  *   settings/SettingsMain.jsx        설정 표 화면(Settings 컴포넌트) 본체
  *   settings/SettingsShell.jsx       PA-RC-0017: /settings 라우트가 실제로 그리는 탭 그릇
  *                                    (시스템 정책=Settings+Maintenance / OS와 서비스 동작 /
- *                                    연동 / AI). Settings 자체는 여전히 "설정 표"만이다 —
+ *                                    AI). Settings 자체는 여전히 "설정 표"만이다 —
  *                                    AdminRoutes.jsx는 SettingsShell을 렌더한다. */
 export { Settings } from "./settings/SettingsMain.jsx";
 export { SettingsShell } from "./settings/SettingsShell.jsx";

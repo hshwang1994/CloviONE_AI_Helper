@@ -46,7 +46,17 @@ T_DOCUMENT = "document"
 T_PROJECT = "project"
 T_FILE = "file"
 T_USER = "user"
-TARGET_TYPES: tuple[str, ...] = (T_TICKET, T_DOCUMENT, T_PROJECT, T_FILE, T_USER)
+# 티켓 댓글(D11). 티켓과 따로 두는 이유는 옛 식별자가 다르기 때문이다 — 티켓은 page id
+# 로 오고 댓글은 Notion 이 댓글마다 주는 자기 id 로 온다. 같은 종류로 묶으면
+# `uq_legacy_mapping_source` 가 「이 page id 는 이미 있다」로 댓글을 거절한다.
+T_COMMENT = "comment"
+# 티켓 본문의 그림이 붙은 `ticket_attachments` 한 줄. `T_FILE` 과 나누는 이유는 가리키는
+# 표가 다르기 때문이다 — 저것은 `files` 의 바이트이고 이것은 그 바이트를 티켓에 붙인
+# 줄이다. (본문 이미지 이관이 쓴다.)
+T_TICKET_FILE = "ticket_file"
+TARGET_TYPES: tuple[str, ...] = (
+    T_TICKET, T_DOCUMENT, T_PROJECT, T_FILE, T_USER, T_COMMENT, T_TICKET_FILE,
+)
 
 
 class LegacyMapping(UUIDPrimaryKeyMixin, Base):

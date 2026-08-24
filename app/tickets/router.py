@@ -4,8 +4,9 @@
 봐야 하고, 대상 소스 user id 는 세션 사용자에서만 도출되므로 자동으로 본인 것만 보장된다(IDOR 차단).
 소스 토큰이 없으면 오류 대신 configured=false 로 돌려줘 화면이 '연동 필요'를 그리게 한다(리포트와 동일).
 
-목록이 로컬 미러에서 나온 경우에만 `sync` 블록(신선도)을 함께 싣는다 — 실시간으로 답한 응답에
-미러 상태를 실으면 거짓말이고, 실시간 경로의 기존 응답 계약도 그대로 유지된다.
+신선도(`sync`) 블록은 더 이상 싣지 않는다. 이 서버의 `tickets` 표가 사본이 아니라 정본이라
+낡을 것이 없고, 그런데도 옛 동기화의 마지막 시각을 실어 보내면 화면의 「N분 전 동기화」가
+날마다 조금씩 더 낡아 보이는 거짓말이 된다.
 """
 
 from __future__ import annotations
@@ -20,8 +21,6 @@ from app.core.audit import audit_failure_on_exception, record_audit_from_request
 from app.observability.service import EVENT_TICKET_CREATE, record_usage
 from app.core.deps import get_current_user, get_db, require_csrf
 from app.core.errors import (
-    ConflictError,
-    ForbiddenError,
     NotFoundError,
     NotionNotConfiguredError,
     NotionQueryError,
@@ -31,7 +30,6 @@ from app.core.uploads import content_disposition, MAX_UPLOAD_BYTES
 from app.tickets import attachments as ticket_attachments
 from app.tickets import service
 from app.tickets.repository import PageSpec
-from app.tickets.sync import sync_tickets
 from app.tickets.schemas import (
     BulkPageIds,
     TicketBodyUpdate,
@@ -43,7 +41,6 @@ from app.tickets.schemas import (
 )
 from app.users.models import User
 from app.settings.gate import block_if_maintenance
-from app.core.advisory_lock import NS_TICKET_SYNC, try_lock
 
 router = APIRouter(
     prefix="/api/tickets",
@@ -51,35 +48,9 @@ router = APIRouter(
     dependencies=[Depends(block_if_maintenance)],
 )
 
-# 수동 재동기화(C7)는 **한 번에 하나만** 돈다. `app/tickets/claim_lock.py` 의 `claim_guard`
-# 와 같은 이유로, 잠금은 `app/core/advisory_lock.py::NS_TICKET_SYNC` 가 들고 있다 —
-# 기다리지 않는 논블로킹 잠금이라 이미 진행 중이면 바로 409 다.
-#
-# **예전에는 `threading.Lock()` 이었고, 워커 프로세스의 정기 동기화 틱을 못 막았다.**
-# advisory 잠금은 DB 가 들고 있어 그 구멍까지 닫힌다(D-192).
-
-
-def _sync_view(state) -> dict:
-    """`team_docs.router._sync_view` 와 같은 모양(§17 신선도 블록과 응답 계약을 맞춘다)."""
-    return {
-        "status": state.status,
-        "last_run_at": state.last_run_at.isoformat() if state.last_run_at else None,
-        "last_success_at": state.last_success_at.isoformat() if state.last_success_at else None,
-        "ticket_count": state.ticket_count,
-        "truncated": state.truncated,
-        "error": state.error,
-    }
-
-
 def _repo(request: Request):
     """앱 기동 때 배선된 저장소(app.state.repositories.tickets)."""
     return request.app.state.repositories.tickets
-
-
-def _with_sync(db: Session, repo, body: dict) -> dict:
-    """미러로 답했으면 신선도 블록을 덧붙인다(실시간이면 키 자체가 없다)."""
-    sync = service.sync_indicator(db, repo=repo)
-    return {**body, "sync": sync} if sync else body
 
 
 def _paged(tickets: list[dict], total: int, page: PageParams) -> dict:
@@ -134,10 +105,10 @@ def my_tickets(
         return {"configured": False, "ok": False, "message": exc.message, "mapped": True, "tickets": []}
     except NotionQueryError as exc:
         return {"configured": True, "ok": False, "error": exc.message, "mapped": True, "tickets": []}
-    return _with_sync(db, repo, {
+    return {
         "configured": True, "ok": True, "mapped": result["mapped"],
         **_paged(result["tickets"], result["total"], page),
-    })
+    }
 
 
 @router.get("/unassigned")
@@ -169,10 +140,10 @@ def unassigned_tickets(
         return {"configured": False, "ok": False, "message": exc.message, "tickets": []}
     except NotionQueryError as exc:
         return {"configured": True, "ok": False, "error": exc.message, "tickets": []}
-    return _with_sync(db, repo, {
+    return {
         "configured": True, "ok": True,
         **_paged(result["tickets"], result["total"], page),
-    })
+    }
 
 
 @router.get("/assignees")
@@ -266,16 +237,15 @@ def team_tickets(
         return {"configured": False, "ok": False, "message": exc.message, "tickets": []}
     except NotionQueryError as exc:
         return {"configured": True, "ok": False, "error": exc.message, "tickets": []}
-    return _with_sync(db, repo, {
+    return {
         "configured": True, "ok": True,
-        "can_sync": service.can_trigger_sync(user),
         # 고를 수 있는 부서는 서버가 계산한다 — 프런트가 만들면 서버 검증과 갈라진다.
         "departments": {
             "selected": department_id,
             "options": org_context.department_options(db, user),
         },
         **_paged(result["tickets"], result["total"], page),
-    })
+    }
 
 
 @router.post("", dependencies=[Depends(require_csrf)])
@@ -375,43 +345,6 @@ def trash_tickets_bulk(
     return {"ok": True, **result}
 
 
-# ── 강제 재동기화 (C7) ────────────────────────────────────────────────────────
-# team_docs 의 POST /api/team-docs/sync 와 같은 패턴: 운영자 권한 확인(같은 기준,
-# service.can_trigger_sync = MODERATOR_ROLES) → app/tickets/sync.py 의 동기화 함수 호출 →
-# 감사 로그. 지금까지 이 버튼이 없어서 Notion 쪽 데이터가 깨졌다 복구돼도 다음 정기
-# 동기화 주기(워커 틱)까지 기다리는 것 말고는 방법이 없었다.
-
-@router.post("/sync", dependencies=[Depends(require_csrf)])
-def trigger_sync(
-    request: Request,
-    db: Session = Depends(get_db),
-    me: User = Depends(get_current_user),
-):
-    if not service.can_trigger_sync(me):
-        raise ForbiddenError("티켓 동기화는 운영자만 실행할 수 있습니다.")
-    # 잠금은 이 `with` 동안만 산다 — 나가면 잠금 세션이 롤백되며 DB 가 푼다.
-    with try_lock(db, NS_TICKET_SYNC) as got_lock:
-        if not got_lock:
-            # 기다리지 않는다 — `claim_guard` 와 같은 이유. Notion 이 느린 날 요청이 쌓여
-            # 요청 스레드가 잠기는 것보다 "지금은 안 된다" 를 바로 알려 주는 편이 낫다.
-            raise ConflictError("이미 티켓 동기화가 진행 중입니다. 잠시 후 다시 시도해 주세요.")
-        state = sync_tickets(
-            db,
-            outbound=request.app.state.outbound_client,
-            settings=request.app.state.settings,
-            now=request.app.state.clock.now(),
-        )
-    record_audit_from_request(
-        request,
-        db,
-        action="ticket.sync",
-        object_type="ticket_sync",
-        object_id="tickets",
-        after={"status": state.status, "ticket_count": state.ticket_count},
-    )
-    return {"sync": _sync_view(state)}
-
-
 # ── 댓글 ──────────────────────────────────────────────────────────────────────
 # 리터럴 세그먼트가 두 개라 아래 GET /{page_id} 와 겹치지 않는다(경로 파라미터는 '/' 를 먹지
 # 않는다). 그래도 읽는 순서상 여기에 모아 둔다.
@@ -499,11 +432,11 @@ def save_body(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """티켓 본문 저장. 정본(우리 DB)을 먼저 쓰고 그다음 원본(Notion)에 밀어 넣는다.
+    """티켓 본문 저장. 쓸 곳은 이 서버의 티켓 표 하나다.
 
-    **원본 push 실패는 500 이 아니다.** 사용자가 친 글은 이미 저장돼 있으므로 오류로 던지면
-    (요청 트랜잭션이 롤백돼) 오히려 그 글이 사라진다. 그래서 `ok: true` + `synced: false` +
-    이유를 함께 돌려주고, 화면이 "저장됨 · 원본 동기화 실패 · 재시도"를 그린다.
+    예전에는 정본을 쓴 다음 원본(Notion)에 밀어 넣었고, 그 push 가 실패하면
+    `synced: false` 와 이유를 함께 돌려줬다. 밀어 넣을 원본이 없어졌으므로 그 갈래도
+    없어졌다 — 언제나 참인 필드를 계속 실으면 화면이 그것을 보고 없는 실패 상태를 되살린다.
     """
     result = service.save_ticket_body(
         db, request.app.state.outbound_client, request.app.state.settings, user,
@@ -513,7 +446,7 @@ def save_body(
     )
     record_audit_from_request(
         request, db, action="ticket.body.update", object_type="notion_task",
-        object_id=page_id, after={"synced": result["synced"]},
+        object_id=page_id, after={"body_version": result["body_version"]},
     )
     return {"ok": True, **result}
 

@@ -157,19 +157,12 @@ def test_an_out_of_scope_moderator_gets_404_not_403(client, login_as, db, make_u
     assert r.status_code == 404, r.text
 
 
-# ── 최근 열람(recent) 경로도 같은 규칙 (recent_documents) ─────────────────────
-
-def test_a_document_disappears_from_recent_once_restricted(client, login_as, db, world):
-    """최근 열람은 본인이 예전에 본 문서를 그대로 다시 보여 주는 별도 경로다 — 여기도 막지
-    않으면 목록에서 가린 문서가 '최근 열람'을 통해 계속 샌다(SEC-10 우회 경로)."""
-    login_as("user", email=TEAMMATE)
-    assert client.get("/api/team-docs/du").status_code == 200  # 열람 기록 생성
-
-    def _recent_titles():
-        return {d["title"] for d in client.get("/api/team-docs/filters").json()["recent"]}
-
-    assert "일반 문서" in _recent_titles()
-
-    client.post("/api/team-docs/du/restrict?on=true", headers=_hdr(login_as, OP, "operator"))
-    login_as("user", email=TEAMMATE)
-    assert "일반 문서" not in _recent_titles(), "제한 이후에도 '최근 열람'에 남아 있다"
+# ── 「최근 열람」 읽기 경로는 사라졌다 (S14 · C2) ────────────────────────────
+#
+# 여기에 「제한을 걸면 최근 열람에서도 사라진다」를 확인하는 시험이 있었다. 그 경로는
+# `GET /api/team-docs/filters` 의 `recent` 였고, 옛 문서 화면 말고는 아무 데서도 안 그렸다.
+# 화면이 사라지면서 그 응답 칸도 없앴다 — **읽는 곳이 없으므로 샐 곳도 없다.**
+#
+# 최근 열람 기록 자체는 정본 문서 쪽에 남아 있지만(`app/knowledge/recent_views.py`) 그것을
+# 사람에게 보여 주는 화면이 아직 없다. 그 화면을 만드는 날, 이 시험과 같은 모양의 판정을
+# **그 경로에** 다시 세워야 한다.

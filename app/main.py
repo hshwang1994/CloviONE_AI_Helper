@@ -52,7 +52,6 @@ from app.jobs.router import router as jobs_router
 from app.auth.reset_router import router as password_reset_router
 from app.mail.router import router as mail_router
 from app.llm_console.router import router as llm_console_router
-from app.notion_console.router import router as notion_console_router
 from app.notion_mapping.router import router as notion_mapping_router
 from app.offboarding.router import router as offboarding_router
 from app.org.router import (
@@ -285,10 +284,9 @@ def create_app(
     # 최초 실행 셋업 체크리스트(9-3). 읽기 전용이고 판정은 이미 있는 것을 모아서 한다
     # (app/setup/probes.py) - 여기서 설정을 바꾸지는 않는다.
     app.include_router(setup_router)
-    # Notion 관리(9-4)와 LLM 관리(9-5). 둘 다 설정 값 자체는 설정 레지스트리를 지나고
-    # (검증·감사·버전 이력·되돌리기가 거기 있다), 이 두 라우터는 레지스트리로 표현할 수 없는
-    # 것만 맡는다: 시크릿 파일, 실제 연결 테스트, 노션 데이터베이스 생성.
-    app.include_router(notion_console_router)
+    # LLM 관리(9-5). 설정 값 자체는 설정 레지스트리를 지나고(검증·감사·버전 이력·되돌리기가
+    # 거기 있다), 이 라우터는 레지스트리로 표현할 수 없는 것만 맡는다. 시크릿 파일과 실제
+    # 연결 테스트가 그것이다.
     app.include_router(llm_console_router)
     app.include_router(admin_router)
     return app

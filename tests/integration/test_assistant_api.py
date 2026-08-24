@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import shutil
+import uuid
 from datetime import datetime
 from pathlib import Path
 
@@ -27,9 +28,10 @@ pytestmark = pytest.mark.real_db
 
 from app.board.models import Post
 from app.core.security import hash_password
+from app.knowledge import blocks
+from app.knowledge.models import Document, DocumentVersion, KnowledgeSpace
 from app.notifications.models import Notification
 from app.notion_mapping.models import SOURCE_MANUAL, STATUS_VERIFIED, UserNotionMapping
-from app.team_docs.models import DocumentCache
 from app.tickets.models import (
     PROJECT_LINK_MISSING,
     PROJECT_LINK_OK,
@@ -88,6 +90,29 @@ def _cache(uid, page, *, tid, title, status, due, people, est=None, priority=Non
     )
 
 
+def _doc(db, space_id, *, page_id, title, owner_id, updated_at):
+    """다이제스트 시험용 문서 한 건. 정본은 `documents`(S14) — `document_cache`
+    (`app.team_docs.models.DocumentCache`)에 심으면 다이제스트가 안 읽는다.
+    """
+    document = Document(
+        space_id=space_id, title=title, doc_type="회의록",
+        legacy_page_id=page_id, created_by=owner_id,
+    )
+    db.add(document)
+    db.flush()
+    derived = blocks.derive(blocks.from_plain_text(title))
+    version = DocumentVersion(
+        id=str(uuid.uuid4()), document_id=document.id, version_no=1,
+        body=derived.body, body_markdown=derived.markdown, body_text=derived.text,
+        author_id=owner_id,
+    )
+    db.add(version)
+    db.flush()
+    document.current_version_id = version.id
+    document.updated_at = updated_at
+    return document
+
+
 def _seed(db) -> None:
     from app.org.constants import DEFAULT_ORG_ID
     from app.projects.models import Project
@@ -140,10 +165,14 @@ def _seed(db) -> None:
     db.add(Notification(user_id=U_ME, type="ticket_assigned", title="알림", created_at=SYNCED_AT))
     db.add(Post(id="asst-post-1", author_user_id=U_MATE, category="자유", title="이번 주 글",
                 body="본문", created_at=SYNCED_AT, updated_at=SYNCED_AT))
-    db.add(DocumentCache(notion_page_id="asst-doc-1", title="이번 주 문서",
-                      owner_kind="organization",
-                         document_type="회의록", owner="도우미 동료",
-                         last_edited="2026-08-03T02:00:00.000Z", synced_at=SYNCED_AT))
+    space = KnowledgeSpace(
+        org_id=DEFAULT_ORG_ID, name="도우미 공간", slug="asst-space",
+        owner_kind="organization",
+    )
+    db.add(space)
+    db.flush()
+    _doc(db, space.id, page_id="asst-doc-1", title="이번 주 문서", owner_id=U_MATE,
+         updated_at=datetime(2026, 8, 3, 2, 0, 0))
     db.commit()
 
 
@@ -210,18 +239,20 @@ def test_weekly_digest_cuts_documents_at_kst_midnight_on_both_sides(asst_client,
     문자열('2026-08-03')을 Notion 이 준 UTC 문자열과 그대로 비교했고 위쪽 경계는 아예
     없었다. 그래서 **양쪽 끝**에 표본을 놓는다 - 한쪽만 보면 반쪽만 고치고 통과한다.
     """
-    db.add_all([
-        # KST 2026-08-03(월) 06:00 = UTC 08-02 21:00. 예전 비교에서는 사라지던 문서다.
-        DocumentCache(notion_page_id="asst-doc-mon", title="월요일 오전 문서",
-                      owner_kind="organization",
-                      document_type="회의록", owner="도우미 나",
-                      last_edited="2026-08-02T21:00:00.000Z", synced_at=SYNCED_AT),
-        # KST 2026-08-10(월) 06:00 = UTC 08-09 21:00. 예전에는 위쪽 경계가 없어 끼어들었다.
-        DocumentCache(notion_page_id="asst-doc-next", title="다음 주 문서",
-                      owner_kind="organization",
-                      document_type="회의록", owner="도우미 나",
-                      last_edited="2026-08-09T21:00:00.000Z", synced_at=SYNCED_AT),
-    ])
+    from app.org.constants import DEFAULT_ORG_ID
+
+    space = KnowledgeSpace(
+        org_id=DEFAULT_ORG_ID, name="도우미 경계 공간", slug="asst-space-boundary",
+        owner_kind="organization",
+    )
+    db.add(space)
+    db.flush()
+    # KST 2026-08-03(월) 06:00 = UTC 08-02 21:00. 예전 비교에서는 사라지던 문서다.
+    _doc(db, space.id, page_id="asst-doc-mon", title="월요일 오전 문서", owner_id=U_ME,
+         updated_at=datetime(2026, 8, 2, 21, 0, 0))
+    # KST 2026-08-10(월) 06:00 = UTC 08-09 21:00. 예전에는 위쪽 경계가 없어 끼어들었다.
+    _doc(db, space.id, page_id="asst-doc-next", title="다음 주 문서", owner_id=U_ME,
+         updated_at=datetime(2026, 8, 9, 21, 0, 0))
     db.commit()
 
     changed = _get(asst_client, "/api/assistant/weekly-digest")["documents_changed"]

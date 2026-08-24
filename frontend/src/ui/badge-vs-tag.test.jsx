@@ -63,8 +63,7 @@ describe("분류값에 의미색을 매기는 표가 남아 있지 않다", () =
     const CASES = [
       ["screens/Board.jsx", ["p.category"]],
       ["screens/BoardPost.jsx", ["post.category"]],
-      ["screens/TeamDocs.jsx", ["d.document_type", "doc.document_type", "doc.work_field"]],
-      ["screens/TeamDoc.jsx", ["doc.document_type"]],
+      // 옛 문서 화면 두 개는 사라졌다 (S14 · C2) — 문서는 `/knowledge` 한 화면이 그린다.
     ];
     for (const [rel, fields] of CASES) {
       const source = read(rel);

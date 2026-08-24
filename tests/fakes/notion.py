@@ -1,21 +1,28 @@
-"""Body-aware fake for the Notion REST API ("작업" tasks database).
+"""Notion REST API 를 흉내내는 가짜 서버 — 이제는 **반례 장치**로만 남는다.
 
-Why this exists: ``tests/fakes/http.py::FakeHTTP`` routes on the URL prefix only
-and ignores the POST body, so *every* tasks-DB query (mine / unassigned / team)
-gets the identical canned rows back. Any golden captured against that fake is a
-false baseline — it cannot tell "the filter works" from "the filter is ignored".
+## 지금 이것이 왜 남아 있는가
 
-``FakeNotionTasksDB`` holds a fixed list of Notion-shaped page rows and actually
-interprets the request body: ``filter`` (people.contains / people.is_empty /
-date.on_or_after / date.before / date.is_not_empty / select+status equals, with
-``and``/``or`` composition), ``sorts``, and cursor pagination at ``page_size``
-(default 100, matching Notion). It also serves the endpoints the read paths
-touch alongside the query: database schema (GET /v1/databases/{id}), the
-relation-target DB used for project titles, single pages, and page children.
+제품은 더 이상 Notion 을 읽지도 쓰지도 않는다. 티켓·문서·프로젝트의 정본은 이 서버의
+데이터베이스이고, Notion 을 부르던 구현체는 S14 에서 전부 사라졌다. 그래서 이 페이크가
+답할 일은 원칙적으로 한 번도 없다.
 
-The property names it reads are the ones ``app/reports/notion_source.py``
-consumes — imported from there rather than duplicated, so a rename in the app
-breaks these tests loudly instead of silently drifting.
+바로 그 점이 이 파일을 남기는 이유다. 시험들은 이 가짜 서버를 붙여 두고 **한 번도 불리지
+않았다**는 것을 확인한다(`fake_http` 의 요청 계수기). 페이크를 지우면 「바깥으로 나가는
+왕복이 없다」를 증명할 계측기가 함께 사라지고, 어느 경로가 다시 Notion 을 부르기 시작해도
+시험은 조용히 초록으로 남는다. 티켓 한 건 없는 작업 DB 를 붙여 두면 그런 회귀는 「티켓을
+못 찾는다」로 소리 내어 깨진다.
+
+## 속성 이름을 여기서 직접 갖는 이유
+
+예전에는 이 이름들을 `app/reports/notion_source.py` 에서 가져왔다. 앱이 이름을 바꾸면
+시험이 큰 소리로 깨지게 하려는 것이었는데, 그 모듈이 사라진 지금은 이름을 물어볼 앱 쪽
+짝이 없다. 그래서 이관해 온 워크스페이스의 속성 이름을 **픽스처 자신의 값**으로 적어 둔다.
+
+``FakeNotionTasksDB`` 는 요청 바디를 실제로 해석한다: ``filter``(people.contains /
+people.is_empty / date.on_or_after / date.before / date.is_not_empty / select·status
+equals 와 ``and``/``or`` 합성), ``sorts``, 그리고 ``page_size`` 단위 커서 페이지네이션.
+데이터베이스 스키마(GET /v1/databases/{id}), 관계 대상 DB, 단일 페이지, 페이지 자식도
+함께 답한다.
 """
 
 from __future__ import annotations
@@ -25,18 +32,18 @@ from typing import Any, Callable
 
 import httpx
 
-from app.reports.notion_source import (
-    PROP_ACT,
-    PROP_DIFFICULTY,
-    PROP_DUE,
-    PROP_EST,
-    PROP_PEOPLE,
-    PROP_PRIORITY,
-    PROP_PROJECT,
-    PROP_STATUS,
-    PROP_TICKET_ID,
-    PROP_TITLE,
-)
+# 이관해 온 Notion 워크스페이스의 작업 DB 속성 이름이다. 값 자체에 뜻이 있는 것이 아니라
+# 「이 페이크가 만드는 행이 옛 Notion 페이지 모양이다」를 유지하는 것이 전부다.
+PROP_DUE = "마감일"
+PROP_TITLE = "제목"
+PROP_STATUS = "진행상태"
+PROP_PEOPLE = "티켓 담당자"
+PROP_EST = "예상 WD"
+PROP_ACT = "실제 WD"
+PROP_DIFFICULTY = "난이도"
+PROP_PRIORITY = "우선순위"
+PROP_TICKET_ID = "티켓 ID"
+PROP_PROJECT = "프로젝트"
 
 NOTION_BASE = "https://api.notion.com"
 # 예전엔 여기에 개발 워크스페이스의 진짜 DB id 가 있었고 소스 기본값도 같은 값이라, 두 곳이
@@ -57,8 +64,8 @@ DEFAULT_PROJECTS_DB = "projects-db-0001"
 # 그 티켓은 `unresolved` 로 남는다 — 그 상태 자체를 시험하고 싶으면 그 픽스처를 안 쓰면 된다.
 DEFAULT_PROJECT_PAGE_ID = "proj-1"
 
-# Schema served by GET /v1/databases/{tasks_db}. Shape matches what
-# app/tickets/notion_write.py reads (type + options + relation.database_id).
+# GET /v1/databases/{tasks_db} 가 답하는 스키마다. 옛 쓰기 경로가 읽던 모양
+# (type + options + relation.database_id)을 그대로 유지한다.
 DEFAULT_TASKS_SCHEMA: dict[str, Any] = {
     PROP_TITLE: {"type": "title", "title": {}},
     PROP_STATUS: {
@@ -102,7 +109,7 @@ def task_row(
     project_ids: list[str] | None = None,
     url: str | None = None,
 ) -> dict:
-    """One Notion page in the exact shape ``notion_source._parse_row`` consumes.
+    """이관해 온 Notion 페이지 한 건의 모양이다.
 
     ``project_ids`` defaults to ``[DEFAULT_PROJECT_PAGE_ID]`` — every real ticket belongs to
     exactly one project (0060). Pass ``[]`` when the *absence* of a project is the subject.
@@ -254,11 +261,10 @@ def project_page(
     }
 
 
-# ── write-payload readers ─────────────────────────────────────────────────────
-# ``app/tickets/notion_write.property_value`` builds these shapes. The fake reads
-# them back so a created/patched page comes out of a later query looking exactly
-# like one that had always been there — otherwise a write-through test would be
-# asserting against a page the fake invented rather than the one the app sent.
+# ── 쓰기 payload 읽기 ─────────────────────────────────────────────────────────
+# 옛 쓰기 경로가 만들던 속성 모양을 페이크가 되읽는다. 그래야 만들거나 고친 페이지가 다음
+# 조회에서 처음부터 있던 페이지와 똑같이 나온다 — 안 그러면 쓰기 시험이 앱이 보낸 것이
+# 아니라 페이크가 지어낸 페이지를 검사하게 된다.
 
 def _w_title(prop) -> str:
     segs = (prop or {}).get("title") or []
@@ -427,10 +433,9 @@ def apply_sorts(rows: list[dict], sorts: list[dict] | None) -> list[dict]:
 class FakeNotionTasksDB:
     """A body-aware stand-in for the Notion endpoints the read paths call.
 
-    ``always_has_more=True`` makes every query page report ``has_more: True``
-    with a fresh cursor, so the caller's page cap (``notion_source._MAX_PAGES``)
-    is what stops the loop — that is how truncation behaviour gets exercised.
-    ``fail_status`` turns every endpoint into a Notion error response.
+    ``always_has_more=True`` 는 모든 페이지가 ``has_more: True`` 와 새 커서를 답하게
+    만든다 — 부르는 쪽의 페이지 상한이 루프를 끊는지 보려던 장치다.
+    ``fail_status`` 는 모든 엔드포인트를 Notion 오류 응답으로 바꾼다.
     """
 
     def __init__(

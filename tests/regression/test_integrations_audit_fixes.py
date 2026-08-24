@@ -30,6 +30,10 @@ import pytest
 pytestmark = [pytest.mark.regression, pytest.mark.real_db]
 
 
+# 주소는 **런타임 허용 목록(config/allowed-services.json)에 있는 호스트**여야 한다. 예전에는
+# 여기가 api.notion.com 이었는데, S14 가 그 호스트를 목록에서 뺐다(D-284). 목록 밖 주소로는
+# 연동을 만들 수 없으므로(400), 그대로 두면 아래 시험들이 **행이 하나도 없는 세계**를 훑는다.
+
 def _headers(csrf):
     return {"X-CSRF-Token": csrf}
 
@@ -43,7 +47,7 @@ def test_clearing_integration_capabilities_is_normalized_not_rejected(
         json={
             "name": "audit-capabilities",
             "provider_type": "http_service",
-            "base_url": "https://api.notion.com",
+            "base_url": "https://api.anthropic.com",
             "auth_type": "none",
             "capabilities": {"foo": "bar"},
         },
@@ -70,7 +74,7 @@ def test_health_check_redirect_is_not_reported_as_healthy(client, login_as, fake
         json={
             "name": "audit-redirect-service",
             "provider_type": "http_service",
-            "base_url": "https://api.notion.com",
+            "base_url": "https://api.anthropic.com",
             "auth_type": "none",
         },
         headers=_headers(csrf),
@@ -78,7 +82,7 @@ def test_health_check_redirect_is_not_reported_as_healthy(client, login_as, fake
 
     # OutboundClient is built with follow_redirects=False (SSRF safety) — this 302
     # IS the response actually received, not a stand-in for the redirect target.
-    fake_http.on("https://api.notion.com", status=302)
+    fake_http.on("https://api.anthropic.com", status=302)
     r = client.post(
         f"/api/admin/integrations/{created['id']}/health", headers=_headers(csrf)
     )
@@ -112,7 +116,7 @@ def test_concurrent_integration_creates_with_same_name_never_leak_a_500(db_url, 
                 config = IntegrationConfig(
                     name="race-integration",
                     provider_type="http_service",
-                    base_url="https://api.notion.com",
+                    base_url="https://api.anthropic.com",
                 )
                 try:
                     integrations_service.create_integration(

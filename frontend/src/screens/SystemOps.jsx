@@ -330,7 +330,7 @@ export function SystemOps({ embedded = false } = {}) {
       key: "proxy", label: "아웃바운드 프록시",
       value: UNKNOWN,
       tone: "muted",
-      description: "포털이 바깥(Notion 등)으로 나갈 때 거치는 서버입니다. 지금 지정된 값은 도우미가 아직 알려 주지 않습니다.",
+      description: "포털이 바깥으로 나갈 때 거치는 서버입니다. 지금 지정된 값은 도우미가 아직 알려 주지 않습니다.",
       action: changeButton("proxy.set"),
     },
     {

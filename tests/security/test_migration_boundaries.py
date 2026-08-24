@@ -29,9 +29,13 @@ def test_the_runtime_allowlist_did_not_grow_for_the_migration():
 
     넣었으면 이관이 끝난 뒤에도 앱 서버가 그 호스트로 나갈 수 있다. 이관은 한 번
     쓰고 버리는데 넓어진 경계는 안 사라진다.
+
+    `api.notion.com` 도 이제 여기 없다. 런타임이 노션을 부르던 구현체가 전부 사라졌고,
+    호스트만 남겨 두면 되살아난 코드 한 줄이 정본 표에 다시 쓸 수 있다 — Cutover 때
+    설정으로 껐는데도 환경 파일이 이겨서 미러가 계속 돌던 사고가 그것이었다.
     """
     runtime = _hosts("services")
-    assert runtime == {"api.notion.com:443", "api.anthropic.com:443"}, (
+    assert runtime == {"api.anthropic.com:443"}, (
         f"런타임 허용 목록이 바뀌었다: {sorted(runtime)}"
     )
 

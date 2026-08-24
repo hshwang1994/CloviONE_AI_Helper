@@ -1,20 +1,18 @@
 import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import Box from "@mui/material/Box";
-import Link from "@mui/material/Link";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
 import { Badge, Button, Card, DataTable, EmptyState, ErrorState, MetricStrip, PageHeader, useConfirm, useToast } from "../ui/kit.jsx";
 import { bulkFailureNote, fmtDateTime, toUTCDate } from "../lib/format.js";
 import { useRowSelection, selectionColumn, BulkActions } from "../ui/bulkSelect.jsx";
-import { safeExternal } from "../lib/safeUrl.js";
 import { invalidateTicketViews } from "./ticket-views.js";
 import { invalidateDocumentViews } from "./document-views.js";
 import { DateCell } from "../ui/cells.jsx";
 
 /* 휴지통 — 삭제한 티켓/문서를 보관기간 동안 잡아둔다. 복원하면 원래 목록으로 돌아가고, 보관기간이
- * 지나면 백그라운드가 노션 원본을 보관처리하고 여기서 사라진다. 지금 바로 영구 삭제도 가능(권한 필요).
+ * 지나면 백그라운드가 원본을 보관처리하고 여기서 사라진다. 지금 바로 영구 삭제도 가능(권한 필요).
  * 문서 하위 페이지. 종류(티켓/문서)·제목·삭제한 사람·삭제일·삭제 예정일이 보인다.
  *
  * 2026-08 MUI 재설계: 화면 고유 CSS 클래스(.k-row-actions 등)에 기대지 않고 sx로 직접 그린다 —
@@ -119,7 +117,11 @@ export function Trash() {
   // 체크박스 한 칸이 제목과 같은 폭을 먹고 제목이 곧바로 잘렸다.
   const selCol = { ...selectionColumn(sel, items.map((i) => i.id), { eligible: (id) => manageable.has(id) }), width: "3.5rem" };
   const purgeSelected = async () => {
-    const ok = await confirm(`선택한 ${sel.selected.size}건을 영구 삭제합니다. 노션 원본이 보관처리되어 목록에서 사라집니다(노션 휴지통에서 30일 내 복구 가능). 계속할까요?`,
+    // 🔴 문구가 사실과 달랐다. 예전에는 영구 삭제가 노션 페이지를 보관처리하는 것이었고
+    // 되돌릴 여지는 **노션 휴지통**이 줬다. 지금은 이 서버가 정본이라 행을 진짜로 지우고
+    // (`repository_native.archive`) 딸린 댓글·첨부도 CASCADE 로 함께 사라진다. 되돌릴 수
+    // 없는 동작을 「30일 내 복구 가능」이라고 말하면 사용자는 그것을 믿고 누른다.
+    const ok = await confirm(`선택한 ${sel.selected.size}건을 영구 삭제합니다. 댓글과 첨부까지 함께 지워지고 되돌릴 수 없습니다. 계속할까요?`,
       { title: "선택 영구 삭제", confirmLabel: "영구 삭제", danger: true });
     if (ok) bulkPurge.mutate([...sel.selected]);
   };
@@ -133,9 +135,10 @@ export function Trash() {
       // rowName: 휴지통에서 행을 구별하는 값은 제목이다(ui/rowName.js). 여기가 영구 삭제를
       // 고르는 표라, 어느 줄을 고르는지 낭독되지 않으면 되돌릴 수 없는 실수가 난다.
       rowName: (r) => r.title || "제목 없음",
-      render: (r) => (safeExternal(r.url)
-        ? <Link href={safeExternal(r.url)} target="_blank" rel="noreferrer noopener" underline="hover">{r.title || "제목 없음"}</Link>
-        : <span>{r.title || "제목 없음"}</span>),
+      // 제목은 평문이다. 예전에는 옛 Notion 주소로 나가는 링크였는데, 정본이 이 서버로
+      // 넘어온 뒤로 그 주소가 여는 것은 우리가 더 이상 쓰지 않는 낡은 사본이다. 서버도
+      // 응답에서 `url` 을 걷었다.
+      render: (r) => <span>{r.title || "제목 없음"}</span>,
     },
     { key: "deleted_by", label: "삭제한 사람", width: "11rem" },
     { key: "deleted_at", label: "삭제일", align: "right", width: "11rem", nowrap: true, render: (r) => <DateCell value={r.deleted_at} /> },
@@ -147,7 +150,7 @@ export function Trash() {
           <Button size="sm" variant="primary" disabled={restore.isPending} onClick={() => restore.mutate(r)}>복원</Button>
           <Button size="sm" variant="danger" disabled={purge.isPending}
             onClick={async () => {
-              const ok = await confirm("지금 영구 삭제하면 노션 원본이 보관처리되어 목록에서 사라집니다(노션 휴지통에서 30일 내 복구 가능). 계속할까요?",
+              const ok = await confirm("지금 영구 삭제하면 댓글과 첨부까지 함께 지워지고 되돌릴 수 없습니다. 계속할까요?",
                 { title: "영구 삭제", confirmLabel: "영구 삭제", danger: true });
               if (ok) purge.mutate(r);
             }}>영구 삭제</Button>

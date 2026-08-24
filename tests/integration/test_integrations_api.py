@@ -5,8 +5,8 @@ pytestmark = pytest.mark.integration
 VALID = {
     "name": "test-service",
     "provider_type": "http_service",
-    "base_url": "https://api.notion.com",
-    "health_url": "https://api.notion.com",
+    "base_url": "https://api.anthropic.com",
+    "health_url": "https://api.anthropic.com",
     "auth_type": "none",
     "enabled": True,
 }
@@ -84,7 +84,7 @@ def test_rollback_restores_previous_config(client, admin_csrf):
     )
     assert r.status_code == 200
     rolled = r.json()["integration"]
-    assert rolled["base_url"] == "https://api.notion.com"
+    assert rolled["base_url"] == "https://api.anthropic.com"
     assert rolled["config_version"] == 3  # rollback = new version, append-only
 
 
@@ -104,7 +104,7 @@ def test_integration_config_approval_rejects_stale_config(client, login_as, admi
     requester_csrf = login_as("admin", email="int-requester@goodmit.co.kr")
     r = client.patch(
         f"/api/admin/integrations/{created['id']}",
-        json={"base_url": "https://api.anthropic.com"},
+        json={"base_url": "https://api.anthropic.com/v1"},
         headers=_headers(requester_csrf),
     )
     assert r.status_code == 202
@@ -117,7 +117,7 @@ def test_integration_config_approval_rejects_stale_config(client, login_as, admi
     # 승인 대기 중 system_admin이 직접 설정을 바꾼다 — 즉시 적용된다.
     r2 = client.patch(
         f"/api/admin/integrations/{created['id']}",
-        json={"base_url": "https://api.notion.com/v1"},
+        json={"base_url": "https://api.anthropic.com/v2"},
         headers=_headers(admin_csrf),
     )
     assert r2.status_code == 200
@@ -131,7 +131,7 @@ def test_integration_config_approval_rejects_stale_config(client, login_as, admi
     detail = client.get(
         f"/api/admin/integrations/{created['id']}", headers=_headers(admin_csrf)
     ).json()["integration"]
-    assert detail["base_url"] == "https://api.notion.com/v1"  # 옛 설정으로 되돌아가지 않는다
+    assert detail["base_url"] == "https://api.anthropic.com/v2"  # 옛 설정으로 되돌아가지 않는다
 
 
 def test_rollback_to_unknown_version_404(client, admin_csrf):
@@ -165,14 +165,14 @@ def test_health_check_up_and_down(client, admin_csrf, fake_http, fake_clock):
         "/api/admin/integrations", json=VALID, headers=_headers(admin_csrf)
     ).json()["integration"]
 
-    fake_http.on("https://api.notion.com", json_body={"status": "ok"})
+    fake_http.on("https://api.anthropic.com", json_body={"status": "ok"})
     r = client.post(
         f"/api/admin/integrations/{created['id']}/health", headers=_headers(admin_csrf)
     )
     assert r.status_code == 200
     assert r.json()["status"] == "up"
 
-    fake_http.on_connect_error("https://api.notion.com")
+    fake_http.on_connect_error("https://api.anthropic.com")
     r = client.post(
         f"/api/admin/integrations/{created['id']}/health", headers=_headers(admin_csrf)
     )
@@ -190,7 +190,7 @@ def test_health_check_timeout(client, admin_csrf, fake_http):
     created = client.post(
         "/api/admin/integrations", json=VALID, headers=_headers(admin_csrf)
     ).json()["integration"]
-    fake_http.on_timeout("https://api.notion.com")
+    fake_http.on_timeout("https://api.anthropic.com")
     r = client.post(
         f"/api/admin/integrations/{created['id']}/health", headers=_headers(admin_csrf)
     )
@@ -225,7 +225,7 @@ def test_operator_can_read_and_health_but_not_mutate(client, login_as, make_user
     operator_csrf = login_as("operator")
     assert client.get("/api/admin/integrations").status_code == 200
 
-    fake_http.on("https://api.notion.com", json_body={})
+    fake_http.on("https://api.anthropic.com", json_body={})
     r = client.post(
         f"/api/admin/integrations/{created['id']}/health", headers=_headers(operator_csrf)
     )
@@ -244,14 +244,42 @@ def test_user_role_cannot_read_integrations(client, login_as):
     assert client.get("/api/admin/integrations").status_code == 403
 
 
-def test_discovery_seed_idempotent(db, settings):
+def test_nothing_is_seeded_by_default(db, settings):
+    """기본 시드가 **비어 있다.**
+
+    S11 이 n8n·러너 셋을 걷어냈고 마지막 하나였던 Notion 은 Notion 런타임과 함께 사라졌다.
+    설치 직후 연동이 하나 놓여 있으면 그것이 무엇을 부르는지 아무도 안 본 채로 살아 있게
+    된다 — 지금은 그런 항목이 없어야 한다.
+    """
     from app.core.allowlist import AllowlistRegistry
-    from app.integrations.discovery import seed_known_integrations
+    from app.integrations.discovery import KNOWN_INTEGRATIONS, seed_known_integrations
 
     allowlists = AllowlistRegistry(settings.config_dir)
-    first = seed_known_integrations(db, allowlists=allowlists)
+    assert KNOWN_INTEGRATIONS == [], f"기본 시드가 다시 생겼다: {KNOWN_INTEGRATIONS}"
+    assert seed_known_integrations(db, allowlists=allowlists) == []
+
+
+def test_discovery_seed_is_idempotent(db, settings, monkeypatch):
+    """시드가 비었다고 **두 번 돌려도 되는가**를 안 보면, 다음 항목이 들어오는 날 그 성질이
+    한 번도 검증된 적 없는 상태가 된다. 그래서 표본을 하나 꽂아 두고 두 번 돌린다.
+    """
+    from app.core.allowlist import AllowlistRegistry
+    from app.integrations import discovery
+
+    sample = [{
+        "name": "seed-sample",
+        "provider_type": "http_service",
+        # 호스트는 런타임 허용 목록에 있어야 한다 — 없으면 저장 시점에 거절당해서
+        # 이 시험이 「두 번째가 안 만든다」가 아니라 「한 번도 못 만든다」를 보게 된다.
+        "base_url": "https://api.anthropic.com",
+        "health_url": "https://api.anthropic.com/v1/models",
+        "capabilities": {},
+        "enabled": True,
+    }]
+    monkeypatch.setattr(discovery, "KNOWN_INTEGRATIONS", sample)
+
+    allowlists = AllowlistRegistry(settings.config_dir)
+    first = discovery.seed_known_integrations(db, allowlists=allowlists)
     db.commit()
-    # S11 이 n8n·러너 셋의 시드를 걷어냈다 — 남은 것은 Notion 하나이고 그것도 S14 다.
-    assert set(first) == {"notion"}
-    second = seed_known_integrations(db, allowlists=allowlists)
-    assert second == []
+    assert first == ["seed-sample"], f"표본을 한 번도 안 만들었다: {first}"
+    assert discovery.seed_known_integrations(db, allowlists=allowlists) == []

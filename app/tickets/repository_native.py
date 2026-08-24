@@ -11,14 +11,13 @@
     때만 뜻이 있는 장치인데, 이제 이 표가 정본이라 「아직 안 찼다」는 상태가 없다.
     티켓이 0건인 것은 사고가 아니라 사실이고, 그때는 빈 목록이 정답이다.
   * 동기화 상태(`ticket_sync_state`)로 답을 가르지 않는다. 미러가 없으므로 낡을
-    것도 없다 — `sync_state()` 는 언제나 `None` 이고, 그래서 목록 응답에서
-    신선도 블록(`sync`) 자체가 사라진다(`app/tickets/service.py::sync_indicator` 가
-    `None` 을 받으면 키를 안 싣는다). 「지금 답한 값이 얼마나 낡았나」에 답할 수
-    없어서가 아니라 **낡을 수가 없어서** 그 질문이 없어진 것이다. 같은 이유로
+    것도 없고, 그래서 신선도를 묻는 계약(`sync_state()`, 목록 응답의 `sync` 블록)
+    자체가 없어졌다. 「지금 답한 값이 얼마나 낡았나」에 답할 수 없어서가 아니라
+    **낡을 수가 없어서** 그 질문이 없어진 것이다. 같은 이유로
     `TicketList.from_cache` 도 `False` 다: 그 이름은 「정본이 아닌 사본으로
     답했다」는 뜻이었고, 여기서 답한 값은 사본이 아니다.
   * 쓰기가 외부로 나가지 않는다. `create`/`update`/`save_body` 는 이 표에 쓰고
-    끝난다. 그래서 `save_body` 의 `synced` 는 언제나 참이다 — 밀어 넣을 곳이 없는데
+    끝난다. 그래서 `save_body` 의 결과에 `synced` 가 없다 — 밀어 넣을 곳이 없는데
     「밀어 넣지 못했다」는 상태를 만들 수는 없다.
 
 ## 아웃바운드 호출이 없다는 것을 어떻게 지키는가
@@ -80,7 +79,6 @@ from app.tickets.repository import (
     BodySaveResult,
     PageSpec,
     ProjectRef,
-    SyncStatus,
     TicketDraft,
     TicketDTO,
     TicketFilters,
@@ -224,7 +222,6 @@ class NativeTicketRepository:
             project_names=tuple(split_names(row.project_names)),
             assignee_ids=tuple(split_names(row.assignee_notion_ids)),
             body_markdown=row.body_markdown,
-            body_sync_error=row.body_sync_error,
             source=row.source or SOURCE_NOTION,
         )
 
@@ -258,7 +255,6 @@ class NativeTicketRepository:
             tickets=tuple(self._to_dto(r) for r in rows),
             # 사본이 아니라 정본으로 답했다 — 모듈 docstring 참조.
             from_cache=False,
-            sync=None,
             total=total,
         )
 
@@ -434,18 +430,6 @@ class NativeTicketRepository:
         refs.sort(key=lambda r: (r.name or "￿"))
         return refs
 
-    def sync_state(self, db: Session) -> SyncStatus | None:
-        """언제나 `None` — 낡을 수 있는 사본이 없다.
-
-        `None` 은 이 계약에서 「모른다」가 아니라 「실시간으로 답했다」는 뜻이다
-        (`app/tickets/repository.py::TicketRepository.sync_state`). 부르는 쪽
-        (`app/tickets/service.py::sync_indicator`)이 `None` 을 받으면 응답에 신선도
-        블록을 아예 안 싣고, 화면은 「N분 전 동기화」 배지를 안 그린다. 여기서 굳이
-        `ticket_sync_state` 행을 읽어 실어 보내면 **더 이상 돌지 않는 동기화의 마지막
-        시각**이 화면에 남아 매일 조금씩 더 낡아 보인다 — 그건 정보가 아니라 거짓말이다.
-        """
-        return None
-
     # ── 쓰기 ─────────────────────────────────────────────────────────────────
 
     def create(self, db: Session, *, draft: TicketDraft, now: datetime | None = None) -> TicketDTO:
@@ -611,7 +595,7 @@ class NativeTicketRepository:
     def save_body(
         self, db: Session, *, page_id: str, body_markdown: str, now: datetime | None = None
     ) -> BodySaveResult:
-        """본문을 저장한다. `synced` 는 **언제나 참**이다.
+        """본문을 저장한다. 저장 결과에 `synced` 라는 필드가 없다.
 
         Notion 구현에서 `synced=False` 는 「우리 DB 에는 저장됐지만 소스에는 못 밀어
         넣었다」는 세 번째 상태였다. 그 상태가 존재한 이유는 정본이 두 곳에 있었기
@@ -632,7 +616,7 @@ class NativeTicketRepository:
         row.body_synced_at = stamp
         row.updated_at = stamp
         db.flush()
-        return BodySaveResult(uid=uid, body_markdown=body_markdown, synced=True, sync_error=None)
+        return BodySaveResult(uid=uid, body_markdown=body_markdown)
 
     # ── 자체 UUID ────────────────────────────────────────────────────────────
 

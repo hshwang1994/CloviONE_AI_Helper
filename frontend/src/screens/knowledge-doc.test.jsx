@@ -61,6 +61,11 @@ function stubDocument({ version = 3 } = {}) {
     relations: [],
     backlinks: [],
   });
+  // 화면이 본문 아래에 논의를 함께 그린다 (S14 · C2). 대역이 없으면 그 자리가 오류 상태로
+  // 뜨는데, 이 파일이 보려는 것은 판·차이·되돌리기라 소음만 는다.
+  responses.set(`GET /api/knowledge/documents/${DOC_ID}/comments`, {
+    ok: true, comments: [], people: {},
+  });
   responses.set(`GET /api/knowledge/documents/${DOC_ID}/versions`, {
     current_version_no: 2,
     items: [

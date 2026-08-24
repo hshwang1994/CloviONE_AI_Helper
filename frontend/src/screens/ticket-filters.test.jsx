@@ -281,7 +281,7 @@ describe("빈 목록의 두 가지 뜻", () => {
   it("연동이 없으면 필터 줄 자체를 그리지 않는다", async () => {
     listPayload = { configured: false, ok: false, tickets: [] };
     renderScreen(MyTickets, "/my-tickets");
-    expect(await screen.findByText("Notion 연동이 아직 설정되지 않았습니다")).toBeInTheDocument();
+    expect(await screen.findByText("지금은 티켓 목록을 불러올 수 없습니다")).toBeInTheDocument();
     expect(screen.queryByRole("combobox", { name: "상태" })).toBeNull();
     expect(screen.queryByRole("searchbox", { name: "검색어" })).toBeNull();
   });

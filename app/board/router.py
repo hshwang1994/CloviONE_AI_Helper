@@ -176,7 +176,7 @@ def _attachment_view(att) -> dict:
 
 def _comment_view(c: Comment, *, author_name: str, reactions: list[dict], me: User) -> dict:
     """댓글 한 건의 API 응답. 삭제된 댓글은 **본문 없는 툼스톤**으로 나간다 —
-    `app/tickets/comments.py::comment_view`·`app/team_docs/comments.py`와 같은 규약
+    `app/tickets/comments.py::comment_view`·`app/knowledge/comments.py`와 같은 규약
     (`docs/DECISIONS.md` 참조). 예전에는 목록 쿼리가 삭제된 행 자체를 걸러냈다 —
     행이 조용히 사라지면 그 답글(자식)만 남아 부모 없는 대화처럼 보였다."""
     deleted = c.deleted_at is not None

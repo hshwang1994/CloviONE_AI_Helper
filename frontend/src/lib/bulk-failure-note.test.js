@@ -13,8 +13,10 @@ describe("bulkFailureNote", () => {
   });
 
   it("실제 사유를 그대로 보여준다 — 권한이 아니어도(Notion 실패) 권한 문구로 뭉개지 않는다", () => {
-    const note = bulkFailureNote([{ id: "a", error: "노션 보관처리에 실패했습니다. 잠시 후 다시 시도하세요." }]);
-    expect(note).toContain("노션 보관처리에 실패했습니다");
+    const note = bulkFailureNote([{ id: "a", error: "원본을 보관처리하지 못했습니다. 잠시 후 다시 시도하세요." }]);
+    expect(note).toContain("원본을 보관처리하지 못했습니다");
+    // 서버가 더 이상 못 내는 문구다 — 화면이 옛 문자열을 어딘가에 박아 두지 않았는지 함께 본다.
+    expect(note).not.toContain("노션");
     expect(note).not.toContain("권한이 없");
   });
 

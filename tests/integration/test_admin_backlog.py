@@ -440,27 +440,36 @@ def test_system_status_is_quiet_when_healthy(client, login_as, setup_complete):
     assert "components" not in body
 
 
-def test_system_status_reports_late_ticket_sync(
+def test_a_stale_mirror_row_no_longer_puts_a_banner_on_every_screen(
     client, login_as, db, fake_clock, setup_complete
 ):
-    from app.observability.models import COMPONENT_TICKETS, SYNC_OK
+    """예전에는 이 시험이 반대를 단언했다: 티켓 미러가 2시간 늦으면 critical 배너가 뜬다.
+
+    그 미러가 없어졌다. 티켓·문서에 쓰는 코드가 사라진 뒤로 `sync_status` 의 마지막
+    성공 시각은 낡아지기만 하고, 판정이 남아 있으면 배너가 **영원히** 굳는다(운영
+    실측으로 문서 3.8일·티켓 4.5시간). 그 배너는 모든 화면과 알림 벨에 붙는 전역
+    요소라, 굳은 순간부터 사용자는 진짜 알림까지 함께 무시하게 된다. 되살리면
+    이 시험이 빨개진다.
+    """
+    from app.observability.models import COMPONENT_DOCUMENTS, COMPONENT_TICKETS, SYNC_OK
     from app.observability.service import upsert_sync_status
 
     now = fake_clock.now()
     upsert_sync_status(
         db, COMPONENT_TICKETS, status=SYNC_OK, now=now - timedelta(hours=2), item_count=10
     )
+    upsert_sync_status(
+        db, COMPONENT_DOCUMENTS, status=SYNC_OK, now=now - timedelta(days=4), item_count=110
+    )
     db.commit()
 
     login_as("user")
     body = client.get("/api/system/status").json()
-    assert len(body["notices"]) == 1
-    notice = body["notices"][0]
-    assert notice["id"] == "sync.tickets"
-    assert notice["level"] == "critical"
-    assert "티켓" in notice["message"]
-    # 내부 이름·예외는 사용자 문구에 새지 않는다.
-    assert "sync_status" not in notice["message"]
+    assert body["notices"] == [], body["notices"]
+    assert not [n for n in body["notices"] if str(n.get("id", "")).startswith("sync.")]
+    assert not [n for n in body["notices"] if n.get("level") == "critical"]
+    assert "티켓 동기화" not in json.dumps(body, ensure_ascii=False)
+    assert "문서 동기화" not in json.dumps(body, ensure_ascii=False)
     assert "components" not in body
 
 

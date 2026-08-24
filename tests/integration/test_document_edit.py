@@ -16,15 +16,17 @@
 5. push 실패를 삼키지 않는다. 정본은 살아 있으니 오류로 던질 수 없고, 그렇다고 성공이라
    말하면 원본과 어긋난 사실을 숨기는 거짓말이 된다.
 
-## 소스가 갈린다 (S14)
+## 다섯 중 둘은 이제 없다 (S14)
 
-위 다섯 중 **1 과 5 만 미러(Notion) 경로의 성질**이다. 둘 다 「정본과 원본이 다른 곳에
-있다」를 전제로 하는 말이라 자체 DB 소스에서는 확인할 대상 자체가 없다. 그래서 그 두 절의
-시험에 하나씩 `@pytest.mark.notion_source` 를 붙여 소스를 되돌린다. 나머지(CSRF·낙관적
-잠금·범위 404·작성자 미해석·휴지통·감사)는 소스와 무관한 성질이므로 **제품 기본값인 자체
-DB 위에서 그대로 선다** — 파일째 되돌리면 그 시험들이 실제로 배포되는 경로를 안 보게 된다.
+**1 과 5 는 「정본과 원본이 다른 곳에 있다」를 전제로 하는 말**이었다. S14 가 그 원본을
+걷어냈으므로(D-284) 확인할 대상 자체가 없어졌고, 그 두 절의 시험 여섯을 지웠다. 남은
+성질(CSRF·낙관적 잠금·범위 404·작성자 미해석·휴지통·감사)은 소스와 무관하므로 실제로
+배포되는 경로 위에서 그대로 선다.
 
-표가 붙은 시험이 곧 **Notion 을 걷어낼 때 지울 목록**이다.
+`author_notion_ids` 를 채우던 동기화도 함께 사라졌다 — 4번은 그래서 **더** 중요해졌다.
+그 칸은 이제 이관해 온 값에서 영영 안 움직이고, 막아 두면 그 문서들은 영영 못 고친다.
+
+qa-contract-change: 여섯 시험이 Notion push 왕복(원본에서 되읽은 본문·저장이 원본을 부른다·원본 블록 보존·push 실패 배너와 그 지속·다음 저장이 그 배너를 지운다)을 확인했고 S14 가 그 구간을 통째로 없앴다(D-284) — 밀어 넣을 상대가 없으므로 지킬 대상이 없고, 자체 DB 쪽 성질은 tests/integration/test_native_document_repository.py 가 같은 이름으로 본다.
 """
 
 from __future__ import annotations
@@ -122,53 +124,11 @@ def _save(client, csrf, body, *, base_version=None, page_id=PAGE):
 
 # ── 1) 저장이 원본까지 간다 ───────────────────────────────────────────────────
 #
-# **이 절의 세 시험은 소스를 미러로 되돌린다** (S14). 「원본까지 간다」는 말이 성립하려면
-# 원본이 우리 밖에 있어야 하는데, 자체 DB 소스에는 밀어 넣을 상대가 없다. 표를 안 붙이면
-# 저장이 아무 데도 안 가는 것이 정상 동작이 되어, 이 시험들이 텅 빈 요청 기록을 보고도
-# 조용히 통과한다. 바로 아래 CSRF 시험은 소스와 무관하므로 표를 붙이지 않는다.
-
-
-@pytest.mark.notion_source
-def test_the_detail_hands_the_editor_a_body_and_a_version(client, csrf):
-    """편집기를 열려면 마크다운이 필요하고, 저장하려면 그때의 지문이 필요하다.
-
-    `body_is_local is False` 가 미러 경로의 말이다 — 「아직 우리가 저장한 적 없는 본문을
-    원본에서 되읽었다」는 상태는 원본이 따로 있을 때만 존재한다. 자체 DB 에서 저장된 본문을
-    여는 쪽은 `tests/integration/test_native_document_repository.py` 가 본다.
-    """
-    detail = _detail(client)
-    assert detail["body_markdown"] == "원래 본문", detail
-    assert detail["body_version"], "지문이 없으면 낙관적 잠금을 걸 수 없다"
-    assert detail["body_is_local"] is False, "아직 우리 정본이 아니라 원본에서 되읽은 값이다"
-
-
-@pytest.mark.notion_source
-def test_saving_pushes_the_new_body_to_notion(client, csrf, notion):
-    version = _detail(client)["body_version"]
-    r = _save(client, csrf, "# 새 제목\n새 본문", base_version=version)
-    assert r.status_code == 200, r.text
-    body = r.json()
-    assert body["synced"] is True, body
-    assert body["body_sync_error"] is None, body
-    assert notion.pushed, "저장이 원본(Notion)을 부르지 않았다 - 우리 DB 에만 남는다"
-    assert "새 본문" in notion.pushed_text, notion.pushed_text
-    # 우리 정본으로도 남는다.
-    after = _detail(client)
-    assert after["body_markdown"] == "# 새 제목\n새 본문", after
-    assert after["body_is_local"] is True, after
-
-
-@pytest.mark.notion_source
-def test_saving_does_not_delete_the_image_block(client, csrf, notion):
-    """편집기가 표현할 수 없는 블록은 사용자가 지운 적이 없다 - 저장이 지우면 안 된다.
-
-    지울 블록이 있는 곳은 원본 페이지뿐이라 이것도 미러 경로의 성질이다. 표가 없으면
-    `notion.deleted` 가 언제나 비어 있어 이 단언이 저절로 참이 된다.
-    """
-    _save(client, csrf, "새 본문", base_version=_detail(client)["body_version"])
-    assert "b2" not in notion.deleted, f"이미지 블록을 지웠다: {notion.deleted}"
-
-
+# 여기 있던 세 시험(원본에서 되읽은 본문 · 저장이 원본을 부른다 · 저장이 원본 블록을
+# 안 지운다)을 걷었다. 셋 다 **본문의 기록이 둘**일 때만 뜻이 있는 성질이고, S14 뒤로는
+# 이 표가 유일한 기록이다(D-284). 자체 DB 쪽 성질은
+# `tests/integration/test_native_document_repository.py` 가 본다 — 저장된 본문을 그대로
+# 돌려주는가, 저장이 남은 오류를 비우는가, 없는 문서에 저장하면 404 인가.
 def test_saving_needs_csrf(client, csrf):
     r = client.put("/api/team-docs/" + PAGE + "/body", json={"body_markdown": "무단"})
     assert r.status_code == 403, r.text
@@ -288,48 +248,12 @@ def test_a_plain_user_can_edit_a_document_they_did_not_write(client, login_as, w
     assert r.status_code == 200, f"작성자가 아니면 못 고친다: {r.status_code} {r.text}"
 
 
-# ── 5) push 실패가 화면에 보인다 ──────────────────────────────────────────────
+# ── 5) 저장 결과가 화면에 보인다 ─────────────────────────────────────────────
 #
-# **이 절 전체가 미러 경로다** (S14). push 라는 구간이 없으면 실패도 없고, 그래서 자체 DB
-# 소스는 저장할 때마다 `body_sync_error` 를 오히려 **비운다** — 원본이 없어진 뒤에도 그
-# 배너를 띄우면 사용자가 고칠 수 없는 경고를 영원히 보기 때문이다. 표를 안 붙이면 세 시험이
-# 전부 「어긋난 적이 없으니 어긋나지 않았다」로 통과한다. 자체 DB 쪽에서 남은 오류가 지워지는
-# 것은 `tests/integration/test_native_document_repository.py` 가 따로 본다.
-
-
-@pytest.mark.notion_source
-def test_a_failed_push_is_reported_not_swallowed(client, csrf, notion):
-    notion.push_fails = True
-    r = _save(client, csrf, "원본에 못 간 글", base_version=_detail(client)["body_version"])
-    assert r.status_code == 200, f"정본은 저장됐는데 오류로 던지면 그 글이 롤백된다: {r.text}"
-    body = r.json()
-    assert body["synced"] is False, body
-    assert body["body_sync_error"], "어긋난 이유를 말하지 않으면 화면이 배너를 그릴 수 없다"
-    # 우리 글은 살아 있다.
-    assert body["body_markdown"] == "원본에 못 간 글"
-
-
-@pytest.mark.notion_source
-def test_the_sync_error_survives_a_reload(client, csrf, notion):
-    """토스트는 사라진다. 다시 열었을 때도 어긋난 사실이 보여야 한다."""
-    notion.push_fails = True
-    _save(client, csrf, "원본에 못 간 글", base_version=_detail(client)["body_version"])
-    detail = _detail(client)
-    assert detail["body_sync_error"], detail
-    assert detail["body_markdown"] == "원본에 못 간 글", detail
-
-
-@pytest.mark.notion_source
-def test_a_later_successful_save_clears_the_sync_error(client, csrf, notion):
-    notion.push_fails = True
-    _save(client, csrf, "첫 시도", base_version=_detail(client)["body_version"])
-    notion.push_fails = False
-    r = _save(client, csrf, "첫 시도", base_version=_detail(client)["body_version"])
-    assert r.status_code == 200, r.text
-    assert r.json()["synced"] is True, r.text
-    assert _detail(client)["body_sync_error"] is None
-
-
+# 여기 있던 세 시험(push 실패가 보인다 · 새로고침해도 남는다 · 다음 저장이 지운다)을
+# 걷었다. push 라는 구간이 없어졌으므로(D-284) 실패도 없다. 자체 DB 소스는 저장할 때마다
+# `body_sync_error` 를 오히려 **비운다** — 고칠 수 없는 경고를 영원히 띄우지 않기
+# 위해서다. 그 비우기는 `test_native_document_repository.py` 가 본다.
 # ── 6) 휴지통 문서는 편집 불가 ────────────────────────────────────────────────
 
 def test_a_trashed_document_cannot_be_edited(client, csrf, db):

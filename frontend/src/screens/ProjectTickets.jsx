@@ -18,13 +18,16 @@ import { ticketRows, useTicketList } from "./ticket-options.js";
  *
  * ## 조건은 서버가 건다
  *
- * `project_id` 는 **노션 프로젝트 page id** 다(app/tickets/repository.py 가 `project_ids`
- * 다중값과 맞춘다). 그래서 노션 짝이 없는 포털 전용 프로젝트는 걸린 작업이 있을 수 없고,
- * 그때는 목록을 아예 부르지 않는다 - 조건 없이 부르면 회사의 모든 티켓이 이 프로젝트의
- * 목록으로 뜬다(서버가 진행률에서 같은 함정을 피한 이유와 같다).
+ * `project_id` 로 **포털 프로젝트 id** 를 보낸다. 서버가 두 축으로 맞춘다(S14):
+ * 해석된 `tickets.project_uid` 와, 이관해 온 티켓이 달고 있는 옛 relation 목록
+ * `project_ids`(그쪽은 `projects.notion_page_id` 로 맞춘다) — `app/tickets/query.py`.
  *
- * 두 부품으로 나눈 이유는 훅이다. 목록 질의는 훅이라 조건부로 부를 수 없으므로, "부를지"를
- * 정하는 쪽과 "부르는" 쪽을 나눈다.
+ * 🔴 예전에는 여기서 `notion_page_id` 를 보냈고, 그 값이 없으면 **목록을 아예 안 불렀다.**
+ * 이관 전에는 옳았다(짝이 없으면 걸린 작업이 있을 수 없었다). 지금은 반대다 — Cutover
+ * 이후에 만드는 프로젝트에는 그 칸이 영원히 없으므로, 그대로 두면 **새 프로젝트의 티켓
+ * 탭이 언제까지나 비어 있다.** 티켓은 멀쩡히 붙어 있는데 화면만 비고, 오류는 안 난다.
+ *
+ * 조건 없이 부르는 일은 여전히 없다. `project.id` 는 이 화면이 열려 있는 한 항상 있다.
  */
 
 function ProjectTicketList({ pageId, page, onPage }) {
@@ -87,7 +90,7 @@ function ProjectTicketList({ pageId, page, onPage }) {
           <EmptyState
             art="tickets"
             title="이 프로젝트에 걸린 티켓이 없습니다"
-            help="노션 작업의 프로젝트 속성에 이 프로젝트를 걸면 여기에 모입니다."
+            help="티켓을 만들 때 이 프로젝트를 고르면 여기에 모입니다."
           />
         }
       />
@@ -98,18 +101,20 @@ function ProjectTicketList({ pageId, page, onPage }) {
 }
 
 export function ProjectTickets({ project, page, onPage }) {
-  const pageId = (project && project.notion_page_id) || "";
-  if (!pageId) {
+  const projectId = (project && project.id) || "";
+  if (!projectId) {
+    // 프로젝트를 아직 못 읽은 순간뿐이다. 조건 없이 부르면 회사의 모든 티켓이 이
+    // 프로젝트의 목록으로 뜬다(서버가 진행률에서 같은 함정을 피한 이유와 같다).
     return (
       <Card>
         <EmptyState
           art="tickets"
-          title="연결된 노션 작업이 없습니다"
-          situation="이 프로젝트는 포털에서만 관리하는 프로젝트라 노션 페이지 짝이 없습니다."
-          help="노션 작업은 프로젝트가 노션 페이지와 연결돼 있을 때만 여기에 모입니다."
+          title="이 프로젝트의 티켓이 없습니다"
+          situation="아직 이 프로젝트로 만든 티켓이 하나도 없습니다."
+          help="티켓을 만들 때 이 프로젝트를 고르면 여기에 모입니다."
         />
       </Card>
     );
   }
-  return <ProjectTicketList pageId={pageId} page={page} onPage={onPage} />;
+  return <ProjectTicketList pageId={projectId} page={page} onPage={onPage} />;
 }

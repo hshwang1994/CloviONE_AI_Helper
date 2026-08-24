@@ -8,8 +8,11 @@ import { linkifyText } from "./links.jsx";
 /* AI 도우미의 URL 다듬기가 팀 채팅 말풍선(chat-text.js)과 같은 규칙을 쓰는지 본다
  * (step 10 #1). 예전엔 chat-helpers.js 의 URL_RE(`/(https?:\/\/[^\s]+)/g`)가 공백 전까지
  * 욕심껏 먹어서 "...(https://a.b/c)에서" 같은 문장의 닫는 괄호·조사까지 통째로 URL에
- * 들어갔다 - safeNotion 판정도, href 도 그 오염된 문자열로 이뤄져 자신만만하게 틀린
- * 링크를 냈다.
+ * 들어갔다 - href 도 그 오염된 문자열로 이뤄져 자신만만하게 틀린 링크를 냈다.
+ *
+ * 지금은 **어떤 주소도 앵커가 아니다.** 예전에는 notion.so 계열만 진짜 링크로 열어 줬는데
+ * 그 호스트를 특별히 믿을 근거가 없어졌다(chat-helpers.js 의 설명 참고). 그래서 아래
+ * 시험들이 보는 것은 `<a>` 가 아니라 PlainUrl 복사 버튼이고, 꼬리 다듬기 규칙은 그대로다.
  */
 
 function renderParts(text) {
@@ -23,20 +26,21 @@ describe("linkifyText — URL 꼬리 다듬기", () => {
     // 문장부호·괄호만 다듬는다 - 공백 없이 바로 붙은 뒷말까지 떼는 것은 이 함수의
     // 책임이 아니다, chat-text.js도 같은 한계를 가진 채로 이미 쓰이고 있다).
     const { container } = renderParts("자세한 내용은 (https://www.notion.so/abc) 에서 확인하세요.");
-    const link = container.querySelector("a");
-    expect(link).not.toBeNull();
-    expect(link.getAttribute("href")).toBe("https://www.notion.so/abc");
+    expect(container.querySelector("a")).toBeNull();
+    const btn = container.querySelector("button");
+    expect(btn).not.toBeNull();
+    expect(btn.textContent).toBe("https://www.notion.so/abc");
     expect(container.textContent).toContain(") 에서 확인하세요.");
   });
 
   it("마침표로 끝나는 링크는 마침표가 빠진다", () => {
     const { container } = renderParts("문서 링크: https://www.notion.so/xyz.");
-    const link = container.querySelector("a");
-    expect(link.getAttribute("href")).toBe("https://www.notion.so/xyz");
+    expect(container.querySelector("a")).toBeNull();
+    expect(container.querySelector("button").textContent).toBe("https://www.notion.so/xyz");
     expect(container.textContent.endsWith(".")).toBe(true);
   });
 
-  it("허용 도메인이 아닌 링크도 같은 규칙으로 꼬리가 빠진다(PlainUrl 복사 버튼)", () => {
+  it("어떤 링크든 같은 규칙으로 꼬리가 빠진다(PlainUrl 복사 버튼)", () => {
     const { container } = renderParts("(https://example.com/page) 참고");
     const btn = container.querySelector("button");
     expect(btn).not.toBeNull();
@@ -51,7 +55,7 @@ describe("linkifyText — URL 꼬리 다듬기", () => {
 
   it("꼬리가 없는 평범한 링크는 그대로다(회귀 없음)", () => {
     const { container } = renderParts("링크: https://www.notion.so/plain");
-    const link = container.querySelector("a");
-    expect(link.getAttribute("href")).toBe("https://www.notion.so/plain");
+    expect(container.querySelector("a")).toBeNull();
+    expect(container.querySelector("button").textContent).toBe("https://www.notion.so/plain");
   });
 });

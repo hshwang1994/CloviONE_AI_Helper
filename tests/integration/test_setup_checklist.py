@@ -11,10 +11,10 @@
   ① **"안 됨" 과 "확인 불가" 를 합치지 않는다.** 전자는 사람이 할 일이고 후자는 물어볼
      일이다. 둘을 하나로 뭉개면 화면은 "안 됨" 이라 말하면서 정작 사람이 할 수 있는 일이
      없는 항목(TLS 를 앞단 프록시가 끊는 설치)을 빨갛게 세운다.
-  ② **안내 순서는 의존 순서다.** 조직 → Notion → 매핑 → LLM → 연동. 앞이 안 됐는데 뒤를
-     물으면 사용자는 막힌 이유를 모른다. 그래서 막힌 항목은 **무엇 때문에 막혔는지**를
-     스스로 말해야 한다.
-  ③ **설정을 하나 채우면 그 항목만 바뀐다.** 판정이 서로 새면 부서 하나 만들었는데 Notion
+  ② **안내 순서는 의존 순서다.** 조직 → 매핑 → LLM → 연동. 앞이 안 됐는데 뒤를 물으면
+     사용자는 막힌 이유를 모른다. 그래서 막힌 항목은 **무엇 때문에 막혔는지**를 스스로
+     말해야 한다.
+  ③ **설정을 하나 채우면 그 항목만 바뀐다.** 판정이 서로 새면 부서 하나 만들었는데 다른
      항목이 초록으로 변한다 - 그러면 아무도 이 화면을 안 믿는다.
   ④ **끝난 뒤에도 남은 항목이 계속 보인다.** 한 번 닫으면 다시 못 보는 마법사는 설정을
      미룬 사람에게 아무 도움이 안 된다. 그래서 done 항목도 목록에서 사라지지 않는다.
@@ -24,6 +24,8 @@
 
 그리고 ⑥ 셋업이 안 끝난 동안 **일반 사용자에게 조용히 빈 목록을 주지 않는다** -
 그게 지금 상태이고, 이 과제가 없애려는 바로 그 침묵이다.
+
+qa-contract-change: 「Notion 토큰과 데이터베이스」 단계가 제품에서 사라져 그 단계만 보던 두 시험(토큰만 채운 상태는 unknown 이다 · 동기화 실패는 사람이 고칠 일이다)이 함께 없어졌다. 판정할 대상이 없어진 것이지 판정 규칙이 약해진 것이 아니다 — todo/unknown 구분, 의존 순서, 항목 격리는 남은 항목들 위에서 그대로 검사한다.
 """
 
 from __future__ import annotations
@@ -41,7 +43,6 @@ EXPECTED_ORDER = [
     "admin_account",
     "mail",
     "organization",
-    "notion",
     "user_mapping",
     "llm",
     "integrations",
@@ -67,12 +68,6 @@ def _items(client):
 
 def _by_key(payload):
     return {item["key"]: item for item in payload["items"]}
-
-
-def _write_notion_tokens(settings):
-    """Notion 토큰 파일 두 개를 채운다(app/core/secret_refs.py 의 파일 참조 방식)."""
-    for ref in (settings.notion_report_token_ref, settings.notion_docs_token_ref):
-        (settings.secrets_dir / ref).write_text("secret-token-value", encoding="utf-8")
 
 
 # ── ② 의존 순서 ──────────────────────────────────────────────────────────────
@@ -107,8 +102,7 @@ def test_a_blocked_item_says_what_blocks_it(client, sysadmin):
     # 갓 설치한 상태: 부서가 하나도 없어서 조직이 '안 됨' 이다.
     assert items["organization"]["state"] == STATE_TODO
     # 그 뒤 항목들은 스스로 '무엇 때문에 막혔는지' 를 말해야 한다.
-    assert items["notion"]["blocked_by"] == "organization"
-    assert items["user_mapping"]["blocked_by"] is not None
+    assert items["user_mapping"]["blocked_by"] == "organization"
     # 그리고 지금 안내할 항목은 막히지 않은 첫 항목이다.
     assert _items(client)["next_key"] == "organization"
 
@@ -127,8 +121,8 @@ def test_the_next_step_moves_forward_only_when_the_one_before_it_is_done(
     db.commit()
 
     payload = _items(client)
-    assert payload["next_key"] == "notion"
-    assert _by_key(payload)["notion"]["blocked_by"] is None
+    assert payload["next_key"] == "user_mapping"
+    assert _by_key(payload)["user_mapping"]["blocked_by"] is None
 
 
 # ── ① 됨 / 안 됨 / 확인 불가 ─────────────────────────────────────────────────
@@ -168,32 +162,6 @@ def test_todo_and_unknown_are_counted_separately(client, sysadmin):
     assert payload["todo"] == todo
     assert payload["unknown"] == unknown
     assert set(payload["todo"]) & set(payload["unknown"]) == set()
-
-
-def test_configured_but_never_synced_notion_is_unknown_not_done(
-    client, db, settings, sysadmin
-):
-    """토큰과 DB id 가 채워졌다는 것만으로 '됨' 이라 말하면 거짓말이다.
-
-    그 토큰이 실제로 통하는지는 **한 번이라도 동기화가 성공해야** 알 수 있다.
-    """
-    assert _by_key(_items(client))["notion"]["state"] == STATE_TODO  # 토큰 파일이 없다
-
-    _write_notion_tokens(settings)
-    assert _by_key(_items(client))["notion"]["state"] == STATE_UNKNOWN
-
-    from app.observability.models import COMPONENT_TICKETS, SYNC_OK, SyncStatus
-
-    db.add(
-        SyncStatus(
-            component=COMPONENT_TICKETS,
-            status=SYNC_OK,
-            last_success_at=client.app.state.clock.now(),
-            item_count=3,
-        )
-    )
-    db.commit()
-    assert _by_key(_items(client))["notion"]["state"] == STATE_DONE
 
 
 # ── ③ 하나를 채우면 그 항목만 바뀐다 ─────────────────────────────────────────
@@ -293,7 +261,7 @@ def test_the_user_notice_does_not_leak_internals(client, login_as):
         n for n in client.get("/api/system/status").json()["notices"]
         if n["id"] == USER_NOTICE_ID
     ][0]["message"]
-    for leak in ("notion_tasks_database_id", "secrets_dir", "/api/admin", "Runner"):
+    for leak in ("llm_executable", "secrets_dir", "/api/admin", "Runner"):
         assert leak not in message
 
 
@@ -367,24 +335,6 @@ def test_the_regular_user_notice_has_no_link(client, login_as):
 # 위 테스트만으로는 각 항목의 '가장 흔한 두 가지'만 지난다. 나머지 가지(중단, 미점검,
 # 충돌, 비활성, 만료)는 실제로 장애가 났을 때 처음 실행되는 코드다 - 그때 처음 실행되면
 # 그때 처음 틀린다.
-
-
-def test_a_sync_error_after_configuration_is_a_persons_problem(
-    client, db, settings, sysadmin
-):
-    """토큰은 넣었는데 동기화가 실패한다면 그건 물어볼 일이 아니라 고칠 일이다."""
-    from app.observability.models import COMPONENT_TICKETS, SYNC_ERROR, SyncStatus
-
-    _write_notion_tokens(settings)
-    db.add(
-        SyncStatus(component=COMPONENT_TICKETS, status=SYNC_ERROR, error="401 unauthorized")
-    )
-    db.commit()
-    notion = _by_key(_items(client))["notion"]
-    assert notion["state"] == STATE_TODO
-    assert notion["action"]
-    # 사람에게 보이는 문구에 원본 예외를 그대로 싣지 않는다.
-    assert "401" not in notion["detail"]
 
 
 def test_a_departed_users_stale_mapping_does_not_count_as_connected(

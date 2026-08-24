@@ -1,7 +1,7 @@
 """SYS-01 회귀: 인증서 교체 액션이 nginx 가 실제로 읽는 경로를 쓰는가.
 
 `app/sysops/actions_service.py` 는 예전에 `/etc/ssl/clovirone/…` 로 하드코딩돼 있었는데,
-nginx 는 `install-clovirone-web-assistant.sh` 가 만든 `$ETC_DIR/tls/$DNS_NAME.{crt,key}` 만
+nginx 는 `deploy/install.sh` 가 만든 `$ETC_DIR/tls/$DNS_NAME.{crt,key}` 만
 읽는다 - openssl 쌍 검증·`nginx -t`·reload 까지 전부 성공하고 새 인증서의 subject·만료일을
 보여 주면서도 실제로는 아무것도 안 바뀌는 조용한 무동작이었다. 이 파일은 그 배선점
 (`_resolve_tls_paths`)이 `settings.tls_cert_path`(env `TLS_CERT_PATH`, `app/health/service.py`

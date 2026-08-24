@@ -17,7 +17,7 @@
 비슷하니 이걸로 하자" 같은 추측은 언제나 넓히는 쪽으로 틀리고, 틀린 것을 아무도 신고하지
 않는다(화면이 잘 보이니까). 사람이 목록을 보고 지정한다.
 
-외부 소스가 정본인 것(Notion 티켓의 프로젝트 relation)은 여기서 못 고친다 — **무엇을 어디서
+이관해 온 티켓이 달고 있는 옛 소스의 relation 목록은 여기서 못 고친다 — **무엇을 어디서
 고쳐야 하는지**를 말해 주는 것까지가 이 화면의 몫이다.
 """
 
@@ -34,13 +34,13 @@ from app.core.models_base import split_names
 from app.core.org_tree import DeptTree
 from app.org.models import Department
 from app.projects.models import Project
-from app.team_docs.models import DocumentCache
 from app.tickets.models import (
     PROJECT_LINK_AMBIGUOUS,
     PROJECT_LINK_MISSING,
     PROJECT_LINK_OK,
     PROJECT_LINK_UNRESOLVED,
     TicketCache,
+    api_page_id,
 )
 from app.users.models import (
     ADMIN_SCOPE_DEPT,
@@ -129,7 +129,7 @@ def _tickets_without_one_project(db: Session) -> Finding:
     reason = {
         PROJECT_LINK_MISSING: "프로젝트가 연결되지 않음",
         PROJECT_LINK_AMBIGUOUS: "프로젝트가 2개 이상 연결됨",
-        PROJECT_LINK_UNRESOLVED: "연결된 프로젝트가 포털에 없음(동기화 전이거나 삭제됨)",
+        PROJECT_LINK_UNRESOLVED: "연결된 프로젝트를 찾을 수 없음(이관 전이거나 삭제됨)",
     }
     return Finding(
         key="tickets_without_one_project",
@@ -141,13 +141,13 @@ def _tickets_without_one_project(db: Session) -> Finding:
             "그 사실을 알아채지 못합니다."
         ),
         remedy=(
-            "원본 작업 DB에서 그 티켓의 프로젝트를 정확히 하나로 정리하세요. "
-            "'포털에 없음'은 프로젝트 동기화가 한 번 더 돌면 저절로 풀립니다."
+            "티켓 상세 화면에서 그 티켓의 프로젝트를 정확히 하나로 지정하세요. "
+            "프로젝트를 찾을 수 없는 티켓은 먼저 그 프로젝트를 만들어야 합니다."
         ),
         count=sum(counts.values()),
         items=_sample(
             {
-                "id": t.notion_page_id,
+                "id": api_page_id(t),
                 "number": t.notion_ticket_number,
                 "title": t.title,
                 "state": t.project_link,
@@ -194,35 +194,62 @@ def _tickets_with_unmapped_assignees(db: Session) -> Finding:
         remedy="사용자와 권한 > Notion 사용자 연결에서 그 사람의 계정을 연결하세요.",
         count=len(rows),
         items=_sample(
-            {"id": t.notion_page_id, "number": t.notion_ticket_number, "title": t.title}
+            {"id": api_page_id(t), "number": t.notion_ticket_number, "title": t.title}
             for t in rows
         ),
     )
 
 
-def _documents_without_ownership(db: Session) -> Finding:
+def _spaces_without_ownership(db: Session) -> Finding:
+    """소속이 지정되지 않은 **지식 공간** (S14).
+
+    예전에는 미러(`document_cache.owner_kind`)를 세고 문서마다 소속을 일괄 지정하는
+    고치기 단추가 붙어 있었다. 그 축이 사라졌다 — 정본인 `documents` 에는 소속 컬럼이
+    아예 없고, 문서의 가시성은 자기 공간이 정한다(D-245 · `app/knowledge/models.py`).
+    문서에 소속을 적는 칸을 되살리면 공간과 두 벌이 되고, 어긋난 문서는
+    「목록에는 없는데 링크로는 열린다」가 된다.
+
+    그래서 **진짜 원인인 공간을 센다.** 이것이 추상적인 걱정이 아니라는 것은 실측으로
+    확인됐다: 이관 공간 하나가 `owner_kind='unset'` 이라 어느 가시성 갈래에도 안 걸렸고,
+    그 사이 활성 사용자 24명 중 전역 관리자 넷 말고는 문서 110건을 하나도 못 봤다.
+
+    고치기 단추는 여기 두지 않는다. 공간의 소속을 바꾸는 자리는 이미
+    `PATCH /api/knowledge/spaces/{id}` 하나이고, 그 경로는 낙관적 잠금과 감사 로그를
+    지난다 — 같은 일을 하는 두 번째 쓰기 경로를 만들 이유가 없다.
+    """
+    from app.knowledge.models import Document, KnowledgeSpace
+
     rows = list(
         db.execute(
-            select(DocumentCache)
-            .where(DocumentCache.owner_kind == ownership.OWNER_UNSET)
-            .order_by(DocumentCache.title)
+            select(KnowledgeSpace)
+            .where(
+                KnowledgeSpace.owner_kind == ownership.OWNER_UNSET,
+                KnowledgeSpace.archived.is_(False),
+            )
+            .order_by(KnowledgeSpace.name)
         ).scalars()
     )
+    doc_counts = dict(
+        db.execute(
+            select(Document.space_id, func.count())
+            .where(Document.archived.is_(False))
+            .group_by(Document.space_id)
+        ).all()
+    )
     return Finding(
-        key="documents_without_ownership",
-        title="소속이 지정되지 않은 문서",
+        key="spaces_without_ownership",
+        title="소속이 지정되지 않은 지식 공간",
         why=(
-            "이 문서가 어느 부서/프로젝트 것인지 포털이 알지 못합니다. 전체 관리자 외에는 "
-            "목록, 검색, 첨부 어디에서도 보이지 않습니다."
+            "이 공간이 어느 부서/프로젝트 것인지 포털이 알지 못합니다. 그래서 전체 관리자 "
+            "외에는 이 공간의 문서가 목록, 검색, 첨부 어디에서도 보이지 않습니다."
         ),
-        remedy="문서의 소속(부서 또는 프로젝트)을 지정하세요.",
+        remedy="지식 공간 설정에서 그 공간의 소속(부서 또는 프로젝트)을 지정하세요.",
         count=len(rows),
         items=_sample(
-            {"id": d.notion_page_id, "title": d.title,
-             "projects": split_names(d.project_names or "")}
-            for d in rows
+            {"id": s.id, "name": s.name,
+             "reason": f"문서 {int(doc_counts.get(s.id, 0))}건이 닫혀 있습니다."}
+            for s in rows
         ),
-        fixable_here=True,
     )
 
 
@@ -262,15 +289,21 @@ def _resources_on_inactive_departments(db: Session) -> Finding:
             remedy="그 자원을 활성 부서로 옮기거나, 부서를 다시 활성화하세요.",
             count=0, items=[],
         )
+    from app.knowledge.models import KnowledgeSpace
+
     users = list(db.execute(select(User).where(User.department_id.in_(inactive))).scalars())
     projects = list(db.execute(select(Project).where(Project.dept_id.in_(inactive))).scalars())
-    docs = list(
-        db.execute(select(DocumentCache).where(DocumentCache.owner_dept_id.in_(inactive))).scalars()
+    # 문서가 아니라 **공간**이 부서를 가리킨다 (D-245). 문서를 세면 같은 공간에 든
+    # 수십 건이 같은 이유로 줄줄이 나와, 정작 고칠 대상 하나가 목록에 묻힌다.
+    spaces = list(
+        db.execute(
+            select(KnowledgeSpace).where(KnowledgeSpace.owner_dept_id.in_(inactive))
+        ).scalars()
     )
     items = (
         [{"kind": "user", "id": u.id, "name": u.display_name} for u in users]
         + [{"kind": "project", "id": p.id, "name": p.name} for p in projects]
-        + [{"kind": "document", "id": d.notion_page_id, "name": d.title} for d in docs]
+        + [{"kind": "space", "id": s.id, "name": s.name} for s in spaces]
     )
     return Finding(
         key="resources_on_inactive_departments",
@@ -328,7 +361,7 @@ _CHECKS = (
     _users_without_membership,
     _tickets_without_one_project,
     _tickets_with_unmapped_assignees,
-    _documents_without_ownership,
+    _spaces_without_ownership,
     _projects_without_scope,
     _resources_on_inactive_departments,
 )
@@ -382,39 +415,8 @@ def assign_membership(
     return changed
 
 
-def assign_document_ownership(
-    db: Session, *, page_ids: list[str], department_id: str | None, project_id: str | None,
-) -> int:
-    """문서에 소속을 지정한다(부서 **또는** 프로젝트). 바뀐 건수를 돌려준다."""
-    if bool(department_id) == bool(project_id):
-        raise ValidationAppError("부서와 프로젝트 중 하나만 고르세요.")
-    if not page_ids:
-        return 0
-    if department_id and db.get(Department, department_id) is None:
-        raise NotFoundError("부서를 찾을 수 없습니다.")
-    project = db.get(Project, project_id) if project_id else None
-    if project_id and project is None:
-        raise NotFoundError("프로젝트를 찾을 수 없습니다.")
-
-    rows = list(
-        db.execute(
-            select(DocumentCache).where(DocumentCache.notion_page_id.in_(page_ids))
-        ).scalars()
-    )
-    for doc in rows:
-        if project is not None:
-            doc.owner_kind = ownership.OWNER_PROJECT
-            doc.owner_project_id = project.id
-            doc.owner_dept_id = None
-        else:
-            doc.owner_kind = ownership.OWNER_DEPARTMENT
-            doc.owner_dept_id = department_id
-            doc.owner_project_id = None
-    return len(rows)
-
-
 __all__ = [
     "Finding", "SAMPLE_LIMIT", "report",
-    "assign_membership", "assign_document_ownership",
+    "assign_membership",
     "MEMBERSHIP_UNASSIGNED",
 ]

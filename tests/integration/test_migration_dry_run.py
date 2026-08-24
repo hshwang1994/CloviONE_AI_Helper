@@ -43,6 +43,13 @@ PAGE_B = "bbbb0000-0000-0000-0000-0000000000b1"
 PAGE_C = "bbbb0000-0000-0000-0000-0000000000c1"
 PAGE_DOC = "cccc0000-0000-0000-0000-0000000000d1"
 
+TICKET_ATTACHMENT_URL = "https://s3.example/ticket-spec"
+
+# 댓글 셋. 앞 둘은 사람이 쓴 한 스레드이고, 셋째는 사람이 아닌 작성자다 (D11).
+COMMENT_FIRST = "eeee0000-0000-0000-0000-0000000000c1"
+COMMENT_REPLY = "eeee0000-0000-0000-0000-0000000000c2"
+COMMENT_BOT = "eeee0000-0000-0000-0000-0000000000c3"
+
 # 프로젝트 이름. **코드와 아무 상관이 없다** (D-282) — 코드는 이름이 아니라 소스가 주는
 # 안 변하는 값(여기서는 `PAGE_PROJECT`)에서 나온다. 앞 판에서는 이 문자열이 확정표의
 # 첫 줄과 글자 하나까지 같아야 Key 가 붙었고, 소스가 이름을 바꾼 날 그 결합이 실제로
@@ -174,6 +181,14 @@ class FakeNotion:
                         "프로젝트": {"type": "relation",
                                    "relation": [{"id": p} for p in projects]},
                         "티켓 담당자": _people("shim@goodmit.co.kr"),
+                        # 🔴 첫 티켓에만 페이지 속성 첨부를 준다 — 본문 안 이미지가
+                        # 아니라 Notion 의 "파일과 미디어" 속성이다. `load_files` 가 문서만
+                        # 붙이고 티켓은 빠뜨렸던 자리라(실측: 운영 첨부 2건이 파일은
+                        # 있는데 안 붙었다), 그 갈래를 이 표본이 지킨다.
+                        **({"파일과 미디어": {"type": "files", "files": [
+                            {"name": "ticket-spec.png",
+                             "file": {"url": TICKET_ATTACHMENT_URL}},
+                        ]}} if page_id == PAGE_A else {}),
                     },
                 })
             return out
@@ -213,8 +228,51 @@ class FakeNotion:
              "paragraph": {"rich_text": [_rich(f"{page_id} 본문")]}},
         ]
 
+    def page_comments(self, page_id: str, *, refresh: bool = False) -> list[dict]:
+        """댓글 셋. **첫 티켓에만** 달려 있고 하나는 작성자가 사람이 아니다 (D11).
+
+        답글을 원글보다 **먼저** 돌려준다. 실제 응답이 늘 시간 순이라는 보장이 없고,
+        적재가 시간 순으로 펴 넣는다는 것이 이 회차가 증명해야 하는 성질이다.
+        """
+        if page_id != PAGE_A:
+            return []
+        return [
+            {
+                "object": "comment", "id": COMMENT_REPLY,
+                "parent": {"type": "page_id", "page_id": page_id},
+                "discussion_id": "disc-1",
+                "created_time": "2026-02-02T02:00:00.000Z",
+                "created_by": {"object": "user", "id": "notion-user-1"},
+                "rich_text": [_rich("고쳐서 다시 올렸습니다.")],
+                "display_name": {"type": "user", "resolved_name": "임승환"},
+            },
+            {
+                "object": "comment", "id": COMMENT_FIRST,
+                "parent": {"type": "page_id", "page_id": page_id},
+                "discussion_id": "disc-1",
+                "created_time": "2026-01-01T01:00:00.000Z",
+                "created_by": {"object": "user", "id": "notion-user-1"},
+                "rich_text": [_rich("여기 규격이 빠졌습니다.")],
+                "display_name": {"type": "user", "resolved_name": "임승환"},
+            },
+            {
+                "object": "comment", "id": COMMENT_BOT,
+                "parent": {"type": "page_id", "page_id": page_id},
+                "discussion_id": "disc-2",
+                "created_time": "2026-03-03T03:00:00.000Z",
+                "created_by": {"object": "user", "id": "notion-bot-9"},
+                "rich_text": [_rich("자동 검증입니다. 지워도 됩니다.")],
+                "display_name": {"type": "integration",
+                                 "resolved_name": "ClovirONE Workflow Automation"},
+            },
+        ]
+
     def download(self, url: str) -> bytes:
         self.downloads.append(url)
+        # 티켓 첨부는 이미지/PDF 만 받는다(`ALLOWED_TICKET_MEDIA`) — 문서 첨부(`spec.txt`)
+        # 보다 좁다. PNG 매직바이트만 있으면 `sniff_media_type` 이 통과시킨다.
+        if url == TICKET_ATTACHMENT_URL:
+            return b"\x89PNG\r\n\x1a\n" + b"\x00" * 8
         return b"spec body\n"
 
 
@@ -402,6 +460,34 @@ def test_a_hosted_attachment_lands_and_an_external_link_is_classified(dry_run):
     assert len(external) == 1, "바깥 링크는 실패가 아니라 분류다"
 
 
+def test_a_ticket_property_attachment_actually_attaches_to_the_ticket(dry_run):
+    """🔴 문서의 「첨부파일」과 대칭인 티켓의 「파일과 미디어」도 실제로 붙어야 한다.
+
+    문서와 티켓은 붙는 자리가 다르다(`files`+`document_attachments` 대 `ticket_attachments`
+    하나). 붙이는 코드가 문서 자리만 알고 티켓 자리를 몰랐던 적이 있다 — 그때는 바이트가
+    `files` 에 저장되고 다리(`legacy_mapping`)도 남았지만 티켓 어디에도 안 걸렸다. 화면은
+    「그런 첨부가 없다」로 보이고 이관 회차는 오류 없이 끝났다. 그 사고를 이 시험이 지킨다.
+    """
+    run, factory = dry_run
+    report = run()
+    assert not report.blocking, [f.line() for f in report.blocking]
+    with factory() as db:
+        ticket_id = db.execute(sa.text(
+            "SELECT id FROM tickets WHERE notion_page_id = :p"
+        ), {"p": PAGE_A}).scalar_one()
+        rows = db.execute(sa.text(
+            "SELECT filename, size_bytes FROM ticket_attachments WHERE ticket_uid = :t"
+        ), {"t": ticket_id}).all()
+        # 문서 쪽 `files`/`document_attachments` 에 잘못 얹혀 고아가 되지 않았는지도 본다.
+        orphan_files = db.execute(sa.text(
+            "SELECT count(*) FROM files WHERE filename = 'ticket-spec.png'"
+        )).scalar_one()
+    assert len(rows) == 1, "티켓의 페이지 속성 첨부가 ticket_attachments 에 없다"
+    assert rows[0].filename == "ticket-spec.png"
+    assert rows[0].size_bytes == len(b"\x89PNG\r\n\x1a\n" + b"\x00" * 8)
+    assert orphan_files == 0, "문서용 files 표에 잘못 얹혀 고아가 됐다"
+
+
 def test_the_bridge_records_where_every_notion_page_went(dry_run):
     run, factory = dry_run
     run()
@@ -505,6 +591,52 @@ def test_running_it_twice_changes_nothing(dry_run):
         )).all())
     assert codes_before, "코드를 가진 프로젝트가 하나도 없다 — 이 시험이 아무것도 안 봤다"
     assert codes_after == codes_before, "재실행이 프로젝트 코드를 움직였다"
+
+
+def test_notion_comments_land_in_time_order_with_their_author(dry_run):
+    """🔴 원본 댓글을 한 건도 안 가져오던 자리다 (D11).
+
+    이 회차가 함께 봐야 하는 것이 셋이다: 작성자가 이메일로 이어진 사람인가,
+    원본 시각이 남았는가, 답글을 먼저 받아도 원글 뒤에 오는가.
+    """
+    run, factory = dry_run
+    report = run()
+    with factory() as db:
+        rows = db.execute(sa.text(
+            "SELECT body, author_user_id, created_at, seq, ticket_uid "
+            "FROM ticket_comments ORDER BY seq"
+        )).all()
+    assert [row.body for row in rows] == [
+        "여기 규격이 빠졌습니다.", "고쳐서 다시 올렸습니다.",
+    ], "답글이 원글보다 먼저 들어갔다"
+    assert rows[0].created_at.isoformat() == "2026-01-01T01:00:00"
+    assert {row.author_user_id for row in rows} == {USER}
+    assert {row.ticket_uid for row in rows} == {TICKET_A}
+    assert rows[0].seq < rows[1].seq
+    # 봇 한 건은 안 들어가고 사유가 남는다. 아무나 골라 적으면 거짓 기록이 된다.
+    unresolved = [f for f in report.findings if f.kind == "comment_author_unresolved"]
+    assert len(unresolved) == 1 and unresolved[0].ref == COMMENT_BOT
+    # 그리고 그 사실이 **수로도** 맞아야 한다: 원본 3 = 이관 2 + 예외 1.
+    by_name = {check.name: check for check in report.checks}
+    equation = by_name["원본 댓글 = 이관된 댓글 + 분류된 예외"]
+    assert equation.ok and equation.expected == 3, equation.line()
+
+
+def test_running_it_twice_does_not_duplicate_the_conversation(dry_run):
+    """**반례** — 다리가 없으면 회차마다 같은 대화가 한 벌씩 더 쌓인다."""
+    run, factory = dry_run
+    run()
+    with factory() as db:
+        before = db.execute(
+            sa.text("SELECT count(*) FROM ticket_comments")
+        ).scalar_one()
+    run()
+    with factory() as db:
+        after = db.execute(
+            sa.text("SELECT count(*) FROM ticket_comments")
+        ).scalar_one()
+    assert before == 2
+    assert after == before, "재실행이 댓글을 또 만들었다"
 
 
 def test_derived_tables_stay_empty_because_the_product_refills_them(dry_run):

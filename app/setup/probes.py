@@ -30,7 +30,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings
-from app.core.secret_refs import STATUS_CONFIGURED, FileSecretReferenceProvider
+from app.core.secret_refs import FileSecretReferenceProvider
 
 STATE_DONE = "done"
 STATE_TODO = "todo"
@@ -165,74 +165,6 @@ def probe_organization(ctx: ProbeContext) -> Outcome:
             "관리 콘솔의 부서 화면에서 부서를 하나 이상 등록하세요.",
         )
     return _done(f"조직 {len(orgs)}개, 부서 {departments}개가 등록돼 있습니다.")
-
-
-# ── Notion 토큰과 데이터베이스 ───────────────────────────────────────────────
-
-# tenant_config 의 키 중 Notion 항목만 본다. 계정 생성 허용 도메인은 같은 표에 있지만
-# Notion 과 무관해서, 함께 세면 도메인을 비워 둔 정상 설치가 Notion 미설정으로 보인다.
-_NOTION_TENANT_KEYS = ("notion_tasks_database_id", "notion_documents_database_id")
-
-
-def probe_notion(ctx: ProbeContext) -> Outcome:
-    from app.core.tenant_config import STATE_UNSET, tenant_config_status
-    from app.observability.models import (
-        COMPONENT_DOCUMENTS,
-        COMPONENT_TICKETS,
-        SYNC_ERROR,
-        SyncStatus,
-    )
-
-    status = tenant_config_status(ctx.settings, ctx.effective)
-    missing_db = [
-        item["label"]
-        for item in status["items"]
-        if item["key"] in _NOTION_TENANT_KEYS and item["state"] == STATE_UNSET
-    ]
-    missing_token = [
-        ref
-        for ref in (
-            ctx.settings.notion_report_token_ref,
-            ctx.settings.notion_docs_token_ref,
-        )
-        if ctx.secrets.status(ref) != STATUS_CONFIGURED
-    ]
-    if missing_db or missing_token:
-        parts = []
-        if missing_db:
-            parts.append("데이터베이스 id 미설정: " + ", ".join(missing_db))
-        if missing_token:
-            parts.append("토큰 파일 없음: " + ", ".join(missing_token))
-        return _todo(
-            " / ".join(parts),
-            "Notion 통합 토큰을 시크릿 파일로 넣고, 작업과 문서 데이터베이스 id 를 설정하세요.",
-        )
-
-    rows = {
-        row.component: row
-        for row in ctx.db.execute(
-            select(SyncStatus).where(
-                SyncStatus.component.in_((COMPONENT_TICKETS, COMPONENT_DOCUMENTS))
-            )
-        )
-        .scalars()
-        .all()
-    }
-    succeeded = [row for row in rows.values() if row.last_success_at is not None]
-    if succeeded:
-        return _done("토큰과 데이터베이스 id 가 설정됐고 동기화가 성공했습니다.")
-    failed = [row for row in rows.values() if row.status == SYNC_ERROR]
-    if failed:
-        return _todo(
-            "설정은 돼 있지만 동기화가 실패했습니다.",
-            "토큰이 해당 데이터베이스에 연결돼 있는지, 데이터베이스 id 가 맞는지 확인하세요.",
-        )
-    # 채워졌다는 사실만으로 "됨" 이라 말하면 거짓말이다. 그 토큰이 실제로 통하는지는
-    # 한 번이라도 동기화가 성공해야 알 수 있고, 아직 그 일이 없었다.
-    return _unknown(
-        "토큰과 데이터베이스 id 는 채워졌지만 아직 한 번도 동기화되지 않았습니다.",
-        "백그라운드 워커가 실행 중인지 확인해 주세요. 워커가 첫 동기화를 마치면 결과가 여기 나옵니다.",
-    )
 
 
 # ── 사용자 매핑 ──────────────────────────────────────────────────────────────
@@ -422,7 +354,6 @@ PROBES = {
     "admin_account": probe_admin_account,
     "mail": probe_mail,
     "organization": probe_organization,
-    "notion": probe_notion,
     "user_mapping": probe_user_mapping,
     "llm": probe_llm,
     "integrations": probe_integrations,

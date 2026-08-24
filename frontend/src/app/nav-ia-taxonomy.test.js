@@ -175,13 +175,16 @@ describe("사용자 사이드바 — 휴지통 메뉴 항목 제거, 4그룹으�
     expect(paths).not.toContain("/team-docs/trash");
   });
 
-  it("'문서' 단독 그룹이 없다 — /team-docs는 팀 업무 안에 있다", () => {
+  it("'문서' 단독 그룹이 없다 — 문서 항목은 팀 업무 안에 있다", () => {
     const names = USER_NAV.map((g) => g.group);
     expect(names).not.toContain("문서");
     expect(names).toHaveLength(4);
     // 2026-08-19(D-166): 예전엔 '팀 공간' 하나에 여덟 항목이 있었다. 업무와 소통·놀이를
     // 갈랐으므로 문서는 '팀 업무' 쪽이다 — 문서를 찾는 사람은 일하러 온 사람이다.
-    expect(findItem(USER_NAV, "/team-docs").group).toBe("팀 업무");
+    // S14 · C2: 그 항목이 가리키는 곳이 정본 문서 화면(`/knowledge`)으로 바뀌었다.
+    expect(findItem(USER_NAV, "/knowledge").group).toBe("팀 업무");
+    expect(USER_NAV.flatMap((g) => g.items.map((i) => i.to)), "옛 문서 주소가 메뉴에 남아 있다")
+      .not.toContain("/team-docs");
   });
 
   /* 지시 58 재검토 결과를 고정한다(D-166). 이 셋은 판정이지 취향이 아니다 — 되돌리려면

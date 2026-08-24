@@ -220,11 +220,12 @@ def resolve_key(
     if found is None:
         raise NotFoundError("티켓을 찾을 수 없습니다.")
     from app.tickets import service as tickets_service
+    from app.tickets.models import api_page_id
 
-    tickets_service.ensure_ticket_visible(db, found.ticket.notion_page_id, user)
+    tickets_service.ensure_ticket_visible(db, api_page_id(found.ticket), user)
     return {
         "ticket_id": found.ticket.id,
-        "page_id": found.ticket.notion_page_id,
+        "page_id": api_page_id(found.ticket),
         "matched_by": found.matched_by,
         "is_current_name": found.is_current_name,
         "key": found.ticket.canonical_key,

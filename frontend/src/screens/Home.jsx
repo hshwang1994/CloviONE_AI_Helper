@@ -12,7 +12,6 @@ import {
   Badge, Button, Card, DataTable, EmptyState, ErrorState, MetricStrip, PageHeader, SectionTitle, Skeleton,
 } from "../ui/kit.jsx";
 import { Donut } from "../ui/charts/Donut.jsx";
-import { MirrorNotice } from "../ui/MirrorNotice.jsx";
 import { GRID_GAP } from "../ui/density.js";
 import { FONT_WEIGHT } from "../ui/theme.js";
 import { ticketColumns, ticketConnState, TicketEditModal } from "./MyTickets.jsx";
@@ -177,7 +176,9 @@ function RecentDocuments({ items }) {
       {items.map((d) => (
         <RowLink
           key={d.id}
-          href={"#/team-docs/" + d.id}
+          /* 서버가 주는 id 는 정본 문서(`documents.id`)다 — 옛 미러의 page id 가 아니다
+             (S14 · C2, `app/home/readers.py`). 그래서 목적지도 정본 문서 화면이다. */
+          href={"#/knowledge/" + d.id}
           title={d.title}
           badge={d.document_type ? <Badge value={d.document_type} kind="info" /> : null}
           meta={fmtRelative(d.last_edited)}
@@ -202,7 +203,7 @@ function SideRail({ data }) {
         <SprintProgress sprint={data.sprint} />
       </Card>
       <Card>
-        <SectionTitle component="h2" title="최근 문서" action={<Link href="#/team-docs" underline="hover">문서 전체</Link>} />
+        <SectionTitle component="h2" title="최근 문서" action={<Link href="#/knowledge" underline="hover">문서 전체</Link>} />
         <RecentDocuments items={recent.documents || []} />
       </Card>
     </Stack>
@@ -281,10 +282,8 @@ function HomeBody({ data, focus, onFocus, onEdit, onOpen }) {
 
   return (
     <>
-      {/* 정상 동기화 상태는 사용자에게 알리지 않는다 (지시 1 · 29). 실패했거나 한 번도
-          성공 못 했을 때만 말한다 — 그 판정은 공용 `MirrorNotice` 한 곳에 있다. 예전에는
-          이 화면이 자기 `Freshness` 로 "티켓 동기화 정상, 마지막 성공 …"을 상시로 띄웠다. */}
-      <MirrorNotice sync={data.sync} unit="티켓" />
+      {/* 여기 미러 신선도 안내가 있었다. 서버가 `sync` 블록을 더 이상 안 싣는다 —
+          티켓 표가 이 서버의 정본이라 낡을 것이 없다(S14). */}
       {/* 지표 줄 (지시 2).
         *
         * 예전에는 흰 카드 여섯 장이 한 격자에 깔렸고, 여섯이라는 개수 자체가 격자 산수에서

@@ -213,7 +213,7 @@ def test_a_project_with_nothing_to_measure_says_so_instead_of_scoring_it(
     assert body["score"] is None, f"잴 것이 없는데 점수를 냈다: {body}"
     assert body["checked"] == []
     assert {u["rule"] for u in body["unknown"]} == {
-        "milestone_overdue", "task_overdue", "unassigned", "stale", "notion_trouble",
+        "milestone_overdue", "task_overdue", "unassigned", "stale",
     }, f"못 센 지표를 목록에서 빠뜨렸다: {body}"
 
     saved = client.post(

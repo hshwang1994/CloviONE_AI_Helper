@@ -1,5 +1,23 @@
 """배포 배선이 **파일을 다시 쓰는 사람에 의해 조용히 사라지지 않게** 고정한다.
 
+qa-contract-replaced-by: tests/unit/test_update_script_contract.py
+qa-contract-replaced-by: tests/unit/test_upgrade_script_contract.py
+
+## 옛 slug 스크립트 셋을 대신한다 (S14)
+
+지운 두 파일은 `scripts/install-clovirone-web-assistant.sh` · `update-from-git.sh` ·
+`upgrade-`/`rollback-clovirone-web-assistant.sh` 의 계약을 grep 으로 고정했다. S4 가 그
+스크립트들을 `deploy/install.sh` 하나로 합쳤고 S14 가 옛 것들을 지웠다 — 두 벌을 유지하는
+동안 **시험은 아무도 안 쓰는 스크립트를 지키고 있었고**, 그 사이 성질 하나가 새 설치기로
+옮겨 오지 않은 것을 아무도 못 봤다(사용자 업로드 백업 — 아래
+`test_the_backup_captures_user_uploads`).
+
+옮겨 온 성질: 롤백 경로가 있다 · 스냅샷이 마이그레이션보다 앞이다 · 덤프 실패가 치명적이다 ·
+venv 를 빼고 복원 때 다시 만든다 · 유닛과 nginx vhost 를 담는다 · 설치처 고유값이 없으면
+업그레이드를 시작하지 않는다 · 번들 신선도 게이트를 지난다.
+
+버린 것: 옛 스크립트 **내부 구조**에 대한 단언(`IS_EXISTING` 변수 이름, `stop_services()`
+함수 경계, `rsync --delete` 플래그 순서). 그 파일들이 없으므로 지킬 대상이 없다.
 ## 왜 이 파일이 있나
 
 특권 헬퍼(§S)의 systemd 유닛을 만들고 설치/롤백 스크립트에 배선했는데, 같은 시간에 다른
@@ -24,16 +42,36 @@ import pytest
 pytestmark = pytest.mark.unit
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-INSTALL = ROOT / "scripts" / "install-clovirone-web-assistant.sh"
-ROLLBACK = ROOT / "scripts" / "rollback-clovirone-web-assistant.sh"
-BACKUP = ROOT / "scripts" / "backup-clovirone-web-assistant.sh"
-WEB_UNIT = ROOT / "deploy" / "systemd" / "clovirone-web-assistant.service"
-HELPER_UNIT = ROOT / "deploy" / "systemd" / "clovirone-privhelper.service"
+
+# **배포되는 것 하나만 본다** (S14). 예전에는 옛 slug 스크립트 셋
+# (`install-`·`rollback-`·`backup-clovirone-web-assistant.sh`)을 따로 봤는데, S4 가 그 셋을
+# `deploy/install.sh` 하나로 합쳤고 S14 가 옛 셋을 지웠다.
+#
+# 🔴 둘을 함께 보던 동안 **성질 하나가 옮겨 오지 않았다**: 옛 백업은 사용자가 올린 파일
+# (`/var/lib/<slug>`)을 담았는데 새 설치기의 스냅샷은 안 담았다. 옛 스크립트의 시험이 계속
+# 초록이라 아무도 못 봤다. 지운 것보다 **옮겨 오지 않은 것**이 조용하다.
+INSTALL = ROOT / "deploy" / "install.sh"
+WEB_UNIT = ROOT / "deploy" / "systemd" / "clovirassist-web.service"
+HELPER_UNIT = ROOT / "deploy" / "systemd" / "clovirassist-privhelper.service"
 
 
 def _text(path: pathlib.Path) -> str:
     assert path.is_file(), f"없는 파일이다: {path}"
     return path.read_text(encoding="utf-8")
+
+
+def _list_of(text: str, name: str) -> str:
+    """`NAME=( ... )` 안쪽. 이름이 없으면 **빈 문자열이 아니라 실패**다 — 배열 이름이
+    바뀌면 `in` 검사가 조용히 전부 거짓이 되고, 그러면 이 파일이 아무것도 안 지킨다."""
+    marker = f"{name}=("
+    assert marker in text, f"설치 스크립트에 {name} 배열이 없다"
+    return text.split(marker, 1)[1].split(")", 1)[0]
+
+
+def _body(text: str, func: str) -> str:
+    """함수 선언 뒤 전부. 같은 이유로 없으면 실패한다."""
+    assert func in text, f"설치 스크립트에 {func} 가 없다"
+    return text.split(func, 1)[1]
 
 
 def test_the_helper_unit_exists_and_runs_as_root():
@@ -48,7 +86,7 @@ def test_the_helper_can_write_the_places_its_actions_touch():
     text = _text(HELPER_UNIT)
     rw = next((ln for ln in text.splitlines() if ln.startswith("ReadWritePaths=")), "")
     assert rw, "헬퍼에 ReadWritePaths 가 없다"
-    for needed in ("/etc/hosts", "/etc/systemd", "/etc/ssl/clovirone"):
+    for needed in ("/etc/hosts", "/etc/systemd", "/etc/ssl/clovirassist"):
         assert needed in rw, f"액션이 쓰는 경로가 빠졌다: {needed} / 실제: {rw}"
 
 
@@ -71,10 +109,10 @@ def test_the_web_unit_tolerates_a_missing_helper_socket():
     text = _text(WEB_UNIT)
     rw = next((ln for ln in text.splitlines() if ln.startswith("ReadWritePaths=")), "")
     assert rw, "웹 유닛에 ReadWritePaths 가 없다"
-    assert "/run/clovirone-web-assistant" in rw, (
+    assert "/run/clovirassist" in rw, (
         f"소켓 디렉터리가 웹 유닛에 없다: {rw}"
     )
-    assert "-/run/clovirone-web-assistant" in rw, (
+    assert "-/run/clovirassist" in rw, (
         f"`-`(없으면 넘어감)가 없다 - 헬퍼 없는 설치에서 웹이 안 뜬다: {rw}"
     )
 
@@ -82,11 +120,14 @@ def test_the_web_unit_tolerates_a_missing_helper_socket():
 def test_the_installer_actually_installs_the_helper():
     """🔴 유닛 파일만 있고 설치 스크립트가 모르면 **아무도 띄우지 않는 유닛**이 된다."""
     text = _text(INSTALL)
-    assert "clovirone-privhelper.service" in text, (
+    assert "PRIVHELPER_UNIT=" in text, (
         "설치 스크립트가 특권 헬퍼 유닛을 모른다 - §S 가 배포되지 않는다"
     )
-    assert "systemctl enable clovirone-privhelper" in text, (
-        "헬퍼를 enable 하지 않는다 - 재부팅하면 시스템 설정 기능이 사라진다"
+    assert "$PRIVHELPER_UNIT" in _list_of(text, "ALL_UNITS"), (
+        "헬퍼가 설치·enable 대상 목록에 없다 - 재부팅하면 시스템 설정 기능이 사라진다"
+    )
+    assert "$PRIVHELPER_UNIT" in _list_of(text, "ALWAYS_ACTIVE_UNITS"), (
+        "헬퍼가 «떠 있어야 하는» 목록에 없다 - 죽어 있어도 설치가 OK 를 찍는다"
     )
 
 
@@ -96,37 +137,46 @@ def test_the_installer_installs_and_enables_the_conversational_worker_unit():
     있으면(기본값) 그 프로세스는 안전하게 곧장 종료하도록 `app/worker_main.py`가
     이미 보장한다 — 그래서 이 유닛은 배치 워커처럼 **항상** 설치·enable해도 된다."""
     text = _text(INSTALL)
-    assert "clovirone-web-worker-conversational.service" in text, (
+    assert "WORKER_CONV_UNIT=" in text, (
         "설치 스크립트가 대화형 레인 유닛을 모른다 - Phase 2가 배포되지 않는다"
     )
-    assert "systemctl enable clovirone-web-assistant.service clovirone-web-worker.service clovirone-web-worker-conversational.service" in text, (
-        "대화형 레인 유닛을 enable하지 않는다 - 재부팅하면 설정을 켜도 그 레인이 안 뜬다"
+    assert "$WORKER_CONV_UNIT" in _list_of(text, "ALL_UNITS"), (
+        "대화형 레인 유닛을 설치·enable 하지 않는다 - 재부팅하면 설정을 켜도 그 레인이 안 뜬다"
     )
-    assert "systemctl restart clovirone-web-worker-conversational.service" in text, (
-        "배포할 때마다 최신 코드/설정으로 재시작하지 않는다"
+    assert "$WORKER_CONV_UNIT" not in _list_of(text, "ALWAYS_ACTIVE_UNITS"), (
+        "대화형 레인이 «떠 있어야 하는» 목록에 있다 - 설정이 꺼져 있으면 정상 종료하는 "
+        "유닛이라(D-118) 그 정상 상태가 설치 실패로 보고된다"
     )
 
 
 def test_the_installer_prepares_the_certificate_directory():
     """인증서 교체 액션이 쓰는 자리를 설치가 만들어 두지 않으면 첫 교체가 실패한다.
 
-    `SYS-03`: 예전엔 `/etc/ssl/clovirone`만 확인해서, **nginx가 실제로 읽는 자리**
+    `SYS-03`: 예전엔 `/etc/ssl/clovirassist`만 확인해서, **nginx가 실제로 읽는 자리**
     (`$ETC_DIR/tls`, `deploy/nginx/clovirone-web-assistant.conf`)가 설치 스크립트에
     있는지는 아무도 안 지켰다 — SYS-01이 실서버에서 재현한 "조용한 무동작"이 바로 그
-    갭이었다. `/etc/ssl/clovirone`는 여전히 확인한다 — `TLS_CERT_PATH`가 없는 설치
+    갭이었다. `/etc/ssl/clovirassist`는 여전히 확인한다 — `TLS_CERT_PATH`가 없는 설치
     (dev/test)의 폴백 경로로 `app/sysops/actions_service.py::_resolve_tls_paths_for`가
     아직 쓰므로 지우면 그 경로에서도 폴백이 없다는 거짓 안전감이 된다. 두 경로를 **함께**
     확인해야 "인증서 디렉터리가 준비됐다"는 이 시험의 이름이 실제로 뜻하는 바를 지킨다.
     """
     text = _text(INSTALL)
-    assert "/etc/ssl/clovirone" in text, "TLS_CERT_PATH 없는 설치의 폴백 디렉터리를 안 만든다"
+    assert "SSL_FALLBACK_DIR=" in text and "/etc/ssl/$SLUG" in text, (
+        "TLS_CERT_PATH 없는 설치의 폴백 디렉터리를 안 만든다"
+    )
     assert '"$ETC_DIR/tls"' in text, "nginx가 실제로 읽는 인증서 디렉터리($ETC_DIR/tls)를 안 만든다"
 
 
 def test_uninstall_removes_the_helper_too():
     """제거했는데 root 데몬이 남아 있으면 그것 자체가 사고다."""
-    text = _text(ROLLBACK)
-    assert "clovirone-privhelper" in text, "제거 스크립트가 헬퍼를 모른다 - root 데몬이 남는다"
+    text = _text(INSTALL)
+    section = _body(text, "do_uninstall()")
+    assert 'for u in "${ALL_UNITS[@]}"' in section, (
+        "제거가 유닛 목록을 돌지 않는다 - 헬퍼 같은 root 데몬이 남는다"
+    )
+    assert "$PRIVHELPER_UNIT" in _list_of(text, "ALL_UNITS"), (
+        "헬퍼가 그 목록에 없다 - 제거해도 root 데몬이 남는다"
+    )
 
 
 def test_the_installer_has_no_customer_specific_defaults():
@@ -141,12 +191,12 @@ def test_the_helper_does_not_claim_the_apps_state_directory():
 
     `StateDirectory=clovirone-web-assistant` 를 넣었더니 systemd 가 그 디렉터리를
     **이 유닛의 User:Group 으로 chown 하고 모드를 0755 로** 맞췄다. 헬퍼는
-    `User=root Group=clovirone-web` 이라 `/var/lib/clovirone-web-assistant` 가
+    `User=root Group=clovirone-web` 이라 `/var/lib/clovirassist` 가
     `root:clovirone-web 0755` 가 됐고, 그룹에 쓰기가 없어 워커(clovirone-web)가
     `worker.lock` 을 만들지 못했다:
 
         PermissionError: [Errno 13] Permission denied:
-        '/var/lib/clovirone-web-assistant/worker.lock'
+        '/var/lib/clovirassist/worker.lock'
 
     재시작 루프에 빠져 잡 큐와 스케줄러가 통째로 멈췄다. 그 디렉터리는 앱의 것이고
     설치 스크립트가 소유권을 정한다 - 헬퍼는 거기에 아무것도 저장하지 않는다.
@@ -164,8 +214,8 @@ def test_the_helper_does_not_claim_the_apps_state_directory():
 def test_the_helper_still_gets_its_runtime_and_log_directories():
     """오탐 방지 - 지우느라 소켓·감사 로그 자리까지 없애면 헬퍼가 아예 못 뜬다."""
     text = _text(HELPER_UNIT)
-    assert "RuntimeDirectory=clovirone-web-assistant" in text, "소켓 디렉터리 선언이 없다"
-    assert "LogsDirectory=clovirone-web-assistant" in text, "감사 로그 디렉터리 선언이 없다"
+    assert "RuntimeDirectory=clovirassist" in text, "소켓 디렉터리 선언이 없다"
+    assert "LogsDirectory=clovirassist" in text, "감사 로그 디렉터리 선언이 없다"
 
 
 def test_the_installer_refuses_an_upgrade_that_would_blank_the_tenant_config():
@@ -180,11 +230,14 @@ def test_the_installer_refuses_an_upgrade_that_would_blank_the_tenant_config():
     멈춰도 되돌릴 것이 생긴다.
     """
     text = _text(INSTALL)
-    assert "NOTION_TASKS_DATABASE_ID" in text, (
+    # 예전에는 이 검사가 `NOTION_TASKS_DATABASE_ID` 를 봤다. 그 설정은 S14 가 없앴으므로
+    # (D-284) **아직 필수인 설치처 고유값**으로 옮긴다 — 지키는 성질은 그대로다:
+    # 「없으면 업그레이드를 시작하지 않는다」와 「그 판정이 스키마 변경보다 앞이다」.
+    assert "SESSION_SECRET" in text, (
         "업그레이드가 설치처 고유값 누락을 확인하지 않는다 - 조용히 깨진 채로 뜬다"
     )
     lines = text.splitlines()
-    guard_at = next(i for i, ln in enumerate(lines) if "NOTION_TASKS_DATABASE_ID" in ln)
+    guard_at = next(i for i, ln in enumerate(lines) if "SESSION_SECRET" in ln)
     migrate_at = next(i for i, ln in enumerate(lines) if "alembic" in ln and "upgrade head" in ln)
     assert guard_at < migrate_at, (
         f"검사가 마이그레이션보다 뒤에 있다(검사 {guard_at}행, 마이그레이션 {migrate_at}행) "
@@ -193,10 +246,14 @@ def test_the_installer_refuses_an_upgrade_that_would_blank_the_tenant_config():
 
 
 def test_the_backup_captures_the_helper_unit():
-    """DEPLOY-04: 백업이 web·worker 유닛만 담으면 롤백이 헬퍼를 되살릴 방법이 없다."""
-    text = _text(BACKUP)
-    assert "clovirone-privhelper.service" in text, (
-        "백업이 헬퍼 유닛을 담지 않는다 - 롤백해도 시스템 설정 기능이 죽은 채로 남는다"
+    """DEPLOY-04: 스냅샷이 web·worker 유닛만 담으면 롤백이 헬퍼를 되살릴 방법이 없다."""
+    text = _text(INSTALL)
+    section = _body(text, "take_snapshot()")
+    assert 'for u in "${ALL_UNITS[@]}" "${LEGACY_UNITS[@]}"' in section, (
+        "스냅샷이 유닛 파일을 목록으로 담지 않는다 - 롤백이 되살릴 것이 없다"
+    )
+    assert "$PRIVHELPER_UNIT" in _list_of(text, "ALL_UNITS"), (
+        "헬퍼가 그 목록에 없다 - 롤백해도 시스템 설정 기능이 죽은 채로 남는다"
     )
 
 
@@ -204,13 +261,15 @@ def test_the_rollback_restores_and_restarts_the_helper_too():
     """DEPLOY-04: 예전엔 롤백이 web·worker 만 복원·재시작해 healthz 는 통과하고
     'ROLLBACK_OK'가 찍히는데, 관리 콘솔의 시스템 설정(타임존·DNS·호스트명·프록시·인증서)은
     죽은 채로 남았다 - 실패가 성공처럼 보이는 것이 가장 나쁜 결과다."""
-    text = _text(ROLLBACK)
-    restore_section = text.split("stop_services()")[-1].split("systemctl daemon-reload")[0]
-    assert "clovirone-privhelper.service" in restore_section, (
-        "복원 루프가 헬퍼 유닛 파일을 되살리지 않는다"
+    text = _text(INSTALL)
+    section = _body(text, "do_rollback()")
+    restore, _, restart = section.partition("systemctl daemon-reload")
+    assert 'for u in "${ALL_UNITS[@]}"' in restore, (
+        "복원 루프가 유닛 파일을 목록으로 되살리지 않는다"
     )
-    restart_at = _line_of_text(text, "systemctl restart clovirone-privhelper.service")
-    assert restart_at is not None, "롤백이 헬퍼를 재시작하지 않는다"
+    assert 'for u in "${ALL_UNITS[@]}"' in restart and "systemctl start" in restart, (
+        "롤백이 유닛을 다시 띄우지 않는다 - 복원해 놓고 꺼진 채로 둔다"
+    )
 
 
 def _line_of_text(text: str, needle: str):
@@ -228,34 +287,43 @@ def test_the_guard_only_fires_for_an_existing_install():
     되어 안내를 통째로 건너뛴다 — 못박는 성질(무조건 막지 않는다)은 그대로다.
     """
     text = _text(INSTALL)
-    assert 'IS_EXISTING' in text, (
+    assert "legacy_present()" in text, (
         "기존 설치인지 판정하지 않고 무조건 막는다 - 신규 설치가 불가능해진다"
     )
-    assert 'grep -qE "^DATABASE_URL=" "$ETC_DIR/web.env"' in text, (
+    assert '[ -f "$ENV_FILE" ] || legacy_present' in text, (
         "판정 근거가 없다 - 무엇을 보고 «기존 설치» 라고 하는지 스크립트에 드러나야 한다"
-    )
-    assert 'if [ "$IS_EXISTING" = "1" ]; then' in text, (
-        "판정 결과로 분기하지 않는다"
     )
 
 
 def test_the_backup_captures_user_uploads():
-    """BKP-01: 백업이 DB만 담으면 복원 후 게시판·팀챗·티켓·프로필 사진이 가리키는 실제
-    파일이 없어 조용히 404가 난다."""
-    text = _text(BACKUP)
-    assert "uploads.tar.gz" in text and "VAR_DIR/uploads" in text, (
-        "백업이 uploads 디렉터리를 담지 않는다 - 복원해도 첨부 파일 자체가 없다"
+    """🔴 BKP-01: 스냅샷이 DB만 담으면 복원 후 게시판·팀챗·티켓·프로필 사진이 가리키는
+    실제 파일이 없어 조용히 404가 난다.
+
+    이 성질은 옛 백업 스크립트가 갖고 있었고 **새 설치기로 옮겨 오지 않았다**(S14 가 옛
+    스크립트를 지우면서 발견). 그동안 옛 스크립트의 시험이 계속 초록이라 갭이 안 보였다.
+    """
+    text = _text(INSTALL)
+    section = _body(text, "take_snapshot()")
+    assert "data.tar.gz" in section and '-C /var/lib "$SLUG"' in section, (
+        "스냅샷이 데이터 디렉터리를 담지 않는다 - 되돌려도 첨부 파일 자체가 없다"
+    )
+    assert "data-legacy.tar.gz" in section, (
+        "옛 slug 의 데이터 디렉터리를 안 담는다 - 이전 도중 되돌릴 지점이 없다"
+    )
+    assert '--exclude="$SLUG/ai/models"' in section, (
+        "되받을 수 있는 모델 파일까지 담는다 - 스냅샷 하나가 디스크를 채운다"
     )
 
 
 def test_the_rollback_restores_uploads():
-    """BKP-01: 복원 루프가 uploads.tar.gz를 풀고, OPS-01/OPS-02와 같은 소유권 드리프트가
+    """BKP-01: 복원이 `data.tar.gz` 를 풀고, OPS-01/OPS-02와 같은 소유권 드리프트가
     재발하지 않도록 명시적으로 chown해야 한다."""
-    text = _text(ROLLBACK)
-    assert "uploads.tar.gz" in text, "롤백이 uploads 백업을 복원하지 않는다"
-    restore_section = text.split("uploads.tar.gz")[-1]
-    assert "chown" in restore_section and "clovirone-web:clovirone-web" in restore_section, (
-        "uploads 복원 뒤 소유권을 서비스 계정으로 명시하지 않는다 - OPS-01류 재발 위험"
+    text = _text(INSTALL)
+    section = _body(text, "do_rollback()")
+    assert "data.tar.gz" in section, "롤백이 데이터 백업을 복원하지 않는다"
+    after = section.split("data.tar.gz")[-1]
+    assert "chown -R" in after and '"$SVC_USER":"$SVC_USER"' in after, (
+        "복원 뒤 소유권을 서비스 계정으로 명시하지 않는다 - OPS-01류 재발 위험"
     )
 
 
@@ -264,11 +332,10 @@ def test_the_backup_excludes_venv_and_the_rollback_recreates_it():
     재현되는데도 백업마다 수백MB를 그대로 반복해 담았다. 제외하는 쪽만 고치고 롤백이
     다시 만들지 않으면, 복원 직후 서비스가 venv 자체가 없어 아예 못 뜬다 — 두 가지를
     반드시 짝으로 확인한다."""
-    backup_text = _text(BACKUP)
-    assert "--exclude" in backup_text and "venv" in backup_text, (
-        "백업이 여전히 venv를 통째로 담는다"
-    )
-    rollback_text = _text(ROLLBACK)
+    text = _text(INSTALL)
+    snapshot = _body(text, "take_snapshot()")
+    assert '--exclude="$SLUG/venv"' in snapshot, "스냅샷이 여전히 venv를 통째로 담는다"
+    rollback_text = _body(text, "do_rollback()")
     assert "venv/bin/python" in rollback_text and "python3 -m venv" in rollback_text, (
         "롤백이 app.tar.gz 복원 뒤 venv를 다시 만들지 않는다 - 서비스가 못 뜬다"
     )
@@ -280,14 +347,18 @@ def test_the_backup_excludes_venv_and_the_rollback_recreates_it():
 # ── PostgreSQL 기동 순서 (D-187) ─────────────────────────────────────────────
 
 
-@pytest.mark.parametrize(
-    "unit",
-    [
-        "clovirone-web-assistant.service",
-        "clovirone-web-worker.service",
-        "clovirone-web-worker-conversational.service",
-    ],
-)
+# **배포되는 다섯을 전부 본다** (S14). 예전에는 옛 slug 유닛 셋만 봤고, 그러는 동안
+# 스케줄러·색인 레인(S4·S9 이 더한 둘)은 이 검사 밖에 있었다.
+APP_UNITS = [
+    "clovirassist-web.service",
+    "clovirassist-worker.service",
+    "clovirassist-worker-conversational.service",
+    "clovirassist-scheduler.service",
+    "clovirassist-index.service",
+]
+
+
+@pytest.mark.parametrize("unit", APP_UNITS)
 def test_units_start_after_postgresql(unit):
     """DB 를 쓰는 유닛은 PostgreSQL 뒤에 뜬다.
 
@@ -304,14 +375,7 @@ def test_units_start_after_postgresql(unit):
     )
 
 
-@pytest.mark.parametrize(
-    "unit",
-    [
-        "clovirone-web-assistant.service",
-        "clovirone-web-worker.service",
-        "clovirone-web-worker-conversational.service",
-    ],
-)
+@pytest.mark.parametrize("unit", APP_UNITS)
 def test_postgresql_is_wanted_not_required(unit):
     """`Requires=` 가 아니라 `Wants=` 다.
 
@@ -768,3 +832,51 @@ def test_the_service_account_can_read_its_own_secrets():
     assert 'chmod 0700 "$SECRETS_DIR"' not in text
     # 파일은 계속 0640 이어야 한다 — 디렉터리를 연 대가로 파일까지 열면 안 된다.
     assert 'find "$SECRETS_DIR" -type f -exec chmod 0640' in text
+
+
+def test_the_db_role_can_create_the_database_backup_verification_needs():
+    """DB role 에 **CREATEDB** 를 준다 (S14).
+
+    복구 검증은 임시 데이터베이스를 만들어 **실제로 복원해 보는** 방식이다(D-204 · D-273).
+    그 권한이 없으면 제품은 정직하게 `structure_only` 로 멈추는데 — 그 상태는 오류가
+    아니라서 **백업은 매일 성공하고 검증만 조용히 안 된다.**
+
+    Cutover 직후 첫 복구 리허설이 정확히 거기서 멈췄다. 그때까지 아무 로그도 「이 설치의
+    백업은 복원 가능 여부를 확인할 수 없다」고 말하지 않았다.
+
+    조건문 밖에 둔다는 것까지 함께 본다 — role 생성 블록 안에 넣으면 **이미 role 이 있는
+    재실행**에서 안 붙고, 그 설치는 영원히 이 상태로 남는다.
+    """
+    text = (ROOT / "deploy" / "install.sh").read_text(encoding="utf-8")
+    assert 'alter role \\"$PG_ROLE\\" createdb' in text, (
+        "role 에 createdb 를 주는 문장이 사라졌다 — 백업 복원 검증이 영원히 멈춘다"
+    )
+    # role 생성 조건문 **안**이 아니라 밖이어야 한다. 안에 있으면 재실행에서 안 붙는다.
+    create_block = text.index('create role \\"$PG_ROLE\\" login')
+    grant = text.index('alter role \\"$PG_ROLE\\" createdb')
+    between = text[create_block:grant]
+    assert between.count("\n  fi\n") >= 2, (
+        "createdb 부여가 role 생성 조건문 안에 있다 — 이미 role 이 있는 재실행에서 안 붙는다"
+    )
+
+
+def test_extensions_land_in_template1_so_a_backup_can_be_restored():
+    """확장을 **`template1` 에도** 넣는다 (S14). 백업이 실제로 복원되는가가 여기 걸려 있다.
+
+    `pg_dump -Fc` 는 덤프 안에 `CREATE EXTENSION IF NOT EXISTS vector` 를 담는다. 복구
+    검증(D-204 · D-273)은 그 덤프를 **서비스 계정이 만든 새 데이터베이스**에 되돌려 보는데,
+    확장 생성은 superuser 만 할 수 있어서 `pg_restore` 가 거기서 죽는다 — 즉 그 설치의
+    백업은 **실제로 복원되지 않는다.** 백업 자체는 매일 성공하므로 아무 데도 안 보인다.
+
+    확장이 이미 있으면 `IF NOT EXISTS` 는 권한 검사 전에 끝난다. `template1` 에 넣어 두면
+    새로 만드는 모든 데이터베이스가 그 상태로 태어나므로 복원이 자기 권한만으로 지나간다.
+
+    Cutover 직후 첫 리허설이 정확히 이 오류로 멈췄다:
+    `permission denied to create extension "vector"`.
+    """
+    text = (ROOT / "deploy" / "install.sh").read_text(encoding="utf-8")
+    assert '-d template1' in text, (
+        "template1 에 확장을 넣는 문장이 사라졌다 — 이 설치의 백업은 복원되지 않는다"
+    )
+    # 제품 DB 쪽도 그대로 있어야 한다. template1 만 넣고 제품 DB 를 빠뜨리면 앱이 못 뜬다.
+    assert 'psql -v ON_ERROR_STOP=1 -d "$PG_DB" -tAc "create extension if not exists $ext"' in text

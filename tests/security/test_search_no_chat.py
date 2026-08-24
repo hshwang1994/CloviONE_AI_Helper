@@ -65,8 +65,7 @@ def test_reindex_never_writes_a_chat_row(db, app, chat_with_secret):
     # 티켓 소스(Notion)는 이 테스트에서 미설정이라 그 유형만 error 로 기록된다 —
     # 그래도 나머지 유형은 인덱싱되고 예외는 밖으로 나오지 않는다(장애 격리).
     reindex_all(
-        db, tickets=app.state.repositories.tickets,
-        documents=app.state.repositories.documents, now=NOW,
+        db, tickets=app.state.repositories.tickets, now=NOW,
     )
     db.commit()
 
@@ -85,8 +84,7 @@ def test_a_dm_participant_cannot_find_their_own_dm_through_search(
     v1 은 채팅을 아예 인덱싱하지 않는다 — 예외 없음이 가장 확인하기 쉬운 규칙이다.
     """
     reindex_all(
-        db, tickets=app.state.repositories.tickets,
-        documents=app.state.repositories.documents, now=NOW,
+        db, tickets=app.state.repositories.tickets, now=NOW,
     )
     db.commit()
 

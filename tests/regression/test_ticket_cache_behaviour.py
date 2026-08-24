@@ -1,11 +1,25 @@
-"""티켓 로컬 미러의 두 가지 약속을 고정한다.
+"""티켓 목록이 **방금 한 일을 바로 보여 주는가** — 그리고 낡음 배지가 안 남는가.
 
-1. **write-through** — 티켓을 만들거나 고친 사람이 목록에서 그걸 바로 봐야 한다. 동기화 주기가
-   기본 180초라, 쓰기 뒤에 캐시를 같은 요청에서 고치지 않으면 "방금 만든 티켓이 없어졌다"가 된다.
-   그래서 여기서는 **동기화 tick 을 한 번도 돌리지 않고** 생성 → 즉시 조회를 확인한다.
+## 원래 이 파일이 지키던 두 가지
 
-2. **장애 격리** — 미러가 차 있으면 소스가 5xx 를 뱉든 말든 목록은 200 으로 뜬다. 그리고 그 응답에
-   신선도(`sync`)가 실려 "지금 보는 건 마지막 정상 데이터"라는 사실이 화면에 드러난다. 500 은 금지.
+1. **write-through** — 티켓을 만들거나 고친 사람이 목록에서 그걸 바로 봐야 한다. 미러의
+   동기화 주기가 180초라, 쓰기 뒤에 같은 요청에서 미러를 고치지 않으면 "방금 만든 티켓이
+   없어졌다" 가 됐다.
+2. **장애 격리** — 미러가 차 있으면 소스가 5xx 를 뱉든 말든 목록은 200 이고, 응답의
+   신선도(`sync`) 블록이 "지금 보는 건 마지막 정상 데이터" 라고 말한다.
+
+## 지금 (S14)
+
+정본이 이 서버의 표 하나로 옮겨 오면서 둘째는 대상이 사라졌다 — 낡을 수 있는 사본이 없고,
+죽을 수 있는 바깥 소스도 없다. 그 자리에 **반대 방향의 약속**이 생겼다: 응답에 신선도
+블록이 **실리지 않아야 한다.** 실리면 화면이 「N분 전 동기화」 배지를 그리는데, 그 시각은
+더 이상 돌지 않는 동기화의 마지막 시각이라 매일 조금씩 더 낡아 보인다. 그건 정보가 아니라
+거짓말이고, 사용자는 고칠 방법이 없다.
+
+첫째는 그대로 남는다. 「방금 만든 티켓이 목록에 있다」는 저장소가 어디든 사용자가 기대하는
+것이고, 쓰기가 같은 트랜잭션에서 표를 안 고치면 지금도 똑같이 깨진다.
+
+qa-contract-change: 미러 장애 격리 시험 두 건이 대상을 잃었다 — 낡을 수 있는 사본과 죽을 수 있는 바깥 소스가 함께 사라져 「소스가 죽어도 200」과 「신선도가 error 로 바뀐다」를 만들 수단이 없다. 대신 그 자리에 생긴 반대 약속, 곧 신선도 블록이 응답에 아예 실리지 않는다는 것을 목록 네 곳에서 새로 못박는다.
 """
 
 from __future__ import annotations
@@ -13,39 +27,25 @@ from __future__ import annotations
 from datetime import datetime
 
 import pytest
+from sqlalchemy import select
 
 from app.core.security import hash_password
 from app.notion_mapping.models import SOURCE_MANUAL, STATUS_VERIFIED, UserNotionMapping
-from app.tickets.models import (
-    SYNC_OK,
-    SYNC_STATE_ID,
-    TicketCache,
-    TicketSyncState,
-    join_names,
-)
+from app.tickets.models import TicketCache, join_names
 from app.users.models import User
 from tests.fakes.clock import FakeClock
-from tests.fakes.notion import DEFAULT_PROJECTS_DB, FakeNotionTasksDB, project_row, task_row
 
-
-# 이 파일은 **미러(Notion) 경로의 성질**을 고정한다 — 「미러가 차 있으면 소스가 죽어도
-# 200 이다」와 「write-through 로 방금 만든 티켓이 바로 보인다」는 둘 다 미러가 있어야
-# 성립하는 말이다. 제품 기본 소스는 S14 부터 `native` 이고 그쪽에는 미러도 신선도도
-# 없으므로 여기서 소스를 되돌려 놓는다.
-#
-# 이 표는 동시에 **Notion 을 걷어낼 때 지울 파일의 목록**이다.
-pytestmark = [pytest.mark.regression, pytest.mark.notion_source]
+pytestmark = pytest.mark.regression
 
 NOW = datetime(2026, 8, 3, 9, 0, 0)
 SYNCED_AT = datetime(2026, 8, 3, 8, 57, 0)
 PASSWORD = "Cache-Passw0rd!"
-TOKEN_REF = "notion_report_token"
 
 U_ME = "00000000-0000-4000-8000-0000000c0001"
 N_ME = "notion-user-me"
 P_ALPHA = "cache-proj-alpha"
 
-# 미러에 이미 들어 있는(= 워커가 아까 넣어 둔) 티켓 한 건.
+# 이관해 온 티켓 한 건.
 CACHED_PAGE_ID = "cache-0001"
 
 
@@ -55,13 +55,16 @@ def fake_clock():
 
 
 @pytest.fixture()
-def notion(fake_http) -> FakeNotionTasksDB:
+def notion(fake_http):
+    """가짜 Notion 서버를 붙이되 **티켓은 한 건도 놓지 않는다**.
+
+    반례 장치다. 목록 경로가 다시 바깥을 읽기 시작하면 이 빈 작업 DB 가 티켓을 못 찾아
+    아래 단언들이 소리 내어 깨진다 — 페이크를 안 붙이면 그 회귀는 조용히 지나간다.
+    """
+    from tests.fakes.notion import DEFAULT_PROJECTS_DB, FakeNotionTasksDB
+
     return FakeNotionTasksDB(
-        rows=[task_row(page_id=CACHED_PAGE_ID, tid=1, title="이미 있던 티켓", status="진행",
-                       due="2026-08-04", people=[N_ME], project_ids=[P_ALPHA])],
-        projects=[project_row(page_id=P_ALPHA, name="알파 프로젝트")],
-        projects_db=DEFAULT_PROJECTS_DB,
-        fail_message="캐시 테스트용 강제 오류",
+        rows=[], projects=[], projects_db=DEFAULT_PROJECTS_DB,
     ).install(fake_http)
 
 
@@ -81,12 +84,11 @@ def _seed_user(db) -> None:
     db.commit()
 
 
-def _seed_mirror(db) -> None:
-    """워커가 한 번 정상 동기화한 상태를 만든다(tick 은 이 테스트에서 한 번도 돌지 않는다).
+def _seed_ticket(db) -> None:
+    """이관해 온 티켓 한 건과 그 프로젝트.
 
-    Portal 프로젝트도 함께 심는다. 0060 부터 티켓의 소속은 프로젝트가 정하고, Portal 에
-    짝이 없으면 그 티켓은 `unresolved` 라 아무에게도 안 보인다 — 그러면 이 파일이 검사하려는
-    "미러에서 바로 답한다" 를 확인할 수가 없다.
+    0060 부터 티켓의 소속은 프로젝트가 정하고, 짝이 없으면 그 티켓은 `unresolved` 라
+    아무에게도 안 보인다 — 그러면 이 파일이 검사하려는 것을 확인할 수가 없다.
     """
     from app.org.constants import DEFAULT_ORG_ID
     from app.projects.models import Project
@@ -96,7 +98,7 @@ def _seed_mirror(db) -> None:
     db.add(project)
     db.flush()
     db.add(TicketCache(
-        id="cache-uid-0001", notion_page_id=CACHED_PAGE_ID,
+        id="cache-uid-0001", notion_page_id=CACHED_PAGE_ID, org_id=DEFAULT_ORG_ID,
         notion_ticket_number=1, url=f"https://www.notion.so/{CACHED_PAGE_ID}",
         title="이미 있던 티켓", status="진행", due_date="2026-08-04",
         project_ids=join_names([P_ALPHA]), project_names=join_names(["알파 프로젝트"]),
@@ -104,25 +106,13 @@ def _seed_mirror(db) -> None:
         assignee_notion_ids=join_names([N_ME]),
         synced_at=SYNCED_AT, created_at=SYNCED_AT, updated_at=SYNCED_AT,
     ))
-    state = db.get(TicketSyncState, SYNC_STATE_ID)
-    if state is None:
-        state = TicketSyncState(id=SYNC_STATE_ID)
-        db.add(state)
-    state.status = SYNC_OK
-    state.last_run_at = SYNCED_AT
-    state.last_success_at = SYNCED_AT
-    state.ticket_count = 1
-    state.truncated = False
-    state.error = None
-    state.updated_at = SYNCED_AT
     db.commit()
 
 
 @pytest.fixture()
 def cache_client(client, db, settings, notion):
-    (settings.secrets_dir / TOKEN_REF).write_text("fake-notion-token", encoding="utf-8")
     _seed_user(db)
-    _seed_mirror(db)
+    _seed_ticket(db)
     response = client.post("/login", json={"email": "cache-me@goodmit.co.kr", "password": PASSWORD})
     assert response.status_code == 200, response.text
     client.headers["X-CSRF-Token"] = response.json()["csrf_token"]
@@ -135,28 +125,24 @@ def _mine(client) -> dict:
     return response.json()
 
 
-def test_list_is_served_from_the_mirror_with_a_freshness_block(cache_client):
+def test_list_answers_from_the_record_without_a_freshness_block(cache_client):
     body = _mine(cache_client)
     assert body["ok"] is True
     assert [t["tid"] for t in body["tickets"]] == [1]
-    # 미러에서 답했으므로 자체 id 가 실린다(실시간 폴백이면 uid 는 null 이다).
     assert body["tickets"][0]["uid"] == "cache-uid-0001"
     assert body["tickets"][0]["id"] == CACHED_PAGE_ID  # 딥링크 키는 계속 page id
-    assert body["sync"]["status"] == "ok"
-    assert body["sync"]["last_success_at"] == SYNCED_AT.isoformat()
+    # **신선도 블록이 없다.** 있으면 화면이 영영 낡아 가는 「N분 전 동기화」 배지를 그린다.
+    assert "sync" not in body
 
 
-def test_created_ticket_is_visible_immediately_without_any_sync_tick(cache_client, db, notion):
-    """POST 직후 GET /mine 에 보인다 — 동기화 tick 은 한 번도 돌지 않았다."""
-    before = db.get(TicketSyncState, SYNC_STATE_ID).last_success_at
+def test_created_ticket_is_visible_immediately(cache_client, db):
+    """POST 직후 GET /mine 에 보인다 — 쓰기가 같은 트랜잭션에서 표를 고쳤다는 뜻이다."""
+    from app.projects.models import Project
 
     # `project_id` 는 **Portal 프로젝트 id** 다 (0060) — 외부 page id 가 아니다. 티켓의
     # 소속을 정하는 값이라 정본이 Portal 이어야 한다.
-    from app.projects.models import Project
-    from sqlalchemy import select as _select
-
     portal_project_id = db.execute(
-        _select(Project.id).where(Project.notion_page_id == P_ALPHA)
+        select(Project.id).where(Project.notion_page_id == P_ALPHA)
     ).scalar_one()
     created = cache_client.post("/api/tickets", json={
         "title": "방금 만든 티켓",
@@ -166,19 +152,13 @@ def test_created_ticket_is_visible_immediately_without_any_sync_tick(cache_clien
     })
     assert created.status_code == 200, created.text
     new_page_id = created.json()["ticket"]["id"]
-    assert created.json()["ticket"]["uid"], "생성 응답에 자체 id 가 실려야 한다(write-through 증거)"
+    assert created.json()["ticket"]["uid"], "생성 응답에 자체 id 가 실려야 한다"
 
     body = _mine(cache_client)
-    ids = [t["id"] for t in body["tickets"]]
-    assert new_page_id in ids, "방금 만든 티켓이 목록에 없다 — write-through 가 안 됐다"
     titles = {t["id"]: t["title"] for t in body["tickets"]}
+    assert new_page_id in titles, "방금 만든 티켓이 목록에 없다"
     assert titles[new_page_id] == "방금 만든 티켓"
-    # 프로젝트 이름은 쓰기 왕복을 늘리지 않고 메타 캐시로 채운다(여기선 메타가 비어 있어 빈 값).
-    assert body["sync"]["status"] == "ok"
-
-    # 동기화는 정말로 안 돌았다.
-    db.expire_all()
-    assert db.get(TicketSyncState, SYNC_STATE_ID).last_success_at == before
+    assert "sync" not in body
 
 
 def test_edited_ticket_shows_the_new_value_immediately(cache_client, db):
@@ -187,41 +167,28 @@ def test_edited_ticket_shows_the_new_value_immediately(cache_client, db):
 
     body = _mine(cache_client)
     row = {t["id"]: t for t in body["tickets"]}[CACHED_PAGE_ID]
-    assert row["status"] == "완료", "편집 결과가 미러에 반영되지 않았다"
+    assert row["status"] == "완료", "편집 결과가 목록에 반영되지 않았다"
 
 
-def test_source_outage_with_a_populated_mirror_answers_200_and_flags_staleness(
-    cache_client, db, notion
-):
-    """소스가 죽어도 목록은 200 + 데이터. 500 이 나면 화면 전체가 오류 페이지가 된다."""
-    notion.fail_status = 500
-
-    body = _mine(cache_client)
-    assert body["ok"] is True                       # 오류가 아니라 마지막 정상 데이터
-    assert [t["tid"] for t in body["tickets"]] == [1]
-
-    # 그 사이 워커가 한 번 더 돌아 실패를 기록했다면, 목록은 그대로이고 신선도만 error 로 바뀐다.
-    from app.tickets.sync import sync_tickets
-
-    sync_tickets(db, outbound=cache_client.app.state.outbound_client,
-                 settings=cache_client.app.state.settings, now=NOW)
-    db.commit()
-
-    body = _mine(cache_client)
-    assert body["ok"] is True
-    assert [t["tid"] for t in body["tickets"]] == [1]
-    assert body["sync"]["status"] == "error"
-    assert body["sync"]["error"]
-    assert body["sync"]["last_success_at"] == SYNCED_AT.isoformat()
-
-
-def test_team_and_unassigned_also_answer_from_the_mirror(cache_client):
+def test_team_and_unassigned_also_answer_from_the_record(cache_client):
     team = cache_client.get("/api/tickets/team?active=true")
     assert team.status_code == 200
     assert [t["tid"] for t in team.json()["tickets"]] == [1]
-    assert team.json()["sync"]["status"] == "ok"
+    assert "sync" not in team.json()
 
     unassigned = cache_client.get("/api/tickets/unassigned")
     assert unassigned.status_code == 200
-    assert unassigned.json()["tickets"] == []       # 캐시의 유일한 티켓은 담당자가 있다
-    assert unassigned.json()["sync"]["status"] == "ok"
+    assert unassigned.json()["tickets"] == []       # 유일한 티켓은 담당자가 있다
+    assert "sync" not in unassigned.json()
+
+
+def test_no_request_left_the_process_while_answering(cache_client, fake_http):
+    """반례 확인 — 위 목록 네 곳이 정말 우리 표에서만 답했는가.
+
+    계측기가 0 을 세는지 확인하려면 그 계측기가 1 도 셀 수 있어야 한다. 그 검증은
+    `tests/unit/test_fake_notion.py` 가 따로 한다.
+    """
+    _mine(cache_client)
+    cache_client.get("/api/tickets/team?active=true")
+    cache_client.get("/api/tickets/unassigned")
+    assert fake_http.requests == [], "티켓 목록이 바깥으로 나갔다"

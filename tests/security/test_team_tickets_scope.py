@@ -20,41 +20,17 @@ from __future__ import annotations
 
 import pytest
 
-from tests.fakes.notion import DEFAULT_PROJECTS_DB, FakeNotionTasksDB, project_row, task_row
-
 pytestmark = pytest.mark.security
 
 NID_MINE, NID_THEIRS = "notion-mine", "notion-theirs"
 
 
 @pytest.fixture()
-def notion(fake_http) -> FakeNotionTasksDB:
-    return FakeNotionTasksDB(
-        rows=[
-            task_row(page_id="t-mine", tid=1, title="우리팀 티켓", status="진행",
-                     people=[NID_MINE], project_ids=["px-ours"]),
-            task_row(page_id="t-theirs", tid=2, title="남의팀 티켓", status="진행",
-                     people=[NID_THEIRS], project_ids=["px-theirs"]),
-            task_row(page_id="t-both", tid=3, title="같이 하는 티켓", status="진행",
-                     people=[NID_MINE, NID_THEIRS], project_ids=["px-common"]),
-            task_row(page_id="t-ghost", tid=4, title="담당자 미해석", status="진행",
-                     people=["notion-ghost"], project_ids=["px-ours"]),
-        ],
-        projects=[project_row(page_id="px-ours", name="우리 프로젝트"),
-                  project_row(page_id="px-theirs", name="남의 프로젝트"),
-                  project_row(page_id="px-common", name="전사 공통")],
-        projects_db=DEFAULT_PROJECTS_DB,
-    ).install(fake_http)
-
-
-@pytest.fixture()
-def world(client, settings, notion, make_user, make_project, db, app):
+def world(make_user, make_project, make_ticket, db):
     from app.notion_mapping.models import STATUS_VERIFIED, UserNotionMapping
     from app.org.constants import DEFAULT_ORG_ID
     from app.org.models import Department
-    from app.tickets.sync import sync_tickets
 
-    (settings.secrets_dir / "notion_report_token").write_text("t", encoding="utf-8")
     mine = Department(name="우리팀", org_id=DEFAULT_ORG_ID)
     theirs = Department(name="남의팀", org_id=DEFAULT_ORG_ID)
     db.add_all([mine, theirs])
@@ -68,17 +44,21 @@ def world(client, settings, notion, make_user, make_project, db, app):
     db.add(UserNotionMapping(user_id=other.id, notion_user_id=NID_THEIRS, status=STATUS_VERIFIED))
     db.commit()
 
-    # Portal 프로젝트를 **동기화 전에** 만든다 — 티켓 소속은 프로젝트가 정하고,
-    # 그 해석은 동기화 시점에 일어난다(app/tickets/project_link.py).
-    make_project(name="우리 프로젝트", dept=mine, external_id="px-ours")
-    make_project(name="남의 프로젝트", dept=theirs, external_id="px-theirs")
+    # Portal 프로젝트를 **티켓보다 먼저** 만든다 — 티켓 소속은 프로젝트가 정하고, 그 해석은
+    # 티켓을 심는 시점에 일어난다(app/tickets/project_link.py).
+    ours = make_project(name="우리 프로젝트", dept=mine, external_id="px-ours")
+    theirs_project = make_project(name="남의 프로젝트", dept=theirs, external_id="px-theirs")
     # 부서를 하나 고를 수 없는 일 — 조직 공통 프로젝트(dept 없음)로 표현한다.
-    make_project(name="전사 공통", external_id="px-common")
+    common = make_project(name="전사 공통", external_id="px-common")
 
-    with app.state.session_factory() as s:
-        sync_tickets(s, outbound=app.state.outbound_client, settings=settings,
-                     now=app.state.clock.now())
-        s.commit()
+    make_ticket(page_id="t-mine", project=ours, tid=1, title="우리팀 티켓",
+                status="진행", assignees=[NID_MINE])
+    make_ticket(page_id="t-theirs", project=theirs_project, tid=2, title="남의팀 티켓",
+                status="진행", assignees=[NID_THEIRS])
+    make_ticket(page_id="t-both", project=common, tid=3, title="같이 하는 티켓",
+                status="진행", assignees=[NID_MINE, NID_THEIRS])
+    make_ticket(page_id="t-ghost", project=ours, tid=4, title="담당자 미해석",
+                status="진행", assignees=["notion-ghost"])
     return me
 
 

@@ -23,13 +23,15 @@ describe("사이드바 선택 유지", () => {
     expect(activeNavPath("/my-tickets", PATHS)).toBe("/my-tickets");
   });
 
-  // PA-RC-0031: '휴지통'이 더 이상 자기 메뉴 항목을 안 갖는다(TeamDocs.jsx 화면 안 버튼으로
-  // 옮겼다) — /tickets/:id 와 같은 부류(자기 항목 없는 상세 경로)가 됐다. 접두 매칭으로
-  // 부모(문서, 지금은 '팀 공간' 그룹)가 대신 켜져야 한다 — 예전엔 자기 항목이 있어 이 경로
-  // 자체가 정확히 켜졌었다(그때는 '접두 매칭으로 부모·자식이 동시에 켜지는' 버그 방지가
-  // 목적이었다 — 이제 그 시나리오 자체가 없어져 이 테스트의 목적이 바뀌었다).
-  it("자기 메뉴 항목이 없어진 /team-docs/trash는 접두 매칭으로 부모(문서)가 대신 켜진다", () => {
-    expect(activeNavPath("/team-docs/trash", PATHS)).toBe("/team-docs");
+  // PA-RC-0031: '휴지통'이 자기 메뉴 항목을 안 갖는다(문서 화면 안 버튼으로 옮겼다) —
+  // /tickets/:id 와 같은 부류(자기 항목 없는 경로)다.
+  //
+  // S14 · C2 로 '문서' 항목이 `/knowledge` 를 가리키게 되면서 접두 매칭이 이 경로를 못
+  // 잡는다(`/team-docs/trash` 는 `/knowledge` 로 시작하지 않는다). 그래서 소속을
+  // ROUTE_OWNER 에 적어 뒀고, 그 폴백이 실제로 문서 메뉴를 켜는지 여기서 본다 — 안 켜지면
+  // 휴지통을 여는 순간 사이드바 선택 표시가 통째로 사라진다.
+  it("자기 메뉴 항목이 없는 /team-docs/trash는 소속을 적어 둔 대로 문서 메뉴를 켠다", () => {
+    expect(activeNavPath("/team-docs/trash", PATHS)).toBe("/knowledge");
   });
 
   it("티켓 상세는 예전에 아무 메뉴에도 안 걸렸다", () => {

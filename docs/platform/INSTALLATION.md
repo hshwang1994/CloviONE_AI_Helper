@@ -39,7 +39,7 @@ sudo /opt/clovirassist/deploy/install.sh install \
   파이프 실행은 감사 흔적을 남기지 않는다
 - `git clone` 은 **Source 확보 · 무결성(object hash) · Version 고정(tag)** 을 한 번에 준다
 - clone 뒤에는 installer 가 **자기 Source 위치를 안다**(`git -C /opt/clovirassist rev-parse HEAD`).
-  upgrade/rollback 이 같은 경로 위에서 이어진다 — 기존 `update-from-git.sh` 가 이미 쓰는 모델이다
+  upgrade/rollback 이 같은 경로 위에서 이어진다 — 옛 `update-from-git.sh` 가 이미 쓰던 모델이고, S4 가 그것을 `deploy/install.sh` 안으로 옮겼다(S14 가 옛 스크립트를 지웠다)
 
 ---
 
@@ -121,7 +121,7 @@ sudo /opt/clovirassist/deploy/install.sh <subcommand> [options]
 | 15 | **TLS** | 인증서 존재 확인 또는 자체 서명 생성. **CN/SAN = `--dns-name`**. 있으면 SAN 이 그 이름을 담는지까지 본다(있다 ≠ 맞다) | |
 | 16 | nginx | 템플릿 치환 + **미치환 플레이스홀더 거부** + `nginx -t` + `server_name` 중복 검사 | |
 | 17 | 기동 + **Health Check** | 순서대로 기동 후 `/healthz` `/readyz` + DB + Storage + AI probe | 어느 컴포넌트가 왜 실패했는지 표시 |
-| 18 | 설치 검증 | **`install.sh verify` 를 그대로 실행**하고 `installed_manifest.json` 을 확정한다. `validate-clovirone-web-assistant.sh` 는 부르지 않는다 — 그것은 옛 slug 설치 전용이고 n8n 활성 단언이 박혀 있다(§9). 새 설치의 검증 정본은 `verify` 하나다 | |
+| 18 | 설치 검증 | **`install.sh verify` 를 그대로 실행**하고 `installed_manifest.json` 을 확정한다. 옛 `validate-clovirone-web-assistant.sh` 는 부르지 않는다 — 옛 slug 설치 전용이고 n8n 활성 단언이 박혀 있어 S14 가 지웠다(§9). 새 설치의 검증 정본은 `verify` 하나다 | |
 
 > **15·16 은 초안과 순서가 바뀌었다(S4).** 초안은 15=nginx, 16=TLS 였는데 **그 순서로는 돌 수가
 > 없다**: `nginx -t` 는 `ssl_certificate` 파일이 없으면 `cannot load certificate …
@@ -142,7 +142,7 @@ sudo /opt/clovirassist/deploy/install.sh <subcommand> [options]
 > **옛 installer 의 알려진 실패 모드 — 새 설계에서 해소됐다(S4).** 옛 스크립트는
 > `rsync --delete` 로 `/opt` 를 갈아엎고 venv 를 다시 만든 **뒤에** 테넌트 값 가드가
 > `exit 21` 을 하여 **"새 코드 + 옛 스키마"** 를 남겼다
-> (`scripts/install-clovirone-web-assistant.sh:221-235`, 아직 옛 설치가 쓴다).
+> (옛 스크립트는 S14 가 지웠다 — §9).
 > `deploy/install.sh` 는 그 검사를 전부 Stage 0 으로 끌어올렸고, `tests/unit/test_deploy_wiring.py`
 > 가 「가드가 Preflight 안에 있다」를 계약으로 지킨다.
 
@@ -264,14 +264,20 @@ Storage Provider 가 이 시점 제품에 없다. S22 가 전 Component 로 다�
 
 ---
 
-## 9. 현재 자산 실측 — 있는 것과 없는 것 (2026-08-20 · **S2 반영 2026-08-21** · **S4 반영 2026-08-22**)
+## 9. 현재 자산 실측 — 있는 것과 없는 것 (2026-08-20 · **S2 반영 2026-08-21** · **S4 반영 2026-08-22** · **S14 반영 2026-08-24**)
 
-| 있는 것 | 상태 |
+| 있던 것 | S14 가 한 일 |
 |---|---|
-| `scripts/install-clovirone-web-assistant.sh` (12 stage) | 존재. **S2 가 SQLite 자국만 걷어냈다**(`sqlite3` 패키지 → `postgresql-client-16`, PRAGMA 확인 → `alembic current` 확인, 「기존 설치인가」 판정을 `DATABASE_URL` 기준으로). 여전히 **Notion·n8n 결합**이고 PostgreSQL 설치·AI·Storage 개념이 없다 — 전면 재작성은 S4 |
-| `scripts/upgrade-*.sh` · `rollback-*.sh`(`--uninstall` 포함) · `update-from-git.sh` · `build-bundle.sh` | 존재. **S2 가 백업/롤백의 단일 파일 전제를 걷어냈다**: `backup-*.sh` 는 `pg_dump -Fc` + `pg_restore --list` 검증이고 **실패하면 죽는다**(예전엔 파일이 없으면 조용히 건너뛰고 `BACKUP_OK` 를 찍었다), `rollback-*.sh` 는 `pg_restore --clean --if-exists` 이고 **SQLite 시절 백업을 만나면 그렇게 말하고 멈춘다**. 운영 정책(Schedule·Retention·Manifest)은 **S12 가 제품 안에 세웠다**(`app/backups/`, D-269~D-272) — 이 옛 스크립트들은 아직 옛 slug 설치가 쓰고 있고 걷어내는 것은 S14 다. **배포 스냅숏 보존은 `deploy/install.sh::prune_snapshots` 가 만드는 자리에서 한다**(S12) |
-| `deploy/00-precheck.sh` · `deploy/nginx/*.conf`(`__DNS_NAME__` 템플릿) · systemd unit 4종 | **재사용 가능한 뼈대** |
-| `scripts/validate-clovirone-web-assistant.sh` | **n8n 활성 단언**(`:23`)이 박혀 있어 **n8n 제거 시 실패한다** → S11 |
+| `scripts/install-clovirone-web-assistant.sh` (12 stage) · `upgrade-*.sh` · `rollback-*.sh` · `backup-*.sh` · `backup-cron.sh` · `install-backup-cron.sh` · `update-from-git.sh` · `validate-*.sh` · `apply-app-update.sh` | **지웠다.** 아홉 전부 옛 slug 설치를 위한 것이고 `deploy/install.sh` 하나가 그 일을 한다(S4). 옛 slug 설치는 Cutover 가 이전을 끝냈으므로 이 스크립트들이 섬길 설치가 남아 있지 않다. `validate-*.sh` 는 S11 뒤로 **깨져 있었다**(«n8n 이 살아 있다» 를 성공 조건으로 단언) |
+| `deploy/systemd/clovirone-*.service` 4종 · `deploy/nginx/clovirone-web-assistant.conf` · `logrotate-clovirone-web-assistant` | **지웠다.** 설치기는 옛 유닛을 **이름으로만** 안다(`LEGACY_UNITS`) — 이전할 때 찾아 멈추고 스냅샷에 담기 위해서다. 저장소 안의 파일 사본은 아무도 안 읽는다 |
+| `scripts/build-bundle.sh` | **남긴다.** `MANIFEST.sha256` 을 만드는 **유일한** 자리이고 `install.sh --source bundle` 이 그것을 읽는다. 산출물 이름만 새 slug 로 갈았다(`clovirassist-bundle.tar.gz`) |
+| `scripts/lxd_rehearsal.sh` | **남긴다.** 옛 slug 설치를 **일부러 만들어** 이전을 리허설한다 — 옛 이름이 여기 있는 것이 그 시험의 내용이다 |
+
+🔴 **지우면서 갭 하나를 찾았다.** 옛 `backup-*.sh` 는 사용자가 올린 파일
+(`/var/lib/<slug>`)을 담았는데 `deploy/install.sh::take_snapshot` 은 안 담았다 — DB 덤프만
+있고 첨부 파일이 없는 스냅샷이라, 되돌리면 「행은 있는데 파일이 없는」 상태가 된다. 옛
+스크립트의 시험이 계속 초록이라 두 벌을 유지하는 동안 아무도 못 봤다. 설치기에 넣었고
+(`data.tar.gz`, 모델 파일은 제외) rollback 이 소유권까지 다시 잡는다.
 
 | **S4 가 만든 것** | 상태 |
 |---|---|

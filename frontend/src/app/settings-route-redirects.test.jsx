@@ -5,12 +5,18 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import "@testing-library/jest-dom/vitest";
 
-/* PA-RC-0017: 시스템 설정·유지보수·Notion 관리·AI 관리는 화면이 아니라 /settings의 탭이
- * 됐다(SettingsShell.jsx) — 옛 주소 네 개(/system, /maintenance, /notion-console,
- * /llm-console)가 죽은 링크나 대시보드로 튕기지 않고, 정확히 자기 몫의 탭으로 떨어지는가를
- * 지킨다(Handoff 수용 기준: "39개 기존 URL은 새 위치로 리다이렉트해야 한다 — 404도, 뭉뚱그린
- * 대시보드 튕김도 안 된다"). 나머지 35개 URL은 경로 자체가 안 바뀌었으므로(사이드바 그룹만
- * 재편됐다) 여기서 따로 볼 게 없다 — AdminRoutes.jsx의 <Route>가 그대로다.
+/* PA-RC-0017: 시스템 설정·유지보수·AI 관리는 화면이 아니라 /settings의 탭이
+ * 됐다(SettingsShell.jsx) — 옛 주소 세 개(/system, /maintenance, /llm-console)가 죽은
+ * 링크나 대시보드로 튕기지 않고, 정확히 자기 몫의 탭으로 떨어지는가를 지킨다(Handoff 수용
+ * 기준: "39개 기존 URL은 새 위치로 리다이렉트해야 한다 — 404도, 뭉뚱그린 대시보드 튕김도
+ * 안 된다"). 나머지 35개 URL은 경로 자체가 안 바뀌었으므로(사이드바 그룹만 재편됐다) 여기서
+ * 따로 볼 게 없다 — AdminRoutes.jsx의 <Route>가 그대로다.
+ *
+ * 넷째 주소 `/notion-console` 만 예외로 **리다이렉트가 아니라 404** 다. 리다이렉트의 수용
+ * 기준은 "새 위치가 있다"를 전제하는데 그 도착지였던 '연동' 탭이 통째로 없어졌기 때문이다.
+ * 없는 탭으로 보내면 사용자는 엉뚱한 화면(시스템 정책)을 보면서 왜 그런지 듣지 못한다 —
+ * 뭉뚱그린 대시보드 튕김이 나쁜 것과 정확히 같은 이유다. 아래 마지막 테스트가 그 갈래를
+ * 못박는다.
  */
 
 const apiMock = vi.fn();
@@ -56,7 +62,6 @@ function renderRoute(path) {
 describe("옛 설정류 주소 → /settings 탭 리다이렉트", () => {
   it.each([
     ["/system", "OS와 서비스 동작"],
-    ["/notion-console", "연동"],
     ["/llm-console", "AI"],
     ["/maintenance", "시스템 정책"],
   ])("%s 는 대시보드가 아니라 '%s' 탭으로 간다", async (path, tabLabel) => {
@@ -76,5 +81,14 @@ describe("옛 설정류 주소 → /settings 탭 리다이렉트", () => {
     expect(await screen.findByText("권한이 없습니다", {}, WAIT)).toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: "시스템 정책" })).not.toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: "OS와 서비스 동작" })).not.toBeInTheDocument();
+  });
+
+  // 옛 '연동' 탭 주소. 즐겨찾기에 남아 있을 수 있으니 조용히 어딘가로 떨어뜨리지 않고,
+  // 없어진 주소라고 말한다. 여기서 '연동' 탭이 다시 보이면 화면이 되살아난 것이다.
+  it("/notion-console 은 없어진 주소라고 말한다 — 설정 탭으로 몰래 보내지 않는다", async () => {
+    renderRoute("/notion-console");
+    expect(await screen.findByText("찾을 수 없습니다", {}, WAIT)).toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "연동" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "대시보드" })).not.toBeInTheDocument();
   });
 });

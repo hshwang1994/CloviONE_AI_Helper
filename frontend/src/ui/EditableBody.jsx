@@ -5,7 +5,7 @@ import Stack from "@mui/material/Stack";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
-import { BodyEditor, BodyPreview, BODY_MAX_LINES, editorContainerSx, editorSurfaceWidthSx } from "./BodyEditor.jsx";
+import { BodyEditor, BODY_MAX_LINES, editorContainerSx, editorSurfaceWidthSx } from "./BodyEditor.jsx";
 import { Button, Callout, useConfirm, useToast } from "./kit.jsx";
 import { FONT_SIZE, PROSE_MAX_WIDTH } from "./theme.js";
 
@@ -17,16 +17,16 @@ const EDIT_SURFACE_CONTAINER = "editable-body-edit";
 /* 본문 읽기, 편집 패널 (티켓 본문과 문서 본문이 **같은 컴포넌트**를 쓴다).
  *
  * 처음에는 티켓에만 있었다(TicketBody.jsx). 문서 편집을 붙이면서 그대로 복사할 뻔했는데,
- * 이 패널이 다루는 것은 화면 장식이 아니라 **조용히 틀리면 가장 비싼 상태 세 가지**다:
+ * 이 패널이 다루는 것은 화면 장식이 아니라 **조용히 틀리면 가장 비싼 상태 두 가지**다:
  *
- * 1) **"저장은 됐지만 원본과 어긋남"을 성공으로 보고하지 않는다.** 서버는 정본(우리 DB)을
- *    먼저 쓰고 그다음 원본(Notion)에 민다. 그래서 원본이 죽어도 사용자 글은 살아남지만,
- *    그 상태를 "저장했습니다"로만 알리면 사용자는 원본이 갱신된 줄 알고 회의에 들어간다.
- *    응답의 synced:false 와 상세의 body_sync_error 가 화면에 보여야 한다.
- * 2) **본문을 못 읽은 상태에서는 편집을 열지 않는다.** 빈 편집기로 저장하면 그게 곧 본문
+ * 1) **본문을 못 읽은 상태에서는 편집을 열지 않는다.** 빈 편집기로 저장하면 그게 곧 본문
  *    삭제다. 되돌릴 수 없는 종류의 실수다.
- * 3) **편집을 시작할 때 받은 지문(base_version)을 저장에 실어 보낸다.** 안 보내면 그 사이
+ * 2) **편집을 시작할 때 받은 지문(base_version)을 저장에 실어 보낸다.** 안 보내면 그 사이
  *    먼저 저장한 사람의 글을 통째로 지우고 양쪽 다 성공 토스트를 본다.
+ *
+ * 여기 세 번째가 있었다: "저장은 됐지만 원본(Notion)과 어긋남"을 성공으로 보고하지 않는
+ * 것. 그 상태는 정본이 두 곳에 있을 때만 존재했고, 정본이 이 서버 하나가 된 뒤로는 밀어
+ * 넣을 원본이 없어 어긋날 짝이 없다. 서버도 응답에서 synced 와 body_sync_error 를 걷었다.
  *
  * 이걸 두 벌로 두면 한쪽에서 고친 버그가 다른 쪽에 남는다. 이 저장소가 서버 쪽에서 반복해
  * 적어 온 그 이유("판정을 두 벌로 적지 않는다")가 화면에도 똑같이 적용된다.
@@ -41,9 +41,8 @@ export function lineCount(text) {
   return (text || "").split("\n").length;
 }
 
-/* 원본에 우리가 마크다운으로 표현할 수 없는 블록(이미지, 표, 컬럼…)이 있는가.
- * 2026-08 이전에는 저장이 그 블록을 지웠고 이 값은 '경고'용이었다. 지금은 지우지 않으므로
- * '위치가 앞으로 모인다'는 안내용이다 — 사라진다고 말하면 안 된다(사실이 아니다). */
+/* 본문에 이 편집기가 마크다운으로 표현할 수 없는 블록(이미지, 표, 컬럼…)이 있는가.
+ * 저장이 그 블록을 지우지는 않는다 — 사라진다고 말하면 안 된다(사실이 아니다). */
 export function hasUnsupportedBlocks(blocks) {
   return (blocks || []).some((b) => b && b.kind === "unsupported");
 }
@@ -59,7 +58,7 @@ export function hasNestedBlocks(blocks) {
 
 export function EditableBody({
   editorId, endpoint, invalidateKeys = [], heading = "본문", placeholder,
-  blocks, bodyMarkdown, bodyVersion, bodyIsLocal, bodySyncError, sourceView, onSaved,
+  blocks, bodyMarkdown, bodyVersion, sourceView, onSaved,
   // VIS-135: 화면에 이 버튼과 경쟁하는 다른 "수정" 입구가 따로 있을 때만(현재는 Ticket.jsx)
   // 그 차이를 밝히는 툴팁을 준다. TeamDoc.jsx처럼 경쟁하는 입구가 없는 소비처는 안 줘도
   // 되므로 기본값 없음 — 없는 문제를 있다고 말하면 안 된다.
@@ -112,15 +111,12 @@ export function EditableBody({
          갱신된 최신값이 섞여 이 보호 장치가 무력화된다. */
       method: "PUT", body: { body_markdown: body, base_version: baseVersion },
     }),
-    onSuccess: (res) => {
+    onSuccess: () => {
       setEditing(false);
       invalidateKeys.forEach((key) => qc.invalidateQueries({ queryKey: key, refetchType: "all" }));
-      if (res && res.synced === false) {
-        // 절반의 성공을 성공으로 보고하지 않는다.
-        toast("본문은 저장했지만 원본(Notion) 반영에 실패했습니다. 아래에서 다시 시도할 수 있습니다.", "error");
-      } else {
-        toast("본문을 저장했습니다.", "success");
-      }
+      /* 여기 「저장은 됐지만 원본 반영에 실패했습니다」 갈래가 있었다. 밀어 넣을 원본이
+         없어졌으므로 서버가 그 상태를 만들 수 없고, 응답에서 synced 도 걷었다. */
+      toast("본문을 저장했습니다.", "success");
       if (onSaved) onSaved();
     },
     onError: (e) => toast((e && e.message) || "본문을 저장하지 못했습니다. 다시 시도해 주세요.", "error"),
@@ -153,36 +149,25 @@ export function EditableBody({
               {save.isPending ? "저장 중…" : "저장"}
             </Button>
           </Stack>
-          {/* 아직 우리 정본이 없는 본문(=원본에서 읽어온 근사치)을 여기서 저장하면 평문만 남는다.
-              정본이 생긴 뒤에는 저장이 무손실이라 경고하지 않는다 — 늘 경고하면 아무도 안 읽는다. */}
-          {/* 2026-08: 저장이 더 이상 이미지·표를 지우지 않는다(notion_write.py 의
-              replace_page_body, team_docs 쪽은 notion_docs.py). 그래서 "사라집니다"라는 옛 경고를
-              실제 동작에 맞춰 고쳤다 — 틀린 경고는 안 읽히는 데서 끝나지 않고, 되는 일을
-              안 된다고 믿게 만든다. */}
-          {!bodyIsLocal ? (
-            <Box sx={{ mb: 1.5 }}>
-              <Callout tone="warn">
-                이 본문은 원본(Notion)에서 읽어온 것입니다. 여기서 저장하면 굵게, 링크 같은 인라인
-                서식은 사라지고 글자만 남습니다. 서식을 지키려면 ‘원본 열기’에서 수정하세요.
-              </Callout>
-            </Box>
-          ) : null}
+          {/* 여기 「이 본문은 원본(Notion)에서 읽어온 것입니다 … '원본 열기'에서
+              수정하세요」 경고가 있었다. body_is_local 이 거짓일 때 떴는데, 이관해 온
+              문서 110건이 전부 그 상태라 전 건에서 떴다. 밀어 넣을 원본이 없고 저장은
+              무손실이므로 그 경고는 사실이 아니었고, 가리키던 그 버튼도 이제 없다. 서버도 응답에서 body_is_local 을 걷었다. */}
           {lossy ? (
             <Box sx={{ mb: 1.5 }}>
               <Callout tone="info">
-                원본에 이 편집기가 다루지 않는 블록(이미지, 표 등)이 있습니다. 저장해도
-                그 블록은 지워지지 않습니다. 다만 원본에서의 위치는 글 앞쪽으로 모입니다.
+                본문에 이 편집기가 다루지 않는 블록(이미지, 표 등)이 있습니다. 저장해도
+                그 블록은 지워지지 않습니다. 다만 위치는 글 앞쪽으로 모입니다.
               </Callout>
             </Box>
           ) : null}
           {nested ? (
             <Box sx={{ mb: 1.5 }}>
               <Callout tone="info">
-                원본에 접히거나 중첩된 내용(토글 속 글, 여러 단계 목록 등)을 담은 블록이
+                본문에 접히거나 중첩된 내용(토글 속 글, 여러 단계 목록 등)을 담은 블록이
                 있습니다. 이 편집기에는 그 안쪽 내용까지는 실리지 않아, 저장해도 그 블록은
-                지우지 않고 그대로 둡니다. 다만 여기서 같은 줄을 고쳐 저장하면 원본에는
-                고치기 전 원래 블록과 고친 내용이 둘 다 남아 겹쳐 보일 수 있습니다. 온전히
-                수정하려면 ‘원본 열기’를 이용하세요.
+                지우지 않고 그대로 둡니다. 다만 여기서 같은 줄을 고쳐 저장하면 고치기 전
+                블록과 고친 내용이 둘 다 남아 겹쳐 보일 수 있습니다.
               </Callout>
             </Box>
           ) : null}
@@ -223,37 +208,16 @@ export function EditableBody({
       {!canEdit ? (
         <Box sx={{ mb: 1.5, maxWidth: PROSE_MAX_WIDTH }}>
           <Callout tone="danger">
-            본문을 불러오지 못해 수정할 수 없습니다. 지금 저장하면 원본 본문을 지우게 되므로
-            수정을 막았습니다. 새로고침하거나 ‘원본 열기’에서 수정하세요.
+            본문을 불러오지 못해 수정할 수 없습니다. 지금 저장하면 저장된 본문을 지우게
+            되므로 수정을 막았습니다. 잠시 후 새로고침해 주세요.
           </Callout>
         </Box>
       ) : null}
-      {bodySyncError ? (
-        <Box sx={{ mb: 1.5, maxWidth: PROSE_MAX_WIDTH }}>
-          <Callout tone="danger">
-            <Box sx={{ display: "grid", gap: 1 }}>
-              <span>
-                본문은 저장되었지만 원본(Notion)에 반영하지 못했습니다: {bodySyncError}.
-                아래 내용이 우리 쪽 정본이며, 원본에는 아직 이전 내용이 남아 있습니다.
-              </span>
-              <Box>
-                {/* 정본이 없으면 재시도가 곧 '빈 본문 밀어넣기'가 된다. 여기서는 논리상
-                    일어날 수 없지만(sync 오류는 정본 저장 뒤에만 생긴다) 막아 둔다. */}
-                <Button size="sm" disabled={save.isPending || bodyMarkdown == null}
-                  onClick={() => save.mutate({ body: bodyMarkdown, baseVersion: bodyVersion })}>
-                  {save.isPending ? "동기화 중…" : "원본에 다시 반영"}
-                </Button>
-              </Box>
-            </Box>
-          </Callout>
-        </Box>
-      ) : null}
-      {bodySyncError ? (
-        /* 원본 블록은 낡았다는 걸 이미 안다 — 우리 정본을 그린다. */
-        <BodyPreview text={bodyMarkdown} />
-      ) : (
-        sourceView
-      )}
+      {/* 여기 「본문은 저장되었지만 원본(Notion)에 반영하지 못했습니다」 배너와
+          「원본에 다시 반영」 버튼(누르는 동안 「동기화 중…」)이 있었다. 밀어 넣을
+          원본이 없어졌으므로 그 상태를 만들 방법이 없고, 서버도 응답에서
+          body_sync_error 를 걷었다. 그래서 본문은 언제나 소스 렌더러로 그린다. */}
+      {sourceView}
     </Box>
   );
 }

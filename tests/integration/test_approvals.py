@@ -304,14 +304,16 @@ def test_integration_endpoint_change_gated_for_admin(client, login_as):
     integ = client.post(
         "/api/admin/integrations",
         json={"name": "게이트 연동", "provider_type": "http_service",
-              "base_url": "https://api.notion.com"},
+              "base_url": "https://api.anthropic.com/v1"},
         headers=_headers(sys_csrf),
     ).json()["integration"]
 
     admin_csrf = login_as("admin", email="integ-editor@goodmit.co.kr")
+    # 허용 목록은 host:port 만 보므로 **경로로** 가른다 — 값이 실제로 달라져야 민감 필드
+    # 변경으로 잡힌다(같은 값이면 바뀐 것이 없어 게이트에 닿지도 않는다).
     r = client.patch(
         f"/api/admin/integrations/{integ['id']}",
-        json={"base_url": "https://api.anthropic.com"},
+        json={"base_url": "https://api.anthropic.com/v2"},
         headers=_headers(admin_csrf),
     )
     assert r.status_code == 202

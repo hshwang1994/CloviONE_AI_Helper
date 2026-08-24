@@ -25,7 +25,6 @@ import pytest
 from sqlalchemy import select
 
 from app.tickets.models import TicketAttachment, TicketCache, utcnow
-from tests.fakes.notion import DEFAULT_PROJECTS_DB, FakeNotionTasksDB, project_row, task_row
 
 pytestmark = pytest.mark.security
 
@@ -38,26 +37,7 @@ PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 64
 
 
 @pytest.fixture()
-def notion(fake_http) -> FakeNotionTasksDB:
-    return FakeNotionTasksDB(
-        rows=[
-            task_row(page_id=MINE, tid=1, title="우리팀 티켓", status="진행",
-                     people=[NID_MINE], project_ids=["px-ours"]),
-            task_row(page_id=THEIRS, tid=2, title="남의팀 티켓", status="진행",
-                     people=[NID_THEIRS], project_ids=["px-theirs"]),
-            # 담당자를 앱 계정으로 해석할 수 없는 티켓. 0060 부터 그 사실은 가시성과
-            # 무관하고, 소속(우리 팀 프로젝트)이 판정한다.
-            task_row(page_id=GHOST, tid=3, title="담당자 미해석", status="진행",
-                     people=["notion-x"], project_ids=["px-ours"]),
-        ],
-        projects=[project_row(page_id="px-ours", name="우리 프로젝트"),
-                  project_row(page_id="px-theirs", name="남의 프로젝트")],
-        projects_db=DEFAULT_PROJECTS_DB,
-    ).install(fake_http)
-
-
-@pytest.fixture()
-def world(client, settings, notion, make_user, make_project, db, app):
+def world(settings, make_user, make_project, make_ticket, db):
     """부서가 갈린 두 사용자 + 세 티켓 + 각 티켓에 붙은 첨부.
 
     첨부는 업로드 API 가 아니라 직접 만든다 — 업로드는 편집 권한(`ensure_can_edit`)에 먼저
@@ -68,9 +48,7 @@ def world(client, settings, notion, make_user, make_project, db, app):
     from app.org.constants import DEFAULT_ORG_ID
     from app.org.models import Department
     from app.tickets import attachments as ticket_attachments
-    from app.tickets.sync import sync_tickets
 
-    (settings.secrets_dir / "notion_report_token").write_text("t", encoding="utf-8")
     mine_dept = Department(name="우리팀", org_id=DEFAULT_ORG_ID)
     theirs_dept = Department(name="남의팀", org_id=DEFAULT_ORG_ID)
     db.add_all([mine_dept, theirs_dept])
@@ -83,15 +61,19 @@ def world(client, settings, notion, make_user, make_project, db, app):
     db.add(UserNotionMapping(user_id=other.id, notion_user_id=NID_THEIRS, status=STATUS_VERIFIED))
     db.commit()
 
-    # Portal 프로젝트를 **동기화 전에** 만든다 — 티켓 소속은 프로젝트가 정하고,
-    # 그 해석은 동기화 시점에 일어난다(app/tickets/project_link.py).
-    make_project(name="우리 프로젝트", dept=mine_dept, external_id="px-ours")
-    make_project(name="남의 프로젝트", dept=theirs_dept, external_id="px-theirs")
+    # Portal 프로젝트를 **티켓보다 먼저** 만든다 — 티켓 소속은 프로젝트가 정하고,
+    # 그 해석은 티켓을 심는 시점에 일어난다(app/tickets/project_link.py).
+    ours = make_project(name="우리 프로젝트", dept=mine_dept, external_id="px-ours")
+    theirs_project = make_project(name="남의 프로젝트", dept=theirs_dept, external_id="px-theirs")
 
-    with app.state.session_factory() as s:
-        sync_tickets(s, outbound=app.state.outbound_client, settings=settings,
-                     now=app.state.clock.now())
-        s.commit()
+    make_ticket(page_id=MINE, project=ours, tid=1, title="우리팀 티켓",
+                status="진행", assignees=[NID_MINE])
+    make_ticket(page_id=THEIRS, project=theirs_project, tid=2, title="남의팀 티켓",
+                status="진행", assignees=[NID_THEIRS])
+    # 담당자를 앱 계정으로 해석할 수 없는 티켓. 0060 부터 그 사실은 가시성과 무관하고,
+    # 소속(우리 팀 프로젝트)이 판정한다.
+    make_ticket(page_id=GHOST, project=ours, tid=3, title="담당자 미해석",
+                status="진행", assignees=["notion-x"])
 
     def _uid(page_id: str) -> str:
         return db.execute(

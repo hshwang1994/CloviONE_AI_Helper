@@ -326,18 +326,19 @@ def test_anonymous_cannot_read_comments(client, notion):
     assert r.status_code == 401
 
 
-# ── 티켓이 Notion 에서 사라졌을 때 ───────────────────────────────────────────
+# ── 「소스에서 사라졌다」로 표시된 티켓을 정리할 때 ─────────────────────────
 
-def test_pruning_a_ticket_does_not_wedge_the_mirror(client, api, db, settings, fake_clock):
-    """FK 가 걸린 댓글이 남아 있으면 캐시 행 DELETE 가 실패하고, sync 는 예외를 통째로
-    삼키므로 티켓 미러가 조용히 멈춘다. ON DELETE CASCADE 로 그 함정을 막는다.
+def test_purging_a_marked_ticket_does_not_wedge_the_cleanup(client, api, db, settings, fake_clock):
+    """FK 가 걸린 댓글이 남아 있으면 티켓 행 DELETE 가 실패하고, 보존 정리는 예외를 통째로
+    삼키므로 정리가 조용히 멈춘다. ON DELETE CASCADE 로 그 함정을 막는다.
 
-    `keep` 에 **다른 티켓을 남긴다** — 예전에는 `keep=set()` 으로 이 상황을 만들었지만
-    이제 그건 `core.sync_prune` 의 바닥이 거부한다(소스가 0건이면 소스를 의심한다).
-    여기서 확인하려는 것은 '정상적으로 한 건이 사라졌을 때 댓글이 DELETE 를 막지 않는가' 다.
+    표시를 **손으로 심는다.** 예전에는 동기화의 프룬 함수가 그 표시를 찍었고 시험도 그
+    함수를 불렀다. 그 동기화는 사라졌지만 이관해 온 데이터베이스에는 **이미 표시가 찍힌
+    행이 남아 있고**, 유예를 넘기면 그 행을 지우는 것은 지금도 보존 정리의 일이다
+    (`app/core/retention.py::purge_missing_tickets`). 여기서 지켜야 하는 것은 표시를 누가
+    찍었는가가 아니라 **그 행을 지울 때 댓글이 DELETE 를 막지 않는가**다.
     """
     from app.tickets.models import TicketCache as _TC
-    from app.tickets import sync
 
     csrf = api("a@goodmit.co.kr", name="가")
     _post(client, csrf, f"/api/tickets/{PAGE_ID}/comments", {"body": "댓글"})
@@ -352,15 +353,19 @@ def test_pruning_a_ticket_does_not_wedge_the_mirror(client, api, db, settings, f
     from app.core.retention import MISSING_TICKET_GRACE_DAYS, purge_missing_tickets
 
     marked_at = datetime(2026, 8, 6, 9, 0)
-    sync._prune(db, keep={"still-there"}, now=marked_at)  # 이 티켓만 Notion 에서 사라진 상황
-    db.flush()
-
-    # 0043: prune 은 **표시만** 한다 — 댓글은 그대로 살아 있다(한 회차 깜빡임이면 돌아온다).
     marked = db.execute(
         select(TicketCache).where(TicketCache.notion_page_id == PAGE_ID)
     ).scalar_one()
-    assert marked.notion_missing_at == marked_at
+    marked.notion_missing_at = marked_at
+    db.flush()
+
+    # 0043: 표시 단계에서는 아무것도 안 지운다 — 댓글은 그대로 살아 있다(한 회차
+    # 깜빡임이면 돌아온다). 유예 안에서 지워 버리면 그 댓글은 어디서도 못 돌아온다.
     assert db.execute(select(TicketComment)).scalars().all(), "표시 단계에서 댓글이 사라졌다"
+    assert purge_missing_tickets(db, now=marked_at + timedelta(days=1)) == 0, (
+        "유예가 지나기도 전에 지웠다"
+    )
+    assert db.execute(select(TicketComment)).scalars().all()
 
     # 유예를 넘기면 그때 진짜로 지운다. **이 테스트의 원래 목적이 여기로 옮겨왔다** —
     # FK 가 걸린 댓글이 남아 있어도 그 DELETE 가 실패하지 않아야 한다(실패하면 정리가

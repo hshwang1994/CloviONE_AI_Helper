@@ -107,7 +107,7 @@ describe("페이지에 h1이 하나뿐이다 (SEM-03 재검증)", () => {
 // ── 본문 편집 ────────────────────────────────────────────────────────────────
 
 describe("본문 편집", () => {
-  it("Notion 반영에 실패하면 '저장했습니다'로 끝내지 않고 어긋난 사실과 재시도를 보여준다", async () => {
+  it("옛 synced:false 가 되돌아와도 「원본 반영 실패」를 만들어 내지 않는다", async () => {
     const user = userEvent.setup();
     let detail = detailPayload();
     apiMock.mockImplementation((path, opts) => {
@@ -127,11 +127,14 @@ describe("본문 편집", () => {
     await user.click(await screen.findByRole("button", { name: "본문 수정" }));
     await user.click(screen.getByRole("button", { name: "저장" }));
 
-    // 토스트가 실패를 말하고,
-    expect(await screen.findByText(/원본\(Notion\) 반영에 실패/)).toBeInTheDocument();
-    // 화면에 남는 배너로도 말한다(토스트는 8초 뒤 사라진다).
-    expect(await screen.findByText(/원본\(Notion\)에 반영하지 못했습니다/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "원본에 다시 반영" })).toBeInTheDocument();
+    /* 예전에는 이 시험이 반대를 단언했다: 원본 push 가 실패하면 토스트와 배너,
+       그리고 「원본에 다시 반영」 버튼을 보여 준다. 밀어 넣을 원본이 없어졌으므로 서버가
+       그 상태를 만들 수 없고, 응답에서 synced 와 body_sync_error 도 걷었다. 화면이 그
+       옛 필드를 보고 배너를 되살리면 사용자는 누를 곳이 없는 실패를 영원히 보게 된다. */
+    expect(await screen.findByText("본문을 저장했습니다.")).toBeInTheDocument();
+    expect(screen.queryByText(/반영에 실패/)).toBeNull();
+    expect(screen.queryByText(/반영하지 못했습니다/)).toBeNull();
+    expect(screen.queryByRole("button", { name: "원본에 다시 반영" })).toBeNull();
   });
 
   it("성공하면 성공이라고만 말한다", async () => {
@@ -165,7 +168,7 @@ describe("본문 편집", () => {
     wrap();
 
     expect(await screen.findByRole("button", { name: "본문 수정" })).toBeDisabled();
-    expect(screen.getByText(/지금 저장하면 원본 본문을 지우게 되므로/)).toBeInTheDocument();
+    expect(screen.getByText(/지금 저장하면 저장된 본문을 지우게/)).toBeInTheDocument();
   });
 
   it("편집기는 서버가 준 마크다운으로 열린다 — 빈 칸으로 열면 저장이 곧 삭제다", async () => {
@@ -204,7 +207,10 @@ describe("본문 편집", () => {
     expect(screen.getByText(/그 블록은 지워지지 않습니다/)).toBeInTheDocument();
   });
 
-  it("아직 우리 정본이 없으면 '서식이 평문이 된다'고 먼저 알린다", async () => {
+  it("옛 body_is_local:false 가 되돌아와도 서식 손실을 경고하지 않는다", async () => {
+    /* 예전에는 이 시험이 반대를 단언했다: 근사치를 고칠 때 「인라인 서식은 사라지고
+       글자만 남습니다」를 먼저 알린다. 이관해 온 행이 전부 그 상태로 남아 있어 경고가
+       전 건에서 떴는데, 밀어 넣을 원본이 없고 저장은 무손실이라 사실이 아니다. */
     const user = userEvent.setup();
     apiMock.mockImplementation((path) => Promise.resolve(route(path, [
       ["/api/tickets/page-1/comments", { ok: true, comments: [] }],
@@ -214,10 +220,11 @@ describe("본문 편집", () => {
     wrap();
     await user.click(await screen.findByRole("button", { name: "본문 수정" }));
 
-    expect(screen.getByText(/굵게, 링크 같은 인라인\s*서식은 사라지고/)).toBeInTheDocument();
+    expect(screen.queryByText(/굵게, 링크 같은 인라인\s*서식은 사라지고/)).toBeNull();
+    expect(screen.queryByText(/원본\(Notion\)에서 읽어온 것입니다/)).toBeNull();
   });
 
-  it("정본이 생긴 뒤에는 저장이 무손실이라 경고하지 않는다", async () => {
+  it("정본 표시가 있어도 마찬가지로 경고하지 않는다", async () => {
     const user = userEvent.setup();
     apiMock.mockImplementation((path) => Promise.resolve(route(path, [
       ["/api/tickets/page-1/comments", { ok: true, comments: [] }],

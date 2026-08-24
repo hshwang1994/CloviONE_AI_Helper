@@ -1,9 +1,0 @@
-{
-  "configured": false,
-  "message": "Notion 연동 토큰이 설정되지 않았습니다.",
-  "ok": false,
-  "window": {
-    "end_exclusive": "2026-07-20",
-    "start": "2026-07-13"
-  }
-}

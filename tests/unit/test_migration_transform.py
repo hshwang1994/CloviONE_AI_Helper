@@ -8,12 +8,14 @@ qa-contract-change: 옛 정책은 소스 `티켓 ID` 의 접두사(`GIT`)를 이
 
 from __future__ import annotations
 
+import json
 from datetime import date, datetime
 
 import pytest
 
 from app.knowledge import blocks as block_mod
 from app.migration import transform
+from app.migration.source_notion import NotionSourceError
 from app.work import models as work_models
 
 pytestmark = pytest.mark.unit
@@ -148,6 +150,23 @@ def _block(btype: str, text: str = "", **extra) -> dict:
             btype: {"rich_text": [_rich(text)] if text else [], **extra}}
 
 
+def _table_row(*cells: str) -> dict:
+    """Notion `table_row` 하나. 셀은 rich_text 목록의 목록이다(실측 모양 그대로)."""
+    return {"id": "b-row", "type": "table_row",
+            "table_row": {"cells": [[_rich(cell)] if cell else [] for cell in cells]}}
+
+
+def _image_block(block_id: str, url: str, caption: str) -> dict:
+    return {"id": block_id, "type": "image",
+            "image": {"caption": [_rich(caption)] if caption else [],
+                      "type": "file", "file": {"url": url}}}
+
+
+def _external_image_block(block_id: str, url: str) -> dict:
+    return {"id": block_id, "type": "image",
+            "image": {"caption": [], "type": "external", "external": {"url": url}}}
+
+
 def test_headings_lists_code_and_dividers_all_survive():
     doc = transform.notion_blocks_to_doc([
         _block("heading_2", "배경"),
@@ -183,11 +202,203 @@ def test_the_result_passes_the_product_schema():
 
 
 def test_an_unsupported_block_leaves_a_trace_instead_of_vanishing():
-    """표·이미지를 지우면 **그 자리가 있었다는 사실**까지 사라진다."""
-    doc = transform.notion_blocks_to_doc([_block("table"), _block("image")])
+    """정말 못 옮기는 것은 **사람이 읽는 한 문장**으로 남는다 (S14).
+
+    옛 회차는 `[원본에서 확인: child_database]` 를 넣었다. 그것은 두 가지를 한꺼번에
+    틀린다: 내부 타입 이름을 사용자에게 보여 주고, 이미지·표처럼 **옮길 수 있는 것**까지
+    글자로 바꿔 버렸다. 지금은 정말 못 옮기는 것만 여기 온다.
+    """
+    doc = transform.notion_blocks_to_doc([_block("child_database")])
     text = block_mod.to_text(block_mod.normalize(doc))
-    assert "원본에서 확인" in text
-    assert "table" in text and "image" in text
+    assert "원본에서 확인" not in text, "내부 타입 이름이 사용자에게 보인다"
+    assert "child_database" not in text
+    assert text.strip() == "원본에만 있는 내용입니다."
+
+
+def test_a_table_keeps_every_cell_and_marks_its_header():
+    """표 셀의 글자가 남는가. 실측에서 이 자리가 31,310자를 통째로 잃던 곳이다."""
+    table = _block("table", table_width=2, has_column_header=True, has_row_header=False)
+    table["_children"] = [
+        _table_row("항목", "값"),
+        _table_row("메모리", "16GB"),
+    ]
+    doc = transform.notion_blocks_to_doc([table])
+    assert [node["type"] for node in doc["content"]] == ["table"]
+    rows = doc["content"][0]["content"]
+    assert [cell["type"] for cell in rows[0]["content"]] == ["tableHeader", "tableHeader"]
+    assert [cell["type"] for cell in rows[1]["content"]] == ["tableCell", "tableCell"]
+    assert rows[0]["content"][0]["attrs"] == {
+        "colspan": 1, "rowspan": 1, "colwidth": None,
+    }
+    text = block_mod.to_text(block_mod.normalize(doc))
+    for word in ("항목", "값", "메모리", "16GB"):
+        assert word in text, f"«{word}» 가 사라졌다"
+
+
+def test_a_row_header_table_marks_the_first_column():
+    table = _block("table", table_width=2, has_column_header=False, has_row_header=True)
+    table["_children"] = [_table_row("이름", "값")]
+    doc = transform.notion_blocks_to_doc([table])
+    kinds = [cell["type"] for cell in doc["content"][0]["content"][0]["content"]]
+    assert kinds == ["tableHeader", "tableCell"]
+
+
+def test_an_empty_cell_still_holds_one_paragraph():
+    """빈 셀에 문단이 없으면 ProseMirror 가 그 표를 통째로 버린다 (D3)."""
+    table = _block("table", table_width=2, has_column_header=False, has_row_header=False)
+    table["_children"] = [_table_row("있음", "")]
+    doc = transform.notion_blocks_to_doc([table])
+    empty = doc["content"][0]["content"][0]["content"][1]
+    assert empty["content"] == [{"type": "paragraph"}]
+    block_mod.normalize(doc)
+
+
+def test_an_image_becomes_a_node_pointing_at_our_endpoint():
+    """이미지는 노드가 되고 `src` 는 **우리 주소**다 (D3 · D4)."""
+    block = _image_block("b-img", "https://prod-files-secure.s3.example/x.png", "설계도")
+    doc = transform.notion_blocks_to_doc(
+        [block], media_urls={"b-img": "/api/knowledge/attachments/att-1/content"}
+    )
+    assert doc["content"][0] == {
+        "type": "image",
+        "attrs": {
+            "src": "/api/knowledge/attachments/att-1/content",
+            "alt": "설계도", "title": None,
+        },
+    }
+    block_mod.normalize(doc)
+
+
+def test_an_image_never_carries_the_notion_signed_url():
+    """서명 주소는 한 시간이면 죽는다. 남기면 화면에 깨진 그림만 남는다 (D4)."""
+    signed = "https://prod-files-secure.s3.us-west-2.amazonaws.com/x.png?X-Amz-Expires=3600"
+    doc = transform.notion_blocks_to_doc([_image_block("b-img", signed, "")])
+    assert "prod-files-secure" not in json.dumps(doc, ensure_ascii=False)
+    text = block_mod.to_text(block_mod.normalize(doc))
+    assert text.strip() == "원본에만 있는 이미지입니다."
+
+
+def test_a_lost_image_keeps_its_caption():
+    doc = transform.notion_blocks_to_doc([_image_block("b-img", "https://x/y.png", "회로도")])
+    text = block_mod.to_text(block_mod.normalize(doc))
+    assert "회로도" in text
+
+
+def test_a_file_block_becomes_a_readable_link():
+    block = {
+        "id": "b-file", "type": "file",
+        "file": {"caption": [], "name": "규격서.pdf",
+                 "file": {"url": "https://prod-files-secure.s3.example/spec.pdf"}},
+    }
+    doc = transform.notion_blocks_to_doc(
+        [block], media_urls={"b-file": "/api/knowledge/attachments/att-2/content"}
+    )
+    node = doc["content"][0]
+    assert node["type"] == "paragraph"
+    assert node["content"][0]["text"] == "규격서.pdf"
+    assert node["content"][0]["marks"] == [
+        {"type": "link", "attrs": {"href": "/api/knowledge/attachments/att-2/content"}}
+    ]
+
+
+def test_heading_four_keeps_its_own_level():
+    """`heading_4` 를 3 으로 낮추면 바로 위 제목과 같은 층이 된다 — 위계가 사라진다."""
+    doc = transform.notion_blocks_to_doc([_block("heading_4", "전환 절차")])
+    assert doc["content"][0]["type"] == "heading"
+    assert doc["content"][0]["attrs"]["level"] == 4
+    assert "전환 절차" in block_mod.to_text(block_mod.normalize(doc))
+
+
+def test_structural_blocks_leave_no_placeholder():
+    """컬럼과 동기화 블록은 **자기 글자가 없다.** 자리표시자는 군더더기다."""
+    column = _block("column")
+    column["_children"] = [_block("paragraph", "왼쪽 글")]
+    wrapper = _block("column_list")
+    wrapper["_children"] = [column]
+    doc = transform.notion_blocks_to_doc([wrapper])
+    assert [node["type"] for node in doc["content"]] == ["paragraph"]
+    assert block_mod.to_text(block_mod.normalize(doc)).strip() == "왼쪽 글"
+
+
+def test_media_is_collected_from_nested_blocks():
+    """실측에서 이미지는 토글과 컬럼 안에 들어 있다. 최상위만 보면 조용히 빠진다."""
+    inner = _image_block("b-inner", "https://x/a.png", "")
+    toggle = _block("toggle", "접힘")
+    toggle["_children"] = [inner]
+    found = transform.media_of("page-1", [toggle, _image_block("b-top", "https://x/b.png", "")])
+    assert [item.block_id for item in found] == ["b-inner", "b-top"]
+    assert [item.legacy_id for item in found] == ["block:b-inner", "block:b-top"]
+    assert [item.name for item in found] == ["a.png", "b.png"]
+
+
+def test_a_data_uri_external_image_is_treated_as_ours_to_move():
+    """🔴 「외부」인데 실제로는 이미지가 그 자리에 그대로 박혀 있는 경우다 (data: URI).
+
+    실측: 1,235쪽 중 1건. 진짜 외부 링크가 아니라 내려받을 곳이 없는 바이트라, 링크
+    문단으로 그대로 남기면(`hosted=False` 취급) 그 data: 문자열이 본문에 남고
+    `blocks.py` 가 허용하지 않는 스킴이라 **문서 전체**를 거절한다. 그래서 `hosted=True`
+    로 다뤄야 `_body_media` 가 우리 저장소로 옮기는 갈래를 탄다.
+    """
+    url = "data:image/png;base64,iVBORw0KGgo="
+    found = transform.media_of("page-1", [_external_image_block("b-data", url)])
+    assert len(found) == 1
+    assert found[0].hosted is True, "data URI 를 진짜 외부 링크로 잘못 분류했다"
+    assert found[0].url == url
+
+
+def test_a_real_external_link_is_left_as_a_link_not_moved():
+    """오탐 방지 — 진짜 http(s) 외부 링크는 여전히 hosted=False 다.
+
+    위 시험이 조건 없이 hosted=True 로 만들면 이 시험이 잡는다. 진짜 외부 이미지는
+    바이트가 우리 것이 아니므로 링크 문단으로 남아야 한다(D4).
+    """
+    found = transform.media_of(
+        "page-1", [_external_image_block("b-ext", "https://example.com/a.png")]
+    )
+    assert found[0].hosted is False
+
+
+def test_media_bytes_decodes_a_data_uri_without_reaching_the_network():
+    """`data:` URI 는 `fetch` 를 안 부르고 그 자리에서 디코드한다.
+
+    `OutboundClient` 는 http/https 만 받는다 — data: URI 를 그대로 넘기면 허용 목록에서
+    거절된다. 그래서 fetch 콜백을 아예 안 태우는지를 직접 확인한다.
+    """
+    import base64
+
+    payload = b"\x89PNG\r\n\x1a\n"
+    url = "data:image/png;base64," + base64.b64encode(payload).decode()
+
+    def _boom(_url):
+        raise AssertionError("data: URI 인데 네트워크로 나갔다")
+
+    assert transform.media_bytes(url, _boom) == payload
+
+
+def test_media_bytes_still_uses_fetch_for_real_urls():
+    """오탐 방지 — data: 가 아니면 여전히 `fetch` 를 부른다."""
+    calls = []
+
+    def _fetch(url):
+        calls.append(url)
+        return b"bytes"
+
+    assert transform.media_bytes("https://example.com/a.png", _fetch) == b"bytes"
+    assert calls == ["https://example.com/a.png"]
+
+
+def test_media_bytes_rejects_a_malformed_data_uri():
+    """깨진 base64 를 조용히 삼키지 않는다 — 사람이 읽을 사유가 있어야 한다."""
+    with pytest.raises(NotionSourceError):
+        transform.media_bytes("data:image/png;base64,not-valid-base64!!!", lambda u: b"")
+
+
+def test_media_ids_are_stable_across_runs():
+    """서명 URL 은 매 조회마다 바뀐다 — 키로 쓰면 재실행이 같은 이미지를 또 받는다."""
+    block = _image_block("b-img", "https://x/a.png?X-Amz-Date=1", "")
+    again = _image_block("b-img", "https://x/a.png?X-Amz-Date=2", "")
+    assert (transform.media_of("p", [block])[0].legacy_id
+            == transform.media_of("p", [again])[0].legacy_id)
 
 
 def test_nested_list_items_keep_their_children():

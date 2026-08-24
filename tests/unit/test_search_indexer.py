@@ -1,13 +1,15 @@
 """검색 인덱서 — 무엇을 담고, **언제 안 건드리고**, 소스가 죽으면 어떻게 되는가.
 
 인덱서에서 조용히 깨지기 쉬운 세 가지를 못박는다:
-  1. 소스 하나(Notion)가 죽었을 때 **그 유형의 기존 인덱스를 지우지 않는다.** 빈 목록을
-     prune 에 흘리면 소스 장애가 곧바로 '검색 결과 소멸'로 번진다(티켓 sync 의 truncated
-     함정과 같은 모양이다 — PLAN C4).
+  1. 소스 하나가 죽었을 때 **그 유형의 기존 인덱스를 지우지 않는다.** 빈 목록을
+     prune 에 흘리면 소스 장애가 곧바로 '검색 결과 소멸'로 번진다(PLAN C4 가 이름 붙인
+     함정이고, 정본이 자체 DB 로 옮겨 와도 그대로다).
   2. 내용이 안 바뀐 행은 UPDATE 하지 않는다. external content FTS5 는 UPDATE 트리거에서
      인덱스를 지웠다 다시 넣으므로, 매 틱마다 전 행을 건드리면 인덱스를 통째로 다시 쓴다.
   3. 문서 작성자는 NAMES_SEP(\\x1f) 로 이어져 있다. 콤마로 자르면 소유자 해석이 조용히
      0명이 되고, 부서 관리자에게 문서가 통째로 안 보인다.
+
+qa-contract-change: 미러 경로 전용 시험 한 건을 지웠다 — 그 시험은 「미러가 한 번도 성공한 적 없다」는 상태로 저장소를 실시간 경로에 보내 실패를 만들었는데, 정본이 자체 DB 로 옮겨 와 그 상태 자체가 없다. 같은 성질은 바로 아래 자체 DB 경로 시험이 저장소 경계에서 실패를 만들어 그대로 지킨다.
 """
 
 from __future__ import annotations
@@ -29,8 +31,12 @@ from app.search.models import (
     SearchDocument,
     split_owner_ids,
 )
-from app.team_docs.models import DocumentCache
-from app.tickets.models import SYNC_STATE_ID, TicketCache, TicketSyncState
+from app.tickets.models import (
+    PROJECT_LINK_OK,
+    SYNC_STATE_ID,
+    TicketCache,
+    TicketSyncState,
+)
 
 pytestmark = pytest.mark.unit
 
@@ -40,8 +46,12 @@ NOTION_ID = "notion-idx-1"
 
 
 @pytest.fixture()
-def seeded(db, make_user):
+def seeded(db, make_user, make_project, make_space, make_knowledge_document):
     author = make_user(email="idx-author@goodmit.co.kr", display_name="인덱스작성자")
+    # 티켓에 **이름**이 붙으려면 프로젝트와 코드가 있어야 한다 (D-282). 트리거가
+    # `projects.code` + `seq` 로 `canonical_key` 를 만들고, 색인은 그 이름을 싣는다 —
+    # 화면에 뜬 이름으로 검색이 돼야 하기 때문이다.
+    project = make_project(name="클로비 프로젝트")
     db.commit()
     db.add(UserNotionMapping(
         user_id=author.id, notion_user_id=NOTION_ID,
@@ -55,28 +65,34 @@ def seeded(db, make_user):
         id="idx-tc-1", notion_page_id="idx-page-1", notion_ticket_number=901,
         title="인덱싱 대상 티켓", status="진행", due_date="2026-08-10",
         url="https://www.notion.so/idx-page-1",
+        project_uid=project.id, project_link=PROJECT_LINK_OK, seq=901,
         project_names=join_names(["클로비 프로젝트"]),
         assignee_notion_ids=join_names([NOTION_ID]),
         body_markdown="본문에 배포 스크립트 이야기",
         synced_at=NOW, created_at=NOW, updated_at=NOW,
-    ))
-    db.add(DocumentCache(
-        notion_page_id="idx-doc-1", title="인덱싱 대상 문서",
-        author_names=join_names(["인덱스작성자"]), owner="인덱스작성자",
-        memo="문서 메모 내용", synced_at=NOW, last_edited="2026-08-01",
     ))
     db.add(Post(
         id="idx-post-1", author_user_id=author.id, category="notice",
         title="인덱싱 대상 게시글", body="게시글 본문", created_at=NOW, updated_at=NOW,
     ))
     db.commit()
-    return {"author_id": author.id}
+
+    # 문서는 **정본**에서 온다. 공간이 권한의 단위이므로 소속도 공간이 든다 (D-245).
+    space = make_space(name="인덱싱 공간", org_wide=True)
+    document = make_knowledge_document(
+        space=space, title="인덱싱 대상 문서", text="문서 메모 내용",
+        doc_type="가이드", created_by=author, tag_names=["배포"],
+    )
+    db.commit()
+    return {
+        "author_id": author.id, "project": project, "key": f"{project.code}-901",
+        "space": space, "document_id": document.id,
+    }
 
 
 def _run(db, app, now=NOW):
     result = reindex_all(
-        db, tickets=app.state.repositories.tickets,
-        documents=app.state.repositories.documents, now=now,
+        db, tickets=app.state.repositories.tickets, now=now,
     )
     db.commit()
     return result
@@ -128,7 +144,11 @@ def test_ticket_row_carries_route_url_and_resolved_owner(db, app, seeded):
     assert row.ref_id == "idx-page-1"
     assert row.route == "/tickets/idx-page-1"
     assert row.url == "https://www.notion.so/idx-page-1"
-    assert "GIT-901" in row.body and "배포 스크립트" in row.body
+    assert seeded["key"] in row.body, (
+        f"화면에 뜬 이름으로 검색이 안 된다 (본문={row.body[:120]!r})"
+    )
+    assert "배포 스크립트" in row.body
+    assert "GIT-" not in row.body, "폐기한 옛 이름이 색인에 남아 있다 (D-283)"
     # **앱 user_id 로 해석해서** 담는다 — 원본 Notion id 를 넣으면 범위 판정이 못 한다.
     assert split_owner_ids(row.owner_user_ids) == (seeded["author_id"],)
     assert NOTION_ID not in row.owner_user_ids
@@ -207,30 +227,6 @@ def test_a_deleted_source_row_is_pruned(db, app, seeded):
 # ── 소스가 죽었을 때 ─────────────────────────────────────────────────────────
 
 
-@pytest.mark.notion_source
-def test_a_dead_notion_ticket_source_keeps_the_existing_ticket_index(db, app, seeded):
-    """PLAN C4 와 같은 함정: 빈 목록을 prune 에 흘리면 장애가 데이터 소멸이 된다.
-
-    **미러 경로 전용이다** (S14). 「미러가 한 번도 성공한 적 없다」는 상태를 만들어
-    저장소를 실시간(미설정 → 예외)으로 보내는 방식인데, 자체 DB 경로에는 그 상태가
-    아예 없다 — 표가 정본이라 「아직 안 찼다」가 성립하지 않는다. 같은 성질을 자체 DB
-    에서 보는 시험은 바로 아래에 있다.
-    """
-    _run(db, app)
-    assert len(_by_kind(db, KIND_TICKET)) == 1
-
-    # 미러를 '한 번도 성공한 적 없음'으로 되돌리면 저장소가 실시간(미설정 → 예외)으로 간다.
-    state = db.get(TicketSyncState, SYNC_STATE_ID)
-    state.last_success_at = None
-    db.commit()
-
-    result = _run(db, app, now=LATER)
-    assert result.status == "error" and "ticket" in (result.error or "")
-    assert len(_by_kind(db, KIND_TICKET)) == 1, "소스 장애로 티켓 검색이 통째로 사라졌다"
-    # 다른 유형은 계속 인덱싱된다(장애 격리).
-    assert _by_kind(db, KIND_BOARD)
-
-
 def test_a_dead_ticket_source_keeps_the_existing_ticket_index(db, app, seeded):
     """같은 성질을 **자체 DB 경로**에서 본다 (S14).
 
@@ -251,8 +247,7 @@ def test_a_dead_ticket_source_keeps_the_existing_ticket_index(db, app, seeded):
             return _boom
 
     result = reindex_all(
-        db, tickets=_DeadTickets(),
-        documents=app.state.repositories.documents, now=LATER,
+        db, tickets=_DeadTickets(), now=LATER,
     )
     db.commit()
     assert result.status == "error" and "ticket" in (result.error or "")
@@ -270,6 +265,6 @@ def test_reindex_never_raises(db, app):
         def list_documents(self, _db, **_kwargs):
             raise RuntimeError("소스가 폭발했다")
 
-    result = reindex_all(db, tickets=Exploding(), documents=Exploding(), now=NOW)
+    result = reindex_all(db, tickets=Exploding(), now=NOW)
     assert result.status == "error"
     assert "RuntimeError" in (result.error or "")

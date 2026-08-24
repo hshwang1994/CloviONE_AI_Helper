@@ -108,7 +108,7 @@ def _ticket_detail(t, *, overdue: bool) -> dict:
         "act_wd": t.act_wd,
         "difficulty": t.difficulty,
         "priority": t.priority,
-        "url": t.url,
+        # `url` 은 여기 없다 - 티켓 목록·상세와 같은 이유로 걷었다(옛 Notion 주소).
         "overdue": overdue,
     }
 

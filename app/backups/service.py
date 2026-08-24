@@ -494,7 +494,7 @@ def last_successful_backup(db: Session) -> Backup | None:
 
 
 #: 며칠은 무조건 남긴다. 개수만으로 자르면 **하루에 여러 번 돌린 날**이 그 전 며칠치
-#: 복원 지점을 한꺼번에 밀어낸다 — `scripts/backup-cron.sh` 가 배포 스냅숏에서 겪고
+#: 복원 지점을 한꺼번에 밀어낸다 — 옛 백업 cron 이 배포 스냅숏에서 겪고
 #: 「개수가 아니라 나이로 지운다」로 고쳤던 바로 그 실패다. 여기서는 **둘 다** 건다.
 DEFAULT_KEEP_DAYS = 7
 

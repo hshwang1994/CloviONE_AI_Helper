@@ -192,30 +192,6 @@ def _smtp(value: Any) -> None:
             raise ValidationAppError("메일 발송을 켜려면 보내는 사람 주소가 필요합니다.")
 
 
-def _notion_database_id(value: Any) -> None:
-    """노션 데이터베이스 id(9-4). **빈 문자열을 허용한다** - 그것이 '안 정함' 이다.
-
-    비우면 `apply_overrides` 가 덮지 않으므로 환경변수 값이 그대로 산다. 즉 '지우기' 는
-    '환경변수로 되돌리기' 다. 화면이 그 뜻을 말해야 한다.
-
-    모양만 본다: 노션이 주는 것은 32자리 16진수이거나 하이픈이 섞인 UUID 인데, 사람들이
-    붙여 넣는 것은 대개 **URL 통째**다(`https://notion.so/워크스페이스/<32자>?v=...`).
-    그걸 그대로 저장하면 조회 URL 이 망가지고 노션은 400 을 준다 - 화면은 '조회 실패' 로
-    그리고 운영자는 토큰을 의심한다. 그래서 저장 시점에 끊는다.
-    """
-    if not isinstance(value, str):
-        raise ValidationAppError("문자열이어야 합니다.")
-    text = value.strip()
-    if not text:
-        return
-    compact = text.replace("-", "")
-    if len(compact) != 32 or not all(c in "0123456789abcdefABCDEF" for c in compact):
-        raise ValidationAppError(
-            "노션 데이터베이스 id 는 32자리 16진수여야 합니다. 주소창의 링크가 아니라 "
-            "id 부분만 넣으세요."
-        )
-
-
 # LLM 설정(9-5). 빈 값 = '안 정함'(환경변수를 따른다)이라는 규약을 세 검증기가 공유한다.
 _LLM_ENABLED_CHOICES = ("", "on", "off")
 _LLM_BACKEND_CHOICES = ("", "cli", "api")
@@ -278,7 +254,7 @@ REGISTRY: dict[str, SettingSpec] = {
         SettingSpec("notification_retention_days", "int", 90, False,
                     "알림 보존 기간(일). 초과 시 백그라운드 작업이 정리", _positive_int(3650)),
         SettingSpec("trash_retention_days", "int", 7, False,
-                    "휴지통 보관 기간(일). 초과 시 노션 원본을 보관처리하고 휴지통에서 삭제", _positive_int(365)),
+                    "휴지통 보관 기간(일). 초과 시 원본을 보관처리하고 휴지통에서 삭제", _positive_int(365)),
         SettingSpec("ui_branding", "object", {"product_name": "ClovirAssist"}, False,
                     "UI 브랜딩(제품명). 로그인/채팅 화면 제목", _ui_branding),
         SettingSpec("maintenance_mode", "bool", False, False,
@@ -313,10 +289,11 @@ REGISTRY: dict[str, SettingSpec] = {
                     "허용 이메일 도메인: 사용자 생성 시 즉시 적용, 비우면 제한 없음", _email_domains),
         # config_dir/feature-flags.json에 있던 값을 관리 콘솔에서 켜고 끌 수 있게 옮긴다 —
         # 예전엔 이 값을 바꾸려면 서버 파일을 직접 편집해야 했다(Settings 화면에 노출 안 됨).
-        # ── 미러 동기화 주기 (지시 1 · 29) ──────────────────────────────────
+        # ── 주기 설정 (지시 1 · 29) ─────────────────────────────────────────
         #
-        # 예전에는 이 넷이 env 기본값 상수뿐이라 관리자 화면에 없었다. 그래서 "지금
-        # 동기화" 버튼이 사용자 목록 화면 맨 위에서 그 공백을 메우고 있었다.
+        # 예전에는 문서·티켓·프로젝트 미러 동기화 주기가 여기 함께 있었다. 그 셋은 이제
+        # 없다 — 세 미러가 사라졌고, 돌지 않는 동기화의 주기를 관리자가 고를 수 있게 두면
+        # 값을 바꾼 사람이 무언가 달라졌다고 믿는 거짓 스위치가 된다.
         #
         # 기본값 `0` 은 "서버 기본값(app/core/config.py)을 따른다" 는 뜻이다. 실제 값을
         # 여기 박아 두면 env 로 주기를 정해 둔 기존 설치가 업그레이드하는 순간 조용히
@@ -324,15 +301,6 @@ REGISTRY: dict[str, SettingSpec] = {
         #
         # `restart_required=False`: 워커 틱이 매번 이 값을 다시 읽는다
         # (app/worker_main.py). 설정 캐시 재적재가 60초 간격이므로 늦어도 그 안에 반영된다.
-        SettingSpec("notion_docs_sync_interval_seconds", "int", 0, False,
-                    "문서 동기화 주기(초). 0이면 서버 기본값을 씁니다. 최소 60초",
-                    _interval_seconds),
-        SettingSpec("notion_tickets_sync_interval_seconds", "int", 0, False,
-                    "티켓 동기화 주기(초). 0이면 서버 기본값을 씁니다. 최소 60초",
-                    _interval_seconds),
-        SettingSpec("notion_projects_sync_interval_seconds", "int", 0, False,
-                    "프로젝트 동기화 주기(초). 0이면 서버 기본값을 씁니다. 최소 60초",
-                    _interval_seconds),
         SettingSpec("search_index_interval_seconds", "int", 0, False,
                     "검색 색인 갱신 주기(초). 0이면 서버 기본값을 씁니다. 최소 60초",
                     _interval_seconds),
@@ -364,29 +332,10 @@ REGISTRY: dict[str, SettingSpec] = {
                     "메일 발송에 쓸 서버 정보. 비밀번호 자체는 저장하지 않고 서버에 따로 둔 "
                     "값을 가리키기만 합니다",
                     _smtp),
-        # ── Notion 데이터베이스 id (9-4) ─────────────────────────────────────
-        #
-        # 예전에는 이 셋을 바꾸려면 서버에 들어가 env 파일을 고치고 서비스를 재시작해야
-        # 했다. 셋업 마법사는 "넣으세요" 라고 말하는데 넣을 화면이 없었다.
-        #
-        # 저장하면 **즉시** 반영된다: 소비자는 `settings.notion_*_database_id` 를 읽고,
-        # 캐시가 저장할 때마다 그 위에 값을 얹는다(app/core/tenant_config.py::apply_overrides).
-        # 워커는 자기 틱에서 캐시를 다시 읽으므로 한 틱 뒤에 따라온다 - 화면은 그 사실을
-        # 그대로 말한다(즉시 / 워커는 다음 틱).
-        # 토큰은 여기 없다. 토큰은 시크릿 파일 참조다(app/core/secret_refs.py).
-        SettingSpec("notion_tasks_database_id", "string", "", False,
-                    "노션 작업 데이터베이스 id. 티켓 목록과 리포트가 이 데이터베이스를 읽습니다. "
-                    "비우면 서버 환경변수 값을 그대로 씁니다",
-                    _notion_database_id),
-        SettingSpec("notion_documents_database_id", "string", "", False,
-                    "노션 문서 데이터베이스 id. 팀 공간 문서 목록이 이 데이터베이스를 읽습니다. "
-                    "비우면 서버 환경변수 값을 그대로 씁니다",
-                    _notion_database_id),
-        SettingSpec("notion_sprint_database_id", "string", "", False,
-                    "팀이 쓰는 노션 스프린트 데이터베이스 id. 진단 전용입니다. 포털의 이번 주는 "
-                    "작업 데이터베이스의 마감일로 계산하므로 이 값을 넣어도 화면 내용은 바뀌지 "
-                    "않고, 두 곳이 어긋났는지만 알려 줍니다",
-                    _notion_database_id),
+        # 노션 데이터베이스 id 셋(9-4)이 여기 있었다. 티켓 목록과 문서 목록이 그 값을
+        # 읽어 노션을 조회했기 때문이다. 지금은 셋 다 자체 데이터베이스에서 나오므로
+        # 관리자가 정할 것이 없다. 옛 데이터를 한 번 읽어 오는 이관 CLI 는 데이터베이스를
+        # 제목으로 찾거나 명령행 인자로 받는다(app/migration/source_notion.py).
         # ── LLM (9-5) ────────────────────────────────────────────────────────
         #
         # 소비자는 `app/llm/provider.py::resolve_config` 다. 그 함수는 이미
@@ -421,18 +370,15 @@ REGISTRY: dict[str, SettingSpec] = {
 
 # 시스템 관리자만 바꿀 수 있는 키 (9-4, 9-5).
 #
-# 나머지 설정과 달리 이 여섯은 **설치 한 벌 전체가 어디를 보고 무엇을 띄우는가**를 정한다.
+# 나머지 설정과 달리 이 여섯은 **설치 한 벌 전체가 무엇을 띄우는가**를 정한다.
 # `CONSOLE_WRITE_ROLES` 에는 `admin` 이 들어 있고 이 제품의 `admin` 은 부서 범위로 좁혀질 수
-# 있다(`admin_scope="dept"`) - 부서 관리자가 포털 전체를 다른 노션 워크스페이스로 돌리거나
-# 이 서버가 띄우는 실행 파일 경로를 바꿀 수 있으면 안 된다.
+# 있다(`admin_scope="dept"`) - 부서 관리자가 이 서버가 띄우는 실행 파일 경로를 바꿀 수
+# 있으면 안 된다.
 #
 # 게이트를 라우터가 아니라 여기에 두는 이유: 키를 추가하는 사람과 라우터를 고치는 사람이
 # 다르다. 표 옆에 두면 새 키를 넣을 때 이 목록이 눈에 들어온다.
 SYSTEM_ADMIN_ONLY_KEYS: frozenset[str] = frozenset(
     {
-        "notion_tasks_database_id",
-        "notion_documents_database_id",
-        "notion_sprint_database_id",
         "llm_enabled",
         "llm_backend",
         "llm_executable",

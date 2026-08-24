@@ -7,13 +7,12 @@ import { Button, Card, EmptyState, ErrorState, PageHeader, Skeleton } from "../.
 import { useQueryState } from "../../lib/useQueryState.js";
 import { Settings } from "./SettingsMain.jsx";
 import { SystemOps } from "../SystemOps.jsx";
-import { NotionConsole } from "../NotionConsole.jsx";
 import { LlmConsole } from "../LlmConsole.jsx";
 import { Maintenance } from "../ops/Maintenance.jsx";
 
 /* 설정 — 6화면 IA 정리(PA-RC-0017)의 탭 그릇.
  *
- * ## 왜 여섯 화면 중 넷만 탭이 되는가
+ * ## 왜 여섯 화면 중 셋만 탭이 되는가
  *
  * Handoff는 「설정·시스템 설정·초기 설정·유지보수·Notion 관리·AI 관리」 여섯을 4탭(시스템
  * 정책/OS와 서비스 동작/연동/AI)으로 묶으라 했다. 그대로 여섯을 넷에 욱여넣으면 두 가지가
@@ -31,27 +30,34 @@ import { Maintenance } from "../ops/Maintenance.jsx";
  *    같은 모양) '시스템 정책' 탭 안에 설정 표 바로 아래로 이어붙인다 — role 집합이 사실상
  *    같은 화면끼리만 한 탭에 둔다.
  *
- * 남은 넷(설정·시스템 설정·Notion 관리·AI 관리)은 각자 role 이 탭 하나에 균일해 그대로
- * 매핑된다. 결과: 6화면 → 3목적지(설정 탭 그룹, 초기 설정, 그리고 없어짐)로 실질적으로
- * 줄었다 — Handoff의 수를 글자 그대로 맞추기보다, 탭마다 role 이 하나로 균일해야 한다는
- * 더 강한 제약(RBAC 회귀 없음)을 우선했다. 이 판단은 DECISIONS.md에 남긴다.
+ * 남은 셋(설정·시스템 설정·AI 관리)은 각자 role 이 탭 하나에 균일해 그대로 매핑된다.
+ * Handoff의 수를 글자 그대로 맞추기보다, 탭마다 role 이 하나로 균일해야 한다는 더 강한
+ * 제약(RBAC 회귀 없음)을 우선했다. 이 판단은 DECISIONS.md에 남긴다.
+ *
+ * ## 「연동」 탭이 사라진 이유
+ *
+ * 이 그릇에는 넷째 탭 「연동」이 있었고 그 안에는 Notion 관리 화면 하나만 들어 있었다.
+ * 티켓과 문서와 프로젝트가 이 서버의 데이터베이스에서 나오게 되면서 그 화면이 고치던
+ * 값(노션 토큰과 데이터베이스 id)이 제품에서 없어졌고, 화면도 함께 없어졌다. 그래서 탭도
+ * 뺀다 — 누를 수는 있는데 아무것도 안 들어 있는 탭은 사용자에게 「여기에 무언가 있는데 내가
+ * 못 보는 것」으로 읽히고, 그것은 없는 것을 있는 척 그리는 일이다. 외부 연동은 원래부터
+ * 자기 화면(`#/integrations`)과 자기 사이드바 항목을 갖고 있으므로 이 탭이 없어져도 갈 곳을
+ * 잃지 않는다.
  *
  * ## role 게이트를 두 번 거는 이유
  *
- * `visibleTabs`가 이미 role 로 걸러 `tab` 이 "os"/"integration"/"ai" 가 되는 순간 role 은
- * system_admin 으로 보장된다 — 그런데도 아래 렌더 분기에 role 검사를 한 번 더 남긴다.
- * SystemOps/NotionConsole/LlmConsole 은 지금까지 라우트의 RequireRole 하나에만 기대 왔고
- * 자체 role 검사가 없다(Settings/Maintenance 와 달리) — 이 화면들이 처음으로 "라우트가
- * 아니라 탭 상태"로 접근 가능해지는 지점이라, 파생 로직 한 곳의 실수가 OS 특권 동작을
- * 그대로 노출시킬 수 있다. 실제 서버 게이트는 각 라우터가 독립적으로 걸지만(정본은 거기다),
- * 프런트에서도 이 경계만은 한 겹을 더 둔다.
+ * `visibleTabs`가 이미 role 로 걸러 `tab` 이 "os"/"ai" 가 되는 순간 role 은 system_admin 으로
+ * 보장된다 — 그런데도 아래 렌더 분기에 role 검사를 한 번 더 남긴다. SystemOps/LlmConsole 은
+ * 지금까지 라우트의 RequireRole 하나에만 기대 왔고 자체 role 검사가 없다(Settings/Maintenance
+ * 와 달리) — 이 화면들이 처음으로 "라우트가 아니라 탭 상태"로 접근 가능해지는 지점이라,
+ * 파생 로직 한 곳의 실수가 OS 특권 동작을 그대로 노출시킬 수 있다. 실제 서버 게이트는 각
+ * 라우터가 독립적으로 걸지만(정본은 거기다), 프런트에서도 이 경계만은 한 겹을 더 둔다.
  */
 const TAB_SPEC = { tab: "policy" };
 
 export const TAB_DEFS = [
   { key: "policy", label: "시스템 정책", roles: null },
   { key: "os", label: "OS와 서비스 동작", roles: ["system_admin"] },
-  { key: "integration", label: "연동", roles: ["system_admin"] },
   { key: "ai", label: "AI", roles: ["system_admin"] },
 ];
 /** 탭 키만 뽑은 목록 — 커버리지 대조용(`registry-surface-parity.test.js`). */
@@ -133,7 +139,6 @@ export function SettingsShell() {
             </>
           ) : null}
           {tab === "os" && role === "system_admin" ? <SystemOps embedded /> : null}
-          {tab === "integration" && role === "system_admin" ? <NotionConsole embedded /> : null}
           {tab === "ai" && role === "system_admin" ? <LlmConsole embedded /> : null}
         </Box>
       )}

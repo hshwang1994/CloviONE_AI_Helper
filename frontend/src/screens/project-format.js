@@ -59,9 +59,6 @@ export const MILESTONE_STATUS_OPTIONS = optionsFrom(MILESTONE_STATUS_KO);
  *
  * ## 서버가 받는데 여기 **없는** 세 가지와 그 이유
  *
- *   `notion_status`  정본이 Notion 이고 허용 옵션도 저쪽 스키마가 정한다
- *                    (app/projects/notion_write.py::_status_value). 자유 입력 칸으로 두면
- *                    사용자가 저쪽에 없는 값을 적고 저장이 실패한다. 읽기로만 보여 준다.
  *   `dept_id`        선택지를 만들려면 부서 이름이 필요한데 그 경로는 관리자군만 부를 수
  *                    있다(project-queries.js::useDeptNames). 운영자에게는 빈 선택기가 되고,
  *                    빈 선택기는 "고를 것이 없다" 가 아니라 "고장" 으로 읽힌다.
@@ -94,8 +91,8 @@ export const MILESTONE_FORM_FIELDS = [
 /* 트리에 못 넣은 작업의 이유. 두 경우의 **고칠 곳이 다르다** — 순환은 노션에서 상위 작업을
  * 고쳐야 하고, 깊이 초과는 대개 데이터가 이상하다는 신호다(app/projects/wbs.py). */
 export const WBS_UNPLACED_KO = {
-  cycle: "상위 작업이 서로를 가리켜 트리에 넣지 못했습니다. 노션에서 상위 작업을 고쳐 주세요.",
-  too_deep: "계층이 너무 깊어 트리에 넣지 못했습니다. 노션에서 계층을 줄여 주세요.",
+  cycle: "상위 작업이 서로를 가리켜 트리에 넣지 못했습니다. 상위 작업을 고쳐 주세요.",
+  too_deep: "계층이 너무 깊어 트리에 넣지 못했습니다. 계층을 줄여 주세요.",
 };
 
 export const NO_PROGRESS_CACHE = "아직 계산하지 않았습니다";

@@ -46,7 +46,8 @@ def _item_view(item, *, retention_days: int, me: User) -> dict:
         "item_type": item.item_type,
         "type_label": _TYPE_LABELS.get(item.item_type, item.item_type),
         "title": item.title,
-        "url": item.url,
+        # `url` 은 여기 없다. 옛 Notion 주소라 목록의 제목을 그 링크로 만들면 사용자가
+        # 지운 것을 확인하려다 낡은 사본을 열게 된다(행에는 이관 흔적으로 남는다).
         # FN-14 — 프런트의 문서 상세 캐시 키가 notion_page_id다([team-doc, id], TeamDoc.jsx).
         # 이게 없으면 복원·영구삭제 뒤 그 캐시를 무효화할 방법이 없어 상세를 다시 열면 옛
         # 내용이 잠깐 보인다. 이미 이 행(TicketCache 아님, TrashItem)에 not-null로 있다 — 조인 없음.

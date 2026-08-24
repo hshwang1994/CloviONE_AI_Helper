@@ -12,8 +12,6 @@ from __future__ import annotations
 
 import pytest
 
-from tests.fakes.notion import DEFAULT_PROJECTS_DB, FakeNotionTasksDB, project_row, task_row
-
 pytestmark = pytest.mark.security
 
 NID_MINE, NID_THEIRS = "notion-s-mine", "notion-s-theirs"
@@ -21,27 +19,11 @@ WINDOW = "?start=2026-08-01&end=2026-09-01"
 
 
 @pytest.fixture()
-def notion(fake_http) -> FakeNotionTasksDB:
-    return FakeNotionTasksDB(
-        rows=[
-            task_row(page_id="s-mine", tid=1, title="우리팀 스프린트", status="진행",
-                     due="2026-08-10", people=[NID_MINE], est_wd=2.0),
-            task_row(page_id="s-theirs", tid=2, title="남의팀 스프린트", status="진행",
-                     due="2026-08-11", people=[NID_THEIRS], est_wd=3.0),
-        ],
-        projects=[project_row(page_id="p1", name="알파")],
-        projects_db=DEFAULT_PROJECTS_DB,
-    ).install(fake_http)
-
-
-@pytest.fixture()
-def world(client, settings, notion, make_user, db, app):
+def world(make_user, db, make_ticket, portal_project):
     from app.notion_mapping.models import STATUS_VERIFIED, UserNotionMapping
     from app.org.constants import DEFAULT_ORG_ID
     from app.org.models import Department
-    from app.tickets.sync import sync_tickets
 
-    (settings.secrets_dir / "notion_report_token").write_text("t", encoding="utf-8")
     mine = Department(name="우리팀", org_id=DEFAULT_ORG_ID)
     theirs = Department(name="남의팀", org_id=DEFAULT_ORG_ID)
     db.add_all([mine, theirs])
@@ -53,10 +35,10 @@ def world(client, settings, notion, make_user, db, app):
     db.add(UserNotionMapping(user_id=me.id, notion_user_id=NID_MINE, status=STATUS_VERIFIED))
     db.add(UserNotionMapping(user_id=other.id, notion_user_id=NID_THEIRS, status=STATUS_VERIFIED))
     db.commit()
-    with app.state.session_factory() as s:
-        sync_tickets(s, outbound=app.state.outbound_client, settings=settings,
-                     now=app.state.clock.now())
-        s.commit()
+    make_ticket(page_id="s-mine", project=portal_project, tid=1, title="우리팀 스프린트",
+                status="진행", due="2026-08-10", assignees=[NID_MINE], est_wd=2.0)
+    make_ticket(page_id="s-theirs", project=portal_project, tid=2, title="남의팀 스프린트",
+                status="진행", due="2026-08-11", assignees=[NID_THEIRS], est_wd=3.0)
 
 
 def _summary(client):

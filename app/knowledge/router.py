@@ -24,11 +24,19 @@ from sqlalchemy.orm import Session
 
 from app.core import uploads
 from app.core.audit import record_audit_from_request
-from app.core.deps import get_db, require_csrf, require_permission
+from app.core.deps import (
+    AuthContext,
+    get_current_auth,
+    get_db,
+    require_csrf,
+    require_permission,
+)
 from app.knowledge import attachments as attachments_mod
 from app.knowledge import relations as relations_mod
 from app.knowledge import service, tags as tags_mod, versions as versions_mod
 from app.knowledge.schemas import (
+    CommentCreate,
+    CommentUpdate,
     DocumentCreate,
     DocumentMove,
     DocumentRelationCreate,
@@ -83,7 +91,7 @@ def _folder_json(folder) -> dict:
     }
 
 
-def _document_json(document, *, tags=None) -> dict:
+def _document_json(document, *, tags=None, is_favorite: bool | None = None) -> dict:
     out = {
         "id": document.id,
         "space_id": document.space_id,
@@ -100,6 +108,8 @@ def _document_json(document, *, tags=None) -> dict:
     }
     if tags is not None:
         out["tags"] = [{"id": t.id, "name": t.name, "slug": t.slug} for t in tags]
+    if is_favorite is not None:
+        out["is_favorite"] = is_favorite
     return out
 
 
@@ -257,16 +267,26 @@ def list_documents(
     folder_id: str | None = Query(default=None, max_length=36),
     q: str | None = Query(default=None, max_length=200),
     tag: str | None = Query(default=None, max_length=80),
+    favorites: bool = Query(default=False),
     include_archived: bool = Query(default=False),
     limit: int = Query(default=50, ge=1, le=service.PAGE_MAX),
     offset: int = Query(default=0, ge=0),
 ) -> dict:
+    """한 페이지치 문서. `total` 을 함께 낸다 — 화면이 「몇 건 중 어디쯤」을 말할 수 있어야
+    50번째 뒤에 문서가 더 있다는 사실이 사용자에게 보인다."""
     rows, total = service.list_documents(
         db, user, space_id=space_id, folder_id=folder_id, q=q, tag=tag,
-        include_archived=include_archived, limit=limit, offset=offset,
+        favorites=favorites, include_archived=include_archived, limit=limit, offset=offset,
     )
+    # 즐겨찾기·태그는 **한 질의씩**으로 이 페이지치만 묻는다. 문서마다 묻게 두면 목록
+    # 한 화면이 문서 수만큼의 질의가 된다.
+    starred = service.favorite_ids(db, user, [d.id for d in rows])
+    doc_tags = tags_mod.of_documents(db, [d.id for d in rows])
     return {
-        "items": [_document_json(d) for d in rows],
+        "items": [
+            _document_json(d, tags=doc_tags.get(d.id, []), is_favorite=d.id in starred)
+            for d in rows
+        ],
         "total": total,
         "limit": limit,
         "offset": offset,
@@ -288,15 +308,46 @@ def create_document(
     return _document_json(document, tags=tags_mod.of_document(db, document.id))
 
 
-@router.get("/documents/{document_id}")
-def get_document(
-    document_id: str,
+@router.get("/documents/by-legacy/{legacy_page_id}")
+def resolve_legacy_document(
+    legacy_page_id: str,
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("DOCUMENT_READ")),
 ) -> dict:
+    """옛 문서 주소(`/team-docs/<page id>`)가 가리키던 문서의 지금 id (S14 · C2).
+
+    알림 딥링크 · 감사 로그 · 북마크에 옛 page id 가 박혀 있어서, 그 주소로 들어온 사람을
+    지금 문서로 데려가려면 화면이 이것 하나를 물어봐야 한다. 제목도 함께 낸다 — 화면이
+    옮겨 가면서 「무엇으로 데려가는지」를 말할 수 있어야 한다.
+    """
+    document = service.get_scoped_document_by_legacy_page_id(db, user, legacy_page_id)
+    return {"id": document.id, "title": document.title}
+
+
+@router.get("/documents/{document_id}")
+def get_document(
+    document_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("DOCUMENT_READ")),
+    auth: AuthContext = Depends(get_current_auth),
+) -> dict:
     detail = service.document_detail(db, user, document_id)
+    document = detail["document"]
+    # 최근 열람은 **부수효과**다. 여기서 실패해도 본문은 그대로 나간다
+    # (`app/knowledge/recent_views.py`).
+    #
+    # 임퍼소네이션 중에는 **적지 않는다.** GET 이라 공용 쓰기 차단
+    # (`core/deps.py::_guard_impersonation_write`)을 안 지나므로, 여기서 안 막으면 관리자가
+    # 읽기 전용으로 열어 본 문서가 대상 사용자의 「최근 열람」에 조용히, 감사 로그도 없이
+    # 남는다.
+    if not auth.impersonating:
+        service.record_view(db, user, document.id, now=request.app.state.clock.now())
     return {
-        **_document_json(detail["document"], tags=detail["tags"]),
+        **_document_json(
+            document, tags=detail["tags"],
+            is_favorite=document.id in service.favorite_ids(db, user, [document.id]),
+        ),
         "current": _version_json(detail["version"], body=True),
         "relations": detail["relations"],
         "backlinks": detail["backlinks"],
@@ -598,3 +649,103 @@ def delete_attachment(
         object_id=document.id, before={"file_id": record.id, "filename": record.filename},
     )
     return {"ok": True}
+
+
+# ── 즐겨찾기 (S14 · C2) ──────────────────────────────────────────────────────
+
+
+@router.post("/documents/{document_id}/favorite", dependencies=[Depends(require_csrf)])
+def toggle_favorite(
+    document_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("DOCUMENT_READ")),
+    on: bool = Query(default=True),
+) -> dict:
+    """이 문서를 내 즐겨찾기에 담거나 뺀다.
+
+    권한이 `DOCUMENT_READ` 인 이유: 담는 것은 **내 목록**을 고치는 일이지 문서를 고치는
+    일이 아니다. 볼 수 있는 사람은 담을 수 있어야 하고, 담았다고 남의 화면이 달라지지
+    않는다. 어느 문서에 담을 수 있는지는 서비스가 범위로 답한다.
+    """
+    state = service.toggle_favorite(
+        db, user, document_id, on=on, now=request.app.state.clock.now()
+    )
+    return {"is_favorite": state}
+
+
+# ── 댓글 (S14 · C2) ──────────────────────────────────────────────────────────
+#
+# 옛 문서 화면(`/team-docs`)에 있던 축을 정본 문서로 옮긴 것이다. 규약은 티켓 댓글과 같다:
+# 삭제는 툼스톤이고, 쓰기는 늘 **목록 전체**로 답한다 — 클라이언트가 자기 목록을 기워
+# 맞추면 툼스톤 규약이 두 벌이 되고 언젠가 갈라진다.
+
+
+@router.get("/documents/{document_id}/comments")
+def list_comments(
+    document_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("DOCUMENT_READ")),
+) -> dict:
+    """그 문서의 댓글 전부(삭제된 것은 본문 없는 툼스톤)와 등장인물 신원."""
+    return {"ok": True, **service.list_comments(db, user, document_id)}
+
+
+@router.post("/documents/{document_id}/comments", dependencies=[Depends(require_csrf)])
+def create_comment(
+    document_id: str,
+    payload: CommentCreate,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("DOCUMENT_READ")),
+) -> dict:
+    """댓글 작성 — 그 문서가 보이는 사람 누구나.
+
+    `DOCUMENT_UPDATE` 가 아닌 이유: 질문을 남기는 것과 남의 글을 고치는 것은 다른 일이다.
+    쓰기 권한을 요구하면 「옆 팀 사람이 물어볼 곳」이 없어진다.
+    """
+    result = service.add_comment(
+        db, user, document_id, body=payload.body, now=request.app.state.clock.now()
+    )
+    record_audit_from_request(
+        request, db, action="knowledge.comment.create", object_type="document_comment",
+        object_id=result["comment_id"], after={"document_id": document_id},
+    )
+    return {"ok": True, **result}
+
+
+@router.patch("/comments/{comment_id}", dependencies=[Depends(require_csrf)])
+def update_comment(
+    comment_id: str,
+    payload: CommentUpdate,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("DOCUMENT_READ")),
+) -> dict:
+    """댓글 수정 — **작성자 본인만**(운영자 우회 없음). 남의 문장을 고쳐 쓸 수는 없다."""
+    result = service.edit_comment(
+        db, user, comment_id, body=payload.body, now=request.app.state.clock.now()
+    )
+    record_audit_from_request(
+        request, db, action="knowledge.comment.update", object_type="document_comment",
+        object_id=comment_id,
+    )
+    return {"ok": True, **result}
+
+
+@router.delete("/comments/{comment_id}", dependencies=[Depends(require_csrf)])
+def delete_comment(
+    comment_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("DOCUMENT_READ")),
+) -> dict:
+    """댓글 삭제 — 작성자 본인 또는 운영자군. 목록에는 툼스톤으로 남는다."""
+    result = service.delete_comment(
+        db, user, comment_id, now=request.app.state.clock.now()
+    )
+    record_audit_from_request(
+        request, db, action="knowledge.comment.delete", object_type="document_comment",
+        object_id=comment_id,
+    )
+    return {"ok": True, **result}

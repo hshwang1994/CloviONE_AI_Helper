@@ -1,0 +1,58 @@
+# Migration reimport-bodies
+소스   
+대상   local:/clovirassist
+기간   2026-08-24T07:47:27+00:00 ~ 2026-08-24T07:55:59+00:00
+Notion api_calls=573  blocks_fetched=154  blocks_from_cache=1081  blocks_refetched_for_media=154  bytes_downloaded=218418802  comments_fetched=0  comments_from_cache=1235  comments_seen=325  pages_fetched=1282  property_coverage={'작업': {'title': 1124, 'ticket_id': 1125, 'status': 1125, 'priority': 423, 'difficulty': 195, 'est_wd': 104, 'act_wd': 36, 'start': 271, 'due': 813, 'category': 114, 'assignees': 950, 'project': 1122, 'parent': 76, 'predecessors': 30, 'successors': 26}, '문서': {'title': 108, 'type': 93, 'category': 61, 'project': 34, 'status': 110, 'priority': 2, 'author': 41, 'owner': 5, 'date': 12, 'source': 0, 'memo': 1, 'favorite': 110, 'archived': 110}, '프로젝트': {'title': 21, 'status': 21, 'progress': 21, 'owner': 19, 'biz_type': 21, 'product': 21, 'period': 21, 'summary': 21}}
+
+## 단계
+  ticket bodies: 소스 1125 → 신규 0 · 갱신 153 · 건너뜀 528 (75.0s)
+  ticket comments (Notion): 소스 325 → 신규 324 · 갱신 0 · 건너뜀 1 (0.4s)
+  documents: 소스 110 → 신규 0 · 갱신 110 · 건너뜀 0 (13.7s)
+  attachments: 소스 9 → 신규 0 · 갱신 2 · 건너뜀 7 (9.7s)
+
+## 검증
+
+## Finding
+  [classified/property_never_filled] notion:문서: « 출처 » 이 110행 중 한 번도 값을 내지 않았습니다. 정말 비어 있거나 속성 이름이 바뀐 것입니다. (source)
+  [note/ticket_body_edited_by_user] tickets: 사용자가 고친 본문이라 다시 넣지 않았습니다. (3c1c5c5a-5684-801b-8fe4-d33a0bcffcc3)
+  [note/ticket_body_edited_by_user] tickets: 사용자가 고친 본문이라 다시 넣지 않았습니다. (3c0c5c5a-5684-80a3-8477-d3c7fb14a656)
+  [note/ticket_body_edited_by_user] tickets: 사용자가 고친 본문이라 다시 넣지 않았습니다. (3bbc5c5a-5684-8152-bd0a-d2e2dfdcdb7d)
+  [note/ticket_body_edited_by_user] tickets: 사용자가 고친 본문이라 다시 넣지 않았습니다. (3bac5c5a-5684-804e-b028-cdf5fd983023)
+  [note/ticket_body_edited_by_user] tickets: 사용자가 고친 본문이라 다시 넣지 않았습니다. (3bac5c5a-5684-8060-81a9-ca0fbcdccb08)
+  [note/ticket_body_edited_by_user] tickets: 사용자가 고친 본문이라 다시 넣지 않았습니다. (3b9c5c5a-5684-8017-b480-e9aa9618c969)
+  [note/ticket_body_edited_by_user] tickets: 사용자가 고친 본문이라 다시 넣지 않았습니다. (3b9c5c5a-5684-8035-acf4-ed6885b3c0d6)
+  [note/ticket_body_edited_by_user] tickets: 사용자가 고친 본문이라 다시 넣지 않았습니다. (3b8c5c5a-5684-810d-917a-f8127755beb3)
+  [note/ticket_body_edited_by_user] tickets: 사용자가 고친 본문이라 다시 넣지 않았습니다. (3b8c5c5a-5684-81f5-8b48-c47466661595)
+  [classified/body_media_rejected] ticket_attachments: clovirOne 소프트웨어 구성도_v4.pptx: 허용되지 않은 파일 형식입니다. 이미지(PNG, JPEG, GIF, WebP) 또는 PDF만 올릴 수 있습니다. (block:3b3c5c5a-5684-80e7-b8c1-c9277e5da154)
+  [note/ticket_body_edited_by_user] tickets: 사용자가 고친 본문이라 다시 넣지 않았습니다. (3b3c5c5a-5684-81bd-b0b8-ec32bd3c0634)
+  [note/ticket_body_edited_by_user] tickets: 사용자가 고친 본문이라 다시 넣지 않았습니다. (3b2c5c5a-5684-80d8-b55a-d1b273f2ab99)
+  [note/ticket_body_edited_by_user] tickets: 사용자가 고친 본문이라 다시 넣지 않았습니다. (3b1c5c5a-5684-808e-abfb-cc22b777e176)
+  [note/ticket_body_edited_by_user] tickets: 사용자가 고친 본문이라 다시 넣지 않았습니다. (3b1c5c5a-5684-804b-aa98-f110ab118a1f)
+  [note/ticket_body_edited_by_user] tickets: 사용자가 고친 본문이라 다시 넣지 않았습니다. (3aec5c5a-5684-81f6-8ded-f9417386372b)
+  [note/ticket_body_edited_by_user] tickets: 사용자가 고친 본문이라 다시 넣지 않았습니다. (3a6c5c5a-5684-80ba-9e39-d3f591bde112)
+  [classified/body_media_rejected] ticket_attachments: Re_ [현대모비스] MDIP DB 버전 업데이트 관련 Web_WAS 호환성 검토 요청 답변드립니다..eml: 허용되지 않은 파일 형식입니다. 이미지(PNG, JPEG, GIF, WebP) 또는 PDF만 올릴 수 있습니다. (block:37dc5c5a-5684-80a6-8613-e753bb137222)
+  [note/ticket_body_media_over_ui_limit] ticket_attachments: 본문 파일이 14건이라 이 티켓에는 첨부를 새로 못 붙입니다. (361c5c5a-5684-8014-aae8-f1784e6d54b6)
+  [classified/body_media_rejected] ticket_attachments: 석식　신청.pptx: 허용되지 않은 파일 형식입니다. 이미지(PNG, JPEG, GIF, WebP) 또는 PDF만 올릴 수 있습니다. (block:352c5c5a-5684-80be-89fb-f8214c037f52)
+  [classified/body_media_rejected] ticket_attachments: collect_data_gen_page.html: 허용되지 않은 파일 형식입니다. 이미지(PNG, JPEG, GIF, WebP) 또는 PDF만 올릴 수 있습니다. (block:347c5c5a-5684-80d0-af6b-f2ed343256be)
+  [note/ticket_body_edited_by_user] tickets: 사용자가 고친 본문이라 다시 넣지 않았습니다. (327c5c5a-5684-80ed-8dd9-e46b21d0ead4)
+  [classified/body_media_rejected] ticket_attachments: image.png: 파일이 너무 큽니다. 최대 10MB까지 올릴 수 있습니다. (block:320c5c5a-5684-8001-b21a-eae1481257af)
+  [classified/body_media_rejected] ticket_attachments: image.png: 파일이 너무 큽니다. 최대 10MB까지 올릴 수 있습니다. (block:31fc5c5a-5684-803b-88ca-e1c0724d3d06)
+  [classified/body_media_rejected] ticket_attachments: image.png: 파일이 너무 큽니다. 최대 10MB까지 올릴 수 있습니다. (block:320c5c5a-5684-8025-845c-f53f45942572)
+  [classified/body_media_rejected] ticket_attachments: 스마일게이트_통합테스트_계획서_v0.94.pptx: 허용되지 않은 파일 형식입니다. 이미지(PNG, JPEG, GIF, WebP) 또는 PDF만 올릴 수 있습니다. (block:294c5c5a-5684-809c-9797-dbe35f9b1634)
+  [classified/body_media_rejected] ticket_attachments: QR_굿모닝아이텍_본사도면도.svg: 허용되지 않은 파일 형식입니다. 이미지(PNG, JPEG, GIF, WebP) 또는 PDF만 올릴 수 있습니다. (block:26cc5c5a-5684-8066-8c59-cd7fd628ef41)
+  [classified/body_media_rejected] ticket_attachments: setup-cloudinit.sh: 허용되지 않은 파일 형식입니다. 이미지(PNG, JPEG, GIF, WebP) 또는 PDF만 올릴 수 있습니다. (block:267c5c5a-5684-808e-9980-edc765ca694e)
+  [classified/body_media_rejected] ticket_attachments: smilegate_logo.zip: 허용되지 않은 파일 형식입니다. 이미지(PNG, JPEG, GIF, WebP) 또는 PDF만 올릴 수 있습니다. (block:265c5c5a-5684-808b-916c-eeec15a23d6f)
+  [classified/comment_author_unresolved] ticket_comments: 작성자 «ClovirONE Workflow Automation» 의 포털 사용자를 못 찾아 넣지 않았습니다(종류: integration). (39ec5c5a-5684-81c7-acee-001d96aa550f)
+  [classified/comment_attachment_not_moved] ticket_comments: 댓글에 붙은 파일 30건은 붙일 자리가 없어 못 옮겼습니다.
+  [note/space_owner_repaired] knowledge_spaces: 공간 «팀 문서» 의 소속을 조직으로 고쳤습니다. (1b2302b2-a4c1-48f3-9c2b-72e15b61f395)
+  [classified/body_media_rejected] files: cluster-migration.zip: 허용되지 않은 파일 형식입니다. 이미지와 PDF, 오피스 문서, 텍스트 파일만 올릴 수 있습니다. (block:37dc5c5a-5684-806b-9317-e816948b117a)
+  [classified/body_media_rejected] files: 작업의뢰서 및 내역서.hwp: 허용되지 않은 파일 형식입니다. 이미지와 PDF, 오피스 문서, 텍스트 파일만 올릴 수 있습니다. (block:329c5c5a-5684-8089-a920-f6bcce26f0bb)
+  [classified/body_media_rejected] ticket_attachments: sddc_portal_prototype.html: 허용되지 않은 파일 형식입니다. 이미지(PNG, JPEG, GIF, WebP) 또는 PDF만 올릴 수 있습니다. (388c5c5a-5684-80f5-b487-f2407030c7de:0)
+  [classified/body_media_rejected] ticket_attachments: mariadb_ddl.sql: 허용되지 않은 파일 형식입니다. 이미지(PNG, JPEG, GIF, WebP) 또는 PDF만 올릴 수 있습니다. (32ec5c5a-5684-80cd-80b2-e7af9068268b:0)
+  [classified/body_media_rejected] ticket_attachments: oracle_ddl_v2.sql: 허용되지 않은 파일 형식입니다. 이미지(PNG, JPEG, GIF, WebP) 또는 PDF만 올릴 수 있습니다. (32ec5c5a-5684-80cd-80b2-e7af9068268b:1)
+  [classified/body_media_rejected] ticket_attachments: mariadb_to_oracle_ddl_converter.py: 허용되지 않은 파일 형식입니다. 이미지(PNG, JPEG, GIF, WebP) 또는 PDF만 올릴 수 있습니다. (32ec5c5a-5684-80cd-80b2-e7af9068268b:2)
+  [classified/attachment_rejected] files: 4월 20일 암센터 회의.m4a: 파일이 너무 큽니다. 최대 10MB까지 올릴 수 있습니다. (348c5c5a-5684-80cc-a461-dc8cfa75a919:0)
+  [classified/attachment_rejected] files: Network_TCPIP.pdf: 파일이 너무 큽니다. 최대 10MB까지 올릴 수 있습니다. (325c5c5a-5684-8039-834d-d77e95d66a56:0)
+  [classified/attachment_external_link] files: 바깥 링크라 바이트가 없습니다: https://goodmorningit.sharepoint.com/:x:/s/msteams_0d63ce/ETbOXkOMgyNFihRVAWgt8SMBhMFxlKiWWR45qPnFfNLyFw?e=s1jhdb (27dc5c5a-5684-8033-9b29-d0e045f2612c:0)
+
+판정: FAIL — 검사 0건 중 실패 0 · blocking 0 · 분류된 예외 23

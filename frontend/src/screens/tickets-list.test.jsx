@@ -80,14 +80,18 @@ function renderMyTickets() {
   );
 }
 
-describe("내 티켓 — Notion 미구성 안내", () => {
-  it("연동이 없으면 '무엇을 하면 되는지'까지 담은 빈 상태를 보여주고 목록은 그리지 않는다", async () => {
+describe("내 티켓 — 목록을 못 읽었을 때", () => {
+  it("'무엇을 하면 되는지'까지 담은 빈 상태를 보여주고 목록은 그리지 않는다", async () => {
     mockMine({ configured: false, tickets: [] });
     renderMyTickets();
-    expect(await screen.findByText("Notion 연동이 아직 설정되지 않았습니다")).toBeInTheDocument();
+    expect(await screen.findByText("지금은 티켓 목록을 불러올 수 없습니다")).toBeInTheDocument();
     // 막다른 경고가 아니라 다음 행동이 적혀 있어야 한다.
-    expect(screen.getByText(/관리자에게 Notion 연동 설정을 요청하세요/)).toBeInTheDocument();
-    expect(screen.getByText(/필요한 것/)).toBeInTheDocument();
+    //
+    // 예전에는 그 다음 행동이 「관리자에게 Notion 연동 설정을 요청하세요」였다. 그 절차는
+    // 없어졌으므로(S14 · D-284) 안내도 바뀌었다 — 없어진 절차를 계속 시키면 사용자는
+    // 관리자에게 존재하지 않는 설정을 요청하러 간다.
+    expect(screen.getByText(/잠시 뒤 다시 불러와 보세요/)).toBeInTheDocument();
+    expect(screen.queryByText(/Notion/)).toBeNull();
     // 목록/툴바는 그려지지 않는다.
     expect(screen.queryByRole("combobox", { name: "상태" })).toBeNull();
     expect(screen.queryByRole("table")).toBeNull();
@@ -158,16 +162,19 @@ describe("내 티켓 — 목록", () => {
  * 미러가 한 번도 안 됐는데 error도 아니면 "담당한 티켓이 없습니다"만 보여, 정말 0건인지
  * 아직 못 재본 것인지 구분이 안 됐다. 백엔드는 이미 두 엔드포인트(mine/unassigned) 모두
  * `_with_sync`로 sync 블록을 얹어 주고 있었다(`app/tickets/router.py`) — 화면만 안 그렸다.
- * 이 엔드포인트들엔 can_sync 자체가 없으므로(팀 전용 트리거) 버튼은 여전히 안 뜬다 —
- * team-tickets-sync.test.jsx의 "can_sync:false면 안내는 뜨지만 버튼은 없다"와 같은 결. */
-describe("내 티켓/미할당 — 미러 안내 (UB-26)", () => {
-  it("내 티켓: 미러가 한 번도 성공 못 했으면 '0건'과 구분해 말한다", async () => {
-    /* "정말 담당 티켓이 0건"과 "아직 한 번도 가져오지 않았다"는 완전히 다른 사실이다.
-       구분이 없으면 빈 목록 화면이 조용히 거짓말을 한다. */
+ * 이제는 어느 화면에도 동기화 버튼이 없다(부를 엔드포인트가 없어졌다) — 아래 단언들이
+ * 그 사실을 개인 범위에서도 지킨다. 팀 범위는 team-tickets-sync.test.jsx 가 같이 지킨다. */
+describe("내 티켓/미할당 — 미러 안내가 없다", () => {
+  it("내 티켓: 옛 sync 블록이 되돌아와도 「한 번도 동기화 안 됨」을 안 그린다", async () => {
+    /* 예전에는 이 시험이 반대를 단언했다: "정말 담당 티켓이 0건"과 "아직 한 번도
+       가져오지 않았다"를 구분해 말한다. 티켓 표가 이 서버의 정본이 된 뒤로 빈 목록은
+       언제나 정말 0건이고, 서버도 `sync` 블록을 안 싣는다. 화면이 옛 필드를 보고
+       안내를 되살리면 사실이 아닌 말을 하게 된다. */
     mockMine({ ...TICKETS, sync: { status: "pending", ticket_count: 0, last_success_at: null } });
     renderMyTickets();
-    expect(await screen.findByText(/아직 한 번도 동기화되지 않았습니다/)).toBeInTheDocument();
-    // 개인 범위에는 동기화 권한이 없다 — 복구 버튼도 없다.
+    await screen.findByText("서버 등록 IP 중복 방지");
+    expect(screen.queryByText(/아직 한 번도 동기화되지 않았습니다/)).toBeNull();
+    // 어느 범위에도 동기화를 시작하는 버튼이 없다 — 부를 엔드포인트 자체가 없다.
     expect(screen.queryByRole("button", { name: "지금 동기화" })).toBeNull();
   });
 
@@ -180,7 +187,7 @@ describe("내 티켓/미할당 — 미러 안내 (UB-26)", () => {
     expect(screen.queryByText(/아직 한 번도/)).toBeNull();
   });
 
-  it("미할당: 미러가 실패했으면 무엇을 보고 있는지 알린다", async () => {
+  it("미할당: 옛 sync 블록이 error 로 되돌아와도 실패 안내를 안 그린다", async () => {
     apiMock.mockImplementation((path) => {
       const p = String(path);
       if (p.startsWith("/api/tickets/meta")) return Promise.resolve(META);
@@ -200,7 +207,9 @@ describe("내 티켓/미할당 — 미러 안내 (UB-26)", () => {
         </MemoryRouter>
       </QueryClientProvider>,
     );
-    expect(await screen.findByText(/마지막 정상 데이터를 보고 있습니다/)).toBeInTheDocument();
+    await screen.findByText("담당자 없는 활성 티켓입니다. ‘나에게 배정’ 또는 ‘수정’으로 지정하세요.");
+    expect(screen.queryByText(/마지막 정상 데이터를 보고 있습니다/)).toBeNull();
+    expect(screen.queryByText(/최근 동기화에 실패했습니다/)).toBeNull();
     expect(screen.queryByRole("button", { name: "지금 동기화" })).toBeNull();
   });
 });

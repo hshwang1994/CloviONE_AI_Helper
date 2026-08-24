@@ -50,8 +50,8 @@ describe("ScopeBar 라우트 인지", () => {
     apiMock.mockResolvedValue(DEPT_ADMIN);
   });
 
-  it("범위가 실제로 걸리는 화면(/team-docs)에서는 캐비어트 문장이 뜬다", async () => {
-    renderAt("/team-docs");
+  it("범위가 실제로 걸리는 화면(/team-tickets)에서는 캐비어트 문장이 뜬다", async () => {
+    renderAt("/team-tickets");
     await waitFor(() => expect(screen.getByText("브로드컴사업본부")).toBeTruthy());
     expect(screen.queryByText("상위 부서와 하위 부서 밖의 항목은 목록에 나오지 않습니다.")).toBeTruthy();
   });

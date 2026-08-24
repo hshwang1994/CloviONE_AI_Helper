@@ -64,7 +64,7 @@ import { setItemTitle } from "../app/documentTitle.js";
 // 기존 호출부 호환을 위한 재수출 — 이 화면이 소유하지 않는 어휘(우선순위)와 순수 헬퍼를
 // 예전처럼 Chat.jsx에서도 가져다 쓸 수 있게 남긴다. 정의는 각 모듈이 하나씩만 가진다.
 export {
-  priorityKo, priorityKind, safeNotion, msgAgeMs, classifyLine, parseBlocks,
+  priorityKo, priorityKind, msgAgeMs, classifyLine, parseBlocks,
   pageNumberOrNull, bodyListStart, ticketPageStart, stripDuplicatedTicketLines,
   newClientMessageId,
 } from "./chat-helpers.js";

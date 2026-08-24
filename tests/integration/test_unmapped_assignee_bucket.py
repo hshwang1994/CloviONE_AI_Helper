@@ -4,7 +4,7 @@
 
 운영 실측: 색인 티켓행 1,058건 중 227건(21.5%)이 담당자 해석에 실패한다. 부서 범위를
 담당자 축으로 판정하던 시절, 그 티켓들은 **어디에서도 안 보였다** — 해석된 담당자가 0명이라
-부서 화면에서 빠지고, 미할당 버킷은 원시 Notion id 로 판정해 트리아지에서도 빠졌다.
+부서 화면에서 빠지고, 미할당 버킷은 원시 외부 id 로 판정해 트리아지에서도 빠졌다.
 다섯 건 중 한 건이 조용히 사라진다는 뜻이었다.
 
 그때의 처방은 "그런 티켓도 미할당 트리아지에 넣는다" 였다. 사라지지는 않게 됐지만 다른
@@ -28,34 +28,29 @@ from __future__ import annotations
 
 import pytest
 
-from tests.fakes.notion import DEFAULT_PROJECTS_DB, FakeNotionTasksDB, project_row, task_row
-
 pytestmark = pytest.mark.integration
 
 MAPPED_NID = "notion-mapped"
-GHOST_NID = "notion-ghost"      # Notion 에는 있지만 앱 사용자로 매핑되지 않은 사람
+GHOST_NID = "notion-ghost"      # 담당자 열에는 있지만 앱 사용자로 매핑되지 않은 사람
 
 
 @pytest.fixture()
-def notion(fake_http) -> FakeNotionTasksDB:
-    return FakeNotionTasksDB(
-        rows=[
-            task_row(page_id="t-none", tid=1, title="담당자 없음", status="계획", people=[]),
-            task_row(page_id="t-mapped", tid=2, title="매핑된 담당자", status="진행",
-                     people=[MAPPED_NID]),
-            task_row(page_id="t-ghost", tid=3, title="매핑 안 된 담당자", status="진행",
-                     people=[GHOST_NID]),
-        ],
-        projects=[project_row(page_id="p1", name="알파")],
-        projects_db=DEFAULT_PROJECTS_DB,
-    ).install(fake_http)
+def tickets(db, portal_project, make_ticket):
+    """세 갈래를 한 건씩. 담당자 열은 이관해 온 원본 id 를 그대로 담는다."""
+    return {
+        "none": make_ticket(page_id="t-none", project=portal_project, tid=1,
+                            title="담당자 없음", status="계획", assignees=[]),
+        "mapped": make_ticket(page_id="t-mapped", project=portal_project, tid=2,
+                              title="매핑된 담당자", status="진행", assignees=[MAPPED_NID]),
+        "ghost": make_ticket(page_id="t-ghost", project=portal_project, tid=3,
+                             title="매핑 안 된 담당자", status="진행", assignees=[GHOST_NID]),
+    }
 
 
 @pytest.fixture()
-def signed_in(client, settings, notion, make_user, db, portal_project):
+def signed_in(client, make_user, db, tickets):
     from app.notion_mapping.models import STATUS_VERIFIED, UserNotionMapping
 
-    (settings.secrets_dir / "notion_report_token").write_text("t", encoding="utf-8")
     me = make_user(email="triage@goodmit.co.kr", role="user", display_name="트리아지")
     db.add(UserNotionMapping(user_id=me.id, notion_user_id=MAPPED_NID, status=STATUS_VERIFIED))
     db.commit()
@@ -67,25 +62,12 @@ def signed_in(client, settings, notion, make_user, db, portal_project):
     return me
 
 
-def _sync(app, settings):
-    from app.tickets.sync import sync_tickets
-
-    with app.state.session_factory() as db:
-        sync_tickets(db, outbound=app.state.outbound_client, settings=settings,
-                     now=app.state.clock.now())
-        db.commit()
-
-
-def test_an_unresolved_assignee_does_not_land_in_the_unassigned_bucket(
-    client, app, settings, signed_in, notion
-):
+def test_an_unresolved_assignee_does_not_land_in_the_unassigned_bucket(client, signed_in):
     """미할당 버킷은 **담당자가 없는 티켓만** 담는다 (0060 §12).
 
     "집어 가세요" 화면에 이미 임자가 있는 일이 섞이면, 남이 집어 가는 순간 원래 담당자는
     자기 일이 넘어갔다는 사실을 모른다.
     """
-    _sync(app, settings)
-
     ids = {t["id"] for t in client.get("/api/tickets/unassigned").json()["tickets"]}
 
     assert "t-none" in ids, "담당자가 아예 없는 티켓이 트리아지에 없다 — 전제가 깨졌다"
@@ -95,14 +77,12 @@ def test_an_unresolved_assignee_does_not_land_in_the_unassigned_bucket(
     assert "t-mapped" not in ids, "해석되는 담당자가 있는 티켓까지 트리아지에 들어왔다"
 
 
-def test_but_it_does_not_disappear_either(client, app, settings, signed_in, notion):
+def test_but_it_does_not_disappear_either(client, signed_in):
     """**사라지지 않는다** — 원래 이 파일이 막던 그 사고다.
 
     미할당에서 뺐으니 다른 곳에서는 반드시 보여야 한다. 소속을 정하는 것은 프로젝트이고,
     담당자 해석 실패는 소속과 아무 상관이 없다.
     """
-    _sync(app, settings)
-
     body = client.get("/api/tickets/team?active=false&page_size=100").json()
     ids = {t["id"] for t in body["items"]}
     assert "t-ghost" in ids, (
@@ -113,13 +93,10 @@ def test_but_it_does_not_disappear_either(client, app, settings, signed_in, noti
     assert client.get("/api/tickets/t-ghost").status_code == 200
 
 
-def test_the_diagnostics_screen_lists_it_as_something_to_fix(
-    client, app, settings, signed_in, notion, make_user
-):
+def test_the_diagnostics_screen_lists_it_as_something_to_fix(client, signed_in, make_user):
     """정상 노출로 끝내면 아무도 매핑을 안 고친다 — 진단이 **목록으로** 보여 줘야 한다."""
     from tests.conftest import DEFAULT_TEST_PASSWORD
 
-    _sync(app, settings)
     make_user(email="triage-admin@goodmit.co.kr", role="system_admin", display_name="관리자")
     client.post("/login", json={"email": "triage-admin@goodmit.co.kr",
                                 "password": DEFAULT_TEST_PASSWORD})

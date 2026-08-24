@@ -4,8 +4,12 @@ Seeds the registry with the services known from the spec/precheck. Idempotent
 by name — existing rows are never modified. The install script runs:
     python -m app.integrations.discovery
 
-S11 이 n8n 과 러너 셋을 걷어내면서 그 넷의 시드가 빠졌다. 남은 것은 Notion 하나이고
-그것도 S14 에서 Notion Runtime 과 함께 사라진다.
+S11 이 n8n 과 러너 셋을 걷어내면서 그 넷의 시드가 빠졌고, 마지막 하나였던 Notion 은
+Notion Runtime 과 함께 사라졌다. 그래서 지금 이 시드는 비어 있다.
+
+**비었다고 이 모듈을 지우지는 않는다.** 설치 스크립트가 부르는 진입점이고, 다음 연동이
+생기면 그 시드가 여기 온다. 비어 있는 목록은 「아직 아무 연동도 기본으로 넣지 않는다」는
+사실을 그대로 말한다.
 """
 
 from __future__ import annotations
@@ -20,17 +24,9 @@ from app.integrations.models import Integration
 from app.integrations.schemas import IntegrationConfig
 from app.integrations.service import OBJECT_TYPE, create_integration
 
-KNOWN_INTEGRATIONS: list[dict] = [
-    {
-        "name": "notion",
-        "provider_type": "notion",
-        "description": "Notion 작업 공간. 미러 동기화가 쓰며 S14 에서 사라집니다.",
-        "base_url": "https://api.notion.com",
-        "health_url": "https://api.notion.com/v1/users/me",
-        "capabilities": {"mirror": True},
-        "enabled": True,
-    },
-]
+# 새 항목의 `base_url`·`health_url` 호스트는 런타임 허용 목록(config/allowed-services.json)
+# 에 먼저 있어야 한다. 없으면 `create_integration` 이 저장 시점에 거절한다.
+KNOWN_INTEGRATIONS: list[dict] = []
 
 
 def seed_known_integrations(

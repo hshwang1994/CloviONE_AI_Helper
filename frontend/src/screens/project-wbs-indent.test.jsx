@@ -75,3 +75,25 @@ describe("WBS 트리의 깊이별 들여쓰기", () => {
     expect(getComputedStyle(rowOf("손자 작업")).paddingLeft).toBe("2.5rem");
   });
 });
+
+describe("WBS 노드의 「원본」 링크", () => {
+  it("서버가 옛 url 을 다시 실어 보내도 노드마다 「원본」 링크를 만들지 않는다", () => {
+    /* 예전에는 노드마다 오른쪽 끝에 「원본」 링크가 있었고 app.notion.com 으로 나갔다.
+       정본이 이 서버로 넘어온 뒤로 그 주소가 여는 것은 우리가 더 이상 쓰지 않는 낡은
+       사본이라, 서버가 노드 응답에서 `url` 을 걷었다. 화면이 옛 필드를 보고 링크를
+       되살리면 사용자는 오늘 고친 내용이 없는 쪽으로 나간다. */
+    const withUrl = {
+      roots: [{ ...TREE[0], url: "https://app.notion.com/p/root" }],
+      unplaced: [],
+      progress: { percent: null, basis: null },
+    };
+    render(
+      <ThemeModeProvider>
+        <ProjectWbs data={withUrl} ticketsLinked />
+      </ThemeModeProvider>,
+    );
+    expect(screen.getByText("루트 작업")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "원본" })).toBeNull();
+    expect(screen.queryByText("원본")).toBeNull();
+  });
+});

@@ -1,9 +1,0 @@
-{
-  "configured": true,
-  "error": "Notion 응답 오류: HTTP 500",
-  "ok": false,
-  "window": {
-    "end_exclusive": "2026-07-20",
-    "start": "2026-07-13"
-  }
-}

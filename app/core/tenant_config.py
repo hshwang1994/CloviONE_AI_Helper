@@ -45,8 +45,8 @@ class TenantSetting:
 # 새 설치처 고유값을 설정에 추가하면 여기에도 넣어야 한다. 안 넣으면 그 값은 비어 있어도
 # 아무 데도 안 뜨고, 우리가 없애려던 바로 그 침묵으로 돌아간다.
 #
-# ⚠️ 이 목록과 아래 OVERRIDABLE_KEYS 는 **다른 목적의 다른 목록**이다 - 셋 중 둘(노션 DB
-# id 둘)만 겹친다. `allowed_email_domains` 가 여기에만 있고 저기엔 없는 이유는 취향이
+# ⚠️ 이 목록과 아래 OVERRIDABLE_KEYS 는 **다른 목적의 다른 목록**이다 - 지금은 겹치는
+# 항목이 하나도 없다. `allowed_email_domains` 가 여기에만 있고 저기엔 없는 이유는 취향이
 # 아니라 **타입이 안 맞기 때문**이다: `Settings.allowed_email_domains` 는 `str`(콤마
 # 구분)인데 레지스트리 값은 `list`(registry.py:264) 다. `apply_overrides` 는
 # `setattr(settings, key, target)` 을 그대로 하므로, 이 키를 OVERRIDABLE_KEYS 에 넣으면
@@ -54,19 +54,10 @@ class TenantSetting:
 # 성공**한 뒤 나중에 `allowed_email_domain_list`(config.py:170, `.split(",")` 를 부르는 곳)
 # 에서 `AttributeError`(list 에는 `.split` 이 없다) 로 터진다. 이 키를 오버레이에 추가하려면
 # 먼저 양쪽 타입을 맞춰야 한다.
+# 노션 데이터베이스 id 둘이 여기 있었다. 티켓 목록과 문서 목록이 그 값으로 노션을
+# 조회했으므로 비어 있는 것이 곧 「화면이 빈 이유」였다. 지금은 둘 다 자체 데이터베이스에서
+# 나오고 설정 자체가 없어서, 여기 남아 있으면 존재하지 않는 값을 안 채웠다고 말하게 된다.
 TENANT_SETTINGS: tuple[TenantSetting, ...] = (
-    TenantSetting(
-        key="notion_tasks_database_id",
-        label="노션 작업 데이터베이스",
-        env_var="NOTION_TASKS_DATABASE_ID",
-        when_unset="티켓 목록과 개발자 리포트가 채워지지 않습니다. 노션 작업 데이터베이스 id 를 넣으세요.",
-    ),
-    TenantSetting(
-        key="notion_documents_database_id",
-        label="노션 문서 데이터베이스",
-        env_var="NOTION_DOCUMENTS_DATABASE_ID",
-        when_unset="팀 공간 문서 목록이 채워지지 않습니다. 노션 문서 데이터베이스 id 를 넣으세요.",
-    ),
     TenantSetting(
         key="allowed_email_domains",
         label="계정 생성 허용 도메인",
@@ -83,8 +74,8 @@ STATE_UNSET = "unset"
 #
 # ## 왜 필요한가
 #
-# 이 값들의 **소비자는 전부 `settings.<key>` 를 읽는다**(app/reports/notion_source.py,
-# app/team_docs/notion_docs.py, app/tickets/*, app/llm/provider.py::resolve_config).
+# 이 값들의 **소비자는 전부 `settings.<key>` 를 읽는다**
+# (app/llm/provider.py::resolve_config).
 # 그래서 DB 설정만 바꾸면 화면에는 새 값이 보이는데 실제 조회는 옛 값으로 나간다 -
 # 이 저장소가 가장 싫어하는 종류의 거짓말이다("설정했다는데 안 된다").
 #
@@ -105,9 +96,6 @@ STATE_UNSET = "unset"
 # 그대로 남는다 - 화면은 "환경변수 값을 씁니다" 라고 말하면서 실제로는 방금 지운 값으로
 # 조회한다. 테스트가 그것을 잡았다. 그래서 첫 load 에서 원래 값을 기억해 둔다.
 OVERRIDABLE_KEYS: tuple[str, ...] = (
-    "notion_tasks_database_id",
-    "notion_documents_database_id",
-    "notion_sprint_database_id",
     "llm_enabled",
     "llm_backend",
     "llm_model",

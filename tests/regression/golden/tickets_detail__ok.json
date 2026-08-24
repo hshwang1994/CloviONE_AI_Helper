@@ -2,34 +2,24 @@
   "attachments": [],
   "blocks": [
     {
-      "has_children": false,
       "kind": "heading_2",
       "text": "배경"
     },
     {
-      "has_children": false,
       "kind": "paragraph",
       "text": "본문 한 줄."
     },
     {
-      "checked": true,
-      "has_children": false,
-      "kind": "todo",
-      "text": "할 일"
+      "kind": "bulleted",
+      "text": "[x] 할 일"
     },
     {
       "kind": "divider",
       "text": ""
-    },
-    {
-      "kind": "unsupported",
-      "text": "[image] 원본에서 확인"
     }
   ],
   "blocks_error": null,
-  "body_is_local": false,
   "body_markdown": "## 배경\n본문 한 줄.\n- [x] 할 일\n---",
-  "body_sync_error": null,
   "body_version": "e26a892bb10c84f7",
   "can_edit": true,
   "configured": true,
@@ -56,12 +46,11 @@
     "project_names": [
       "알파 프로젝트"
     ],
-    "project_uid": null,
+    "project_uid": "00000000-0000-4000-8000-00000000c001",
     "start": null,
     "status": "진행",
     "tid": 101,
     "title": "관리자 진행 티켓",
-    "uid": null,
-    "url": "https://www.notion.so/page-0001"
+    "uid": "00000000-0000-4000-8000-00000000d001"
   }
 }

@@ -218,7 +218,7 @@ def test_diagnostic_bundle_masks_and_excludes_secrets(client, login_as, settings
         "/api/admin/integrations",
         json={
             "name": "diag-int", "provider_type": "http_service",
-            "base_url": "https://api.notion.com", "auth_type": "bearer",
+            "base_url": "https://api.anthropic.com", "auth_type": "bearer",
             "secret_ref": "diag-secret",
         },
         headers=_headers(csrf),

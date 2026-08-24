@@ -325,17 +325,48 @@ def test_the_overall_report_adds_up_the_projects_it_lists(client, login_as, worl
     assert overall["totals"]["done"] == 2, overall["totals"]
 
 
-def test_a_portal_only_project_says_it_has_no_linked_work(client, login_as, world):
-    """Notion 짝이 없으면 걸린 작업이 있을 수 없다. 0건과 '연결이 없다'는 다른 말이다."""
-    body = _get(
-        client, f"/api/projects/{world['portal_only']}/weekly-report", _hdr(login_as)
-    )
-    assert body["basis"]["tickets_linked"] is False, body["basis"]
+def test_a_portal_only_project_is_not_reported_as_unlinkable(client, login_as, db, world):
+    """새로 만든 프로젝트가 **「작업을 걸 수 없는 프로젝트」로 보고되지 않는다.**
+
+    옛 세계에서는 외부 짝(`projects.notion_page_id`)이 있어야만 작업을 걸 수 있어서, 짝이
+    없는 프로젝트는 0건이 아니라 "연결이 없다" 였다. 소속의 정본이 `tickets.project_uid` 로
+    옮겨 온 뒤로는 어느 프로젝트에나 걸 수 있다. 그대로 두면 자체 DB 에서 만든 프로젝트가
+    전부 「집계를 낼 수 없는 프로젝트」로 보고되어, 리포트가 0건인 이유를 잘못 설명한다.
+
+    그래서 두 가지를 함께 본다: 비어 있을 때 그 안내가 **안 나오고**, 실제로 작업을 걸면
+    그 작업이 집계에 **들어온다**. 뒤엣것이 없으면 "걸 수 있다"는 말이 빈말인지 알 수 없다.
+    """
+    from app.projects.weekly import NO_LINK_NOTE
+
+    headers = _hdr(login_as)
+    body = _get(client, f"/api/projects/{world['portal_only']}/weekly-report", headers)
+    assert body["basis"]["tickets_linked"] is True, body["basis"]
     assert body["basis"]["sample_tickets"] == 0, body["basis"]
     assert body["done"]["count"] == 0
-    assert "연결" in body["summary_md"], (
-        f"작업이 연결되지 않았다는 사실을 문장이 말하지 않는다: {body['summary_md']}"
+    assert NO_LINK_NOTE not in body["summary_md"], (
+        f"작업을 걸 수 있는 프로젝트인데 걸 수 없다고 말한다: {body['summary_md']}"
     )
+
+    # 자체 DB 축(`project_uid`)으로 한 건 건다 — 외부 짝은 여전히 없다.
+    db.add(TicketCache(
+        id="wk-portal-only-1",
+        org_id=DEFAULT_ORG_ID,
+        title="포털에서 만든 작업",
+        status="완료",
+        due_date=date(2026, 8, 5),
+        project_uid=world["portal_only"],
+        project_ids="",
+        project_names="",
+        assignee_notion_ids="",
+        synced_at=NOW,
+        created_at=NOW,
+        updated_at=NOW,
+    ))
+    db.commit()
+
+    after = _get(client, f"/api/projects/{world['portal_only']}/weekly-report", headers)
+    assert after["basis"]["sample_tickets"] == 1, after["basis"]
+    assert after["done"]["count"] == 1, after["done"]
 
 
 # ── 5. 범위 (§불변 1: 범위 밖은 404, 목록도 단건도 같은 판정) ────────────────────

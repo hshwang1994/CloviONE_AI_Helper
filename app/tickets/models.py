@@ -39,6 +39,7 @@ from sqlalchemy import (
     Numeric,
     String,
     Text,
+    func,
     text,
 )
 from sqlalchemy.orm import Mapped, mapped_column
@@ -267,6 +268,31 @@ class Ticket(OrgScopedMixin, TimestampMixin, UUIDPrimaryKeyMixin, Base):
 TicketCache = Ticket
 
 
+def api_page_id(row: Ticket) -> str:
+    """행 → **API 가 부르는 `page_id`**. `tickets/service.py::ticket_row_for` 의 역함수다.
+
+    두 축이다(S14): 이관해 온 티켓은 `notion_page_id` 로 열리고(옛 링크가 계속 살아야
+    한다), 자체 DB 에서 만든 티켓은 그 칸이 `NULL` 이라 행의 uuid 로 열린다.
+
+    🔴 이 변환을 호출부마다 손으로 쓰면 **어디선가 `notion_page_id` 만 읽는다.** 그 자리는
+    자체 티켓에서 `None` 을 받고, `None` 은 오류가 아니라 「그런 티켓 없음」으로 읽힌다 —
+    판에서 카드가 안 열리고, 버린 티켓이 판에 남고, 상태 변경이 404 가 되고, 알림이 아무
+    데도 안 간다. 넷 다 조용하다. 그래서 변환은 이 함수 하나다.
+
+    `Ticket.id` 는 NOT NULL 이므로 돌려주는 값은 항상 문자열이다.
+    """
+    return row.notion_page_id or row.id
+
+
+def api_page_id_expr():
+    """`api_page_id` 의 SQL 판. 질의 안에서 같은 두 축을 쓰려면 이것을 쓴다.
+
+    파이썬 쪽과 값이 갈라지면 「목록에는 있는데 검색에는 없다」 같은 모양이 되고, 그 차이는
+    두 구현을 나란히 놓고 읽기 전에는 안 보인다.
+    """
+    return func.coalesce(Ticket.notion_page_id, Ticket.id)
+
+
 class TicketSyncState(Base):
     """동기화 싱글턴. DocumentSyncState 와 같은 모양 + truncated(상한 도달) 신호."""
 
@@ -281,8 +307,9 @@ class TicketSyncState(Base):
     # 상한에 걸려 일부만 받아온 상태. True 면 prune(삭제 감지)을 건너뛰었다는 뜻이라 운영자가
     # 상한을 올려야 한다는 신호가 된다.
     truncated: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    # 마지막 동기화가 **실제로 지운** 건수(드리프트 지표). 바닥에 걸려 삭제를 거부했으면 0 이고
-    # status 가 SYNC_ERROR + error 에 이유가 남는다 — core/sync_prune.py 참조.
+    # 마지막 동기화가 **실제로 지운** 건수(드리프트 지표)였다. 미러 동기화가 사라진 뒤로
+    # (S14 · D-284) 이 칸에 쓰는 코드가 없다 — 표를 내리는 것은 별도 migration 몫이라
+    # 컬럼만 남아 있고, 값은 항상 0 이다.
     pruned_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     error: Mapped[str | None] = mapped_column(Text)
     updated_at: Mapped[datetime] = mapped_column(
@@ -377,8 +404,13 @@ class TicketAttachment(UUIDPrimaryKeyMixin, Base):
         String(36), ForeignKey("tickets.id", ondelete="CASCADE"),
         nullable=False, index=True,
     )
-    uploaded_by_user_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("users.id"), nullable=False, index=True
+    # 비어 있을 수 있다: **이관이 가져온 파일에는 올린 사람이 없다** (D12 · 0014).
+    # 티켓 본문에 박혀 있던 이미지를 옮길 때 누가 붙였는지를 원본이 파일 단위로 알려
+    # 주지 않는다. 아무나 골라 적으면 「이 사람이 올렸다」가 거짓 기록으로 남고, 그
+    # 거짓은 화면에 정상으로 보여서 아무도 신고하지 않는다. `NULL` 은 「올린 사람이
+    # 없다」를 그대로 말한다 — `DocumentAttachment.created_by` 가 같은 뜻의 같은 모양이다.
+    uploaded_by_user_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("users.id"), nullable=True, index=True
     )
     filename: Mapped[str] = mapped_column(String(255), nullable=False)   # 원본 표시명
     stored_name: Mapped[str] = mapped_column(String(255), nullable=False)  # 디스크 저장명

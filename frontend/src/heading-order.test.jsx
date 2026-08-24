@@ -71,22 +71,6 @@ describe("heading 순서 — 건너뛰지 않는다(PA-RC-0012)", () => {
     assertSequentialHeadings(container, "LlmConsole");
   });
 
-  it("NotionConsole: h1 다음이 h6이 아니라 h2다", async () => {
-    apiMock.mockImplementation((path) => {
-      if (path === "/api/admin/notion-mapping/overview") {
-        return Promise.resolve({
-          apply_note: "", databases: [], token: { items: [], writable: true, directory: "", note: "", manual_instruction: null },
-          sprint: { portal_window: "", sprint_database_id: "", source: "env", linked: false, finding: "", next_step: "" },
-        });
-      }
-      return Promise.resolve({});
-    });
-    const { NotionConsole } = await import("./screens/NotionConsole.jsx");
-    const { container } = qcRender(<NotionConsole />);
-    await screen.findByText("토큰");
-    assertSequentialHeadings(container, "NotionConsole");
-  });
-
   it("MailStatus: h1 다음이 h6이 아니라 h2다", async () => {
     apiMock.mockImplementation((path) => {
       if (String(path).startsWith("/api/admin/mail/status")) {

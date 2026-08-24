@@ -64,12 +64,16 @@ def tickets(db, people) -> None:
     두 번째 건이 중요하다 - 담당자 '교체'는 빠지는 사람과 들어오는 사람이 동시에 생기는
     유일한 경우라, 수신자 규칙이 실제로 갈라지는 표본이다.
     """
+    # `seq` 를 함께 준다. 알림 제목에 뜨는 이름은 **`<PROJECT_CODE>-<SEQ>`** 이고
+    # (D-282) 트리거가 `projects.code` + `seq` 로 만든다 — 없으면 이름이 붙지 않아
+    # 「어느 티켓인지 알 수 있는 제목」을 시험할 수 없다.
     for page_id, tid, title, due, holders in (
         (PAGE_FREE, 901, "미할당 티켓", "2026-09-01", []),
         (PAGE_BOB, 902, "밥이 맡은 티켓", "2026-09-02", [NID["bob"]]),
     ):
         db.add(TicketCache(
             notion_page_id=page_id, org_id=DEFAULT_ORG_ID, notion_ticket_number=tid,
+            seq=tid,
             title=title, status="진행", due_date=due,
             project_ids=join_names(["proj-1"]), project_uid=people["project_id"],
             project_link=PROJECT_LINK_OK, project_names=join_names(["알파"]),
@@ -113,8 +117,12 @@ def test_assigning_a_ticket_to_someone_notifies_them(client, app, people, ticket
 
     rows = _notifications(app, people["bob"])
     assert len(rows) == 1, "티켓을 배정받았는데 알림이 없다"
-    assert "902" not in rows[0].title, "다른 티켓의 알림이 왔다"
-    assert "901" in rows[0].title, f"어느 티켓인지 알 수 없는 제목: {rows[0].title}"
+    # 제목이 드는 이름은 `<PROJECT_CODE>-<SEQ>` 다 (D-282). 예전에는 `GIT-901` 이었는데
+    # 그 접두사는 폐기했다(D-283) — 알림에 뜬 이름으로 검색이 돼야 하므로 지금 쓰는
+    # 이름이어야 한다.
+    assert "-902" not in rows[0].title, "다른 티켓의 알림이 왔다"
+    assert "-901" in rows[0].title, f"어느 티켓인지 알 수 없는 제목: {rows[0].title}"
+    assert "GIT-" not in rows[0].title, "폐기한 옛 이름이 알림에 남아 있다 (D-283)"
 
 
 def test_creating_a_ticket_for_someone_notifies_them(client, app, people, tickets):

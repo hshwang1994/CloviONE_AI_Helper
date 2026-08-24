@@ -60,16 +60,14 @@ function payload(overrides = {}) {
   const items = overrides.items || [
     item("admin_account", "관리자 계정", "done"),
     item("organization", "조직과 부서", "todo"),
-    item("notion", "Notion 토큰과 데이터베이스", "todo", {
+    /* 여기 「Notion 토큰과 데이터베이스」 항목이 있었고 사용자 매핑이 그것에 막혀 있었다.
+       app/setup/steps.py 에서 그 단계가 빠지면서 매핑은 조직과 부서에 막힌다 — 이 픽스처는
+       서버가 실제로 주는 목록과 같은 모양이라야 화면을 시험한 것이 된다. */
+    item("user_mapping", "사용자 매핑", "todo", {
       requires: ["organization"],
-      requires_why: "조직 단위가 먼저 있어야 합니다.",
+      requires_why: "사람을 넣을 조직 단위가 먼저 있어야 연결이 의미를 갖습니다.",
       blocked_by: "organization",
       blocked_by_label: "조직과 부서",
-    }),
-    item("user_mapping", "사용자 매핑", "todo", {
-      requires: ["notion"],
-      blocked_by: "notion",
-      blocked_by_label: "Notion 토큰과 데이터베이스",
     }),
     item("llm", "AI 러너", "todo", {
       requires: ["user_mapping"],
@@ -130,7 +128,7 @@ describe("안내 순서", () => {
       n.getAttribute("data-setup-key")
     );
     expect(keys).toEqual([
-      "admin_account", "organization", "notion", "user_mapping",
+      "admin_account", "organization", "user_mapping",
       "llm", "integrations", "tls",
     ]);
   });
@@ -153,7 +151,7 @@ describe("됨, 안 됨, 확인 불가", () => {
     renderWizard();
     await waitFor(() => expect(screen.getByText("조직과 부서")).toBeInTheDocument());
     expect(screen.getAllByText("됨").length).toBe(1);
-    expect(screen.getAllByText("안 됨").length).toBe(5);
+    expect(screen.getAllByText("안 됨").length).toBe(4);
     expect(screen.getAllByText("확인 불가").length).toBe(1);
   });
 
@@ -176,9 +174,9 @@ describe("됨, 안 됨, 확인 불가", () => {
 describe("막힌 항목", () => {
   it("무엇 때문에 막혔는지 앞 항목의 이름으로 말한다", async () => {
     renderWizard();
-    const notion = await screen.findByTestId("setup-item-notion");
-    expect(within(notion).getByText(/조직과 부서/)).toBeInTheDocument();
-    expect(within(notion).getByText(/먼저/)).toBeInTheDocument();
+    const mapping = await screen.findByTestId("setup-item-user_mapping");
+    expect(within(mapping).getByText(/조직과 부서/)).toBeInTheDocument();
+    expect(within(mapping).getByText(/먼저/)).toBeInTheDocument();
   });
 
   it("지금 할 차례는 막히지 않은 첫 항목 하나뿐이다", async () => {
@@ -202,7 +200,7 @@ describe("끝난 뒤에도 계속 보인다", () => {
     await user.click(screen.getByRole("button", { name: /목록 접기/ }));
     expect(screen.queryByTestId("setup-item-organization")).toBeNull();
     // 접어도 요약은 남는다. 이것이 사라지면 "한 번 닫으면 끝" 인 마법사가 된다.
-    expect(screen.getByTestId("setup-summary")).toHaveTextContent("6");
+    expect(screen.getByTestId("setup-summary")).toHaveTextContent("5");
   });
 
   it("전부 끝나도 항목 목록은 그대로 남는다", async () => {
@@ -217,7 +215,7 @@ describe("끝난 뒤에도 계속 보인다", () => {
     await waitFor(() => expect(screen.getByText("조직과 부서")).toBeInTheDocument());
     expect(screen.getByTestId("setup-summary")).toHaveTextContent(/끝났습니다/);
     const keys = Array.from(document.querySelectorAll("[data-setup-key]"));
-    expect(keys.length).toBe(7);
+    expect(keys.length).toBe(6);
   });
 });
 
@@ -229,9 +227,10 @@ describe("링크", () => {
     const explicit = [
       "dashboard", "search", "users", "offboarding", "settings",
       "diagnostics", "maintenance", "dev-report", "scheduler-calendar",
-      // 9-4, 9-5 로 생긴 두 화면. 이 목록은 AdminRoutes.jsx 의 명시 경로를 손으로 옮겨
-      // 적은 것이라 새 경로가 생기면 여기도 같이 늘려야 한다.
-      "notion-console", "llm-console",
+      // 9-5 로 생긴 AI 관리 화면. 이 목록은 AdminRoutes.jsx 의 명시 경로를 손으로 옮겨
+      // 적은 것이라 새 경로가 생기면 여기도 같이 늘려야 한다. `notion-console` 은 화면과
+      // 함께 라우트도 없어져 여기서 뺐다 — 남겨 두면 죽은 링크를 검사가 눈감아 준다.
+      "llm-console",
     ];
     const known = new Set(explicit.concat(Object.keys(REGISTRY)));
     for (const [key, link] of Object.entries(SETUP_LINKS)) {

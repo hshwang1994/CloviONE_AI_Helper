@@ -71,45 +71,25 @@ class Settings(BaseSettings):
     # (production: /etc/clovirassist/tls/*.crt). None in dev/tests.
     tls_cert_path: str | None = None
 
-    # 개발자 월간 리포트(§ 개발자 리포트): 앱 서버가 Notion "작업" 데이터베이스를 직접 읽어
-    # 담당자별 업무 현황을 집계한다. Notion 호출은 다른 외부 호출과 마찬가지로 OutboundClient
-    # 단일 관문을 지나며(allowlist=services), 토큰은 secrets_dir/<notion_report_token_ref>
-    # 파일에서만 읽는다(평문 노출 없음). 토큰이 없으면 화면은 '연동 필요' 안내를 보여준다.
+    # ── 이관 도구가 쓰는 Notion 설정 ─────────────────────────────────────────
+    #
+    # **제품은 더 이상 Notion 을 부르지 않는다.** 티켓·문서·프로젝트의 정본은 이 서버의
+    # 데이터베이스이고, Notion 을 읽고 쓰던 구현체는 전부 사라졌다. 그래서 여기 남은 값은
+    # 세 개뿐이고, 셋의 소비자도 하나뿐이다 — 이관 CLI(`app/cli/migrate_cli.py`)다.
+    #
+    # 그 CLI 는 재설치나 두 번째 설치에서 옛 데이터를 한 번 읽어 오는 도구라 살아 있어야
+    # 한다. 다만 그 호출은 런타임 허용 목록이 아니라 **이관 전용 허용 목록**을 지난다
+    # (`allowlist="migration"`, app/migration/source_notion.py). 런타임 목록에는
+    # api.notion.com 이 없다.
+    #
+    # 데이터베이스 id 는 여기에 없다. 이관 CLI 는 제목으로 찾거나 `--database role=id` 로
+    # 받는다(`app/migration/source_notion.py::discover`). 설정에 두면 설치처마다 다른 값이
+    # 소스에 박히는 문제가 예전 그대로 돌아온다.
     notion_api_base: str = "https://api.notion.com"
     notion_api_version: str = "2022-06-28"
-    # 설치처마다 다른 값이라 기본값이 없다. 예전엔 개발 워크스페이스의 DB id 가 박혀 있어서
-    # 다른 고객사에 설치하면 아무 설정 없이도 조용히 남의 워크스페이스를 가리켰다.
-    # 비어 있으면 외부 호출을 내보내기 전에 '설정 안 됨' 으로 끊는다
-    # (app/reports/notion_source.py::_require_tasks_database_id).
-    notion_tasks_database_id: str = ""
-    notion_report_token_ref: str = "notion_report_token"
-    # 티켓 로컬 미러 동기화 주기(PLAN §A). 문서(600s)보다 자주 도는 이유는 티켓이 회의 중에도
-    # 바뀌기 때문이다. 생성/편집은 캐시를 즉시 패치하므로 이 주기는 '다른 사람이 노션에서 직접
-    # 고친 것'이 반영되는 지연일 뿐이다.
-    notion_tickets_sync_interval_seconds: int = 180
-    # 프로젝트 미러 동기화 주기(0045). 티켓(180s)보다 느슨한 이유: 프로젝트의 이름·기간·담당자는
-    # 회의 중에 바뀌는 값이 아니다. 포털에서 고친 값은 그 자리에서 노션으로 밀어 넣으므로
-    # (push) 이 주기는 '다른 사람이 노션에서 직접 고친 것'이 반영되는 지연일 뿐이다.
-    # 프로젝트 DB id 는 설정에 없다 — 작업 DB 의 프로젝트 relation 을 따라간다
-    # (app/projects/notion_source.py 에 왜 설정으로 안 두는지 적어 뒀다).
-    notion_projects_sync_interval_seconds: int = 600
-    # 팀이 Notion 에서 쓰는 **스프린트 데이터베이스**(9-4). 비어 있는 것이 기본이고, 비어
-    # 있어도 포털은 멀쩡히 돈다 - 포털의 '이번 주' 는 작업 DB 의 마감일로 계산하기 때문이다
-    # (app/sprints/service.py::default_sprint_window). 바로 그것이 문제라서 이 값이 생겼다:
-    # 두 화면이 같은 이름('스프린트')으로 **서로 다른 것**을 부르고 있고, 아무 데서도 그
-    # 사실을 말하지 않았다. 값을 넣으면 Notion 관리 화면이 그 DB 를 실제로 한 번 불러
-    # '통합에 공유되지 않음(404)' 을 구분해 말한다. 넣지 않으면 '연결 안 됨' 이라고 말한다.
-    notion_sprint_database_id: str = ""
-
-    # 팀 공간 > 문서(§17): Notion "문서" 데이터베이스를 읽어 로컬 캐시로 미러링한다(장애 격리:
-    # Notion이 죽어도 마지막 정상 동기화 데이터로 목록을 보여준다). 토큰은 secrets_dir 파일
-    # 참조로만 읽고(평문 미노출), 없으면 화면은 '연동 필요'를 보여준다. tasks 토큰과 같은 값이어도
-    # 무방하다(별도 ref로 두어 문서 접근만 따로 회수/교체 가능).
-    # 작업 DB id 와 같은 이유로 기본값이 없다. 비어 있으면 문서 목록은 채워지지 않고,
-    # 그 사실은 진단의 '설치처 설정'(app/core/tenant_config.py)이 말한다.
-    notion_documents_database_id: str = ""
+    # 토큰 자체는 여기 없다. 이 값은 secrets_dir 안의 **파일 이름**일 뿐이고, 토큰은 그
+    # 파일에서만 읽는다(§2 불변 규칙 3).
     notion_docs_token_ref: str = "notion_docs_token"
-    notion_docs_sync_interval_seconds: int = 600
 
     # 통합 검색 인덱스 재구축 주기(PLAN Phase 5). **워커 틱에서만** 돈다 — 채팅 전송·폴링
     # 같은 뜨거운 경로에는 훅을 걸지 않는다(app/search/indexer.py docstring).
@@ -168,13 +148,11 @@ class Settings(BaseSettings):
     # (`app/ai/gateway/registry.py`)이라 여기에 남길 값이 없다. 두 기능의 기능 플래그
     # (`game_ai_enabled` · `assistant_narrative_enabled`)는 그대로다.
 
-    # 소스 스위치(§7.1.C). 저장소 배선을 바꾸는 재시작급 변경이라 DB 설정이 아니라 env 에 둔다.
-    # 값: 'notion' | 'notion_cache' | 'native'.
-    #
-    # **기본이 `native` 다 (S14).** 자체 DB 가 정본이고, 그 구현체가 실제로 선다
-    # (`app/tickets/repository_native.py` · `app/team_docs/repository_native.py`).
-    # 나머지 둘은 Cutover 되돌리기 창에서만 쓰는 값이다 — 되돌리면 미러가 다시 정본이
-    # 되므로 그때는 옛 값이 맞다. 서비스 Open 뒤에는 쓸 자리가 없다.
+    # 소스 스위치(§7.1.C)는 여기 있었다. 값이 셋('notion' · 'notion_cache' · 'native')이라
+    # 뜻이 있었고, Cutover 를 되돌릴 수 있는 동안에는 되돌린 설치가 옛 값으로 떴다.
+    # 지금은 구현체가 자체 DB 하나뿐이라 고를 것이 없다 — 배선은 코드가 정한다
+    # (`app/core/source_registry.py`).
+
     # ── LLM (9-5) ────────────────────────────────────────────────────────────
     #
     # `app/llm/provider.py::resolve_config` 는 이미 `Settings` 필드 → 환경변수 → 기본값
@@ -225,10 +203,6 @@ class Settings(BaseSettings):
     # 색인 파이프라인이 한 번의 tick 에서 처리하는 대상 수. 크게 잡으면 한 tick 이
     # 길어져 종료 신호에 늦게 답한다.
     index_batch_documents: int = 20
-
-    ticket_source: str = "native"
-    # 문서는 이미 로컬 미러에서 읽으므로 notion / notion_cache 가 같은 구현체를 가리킨다.
-    document_source: str = "native"
 
     @property
     def allowed_email_domain_list(self) -> list[str]:

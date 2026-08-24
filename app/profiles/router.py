@@ -545,10 +545,8 @@ def my_stats(
         "source": {k: v for k, v in state.items() if k != "tickets"},
         **(stats.build_stats(tickets, today=today, months=months, weeks=weeks) if usable else {}),
     }
-    from app.tickets.service import sync_indicator
-
-    sync = sync_indicator(db, repo=request.app.state.repositories.tickets)
-    return {**body, "sync": sync} if sync else body
+    # 신선도(`sync`) 블록은 싣지 않는다 — 티켓 표가 이 서버의 정본이라 낡을 것이 없다.
+    return body
 
 
 # ── 내 활동 피드 ─────────────────────────────────────────────────────────────

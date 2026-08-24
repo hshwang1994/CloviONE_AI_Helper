@@ -9,7 +9,7 @@ import {
 } from "./density.js";
 import { FONT_SIZE } from "./theme.js";
 import { DETAIL_GRID } from "../screens/Ticket.jsx";
-import { DOC_DETAIL_GRID } from "../screens/TeamDoc.jsx";
+import { DOC_DETAIL_GRID } from "./DocBody.jsx";
 import { NEW_TICKET_GRID } from "../screens/MyTickets.jsx";
 import { PEOPLE_GRID } from "../screens/Sprint.jsx";
 

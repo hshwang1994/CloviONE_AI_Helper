@@ -171,9 +171,8 @@ function columns(deptNames) {
         <Stack direction="row" gap={0.5} sx={{ flexWrap: "wrap", alignItems: "center" }}>
           <Badge value={PROJECT_STATUS_KO[p.status] || p.status} />
           {p.archived_at ? <Badge value="보관됨" /> : null}
-          {/* 노션에서 안 보인 회차가 있었다는 사실. 감추면 사용자는 값이 왜 멈춰 있는지
-              알 방법이 없다. */}
-          {p.notion_missing_at ? <Badge value="노션에서 확인 안 됨" kind="warn" /> : null}
+          {/* 여기 「이관 때 원본 없음」 배지가 있었다. 얼어붙은 이관 흔적 컬럼을 읽던
+              것이라 사용자가 무엇을 고쳐도 안 사라졌다. 서버도 그 필드를 걷었다(S14). */}
         </Stack>
       ),
     },
@@ -353,15 +352,9 @@ export function Projects() {
                 empty="표시할 프로젝트가 없습니다."
               />
             </Card>
-            {/* 노션에 못 밀어 넣은 프로젝트는 표 안에 문장을 넣을 자리가 없다(열이 여섯이다).
-                표 아래 한 줄로 모아 말한다 - 감추면 사용자는 저장이 된 줄 안다. */}
-            {items.filter((p) => p.notion_sync_error).map((p) => (
-              <Box key={p.id} sx={{ mt: 1.5 }}>
-                <Callout tone="danger">
-                  {p.name + ": 노션에 반영하지 못했습니다. " + p.notion_sync_error + " 관리자에게 문의하세요."}
-                </Callout>
-              </Box>
-            ))}
+            {/* 여기 「이관할 때 이 프로젝트에서 문제가 있었습니다」 배너가 있었다. 얼어붙은
+                이관 흔적 컬럼을 읽던 것이라 관리자에게 문의해도 없앨 방법이 없었다.
+                서버도 그 필드를 걷었다(S14). */}
             <Pager
               page={data.page} pageSize={data.page_size} total={data.total}
               onPage={(page) => setFilters({ page })}

@@ -81,14 +81,11 @@ RULES: tuple[tuple[str, tuple[str, ...], str, str], ...] = (
             "app/knowledge/blocks.py",
             "app/knowledge/versions.py",
             # ⚠️ 아래 다섯은 **다른 표의 같은 이름 컬럼**이다.
-            # `document_cache.body_markdown`·`tickets.body_markdown` 은 Notion 미러가
-            # 들고 있는 본문이고, 정본이 저쪽에 있으므로 파생이라는 개념 자체가 없다.
-            # 정적 검사는 이름만 보므로 여기서 이름으로 열어 준다 — S14 가 미러를
-            # 걷어내면 이 다섯 줄도 함께 사라지고, 그때 규칙은 저절로 더 좁아진다.
-            "app/team_docs/repository_notion.py",
-            # 문서 쪽 자체 DB 구현체도 **같은 컬럼**(`document_cache.body_markdown`)에 쓴다.
-            # 티켓 쪽과 같은 이유다: 자체 DB 에서는 그 칸이 미러가 아니라 정본이라
-            # 「파생」이라는 개념이 없다 — 사용자가 친 글 그 자체다.
+            # `document_cache.body_markdown`·`tickets.body_markdown` 은 예전에 Notion
+            # 미러가 들고 있던 본문 칸이었고, 정본이 저쪽에 있으므로 파생이라는 개념 자체가
+            # 없었다. **S14 가 미러를 걷어낸 뒤에는 그 칸이 정본이다** — 사용자가 친 글
+            # 그 자체이고 Block JSON 에서 만들어지는 값이 아니다. 어느 쪽이든 「파생을
+            # 만드는 자리」가 아니므로 규칙에서 이름으로 열어 준다.
             "app/team_docs/repository_native.py",
             "app/team_docs/router.py",
             "app/team_docs/service.py",
@@ -96,10 +93,6 @@ RULES: tuple[tuple[str, tuple[str, ...], str, str], ...] = (
             # 준 본문을 미러에 받아 적는 자리다. **문서 본문**은 이 파일에서 안 만든다:
             # `app/migration/load.py::_snapshot` 은 `versions.snapshot` 을 부른다.
             "app/migration/load.py",
-            "app/tickets/repository_notion.py",
-            # 자체 DB 구현체도 **같은 컬럼**(`tickets.body_markdown`)에 쓴다. 여기서는
-            # 그 컬럼이 미러가 아니라 정본이라 「파생」이라는 개념이 아예 없다 —
-            # Block JSON 에서 만들어지는 값이 아니라 사용자가 친 글 그 자체다.
             "app/tickets/repository_native.py",
             "app/tickets/router.py",
             "app/tickets/service.py",
@@ -225,14 +218,10 @@ RULES: tuple[tuple[str, tuple[str, ...], str, str], ...] = (
 HIERARCHY_READERS_FORBIDDEN = r"\.parent_page_id\b"
 HIERARCHY_ALLOWED = (
     "app/tickets/models.py",      # 컬럼 정의
-    "app/tickets/sync.py",        # 미러에 받아 적는 자리 (파생의 입력)
-    # 이관도 같은 자리다: 소스의 상위 작업을 미러 컬럼에 받아 적고, 관계로 옮기는 것은
+    # 이관이 소스의 상위 작업을 이 컬럼에 받아 적는다. 관계로 옮기는 것은
     # `relations.sync_parent_links` 를 부른다 (S13 · app/migration/load.py).
     "app/migration/load.py",
     "app/work/relations.py",      # 그 입력을 관계로 옮기는 유일한 함수
-    "app/reports/notion_source.py",  # 외부 응답 파서 — 아직 도메인이 아니다
-    "app/notion_console/router.py",  # Notion 콘솔의 요청 필드(다른 뜻의 같은 이름)
-    "app/notion_console/probe_notion.py",
 )
 
 DOCSTRING_RE = re.compile(r'"""[\s\S]*?"""|\'\'\'[\s\S]*?\'\'\'')

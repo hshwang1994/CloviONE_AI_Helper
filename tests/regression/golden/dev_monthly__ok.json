@@ -26,8 +26,7 @@
           "priority": "보통",
           "status": "완료",
           "tid": 102,
-          "title": "공동 담당 완료 티켓",
-          "url": "https://www.notion.so/page-0002"
+          "title": "공동 담당 완료 티켓"
         },
         {
           "act_wd": null,
@@ -39,8 +38,7 @@
           "priority": "낮음",
           "status": "검증",
           "tid": 103,
-          "title": "개발자 검증 티켓",
-          "url": "https://www.notion.so/page-0003"
+          "title": "개발자 검증 티켓"
         }
       ],
       "user_id": "00000000-0000-4000-8000-00000000a002",
@@ -71,8 +69,7 @@
           "priority": "높음",
           "status": "진행",
           "tid": 101,
-          "title": "관리자 진행 티켓",
-          "url": "https://www.notion.so/page-0001"
+          "title": "관리자 진행 티켓"
         },
         {
           "act_wd": 2.0,
@@ -84,8 +81,7 @@
           "priority": "보통",
           "status": "완료",
           "tid": 102,
-          "title": "공동 담당 완료 티켓",
-          "url": "https://www.notion.so/page-0002"
+          "title": "공동 담당 완료 티켓"
         }
       ],
       "user_id": "00000000-0000-4000-8000-00000000a001",

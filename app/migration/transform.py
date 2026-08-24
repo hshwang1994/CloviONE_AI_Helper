@@ -13,24 +13,32 @@
 다시 올리면 **코드 블록 46개와 목록 중첩이 뭉개진다**(실측 표본: 문서 하나당 38블록 중
 code 46 · bulleted 127). 그래서 마크다운을 거치지 않고 노드로 직접 옮긴다.
 
-표현할 수 없는 블록(표·이미지·컬럼)은 **버리지 않고 한 문단으로 남긴다.** 지우면 그
-자리가 있었다는 사실 자체가 사라지고, 사람이 원본을 열어 볼 근거도 없어진다.
+표·이미지는 **글자가 아니라 노드로** 옮긴다(S14 · D3). 그 전에는 스키마에 자리가 없어서
+`[원본에서 확인: image]` 같은 문단으로 바꿔 넣었고, 그러면 표 셀의 글자 31,310자가
+어디에도 안 남았다. 남은 자리표시자는 사람이 읽는 문장으로 적는다 — 사용자에게
+`synced_block` 같은 내부 이름을 보여 주면 그것은 설명이 아니라 소음이다.
 """
 
 from __future__ import annotations
 
+import base64
+import binascii
 import re
 import unicodedata
 from dataclasses import dataclass, field
+from datetime import datetime
+from urllib.parse import unquote, urlsplit
 
 from app.core import dates
+from app.migration.source_notion import NotionSourceError
 from app.knowledge import blocks as block_mod
 from app.work import models as work_models
 
 __all__ = [
     "TASK_PROPS", "DOC_PROPS", "PROJECT_PROPS",
-    "NotionAttachment", "parse_task", "parse_project", "parse_document",
-    "attachments_of", "notion_blocks_to_doc", "classify_ticket_exception",
+    "NotionAttachment", "NotionMedia", "NotionComment",
+    "parse_task", "parse_project", "parse_document", "parse_comment", "comments_of",
+    "attachments_of", "media_of", "notion_blocks_to_doc", "classify_ticket_exception",
     "space_slug", "assign_sequences", "property_coverage", "relation_titles",
 ]
 
@@ -303,6 +311,116 @@ def attachments_of(row: dict) -> list[NotionAttachment]:
     return out
 
 
+# ── 댓글 (D11) ───────────────────────────────────────────────────────────────
+
+# 첨부만 있고 글이 없는 댓글의 본문. 실측 325건 중 17건이 그렇고 전부 파일이 붙어
+# 있다. 빈 글로 넣으면 화면에 아무 말도 없는 줄이 남고, 안 넣으면 「누가 언제 무엇을
+# 올렸다」가 통째로 사라진다 — 본문의 잃은 파일과 같은 문장을 쓴다.
+COMMENT_ATTACHMENT_ONLY = "원본에만 있는 첨부 파일입니다."
+
+
+@dataclass(frozen=True)
+class NotionComment:
+    """Notion 댓글 하나 → 우리 `ticket_comments` 한 줄이 될 값.
+
+    `discussion_id` 를 들고 다니지만 **우리 표에는 그 칸이 없다.** 그래도 버리지 않는
+    이유는 순서 때문이다: 같은 스레드의 답글이 원글보다 먼저 들어가면 목록이 대화가
+    아니라 파편이 된다. 적재가 시간 순으로 펴 넣으므로 그 순서는 지켜지고, 이 값은
+    「원본에서 어느 대화였는가」를 보고서가 셀 수 있게 남긴다.
+    """
+
+    page_id: str
+    comment_id: str
+    discussion_id: str
+    author_notion_id: str | None
+    # `display_name.type` 이다. `user` 면 사람이고 `integration` 이면 자동화가 쓴 것이다.
+    # 판정에는 안 쓴다 — 작성자는 `user_notion_mappings` 하나로만 푼다. 보고서에서
+    # 「이건 사람이 아니다」를 사람이 읽게 하는 값이다.
+    author_kind: str
+    author_label: str
+    body: str
+    created_at: datetime | None
+    created_raw: str
+    attachment_count: int
+
+    @property
+    def legacy_id(self) -> str:
+        """`legacy_mapping` 이 쓰는 식별자. Notion 이 댓글에 준 id 를 그대로 쓴다.
+
+        페이지 안의 자리(순번)로 만들지 않는 이유는 댓글이 지워질 수 있기 때문이다 —
+        하나가 사라지면 그 뒤 전부의 자리가 밀리고, 재실행이 같은 댓글을 새 댓글로 본다.
+        """
+        return self.comment_id
+
+
+def _comment_text(parts) -> str:
+    """댓글 `rich_text` → 평문. **줄바꿈을 지운다면 코드 조각이 한 줄이 된다.**
+
+    본문(`_plain`)과 달리 조각마다 `strip` 하지 않고 그대로 잇는다. 실측 댓글에는
+    자바 코드가 여러 줄로 들어 있고, 그 줄바꿈이 사라지면 읽을 수 없는 한 줄이 된다.
+    양 끝의 공백만 다듬는다.
+    """
+    out: list[str] = []
+    for seg in parts or []:
+        if not isinstance(seg, dict):
+            continue
+        text = seg.get("plain_text")
+        if text is None:
+            holder = seg.get("text")
+            text = holder.get("content") if isinstance(holder, dict) else None
+        if text:
+            out.append(text)
+    return "".join(out).strip()
+
+
+def parse_comment(raw: dict, *, page_id: str = "") -> NotionComment | None:
+    """Notion 댓글 한 건 → `NotionComment`. 식별자가 없으면 `None`.
+
+    작성자를 여기서 사람으로 풀지 않는다. `created_by.id` 를 그대로 넘기고 해석은
+    `_user_for_notion` 하나가 한다 — 이름으로 잇는 두 번째 판정이 생기면 그 둘은
+    언젠가 갈리고, 갈린 쪽이 남의 이름으로 남의 글을 적는다(U11).
+    """
+    if not isinstance(raw, dict):
+        return None
+    comment_id = raw.get("id")
+    if not comment_id:
+        return None
+    parent = raw.get("parent") if isinstance(raw.get("parent"), dict) else {}
+    holder = raw.get("created_by") if isinstance(raw.get("created_by"), dict) else {}
+    display = raw.get("display_name") if isinstance(raw.get("display_name"), dict) else {}
+    attachments = raw.get("attachments")
+    body = _comment_text(raw.get("rich_text"))
+    count = len(attachments) if isinstance(attachments, list) else 0
+    if not body and count:
+        body = COMMENT_ATTACHMENT_ONLY
+    return NotionComment(
+        page_id=page_id or parent.get("page_id") or "",
+        comment_id=comment_id,
+        discussion_id=raw.get("discussion_id") or "",
+        author_notion_id=holder.get("id"),
+        author_kind=(display.get("type") or "").strip(),
+        author_label=(display.get("resolved_name") or "").strip(),
+        body=body,
+        created_at=dates.parse_dt(raw.get("created_time")),
+        created_raw=raw.get("created_time") or "",
+        attachment_count=count,
+    )
+
+
+def comments_of(page_id: str, raw_comments) -> list[NotionComment]:
+    """페이지 하나의 댓글 전부.
+
+    식별자가 없어 못 읽는 것은 빼고 낸다. 그렇게 빠진 건수는 검증이 잡는다 —
+    「원본 댓글 수 = 이관된 수 + 분류된 예외」가 안 맞으면 그 차이가 여기서 생긴다.
+    """
+    out: list[NotionComment] = []
+    for raw in raw_comments or []:
+        parsed = parse_comment(raw, page_id=page_id)
+        if parsed is not None:
+            out.append(parsed)
+    return out
+
+
 # ── 행 ───────────────────────────────────────────────────────────────────────
 
 
@@ -425,8 +543,29 @@ def relation_titles(rows: list[dict]) -> dict[str, str]:
 
 # ── Notion 블록 → Block JSON (D-198) ─────────────────────────────────────────
 
-_HEADING_LEVEL = {"heading_1": 1, "heading_2": 2, "heading_3": 3}
+# `heading_4` 를 3 으로 낮추지 않는다. 스키마가 1..6 을 받으므로(`blocks._normalize_attrs`)
+# 4 를 그대로 쓸 수 있고, 낮추면 실측 21개의 제목이 바로 위 `heading_3` 과 같은 층이 되어
+# 「어느 것이 어느 것의 하위인가」가 사라진다.
+_HEADING_LEVEL = {"heading_1": 1, "heading_2": 2, "heading_3": 3, "heading_4": 4}
 _LIST_KIND = {"bulleted_list_item": "bulletList", "numbered_list_item": "orderedList"}
+
+# 자식만 이어 붙이고 자기 자신은 아무 자리도 안 차지하는 블록. 자리표시자를 남기면
+# 군더더기다 — 컬럼이었다는 사실은 옮겨진 글 어디에도 필요하지 않고, `child_page` 는
+# 자식 페이지의 본문이 이미 이어 붙는다.
+_TRANSPARENT_BLOCKS = frozenset({
+    "column_list", "column", "synced_block", "child_page",
+    "table_of_contents", "breadcrumb", "template",
+})
+
+# 바이트를 들고 있는 블록. `media_of` 가 모으고, 적재가 우리 저장소로 옮긴 다음 URL 을
+# 돌려준다(D4). Notion 서명 URL 은 한 시간이면 죽으므로 본문에 남기지 않는다.
+MEDIA_BLOCKS = frozenset({"image", "file", "pdf", "video", "audio"})
+
+# 못 옮긴 자리에 남기는 말. **내부 타입 이름을 사용자에게 보여 주지 않는다** — 「원본에서
+# 확인: synced_block」은 읽는 사람에게 아무것도 알려 주지 않고 오류처럼 보인다.
+_LOST_IMAGE = "원본에만 있는 이미지입니다."
+_LOST_FILE = "원본에만 있는 첨부 파일입니다."
+_LOST_BLOCK = "원본에만 있는 내용입니다."
 # `to_do` 는 우리 스키마에 체크박스 노드가 없다(TipTap StarterKit 만 쓴다 · D-198).
 # 목록 항목으로 내리고 상태를 글자로 남긴다 — 지우면 「무엇이 끝났는가」가 사라진다.
 _TODO_MARK = {True: "[x] ", False: "[ ] "}
@@ -472,12 +611,178 @@ def _list_item(inline: list[dict], children: list[dict]) -> dict:
     return {"type": "listItem", "content": content}
 
 
-def notion_blocks_to_doc(raw_blocks) -> dict:
+def _link_paragraph(text: str, href: str) -> dict:
+    return {"type": "paragraph", "content": [
+        {"type": "text", "text": text,
+         "marks": [{"type": "link", "attrs": {"href": href}}]},
+    ]}
+
+
+def _table(holder: dict, rows) -> dict | None:
+    """Notion `table` + `table_row` → D3 의 table 노드.
+
+    머리 칸은 두 축이 따로 정한다: `has_column_header` 는 **첫 줄 전체**를,
+    `has_row_header` 는 **첫 칸 열 전체**를 머리로 만든다. 둘 다 켜진 표에서 왼쪽 위
+    한 칸이 양쪽에 걸리는데 그것도 머리다.
+
+    빈 셀은 **빈 문단 하나**를 갖는다(D3). 문단을 안 넣으면 ProseMirror 가 그 셀을
+    빈 칸이 아니라 잘못된 모양으로 읽는다.
+    """
+    has_column_header = bool(holder.get("has_column_header"))
+    has_row_header = bool(holder.get("has_row_header"))
+    out_rows: list[dict] = []
+    for index, row in enumerate(rows or []):
+        if not isinstance(row, dict) or row.get("type") != "table_row":
+            continue
+        cells = (row.get("table_row") or {}).get("cells") or []
+        out_cells: list[dict] = []
+        for column, cell in enumerate(cells):
+            header = (has_column_header and index == 0) or (has_row_header and column == 0)
+            inline = _inline(cell)
+            paragraph: dict = {"type": "paragraph"}
+            if inline:
+                paragraph["content"] = inline
+            out_cells.append({
+                "type": "tableHeader" if header else "tableCell",
+                "attrs": {"colspan": 1, "rowspan": 1, "colwidth": None},
+                "content": [paragraph],
+            })
+        if out_cells:
+            out_rows.append({"type": "tableRow", "content": out_cells})
+    return {"type": "table", "content": out_rows} if out_rows else None
+
+
+# ── 본문 안의 바이트 (D4) ────────────────────────────────────────────────────
+
+
+@dataclass(frozen=True)
+class NotionMedia:
+    """본문 블록 하나가 들고 있는 파일.
+
+    `NotionAttachment` 와 나누어 둔 이유는 붙는 자리가 다르기 때문이다. 저쪽은 페이지
+    **속성**의 첨부라 본문과 무관하게 첨부 목록에 붙고, 이쪽은 본문 **그 자리**에
+    이미지나 링크로 다시 들어가야 한다 — 그래서 블록 id 를 들고 다닌다.
+    """
+
+    page_id: str
+    block_id: str
+    block_type: str
+    name: str
+    url: str
+    hosted: bool
+
+    @property
+    def legacy_id(self) -> str:
+        """`legacy_mapping` 이 쓰는 안정적 식별자.
+
+        블록 id 는 Notion 이 주는 값이고 페이지를 다시 읽어도 같다. 서명 URL 은 매
+        조회마다 바뀌므로 키로 쓸 수 없다 — 그것을 키로 쓰면 재실행이 같은 이미지를
+        매번 새로 내려받아 첨부가 회차마다 늘어난다.
+        """
+        return f"block:{self.block_id}"
+
+    @property
+    def is_image(self) -> bool:
+        return self.block_type == "image"
+
+
+def _media_name(holder: dict, url: str, *, block_type: str) -> str:
+    """파일 이름. 없으면 **URL 의 마지막 조각**에서 만든다.
+
+    이름이 비면 `store_bytes` 가 확장자 없는 이름을 저장하고, 화면에는 무엇인지 알 수
+    없는 줄이 하나 남는다. 형식 판정 자체는 매직바이트가 하므로(`sniff_media_type`)
+    이름은 사람이 읽기 위한 값이다.
+    """
+    given = (holder.get("name") or "").strip() if isinstance(holder.get("name"), str) else ""
+    if given:
+        return given
+    caption = _plain(holder.get("caption"))
+    tail = unquote((urlsplit(url).path or "").rsplit("/", 1)[-1]).strip()
+    if tail:
+        return tail
+    if caption:
+        return caption[:100]
+    return "이미지" if block_type == "image" else "첨부"
+
+
+def _media_of_block(page_id: str, block: dict) -> NotionMedia | None:
+    block_type = block.get("type") or ""
+    if block_type not in MEDIA_BLOCKS:
+        return None
+    holder = block.get(block_type)
+    if not isinstance(holder, dict):
+        return None
+    hosted = isinstance(holder.get("file"), dict)
+    source = holder.get("file") if hosted else holder.get("external")
+    url = source.get("url") if isinstance(source, dict) else None
+    block_id = block.get("id")
+    if not url or not block_id:
+        return None
+    # 🔴 「외부」인데 실제로는 이미지가 그 자리에 그대로 박혀 있는 경우가 있다
+    # (`data:` URI — 실측: 1,235쪽 중 1건, 누군가 base64 이미지를 직접 붙여 넣은
+    # 것으로 보인다). 진짜 외부 링크가 아니라 우리가 옮겨야 할 바이트라 `hosted=False`
+    # 로 두면 그 문자열이 그대로 본문에 남고, `blocks.py` 는 허용하지 않는 스킴이라
+    # 거절한다 — 그 순간 이미지 하나 때문에 **문서 전체**가 안 들어간다. 우리 저장소로
+    # 옮겨야 하는 자리이므로 `hosted` 로 다룬다(`_body_media` 가 그 값으로 갈래를 정한다).
+    hosted = hosted or url.startswith("data:")
+    return NotionMedia(
+        page_id=page_id,
+        block_id=block_id,
+        block_type=block_type,
+        name=_media_name(holder, url, block_type=block_type),
+        url=url,
+        hosted=hosted,
+    )
+
+
+def media_bytes(url: str, fetch) -> bytes:
+    """미디어 바이트. `data:` URI 는 그 자리에서 풀고, 그 밖은 `fetch` 로 받는다.
+
+    Notion 의 "외부" 이미지가 실제로는 원본 안에 그대로 인코딩돼 있는 경우가 있다
+    (`_media_of_block` 참조). 그때는 내려받을 곳이 없다 — `OutboundClient` 에 `data:`
+    URI 를 넘기면 스킴이 http/https 가 아니라 허용 목록에서 거절되므로, 애초에
+    네트워크로 보내지 않고 여기서 바로 디코드한다.
+    """
+    if url.startswith("data:"):
+        header, _, payload = url.partition(",")
+        if ";base64" not in header:
+            raise NotionSourceError("base64 가 아닌 data URI 는 지원하지 않습니다")
+        try:
+            return base64.b64decode(payload, validate=True)
+        except binascii.Error as exc:
+            raise NotionSourceError(f"data URI 를 읽지 못했습니다: {exc}") from exc
+    return fetch(url)
+
+
+def media_of(page_id: str, raw_blocks) -> list[NotionMedia]:
+    """페이지 본문이 들고 있는 파일 전부. **중첩 안까지 본다.**
+
+    실측에서 이미지는 컬럼이나 토글 안에 들어 있는 것이 흔하다. 최상위만 훑으면 그
+    그림들이 조용히 빠지고, 빠졌다는 사실은 아무 데도 안 남는다.
+    """
+    out: list[NotionMedia] = []
+    for block in raw_blocks or []:
+        if not isinstance(block, dict):
+            continue
+        found = _media_of_block(page_id, block)
+        if found is not None:
+            out.append(found)
+        out.extend(media_of(page_id, block.get("_children") or []))
+    return out
+
+
+def notion_blocks_to_doc(raw_blocks, *, media_urls: dict[str, str] | None = None) -> dict:
     """Notion 블록 목록 → Block JSON 문서. **정규화는 부르는 쪽이 한다.**
 
     여기서 `blocks.normalize` 를 부르지 않는 이유는 앞판 이어붙이기다 — 재실행에서
     블록 id 를 이어 주려면 `carry_from` 이 필요하고, 그 값은 DB 를 봐야 안다(D-247).
+
+    `media_urls` 는 「블록 id → 우리 첨부 주소」다. 적재가 바이트를 옮긴 뒤에 넘긴다 —
+    비어 있으면 이미지 자리에 사람이 읽는 한 문장이 남는다. Notion 서명 URL 을 대신
+    넣지 않는 이유는 D4 에 있다: 그 주소는 한 시간이면 죽고, 죽었다는 사실은 사용자가
+    문서를 열어 깨진 그림을 볼 때만 드러난다.
     """
+    resolved = media_urls or {}
     content: list[dict] = []
     pending_kind: str | None = None
     pending_items: list[dict] = []
@@ -494,7 +799,13 @@ def notion_blocks_to_doc(raw_blocks) -> dict:
         btype = block.get("type") or ""
         holder = block.get(btype)
         holder = holder if isinstance(holder, dict) else {}
-        children = notion_blocks_to_doc(block.get("_children") or []).get("content") or []
+        raw_children = block.get("_children") or []
+        # 표는 자식을 **자기가** 읽는다(`table_row`). 먼저 문서로 바꿔 두면 셀이
+        # 자리표시자 문단이 되어 버리고, 그러면 셀 글자를 두 번 넣는 꼴이 된다.
+        children = (
+            [] if btype == "table"
+            else notion_blocks_to_doc(raw_children, media_urls=resolved).get("content") or []
+        )
 
         if btype in _LIST_KIND:
             kind = _LIST_KIND[btype]
@@ -545,18 +856,74 @@ def notion_blocks_to_doc(raw_blocks) -> dict:
             })
         elif btype == "divider":
             content.append({"type": "horizontalRule"})
+        elif btype == "table":
+            node = _table(holder, raw_children)
+            if node is not None:
+                content.append(node)
+        elif btype == "table_row":
+            # 표 밖에 홀로 온 줄. 부모 표가 이미 읽었으므로 여기 오면 원본이 이상한
+            # 것이고, 셀 글자만 문단으로 건진다 — 버리면 그 글자가 어디에도 안 남는다.
+            for cell in (holder.get("cells") or []):
+                inline = _inline(cell)
+                if inline:
+                    content.append({"type": "paragraph", "content": inline})
+        elif btype == "image":
+            caption = _plain(holder.get("caption"))
+            src = resolved.get(block.get("id"))
+            if src:
+                content.append({
+                    "type": "image",
+                    "attrs": {"src": src, "alt": caption, "title": None},
+                })
+            else:
+                content.append(_paragraph(_LOST_IMAGE))
+                if caption:
+                    content.append(_paragraph(caption))
+        elif btype in MEDIA_BLOCKS:
+            # 이미지가 아닌 바이트(문서·압축·녹화). 본문에는 **사람이 읽는 링크 문단**을
+            # 남긴다 — 첨부 목록에만 넣으면 「이 문단 다음에 규격서가 있었다」가 사라진다.
+            found = _media_of_block("", {**block, "id": block.get("id") or "?"})
+            href = resolved.get(block.get("id"))
+            if found is None:
+                content.append(_paragraph(_LOST_FILE))
+            elif href:
+                content.append(_link_paragraph(found.name, href))
+            else:
+                content.append(_paragraph(f"{_LOST_FILE} {found.name}"))
+            caption = _plain(holder.get("caption"))
+            if caption:
+                content.append(_paragraph(caption))
+        elif btype in ("bookmark", "embed", "link_preview", "link_to_page"):
+            href = holder.get("url")
+            caption = _plain(holder.get("caption"))
+            if isinstance(href, str) and href.strip():
+                content.append(_link_paragraph(caption or href.strip(), href.strip()))
+            elif caption:
+                content.append(_paragraph(caption))
+        elif btype == "equation":
+            expression = (holder.get("expression") or "").strip()
+            if expression:
+                content.append({
+                    "type": "codeBlock",
+                    "attrs": {"language": ""},
+                    "content": [{"type": "text", "text": expression}],
+                })
+        elif btype in _TRANSPARENT_BLOCKS:
+            # 자기 자신은 아무 글자도 안 갖는다. 자식만 이어 붙이고 자리표시자는 안 남긴다.
+            content.extend(children)
         else:
-            # 표·이미지·컬럼·수식… 우리 스키마에 없는 것. **자리는 남긴다.**
-            content.append(_paragraph(f"[원본에서 확인: {btype}]"))
+            # 여기 오는 것은 정말 못 옮기는 것뿐이다(예: `child_database`). 사람이 읽는
+            # 문장 하나로 자리를 남긴다 — 지우면 그 자리가 있었다는 사실까지 사라진다.
+            content.append(_paragraph(_LOST_BLOCK))
             content.extend(children)
 
     flush()
     return {"type": "doc", "content": content}
 
 
-def notion_blocks_to_markdown(raw_blocks) -> str:
+def notion_blocks_to_markdown(raw_blocks, *, media_urls: dict[str, str] | None = None) -> str:
     """블록 → 마크다운. 티켓 본문(`tickets.body_markdown`)이 이 형태다."""
-    doc = notion_blocks_to_doc(raw_blocks)
+    doc = notion_blocks_to_doc(raw_blocks, media_urls=media_urls)
     return block_mod.to_markdown(block_mod.normalize(doc))
 
 

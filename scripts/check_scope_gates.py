@@ -145,8 +145,6 @@ EXEMPT: dict[str, str] = {
     # 권한 이름을 범위 게이트로 인정하기 시작하면 "권한만 있고 범위는 없는" 경로가 통과한다.
     "app/integrity/router.py::assign_membership":
         "전역 관리 범위만 통과한다(`_require_global`) — 좁힐 범위가 없다.",
-    "app/integrity/router.py::assign_document_ownership":
-        "전역 관리 범위만 통과한다(`_require_global`) — 좁힐 범위가 없다.",
     "app/profiles/router.py::revoke_one_session":
         "자기 세션만 다룬다 — 조회가 `user_id == me.id` 로 시작한다.",
     "app/profiles/router.py::delete_saved_view":

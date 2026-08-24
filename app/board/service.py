@@ -46,7 +46,7 @@ def can_moderate(user: User) -> bool:
 
 def ensure_can_edit(author_user_id: str, user: User) -> None:
     """수정은 **작성자 본인만.** 티켓·문서 댓글(`app/tickets/comments.py`,
-    `app/team_docs/comments.py`)과 같은 규칙이다 — 운영자도 남의 문장을 고쳐 쓸 수는
+    `app/knowledge/comments.py`)과 같은 규칙이다 — 운영자도 남의 문장을 고쳐 쓸 수는
     없다. 남의 말을 바꾸는 것은 지우는 것보다 나쁘다(누가 썼는지는 그대로인데 내용만
     달라진다). 예전에는 이 함수가 삭제까지 함께 검사해 운영자가 남의 글을 조용히
     고쳐 쓸 수 있었다(감사 로그에는 남지만 화면에는 "(수정됨)" 조차 없었다) — 삭제

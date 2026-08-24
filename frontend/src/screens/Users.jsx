@@ -840,16 +840,12 @@ function inactiveSuffix(nameOpts, currentId) {
 function UserDetail({ user, notFound, onClose, onEdit, onChanged, onTempPw, pwHelp, dept, title }) {
   const [busy, setBusy] = useState(false);
   const [resetting, setResetting] = useState(false);
-  const [notionNotice, setNotionNotice] = useState(null); // "conflict" | "no-match" | null — Notion 연결 확인 실패를 토스트 소멸 이후에도 남긴다
   const confirm = useConfirm();
   const toast = useToast();
   const qc = useQueryClient();
   const auth = useAuth();
   const nav = useNavigate();
   const uid = user && user.id;
-  // 다른 사용자의 상세로 넘어가면 이전 사용자의 Notion 연결 확인 결과 안내를 지운다 —
-  // 남겨 두면 A 의 결과가 B 의 화면에 그대로 이어져 붙는다.
-  React.useEffect(() => { setNotionNotice(null); }, [uid]);
   // '복사' 버튼 상태·타이머 — 훅이므로 반드시 이른 return(`if (!user) return null;`) 위에 둔다.
   // 예전엔 이 세 훅이 그 return 아래(copyId 근처)에 있어, user가 null→비null로 바뀌는 순간
   // (상세를 처음 열 때) 훅 개수가 12→15로 늘어 React가 "Rendered more hooks than during the
@@ -953,22 +949,11 @@ function UserDetail({ user, notFound, onClose, onEdit, onChanged, onTempPw, pwHe
       onClick: () => nav("/audit?user_id=" + encodeURIComponent(uid)) },
   ];
 
+  /* 여기 「Notion 연결 확인」 항목이 있었다. `POST /api/admin/users/{id}/notion-mapping/verify`
+     를 불러 결과를 아래 안내 상자에 남겼는데, 그 엔드포인트는 서버에서 이미 없어져 눌러도
+     404 만 돌아왔다. 확인해 주는 화면은 그대로 있으므로(‘Notion 사용자 연결’) 아래 연결 상태
+     줄에서 그 화면으로 곧장 가게 하고, 눌러도 실패하는 항목은 뺀다. */
   const manageItems = canManage ? [
-    { key: "notion-verify", label: "Notion 연결 확인", disabled: actionsDisabled,
-      onClick: () => run("/api/admin/users/" + id + "/notion-mapping/verify", {
-        // "verified" 외 실패도 전부 같은 문구로 뭉뚱그리지 않는다 — "conflict"(여러 계정과 동시에
-        // 일치)는 관리자가 매핑을 새로 만드는 게 아니라 충돌을 해결해야 하는 별개 상황이다.
-        // 실패 시 토스트(자동 소멸)만 남기지 않고 notionNotice에 담아, 상세 안에 실제로 누를
-        // 수 있는 링크로 남긴다(부서/직책 empty-state 링크와 같은 패턴).
-        format: (res) => {
-          const status = res && res.mapping && res.mapping.status;
-          const detail = (res && res.mapping && res.mapping.error_message) || "";
-          if (status === "verified") { setNotionNotice(null); return { msg: "Notion 연결을 확인했습니다.", kind: "success" }; }
-          if (status === "conflict") { setNotionNotice("conflict"); return { msg: (detail || "일치하는 Notion 계정이 여러 개 발견되었습니다.") + " ‘Notion 사용자 연결’ 화면에서 충돌을 해결하세요.", kind: "info" }; }
-          setNotionNotice("no-match");
-          return { msg: detail || "연결된 Notion 계정을 찾지 못했습니다. ‘Notion 사용자 연결’ 화면에서 연결할 수 있습니다.", kind: "info" };
-        },
-      }) },
     isSelf ? null : { key: "revoke", label: "세션 해제", disabled: actionsDisabled,
       onClick: () => run("/api/admin/users/" + id + "/revoke-sessions", { confirm: "이 사용자의 모든 로그인 세션을 끊을까요?", danger: true, format: (res) => (res && res.revoked_count ? res.revoked_count + "개 세션을 해제했습니다." : "해제할 활성 세션이 없습니다.") }) },
     d.active ? null : { key: "enable", label: "활성화", disabled: actionsDisabled,
@@ -1063,7 +1048,12 @@ function UserDetail({ user, notFound, onClose, onEdit, onChanged, onTempPw, pwHe
           </Row>
         ) : null}
         <Row label="직책">{d.title ? d.title + inactiveSuffix(title, d.title_id) : "-"}</Row>
-        <Row label="Notion 연결"><Badge value={d.notion_mapping_status} /></Row>
+        {/* 연결을 고치는 자리는 이 화면이 아니라 ‘Notion 사용자 연결’ 화면이다 — 상태만
+            보여 주고 끝내면 관리자가 그다음에 어디로 가야 하는지 알 수 없다. */}
+        <Row label="Notion 연결">
+          <Badge value={d.notion_mapping_status} />{" "}
+          <Link href={"#/notion-mapping?user_id=" + encodeURIComponent(id)} target="_blank" rel="noreferrer noopener" underline="hover">‘Notion 사용자 연결’ 화면에서 확인하기</Link>(새 탭)
+        </Row>
         {/* 목록 컬럼과 같은 어휘('잠김')를 쓴다, 여기서만 원시 불리언을 Badge에 그대로 넘기면
             '잠금: 예/아니오'로 읽혀, 같은 화면 안에서 같은 상태를 다른 말로 부르게 된다. */}
         <Row label="잠금"><Badge value={d.locked ? "잠김" : "정상"} kind={d.locked ? "danger" : "neutral"} /></Row>
@@ -1074,14 +1064,6 @@ function UserDetail({ user, notFound, onClose, onEdit, onChanged, onTempPw, pwHe
         {/* 로딩 중(em-dash)과 권한 없음(em-dash)이 예전엔 같은 표시라 구분이 안 됐다, 각각 다른 문구로 밝힌다. */}
         <Row label="활성 세션">{sessionCount != null ? sessionCount + "개" : !canManagePrelim ? "권한 없음" : "불러오는 중…"}</Row>
       </Box>
-      {notionNotice ? (
-        <Box sx={{ mt: 2 }}>
-          <Callout tone="info">
-            {notionNotice === "conflict" ? "일치하는 Notion 계정이 여러 개 발견되었습니다." : "연결된 Notion 계정을 찾지 못했습니다."}{" "}
-            <Link href={"#/notion-mapping?user_id=" + encodeURIComponent(id)} target="_blank" rel="noreferrer noopener" underline="hover">‘Notion 사용자 연결’ 화면에서 확인하기</Link>(새 탭)
-          </Callout>
-        </Box>
-      ) : null}
       {/* 관리 권한이 없으면 세션 조회를 아예 안 하므로(위 sessionsQ) 실패/목록 블록도 감춘다 -
           '관리 권한 없음'과 '세션 로드 실패'가 동시에 뜨는 모순을 없앤다. */}
       <Box sx={{ mt: 3 }}>

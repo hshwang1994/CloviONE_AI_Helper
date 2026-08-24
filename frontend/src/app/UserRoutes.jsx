@@ -1,12 +1,11 @@
 import React from "react";
-import { Routes, Route, useLocation } from "react-router-dom";
+import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import MuiButton from "@mui/material/Button";
 import { MyTickets, Unassigned, NewTicket } from "../screens/MyTickets.jsx";
 import { Home } from "../screens/Home.jsx";
 import { Board, IdeaBoard } from "../screens/Board.jsx";
 import { BoardPost } from "../screens/BoardPost.jsx";
-import { TeamDocs } from "../screens/TeamDocs.jsx";
-import { TeamDoc } from "../screens/TeamDoc.jsx";
+import { LegacyDocRedirect } from "../screens/LegacyDocRedirect.jsx";
 import { Trash } from "../screens/Trash.jsx";
 import { Ticket } from "../screens/Ticket.jsx";
 import { TeamTickets } from "../screens/TeamTickets.jsx";
@@ -133,10 +132,14 @@ function UserRoutes() {
           같은 표의 같은 행이고, 화면도 하나여야 첨부·댓글·반응이 두 벌이 되지 않는다. */}
       <Route path="/ideas" element={<IdeaBoard />} />
       <Route path="/board/:id" element={<BoardPost />} />
-      <Route path="/team-docs" element={<TeamDocs />} />
-      {/* /team-docs/trash 는 /team-docs/:id 보다 먼저 — id 로 잡히지 않게 */}
+      {/* 옛 문서 화면 두 개는 없어졌다 (S14 · C2). 같은 110건을 각자 다른 표에서 읽던
+          화면이 둘이었고, 사용자가 도달하는 쪽이 죽은 표를 읽어 제목이 전부 비어 있었다.
+          주소는 살려 둔다 — 알림 딥링크와 북마크에 옛 page id 가 박혀 있다. */}
+      <Route path="/team-docs" element={<Navigate to="/knowledge" replace />} />
+      {/* /team-docs/trash 는 /team-docs/:pageId 보다 먼저 — page id 로 잡히지 않게.
+          휴지통은 티켓도 함께 담고 있어 이 자리에 그대로 둔다(문서만의 화면이 아니다). */}
       <Route path="/team-docs/trash" element={<Trash />} />
-      <Route path="/team-docs/:id" element={<TeamDoc />} />
+      <Route path="/team-docs/:pageId" element={<LegacyDocRedirect />} />
       <Route path="/games" element={<Games />} />
       <Route path="/games/:id" element={<Lazy><GameRoom /></Lazy>} />
       {/* 알림 — **사용자 알림만** 보인다(0060). 관리자 알림은 다른 경로(`/admin-notifications`)

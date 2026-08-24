@@ -1,11 +1,9 @@
 import React from "react";
 import Box from "@mui/material/Box";
-import Link from "@mui/material/Link";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { Badge, Card, EmptyState } from "../ui/kit.jsx";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
-import { safeExternal } from "../lib/safeUrl.js";
 import { ProgressBasis } from "./ProjectMetrics.jsx";
 import { WBS_UNPLACED_KO, percentText } from "./project-format.js";
 import { Note } from "../ui/adminKit.jsx";
@@ -41,7 +39,6 @@ function NodeProgress({ progress }) {
 }
 
 function WbsRow({ node }) {
-  const url = safeExternal(node.url);
   const steps = Math.min(node.depth || 0, MAX_INDENT_STEPS);
   return (
     <Box component="li" sx={{ listStyle: "none" }}>
@@ -70,11 +67,8 @@ function WbsRow({ node }) {
         ) : null}
         <Box sx={{ flex: 1 }} />
         <NodeProgress progress={node.progress} />
-        {url ? (
-          <Link href={url} target="_blank" rel="noopener noreferrer" underline="hover" sx={{ fontSize: FONT_SIZE.bodySm }}>
-            원본
-          </Link>
-        ) : null}
+        {/* 여기 「원본」 링크가 있었다. 옛 Notion 주소라 정본이 이 서버로 넘어온 뒤로는
+            낡은 사본을 열었다. 서버도 노드 응답에서 `url` 을 걷었다. */}
       </Box>
       {(node.children || []).length ? (
         <Box component="ul" sx={{ m: 0, p: 0 }}>
@@ -85,20 +79,21 @@ function WbsRow({ node }) {
   );
 }
 
-export function ProjectWbs({ data, ticketsLinked }) {
+export function ProjectWbs({ data }) {
   const d = data || {};
   const roots = Array.isArray(d.roots) ? d.roots : [];
   const unplaced = Array.isArray(d.unplaced) ? d.unplaced : [];
 
   if (!roots.length && !unplaced.length) {
+    // 갈래가 둘이었다: 「걸린 작업이 없다」와 「노션 짝이 없어 작업을 가져올 수 없다」.
+    // 뒤쪽이 없어졌다(S14 · D-284) — 작업은 이제 프로젝트로 붙고 어느 프로젝트에나 붙는다.
+    // 늘 같은 답을 내는 조건은 갈래가 아니라 **없는 선택지를 있는 척하는 것**이다.
     return (
       <Card>
         <EmptyState
           art="tickets"
           title="작업 계층을 그릴 자료가 없습니다"
-          help={ticketsLinked
-            ? "이 프로젝트에 연결된 노션 작업이 아직 없습니다."
-            : "이 프로젝트는 노션 페이지와 연결되어 있지 않아 작업을 가져올 수 없습니다."}
+          help="이 프로젝트에 걸린 작업이 아직 없습니다."
         />
       </Card>
     );
@@ -141,7 +136,7 @@ export function ProjectWbs({ data, ticketsLinked }) {
                   {u.title || "제목 없음"}
                 </Typography>
                 <Typography variant="body2" color="text.secondary" sx={KO_WORD_BREAK}>
-                  {WBS_UNPLACED_KO[u.reason] || "트리에 넣지 못했습니다. 노션에서 작업 구조를 확인해 주세요."}
+                  {WBS_UNPLACED_KO[u.reason] || "트리에 넣지 못했습니다. 작업의 상위 구조를 확인해 주세요."}
                 </Typography>
               </Box>
             ))}

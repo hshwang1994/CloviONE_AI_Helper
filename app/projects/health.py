@@ -45,7 +45,10 @@ RULE_MILESTONE_OVERDUE = "milestone_overdue"
 RULE_TASK_OVERDUE = "task_overdue"
 RULE_UNASSIGNED = "unassigned"
 RULE_STALE = "stale"
-RULE_NOTION_TROUBLE = "notion_trouble"
+# 여기 `notion_trouble` 이 있었다. 미러 컬럼(`projects.notion_status`)의 원문이 '차질'
+# 이면 25점을 깎던 규칙인데, 그 컬럼에 쓰는 코드가 없어져 값이 이관 시점에 얼어붙었다.
+# 얼어붙은 값으로 점수를 계속 깎으면 오늘의 사실이 아니라 몇 주 전의 사실이 화면에
+# 남는다 — 그건 지표가 아니라 되돌릴 방법 없는 벌점이다.
 
 # 규칙 이름(한국어). 키를 그대로 화면에 보이면 사용자는 무엇을 본 것인지 알 수 없다.
 RULE_LABELS: dict[str, str] = {
@@ -53,14 +56,12 @@ RULE_LABELS: dict[str, str] = {
     RULE_TASK_OVERDUE: "지연 작업 비율",
     RULE_UNASSIGNED: "담당자 없는 작업 비율",
     RULE_STALE: "최근 활동 없음",
-    RULE_NOTION_TROUBLE: "노션 진행 상태가 차질",
 }
 
 # 규칙을 늘 이 순서로 낸다. 순서가 요청마다 흔들리면 화면이 이유 목록을 렌더할 때마다
 # 줄이 뛰고, 스냅샷 JSON 을 두 주 비교할 때도 diff 가 의미를 잃는다.
 RULE_ORDER: tuple[str, ...] = (
-    RULE_NOTION_TROUBLE, RULE_MILESTONE_OVERDUE, RULE_TASK_OVERDUE,
-    RULE_UNASSIGNED, RULE_STALE,
+    RULE_MILESTONE_OVERDUE, RULE_TASK_OVERDUE, RULE_UNASSIGNED, RULE_STALE,
 )
 
 BASE_SCORE = 100
@@ -81,11 +82,6 @@ STALE_DAYS = 14
 VERY_STALE_DAYS = 28
 PENALTY_STALE = 10
 PENALTY_VERY_STALE = 20
-
-# 노션 진행 상태 원문 중 '차질'. 앱 `status` 어휘에는 없는 값이라 따로 본다
-# (models.py::Project.notion_status - 억지로 맞추면 가장 봐야 할 상태가 뭉개진다).
-NOTION_STATUS_TROUBLE = "차질"
-PENALTY_NOTION_TROUBLE = 25
 
 # 열린 작업 = 완료도 취소도 아닌 것. 취소를 '안 끝난 일' 로 세면 취소할수록 점수가 나빠져
 # 지표가 팀에게 반대로 행동하라고 말한다(progress.py 가 같은 판단을 기록한다).
@@ -128,7 +124,6 @@ class HealthInput:
     """
 
     today: str
-    notion_status: str | None = None
     milestones: tuple[MilestoneFact, ...] = field(default_factory=tuple)
     tasks: tuple[TaskFact, ...] = field(default_factory=tuple)
     last_activity_on: str | None = None
@@ -232,26 +227,6 @@ class _Ledger:
             score=max(0, BASE_SCORE - penalty),
             reasons=reasons, checked=checked, unknown=unknown,
         )
-
-
-def _rule_notion_trouble(data: HealthInput, out: _Ledger) -> None:
-    """사람이 직접 찍은 신호. 다른 지표가 좋아도 이건 봐야 한다.
-
-    출처: `projects.notion_status`(노션 프로젝트 DB 의 진행 상태 원문).
-    """
-    if not data.notion_status:
-        out.unknown(
-            RULE_NOTION_TROUBLE,
-            "노션에 짝이 없는 포털 전용 프로젝트라 진행 상태를 볼 수 없습니다.",
-        )
-        return
-    if data.notion_status == NOTION_STATUS_TROUBLE:
-        out.checked(
-            RULE_NOTION_TROUBLE, PENALTY_NOTION_TROUBLE,
-            f"노션 진행 상태가 '{NOTION_STATUS_TROUBLE}' 로 표시돼 있습니다.",
-        )
-        return
-    out.checked(RULE_NOTION_TROUBLE)
 
 
 def _rule_milestone_overdue(data: HealthInput, out: _Ledger) -> None:
@@ -363,7 +338,6 @@ def _rule_stale(data: HealthInput, out: _Ledger) -> None:
 # 규칙은 전부 같은 모양이다: 사실을 보고 장부에 '판정함(감점 n)' 또는 '못 함(이유)' 을 적는다.
 # 새 규칙을 여기 한 줄 더하는 것 말고 다른 곳을 고칠 필요가 없어야 한다.
 RULES = (
-    _rule_notion_trouble,
     _rule_milestone_overdue,
     _rule_task_overdue,
     _rule_unassigned,
@@ -382,16 +356,16 @@ def compute_health(data: HealthInput) -> HealthResult:
 # ── '차질' 판정 — 점수 계산이 아니라 **점수를 읽고 고르는** 규칙 ────────────────────
 #
 # 위의 `compute_health` 는 티켓과 마일스톤을 다시 세어 점수를 만든다. 아래는 이미 계산돼
-# 행에 캐시된 값(`health_score`, `notion_status`)만 보고 "사람이 봐야 할 프로젝트인가" 를
-# 고른다 - 값이 싸서 목록/대시보드가 프로젝트마다 부를 수 있다.
+# 행에 캐시된 값(`health_score`)만 보고 "사람이 봐야 할 프로젝트인가" 를 고른다 - 값이
+# 싸서 목록/대시보드가 프로젝트마다 부를 수 있다.
 #
 # 🔴 **여기 한 곳에 둔 이유.** 예전에는 이 규칙이 `app/home/work.py` 안에만 있었다. 프로젝트
 # 대시보드가 같은 판정을 다시 적으면 두 화면이 같은 프로젝트를 두고 하나는 '차질', 하나는
 # 아니라고 말하게 되고, 그때 사용자는 둘 다 안 믿는다(이 저장소가 범위 판정에서 네 번 겪은
 # 실수의 같은 모양이다).
 
-# 이 점수 아래면 '차질' 로 본다. 근거: 위 감점 상한이 규칙당 40(지연 작업 비율)·36(마일스톤)·
-# 25(노션 차질)이다. 100 에서 40 넘게 깎였다는 것은 규칙 하나가 통째로 걸렸거나 둘 이상이
+# 이 점수 아래면 '차질' 로 본다. 근거: 위 감점 상한이 규칙당 40(지연 작업 비율)·
+# 36(마일스톤)이다. 100 에서 40 넘게 깎였다는 것은 규칙 하나가 통째로 걸렸거나 둘 이상이
 # 겹쳤다는 뜻이고, 그 정도면 사람이 봐야 한다.
 TROUBLE_HEALTH_SCORE = 60
 
@@ -399,22 +373,21 @@ TROUBLE_HEALTH_SCORE = 60
 REASON_LOW_HEALTH = "Health 점수 낮음"
 
 
-def trouble_reasons(notion_status: str | None, health_score: int | None) -> list[str]:
+def trouble_reasons(health_score: int | None) -> list[str]:
     """이 프로젝트가 차질인 **이유 목록**. 비어 있으면 차질이 아니다.
 
     이유를 함께 내는 것이 이 판정의 존재 이유다. "차질 3건" 만 보여 주면 그것을 본 팀장이
     할 수 있는 일이 없다 - 이유가 곧 할 일 목록이다.
 
-    순서는 노션 사유 먼저다. 그쪽은 사람이 직접 '차질' 이라고 적어 둔 것이라 규칙이 계산한
-    점수보다 근거가 강하다.
+    예전에는 첫 인자가 `notion_status` 였고, 그 값이 '차질' 이면 이유를 하나 더 붙였다.
+    그 컬럼에 쓰는 코드가 없어져 값이 이관 시점에 얼어붙었으므로 함께 걷었다 - 얼어붙은
+    값으로 매기는 차질은 오늘의 사실이 아니고, 팀이 무엇을 고쳐도 사라지지 않는다.
 
     **`health_score is None` 은 차질이 아니다.** 아직 한 번도 안 잰 것이지 나쁜 것이 아니다.
     0 점은 재 봤더니 나쁜 것이라 걸린다. 둘을 뭉치면 한 번도 안 잰 프로젝트가 전부 빨갛게
     떠서 진짜 차질이 그 안에 묻힌다.
     """
     reasons: list[str] = []
-    if (notion_status or "") == NOTION_STATUS_TROUBLE:
-        reasons.append(RULE_LABELS[RULE_NOTION_TROUBLE])
     if health_score is not None and health_score < TROUBLE_HEALTH_SCORE:
         reasons.append(REASON_LOW_HEALTH)
     return reasons

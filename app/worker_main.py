@@ -28,14 +28,13 @@ from app.core.logging_setup import configure_logging
 from app.core.secret_refs import FileSecretReferenceProvider
 from app.core.worker_lock import WorkerLock, WorkerLockError, default_lock_path
 from app.jobs.worker import Worker, WorkerContext
-from app.observability.models import COMPONENT_DOCUMENTS, COMPONENT_TICKETS
 
 logger = logging.getLogger("app.worker")
 
 # Liveness heartbeat: written from a dedicated thread so it keeps beating even
 # while the worker loop is blocked inside a long run_once (schedule runs up to
-# 3600s, notion sync up to 90s). HEARTBEAT_STALE_SECONDS is 90 on the health
-# side, so ~30s cadence leaves comfortable margin (spec §14.1).
+# 3600s). HEARTBEAT_STALE_SECONDS is 90 on the health side, so ~30s cadence
+# leaves comfortable margin (spec §14.1).
 HEARTBEAT_INTERVAL_SECONDS = 30.0
 # 배치 워커가 **스케줄러까지 안고 돌 때** 찍는 컴포넌트 둘. 스케줄러 레인이 켜져 있으면
 # (기본값) 배치 워커는 `worker` 만 찍고 `scheduler` 는 그 프로세스가 직접 찍는다 — 여기서도
@@ -676,82 +675,12 @@ def build_batch_worker(session_factory, clock: Clock, ctx: WorkerContext, settin
 
     worker.tick_callbacks.append(integration_health_tick)
 
-    # 문서 캐시 주기 동기화 (spec §17.2/§17.4) — notion_docs_sync_interval_seconds 간격.
-    # 첫 tick 즉시 실행 → 워커 기동 직후 문서 목록이 채워진다. Notion 장애/미설정이면 sync
-    # 상태에만 기록되고 캐시(마지막 정상 동기화)는 유지된다 — sync_documents 내부에서 예외를
-    # 가두므로 티켓 등 다른 기능엔 무영향.
-    from app.team_docs.sync import sync_documents
-
-    _last_docs_sync: list = [None]
-    DOCS_SYNC_FALLBACK_SECONDS = float(settings.notion_docs_sync_interval_seconds)
-
-    def docs_sync_tick(now):
-        interval = _sync_interval("notion_docs_sync_interval_seconds", DOCS_SYNC_FALLBACK_SECONDS)
-        if _last_docs_sync[0] is None or (now - _last_docs_sync[0]).total_seconds() >= interval:
-            _last_docs_sync[0] = now
-            try:
-                with session_factory() as db:
-                    state = sync_documents(db, outbound=outbound, settings=settings, now=now)
-                    mirror_sync_status(db, COMPONENT_DOCUMENTS, state, now)
-                    db.commit()
-            except Exception:
-                logger.exception("docs sync tick failed")
-
-    worker.tick_callbacks.append(docs_sync_tick)
-
-    # 티켓 캐시 주기 동기화 (PLAN §A) — notion_tickets_sync_interval_seconds 간격.
-    # 문서 동기화와 완전히 같은 모양이다: 첫 tick 즉시 실행 → 워커 기동 직후 티켓 목록이 채워지고,
-    # Notion 장애/미설정이면 sync 상태에만 기록되고 캐시(마지막 정상 동기화)는 유지된다.
-    # sync_tickets 가 내부에서 예외를 가두므로 이 tick 은 워커 루프 밖으로 아무것도 던지지 않는다.
-    from app.tickets.sync import sync_tickets
-
-    _last_tickets_sync: list = [None]
-    TICKETS_SYNC_FALLBACK_SECONDS = float(settings.notion_tickets_sync_interval_seconds)
-
-    def tickets_sync_tick(now):
-        interval = _sync_interval("notion_tickets_sync_interval_seconds", TICKETS_SYNC_FALLBACK_SECONDS)
-        if _last_tickets_sync[0] is None or (now - _last_tickets_sync[0]).total_seconds() >= interval:
-            _last_tickets_sync[0] = now
-            try:
-                with session_factory() as db:
-                    state = sync_tickets(db, outbound=outbound, settings=settings, now=now)
-                    mirror_sync_status(db, COMPONENT_TICKETS, state, now)
-                    db.commit()
-            except Exception:
-                logger.exception("tickets sync tick failed")
-
-    worker.tick_callbacks.append(tickets_sync_tick)
-
-    # 프로젝트 미러 주기 동기화 (0045) — notion_projects_sync_interval_seconds 간격.
-    # 티켓 미러 **뒤에** 등록한다: 프로젝트 진행률은 `ticket_cache` 를 세므로, 첫 틱에서
-    # 티켓이 먼저 채워져야 새로 들어온 프로젝트가 "작업 0건"으로 보이지 않는다.
-    # sync_projects 가 내부에서 예외를 가두므로 이 tick 도 루프 밖으로 아무것도 던지지 않는다.
-    from app.observability.models import COMPONENT_PROJECTS
-    from app.projects.sync import sync_projects
-
-    _last_projects_sync: list = [None]
-    PROJECTS_SYNC_FALLBACK_SECONDS = float(settings.notion_projects_sync_interval_seconds)
-
-    def projects_sync_tick(now):
-        interval = _sync_interval("notion_projects_sync_interval_seconds", PROJECTS_SYNC_FALLBACK_SECONDS)
-        if _last_projects_sync[0] is None or (now - _last_projects_sync[0]).total_seconds() >= interval:
-            _last_projects_sync[0] = now
-            try:
-                with session_factory() as db:
-                    state = sync_projects(db, outbound=outbound, settings=settings, now=now)
-                    mirror_sync_status(db, COMPONENT_PROJECTS, state, now)
-                    db.commit()
-            except Exception:
-                logger.exception("projects sync tick failed")
-
-    worker.tick_callbacks.append(projects_sync_tick)
-
     # 주간 프로젝트 헬스 스냅샷 — project_health_snapshot_interval_seconds 간격.
     #
-    # **프로젝트 미러 뒤에 등록한다.** 헬스 규칙은 `ticket_cache` 와 프로젝트 행을 세므로,
-    # 첫 틱에서 티켓 미러와 프로젝트 미러가 먼저 채워져야 한다. 앞에 두면 워커 기동 직후
-    # 첫 회차가 빈 표본으로 점수를 매기고, 그 점수가 **그 주의 이력으로 남는다** - 이력은
-    # 나중에 덮이더라도 그 주의 첫 판단이 거짓이었다는 사실은 화면에 안 보인다.
+    # 예전에는 이 배선이 **미러 동기화 틱 뒤에** 있어야 했다. 헬스 규칙이 세는 티켓과
+    # 프로젝트 행을 미러가 채워 줬기 때문이고, 앞에 두면 워커 기동 직후 첫 회차가 빈
+    # 표본으로 점수를 매겨 그 거짓이 그 주의 이력으로 남았다. 지금은 티켓도 프로젝트도
+    # 자체 DB 가 정본이라 기다릴 미러가 없다. 순서 제약은 사라졌지만 자리는 그대로 둔다.
     #
     # 배선을 함수로 뽑아 둔 이유는 `register_health_snapshot_tick` 의 docstring 에 있다:
     # 여기 인라인으로 두면 "주기 실행이 이력을 만든다" 를 테스트가 증명할 방법이 없다.
@@ -764,8 +693,11 @@ def build_batch_worker(session_factory, clock: Clock, ctx: WorkerContext, settin
     # (PLAN C9: 진짜 병목은 _append_message 다). 검색 결과가 최대 한 틱 늦는 대신 뜨거운
     # 경로는 한 글자도 안 바뀐다.
     #
-    # 티켓 미러 뒤에 등록하는 이유: 첫 틱에서 tickets_sync 가 먼저 돌아 미러를 채우므로,
-    # 워커 기동 직후 첫 인덱싱이 빈 티켓 목록을 보지 않는다.
+    # 예전에는 「티켓 미러 뒤에 등록한다」는 이유가 여기 적혀 있었다 — 첫 틱에서 미러
+    # 동기화가 먼저 돌아야 인덱싱이 빈 목록을 안 본다는 것이었다. 그 미러가 없어졌고
+    # (S14 · D-284) 티켓은 처음부터 우리 표에 있으므로, 이 등록 순서는 이제 아무것도
+    # 기다리지 않는다. 순서를 그대로 두는 것은 다른 이유다: 아래 인덱싱이 저장소를
+    # 통해 읽으므로 저장소 배선이 먼저 서 있어야 한다.
     from app.core.source_registry import build_repositories
     from app.observability.models import COMPONENT_SEARCH
     from app.search.indexer import reindex_all
@@ -780,10 +712,7 @@ def build_batch_worker(session_factory, clock: Clock, ctx: WorkerContext, settin
             _last_search_index[0] = now
             try:
                 with session_factory() as db:
-                    result = reindex_all(
-                        db, tickets=repositories.tickets,
-                        documents=repositories.documents, now=now,
-                    )
+                    result = reindex_all(db, tickets=repositories.tickets, now=now)
                     mirror_sync_status(db, COMPONENT_SEARCH, result, now)
                     db.commit()
             except Exception:

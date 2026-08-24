@@ -89,7 +89,7 @@ describe("휴지통 일괄 실패 사유 (UA-25)", () => {
       if (url === "/api/trash/purge-bulk") {
         return Promise.resolve({
           purged: [{ id: "t1", title: "정상 티켓", item_type: "ticket", notion_page_id: "p1" }],
-          failed: [{ id: "t2", error: "노션 보관처리에 실패했습니다. 잠시 후 다시 시도하세요." }],
+          failed: [{ id: "t2", error: "원본을 보관처리하지 못했습니다. 잠시 후 다시 시도하세요." }],
         });
       }
       return Promise.resolve({ ok: true });
@@ -101,7 +101,7 @@ describe("휴지통 일괄 실패 사유 (UA-25)", () => {
     const dialog = await screen.findByRole("dialog");
     fireEvent.click(within(dialog).getByRole("button", { name: "영구 삭제" }));
 
-    await screen.findByText(/노션 보관처리에 실패했습니다/);
+    await screen.findByText(/원본을 보관처리하지 못했습니다/);
     expect(screen.queryByText(/권한이 없/)).toBeNull();
   });
 });

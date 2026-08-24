@@ -75,28 +75,18 @@ SETUP_STEPS: tuple[SetupStep, ...] = (
         requires_why="부서를 만들 수 있는 사람이 먼저 있어야 합니다.",
         user_visible=True,
     ),
-    SetupStep(
-        key="notion",
-        label="Notion 토큰과 데이터베이스",
-        why=(
-            "토큰이나 데이터베이스 id 가 비어 있으면 티켓 목록, 문서 목록, 개발자 리포트가 "
-            "아무 표시 없이 빈 채로 나옵니다."
-        ),
-        requires=("organization",),
-        requires_why=(
-            "가져온 티켓과 사람을 넣을 조직 단위가 먼저 있어야 목록이 의미를 갖습니다."
-        ),
-        user_visible=True,
-    ),
+    # 「Notion 토큰과 데이터베이스」 단계가 여기 있었다. 티켓·문서·리포트가 그 토큰으로
+    # 노션을 읽었으니 비어 있으면 화면이 비었고, 그래서 설치 단계였다. 지금은 셋 다 이
+    # 서버의 데이터베이스에서 나오므로 설치할 때 넣을 토큰이 없다.
     SetupStep(
         key="user_mapping",
         label="사용자 매핑",
         why=(
-            "로그인 계정과 Notion 사용자가 연결되지 않으면 담당자 이름이 해석되지 않아 "
+            "로그인 계정과 티켓의 담당자가 연결되지 않으면 담당자 이름이 해석되지 않아 "
             "내 티켓, 내 프로젝트가 비어 보입니다."
         ),
-        requires=("notion",),
-        requires_why="매핑은 Notion 사용자 목록을 읽어서 만듭니다. 토큰 없이는 시작할 수 없습니다.",
+        requires=("organization",),
+        requires_why="사람을 넣을 조직 단위가 먼저 있어야 연결이 의미를 갖습니다.",
         user_visible=True,
     ),
     SetupStep(

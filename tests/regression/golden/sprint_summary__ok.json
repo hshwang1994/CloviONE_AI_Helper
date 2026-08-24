@@ -72,13 +72,12 @@
           "project_names": [
             "알파 프로젝트"
           ],
-          "project_uid": null,
+          "project_uid": "00000000-0000-4000-8000-00000000c001",
           "start": null,
           "status": "완료",
           "tid": 102,
           "title": "공동 담당 완료 티켓",
-          "uid": null,
-          "url": "https://www.notion.so/page-0002"
+          "uid": "00000000-0000-4000-8000-00000000d002"
         }
       ],
       "user_id": "00000000-0000-4000-8000-00000000a002"
@@ -110,13 +109,12 @@
           "project_names": [
             "알파 프로젝트"
           ],
-          "project_uid": null,
+          "project_uid": "00000000-0000-4000-8000-00000000c001",
           "start": null,
           "status": "완료",
           "tid": 102,
           "title": "공동 담당 완료 티켓",
-          "uid": null,
-          "url": "https://www.notion.so/page-0002"
+          "uid": "00000000-0000-4000-8000-00000000d002"
         }
       ],
       "user_id": "00000000-0000-4000-8000-00000000a001"
@@ -158,8 +156,7 @@
           "priority": "보통",
           "status": "완료",
           "tid": 102,
-          "title": "공동 담당 완료 티켓",
-          "url": "https://www.notion.so/page-0002"
+          "title": "공동 담당 완료 티켓"
         }
       ],
       "user_id": "00000000-0000-4000-8000-00000000a002",
@@ -190,8 +187,7 @@
           "priority": "보통",
           "status": "완료",
           "tid": 102,
-          "title": "공동 담당 완료 티켓",
-          "url": "https://www.notion.so/page-0002"
+          "title": "공동 담당 완료 티켓"
         }
       ],
       "user_id": "00000000-0000-4000-8000-00000000a001",
@@ -236,13 +232,12 @@
       "project_names": [
         "베타 프로젝트"
       ],
-      "project_uid": null,
+      "project_uid": "00000000-0000-4000-8000-00000000c002",
       "start": null,
       "status": "계획",
       "tid": 104,
       "title": "미할당 계획 티켓",
-      "uid": null,
-      "url": "https://www.notion.so/page-0004"
+      "uid": "00000000-0000-4000-8000-00000000d004"
     }
   ],
   "team": {
@@ -275,13 +270,12 @@
       "project_names": [
         "베타 프로젝트"
       ],
-      "project_uid": null,
+      "project_uid": "00000000-0000-4000-8000-00000000c002",
       "start": null,
       "status": "계획",
       "tid": 104,
       "title": "미할당 계획 티켓",
-      "uid": null,
-      "url": "https://www.notion.so/page-0004"
+      "uid": "00000000-0000-4000-8000-00000000d004"
     }
   ],
   "window": {

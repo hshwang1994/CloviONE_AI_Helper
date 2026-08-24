@@ -1,0 +1,364 @@
+"""문서 댓글 — 정본 문서(`documents`)에 붙은 축 (S14 · C2).
+
+옛 문서 화면에 있던 댓글을 지식 공간으로 옮겼다. **규약은 옮기기 전과 같아야 한다** —
+사용자에게는 같은 낱말('삭제')이 화면마다 다른 뜻이면 안 되기 때문이다. 이 파일이 그
+같음을 고정한다:
+
+  * 삭제는 툼스톤이다 - 행이 사라지지 않고 본문만 빠진다. 조용히 없어지면 이미 목록을 받아
+    둔 사람은 자기가 잘못 봤다고 생각한다.
+  * 쓰기마다 목록 전체를 돌려준다 - 클라이언트가 목록을 기워 맞추면 툼스톤 규약이 두 벌이 된다.
+  * 수정은 작성자 본인만(운영자 우회 없음), 삭제는 작성자 또는 운영자군.
+  * **범위 밖은 403 이 아니라 404**, 그리고 목록, 작성, 수정, 삭제가 전부 같은 판정을 지난다.
+    티켓 댓글에서 정확히 이 자리가 뚫려 있었다(목록은 막고 삭제는 안 막음).
+
+## 범위는 공간이 정한다
+
+문서에는 소속 컬럼이 없다(§5.3) — 자기 공간의 가시성을 그대로 물려받는다. 그래서 여기서
+「남의 팀 문서」는 **남의 팀 공간에 있는 문서**이고, 「범위 밖으로 나간다」는 그 공간의
+소유를 옮기는 것으로 표현한다. 지켜야 할 성질(하위 자원이 소유를 따라간다)은 그대로다.
+"""
+
+from __future__ import annotations
+
+import pytest
+
+pytestmark = pytest.mark.integration
+
+AUTHOR = "kc-author@goodmit.co.kr"   # 우리팀 일반 사용자, MINE 의 작성자
+MATE = "kc-mate@goodmit.co.kr"       # 우리팀 일반 사용자(작성자 아님)
+BOSS = "kc-boss@goodmit.co.kr"       # 우리팀만 보는 부서 범위 관리자
+OUTSIDER = "kc-out@goodmit.co.kr"    # 남의팀 일반 사용자
+
+
+@pytest.fixture()
+def world(db, make_user):
+    """부서 둘 + 사람 넷 + 공간 둘 + 문서 셋."""
+    from app.knowledge.models import Document, KnowledgeSpace
+    from app.org.constants import DEFAULT_ORG_ID
+    from app.org.models import Department
+
+    mine = Department(name="우리팀", org_id=DEFAULT_ORG_ID)
+    theirs = Department(name="남의팀", org_id=DEFAULT_ORG_ID)
+    db.add_all([mine, theirs])
+    db.flush()
+
+    author = make_user(AUTHOR, role="user", display_name="문서작성자")
+    mate = make_user(MATE, role="user", display_name="같은팀동료")
+    boss = make_user(BOSS, role="admin", display_name="우리팀장")
+    outsider = make_user(OUTSIDER, role="user", display_name="남의팀사람")
+    author.department_id = mine.id
+    mate.department_id = mine.id
+    outsider.department_id = theirs.id
+    # 역할로는 모더레이션이 되지만 범위는 우리팀뿐이다. 이 조합이 범위 구멍의 주인공이다.
+    boss.department_id = mine.id
+    boss.admin_scope = "dept"
+    boss.scope_dept_id = mine.id
+
+    ours = KnowledgeSpace(
+        name="우리팀 공간", slug="kc-ours", owner_kind="department", owner_dept_id=mine.id,
+        org_id=DEFAULT_ORG_ID,
+    )
+    others = KnowledgeSpace(
+        name="남의팀 공간", slug="kc-theirs", owner_kind="department",
+        owner_dept_id=theirs.id, org_id=DEFAULT_ORG_ID,
+    )
+    db.add_all([ours, others])
+    db.flush()
+
+    mine_doc = Document(space_id=ours.id, title="우리팀 설계서", created_by=author.id)
+    theirs_doc = Document(space_id=others.id, title="남의팀 3분기 실적 보고서")
+    # 만든 사람을 앱 계정으로 해석하지 못한 문서(이관해 온 것이 대부분 이렇다). 소속이 우리
+    # 팀이라 우리 팀에게는 정상적으로 보인다.
+    free_doc = Document(space_id=ours.id, title="작성자 미해석 문서")
+    db.add_all([mine_doc, theirs_doc, free_doc])
+    db.commit()
+    return {
+        "author_id": author.id, "mate_id": mate.id, "outsider_id": outsider.id,
+        "mine": mine_doc.id, "theirs": theirs_doc.id, "free": free_doc.id,
+        "ours_space": ours.id, "theirs_dept": theirs.id,
+    }
+
+
+def _hdr(login_as, email, role="user"):
+    return {"X-CSRF-Token": login_as(role, email=email)}
+
+
+def _write(client, hdr, document_id, body):
+    r = client.post(f"/api/knowledge/documents/{document_id}/comments",
+                    json={"body": body}, headers=hdr)
+    assert r.status_code == 200, r.text
+    return r.json()
+
+
+def _bodies(payload):
+    return [c["body"] for c in payload["comments"]]
+
+
+# ── 작성, 목록 ────────────────────────────────────────────────────────────────
+
+def test_a_comment_can_be_written_and_read_back(client, login_as, world):
+    hdr = _hdr(login_as, AUTHOR)
+    created = _write(client, hdr, world["mine"], "이 설계 근거가 궁금합니다.")
+    assert created["comment_id"]
+    # 쓰기 응답이 이미 목록 전체다 - 클라이언트가 기워 맞출 것이 없다.
+    assert _bodies(created) == ["이 설계 근거가 궁금합니다."]
+
+    listed = client.get(f"/api/knowledge/documents/{world['mine']}/comments", headers=hdr)
+    assert listed.status_code == 200, listed.text
+    assert _bodies(listed.json()) == ["이 설계 근거가 궁금합니다."]
+    only = listed.json()["comments"][0]
+    assert only["author_name"] == "문서작성자"
+    assert only["can_edit"] is True and only["can_delete"] is True
+
+
+def test_a_teammate_who_did_not_write_the_document_can_still_comment(client, login_as, world):
+    """문서는 팀 전체 조회 대상이다. 댓글만 작성자로 좁히면 물어볼 곳이 없어진다."""
+    hdr = _hdr(login_as, MATE)
+    _write(client, hdr, world["mine"], "옆 팀에서 참고해도 될까요?")
+    r = client.get(f"/api/knowledge/documents/{world['mine']}/comments", headers=hdr)
+    assert _bodies(r.json()) == ["옆 팀에서 참고해도 될까요?"]
+
+
+def test_comments_come_back_oldest_first(client, login_as, world):
+    """시계가 멈춘 시험에서는 created_at 이 전부 같다 - tie-break 가 삽입 순서여야 한다.
+    id(UUID4)로 깨면 목록이 절반의 확률로 뒤집힌다."""
+    hdr = _hdr(login_as, AUTHOR)
+    for text in ("하나", "둘", "셋", "넷", "다섯"):
+        _write(client, hdr, world["mine"], text)
+    r = client.get(f"/api/knowledge/documents/{world['mine']}/comments", headers=hdr)
+    assert _bodies(r.json()) == ["하나", "둘", "셋", "넷", "다섯"]
+
+
+def test_an_empty_body_is_rejected(client, login_as, world):
+    r = client.post(f"/api/knowledge/documents/{world['mine']}/comments",
+                    json={"body": "   "}, headers=_hdr(login_as, AUTHOR))
+    assert r.status_code == 422, r.text
+
+
+# ── 신원(people) ──────────────────────────────────────────────────────────────
+
+def test_comment_authors_carry_department(client, login_as, world, db):
+    from app.users.service import get_user_by_email
+
+    created = _write(client, _hdr(login_as, AUTHOR), world["mine"], "신원 확인용 댓글")
+
+    author = get_user_by_email(db, AUTHOR)
+    person = created["people"][author.id]
+    assert person["dept"] == "우리팀", f"부서가 안 실린다: {person}"
+
+
+def test_listing_also_carries_people(client, login_as, world, db):
+    """쓰기 응답만이 아니라 GET 목록도 같은 묶음을 실어야 새로고침에도 신원을 안다."""
+    from app.users.service import get_user_by_email
+
+    hdr = _hdr(login_as, AUTHOR)
+    _write(client, hdr, world["mine"], "댓글")
+
+    listed = client.get(
+        f"/api/knowledge/documents/{world['mine']}/comments", headers=hdr).json()
+    author = get_user_by_email(db, AUTHOR)
+    assert author.id in listed["people"], f"목록에 people 이 없다: {listed.keys()}"
+
+
+# ── 수정 ──────────────────────────────────────────────────────────────────────
+
+def test_the_author_can_edit_their_own_comment(client, login_as, world):
+    hdr = _hdr(login_as, AUTHOR)
+    cid = _write(client, hdr, world["mine"], "처음 쓴 문장")["comment_id"]
+
+    r = client.patch(f"/api/knowledge/comments/{cid}", json={"body": "고쳐 쓴 문장"},
+                     headers=hdr)
+    assert r.status_code == 200, r.text
+    assert _bodies(r.json()) == ["고쳐 쓴 문장"]
+
+
+def test_an_operator_cannot_rewrite_someone_elses_sentence(client, login_as, world):
+    """남의 말을 바꾸는 것은 지우는 것보다 나쁘다 - 누가 썼는지는 그대로인데 내용만 달라진다.
+
+    범위 **안**이므로 404 가 아니라 403 이다. 그 선을 여기서 지킨다.
+    """
+    cid = _write(client, _hdr(login_as, AUTHOR), world["mine"], "작성자의 문장")["comment_id"]
+
+    boss_hdr = _hdr(login_as, BOSS, role="admin")
+    r = client.patch(f"/api/knowledge/comments/{cid}", json={"body": "관리자가 고침"},
+                     headers=boss_hdr)
+    assert r.status_code == 403, f"운영자가 남의 문장을 고쳐 썼다: {r.status_code} {r.text}"
+
+    still = client.get(
+        f"/api/knowledge/documents/{world['mine']}/comments", headers=boss_hdr)
+    assert _bodies(still.json()) == ["작성자의 문장"]
+
+
+# ── 삭제(툼스톤) ──────────────────────────────────────────────────────────────
+
+def test_a_deleted_comment_stays_as_a_tombstone(client, login_as, world):
+    """행이 그냥 사라지면 사용자는 자기가 잘못 봤다고 생각한다. 자리는 남고 본문만 빠진다."""
+    hdr = _hdr(login_as, AUTHOR)
+    cid = _write(client, hdr, world["mine"], "지워질 문장")["comment_id"]
+
+    r = client.delete(f"/api/knowledge/comments/{cid}", headers=hdr)
+    assert r.status_code == 200, r.text
+    rows = r.json()["comments"]
+    assert len(rows) == 1, f"삭제된 댓글이 목록에서 통째로 사라졌다: {rows}"
+    assert rows[0]["deleted"] is True
+    assert rows[0]["body"] == "", "지운 내용이 계속 내려온다 - 그건 삭제가 아니다"
+    assert rows[0]["deleted_at"]
+    assert rows[0]["can_edit"] is False and rows[0]["can_delete"] is False
+
+    # 목록 조회에서도 같은 모양이어야 한다(쓰기 응답만 툼스톤이면 규약이 두 벌이다).
+    again = client.get(
+        f"/api/knowledge/documents/{world['mine']}/comments", headers=hdr).json()["comments"]
+    assert len(again) == 1 and again[0]["deleted"] is True and again[0]["body"] == ""
+
+
+def test_an_operator_can_moderate_someone_elses_comment(client, login_as, world):
+    """지우는 것은 운영자군도 할 수 있다(모더레이션). 고치는 것과 다른 축이다."""
+    cid = _write(client, _hdr(login_as, MATE), world["mine"], "중재 대상")["comment_id"]
+
+    r = client.delete(f"/api/knowledge/comments/{cid}",
+                      headers=_hdr(login_as, BOSS, role="admin"))
+    assert r.status_code == 200, f"범위 안인데 운영자가 못 지운다: {r.text}"
+    assert r.json()["comments"][0]["deleted"] is True
+
+
+def test_a_plain_user_cannot_delete_someone_elses_comment(client, login_as, world):
+    cid = _write(client, _hdr(login_as, AUTHOR), world["mine"], "남의 문장")["comment_id"]
+    r = client.delete(f"/api/knowledge/comments/{cid}", headers=_hdr(login_as, MATE))
+    assert r.status_code == 403, f"일반 사용자가 남의 댓글을 지웠다: {r.status_code}"
+
+
+def test_deleting_twice_is_idempotent_and_editing_a_dead_comment_fails(
+    client, login_as, world
+):
+    """수정으로 삭제를 되돌리는 뒷문을 만들지 않는다."""
+    hdr = _hdr(login_as, AUTHOR)
+    cid = _write(client, hdr, world["mine"], "한 번만 지워진다")["comment_id"]
+    first = client.delete(f"/api/knowledge/comments/{cid}", headers=hdr)
+    assert first.status_code == 200
+    stamp = first.json()["comments"][0]["deleted_at"]
+
+    second = client.delete(f"/api/knowledge/comments/{cid}", headers=hdr)
+    assert second.status_code == 200
+    assert second.json()["comments"][0]["deleted_at"] == stamp, "두 번째 삭제가 시각을 바꿨다"
+
+    revive = client.patch(f"/api/knowledge/comments/{cid}", json={"body": "부활"},
+                          headers=hdr)
+    assert revive.status_code == 404, f"삭제된 댓글이 수정으로 되살아났다: {revive.status_code}"
+
+
+# ── 범위: 403 이 아니라 404, 그리고 네 경로가 전부 같은 판정 ─────────────────
+
+def test_listing_another_teams_document_comments_is_404(client, login_as, world):
+    r = client.get(f"/api/knowledge/documents/{world['theirs']}/comments",
+                   headers=_hdr(login_as, BOSS, role="admin"))
+    assert r.status_code == 404, f"남의 팀 문서의 논의가 그대로 나간다: {r.status_code} {r.text}"
+
+
+def test_writing_on_another_teams_document_is_404(client, login_as, db, world):
+    from app.knowledge.models import DocumentComment
+
+    r = client.post(f"/api/knowledge/documents/{world['theirs']}/comments",
+                    json={"body": "끼어들기"}, headers=_hdr(login_as, BOSS, role="admin"))
+    assert r.status_code == 404, f"범위 밖 문서에 댓글이 달렸다: {r.status_code} {r.text}"
+    db.expire_all()
+    assert db.query(DocumentComment).count() == 0, "404 를 돌려주고도 행이 남았다"
+
+
+def test_editing_and_deleting_a_comment_that_moved_out_of_scope_is_404(
+    client, login_as, db, world
+):
+    """**이 시험이 티켓에서 뚫려 있던 그 자리다.**
+
+    수정, 삭제는 comment_id 만 받는다. 권한 판정만 지나면 통과하므로, 내가 쓴 댓글이 붙은
+    문서가 나중에 남의 부서 것이 되어도 계속 고칠 수 있게 된다. 그리고 응답이 **목록
+    전체**라 삭제 한 번에 그 문서의 논의가 통째로 새어 나온다.
+    """
+    from app.knowledge.models import DocumentComment, KnowledgeSpace
+
+    hdr = _hdr(login_as, BOSS, role="admin")
+    cid = _write(client, hdr, world["free"], "우리 팀 것이던 시절에 쓴 댓글")["comment_id"]
+
+    # 문서가 사는 공간이 남의 팀 소유로 옮겨졌다 — 문서도, 그 하위 자원(댓글)도 따라간다.
+    space = db.query(KnowledgeSpace).filter(KnowledgeSpace.id == world["ours_space"]).one()
+    space.owner_dept_id = world["theirs_dept"]
+    db.commit()
+
+    edit = client.patch(f"/api/knowledge/comments/{cid}", json={"body": "고침"}, headers=hdr)
+    assert edit.status_code == 404, f"범위 밖으로 나간 내 댓글을 고칠 수 있다: {edit.status_code}"
+    assert "comments" not in edit.json(), f"404 인데 목록이 실려 나갔다: {edit.text}"
+
+    gone = client.delete(f"/api/knowledge/comments/{cid}", headers=hdr)
+    assert gone.status_code == 404, f"범위 밖 댓글을 지울 수 있다: {gone.status_code}"
+    db.expire_all()
+    assert db.query(DocumentComment).one().deleted_at is None, \
+        "404 를 돌려주고도 실제로 지워졌다"
+
+
+def test_a_missing_document_and_a_hidden_one_answer_the_same(client, login_as, world):
+    """두 답이 다르면 id 를 찍어 보며 **존재하는 문서를 열거**할 수 있다."""
+    hdr = _hdr(login_as, BOSS, role="admin")
+    missing = client.get("/api/knowledge/documents/no-such-document/comments", headers=hdr)
+    hidden = client.get(f"/api/knowledge/documents/{world['theirs']}/comments", headers=hdr)
+    assert missing.status_code == hidden.status_code == 404
+    assert missing.json()["error"]["message"] == hidden.json()["error"]["message"], (
+        f"응답 문구가 달라 존재 여부가 새어 나간다: {missing.text} vs {hidden.text}"
+    )
+
+
+def test_a_document_without_a_resolvable_author_still_accepts_comments(client, login_as, world):
+    """**가장 중요한 오탐 검사.** 이관해 온 문서는 만든 사람을 앱 계정으로 해석하지 못한
+    것이 많다 - 그걸 범위 밖으로 치면 아무도 그 문서에 댓글을 못 단다."""
+    r = client.post(f"/api/knowledge/documents/{world['free']}/comments",
+                    json={"body": "여긴 써져야 한다"},
+                    headers=_hdr(login_as, BOSS, role="admin"))
+    assert r.status_code == 200, f"작성자 미해석 문서에 댓글을 못 단다: {r.status_code} {r.text}"
+
+
+def test_a_global_admin_still_sees_everything(client, login_as, world):
+    """전역 관리자까지 좁히면 운영이 멈춘다."""
+    hdr = {"X-CSRF-Token": login_as("system_admin")}
+    r = client.post(f"/api/knowledge/documents/{world['theirs']}/comments",
+                    json={"body": "전역 관리자"}, headers=hdr)
+    assert r.status_code == 200, r.text
+
+
+# ── 알림 ──────────────────────────────────────────────────────────────────────
+
+def _notifications(app, user_id):
+    from app.notifications.models import Notification
+
+    with app.state.session_factory() as s:
+        return (
+            s.query(Notification)
+            .filter(Notification.user_id == user_id, Notification.type == "document_comment")
+            .count()
+        )
+
+
+def test_the_notification_reaches_the_document_author(client, login_as, app, world):
+    """문서를 만든 사람은 자기 문서에 논의가 붙은 것을 스스로 열어 보지 않고도 알아야 한다."""
+    _write(client, _hdr(login_as, MATE), world["mine"], "여기 근거가 뭔가요?")
+    assert _notifications(app, world["author_id"]) == 1, "내 문서에 댓글이 달렸는데 알림이 없다"
+    # 쓴 사람에게는 가지 않는다.
+    assert _notifications(app, world["mate_id"]) == 0
+
+
+def test_my_own_comment_does_not_notify_me(client, login_as, app, world):
+    """내가 쓴 것을 나에게 알리면 배지가 늘 켜져 있다."""
+    _write(client, _hdr(login_as, AUTHOR), world["mine"], "제가 쓴 문서에 제가 남기는 메모")
+    assert _notifications(app, world["author_id"]) == 0, "내 댓글이 나에게 알림으로 왔다"
+
+
+def test_the_notification_deep_links_to_the_document(client, login_as, world):
+    """알림을 눌렀을 때 문서 상세로 가야 한다. 목적지 표(`RELATED_DESTINATIONS`)의 첫 번째
+    규칙은 「그 화면이 실제로 그 id 를 소비해야 한다」이고, 지금 그 화면은
+    `/knowledge/:id` 다 — 옛 화면(`/team-docs/:id`)은 이 서버에서 사라졌다."""
+    _write(client, _hdr(login_as, MATE), world["mine"], "여기 근거가 뭔가요?")
+
+    login_as("user", email=AUTHOR)
+    items = client.get("/api/notifications?type=document_comment").json()["items"]
+    assert len(items) == 1
+    assert items[0]["related_object_type"] == "document"
+    assert items[0]["related_object_id"] == world["mine"]
+    assert items[0]["related_route"] == f"/knowledge/{world['mine']}", \
+        "딥링크가 문서 상세를 안 가리킨다"

@@ -28,35 +28,20 @@ from sqlalchemy import or_, select, text
 
 from app.tickets.models import Ticket
 
-from tests.fakes.notion import (
-    DEFAULT_PROJECTS_DB,
-    DEFAULT_TASKS_DB,
-    FakeNotionTasksDB,
-    project_row,
-)
+from tests.fakes.notion import DEFAULT_PROJECTS_DB, FakeNotionTasksDB, project_row
 
 pytestmark = pytest.mark.integration
 
 
 # ── 준비 ────────────────────────────────────────────────────────────────────
-def _wire_notion(settings) -> None:
-    """티켓 생성이 실제로 닿을 수 있는 세계를 만든다.
-
-    🔴 **작업 DB id 를 여기서 명시한다.** `notion_tasks_database_id` 의 기본값은 빈 문자열
-    이다 - 설치처 고유값이라 일부러 비워 두었다(app/core/tenant_config.py). 안 채우면 스키마
-    조회가 `/v1/databases/` 로 나가 가짜 서버가 못 알아듣고, 그러면 이 파일의 '티켓을
-    만든다' 검사가 **티켓 로직과 무관한 이유로** 빨간불이 된다. 반대로 실패를 기대하는
-    검사는 그 상태에서도 초록불이라 더 위험하다(가짜 안전감).
-
-    토큰도 마찬가지다. 없으면 '미설정' 으로 먼저 막혀 티켓 연결을 검증할 수 없다.
-    """
-    settings.notion_tasks_database_id = DEFAULT_TASKS_DB
-    (settings.secrets_dir / "notion_report_token").write_text("t", encoding="utf-8")
-
-
 @pytest.fixture()
-def notion(fake_http, settings) -> FakeNotionTasksDB:
-    _wire_notion(settings)
+def notion(fake_http) -> FakeNotionTasksDB:
+    """옛 소스를 흉내 내는 가짜 서버 — **반례 장치**로만 붙여 둔다.
+
+    제품은 티켓을 자체 DB 에만 만든다. 이 서버가 한 번이라도 생성 요청을 받으면 그것이
+    회귀다. 붙여 두지 않으면 「밖으로 안 나갔다」를 확인할 계측기가 없어, 어느 경로가 다시
+    밖을 부르기 시작해도 이 파일은 조용히 초록으로 남는다.
+    """
     return FakeNotionTasksDB(
         rows=[],
         projects=[project_row(page_id="proj-1", name="포털 개선")],
@@ -304,7 +289,7 @@ def test_moving_to_progress_creates_a_ticket_and_links_it(
     )
     # 그리고 그 티켓은 **밖으로 나가지 않았다**(S14) - 자체 DB 가 정본이므로 왕복이 0 이다.
     # 이 반례가 있어야 위 검사가 "표에 있다"와 "노션에도 만들었다"를 구별한다.
-    assert notion.created == [], "자체 DB 경로인데 Notion 으로 생성 요청이 나갔다"
+    assert notion.created == [], "자체 DB 경로인데 밖으로 생성 요청이 나갔다"
 
 
 def test_a_failed_ticket_leaves_the_status_untouched(
@@ -319,8 +304,7 @@ def test_a_failed_ticket_leaves_the_status_untouched(
     """
     # 🔴 '설정이 안 돼서' 실패하는 것과 '저장소가 쓰다가 죽는' 것은 다른 사건이다. 앞엣것은
     # 티켓 생성에 닿기도 전에 막혀서, 되감기가 정말 도는지를 하나도 검사하지 못한다.
-    # 그래서 저장소가 **행을 다 만든 다음에** 죽게 한다(S14 · 자체 DB 경로). 예전에는 가짜
-    # Notion 서버를 500 으로 세웠고, 그것이 이 자리에서 같은 뜻이었다.
+    # 그래서 저장소가 **행을 다 만든 다음에** 죽게 한다(S14 · 자체 DB 경로).
     from app.tickets.repository_native import NativeTicketRepository
 
     real_create = NativeTicketRepository.create
@@ -380,8 +364,8 @@ def test_moving_to_progress_twice_does_not_make_a_second_ticket(
     완료로 닫았다가 되살리는 것이 실제로 일어나는 경로다 - 그때 티켓이 하나 더 생기면
     같은 일이 두 장으로 발주된다.
 
-    세는 자리가 **표**여야 한다(S14). 가짜 Notion 서버가 받은 요청을 세면 자체 DB 경로에서는
-    처음부터 0 이라, 두 번 만들어도 `0 == 0` 으로 통과한다 - 이 검사가 아무것도 안 보게 된다.
+    세는 자리가 **표**여야 한다(S14). 밖으로 나간 요청을 세면 자체 DB 경로에서는 처음부터
+    0 이라, 두 번 만들어도 `0 == 0` 으로 통과한다 - 이 검사가 아무것도 안 보게 된다.
     """
     author = login_as("user", email="member@goodmit.co.kr")
     idea = _write_idea(client, author, title="중복 발주 방지")

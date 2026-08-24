@@ -29,10 +29,10 @@ import { TabShell } from "../ui/TabShell.jsx";
 const Dashboard = React.lazy(() => import("../screens/Dashboard.jsx").then((m) => ({ default: m.Dashboard })));
 const Users = React.lazy(() => import("../screens/Users.jsx").then((m) => ({ default: m.Users })));
 const Offboarding = React.lazy(() => import("../screens/Offboarding.jsx"));
-// PA-RC-0017: 시스템 설정·유지보수·Notion 관리·AI 관리는 더 이상 각자의 라우트가 그리지
-// 않는다 — 전부 SettingsShell.jsx의 탭이 됐다(그 파일이 이 네 컴포넌트를 직접 import한다).
-// 아래 /system·/maintenance·/notion-console·/llm-console 라우트는 옛 주소가 죽은 링크가
-// 되지 않도록 /settings?tab=* 로 보내는 리다이렉트만 남는다.
+// PA-RC-0017: 시스템 설정·유지보수·AI 관리는 더 이상 각자의 라우트가 그리지 않는다 — 전부
+// SettingsShell.jsx의 탭이 됐다(그 파일이 이 세 컴포넌트를 직접 import한다). 아래
+// /system·/maintenance·/llm-console 라우트는 옛 주소가 죽은 링크가 되지 않도록
+// /settings?tab=* 로 보내는 리다이렉트만 남는다.
 const Settings = React.lazy(() => import("../screens/Settings.jsx").then((m) => ({ default: m.SettingsShell })));
 const Diagnostics = React.lazy(() => import("../screens/Ops.jsx").then((m) => ({ default: m.Diagnostics })));
 const MailStatus = React.lazy(() => import("../screens/MailStatus.jsx"));
@@ -209,14 +209,19 @@ function AdminRoutes() {
             역할 게이트를 스스로 들고 있고(SetupWizard.jsx), 그래야 권한 없는 역할에게 목록
             요청 자체를 보내지 않는다. 서버 게이트는 app/setup/router.py 가 따로 건다. */}
         <Route path="/setup" element={<SetupWizard />} />
-        {/* PA-RC-0017: 시스템 설정·Notion 관리·AI 관리·유지보수는 화면이 아니라 /settings의
-            탭이 됐다(SettingsShell.jsx) — role 게이트도 그 안에서 탭 단위로 건다(옛
-            RequireRole과 같은 role 집합을 SettingsShell의 TAB_DEFS가 그대로 물려받았다).
-            여기 남는 것은 옛 주소 네 개가 죽은 링크나 대시보드로 튕기지 않고 정확한 탭으로
-            가게 하는 리다이렉트뿐이다 — 권한 없는 역할이 옛 주소로 와도 SettingsShell이 그
-            탭을 안 보여주고 첫 탭(시스템 정책)으로 떨어지므로 여기서 또 막을 필요가 없다. */}
+        {/* PA-RC-0017: 시스템 설정·AI 관리·유지보수는 화면이 아니라 /settings의 탭이
+            됐다(SettingsShell.jsx) — role 게이트도 그 안에서 탭 단위로 건다(옛 RequireRole과
+            같은 role 집합을 SettingsShell의 TAB_DEFS가 그대로 물려받았다). 여기 남는 것은 옛
+            주소 세 개가 죽은 링크나 대시보드로 튕기지 않고 정확한 탭으로 가게 하는
+            리다이렉트뿐이다 — 권한 없는 역할이 옛 주소로 와도 SettingsShell이 그 탭을
+            안 보여주고 첫 탭(시스템 정책)으로 떨어지므로 여기서 또 막을 필요가 없다.
+
+            넷째 주소 `/notion-console`은 리다이렉트도 남기지 않고 지웠다. 리다이렉트가
+            뜻이 있으려면 도착지가 있어야 하는데 그 도착지였던 '연동' 탭이 통째로 없어졌기
+            때문이다. 없는 탭으로 보내면 SettingsShell이 주소를 정정해 '시스템 정책'을
+            그리고, 사용자는 자기가 찾던 화면 대신 엉뚱한 화면을 보면서 왜 그런지 듣지
+            못한다. 지금은 아래 catch-all이 「이 주소는 없습니다」를 정직하게 말한다. */}
         <Route path="/system" element={<Navigate to="/settings?tab=os" replace />} />
-        <Route path="/notion-console" element={<Navigate to="/settings?tab=integration" replace />} />
         <Route path="/llm-console" element={<Navigate to="/settings?tab=ai" replace />} />
         <Route path="/maintenance" element={<Navigate to="/settings?tab=policy" replace />} />
         {/* FN-01: GET /status는 CONSOLE_READ_ROLES(operator/admin/system_admin/auditor) —

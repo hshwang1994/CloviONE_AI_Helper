@@ -13,7 +13,6 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from app.core.notion_blocks import MAX_BLOCKS as BODY_MAX_LINES
 from app.core.notion_blocks import MAX_LINE_CHARS as BODY_MAX_LINE_CHARS
 from app.team_docs.classify import DOC_TYPES, TECH_TAGS, WORK_FIELDS
-from app.team_docs.comments import MAX_COMMENT_CHARS
 
 MAX_TITLE = 200
 MAX_MEMO = 2000
@@ -146,37 +145,7 @@ class DocumentCreate(BaseModel):
         return v
 
 
-def _comment_body(v: str) -> str:
-    """티켓 댓글(`app/tickets/schemas.py`)과 같은 검증. 상한값의 출처는 한 곳
-    (`app/team_docs/comments.py::MAX_COMMENT_CHARS`)이라 여기서 다시 정하지 않는다."""
-    v = (v or "").strip()
-    if not v:
-        raise ValueError("댓글 내용을 입력하세요.")
-    if len(v) > MAX_COMMENT_CHARS:
-        raise ValueError(f"댓글은 {MAX_COMMENT_CHARS}자 이하여야 합니다.")
-    return v
-
-
-class DocumentCommentCreate(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    body: str
-
-    @field_validator("body")
-    @classmethod
-    def _check(cls, v: str) -> str:
-        return _comment_body(v)
-
-
-class DocumentCommentUpdate(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    body: str
-
-    @field_validator("body")
-    @classmethod
-    def _check(cls, v: str) -> str:
-        return _comment_body(v)
+# 댓글 스키마는 여기 없다 (S14 · C2) — `app/knowledge/schemas.py` 가 든다.
 
 
 class DocumentBodyUpdate(BaseModel):

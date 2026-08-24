@@ -259,7 +259,7 @@ def room_messages(request: Request, room_id: str, since: int = Query(default=0, 
     member = service.ensure_access(db, room, me)  # 멤버 아니면 403(전체 채팅만 예외)
     now = request.app.state.clock.now()
     # GET 이라 공용 임퍼소네이션 쓰기 차단을 안 지난다 — 여기서 안 막으면 관리자의 폴링이
-    # 대상 사용자를 '접속 중'으로 켠다(team_docs record_view 와 같은 종류의 새는 구멍).
+    # 대상 사용자를 '접속 중'으로 켠다(문서 최근 열람 기록과 같은 종류의 새는 구멍).
     if not auth.impersonating:
         service.touch_presence(db, room, me, now=now, idle=idle)
     msgs = repository.messages_since(db, room.id, since)

@@ -200,16 +200,25 @@ def test_trouble_items_carry_the_reason(client, login_as, world):
     assert items[0]["reasons"], f"이유 없이 점수만 낸다: {items[0]}"
 
 
-def test_a_notion_trouble_project_is_low_even_without_a_score(client, login_as, db, world):
-    """사람이 직접 '차질' 이라고 적어 둔 것은 점수가 없어도 봐야 한다."""
+def test_a_frozen_mirror_status_no_longer_marks_a_project_as_troubled(
+    client, login_as, db, world
+):
+    """예전에는 이 시험이 반대를 단언했다: 미러 컬럼이 '차질' 이면 점수가 없어도 센다.
+
+    그 컬럼에 쓰는 코드가 없어져 값이 이관 시점에 얼어붙었다. 얼어붙은 값으로 차질을
+    매기면 팀이 무엇을 고쳐도 목록에서 안 사라지고, 그 한 건 때문에 진짜 차질이 묻힌다.
+    되살리면 이 시험이 빨개진다.
+    """
     before = _dashboard(client, login_as)["health"]["trouble"]["count"]
 
-    _project(db, name="노션이 차질이라 함", status="active", health=None,
+    _project(db, name="옛 미러가 차질이라 함", status="active", health=None,
              notion_status="차질")
     db.commit()
 
-    after = _dashboard(client, login_as)["health"]["trouble"]["count"]
-    assert after == before + 1, f"노션 차질을 안 센다: {before} -> {after}"
+    board = _dashboard(client, login_as)["health"]["trouble"]
+    assert board["count"] == before, f"얼어붙은 미러 값을 아직 센다: {before} -> {board['count']}"
+    assert "옛 미러가 차질이라 함" not in {i["name"] for i in board["items"]}
+    assert all("차질" != r for i in board["items"] for r in i["reasons"])
 
 
 def test_the_average_progress_ignores_nulls_rather_than_counting_them_as_zero(

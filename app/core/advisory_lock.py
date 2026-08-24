@@ -16,7 +16,7 @@
 
 `pg_advisory_xact_lock` 은 **트랜잭션이 끝나면 풀린다.** 요청 세션에 그대로 걸면, 잠긴
 구간 안에서 누가 `db.commit()` 을 부르는 순간 잠금이 조용히 풀린다 — 그리고 이 저장소에는
-그런 자리가 실제로 있다(`notion_console/router.py` 는 외부 호출 앞에서 일부러 커밋한다).
+그런 자리가 실제로 있었다(Notion 콘솔의 라우터는 외부 호출 앞에서 일부러 커밋했다).
 잠금이 걸린 줄 알았는데 안 걸린 상태가 되고, 증상은 "가끔 두 개가 만들어진다" 다.
 
 그래서 **잠금만을 위한 세션을 따로 연다.** 잠금의 수명은 `with` 블록 하나이고, 요청 세션이
@@ -52,8 +52,10 @@ logger = logging.getLogger("app.lock")
 NS_TICKET_CLAIM = 1      # 티켓 배정 (page id 단위)
 NS_QUOTA = 2             # AI 쿼터 확인→소비 (user id 단위)
 NS_SEARCH_REINDEX = 3    # 수동 재색인 (전역 하나)
-NS_TICKET_SYNC = 4       # 티켓 동기화 트리거 (전역 하나)
-NS_NOTION_CREATE = 5     # Notion DB 생성 (전역 하나)
+# 4 와 5 는 **비어 있다.** 티켓 동기화 트리거와 Notion 데이터베이스 생성이 쓰던 번호이고,
+# 두 기능은 Notion 런타임과 함께 사라졌다. 번호를 당기거나 다시 쓰지 않는 이유는 맨 위
+# 규칙 그대로다 — 무중단 재시작 중에는 옛 코드와 새 코드가 같은 데이터베이스에 함께 붙어
+# 있고, 그때 같은 번호가 서로 다른 뜻이면 한쪽이 남의 잠금을 자기 것으로 읽는다.
 
 # 대상이 하나뿐인 잠금의 키. namespace 가 이미 용도를 구분하므로 0 이면 충분하다.
 GLOBAL_KEY = 0
@@ -85,7 +87,7 @@ def _lock_session(db: Session):
 def try_lock(db: Session, namespace: int, key: str | None = None):
     """**기다리지 않고** 잠근다. `with` 가 주는 값이 잠갔는지 여부다.
 
-        with try_lock(db, NS_TICKET_SYNC) as got:
+        with try_lock(db, NS_SEARCH_REINDEX) as got:
             if not got:
                 raise ConflictError("이미 진행 중입니다.")
             ...

@@ -22,9 +22,7 @@ import pytest
 from app.projects.health import (
     BASE_SCORE,
     MAX_MILESTONE_PENALTY,
-    NOTION_STATUS_TROUBLE,
     RULE_MILESTONE_OVERDUE,
-    RULE_NOTION_TROUBLE,
     RULE_STALE,
     RULE_TASK_OVERDUE,
     RULE_UNASSIGNED,
@@ -70,7 +68,6 @@ def _input(**over) -> HealthInput:
     """
     base = {
         "today": TODAY,
-        "notion_status": "진행 중",
         "milestones": (MilestoneFact(due_on=TOMORROW, status=MILESTONE_PLANNED),),
         "tasks": (_healthy_task(),),
         "last_activity_on": TODAY,
@@ -86,8 +83,7 @@ def test_the_baseline_sample_scores_a_hundred_with_every_rule_checked():
     assert result.reasons == (), f"감점 요인이 없는데 이유가 붙었다: {result.as_dict()}"
     assert result.unknown == (), f"전부 계산 가능한 표본인데 모른다고 한다: {result.as_dict()}"
     assert set(result.checked) == {
-        RULE_MILESTONE_OVERDUE, RULE_TASK_OVERDUE, RULE_UNASSIGNED,
-        RULE_STALE, RULE_NOTION_TROUBLE,
+        RULE_MILESTONE_OVERDUE, RULE_TASK_OVERDUE, RULE_UNASSIGNED, RULE_STALE,
     }
 
 
@@ -210,15 +206,22 @@ def test_a_long_silence_costs_points_and_a_longer_one_costs_more():
     assert RULE_STALE in _rules(quiet)
 
 
-def test_the_notion_status_trouble_is_its_own_rule():
-    """'차질' 은 사람이 직접 찍은 신호다. 다른 지표가 아무리 좋아도 이건 봐야 한다."""
-    trouble = compute_health(_input(notion_status=NOTION_STATUS_TROUBLE))
-    normal = compute_health(_input(notion_status="진행 중"))
+def test_the_frozen_mirror_column_no_longer_takes_points_away():
+    """예전에는 이 시험이 반대를 단언했다: 미러 컬럼이 '차질' 이면 25점을 깎는다.
 
-    assert trouble.score < normal.score, (
-        f"노션 상태가 '차질' 인데 점수가 그대로다: {trouble.as_dict()}"
-    )
-    assert RULE_NOTION_TROUBLE in _rules(trouble)
+    그 컬럼(`projects.notion_status`)에 쓰는 코드가 없어져 값이 이관 시점에 얼어붙었다.
+    얼어붙은 값으로 점수를 계속 깎으면 팀이 무엇을 고쳐도 사라지지 않는 벌점이 되고, 그건
+    지표가 아니다. 그래서 규칙을 통째로 걷었다 - 되살리면 이 시험이 빨개진다.
+    """
+    from app.projects import health as health_mod
+
+    assert hasattr(health_mod, "RULE_NOTION_TROUBLE") is False
+    assert hasattr(health_mod, "NOTION_STATUS_TROUBLE") is False
+    assert hasattr(health_mod, "PENALTY_NOTION_TROUBLE") is False
+    assert hasattr(health_mod, "_rule_notion_trouble") is False
+    assert "notion_status" not in HealthInput.__dataclass_fields__
+    assert "notion_trouble" not in set(health_mod.RULE_ORDER)
+    assert "notion_trouble" not in set(health_mod.RULE_LABELS)
 
 
 def test_a_metric_that_cannot_be_computed_is_reported_not_assumed_healthy():
@@ -263,23 +266,15 @@ def test_tasks_that_cannot_answer_a_rule_leave_that_rule_unknown():
     )
 
 
-def test_a_portal_only_project_leaves_the_notion_rule_unknown():
-    """노션 짝이 없으면 '차질' 인지 아닌지 알 방법이 없다."""
-    result = compute_health(_input(notion_status=None))
-    assert RULE_NOTION_TROUBLE in _unknown(result), f"{result.as_dict()}"
-    assert RULE_NOTION_TROUBLE not in result.checked
-
-
 def test_nothing_computable_is_none_not_a_hundred():
     """아무 지표도 못 세는 프로젝트에 100 점을 주면 **가장 정보가 없는 프로젝트가 가장
     건강해 보인다.** 진행률이 분모 0 에서 None 인 것과 같은 이유다(progress.py)."""
-    empty = compute_health(HealthInput(today=TODAY, notion_status=None))
+    empty = compute_health(HealthInput(today=TODAY))
 
     assert empty.score is None, f"아무것도 못 셌는데 점수를 냈다: {empty.as_dict()}"
     assert empty.checked == (), f"{empty.as_dict()}"
     assert _unknown(empty) == {
-        RULE_MILESTONE_OVERDUE, RULE_TASK_OVERDUE, RULE_UNASSIGNED,
-        RULE_STALE, RULE_NOTION_TROUBLE,
+        RULE_MILESTONE_OVERDUE, RULE_TASK_OVERDUE, RULE_UNASSIGNED, RULE_STALE,
     }, "못 센 지표를 목록에서 빠뜨렸다 - 화면이 무엇을 모르는지 말할 수 없다"
 
 
@@ -287,7 +282,6 @@ def test_the_score_never_goes_below_zero():
     """감점 합이 100 을 넘어도 음수 점수는 화면에서 뜻을 잃는다."""
     worst = compute_health(HealthInput(
         today=TODAY,
-        notion_status=NOTION_STATUS_TROUBLE,
         milestones=tuple(
             MilestoneFact(due_on=LAST_MONTH, status=MILESTONE_PLANNED) for _ in range(9)
         ),
@@ -303,16 +297,14 @@ def test_the_score_never_goes_below_zero():
 def test_every_reason_carries_a_readable_why():
     """점수만 주면 아무도 행동하지 못한다. 이유마다 한국어 설명이 붙어야 한다."""
     result = compute_health(_input(
-        notion_status=NOTION_STATUS_TROUBLE,
         milestones=(MilestoneFact(due_on=YESTERDAY, status=MILESTONE_PLANNED),),
         tasks=(_healthy_task(due_on=YESTERDAY, assigned=False),),
         last_activity_on="2026-05-01",
     ))
 
     assert {r.rule for r in result.reasons} == {
-        RULE_MILESTONE_OVERDUE, RULE_TASK_OVERDUE, RULE_UNASSIGNED,
-        RULE_STALE, RULE_NOTION_TROUBLE,
-    }, f"규칙 다섯 개가 전부 걸리는 표본인데 일부가 빠졌다: {result.as_dict()}"
+        RULE_MILESTONE_OVERDUE, RULE_TASK_OVERDUE, RULE_UNASSIGNED, RULE_STALE,
+    }, f"규칙 넷이 전부 걸리는 표본인데 일부가 빠졌다: {result.as_dict()}"
     for reason in result.reasons:
         assert reason.label, f"{reason.rule} 에 이름이 없다"
         assert reason.detail, f"{reason.rule} 에 설명이 없다"
@@ -323,9 +315,11 @@ def test_the_result_round_trips_to_a_dict_for_the_snapshot():
     """이유 목록은 주간 스냅샷에 JSON 으로 저장된다. 저장할 수 있는 모양이어야 한다."""
     import json
 
-    result = compute_health(_input(notion_status=NOTION_STATUS_TROUBLE))
+    result = compute_health(_input(
+        milestones=(MilestoneFact(due_on=YESTERDAY, status=MILESTONE_PLANNED),),
+    ))
     payload = result.as_dict()
 
     assert json.loads(json.dumps(payload, ensure_ascii=False)) == payload
     assert payload["score"] == result.score
-    assert payload["reasons"][0]["rule"] == RULE_NOTION_TROUBLE
+    assert payload["reasons"][0]["rule"] == RULE_MILESTONE_OVERDUE

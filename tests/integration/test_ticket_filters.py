@@ -25,6 +25,8 @@
 목록 API 가 읽는 표가 그 표다. 여기서는 정렬 타이브레이커를 시험해야 해서 **id 를 손으로
 정해야** 하고(동기화는 UUID 를 만든다), 대분류처럼 Notion 페이크의 행 빌더에 없는 열도
 써야 한다. 실시간 경로와 미러 경로가 같은 답을 내는지는 마지막 시험이 따로 본다.
+
+qa-contract-change: 「실시간 폴백 경로도 같은 답을 낸다」 시험이 미러가 비었을 때 소스를 직접 조회하던 두 번째 읽기 길을 확인했고 S14 가 그 길을 없앴다(D-284) — 답을 내는 길이 하나뿐이라 두 길이 어긋날 자리가 없으므로, 「두 길이 같다」 대신 「두 번째 길이 생기지 않았다」(신선도·동기화 블록이 응답에 없다)로 바꿔 적었다.
 """
 
 from __future__ import annotations
@@ -489,43 +491,26 @@ def test_my_tickets_are_paged_and_filtered_too(client, login_as, db, me):
     assert body["total"] == 2 and len(body["items"]) == 1
 
 
-# ── 실시간 폴백 경로도 같은 답을 낸다 ─────────────────────────────────────────
+# ── 미러가 없어졌다: 「실시간 폴백」이라는 경로 자체가 없다 ─────────────────
 
-@pytest.mark.notion_source
-def test_the_live_fallback_applies_the_same_filters_and_page(client, login_as, settings,
-                                                             fake_http, db, admin):
-    """미러가 비면(첫 기동·킬 스위치) 실시간으로 답한다 — 그 경로에서 필터가 무시되면
-    "필터를 걸었는데 전체가 나왔다" 가 되고, 사용자는 그걸 알아챌 수 없다.
 
-    **이 시험만 소스를 되돌린다** (S14). 제품 기본은 `native` 이고 그쪽에는 실시간
-    폴백이라는 개념이 없다 — 자체 DB 가 정본이라 「미러가 아직 안 찼다」는 상태가
-    존재하지 않는다. 표를 안 붙이면 이 시험은 빈 목록을 받고, 그 빈 목록으로도
-    「필터가 걸렸다」가 성립해 **조용히 통과한다.**
+def test_there_is_no_second_read_path_to_disagree_with(client, login_as, catalog):
+    """🔴 예전에는 목록을 답하는 길이 **둘**이었다 — 미러가 비면(첫 기동·킬 스위치)
+    실시간으로 소스를 조회했다. 그 두 길이 서로 다른 필터를 걸면 "필터를 걸었는데 전체가
+    나왔다" 가 되고, 사용자는 그걸 알아챌 수 없다.
+
+    S14 뒤로 길이 하나다(D-284). 그래서 여기서 지키는 것은 「두 길이 같은 답을 낸다」가
+    아니라 **「두 번째 길이 생기지 않았다」**이다: 응답에 신선도 블록이 없어야 한다. 그
+    블록은 「지금 보는 값이 사본이다」라는 말이고, 그 말이 돌아오면 사본을 채우는 길도
+    함께 돌아왔다는 뜻이다.
+
+    빈 세계에서 통과하지 않도록 **행이 있는 상태**로 확인한다 — 위 시험들이 심어 둔
+    티켓이 실제로 답에 실린 뒤에 단언한다.
     """
-    from tests.fakes.notion import (
-        DEFAULT_PROJECTS_DB,
-        FakeNotionTasksDB,
-        project_row,
-        task_row,
-    )
+    login_as("system_admin", email="tf-nolive@goodmit.co.kr")
 
-    FakeNotionTasksDB(
-        rows=[
-            task_row(page_id="live-1", tid=1, title="검증 티켓", status="검증", due="2026-07-15"),
-            task_row(page_id="live-2", tid=2, title="진행 티켓", status="진행", due="2026-07-16"),
-            task_row(page_id="live-3", tid=3, title="다른 진행", status="진행", due="2026-07-17"),
-        ],
-        projects=[project_row(page_id=PROJ, name="알파")],
-        projects_db=DEFAULT_PROJECTS_DB,
-    ).install(fake_http)
-    login_as("system_admin", email="tf-admin@goodmit.co.kr")
-
-    body = client.get("/api/tickets/team?active=false&status=검증").json()
+    body = client.get("/api/tickets/team?active=false").json()
     assert body["ok"] is True, body
-    assert "sync" not in body, "미러를 안 봤는데 신선도를 실었다"
-    assert _ids(body) == ["live-1"], "실시간 경로에서 서버 필터가 무시됐다"
-    assert body["total"] == 1
-
-    body = client.get("/api/tickets/team?active=false&page=2&page_size=2").json()
-    assert body["total"] == 3
-    assert _ids(body) == ["live-3"], "실시간 경로에서 페이지가 무시됐다"
+    assert body["total"] > 0, "티켓이 하나도 없는 세계라 아래 단언이 아무것도 안 본다"
+    assert "sync" not in body, f"신선도 블록이 돌아왔다: {body.get('sync')!r}"
+    assert "can_sync" not in body, "화면에 동기화 버튼을 다시 그리라고 말하고 있다"

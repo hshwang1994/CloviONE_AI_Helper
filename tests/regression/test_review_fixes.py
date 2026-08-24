@@ -9,6 +9,10 @@ from tests.conftest import DEFAULT_TEST_PASSWORD
 pytestmark = pytest.mark.regression
 
 
+# 주소는 **런타임 허용 목록(config/allowed-services.json)에 있는 호스트**여야 한다. 예전에는
+# 여기가 api.notion.com 이었는데, S14 가 그 호스트를 목록에서 뺐다(D-284). 목록 밖 주소로는
+# 연동을 만들 수 없으므로(400), 그대로 두면 아래 시험들이 **행이 하나도 없는 세계**를 훑는다.
+
 def _headers(csrf):
     return {"X-CSRF-Token": csrf}
 
@@ -88,7 +92,7 @@ def test_integration_secret_change_gated(client, login_as, settings):
     integ = client.post(
         "/api/admin/integrations",
         json={"name": "gated-int", "provider_type": "http_service",
-              "base_url": "https://api.notion.com"},
+              "base_url": "https://api.anthropic.com"},
         headers=_headers(sys_csrf),
     ).json()["integration"]
     admin_csrf = login_as("admin", email="int-editor@goodmit.co.kr")

@@ -347,7 +347,8 @@ def run_retention(db: Session, *, now: datetime, settings_cache, outbound=None, 
         result["orphan_uploads"] = sweep_orphan_uploads(db, data_dir=data_dir, now=now)
     else:
         result["orphan_uploads"] = {"skipped": "데이터 디렉터리를 알 수 없어 건너뜀"}
-    # 휴지통 만료 정리는 노션 호출(archive)이 필요해 outbound/settings 가 주어질 때만 돈다.
+    # 휴지통 만료 정리는 저장소 seam(`build_*_repository`)을 지나므로 outbound/settings 가
+    # 주어질 때만 돈다. 예전에는 그 seam 뒤에 노션 호출이 있었고, 지금은 로컬 쓰기뿐이다.
     if outbound is not None and settings is not None:
         from app.trash import service as trash_service
 

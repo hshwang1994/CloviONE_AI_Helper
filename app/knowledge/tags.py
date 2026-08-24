@@ -22,7 +22,10 @@ from sqlalchemy.orm import Session
 from app.core.errors import ValidationAppError
 from app.knowledge.models import Document, DocumentTag, Tag
 
-__all__ = ["slugify", "ensure", "set_for_document", "of_document", "TAG_MAX_PER_DOCUMENT"]
+__all__ = [
+    "slugify", "ensure", "set_for_document", "of_document", "of_documents",
+    "TAG_MAX_PER_DOCUMENT",
+]
 
 # 한 문서에 붙는 태그 수 상한. 본문 길이는 안 막지만(D-198) 이것은 길이가 아니라
 # **분류가 분류이기를 그만두는 지점**이다 — 50개가 붙은 문서는 어느 태그로도 안 좁혀진다.
@@ -117,3 +120,20 @@ def of_document(db: Session, document_id: str) -> list[Tag]:
             .order_by(Tag.slug)
         ).scalars().all()
     )
+
+
+def of_documents(db: Session, document_ids: list[str]) -> dict[str, list[Tag]]:
+    """여러 문서의 태그를 한 질의로. 목록 화면이 문서 수만큼 묻지 않게 한다
+    (`favorite_ids` 와 같은 이유 — `app/knowledge/service.py::favorite_ids`)."""
+    if not document_ids:
+        return {}
+    rows = db.execute(
+        select(DocumentTag.document_id, Tag)
+        .join(Tag, Tag.id == DocumentTag.tag_id)
+        .where(DocumentTag.document_id.in_(document_ids))
+        .order_by(Tag.slug)
+    ).all()
+    out: dict[str, list[Tag]] = {}
+    for document_id, tag in rows:
+        out.setdefault(document_id, []).append(tag)
+    return out

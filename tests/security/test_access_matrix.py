@@ -45,7 +45,6 @@ from datetime import datetime
 import pytest
 
 from app.tickets.models import PROJECT_LINK_OK, SYNC_STATE_ID, TicketCache, TicketSyncState
-from tests.fakes.notion import FakeNotionTasksDB
 from tests.fixtures.org_tree import (  # noqa: F401 — fixture 재수출
     org_tree,
     people,
@@ -77,18 +76,7 @@ ALL_SUBJECTS = frozenset({
 
 
 @pytest.fixture()
-def notion(fake_http) -> FakeNotionTasksDB:
-    """소스는 **행을 하나도 안 준다**.
-
-    티켓 목록 경로는 소스가 설정돼 있어야 캐시를 읽는다(`configured: False` 면 응답이
-    통째로 빈 봉투다). 행을 0건으로 두는 이유는 실수로 실시간 경로를 타면 결과가 전부
-    비어 이 표가 바로 빨개지기 때문이다 — 캐시를 읽었는지 소스를 읽었는지 구별된다.
-    """
-    return FakeNotionTasksDB(rows=[]).install(fake_http)
-
-
-@pytest.fixture()
-def tickets(db, resources, notion):
+def tickets(db, resources):
     """프로젝트마다 티켓 하나. 티켓의 소속은 **프로젝트가 정한다**(0060 §11)."""
     state = db.get(TicketSyncState, SYNC_STATE_ID) or TicketSyncState(id=SYNC_STATE_ID)
     state.status = "ok"
@@ -161,11 +149,10 @@ def _document_detail(client, resources, tickets, key) -> bool:
     return r.status_code == 200
 
 
-def _document_comments(client, resources, tickets, key) -> bool:
-    """단건을 막고 댓글을 안 막는 실수가 이 저장소에서 실제로 있었다."""
-    r = client.get(f"/api/team-docs/{resources['documents'][key].notion_page_id}/comments")
-    assert r.status_code in (200, 404), r.text
-    return r.status_code == 200
+# 「문서 댓글」 경로는 여기 없다 (S14 · C2). 댓글 축이 정본 문서로 옮겨 가면서 이 행렬이
+# 쓰는 미러 행(`document_cache`)과 다른 자원이 됐다. 「단건을 막고 댓글을 안 막는 실수」는
+# 옮겨 간 자리에서 `tests/integration/test_knowledge_comments.py` 가 네 경로(목록·작성·
+# 수정·삭제) 전부에 대해 고정한다.
 
 
 # 프로젝트가 있는 자원 키 / 문서가 있는 자원 키가 다르다("unset" 은 문서만 있다).
@@ -179,7 +166,6 @@ _PATHS = (
     ("팀 티켓 목록", _ticket_team_list, _PROJECT_KEYS),
     ("문서 목록", _document_list, _DOCUMENT_KEYS),
     ("문서 단건", _document_detail, _DOCUMENT_KEYS),
-    ("문서 댓글", _document_comments, _DOCUMENT_KEYS),
 )
 
 

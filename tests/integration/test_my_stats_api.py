@@ -7,10 +7,10 @@
   3. **장애 격리.** 소스가 죽어도 200 이고 `source.configured/ok/mapped` 로 이유를 말한다 —
      화면 전체가 오류로 덮이지 않는다(§17.4).
 
-이 파일은 기본 소스(`native`) 위에서 돈다. 다만 **미러가 있어야만 성립하는 두 가지**에는
-`@pytest.mark.notion_source` 를 달아 옛 경로로 되돌려 놓는다(S14): 신선도(`sync`) 블록과
-「소스가 설정되지 않았다」는 상태가 그것이다. 자체 DB 에는 낡을 사본도, 사람이 채워 넣어야
-하는 접속 설정도 없다. 표를 단 시험은 **Notion 을 걷어낼 때 지울 목록**이기도 하다.
+S14 가 미러를 걷어내면서 두 가지가 뒤집혔다(D-284). 신선도(`sync`) 블록은 **없어야**
+하는 것이 되었고, 「소스가 설정되지 않았다」는 상태는 사라졌다 — 자체 DB 는 앱이 이미 붙어
+있는 곳이라 사람이 채워 넣을 접속 설정이 없다. 남은 장애 격리는 읽는 자리를 직접
+실패시켜 확인한다.
 """
 
 from __future__ import annotations
@@ -178,14 +178,17 @@ def test_weekly_load_shows_where_the_remaining_work_sits(stats_client):
     assert extra["no_due"]["count"] == 1
 
 
-@pytest.mark.notion_source
-def test_stats_report_mirror_freshness(stats_client):
-    """**이 시험만 소스를 되돌린다** (S14). 신선도는 사본이 있을 때만 뜻이 있는 말이고,
-    자체 DB 로 답한 응답에는 `sync` 키가 아예 없다
-    (`app/tickets/repository_native.py::sync_state` 가 언제나 `None` 을 준다).
+def test_stats_no_longer_report_mirror_freshness(stats_client):
+    """🔴 **반대 방향의 단언이다** (S14). 응답에 `sync` 가 **없어야** 한다.
+
+    신선도는 사본이 있을 때만 뜻이 있는 말이다. 사본이 없어진 뒤로도 그 블록을 실으면
+    화면에 **영원히 늙는 시각**이 남고, 그것은 오류가 아니라 그냥 오래된 숫자로 보인다.
     """
-    sync = _stats(stats_client)["sync"]
-    assert sync["status"] == "ok" and sync["ticket_count"] == 8
+    body = _stats(stats_client)
+    assert "sync" not in body, f"신선도 블록이 돌아왔다: {body.get('sync')!r}"
+    assert body["ok"] is True and "totals" in body, (
+        "이 응답이 아무것도 안 실으면 위 단언이 공짜다"
+    )
 
 
 def test_stats_survive_an_unmapped_account(client, db, settings, notion, make_user):
@@ -208,27 +211,31 @@ def test_stats_survive_an_unmapped_account(client, db, settings, notion, make_us
     assert "months" not in body
 
 
-@pytest.mark.notion_source
-def test_stats_survive_a_dead_source(client, db, notion):
-    """소스가 안 잡혀 있으면 503 이 아니라 200 + `configured: false` 다 — 화면을 오류로 덮지 않는다.
+def test_stats_fold_a_read_failure_instead_of_erroring_the_screen(client, db, monkeypatch):
+    """티켓을 못 읽으면 503 이 아니라 200 + `ok: false` 다 — 화면을 오류로 덮지 않는다.
 
-    **이 시험만 소스를 되돌린다** (S14). 「소스가 설정되지 않았다」는 사람이 토큰과 DB id 를
-    채워 넣어야 하는 외부 소스에만 있는 상태다 — 자체 DB 는 앱이 이미 붙어 있는 곳이라
-    `configured` 가 언제나 참이고, 표를 안 붙이면 이 시험은 그 참값을 보고 빨간불이 된다.
+    지금 이 예외를 올리는 코드는 없다(S14 가 Notion 경로를 걷었다). 그래도 잡는 쪽은
+    남아 있고 프런트가 그 응답 모양을 읽는다 — D-284 가 「화면과 함께 움직여야 하는 API
+    계약」이라고 적어 둔 자리다. 그 모양이 살아 있는 동안은 **실제로 접히는지**를 확인해
+    둔다. 접기가 깨지면 통계 화면 하나가 500 으로 덮인다.
 
-    이 경로를 타려면 **연결됐고(mapped) 미러도 비어 있어야** 한다. 미매핑 계정은 소스를
-    부르기 전에 멈추고(`mapped: false`), 미러가 차 있으면 토큰 없이도 답이 나온다
-    (그게 캐시의 존재 이유다) — 그래서 여기서는 사용자·매핑만 심고 티켓 미러는 비워 둔다.
-
-    PA-RC-0027: `configured: false`도 `ok: false`(소스를 못 읽었다)를 동반하므로
-    `usable = ok and mapped`에 걸려 totals 등이 마찬가지로 빠진다 — 위 미매핑 테스트와
-    같은 원칙("소스 장애면 버킷 자체가 없다")의 다른 발생 지점이다.
+    PA-RC-0027: 소스를 못 읽으면 `usable = ok and mapped` 에 걸려 `totals` 등이 통째로
+    빠진다 — 위 미매핑 시험과 같은 원칙("소스 장애면 버킷 자체가 없다")의 다른 발생 지점이다.
     """
-    _seed_users(db)  # 토큰 파일도 티켓 미러도 일부러 만들지 않는다
+    from app.core.errors import NotionQueryError
+    from app.home import service as home_service
+
+    _seed_users(db)
     assert client.post("/login", json={"email": EMAIL, "password": PASSWORD}).status_code == 200
+
+    def boom(*args, **kwargs):
+        raise NotionQueryError("티켓을 읽지 못했습니다.")
+
+    monkeypatch.setattr(home_service.tickets_service, "list_my_tickets", boom)
+
     body = _stats(client)
-    assert body["ok"] is True, "요청 자체는 성공이다"
-    assert body["source"]["configured"] is False
+    assert body["ok"] is True, "요청 자체는 성공이다 — 화면을 오류로 덮지 않는다"
+    assert body["source"]["ok"] is False
     assert "totals" not in body
     assert "workload" not in body
     assert "months" not in body

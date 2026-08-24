@@ -36,7 +36,7 @@ export const enabledCol = (label) => ({ key: "enabled", label, render: (r) => <B
 export const boolCol = (key, label, yes, no) => ({
   key, label, render: (r) => (r[key] ? yes : no),
 });
-// 외부 링크 열(예: 발행된 Notion 문서) — http(s) URL만 앵커로, 그 외엔 평문(CSP상 앵커는 안전).
+// 외부 링크 열 - http(s) URL만 앵커로, 그 외엔 평문(CSP상 앵커는 안전).
 export const linkCol = (key, label) => ({ key, label, render: (r) => {
   const v = r[key];
   if (v == null || v === "") return "-";
@@ -97,7 +97,10 @@ export const previewField = (key, label) => ({ key, label, render: (r) => {
   const p = r[key];
   if (p == null || p === "") return "-";
   if (typeof p === "string") return <JsonBlock>{p}</JsonBlock>;
-  const links = Array.isArray(p.notion_links) ? p.notion_links : [];
+  /* 여기 미리보기의 외부 링크 목록(`p.notion_links`)을 앵커로 그리는 줄이 있었다. 서버가
+     그 필드를 싣는 경로가 없다 - 서버가 안 보내는 필드를 화면이 계속 기다리면, 다음
+     사람은 그 코드를 보고 기능이 있다고 읽는다. */
+  const links = [];
   return (
     <div>
       {p.title ? <div><strong>{String(p.title)}</strong></div> : null}

@@ -16,7 +16,7 @@
  *  ① REGISTRY 의 모든 키가 ROUTE_COVERAGE 의 어떤 Surface 로든 도달 가능하다
  *     (단일 Route `/key` 이거나, TAB_GROUPS 그릇 안의 탭이거나, OrgConsole 이 그린다)
  *  ② TAB_GROUPS 의 모든 그릇과 탭이 Surface 로 존재한다
- *  ③ SettingsShell 의 TAB_DEFS 네 탭이 Surface 로 존재한다
+ *  ③ SettingsShell 의 TAB_DEFS 세 탭이 Surface 로 존재한다
  *  ④ 반대로 ROUTE_COVERAGE 가 registry_key 를 주장하는 Surface 는 실제 REGISTRY 키다
  */
 
@@ -79,7 +79,7 @@ describe("ROUTE_COVERAGE ↔ JS 소스 대조", () => {
     expect(missing, `커버리지에 없는 탭 그릇/탭: ${missing.join(", ")}`).toEqual([]);
   });
 
-  it("설정 탭 네 개가 전부 Surface 다", () => {
+  it("설정 탭 세 개가 전부 Surface 다", () => {
     expect(SETTINGS_TAB_KEYS).toContain("policy");
     const missing = SETTINGS_TAB_KEYS.filter(
       (k) => !surfaces.some((s) => s.route === `/settings?tab=${k}`),

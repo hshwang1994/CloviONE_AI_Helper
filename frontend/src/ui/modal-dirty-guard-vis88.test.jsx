@@ -31,7 +31,6 @@ vi.mock("../lib/api.js", () => ({
 
 import { TicketEditModal } from "../screens/MyTickets.jsx";
 import { PostFormModal } from "../screens/Board.jsx";
-import { DocCreateModal } from "../screens/TeamDocs.jsx";
 import { GroupModal } from "../screens/ChatRooms.jsx";
 import { ImportModal } from "../screens/UsersBulk.jsx";
 import { ManageRoomModal } from "../screens/ChatRoomMembers.jsx";
@@ -106,21 +105,9 @@ describe("Board — 새 게시글 모달", () => {
   });
 });
 
-describe("TeamDocs — 새 문서 모달", () => {
-  it("제목을 쓰고 '취소'를 누르면 확인을 먼저 묻는다", async () => {
-    const onClose = vi.fn();
-    render(
-      <Providers>
-        <DocCreateModal open onClose={onClose} options={{ doc_types: [], work_fields: [], tech_tags: [], projects: [] }} />
-      </Providers>,
-    );
-    await waitFor(() => expect(document.getElementById("doc-title")).toBeTruthy());
-    await userEvent.type(document.getElementById("doc-title"), "새 문서 제목");
-    await userEvent.click(screen.getByRole("button", { name: "취소" }));
-    await screen.findByText(WARN);
-    expect(onClose).not.toHaveBeenCalled();
-  });
-});
+// 옛 문서 화면의 「새 문서」 모달은 사라졌다 (S14 · C2). `/knowledge` 의 새 문서 모달은
+// 공용 `FormModal` 이고, 그 부품의 더티 가드는 이 파일 위쪽에서 이미 고정한다.
+
 
 describe("ChatRooms — 새 그룹 채팅방 모달", () => {
   it("방 이름을 쓰고 '취소'를 누르면 확인을 먼저 묻는다", async () => {

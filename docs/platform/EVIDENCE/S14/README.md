@@ -126,7 +126,8 @@ tickets.legacy_key 가 남았나: 0
 ### Cutover 가 찾아낸 것 — 설치기 결함 넷
 
 리허설이 아니라 **실제 설치**라서 보인 것들이다. 넷 다 「설치가 `OK` 를 찍는데 제품이
-안 되는」 모양이고, 넷 다 고쳐서 `deploy/install.sh` 에 들어갔다.
+안 되는」 모양이고, 넷 다 고쳐서 `deploy/install.sh` 에 들어갔다. (다섯 번째는 백업 쪽에서
+나왔다 — 아래 §5 의 CREATEDB.)
 
 | # | 무엇이 | 어떻게 드러났나 |
 |---|---|---|
@@ -158,3 +159,180 @@ DB 를 스키마만 있는 상태로 되돌리고(`dropdb`/`createdb`/`alembic u
 
 옛 SQLite 원본(`/var/lib/clovirassist/web.sqlite3`)은 **지우지 않았다.** 설치가 새 자리로
 옮겨 놓았고 제품은 그것을 열지 않는다 — `normalize_database_url` 이 `sqlite://` 를 거절한다.
+
+## 5. Legacy 제거 — 코드가 없어야 껐다고 말할 수 있다
+
+Cutover 로 데이터가 넘어간 뒤, 런타임에서 Notion 을 읽고 쓰는 코드 **열다섯**을 지웠다
+(D-284 가 목록과 「남긴 것」을 표로 적는다).
+
+지우기 전에 **왜 설정으로는 안 되는지**를 실제로 겪었다. Cutover 직후 워커를 올리자 미러
+동기화 틱이 **PostgreSQL 을 향해** 돌기 시작했다 — 그 표들은 이제 미러가 아니라 정본이다.
+DB 설정을 비웠는데도 계속 돌았다. **환경파일이 이겼다.** 그리고 그 값이 유효한 데이터베이스
+id 라 동기화가 성공하기 시작했다. 확인해 보니 데이터는 무사했지만(티켓 1,133 · 이름 1,120
+그대로) 그것은 운이었다.
+
+되살아나지 않는 것을 `tests/unit/test_notion_runtime_removed.py` 가 고정한다 — 파일 열다섯이
+없고, `app/` 어디서도 그 이름을 부르지 않고, 워커에 틱이 없고, 런타임 SSRF 목록에
+`api.notion.com` 이 없다. **이관 도구의 목록에는 있어야 한다**는 반대편 단언도 함께 건다.
+
+### 백업이 「복원할 수 있다」를 다시 증명했다 — 그리고 그전엔 못 했다
+
+S12 가 세운 복구 리허설(`scripts/restore_rehearsal.py`)을 운영 데이터로 돌렸더니 세 번
+연속 실패했다. 셋 다 **덤프가 아니라 권한**이었다:
+
+| # | 무엇이 | 어떻게 고쳤나 |
+|---|---|---|
+| 1 | DB role 에 **CREATEDB 가 없다** | 리허설이 조용히 `structure_only` 로 떨어져 「복원했다」를 영원히 증명하지 못한다. `install.sh` 가 role 에 CREATEDB 를 준다 |
+| 2 | 비수퍼유저가 `CREATE EXTENSION vector` 를 못 한다 | 확장을 `template1` 에 넣는다 — 새로 만드는 DB 가 그것을 물고 태어나고, 덤프의 `CREATE EXTENSION IF NOT EXISTS` 는 그냥 지나간다(실측으로 확인) |
+| 3 | `COMMENT ON EXTENSION pg_trgm` 에 **소유자가 아니라며** 죽는다 | `pg_dump`/`pg_restore` 양쪽에 `--no-comments`. 덤프에 실제 COMMENT 객체가 둘뿐임을 세어 보고 넣었다 |
+
+고친 뒤 **8단계 전부 통과**(`restore_rehearsal.txt`)했고, 복원본을 물고 띄운 앱이 읽기 경로
+13개를 전부 200 으로 답했다. 🔴 이 셋은 **백업 자체는 매일 성공**하므로 리허설을 돌려 보기
+전에는 아무 데도 안 보인다.
+
+### 걷어내고 나서야 보인 것 — 자체 행이 이류 시민이었다
+
+이관 전에는 모든 행이 소스에서 왔고 그래서 전부 `notion_page_id` 를 가졌다. 코드 곳곳이 그
+칸을 **행의 이름처럼** 썼다. Cutover 뒤로는 새 프로젝트와 새 티켓에 그 칸이 없다.
+
+일곱 자리가 `None` 을 받아 「그런 것 없음」으로 읽었다 — 진행률·헬스·트리가 동시에 비고,
+새 티켓이 검색에서 전역 관리자에게만 보이고, 판에서 카드가 안 열리고 상태를 못 옮기고 버린
+티켓이 안 사라지고, 알림 제목이 폐기한 `GIT-*` 였다. 전부 조용하다 — 오류를 안 낸다.
+
+목록과 고친 방법은 D-284 의 표에 있다. 변환을 함수 하나로 모으고
+(`app/tickets/models.py::api_page_id`) `tests/regression/test_native_rows_are_first_class.py`
+가 **행을 심고 화면이 부르는 경로를 그대로 태워서** 일곱을 한 번에 지킨다.
+
+그중 하나는 성질이 달라서 따로 적어 둔다: **진행률 재계산이 부르는 사람을 잃었다.** 유일한
+호출부가 지워진 동기화 회차였다. 계산기는 남고 부르는 사람만 사라지는 — 이 저장소가 이미
+한 번 겪은 사고와 **똑같은 모양**이다(운영 프로젝트 22건 전부 "아직 계산하지 않았습니다").
+그래서 주기 스윕에 붙였고, `tests/regression/test_project_progress_actually_computed.py` 는
+이제 「계산기가 옳은가」가 아니라 **「누가 부르는가」**를 본다.
+
+### 옛 slug 운영 스크립트 아홉 — 그리고 두 벌 사이로 빠진 것
+
+S4 가 설치·업그레이드·롤백·백업을 `deploy/install.sh` 하나로 합쳤는데, 옛 slug 스크립트
+아홉이 저장소에 남아 있었다(`install-`·`upgrade-`·`rollback-`·`backup-`·`validate-clovirone-
+web-assistant.sh` · `backup-cron.sh` · `install-backup-cron.sh` · `update-from-git.sh` ·
+`apply-app-update.sh`). 옛 systemd 유닛 넷과 옛 nginx vhost·logrotate 사본도 함께 있었다.
+INSTALLATION.md §9 가 「걷어내는 것은 S14」라고 적어 두었다.
+
+시험도 두 벌이었다 — `test_update_script_contract.py` · `test_upgrade_script_contract.py` 와
+`test_deploy_wiring.py` 안의 열넷. 그 시험들은 **아무도 안 쓰는 스크립트**를 지키고 있었다.
+
+🔴 **두 벌 사이로 성질 하나가 빠졌다.** 옛 백업은 사용자가 올린 파일(`/var/lib/<slug>`)을
+담았는데 `deploy/install.sh::take_snapshot` 은 안 담았다. `install.sh upgrade` → `rollback`
+경로가 DB 만 되돌리고 첨부 파일은 안 되돌린다는 뜻이다 — 화면에는 오류가 아니라 **빈 첨부**로
+보인다. 옛 스크립트의 시험이 계속 초록이라 이 갭이 안 보였다.
+
+**지운 것보다 옮겨 오지 않은 것이 조용하다.** 설치기에 넣었고(`data.tar.gz` · 옛 slug 용
+`data-legacy.tar.gz`, 되받을 수 있는 `ai/models` 는 제외) rollback 이 풀고 소유권까지 다시
+잡는다. 시험은 한 벌로 합쳤다 — `test_deploy_wiring.py` 가 **배포되는 것 하나만** 본다
+(`qa-contract-replaced-by:` 두 줄).
+
+남긴 것 둘과 이유:
+
+* `scripts/build-bundle.sh` — `MANIFEST.sha256` 을 만드는 **유일한** 자리이고
+  `install.sh --source bundle` 이 그것을 읽는다. 산출물 이름만 새 slug 로 갈았다.
+* `scripts/lxd_rehearsal.sh` — 옛 slug 설치를 **일부러 만들어** 이전을 리허설한다. 옛 이름이
+  거기 있는 것이 그 시험의 내용이다.
+
+### 화면 문구 — 하나는 사용자에게 **거짓말**을 하고 있었다
+
+코드가 아니라 **말**이 남는 자리도 훑었다. 휴지통의 영구 삭제 확인 창이 이렇게 말하고 있었다:
+
+> 「지금 영구 삭제하면 노션 원본이 보관처리되어 목록에서 사라집니다(노션 휴지통에서 30일 내
+> 복구 가능). 계속할까요?」
+
+되돌릴 여지를 주던 것은 **노션의 휴지통**이었지 우리가 아니었다. 그 안전망이 사라진 지금
+영구 삭제는 행을 진짜로 지우고 딸린 댓글·첨부까지 CASCADE 로 가져간다. 되돌릴 수 없는
+동작을 「복구 가능」이라고 말하면 사용자는 그것을 믿고 누른다. `trash.test.jsx` 가 이제
+「되돌릴 수 없습니다」가 그 창에 있고 「노션」이 없는 것을 함께 본다.
+
+나머지 문구는 두 부류였다. 하나는 **고칠 방법이 없는 경고**다 — `notion_sync_error` 와
+`notion_missing_at` 은 쓰는 코드가 없어져 이관 시점 값이 영원히 남는데, 그 배너를 계속
+띄우면 사용자는 배너 자체를 안 읽게 되고 그러면 진짜 경고도 함께 묻힌다. 다른 하나는
+**없어진 선택지를 있는 척하는 갈래**다(WBS 탭의 「노션 짝이 없어 작업을 가져올 수 없습니다」).
+
+그리고 그 사이에서 결함 하나가 더 나왔다: 프로젝트 상세의 **티켓 탭이 목록을 아예 안
+불렀다.** 화면이 `notion_page_id` 로 조건을 걸었기 때문이다 — Cutover 이후에 만드는
+프로젝트에는 그 칸이 영원히 없으므로 그 탭은 언제까지나 비어 있게 된다. 티켓은 붙어 있고
+화면만 비고, 오류는 안 난다. 조건을 포털 `project.id` 로 바꿨고(서버는 이미 두 축으로
+맞춘다) `test_native_rows_are_first_class.py` 와 `projects.test.jsx` 가 양쪽에서 붙든다.
+
+## 6. 완료 보고 뒤 실 화면 재점검 — 행 수 검증은 이관 품질을 증명하지 못한다
+
+사용자가 운영 `/team-docs` 를 직접 열어 옛 Notion 문구·동기화 실패 메시지가 남은 것과
+문서 다수가 「제목 없음」·「기타」로 보이는 것을 잡았다. 「문서 110건이 있다」는 행 수
+검증이었지 **내용 검증이 아니었다.**
+
+[`fidelity_audit_final.txt`](fidelity_audit_final.txt) 가 그 내용 검증이다.
+`scripts/audit_migration_fidelity.py` 로 Notion 캐시 원본과 대상 DB 를 축마다(제목·본문·
+작성자·날짜·관계·태그·첨부·블록 종류) 대조한다. **첫 결과는 손실 42,321건·17개 축**
+(image·table 블록 보존율 0%, 원본 생성/수정일 100% 손실, 티켓 첨부 「파일은 있는데 안
+붙었다」)이었다.
+
+진짜 결함 셋을 찾아 고쳤다:
+
+1. `data:` URI 이미지(본문에 이미지가 base64 로 그대로 박힌 「external」타입)가 네트워크로
+   못 나가 문서 하나를 통째로 막던 것 — `app/migration/transform.py::media_bytes` 가 그
+   자리에서 디코드한다.
+2. 티켓의 페이지 속성 첨부("파일과 미디어")가 문서 경로(`files`+`document_attachments`)로만
+   가서 조용히 고아가 되던 것(D12 — 티켓은 `ticket_attachments` 하나뿐) —
+   `app/migration/load.py::load_files` 가 본문 미디어와 같은 판정으로 갈래를 나눈다.
+3. 안전한 재이관(`reimport-bodies`, D5)이 **첨부를 아예 안 건드리고 있었다** — 함수
+   docstring 의 약속과 달리 `load_files()` 호출 자체가 없었다. 배선을 넣었고, 이미 2번
+   버그로 잘못 옮겨진(운영에 실제로 있던) 흔적을 자가 치유하는 경로도 같은 함수에 넣었다
+   (`_reroute_file_to_ticket`) — 다시 안 받고 저장된 바이트를 그대로 옮긴다.
+
+셋 다 Known-Bad/Known-Good 로 검증했다(가지를 되돌리면 새로 추가한 시험이 빨개진다):
+`tests/unit/test_migration_transform.py`, `tests/integration/test_migration_bodies_and_visibility.py`,
+`tests/integration/test_migration_dry_run.py`.
+
+운영 백업을 그대로 복원한 로컬 사본(`s14_full_migration_probe`)에 다시 돌려 **손실
+42,321→44건, 손실 난 축 17→6개**(문서 축 하나 · 티켓 축 셋 · 블록 축 둘)로 줄였다. 남은
+6개는 전부 설명된다:
+
+* `doc.project`(34건) — `document_relations` 는 문서↔문서만 가리켜 프로젝트를 못 가리킨다.
+  손실이 아니라 **태그로 대신 남긴 설계 선택**(D6)이고 화면 검색·필터에 걸린다.
+* `ticket.status`/`ticket.assignee`(각 1건, 같은 티켓) — 컷오버 뒤 실사용자가 포털에서
+  실제로 고친 값이다. **아무 손도 안 댄 별도 백업 사본**으로 되짚어 컷오버 시점 이후에
+  값이 바뀐 것을 확인했다 — 되돌리면 그것이야말로 실사용자 작업을 지우는 사고다(D5).
+* `ticket.attachment`(2건) — 로컬 샌드박스에 운영 파일 바이트가 없어서 못 옮긴 것뿐,
+  코드 결함이 아니다(운영 재실행에서는 문제없이 옮겨졌다 — 아래 §6-1).
+* `block.image`/`block.table`(합 6건) — 10MB 업로드 상한과 "사용자가 고친 본문은 안
+  덮는다"(D5) 두 제품 정책이 정직하게 낸 대가다.
+
+**티켓도 같은 관점으로 재검증했다** — 행 수가 아니라 제목·본문·상태·우선순위·담당자·
+프로젝트·날짜·댓글·첨부를 원본과 대조했고 위 셋 말고 새 손실은 없었다.
+
+### 6-1. 실제 운영 DB에 적용 — [`fidelity_reimport_production.txt`](fidelity_reimport_production.txt)
+
+`reimport-bodies` 를 운영에 돌렸다: 티켓 본문 갱신 153건, **댓글 신규 324건**(이관 첫
+회차가 한 건도 안 옮긴 채로 남아 있었다), 문서 갱신 110건, 첨부 신규/갱신 8건, 그리고
+공간 「팀 문서」의 소속(`owner_kind`)이 `unset` 이던 것을 자동으로 조직 소유로 고쳤다
+(D7 이 이미 잡은 그 결함이 운영 데이터에 실제로 남아 있었다). **blocking 0.** 로컬
+샌드박스에서 「바이트가 없다」로 막혔던 첨부 2건은 운영(진짜 바이트가 있다)에서는
+`html`/`sql`/`py` 확장자가 티켓 첨부 허용 목록(이미지·PDF 뿐, D12)에 안 맞아 분류된
+예외로 남았다 — 상한을 이관 때문에 넓히지 않는다는 원칙(D-280)과 같은 결이다.
+
+### 6-2. 재배포 직후 화면에서 결함이 둘 더 나왔다
+
+`/knowledge` 의 분류·태그가 화면에서 전부 사라져 있었다. 원인 둘:
+
+* `Knowledge.jsx` 가 `/api/tags` 를 불렀는데 실제 라우트는 `/api/knowledge/tags` 다 — 주소
+  오타. 시험(`knowledge-list.test.jsx`)도 같은 틀린 주소를 흉내 내고 있어서 안 잡혔다.
+* 문서 목록 API 가 `doc_type`/`tags` 를 안 실었다 — 상세 API(`_document_json(...,
+  tags=...)`)는 실었는데 목록 호출부만 그 인자를 안 줬다. 데이터는 안 사라졌고(운영
+  `document_tags` 106행 그대로) **화면이 그것을 안 그렸을 뿐이다.**
+
+`app/knowledge/tags.py::of_documents` 로 문서 수만큼 안 묻고 한 질의로 배치 조회하게
+고쳤고(즐겨찾기와 같은 이유), `Knowledge.jsx` 목록 줄에 분류·태그 칩을 그렸다. 둘 다
+Known-Bad 로 검증했다(`test_knowledge_favorites.py::test_the_list_carries_doc_type_and_tags`,
+`knowledge-list.test.jsx`). 임시 검증 계정으로 운영 화면에서 직접 확인했다 — 분류 필터가
+21개 값으로 채워지고, 문서 줄마다 칩이 보이고, 본문 안 이미지가 실제로 렌더링된다(검증
+계정은 확인 뒤 지웠다).
+
+전체 회귀에서도 하나 더 잡았다: 주간 다이제스트 시험 셋이 죽은 미러 표(`document_cache`)
+에 표본을 심고 있었다 — 리더 함수는 이미 정본(`documents`)을 읽게 고쳐졌는데 시험은
+안 따라가 늘 0건으로 통과했다. 시험을 정본 표로 옮겼다(`test_assistant_api.py`).

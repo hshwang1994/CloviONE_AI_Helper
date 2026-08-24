@@ -73,9 +73,13 @@ def test_admin_console_dashboard_loads_clean(browser, qa_session, smoke_base_url
         ctx.close()
 
 
-def test_team_docs_list_loads_clean(browser, qa_session, smoke_base_url):
-    """문서 목록 화면(`SEC-13` 부서 스코프 판정을 실제로 지나는 경로)이 정상 렌더된다."""
-    ctx, page, probe = _visit(browser, qa_session.storage_state, smoke_base_url, "/team-docs")
+def test_document_list_loads_clean(browser, qa_session, smoke_base_url):
+    """문서 목록 화면이 정상 렌더된다.
+
+    주소가 `/knowledge` 다 (S14 · C2) — 문서 화면 둘을 하나로 합치면서 사용자가 도달하는
+    곳이 여기가 됐다. 옛 주소는 여기로 넘기기만 한다.
+    """
+    ctx, page, probe = _visit(browser, qa_session.storage_state, smoke_base_url, "/knowledge")
     try:
         assert "/login" not in page.url, f"인증이 안 돼 로그인으로 튕겼다: {page.url}"
         assert page.inner_text("body").strip(), "문서 목록 본문이 비어 있다"

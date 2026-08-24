@@ -14,3 +14,9 @@
 *.conf text eol=lf
 *.png binary
 *.ico binary
+
+# 배포 자산은 **작업 트리에서도** LF 다. Windows 에서 체크아웃한 파일을 그대로 서버에 올려
+# 돌리는 것이 실제 개발 경로라(scripts/static_checks.sh 의 CRLF 게이트가 그 경로를 막는다),
+# `* text=auto` 에 맡기면 이 파일들이 CRLF 로 풀려 그 게이트가 체크아웃 직후 빨개진다.
+*.example text eol=lf
+deploy/nginx/* text eol=lf

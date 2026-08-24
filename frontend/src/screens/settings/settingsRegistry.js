@@ -17,21 +17,17 @@ export const SETTING_LABELS = {
   // 운영자가 이 값으로 접근을 끊을 수 있다고 믿으면 그게 보안 사고가 된다.
   allowed_email_domains: "계정 추가 허용 도메인",
   document_automation_enabled: "문서 자동화",
-  // 미러 동기화 주기(지시 1 · 29). 예전에는 env 상수뿐이라 이 표에 아예 없었고, 그래서
-  // 사용자 목록 화면의 "지금 동기화" 버튼이 그 공백을 메우고 있었다.
-  notion_docs_sync_interval_seconds: "문서 동기화 주기",
-  notion_tickets_sync_interval_seconds: "티켓 동기화 주기",
-  notion_projects_sync_interval_seconds: "프로젝트 동기화 주기",
+  // 문서·티켓·프로젝트 미러 동기화 주기 셋이 여기 함께 있었다. 세 미러가 없어지면서
+  // registry.py 에서도 빠졌으므로 라벨만 남기면 그것이 곧 드리프트다(이 파일이 retry_policy
+  // 에서 이미 겪은 일이다 — settings-labels.test.js 주석 참조).
   search_index_interval_seconds: "검색 색인 갱신 주기",
   // N6: 이 키가 세 맵에 **전부** 빠져 있어 관리자가 raw 영문 키 + raw JSON 으로 편집했다.
   // 이 파일이 그 드리프트를 예견해 경고까지 심어 놨는데 `import.meta.env.DEV` 게이트라
   // 운영에서는 침묵했다 — 예견해 놓고 못 잡은 셈이다.
   backup_schedule: "자동 백업 일정",
-  // Notion 관리(9-4)와 AI 관리(9-5). 이 표에서는 숨기지만(DEDICATED_SCREEN_KEYS) 라벨은
-  // 있어야 한다 - 감사 로그와 버전 기록이 이 이름으로 나온다.
-  notion_tasks_database_id: "노션 작업 데이터베이스 id",
-  notion_documents_database_id: "노션 문서 데이터베이스 id",
-  notion_sprint_database_id: "노션 스프린트 데이터베이스 id",
+  // AI 관리(9-5). 이 표에서는 숨기지만(DEDICATED_SCREEN_KEYS) 라벨은 있어야 한다 -
+  // 감사 로그와 버전 기록이 이 이름으로 나온다. 노션 데이터베이스 id 세 개가 여기 함께
+  // 있었는데, 그 값을 읽는 제품 코드도 그 값을 고치던 화면도 없어져 라벨만 남았었다.
   llm_enabled: "AI 사용 여부",
   llm_backend: "AI 백엔드",
   llm_executable: "AI 실행 파일",
@@ -43,9 +39,6 @@ export const settingLabel = (k) => SETTING_LABELS[k] || k;
 
 /* 값이 초 단위 주기인 키들 — 값 칸을 사람 말로 그리는 데 쓴다. */
 export const INTERVAL_KEYS = [
-  "notion_docs_sync_interval_seconds",
-  "notion_tickets_sync_interval_seconds",
-  "notion_projects_sync_interval_seconds",
   "search_index_interval_seconds",
 ];
 // object 설정 편집 시 필요한 키·단위를 알려 준다(비개발자 관리자가 raw JSON을 추측하지 않게).
@@ -68,15 +61,17 @@ export const WRITE_ROLES = CONSOLE_WRITE_ROLES;
 // maintenance_mode·maintenance_message는 전용 '유지보수' 화면(/maintenance)에서만 관리한다.
 // 같은 안전 스위치를 두 화면에서 서로 다른 방식으로 다루지 않도록 설정 표에서는 숨긴다.
 export const MAINTENANCE_KEYS = ["maintenance_mode", "maintenance_message"];
-// Notion 관리(9-4)와 AI 관리(9-5) 키는 전용 화면에서만 다룬다. 유지보수 키와 **같은 이유**로
-// 이 표에서 숨긴다: 같은 값을 두 화면에서 서로 다른 방식으로(여기서는 raw JSON, 저쪽에서는
-// 연결 테스트가 붙은 폼으로) 다루면 두 화면이 서로 다른 것을 가르치게 된다.
+// AI 관리(9-5) 키는 전용 화면에서만 다룬다. 유지보수 키와 **같은 이유**로 이 표에서
+// 숨긴다: 같은 값을 두 화면에서 서로 다른 방식으로(여기서는 raw JSON, 저쪽에서는 연결
+// 테스트가 붙은 폼으로) 다루면 두 화면이 서로 다른 것을 가르치게 된다.
 //
 // 게다가 이 키들은 서버가 **시스템 관리자만** 쓰게 막는다
 // (app/settings/registry.py::SYSTEM_ADMIN_ONLY_KEYS). 여기 남겨 두면 부서 관리자에게
 // 편집기가 열리고 저장에서 403 을 받는다 - 막다른 길이다.
+//
+// 노션 데이터베이스 id 세 개도 이 목록에 있었다. 그 값들은 registry.py 에서 사라졌고
+// 숨겨 줄 전용 화면도 없어졌으므로 여기서도 뺀다.
 export const DEDICATED_SCREEN_KEYS = [
-  "notion_tasks_database_id", "notion_documents_database_id", "notion_sprint_database_id",
   "llm_enabled", "llm_backend", "llm_executable", "llm_model",
   "llm_timeout_seconds", "llm_max_concurrency",
 ];

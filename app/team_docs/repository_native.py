@@ -206,8 +206,8 @@ class NativeDocumentRepository:
         본문까지 함께 되돌아간다.
 
         여기서는 정본이 이 행 하나다. 밀어 넣을 곳이 없으니 실패할 push 도, 그 실패를 담을
-        `body_sync_error` 도, 느린 외부 구간을 통과하려고 미리 뜨던 커밋도 필요 없다. 그래서
-        `synced=True` 는 낙관이 아니라 사실이다 - 어긋날 상대가 없다.
+        `body_sync_error` 도, 느린 외부 구간을 통과하려고 미리 뜨던 커밋도 필요 없다. 저장
+        결과에 `synced` 라는 필드가 없는 이유도 그것이다 - 어긋날 상대가 없다.
 
         그래도 **정본을 먼저 쓴다는 순서 자체는 남긴다.** 지금은 그 뒤에 아무것도 없어서
         지킬 것이 없어 보이지만, 이 함수에 나중에 무엇이 붙든(색인·알림·판 쌓기) 그것들은
@@ -231,7 +231,7 @@ class NativeDocumentRepository:
         # 통과하는 동안 요청 종료 시점 커밋이 스냅샷 노후화로 거부될 수 있어서였다 - 그
         # 구간이 없어졌으므로 이 앱의 다른 쓰기와 같은 모양으로 요청 트랜잭션에 맡긴다.
         db.flush()
-        return BodySaveResult(uid=row.id, body_markdown=body_markdown, synced=True)
+        return BodySaveResult(uid=row.id, body_markdown=body_markdown)
 
     # ── 생성 폼 ──────────────────────────────────────────────────────────────
 

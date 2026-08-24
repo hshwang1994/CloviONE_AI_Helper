@@ -39,7 +39,7 @@ def _post_integration(client, csrf, **overrides):
     payload = {
         "name": "gate-int",
         "provider_type": "http_service",
-        "base_url": "https://api.notion.com",
+        "base_url": "https://api.anthropic.com",
         "auth_type": "none",
         "enabled": True,
     }

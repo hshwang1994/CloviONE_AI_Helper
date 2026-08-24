@@ -81,7 +81,6 @@ class WbsNode:
     title: str
     status: str | None
     est_wd: float | None
-    url: str | None
     ticket_number: int | None
     ticket_key: str | None
     depth: int
@@ -94,7 +93,8 @@ class WbsNode:
             "title": self.title,
             "status": self.status,
             "est_wd": self.est_wd,
-            "url": self.url,
+            # `url` 은 여기 없다 - 옛 Notion 주소라 화면의 「원본」 링크가 우리가 더 이상
+            # 쓰지 않는 낡은 사본을 열었다. 티켓 목록·상세와 같은 이유로 걷었다.
             "ticket_number": self.ticket_number,
             "ticket_key": self.ticket_key,
             "depth": self.depth,
@@ -237,7 +237,6 @@ def build_wbs(items) -> WbsResult:
             title=item.title,
             status=item.task.status,
             est_wd=item.task.est_wd,
-            url=item.url,
             ticket_number=item.ticket_number,
             ticket_key=item.ticket_key,
             depth=depth,

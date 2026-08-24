@@ -7,22 +7,23 @@
      + 최근 문서·게시판.
   3. **장애 격리.** 티켓 소스가 죽어도 200 이고, 알림·문서·게시판 블록은 그대로 나온다.
 
-이 파일은 기본 소스(`native`) 위에서 돈다. 다만 **미러가 있어야만 성립하는 두 가지**는
-따로 `@pytest.mark.notion_source` 를 달아 옛 경로로 되돌려 놓는다(S14): 신선도(`sync`)
-블록과 「티켓 소스만 죽는」 상황이 그것이다. 자체 DB 에는 낡을 사본이 없고, 티켓을 읽는
-SELECT 가 죽으면 요청 전체가 죽으므로 그 둘은 자체 DB 에서 만들 수 없는 상황이다.
-표를 단 시험은 **Notion 을 걷어낼 때 지울 목록**이기도 하다.
+S14 가 미러를 걷어내면서 두 가지가 뒤집혔다(D-284). 신선도(`sync`) 블록은 **없어야**
+하는 것이 되었고 — 낡을 사본이 없는데 그 배지를 그리면 영원히 늙는 시각이 화면에 남는다 —
+「티켓만 못 읽는」 상황은 표를 비워서는 못 만들게 되어 읽는 자리를 직접 실패시킨다.
 """
 
 from __future__ import annotations
 
+import uuid
 from datetime import datetime
 
 from app.board.models import Post
+from app.knowledge import blocks
+from app.knowledge.models import Document, DocumentVersion, KnowledgeSpace
+from app.org.constants import DEFAULT_ORG_ID
 from app.core.security import hash_password
 from app.notifications.models import Notification
 from app.notion_mapping.models import SOURCE_MANUAL, STATUS_VERIFIED, UserNotionMapping
-from app.team_docs.models import DocumentCache
 from app.tickets.models import (
     SYNC_OK,
     SYNC_STATE_ID,
@@ -122,11 +123,33 @@ def _seed(db) -> None:
     ])
     db.add(Post(id="home-post-1", author_user_id=U_MATE, category="자유", title="최근 글",
                 body="본문", created_at=SYNCED_AT, updated_at=SYNCED_AT))
-    db.add(DocumentCache(notion_page_id="home-doc-1", title="최근 문서",
-                         document_type="회의록", owner="홈 동료",
-                         # 소속(0060) — 조직 공통 문서. 이 파일은 홈 집계를 본다.
-                         owner_kind="organization",
-                         last_edited="2026-08-02T10:00:00.000Z", synced_at=SYNCED_AT))
+    # 문서의 정본은 `documents` 이고 소속은 **공간**이 든다 (S14 · D-245). 이 파일은 홈
+    # 집계를 보므로 조직 공통 공간 하나에 문서 하나만 둔다.
+    #
+    # `legacy_page_id` 를 채우는 이유: 휴지통은 아직 옛 page id 로 담기고, 아래
+    # 「휴지통 문서는 최근 문서에서 빠진다」 시험이 그 경로를 그대로 지난다.
+    space = KnowledgeSpace(
+        org_id=DEFAULT_ORG_ID, name="홈 공간", slug="home-space",
+        owner_kind="organization",
+    )
+    db.add(space)
+    db.flush()
+    document = Document(
+        space_id=space.id, title="최근 문서", doc_type="회의록",
+        legacy_page_id="home-doc-1", created_by=U_MATE,
+    )
+    db.add(document)
+    db.flush()
+    derived = blocks.derive(blocks.from_plain_text("홈 문서 본문"))
+    version = DocumentVersion(
+        id=str(uuid.uuid4()), document_id=document.id, version_no=1,
+        body=derived.body, body_markdown=derived.markdown, body_text=derived.text,
+        author_id=U_MATE,
+    )
+    db.add(version)
+    db.flush()
+    document.current_version_id = version.id
+    document.updated_at = SYNCED_AT
     db.commit()
 
 
@@ -199,6 +222,8 @@ def test_today_excludes_a_trashed_document_from_recent(home_client, db, fake_clo
     from app.users.service import get_user_by_email
 
     who = get_user_by_email(db, EMAIL)
+    # 휴지통은 옛 page id 로 담는다. 정본 문서는 그 값을 `legacy_page_id` 에 들고 있어
+    # 위젯이 둘을 맞춰 본다.
     move_to_trash(db, item_type=TRASH_DOCUMENT, notion_page_id="home-doc-1",
                   title="최근 문서", url=None, user=who, now=fake_clock.now())
     db.commit()
@@ -209,35 +234,45 @@ def test_today_excludes_a_trashed_document_from_recent(home_client, db, fake_clo
     )
 
 
-@pytest.mark.notion_source
-def test_today_includes_mirror_freshness(home_client):
-    """**이 시험만 소스를 되돌린다** (S14). 신선도는 「지금 보는 값이 얼마나 낡았나」인데,
-    자체 DB 에는 낡을 사본이 없어 응답에 `sync` 키 자체가 없다
-    (`app/tickets/repository_native.py::sync_state` 는 언제나 `None` 이다). 표를 안 붙이면
-    이 시험은 없는 키를 읽다 죽고, 그 죽음은 제품 결함이 아니라 옛 계약을 읽은 결과다.
+def test_today_no_longer_draws_a_freshness_badge(home_client):
+    """🔴 **반대 방향의 단언이다** (S14). 응답에 `sync` 가 **없어야** 한다.
+
+    예전에는 여기서 「지금 보는 값이 얼마나 낡았나」를 실어 화면이 「N분 전 동기화됨」을
+    그렸다. 낡을 사본이 없어진 지금 그 배지를 그대로 두면 **영원히 늙는 시각**이 화면에
+    남는다 — 그리고 그것은 오류가 아니라 그냥 오래된 숫자로 보인다.
+
+    `app/tickets/repository_native.py::sync_state` 가 언제나 `None` 을 돌려주는 이유가
+    정확히 이것이고, 이 단언이 그 결정을 계약으로 붙든다.
     """
-    sync = _today(home_client)["sync"]
-    assert sync["status"] == "ok" and sync["ticket_count"] == 7 and sync["truncated"] is False
-
-
-@pytest.mark.notion_source
-def test_today_survives_a_dead_ticket_source(home_client, notion, db):
-    """티켓 미러를 비우고 Notion 도 죽이면 — 티켓 블록만 실패하고 화면은 계속 뜬다.
-
-    **이 시험만 소스를 되돌린다** (S14). 「티켓 소스만 죽는다」는 미러가 있을 때만 만들 수
-    있는 상황이다 — 자체 DB 에서는 티켓을 읽는 SELECT 가 죽으면 같은 세션의 알림·문서도
-    함께 죽어 요청 전체가 죽는다. 표를 안 붙이면 빈 표는 그냥 「티켓이 0건이다」라서
-    `tickets.ok` 가 참으로 나오고, 이 시험은 격리를 확인하지 못한 채 빨간불이 된다.
-    여기서 지키는 격리 규칙(`app/home/service.py::build_today` 의 `usable` 판정) 자체는
-    소스와 무관하므로, 그 코드는 이 경로에서 계속 검사된다.
-    """
-    db.query(TicketCache).delete()
-    db.commit()
-    notion.fail_status = 502
     body = _today(home_client)
-    assert body["ok"] is True
+    assert "sync" not in body, f"신선도 블록이 돌아왔다: {body.get('sync')!r}"
+    assert body["ok"] is True, "블록 하나를 뺐다고 화면이 안 뜨면 안 된다"
+    assert "tickets" in body, "이 응답이 티켓을 아예 안 실으면 위 단언이 공짜다"
+
+
+def test_today_folds_a_ticket_read_failure_into_its_block(home_client, monkeypatch):
+    """티켓을 못 읽어도 화면은 계속 뜨고, **0 이 아니라 «모른다»** 로 그린다.
+
+    지금 이 예외를 올리는 코드는 없다(S14 가 Notion 경로를 걷었다). 그래도 잡는 쪽은
+    남아 있다 — 다섯 모듈이 그것으로 `ok=false` 응답 모양을 만들고 프런트가 그 모양을
+    읽는다(D-284 가 「화면과 함께 움직여야 하는 API 계약」이라고 적어 둔 자리다). 그
+    모양이 살아 있는 동안은 **실제로 접히는지**를 확인해 둔다. 접기가 깨지면 티켓 블록
+    하나 때문에 홈 전체가 500 이 된다.
+    """
+    from app.core.errors import NotionQueryError
+    from app.home import service as home_service
+
+    def boom(*args, **kwargs):
+        raise NotionQueryError("티켓을 읽지 못했습니다.")
+
+    monkeypatch.setattr(home_service.tickets_service, "list_my_tickets", boom)
+
+    body = _today(home_client)
+    assert body["ok"] is True, "티켓 블록 하나가 화면 전체를 죽였다"
     assert body["tickets"]["ok"] is False and body["tickets"]["error"]
     assert body["sprint"] is None                     # 0건이 아니라 '모른다'
+    for bucket in ("due_today", "overdue", "in_progress"):
+        assert bucket not in body["tickets"], f"{bucket} 가 0 으로 그려졌다 — 「모른다」여야 한다"
     assert body["inbox"]["notifications_unread"] == 2  # 나머지는 그대로
     assert [p["title"] for p in body["recent"]["board"]] == ["최근 글"]
 

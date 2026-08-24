@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
+import * as helpers from "./chat-helpers.js";
 import {
-  safeNotion,
   priorityKo,
   priorityKind,
   msgAgeMs,
@@ -14,31 +14,32 @@ import {
   newClientMessageId,
 } from "./chat-helpers.js";
 
-describe("safeNotion", () => {
-  it("allows https www.notion.so", () => {
-    expect(safeNotion("https://www.notion.so/some-page")).toBe(true);
+/* 예전에는 이 자리에 `safeNotion` 의 허용 호스트 시험 여덟 개가 있었다: notion.so 계열은
+   진짜 앵커로 열고 나머지(스킴 위조·접미 위조·접두 위조·임의 호스트)는 거절한다.
+
+   그 게이트가 없어졌다. 문서와 티켓의 정본이 이 서버로 넘어왔으므로 notion.so 주소가 여는
+   것은 우리가 더 이상 쓰지 않는 낡은 사본이고, 그 한 호스트만 「믿을 수 있다」고 대우할
+   이유가 없다. 지금은 **어떤 외부 주소도 앵커가 아니다** - 열 수 있는 곳이 줄어드는
+   방향이라 위 여덟 갈래가 지키던 성질보다 강하다. 게이트를 되살리면 이 시험이 빨개진다. */
+describe("외부 주소 허용 목록이 없다", () => {
+  it("허용 호스트 게이트와 그 목록이 모듈에서 사라졌다", () => {
+    expect(helpers.safeNotion).toBeUndefined();
+    expect(helpers.NOTION_HOSTS).toBeUndefined();
   });
-  it("allows bare https notion.so", () => {
-    expect(safeNotion("https://notion.so/x")).toBe(true);
+  it("구조화 페이로드에 문서 링크 갈래가 없다", () => {
+    const p = helpers.structuredCards({ structured: { notion_url: "https://www.notion.so/x" } });
+    expect(p.notionUrl).toBeUndefined();
+    expect(p.notionUnsafe).toBeUndefined();
+    expect(p.hasAny).toBe(false);
+    expect(p.hasCards).toBe(false);
   });
-  it("allows *.notion.site subdomains", () => {
-    expect(safeNotion("https://myteam.notion.site/doc")).toBe(true);
-  });
-  it("rejects http:// (insecure scheme)", () => {
-    expect(safeNotion("http://www.notion.so/x")).toBe(false);
-  });
-  it("rejects notion.so.evil.com (suffix spoof)", () => {
-    expect(safeNotion("https://notion.so.evil.com/x")).toBe(false);
-  });
-  it("rejects evilnotion.so (prefix spoof)", () => {
-    expect(safeNotion("https://evilnotion.so/x")).toBe(false);
-  });
-  it("rejects arbitrary external hosts", () => {
-    expect(safeNotion("https://evil.com")).toBe(false);
-  });
-  it("rejects malformed / non-URL input", () => {
-    expect(safeNotion("notion.so/x")).toBe(false);
-    expect(safeNotion(null)).toBe(false);
+  it("허용 목록에 없던 주소도 같은 취급이다(갈래 자체가 없다)", () => {
+    const p = helpers.structuredCards({ structured: { notion_url: "https://evil.com/x" } });
+    expect(p.notionUnsafe).toBeUndefined();
+    expect(p.hasAny).toBe(false);
+    expect(Object.keys(p).sort()).toEqual(
+      ["hasAny", "hasCards", "listItems", "projects", "results", "tickets", "ticketsArr"],
+    );
   });
 });
 

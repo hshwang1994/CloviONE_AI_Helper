@@ -1,90 +1,33 @@
 """새 티켓 수동 생성(POST) + 프로젝트 발견 유닛 테스트.
 
-fake outbound 가 스키마 조회(GET db)·페이지 생성(POST pages)·프로젝트 목록(POST projdb/query)을
-(method, url) 로 라우팅한다. 제목 필수·기본 상태·프로젝트 필수·담당자 해석·옵션 검증을 검증한다.
+## 판정 대상이 옮겨 갔다 (S14)
+
+예전에는 가짜 Notion 서버가 받은 **생성 페이로드**를 검사했다. 티켓의 정본이 이 서버의
+`tickets` 표로 옮겨 왔으므로 이제는 **만들어진 행**을 검사한다. 제목·기본 상태·프로젝트
+필수와 범위·담당자 해석·설명 본문은 저장소가 어디든 같아야 하는 것이라 그대로 남는다.
+
+## 사라진 것 하나
+
+우선순위·난이도의 **허용값 검사**가 없어졌다. 그 목록은 노션 스키마의 select 옵션이었고,
+지금 두 축에는 제품이 소유한 어휘가 없다 — 있는 데이터에서 뽑은 목록으로 검사하면 첫 새
+값이 영원히 못 들어와 목록이 스스로를 잠근다(`app/tickets/repository_native.py::meta`).
+대신 제품이 실제로 소유한 어휘인 **진행상태**는 그대로 막히고, 그 확인이 아래 있다.
 """
 
 from __future__ import annotations
 
+from datetime import date
+
 import pytest
 
-# 이 파일은 **Notion 저장소 구현체**를 시험한다 — 픽스처가 전부 가짜 Notion 서버다.
-# 제품 기본 소스는 S14 부터 `native` 이므로 여기서 되돌려 놓는다. 안 되돌리면 이 시험들이
-# 빈 결과 위에서 통과하거나(거짓 초록) 엉뚱한 오류로 죽는다.
-#
-# 이 표는 동시에 **Notion 을 걷어낼 때 다시 쓸 파일의 목록**이다. 여기서 지키는 성질
-# (권한·소유·검증·본문 저장 순서)은 소스가 바뀌어도 그대로 지켜야 하는 것이고, 그 확인은
-# 자체 DB 구현체 위에서 다시 서야 한다.
-pytestmark = pytest.mark.notion_source
-
 from app.core.errors import ValidationAppError
+from app.core.models_base import split_names
 from app.notion_mapping.models import STATUS_VERIFIED, UserNotionMapping
 from app.tickets import service
+from app.tickets.models import PROJECT_LINK_OK
 from app.tickets.schemas import TicketCreate
 
-_PROJ_DB = "projdb-1"
-_SCHEMA = {
-    "properties": {
-        "제목": {"type": "title"},
-        "진행상태": {"type": "status", "status": {"options": [
-            {"name": "계획"}, {"name": "진행"}, {"name": "완료"},
-        ]}},
-        "마감일": {"type": "date"},
-        "우선순위": {"type": "select", "select": {"options": [{"name": "높음"}, {"name": "보통"}]}},
-        "난이도": {"type": "select", "select": {"options": [{"name": "보통"}, {"name": "어려움"}]}},
-        "예상 WD": {"type": "number"},
-        "티켓 담당자": {"type": "people"},
-        "티켓 ID": {"type": "unique_id"},
-        "프로젝트": {"type": "relation", "relation": {"database_id": _PROJ_DB}},
-    }
-}
-
-
-class _Resp:
-    def __init__(self, status_code, body):
-        self.status_code = status_code
-        self._body = body
-
-    def json(self):
-        return self._body
-
-
-class _FakeOutbound:
-    def __init__(self, *, schema=_SCHEMA, projects=None):
-        self.schema = schema
-        self.projects = projects or []
-        self.calls = []
-        self.created_body = None
-
-    def request(self, method, url, **kwargs):
-        self.calls.append((method, url, kwargs))
-        if method == "GET" and "/v1/databases/" in url:
-            return _Resp(200, self.schema)
-        if method == "POST" and url.endswith("/v1/pages"):
-            self.created_body = kwargs.get("json")
-            props = (self.created_body or {}).get("properties", {})
-            title = ""
-            tv = props.get("제목", {}).get("title") or []
-            if tv:
-                title = tv[0]["text"]["content"]
-            # 생성 결과를 _parse_row 가 읽을 수 있는 페이지로 되돌린다.
-            return _Resp(200, {
-                "id": "new-page", "url": "https://notion/new-page",
-                "properties": {
-                    "제목": {"title": [{"plain_text": title}]},
-                    "진행상태": props.get("진행상태", {"status": None}),
-                    "마감일": props.get("마감일", {"date": None}),
-                    "티켓 담당자": props.get("티켓 담당자", {"people": []}),
-                    "예상 WD": props.get("예상 WD", {"number": None}),
-                    "난이도": props.get("난이도", {"select": None}),
-                    "우선순위": props.get("우선순위", {"select": None}),
-                    "티켓 ID": {"unique_id": {"number": 999}},
-                },
-            })
-        if method == "POST" and f"/v1/databases/{_PROJ_DB}/query" in url:
-            results = [{"id": p["id"], "properties": {"프로젝트": {"type": "title", "title": [{"plain_text": p["name"]}]}}} for p in self.projects]
-            return _Resp(200, {"results": results, "has_more": False})
-        raise AssertionError(f"unexpected {method} {url}")
+pytestmark = pytest.mark.unit
 
 
 def _map(db, user, notion_id):
@@ -124,13 +67,23 @@ def _payload(project, **kw):
     return TicketCreate(**base)
 
 
+def _create(db, settings, user, payload):
+    """자체 DB 저장소는 `outbound` 를 쓰지 않으므로 넘기지 않는다."""
+    return service.create_ticket(db, None, settings, user, payload=payload)
+
+
+def _row(db, out):
+    db.expire_all()
+    return service.ticket_row_for(db, out["ticket"]["id"])
+
+
 def test_create_builds_title_and_default_status(db, settings, me, project):
-    ob = _FakeOutbound()
-    out = service.create_ticket(db, ob, settings, me, payload=_payload(project))
-    props = ob.created_body["properties"]
-    assert props["제목"]["title"][0]["text"]["content"] == "테스트 티켓"
-    assert props["진행상태"]["status"]["name"] == "계획"  # 기본값
-    assert props["프로젝트"]["relation"] == [{"id": "proj-1"}]
+    out = _create(db, settings, me, _payload(project))
+    row = _row(db, out)
+    assert row.title == "테스트 티켓"
+    assert row.status == "계획"  # 기본값
+    assert split_names(row.project_ids) == ["proj-1"]
+    assert row.project_uid == project.id and row.project_link == PROJECT_LINK_OK
     assert out["ticket"]["title"] == "테스트 티켓"
 
 
@@ -156,9 +109,12 @@ def test_create_rejects_a_project_outside_my_scope(db, settings, me, make_projec
     **없는 프로젝트와 같은 404** 다. 갈리면 응답만 보고 "그 프로젝트는 존재한다" 를 알 수
     있고, id 를 찍어 보며 조직의 프로젝트 목록을 열거할 수 있다.
     """
+    from sqlalchemy import func, select
+
     from app.core.errors import NotFoundError
     from app.org.constants import DEFAULT_ORG_ID
     from app.org.models import Department
+    from app.tickets.models import TicketCache
 
     theirs = Department(name="남의팀", org_id=DEFAULT_ORG_ID)
     mine = Department(name="우리팀", org_id=DEFAULT_ORG_ID)
@@ -169,51 +125,49 @@ def test_create_rejects_a_project_outside_my_scope(db, settings, me, make_projec
     me.department_id = mine.id
     db.commit()
 
-    ob = _FakeOutbound()
     with pytest.raises(NotFoundError):
-        service.create_ticket(
-            db, ob, settings, me,
-            payload=TicketCreate(title="몰래 만들기", project_id=other_project.id),
-        )
-    assert ob.created_body is None
+        _create(db, settings, me,
+                TicketCreate(title="몰래 만들기", project_id=other_project.id))
+    assert db.execute(select(func.count()).select_from(TicketCache)).scalar_one() == 0
 
 
 def test_create_resolves_assignees(db, settings, me, project):
     _map(db, me, "notion-me")
-    ob = _FakeOutbound()
-    service.create_ticket(db, ob, settings, me, payload=_payload(project, assignee_user_ids=[me.id]))
-    people = ob.created_body["properties"]["티켓 담당자"]["people"]
-    assert people == [{"id": "notion-me"}]
+    out = _create(db, settings, me, _payload(project, assignee_user_ids=[me.id]))
+    assert split_names(_row(db, out).assignee_notion_ids) == ["notion-me"]
 
 
-def test_create_rejects_invalid_priority(db, settings, me, project):
-    ob = _FakeOutbound()
+def test_create_rejects_an_unknown_status(db, settings, me, project):
+    """진행상태 어휘는 제품이 소유한다 — 모르는 값은 만들 때부터 막힌다.
+
+    우선순위·난이도에는 같은 검사가 없다. 그 두 축에는 제품이 소유한 목록이 아직 없고,
+    지금 데이터에서 뽑은 목록으로 검사하면 첫 새 값이 영원히 못 들어온다(모듈 docstring).
+    """
     with pytest.raises(ValidationAppError):
-        service.create_ticket(db, ob, settings, me, payload=_payload(project, priority="긴급긴급"))
-    assert ob.created_body is None
+        _create(db, settings, me, _payload(project, status="없는상태"))
 
 
-def test_create_with_description_adds_children(db, settings, me, project):
-    ob = _FakeOutbound()
-    service.create_ticket(db, ob, settings, me, payload=_payload(project, description="배경 설명입니다"))
-    children = ob.created_body.get("children")
-    assert children and children[0]["paragraph"]["rich_text"][0]["text"]["content"] == "배경 설명입니다"
+def test_create_with_description_stores_the_body(db, settings, me, project):
+    out = _create(db, settings, me, _payload(project, description="배경 설명입니다"))
+    assert _row(db, out).body_markdown == "배경 설명입니다"
 
 
-def test_create_description_converts_markdown_to_blocks(db, settings, me, project):
-    # 설명도 문서 본문처럼 제목/글머리/구분선이 실제 Notion 블록이 되어야 한다(§BodyEditor 짝).
-    ob = _FakeOutbound()
-    service.create_ticket(db, ob, settings, me, payload=_payload(project, description="## 개요\n- 항목1\n---\n일반 문단"))
-    kinds = [c["type"] for c in ob.created_body.get("children")]
-    assert kinds == ["heading_2", "bulleted_list_item", "divider", "paragraph"]
+def test_create_description_comes_back_as_blocks(db, settings, me, project):
+    """설명도 문서 본문처럼 제목/글머리/구분선이 실제 블록이 되어야 한다(§BodyEditor 짝)."""
+    from app.core.source_registry import build_ticket_repository
+
+    out = _create(db, settings, me,
+                  _payload(project, description="## 개요\n- 항목1\n---\n일반 문단"))
+    repo = build_ticket_repository(settings, None)
+    blocks = repo.body_blocks(db, page_id=out["ticket"]["id"])
+    assert [b["kind"] for b in blocks] == ["heading_2", "bulleted", "divider", "paragraph"]
 
 
 def test_create_est_wd_and_due(db, settings, me, project):
-    ob = _FakeOutbound()
-    service.create_ticket(db, ob, settings, me, payload=_payload(project, est_wd=3.0, due_date="2026-10-01"))
-    props = ob.created_body["properties"]
-    assert props["예상 WD"] == {"number": 3.0}
-    assert props["마감일"] == {"date": {"start": "2026-10-01"}}
+    out = _create(db, settings, me, _payload(project, est_wd=3.0, due_date="2026-10-01"))
+    row = _row(db, out)
+    assert row.est_wd == 3.0
+    assert row.due_date == date(2026, 10, 1)
 
 
 def test_list_projects_offers_only_portal_projects_i_can_see(db, me, make_project):
@@ -254,7 +208,7 @@ def test_title_required_by_schema():
 
 
 def test_description_over_line_cap_is_rejected_not_truncated():
-    """설명은 그대로 노션 블록으로 바뀐다(markdown_to_blocks, app/core/notion_blocks.py).
+    """설명은 그대로 본문 블록으로 바뀐다(markdown_to_blocks, app/core/notion_blocks.py).
     그 변환기는 100줄을 넘으면 조용히 잘라내므로, 총 글자 수(4000자)만 보고 통과시키면
     짧은 줄 150개(1300자 남짓, 4000자 밑)도 뒤 50줄이 소리 없이 사라진다. 여기서 거절해야
     한다(TicketBodyUpdate와 같은 규칙)."""

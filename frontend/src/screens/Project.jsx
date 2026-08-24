@@ -218,7 +218,8 @@ function Overview({
           <MetaRow label="상태">
             <Stack direction="row" gap={1} sx={{ flexWrap: "wrap" }}>
               <Badge value={PROJECT_STATUS_KO[p.status] || p.status} />
-              {p.notion_status ? <Badge value={p.notion_status} /> : null}
+              {/* 여기 이관해 온 진행 상태 배지가 하나 더 있었다. 고칠 입구가 없는 얼어붙은
+                  값이라, 앱 상태와 나란히 놓으면 어느 쪽이 지금인지 알 수 없었다(S14). */}
               {p.archived_at ? <Badge value="보관됨" /> : null}
             </Stack>
           </MetaRow>
@@ -254,9 +255,9 @@ function Overview({
           <MetaRow label="기간">{periodText(p.starts_on, p.ends_on)}</MetaRow>
           {p.biz_type ? <MetaRow label="사업 유형">{p.biz_type}</MetaRow> : null}
           {p.product ? <MetaRow label="제품">{p.product}</MetaRow> : null}
-          <MetaRow label="노션 연결">
-            {p.notion_page_id ? "노션 페이지와 연결되어 있습니다." : "포털에서만 관리하는 프로젝트입니다."}
-          </MetaRow>
+          {/* 여기 「출처」 칸이 있었다. 이관해 온 프로젝트인지 이 서버에서 만든 것인지를
+              말했는데, 지금 두 경우의 동작이 완전히 같아 사용자가 그 사실로 할 수 있는
+              일이 없다. 서버도 응답에서 `notion_page_id` 를 걷었다(S14). */}
         </Box>
         {p.goal ? (
           <Box sx={{ mt: 2 }}>
@@ -359,7 +360,7 @@ export function Project() {
   /* 저장할 때 **편집을 시작한 시점의 지문**을 함께 보낸다.
    *
    * 안 보내면 두 사람이 같은 폼을 열어 뒀을 때 나중 사람이 앞사람 변경을 조용히 덮어쓰고
-   * 양쪽 다 성공 화면을 본다(app/projects/sync.py::ensure_not_changed). 서버가 이미 그
+   * 양쪽 다 성공 화면을 본다(app/projects/service.py::ensure_not_changed). 서버가 이미 그
    * 계약을 갖고 있는데 화면이 안 쓰면 배관만 깔려 있고 양 끝이 끊긴 상태다. */
   async function submitEdit(body) {
     await update.mutateAsync({ ...body, base_version: project.version });
@@ -415,19 +416,10 @@ export function Project() {
     <div className="c-screen">
       <PageHeader crumbRoot="팀 공간" area="프로젝트" title={project.name || "프로젝트"} actions={back} />
 
-      {project.notion_sync_error ? (
-        <Box sx={{ mb: 2 }}>
-          <Callout tone="danger">{"노션에 반영하지 못했습니다. " + project.notion_sync_error + " 관리자에게 문의하세요."}</Callout>
-        </Box>
-      ) : null}
-      {project.notion_missing_at ? (
-        <Box sx={{ mb: 2 }}>
-          <Callout tone="warn">
-            {"이번 동기화에서 노션 쪽 페이지가 보이지 않았습니다(" + project.notion_missing_at
-              + "). 노션에서 온 값은 그 시점 이후로 멈춰 있을 수 있습니다."}
-          </Callout>
-        </Box>
-      ) : null}
+      {/* 여기 있던 배너 둘(「노션에 반영하지 못했습니다」·「이번 동기화에서 안 보였습니다」)을
+          걷었다. 두 값을 쓰는 코드가 없어졌으므로(S14 · D-284) 이관 시점에 딸려 온 값이
+          **영원히 그 자리에** 남는다 — 고칠 방법이 없는 경고를 계속 띄우면 사용자는 배너
+          자체를 안 읽게 되고, 그러면 진짜 경고도 함께 묻힌다. */}
 
       <Box sx={{ borderBottom: 1, borderColor: "divider", mb: 2.5 }}>
         <Tabs
@@ -457,7 +449,7 @@ export function Project() {
       {tab === "wbs" ? (
         wbsQuery.isPending ? <Card><Skeleton lines={8} /></Card>
           : wbsQuery.isError ? <ErrorState error={wbsQuery.error} onRetry={() => wbsQuery.refetch()} />
-          : <ProjectWbs data={wbsQuery.data} ticketsLinked={!!project.notion_page_id} />
+          : <ProjectWbs data={wbsQuery.data} />
       ) : null}
 
       {tab === "milestones" ? (

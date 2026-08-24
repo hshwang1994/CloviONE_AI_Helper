@@ -150,33 +150,36 @@ class RateLimitedError(AppError):
         self.retry_after_seconds = retry_after_seconds
 
 
-# ── 외부 소스(Notion) 오류 ────────────────────────────────────────────────────
+# ── 외부 소스 오류 ────────────────────────────────────────────────────────────
 # 라우터들이 이 둘을 잡아 configured=false / ok=false 로 번역한다(화면이 오류 페이지 대신
-# '연동 필요'·'조회 실패'를 그린다). 원래 app/reports/notion_source.py 가 정의했는데, 그러면
-# 티켓·스프린트·리포트 라우터가 Notion 구현 모듈을 import 해야 해서 저장소 seam 경계
-# 정적검사에 걸린다. 정의는 여기로 올리고 notion_source 는 그대로 재수출한다 —
-# 클래스 이름과 code 문자열은 응답 계약이라 바꾸지 않는다.
+# '연동 필요'·'조회 실패'를 그린다).
+#
+# **지금은 이 둘을 던지는 코드가 없다.** 정본이 자체 DB 로 넘어오면서 Notion 을 읽던
+# 구현체가 전부 사라졌기 때문이다. 그래도 이름과 code 문자열은 남긴다 — 라우터가 아직
+# 이 둘을 잡아 응답을 만들고, 그 응답 모양이 이미 나가 있는 화면과의 계약이다. 계약을
+# 접는 것은 화면을 함께 고치는 작업의 몫이다.
 class NotionNotConfiguredError(AppError):
     """Notion 연동 토큰이 아직 서버에 없다(사용자가 provisioning 하기 전)."""
 
     status_code = 503
     code = "notion_not_configured"
-    default_message = "Notion 연동 토큰이 설정되지 않았습니다."
+    # 문구에 「Notion」이 없다. 이 예외를 던지는 코드가 없어졌지만(위 주석) 남아 있는 한
+    # 언젠가 화면에 나갈 수 있고, 그때 없는 연동의 이름을 대면 사용자는 고칠 수 없는 곳을
+    # 쳐다보게 된다. `code` 는 이미 나가 있는 화면과의 계약이라 그대로 둔다.
+    default_message = "티켓 저장소 연결이 설정되지 않았습니다."
 
 
 class NotionQueryError(AppError):
     status_code = 502
     code = "notion_query_failed"
-    default_message = "Notion 조회에 실패했습니다."
+    default_message = "티켓 저장소 조회에 실패했습니다."
 
 
-# 위 둘과 **같은 이유로** 여기 있다. 이 오류는 원래 app/tickets/notion_write.py 가
-# 정의했는데, 티켓 저장소 구현체가 둘(Notion · 자체 DB)이 되면서 소스를 안 부르는 쪽도
-# 「그 티켓이 없다」를 말해야 하게 됐다. 정의가 Notion 구현 모듈에 남아 있으면 자체 DB
-# 구현체가 그 모듈을 import 해야 하고, 그러면 저장소 seam 경계 정적검사에 걸린다
-# (그리고 그 import 하나 때문에 소스를 걷어낼 때 고칠 곳이 하나 더 숨는다).
-# notion_write 는 이 이름을 그대로 재수출한다 — 클래스 이름과 code 문자열은 응답
-# 계약이라 바꾸지 않는다.
+# 이 오류는 원래 Notion 쓰기 모듈이 정의했다. 티켓 저장소 구현체가 둘(Notion · 자체 DB)이
+# 되면서 소스를 안 부르는 쪽도 「그 티켓이 없다」를 말해야 했고, 정의가 Notion 구현 모듈에
+# 남아 있으면 자체 DB 구현체가 그 모듈을 import 해야 해서 저장소 seam 경계 정적검사에
+# 걸렸다. 그래서 정의를 여기로 올렸고, 그 판단이 옳았다는 것은 Notion 구현체를 통째로
+# 걷어낸 지금 이 클래스가 자리를 지키고 있다는 사실이 보여 준다.
 class TicketNotFoundError(AppError):
     """대상 티켓이 없거나 접근할 수 없다."""
 

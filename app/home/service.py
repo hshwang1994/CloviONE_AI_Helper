@@ -133,6 +133,6 @@ def build_today(
             "board": readers.recent_board_posts(db, limit=item_limit, org_id=getattr(user, "org_id", None)),
         },
     }
-    # 미러로 답했을 때만 신선도를 싣는다(실시간 응답에 미러 상태를 실으면 거짓말이다).
-    sync = tickets_service.sync_indicator(db, repo=repo)
-    return {**body, "sync": sync} if sync else body
+    # 신선도(`sync`) 블록은 싣지 않는다. 이 서버의 티켓 표가 정본이라 낡을 것이 없고,
+    # 멈춘 동기화의 마지막 시각을 실어 보내면 화면이 날마다 더 낡은 거짓말을 하게 된다.
+    return body

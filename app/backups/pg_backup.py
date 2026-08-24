@@ -151,6 +151,19 @@ def backup_database(
         # 서버(재해 복구 대상)에서 복원이 통째로 실패한다.
         "--no-owner",
         "--no-privileges",
+        # 🔴 **주석을 담지 않는다** (S14). 같은 이유의 연장이다.
+        #
+        # `pg_dump` 는 확장에 붙은 PostgreSQL 자신의 주석(`COMMENT ON EXTENSION vector …`)을
+        # 함께 담는데, 그 문장은 **확장의 소유자만** 실행할 수 있다. 확장은 설치가
+        # superuser 로 만들었으므로 소유자는 `postgres` 이고, 복원은 제품 자신의 역할로
+        # 돈다 — 그래서 복원이 `must be owner of extension pg_trgm` 에서 죽는다.
+        #
+        # 즉 이 한 줄이 없으면 **백업이 실제로는 복원되지 않는다.** 백업 자체는 매일
+        # 성공하므로 그 사실은 복구 리허설을 돌려 보기 전에는 아무 데도 안 보인다
+        # (Cutover 직후 첫 리허설이 정확히 거기서 멈췄다).
+        #
+        # 잃는 것은 실측으로 **그 확장 주석 둘뿐**이다. 이 제품은 표·컬럼에 주석을 안 단다.
+        "--no-comments",
     ]
     for table in exclude_table_data:
         argv.append(f"--exclude-table-data={table}")
@@ -264,7 +277,10 @@ def restore_into(
     restore = resolve_tool("pg_restore", bin_dir)
     env = admin_env_for(database_url)
     result = _run(
-        [restore, "--dbname", dbname, "--no-owner", "--no-privileges", str(backup_path)],
+        # `--no-comments` 는 덤프 쪽과 짝이다. 옛 백업(주석이 담긴 것)을 되돌릴 때도
+        # 확장 주석에서 안 죽게 한다 — 되돌리기는 **옛 파일에도** 통해야 한다.
+        [restore, "--dbname", dbname, "--no-owner", "--no-privileges", "--no-comments",
+         str(backup_path)],
         env,
         RESTORE_TIMEOUT_SECONDS,
     )

@@ -6,6 +6,10 @@
 
 설치 사양 전문은 [`../INSTALLATION.md`](../INSTALLATION.md).
 
+> **이 표는 2026-08-20 의 실측이고 그대로 둔다** — 그때 무엇이 있었는지가 이 문서의 내용이다.
+> 지금 상태는 다르다: S4 가 `deploy/install.sh` 로 합쳤고 **S14 가 옛 slug 스크립트 아홉과
+> 옛 유닛·nginx 사본을 지웠다.** 현재 자산은 [`../INSTALLATION.md`](../INSTALLATION.md) §9 다.
+
 ## 있는 것
 
 | 자산 | 상태 |

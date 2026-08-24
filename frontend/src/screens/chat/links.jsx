@@ -1,19 +1,18 @@
 import React from "react";
 import Box from "@mui/material/Box";
-import Link from "@mui/material/Link";
 import Tooltip from "@mui/material/Tooltip";
-import OpenInNewRoundedIcon from "@mui/icons-material/OpenInNewRounded";
 import { useToast } from "../../ui/kit.jsx";
-import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../../ui/theme.js";
-import { URL_RE, copyText, safeNotion } from "../chat-helpers.js";
+import { FONT_SIZE, KO_WORD_BREAK } from "../../ui/theme.js";
+import { URL_RE, copyText } from "../chat-helpers.js";
 import { trimUrlTail } from "../chat-text.js";
 
-/* 본문·카드 안 URL을 안전하게 그리는 두 부품 — 허용 도메인은 실제 링크로, 그 외는 복사 버튼으로.
- * TicketCard/CardStack, RichText(말풍선 프로즈)가 모두 이 게이트를 공유한다(같은 판정을 두 번
- * 정의하면 언젠가 한쪽만 고쳐진다). */
+/* 본문·카드 안 URL을 안전하게 그리는 부품 - **어떤 주소도 앵커로 만들지 않고** 복사 버튼으로
+ * 낸다. 예전에는 notion.so 계열만 진짜 링크로 열어 줬는데, 그 호스트를 특별히 믿을 근거가
+ * 없어졌다(chat-helpers.js 의 그 자리에 남긴 설명 참고). CardStack, RichText(말풍선 프로즈)가
+ * 모두 이 부품을 공유한다 - 같은 판정을 두 번 정의하면 언젠가 한쪽만 고쳐진다. */
 
-// allowlist에 걸려 링크로 열 수 없는 외부 URL, 죽은 텍스트처럼 보이지 않도록 클릭하면 주소를
-// 복사하는 버튼으로 렌더한다(TicketCard, 관련 문서 폴백에서 공유).
+// 링크로 열지 않는 외부 URL. 죽은 텍스트처럼 보이지 않도록 클릭하면 주소를 복사하는
+// 버튼으로 렌더한다.
 export function PlainUrl({ url }) {
   const toast = useToast();
   return (
@@ -35,23 +34,8 @@ export function PlainUrl({ url }) {
   );
 }
 
-// Notion 허용 도메인 링크 — 새 탭 고지는 시각(↗)과 낭독(sr-only) 둘 다로 준다.
-export function NotionLink({ url, children }) {
-  return (
-    <Link
-      href={url} target="_blank" rel="noreferrer noopener" underline="hover"
-      sx={{ fontSize: FONT_SIZE.bodySm, fontWeight: FONT_WEIGHT.bold, display: "inline-flex", alignItems: "center", gap: 0.5, ...KO_WORD_BREAK }}
-    >
-      {children || "Notion에서 열기"}
-      <OpenInNewRoundedIcon aria-hidden="true" sx={{ fontSize: "0.9375rem" }} />
-      <span className="sr-only"> (새 탭에서 열림)</span>
-    </Link>
-  );
-}
-
-// 답변 프로즈 안에 맨 http(s):// URL이 섞여 있으면(구조화된 notion_url/ticket.url 필드가 아니라
-// 그냥 문장 중간의 참조 링크) 이전엔 죽은 평문으로만 보였다, 구조화 필드와 같은 safeNotion 게이트로
-// 링크(허용 도메인)/PlainUrl(그 외, 복사 폴백) 처리한다. 텍스트 노드만 쓴다(innerHTML 아님, CLAUDE.md §2).
+// 답변 프로즈 안에 맨 http(s):// URL이 섞여 있으면 이전엔 죽은 평문으로만 보였다. 전부
+// PlainUrl(복사 버튼)로 낸다. 텍스트 노드만 쓴다(innerHTML 아님, CLAUDE.md §2).
 export function linkifyText(text, keyBase) {
   const s = String(text == null ? "" : text);
   const parts = s.split(URL_RE);
@@ -66,9 +50,7 @@ export function linkifyText(text, keyBase) {
     if (i % 2 === 1) {
       const raw = trimUrlTail(part);
       carry = part.slice(raw.length);
-      out.push(safeNotion(raw)
-        ? <NotionLink key={keyBase + "-u" + i} url={raw}>{raw}</NotionLink>
-        : <PlainUrl key={keyBase + "-u" + i} url={raw} />);
+      out.push(<PlainUrl key={keyBase + "-u" + i} url={raw} />);
     } else {
       out.push(carry + part);
       carry = "";

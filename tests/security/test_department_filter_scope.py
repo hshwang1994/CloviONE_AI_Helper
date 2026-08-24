@@ -21,7 +21,6 @@ from datetime import datetime
 import pytest
 
 from app.tickets.models import PROJECT_LINK_OK, SYNC_STATE_ID, TicketCache, TicketSyncState
-from tests.fakes.notion import FakeNotionTasksDB
 from tests.fixtures.org_tree import (  # noqa: F401 — fixture 재수출
     D_A1,
     D_A2,
@@ -38,12 +37,9 @@ NOW = datetime(2026, 8, 3, 9, 0, 0)
 
 
 @pytest.fixture()
-def notion(fake_http) -> FakeNotionTasksDB:
-    return FakeNotionTasksDB(rows=[]).install(fake_http)
-
-
-@pytest.fixture()
-def tickets(db, resources, notion):
+def tickets(db, resources):
+    # 옛 동기화 싱글턴 행은 이관해 온 데이터베이스에 그대로 남아 있다. 일부러 채워 두는
+    # 이유는 목록이 그 행을 읽지 **않는다**는 것까지 이 세계에서 보이게 하려는 것이다.
     state = db.get(TicketSyncState, SYNC_STATE_ID) or TicketSyncState(id=SYNC_STATE_ID)
     state.status = "ok"
     state.last_run_at = NOW

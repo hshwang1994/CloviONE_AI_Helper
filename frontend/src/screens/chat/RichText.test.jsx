@@ -14,12 +14,13 @@ import { RichText } from "./RichText.jsx";
  */
 
 describe("RichText — 머리글 줄의 URL", () => {
-  it("[제목] 형태 머리글 안의 URL이 링크가 된다", () => {
+  it("[제목] 형태 머리글 안의 URL이 복사 버튼이 된다", () => {
     const { container } = render(<RichText text="[참고] https://www.notion.so/abc 확인" />);
     const link = container.querySelector("a, button");
     expect(link).not.toBeNull();
-    // NotionLink는 새 탭 고지를 sr-only 텍스트로도 덧붙인다 - 주소 자체가 들어 있는지만 본다.
+    // 어떤 주소도 앵커가 아니다 - 죽은 글자로 남지 않게 복사 버튼으로만 낸다.
     expect(link.textContent).toContain("https://www.notion.so/abc");
+    expect(container.querySelector("a")).toBeNull();
   });
 
   it("■ 불릿 머리글 안의 URL도 링크가 된다", () => {

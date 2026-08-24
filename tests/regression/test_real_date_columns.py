@@ -193,17 +193,21 @@ def test_a_sprint_window_must_still_be_ordered(client, login_as):
     assert r.status_code == 422, r.text
 
 
-# ── 동기화가 회차마다 전 행을 흔들지 않는다 ────────────────────────────────
+# ── 주기 재계산이 회차마다 전 행을 흔들지 않는다 ──────────────────────────
 
 
-def test_project_sync_does_not_report_a_change_when_nothing_changed(db):
-    """`_apply` 는 「같은 값이면 안 쓴다」로 변화를 판정한다.
+def test_a_parsed_string_compares_equal_to_what_the_column_holds(db):
+    """「같은 값이면 안 쓴다」가 성립하려면 **파서가 낸 값과 컬럼 값이 같아야** 한다.
 
-    소스가 준 **문자열**을 `date` 컬럼과 그대로 비교하면 영영 다르고, 그러면 매 회차
-    전 프로젝트의 `updated_at` 이 덮여 목록 정렬(updated_at DESC)이 무너진다.
-    오류는 안 난다 — 그래서 시험이 필요하다.
+    문자열을 `date` 컬럼과 그대로 비교하면 영영 다르다. 그러면 「바뀐 것만 쓴다」는 규칙이
+    매번 「바뀌었다」로 판정하고, 전 행의 `updated_at` 이 회차마다 덮여 목록 정렬
+    (`updated_at DESC`)이 사실상 id 순으로 무너진다. 오류는 안 난다 — 그래서 시험이 필요하다.
+
+    예전에는 노션 동기화의 `_apply` 가 이 비교를 했다. 동기화는 없어졌지만(D-284) 비교하는
+    쪽은 남아 있다: 이관 도구가 소스 문자열을 이 컬럼들에 넣고, 주기 스윕
+    (`record_health_snapshots`)이 「값이 같으면 안 쓴다」로 전 프로젝트를 돈다.
     """
-    from app.projects.sync import _apply
+    from app.core.dates import parse_date, parse_dt
 
     project = Project(
         name="같은 값", org_id=DEFAULT_ORG_ID, starts_on=date(2026, 8, 17),
@@ -211,13 +215,41 @@ def test_project_sync_does_not_report_a_change_when_nothing_changed(db):
     )
     db.add(project)
     db.flush()
+    db.expire_all()
 
-    from app.core.dates import parse_date, parse_dt
+    assert project.starts_on == parse_date("2026-08-17"), (
+        "DB 가 돌려준 값과 파서가 낸 값이 다르다 — 「안 바뀌었다」를 판정할 수 없다"
+    )
+    assert project.notion_last_edited == parse_dt("2026-08-22T10:00:00.000Z")
+    # 반대편 — 진짜 다르면 달라야 한다. 이게 없으면 위 둘은 `==` 가 늘 참인 세계에서도 통과한다.
+    assert project.starts_on != parse_date("2026-08-18")
 
-    assert _apply(project, "starts_on", parse_date("2026-08-17")) is False
-    assert _apply(project, "notion_last_edited", parse_dt("2026-08-22T10:00:00.000Z")) is False
-    # 반대편 — 진짜 바뀌면 True 여야 한다.
-    assert _apply(project, "starts_on", parse_date("2026-08-18")) is True
+
+def test_the_periodic_sweep_does_not_touch_a_project_that_did_not_change(db):
+    """🔴 주기 스윕이 두 번 돌아도 안 바뀐 프로젝트의 `updated_at` 은 그대로다.
+
+    스윕은 전 프로젝트에 `recompute_progress` 와 `record_health_snapshot` 을 부른다. 둘 다
+    「값이 실제로 달라질 때만 쓴다」를 스스로 지키는데, 한쪽이라도 그 규칙을 놓으면 매 회차
+    전 프로젝트의 갱신 시각이 같은 값으로 덮인다.
+    """
+    from app.projects.service import record_health_snapshots
+
+    project = Project(name="가만히 있는 프로젝트", org_id=DEFAULT_ORG_ID)
+    db.add(project)
+    db.flush()
+
+    now = datetime(2026, 8, 24, 3, 0, 0)
+    record_health_snapshots(db, today="2026-08-24", now=now)
+    db.flush()
+    db.expire_all()
+    first = db.get(Project, project.id).updated_at
+
+    record_health_snapshots(db, today="2026-08-24", now=datetime(2026, 8, 24, 4, 0, 0))
+    db.flush()
+    db.expire_all()
+    assert db.get(Project, project.id).updated_at == first, (
+        "아무것도 안 바뀐 프로젝트를 스윕이 건드렸다 — 목록 정렬이 회차마다 무너진다"
+    )
 
 
 def test_sprints_still_hold_a_window_constraint(db):

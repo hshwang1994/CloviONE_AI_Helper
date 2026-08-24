@@ -92,9 +92,9 @@ echo "== manifest =="
 ( cd "$STAGE" && find . -type f ! -name MANIFEST.sha256 -exec sha256sum {} + > MANIFEST.sha256 )
 
 echo "== tarball =="
-tar czf "$OUT/clovirone-web-assistant-bundle.tar.gz" -C "$OUT" stage
-( cd "$OUT" && sha256sum clovirone-web-assistant-bundle.tar.gz > bundle.sha256 )
+tar czf "$OUT/clovirassist-bundle.tar.gz" -C "$OUT" stage
+( cd "$OUT" && sha256sum clovirassist-bundle.tar.gz > bundle.sha256 )
 
-echo "BUNDLE_OK $OUT/clovirone-web-assistant-bundle.tar.gz"
+echo "BUNDLE_OK $OUT/clovirassist-bundle.tar.gz"
 ls -la "$STAGE/wheels" | head -5
 echo "wheels: $(ls "$STAGE/wheels" | wc -l)"

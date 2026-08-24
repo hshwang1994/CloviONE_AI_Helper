@@ -112,7 +112,9 @@ def ticket_view(t: TicketDTO, id_to_name: dict[str, str], id_to_user: dict[str, 
     return {
         "id": t.page_id,
         "uid": t.uid,
-        "url": t.url,
+        # `url` 은 여기 없다. 그 값은 전 건이 app.notion.com 을 가리키는데, 정본이 이
+        # 서버로 넘어온 뒤로 그 주소가 여는 것은 우리가 더 이상 쓰지 않는 낡은 사본이다.
+        # 사용자에게 「원본」이라고 내주면 오늘 고친 내용이 없는 쪽으로 보내는 셈이 된다.
         "tid": t.number,
         # 화면이 보여 주는 이름 (D-282). `tid` 는 옛 소스의 번호라 이름이 아니다 —
         # 화면이 그 앞에 접두사를 붙여 이름을 **만들어 내면** 그 문자열은 제품 어디에도
@@ -338,25 +340,6 @@ def _drop_trashed(db: Session, rows: list[dict]) -> list[dict]:
     if not trashed:
         return rows
     return [t for t in rows if t.get("id") not in trashed]
-
-
-def sync_indicator(db: Session, settings=None, outbound=None, *, repo=None) -> dict | None:
-    """로컬 미러로 답한 경우의 신선도 블록. 실시간으로 답했으면 None.
-
-    실시간 응답에는 이 키 자체를 넣지 않는다 — '미러가 얼마나 낡았나'는 미러로 답할 때만
-    뜻이 있는 값이고, 실시간 경로의 기존 응답 계약(골든)을 건드리지 않기 위해서다.
-    """
-    status = _repo(settings, outbound, repo).sync_state(db)
-    if status is None:
-        return None
-    return {
-        "status": status.status,
-        "last_run_at": status.last_run_at,
-        "last_success_at": status.last_success_at,
-        "ticket_count": status.ticket_count,
-        "truncated": status.truncated,
-        "error": status.error,
-    }
 
 
 # ── 서버 필터 조립 ────────────────────────────────────────────────────────────
@@ -606,14 +589,10 @@ def ticket_detail(
         # 편집 시작 시점의 지문 (Z2). 저장할 때 그대로 돌려보내면 그 사이 누가 먼저
         # 저장한 경우 409 로 막힌다 — 안 보내면 예전처럼 덮어쓴다.
         "body_version": body_version(_detail_body_markdown(dto, blocks, blocks_error)),
-        # 위 본문이 **우리 정본**인가, 아니면 소스에서 되읽은 근사치인가.
-        # 근사치일 때 편집기에서 저장하면 굵게·링크 같은 인라인 서식과 이미지·표 블록이
-        # 사라지고 글자만 남는다(우리 본문 파이프라인은 평문 마크다운이다). 화면이 그때만
-        # 경고하려면 이 구분이 필요하다 — 항상 경고하면 사용자가 경고를 읽지 않게 된다.
-        "body_is_local": dto.body_markdown is not None,
-        # 정본은 저장됐는데 소스에 못 밀어 넣은 상태면 그 이유. 화면이 배너로 보여준다.
-        "body_sync_error": dto.body_sync_error,
-        # 포털에서 붙인 파일(§4). 본문 안의 Notion 이미지는 blocks 쪽에 kind="image" 로 온다.
+        # `body_is_local` 과 `body_sync_error` 는 여기 없다. 둘 다 「정본이 두 곳에
+        # 있다」는 전제에서 나온 값이었는데 정본이 이 서버 하나가 됐다. 밀어 넣을 원본이
+        # 없으므로 저장은 언제나 무손실이고, 어긋날 짝이 없으므로 어긋난 이유도 없다.
+        # 포털에서 붙인 파일(§4). 본문 안의 이미지는 blocks 쪽에 kind="image" 로 온다.
         "attachments": attachment_list,
         "can_edit": can_edit,
     }
@@ -683,8 +662,11 @@ def list_projects(db: Session, viewer: User) -> list[dict]:
                 {"id": n.id, "name": n.name} for n in tree.path(p.dept_id)
             ] if p.dept_id else [],
             "org_id": p.org_id,
-            # 외부 짝이 없으면 티켓을 만들 수 없다 — 화면이 미리 알고 안내해야 한다.
-            "can_create_ticket": bool(p.notion_page_id),
+            # 어느 프로젝트에나 티켓을 만들 수 있다. 예전에는 외부 짝이 있어야 했고
+            # (소스에 relation 을 걸어야 티켓이 생겼다) 그래서 이 칸이 있었는데, S14 뒤로
+            # 티켓의 정본이 이 서버라 짝이 없어도 만들어진다. 칸 자체는 남긴다 — 화면이
+            # 이미 읽고 있고, 없애면 프런트가 `undefined` 를 거짓으로 읽어 버튼이 사라진다.
+            "can_create_ticket": True,
         }
         for p in rows
     ]
@@ -779,7 +761,8 @@ def trash_ticket(db: Session, outbound, settings, user: User, *, page_id: str, n
         title=current.title or "(제목 없음)", url=current.url,
         user=user, now=now,
     )
-    return {"title": item.title, "url": item.url}
+    # `url` 은 안 돌려준다 — 옛 Notion 주소라 화면이 그것으로 링크를 만들면 낡은 사본을 연다.
+    return {"title": item.title}
 
 
 def trash_tickets_bulk(
@@ -900,7 +883,7 @@ def _build_assignee_people(db: Session, current_assignees, user_ids: list[str]) 
 
 
 def _notify_assignees_added(
-    db: Session, *, page_id: str, number, title: str | None, actor: User,
+    db: Session, *, page_id: str, key: str | None, title: str | None, actor: User,
     before: list[str], after: list[str], now: datetime,
 ) -> None:
     """담당자로 **새로 들어온 사람**에게만 알린다 (X9 + N2).
@@ -936,7 +919,10 @@ def _notify_assignees_added(
 
         from app.notifications.service import notify_user
 
-        label = f"GIT-{number}" if number else "티켓"
+        # 알림에 쓰는 이름은 `<PROJECT_CODE>-<SEQ>` 다 (D-282). 예전에는 채번 숫자에
+        # `GIT-` 을 붙였는데 그 접두사는 옛 정책의 것이고 이관하지 않았다(D-283) — 그대로
+        # 두면 알림에 뜬 이름을 검색창에 쳐도 그 티켓이 안 나온다.
+        label = key or "티켓"
         for uid in added:
             notify_user(
                 db, uid, type_="ticket_assigned",
@@ -993,7 +979,7 @@ def update_ticket(
     if "assignee_notion_ids" in repo_changes:
         # 담당자를 건드린 편집에서만 본다. 마감일만 고친 저장이 배정 알림을 만들면 안 된다.
         _notify_assignees_added(
-            db, page_id=page_id, number=updated.number, title=updated.title, actor=user,
+            db, page_id=page_id, key=updated.key, title=updated.title, actor=user,
             before=resolve_assignee_user_ids(db, current.assignee_ids),
             after=resolve_assignee_user_ids(db, updated.assignee_ids),
             now=stamp,
@@ -1053,7 +1039,7 @@ def _apply_assignees(
     )
     if notify:
         _notify_assignees_added(
-            db, page_id=page_id, number=updated.number, title=updated.title, actor=user,
+            db, page_id=page_id, key=updated.key, title=updated.title, actor=user,
             before=before, after=resolve_assignee_user_ids(db, updated.assignee_ids),
             now=stamp,
         )
@@ -1102,7 +1088,7 @@ def replace_ticket_assignee(
     after = resolve_assignee_user_ids(db, updated.assignee_ids)
     if notify:
         _notify_assignees_added(
-            db, page_id=page_id, number=updated.number, title=updated.title, actor=user,
+            db, page_id=page_id, key=updated.key, title=updated.title, actor=user,
             before=before, after=after, now=stamp,
         )
     return {
@@ -1230,7 +1216,7 @@ def create_ticket(
     # 생성과 동시에 남에게 배정하는 것도 배정이다. 여기가 빠지면 "남이 나에게 일을 만든"
     # 경우만 조용해지는데, 그게 배정 알림이 가장 필요한 자리 중 하나다.
     _notify_assignees_added(
-        db, page_id=created.page_id, number=created.number, title=created.title,
+        db, page_id=created.page_id, key=created.key, title=created.title,
         actor=user, before=[],
         after=resolve_assignee_user_ids(db, created.assignee_ids), now=stamp,
     )
@@ -1318,10 +1304,9 @@ def save_ticket_body(
 ) -> dict:
     """티켓 본문을 저장한다. 편집 권한은 속성 편집과 **같은 규칙**(담당자/미할당/운영자군).
 
-    저장 순서(정본 먼저 → 소스 push)는 저장소 구현체가 지킨다. 여기서 중요한 것은 소스 push
-    실패를 **오류로 바꾸지 않는 것**이다 — 오류로 던지면 요청 트랜잭션이 롤백되어 방금 저장한
-    사용자 텍스트까지 사라지고, 순서를 지킨 의미가 사라진다. 대신 `synced=False` 를 그대로
-    응답에 실어 화면이 "저장됨 · 원본 동기화 실패"를 보여주게 한다.
+    밀어 넣을 소스가 없으므로 저장은 이 서버의 티켓 표 하나에서 끝난다. 예전에 이 자리에
+    있던 「push 실패를 오류로 바꾸지 않는다」와 그것을 나르던 `synced=False` 는 정본이 두
+    곳에 있을 때만 뜻이 있던 규칙이라 함께 걷었다.
 
     다만 바로 아래 `get_live` 는 정본을 쓰기 **전에** 소스를 부른다. 소유권은 프런트가 준 값도
     캐시 값도 아닌 '지금 소스의 담당자'로 판정해야 하기 때문이다(IDOR). 그래서 소스가 아예
@@ -1340,8 +1325,6 @@ def save_ticket_body(
     return {
         "body_markdown": result.body_markdown,
         "body_version": body_version(result.body_markdown),
-        "synced": result.synced,
-        "body_sync_error": result.sync_error,
     }
 
 
@@ -1441,7 +1424,7 @@ def _notify_ticket_comment(db: Session, *, page_id: str, uid: str, author: User,
 
         from app.notifications.service import notify_user
 
-        label = f"GIT-{row.notion_ticket_number}" if row.notion_ticket_number else "티켓"
+        label = row.canonical_key or "티켓"
         for uid_ in targets:
             notify_user(
                 db, uid_, type_="ticket_comment",
@@ -1527,8 +1510,13 @@ def delete_ticket_attachment(
 
 
 def _page_id_for_uid(db: Session, ticket_uid: str) -> str | None:
-    """자체 UUID → Notion page id. source='native' 티켓은 page id 가 없어 None 이다."""
+    """자체 UUID → **API 가 부르는 `page_id`**. `ticket_row_for` 의 정확한 역함수다.
+
+    이관해 온 티켓에서는 `notion_page_id`, 자체 DB 에서 만든 티켓에서는 행의 uuid 다.
+    여기서 `notion_page_id` 만 돌려주면 자체 티켓이 `None` 이 되고, 이 값을 받는 쪽은
+    「티켓을 못 찾았다」로 읽는다 — 범위 판정이 통과하거나 알림이 안 간다.
+    """
     from app.tickets.models import TicketCache
 
     row = db.get(TicketCache, ticket_uid)
-    return row.notion_page_id if row is not None else None
+    return (row.notion_page_id or row.id) if row is not None else None

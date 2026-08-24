@@ -68,7 +68,7 @@ def test_auditor_is_read_only(app, make_user):
     # …but cannot mutate anything (e.g. create integration).
     r = c.post(
         "/api/admin/integrations",
-        json={"name": "x", "provider_type": "http_service", "base_url": "https://api.notion.com"},
+        json={"name": "x", "provider_type": "http_service", "base_url": "https://api.anthropic.com"},
         headers={"X-CSRF-Token": csrf},
     )
     assert r.status_code == 403

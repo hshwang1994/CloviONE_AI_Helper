@@ -1,0 +1,71 @@
+[1/8] 백업 — 앱 자신의 코드로
+  세트: /var/lib/clovirassist/exports/backup-20260823_191927_710560
+[2/8] 검증 — 앱이 스스로 «되돌릴 수 있다» 고 말하는가
+[3/8] 복원 — 새 데이터베이스 clovir_rehearsal_a224e6c0eb
+[4/8] 무결성 — 제약·인덱스가 실제로 다시 섰는가
+[5/8] 행 수 — 유실과 정책을 함께 본다
+[6/8] 스키마 — 코드가 아는 head 와 같은가
+[8/8] 첨부 — DB 가 가리키는 바이트가 디스크에 있는가
+[7/8] 앱 기동 — 복원본을 물고 실제 읽기 경로를 부른다
+2026-08-24 04:19:35,266 INFO app.access POST /login 200 150.5ms request_id=201ec17021094d18812b23ea3e437ec2
+  로그인 성공: hshwang@goodmit.co.kr
+2026-08-24 04:19:35,267 INFO httpx HTTP Request: POST https://testserver/login "HTTP/1.1 200 OK"
+2026-08-24 04:19:35,270 INFO app.access GET /healthz 200 0.9ms request_id=b8f810b12ab441ea8364331fb4d60877
+2026-08-24 04:19:35,270 INFO httpx HTTP Request: GET https://testserver/healthz "HTTP/1.1 200 OK"
+2026-08-24 04:19:35,513 INFO app.access GET /readyz 200 241.5ms request_id=a5688ea88ae34ed99d9bcc4eaeed3867
+2026-08-24 04:19:35,514 INFO httpx HTTP Request: GET https://testserver/readyz "HTTP/1.1 200 OK"
+2026-08-24 04:19:35,536 INFO app.access GET /api/me 200 21.3ms request_id=77da60630e6d40519bbd8fdea4667ad7
+2026-08-24 04:19:35,537 INFO httpx HTTP Request: GET https://testserver/api/me "HTTP/1.1 200 OK"
+2026-08-24 04:19:35,579 INFO app.access GET /api/tickets/mine 200 40.5ms request_id=132e109fdfea4a57b6beac93941350ad
+2026-08-24 04:19:35,580 INFO httpx HTTP Request: GET https://testserver/api/tickets/mine "HTTP/1.1 200 OK"
+2026-08-24 04:19:35,594 INFO app.access GET /api/tickets/meta 200 11.1ms request_id=ff6041688f2c426aa67ea01be1aa9a03
+2026-08-24 04:19:35,595 INFO httpx HTTP Request: GET https://testserver/api/tickets/meta "HTTP/1.1 200 OK"
+2026-08-24 04:19:35,633 INFO app.access GET /api/projects 200 36.5ms request_id=a1f4f5efff4641a395775799ec4a9f32
+2026-08-24 04:19:35,634 INFO httpx HTTP Request: GET https://testserver/api/projects "HTTP/1.1 200 OK"
+2026-08-24 04:19:35,663 INFO app.access GET /api/knowledge/documents 200 26.6ms request_id=b072b940201c4372a64a8ff94bbce37b
+2026-08-24 04:19:35,664 INFO httpx HTTP Request: GET https://testserver/api/knowledge/documents?limit=5 "HTTP/1.1 200 OK"
+2026-08-24 04:19:35,685 INFO app.access GET /api/notifications 200 19.4ms request_id=750e3ae8ad4549d9b805784eef8604b1
+2026-08-24 04:19:35,686 INFO httpx HTTP Request: GET https://testserver/api/notifications?limit=5 "HTTP/1.1 200 OK"
+2026-08-24 04:19:35,713 INFO app.access GET /api/admin/users 200 24.8ms request_id=82b8b5d45484456381f80cf81a8e4bca
+2026-08-24 04:19:35,714 INFO httpx HTTP Request: GET https://testserver/api/admin/users?limit=5 "HTTP/1.1 200 OK"
+2026-08-24 04:19:35,734 INFO app.access GET /api/admin/audit 200 17.9ms request_id=10e828967c94419d8d17af80b1954bdb
+2026-08-24 04:19:35,734 INFO httpx HTTP Request: GET https://testserver/api/admin/audit?limit=5 "HTTP/1.1 200 OK"
+2026-08-24 04:19:35,751 INFO app.access GET /api/admin/backups 200 15.0ms request_id=2e34be8e165142c2a7c5ad40a1bcf246
+2026-08-24 04:19:35,752 INFO httpx HTTP Request: GET https://testserver/api/admin/backups "HTTP/1.1 200 OK"
+2026-08-24 04:19:35,766 INFO app.access GET /api/storage/providers 200 12.8ms request_id=5987451a485d4341997189b2c89120d4
+2026-08-24 04:19:35,767 INFO httpx HTTP Request: GET https://testserver/api/storage/providers "HTTP/1.1 200 OK"
+2026-08-24 04:19:35,795 INFO app.access GET /api/search 200 26.0ms request_id=ee30cc8e3a28449382975c40eaa983bd
+2026-08-24 04:19:35,796 INFO httpx HTTP Request: GET https://testserver/api/search?q=test "HTTP/1.1 200 OK"
+기록했다: restore_rehearsals
+
+{
+  "alembic_head": "0012_project_code_policy",
+  "attachments_missing": 0,
+  "authenticated": true,
+  "backup_path": "/var/lib/clovirassist/exports/backup-20260823_191927_710560",
+  "backup_sha256": "a5847383e57670854886c28f457a07744a9022decfcad0aa43aa92ed7ac11d82",
+  "code_alembic_head": "0012_project_code_policy",
+  "excluded_tables": [
+    "ai_index_state",
+    "document_chunks",
+    "rate_limit_buckets",
+    "search_documents"
+  ],
+  "label": "backup-20260823_191927_710560",
+  "manifest_version": 1,
+  "read_paths_called": 13,
+  "read_paths_ok": 13,
+  "restored_alembic_head": "0012_project_code_policy",
+  "restored_database": "clovir_rehearsal_a224e6c0eb",
+  "rows": 7264,
+  "shape": {
+    "check_constraints": 46,
+    "foreign_keys": 106,
+    "identity_columns": 4,
+    "jsonb_columns": 30,
+    "partial_unique_indexes": 15,
+    "trgm_gin_indexes": 3
+  },
+  "tables": 93
+}
+RESTORE_REHEARSAL_OK

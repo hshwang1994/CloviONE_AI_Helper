@@ -2,7 +2,7 @@
 
 ## 왜 바닥이 둘인가
 
-`scripts/backup-cron.sh` 가 배포 스냅숏에서 겪은 실패가 출발점이다: 개수로만 자르면
+옛 백업 cron 이 배포 스냅숏에서 겪은 실패가 출발점이다: 개수로만 자르면
 **배포가 잦은 날 하루 만에 일주일치 복원 지점이 증발한다**(배포 N번 = 그날 슬롯 N개 소모).
 그 스크립트는 「개수가 아니라 나이로」로 고쳤는데, 나이로만 자르면 반대쪽이 열린다 —
 하루에 수백 번 도는 사고에서 디스크가 찬다.
@@ -55,7 +55,7 @@ def _ids(db) -> set[str]:
 
 
 def test_count_floor_alone_does_not_delete_a_young_backup(db, tmp_path):
-    """🔴 개수를 넘겨도 **어리면 안 지운다.** 이것이 backup-cron.sh 가 겪은 그 실패다."""
+    """🔴 개수를 넘겨도 **어리면 안 지운다.** 이것이 옛 백업 cron 이 겪은 그 실패다."""
     rows = [_add(db, tmp_path, days_old=0, name=f"backup-young-{i}") for i in range(5)]
     db.commit()
 

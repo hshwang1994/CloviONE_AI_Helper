@@ -15,6 +15,13 @@
 화면은 "서버 오류"라고 말한다 - 아무도 자기 입력을 의심하지 않는다. 프로젝트 코드는 그
 반대편에 있다. 코드는 서버가 짓고 사람은 고를 수 없으므로(D-282), 여기서 보는 것은 "잘못된
 값을 막는가" 가 아니라 **"보내면 거절하고, 안 보내면 반드시 지어 주는가"** 다.
+
+낙관적 잠금도 여기 있다. 그 규칙은 노션 동기화가 프로젝트 행을 고칠 때도 지나야 해서
+`app/projects/sync.py` 에 살았고, 그래서 시험도 동기화 파일에 있었다. 동기화가 사라지면서
+규칙은 `app/projects/service.py::ensure_not_changed` 로 옮겨졌고 유일한 호출자는 이 수정
+경로다 — 시험도 그 옆으로 따라온다.
+
+qa-contract-replaced-by: tests/integration/test_project_sync.py
 """
 
 from __future__ import annotations
@@ -396,3 +403,81 @@ def test_renaming_a_project_leaves_its_code_alone(client, login_as, db, world):
     assert db.get(Project, project_id).code == before, (
         "응답은 옛 코드를 말하는데 행은 바뀌어 있다 — 화면과 DB 가 갈렸다"
     )
+
+
+# ── 낙관적 잠금 ───────────────────────────────────────────────────────────────
+
+
+def _detail(client, hdr, project_id) -> dict:
+    """편집 폼이 여는 상세. **같은 세션의 헤더를 그대로 쓴다** — 다시 로그인하면 CSRF 가
+    바뀌어 뒤따르는 저장이 403 이 되고, 그 403 은 잠금과 아무 상관이 없다."""
+    r = client.get(f"/api/projects/{project_id}", headers=hdr)
+    assert r.status_code == 200, r.text
+    return r.json()["project"]
+
+
+def test_a_second_saver_is_stopped_instead_of_overwriting_the_first(client, login_as, db, world):
+    """두 사람이 같은 폼을 열어 두면 나중 사람이 앞사람 변경을 조용히 덮어쓴다.
+
+    양쪽 다 성공 화면을 보기 때문에 아무도 무엇이 사라졌는지 모른다. 그래서 막는다.
+    """
+    hdr = _hdr(login_as)
+    stale_version = _detail(client, hdr, world["linked"])["version"]
+
+    first = client.patch(
+        f"/api/projects/{world['linked']}",
+        json={"name": "앞사람이 저장한 이름", "base_version": stale_version},
+        headers=hdr,
+    )
+    assert first.status_code == 200, first.text
+
+    second = client.patch(
+        f"/api/projects/{world['linked']}",
+        json={"name": "뒷사람이 저장한 이름", "base_version": stale_version},
+        headers=hdr,
+    )
+    assert second.status_code == 409, (
+        f"앞사람 변경을 조용히 덮어썼다: {second.status_code} {second.text}"
+    )
+
+    db.commit()  # 스냅샷을 새로 뜬다 — expire_all() 만으로는 이미 연 트랜잭션의 스냅샷이 안 바뀐다
+    db.expire_all()
+    assert db.get(Project, world["linked"]).name == "앞사람이 저장한 이름"
+
+
+def test_a_fresh_version_lets_the_second_save_through(client, login_as, db, world):
+    """잠금이 정상 저장까지 막으면 안 된다 - 새로고침한 사람은 통과해야 한다."""
+    hdr = _hdr(login_as)
+    first = client.patch(
+        f"/api/projects/{world['linked']}",
+        json={"name": "첫 저장", "base_version": _detail(client, hdr, world["linked"])["version"]},
+        headers=hdr,
+    )
+    assert first.status_code == 200, first.text
+
+    second = client.patch(
+        f"/api/projects/{world['linked']}",
+        json={"name": "새로고침 뒤 저장", "base_version": first.json()["project"]["version"]},
+        headers=hdr,
+    )
+    assert second.status_code == 200, second.text
+    db.commit()  # 스냅샷을 새로 뜬다 — 위 시험과 같은 이유다
+    db.expire_all()
+    assert db.get(Project, world["linked"]).name == "새로고침 뒤 저장"
+
+
+def test_a_client_that_sends_no_version_still_saves(client, login_as, db, world):
+    """**반례** — 지문을 안 보내는 호출부(CLI·구버전 클라이언트)까지 막지는 않는다.
+
+    새 계약을 강제해 기존 경로를 깨뜨리지 않는다는 것이 이 잠금의 규약이다. 이것이 없으면
+    위 두 시험의 409 가 「잠금이 돈다」와 「그냥 다 막힌다」를 구별하지 못한다.
+    """
+    r = client.patch(
+        f"/api/projects/{world['linked']}",
+        json={"name": "지문 없이 저장"},
+        headers=_hdr(login_as),
+    )
+    assert r.status_code == 200, r.text
+    db.commit()
+    db.expire_all()
+    assert db.get(Project, world["linked"]).name == "지문 없이 저장"

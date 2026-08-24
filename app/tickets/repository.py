@@ -205,26 +205,12 @@ class TicketDTO:
     project_names: tuple[str, ...] = ()
     assignee_ids: tuple[str, ...] = ()  # 원본 소스 user id — 내부 전용
     body_markdown: str | None = None
-    # 본문 정본을 소스(Notion)까지 밀어 넣지 못한 상태면 그 이유. None 이면 어긋난 곳이 없다.
-    body_sync_error: str | None = None
     source: str = "notion"
 
 
 @dataclass(frozen=True, slots=True)
-class SyncStatus:
-    """미러 동기화 상태(신선도 표시용). 캐시에서 답할 때만 의미가 있다."""
-
-    status: str
-    last_run_at: str | None
-    last_success_at: str | None
-    ticket_count: int
-    truncated: bool
-    error: str | None
-
-
-@dataclass(frozen=True, slots=True)
 class TicketList:
-    """목록 + '어디서 답했는지'. from_cache=False 면 sync 는 None 이다.
+    """목록 + '어디서 답했는지'.
 
     `total` 은 **필터를 다 건 뒤, 페이지를 자르기 전**의 건수다. 자르기 전 값이어야 화면이
     "1,058건 중 1-20" 을 쓸 수 있다. `None` 은 '안 셌다'가 아니라 '자르지 않았다'는 뜻으로
@@ -234,7 +220,6 @@ class TicketList:
 
     tickets: tuple[TicketDTO, ...] = ()
     from_cache: bool = False
-    sync: SyncStatus | None = None
     total: int | None = None
 
 
@@ -255,16 +240,16 @@ class ProjectRef:
 
 @dataclass(frozen=True, slots=True)
 class BodySaveResult:
-    """본문 저장 결과. `synced=False` 는 '우리 DB에는 저장됐지만 소스에는 못 밀어 넣었다'.
+    """본문 저장 결과.
 
-    이 두 상태를 하나로 뭉개면 안 된다 — 사용자가 친 글은 살아 있으니 오류로 던질 수 없고,
-    그렇다고 성공이라고 하면 원본과 어긋난 사실을 숨기는 거짓말이 된다.
+    여기 `synced` 와 `sync_error` 가 있었다. 「우리 DB 에는 저장됐지만 소스에는 못 밀어
+    넣었다」는 세 번째 상태를 담던 값이고, 그 상태는 정본이 두 곳에 있을 때만 존재했다.
+    정본이 이 서버 하나가 된 뒤로는 어긋날 짝이 없어 언제나 참인 필드가 됐고, 언제나
+    참인 필드를 응답에 계속 실으면 화면이 그것을 보고 없는 실패 갈래를 되살린다.
     """
 
     uid: str | None
     body_markdown: str
-    synced: bool
-    sync_error: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -323,10 +308,6 @@ class TicketRepository(Protocol):
 
     def projects(self, db) -> list[ProjectRef]: ...
 
-    def sync_state(self, db) -> SyncStatus | None:
-        """미러로 답할 수 있을 때의 신선도. 실시간으로 답하는 상태면 None."""
-        ...
-
     # -- 쓰기 -----------------------------------------------------------------
     def create(self, db, *, draft: TicketDraft, now) -> TicketDTO: ...
 
@@ -339,11 +320,12 @@ class TicketRepository(Protocol):
         ...
 
     def save_body(self, db, *, page_id: str, body_markdown: str, now) -> BodySaveResult:
-        """본문을 저장한다. **정본을 먼저 쓰고 그다음 소스에 밀어 넣는다.**
+        """본문을 저장한다. 쓸 곳은 이 서버의 티켓 표 하나다.
 
-        이 순서가 계약이다: 소스 push 가 실패해도 사용자가 친 텍스트는 남아야 하므로 구현체는
-        push 실패를 예외로 던지지 않고 `synced=False` 로 돌려준다(예외로 던지면 요청
-        트랜잭션이 롤백되어 방금 저장한 본문까지 사라진다).
+        예전에는 정본을 먼저 쓰고 그다음 소스(Notion)에 밀어 넣었고, 그 push 실패를
+        예외 대신 `synced=False` 로 돌려주는 것이 계약이었다. 밀어 넣을 소스가
+        없어졌으므로 그 갈래도 없다. 「정본을 먼저 쓴다」는 순서만 계약으로 남는다 —
+        이 함수 뒤에 무엇이 붙든 사용자 글이 이미 들어간 다음에 일어나야 한다.
         """
         ...
 

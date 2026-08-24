@@ -1,30 +1,23 @@
-"""팀 공간 > 문서 비즈니스 규칙 (필터 옵션·즐겨찾기·최근 열람).
+"""옛 문서 미러의 비즈니스 규칙 (범위 판정 · 필터 옵션 · 휴지통 · 본문 저장).
 
-유니크 제약이 걸린 삽입(즐겨찾기·최근열람)은 동시 요청에서 500이 나지 않도록 SAVEPOINT +
-IntegrityError 흡수로 멱등하게 처리한다(자유게시판 검수에서 배운 패턴).
+사람이 문서에 남긴 것(댓글 · 즐겨찾기 · 최근 열람)은 여기 없다 — 문서의 정본이
+`documents`(Knowledge Domain)로 넘어가면서 그 세 축도 함께 옮겼다 (S14 · C2).
 """
 
 from __future__ import annotations
 
 import logging
-import time
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
 from app.core import ownership
 from app.core.dates import parse_dt
-from app.core.db import DEFAULT_WRITE_CONFLICT_RETRIES, is_insert_race, write_conflict_backoff
 from app.core.errors import ForbiddenError, NotFoundError
-from app.team_docs import comments as doc_comments
 from app.team_docs import repository
 from app.team_docs.models import (
     DocumentCache,
-    DocumentFavorite,
-    DocumentRecentView,
     join_names,
     split_names,
 )
@@ -164,7 +157,8 @@ def trash_document(db: Session, *, user: User, page_id: str, now: datetime) -> d
         db, item_type=TRASH_DOCUMENT, notion_page_id=page_id,
         title=doc.title or "(제목 없음)", url=doc.url, user=user, now=now,
     )
-    return {"title": item.title, "url": item.url}
+    # `url` 은 안 돌려준다 — 옛 Notion 주소라 화면이 그것으로 링크를 만들면 낡은 사본을 연다.
+    return {"title": item.title}
 
 
 def trash_documents_bulk(db: Session, *, user: User, page_ids: list[str], now: datetime) -> dict:
@@ -322,83 +316,9 @@ def filter_options(db: Session, viewer: User) -> dict:
     }
 
 
-def _document_uid(db: Session, page_id: str) -> str | None:
-    """Notion page id → 미러 행의 자체 UUID(0025). 미러에 없으면 None.
-
-    None 이 정상 상태다: 방금 만들어져 아직 동기화되지 않은 문서를 즐겨찾기할 수 있다.
-    그래서 이 값을 필수로 만들거나 FK 로 걸지 않는다 — 조회·유일성은 계속 notion_page_id 가
-    담당하고 이 컬럼은 소스 전환을 위한 다리일 뿐이다.
-    """
-    from app.team_docs.models import DocumentCache
-
-    return db.execute(
-        select(DocumentCache.id).where(DocumentCache.notion_page_id == page_id)
-    ).scalar_one_or_none()
-
-
-def toggle_favorite(db: Session, *, user_id: str, page_id: str, on: bool, now: datetime) -> bool:
-    existing = repository.find_favorite(db, user_id, page_id)
-    if on:
-        if existing is not None:
-            return True
-        row = DocumentFavorite(
-            user_id=user_id, notion_page_id=page_id, created_at=now,
-            document_id=_document_uid(db, page_id),
-        )
-        try:
-            with db.begin_nested():
-                db.add(row)
-                db.flush()
-        except (IntegrityError, OperationalError) as exc:
-            if not is_insert_race(exc):
-                raise
-            pass  # 동시 요청이 먼저 추가 — 멱등
-        return True
-    if existing is not None:
-        db.delete(existing)
-        db.flush()
-    return False
-
-
-_RECORD_VIEW_RETRIES = DEFAULT_WRITE_CONFLICT_RETRIES
-
-
-def record_view(db: Session, *, user_id: str, page_id: str, now: datetime) -> None:
-    """최근 열람 기록 — 문서 상세 GET의 부수효과라 실패해도 본문 조회 자체를 막으면 안 된다.
-
-    실측(2026-08-15 E2E): 기존 코드는 "행이 이미 있으면 갱신"(existing 분기)에 재시도가
-    전혀 없어, 이미 성공적으로 읽어 온 본문이 있는데도 이 마지막 한 줄의 `database is locked`
-    로 문서 상세 전체가 원시 500이 났다(반대로 "행이 아직 없어 새로 만드는" 분기는 이미
-    PA-RC-0008 관용대로 한 번은 재시도 폴백이 있었다 — 둘을 하나의 루프로 합쳐 어느
-    분기든 같은 예산을 쓰게 한다).
-
-    예산을 다 쓰면(극히 드묾) 조용히 포기한다 — approvals/prompts류(사용자가 직접 일으킨
-    쓰기)와 달리 여기엔 사용자에게 409로 알릴 대상 행동이 없다: 최악의 결과는 "최근 열람"
-    시각이 이번 조회분만 안 갱신되는 것뿐이라, 로그만 남기고 본문 응답은 그대로 낸다.
-    """
-    for attempt in range(_RECORD_VIEW_RETRIES):
-        try:
-            with db.begin_nested():
-                existing = repository.find_recent(db, user_id, page_id)
-                if existing is not None:
-                    existing.viewed_at = now
-                else:
-                    db.add(DocumentRecentView(
-                        user_id=user_id, notion_page_id=page_id, viewed_at=now,
-                        document_id=_document_uid(db, page_id),
-                    ))
-                db.flush()
-            return
-        except (IntegrityError, OperationalError) as exc:
-            if not is_insert_race(exc):
-                raise
-            if attempt == _RECORD_VIEW_RETRIES - 1:
-                logger.warning(
-                    "최근 열람 기록 갱신 재시도 소진(page_id=%s), 조회 자체는 계속 진행합니다.",
-                    page_id,
-                )
-                return
-            time.sleep(write_conflict_backoff(attempt))
+# 즐겨찾기·최근 열람은 여기 없다 (S14 · C2). 두 축은 옛 미러의 page id 가 아니라 정본
+# 문서(`documents.id`)에 붙었고, `app/knowledge/` 가 그 축을 든다. 옛 page id 로 그 문서를
+# 찾아야 하면 다리는 `documents.legacy_page_id` 한 곳이다.
 
 
 def cache_created_document(
@@ -455,34 +375,15 @@ def cache_created_document(
     return row
 
 
-def recent_documents(db: Session, user_id: str, *, limit: int = 10, viewer: User | None = None) -> list:
-    """최근 열람 순으로 캐시 문서를 돌려준다(캐시에 없는 오래된 항목은 건너뛴다).
-
-    `viewer` 로 범위 판정을 지난다(`doc_in_scope`) — 이 함수를 만들 때는 빠져 있었다. 목록은
-    범위 밖 문서를 걸러도, "최근 열람"은 **본인이 예전에 본** 문서를 그대로 다시 보여 주는
-    별도 경로라 같이 안 막으면 새는 문이 하나 더 생긴다: 부서가 바뀌었거나(범위 밖이 됨)
-    문서가 나중에 `restricted` 로 바뀌어도, 예전에 한 번 열어 본 사람에게는 이 목록을 통해
-    계속 보인다 — SEC-10 제한 기능 자체를 우회하는 구멍이라 여기서 함께 닫는다.
-    """
-    views = repository.recent_views(db, user_id, limit=limit)
-    ctx = context_for_user(db, viewer) if viewer is not None else None
-    out = []
-    for v in views:
-        doc = repository.get_by_page_id(db, v.notion_page_id)
-        if doc is not None and doc_in_scope(db, doc, viewer, ctx=ctx):
-            out.append(doc)
-    return out
-
-
 # ── 본문 편집 (사용자 지적 #9) ────────────────────────────────────────────────
 #
 # 사용자 보고는 "문서 편집이 정상적으로 동작하지 않는다" 였지만 확인해 보니 **편집 기능이
 # 아예 없었다.** 상세는 Notion 미러를 읽기만 했다.
 #
 # 배관은 티켓 본문이 이미 갖고 있다(`app/tickets/service.py::save_ticket_body`). 새로 만들지
-# 않고 그대로 따른다: 지문은 내용 해시(`body_version`), 저장은 정본 먼저 → 소스 push,
-# push 실패는 오류가 아니라 `synced=False`. 그래서 아래 함수들은 티켓 것을 **import 해서**
-# 쓴다 - 같은 규칙을 두 벌 적으면 한쪽만 고치는 날 조용히 갈라진다.
+# 않고 그대로 따른다: 지문은 내용 해시(`body_version`)이고, 쓸 곳은 이 서버의 표 하나다.
+# 그래서 아래 함수들은 티켓 것을 **import 해서** 쓴다 - 같은 규칙을 두 벌 적으면 한쪽만
+# 고치는 날 조용히 갈라진다.
 
 
 def ensure_doc_not_trashed(db: Session, page_id: str) -> None:
@@ -529,11 +430,10 @@ def body_view(doc: DocumentCache, blocks, blocks_error) -> dict:
         # 편집을 시작한 시점의 지문. 저장할 때 그대로 돌려보내면 그 사이 누가 먼저 저장한
         # 경우 409 로 막힌다.
         "body_version": _body_version(text),
-        # 위 본문이 **우리 정본**인가, 아니면 원본에서 되읽은 근사치인가. 근사치를 저장하면
-        # 굵게, 링크 같은 인라인 서식이 사라지고 글자만 남는다 - 그때만 경고하려면 필요하다.
-        "body_is_local": doc.body_markdown is not None,
-        # 정본은 저장됐는데 원본에 못 밀어 넣은 상태면 그 이유.
-        "body_sync_error": doc.body_sync_error,
+        # `body_is_local` 과 `body_sync_error` 는 여기 없다. 둘 다 정본이 두 곳에 있을
+        # 때만 뜻이 있던 값이고, 정본이 이 서버 하나가 된 뒤로는 저장이 언제나 무손실이라
+        # 경고할 것이 없다. 운영 문서 110건이 전부 `body_is_local=false` 로 남아 있어서,
+        # 필드를 그대로 두면 화면이 전 건에 「원본에서 읽어온 것입니다」를 띄웠다.
     }
 
 
@@ -593,12 +493,12 @@ def save_document_body(
     그대로 지난다 - 여기서 조건을 새로 적으면 판정이 두 벌이 되고, 한쪽만 고치는 날
     조용히 갈라진다. 범위 밖은 403 이 아니라 **404** 다.
 
-    ## push 실패를 삼키지 않는다
+    ## 밀어 넣을 원본이 없다
 
-    저장 순서(정본 먼저 → 원본 push)는 저장소 구현체가 지킨다. 여기서 중요한 것은 push
-    실패를 **오류로 바꾸지 않는 것**이다 - 오류로 던지면 요청 트랜잭션이 롤백되어 방금
-    저장한 사용자 텍스트까지 사라지고, 순서를 지킨 의미가 없어진다. 대신 `synced=False` 와
-    이유를 응답에 실어 화면이 "저장됨, 원본 반영 실패" 를 말하게 한다.
+    예전에는 정본을 먼저 쓰고 그다음 원본(Notion)에 밀어 넣었고, push 실패를 오류로 바꾸지
+    않는 것이 이 함수의 핵심이었다 - 오류로 던지면 요청 트랜잭션이 롤백되어 방금 저장한
+    사용자 텍스트까지 사라졌다. 그 원본이 없어졌으므로 실패할 push 도, 그 실패를 담아
+    나르던 `synced`/`body_sync_error` 도 없다.
     """
     ensure_doc_not_trashed(db, page_id)   # H2 - 휴지통 항목은 없는 것으로 본다
     doc = _doc_or_404(db, page_id, user)  # 범위 밖은 404 (§0-A)
@@ -607,23 +507,7 @@ def save_document_body(
     return {
         "body_markdown": result.body_markdown,
         "body_version": _body_version(result.body_markdown),
-        "body_is_local": True,
-        "synced": result.synced,
-        "body_sync_error": result.sync_error,
     }
-
-
-# ── 댓글 ──────────────────────────────────────────────────────────────────────
-#
-# URL 은 page_id(딥링크 키)로 받고 저장도 page_id 로 한다 -- 왜 티켓과 다른지는
-# `models.py::DocumentComment` 에 적어 뒀다(한 회차 prune 에 댓글이 딸려 나가지 않게).
-# 응답은 늘 **목록 전체**다: 삭제, 수정 뒤에 클라이언트가 자기 목록을 직접 기워 맞추면
-# 툼스톤 규약이 두 곳(서버, 클라)에 생겨 언젠가 갈라진다.
-#
-# 그 "응답은 늘 목록 전체" 때문에 **쓰기 경로의 범위 판정이 곧 조회 판정이기도 하다**:
-# 판정 없이 삭제를 한 번 던지면 그 문서의 댓글 전체가 응답으로 돌아온다(지운 댓글만
-# 툼스톤이고 나머지는 본문 그대로다). 그래서 아래 네 함수가 전부 `get_doc_in_scope`
-# 한 곳을 지난다 -- 티켓 댓글에서 정확히 이 자리가 뚫려 있었다.
 
 
 def _doc_or_404(db: Session, page_id: str, me: User) -> DocumentCache:
@@ -632,10 +516,7 @@ def _doc_or_404(db: Session, page_id: str, me: User) -> DocumentCache:
     403 은 "그 id 는 존재하지만 너는 못 본다" 를 알려 준다 -- 그걸 세면 남의 부서 문서의
     존재를 열거할 수 있다. 문구도 없는 문서와 같아야 한다.
 
-    휴지통 판정(H2)도 여기서 같이 본다 -- 네 댓글 함수(list/add/edit/delete)가 전부 이
-    함수 하나를 지나므로, 여기 한 번이면 네 곳 모두 지운 문서를 없는 것으로 본다. 따로따로
-    적으면 한 곳만 고치는 날 조용히 갈라진다(save_document_body 가 이미 그 갈라짐이었다 --
-    본문 저장만 ensure_doc_not_trashed 를 부르고 댓글은 안 불렀다).
+    휴지통 판정(H2)도 여기서 같이 본다 -- 따로따로 적으면 한 곳만 고치는 날 조용히 갈라진다.
     """
     ensure_doc_not_trashed(db, page_id)
     doc = get_doc_in_scope(db, page_id, me)
@@ -644,86 +525,8 @@ def _doc_or_404(db: Session, page_id: str, me: User) -> DocumentCache:
     return doc
 
 
-def list_document_comments(db: Session, *, page_id: str, me: User) -> dict:
-    # 상세와 **같은 규칙**이어야 한다. 상세만 막고 댓글을 열어 두면 id 하나로 논의 전체가
-    # 새는데, 그건 상세가 새는 것과 다르지 않다.
-    _doc_or_404(db, page_id, me)
-    return doc_comments.list_comments(db, page_id=page_id, me=me)
-
-
-def add_document_comment(
-    db: Session, *, page_id: str, me: User, body: str, now: datetime
-) -> dict:
-    doc = _doc_or_404(db, page_id, me)
-    created = doc_comments.create_comment(
-        db, page_id=page_id, document_id=doc.id, author=me, body=body, now=now
-    )
-    _notify_document_comment(db, doc=doc, author=me, now=now)
-    return {
-        "comment_id": created.id,
-        **doc_comments.list_comments(db, page_id=page_id, me=me),
-    }
-
-
-def _notify_document_comment(db: Session, *, doc: DocumentCache, author: User, now) -> None:
-    """내 문서에 댓글이 달리면 알린다 (티켓 댓글의 `_notify_ticket_comment` 와 같은 규약).
-
-    ## 누구에게
-
-    문서 작성자 전원(작성자 본인은 뺀다 -- 내가 쓴 것을 나에게 알리면 배지가 늘 켜져 있다).
-    작성자를 앱 사용자로 해석하지 못하면 조용히 넘어간다. `author_notion_ids` 는 **다음
-    동기화가** 채우므로 지금은 비어 있는 문서가 많고, 그건 정상 상태다 -- 알림 하나 때문에
-    댓글 저장을 실패시키지 않는다.
-
-    ## 실패해도 댓글은 남는다
-
-    `notify_user` 가 터져도 이 함수 밖으로 나가지 않는다. 알림은 본 작업(댓글)보다 약한
-    관심사이고, 그 반대로 만들면 알림 표 하나가 협업을 멈춘다.
-    """
-    try:
-        from app.tickets.service import _verified_id_to_user
-
-        id_to_user = _verified_id_to_user(db)
-        targets = {
-            id_to_user.get(n)
-            for n in split_names(doc.author_notion_ids or "")
-            if id_to_user.get(n)
-        }
-        targets.discard(author.id)
-        if not targets:
-            return
-
-        from app.notifications.service import notify_user
-
-        for uid_ in targets:
-            notify_user(
-                db, uid_, type_="document_comment",
-                title=f"문서에 새 댓글: {author.display_name}",
-                body=(doc.title or "")[:200],
-                related=("document", doc.notion_page_id), now=now,
-            )
-    except Exception:  # noqa: BLE001 -- 알림이 댓글 저장을 막으면 안 된다
-        logger.exception("문서 댓글 알림에 실패했다 (page_id=%s)", doc.notion_page_id)
-
-
-def edit_document_comment(
-    db: Session, *, comment_id: str, body: str, me: User, now: datetime
-) -> dict:
-    # 범위 판정이 권한 판정보다 **먼저**다. 순서가 뒤집히면 범위 밖 댓글에 403 이 나가고,
-    # 403 은 "그 id 는 존재한다"를 알려 준다.
-    comment = doc_comments.get_or_404(db, comment_id)
-    _doc_or_404(db, comment.notion_page_id, me)
-    doc_comments.ensure_can_edit(comment, me)
-    doc_comments.update_comment(db, comment, body=body, now=now)
-    return doc_comments.list_comments(db, page_id=comment.notion_page_id, me=me)
-
-
-def delete_document_comment(
-    db: Session, *, comment_id: str, me: User, now: datetime
-) -> dict:
-    # 범위 밖은 404 -- 모더레이션 권한(운영자, 관리자)은 **자기 범위 안에서만** 있다.
-    comment = doc_comments.get_or_404(db, comment_id)
-    _doc_or_404(db, comment.notion_page_id, me)
-    doc_comments.ensure_can_delete(comment, me)
-    doc_comments.soft_delete_comment(db, comment, now=now)
-    return doc_comments.list_comments(db, page_id=comment.notion_page_id, me=me)
+# ── 댓글은 여기 없다 (S14 · C2) ───────────────────────────────────────────────
+#
+# 문서 댓글의 축은 정본 문서로 옮겼다 — `app/knowledge/service.py` 의 네 함수
+# (`list_comments` · `add_comment` · `edit_comment` · `delete_comment`)가 그것이고,
+# 범위 판정은 거기서도 `get_scoped_document_or_404` 한 곳을 지난다.

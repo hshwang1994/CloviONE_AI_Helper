@@ -291,10 +291,9 @@ export function parseBlocks(source) {
     : b);
 }
 
-// 답변 프로즈 안에 맨 http(s):// URL이 섞여 있으면(구조화된 notion_url/ticket.url 필드가 아니라
-// 그냥 문장 중간의 참조 링크) 이전엔 죽은 평문으로만 보였다, 구조화 필드와 같은 safeNotion 게이트로
-// <a>(허용 도메인)/PlainUrl(그 외, 복사 폴백) 처리한다. 실제로 쪼개 쓰는 linkifyText는 JSX를
-// 돌려주므로 Chat.jsx에 남는다 — 이 모듈은 패턴만 소유한다.
+// 답변 프로즈 안에 맨 http(s):// URL이 섞여 있으면 이전엔 죽은 평문으로만 보였다. 지금은
+// 전부 PlainUrl(복사 버튼)로 낸다. 실제로 쪼개 쓰는 linkifyText는 JSX를 돌려주므로
+// chat/links.jsx에 남는다 — 이 모듈은 패턴만 소유한다.
 export const URL_RE = /(https?:\/\/[^\s]+)/g;
 
 // ── 러너 응답(structured) 정규화 ────────────────────────────────────────────
@@ -382,8 +381,11 @@ export function stripDuplicatedTicketLines(content) {
 /* 어시스턴트 메시지의 structured 페이로드를 '카드로 그릴 것들'로 정규화한다.
  *
  * 러너가 결과를 담는 모양이 여러 가지다(바닐라 renderStructured): 배열 tickets/projects/items/
- * results, 단일 객체 ticket/project, 그리고 문서 링크만 있는 notion_url/url. 어떤 모양(스칼라·
- * 배열·undefined)이 와도 objArray가 막는다.
+ * results, 단일 객체 ticket/project. 어떤 모양(스칼라·배열·undefined)이 와도 objArray가 막는다.
+ *
+ * 여기 문서 링크만 있는 갈래(notion_url/url)가 하나 더 있었다. 지금 이 앱의 답변 페이로드를
+ * 만드는 곳(app/jobs/handlers/chat_message.py)은 그 필드를 싣지 않는다 - 서버가 안 보내는
+ * 필드를 화면이 계속 기다리면, 다음 사람은 그 코드를 보고 기능이 있다고 읽는다.
  *
  * ticketsArr를 따로 돌려주는 이유: **본문의 번호 목록과 짝이 맞는 것은 tickets 배열뿐**이다
  * (ticketPageStart가 그 배열 기준으로 시작 번호를 낸다). 그 뒤에 이어붙는 단일 ticket 객체까지
@@ -399,18 +401,11 @@ export function structuredCards(m) {
   const projects = [...objArray(st.projects), ...objArray(st.project)];
   const listItems = objArray(st.items);
   const results = objArray(st.results);
-  // 카드가 하나도 없고 오직 Notion 링크만 있으면 '관련 문서' 링크 카드로 대체(allowlist 통과 시에만).
-  const notionRaw = typeof st.notion_url === "string" ? st.notion_url : (typeof st.url === "string" ? st.url : "");
-  const notionUrl = notionRaw && safeNotion(notionRaw) ? notionRaw : "";
-  // allowlist에 걸린 문서 참조도 조용히 버리지 않는다 — 링크로는 못 열어도 카드 자체는 남겨서
-  // "무언가 참조됐다"는 사실이 화면에서 사라지지 않게 한다(렌더 쪽에서 PlainUrl로 대체).
-  const notionUnsafe = notionRaw && !notionUrl ? notionRaw : "";
   const hasCards = !!(tickets.length || projects.length || listItems.length || results.length);
   return {
-    ticketsArr, tickets, projects, listItems, results,
-    notionUrl, notionUnsafe, hasCards,
-    // 레일에 무언가 그릴 게 있는가(카드 또는 문서 링크).
-    hasAny: hasCards || !!notionUrl || !!notionUnsafe,
+    ticketsArr, tickets, projects, listItems, results, hasCards,
+    // 레일에 무언가 그릴 게 있는가.
+    hasAny: hasCards,
   };
 }
 
@@ -443,11 +438,14 @@ export function rateLimitNoticeText(e) {
     : "요청이 너무 잦습니다. 잠시 후 다시 시도하세요.";
 }
 
-export const NOTION_HOSTS = ["notion.so", "www.notion.so", "notion.com", "app.notion.com"];
-export function safeNotion(url) {
-  try { const u = new URL(url); return u.protocol === "https:" && (NOTION_HOSTS.some((h) => u.hostname === h) || u.hostname.endsWith(".notion.site")); }
-  catch (e) { return false; }
-}
+/* 여기 허용 호스트 목록과 그것을 보는 게이트 함수가 있었다. 모델이 낸 문장 속 URL 중
+ * notion.so 계열만 진짜 앵커로 열어 주고 나머지는 복사 버튼으로 내렸다.
+ *
+ * 그 특혜의 근거가 없어졌다. 문서와 티켓의 정본이 이 서버로 넘어왔으므로 그 주소가 여는
+ * 것은 우리가 더 이상 쓰지 않는 낡은 사본이고, 그 한 호스트만 「믿을 수 있다」고 대우할
+ * 이유가 없다. 지금은 **어떤 외부 주소도 앵커로 만들지 않는다**(links.jsx 의 `PlainUrl`
+ * 복사 버튼). 열 수 있는 곳을 줄이는 방향이라 예전보다 안전하다.
+ */
 
 export function copyText(text) {
   if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(text).then(() => true, () => false);

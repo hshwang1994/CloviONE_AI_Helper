@@ -381,9 +381,24 @@ def _annotate_space_visible(db: Session, ctx: VisibilityContext, rows) -> None:
         row._authz_space_visible = str(getattr(row, "space_id", "")) in visible
 
 
+def _confidential_document_ids():
+    """색인에서 **아무에게도 안 보여야 하는** 문서 id 집합 — 두 렌더러가 같이 쓴다.
+
+    문서 자신의 `confidential` 과 그 문서가 든 공간의 `confidential` 을 함께 본다.
+    조건을 SQL 절과 행 판정에 두 벌로 적으면 갈라지고, 갈라지는 방향 하나는 유출이다.
+    """
+    from app.knowledge.models import Document, KnowledgeSpace
+
+    return (
+        select(Document.id)
+        .join(KnowledgeSpace, KnowledgeSpace.id == Document.space_id)
+        .where(or_(Document.confidential.is_(True), KnowledgeSpace.confidential.is_(True)))
+    )
+
+
 def _annotate_search_restricted(db: Session, rows) -> None:
+    from app.knowledge.models import Document
     from app.search.models import KIND_DOCUMENT
-    from app.team_docs.models import DocumentCache
 
     refs = {
         str(getattr(r, "ref_id"))
@@ -394,10 +409,7 @@ def _annotate_search_restricted(db: Session, rows) -> None:
     if refs:
         restricted = frozenset(
             db.execute(
-                select(DocumentCache.notion_page_id).where(
-                    DocumentCache.notion_page_id.in_(tuple(sorted(refs))),
-                    DocumentCache.restricted.is_(True),
-                )
+                _confidential_document_ids().where(Document.id.in_(tuple(sorted(refs))))
             ).scalars().all()
         )
     for r in rows:
@@ -631,15 +643,20 @@ def _search_plan(ctx: VisibilityContext) -> _Plan:
     색인은 범위가 없는 전역 저장소다. 여기에 「작성자와 운영자는 예외」를 하나 열면 그
     예외가 인덱스 안 ACL 의 시작이 된다. 기능을 잃지도 않는다 — 그 사람들은 문서 목록에서
     그대로 보고 연다.
+
+    S14: 축소가 가리키는 표를 옮겼다. 색인의 문서 행은 이제 미러(`document_cache`)가 아니라
+    정본(`documents`)을 가리키고 `ref_id` 가 `documents.id` 다 — 옛 절은 `notion_page_id`
+    집합과 대조하고 있어서 **어떤 행에도 안 걸리는 항상-참**이 된다. 그러면 이 층이 조용히
+    사라지고, 축소를 켠 직후부터 다음 색인까지의 창이 열린 채로 남는다.
+
+    공간의 `confidential` 도 함께 본다. 비밀 공간에 든 문서는 공간이 이미 닫혀 있는데
+    색인 행은 그 사실을 안 들고 있다 — 문서 자신만 보면 그 공간 전체가 검색으로 샌다.
     """
     from app.search.models import KIND_DOCUMENT, SearchDocument
-    from app.team_docs.models import DocumentCache
 
     narrow_sql = or_(
         SearchDocument.kind != KIND_DOCUMENT,
-        SearchDocument.ref_id.not_in(
-            select(DocumentCache.notion_page_id).where(DocumentCache.restricted.is_(True))
-        ),
+        SearchDocument.ref_id.not_in(_confidential_document_ids()),
     )
 
     def narrow_row(obj) -> bool:

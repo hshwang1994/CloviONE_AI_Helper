@@ -23,7 +23,6 @@ import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded";
 import { api } from "../lib/api.js";
 import { Card, Badge, EmptyState, ErrorState, Skeleton, Callout, PageHeader, Modal, ModalFooter, Button, useToast, useConfirm, cardFieldLabel, cardHeaderControls } from "../ui/kit.jsx";
-import { MirrorNotice } from "../ui/MirrorNotice.jsx";
 import { priorityKo, priorityKind } from "../lib/priority.js";
 import { useAuth } from "../app/auth.jsx";
 import { BodyEditor, editorContainerSx, editorSurfaceWidthSx } from "../ui/BodyEditor.jsx";
@@ -658,13 +657,15 @@ export function useClaim() {
 export function ticketConnState(data, onRetry) {
   if (data && data.configured === false) {
     return (
+      /* 이 갈래는 더 이상 안 열린다 — 티켓의 정본이 이 서버라 사람이 채워 넣을 접속
+         설정이 없다(S14 · D-284). 응답 모양은 남아 있으므로 갈래도 남기되, 없어진
+         절차를 안내하지는 않는다. */
       <EmptyState
         art="tickets"
-        title="Notion 연동이 아직 설정되지 않았습니다"
-        situation="티켓은 Notion 작업 DB에서 옵니다. 연동 토큰이 없어 목록을 못 불러옵니다."
-        prerequisite="관리자 권한과 Notion 통합 토큰"
-        steps={["관리자에게 Notion 연동 설정을 요청하세요.", "연동이 끝나면 이 화면을 새로고침하세요."]}
-        expected="연동이 끝나면 담당자, 상태, 마감이 담긴 티켓 목록이 이 자리에 표시됩니다."
+        title="지금은 티켓 목록을 불러올 수 없습니다"
+        situation="서버가 티켓을 읽지 못했습니다."
+        steps={["잠시 뒤 다시 불러와 보세요.", "계속 같으면 관리자에게 문의하세요."]}
+        expected="다시 불러오면 담당자, 상태, 마감이 담긴 티켓 목록이 이 자리에 표시됩니다."
         action={onRetry ? <Button onClick={onRetry}>다시 불러오기</Button> : null}
       />
     );
@@ -752,10 +753,9 @@ export function MyTickets() {
               {/* SEM-02(PA-F-031): 이 화면은 h1 하나뿐이라 필터·표가 스크린리더 제목
                   탐색에서 구획 없는 한 덩어리였다. 시각 디자인은 그대로 두고(.sr-only)
                   마크업에만 h2 두 개를 더한다. */}
-              {/* UB-26: 미러가 한 번도 안 됐는데 error 도 아니면 "담당한 티켓이 없습니다"만
-                  보여 "정말 0건"과 "아직 못 재 본 것"이 구분되지 않았다. MirrorNotice 가 그
-                  경우를 말해 준다. 정상일 때는 아무것도 안 그린다(지시 1). */}
-              <MirrorNotice sync={data.sync} unit="티켓" />
+              {/* 여기 미러 신선도 안내가 있었다. 「아직 한 번도 동기화 안 됨」과 「정말
+                  0건」을 가르던 안내인데, 이 표가 정본이 된 뒤로 빈 목록은 언제나 정말
+                  0건이다(S14). 서버도 `sync` 블록을 더 이상 안 싣는다. */}
               <Typography component="h2" className="sr-only">필터</Typography>
               <TicketFilterBar fields={SELF_FILTER_FIELDS} value={filters} onChange={setFilters} total={data.total} />
               <Typography component="h2" className="sr-only">목록</Typography>
@@ -828,9 +828,7 @@ export function Unassigned() {
             ...ticketColumns({ onEdit: setEditing, onClaim: (t) => claim.mutate(t.id), onOpen: openTicket(nav, "/unassigned") })];
           return (
             <>
-              {/* UB-26: 개인 범위도 미러 신선도를 알 권리는 있다(트리거 버튼만 없을 뿐) —
-                  MyTickets()와 같은 이유, canSync는 이 엔드포인트에도 없어 버튼은 안 뜬다. */}
-              <MirrorNotice sync={data.sync} unit="티켓" />
+              {/* 여기 미러 신선도 안내가 있었다. 위 목록과 같은 이유로 걷었다(S14). */}
               <TicketFilterBar fields={SELF_FILTER_FIELDS} value={filters} onChange={setFilters} total={data.total} />
               <Card>
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
@@ -1071,7 +1069,7 @@ export function NewTicket() {
     <div className="c-screen">
       <PageHeader crumbRoot="내 업무" area="새 티켓" title="새 티켓" spot="mywork" />
       {notConfigured ? (
-        <Callout tone="warn">Notion 연동이 아직 설정되지 않아 티켓을 만들 수 없습니다. 관리자에게 문의하세요.</Callout>
+        <Callout tone="warn">지금은 티켓을 만들 수 없습니다. 잠시 뒤 다시 시도해 보시고, 계속 같으면 관리자에게 문의하세요.</Callout>
       ) : (
         /* 폼 + 작성 도움 레일 2열(기준 목업과 같은 구조). 좁아지면 레일이 폼 아래로 내려간다 —
            레일을 옆에 억지로 붙여 두면 폼이 짜부라져 정작 쓸 수가 없다. */

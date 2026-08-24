@@ -80,12 +80,7 @@ def trigger_reindex(
             # 같은 재구축을 두 번 돌리지 않는다.
             raise ConflictError("이미 검색 재색인이 진행 중입니다. 잠시 후 다시 시도해 주세요.")
         now = request.app.state.clock.now()
-        result = reindex_all(
-            db,
-            tickets=request.app.state.repositories.tickets,
-            documents=request.app.state.repositories.documents,
-            now=now,
-        )
+        result = reindex_all(db, tickets=request.app.state.repositories.tickets, now=now)
         # 워커 틱과 같은 표(sync_status)에 남긴다 — 수동으로 돌렸어도 운영 대시보드가
         # "마지막 재색인이 언제였나" 를 정기 틱과 구별 없이 보여줘야 한다(app/worker_main.py
         # mirror_sync_status 와 같은 이유).

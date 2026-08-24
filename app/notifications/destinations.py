@@ -39,12 +39,15 @@ RELATED_DESTINATIONS: dict[str, str] = {
     # related 를 이미 ("ticket", page_id) 로 싣고 있었는데 표에 칸이 없어 목적지가 늘 null
     # 이었다. 한 표만 고치면 둘 다 따라오는 것이 이 표를 만든 이유다.
     "ticket": "/tickets/{id}",
-    # 팀 문서 댓글(document_comment) — 문서 상세로 바로 들어간다. id 는 Notion page id 이고
-    # `/team-docs/:id` 가 그 값을 그대로 `GET /api/team-docs/{page_id}` 에 쓴다
-    # (frontend/src/screens/TeamDoc.jsx). app/team_docs/service.py::_notify_document_comment 가
-    # related=("document", doc.notion_page_id) 로 이미 이 유형을 보내고 있었는데 표에 칸이
-    # 없어 related_route 가 늘 null 이었다 — 알림은 뜨는데 눌러도 아무 데도 안 갔다.
-    "document": "/team-docs/{id}",
+    # 문서 댓글(document_comment) — 문서 상세로 바로 들어간다. id 는 `documents.id` 이고
+    # `/knowledge/:id` 가 그 값을 그대로 `GET /api/knowledge/documents/{id}` 에 쓴다
+    # (frontend/src/screens/KnowledgeDoc.jsx). 즉 위 첫 번째 규칙("그 화면이 실제로 그 id 를
+    # 소비해야 한다")을 만족한다.
+    #
+    # S14 · C2 전에는 옛 화면(`/team-docs/{id}`)을 가리켰고 id 도 Notion page id 였다.
+    # 옛 모양으로 쌓인 알림은 **없다** — 옮기기 직전 `document_comments` 가 0행이었고,
+    # 이 유형을 보내는 코드가 그 한 곳뿐이었다.
+    "document": "/knowledge/{id}",
     # 게시판 댓글(board_comment) / 제안 상태 변경(idea_status_changed) — 그 글로 바로
     # 들어간다. id 는 board_posts.id 이고 `/board/:id`(BoardPost.jsx)가 그 값을 그대로
     # `GET /api/board/posts/{post_id}` 에 쓴다. `app/board/service.py::_notify_post_comment`

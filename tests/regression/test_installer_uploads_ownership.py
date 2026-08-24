@@ -8,7 +8,10 @@ never write into it, and no reinstall/upgrade fixed it because this
 directory wasn't in the installer's ownership list). The four sibling
 directories (exports/generated/temp/locks) were already covered; uploads
 was the one left out. Static assertion (portable; matches the existing
-test_installer_venv_perms.py pattern — this script only runs on Linux)."""
+test_installer_venv_perms.py pattern — this script only runs on Linux).
+
+qa-contract-change: 대상을 옛 slug 설치 스크립트(scripts/install-clovirone-web-assistant.sh)에서 실제로 배포되는 설치기(deploy/install.sh)로 옮겼다 — S4 가 그 둘을 하나로 합쳤고 S14 가 옛 것을 지웠으므로, 옛 파일을 계속 읽는 시험은 아무도 안 쓰는 스크립트를 지키는 초록불이 된다. 못박는 성질과 단언 수는 그대로다.
+"""
 
 from pathlib import Path
 
@@ -16,11 +19,7 @@ import pytest
 
 pytestmark = pytest.mark.regression
 
-INSTALLER = (
-    Path(__file__).resolve().parents[2]
-    / "scripts"
-    / "install-clovirone-web-assistant.sh"
-)
+INSTALLER = Path(__file__).resolve().parents[2] / "deploy" / "install.sh"
 
 
 def test_uploads_dir_is_in_the_ownership_install_block():

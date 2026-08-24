@@ -12,7 +12,8 @@
 축이 바뀌었다. 담당자·작성자가 아니라 **자원 자신의 Ownership** 이 정한다:
 
   * 티켓 → 프로젝트(정확히 하나). 프로젝트의 부서가 곧 티켓의 부서다.
-  * 문서 → Portal 이 지정한 Ownership(프로젝트/부서/조직).
+  * 문서 → **자기 공간**의 Ownership (D-245). 문서에는 소속 컬럼이 없다 — 폴더 이동이
+    권한을 바꾸지 않게 하려고 그렇게 만들었고, 색인은 공간의 소속을 그대로 복사한다.
   * 게시판 → **조직 전체**. 부서로 나누지 않는다(§19) — 그래서 아래 게시판 시험은
     "안 보인다" 가 아니라 "보인다" 를 못박는다. 정책이 바뀌었고, 바뀐 정책이 실제로
     그렇게 동작하는지가 검사 대상이다.
@@ -31,8 +32,6 @@ from app.org.models import Department
 from app.notion_mapping.models import SOURCE_MANUAL, STATUS_VERIFIED, UserNotionMapping
 from app.board.models import Post
 from app.search.indexer import reindex_all
-from app.team_docs.models import DocumentCache
-from app.team_docs.models import OWNER_DEPARTMENT
 from app.tickets.models import (
     PROJECT_LINK_OK,
     SYNC_STATE_ID,
@@ -48,6 +47,14 @@ NOW = datetime(2026, 8, 3, 9, 0, 0)
 D_DEV = "dept-dev-0001"
 D_DEV_FE = "dept-dev-fe-01"
 D_SALES = "dept-sales-001"
+
+
+class _Dept:
+    """`make_space` 는 부서 객체나 id 를 받는다 — 여기서는 id 만 있으므로 얇게 감싼다."""
+
+    def __init__(self, dept_id: str):
+        self.id = dept_id
+        self.org_id = DEFAULT_ORG_ID
 
 
 @pytest.fixture()
@@ -95,7 +102,7 @@ def projects(db, make_project, org_tree):
 
 
 @pytest.fixture()
-def indexed(db, app, people, projects):
+def indexed(db, app, people, projects, make_space, make_knowledge_document):
     """티켓·문서·게시판·채팅을 심고 **실제 인덱서**를 돌린다."""
     notion_ids = {}
     for key in ("target_fe", "target_sales"):
@@ -128,18 +135,24 @@ def indexed(db, app, people, projects):
             synced_at=NOW, created_at=NOW, updated_at=NOW,
         ))
 
-    # 문서 2건 — 작성자 표시 이름으로 소유자를 해석한다.
-    for page, title, author, dept in (
-        ("s-doc-sales", "영업 회의록 초안", people["target_sales"][2], D_SALES),
-        ("s-doc-fe", "프런트 회의록 초안", people["target_fe"][2], D_DEV_FE),
+    # 문서 2건 — 부서마다 공간 하나, 그 공간에 문서 하나. **작성자가 아니라 공간이**
+    # 판정한다(D-245). 작성자가 부서를 옮겨도 문서는 그대로 있어야 한다.
+    for slug, title, author_key, dept in (
+        ("sales-space", "영업 회의록 초안", "target_sales", D_SALES),
+        ("fe-space", "프런트 회의록 초안", "target_fe", D_DEV_FE),
     ):
-        db.add(DocumentCache(
-            notion_page_id=page, title=title, author_names=join_names([author]),
-            owner=author, synced_at=NOW, last_edited="2026-08-01",
-            # 작성자가 아니라 **Portal 이 지정한 소속**이 판정한다(0060). 작성자가 부서를
-            # 옮겨도 문서는 그대로 있어야 한다.
-            owner_kind=OWNER_DEPARTMENT, owner_dept_id=dept,
-        ))
+        space = make_space(name=title + " 공간", slug=slug, dept=_Dept(dept))
+        make_knowledge_document(
+            space=space, title=title, text="회의록 본문",
+            created_by=people[author_key][0],
+        )
+        if slug == "sales-space":
+            # 🔴 반례: **작성자는 프런트팀인데 공간은 영업팀**인 문서. 색인이 소속을
+            # 작성자에서 뽑으면 이 문서가 개발 줄기에 열리고, 그것이 곧 유출이다.
+            make_knowledge_document(
+                space=space, title="영업 공간에 프런트가 쓴 회의록", text="회의록 본문",
+                created_by=people["target_fe"][0],
+            )
 
     # 게시판 2건.
     for pid, title, author_key in (
@@ -155,7 +168,6 @@ def indexed(db, app, people, projects):
     result = reindex_all(
         db,
         tickets=app.state.repositories.tickets,
-        documents=app.state.repositories.documents,
         now=NOW,
     )
     db.commit()
@@ -195,6 +207,28 @@ def test_dept_admin_does_not_see_another_departments_document(client, people, in
     titles = _titles(client, "회의록", kind="document")
     assert "프런트 회의록 초안" in titles
     assert "영업 회의록 초안" not in titles, "범위 밖 문서가 검색으로 새어 나왔다"
+
+
+def test_a_document_belongs_to_its_space_not_to_its_author(client, people, indexed):
+    """🔴 소속은 **공간**이 정한다 (D-245).
+
+    색인이 소속을 작성자에서 뽑으면(예전 미러 시절의 관용) 남의 부서 공간 문서가 작성자
+    한 명 때문에 통째로 열린다. 그 방향의 실패는 화면이 잘 보여서 아무도 신고하지 않는다.
+
+    반대쪽 절반도 함께 본다 — 작성자 본인은 자기 부서 문서를 그대로 찾는다.
+    """
+    _login(client, people["dept_admin"][1])
+    assert "영업 공간에 프런트가 쓴 회의록" not in _titles(client, "회의록", kind="document"), (
+        "작성자가 우리 부서라는 이유로 남의 공간 문서가 검색에 열렸다"
+    )
+
+    _login(client, people["target_fe"][1])
+    assert "영업 공간에 프런트가 쓴 회의록" not in _titles(client, "회의록", kind="document"), (
+        "자기가 쓴 글이라는 이유로 남의 공간 문서가 검색에 열렸다"
+    )
+    assert "프런트 회의록 초안" in _titles(client, "회의록", kind="document"), (
+        "자기 부서 공간 문서까지 사라졌다 — 너무 넓게 막았다"
+    )
 
 
 def test_the_board_is_organization_wide_even_for_a_dept_admin(client, people, indexed):

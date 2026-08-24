@@ -188,20 +188,21 @@ describe("내 업무량 · 완료 통계", () => {
     await waitFor(() => expect(apiMock).toHaveBeenCalledWith("/api/me/stats?months=6&weeks=4"));
   });
 
-  it("동기화가 실패했으면 무엇을 보고 있는지 사람 말로 알린다", async () => {
-    /* 예전에는 이 화면이 자기 문구("티켓 미러 상태: 오류")로 상태를 상시 표시했다 —
-       raw 영문을 안 내는 것은 맞았지만, 정상일 때도 계속 떠 있었다(지시 1 위반).
-       지금은 공용 `MirrorNotice` 가 조치가 필요할 때만 말한다. */
+  it("옛 sync 블록이 error 로 되돌아와도 미러 안내를 안 그린다", async () => {
+    /* 예전에는 이 시험이 반대를 단언했다: 실패하면 "마지막 정상 데이터를 보고 있습니다"
+       를 보여 준다. 서버가 sync 블록을 더 이상 안 싣는다 — 티켓 표가 이 서버의 정본이라
+       낡을 것이 없다. 원인 문자열이 새지 않는다는 성질은 그대로 지킨다. */
     apiMock.mockResolvedValue(stats({
       sync: { status: "error", last_run_at: null, last_success_at: "2026-08-03T00:57:00", ticket_count: 8, truncated: false, error: "boom" },
     }));
     renderStats();
     await screen.findByText("남은 일");
     expect(screen.queryByText(/error/)).not.toBeInTheDocument();
-    expect(screen.getByText(/마지막 정상 데이터를 보고 있습니다/)).toBeInTheDocument();
+    expect(screen.queryByText(/마지막 정상 데이터를 보고 있습니다/)).toBeNull();
+    expect(screen.queryByText(/최근 동기화에 실패했습니다/)).toBeNull();
   });
 
-  it("동기화가 정상이면 미러 상태 줄을 안 그린다 (지시 1)", async () => {
+  it("미러 상태 줄 자체가 이 화면에 없다 (지시 1)", async () => {
     apiMock.mockResolvedValue(stats({
       sync: { status: "ok", last_run_at: null, last_success_at: "2026-08-03T00:57:00", ticket_count: 8, truncated: false },
     }));
@@ -209,5 +210,6 @@ describe("내 업무량 · 완료 통계", () => {
     await screen.findByText("남은 일");
     expect(screen.queryByText(/미러 상태/)).toBeNull();
     expect(screen.queryByText(/마지막 동기화/)).toBeNull();
+    expect(screen.queryByText(/아직 한 번도 동기화되지 않았습니다/)).toBeNull();
   });
 });

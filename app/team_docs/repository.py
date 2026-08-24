@@ -8,8 +8,6 @@ from sqlalchemy.orm import Session
 from app.team_docs.models import (
     NAMES_SEP,
     DocumentCache,
-    DocumentFavorite,
-    DocumentRecentView,
 )
 
 
@@ -34,8 +32,6 @@ def list_documents(
     work_field_f: str | None,
     project_f: str | None,
     tech_f: str | None,
-    favorite_page_ids: set[str] | None,
-    favorites_only: bool,
     sort: str,
     offset: int,
     limit: int,
@@ -62,11 +58,6 @@ def list_documents(
         stmt = stmt.where(_token_filter(DocumentCache.project_names, project_f))
     if tech_f:
         stmt = stmt.where(_token_filter(DocumentCache.tech_tags, tech_f))
-    if favorites_only:
-        ids = favorite_page_ids or set()
-        # 빈 집합이면 아무것도 매치 안 되게(불가능 조건) 만든다.
-        stmt = stmt.where(DocumentCache.notion_page_id.in_(ids or {"__none__"}))
-
     total = db.execute(select(func.count()).select_from(stmt.subquery())).scalar_one()
 
     if sort == "title":
@@ -85,37 +76,7 @@ def all_active(db: Session) -> list[DocumentCache]:
     )
 
 
-def favorite_page_ids(db: Session, user_id: str) -> set[str]:
-    rows = db.execute(
-        select(DocumentFavorite.notion_page_id).where(DocumentFavorite.user_id == user_id)
-    ).scalars().all()
-    return set(rows)
+# 즐겨찾기·최근 열람은 여기 없다 (S14 · C2). 두 축은 정본 문서(`documents`)에 붙었고
+# `app/knowledge/favorites.py` · `app/knowledge/recent_views.py` 가 답한다.
 
 
-def find_favorite(db: Session, user_id: str, page_id: str) -> DocumentFavorite | None:
-    return db.execute(
-        select(DocumentFavorite).where(
-            DocumentFavorite.user_id == user_id,
-            DocumentFavorite.notion_page_id == page_id,
-        )
-    ).scalar_one_or_none()
-
-
-def find_recent(db: Session, user_id: str, page_id: str) -> DocumentRecentView | None:
-    return db.execute(
-        select(DocumentRecentView).where(
-            DocumentRecentView.user_id == user_id,
-            DocumentRecentView.notion_page_id == page_id,
-        )
-    ).scalar_one_or_none()
-
-
-def recent_views(db: Session, user_id: str, *, limit: int) -> list[DocumentRecentView]:
-    return list(
-        db.execute(
-            select(DocumentRecentView)
-            .where(DocumentRecentView.user_id == user_id)
-            .order_by(DocumentRecentView.viewed_at.desc())
-            .limit(limit)
-        ).scalars().all()
-    )

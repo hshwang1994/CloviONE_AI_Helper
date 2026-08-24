@@ -37,7 +37,7 @@ NEIGHBOUR = "doc-neighbour"
 
 
 @pytest.fixture()
-def secret_world(db, make_user):
+def secret_world(db, make_user, make_space, make_knowledge_document):
     """A본부의 문서 둘 — 하나는 열람 제한, 하나는 평범하다. 사람은 넷."""
     from app.org.constants import DEFAULT_ORG_ID
     from app.org.models import OrgUnit
@@ -67,14 +67,29 @@ def secret_world(db, make_user):
             # 쓴다 — 매핑 표가 없는 문서가 실제로 흔하고, 그 경로도 같은 규칙이어야 한다.
             author_names=NAMES_SEP + "작성자" + NAMES_SEP,
         ))
+    db.commit()
+
+    # 색인의 문서 행은 **정본**(`documents`)을 가리킨다 (S14 · D1). 미러 쪽 두 행은 위
+    # `RESOURCE_DOCUMENT` 시험이 계속 쓰므로 그대로 두고, 색인은 같은 뜻의 정본 문서를
+    # 가리키게 따로 세운다 — 축소가 어느 표를 보는지가 이 파일이 지키는 것이다.
+    space = make_space(name="A본부 공간", slug="grant-space", dept=dept_a)
+    knowledge = {
+        SECRET: make_knowledge_document(
+            space=space, title=SECRET, confidential=True, created_by=author,
+        ),
+        NEIGHBOUR: make_knowledge_document(space=space, title=NEIGHBOUR, created_by=author),
+    }
+    for document in knowledge.values():
         db.add(SearchDocument(
-            kind=KIND_DOCUMENT, ref_id=page_id, title=page_id, body="", sort_key=page_id,
-            org_id=DEFAULT_ORG_ID, owner_kind=OWNER_DEPARTMENT, owner_dept_id=dept_a.id,
+            kind=KIND_DOCUMENT, ref_id=document.id, title=document.title, body="",
+            sort_key=document.title, org_id=DEFAULT_ORG_ID,
+            owner_kind=OWNER_DEPARTMENT, owner_dept_id=dept_a.id,
         ))
     db.commit()
     return {
         "author": author, "mate": mate, "stranger": stranger, "moderator": moderator,
         "dept_a": dept_a, "dept_b": dept_b,
+        "k_secret": knowledge[SECRET].id, "k_neighbour": knowledge[NEIGHBOUR].id,
     }
 
 
@@ -191,14 +206,19 @@ def test_the_search_index_never_returns_a_confidential_document(db, secret_world
     기능을 잃지도 않는다 — 그 사람들은 문서 목록에서 그대로 보고 연다.
     """
     user = secret_world[who]
+    secret_id = secret_world["k_secret"]
+    # 색인 행의 부여 조회는 `(kind, ref_id)` 로 걸린다 — 즉 `('document', 문서 id)` 다.
+    # 그래서 여기 부여는 색인이 실제로 볼 수 있는 모양이고, 그런데도 안 열려야 한다.
     grant_resource_access(
-        db, resource_type=RESOURCE_DOCUMENT, resource_id=SECRET,
+        db, resource_type=RESOURCE_DOCUMENT, resource_id=secret_id,
         grantee_kind=GRANTEE_USER, grantee_id=user.id,
     )
     db.commit()
     seen = _visible(db, user, RESOURCE_SEARCH)
-    assert SECRET not in seen, f"{who} 가 열람 제한 문서를 검색으로 찾았다"
-    assert NEIGHBOUR in seen, f"{who} 가 평범한 문서까지 검색에서 잃었다 — 축소가 너무 넓다"
+    assert secret_id not in seen, f"{who} 가 열람 제한 문서를 검색으로 찾았다"
+    assert secret_world["k_neighbour"] in seen, (
+        f"{who} 가 평범한 문서까지 검색에서 잃었다 — 축소가 너무 넓다"
+    )
 
 
 # ── API 표면 ─────────────────────────────────────────────────────────────────

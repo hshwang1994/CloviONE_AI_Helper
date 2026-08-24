@@ -5,7 +5,6 @@ import MenuItem from "@mui/material/MenuItem";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
-import { MirrorNotice } from "../ui/MirrorNotice.jsx";
 import {
   Callout, Card, DataTable, EmptyState, ErrorState, MetricStrip, PageHeader, SectionTitle, Skeleton,
 } from "../ui/kit.jsx";
@@ -279,10 +278,8 @@ export function MyStats() {
             </Box>
           )}
 
-          {/* 정상 동기화 상태는 사용자에게 알리지 않는다 (지시 1 · 29) — 예전에는 이 자리에
-              "티켓 미러 상태: 정상, 마지막 동기화 …"이 상시로 떴다. 조치가 필요한 경우의
-              문구·표기 규약은 공용 `MirrorNotice` 한 곳이 갖는다. */}
-          <Box sx={{ mt: 2.5 }}><MirrorNotice sync={data.sync} unit="티켓" /></Box>
+          {/* 여기 미러 신선도 안내가 있었다. 서버가 `sync` 블록을 더 이상 안 싣는다 —
+              티켓 표가 이 서버의 정본이라 낡을 것이 없다(S14). */}
         </>
       )}
     </div>

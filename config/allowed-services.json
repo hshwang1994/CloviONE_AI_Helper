@@ -1,7 +1,6 @@
 {
-  "_comment": "SSRF allowlist for outbound HTTP to integration services (spec §25.3). Exact host:port matches only; http/https only. Production copy lives in /etc/clovirassist/. S11 removed the n8n (5678) and runner (8787/8788/8789) hosts along with those services.",
+  "_comment": "SSRF allowlist for outbound HTTP to integration services (spec §25.3). Exact host:port matches only; http/https only. Production copy lives in /etc/clovirassist/. S11 removed the n8n (5678) and runner (8787/8788/8789) hosts along with those services; S14 removed api.notion.com along with the Notion runtime (D-284). The migration CLI still reaches Notion, but through its own list (allowed-migration-sources.json) - the runtime must not be able to write back into the system of record.",
   "hosts": [
-    "api.notion.com:443",
     "api.anthropic.com:443"
   ]
 }

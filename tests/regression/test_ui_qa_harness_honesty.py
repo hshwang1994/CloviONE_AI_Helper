@@ -89,11 +89,18 @@ def test_found_id_still_resolves(detail_route):
 
 
 def test_system_admin_only_routes_are_not_visible_to_admin():
-    """이 넷이 `admin` 계정 캡처에서 권한 거부 배너로 찍히고도 `ok` 였다."""
-    for rid in ("admin_system", "admin_setup", "admin_notion-console", "admin_llm-console"):
+    """이 넷이 `admin` 계정 캡처에서 권한 거부 배너로 찍히고도 `ok` 였다.
+
+    넷 중 `/notion-console` 은 화면째 사라졌다(S14 · D-284). 그래서 여기서도 빠진다 —
+    없는 주소를 계속 세면 이 시험은 목록이 비어도 통과하는 쪽으로 조용히 기운다.
+    """
+    for rid in ("admin_system", "admin_setup", "admin_llm-console"):
         route = BY_ID[rid]
         assert not route.visible_to("admin"), f"{rid} 가 admin 에게 보인다고 판정된다"
         assert route.visible_to("system_admin"), f"{rid} 가 system_admin 에게도 안 보인다"
+    assert "admin_notion-console" not in BY_ID, (
+        "지운 화면이 QA 라우트 목록에 돌아왔다 — 캡처가 404 를 찍고 ok 로 센다"
+    )
 
 
 def test_ordinary_routes_stay_visible():

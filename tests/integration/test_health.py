@@ -16,29 +16,24 @@ def test_healthz(client):
     assert r.json() == {"status": "ok", "ticket_source": "native"}
 
 
-def test_healthz_reports_configured_ticket_source(settings, fake_clock, fake_http):
-    # ticket_source는 SSH 없이 확인할 방법이 없던 운영 킬 스위치였다(app/core/config.py:136-
-    # 164). 기본값 하나만 보면 "그냥 필드가 있다"만 확인되고 실제로 settings 값을 읽어 오는지는
-    # 확인되지 않는다 - 기본값과 다른 값을 주입해 healthz가 하드코딩된 문자열이 아니라
-    # request.app.state.settings를 실제로 읽는지 증명한다.
-    from fastapi.testclient import TestClient
+def test_healthz_names_the_repository_that_is_actually_wired(client):
+    """`/healthz` 가 말하는 이름이 **실제로 배선된 저장소**와 같은가.
 
-    from app.core.config import Settings
-    from app.main import create_app
+    예전에는 이 값이 설정에서 왔고, 그래서 이 자리의 시험은 "기본값이 아닌 값을 주입해도
+    따라오는가" 였다. 그 스위치는 사라졌다 — 구현이 하나뿐이라 고를 것이 없다. 그래도
+    문자열 하나를 손으로 적어 두면 배선을 바꾸는 날 이 응답만 옛 이름으로 남고, 밖에서
+    이 키를 지켜보는 감시 도구는 아무 일도 없다고 말한다. 그래서 응답이 배선기의 상수와
+    같은지, 그리고 그 배선기가 실제로 자체 DB 구현을 만드는지 함께 본다.
+    """
+    from app.core.source_registry import SOURCE_NATIVE
+    from app.tickets.repository_native import NativeTicketRepository
 
-    # _env_file=None을 다시 주지 않으면 pydantic-settings가 기본 env_file(".env")을
-    # 다시 읽어 들여 이 오버라이드가 로컬 .env 내용에 좌우될 수 있다 - settings 픽스처와
-    # 똑같이 순수 명시값만으로 구성한다.
-    overridden = Settings(
-        **{**settings.model_dump(), "ticket_source": "notion"}, _env_file=None
+    reported = client.get("/healthz").json()["ticket_source"]
+    assert reported == SOURCE_NATIVE, f"응답과 배선기의 이름이 갈렸다: {reported}"
+    wired = client.app.state.repositories.tickets
+    assert type(wired) is NativeTicketRepository, (
+        f"이름은 native 라고 말하는데 배선된 구현은 다른 것이다: {type(wired).__name__}"
     )
-    app = create_app(
-        overridden, clock=fake_clock, outbound_transport=fake_http.transport()
-    )
-    with TestClient(app, raise_server_exceptions=False) as client:
-        r = client.get("/healthz")
-    assert r.status_code == 200
-    assert r.json() == {"status": "ok", "ticket_source": "notion"}
 
 
 def test_readyz_with_working_db(client):

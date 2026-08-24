@@ -1,18 +1,14 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import Switch from "@mui/material/Switch";
 import Typography from "@mui/material/Typography";
-import { api } from "../lib/api.js";
-import { Card, Callout, ErrorState, OverflowMenu, PageHeader, Skeleton, useToast } from "../ui/kit.jsx";
+import { Card, Callout, ErrorState, PageHeader, Skeleton } from "../ui/kit.jsx";
 import { Pager } from "../ui/Pager.jsx";
 import { useQueryState } from "../lib/useQueryState.js";
 import { DepartmentFilter } from "../ui/filters.jsx";
 import { ticketColumns, GroupedTickets, TicketEditModal, ticketConnState } from "./MyTickets.jsx";
-import { MirrorNotice } from "../ui/MirrorNotice.jsx";
 import { ticketRows, useTicketList } from "./ticket-options.js";
-import { invalidateTicketViews } from "./ticket-views.js";
 import {
   TicketEmptyState, TicketFilterBar, clearTicketFilters, hasTicketFilter,
   ticketFilterSpec, ticketQueryParams,
@@ -69,20 +65,9 @@ export function TeamTickets() {
     ...(filters.dept ? { department_id: filters.dept } : {}),
   }).toString();
   const q = useTicketList("/api/tickets/team", qs);
-  const toast = useToast();
-  const qc = useQueryClient();
-  // 티켓 동기화(FN-03) — team_docs 화면과 같은 패턴, app/tickets/router.py trigger_sync의
-  // 주석이 그 패턴을 그대로 따르라고 명시한다.
-  const sync = useMutation({
-    mutationFn: () => api("/api/tickets/sync", { method: "POST", body: {} }),
-    onSuccess: (res) => {
-      invalidateTicketViews(qc, { refetchType: "all" });
-      const st = res && res.sync;
-      if (st && st.status === "error") toast("동기화 실패: " + (st.error || "Notion 연결 확인 필요"), "error");
-      else toast("동기화했습니다. 티켓 " + (st ? st.ticket_count : 0) + "개.", "success");
-    },
-    onError: (e) => toast((e && e.message) || "동기화하지 못했습니다. 잠시 후 다시 시도해 주세요.", "error"),
-  });
+  /* 여기에 「지금 동기화」를 부르는 mutation 이 있었다. 그 버튼은 `POST /api/tickets/sync` 로
+     노션을 읽어 이 서버의 `tickets` 표에 덮어썼는데, 지금은 그 표가 사본이 아니라 정본이라
+     밖에서 덮어쓸 것이 없다. 엔드포인트 자체가 없어졌으므로 화면에서도 부르지 않는다. */
 
   // 완료·취소까지 볼지는 필터 줄 안에 둔다 — 조건과 떨어져 있으면 목록이 왜 이만큼인지 보이지 않는다.
   const activeToggle = (
@@ -115,23 +100,10 @@ export function TeamTickets() {
 
   return (
     <div className="c-screen">
-      <PageHeader
-        crumbRoot="팀 공간" area="팀 티켓" title="팀 티켓"
-        /* 수동 동기화는 운영 동작이다 — 예전에는 목록 위 상시 배너 옆에 있었다(지시 29).
-           기능은 그대로 두고 자리만 넘침 메뉴로 옮긴다. 동기화가 실패하면 MirrorNotice 가
-           복구 동작으로 버튼을 다시 꺼내 준다. */
-        actions={(q.data && q.data.can_sync) ? (
-          <OverflowMenu
-            ariaLabel="팀 티켓 더 보기"
-            items={[{
-              key: "sync",
-              label: sync.isPending ? "동기화 중" : "지금 동기화",
-              disabled: sync.isPending,
-              onClick: () => sync.mutate(),
-            }]}
-          />
-        ) : null}
-      />
+      {/* 머리의 넘침 메뉴에는 「지금 동기화」 하나만 들어 있었다. 그 동작이 없어져 메뉴에
+          담을 것이 남지 않았으므로 메뉴 자체를 뺀다 — 눌러도 빈 목록만 열리는 버튼은
+          사용자에게 자기가 못 쓰는 기능이 있다고 말하는 셈이다. */}
+      <PageHeader crumbRoot="팀 공간" area="팀 티켓" title="팀 티켓" />
       <Typography variant="body2" color="text.secondary" sx={{ mb: 2.5 }}>
         팀 전체 티켓을 담당자별로 묶어서 봅니다. 제목을 누르면 상세가 열립니다. 수정은 담당자와 운영자만 할 수 있습니다.
       </Typography>
@@ -147,11 +119,8 @@ export function TeamTickets() {
           const cols = ticketColumns({ onEdit: setEditing, onOpen: (t) => nav("/tickets/" + t.id, { state: { from: "/team-tickets" } }) });
           return (
             <>
-              <MirrorNotice
-                sync={data.sync} canSync={data.can_sync}
-                onSync={() => sync.mutate()} syncing={sync.isPending}
-                unit="티켓"
-              />
+              {/* 여기 미러 신선도 안내가 있었다. 서버가 `sync` 블록을 더 이상 안 싣는다 —
+                  티켓 표가 이 서버의 정본이라 낡을 것이 없다(S14). */}
               <TicketFilterBar
                 fields={TEAM_FIELDS} value={filters} onChange={setFilters}
                 total={data.total} scope={scopeControls} extra={activeToggle}

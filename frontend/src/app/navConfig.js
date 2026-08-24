@@ -266,7 +266,8 @@ export const USER_NAV = [
     { to: "/unassigned", label: "미할당 티켓" },
     { to: "/work-board", label: "작업 보드" },
     { to: "/sprint", label: "스프린트 회의" },
-    { to: "/team-docs", label: "문서" },
+    // 문서는 화면 하나다 (S14 · C2). 옛 `/team-docs` 는 정본 문서 화면으로 넘긴다.
+    { to: "/knowledge", label: "문서" },
   ] },
   { group: "팀 공간", icon: GroupsOutlinedIcon, items: [
     { to: "/chat-rooms", label: "채팅방", badge: "chatUnread" },
@@ -290,9 +291,9 @@ export const USER_SEG_PATHS = [
   "/me", "/my-tickets", "/unassigned", "/new-ticket", "/tickets", "/team-tickets",
   "/chat", "/chat-rooms", "/sprint", "/work-board", "/board", "/ideas", "/team-docs", "/games",
   "/knowledge",
-  // AI 작업공간(S10). `/knowledge` 와 같은 부류다 — 자기 사이드바 항목이 없고 사용자
-  // 콘솔이 소유한다. 여기 빠뜨리면 관리자군이 이 화면을 열 때 사이드바가 통째로 관리자
-  // 메뉴로 바뀐다(`/projects`·`/search`·`/notifications` 가 전부 그 결함을 겪었다).
+  // AI 작업공간(S10). 자기 사이드바 항목이 없고 사용자 콘솔이 소유한다. 여기 빠뜨리면
+  // 관리자군이 이 화면을 열 때 사이드바가 통째로 관리자 메뉴로 바뀐다
+  // (`/projects`·`/search`·`/notifications` 가 전부 그 결함을 겪었다).
   "/ai",
   // 프로젝트는 사용자 콘솔 소유다. 관리자 세그먼트에 두면 관리자군이 프로젝트를 열 때
   // 사이드바가 관리자 메뉴로 통째로 바뀌고, 그 메뉴에는 프로젝트 항목이 없어 선택이 사라진다.
@@ -332,7 +333,6 @@ export function inUserSegment(pathname) {
  * 이 목록은 범위를 거는 백엔드 모듈과 1:1 이다 - 새로 범위를 걸기 시작하면 여기도 넣어야
  * ScopeBar 가 그 화면에서도 경고를 띄운다:
  *   tickets    → build_scope   → /my-tickets, /unassigned, /new-ticket, /team-tickets, /tickets/:id
- *   team_docs  → build_scope   → /team-docs
  *   trash      → build_scope   → /team-docs/trash
  *   sprints    → build_scope   → /sprint
  *   users      → apply_user_scope → /users
@@ -341,7 +341,10 @@ export function inUserSegment(pathname) {
  */
 export const SCOPE_ENFORCED_PATHS = [
   "/my-tickets", "/unassigned", "/new-ticket", "/team-tickets", "/tickets",
-  "/team-docs",
+  // `/knowledge` 는 여기 없다 (S14 · C2). 지식 공간의 범위는 부서 범위 막대가 말하는
+  // `build_scope` 가 아니라 **공간 가시성**이다(`effective_visibility_clause`). 여기 넣으면
+  // 그 화면에서 「이 범위 밖의 항목은 목록에 나오지 않습니다」가 그 자리에서 거짓말이 된다.
+  "/team-docs/trash",
   "/sprint",
   // 0060: 프로젝트는 처음부터 범위가 걸렸는데 이 목록에 없어서 안내가 안 떴다. 반대로
   // `/unassigned` 는 목록에 있는데 서버가 아무것도 안 걸러 그 자리에서 거짓말이었다 —
@@ -397,18 +400,14 @@ export const ROUTE_OWNER = {
    * (registry/org.js의 "조직도에서 보기"/"부서 관리로 이동" 액션은 `window.location.hash`
    * 직접 대입이라 state가 없다, Users.jsx의 부서 안내 링크는 새 탭이라 애초에 history state가
    * 없다, 북마크·주소창 직접 입력도 마찬가지) 사이드바 선택 표시가 통째로 사라졌다. */
-  /* 지식 공간(S7)은 **자기 사이드바 항목이 없다.** `/tickets/:id`·`/search` 와 같은
-   * 부류이고, 여기 적어 두면 그 화면에서도 사이드바 선택 표시가 안 사라진다.
+  /* 옛 문서 주소는 **자기 사이드바 항목이 없다** (S14 · C2). `/team-docs` 는 이제
+   * `/knowledge` 로 넘기는 자리이고, `/team-docs/trash`(휴지통)와
+   * `/team-docs/:pageId`(옛 딥링크)가 그 아래 남아 있다. 그 두 화면에서 사이드바 선택
+   * 표시가 사라지지 않게 소속을 「문서」로 적어 둔다.
    *
-   * 왜 항목을 안 만들었는가: 사용자 사이드바는 한 그룹이 여섯 항목을 넘지 않는다
-   * (`nav-ia-taxonomy.test.js` — "넘으면 서랍이 아니라 목록이다"). 「팀 업무」는 이미 여섯이고,
-   * 「팀 공간」은 소통·놀이로 성격을 갈라 둔 서랍이라 지식 저장소가 갈 자리가 아니다
-   * (이 파일 위쪽 ③ 참조). 그래서 입구를 「문서」 화면에 둔다 — 사용자에게 그 둘은 같은
-   * 종류의 일이고, 이관(S13·S14)이 끝나면 실제로 한 화면이 된다.
-   *
-   * IA 를 다시 짜는 것은 Phase E(S19)의 일이다. 그때 이 화면이 자기 슬롯을 갖게 되면
-   * 이 줄을 지운다. */
-  "/knowledge": "/team-docs",
+   * 방향이 예전과 반대다. 예전에는 지식 공간에 항목이 없어서 `/knowledge` 의 소속을
+   * 「문서」(그때는 `/team-docs`)로 적었다. 이제 항목을 가진 쪽이 `/knowledge` 다. */
+  "/team-docs": "/knowledge",
   /* AI 작업공간(S10)도 **자기 사이드바 항목이 없다.** 「내 업무」가 이미 여섯 항목이고
    * (`nav-ia-taxonomy.test.js` — "넘으면 서랍이 아니라 목록이다") IA 를 다시 짜는 것은
    * Phase E 의 일이다. 그래서 입구를 「AI 도우미」 화면에 두고 소속도 그쪽으로 적는다 —
@@ -460,7 +459,9 @@ export function groupForPath(nav, pathname, from) {
  */
 export const NAV_FEATURE_FLAG = {
   "/chat": "chat_enabled",
-  "/team-docs": "team_docs_enabled",
+  // 문서 기능을 끄면 문서 메뉴와 그 아래 휴지통이 함께 사라진다. 화면에서 감추는 것은
+  // 편의일 뿐이고 라우터가 여전히 각자 막는다.
+  "/knowledge": "team_docs_enabled",
   "/team-docs/trash": "team_docs_enabled",
   "/chat-rooms": "team_chat_enabled",
   "/games": "games_enabled",

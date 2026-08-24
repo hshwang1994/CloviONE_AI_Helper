@@ -10,10 +10,8 @@ id 로 열리는 상태가 생길 자리가 없다(이 저장소가 네 번 반�
 운영자여도 범위 밖은 404 다(권한과 범위는 직교한다, `app/core/scope.py`).
 
 이 파일은 API 뿐이다 - 화면은 `frontend/src/screens/Projects.jsx`,
-`Project.jsx`, `ProjectWeekly.jsx` 에 있다(둘 다 이미 구현됨). Notion 동기화는
-수정 시 그 자리에서 미는 `sync.push_project`(아래 `update_project`)와, 주기적으로
-당겨오는 `app/projects/sync.py::sync_projects`(워커 tick, `app/worker_main.py`)
-두 경로로 이미 있다 - 여기 없다는 말은 낡은 메모였다.
+`Project.jsx`, `ProjectWeekly.jsx` 에 있다(둘 다 이미 구현됨). 프로젝트의 정본은 이제
+이 서버의 데이터베이스이므로 밖으로 내보내거나 밖에서 당겨오는 경로가 없다.
 """
 
 from __future__ import annotations
@@ -30,7 +28,7 @@ from app.core.pagination import PageParams
 from app.core.scope import Principal
 from app.org import context as org_context
 from app.projects import milestones as milestones_repo
-from app.projects import repository, service, sync, weekly
+from app.projects import repository, service, weekly
 from app.projects.models import Project, ProjectHealthSnapshot, ProjectMilestone
 from app.projects.schemas import (
     MilestoneCreate,
@@ -86,30 +84,14 @@ def _project_view(project: Project) -> dict:
         "progress_pct": project.progress_pct,
         "health_score": project.health_score,
         "archived_at": project.archived_at.isoformat() if project.archived_at else None,
-        # Notion 짝이 없으면 포털 전용 프로젝트다. 화면이 "노션에서 열기" 를 그릴지 말지
-        # 판단하려면 이 사실이 필요하다(없는 링크를 그리지 않는다).
-        "notion_page_id": project.notion_page_id,
-        # ── 저쪽(Notion)이 말하는 사실. 앱 계산값과 **나란히** 나간다 ──────────────
+        # ── 이관 흔적 여섯은 여기 없다 ────────────────────────────────────────
         #
-        # `notion_progress_pct` 를 `progress_pct` 옆에 싣는 이유: 두 숫자가 다른 것은 정상
-        # 상태다(저쪽 rollup 은 취소한 티켓을 완료로 센다). 한쪽만 보이면 사용자는 "포털이
-        # 틀렸다" 고 결론 내리고, 그러면 정확한 쪽을 안 보게 된다.
-        "notion_progress_pct": project.notion_progress_pct,
-        "notion_status": project.notion_status,
-        # "이번 동기화에서 노션 쪽 페이지가 안 보였다". 목록에서 감추지는 않는다 — 감추면
-        # 노션이 깜빡인 순간 포털의 마일스톤과 주간 리포트가 함께 사라진다.
-        "notion_missing_at": (
-            project.notion_missing_at.isoformat() if project.notion_missing_at else None
-        ),
-        # "노션 값을 이 행에 반영한 시각". **미러 전체의 신선도가 아니다** - 값이 안 바뀐
-        # 회차는 행을 안 건드리므로 이 시각은 오래돼도 정상이다. "동기화가 언제 돌았나" 는
-        # 동기화 상태 화면(project_sync_state)이 답한다. 화면 문구가 둘을 섞으면
-        # 멀쩡한 프로젝트가 3주째 동기화가 안 되는 것처럼 보인다.
-        "notion_synced_at": (
-            project.notion_synced_at.isoformat() if project.notion_synced_at else None
-        ),
-        # 저장은 됐는데 노션에 못 밀어 넣은 상태면 그 이유. 화면이 배너로 보여준다.
-        "notion_sync_error": project.notion_sync_error,
+        # `notion_page_id`·`notion_progress_pct`·`notion_status`·`notion_missing_at`·
+        # `notion_synced_at`·`notion_sync_error` 가 있었다. 전부 「저쪽이 말한 사실」이고,
+        # 저쪽을 읽고 쓰는 코드가 없어져 값이 이관 시점에 얼어붙었다. 얼어붙은 값을 계속
+        # 실어 보내면 화면은 「이관 때 원본 없음」·「이관할 때 문제가 있었습니다」를
+        # 영원히 띄우고, 사용자가 무엇을 고쳐도 사라지지 않는다. 컬럼 자체는 이관 흔적으로
+        # 남겨 둔다(내리는 것은 이 작업의 범위가 아니다).
         # 편집 시작 시점의 판. 저장할 때 `base_version` 으로 그대로 돌려보내면 그 사이
         # 누가 먼저 저장한 경우 409 로 막힌다 — 안 보내면 예전처럼 덮어쓴다.
         # 티켓·문서와 **같은 이름의 같은 규약**이다 (S6).
@@ -241,14 +223,10 @@ def update_project(
     principal: Principal = Depends(get_principal),
     _: object = require_write,
 ):
-    """수정하고, 노션에 짝이 있으면 그 자리에서 push 한다(사용자 지시).
+    """프로젝트를 수정한다. 저장은 이 서버의 데이터베이스에서 끝난다.
 
-    push 는 **로컬 저장 뒤**에 한다. 순서를 뒤집으면 노션이 죽은 날 사용자가 방금 친 값이
-    저장조차 되지 않는다. push 실패는 예외로 올리지 않고 `notion_sync_error` 로 응답에
-    실린다 — 올리면 트랜잭션이 롤백되어 방금 저장한 값이 함께 사라진다.
-
-    노션에 보내는 값이 하나도 안 바뀐 수정(예: 목표만 고침)은 push 하지 않는다. 매번
-    보내면 저장 한 번마다 외부 왕복이 세 번씩 붙는다.
+    예전에는 저장 뒤에 같은 값을 노션으로 밀어 넣었다. 지금은 프로젝트의 정본이 이
+    데이터베이스라 밖으로 내보낼 곳이 없고, 저장 한 번에 붙던 외부 왕복도 사라졌다.
     """
     now = request.app.state.clock.now()
     project = service.get_scoped_project_or_404(db, project_id, principal)
@@ -261,13 +239,6 @@ def update_project(
     before = _scope_snapshot(project)
     service.update_project(db, project, payload, principal, now=now)
     after = _scope_snapshot(project)
-    if project.notion_page_id and (set(payload.model_fields_set) & set(sync.PUSHED_FIELDS)):
-        sync.push_project(
-            db, project,
-            outbound=request.app.state.outbound_client,
-            settings=request.app.state.settings,
-            now=now,
-        )
     record_audit_from_request(
         request, db, action="project.update", object_type="project", object_id=project.id,
         # 소속이 그대로면 굳이 남기지 않는다 — 모든 수정에 같은 두 줄이 붙으면 정작

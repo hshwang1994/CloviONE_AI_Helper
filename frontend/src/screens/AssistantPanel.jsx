@@ -172,7 +172,9 @@ function WeeklyDigest({ data }) {
           <Stack component="ul" gap={0.25} sx={{ listStyle: "none", m: 0, mt: 0.75, p: 0 }}>
             {(docs.items || []).map((d) => (
               <Box component="li" key={d.id} sx={{ minWidth: 0 }}>
-                <Link href={"#/team-docs/" + d.id} underline="hover" sx={{ fontSize: FONT_SIZE.body }}>{d.title}</Link>
+                {/* 정본 문서 id 다 (S14 · C2) — 옛 미러의 page id 가 아니라서 옛 주소로
+                    보내면 그 자리에서 「찾지 못했습니다」가 뜬다. */}
+                <Link href={"#/knowledge/" + d.id} underline="hover" sx={{ fontSize: FONT_SIZE.body }}>{d.title}</Link>
               </Box>
             ))}
           </Stack>

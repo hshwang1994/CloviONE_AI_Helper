@@ -45,7 +45,7 @@ from app.core.dates import iso_date, parse_date
 from app.core.errors import ConflictError, NotFoundError, ValidationAppError
 from app.core.models_base import utcnow
 from app.projects.models import Project
-from app.tickets.models import Ticket
+from app.tickets.models import Ticket, api_page_id
 from app.trash import repository as trash_repo
 from app.trash.models import TRASH_TICKET
 from app.users.models import User
@@ -137,11 +137,16 @@ def get_scoped_project_or_404(db: Session, project_id: str, user: User) -> Proje
 
 
 def _drop_trashed(db: Session, tickets: list[Ticket]) -> list[Ticket]:
-    """휴지통 티켓은 판에서도 없는 것이다 (H2). 목록만 닫고 판을 열어 두면 의미가 없다."""
+    """휴지통 티켓은 판에서도 없는 것이다 (H2). 목록만 닫고 판을 열어 두면 의미가 없다.
+
+    비교는 **API 가 부르는 이름**으로 한다(`api_page_id`). 휴지통은 그 이름으로 항목을
+    적어 두므로(`trash_ticket(page_id=...)`), 여기서 `notion_page_id` 만 보면 자체 DB 에서
+    만든 티켓은 `None` 과 비교하게 되고 **버린 티켓이 판에 계속 남는다.**
+    """
     trashed = trash_repo.trashed_page_ids(db, TRASH_TICKET)
     if not trashed:
         return tickets
-    return [t for t in tickets if t.notion_page_id not in trashed]
+    return [t for t in tickets if api_page_id(t) not in trashed]
 
 
 def _card(ticket: Ticket) -> dict:
@@ -152,7 +157,7 @@ def _card(ticket: Ticket) -> dict:
     """
     return {
         "id": ticket.id,
-        "page_id": ticket.notion_page_id,
+        "page_id": api_page_id(ticket),
         "key": display_key(ticket),
         "title": ticket.title,
         "status": ticket.status,
@@ -254,7 +259,7 @@ def load_ticket_in_scope_or_404(db: Session, ticket_id: str, user: User) -> Tick
     ticket = db.execute(stmt).scalar_one_or_none()
     if ticket is None:
         raise NotFoundError("티켓을 찾을 수 없습니다.")
-    if ticket.notion_page_id in trash_repo.trashed_page_ids(db, TRASH_TICKET):
+    if api_page_id(ticket) in trash_repo.trashed_page_ids(db, TRASH_TICKET):
         raise NotFoundError("티켓을 찾을 수 없습니다.")
     return ticket
 
@@ -310,7 +315,7 @@ def _notify_move(
                 db, uid, type_="ticket_status_changed",
                 title=f"{label} 상태 변경: {to_status}",
                 body=(ticket.title or "")[:200],
-                related=("ticket", ticket.notion_page_id), now=now,
+                related=("ticket", api_page_id(ticket)), now=now,
             )
     except Exception:  # noqa: BLE001 — 알림이 이동을 막으면 안 된다
         logger.exception("티켓 상태 알림에 실패했다 (ticket_id=%s)", ticket.id)
@@ -356,7 +361,7 @@ def move(
 
             tickets_service.update_ticket(
                 db, outbound, settings, user,
-                page_id=ticket.notion_page_id, changes={"status": target},
+                page_id=api_page_id(ticket), changes={"status": target},
                 now=stamp, repo=repo,
             )
             db.refresh(ticket)

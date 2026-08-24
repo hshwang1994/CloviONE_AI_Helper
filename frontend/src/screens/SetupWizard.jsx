@@ -15,7 +15,7 @@ import { FONT_SIZE, FONT_WEIGHT, RADIUS } from "../ui/theme.js";
  * **하는 일**: 서버가 계산한 남은 항목을 **그 순서 그대로** 보여 주고, 막힌 항목이 무엇
  * 때문에 막혔는지 말하고, 각 항목을 실제로 고칠 수 있는 화면으로 보낸다.
  *
- * **하지 않는 일**: 여기서 설정을 바꾸지 않는다. 조직, 부서, 연동, 러너, Notion 연결에는
+ * **하지 않는 일**: 여기서 설정을 바꾸지 않는다. 조직, 부서, 연동, 러너, 사용자 매핑에는
  * 이미 각자의 화면이 있고 거기에는 검증과 감사와 되돌리기가 붙어 있다. 마법사가 지름길을
  * 하나 더 내면 그 세 가지가 없는 두 번째 쓰기 경로가 생긴다.
  *
@@ -41,9 +41,10 @@ const TONE_COLOR = { success: "success.main", warn: "warning.main", info: "info.
  * 막다른 길이고, 이 화면은 막다른 길을 없애려고 만든 것이다. setup-wizard.test.jsx 가
  * 모든 값이 AdminRoutes.jsx 의 명시 경로이거나 registry.js 의 키인지 확인한다.
  *
- * Notion 데이터베이스 id 와 토큰은 **이제 화면에서 바꾼다**(9-4, #/notion-console).
- * 예전에는 서버 파일을 고치고 재시작해야 해서 '고치는 화면' 대신 진단으로 보냈고, 이 주석이
- * 그 사실을 적어 두고 있었다. 화면이 생겼으니 고치는 자리로 곧장 보낸다.
+ * 「Notion 토큰과 데이터베이스」 항목이 여기 있었고 `#/notion-console` 로 보냈다. 티켓과
+ * 문서와 리포트가 그 토큰으로 노션을 읽던 때에는 설치할 때 반드시 채워야 하는 값이었다.
+ * 지금은 셋 다 이 서버의 데이터베이스에서 나오므로 채울 값도, 보낼 화면도 없다 —
+ * 서버의 안내 목록(app/setup/steps.py)에서도 그 단계가 빠졌다.
  * SYS-06: `llm` 항목은 예전엔 여기가 `#/llm-console`(AI 관리)을 가리켰다 — "러너는 별개라
  * 그쪽으로 보내면 엉뚱하다"는 근거였다. 그런데 `probe_llm`(app/setup/probes.py)이 실제로
  * 재는 것은 `app.runners.models.Runner` 행이고, 그 프로브 자신의 안내 문구도 전부 "관리
@@ -56,7 +57,6 @@ export const SETUP_LINKS = {
   admin_account: { href: "#/users", label: "사용자 화면 열기" },
   mail: { href: "#/settings", label: "설정 화면 열기" },
   organization: { href: "#/departments", label: "부서 화면 열기" },
-  notion: { href: "#/notion-console", label: "Notion 관리 화면 열기" },
   user_mapping: { href: "#/notion-mapping", label: "Notion 연결 화면 열기" },
   llm: { href: "#/settings?tab=ai", label: "AI 설정 열기" },
   integrations: { href: "#/integrations", label: "외부 연동 화면 열기" },

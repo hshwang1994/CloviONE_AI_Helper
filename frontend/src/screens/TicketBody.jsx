@@ -2,7 +2,7 @@ import React from "react";
 import Box from "@mui/material/Box";
 import { EditableBody, hasUnsupportedBlocks, lineCount } from "../ui/EditableBody.jsx";
 import { PROSE_MAX_WIDTH } from "../ui/theme.js";
-import { DocBody } from "./TeamDoc.jsx";
+import { DocBody } from "../ui/DocBody.jsx";
 
 /* 티켓 본문 읽기·편집 (계획 Phase 3 §E).
  *
@@ -20,7 +20,7 @@ const PROSE_SX = { maxWidth: PROSE_MAX_WIDTH };
 
 export { lineCount, hasUnsupportedBlocks };
 
-export function TicketBody({ ticketId, blocks, blocksError, bodyMarkdown, bodyVersion, bodyIsLocal, bodySyncError, originalUrl, onSaved }) {
+export function TicketBody({ ticketId, blocks, blocksError, bodyMarkdown, bodyVersion, onSaved }) {
   return (
     <EditableBody
       editorId={"ticket-body-" + ticketId}
@@ -29,15 +29,13 @@ export function TicketBody({ ticketId, blocks, blocksError, bodyMarkdown, bodyVe
       blocks={blocks}
       bodyMarkdown={bodyMarkdown}
       bodyVersion={bodyVersion}
-      bodyIsLocal={bodyIsLocal}
-      bodySyncError={bodySyncError}
       onSaved={onSaved}
       // VIS-135: 헤더의 '수정'(TicketEditModal)과 이 버튼이 다른 것을 편집한다는 것을
       // 밝힌다 — 상태·담당자 같은 속성은 여기서 못 고친다.
       editButtonHint="본문 텍스트만 수정합니다. 상태, 담당자 등 속성은 위 '수정' 버튼에서 고칩니다."
       sourceView={(
         <Box sx={PROSE_SX}>
-          <DocBody blocks={blocks} blocksError={blocksError} originalUrl={originalUrl} />
+          <DocBody blocks={blocks} blocksError={blocksError} />
         </Box>
       )}
     />

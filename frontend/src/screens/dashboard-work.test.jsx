@@ -56,9 +56,12 @@ const WORK = {
         { project_id: "p1", name: "점수 낮음", code: "L1", status: "active",
           health_score: 30, progress_pct: null, notion_status: null,
           reasons: ["Health 점수 낮음"] },
-        { project_id: "p2", name: "노션 차질", code: null, status: "active",
-          health_score: 100, progress_pct: 50, notion_status: "차질",
-          reasons: ["노션 진행 상태가 차질"] },
+        /* 예전에는 이 행이 `notion_status: "차질"` + "노션 진행 상태가 차질" 이었다.
+           그 규칙은 얼어붙은 미러 컬럼으로 점수를 깎아 걷어냈으므로 서버가 이제 못 내는
+           모양이다. 화면이 여러 건을 어떻게 그리는지는 그대로 지킨다. */
+        { project_id: "p2", name: "점수 0점", code: null, status: "active",
+          health_score: 0, progress_pct: 50, notion_status: null,
+          reasons: ["Health 점수 낮음"] },
       ],
     },
   },

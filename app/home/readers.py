@@ -8,7 +8,8 @@
   * 채팅       → app/team_chat 의 저장소 + unread_for (채팅방 목록과 같은 규칙: 숨긴 1:1 제외,
                  전체 채팅 방 포함). 안읽음 계산을 여기서 다시 구현하지 않는다 — 두 벌이 되면
                  사이드바 배지와 홈 숫자가 서로 다른 말을 한다.
-  * 문서       → team_docs 캐시(archived 제외, last_edited 내림차순) — 문서 목록의 '최근 수정순'과 동일
+  * 문서       → knowledge 정본 documents(archived 제외, updated_at 내림차순) — 문서 목록의
+                 기본 정렬과 같다. 옛 미러(document_cache)는 안 읽는다(S14 · D1).
   * 게시판     → board 저장소 list_posts(sort=recent) — 자유게시판 첫 페이지와 동일
 
 티켓은 여기 없다. 티켓은 반드시 저장소 seam(app/tickets/service + repository)을 통해서만
@@ -17,7 +18,7 @@
 
 from __future__ import annotations
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.core.dates import iso_dt, parse_dt
@@ -26,10 +27,25 @@ from app.board.models import Post
 from app.core.db import batched
 from app.core.feature_flags import load_feature_flags
 from app.notifications.service import unread_count
-from app.team_docs.models import DocumentCache
 
 # 홈은 '무엇을 볼지 고르는' 화면이라 목록을 길게 싣지 않는다. 전체는 각 화면이 갖고 있다.
 RECENT_LIMIT = 5
+
+
+def _display_names(db: Session, user_ids) -> dict[str, str]:
+    """`user_id -> 표시 이름` — 질의 한 번. 없는 id 는 그냥 빠진다(빈 이름이 된다)."""
+    from app.users.models import User
+
+    wanted = sorted({str(uid) for uid in user_ids if uid})
+    if not wanted:
+        return {}
+    out: dict[str, str] = {}
+    for batch in batched(wanted):
+        rows = db.execute(
+            select(User.id, User.display_name).where(User.id.in_(batch))
+        ).all()
+        out.update({str(uid): (name or "") for uid, name in rows})
+    return out
 
 
 def notifications_unread(db: Session, user_id: str) -> int:
@@ -69,57 +85,68 @@ def chat_unread(db: Session, user, *, config_dir) -> int | None:
 
 
 def recent_documents(db: Session, *, limit: int = RECENT_LIMIT, viewer=None) -> list[dict]:
-    """최근 수정된 팀 문서. 문서 목록 화면의 기본 정렬(recent)과 같은 순서를 쓴다.
+    """최근 수정된 문서. **정본은 `documents` 다** (S14 · D1).
 
-    `last_edited` 는 이제 `timestamp` 다 (S7 · P-14a). 정렬은 그대로고, 화면에 나가는
-    값만 ISO 문자열로 옮긴다.
+    예전에는 Notion 미러(`document_cache`)를 읽었다. 이관 뒤 그 표는 제목이 110행 전부 빈
+    문자열이라, 이 위젯이 「(제목 없음)」 다섯 줄을 그리고 있었다. 정본을 읽으면 그 자리에
+    실제 제목이 들어간다.
 
-    휴지통 문서는 뺀다 -- `GET /api/team-docs` 목록은 이미 `exclude_page_ids`(trashed_page_ids)
-    로 거르는데 이 위젯만 `archived` 만 보고 있었다. 그래서 문서를 지운 뒤에도 홈 '최근 문서'에는
-    남아 있었고, 그 카드를 누르면 상세로 이어졌다(지운 문서로 가는 살아있는 링크).
+    정렬 축은 `updated_at` 이고, 문서 목록 화면
+    (`app/knowledge/service.py::list_documents`)이 쓰는 것과 같은 축이다. 두 화면이 다른
+    축으로 세우면 "목록 맨 위에 있는 문서가 홈에는 없다" 가 된다.
 
-    SEC-13: `GET /api/team-docs`(진짜 문서 목록)는 `service.doc_in_scope`로 부서 범위 밖
-    문서를 거르는데, 이 홈 위젯은 그 판정 자체가 없어 다른 부서 문서의 제목·소유자·수정시각이
-    전 직원 홈 화면에 그대로 떴다. `viewer`를 받아 같은 판정을 적용한다 — 부서 스코프 필터링은
-    Python 쪽(`doc_in_scope`)에서만 가능해 SQL LIMIT 뒤에 걸리므로, 필터 뒤 부족해지는 걸
-    막기 위해 넉넉히 더 가져와 거른 뒤 자른다(위젯 用 "최근 5건"이라 과다 조회 비용은 작다).
+    가시성 판정은 문서가 아니라 **공간**이 한다(D-245). 그래서 `doc_in_scope` 가 아니라
+    `RESOURCE_KNOWLEDGE_DOC` 의 가시성 절을 그대로 쓴다 — 목록 API 가 지나는 바로 그
+    함수라, 홈만 다른 답을 낼 자리가 없다. 조건이 SQL 이라 상한 **앞에** 걸리고, 예전처럼
+    넉넉히 오버페치해 파이썬에서 거를 이유도 사라졌다.
+
+    휴지통은 아직 옛 page id 로 담기므로 `legacy_page_id` 로 맞춰 본다 — 옛 화면에서 지운
+    문서가 새 위젯으로 되살아나면 그 카드는 열리지 않는 링크가 된다.
     """
+    from app.knowledge.models import Document
     from app.trash import repository as trash_repo
     from app.trash.models import TRASH_DOCUMENT
 
     trashed = trash_repo.trashed_page_ids(db, TRASH_DOCUMENT)
     stmt = (
-        select(DocumentCache)
-        .where(DocumentCache.archived.is_(False))
-        .order_by(DocumentCache.last_edited.desc().nulls_last(), DocumentCache.title.asc())
+        select(Document)
+        .where(Document.archived.is_(False))
+        .order_by(Document.updated_at.desc(), Document.title.asc())
     )
-    # 휴지통이 크지 않은 정상 범위에서는 SQL NOT IN 으로 거른다 -- 파이썬에서 한 번 더 페이지
-    # 만큼만 읽어서는 거른 뒤 limit 아래로 줄어들 수 있다(트래시 항목이 상위 몇 건에 몰린 경우).
-    # UA-24: `trashed`를 통째로 한 NOT IN에 박으면 SQLite 호스트 변수 상한(빌드에 따라
-    # 999~32766)을 넘는 순간 이 쿼리가, 곧 홈 전체가 처리 안 된 500이 된다 — 오래 쓴
-    # 설치일수록 휴지통은 계속 쌓이기만 하므로 "지금 안 넘는다"가 안전을 보장하지 않는다.
-    # NOT IN 여러 개를 이어 붙이면(.where()를 반복 호출하면 AND로 묶인다) 의미가 그대로
-    # 보존된다 — `x NOT IN A AND x NOT IN B` ≡ `x NOT IN (A ∪ B)`.
+    # UA-24: `trashed`를 통째로 한 NOT IN에 박으면 호스트 변수 상한을 넘는 순간 이 쿼리가,
+    # 곧 홈 전체가 처리 안 된 500이 된다 — 오래 쓴 설치일수록 휴지통은 계속 쌓이기만 하므로
+    # "지금 안 넘는다"가 안전을 보장하지 않는다. NOT IN 여러 개를 이어 붙이면(.where()를
+    # 반복 호출하면 AND로 묶인다) 의미가 그대로 보존된다 —
+    # `x NOT IN A AND x NOT IN B` ≡ `x NOT IN (A ∪ B)`.
     for batch in batched(list(trashed)):
-        stmt = stmt.where(DocumentCache.notion_page_id.notin_(batch))
-    fetch_limit = limit * 4 if viewer is not None else limit
-    rows = db.execute(stmt.limit(fetch_limit)).scalars().all()
+        stmt = stmt.where(
+            or_(Document.legacy_page_id.is_(None), Document.legacy_page_id.notin_(batch))
+        )
     if viewer is not None:
-        from app.authz.visibility import context_for_user
-        from app.team_docs.service import doc_in_scope
+        from app.authz.visibility import (
+            RESOURCE_KNOWLEDGE_DOC,
+            context_for_user,
+            effective_visibility_clause,
+        )
 
-        ctx = context_for_user(db, viewer)
-        rows = [r for r in rows if doc_in_scope(db, r, viewer, ctx=ctx)][:limit]
+        clause = effective_visibility_clause(context_for_user(db, viewer), RESOURCE_KNOWLEDGE_DOC)
+        if clause is not None:
+            stmt = stmt.where(clause)
+    rows = db.execute(stmt.limit(limit)).scalars().all()
+    # 옛 미러의 `owner` 는 Notion 이 준 표시 이름 문자열이었다. 자체 DB 에는 만든 사람의
+    # 계정 참조(`created_by`)만 있으므로 이름은 여기서 **한 번에** 붙인다 — 행마다 물으면
+    # 그대로 N+1 이다.
+    owner_names = _display_names(db, [r.created_by for r in rows])
     return [
         {
-            # 화면 딥링크(#/team-docs/:id)가 쓰는 키와 같아야 한다 — 문서 API 의 id 는 page id 다.
-            "id": r.notion_page_id,
-            "title": r.title or "(제목 없음)",
-            "document_type": r.document_type,
-            "owner": r.owner or "",
-            "last_edited": iso_dt(r.last_edited),
+            # 화면 딥링크(/knowledge/:id)가 쓰는 키와 같아야 한다.
+            "id": document.id,
+            "title": document.title or "(제목 없음)",
+            "document_type": document.doc_type,
+            "owner": owner_names.get(document.created_by, ""),
+            "last_edited": iso_dt(document.updated_at),
         }
-        for r in rows
+        for document in rows
     ]
 
 
@@ -182,43 +209,56 @@ def documents_changed_between(
     수정 시각을 봤다. `viewer`를 받아 같은 판정을 적용한다.
 
     `count`는 "상위 N건 미리보기"가 아니라 다이제스트가 그대로 보여주는 **정확한 총
-    건수**라, `recent_documents`처럼 넉넉히 오버페치해 자르는 방식은 못 쓴다(스코프
-    필터 뒤 표본이 모자라면 count가 틀린다) — 주간 창 안의 변경 건수는 일반적으로
-    작으므로, scope 판정 전 전량을 읽어 정확히 세고 그 뒤에 limit로 자른다.
+    건수**다. 그래서 세는 질의와 보여 주는 질의가 **같은 조건**에서 갈라져 나온다 —
+    조건이 두 벌이 되면 "3건이라는데 목록에는 1건" 이 된다.
+
+    S14: `recent_documents` 와 **같은 이유로** 정본(`documents`)을 읽는다. 형제 함수 둘이
+    다른 표를 읽으면 "홈에는 있는데 주간 요약에는 없다" 가 되고, 그 어긋남은 조용하다.
+    창 경계도 그 위젯과 같은 축(`updated_at`)에 건다. 가시성은 `RESOURCE_KNOWLEDGE_DOC`
+    절이라 SQL 이고, 그래서 `count` 를 세기 전에 이미 걸려 있다 — 파이썬으로 거른 뒤 세던
+    예전 관용구가 필요 없어졌다.
     """
+    from app.knowledge.models import Document
     from app.trash import repository as trash_repo
     from app.trash.models import TRASH_DOCUMENT
 
     trashed = trash_repo.trashed_page_ids(db, TRASH_DOCUMENT)
-    base = (
-        DocumentCache.archived.is_(False),
-        # 창 경계는 naive UTC ISO 문자열로 들어온다(`home.service.utc_iso_bounds`).
-        # 컬럼이 `timestamp` 라 여기서 한 번 옮긴다 — 문자열 비교로 자르던 M4 시절의
-        # 관용구가 아직 남아 있는 자리다 (S7 · P-14a).
-        DocumentCache.last_edited >= parse_dt(since_iso),
-        DocumentCache.last_edited < parse_dt(until_iso),
+    scoped = (
+        select(Document)
+        .where(
+            Document.archived.is_(False),
+            # 창 경계는 naive UTC ISO 문자열로 들어온다(`home.service.utc_iso_bounds`).
+            Document.updated_at >= parse_dt(since_iso),
+            Document.updated_at < parse_dt(until_iso),
+        )
     )
-    if trashed:
-        base = (*base, DocumentCache.notion_page_id.notin_(trashed))
-    rows = db.execute(
-        select(DocumentCache)
-        .where(*base)
-        .order_by(DocumentCache.last_edited.desc(), DocumentCache.title.asc())
-    ).scalars().all()
+    for batch in batched(list(trashed)):
+        scoped = scoped.where(
+            or_(Document.legacy_page_id.is_(None), Document.legacy_page_id.notin_(batch))
+        )
     if viewer is not None:
-        from app.authz.visibility import context_for_user
-        from app.team_docs.service import doc_in_scope
+        from app.authz.visibility import (
+            RESOURCE_KNOWLEDGE_DOC,
+            context_for_user,
+            effective_visibility_clause,
+        )
 
-        ctx = context_for_user(db, viewer)
-        rows = [r for r in rows if doc_in_scope(db, r, viewer, ctx=ctx)]
-    total = len(rows)
-    rows = rows[:limit]
+        clause = effective_visibility_clause(context_for_user(db, viewer), RESOURCE_KNOWLEDGE_DOC)
+        if clause is not None:
+            scoped = scoped.where(clause)
+    total = db.execute(
+        select(func.count()).select_from(scoped.order_by(None).subquery())
+    ).scalar_one()
+    rows = db.execute(
+        scoped.order_by(Document.updated_at.desc(), Document.title.asc()).limit(limit)
+    ).scalars().all()
+    owner_names = _display_names(db, [r.created_by for r in rows])
     return {
-        "count": total,
+        "count": int(total),
         "items": [
-            {"id": r.notion_page_id, "title": r.title or "(제목 없음)",
-             "document_type": r.document_type, "owner": r.owner or "",
-             "last_edited": iso_dt(r.last_edited)}
+            {"id": r.id, "title": r.title or "(제목 없음)",
+             "document_type": r.doc_type, "owner": owner_names.get(r.created_by, ""),
+             "last_edited": iso_dt(r.updated_at)}
             for r in rows
         ],
     }

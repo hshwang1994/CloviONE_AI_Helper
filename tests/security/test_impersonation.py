@@ -138,26 +138,33 @@ def test_state_read_count_increments_once_not_per_poll(impersonating, db):
 # 아래 세 테스트: 쓰기 차단(_guard_impersonation_write)은 HTTP 메서드로만 판정한다
 # (SAFE_METHODS 는 통과). GET 라우트가 그 안에서 자기도 모르게 DB를 쓰면 이 가드를 아예
 # 지나지 않는다 — 대상 이름으로 남는 감사 없는 쓰기라는 점은 위의 read_count 결함과 같은
-# 종류다. team_docs·team_chat·games 세 곳에서 독립적으로 같은 패턴이 발견됐다.
+# 종류다. 문서·team_chat·games 세 곳에서 독립적으로 같은 패턴이 발견됐다.
 def test_document_view_does_not_record_recent_view_while_impersonating(impersonating, db):
-    """GET /api/team-docs/{page_id} 가 부르는 record_view 는 SAFE_METHOD 뒤에 숨어 있어
-    임퍼소네이션 중에도 대상의 '최근 열람'을 조용히 만들었다(app/team_docs/router.py)."""
-    from app.core.models_base import utcnow
-    from app.team_docs.models import DocumentCache, DocumentRecentView
+    """GET /api/knowledge/documents/{id} 가 부르는 최근 열람 기록은 SAFE_METHOD 뒤에 숨어
+    있어, 임퍼소네이션 중에도 대상의 '최근 열람'을 조용히 만들었다.
+
+    S14 · C2 에서 이 축이 옛 미러에서 정본 문서로 옮겨 왔다 — 옮기면서 이 가드가 빠지면
+    같은 결함이 새 자리에서 되살아나므로, 시험도 같이 옮겨 그 자리를 계속 누른다.
+    """
+    from app.knowledge.models import Document, DocumentRecentView, KnowledgeSpace
 
     client, _csrf, target_id = impersonating
-    # 문서 소속(0060) — 소속이 없으면 전역 관리자 말고는 아무도 못 열고, 이 시험이
-    # 보려는 것은 접근 게이트가 아니라 "GET 이 조용히 쓰기를 하는가" 다.
-    db.add(DocumentCache(notion_page_id="imp-doc-1", title="문서", synced_at=utcnow(),
-                         owner_kind="organization"))
+    # 공간 소속 — 소속이 없으면 전역 관리자 말고는 아무도 못 열고, 이 시험이 보려는 것은
+    # 접근 게이트가 아니라 "GET 이 조용히 쓰기를 하는가" 다.
+    space = KnowledgeSpace(name="임퍼소네이션 공간", slug="imp-space",
+                           owner_kind="organization")
+    db.add(space)
+    db.flush()
+    doc = Document(space_id=space.id, title="문서")
+    db.add(doc)
     db.commit()
 
-    resp = client.get("/api/team-docs/imp-doc-1")
+    resp = client.get(f"/api/knowledge/documents/{doc.id}")
     assert resp.status_code == 200, resp.text
 
     db.expire_all()
     seen = db.execute(
-        select(DocumentRecentView).filter_by(user_id=target_id, notion_page_id="imp-doc-1")
+        select(DocumentRecentView).filter_by(user_id=target_id, document_id=doc.id)
     ).scalar_one_or_none()
     assert seen is None, "임퍼소네이션 중 GET이 대상의 최근 열람 기록을 만들었다"
 

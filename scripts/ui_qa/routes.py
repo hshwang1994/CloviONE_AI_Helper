@@ -6,7 +6,7 @@ Sources (re-derive from these if the app's routing changes):
     * ``UserBody()``  — the ``<Route>`` elements of the user console
       (/me, /my-tickets, /unassigned, /new-ticket, /tickets/:id, /team-tickets,
       /work-board, /sprint, /chat, /chat-rooms, /chat-rooms/:id, /board, /board/:id,
-      /team-docs, /team-docs/trash, /team-docs/:id, /knowledge, /knowledge/:id,
+      /team-docs/trash, /knowledge, /knowledge/:id,
       /games, /games/:id,
       /notifications).
     * ``AdminBody()`` — the hard-coded admin ``<Route>`` elements
@@ -140,6 +140,10 @@ def _alias(rid, path, target, label, min_role="operator", allowed=()) -> Route:
     화면으로 세면 PNG 는 도착지 화면인데 검사는 전부 통과하고 커버리지는 한 화면을 둘로
     센다 — 실제로 `/system`·`/notion-console`·`/llm-console`·`/maintenance` 네 개가
     그렇게 세어지고 있었다. `ALL_ROUTES` 에서 빼고 리다이렉트 계약 검증에만 쓴다.
+
+    그중 `/notion-console` 은 여기서도 빠졌다. 도착지였던 설정의 '연동' 탭이 없어지면서
+    `AdminRoutes.jsx` 가 그 `<Navigate>` 를 지웠으므로 검증할 리다이렉트 계약 자체가 없다 —
+    남겨 두면 하네스가 없어진 계약을 확인하려다 404 를 찍는다.
     """
     return Route(
         id=rid, hash_path=path, console="admin", label=label,
@@ -180,15 +184,11 @@ USER_ROUTES: tuple[Route, ...] = (
     _u("user_board", "/board", "자유게시판"),
     _u("user_board-post", "/board", "게시글 상세",
        hash_template="/board/{id}", discover=("/api/board/posts",)),
-    _u("user_team-docs", "/team-docs", "문서"),
     _u("user_team-docs-trash", "/team-docs/trash", "문서 휴지통"),
-    _u("user_team-doc-detail", "/team-docs", "문서 상세",
-       hash_template="/team-docs/{id}", discover=("/api/team-docs",)),
-    # 지식 공간(S7). **사이드바 항목이 없다** — 사용자 서랍 한 그룹이 여섯 항목을 넘지
-    # 않는다는 계약 때문이고, 입구는 「문서」 화면에 있다(navConfig.js ROUTE_OWNER 주석).
-    # 캡처 대상이 아닌 것은 아니다: 화면은 있고 주소로 도달한다.
-    _u("user_knowledge", "/knowledge", "지식 공간"),
-    _u("user_knowledge-doc", "/knowledge", "지식 문서 상세",
+    # 문서는 화면 하나다 (S14 · C2). 옛 `/team-docs`, `/team-docs/{id}` 는 여기로 넘기는
+    # 자리라 찍을 것이 없다 — 찍으면 같은 화면이 두 이름으로 두 번 들어온다.
+    _u("user_knowledge", "/knowledge", "문서"),
+    _u("user_knowledge-doc", "/knowledge", "문서 상세",
        hash_template="/knowledge/{id}", discover=("/api/knowledge/documents",)),
     # AI 작업공간(S10). 지식 공간과 같은 부류다 — **사이드바 항목이 없고** 입구는
     # 「AI 도우미」 화면에 있다(navConfig.js ROUTE_OWNER). 캡처 대상이 아닌 것은 아니다.
@@ -367,7 +367,7 @@ ADMIN_ROUTES: tuple[Route, ...] = (
 )
 
 # --- 옛 주소(리다이렉트) -------------------------------------------------------
-# `AdminRoutes.jsx:216-219` 가 `<Navigate to="/settings?tab=…" replace />` 로 바꿨다.
+# `AdminRoutes.jsx` 가 `<Navigate to="/settings?tab=…" replace />` 로 바꿨다.
 # **화면이 아니다.** 캡처하면 도착지 화면의 PNG 가 네 장 더 생기고 그 위에서 21개 검사가
 # 전부 통과한다 — 커버리지가 한 화면을 둘로 세는 정확히 그 함정이다(PLAN C1b).
 # 여기 남겨 두는 이유는 리다이렉트 계약을 검증하기 위해서다
@@ -376,8 +376,6 @@ ADMIN_ROUTES: tuple[Route, ...] = (
 ALIAS_ROUTES: tuple[Route, ...] = (
     _alias("admin_system", "/system", "/settings?tab=os", "시스템 설정(옛 주소)",
            "system_admin", ("system_admin",)),
-    _alias("admin_notion-console", "/notion-console", "/settings?tab=integration",
-           "Notion 관리(옛 주소)", "system_admin", ("system_admin",)),
     _alias("admin_llm-console", "/llm-console", "/settings?tab=ai",
            "AI 관리(옛 주소)", "system_admin", ("system_admin",)),
     _alias("admin_maintenance", "/maintenance", "/settings?tab=policy",
@@ -418,7 +416,6 @@ SURFACE_ID_OVERRIDES: dict[str, str] = {
     "user_chat-room-detail": "user_chat-rooms-id",
     "user_game-room": "user_games-id",
     "user_project-detail": "user_projects-id",
-    "user_team-doc-detail": "user_team-docs-id",
     "user_ticket-detail": "user_tickets-id",
 }
 

@@ -8,9 +8,8 @@ import Typography from "@mui/material/Typography";
 import { Badge, Button } from "../../ui/kit.jsx";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../../ui/theme.js";
 import {
-  fmtDue, peopleText, priorityKind, priorityKo, projectToneColor, safeNotion,
+  fmtDue, peopleText, priorityKind, priorityKo, projectToneColor,
 } from "../chat-helpers.js";
-import { NotionLink, PlainUrl } from "./links.jsx";
 
 // ── 결과 카드 ───────────────────────────────────────────────────────────────
 
@@ -37,7 +36,9 @@ function CardRow({ label, children }) {
  * 스레드인지 알 수 없다. */
 export function TicketCard({ t, index, onChoose, isTicket = true, sending }) {
   const [showAllProjects, setShowAllProjects] = useState(false);
-  const url = t.url || t.notion_url || t.link;
+  /* 여기 외부 원본 링크를 뽑는 줄이 있었다(`t.url` 과 그 옛 별칭 둘). 서버가 셋 중
+     어느 것도 안 싣는다 - 티켓 응답의 `url` 은 옛 Notion 주소라 걷었고, 답변 페이로드에는
+     애초에 없다. 앱 안의 티켓 상세로 가는 「앱에서 보기」만 남는다. */
   // 담당자, 정/부는 배열(이름 또는 {name})이 올 수 있다, peopleText로 어떤 모양이든 안전하게.
   // "미할당" 폴백은 진짜 티켓(단일 담당자 개념이 있는)에만 붙인다, 프로젝트/결과/일반 항목 카드는
   // 애초에 단일 담당자 개념이 없어 항상 '담당자: 미할당'을 보여주면 없는 데이터를 있는 것처럼 오도한다.
@@ -109,10 +110,9 @@ export function TicketCard({ t, index, onChoose, isTicket = true, sending }) {
           </Box>
         </CardRow>
       ) : null}
-      {url || (isTicket && t.id) || (typeof index === "number" && onChoose) ? (
+      {(isTicket && t.id) || (typeof index === "number" && onChoose) ? (
         <Stack direction="row" flexWrap="wrap" alignItems="center" gap={1.5} sx={{ mt: 0.5 }}>
-          {url ? (safeNotion(url) ? <NotionLink url={url} /> : <PlainUrl url={url} />) : null}
-          {/* AI-41: 결과 카드에서 Notion 외부 링크만 있고 앱 내 티켓 상세로 가는 길이 없었다
+          {/* AI-41: 결과 카드에서 앱 내 티켓 상세로 가는 길이 없었다
               (AssistantPanel.jsx의 같은 카드는 이미 #/tickets/{id}로 간다) — 같은 패턴을 쓴다. */}
           {isTicket && t.id ? <Link href={"#/tickets/" + t.id} underline="hover" sx={{ fontSize: FONT_SIZE.bodySm, fontWeight: FONT_WEIGHT.bold }}>앱에서 보기</Link> : null}
           {typeof index === "number" && onChoose ? (
@@ -128,7 +128,7 @@ export function TicketCard({ t, index, onChoose, isTicket = true, sending }) {
  * 예전엔 이 목록이 말풍선 렌더 안에 인라인으로 펼쳐져 있어서, 레일을 만들려면 통째로 복제해야
  * 했다 — 복제하면 순번 규칙(어느 카드에 'N.'을 붙이는가)이 반드시 한쪽만 고쳐진다. */
 export function CardStack({ payload, startNo, onChoose, sending, gap = 1 }) {
-  const { ticketsArr, tickets, projects, listItems, results, notionUrl, notionUnsafe, hasCards } = payload;
+  const { ticketsArr, tickets, projects, listItems, results } = payload;
   return (
     <Box sx={{ display: "grid", gap, minWidth: 0 }}>
       {/* 순번(index)은 본문 목록과 짝이 맞는 tickets 배열분에만 붙인다, 그 뒤에 이어붙은 단일 ticket은
@@ -143,12 +143,8 @@ export function CardStack({ payload, startNo, onChoose, sending, gap = 1 }) {
       {projects.map((t, i) => <TicketCard key={"p" + i} t={t} isTicket={false} sending={sending} />)}
       {listItems.map((t, i) => <TicketCard key={"i" + i} t={t} isTicket={false} sending={sending} />)}
       {results.map((t, i) => <TicketCard key={"r" + i} t={t} isTicket={false} sending={sending} />)}
-      {!hasCards && (notionUrl || notionUnsafe) ? (
-        <Paper variant="outlined" sx={{ p: 1.75, borderRadius: 3, bgcolor: "background.default", display: "grid", gap: 0.75 }}>
-          <Typography sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: FONT_SIZE.body }}>관련 문서</Typography>
-          {notionUrl ? <NotionLink url={notionUrl} /> : <PlainUrl url={notionUnsafe} />}
-        </Paper>
-      ) : null}
+      {/* 여기 카드가 하나도 없을 때 뜨는 「관련 문서」 링크 카드가 있었다. 서버가 그
+          페이로드를 안 싣는다 - chat-helpers.js 의 설명 참고. */}
     </Box>
   );
 }

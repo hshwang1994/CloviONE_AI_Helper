@@ -18,6 +18,8 @@
 
 ⚠️ 순수 함수만 시험하면 배선을 증명하지 못한다(이 저장소에서 실제로 다섯 번 겪었다).
 그래서 `tenant_config_status` 단위 검사와 **HTTP 로 진단 번들을 받아 보는 검사**를 둘 다 둔다.
+
+qa-contract-change: 노션 데이터베이스 id 두 개가 설정에서 사라져 그 키를 이름으로 묻던 단언들이 대상을 잃었고, 빈 id 로 외부 조회가 나가지 않는지 보던 시험은 조회 경로 자체가 없어져 지운다. 대신 기본값 검사를 어느 필드에도 그 값이 없다로 강화하고, 진단이 사라진 키를 되살려 말하지 않는지를 새로 못박는다.
 """
 
 from __future__ import annotations
@@ -54,10 +56,14 @@ def _bare_settings(**overrides) -> Settings:
 
 def test_default_settings_have_no_customer_identifiers():
     s = _bare_settings()
-    assert s.notion_tasks_database_id == ""
-    assert s.notion_documents_database_id == ""
     assert s.allowed_email_domains == ""
     assert s.allowed_email_domain_list == []
+    # 노션 데이터베이스 id 두 개는 설정 **필드 자체가** 없어졌다(S14). 그래서 이름으로
+    # 묻는 대신 **어느 필드에도 그 값이 없다**로 본다 — 필드 이름이 바뀌어 되살아나도
+    # 이 검사는 그대로 잡는다.
+    values = {str(getattr(s, name)) for name in Settings.model_fields}
+    assert CUSTOMER_NOTION_TASKS_DB not in values
+    assert CUSTOMER_NOTION_DOCS_DB not in values
     # 기본 base url 은 개발용 루프백이어야 한다. 고객사 호스트가 여기 있으면 메일 링크와
     # 리다이렉트가 남의 서버를 가리킨다. `APP_BASE_URL` 은 설치처 env 가 정한다(S3).
     assert CUSTOMER_HOST not in s.app_base_url
@@ -114,24 +120,6 @@ def test_configured_domain_list_still_rejects_outsiders():
         validate_company_email("nope@other.example", s)
 
 
-def test_notion_query_without_database_id_says_not_configured():
-    """DB id 가 비면 "조회 실패" 가 아니라 "설정 안 됨" 이어야 한다.
-
-    빈 id 로 그냥 부르면 Notion 이 400 을 주고 화면은 "조회 실패" 를 그린다. 운영자는
-    네트워크나 토큰을 의심하며 시간을 버린다. 설정이 비었다는 사실은 부르기 전에 안다.
-    """
-    from app.core.errors import NotionNotConfiguredError
-    from app.reports import notion_source
-
-    class _NeverCalled:
-        def post(self, *a, **kw):  # pragma: no cover - 불려서는 안 된다
-            raise AssertionError("DB id 가 없는데 외부 호출이 나갔다")
-
-    s = _bare_settings()
-    with pytest.raises(NotionNotConfiguredError):
-        notion_source.query_all_tasks(_NeverCalled(), s)
-
-
 # ── 3. 진단이 "설정 안 됨" 을 구분해 말한다 ──────────────────────────────────
 
 
@@ -141,22 +129,20 @@ def test_tenant_config_status_marks_unset_items():
     status = tenant_config_status(_bare_settings())
     assert status["configured"] is False
     by_key = {item["key"]: item for item in status["items"]}
-    assert by_key["notion_tasks_database_id"]["state"] == "unset"
-    assert by_key["notion_documents_database_id"]["state"] == "unset"
     assert by_key["allowed_email_domains"]["state"] == "unset"
+    # 노션 데이터베이스 id 두 개가 여기 있었다. 설정 자체가 사라졌으므로 목록에도 없어야
+    # 한다 — 남아 있으면 진단이 **존재하지 않는 값**을 안 채웠다고 말한다.
+    assert "notion_tasks_database_id" not in by_key
+    assert "notion_documents_database_id" not in by_key
     # 빈 값이 아니라 "왜 문제인가" 를 사람 문장으로 들고 있어야 화면이 안내를 그릴 수 있다.
-    assert by_key["notion_tasks_database_id"]["when_unset"].strip()
+    assert by_key["allowed_email_domains"]["when_unset"].strip()
 
 
 def test_tenant_config_status_marks_set_items():
     from app.core.tenant_config import tenant_config_status
 
     status = tenant_config_status(
-        _bare_settings(
-            notion_tasks_database_id="t" * 32,
-            notion_documents_database_id="d" * 32,
-            allowed_email_domains="example.com",
-        )
+        _bare_settings(allowed_email_domains="example.com")
     )
     assert status["configured"] is True
     assert all(item["state"] == "set" for item in status["items"])
@@ -214,27 +200,23 @@ def test_diagnostics_bundle_reports_tenant_config(client, login_as, settings):
     """
     login_as("system_admin")
 
-    # 1) 픽스처는 노션 DB id 를 채워 둔다(설정을 마친 설치). 이메일 도메인은 비어 있다.
+    # 1) 갓 설치한 상태. 픽스처는 이메일 도메인을 비워 둔다.
     tenant = client.get("/api/admin/diagnostics/bundle").json()["tenant_config"]
     states = {item["key"]: item["state"] for item in tenant["items"]}
-    assert states["notion_tasks_database_id"] == "set"
-    assert states["notion_documents_database_id"] == "set"
     assert states["allowed_email_domains"] == "unset"
     # 하나라도 비면 '설정 완료'가 아니다.
     assert tenant["configured"] is False
     assert tenant["unset_count"] == 1
-
-    # 2) 갓 설치한 상태를 만든다. 응답이 따라 바뀌어야 한다.
-    live = client.app.state.settings
-    live.notion_tasks_database_id = ""
-    live.notion_documents_database_id = ""
-    tenant = client.get("/api/admin/diagnostics/bundle").json()["tenant_config"]
-    states = {item["key"]: item["state"] for item in tenant["items"]}
-    assert states["notion_tasks_database_id"] == "unset"
-    assert states["notion_documents_database_id"] == "unset"
-    assert tenant["unset_count"] == 3
     # 화면이 "아직 설정하지 않았습니다"를 그릴 수 있게 안내 문장도 같이 온다.
     assert all(item["when_unset"].strip() for item in tenant["items"])
+
+    # 2) 설정을 마친 설치로 바꾼다. 응답이 따라 바뀌어야 한다.
+    client.app.state.settings.allowed_email_domains = "example.com"
+    tenant = client.get("/api/admin/diagnostics/bundle").json()["tenant_config"]
+    states = {item["key"]: item["state"] for item in tenant["items"]}
+    assert states["allowed_email_domains"] == "set"
+    assert tenant["configured"] is True
+    assert tenant["unset_count"] == 0
 
 
 # ── 4. 정적 검사가 실제로 돈다 ───────────────────────────────────────────────

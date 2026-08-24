@@ -7,12 +7,12 @@ import "@testing-library/jest-dom/vitest";
 
 /* 댓글 초안이 다른 자원(다른 문서·다른 티켓)으로 넘어가도 남아 있던 버그.
  *
- * TeamDoc.jsx/Ticket.jsx는 같은 라우트("/team-docs/:id", "/tickets/:id")를 쓰므로, 알림
+ * KnowledgeDoc.jsx/Ticket.jsx는 같은 라우트("/knowledge/:id", "/tickets/:id")를 쓰므로, 알림
  * 딥링크 등으로 id만 바뀌는 인앱 이동을 하면 화면 컴포넌트는 리마운트되지 않는다(react-router
  * 는 같은 자리의 같은 엘리먼트를 재사용한다) — MEMORY.md의 "컴포넌트가 라우트 파라미터
  * 변경에 걸쳐 마운트된 채로 남으면 id별 상태를 리셋해야 한다" 규칙이 정확히 이 자리다.
  *
- * DocComments/TicketComments는 pageId/ticketId prop만 새로 받고 그 안의 CommentThread
+ * DocComments/TicketComments는 documentId/ticketId prop만 새로 받고 그 안의 CommentThread
  * 인스턴스는 그대로 남아, 문서(티켓) A에 쓰던 댓글 초안이 지워지지 않은 채 문서(티켓) B의
  * 댓글창에 남는다 — 그대로 "등록"을 누르면 B에 대한 댓글로 잘못 올라간다.
  */
@@ -28,7 +28,7 @@ import { TicketComments } from "./TicketComments.jsx";
 import { ConfirmProvider, ToastProvider } from "../ui/kit.jsx";
 import { ThemeModeProvider } from "../ui/ThemeModeProvider.jsx";
 
-// TeamDoc.jsx/Ticket.jsx가 id 파라미터만 바뀌어도 리마운트되지 않는 상황을 그대로 흉내낸다 —
+// KnowledgeDoc.jsx/Ticket.jsx가 id 파라미터만 바뀌어도 리마운트되지 않는 상황을 흉내낸다 —
 // Comp 자체는 계속 마운트된 채, prop(id)만 바뀐다.
 function Harness({ Comp, propName, first, second }) {
   const [id, setId] = React.useState(first);
@@ -61,7 +61,7 @@ beforeEach(() => {
 describe("댓글 초안은 다른 자원으로 이동하면 비워진다", () => {
   it("문서 댓글 — 다른 문서로 이동하면 이전 문서용 초안이 남지 않는다", async () => {
     const user = userEvent.setup();
-    wrap(<Harness Comp={DocComments} propName="pageId" first="doc-1" second="doc-2" />);
+    wrap(<Harness Comp={DocComments} propName="documentId" first="doc-1" second="doc-2" />);
 
     const box = await screen.findByLabelText("댓글 입력");
     await user.type(box, "doc-1에 쓰던 초안");

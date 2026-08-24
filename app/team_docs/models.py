@@ -1,8 +1,10 @@
-"""팀 공간 > 문서 모델 (§17, §20).
+"""옛 문서 미러(`document_cache`)와 그 동기화 상태.
 
-Notion "문서" DB의 로컬 미러 캐시 + 동기화 상태 + 사용자별 즐겨찾기/최근 열람. 캐시가 있어
-Notion이 장애여도 마지막 정상 동기화 데이터로 목록을 계속 보여줄 수 있다(§17.4 장애 격리).
-본문(블록)은 캐시하지 않고 상세 조회 때 실시간으로 읽는다(용량·신선도 균형).
+**여기 있는 것은 옛 미러다** (S14 · D1). 문서의 정본은 `documents`(Knowledge Domain)이고
+사용자에게 보이는 경로는 그쪽만 읽는다. 이 표는 이관 흔적과 소속(부서·프로젝트) 집계가
+아직 참조하고 있어 남아 있을 뿐이고, 표를 내리는 것은 별도 작업이다.
+
+사람이 문서에 남긴 것(댓글·즐겨찾기·최근 열람)은 `app/knowledge/models.py` 로 옮겼다.
 """
 
 from __future__ import annotations
@@ -10,16 +12,13 @@ from __future__ import annotations
 from datetime import date, datetime
 
 from sqlalchemy import (
-    BigInteger,
     Boolean,
     Date,
     DateTime,
     ForeignKey,
-    Identity,
     Integer,
     String,
     Text,
-    UniqueConstraint,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -162,8 +161,9 @@ class DocumentSyncState(Base):
     last_run_at: Mapped[datetime | None] = mapped_column(DateTime)
     last_success_at: Mapped[datetime | None] = mapped_column(DateTime)
     doc_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    # 마지막 동기화가 **실제로 지운** 건수(드리프트 지표). 바닥에 걸려 삭제를 거부했으면 0 이고
-    # status 가 SYNC_ERROR + error 에 이유가 남는다 — core/sync_prune.py 참조.
+    # 마지막 동기화가 **실제로 지운** 건수(드리프트 지표)였다. 미러 동기화가 사라진 뒤로
+    # (S14 · D-284) 이 칸에 쓰는 코드가 없다 — 표를 내리는 것은 별도 migration 몫이라
+    # 컬럼만 남아 있고, 값은 항상 0 이다.
     pruned_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     error: Mapped[str | None] = mapped_column(Text)
     updated_at: Mapped[datetime] = mapped_column(
@@ -171,110 +171,9 @@ class DocumentSyncState(Base):
     )
 
 
-class DocumentFavorite(UUIDPrimaryKeyMixin, Base):
-    """사용자별 문서 즐겨찾기.
-
-    **notion_page_id 와 document_id 를 둘 다 든다(0025).** 유일 제약과 조회는 계속
-    notion_page_id 로 한다 — 소스가 Notion 인 동안 그게 안정적인 키이고, 미러가 아직
-    그 페이지를 못 봤을 때도 즐겨찾기는 걸려야 하기 때문이다. document_id 는 미러 행이
-    있을 때 채워지는 **보조 참조**로, 소스가 자체 DB 로 바뀔 때 이어질 다리다.
-    """
-
-    __tablename__ = "document_favorites"
-
-    user_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
-    notion_page_id: Mapped[str] = mapped_column(String(64), nullable=False)
-    # 미러에 아직 없는 페이지면 NULL. FK 를 걸지 않는 이유는 0025 docstring 참조.
-    document_id: Mapped[str | None] = mapped_column(String(36), index=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
-
-    __table_args__ = (
-        UniqueConstraint("user_id", "notion_page_id", name="uq_doc_favorite"),
-    )
-
-
-class DocumentComment(UUIDPrimaryKeyMixin, TimestampMixin, Base):
-    """문서 댓글 (사용자 지적 #9).
-
-    구조는 티켓 댓글(`app/tickets/models.py::TicketComment`)을 그대로 옮겼다: 툼스톤
-    soft-delete(`deleted_at`), 작성자 본인 또는 운영자군 권한, 쓰기마다 목록 전체 응답.
-    **다르게 한 것은 부모를 가리키는 방법 하나뿐이고, 그건 일부러 다르다.**
-
-    ## 왜 `document_cache.id` 에 CASCADE 를 걸지 않았는가
-
-    티켓 댓글은 `ticket_cache.id` 에 `ondelete="CASCADE"` 로 걸려 있었고, 그 선택이
-    사용자 데이터를 지웠다: 티켓이 소스 응답에서 **한 회차** 빠지면 prune 이 캐시 행을
-    지우고 CASCADE 가 댓글과 첨부를 함께 지웠다(재현 기록:
-    `tests/regression/test_comment_survives_resync.py`). 그래서 0043 이 소프트 프룬
-    (`ticket_cache.notion_missing_at`)을 도입해 **지우는 대신 표시**하게 고쳤다.
-
-    문서 동기화도 같은 prune 을 한다(`app/team_docs/sync.py::_prune`). 그런데 문서 쪽에는
-    그 표시 컬럼이 **없어서 지금도 진짜로 지운다.** 즉 여기에 CASCADE 를 걸면 이미 한 번
-    값을 치르고 배운 함정을 그대로 다시 파는 것이 된다. 반대로 RESTRICT 로 막는 것도 안
-    된다 - 캐시 행 DELETE 가 실패하고 sync 는 예외를 통째로 삼키므로 **문서 미러 전체가
-    조용히 멈춘다**(0028 이 CASCADE 를 고른 이유가 정확히 그 걱정이었고, 그 걱정 자체는
-    지금도 맞다).
-
-    ## 그래서 조회 키는 `notion_page_id`, FK 는 `SET NULL` 다리다 (0025 관용)
-
-    같은 모듈의 `DocumentFavorite` / `DocumentRecentView` 가 이미 이 모양이다: 유일성과
-    조회는 `notion_page_id` 가 담당하고 `document_id` 는 미러 행이 있을 때 채워지는 보조
-    참조다. 그 판단이 댓글에도 그대로 맞는다.
-
-      * 캐시 행이 prune 으로 사라져도 댓글은 **남는다**(그 순간에는 문서 자체가 포탈에서
-        안 보이므로 화면에서도 함께 사라진다 - 조회는 `get_doc_in_scope` 를 지난다).
-      * FK 가 `ON DELETE SET NULL` 이라 그 DELETE 는 **실패하지 않는다**. 동기화가 멈추지
-        않는다.
-      * 문서가 다음 회차에 돌아오면 `_upsert` 가 **새 UUID 로** 캐시 행을 만드는데, 댓글은
-        page id 로 붙어 있어 그대로 다시 보인다. 티켓에서 '결정적 UUID' 로도 못 고쳤던
-        상황이 여기서는 애초에 생기지 않는다.
-
-    티켓이 page id 를 못 쓴 이유(자체 생성 티켓은 page id 가 아예 없다)는 문서에 없다.
-    `document_cache.notion_page_id` 는 NOT NULL + UNIQUE 이고 문서 API 는 처음부터 page id
-    로만 말한다. 소스가 자체 DB 로 바뀌는 날 이어 붙일 다리가 `document_id` 이고, 그때
-    조회 키를 옮기는 것은 이 표 하나를 고치는 일이다.
-
-    ## 문서 쪽에도 소프트 프룬이 필요한가
-
-    필요하다. 다만 그건 **이 표의 문제가 아니다** - `classification_manual` 로 표시된 수동
-    분류도 Notion 에 대응 필드가 없어 prune 한 번에 영구 소실이고(`sync._prune` 이 이미 그
-    사실을 적어 놨다), 그건 댓글을 붙이기 전부터 있던 결함이다. 댓글이 그 결함에 인질로
-    잡히지 않게 만드는 것이 먼저이고, 문서 소프트 프룬은 그 자체로 별도 작업이다.
-    """
-
-    __tablename__ = "document_comments"
-
-    # 조회 키. FK 가 아니다(위 docstring) - 미러 행이 한 회차 사라져도 댓글은 남아야 한다.
-    notion_page_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
-    # 소스 전환을 위한 다리. 미러 행이 없거나 prune 으로 사라지면 NULL 이 정상 상태다.
-    document_id: Mapped[str | None] = mapped_column(
-        String(36), ForeignKey("document_cache.id", ondelete="SET NULL"), index=True
-    )
-    author_user_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("users.id"), nullable=False, index=True
-    )
-    body: Mapped[str] = mapped_column(Text, nullable=False)
-    deleted_at: Mapped[datetime | None] = mapped_column(DateTime, index=True)
-
-    # 삽입 순서를 **1급 컬럼으로** 들고 있는다 (실행목록 5).
-    #
-    # 예전에는 SQLite 의 숨은 `rowid` 로 동점을 깼다. PG 에는 그런 것이 없고, 없다는 사실이
-    # 조용히 드러나지 않는다: `ORDER BY created_at` 만 남기면 같은 순간에 달린 두 댓글의
-    # 순서가 **매번 달라진다**. 시계가 멈춘 테스트에서는 늘 동점이라 목록이 절반의 확률로
-    # 뒤집히고, 운영에서는 답글이 원글보다 먼저 보인다.
-    #
-    # `GENERATED ALWAYS AS IDENTITY` 라 앱이 값을 못 넣는다.
-    seq: Mapped[int] = mapped_column(BigInteger, Identity(always=True), nullable=False)
-
-
-class DocumentRecentView(UUIDPrimaryKeyMixin, Base):
-    __tablename__ = "document_recent_views"
-
-    user_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
-    notion_page_id: Mapped[str] = mapped_column(String(64), nullable=False)
-    document_id: Mapped[str | None] = mapped_column(String(36), index=True)
-    viewed_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
-
-    __table_args__ = (
-        UniqueConstraint("user_id", "notion_page_id", name="uq_doc_recent"),
-    )
+# ── 여기 있던 세 표는 `app/knowledge/models.py` 로 옮겼다 (S14 · C2) ─────────
+#
+# `DocumentFavorite` · `DocumentComment` · `DocumentRecentView` 는 사람이 문서에 남긴
+# 것이고, 문서의 정본이 `documents`(Knowledge Domain)로 넘어간 이상 그쪽에 붙어 있어야
+# 한다. 옛 조회 키(`notion_page_id`)는 이 표(`document_cache`)를 가리켰는데, 그 표는
+# 이제 사용자에게 보이는 어떤 경로도 읽지 않는 옛 미러다(D1).

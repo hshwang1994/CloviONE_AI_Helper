@@ -36,24 +36,35 @@ from sqlalchemy.orm import Session
 
 from app.core.errors import AppError, ConflictError, ValidationAppError
 from app.core.models_base import Base, join_names, new_uuid, split_names, utcnow
+from app.core.uploads import NS_TICKET, save_upload
+from app.core.ownership import (
+    OWNER_DEPARTMENT,
+    OWNER_ORGANIZATION,
+    OWNER_PROJECT,
+    OWNER_UNSET,
+)
 from app.knowledge import tags, versions
 from app.knowledge.models import (
     SOURCE_MIGRATION,
     VSRC_MIGRATION,
     Document,
     DocumentAttachment,
+    DocumentVersion,
     KnowledgeSpace,
 )
+from app.org.constants import DEFAULT_ORG_ID
 from app.migration import plan as plan_mod
 from app.migration import transform
 from app.migration.convert import ConvertError, coerce
 from app.migration.models import (
     SRC_NOTION,
     SRC_SQLITE,
+    T_COMMENT,
     T_DOCUMENT,
     T_FILE,
     T_PROJECT,
     T_TICKET,
+    T_TICKET_FILE,
     LegacyMapping,
 )
 from app.migration.report import (
@@ -66,7 +77,9 @@ from app.migration.report import (
 from app.notion_mapping.models import STATUS_VERIFIED, UserNotionMapping
 from app.projects.models import Project
 from app.storage import service as storage_service
-from app.tickets.models import Ticket
+from app.storage.models import File
+from app.tickets.attachments import ALLOWED_TICKET_MEDIA, MAX_TICKET_ATTACHMENTS
+from app.tickets.models import Ticket, TicketAttachment, TicketComment
 from app.users.models import User
 from app.work import codes, numbering, relations
 from app.work.models import REL_BLOCKS, MigrationException
@@ -81,6 +94,30 @@ MAP_SOURCE_MIGRATION = "migration"
 # 하나면 된다. 소유가 붙은 문서가 생기면 `_space_for` 가 그 축으로 공간을 더 만든다.
 DEFAULT_SPACE_SLUG = "team-docs"
 DEFAULT_SPACE_NAME = "팀 문서"
+
+# 본문 이미지의 `src`. 라우트의 정본은 `app/knowledge/router.py::serve_attachment` 이고
+# 여기서는 그 주소를 만들기만 한다. 상대 주소라 호스트가 바뀌어도 안 깨진다 —
+# `clovirassist.gooddi.lab` 을 본문에 박아 두면 도메인을 옮기는 날 이미지가 전부 죽는다.
+DOC_ATTACHMENT_URL = "/api/knowledge/attachments/{attachment_id}/content"
+
+# 티켓 본문 이미지의 `src`. 라우트의 정본은 `app/tickets/router.py::serve_ticket_attachment`
+# 이고 여기서는 그 주소를 만들기만 한다. 문서 쪽과 같은 이유로 상대 주소다.
+TICKET_ATTACHMENT_URL = "/api/tickets/attachments/{attachment_id}"
+
+# `_body_media` 가 받는 두 갈래. 본문에서 바이트를 꺼내 오는 일은 같고, **붙는 자리만**
+# 다르다 — 문서는 `files` 를 지나 `document_attachments` 로, 티켓은 `ticket_attachments`
+# 로 간다.
+MEDIA_OWNER_DOCUMENT = "document"
+MEDIA_OWNER_TICKET = "ticket"
+
+# 본문 이미지가 첨부 목록에서 앉는 자리. 속성 첨부(`(index+1)*1024`)보다 뒤에 둔다 —
+# 사람이 페이지 속성에 붙인 파일이 본문 그림 사이에 섞이면 목록이 무슨 순서인지 못 읽는다.
+BODY_MEDIA_SORT_BASE = 1_000_000
+
+# 옛 회차가 못 옮긴 블록 자리에 박아 둔 글자. 사람이 칠 리 없는 모양이라 「이 본문은
+# 이관이 썼다」의 증거로 쓴다. 새 회차는 이 글자를 안 만든다(`transform` 이 사람이 읽는
+# 문장으로 바꿨다).
+_LEGACY_PLACEHOLDER = "[원본에서 확인: "
 
 _BIND_BUDGET = 30_000  # PG 한계는 65,535 다. 절반 아래로 잡아 여유를 둔다.
 
@@ -115,6 +152,9 @@ class Loader:
         # 두 단계 사이에 페이지 id 를 우리 id 로 바꿀 표가 완성되기 때문이다.
         self.block_edges: set[tuple[str, str]] = set()
         self._mapping_cache: dict[str, str] | None = None
+        # 기본 저장소는 한 회차에 한 번만 찾는다. 이미지마다 다시 찾으면 본문 이미지
+        # 수백 건이 그대로 왕복 수백 번이 된다.
+        self._provider = None
 
     # ── 1층: 표 복사 ─────────────────────────────────────────────────────────
 
@@ -350,8 +390,15 @@ class Loader:
 
     # ── 2층: 티켓 ────────────────────────────────────────────────────────────
 
-    def load_tickets(self, notion_rows: list[dict], bodies: dict[str, str]) -> StageResult:
-        """Notion 작업을 미러 위에 덮고 **옛 이름을 영구 별칭으로** 남긴다."""
+    def load_tickets(
+        self, notion_rows: list[dict], blocks: dict[str, list[dict]], *, fetch=None,
+    ) -> StageResult:
+        """Notion 작업을 미러 위에 덮고 **옛 이름을 영구 별칭으로** 남긴다.
+
+        `blocks` 는 본문 **블록 그대로**다. 마크다운을 미리 만들어 받지 않는 이유는
+        본문 이미지 때문이다 — 이미지의 `src` 는 바이트를 우리 저장소로 옮긴 뒤에야
+        생기고, 옮기는 일은 DB 를 아는 여기가 한다. 문서가 이미 그 길이다(D4).
+        """
         started = time.monotonic()
         stage = StageResult(name="tickets (Notion)", source_rows=len(notion_rows))
         tickets = {
@@ -395,7 +442,7 @@ class Loader:
             # 이번 회차에 보였으므로 「사라짐」 표시를 지운다.
             ticket.notion_missing_at = None
 
-            body = bodies.get(page_id)
+            body = self._ticket_body(ticket, page_id, blocks.get(page_id) or [], fetch)
             # 포털에서 저장한 본문이 있는데 Notion 이 비어 있으면 **포털 쪽이 옳다** —
             # 그 상태는 push 가 실패했다는 뜻이고(`body_sync_error`), Notion 을 정본으로
             # 삼으면 사용자가 쓴 글이 사라진다.
@@ -759,16 +806,168 @@ class Loader:
         self.report.add(stage)
         return stage
 
+    # ── 2층: 티켓 댓글 (D11) ────────────────────────────────────────────────
+
+    def load_ticket_comments(
+        self, comments: list, *, dry_run: bool = False
+    ) -> StageResult:
+        """Notion 페이지 댓글 → `ticket_comments`. **시간 순으로 한 줄씩 넣는다.**
+
+        ## 순서가 곧 대화다
+
+        `ticket_comments.seq` 는 `GENERATED ALWAYS AS IDENTITY` 라 앱이 값을 못 넣는다.
+        목록은 그 `seq` 로 동점을 깨므로(모델 주석), 우리가 정할 수 있는 것은 **넣는
+        순서** 하나다. 그래서 원본 시각 오름차순으로 정렬해 한 줄씩 넣는다 — 묶어서
+        넣으면 같은 분에 달린 댓글의 순서가 회차마다 달라진다.
+
+        ## 스레드는 편다
+
+        원본은 `discussion_id` 로 답글을 묶지만 우리 표는 평평하고 부모 칸이 없다.
+        시간 순으로 펴면 **같은 스레드의 답글은 원글 뒤에 온다** — 답글이 원글보다
+        먼저 쓰일 수 없기 때문이다. 대화의 묶음은 잃지만 순서는 잃지 않는다.
+
+        ## 작성자를 지어내지 않는다
+
+        `author_user_id` 가 NOT NULL 이라 아무나 골라 적고 싶어지는 자리다. 그렇게 하면
+        「이 사람이 이렇게 말했다」가 거짓 기록으로 남고, 그 거짓은 화면이 정상으로
+        보이기 때문에 아무도 신고하지 않는다. 못 풀면 넣지 않고 분류된 예외로 남긴다
+        (D9 · U11).
+
+        ## 두 번 돌려도 안 늘어난다
+
+        `legacy_mapping` 에 Notion 댓글 id 로 적어 둔다. 그 표에 있으면 건너뛴다 —
+        **행이 지금 있는지 다시 확인하지 않는다.** 사람이 지운 댓글을 되살리는 것은
+        재실행이 할 일이 아니다.
+        """
+        started = time.monotonic()
+        stage = StageResult(name="ticket comments (Notion)", source_rows=len(comments))
+        if not comments:
+            self.report.add(stage)
+            return stage
+
+        by_page = dict(self.ticket_by_page)
+        if not by_page:
+            by_page = {
+                page_id: ticket_id
+                for page_id, ticket_id in self.db.execute(
+                    sa.select(Ticket.notion_page_id, Ticket.id).where(
+                        Ticket.notion_page_id.is_not(None)
+                    )
+                ).all()
+            }
+        done = {
+            row.legacy_source_id
+            for row in self.db.execute(
+                sa.select(LegacyMapping).where(
+                    LegacyMapping.legacy_source == SRC_NOTION,
+                    LegacyMapping.target_type == T_COMMENT,
+                )
+            ).scalars()
+        }
+
+        # 시각이 없는 댓글은 뒤로 보낸다. 앞에 끼우면 시각을 아는 댓글의 순서가 밀린다.
+        ordered = sorted(
+            comments,
+            key=lambda item: (
+                item.created_at is None, item.created_at or utcnow(), item.comment_id
+            ),
+        )
+        for item in ordered:
+            if item.comment_id in done:
+                # 앞 회차가 이미 넣었다. 「갱신」으로 세는 이유는 재실행의 신규가 0
+                # 이어야 멱등이 증명되기 때문이다.
+                stage.updated += 1
+                continue
+            ticket_id = by_page.get(item.page_id)
+            if ticket_id is None:
+                self.report.finding(
+                    SEVERITY_CLASSIFIED, "comment_ticket_missing", "ticket_comments",
+                    "댓글이 달린 티켓이 이관 대상에 없어 넣지 않았습니다.",
+                    ref=item.comment_id,
+                )
+                stage.skipped += 1
+                continue
+            author = self._user_for_notion(
+                [item.author_notion_id] if item.author_notion_id else []
+            )
+            if author is None:
+                self.report.finding(
+                    SEVERITY_CLASSIFIED, "comment_author_unresolved", "ticket_comments",
+                    f"작성자 «{item.author_label or item.author_notion_id or '?'}» 의 "
+                    f"포털 사용자를 못 찾아 넣지 않았습니다(종류: "
+                    f"{item.author_kind or '?'}).",
+                    ref=item.comment_id,
+                )
+                stage.skipped += 1
+                continue
+            if not item.body.strip():
+                self.report.finding(
+                    SEVERITY_CLASSIFIED, "comment_body_empty", "ticket_comments",
+                    "본문도 첨부도 없는 댓글이라 넣지 않았습니다.", ref=item.comment_id,
+                )
+                stage.skipped += 1
+                continue
+            if item.created_at is None:
+                self.report.finding(
+                    SEVERITY_CLASSIFIED, "comment_time_missing", "ticket_comments",
+                    "원본 시각을 읽지 못해 넣지 않았습니다.", ref=item.comment_id,
+                )
+                stage.skipped += 1
+                continue
+            stage.inserted += 1
+            if dry_run:
+                # 세기만 한다. 여기서 행을 만들면 그것은 세는 것이 아니라 쓰는 것이다.
+                continue
+            row = TicketComment(
+                id=new_uuid(), ticket_uid=ticket_id, author_user_id=author,
+                body=item.body,
+                # 우리 `created_at` 은 이관일이다. 원본 시각을 안 넣으면 댓글 324건이
+                # 전부 같은 날 같은 시각에 달린 것이 된다.
+                created_at=item.created_at, updated_at=item.created_at,
+            )
+            self.db.add(row)
+            # 한 줄씩 flush 한다. 묶으면 `seq` 가 우리가 정한 순서대로 붙는다는 보장이
+            # 없고, 그 사실은 목록이 뒤집힐 때만 드러난다.
+            self.db.flush()
+            self._map(SRC_NOTION, item.comment_id, T_COMMENT, row.id)
+
+        attached = sum(item.attachment_count for item in ordered)
+        if attached:
+            # 댓글에 붙은 파일은 붙일 자리가 없다 — `ticket_comments` 에 첨부 표가 없고,
+            # `ticket_attachments` 는 티켓에 붙는 것이지 댓글에 붙는 것이 아니다. 글은
+            # 옮기고 파일은 못 옮겼다는 사실을 수로 남긴다.
+            self.report.finding(
+                SEVERITY_CLASSIFIED, "comment_attachment_not_moved", "ticket_comments",
+                f"댓글에 붙은 파일 {attached}건은 붙일 자리가 없어 못 옮겼습니다.",
+            )
+        if not dry_run:
+            # 다리를 **댓글과 같은 커밋에** 적는다. 뒤 단계에서 회차가 죽으면 댓글은
+            # 들어갔는데 다리는 파이썬 목록에만 남고, 그 상태로 다시 돌리면 같은 댓글이
+            # 한 번 더 들어간다.
+            self.flush_mappings()
+            self.db.commit()
+        stage.seconds = time.monotonic() - started
+        self.report.add(stage)
+        return stage
+
     # ── 2층: 문서 ────────────────────────────────────────────────────────────
 
     def load_documents(
         self, notion_rows: list[dict], bodies: dict[str, list[dict]],
-        *, taxonomy: dict[str, str],
+        *, taxonomy: dict[str, str], projects: dict[str, str] | None = None,
+        fetch=None, only_untouched: bool = False, dry_run: bool = False,
     ) -> StageResult:
         """`document_cache` + Notion 본문 → `documents` + `document_versions`.
 
         **다리는 `documents.legacy_page_id` 다** (부분 유니크). 재실행이 그 값으로 같은
         문서를 찾으므로 판이 새로 쌓이지 않는다.
+
+        `fetch` 가 있으면 본문 안의 이미지 바이트를 우리 저장소로 옮기고 `src` 를 우리
+        엔드포인트로 바꾼다(D4). 문서 행이 먼저 있어야 첨부를 붙일 수 있으므로 그 일은
+        판을 쌓기 **직전**에 문서 하나씩 한다.
+
+        `only_untouched` 는 「본문만 다시 넣기」가 켠다(D5). 사용자가 고친 문서는 건드리지
+        않는다 — 판정 근거는 `_body_is_untouched` 에 적었다.
         """
         started = time.monotonic()
         stage = StageResult(name="documents", source_rows=len(notion_rows))
@@ -776,7 +975,7 @@ class Loader:
             row["notion_page_id"]: row
             for row in self.db.execute(sa.text(
                 "SELECT notion_page_id, id, document_type, restricted, archived, "
-                "owner_kind, owner_dept_id, owner_project_id, title "
+                "owner_kind, owner_dept_id, owner_project_id, title, org_id "
                 "FROM document_cache WHERE notion_page_id IS NOT NULL"
             )).mappings()
         }
@@ -786,7 +985,7 @@ class Loader:
                 sa.select(Document).where(Document.legacy_page_id.is_not(None))
             ).scalars()
         }
-        spaces: dict[tuple[str, str | None], KnowledgeSpace] = {}
+        spaces: dict[tuple[str, str | None, str], KnowledgeSpace] = {}
 
         for raw in notion_rows:
             parsed = transform.parse_document(raw)
@@ -794,62 +993,337 @@ class Loader:
             if not page_id:
                 continue
             cached = mirror.get(page_id) or {}
-            space = self._space_for(
-                spaces,
-                owner_kind=(cached.get("owner_kind") or "unset"),
-                owner_dept_id=cached.get("owner_dept_id"),
-                owner_project_id=cached.get("owner_project_id"),
-            )
             document = existing.get(page_id)
             if document is None:
+                if only_untouched or dry_run:
+                    # 「본문만 다시 넣기」는 새 문서를 만들지 않는다. 본문을 다시 넣는
+                    # 일과 문서를 새로 들이는 일은 위험이 다르다 — 후자는 전체 회차가 한다.
+                    # `dry_run` 도 같이 본다: 세기만 하는 회차가 행을 만들면 그것은 이미
+                    # 쓰기다.
+                    stage.skipped += 1
+                    continue
                 document = Document(
-                    id=new_uuid(), space_id=space.id, legacy_page_id=page_id,
+                    id=new_uuid(), space_id=self._space_for(spaces, cached).id,
+                    legacy_page_id=page_id,
                     title=parsed["title"] or cached.get("title") or "(제목 없음)",
                     source_type=SOURCE_MIGRATION,
                 )
                 self.db.add(document)
                 self.db.flush()
                 stage.inserted += 1
+            elif only_untouched and not self._body_is_untouched(document):
+                stage.skipped += 1
+                self.report.finding(
+                    SEVERITY_NOTE, "document_edited_by_user", "documents",
+                    "사용자가 고친 문서라 본문을 다시 넣지 않았습니다.", ref=page_id,
+                )
+                continue
             else:
                 stage.updated += 1
-            document.space_id = space.id
+            self.document_by_page[page_id] = document.id
+            if dry_run:
+                # 무엇이 바뀔지 세기만 한다. 아래 어느 줄도 실행하지 않는다 — 「세기만
+                # 한다」가 절반만 지켜지면 그것은 세는 것이 아니라 쓰는 것이다.
+                continue
+            document.space_id = self._space_for(spaces, cached).id
             document.title = parsed["title"] or cached.get("title") or document.title
             document.doc_type = _doc_type(parsed, taxonomy, cached)
             document.confidential = bool(cached.get("restricted"))
             document.archived = bool(parsed["archived"] or cached.get("archived"))
+            # 원본이 말한 생긴 날과 고친 날. 우리 `created_at` 은 **이관일**이라 이 값을
+            # 안 옮기면 문서 110건이 전부 같은 날이 된다(0013).
+            document.legacy_created_at = parsed["notion_created_time"]
+            document.legacy_updated_at = parsed["notion_last_edited"]
             # 작성자. **이메일로 이어진 사람만** 붙는다 — 이름으로 잇지 않는다(U11).
             author = self._user_for_notion(parsed["author_notion_ids"])
             if author:
                 document.created_by = author
-            # 카테고리는 태그가 된다. `documents` 에 그 칸이 없고, S7 이 만든 `tags` 가
-            # 바로 그 자리다 — 안 옮기면 문서 61건의 분류가 사라진다.
-            category_names = [
-                (taxonomy.get(cid) or "").strip()
-                for cid in parsed["category_ids"]
-            ]
-            category_names = [name for name in category_names if name]
-            if category_names:
-                try:
-                    with self.db.begin_nested():
-                        tags.set_for_document(self.db, document, category_names)
-                except AppError as exc:
-                    self.report.finding(
-                        SEVERITY_CLASSIFIED, "document_tags_rejected", "document_tags",
-                        f"카테고리를 태그로 못 붙였습니다: {exc}", ref=page_id,
-                    )
-            self.document_by_page[page_id] = document.id
+            self._tag_document(document, parsed, taxonomy, projects or {})
             self._map(SRC_NOTION, page_id, T_DOCUMENT, document.id)
             if cached.get("id"):
                 self._map(SRC_SQLITE, cached["id"], T_DOCUMENT, document.id)
 
-            self._snapshot(document, bodies.get(page_id) or [])
+            raw_blocks = bodies.get(page_id) or []
+            media_urls = self._body_media(
+                MEDIA_OWNER_DOCUMENT, document.id, page_id, raw_blocks, fetch
+            )
+            self._snapshot(document, raw_blocks, media_urls=media_urls)
 
-        self.db.commit()
+        if not dry_run:
+            self.db.commit()
         stage.seconds = time.monotonic() - started
         self.report.add(stage)
         return stage
 
-    def _snapshot(self, document: Document, raw_blocks) -> None:
+    def _tag_document(
+        self, document: Document, parsed: dict, taxonomy: dict[str, str],
+        projects: dict[str, str],
+    ) -> None:
+        """분류와 소속 프로젝트를 태그로 남긴다. **가진 태그를 지우지 않는다.**
+
+        카테고리는 원래 태그가 되던 값이다 — `documents` 에 그 칸이 없고 S7 이 만든
+        `tags` 가 바로 그 자리다(안 옮기면 문서 61건의 분류가 사라진다).
+
+        프로젝트도 여기로 온다. `document_relations` 는 **문서와 문서만** 잇는
+        표이고(`from_document_id`·`to_document_id` 가 둘 다 `documents` 를 가리킨다),
+        프로젝트를 가리킬 칸이 없다. 없는 관계를 만들어 내는 대신 태그로 남긴다 —
+        34건의 소속이 사라지는 것보다 낫고, 태그는 화면에 보이고 검색에도 걸린다.
+
+        `tags.set_for_document` 는 **집합 치환**이라 그대로 부르면 사용자가 붙인 태그가
+        사라진다(D5). 그래서 지금 붙어 있는 이름과 합집합을 넘긴다 — 이관은 더하기만 한다.
+        """
+        wanted = [
+            (taxonomy.get(cid) or "").strip() for cid in parsed["category_ids"]
+        ]
+        wanted += [
+            (projects.get(pid) or "").strip() for pid in parsed["project_ids"]
+        ]
+        wanted = [name for name in wanted if name]
+        if not wanted:
+            return
+        have = [tag.name for tag in tags.of_document(self.db, document.id)]
+        merged: list[str] = []
+        for name in (*have, *wanted):
+            if name not in merged:
+                merged.append(name)
+        if merged == have:
+            return
+        try:
+            with self.db.begin_nested():
+                tags.set_for_document(self.db, document, merged)
+        except AppError as exc:
+            self.report.finding(
+                SEVERITY_CLASSIFIED, "document_tags_rejected", "document_tags",
+                f"분류를 태그로 못 붙였습니다: {exc}", ref=document.legacy_page_id,
+            )
+
+    def _body_is_untouched(self, document: Document) -> bool:
+        """이 문서의 지금 본문을 **이관이 썼는가** (D5).
+
+        판정 근거는 현재 판의 `source` 하나다. 사용자가 편집기에서 저장하면
+        `versions.snapshot` 이 `VSRC_USER` 로 새 판을 쌓고 `current_version_id` 가 그리로
+        옮겨 간다 — 즉 「사람이 고쳤다」는 사실이 현재 판에 그대로 적혀 있다. 글자를
+        비교하지 않는 이유는 그것이 「같은 글로 다시 저장했다」와 「한 번도 안 고쳤다」를
+        구별하지 못하기 때문이다.
+
+        판이 아직 없으면 덮을 것도 없으므로 참이다.
+        """
+        if not document.current_version_id:
+            return True
+        source = self.db.execute(
+            sa.select(DocumentVersion.source).where(
+                DocumentVersion.id == document.current_version_id
+            )
+        ).scalar_one_or_none()
+        return source in (None, VSRC_MIGRATION)
+
+    def _body_media(
+        self, owner_kind: str, owner_id: str, page_id: str, raw_blocks, fetch
+    ) -> dict[str, str]:
+        """본문이 들고 있는 이미지·파일을 우리 저장소로 옮기고 **블록 id → 우리 주소**.
+
+        ## 문서와 티켓이 같은 이 함수를 지난다
+
+        두 벌로 쓰면 한쪽만 이미지를 옮기게 되고, 그것이 실제로 S14 이전의 상태였다 —
+        문서 본문의 49블록은 옮기고 티켓 본문의 222블록은 글자로 남았다. 바이트를 받는
+        일도, 두 번 안 받는 일도, 상한에 걸린 것을 예외로 남기는 일도 전부 같다.
+        갈라지는 것은 **붙는 자리 한 걸음**뿐이고 그 한 걸음만 `owner_kind` 로 나눈다.
+
+        ## 왜 Notion 주소를 그대로 안 쓰는가
+
+        서명이 한 시간이면 만료된다(D4 · 실측). 만료된 주소를 본문에 적어 두면 화면에는
+        깨진 그림만 남고, 깨졌다는 사실은 오류 로그가 아니라 사용자의 클릭에서만 드러난다.
+        라이브로 블록을 다시 읽으면 새 서명 주소가 나오고 그것으로 받을 수 있다.
+
+        ## 같은 이미지를 두 번 받지 않는다
+
+        `legacy_mapping` 에 블록 id 로 적어 둔다. 재실행은 그 표를 먼저 보고, 이미 있으면
+        바이트를 다시 안 받고 붙어 있는 첨부를 그대로 쓴다 — 그것이 「두 번 돌려도 첨부가
+        안 늘어난다」의 근거다.
+
+        ## 상한에 걸린 것은 예외로 남긴다
+
+        10MB 상한과 형식 허용 목록은 제품이 정한 것이고(`store_bytes` · `save_upload`)
+        이관 때문에 넓히지 않는다. 걸린 파일은 분류된 예외가 되고 본문에는 사람이 읽는
+        한 줄이 남는다.
+        """
+        media = transform.media_of(page_id, raw_blocks)
+        if not media:
+            return {}
+        if owner_kind == MEDIA_OWNER_TICKET and len(media) > MAX_TICKET_ATTACHMENTS:
+            # 사람이 화면에서 붙일 수 있는 개수 상한(`ensure_capacity`)은 본문 이미지에
+            # 걸지 않는다. 그 상한은 「한 사람이 몇 개까지 붙일 수 있는가」를 정한 것이고
+            # 본문 이미지는 사람이 고른 첨부가 아니라 **본문 그 자체**다 — 상한 때문에
+            # 버리면 D12 가 막으려 한 「내용을 버리는 것」이 그대로 일어난다. 대신 이
+            # 티켓에서는 사람이 첨부를 새로 못 붙인다는 사실을 남긴다.
+            self.report.finding(
+                SEVERITY_NOTE, "ticket_body_media_over_ui_limit", "ticket_attachments",
+                f"본문 파일이 {len(media)}건이라 이 티켓에는 첨부를 새로 못 붙입니다.",
+                ref=page_id,
+            )
+        out: dict[str, str] = {}
+        for order, item in enumerate(media):
+            if not item.hosted:
+                # 바깥 링크는 바이트가 우리 것이 아니다. 본문의 링크 문단이 그대로
+                # 원본 주소를 가리키는 편이 낫고, 그 주소는 서명 URL 이 아니다.
+                out[item.block_id] = item.url
+                continue
+            url = self._moved_media_url(owner_kind, owner_id, item, order)
+            if url is None and fetch is not None:
+                url = self._move_media(owner_kind, owner_id, item, order, fetch)
+            if url:
+                out[item.block_id] = url
+        return out
+
+    def _moved_media_url(self, owner_kind: str, owner_id: str, item, order: int
+                         ) -> str | None:
+        """앞 회차가 이미 옮긴 파일인가. 이미 옮겼으면 **그 첨부의 주소**.
+
+        재실행이 바이트를 다시 안 받는 근거가 이 조회다. 문서 쪽은 첨부 행을 여기서 다시
+        upsert 한다 — `files` 행과 `document_attachments` 행이 따로라 한쪽만 남을 수
+        있고, 그때 본문이 주소를 잃는다. 티켓 쪽은 첨부 행 자체가 대상이라 조회로 끝난다.
+        """
+        if owner_kind == MEDIA_OWNER_TICKET:
+            attachment_id = self._mapped_target(item, T_TICKET_FILE)
+            if attachment_id is None:
+                return None
+            row = self.db.get(TicketAttachment, attachment_id)
+            # 표는 남아 있는데 첨부 행이 사라진 경우가 있다(사람이 뗐거나 앞 회차가
+            # 되감겼다). 그 id 를 그대로 쓰면 본문이 404 를 가리킨다.
+            if row is None or row.ticket_uid != owner_id:
+                return None
+            return TICKET_ATTACHMENT_URL.format(attachment_id=attachment_id)
+        file_id = self._existing_media_file(item)
+        if file_id is None:
+            return None
+        return self._attach_document_media(owner_id, file_id, item, order)
+
+    def _attach_document_media(self, document_id: str, file_id: str, item, order: int
+                               ) -> str | None:
+        """문서 본문의 파일을 첨부로 붙이고 그 주소를 돌려준다.
+
+        🔴 파일 id 를 **인자로 받는다.** 방금 만든 파일을 `legacy_mapping` 으로 다시
+        찾으면 안 된다 — `_map` 은 다리를 모아 두었다가 나중에 한꺼번에 쓰므로 같은
+        회차 안에서는 아직 조회에 안 걸린다. 다시 찾으면 첫 회차에서 첨부가 하나도 안
+        붙고, 두 번째 회차에서야 붙는다.
+        """
+        # 속성 첨부 뒤에 온다. 두 무리가 같은 자리를 다투면 첨부 목록의 순서가
+        # 회차마다 달라진다.
+        attachment_id = self._attach_to_document(
+            document_id, file_id, item, order=BODY_MEDIA_SORT_BASE + order * 1024,
+        )
+        if not attachment_id:
+            return None
+        return DOC_ATTACHMENT_URL.format(attachment_id=attachment_id)
+
+    def _move_media(self, owner_kind: str, owner_id: str, item, order: int, fetch
+                    ) -> str | None:
+        """바이트를 받아 우리 저장소에 넣고 첨부를 붙인다. 못 하면 사유를 남긴다.
+
+        `transform.media_bytes` 를 지난다 — `item.url` 이 `data:` URI 면(원본 안에 이미지가
+        그대로 인코딩된 경우) 네트워크로 안 보내고 그 자리에서 디코드한다. 그대로
+        `fetch()` 에 넘기면 `OutboundClient` 가 http/https 가 아닌 스킴이라 거절한다.
+        """
+        try:
+            content = transform.media_bytes(item.url, fetch)
+        except AppError as exc:
+            self.report.finding(
+                SEVERITY_BLOCKING, "body_media_download_failed", "files",
+                f"{item.name}: {exc}", ref=item.legacy_id,
+            )
+            return None
+        if owner_kind == MEDIA_OWNER_TICKET:
+            return self._store_ticket_media(owner_id, item, content)
+        file_id = self._store_media(item, content)
+        if file_id is None:
+            return None
+        return self._attach_document_media(owner_id, file_id, item, order)
+
+    def _mapped_target(self, item, target_type: str) -> str | None:
+        """이 블록이 이미 옮겨졌다면 그 대상의 id. 다리는 `legacy_mapping` 하나다."""
+        return self.db.execute(
+            sa.select(LegacyMapping.target_id).where(
+                LegacyMapping.legacy_source == SRC_NOTION,
+                LegacyMapping.legacy_source_id == item.legacy_id,
+                LegacyMapping.target_type == target_type,
+            )
+        ).scalar_one_or_none()
+
+    def _existing_media_file(self, item) -> str | None:
+        row = self._mapped_target(item, T_FILE)
+        if row is None:
+            return None
+        # 표는 남아 있는데 파일 행이 사라진 경우가 있다(사람이 지웠거나 앞 회차가 되감겼다).
+        # 그때 그 id 를 그대로 쓰면 첨부가 없는 파일을 가리킨다.
+        return row if self.db.get(File, row) is not None else None
+
+    def _storage_provider(self):
+        """기본 저장소. 한 회차에 한 번만 찾는다."""
+        if self._provider is None:
+            self._provider = storage_service.ensure_default_provider(
+                self.db, self.settings
+            )
+        return self._provider
+
+    def _store_media(self, item, content: bytes) -> str | None:
+        try:
+            with self.db.begin_nested():
+                record = storage_service.store_bytes(
+                    self.db, filename=item.name, content=content,
+                    owner_ref=f"document:{self.document_by_page.get(item.page_id) or ''}",
+                    provider=self._storage_provider(),
+                )
+        except AppError as exc:
+            self.report.finding(
+                SEVERITY_CLASSIFIED, "body_media_rejected", "files",
+                f"{item.name}: {exc}", ref=item.legacy_id,
+            )
+            return None
+        self._map(SRC_NOTION, item.legacy_id, T_FILE, record.id)
+        return record.id
+
+    def _store_ticket_media(self, ticket_uid: str, item, content: bytes) -> str | None:
+        """티켓 본문의 파일 하나를 `ticket_attachments` 로 옮긴다. **올린 사람은 없다.**
+
+        `save_upload` 를 지나는 이유는 그것이 티켓 첨부의 **검증 → 저장명 → 경로**를 아는
+        유일한 자리이기 때문이다(화면의 업로드도 그것을 부른다). 여기서 바이트를 직접
+        쓰면 매직바이트 판정과 경로 규칙이 두 번째 정의가 되고, 그 둘은 언젠가 갈린다.
+
+        형식 허용 목록과 10MB 상한은 제품이 정한 것이라 이관 때문에 넓히지 않는다.
+        걸린 파일은 분류된 예외가 되고, 본문에는 `transform` 이 사람이 읽는 한 줄을 남긴다.
+
+        `uploaded_by_user_id` 는 `NULL` 이다 — 이관이 가져온 파일에는 올린 사람이 없고
+        그 사실을 그 칸이 그대로 말한다(D12 · `TicketAttachment` 의 컬럼 주석).
+        """
+        data_dir = getattr(self.settings, "data_dir", None)
+        if data_dir is None:
+            self.report.finding(
+                SEVERITY_BLOCKING, "body_media_no_data_dir", "ticket_attachments",
+                "저장 경로를 몰라 티켓 본문의 파일을 못 옮겼습니다.", ref=item.legacy_id,
+            )
+            return None
+        try:
+            stored_name, media_type, size, display_name = save_upload(
+                data_dir, ticket_uid, filename=item.name, content=content,
+                namespace=NS_TICKET, allowed_media_types=ALLOWED_TICKET_MEDIA,
+            )
+        except AppError as exc:
+            self.report.finding(
+                SEVERITY_CLASSIFIED, "body_media_rejected", "ticket_attachments",
+                f"{item.name}: {exc}", ref=item.legacy_id,
+            )
+            return None
+        row = TicketAttachment(
+            id=new_uuid(), ticket_uid=ticket_uid, uploaded_by_user_id=None,
+            filename=display_name, stored_name=stored_name, media_type=media_type,
+            size_bytes=size, created_at=utcnow(),
+        )
+        self.db.add(row)
+        self.db.flush()
+        self._map(SRC_NOTION, item.legacy_id, T_TICKET_FILE, row.id)
+        return TICKET_ATTACHMENT_URL.format(attachment_id=row.id)
+
+    def _snapshot(self, document: Document, raw_blocks, *, media_urls=None) -> None:
         """판을 쌓는다. **`versions.snapshot` 하나가 그 일을 한다** (D-198).
 
         여기서 `DocumentVersion(...)` 를 직접 만들지 않는 이유는 판을 만드는 자리가
@@ -863,7 +1337,7 @@ class Loader:
         `reindex=False` 인 이유는 그 함수의 docstring 에 있다: 적재 직후 파생 넷은
         비어 있는 것이 정상이고, 색인 레인의 훑기가 스스로 찾아 돈다(D-270 · S9).
         """
-        doc = transform.notion_blocks_to_doc(raw_blocks)
+        doc = transform.notion_blocks_to_doc(raw_blocks, media_urls=media_urls)
         try:
             versions.snapshot(
                 self.db, document, doc,
@@ -903,35 +1377,184 @@ class Loader:
         ]
         return found[0] if len(found) == 1 else None
 
-    def _space_for(self, cache, *, owner_kind, owner_dept_id, owner_project_id
-                   ) -> KnowledgeSpace:
+    def _space_for(self, cache, cached: dict) -> KnowledgeSpace:
+        """이 문서가 들어갈 공간. **`unset` 으로는 안 만든다** (D7).
+
+        🔴 여기가 실측에서 문서 110건을 아무에게도 안 보이게 만든 자리다.
+        `_stored_ownership_rules` 는 소속 갈래 셋(조직·부서·프로젝트)만 열어 주고
+        `unset` 은 **어느 갈래에도 안 건다** — 그것이 fail-closed 가 사는 자리다. 그래서
+        `owner_kind='unset'` 인 공간은 전역 조회 권한을 가진 4명 말고는 볼 수 없고,
+        AI 검색도 같은 절을 써서 0건을 낸다. 오류는 하나도 안 난다.
+
+        이관 문서는 회사 공통 팀 문서이므로 조직 소유다. 부서나 프로젝트 소속이 미러에
+        적혀 있는 문서는 그 축을 그대로 쓴다 — 소속이 있는 문서를 조직 소유로 올리면
+        그것은 가시성을 **넓히는** 일이고, 좁혀야 할 문서를 넓히는 것이 더 나쁘다.
+        """
+        owner_kind = cached.get("owner_kind") or OWNER_UNSET
         owner_id = (
-            owner_dept_id if owner_kind == "department"
-            else owner_project_id if owner_kind == "project" else None
+            cached.get("owner_dept_id") if owner_kind == OWNER_DEPARTMENT
+            else cached.get("owner_project_id") if owner_kind == OWNER_PROJECT else None
         )
-        cache_key = (owner_kind, owner_id)
+        # 🔴 조직 갈래는 `owner_kind` 와 `org_id` 를 **함께** 본다. `OrgScopedMixin` 의
+        # 기본값(`DEFAULT_ORG_ID`)을 그대로 두면 부트스트랩 조직 id 가 박히고, 사용자는
+        # 소스가 준 조직에 속해 있어서 절이 여전히 안 걸린다 — 소속만 고치고 조직을
+        # 안 고치면 화면은 고치기 전과 똑같다. 그래서 **문서가 실제로 속한 조직**을 쓴다.
+        org_id = cached.get("org_id") or DEFAULT_ORG_ID
+        # 소속 종류와 대상은 함께 있거나 함께 없다(`ck_kspace_dept_pair`). 짝이 안 맞는
+        # 미러 값은 조직 소유로 내린다 — 짝이 깨진 행은 제약이 거절하고, 거절되면 문서가
+        # 통째로 안 들어간다.
+        kind = owner_kind if owner_id else OWNER_ORGANIZATION
+        cache_key = (kind, owner_id, org_id)
         if cache_key in cache:
             return cache[cache_key]
-        slug, name = _space_identity(owner_kind, owner_id)
+        slug, name = _space_identity(kind, owner_id)
         space = self.db.execute(
-            sa.select(KnowledgeSpace).where(KnowledgeSpace.slug == slug)
+            sa.select(KnowledgeSpace).where(
+                KnowledgeSpace.slug == slug, KnowledgeSpace.org_id == org_id
+            )
         ).scalars().first()
         if space is None:
+            # 슬러그는 조직 안에서만 유일하다(`uq_kspace_slug`). 조직이 다른 같은 이름의
+            # 공간이 이미 있어도 부딪히지 않는다.
             space = KnowledgeSpace(
-                id=new_uuid(), name=name, slug=slug,
+                id=new_uuid(), name=name, slug=slug, org_id=org_id,
                 description="옛 시스템에서 옮긴 문서가 들어 있습니다.",
-                owner_kind=owner_kind,
-                owner_dept_id=owner_dept_id if owner_kind == "department" else None,
-                owner_project_id=owner_project_id if owner_kind == "project" else None,
+                owner_kind=kind,
+                owner_dept_id=owner_id if kind == OWNER_DEPARTMENT else None,
+                owner_project_id=owner_id if kind == OWNER_PROJECT else None,
             )
             self.db.add(space)
             self.db.flush()
+        else:
+            self._repair_space_owner(space, kind, owner_id, org_id)
         cache[cache_key] = space
         return space
 
+    def _repair_space_owner(
+        self, space: KnowledgeSpace, kind: str, owner_id, org_id: str
+    ) -> None:
+        """이미 만들어진 공간의 소유를 고친다. **`unset` 일 때만 손댄다.**
+
+        앞 회차가 세운 운영 공간이 `unset` 으로 굳어 있으므로 재실행이 그것을 고쳐야
+        한다 — 안 고치면 이 수정은 「다음에 새로 만드는 DB 에서만」 성립하고, 실제로
+        문서를 못 보는 사람은 계속 못 본다.
+
+        사람이 정해 둔 소유는 안 덮는다. 이관이 남의 결정을 되돌리면 그 공간은 회차마다
+        소유가 바뀌고, 바뀐 이유를 아무도 못 찾는다.
+        """
+        if space.owner_kind != OWNER_UNSET:
+            return
+        space.owner_kind = kind
+        space.owner_dept_id = owner_id if kind == OWNER_DEPARTMENT else None
+        space.owner_project_id = owner_id if kind == OWNER_PROJECT else None
+        # 조직 갈래는 `owner_kind` 와 `org_id` 를 **함께** 본다. 하나만 고치면 절이 여전히
+        # 안 걸리고, 화면은 고치기 전과 똑같다.
+        if kind == OWNER_ORGANIZATION and not space.org_id:
+            space.org_id = org_id
+        self.db.flush()
+        self.report.finding(
+            SEVERITY_NOTE, "space_owner_repaired", "knowledge_spaces",
+            f"공간 «{space.name}» 의 소속을 조직으로 고쳤습니다.", ref=space.id,
+        )
+
+    # ── 2층: 티켓 본문만 다시 넣기 (D5) ─────────────────────────────────────
+
+    def reimport_ticket_bodies(
+        self, notion_rows: list[dict], blocks: dict[str, list[dict]], *,
+        fetch=None, dry_run: bool = False,
+    ) -> StageResult:
+        """티켓의 **본문만** 다시 넣는다. 속성·번호·관계는 안 건드린다.
+
+        🔴 사용자가 고친 본문은 덮지 않는다. 판정 근거 셋을 `_ticket_body_is_ours` 에
+        적었다 — 하나라도 사람이 손댄 흔적이면 건너뛰고 세기만 한다.
+
+        `dry_run` 은 `fetch` 없이 부른다(`runner`). 그러면 이미 옮겨 둔 파일의 주소는
+        그대로 나오고 아직 안 옮긴 것만 자리 문장으로 세어진다 — 세는 회차가 바이트를
+        받거나 첨부를 만들면 그것은 세는 것이 아니라 쓰는 것이다.
+        """
+        started = time.monotonic()
+        stage = StageResult(name="ticket bodies", source_rows=len(notion_rows))
+        tickets = {
+            ticket.notion_page_id: ticket
+            for ticket in self.db.execute(
+                sa.select(Ticket).where(Ticket.notion_page_id.is_not(None))
+            ).scalars()
+        }
+        for raw in notion_rows:
+            page_id = raw.get("id")
+            ticket = tickets.get(page_id or "")
+            if page_id and ticket is not None:
+                # 본문이 없거나 사람이 고쳤어도 이 페이지는 이 티켓이다 — `load_files`
+                # 가 속성 첨부를 이 티켓에 붙이려면 여기서 먼저 채워 둬야 한다. 본문
+                # 스킵과 첨부 스킵은 서로 다른 판정이다.
+                self.ticket_by_page[page_id] = ticket.id
+            raw_blocks = blocks.get(page_id or "") or []
+            if not page_id or ticket is None or not raw_blocks:
+                stage.skipped += 1
+                continue
+            # 🔴 덮어도 되는 본문인지를 **바이트를 옮기기 전에** 묻는다. 순서를 뒤집으면
+            # 안 덮을 티켓에도 첨부가 붙고, 그 첨부는 본문 어디에서도 안 보인다.
+            if not self._ticket_body_is_ours(ticket):
+                stage.skipped += 1
+                self.report.finding(
+                    SEVERITY_NOTE, "ticket_body_edited_by_user", "tickets",
+                    "사용자가 고친 본문이라 다시 넣지 않았습니다.", ref=page_id,
+                )
+                continue
+            body = self._ticket_body(ticket, page_id, raw_blocks, fetch)
+            if not body:
+                stage.skipped += 1
+                continue
+            if ticket.body_markdown == body:
+                continue
+            stage.updated += 1
+            if dry_run:
+                continue
+            ticket.body_markdown = body
+        if not dry_run:
+            self.db.commit()
+        stage.seconds = time.monotonic() - started
+        self.report.add(stage)
+        return stage
+
+    def _ticket_body(self, ticket: Ticket, page_id: str, raw_blocks, fetch) -> str:
+        """티켓 본문 마크다운. **바이트를 먼저 옮기고 그 주소를 본문에 넣는다.**
+
+        문서와 다른 것은 마지막 한 걸음뿐이다: 문서의 정본은 판 하나(JSON)이고 티켓의
+        정본은 `tickets.body_markdown` 이다. 그 앞의 「이미지를 우리 것으로 만든다」는
+        `_body_media` 하나가 두 쪽 모두에 한다 — 두 벌로 쓰면 한쪽만 옮기게 된다.
+        """
+        media_urls = self._body_media(
+            MEDIA_OWNER_TICKET, ticket.id, page_id, raw_blocks, fetch
+        )
+        return transform.notion_blocks_to_markdown(raw_blocks, media_urls=media_urls)
+
+    @staticmethod
+    def _ticket_body_is_ours(ticket: Ticket) -> bool:
+        """이 티켓의 본문을 **이관이 썼는가**.
+
+        문서와 달리 티켓에는 판 이력이 없어서 `source` 하나로는 못 판정한다. 대신
+        사람이 포털에서 저장했다는 사실이 남는 자리를 본다:
+
+        * `body_synced_at` — `repository_native.save_body` 가 저장할 때마다 찍는다.
+          이관은 그 칸을 안 건드리므로 값이 있으면 **사람이 저장한 것**이다.
+        * `body_sync_error` — 옛 push 실패가 적힌 행이다. 그 본문은 포털이 갖고 있고
+          원본에는 없으므로 덮으면 사용자가 쓴 글이 사라진다.
+        * 옛 자리표시자(`[원본에서 확인: `) — 사람이 칠 리 없는 글자다. 이 글자가 있으면
+          그 본문은 이관이 쓴 것이 확실하므로, 위 둘이 애매해도 다시 넣어도 된다.
+
+        비어 있으면 덮을 것이 없으므로 참이다.
+        """
+        body = ticket.body_markdown or ""
+        if not body.strip():
+            return True
+        if _LEGACY_PLACEHOLDER in body:
+            return True
+        return ticket.body_synced_at is None and not ticket.body_sync_error
+
     # ── 2층: 첨부 ────────────────────────────────────────────────────────────
 
-    def load_files(self, attachments: list, fetch) -> StageResult:
+    def load_files(self, attachments: list, fetch, *, dry_run: bool = False) -> StageResult:
         """첨부 바이트를 실제 저장소로 옮긴다 (D-250).
 
         `store_bytes` 를 지나는 이유는 그것이 **검증 → 저장 → 행** 순서를 아는 유일한
@@ -940,24 +1563,63 @@ class Loader:
 
         지원하지 않는 형식(예: 회의 녹음 `.m4a`)은 **거절하고 분류한다.** 업로드 정책을
         이관 때문에 넓히지 않는다 — 그것은 제품 결정이고 S13 의 범위가 아니다.
+
+        🔴 **문서와 티켓은 붙는 자리가 다르다** (S14 실측으로 드러남). 문서는 `files` +
+        `document_attachments` 두 표를 쓰지만, 티켓은 `ticket_attachments` 하나뿐이고
+        그 표에 `files` 를 가리키는 칸이 없다(D12). 예전에는 이 함수가 `document_id` 를
+        찾았을 때만 붙이고 못 찾으면 **아무 것도 안 했다** — 바이트는 `files` 에
+        저장되고 다리(`legacy_mapping`)도 남는데, 정작 티켓 어디에도 안 걸렸다. 화면에는
+        「그런 첨부가 없다」로 보이고 그 실종은 아무 오류도 안 낸다.
+
+        그래서 갈래를 본문 미디어(`_body_media`)와 **같은 판정**(`ticket_by_page` /
+        `document_by_page`)으로 정한다. 티켓 쪽은 `files` 표를 아예 안 거치고
+        `_store_ticket_media` — 본문 미디어가 쓰는 그 함수 그대로 — 로 보낸다. 두 번째
+        판정 자리를 만들면 언젠가 갈린다.
+
+        🔴 **이미 잘못 옮겨진 예전 회차의 흔적도 고친다.** 이 버그가 고쳐지기 전 회차가
+        이미 `legacy_mapping` 에 `file` 로 적어 둔 티켓 소유 첨부가 실제 운영 DB에
+        있다 — 그 다리를 그대로 「이미 옮겼다」로 읽으면 영영 안 고쳐진다. 그래서 다리를
+        찾을 때 종류(`target_type`)도 같이 보고, 티켓 소유인데 `file` 로 적혀 있으면
+        바이트를 다시 안 받고(이미 우리 저장소에 있다) `ticket_attachments` 로 옮긴 뒤
+        다리를 고쳐 적는다.
+
+        `dry_run` 은 이미 옮긴 것(`done`)과 아닌 것만 센다 — 바이트를 안 받고 저장소
+        기본 공급자도 안 만든다. `reimport-bodies` 가 이 길로 부른다(D5): 「본문과
+        속성의 첨부」라는 그 함수의 약속을 지키려면 첨부도 다시 넣어야 하고, 안전한
+        이유는 여기도 `legacy_mapping` 으로 두 번 안 받기 때문이다.
         """
         started = time.monotonic()
         stage = StageResult(name="attachments", source_rows=len(attachments))
         if not attachments:
             self.report.add(stage)
             return stage
-        provider = storage_service.ensure_default_provider(self.db, self.settings)
+        provider = (
+            None if dry_run
+            else storage_service.ensure_default_provider(self.db, self.settings)
+        )
         done = {
-            row.legacy_source_id: row.target_id
+            row.legacy_source_id: (row.target_type, row.target_id)
             for row in self.db.execute(
                 sa.select(LegacyMapping).where(
                     LegacyMapping.legacy_source == SRC_NOTION,
-                    LegacyMapping.target_type == T_FILE,
+                    LegacyMapping.target_type.in_((T_FILE, T_TICKET_FILE)),
                 )
             ).scalars()
         }
         for item in attachments:
-            if item.legacy_id in done:
+            mapped = done.get(item.legacy_id)
+            if mapped is not None:
+                target_type, target_id = mapped
+                ticket_id = self.ticket_by_page.get(item.page_id)
+                if ticket_id and target_type == T_FILE:
+                    if dry_run:
+                        stage.inserted += 1
+                        continue
+                    if self._reroute_file_to_ticket(ticket_id, item, target_id):
+                        stage.inserted += 1
+                    else:
+                        stage.skipped += 1
+                    continue
                 stage.updated += 1
                 continue
             if not item.hosted:
@@ -967,6 +1629,10 @@ class Loader:
                 )
                 stage.skipped += 1
                 continue
+            if dry_run:
+                # 세기만 한다 — 바이트를 안 받고 행도 안 만든다.
+                stage.inserted += 1
+                continue
             try:
                 content = fetch(item.url)
             except AppError as exc:
@@ -975,6 +1641,14 @@ class Loader:
                     f"{item.name}: {exc}", ref=item.legacy_id,
                 )
                 stage.skipped += 1
+                continue
+            document_id = self.document_by_page.get(item.page_id)
+            ticket_id = self.ticket_by_page.get(item.page_id)
+            if ticket_id and not document_id:
+                if self._store_ticket_media(ticket_id, item, content) is None:
+                    stage.skipped += 1
+                    continue
+                stage.inserted += 1
                 continue
             owner_ref = self._owner_ref(item.page_id)
             try:
@@ -992,13 +1666,60 @@ class Loader:
                 continue
             stage.inserted += 1
             self._map(SRC_NOTION, item.legacy_id, T_FILE, record.id)
-            document_id = self.document_by_page.get(item.page_id)
             if document_id:
-                self._attach_to_document(document_id, record.id, item)
-        self.db.commit()
+                self._attach_to_document(
+                    document_id, record.id, item, order=(item.index + 1) * 1024,
+                )
+        if not dry_run:
+            self.db.commit()
         stage.seconds = time.monotonic() - started
         self.report.add(stage)
         return stage
+
+    def _reroute_file_to_ticket(self, ticket_uid: str, item, file_id: str) -> bool:
+        """예전 버그가 `files` 표에 얹어 둔 티켓 소유 첨부를 `ticket_attachments` 로 옮긴다.
+
+        바이트는 이미 우리 저장소에 있으므로 다시 안 받는다(`storage_service.read_bytes`).
+        옮긴 뒤에는 다리(`legacy_mapping`)를 그 자리에서 고쳐 적는다 — 새 행을 더하면
+        같은 `legacy_source_id` 에 `file` 다리가 죽은 채로 남아 다음 회차가 또 이 자리를
+        본다.
+        """
+        file_row = self.db.get(File, file_id)
+        if file_row is None:
+            # 다리는 있는데 파일 행이 없다(사람이 지웠거나 앞 회차가 되감겼다). 옮길
+            # 바이트가 없으므로 분류된 예외로 남긴다.
+            self.report.finding(
+                SEVERITY_CLASSIFIED, "attachment_reroute_source_missing",
+                "ticket_attachments",
+                f"옮길 파일 행이 이미 없습니다: {item.name}", ref=item.legacy_id,
+            )
+            return False
+        try:
+            content = storage_service.read_bytes(self.db, file_row)
+        except AppError as exc:
+            # 행은 있는데 바이트가 없다(장치가 바뀌었거나 사람이 지웠다). 억지로
+            # 옮기려다 회차 전체를 죽이지 않는다 — 이 한 건만 분류된 예외로 남긴다.
+            self.report.finding(
+                SEVERITY_BLOCKING, "attachment_reroute_bytes_missing",
+                "ticket_attachments",
+                f"저장소에서 바이트를 못 읽었습니다: {item.name} ({exc})",
+                ref=item.legacy_id,
+            )
+            return False
+        attachment_id = self._store_ticket_media(ticket_uid, item, content)
+        if attachment_id is None:
+            return False
+        storage_service.delete_file(self.db, file_row)
+        self.db.execute(
+            sa.update(LegacyMapping)
+            .where(
+                LegacyMapping.legacy_source == SRC_NOTION,
+                LegacyMapping.legacy_source_id == item.legacy_id,
+                LegacyMapping.target_type == T_FILE,
+            )
+            .values(target_type=T_TICKET_FILE, target_id=attachment_id, migrated_at=utcnow())
+        )
+        return True
 
     def _owner_ref(self, page_id: str) -> str | None:
         document_id = self.document_by_page.get(page_id)
@@ -1007,16 +1728,26 @@ class Loader:
         ticket_id = self.ticket_by_page.get(page_id)
         return f"ticket:{ticket_id}" if ticket_id else None
 
-    def _attach_to_document(self, document_id: str, file_id: str, item) -> None:
+    def _attach_to_document(
+        self, document_id: str, file_id: str, item, *, order: int
+    ) -> str | None:
+        """문서에 첨부를 붙이고 **그 첨부의 id** 를 돌려준다.
+
+        id 가 필요한 이유는 본문 이미지 때문이다 — `src` 가 첨부를 여는 우리 주소여야
+        하고, 그 주소는 첨부 id 로 만들어진다. `DO NOTHING` 이면 이미 붙어 있는 회차에서
+        아무것도 안 돌려주므로 재실행이 이미지 주소를 잃는다. 그래서 `DO UPDATE` 로
+        같은 값을 다시 적고 id 를 받는다 — 두 번 돌려도 첨부는 한 줄이다.
+        """
         table = DocumentAttachment.__table__
         stmt = pg_insert(table).values([{
             "id": new_uuid(), "document_id": document_id, "file_id": file_id,
-            "caption": item.name[:500], "sort_order": (item.index + 1) * 1024,
+            "caption": item.name[:500], "sort_order": order,
             "created_by": None, "created_at": utcnow(),
         }])
-        self.db.execute(stmt.on_conflict_do_nothing(
-            index_elements=["document_id", "file_id"]
-        ))
+        return self.db.execute(stmt.on_conflict_do_update(
+            index_elements=["document_id", "file_id"],
+            set_={"caption": stmt.excluded.caption},
+        ).returning(table.c.id)).scalar_one_or_none()
 
     # ── 3층: 다리 ────────────────────────────────────────────────────────────
 
@@ -1050,7 +1781,10 @@ class Loader:
 
 
 def _space_identity(owner_kind: str, owner_id: str | None) -> tuple[str, str]:
-    if owner_kind == "unset" or not owner_id:
+    # 조직 소유 공간은 조직 하나에 하나뿐이라 주소가 고정이다. `space_slug` 로 만들면
+    # 운영에 이미 서 있는 `team-docs` 옆에 같은 뜻의 공간이 하나 더 생기고, 문서가 두
+    # 공간에 갈린다.
+    if owner_kind in (OWNER_UNSET, OWNER_ORGANIZATION) or not owner_id:
         return DEFAULT_SPACE_SLUG, DEFAULT_SPACE_NAME
     slug = transform.space_slug(owner_kind=owner_kind, owner_id=owner_id)
     return slug, f"{owner_kind} 문서"

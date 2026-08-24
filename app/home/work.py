@@ -75,7 +75,6 @@ ITEM_LIMIT = aggregate.DEFAULT_ITEM_LIMIT
 # 호출부와 테스트가 쓰던 것이라 별칭으로만 남긴다.
 TROUBLE_HEALTH_SCORE = project_health.TROUBLE_HEALTH_SCORE
 REASON_LOW_HEALTH = project_health.REASON_LOW_HEALTH
-REASON_NOTION_TROUBLE = project_health.RULE_LABELS[project_health.RULE_NOTION_TROUBLE]
 
 
 def recent_week_windows(today: date, *, count: int = TREND_WEEKS) -> list[weekly.Week]:
@@ -120,7 +119,7 @@ def _bucket(items: list[dict]) -> dict:
 
 def _trouble_reasons(project) -> list[str]:
     """이 프로젝트가 차질인 이유. 판정은 `app/projects/health.py::trouble_reasons` 하나다."""
-    return project_health.trouble_reasons(project.notion_status, project.health_score)
+    return project_health.trouble_reasons(project.health_score)
 
 
 def _project_row(project, reasons: list[str]) -> dict:

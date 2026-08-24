@@ -701,6 +701,19 @@ stage_6_postgres() {
     runuser -u postgres -- createdb -O "$PG_ROLE" -E UTF8 "$PG_DB" >>"$LOG" 2>&1 \
       || { fail "DB $PG_DB 를 만들 수 없습니다" "createdb 출력을 확인하십시오" 26 || return $?; }
   fi
+  # 🔴 **CREATEDB 를 준다** (S14). 조건 밖에 두는 이유는 재실행에서도 붙어야 하기 때문이다.
+  #
+  # 이 권한이 없으면 백업이 「복원할 수 있다」를 **영원히 증명하지 못한다.** 복구 검증은
+  # 임시 데이터베이스를 만들어 실제로 복원해 보는 방식이고(D-204 · D-273), 못 만들면
+  # 제품이 정직하게 `structure_only` 로 멈춘다 — 그런데 그 상태는 오류가 아니라서
+  # **백업은 매일 성공하고 검증만 조용히 안 된다.** Cutover 직후 첫 리허설이 정확히
+  # 거기서 멈췄고, 그때까지 아무 로그도 그 사실을 말하지 않았다.
+  #
+  # 남의 데이터를 열어 주는 권한이 아니다. 자기 데이터베이스를 만들 수 있을 뿐이고,
+  # 그것이 이 제품이 자기 백업을 스스로 검증하는 방식이다.
+  psql_super "alter role \"$PG_ROLE\" createdb" >>"$LOG" 2>&1 \
+    || { fail "role $PG_ROLE 에 createdb 를 줄 수 없습니다" \
+             "이 권한이 없으면 백업 복원 검증이 영원히 structure_only 로 멈춥니다" 26 || return $?; }
 
   # 최소 권한 · 유닉스 소켓 peer 인증. 비밀번호를 env 파일에 두지 않기 위한 선택이다.
   local hba; hba="$(runuser -u postgres -- psql -tAc 'show hba_file')"
@@ -743,6 +756,21 @@ stage_7_extensions() {
       fail "extension $ext 를 만들 수 없습니다" \
         "$( [ "$ext" = vector ] && echo "postgresql-$PG_MAJOR-pgvector 패키지를 확인하십시오" || echo "postgresql-contrib 패키지를 확인하십시오" )" 27 || return $?
     fi
+    # 🔴 **`template1` 에도 넣는다** (S14). 백업 복원 검증이 여기 걸려 있다.
+    #
+    # `pg_dump -Fc` 는 덤프 안에 `CREATE EXTENSION IF NOT EXISTS vector` 를 담는다. 복구
+    # 검증은 그 덤프를 **서비스 계정이 만든 새 데이터베이스**에 되돌려 보는데, 확장 생성은
+    # superuser 만 할 수 있어서 `pg_restore` 가 거기서 죽는다 — 즉 **이 설치의 백업은
+    # 실제로 복원되지 않는다.** 백업 자체는 매일 성공하므로 그 사실은 아무 데도 안 보인다.
+    #
+    # 확장이 **이미 있으면** `IF NOT EXISTS` 는 권한 검사 전에 끝난다(NOTICE 만 남는다).
+    # `template1` 에 넣어 두면 새로 만드는 모든 데이터베이스가 그 상태로 태어나므로,
+    # 복원이 자기 권한만으로 지나간다. 실측으로 확인하고 넣었다.
+    runuser -u postgres -- psql -v ON_ERROR_STOP=1 -d template1 \
+      -tAc "create extension if not exists $ext" >>"$LOG" 2>&1 \
+      || { fail "template1 에 extension $ext 를 넣을 수 없습니다" \
+               "이것이 없으면 백업이 복원되지 않습니다(복구 검증이 pg_restore 에서 죽는다)" 27 \
+           || return $?; }
   done
   out="$(runuser -u postgres -- psql -d "$PG_DB" -tAc \
     "select string_agg(extname||' '||extversion, ' · ' order by extname) from pg_extension where extname in ('vector','pg_trgm')")"
@@ -1348,6 +1376,20 @@ take_snapshot() {
   [ -d "/opt/$LEGACY_SLUG" ] && tar czf "$dir/app-legacy.tar.gz" --exclude="$LEGACY_SLUG/venv" -C /opt "$LEGACY_SLUG" 2>/dev/null || true
   [ -d "$ETC_DIR" ] && tar czf "$dir/etc.tar.gz" -C /etc "$SLUG" 2>/dev/null || true
   [ -d "/etc/$LEGACY_SLUG" ] && tar czf "$dir/etc-legacy.tar.gz" -C /etc "$LEGACY_SLUG" 2>/dev/null || true
+
+  # 🔴 사용자가 올린 파일과 제품이 만든 산출물. **DB 덤프만으로는 못 돌아온다** — 첨부·
+  # 업로드는 디스크에 있고 DB 에는 그 파일을 가리키는 행만 있다. 여기가 빠지면 rollback 이
+  # 「행은 있는데 파일이 없는」 상태를 만들고, 그 화면은 오류가 아니라 **빈 첨부**로 보인다.
+  #
+  # 옛 백업 스크립트(`backup-*.sh`)가 이 성질을 갖고 있었는데 새 설치기로 옮겨 오면서
+  # 빠졌다. 옛 스크립트의 시험이 계속 초록이라 아무도 못 봤다 — 지운 것이 아니라 **옮겨
+  # 오지 않은 것**이 이 종류의 사고다.
+  #
+  # `ai/models` 는 뺀다. 수 GB 이고 **되받을 수 있는 것**이라(설치기가 다시 깐다) 여기
+  # 넣으면 스냅샷 하나가 디스크를 채워 되돌릴 지점 자체를 못 만들게 된다. `temp` 도 뺀다 —
+  # 이름 그대로 중간 파일이다.
+  [ -d "$VAR_DIR" ] && tar czf "$dir/data.tar.gz"     --exclude="$SLUG/ai/models" --exclude="$SLUG/temp" -C /var/lib "$SLUG" 2>/dev/null || true
+  [ -d "/var/lib/$LEGACY_SLUG" ] && tar czf "$dir/data-legacy.tar.gz"     --exclude="$LEGACY_SLUG/ai/models" --exclude="$LEGACY_SLUG/temp"     -C /var/lib "$LEGACY_SLUG" 2>/dev/null || true
   local u
   for u in "${ALL_UNITS[@]}" "${LEGACY_UNITS[@]}"; do
     [ -f "/etc/systemd/system/$u" ] && cp "/etc/systemd/system/$u" "$dir/" || true
@@ -1445,6 +1487,12 @@ do_rollback() {
 
   [ -f "$dir/app.tar.gz" ] && { rm -rf "$APP_DIR.rollback-tmp"; tar xzf "$dir/app.tar.gz" -C /opt; }
   [ -f "$dir/etc.tar.gz" ] && tar xzf "$dir/etc.tar.gz" -C /etc
+  # 파일도 함께 되돌린다 — DB 만 되돌리면 첨부 행이 없는 파일을 가리킨다(take_snapshot 참조).
+  # 소유는 다시 잡아 준다: tar 가 담아 온 uid/gid 가 이 서버의 서비스 계정과 다를 수 있다.
+  if [ -f "$dir/data.tar.gz" ]; then
+    tar xzf "$dir/data.tar.gz" -C /var/lib
+    id "$SVC_USER" >/dev/null 2>&1 && chown -R "$SVC_USER":"$SVC_USER" "$VAR_DIR" 2>/dev/null || true
+  fi
   for u in "${ALL_UNITS[@]}"; do
     [ -f "$dir/$u" ] && install -m 0644 "$dir/$u" "/etc/systemd/system/$u" || true
   done

@@ -282,3 +282,255 @@ def test_an_explicit_id_always_beats_the_carried_one():
     old = blocks.normalize(_doc(_p("가"), _p("나")))
     new = blocks.normalize(_doc(_p("가", "mine"), _p("나")), carry_from=old)
     assert blocks.block_ids(new)[0] == "mine"
+
+
+# ── 이미지와 표 (S14) ────────────────────────────────────────────────────────
+#
+# 스키마에 자리가 없던 동안 이관은 원본의 이미지와 표를 `[원본에서 확인: image]` 같은
+# **글자**로 바꿔 넣었고, 표 셀의 31,310자는 어디에도 남지 않았다. 여기서 확인하는 것은
+# 셋이다: 그 두 종류가 정본에 들어온다 · 자리가 틀리면 거절한다 · **셀 글자가 파생 평문에
+# 전부 남는다**(그것이 검색과 임베딩에 닿는 유일한 길이다).
+
+
+def _cell(text, kind="tableCell", **attrs):
+    """표 칸 하나. attrs 는 D3 계약 그대로 `colspan`·`rowspan`·`colwidth` 다."""
+    node = {
+        "type": kind,
+        "attrs": {"colspan": 1, "rowspan": 1, "colwidth": None, **attrs},
+        "content": [{"type": "paragraph", "content": [{"type": "text", "text": text}]}],
+    }
+    if not text:
+        # 빈 칸은 빈 문단 하나를 갖는다(D3).
+        node["content"] = [{"type": "paragraph"}]
+    return node
+
+
+def _row(*cells):
+    return {"type": "tableRow", "content": list(cells)}
+
+
+def _table(*rows):
+    return {"type": "table", "content": list(rows)}
+
+
+def _image(src, alt="", title=None):
+    return {"type": "image", "attrs": {"src": src, "alt": alt, "title": title}}
+
+
+def test_an_image_survives_from_notion_shape_to_markdown_and_text():
+    """이관이 만드는 모양(D3) 그대로 넣어 파생 셋을 함께 확인한다."""
+    derived = blocks.derive(_doc(_image("/api/attachments/abc.png", alt="구성도")))
+    node = derived.body["content"][0]
+    assert node["type"] == "image"
+    assert node["attrs"]["src"] == "/api/attachments/abc.png"
+    assert node["attrs"]["alt"] == "구성도"
+    assert node["attrs"][blocks.BLOCK_ID_ATTR], "이미지가 인용 앵커를 못 받았다"
+    assert derived.markdown == "![구성도](/api/attachments/abc.png)"
+    assert derived.text == "구성도"
+
+
+def test_an_image_without_alt_leaves_no_empty_line_in_the_plain_text():
+    """빈 줄은 검색에 아무것도 안 주면서 인용의 앞뒤 문맥만 벌린다."""
+    derived = blocks.derive(_doc(_p("앞"), _image("/api/attachments/x.png"), _p("뒤")))
+    assert derived.markdown == "앞\n\n![](/api/attachments/x.png)\n\n뒤"
+    assert derived.text == "앞\n뒤"
+
+
+@pytest.mark.parametrize("src", [
+    "javascript:alert(1)",
+    "JaVaScRiPt:alert(1)",
+    "java\tscript:alert(1)",
+    " javascript:alert(1) ",
+    "data:image/svg+xml,<svg onload=alert(1)>",
+    "vbscript:msgbox(1)",
+    "mailto:someone@example.test",
+])
+def test_an_image_with_a_scheme_we_do_not_allow_is_rejected(src):
+    """링크는 마크만 떼면 글자가 남지만 이미지는 `src` 가 전부라 뗄 것이 없다.
+    `data:` 도 막는다 — `data:image/svg+xml` 은 그림처럼 보이지만 스크립트를 품는다."""
+    with pytest.raises(blocks.BlockError):
+        blocks.normalize(_doc(_image(src)))
+
+
+@pytest.mark.parametrize("src", [
+    "https://example.test/a.png",
+    "http://example.test/a.png",
+    "/api/knowledge/attachments/abc",
+])
+def test_ordinary_image_sources_survive(src):
+    """반대편 — 여기서 실패하면 위 시험은 「전부 막는 구현」도 통과시킨다."""
+    body = blocks.normalize(_doc(_image(src)))
+    assert body["content"][0]["attrs"]["src"] == src
+
+
+def test_an_image_without_a_source_is_rejected():
+    with pytest.raises(blocks.BlockError):
+        blocks.normalize(_doc({"type": "image"}))
+    with pytest.raises(blocks.BlockError):
+        blocks.normalize(_doc(_image("   ")))
+
+
+def test_a_table_becomes_a_github_pipe_table():
+    derived = blocks.derive(_doc(_table(
+        _row(_cell("이름", "tableHeader"), _cell("값", "tableHeader")),
+        _row(_cell("가"), _cell("나")),
+    )))
+    assert derived.markdown == "\n".join([
+        "| 이름 | 값 |",
+        "| --- | --- |",
+        "| 가 | 나 |",
+    ])
+    table = derived.body["content"][0]
+    assert table["type"] == "table"
+    assert table["attrs"][blocks.BLOCK_ID_ATTR], "표가 인용 앵커를 못 받았다"
+
+
+def test_every_character_in_every_cell_reaches_the_plain_text():
+    """**글자 수로** 확인한다. 표 셀의 글자가 검색과 임베딩에 닿는 길은 이것 하나뿐이고,
+    한 칸이라도 빠지면 그 문서는 「검색해도 안 나온다」로만 드러난다 — 아무도 신고하지 않는다."""
+    cells = ["담당자", "마감일", "김철수", "2026-08-24", "박영희", "다음 주 화요일"]
+    derived = blocks.derive(_doc(_table(
+        _row(_cell(cells[0], "tableHeader"), _cell(cells[1], "tableHeader")),
+        _row(_cell(cells[2]), _cell(cells[3])),
+        _row(_cell(cells[4]), _cell(cells[5])),
+    )))
+    for text in cells:
+        assert text in derived.text, f"셀 글자가 파생 평문에서 사라졌다: {text}"
+    # 칸 사이 구분자(탭)와 줄 구분자(줄바꿈) 말고는 셀 글자가 전부다 — 한 글자도 안 빠지고
+    # 한 글자도 안 늘었다.
+    body = derived.text.replace("\t", "").replace("\n", "")
+    assert len(body) == sum(len(t) for t in cells)
+
+
+def test_cells_do_not_get_glued_into_one_word():
+    """이어 붙이면 「가」와 「나」가 「가나」가 되어 어느 쪽으로 검색해도 안 나온다."""
+    derived = blocks.derive(_doc(_table(_row(_cell("가"), _cell("나")))))
+    assert "가나" not in derived.text
+    assert derived.text == "가\t나"
+
+
+def test_a_pipe_inside_a_cell_does_not_break_the_table():
+    """escape 하지 않으면 칸 안의 글자 하나가 칸 경계가 되어 그 줄부터 표가 밀린다."""
+    derived = blocks.derive(_doc(_table(_row(_cell("가|나"), _cell("다")))))
+    assert derived.markdown.splitlines()[0] == r"| 가\|나 | 다 |"
+    assert derived.text == "가|나\t다", "평문에는 escape 가 남으면 안 된다"
+
+
+def test_a_short_row_is_padded_so_the_table_does_not_skew():
+    """병합된 칸 때문에 줄마다 칸 수가 다를 수 있다. 짧은 줄을 그대로 두면 렌더러가
+    표 전체를 어긋나게 그린다."""
+    derived = blocks.derive(_doc(_table(
+        _row(_cell("가"), _cell("나"), _cell("다")),
+        _row(_cell("라", colspan=2)),
+    )))
+    rows = derived.markdown.splitlines()
+    assert rows[1] == "| --- | --- | --- |"
+    assert rows[-1] == "| 라 |  |  |"
+
+
+def test_an_empty_cell_keeps_its_place_and_leaves_no_text():
+    derived = blocks.derive(_doc(_table(_row(_cell("가"), _cell("")))))
+    assert derived.markdown.splitlines()[0] == "| 가 |  |"
+    assert derived.text == "가\t"
+
+
+def test_a_table_and_an_image_sit_next_to_ordinary_blocks():
+    """반대편 — 새 노드를 들이면서 옛 노드가 밀려나지 않는다."""
+    derived = blocks.derive(_doc(
+        {"type": "heading", "attrs": {"level": 2}, "content": [{"type": "text", "text": "표"}]},
+        _table(_row(_cell("가"))),
+        _image("/api/x.png", alt="그림"),
+        _p("끝"),
+    ))
+    assert derived.text == "표\n가\n그림\n끝"
+    assert [b["type"] for b in derived.body["content"]] == [
+        "heading", "table", "image", "paragraph",
+    ]
+
+
+def test_table_text_is_indexed_per_block_too():
+    """인용은 「이 문서 어딘가」가 아니라 「이 블록」을 가리켜야 한다(D-198)."""
+    body = blocks.normalize(_doc(_p("앞"), _table(_row(_cell("가"), _cell("나")))))
+    rows = list(blocks.iter_block_text(body))
+    assert [kind for _, kind, _ in rows] == ["paragraph", "table"]
+    assert rows[1][2] == "가\t나"
+
+
+# ── 자리가 틀린 표 노드는 거절한다 ──────────────────────────────────────────
+#
+# 종류만 맞고 자리가 틀린 값은 ProseMirror 가 그 문서를 통째로 버린다 — 화면에는 오류가
+# 아니라 **빈 본문**이 뜨고, DB 에는 멀쩡한 값이 들어 있어서 원인을 찾기 어렵다.
+
+
+@pytest.mark.parametrize("bad", [
+    {"type": "tableRow", "content": []},
+    {"type": "tableCell", "content": [_p("가")]},
+    {"type": "tableHeader", "content": [_p("가")]},
+])
+def test_table_parts_cannot_sit_at_the_top_level(bad):
+    with pytest.raises(blocks.BlockError):
+        blocks.normalize(_doc(bad))
+
+
+def test_a_cell_cannot_sit_directly_in_a_table():
+    with pytest.raises(blocks.BlockError):
+        blocks.normalize(_doc({"type": "table", "content": [_cell("가")]}))
+
+
+def test_a_table_cannot_hold_a_paragraph_directly():
+    with pytest.raises(blocks.BlockError):
+        blocks.normalize(_doc({"type": "table", "content": [_p("가")]}))
+
+
+def test_a_row_cannot_hold_another_row():
+    with pytest.raises(blocks.BlockError):
+        blocks.normalize(_doc(_table(_row(_row(_cell("가"))))))
+
+
+def test_a_list_item_cannot_sit_inside_a_quote():
+    """같은 규칙이 옛 노드에도 걸린다 — 목록 항목의 부모는 목록뿐이다."""
+    with pytest.raises(blocks.BlockError):
+        blocks.normalize(_doc({"type": "blockquote", "content": [
+            {"type": "listItem", "content": [_p("가")]},
+        ]}))
+
+
+def test_a_cell_holds_blocks_so_a_list_inside_a_table_is_fine():
+    """반대편 — 칸 안에는 블록이 온다(D3). 여기서 실패하면 위 거절들은 표를 통째로
+    막는 구현도 통과시킨다."""
+    derived = blocks.derive(_doc(_table(_row({
+        "type": "tableCell",
+        "attrs": {"colspan": 1, "rowspan": 1},
+        "content": [{"type": "bulletList", "content": [
+            {"type": "listItem", "content": [_p("하나")]},
+            {"type": "listItem", "content": [_p("둘")]},
+        ]}],
+    }))))
+    assert "하나" in derived.text and "둘" in derived.text
+    assert derived.markdown.splitlines()[0] == "| - 하나 - 둘 |"
+
+
+@pytest.mark.parametrize("attrs", [
+    {"colspan": 0},
+    {"rowspan": -1},
+    {"colspan": "2"},
+    {"colspan": True},
+    {"colwidth": ["120"]},
+    {"colwidth": 120},
+])
+def test_broken_cell_attributes_are_rejected(attrs):
+    with pytest.raises(blocks.BlockError):
+        blocks.normalize(_doc(_table(_row({
+            "type": "tableCell", "attrs": attrs, "content": [_p("가")],
+        }))))
+
+
+def test_ordinary_cell_attributes_survive():
+    """반대편 — 병합된 칸과 열 너비는 편집기가 실제로 보내는 값이다."""
+    body = blocks.normalize(_doc(_table(_row({
+        "type": "tableCell",
+        "attrs": {"colspan": 2, "rowspan": 3, "colwidth": [120, 240]},
+        "content": [_p("가")],
+    }))))
+    attrs = body["content"][0]["content"][0]["content"][0]["attrs"]
+    assert (attrs["colspan"], attrs["rowspan"], attrs["colwidth"]) == (2, 3, [120, 240])

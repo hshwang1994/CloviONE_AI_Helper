@@ -28,8 +28,6 @@ MAX_SHORT_TEXT = 200
 # 정렬 순번의 상한. 컬럼은 Integer 라 큰 값도 들어가지만, 화면이 손으로 정하는 순서에
 # 10만 같은 값이 오면 그건 순서가 아니라 입력 사고다. 경계에서 막는다.
 MAX_SORT_ORDER = 9999
-# 컬럼이 String(64) 다. 경계에서 안 자르면 flush 가 아니라 저장 후 조회에서 잘린 값이 나온다.
-MAX_NOTION_STATUS = 64
 
 
 def _stripped(value):
@@ -124,34 +122,19 @@ class ProjectUpdate(ProjectCreate):
 
     name: str | None = None
     status: str | None = None
-    # Notion 진행 상태 원문(백로그/계획 중/진행 중/차질/완료/취소). 앱 `status` 와 **다른 축**
-    # 이라 따로 받는다 — 하나로 뭉치면 '차질' 이 표현되지 않는다(models.py 참조).
-    #
-    # 허용 옵션을 여기 하드코딩하지 않는 이유: Notion 이 그 목록의 정본이라, 팀이 옵션을 하나
-    # 늘린 날 포털이 정상 값을 거절하게 된다. 판정은 push 직전에 **실제 스키마**로 한다
-    # (app/projects/notion_write.py::_status_value).
-    notion_status: str | None = None
+    # 여기 `notion_status` 가 있었다. 고치면 그대로 Notion 에 push 하려고 받던 값인데, 그
+    # push 가 없어져 지금은 아무 데도 안 가는 칸이다. 응답에서도 뺐다.
     # 낙관적 잠금 (S6). 편집을 시작할 때 받은 `version` 을 그대로 돌려보낸다 — 그 사이
     # 누가 먼저 저장했으면 409 로 막힌다. 안 보내면 예전처럼 덮어쓴다(구버전 클라이언트
     # 호환). 저장되는 값이 아니라 **비교용**이라 EDITABLE_FIELDS 에 없다.
     #
     # 예전 이름은 `base_notion_version` 이었고 값은 해시였다. 이름과 타입이 함께 바뀐
-    # 이유는 `app/projects/sync.py::ensure_not_changed` 에 있다 — 옛 이름을 남겨 두면
+    # 이유는 `app/projects/service.py::ensure_not_changed` 에 있다 — 옛 이름을 남겨 두면
     # 옛 클라이언트가 해시를 보내고 서버가 그것을 정수로 읽으려다 조용히 통과한다.
     base_version: int | None = None
 
     # `ProjectCreate` 에는 위 두 필드가 없다. 새로 만드는 프로젝트는 Notion 페이지가 아직
     # 없으므로 밀어 넣을 상태도, 충돌할 앞사람도 없다.
-
-    @field_validator("notion_status")
-    @classmethod
-    def _notion_status(cls, v):
-        v = _stripped(v)
-        if v in (None, ""):
-            return None
-        if len(v) > MAX_NOTION_STATUS:
-            raise ValueError(f"진행 상태는 {MAX_NOTION_STATUS}자 이하여야 합니다.")
-        return v
 
     @field_validator("name")
     @classmethod

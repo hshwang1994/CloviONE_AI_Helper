@@ -57,17 +57,42 @@ class BlockError(ValueError):
 
 # ── 스키마 ───────────────────────────────────────────────────────────────────
 #
-# TipTap StarterKit(MIT)이 내는 노드 그대로다. Pro extension 은 상용 라이선스라 쓰지
-# 않는다(D-198). 목록에 없는 종류는 **거절한다** — 통과시키면 편집기가 못 그리는 값이
-# DB 에 들어가고, 그 문서는 열 때마다 빈 화면이 된다.
+# TipTap StarterKit 과 공식 MIT 확장(`extension-image`·`extension-table`)이 내는 노드
+# 그대로다. Pro extension 은 상용 라이선스라 쓰지 않는다(D-198). 목록에 없는 종류는
+# **거절한다** — 통과시키면 편집기가 못 그리는 값이 DB 에 들어가고, 그 문서는 열 때마다
+# 빈 화면이 된다.
+#
+# `image` 와 `table` 은 S14 에서 들어왔다. 그 전에는 스키마에 자리가 없어서 이관이 원본
+# 이미지 49블록과 표 93개를 `[원본에서 확인: image]` 같은 **글자**로 바꿔 넣었고, 표
+# 셀의 31,310자는 어디에도 남지 않았다.
 BLOCK_NODES: frozenset[str] = frozenset({
     "paragraph", "heading", "bulletList", "orderedList", "blockquote",
-    "codeBlock", "horizontalRule",
+    "codeBlock", "horizontalRule", "image", "table",
 })
 # 블록 안에서만 나오는 구조 노드. 최상위에 오면 편집기가 못 그린다.
-NESTED_NODES: frozenset[str] = frozenset({"listItem"})
+NESTED_NODES: frozenset[str] = frozenset({
+    "listItem", "tableRow", "tableHeader", "tableCell",
+})
 INLINE_NODES: frozenset[str] = frozenset({"text", "hardBreak", "mention"})
 KNOWN_NODES = BLOCK_NODES | NESTED_NODES | INLINE_NODES
+
+# 구조 노드가 **어디에 올 수 있는가**. 종류만 맞고 자리가 틀린 값은 편집기가 못 그린다 —
+# `tableCell` 이 표 밖에 떠 있거나 `table` 이 문단을 직접 품으면 ProseMirror 는 그 문서를
+# 통째로 버린다. 그래서 두 방향을 함께 강제한다: 자식이 부모를 고르고(`NODE_PARENTS`),
+# 부모가 자식을 고른다(`NODE_CHILDREN`). 한쪽만 보면 반대쪽 모양이 그대로 통과한다.
+NODE_PARENTS: dict[str, frozenset[str]] = {
+    "listItem": frozenset({"bulletList", "orderedList"}),
+    "tableRow": frozenset({"table"}),
+    "tableHeader": frozenset({"tableRow"}),
+    "tableCell": frozenset({"tableRow"}),
+}
+NODE_CHILDREN: dict[str, frozenset[str]] = {
+    "bulletList": frozenset({"listItem"}),
+    "orderedList": frozenset({"listItem"}),
+    "table": frozenset({"tableRow"}),
+    "tableRow": frozenset({"tableHeader", "tableCell"}),
+}
+TABLE_CELL_NODES: frozenset[str] = frozenset({"tableHeader", "tableCell"})
 
 MARKS: frozenset[str] = frozenset({"bold", "italic", "strike", "code", "link"})
 
@@ -75,6 +100,16 @@ MARKS: frozenset[str] = frozenset({"bold", "italic", "strike", "code", "link"})
 # 거절하면 사용자가 방금 쓴 글을 잃는다. `javascript:` 가 이 목록에 없는 이유는 설명이
 # 필요 없다.
 SAFE_LINK_SCHEMES: frozenset[str] = frozenset({"http", "https", "mailto"})
+
+# 이미지가 가리킬 수 있는 것. 링크보다 좁다.
+#
+#   * `mailto:` 는 그림이 아니다.
+#   * `data:` 는 뺀다 — `data:image/svg+xml` 은 그림처럼 보이지만 스크립트를 품을 수 있고,
+#     본문 바이트를 DB 에 통째로 싣는 길이기도 하다. 이미지 바이트는 우리 첨부 저장소에
+#     넣고 `src` 는 우리 엔드포인트를 가리킨다(D4).
+#
+# 스킴이 없는 상대 주소(`/api/attachments/…`)는 통과한다 — 우리 첨부가 바로 그 모양이다.
+SAFE_IMAGE_SCHEMES: frozenset[str] = frozenset({"http", "https"})
 _SCHEME_RE = re.compile(r"^([a-zA-Z][a-zA-Z0-9+.-]*):")
 
 # 파서가 자기를 지킬 수 있는 깊이. 목록 안의 목록 안의 목록…은 실제로 쓰이지만
@@ -201,7 +236,9 @@ def normalize(doc: Any, *, id_factory=None, carry_from: Any = None) -> dict[str,
     return {"type": "doc", "content": blocks}
 
 
-def _normalize_node(node: Any, *, depth: int, top: bool = False) -> dict[str, Any]:
+def _normalize_node(
+    node: Any, *, depth: int, top: bool = False, parent: str | None = None,
+) -> dict[str, Any]:
     if depth > MAX_DEPTH:
         raise BlockError(f"본문이 {MAX_DEPTH}겹보다 깊게 중첩됐습니다.")
     if not isinstance(node, dict):
@@ -213,6 +250,13 @@ def _normalize_node(node: Any, *, depth: int, top: bool = False) -> dict[str, An
     if top and kind not in BLOCK_NODES:
         raise BlockError(f"{kind} 는 최상위에 올 수 없습니다.")
 
+    allowed_parents = NODE_PARENTS.get(kind)
+    if allowed_parents is not None and parent not in allowed_parents:
+        raise BlockError(f"{kind} 는 {'/'.join(sorted(allowed_parents))} 안에만 올 수 있습니다.")
+    allowed_children = NODE_CHILDREN.get(parent or "")
+    if allowed_children is not None and kind not in allowed_children:
+        raise BlockError(f"{parent} 안에는 {'/'.join(sorted(allowed_children))} 만 올 수 있습니다.")
+
     out: dict[str, Any] = {"type": kind}
 
     attrs = node.get("attrs")
@@ -220,6 +264,8 @@ def _normalize_node(node: Any, *, depth: int, top: bool = False) -> dict[str, An
         out["attrs"] = _normalize_attrs(kind, attrs)
     elif kind == "mention":
         raise BlockError("멘션에는 attrs 가 있어야 합니다.")
+    elif kind == "image":
+        raise BlockError("이미지에는 src 가 있어야 합니다.")
 
     if kind == "text":
         value = node.get("text")
@@ -236,7 +282,7 @@ def _normalize_node(node: Any, *, depth: int, top: bool = False) -> dict[str, An
         return out
     if not isinstance(children, list):
         raise BlockError(f"{kind} 의 content 는 목록이어야 합니다.")
-    out["content"] = [_normalize_node(c, depth=depth + 1) for c in children]
+    out["content"] = [_normalize_node(c, depth=depth + 1, parent=kind) for c in children]
     return out
 
 
@@ -261,6 +307,37 @@ def _normalize_attrs(kind: str, attrs: dict) -> dict[str, Any]:
     elif kind == "codeBlock":
         language = out.get("language")
         out["language"] = language.strip() if isinstance(language, str) else ""
+    elif kind == "image":
+        # 링크와 달리 **거절한다.** 링크는 마크를 떼도 사용자가 쓴 글자가 남지만, 이미지는
+        # `src` 가 전부라 뗄 것이 없다. 조용히 버리면 본문이 쓴 사람의 뜻과 달라진 것을
+        # 아무도 모르고, 그냥 두면 편집기가 깨진 그림 상자를 그린다. 편집기는 이런 값을
+        # 만들지 않으므로 여기 걸리는 것은 잘못 만든 클라이언트나 공격이다.
+        src = _safe_href(out.get("src"), schemes=SAFE_IMAGE_SCHEMES)
+        if src is None:
+            raise BlockError("이미지 주소가 없거나 허용하지 않는 스킴입니다.")
+        out["src"] = src
+        alt = out.get("alt")
+        # `alt` 는 없어도 빈 문자열로 둔다 — 파생 평문이 그 값을 읽고, 없는 키를 매번
+        # 확인하게 하면 읽는 쪽마다 기본값을 새로 정한다.
+        out["alt"] = alt.strip() if isinstance(alt, str) else ""
+        title = out.get("title")
+        if isinstance(title, str) and title.strip():
+            out["title"] = title.strip()
+        else:
+            out.pop("title", None)
+    elif kind in TABLE_CELL_NODES:
+        for name in ("colspan", "rowspan"):
+            span = out.get(name, 1)
+            if isinstance(span, bool) or not isinstance(span, int) or span < 1:
+                raise BlockError("표 칸의 colspan 과 rowspan 은 1 이상의 정수여야 합니다.")
+            out[name] = span
+        widths = out.get("colwidth")
+        if widths is not None:
+            if not isinstance(widths, list) or not widths or not all(
+                isinstance(w, int) and not isinstance(w, bool) and w > 0 for w in widths
+            ):
+                raise BlockError("표 칸의 colwidth 는 양의 정수 목록이어야 합니다.")
+            out["colwidth"] = list(widths)
     return out
 
 
@@ -290,12 +367,15 @@ def _normalize_marks(marks: Any) -> list[dict[str, Any]]:
     return out
 
 
-def _safe_href(href: Any) -> str | None:
+def _safe_href(href: Any, *, schemes: frozenset[str] = SAFE_LINK_SCHEMES) -> str | None:
     """허용한 스킴이면 그대로, 아니면 `None`.
 
     스킴이 없는 값(`/docs/1`, `#anchor`)은 **상대 주소**라 통과시킨다 — 같은 제품 안의
     링크가 그 모양이다. 앞뒤 공백과 제어문자를 먼저 턴다: `java\\tscript:` 같은 값이
     브라우저에서는 스킴으로 읽히기 때문이다.
+
+    이미지 `src` 도 이 함수를 쓴다. 허용 목록만 좁히고(`SAFE_IMAGE_SCHEMES`) 스킴을 읽는
+    규칙은 하나로 둔다 — 두 벌로 나누면 `java\\tscript:` 같은 우회를 한쪽만 막는 날이 온다.
     """
     if not isinstance(href, str):
         return None
@@ -305,7 +385,7 @@ def _safe_href(href: Any) -> str | None:
     match = _SCHEME_RE.match(cleaned)
     if match is None:
         return cleaned
-    return cleaned if match.group(1).lower() in SAFE_LINK_SCHEMES else None
+    return cleaned if match.group(1).lower() in schemes else None
 
 
 # ── 파생 ─────────────────────────────────────────────────────────────────────
@@ -346,6 +426,11 @@ def _block_markdown(node: dict[str, Any], *, depth: int, ordinal: int = 1) -> st
         return f"{'#' * level} {_inline_markdown(children)}"
     if kind == "horizontalRule":
         return "---"
+    if kind == "image":
+        attrs = node.get("attrs") or {}
+        return f"![{attrs.get('alt') or ''}]({attrs.get('src') or ''})"
+    if kind == "table":
+        return _table_markdown(node)
     if kind == "codeBlock":
         language = (node.get("attrs") or {}).get("language") or ""
         body = "".join(c.get("text", "") for c in children if c.get("type") == "text")
@@ -386,6 +471,51 @@ def _list_markdown(node: dict[str, Any], *, depth: int) -> str:
         indent = " " * (len(marker) + 1)
         lines.extend(f"{indent}{row}" if row else "" for row in rows[1:])
     return "\n".join(lines)
+
+
+def _table_markdown(node: dict[str, Any]) -> str:
+    """표 하나를 GitHub 파이프 표로.
+
+    구분선(`| --- |`)은 **첫 줄 뒤에 무조건 넣는다.** 그 줄이 없으면 어떤 마크다운
+    렌더러도 이 덩어리를 표로 읽지 않고 파이프가 그대로 보이는 문단이 된다 — 머리줄이
+    없는 표(첫 줄이 `tableHeader` 가 아닌 표)라도 표로 보이는 쪽이 낫다.
+
+    칸 수는 가장 넓은 줄에 맞춘다. 병합된 칸(`colspan`) 때문에 줄마다 칸 수가 다를 수
+    있고, 짧은 줄을 그대로 두면 렌더러가 표 전체를 어긋나게 그린다. 병합 자체는 파이프
+    표에 없는 개념이라 옮기지 못한다 — 그래서 정본은 파이프 표가 아니라 노드 트리다.
+    """
+    rows = [
+        r for r in (node.get("content") or [])
+        if isinstance(r, dict) and r.get("type") == "tableRow"
+    ]
+    grid = [
+        [_cell_markdown(c) for c in (row.get("content") or []) if isinstance(c, dict)]
+        for row in rows
+    ]
+    grid = [cells for cells in grid if cells]
+    if not grid:
+        return ""
+
+    width = max(len(cells) for cells in grid)
+    lines: list[str] = []
+    for index, cells in enumerate(grid):
+        lines.append("| " + " | ".join([*cells, *[""] * (width - len(cells))]) + " |")
+        if index == 0:
+            lines.append("| " + " | ".join(["---"] * width) + " |")
+    return "\n".join(lines)
+
+
+def _cell_markdown(cell: dict[str, Any]) -> str:
+    """칸 하나의 글. **한 줄로 접는다** — 파이프 표의 칸은 줄바꿈을 담지 못한다.
+
+    파이프는 `\\|` 로 escape 한다. 안 하면 칸 안의 글자 하나가 칸 경계가 되어 그 줄부터
+    표가 밀린다.
+    """
+    parts = [
+        _block_markdown(child, depth=0)
+        for child in (cell.get("content") or []) if isinstance(child, dict)
+    ]
+    return " ".join(" ".join(parts).replace("|", r"\|").split())
 
 
 def _inline_markdown(nodes: list[Any]) -> str:
@@ -430,7 +560,41 @@ def _block_text(node: dict[str, Any], lines: list[str]) -> None:
         return
     if kind == "horizontalRule":
         return
+    if kind == "image":
+        # 그림에서 글자로 남는 것은 `alt` 뿐이다. 없으면 아무 줄도 안 남긴다 — 빈 줄은
+        # 검색에 아무것도 안 주면서 인용의 앞뒤 문맥만 벌린다.
+        alt = str((node.get("attrs") or {}).get("alt") or "").strip()
+        if alt:
+            lines.append(alt)
+        return
+    if kind == "table":
+        _table_text(node, lines)
+        return
     lines.append(_inline_text(children))
+
+
+def _table_text(node: dict[str, Any], lines: list[str]) -> None:
+    """표의 **셀 글자를 전부** 남긴다. 이 함수가 그 글자가 검색과 임베딩에 닿는 유일한 길이다.
+
+    칸 사이를 탭으로 벌리는 이유는, 그냥 이어 붙이면 이웃한 두 칸의 글자가 한 낱말로
+    붙어 버리기 때문이다 — 「가」와 「나」가 「가나」가 되면 어느 쪽으로 검색해도 안 나온다.
+    줄바꿈은 표 줄을 나누는 데만 쓴다.
+    """
+    for row in node.get("content") or []:
+        if not isinstance(row, dict):
+            continue
+        cells: list[str] = []
+        for cell in row.get("content") or []:
+            if not isinstance(cell, dict):
+                continue
+            inner: list[str] = []
+            for child in cell.get("content") or []:
+                if isinstance(child, dict):
+                    _block_text(child, inner)
+            cells.append(" ".join(line.strip() for line in inner if line.strip()))
+        row_text = "\t".join(cells)
+        if row_text.strip():
+            lines.append(row_text)
 
 
 def _inline_text(nodes: list[Any]) -> str:

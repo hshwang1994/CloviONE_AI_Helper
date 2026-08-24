@@ -1,5 +1,8 @@
 """iter3 High: the installer's permission normalization must NOT strip the
-execute bit from the runtime venv (would break pip/uvicorn on upgrade)."""
+execute bit from the runtime venv (would break pip/uvicorn on upgrade).
+
+qa-contract-change: 대상을 옛 slug 설치 스크립트(scripts/install-clovirone-web-assistant.sh)에서 실제로 배포되는 설치기(deploy/install.sh)로 옮겼다 — S4 가 그 둘을 하나로 합쳤고 S14 가 옛 것을 지웠으므로, 옛 파일을 계속 읽는 시험은 아무도 안 쓰는 스크립트를 지키는 초록불이 된다. 못박는 성질과 단언 수는 그대로다.
+"""
 
 from pathlib import Path
 
@@ -7,11 +10,7 @@ import pytest
 
 pytestmark = pytest.mark.regression
 
-INSTALLER = (
-    Path(__file__).resolve().parents[2]
-    / "scripts"
-    / "install-clovirone-web-assistant.sh"
-)
+INSTALLER = Path(__file__).resolve().parents[2] / "deploy" / "install.sh"
 
 
 def test_permission_chmod_excludes_venv():

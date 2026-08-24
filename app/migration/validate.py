@@ -52,7 +52,9 @@ COUNT_PAIRS: tuple[tuple[str, str], ...] = (
     ("messages", "messages"),
     ("notifications", "notifications"),
     ("jobs", "jobs"),
-    ("ticket_comments", "ticket_comments"),
+    # `ticket_comments` 는 여기 없다. 옛 포털 댓글 위에 **Notion 댓글이 더해지므로**
+    # (D11) 소스와 대상의 수가 같은 것이 오히려 이상하다. 그 표는 `_comments` 가
+    # 「옛 포털 + 이관된 Notion 댓글」로 따로 센다.
     ("ticket_attachments", "ticket_attachments"),
     ("document_comments", "document_comments"),
     ("document_favorites", "document_favorites"),
@@ -70,11 +72,22 @@ COUNT_PAIRS: tuple[tuple[str, str], ...] = (
     ("project_health_snapshots", "project_health_snapshots"),
 )
 
+# 이관이 **행을 더하는** 표. 소스에서 온 행만 골라 세야 수가 맞는다.
+#
+# `ticket_attachments` 가 그렇다: 티켓 본문에 박혀 있던 이미지가 여기로 오고(B2), 그
+# 행들은 소스의 첨부가 아니라 본문이다. 거르지 않으면 이 검사는 「본문 이미지를 옮겼다」는
+# 이유로 빨간불이 되고, 그러면 성공이 실패로 읽힌다. 고르는 잣대는 지어낸 것이 아니라
+# **사실**이다 — 이관이 가져온 파일에는 올린 사람이 없다(D12).
+COUNT_FILTERS: dict[str, str] = {
+    "ticket_attachments": "uploaded_by_user_id IS NOT NULL",
+}
+
 
 def validate(db: Session, source, report: MigrationReport, *, notion) -> MigrationReport:
     """검사를 전부 돌고 결과를 보고서에 쌓는다. **예외를 삼키지 않는다.**"""
     _counts(db, source, report)
     _notion_counts(db, report, notion=notion)
+    _comments(db, source, report, notion=notion)
     _no_missing(db, source, report)
     _uniqueness(db, report)
     _project_codes(db, report)
@@ -82,6 +95,8 @@ def validate(db: Session, source, report: MigrationReport, *, notion) -> Migrati
     _file_links(db, report)
     _lengths(db, report)
     _no_temporary_urls(db, report)
+    _bodies(db, report)
+    _migration_space_is_visible(db, report)
     _exceptions(db, report)
     _derived_empty(db, report)
     _conversion_findings(report)
@@ -102,9 +117,15 @@ def _counts(db: Session, source, report: MigrationReport) -> None:
             continue
         checked += 1
         expected = source.count(source_table)
-        actual = _scalar(db, f'SELECT count(*) FROM "{target_table}"')
+        clause = COUNT_FILTERS.get(target_table)
+        actual = _scalar(
+            db,
+            f'SELECT count(*) FROM "{target_table}"'
+            + (f" WHERE {clause}" if clause else ""),
+        )
         report.check(
             f"수 {source_table} → {target_table}", actual == expected, expected, actual,
+            f"이관이 더한 행은 뺐다: {clause}" if clause else "",
         )
     # 「몇 개를 셌는가」를 남긴다. 이 수가 없으면 **아무것도 안 센 회차**와 전부 센
     # 회차를 구별할 수 없다 (D-213). 문턱을 걸지 않는 이유는 소스마다 표가 달라서다 —
@@ -146,6 +167,57 @@ def _notion_counts(db: Session, report: MigrationReport, *, notion: dict) -> Non
             f"수 {label} (Notion {expected} 이상)", actual >= expected, f">= {expected}",
             actual, "지우지 않으므로 대상이 더 많을 수 있습니다.",
         )
+
+
+# 댓글 한 건을 「안 넣기로 하고 사유를 남긴」 자리. 이 목록이 곧 「분류된 예외」의
+# 정의이므로 적재가 새 사유를 만들면 여기에도 더해야 한다 — 안 더하면 그 건수가
+# 아래 등식에서 사라지고, 사라진 만큼이 「원본에는 있는데 어디에도 없다」가 된다.
+COMMENT_EXCEPTION_KINDS: tuple[str, ...] = (
+    "comment_ticket_missing",
+    "comment_author_unresolved",
+    "comment_body_empty",
+    "comment_time_missing",
+)
+
+
+def _comments(db: Session, source, report: MigrationReport, *, notion: dict) -> None:
+    """티켓 댓글 — **원본 수 = 이관된 수 + 분류된 예외** (D11).
+
+    수 하나만 보면 안 되는 이유가 이 등식에 들어 있다. 「이관된 수」만 세면 못 옮긴
+    것이 몇 건인지 안 나오고, 「예외만」 세면 그 예외가 전부인지 모른다. 둘을 더해
+    원본과 맞춰야 **한 건도 그냥 사라지지 않았다**가 증명된다.
+
+    예외 건수는 이번 회차의 Finding 에서 센다. 그래서 이 검사는 **댓글을 실제로 옮긴
+    회차**에서만 돈다 — 나중에 `verify` 만 다시 도는 회차에는 그 Finding 이 없고, 없는
+    것을 0 으로 읽으면 등식이 거짓으로 깨진다.
+    """
+    migrated = _scalar(
+        db,
+        "SELECT count(*) FROM legacy_mapping "
+        "WHERE legacy_source = 'notion' AND target_type = 'comment'",
+    )
+    expected = notion.get("comments")
+    if expected is not None:
+        excepted = sum(
+            1 for finding in report.findings if finding.kind in COMMENT_EXCEPTION_KINDS
+        )
+        report.check(
+            "원본 댓글 = 이관된 댓글 + 분류된 예외",
+            migrated + excepted == expected, expected, migrated + excepted,
+            f"이관 {migrated}건, 분류된 예외 {excepted}건",
+        )
+
+    if "ticket_comments" not in set(source.tables()):
+        return
+    legacy = source.count("ticket_comments")
+    actual = _scalar(db, "SELECT count(*) FROM ticket_comments")
+    # 옛 포털 댓글은 표 복사가 그대로 옮기고, 그 위에 Notion 댓글이 더해진다. 적으면
+    # 둘 중 하나가 샌 것이고, 많으면 재실행이 같은 댓글을 두 번 넣은 것이다.
+    report.check(
+        "수 ticket_comments (옛 포털 + 이관된 Notion 댓글)",
+        actual == legacy + migrated, legacy + migrated, actual,
+        f"옛 포털 {legacy}건, 이관 {migrated}건",
+    )
 
 
 def _no_missing(db: Session, source, report: MigrationReport) -> None:
@@ -387,6 +459,98 @@ def _no_temporary_urls(db: Session, report: MigrationReport) -> None:
     report.check("Notion 임시 파일 주소", total == 0, 0, total, _sample(hits))
     # 「아무 컬럼도 안 봤다」가 0 으로 보이지 않게 한다 (D-213).
     report.check("임시 주소를 본 컬럼", len(columns) >= 300, ">= 300", len(columns))
+    # 본문 정본은 `JSONB` 라 위 훑기가 못 본다. 이미지 `src` 가 바로 그 안에 있고, 거기
+    # 서명 주소가 남으면 한 시간 뒤 문서마다 깨진 그림이 뜬다 (D4).
+    in_body = _scalar(
+        db,
+        "SELECT count(*) FROM document_versions WHERE body::text LIKE :mark",
+        {"mark": f"%{_TEMPORARY_URL_MARK}%"},
+    )
+    report.check("본문 JSON 의 임시 파일 주소", in_body == 0, 0, in_body)
+    # 티켓 본문은 마크다운이라 위 훑기가 이미 본다. 그런데도 **따로 이름을 붙여 센다**:
+    # 뭉쳐 세면 「티켓 본문에 서명 주소가 남았다」와 「미러의 어느 메모 컬럼에 남았다」가
+    # 한 숫자가 되고, 둘은 고칠 자리가 다르다. 본 티켓 수를 함께 남겨 「본문이 아예
+    # 없었다」와 구별한다 (D-213).
+    ticket_bodies = _scalar(
+        db, "SELECT count(*) FROM tickets WHERE coalesce(body_markdown, '') <> ''"
+    )
+    in_ticket = _scalar(
+        db,
+        "SELECT count(*) FROM tickets WHERE body_markdown LIKE :mark",
+        {"mark": f"%{_TEMPORARY_URL_MARK}%"},
+    )
+    report.check(
+        "티켓 본문의 임시 파일 주소", in_ticket == 0, 0, in_ticket,
+        f"본문이 있는 티켓 {ticket_bodies}건을 봤다",
+    )
+
+
+def _bodies(db: Session, report: MigrationReport) -> None:
+    """본문이 **글자 자리표시자로 바뀐 채** 들어가지 않았는가 (S14).
+
+    옛 회차는 우리 스키마에 자리가 없는 블록을 `[원본에서 확인: image]` 같은 문단으로
+    바꿔 넣었다. 그 문단은 오류가 아니라 **정상으로 보이는 손실**이다 — 검사도 화면도
+    아무 말을 안 하고, 표 셀의 글자 31,310자가 어디에도 안 남는다.
+
+    **문서와 티켓을 같이 본다.** 문서만 보면 티켓 본문 222블록이 글자로 남은 채로 초록이
+    되고, 실제로 그것이 B2 이전의 상태였다.
+
+    「본문이 몇 건인가」를 함께 센다. 0 이면 위 검사도 0 이라 둘 다 통과하는데, 그것은
+    「자리표시자가 없다」가 아니라 **본문을 안 옮겼다**는 뜻이다 (D-213).
+    """
+    bodies = _scalar(db, "SELECT count(*) FROM document_versions")
+    placeholders = _scalar(
+        db,
+        "SELECT count(*) FROM document_versions WHERE body_text LIKE :mark",
+        {"mark": "%[원본에서 확인: %"},
+    )
+    report.check(
+        "본문에 남은 옛 자리표시자", placeholders == 0, 0, placeholders,
+        f"판 {bodies}개를 봤다",
+    )
+    ticket_bodies = _scalar(
+        db, "SELECT count(*) FROM tickets WHERE coalesce(body_markdown, '') <> ''"
+    )
+    ticket_placeholders = _scalar(
+        db,
+        "SELECT count(*) FROM tickets WHERE body_markdown LIKE :mark",
+        {"mark": "%[원본에서 확인: %"},
+    )
+    # 「몇 건을 실제로 옮겼는가」를 같은 줄에 남긴다. 안 남기면 자리표시자 0 이
+    # 「깨끗하다」인지 「본문을 아예 안 옮겼다」인지 보고서만 보고는 못 가른다.
+    # 올린 사람이 없는 첨부가 곧 이관이 본문에서 옮겨 온 파일이다(D12).
+    moved = _scalar(
+        db, "SELECT count(*) FROM ticket_attachments WHERE uploaded_by_user_id IS NULL"
+    )
+    report.check(
+        "티켓 본문에 남은 옛 자리표시자", ticket_placeholders == 0, 0,
+        ticket_placeholders,
+        f"본문이 있는 티켓 {ticket_bodies}건을 봤고 본문 파일 {moved}건을 옮겼다",
+    )
+
+
+def _migration_space_is_visible(db: Session, report: MigrationReport) -> None:
+    """이관 문서가 든 공간이 **누군가에게 보이는가** (D7).
+
+    `_stored_ownership_rules` 는 소속 갈래 셋만 열어 주고 `owner_kind='unset'` 은 어느
+    갈래에도 안 건다. 그래서 `unset` 공간의 문서는 전역 조회 권한을 가진 사람 말고는
+    아무도 못 보고, **오류는 하나도 안 난다.** 실측에서 활성 24명 중 20명이 문서 110건을
+    하나도 못 봤다.
+    """
+    unset = _scalar(
+        db,
+        "SELECT count(*) FROM knowledge_spaces s WHERE s.owner_kind = 'unset' "
+        "AND EXISTS (SELECT 1 FROM documents d WHERE d.space_id = s.id)",
+    )
+    report.check("소속 없는 공간에 든 문서", unset == 0, 0, unset)
+    orphan_org = _scalar(
+        db,
+        "SELECT count(*) FROM knowledge_spaces "
+        "WHERE owner_kind = 'organization' AND org_id IS NULL",
+    )
+    # 조직 갈래는 `owner_kind` 와 `org_id` 를 **함께** 본다. 하나만 서 있으면 절이 여전히
+    # 안 걸리고 화면은 고치기 전과 똑같다.
+    report.check("조직 소유인데 조직이 없는 공간", orphan_org == 0, 0, orphan_org)
 
 
 def _exceptions(db: Session, report: MigrationReport) -> None:

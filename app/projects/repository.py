@@ -26,7 +26,7 @@
 
 from __future__ import annotations
 
-from sqlalchemy import Select, func, select
+from sqlalchemy import Select, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.core.dates import parse_date
@@ -182,12 +182,19 @@ def ticket_rows_for_project(db: Session, project: Project) -> list[TicketCache]:
     분모에 남아** 진행률이 이유 없이 낮게 나온다. 다음 회차에 돌아오면 표시가 지워지고
     다시 세어진다 - 그게 0043 의 설계다.
 
-    ## 왜 Notion page id 로 프로젝트를 잇는가
+    ## 왜 축이 둘인가 (S14)
 
-    `tickets.project_ids` 는 외부 소스의 relation id 목록이다. `Project.notion_page_id`
-    가 없는(포털 전용) 프로젝트는 아직 걸린 작업이 있을 수 없으므로 **빈 목록**을
-    돌려준다. 여기서 '전체 티켓'으로 폴백하면 포털 전용 프로젝트가 회사의 모든 작업을
-    자기 분모로 세게 된다.
+    소속의 정본은 `tickets.project_uid` 다 — 프로젝트 행의 uuid 를 그대로 가리킨다.
+    `tickets.project_ids` 는 **이관해 온 티켓**이 달고 있는 옛 소스의 relation id 목록이고,
+    그쪽은 `projects.notion_page_id` 로만 맞출 수 있다.
+
+    🔴 `notion_page_id` 하나만 보면 **자체 DB 에서 만든 프로젝트는 영원히 빈 목록**이다.
+    새로 만드는 프로젝트에는 그 칸이 없다(D-284 뒤로 소스가 id 를 주지 않는다). 그러면
+    진행률·WBS 트리·헬스·주간 리포트가 전부 "셀 것이 없다"로 답하는데, 화면에는 티켓이
+    멀쩡히 붙어 있다. 오류는 안 난다 — 숫자만 조용히 비어 있다.
+
+    폴백은 없다. 두 축 중 어느 것도 안 맞으면 빈 목록이다. 여기서 '전체 티켓'으로
+    떨어지면 프로젝트 하나가 회사의 모든 작업을 자기 분모로 세게 된다.
 
     **작업 사이의 계층은 이 축이 아니다** (S6). 상하위는 `ticket_relations` 가 정본이고
     티켓 UUID 로 잇는다 — `tasks_for_project` 가 그 표를 한 번에 읽어 넘긴다.
@@ -199,11 +206,12 @@ def ticket_rows_for_project(db: Session, project: Project) -> list[TicketCache]:
     표본 수와 순서까지 요청마다 흔들리면 두 화면을 비교할 수 없다.
     """
     page_id = project.notion_page_id
-    if not page_id:
-        return []
+    axes = [TicketCache.project_uid == project.id]
+    if page_id:
+        axes.append(TicketCache.project_ids.contains(token(page_id), autoescape=True))
     rows = db.execute(
         select(TicketCache).where(
-            TicketCache.project_ids.contains(token(page_id), autoescape=True),
+            or_(*axes),
             TicketCache.notion_missing_at.is_(None),
         ).order_by(TicketCache.id.asc())
     ).scalars().all()

@@ -1,13 +1,15 @@
-"""문서 저장소의 자체 DB 구현 (S14). **나가는 호출 없이 같은 답을 낸다.**
+"""문서 저장소의 자체 DB 구현 (S14). **나가는 호출 없이 화면이 요구하는 답을 낸다.**
 
-S14 는 `DOCUMENT_SOURCE=native` 로 바꾼 뒤 Notion 모듈을 걷어낸다. 그 순서가 성립하려면
-이 구현체가 두 가지를 동시에 만족해야 하고, 이 파일은 그 둘만 본다.
+S14 가 소스를 자체 DB 로 바꿨고, 그다음 Notion 모듈이 전부 사라졌다. 이 파일은 그 결과
+남은 구현체가 두 가지를 동시에 만족하는지만 본다.
 
-1. **답이 같다.** 목록·상세는 두 구현이 같은 행을 읽으므로 1:1 로 같아야 한다. 여기서
-   갈라지면 소스를 바꾼 날 사용자에게는 "문서가 몇 건 사라졌다" 로 보인다.
-2. **나가지 않는다.** 본문·프로젝트 목록·생성·보관처리는 오늘 Notion 을 부르는 넷이다.
-   자체 DB 구현이 그중 하나라도 아직 부르고 있으면, Notion 모듈을 지우는 순간 그 화면이
-   죽는다. 모듈 소스(정적)와 실제 호출(동적) 양쪽에서 못박는다.
+1. **답이 맞다.** 목록·상세가 어떤 필터에 어떤 문서를 내놓는지 여기에 값으로 적어 둔다.
+   컷오버 때는 같은 성질을 Notion 구현체와 1:1 로 비교해 증명했지만 그 짝은 이제 없다 —
+   비교만 남기면 둘 다 빈 목록을 내도 통과하므로, 처음부터 함께 적어 두던 기대값이
+   그대로 판정 근거가 된다.
+2. **나가지 않는다.** 본문·프로젝트 목록·생성·보관처리는 Notion 을 부르던 넷이다. 자체 DB
+   구현이 그중 하나라도 아직 부르고 있으면 그 화면이 죽는다. 모듈 소스(정적)와 실제
+   호출(동적) 양쪽에서 못박는다.
 
 본문 렌더 규칙이 프런트 편집기와 갈라지지 않는지도 함께 본다 — 그 규칙의 정본은
 `app/core/notion_blocks.py` 이고, 자체 구현은 그 상한(Notion API 의 100 블록·1900 자)만
@@ -36,7 +38,6 @@ from app.team_docs.repository_native import (
     NativeArchiveNeedsSessionError,
     NativeDocumentRepository,
 )
-from app.team_docs.repository_notion import NotionDocumentRepository
 
 pytestmark = pytest.mark.integration
 
@@ -58,16 +59,11 @@ def native(settings) -> NativeDocumentRepository:
     return NativeDocumentRepository(settings, Boom())
 
 
-@pytest.fixture()
-def notion(app, settings) -> NotionDocumentRepository:
-    """비교용 Notion 구현체. 목록·상세는 이쪽도 로컬 미러를 읽으므로 호출이 안 나간다."""
-    return NotionDocumentRepository(settings, app.state.outbound_client)
-
 
 def _filters(**over) -> dict:
     base = dict(
         search=None, doc_type_f=None, work_field_f=None, project_f=None, tech_f=None,
-        favorite_page_ids=None, favorites_only=False, sort="recent", offset=0, limit=50,
+        sort="recent", offset=0, limit=50,
     )
     base.update(over)
     return base
@@ -104,12 +100,14 @@ def _migrated(db, *, page_id: str, body: str) -> Document:
 # ── 0) 계약 자체 ─────────────────────────────────────────────────────────────
 
 
-def test_it_covers_the_protocol_with_the_same_signatures_as_the_notion_one():
-    """`DocumentRepository` 가 선언한 일곱을 다 갖고, 인자 이름까지 Notion 구현과 같다.
+def test_it_covers_the_protocol_with_the_declared_signatures():
+    """`DocumentRepository` 가 선언한 일곱을 다 갖고, 인자 이름까지 선언과 같다.
 
-    선택기는 두 구현체를 **바꿔 끼운다**(`app/core/source_registry.py`). 메서드가 하나
-    빠지면 그 화면만 500 이 되고, 인자 이름이 하나 다르면 키워드로 부르는 호출부에서만
-    깨진다 - 둘 다 소스를 바꾼 뒤에야, 그 화면을 연 사람에게만 드러난다.
+    예전에는 Notion 구현체와 서로 맞춰 봤다. 그쪽이 사라진 지금 기준은 인터페이스 자신이고,
+    그것이 원래 맞는 기준이다 — 구현이 하나뿐이어도 계약은 계약이다.
+
+    메서드가 하나 빠지면 그 화면만 500 이 되고, 인자 이름이 하나 다르면 키워드로 부르는
+    호출부에서만 깨진다. 둘 다 그 화면을 연 사람에게만 드러난다.
     """
     declared = set(DocumentRepository.__protocol_attrs__)
     assert declared, "Protocol 이 선언한 메서드를 못 읽었다 - 검사가 헛돌고 있다"
@@ -121,19 +119,17 @@ def test_it_covers_the_protocol_with_the_same_signatures_as_the_notion_one():
         }
 
     assert declared <= set(dir(NativeDocumentRepository))
-    assert surface(NativeDocumentRepository) == surface(NotionDocumentRepository)
+    assert surface(NativeDocumentRepository) == surface(DocumentRepository)
 
 
-# ── 1) 목록·상세는 Notion 구현과 같은 답이다 ─────────────────────────────────
+# ── 1) 목록·상세가 어떤 필터에 무엇을 내놓는가 ───────────────────────────────
 
 
-def test_the_list_matches_the_notion_implementation_row_for_row(
-    db, native, notion, make_document
-):
-    """같은 픽스처에 같은 필터를 주면 두 구현이 같은 행을 같은 순서로 낸다.
+def test_the_list_answers_the_documents_each_filter_asks_for(db, native, make_document):
+    """필터마다 나와야 하는 문서를 값으로 적어 둔다.
 
-    두 구현을 서로 비교하기만 하면 둘 다 빈 목록을 내도 통과한다. 그래서 필터마다
-    나와야 하는 문서를 함께 적는다 - 필터가 실제로 일을 하는지까지 본다.
+    필터가 아무 일도 안 하면 검색어를 바꿔도 세 건이 그대로 나오므로, 검색 두 갈래가
+    서로 다른 부분집합을 내는 것까지 함께 본다.
     """
     make_document(page_id="doc-a", title="설계 문서", org_wide=True)
     make_document(page_id="doc-b", title="회의록", org_wide=True)
@@ -146,32 +142,24 @@ def test_the_list_matches_the_notion_implementation_row_for_row(
         (_filters(search="회의"), {"doc-b"}),
     )
     for filters, expected in cases:
-        native_rows, native_total = native.list_documents(db, **filters)
-        notion_rows, notion_total = notion.list_documents(db, **filters)
-        assert [r.notion_page_id for r in native_rows] == [
-            r.notion_page_id for r in notion_rows
-        ], filters
-        assert {r.notion_page_id for r in native_rows} == expected, filters
-        assert native_total == notion_total == len(expected), filters
+        rows, total = native.list_documents(db, **filters)
+        assert {r.notion_page_id for r in rows} == expected, filters
+        assert total == len(expected), filters
 
-    # 페이지 자르기도 같은 자리에서 자른다(총계는 자르기 전 수다).
-    native_rows, native_total = native.list_documents(db, **_filters(limit=2))
-    notion_rows, notion_total = notion.list_documents(db, **_filters(limit=2))
-    assert [r.notion_page_id for r in native_rows] == [
-        r.notion_page_id for r in notion_rows
-    ]
-    assert len(native_rows) == 2 and native_total == notion_total == 3
+    # 총계는 **자르기 전** 건수다. 자른 뒤에 세면 화면이 "2건 중 3-4" 라고 쓴다.
+    rows, total = native.list_documents(db, **_filters(limit=2))
+    assert len(rows) == 2 and total == 3
 
 
-def test_get_matches_the_notion_implementation_including_the_miss(
-    db, native, notion, make_document
-):
-    """단건도 같다. **없는 문서에 대한 답까지** 같아야 소스를 바꿔도 404 가 같은 자리에 뜬다."""
-    make_document(page_id="doc-a", title="가 문서", org_wide=True)
+def test_get_answers_the_row_and_says_nothing_for_a_miss(db, native, make_document):
+    """단건은 그 행을 그대로 돌려주고, **없는 문서에는 `None`** 이다.
 
-    assert native.get(db, page_id="doc-a") is notion.get(db, page_id="doc-a")
+    없는 문서에 빈 행을 돌려주면 404 가 떠야 할 자리에 빈 화면이 뜬다.
+    """
+    row = make_document(page_id="doc-a", title="가 문서", org_wide=True)
+
+    assert native.get(db, page_id="doc-a") is row
     assert native.get(db, page_id="없는-문서") is None
-    assert notion.get(db, page_id="없는-문서") is None
 
 
 # ── 2) 본문은 저장된 것을 읽는다 ─────────────────────────────────────────────
@@ -336,14 +324,21 @@ def test_a_created_document_shows_up_in_the_list(db, native, make_user, fake_clo
 # ── 5) 본문 저장 ─────────────────────────────────────────────────────────────
 
 
-def test_save_body_persists_and_reports_synced(db, native, make_document, fake_clock):
-    """자체 DB 에는 어긋날 상대가 없다 — `synced=True` 는 낙관이 아니라 사실이다."""
+def test_save_body_persists_and_carries_no_push_state(db, native, make_document, fake_clock):
+    """자체 DB 에는 어긋날 상대가 없어 「밀어 넣지 못했다」는 상태 자체가 없다.
+
+    예전에는 이 시험이 `result.synced is True and result.sync_error is None` 을 단언했다.
+    「언제나 참인 필드가 참이다」는 아무것도 막지 못하고, 응답에 실려 나가는 동안 화면이
+    그것을 보고 없는 실패 갈래(「원본에 반영하지 못했습니다」 배너와 재시도 버튼)를
+    되살린다. 지금은 필드가 아예 없다 — 되살리면 이 시험이 빨개진다.
+    """
     make_document(page_id="doc-save", title="저장할 문서", org_wide=True)
 
     result = native.save_body(
         db, page_id="doc-save", body_markdown="새 본문", now=fake_clock.now()
     )
-    assert result.synced is True and result.sync_error is None
+    assert hasattr(result, "synced") is False, result
+    assert hasattr(result, "sync_error") is False, result
     assert result.body_markdown == "새 본문"
 
     row = native.get(db, page_id="doc-save")
@@ -599,7 +594,9 @@ def test_the_document_screens_run_on_this_repository_without_notion(
         {"kind": "heading_1", "text": "제목"},
         {"kind": "paragraph", "text": "본문"},
     ]
-    assert data["body_markdown"] == "# 제목\n본문" and data["body_is_local"] is True
+    assert data["body_markdown"] == "# 제목\n본문"
+    # 상세는 `body_is_local` 을 더 이상 안 싣는다 - 정본이 한 곳뿐이라 근사치라는 상태가 없다.
+    assert "body_is_local" not in data
 
     # 저장은 편집 시작 시점의 지문을 그대로 돌려보낸다(낙관적 잠금이 그대로 산다).
     saved = client.put(
@@ -608,8 +605,9 @@ def test_the_document_screens_run_on_this_repository_without_notion(
         headers={"X-CSRF-Token": csrf},
     )
     assert saved.status_code == 200, saved.text
-    assert saved.json()["synced"] is True
-    assert saved.json()["body_sync_error"] is None
+    # 저장 응답에 push 상태가 없다 - 밀어 넣을 원본이 없어 「못 밀어 넣었다」가 성립하지 않는다.
+    assert "synced" not in saved.json()
+    assert "body_sync_error" not in saved.json()
 
     # 낡은 지문으로 다시 저장하면 여전히 409 다 - 자체 DB 라고 잠금이 사라지지 않는다.
     stale = client.put(

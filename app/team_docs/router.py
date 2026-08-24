@@ -16,19 +16,13 @@ from app.org import context as org_context
 from app.core.audit import record_audit_from_request
 from app.authz.visibility import context_for_user
 from app.core.authz import MODERATOR_ROLES
-from app.core.deps import AuthContext, get_current_auth, get_current_user, get_db, require_csrf
-from app.core.errors import AppError, ForbiddenError, NotFoundError
+from app.core.deps import get_current_user, get_db, require_csrf
+from app.core.errors import AppError, NotFoundError
 from app.core.feature_flags import load_feature_flags
 from app.core.pagination import PageParams
-from app.team_docs import repository, service
+from app.team_docs import service
 from app.team_docs.models import split_names
-from app.team_docs.schemas import (
-    DocumentBodyUpdate,
-    DocumentCommentCreate,
-    DocumentCommentUpdate,
-    DocumentCreate,
-)
-from app.team_docs.sync import get_or_create_state, sync_documents
+from app.team_docs.schemas import DocumentBodyUpdate, DocumentCreate
 from app.tickets.schemas import BulkPageIds  # 티켓·문서 공용 일괄 삭제 스키마
 from app.users.models import User
 from app.settings.gate import block_if_maintenance
@@ -62,7 +56,7 @@ def _repo(request: Request):
     return request.app.state.repositories.documents
 
 
-def _doc_view(row, *, is_favorite: bool, can_restrict: bool = False) -> dict:
+def _doc_view(row, *, can_restrict: bool = False) -> dict:
     return {
         "id": row.notion_page_id,
         "title": row.title,
@@ -77,26 +71,16 @@ def _doc_view(row, *, is_favorite: bool, can_restrict: bool = False) -> dict:
         # 화면 계약은 ISO 문자열이다. 앞은 달력일, 뒤는 시각 (S7 · P-14a).
         "doc_date": iso_date(row.doc_date),
         "last_edited": iso_dt(row.last_edited),
-        "url": row.url,
-        "original_url": row.original_url,
-        "source_url": row.source_url,
+        # `url`·`original_url`·`source_url` 은 여기 없다. 세 값 모두 app.notion.com 을
+        # 가리키는데, 정본이 이 서버로 넘어온 뒤로 그 주소가 여는 것은 우리가 더 이상
+        # 쓰지 않는 낡은 사본이다. 화면에 「원본 열기」로 내주면 오늘 고친 내용이 없는
+        # 쪽으로 사용자를 보내는 셈이 된다(컬럼 자체는 이관 흔적으로 남겨 둔다).
         "has_files": row.has_files,
-        "is_favorite": is_favorite,
         # SEC-10: 이 문서가 이미 나온 이상(범위 판정을 지났다는 뜻) restricted 값 자체를 보여줘도
         # 안전하다 — 제한된 문서를 볼 수 있는 사람은 이미 운영자군이거나 작성자 본인뿐이다.
         "restricted": bool(row.restricted),
         "can_restrict": can_restrict,
         "synced_at": row.synced_at.isoformat() if row.synced_at else None,
-    }
-
-
-def _sync_view(state) -> dict:
-    return {
-        "status": state.status,
-        "last_run_at": state.last_run_at.isoformat() if state.last_run_at else None,
-        "last_success_at": state.last_success_at.isoformat() if state.last_success_at else None,
-        "doc_count": state.doc_count,
-        "error": state.error,
     }
 
 
@@ -111,7 +95,6 @@ def list_documents(
     work_field: str | None = Query(default=None, max_length=32),
     project: str | None = Query(default=None, max_length=120),
     tech: str | None = Query(default=None, max_length=40),
-    favorites: bool = Query(default=False),
     # 부서 필터 (0060 §32). **내 조회 범위 안에서만** 동작한다 — 범위 밖 id 는 없는 부서와
     # 똑같이 404 다(`app/org/context.py`). 프런트 선택기만으로 막지 않는다.
     department_id: str | None = Query(default=None, max_length=36),
@@ -120,7 +103,6 @@ def list_documents(
     from app.trash import repository as trash_repo
     from app.trash.models import TRASH_DOCUMENT
 
-    favs = repository.favorite_page_ids(db, me.id)
     # FN-41: 예전엔 search/type/... 필터까지만 SQL에서 페이지를 자르고 부서 범위는 **그
     # 페이지 결과에만** 사후 적용했다 — 페이지 안에서 범위 밖 문서가 걸리면 total은 "이번
     # 페이지에서 걸러진 수"로만 보정되고(다른 페이지의 손실은 못 잡음), 화면은 "총 N건"
@@ -136,8 +118,6 @@ def list_documents(
         work_field_f=work_field,
         project_f=project,
         tech_f=tech,
-        favorite_page_ids=favs,
-        favorites_only=favorites,
         sort=sort if sort in {"recent", "title"} else "recent",
         offset=0,
         limit=_SCOPE_FILTER_FETCH_CAP,
@@ -150,15 +130,12 @@ def list_documents(
     visible = [r for r in all_matching if service.doc_in_scope(db, r, me, ctx=ctx)]
     total = len(visible)  # 이제 필터링 뒤의 **진짜** 전체 개수다(일부 페이지 근사가 아니다).
     rows = visible[page.offset : page.offset + page.page_size]
-    state = get_or_create_state(db)
     can_restrict = me.role in MODERATOR_ROLES
     return {
-        "items": [_doc_view(r, is_favorite=r.notion_page_id in favs, can_restrict=can_restrict) for r in rows],
+        "items": [_doc_view(r, can_restrict=can_restrict) for r in rows],
         "total": total,
         "page": page.page,
         "page_size": page.page_size,
-        "sync": _sync_view(state),
-        "can_sync": service.can_trigger_sync(me),
         # 고를 수 있는 부서는 **서버가** 계산해 준다. 프런트가 스스로 만들면 서버 검증과
         # 갈라지고, 갈라진 쪽이 넓으면 사용자는 404 만 보게 된다.
         "departments": {
@@ -205,7 +182,7 @@ def create_document(
         request, db, action="team_docs.create", object_type="notion_document",
         object_id=row.notion_page_id, after={"title": payload.title},
     )
-    return {"document": _doc_view(row, is_favorite=False, can_restrict=me.role in MODERATOR_ROLES)}
+    return {"document": _doc_view(row, can_restrict=me.role in MODERATOR_ROLES)}
 
 
 @router.get("/filters")
@@ -213,19 +190,16 @@ def get_filters(
     db: Session = Depends(get_db),
     me: User = Depends(get_current_user),
 ):
-    """필터 드롭다운 + 최근 열람. 옵션도 목록과 **같은 범위 판정**을 지난다.
+    """필터 드롭다운. 옵션도 목록과 **같은 범위 판정**을 지난다.
 
     목록만 좁혀 놓으면 가린 문서의 프로젝트 코드명이 드롭다운으로 새어 나간다 — 이유는
     `service.filter_options` 에 적어 뒀다. 행위자를 넘기는 것이 이 저장소의 관용이고,
     인자가 없던 시절이 정확히 그 결함 상태였다.
+
+    「최근 열람」은 여기 없다. 그 축은 정본 문서로 옮겨 갔다 (S14 · C2 —
+    `app/knowledge/recent_views.py`).
     """
-    favs = repository.favorite_page_ids(db, me.id)
-    recent = service.recent_documents(db, me.id, limit=8, viewer=me)
-    can_restrict = me.role in MODERATOR_ROLES
-    return {
-        **service.filter_options(db, me),
-        "recent": [_doc_view(r, is_favorite=r.notion_page_id in favs, can_restrict=can_restrict) for r in recent],
-    }
+    return service.filter_options(db, me)
 
 
 @router.get("/projects")
@@ -263,81 +237,11 @@ def trash_documents_bulk(
     return {"ok": True, **result}
 
 
-# ── 댓글 ──────────────────────────────────────────────────────────────────────
-# 리터럴 세그먼트가 두 개라 아래 GET /{page_id} 와 겹치지 않는다(경로 파라미터는 '/' 를 먹지
-# 않는다). 그래도 읽는 순서상 여기에 모아 둔다 -- 티켓 라우터와 같은 배치다.
-
-
-@router.patch("/comments/{comment_id}", dependencies=[Depends(require_csrf)])
-def update_comment(
-    request: Request,
-    comment_id: str,
-    payload: DocumentCommentUpdate,
-    db: Session = Depends(get_db),
-    me: User = Depends(get_current_user),
-):
-    """댓글 수정 -- **작성자 본인만**(운영자 우회 없음). 남의 문장을 고쳐 쓸 수는 없다.
-
-    범위 판정(범위 밖은 404)은 목록, 상세가 쓰는 것과 같은 함수이고
-    `service.edit_document_comment` 안에 있다 -- 여기서 한 번 더 적으면 두 벌이 된다.
-    """
-    result = service.edit_document_comment(
-        db, comment_id=comment_id, body=payload.body, me=me,
-        now=request.app.state.clock.now(),
-    )
-    record_audit_from_request(
-        request, db, action="team_docs.comment.update", object_type="document_comment",
-        object_id=comment_id,
-    )
-    return {"ok": True, **result}
-
-
-@router.delete("/comments/{comment_id}", dependencies=[Depends(require_csrf)])
-def delete_comment(
-    request: Request,
-    comment_id: str,
-    db: Session = Depends(get_db),
-    me: User = Depends(get_current_user),
-):
-    """댓글 삭제 -- 작성자 본인 또는 운영자군. soft-delete 이고, 목록에는 툼스톤으로 남는다."""
-    result = service.delete_document_comment(
-        db, comment_id=comment_id, me=me, now=request.app.state.clock.now()
-    )
-    record_audit_from_request(
-        request, db, action="team_docs.comment.delete", object_type="document_comment",
-        object_id=comment_id,
-    )
-    return {"ok": True, **result}
-
-
-@router.get("/{page_id}/comments")
-def list_comments(
-    page_id: str,
-    db: Session = Depends(get_db),
-    me: User = Depends(get_current_user),
-):
-    """문서 댓글 목록(삭제된 것은 본문 없는 툼스톤). 외부 왕복 없음 -- 우리 표만 읽는다."""
-    return {"ok": True, **service.list_document_comments(db, page_id=page_id, me=me)}
-
-
-@router.post("/{page_id}/comments", dependencies=[Depends(require_csrf)])
-def create_comment(
-    request: Request,
-    page_id: str,
-    payload: DocumentCommentCreate,
-    db: Session = Depends(get_db),
-    me: User = Depends(get_current_user),
-):
-    """댓글 작성 -- 그 문서가 보이는 사람 누구나."""
-    result = service.add_document_comment(
-        db, page_id=page_id, me=me, body=payload.body,
-        now=request.app.state.clock.now(),
-    )
-    record_audit_from_request(
-        request, db, action="team_docs.comment.create", object_type="document_comment",
-        object_id=result["comment_id"], after={"document_page_id": page_id},
-    )
-    return {"ok": True, **result}
+# ── 댓글은 여기 없다 (S14 · C2) ───────────────────────────────────────────────
+#
+# 문서 댓글의 축은 정본 문서(`documents`)로 옮겼다 — `app/knowledge/router.py` 가 
+# `/api/knowledge/documents/{document_id}/comments` 로 답한다. 같은 자원의 같은 축이
+# 두 주소에 있으면, 한쪽에 쓴 글이 다른 쪽에서 안 보인다.
 
 
 @router.get("/{page_id}")
@@ -346,7 +250,6 @@ def get_document(
     page_id: str,
     db: Session = Depends(get_db),
     me: User = Depends(get_current_user),
-    auth: AuthContext = Depends(get_current_auth),
 ):
     # 휴지통 문서는 상세로도 없는 것으로 본다(H2, 티켓과 같은 규칙 —
     # service.ensure_doc_not_trashed 주석 참고). 목록만 걸러 두면 지운 문서가 계속
@@ -358,7 +261,6 @@ def get_document(
     # 목록에서 가린 것이 단건에서 새면 가린 의미가 없다. **403 이 아니라 404** (저장소 규칙).
     if not service.doc_in_scope(db, row, me):
         raise NotFoundError("문서를 찾을 수 없습니다.")
-    is_fav = repository.find_favorite(db, me.id, page_id) is not None
     # 본문 블록은 실시간 — Notion 장애면 메타만 보여주고 본문은 null(§17.4 격리).
     blocks = None
     blocks_error = None
@@ -368,13 +270,8 @@ def get_document(
         blocks_error = exc.message
     except Exception:
         blocks_error = "본문을 불러오지 못했습니다."
-    # 최근 열람 기록(본인). 임퍼소네이션 중에는 쓰지 않는다 — GET 이라 공용 쓰기 차단
-    # (core/deps.py::_guard_impersonation_write)을 안 지난다. 여기서 안 막으면 관리자가
-    # 읽기 전용으로 열어본 문서가 대상 사용자의 "최근 열람"에 조용히, 감사 로그도 없이 남는다.
-    if not auth.impersonating:
-        service.record_view(db, user_id=me.id, page_id=page_id, now=request.app.state.clock.now())
     return {
-        "document": _doc_view(row, is_favorite=is_fav, can_restrict=me.role in MODERATOR_ROLES),
+        "document": _doc_view(row, can_restrict=me.role in MODERATOR_ROLES),
         "blocks": blocks,
         "blocks_error": blocks_error,
         # 편집기를 여는 데 쓰는 마크다운과 그 지문(사용자 지적 #9). 이걸 안 주면 프런트가
@@ -391,11 +288,11 @@ def save_document_body(
     db: Session = Depends(get_db),
     me: User = Depends(get_current_user),
 ):
-    """문서 본문 저장. 정본(우리 DB)을 먼저 쓰고 그다음 원본(Notion)에 밀어 넣는다.
+    """문서 본문 저장. 쓸 곳은 이 서버의 문서 표 하나다.
 
-    **원본 push 실패는 500 이 아니다.** 사용자가 친 글은 이미 저장돼 있으므로 오류로 던지면
-    (요청 트랜잭션이 롤백돼) 오히려 그 글이 사라진다. 그래서 `ok: true` + `synced: false` +
-    이유를 함께 돌려주고, 화면이 "저장됨, 원본 반영 실패, 재시도" 를 그린다.
+    예전에는 정본을 먼저 쓰고 그다음 원본(Notion)에 밀어 넣었고, 그 push 가 실패하면
+    `synced: false` 와 이유를 함께 돌려줬다. 밀어 넣을 원본이 없어졌으므로 그 갈래도
+    없어졌다 — 언제나 참인 필드를 계속 실으면 화면이 그것을 보고 없는 실패 상태를 되살린다.
 
     범위 판정은 목록, 상세가 쓰는 것과 같은 함수이고 `service.save_document_body` 안에 있다.
     """
@@ -407,7 +304,7 @@ def save_document_body(
     )
     record_audit_from_request(
         request, db, action="team_docs.body.update", object_type="notion_document",
-        object_id=page_id, after={"synced": result["synced"]},
+        object_id=page_id, after={"body_version": result["body_version"]},
     )
     return {"ok": True, **result}
 
@@ -430,28 +327,6 @@ def trash_document(
         object_id=page_id, before={"title": result["title"]},
     )
     return {"ok": True}
-
-
-@router.post("/{page_id}/favorite", dependencies=[Depends(require_csrf)])
-def toggle_favorite(
-    request: Request,
-    page_id: str,
-    db: Session = Depends(get_db),
-    me: User = Depends(get_current_user),
-    on: bool = Query(default=True),
-):
-    """즐겨찾기 토글. 목록·상세와 **같은 범위 판정**을 지난다.
-
-    잃는 것이 없어 보여도 같은 문이다: 응답이 그 id 의 존재를 알려 주고, 목록에서 가린
-    문서에 내 행을 남긴다. 존재 확인과 범위 판정을 한 호출로 묶어 둔다 — 따로 적으면
-    한쪽만 남는다(그게 이 경로가 열려 있던 이유다). 범위 밖은 **403 이 아니라 404**.
-    """
-    if service.get_doc_in_scope(db, page_id, me) is None:
-        raise NotFoundError("문서를 찾을 수 없습니다.")
-    is_fav = service.toggle_favorite(
-        db, user_id=me.id, page_id=page_id, on=on, now=request.app.state.clock.now()
-    )
-    return {"ok": True, "is_favorite": is_fav}
 
 
 @router.post("/{page_id}/restrict", dependencies=[Depends(require_csrf)])
@@ -520,28 +395,3 @@ def set_allowed_users(
         object_id=page_id, after={"user_ids": user_ids},
     )
     return {"ok": True, "user_ids": user_ids}
-
-
-@router.post("/sync", dependencies=[Depends(require_csrf)])
-def trigger_sync(
-    request: Request,
-    db: Session = Depends(get_db),
-    me: User = Depends(get_current_user),
-):
-    if not service.can_trigger_sync(me):
-        raise ForbiddenError("문서 동기화는 운영자만 실행할 수 있습니다.")
-    state = sync_documents(
-        db,
-        outbound=request.app.state.outbound_client,
-        settings=request.app.state.settings,
-        now=request.app.state.clock.now(),
-    )
-    record_audit_from_request(
-        request,
-        db,
-        action="team_docs.sync",
-        object_type="document_sync",
-        object_id="documents",
-        after={"status": state.status, "doc_count": state.doc_count},
-    )
-    return {"sync": _sync_view(state)}

@@ -16,11 +16,17 @@ C7 로 두 번째 호출자가 생겼다: `app/search/reindex_router.py` 의
 막힌 드문 관리 행위라 위 규칙이 막는 대상이 아니다 — 그래서 그 라우터는 `app/search/router.py`
 (순수 조회, 위 테스트가 감시하는 파일)와 **일부러 다른 파일**에 둔다.
 
-## 티켓·문서는 저장소 seam 으로만 읽는다
+## 티켓은 저장소 seam 으로만 읽는다
 
-`app/tickets/repository.py` / `app/team_docs/repository_iface.py` 뒤로만 간다. Notion 구현
-모듈을 직접 import 하면 정적 검사가 막고, 무엇보다 소스를 바꿀 때 고칠 곳이 흩어진다.
+`app/tickets/repository.py` 뒤로만 간다. Notion 구현 모듈을 직접 import 하면 정적 검사가
+막고, 무엇보다 소스를 바꿀 때 고칠 곳이 흩어진다.
 게시판·사용자는 애초에 자체 DB가 정본이라 모델을 직접 읽는다.
+
+**문서도 이제 자체 DB가 정본이다** (S14 · D1). 예전에는 `app/team_docs` 미러
+(`document_cache`)를 저장소 seam 으로 읽었는데, 그 표는 제목 110행이 전부 빈 문자열이고
+본문이 전부 NULL 이라 색인이 「제목 없는 문서 110건」을 담고 있었다. 정본은
+`app/knowledge` 의 `documents` + `document_versions` 이므로 게시판·사용자와 같은 규칙으로
+모델을 직접 읽는다.
 
 ## 전체 재구축(full rebuild)이다
 
@@ -41,10 +47,17 @@ from urllib.parse import quote
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.core.dates import iso_date, iso_dt
+from app.core.dates import iso_dt
+from app.core.db import batched
 from app.board.models import Post
-from app.tickets.models import PROJECT_LINK_OK, TicketCache
-from app.core.models_base import split_names
+from app.knowledge.models import (
+    Document,
+    DocumentTag,
+    DocumentVersion,
+    KnowledgeSpace,
+    Tag,
+)
+from app.tickets.models import PROJECT_LINK_OK, TicketCache, api_page_id_expr
 from app.org.constants import DEFAULT_ORG_ID
 from app.org.models import Department
 from app.reports.service import load_display_maps
@@ -160,8 +173,12 @@ def _ticket_rows(db: Session, repo, maps) -> tuple[list[dict], bool]:
     truncated = len(listing.tickets) > MAX_ROWS_PER_KIND
     # 티켓의 소속은 **프로젝트가 정한다**(0060). 해석되지 않은 티켓(`project_link != 'ok'`)은
     # `unset` 으로 남고 그건 전역 관리자만 본다 — 목록 API 와 정확히 같은 판정이다.
+    # 키는 **API 가 부르는 이름**이다(`api_page_id_expr`). `notion_page_id` 로만 담으면
+    # 자체 DB 에서 만든 티켓의 키가 `NULL` 이 되고, 아래 `link_by_page.get(t.page_id)` 가
+    # 전부 `None` 을 받아 그 티켓들이 **소유 프로젝트 없이** 색인된다 — 그 상태는 전역
+    # 관리자에게만 보이므로, 새로 만든 티켓이 만든 사람에게조차 검색되지 않는다.
     link_by_page = dict(db.execute(
-        select(TicketCache.notion_page_id, TicketCache.project_uid)
+        select(api_page_id_expr(), TicketCache.project_uid)
         .where(TicketCache.project_link == PROJECT_LINK_OK)
     ).all())
     # 휴지통에 넣은 티켓은 색인하지 않는다(H2). 예전에는 보관기간(기본 7일) 내내 검색과
@@ -172,7 +189,11 @@ def _ticket_rows(db: Session, repo, maps) -> tuple[list[dict], bool]:
     for t in listing.tickets[:MAX_ROWS_PER_KIND]:
         if not t.page_id or t.page_id in trashed:
             continue
-        number = f"GIT-{t.number}" if t.number is not None else ""
+        # 검색어로 치는 이름은 `<PROJECT_CODE>-<SEQ>` 다 (D-282). 예전에는 여기서 채번
+        # 숫자에 `GIT-` 을 붙여 만들었는데, 그 접두사는 옛 정책의 것이고 이관하지 않기로
+        # 했다(D-283) — 붙여 두면 아무도 안 쓰는 이름으로만 검색되고 화면에 뜬 이름으로는
+        # 안 잡힌다. 아직 채번 전이면 빈 문자열이다(이름이 없는 것이 정상 상태다).
+        number = t.key or ""
         out.append({
             "kind": KIND_TICKET,
             "ref_id": t.page_id,
@@ -191,65 +212,116 @@ def _ticket_rows(db: Session, repo, maps) -> tuple[list[dict], bool]:
     return out, truncated
 
 
-def _document_rows(db: Session, repo, maps) -> tuple[list[dict], bool]:
-    """문서 — 저장소 seam(`list_documents`)으로만 읽는다.
+def _document_tag_names(db: Session, document_ids: list[str]) -> dict[str, list[str]]:
+    """문서마다 붙은 태그 이름 — **질의 한 번**이다.
 
-    소유자 해석은 표시 이름으로 한다(문서에는 앱 계정 참조가 없다). 못 맞추면 소유자가 빈
-    행이 되고, 부서 범위에서는 안 보인다 — fail-closed 다.
+    문서 하나마다 물으면 그대로 N+1 이고, 색인은 코퍼스 전체를 도는 자리라 그 값이 곧
+    문서 수만큼의 왕복이 된다.
     """
-    rows, total = repo.list_documents(
-        db,
-        search=None, doc_type_f=None, work_field_f=None, project_f=None, tech_f=None,
-        favorite_page_ids=None, favorites_only=False,
-        sort="recent", offset=0, limit=MAX_ROWS_PER_KIND,
+    out: dict[str, list[str]] = {}
+    for batch in batched(document_ids):
+        rows = db.execute(
+            select(DocumentTag.document_id, Tag.name)
+            .join(Tag, Tag.id == DocumentTag.tag_id)
+            .where(DocumentTag.document_id.in_(batch))
+        ).all()
+        for document_id, name in rows:
+            out.setdefault(str(document_id), []).append(str(name or ""))
+    return out
+
+
+def _document_rows(db: Session) -> tuple[list[dict], bool]:
+    """문서 — **정본은 `documents` + `document_versions` 다** (S14 · D1).
+
+    예전에는 `document_cache`(Notion 미러)를 저장소 seam 으로 읽었다. 그 표는 이관 뒤
+    제목이 110행 전부 빈 문자열이고 `body_markdown` 이 전부 NULL 이라, 색인에 「제목 없는
+    문서 110건」이 들어가 있었다 — 전역 검색과 ⌘K 에서 문서는 누를 수는 있지만 이름이 없는
+    줄이었다. 정본을 읽으면 그 110건에 제목이 실린다.
+
+    ## 소유(권한) 축은 **공간**이 준다
+
+    문서에는 소속 컬럼이 없다(D-245 · `app/knowledge/models.py`). 「폴더 이동이 권한을
+    바꾸지 않는다」가 그 설계의 한 문장이고, 그래서 가시성은 문서가 든 공간이 정한다.
+    색인 행의 `owner_*` 네 칸에 **공간의 같은 이름 네 칸을 그대로 복사**한다 — 그러면
+    `app/authz/visibility.py::_search_plan` 의 소속 갈래(`_stored_ownership_rules`)가
+    `_space_plan` 과 **같은 답**을 낸다. 여기서 다시 계산하면(예: 작성자 부서로 추정)
+    검색이 자기 규칙을 갖게 되고, 갈라지는 방향 하나는 유출이다.
+
+    좁게 실패하는 쪽을 골랐다. 공간 판정에는 색인이 못 옮기는 갈래가 둘 더 있다 —
+    공간에 준 직접 부여(`resource_grants` 의 `space`)와 `SPACE_ADMIN` 이다. 색인 행의
+    부여 조회는 `(kind, ref_id)` 즉 `('document', 문서 id)` 로만 걸리므로 그 둘은
+    **검색에서 안 보인다**. 못 찾는 실패이지 새는 실패가 아니고, 그 사람들은 문서 목록에서
+    그대로 보고 연다.
+
+    ## 담지 않는 것
+
+    * **보관된 문서**(`archived`) — 목록에서도 기본으로 빠진다.
+    * **`confidential` 문서와 `confidential` 공간의 문서.** 색인의 축소 모드는 예외가
+      하나도 없다(`CONFIDENTIAL_NOBODY`) — 담아 두고 질의에서만 거르면 질의 경로가 하나
+      늘어날 때마다 같은 실수를 다시 하게 되고, 실제로 그렇게 샌 적이 있다(SEC-10).
+      제한을 켜는 이유가 "본문에 평문 자격증명이 있다" 같은 것이라 제목만으로도 유출이다.
+    * **휴지통에 들어간 옛 문서.** 휴지통은 아직 옛 page id(`notion_page_id`)로 담기므로
+      `legacy_page_id` 로 맞춰 본다 — 옛 화면에서 지운 문서가 새 색인으로 되살아나면
+      "지웠는데 검색에는 있다" 가 된다(H2).
+    """
+    stmt = (
+        select(Document, DocumentVersion, KnowledgeSpace)
+        .join(KnowledgeSpace, KnowledgeSpace.id == Document.space_id)
+        .outerjoin(DocumentVersion, DocumentVersion.id == Document.current_version_id)
+        .where(
+            Document.archived.is_(False),
+            Document.confidential.is_(False),
+            KnowledgeSpace.confidential.is_(False),
+        )
+        # 목록 화면(`app/knowledge/service.py::list_documents`)과 같은 축이다.
+        .order_by(Document.updated_at.desc())
+        .limit(MAX_ROWS_PER_KIND + 1)
     )
-    # `total` 은 자르기 **전** 건수다(repository.list_documents 의 docstring 관용과 같음).
-    truncated = total > MAX_ROWS_PER_KIND
-    # 티켓과 같은 이유로 휴지통 문서도 뺀다(H2).
-    trashed_docs = trash_repo.trashed_page_ids(db, TRASH_DOCUMENT)
-    rows = [r for r in rows if getattr(r, "notion_page_id", None) not in trashed_docs]
-    # 열람 제한 문서(SEC-10)는 **아예 담지 않는다**.
-    #
-    # 이 색인은 범위가 없는 전역 저장소다. 여기 담아 두고 질의에서만 거르면 질의 경로가
-    # 하나 늘어날 때마다 같은 실수를 다시 할 수 있고, 실제로 그렇게 새고 있었다 —
-    # `doc_in_scope` 의 restricted 게이트가 목록·상세는 막는데 통합 검색은 안 지나서,
-    # 같은 부서 동료가 제목·분류·작성자를 검색으로 그대로 찾았다. 제한을 켜는 이유가
-    # "원본에 평문 자격증명이 있다" 같은 것이라 제목만으로도 유출이다.
-    #
-    # 채팅을 아예 색인하지 않는 것과 같은 규칙이다(SEARCH_KINDS) — 예외 없음이 가장
-    # 확인하기 쉽다. 작성자·운영자는 문서 목록에서 그대로 보고 열 수 있다(기능 유지).
-    rows = [r for r in rows if not getattr(r, "restricted", False)]
+    rows = db.execute(stmt).all()
+    truncated = len(rows) > MAX_ROWS_PER_KIND
+    rows = rows[:MAX_ROWS_PER_KIND]
+
+    trashed_legacy = trash_repo.trashed_page_ids(db, TRASH_DOCUMENT)
+    if trashed_legacy:
+        rows = [
+            r for r in rows
+            if not (r[0].legacy_page_id and r[0].legacy_page_id in trashed_legacy)
+        ]
+
+    tag_names = _document_tag_names(db, [str(r[0].id) for r in rows])
     out: list[dict] = []
-    for d in rows:
-        # 이 필드들은 콤마가 아니라 NAMES_SEP(\x1f) 로 이어져 있다. 콤마로 자르면 이름 하나가
-        # 통째로 안 맞아 소유자 해석이 조용히 0명이 된다.
-        authors = split_names(d.author_names)
-        names = [*authors, d.owner] if d.owner else list(authors)
-        owners = [maps.name_to_user[n.strip()] for n in names if n.strip() in maps.name_to_user]
+    for document, version, space in rows:
+        tags = tag_names.get(str(document.id), [])
+        # 본문은 현재 판의 **파생 Plain Text** 를 읽기만 한다. 표 셀 글자가 거기 들어 있어
+        # (`app/knowledge/blocks.py::_table_text`), 표로 적힌 내용도 검색에 걸린다.
+        #
+        # 변수 이름을 컬럼과 다르게 두는 이유: `check_domain_single_source.py` 가
+        # `body_text =` 를 「파생을 여기서 만든다」로 읽는다. 색인은 만들지 않고 읽기만
+        # 하므로, 그 검사가 헷갈릴 이름을 애초에 안 쓴다.
+        plain_text = version.body_text if version is not None else ""
         out.append({
             "kind": KIND_DOCUMENT,
-            "ref_id": d.notion_page_id,
-            "org_id": getattr(d, "org_id", None) or DEFAULT_ORG_ID,
-            # Portal 이 정한 Ownership 을 **그대로** 옮긴다. 여기서 다시 계산하면
-            # (예: 작성자 부서로 추정) 목록과 검색이 다른 답을 내기 시작한다.
-            "owner_kind": getattr(d, "owner_kind", None) or OWNER_UNSET,
-            "owner_dept_id": getattr(d, "owner_dept_id", None),
-            "owner_project_id": getattr(d, "owner_project_id", None),
-            "owner_user_ids": join_owner_ids(owners),
-            "title": _clip(d.title, 500),
-            "body": _clip(_joined([
-                d.memo, d.owner, *authors,
-                *split_names(d.project_names), *split_names(d.type_names),
-                *split_names(d.tech_tags),
-            ])),
-            "subtitle": _clip(_joined_sep([d.document_type, d.work_field, d.owner]), 300),
-            "route": f"/team-docs/{d.notion_page_id}",
-            "url": d.original_url or d.source_url,
+            "ref_id": document.id,
+            "org_id": space.org_id or DEFAULT_ORG_ID,
+            # 공간의 소속을 **그대로** 옮긴다 (위 docstring).
+            "owner_kind": space.owner_kind or OWNER_UNSET,
+            "owner_dept_id": space.owner_dept_id,
+            "owner_project_id": space.owner_project_id,
+            # 권한 판정에는 안 쓴다(`app/search/models.py` 의 컬럼 주석) — 색인이 원본을
+            # 어떻게 읽었는지 확인하는 흔적이다. 문서에는 앱 계정 참조가 `created_by`
+            # 하나뿐이라 이름 매칭을 할 이유가 없어졌다.
+            "owner_user_ids": join_owner_ids([document.created_by]),
+            "title": _clip(document.title, 500),
+            "body": _clip(_joined([plain_text, document.doc_type, space.name, *tags])),
+            "subtitle": _clip(_joined_sep([document.doc_type, space.name, *tags]), 300),
+            "route": f"/knowledge/{document.id}",
+            # 옛 미러는 Notion 원문 링크를 실었다. 자체 DB 가 정본이 된 뒤로는 밖에 있는
+            # 원문이 없다 — 없는 링크를 만들어 붙이지 않는다.
+            "url": None,
             # `sort_key` 는 종류가 다른 행들을 한 축으로 세우는 **문자열**이다
-            # (게시글은 `created_at.isoformat()` 을 넣는다). 저장이 `date`/`datetime`
-            # 으로 바뀌었으니 여기서 옮긴다 — 안 옮기면 변경 감지가 매 회차 전부를
-            # 「바뀜」으로 보고 색인을 통째로 다시 쓴다 (S7 · P-14a).
-            "sort_key": iso_dt(d.last_edited) or iso_date(d.doc_date),
+            # (게시글은 `created_at.isoformat()` 을 넣는다). datetime 을 그대로 넣으면
+            # 변경 감지가 매 회차 전부를 「바뀜」으로 보고 색인을 통째로 다시 쓴다.
+            "sort_key": iso_dt(document.updated_at),
         })
     return out, truncated
 
@@ -378,12 +450,16 @@ def _apply(db: Session, desired: list[dict], now: datetime) -> int:
     return len(seen)
 
 
-def reindex_all(db: Session, *, tickets, documents, now: datetime) -> IndexResult:
+def reindex_all(db: Session, *, tickets, now: datetime) -> IndexResult:
     """검색 인덱스를 통째로 다시 만든다. **예외는 절대 밖으로 나가지 않는다.**
 
     워커 틱이 죽으면 스케줄러·하트비트까지 함께 멈춘다(문서·티켓 sync 와 같은 관용).
-    유형 하나가 실패해도 나머지는 인덱싱한다 — 소스(Notion) 장애로 티켓을 못 읽었다고
-    게시판 검색까지 사라질 이유가 없다.
+    유형 하나가 실패해도 나머지는 인덱싱한다 — 소스 장애로 티켓을 못 읽었다고 게시판
+    검색까지 사라질 이유가 없다.
+
+    `documents` 저장소 인자는 S14 에서 없앴다. 문서의 정본이 자체 DB(`documents` +
+    `document_versions`)로 옮겨 와 저장소 seam 을 지날 이유가 사라졌고, 안 쓰는 인자를
+    남겨 두면 부르는 쪽이 「문서는 아직 미러에서 온다」고 읽는다.
     """
     per_kind: list[tuple[str, int]] = []
     errors: list[str] = []
@@ -394,7 +470,7 @@ def reindex_all(db: Session, *, tickets, documents, now: datetime) -> IndexResul
         dept_names = _dept_names(db)
         for kind, build in (
             (KIND_TICKET, lambda: _ticket_rows(db, tickets, maps)),
-            (KIND_DOCUMENT, lambda: _document_rows(db, documents, maps)),
+            (KIND_DOCUMENT, lambda: _document_rows(db)),
             (KIND_BOARD, lambda: _board_rows(db, dept_names)),
             (KIND_USER, lambda: _user_rows(db, dept_names)),
         ):

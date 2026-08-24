@@ -7,6 +7,11 @@ import { alpha } from "@mui/material/styles";
 import { useEditor, EditorContent } from "@tiptap/react";
 import { Extension, Node, mergeAttributes } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
+import Image from "@tiptap/extension-image";
+import Table from "@tiptap/extension-table";
+import TableRow from "@tiptap/extension-table-row";
+import TableHeader from "@tiptap/extension-table-header";
+import TableCell from "@tiptap/extension-table-cell";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "./theme.js";
 
 /* 블록 편집기 — 본문의 정본이 Block JSON 이라는 결정(D-198)의 화면 쪽 절반이다 (S7).
@@ -37,7 +42,7 @@ const BLOCK_ID_ATTR = "blockId";
  * 앵커 없이 저장돼 서버가 새 id 를 발급한다 — 둘 다 인용이 끊기는 길이다. */
 const ANCHORED_NODES = [
   "paragraph", "heading", "bulletList", "orderedList", "blockquote",
-  "codeBlock", "horizontalRule",
+  "codeBlock", "horizontalRule", "image", "table",
 ];
 
 /* 서버가 준 `blockId` 를 편집 중에도 들고 있다가 그대로 돌려주는 전역 속성.
@@ -134,6 +139,23 @@ export function BlockEditor({ value, onChange, readOnly = false, label = "본문
         // 도구를 안 주는 것은 아직 그 UI 를 설계하지 않았기 때문이다.
         heading: { levels: [1, 2, 3] },
       }),
+      /* 이미지와 표. 둘 다 TipTap 공식 **MIT** 확장이다 — Pro 확장은 상용이라 못 쓴다(D-198).
+       *
+       * 여기 없으면 서버가 보낸 이미지·표 노드를 편집기가 모르고, ProseMirror 는 모르는
+       * 노드를 만나면 **그 자리를 통째로 버린다.** 화면에는 오류가 아니라 빈 자리가 뜨고,
+       * 그 상태로 저장하면 본문에서 그림과 표가 실제로 사라진다.
+       *
+       * `allowBase64` 는 끈다. 서버가 `data:` 를 거절하고(app/knowledge/blocks.py), 이미지
+       * 바이트는 우리 첨부 저장소에 넣기로 했다(D4) — 편집기가 만들 수 있게 두면 저장할 때만
+       * 거절당하는 값을 사용자가 화면에서 먼저 보게 된다.
+       *
+       * 표는 크기 조절을 안 켠다. 지금 필요한 것은 **원본 표가 보이는 것**이고, 열 너비
+       * 손잡이는 편집 기능이라 읽기 전용 화면에 아무것도 더하지 않는다. */
+      Image.configure({ inline: false, allowBase64: false }),
+      Table.configure({ resizable: false }),
+      TableRow,
+      TableHeader,
+      TableCell,
       BlockId,
       Mention,
     ],
@@ -210,6 +232,35 @@ export function BlockEditor({ value, onChange, readOnly = false, label = "본문
             // 코드는 글자 단위로 끊는다 — 한글 산문과 다른 규약이다(CLAUDE.md §10).
             overflowWrap: "anywhere",
           },
+          /* 본문 이미지. `max-width` 를 안 걸면 원본 폭 그대로 나와서 칸을 넘고, 넘은
+           * 만큼 화면 전체가 가로로 밀린다 — 문서 하나가 레이아웃을 깨는 모양이다. */
+          "& .ProseMirror img": {
+            display: "block",
+            maxWidth: "100%",
+            height: "auto",
+            borderRadius: 4,
+            marginBlock: "0.6em",
+          },
+          /* 표. `table-layout: fixed` 로 칸 너비를 칸 수로 나눈다 — 자동 배치는 긴 글이
+           * 든 칸 하나가 표를 칸 밖으로 밀어낸다. 줄바꿈 규약은 본문과 같다(한글은 어절). */
+          "& .ProseMirror table": {
+            borderCollapse: "collapse",
+            tableLayout: "fixed",
+            width: "100%",
+            marginBlock: "0.8em",
+          },
+          "& .ProseMirror th, & .ProseMirror td": {
+            border: `1px solid ${theme.palette.divider}`,
+            padding: "0.4em 0.6em",
+            verticalAlign: "top",
+            textAlign: "start",
+          },
+          "& .ProseMirror th": {
+            background: alpha(theme.palette.text.primary, 0.04),
+            fontWeight: FONT_WEIGHT.semibold,
+          },
+          // 칸 안의 문단은 위아래 여백을 안 준다. 주면 한 줄짜리 표가 두 배로 높아진다.
+          "& .ProseMirror th > p, & .ProseMirror td > p": { margin: 0 },
           "& .k-mention": {
             color: theme.palette.primary.main,
             fontWeight: FONT_WEIGHT.medium,

@@ -46,10 +46,14 @@ function project(over) {
     goal: "배포를 자동화한다", biz_type: null, product: null,
     progress_pct: 42.9, health_score: 63,
     archived_at: null,
+    /* 이관 흔적 여섯(notion_page_id·notion_progress_pct·notion_status·notion_missing_at·
+       notion_synced_at·notion_sync_error)을 **일부러 그대로 둔다.** 서버는 더 이상 안
+       싣지만, 옛 계약이 되돌아와도 화면이 배지·배너를 되살리지 않는다는 것이 아래
+       시험이 지키는 성질이다. */
     notion_page_id: "np-1",
     notion_progress_pct: 70, notion_status: "진행 중",
-    notion_missing_at: null, notion_synced_at: "2026-08-06T00:00:00",
-    notion_sync_error: null, version: 1,
+    notion_missing_at: "2026-08-01T00:00:00", notion_synced_at: "2026-08-06T00:00:00",
+    notion_sync_error: "노션 응답 오류: HTTP 500", version: 1,
     created_at: "2026-07-01T00:00:00", updated_at: "2026-08-06T00:00:00",
     ...over,
   };
@@ -75,20 +79,23 @@ const HEALTH = {
   project_id: "p-1",
   score: 63,
   reasons: [
+    /* 예전에는 이 자리가 `notion_trouble`("노션 진행 상태가 차질")이었다. 그 규칙은
+       얼어붙은 미러 컬럼으로 점수를 깎아 걷어냈다 - 서버가 더 이상 못 내는 라벨을
+       픽스처가 계속 들고 있으면 이 시험은 없는 계약을 지키게 된다. */
     {
-      rule: "notion_trouble", label: "노션 진행 상태가 차질", penalty: 25,
-      detail: "노션 진행 상태가 '차질' 로 표시돼 있습니다.",
+      rule: "milestone_overdue", label: "기한 지난 마일스톤", penalty: 25,
+      detail: "기한이 지났는데 아직 안 끝난 마일스톤이 2건 있습니다.",
     },
     {
       rule: "task_overdue", label: "지연 작업 비율", penalty: 12,
       detail: "기한이 적힌 열린 작업 10건 중 3건이 마감을 넘겼습니다(30%).",
     },
   ],
-  checked: ["notion_trouble", "task_overdue"],
+  checked: ["milestone_overdue", "task_overdue"],
   unknown: [
     {
-      rule: "milestone_overdue", label: "기한 지난 마일스톤",
-      why: "기한이 적힌 마일스톤이 없어 일정 준수 여부를 판정할 수 없습니다.",
+      rule: "unassigned", label: "담당자 없는 작업 비율",
+      why: "열린 작업이 없어 담당자 지정 여부를 판정할 수 없습니다.",
     },
   ],
 };
@@ -96,7 +103,7 @@ const HEALTH = {
 const WBS = {
   project_id: "p-1",
   roots: [{
-    key: "np-t1", title: "설계", status: "진행", est_wd: 3, url: null,
+    key: "np-t1", title: "설계", status: "진행", est_wd: 3, url: "https://app.notion.com/p/np-t1",
     ticket_number: 101, depth: 0,
     progress: { percent: 50, basis: { ...BASIS, sample_tasks: 2, counted_tasks: 2, done_tasks: 1 } },
     children: [{
@@ -167,7 +174,7 @@ const DASHBOARD = {
       items: [{
         project_id: "p-1", name: "배포 자동화", code: "DEP", status: "active",
         health_score: 45, progress_pct: 42.9, notion_status: "차질",
-        reasons: ["노션 진행 상태가 차질"],
+        reasons: ["Health 점수 낮음"],
       }],
     },
   },
@@ -348,6 +355,24 @@ describe("프로젝트 목록 — 표", () => {
     expect(within(table).queryByText("70%")).toBeNull();
     expect(screen.queryByText(/다릅니다/)).toBeNull();
     expect(screen.queryByText(/Notion 값/)).toBeNull();
+    /* 이관 흔적 배지·배너도 마찬가지다. 위 픽스처는 `notion_missing_at` 과
+       `notion_sync_error` 를 일부러 채워 두었다 - 그 값들이 얼어붙은 이관 흔적이라
+       사용자가 무엇을 고쳐도 안 사라졌고, 서버가 필드를 걷은 뒤에도 화면이 옛 계약을
+       보고 되살리면 같은 상태로 돌아간다. */
+    expect(screen.queryByText("이관 때 원본 없음")).toBeNull();
+    expect(screen.queryByText(/이관할 때 이 프로젝트에서 문제가 있었습니다/)).toBeNull();
+  });
+
+  it("상세에 이관 진행 상태 배지와 「출처」 칸이 없다", async () => {
+    /* 예전에는 앱 상태 옆에 이관해 온 진행 상태를 배지로 하나 더 그렸고, 아래에
+       「이관해 온 프로젝트입니다」라는 출처 칸이 있었다. 둘 다 고칠 입구가 없는 얼어붙은
+       값이고, 두 상태를 나란히 놓으면 어느 쪽이 지금인지 알 수 없다. */
+    renderAt("/projects/p-1");
+    await screen.findByText("63점");
+
+    expect(screen.queryByText("출처")).toBeNull();
+    expect(screen.queryByText(/이관해 온 프로젝트입니다/)).toBeNull();
+    expect(screen.queryByText(/이 서버에서 만든 프로젝트입니다/)).toBeNull();
   });
 
   it("설명문이 Notion 과 비교한다고 말하지 않는다", async () => {
@@ -510,9 +535,11 @@ describe("프로젝트 상세 — Health", () => {
     renderAt("/projects/p-1");
     expect(await screen.findByText("63점")).toBeInTheDocument();
 
-    expect(screen.getByText("노션 진행 상태가 차질")).toBeInTheDocument();
-    expect(screen.getByText(/차질' 로 표시돼 있습니다/)).toBeInTheDocument();
+    expect(screen.getByText("기한 지난 마일스톤")).toBeInTheDocument();
+    expect(screen.getByText(/아직 안 끝난 마일스톤이 2건/)).toBeInTheDocument();
     expect(screen.getByText("-25점")).toBeInTheDocument();
+    // 걷어낸 규칙의 라벨은 어디에도 안 뜬다.
+    expect(screen.queryByText("노션 진행 상태가 차질")).toBeNull();
 
     expect(screen.getByText("지연 작업 비율")).toBeInTheDocument();
     expect(screen.getByText(/10건 중 3건이 마감을 넘겼습니다/)).toBeInTheDocument();
@@ -549,7 +576,7 @@ describe("프로젝트 상세 — 탭", () => {
   /* 아래 두 개는 **배선 검사**다. 부품을 재사용한다고 적어 놓고 실제로는 이어져 있지 않은
      상태가 이 저장소에서 여러 번 나왔다 - 순수 함수는 옳은데 입력이 비어 있었다. 그러니
      탭을 실제로 열어 보고, 서버로 나간 조건까지 본다. */
-  it("티켓 탭은 이 프로젝트의 노션 page id 로 걸러 기존 목록을 재사용한다", async () => {
+  it("티켓 탭은 이 프로젝트의 포털 id 로 걸러 기존 목록을 재사용한다", async () => {
     const user = userEvent.setup();
     renderAt("/projects/p-1");
     await screen.findByText("63점");
@@ -558,7 +585,11 @@ describe("프로젝트 상세 — 탭", () => {
 
     expect(await screen.findByText("스키마 확정")).toBeInTheDocument();
     // 조건은 서버가 건다. 화면에서 거르면 서버가 자른 한 페이지 안에서만 걸러진다.
-    expect(lastQuery("/api/tickets/team").get("project_id")).toBe("np-1");
+    //
+    // 보내는 값은 **포털 프로젝트 id** 다(S14). 서버가 두 축으로 맞춘다 — 해석된
+    // `tickets.project_uid` 와 이관해 온 티켓의 옛 relation 목록(app/tickets/query.py).
+    // 예전처럼 `notion_page_id` 를 보내면 그 칸이 없는 새 프로젝트에서 탭이 영영 빈다.
+    expect(lastQuery("/api/tickets/team").get("project_id")).toBe("p-1");
   });
 
   it("티켓 탭은 완료·취소를 기본으로 숨기고, 스위치로 포함시킬 수 있다", async () => {
@@ -581,7 +612,10 @@ describe("프로젝트 상세 — 탭", () => {
     await waitFor(() => expect(lastQuery("/api/tickets/team").get("active")).toBe("false"));
   });
 
-  it("노션 짝이 없는 프로젝트는 티켓 목록을 부르지 않는다", async () => {
+  it("🔴 외부 짝이 없는 프로젝트도 자기 티켓을 부른다 — 포털 id 로", async () => {
+    // 예전에는 `notion_page_id` 로 목록을 걸었고, 없으면 아예 안 불렀다. Cutover 이후에
+    // 만드는 프로젝트에는 그 칸이 영원히 없으므로 그대로 두면 **새 프로젝트의 티켓 탭이
+    // 언제까지나 비어 있다.** 티켓은 붙어 있는데 화면만 비고, 오류는 안 난다.
     const user = userEvent.setup();
     detailProject = project({ notion_page_id: null });
     renderAt("/projects/p-1");
@@ -589,10 +623,13 @@ describe("프로젝트 상세 — 탭", () => {
 
     await user.click(screen.getByRole("tab", { name: "티켓" }));
 
-    expect(await screen.findByText("연결된 노션 작업이 없습니다")).toBeInTheDocument();
-    // 조건 없이 부르면 회사의 모든 티켓이 이 프로젝트의 목록으로 뜬다.
-    const calls = apiMock.mock.calls.map(([p]) => String(p));
-    expect(calls.some((p) => p.startsWith("/api/tickets/team"))).toBe(false);
+    await waitFor(() => {
+      const calls = apiMock.mock.calls.map(([p]) => String(p));
+      const asked = calls.filter((p) => p.startsWith("/api/tickets/team"));
+      expect(asked.length).toBeGreaterThan(0);
+      // 조건 없이 부르면 회사의 모든 티켓이 이 프로젝트의 목록으로 뜬다.
+      expect(asked.every((p) => p.includes("project_id=p-1"))).toBe(true);
+    });
   });
 
   it("주간 리포트 탭은 서버가 준 주로 이동하고, 저장본이 없으면 없다고 말한다", async () => {

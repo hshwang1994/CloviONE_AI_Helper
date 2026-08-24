@@ -1,8 +1,9 @@
-"""휴지통 비즈니스 규칙 — 소프트 삭제 기록, 복원, 영구 삭제(노션 보관처리), 만료 정리.
+"""휴지통 비즈니스 규칙 — 소프트 삭제 기록, 복원, 영구 삭제(원본 보관처리), 만료 정리.
 
-'삭제'는 노션을 바로 지우지 않고 TrashItem 을 만든다. 복원은 그 행을 지운다(노션 무손상 → 원래
-목록으로 복귀). 영구 삭제(만료 자동/수동)는 노션 페이지를 보관처리(archive)한 뒤 행을 지운다.
-노션 archive 는 되돌릴 수 있어(노션 휴지통 30일) 실수에도 복구 여지가 있다. 권한: 운영자 이상 또는
+'삭제'는 원본 행을 바로 지우지 않고 TrashItem 을 만든다. 복원은 그 행을 지운다(원본 무손상 →
+원래 목록으로 복귀). 영구 삭제(만료 자동/수동)는 원본을 보관처리(archive)한 뒤 행을 지운다.
+보관처리는 행을 지우는 것이 아니라 `archived` 를 세우는 것이라 실수에도 복구 여지가 있다.
+권한: 운영자 이상 또는
 그 항목을 버린 본인만 복원/영구삭제할 수 있다.
 """
 
@@ -62,7 +63,7 @@ def move_to_trash(
     db: Session, *, item_type: str, notion_page_id: str, title: str, url: str | None,
     user: User, now: datetime,
 ) -> TrashItem:
-    """항목을 휴지통으로 옮긴다(노션은 손대지 않는다). 이미 들어가 있으면 충돌."""
+    """항목을 휴지통으로 옮긴다(원본 행은 손대지 않는다). 이미 들어가 있으면 충돌."""
     if item_type not in TRASH_TYPES:
         raise ConflictError("지원하지 않는 삭제 대상입니다.")
     if repository.get_by_page(db, item_type, notion_page_id) is not None:
@@ -109,14 +110,14 @@ def ensure_can_manage(db: Session, user: User, item: TrashItem) -> None:
 
 
 def restore(db: Session, item: TrashItem, user: User) -> None:
-    """복원 — 휴지통 행만 지우면 노션 원본이 그대로라 원래 목록으로 되돌아온다."""
+    """복원 — 휴지통 행만 지우면 원본이 그대로라 원래 목록으로 되돌아온다."""
     ensure_can_manage(db, user, item)
     db.delete(item)
     db.flush()
 
 
 def purge_item(db: Session, item: TrashItem, *, outbound, settings) -> None:
-    """영구 삭제 — 노션 페이지를 보관처리(archive)한 뒤 휴지통 행을 지운다."""
+    """영구 삭제 — 원본을 보관처리(archive)한 뒤 휴지통 행을 지운다."""
     _archive_source(db, item, outbound=outbound, settings=settings)
     db.delete(item)
     db.flush()
@@ -148,7 +149,7 @@ def restore_bulk(db: Session, ids: list[str], user: User) -> dict:
 
 
 def purge_bulk(db: Session, ids: list[str], user: User, *, outbound, settings) -> dict:
-    """여러 항목을 한 번에 영구삭제(노션 보관처리 + 행 삭제). 건별 권한·노션 오류 격리(부분 성공)."""
+    """여러 항목을 한 번에 영구삭제(원본 보관처리 + 행 삭제). 건별 권한·저장 오류 격리(부분 성공)."""
     from app.core.errors import AppError
 
     purged: list[dict] = []
@@ -165,13 +166,15 @@ def purge_bulk(db: Session, ids: list[str], user: User, *, outbound, settings) -
             purged.append({"id": tid, "title": title, "item_type": itype, "notion_page_id": pid})
         except AppError as exc:
             failed.append({"id": tid, "error": exc.message})
-        except Exception:  # noqa: BLE001 — 노션 호출 실패 격리(행은 남겨 재시도 가능)
-            failed.append({"id": tid, "error": "노션 보관처리에 실패했습니다. 잠시 후 다시 시도하세요."})
+        except Exception:  # noqa: BLE001 — 보관처리 실패 격리(행은 남겨 재시도 가능)
+            # 문구에 「노션」이 없다. 보관처리는 이 서버의 행에 `archived` 를 세우는 일이고,
+            # 없는 외부 시스템의 이름을 대면 사용자는 고칠 수 없는 곳을 쳐다보게 된다.
+            failed.append({"id": tid, "error": "원본을 보관처리하지 못했습니다. 잠시 후 다시 시도하세요."})
     return {"purged": purged, "failed": failed}
 
 
 def purge_expired(db: Session, *, now: datetime, retention_days: int, outbound, settings) -> dict:
-    """보관기간이 지난 항목을 노션에서 보관처리하고 휴지통에서 지운다(백그라운드 정리 작업).
+    """보관기간이 지난 항목의 원본을 보관처리하고 휴지통에서 지운다(백그라운드 정리 작업).
 
     한 항목의 노션 호출이 실패해도 다른 항목 처리는 계속한다(장애 격리) — 실패 건은 다음 주기에 재시도.
 

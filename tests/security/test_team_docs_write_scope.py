@@ -1,15 +1,12 @@
-"""문서 **휴지통 이동·즐겨찾기**도 범위를 지킨다 (§0-A).
+"""문서 **휴지통 이동**도 범위를 지킨다 (§0-A).
 
-목록·상세는 `doc_in_scope` 로 좁혀 놨는데 `POST /{page_id}/trash` 와
-`POST /{page_id}/favorite` 은 `page_id` 를 그대로 받았다. 목록에서 가린 문서를 **id 하나로
-휴지통에 넣을 수 있었다** — 읽기 유출이 아니라 남의 범위에서의 **쓰기 실행**이다.
+목록·상세는 `doc_in_scope` 로 좁혀 놨는데 `POST /{page_id}/trash` 는 `page_id` 를 그대로
+받았다. 목록에서 가린 문서를 **id 하나로 휴지통에 넣을 수 있었다** — 읽기 유출이 아니라
+남의 범위에서의 **쓰기 실행**이다.
 
 휴지통 이동이 `ensure_can_delete_doc` 를 지나니 안전해 보이지만, 그건 **작성자/운영자
 판정**이지 범위 판정이 아니다: 다른 부서 운영자는 그냥 통과한다. 문서가 사라진 팀은 원인도
 못 찾는다 — 휴지통 항목은 **지운 사람의 범위**에 남기 때문이다(`app/trash/repository.py`).
-
-즐겨찾기는 잃는 것이 없어 보이지만 같은 문이다. 200/404 로 **그 id 가 존재하는지**를 알려
-주고, 목록에서 가린 문서에 내 행을 남긴다.
 
 ## ⚠️ 작성자를 해석할 수 없는 문서는 **여전히 휴지통에 넣을 수 있어야 한다**
 
@@ -82,12 +79,8 @@ def _in_trash(db, page_id: str) -> bool:
     return trash_repo.get_by_page(db, TRASH_DOCUMENT, page_id) is not None
 
 
-def _is_favorite(db, email: str, page_id: str) -> bool:
-    from app.team_docs.repository import find_favorite
-    from app.users.service import get_user_by_email
-
-    db.expire_all()
-    return find_favorite(db, get_user_by_email(db, email).id, page_id) is not None
+# 즐겨찾기는 여기 없다 (S14 · C2). 그 축은 정본 문서로 옮겼고, 「범위 밖 문서를 담을 수
+# 있는가」는 `tests/integration/test_knowledge_favorites.py` 가 같은 모양으로 고정한다.
 
 
 # ── 범위 밖은 404 ────────────────────────────────────────────────────────────
@@ -97,13 +90,6 @@ def test_a_scoped_operator_cannot_trash_another_teams_document(client, login_as,
     r = client.post("/api/team-docs/dt/trash", headers=_hdr(login_as))
     assert r.status_code == 404, f"남의 팀 문서를 휴지통에 넣을 수 있다: {r.status_code} {r.text}"
     assert not _in_trash(db, "dt"), "404 를 돌려주고도 문서가 실제로 휴지통에 들어갔다"
-
-
-def test_a_scoped_operator_cannot_favorite_another_teams_document(client, login_as, db, world):
-    """즐겨찾기 응답이 그 id 의 존재를 알려 주고, 가린 문서에 행이 남는다."""
-    r = client.post("/api/team-docs/dt/favorite?on=true", headers=_hdr(login_as))
-    assert r.status_code == 404, f"남의 팀 문서를 즐겨찾기할 수 있다: {r.status_code} {r.text}"
-    assert not _is_favorite(db, OP, "dt"), "404 를 돌려주고도 즐겨찾기 행이 남았다"
 
 
 def test_the_bulk_trash_path_follows_the_same_rule(client, login_as, db, world):
@@ -131,17 +117,8 @@ def test_a_document_without_resolvable_authors_can_still_be_trashed(client, logi
     assert _in_trash(db, "dn")
 
 
-def test_a_document_without_resolvable_authors_can_still_be_favorited(client, login_as, db, world):
-    r = client.post("/api/team-docs/dn/favorite?on=true", headers=_hdr(login_as))
-    assert r.status_code == 200, f"작성자 미해석 문서를 못 즐겨찾기한다: {r.status_code} {r.text}"
-    assert _is_favorite(db, OP, "dn")
-
-
-def test_an_operator_can_still_trash_and_favorite_their_own_team(client, login_as, db, world):
+def test_an_operator_can_still_trash_their_own_team(client, login_as, db, world):
     hdr = _hdr(login_as)
-    r = client.post("/api/team-docs/dm/favorite?on=true", headers=hdr)
-    assert r.status_code == 200, f"자기 팀 문서를 즐겨찾기할 수 없다: {r.status_code} {r.text}"
-
     r = client.post("/api/team-docs/dm/trash", headers=hdr)
     assert r.status_code == 200, f"자기 팀 문서를 못 지운다: {r.status_code} {r.text}"
     assert _in_trash(db, "dm")
@@ -157,7 +134,6 @@ def test_the_author_can_still_trash_their_own_document(client, login_as, db, wor
 def test_a_global_admin_still_operates_on_everything(client, login_as, db, world):
     """전역 관리자까지 좁히면 운영이 멈춘다."""
     hdr = {"X-CSRF-Token": login_as("system_admin")}
-    assert client.post("/api/team-docs/dt/favorite?on=true", headers=hdr).status_code == 200
     r = client.post("/api/team-docs/dt/trash", headers=hdr)
     assert r.status_code == 200, f"전역 관리자가 문서를 못 지운다: {r.status_code} {r.text}"
     assert _in_trash(db, "dt")
@@ -166,8 +142,8 @@ def test_a_global_admin_still_operates_on_everything(client, login_as, db, world
 def test_a_missing_page_id_is_the_same_404_as_an_out_of_scope_one(client, login_as, world):
     """두 답이 다르면 id 를 찍어 보며 **존재하는 문서를 열거**할 수 있다."""
     hdr = _hdr(login_as)
-    missing = client.post("/api/team-docs/no-such-page/favorite?on=true", headers=hdr)
-    hidden = client.post("/api/team-docs/dt/favorite?on=true", headers=hdr)
+    missing = client.post("/api/team-docs/no-such-page/trash", headers=hdr)
+    hidden = client.post("/api/team-docs/dt/trash", headers=hdr)
     assert missing.status_code == hidden.status_code == 404
     assert missing.json()["error"]["message"] == hidden.json()["error"]["message"], (
         f"응답 문구가 달라 존재 여부가 새어 나간다: {missing.text} vs {hidden.text}"

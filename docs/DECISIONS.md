@@ -10574,3 +10574,103 @@ Key 가 없던 프로젝트 둘(`S협회 …` 활성 · `M. 고려대학교 …`
 옛 이름이 없어졌으므로 지킬 대상이 없고, 게다가 새 코드는 여섯 글자에 `I` 가 없어서
 `GIT` 이 **생성될 수 없다.** 대상도 없고 경로도 없는 검사를 남겨 두면 언제나 통과하는
 검사가 하나 늘 뿐이다 — 이 저장소가 D-213 에서 이름 붙인 그 실패 모양이다.
+
+## D-284 — Notion Runtime 을 걷는다. **설정으로 끄는 것은 끈 것이 아니다**
+
+**S14 · 2026-08-24.** Cutover 로 PostgreSQL 이 System of Record 가 된 뒤, 런타임에서 Notion 을
+읽고 쓰는 코드 **열다섯**을 지웠다.
+
+| 지운 것 | |
+|---|---|
+| 미러 동기화 | `app/tickets/sync.py` · `app/team_docs/sync.py` · `app/projects/sync.py` + 워커 틱 셋 |
+| 저장소 구현체 | `app/tickets/repository_notion.py` · `app/team_docs/repository_notion.py` |
+| 외부 호출 모듈 | `app/tickets/notion_write.py` · `app/team_docs/notion_docs.py` · `app/projects/notion_source.py` · `app/projects/notion_write.py` · `app/reports/notion_source.py` |
+| 콘솔 | `app/notion_console/` 전체 |
+| prune 바닥 | `app/core/sync_prune.py`. 「이번 조회에서 못 본 행을 지운다」가 그 모듈의 전부라, 조회할 회차가 없어진 뒤로는 부르는 곳이 없었다 |
+| 설정·경계 | `ticket_source`·`document_source` 스위치 · `notion_*` 설정 · `allowed-services.json` 의 `api.notion.com:443` |
+
+### 왜 「설정으로 끈다」가 답이 아니었나 — 실제로 겪었다
+
+Cutover 직후 워커를 올리자 미러 동기화 틱이 **PostgreSQL 을 향해** 돌기 시작했다. 그 표들은
+이제 미러가 아니라 정본이다. 껐다고 생각하고 두 자리를 껐다:
+
+1. DB 설정(`app_settings.notion_tasks_database_id`)을 비웠다.
+2. 그런데도 계속 돌았다 — **환경파일이 이겼다.** 이전이 옛 `web.env` 를 그대로 옮겨 놓았고
+   거기 `NOTION_TASKS_DATABASE_ID` 가 살아 있었다.
+
+그리고 그 값은 **유효한 데이터베이스 id** 였다. 즉 동기화가 성공하기 시작했다. 확인해 보니
+데이터는 무사했지만(티켓 1,133 · 이름 1,120 그대로) 그것은 운이었다.
+
+끄는 자리가 둘이면 하나를 끈 사람은 껐다고 믿는다. **코드가 없으면 그 믿음이 필요 없다.**
+
+### 남긴 것과 그 이유 — 「Legacy 잔존 0」의 뜻을 좁혀 적는다
+
+「Notion Runtime 의존 0」은 **런타임이 Notion 을 부르지 않는다**는 뜻이다. 이름에 Notion 이
+들어간 모든 것을 지운다는 뜻이 아니다. 아래는 **데이터이거나 다른 작업의 대상**이다.
+
+| 남긴 것 | 왜 |
+|---|---|
+| `app/notion_mapping/` | 나가는 호출이 **하나도 없다**(확인함). `user_notion_mappings` 는 티켓 담당자를 푸는 표이고, 티켓이 아직 Notion user id 를 들고 있다 |
+| `app/migration/` · `migrate_cli` | 이관 도구는 **자기 Notion 클라이언트**를 따로 든다. 런타임이 아니고, 재실행·두 번째 설치가 그것으로 돈다. 허용 목록도 따로다(`allowed-migration-sources.json`) |
+| `notion_api_base` · `notion_api_version` · `notion_docs_token_ref` | 위 이관 CLI 가 읽는다. 「읽는 사람이 남았는지 먼저 본다」가 답을 바꾼 유일한 자리다 |
+| 저장된 식별자 컬럼들 | `tickets.notion_page_id` · `document_cache.notion_page_id` · `tickets.assignee_notion_ids` 등. **데이터이지 호출이 아니다.** 게다가 `app/authz/visibility.py` 가 문서 권한을 `notion_page_id` 로 건다 — 축을 바꾸는 것은 `resource_grants` 행을 옮기는 **데이터 이전**이다 |
+| `NotionNotConfiguredError` · `NotionQueryError` | **올리는 곳은 이제 없다.** 그런데 다섯 모듈이 아직 그것을 잡아 `configured=false` 응답 모양을 만든다. 지우는 것은 화면과 함께 움직여야 하는 API 계약 변경이다 |
+| `advisory_lock` 의 `NS_TICKET_SYNC`·`NS_NOTION_CREATE` | 번호를 **재사용하지 않는다.** 롤링 재시작 중에는 옛 코드와 새 코드가 같은 DB 를 보고, 재사용한 번호는 남의 잠금을 자기 것으로 읽게 만든다 |
+
+### 그리고 Notion 모듈 안에 **Notion 과 무관한 것**이 하나 숨어 있었다
+
+`app/projects/sync.py` 는 이름이 동기화인데 그 안에 `ensure_not_changed` — 프로젝트의 낙관적
+잠금 — 이 들어 있었다. 파일째 지웠으면 두 사람이 같은 폼을 열어 뒀을 때 나중 사람이 앞사람
+변경을 조용히 덮어쓰고 **양쪽 다 성공 화면을 보는** 상태가 됐을 것이다. 유일한 호출부인
+`app/projects/service.py` 로 그대로 옮겼다.
+
+파일 이름이 「무엇이 그 안에 있는가」를 다 말하지 않는다. 지울 때는 이름이 아니라 **호출부**를
+본다.
+
+### 그리고 걷어내고 나서야 보인 것 — **자체 행이 이류 시민이었다**
+
+이관 전에는 모든 프로젝트와 티켓이 소스에서 왔고 그래서 전부 `notion_page_id` 를 가졌다.
+코드 곳곳이 그 사실에 기대어 **그 칸을 행의 이름처럼** 썼다. Cutover 뒤로는 반대다 — 새로
+만드는 프로젝트와 티켓에는 그 칸이 없다.
+
+🔴 `notion_page_id` 만 읽는 자리는 전부 `None` 을 받고, **`None` 을 「그런 것 없음」으로
+읽는다.** 오류가 안 난다. 여덟 자리에서 같은 모양으로 나왔다:
+
+| 자리 | 증상 | 고친 방법 |
+|---|---|---|
+| `projects/repository.py::ticket_rows_for_project` | 자체 프로젝트가 걸린 티켓을 못 찾는다 → 진행률·헬스·WBS 트리·주간 리포트가 **동시에** "셀 것이 없다" | 축을 둘로. 정본은 `tickets.project_uid`, 옛 relation 목록은 그대로 둔다 |
+| `projects/service.py::recompute_progress` | **부르는 사람이 사라졌다.** 유일한 호출부가 지워진 동기화 회차였다 | 주기 스윕(`record_health_snapshots`)이 부른다. 부르는 자리는 하나뿐이다 |
+| `search/indexer.py` | 자체 티켓이 **소유 프로젝트 없이** 색인된다 → 만든 사람에게조차 검색 안 됨(전역 관리자만) | 색인 키를 `api_page_id_expr()` 로 |
+| `work/service.py::_card` | 판의 카드에 `page_id` 가 없다 → 눌러도 안 열린다 | `api_page_id()` |
+| `work/service.py::move` | 상태를 옮기면 `page_id=None` 이 내려가 404 | 〃 |
+| `work/service.py::_drop_trashed` | **버린 티켓이 판에 남는다.** 휴지통은 API 이름으로 적는데 비교는 옛 칸으로 했다 | 〃 |
+| `tickets/service.py` 알림 두 곳 | 알림 제목이 폐기한 `GIT-142` — 그 이름으로는 검색도 안 된다(D-283) | `canonical_key` |
+| `frontend/.../ProjectTickets.jsx` | 프로젝트 상세의 **티켓 탭이 목록을 아예 안 부른다** → 새 프로젝트의 탭이 언제까지나 빈다 | 조건을 포털 `project.id` 로. 서버는 이미 두 축으로 맞춘다(`query.py`) |
+
+변환을 호출부마다 손으로 쓰면 **어디선가 한 곳이 빠진다.** 그래서 변환은 함수 하나다 —
+`app/tickets/models.py::api_page_id` 와 그 SQL 판 `api_page_id_expr`. 그 정확한 역함수가
+`app/tickets/service.py::ticket_row_for` 이고, 둘의 순서 규약은 같다(`notion_page_id` 먼저,
+없으면 uuid).
+
+성질로 못박은 자리: `tests/regression/test_native_rows_are_first_class.py` — 행 하나를 심고
+화면이 부르는 경로를 그대로 태운다. 그리고 `tests/regression/test_project_progress_actually_computed.py`
+는 이제 「계산기가 옳은가」가 아니라 **「누가 부르는가」**를 본다.
+
+### 화면 문구도 함께 걷었다 — **하나는 사실이 아니었다**
+
+코드가 아니라 **말**이 남는 자리도 있다. 화면에 있던 노션 문구를 훑어 고쳤는데, 그중 하나는
+사용자에게 **거짓말**을 하고 있었다:
+
+> 「지금 영구 삭제하면 노션 원본이 보관처리되어 목록에서 사라집니다(노션 휴지통에서 30일 내
+> 복구 가능). 계속할까요?」
+
+되돌릴 여지를 주던 것은 **노션의 휴지통**이었지 우리가 아니었다. 그 안전망이 사라진 지금
+영구 삭제는 행을 진짜로 지우고 딸린 댓글·첨부까지 CASCADE 로 가져간다
+(`repository_native.archive` 가 그렇게 적어 두었다). 되돌릴 수 없는 동작을 「복구 가능」이라고
+말하면 사용자는 그것을 믿고 누른다.
+
+나머지는 고칠 방법이 없는 경고이거나(`notion_sync_error` · `notion_missing_at` — 쓰는 코드가
+없어져 이관 시점 값이 영원히 남는다) 없어진 선택지를 있는 척하는 갈래였다(WBS 탭의
+「노션 짝이 없어 작업을 가져올 수 없습니다」 — 이제 작업은 어느 프로젝트에나 붙는다).
+**고칠 수 없는 경고를 계속 띄우면 사용자는 배너 자체를 안 읽게 되고, 그러면 진짜 경고도
+함께 묻힌다.**

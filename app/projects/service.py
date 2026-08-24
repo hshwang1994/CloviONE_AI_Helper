@@ -20,14 +20,14 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.dates import iso_date, parse_date
-from app.core.errors import NotFoundError, ValidationAppError
+from app.core.errors import ConflictError, NotFoundError, ValidationAppError
 from app.authz.visibility import visibility_context
 from app.core import ownership
 from app.core.models_base import split_names
 from app.core.scope import Principal
 from app.org.constants import DEFAULT_ORG_ID
 from app.projects import milestones as milestones_repo
-from app.projects import repository, sync, weekly
+from app.projects import repository, weekly
 from app.projects.health import (
     TROUBLE_HEALTH_SCORE,
     HealthInput,
@@ -61,10 +61,10 @@ NOT_FOUND_MESSAGE = "프로젝트를 찾을 수 없습니다."
 # 수정으로 바꿀 수 있는 필드. `progress_pct` / `health_score` / `archived_at` 은 여기 없다 —
 # 앞의 둘은 앱이 계산하고, 보관은 전용 경로(archive)가 감사 기록과 함께 다룬다.
 #
-# `notion_status` 는 여기 **있다**: 포털에서 노션 진행 상태를 고치면 그대로 push 한다(사용자
-# 지시). 반대로 `notion_progress_pct` / `notion_missing_at` / `notion_synced_at` 은 없다 —
-# 저것들은 저쪽이 말한 사실이지 사람이 정하는 값이 아니고, 손으로 고칠 수 있게 두면 화면이
-# 자기가 보고 싶은 숫자를 써 넣을 수 있다.
+# `notion_status` 도 여기 **없다**. 예전에는 있었다 - 포털에서 고치면 그대로 노션에 push
+# 했기 때문이다. 그 push 가 없어졌으므로 지금 이 칸을 고치면 아무 데도 안 가는 값을 쓰는
+# 것이고, 응답에서도 뺐다(router.py::_project_view). 같은 이유로 `notion_progress_pct` /
+# `notion_missing_at` / `notion_synced_at` 도 없다.
 # `code` 는 **여기 없다** (D-282). 서버가 짓고 **아무도 못 고친다** — 바꾸는 입구가
 # 제품 어디에도 없다.
 #
@@ -76,7 +76,7 @@ NOT_FOUND_MESSAGE = "프로젝트를 찾을 수 없습니다."
 # 이름은 얼마든지 바꿔도 된다. 코드는 이름에서 오지 않는다.
 EDITABLE_FIELDS = (
     "name", "status", "dept_id", "owner_user_id",
-    "starts_on", "ends_on", "goal", "biz_type", "product", "notion_status",
+    "starts_on", "ends_on", "goal", "biz_type", "product",
 )
 
 # NOT NULL 인 컬럼. 여기에 명시적 null 이 오면 "지우기" 가 아니라 잘못된 입력이다.
@@ -193,6 +193,38 @@ def create_project(
     return project
 
 
+# ── 낙관적 잠금 ────────────────────────────────────────────────────────────────
+#
+# 예전에는 이 함수가 `app/projects/sync.py` 에 있었다. Notion 동기화가 프로젝트 행을
+# 고칠 때도 같은 규칙을 지나야 했기 때문이다. 그 동기화가 사라졌으므로 규칙이 사는 자리는
+# **유일한 호출자인 수정 경로**다.
+
+
+def ensure_not_changed(project: Project, base_version: int | None) -> None:
+    """그 사이 누가 먼저 저장했으면 막는다. **정수 `version` 을 본다** (S6).
+
+    **왜 필요한가**: 프로젝트는 여러 사람이 같은 화면을 연다. 두 사람이 동시에 기간을
+    고치면 나중 사람이 앞사람 변경을 덮어쓰고 **양쪽 다 성공 화면을 본다.** 사람이 이미 한
+    일을 조용히 파괴하는 부류라 어떤 성능 문제보다 아프다.
+
+    ## 예전에는 노션으로 밀어 보내는 필드 집합의 해시였다 — 왜 물러났나
+
+    그 지문은 **소스에 실려 나가는 필드 집합**으로 만들었다. 그래서 소스에 안 보내는
+    값(부서·소유자 표시·목표)이 바뀐 것은 충돌로 안 잡혔고, 반대로 그 목록을 한 줄
+    고치는 날 **모든 열린 폼의 지문이 한꺼번에 무효**가 됐다. 정수는 둘 다와 무관하다 —
+    그 행이 저장될 때마다 1 씩 늘 뿐이다.
+
+    `base_version` 이 없으면(구버전 클라이언트·CLI) 예전대로 동작한다 - 새 계약을 강제해
+    기존 경로를 깨뜨리지 않는다(티켓 본문 `_ensure_body_not_changed` 와 같은 규약).
+    """
+    if base_version is None:
+        return
+    if int(base_version) != int(project.version or 1):
+        raise ConflictError(
+            "다른 사람이 먼저 저장했습니다. 새로고침해 최신 내용을 확인한 뒤 다시 저장해 주세요."
+        )
+
+
 def update_project(
     db: Session, project: Project, payload: ProjectUpdate, principal: Principal,
     *, now: datetime,
@@ -208,8 +240,8 @@ def update_project(
     """
     given = payload.model_fields_set
     # 두 사람이 같은 폼을 열어 두면 나중 사람이 앞사람 변경을 조용히 덮어쓰고 **양쪽 다
-    # 성공 화면을 본다.** 지문을 안 보내는 클라이언트는 예전대로 동작한다(sync.ensure_not_changed).
-    sync.ensure_not_changed(project, payload.base_version)
+    # 성공 화면을 본다.** 지문을 안 보내는 클라이언트는 예전대로 동작한다(ensure_not_changed).
+    ensure_not_changed(project, payload.base_version)
     if "dept_id" in given:
         # 남의 팀으로 옮기면 그 행은 내 범위에서 사라진다 — 되돌릴 수도 없다.
         ensure_dept_in_scope(db, principal, payload.dept_id)
@@ -266,10 +298,11 @@ def recompute_progress(db: Session, project: Project, *, now: datetime) -> Progr
     셀 것이 없으면(`percent is None`) NULL 로 되돌린다 — 0.0 으로 적으면 "작업이 아직 안
     붙었다"와 "붙었는데 하나도 못 끝냈다"가 화면에서 똑같아진다(progress.py 참조).
 
-    🔴 **값이 실제로 안 바뀌면 `updated_at` 을 건드리지 않는다.** 이 함수는 이제 동기화
-    회차마다 프로젝트 전체에 불린다(app/projects/sync.py). 매번 `updated_at = now` 를 쓰면
-    티켓 하나 안 바뀐 프로젝트도 목록 정렬(`updated_at DESC`)의 맨 위로 튀어 오른다 -
-    `sync._upsert` 가 정확히 같은 이유로 이미 지키고 있는 규칙이다.
+    🔴 **값이 실제로 안 바뀌면 `updated_at` 을 건드리지 않는다.** 이 함수는 주기 스윕이
+    프로젝트 전체에 부른다(`record_health_snapshots`). 매번 `updated_at = now` 를 쓰면
+    티켓 하나 안 바뀐 프로젝트도 목록 정렬(`updated_at DESC`)의 맨 위로 튀어 오르고,
+    사용자가 방금 고친 프로젝트가 맨 위에 오지 않는다 — `record_health_snapshot` 이 정확히
+    같은 이유로 `health_score` 에 같은 규칙을 건다.
     """
     result = project_progress(db, project)
     if project.progress_pct == result.percent:
@@ -303,9 +336,7 @@ OVERALL_PROJECT_LIMIT = 100
 def _weekly_facts(db: Session, project: Project, week: weekly.Week, settings) -> dict:
     """프로젝트 한 건의 그 주 사실. **저장하지 않는다**(읽기가 쓰기를 하면 안 된다).
 
-    `basis` 를 함께 내는 이유는 진행률과 같다: 0건과 "셀 것이 없다"는 다른 말이다. 노션에
-    짝이 없는 포털 전용 프로젝트는 걸린 작업이 있을 수 없으므로 `tickets_linked` 가 False 이고,
-    화면과 문장이 그 사실을 그대로 말한다.
+    `basis` 를 함께 내는 이유는 진행률과 같다: 0건과 "셀 것이 없다"는 다른 말이다.
     """
     from app.home.service import window_utc_bounds
 
@@ -321,7 +352,11 @@ def _weekly_facts(db: Session, project: Project, week: weekly.Week, settings) ->
         milestone_rows, week=week, since_utc=since_utc, until_utc=until_utc
     )
 
-    tickets_linked = bool(project.notion_page_id)
+    # 티켓은 어느 프로젝트에나 걸릴 수 있다 — 소속의 정본이 `tickets.project_uid` 이기
+    # 때문이다(S14). 예전에는 외부 짝(`notion_page_id`)이 있어야만 걸 수 있었고 이 칸이
+    # 그 사실을 말했는데, 그대로 두면 새로 만든 프로젝트가 전부 "티켓을 걸 수 없는
+    # 프로젝트" 로 보고되어 리포트가 0건인 이유를 잘못 설명한다.
+    tickets_linked = True
     return {
         **sections,
         "milestones": milestones,
@@ -376,7 +411,6 @@ def project_weekly_report(
         "project": {
             "id": project.id, "name": project.name, "code": project.code,
             "status": project.status, "progress_pct": project.progress_pct,
-            "notion_page_id": project.notion_page_id,
         },
         "window": week.as_dict(),
         **_weekly_facts(db, project, week, settings),
@@ -494,7 +528,7 @@ def project_dashboard(
             percents.append(float(row.progress_pct))
         if row.health_score is None:
             unscored += 1
-        reasons = compute_trouble_reasons(row.notion_status, row.health_score)
+        reasons = compute_trouble_reasons(row.health_score)
         if reasons:
             trouble.append({
                 "project_id": row.id,
@@ -503,7 +537,6 @@ def project_dashboard(
                 "status": row.status,
                 "health_score": row.health_score,
                 "progress_pct": row.progress_pct,
-                "notion_status": row.notion_status,
                 "reasons": reasons,
             })
 
@@ -697,7 +730,6 @@ def health_input(db: Session, project: Project, *, today: str) -> HealthInput:
     rows = repository.ticket_rows_for_project(db, project)
     return HealthInput(
         today=today,
-        notion_status=project.notion_status,
         milestones=tuple(
             MilestoneFact(due_on=m.due_on, status=m.status)
             for m in milestones_repo.list_for_project(db, project)
@@ -755,7 +787,7 @@ def record_health_snapshot(
     `updated_at` 을 찍으면 전 프로젝트의 갱신 시각이 같은 값으로 덮이고, 목록 정렬이
     `updated_at DESC` 라(repository.list_in_scope) 정렬이 사실상 id 순으로 무너진다 -
     사용자가 방금 고친 프로젝트가 맨 위에 오지 않는다. 원인이 정렬 코드에 없어서 아무도
-    못 찾는다. `sync.py::_upsert` 가 같은 함정을 같은 방식으로 피한다.
+    못 찾는다. `recompute_progress` 가 `progress_pct` 에 같은 규칙을 건다.
     """
     result = project_health(db, project, today=today)
     if project.health_score != result.score:
@@ -911,7 +943,15 @@ class HealthSnapshotSweep:
 def record_health_snapshots(
     db: Session, *, today: str, now: datetime, limit: int = HEALTH_SNAPSHOT_SWEEP_LIMIT
 ) -> HealthSnapshotSweep:
-    """전 프로젝트를 돌며 그 주의 헬스를 이력에 남긴다. **커밋하지 않는다**(부르는 쪽 몫).
+    """전 프로젝트를 돌며 진행률을 다시 계산하고 그 주의 헬스를 이력에 남긴다.
+    **커밋하지 않는다**(부르는 쪽 몫).
+
+    ## 진행률도 여기서 계산한다
+
+    이름은 헬스 스냅샷이지만 이 스윕이 **제품의 유일한 주기 재계산 지점**이다. 진행률 캐시
+    (`projects.progress_pct`)를 갱신하는 자리가 여기 말고 없다 — 자세한 이유는 아래 루프
+    안의 주석에 있다. 둘을 나누면 끄는 자리가 둘이 되고, 한쪽만 꺼진 것은 화면에서 구별되지
+    않는다.
 
     ## 여러 번 돌아도 안전하다
 
@@ -959,6 +999,17 @@ def record_health_snapshots(
         project_id, project_name = project.id, project.name
         try:
             with db.begin_nested():
+                # 🔴 진행률 캐시도 여기서 다시 계산한다. **부르는 자리가 여기 하나뿐이다.**
+                #
+                # 예전에는 노션 동기화 회차가 불렀는데(`sync.py::sync_projects`), S14 가 그
+                # 동기화를 없앴다(D-284). 계산기(`recompute_progress`)는 그대로 남아 있었지만
+                # 아무도 부르지 않게 되고, 그러면 목록의 진행률이 **영원히 그 자리에** 머문다 —
+                # 이 저장소가 이미 한 번 겪은 사고이고(운영 프로젝트 22건 전부 "아직 계산하지
+                # 않았습니다"), 오류를 안 내서 아무도 신고하지 않았다.
+                #
+                # 헬스 스윕에 붙이는 이유: 같은 주기로, 같은 프로젝트 집합을, 같은 SAVEPOINT
+                # 안에서 돈다. 틱을 따로 만들면 끄는 자리가 둘이 되고 한쪽만 꺼진다.
+                recompute_progress(db, project, now=now)
                 _, row = record_health_snapshot(db, project, today=today, now=now)
         except Exception as exc:
             logger.exception(

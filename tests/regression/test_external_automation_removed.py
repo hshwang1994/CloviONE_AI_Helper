@@ -150,8 +150,10 @@ def test_allowlist_registry_has_no_runner_or_workflow_lane():
 def test_installer_and_ops_scripts_have_no_n8n_trace():
     """설치·백업·검증 스크립트 어디에도 n8n 이 없다.
 
-    특히 `scripts/validate-clovirone-web-assistant.sh` 는 «n8n 이 살아 있다» 를 **성공
-    조건으로** 단언하고 있었다 — 그대로 두면 n8n 을 지운 설치에서 검증이 실패한다.
+    옛 검증 스크립트(`scripts/validate-clovirone-web-assistant.sh`)는 «n8n 이 살아 있다» 를
+    **성공 조건으로** 단언하고 있었다 — S11 이 그 단언을 걷었고 S14 가 그 스크립트를 옛 slug
+    설치 경로와 함께 지웠다. 검사는 그대로 둔다: n8n 은 파일 이름이 아니라 **문자열**로
+    돌아오고, 돌아오는 자리는 지금 남아 있는 스크립트들이다.
     """
     offenders = []
     for p in _tracked("deploy/**/*", "scripts/*.sh", "config/*.json", ".env.example"):

@@ -9,7 +9,6 @@ import { api } from "../lib/api.js";
 import { Badge, Button, Callout, Card, EmptyState, ErrorState, MetaBar, OverflowMenu, PageHeader, Skeleton, useConfirm, useToast } from "../ui/kit.jsx";
 import { PROSE_MAX_WIDTH } from "../ui/theme.js";
 import { BASELINE_TRACKS, GRID_GAP } from "../ui/density.js";
-import { safeExternal } from "./TeamDoc.jsx";
 import { TicketEditModal } from "./MyTickets.jsx";
 import { invalidateTicketViews } from "./ticket-views.js";
 import { TicketBody } from "./TicketBody.jsx";
@@ -114,13 +113,15 @@ export function Ticket() {
         <PageHeader crumbRoot="내 업무" area="티켓" title="티켓" actions={<Button onClick={() => nav("/my-tickets")}>목록</Button>} />
         {/* 연동 미설정은 이 화면에서 가장 흔한 '데이터 없음'이다 — 경고 한 줄로 끝내지 않고
             무엇이 필요한지·연동 후 무엇이 보이는지까지 알려준다(목록 화면들과 같은 규칙). */}
+        {/* 이 갈래는 더 이상 안 열린다 — 티켓의 정본이 이 서버라 사람이 채워 넣을 접속
+            설정이 없다(S14 · D-284). 응답 모양은 남아 있으므로 갈래도 남기되, 없어진
+            절차를 안내하지는 않는다. */}
         <EmptyState
           art="tickets"
-          title="Notion 연동이 아직 설정되지 않았습니다"
-          situation="티켓 본문은 Notion 페이지에서 실시간으로 읽어옵니다. 연동 토큰이 없으면 이 티켓을 열 수 없습니다."
-          prerequisite="관리자 권한과 Notion 통합 토큰"
-          steps={["관리자에게 Notion 연동 설정을 요청하세요.", "연동이 추가되면 이 화면을 새로고침하세요."]}
-          expected="연동이 끝나면 제목, 속성, 본문이 이 자리에 표시됩니다."
+          title="지금은 이 티켓을 열 수 없습니다"
+          situation="서버가 티켓을 읽지 못했습니다."
+          steps={["잠시 뒤 이 화면을 새로고침해 보세요.", "계속 같으면 관리자에게 문의하세요."]}
+          expected="다시 열면 제목, 속성, 본문이 이 자리에 표시됩니다."
           action={<Button variant="primary" onClick={() => nav("/my-tickets")}>내 티켓으로</Button>}
         />
       </div>
@@ -136,15 +137,11 @@ export function Ticket() {
   }
 
   const t = data.ticket || {};
-  const original = safeExternal(t.url);
   const actions = (
     <Stack direction="row" gap={1} sx={{ flexWrap: "wrap" }}>
       <Button variant="ghost" onClick={() => nav("/my-tickets")}>목록</Button>
-      {/* VIS-132: 이 화면에서 가장 자주 하는 일은 수정이다 — 이 앱 안에서 바로 되는 유일한
-          쓰기 동작이고, 원본 열기는 Notion으로 나가는 보조 참조다(TeamDoc.jsx의 "원본
-          열기"와 다르다 — 거기는 경쟁하는 인앱 수정 버튼이 아예 없어 원본 열기 자체가
-          사실상 그 화면의 주 동작이다). 그래서 여기서만 수정을 primary로, 원본 열기를
-          default로 바꾼다. */}
+      {/* 이 화면에서 가장 자주 하는 일은 수정이다 — 이 앱 안에서 바로 되는 유일한
+          쓰기 동작이라 primary 자리를 준다. */}
       {/* VIS-135: 본문 카드 안에도 별도의 "본문 수정"(EditableBody.jsx)이 있어, 둘의 차이가
           화면에 설명 없이는 안 보였다. 이 버튼은 상태·우선순위·담당자·마감 같은 속성을
           여는 것이라는 것을 툴팁으로 밝힌다 — 본문 텍스트는 이 모달이 안 건드린다. */}
@@ -153,16 +150,15 @@ export function Ticket() {
           <Button variant="primary" onClick={() => setEditing(true)}>수정</Button>
         </Tooltip>
       )}
-      {/* 원본 열기와 삭제는 넘침 메뉴로 내렸다. 삭제는 빨간 solid 버튼으로 머리에 있으면
-          가장 자주 하는 일(수정)과 시선을 다투고, 원본 열기는 Notion 으로 나가는 보조
-          참조라 주 동작 자리를 차지할 이유가 없다(지시 11 · 12). 확인 대화는 그대로다. */}
+      {/* 삭제는 넘침 메뉴로 내렸다. 빨간 solid 버튼으로 머리에 있으면 가장 자주 하는
+          일(수정)과 시선을 다툰다(지시 11 · 12). 확인 대화는 그대로다.
+
+          여기 「원본 열기」가 함께 있었다. 그 링크는 티켓 1,133건 전부가 app.notion.com
+          을 가리켰는데, 정본이 이 서버로 넘어온 뒤로 그 주소가 여는 것은 우리가 더 이상
+          쓰지 않는 낡은 사본이다. 서버도 응답에서 `url` 을 걷었다. */}
       <OverflowMenu
         ariaLabel="티켓 더 보기"
         items={[
-          original ? {
-            key: "original", label: "원본 열기",
-            onClick: () => window.open(original, "_blank", "noopener,noreferrer"),
-          } : null,
           {
             key: "trash", label: "삭제", tone: "danger", disabled: trash.isPending,
             onClick: async () => {
@@ -230,9 +226,6 @@ export function Ticket() {
               blocksError={data.blocks_error}
               bodyMarkdown={data.body_markdown}
               bodyVersion={data.body_version}
-              bodyIsLocal={data.body_is_local}
-              bodySyncError={data.body_sync_error}
-              originalUrl={original}
               onSaved={() => detail.refetch()}
             />
           </Card>

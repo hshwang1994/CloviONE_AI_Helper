@@ -26,8 +26,6 @@ from __future__ import annotations
 
 import pytest
 
-from tests.fakes.notion import DEFAULT_PROJECTS_DB, FakeNotionTasksDB, project_row, task_row
-
 pytestmark = pytest.mark.security
 
 NID_MINE, NID_THEIRS = "notion-d-mine", "notion-d-theirs"
@@ -37,43 +35,18 @@ EXT_OURS, EXT_THEIRS = "px-ours", "px-theirs"
 
 
 @pytest.fixture()
-def notion(fake_http) -> FakeNotionTasksDB:
-    return FakeNotionTasksDB(
-        rows=[
-            task_row(page_id="d-mine", tid=1, title="우리팀 티켓", status="진행",
-                     people=[NID_MINE], project_ids=[EXT_OURS]),
-            task_row(page_id="d-theirs", tid=2, title="남의팀 티켓", status="진행",
-                     people=[NID_THEIRS], project_ids=[EXT_THEIRS]),
-            # 우리 프로젝트의 **진짜 미할당** 티켓 — 담당자가 아무도 없다. 트리아지에 뜨고,
-            # 뜬 이상 열려야 한다.
-            task_row(page_id="d-open", tid=3, title="우리팀 미할당", status="진행",
-                     people=[], project_ids=[EXT_OURS]),
-            # 담당자는 있는데 앱 계정으로 해석이 안 되는 티켓. 0060 부터 이건 **미할당이 아니라**
-            # 정합성 문제(사용자 매핑 필요)이고, 소속은 프로젝트가 정하므로 정상적으로 보인다.
-            task_row(page_id="d-unmapped", tid=4, title="매핑 안 된 담당자", status="진행",
-                     people=["notion-x"], project_ids=[EXT_OURS]),
-        ],
-        projects=[project_row(page_id=EXT_OURS, name="우리 프로젝트"),
-                  project_row(page_id=EXT_THEIRS, name="남의 프로젝트")],
-        projects_db=DEFAULT_PROJECTS_DB,
-    ).install(fake_http)
-
-
-@pytest.fixture()
-def world(client, settings, notion, make_user, make_project, db, app):
+def world(make_user, make_project, make_ticket, db):
     from app.notion_mapping.models import STATUS_VERIFIED, UserNotionMapping
     from app.org.constants import DEFAULT_ORG_ID
     from app.org.models import Department
-    from app.tickets.sync import sync_tickets
 
-    (settings.secrets_dir / "notion_report_token").write_text("t", encoding="utf-8")
     mine = Department(name="우리팀", org_id=DEFAULT_ORG_ID)
     theirs = Department(name="남의팀", org_id=DEFAULT_ORG_ID)
     db.add_all([mine, theirs])
     db.flush()
-    # Portal 프로젝트를 **동기화 전에** 만든다 — 동기화가 그때 소속을 해석한다.
-    make_project(name="우리 프로젝트", dept=mine, external_id=EXT_OURS)
-    make_project(name="남의 프로젝트", dept=theirs, external_id=EXT_THEIRS)
+    # Portal 프로젝트를 **티켓보다 먼저** 만든다 — 티켓을 심을 때 소속이 해석된다.
+    ours = make_project(name="우리 프로젝트", dept=mine, external_id=EXT_OURS)
+    theirs_project = make_project(name="남의 프로젝트", dept=theirs, external_id=EXT_THEIRS)
     me = make_user("td-me@goodmit.co.kr", role="user", display_name="나")
     other = make_user("td-other@goodmit.co.kr", role="user", display_name="남")
     me.department_id = mine.id
@@ -81,10 +54,19 @@ def world(client, settings, notion, make_user, make_project, db, app):
     db.add(UserNotionMapping(user_id=me.id, notion_user_id=NID_MINE, status=STATUS_VERIFIED))
     db.add(UserNotionMapping(user_id=other.id, notion_user_id=NID_THEIRS, status=STATUS_VERIFIED))
     db.commit()
-    with app.state.session_factory() as s:
-        sync_tickets(s, outbound=app.state.outbound_client, settings=settings,
-                     now=app.state.clock.now())
-        s.commit()
+
+    make_ticket(page_id="d-mine", project=ours, tid=1, title="우리팀 티켓",
+                status="진행", assignees=[NID_MINE])
+    make_ticket(page_id="d-theirs", project=theirs_project, tid=2, title="남의팀 티켓",
+                status="진행", assignees=[NID_THEIRS])
+    # 우리 프로젝트의 **진짜 미할당** 티켓 — 담당자가 아무도 없다. 트리아지에 뜨고,
+    # 뜬 이상 열려야 한다.
+    make_ticket(page_id="d-open", project=ours, tid=3, title="우리팀 미할당",
+                status="진행", assignees=[])
+    # 담당자는 있는데 앱 계정으로 해석이 안 되는 티켓. 0060 부터 이건 **미할당이 아니라**
+    # 정합성 문제(사용자 매핑 필요)이고, 소속은 프로젝트가 정하므로 정상적으로 보인다.
+    make_ticket(page_id="d-unmapped", project=ours, tid=4, title="매핑 안 된 담당자",
+                status="진행", assignees=["notion-x"])
 
 
 def test_you_can_open_your_own_team_ticket(client, login_as, world):
@@ -192,34 +174,19 @@ def test_you_can_still_edit_your_own_team_ticket(client, login_as, world):
 # 똑같이 취급했다 — 위 시험들이 지키는 dept 경계와 별개로 이 org 경계는 어떤 시험도 없었다.
 # 상세(읽기)뿐 아니라 PATCH(쓰기)도 같은 함수를 지나므로 함께 확인한다.
 @pytest.fixture()
-def org_notion(fake_http) -> FakeNotionTasksDB:
-    return FakeNotionTasksDB(
-        rows=[
-            task_row(page_id="od-mine", tid=11, title="A조직 티켓", status="진행",
-                     people=["notion-od-mine"], project_ids=["px-org-a"]),
-            task_row(page_id="od-theirs", tid=12, title="B조직 티켓", status="진행",
-                     people=["notion-od-theirs"], project_ids=["px-org-b"]),
-        ],
-        projects=[project_row(page_id="px-org-a", name="A조직 프로젝트"),
-                  project_row(page_id="px-org-b", name="B조직 프로젝트")],
-        projects_db=DEFAULT_PROJECTS_DB,
-    ).install(fake_http)
-
-
-@pytest.fixture()
-def org_world(client, settings, org_notion, make_user, make_project, db, app):
+def org_world(make_user, make_project, make_ticket, db):
     from app.notion_mapping.models import STATUS_VERIFIED, UserNotionMapping
     from app.org.constants import DEFAULT_ORG_ID
     from app.org.models import Organization
-    from app.tickets.sync import sync_tickets
     from app.users.models import MEMBERSHIP_ORGANIZATION
 
-    (settings.secrets_dir / "notion_report_token").write_text("t", encoding="utf-8")
     other_org = Organization(slug="ticket-org-scope-tenant", name="다른 회사", status="active")
     db.add(other_org)
     db.flush()
-    make_project(name="A조직 프로젝트", org_id=DEFAULT_ORG_ID, external_id="px-org-a")
-    make_project(name="B조직 프로젝트", org_id=other_org.id, external_id="px-org-b")
+    org_a_project = make_project(
+        name="A조직 프로젝트", org_id=DEFAULT_ORG_ID, external_id="px-org-a")
+    org_b_project = make_project(
+        name="B조직 프로젝트", org_id=other_org.id, external_id="px-org-b")
 
     boss = make_user("odt-boss@goodmit.co.kr", role="admin", display_name="A조직관리자")
     boss.org_id = DEFAULT_ORG_ID
@@ -234,10 +201,10 @@ def org_world(client, settings, org_notion, make_user, make_project, db, app):
     db.add(UserNotionMapping(user_id=mine.id, notion_user_id="notion-od-mine", status=STATUS_VERIFIED))
     db.add(UserNotionMapping(user_id=theirs.id, notion_user_id="notion-od-theirs", status=STATUS_VERIFIED))
     db.commit()
-    with app.state.session_factory() as s:
-        sync_tickets(s, outbound=app.state.outbound_client, settings=settings,
-                     now=app.state.clock.now())
-        s.commit()
+    make_ticket(page_id="od-mine", project=org_a_project, tid=11, title="A조직 티켓",
+                status="진행", assignees=["notion-od-mine"])
+    make_ticket(page_id="od-theirs", project=org_b_project, tid=12, title="B조직 티켓",
+                status="진행", assignees=["notion-od-theirs"])
 
 
 def test_org_scoped_admin_does_not_see_another_organizations_ticket(client, login_as, org_world):

@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.core.ownership import (
     OWNER_DEPARTMENT,
@@ -110,3 +110,38 @@ class VersionRestore(BaseModel):
 class DocumentRelationCreate(BaseModel):
     to_document_id: str = Field(min_length=1, max_length=36)
     kind: str = Field(pattern="^(" + "|".join(DREL_KINDS) + ")$")
+
+
+# ── 댓글 (S14 · C2) ──────────────────────────────────────────────────────────
+#
+# 상한값의 출처는 `app/knowledge/comments.py::MAX_COMMENT_CHARS` 한 곳이다. 여기서 숫자를
+# 다시 정하면 한쪽만 고치는 날 화면이 받아 주는 길이와 서버가 받아 주는 길이가 어긋난다.
+
+
+def _comment_body(v: str) -> str:
+    from app.knowledge.comments import MAX_COMMENT_CHARS
+
+    v = (v or "").strip()
+    if not v:
+        raise ValueError("댓글 내용을 입력하세요.")
+    if len(v) > MAX_COMMENT_CHARS:
+        raise ValueError(f"댓글은 {MAX_COMMENT_CHARS}자 이하여야 합니다.")
+    return v
+
+
+class CommentCreate(BaseModel):
+    body: str
+
+    @field_validator("body")
+    @classmethod
+    def _check(cls, v: str) -> str:
+        return _comment_body(v)
+
+
+class CommentUpdate(BaseModel):
+    body: str
+
+    @field_validator("body")
+    @classmethod
+    def _check(cls, v: str) -> str:
+        return _comment_body(v)

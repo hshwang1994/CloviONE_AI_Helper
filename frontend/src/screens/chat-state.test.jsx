@@ -122,17 +122,20 @@ describe("structuredCards", () => {
     expect(p.projects).toEqual([]);
     expect(p.hasCards).toBe(false);
   });
-  it("카드가 없고 허용 도메인 문서 링크만 있으면 그 링크를 낸다", () => {
+  /* 예전에는 이 두 시험이 반대를 단언했다: 카드가 없고 문서 링크만 있으면 「관련 문서」
+     카드로 대체한다. 서버가 그 필드(`notion_url`/`url`)를 싣는 경로가 없어져 화면이 안
+     보내는 값을 기다리고 있었다. 갈래를 되살리면 이 시험이 빨개진다. */
+  it("문서 링크만 있는 페이로드는 그릴 것이 없다고 답한다", () => {
     const p = structuredCards({ structured: { notion_url: "https://www.notion.so/x" } });
-    expect(p.notionUrl).toBe("https://www.notion.so/x");
-    expect(p.notionUnsafe).toBe("");
-    expect(p.hasAny).toBe(true);
+    expect(p.notionUrl).toBeUndefined();
+    expect(p.notionUnsafe).toBeUndefined();
+    expect(p.hasAny).toBe(false);
   });
-  it("allowlist에 걸린 링크도 버리지 않고 '열 수 없는 참조'로 남긴다", () => {
+  it("허용 목록 밖 주소도 마찬가지다(갈래 자체가 없다)", () => {
     const p = structuredCards({ structured: { notion_url: "https://evil.com/x" } });
-    expect(p.notionUrl).toBe("");
-    expect(p.notionUnsafe).toBe("https://evil.com/x");
-    expect(p.hasAny).toBe(true);
+    expect(p.notionUrl).toBeUndefined();
+    expect(p.notionUnsafe).toBeUndefined();
+    expect(p.hasAny).toBe(false);
   });
 });
 

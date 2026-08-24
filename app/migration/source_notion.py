@@ -70,6 +70,8 @@ _API = "https://api.notion.com"
 _PAGE_SIZE = 100
 _MAX_PAGES = 40          # 100 x 40 = 4,000행 상한. 실측 최대는 1,125행이다.
 _MAX_BLOCK_PAGES = 20    # 페이지 하나의 블록 100 x 20 = 2,000블록
+# 페이지 하나의 댓글 100 x 20 = 2,000건. 실측 최대는 한 페이지 10건이다.
+_MAX_COMMENT_PAGES = 20
 _MAX_BLOCK_DEPTH = 3     # 목록 안의 목록까지. 그 아래는 본문이 아니라 구조다.
 # 이것은 **정책이 아니라 메모리 보호**다. 첨부의 크기 한도는 제품이 정하고
 # (`app/core/uploads.py::MAX_UPLOAD_BYTES` = 10MB), 그 판정은 `store_bytes` 가 한다.
@@ -84,6 +86,42 @@ class NotionSourceError(AppError):
     status_code = 502
     code = "notion_source_error"
     default_message = "Notion 을 읽지 못했습니다."
+
+
+# 바이트를 들고 있는 블록. 어휘의 정본은 `transform.MEDIA_BLOCKS` 이고 여기서는 그것을
+# 읽기만 한다 — 두 벌로 적으면 새 종류를 더한 날 한쪽만 낡는다.
+def _media_block_types() -> frozenset[str]:
+    from app.migration.transform import MEDIA_BLOCKS
+
+    return MEDIA_BLOCKS
+
+
+# Notion 서명 주소의 수명은 한 시간이다(`X-Amz-Expires=3600`). 회차 하나가 십 분 넘게
+# 걸리므로 여유를 크게 둔다 — 캐시를 읽은 시각과 바이트를 받는 시각이 같지 않다.
+MEDIA_CACHE_TTL_SECONDS = 20 * 60
+
+
+def _has_media(blocks) -> bool:
+    kinds = _media_block_types()
+    for block in blocks or []:
+        if not isinstance(block, dict):
+            continue
+        if block.get("type") in kinds:
+            return True
+        if _has_media(block.get("_children")):
+            return True
+    return False
+
+
+def _is_fresh(fetched_at) -> bool:
+    """이 캐시를 언제 받았는가. **모르면 안 신선하다.**
+
+    옛 캐시 파일에는 이 값이 없다. 없는 것을 「방금 받았다」로 읽으면 만료된 주소를
+    그대로 쓰게 되고, 그것이 정확히 막으려는 상태다.
+    """
+    if not isinstance(fetched_at, (int, float)):
+        return False
+    return (time.time() - float(fetched_at)) < MEDIA_CACHE_TTL_SECONDS
 
 
 def _norm(text: str | None) -> str:
@@ -106,6 +144,11 @@ class NotionStats:
     pages_fetched: int = 0
     blocks_fetched: int = 0
     blocks_from_cache: int = 0
+    # 캐시가 있는데도 다시 받은 수. 이미지가 든 페이지의 서명 주소가 늙었다는 뜻이다.
+    blocks_refetched_for_media: int = 0
+    comments_fetched: int = 0
+    comments_from_cache: int = 0
+    comments_seen: int = 0
     bytes_downloaded: int = 0
     databases: dict[str, str] = field(default_factory=dict)
     out_of_scope: list[str] = field(default_factory=list)
@@ -116,6 +159,10 @@ class NotionStats:
             "pages_fetched": self.pages_fetched,
             "blocks_fetched": self.blocks_fetched,
             "blocks_from_cache": self.blocks_from_cache,
+            "blocks_refetched_for_media": self.blocks_refetched_for_media,
+            "comments_fetched": self.comments_fetched,
+            "comments_from_cache": self.comments_from_cache,
+            "comments_seen": self.comments_seen,
             "bytes_downloaded": self.bytes_downloaded,
             "databases": dict(self.databases),
             "out_of_scope": list(self.out_of_scope),
@@ -147,6 +194,7 @@ class NotionSource:
         self.cache = Path(cache_dir)
         (self.cache / "blocks").mkdir(parents=True, exist_ok=True)
         (self.cache / "files").mkdir(parents=True, exist_ok=True)
+        (self.cache / "comments").mkdir(parents=True, exist_ok=True)
         self.stats = NotionStats()
 
     # ── 낮은 층 ──────────────────────────────────────────────────────────────
@@ -278,7 +326,18 @@ class NotionSource:
     # ── 본문 블록 ────────────────────────────────────────────────────────────
 
     def page_blocks(self, page_id: str, *, last_edited: str | None) -> list[dict]:
-        """페이지 본문 블록(중첩 포함). `last_edited` 가 같으면 캐시를 쓴다."""
+        """페이지 본문 블록(중첩 포함). `last_edited` 가 같으면 캐시를 쓴다.
+
+        ## 🔴 이미지가 든 페이지는 캐시가 **늙으면 못 쓴다**
+
+        블록 JSON 안의 파일 주소는 서명이 붙어 있고 한 시간이면 죽는다. `last_edited` 는
+        그 사실을 모른다 — 본문이 안 바뀌었으면 몇 주 전 캐시도 「같다」고 답한다. 그
+        캐시로 바이트를 받으러 가면 403 이 돌아오고, 보고서에는 「이미지를 못 받았다」만
+        남는다. 원인이 만료라는 것은 아무 데도 안 나온다.
+
+        그래서 **파일이 든 페이지만** 나이를 함께 본다. 글자만 있는 페이지는 예전처럼
+        캐시를 그대로 쓴다 — 재수집이 십 분 넘게 걸리는 이유가 그쪽 1,200건이다.
+        """
         path = self.cache / "blocks" / f"{page_id}.json"
         if path.exists():
             try:
@@ -286,14 +345,21 @@ class NotionSource:
             except ValueError:
                 cached = None
             if cached and cached.get("last_edited") == last_edited:
-                self.stats.blocks_from_cache += 1
-                return cached.get("blocks") or []
+                blocks = cached.get("blocks") or []
+                if not _has_media(blocks) or _is_fresh(cached.get("fetched_at")):
+                    self.stats.blocks_from_cache += 1
+                    return blocks
+                self.stats.blocks_refetched_for_media += 1
 
         blocks = self._children(page_id, depth=0)
         self.stats.blocks_fetched += 1
         path.write_text(
             json.dumps(
-                {"last_edited": last_edited, "blocks": blocks},
+                {
+                    "last_edited": last_edited,
+                    "fetched_at": time.time(),
+                    "blocks": blocks,
+                },
                 ensure_ascii=False,
             ),
             encoding="utf-8",
@@ -321,6 +387,77 @@ class NotionSource:
             if not cursor:
                 break
         return out
+
+    # ── 댓글 ─────────────────────────────────────────────────────────────────
+
+    def page_comments(self, page_id: str, *, refresh: bool = False) -> list[dict]:
+        """페이지에 달린 댓글 전부(스레드 답글 포함). **캐시가 있으면 안 받는다** (D11).
+
+        ## 왜 `last_edited` 로 신선도를 안 재는가
+
+        블록 캐시는 페이지의 `last_edited_time` 이 같으면 다시 안 받는다. 댓글에는 그
+        규약을 쓸 수 없다 — **댓글이 달려도 페이지의 그 값이 안 움직이는 경우가 있다.**
+        내려받아 둔 1,235쪽을 대조해 보면 151쪽 중 5쪽에서 가장 새 댓글이 페이지의
+        `last_edited_time` 보다 늦다. 그 값을 신선도로 믿으면 그 5쪽의 댓글을 영원히
+        놓치고, 놓쳤다는 사실은 어디에도 안 남는다.
+
+        그래서 규약은 **파일이 있으면 그것이 원장**이다. 다시 받아야 하면 `refresh` 로
+        분명히 말한다 — 「혹시 몰라서 매번 받는다」는 1,235회 왕복이고, 그 비용은
+        아무도 이 도구를 두 번 안 돌리게 만든다.
+
+        캐시 파일의 모양은 **Notion 이 준 배열 그대로**다. 이미 그 모양으로 1,235개가
+        디스크에 있고, 새로 받은 것만 다른 모양으로 적으면 읽는 쪽이 두 규약을 영원히
+        알고 있어야 한다.
+        """
+        path = self.cache / "comments" / f"{page_id}.json"
+        if path.exists() and not refresh:
+            cached = self._read_comment_cache(path)
+            if cached is not None:
+                self.stats.comments_from_cache += 1
+                self.stats.comments_seen += len(cached)
+                return cached
+
+        rows: list[dict] = []
+        cursor: str | None = None
+        for _ in range(_MAX_COMMENT_PAGES):
+            query = f"?block_id={page_id}&page_size={_PAGE_SIZE}" + (
+                f"&start_cursor={cursor}" if cursor else ""
+            )
+            data = self._call("GET", f"/v1/comments{query}")
+            rows.extend(
+                row for row in data.get("results", []) if isinstance(row, dict)
+            )
+            if not data.get("has_more"):
+                break
+            cursor = data.get("next_cursor")
+            if not cursor:
+                break
+        else:
+            # 잘린 목록을 캐시에 적으면 그 페이지는 다음 회차에도 잘린 채로 읽힌다.
+            raise NotionSourceError(
+                f"댓글 {_MAX_COMMENT_PAGES * _PAGE_SIZE}건 상한에 걸렸습니다: {page_id}"
+            )
+        self.stats.comments_fetched += 1
+        self.stats.comments_seen += len(rows)
+        path.write_text(json.dumps(rows, ensure_ascii=False), encoding="utf-8")
+        return rows
+
+    @staticmethod
+    def _read_comment_cache(path: Path) -> list[dict] | None:
+        """캐시 파일 하나. **모양이 다르면 「댓글이 없다」로 읽지 않는다.**
+
+        빈 목록을 돌려주면 그 페이지는 조용히 이관 대상에서 빠지고, 검증은 「원본에
+        댓글이 없었다」로 통과한다. 못 읽으면 `None` 을 내서 다시 받게 한다.
+        """
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except ValueError:
+            logger.warning("댓글 캐시를 읽을 수 없어 다시 받는다: %s", path)
+            return None
+        if isinstance(payload, list):
+            return [row for row in payload if isinstance(row, dict)]
+        logger.warning("댓글 캐시의 모양이 배열이 아니라 다시 받는다: %s", path)
+        return None
 
     # ── 첨부 ─────────────────────────────────────────────────────────────────
 

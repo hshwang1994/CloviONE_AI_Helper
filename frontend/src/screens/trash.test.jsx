@@ -72,7 +72,11 @@ describe("영구 삭제는 확인을 거친다", () => {
 
     await user.click(screen.getByRole("button", { name: "영구 삭제" }));
     const dialog = await screen.findByRole("dialog");
-    expect(within(dialog).getByText(/노션 원본이 보관처리되어/)).toBeInTheDocument();
+    // 🔴 문구가 **되돌릴 수 없음**을 말해야 한다. 예전에는 「노션 휴지통에서 30일 내 복구
+    // 가능」이라고 했는데 그 안전망은 S14 와 함께 사라졌다(D-284) — 지금은 행과 딸린
+    // 댓글·첨부가 그대로 지워진다. 사용자는 이 한 줄을 읽고 누른다.
+    expect(within(dialog).getByText(/되돌릴 수 없습니다/)).toBeInTheDocument();
+    expect(within(dialog).queryByText(/노션/)).toBeNull();
 
     await user.click(within(dialog).getByRole("button", { name: "취소" }));
 
