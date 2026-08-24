@@ -102,6 +102,10 @@ describe("필터가 서버로 가는 형태", () => {
     expect(listCalls).toEqual(["/api/admin/audit"]);
   });
 
+  /* qa-contract-change: S16 이 R-91 의 열 수축 규칙을 배선했다 — 사용자가 그 축을 **직접**
+   * 건 결과 값이 전부 같아진 열은 표가 숨기고 그 사실을 한 번 적는다. 그래서 「login 이라는
+   * 글자가 셀에 있다」는 확인은 대상을 잃었다. 약화가 아니라 대상 이동이고, 단언을 하나 더
+   * 더한다: 남은 행이 그대로 있다는 것과, 사라진 열을 화면이 말한다는 것 둘 다 본다. */
   it("clientFilter 필터는 서버로 보내지 않고 화면에서 거른다", async () => {
     apiMock.mockResolvedValue({
       items: [{ id: "1", action: "login", actor: "a" }, { id: "2", action: "logout", actor: "b" }],
@@ -120,8 +124,12 @@ describe("필터가 서버로 가는 형태", () => {
 
     // 서버 재조회 없이 화면에서만 걸러진다.
     await waitFor(() => expect(screen.queryByText("logout")).toBeNull());
-    expect(screen.getByText("login")).toBeInTheDocument();
+    // 남은 행은 그대로 있다 — 행의 정체는 «동작» 이 아니라 행위자로 확인한다(아래 주석 참고).
+    expect(screen.getByText("a")).toBeInTheDocument();
     expect(apiMock.mock.calls.length).toBe(callsBefore);
+    // S16 이 더한 것: 사용자가 그 축을 직접 걸어 값이 전부 같아진 열은 사라지고, 사라졌다는
+    // 사실과 그 값을 표가 한 번 말한다(R-91). 조건을 풀면 열이 돌아온다.
+    expect(screen.getByText(/동작은 이 목록에서 전부 'login'/)).toBeInTheDocument();
   });
 });
 

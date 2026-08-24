@@ -364,13 +364,15 @@ Top bar와 Sidebar는 **같은 재료**다. 만나는 모서리가 같은 색인
 |---|---|---|---|---|
 | `canvas` | Section 제목·Divider·Grid gap. **맨 문단 금지.** | — | — | — |
 | `plate` | 자기 생명주기를 가진 경계 객체 | `1px divider` | `md`(8) | 없음 |
-| `inset` | Table head·읽기전용·code·diff·hover/selected row | 없음 | full-bleed 0 / 단독 `sm` | 없음 |
+| `inset` | Table head·읽기전용·code·diff·**hover** row | 없음 | full-bleed 0 / 단독 `sm` | 없음 |
 | `sunken` | track·skeleton·chart band | 없음 | `sm` | 없음 |
 | `brandTint` | AI/Assistant/Brand 순간 | `3px brand.core` inline-start edge | `md` | 없음 |
 | `shell` | Top bar + Sidebar **전용** | `chrome.line` | 0 | 없음 |
 | overlay / modal | 메뉴·팝오버·툴팁 / 다이얼로그·드로어 | `1px divider` | `lg`(14) | `overlay` / `modal` |
 
 **구획별 판정 체크리스트 (첫 Yes에서 멈춘다)**: ① 자체 Action이나 생명주기(save/cancel·독립 확장·독립 error/empty/loading)가 있나 → plate ② 페이지와 독립적으로 스크롤/오버플로하나 → plate ③ 떠 있나 → overlay/modal ④ 입력/읽기전용 함몰면인가 → inset ⑤ AI/Brand 순간인가 → brandTint band ⑥ 그 외 → **컨테이너 없음.** `SectionTitle` + `SECTION_GAP` + 목록이면 제목 아래 `1px divider`.
+
+**선택 행은 여기 없다 (W6 · D-293)**: 초안은 선택을 `inset` 에 뒀는데, 판을 벗긴 뒤 그 면은 캔버스 위에서 **1.055:1** 이라 눈에 보이지도 않고 의미가 반대다. 이 제품은 선택을 세 자리에서 **Brand 레일**로 말한다(사이드바 활성 항목 · 판독 줄의 활성 칸 · 탭). `inset` 은 hover 만 갖는다.
 
 **하드 금지 (각각 현재 스크린샷의 무언가를 죽인다)**: plate 안의 plate 금지 / 판독 한 줄에 plate 금지(`MetricStrip`의 `<Card>` 제거 → `user_me.png`·`admin_dashboard.png`의 가장 큰 빈 흰 사각형이 사라진다) / 목록 하나뿐이고 Action 없는 plate는 divider group이다(`admin_dashboard.png`에서 plate 4장 제거) / 3줄 미만 내용의 plate는 row다 / **없는 데이터를 위한 컨테이너를 그리지 않는다.**
 
@@ -626,6 +628,7 @@ Sparkline 의 비-0 바닥 · Donut 의 모수 · 눈금선/영역/끝점 라벨
 **Metadata(`MetaBar`, 지시 75)**: `flex:1 1 9rem` 균등을 같은 `type` 체계로 교체. `/tickets/:id`에서 프로젝트는 `2fr`, 상태·우선순위·마감은 `max-content`.
 **MetricStrip(지시 77)**: 현재 코드는 균등 분할을 실측 근거로 방어한다 — *죽은 공간 회피*로는 옳았지만 *위계*로는 틀렸다. 새 계약: `primary` 판독값 하나가 `1.6fr` + 큰 타입, 나머지는 `max-content`+최소폭, **strip은 좌측 정렬로 packing하고 늘어나지 않는다**(Card를 벗겨 구획 안에 놓이므로 남는 폭이 비어도 괜찮다). **값이 0이거나 정보 가치가 낮은 Metric이 계속 큰 공간을 차지하지 않게 한다.**
 **변경 대상**: `kit.jsx`(DataTable 컬럼 resolver·MetaBar·MetricStrip) · `ui/cells.jsx`(`NUMERIC`을 나르는 Number/Percent/Status Cell) · `screens/registry/*.js` 7파일 **216 컬럼에 `type:` 부여(기계적)** · `Projects/Users/Board/MyTickets/Sprint/MyApprovals/Activity.jsx` · **원시 `<Table>` 2곳**(`DevReport.jsx`, `MyTickets.jsx`)을 DataTable로 이관.
+**W6 이행 (D-288 · D-289)**: 어휘표는 `frontend/src/ui/columnTypes.js` 한 파일이고, 열 타입 열넷을 정의한다. 폭·정렬·자릿수 고정·넘침이 전부 거기서 파생하되 **호출부의 명시 값이 언제나 이긴다**(`type` 없는 열은 렌더가 안 바뀐다). 원시 표는 셋이었다 — 접을 수 있는 둘(`DevReport` 의 요약·업무량 표)은 `DataTable` 로 옮겼고, 묶음 머리행이 있어 못 접는 둘(`MyTickets::GroupedList` · `DevReport` 의 담당자별 상세)은 **같은 함수**(`kit.jsx::tableCellProps`)를 보게 했다. `resultScope` 배선은 `DataScreen` 이 한다(목록 21개).
 
 ### C4 Page Header + Page Help `?` (지시 3·44)
 
@@ -960,7 +963,9 @@ DOM 여섯 개(결함 셋 · 정상 셋)를 실브라우저에 띄워 「결함�
 다음 사람이 규칙을 되돌릴 때 걸리기 때문이다(제품이 고쳐지면 제품 기반 반례는 사라진다).
 
 **Gate vs Advisory**: `header_cell_alignment_mismatch`·`numeric_alignment`·`plain_dropdown_for_entity`는 W0부터 `--fail-on`. `mascot_visible_size`는 W7부터(W1 시점에는 Clovi 배선이 아직 W7 소유라 승격할 대상이 없다). `isolated_control_row`·`control_baseline_mismatch`는 W5, 4개 Table 계열은 W6(288페이지 보정 실행 1회 후), `detail_side_imbalance`는 W9.
-**Brand 두 검사의 승격 시점 (W1 정정)**: `brand_presence`(절대)는 **W15 완료 조건**으로 남는다 — 그때는 W4(`highlight`)·W6(`selected_state`)·W7(`ai_surface`)이 빠진 role 을 실제로 만들어 놓았을 것이고, 그것이 이 지표를 초록으로 만드는 정직한 유일한 길이다. `brand_role_coverage`(상대)는 **W6부터 `--fail-on`** 이다. W1~W5 에는 측정만 하고 실패를 Finding 으로 등록한다: W1 실측에서 유일한 실패가 `admin_audit` 의 `selected_state`(선택된 Tab 이 면을 칠하지 않는다)인데, 이것은 W1 결함이 아니라 **선택 표현 계약 자체가 아직 안 정해진 것**이다 — `selected_state` 는 배경 role 이라 Canvas 와 ΔE>10 을 요구하는 반면 §Surface 위계는 선택 행을 `inset`(중립)으로 두고 있어 두 계약이 정면으로 충돌한다. W6 이 이 충돌을 결정으로 닫은 뒤에 승격한다.
+**Brand 두 검사의 승격 시점 (W1 정정)**: `brand_presence`(절대)는 **W15 완료 조건**으로 남는다 — 그때는 W4(`highlight`)·W6(`selected_state`)·W7(`ai_surface`)이 빠진 role 을 실제로 만들어 놓았을 것이고, 그것이 이 지표를 초록으로 만드는 정직한 유일한 길이다. `brand_role_coverage`(상대)는 **W6부터 `--fail-on`** 이고 **W6 이 실제로 걸었다**. W1~W5 에는 측정만 하고 실패를 Finding 으로 등록했다: W1 실측에서 유일한 실패가 `admin_audit` 의 `selected_state`(선택된 Tab 이 면을 칠하지 않는다)였는데, 그것은 W1 결함이 아니라 **선택 표현 계약 자체가 아직 안 정해진 것**이었다 — `selected_state` 가 배경 role 이라 Canvas 와 ΔE>10 을 요구하는 반면 §Surface 위계는 선택 행을 `inset`(중립)으로 두고 있어 두 계약이 정면으로 충돌했다.
+**W6 이 그 충돌을 닫았다 (D-293)**: `selected_state` 는 잉크 role 이 되고 판정은 「그 자리가 Brand 색을 나르는가」다 — 레일이든 면이든 Brand 면 통과이고, **무채색 선택과 아무 것도 안 칠하는 선택은 여전히 실패한다**(`probe_selftest.py` 의 반례 셋이 그것을 증명한다). 잉크 후보에 테두리 색이 들어간다 — 이 제품의 레일은 대개 테두리다.
+**같은 회차가 `highlight` 의 충돌도 닫았다 (D-292)**: 판독 슬롯은 심각도가 없으면 Brand 잉크를 쓰고, 심각도가 있으면 상태색이 이긴다. 그 자리는 화면이 `data-brand-tone` 으로 선언하고 판정은 `unknown` 이다 — **통과로 세지 않고 「회색」으로도 세지 않는다.** 둘을 같은 실패로 세면 「색을 의미로 쓰지 마라」와 「브랜드 색을 써라」가 정면 충돌해 화면이 둘 중 하나를 반드시 어긴다.
 **`oversized_empty_surface`·`dead_blank_region`·`surface_repetition`은 영구 Advisory** — 임계값이 취향을 인코딩하기 때문이다. 대신 각 `fail`이 **Finding이 되고 C10이 완료 시점에 막는다.** 이 결합이 임계값 수정을 초록으로 가는 가장 싼 길로 만들지 않는다 — 그게 이 설계 전체가 막으려는 실패 모드다. `run.py`에 `--findings-out` 한 줄을 추가해 fail을 finding stub으로 뽑는다.
 
 **억제 규율** — `docs/ui-renewal/QA_SUPPRESSIONS.md` 한 파일, 행마다 `id · assertion · marker · surface · 사유(≥40자) · owner · opened · expires · evidence`. Gate가 강제: ① **양방향 정합**(소스의 `data-*` 마커와 행이 1:1, 어느 쪽 고아든 실패) ② **만료 ≤60일** — 억제는 결정이 아니라 **날짜 있는 약속**이다 ③ 예산 총 15개·클래스당 2개 ④ **금지 클래스 4종** ⑤ 사유에 `임시·나중에·TODO·일단` 금지("일단"은 억제가 아니라 `DEFERRED`다) ⑥ `run.py` 요약에 `억제` 열 추가 + **억제 수가 실패 수보다 많으면 경고 마커**.

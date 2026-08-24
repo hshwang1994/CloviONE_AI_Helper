@@ -120,7 +120,7 @@ export function Settings({ embedded = false } = {}) {
      * 않았다** — 읽기 전용 표처럼 보였고, 사용자 지적이 정확히 그것이었다. 각 행이 자기
      * 변경 방법을 들고 있게 한다. 권한이 없으면 죽은 버튼을 남기지 않고 왜 못 바꾸는지 쓴다
      * (프런트 표시일 뿐 판단은 서버가 한다 — 불변규칙 §5). */
-    { key: "_edit", label: "", align: "right", nowrap: true, render: (r) => (
+    { key: "_edit", label: "", type: "actions", render: (r) => (
       canWrite
         ? <Button size="sm" onClick={(e) => { e.stopPropagation(); setSel(r); }}>수정</Button>
         : <Typography component="span" variant="caption" color="text.secondary">읽기 전용</Typography>

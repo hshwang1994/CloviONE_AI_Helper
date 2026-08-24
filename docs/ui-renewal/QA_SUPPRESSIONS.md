@@ -20,5 +20,6 @@
 
 | id | assertion | marker | surface | reason | owner | opened | expires | evidence |
 |---|---|---|---|---|---|---|---|---|
+| SUP-01 | equal_column_split | data-equal-grid | user_work-board | 칸반의 레인은 나란한 진행 상태라 폭이 같아야 읽힌다. 내용에 맞춰 폭을 주면 카드를 옮길 때마다 판이 재배치되어 방금 옮긴 카드를 눈으로 못 따라간다 — 달력·게임판과 같은 부류의 격자다. 레인이 좁아 접히던 것은 균등의 문제가 아니라 바닥값의 문제라 `minmax(14rem, 1fr)` 로 따로 고쳤다 | S16 | 2026-08-25 | 2026-10-20 | ev:capture:s16-after · ev:commit:S16 |
 
-(현재 0건)
+(1건)

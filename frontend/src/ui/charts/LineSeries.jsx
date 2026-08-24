@@ -2,7 +2,7 @@ import React from "react";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import { useTheme } from "@mui/material/styles";
-import { ChartEmpty, capSeries, resolveChartColor, seriesDash } from "./base.jsx";
+import { ChartEmpty, ChartQuestion, capSeries, resolveChartColor, seriesDash } from "./base.jsx";
 import { FONT_WEIGHT } from "../theme.js";
 
 // base.jsx의 finiteValues는 null/undefined/NaN을 배열에서 통째로 들어낸다 — 값만 볼 때는
@@ -54,6 +54,7 @@ function indexedFiniteValues(list) {
  */
 export function LineSeries({
   series, labels, height = "9rem", unit = "", summary, emptyLabel = "데이터 없음",
+  question,
 }) {
   const theme = useTheme();
   const capped = capSeries(Array.isArray(series) ? series : [], {
@@ -149,6 +150,7 @@ export function LineSeries({
 
   return (
     <Box>
+      <ChartQuestion>{question}</ChartQuestion>
       <Box sx={{ display: "grid", gridTemplateColumns: "auto minmax(0, 1fr)", columnGap: 1 }}>
         {/* y 눈금 글자 — SVG 밖 HTML 이라 4K 폰트 레버를 그대로 탄다. 단위는 여기 한 번만. */}
         <Box sx={{ position: "relative", width: "max-content", minWidth: "2.5rem", height }}>

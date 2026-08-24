@@ -6,8 +6,8 @@ import { DateCell } from "../../ui/cells.jsx";
 import { JsonBlock, KeyValueRow } from "./JsonBlock.jsx";
 
 // 열/필드 렌더 헬퍼 — registry에서 사용.
-export const badgeCol = (key, label) => ({ key, label, render: (r) => <Badge value={r[key]} /> });
-export const mapCol = (key, label, map) => ({ key, label, render: (r) => map[r[key]] || (r[key] == null ? "-" : String(r[key])) });
+export const badgeCol = (key, label) => ({ key, label, type: "status", render: (r) => <Badge value={r[key]} /> });
+export const mapCol = (key, label, map) => ({ key, label, type: "enum", render: (r) => map[r[key]] || (r[key] == null ? "-" : String(r[key])) });
 /* 표의 날짜는 한 줄로 고정한다 — 접히면 행 높이가 들쭉날쭉해 세로로 훑을 수 없다(지시 16).
  *
  * 날짜 열은 **정렬 대상이다**(지시 10). "언제 추가됐나 / 무엇이 가장 오래됐나"는 목록에서
@@ -15,18 +15,18 @@ export const mapCol = (key, label, map) => ({ key, label, render: (r) => map[r[k
  * 로 비교한다 — 표기 문자열로 비교하면 오전/오후 같은 지역 표기에 순서가 끌려간다.
  * 정렬 UI 를 실제로 그릴지는 `DataScreen` 이 정한다(서버가 페이지를 자르는 목록에는 안 붙인다). */
 export const dateCol = (key, label) => ({
-  key, label, nowrap: true, sortable: true, sortValue: (r) => r[key],
+  key, label, type: "date", sortable: true, sortValue: (r) => r[key],
   render: (r) => <DateCell value={r[key]} />,
 });
 // 사용 여부(boolean) → 도메인 어휘 배지('사용 중'/'미사용'). 일반 badgeCol의 '예/아니오'는
 // 같은 화면의 필터('사용 중'/'미사용')·체크박스 어휘와 어긋나므로 이 렌더로 통일한다.
 // 미사용(active=false)은 이 화면이 관리하는 핵심 상태(새로 배정 가능 여부를 가른다)라 눈에 잘
 // 안 띄는 중립(neutral) 톤 대신 주의(warn) 톤을 준다 — 훑어보다 놓치기 쉬웠다.
-export const activeCol = (label) => ({ key: "active", label, render: (r) => <Badge value={r.active ? "사용 중" : "미사용"} kind={r.active ? "ok" : "warn"} /> });
+export const activeCol = (label) => ({ key: "active", label, type: "status", render: (r) => <Badge value={r.active ? "사용 중" : "미사용"} kind={r.active ? "ok" : "warn"} /> });
 // 켬/꺼짐(boolean) → 도메인 어휘 배지('활성'/'비활성'). activeCol과 같은 이유(VIS-13):
 // 일반 badgeCol의 '예/아니오'는 화면 필터의 '활성'/'비활성' 어휘와 어긋나고, 꺼짐이 중립(회색)
 // 톤이라 훑어보다 놓치기 쉬웠다 — 스케줄·연동·러너·워크플로 4곳이 이 패턴이 필요했다.
-export const enabledCol = (label) => ({ key: "enabled", label, render: (r) => <Badge value={r.enabled ? "활성" : "비활성"} kind={r.enabled ? "ok" : "warn"} /> });
+export const enabledCol = (label) => ({ key: "enabled", label, type: "status", render: (r) => <Badge value={r.enabled ? "활성" : "비활성"} kind={r.enabled ? "ok" : "warn"} /> });
 /* 요구사항 boolean → **평문**. 상태가 아니라 성질이라 배지를 주지 않는다(지시 11).
  *
  * `badgeCol("approval_required")` 는 원시 boolean 이 statusText 를 타 `아니요` 라는 알약이
@@ -37,7 +37,9 @@ export const boolCol = (key, label, yes, no) => ({
   key, label, render: (r) => (r[key] ? yes : no),
 });
 // 외부 링크 열 - http(s) URL만 앵커로, 그 외엔 평문(CSP상 앵커는 안전).
-export const linkCol = (key, label) => ({ key, label, render: (r) => {
+// `identifier` 형이다 — URL 은 낱말이 아니라 토큰이라 글자 단위로 끊어야 하고(한글 산문에
+// 금지된 그 처리가 여기서는 옳다), 폭이 모자랄 때 먼저 보호돼야 한다.
+export const linkCol = (key, label) => ({ key, label, type: "identifier", render: (r) => {
   const v = r[key];
   if (v == null || v === "") return "-";
   const s = String(v);
@@ -45,14 +47,14 @@ export const linkCol = (key, label) => ({ key, label, render: (r) => {
 } });
 // 긴 문자열을 목록에서 말줄임(…)으로 자르되, title 속성으로 전체 텍스트를 마우스 오버 시 볼 수
 // 있게 한다(예전엔 '길면 말줄임, title 속성으로 전체 확인'이라는 주석만 있고 실제 title이 없었다).
-export const truncateCol = (key, label, max) => ({ key, label, render: (r) => {
+export const truncateCol = (key, label, max) => ({ key, label, type: "text", render: (r) => {
   const v = r[key];
   if (v == null || v === "") return "-";
   const s = String(v);
   return s.length > max ? <span title={s}>{s.slice(0, max) + "…"}</span> : s;
 } });
 // 읽음 여부 — nullable 타임스탬프를 읽음/안읽음 배지로(원시 시각 노출 방지).
-export const readCol = (key, label) => ({ key, label, render: (r) => <Badge value={r[key] ? "읽음" : "안읽음"} kind={r[key] ? "neutral" : "warn"} /> });
+export const readCol = (key, label) => ({ key, label, type: "status", render: (r) => <Badge value={r[key] ? "읽음" : "안읽음"} kind={r[key] ? "neutral" : "warn"} /> });
 // 상세 전용: 객체/JSON 값을 보기 좋게 펼쳐 보여준다(정책 규칙·승인 payload·감사 전후 등).
 export const jsonField = (key, label) => ({ key, label, render: (r) => {
   const v = r[key];

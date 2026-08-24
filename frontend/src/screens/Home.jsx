@@ -138,6 +138,7 @@ function SprintProgress({ sprint }) {
           `total` 을 명시해 링의 모수가 «그려진 조각의 합»이 아니라 **내 티켓 전체**가 되게
           한다 — 안 주면 값 0 인 상태가 조용히 빠져 도넛이 전체를 설명한다고 착각하게 된다. */}
       <Donut
+        question="이번 주에 맡은 일 가운데 얼마나 끝냈는지 봅니다."
         segments={[
           { label: "완료", value: sprint.done, color: "success" },
           { label: "남음", value: sprint.remaining },

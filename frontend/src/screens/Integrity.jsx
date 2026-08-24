@@ -204,7 +204,7 @@ export function Integrity() {
         <SectionTitle
           component="h2"
           title="관리자 범위 현황"
-          help="조직·부서 관리자는 admin과 범위의 조합입니다. 전부 ‘전체’면 범위 기능은 쓰이지 않는 것입니다."
+          help="조직이나 부서 관리자는 admin과 범위의 조합입니다. 전부 ‘전체’면 범위 기능은 쓰이지 않는 것입니다."
         />
         <MetricStrip
           ariaLabel="관리자 범위 현황"

@@ -160,17 +160,17 @@ export function MailStatus() {
         ariaLabel="메일 서버 설정"
         sx={{ mt: 2 }}
         items={[
-          { key: "enabled", label: "발송", value: <Badge value={server.enabled ? "사용" : "사용 안 함"} kind={server.enabled ? "ok" : "warn"} /> },
-          { key: "host", label: "메일 서버", value: server.host ? server.host + ":" + (server.port == null ? "?" : server.port) : "설정 안 됨" },
-          { key: "security", label: "보안 연결", value: SMTP_SECURITY_LABELS[server.security] || server.security || "설정 안 됨" },
+          { key: "enabled", label: "발송", type: "status", value: <Badge value={server.enabled ? "사용" : "사용 안 함"} kind={server.enabled ? "ok" : "warn"} /> },
+          { key: "host", label: "메일 서버", type: "identifier", value: server.host ? server.host + ":" + (server.port == null ? "?" : server.port) : "설정 안 됨" },
+          { key: "security", label: "보안 연결", type: "enum", value: SMTP_SECURITY_LABELS[server.security] || server.security || "설정 안 됨" },
           {
-            key: "from", label: "보내는 사람",
+            key: "from", label: "보내는 사람", type: "identifier",
             value: server.from_address
               ? (server.from_name ? server.from_name + " (" + server.from_address + ")" : server.from_address)
               : "설정 안 됨",
           },
-          { key: "username", label: "로그인 계정", value: server.username || "사용 안 함" },
-          { key: "secret", label: "비밀번호", value: passwordState(mail, server) },
+          { key: "username", label: "로그인 계정", type: "identifier", value: server.username || "사용 안 함" },
+          { key: "secret", label: "비밀번호", type: "status", value: passwordState(mail, server) },
         ]}
       />
 

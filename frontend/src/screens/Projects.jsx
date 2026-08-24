@@ -151,7 +151,7 @@ function Summary({ query }) {
 function columns(deptNames) {
   return [
     {
-      key: "name", label: "이름", minWidth: "12rem",
+      key: "name", label: "이름", type: "title", minWidth: "12rem",
       // 표의 어느 열이 '이 행이 무엇인가' 를 말하는지 알려 준다(kit.jsx::rowOpenLabel).
       rowName: (p) => p.name,
       render: (p) => (
@@ -181,11 +181,14 @@ function columns(deptNames) {
       render: (p) => deptLabel(p, deptNames) || "-",
     },
     {
-      key: "period", label: "기간", minWidth: "11rem", nowrap: true,
+      /* 기간은 **날짜**다. 타입을 안 주면 auto 배치가 남는 폭을 이 열의 max-content 비율만큼
+         가져가는데, 그 문자열이 「2026-08-01 ~ 2026-12-31」이라 길다 — 실측에서 358px 를 42%만
+         채운 채 「이름」이 100% 접혔다. 날짜는 자기 내용 폭만 쓰고 여유는 접히는 열이 갖는다. */
+      key: "period", label: "기간", type: "date", minWidth: "11rem",
       render: (p) => periodText(p.starts_on, p.ends_on),
     },
     {
-      key: "progress_pct", label: "진행률", align: "right", minWidth: "6rem", nowrap: true,
+      key: "progress_pct", label: "진행률", type: "percent", minWidth: "6rem",
       // null 은 0% 가 아니다. 0 으로 그리면 "작업이 아직 안 붙은 프로젝트" 와 "붙었는데
       // 하나도 못 끝낸 프로젝트" 가 화면에서 똑같아진다(project-format.js 의 계약).
       render: (p) => percentText(p.progress_pct) || (
@@ -195,7 +198,7 @@ function columns(deptNames) {
       ),
     },
     {
-      key: "health_score", label: "Health", align: "right", minWidth: "7rem", nowrap: true,
+      key: "health_score", label: "Health", type: "score", minWidth: "7rem",
       render: (p) => (p.health_score == null ? (
         <Typography component="span" variant="body2" color="text.secondary">
           {NO_HEALTH_CACHE}

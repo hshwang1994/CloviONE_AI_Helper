@@ -1,7 +1,7 @@
 import React from "react";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
-import { ChartEmpty, finiteValues, useChartColor } from "./base.jsx";
+import { ChartEmpty, ChartQuestion, finiteValues, useChartColor } from "./base.jsx";
 
 /* 스파크라인 — 값 흐름 하나를 축·눈금 없이 보여주는 작은 꺾은선.
  *
@@ -15,7 +15,7 @@ import { ChartEmpty, finiteValues, useChartColor } from "./base.jsx";
  * 세로 구간은 굵고 가로 구간은 가늘게 보인다.
  */
 export function Sparkline({
-  points, color, height = "4rem", summary, emptyLabel = "데이터 없음",
+  points, color, height = "4rem", summary, emptyLabel = "데이터 없음", question,
 }) {
   const stroke = useChartColor(color, 0);
   const values = finiteValues(points, (p) => (typeof p === "number" ? p : p && p.value));
@@ -48,6 +48,7 @@ export function Sparkline({
 
   return (
     <Box>
+      <ChartQuestion>{question}</ChartQuestion>
       <Box
         component="svg"
         viewBox={`0 0 ${W} ${H}`}

@@ -1046,10 +1046,23 @@ export function DataScreen({ config, embedded = false }) {
       ) : (
         <Card className="c-list-card">
           {topPager}
+          {/* 표에게 **자기 질의 계약**을 알려 준다 (R-91). 이것 없이는 표가 어떤 열도
+              없애지 않는다 — 서버가 페이지를 자르는 목록에서 이번 페이지의 값이 우연히
+              같다고 열을 빼면, 페이지를 넘길 때마다 열이 생겼다 사라진다.
+              `activeFilters` 는 **사용자가 직접 건 조건**만이다: 그 조건의 열이 사라지는
+              것은 사용자가 유발한 변화라 예측 가능하고, 조건을 풀면 열이 돌아온다.
+              `fixedColumns` 는 안 넘긴다 — 「이 질의에서 이 값은 구조적으로 불변이다」는
+              화면마다 다른 사실이라 registry 가 스스로 선언해야 하고, 그 선언은 아직 없다.
+              추측으로 채우면 그 순간 이 계약이 뜻을 잃는다. */}
           <DataTable
             columns={columns} rows={filtered} onRow={setSel} stickyHeader={config.stickyHeader}
             rowKey={(r) => r.id || (columns[0] ? r[columns[0].key] : JSON.stringify(r).slice(0, 24))}
             sort={canSort ? sort : undefined} onSort={canSort ? toggleSort : undefined}
+            resultScope={{
+              serverPaged: !!config.paginated,
+              activeFilters: Object.keys(filters).filter((k) => filters[k] !== "" && filters[k] != null),
+              fixedColumns: config.fixedColumns || [],
+            }}
           />
           {/* total 없는 응답의 '더 있음' 판정은 서버가 실제로 돌려준 원본 페이지 크기(items)로 해야
            * 한다, clientFilter로 걸러진 filtered를 쓰면 paginated+clientFilter 화면에서 필터 후 행

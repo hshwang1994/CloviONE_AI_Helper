@@ -171,7 +171,7 @@ export const GOVERNANCE_SCREENS = {
     emptySituation: "결재자가 휴가를 가면 승인 큐가 그동안 멈춥니다.",
     emptyPrerequisite: "위임하는 사람(승인 권한이 있는 계정)과 대신할 사람의 사용자 ID가 필요합니다.",
     emptySteps: ["‘+ 위임 추가’에 두 사람의 ID와 기간을 적습니다.", "기간이 시작되면 상태가 ‘진행 중’이 됩니다.", "일찍 끝내려면 ‘위임 거두기’를 누릅니다."],
-    emptyExpected: "위임 기간에는 대리 승인자가 승인·거절하고, 결재 기록에 대신한 사람이 남습니다.",
+    emptyExpected: "위임 기간에는 대리 승인자가 승인하거나 거절하고, 결재 기록에 대신한 사람이 남습니다.",
     createLabel: "위임 추가",
     searchFields: ["delegator_name", "delegate_name", "reason"],
     searchPlaceholder: "이름으로 검색",
@@ -400,7 +400,7 @@ export const GOVERNANCE_SCREENS = {
        * 같은 말만 반복하던 것(WF1 High 발견)도 함께 없어진다. */
       { key: "title", label: "요약", render: (r) => (r.title || "이상 징후") + " / " + (r.actor_name || r.actor_id || "시스템"),
         rowName: (r) => (r.title || "이상 징후") + " / " + (r.actor_name || r.actor_id || "시스템") },
-      { key: "count", label: "건수", align: "right" },
+      { key: "count", label: "건수", type: "count" },
       dateCol("last_at", "마지막"),
     ],
     detailFields: [
@@ -514,7 +514,7 @@ export const GOVERNANCE_SCREENS = {
       { key: "target_name", label: "대상", render: (r) => r.target_name || r.target_user_id },
       dateCol("started_at", "시작"), dateCol("ended_at", "종료"),
       { key: "active", label: "상태", render: (r) => React.createElement(Badge, { value: r.active ? "진행 중" : "종료", kind: r.active ? "warn" : "neutral" }) },
-      { key: "blocked_write_count", label: "차단된 쓰기", align: "right" },
+      { key: "blocked_write_count", label: "차단된 쓰기", type: "count" },
     ],
     detailFields: [
       field("id", "기록 ID"), field("reason", "사유"), field("client_ip", "접속 IP"),

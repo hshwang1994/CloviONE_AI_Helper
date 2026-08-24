@@ -780,7 +780,7 @@ def main(argv: list[str] | None = None) -> int:
     if lane == LANE_SCHEDULER and not settings.worker_scheduler_lane_enabled:
         logger.info(
             "lane=scheduler이지만 worker_scheduler_lane_enabled가 꺼져 있다. "
-            "리스를 잡지 않고 정상 종료한다(D-225) — 스케줄은 배치 워커가 계속 평가한다."
+            "리스를 잡지 않고 정상 종료한다(D-225). 스케줄은 배치 워커가 계속 평가한다."
         )
         return 0
 

@@ -157,7 +157,10 @@ describe("한국어 줄바꿈 — 글을 담는 공용 부품 전부", () => {
 // `BlockEditor.jsx` 는 **코드 블록**에만 건다. CLAUDE.md 가 정한 예외 그대로다 —
 // 「JSON·UUID·코드만 글자 단위다」. 코드 안의 긴 식별자를 어절로 끊으면 줄이 상자를
 // 밀어내고, 코드는 애초에 한글 어절 규칙이 적용되는 글이 아니다.
-const ANYWHERE_OK = new Set(["JsonBlock.jsx", "Users.jsx", "BlockEditor.jsx"]);
+// `columnTypes.js` 는 **어휘 파일**이다. 그 한 줄(`ANYWHERE_BREAK`)이 「식별자형 열만
+// 글자 단위로 끊는다」는 계약이고, 표 전체가 그것을 통해서만 이 처리를 받는다 — 화면마다
+// 손으로 적던 것을 한 자리로 모은 결과라, 이 목록이 더 늘지 않는다.
+const ANYWHERE_OK = new Set(["JsonBlock.jsx", "Users.jsx", "BlockEditor.jsx", "columnTypes.js"]);
 function listJs(dir) {
   const out = [];
   for (const name of readdirSync(dir)) {

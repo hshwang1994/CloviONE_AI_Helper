@@ -196,9 +196,9 @@ export const AUTHORING_SCREENS = {
     columns: [
       { ...col("name", "이름"), identifier: true },
       { key: "unused", label: "사용", render: (r) => React.createElement(Badge, { value: r.unused ? "쓰이지 않음" : "쓰이는 중", kind: r.unused ? "warn" : "ok" }) },
-      { key: "versions", label: "버전 수", align: "right" },
-      { key: "published_version", label: "발행 버전", align: "right", render: (r) => r.published_version == null ? "없음" : String(r.published_version) },
-      { key: "schedule_refs", label: "스케줄", align: "right" },
+      { key: "versions", label: "버전 수", type: "count" },
+      { key: "published_version", label: "발행 버전", type: "count", render: (r) => r.published_version == null ? "없음" : String(r.published_version) },
+      { key: "schedule_refs", label: "스케줄", type: "count" },
     ],
     detailFields: [
       { key: "schedule_names", label: "참조하는 스케줄", render: (r) => (r.schedule_names || []).join(", ") || "없음" },
@@ -226,9 +226,9 @@ export const AUTHORING_SCREENS = {
     columns: [
       { ...col("name", "이름"), identifier: true },
       { key: "unused", label: "사용", render: (r) => React.createElement(Badge, { value: r.unused ? "쓰이지 않음" : "쓰이는 중", kind: r.unused ? "warn" : "ok" }) },
-      { key: "versions", label: "버전 수", align: "right" },
-      { key: "published_version", label: "발행 버전", align: "right", render: (r) => r.published_version == null ? "없음" : String(r.published_version) },
-      { key: "schedule_refs", label: "스케줄", align: "right" },
+      { key: "versions", label: "버전 수", type: "count" },
+      { key: "published_version", label: "발행 버전", type: "count", render: (r) => r.published_version == null ? "없음" : String(r.published_version) },
+      { key: "schedule_refs", label: "스케줄", type: "count" },
     ],
     detailFields: [
       { key: "schedule_names", label: "참조하는 스케줄", render: (r) => (r.schedule_names || []).join(", ") || "없음" },

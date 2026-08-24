@@ -12,7 +12,7 @@
  },
  "capture_labels": {
   "before": "before-renewal",
-  "after": "s15-after"
+  "after": "s16-after"
  },
  "waves": [
   "W0",
@@ -15082,9 +15082,9 @@
    },
    "after_capture": {
     "path": "docs/ui-renewal/captures/after/user_me__light__1920x1080.png",
-    "label": "s15-after",
-    "build_index_sha256": "c9cab277de958811",
-    "at": "2026-08-24T19:06:10",
+    "label": "s16-after",
+    "build_index_sha256": "dfd1cadb396b788d",
+    "at": "2026-08-25T00:14:46",
     "theme": "light",
     "viewport": "1920x1080",
     "note": "Primitive 는 host 화면 캡처 안에 들어 있다 — 판독 줄 두 개와 AI 카드가 한 장에 다 있는 user_me 를 대표로 가리킨다",
@@ -15093,7 +15093,7 @@
      "1920x1080/dark"
     ],
     "all_combos": 8,
-    "results_json": "dist/ui-qa/s15-after/results.json"
+    "results_json": "dist/ui-qa/s16-after/results.json"
    },
    "status": "DONE",
    "wave": "W4",
@@ -15115,10 +15115,11 @@
      "ev:note:D-185 (docs/DECISIONS.md)",
      "ev:qa_run:w5-kit-e2e (면 계약 40/40 조합 · 판 안의 판 0자리) — W5 가 `theme.js` 의 컨트롤 높이 토큰(Switch·Checkbox·Radio·Tabs·IconButton·Autocomplete)과 `kit.jsx`(ListEmptyState·카드 뷰·FormModal 폭·오류 표현·PageHeader 도움말 크기)를 바꿨다. 이 Surface 들이 그 계약 위에 서므로 캡처만 믿지 않고 **최종 빌드에서 다시 쟀다**",
      "ev:qa_run:w5-after (1,494페이지 · 9뷰포트 전 Assertion 재측정 — 완료 주장이 지금 배포본에서도 유효)",
-     "ev:qa_run:s15-after (dist/ui-qa/s15-after/results.json)"
+     "ev:qa_run:s15-after (dist/ui-qa/s15-after/results.json)",
+     "ev:qa_run:s16-kit-e2e (S16 이 kit.jsx 를 바꿨으므로 현재 번들에서 다시 잼 — 면 계약 40/40 조합 · 판 안의 판 누적 0자리)"
     ],
     "build_index_sha256": [
-     "c9cab277de958811"
+     "dfd1cadb396b788d"
     ],
     "qa_run": {
      "auth_ok": "pass",
@@ -15837,10 +15838,11 @@
      "ev:note:W4 후반: 독립 검수 반영으로 `kit.jsx`(파괴 버튼 테두리 · 판독 칸 면)와 CSS 를 다시 고쳐 배포했으므로, 이 Surface 의 셸 고유 계약을 **최종 빌드에서 다시 쟀다** — `w4-shell-e2e` 12 Flow(9건 사슬 4/4) · `w4-nav-e2e` 18/18 조합 PASS. 캡처 재측정만으로는 셸 계약이 증명되지 않는다는 D-184 규율 그대로다.",
      "ev:qa_run:w5-nav-e2e (기하 18/18 조합) — W5 가 `theme.js` 의 컨트롤 높이 토큰(Switch·Checkbox·Radio·Tabs·IconButton·Autocomplete)과 `kit.jsx`(ListEmptyState·카드 뷰·FormModal 폭·오류 표현·PageHeader 도움말 크기)를 바꿨다. 이 Surface 들이 그 계약 위에 서므로 캡처만 믿지 않고 **최종 빌드에서 다시 쟀다**",
      "ev:qa_run:w5-after (1,494페이지 · 9뷰포트 전 Assertion 재측정 — 완료 주장이 지금 배포본에서도 유효)",
-     "ev:qa_run:s15-after (dist/ui-qa/s15-after/results.json)"
+     "ev:qa_run:s15-after (dist/ui-qa/s15-after/results.json)",
+     "ev:qa_run:s16-nav-e2e (같은 이유로 현재 번들에서 다시 잼 — 기하 18/18 조합)"
     ],
     "build_index_sha256": [
-     "c9cab277de958811"
+     "dfd1cadb396b788d"
     ],
     "qa_run": {
      "auth_ok": "pass",
@@ -16105,9 +16107,9 @@
    },
    "after_capture": {
     "path": "docs/ui-renewal/captures/after/user_me__light__1920x1080.png",
-    "label": "s15-after",
-    "build_index_sha256": "c9cab277de958811",
-    "at": "2026-08-24T19:06:10",
+    "label": "s16-after",
+    "build_index_sha256": "dfd1cadb396b788d",
+    "at": "2026-08-25T00:14:46",
     "theme": "light",
     "viewport": "1920x1080",
     "committed_combos": [
@@ -16115,7 +16117,7 @@
      "1920x1080/dark"
     ],
     "all_combos": 8,
-    "results_json": "dist/ui-qa/s15-after/results.json"
+    "results_json": "dist/ui-qa/s16-after/results.json"
    },
    "status": "DONE",
    "wave": "W2",
@@ -16288,10 +16290,11 @@
      "ev:note:W4 후반: 독립 검수 반영으로 `kit.jsx`(파괴 버튼 테두리 · 판독 칸 면)와 CSS 를 다시 고쳐 배포했으므로, 이 Surface 의 셸 고유 계약을 **최종 빌드에서 다시 쟀다** — `w4-shell-e2e` 12 Flow(9건 사슬 4/4) · `w4-nav-e2e` 18/18 조합 PASS. 캡처 재측정만으로는 셸 계약이 증명되지 않는다는 D-184 규율 그대로다.",
      "ev:qa_run:w5-shell-e2e (상단바 12 Flow · 9건 사슬 4/4) — W5 가 `theme.js` 의 컨트롤 높이 토큰(Switch·Checkbox·Radio·Tabs·IconButton·Autocomplete)과 `kit.jsx`(ListEmptyState·카드 뷰·FormModal 폭·오류 표현·PageHeader 도움말 크기)를 바꿨다. 이 Surface 들이 그 계약 위에 서므로 캡처만 믿지 않고 **최종 빌드에서 다시 쟀다**",
      "ev:qa_run:w5-after (1,494페이지 · 9뷰포트 전 Assertion 재측정 — 완료 주장이 지금 배포본에서도 유효)",
-     "ev:qa_run:s15-after (dist/ui-qa/s15-after/results.json)"
+     "ev:qa_run:s15-after (dist/ui-qa/s15-after/results.json)",
+     "ev:qa_run:s16-shell-e2e (S16 은 AppShell 을 안 건드렸지만 번들이 바뀌었으므로 현재 번들에서 셸 10 Flow 를 다시 태웠다)"
     ],
     "build_index_sha256": [
-     "c9cab277de958811"
+     "dfd1cadb396b788d"
     ],
     "qa_run": {
      "auth_ok": "pass",
@@ -16755,27 +16758,19 @@
    },
    "after_capture": {
     "path": "docs/ui-renewal/captures/after/user_activity__light__1920x1080.png",
-    "label": "w5-after",
-    "build_index_sha256": "08b5525cb2f52618",
-    "at": "2026-08-20T15:43:57",
+    "label": "s16-after",
+    "build_index_sha256": "dfd1cadb396b788d",
+    "at": "2026-08-25T00:14:46",
     "theme": "light",
     "viewport": "1920x1080",
     "committed_combos": [
      "1366x768/dark",
      "1366x768/light",
      "1920x1080/dark",
-     "1920x1080/light",
-     "2560x1440/dark",
-     "2560x1440/light",
-     "3840x2160/dark",
-     "3840x2160/light",
-     "390x844/dark",
-     "390x844/light",
-     "768x1024/dark",
-     "768x1024/light"
+     "1920x1080/light"
     ],
-    "all_combos": 12,
-    "results_json": "dist/ui-qa/w5-after/results.json"
+    "all_combos": 4,
+    "results_json": "dist/ui-qa/s16-after/results.json"
    },
    "status": "NOT_AUDITED",
    "wave": "W10",
@@ -17146,9 +17141,9 @@
    },
    "after_capture": {
     "path": "docs/ui-renewal/captures/after/user_board__light__1920x1080.png",
-    "label": "s15-after",
-    "build_index_sha256": "c9cab277de958811",
-    "at": "2026-08-24T19:06:10",
+    "label": "s16-after",
+    "build_index_sha256": "dfd1cadb396b788d",
+    "at": "2026-08-25T00:14:46",
     "theme": "light",
     "viewport": "1920x1080",
     "committed_combos": [
@@ -17158,7 +17153,7 @@
      "1920x1080/light"
     ],
     "all_combos": 4,
-    "results_json": "dist/ui-qa/s15-after/results.json"
+    "results_json": "dist/ui-qa/s16-after/results.json"
    },
    "status": "NOT_AUDITED",
    "wave": "W10",
@@ -19184,9 +19179,9 @@
    },
    "after_capture": {
     "path": "docs/ui-renewal/captures/after/user_ideas__light__1920x1080.png",
-    "label": "s15-after",
-    "build_index_sha256": "c9cab277de958811",
-    "at": "2026-08-24T19:06:10",
+    "label": "s16-after",
+    "build_index_sha256": "dfd1cadb396b788d",
+    "at": "2026-08-25T00:14:46",
     "theme": "light",
     "viewport": "1920x1080",
     "committed_combos": [
@@ -19196,7 +19191,7 @@
      "1920x1080/light"
     ],
     "all_combos": 4,
-    "results_json": "dist/ui-qa/s15-after/results.json"
+    "results_json": "dist/ui-qa/s16-after/results.json"
    },
    "status": "NOT_AUDITED",
    "wave": "W10",
@@ -19456,9 +19451,9 @@
    },
    "after_capture": {
     "path": "docs/ui-renewal/captures/after/user_knowledge__light__1920x1080.png",
-    "label": "s15-after",
-    "build_index_sha256": "c9cab277de958811",
-    "at": "2026-08-24T19:06:10",
+    "label": "s16-after",
+    "build_index_sha256": "dfd1cadb396b788d",
+    "at": "2026-08-25T00:14:46",
     "theme": "light",
     "viewport": "1920x1080",
     "committed_combos": [
@@ -19468,7 +19463,7 @@
      "1920x1080/light"
     ],
     "all_combos": 4,
-    "results_json": "dist/ui-qa/s15-after/results.json"
+    "results_json": "dist/ui-qa/s16-after/results.json"
    },
    "status": "NOT_AUDITED",
    "wave": "W10",
@@ -19887,9 +19882,9 @@
    },
    "after_capture": {
     "path": "docs/ui-renewal/captures/after/user_me__light__1920x1080.png",
-    "label": "s15-after",
-    "build_index_sha256": "c9cab277de958811",
-    "at": "2026-08-24T19:06:10",
+    "label": "s16-after",
+    "build_index_sha256": "dfd1cadb396b788d",
+    "at": "2026-08-25T00:14:46",
     "theme": "light",
     "viewport": "1920x1080",
     "committed_combos": [
@@ -19899,7 +19894,7 @@
      "1920x1080/light"
     ],
     "all_combos": 4,
-    "results_json": "dist/ui-qa/s15-after/results.json"
+    "results_json": "dist/ui-qa/s16-after/results.json"
    },
    "status": "NOT_AUDITED",
    "wave": "W8",
@@ -20412,9 +20407,9 @@
    },
    "after_capture": {
     "path": "docs/ui-renewal/captures/after/user_my-approvals__light__1920x1080.png",
-    "label": "s15-after",
-    "build_index_sha256": "c9cab277de958811",
-    "at": "2026-08-24T19:06:10",
+    "label": "s16-after",
+    "build_index_sha256": "dfd1cadb396b788d",
+    "at": "2026-08-25T00:14:46",
     "theme": "light",
     "viewport": "1920x1080",
     "committed_combos": [
@@ -20424,7 +20419,7 @@
      "1920x1080/light"
     ],
     "all_combos": 4,
-    "results_json": "dist/ui-qa/s15-after/results.json"
+    "results_json": "dist/ui-qa/s16-after/results.json"
    },
    "status": "NOT_AUDITED",
    "wave": "W10",
@@ -20990,9 +20985,9 @@
    },
    "after_capture": {
     "path": "docs/ui-renewal/captures/after/user_my-stats__light__1920x1080.png",
-    "label": "s15-after",
-    "build_index_sha256": "c9cab277de958811",
-    "at": "2026-08-24T19:06:10",
+    "label": "s16-after",
+    "build_index_sha256": "dfd1cadb396b788d",
+    "at": "2026-08-25T00:14:46",
     "theme": "light",
     "viewport": "1920x1080",
     "committed_combos": [
@@ -21002,7 +20997,7 @@
      "1920x1080/light"
     ],
     "all_combos": 4,
-    "results_json": "dist/ui-qa/s15-after/results.json"
+    "results_json": "dist/ui-qa/s16-after/results.json"
    },
    "status": "NOT_AUDITED",
    "wave": "W10",
@@ -21286,9 +21281,9 @@
    },
    "after_capture": {
     "path": "docs/ui-renewal/captures/after/user_my-tickets__light__1920x1080.png",
-    "label": "s15-after",
-    "build_index_sha256": "c9cab277de958811",
-    "at": "2026-08-24T19:06:10",
+    "label": "s16-after",
+    "build_index_sha256": "dfd1cadb396b788d",
+    "at": "2026-08-25T00:14:46",
     "theme": "light",
     "viewport": "1920x1080",
     "committed_combos": [
@@ -21298,7 +21293,7 @@
      "1920x1080/light"
     ],
     "all_combos": 4,
-    "results_json": "dist/ui-qa/s15-after/results.json"
+    "results_json": "dist/ui-qa/s16-after/results.json"
    },
    "status": "NOT_AUDITED",
    "wave": "W9",
@@ -21879,9 +21874,9 @@
    },
    "after_capture": {
     "path": "docs/ui-renewal/captures/after/user_notifications__light__1920x1080.png",
-    "label": "s15-after",
-    "build_index_sha256": "c9cab277de958811",
-    "at": "2026-08-24T19:06:10",
+    "label": "s16-after",
+    "build_index_sha256": "dfd1cadb396b788d",
+    "at": "2026-08-25T00:14:46",
     "theme": "light",
     "viewport": "1920x1080",
     "committed_combos": [
@@ -21891,7 +21886,7 @@
      "1920x1080/light"
     ],
     "all_combos": 4,
-    "results_json": "dist/ui-qa/s15-after/results.json"
+    "results_json": "dist/ui-qa/s16-after/results.json"
    },
    "status": "NOT_AUDITED",
    "wave": "W10",
@@ -22464,27 +22459,19 @@
    },
    "after_capture": {
     "path": "docs/ui-renewal/captures/after/user_projects__light__1920x1080.png",
-    "label": "w5-after",
-    "build_index_sha256": "08b5525cb2f52618",
-    "at": "2026-08-20T15:43:57",
+    "label": "s16-after",
+    "build_index_sha256": "dfd1cadb396b788d",
+    "at": "2026-08-25T00:14:46",
     "theme": "light",
     "viewport": "1920x1080",
     "committed_combos": [
      "1366x768/dark",
      "1366x768/light",
      "1920x1080/dark",
-     "1920x1080/light",
-     "2560x1440/dark",
-     "2560x1440/light",
-     "3840x2160/dark",
-     "3840x2160/light",
-     "390x844/dark",
-     "390x844/light",
-     "768x1024/dark",
-     "768x1024/light"
+     "1920x1080/light"
     ],
-    "all_combos": 12,
-    "results_json": "dist/ui-qa/w5-after/results.json"
+    "all_combos": 4,
+    "results_json": "dist/ui-qa/s16-after/results.json"
    },
    "status": "NOT_AUDITED",
    "wave": "W8",
@@ -23843,9 +23830,9 @@
    },
    "after_capture": {
     "path": "docs/ui-renewal/captures/after/user_sprint__light__1920x1080.png",
-    "label": "s15-after",
-    "build_index_sha256": "c9cab277de958811",
-    "at": "2026-08-24T19:06:10",
+    "label": "s16-after",
+    "build_index_sha256": "dfd1cadb396b788d",
+    "at": "2026-08-25T00:14:46",
     "theme": "light",
     "viewport": "1920x1080",
     "committed_combos": [
@@ -23855,7 +23842,7 @@
      "1920x1080/light"
     ],
     "all_combos": 4,
-    "results_json": "dist/ui-qa/s15-after/results.json"
+    "results_json": "dist/ui-qa/s16-after/results.json"
    },
    "status": "NOT_AUDITED",
    "wave": "W8",
@@ -24705,27 +24692,19 @@
    },
    "after_capture": {
     "path": "docs/ui-renewal/captures/after/user_team-docs-trash__light__1920x1080.png",
-    "label": "w5-after",
-    "build_index_sha256": "08b5525cb2f52618",
-    "at": "2026-08-20T15:43:57",
+    "label": "s16-after",
+    "build_index_sha256": "dfd1cadb396b788d",
+    "at": "2026-08-25T00:14:46",
     "theme": "light",
     "viewport": "1920x1080",
     "committed_combos": [
      "1366x768/dark",
      "1366x768/light",
      "1920x1080/dark",
-     "1920x1080/light",
-     "2560x1440/dark",
-     "2560x1440/light",
-     "3840x2160/dark",
-     "3840x2160/light",
-     "390x844/dark",
-     "390x844/light",
-     "768x1024/dark",
-     "768x1024/light"
+     "1920x1080/light"
     ],
-    "all_combos": 12,
-    "results_json": "dist/ui-qa/w5-after/results.json"
+    "all_combos": 4,
+    "results_json": "dist/ui-qa/s16-after/results.json"
    },
    "status": "NOT_AUDITED",
    "wave": "W9",
@@ -25017,9 +24996,9 @@
    },
    "after_capture": {
     "path": "docs/ui-renewal/captures/after/user_team-tickets__light__1920x1080.png",
-    "label": "s15-after",
-    "build_index_sha256": "c9cab277de958811",
-    "at": "2026-08-24T19:06:10",
+    "label": "s16-after",
+    "build_index_sha256": "dfd1cadb396b788d",
+    "at": "2026-08-25T00:14:46",
     "theme": "light",
     "viewport": "1920x1080",
     "committed_combos": [
@@ -25029,7 +25008,7 @@
      "1920x1080/light"
     ],
     "all_combos": 4,
-    "results_json": "dist/ui-qa/s15-after/results.json"
+    "results_json": "dist/ui-qa/s16-after/results.json"
    },
    "status": "NOT_AUDITED",
    "wave": "W9",
@@ -25599,9 +25578,9 @@
    },
    "after_capture": {
     "path": "docs/ui-renewal/captures/after/user_unassigned__light__1920x1080.png",
-    "label": "s15-after",
-    "build_index_sha256": "c9cab277de958811",
-    "at": "2026-08-24T19:06:10",
+    "label": "s16-after",
+    "build_index_sha256": "dfd1cadb396b788d",
+    "at": "2026-08-25T00:14:46",
     "theme": "light",
     "viewport": "1920x1080",
     "committed_combos": [
@@ -25611,7 +25590,7 @@
      "1920x1080/light"
     ],
     "all_combos": 4,
-    "results_json": "dist/ui-qa/s15-after/results.json"
+    "results_json": "dist/ui-qa/s16-after/results.json"
    },
    "status": "NOT_AUDITED",
    "wave": "W9",
@@ -25882,11 +25861,28 @@
     "absent_reason": "이 화면은 W0 의 Before 창(2026-08-19) 이후에 생겼다 — 찍을 수 있는 «리뉴얼 이전» 상태가 존재하지 않는다. Before 는 제품 코드가 바뀌기 전에만 찍을 수 있고 그 창은 한 번뿐이라, 나중에 찍은 것을 Before 라고 부르면 그 이름이 거짓말이 된다.",
     "born_in_session": "S6"
    },
-   "after_capture": {},
+   "after_capture": {
+    "path": "docs/ui-renewal/captures/after/user_work-board__light__1920x1080.png",
+    "label": "s16-after",
+    "build_index_sha256": "dfd1cadb396b788d",
+    "at": "2026-08-25T00:14:46",
+    "theme": "light",
+    "viewport": "1920x1080",
+    "committed_combos": [
+     "1366x768/dark",
+     "1366x768/light",
+     "1920x1080/dark",
+     "1920x1080/light"
+    ],
+    "all_combos": 4,
+    "results_json": "dist/ui-qa/s16-after/results.json"
+   },
    "status": "NOT_AUDITED",
    "wave": "W10",
    "findings": [],
-   "suppressions": [],
+   "suppressions": [
+    "SUP-01"
+   ],
    "entity_selectors": [],
    "evidence": {
     "items": [],

@@ -132,6 +132,30 @@ export function useTrackColor() {
   return useTheme().palette.divider;
 }
 
+/* ── 이 그림이 답하는 업무 질문 (W6) ──────────────────────────────────────
+ *
+ * 차트 소비처 열셋 가운데 «왜 이 그림이 여기 있나» 에 답할 수 있는 자리가 절반이 안 됐다.
+ * 제목(«상태 구성»)은 **무엇을 그렸는지**를 말하지 그림이 답하는 질문을 말하지 않는다 —
+ * 그래서 그림을 보고 무슨 판단을 해야 하는지가 화면에 없었다(지시 62: 행동으로 이어지지
+ * 않는 지표는 두지 않는다).
+ *
+ * `question` 은 그 한 문장이고 **그림 바로 위**에 놓인다. 새로 문장을 늘리는 것이 아니라,
+ * 화면들이 이미 그림 옆에 흩어 놓았던 설명 문장을 이 자리로 모은 것이다.
+ * 선언이 빠진 소비처는 `charts/chart-question.test.js` 가 소스에서 직접 센다 — 부품이
+ * 런타임에 던지면 그림 하나 때문에 화면이 죽는다.
+ */
+export function ChartQuestion({ children }) {
+  if (!children) return null;
+  return (
+    <Typography
+      variant="caption" color="text.secondary" data-chart-question="declared"
+      sx={{ display: "block", mb: 1 }}
+    >
+      {children}
+    </Typography>
+  );
+}
+
 /* 값이 없을 때의 자리 — 높이를 차트와 비슷하게 잡아 로딩→빈 상태 전환에서 레이아웃이 튀지 않게 한다.
  * 점선 테두리는 '여기 무언가 들어올 자리인데 지금은 비어 있다'는 관습적 신호다. */
 export function ChartEmpty({ label = "데이터 없음", height = "4rem" }) {

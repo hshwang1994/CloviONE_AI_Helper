@@ -142,6 +142,7 @@ export function WorkSection() {
             {/* 막대는 aria-hidden 이고 값은 항상 숫자로 함께 나간다(charts/base.jsx 규칙) —
                 그림을 못 보는 사람도 같은 정보를 얻는다. */}
             <BarSeries
+              question="주마다 끝내는 양이 늘고 있는지 줄고 있는지 봅니다."
               items={trend.map((w) => ({
                 label: w.week_of,
                 value: w.done,

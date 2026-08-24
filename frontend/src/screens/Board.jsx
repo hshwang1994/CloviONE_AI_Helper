@@ -431,6 +431,7 @@ function BoardScreen({ kind = "free" }) {
     {
       key: "title",
       label: "제목",
+      type: "title",
       // 첫 열이 render()를 쓰면 DataTable이 행 열기 버튼의 이름을 못 만든다 — openLabel로 넘긴다.
       openLabel: (p) => "상세 보기: " + (p.title || ""),
       render: (p) => (
@@ -446,7 +447,7 @@ function BoardScreen({ kind = "free" }) {
         </Box>
       ),
     },
-    { key: "category", label: "카테고리", width: "8rem", render: (p) => <Tag label={p.category} /> },
+    { key: "category", label: "카테고리", type: "enum", render: (p) => <Tag label={p.category} /> },
     /* 🔴 상태 열은 **아이디어일 때만** 붙는다. 자유게시글에 상태 배지를 그리면
        "이 글은 검토중"이라는 뜻 없는 말이 되고, 서버가 실수로 값을 실어 보내는 날
        (`idea_status` 가 응답에 남는 경우) 그대로 화면에 나온다. 그래서 값이 아니라
@@ -456,7 +457,7 @@ function BoardScreen({ kind = "free" }) {
           {
             key: "idea_status",
             label: "상태",
-            width: "7rem",
+            type: "status",
             render: (p) =>
               p.idea_status ? <Badge value={p.idea_status} kind={ideaStatusKind(p.idea_status)} /> : null,
           },
@@ -469,19 +470,18 @@ function BoardScreen({ kind = "free" }) {
     {
       key: "like_count",
       label: "공감",
-      align: "right",
-      width: "6rem",
+      type: "count",
       render: (p) => "👍 " + (p.like_count || 0),
     },
     {
       key: "author_name",
       label: "작성자",
-      // 이름만 있던 칸이라 9rem 이면 소속이 붙는 순간 첫 두 글자만 남는다.
-      width: "16rem",
+      // 이름 자리다. 바닥값 9rem 이면 소속이 붙는 순간 첫 두 글자만 남아 더 넓게 잡는다.
+      type: "name", minWidth: "16rem",
       render: (p) => <AuthorLine name={p.author_name} person={people[p.author_user_id]} />,
     },
-    { key: "view_count", label: "조회", align: "right", width: "6rem" },
-    { key: "created_at", label: "작성", align: "right", width: "11rem", nowrap: true, render: (p) => <DateCell value={p.created_at} /> },
+    { key: "view_count", label: "조회", type: "count" },
+    { key: "created_at", label: "작성", type: "date", render: (p) => <DateCell value={p.created_at} /> },
   ];
 
   const writeBtn = <Button variant="primary" onClick={() => setComposing(true)}>{copy.writeLabel}</Button>;

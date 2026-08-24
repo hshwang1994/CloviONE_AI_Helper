@@ -37,6 +37,7 @@ import { ART, SPOT } from "../lib/assets.js";
 import { maxLengthFor } from "../lib/fieldLimits.js";
 import { apiToKstLocal, kstLocalToApi } from "../lib/format.js";
 import { declaredRowName, rowNameOf } from "./rowName.js";
+import { ANYWHERE_BREAK, OVERFLOW, SHRINK, planColumnCollapse, resolveColumn } from "./columnTypes.js";
 import { EMPTY_STATE_MAX_CH, ERROR_STATE_MAX_CH, FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, MOTION, NUMERIC, RADIUS, TABLE_CARD_QUERY, TABLE_COMPACT_QUERY } from "./theme.js";
 import { CARD_PADDING, SECTION_GAP } from "./density.js";
 import { EntityCombobox } from "./filters.jsx";
@@ -750,6 +751,9 @@ export function MetricStrip({ items, ariaLabel, emptyCause, sx }) {
             type={clickable ? "button" : undefined}
             onClick={it.onClick}
             aria-pressed={clickable ? !!it.active : undefined}
+            /* 선택을 **레일**로 말하는 자리다(D-289). 자리를 선언해 두면 프로브가
+               «`aria-pressed` 가 붙은 아무 요소» 가 아니라 실제로 선택을 나르는 것을 잰다. */
+            data-brand-role={clickable && it.active ? "selected-state" : undefined}
             sx={(t) => ({
               /* 왼쪽으로 packing 한다. 늘어나지 않고 자기 내용 폭을 갖는다. */
               flex: "0 0 auto", minWidth: readout ? "9rem" : "6.5rem", maxWidth: "100%",
@@ -786,11 +790,29 @@ export function MetricStrip({ items, ariaLabel, emptyCause, sx }) {
               <Box sx={{ display: "flex", alignItems: "baseline", gap: 1, minWidth: 0 }}>
                 <Typography
                   component="div"
+                  /* **그 화면을 지배하는 판독값이 제품 정체성을 나른다** (D-288).
+                     지시가 이름으로 든 네 자리 중 하나가 Key Metric 이고, 이 값이 그것이다.
+                     `data-brand-role` 로 자리를 선언하는 이유: 선언이 없으면 프로브가
+                     «DOM 에서 첫 번째 칸» 을 지배값이라고 읽는다 — 어느 칸이 판독 슬롯을
+                     얻었는지는 이 컴포넌트만 안다.
+                     `data-brand-tone` 은 억제가 아니라 **의미 선언**이다: 심각도가 있는 값은
+                     상태색이 이긴다(색이 뜻을 나르는 자리에서 정체성이 이기면 그 색은
+                     거짓말이 된다). 그때 이 자리는 «회색인 브랜드 자리» 가 아니라 «다른 뜻으로
+                     칠한 자리» 이고, 프로브가 그 둘을 구별할 근거가 이 속성이다. */
+                  data-brand-role={readout ? "highlight" : undefined}
+                  /* 판독 슬롯이 아니어도 심각도는 선언한다. 지표가 하나뿐인 줄은
+                     `primary` 를 안 붙여도 그 값이 곧 그 화면의 판독값이고(알림 화면의
+                     「안 읽음」이 그렇다), 프로브는 줄에서 가장 큰 글자를 그 값으로
+                     읽는다 — 선언이 판독 슬롯에만 붙어 있으면 그 자리가 «회색인
+                     브랜드 자리» 로 잘못 세어진다. 실측이 그것을 잡았다. */
+                  data-brand-tone={tone && tone !== "default" ? it.kind : undefined}
                   sx={{
                     fontSize: readout ? FONT_SIZE.readout : FONT_SIZE.title,
                     fontWeight: FONT_WEIGHT.semibold, lineHeight: READOUT_LEAD, ...NUMERIC,
                   }}
-                  color={tone && tone !== "default" ? `${tone}.strong` : "text.primary"}
+                  color={tone && tone !== "default"
+                    ? `${tone}.strong`
+                    : (readout ? "brand.core" : "text.primary")}
                 >
                   {it.value == null ? "-" : it.value}
                 </Typography>
@@ -844,17 +866,32 @@ export function MetricStrip({ items, ariaLabel, emptyCause, sx }) {
  * 본문이 길면 화면 밖으로 밀렸다. 속성은 훑는 정보라 한 줄로 위에 눕히는 편이 짧고,
  * 그 자리를 비워 준 레일은 본문과 나란히 읽는 것(첨부·댓글)이 갖는다.
  *
- * items: `{ key, label, value }[]` — `null`/`false` 는 걸러 낸다.
+ * items: `{ key, label, value, type }[]` — `null`/`false` 는 걸러 낸다.
+ *
+ * ## 폭은 균등이 아니다 (C3 · W6)
+ *
+ * 예전에는 모든 칸이 `flex: 1 1 9rem` 이었다 — 「높음」 두 글자와 「ClovirAssist 플랫폼
+ * 전환」 열두 글자가 **같은 폭**을 받고, 화면이 넓어지면 둘 다 같이 늘어난다. 그래서 넓은
+ * 화면일수록 속성 사이가 벌어져 훑는 데 시선이 더 많이 움직였다(지시 75).
+ *
+ * 이제 칸이 표의 열과 **같은 어휘**로 자기 성질을 말한다. 이름·제목형은 남는 폭을 가져가고
+ * (`grow`), 닫힌 집합·수치·날짜는 자기 내용 폭만 쓴다. `type` 을 안 준 칸은 예전과 같이
+ * 균등하게 늘어난다 — 배선하지 않은 화면의 렌더는 안 바뀐다.
  */
+const META_GROW_TYPES = ["title", "name", "text", "identifier"];
+
 export function MetaBar({ items, ariaLabel, sx }) {
   const list = (items || []).filter(Boolean);
   if (!list.length) return null;
+  const flexOf = (it) => {
+    if (!it.type) return "1 1 9rem";                         // 선언 안 한 칸 — 옛 동작 그대로
+    if (META_GROW_TYPES.indexOf(it.type) >= 0) return "1 1 12rem";
+    return "0 0 auto";                                       // 상태·수치·날짜는 내용 폭만
+  };
   return (
     /* 판독 줄과 같은 판정을 받는다 — **속성 한 줄에 plate 금지.** 이 줄은 자기 생명주기도
        독립 스크롤도 없고 떠 있지도 않다. 체크리스트 ⑥ 이라 컨테이너가 없다.
-       칸 사이 실선은 세 속성으로 적어야 실제로 그려진다(F-W2R-01).
-       칸 폭의 의미 기반 재배분(프로젝트 2fr · 상태/마감 max-content)은 상세 Metadata 위계를
-       소유하는 Wave 의 몫이다 — 여기서는 면과 실선만 고친다. */
+       칸 사이 실선은 세 속성으로 적어야 실제로 그려진다(F-W2R-01). */
     <Box
       className="k-metabar"
       role="group"
@@ -873,12 +910,14 @@ export function MetaBar({ items, ariaLabel, sx }) {
         <Box
           key={it.key || it.label || i}
           className="k-metacell"
-          sx={{ flex: "1 1 9rem", maxWidth: "20rem", minWidth: 0, px: 2, py: 1.25, display: "grid", gap: 0.25, alignContent: "start" }}
+          data-meta-type={it.type || undefined}
+          sx={{ flex: flexOf(it), maxWidth: "20rem", minWidth: 0, px: 2, py: 1.25, display: "grid", gap: 0.25, alignContent: "start" }}
         >
           <Typography component="div" sx={{ fontSize: FONT_SIZE.caption, color: "text.secondary", ...KO_WORD_BREAK }}>
             {it.label}
           </Typography>
-          <Box sx={{ fontSize: FONT_SIZE.body, color: "text.primary", minWidth: 0, ...KO_WORD_BREAK }}>
+          <Box sx={{ fontSize: FONT_SIZE.body, color: "text.primary", minWidth: 0, ...KO_WORD_BREAK,
+                     ...(it.type && resolveColumn(it).numeric ? NUMERIC : null) }}>
             {it.value == null || it.value === "" ? "-" : it.value}
           </Box>
         </Box>
@@ -1229,20 +1268,57 @@ function rowOpenLabel(columns, row) {
   if (v == null || v === "") return "상세 보기";
   return "상세 보기: " + String(v);
 }
-/* 본문 셀은 열 폭을 안 정해 주면(`c.minWidth` 없음) `overflowWrap:"anywhere"`가 좁은
- * 컨테이너에서 열 폭을 '한 글자'까지 줄여, 설명 같은 긴 텍스트가 세로로 한 자씩 흐른다
- * (관리자 registry 표 28개 전부가 이 상태였다, DS-06). SettingsMain.jsx가 이미 겪어 실측
- * 확인한 버그와 같은 것이다 — 개별 화면마다 minWidth를 채우는 대신 표 자신이 바닥값을 둔다. */
-const DEFAULT_COL_MIN_WIDTH = "4.5rem";
+/* 열의 폭·정렬·자릿수·넘침은 **`columnTypes.js` 의 어휘표**가 정한다 (C3 · W6).
+ *
+ * 예전에는 여기 두 상수(`DEFAULT_COL_MIN_WIDTH`·`IDENTIFIER_COL_MIN_WIDTH`)와 호출부의
+ * `width`/`align` 숫자가 그 일을 나눠 했다. 그래서 같은 뜻의 값이 화면마다 다른 폭과 다른
+ * 정렬로 나왔고, 「개수인데 자릿수가 세로로 안 맞는」 열이 여덟 개 남아 있었다.
+ * 상수는 그 파일로 옮겼고 이 자리에는 **해석 결과를 쓰는 함수**만 남는다.
+ * `type` 을 안 준 열은 예전과 정확히 같은 값을 받는다(회귀 0). */
 
-/* PA-RC-0029/0037: 행을 식별하는 열(이메일·항목명 등)은 폭이 부족해질 때 가장 먼저
- * 보호돼야 하는 열이다 — `c.identifier:true`만 붙이면 화면마다 정확한 px를 직접 재지
- * 않아도 이 바닥값이 붙는다(필요폭이 다르면 `c.minWidth`로 그대로 덮어쓸 수 있다,
- * SettingsMain.jsx의 `항목명`처럼). 나머지 열은 `DEFAULT_COL_MIN_WIDTH`를 그대로 쓴다 —
- * 우선순위를 지정하지 않은 화면은 렌더 결과가 바뀌지 않는다(REGRESSION 없음). */
-const IDENTIFIER_COL_MIN_WIDTH = "12.5rem";
-function colMinWidth(c) {
-  return c.minWidth ?? (c.identifier ? IDENTIFIER_COL_MIN_WIDTH : DEFAULT_COL_MIN_WIDTH);
+/* 셀 하나의 폭·정렬·자릿수·넘침을 한 번에 만든다 — 머리글 칸과 본문 칸이 **같은 함수**를
+ * 본다. 예전에는 둘이 따로 계산해서 한쪽만 설정하는 경로가 실제로 존재했고, 그게
+ * `header_cell_alignment_mismatch` 가 잡는 결함의 구조적 원인이었다(kit.jsx:1036/1124). */
+function colCellSx(c, { truncate, head } = {}) {
+  const s = resolveColumn(c);
+  const sx = { minWidth: s.minWidth };
+  /* 자릿수 고정은 **`td` 자신**이 들어야 한다 — QA 의 `numeric_alignment` 가 셀의
+     computed style 을 읽고, 안쪽 `<span>` 에만 걸면 그 검사는 없다고 본다. */
+  if (s.numeric) Object.assign(sx, NUMERIC);
+  /* 폭은 머리글 칸에만 적는다. `<table>` 의 열 폭은 열 전체에서 하나로 정해지므로 한 칸만
+     말하면 충분하고, 본문 칸의 말줄임은 `maxWidth: 0` 이 맡는데 그 둘을 한 칸에 함께 걸면
+     서로를 무력화한다(말줄임이 안 되거나 폭이 안 줄거나 — 브라우저마다 다르다). */
+  if (head) return { ...sx, width: s.width, whiteSpace: "nowrap", ...(c.help ? { cursor: "help" } : null) };
+  if (truncate) {
+    return { ...sx, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 0 };
+  }
+  if (s.overflow === OVERFLOW.nowrap) return { ...sx, overflowWrap: "normal", whiteSpace: "nowrap" };
+  if (s.overflow === OVERFLOW.anywhere) return { ...sx, ...ANYWHERE_BREAK };
+  return { ...sx, ...KO_WORD_BREAK };
+}
+
+/* 식별자형 열은 **우정렬 대상이 아니다** — 티켓번호·포트·버전은 크기를 비교하지 않는다.
+ * QA 가 그 예외를 읽는 표식이 `data-col-role="identifier"` 인데, 그 표식을 내보내는 소스가
+ * 이 저장소에 **한 곳도 없었다**(assertions.py:1126 이 찾는 속성이 어디에도 안 붙어 있었다).
+ * 선언만 있고 배선이 없으면 그 예외는 존재하지 않는 것과 같다 — 여기서 붙인다. */
+function colRole(c) {
+  return resolveColumn(c).identifier ? "identifier" : undefined;
+}
+
+/* 표 칸 하나에 붙는 것 전부 — 정렬·역할 표식·sx 를 한 번에 준다.
+ *
+ * 이 저장소에는 열 정의를 읽어 `<td>` 를 그리는 자리가 **둘**이다: 여기 `DataTable` 과
+ * `MyTickets` 의 묶음 목록(`GroupedList` — 묶음 머리행이 있어서 표 컴포넌트로 못 접는다).
+ * 규칙을 두 곳에 적으면 한쪽만 고쳐진다 — W5 가 카드 접기에서 이미 그렇게 잃었고
+ * (`cardFieldLabel`·`cardHeaderControls` 가 그때 생긴 함수다), 정렬 규칙에서 같은 일이
+ * 다시 일어나면 «`/board` 는 맞는데 `/my-tickets` 는 틀린» 상태가 된다.
+ */
+export function tableCellProps(col, opts) {
+  return {
+    align: resolveColumn(col).align,
+    "data-col-role": colRole(col),
+    sx: colCellSx(col, opts),
+  };
 }
 
 /* 셀 렌더러에 넘기는 두 번째 인자(ctx)는 **그 행에 대한 표의 지식**이다. 지금은 rowName
@@ -1283,12 +1359,25 @@ export function cardHeaderControls(cols) {
   return (cols || []).filter((c) => c && c.cardHeader);
 }
 
-export function DataTable({ columns, rows, rowKey, onRow, empty, fixed, ellipsis, stickyHeader, loading, sort, onSort }) {
+export function DataTable({ columns, rows, rowKey, onRow, empty, fixed, ellipsis, stickyHeader, loading, sort, onSort, resultScope }) {
   // 방어: 비정상 입력이 와도 렌더 중 throw하지 않고 빈-목록 안내로 폴백한다.
   // 공용 표라 한 화면의 실수나 API shape 변화가 전역 크래시로 번지지 않게 한다.
-  const baseCols = Array.isArray(columns) ? columns : [];
-  const cols = baseCols;
+  const declaredCols = Array.isArray(columns) ? columns : [];
   const safeRows = Array.isArray(rows) ? rows : [];
+  /* 열을 뺄지 말지는 **호출부가 준 질의 계약**으로만 판단한다 (R-91).
+     `resultScope` 가 없으면 `removed` 가 언제나 비어 있어 이 줄은 아무 것도 안 한다 —
+     즉 이 기능을 안 쓰는 화면 28개의 렌더는 한 픽셀도 안 바뀐다. */
+  const collapse = planColumnCollapse(declaredCols, safeRows, resultScope);
+  const dropped = collapse.removed.map((r) => r.key);
+  const shrunk = collapse.shrink;
+  /* 「우연히 같다」로 판정된 열은 **빼지 않고 줄인다** — 폭을 내용만큼으로 좁히고 좁은
+     화면의 숨김 후보로 표시한다. 사용자는 열이 사라지는 것을 못 따라가지만, 좁아지는
+     것은 따라간다. */
+  const baseCols = (dropped.length
+    ? declaredCols.filter((c) => dropped.indexOf(c.key) < 0)
+    : declaredCols
+  ).map((c) => (shrunk.indexOf(c.key) >= 0 ? { ...c, width: SHRINK, hideNarrow: true } : c));
+  const cols = baseCols;
   const keyOf = typeof rowKey === "function" ? rowKey : (_, i) => i;
   const narrow = useMediaQuery(TABLE_CARD_QUERY);
   // RESP-01: 900~1200 구간(사이드바 아직 안 접힘)에서 열이 많은 표만 겪는 문제라 카드 뷰는
@@ -1365,6 +1454,13 @@ export function DataTable({ columns, rows, rowKey, onRow, empty, fixed, ellipsis
           화면 폭이 좁아 {hiddenCols.map((c) => c.label).join(", ")} 열을 숨겼습니다. 행을 열면 전체 정보를 볼 수 있습니다.
         </Typography>
       ) : null}
+      {/* 뺀 열은 **한 번 적는다** (R-91). 열이 조용히 사라지면 사용자는 그 값을 못 봤다는
+          사실조차 모른다 — 무엇이 왜 없는지를 표가 직접 말한다. */}
+      {collapse.caption ? (
+        <Typography variant="caption" color="text.secondary" sx={{ display: "block", px: 2, pt: 1.5 }} data-collapsed-columns={dropped.join(",")}>
+          {collapse.caption}
+        </Typography>
+      ) : null}
       <TableContainer>
       {/* 표 리듬 (지시 10) — 세로 괘선이 없고, 행 사이는 실선 하나로만 나눈다. 마지막 행의
           아래 선은 지운다(판의 테두리와 겹쳐 두 줄로 보인다). 행 추적은 괘선이 아니라
@@ -1390,7 +1486,13 @@ export function DataTable({ columns, rows, rowKey, onRow, empty, fixed, ellipsis
               <TableCell
                 key={c.key}
                 scope="col"
-                align={c.align || "left"}
+                align={resolveColumn(c).align}
+                data-col-role={colRole(c)}
+                /* 열 이름만으로 뜻이 안 서는 지표 열(«예상 정확도»·«평균 실제WD/건»)이 있다.
+                   머리글은 포커스 대상이 아니라 MUI Tooltip 은 키보드로 안 열린다 — 같은
+                   한계라면 의존성 없는 `title` 이 낫다(`DevReport` 의 옛 `Th` 가 쓰던 방식을
+                   공용 표로 올렸다). */
+                title={c.help || undefined}
                 /* 스크린리더가 "정렬 안 됨 / 오름차순 / 내림차순"을 읽는다. 화살표만 그리면
                    그 정보는 눈으로만 전달된다(WCAG 1.4.1 과 같은 이유). */
                 aria-sort={sortable ? (dir === "asc" ? "ascending" : dir === "desc" ? "descending" : "none") : undefined}
@@ -1406,7 +1508,7 @@ export function DataTable({ columns, rows, rowKey, onRow, empty, fixed, ellipsis
                    불투명 배경은 안 준다 — 스크롤되는 본문 셀이 헤더 뒤로 비쳐 보인다.
                    이 표는 항상 Card(background.paper) 안에 있으므로 그 색을 명시한다. */
                 sx={{
-                  width: c.width, minWidth: colMinWidth(c), whiteSpace: "nowrap",
+                  ...colCellSx(c, { head: true }),
                   ...(stickyHeader ? { bgcolor: "background.paper" } : null),
                 }}
               >
@@ -1478,13 +1580,10 @@ export function DataTable({ columns, rows, rowKey, onRow, empty, fixed, ellipsis
                   return (
                     <TableCell
                       key={c.key}
-                      align={c.align || "left"}
+                      align={resolveColumn(c).align}
+                      data-col-role={colRole(c)}
                       title={truncate && raw && raw !== "-" ? raw : undefined}
-                      sx={truncate
-                        ? { whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 0,
-                           minWidth: colMinWidth(c) }
-                        : { ...(c.nowrap ? { overflowWrap: "normal", whiteSpace: "nowrap" } : KO_WORD_BREAK),
-                           minWidth: colMinWidth(c) }}
+                      sx={colCellSx(c, { truncate })}
                     >
                       {raw != null ? raw : cellValue(c, row, ctx)}
                     </TableCell>

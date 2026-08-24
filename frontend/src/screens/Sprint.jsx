@@ -386,13 +386,12 @@ export function Sprint() {
                   {/* 그림이 무엇을 말하고 **무엇을 말하지 않는지**를 그림 옆에 쓴다. 완료 시각이
                       기록되지 않아 날짜별 실제 이력은 그릴 수 없다 — 그걸 숨기면 사람들은 이
                       그림을 실제 진행으로 읽는다. */}
-                  <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1.5 }}>
-                    두 선 모두 <b>마감일</b>이 축입니다. ‘계획’은 남은 양, ‘아직 미완료’는 끝나지 않은 일입니다. 완료 시각이 없어 날짜별 이력은 그리지 않습니다.
-                  </Typography>
                   {(() => {
                     const bd = burndownSeries(d.burndown);
                     return bd
-                      ? <LineSeries series={bd.series} labels={bd.labels} unit="인일" summary={bd.summary} />
+                      ? <LineSeries
+                          question="이번 주 남은 업무량이 계획대로 줄고 있는지 봅니다. 두 선 모두 마감일이 축이고, 완료 시각이 없어 날짜별 이력은 그리지 않습니다."
+                          series={bd.series} labels={bd.labels} unit="인일" summary={bd.summary} />
                       : <ChartEmpty label="이 주에 마감인 업무량이 없습니다" height="9rem" />;
                   })()}
                 </Card>
@@ -400,14 +399,13 @@ export function Sprint() {
                   <Typography component="h2" variant="h6" sx={{ fontSize: FONT_SIZE.sectionTitle, mb: 0.5 }}>
                     담당자별 업무량(WD)
                   </Typography>
-                  <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1.5 }}>
-                    이 주에 마감인 티켓의 업무량 합계입니다(취소 제외). 평균의 1.5배를 넘는 사람만 색으로 표시합니다.
-                  </Typography>
                   {(() => {
                     const wd = wdBalanceItems(d.developers);
                     return wd ? (
                       <>
-                        <BarSeries items={wd.items} max={wd.max} unit="인일" formatValue={(v) => String(v)} />
+                        <BarSeries
+                          question="이번 주 업무량이 특정 사람에게 쏠려 있는지 봅니다. 취소는 빼고 세며, 평균의 1.5배를 넘는 사람만 색으로 표시합니다."
+                          items={wd.items} max={wd.max} unit="인일" formatValue={(v) => String(v)} />
                         <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1 }}>
                           {wd.summary}
                         </Typography>
@@ -463,7 +461,7 @@ export function Sprint() {
                 </Typography>
                 <Card>
                   <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                    담당자별 티켓입니다. 제목을 누르면 상세가 열리고, ‘수정’으로 상태·담당자·마감을 바로 바꿀 수 있습니다.
+                    담당자별 티켓입니다. 제목을 누르면 상세가 열리고, ‘수정’으로 상태와 담당자, 마감을 바로 바꿀 수 있습니다.
                   </Typography>
                   <GroupedTickets
                     rows={rows}

@@ -11,6 +11,18 @@
 
 `--routes` 를 안 주면 아무것도 안 찍는다. 전량 실행은 **S22 의 몫**이고(E8), 여기서
 기본값으로 열어 두면 그 규칙이 흐려진다.
+
+## 캡처 말고 다른 하네스 (S16)
+
+`--harness` 로 `scripts.ui_qa` 의 다른 모듈을 같은 서버에 대고 부른다. 완료로 표시한
+Surface 의 증거는 **지금 빌드에서도 유효해야** 하는데(게이트의 `EVIDENCE_STALE_BUILD`),
+그 증거의 절반은 캡처가 아니라 `kit_e2e`·`shell_e2e`·`nav_e2e` 같은 실브라우저 하네스다.
+그것들만 설치처를 요구하면 「빌드가 바뀔 때마다 배포해야 한다」가 되어 E5 와 어긋난다.
+
+    python -m scripts.ui_qa.local_capture --harness kit_e2e
+    python -m scripts.ui_qa.local_capture --harness shell_e2e --harness nav_e2e
+
+`--harness` 를 주면 `--routes` 는 필요 없다(캡처를 안 돌린다).
 """
 
 from __future__ import annotations
@@ -36,8 +48,11 @@ def main() -> int:
             pass
 
     ap = argparse.ArgumentParser(description="로컬 서버 + 캡처 한 번에 (S15)")
-    ap.add_argument("--label", required=True)
-    ap.add_argument("--routes", nargs="+", required=True)
+    ap.add_argument("--label", default="local")
+    ap.add_argument("--routes", nargs="+", default=None)
+    ap.add_argument("--harness", action="append", default=[],
+                    help="scripts.ui_qa 의 모듈 이름(kit_e2e·shell_e2e·nav_e2e…). "
+                         "주면 캡처 대신 그것을 부른다")
     ap.add_argument("--viewports", nargs="*", default=["1920x1080"])
     ap.add_argument("--themes", nargs="*", default=["light", "dark"])
     ap.add_argument("--fail-on", nargs="*", default=None)
@@ -61,6 +76,33 @@ def main() -> int:
 
         os.environ["UI_QA_EMAIL"] = args.email
         os.environ["UI_QA_PASSWORD"] = args.password
+        # 하네스가 다른 역할의 계정을 요구하면 `user_cli` 를 **자식 프로세스로** 부른다
+        # (auth.py §_provision — DB 를 직접 건드리지 않는다는 규율 때문이다). 그 자식은
+        # 우리가 방금 만든 임시 데이터베이스를 알 방법이 없어서 기본 주소로 붙다가 시간
+        # 초과로 죽는다. 설정을 **환경으로도** 넘겨 자식이 같은 DB 를 보게 한다.
+        os.environ["DATABASE_URL"] = url
+        os.environ["APP_ENV"] = "test"
+        os.environ["SESSION_SECRET"] = "ui-qa-local-session-secret"
+        os.environ["SECRETS_DIR"] = str(settings.secrets_dir)
+        os.environ["DATA_DIR"] = str(workdir)
+
+        if args.harness:
+            """하네스를 순서대로 부르고 **하나라도 실패하면 그 종료 코드를 그대로 낸다.**
+            여러 개를 돌린 뒤 마지막 것만 보고 초록이라고 말하지 않는다."""
+            import importlib
+
+            worst = 0
+            for name in args.harness:
+                mod = importlib.import_module("scripts.ui_qa." + name)
+                sys.argv = [name + ".py", "--base-url", base, *rest]
+                print("\n== %s ==" % name, flush=True)
+                code = mod.main()
+                worst = max(worst, code or 0)
+            return worst
+
+        if not args.routes:
+            print("[FATAL] --routes 나 --harness 중 하나는 있어야 한다.", file=sys.stderr)
+            return 2
 
         from scripts.ui_qa import run as run_mod
 

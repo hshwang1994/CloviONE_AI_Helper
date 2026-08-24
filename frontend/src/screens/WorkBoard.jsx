@@ -27,6 +27,7 @@ import { MODERATOR_ROLES, hasRole } from "../lib/roles.js";
 import { useAuth } from "../app/auth.jsx";
 import { invalidateTicketViews } from "./ticket-views.js";
 import { useTicketProjects } from "./ticket-options.js";
+import { EntityCombobox } from "../ui/filters.jsx";
 
 /* 작업 보드 — 칸반과 백로그 (S6).
  *
@@ -260,26 +261,29 @@ export function WorkBoard() {
       ))}
     </TextField>
   );
+  /* 🔴 이 자리가 이 화면을 통째로 죽이고 있었다.
+   *
+   * `/api/tickets/projects` 는 **객체**를 준다(`{ projects: [...] }`). 이 화면만 그것을
+   * 배열로 읽어 `.map` 을 불렀고, 질의가 도착하는 순간 `TypeError` 로 ErrorBoundary 가
+   * 화면을 대신 그렸다 — 즉 `/work-board` 는 아무에게도 안 열렸다. 같은 훅을 쓰는 나머지
+   * 넷은 전부 `.projects` 를 읽는다(`BoardPost` · `MyTickets` 둘 · `TicketFilterBar`).
+   * 한 곳만 다르게 읽는 것은 시험이 아니라 **실제 화면**을 열어야 보인다 — S16 의 캡처가
+   * `console_errors` 로 잡았다.
+   *
+   * 그리고 프로젝트는 **기수가 무한히 자라는 대상**이라 평범한 드롭다운으로 고를 수 없다
+   * (`plain_dropdown_for_entity`). 크래시가 가려 두었던 두 번째 결함이다 — 공용 선택기로
+   * 바꾼다. 「값이 비면 라벨이 칸 안으로 내려앉는다」를 막는 성질은 그 부품이 이미 갖고 있다. */
+  const projectRows = (projects.data && projects.data.projects) || [];
   const projectFilter = (
-    <TextField
-      select
-      size="small"
+    <EntityCombobox
       label="프로젝트"
-      /* 라벨을 **칸 위에 고정한다.** 값이 비었을 때(=전체) 라벨이 칸 안으로 내려앉으면
-         선택기가 「프로젝트」라고 적힌 빈 칸으로 보이고, 사용자는 그것이 라벨인지
-         선택된 값인지 구별하지 못한다. */
-      InputLabelProps={{ shrink: true }}
       value={projectId}
-      onChange={(e) => setProjectId(e.target.value)}
+      onChange={(next) => setProjectId(next || "")}
+      loading={projects.isLoading}
+      options={projectRows.map((p) => ({ value: p.id, label: p.name }))}
+      allLabel="전체"
       sx={{ minWidth: "14rem" }}
-    >
-      <MenuItem value="">전체</MenuItem>
-      {(projects.data || []).map((p) => (
-        <MenuItem key={p.id} value={p.id}>
-          {p.name}
-        </MenuItem>
-      ))}
-    </TextField>
+    />
   );
 
   return (

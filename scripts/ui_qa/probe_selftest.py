@@ -464,6 +464,69 @@ def _logic_cases() -> list[dict]:
                 os.environ[key] = saved
         # 이 블록이 전역 HTTPS 컨텍스트를 만졌다 — 원래대로 돌려놓는다.
         tls.apply_default_https_context()
+
+    # ── W6 이 바꾼 brand 판정 (D-288 · D-289) ────────────────────────────
+    # 「판정 규칙을 고치면 반례로 검증한다」. brand 판정은 측정과 분리돼 있어서
+    # (`brand_verdict` 는 dict 만 받는다) 브라우저 없이 양방향을 전부 보일 수 있다.
+    from . import brand  # noqa: PLC0415
+
+    def probe(**roles) -> dict:
+        """light 테마 · 캔버스 `#EEF0F7` 위에서 잰 것으로 꾸민 측정값."""
+        out = {"theme": "light", "canvas": "rgb(238, 240, 247)", "canvasFrom": "body", "roles": {}}
+        for name in brand.ROLES:
+            spec = roles.get(name)
+            if spec is None:
+                out["roles"][name] = {"found": False, "note": "이 사례에 없음"}
+                continue
+            what, value = spec[0], spec[1]
+            entry = {
+                "found": True, "kind": "bg" if name in brand.BG_ROLES else "ink",
+                "selector": "(사례)", "element": "(사례)",
+                "candidates": [{"what": what, "value": value}],
+                "backdrop": spec[2] if len(spec) > 2 else "rgb(255, 255, 255)",
+            }
+            if len(spec) > 3:
+                entry["tone"] = spec[3]
+            out["roles"][name] = entry
+        return out
+
+    BRAND_INK = ("color", "rgb(76, 88, 200)")          # brand.core light — 색상각 232도
+    GREY_INK = ("color", "rgb(22, 26, 44)")            # text.primary — 눈에는 검정
+    RAIL = ("border-bottom-color", "rgb(76, 88, 200)")  # 판독 줄 활성 칸의 Brand 레일
+    GREY_RAIL = ("border-bottom-color", "rgb(128, 128, 128)")   # 순수 회색 레일
+    WARN_INK = ("color", "rgb(106, 69, 22)", "rgb(255,255,255)", "warn")
+
+    def coverage(**roles) -> str:
+        return brand.brand_coverage_verdict(brand.brand_verdict(probe(**roles)))["status"]
+
+    # D-289 ─ 선택은 레일로도 말할 수 있다. 단 **무채색 레일은 여전히 실패**다.
+    case("brand/선택을 Brand 레일로 말해도 «있는 자리» 다",
+         coverage(nav_active=BRAND_INK, primary_action=BRAND_INK, selected_state=RAIL), "pass",
+         "이 제품은 선택을 면이 아니라 레일로 말한다(D-184·W4) — 면만 세면 «선택 색이 없다» 는 "
+         "정반대 결론이 나온다")
+    case("brand/무채색 레일은 그대로 실패다",
+         coverage(nav_active=BRAND_INK, primary_action=BRAND_INK, selected_state=GREY_RAIL), "fail",
+         "🔴 반대 방향 — 규칙을 느슨하게 한 것이 아님을 이 사례가 증명한다. 회색 선택은 결함이다")
+    case("brand/선택이 아무 것도 안 칠하면 실패다",
+         coverage(nav_active=BRAND_INK, primary_action=BRAND_INK,
+                  selected_state=("background-color", "rgba(0, 0, 0, 0)")), "fail",
+         "`/my-approvals` 의 선택된 탭이 정확히 이 상태였다. 「요소는 찾았는데 아무 색도 "
+         "안 나른다」 는 모르는 것이 아니라 알아낸 사실이라 `unknown` 으로 빠지면 안 된다")
+
+    # D-288 ─ 심각도가 칠한 판독값은 «있는 자리» 가 아니다. 선언이 없으면 그냥 회색 결함이다.
+    case("brand/심각도로 칠한 판독값은 회색으로 세지 않는다",
+         coverage(nav_active=BRAND_INK, primary_action=BRAND_INK, highlight=WARN_INK), "pass",
+         "「지연 3건」을 인디고로 칠할 수는 없다 — 색이 뜻을 나르는 자리다")
+    case("brand/그 판독값을 통과로 세지도 않는다",
+         brand.brand_verdict(probe(nav_active=BRAND_INK, primary_action=BRAND_INK,
+                                   highlight=WARN_INK))["present_brand"], 2,
+         "🔴 정족수를 공짜로 채우면 `brand_presence` 가 무력해진다 — unknown 은 통과가 아니다")
+    case("brand/선언 없는 회색 판독값은 그대로 실패다",
+         coverage(nav_active=BRAND_INK, primary_action=BRAND_INK, highlight=GREY_INK), "fail",
+         "🔴 반대 방향 — `/my-stats`·`/sprint` 의 판독값이 본문 잉크였던 그 상태다")
+    case("brand/Brand 잉크 판독값은 통과다",
+         coverage(nav_active=BRAND_INK, primary_action=BRAND_INK, highlight=BRAND_INK), "pass",
+         "고친 뒤의 모습 — 이 사례가 없으면 «전부 unknown» 으로도 초록이 된다")
     return rows
 
 

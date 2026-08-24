@@ -152,6 +152,7 @@ function WeeklyDigest({ data }) {
           <Typography component="h3" variant="body2" sx={{ fontWeight: FONT_WEIGHT.bold, mb: 0.75 }}>팀 전체</Typography>
           {team ? (
             <BarSeries
+              question="이번 주 팀의 일이 어디에 몰려 있는지 봅니다."
               items={[
                 { label: "완료", value: team.done, color: "success" },
                 { label: "진행", value: team.in_progress },
@@ -224,17 +225,15 @@ function Triage({ data }) {
         <Box>
           <Typography component="h3" variant="body2" sx={{ fontWeight: FONT_WEIGHT.bold, mb: 0.75 }}>여유 있는 담당자</Typography>
           {(data.candidates || []).length === 0 ? (
-            <Typography variant="body2" color="text.secondary">배정 후보가 없습니다(Notion 연결된 사용자 없음).</Typography>
+            <Typography variant="body2" color="text.secondary">배정할 수 있는 사람이 없습니다. 활성 사용자가 있는지 확인하세요.</Typography>
           ) : (
             <BarSeries
+              question="지금 손이 비어 있는 사람이 누구인지 봅니다. 담당 중인 활성 티켓이 적은 순이고, 누가 무엇을 잘하는지는 판단하지 않습니다."
               items={data.candidates.map((c) => ({ label: c.display_name, value: c.active_tickets }))}
               unit="건"
               emptyLabel="후보 없음"
             />
           )}
-          <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1 }}>
-            현재 담당 중인 활성 티켓 수가 적은 순입니다. 누가 무엇을 잘하는지는 판단하지 않습니다.
-          </Typography>
         </Box>
       </Box>
     </Stack>

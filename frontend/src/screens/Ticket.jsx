@@ -177,18 +177,21 @@ export function Ticket() {
     // "높음" 칩만 보고 그게 우선순위인지 난이도인지 알 수 없었다. 편집 폼(TicketEditModal)도
     // 이 둘을 project/assignee/due/difficulty와 같은 한 폼에서 다뤄, 화면만 임의로 갈라 둘
     // 이유가 없었다 — 라벨과 함께 한 속성 줄로 합친다. 가장 먼저 훑는 두 값이라 맨 앞이다.
-    t.status ? { key: "status", label: "상태", value: <Badge value={t.status} /> } : null,
-    t.priority ? { key: "priority", label: "우선순위", value: <Badge value={priorityKo(t.priority)} kind={priorityKind(t.priority)} /> } : null,
+    /* 칸마다 `type` 이 붙는다 (C3) — 폭을 여기서 숫자로 적지 않는다. 이름·제목형만 남는
+       폭을 가져가고 상태·수치·날짜는 자기 내용 폭만 쓴다. 예전에는 전부 균등이라 「높음」
+       두 글자가 프로젝트 이름과 같은 폭을 받았고, 화면이 넓어질수록 속성 사이만 벌어졌다. */
+    t.status ? { key: "status", label: "상태", type: "status", value: <Badge value={t.status} /> } : null,
+    t.priority ? { key: "priority", label: "우선순위", type: "status", value: <Badge value={priorityKo(t.priority)} kind={priorityKind(t.priority)} /> } : null,
     // SEM-03 재확인 — PageHeader의 h1이 이제 원시 ID(GIT-57 등) 대신 실제 제목을 보여준다
     // (VIS-133과 같은 원인). 그 ID는 지원 문의 등에서 여전히 참조되는 값이라 사라지면 안
     // 되므로 메타로 옮긴다.
-    { key: "tid", label: "티켓 번호", value: ticketId(t) },
-    t.project ? { key: "project", label: "프로젝트", value: t.project } : null,
-    (t.assignee_names || []).length ? { key: "assignee", label: "담당자", value: t.assignee_names.join(", ") } : null,
-    t.difficulty ? { key: "difficulty", label: "난이도", value: t.difficulty } : null,
-    t.est_wd != null ? { key: "est", label: "예상 WD", value: t.est_wd } : null,
-    t.act_wd != null ? { key: "act", label: "실제 WD", value: t.act_wd } : null,
-    t.due ? { key: "due", label: "마감", value: t.due } : null,
+    { key: "tid", label: "티켓 번호", type: "identifier", value: ticketId(t) },
+    t.project ? { key: "project", label: "프로젝트", type: "name", value: t.project } : null,
+    (t.assignee_names || []).length ? { key: "assignee", label: "담당자", type: "name", value: t.assignee_names.join(", ") } : null,
+    t.difficulty ? { key: "difficulty", label: "난이도", type: "enum", value: t.difficulty } : null,
+    t.est_wd != null ? { key: "est", label: "예상 WD", type: "number", value: t.est_wd } : null,
+    t.act_wd != null ? { key: "act", label: "실제 WD", type: "number", value: t.act_wd } : null,
+    t.due ? { key: "due", label: "마감", type: "date", value: t.due } : null,
   ].filter(Boolean);
 
   return (

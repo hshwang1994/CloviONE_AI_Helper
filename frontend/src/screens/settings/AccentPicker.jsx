@@ -18,7 +18,7 @@ export function AccentPicker() {
     <Card sx={{ mb: 2.5 }}>
       <Typography component="h2" variant="h6" sx={{ fontSize: FONT_SIZE.sectionTitle }}>화면 강조색</Typography>
       <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, mb: 2 }}>
-        버튼·링크·선택 표시에 쓰는 색입니다. <strong>이 브라우저에만</strong> 저장되며 다른 사람 화면은 바뀌지 않습니다.
+        버튼과 링크, 선택 표시에 쓰는 색입니다. <strong>이 브라우저에만</strong> 저장되며 다른 사람 화면은 바뀌지 않습니다.
       </Typography>
       <Box role="group" aria-label="화면 강조색" sx={{ display: "flex", gap: 1.5, flexWrap: "wrap" }}>
         {ACCENT_PRESETS.map((hex) => {

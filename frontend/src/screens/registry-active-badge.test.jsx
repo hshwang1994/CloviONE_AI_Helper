@@ -6,6 +6,7 @@ import "@testing-library/jest-dom/vitest";
 
 import { REGISTRY } from "./registry.js";
 import { DataTable } from "../ui/kit.jsx";
+import { COLUMN_TYPES } from "../ui/columnTypes.js";
 
 function renderCol(spec, row) {
   return render(<div>{spec.render(row)}</div>);
@@ -42,16 +43,21 @@ describe.each([
   });
 });
 
-/* WF1 R1 — 백업(backup) 목록의 '크기' 열이 숫자인데도 align:"right"가 없어 문자열처럼
- * 왼쪽 정렬됐다 — governance.js·authoring.js 등 8곳이 이미 쓰는 관례(숫자는 자릿수를 눈으로
- * 비교할 수 있게 오른쪽 정렬)에서 이 화면만 빠져 있었다. DataTable 자체의 align 배선은
- * 이미 여러 화면이 실사용 중이지만 정작 그 배선을 직접 검증하는 시험이 저장소에 없었다 —
- * 이 김에 REGISTRY의 실제 설정으로 렌더링까지 확인한다(값만 보는 정적 검사가 아니라). */
+/* qa-contract-change: S16 이 열의 폭·정렬을 «값»에서 «의미»로 옮겼다(C3) — 열이 이제
+ * `align:"right"` 대신 `type:"number"` 를 선언하고 정렬은 어휘표가 준다. 그래서 이 시험의
+ * 앞절(REGISTRY 리터럴이 `align` 인가)은 검사할 대상이 사라졌다. 리터럴을 지우는 대신
+ * **선언한 의미**를 검사하도록 다시 적고, 동시에 **약하지 않게 강화**한다: 옛 시험은
+ * 우정렬만 봤는데 그것만으로는 자릿수가 세로로 안 맞는다 — `numeric_alignment` 8건이
+ * 정확히 「우정렬은 맞는데 tabular-nums 가 없다」였다. 이제 셋을 다 본다.
+ *
+ * WF1 R1 — 백업(backup) 목록의 '크기' 열이 숫자인데도 문자열처럼 왼쪽 정렬됐던 자리다.
+ * REGISTRY의 실제 설정으로 렌더링까지 확인한다(값만 보는 정적 검사가 아니라). */
 describe("backup 목록의 '크기' 열", () => {
-  it("REGISTRY 설정이 오른쪽 정렬이고, 실제로 그렇게 렌더된다", () => {
+  it("REGISTRY 가 수치라고 선언하고, 우정렬 + 자릿수 고정으로 렌더된다", () => {
     const cols = REGISTRY.backup.columns;
     const sizeCol = cols.find((c) => c.key === "size_bytes");
-    expect(sizeCol.align).toBe("right");
+    expect(sizeCol.type).toBe("number");
+    expect(COLUMN_TYPES[sizeCol.type].align).toBe("right");
 
     const { container } = render(
       <DataTable columns={cols} rows={[{ path: "web-20260101.sqlite3", status: "verified", size_bytes: 1024 }]} rowKey={(r) => r.path} />,
@@ -61,5 +67,7 @@ describe("backup 목록의 '크기' 열", () => {
     expect(headerCell).toHaveTextContent("크기");
     expect(headerCell.className).toMatch(/alignRight/);
     expect(bodyCell.className).toMatch(/alignRight/);
+    // 🔴 옛 시험이 안 보던 것 — 자릿수가 세로로 맞아야 값을 비교할 수 있다.
+    expect(getComputedStyle(bodyCell).fontVariantNumeric).toContain("tabular-nums");
   });
 });

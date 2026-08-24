@@ -13,12 +13,31 @@
   primary_action  주요 행동 버튼의 면
   ai_surface      AI 영역의 면(도우미 말풍선 / 클로비 드로어)
   highlight       그 화면을 지배하는 판독값의 글자색
-  selected_state  목록·탭·행의 선택 상태 면(내비게이션은 nav_active 몫이라 제외한다)
+  selected_state  목록·탭·행의 선택 상태가 나르는 색(내비게이션은 nav_active 몫이라 제외한다)
   focus_ring      키보드 포커스 링
+
+## W6 이 닫은 두 충돌 (D-288 · D-289)
+
+**`selected_state` 는 면이 아니라 잉크다.** 원래는 배경 role 이라 「Canvas 와 ΔE>10 인 면을
+칠했는가」를 물었다. 그런데 이 제품의 §Surface 위계는 선택 행을 `inset`(중립)에 두고 있어
+두 계약이 정면으로 충돌했고, W1 실측의 유일한 brand 실패가 정확히 그 자리였다.
+
+충돌을 **제품 쪽 사실**로 닫는다: 이 제품은 선택을 세 자리에서 표현하고 세 곳 다
+**Brand 레일**이다 — 사이드바 활성 항목(W3 · D-184), 판독 줄의 활성 칸(W4), 탭. 면으로
+말하지 않기로 한 데에는 실측 근거가 있다: 판을 벗긴 뒤 `background.inset` 은 캔버스 위에서
+**1.055:1** 이라 눈에 보이지도 않고 의미가 반대다(kit.jsx MetricStrip 주석).
+그래서 판정을 「그 자리가 Brand 색을 나르는가」로 바꾼다 — 레일이든 면이든 Brand 면 통과다.
+**기준을 낮춘 것이 아니다: 무채색 선택은 여전히 실패한다.** 바뀐 것은 «어떤 물리량이 선택을
+나르는가» 하나이고, 그래서 잉크 후보에 **테두리 색**이 들어간다(레일은 대개 테두리다).
+
+**심각도로 칠한 판독값은 `highlight` 의 «있는 자리» 가 아니다.** 색이 뜻을 나르는 자리에서
+정체성이 이기면 그 색은 거짓말이 된다 — 「지연 3건」을 인디고로 칠할 수는 없다. 그런 값은
+`unknown` 이다: **통과로 세지 않고**(정족수를 공짜로 채우지 않는다) 「회색인 자리」로도 세지
+않는다. 그 구별의 근거는 추론이 아니라 화면의 선언(`data-brand-tone`)이다.
 
 판정:
   * Brand 계열 = 색상각 222~278도 그리고 채도 S>=0.25(light) / 0.18(dark)
-  * 배경 role(header·ai_surface·selected_state)은 Canvas 배경과 ΔE(CIE76)>10 이어야
+  * 배경 role(header·ai_surface)은 Canvas 배경과 ΔE(CIE76)>10 이어야
     "면이 존재한다"고 센다 — 캔버스와 같은 색을 칠하는 것은 칠하지 않는 것과 같다
   * 7개 중 **4개 미만이면 fail**
   * `nav_active` 나 `primary_action` 이 무채색(S<0.08, 또는 채널 폭이 0.06 미만)이면
@@ -50,7 +69,8 @@ ROLES = (
 )
 
 # 배경 role 은 "칠했다"만으로 부족하다 — 캔버스와 구분돼야 존재한다.
-BG_ROLES = frozenset({"header", "ai_surface", "selected_state"})
+# `selected_state` 는 D-289 로 잉크 role 이 됐다(위 §W6 이 닫은 두 충돌).
+BG_ROLES = frozenset({"header", "ai_surface"})
 
 # 이 둘이 무채색이면 나머지가 몇 개든 실패다. 현재 선택과 주요 행동은 제품이 채도를 쓰기로
 # 한 세 자리 중 둘이고, 여기가 회색이면 "브랜드가 있다"는 말 자체가 성립하지 않는다.
@@ -178,9 +198,15 @@ BRAND_PROBE_JS = r"""() => {
     },
     highlight: {
       kind: 'ink',
-      sel: ['[data-brand-role="highlight"]', '.k-readout', '.k-metrics', '.k-metabar'],
-      /* `.k-readout` 는 칸이지 판독값이 아니다. 그 화면을 지배하는 숫자는 **칸 안에서 가장
-         큰 글자**다(kit.jsx MetricStrip: 값은 readout/title, 라벨은 bodySm). */
+      /* **줄을 칸보다 먼저 본다.** `.k-readout` 이 앞에 있으면 `pickOne` 이 언제나 DOM 의
+         첫 칸을 집는데, 이 role 의 정의는 «그 화면을 **지배하는** 판독값» 이다 — 첫 칸이
+         아니다. 줄(`.k-metrics`)을 먼저 잡으면 아래 `refine` 이 줄 전체에서 가장 큰 글자를
+         고르므로 정의와 측정이 일치한다. 가장 확실한 근거는 여전히 화면의 선언이다:
+         `MetricStrip` 이 판독 슬롯을 얻은 칸에만 `data-brand-role="highlight"` 를 붙인다. */
+      sel: ['[data-brand-role="highlight"]', '.k-metrics', '.k-readout', '.k-metabar'],
+      /* `.k-metrics` 는 줄이고 `.k-readout` 은 칸이지 판독값이 아니다. 그 화면을 지배하는
+         숫자는 **그 안에서 가장 큰 글자**다(kit.jsx MetricStrip: 값은 readout/title,
+         라벨은 bodySm). */
       refine: (el) => {
         let best = el, bestSize = -1;
         for (const n of el.querySelectorAll('*')) {
@@ -194,7 +220,8 @@ BRAND_PROBE_JS = r"""() => {
       },
     },
     selected_state: {
-      kind: 'bg',
+      /* 면이 아니라 잉크다 (D-289 — 모듈 머리말 §W6 이 닫은 두 충돌). */
+      kind: 'ink',
       sel: ['[data-brand-role="selected-state"]',
             '[role="tab"][aria-selected="true"]', '[role="row"][aria-selected="true"]',
             'tr[aria-selected="true"]', '[role="option"][aria-selected="true"]',
@@ -242,7 +269,21 @@ BRAND_PROBE_JS = r"""() => {
     const st = getComputedStyle(el);
     push('background-image', st.backgroundImage);
     push('background-color', st.backgroundColor);
-    if (kind === 'ink') push('color', st.color);
+    if (kind === 'ink') {
+      /* **레일은 대개 테두리다** (D-289). 사이드바는 `::before` 배경으로 그리지만 판독 줄의
+         활성 칸은 `border-block-end` 로 그린다 — 같은 어휘를 두 가지 물리량으로 그린 것이라,
+         한쪽만 읽으면 «선택 색이 없다» 는 정반대 결론이 나온다.
+         **폭이 0 이거나 style 이 none 이면 안 읽는다** — 그리지 않는 테두리의 색은 화면에
+         없는 색이고, 브라우저는 그런 자리에도 `currentColor` 를 계산해 돌려준다(그것을 세면
+         모든 요소가 자기 글자색으로 «레일이 있다» 가 된다). */
+      for (const side of ['Top', 'Right', 'Bottom', 'Left']) {
+        if ((parseFloat(st['border' + side + 'Width']) || 0) <= 0) continue;
+        const style = st['border' + side + 'Style'];
+        if (!style || style === 'none' || style === 'hidden') continue;
+        push('border-' + side.toLowerCase() + '-color', st['border' + side + 'Color']);
+      }
+      push('color', st.color);
+    }
     return out;
   };
 
@@ -274,6 +315,9 @@ BRAND_PROBE_JS = r"""() => {
     roles[name] = {
       found: true, kind: spec.kind, selector: hit.sel, element: _desc(hit.el),
       candidates: paintsOf(hit.el, spec.kind), backdrop: _backdrop(hit.el),
+      /* 화면이 «이 색은 심각도다» 라고 선언한 자리. 억제가 아니라 **의미 선언**이라
+         `QA_SUPPRESSIONS.md` 의 대상이 아니다(`data-col-role` 과 같은 부류). */
+      tone: (hit.el.getAttribute && hit.el.getAttribute('data-brand-tone')) || '',
     };
   }
   const ai = pickAiSurface();
@@ -577,6 +621,11 @@ def _resolve_role(role: str, entry, canvas_rgb, sat_min: float) -> dict:
         # 선언은 증거로 남기되 판정에는 넣지 않는다 — 그린 것을 보지 못했다.
         return {"role": role, "state": "unknown",
                 "why": entry.get("note") or "스타일시트 선언만 있고 렌더는 확인 못 함"}
+    if entry.get("tone"):
+        # 심각도가 이 색을 칠했다 (D-288). 통과로도 «회색» 으로도 세지 않는다.
+        return {"role": role, "state": "unknown",
+                "why": "심각도(%s) 색이 이 값을 칠한다 — 정체성 자리가 아니다"
+                       % entry["tone"]}
 
     is_bg = role in BG_ROLES
     # 뒷면은 **불투명할 때만** 믿는다. `transparent` 도 파싱에는 성공하므로(=(0,0,0,0))
@@ -615,7 +664,13 @@ def _resolve_role(role: str, entry, canvas_rgb, sat_min: float) -> dict:
             return {"role": role, "state": "unknown",
                     "why": "색을 읽지 못함 (" + ", ".join(unreadable[:2]) + ")"}
         if not is_bg:
-            return {"role": role, "state": "unknown", "why": "칠하는 색이 없음"}
+            # 요소는 찾았는데 아무 것도 안 칠한다 — 이것은 **모르는 것이 아니라 알아낸
+            # 사실**이다(선택 상태가 색을 하나도 안 나른다). `unknown` 으로 두면
+            # `brand_role_coverage` 가 그 자리를 «없는 role» 로 보고 넘어간다.
+            return {"role": role, "state": "absent", "hex": "-", "hue": 0.0, "sat": 0.0,
+                    "spread": 0.0, "deltaE": 0.0, "chromatic": False,
+                    "what": "아무 색도 나르지 않음", "selector": entry.get("selector", ""),
+                    "element": entry.get("element", "")}
         # 배경 role 이 아무 것도 칠하지 않으면 그 면은 **뒷면 그대로**다. 이것은 모르는 것이
         # 아니라 알아낸 사실이고(선택 상태에 면이 없다), ΔE 가 그 사실을 그대로 말한다.
         hue, sat, _unused = _hsl(backdrop_rgb)

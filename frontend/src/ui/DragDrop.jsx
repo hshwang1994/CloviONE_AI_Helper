@@ -254,16 +254,26 @@ export function DragBoard({ columns, labelOf, onMove, disabled, children, sx }) 
       onDragCancel={() => setActiveId(null)}
       onDragEnd={handleEnd}
     >
+      {/* 칸반의 칸은 **같아야 한다.** 진행 상태가 나란한 레인이라 사람이 가로로 훑고, 폭을
+          내용에 맞추면 카드를 옮길 때마다 판이 재배치된다 — 그래서 `data-equal-grid` 로
+          「이 격자는 일부러 균등하다」고 말한다(달력·게임판과 같은 부류다).
+
+          다만 **균등한 것과 좁은 것은 다르다.** 바닥값이 `minmax(0, 1fr)` 이라 레인 여섯이
+          1366 폭에서 155px 까지 눌렸고, 그 폭에서는 카드 제목이 스무 줄로 접힌다(실측:
+          «굶는 쪽 20줄로 접힘»). 레인에 읽을 수 있는 바닥을 주고, 안 들어가면 판 자신이
+          가로로 스크롤한다 — 페이지가 밀리는 것이 아니라 이 상자 안에서다. */}
       <Box
+        data-equal-grid="kanban"
         sx={{
           display: "grid",
           gridTemplateColumns: {
             xs: "1fr",
             sm: "repeat(2, minmax(0, 1fr))",
-            lg: `repeat(${Math.min(columns.length, 6)}, minmax(0, 1fr))`,
+            lg: `repeat(${Math.min(columns.length, 6)}, minmax(14rem, 1fr))`,
           },
           gap: 1.5,
           alignItems: "start",
+          overflowX: "auto",
           ...sx,
         }}
       >

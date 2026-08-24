@@ -78,7 +78,7 @@ export const PLATFORM_SCREENS = {
       const s = String(p);
       const i = Math.max(s.lastIndexOf("/"), s.lastIndexOf("\\"));
       return i >= 0 ? s.slice(i + 1) : s;
-    } }, badgeCol("status", "상태"), { key: "size_bytes", label: "크기", align: "right", render: (r) => fmtBytes(r.size_bytes) },
+    } }, badgeCol("status", "상태"), { key: "size_bytes", label: "크기", type: "number", render: (r) => fmtBytes(r.size_bytes) },
       { key: "path", label: "파일", render: (r) => { const p = r.path; if (p == null || p === "") return "-"; const s = String(p); const i = Math.max(s.lastIndexOf("/"), s.lastIndexOf("\\")); return i >= 0 ? s.slice(i + 1) : s; } },
       // 「성공한 백업」과 「지금 되돌릴 수 있는 백업」은 다르다. 내려받고 서버에서 지운
       // 백업은 전자이지 후자가 아니고, 그 차이가 목록에서 보여야 한다.
@@ -183,7 +183,7 @@ export const PLATFORM_SCREENS = {
     columns: [
       { key: "ok", label: "결과", render: (r) => React.createElement(Badge, { value: r.ok ? "통과" : "실패", kind: r.ok ? "ok" : "danger" }) },
       dateCol("started_at", "시작"), dateCol("finished_at", "종료"),
-      { key: "_rows", label: "행 수", align: "right", render: (r) => (r.summary && r.summary.rows != null) ? String(r.summary.rows) : "-" },
+      { key: "_rows", label: "행 수", type: "count", render: (r) => (r.summary && r.summary.rows != null) ? String(r.summary.rows) : "-" },
       { key: "_head", label: "스키마", render: (r) => (r.summary && r.summary.alembic_head) || "-" },
       // SEM-01: 첫 열(결과 배지)이 render라 표식 없이는 전부 "상세 보기"였다 — 원본 백업
       // 이름(검색 대상과 동일한 필드) + 시작 시각으로 실제로 구별되는 이름을 만든다.
@@ -314,8 +314,8 @@ export const PLATFORM_SCREENS = {
       // 전부 "상세 보기"로 동일했다 — 대상 + 기간을 합쳐 실제로 구별되는 이름을 만든다.
       { key: "user_name", label: "대상", identifier: true, render: (r) => r.scope_type === "global" ? "(전체)" : (r.user_name || r.user_id || "-"), rowName: (r) => (r.scope_type === "global" ? "전체" : (r.user_name || r.user_id || "-")) + " / " + ({ day: "하루", month: "한 달" }[r.period] || r.period) },
       mapCol("period", "기간", { day: "하루", month: "한 달" }),
-      { key: "max_calls", label: "상한", align: "right" },
-      { key: "used", label: "현재 사용", align: "right", render: (r) => (r.used == null ? "-" : r.used + " / " + r.max_calls + (r.scope_type === "global" ? " (최다 사용자 기준)" : "")) },
+      { key: "max_calls", label: "상한", type: "count" },
+      { key: "used", label: "현재 사용", type: "count", render: (r) => (r.used == null ? "-" : r.used + " / " + r.max_calls + (r.scope_type === "global" ? " (최다 사용자 기준)" : "")) },
       dateCol("resets_at", "초기화"),
     ],
     detailFields: [field("id", "상한 ID"), field("user_email", "대상 이메일"), field("note", "메모"),

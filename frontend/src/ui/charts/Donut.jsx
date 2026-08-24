@@ -2,7 +2,7 @@ import React from "react";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import { useTheme } from "@mui/material/styles";
-import { ChartEmpty, capSeries, resolveChartColor, useTrackColor } from "./base.jsx";
+import { ChartEmpty, ChartQuestion, capSeries, resolveChartColor, useTrackColor } from "./base.jsx";
 import { FONT_WEIGHT, KO_WORD_BREAK } from "../theme.js";
 
 /* 도넛 — 전체가 무엇으로 이루어져 있는지(구성비)를 보여준다. 크기 비교는 BarSeries가 낫다.
@@ -18,7 +18,7 @@ import { FONT_WEIGHT, KO_WORD_BREAK } from "../theme.js";
  */
 export function Donut({
   segments, size = "9rem", unit = "", centerLabel, emptyLabel = "데이터 없음", thickness = 5,
-  total: totalProp, restLabel = "기타",
+  total: totalProp, restLabel = "기타", question,
 }) {
   const theme = useTheme();
   const track = useTrackColor();
@@ -60,6 +60,8 @@ export function Donut({
   });
 
   return (
+    <Box>
+    <ChartQuestion>{question}</ChartQuestion>
     <Box sx={{ display: "flex", alignItems: "center", gap: { xs: 2, sm: 3 }, flexWrap: "wrap" }}>
       <Box sx={{ position: "relative", width: size, height: size, flex: "0 0 auto" }}>
         <Box
@@ -120,6 +122,7 @@ export function Donut({
           </Box>
         ) : null}
       </Box>
+    </Box>
     </Box>
   );
 }

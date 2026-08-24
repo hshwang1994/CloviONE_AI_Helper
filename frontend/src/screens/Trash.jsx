@@ -141,10 +141,10 @@ export function Trash() {
       render: (r) => <span>{r.title || "제목 없음"}</span>,
     },
     { key: "deleted_by", label: "삭제한 사람", width: "11rem" },
-    { key: "deleted_at", label: "삭제일", align: "right", width: "11rem", nowrap: true, render: (r) => <DateCell value={r.deleted_at} /> },
-    { key: "purge_after", label: "삭제 예정", align: "right", width: "11rem", nowrap: true, render: (r) => <DateCell value={r.purge_after} /> },
+    { key: "deleted_at", label: "삭제일", type: "date", render: (r) => <DateCell value={r.deleted_at} /> },
+    { key: "purge_after", label: "삭제 예정", type: "date", render: (r) => <DateCell value={r.purge_after} /> },
     {
-      key: "_actions", label: "", align: "right", width: "14rem",
+      key: "_actions", label: "", type: "actions", minWidth: "14rem",
       render: (r) => (r.can_manage ? (
         <Stack direction="row" gap={1} justifyContent="flex-end">
           <Button size="sm" variant="primary" disabled={restore.isPending} onClick={() => restore.mutate(r)}>복원</Button>

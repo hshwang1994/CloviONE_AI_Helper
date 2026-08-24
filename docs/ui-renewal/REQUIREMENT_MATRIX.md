@@ -2144,10 +2144,10 @@
 - **Wave**: W6
 - **Requirement**: 권한이 있는 사용자가 상세 수정 화면으로 이동하지 않고 Grid 에서 상태와 우선순위를 바꿀 수 있어야 한다. DataTable 이나 Status Cell 의 스타일 변경만으로 이 요구를 완료 처리하지 않는다. 현재 값, 변경 가능한 값, 선택, Saving, 성공, 실패, Rollback, 권한 없음, 중복 요청 방지를 모두 포함하는 공통 Property Editing Pattern 을 만든다. 평상시에는 Grid 가독성을 해치지 않되 변경 가능한 값임을 알 수 있어야 하고, 모든 Editable Value 를 항상 Select Box 로 노출하지 않는다. Frontend State 만 바꾸고 성공 처리하지 않으며 Backend 저장을 확인하고 필요하면 재조회해 실제 값으로 갱신한다. Frontend 의 변경 가능 여부와 Backend Authorization 이 일치해야 한다.
 - **Affected**: user_my-tickets, user_team-tickets, user_unassigned, user_tickets-id, user_me
-- **Implementation**: `frontend/src/ui/kit.jsx`, `frontend/src/ui/cells.jsx`, `frontend/src/screens/registry/shared.js`
-- **Verification**: assertion `equal_column_split`, assertion `column_width_vs_content`, assertion `header_cell_alignment_mismatch`, assertion `numeric_alignment`, `frontend/src/ui/kit.test.jsx`
-- **Status**: NOT_STARTED
-- **Evidence**: (없음 - Status 가 DONE 이 될 때 채운다)
+- **Implementation**: `frontend/src/ui/InlineEdit.jsx`, `frontend/src/ui/kit.jsx`, `frontend/src/ui/cells.jsx`, `frontend/src/screens/registry/shared.js`
+- **Verification**: assertion `equal_column_split`, assertion `column_width_vs_content`, assertion `header_cell_alignment_mismatch`, assertion `numeric_alignment`, `frontend/src/ui/kit.test.jsx`, `frontend/src/ui/inline-edit.test.jsx`
+- **Status**: IN_PROGRESS
+- **Evidence**: 공통 계층은 섰다 (S16 · D-290) — 상태 여섯(`read`/`locked`/`open`/`saving`/`done`/`error`)과 중복 요청 차단, 롤백, 「성공은 서버가 돌려준 값으로 그린다」가 `frontend/src/ui/InlineEdit.jsx` 에 있고 `frontend/src/ui/inline-edit.test.jsx` 12건이 전부를 고정한다. **티켓 Grid·상세 머리 배선은 티켓 도메인 회차의 몫**이라 아직 DONE 이 아니다 — 계약만으로 이 요구가 닫히지 않는다.
 - **Findings**: (없음)
 - **Depends on**: (없음)
 
@@ -2172,10 +2172,10 @@
 - **Wave**: W6
 - **Requirement**: 현재 렌더된 행의 값이 모두 같다는 이유만으로 Table Column 을 제거하지 않는다. Pagination 이나 Server-side Search 와 Filtering 을 쓰는 화면에서는 현재 Page 의 값이 같다고 전체 Result Set 이 같은 것이 아니며, Page 이동이나 Filter 변경마다 Column 이 생겼다 사라지는 불안정한 Layout 을 만들면 안 된다. 화면 자체가 특정 값 전용 View 이거나 사용자가 그 Filter 를 명시적으로 적용했거나 Backend Query Contract 상 그 Scope 에서 값이 불변인 경우에만 제거한다.
 - **Affected**: ARCHETYPE:list_table
-- **Implementation**: `frontend/src/ui/kit.jsx`, `frontend/src/ui/cells.jsx`, `frontend/src/screens/registry/shared.js`
-- **Verification**: assertion `equal_column_split`, assertion `column_width_vs_content`, assertion `header_cell_alignment_mismatch`, assertion `numeric_alignment`, `frontend/src/ui/kit.test.jsx`
-- **Status**: NOT_STARTED
-- **Evidence**: (없음 - Status 가 DONE 이 될 때 채운다)
+- **Implementation**: `frontend/src/ui/columnTypes.js`, `frontend/src/ui/kit.jsx`, `frontend/src/screens/DataScreen.jsx`, `frontend/src/screens/registry/shared.js`
+- **Verification**: assertion `equal_column_split`, assertion `column_width_vs_content`, assertion `header_cell_alignment_mismatch`, assertion `numeric_alignment`, `frontend/src/ui/kit.test.jsx`, `frontend/src/ui/column-types.test.jsx`
+- **Status**: DONE
+- **Evidence**: `dist/ui-qa/s16-after/results.json`(60페이지 · `--fail-on` 8종 전부 fail 0 · build_index_sha256 `dfd1cadb396b788d`) · `frontend/src/ui/column-types.test.jsx`(15) · `scripts/check_ui_renewal_coverage.py --stage wave --wave W6` PASS(억제 1) · 판정 입력이 `resultScope` 하나로 모였고(D-289) **그것이 없으면 어떤 열도 사라지지 않는다** — `column-types.test.jsx` 가 「`resultScope` 없음」·「서버 페이징 + 우연히 같은 값」 둘을 각각 고정한다. 배선은 `DataScreen`(목록 21개)이 하고 `fixedColumns` 는 일부러 안 넘긴다.
 - **Findings**: (없음)
 - **Depends on**: (없음)
 

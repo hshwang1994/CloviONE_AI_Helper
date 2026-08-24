@@ -2,7 +2,7 @@ import React from "react";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import { useTheme } from "@mui/material/styles";
-import { ChartEmpty, resolveChartColor, useTrackColor } from "./base.jsx";
+import { ChartEmpty, ChartQuestion, resolveChartColor, useTrackColor } from "./base.jsx";
 import { FONT_WEIGHT } from "../theme.js";
 
 /* 가로 막대 묶음 — 항목별 크기를 서로 비교하는 용도(담당자별 업무량, 큐 상태 등).
@@ -28,6 +28,7 @@ import { FONT_WEIGHT } from "../theme.js";
  * 같은 **강조**지 범주 시리즈가 아니다. */
 export function BarSeries({
   items, color, max, unit = "", emptyLabel = "데이터 없음", formatValue, relativeNote,
+  question,
 }) {
   const theme = useTheme();
   const track = useTrackColor();
@@ -104,13 +105,16 @@ export function BarSeries({
     </Box>
   );
 
-  if (!scaleNote) return grid;
+  if (!scaleNote && !question) return grid;
   return (
     <Box>
+      <ChartQuestion>{question}</ChartQuestion>
       {grid}
-      <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.75 }}>
-        {scaleNote}
-      </Typography>
+      {scaleNote ? (
+        <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.75 }}>
+          {scaleNote}
+        </Typography>
+      ) : null}
     </Box>
   );
 }

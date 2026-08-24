@@ -50,6 +50,7 @@ export function JobQueuePanel({ jobs24, jobErrors, errorDist, nav }) {
               {errorDist ? (
                 <Box sx={{ mb: 2.5 }}>
                   <Sparkline
+                    question="실패가 한 순간에 몰렸는지 오래 흩어져 있는지 봅니다."
                     points={errorDist.counts} color="error" height="3.5rem"
                     summary={"최근 실패 " + errorDist.n + "건의 발생 분포, "
                       + fmtDateTime(new Date(errorDist.from).toISOString()) + " ~ "

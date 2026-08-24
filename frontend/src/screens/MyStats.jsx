@@ -165,6 +165,7 @@ export function MyStats() {
                       같은 눈금에 겹치면 건수 선이 바닥에 눌려 붙어 아무 정보도 주지 않는다.
                       건수는 바로 아래 표가 정확히 말한다. */}
                   <LineSeries
+                    question="달이 갈수록 완료율이 오르는지 내리는지 **추세**를 봅니다. 그 달의 정확한 건수는 아래 표가 답합니다."
                     series={[{
                       label: "완료율(%)",
                       points: data.months.map((m) => (m.completion_rate == null ? 0 : Math.round(m.completion_rate * 100))),
@@ -178,12 +179,12 @@ export function MyStats() {
                     <DataTable
                       columns={[
                         { key: "month", label: "달" },
-                        { key: "assigned", label: "배정", align: "right" },
-                        { key: "doneCell", label: "완료", align: "right" },
-                        { key: "cancelled", label: "취소", align: "right" },
-                        { key: "openCell", label: "진행", align: "right" },
-                        { key: "rate", label: "완료율", align: "right" },
-                        { key: "wd", label: "예상/실제 WD", align: "right" },
+                        { key: "assigned", label: "배정", type: "count" },
+                        { key: "doneCell", label: "완료", type: "count" },
+                        { key: "cancelled", label: "취소", type: "count" },
+                        { key: "openCell", label: "진행", type: "count" },
+                        { key: "rate", label: "완료율", type: "percent" },
+                        { key: "wd", label: "예상/실제 WD", type: "number" },
                       ]}
                       rows={data.months.map((m) => ({
                         ...m,
@@ -205,6 +206,7 @@ export function MyStats() {
                     help="아직 끝나지 않은 티켓만 셉니다. 끝난 일은 부하가 아닙니다."
                   />
                   <BarSeries
+                    question="다음 몇 주 가운데 어느 주에 일이 몰려 있는지 봅니다."
                     items={[
                       ...load.by_week.map((w) => ({
                         label: w.label, value: w.count, note: `${w.start}~`,
@@ -223,6 +225,7 @@ export function MyStats() {
                 <Card>
                   <SectionTitle component="h2" title="상태 구성" />
                   <Donut
+                    question="남은 일이 어느 상태에 걸려 있는지 봅니다."
                     segments={load.by_status.map((s) => ({
                       label: s.name,
                       value: s.count,
@@ -236,6 +239,7 @@ export function MyStats() {
                 <Card>
                   <SectionTitle component="h2" title="남은 일의 우선순위" />
                   <BarSeries
+                    question="먼저 손대야 할 일이 얼마나 쌓였는지 봅니다."
                     items={load.by_priority.map((p) => ({ label: p.name, value: p.count }))}
                     unit="건"
                     emptyLabel="남은 일이 없습니다"

@@ -22,7 +22,7 @@ import { alpha } from "@mui/material/styles";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded";
 import { api } from "../lib/api.js";
-import { Card, Badge, EmptyState, ErrorState, Skeleton, Callout, PageHeader, Modal, ModalFooter, Button, useToast, useConfirm, cardFieldLabel, cardHeaderControls } from "../ui/kit.jsx";
+import { Card, Badge, EmptyState, ErrorState, Skeleton, Callout, PageHeader, Modal, ModalFooter, Button, useToast, useConfirm, cardFieldLabel, cardHeaderControls, tableCellProps } from "../ui/kit.jsx";
 import { priorityKo, priorityKind } from "../lib/priority.js";
 import { useAuth } from "../app/auth.jsx";
 import { BodyEditor, editorContainerSx, editorSurfaceWidthSx } from "../ui/BodyEditor.jsx";
@@ -133,34 +133,38 @@ export function ticketColumns({ showAssignee, onEdit, onClaim, onOpen, compact }
   // 세 줄로 쪼개져 세로로 무너졌다(QA vertical_text_collapse). 폭이 정말 모자라면 표를 줄이는
   // 대신 TableContainer 가 스스로 가로 스크롤한다 — 읽을 수 없는 표보다 낫다.
   const cols = [
-    { key: "tid", label: "티켓", width: compact ? "6rem" : "7rem", nowrap: true, render: (t) => ticketId(t) },
+    /* 티켓 번호는 **식별자형 숫자**다 — 크기를 비교하지 않으므로 좌정렬이고, 자릿수만
+       고정한다. 그 뜻을 표가 `data-col-role="identifier"` 로 내보내 QA 가 이 열을 «우정렬
+       안 된 숫자 열» 로 세지 않는다. */
+    { key: "tid", label: "티켓", type: "identifier", width: compact ? "6rem" : "7rem", render: (t) => ticketId(t) },
     // minWidth: 제목 열이 절대 그 아래로 줄지 않는 폭. 나머지 열이 전부 고정폭 + nowrap 이라,
     // 컨테이너가 좁으면(홈의 2단 배치, 1366 화면) 제목만 남은 폭을 다 먹히고 24px 로 눌려
     // 글자가 한 음절씩 세로로 무너졌다(QA vertical_text_collapse 가 실제로 잡았다).
     // rowName: 이 표에서 행을 구별하는 값은 제목이다(ui/rowName.js). 선택 체크박스와 상세
     // 열기 버튼이 이 값을 접근 이름에 쓴다 — 없으면 스무 행이 전부 "이 항목 선택"으로 읽힌다.
-    { key: "title", label: "제목", minWidth: compact ? "11rem" : "16rem", rowName: (t) => t.title || "제목 없음",
+    { key: "title", label: "제목", type: "title", minWidth: compact ? "11rem" : "16rem", rowName: (t) => t.title || "제목 없음",
       render: (t) => <TitleCell t={t} onOpen={onOpen} /> },
-    { key: "status", label: "상태", width: compact ? "6rem" : "7rem", nowrap: true, render: (t) => (t.status ? <Badge value={t.status} /> : "-") },
-    { key: "priority", label: "우선순위", width: compact ? "6.5rem" : "7rem", nowrap: true, render: (t) => (t.priority ? <Badge value={priorityKo(t.priority)} kind={priorityKind(t.priority)} /> : "-") },
+    { key: "status", label: "상태", type: "status", width: compact ? "6rem" : "7rem", render: (t) => (t.status ? <Badge value={t.status} /> : "-") },
+    { key: "priority", label: "우선순위", type: "status", width: compact ? "6.5rem" : "7rem", render: (t) => (t.priority ? <Badge value={priorityKo(t.priority)} kind={priorityKind(t.priority)} /> : "-") },
   ];
   if (!compact) {
     cols.push(
-      { key: "difficulty", label: "난이도", align: "right", width: "5.5rem", nowrap: true, render: (t) => (t.difficulty || "-") },
-      { key: "est_wd", label: "예상 WD", align: "right", width: "6rem", nowrap: true, render: (t) => (t.est_wd != null ? t.est_wd : "-") },
+      /* 난이도는 «상·중·하» 라 수치가 아니다 — 우정렬하면 없는 크기 비교를 암시한다. */
+      { key: "difficulty", label: "난이도", type: "enum", render: (t) => (t.difficulty || "-") },
+      { key: "est_wd", label: "예상 WD", type: "number", render: (t) => (t.est_wd != null ? t.est_wd : "-") },
     );
   }
-  cols.push({ key: "due", label: "마감", align: "right", width: compact ? "6.5rem" : "7rem", nowrap: true, render: (t) => (t.due || "-") });
+  cols.push({ key: "due", label: "마감", type: "date", width: compact ? "6.5rem" : "7rem", render: (t) => (t.due || "-") });
   if (showAssignee) {
     // VIS-163: 이 열만 nowrap이 빠져 있었다 — 좁은 컨테이너(1200×900)에서 overflowWrap:
     // anywhere가 "임승환, 김동현" 같은 값을 글자 하나씩 세로로 무너뜨렸다(다른 모든 열의
     // 이유와 같다, 위 주석 참고). 담당자가 많아 셀이 넓어지면 이 표도 다른 nowrap 열처럼
     // 가로 스크롤로 넘긴다 — 읽을 수 없는 표보다 낫다는 같은 트레이드오프.
-    cols.push({ key: "assignee_names", label: "담당자", width: "10rem", nowrap: true, render: (t) => ((t.assignee_names || []).join(", ") || "-") });
+    cols.push({ key: "assignee_names", label: "담당자", type: "name", width: "10rem", nowrap: true, render: (t) => ((t.assignee_names || []).join(", ") || "-") });
   }
   if (onEdit || onClaim) {
     cols.push({
-      key: "_actions", label: "", align: "right",
+      key: "_actions", label: "", type: "actions",
       width: onClaim ? "13rem" : compact ? "3.5rem" : "6rem",
       nowrap: true,
       render: (t) => (
@@ -346,7 +350,7 @@ export function GroupedTickets({ rows, columns, empty, emptyHelp, emptyState, gr
         <TableHead>
           <TableRow>
             {cols.map((c) => (
-              <TableCell key={c.key} scope="col" align={c.align || "left"} sx={{ width: c.width, minWidth: c.minWidth, whiteSpace: "nowrap" }}>
+              <TableCell key={c.key} scope="col" {...tableCellProps(c, { head: true })}>
                 {c.label || null}
               </TableCell>
             ))}
@@ -383,8 +387,10 @@ export function GroupedTickets({ rows, columns, empty, emptyHelp, emptyState, gr
                 return (
                   <TableRow key={groupedRowKey(t, i)} hover>
                     {cols.map((c) => (
-                      <TableCell key={c.key} align={c.align || "left"} sx={{ ...(c.nowrap ? { overflowWrap: "normal", whiteSpace: "nowrap" } : KO_WORD_BREAK),
-                                  minWidth: c.minWidth, fontVariantNumeric: "tabular-nums" }}>
+                      /* 자릿수 고정을 예전에는 **모든 칸**에 걸었다. 숫자가 아닌 칸까지 고정폭
+                         숫자를 쓰면 «1» 뒤에 빈 자리가 남아 한글 사이에서 글자가 떠 보인다 —
+                         이제 열이 자기 타입으로 말하고(`type:"count"` 등) 그 열만 고정한다. */
+                      <TableCell key={c.key} {...tableCellProps(c)}>
                         {groupedCell(c, t, ctx)}
                       </TableCell>
                     ))}

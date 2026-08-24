@@ -720,7 +720,7 @@ def test_the_entry_point_is_executable_straight_out_of_a_clone():
 
     out = subprocess.run(
         ["git", "ls-files", "-s", "deploy/install.sh", "deploy/wait-for-postgres.sh"],
-        cwd=ROOT, capture_output=True, text=True,
+        cwd=ROOT, capture_output=True, text=True, encoding="utf-8", errors="replace",
     ).stdout
     assert out.strip(), "git 이 이 파일들을 모른다"
     for line in out.splitlines():
