@@ -8,8 +8,7 @@
 - wave: W7
 - wave_status: **완료 (S17).** 진행 단위는 Wave 가 아니라 **Session S15~S20** 이다 —
   재배치 표는 `docs/platform/MASTER_PLAN.md` §14.3, 계획 전체는 그 파일 §9 다
-- build_index_sha256: `39187bca03b30bc3` — **S17 캡처(`s17-after`)가 찍은 번들**.
-  S16 `dfd1cadb396b788d` ·
+- build_index_sha256: `39187bca03b30bc3` (S17 `s17-after`). S16 `dfd1cadb396b788d` ·
   S15 `c9cab277de958811` · W5 `08b5525cb2f52618` · W4 `1a48d92ee9e55127` ·
   W3 `c03113861aaa5138` · W2 `344ce7e7fc221246` · W1 `104e49366bf030f4` ·
   Before `9ab4d470163e475a`
@@ -31,11 +30,18 @@
   R-90 이 요구한 «긴 프로젝트명 실데이터 × FHD/QHD/4K × Zoom 3단계». 4K 패널의 확대
   100/125/150% 가 곧 CSS 폭 3840/3072/2560 이라 그 셋이 Zoom 사다리다. `hostile_data --modes long`
   이 같은 네 폭에서 **잘림 0 · 세로 붕괴 0 · 가로 넘침 0**
+- 완료 Surface 재검증: `kit.jsx` 를 바꿨으므로 `kit_e2e` 를 **현재 번들에서** 다시 돌렸다
+  (40/40 조합 · 판 안의 판 0). 상단바의 클로비가 바뀌었으므로 `shell_e2e`(10 Flow) ·
+  `nav_e2e`(18/18)도 다시 돌렸고 그 셋의 증거 지문을 `ROUTE_COVERAGE` 에 옮겼다(C4)
 - reviewers: 독립 에이전트 검수는 안 썼다 — 판정을 **실브라우저 실측**과 **반례**로 세웠다.
   판정 규칙을 고친 셋(잉크 정의 · 빈 상태 밴드의 순환 · `highlight` 의 `.k-metabar`)은
   `probe_selftest.py` 에 반례 여덟을 붙여 양방향으로 확인했다(전체 34사례 초록)
 - test_server: https://clovirassist.gooddi.lab = 10.100.64.71. 값은 `dist/ops/server.env`.
-  **S17 은 배포했다** — S15~S17 세 회차의 변경이 이 회차에서 함께 설치처로 나갔다
+  **S17 은 배포했다** — S15~S17 세 회차의 변경이 `install.sh upgrade` 로 함께 나갔다
+  (Stage 0~18 전부 OK · `VERIFY_OK` · 스냅샷 `/var/backups/clovirassist/20260825-041314`).
+  배포본의 번들 지문이 위 `build_index_sha256` 와 같다. 스모크 6화면에서 **콘솔 오류 0 ·
+  페이지 오류 0** 이고 `mascot_visible_size` 6/6 초록이다 — 실데이터가 처음으로 드러낸 것
+  하나는 **P-43** 으로 등록했다(값이 0 이면 판독값이 회색으로 세어진다)
 - suppressions: **1건 (SUP-01)** — 칸반 레인의 균등 격자. 만료 2026-10-20. S16 이 적은 근거 그대로다
 - commit: `d6eb48cf` (S17 본체)
 - plan: `docs/ui-renewal/PLAN.md`(UI 축 정본) · `DIRECTIVE_v7.txt`(원 지시서) ·

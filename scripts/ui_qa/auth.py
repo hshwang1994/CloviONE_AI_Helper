@@ -141,8 +141,16 @@ def _provision(email: str, initial_password: str, log, *, base_url: str, role: s
         raise AuthError(
             f"원격 대상({base_url})에는 계정을 만들 수 없습니다 — `user_cli` 는 로컬 DB 만 고칩니다.\n"
             f"서버에서 직접 실행하세요:\n"
-            f"  ssh <server> \"sudo -u clovirone-web /opt/clovirone-web-assistant/venv/bin/python \\\n"
-            f"    -m app.cli.user_cli passwd --email {email}\"   # 비밀번호는 stdin 으로만\n"
+            # 🔴 이 안내가 **옛 slug** 를 부르고 있었다(`clovirone-web` ·
+            # `/opt/clovirone-web-assistant`). S3·S4 가 제품 정체성을 옮긴 뒤로 그 경로는
+            # 서버에 없다 — 안내를 그대로 따라 하면 «그런 사용자가 없습니다» 로 끝난다.
+            # 실행 자리는 `/opt/clovirassist` 이고, `user_cli` 는 서비스 환경(DATABASE_URL 등)
+            # 없이는 DB 에 못 붙으므로 그것까지 함께 적는다.
+            f"  ssh <server> \"cd /opt/clovirassist && sudo -u clovirassist \\\n"
+            f"    env \\$(sudo grep -E '^(DATABASE_URL|APP_ENV|SECRETS_DIR|DATA_DIR)=' \\\n"
+            f"      /etc/clovirassist/clovirassist.env | tr '\\\\n' ' ') \\\n"
+            f"    venv/bin/python -m app.cli.user_cli passwd --email {email}\"\n"
+            f"  (비밀번호는 stdin 으로만 넘어간다. 계정이 보관 상태면 먼저 `unarchive` 다.)\n"
             f"그런 다음 UI_QA_EMAIL / UI_QA_PASSWORD 로 다시 실행하세요."
         )
     if _user_exists(email):

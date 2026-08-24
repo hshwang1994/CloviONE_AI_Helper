@@ -17,6 +17,12 @@
   **S17 도 옮기지 않는다.** 이유는 S11~S16 과 같다 — 그 기준을 옮기는 순간 그동안 지운
   시험들이 검사 시야에서 사라진다.
 - working_tree: clean
+- deployed: **S15~S17 이 운영에 나갔다** (2026-08-25 04:13, `install.sh upgrade --source local`).
+  Stage 0~18 전부 OK · `VERIFY_OK` · 스냅샷 `/var/backups/clovirassist/20260825-041314`.
+  `/healthz` `{"status":"ok","ticket_source":"native"}` · `/readyz` `{"status":"ready"}` ·
+  배포본 번들 지문 `39187bca03b30bc3` 가 빌드한 것과 같다. 스모크 6화면(홈·내 티켓·티켓 상세·
+  게시판·문서·채팅방)에서 **콘솔 오류 0 · 페이지 오류 0**. 되돌리려면
+  `sudo /opt/clovirassist/deploy/install.sh rollback --target /var/backups/clovirassist/20260825-041314`
 - ui_gate: **UI_RENEWAL_COVERAGE_OK (stage=wave, wave=W7, 억제 1건)** — S17 이 UI 축의
   CHECKPOINT 를 W7 로 올렸고 `capture_labels.after` 를 `s17-after` 로 옮겼다. 억제 하나는
   칸반 레인의 균등 격자다(SUP-01, 만료 2026-10-20).
