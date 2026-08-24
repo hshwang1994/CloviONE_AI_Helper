@@ -8,7 +8,7 @@
 - wave: W7
 - wave_status: **완료 (S17).** 진행 단위는 Wave 가 아니라 **Session S15~S20** 이다 —
   재배치 표는 `docs/platform/MASTER_PLAN.md` §14.3, 계획 전체는 그 파일 §9 다
-- build_index_sha256: `aa4ec9579a009725` — **S17 캡처(`s17-after`)가 찍은 번들**.
+- build_index_sha256: `39187bca03b30bc3` — **S17 캡처(`s17-after`)가 찍은 번들**.
   S16 `dfd1cadb396b788d` ·
   S15 `c9cab277de958811` · W5 `08b5525cb2f52618` · W4 `1a48d92ee9e55127` ·
   W3 `c03113861aaa5138` · W2 `344ce7e7fc221246` · W1 `104e49366bf030f4` ·
