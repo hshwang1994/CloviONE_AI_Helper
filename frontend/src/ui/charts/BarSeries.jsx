@@ -2,7 +2,7 @@ import React from "react";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import { useTheme } from "@mui/material/styles";
-import { ChartEmpty, ChartQuestion, resolveChartColor, useTrackColor } from "./base.jsx";
+import { ChartNoData, ChartQuestion, resolveChartColor, useTrackColor } from "./base.jsx";
 import { FONT_WEIGHT } from "../theme.js";
 
 /* 가로 막대 묶음 — 항목별 크기를 서로 비교하는 용도(담당자별 업무량, 큐 상태 등).
@@ -36,7 +36,7 @@ export function BarSeries({
     (it) => it && typeof it.value === "number" && Number.isFinite(it.value)
   );
 
-  if (!rows.length) return <ChartEmpty label={emptyLabel} />;
+  if (!rows.length) return <ChartNoData label={emptyLabel} />;
 
   const relative = !(typeof max === "number" && max > 0);
   const peak = relative

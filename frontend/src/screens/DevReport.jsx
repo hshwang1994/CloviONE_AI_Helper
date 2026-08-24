@@ -221,7 +221,7 @@ export function DevReport() {
         // 인쇄: 카드 그림자는 회색 얼룩으로만 나오고, 섹션이 페이지 중간에서 잘리면 표 머리가 사라진다.
         "@media print": { "& .MuiPaper-root": { boxShadow: "none" }, "& section": { breakInside: "avoid" } },
       }}>
-      <PageHeader area="자동화" title="개발자 월간 리포트" spot="sprint"
+      <PageHeader area="자동화" title="개발자 월간 리포트"
         actions={<Button variant="primary" onClick={() => query.refetch()}>새로고침</Button>} />
 
       <Box sx={{ mb: 3 }}>
@@ -253,7 +253,7 @@ export function DevReport() {
       </Card>
 
       {query.isLoading ? (
-        <Card><Skeleton lines={6} /></Card>
+        <Card><Skeleton kind="chart" /></Card>
       ) : query.isError ? (
         <ErrorState error={query.error} onRetry={() => query.refetch()} />
       ) : data && data.configured === false ? (

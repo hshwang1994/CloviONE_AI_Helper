@@ -214,9 +214,7 @@ export function Trash() {
                   안 보이던 예전 그대로다(ConversationSidebar의 "대화 더 보기"와 같은 관용). */}
               {hasMore ? (
                 <Box sx={{ display: "flex", justifyContent: "center", pt: 2 }}>
-                  <Button size="sm" variant="ghost" disabled={q.isFetching} onClick={loadMore}>
-                    {q.isFetching ? "불러오는 중…" : "휴지통 더 보기"}
-                  </Button>
+                  <Button size="sm" variant="ghost" loading={q.isFetching} onClick={loadMore}>휴지통 더 보기</Button>
                 </Box>
               ) : null}
             </Card>

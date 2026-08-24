@@ -156,18 +156,33 @@ export function ChartQuestion({ children }) {
   );
 }
 
-/* 값이 없을 때의 자리 — 높이를 차트와 비슷하게 잡아 로딩→빈 상태 전환에서 레이아웃이 튀지 않게 한다.
- * 점선 테두리는 '여기 무언가 들어올 자리인데 지금은 비어 있다'는 관습적 신호다. */
-export function ChartEmpty({ label = "데이터 없음", height = "4rem" }) {
+/* ── 값이 없을 때 (지시 0-2 · 0-7 · 0-10, PLAN «빈 데이터 규칙») ──────────────────
+ *
+ * 예전에는 점선 상자를 그렸다. 차트 높이만큼 자리를 잡아 두고 그 안에 「데이터 없음」이라고
+ * 적는 것이다 — **없는 데이터를 위한 컨테이너**다. 지시 0-10 이 이름으로 지목한 형태이고
+ * (「데이터가 없을 때 Chart/Table/Card 자체가 필요한가」), 4K 에서는 그 빈 상자가 세로
+ * 200px 를 차지한 채 아무 말도 하지 않았다.
+ *
+ * 이제 네 갈래다. 그림을 그리는 부품이 소유하는 것은 그중 ⓑ 뿐이고 나머지는 화면이 고른다:
+ *
+ *   ⓐ 불러오는 중        → `Skeleton kind="chart"` (같은 높이의 **차트 모양**, 점선 상자 아님)
+ *   ⓑ 정말 값이 없다     → **차트를 통째로 접고** 캔버스 위에 한 줄 (이 부품)
+ *   ⓒ 고칠 수 있는 원인  → `EmptyState` + 다음 행동 (차트를 아예 그리지 않는다)
+ *   ⓓ 못 불러왔다        → `ErrorState` + 다시 시도
+ *
+ * ⓑ 가 상자를 안 만드는 이유: 「없다」는 한 줄로 끝나는 사실이고, 그 한 줄을 상자에 넣으면
+ * 상자가 사실보다 커진다. 로딩→빈 전환에서 높이가 줄어드는 것은 결함이 아니라 **상태가
+ * 바뀌었다는 신호**다 — ⓐ 가 같은 높이의 차트 모양을 그리므로 「불러오는 중」과 「없다」가
+ * 이제 서로 다르게 보인다.
+ */
+export function ChartNoData({ label = "데이터 없음" }) {
   return (
-    <Box
-      sx={{
-        display: "grid", placeItems: "center", minHeight: height, px: 2, py: 1,
-        border: 1, borderStyle: "dashed", borderColor: "divider", borderRadius: 2,
-      }}
+    <Typography
+      variant="caption" color="text.secondary" data-chart-collapsed="true"
+      sx={{ display: "block", py: 0.5 }}
     >
-      <Typography variant="caption" color="text.secondary">{label}</Typography>
-    </Box>
+      {label}
+    </Typography>
   );
 }
 

@@ -33,7 +33,8 @@ import ChevronRightRoundedIcon from "@mui/icons-material/ChevronRightRounded";
 import MoreHorizRoundedIcon from "@mui/icons-material/MoreHorizRounded";
 import HelpOutlineRoundedIcon from "@mui/icons-material/HelpOutlineRounded";
 import Collapse from "@mui/material/Collapse";
-import { ART, SPOT } from "../lib/assets.js";
+import { ART } from "../lib/assets.js";
+import { MASCOT_PLACE, mascotBoxPx } from "./Mascot.jsx";
 import { maxLengthFor } from "../lib/fieldLimits.js";
 import { apiToKstLocal, kstLocalToApi } from "../lib/format.js";
 import { declaredRowName, rowNameOf } from "./rowName.js";
@@ -880,37 +881,30 @@ export function MetricStrip({ items, ariaLabel, emptyCause, sx }) {
  */
 const META_GROW_TYPES = ["title", "name", "text", "identifier"];
 
-export function MetaBar({ items, ariaLabel, sx }) {
-  const list = (items || []).filter(Boolean);
-  if (!list.length) return null;
+/* 칸 사이 실선. 세 속성으로 적어야 실제로 그려진다(F-W2R-01). */
+const META_DIVIDERS = (t) => ({
+  "& > *:not(:first-of-type)": {
+    borderInlineStartStyle: "solid",
+    borderInlineStartWidth: "1px",
+    borderInlineStartColor: t.palette.divider,
+  },
+});
+
+/** 먼저 판단할 값들 — 라벨 위, 값 아래. 훑는 단위가 «속성 하나» 다. */
+function MetaPrimaryRow({ list }) {
   const flexOf = (it) => {
     if (!it.type) return "1 1 9rem";                         // 선언 안 한 칸 — 옛 동작 그대로
     if (META_GROW_TYPES.indexOf(it.type) >= 0) return "1 1 12rem";
     return "0 0 auto";                                       // 상태·수치·날짜는 내용 폭만
   };
   return (
-    /* 판독 줄과 같은 판정을 받는다 — **속성 한 줄에 plate 금지.** 이 줄은 자기 생명주기도
-       독립 스크롤도 없고 떠 있지도 않다. 체크리스트 ⑥ 이라 컨테이너가 없다.
-       칸 사이 실선은 세 속성으로 적어야 실제로 그려진다(F-W2R-01). */
-    <Box
-      className="k-metabar"
-      role="group"
-      aria-label={ariaLabel}
-      sx={(t) => ({
-        display: "flex", flexWrap: "wrap",
-        "& > *:not(:first-of-type)": {
-          borderInlineStartStyle: "solid",
-          borderInlineStartWidth: "1px",
-          borderInlineStartColor: t.palette.divider,
-        },
-        ...(typeof sx === "function" ? sx(t) : sx),
-      })}
-    >
+    <Box sx={(t) => ({ display: "flex", flexWrap: "wrap", ...META_DIVIDERS(t) })}>
       {list.map((it, i) => (
         <Box
           key={it.key || it.label || i}
           className="k-metacell"
           data-meta-type={it.type || undefined}
+          data-meta-rank="primary"
           sx={{ flex: flexOf(it), maxWidth: "20rem", minWidth: 0, px: 2, py: 1.25, display: "grid", gap: 0.25, alignContent: "start" }}
         >
           <Typography component="div" sx={{ fontSize: FONT_SIZE.caption, color: "text.secondary", ...KO_WORD_BREAK }}>
@@ -926,23 +920,151 @@ export function MetaBar({ items, ariaLabel, sx }) {
   );
 }
 
+/** 참조용 값들 — 라벨과 값이 한 줄에 붙는 압축 띠. 찾을 때만 읽는다. */
+function MetaSecondaryRow({ list }) {
+  return (
+    <Box sx={(t) => ({
+      display: "flex", flexWrap: "wrap", alignItems: "baseline",
+      /* 위 줄과 갈라 놓는 실선 하나. 상자를 만들지 않는다 — 보조 정보에 컨테이너를 주면
+         그것이 다시 «판» 이 되고, 판이 둘이면 무엇이 위인지 알 수 없다. */
+      borderTop: 1, borderColor: "divider", mt: 0.25, pt: 0.75,
+      ...META_DIVIDERS(t),
+    })}>
+      {list.map((it, i) => (
+        <Box
+          key={it.key || it.label || i}
+          className="k-metacell"
+          data-meta-type={it.type || undefined}
+          data-meta-rank="secondary"
+          sx={{ display: "flex", alignItems: "baseline", gap: 0.75, minWidth: 0, px: 2, py: 0.5 }}
+        >
+          <Typography component="span" sx={{ fontSize: FONT_SIZE.caption, color: "text.secondary", whiteSpace: "nowrap" }}>
+            {it.label}
+          </Typography>
+          <Box component="span" sx={{ fontSize: FONT_SIZE.bodySm, color: "text.primary", minWidth: 0, ...KO_WORD_BREAK,
+                     ...(it.type && resolveColumn(it).numeric ? NUMERIC : null) }}>
+            {it.value == null || it.value === "" ? "-" : it.value}
+          </Box>
+        </Box>
+      ))}
+    </Box>
+  );
+}
+
+export function MetaBar({ items, ariaLabel, sx }) {
+  const list = (items || []).filter(Boolean);
+  if (!list.length) return null;
+  /* ## 위계는 폭이 아니라 **무게**다 (C9 · R-90 · 지시 75)
+   *
+   * S16 이 칸의 **폭**을 고쳤다 — 「높음」 두 글자와 긴 프로젝트 이름이 같은 폭을 받지
+   * 않는다. 그런데 폭을 고쳐도 남는 문제가 있었다: 아홉 개 속성이 **전부 같은 무게**로
+   * 한 줄에 늘어서서, 티켓을 열었을 때 먼저 봐야 하는 「상태·담당자·마감」과 지원 문의
+   * 때나 부르는 「티켓 번호」가 시각적으로 구별되지 않았다. 4K 에서는 그 줄이 2,880px 라
+   * 아홉 칸을 다 훑어야 원하는 값을 찾는다.
+   *
+   * 그래서 화면이 `rank: "primary"` 로 **먼저 판단할 값**을 선언한다. 선언한 것만 라벨 위·값
+   * 아래의 속성 묶음으로 서고, 나머지는 아래 줄의 압축 띠로 내려간다(라벨과 값이 한 줄에
+   * 붙는다). `rank` 를 아무 칸도 선언하지 않은 호출부의 렌더는 **안 바뀐다** — 표의 열에
+   * `type` 을 안 준 화면이 그대로인 것과 같은 규칙이다(호출부가 적은 값이 이긴다).
+   *
+   * 모든 속성을 Card/Badge 로 만들지 않는다. 위쪽은 Property Group, 아래쪽은 Compact Strip
+   * 이고 둘 다 컨테이너가 없다 — 판독 줄과 같은 판정을 받는다(**속성 줄에 plate 금지**).
+   */
+  const primary = list.filter((it) => it.rank === "primary");
+  const secondary = list.filter((it) => it.rank !== "primary");
+  const ranked = primary.length > 0 && secondary.length > 0;
+  return (
+    <Box
+      className="k-metabar"
+      role="group"
+      aria-label={ariaLabel}
+      data-meta-ranked={ranked ? "true" : undefined}
+      sx={(t) => ({
+        display: ranked ? "grid" : "flex",
+        ...(ranked ? null : { flexWrap: "wrap", ...META_DIVIDERS(t) }),
+        ...(typeof sx === "function" ? sx(t) : sx),
+      })}
+    >
+      {ranked ? (
+        <>
+          <MetaPrimaryRow list={primary} />
+          <MetaSecondaryRow list={secondary} />
+        </>
+      ) : (
+        /* 선언이 없거나 한쪽뿐이면 예전처럼 한 줄이다. 위계가 없는 것을 있는 척하지 않는다. */
+        list.map((it, i) => (
+          <Box
+            key={it.key || it.label || i}
+            className="k-metacell"
+            data-meta-type={it.type || undefined}
+            sx={{
+              flex: !it.type ? "1 1 9rem" : (META_GROW_TYPES.indexOf(it.type) >= 0 ? "1 1 12rem" : "0 0 auto"),
+              maxWidth: "20rem", minWidth: 0, px: 2, py: 1.25, display: "grid", gap: 0.25, alignContent: "start",
+            }}
+          >
+            <Typography component="div" sx={{ fontSize: FONT_SIZE.caption, color: "text.secondary", ...KO_WORD_BREAK }}>
+              {it.label}
+            </Typography>
+            <Box sx={{ fontSize: FONT_SIZE.body, color: "text.primary", minWidth: 0, ...KO_WORD_BREAK,
+                       ...(it.type && resolveColumn(it).numeric ? NUMERIC : null) }}>
+              {it.value == null || it.value === "" ? "-" : it.value}
+            </Box>
+          </Box>
+        ))
+      )}
+    </Box>
+  );
+}
+
 /* 로딩 자리표시자 — **들어올 것의 모양**을 한다 (지시 20).
  *
  * 예전에는 어느 화면에서나 회색 줄 N개였다. 표가 들어올 자리에도, 지표 줄이 들어올 자리에도
  * 같은 줄무늬가 그려지니 화면이 무엇을 준비 중인지 알 수 없었고, 실제 내용이 도착하는 순간
  * 배치가 통째로 튀었다(자리표시자가 자리를 안 잡아 준다는 뜻이다).
  *
- * 모양은 셋이다. 넷째(버튼)는 `Button` 의 `loading` 이 이미 맡는다 - 버튼 자리에 회색 알약을
+ * 모양은 넷이다. 다섯째(버튼)는 `Button` 의 `loading` 이 이미 맡는다 - 버튼 자리에 회색 알약을
  * 그리면 그 버튼이 사라진 것처럼 보인다.
  *
  *   `section` (기본) 구역 안 본문. 예전 동작 그대로 - `lines` 로 줄 수를 준다.
  *   `page`          화면 전체. 제목 줄 + 판독값 줄 + 본문 판. 셸이 이미 그린 자리를 흉내 낸다.
  *   `table`         표. 머리행 + 행들. `cols` 만큼 칸을 나눠 열 리듬까지 맞춘다.
+ *   `chart`         그림. 바닥선 위에 높이가 다른 막대들 + 범례 줄. `height` 로 높이를 준다.
+ *
+ * `chart` 가 필요한 이유 (PLAN «빈 데이터 규칙» ⓐ): 그림이 들어올 자리에 회색 줄 여덟 개를
+ * 그리면 「불러오는 중」과 「값이 없다」가 **같아 보인다.** 값이 없을 때 그림은 이제 통째로
+ * 접히므로(`charts/base.jsx::ChartNoData`), 로딩 자리가 같은 높이의 **차트 모양**이라야
+ * 그 둘이 구별된다. 점선 상자가 아니다 — 점선 상자는 폐기한 그 형태다.
  *
  * 스켈레톤 자체는 장식(aria-hidden)이라 스크린리더엔 침묵이다 - 별도 live 노드로 낭독한다.
  */
-export function Skeleton({ kind = "section", lines = 3, rows = 5, cols = 4 }) {
+export function Skeleton({ kind = "section", lines = 3, rows = 5, cols = 4, height = "9rem" }) {
   const live = <span className="sr-only" aria-live="polite">불러오는 중…</span>;
+
+  if (kind === "chart") {
+    /* 막대 높이는 고정 배열이다 — 무작위로 흔들면 다시 그릴 때마다 모양이 바뀌어
+       «데이터가 들어오는 중» 이 아니라 «무언가 움직인다» 로 읽힌다. */
+    const bars = [62, 88, 45, 74, 96, 58, 81];
+    return (
+      <>
+        {live}
+        <Box aria-hidden="true" className="k-skeleton-chart" sx={{ display: "grid", gap: 1, py: 1 }}>
+          <Box sx={{
+            height, display: "flex", alignItems: "flex-end", gap: 1.5,
+            borderBottom: 1, borderColor: "divider", px: 0.5,
+          }}>
+            {bars.map((h, i) => (
+              <MuiSkeleton key={i} variant="rounded" sx={{ flex: 1, minWidth: 0 }} height={`${h}%`} />
+            ))}
+          </Box>
+          {/* 범례 줄 — 이 제품의 그림은 언제나 숫자를 글자로 함께 낸다(charts/base.jsx §2). */}
+          <Box sx={{ display: "flex", gap: 2 }}>
+            <MuiSkeleton variant="rounded" height={12} width="6rem" />
+            <MuiSkeleton variant="rounded" height={12} width="4.5rem" />
+          </Box>
+        </Box>
+      </>
+    );
+  }
 
   if (kind === "table") {
     const count = Math.max(1, cols);
@@ -1062,7 +1184,16 @@ export function EmptyState({
    * "작게" 와 "가운데" 를 따로 고를 수 없다. */
   const compact = size === "compact" || layout === "inline";
   const stepList = Array.isArray(steps) ? steps.filter((s) => s != null && s !== "") : null;
+  /* compact 는 여전히 그림을 안 그린다(DS-15). 팝오버·모달 하위목록은 폭도 높이도 좁아서
+     그림이 «다음에 무엇을 하면 되는지» 를 밀어낸다. 그 자리에 캐릭터가 필요한 화면은
+     `icon` 으로 직접 넘긴다 — `ResultsRail` 이 그렇게 하고 그 포즈는 `emptyCompact` 밴드다. */
   const artSrc = !compact && art && ART[art] ? ART[art] : null;
+  /* 그림 크기는 «보이는 캐릭터» 에서 파생한다 (지시 71 · `Mascot.jsx::MASCOT_PLACE`).
+     예전에는 `width: {sm:72, xxl:88, uhd:112}` 였는데, 그 72 는 자산마다 다른 크기로 보였다 —
+     `empty-notify`(잉크 84%)는 60px 인데 `empty-tickets`(62%)는 45px 였다. 같은 자리에서
+     그림이 두 크기로 나오는 것이고, 박스를 재는 검사로는 안 보인다. */
+  const artPlace = layout === "page" ? "emptyPage" : "emptyRegion";
+  const artBox = artSrc ? mascotBoxPx(artPlace, artSrc) : null;
   const detail = [prerequisite, stepList && stepList.length ? stepList : null, expected].some(Boolean);
   /* 칸 폭은 EMPTY_STATE_MAX_CH. 문구 한도는 COPY_LIMIT.emptyHelp — 폭을 바꾸면 한도가 따라간다. */
   const bodySx = { maxWidth: `${EMPTY_STATE_MAX_CH}ch`, fontSize: compact ? FONT_SIZE.bodySm : FONT_SIZE.body, ...KO_WORD_BREAK };
@@ -1099,9 +1230,13 @@ export function EmptyState({
       {artSrc ? (
         <Box
           component="img" src={artSrc} alt="" aria-hidden="true" loading="lazy" decoding="async"
+          /* 이 그림이 어느 밴드로 판정받는지를 **화면이 선언한다.** 선언이 없으면 프로브가
+             DOM 모양으로 자리를 짐작하는데, 분류가 곧 판정이라 짐작이 틀리면 통과·실패가
+             통째로 뒤집힌다. */
+          data-mascot-context={MASCOT_PLACE[artPlace].context}
           sx={{
             display: { xs: "none", sm: "block" }, flexShrink: 0,
-            width: { sm: 72, xxl: 88, uhd: 112 }, height: "auto",
+            width: artBox, height: artBox, objectFit: "contain",
           }}
         />
       ) : icon ? (
@@ -1198,6 +1333,7 @@ export function ErrorState({ error, onRetry, size }) {
     : isOffline ? "offline"
     : "serverError";
   const artSrc = ART[art];
+  const errorArtBox = mascotBoxPx("errorState", artSrc);
   // role="alert"로 오류 전환을 즉시 낭독한다. 제목은 heading으로.
   return (
     // VIS-50/VIS-52와 같은 이유(EmptyState 주석 참고) — ErrorState도 같은 삽화 자산과
@@ -1206,7 +1342,10 @@ export function ErrorState({ error, onRetry, size }) {
       {!compact ? (
         <Box
           component="img" src={artSrc} alt="" aria-hidden="true" loading="lazy" decoding="async"
-          sx={{ display: { xs: "none", sm: "block" }, width: { sm: 160, xxl: 200, uhd: 320 }, height: "auto" }}
+          data-mascot-context={MASCOT_PLACE.errorState.context}
+          /* 4K 에서 320px 짜리 상자였다 — 그리고 그 상자 안의 그림은 자산마다 65~78% 만
+             채웠다. 이제 «보이는 캐릭터 112px»(PLAN «Clovi 계약») 하나가 세 단계를 대신한다. */
+          sx={{ display: { xs: "none", sm: "block" }, width: errorArtBox, height: errorArtBox, objectFit: "contain" }}
         />
       ) : null}
       <Typography role="heading" aria-level={2} sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: compact ? FONT_SIZE.body : FONT_SIZE.sectionTitle }}>{title}</Typography>
@@ -2240,20 +2379,16 @@ export function CrumbRootProvider({ value, children }) {
 /* 페이지 헤더 — 빵부스러기→제목 순서와 간격을 한곳에서 정한다.
  * crumbRoot: 빵부스러기 접두어. 명시하면 그 값, 안 하면 위 CrumbRootProvider가 콘솔에 맞게
  *   계산한 값, 그것도 없으면(Provider 밖) "관리자"다. area를 비우면 빵부스러기 자체를 숨길 수 있다.
- * spot: 섹션 일러스트 키(lib/assets.js의 SPOT).
  *
- * 일러스트는 **격자 항목이 아니라 배경 장식**이다(사용자 지시 §5: "페이지마다 클로비
- * 이미지를 크게 배치하지 말고, 페이지 오른쪽 상단 배경 영역에 투명도를 적용해 자연스럽게").
- * 예전에는 flex 항목이라 두 가지가 났다:
- *   1) 이미지에만 order:2 가 있고 actions 에는 없어서 **액션이 먼저** 왔다. 액션이 줄바꿈되면
- *      96~160px 그림이 제 줄로 밀려 본문 전체를 아래로 밀었다.
- *   2) 높이가 raw px 라 4K 루트 폰트 레버를 안 따라가 큰 화면에서 혼자 작았다.
- * 이제 흐름 밖(absolute)에 두고 투명도를 낮춘다 — 레이아웃을 밀지도, 클릭을 막지도 않는다.
- * 높이는 rem 이라 다른 글자·여백과 같이 커진다. */
-export function PageHeader({ area, title, tab, actions, overflow, crumbRoot, spot, size = "page", help, helpTone }) {
+ * **장식 일러스트 prop 은 없다.** Q4 가 투명 클로비를 뺀 뒤로 `spot` 은 아무것도 안 하는
+ * prop 이었는데 화면 열일곱이 계속 값을 넘기고 있었다 — 읽는 사람은 그 화면에 그림이 있다고
+ * 믿고, 새 화면은 그 줄을 복사한다. 죽은 prop 은 «지금 없는 기능» 이 아니라 «있다고 잘못
+ * 알려 주는 기능» 이다. prop 과 호출부 열일곱을 함께 지웠다(지시 71 «Clovi 금지 구역»:
+ * 데이터 표·설정 화면·상세 본문·Page Header 장식). 클로비는 히어로·빈 상태·드로어·상단바
+ * 처럼 **의미가 있는 자리**에만 둔다. */
+export function PageHeader({ area, title, tab, actions, overflow, crumbRoot, size = "page", help, helpTone }) {
   const ctxCrumbRoot = React.useContext(CrumbRootCtx);
   const resolvedCrumbRoot = crumbRoot !== undefined ? crumbRoot : (ctxCrumbRoot !== undefined ? ctxCrumbRoot : "관리자");
-  void spot;  // Q4 로 장식 일러스트를 뺐다. 호출부 호환을 위해 prop 만 남긴다.
   /* size="section" — 다른 화면 안에 곁들여지는 하위 패널(예: OrgConsole 오른쪽의 DataScreen)이
    * 이 컴포넌트를 그대로 쓰면 h4/h1 이 감싸는 페이지의 진짜 제목과 같은 무게라 "페이지가
    * 두 개 겹쳐 있다"처럼 읽힌다(사용자 지적: 조직도 화면에서 조직 관리 패널이 또 하나의
@@ -2278,11 +2413,6 @@ export function PageHeader({ area, title, tab, actions, overflow, crumbRoot, spo
         className="k-page-head"
         sx={{ position: "relative", display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: isSection ? 1.5 : 3, flexWrap: "wrap", mb: help && helpOpen ? 1 : (isSection ? 1.5 : 3) }}
       >
-        {/* 투명 장식 클로비(opacity .1)를 뺐다 — 사용자 지적 Q4.
-            61개 화면 중 15곳에만 있어서, 화면을 옮길 때마다 흐린 그림이 나타났다 사라졌다 했다.
-            "있다 없다" 가 반복되면 통일감이 없어 보인다. `spot` prop 은 호출부 13곳이 아직
-            넘기고 있어 시그니처만 남긴다(그 값은 이제 무시된다).
-            클로비는 히어로·빈 상태·드로어·FAB 처럼 **의미가 있는 자리**에만 둔다. */}
         <Box sx={{ position: "relative", zIndex: 1, flex: 1, minWidth: 0 }}>
           {crumb ? (
             <Typography variant="caption" color="text.secondary" sx={{ display: "block", fontWeight: FONT_WEIGHT.semibold }}>

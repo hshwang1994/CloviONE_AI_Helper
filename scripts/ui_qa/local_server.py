@@ -151,7 +151,10 @@ def seed(database_url: str, email: str, password: str, settings) -> None:
         db.flush()
 
         projects = []
-        for name in ("포털 개편", "인프라 정비"):
+        # 셋째 이름이 길다. **의도한 것이다** — R-90 은 상세 상단 속성을 «긴 프로젝트명 실데이터»
+        # 로 FHD/QHD/4K 와 Zoom 에서 검증하라고 요구하는데, 씨앗이 전부 네 글자면 그 축은
+        # 아무리 찍어도 안 드러난다. 길이는 실제 운영 프로젝트 이름의 최댓값 언저리다.
+        for name in ("포털 개편", "인프라 정비", "ClovirAssist 플랫폼 전환 및 자체 데이터 이관"):
             p = Project(name=name, org_id=DEFAULT_ORG_ID)
             work_codes.insert_with_code(db, p)
             db.flush()
@@ -161,15 +164,26 @@ def seed(database_url: str, email: str, password: str, settings) -> None:
         statuses = ["진행", "계획", "검증", "완료"]
         prios = ["High", "Normal", "Low"]
         diffs = ["상", "중", "하"]
+        from app.work import numbering  # noqa: PLC0415
+
         for i in range(24):
+            # 회전을 1 만큼 밀어 **상세 캡처가 여는 티켓(업무 08)이 긴 이름 프로젝트**를
+            # 갖게 한다. 짧은 이름이 걸리면 R-90 이 요구한 축(긴 프로젝트명이 좁은 칸에서
+            # 깨지는가)이 그 화면에 아예 나타나지 않는다 — 나머지 티켓은 세 프로젝트에
+            # 그대로 고루 퍼진다.
+            project = projects[(i + 1) % len(projects)]
             db.add(TicketCache(
                 title=f"업무 {i + 1:02d} — 화면에서 읽히는 제목",
                 status=statuses[i % 4], priority=prios[i % 3], difficulty=diffs[i % 3],
                 category=("인프라" if i % 2 else "포털"),
                 due_date=date(2026, 8, 20) + timedelta(days=i % 7),
                 est_wd=1.5, act_wd=1.0,
-                project_uid=projects[i % 2].id, project_link=PROJECT_LINK_OK,
-                project_names=projects[i % 2].name,
+                project_uid=project.id, project_link=PROJECT_LINK_OK,
+                project_names=project.name,
+                # 번호를 실제 채번기로 받는다. 예전에는 `seq` 를 비워 둬서 트리거가
+                # `canonical_key` 를 안 만들었고, 캡처의 티켓에는 **번호가 없었다** —
+                # 운영 티켓은 전부 번호가 있으므로 그 화면은 제품과 다른 것을 보여 준다.
+                seq=numbering.allocate(db, project.id),
                 assignee_notion_ids="" if i % 5 == 0 else f"\x1f{me.id}\x1f",
                 source=SOURCE_NATIVE, synced_at=now, notion_ticket_number=i + 1,
                 org_id=DEFAULT_ORG_ID,

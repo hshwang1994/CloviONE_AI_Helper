@@ -1,0 +1,459 @@
+{
+  "schemaVersion": 1,
+  "generatedBy": "scripts/gen_mascot_bounds.py",
+  "definition": {
+    "alphaMin": 128,
+    "floatingRowFraction": 0.005,
+    "note": "알파 >= alphaMin 인 픽셀의 bbox. 단 불투명 픽셀이 반대 차원의 floatingRowFraction 미만인 행/열은 부유 픽셀로 보고 버린다."
+  },
+  "assets": {
+    "clovi-avatar.png": {
+      "file": "clovi-avatar.png",
+      "sha256": "024ed11f27f7ce91d7d2b4dfac3d03ce9404e99fe977f16db784e9eeadfa5701",
+      "size": [
+        1024,
+        1024
+      ],
+      "visibleBounds": [
+        123,
+        95,
+        941,
+        954
+      ],
+      "hfrac": 0.84,
+      "wfrac": 0.8
+    },
+    "clovi-button.png": {
+      "file": "clovi-button.png",
+      "sha256": "dbbc302d418f742a6d7d5afb7eca59d2a54fd17c57276535c27640153d8abdba",
+      "size": [
+        1024,
+        1024
+      ],
+      "visibleBounds": [
+        58,
+        120,
+        969,
+        801
+      ],
+      "hfrac": 0.666,
+      "wfrac": 0.891
+    },
+    "clovi-error.png": {
+      "file": "clovi-error.png",
+      "sha256": "5e85bb91dfc997bc0cbc8c17c34cd850e6b9e0ef2bbb76eb1953316746606a2f",
+      "size": [
+        1024,
+        1024
+      ],
+      "visibleBounds": [
+        199,
+        120,
+        894,
+        863
+      ],
+      "hfrac": 0.727,
+      "wfrac": 0.68
+    },
+    "clovi-happy.png": {
+      "file": "clovi-happy.png",
+      "sha256": "391bd39ebafb93b9141352aca7fe30bb21dac1273e4c0af264aae607083bdf0b",
+      "size": [
+        1024,
+        1024
+      ],
+      "visibleBounds": [
+        153,
+        91,
+        985,
+        902
+      ],
+      "hfrac": 0.793,
+      "wfrac": 0.813
+    },
+    "clovi-idle-blink.png": {
+      "file": "clovi-idle-blink.png",
+      "sha256": "1e906518487b6526e443da31646878b8e15f618525d0427b0cbc4888ecf71a0b",
+      "size": [
+        1024,
+        1024
+      ],
+      "visibleBounds": [
+        123,
+        106,
+        922,
+        975
+      ],
+      "hfrac": 0.85,
+      "wfrac": 0.781
+    },
+    "clovi-idle.png": {
+      "file": "clovi-idle.png",
+      "sha256": "a99b1f2883d2ef4bbbaa86804e531b3ca225d145411a1adb952ddff8cbefcac3",
+      "size": [
+        1024,
+        1024
+      ],
+      "visibleBounds": [
+        148,
+        95,
+        895,
+        911
+      ],
+      "hfrac": 0.798,
+      "wfrac": 0.73
+    },
+    "clovi-love.png": {
+      "file": "clovi-love.png",
+      "sha256": "ea00f9d8693d0900fa931194ce01595b2eb60d4162c1a764a168f6115e9f27e6",
+      "size": [
+        1024,
+        1024
+      ],
+      "visibleBounds": [
+        145,
+        81,
+        912,
+        907
+      ],
+      "hfrac": 0.808,
+      "wfrac": 0.75
+    },
+    "clovi-sleep.png": {
+      "file": "clovi-sleep.png",
+      "sha256": "212c98d86b90f6b1866a4b8077800c6439d8fca0724b0541cc39c213cb37d424",
+      "size": [
+        1024,
+        1024
+      ],
+      "visibleBounds": [
+        145,
+        99,
+        909,
+        861
+      ],
+      "hfrac": 0.745,
+      "wfrac": 0.747
+    },
+    "clovi-talking.png": {
+      "file": "clovi-talking.png",
+      "sha256": "5deb5293db4b4c2b459289e6a2790a699d9d5e2852bb528a02d69a7efa3db0d1",
+      "size": [
+        1024,
+        1024
+      ],
+      "visibleBounds": [
+        0,
+        99,
+        965,
+        935
+      ],
+      "hfrac": 0.817,
+      "wfrac": 0.943
+    },
+    "clovi-think.png": {
+      "file": "clovi-think.png",
+      "sha256": "4448edb2ff1587bc942ffdcbf0f610ab328076d828c5946b66b60b4527b3a2e2",
+      "size": [
+        1024,
+        1024
+      ],
+      "visibleBounds": [
+        167,
+        85,
+        888,
+        875
+      ],
+      "hfrac": 0.772,
+      "wfrac": 0.705
+    },
+    "clovi-wave.png": {
+      "file": "clovi-wave.png",
+      "sha256": "ea20fe963cc0264b532b3f8fa22d3c5296608ec6d9a0449d1dfd2b8a83fdb599",
+      "size": [
+        1024,
+        1024
+      ],
+      "visibleBounds": [
+        91,
+        141,
+        920,
+        872
+      ],
+      "hfrac": 0.715,
+      "wfrac": 0.811
+    },
+    "clovi-canonical-avatar.png": {
+      "file": "clovi-canonical-avatar.png",
+      "sha256": "cabe3131b363b42a430cfd8f97cbf495a1bd8dc10c473862a39fa6d27be790cb",
+      "size": [
+        256,
+        256
+      ],
+      "visibleBounds": [
+        0,
+        12,
+        255,
+        255
+      ],
+      "hfrac": 0.953,
+      "wfrac": 1.0
+    },
+    "clovi-canonical-eye-base.png": {
+      "file": "clovi-canonical-eye-base.png",
+      "sha256": "b98b5498977dd2ce7efd27e8a1e332bcbbd02307489df033f19be10ac12ff10b",
+      "size": [
+        1024,
+        1024
+      ],
+      "visibleBounds": [
+        76,
+        76,
+        979,
+        878
+      ],
+      "hfrac": 0.784,
+      "wfrac": 0.883
+    },
+    "clovi-canonical-eyes-layer.png": {
+      "file": "clovi-canonical-eyes-layer.png",
+      "sha256": "08b98c55822f427f03d72b733894986a8860127e8760e5571b9507a62d6459aa",
+      "size": [
+        1024,
+        1024
+      ],
+      "visibleBounds": [
+        524,
+        211,
+        688,
+        266
+      ],
+      "hfrac": 0.055,
+      "wfrac": 0.161
+    },
+    "clovi-canonical-hero.png": {
+      "file": "clovi-canonical-hero.png",
+      "sha256": "fc30602c0882e885d1f74a3fb390596104969509eeea3c8f71aebb50e391011c",
+      "size": [
+        1024,
+        1024
+      ],
+      "visibleBounds": [
+        76,
+        76,
+        979,
+        878
+      ],
+      "hfrac": 0.784,
+      "wfrac": 0.883
+    },
+    "empty-board.png": {
+      "file": "empty-board.png",
+      "sha256": "ab46283bf4c18d773e41b6a33f3a7622e85a93a6ab2d75381457962a61cb8d2d",
+      "size": [
+        1024,
+        1024
+      ],
+      "visibleBounds": [
+        72,
+        149,
+        930,
+        871
+      ],
+      "hfrac": 0.706,
+      "wfrac": 0.839
+    },
+    "empty-chat.png": {
+      "file": "empty-chat.png",
+      "sha256": "d9ed86613e8917cdca79990fd69410d8f708ba1350e2a52074d17c7ced6c43a3",
+      "size": [
+        1024,
+        1024
+      ],
+      "visibleBounds": [
+        176,
+        109,
+        947,
+        888
+      ],
+      "hfrac": 0.762,
+      "wfrac": 0.754
+    },
+    "empty-docs.png": {
+      "file": "empty-docs.png",
+      "sha256": "d8f4768f45185fcd3808988c7802878217ebfc7edaad787ae7bb3fba5517f15b",
+      "size": [
+        1024,
+        1024
+      ],
+      "visibleBounds": [
+        137,
+        89,
+        961,
+        829
+      ],
+      "hfrac": 0.724,
+      "wfrac": 0.806
+    },
+    "empty-notify.png": {
+      "file": "empty-notify.png",
+      "sha256": "99528ed5ae999b630ed8d9f5856712cbee38bba33b29f457a0a87b1dc709281b",
+      "size": [
+        1024,
+        1024
+      ],
+      "visibleBounds": [
+        116,
+        60,
+        927,
+        921
+      ],
+      "hfrac": 0.842,
+      "wfrac": 0.793
+    },
+    "empty-search.png": {
+      "file": "empty-search.png",
+      "sha256": "ee6c640a1849b08ab72643864fb2dadd3a04d8544d9a2f6ff977126782f12a66",
+      "size": [
+        1024,
+        1024
+      ],
+      "visibleBounds": [
+        190,
+        105,
+        852,
+        912
+      ],
+      "hfrac": 0.789,
+      "wfrac": 0.647
+    },
+    "empty-tickets.png": {
+      "file": "empty-tickets.png",
+      "sha256": "14821fb50895136f2267d83c4c127e46d15c9e4611d5e3b5309431462f61a79b",
+      "size": [
+        1024,
+        1024
+      ],
+      "visibleBounds": [
+        93,
+        232,
+        956,
+        868
+      ],
+      "hfrac": 0.622,
+      "wfrac": 0.844
+    },
+    "empty-trash.png": {
+      "file": "empty-trash.png",
+      "sha256": "e98628a009398a44baf6fab3f71b014607d07181d03fd3cb65321b459007bd20",
+      "size": [
+        1024,
+        1024
+      ],
+      "visibleBounds": [
+        175,
+        102,
+        872,
+        859
+      ],
+      "hfrac": 0.74,
+      "wfrac": 0.682
+    },
+    "state-404.png": {
+      "file": "state-404.png",
+      "sha256": "e83310642268e35aa0a0fe120ef6442bf9f20918ae4dfe68a599d43b3891e764",
+      "size": [
+        1024,
+        1024
+      ],
+      "visibleBounds": [
+        224,
+        118,
+        829,
+        838
+      ],
+      "hfrac": 0.704,
+      "wfrac": 0.592
+    },
+    "state-500.png": {
+      "file": "state-500.png",
+      "sha256": "0f47eb9909ef3f7c84e3c1fa2fd15f71e95c8c17bac9fb887e9569049e2dc9e7",
+      "size": [
+        1024,
+        1024
+      ],
+      "visibleBounds": [
+        157,
+        67,
+        975,
+        856
+      ],
+      "hfrac": 0.771,
+      "wfrac": 0.8
+    },
+    "state-no-permission.png": {
+      "file": "state-no-permission.png",
+      "sha256": "02438d7cbacfc8e7056af1b415467029d5120ec655b35170153a5c31f1835996",
+      "size": [
+        1024,
+        1024
+      ],
+      "visibleBounds": [
+        106,
+        119,
+        959,
+        835
+      ],
+      "hfrac": 0.7,
+      "wfrac": 0.834
+    },
+    "state-offline.png": {
+      "file": "state-offline.png",
+      "sha256": "b68f3bad7b57376d315cb2cbb0eca9e2fba1f3623f8e5490b3187c442f98ed63",
+      "size": [
+        1024,
+        1024
+      ],
+      "visibleBounds": [
+        129,
+        154,
+        931,
+        824
+      ],
+      "hfrac": 0.655,
+      "wfrac": 0.784
+    },
+    "state-session-expired.png": {
+      "file": "state-session-expired.png",
+      "sha256": "e21d89e1fb65997e7732c87fbb5ef53529c5e54283861defd99841f956de2891",
+      "size": [
+        1024,
+        1024
+      ],
+      "visibleBounds": [
+        124,
+        136,
+        925,
+        828
+      ],
+      "hfrac": 0.677,
+      "wfrac": 0.783
+    },
+    "state-success.png": {
+      "file": "state-success.png",
+      "sha256": "e2c108f6b5e5449130c35fbd67fe64691d752edf0f45fddfba4badc9cd1282d3",
+      "size": [
+        1024,
+        1024
+      ],
+      "visibleBounds": [
+        124,
+        109,
+        853,
+        904
+      ],
+      "hfrac": 0.777,
+      "wfrac": 0.713
+    }
+  }
+}

@@ -31,7 +31,11 @@ import { setItemTitle } from "../app/documentTitle.js";
  * 스크롤해 지나가야 한다. */
 
 /* 서버가 준 이름을 그대로 쓴다. 접두사를 붙여 만들지 않는 이유는 MyTickets.jsx 와 같다. */
-function ticketId(t) { return (t && t.key) || "티켓"; }
+/* 번호가 없으면 **없다고 말한다.** 예전 폴백은 문자열 `"티켓"` 이었는데, 그 값이 「티켓 번호」
+   라벨 아래 들어가면 화면이 「티켓 번호: 티켓」이라고 적는다 — 값을 모른다는 사실이 값처럼
+   읽힌다. `null` 을 주면 `MetaBar` 가 `-` 를 그린다(빈 값의 공통 표현). 아래 PageHeader 의
+   제목 폴백은 그대로 두는 것이 맞다 — 거기서는 「제목이 없는 티켓」의 이름이 필요하다. */
+function ticketId(t) { return (t && t.key) || null; }
 
 /* 두 열 그리드 — 기준선 `.ticket-layout` 을 그대로 쓴다.
  *
@@ -179,19 +183,24 @@ export function Ticket() {
     // 이유가 없었다 — 라벨과 함께 한 속성 줄로 합친다. 가장 먼저 훑는 두 값이라 맨 앞이다.
     /* 칸마다 `type` 이 붙는다 (C3) — 폭을 여기서 숫자로 적지 않는다. 이름·제목형만 남는
        폭을 가져가고 상태·수치·날짜는 자기 내용 폭만 쓴다. 예전에는 전부 균등이라 「높음」
-       두 글자가 프로젝트 이름과 같은 폭을 받았고, 화면이 넓어질수록 속성 사이만 벌어졌다. */
-    t.status ? { key: "status", label: "상태", type: "status", value: <Badge value={t.status} /> } : null,
-    t.priority ? { key: "priority", label: "우선순위", type: "status", value: <Badge value={priorityKo(t.priority)} kind={priorityKind(t.priority)} /> } : null,
+       두 글자가 프로젝트 이름과 같은 폭을 받았고, 화면이 넓어질수록 속성 사이만 벌어졌다.
+
+       `rank` 는 폭이 아니라 **무게**다 (R-90). 티켓을 열었을 때 먼저 판단하는 값은
+       「지금 어떤 상태이고 · 누가 · 언제까지 · 얼마나 급한가」다 — 그 다섯이 위 줄에 선다.
+       티켓 번호·난이도·예상/실제 WD 는 **찾을 때만 읽는** 값이라 아래 압축 띠로 내린다.
+       예전에는 아홉이 같은 무게로 한 줄이었고, 4K 에서 그 줄은 2,880px 였다. */
+    t.status ? { key: "status", label: "상태", type: "status", rank: "primary", value: <Badge value={t.status} /> } : null,
+    t.priority ? { key: "priority", label: "우선순위", type: "status", rank: "primary", value: <Badge value={priorityKo(t.priority)} kind={priorityKind(t.priority)} /> } : null,
+    t.project ? { key: "project", label: "프로젝트", type: "name", rank: "primary", value: t.project } : null,
+    (t.assignee_names || []).length ? { key: "assignee", label: "담당자", type: "name", rank: "primary", value: t.assignee_names.join(", ") } : null,
+    t.due ? { key: "due", label: "마감", type: "date", rank: "primary", value: t.due } : null,
     // SEM-03 재확인 — PageHeader의 h1이 이제 원시 ID(GIT-57 등) 대신 실제 제목을 보여준다
     // (VIS-133과 같은 원인). 그 ID는 지원 문의 등에서 여전히 참조되는 값이라 사라지면 안
-    // 되므로 메타로 옮긴다.
+    // 되므로 메타로 옮긴다 — 다만 «먼저 판단할 값» 은 아니라 아래 줄이다.
     { key: "tid", label: "티켓 번호", type: "identifier", value: ticketId(t) },
-    t.project ? { key: "project", label: "프로젝트", type: "name", value: t.project } : null,
-    (t.assignee_names || []).length ? { key: "assignee", label: "담당자", type: "name", value: t.assignee_names.join(", ") } : null,
     t.difficulty ? { key: "difficulty", label: "난이도", type: "enum", value: t.difficulty } : null,
     t.est_wd != null ? { key: "est", label: "예상 WD", type: "number", value: t.est_wd } : null,
     t.act_wd != null ? { key: "act", label: "실제 WD", type: "number", value: t.act_wd } : null,
-    t.due ? { key: "due", label: "마감", type: "date", value: t.due } : null,
   ].filter(Boolean);
 
   return (

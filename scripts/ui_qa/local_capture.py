@@ -92,9 +92,20 @@ def main() -> int:
             import importlib
 
             worst = 0
+            # `--routes`·`--viewports` 는 이 스크립트도 선언한 이름이라 `parse_known_args`
+            # 가 먼저 먹는다. 하네스 모드에서는 캡처를 안 돌리므로 그 둘은 하네스의 것이다 —
+            # **사람이 실제로 적었을 때만** 넘긴다(기본값을 넘기면 그 이름을 모르는 하네스가
+            # 죽는다). `hostile_data --routes user_ticket-detail --viewports 3840x2160` 이
+            # 조용히 기본 네 화면을 찍고 초록을 내던 자리다.
+            typed = set(sys.argv)
+            passthrough: list[str] = []
+            if "--routes" in typed and args.routes:
+                passthrough += ["--routes", *args.routes]
+            if "--viewports" in typed and args.viewports:
+                passthrough += ["--viewports", *args.viewports]
             for name in args.harness:
                 mod = importlib.import_module("scripts.ui_qa." + name)
-                sys.argv = [name + ".py", "--base-url", base, *rest]
+                sys.argv = [name + ".py", "--base-url", base, *passthrough, *rest]
                 print("\n== %s ==" % name, flush=True)
                 code = mod.main()
                 worst = max(worst, code or 0)

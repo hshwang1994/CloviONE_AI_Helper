@@ -188,7 +188,7 @@ export function AiWorkspace() {
       <PageHeader
         area="AI"
         title="AI 작업공간"
-        spot="assistant"
+
         help="사내 문서에서 근거를 찾아 답하고, 그 근거가 어느 문서 어디인지 함께 보여 줍니다."
       />
 

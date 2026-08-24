@@ -41,7 +41,7 @@ export function ResultsRail({ railOpen, railMsg, railPayload, railIsLast, doSend
         ) : (
           <EmptyState
             size="compact"
-            icon={<MascotPose mode="sleep" size="4.5rem" decorative />}
+            icon={<MascotPose mode="sleep" place="emptyCompact" decorative />}
             title="아직 표시할 결과가 없습니다"
             help="티켓, 프로젝트를 조회하면 그 결과 카드가 여기에 모입니다. 스레드는 대화만 남습니다."
           />

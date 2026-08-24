@@ -2,7 +2,7 @@ import React from "react";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import { useTheme } from "@mui/material/styles";
-import { ChartEmpty, ChartQuestion, capSeries, resolveChartColor, useTrackColor } from "./base.jsx";
+import { ChartNoData, ChartQuestion, capSeries, resolveChartColor, useTrackColor } from "./base.jsx";
 import { FONT_WEIGHT, KO_WORD_BREAK } from "../theme.js";
 
 /* 도넛 — 전체가 무엇으로 이루어져 있는지(구성비)를 보여준다. 크기 비교는 BarSeries가 낫다.
@@ -41,10 +41,12 @@ export function Donut({
     : shown;
   const missing = Math.max(0, total - shown);
 
-  // size가 도넛 자체의 폭·높이를 정하는 값이라(기본 9rem), 빈 상태도 그대로 넘겨야 카드가
-  // 로딩→빈 전환에서 ChartEmpty의 기본값(4rem)으로 훅 줄어들지 않는다 — LineSeries/Sparkline이
-  // 자신의 height를 ChartEmpty에 그대로 넘기는 것과 같은 이유다.
-  if (!rows.length || total <= 0) return <ChartEmpty label={emptyLabel} height={size} />;
+  // 값이 없으면 **도넛을 통째로 접는다** — 빈 원을 그리지도, 도넛 높이만큼 빈 상자를
+  // 남기지도 않는다(PLAN «빈 데이터 규칙» ⓑ). 예전에는 여기서 `size` 를 빈 상태에 그대로
+  // 넘겨 높이를 지켰는데, 그건 «없는 데이터를 위한 컨테이너» 를 9rem 짜리로 만드는 일이었다.
+  // 로딩 자리는 `Skeleton kind="chart"` 가 같은 높이의 차트 모양으로 잡으므로, 이제
+  // 「불러오는 중」과 「없다」가 서로 다르게 보인다.
+  if (!rows.length || total <= 0) return <ChartNoData label={emptyLabel} />;
 
   const R = 15.91549431;
   let acc = 0;

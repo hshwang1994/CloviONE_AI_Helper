@@ -11,7 +11,7 @@ import { api } from "../lib/api.js";
 import { Button, Callout, Card, ErrorState, MetricStrip, PageHeader, Skeleton } from "../ui/kit.jsx";
 import { BarSeries } from "../ui/charts/BarSeries.jsx";
 import { LineSeries } from "../ui/charts/LineSeries.jsx";
-import { ChartEmpty } from "../ui/charts/base.jsx";
+import { ChartNoData } from "../ui/charts/base.jsx";
 import { ticketColumns, GroupedTickets, TicketEditModal, ticketConnState } from "./MyTickets.jsx";
 import { groupByAssignee } from "./TeamTickets.jsx";
 import { burndownSeries, wdBalanceItems } from "./sprint-charts.js";
@@ -287,7 +287,7 @@ export function Sprint() {
 
   return (
     <div className="c-screen">
-      <PageHeader crumbRoot="도우미" area="스프린트 회의" title="스프린트 회의" spot="sprint" actions={nudge} />
+      <PageHeader crumbRoot="도우미" area="스프린트 회의" title="스프린트 회의" actions={nudge} />
       <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }} aria-live="polite">
         {weekLabel} ({start} ~ {sunday}) 기준입니다. 담당자별로 진행을 보고, 회의 중에 바로 수정할 수 있습니다.
       </Typography>
@@ -325,7 +325,7 @@ export function Sprint() {
         </Note>
       </Box>
 
-      {q.isLoading ? <Card><Skeleton lines={8} /></Card>
+      {q.isLoading ? <Card><Skeleton kind="chart" /></Card>
         : q.isError ? <ErrorState error={q.error} onRetry={() => q.refetch()} />
         : (() => {
           const d = q.data || {};
@@ -392,7 +392,7 @@ export function Sprint() {
                       ? <LineSeries
                           question="이번 주 남은 업무량이 계획대로 줄고 있는지 봅니다. 두 선 모두 마감일이 축이고, 완료 시각이 없어 날짜별 이력은 그리지 않습니다."
                           series={bd.series} labels={bd.labels} unit="인일" summary={bd.summary} />
-                      : <ChartEmpty label="이 주에 마감인 업무량이 없습니다" height="9rem" />;
+                      : <ChartNoData label="이 주에 마감인 업무량이 없습니다" />;
                   })()}
                 </Card>
                 <Card>
@@ -410,7 +410,7 @@ export function Sprint() {
                           {wd.summary}
                         </Typography>
                       </>
-                    ) : <ChartEmpty label="이 주에 배정된 업무가 없습니다" height="9rem" />;
+                    ) : <ChartNoData label="이 주에 배정된 업무가 없습니다" />;
                   })()}
                 </Card>
               </Box>

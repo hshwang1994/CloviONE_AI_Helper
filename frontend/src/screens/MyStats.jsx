@@ -92,7 +92,7 @@ export function MyStats() {
         area="내 정보"
         title="내 업무량, 완료 통계"
         crumbRoot=""
-        spot="sprint"
+
         actions={
           <TextField
             select size="small" label="기간"
@@ -107,7 +107,7 @@ export function MyStats() {
       />
 
       {q.isLoading ? (
-        <Card><Skeleton lines={8} /></Card>
+        <Card><Skeleton kind="chart" /></Card>
       ) : q.isError ? (
         <ErrorState error={q.error} onRetry={() => q.refetch()} />
       ) : (

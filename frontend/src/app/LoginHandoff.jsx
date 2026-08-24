@@ -144,7 +144,7 @@ export function LoginHandoff({ ready = true }) {
       }}
     >
       <Box sx={{ display: "grid", justifyItems: "center", gap: 1.5, px: 3, textAlign: "center" }}>
-        <MascotPose mode="welcome" size={132} />
+        <MascotPose mode="welcome" place="loginHandoff" />
         {/* 크기만 h6 이고 문서 heading 은 아니다 — 1초짜리 인계 연출이 문서 구조에 제목을
             하나 끼워 넣으면 그 아래 첫 화면의 h1 이 h6 다음에 오는 꼴이 된다. 낭독은 이
             상자의 `role="status"` 가 이미 맡는다. */}

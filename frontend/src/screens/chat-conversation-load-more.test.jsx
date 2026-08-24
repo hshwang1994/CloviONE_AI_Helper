@@ -54,10 +54,16 @@ describe("대화 목록 '더 보기' (AI-18)", () => {
     expect(props.loadMoreConvs).toHaveBeenCalledTimes(1);
   });
 
-  it("다음 페이지를 받는 동안(isFetching) 버튼이 비활성화되고 문구가 바뀐다", () => {
+  /* qa-contract-change: 이 버튼이 로딩을 말하는 방법이 바뀌었다. 예전에는 화면이 라벨을
+     직접 「불러오는 중…」으로 갈아 끼웠는데, 그건 화면마다 자기 로딩 문구를 만드는 형태이고
+     지시 20 이 금지한 것이다. 이제 공통 `Button` 의 `loading` 이 맡는다 — 라벨은 그대로 두고
+     스피너와 `aria-busy` 와 비활성을 함께 건다. «문구가 바뀌는가» 대신 **«버튼이 바쁘다고
+     말하는가»** 를 확인하고, 그 김에 라벨이 사라지지 않는다는 것도 함께 본다. */
+  it("다음 페이지를 받는 동안(isFetching) 버튼이 비활성화되고 바쁘다고 말한다", () => {
     renderSidebar({ hasMoreConvs: true, convs: { isLoading: false, isError: false, isFetching: true } });
-    const btn = screen.getByRole("button", { name: "불러오는 중…" });
+    const btn = screen.getByRole("button", { name: "대화 더 보기" });
     expect(btn).toBeDisabled();
+    expect(btn).toHaveAttribute("aria-busy", "true");
   });
 
   it("목록이 비어 있으면 hasMoreConvs가 true여도 버튼을 그리지 않는다", () => {

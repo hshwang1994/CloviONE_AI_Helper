@@ -368,8 +368,8 @@
 - **Affected**: ALL
 - **Implementation**: `frontend/src/ui/kit.jsx`, `frontend/src/ui/Mascot.jsx`, `frontend/src/lib/assets.js`, `frontend/src/ui/charts/base.jsx`
 - **Verification**: assertion `mascot_visible_size`, `frontend/src/ui/charts/donut-empty-state-height.test.jsx`, `frontend/src/ui/kit.test.jsx`
-- **Status**: NOT_STARTED
-- **Evidence**: (없음 - Status 가 DONE 이 될 때 채운다)
+- **Status**: DONE
+- **Evidence**: `frontend/src/ui/kit.jsx::EmptyState/ErrorState`(그림 크기가 «보이는 캐릭터»에서 파생) · `ui/charts/base.jsx::ChartNoData`(점선 상자 폐기, 값 없으면 접는다) · `ui/empty-data-unmount.test.jsx` 11건(0건이면 차트·표·페이저가 **언마운트**되고, 값이 있으면 다시 선다 — 양방향) · `MetricStrip` 전부 빈 줄은 원인을 대신 그린다. 실측 `dist/ui-qa/s17-after/results.json`(15화면 × 2뷰포트 × 2테마 = 60페이지, build_index_sha256 는 WORK_STATE CHECKPOINT 와 같다) — S16 과 겹치는 48페이지에서 상태가 바뀐 것은 `dead_blank_region` fail→pass 4건뿐이고 나빠진 것은 0건. 결정 D-296
 - **Findings**: (없음)
 - **Depends on**: (없음)
 
@@ -438,8 +438,8 @@
 - **Affected**: ALL
 - **Implementation**: `frontend/src/ui/kit.jsx`, `frontend/src/ui/Mascot.jsx`, `frontend/src/lib/assets.js`, `frontend/src/ui/charts/base.jsx`
 - **Verification**: assertion `mascot_visible_size`, `frontend/src/ui/charts/donut-empty-state-height.test.jsx`, `frontend/src/ui/kit.test.jsx`
-- **Status**: NOT_STARTED
-- **Evidence**: (없음 - Status 가 DONE 이 될 때 채운다)
+- **Status**: IN_PROGRESS
+- **Evidence**: 상세 좌우 균형의 **공유 계약 절반**을 S17 이 닫았다: 상단 속성이 두 층으로 갈려(D-298) 본문·레일이 쓰는 세로를 덜 먹는다. `detail_side_imbalance` 는 `dist/ui-qa/s17-detail-zoom/` (3화면 × 4뷰포트 × 2테마)에서 `--fail-on` 으로 걸린 채 실패 0. 남은 절반(본문·첨부·댓글·관련 맥락의 정보량 기준 재설계)은 화면 파일 소유라 S19 가 닫는다
 - **Findings**: (없음)
 - **Depends on**: (없음)
 
@@ -564,8 +564,8 @@
 - **Affected**: ALL
 - **Implementation**: `frontend/src/ui/kit.jsx`, `frontend/src/ui/Mascot.jsx`, `frontend/src/lib/assets.js`, `frontend/src/ui/charts/base.jsx`
 - **Verification**: assertion `mascot_visible_size`, `frontend/src/ui/charts/donut-empty-state-height.test.jsx`, `frontend/src/ui/kit.test.jsx`
-- **Status**: NOT_STARTED
-- **Evidence**: (없음 - Status 가 DONE 이 될 때 채운다)
+- **Status**: DONE
+- **Evidence**: 빈 화면 판정 다섯 질문 가운데 ①②③ 을 공유 계층이 강제한다 — 값이 없으면 차트·표·페이저가 언마운트되고(`ui/empty-data-unmount.test.jsx`), 빈 상태는 «다음 행동» 을 설명보다 위에 두며, 그림은 «보이는 캐릭터» 밴드 안에 있다(`mascot_visible_size` 60페이지 초록, W7 부터 `--fail-on`). 반대 방향(공간을 채우려고 의미 없는 카드를 넣는 것)은 `oversized_empty_surface` 가 계속 잰다. 결정 D-296 · D-297
 - **Findings**: (없음)
 - **Depends on**: (없음)
 
@@ -774,8 +774,8 @@
 - **Affected**: ALL
 - **Implementation**: `frontend/src/ui/kit.jsx`, `frontend/src/ui/Mascot.jsx`, `frontend/src/lib/assets.js`, `frontend/src/ui/charts/base.jsx`
 - **Verification**: assertion `mascot_visible_size`, `frontend/src/ui/charts/donut-empty-state-height.test.jsx`, `frontend/src/ui/kit.test.jsx`
-- **Status**: NOT_STARTED
-- **Evidence**: (없음 - Status 가 DONE 이 될 때 채운다)
+- **Status**: DONE
+- **Evidence**: `PageHeader` 가 제목 오른쪽 `?` 토글과 도움말 Callout 을 소유한다(W4). S17 이 닫은 것은 **죽은 장식 prop** 이다: `spot` 은 Q4 이후 아무 일도 안 하는데 화면 열일곱이 계속 값을 넘기고 있었다 — prop 과 호출부 열일곱을 함께 지웠다(지시 71 «Clovi 금지 구역»). 강제 줄바꿈 금지는 `ko-wordbreak.test.jsx`·`USER_TEXT_OK` 가 계속 검사한다
 - **Findings**: (없음)
 - **Depends on**: (없음)
 
@@ -956,8 +956,8 @@
 - **Affected**: ALL
 - **Implementation**: `frontend/src/ui/kit.jsx`, `frontend/src/ui/Mascot.jsx`, `frontend/src/lib/assets.js`, `frontend/src/ui/charts/base.jsx`
 - **Verification**: assertion `mascot_visible_size`, `frontend/src/ui/charts/donut-empty-state-height.test.jsx`, `frontend/src/ui/kit.test.jsx`
-- **Status**: NOT_STARTED
-- **Evidence**: (없음 - Status 가 DONE 이 될 때 채운다)
+- **Status**: DONE
+- **Evidence**: 의미 없는 줄바꿈의 **구조적 원인**은 두 가지였고 둘 다 공유 계층에서 닫혔다: 칸이 자기 내용에 안 맞는 폭을 받는 것(S16 의 `type`, S17 의 `rank`)과 화면이 `\n`·`<br>` 을 문구에 박는 것(`USER_TEXT_OK` static check). 긴 프로젝트명 실데이터로 1920/2560/3072/3840 에서 **잘림 0 · 세로 붕괴 0 · 가로 넘침 0**(`dist/hostile-data/hostile_data.json`, mode=long)
 - **Findings**: (없음)
 - **Depends on**: (없음)
 
@@ -1012,8 +1012,8 @@
 - **Affected**: ALL
 - **Implementation**: `frontend/src/ui/kit.jsx`, `frontend/src/ui/Mascot.jsx`, `frontend/src/lib/assets.js`, `frontend/src/ui/charts/base.jsx`
 - **Verification**: assertion `mascot_visible_size`, `frontend/src/ui/charts/donut-empty-state-height.test.jsx`, `frontend/src/ui/kit.test.jsx`
-- **Status**: NOT_STARTED
-- **Evidence**: (없음 - Status 가 DONE 이 될 때 채운다)
+- **Status**: DONE
+- **Evidence**: Loading 은 «들어올 것의 모양» 넷으로 좁혔다 — `Skeleton kind=section|page|table|chart`. `chart` 를 S17 이 새로 만들고 그림을 그리는 화면 다섯에 배선했다(회색 줄 여덟 개가 차트 자리에 그려지면 「불러오는 중」과 「값이 없다」가 같아 보인다). 버튼 로딩은 `Button loading` 하나로 모았다 — 화면이 라벨을 「불러오는 중…」으로 갈아 끼우던 자리 둘을 걷었고, 시험은 이제 `aria-busy` 를 본다. 🔴 그 과정에서 **원인을 잘못 말하는 안내** 하나를 찾아 고쳤다: 담당자 후보가 비면 「Notion에 연결된 사용자 없음」이라고 했는데, S14 가 그 런타임을 걷었고 S15(D-285)가 후보 규칙을 **활성 사용자 전원**으로 바꿨다. 결정 D-296
 - **Findings**: (없음)
 - **Depends on**: (없음)
 
@@ -1222,8 +1222,8 @@
 - **Affected**: ALL
 - **Implementation**: `frontend/src/ui/kit.jsx`, `frontend/src/ui/Mascot.jsx`, `frontend/src/lib/assets.js`, `frontend/src/ui/charts/base.jsx`
 - **Verification**: assertion `mascot_visible_size`, `frontend/src/ui/charts/donut-empty-state-height.test.jsx`, `frontend/src/ui/kit.test.jsx`
-- **Status**: NOT_STARTED
-- **Evidence**: (없음 - Status 가 DONE 이 될 때 채운다)
+- **Status**: IN_PROGRESS
+- **Evidence**: Feedback 위계의 부품은 서 있다 — `Callout`(tone 4단계 · `variant="block|inline"` · `detail` 로 기술 상세 분리) · `ErrorState`(상태별 문구·행동·문의 번호) · `Toast`. S17 이 그중 **오류 표현**을 닫았다(위 R-20). 관리자 화면의 큰 테두리 상자 전수조사와 재배치는 그 화면들 소유라 S20 이 닫는다
 - **Findings**: (없음)
 - **Depends on**: (없음)
 
@@ -1726,8 +1726,8 @@
 - **Affected**: ALL
 - **Implementation**: `frontend/src/ui/kit.jsx`, `frontend/src/ui/Mascot.jsx`, `frontend/src/lib/assets.js`, `frontend/src/ui/charts/base.jsx`
 - **Verification**: assertion `mascot_visible_size`, `frontend/src/ui/charts/donut-empty-state-height.test.jsx`, `frontend/src/ui/kit.test.jsx`
-- **Status**: NOT_STARTED
-- **Evidence**: (없음 - Status 가 DONE 이 될 때 채운다)
+- **Status**: DONE
+- **Evidence**: 🔴 원인은 «작게 줬다» 가 아니라 «박스를 줬다» 였다 — 포즈 자산의 세로 잉크 비율이 0.666~0.850 으로 벌어져 같은 `size` 가 자산마다 다른 크기로 보인다. 이제 호출부는 **자리 이름**만 말하고(`MASCOT_PLACE`) 박스는 `visible / hfrac` 로 파생한다. 자산 경계는 `app/static/brand/mascot/mascot-bounds.json` 에 잠겨 있고 `static_checks.sh` 가 신선도를, `tests/regression/test_mascot_visible_bounds.py` 6건이 자산 재출력을 잡는다. `mascot_visible_size` 는 **W7 부터 `--fail-on`** 이고 s17-after 60페이지에서 실패 0. 상단바는 자는 얼굴(`clovi-idle`)에서 웃는 얼굴(`clovi-avatar`)로 바뀌었고 보이는 크기가 22px → 34px(2200 이상에서 40px). 결정 D-294 · D-295
 - **Findings**: (없음)
 - **Depends on**: (없음)
 
@@ -1782,8 +1782,8 @@
 - **Affected**: ALL
 - **Implementation**: `frontend/src/ui/kit.jsx`, `frontend/src/ui/Mascot.jsx`, `frontend/src/lib/assets.js`, `frontend/src/ui/charts/base.jsx`
 - **Verification**: assertion `mascot_visible_size`, `frontend/src/ui/charts/donut-empty-state-height.test.jsx`, `frontend/src/ui/kit.test.jsx`
-- **Status**: NOT_STARTED
-- **Evidence**: (없음 - Status 가 DONE 이 될 때 채운다)
+- **Status**: DONE
+- **Evidence**: 폭은 S16 이 `type` 으로 닫았고(D-288), S17 이 **무게**를 닫았다(D-298): 화면이 `rank: "primary"` 로 먼저 판단할 값을 선언하면 그것만 위 줄의 Property Group 이 되고 나머지는 아래 Compact Strip 으로 내려간다. 티켓 상세 배선 완료(상태·우선순위·프로젝트·담당자·마감 vs 티켓 번호·난이도·예상/실제 WD). `ui/metabar-hierarchy.test.jsx` 6건이 «선언이 없으면 렌더가 안 바뀐다» 를 포함해 양방향으로 지킨다
 - **Findings**: (없음)
 - **Depends on**: (없음)
 
@@ -1866,8 +1866,8 @@
 - **Affected**: ALL
 - **Implementation**: `frontend/src/ui/kit.jsx`, `frontend/src/ui/Mascot.jsx`, `frontend/src/lib/assets.js`, `frontend/src/ui/charts/base.jsx`
 - **Verification**: assertion `mascot_visible_size`, `frontend/src/ui/charts/donut-empty-state-height.test.jsx`, `frontend/src/ui/kit.test.jsx`
-- **Status**: NOT_STARTED
-- **Evidence**: (없음 - Status 가 DONE 이 될 때 채운다)
+- **Status**: IN_PROGRESS
+- **Evidence**: Reading 축은 이미 서 있다 — `PROSE_MAX_WIDTH`(78ch)와 `BoardPost` 의 `PROSE_MAX_WIDTH_WIDE`. S17 이 더한 것은 업무 Detail 쪽 절반이다: 상단 속성이 두 층으로 갈려 본문이 시작하는 y 가 낮아졌다. Reading Container 폭의 최종 판정은 그 화면들(게시글·문서 상세) 소유라 S19 가 닫는다. 이번 회차의 실측은 `dist/ui-qa/s17-detail-zoom/`(3화면 × 4뷰포트 × 2테마)
 - **Findings**: (없음)
 - **Depends on**: (없음)
 
@@ -2160,8 +2160,8 @@
 - **Affected**: ARCHETYPE:work_detail, ARCHETYPE:reading_page
 - **Implementation**: `frontend/src/ui/kit.jsx`, `frontend/src/ui/Mascot.jsx`, `frontend/src/lib/assets.js`, `frontend/src/ui/charts/base.jsx`
 - **Verification**: assertion `mascot_visible_size`, `frontend/src/ui/charts/donut-empty-state-height.test.jsx`, `frontend/src/ui/kit.test.jsx`
-- **Status**: NOT_STARTED
-- **Evidence**: (없음 - Status 가 DONE 이 될 때 채운다)
+- **Status**: DONE
+- **Evidence**: 위 R-75 와 같은 배선이고, 이 항의 고유 요구는 **긴 프로젝트명 실데이터 검증**이다. QA 씨앗에 긴 이름 프로젝트(「ClovirAssist 플랫폼 전환 및 자체 데이터 이관」)를 넣고 상세 캡처가 그 티켓을 열게 했다 — `dist/ui-qa/s17-detail-zoom/` 의 1920·2560·3072·3840 × light/dark 여덟 장에서 그 이름이 한 줄로 서고 잘리지 않는다(4K 패널의 확대 100/125/150%% 가 곧 CSS 폭 3840/3072/2560 이라 그 셋이 Zoom 사다리다). `hostile_data --modes long` 이 같은 네 폭에서 잘림 0 · 세로 붕괴 0 · 가로 넘침 0 을 확인한다. Inline Edit 중복 구현은 `InlineEdit.jsx` 공통 계층이 이미 소유하고 배선은 R-89(티켓 도메인 회차)다. 결정 D-298
 - **Findings**: (없음)
 - **Depends on**: (없음)
 

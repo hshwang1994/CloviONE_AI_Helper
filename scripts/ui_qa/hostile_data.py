@@ -116,7 +116,20 @@ def main() -> int:
                     default=["admin_users", "user_my-tickets", "user_projects", "admin_jobs"])
     ap.add_argument("--modes", nargs="*", default=["long", "many", "weird"])
     ap.add_argument("--auth-dir", default="dist/ui-qa-admin-2")
+    ap.add_argument("--base-url", default=BASE,
+                    help="기본은 설치처다. `local_capture --harness hostile_data` 가 "
+                         "임시 서버 주소를 여기로 넘긴다 — 긴 데이터 검증에 배포가 "
+                         "전제가 되면 E5 와 어긋난다")
+    ap.add_argument("--viewports", nargs="*", default=["1600x1000"],
+                    help="`WxH` 목록. R-90 은 긴 값을 FHD/QHD/4K 와 Zoom 3단계에서 보라고 "
+                         "요구한다 — 4K 패널의 브라우저 확대 100/125/150%% 는 CSS 폭 "
+                         "3840/3072/2560 과 같으므로 그 셋이 곧 Zoom 사다리다")
     args = ap.parse_args()
+    base = args.base_url
+    views = []
+    for name in args.viewports:
+        w, _, h = name.partition("x")
+        views.append(Viewport(name, int(w), int(h or 1000)))
 
     insecure = tls.apply_default_https_context()
     print(tls.describe())
@@ -126,14 +139,15 @@ def main() -> int:
     report: dict = {}
     with sync_playwright() as pw:
         b = pw.chromium.launch(headless=True)
-        s = ensure_session(b, BASE, Path(args.auth_dir), insecure=insecure, log=print)
+        s = ensure_session(b, base, Path(args.auth_dir), insecure=insecure, log=print)
         for mode in args.modes:
+          for view in views:
             for rid in args.routes:
                 route = BY_ID.get(rid)
                 if route is None:
                     continue
                 ctx = new_context(b, storage_state=s.storage_state, user_id=s.user_id,
-                                  theme="light", viewport=Viewport("1600x1000", 1600, 1000),
+                                  theme="light", viewport=view,
                                   insecure=insecure)
                 page = ctx.new_page()
                 errs: list[str] = []
@@ -150,22 +164,23 @@ def main() -> int:
                     except Exception:  # noqa: BLE001
                         return r.continue_()
 
-                page.goto(f"{BASE}{route.shell}", wait_until="domcontentloaded", timeout=45_000)
+                page.goto(f"{base}{route.shell}", wait_until="domcontentloaded", timeout=45_000)
                 page.wait_for_timeout(600)
                 page.route("**/api/**", handler)
                 t0 = time.time()
-                page.goto(f"{BASE}{route.shell}#{route.hash_path}",
+                page.goto(f"{base}{route.shell}#{route.hash_path}",
                           wait_until="domcontentloaded", timeout=90_000)
                 page.wait_for_timeout(3000)
                 elapsed = round(time.time() - t0, 1)
                 got = page.evaluate(PROBE)
-                got.update({"seconds": elapsed, "page_errors": errs[:3]})
-                report[f"{mode}/{rid}"] = got
-                print(f"{mode:<7}{rid:<20}행={got['rows']:<4}넘침={len(got['overflow'])} "
+                got.update({"seconds": elapsed, "page_errors": errs[:3], "viewport": view.name})
+                report[f"{mode}/{view.name}/{rid}"] = got
+                print(f"{mode:<7}{view.name:<10}{rid:<20}행={got['rows']:<4}"
+                      f"넘침={len(got['overflow'])} "
                       f"잘림={len(got['clipped'])} 세로붕괴={len(got['collapsed'])} "
                       f"문서폭={got['bodyScrollW']}/{got['vw']} {elapsed}s err={len(errs)}",
                       flush=True)
-                page.screenshot(path=str(OUT / f"{mode}-{rid}.png"))
+                page.screenshot(path=str(OUT / f"{mode}-{view.name}-{rid}.png"))
                 ctx.close()
         b.close()
 

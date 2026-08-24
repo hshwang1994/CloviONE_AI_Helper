@@ -424,8 +424,20 @@ function AssigneePicker({ loading, candidates, selected, onChange, myId }) {
   // 조직은 둘 이상 섞여 있을 때만 그린다 — 하나뿐이면 모든 줄에 같은 값이 붙어 구분에
   // 도움이 안 되면서 줄만 길어진다.
   const withOrg = needsOrg(candidates);
-  if (loading) return <Typography variant="body2" color="text.secondary">불러오는 중…</Typography>;
-  if (!candidates.length) return <Typography variant="body2" color="text.secondary">배정 후보가 없습니다(Notion에 연결된 사용자 없음).</Typography>;
+  /* 로딩은 화면마다 다른 회색 문장을 쓰지 않는다 (R-20) — 들어올 것의 모양을 그린다.
+     여기 들어오는 것은 선택 상자 한 줄이라 `lines={1}` 이다. */
+  if (loading) return <Skeleton lines={1} />;
+  /* 이 문장은 **틀린 원인을 말하고 있었다.** 「Notion에 연결된 사용자 없음」이라고 적혀
+     있었는데, 후보를 고르는 규칙은 S15 가 바꿨다(D-285): 서버는 이제 **활성 사용자 전원**
+     가운데 그 프로젝트에 닿을 수 있는 사람을 준다. Notion 런타임은 S14 가 걷어서 존재하지도
+     않는다. 원인을 잘못 말하는 안내는 없는 것보다 나쁘다 — 사용자가 없는 시스템을 고치러 간다. */
+  if (!candidates.length) {
+    return (
+      <Typography variant="body2" color="text.secondary">
+        배정할 수 있는 사람이 없습니다. 이 프로젝트에 접근할 수 있는 계정만 후보로 나옵니다.
+      </Typography>
+    );
+  }
   const byId = new Map(candidates.map((c) => [c.user_id, c]));
   // selected는 id 배열이다(서버로 보내는 값 그대로, PA-RC-0035 이전과 같은 계약) —
   // Autocomplete는 옵션 객체로 값을 다루므로 여기서만 id -> 후보 객체로 바꾼다. 서버가
@@ -741,7 +753,7 @@ export function MyTickets() {
   );
   return (
     <div className="c-screen">
-      <PageHeader crumbRoot="내 업무" area="내 티켓" title="내 티켓" spot="mywork" actions={headerActions} />
+      <PageHeader crumbRoot="내 업무" area="내 티켓" title="내 티켓" actions={headerActions} />
       {q.isPending ? <Card><Skeleton /></Card>
         : q.isError ? <ErrorState error={q.error} onRetry={() => q.refetch()} />
         : (() => {
@@ -819,7 +831,7 @@ export function Unassigned() {
   );
   return (
     <div className="c-screen">
-      <PageHeader crumbRoot="내 업무" area="미할당 티켓" title="미할당 티켓" spot="mywork" actions={headerActions} />
+      <PageHeader crumbRoot="내 업무" area="미할당 티켓" title="미할당 티켓" actions={headerActions} />
       {q.isPending ? <Card><Skeleton /></Card>
         : q.isError ? <ErrorState error={q.error} onRetry={() => q.refetch()} />
         : (() => {
@@ -1070,7 +1082,7 @@ export function NewTicket() {
 
   return (
     <div className="c-screen">
-      <PageHeader crumbRoot="내 업무" area="새 티켓" title="새 티켓" spot="mywork" />
+      <PageHeader crumbRoot="내 업무" area="새 티켓" title="새 티켓" />
       {notConfigured ? (
         <Callout tone="warn">지금은 티켓을 만들 수 없습니다. 잠시 뒤 다시 시도해 보시고, 계속 같으면 관리자에게 문의하세요.</Callout>
       ) : (

@@ -118,7 +118,7 @@ export function Activity() {
 
   return (
     <div className="c-screen">
-      <PageHeader area="내 정보" title="내 활동" crumbRoot="" spot="teamspace" />
+      <PageHeader area="내 정보" title="내 활동" crumbRoot="" />
 
       <Card sx={{ p: 2, mb: 2.5 }}>
         <ToggleButtonGroup

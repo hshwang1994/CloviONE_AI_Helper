@@ -1,14 +1,14 @@
 import React from "react";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
-import { ChartEmpty, ChartQuestion, finiteValues, useChartColor } from "./base.jsx";
+import { ChartNoData, ChartQuestion, finiteValues, useChartColor } from "./base.jsx";
 
 /* 스파크라인 — 값 흐름 하나를 축·눈금 없이 보여주는 작은 꺾은선.
  *
  * points: 숫자 배열 또는 {value} 객체 배열. summary: 그림 옆에 반드시 나가는 글자 요약.
  *
  * 점이 2개 미만이면 그리지 않는다. 점 하나짜리 '추세선'은 없는 추세를 있는 것처럼 보이게 하는
- * 거짓말이라, 그런 경우엔 차라리 숫자만 남긴다(ChartEmpty).
+ * 거짓말이라, 그런 경우엔 차라리 숫자만 남긴다(ChartNoData).
  *
  * preserveAspectRatio="none"으로 컨테이너 폭·높이를 그대로 채우되, 선에는
  * vectorEffect="non-scaling-stroke"를 준다 — 없으면 가로로 늘어난 만큼 선 굵기도 축마다 달라져
@@ -20,7 +20,7 @@ export function Sparkline({
   const stroke = useChartColor(color, 0);
   const values = finiteValues(points, (p) => (typeof p === "number" ? p : p && p.value));
 
-  if (values.length < 2) return <ChartEmpty label={emptyLabel} height={height} />;
+  if (values.length < 2) return <ChartNoData label={emptyLabel} />;
 
   const W = 100;
   const H = 32;

@@ -95,6 +95,10 @@ describe("coerce (via SettingEditor render)", () => {
     const select = await screen.findByLabelText("값");
     await user.selectOptions(select, "false");
     await user.click(screen.getByRole("button", { name: "미리 검증" }));
-    expect(await screen.findByText(/검증 통과/)).toBeInTheDocument();
+    /* 화면이 실제로 내는 문장은 「검증을 통과했습니다. …」다. 예전 이 줄은 `/검증 통과/` 를
+       찾고 있었는데, 그 조각은 문구가 «검증 통과» 에서 완전한 문장으로 다듬어진 뒤로 어디에도
+       없다 — 화면은 옳게 동작하는데 시험만 옛 문구를 찾아 빨간 채였다(P-34 ③). 조각 대신
+       문장 앞부분을 찾고, 「저장할 수 있습니다」까지 확인해 **성공 경로**인지도 함께 본다. */
+    expect(await screen.findByText(/검증을 통과했습니다\. 저장할 수 있습니다\./)).toBeInTheDocument();
   });
 });

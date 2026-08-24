@@ -26,6 +26,20 @@ function jsxFiles(dir) {
   return out;
 }
 
+/* 문자열 리터럴 안의 `{/*` 는 주석이 아니다.
+ *
+ * 이 검사 자체가 소스를 정규식으로 훑기 때문에, **이 규칙을 설명하는 코드**가 걸린다:
+ * `ko-wordbreak.test.jsx` 가 `t.startsWith("{/*")` 로 주석 줄을 걸러 내는데 그 안의 세 글자를
+ * 열린 주석으로 읽었다. 화면 결함이 아니라 검사의 위양성이고, 실제로 두 회차에 걸쳐 빨간
+ * 채로 남아 있었다(P-34 ①).
+ *
+ * 진짜 JSX 주석 앞에는 언제나 공백·`>`·`}`·`(` 가 온다 — 따옴표가 오는 경우는 없다.
+ * 그래서 바로 앞 글자가 따옴표면 건너뛴다. 이 좁힘이 진짜 결함을 가리지 않는 이유가 그것이다.
+ */
+function insideStringLiteral(text, index) {
+  return index > 0 && (text[index - 1] === '"' || text[index - 1] === "'" || text[index - 1] === "`");
+}
+
 describe("JSX 주석", () => {
   it("`{/*` 로 연 주석은 전부 `*/}` 로 닫힌다", () => {
     const broken = [];
@@ -34,6 +48,7 @@ describe("JSX 주석", () => {
       const opener = /\{\/\*/g;
       let m;
       while ((m = opener.exec(text)) !== null) {
+        if (insideStringLiteral(text, m.index)) continue;
         const end = text.indexOf("*/", m.index + 3);
         if (end < 0 || text.slice(end, end + 3) !== "*/}") {
           const line = text.slice(0, m.index).split("\n").length;
@@ -56,6 +71,7 @@ describe("JSX 주석", () => {
       const opener = /\(\s*\{\/\*/g;
       let m;
       while ((m = opener.exec(text)) !== null) {
+        if (insideStringLiteral(text, m.index + m[0].indexOf("{"))) continue;
         const line = text.slice(0, m.index).split("\n").length;
         broken.push(`${file.replace(SRC, "src")}:${line}`);
       }

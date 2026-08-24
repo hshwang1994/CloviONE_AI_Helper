@@ -214,11 +214,11 @@ export function ConversationSidebar({
                         사용자에게는 아무것도 안 보이던 예전 그대로다. */}
                     {hasMoreConvs ? (
                       <Button
-                        size="sm" variant="ghost" disabled={convs.isFetching}
+                        size="sm" variant="ghost" loading={convs.isFetching}
                         onClick={loadMoreConvs}
                         sx={{ alignSelf: "center", mt: 0.5, flexShrink: 0 }}
                       >
-                        {convs.isFetching ? "불러오는 중…" : "대화 더 보기"}
+                        대화 더 보기
                       </Button>
                     ) : null}
                   </>

@@ -202,8 +202,17 @@ BRAND_PROBE_JS = r"""() => {
          첫 칸을 집는데, 이 role 의 정의는 «그 화면을 **지배하는** 판독값» 이다 — 첫 칸이
          아니다. 줄(`.k-metrics`)을 먼저 잡으면 아래 `refine` 이 줄 전체에서 가장 큰 글자를
          고르므로 정의와 측정이 일치한다. 가장 확실한 근거는 여전히 화면의 선언이다:
-         `MetricStrip` 이 판독 슬롯을 얻은 칸에만 `data-brand-role="highlight"` 를 붙인다. */
-      sel: ['[data-brand-role="highlight"]', '.k-metrics', '.k-readout', '.k-metabar'],
+         `MetricStrip` 이 판독 슬롯을 얻은 칸에만 `data-brand-role="highlight"` 를 붙인다.
+
+         🔴 `.k-metabar` 는 이 목록에 있으면 안 된다(S17). 속성 줄은 판독 줄과 **읽는 순서가
+         반대**다 — 지표는 숫자를 먼저 보고 그게 무엇인지 확인하지만, 속성은 찾는 이름이
+         먼저 있고 값은 본문 크기로 따라온다(`kit.jsx::MetaBar` 가 그렇게 적혀 있다).
+         그것을 «그 화면을 지배하는 판독값» 으로 세면 **판독 슬롯이 없는 상세 화면이 있다고
+         주장하게 되고**, 그 값이 (옳게) 본문 잉크라서 곧바로 실패한다. 실제로
+         `user_ticket-detail` 네 페이지가 그 경로로만 빨갰다. 고치는 방향은 속성 값을 Brand
+         로 칠하는 것이 아니다 — 그 화면에 판독값이 없다는 것이 사실이고, 사실일 때의 답은
+         `unknown` 이다(활성 주요 버튼이 없는 화면을 `unknown` 으로 두는 것과 같다). */
+      sel: ['[data-brand-role="highlight"]', '.k-metrics', '.k-readout'],
       /* `.k-metrics` 는 줄이고 `.k-readout` 은 칸이지 판독값이 아니다. 그 화면을 지배하는
          숫자는 **그 안에서 가장 큰 글자**다(kit.jsx MetricStrip: 값은 readout/title,
          라벨은 bodySm). */

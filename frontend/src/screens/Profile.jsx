@@ -447,7 +447,7 @@ export function Profile() {
 
   return (
     <div className="c-screen">
-      <PageHeader area="내 정보" title="내 프로필" crumbRoot="" spot="mywork" />
+      <PageHeader area="내 정보" title="내 프로필" crumbRoot="" />
       {loading ? (
         <Card><Skeleton lines={8} /></Card>
       ) : error ? (

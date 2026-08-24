@@ -234,7 +234,7 @@ export function Home() {
 
   return (
     <div className="c-screen">
-      <PageHeader crumbRoot="" title="오늘" spot="mywork" />
+      <PageHeader crumbRoot="" title="오늘" />
       {q.isLoading ? (
         <>
           {/* 스켈레톤은 실제 배치와 같은 모양을 쓴다 — 로딩이 끝나는 순간 요소가 뛰지 않는다.

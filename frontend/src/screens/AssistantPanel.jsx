@@ -296,7 +296,7 @@ export function AssistantPanel() {
       >
         {TABS.map((t) => <Tab key={t.key} label={t.label} />)}
       </Tabs>
-      {q.isLoading ? <Skeleton lines={4} />
+      {q.isLoading ? <Skeleton kind="chart" height="6rem" />
         : q.isError ? <ErrorState error={q.error} onRetry={() => q.refetch()} />
         : (
           <>

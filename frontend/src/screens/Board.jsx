@@ -494,7 +494,7 @@ function BoardScreen({ kind = "free" }) {
 
   return (
     <div className="c-screen">
-      <PageHeader crumbRoot="팀 공간" area={copy.area} title={copy.title} actions={writeBtn} spot="board" />
+      <PageHeader crumbRoot="팀 공간" area={copy.area} title={copy.title} actions={writeBtn} />
       <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
         {copy.lead}
       </Typography>

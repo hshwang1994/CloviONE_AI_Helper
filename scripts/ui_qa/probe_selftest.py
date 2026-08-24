@@ -527,6 +527,62 @@ def _logic_cases() -> list[dict]:
     case("brand/Brand 잉크 판독값은 통과다",
          coverage(nav_active=BRAND_INK, primary_action=BRAND_INK, highlight=BRAND_INK), "pass",
          "고친 뒤의 모습 — 이 사례가 없으면 «전부 unknown» 으로도 초록이 된다")
+
+    # ── W7 이 고친 마스코트 판정 (지시 71) ────────────────────────────────
+    # `mascot_verdict` 도 측정과 분리돼 있어(dict 만 받는다) 브라우저 없이 양방향을 보인다.
+    # 여기서 못 박는 것은 셋이다: 잉크 비율이 부풀면 작은 마스코트가 통과한다 · 자리를
+    # 선언하지 않으면 판정 자체가 뒤집힌다 · 못 잰 것은 통과가 아니다.
+    from . import mascot  # noqa: PLC0415
+
+    def seen(context: str, box: float, ink: float, *, container=None) -> str:
+        """자산 하나가 한 자리에 그려진 것으로 꾸민 측정값 → 판정."""
+        src = "http://x/static/brand/mascot/clovi-talking.png"
+        probe_dict = {
+            "items": [{
+                "src": src, "context": context, "boxW": box, "boxH": box,
+                "natW": 1024, "natH": 1024, "objectFit": "contain",
+                "containerH": container,
+            }],
+            "ink": {src: {"natW": 1024, "natH": 1024, "inkFracH": ink, "inkFracW": ink}},
+            "failed": {},
+        }
+        return mascot.mascot_verdict(probe_dict)["status"]
+
+    # 🔴 이 저장소에서 실제로 있었던 상태다. 프로브가 알파 문턱 8 에 부유 픽셀 제거 없이
+    #    재서 `clovi-talking` 의 잉크 비율을 1.000 으로 봤다 — 참값은 0.817 이다.
+    case("mascot/부풀린 잉크 비율은 작은 마스코트를 통과시킨다",
+         seen("inline", 28, 1.000), "pass",
+         "🔴 고치기 전의 상태. 28px 상자가 «보이는 캐릭터 28px» 로 세어져 하한을 만족했다")
+    case("mascot/참값으로 재면 같은 상자가 실패한다",
+         seen("inline", 28, 0.817), "fail",
+         "실제로는 22.9px 다. 같은 DOM 인데 잉크 정의 하나로 판정이 뒤집힌다 — 그래서 "
+         "`gen_mascot_bounds.py` 와 프로브가 같은 정의를 쓰는지 회귀가 따로 본다")
+    case("mascot/여백을 보정한 상자는 통과한다",
+         seen("inline", 35, 0.817), "pass",
+         "반대 방향 — 규칙을 엄하게만 한 것이 아니다. 28/0.817 ≈ 35 가 «보이는 28px» 이고 "
+         "그 계산을 화면이 아니라 `Mascot.jsx` 가 한다")
+
+    case("mascot/자리를 선언하면 그 밴드로 판정한다",
+         seen("hero", 180, 0.817), "pass",
+         "히어로는 하한 140 이다. 같은 상자를 `empty_state` 로 선언하면 아래처럼 갈린다")
+    case("mascot/같은 상자도 자리가 다르면 판정이 다르다",
+         seen("empty_state", 180, 0.817, container=200), "fail",
+         "147px 캐릭터가 200px 짜리 빈 화면 안에 있으면 «빈 공간을 캐릭터로 때우는» 것이다 — "
+         "하한(96)은 넘지만 위쪽 절반에서 걸린다")
+    case("mascot/넉넉한 빈 화면에서는 같은 캐릭터가 통과한다",
+         seen("empty_state", 180, 0.817, container=600), "pass",
+         "반대 방향 — 컨테이너가 레이아웃이 정한 높이(`layout=\"page\"`)면 순환이 아니다")
+
+    case("mascot/모르는 자리는 통과가 아니라 «판정 못 함» 이다",
+         seen("떠있는버튼", 28, 0.817), "skip",
+         "선언에 오타가 나면 조용히 초록이 되면 안 된다 — 잰 것이 하나도 없으므로 skip 이다")
+    case("mascot/잉크를 못 잰 자산도 통과가 아니다",
+         mascot.mascot_verdict({"items": [{"src": "a.png", "context": "topbar",
+                                           "boxW": 28, "boxH": 28, "natW": 1024, "natH": 1024}],
+                                "ink": {}, "failed": {"a.png": "자산을 불러오지 못함"}})["status"],
+         "skip",
+         "교차 출처 캔버스 오염 등으로 못 재면 «모른다» 다. 이것이 pass 로 새면 자산을 "
+         "못 불러오는 실행이 전부 초록이 된다")
     return rows
 
 

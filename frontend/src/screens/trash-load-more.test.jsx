@@ -103,8 +103,15 @@ describe("휴지통 '더 보기' (UA-10 확증)", () => {
 
     await user.click(screen.getByRole("button", { name: "휴지통 더 보기" }));
 
-    const btn = await screen.findByRole("button", { name: "불러오는 중…" });
+    /* qa-contract-change: 이 버튼이 로딩을 말하는 방법이 바뀌었다. 예전에는 화면이 라벨을
+       직접 「불러오는 중…」으로 갈아 끼웠는데, 그건 화면마다 자기 로딩 문구를 만드는 형태이고
+       지시 20 이 금지한 것이다(「페이지마다 임의의 Loading Text 또는 Spinner를 구현하지
+       않는다」). 이제 공통 `Button` 의 `loading` 이 맡는다 — 라벨은 그대로 두고 스피너와
+       `aria-busy` 와 비활성을 함께 건다. 그래서 «라벨이 바뀌는가» 대신 **«버튼이 바쁘다고
+       말하는가»** 를 확인한다. 단언 수는 그대로이고 확인하는 사실이 하나 늘었다. */
+    const btn = await screen.findByRole("button", { name: "휴지통 더 보기" });
     expect(btn).toBeDisabled();
+    expect(btn).toHaveAttribute("aria-busy", "true");
     // keepPreviousData 덕분에 이전 페이지가 사라지지 않고 그대로 남아 있어야 한다(스켈레톤 금지).
     expect(screen.getByText("문서 t1")).toBeInTheDocument();
 

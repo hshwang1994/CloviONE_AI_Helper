@@ -66,7 +66,7 @@ export function WorkSection() {
       <DashSection title="내 업무">
         {q.isError
           ? <ErrorState error={q.error} onRetry={() => q.refetch()} />
-          : <Card><Skeleton lines={3} /></Card>}
+          : <Card><Skeleton kind="chart" height="6rem" /></Card>}
       </DashSection>
     );
   }

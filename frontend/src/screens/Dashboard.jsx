@@ -382,7 +382,7 @@ export function Dashboard() {
 
   return (
     <Box className="c-screen">
-      <PageHeader area="운영" title="대시보드" spot="assistant"
+      <PageHeader area="운영" title="대시보드"
         actions={<>
           {/* 30초마다 갱신되는 비-조치성 타임스탬프에 aria-live를 달면 스크린리더 사용자에게
               "오후 3:45 기준", "오후 3:46 기준" ...이 탭을 열어 둔 내내 끊임없이 낭독된다 -

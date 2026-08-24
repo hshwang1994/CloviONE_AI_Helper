@@ -144,7 +144,7 @@ export function AssistantDrawer({ open, onClose }) {
         display: "flex", alignItems: "center", gap: 1.5, px: 2, py: 1.5,
         borderBottom: 1, borderColor: "divider",
       }}>
-        <MascotPose mode={chat.busy ? "thinking" : "listening"} size="2.25rem" decorative />
+        <MascotPose mode={chat.busy ? "thinking" : "listening"} place="assistantHead" decorative />
         <Box sx={{ flex: 1, minWidth: 0 }}>
           <Typography sx={{ fontWeight: FONT_WEIGHT.bold, lineHeight: 1.2 }}>클로비</Typography>
           <Typography sx={{ fontSize: FONT_SIZE.bodySm, color: "text.secondary" }}>
@@ -201,7 +201,7 @@ export function AssistantDrawer({ open, onClose }) {
       <Box ref={bodyRef} sx={{ minHeight: 0, overflowY: "auto", px: 2, py: 2, display: "grid", gap: 1.5, alignContent: "start" }}>
         {!hasThread ? (
           <Box sx={{ display: "grid", justifyItems: "center", textAlign: "center", gap: 1, py: 2 }}>
-            <MascotPose mode="listening" size="4rem" decorative />
+            <MascotPose mode="listening" place="assistantHero" decorative />
             <Typography sx={{ fontWeight: FONT_WEIGHT.bold }}>무엇을 도와드릴까요?</Typography>
             <Typography sx={{ fontSize: FONT_SIZE.bodySm, color: "text.secondary", maxWidth: "20rem", lineHeight: 1.6 }}>
               지금 보고 있는 화면의 티켓, 문서, 사용자를 기준으로 물어볼 수 있습니다.

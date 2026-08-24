@@ -2,7 +2,7 @@ import React from "react";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import { useTheme } from "@mui/material/styles";
-import { ChartEmpty, ChartQuestion, capSeries, resolveChartColor, seriesDash } from "./base.jsx";
+import { ChartNoData, ChartQuestion, capSeries, resolveChartColor, seriesDash } from "./base.jsx";
 import { FONT_WEIGHT } from "../theme.js";
 
 // base.jsx의 finiteValues는 null/undefined/NaN을 배열에서 통째로 들어낸다 — 값만 볼 때는
@@ -85,7 +85,7 @@ export function LineSeries({
     .filter((s) => s.points.length >= 2);
 
   // 선 하나짜리(또는 점 하나짜리) '추세'는 없는 추세를 있는 것처럼 보이게 한다.
-  if (!rows.length) return <ChartEmpty label={emptyLabel} height={height} />;
+  if (!rows.length) return <ChartNoData label={emptyLabel} />;
 
   const W = 100;
   const H = 32;

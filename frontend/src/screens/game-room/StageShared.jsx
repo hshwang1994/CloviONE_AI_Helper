@@ -80,7 +80,7 @@ export function ResultStage({ mood = "win", label, children }) {
             sx={{ display: { xs: "none", sm: "block" }, width: { sm: 120, xxl: 150, uhd: 180 }, height: "auto" }}
           />
         ) : null}
-        <MascotPose mode={celebrating ? "love" : "success"} size={72} decorative />
+        <MascotPose mode={celebrating ? "love" : "success"} place="gameCelebrate" decorative />
       </Stack>
       <Box sx={{ display: "grid", gap: 1.5, justifyItems: { xs: "center", md: "start" }, minWidth: 0, textAlign: { xs: "center", md: "left" } }}>
         {label ? (

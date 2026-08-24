@@ -28,7 +28,7 @@ export function Welcome({ title, help, onPick, busy, mode }) {
   return (
     <Box sx={{ m: "auto", textAlign: "center", color: "text.secondary", maxWidth: "38rem", px: 2, py: 4 }}>
       <Box sx={{ display: "grid", justifyItems: "center", mb: 1 }}>
-        <MascotPose mode={mode} size="6rem" decorative />
+        <MascotPose mode={mode} place="chatWelcome" decorative />
       </Box>
       {/* PA-RC-0001: MUI 기본 h5(24px)보다 의도적으로 작게 한 22px — pageTitle(20px)·statValue(30px)
           사이라 기존 토큰과 안 맞는다. 실측 없이 스냅하지 않는다(의도된 예외). */}
@@ -48,7 +48,7 @@ export function Welcome({ title, help, onPick, busy, mode }) {
 export function MascotStatus({ mode }) {
   return (
     <Stack direction="row" alignItems="center" gap={1} sx={{ flexShrink: 0, minWidth: 0 }}>
-      <MascotPose mode={mode} size="2.5rem" />
+      <MascotPose mode={mode} place="chatStatus" />
       <Typography
         role="status" aria-live="polite"
         sx={{ display: { xs: "none", lg: "block" }, fontSize: FONT_SIZE.bodySm, color: "text.secondary", whiteSpace: "nowrap" }}

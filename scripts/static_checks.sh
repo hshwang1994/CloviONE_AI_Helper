@@ -398,6 +398,17 @@ else
   ok "node 없음 - 토큰 드리프트 검사 건너뜀"
 fi
 
+step "클로비 자산 경계 잠금 (지시 71)"
+# 화면은 «보이는 캐릭터 40px» 을 말하고 Mascot.jsx 가 자산의 여백 비율로 나눠 CSS 박스를
+# 만든다. 그래서 PNG 를 갈아 끼우면 화면 크기가 **조용히** 바뀐다 — 바꾼 사람은 자기가
+# 크기를 건드렸다는 사실을 모른다. 생성물 둘(mascot-bounds.json · mascotBounds.js)이 지금
+# 자산에서 나온 그대로인지 본다. tokens.css 와 같은 관용이다.
+if MB="$("$PY" scripts/gen_mascot_bounds.py --check 2>&1)"; then
+  ok "$(echo "$MB" | tail -1)"
+else
+  echo "$MB"; fail "클로비 자산 경계 잠금이 낡았다 — python scripts/gen_mascot_bounds.py 를 돌려라"
+fi
+
 step "Brand 토큰이 화면에 실제로 도달한다 (지시 0-1)"
 # 두 가지를 막는다. (a) 화면 파일이 자기 gradient 를 들고 있으면 그 색은 테마 밖이라 대비
 # 시험이 존재 자체를 모른다 - 예전 Gradient Chrome 이 정확히 그 경로로 미측정 배포됐다.

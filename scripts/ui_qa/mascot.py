@@ -2,22 +2,32 @@
 
 CSS 박스 크기 검사로는 절대 안 보이는 축이다. 포즈 PNG 는 사방에 투명 여백을 두고 있어서
 상자 크기와 보이는 캐릭터 크기가 다르다. `app/static/brand/mascot/` 자산을 실측하면 세로 잉크
-비율이 0.707~1.000 로 자산마다 30%p 가까이 벌어진다 — `Mascot.jsx` 의 상단바 `size={28}` 상자는
-`clovi-idle`(0.828)이면 23.2px, `clovi-wave`(0.748)면 21.0px, `clovi-button`(0.707)이면 19.8px 다.
+비율이 0.666~0.850 으로 자산마다 18%p 가까이 벌어진다 — 옛 상단바 `size={28}` 상자는
+`clovi-idle`(0.798)이면 22.3px, `clovi-wave`(0.715)면 20.0px, `clovi-button`(0.666)이면 18.6px 다.
 **같은 상자인데 어떤 포즈를 넣느냐로 기준을 넘기도 하고 못 넘기도 한다.** 상자만 재는 검사는
 이 차이를 영원히 못 본다. 사용자 지시 §7 이 요구한 것은 "CSS Box 크기가 아니라 실제 Browser
 에서 보이는 캐릭터의 얼굴·표정·존재감" 이다.
 
     visibleH = 렌더된 이미지 높이 × (자산의 알파 bbox 높이 / 자산 원본 높이)
 
-알파 bbox 는 `<canvas>` + `getImageData` 로 브라우저 안에서 계산한다. 자산마다 한 번이면
-충분하므로 **실행당 1회** 계산하고 `dist/ui-qa/<label>/mascot-ink.json` 에 캐시한다 —
-route × theme × viewport 마다 다시 재면 같은 답을 수백 번 계산한다.
+알파 bbox 는 `<canvas>` + `getImageData` 로 브라우저 안에서 계산한다 — **브라우저가 실제로
+받은 바이트**를 재는 것이 요점이라 잠금 파일을 읽어 오지 않는다(자산이 바뀌면 여기서 보인다).
+정의는 `scripts/gen_mascot_bounds.py` 와 같고, 그 스크립트가 Pillow 로 잰 값이
+`app/static/brand/mascot/mascot-bounds.json` 에 잠겨 있어 두 구현을 대조할 수 있다.
+자산마다 한 번이면 충분하므로 **실행당 1회** 계산하고 `dist/ui-qa/<label>/mascot-ink.json` 에
+캐시한다 — route × theme × viewport 마다 다시 재면 같은 답을 수백 번 계산한다.
 
 context 별 최소 높이(위 식의 visibleH 기준):
 
     topbar 22 · fab 40 · sidebar 36 · avatar 24 · inline 28 · hero 140
     empty_state 96 이면서 동시에 그 빈 화면 컨테이너 높이의 40% 이하
+
+`empty_state` 의 뒤쪽 절반("빈 공간을 캐릭터로 때우는가")은 **컨테이너 높이를 그림이 아닌
+것이 정할 때만** 뜻이 있다. 그림이 그 구획에서 가장 큰 요소이면 컨테이너 높이가 곧 그림
+높이라 어떤 비율도 통과할 수 없다 — 분자가 분모를 정하는 순환이다. 그래서 화면 전체가 빈
+자리(`EmptyState layout="page"` 는 `minHeight` 를 레이아웃이 정한다)와 `ErrorState`(세로로
+쌓이는 격자라 그림이 전체의 일부다)만 이 밴드를 선언하고, 구획·팝오버의 빈 상태는 본문 안
+그림이라 `inline` 을 선언한다. 그 선언은 `frontend/src/ui/Mascot.jsx::MASCOT_PLACE` 다.
 
 **실패 note 가 원인을 구분한다.** `inkFrac < 0.45` 면 자산이 여백투성이라는 뜻이고 고칠 곳은
 자산 프레이밍이다. 그보다 크면 자산은 멀쩡하고 렌더 박스가 작은 것이다. 이 구분이 없으면
@@ -51,15 +61,24 @@ EMPTY_STATE_MAX_CONTAINER_RATIO = 0.40
 # 이 아래면 자산 여백 문제다. 0.45 는 "그림이 상자의 절반도 못 채운다"는 뜻이다.
 INK_FRAC_ASSET_MARGIN = 0.45
 
-# 알파가 이보다 크면 잉크로 센다. 0 으로 두면 PNG 안티에일리어싱의 거의 투명한 후광까지
-# 세어서 bbox 가 원본 전체로 부풀고, 그러면 이 검사는 아무 것도 못 잡는다.
-INK_ALPHA_MIN = 8
-# bbox 는 비율만 필요하므로 축소해서 스캔한다 — 원본 그대로 훑으면 자산 한 장에 100만 픽셀이다
-# (마스코트 자산은 1024×1024). 축소가 값을 흔들지 않는지는 실측으로 확인했다: 12개 자산 전부
-# 원본 스캔과 256px 스캔의 inkFracH 차이가 0.004 이하다.
-INK_SAMPLE_MAX_SIDE = 256
+# 알파가 이 값 이상이면 잉크로 센다. PLAN «Clovi 계약» 이 정한 정의이고
+# `scripts/gen_mascot_bounds.py` 가 같은 값으로 자산을 잠근다.
+#
+# 🔴 여기는 한 번 틀려 있었다. 문턱이 8 이었고 부유 픽셀 제거가 없었다 — 거의 투명한
+# 안티에일리어싱 후광까지 잉크로 세는 값이다. 그 정의로 재면 `clovi-talking.png` 는
+# `inkFracH = 1.000` 이 나온다(저알파 픽셀이 캔버스 가장자리까지 흩어져 있다). 실제
+# 캐릭터는 세로의 **0.817** 이다. 22%p 만큼 «보이는 크기» 가 부풀어서, 정말 작은
+# 마스코트가 통과한다 — 통과하지만 잘못된 표본을 재던 검사다(F-W4-15 와 같은 형태).
+# PLAN 이 이 실패를 이름으로 예고해 두었는데("부유 픽셀 제거는 필수다") 구현이 안 따랐다.
+INK_ALPHA_MIN = 128
+# 불투명 픽셀이 반대 차원의 이 비율 미만인 행/열은 부유 픽셀로 보고 버린다.
+INK_FLOATING_ROW_FRACTION = 0.005
+# 축소하지 않는다. 부유 픽셀 판정이 «행에 불투명 픽셀이 몇 개인가» 라서 축소하면 그 개수가
+# 보간으로 뭉개진다. 자산은 최대 1024² 이고 실행당 자산마다 한 번만 재므로 원본으로 훑는다.
+INK_SAMPLE_MAX_SIDE = 1024
 
-CACHE_VERSION = 1
+# 잉크 정의가 바뀌면 옛 캐시는 버려야 한다.
+CACHE_VERSION = 2
 CACHE_NAME = "mascot-ink.json"
 MAX_SAMPLES = 5
 
@@ -176,17 +195,31 @@ INK_PROBE_JS = r"""(cfg) => {
       // 교차 출처 자산이면 캔버스가 오염돼 읽을 수 없다. 모른다고 말한다.
       return { src, error: 'getImageData 차단: ' + (e && e.name ? e.name : 'SecurityError') };
     }
-    let minX = w, maxX = -1, minY = h, maxY = -1;
+    /* 행·열마다 불투명 픽셀을 **센다.** 그냥 bbox 를 잡으면 캔버스 가장자리에 흩어진
+       부유 픽셀 하나가 경계를 원본 전체로 밀어 버린다(`clovi-talking` 이 그 자산이다).
+       반대 차원의 floatingRowFraction 미만인 행/열은 캐릭터가 아니라고 본다. */
+    const rowInk = new Int32Array(h);
+    const colInk = new Int32Array(w);
     for (let y = 0; y < h; y++) {
       for (let x = 0; x < w; x++) {
-        if (data[(y * w + x) * 4 + 3] <= cfg.alphaMin) continue;
-        if (x < minX) minX = x;
-        if (x > maxX) maxX = x;
-        if (y < minY) minY = y;
-        if (y > maxY) maxY = y;
+        if (data[(y * w + x) * 4 + 3] < cfg.alphaMin) continue;
+        rowInk[y]++; colInk[x]++;
       }
     }
-    if (maxY < 0) return { src, error: '불투명 픽셀이 하나도 없음(빈 자산)' };
+    const rowMin = cfg.floatingRowFraction * w;
+    const colMin = cfg.floatingRowFraction * h;
+    let minX = -1, maxX = -1, minY = -1, maxY = -1;
+    for (let y = 0; y < h; y++) {
+      if (rowInk[y] < rowMin) continue;
+      if (minY < 0) minY = y;
+      maxY = y;
+    }
+    for (let x = 0; x < w; x++) {
+      if (colInk[x] < colMin) continue;
+      if (minX < 0) minX = x;
+      maxX = x;
+    }
+    if (maxY < 0 || maxX < 0) return { src, error: '불투명 픽셀이 하나도 없음(빈 자산)' };
     return {
       src, natW: nw, natH: nh,
       inkFracH: (maxY - minY + 1) / h,
@@ -236,6 +269,7 @@ def _ensure_ink(page, srcs, cache_path: Path) -> dict:
         return entries
     results = page.evaluate(INK_PROBE_JS, {
         "srcs": missing, "alphaMin": INK_ALPHA_MIN, "maxSide": INK_SAMPLE_MAX_SIDE,
+        "floatingRowFraction": INK_FLOATING_ROW_FRACTION,
     }) or []
     changed = False
     for res in results:
