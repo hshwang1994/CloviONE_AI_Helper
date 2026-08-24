@@ -39,7 +39,7 @@
 - test_server: https://clovirassist.gooddi.lab = 10.100.64.71. 값은 `dist/ops/server.env`.
   ⚠️ **S15 는 배포하지 않았다** — 캡처는 임시 데이터베이스 위에 앱을 띄워 찍었다
   (`scripts/ui_qa/local_capture.py`). 설치처 배포는 캡처의 전제가 아니라 별개의 결정이다
-- commit: 아래 NEXT 참조 (S15 본체)
+- commit: `1872dd6f` (S15 본체 — 결함 여섯 · 하네스 · Control Plane · 캡처 44장)
 - plan: `docs/ui-renewal/PLAN.md`(UI 축 정본) · `DIRECTIVE_v7.txt`(원 지시서) ·
   **`docs/platform/MASTER_PLAN.md`(제품 전체 정본 — 여기가 상위다)**
 
