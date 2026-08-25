@@ -104,6 +104,7 @@ def _document_json(document, *, tags=None, is_favorite: bool | None = None) -> d
         "version": document.version,
         "current_version_id": document.current_version_id,
         "created_by": document.created_by,
+        "created_at": document.created_at,
         "updated_at": document.updated_at,
     }
     if tags is not None:

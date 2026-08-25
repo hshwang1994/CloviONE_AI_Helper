@@ -33,6 +33,37 @@ def _clean(value: str | None) -> str | None:
     return value or None
 
 
+def _clean_list(values: list[str] | None, *, max_length: int, max_items: int = 40) -> tuple[str, ...] | None:
+    """반복 질의 파라미터를 튜플로 편다. 값 하나(`?status=진행`)도 목록 한 칸이 된다."""
+    if not values:
+        return None
+    out: list[str] = []
+    for raw in values:
+        item = _clean(raw)
+        if not item or len(item) > max_length:
+            continue
+        if item not in out:
+            out.append(item)
+        if len(out) >= max_items:
+            break
+    return tuple(out) or None
+
+
+def _optional_date(value: str | None, label: str) -> str | None:
+    cleaned = _clean(value)
+    if not cleaned:
+        return None
+    return _ensure_real_date(cleaned, label)
+
+
+def _optional_float(value: float | None) -> float | None:
+    if value is None:
+        return None
+    if value != value:  # NaN
+        return None
+    return float(value)
+
+
 class TicketListQuery:
     """티켓 목록 서버 필터 (FastAPI 의존성).
 
@@ -44,27 +75,46 @@ class TicketListQuery:
 
     `due` 는 정해진 세 값만 받는다 — 모르는 값을 조용히 무시하면 "기한 필터를 눌렀는데
     전체가 나온다" 가 되고, 그건 사용자가 필터가 안 걸렸다는 사실을 알아챌 수 없는 모양이다.
+
+    상태·프로젝트·담당자는 **값이 여러 개**여도 된다. 같은 축의 값끼리는 OR, 축 사이는 AND.
+    예전처럼 값 하나만 보내면(`?status=진행`) 그 하나만 걸린다.
     """
 
     def __init__(
         self,
-        status: str | None = Query(default=None, max_length=64),
-        priority: str | None = Query(default=None, max_length=64),
-        difficulty: str | None = Query(default=None, max_length=64),
-        project_id: str | None = Query(default=None, max_length=64),
-        assignee_user_id: str | None = Query(default=None, max_length=36),
+        status: list[str] | None = Query(default=None),
+        priority: list[str] | None = Query(default=None),
+        difficulty: list[str] | None = Query(default=None),
+        project_id: list[str] | None = Query(default=None),
+        assignee_user_id: list[str] | None = Query(default=None),
         category: str | None = Query(default=None, max_length=200),
         due: str | None = Query(default=None, pattern=_DUE_PATTERN),
         q: str | None = Query(default=None, max_length=100),
+        sort: str | None = Query(default=None, max_length=32),
+        order: str | None = Query(default=None, pattern="^(asc|desc)$"),
+        created_from: str | None = Query(default=None, max_length=10),
+        created_to: str | None = Query(default=None, max_length=10),
+        est_wd_min: float | None = Query(default=None),
+        est_wd_max: float | None = Query(default=None),
+        act_wd_min: float | None = Query(default=None),
+        act_wd_max: float | None = Query(default=None),
     ) -> None:
-        self.status = _clean(status)
-        self.priority = _clean(priority)
-        self.difficulty = _clean(difficulty)
-        self.project_id = _clean(project_id)
-        self.assignee_user_id = _clean(assignee_user_id)
+        self.status = _clean_list(status, max_length=64)
+        self.priority = _clean_list(priority, max_length=64)
+        self.difficulty = _clean_list(difficulty, max_length=64)
+        self.project_id = _clean_list(project_id, max_length=64)
+        self.assignee_user_id = _clean_list(assignee_user_id, max_length=36)
         self.category = _clean(category)
         self.due = _clean(due)
         self.q = _clean(q)
+        self.sort = _clean(sort)
+        self.order = _clean(order)
+        self.created_from = _optional_date(created_from, "생성일 시작")
+        self.created_to = _optional_date(created_to, "생성일 끝")
+        self.est_wd_min = _optional_float(est_wd_min)
+        self.est_wd_max = _optional_float(est_wd_max)
+        self.act_wd_min = _optional_float(act_wd_min)
+        self.act_wd_max = _optional_float(act_wd_max)
 
 
 def _ensure_real_date(value: str, label: str) -> str:

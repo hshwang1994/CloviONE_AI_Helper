@@ -45,6 +45,16 @@ import { ConfirmProvider, ToastProvider } from "../ui/kit.jsx";
 import { ThemeModeProvider } from "../ui/ThemeModeProvider.jsx";
 
 const META = { configured: true, ok: true, statuses: ["진행", "검증", "완료"], priorities: ["High", "Normal"], difficulties: ["상", "중"] };
+const WORK_STATUSES = {
+  statuses: [
+    { key: "계획", label: "계획", terminal: false },
+    { key: "이슈", label: "이슈", terminal: false },
+    { key: "진행", label: "진행", terminal: false },
+    { key: "검증", label: "검증", terminal: false },
+    { key: "완료", label: "완료", terminal: true },
+    { key: "취소", label: "취소", terminal: true },
+  ],
+};
 const PROJECTS = { configured: true, ok: true, projects: [{ id: "p-1", name: "인프라" }] };
 const ASSIGNEES = { assignees: [{ user_id: "u-1", display_name: "김하나" }, { user_id: "u-2", display_name: "박세찬" }] };
 
@@ -71,6 +81,7 @@ beforeEach(() => {
   apiMock.mockImplementation((path) => {
     const p = String(path);
     if (p.startsWith("/api/tickets/meta")) return Promise.resolve(META);
+    if (p.startsWith("/api/work/statuses")) return Promise.resolve(WORK_STATUSES);
     if (p.startsWith("/api/tickets/projects")) return Promise.resolve(PROJECTS);
     if (p.startsWith("/api/tickets/assignees")) return Promise.resolve(ASSIGNEES);
     if (p.startsWith("/api/tickets/mine") || p.startsWith("/api/tickets/team") || p.startsWith("/api/tickets/unassigned")) {
@@ -134,11 +145,12 @@ async function pickOption(user, comboName, optionName) {
 }
 
 describe("내 티켓 — 조건이 주소에 남는다", () => {
-  it("아무것도 안 고르면 주소에 쿼리가 없고, 서버에도 조건을 안 보낸다", async () => {
+  it("아무것도 안 고르면 주소는 비고, 서버에는 종료가 아닌 상태가 기본으로 나간다", async () => {
     renderScreen(MyTickets, "/my-tickets");
     expect(await screen.findByText("티켓 1")).toBeInTheDocument();
     expect(addr()).toBe("/my-tickets");
-    expect(lastListQuery("/api/tickets/mine").toString()).toBe("");
+    expect(lastListQuery("/api/tickets/mine").getAll("status")).toEqual(["계획", "이슈", "진행", "검증"]);
+    expect(screen.getByText("상태: 계획")).toBeInTheDocument();
   });
 
   it("상태를 고르면 주소에 실리고 같은 값이 서버 질의로 나간다", async () => {
@@ -158,7 +170,7 @@ describe("내 티켓 — 조건이 주소에 남는다", () => {
     await screen.findByText("티켓 1");
     expect(addr()).toContain("status=");
 
-    await user.click(await screen.findByRole("button", { name: "필터 지우기" }));
+    await user.click(await screen.findByRole("button", { name: "필터 초기화" }));
 
     await waitFor(() => expect(addr()).toBe("/my-tickets"));
   });
@@ -264,7 +276,7 @@ describe("빈 목록의 두 가지 뜻", () => {
     await screen.findByText("조건에 맞는 티켓이 없습니다");
 
     const clearButtons = screen.getAllByRole("button", { name: "필터 지우기" });
-    expect(clearButtons.length).toBeGreaterThanOrEqual(2);
+    expect(clearButtons.length).toBeGreaterThanOrEqual(1);
     await user.click(clearButtons[clearButtons.length - 1]);
 
     await waitFor(() => expect(addr()).toBe("/my-tickets"));
@@ -319,8 +331,8 @@ describe("스프린트 — 화면이 직접 거르는 조건", () => {
   const row = { title: "배포 자동화", status: "진행", priority: "High", difficulty: "상" };
 
   it("상태, 우선순위, 난이도, 검색어를 판단한다", () => {
-    expect(matchesTicketFilters(row, { status: "진행" }, SPRINT_FIELDS)).toBe(true);
-    expect(matchesTicketFilters(row, { status: "완료" }, SPRINT_FIELDS)).toBe(false);
+    expect(matchesTicketFilters(row, { status: ["진행", "완료"] }, SPRINT_FIELDS)).toBe(true);
+    expect(matchesTicketFilters(row, { status: ["완료", "취소"] }, SPRINT_FIELDS)).toBe(false);
     expect(matchesTicketFilters(row, { q: "배포" }, SPRINT_FIELDS)).toBe(true);
     expect(matchesTicketFilters(row, { q: "회의" }, SPRINT_FIELDS)).toBe(false);
     expect(matchesTicketFilters(row, {}, SPRINT_FIELDS)).toBe(true);

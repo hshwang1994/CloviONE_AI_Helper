@@ -70,6 +70,10 @@ export function kindSx(kind, sx) {
  * 보인다. displayEmpty 로 빈 값의 항목 라벨을 그리게 하고, 라벨은 항상 노치로 올린다. */
 export const EMPTYABLE_SELECT = { SelectProps: { displayEmpty: true }, InputLabelProps: { shrink: true } };
 
+/** 후보가 많아져도 화면 높이가 같이 늘어나지 않게 한다. 넘는 분은 안에서 스크롤한다. */
+export const FILTER_LISTBOX_SX = { maxHeight: "16rem", overflow: "auto" };
+const SELECT_MENU = { MenuProps: { PaperProps: { sx: FILTER_LISTBOX_SX } } };
+
 /* 타이핑 중인 값은 **자기가 든다** (PF4).
  *
  * 예전에는 타이핑 중인 값이 1,000줄짜리 화면 컴포넌트에 살았다. 그래서 글자 하나를 칠
@@ -177,10 +181,42 @@ export const DebouncedTextField = React.memo(function DebouncedTextField({
  *
  * `options` 는 문자열 배열이거나 `{value,label}` 배열이다. 값과 보여줄 이름이 다른 필터
  * (담당자는 앱 user_id 로 나가고 화면에는 이름이 보인다)가 있어서 둘 다 받는다. */
-export function FilterSelect({ label, value, onChange, options, allLabel, disabled, sx, kind = "enum" }) {
+export function FilterSelect({
+  label, value, onChange, options, allLabel, disabled, sx, kind = "enum", multiple = false,
+}) {
   const list = normalizeOptions(options);
-  // 지금 걸린 값이 후보에 없으면(옵션이 아직 안 왔거나 이름이 바뀌었다) 맨 앞에 끼워 넣는다.
-  // 안 그러면 주소에서 복원한 필터가 화면에서만 사라져, 목록은 걸러졌는데 상자는 전체로 보인다.
+  if (multiple) {
+    const selected = Array.isArray(value) ? value.map(String) : (value ? [String(value)] : []);
+    for (const item of selected) {
+      if (item && !list.some((o) => o.value === item)) list.unshift({ value: item, label: item });
+    }
+    const labelOf = (v) => (list.find((o) => o.value === v) || { label: v }).label;
+    return (
+      <TextField
+        select size="small" label={label} value={selected} disabled={disabled}
+        data-filter-kind={kind}
+        sx={kindSx(kind, sx)}
+        onChange={(e) => onChange(Array.isArray(e.target.value) ? e.target.value : [])}
+        InputLabelProps={{ shrink: true }}
+        SelectProps={{
+          multiple: true,
+          displayEmpty: true,
+          renderValue: (picked) => (
+            picked && picked.length
+              ? picked.map(labelOf).join(", ")
+              : (allLabel || `${label} 전체`)
+          ),
+          ...SELECT_MENU,
+        }}
+      >
+        {list.map((o) => (
+          <MenuItem key={o.value} value={o.value}>
+            {o.label}
+          </MenuItem>
+        ))}
+      </TextField>
+    );
+  }
   if (value && !list.some((o) => o.value === value)) list.unshift({ value, label: value });
   return (
     <TextField
@@ -189,6 +225,7 @@ export function FilterSelect({ label, value, onChange, options, allLabel, disabl
       sx={kindSx(kind, sx)}
       onChange={(e) => onChange(e.target.value)}
       {...EMPTYABLE_SELECT}
+      SelectProps={{ ...EMPTYABLE_SELECT.SelectProps, ...SELECT_MENU }}
     >
       <MenuItem value="">{allLabel || `${label} 전체`}</MenuItem>
       {list.map((o) => <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>)}
@@ -224,13 +261,47 @@ export function normalizeOptions(options) {
 export function EntityCombobox({
   label, value, onChange, options, loading, disabled, sx, kind = "entity", id,
   placeholder, allLabel, noOptionsText = "일치하는 항목이 없습니다", required, helperText,
-  ariaLabelledBy, hideLabel,
+  ariaLabelledBy, hideLabel, multiple = false,
 }) {
   const list = normalizeOptions(options);
-  /* «전체» 를 **항목으로** 둔다. Autocomplete 의 지우기(X)만으로도 되돌릴 수는 있지만,
-     이 제품의 나머지 필터는 전부 목록 첫 줄의 「… 전체」로 되돌린다(`EMPTYABLE_SELECT`).
-     한 화면에서 되돌리는 방법이 두 가지면 사용자는 둘 다 못 찾는다. 되돌릴 길이 없는
-     필터는 함정이다(C2). */
+  if (multiple) {
+    const selected = Array.isArray(value) ? value : (value ? [value] : []);
+    const current = selected.map((v) => (
+      list.find((o) => String(o.value) === String(v)) || { value: v, label: String(v) }
+    ));
+    return (
+      <Autocomplete
+        id={id}
+        multiple
+        size="small"
+        openOnFocus
+        autoHighlight
+        handleHomeEndKeys
+        disabled={disabled}
+        loading={!!loading}
+        options={list}
+        value={current}
+        onChange={(e, next) => onChange((next || []).map((o) => o.value).filter((v) => v !== "" && v != null))}
+        getOptionLabel={(o) => (o && o.label != null ? String(o.label) : "")}
+        isOptionEqualToValue={(a, b) => String(a.value) === String(b.value)}
+        noOptionsText={noOptionsText}
+        loadingText="불러오는 중…"
+        data-filter-kind={kind}
+        sx={kindSx(kind, sx)}
+        ListboxProps={{ sx: FILTER_LISTBOX_SX }}
+        renderInput={(params) => (
+          <TextField
+            {...params}
+            label={hideLabel ? undefined : label}
+            required={required}
+            helperText={helperText}
+            InputLabelProps={{ ...params.InputLabelProps, shrink: true }}
+            placeholder={placeholder || allLabel || `${label} 전체`}
+          />
+        )}
+      />
+    );
+  }
   const all = { value: "", label: allLabel || `${label} 전체` };
   const withAll = [all, ...list];
   /* 값이 없으면 입력을 **비워 둔다** — 「… 전체」 는 자리표시자로 보이고 목록에도 남는다.
@@ -266,6 +337,7 @@ export function EntityCombobox({
       loadingText="불러오는 중…"
       data-filter-kind={kind}
       sx={kindSx(kind, sx)}
+      ListboxProps={{ sx: FILTER_LISTBOX_SX }}
       renderOption={(props, o) => {
         const { key, ...rest } = props;
         return (

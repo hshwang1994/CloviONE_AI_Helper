@@ -13,12 +13,15 @@
 
 from __future__ import annotations
 
-from sqlalchemy import false, or_
+from datetime import timedelta
+
+from sqlalchemy import case, false, or_
 
 from app.core.dates import parse_date
 from app.core.models_base import NAMES_SEP
 from app.tickets.models import PROJECT_LINK_OK, TicketCache
-from app.tickets.repository import PageSpec, TicketFilters
+from app.tickets.repository import PageSpec, TicketFilters, as_filter_values
+from app.work import workflow
 
 
 def token(value: str) -> str:
@@ -26,18 +29,72 @@ def token(value: str) -> str:
     return NAMES_SEP + value + NAMES_SEP
 
 
-# 목록 정렬: 마감 빠른 순, 없으면 뒤로, 같으면 티켓 번호 순, **그래도 같으면 id 순**.
+# 목록 정렬: 화면이 sort 를 안 주면 **예전 전순서**를 쓴다(마감 → 번호 → id).
+# API 목록은 `TicketFilters.sort_key` 로 기본 `created_at` 을 넣는다. 내부 집계
+# 호출부는 sort_key 를 비워 두어 이 ORDER 를 그대로 탄다 — 화면 기본 정렬을 바꾸려고
+# 리포트 순서까지 바꾸지 않는다.
 #
-# 마지막 `id` 가 Z9 다. `due_date` 만으로 정렬하면 같은 날짜 행들의 상대 순서를 DB 가 마음대로
+# 마지막 `id` 가 Z9 다. 1차 키만으로 정렬하면 같은 값 행들의 상대 순서를 DB 가 마음대로
 # 정하고, 그 순간 OFFSET 페이지네이션은 **1페이지에 나온 행이 2페이지에 또 나오거나 아예
-# 빠지는** 결과를 낸다. 사용자에게는 "티켓이 사라졌다" 로 보이고, 새로고침하면 돌아와서
-# 재현조차 안 된다. `notion_ticket_number` 도 NULL 일 수 있으므로(마감 없는 티켓과 같은
-# 처지) 유일한 열인 PK 까지 붙여야 전순서가 된다.
+# 빠지는** 결과를 낸다.
 ORDER = (
     TicketCache.due_date.asc().nulls_last(),
     TicketCache.notion_ticket_number.asc().nulls_last(),
     TicketCache.id.asc(),
 )
+
+# 클라이언트가 보낸 컬럼명을 SQL 에 붙이지 않는다. 이 표에 있는 키만 정렬한다.
+SORT_KEYS = frozenset({
+    "created_at", "updated_at", "due_date", "title", "status", "priority",
+    "est_wd", "act_wd", "tid", "key",
+})
+
+# 우선순위는 업무 순서다. 문자열 가나다(긴급이 높음보다 뒤)로 정렬하면 틀린 일이 된다.
+_PRIORITY_RANK = {
+    "긴급": 10, "urgent": 10, "critical": 10,
+    "높음": 20, "high": 20, "1": 20,
+    "보통": 30, "medium": 30, "normal": 30, "2": 30,
+    "낮음": 40, "low": 40, "3": 40,
+}
+
+
+def _status_rank():
+    return case(
+        {s.key: s.sort_order for s in workflow.STATUSES},
+        value=TicketCache.status,
+        else_=10_000,
+    )
+
+
+def _priority_rank():
+    return case(_PRIORITY_RANK, value=TicketCache.priority, else_=10_000)
+
+
+def _sort_column(key: str):
+    if key in ("tid", "key"):
+        return TicketCache.notion_ticket_number
+    if key == "status":
+        return _status_rank()
+    if key == "priority":
+        return _priority_rank()
+    return getattr(TicketCache, key)
+
+
+def order_clause(filters: TicketFilters | None):
+    """필터 객체가 고른 1차 키 + 방향, 항상 id 타이브레이크.
+
+    sort_key 가 없거나 allowlist 밖이면 위 `ORDER`(내부 기본)로 떨어진다.
+    """
+    if filters is None or not filters.sort_key:
+        return ORDER
+    key = filters.sort_key
+    if key not in SORT_KEYS:
+        return ORDER
+    col = _sort_column(key)
+    descending = (filters.sort_dir or "desc").lower() != "asc"
+    primary = col.desc().nulls_last() if descending else col.asc().nulls_last()
+    tie = TicketCache.id.desc() if descending else TicketCache.id.asc()
+    return (primary, tie)
 
 
 def page_slice(items: list, page: PageSpec | None) -> list:
@@ -66,37 +123,37 @@ def filter_clauses(f: TicketFilters | None) -> list:
     if f is None:
         return []
     out: list = []
-    if f.status:
-        out.append(TicketCache.status == f.status)
-    if f.priority:
-        out.append(TicketCache.priority == f.priority)
-    if f.difficulty:
-        out.append(TicketCache.difficulty == f.difficulty)
+    statuses = as_filter_values(f.status)
+    if statuses:
+        out.append(TicketCache.status.in_(statuses))
+    priorities = as_filter_values(f.priority)
+    if priorities:
+        out.append(TicketCache.priority.in_(priorities))
+    difficulties = as_filter_values(f.difficulty)
+    if difficulties:
+        out.append(TicketCache.difficulty.in_(difficulties))
     if f.category:
         out.append(TicketCache.category == f.category)
-    if f.project_id:
-        # **두 축을 함께 본다** (S14). 옛 축은 외부 소스의 relation id 를 이어 붙인
-        # `project_ids` 이고, 자체 DB 가 정본이 된 뒤의 축은 해석된 `project_uid` 다.
-        #
-        # 한 축만 보면 조용히 반쪽이 된다: `project_ids` 만 보면 Cutover 이후에 만든
-        # 프로젝트(외부 짝이 없다)의 티켓이 **그 프로젝트로 걸러지지 않고**, `project_uid`
-        # 만 보면 아직 소속을 못 푼 이관 티켓이 사라진다. 둘 다 오류를 안 낸다.
-        out.append(or_(
-            TicketCache.project_ids.contains(token(f.project_id), autoescape=True),
-            TicketCache.project_uid == f.project_id,
-        ))
-    if f.assignee_id:
-        out.append(
-            TicketCache.assignee_notion_ids.contains(token(f.assignee_id), autoescape=True)
-        )
+    projects = as_filter_values(f.project_id)
+    if projects:
+        project_bits = [
+            or_(
+                TicketCache.project_ids.contains(token(pid), autoescape=True),
+                TicketCache.project_uid == pid,
+            )
+            for pid in projects
+        ]
+        out.append(or_(*project_bits))
+    assignees = as_filter_values(f.assignee_id)
+    if assignees:
+        out.append(or_(*(
+            TicketCache.assignee_notion_ids.contains(token(aid), autoescape=True)
+            for aid in assignees
+        )))
     if f.search:
         # icontains = 대소문자 무시 LIKE. autoescape 로 사용자가 넣은 %/_ 가 와일드카드가
         # 되지 않게 막는다(안 막으면 '%' 한 글자가 전체 조회가 된다).
         out.append(TicketCache.title.icontains(f.search, autoescape=True))
-    # 기간은 **문자열로 들어와 `date` 로 나간다** (S7 · P-14a). 필터 DTO 는
-    # 실시간 폴백 경로(`TicketFilters.matches`)와 공유하는 값이라 문자열 계약을
-    # 지키고, 컬럼 쪽 경계인 여기서 한 번 옮긴다. 문자열을 그대로 바인드하면
-    # PG 가 알아서 캐스트하지만, 그건 **못 읽는 값이 올 때만** 드러나는 동작이다.
     start, end = (parse_date(v) for v in f.due_range)
     if start is not None or end is not None:
         out.append(TicketCache.due_date.is_not(None))
@@ -104,6 +161,24 @@ def filter_clauses(f: TicketFilters | None) -> list:
             out.append(TicketCache.due_date >= start)
         if end is not None:
             out.append(TicketCache.due_date < end)
+    created_from = parse_date(f.created_from) if f.created_from else None
+    created_to = parse_date(f.created_to) if f.created_to else None
+    if created_from is not None:
+        out.append(TicketCache.created_at >= created_from)
+    if created_to is not None:
+        out.append(TicketCache.created_at < created_to + timedelta(days=1))
+    if f.est_wd_min is not None:
+        out.append(TicketCache.est_wd.is_not(None))
+        out.append(TicketCache.est_wd >= f.est_wd_min)
+    if f.est_wd_max is not None:
+        out.append(TicketCache.est_wd.is_not(None))
+        out.append(TicketCache.est_wd <= f.est_wd_max)
+    if f.act_wd_min is not None:
+        out.append(TicketCache.act_wd.is_not(None))
+        out.append(TicketCache.act_wd >= f.act_wd_min)
+    if f.act_wd_max is not None:
+        out.append(TicketCache.act_wd.is_not(None))
+        out.append(TicketCache.act_wd <= f.act_wd_max)
     if f.exclude_statuses:
         out.append(or_(
             TicketCache.status.is_(None),

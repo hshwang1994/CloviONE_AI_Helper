@@ -113,6 +113,15 @@ def is_terminal(status: str | None) -> bool:
     return category_of(status) in TERMINAL_CATEGORIES
 
 
+def non_terminal_keys() -> tuple[str, ...]:
+    """종료 갈래(DONE·CANCELED)가 아닌 상태 key. 화면이 상태명을 하드코딩하지 않게 한다.
+
+    표에 없는 이름을 여기서 만들지 않는다. `STATUSES` 에 있는 것만, 그 갈래가
+    종료가 아닌 것만 돌려준다.
+    """
+    return tuple(s.key for s in STATUSES if s.category not in TERMINAL_CATEGORIES)
+
+
 def validate_transition(from_status: str | None, to_status: str | None) -> str:
     """옮길 수 있는가. **막는 것은 「모르는 상태」 하나뿐이다.**
 

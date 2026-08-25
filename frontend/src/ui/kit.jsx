@@ -42,6 +42,7 @@ import { ANYWHERE_BREAK, OVERFLOW, SHRINK, planColumnCollapse, resolveColumn } f
 import { EMPTY_STATE_MAX_CH, ERROR_STATE_MAX_CH, FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, MOTION, NUMERIC, RADIUS, TABLE_CARD_QUERY, TABLE_COMPACT_QUERY } from "./theme.js";
 import { CARD_PADDING, SECTION_GAP } from "./density.js";
 import { EntityCombobox } from "./filters.jsx";
+import { TableHeaderCell } from "./TableHeaderCell.jsx";
 import { loginUrl, redirectToLogin } from "../lib/sessionRedirect.js";
 import { prefersReducedMotion } from "./motion.js";
 
@@ -1470,16 +1471,14 @@ function cellValue(c, row, ctx) {
   return v == null || v === "" ? "-" : String(v);
 }
 
-/* 정렬은 **지금 화면에 있는 행 전부**를 대상으로만 제공한다 (지시 10).
+/* 정렬 화살표는 호출부가 `onSort` 를 줄 때만 그린다.
  *
- * 서버가 페이지를 자르는 목록에서 보이는 20건만 정렬해 놓고 화살표를 그리면, 사용자는
- * "가장 오래된 것"을 봤다고 믿는다. 실제로는 그 페이지 안에서 가장 오래된 것이다. 이 저장소는
- * 같은 함정을 `clientFilter` 에서 이미 겪었고 그때는 "이 필터는 지금 보고 있는 페이지에만
- * 적용됩니다"라는 경고로 막았다 — 정렬은 그 경고로도 못 막는다(필터는 결과가 줄어드는 것이
- * 눈에 보이지만 정렬은 틀린 순서가 맞아 보인다). 그래서 호출부가 `onSort` 를 줄지 말지로
- * 정한다: 전체를 들고 있는 화면만 준다.
+ * 서버가 페이지를 자르는 목록은 **전체 결과**를 서버가 정렬해야 한다. 보이는 20건만
+ * 화면에서 바꾸면 사용자는 전체 순서를 봤다고 믿는다. `onSort` 는 그 서버 질의를
+ * 바꾸라는 뜻이다. 전량을 들고 있는 화면만 화면에서 정렬해도 된다.
  *
  * `sort` = `{ key, dir }`(dir: "asc" | "desc"), `onSort(key)` 는 호출부가 방향을 뒤집는다.
+ * `onFilter` 도 같은 규칙이다. 안 주면 예전 머리글과 같다.
  */
 /* ── 표를 카드로 접을 때의 두 규칙 (W5) ─────────────────────────────────────
  *
@@ -1498,7 +1497,7 @@ export function cardHeaderControls(cols) {
   return (cols || []).filter((c) => c && c.cardHeader);
 }
 
-export function DataTable({ columns, rows, rowKey, onRow, empty, fixed, ellipsis, stickyHeader, loading, sort, onSort, resultScope }) {
+export function DataTable({ columns, rows, rowKey, onRow, empty, fixed, ellipsis, stickyHeader, loading, sort, onSort, resultScope, filters, onFilter, filterOptions, entityOptions }) {
   // 방어: 비정상 입력이 와도 렌더 중 throw하지 않고 빈-목록 안내로 폴백한다.
   // 공용 표라 한 화면의 실수나 API shape 변화가 전역 크래시로 번지지 않게 한다.
   const declaredCols = Array.isArray(columns) ? columns : [];
@@ -1617,68 +1616,24 @@ export function DataTable({ columns, rows, rowKey, onRow, empty, fixed, ellipsis
       >
         <TableHead>
           <TableRow>
-            {wideCols.map((c) => {
-              const sortable = !!(c.sortable && onSort);
-              const active = sortable && sort && sort.key === c.key;
-              const dir = active ? sort.dir : null;
-              return (
-              <TableCell
+            {wideCols.map((c) => (
+              <TableHeaderCell
                 key={c.key}
-                scope="col"
+                column={c}
+                sort={sort}
+                onSort={onSort}
+                filterValue={filters ? filters[(c.filter && c.filter.field) || c.key] : undefined}
+                onFilter={onFilter}
+                filterOptions={filterOptions && (filterOptions[(c.filter && c.filter.field) || c.key])}
+                entityOptions={entityOptions && (entityOptions[(c.filter && c.filter.field) || c.key])}
+                colRole={colRole(c)}
                 align={resolveColumn(c).align}
-                data-col-role={colRole(c)}
-                /* 열 이름만으로 뜻이 안 서는 지표 열(«예상 정확도»·«평균 실제WD/건»)이 있다.
-                   머리글은 포커스 대상이 아니라 MUI Tooltip 은 키보드로 안 열린다 — 같은
-                   한계라면 의존성 없는 `title` 이 낫다(`DevReport` 의 옛 `Th` 가 쓰던 방식을
-                   공용 표로 올렸다). */
-                title={c.help || undefined}
-                /* 스크린리더가 "정렬 안 됨 / 오름차순 / 내림차순"을 읽는다. 화살표만 그리면
-                   그 정보는 눈으로만 전달된다(WCAG 1.4.1 과 같은 이유). */
-                aria-sort={sortable ? (dir === "asc" ? "ascending" : dir === "desc" ? "descending" : "none") : undefined}
-                /* minWidth: 이 열이 절대 그 아래로 줄지 않는 폭. 없으면 좁은 컨테이너에서
-                   `overflowWrap: anywhere` 때문에 열의 최소 폭이 '한 글자'가 되어, 제목이
-                   세로로 무너진다(24px 폭에 11줄 — QA의 vertical_text_collapse 검사가 잡는
-                   상태). 폭이 모자라면 TableContainer가 스스로 가로 스크롤하므로 페이지에
-                   가로 스크롤이 생기지는 않는다.
-                   본문 셀엔 이미 이 바닥값이 있었는데(DS-06) 머리글 셀엔 없었다 — 폭 906~1366px
-                   구간에서 열이 많은 표(`/users` 9열 등)가 실측으로 무너진 게(VIS-73/RESP-01/
-                   RESP-02) 바로 이 비대칭이었다. 같은 바닥값을 여기도 준다.
-                   VIS-58: stickyHeader일 때 MUI가 자동으로 position:sticky를 붙이지만
-                   불투명 배경은 안 준다 — 스크롤되는 본문 셀이 헤더 뒤로 비쳐 보인다.
-                   이 표는 항상 Card(background.paper) 안에 있으므로 그 색을 명시한다. */
-                sx={{
+                cellSx={{
                   ...colCellSx(c, { head: true }),
                   ...(stickyHeader ? { bgcolor: "background.paper" } : null),
                 }}
-              >
-                {sortable ? (
-                  <Box
-                    component="button"
-                    type="button"
-                    onClick={() => onSort(c.key)}
-                    sx={{
-                      font: "inherit", color: "inherit", border: 0, background: "none", p: 0,
-                      display: "inline-flex", alignItems: "center", gap: 0.5, cursor: "pointer",
-                      /* 머리글 칸은 `whiteSpace: nowrap` 인데, 그 안에 flex 상자를 넣으면 글자
-                         항목이 상자 폭에 맞춰 줄어들 수 있다 — 4K 실측에서 "마지막 확인"이
-                         81.5px 안에서 세 줄(줄당 2.3자)로 무너졌다(QA 의 vertical_text_collapse).
-                         상자 자신에게도 같은 규칙을 준다. */
-                      whiteSpace: "nowrap",
-                      "&:hover": { color: "text.primary" },
-                      "&:focus-visible": (t) => ({ outline: `2px solid ${t.palette.focusRing}`, outlineOffset: 2 }),
-                    }}
-                  >
-                    {c.label}
-                    {/* 방향 표시는 지금 정렬된 열에만 그린다 — 모든 열에 회색 화살표를 달면
-                        머리행이 화살표 줄이 되고 정작 어느 열이 정렬 중인지 안 보인다. */}
-                    <Box component="span" aria-hidden="true" sx={{ fontSize: FONT_SIZE.caption, opacity: active ? 1 : 0.35 }}>
-                      {dir === "desc" ? "\u2193" : dir === "asc" ? "\u2191" : "\u2195"}
-                    </Box>
-                  </Box>
-                ) : c.label}
-              </TableCell>
-              );
-            })}
+              />
+            ))}
           </TableRow>
         </TableHead>
         <TableBody>
@@ -1714,14 +1669,17 @@ export function DataTable({ columns, rows, rowKey, onRow, empty, fixed, ellipsis
                      말줄임으로 바꾼다(`truncateCol`이 문자 수 기준으로 이미 하던 것과 같은 방향,
                      이제 그걸 안 쓴 나머지 열에도 `DataTable` 자신이 최소한의 보호를 준다).
                      `title`로 전체 값은 그대로 hover에 남는다 — truncateCol과 같은 힌트 패턴. */
-                  const truncate = ellipsis || !c.render;
+                  const truncate = ellipsis || !c.render || c.type === "title" || c.type === "name" || c.type === "text";
                   const raw = !c.render ? cellValue(c, row, ctx) : null;
+                  const hint = truncate && raw && raw !== "-"
+                    ? raw
+                    : (truncate && typeof c.rowName === "function" ? c.rowName(row) : undefined);
                   return (
                     <TableCell
                       key={c.key}
                       align={resolveColumn(c).align}
                       data-col-role={colRole(c)}
-                      title={truncate && raw && raw !== "-" ? raw : undefined}
+                      title={hint || undefined}
                       sx={colCellSx(c, { truncate })}
                     >
                       {raw != null ? raw : cellValue(c, row, ctx)}

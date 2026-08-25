@@ -21,6 +21,7 @@ import { FilterActions, FilterRow, FilterSurface, ResultLine, ToolbarRow } from 
 import { BulkBar, CsvTools } from "./UsersBulk.jsx";
 import { buildViewQuery, hashQuery, withHashQuery } from "./datascreen-view.js";
 import { DateCell } from "../ui/cells.jsx";
+import { toggleSort } from "../ui/TableHeaderCell.jsx";
 import { FilterSelect, SearchBox } from "../ui/filters.jsx";
 
 // PA-RC-0013: /users만 검색·필터·페이지를 URL에 안 실어서 새로고침·공유에 견디지 못했다
@@ -233,6 +234,8 @@ export function Users() {
   // 조직도·부서 관리에서 '소속 인원 보기'로 오면 `#/users?department_id=<id>` 다. 백엔드는
   // 이 필터를 이미 지원했지만 화면이 주소를 읽지 않아, 눌러도 필터 없는 전체 목록이 떴다.
   const [deptFilter, setDeptFilter] = useState(() => searchParams.get("department_id") || "");
+  const [sortKey, setSortKey] = useState(() => searchParams.get("sort") || "display_name");
+  const [sortOrder, setSortOrder] = useState(() => searchParams.get("order") || "asc");
   // 위 두 useState 초기화 함수는 **최초 마운트에서 딱 한 번만** 주소를 읽는다. 그런데
   // 이 화면이 이미 열려 있는 채로(다른 사람 상세를 보던 중 등) 통합 검색·조직도에서
   // 같은 "/users" 라우트로 또 딥링크가 오면(예: q=철수 → q=영희), react-router는 이미
@@ -253,6 +256,8 @@ export function Users() {
     appliedSearchRef.current = key;
     setQ(searchParams.get("q") || "");
     setDeptFilter(searchParams.get("department_id") || "");
+    setSortKey(searchParams.get("sort") || "display_name");
+    setSortOrder(searchParams.get("order") || "asc");
     // NOTI-04R — 다른 화면(알림 벨/목록, 조직도, 감사 로그)이 `?id=`로 특정 사용자를 곧바로
     // 상세로 열 수 있게 한다. 이 화면은 registry 기반이 아니라 수제라 다른 화면들이 쓰는
     // DataScreen.jsx의 `onQuery: {open:"select", id}` 배선을 그대로 못 쓴다 — 같은 계약
@@ -283,13 +288,14 @@ export function Users() {
   React.useEffect(() => {
     if (skipFirstPageReset.current) { skipFirstPageReset.current = false; return; }
     setPage(1);
-  }, [dq, roleFilter, activeFilter, lockedFilter, showArchived, deptFilter]);
+  }, [dq, roleFilter, activeFilter, lockedFilter, showArchived, deptFilter, sortKey, sortOrder]);
   // PA-RC-0013: 지금 상태를 주소로 되쓴다(DataScreen.jsx와 같은 raw history.replaceState —
   // setSearchParams를 쓰지 않는 이유는 위 import 옆 주석 참고). 이 효과는 반드시 위 id를
   // 소비하는 효과보다 **아래**(=나중 실행)여야 한다 — 그 효과가 `?id=`를 지우려고
   // setSearchParams(prev => ...)를 부르는데, 그 prev가 react-router가 들고 있는 옛
   // searchParams라 우리가 먼저 raw로 써 두면 그 삭제가 우리 값까지 함께 덮어쓴다.
-  const viewQuery = buildViewQuery(
+  const viewQuery = (() => {
+    const base = buildViewQuery(
     {
       q: dq, page,
       filters: {
@@ -298,7 +304,10 @@ export function Users() {
       },
     },
     USERS_VIEW_CONFIG,
-  );
+    );
+    if (sortKey === "display_name" && sortOrder === "asc") return base;
+    return [base, "sort=" + encodeURIComponent(sortKey), "order=" + encodeURIComponent(sortOrder)].filter(Boolean).join("&");
+  })();
   React.useEffect(() => {
     const next = withHashQuery(window.location.hash, viewQuery);
     if (next !== window.location.hash) {
@@ -403,10 +412,14 @@ export function Users() {
     if (lockedFilter) p.push("locked=" + lockedFilter);
     if (deptFilter) p.push("department_id=" + encodeURIComponent(deptFilter));
     if (showArchived) p.push("archived=true");
+    if (sortKey !== "display_name" || sortOrder !== "asc") {
+      p.push("sort=" + encodeURIComponent(sortKey));
+      p.push("order=" + encodeURIComponent(sortOrder));
+    }
     return p.join("&");
   }
   const query = useQuery({
-    queryKey: ["users", dq, roleFilter, activeFilter, lockedFilter, deptFilter, showArchived, page],
+    queryKey: ["users", dq, roleFilter, activeFilter, lockedFilter, deptFilter, showArchived, page, sortKey, sortOrder],
     queryFn: () => api("/api/admin/users?" + filterParams(true)),
     // 이전 결과를 유지해 새 쿼리 로딩 중에도 표를 스켈레톤으로 갈아엎지 않는다(깜빡임/스크롤 유실 방지).
     placeholderData: keepPreviousData,
@@ -442,8 +455,8 @@ export function Users() {
     // PA-RC-0029: 이메일이 이 표의 유일한 고유 식별자인데 131px로 20/20행이 잘렸다(필요
     // 198px) — 같은 표의 '역할'(295px)·'최근 로그인'(287px)이 내용량과 무관하게 더 넓었다.
     // identifier:true가 kit.jsx DataTable의 바닥 폭(12.5rem)을 자동으로 준다.
-    { key: "email", label: "이메일", identifier: true, rowName: (r) => r.display_name || r.email },
-    { key: "display_name", label: "이름" },
+    { key: "email", label: "이메일", identifier: true, sortable: true, rowName: (r) => r.display_name || r.email },
+    { key: "display_name", label: "이름", sortable: true },
     {
       // 역할은 이 표에서 가장 민감한(권한 상승 가능성이 있는) 열인데, '활성'·'잠김'·'Notion'과
       // 달리 유일하게 색 없는 맨 텍스트였다 — 같은 Badge 관례로 등급을 색으로도 구분한다.
@@ -505,6 +518,7 @@ export function Users() {
     // width로 줄인다. overflowWrap:anywhere가 이미 있어(kit.jsx) 좁아지면 두 줄로 접힐 뿐
     // 잘리지 않는다.
     { key: "last_login_at", label: "최근 로그인", width: "11rem", nowrap: true, render: (r) => <DateCell value={r.last_login_at} />, hideNarrow: true },
+    { key: "created_at", label: "추가", type: "date", width: "8rem", sortable: true, nowrap: true, render: (r) => <DateCell value={r.created_at} />, hideNarrow: true },
   ];
 
   const items = (query.data && query.data.items) || [];
@@ -687,7 +701,15 @@ export function Users() {
             하나만으론 스크롤, 맥락 전환 후 보관 계정을 살아 있는 계정으로 오인하기 쉬웠다. */}
         {showArchived ? <Box sx={{ mb: 2.5 }}><Callout tone="info">보관된 계정을 포함해 보고 있습니다, ‘보관됨’ 배지가 붙은 계정은 일반 목록에서 감춰진 상태입니다.</Callout></Box> : null}
         <Card>
-          <DataTable columns={columns} rows={items} rowKey={(r) => r.id} onRow={setSel} />
+          <DataTable
+            columns={columns} rows={items} rowKey={(r) => r.id} onRow={setSel}
+            sort={{ key: sortKey, dir: sortOrder }}
+            onSort={(key) => {
+              const next = toggleSort({ key: sortKey, dir: sortOrder }, key, key === "created_at" ? "desc" : "asc");
+              setSortKey(next.key);
+              setSortOrder(next.dir);
+            }}
+          />
           {total != null ? (
             // DataScreen.jsx의 모든 목록 화면과 같은 landmark, 라이브 영역(다른 19개 관리 섹션과 동일) -
             // 이 화면만 bare div라 스크린리더 사용자에게 페이지 이동 랜드마크도, 페이지 변경 안내도 없었다.

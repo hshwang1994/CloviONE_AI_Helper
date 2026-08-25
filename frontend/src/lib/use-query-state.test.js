@@ -126,4 +126,18 @@ describe("decodeQuery / encodeQuery", () => {
     expect(encodeQuery({ active: false }, spec).get("active")).toBe("0");
     expect(decodeQuery(new URLSearchParams("active=0"), spec).active).toBe(false);
   });
+
+  it("배열 기본값은 반복 파라미터로 읽고 쓴다", () => {
+    const spec = { status: [] };
+    expect(decodeQuery(new URLSearchParams("status=계획&status=진행"), spec).status).toEqual(["계획", "진행"]);
+    const out = encodeQuery({ status: ["계획", "진행"] }, spec);
+    expect(out.getAll("status")).toEqual(["계획", "진행"]);
+    expect(encodeQuery({ status: [] }, spec).toString()).toBe("");
+  });
+
+  it("배열 스펙에 문자열 하나를 넣어도 반복 파라미터로 실린다", () => {
+    const spec = { status: [] };
+    const out = encodeQuery({ status: "진행" }, spec);
+    expect(out.getAll("status")).toEqual(["진행"]);
+  });
 });

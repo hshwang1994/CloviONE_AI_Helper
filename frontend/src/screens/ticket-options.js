@@ -35,6 +35,15 @@ export function useTicketMeta(enabled) {
   });
 }
 
+/* 워크플로 정본. 내 티켓 기본 상태(종료가 아닌 것만)는 화면이 이름을 적지 않고
+ * 이 목록의 `terminal` 로 고른다. */
+export function useWorkStatuses(enabled) {
+  return useQuery({
+    queryKey: ["work", "statuses"], queryFn: () => api("/api/work/statuses"),
+    enabled: !!enabled, retry: false, staleTime: 300000,
+  });
+}
+
 export function useTicketProjects(enabled) {
   return useQuery({
     queryKey: ["tickets", "projects"], queryFn: () => api("/api/tickets/projects"),

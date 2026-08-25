@@ -79,19 +79,26 @@ def list_in_scope(
     include_archived: bool = False,
     offset: int = 0,
     limit: int = 50,
+    sort: str | None = None,
+    order: str | None = None,
 ) -> tuple[list[Project], int]:
     """목록. 조건은 단건과 **같은 것 하나**다(`scope_clause`).
 
-    정렬은 전순서다: 보관되지 않은 것 먼저, 최근 갱신 순, 그래도 같으면 id. 마지막 id 가
-    없으면 같은 시각에 갱신된 행들의 상대 순서를 DB 가 마음대로 정하고, 그러면 OFFSET
+    정렬은 전순서다. 화면 기본은 이름 오름차순이고, 그래도 같으면 id. 마지막 id 가
+    없으면 같은 이름 행들의 상대 순서를 DB 가 마음대로 정하고, 그러면 OFFSET
     페이지네이션이 같은 행을 두 번 보여 주거나 빠뜨린다(app/tickets/query.py 의 Z9 와 같다).
     """
     stmt = apply_scope(select(Project), ctx)
     if not include_archived:
         stmt = stmt.where(Project.archived_at.is_(None))
     total = db.execute(select(func.count()).select_from(stmt.subquery())).scalar_one()
+    key = sort if sort in {"name", "created_at", "updated_at"} else "name"
+    descending = (order or "asc") == "desc"
+    col = getattr(Project, key)
+    primary = col.desc().nulls_last() if descending else col.asc().nulls_last()
+    tie = Project.id.desc() if descending else Project.id.asc()
     rows = db.execute(
-        stmt.order_by(Project.updated_at.desc(), Project.id.asc())
+        stmt.order_by(primary, tie)
         .offset(offset)
         .limit(limit)
     ).scalars().all()

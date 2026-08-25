@@ -19,8 +19,22 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from typing import Protocol
+
+
+def as_filter_values(value) -> tuple[str, ...]:
+    """필터 값 하나와 여러 개를 같은 튜플로 편다.
+
+    예전 호출부는 문자열 하나를 넘겼고, 다중 선택은 목록을 넘긴다. 둘을 다른 필드로
+    나누면 한쪽만 고치는 날이 온다. 빈 값은 조건 없음이다.
+    """
+    if value is None:
+        return ()
+    if isinstance(value, str):
+        text = value.strip()
+        return (text,) if text else ()
+    return tuple(str(item).strip() for item in value if item is not None and str(item).strip())
 
 # 기한 버킷. 값 자체가 쿼리 파라미터로 나가므로 여기 한 곳에서만 정한다.
 DUE_OVERDUE = "overdue"
@@ -109,15 +123,23 @@ class TicketFilters:
     21.5%)은 어느 부서에도 안 잡혀 전사 버킷으로 새어 나갔다.
     """
 
-    status: str | None = None
-    priority: str | None = None
-    difficulty: str | None = None
-    project_id: str | None = None
+    status: str | tuple[str, ...] | None = None
+    priority: str | tuple[str, ...] | None = None
+    difficulty: str | tuple[str, ...] | None = None
+    project_id: str | tuple[str, ...] | None = None
     category: str | None = None
     search: str | None = None                       # 제목 부분일치
     due_bucket: str | None = None                   # DUE_BUCKETS 중 하나
     today: str | None = None                        # 기한 버킷 기준일 'YYYY-MM-DD'
-    assignee_id: str | None = None                  # 소스 user id (서비스가 해석해 넣는다)
+    assignee_id: str | tuple[str, ...] | None = None  # 소스 user id (서비스가 해석해 넣는다)
+    sort_key: str | None = None
+    sort_dir: str = "desc"
+    created_from: str | None = None
+    created_to: str | None = None
+    est_wd_min: float | None = None
+    est_wd_max: float | None = None
+    act_wd_min: float | None = None
+    act_wd_max: float | None = None
     # 아래 셋은 앱이 거는 조건 — 브라우저에서 오지 않는다.
     exclude_statuses: frozenset[str] = frozenset()
     exclude_page_ids: frozenset[str] = frozenset()
@@ -136,17 +158,26 @@ class TicketFilters:
         라서 사용자가 못 알아챈다. 두 경로가 같은 답을 내는지는 테스트가 고정한다
         (tests/integration/test_ticket_filters.py).
         """
-        if self.status and ticket.status != self.status:
+        statuses = as_filter_values(self.status)
+        if statuses and ticket.status not in statuses:
             return False
-        if self.priority and ticket.priority != self.priority:
+        priorities = as_filter_values(self.priority)
+        if priorities and ticket.priority not in priorities:
             return False
-        if self.difficulty and ticket.difficulty != self.difficulty:
+        difficulties = as_filter_values(self.difficulty)
+        if difficulties and ticket.difficulty not in difficulties:
             return False
         if self.category and ticket.category != self.category:
             return False
-        if self.project_id and self.project_id not in ticket.project_ids:
-            return False
-        if self.assignee_id and self.assignee_id not in ticket.assignee_ids:
+        projects = as_filter_values(self.project_id)
+        if projects:
+            ticket_projects = set(ticket.project_ids)
+            if ticket.project_uid:
+                ticket_projects.add(ticket.project_uid)
+            if not ticket_projects.intersection(projects):
+                return False
+        assignees = as_filter_values(self.assignee_id)
+        if assignees and not set(ticket.assignee_ids).intersection(assignees):
             return False
         if self.search and self.search.lower() not in (ticket.title or "").lower():
             return False
@@ -158,6 +189,22 @@ class TicketFilters:
                 return False
             if end is not None and ticket.due >= end:
                 return False
+        if self.created_from or self.created_to:
+            stamp = ticket.created_at.date().isoformat() if ticket.created_at else None
+            if stamp is None:
+                return False
+            if self.created_from and stamp < self.created_from:
+                return False
+            if self.created_to and stamp > self.created_to:
+                return False
+        if self.est_wd_min is not None and (ticket.est_wd is None or ticket.est_wd < self.est_wd_min):
+            return False
+        if self.est_wd_max is not None and (ticket.est_wd is None or ticket.est_wd > self.est_wd_max):
+            return False
+        if self.act_wd_min is not None and (ticket.act_wd is None or ticket.act_wd < self.act_wd_min):
+            return False
+        if self.act_wd_max is not None and (ticket.act_wd is None or ticket.act_wd > self.act_wd_max):
+            return False
         if self.exclude_statuses and (ticket.status or "") in self.exclude_statuses:
             return False
         if self.exclude_page_ids and ticket.page_id in self.exclude_page_ids:
@@ -205,6 +252,7 @@ class TicketDTO:
     project_names: tuple[str, ...] = ()
     assignee_ids: tuple[str, ...] = ()  # 원본 소스 user id — 내부 전용
     body_markdown: str | None = None
+    created_at: datetime | None = None
     source: str = "notion"
 
 

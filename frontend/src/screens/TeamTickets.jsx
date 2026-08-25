@@ -8,11 +8,12 @@ import { Pager } from "../ui/Pager.jsx";
 import { useQueryState } from "../lib/useQueryState.js";
 import { DepartmentFilter } from "../ui/filters.jsx";
 import { ticketColumns, GroupedTickets, TicketEditModal, ticketConnState } from "./MyTickets.jsx";
-import { ticketRows, useTicketList } from "./ticket-options.js";
+import { ticketRows, useAssigneeOptions, useTicketList, useTicketMeta } from "./ticket-options.js";
 import {
-  TicketEmptyState, TicketFilterBar, clearTicketFilters, hasTicketFilter,
-  ticketFilterSpec, ticketQueryParams,
+  TicketEmptyState, TicketFilterBar, applyColumnFilter, clearTicketFilters, hasTicketFilter,
+  nextTicketSort, ticketFilterSpec, ticketQueryParams, ticketSortOf, TICKET_LIST_EXTRA,
 } from "./TicketFilterBar.jsx";
+import { priorityKo } from "../lib/priority.js";
 
 /* 팀 공간 > 팀 티켓 — 팀 전체 티켓을 담당자별로 묶어 본다(미할당 티켓이 프로젝트별로 묶이듯).
  * 제목을 누르면 상세로. 편집은 담당자/운영자만. 조건은 서버가 걸고, 그 조건은 주소에 남는다. */
@@ -32,7 +33,7 @@ const TEAM_FIELDS = ["q", "project_id", "status", "priority", "difficulty", "ass
 /* `dept` 도 필터가 아니라 **목록의 범위**다(`active` 와 같은 자리) — 서버의
  * `/team?department_id=` 가 그대로 받는다. `TEAM_FIELDS` 에 넣지 않는 이유: 그 배열은
  * 주소 키와 API 키가 같은 것들만 담는 목록이고, 여기서 이름이 다르다. */
-const TEAM_SPEC = ticketFilterSpec(TEAM_FIELDS, { page: 1, active: true, dept: "" });
+const TEAM_SPEC = ticketFilterSpec(TEAM_FIELDS, { ...TICKET_LIST_EXTRA, active: true, dept: "" });
 const PAGE_RESET = { reset: ["page"] };
 
 /* 담당자별로 묶는다. 담당자가 여럿이면 각자 그룹에 들어간다(팀 부담을 한눈에). 없으면 '(미할당)' 맨 뒤.
@@ -65,6 +66,19 @@ export function TeamTickets() {
     ...(filters.dept ? { department_id: filters.dept } : {}),
   }).toString();
   const q = useTicketList("/api/tickets/team", qs);
+  const metaQ = useTicketMeta(true);
+  const assigneesQ = useAssigneeOptions(true);
+  const meta = metaQ.data || {};
+  const colFilterOptions = {
+    status: meta.statuses || [],
+    priority: (meta.priorities || []).map((p) => ({ value: p, label: priorityKo(p) })),
+    difficulty: meta.difficulties || [],
+  };
+  const colEntityOptions = {
+    assignee_user_id: ((assigneesQ.data && assigneesQ.data.assignees) || []).map((c) => ({
+      value: c.user_id, label: c.display_name,
+    })),
+  };
   /* 여기에 「지금 동기화」를 부르는 mutation 이 있었다. 그 버튼은 `POST /api/tickets/sync` 로
      노션을 읽어 이 서버의 `tickets` 표에 덮어썼는데, 지금은 그 표가 사본이 아니라 정본이라
      밖에서 덮어쓸 것이 없다. 엔드포인트 자체가 없어졌으므로 화면에서도 부르지 않는다. */
@@ -116,7 +130,7 @@ export function TeamTickets() {
           if (conn) return conn;
           if (data.ok === false) return <Callout tone="danger">{data.error || "티켓을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요."}</Callout>;
           const rows = ticketRows(data);
-          const cols = ticketColumns({ onEdit: setEditing, onOpen: (t) => nav("/tickets/" + t.id, { state: { from: "/team-tickets" } }) });
+          const cols = ticketColumns({ onEdit: setEditing, filterAssignee: true, onOpen: (t) => nav("/tickets/" + t.id, { state: { from: "/team-tickets" } }) });
           return (
             <>
               {/* 여기 미러 신선도 안내가 있었다. 서버가 `sync` 블록을 더 이상 안 싣는다 —
@@ -124,15 +138,21 @@ export function TeamTickets() {
               <TicketFilterBar
                 fields={TEAM_FIELDS} value={filters} onChange={setFilters}
                 total={data.total} scope={scopeControls} extra={activeToggle}
-                onClear={() => setFilters({ ...clearTicketFilters(TEAM_FIELDS), dept: "" })}
+                onClear={() => setFilters({ ...clearTicketFilters(TEAM_FIELDS), dept: "", ...TICKET_LIST_EXTRA, active: filters.active })}
               />
               <Card>
                 <GroupedTickets
                   rows={rows} columns={cols} groupBy={groupByAssignee}
+                  sort={ticketSortOf(filters)}
+                  onSort={(key) => setFilters(nextTicketSort(filters, key))}
+                  filters={filters}
+                  onFilter={(field, next) => setFilters(applyColumnFilter(field, next))}
+                  filterOptions={colFilterOptions}
+                  entityOptions={colEntityOptions}
                   emptyState={
                     <TicketEmptyState
                       filtered={hasTicketFilter(filters, TEAM_FIELDS) || !!filters.dept}
-                      onClear={() => setFilters({ ...clearTicketFilters(TEAM_FIELDS), dept: "" })}
+                      onClear={() => setFilters({ ...clearTicketFilters(TEAM_FIELDS), dept: "", ...TICKET_LIST_EXTRA, active: true })}
                       title="팀 티켓이 없습니다"
                       help={filters.active
                         ? "지금 진행 중인 팀 티켓이 없습니다. ‘완료, 취소 포함’을 켜면 끝난 티켓까지 봅니다."

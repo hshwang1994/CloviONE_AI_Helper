@@ -600,6 +600,26 @@ def ticket_detail(
     return {"configured": True, "ok": True, **result}
 
 
+@router.get("/{page_id}/history")
+def ticket_history(
+    request: Request,
+    page_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """이 티켓에 무슨 일이 있었는가 — 상태·담당자·마감이 언제 누구 손에 바뀌었는지.
+
+    감사 로그의 **사용자에게 보이는 부분**만 내보낸다(`service.ticket_history` 가 화이트
+    리스트로 검열한다). 권한 판정은 상세와 같다 — 범위 밖이면 404 다.
+
+    CSRF 불필요(GET, 상태 미변경). 역할 게이트도 없다: 이 티켓을 볼 수 있는 사람이면
+    그 티켓의 이력도 볼 수 있어야 한다. 감사 **화면**(/audit)의 권한은 별개이고 그쪽은
+    다른 티켓·다른 객체까지 보므로 여전히 좁다.
+    """
+    _ = request
+    return service.ticket_history(db, user, page_id=page_id)
+
+
 @router.post("/{page_id}/trash", dependencies=[Depends(require_csrf)])
 def trash_ticket(
     request: Request,

@@ -94,6 +94,10 @@ def test_the_vocabulary_endpoint_serves_the_table(client, login_as, db):
     )
     assert body["default"] == workflow.DEFAULT_STATUS
     assert set(body["categories"]) == set(workflow.CATEGORIES)
+    assert all("terminal" in s for s in body["statuses"]), "프론트가 종료 여부를 하드코딩하지 않으려면 terminal 이 있어야 한다"
+    assert {s["key"] for s in body["statuses"] if s["terminal"]} == {
+        s.key for s in workflow.STATUSES if workflow.is_terminal(s.key)
+    }
 
 
 def test_category_sql_and_row_renderers_agree(db):

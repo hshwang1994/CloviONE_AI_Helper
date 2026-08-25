@@ -71,6 +71,7 @@ def list_statuses(
             {
                 "key": r.key, "label": r.label, "category": r.category,
                 "sort_order": r.sort_order, "is_default": bool(r.is_default),
+                "terminal": workflow.is_terminal(r.key),
             }
             for r in rows
         ],

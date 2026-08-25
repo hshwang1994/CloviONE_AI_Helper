@@ -1,5 +1,6 @@
 import React from "react";
 import Box from "@mui/material/Box";
+import Chip from "@mui/material/Chip";
 import Typography from "@mui/material/Typography";
 
 /* 탐색 줄 — 목록 화면의 «어떻게 볼지»(도구)와 «무엇을 볼지»(필터)를 담는 자리.
@@ -180,6 +181,40 @@ export function ResultLine({ total, unit = "건", conditions, action, sx }) {
             : `전체 ${total.toLocaleString("ko-KR")}${unit}`}
       </Typography>
       {action}
+    </Box>
+  );
+}
+
+/* 지금 걸린 조건을 Chip 으로 보여 주고 하나씩 뗄 수 있게 한다.
+ * 숨은 기본 조건은 여기에 안 넣는다 — 넣은 것만 사용자가 본 조건이다. */
+export function FilterChips({ items, onClearAll, clearLabel = "필터 초기화", extraAction }) {
+  const chips = Array.isArray(items) ? items.filter((c) => c && c.label) : [];
+  if (!chips.length && !extraAction) return null;
+  return (
+    <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap", mb: 1.5 }}>
+      {chips.map((chip) => (
+        <Chip
+          key={chip.key}
+          size="small"
+          label={chip.label}
+          onDelete={chip.onDelete}
+        />
+      ))}
+      {onClearAll ? (
+        <Typography
+          component="button"
+          type="button"
+          variant="body2"
+          onClick={onClearAll}
+          sx={{
+            border: 0, background: "none", cursor: "pointer", color: "primary.main", font: "inherit",
+            "&:focus-visible": (t) => ({ outline: `2px solid ${t.palette.focusRing}`, outlineOffset: 2 }),
+          }}
+        >
+          {clearLabel}
+        </Typography>
+      ) : null}
+      {extraAction}
     </Box>
   );
 }

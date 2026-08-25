@@ -82,6 +82,8 @@ def _row(
     project_uid: str | None = None,
     assignees: tuple[str, ...] = (),
     missing_at: datetime | None = None,
+    act_wd: float | None = None,
+    created_at: datetime | None = None,
 ) -> TicketCache:
     """`projects` 는 **외부 relation id**(필터 시험용)이고, `project_uid` 는 해석된
     **Portal 프로젝트 id**(범위 시험용)다. 0060 에서 범위를 정하는 것은 후자다."""
@@ -104,8 +106,9 @@ def _row(
         assignee_notion_ids=join_names(list(assignees)),
         notion_missing_at=missing_at,
         synced_at=NOW,
-        created_at=NOW,
+        created_at=created_at or NOW,
         updated_at=NOW,
+        act_wd=act_wd,
     )
     db.add(row)
     return row
@@ -344,9 +347,9 @@ def test_pages_do_not_repeat_or_drop_rows_when_the_sort_key_ties(client, login_a
     assert set(_ids(first)) | set(_ids(second)) == {
         "page-t-1", "page-t-2", "page-t-3", "page-t-4"
     }, "페이지를 이어 붙였는데 빠진 티켓이 있다"
-    # 전순서가 실제로 걸렸는지 — 삽입 순서(t-4, t-3, ...)가 아니라 id 오름차순이어야 한다.
+    # 전순서가 실제로 걸렸는지 — 목록 API 기본은 created_at desc 라 같은 시각이면 id 내림차순이다.
     assert _ids(first) + _ids(second) == [
-        "page-t-1", "page-t-2", "page-t-3", "page-t-4"
+        "page-t-4", "page-t-3", "page-t-2", "page-t-1"
     ], "정렬이 스캔 순서에 좌우된다 - 타이브레이커가 없다"
 
 
@@ -471,7 +474,8 @@ def test_unassigned_bucket_pages_without_repeating(client, login_as, db, me, mak
     second = client.get("/api/tickets/unassigned?page=2&page_size=2").json()
     assert first["total"] == second["total"] == 5, "total 이 판정 뒤 값이 아니다"
     assert set(_ids(first)) & set(_ids(second)) == set()
-    assert _ids(first) + _ids(second) == ["page-u-0", "page-u-1", "page-u-2", "page-u-3"]
+    # 목록 API 기본은 created_at desc 라 같은 시각이면 id 내림차순이다.
+    assert _ids(first) + _ids(second) == ["page-u-4", "page-u-3", "page-u-2", "page-u-1"]
 
 
 def test_my_tickets_are_paged_and_filtered_too(client, login_as, db, me):
@@ -513,3 +517,57 @@ def test_there_is_no_second_read_path_to_disagree_with(client, login_as, catalog
     assert body["total"] > 0, "티켓이 하나도 없는 세계라 아래 단언이 아무것도 안 본다"
     assert "sync" not in body, f"신선도 블록이 돌아왔다: {body.get('sync')!r}"
     assert "can_sync" not in body, "화면에 동기화 버튼을 다시 그리라고 말하고 있다"
+
+
+def test_repeated_status_params_are_or_and_other_axes_are_and(client, login_as, catalog):
+    """같은 축의 값끼리는 OR, 다른 축은 AND. 값 하나만 보내도 예전처럼 그 하나만 걸린다."""
+    login_as("system_admin", email="tf-admin@goodmit.co.kr")
+
+    one = client.get("/api/tickets/team?active=false&status=검증").json()
+    assert _ids(one) == ["page-a-status"]
+
+    both = client.get("/api/tickets/team?active=false&status=검증&status=진행").json()
+    titles = {row["title"] for row in both["items"]}
+    assert "상태" in titles
+    assert both["total"] >= 2
+
+    mixed = client.get(
+        f"/api/tickets/team?active=false&status=진행&project_id={PROJ}"
+    ).json()
+    assert _ids(mixed) == ["page-a-project"]
+
+
+def test_list_sort_uses_allowlist_and_defaults_to_created_at(client, login_as, db, admin):
+    """화면이 보낸 컬럼명을 SQL 에 붙이지 않는다. 기본은 생성 최신이고, 같은 시각이면 id."""
+    older = datetime(2026, 7, 1, 0, 0, 0)
+    newer = datetime(2026, 7, 20, 0, 0, 0)
+    _row(db, uid="s-old", title="옛글", tid=1, created_at=older, due=FAR)
+    _row(db, uid="s-new", title="새글", tid=2, created_at=newer, due=FAR)
+    db.commit()
+    _mirror_ready(db, 2)
+    login_as("system_admin", email="tf-admin@goodmit.co.kr")
+
+    default = client.get("/api/tickets/team?active=false&q=글").json()
+    assert [row["title"] for row in default["items"][:2]] == ["새글", "옛글"]
+    assert default["items"][0]["created_at"]
+
+    asc = client.get("/api/tickets/team?active=false&q=글&sort=created_at&order=asc").json()
+    assert [row["title"] for row in asc["items"][:2]] == ["옛글", "새글"]
+
+    bad = client.get("/api/tickets/team?active=false&q=글&sort=injected").json()
+    assert [row["title"] for row in bad["items"][:2]] == ["새글", "옛글"]
+
+
+def test_act_wd_zero_is_not_missing_and_null_is_missing(client, login_as, db, admin):
+    """실제 WD 0 은 값이다. 없는 것과 같은 칸에 '-' 로 그리면 안 되므로 API 도 0 을 0 으로 준다."""
+    _row(db, uid="w-zero", title="공수0", tid=1, act_wd=0, due=FAR)
+    _row(db, uid="w-none", title="공수없음", tid=2, act_wd=None, due=FAR)
+    db.commit()
+    _mirror_ready(db, 2)
+    login_as("system_admin", email="tf-admin@goodmit.co.kr")
+
+    body = client.get("/api/tickets/team?active=false&q=공수").json()
+    by_title = {row["title"]: row["act_wd"] for row in body["items"]}
+    assert by_title["공수0"] == 0
+    assert by_title["공수없음"] is None
+

@@ -21,6 +21,8 @@ import {
   NO_HEALTH_CACHE, NO_PROGRESS_CACHE, PROJECT_FORM_FIELDS, PROJECT_STATUS_KO,
   PROJECT_WRITE_ROLES, deptLabel, percentText, periodText,
 } from "./project-format.js";
+import { DateCell } from "../ui/cells.jsx";
+import { toggleSort } from "../ui/TableHeaderCell.jsx";
 
 /* 프로젝트 목록 — **요약 + 표**.
  *
@@ -30,14 +32,11 @@ import {
  * 세로 위치에 놓여 **행끼리 비교가 안 된다.** 사용자가 지적한 것이 정확히 그것이다:
  * "저렇게 카드로 보여 주면 어떻게 보라는 것이냐". 표는 열이 고정이라 눈이 세로로 훑는다.
  *
- * ## 정렬 UI 를 만들지 않는 이유
+ * ## 정렬은 서버가 한다
  *
- * 🔴 `app/projects/router.py::list_projects` 가 받는 것은 `page` / `page_size` /
- * `include_archived` 뿐이다. **정렬 파라미터가 없다.** 여기서 화면 정렬을 붙이면 서버가 20건씩
- * 자른 **그 한 페이지 안에서만** 정렬되고, 2페이지로 넘기면 순서가 통째로 어긋난다 - 사용자
- * 눈에는 목록이 깨진 것으로 보이고 원인이 화면에 없어서 아무도 못 찾는다(같은 함정을 조건
- * 필터에서 이미 겪었다: `screens/TicketFilterBar.jsx`). 서버가 먼저 받아야 만든다. 지금은
- * 서버가 준 순서(최근 갱신 순)를 그대로 그린다.
+ * `app/projects/router.py::list_projects` 가 `sort`/`order` 를 받는다. 화면 기본은
+ * 이름 오름차순이고, 같은 이름이면 id 로 순서를 고정한다. 헤더를 누르면 그 질의만
+ * 바뀐다. 지금 페이지 20건만 화면에서 바꾸지 않는다.
  *
  * ## 요약을 화면에서 세지 않는 이유
  *
@@ -53,7 +52,7 @@ import {
 
 // `dept` 는 부서 필터 (0060 §32). 주소에 두는 이유는 나머지 조건과 같다 — 상세를 보고
 // 돌아왔을 때 풀리면 안 되고, 링크로 "A-1 팀 프로젝트" 를 공유할 수 있어야 한다.
-const PROJECT_SPEC = { page: 1, archived: false, dept: "" };
+const PROJECT_SPEC = { page: 1, archived: false, dept: "", sort: "name", order: "asc" };
 const PAGE_RESET = { reset: ["page"] };
 
 
@@ -63,6 +62,10 @@ export function projectListQuery(filters) {
   if (filters.archived) p.set("include_archived", "true");
   // 주소 키(`dept`)와 API 키(`department_id`)가 다르다 — 옮겨 적는 자리는 여기 하나다.
   if (filters.dept) p.set("department_id", filters.dept);
+  if (filters.sort && (filters.sort !== "name" || filters.order !== "asc")) {
+    p.set("sort", filters.sort);
+    p.set("order", filters.order || "asc");
+  }
   if (filters.page > 1) p.set("page", String(filters.page));
   return p;
 }
@@ -151,7 +154,7 @@ function Summary({ query }) {
 function columns(deptNames) {
   return [
     {
-      key: "name", label: "이름", type: "title", minWidth: "12rem",
+      key: "name", label: "이름", type: "title", minWidth: "12rem", sortable: true,
       // 표의 어느 열이 '이 행이 무엇인가' 를 말하는지 알려 준다(kit.jsx::rowOpenLabel).
       rowName: (p) => p.name,
       render: (p) => (
@@ -205,6 +208,10 @@ function columns(deptNames) {
         </Typography>
       ) : p.health_score + "점"),
     },
+    {
+      key: "created_at", label: "생성", type: "date", minWidth: "8rem", sortable: true,
+      render: (p) => <DateCell value={p.created_at} />,
+    },
   ];
 }
 
@@ -219,18 +226,18 @@ export function Projects() {
      기본값은 주소에 안 실리므로(`useQueryState`) 여기서 **기본값과 다른가**로 센다. */
   const hasProjectFilter = React.useMemo(
     () => Object.keys(PROJECT_SPEC).some(
-      (k) => k !== "page" && filters[k] !== PROJECT_SPEC[k] && filters[k] !== "" && filters[k] != null
+      (k) => k !== "page" && k !== "sort" && k !== "order" && filters[k] !== PROJECT_SPEC[k] && filters[k] !== "" && filters[k] != null
     ),
     [filters]
   );
   const clearProjectFilters = React.useCallback(
-    () => setFilters({ archived: false, dept: "", page: 1 }),
+    () => setFilters({ archived: false, dept: "", page: 1, sort: "name", order: "asc" }),
     [setFilters]
   );
   /* 결과 줄이 세는 것은 «지금 걸린 조건» 이다 — 기본값과 다른 축만 센다. */
   const activeProjectConditions = React.useMemo(
     () => Object.keys(PROJECT_SPEC).filter(
-      (k) => k !== "page" && filters[k] !== PROJECT_SPEC[k] && filters[k] !== "" && filters[k] != null
+      (k) => k !== "page" && k !== "sort" && k !== "order" && filters[k] !== PROJECT_SPEC[k] && filters[k] !== "" && filters[k] != null
     ),
     [filters]
   );
@@ -353,6 +360,11 @@ export function Projects() {
               <DataTable
                 columns={cols} rows={items} rowKey={(p) => p.id} onRow={open}
                 empty="표시할 프로젝트가 없습니다."
+                sort={{ key: filters.sort, dir: filters.order }}
+                onSort={(key) => {
+                  const next = toggleSort({ key: filters.sort, dir: filters.order }, key, key === "created_at" ? "desc" : "asc");
+                  setFilters({ sort: next.key, order: next.dir });
+                }}
               />
             </Card>
             {/* 여기 「이관할 때 이 프로젝트에서 문제가 있었습니다」 배너가 있었다. 얼어붙은

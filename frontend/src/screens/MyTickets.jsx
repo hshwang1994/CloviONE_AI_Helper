@@ -34,11 +34,13 @@ import { affiliation, needsOrg, personLabel } from "../lib/people.js";
 import { EMPTYABLE_SELECT, EntityCombobox } from "../ui/filters.jsx";
 import { Pager } from "../ui/Pager.jsx";
 import { useQueryState } from "../lib/useQueryState.js";
-import { useAssigneeOptions, useTicketList, useTicketMeta, useTicketProjects, ticketProjectId, ticketRows } from "./ticket-options.js";
+import { useAssigneeOptions, useTicketList, useTicketMeta, useTicketProjects, useWorkStatuses, ticketProjectId, ticketRows } from "./ticket-options.js";
 import { invalidateTicketViews } from "./ticket-views.js";
 import { bulkFailureNote, fmtDateTime } from "../lib/format.js";
-import { PATH_SEP } from "../ui/OrgPath.jsx";
-import { TicketEmptyState, TicketFilterBar, clearTicketFilters, hasTicketFilter, ticketFilterSpec, ticketQueryParams } from "./TicketFilterBar.jsx";
+import { NumberCell, DateCell } from "../ui/cells.jsx";
+import { TableHeaderCell } from "../ui/TableHeaderCell.jsx";
+import { TicketEmptyState, TicketFilterBar, applyColumnFilter, clearTicketFilters, columnFilterValue, hasTicketFilter, nextTicketSort, ticketFilterSpec, ticketQueryParams, ticketSortOf, TICKET_LIST_EXTRA } from "./TicketFilterBar.jsx";
+import { openStatusKeys } from "../lib/openTicketStatuses.js";
 
 /* `EMPTYABLE_SELECT` 는 이제 ui/filters.jsx 가 정본이다(필터 select 와 편집 폼 select 가
  * 같은 함정을 밟는다). 여기서 다시 내보내는 이유는 팀 티켓 화면이 예전부터 이 경로로
@@ -110,13 +112,17 @@ function TitleCell({ t, onOpen }) {
         // 공유 styleOverrides(primary.dark=primaryStrong, 대비 보강)를 inline sx가 덮어써
         // 버린다 — 다크 표면에서 3.76:1로 AA(4.5) 미달이었다. 강조색으로 그리려는 의도는
         // 그대로 두고 값만 대비가 검증된 alias로 바꾼다.
-        sx={{ font: "inherit", fontWeight: FONT_WEIGHT.semibold, textAlign: "left", color: "primary.dark" }}
+        sx={{
+          font: "inherit", fontWeight: FONT_WEIGHT.semibold, textAlign: "left", color: "primary.dark",
+          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "100%", display: "block",
+        }}
+        title={t.title || "제목 없음"}
       >
         {t.title || "제목 없음"}
       </Link>
     );
   }
-  return <Box component="span" sx={{ fontWeight: FONT_WEIGHT.semibold }}>{t.title || "제목 없음"}</Box>;
+  return <Box component="span" sx={{ fontWeight: FONT_WEIGHT.semibold, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "block" }} title={t.title || "제목 없음"}>{t.title || "제목 없음"}</Box>;
 }
 
 // 목록 표 — 티켓/제목/상태/우선순위/난이도/예상WD/마감. 숫자·날짜는 우측 정렬.
@@ -127,7 +133,7 @@ function TitleCell({ t, onOpen }) {
 // 좁은 열 안에 표가 들어갈 때 쓴다. 전체 열을 그대로 넣으면 1366 화면에서 마감·편집이 잘려
 // 나가 가로로 긁어야 보인다 — 실제 캡처에서 그 상태였다. 난이도·예상 WD 는 '오늘 뭘 할까'를
 // 정하는 데 필요 없고, 편집은 글자 대신 아이콘 버튼으로 줄여 자리를 아낀다.
-export function ticketColumns({ showAssignee, onEdit, onClaim, onOpen, compact } = {}) {
+export function ticketColumns({ showAssignee, onEdit, onClaim, onOpen, compact, filterAssignee } = {}) {
   // nowrap: 한 덩어리 값(티켓 번호·날짜·숫자)은 절대 줄바꿈하지 않는다. 예전에는 모든 셀이
   // `overflowWrap: anywhere` 라 열의 최소 폭이 '한 글자'가 됐고, 폭이 모자라면 'GIT-4101'이
   // 세 줄로 쪼개져 세로로 무너졌다(QA vertical_text_collapse). 폭이 정말 모자라면 표를 줄이는
@@ -136,31 +142,39 @@ export function ticketColumns({ showAssignee, onEdit, onClaim, onOpen, compact }
     /* 티켓 번호는 **식별자형 숫자**다 — 크기를 비교하지 않으므로 좌정렬이고, 자릿수만
        고정한다. 그 뜻을 표가 `data-col-role="identifier"` 로 내보내 QA 가 이 열을 «우정렬
        안 된 숫자 열» 로 세지 않는다. */
-    { key: "tid", label: "티켓", type: "identifier", width: compact ? "6rem" : "7rem", render: (t) => ticketId(t) },
+    { key: "tid", label: "티켓", type: "identifier", width: compact ? "6rem" : "7rem", sortable: true, render: (t) => ticketId(t) },
     // minWidth: 제목 열이 절대 그 아래로 줄지 않는 폭. 나머지 열이 전부 고정폭 + nowrap 이라,
     // 컨테이너가 좁으면(홈의 2단 배치, 1366 화면) 제목만 남은 폭을 다 먹히고 24px 로 눌려
     // 글자가 한 음절씩 세로로 무너졌다(QA vertical_text_collapse 가 실제로 잡았다).
     // rowName: 이 표에서 행을 구별하는 값은 제목이다(ui/rowName.js). 선택 체크박스와 상세
     // 열기 버튼이 이 값을 접근 이름에 쓴다 — 없으면 스무 행이 전부 "이 항목 선택"으로 읽힌다.
-    { key: "title", label: "제목", type: "title", minWidth: compact ? "11rem" : "16rem", rowName: (t) => t.title || "제목 없음",
+    { key: "title", label: "제목", type: "title", minWidth: compact ? "11rem" : "16rem", sortable: true, rowName: (t) => t.title || "제목 없음",
       render: (t) => <TitleCell t={t} onOpen={onOpen} /> },
-    { key: "status", label: "상태", type: "status", width: compact ? "6rem" : "7rem", render: (t) => (t.status ? <Badge value={t.status} /> : "-") },
-    { key: "priority", label: "우선순위", type: "status", width: compact ? "6.5rem" : "7rem", render: (t) => (t.priority ? <Badge value={priorityKo(t.priority)} kind={priorityKind(t.priority)} /> : "-") },
+    { key: "status", label: "상태", type: "status", width: compact ? "6rem" : "7rem", sortable: true, filter: { kind: "enum", field: "status" }, render: (t) => (t.status ? <Badge value={t.status} /> : "-") },
+    { key: "priority", label: "우선순위", type: "status", width: compact ? "6.5rem" : "7rem", sortable: true, filter: { kind: "enum", field: "priority" }, render: (t) => (t.priority ? <Badge value={priorityKo(t.priority)} kind={priorityKind(t.priority)} /> : "-") },
   ];
   if (!compact) {
     cols.push(
       /* 난이도는 «상·중·하» 라 수치가 아니다 — 우정렬하면 없는 크기 비교를 암시한다. */
-      { key: "difficulty", label: "난이도", type: "enum", render: (t) => (t.difficulty || "-") },
-      { key: "est_wd", label: "예상 WD", type: "number", render: (t) => (t.est_wd != null ? t.est_wd : "-") },
+      { key: "difficulty", label: "난이도", type: "enum", sortable: true, filter: { kind: "enum", field: "difficulty" }, render: (t) => (t.difficulty || "-") },
+      { key: "est_wd", label: "예상 WD", type: "number", sortable: true, filter: { kind: "number", field: "est_wd" }, render: (t) => <NumberCell value={t.est_wd} /> },
+      { key: "act_wd", label: "실제 WD", type: "number", sortable: true, filter: { kind: "number", field: "act_wd" }, render: (t) => <NumberCell value={t.act_wd} /> },
     );
   }
-  cols.push({ key: "due", label: "마감", type: "date", width: compact ? "6.5rem" : "7rem", render: (t) => (t.due || "-") });
+  cols.push({ key: "due", label: "마감", type: "date", width: compact ? "6.5rem" : "7rem", sortable: true, render: (t) => (t.due || "-") });
+  if (!compact) {
+    cols.push({ key: "created_at", label: "생성", type: "date", width: "8rem", sortable: true, filter: { kind: "date", field: "created_at" }, render: (t) => <DateCell value={t.created_at} /> });
+  }
   if (showAssignee) {
     // VIS-163: 이 열만 nowrap이 빠져 있었다 — 좁은 컨테이너(1200×900)에서 overflowWrap:
     // anywhere가 "임승환, 김동현" 같은 값을 글자 하나씩 세로로 무너뜨렸다(다른 모든 열의
     // 이유와 같다, 위 주석 참고). 담당자가 많아 셀이 넓어지면 이 표도 다른 nowrap 열처럼
     // 가로 스크롤로 넘긴다 — 읽을 수 없는 표보다 낫다는 같은 트레이드오프.
-    cols.push({ key: "assignee_names", label: "담당자", type: "name", width: "10rem", nowrap: true, render: (t) => ((t.assignee_names || []).join(", ") || "-") });
+    cols.push({
+      key: "assignee_names", label: "담당자", type: "name", width: "10rem", nowrap: true,
+      filter: filterAssignee ? { kind: "entity", field: "assignee_user_id" } : undefined,
+      render: (t) => ((t.assignee_names || []).join(", ") || "-"),
+    });
   }
   if (onEdit || onClaim) {
     cols.push({
@@ -234,7 +248,7 @@ function groupedRowKey(t, i) {
  * MUI Table로 옮겼지만 그룹 머리행은 <tbody>를 그룹마다 하나씩 두는 기존 구조를 그대로 유지한다 —
  * colgroup 스코프 헤더라 스크린리더가 "이 아래 행들은 이 그룹" 이라고 읽을 수 있고, 열 폭은 하나의
  * <table>이 공유하므로 그룹 간에 어긋나지 않는다. */
-export function GroupedTickets({ rows, columns, empty, emptyHelp, emptyState, groupBy, collapsible }) {
+export function GroupedTickets({ rows, columns, empty, emptyHelp, emptyState, groupBy, collapsible, sort, onSort, filters, onFilter, filterOptions, entityOptions }) {
   const cols = Array.isArray(columns) ? columns : [];
   const safeRows = Array.isArray(rows) ? rows : [];
   const grouper = groupBy || groupByProject;
@@ -349,11 +363,24 @@ export function GroupedTickets({ rows, columns, empty, emptyHelp, emptyState, gr
       <Table size="small">
         <TableHead>
           <TableRow>
-            {cols.map((c) => (
-              <TableCell key={c.key} scope="col" {...tableCellProps(c, { head: true })}>
-                {c.label || null}
-              </TableCell>
-            ))}
+            {cols.map((c) => {
+              const head = tableCellProps(c, { head: true });
+              return (
+                <TableHeaderCell
+                  key={c.key}
+                  column={c}
+                  sort={sort}
+                  onSort={onSort}
+                  filterValue={filters ? columnFilterValue(filters, (c.filter && c.filter.field) || c.key) : undefined}
+                  onFilter={onFilter}
+                  filterOptions={filterOptions && (filterOptions[(c.filter && c.filter.field) || c.key])}
+                  entityOptions={entityOptions && (entityOptions[(c.filter && c.filter.field) || c.key])}
+                  colRole={head["data-col-role"]}
+                  align={head.align}
+                  cellSx={head.sx}
+                />
+              );
+            })}
           </TableRow>
         </TableHead>
         {groups.map(([groupName, items]) => {
@@ -390,7 +417,7 @@ export function GroupedTickets({ rows, columns, empty, emptyHelp, emptyState, gr
                       /* 자릿수 고정을 예전에는 **모든 칸**에 걸었다. 숫자가 아닌 칸까지 고정폭
                          숫자를 쓰면 «1» 뒤에 빈 자리가 남아 한글 사이에서 글자가 떠 보인다 —
                          이제 열이 자기 타입으로 말하고(`type:"count"` 등) 그 열만 고정한다. */
-                      <TableCell key={c.key} {...tableCellProps(c)}>
+                      <TableCell key={c.key} {...tableCellProps(c, { truncate: c.type === "title" || c.type === "name" || c.type === "text" })}>
                         {groupedCell(c, t, ctx)}
                       </TableCell>
                     ))}
@@ -711,24 +738,59 @@ export function ticketConnState(data, onRetry) {
  * 미할당은 정의상 담당자가 없다. 안 먹는 조건을 그려 두면 고른 값이 아무 일도 안 하는데,
  * 그건 사용자가 알아챌 수 없는 방향의 오류다.
  *
- * ⚠️ 예전의 '진행 중(완료, 취소 제외)' 기본 필터는 여기 없다. 서버의 `/mine` 은 그 조건을
- * 받지 않고(`/team` 만 `active` 를 받는다, `/unassigned` 는 언제나 활성만 준다), 목록을
- * 서버가 20건씩 자르기 시작했으므로 화면에서 거르면 **그 한 페이지 안에서만** 걸러진다 —
- * "총 40건인데 3건만 보인다" 가 된다. 지금은 상태를 직접 고르거나 기한 필터의 '지연'을 쓴다.
- * `/mine` 에 `active` 파라미터가 생기면 여기에 되돌려 넣는다. */
+ * `/mine` 의 기본 상태는 워크플로 정본에서 **종료가 아닌** 것만 고른다. 이름 목록을
+ * 여기에 적지 않는다. 그 집합은 Chip 으로 보이고, 「필터 초기화」는 그 기본값으로
+ * 돌아가며 「전체 보기」는 상태 조건을 푼다. */
 export const SELF_FILTER_FIELDS = ["q", "project_id", "status", "priority", "difficulty", "due", "category"];
-const SELF_SPEC = ticketFilterSpec(SELF_FILTER_FIELDS);
+const SELF_SPEC = ticketFilterSpec(SELF_FILTER_FIELDS, TICKET_LIST_EXTRA);
+const MY_SPEC = { ...SELF_SPEC, all_status: false };
 /* 필터를 건드리면 페이지는 처음으로. 다른 필터의 3페이지에 남으면 빈 목록이 나오는데
  * 사용자는 그것을 "조건에 맞는 티켓이 없다"로 읽는다. */
 const PAGE_RESET = { reset: ["page"] };
+
+function useTicketColumnOptions(wantAssignee) {
+  const metaQ = useTicketMeta(true);
+  const assigneesQ = useAssigneeOptions(!!wantAssignee);
+  const meta = metaQ.data || {};
+  return {
+    filterOptions: {
+      status: meta.statuses || [],
+      priority: (meta.priorities || []).map((p) => ({ value: p, label: priorityKo(p) })),
+      difficulty: meta.difficulties || [],
+    },
+    entityOptions: wantAssignee ? {
+      assignee_user_id: ((assigneesQ.data && assigneesQ.data.assignees) || []).map((c) => ({
+        value: c.user_id, label: c.display_name,
+      })),
+    } : undefined,
+  };
+}
+
+function appendDefaultStatuses(params, filters, openKeys) {
+  if (filters.all_status) return params;
+  if ((filters.status || []).length) return params;
+  for (const key of openKeys) params.append("status", key);
+  return params;
+}
+
+function resetListFilters(fields) {
+  return { ...clearTicketFilters(fields), ...TICKET_LIST_EXTRA, all_status: false };
+}
 
 /* 내 티켓. 조건은 서버가 걸고(질의 파라미터), 그 조건은 주소에 남는다. */
 export function MyTickets() {
   const confirm = useConfirm();
   const nav = useNavigate();
-  const [filters, setFilters] = useQueryState(SELF_SPEC, PAGE_RESET);
-  const qs = ticketQueryParams(filters, SELF_FILTER_FIELDS).toString();
+  const [filters, setFilters] = useQueryState(MY_SPEC, PAGE_RESET);
+  const workQ = useWorkStatuses(true);
+  const openKeys = openStatusKeys(workQ.data && workQ.data.statuses);
+  const qs = appendDefaultStatuses(
+    ticketQueryParams(filters, SELF_FILTER_FIELDS),
+    filters,
+    openKeys,
+  ).toString();
   const q = useTicketList("/api/tickets/mine", qs);
+  const colOpts = useTicketColumnOptions(false);
   const [editing, setEditing] = React.useState(null);
   const toast = useToast();
   const qc = useQueryClient();
@@ -736,7 +798,7 @@ export function MyTickets() {
   const bulk = useBulkTrash("/api/tickets/trash-bulk", qc, toast, () => { sel.clear(); q.refetch(); });
   // 보이는 티켓이 바뀌면(필터·페이지) 선택을 비운다 — 숨겨진 항목이 선택된 채 남지 않게.
   React.useEffect(() => { sel.clear(); }, [qs]); // eslint-disable-line react-hooks/exhaustive-deps
-  const clearFilters = () => setFilters(clearTicketFilters(SELF_FILTER_FIELDS));
+  const clearFilters = () => setFilters(resetListFilters(SELF_FILTER_FIELDS));
   const headerActions = (
     <BulkActions count={sel.selected.size} onClear={sel.clear}>
       <Button size="sm" variant="danger" disabled={bulk.isPending}
@@ -772,11 +834,23 @@ export function MyTickets() {
                   0건」을 가르던 안내인데, 이 표가 정본이 된 뒤로 빈 목록은 언제나 정말
                   0건이다(S14). 서버도 `sync` 블록을 더 이상 안 싣는다. */}
               <Typography component="h2" className="sr-only">필터</Typography>
-              <TicketFilterBar fields={SELF_FILTER_FIELDS} value={filters} onChange={setFilters} total={data.total} />
+              <TicketFilterBar
+                fields={SELF_FILTER_FIELDS} value={filters} onChange={setFilters} total={data.total}
+                defaultStatusKeys={openKeys}
+                allStatus={filters.all_status}
+                onShowAll={() => setFilters({ all_status: true, status: [] })}
+                onClear={clearFilters}
+                resetLabel="필터 초기화"
+              />
               <Typography component="h2" className="sr-only">목록</Typography>
               <Card>
                 <GroupedTickets
                   rows={rows} columns={cols}
+                  sort={ticketSortOf(filters)}
+                  onSort={(key) => setFilters(nextTicketSort(filters, key))}
+                  filters={filters}
+                  onFilter={(field, next) => setFilters(applyColumnFilter(field, next))}
+                  filterOptions={colOpts.filterOptions}
                   emptyState={
                     <TicketEmptyState
                       filtered={hasTicketFilter(filters, SELF_FILTER_FIELDS)}
@@ -807,6 +881,7 @@ export function Unassigned() {
   const [filters, setFilters] = useQueryState(SELF_SPEC, PAGE_RESET);
   const qs = ticketQueryParams(filters, SELF_FILTER_FIELDS).toString();
   const q = useTicketList("/api/tickets/unassigned", qs);
+  const colOpts = useTicketColumnOptions(false);
   const toast = useToast();
   const qc = useQueryClient();
   const [editing, setEditing] = React.useState(null);
@@ -814,7 +889,7 @@ export function Unassigned() {
   const sel = useRowSelection();
   const bulk = useBulkTrash("/api/tickets/trash-bulk", qc, toast, () => { sel.clear(); q.refetch(); });
   React.useEffect(() => { sel.clear(); }, [qs]); // eslint-disable-line react-hooks/exhaustive-deps
-  const clearFilters = () => setFilters(clearTicketFilters(SELF_FILTER_FIELDS));
+  const clearFilters = () => setFilters(resetListFilters(SELF_FILTER_FIELDS));
   const headerActions = (
     <BulkActions count={sel.selected.size} onClear={sel.clear}>
       <Button size="sm" variant="danger" disabled={bulk.isPending}
@@ -844,13 +919,18 @@ export function Unassigned() {
           return (
             <>
               {/* 여기 미러 신선도 안내가 있었다. 위 목록과 같은 이유로 걷었다(S14). */}
-              <TicketFilterBar fields={SELF_FILTER_FIELDS} value={filters} onChange={setFilters} total={data.total} />
+              <TicketFilterBar fields={SELF_FILTER_FIELDS} value={filters} onChange={setFilters} total={data.total} onClear={clearFilters} />
               <Card>
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                   담당자 없는 활성 티켓입니다. ‘나에게 배정’ 또는 ‘수정’으로 지정하세요.
                 </Typography>
                 <GroupedTickets
                   rows={rows} columns={cols}
+                  sort={ticketSortOf(filters)}
+                  onSort={(key) => setFilters(nextTicketSort(filters, key))}
+                  filters={filters}
+                  onFilter={(field, next) => setFilters(applyColumnFilter(field, next))}
+                  filterOptions={colOpts.filterOptions}
                   emptyState={
                     <TicketEmptyState
                       filtered={hasTicketFilter(filters, SELF_FILTER_FIELDS)}

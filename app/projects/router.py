@@ -108,6 +108,8 @@ def list_projects(
     include_archived: bool = Query(default=False),
     # 부서 필터 (0060 §32) — 조회 범위 **안에서만** 좁힌다. 넓히지 못한다.
     department_id: str | None = Query(default=None, max_length=36),
+    sort: str | None = Query(default=None, max_length=32),
+    order: str | None = Query(default=None, pattern="^(asc|desc)$"),
     principal: Principal = Depends(get_principal),
     user: User = Depends(get_current_user),
 ):
@@ -119,6 +121,8 @@ def list_projects(
         include_archived=include_archived,
         offset=page.offset,
         limit=page.page_size,
+        sort=sort,
+        order=order,
     )
     return {
         "items": [_project_view(p) for p in rows],

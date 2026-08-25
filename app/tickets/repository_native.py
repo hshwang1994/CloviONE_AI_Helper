@@ -74,7 +74,7 @@ from app.tickets.models import (
     join_names,
     split_names,
 )
-from app.tickets.query import ORDER, filter_clauses, token
+from app.tickets.query import filter_clauses, order_clause, token
 from app.tickets.repository import (
     BodySaveResult,
     PageSpec,
@@ -222,6 +222,7 @@ class NativeTicketRepository:
             project_names=tuple(split_names(row.project_names)),
             assignee_ids=tuple(split_names(row.assignee_notion_ids)),
             body_markdown=row.body_markdown,
+            created_at=row.created_at,
             source=row.source or SOURCE_NOTION,
         )
 
@@ -247,7 +248,7 @@ class NativeTicketRepository:
         for clause in filter_clauses(filters):
             stmt = stmt.where(clause)
         total = db.execute(select(func.count()).select_from(stmt.subquery())).scalar_one()
-        stmt = stmt.order_by(*ORDER)
+        stmt = stmt.order_by(*order_clause(filters))
         if page is not None and page.limit is not None:
             stmt = stmt.offset(page.offset).limit(page.limit)
         rows = db.execute(stmt).scalars().all()

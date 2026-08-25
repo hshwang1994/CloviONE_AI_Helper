@@ -24,6 +24,7 @@ import { Pager } from "../ui/Pager.jsx";
 import Chip from "@mui/material/Chip";
 import StarRoundedIcon from "@mui/icons-material/StarRounded";
 import { FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
+import { fmtDateTimeCompact } from "../lib/format.js";
 
 /* 지식 공간 — 공간 · 폴더 트리 · 문서 목록 (S7).
  *
@@ -449,6 +450,9 @@ export function Knowledge() {
                   </Stack>
                   <Typography variant="body2" color="text.secondary">
                     {doc.source_type === "AI" ? "AI가 만든 문서입니다." : "사람이 쓴 문서입니다."}
+                    {doc.created_at || doc.updated_at
+                      ? ` ${fmtDateTimeCompact(doc.created_at)}에 만들었고 ${fmtDateTimeCompact(doc.updated_at)}에 고쳤습니다.`
+                      : ""}
                   </Typography>
                   {/* 종류(doc_type)와 태그. 옛 문서 종류·업무 분야·기술 태그 필터가 여기로
                       옮겨 왔다(S14 · D6) — 골라 좁히는 자리(위 「분류」)뿐 아니라 목록 각

@@ -17,8 +17,8 @@ import { groupByAssignee } from "./TeamTickets.jsx";
 import { burndownSeries, wdBalanceItems } from "./sprint-charts.js";
 import { useQueryState } from "../lib/useQueryState.js";
 import {
-  SPRINT_FIELDS, SPRINT_REPORT_FIELDS, TicketEmptyState, TicketFilterBar, clearTicketFilters,
-  hasTicketFilter, matchesTicketFilters, ticketFilterSpec,
+  SPRINT_FIELDS, SPRINT_REPORT_FIELDS, TicketEmptyState, TicketFilterBar, asList,
+  clearTicketFilters, hasTicketFilter, matchesTicketFilters, ticketFilterSpec,
 } from "./TicketFilterBar.jsx";
 import { BASELINE_TRACKS, TILE_GRID_GAP, TILE_PADDING } from "../ui/density.js";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
@@ -172,8 +172,9 @@ function sprintFields(data) {
  * 이름이 붙은 그룹이 하나 더 나오는 것은, 필터가 안 걸린 것과 구분되지 않는다. */
 function sprintRowMatches(row, filters, fields) {
   if (!matchesTicketFilters(row, filters, fields)) return false;
-  const who = fields.includes("assignee_user_id") ? filters.assignee_user_id : "";
-  return !who || row.owner_user_id === who;
+  if (!fields.includes("assignee_user_id")) return true;
+  const who = asList(filters.assignee_user_id);
+  return !who.length || who.includes(row.owner_user_id);
 }
 
 /* 담당자 한 명 = 카드 한 장.
@@ -356,7 +357,11 @@ export function Sprint() {
           const busy = devs.filter((p) => p && (p.has_tickets || p.assigned > 0));
           const idle = devs.length - busy.length;
           const canPick = fields.includes("assignee_user_id");
-          const pickPerson = (uid) => setFilters({ assignee_user_id: filters.assignee_user_id === uid ? "" : uid });
+          const pickPerson = (uid) => {
+            const cur = asList(filters.assignee_user_id);
+            const on = cur.length === 1 && cur[0] === uid;
+            setFilters({ assignee_user_id: on ? [] : [uid] });
+          };
           return (
             <>
               {/* 건수 셋과 인일 하나가 한 줄에 있다 — 단위가 섞이므로 라벨에 단위를 적는다
@@ -433,7 +438,7 @@ export function Sprint() {
                       <PersonCard
                         key={p.user_id || p.name}
                         person={p}
-                        active={!!p.user_id && filters.assignee_user_id === p.user_id}
+                        active={!!p.user_id && asList(filters.assignee_user_id).includes(p.user_id)}
                         onPick={canPick && p.user_id ? () => pickPerson(p.user_id) : undefined}
                       />
                     ))}
@@ -496,8 +501,13 @@ export function Sprint() {
                 <Typography component="h2" id="sprint-unassigned" variant="h6" sx={{ fontSize: FONT_SIZE.sectionTitle, mb: 1.5 }}>
                   미할당 티켓 (배분 대상 {unassignedCount}건)
                 </Typography>
-                <Card>
-                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                {/* **판이 아니다.** 이 구획이 담는 것은 문장 하나와 버튼 하나다 —
+                    컬렉션도, 자기 생명주기를 가진 경계 객체도 아니다. 판을 두르면
+                    1606×120 짜리 흰 면이 잉크 19% 로 남고(S18 실측), 회의 화면에서
+                    가장 큰 흰 사각형이 «세 건 있다» 한 줄을 감싸는 상자가 된다.
+                    같은 판단을 도구 줄이 이미 한 번 했다(DataScreen 의 `FilterSurface`). */}
+                <Box sx={{ display: "flex", alignItems: "center", gap: 2, flexWrap: "wrap" }}>
+                  <Typography variant="body2" color="text.secondary" sx={{ minWidth: 0 }}>
                     {unassignedCount > 0
                       ? `담당자가 없는 활성 티켓이 ${unassignedCount}건 있습니다. 회의에서 정한 뒤 아래 화면에서 담당자를 지정하세요.`
                       : "담당자가 없는 활성 티켓이 없습니다."}
@@ -505,7 +515,7 @@ export function Sprint() {
                   <Button variant={unassignedCount > 0 ? "primary" : "default"} onClick={() => nav("/unassigned")}>
                     ‘미할당 티켓’ 화면 열기
                   </Button>
-                </Card>
+                </Box>
               </Box>
 
               <Box component="section" aria-labelledby="sprint-planned" sx={{ mb: 4 }}>

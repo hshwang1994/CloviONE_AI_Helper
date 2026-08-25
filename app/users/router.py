@@ -151,6 +151,8 @@ def list_users(
         default=None,
         description="true면 지금 잠긴 계정만, false면 안 잠긴 계정만. 기본(생략)은 안 거른다.",
     ),
+    sort: str | None = Query(default=None, max_length=32),
+    order: str | None = Query(default=None, pattern="^(asc|desc)$"),
 ):
     now = request.app.state.clock.now()
     stmt = _filtered_users_stmt(
@@ -162,9 +164,14 @@ def list_users(
     total = db.execute(
         select(func.count()).select_from(stmt.subquery())
     ).scalar_one()
+    key = sort if sort in {"display_name", "email", "created_at"} else "display_name"
+    descending = (order or "asc") == "desc"
+    col = getattr(User, key)
+    primary = col.desc().nulls_last() if descending else col.asc().nulls_last()
+    tie = User.id.desc() if descending else User.id.asc()
     rows = (
         db.execute(
-            stmt.order_by(User.created_at.desc(), User.id.desc()).offset(page.offset).limit(page.page_size)
+            stmt.order_by(primary, tie).offset(page.offset).limit(page.page_size)
         )
         .scalars()
         .all()

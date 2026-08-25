@@ -2,7 +2,7 @@ import React from "react";
 import Typography from "@mui/material/Typography";
 import { Button, EmptyState } from "../ui/kit.jsx";
 import { DebouncedTextField, EntityCombobox, FilterSelect, SearchBox } from "../ui/filters.jsx";
-import { FilterActions, FilterRow, FilterSurface, ResultLine, ToolbarRow } from "../ui/FilterBar.jsx";
+import { FilterActions, FilterChips, FilterRow, FilterSurface, ResultLine, ToolbarRow } from "../ui/FilterBar.jsx";
 import { priorityKo } from "../lib/priority.js";
 import { affiliation, needsOrg } from "../lib/people.js";
 import { useAssigneeOptions, useTicketMeta, useTicketProjects } from "./ticket-options.js";
@@ -54,6 +54,67 @@ const LABELS = {
 };
 
 const META_FIELDS = ["status", "priority", "difficulty"];
+const MULTI_FIELDS = ["status", "priority", "difficulty", "project_id", "assignee_user_id"];
+const RANGE_KEYS = ["created_from", "created_to", "est_wd_min", "est_wd_max", "act_wd_min", "act_wd_max"];
+
+export const TICKET_LIST_EXTRA = {
+  page: 1,
+  sort: "created_at",
+  order: "desc",
+  created_from: "",
+  created_to: "",
+  est_wd_min: "",
+  est_wd_max: "",
+  act_wd_min: "",
+  act_wd_max: "",
+};
+
+const SORT_DEFAULT_DIR = {
+  created_at: "desc",
+  due: "asc",
+  due_date: "asc",
+  title: "asc",
+  status: "asc",
+  priority: "asc",
+  tid: "asc",
+  est_wd: "desc",
+  act_wd: "desc",
+};
+
+export function ticketSortOf(state) {
+  const key = (state && state.sort) || "created_at";
+  return { key: key === "due_date" ? "due" : key, dir: (state && state.order) || "desc" };
+}
+
+export function nextTicketSort(state, key) {
+  const sortKey = key === "due" ? "due_date" : key;
+  const current = (state && state.sort) || "created_at";
+  const dir = (state && state.order) || "desc";
+  if (current === sortKey) {
+    return { sort: sortKey, order: dir === "asc" ? "desc" : "asc" };
+  }
+  return { sort: sortKey, order: SORT_DEFAULT_DIR[key] || SORT_DEFAULT_DIR[sortKey] || "asc" };
+}
+
+export function columnFilterValue(state, field) {
+  if (field === "created_at") return { from: state.created_from || "", to: state.created_to || "" };
+  if (field === "est_wd") return { min: state.est_wd_min || "", max: state.est_wd_max || "" };
+  if (field === "act_wd") return { min: state.act_wd_min || "", max: state.act_wd_max || "" };
+  return state[field];
+}
+
+export function applyColumnFilter(field, next) {
+  if (field === "created_at") {
+    return { created_from: (next && next.from) || "", created_to: (next && next.to) || "" };
+  }
+  if (field === "est_wd") {
+    return { est_wd_min: (next && next.min) || "", est_wd_max: (next && next.max) || "" };
+  }
+  if (field === "act_wd") {
+    return { act_wd_min: (next && next.min) || "", act_wd_max: (next && next.max) || "" };
+  }
+  return { [field]: next };
+}
 
 /* 스프린트가 **화면에서 직접** 거를 수 있는 조건. 행이 실제로 싣는 값만 들어 있다.
  * 여기 없는 조건을 스프린트 필터에 넣으면 고르는 순간 목록이 언제나 빈다 — 그건 "필터가
@@ -80,33 +141,61 @@ export const SPRINT_REPORT_FIELDS = ["q", "status", "priority", "difficulty"];
  * 페이지가 없는 화면(스프린트는 그 주치를 전량 받는다)은 자기 것으로 바꿔 넘긴다. */
 export function ticketFilterSpec(fields, extra = { page: 1 }) {
   const spec = {};
-  for (const key of fields) spec[key] = "";
+  for (const key of fields) spec[key] = MULTI_FIELDS.includes(key) ? [] : "";
   return { ...spec, ...extra };
+}
+
+export function asList(value) {
+  if (Array.isArray(value)) return value.filter((v) => v !== "" && v != null);
+  return value ? [value] : [];
+}
+
+function isFilled(value) {
+  if (Array.isArray(value)) return value.length > 0;
+  if (value && typeof value === "object") {
+    return Object.values(value).some((v) => v != null && v !== "");
+  }
+  return !!value;
 }
 
 /** 필터가 하나라도 걸려 있는가 — 빈 목록이 '필터 때문'인지 '정말 없음'인지 가르는 값. */
 export function hasTicketFilter(state, fields) {
-  return fields.some((key) => !!state[key]);
+  return fields.some((key) => isFilled(state[key]));
 }
 
 /** 지금 실제로 걸려 있는 조건의 키 목록 — 결과 줄이 «조건 N개» 를 말할 때 쓴다. */
 export function activeConditions(state, fields) {
-  return fields.filter((key) => !!state[key]);
+  return fields.filter((key) => isFilled(state[key]));
 }
 
 /** 전부 지운 상태 조각. 필터 줄의 버튼과 빈 상태의 버튼이 **같은 것**을 해야 한다. */
 export function clearTicketFilters(fields) {
   const empty = {};
-  for (const key of fields) empty[key] = "";
+  for (const key of fields) empty[key] = MULTI_FIELDS.includes(key) ? [] : "";
+  for (const key of RANGE_KEYS) empty[key] = "";
   return empty;
+}
+
+function appendQueryValue(p, key, v) {
+  if (Array.isArray(v)) {
+    for (const item of v) {
+      if (item !== "" && item != null) p.append(key, String(item));
+    }
+    return;
+  }
+  if (v) p.set(key, String(v));
 }
 
 /** 화면 상태 → 서버 질의 파라미터. 빈 값은 보내지 않는다(서버는 빈 문자열을 조건 없음으로 읽지만, 주소가 지저분해진다). */
 export function ticketQueryParams(state, fields, extra) {
-  const p = new URLSearchParams(extra || "");
-  for (const key of fields) {
-    const v = state[key];
-    if (v) p.set(key, String(v));
+  const p = extra instanceof URLSearchParams ? extra : new URLSearchParams(extra || "");
+  for (const key of fields) appendQueryValue(p, key, state[key]);
+  for (const key of RANGE_KEYS) {
+    if (state[key]) p.set(key, String(state[key]));
+  }
+  if (state.sort && (state.sort !== "created_at" || state.order !== "desc")) {
+    p.set("sort", String(state.sort));
+    p.set("order", String(state.order || "desc"));
   }
   if (state.page > 1) p.set("page", String(state.page));
   return p;
@@ -145,15 +234,18 @@ function valuesAt(ticket, keys) {
 
 export function matchesTicketFilters(ticket, state, fields) {
   for (const key of fields) {
-    const want = state[key];
-    if (!want) continue;
+    const raw = state[key];
+    const wantList = Array.isArray(raw) ? raw.filter(Boolean) : (raw ? [raw] : []);
+    if (!wantList.length) continue;
     if (key === "q") {
-      if (!String(ticket.title || "").toLowerCase().includes(String(want).toLowerCase())) return false;
+      const q = String(wantList[0]).toLowerCase();
+      if (!String(ticket.title || "").toLowerCase().includes(q)) return false;
       continue;
     }
     const multi = CLIENT_JUDGED_MULTI[key];
     if (multi) {
-      if (!valuesAt(ticket, multi).includes(want)) return false;
+      const have = valuesAt(ticket, multi).map(String);
+      if (!wantList.some((w) => have.includes(String(w)))) return false;
       continue;
     }
     /* 화면이 판단할 수 없는 조건이면 **소리를 낸다**. 조용히 통과시키면 "필터를 걸었는데
@@ -165,7 +257,7 @@ export function matchesTicketFilters(ticket, state, fields) {
     if (!CLIENT_JUDGED.includes(key)) {
       throw new Error(`화면에서 거를 수 없는 조건입니다: ${key}`);
     }
-    if (ticket[key] !== want) return false;
+    if (!wantList.includes(ticket[key])) return false;
   }
   return true;
 }
@@ -206,19 +298,31 @@ function assigneeOptions(rows) {
  * 정한다: scope(부서) → entity → …」라고 적어 둔 것을 같은 파일이 39줄 뒤에서 어겼다.
  * 실측: 부서가 세 번째 줄에 혼자 섰다. 축의 순서는 **부품이** 지켜야 한다 — 호출부에
  * 맡기면 화면마다 갈린다. */
-export function TicketFilterBar({ fields, value, onChange, total, scope, extra, onClear }) {
+export function TicketFilterBar({
+  fields, value, onChange, total, scope, extra, onClear,
+  defaultStatusKeys, allStatus, onShowAll, resetLabel = "필터 지우기",
+}) {
   const wantMeta = fields.some((f) => META_FIELDS.includes(f));
   const metaQ = useTicketMeta(wantMeta);
   const projectsQ = useTicketProjects(fields.includes("project_id"));
   const assigneesQ = useAssigneeOptions(fields.includes("assignee_user_id"));
   const meta = metaQ.data || {};
+  const projectOpts = ((projectsQ.data && projectsQ.data.projects) || []).map((p) => ({ value: p.id, label: p.name || "(제목 없음)" }));
+  const peopleOpts = assigneeOptions(assigneesQ.data && assigneesQ.data.assignees);
+  const statusOpts = meta.statuses || [];
+  const priorityOpts = (meta.priorities || []).map((p) => ({ value: p, label: priorityKo(p) }));
+  const difficultyOpts = meta.difficulties || [];
 
   /* 참조가 고정돼야 한다. 검색 입력은 `React.memo` 로 감싼 부품이라, 매 렌더마다 새 함수를
      주면 메모가 매번 깨지고 디바운스 타이머가 다시 시작된다. */
   const commitSearch = React.useCallback((next) => onChange({ q: next }), [onChange]);
   const commitCategory = React.useCallback((next) => onChange({ category: next }), [onChange]);
 
-  const filtered = hasTicketFilter(value, fields);
+  const usingDefaultStatus = !!(defaultStatusKeys && defaultStatusKeys.length) && !allStatus && !isFilled(value.status);
+  const effectiveStatus = usingDefaultStatus ? defaultStatusKeys : asList(value.status);
+  const filtered = hasTicketFilter(value, fields) || usingDefaultStatus || !!allStatus
+    || RANGE_KEYS.some((key) => !!value[key]);
+  const atDefault = !hasTicketFilter(value, fields) && !allStatus && RANGE_KEYS.every((key) => !value[key]);
   const clear = React.useCallback(() => {
     if (onClear) { onClear(); return; }
     onChange(clearTicketFilters(fields));
@@ -226,6 +330,69 @@ export function TicketFilterBar({ fields, value, onChange, total, scope, extra, 
 
   const show = (key) => fields.includes(key);
   const set = (key) => (v) => onChange({ [key]: v });
+  const optionLabel = (opts, v) => {
+    const hit = (Array.isArray(opts) ? opts : []).find((o) => String(typeof o === "string" ? o : o.value) === String(v));
+    if (!hit) return String(v);
+    return typeof hit === "string" ? hit : hit.label;
+  };
+
+  const chips = [];
+  const pushChip = (key, label, onDelete) => {
+    chips.push({ key, label, onDelete });
+  };
+  if (show("status")) {
+    for (const s of effectiveStatus) {
+      pushChip(`status:${s}`, `상태: ${optionLabel(statusOpts, s)}`, () => {
+        const next = effectiveStatus.filter((v) => v !== s);
+        if (!next.length && usingDefaultStatus) onChange({ status: [], all_status: true });
+        else onChange({ status: next, all_status: false });
+      });
+    }
+  }
+  if (show("priority") && isFilled(value.priority)) {
+    for (const v of asList(value.priority)) {
+      pushChip(`priority:${v}`, `우선순위: ${optionLabel(priorityOpts, v)}`, () => onChange({ priority: asList(value.priority).filter((x) => x !== v) }));
+    }
+  }
+  if (show("difficulty") && isFilled(value.difficulty)) {
+    for (const v of asList(value.difficulty)) {
+      pushChip(`difficulty:${v}`, `난이도: ${v}`, () => onChange({ difficulty: asList(value.difficulty).filter((x) => x !== v) }));
+    }
+  }
+  if (show("project_id") && isFilled(value.project_id)) {
+    for (const v of asList(value.project_id)) {
+      pushChip(`project:${v}`, `프로젝트: ${optionLabel(projectOpts, v)}`, () => onChange({ project_id: asList(value.project_id).filter((x) => x !== v) }));
+    }
+  }
+  if (show("assignee_user_id") && isFilled(value.assignee_user_id)) {
+    for (const v of asList(value.assignee_user_id)) {
+      pushChip(`assignee:${v}`, `담당자: ${optionLabel(peopleOpts, v)}`, () => onChange({ assignee_user_id: asList(value.assignee_user_id).filter((x) => x !== v) }));
+    }
+  }
+  if (show("due") && value.due) {
+    pushChip("due", `기한: ${optionLabel(DUE_OPTIONS, value.due)}`, () => onChange({ due: "" }));
+  }
+  if (show("category") && value.category) {
+    pushChip("category", `대분류: ${value.category}`, () => onChange({ category: "" }));
+  }
+  if (show("q") && value.q) {
+    pushChip("q", `검색: ${value.q}`, () => onChange({ q: "" }));
+  }
+  if (value.created_from || value.created_to) {
+    pushChip("created_at", `생성일: ${value.created_from || "…"} ~ ${value.created_to || "…"}`, () => onChange({ created_from: "", created_to: "" }));
+  }
+  if (value.est_wd_min || value.est_wd_max) {
+    pushChip("est_wd", `예상 WD: ${value.est_wd_min || "…"} ~ ${value.est_wd_max || "…"}`, () => onChange({ est_wd_min: "", est_wd_max: "" }));
+  }
+  if (value.act_wd_min || value.act_wd_max) {
+    pushChip("act_wd", `실제 WD: ${value.act_wd_min || "…"} ~ ${value.act_wd_max || "…"}`, () => onChange({ act_wd_min: "", act_wd_max: "" }));
+  }
+
+  const resultConditions = [
+    ...activeConditions(value, fields),
+    ...(usingDefaultStatus ? ["status"] : []),
+    ...(RANGE_KEYS.some((key) => value[key]) ? ["range"] : []),
+  ];
 
   return (
     <>
@@ -249,51 +416,77 @@ export function TicketFilterBar({ fields, value, onChange, total, scope, extra, 
           {scope}
           {show("project_id") ? (
             <EntityCombobox
+              multiple
               label={LABELS.project_id}
-              value={value.project_id}
+              value={asList(value.project_id)}
               onChange={set("project_id")}
               loading={projectsQ.isLoading}
-              options={((projectsQ.data && projectsQ.data.projects) || []).map((p) => ({ value: p.id, label: p.name || "(제목 없음)" }))}
+              options={projectOpts}
             />
           ) : null}
           {show("assignee_user_id") ? (
             <EntityCombobox
+              multiple
               label={LABELS.assignee_user_id}
-              value={value.assignee_user_id}
+              value={asList(value.assignee_user_id)}
               onChange={set("assignee_user_id")}
               loading={assigneesQ.isLoading}
-              options={assigneeOptions(assigneesQ.data && assigneesQ.data.assignees)}
+              options={peopleOpts}
             />
           ) : null}
           {show("category") ? (
             <DebouncedTextField label={LABELS.category} value={value.category} onCommit={commitCategory} />
           ) : null}
           {show("status") ? (
-            <FilterSelect label={LABELS.status} value={value.status} onChange={set("status")} options={meta.statuses || []} />
+            <FilterSelect
+              multiple
+              label={LABELS.status}
+              value={asList(value.status)}
+              onChange={set("status")}
+              options={statusOpts}
+              allLabel={usingDefaultStatus ? "종료 제외" : undefined}
+            />
           ) : null}
           {show("priority") ? (
             <FilterSelect
-              label={LABELS.priority} value={value.priority} onChange={set("priority")}
-              options={(meta.priorities || []).map((p) => ({ value: p, label: priorityKo(p) }))}
+              multiple
+              label={LABELS.priority} value={asList(value.priority)} onChange={set("priority")}
+              options={priorityOpts}
             />
           ) : null}
           {show("difficulty") ? (
-            <FilterSelect label={LABELS.difficulty} value={value.difficulty} onChange={set("difficulty")} options={meta.difficulties || []} />
+            <FilterSelect multiple label={LABELS.difficulty} value={asList(value.difficulty)} onChange={set("difficulty")} options={difficultyOpts} />
           ) : null}
           {show("due") ? (
             <FilterSelect label={LABELS.due} value={value.due} onChange={set("due")} options={DUE_OPTIONS} kind="date" />
           ) : null}
           {extra}
-          {/* 되돌리기는 조건이 아니라 **동작**이다 — 필터와 같은 칸에 넣지 않는다. */}
-          {filtered ? (
+          {filtered && !atDefault ? (
             <FilterActions>
-              <Button variant="ghost" size="sm" onClick={clear}>필터 지우기</Button>
+              <Button variant="ghost" size="sm" onClick={clear}>{resetLabel}</Button>
             </FilterActions>
           ) : null}
         </FilterRow>
       </FilterSurface>
+      <FilterChips
+        items={chips}
+        extraAction={onShowAll && !allStatus ? (
+          <Typography
+            component="button"
+            type="button"
+            variant="body2"
+            onClick={onShowAll}
+            sx={{
+              border: 0, background: "none", cursor: "pointer", color: "text.secondary", font: "inherit",
+              "&:focus-visible": (t) => ({ outline: `2px solid ${t.palette.focusRing}`, outlineOffset: 2 }),
+            }}
+          >
+            전체 보기
+          </Typography>
+        ) : null}
+      />
       {/* 건수는 «이 조건에 대한 결과» 라는 관계가 보이는 자리에 둔다 — 필터와 목록 사이. */}
-      {total != null ? <ResultLine total={total} conditions={activeConditions(value, fields)} /> : null}
+      {total != null ? <ResultLine total={total} conditions={resultConditions} /> : null}
     </>
   );
 }

@@ -38,16 +38,31 @@ const NO_RESET = [];
 
 const isNum = (v) => typeof v === "number";
 const isBool = (v) => typeof v === "boolean";
+const isArr = (v) => Array.isArray(v);
+
+function asArrayValue(value) {
+  if (Array.isArray(value)) return value;
+  if (value == null || value === "") return [];
+  return [value];
+}
+
+function sameArray(a, b) {
+  const left = asArrayValue(a).map(String);
+  const right = asArrayValue(b).map(String);
+  if (left.length !== right.length) return false;
+  return left.every((v, i) => v === right[i]);
+}
 
 /** 쿼리 한 칸을 기본값의 타입대로 읽는다. 못 읽으면 기본값으로 떨어진다. */
-function decodeOne(raw, def) {
+function decodeOne(raw, def, all) {
+  if (isArr(def)) {
+    const list = (all || []).map((v) => String(v)).filter((v) => v !== "");
+    return list.length ? list : def.slice();
+  }
   if (raw == null) return def;
   if (isBool(def)) return raw === "1" || raw === "true";
   if (isNum(def)) {
     const n = Number.parseInt(raw, 10);
-    // 주소에 실리는 숫자는 지금 페이지 번호뿐이고 0 이나 음수는 뜻이 없다. 이상한 값은
-    // 거절하지 않고 기본값으로 떨어뜨린다 — 남이 준 링크가 조금 망가졌다고 화면이
-    // 오류로 죽는 것보다, 기본 화면이라도 보이는 편이 낫다.
     return Number.isFinite(n) && n >= 1 ? n : def;
   }
   return String(raw);
@@ -56,11 +71,17 @@ function decodeOne(raw, def) {
 /** URLSearchParams → 스펙 모양의 평범한 객체. */
 export function decodeQuery(params, spec) {
   const out = {};
-  for (const key of Object.keys(spec)) out[key] = decodeOne(params.get(key), spec[key]);
+  for (const key of Object.keys(spec)) {
+    const def = spec[key];
+    out[key] = isArr(def)
+      ? decodeOne(null, def, params.getAll(key))
+      : decodeOne(params.get(key), def);
+  }
   return out;
 }
 
 function sameAsDefault(value, def) {
+  if (isArr(def)) return sameArray(value, def);
   if (isBool(def)) return !!value === !!def;
   if (isNum(def)) return Number(value) === Number(def);
   return String(value == null ? "" : value) === String(def == null ? "" : def);
@@ -73,6 +94,13 @@ export function encodeQuery(state, spec, base) {
     const def = spec[key];
     const value = state[key];
     if (sameAsDefault(value, def)) { next.delete(key); continue; }
+    if (isArr(def)) {
+      next.delete(key);
+      for (const item of asArrayValue(value)) {
+        if (item !== "" && item != null) next.append(key, String(item));
+      }
+      continue;
+    }
     next.set(key, isBool(def) ? (value ? "1" : "0") : String(value));
   }
   return next;

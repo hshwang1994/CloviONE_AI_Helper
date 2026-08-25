@@ -334,7 +334,12 @@ export function Reactions({ targetType, targetId, reactions, palette, onChanged 
             color={mine ? "primary" : "default"}
             variant={mine ? "filled" : "outlined"}
             label={count > 0 ? `${emoji} ${count}` : emoji}
-            sx={{ fontSize: FONT_SIZE.body }}
+            /* 높이를 **작은 버튼과 맞춘다** (S18). 이 칩은 댓글의 동작 줄에서
+               「답글·수정·삭제」(`Button size="sm"`, 30px)와 한 줄에 선다. MUI 의
+               `Chip size="small"` 은 24px 이라 같은 줄의 컨트롤 아홉이 두 높이로
+               갈렸다(`control_baseline_mismatch`, 6px 차이 — S18 실측). 한 줄 안에서
+               같은 종류의 컨트롤은 한 높이를 갖는다. */
+            sx={{ fontSize: FONT_SIZE.body, height: 30 }}
           />
         );
       })}
@@ -471,6 +476,7 @@ function BoardScreen({ kind = "free" }) {
       key: "like_count",
       label: "공감",
       type: "count",
+      sortable: true,
       render: (p) => "👍 " + (p.like_count || 0),
     },
     {
@@ -480,8 +486,8 @@ function BoardScreen({ kind = "free" }) {
       type: "name", minWidth: "16rem",
       render: (p) => <AuthorLine name={p.author_name} person={people[p.author_user_id]} />,
     },
-    { key: "view_count", label: "조회", type: "count" },
-    { key: "created_at", label: "작성", type: "date", render: (p) => <DateCell value={p.created_at} /> },
+    { key: "view_count", label: "조회", type: "count", sortable: true },
+    { key: "created_at", label: "작성", type: "date", sortable: true, render: (p) => <DateCell value={p.created_at} /> },
   ];
 
   const writeBtn = <Button variant="primary" onClick={() => setComposing(true)}>{copy.writeLabel}</Button>;
@@ -491,6 +497,11 @@ function BoardScreen({ kind = "free" }) {
   // 검색어를 잘못 친 사람에게 "첫 이야기를 남겨 보세요"라고 안내했다.
   const hasFilter = !!(q || category || status);
   const clearFilters = () => setQuery({ q: "", category: "", ...(isIdea ? { status: "" } : {}) });
+  const boardSortKey = sort === "views" ? "view_count" : sort === "likes" ? "like_count" : "created_at";
+  const onBoardSort = (key) => {
+    const next = key === "view_count" ? "views" : key === "like_count" ? "likes" : "recent";
+    setQuery({ sort: next });
+  };
 
   return (
     <div className="c-screen">
@@ -606,6 +617,8 @@ function BoardScreen({ kind = "free" }) {
             rowKey={(p) => p.id}
             fixed
             ellipsis
+            sort={{ key: boardSortKey, dir: "desc" }}
+            onSort={onBoardSort}
             onRow={(p) => nav(copy.route + p.id)}
           />
           {/* 서버가 자른 목록에는 쪽을 넘길 길이 있어야 한다 — 없으면 위 결과 줄이 말하는

@@ -156,8 +156,9 @@ describe("내 티켓 — 목록", () => {
   it("표 머리행에 열 이름이 모두 있다(그룹 표가 하나의 table을 공유한다)", async () => {
     renderMyTickets();
     const table = await screen.findByRole("table");
-    const head = within(table).getAllByRole("columnheader").map((c) => c.textContent);
-    expect(head).toEqual(expect.arrayContaining(["티켓", "제목", "상태", "우선순위", "난이도", "예상 WD", "마감", "담당자"]));
+    for (const label of ["티켓", "제목", "상태", "우선순위", "난이도", "예상 WD", "실제 WD", "마감", "생성", "담당자"]) {
+      expect(within(table).getByRole("columnheader", { name: new RegExp(label) })).toBeInTheDocument();
+    }
   });
 });
 

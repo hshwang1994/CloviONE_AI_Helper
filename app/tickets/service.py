@@ -11,6 +11,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 from datetime import datetime
 
@@ -35,6 +36,7 @@ from app.tickets.repository import (
     TicketDraft,
     TicketDTO,
     TicketFilters,
+    as_filter_values,
     snapshot,
 )
 from app.trash import repository as trash_repo
@@ -163,6 +165,7 @@ def ticket_view(t: TicketDTO, id_to_name: dict[str, str], id_to_user: dict[str, 
         "act_wd": t.act_wd,
         "difficulty": t.difficulty,
         "priority": t.priority,
+        "created_at": t.created_at.isoformat() if t.created_at else None,
         "project_ids": list(t.project_ids),
         # 해석된 Portal 프로젝트 id. 화면이 프로젝트로 이동할 때 쓰고, 범위 판정
         # (`_drop_out_of_scope`)이 SQL 과 **같은 축**을 쓰게 하는 값이다.
@@ -436,18 +439,31 @@ def build_filters(
     picked_assignee = assignee_id
     close_everything = False
     if (allow_assignee_filter and query is not None
-            and query.assignee_user_id and assignee_id is None):
-        resolved = _assignee_token_for_user(db, query.assignee_user_id)
-        if resolved is None:
+            and as_filter_values(getattr(query, "assignee_user_id", None))
+            and assignee_id is None):
+        resolved: list[str] = []
+        for uid in as_filter_values(query.assignee_user_id):
+            token = _assignee_token_for_user(db, uid)
+            if token is not None:
+                resolved.append(token)
+        if not resolved:
             # 가리킬 수 없는 사람으로 거르면 걸릴 티켓이 없다. 조건을 조용히 버리면 **필터 없는
             # 전체 목록**이 나가는데, 그건 사용자가 알아챌 수 없는 방향의 오류다 — 닫는다.
             close_everything = True
         else:
-            picked_assignee = resolved
+            picked_assignee = resolved[0] if len(resolved) == 1 else tuple(resolved)
     if close_everything:
         from app.tickets.repository import ProjectVisibility
 
         allowed_projects = ProjectVisibility(uids=frozenset(), page_ids=frozenset())
+    from app.tickets.query import SORT_KEYS
+
+    raw_sort = getattr(query, "sort", None) or "created_at"
+    sort_key = raw_sort if raw_sort in SORT_KEYS else "created_at"
+    sort_dir = "asc" if getattr(query, "order", None) == "asc" else "desc"
+    if query is None:
+        sort_key = None
+        sort_dir = "desc"
     return TicketFilters(
         status=getattr(query, "status", None),
         priority=getattr(query, "priority", None),
@@ -458,6 +474,14 @@ def build_filters(
         due_bucket=getattr(query, "due", None),
         today=now.date().isoformat() if now is not None else None,
         assignee_id=picked_assignee,
+        sort_key=sort_key,
+        sort_dir=sort_dir,
+        created_from=getattr(query, "created_from", None),
+        created_to=getattr(query, "created_to", None),
+        est_wd_min=getattr(query, "est_wd_min", None),
+        est_wd_max=getattr(query, "est_wd_max", None),
+        act_wd_min=getattr(query, "act_wd_min", None),
+        act_wd_max=getattr(query, "act_wd_max", None),
         exclude_statuses=frozenset(_TERMINAL) if active_only else frozenset(),
         # 휴지통은 목록에서 숨긴다(H2). 파이썬 `_drop_trashed` 도 그대로 남겨 둔다 —
         # 범위와 같은 이유로 두 그물이 겹치는 편이 낫다.
@@ -1040,6 +1064,134 @@ def update_ticket(
         "before": snapshot(current),
         "after": snapshot(updated),
     }
+
+
+# ── 활동 이력 ─────────────────────────────────────────────────────────────────
+#
+# 상태·담당자·마감이 바뀔 때마다 감사 로그에 before/after 가 쌓인다. 그런데 **티켓 화면에는
+# 그것이 없었다** — 「이 티켓이 왜 지금 이 상태인가」에 답하는 유일한 기록인데, 보려면
+# 관리자 콘솔의 감사 화면을 열어야 했고 그 화면은 일반 사용자가 못 연다. 그 사이 상세
+# 화면의 아래쪽 40% 는 비어 있었다(S18 실측, 2560 폭).
+#
+# 감사 행을 **그대로** 내보내지 않는다. 그 행에는 클라이언트 IP·요청 id 처럼 운영자만 볼
+# 것이 함께 들어 있고, 그것을 티켓 열람자 전원에게 열면 감사 화면의 권한 경계를 이 경로가
+# 우회하는 것이 된다. 아래 세 가지를 지킨다:
+#
+#   1. **읽기 권한을 먼저 본다.** 티켓 상세와 같은 판정(`ensure_in_scope`)이라 범위 밖은
+#      404 다 — 「이력이 없다」가 아니라 「그 티켓이 없다」로 답한다.
+#   2. **화이트리스트로 검열한다.** 사용자에게 보이는 속성 다섯만 나간다.
+#   3. **바뀐 것만 말한다.** before 와 after 가 같은 칸은 싣지 않는다 — 저장 한 번에 아홉
+#      칸이 전부 나열되면 무엇이 바뀌었는지가 오히려 안 보인다.
+
+# 사용자에게 보이는 이름. 감사 스냅샷의 키(`repository.snapshot`)와 짝이다.
+HISTORY_FIELDS: dict[str, str] = {
+    "status": "상태",
+    "priority": "우선순위",
+    "due": "마감",
+    "assignees": "담당자",
+    "difficulty": "난이도",
+    "est_wd": "예상 WD",
+}
+# 이 티켓에 달리는 감사 동작 중 **사람이 한 일**만 이력에 싣는다.
+HISTORY_ACTIONS: dict[str, str] = {
+    "ticket.create": "만들었습니다",
+    "ticket.update": "속성을 고쳤습니다",
+    "ticket.claim": "담당자로 자신을 지정했습니다",
+    "ticket.body_update": "본문을 고쳤습니다",
+    "ticket.trash": "휴지통으로 옮겼습니다",
+}
+HISTORY_LIMIT = 50
+
+
+def _history_value(field: str, raw, names: dict[str, str]) -> str:
+    if field == "assignees":
+        ids = raw or []
+        if not isinstance(ids, list):
+            return str(raw)
+        if not ids:
+            return "없음"
+        return ", ".join(names.get(str(i), "알 수 없는 사용자") for i in ids)
+    if raw in (None, "", []):
+        return "없음"
+    return str(raw)
+
+
+def ticket_history(db: Session, user: User, *, page_id: str, limit: int = HISTORY_LIMIT) -> dict:
+    """이 티켓에 무슨 일이 있었는가 — 감사 기록의 **사용자에게 보이는 부분**만.
+
+    돌려주는 것은 `{"items": [...]}` 하나다. 각 항목은 언제·누가·무엇을 했고, 속성이
+    바뀐 경우 어느 칸이 무엇에서 무엇으로 갔는지를 담는다.
+    """
+    from app.audit.models import AuditLog  # noqa: PLC0415 — 순환 import 를 만들지 않는다
+
+    ensure_not_trashed(db, page_id)
+    ensure_in_scope(db, page_id, user)
+
+    rows = db.execute(
+        select(AuditLog)
+        .where(AuditLog.object_type == "notion_task", AuditLog.object_id == page_id,
+               AuditLog.result == "success")
+        .order_by(AuditLog.created_at.desc(), AuditLog.id.desc())
+        .limit(max(1, min(limit, HISTORY_LIMIT)))
+    ).scalars().all()
+
+    # 이름은 한 번에 모아 읽는다 — 행마다 조회하면 이력 50줄이 질의 50번이 된다.
+    wanted: set[str] = set()
+    for row in rows:
+        if row.user_id:
+            wanted.add(row.user_id)
+        for side in (row.before_json, row.after_json):
+            payload = _history_payload(side)
+            for uid in (payload.get("assignees") or []):
+                if isinstance(uid, str):
+                    wanted.add(uid)
+    names: dict[str, str] = {}
+    if wanted:
+        names = {
+            u.id: u.display_name
+            for u in db.execute(select(User).where(User.id.in_(list(wanted)))).scalars().all()
+        }
+
+    items = []
+    for row in rows:
+        before = _history_payload(row.before_json)
+        after = _history_payload(row.after_json)
+        changes = []
+        for field, label in HISTORY_FIELDS.items():
+            if field not in before and field not in after:
+                continue
+            old, new = before.get(field), after.get(field)
+            if old == new:
+                continue
+            changes.append({
+                "field": field, "label": label,
+                "from": _history_value(field, old, names),
+                "to": _history_value(field, new, names),
+            })
+        items.append({
+            "id": row.id,
+            "at": row.created_at.isoformat(),
+            "actor": names.get(row.user_id or "", "알 수 없는 사용자"),
+            "action": row.action,
+            # 모르는 동작도 **버리지 않는다** — 이력에서 줄이 조용히 사라지면 사람은
+            # 그 사이에 아무 일도 없었다고 읽는다.
+            "summary": HISTORY_ACTIONS.get(row.action, "기록이 남았습니다"),
+            "changes": changes,
+        })
+    return {"items": items}
+
+
+def _history_payload(raw) -> dict:
+    """감사 스냅샷 칸. `JsonText` 는 문자열로 돌려주므로 여기서 한 번 푼다."""
+    if isinstance(raw, dict):
+        return raw
+    if not raw:
+        return {}
+    try:
+        parsed = json.loads(raw)
+    except (TypeError, ValueError):
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
 
 
 # ── 담당자 재배정(오프보딩) ───────────────────────────────────────────────────
