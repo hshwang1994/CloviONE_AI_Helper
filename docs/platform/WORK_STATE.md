@@ -23,8 +23,13 @@
   시험들이 검사 시야에서 사라진다.
 - working_tree: clean
 - s19_commit: **`ee2e4118`** · hc_commit: **`2c3e6c60`**
-- s20_commit: **`136b00aa`** — S20 본체(화면·registry·백엔드·원장·하네스·문서)
-- deployed: **`__DEPLOYED_SHA__`** — 아래 「배포」 절
+- s20_commit: **`136b00aa`** — S20 본체(화면·registry·백엔드·원장·하네스·문서) ·
+  **`9a3ade64`** — 배포 뒤 운영을 읽다가 나온 결함 하나(걷어낸 이름이 든 연동 행이 고쳐지지
+  않던 것 — D-321 의 다른 절반). **배포 대상은 `9a3ade64`** 다
+- deployed: **`9a3ade64`** 가 운영에 나갔다 (2026-08-25 20:11, `install.sh upgrade --source local`). Stage 0~18 전부 OK · `VERIFY_OK` · 스냅샷 `/var/backups/clovirassist/20260825-201111`. `/healthz` `{"status":"ok","ticket_source":"native"}` · `/readyz` `{"status":"ready"}` · 유닛 6종 active · `STAGE_5_FRONTEND: 번들이 소스와 맞습니다`(배포본 `index.Dm759os4.js` 가 빌드한 것과 같다).
+  스모크: 살아 있어야 하는 관리자 경로 여섯이 세션 없이 **401**(라우트는 있고 인증이 막는다) · 없어야 하는 `/api/admin/notion-mapping` 둘이 **404** · `/login` 200.
+  🔴 **세션 스모크는 못 했다** — 이 호스트의 QA 계정이 `account_archived` 라 로그인이 안 되고, 스모크를 하려고 계정을 되살리는 것은 운영 데이터를 고치는 일이다. 대신 화면이 부르는 **그 함수**를 운영 DB 위에서 **읽기만** 하며 확인했다: 저장소 1개(운영·로컬·쓰기가능·58파일·같은 장치 경고 없음) · 초기 설정 단계 여섯에 `user_mapping` **없음** · 정합성 안내에 Notion **없음** · 오프보딩 후임 후보 14명 중 **옛 짝이 없는 2명이 실제로 포함**(고치기 전에는 이 둘이 빠졌다) · 사용자 응답에 `notion_mapping_status` **없음**.
+  되돌리려면 `sudo /opt/clovirassist/deploy/install.sh rollback --target /var/backups/clovirassist/20260825-201111`
 - full_snapshot: **HC 마지막 Full 1회** (`python scripts/verify.py --full`, 2026-08-25 17:29~18:13).
   정적 전량 **PASS** · 프런트 전량 **329 파일 / 2,451건 전부 PASS** · 백엔드 전량 **FAIL 7건**
   — 전부 `test_api_contract_golden.py` 이고 **HEAD 에서도 같은 7건**이 뜬다. **P-51** 이다.

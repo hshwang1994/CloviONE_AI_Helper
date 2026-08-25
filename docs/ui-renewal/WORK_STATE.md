@@ -26,7 +26,8 @@
   323건. 신규 회귀는 프런트 1파일 8건(파일 저장소)·백엔드 3건(후임 후보·점검표·권한 음성)
 - full_snapshot: **HC 마지막 Full 1회**(2026-08-25 17:29~18:13). S20 은 전량을 안 돌렸다 —
   일상 개발의 Exit 가 아니다(§9.4-A)
-- commit: **`136b00aa`** (S20) · `2c3e6c60` (HC) · `ee2e4118` (S19)
+- commit: **`136b00aa`** (S20 본체) · **`9a3ade64`** (배포 뒤 결함 하나 — 배포 대상) ·
+  `2c3e6c60` (HC) · `ee2e4118` (S19)
 - suppressions: **1건 (SUP-01)** — 칸반 레인의 균등 격자. 만료 2026-10-20
 - plan: `docs/ui-renewal/PLAN.md`(UI 축 정본) · `DIRECTIVE_v7.txt`(원 지시서) ·
   **`docs/platform/MASTER_PLAN.md`(제품 전체 정본 — 여기가 상위다)**
