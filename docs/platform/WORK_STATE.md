@@ -25,7 +25,7 @@
 - working_tree: clean
 - s19_commit: **`ee2e4118`** · hc_commit: **`2c3e6c60`**
 - s20_commit: **`136b00aa`** · **`9a3ade64`**(배포 대상이었다)
-- s21_commit: **S21_COMMIT_SHA** — S21 본체(제품 결함 둘·하네스·원장·문서)
+- s21_commit: **ede55e47** — S21 본체(제품 결함 둘·하네스·원장·문서)
 - deployed: **`9a3ade64`** 가 운영에 나갔다 (2026-08-25 20:11, `install.sh upgrade --source local`). Stage 0~18 전부 OK · `VERIFY_OK` · 스냅샷 `/var/backups/clovirassist/20260825-201111`. `/healthz` `{"status":"ok","ticket_source":"native"}` · `/readyz` `{"status":"ready"}` · 유닛 6종 active · `STAGE_5_FRONTEND: 번들이 소스와 맞습니다`(배포본 `index.Dm759os4.js` 가 빌드한 것과 같다).
   스모크: 살아 있어야 하는 관리자 경로 여섯이 세션 없이 **401**(라우트는 있고 인증이 막는다) · 없어야 하는 `/api/admin/notion-mapping` 둘이 **404** · `/login` 200.
   🔴 **세션 스모크는 못 했다** — 이 호스트의 QA 계정이 `account_archived` 라 로그인이 안 되고, 스모크를 하려고 계정을 되살리는 것은 운영 데이터를 고치는 일이다. 대신 화면이 부르는 **그 함수**를 운영 DB 위에서 **읽기만** 하며 확인했다: 저장소 1개(운영·로컬·쓰기가능·58파일·같은 장치 경고 없음) · 초기 설정 단계 여섯에 `user_mapping` **없음** · 정합성 안내에 Notion **없음** · 오프보딩 후임 후보 14명 중 **옛 짝이 없는 2명이 실제로 포함**(고치기 전에는 이 둘이 빠졌다) · 사용자 응답에 `notion_mapping_status` **없음**.
