@@ -527,8 +527,92 @@ def capture_route(page, *, base_url: str, route: Route, hash_path: str, theme: s
     return record
 
 
-def write_manifest(out_root: Path, payload: dict) -> Path:
+def page_key(page: dict) -> tuple:
+    return (page.get("route"), page.get("theme"), page.get("viewport"))
+
+
+def build_scope(*, routes: list[str], viewports: list[str], themes: list[str],
+                page_count: int, full: bool) -> dict:
+    """이번 실행이 전량인지 부분인지. 부분 실행은 전량 Evidence 로 승격하지 않는다."""
+    return {
+        "routes": list(routes),
+        "viewports": list(viewports),
+        "themes": list(themes),
+        "page_count": page_count,
+        "full": bool(full),
+        "partial": not bool(full),
+    }
+
+
+def merge_pages(prior_pages: list[dict], new_pages: list[dict]) -> list[dict]:
+    """같은 (route, theme, viewport) 는 새 기록으로 바꾸고, 안 찍은 페이지는 남긴다."""
+    order: list[tuple] = []
+    by_key: dict[tuple, dict] = {}
+    for page in prior_pages:
+        key = page_key(page)
+        if key not in by_key:
+            order.append(key)
+        by_key[key] = page
+    for page in new_pages:
+        key = page_key(page)
+        if key not in by_key:
+            order.append(key)
+        by_key[key] = page
+    return [by_key[key] for key in order]
+
+
+def _union(left: list | None, right: list | None) -> list:
+    seen: list = []
+    for item in list(left or []) + list(right or []):
+        if item not in seen:
+            seen.append(item)
+    return seen
+
+
+def merge_manifests(prior: dict, new: dict) -> dict:
+    """부분 실행이 기존 전량 results.json 을 지우지 않게 페이지를 합친다."""
+    prior_pages = prior.get("pages") or []
+    if not prior_pages:
+        return new
+    pages = merge_pages(prior_pages, new.get("pages") or [])
+    out = dict(new)
+    out["pages"] = pages
+    out["summary"] = assertions.summarize(pages)
+    prior_scope = prior.get("scope") or {}
+    scope = dict(new.get("scope") or {})
+    scope["routes"] = _union(prior_scope.get("routes"), scope.get("routes"))
+    scope["viewports"] = _union(prior_scope.get("viewports"), scope.get("viewports"))
+    scope["themes"] = _union(prior_scope.get("themes"), scope.get("themes"))
+    scope["page_count"] = len(pages)
+    scope["full"] = False
+    scope["partial"] = True
+    scope["merged"] = True
+    out["scope"] = scope
+    notes = list(out.get("notes") or [])
+    notes.insert(0, "부분 실행을 기존 results.json 에 병합했다. 이 파일은 전량 Evidence 가 아니다.")
+    out["notes"] = notes
+    run = dict(out.get("run") or {})
+    run["pages_captured"] = len(pages)
+    run["merged_from_prior"] = True
+    out["run"] = run
+    return out
+
+
+def write_manifest(out_root: Path, payload: dict, *, replace: bool = False) -> Path:
     out_root.mkdir(parents=True, exist_ok=True)
     path = out_root / "results.json"
+    scope = payload.get("scope") or {}
+    should_merge = (
+        path.is_file()
+        and not replace
+        and not scope.get("full")
+    )
+    if should_merge:
+        try:
+            prior = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:  # noqa: BLE001 — 깨진 옛 파일은 버리고 이번 실행만 쓴다
+            prior = None
+        if prior and prior.get("pages"):
+            payload = merge_manifests(prior, payload)
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     return path

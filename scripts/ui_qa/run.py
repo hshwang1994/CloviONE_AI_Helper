@@ -6,6 +6,9 @@
 Always writes ``dist/ui-qa/<label>/results.json`` and ``report.html``; exits
 non-zero only when a class listed in ``--fail-on`` actually failed.
 
+전량 캡처는 ``--full`` 이다. ``--routes`` 또는 ``--full`` 중 하나가 필요하고,
+플래그 없이 전 Route × 9뷰포트 × 2테마를 열지 않는다.
+
 ``--findings-out`` 를 주면 실패한 Assertion 을 Finding stub JSON 으로도 남긴다. 실행 요약은
 휘발되고 ``results.json`` 은 584페이지짜리라 아무도 다시 열지 않는다 — 결함 목록은 따로
 있어야 추적된다.
@@ -211,6 +214,20 @@ def first_seen_map(prior: list[dict]) -> dict[str, str]:
             if row.get("id") and row.get("first_seen")}
 
 
+def missing_capture_scope(args) -> str | None:
+    """플래그 없이 전 행렬을 열지 않는다. --list 는 범위가 필요 없다."""
+    if getattr(args, "list", False):
+        return None
+    if getattr(args, "full", False):
+        return None
+    if _split_csv(getattr(args, "routes", None)):
+        return None
+    return (
+        "--routes 또는 --full 중 하나가 필요하다. "
+        "전량 캡처는 python -m scripts.ui_qa.run --full --label <label> 이다."
+    )
+
+
 def dropped_unseen(prior: list[dict], findings: list[dict],
                    covered: set) -> list[dict]:
     """이전 파일에 있었는데 이번 실행이 **보지도 않은** 결함.
@@ -227,6 +244,22 @@ def dropped_unseen(prior: list[dict], findings: list[dict],
     return [row for row in prior
             if row.get("id") not in current
             and (row.get("route"), row.get("theme"), row.get("viewport")) not in covered]
+
+
+def keep_unseen_findings(prior: list[dict], findings: list[dict],
+                         covered: set) -> list[dict]:
+    """부분 실행이 안 찍은 화면의 결함을 파일에서 지우지 않는다."""
+    vanished = dropped_unseen(prior, findings, covered)
+    if not vanished:
+        return findings
+    by_id = {row["id"]: row for row in findings if row.get("id")}
+    merged = list(findings)
+    for row in vanished:
+        ident = row.get("id")
+        if ident and ident not in by_id:
+            merged.append(row)
+            by_id[ident] = row
+    return merged
 
 
 def build_findings(pages: list[dict], *, label: str, surfaces: dict[str, str],
@@ -326,7 +359,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--base-url", default="http://127.0.0.1:8080")
     parser.add_argument("--routes", nargs="*", default=None,
-                        help="라우트 id / 해시 경로 / all|smoke|user|admin|detail (기본: all)")
+                        help="라우트 id / 해시 경로 / all|smoke|user|admin|detail (--full 이 아니면 필수)")
+    parser.add_argument("--full", action="store_true",
+                        help="전 Route × 전 뷰포트 × 두 테마. 같은 라벨의 results.json 을 통째 교체한다")
     parser.add_argument("--viewports", nargs="*", default=None,
                         help=f"기본 전체: {', '.join(v.name for v in capture.VIEWPORTS)}")
     parser.add_argument("--themes", nargs="*", default=None, help="light dark (기본: 둘 다)")
@@ -401,9 +436,19 @@ def main(argv: list[str] | None = None) -> int:
         _log(f"총 {len(routes_mod.ALL_ROUTES)}개")
         return EXIT_OK
 
-    selected_routes = routes_mod.resolve(_split_csv(args.routes) or None)
-    viewports = capture.resolve_viewports(_split_csv(args.viewports) or None)
-    themes = capture.resolve_themes(_split_csv(args.themes) or None)
+    scope_error = missing_capture_scope(args)
+    if scope_error:
+        _log(f"[FATAL] {scope_error}")
+        return EXIT_HARNESS
+
+    if args.full:
+        selected_routes = routes_mod.resolve(["all"])
+        viewports = capture.resolve_viewports(None)
+        themes = capture.resolve_themes(None)
+    else:
+        selected_routes = routes_mod.resolve(_split_csv(args.routes))
+        viewports = capture.resolve_viewports(_split_csv(args.viewports) or ["1920x1080"])
+        themes = capture.resolve_themes(_split_csv(args.themes) or ["light", "dark"])
     fail_on = _split_csv(args.fail_on)
     fail_on_is_all = "all" in fail_on
     if fail_on_is_all:
@@ -618,12 +663,19 @@ def main(argv: list[str] | None = None) -> int:
             "build_before": build_before,
             "build_after": build_after,
         },
+        "scope": capture.build_scope(
+            routes=[r.id for r in selected_routes],
+            viewports=[v.name for v in viewports],
+            themes=list(themes),
+            page_count=len(pages),
+            full=bool(args.full),
+        ),
         "route_inventory": routes_mod.inventory(),
         "summary": summary,
         "notes": notes,
         "pages": pages,
     }
-    results_path = capture.write_manifest(out_root, results)
+    results_path = capture.write_manifest(out_root, results, replace=bool(args.full))
     report_path = report.build(results, out_root)
 
     suppressions, suppression_error = read_suppressions(SUPPRESSIONS_DOC)
@@ -702,6 +754,9 @@ def main(argv: list[str] | None = None) -> int:
             pages, label=args.label, surfaces=surfaces,
             seen_at=started_at.isoformat(timespec="seconds"),
             first_seen=first_seen_map(prior))
+        covered = {(r.get("route"), r.get("theme"), r.get("viewport")) for r in pages}
+        vanished = dropped_unseen(prior, findings, covered)
+        findings = keep_unseen_findings(prior, findings, covered)
         findings_path.write_text(json.dumps(findings, ensure_ascii=False, indent=2),
                                  encoding="utf-8")
         by_severity = ", ".join(
@@ -711,16 +766,13 @@ def main(argv: list[str] | None = None) -> int:
         if unmapped:
             _log(f"[주의] 심각도 표(SEVERITY_BY_CLASS)에 없는 검사 {len(unmapped)}개를 "
                  f"우선 {SEVERITY_DEFAULT} 로 적었습니다: " + ", ".join(unmapped))
-        covered = {(r.get("route"), r.get("theme"), r.get("viewport")) for r in pages}
-        vanished = dropped_unseen(prior, findings, covered)
         if vanished:
             _log(f"[주의] 이전 findings 의 {len(vanished)}건은 이번 실행이 **찍지 않은** "
-                 "화면의 결함이라 이 파일에서 사라졌습니다 (고쳐져서가 아니다): "
+                 "화면의 결함이라 파일에 **남겼다** (고쳐져서가 아니다): "
                  + ", ".join(f"{v.get('class')}@{v.get('surface_id') or v.get('route')}"
                              for v in vanished[:5])
                  + (f" 외 {len(vanished) - 5}건" if len(vanished) > 5 else ""))
-            _log("       좁은 실행이 전체 실행의 목록을 덮었다면 --findings-out 경로를 "
-                 "분리하거나 전체 범위로 다시 돌려라.")
+            _log("       전량 목록으로 바꾸려면 --full 로 다시 돌려라.")
 
     # `--modals` 없이 돌린 실행에서는 모달 7종이 **구조적으로** 판정을 만들 수 없다.
     # 그것만 면제하고, 뷰포트를 안 맞춰서 못 돈 검사는 그대로 FATAL 이다.

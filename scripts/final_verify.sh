@@ -43,7 +43,7 @@ build_and_stamp() {
   ( cd frontend && npx vite build ) && "$PY" scripts/check_bundle_fresh.py --write
 }
 
-step "정적 검사" bash scripts/static_checks.sh
+step "정적 검사" bash scripts/static_checks.sh --scope full
 step "번들 신선도(커밋된 상태)" "$PY" scripts/check_bundle_fresh.py
 # 「마이그레이션 왕복」 단계가 있던 자리다. 그 리허설은 **SQLite alembic 체인**의
 # upgrade→downgrade→upgrade 를 돌려 batch_alter_table 재생성이 컬럼·기본값·인덱스를
@@ -55,7 +55,9 @@ step "번들 신선도(커밋된 상태)" "$PY" scripts/check_bundle_fresh.py
 #     tests/regression/test_migration_00*.py (회귀에 포함돼 있다)
 #   * 운영 데이터 이관 자체의 무결성 → **S13 Migration Tool 의 Dry Run**
 #     (MASTER_PLAN §9.3 의 면제 불가 검증 목록)
-step "백엔드 스위트" "$PY" -m pytest tests/ -q --tb=line -p no:randomly
+# 백엔드는 단일 `pytest tests/` 가 아니라 청크 러너다 — 한 방 호출은 45분+ hang
+# (PA-RC-0009 · P-09e). 캡처/Pilot 은 이 스크립트에 넣지 않는다.
+step "백엔드 스위트" bash scripts/run_full_regression.sh
 step "프런트 스위트" bash -c 'cd frontend && npx vitest run'
 step "번들 빌드 + 기준 기록" build_and_stamp
 step "번들 예산" bash scripts/check_bundle_size.sh

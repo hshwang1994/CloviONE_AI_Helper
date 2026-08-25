@@ -37,18 +37,18 @@ cd frontend && npm run build && cd ..
 ## 2. 실행
 
 ```bash
-# 전체 화면 × 두 테마 × 전체 뷰포트 (오래 걸린다)
-.venv/Scripts/python.exe -m scripts.ui_qa.run --label pre
+# 전체 화면 × 두 테마 × 전체 뷰포트 (오래 걸린다 — 명시적 전량)
+.venv/Scripts/python.exe -m scripts.ui_qa.run --full --label pre
 
 # 빠른 확인: 대표 3화면 × 두 테마 × 대표 3뷰포트
 .venv/Scripts/python.exe -m scripts.ui_qa.run --label pre \
     --routes smoke --viewports 1366x768 1920x1080 3840x2160
 
 # 재설계 후 비교본
-.venv/Scripts/python.exe -m scripts.ui_qa.run --label post
+.venv/Scripts/python.exe -m scripts.ui_qa.run --full --label post
 
 # CI 게이트: 가로 스크롤·콘솔 오류가 나면 종료 코드 1
-.venv/Scripts/python.exe -m scripts.ui_qa.run --label ci \
+.venv/Scripts/python.exe -m scripts.ui_qa.run --full --label ci \
     --fail-on horizontal_overflow,console_errors,page_errors
 ```
 
@@ -80,8 +80,9 @@ dist/ui-qa/
 |---|---|---|
 | `--base-url` | `http://127.0.0.1:8080` | 검사 대상 서버 |
 | `--label` | `baseline` | `dist/ui-qa/<label>/` 에 저장 (`pre` / `post`) |
-| `--routes` | 전체 | 라우트 id, 해시 경로, 또는 `all` / `smoke` / `user` / `admin` / `detail` |
-| `--viewports` | 전체 8종 | 아래 표의 이름 |
+| `--routes` | (필수, `--full` 이 아니면) | 라우트 id, 해시 경로, 또는 `all` / `smoke` / `user` / `admin` / `detail` |
+| `--full` | off | 전 Route × 전 뷰포트 × 두 테마. 같은 라벨의 `results.json` 을 통째 교체 |
+| `--viewports` | `--full` 이면 전체, 아니면 `1920x1080` | 아래 표의 이름 |
 | `--themes` | `light dark` | |
 | `--fail-on` | 없음 | 치명 처리할 검사 항목(또는 `all`). 걸리면 종료 코드 1 |
 | `--rebuild-auth` | off | 세션 캐시를 버리고 다시 로그인 |

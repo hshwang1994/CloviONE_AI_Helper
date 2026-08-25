@@ -1,17 +1,49 @@
 #!/usr/bin/env bash
 # Static checks (spec §31.1). Run from the repo root. Cross-platform (Git Bash / Linux).
+#
+# 일반 개발: python scripts/verify.py
+# 전량(Exit/커밋) 게이트: bash scripts/static_checks.sh [--scope full]
+# --scope dev 는 값싼 린트만 돌리고 번들 신선도·git fsck·(조건부) coverage/시험 강도를 건너뛴다.
 set -uo pipefail
 export LC_ALL=C.UTF-8
 FAIL=0
 step() { echo ""; echo "== $1 =="; }
 fail() { echo "[FAIL] $1"; FAIL=1; }
 ok()   { echo "[OK ] $1"; }
+skip() { echo ""; echo "== $1 =="; echo "(건너뜀 — scope=$SCOPE) $2"; }
+
+SCOPE=full
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --scope)
+      SCOPE="${2:-}"
+      shift 2
+      ;;
+    --scope=*)
+      SCOPE="${1#*=}"
+      shift
+      ;;
+    *)
+      echo "unknown argument: $1 (expected --scope dev|full)" >&2
+      exit 2
+      ;;
+  esac
+done
+case "$SCOPE" in
+  dev|full) ;;
+  *) echo "--scope 는 dev 또는 full 이어야 한다 (받은 값: $SCOPE)" >&2; exit 2 ;;
+esac
+
+CHANGED="$(git diff --name-only HEAD 2>/dev/null; git ls-files --others --exclude-standard 2>/dev/null)" || true
+changed_match() { echo "$CHANGED" | grep -qE "$1"; }
 
 PY="${PY:-python}"
 command -v "$PY" >/dev/null 2>&1 || PY=python3
 # Prefer the project venv if present
 [ -x ".venv/Scripts/python.exe" ] && PY=".venv/Scripts/python.exe"
 [ -x ".venv/bin/python" ] && PY=".venv/bin/python"
+
+echo "static_checks scope=$SCOPE"
 
 step "Python compile"
 if "$PY" -m compileall -q app scripts >/dev/null 2>&1; then ok "compileall"; else fail "compileall"; fi
@@ -73,10 +105,15 @@ HITS="$(grep -rnE '(password|secret|token|api[_-]?key)\s*=\s*["'\''][^"'\'' ]{8,
   | grep -vE '(test|example|dev-only|__GENERATED|password_hash|reveal|mask|SESSION_SECRET|change-me)' || true)"
 if [ -z "$HITS" ]; then ok "no hardcoded secrets"; else echo "$HITS"; fail "possible hardcoded secret"; fi
 
+if [ "$SCOPE" = "full" ]; then
 step "Repository hygiene — stash/reflog/dangling objects scanned for credentials (PA-RC-0003)"
 # 위 검사는 워킹트리·HEAD만 본다 — git stash/reflog에 남은 옛 값은 못 본다(실제로
 # stash@{0}에서 TEST 서버 자격증명이 이 사각지대로 새 있었다). 값은 출력하지 않는다.
+# git fsck 는 전량/커밋 게이트에서만 돈다. 일상 개발은 워킹트리 secret 스캔(위 단계)만.
 if "$PY" scripts/check_git_secrets.py; then ok "git internals clean"; else fail "credential-like value in stash/reflog/dangling object — see above (object+line only, no value printed)"; fi
+else
+skip "Repository hygiene (git fsck)" "전량 게이트: bash scripts/static_checks.sh --scope full"
+fi
 
 step "Bash syntax"
 for s in scripts/*.sh deploy/*.sh; do
@@ -420,6 +457,7 @@ else
   echo "$BRD"; fail "Brand 토큰이 화면에 도달하지 않는다"
 fi
 
+if [ "$SCOPE" = "full" ] || changed_match '^(tests/|frontend/.+\.test\.(js|jsx|ts|tsx)$)'; then
 step "시험이 약해지지 않았다 (재작성은 되고 약화는 안 된다)"
 # 전면 리뉴얼은 옛 구조를 고정하던 Contract Test 를 반드시 깬다. 빨간 시험을 초록으로
 # 만드는 방법은 재작성과 약화 둘뿐이고 커밋 로그에서는 똑같이 "테스트 갱신"으로 보인다.
@@ -428,6 +466,9 @@ if TSTR="$("$PY" scripts/check_test_strength.py 2>&1)"; then
   ok "$(echo "$TSTR" | tail -1)"
 else
   echo "$TSTR"; fail "시험이 약해졌다"
+fi
+else
+skip "시험 강도" "시험 파일이 이번 변경에 없다 — 전량: --scope full"
 fi
 
 step "폐기한 목업(preview-standalone.html)을 아직 참조하는 곳이 없다 (지시 64)"
@@ -473,6 +514,7 @@ else
   echo "$PSELF" | tail -15; fail "프로브 판정 규칙이 반례를 통과하지 못한다"
 fi
 
+if [ "$SCOPE" = "full" ] || changed_match '^(docs/ui-renewal/|scripts/check_ui_renewal_coverage\.py|scripts/ui_qa/)'; then
 step "UI 리뉴얼 Control Plane Gate — 계획 구조 · 요구사항 추적표 (지시 56 · R-96)"
 # `check_traceability.py`(174줄)가 이 자리에 있었고, 삭제된 `docs/UI_RENEWAL_TRACEABILITY.md`
 # 를 요구하며 스크립트 전체를 빨갛게 만들고 있었다 — "static checks green" 을 전제로 쓰는
@@ -483,6 +525,9 @@ if TRACE="$("$PY" scripts/check_ui_renewal_coverage.py --stage plan 2>&1)"; then
   ok "$(echo "$TRACE" | tail -1)"
 else
   echo "$TRACE"; fail "Control Plane 이 Plan Gate 를 통과하지 못한다"
+fi
+else
+skip "coverage --stage plan" "원장/검사기/ui_qa 가 이번 변경에 없다 — 전량: --scope full"
 fi
 
 step "번들 신선도 검사기가 스스로 시험을 통과하는가 (S4)"
@@ -496,16 +541,30 @@ else
   echo "$BSELF"; fail "번들 신선도 검사기의 입력 순서가 운영체제를 탄다"
 fi
 
+if [ "$SCOPE" = "full" ]; then
 step "Committed frontend bundle matches the sources"
 # 이 저장소는 빌드 산출물을 git 에 커밋한다(서버에 Node 불필요). 대신 소스만 고치고 번들을
 # 안 만들면 git 으로 설치한 서버가 **조용히 옛 UI 를 돌린다** - 로그에도 화면에도 흔적이 없다.
 # 0-E-11 에서 "최종 빌드 뒤에 연결한다"고 적어 두고 실제로는 안 걸었다. 감사가 그걸 찾았다.
+# 일상 개발(scope=dev)에서는 이 검사가 Vite 전량 빌드를 강제하므로 건너뛴다. 커밋/Exit 는 --scope full.
 if BFRESH="$("$PY" scripts/check_bundle_fresh.py 2>&1)"; then
   ok "$(echo "$BFRESH" | tail -1)"
 else
   echo "$BFRESH"; fail "프런트 소스가 커밋된 번들보다 새롭다"
 fi
+else
+skip "번들 신선도" "전량 게이트: bash scripts/static_checks.sh --scope full"
+fi
 
 echo ""
-if [ "$FAIL" -eq 0 ]; then echo "STATIC_CHECKS_OK"; else echo "STATIC_CHECKS_FAILED"; fi
+if [ "$FAIL" -eq 0 ]; then
+  if [ "$SCOPE" = "dev" ]; then
+    echo "STATIC_CHECKS_DEV_OK"
+    echo "이 결과는 커밋/Exit 게이트가 아니다. 전량: bash scripts/static_checks.sh --scope full"
+  else
+    echo "STATIC_CHECKS_OK"
+  fi
+else
+  echo "STATIC_CHECKS_FAILED"
+fi
 exit $FAIL

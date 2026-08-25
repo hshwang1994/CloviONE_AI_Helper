@@ -170,3 +170,99 @@ def test_visible_to_uses_allowed_roles_when_present():
     assert route.visible_to("system_admin")
     assert not route.visible_to("auditor")
     assert not route.visible_to("admin")
+
+
+# ── 부분 캡처가 전량 Evidence 를 덮지 않는다 ────────────────────────────────
+
+
+def test_missing_routes_or_full_is_a_harness_error():
+    from argparse import Namespace
+    from scripts.ui_qa.run import missing_capture_scope
+
+    assert missing_capture_scope(Namespace(list=False, full=False, routes=None))
+    assert missing_capture_scope(Namespace(list=False, full=False, routes=[]))
+    assert missing_capture_scope(Namespace(list=True, full=False, routes=None)) is None
+    assert missing_capture_scope(Namespace(list=False, full=True, routes=None)) is None
+    assert missing_capture_scope(Namespace(list=False, full=False, routes=["smoke"])) is None
+
+
+def test_partial_pages_merge_instead_of_replacing():
+    from scripts.ui_qa.capture import merge_pages
+
+    prior = [
+        {"route": "user_me", "theme": "light", "viewport": "1920x1080", "n": 1},
+        {"route": "user_chat", "theme": "light", "viewport": "1920x1080", "n": 2},
+    ]
+    new = [
+        {"route": "user_me", "theme": "light", "viewport": "1920x1080", "n": 9},
+    ]
+    merged = merge_pages(prior, new)
+    by_route = {row["route"]: row["n"] for row in merged}
+    assert by_route["user_me"] == 9
+    assert by_route["user_chat"] == 2
+
+
+def test_write_manifest_merges_partial_into_existing(tmp_path):
+    from scripts.ui_qa.capture import build_scope, write_manifest
+
+    prior = {
+        "scope": build_scope(routes=["a", "b"], viewports=["1920x1080"],
+                             themes=["light"], page_count=2, full=True),
+        "pages": [
+            {"route": "a", "theme": "light", "viewport": "1920x1080", "assertions": {}},
+            {"route": "b", "theme": "light", "viewport": "1920x1080", "assertions": {}},
+        ],
+        "notes": [],
+        "run": {},
+    }
+    write_manifest(tmp_path, prior, replace=True)
+    partial = {
+        "scope": build_scope(routes=["a"], viewports=["1920x1080"],
+                             themes=["light"], page_count=1, full=False),
+        "pages": [
+            {"route": "a", "theme": "light", "viewport": "1920x1080", "assertions": {"x": {"status": "pass"}}},
+        ],
+        "notes": [],
+        "run": {},
+    }
+    path = write_manifest(tmp_path, partial, replace=False)
+    import json
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    routes = {p["route"] for p in payload["pages"]}
+    assert routes == {"a", "b"}
+    assert payload["scope"]["partial"] is True
+    assert payload["scope"].get("merged") is True
+
+
+def test_full_write_replaces_prior(tmp_path):
+    from scripts.ui_qa.capture import build_scope, write_manifest
+    import json
+
+    write_manifest(tmp_path, {
+        "scope": build_scope(routes=["old"], viewports=["1920x1080"],
+                             themes=["light"], page_count=1, full=True),
+        "pages": [{"route": "old", "theme": "light", "viewport": "1920x1080", "assertions": {}}],
+        "notes": [], "run": {},
+    }, replace=True)
+    write_manifest(tmp_path, {
+        "scope": build_scope(routes=["new"], viewports=["1920x1080"],
+                             themes=["light"], page_count=1, full=True),
+        "pages": [{"route": "new", "theme": "light", "viewport": "1920x1080", "assertions": {}}],
+        "notes": [], "run": {},
+    }, replace=True)
+    payload = json.loads((tmp_path / "results.json").read_text(encoding="utf-8"))
+    assert [p["route"] for p in payload["pages"]] == ["new"]
+
+
+def test_unseen_findings_are_kept():
+    from scripts.ui_qa.run import keep_unseen_findings
+
+    prior = [
+        {"id": "old", "route": "a", "theme": "light", "viewport": "1920x1080", "class": "x"},
+    ]
+    current = [
+        {"id": "new", "route": "b", "theme": "light", "viewport": "1920x1080", "class": "y"},
+    ]
+    covered = {("b", "light", "1920x1080")}
+    merged = keep_unseen_findings(prior, current, covered)
+    assert {row["id"] for row in merged} == {"old", "new"}

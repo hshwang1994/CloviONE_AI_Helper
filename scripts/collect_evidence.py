@@ -337,6 +337,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--viewports", nargs="*", default=None, help="이 뷰포트만 옮긴다")
     parser.add_argument("--dry-run", action="store_true",
                         help="무엇이 옮겨질지와 예상 용량만 출력하고 파일은 만들지 않는다")
+    parser.add_argument(
+        "--promote", action="store_true",
+        help=("ROUTE_COVERAGE.capture_labels.after/before 를 이번 라벨로 옮긴다. "
+              "부분 실행은 기본으로 안 옮긴다 — 전량 Evidence 포인터를 덮지 않기 위해서다."),
+    )
     return parser
 
 
@@ -345,7 +350,24 @@ def _split_csv(values: list[str] | None) -> set[str] | None:
     return out or None
 
 
-def sync_coverage(index: dict, into: str) -> int:
+def results_are_partial(results: dict) -> bool:
+    """scope.partial 이 있으면 부분 실행. 옛 results.json 에 scope 가 없으면 전량으로 본다."""
+    scope = results.get("scope")
+    if not isinstance(scope, dict):
+        return False
+    return bool(scope.get("partial"))
+
+
+def apply_label_pointer(cov: dict, index: dict, into: str, *, promote: bool) -> bool:
+    """capture_labels.<into> 를 이번 라벨로 옮긴다. 부분 실행은 promote 없이는 안 옮긴다."""
+    if not promote:
+        return False
+    labels = cov.setdefault("capture_labels", {})
+    labels[into] = index["label"]
+    return True
+
+
+def sync_coverage(index: dict, into: str, *, promote: bool = True) -> int:
     """수집한 증거를 **Control Plane 에 바로 반영한다** (W5 정정).
 
     예전에는 이 스크립트가 `captures/<into>/index.json` 만 쓰고, `ROUTE_COVERAGE.json` 의
@@ -357,6 +379,9 @@ def sync_coverage(index: dict, into: str) -> int:
     한 번에 둘 다 갱신한다 — 대표 조합 하나를 `<into>_capture` 로 걸고, `capture_labels.<into>`
     를 이 실행의 라벨로 옮긴다. 대표는 「가장 넓게 쓰이는 조합」(1920x1080/light)을 우선하고,
     없으면 그 Surface 에서 실제로 수집된 첫 조합을 쓴다.
+
+    부분 실행은 surface 별 포인터만 갱신하고, 전량 라벨(`capture_labels`)은 `--promote`
+    없이 옮기지 않는다.
     """
     cov_path = REPO_ROOT / "docs" / "ui-renewal" / "ROUTE_COVERAGE.json"
     if not cov_path.exists():
@@ -402,8 +427,12 @@ def sync_coverage(index: dict, into: str) -> int:
             cap["results_json"] = index["results_json"]
             changed += 1
 
-    labels = cov.setdefault("capture_labels", {})
-    labels[into] = index["label"]
+    labels_moved = apply_label_pointer(cov, index, into, promote=promote)
+    if labels_moved:
+        _log(f"capture_labels.{into}={index['label']}")
+    else:
+        _log(f"capture_labels.{into} 는 옮기지 않았다 "
+             f"(부분 실행 — 전량 라벨로 승격하려면 --promote)")
     cov_path.write_text(json.dumps(cov, ensure_ascii=False, indent=1) + chr(10), encoding="utf-8")
     return changed
 
@@ -501,9 +530,12 @@ def main(argv: list[str] | None = None) -> int:
 
     index_path = dest_dir / "index.json"
     index_path.write_text(json.dumps(index, ensure_ascii=False, indent=2), encoding="utf-8")
-    synced = sync_coverage(index, args.into)
+    synced = sync_coverage(
+        index, args.into,
+        promote=args.promote or not results_are_partial(results),
+    )
     if synced:
-        _log(f"ROUTE_COVERAGE.{args.into}_capture 갱신 {synced}건 + capture_labels.{args.into}={index['label']}")
+        _log(f"ROUTE_COVERAGE.{args.into}_capture 갱신 {synced}건")
     _log("")
     _log(f"index.json : {index_path} ({index_path.stat().st_size:,} bytes, "
          f"{len(index['captures'])}장)")

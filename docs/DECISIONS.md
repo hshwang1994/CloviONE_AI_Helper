@@ -11084,3 +11084,23 @@ C11 은 PASS 인 Flow 에 사슬 넷(요청 · 질의 · 응답 · 렌더)을 �
 JSON)는 **싣지 않는다** — 그것은 권한이 더 좁은 감사 화면의 것이고, 이 경로가 실어 보내면 그
 경계를 우회하는 뒷문이 된다. ③ 한 번의 저장에서 **실제로 바뀐 칸만** 내보낸다. 아홉 칸이 전부
 나열되면 무엇이 바뀌었는지가 오히려 안 보인다.
+
+## D-306 — 일상 검증은 표적, 전량은 명시, 부분 Evidence 는 전량을 덮지 않는다
+
+D-208 E1~E10 은 정책으로 이미 있었다. 실행 기본값이 그것을 이겼다 — `static_checks.sh` 와
+`python -m scripts.ui_qa.run` 이 플래그 없이 전량을 열고, 같은 라벨의 부분 캡처가
+`results.json` 과 `capture_labels.after` 를 통째로 옮겼다.
+
+정하는 것:
+
+1. 일상 진입점은 `python scripts/verify.py` 다. 변경 파일에 매핑된 시험과
+   `static_checks.sh --scope dev` 만 돈다. 캡처/Pilot/전량 pytest 는 부르지 않는다.
+2. 전량은 명시한다: `python scripts/verify.py --full` (정적+청크 회귀+vitest),
+   `bash scripts/static_checks.sh --scope full`, `python -m scripts.ui_qa.run --full`.
+   `static_checks.sh` 의 기본 scope 는 **full** 이다 — Exit Gate 문구를 약화하지 않는다.
+3. `--scope dev` 는 번들 신선도·git fsck 를 건너뛴다. coverage plan 과 시험 강도는 관련
+   파일이 바뀐 경우에만 돈다. 이 초록은 커밋/Exit 게이트가 아니다.
+4. 부분 캡처는 같은 라벨의 기존 페이지를 병합한다. `collect_evidence` 는 부분 실행에서
+   `capture_labels.after` 를 `--promote` 없이 옮기지 않는다.
+5. 실패 재실행은 `python scripts/verify.py --failed` 다. Finding 하나마다 전량을 처음부터
+   다시 열지 않는다.

@@ -83,6 +83,7 @@ def test_default_run_stages_every_static_file(tmp_path):
         [BASH, str(SCRIPT)],
         cwd=str(ROOT), env={**os.environ, "OUT": out.as_posix(), **TENANT_ENV},
         capture_output=True, text=True, encoding="utf-8", timeout=STAGE_TIMEOUT_SECONDS,
+        stdin=subprocess.DEVNULL,
     )
     assert proc.returncode == 0, f"스크립트 실패:\n{proc.stdout}\n{proc.stderr}"
 
@@ -106,6 +107,7 @@ def test_staged_payload_contains_every_static_file(tmp_path):
         [BASH, str(SCRIPT)],
         cwd=str(ROOT), env={**os.environ, "OUT": out.as_posix(), **TENANT_ENV},
         capture_output=True, text=True, encoding="utf-8", timeout=STAGE_TIMEOUT_SECONDS,
+        stdin=subprocess.DEVNULL,
     )
     assert proc.returncode == 0, f"스크립트 실패:\n{proc.stdout}\n{proc.stderr}"
 
@@ -137,6 +139,7 @@ def test_binary_assets_survive_staging_byte_for_byte(tmp_path):
         [BASH, str(SCRIPT)],
         cwd=str(ROOT), env={**os.environ, "OUT": out.as_posix(), **TENANT_ENV},
         capture_output=True, text=True, encoding="utf-8", timeout=STAGE_TIMEOUT_SECONDS,
+        stdin=subprocess.DEVNULL,
     )
     assert proc.returncode == 0, f"스크립트 실패:\n{proc.stdout}\n{proc.stderr}"
 
@@ -166,6 +169,7 @@ def test_no_hard_refresh_instruction(tmp_path):
         [BASH, str(SCRIPT)],
         cwd=str(ROOT), env={**os.environ, "OUT": out.as_posix(), **TENANT_ENV},
         capture_output=True, text=True, encoding="utf-8", timeout=STAGE_TIMEOUT_SECONDS,
+        stdin=subprocess.DEVNULL,
     )
     assert proc.returncode == 0, f"스크립트 실패:\n{proc.stdout}\n{proc.stderr}"
     printed = proc.stdout.lower()

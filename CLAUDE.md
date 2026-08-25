@@ -119,15 +119,33 @@ UI 관련 작업에서는 필요할 때 `docs/ui-renewal/` Control Artifact를 �
 기본 순서:
 `Implementation → Targeted Test → Static/Contract → Related Integration → Impacted Flow/E2E → 필요한 Reviewer → Finding 수정 → 영향 범위 재검증 → Exit Gate`
 
+일상 개발 명령 (표적. 전량 Evidence가 아니다):
+
+```
+python scripts/verify.py              # 변경 파일에 매핑된 시험 + static --scope dev
+python scripts/verify.py --failed     # 직전 실패만
+```
+
+전량은 명시적으로만 돌린다. 작은 변경의 부수 효과로 전체를 열지 않는다.
+
+```
+python scripts/verify.py --full       # 정적 전량 + 백엔드 청크 회귀 + vitest 전량 (캡처 없음)
+bash scripts/static_checks.sh --scope full
+bash scripts/run_full_regression.sh
+python -m scripts.ui_qa.local_capture --routes <화면…>
+python -m scripts.ui_qa.run --full --label <label>
+```
+
 - 필요한 검증은 반드시 한다.
 - 같은 Source/Build에서 이미 PASS한 고비용 검증은 이유 없이 반복하지 않는다.
 - Evidence 재사용 시 Source/Build 지문을 확인한다.
 - Source 변경 후 변경 Domain → Integration → 영향 Flow 순으로 검증한다.
-- 일부 실패하면 실패 Test/Route/Flow/Shard부터 재실행한다.
+- 일부 실패하면 실패 Test/Route/Flow/Shard부터 재실행한다 (`python scripts/verify.py --failed`).
 - 작은 변경마다 Full Regression을 반복하지 않는다.
 - Shared Foundation/전역 계약 변경이면 필요한 상위 Regression을 수행한다.
 - 비용 때문에 Security/Integrity/Permission 검증을 생략하지 않는다.
 - 새 Probe/Harness는 Product 판정 전에 Known Good/Known Bad/Counterexample로 검증한다.
+- 부분 캡처는 전량 Evidence를 덮거나 `capture_labels.after`를 옮기지 않는다.
 
 ## 8. 반복 루프 방지
 

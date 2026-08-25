@@ -626,6 +626,23 @@ S11 → S12 → S13 → S14 → S15 → S16 → S17 → S18 → S19 → S20 → 
 
 ## 11. 검증 명령
 
+일상 개발 (표적. 전량 Evidence 가 아니다):
+
+```bash
+python scripts/verify.py              # 변경 파일 매핑 + static --scope dev
+python scripts/verify.py --failed     # 직전 실패만
+```
+
+전량은 필요할 때 명시적으로:
+
+```bash
+python scripts/verify.py --full       # 정적 전량 + 백엔드 청크 + vitest 전량 (캡처 없음)
+bash scripts/static_checks.sh --scope full
+bash scripts/run_full_regression.sh
+python -m scripts.ui_qa.local_capture --routes <화면…>
+python -m scripts.ui_qa.run --full --label <label>
+```
+
 ```bash
 # 정적 + 프로브 자기검증
 bash scripts/static_checks.sh
@@ -664,7 +681,7 @@ systemctl is-active postgresql nginx clovirassist-{privhelper,web,worker,schedul
 BASE=https://clovirassist.gooddi.lab bash scripts/verify_deploy.sh
 
 # 브라우저 QA (최종 1회)
-python -m scripts.ui_qa.run --label final --fail-on <승격 클래스…>
+python -m scripts.ui_qa.run --full --label final --fail-on <승격 클래스…>
 ```
 
 ---

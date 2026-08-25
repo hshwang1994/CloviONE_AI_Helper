@@ -23,7 +23,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 FUNC_LEDGER = REPO_ROOT / "docs" / "ui-renewal" / "FUNCTIONAL_COVERAGE.json"
 ROUTE_LEDGER = REPO_ROOT / "docs" / "ui-renewal" / "ROUTE_COVERAGE.json"
-FLOWS = REPO_ROOT / "dist" / "ui-qa" / "pilot" / "flows.json"
+FLOWS = REPO_ROOT / "dist" / "ui-qa" / "w8-pilot-e2e" / "flows.json"
 
 # 사슬의 서버 칸 — 하나라도 차 있으면 그 Flow 는 서버를 불렀다.
 SERVER_KEYS = ("api_request", "backend_query", "api_response")
@@ -260,7 +260,7 @@ def write_surfaces(route_cov: dict, results: dict, flow_records: list[dict], *,
             fa["result"] = "FAIL" if fails_by_surface.get(sid) else "PASS"
             fa["by"] = HARNESS_BY
             fa["at"] = at
-            fa["evidence"] = ["ev:qa_run:s18-pilot (dist/ui-qa/pilot/flows.json)",
+            fa["evidence"] = ["ev:qa_run:s18-pilot (dist/ui-qa/w8-pilot-e2e/flows.json)",
                               "ev:qa_run:%s (dist/ui-qa/%s/results.json)" % (label, label)]
             fa["flows"] = ids
             sf["functional_audit"] = fa
@@ -280,7 +280,7 @@ def main() -> int:
     args = ap.parse_args()
 
     records = (load(Path(args.flows)).get("flows") or []) if Path(args.flows).exists() else []
-    run_token = "ev:qa_run:s18-pilot (dist/ui-qa/pilot/flows.json)"
+    run_token = "ev:qa_run:s18-pilot (dist/ui-qa/w8-pilot-e2e/flows.json)"
 
     func = load(FUNC_LEDGER)
     stats = write_flows(func, records, at=args.at, run_token=run_token)

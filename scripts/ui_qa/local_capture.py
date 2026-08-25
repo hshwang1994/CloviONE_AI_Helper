@@ -85,6 +85,12 @@ def main() -> int:
         os.environ["SESSION_SECRET"] = "ui-qa-local-session-secret"
         os.environ["SECRETS_DIR"] = str(settings.secrets_dir)
         os.environ["DATA_DIR"] = str(workdir)
+        os.environ["UI_QA_BASE_URL"] = base
+        # import 시점 DEFAULT_BASE_URL 을 쓰는 하네스가 설치처를 치지 않게, 모듈
+        # 상수를 임시 서버로 맞춘다. --base-url 을 argv 에 넣지 않는다 — keyboard 등
+        # 그 인자를 모르는 모듈이 argparse 로 죽는다.
+        from scripts.ui_qa import capture as cap_mod
+        cap_mod.DEFAULT_BASE_URL = base
 
         if args.harness:
             """하네스를 순서대로 부르고 **하나라도 실패하면 그 종료 코드를 그대로 낸다.**
@@ -105,7 +111,7 @@ def main() -> int:
                 passthrough += ["--viewports", *args.viewports]
             for name in args.harness:
                 mod = importlib.import_module("scripts.ui_qa." + name)
-                sys.argv = [name + ".py", "--base-url", base, *passthrough, *rest]
+                sys.argv = [name + ".py", *passthrough, *rest]
                 print("\n== %s ==" % name, flush=True)
                 code = mod.main()
                 worst = max(worst, code or 0)
