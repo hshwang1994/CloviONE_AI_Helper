@@ -25,17 +25,25 @@
 - working_tree: clean
 - s19_commit: **`ee2e4118`** · hc_commit: **`2c3e6c60`**
 - s20_commit: **`136b00aa`** · **`9a3ade64`**(배포 대상이었다)
-- s21_commit: **ede55e47** — S21 본체(제품 결함 둘·하네스·원장·문서)
-- deployed: **`9a3ade64`** 가 운영에 나갔다 (2026-08-25 20:11, `install.sh upgrade --source local`). Stage 0~18 전부 OK · `VERIFY_OK` · 스냅샷 `/var/backups/clovirassist/20260825-201111`. `/healthz` `{"status":"ok","ticket_source":"native"}` · `/readyz` `{"status":"ready"}` · 유닛 6종 active · `STAGE_5_FRONTEND: 번들이 소스와 맞습니다`(배포본 `index.Dm759os4.js` 가 빌드한 것과 같다).
-  스모크: 살아 있어야 하는 관리자 경로 여섯이 세션 없이 **401**(라우트는 있고 인증이 막는다) · 없어야 하는 `/api/admin/notion-mapping` 둘이 **404** · `/login` 200.
-  🔴 **세션 스모크는 못 했다** — 이 호스트의 QA 계정이 `account_archived` 라 로그인이 안 되고, 스모크를 하려고 계정을 되살리는 것은 운영 데이터를 고치는 일이다. 대신 화면이 부르는 **그 함수**를 운영 DB 위에서 **읽기만** 하며 확인했다: 저장소 1개(운영·로컬·쓰기가능·58파일·같은 장치 경고 없음) · 초기 설정 단계 여섯에 `user_mapping` **없음** · 정합성 안내에 Notion **없음** · 오프보딩 후임 후보 14명 중 **옛 짝이 없는 2명이 실제로 포함**(고치기 전에는 이 둘이 빠졌다) · 사용자 응답에 `notion_mapping_status` **없음**.
-  되돌리려면 `sudo /opt/clovirassist/deploy/install.sh rollback --target /var/backups/clovirassist/20260825-201111`
+- s21_commit: **`ede55e47`** — S21 본체(제품 결함 둘·하네스·원장·문서) · **`916f20fe`** — 해시 기록. **배포 대상은 `916f20fe`** 다
+- deployed: **`916f20fe`**(S21 완료 커밋 · 제품 코드는 `ede55e47` 와 같다)가 운영에 나갔다
+  (2026-08-26 00:02, `install.sh upgrade --source local`). Stage 0~18 전부 OK · `VERIFY_OK` ·
+  스냅샷 `/var/backups/clovirassist/20260826-000222` ·
+  `STAGE_5_FRONTEND: 번들이 소스와 맞습니다`.
+  **비파괴 스모크만 했다**(§14): `/healthz` `{"status":"ok","ticket_source":"native"}` ·
+  `/readyz` `{"status":"ready"}` · `ssl_verify_result=0` · `/login` 200(12,300바이트) ·
+  이 커밋이 만든 번들 `index.C3HEH9AA.js` 가 TLS 로 200(132,246바이트 · `text/javascript`).
+  인수에 쓴 브라우저 전수는 **운영에서 다시 안 돌렸다** — 그것은 로컬 PostgreSQL 위에서
+  만들고 지우는 실행이고, 운영 데이터를 인수 편의로 건드리지 않는다.
+  되돌리려면 `sudo /opt/clovirassist/deploy/install.sh rollback --target /var/backups/clovirassist/20260826-000222`
+- deployed_prev: `9a3ade64`(S20, 2026-08-25 20:11 · 스냅샷 `20260825-201111`)
 - full_snapshot: **HC 마지막 Full 1회** (`python scripts/verify.py --full`, 2026-08-25 17:29~18:13).
   정적 전량 **PASS** · 프런트 전량 **329 파일 / 2,451건 전부 PASS** · 백엔드 전량 **FAIL 7건**
   — 전부 `test_api_contract_golden.py` 이고 **HEAD 에서도 같은 7건**이 뜬다. **P-51** 이다.
-  **S20 은 전량을 안 돌렸다** — 일상 개발의 Exit 가 아니다(§9.4-A)
-- ui_gate: `--stage plan` **PASS**(S20 도 확인 — 새 Surface 를 세우고 없어진 Surface 를
-  `RETIRED` 로 적은 뒤에도 초록이다). `--stage wave` 는 안 돌렸다 — W8 잔여(P-44)를 여는
+  **S21 도 전량을 안 돌렸다** — 일상 개발의 Exit 가 아니고(§9.4-A), 이 회차의 Exit 는
+  Functional Flow 실측이다. 표적은 `TARGETED_OK`(정적 66검사 + 시험 17파일 84건)
+- ui_gate: `--stage plan` **PASS**(S21 도 확인 — Flow 809건을 적고 122건을 `exists:false`
+  로 내린 뒤에도 초록이다). `--stage wave` 는 안 돌렸다 — W8 잔여(P-44)를 여는
   일이고 그것은 **Acceptance 축**이다(§9.4). 그쪽 상세는
   [`../ui-renewal/WORK_STATE.md`](../ui-renewal/WORK_STATE.md)
 - 스키마는 **93 표**다. alembic head 는 `0016_document_axis_to_documents` 다. **S20 도 스키마를
