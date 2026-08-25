@@ -58,6 +58,44 @@ def test_an_operator_cannot_change_where_files_land(client, login_as, local_prov
     assert response.status_code == 403
 
 
+@pytest.mark.parametrize("role", ["user", "operator", "admin", "auditor"])
+def test_only_the_system_admin_can_touch_a_provider(client, login_as, local_provider, role):
+    """화면에서 버튼을 감춘 것과 서버가 막는 것은 다른 사실이다 (S20).
+
+    S20 이 이 API 의 **첫 화면**(설정 → 파일 저장소)을 세우면서 세 쓰기 동작(추가·수정·
+    지금 확인)이 처음으로 사람 손에 닿았다. 그 화면은 `system_admin` 에게만 탭을 보이지만
+    그것은 표시일 뿐이라(불변규칙 §5) 나머지 역할이 주소를 직접 불러도 막히는지를 여기서
+    센다 — 셋 다 `STORAGE_CONFIGURE`(SYSTEM_ADMIN_ONLY) 하나를 지난다.
+    """
+    csrf = login_as(role)
+    headers = {"X-CSRF-Token": csrf}
+    pid = local_provider.id
+
+    assert client.get("/api/storage/status").status_code == 403 if role == "user" else True
+    assert client.patch(
+        f"/api/storage/providers/{pid}", json={"enabled": False}, headers=headers
+    ).status_code == 403
+    assert client.post(
+        f"/api/storage/providers/{pid}/probe", json={}, headers=headers
+    ).status_code == 403
+
+
+def test_the_system_admin_actually_can(client, login_as, local_provider):
+    """반례 — 위 넷이 403 인 이유가 «아무도 못 한다» 가 아님을 같은 자리에서 보인다."""
+    csrf = login_as("system_admin")
+    headers = {"X-CSRF-Token": csrf}
+    pid = local_provider.id
+
+    assert client.post(
+        f"/api/storage/providers/{pid}/probe", json={}, headers=headers
+    ).status_code == 200
+    response = client.patch(
+        f"/api/storage/providers/{pid}", json={"name": "이름을 바꿨다"}, headers=headers
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["name"] == "이름을 바꿨다"
+
+
 # ── 상태 ─────────────────────────────────────────────────────────────────────
 
 

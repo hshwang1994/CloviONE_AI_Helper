@@ -43,7 +43,7 @@ router = APIRouter(
 )
 
 
-def _user_row(user: User, now, *, notion_status: str = "unmapped") -> dict:
+def _user_row(user: User, now) -> dict:
     return {
         "id": user.id,
         "email": user.email,
@@ -69,19 +69,7 @@ def _user_row(user: User, now, *, notion_status: str = "unmapped") -> dict:
         "archived_at": user.archived_at.isoformat() if user.archived_at else None,
         "last_login_at": user.last_login_at.isoformat() if user.last_login_at else None,
         "created_at": user.created_at.isoformat(),
-        "notion_mapping_status": notion_status,
     }
-
-
-def _notion_status_map(db: Session, user_ids: list[str]) -> dict[str, str]:
-    from app.notion_mapping.models import UserNotionMapping
-
-    if not user_ids:
-        return {}
-    rows = db.execute(
-        select(UserNotionMapping).where(UserNotionMapping.user_id.in_(user_ids))
-    ).scalars().all()
-    return {r.user_id: r.status for r in rows}
 
 
 def _filtered_users_stmt(
@@ -176,11 +164,8 @@ def list_users(
         .scalars()
         .all()
     )
-    statuses = _notion_status_map(db, [u.id for u in rows])
     return {
-        "items": [
-            _user_row(u, now, notion_status=statuses.get(u.id, "unmapped")) for u in rows
-        ],
+        "items": [_user_row(u, now) for u in rows],
         "total": total,
         "page": page.page,
         "page_size": page.page_size,
@@ -402,8 +387,7 @@ def get_user_detail(
 
     user = get_scoped_user_or_404(db, user_id, principal.management)
     now = request.app.state.clock.now()
-    status = _notion_status_map(db, [user.id]).get(user.id, "unmapped")
-    row = _user_row(user, now, notion_status=status)
+    row = _user_row(user, now)
     # 세션 '개수'도 세션 목록(/sessions)과 같은 권한 경계 안에서만 보여야 한다 — /sessions는
     # 이미 막는데 여기 count만 새면 상위 권한 계정 정찰 차단이 반만 지켜진다. 상세 자체는
     # 볼 수 있게 두되(프런트가 canManage로 처리) count만 뺀다.

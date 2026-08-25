@@ -79,7 +79,7 @@ describe("ROUTE_COVERAGE ↔ JS 소스 대조", () => {
     expect(missing, `커버리지에 없는 탭 그릇/탭: ${missing.join(", ")}`).toEqual([]);
   });
 
-  it("설정 탭 세 개가 전부 Surface 다", () => {
+  it("설정 탭이 하나도 빠짐없이 Surface 다", () => {
     expect(SETTINGS_TAB_KEYS).toContain("policy");
     const missing = SETTINGS_TAB_KEYS.filter(
       (k) => !surfaces.some((s) => s.route === `/settings?tab=${k}`),

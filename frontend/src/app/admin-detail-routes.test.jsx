@@ -37,7 +37,7 @@ vi.setConfig({ testTimeout: 20000 });
 
 const USER_ROW = {
   id: "u-detail-1", email: "detail@goodmit.co.kr", display_name: "상세대상", role: "user",
-  active: true, locked: false, must_change_password: false, notion_mapping_status: "unmapped",
+  active: true, locked: false, must_change_password: false,
   department: null, department_id: null, title: null, title_id: null,
   last_login_at: null, created_at: AT, archived_at: null, active_session_count: 0,
 };

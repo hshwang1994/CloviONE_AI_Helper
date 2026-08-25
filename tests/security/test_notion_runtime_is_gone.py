@@ -20,6 +20,15 @@
 qa-contract-replaced-by: tests/integration/test_notion_console.py
 qa-contract-replaced-by: tests/integration/test_ticket_sync_trigger.py
 qa-contract-replaced-by: tests/integration/test_docs_db_unset.py
+
+S20 이 둘을 더 넘겼다. 「Notion 사용자 연결」 화면이 없어지면서 그 화면만 부르던 라우터와
+서비스가 함께 내려갔고(D-316), 그 둘을 시험하던 파일 둘도 대상을 잃었다. 지킬 것은 남는다 —
+**그 라우터가 다시 서지 않는 것**이다. 아래 `REMOVED_MODULES` 와 `REMOVED_ROUTES` 가 그것을
+센다. 표(`user_notion_mappings`)와 `models.py` 는 여기 없다: 이관 계보이자 옛 담당자 토큰의
+짝이라 **남기기로 한 것**이고(D-285), 남긴 것을 없다고 세면 그 시험이 거짓이 된다.
+
+qa-contract-replaced-by: tests/integration/test_notion_mapping.py
+qa-contract-replaced-by: tests/integration/test_notion_mapping_get_or_create_race.py
 """
 
 from __future__ import annotations
@@ -50,6 +59,11 @@ REMOVED_MODULES = (
     "app.projects.notion_source",
     "app.projects.notion_write",
     "app.reports.notion_source",
+    # S20 — 화면이 내려가면서 그 화면만 부르던 라우터와 서비스가 함께 내려갔다.
+    # `app.notion_mapping.models` 는 **여기 없다**: 표가 남아 있고 담당자 축이 그 짝을
+    # 읽는다(D-285 · `app/tickets/service.py::assignee_token`).
+    "app.notion_mapping.router",
+    "app.notion_mapping.service",
 )
 
 # 사라진 HTTP 표면. `(method, path)` 이고, 판정은 **404 나 405** 다 — 권한으로 막힌
@@ -61,6 +75,11 @@ REMOVED_ROUTES = (
     ("POST", "/api/admin/notion/databases"),
     ("POST", "/api/tickets/sync"),
     ("POST", "/api/team-docs/sync"),
+    # S20 — 「Notion 사용자 연결」 화면과 함께 내려간 라우터(D-316).
+    ("GET", "/api/admin/notion-mapping"),
+    ("GET", "/api/admin/notion-mapping/u-1"),
+    ("POST", "/api/admin/notion-mapping/u-1/map"),
+    ("POST", "/api/admin/notion-mapping/u-1/unmap"),
 )
 
 # 사라진 설정 키. 값이 남아 있으면 「환경 파일이 이긴다」 사고가 그대로 되돌아온다.

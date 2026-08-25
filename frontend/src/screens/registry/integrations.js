@@ -11,7 +11,7 @@
  */
 import React from "react";
 import Link from "@mui/material/Link";
-import { AUTH_OPTS, OPS_ROLES, PROVIDER, PROVIDER_OPTS, WRITE_ROLES, badgeCol, col, dateCol, enabledCol, field, mapCol, opt, truncateCol, writerEmptyHelp } from "./shared.js";
+import { AUTH_OPTS, OPS_ROLES, PROVIDER, WRITE_ROLES, badgeCol, col, dateCol, enabledCol, field, mapCol, opt, truncateCol, writerEmptyHelp } from "./shared.js";
 import { healthResult, onoff, snapCol, versionsAction } from "./actions.js";
 import { serviceLabel } from "../ops/opsHelpers.js";
 
@@ -41,7 +41,6 @@ export const INTEGRATION_SCREENS = {
     // clientFilter:true로 이미 받아 온 전체 목록을 화면에서 직접 거른다(같은
     // 필요, 다만 백엔드가 서버 필터를 지원하지 않아 client 쪽 패턴을 쓴다).
     filters: [
-      { key: "provider_type", type: "select", label: "유형", clientFilter: true, options: PROVIDER_OPTS },
       { key: "enabled", type: "select", label: "활성", clientFilter: true, options: opt([["true", "활성"], ["false", "비활성"]]) },
       // 'unknown'(미확인)도 넣는다 — 모델 기본값이 HEALTH_UNKNOWN이라 새로 만든/디스커버리 시딩된
       // 연동은 헬스체크 전까지 이 상태다. 옵션이 없으면 '정상'/'중단'을 골랐을 때 미확인 행이 조용히
@@ -73,7 +72,6 @@ export const INTEGRATION_SCREENS = {
     // (같은 registry 의 다른 화면들이 쓰는 role-분기 패턴과 같은 발상).
     create: { roles: WRITE_ROLES, fields: (role) => [
       { name: "name", label: "이름", type: "text", required: true },
-      { name: "provider_type", label: "유형", type: "select", value: "http_service", options: PROVIDER_OPTS },
       { name: "base_url", label: "서버 주소(Base URL)", type: "text", required: true, help: "allowlist에 있어야 합니다." },
       { name: "health_url", label: "상태 확인 주소(Health URL)", type: "text", help: "비우면 Base URL로 헬스체크" },
       { name: "auth_type", label: "인증", type: "select", value: "none",
@@ -86,7 +84,6 @@ export const INTEGRATION_SCREENS = {
     // 등록 후 값을 고칠 수 있게 명시적 PATCH 편집 폼(기능·인증·설명 포함).
     editMethod: "PATCH", edit: { roles: WRITE_ROLES, fields: [
       { name: "name", label: "이름", type: "text" },
-      { name: "provider_type", label: "유형", type: "select", options: PROVIDER_OPTS },
       { name: "base_url", label: "서버 주소(Base URL)", type: "text" },
       { name: "health_url", label: "상태 확인 주소(Health URL)", type: "text" },
       { name: "auth_type", label: "인증", type: "select", options: AUTH_OPTS },

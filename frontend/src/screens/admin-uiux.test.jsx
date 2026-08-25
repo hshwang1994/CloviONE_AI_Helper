@@ -212,15 +212,18 @@ describe("위험 액션 확인", () => {
 /* ── 2. 거르는 조건은 서버로 간다(못 가면 이름을 대고 밝힌다) ───────────── */
 
 describe("필터가 어디서 걸리는가", () => {
-  it("Notion 연결 '출처'는 서버 요청에 실려 나간다(페이지 안에서만 거르지 않는다)", async () => {
+  /* 이 자리에 「Notion 연결 '출처'」가 있었다. 그 화면을 S20 이 내려서 같은 계약을 **살아
+     있는 화면**에서 다시 잰다 — 공지 배너도 `paginated` 라, 조건이 서버에 안 닿으면 다른
+     쪽 페이지의 일치 항목이 조용히 사라지는 정확히 같은 함정을 갖는다. */
+  it("공지 배너 '중요도'는 서버 요청에 실려 나간다(페이지 안에서만 거르지 않는다)", async () => {
     apiMock.mockImplementation(() => Promise.resolve({ items: [], total: 0, page: 1, page_size: 20 }));
-    renderScreen("notion-mapping");
-    await findText("표시할 사용자가 없습니다");
+    renderScreen("announcements");
+    await findText("추가된 공지가 없습니다");
 
-    await userEvent.click(screen.getByRole("combobox", { name: /출처/ }));
-    await userEvent.click(await screen.findByRole("option", { name: "수동 지정" }, WAIT));
+    await userEvent.click(screen.getByRole("combobox", { name: /중요도/ }));
+    await userEvent.click(await screen.findByRole("option", { name: "긴급" }, WAIT));
     await waitFor(() =>
-      expect(apiMock.mock.calls.some(([p]) => String(p).includes("source=manual"))).toBe(true), WAIT);
+      expect(apiMock.mock.calls.some(([p]) => String(p).includes("level=critical"))).toBe(true), WAIT);
   });
 
 

@@ -8311,8 +8311,8 @@
    "host_surface": null,
    "component": "frontend/src/screens/DataScreen.jsx",
    "render_engine": "DataScreen",
-   "registry_key": "notion-mapping",
-   "registry_key_source": "scripts/ui_qa/routes.py (REGISTRY 파생 - W0 의 Vitest parity 로 검증 필요)",
+   "registry_key": null,
+   "registry_key_source": null,
    "alias_of": null,
    "archetype": "list_table",
    "source": "scripts/ui_qa/routes.py::ALL_ROUTES",
@@ -8445,7 +8445,7 @@
     "all_combos": 12,
     "results_json": "dist/ui-qa/w5-after/results.json"
    },
-   "status": "NOT_AUDITED",
+   "status": "RETIRED",
    "wave": "W12",
    "findings": [
     {
@@ -8551,7 +8551,7 @@
      "narrow_main": "pass"
     }
    },
-   "in_harness": true,
+   "in_harness": false,
    "archetype_current": "list_table",
    "component_loc": 1109,
    "purpose": "직원 계정과 Notion 사용자의 연결 상태를 훑어 미연결·충돌 계정을 검증·수동 연결·해제로 정리한다.",
@@ -8565,23 +8565,10 @@
    "derivation_notes": "paginated라 정렬은 꺼져 있다(DataScreen.jsx:587). 결함 후보: '수동 연결'의 Notion 사용자 ID는 candidates가 있어도 select가 아니라 자유 텍스트라 8~64자 ID를 손으로 붙여 넣어야 한다(org.js:358) — 같은 화면의 '충돌 해결'은 select를 쓴다(org.js:363). 미연결·충돌·오류 행을 골라내는 것이 이 화면의 실제 목적인데 상단 주목 영역이나 상태별 카운트가 없다(summary 미선언).",
    "harness_id": "admin_notion-mapping",
    "requirements_why": "IA 결정표가 «병합하지 않는다 — RBAC 근거»(CONSOLE_READ 를 CONSOLE_WRITE 화면에 합치면 권한이 깨진다)로 명시적으로 예외 처리한 유일한 화면이라 R-51·R-30 이 여기서 판정된다. E12 가 지목한 전 행 빈 '오류' 열이 표 폭 25~35%를 먹으며 Notion 이메일을 자르는 것이 R-74 이고 서버 페이징이라 그 열을 자동 제거하면 안 되는 것이 R-91 이다. C2 표가 «사용자 ID(현재 raw 텍스트 박스)»로 직접 지목했고 '수동 연결'의 Notion ID 도 자유 텍스트라 R-5·R-17·R-36, status×user_ids×source 가 서버/클라 필터로 섞여 있던 이력이 R-85·R-86·R-87·R-88, '자동 동기화'가 수동 지정 연결을 해제할 수 있는 202 큐 작업이고 폴링이 40초에 끊겨 «자동으로 갱신됩니다»를 지키지 못하는 것이 R-43·R-45·R-20 이다. 미연결·충돌·오류를 골라내는 것이 목적인데 상태별 카운트도 주목 영역도 없는 것이 R-62 다.",
-   "advisory": {
-    "surface_repetition": {
-     "label": "w5-after",
-     "pass": 18,
-     "fail": 0,
-     "skip": 0,
-     "measured_note": "후보 그룹 2개 · 최대 동일 톤 면 14개 (임계 6, 본문의 65%) div.c-screen > div.MuiPaper-root.MuiPaper-elevation > div.MuiStack-root.css-1thsucp > div.MuiPaper-root.MuiPaper-outlined",
-     "sample_combo": "390x844/light"
-    },
-    "oversized_empty_surface": {
-     "label": "w5-after",
-     "pass": 18,
-     "fail": 0,
-     "skip": 0,
-     "measured_note": "후보 1건 · 가장 빈 면 356x3807 잉크 60% (내용 폭 비 0.87) main#main-content > div.c-content.MuiBox-root > div.c-screen > div.MuiPaper-root.MuiPaper-elevation",
-     "sample_combo": "390x844/light"
-    }
+   "retired": {
+    "at": "2026-08-25",
+    "by": "S20",
+    "reason": "「Notion 사용자 연결」. 런타임은 S14 가 걷었고 화면만 남아 있었다 — 연결을 새로 만들 수도, 그 연결이 무엇을 바꾸지도 못하는 채였다. 담당자 축은 이제 옛 짝이 없으면 그 사람의 user id 로 선다(D-285). 라우터(`app/notion_mapping/router.py`)와 화면 설정(`registry/org.js`)과 사이드바 항목을 함께 내렸고, 표(`user_notion_mappings`)는 이관 계보이자 옛 토큰의 짝이라 남는다. 감사 기록의 `user_notion_mapping` 대상 유형도 필터 어휘에 남는다 — 필터는 역사도 봐야 한다."
    }
   },
   {
@@ -12722,6 +12709,134 @@
      "sample_combo": "390x844/light"
     }
    }
+  },
+  {
+   "id": "admin_settings__storage",
+   "kind": "tab",
+   "route": "/settings?tab=storage",
+   "console": "admin",
+   "host_surface": "admin_settings",
+   "component": "frontend/src/screens/StorageProviders.jsx",
+   "render_engine": "custom",
+   "registry_key": null,
+   "registry_key_source": null,
+   "alias_of": null,
+   "archetype": "list_table",
+   "source": "frontend/src/screens/settings/SettingsShell.jsx (TAB_DEFS)",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [
+    "R-12",
+    "R-17",
+    "R-21",
+    "R-33",
+    "R-34",
+    "R-35",
+    "R-36",
+    "R-42",
+    "R-43",
+    "R-44",
+    "R-45",
+    "R-66",
+    "R-68",
+    "R-73"
+   ],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W12",
+   "findings": [],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {
+    "items": [],
+    "build_index_sha256": [],
+    "qa_run": {}
+   },
+   "in_harness": true,
+   "archetype_current": "list_table",
+   "component_loc": null,
+   "purpose": "이 설치의 파일이 어디에 쌓이는지, 그 자리가 지금 쓸 수 있는 상태인지 보고 저장소 설정을 고친다.",
+   "source_evidence": [
+    "frontend/src/screens/settings/SettingsShell.jsx (TAB_DEFS · storage)",
+    "frontend/src/screens/StorageProviders.jsx",
+    "app/storage/router.py",
+    "app/authz/permissions.py (STORAGE_CONFIGURE · SYSTEM_ADMIN_ONLY)"
+   ],
+   "derivation_notes": "`SettingsShell.jsx::TAB_DEFS` 의 네 번째 탭. 읽기는 `GET /api/storage/status` 하나이고(providers · operational_ok · warning · file_count 를 한 번에 준다) 쓰기는 POST /providers · PATCH /providers/{id} · POST /providers/{id}/probe 셋이다. 마운트 판정은 서버가 요청마다 실제로 `stat` 한다(app/storage/router.py) — 화면이 캐시하지 않는다.",
+   "harness_id": "admin_settings-storage",
+   "requirements_why": "S8 이 만든 `/api/storage/*` 를 부르는 첫 화면이다(S20). 목록·상태 배지·행 동작·폼이 전부 공용 계약(`ui/kit.jsx` · `ui/columnTypes.js`) 위에 서므로 표 축(R-17·R-36·R-43)과 상태 다섯 축(R-33~R-35)이 여기서 검수된다. 권한 축(R-21)은 `STORAGE_CONFIGURE` 가 `SYSTEM_ADMIN_ONLY` 라 os·ai 탭과 같은 경계를 본다."
   },
   {
    "id": "admin_settings__ai",

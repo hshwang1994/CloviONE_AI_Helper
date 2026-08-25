@@ -565,14 +565,14 @@ def ff_1404_overflow(page, out: Path, base: str) -> dict:
     # 액션만 그리로 내린다. 그래서 아무 관리 화면이나 골라서는 못 만난다. 버튼 위계 전수
     # 조사가 "채운 primary 가 0개인 화면" 으로 지목한 넷을 먼저 들른다 — 그 화면들의 헤더
     # 액션이 전부 넘침 메뉴로 내려가 있다는 뜻이다.
-    for path in ("/jobs", "/notion-mapping", "/backup", "/feature-flags",
+    for path in ("/jobs", "/backup", "/feature-flags",
                  "/announcements", "/users"):
         _goto(page, base, path)
         if page.locator(OVERFLOW).count():
             break
     btn = page.locator(OVERFLOW).first
     if not btn.count():
-        f["notes"].append("들른 여섯 화면 어디에도 헤더 넘침 메뉴가 없다 — "
+        f["notes"].append("들른 다섯 화면 어디에도 헤더 넘침 메뉴가 없다 — "
                           "이 실행에서는 측정 대상이 없었다")
         f["status"] = "NOT_APPLICABLE"
         return f

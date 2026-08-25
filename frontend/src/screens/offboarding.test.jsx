@@ -6,6 +6,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import "@testing-library/jest-dom/vitest";
 
+/* qa-contract-change: S20 이 「Notion 연결」 열과 그 열이 딸고 있던 안내 문장을 화면에서 걷었다(D-316) — 런타임이 없어진 뒤로 그 값을 만들 방법도, 그 값이 바꾸는 것도 없었다. 줄어든 단언 여섯은 정확히 그 열의 성질(미연결 배지 · 안내가 표 위에 1회만 · 행 안에는 없다 · 연결된 후보에는 없다)이고, 그 열이 없으므로 옮겨 담을 자리도 없다. 그 자리가 지키던 **진짜 계약**은 백엔드로 옮겨 갔고 그쪽에서 더 세게 잰다: `tests/integration/test_offboarding.py::test_a_post_cutover_account_can_be_chosen_as_the_successor` 가 옛 짝이 없는 계정도 후임으로 뽑히고 **실제로 티켓을 받는 것**까지 확인하고, `::test_the_checklist_only_asks_what_this_install_actually_enforces` 가 점검표에 그 항목이 없는 것을 못박는다. 이 파일의 나머지 단언은 한 글자도 안 약해졌다. */
+
 /* 오프보딩 화면 (PLAN Phase 6).
  *
  * 여기서 못박는 것은 "화면이 그려진다"가 아니라 **되돌릴 수 있고 거짓말하지 않는다**이다:
@@ -31,7 +33,7 @@ import { ThemeModeProvider } from "../ui/ThemeModeProvider.jsx";
 const LEAVER = {
   id: "u-leaver", email: "leaver@goodmit.co.kr", display_name: "퇴사자", role: "user",
   active: true, archived_at: null, department: "개발팀", department_id: "d-1",
-  title: "팀원", notion_mapping_status: "verified", locked: false,
+  title: "팀원", locked: false,
   must_change_password: false, last_login_at: null, created_at: "2026-07-01T00:00:00",
 };
 
@@ -39,7 +41,6 @@ const PREVIEW = {
   user: { ...LEAVER },
   onboarding: [
     { key: "department", label: "부서 배정", ok: true, value: "개발팀" },
-    { key: "notion", label: "Notion 사용자 연결", ok: true, value: "verified" },
   ],
   tickets: [
     { id: "page-1", tid: 101, title: "혼자 담당 A", status: "진행", due: "2026-09-01", assignee_names: ["퇴사자"] },
@@ -82,7 +83,7 @@ beforeEach(() => {
         run: RUN_ROW,
         moves: [
           { id: "m1", ticket_page_id: "page-1", tid: 101, title: "혼자 담당 A", status: "moved", error: null },
-          { id: "m2", ticket_page_id: "page-2", tid: 102, title: "공동 담당", status: "failed", error: "Notion 오류" },
+          { id: "m2", ticket_page_id: "page-2", tid: 102, title: "공동 담당", status: "failed", error: "티켓 재배정 실패" },
         ],
       });
     }
@@ -168,7 +169,7 @@ describe("오프보딩 화면", () => {
 
     // 12건 중 3건 실패를 '완료'라고 말하면 그 3건은 영영 아무도 안 본다.
     expect(await screen.findByText(/1건은 실패했습니다/)).toBeInTheDocument();
-    expect(await screen.findByText("Notion 오류")).toBeInTheDocument();
+    expect(await screen.findByText("티켓 재배정 실패")).toBeInTheDocument();
   });
 
   it("체크를 풀면 그 티켓은 요청에서 빠진다", async () => {
@@ -228,7 +229,7 @@ describe("오프보딩 화면", () => {
 
   it("미리보기가 배경에서 다시 조회돼도(예: 재연결) 이미 체크를 푼 티켓 선택은 그대로 유지된다", async () => {
     // OffboardPlan의 '전부 선택' 초기화 이펙트가 previewQ.data 객체 참조 하나에만 매여 있으면,
-    // 티켓 집합 자체는 그대로인데 다른 값(예: Notion에서 마감일이 바뀜)만 달라진 새 응답이 와도
+    // 티켓 집합 자체는 그대로인데 다른 값(예: 마감일이 바뀜)만 달라진 새 응답이 와도
     // 매번 재실행돼 사람이 방금 뺀 체크를 조용히 되살린다 — 실행하면 그 티켓까지 함께 옮겨진다.
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     let previewCalls = 0;
@@ -347,31 +348,6 @@ describe("오프보딩 화면", () => {
     expect(screen.queryByText(/명을 보여 줍니다/)).not.toBeInTheDocument();
   });
 
-  // PA-RC-0022 acceptance_criteria 9: Notion 미연결 행이 왜 막히는지 목록 수준에서 알 수
-  // 있어야 한다 — 미리 보기까지 가지 않아도.
-  it("Notion 미연결 후보는 목록에서부터 왜 막히는지 보인다(미리 보기 API의 help 문구를 그대로 재사용)", async () => {
-    apiMock.mockImplementation((path) => {
-      if (path.startsWith("/api/admin/users?")) {
-        return Promise.resolve({
-          items: [{ ...LEAVER, notion_mapping_status: "unmapped" }], total: 1, page_size: 20,
-        });
-      }
-      return Promise.resolve({});
-    });
-    renderScreen();
-    await screen.findByText(LEAVER.display_name);
-    // app/offboarding/service.py::_onboarding_checklist의 notion help와 글자 그대로 같아야 한다.
-    expect(screen.getByText(
-      "연결이 없으면 이 사람이 담당한 티켓을 조회할 수 없어 재배정도 할 수 없습니다.",
-    )).toBeInTheDocument();
-  });
-
-  it("Notion 연결이 확인된 후보는 이 안내가 없다", async () => {
-    renderScreen();  // 기본 mock: notion_mapping_status: "verified".
-    await screen.findByText(LEAVER.display_name);
-    expect(screen.queryByText(/담당한 티켓을 조회할 수 없어/)).not.toBeInTheDocument();
-  });
-
   it("실행 이력이 20건을 넘으면 총 건수를 말하고 다음 페이지로 넘어갈 수 있다", async () => {
     // 25건 중 첫 페이지(20건)만 오면, 나머지 5건은 화면에 '없다'가 아니라 '더 있다'로
     // 보여야 한다 — 감사 이력이 조용히 잘리면 5건은 아무도 다시 못 찾는다.
@@ -422,49 +398,3 @@ describe("오프보딩 화면", () => {
   });
 });
 
-// PA-RC-0036: 미연결 대상마다 같은 설명 문장을 반복해 그려 행 높이가 97px(정상 35px의
-// 2.8배)까지 벌어졌다. jsdom은 실제 픽셀 레이아웃을 계산하지 않으므로(TEST SERVER
-// 브라우저 검증으로 별도 확인) 여기서는 그 원인(문장이 행마다 반복되는가)을 직접 고정한다.
-describe("오프보딩 대상 표 — 미연결 안내는 한 번만 (PA-RC-0036)", () => {
-  const UNMAPPED_A = { ...LEAVER, id: "u-unmapped-a", email: "a@goodmit.co.kr", display_name: "미연결A", notion_mapping_status: "unmapped" };
-  const UNMAPPED_B = { ...LEAVER, id: "u-unmapped-b", email: "b@goodmit.co.kr", display_name: "미연결B", notion_mapping_status: "unmapped" };
-  const MAPPED = { ...LEAVER, id: "u-mapped", email: "mapped@goodmit.co.kr", display_name: "연결됨", notion_mapping_status: "verified" };
-
-  it("미연결 행이 여러 개여도 안내 문장은 표 위에 1회만 뜬다", async () => {
-    apiMock.mockImplementation((path) => {
-      if (path.startsWith("/api/admin/users?")) {
-        return Promise.resolve({ items: [UNMAPPED_A, UNMAPPED_B, MAPPED], total: 3, page_size: 20 });
-      }
-      return Promise.resolve({});
-    });
-    renderScreen();
-    await screen.findByText("미연결A");
-    expect(screen.getAllByText(/연결이 없으면 이 사람이 담당한 티켓을 조회할 수 없어/)).toHaveLength(1);
-  });
-
-  it("미연결 행 자체에는 배지만 있다 — /users와 같은 표현(설명 문장은 행 안에 없다)", async () => {
-    apiMock.mockImplementation((path) => {
-      if (path.startsWith("/api/admin/users?")) {
-        return Promise.resolve({ items: [UNMAPPED_A], total: 1, page_size: 20 });
-      }
-      return Promise.resolve({});
-    });
-    renderScreen();
-    const row = await screen.findByRole("row", { name: /상세 보기: 미연결A/ });
-    expect(within(row).queryByText(/연결이 없으면/)).not.toBeInTheDocument();
-    // Badge가 raw "unmapped"를 한국어("미연결")로 옮긴다(statusText, kit.jsx) — 배지 자체는 남아 있어야 한다.
-    expect(within(row).getByText("미연결")).toBeInTheDocument();
-  });
-
-  it("미연결 대상이 없으면 안내 문장 자체가 없다", async () => {
-    apiMock.mockImplementation((path) => {
-      if (path.startsWith("/api/admin/users?")) {
-        return Promise.resolve({ items: [MAPPED], total: 1, page_size: 20 });
-      }
-      return Promise.resolve({});
-    });
-    renderScreen();
-    await screen.findByText("연결됨");
-    expect(screen.queryByText(/연결이 없으면/)).not.toBeInTheDocument();
-  });
-});

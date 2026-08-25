@@ -26,7 +26,7 @@ Sources (re-derive from these if the app's routing changes):
         integrations.js  integrations
         authoring.js     prompts policies prompt-usage policy-usage
         automation.js    schedules jobs
-        org.js           organizations departments job-titles org-tree notion-mapping
+        org.js           organizations departments job-titles org-tree
         governance.js    approvals approval-delegations audit audit-anomalies rbac impersonation
         platform.js      backup restore-drills announcements ai-quotas feature-flags
         notifications.js notifications
@@ -297,7 +297,6 @@ ADMIN_ROUTES: tuple[Route, ...] = (
     # 권한 매트릭스(Phase 6) — 규칙 표라 읽기 전용 역할도 본다(백엔드 CONSOLE_READ_ROLES).
     _a("admin_rbac", "/rbac", "권한 매트릭스", "operator",
        ("operator", "admin", "system_admin", "auditor")),
-    _a("admin_notion-mapping", "/notion-mapping", "Notion 사용자 연결"),
     # REGISTRY 키 하나(`screens/registry/notifications.js::admin-notifications`).
     # 하네스에도 커버리지에도 없어서 한 번도 캡처된 적이 없다 — Python 정규식이 계산된
     # 경로(`path={"/" + key}`)를 못 읽어 조용히 놓친 바로 그 한 개다
@@ -319,7 +318,7 @@ ADMIN_ROUTES: tuple[Route, ...] = (
     # ── 관리자 백로그 잔여(PLAN Phase 6, 마이그레이션 0033) ────────────────────
     # 여덟 개는 REGISTRY 키라 "/" + key 로 라우팅되고, 실행 달력만 AdminRoutes.jsx 의
     # 전용 라우트다(표로 표현할 수 없는 유일한 화면 — SchedulerCalendar.jsx).
-    _a("admin_impersonation", "/impersonation", "임퍼소네이션(대리 보기)", "auditor",
+    _a("admin_impersonation", "/impersonation", "대리 보기", "auditor",
        ("admin", "system_admin", "auditor")),
     _a("admin_approval-delegations", "/approval-delegations", "승인 위임", "operator",
        ("operator", "admin", "system_admin", "auditor")),
@@ -359,6 +358,10 @@ ADMIN_ROUTES: tuple[Route, ...] = (
     _a("admin_settings-os", "/settings?tab=os", "설정 — OS와 서비스 동작",
        "system_admin", ("system_admin",)),
     _a("admin_settings-ai", "/settings?tab=ai", "설정 — AI",
+       "system_admin", ("system_admin",)),
+    # 파일 저장소(S20). S8 이 만든 `/api/storage/*` 를 부르는 첫 화면이다 — 그 전에는
+    # 이 설치의 파일이 어디에 쌓이는지 화면 어디에도 없었다.
+    _a("admin_settings-storage", "/settings?tab=storage", "설정 — 파일 저장소",
        "system_admin", ("system_admin",)),
     # ── 탭 그릇의 두 번째 탭 (2026-08-19, W0) ─────────────────────────────────
     # `AdminRoutes.jsx::TAB_GROUPS` 의 `/ai-usage` 그릇은 옛 주소 두 개(/policy-usage,
@@ -436,6 +439,7 @@ SURFACE_ID_OVERRIDES: dict[str, str] = {
     "admin_schedules-calendar-tab": "admin_schedules__scheduler-calendar",
     "admin_settings-ai": "admin_settings__ai",
     "admin_settings-os": "admin_settings__os",
+    "admin_settings-storage": "admin_settings__storage",
     "admin_users-detail": "admin_users-id",
     "user_board-post": "user_board-id",
     "user_chat-room-detail": "user_chat-rooms-id",

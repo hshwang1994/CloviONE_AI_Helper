@@ -163,6 +163,13 @@ def _tickets_with_unmapped_assignees(db: Session) -> Finding:
 
     **미할당이 아니다.** 0060 이전에는 이 둘을 한 목록에 섞었고(둘 다 "담당자를 모른다"),
     그 결과 배정 대기와 데이터 정합성 문제가 같은 화면에 쌓여 어느 쪽도 처리되지 않았다.
+
+    🔴 **아는 담당자의 집합이 반쪽이었다.** 여기서는 verified 매핑의 옛 id 만 «아는 값»
+    으로 세고 있었는데, 담당자를 가리키는 값은 그 짝이 없으면 **자기 user id** 다
+    (`app/tickets/service.py::assignee_token`, D-285). 컷오버 이후에 만든 계정이 담당한
+    티켓은 전부 그 축으로 서 있어서, 정상적으로 배정된 티켓이 이 목록에 «연결 실패» 로
+    올라왔다 — 그리고 안내는 이제 없는 화면으로 가라고 말했다. 두 축을 모두 아는 값으로
+    센다: 옮겨 온 행은 옛 토큰이 그대로 살아 있고, 새 행은 user id 로 선다.
     """
     from app.notion_mapping.models import STATUS_VERIFIED, UserNotionMapping
 
@@ -174,6 +181,7 @@ def _tickets_with_unmapped_assignees(db: Session) -> Finding:
             )
         ).scalars()
     )
+    known.update(db.execute(select(User.id)).scalars())
     rows = [
         t
         for t in db.execute(
@@ -188,10 +196,10 @@ def _tickets_with_unmapped_assignees(db: Session) -> Finding:
         key="tickets_with_unmapped_assignees",
         title="담당자를 포털 계정으로 연결하지 못한 티켓",
         why=(
-            "원본에 담당자가 있지만 그 사람이 포털 계정과 연결되어 있지 않습니다. 티켓 자체는 "
+            "이관해 온 담당자 값이 이 포털의 계정 어느 것과도 맞지 않습니다. 티켓 자체는 "
             "프로젝트 범위에서 정상적으로 보이지만, '내 티켓'과 담당자별 집계에는 잡히지 않습니다."
         ),
-        remedy="사용자와 권한 > Notion 사용자 연결에서 그 사람의 계정을 연결하세요.",
+        remedy="티켓 상세에서 담당자를 지금 있는 계정으로 다시 지정하세요.",
         count=len(rows),
         items=_sample(
             {"id": api_page_id(t), "number": t.notion_ticket_number, "title": t.title}

@@ -224,7 +224,6 @@ def profile(
             UserSession.expires_at > now,
         )
     ).scalar_one()
-    from app.notion_mapping.service import mapping_status
 
     pref = service.get_preference(db, user.id)
     return {
@@ -235,7 +234,6 @@ def profile(
         "title": user.title,
         "last_login_at": user.last_login_at.isoformat() if user.last_login_at else None,
         "active_session_count": active_sessions,
-        "notion_mapping_status": mapping_status(db, user.id),
         "avatar_url": _avatar_url(pref, user.id),
     }
 

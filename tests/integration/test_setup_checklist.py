@@ -43,7 +43,6 @@ EXPECTED_ORDER = [
     "admin_account",
     "mail",
     "organization",
-    "user_mapping",
     "llm",
     "integrations",
     "tls",
@@ -102,7 +101,7 @@ def test_a_blocked_item_says_what_blocks_it(client, sysadmin):
     # 갓 설치한 상태: 부서가 하나도 없어서 조직이 '안 됨' 이다.
     assert items["organization"]["state"] == STATE_TODO
     # 그 뒤 항목들은 스스로 '무엇 때문에 막혔는지' 를 말해야 한다.
-    assert items["user_mapping"]["blocked_by"] == "organization"
+    assert items["llm"]["blocked_by"] == "organization"
     # 그리고 지금 안내할 항목은 막히지 않은 첫 항목이다.
     assert _items(client)["next_key"] == "organization"
 
@@ -121,8 +120,8 @@ def test_the_next_step_moves_forward_only_when_the_one_before_it_is_done(
     db.commit()
 
     payload = _items(client)
-    assert payload["next_key"] == "user_mapping"
-    assert _by_key(payload)["user_mapping"]["blocked_by"] is None
+    assert payload["next_key"] == "llm"
+    assert _by_key(payload)["llm"]["blocked_by"] is None
 
 
 # ── ① 됨 / 안 됨 / 확인 불가 ─────────────────────────────────────────────────
@@ -337,38 +336,6 @@ def test_the_regular_user_notice_has_no_link(client, login_as):
 # 그때 처음 틀린다.
 
 
-def test_a_departed_users_stale_mapping_does_not_count_as_connected(
-    client, db, sysadmin, make_user
-):
-    """오프보딩은 UserNotionMapping 행을 지우거나 재설정하지 않는다
-    (app/offboarding/service.py 는 그 행을 읽기만 한다). 유일하게 verified 였던 사람이
-    archived 되면, 실제로 연결된 활성 사용자는 0명인데 그 행만 영원히 남아 '활성 사용자
-    N명 중 1명 연결' 이라고 거짓말하면 안 된다.
-    """
-    from datetime import datetime
-
-    from app.notion_mapping.models import STATUS_VERIFIED, UserNotionMapping
-
-    left = make_user(email="left-already@goodmit.co.kr", display_name="퇴사자")
-    db.add(
-        UserNotionMapping(
-            user_id=left.id, notion_user_id="left-notion-id", status=STATUS_VERIFIED
-        )
-    )
-    db.commit()
-    # 아직 활성이니 지금은 '됨' 이어야 한다 - 이 검사가 아래 회귀를 실제로 잡는지 보증한다.
-    assert _by_key(_items(client))["user_mapping"]["state"] == STATE_DONE
-
-    left.active = False
-    left.archived_at = datetime(2026, 1, 1)
-    db.commit()
-
-    mapping = _by_key(_items(client))["user_mapping"]
-    assert mapping["state"] != STATE_DONE, (
-        "연결된 유일한 사람이 퇴사했는데 여전히 '됨' 이라고 말한다"
-    )
-
-
 def test_an_unchecked_integration_is_a_question_not_a_failure(client, db, sysadmin):
     from app.integrations.models import Integration
 
@@ -382,23 +349,6 @@ def test_an_unchecked_integration_is_a_question_not_a_failure(client, db, sysadm
     integrations = _by_key(_items(client))["integrations"]
     assert integrations["state"] == STATE_UNKNOWN
     assert integrations["question"]
-
-
-def test_only_conflicts_and_nobody_connected_is_a_persons_problem(client, db, sysadmin):
-    from app.notion_mapping.models import STATUS_CONFLICT, UserNotionMapping
-    from app.users.models import User
-    from sqlalchemy import select
-
-    me = db.execute(select(User)).scalars().first()
-    db.add(
-        UserNotionMapping(
-            user_id=me.id, status=STATUS_CONFLICT, candidates_json='["a", "b"]'
-        )
-    )
-    db.commit()
-    mapping = _by_key(_items(client))["user_mapping"]
-    assert mapping["state"] == STATE_TODO
-    assert "충돌" in mapping["action"] or "정리" in mapping["action"]
 
 
 def test_an_admin_who_never_changed_the_temp_password_is_not_done(app, db, make_user):

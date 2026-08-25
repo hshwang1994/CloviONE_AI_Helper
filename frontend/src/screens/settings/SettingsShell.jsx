@@ -8,6 +8,7 @@ import { useQueryState } from "../../lib/useQueryState.js";
 import { Settings } from "./SettingsMain.jsx";
 import { SystemOps } from "../SystemOps.jsx";
 import { LlmConsole } from "../LlmConsole.jsx";
+import { StorageProviders } from "../StorageProviders.jsx";
 import { Maintenance } from "../ops/Maintenance.jsx";
 
 /* 설정 — 6화면 IA 정리(PA-RC-0017)의 탭 그릇.
@@ -58,6 +59,13 @@ const TAB_SPEC = { tab: "policy" };
 export const TAB_DEFS = [
   { key: "policy", label: "시스템 정책", roles: null },
   { key: "os", label: "OS와 서비스 동작", roles: ["system_admin"] },
+  /* 파일 저장소 (S20). S8 이 만든 `/api/storage/*` 는 **부르는 화면이 없었다** — 관리자는
+     업로드가 어디로 가는지, 그 자리가 지금 붙어 있는지, 운영과 백업이 같은 장치에 있는지를
+     서버에 들어가야만 알 수 있었다. 여기 두는 이유는 목표 IA(`MASTER_PLAN.md` §14.1)가
+     「일반 설정 · File Storage · AI 설정」을 한 묶음으로 적었기 때문이고, 권한도 그 이웃들과
+     같다: `STORAGE_CONFIGURE` 는 `SYSTEM_ADMIN_ONLY`(app/authz/permissions.py)라 os·ai 탭과
+     정확히 같은 집합이다 — 탭마다 role 이 균일해야 한다는 이 그릇의 제약을 그대로 만족한다. */
+  { key: "storage", label: "파일 저장소", roles: ["system_admin"] },
   { key: "ai", label: "AI", roles: ["system_admin"] },
 ];
 /** 탭 키만 뽑은 목록 — 커버리지 대조용(`registry-surface-parity.test.js`). */
@@ -103,7 +111,9 @@ export function SettingsShell() {
 
   return (
     <Box className="c-screen">
-      <PageHeader area="운영" title="설정" tab={activeTabDef.label} />
+      {/* 사이드바가 이 화면을 「설정」 묶음에 두는데(navConfig.js) 빵부스러기만 「운영」
+          이라고 말하고 있었다 — 같은 화면이 두 자리에 있다고 읽힌다(S20). */}
+      <PageHeader area="설정" title="설정" tab={activeTabDef.label} />
       {/* 전환할 곳이 없는 탭 스트립은 장식이다 — role 이 system_admin 이 아니면 항상 1개뿐이다. */}
       {visibleTabs.length > 1 ? (
         <Box sx={{ borderBottom: 1, borderColor: "divider", mb: 2.5 }}>
@@ -139,6 +149,7 @@ export function SettingsShell() {
             </>
           ) : null}
           {tab === "os" && role === "system_admin" ? <SystemOps embedded /> : null}
+          {tab === "storage" && role === "system_admin" ? <StorageProviders embedded /> : null}
           {tab === "ai" && role === "system_admin" ? <LlmConsole embedded /> : null}
         </Box>
       )}

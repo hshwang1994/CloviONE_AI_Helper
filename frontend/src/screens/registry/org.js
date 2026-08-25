@@ -1,7 +1,12 @@
-/* 조직 — 회사·부서·직책과 Notion 사용자 연결.
+/* 조직 — 회사·부서·직책.
  *
- * 부서와 직책은 조직의 뼈대고, Notion 연결은 그 사람들을 바깥 시스템의 사람과 잇는다.
- * 조직도(org-tree)는 앞의 것들을 한 장으로 보는 화면이라 같은 자리에 둔다.
+ * 부서와 직책은 조직의 뼈대고, 조직도(org-tree)는 그것을 한 장으로 보는 화면이라 같은
+ * 자리에 둔다.
+ *
+ * 여기 「Notion 사용자 연결」 화면이 하나 더 있었다. 그 화면이 잇던 바깥 시스템의 사람은
+ * 이 제품에 더 이상 없다(S14 가 런타임을 걷었다) — 연결을 새로 만들 수도, 그 연결이 무엇을
+ * 바꾸지도 못하는 채로 사이드바에 서 있었다. S20 이 화면을 내렸다. 표(`user_notion_mappings`)
+ * 는 이관 계보이자 옛 담당자 토큰의 짝이라 그대로 남는다(D-285).
  *
  * registry.js 를 쪼갠 조각이다 (E-10). 쪼갠 축은 '줄 수'가 아니라 **관리자가 한 번에
  * 함께 보는 묶음**이다 — 줄 수를 맞추려고 아무 데나 자르면 화면 하나를 고치는 데
@@ -10,7 +15,7 @@
  * 화면 설정만 있고 그리는 코드는 없다. 그리는 것은 DataScreen.jsx 하나다.
  */
 import React from "react";
-import { MAP_SOURCE, OBJTYPE_OPTS, WRITE_ROLES, activeCol, badgeCol, col, dateCol, field, mapCol, opt, truncateCol } from "./shared.js";
+import { WRITE_ROLES, activeCol, col, dateCol, field, opt } from "./shared.js";
 import { ACTIVE_FILTER, PARENT_DEPT_FIELD, activeToggle } from "./actions.js";
 
 export const ORG_SCREENS = {
@@ -255,81 +260,6 @@ export const ORG_SCREENS = {
         navigate: () => "#/organizations" },
       { label: "부서 관리에서 열기", roles: WRITE_ROLES, when: (r) => r.kind !== "organization",
         navigate: () => "#/departments" },
-    ],
-  },
-  "notion-mapping": {
-    key: "notion-mapping", area: "사용자와 권한", title: "Notion 사용자 연결", endpoint: "/api/admin/notion-mapping",
-    help: "직원 계정과 Notion 사용자를 연결합니다. 지금은 사람이 직접 지정합니다.",
-    // 사용자 화면(Users.jsx)의 'Notion 연결 확인' 링크가 ?user_id=를 붙여 이 화면으로 온다 —
-    // 다른 id 딥링크 화면과 동일하게 GET /{user_id}({"mapping":...} 응답,
-    // app/notion_mapping/router.py get_mapping)로 그 사용자의 상세 드로어를 곧바로 연다(예전엔 필터만
-    // 채워 목록에서 다시 찾아야 했다).
-    onQuery: (p) => p.user_id ? { open: "select", id: p.user_id } : null,
-    selectKey: "mapping",
-    emptyTitle: "표시할 사용자가 없습니다",
-    // 읽기 전용 역할(operator/auditor)에는 자기 권한 밖 버튼을 누르라고 안내하지 않는다.
-    emptyHelp: (role) => (role === "admin" || role === "system_admin")
-      ? "사용자 디렉터리의 계정이 여기에 나타납니다. 행에서 ‘수동 연결’로 Notion 사용자를 지정하세요."
-      : "사용자 디렉터리의 계정이 여기에 나타납니다. Notion 연결은 관리자가 수행합니다.",
-    paginated: true, searchable: true,
-    // 서버 검색(q)은 직원 이메일/이름만 매칭한다(app/notion_mapping/router.py) — notion_email은 검색
-    // 대상이 아닌데 눈에 보이는 열이라 'Notion 이메일로 찾기'를 시도하면 결과가 없어도 이유를 알 수
-    // 없었다. placeholder로 검색 범위를 명시해 조용한 0건을 줄인다.
-    searchPlaceholder: "검색(직원 이메일, 이름, Notion 이메일은 검색되지 않음)",
-    filters: [{ key: "status", type: "select", label: "상태", options: opt([["unmapped", "미연결"], ["verified", "확인됨"], ["conflict", "충돌"]]) },
-      // 사용자 상세의 딥링크(onQuery, 위 참고)가 채우는 필드 — 직접 입력도 가능하게 남겨 둔다.
-      { key: "user_ids", type: "text", label: "사용자 ID",
-        freeTextReason: "여러 값을 콤마로 받는 딥링크 입력이다. 단일 선택기로 바꾸면 사용자 상세가 거는 딥링크가 깨진다." },
-      // 출처는 **서버 필터**다. 백엔드가 source 쿼리 파라미터를 받아 SQL에서 거른다
-      // (app/notion_mapping/router.py list_mappings — "출처 필터는 서버측에서 한다"). 이 화면은
-      // paginated라, 예전처럼 clientFilter로 두면 지금 페이지 안의 일치 항목만 남고 다른 페이지의
-      // 수동 매핑은 화면에서 사라진다 — 그리고 사용자는 그걸 '그런 연결이 없다'로 읽는다.
-      // 백엔드는 이미 고쳐졌는데 이 줄만 옛 사실("지원하지 않는다")을 붙들고 있었다.
-      { key: "source", type: "select", label: "출처", options: opt([["workflow", "워크플로 자동(옛 방식)"], ["manual", "수동 지정"]]) }],
-    columns: [{ ...col("user_email", "사용자"), identifier: true }, col("user_display_name", "이름"), badgeCol("status", "상태"),
-      // 실패로 'unmapped'로 되돌아온 행을 '한 번도 시도 안 함'과 구분한다 — 대량 트리아지 때 각 행을
-      // 열지 않아도 사유를 바로 읽을 수 있게 실제 메시지를 보여준다(길면 말줄임, title 속성으로 전체 확인).
-      truncateCol("error_message", "오류", 40),
-      col("notion_email", "Notion 이메일"), mapCol("source", "출처", MAP_SOURCE), dateCol("last_verified_at", "마지막 검증")],
-    // 충돌 해결 시 어떤 Notion 사용자 후보가 있는지 상세에서 보여준다(blind guess 방지).
-    // error_message·last_verified_at은 이미 위 columns에 있다 — 드로어는 columns+detailFields를 합쳐
-    // 그리므로 여기 다시 넣으면 같은 라벨이 두 번(다른 렌더로) 나온다. 여기서는 중복 제거.
-    // 드로어는 columns+detailFields를 key 기준으로 합치므로(중복 시 columns가 우선) error_message를
-    // 그대로 다시 넣으면 목록의 40자 truncateCol이 그대로 이어져 상세에서도 잘린다 — 진단에 필요한
-    // 전체 오류 메시지를 보여줄 별도 key(다른 화면의 path_full/last_error_full과 동일 패턴)를 쓴다.
-    // candidates는 '충돌 해결' 액션의 select(위 optionsFrom)가 이미 사람이 읽는 형태(이메일 — id)로
-    // 보여준다 — 상세에서 같은 데이터를 원시 JSON으로 한 번 더 보여주면 같은 정보가 두 번(하나는
-    // 정리된 선택지, 하나는 원시 덩어리) 나온다. 동일한 '이메일, id' 목록으로 통일한다.
-    detailFields: [field("notion_user_id_masked", "Notion ID(마스킹)"),
-      { key: "candidates", label: "연결 후보", render: (r) => {
-        const cs = r.candidates;
-        if (!cs || !cs.length) return "-";
-        return React.createElement("ul", null, cs.map((c, i) => React.createElement("li", { key: i },
-          (c.notion_email ? c.notion_email + ", " : "") + c.notion_user_id)));
-      } }],
-    // '오류(전체)' 상세 필드는 여기서 별도로 두지 않는다 — 위 columns의 truncateCol("error_message", ...)가
-    // 이미 title 속성으로 전체 텍스트를 마우스 오버 시 보여주며, 드로어도 열+detailFields 합집합을
-    // 그리므로 그 열이 그대로 드로어 안에도 나타난다. 예전엔 같은 내용을 자른 버전/전체 버전으로
-    // 두 번(혼란스러운 near-duplicate로) 보여줬다.
-    // 수동 연결·충돌 해결·연결 해제는 모두 상태 변경(쓰기) — 백엔드 RBAC와 일치시켜 쓰기 역할만 노출.
-    // 자동 매칭(‘자동 동기화’·‘검증’)은 n8n 워크플로가 하던 일이라 S11 이 함께 걷어냈다.
-    actions: [
-      // 이 화면의 핵심 동작이다. S11 이 자동 매칭(‘자동 동기화’·‘검증’)을 걷어내면서
-      // 사람이 직접 지정하는 것이 유일한 길이 됐다 — 화면의 primary 도 그리로 옮긴다.
-      { label: "수동 연결", variant: "primary", roles: WRITE_ROLES, path: (r) => "/api/admin/notion-mapping/" + r.user_id + "/map", fields: [
-        { name: "notion_user_id", label: "Notion 사용자 ID", type: "text", required: true, help: "Notion 워크스페이스의 사용자 ID(8~64자, 영문, 숫자, 하이픈).",
-          freeTextReason: "외부 워크스페이스의 식별자다. 이 제품에 후보 목록이 없다." },
-        { name: "notion_email", label: "Notion 이메일(선택)", type: "text" },
-      ] },
-      // 옛 충돌 행도 해제할 수 있다 — 백엔드 unmap 은 어떤 상태에서도 동작한다.
-      // 충돌을 만들던 자동 매칭이 S11 로 사라져 새 충돌은 안 생기지만, 남아 있는
-      // 행은 여기서 풀고 ‘수동 연결’로 다시 지정한다.
-      { label: "연결 해제", variant: "danger", roles: WRITE_ROLES, when: (r) => r.status === "verified" || r.status === "conflict" || r.source === "manual", path: (r) => "/api/admin/notion-mapping/" + r.user_id + "/unmap", confirm: "이 사용자의 Notion 연결을 해제할까요?" },
-      // user_notion_mapping은 감사 로그의 유효한 object_type이고(OBJTYPE_OPTS, object_id=user_id) 이
-      // 화면의 수동 연결/해제가 모두 이 타입으로 기록된다 — 부서·직책과 동일한 딥링크.
-      // operator는 이 화면(READ_ROLES)엔 들어오지만 /audit 화면엔 못 들어간다(App.jsx SCREEN_ROLES)
-      // — 다른 화면들의 동일한 '감사 로그에서 보기'와 동일한 이유로 admin/system_admin/auditor에만 노출한다.
-      { label: "감사 로그에서 보기", roles: ["admin", "system_admin", "auditor"], navigate: (r) => "#/audit?object_type=user_notion_mapping&object_id=" + r.user_id },
     ],
   },
 };

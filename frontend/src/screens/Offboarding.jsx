@@ -28,7 +28,7 @@ import { DateCell } from "../ui/cells.jsx";
  * 실제 운영 공백"*. ticket_cache+RBAC 두 조각이 다 들어와 여기서 잇는다.
  *
  * WF1 R4 — 예전엔 제목·내비가 "온보딩, 오프보딩"이었지만 이 화면은 퇴사자 재배정 마법사뿐이다
- * (읽기 전용 계정 준비도 체크리스트—부서/직책/Notion 연결/첫 로그인—는 아래 미리보기에
+ * (읽기 전용 계정 준비도 체크리스트—부서/직책/첫 로그인—는 아래 미리보기에
  * 남지만, app/offboarding/service.py::_onboarding_checklist가 명시하듯 "이 계정이 일할
  * 준비가 됐는가"를 뒤집어 오프보딩 점검에도 쓰는 것뿐, 신규 입사자를 만드는 능동적 온보딩
  * 워크플로가 아니다). 실제 신규 계정 생성은 "사용자" 화면의 "사용자 추가"다. 없는 기능을
@@ -46,13 +46,6 @@ const STEP_HELP = [
   "2. 미리 보기: 그 사람이 지금 담당 중인 티켓과 계정 상태를 확인합니다.",
   "3. 실행: 옮길 티켓과 후임을 정하고 실행합니다. 결과는 되돌릴 수 있습니다.",
 ];
-
-// PA-RC-0022 acceptance_criteria 9: 후보 목록의 "미연결" 배지가 왜 문제인지는 지금까지
-// 골라야만(미리 보기까지 가야만) 알 수 있었다 — app/offboarding/service.py::_onboarding_checklist
-// 의 notion 항목 help 문구를 **그대로** 옮긴다(새로 쓰지 않는다, Handoff가 명시). 목록은
-// preview를 후보마다 부르지 않으므로(N+1) 문자열 그대로를 프런트에도 둔다 — 값 자체는
-// 두 곳 다 같은 문장이라 나중에 한쪽만 고쳐지면 이 주석이 드리프트를 잡을 단서가 된다.
-const NOTION_UNMAPPED_HELP = "연결이 없으면 이 사람이 담당한 티켓을 조회할 수 없어 재배정도 할 수 없습니다.";
 
 /* `running` 은 **끝까지 가지 못한 실행**이다(C3). 실행은 요청 하나 안에서 끝나므로 목록에
    이 값이 보인다면 계정 처리 중에 무언가 터진 것이다 — 티켓은 이미 옮겨졌을 수 있으니
@@ -140,11 +133,6 @@ export function Offboarding() {
 function TargetPicker({ q, setQ, query, onPick }) {
   const items = (query.data && query.data.items) || [];
   const total = query.data && query.data.total;
-  // PA-RC-0036: 미연결 행마다 NOTION_UNMAPPED_HELP 전체 문장을 반복해 그려 행 높이가
-  // 97px(정상 35px의 2.8배)까지 벌어졌다 — 사람마다 다른 정보가 아니라 '미연결'이라는
-  // 상태의 정의라 한 번이면 충분하다. 아래 Card에 표 위 한 줄로 옮기고, 이 열은 이제
-  // /users의 같은 값과 완전히 같은 표현(배지 하나)이다(PA-RC-0037: 그렇게 회수한 폭을
-  // 잘리던 이메일 열로 보낸다).
   const columns = [
     { key: "display_name", label: "이름" },
     // PA-RC-0029/0036: 사람을 고르는 화면인데 이메일이 식별자 대접을 못 받고 있었다.
@@ -157,9 +145,7 @@ function TargetPicker({ q, setQ, query, onPick }) {
         {r.archived_at ? <Badge value="보관됨" kind="neutral" /> : null}
       </Box>
     ) },
-    { key: "notion_mapping_status", label: "Notion 연결", render: (r) => <Badge value={r.notion_mapping_status} /> },
   ];
-  const hasUnmapped = items.some((r) => r.notion_mapping_status === "unmapped");
   return (
     <>
       <Card sx={{ p: 2, mb: 2.5 }}>
@@ -190,11 +176,6 @@ function TargetPicker({ q, setQ, query, onPick }) {
         />
       ) : (
         <Card>
-          {hasUnmapped ? (
-            <Box sx={{ p: 2, pb: 0 }}>
-              <Typography variant="caption" color="text.secondary">{NOTION_UNMAPPED_HELP}</Typography>
-            </Box>
-          ) : null}
           <DataTable columns={columns} rows={items} rowKey={(r) => r.id} onRow={(r) => onPick(r.id)} />
           {/* UB-40: 이 화면은 "그 사람을 찾아 실행"이 목적인데, 목록이 사용자 21명(현재는
               더 늘었을 수 있다)부터 page_size=20으로 조용히 잘렸다 — 총건수도 잘림 경고도
@@ -230,7 +211,7 @@ function OffboardPlan({ preview, onDone, toast }) {
   // 체크를 푸는 편이 하나씩 켜는 것보다 실수가 적다. 서버는 여전히 보낸 목록만 처리한다.
   const ids = tickets.map((t) => t.id);
   // 이 이펙트는 previewQ.data '객체' 자체가 아니라 그 안의 '티켓 id 집합'에만 반응해야 한다.
-  // 예전엔 [preview]에 매여 있어, 티켓 집합은 그대로인데 다른 값(예: Notion에서 마감일만
+  // 예전엔 [preview]에 매여 있어, 티켓 집합은 그대로인데 다른 값(예: 마감일만
   // 바뀜)이 달라진 새 응답이 배경 재조회(재연결 등, staleTime 경과 후)로 와도 매번 재실행돼
   // 사람이 방금 뺀 체크를 조용히 되살렸다 — 그 상태로 실행하면 일부러 제외한 티켓까지
   // 함께 옮겨진다. 실제로 티켓 구성이 달라졌을 때만(다른 사람으로 전환은 이 컴포넌트 자체가

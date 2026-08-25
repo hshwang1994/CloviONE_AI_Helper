@@ -32,8 +32,9 @@ export const SCHED_RUN = { queued: "대기", running: "실행 중", succeeded: "
 // 감사 로그 대상 필터 옵션 — 값은 백엔드가 실제로 저장하는 object_type 문자열과 정확히 일치해야 한다
 // (백엔드가 == 정확 일치로 필터하므로 어긋나면 항상 0건). prompt/policy/setting/document는 복수형·접미
 // 형태로 저장되고('prompts'/'policies'/'app_setting'/'document_generation'), 'role'은 저장되지 않는다.
-// runner/workflow/template/document_generation 은 S11 이 그 화면들을 걷어냈지만 **옛 감사 기록은
-// 남아 있다** — 목록에서 빼면 그 기록을 걸러 볼 방법이 사라진다. 필터는 역사도 봐야 한다.
+// runner/workflow/template/document_generation 은 S11 이, user_notion_mapping 은 S20 이 그
+// 화면들을 걷어냈지만 **옛 감사 기록은 남아 있다** — 목록에서 빼면 그 기록을 걸러 볼 방법이
+// 사라진다. 필터는 역사도 봐야 한다.
 export const OBJTYPE_OPTS = [["user", "사용자"], ["integration", "외부 연동"], ["runner", "러너"], ["workflow", "워크플로"],
   ["prompts", "프롬프트"], ["policies", "정책"], ["template", "템플릿"], ["schedule", "스케줄"], ["schedule_run", "예약 실행"],
   ["approval", "승인"], ["backup", "백업"], ["app_setting", "설정"], ["document_generation", "문서"],
@@ -84,10 +85,10 @@ export const objField = (key, label) => ({ key, label, render: (r) => objKo(r[ke
 
 /* 목록 화면 설정 — 열/엔드포인트만 다르고 렌더는 DataScreen이 공통 처리한다.
  * 상태 열은 badgeCol(배지), enum 열은 mapCol/actionKo(한국어)로. 값은 서버 계약 그대로. */
-export const PROVIDER = { http_service: "HTTP 서비스", notion: "Notion" };
+// 옛 행이 raw 문자열로 보이지 않게 이름표는 남긴다 — `notion` 유형을 **새로 만드는 경로는
+// 없다**(S20). 이 제품에는 그 시스템이 없고, 유형이 하나뿐인 선택기는 고를 것이 없는 선택기다.
+export const PROVIDER = { http_service: "HTTP 서비스", notion: "Notion(옛 방식)" };
 export const SCHED_TYPE = { cron: "Cron 반복", once: "1회 실행" };
-// `workflow` 를 새로 만드는 경로는 없다(S11). 옛 행이 raw 문자열로 보이지 않게 라벨은 남긴다.
-export const MAP_SOURCE = { workflow: "워크플로 자동(옛 방식)", manual: "수동 지정" };
 // 실제 enqueue되는 job_type 문자열과 정확히 일치해야 한다. 큐에 안 들어가는 것은 안 적는다
 // (backup 은 큐에 없어서, document_generate·notion_mapping_sync 는 S11 이 걷어내서 — 오해 방지).
 export const JOB_TYPE = { chat_message: "채팅 메시지", schedule_run: "예약 실행", mail_send: "메일 발송" };
@@ -103,7 +104,6 @@ export const col = (key, label) => ({ key, label });
 export const opt = (pairs) => pairs.map((p) => ({ value: p[0], label: p[1] }));
 // 백엔드 허용값과 정확히 일치해야 한다(none/bearer/api_key_header) — 옛 header/basic은 422였다.
 export const AUTH_OPTS = opt([["none", "없음"], ["bearer", "Bearer 토큰"], ["api_key_header", "API 키(헤더)"]]);
-export const PROVIDER_OPTS = opt([["http_service", "HTTP 서비스"], ["notion", "Notion"]]);
 // 워크플로 백엔드는 POST/GET만 허용한다(WorkflowConfig._method_known).
 export const SCHEDT_OPTS = opt([["cron", "Cron 반복"], ["once", "1회 실행"]]);
 // 간편 주기 — 고르면 백엔드가 Cron 식을 생성한다(cron.PRESETS). 빈 값은 '직접 입력'.
@@ -136,7 +136,7 @@ export const OBJ_ROUTE = {
   prompts: "#/prompts", policies: "#/policies",
   schedule: "#/schedules", schedule_run: "#/schedules", approval: "#/approvals",
   backup: "#/backup",
-  user_notion_mapping: "#/notion-mapping", job: "#/jobs",
+  job: "#/jobs",
   department: "#/departments", job_title: "#/job-titles", user: "#/users",
   app_setting: "#/settings", organization: "#/organizations", feature_flag: "#/feature-flags",
   // organization/feature_flag와 같은 부류(F15) — 백엔드는 이미 이 object_type들로 감사 기록을
@@ -162,11 +162,11 @@ export const OBJ_ROUTE = {
 export const OBJ_ROUTE_ROLES = { user: WRITE_ROLES, department: WRITE_ROLES, job_title: WRITE_ROLES, job: OPS_ROLES, organization: WRITE_ROLES, offboarding_run: WRITE_ROLES };
 export const canReachObjRoute = (objType, role) => !OBJ_ROUTE_ROLES[objType] || (role != null && OBJ_ROUTE_ROLES[objType].includes(role));
 // 대상 화면 중 일부는 이제 id 기반 딥링크(onQuery: p.<param> → 상세 드로어를 곧바로 연다)를 지원한다
-// (jobs: ?job_id=, notion-mapping: ?user_id= — 이 둘은 object_id가 곧 그 파라미터 값).
+// (jobs: ?job_id= — object_id가 곧 그 파라미터 값).
 // integration/schedule도 각 화면이 ?id= 딥링크(onQuery)를 지원해 여기 있다(백엔드 GET .../{id}
 // 단건 조회가 이미 존재한다). 여기 없는 object_type은 대상 화면에 그런 딥링크가 없어 여전히
 // 목록 전체로만 이동한다.
-export const OBJ_ID_PARAM = { job: "job_id", user_notion_mapping: "user_id",
+export const OBJ_ID_PARAM = { job: "job_id",
   integration: "id", schedule: "id", approval: "id",
   // prompts/policies는 이름 기준 버전 관리 화면이지만 각 버전 행의 id로도 상세를 곧바로 연다
   // (onQuery: { open: 'select', id }가 GET /{id}로 단건 조회 — nameVersionsAction과 별개 경로).

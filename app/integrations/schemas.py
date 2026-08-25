@@ -8,16 +8,22 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.core.http_client import AUTH_TYPES
 
-#: S11 이 n8n 과 러너 셋을 걷어내 그 provider 이름들이 사라졌다. 남은 것은 Notion 하나이고
-#: 그것도 S14 에서 함께 사라진다.
+#: S11 이 n8n 과 러너 셋을 걷어내 그 provider 이름들이 사라졌고, S14 가 Notion 런타임을
+#: 걷었다. **새로 만들 수 있는 유형은 `http_service` 하나뿐**이고 화면에서도 그 선택기를
+#: 내렸다(S20) — 고를 것이 하나뿐인 선택기는 고를 것이 없는 선택기다.
+#: `notion` 을 여기서 지우지는 않는다: 남아 있는 옛 행과 그 행의 롤백 스냅샷이 이 어휘로
+#: 다시 검증되기 때문이다. 지우면 옛 연동 하나가 되돌릴 수 없게 된다.
 PROVIDER_TYPES = frozenset({"http_service", "notion"})
+
+#: 화면이 안 보내면 이 값이다. 유형이 실제로 하나뿐이라 화면이 물을 것도 없다.
+DEFAULT_PROVIDER_TYPE = "http_service"
 
 
 class IntegrationConfig(BaseModel):
     """Full validated config — also used to re-validate rollback snapshots."""
 
     name: str = Field(min_length=1, max_length=120)
-    provider_type: str
+    provider_type: str = DEFAULT_PROVIDER_TYPE
     description: str | None = Field(default=None, max_length=2000)
     base_url: str = Field(min_length=1, max_length=500)
     health_url: str | None = Field(default=None, max_length=500)

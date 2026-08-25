@@ -110,7 +110,7 @@ describe("heading 순서 — 건너뛰지 않는다(PA-RC-0012)", () => {
         return Promise.resolve({
           items: [
             { key: "org", label: "조직 만들기", why: "w", state: "done", detail: "d", action: null, question: null, requires: [], requires_why: "", blocked_by: null, blocked_by_label: null },
-            { key: "notion", label: "Notion 연결", why: "w", state: "todo", detail: "d", action: "a", question: null, requires: [], requires_why: "", blocked_by: null, blocked_by_label: null },
+            { key: "llm", label: "AI 러너", why: "w", state: "todo", detail: "d", action: "a", question: null, requires: [], requires_why: "", blocked_by: null, blocked_by_label: null },
           ],
         });
       }

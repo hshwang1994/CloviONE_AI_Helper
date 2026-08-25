@@ -72,16 +72,19 @@ function renderShell(initialPath = "/settings") {
 const currentPath = () => screen.getByTestId("location-probe").textContent;
 
 describe("설정 탭 — role별 가시성", () => {
-  it("system_admin은 세 탭을 전부 본다", () => {
+  it("system_admin은 네 탭을 전부 본다", () => {
     currentRole = "system_admin";
     renderShell();
     expect(screen.getByRole("tab", { name: "시스템 정책" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "OS와 서비스 동작" })).toBeInTheDocument();
+    // 파일 저장소(S20) — S8 의 `/api/storage/*` 를 부르는 첫 화면이고 권한이 os·ai 와
+    // 같은 집합이라(STORAGE_CONFIGURE = SYSTEM_ADMIN_ONLY) 이 그릇의 제약을 만족한다.
+    expect(screen.getByRole("tab", { name: "파일 저장소" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "AI" })).toBeInTheDocument();
     // '연동' 탭은 안에 Notion 관리 화면 하나만 들고 있었고, 그 화면이 없어지면서 함께
     // 없어졌다. 빈 탭으로 남기면 사용자는 자기가 못 보는 내용이 있다고 읽는다.
     expect(screen.queryByRole("tab", { name: "연동" })).not.toBeInTheDocument();
-    expect(screen.getAllByRole("tab").length).toBe(3);
+    expect(screen.getAllByRole("tab").length).toBe(4);
   });
 
   // Handoff required_tests: "역할 4종(user·operator·auditor·system_admin) × 신규 탭 전체

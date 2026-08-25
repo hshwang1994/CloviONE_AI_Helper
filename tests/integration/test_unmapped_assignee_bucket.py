@@ -109,3 +109,41 @@ def test_the_diagnostics_screen_lists_it_as_something_to_fix(client, signed_in, 
     )
     assert finding is not None, "매핑 실패 항목이 진단에 아예 없다"
     assert finding["count"] >= 1, "매핑 실패 티켓이 있는데 진단은 0건이라고 말한다"
+
+
+def test_a_post_cutover_account_is_not_a_mapping_failure(
+    client, db, signed_in, portal_project, make_ticket, make_user
+):
+    """옛 짝이 없는 계정이 담당한 티켓은 **정상이다** (S20 · D-317).
+
+    담당자를 가리키는 값은 옛 짝이 있으면 그것, 없으면 **자기 user id** 다(D-285). 컷오버
+    뒤에 만든 계정은 언제나 뒤쪽이고, 그 사람이 티켓을 맡는 것은 아무 문제가 없다.
+
+    🔴 그런데 진단은 verified 매핑의 옛 id 만 «아는 값» 으로 세고 있었다 — 그래서 정상
+    배정이 매번 「연결 실패」로 올라왔고, 안내는 이제 없는 화면으로 가라고 말했다. 진단이
+    없는 문제를 만들어 내던 자리다.
+
+    반례가 같은 실행 안에 있다: `t-ghost`(위 시험)는 여전히 세어져야 한다. 둘이 함께
+    통과해야 「전부 센다」도 「하나도 안 센다」도 아니라는 뜻이 된다.
+    """
+    from tests.conftest import DEFAULT_TEST_PASSWORD
+
+    fresh = make_user(email="joined-after@goodmit.co.kr", role="user", display_name="신입")
+    db.commit()
+    make_ticket(page_id="t-fresh", project=portal_project, tid=4,
+                title="새 계정이 담당", status="진행", assignees=[fresh.id])
+
+    make_user(email="triage-admin2@goodmit.co.kr", role="system_admin", display_name="관리자")
+    client.post("/login", json={"email": "triage-admin2@goodmit.co.kr",
+                                "password": DEFAULT_TEST_PASSWORD})
+
+    report = client.get("/api/admin/integrity")
+    assert report.status_code == 200, report.text
+    finding = next(
+        f for f in report.json()["findings"] if f["key"] == "tickets_with_unmapped_assignees"
+    )
+    listed = {i["title"] for i in finding["items"]}
+    assert "새 계정이 담당" not in listed, "정상 배정을 «연결 실패» 로 세고 있다"
+    assert "매핑 안 된 담당자" in listed, "진짜 실패까지 안 세면 이 진단은 아무것도 안 본다"
+    # 안내가 없어진 화면으로 보내지 않는다.
+    assert "Notion" not in finding["remedy"]

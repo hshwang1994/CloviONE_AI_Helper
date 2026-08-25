@@ -167,66 +167,6 @@ def probe_organization(ctx: ProbeContext) -> Outcome:
     return _done(f"조직 {len(orgs)}개, 부서 {departments}개가 등록돼 있습니다.")
 
 
-# ── 사용자 매핑 ──────────────────────────────────────────────────────────────
-
-
-def probe_user_mapping(ctx: ProbeContext) -> Outcome:
-    from app.notion_mapping.models import (
-        STATUS_CONFLICT,
-        STATUS_VERIFIED,
-        UserNotionMapping,
-    )
-    from app.users.models import User
-
-    active_users = ctx.db.execute(
-        select(func.count())
-        .select_from(User)
-        .where(User.active.is_(True), User.archived_at.is_(None))
-    ).scalar_one()
-    if not active_users:
-        # 연결할 사람이 없으면 됐다고도 안 됐다고도 말할 수 없다.
-        return _unknown(
-            "활성 사용자가 없어 매핑 상태를 판단할 수 없습니다.",
-            "사용자를 먼저 등록한 뒤 다시 확인해 주세요.",
-        )
-
-    # active_users 와 같은 필터를 걸어야 한다. 걸지 않으면 오프보딩으로 archived 된
-    # 사용자의 예전 verified 행이 영원히 남아(app/offboarding/service.py 는 이 행을
-    # 지우거나 재설정하지 않는다) "활성 사용자 N명 중 1명 연결" 이 활성 사용자 0명이
-    # 실제로 연결된 상태에서도 나올 수 있다. 같은 join+필터를
-    # app/offboarding/service.py::_successor_candidates 가 이미 쓴다.
-    counts = dict(
-        ctx.db.execute(
-            select(UserNotionMapping.status, func.count())
-            .join(User, User.id == UserNotionMapping.user_id)
-            .where(User.active.is_(True), User.archived_at.is_(None))
-            .group_by(UserNotionMapping.status)
-        ).all()
-    )
-    verified = counts.get(STATUS_VERIFIED, 0)
-    if verified:
-        # **한 명이라도 연결되면 이 항목은 끝난 것으로 본다.**
-        #
-        # "전원이 연결됐는가" 로 잡으면 반년 뒤 신입 한 명이 입사한 날 전 직원 화면에
-        # "초기 설정이 아직 끝나지 않았습니다" 배너가 다시 뜬다. 그건 사실도 아니고
-        # (설정은 끝났다) 아무도 그 배너를 다시는 안 믿게 만든다. 개별 미연결과 충돌은
-        # 설치 문제가 아니라 운영 문제라 관리 콘솔의 Notion 연결 화면이 맡는다.
-        return _done(
-            f"활성 사용자 {active_users}명 중 {verified}명이 Notion 사용자와 연결됐습니다."
-        )
-
-    conflicts = counts.get(STATUS_CONFLICT, 0)
-    if conflicts:
-        return _todo(
-            f"이름이 겹쳐 사람이 정해 줘야 하는 연결이 {conflicts}건 있고, 연결된 사람은 아직 없습니다.",
-            "관리 콘솔의 Notion 연결 화면에서 충돌을 정리하세요.",
-        )
-    return _todo(
-        f"활성 사용자 {active_users}명 중 아무도 Notion 사용자와 연결되지 않았습니다.",
-        "관리 콘솔의 Notion 연결 화면에서 사람마다 Notion 사용자를 지정하세요.",
-    )
-
-
 # ── AI 모델 ──────────────────────────────────────────────────────────────────
 
 
@@ -354,7 +294,6 @@ PROBES = {
     "admin_account": probe_admin_account,
     "mail": probe_mail,
     "organization": probe_organization,
-    "user_mapping": probe_user_mapping,
     "llm": probe_llm,
     "integrations": probe_integrations,
     "tls": probe_tls,

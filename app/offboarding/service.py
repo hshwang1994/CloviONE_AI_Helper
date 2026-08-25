@@ -127,45 +127,48 @@ def _onboarding_checklist(db: Session, user: User) -> list[dict]:
 
     항목은 전부 **이 저장소가 실제로 강제하는 것**만 담는다. 지키지 않아도 아무 일도 없는
     형식적 체크박스를 넣으면 점검표 전체가 장식이 된다.
-    """
-    from app.notion_mapping.models import STATUS_VERIFIED, UserNotionMapping
 
-    notion_status = db.execute(
-        select(UserNotionMapping.status).where(UserNotionMapping.user_id == user.id)
-    ).scalar_one_or_none()
+    🔴 여기 「Notion 사용자 연결」 항목이 있었다. 그 항목은 두 가지를 동시에 틀리게
+    말하고 있었다. 하나는 **사실**이다 — 담당자 축은 이제 옛 짝이 없으면 그 사람의
+    user id 로 선다(`app/tickets/service.py::assignee_token`, D-285)이라 연결이 없어도
+    티켓을 조회하고 재배정할 수 있다. 다른 하나는 **가능성**이다 — 그 연결을 새로 만들
+    방법이 제품에 없다(S14 가 런타임을 걷었다). 그래서 컷오버 이후에 만든 계정은 전부
+    영원히 ❌ 인 채로 태어났고, 점검표는 고칠 수 없는 항목 하나를 매번 빨갛게 들고 있었다.
+    """
     return [
         {"key": "department", "label": "부서 배정", "ok": bool(user.department_id),
          "value": user.department or "-",
          "help": "부서가 없으면 부서 관리자의 화면에 이 사람이 보이지 않습니다."},
         {"key": "title", "label": "직책 배정", "ok": bool(user.title_id),
          "value": user.title or "-"},
-        {"key": "notion", "label": "Notion 사용자 연결", "ok": notion_status == STATUS_VERIFIED,
-         "value": notion_status or "unmapped",
-         "help": "연결이 없으면 이 사람이 담당한 티켓을 조회할 수 없어 재배정도 할 수 없습니다."},
         {"key": "login", "label": "첫 로그인 완료", "ok": user.last_login_at is not None,
          "value": user.last_login_at.isoformat() if user.last_login_at else "-"},
     ]
 
 
 def _successor_candidates(db: Session, actor: User, *, exclude_user_id: str) -> list[dict]:
-    """후임 후보 = **행위자의 관리 범위 안**에서 Notion 연결이 확인된 활성 사용자.
+    """후임 후보 = **행위자의 관리 범위 안**의 활성 사용자.
 
     범위를 안 걸면 부서 관리자가 남의 부서 사람에게 티켓을 떠넘길 수 있다 — 그 사람은 자기
     화면에서 그 티켓이 어디서 왔는지 알 방법이 없다.
+
+    🔴 예전에는 여기에 `user_notion_mappings` 를 INNER JOIN 해서 「연결이 확인된」 사람만
+    후보로 뒀다. 담당자 칸이 옛 소스의 user id 를 담고 있던 시절에는 그 짝이 없으면 실제로
+    재배정이 안 됐기 때문이다. **지금은 반대로 틀리다** — 담당자를 가리키는 값은
+    `assignee_token()` 이 「옛 짝이 있으면 그것, 없으면 자기 user id」로 답하고(D-285),
+    재배정 경로(`tickets.replace_ticket_assignee`)는 앱 user_id 를 그대로 받는다.
+    그런데 그 짝은 컷오버(S14) 이후 **새로 생기지 않는다.** 그래서 이 목록은 이관 이전에
+    만든 계정만 담았고, 그 뒤에 입사한 사람은 **후임으로 고를 수가 없었다** — 화면은
+    이유를 말하지 않고 그냥 명단에서 빠뜨렸다.
+
+    이제 조건은 재배정이 실제로 요구하는 것 하나뿐이다: 관리 범위 안의 활성·미보관 계정.
     """
     from app.core.scope import management_scope
-    from app.notion_mapping.models import STATUS_VERIFIED, UserNotionMapping
 
-    stmt = (
-        select(User)
-        .join(UserNotionMapping, UserNotionMapping.user_id == User.id)
-        .where(
-            User.id != exclude_user_id,
-            User.active.is_(True),
-            User.archived_at.is_(None),
-            UserNotionMapping.status == STATUS_VERIFIED,
-            UserNotionMapping.notion_user_id.is_not(None),
-        )
+    stmt = select(User).where(
+        User.id != exclude_user_id,
+        User.active.is_(True),
+        User.archived_at.is_(None),
     )
     stmt = apply_user_scope(stmt, management_scope(db, actor))
     rows = db.execute(stmt.order_by(User.display_name)).scalars().all()

@@ -137,13 +137,50 @@ def test_preview_reports_a_ticket_lookup_failure_instead_of_showing_an_empty_lis
     assert body["tickets_error"], "실패를 빈 목록으로 위장했다"
 
 
-def test_preview_checklist_flags_a_missing_notion_link(client, admin, make_user, db):
-    plain = make_user(email="nomap@goodmit.co.kr", role="user", display_name="미연결")
+def test_a_post_cutover_account_can_be_chosen_as_the_successor(
+    client, admin, people, tickets, make_user, db
+):
+    """옛 짝이 없는 계정도 후임 후보다 (S20).
+
+    🔴 예전에는 후보 목록이 `user_notion_mappings` 를 INNER JOIN 해서 「연결이 확인된」
+    사람만 담았다. 그 짝은 컷오버(S14) 뒤로 **새로 생기지 않는다** — 그래서 이관 이후에
+    만든 계정은 명단에서 빠졌고, 화면은 이유를 말하지 않았다. 재배정 경로 자체는 앱
+    user_id 로 도는데(`replace_ticket_assignee`) 고를 수만 없던 것이다.
+
+    반례도 함께 본다: 그 사람이 실제로 티켓을 **받는다**. 명단에만 넣고 배정이 안 되면
+    고칠 자리를 잘못 고른 것이다.
+    """
+    fresh = make_user(email="joined-after@goodmit.co.kr", role="user", display_name="신입")
+    db.commit()
+
+    body = client.get(f"/api/admin/offboarding/preview/{people['leaver']}").json()
+    assert fresh.id in {c["user_id"] for c in body["successor_candidates"]}
+
+    response = _run(
+        client, admin, people["leaver"],
+        ticket_page_ids=["page-1"], successor_user_id=fresh.id,
+        deactivate=False, archive=False,
+    )
+    assert response.status_code == 200, response.text
+    assert fresh.id in _assignee_ids(db, "page-1")
+
+
+def test_the_checklist_only_asks_what_this_install_actually_enforces(
+    client, admin, make_user, db
+):
+    """점검표에 「Notion 사용자 연결」 항목이 있었다 (S20 이 걷었다).
+
+    그 항목은 새 계정에서 **영원히 ❌** 였다 — 그 연결을 만드는 경로가 제품에 없기
+    때문이다(S14). 고칠 수 없는 항목은 점검이 아니라 장식이고, 그 항목의 안내 문장은
+    「연결이 없으면 티켓을 조회할 수 없다」고 말해 사실도 아니었다(D-285).
+    """
+    plain = make_user(email="nomap@goodmit.co.kr", role="user", display_name="신규")
     db.commit()
     body = client.get(f"/api/admin/offboarding/preview/{plain.id}").json()
 
-    checks = {c["key"]: c for c in body["onboarding"]}
-    assert checks["notion"]["ok"] is False
+    keys = {c["key"] for c in body["onboarding"]}
+    assert "notion" not in keys
+    assert keys == {"department", "title", "login"}
 
 
 # ── 실행 ──────────────────────────────────────────────────────────────────────

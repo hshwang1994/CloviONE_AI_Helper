@@ -50,7 +50,6 @@ export const SCREEN_ROLES = {
   prompts: CONSOLE_READ,
   policies: CONSOLE_READ,
   integrity: CONSOLE_READ,
-  "notion-mapping": CONSOLE_READ,
   "dev-report": SENSITIVE_READ,
   setup: ["system_admin"],
   users: CONSOLE_WRITE,
@@ -203,7 +202,6 @@ export const NAV = withRoles([
     // 승인 화면은 '승인 위임' 탭을 함께 갖는다 — 누가 승인하는가와 그 권한을 누구에게
     // 넘겼는가는 같은 질문이다.
     { to: "/approvals", label: "승인", badge: "approvalPending" },
-    { to: "/notion-mapping", label: "Notion 사용자 연결" },
     { to: "/impersonation", label: "대리 보기" },
   ] },
   { group: "자동화와 연동", icon: AutoAwesomeOutlinedIcon, items: [

@@ -52,7 +52,6 @@ from app.jobs.router import router as jobs_router
 from app.auth.reset_router import router as password_reset_router
 from app.mail.router import router as mail_router
 from app.llm_console.router import router as llm_console_router
-from app.notion_mapping.router import router as notion_mapping_router
 from app.offboarding.router import router as offboarding_router
 from app.org.router import (
     departments_router,
@@ -244,7 +243,6 @@ def create_app(
     app.include_router(games_router)
     app.include_router(team_docs_router)
     app.include_router(settings_router)
-    app.include_router(notion_mapping_router)
     app.include_router(reports_router)
     app.include_router(search_router)
     app.include_router(search_reindex_router)

@@ -458,7 +458,7 @@ export function Users() {
     { key: "email", label: "이메일", identifier: true, sortable: true, rowName: (r) => r.display_name || r.email },
     { key: "display_name", label: "이름", sortable: true },
     {
-      // 역할은 이 표에서 가장 민감한(권한 상승 가능성이 있는) 열인데, '활성'·'잠김'·'Notion'과
+      // 역할은 이 표에서 가장 민감한(권한 상승 가능성이 있는) 열인데, '활성'·'잠김'과
       // 달리 유일하게 색 없는 맨 텍스트였다 — 같은 Badge 관례로 등급을 색으로도 구분한다.
       // 등급을 색으로 구분한다: system_admin(purple)·admin(warn)·operator/auditor(info, 권한 있는 비-관리자)·
       // 일반 사용자(neutral). 예전엔 operator/auditor가 일반 사용자와 같은 무채색이라 '관리자 아래는 다 같다'로
@@ -509,10 +509,9 @@ export function Users() {
     // render 없이 원시 텍스트만 보여줘 같은 화면 안에서 같은 사실이 다르게 보였다 — 같은 헬퍼로 맞춘다.
     { key: "department", label: "부서", render: (r) => r.department ? r.department + inactiveSuffix(dept, r.department_id) : "-" },
     { key: "title", label: "직책", render: (r) => r.title ? r.title + inactiveSuffix(title, r.title_id) : "-" },
-    // RESP-01: 900~1200 구간(사이드바 아직 안 접힘)에서 9열 전부를 채우면 TableContainer가
-    // 64px+ 가로 스크롤을 겪는다(실측, /users). 이메일·이름·역할·상태·부서·직책은 훑어보기의
-    // 핵심이지만 이 둘은 상세에서도 바로 확인되는 부가 정보라 그 구간에서만 뺀다.
-    { key: "notion_mapping_status", label: "Notion 연결", render: (r) => <Badge value={r.notion_mapping_status} />, hideNarrow: true },
+    // RESP-01: 900~1200 구간(사이드바 아직 안 접힘)에서 열을 전부 채우면 TableContainer가
+    // 가로 스크롤을 겪는다(실측, /users). 이메일·이름·역할·상태·부서·직책은 훑어보기의
+    // 핵심이지만 아래 둘은 상세에서도 바로 확인되는 부가 정보라 그 구간에서만 뺀다.
     // PA-RC-0029: 'ko-KR' Intl 포맷(dateStyle:medium+timeStyle:short)이 "2026. 8. 17. 오후
     // 3:24"처럼 길어 287px를 자연스럽게 요구했다 — 이메일보다 우선순위가 낮은 보조 열이라
     // width로 줄인다. overflowWrap:anywhere가 이미 있어(kit.jsx) 좁아지면 두 줄로 접힐 뿐
@@ -971,10 +970,9 @@ function UserDetail({ user, notFound, onClose, onEdit, onChanged, onTempPw, pwHe
       onClick: () => nav("/audit?user_id=" + encodeURIComponent(uid)) },
   ];
 
-  /* 여기 「Notion 연결 확인」 항목이 있었다. `POST /api/admin/users/{id}/notion-mapping/verify`
-     를 불러 결과를 아래 안내 상자에 남겼는데, 그 엔드포인트는 서버에서 이미 없어져 눌러도
-     404 만 돌아왔다. 확인해 주는 화면은 그대로 있으므로(‘Notion 사용자 연결’) 아래 연결 상태
-     줄에서 그 화면으로 곧장 가게 하고, 눌러도 실패하는 항목은 뺀다. */
+  /* 여기 「Notion 연결 확인」 항목이 있었고, 상세에는 연결 상태 줄과 그 화면으로 가는
+     링크가 있었다. 그 화면도 S20 이 함께 내렸다 — 담당자 축은 이제 옛 짝이 없으면 그
+     사람의 user id 로 서고(D-285), 짝을 새로 만드는 경로는 제품에 없다. */
   const manageItems = canManage ? [
     isSelf ? null : { key: "revoke", label: "세션 해제", disabled: actionsDisabled,
       onClick: () => run("/api/admin/users/" + id + "/revoke-sessions", { confirm: "이 사용자의 모든 로그인 세션을 끊을까요?", danger: true, format: (res) => (res && res.revoked_count ? res.revoked_count + "개 세션을 해제했습니다." : "해제할 활성 세션이 없습니다.") }) },
@@ -1070,12 +1068,6 @@ function UserDetail({ user, notFound, onClose, onEdit, onChanged, onTempPw, pwHe
           </Row>
         ) : null}
         <Row label="직책">{d.title ? d.title + inactiveSuffix(title, d.title_id) : "-"}</Row>
-        {/* 연결을 고치는 자리는 이 화면이 아니라 ‘Notion 사용자 연결’ 화면이다 — 상태만
-            보여 주고 끝내면 관리자가 그다음에 어디로 가야 하는지 알 수 없다. */}
-        <Row label="Notion 연결">
-          <Badge value={d.notion_mapping_status} />{" "}
-          <Link href={"#/notion-mapping?user_id=" + encodeURIComponent(id)} target="_blank" rel="noreferrer noopener" underline="hover">‘Notion 사용자 연결’ 화면에서 확인하기</Link>(새 탭)
-        </Row>
         {/* 목록 컬럼과 같은 어휘('잠김')를 쓴다, 여기서만 원시 불리언을 Badge에 그대로 넘기면
             '잠금: 예/아니오'로 읽혀, 같은 화면 안에서 같은 상태를 다른 말로 부르게 된다. */}
         <Row label="잠금"><Badge value={d.locked ? "잠김" : "정상"} kind={d.locked ? "danger" : "neutral"} /></Row>

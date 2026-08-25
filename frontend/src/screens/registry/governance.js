@@ -480,10 +480,13 @@ export const GOVERNANCE_SCREENS = {
    * 한다(그리고 매번 조금씩 다르게 된다). 달력(스케줄러)만 표로 표현할 수 없어 별도 화면이다.
    */
   impersonation: {
-    key: "impersonation", area: "사용자와 권한", title: "임퍼소네이션(대리 보기)",
+    // 화면 제목은 사이드바 항목과 **같은 말**이어야 한다 — 「대리 보기」를 눌렀는데 제목이
+    // 「임퍼소네이션」이면 다른 화면에 온 것으로 읽힌다. 외래어 음차도 이 제품의 화면 문구
+    // 규칙 밖이다(S20).
+    key: "impersonation", area: "사용자와 권한", title: "대리 보기",
     endpoint: "/api/admin/impersonation/sessions",
-    help: "다른 사용자의 화면을 그 사람 눈으로 읽기만 합니다. 임퍼소네이션 중에는 모든 쓰기가 서버에서 차단되고, 누가 누구를 언제 봤는지가 이 목록과 감사 로그에 남습니다. 시작하면 화면 위에 띠가 뜹니다.",
-    emptyTitle: "임퍼소네이션 기록이 없습니다",
+    help: "다른 사용자의 화면을 그 사람 눈으로 읽기만 합니다. 대리 보기 중에는 모든 쓰기가 서버에서 차단되고, 누가 누구를 언제 봤는지가 이 목록과 감사 로그에 남습니다. 시작하면 화면 위에 띠가 뜹니다.",
+    emptyTitle: "대리 보기 기록이 없습니다",
     emptyHelp: "‘대리 보기 시작’으로 사용자를 지정하면 그 사람의 화면을 읽기 전용으로 볼 수 있습니다.",
     emptySituation: "지원 문의를 받았는데 그 사용자에게 무엇이 보이는지 확인할 방법이 없었습니다.",
     emptyPrerequisite: "대상 사용자의 ID가 필요합니다(‘사용자’ 화면에서 확인).",
@@ -521,7 +524,7 @@ export const GOVERNANCE_SCREENS = {
       field("target_email", "대상 이메일"), field("actor_email", "관리자 이메일"),
       { key: "ended_reason", label: "종료 사유", render: (r) => ({ manual: "관리자가 종료", logout: "로그아웃", target_unavailable: "대상 계정 사용 불가", expired: "시간 초과 자동 종료" })[r.ended_reason] || r.ended_reason || "-" },
       { key: "read_count", label: "조회 횟수" },
-      { key: "_blocked_note", label: "차단 안내", render: (r) => r.blocked_write_count ? "이 세션에서 쓰기 시도가 " + r.blocked_write_count + "회 차단됐습니다. 임퍼소네이션 중에는 어떤 변경도 되지 않습니다." : "-" },
+      { key: "_blocked_note", label: "차단 안내", render: (r) => r.blocked_write_count ? "이 세션에서 쓰기 시도가 " + r.blocked_write_count + "회 차단됐습니다. 대리 보기 중에는 어떤 변경도 되지 않습니다." : "-" },
     ],
     headerActions: [
       { label: "대리 보기 시작", variant: "primary", primary: true, roles: WRITE_ROLES,

@@ -162,9 +162,6 @@ function AccountCard({ profile, prefs, onChanged }) {
       <Row label="부서">{profile.department || "-"}</Row>
       <Row label="직책">{profile.title || "-"}</Row>
       <Row label="마지막 로그인">{profile.last_login_at ? fmtDateTime(profile.last_login_at) : "-"}</Row>
-      <Row label="Notion 연결">
-        {profile.notion_mapping_status ? <Badge value={profile.notion_mapping_status} /> : "-"}
-      </Row>
       <Box sx={{ mt: 2, display: "flex", gap: 1, flexWrap: "wrap" }}>
         <Button component="a" href="/change-password">비밀번호 변경</Button>
       </Box>

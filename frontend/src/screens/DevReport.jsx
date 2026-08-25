@@ -12,6 +12,7 @@ import Typography from "@mui/material/Typography";
 import { useTheme } from "@mui/material/styles";
 import { api } from "../lib/api.js";
 import { PageHeader, Card, Badge, Button, Callout, Skeleton, EmptyState, ErrorState, MetricStrip, DataTable, tableCellProps } from "../ui/kit.jsx";
+import { FilterActions, FilterRow, FilterSurface } from "../ui/FilterBar.jsx";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
 import { Donut } from "../ui/charts/Donut.jsx";
 import { resolveChartColor } from "../ui/charts/base.jsx";
@@ -221,7 +222,10 @@ export function DevReport() {
         // 인쇄: 카드 그림자는 회색 얼룩으로만 나오고, 섹션이 페이지 중간에서 잘리면 표 머리가 사라진다.
         "@media print": { "& .MuiPaper-root": { boxShadow: "none" }, "& section": { breakInside: "avoid" } },
       }}>
-      <PageHeader area="자동화" title="개발자 월간 리포트"
+      {/* 사이드바가 이 화면을 「감사」 묶음에 두는데(navConfig.js) 빵부스러기는 「자동화」
+          라고 말하고 있었다 — 그 이름의 묶음은 이제 「자동화와 연동」이고 이 화면은 거기
+          없다. 같은 화면이 두 자리에 있다고 읽히던 자리다(S20). */}
+      <PageHeader area="감사" title="개발자 월간 리포트"
         actions={<Button variant="primary" onClick={() => query.refetch()}>새로고침</Button>} />
 
       <Box sx={{ mb: 3 }}>
@@ -230,8 +234,13 @@ export function DevReport() {
         </Note>
       </Box>
 
-      <Card className="devrep-noprint" sx={{ p: 2, mb: 3 }}>
-        <Box sx={{ display: "flex", gap: 1.5, alignItems: "center", flexWrap: "wrap" }}>
+      {/* 🔴 이 줄은 테두리 있는 판이었고, 그 판이 1606×68 에 잉크 18% 로 서 있었다(P-42 ②).
+          작은 컨트롤 셋을 화면 폭짜리 상자에 담으면 그 상자는 자기 폭을 설명하지 못한다.
+          조건 줄은 이 저장소에 이미 계약이 있다 — `FilterSurface` 는 테두리 없는 격자에
+          아래 구분선 하나이고(`ui/FilterBar.jsx`), 되돌리는 일이 아니라 **동작**인 인쇄는
+          `FilterActions` 로 줄 끝에 붙는다. 화면마다 다른 조건 줄을 만들지 않는다. */}
+      <FilterSurface className="devrep-noprint">
+        <FilterRow>
           <TextField
             InputLabelProps={{ shrink: true }}
             id="devrep-year" select size="small" label="연도" value={period.slice(0, 4)}
@@ -248,9 +257,11 @@ export function DevReport() {
           >
             {MONTH_VALUES.map((m) => <MenuItem key={m} value={m}>{parseInt(m, 10)}월</MenuItem>)}
           </TextField>
-          <Button onClick={() => window.print()}>인쇄하거나 PDF로 저장</Button>
-        </Box>
-      </Card>
+          <FilterActions>
+            <Button onClick={() => window.print()}>인쇄하거나 PDF로 저장</Button>
+          </FilterActions>
+        </FilterRow>
+      </FilterSurface>
 
       {query.isLoading ? (
         <Card><Skeleton kind="chart" /></Card>
@@ -299,12 +310,16 @@ export function DevReport() {
             ) : (
               /* 폭이 아주 넓을 때(xxl 이상)만 도넛을 표 옆에 세운다 — 1366·1920에서 옆에 두면
                  열 열 개짜리 표가 눌려 가로 스크롤이 생긴다. 도넛의 범례가 곧 아래 스택 막대의
-                 색 범례라, 따로 범례 줄을 두지 않는다(예전 .devrep-legend를 대신한다). */
+                 색 범례라, 따로 범례 줄을 두지 않는다(예전 .devrep-legend를 대신한다).
+                 🔴 그런데 **아래로 접히는 쪽**을 아무도 안 봤다(P-42 ①): 격자 칸은 기본이
+                 늘어남이라 도넛 판이 1606×275 로 서고 그 안의 그림은 왼쪽 3분의 1만 채웠다 —
+                 잉크 17%. 판이 자기 폭을 설명하지 못하면 사람은 오른쪽에 무언가 실패한
+                 것으로 읽는다. 접힐 때는 판이 **내용만큼만** 서게 한다. */
               <Box sx={{ display: "grid", gap: 2, alignItems: "start", gridTemplateColumns: { xs: "1fr", xxl: "minmax(0,1fr) minmax(0,26rem)" } }}>
                 <TableWrap minWidth="52rem">
                   <DataTable columns={DEV_SUMMARY_COLUMNS} rows={devs} rowKey={(d) => d.name} />
                 </TableWrap>
-                <Card sx={{ p: 2.5 }}>
+                <Card sx={{ p: 2.5, justifySelf: "start", width: { xs: "min(100%, 30rem)", xxl: "100%" } }}>
                   <Typography variant="body2" sx={{ fontWeight: FONT_WEIGHT.bold, mb: 1.5 }}>팀 상태 구성</Typography>
                   <Donut question="이 달 팀의 티켓이 어느 상태에 몰려 있는지 봅니다." segments={teamSegs} unit="건" centerLabel="티켓" emptyLabel="이 달에 집계된 티켓이 없습니다" />
                   <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1.5 }}>
