@@ -29,7 +29,7 @@
   **P-51**(티켓 읽기 golden 7건이 S15 이후 안 갱신됐다. HC 변경을 stash 한 HEAD 에서도 같다)
 - full_snapshot: **HC 마지막 Full 1회.** 정적 전량 PASS · 프런트 전량 **329 파일 / 2,451건
   전부 PASS** · 백엔드 전량 FAIL 7건(전부 P-51, HEAD 에서도 같다)
-- commit: 아래 `git log` 참고
+- commit: **`2c3e6c60`** (HC) · `ee2e4118` (S19)
 - suppressions: **1건 (SUP-01)** — 칸반 레인의 균등 격자. 만료 2026-10-20
 - plan: `docs/ui-renewal/PLAN.md`(UI 축 정본) · `DIRECTIVE_v7.txt`(원 지시서) ·
   **`docs/platform/MASTER_PLAN.md`(제품 전체 정본 — 여기가 상위다)**

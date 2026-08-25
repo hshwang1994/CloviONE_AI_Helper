@@ -25,7 +25,7 @@
 - s18_commit: **`f1968a09`** — S18 본체(문서·원장·하네스·화면·시험)
 - s19_commit: **`ee2e4118`** — S19 본체(화면·공용 부품·문서). **원장은 한 행만 바뀌었다**
   (`user_my-display` → 별칭). 나머지 W10 행은 `NOT_AUDITED` 그대로다
-- hc_commit: 아래 「Health Correction 이 한 것」 절. 제품 결함 넷 · 구조 정리 셋 · QA 정리 ·
+- hc_commit: **`2c3e6c60`** — 아래 「Health Correction 이 한 것」 절. 제품 결함 넷 · 구조 정리 셋 · QA 정리 ·
   `verify.py` 윈도우 실행기 · 완료 계약 분리(D-313~D-315)
 - deployed: **S15~S17 이 운영에 나갔다. S18 은 아직 안 나갔다** (2026-08-25 04:13, `install.sh upgrade --source local`).
   Stage 0~18 전부 OK · `VERIFY_OK` · 스냅샷 `/var/backups/clovirassist/20260825-041314`.
