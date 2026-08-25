@@ -53,6 +53,10 @@ export const ART = {
   sessionExpired: `${BRAND}/empty-states/state-session-expired.png`,
   offline: `${BRAND}/empty-states/state-offline.png`,
   success: `${BRAND}/empty-states/state-success.png`,
+  /* 놀이의 빈 화면은 `spot/` 에서 온다. `empty-states/` 에는 «게임」 그림이 없고, 그렇다고
+     대화나 게시판 그림을 빌려 쓰면 그 화면이 무엇에 대한 것인지 그림이 거짓말을 한다.
+     이 자산도 `gen_mascot_bounds.py` 가 여백을 재므로 «보이는 크기» 계약을 그대로 따른다. */
+  games: `${BRAND}/spot/spot-games.png`,
 };
 
 /* 섹션 헤더용 스팟 일러스트. 4K에서 남는 폭을 의미 있는 밀도로 채우는 수단이기도 하다. */

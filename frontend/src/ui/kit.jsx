@@ -1175,15 +1175,25 @@ export function EmptyState({
 }) {
   /* `layout` — **이 빈 상태가 무엇을 대신하는가** (PLAN «C1»).
    *
-   *   page    화면 전체가 비었다. 남은 높이 안에서 세로 가운데에 선다 — 판·차트·Pager 를
-   *           언마운트한 뒤 남는 큰 공백에 내용이 위쪽에 붙어 매달리지 않게 한다.
-   *   region  구획 하나가 비었다(기본). 지금까지의 동작 그대로다.
+   *   page    **화면 전체가 비었다.** 콘텐츠 영역 안에서 가운데 구성으로 선다 —
+   *           클로비 → 제목 → 짧은 설명 → (필요하면) 다음 행동, 위에서 아래로.
+   *   region  **판·카드 하나가 비었다**(기본). 그 카드의 문맥 안에 왼쪽으로 붙는다 —
+   *           대시보드의 칸 하나가 비었을 때 그 칸만 조용히 비어 있으면 된다.
    *   inline  팝오버·모달 하위목록처럼 폭도 높이도 좁은 자리. `size="compact"` 와 같은 뜻이다.
+   *
+   * 🔴 **자리마다 다르게 그리는 이유** (S19). 예전에는 `page` 를 아무 화면도 안 썼다 —
+   * 선언만 있고 배선이 없으면 그 자리는 존재하지 않는 것과 같다. 그래서 화면 전체가 빈
+   * 상태(승인·놀이·검색·옛 문서 주소)가 전부 `region` 으로 그려졌고, 큰 빈 화면의
+   * **왼쪽 위 구석에 작은 그림과 한 줄**만 놓여 화면이 미완성처럼 보였다. 카드 안의 빈
+   * 상태는 그대로 둔다 — 거기서는 왼쪽 정렬이 맞다(그 카드의 다른 내용과 같은 축이다).
    *
    * 크기(`size`)와 자리(`layout`)를 따로 두는 이유: 좁은 팝오버 안의 빈 상태와 4K 전면의
    * 빈 상태는 **글자 크기**가 아니라 **놓이는 방식**이 다르다. 한 prop 에 둘을 겹치면
    * "작게" 와 "가운데" 를 따로 고를 수 없다. */
   const compact = size === "compact" || layout === "inline";
+  /* 화면 전체가 빈 자리. 이 하나가 방향(세로)·정렬(가운데)·높이(남은 화면)를 함께 정한다 —
+     화면마다 크기와 자리를 따로 적으면 같은 상태가 화면마다 다르게 보인다. */
+  const page = layout === "page";
   const stepList = Array.isArray(steps) ? steps.filter((s) => s != null && s !== "") : null;
   /* compact 는 여전히 그림을 안 그린다(DS-15). 팝오버·모달 하위목록은 폭도 높이도 좁아서
      그림이 «다음에 무엇을 하면 되는지» 를 밀어낸다. 그 자리에 캐릭터가 필요한 화면은
@@ -1197,7 +1207,12 @@ export function EmptyState({
   const artBox = artSrc ? mascotBoxPx(artPlace, artSrc) : null;
   const detail = [prerequisite, stepList && stepList.length ? stepList : null, expected].some(Boolean);
   /* 칸 폭은 EMPTY_STATE_MAX_CH. 문구 한도는 COPY_LIMIT.emptyHelp — 폭을 바꾸면 한도가 따라간다. */
-  const bodySx = { maxWidth: `${EMPTY_STATE_MAX_CH}ch`, fontSize: compact ? FONT_SIZE.bodySm : FONT_SIZE.body, ...KO_WORD_BREAK };
+  const bodySx = {
+    maxWidth: `${EMPTY_STATE_MAX_CH}ch`,
+    fontSize: compact ? FONT_SIZE.bodySm : FONT_SIZE.body,
+    ...KO_WORD_BREAK,
+    ...(page ? { mx: "auto" } : null),
+  };
 
   /* 빈 상태 — 읽는 순서가 **제목 → 다음 행동 → 보조 설명**이다 (지시 18).
    *
@@ -1220,10 +1235,15 @@ export function EmptyState({
       sx={{
         display: "flex", alignItems: "flex-start", gap: compact ? 1.5 : 2.5,
         py: compact ? 2 : 3.5, px: compact ? 1.5 : 2,
-        /* page — 남은 높이를 실제로 차지하고 그 안에서 가운데에 선다. `minHeight` 는
-           본문 열의 남은 높이를 겨냥한 값이다(셸이 상단바 높이를 이미 뺐다). */
-        ...(layout === "page"
-          ? { minHeight: "min(28rem, 55vh)", alignItems: "center", justifyContent: "flex-start" }
+        /* page — 남은 높이를 실제로 차지하고 그 안에서 **가운데**에 선다. `minHeight` 는
+           본문 열의 남은 높이를 겨냥한 값이고, 마스코트 밴드의 분모이기도 하다 — 그림이
+           컨테이너 높이를 정하면 어떤 비율 규칙도 성립하지 않는다(`Mascot.jsx::emptyPage`). */
+        ...(page
+          ? {
+              flexDirection: "column", alignItems: "center", justifyContent: "center",
+              textAlign: "center", gap: 2.5, py: 6, px: 3,
+              minHeight: "min(30rem, 60vh)",
+            }
           : null),
       }}
       data-empty-layout={layout}
@@ -1244,7 +1264,7 @@ export function EmptyState({
         <Box aria-hidden="true" sx={{ flexShrink: 0, fontSize: compact ? FONT_SIZE.pageTitle : FONT_SIZE.readout, color: "text.faint", lineHeight: 1 }}>{icon}</Box>
       ) : null}
 
-      <Box sx={{ display: "grid", gap: compact ? 0.5 : 0.75, minWidth: 0 }}>
+      <Box sx={{ display: "grid", gap: compact ? 0.5 : 0.75, minWidth: 0, ...(page ? { justifyItems: "center" } : null) }}>
         <Typography
           role="heading"
           aria-level={2}
@@ -1259,7 +1279,7 @@ export function EmptyState({
 
         {/* 다음 행동이 설명보다 위에 온다. */}
         {action || (relatedLink && relatedLink.href) ? (
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap", mt: 0.25 }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap", mt: page ? 1 : 0.25, justifyContent: page ? "center" : "flex-start" }}>
             {action}
             {relatedLink && relatedLink.href ? (
               <Link href={relatedLink.href} underline="hover" sx={{ fontSize: compact ? FONT_SIZE.bodySm : FONT_SIZE.body }}>
@@ -1271,7 +1291,7 @@ export function EmptyState({
 
         {/* 준비물·절차·기대 결과는 보조다. 실선 하나로 아래에 붙인다(상자를 만들지 않는다). */}
         {detail ? (
-          <Box sx={{ mt: 0.5, pt: 1, borderTop: 1, borderColor: "divider", display: "grid", gap: 0.5 }}>
+          <Box sx={{ mt: 0.5, pt: 1, borderTop: 1, borderColor: "divider", display: "grid", gap: 0.5, textAlign: "left", justifySelf: page ? "center" : "stretch" }}>
             {prerequisite ? (
               <Typography color="text.secondary" sx={{ ...bodySx, fontSize: FONT_SIZE.bodySm }}>
                 <Box component="span" sx={{ fontWeight: FONT_WEIGHT.semibold, mr: 1 }}>필요한 것</Box>{prerequisite}
@@ -1427,12 +1447,32 @@ function colCellSx(c, { truncate, head } = {}) {
   if (s.numeric) Object.assign(sx, NUMERIC);
   /* 폭은 머리글 칸에만 적는다. `<table>` 의 열 폭은 열 전체에서 하나로 정해지므로 한 칸만
      말하면 충분하고, 본문 칸의 말줄임은 `maxWidth: 0` 이 맡는데 그 둘을 한 칸에 함께 걸면
-     서로를 무력화한다(말줄임이 안 되거나 폭이 안 줄거나 — 브라우저마다 다르다). */
-  if (head) return { ...sx, width: s.width, whiteSpace: "nowrap", ...(c.help ? { cursor: "help" } : null) };
+     서로를 무력화한다(말줄임이 안 되거나 폭이 안 줄거나 — 브라우저마다 다르다).
+
+     🔴 머리글도 **넘치면 자른다**(S19). 예전에는 `nowrap` 만 걸고 넘침을 열어 뒀는데, 열이
+     자기 이름보다 좁아지는 순간 그 이름이 칸 밖에 그려져 **옆 머리글 위에 겹쳤다** —
+     본문은 같은 폭에서 잘리는데 머리글만 안 잘리니 두 줄이 서로 다른 규칙을 쓴 셈이다.
+     전체 이름은 `title` 로 남는다(본문 칸과 같은 방식). */
+  if (head) {
+    return {
+      ...sx, width: s.width, whiteSpace: "nowrap", overflow: "hidden",
+      ...(c.help ? { cursor: "help" } : null),
+    };
+  }
   if (truncate) {
     return { ...sx, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 0 };
   }
-  if (s.overflow === OVERFLOW.nowrap) return { ...sx, overflowWrap: "normal", whiteSpace: "nowrap" };
+  /* 자르지도 접지도 않는 열(배지·개수·날짜)도 **넘치면 자른다.** 값이 짧다는 전제가 깨지는
+     날 — 새 상태 낱말이 길어지거나 좁은 화면에서 열이 눌릴 때 — 그 값이 옆 칸 위에 그려진다.
+     행 동작 묶음(`actions`)과 선택 칸은 제외한다: 그 안은 글이 아니라 누를 것이라 잘리면
+     닿을 수 없게 된다. */
+  if (s.overflow === OVERFLOW.nowrap) {
+    const clip = s.type !== "actions" && s.type !== "select";
+    return {
+      ...sx, overflowWrap: "normal", whiteSpace: "nowrap",
+      ...(clip ? { overflow: "hidden", textOverflow: "ellipsis" } : null),
+    };
+  }
   if (s.overflow === OVERFLOW.anywhere) return { ...sx, ...ANYWHERE_BREAK };
   return { ...sx, ...KO_WORD_BREAK };
 }
@@ -1497,7 +1537,23 @@ export function cardHeaderControls(cols) {
   return (cols || []).filter((c) => c && c.cardHeader);
 }
 
-export function DataTable({ columns, rows, rowKey, onRow, empty, fixed, ellipsis, stickyHeader, loading, sort, onSort, resultScope, filters, onFilter, filterOptions, entityOptions }) {
+/* ── 표 배치는 **하나**다: `auto` (S19) ─────────────────────────────────────
+ *
+ * 예전에는 호출부가 `fixed` 를 넘겨 `table-layout: fixed` 로 그릴 수 있었다. S16 이 열에
+ * «의미» 어휘를 준 뒤로 그 둘은 **양립하지 않는다**: `columnTypes.SHRINK` 는 `"1%"` 이고,
+ * 그 값이 「내용만큼」이라는 뜻이 되는 것은 auto 배치에서뿐이다. fixed 배치는 첫 행의 폭을
+ * 글자 그대로 읽고 `min-width` 를 **무시한다.**
+ *
+ * 실측(1920 / 1440 / 1200, `/ideas`): 카테고리·상태·공감·조회·작성 다섯 열이 각각
+ * **15.6px / 10.9px / 8.5px** 로 섰다 — 선언한 바닥값(72·80·64·136px)이 하나도 안 걸렸고,
+ * 남은 폭은 제목과 작성자가 740px 씩 나눠 가졌다. 머리글은 그 15px 밖에 그려져 옆 이름과
+ * 겹쳤고 본문 값(분류 태그·상태 배지·공감 수)은 그 15px 안에서 잘려 아예 안 보였다.
+ * 폭이 화면 폭의 1% 라 **화면을 넓힐수록 더 어긋난다.**
+ *
+ * 그래서 두 규칙 중 하나를 없앤다. 남기는 것은 열 어휘 쪽이다 — 폭을 화면마다 손으로 적던
+ * 시절로 돌아가지 않는 것이 S16 의 결론이었다. `fixed` 를 쓰던 두 화면(게시판·휴지통)이
+ * 원한 것(「제목만 남는 폭을 갖고 나머지는 고정」)은 지금 `type` + `ellipsis` 가 그대로 준다. */
+export function DataTable({ columns, rows, rowKey, onRow, empty, ellipsis, stickyHeader, loading, sort, onSort, resultScope, filters, onFilter, filterOptions, entityOptions }) {
   // 방어: 비정상 입력이 와도 렌더 중 throw하지 않고 빈-목록 안내로 폴백한다.
   // 공용 표라 한 화면의 실수나 API shape 변화가 전역 크래시로 번지지 않게 한다.
   const declaredCols = Array.isArray(columns) ? columns : [];
@@ -1607,7 +1663,7 @@ export function DataTable({ columns, rows, rowKey, onRow, empty, fixed, ellipsis
         size="small"
         stickyHeader={stickyHeader}
         sx={{
-          tableLayout: fixed ? "fixed" : "auto",
+          tableLayout: "auto",
           "& td, & th": { borderInline: 0 },
           "& tbody tr:last-of-type td": { borderBottom: 0 },
           "& tbody tr": { transition: `background-color ${MOTION.instant} ${MOTION.ease}` },
@@ -1671,9 +1727,17 @@ export function DataTable({ columns, rows, rowKey, onRow, empty, fixed, ellipsis
                      `title`로 전체 값은 그대로 hover에 남는다 — truncateCol과 같은 힌트 패턴. */
                   const truncate = ellipsis || !c.render || c.type === "title" || c.type === "name" || c.type === "text";
                   const raw = !c.render ? cellValue(c, row, ctx) : null;
+                  /* 그림을 그리는 열(배지·태그·작성자 줄)도 잘린다 — 그러면 전체 값을 볼 길이
+                     있어야 한다. 그 열의 원시 값이 낱말 하나면 그것이 답이다(분류 「기능」,
+                     작성자 이름). 값이 객체·배열이면 짓지 않는다 — `[object Object]` 를
+                     hover 로 보여 주는 것은 없느니만 못하다. */
+                  const plain = c.render && (typeof row[c.key] === "string" || typeof row[c.key] === "number")
+                    ? String(row[c.key])
+                    : null;
                   const hint = truncate && raw && raw !== "-"
                     ? raw
-                    : (truncate && typeof c.rowName === "function" ? c.rowName(row) : undefined);
+                    : (truncate && typeof c.rowName === "function" ? c.rowName(row)
+                      : (truncate && plain ? plain : undefined));
                   return (
                     <TableCell
                       key={c.key}

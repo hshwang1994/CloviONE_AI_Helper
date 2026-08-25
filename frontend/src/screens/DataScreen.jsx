@@ -1046,11 +1046,14 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
       ) : filtered.length === 0 ? (
         <>
         {(q || hasFilter) ? (
-          <EmptyState title="검색 결과가 없습니다"
+          /* 목록 화면에서 이 상태는 **화면 전체**다 — 표도 Pager 도 없다. 그래서 가운데
+             구성으로 선다(`kit.jsx::EmptyState` 의 `layout`). 판 안의 빈 칸과 같은 부품을
+             쓰되 자리가 다르면 다르게 그린다. */
+          <EmptyState layout="page" title="검색 결과가 없습니다" art="search"
             help="조건에 맞는 항목이 없습니다. 검색어나 필터를 지워보세요."
             action={<Button variant="primary" onClick={() => { setQ(""); setFilters({}); setPage(1); }}>검색, 필터 지우기</Button>} />
         ) : (
-          <EmptyState title={config.emptyTitle || "표시할 항목이 없습니다"}
+          <EmptyState layout="page" title={config.emptyTitle || "표시할 항목이 없습니다"}
             help={typeof config.emptyHelp === "function" ? config.emptyHelp(role, createBtn) : config.emptyHelp}
             // situation/prerequisite/steps/expected는 대부분 '추가'·'활성화' 같은 쓰기 전용 버튼을
             // 클릭하라고 안내한다(help는 이미 canCreate로 role-branch되지만 이 네 필드는 예전엔

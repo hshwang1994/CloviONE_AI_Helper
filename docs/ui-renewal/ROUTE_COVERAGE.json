@@ -20855,16 +20855,16 @@
   },
   {
    "id": "user_my-display",
-   "kind": "route",
+   "kind": "state_variant",
    "route": "/my-display",
    "console": "user",
    "host_surface": null,
-   "component": "frontend/src/screens/DisplaySettings.jsx",
+   "component": "frontend/src/app/UserRoutes.jsx (<Navigate to=\"/profile\">)",
    "render_engine": "custom",
    "registry_key": null,
    "registry_key_source": null,
-   "alias_of": null,
-   "archetype": "settings_panel",
+   "alias_of": "user_profile",
+   "archetype": "alias",
    "source": "frontend/src/app/UserRoutes.jsx (<Route path=\"/my-display\">)",
    "role": {
     "min": "",
@@ -21122,7 +21122,7 @@
    "in_harness": true,
    "archetype_current": "settings_panel",
    "component_loc": 27,
-   "purpose": "이 브라우저에서 쓸 화면 강조색을 고른다.",
+   "purpose": "옛 「내 화면 설정」 주소를 내 프로필로 데려간다 — 강조색은 그 화면 안에 있다.",
    "source_evidence": [
     "frontend/src/app/UserRoutes.jsx:138",
     "frontend/src/screens/DisplaySettings.jsx:18",
@@ -21130,7 +21130,7 @@
     "frontend/src/screens/settings/AccentPicker.jsx:14",
     "frontend/src/screens/settings/AccentPicker.jsx:35"
    ],
-   "derivation_notes": "화면 전체가 PageHeader + 카드 한 장 + 색 버튼 몇 개뿐이다(27줄). 설정 항목이 하나라 '내 화면 설정'이라는 제목이 약속하는 범위(밝게/어둡게, 밀도, 글자 크기 등)와 실제 내용이 어긋난다 — 다크/라이트는 의도적으로 상단바에만 둔다(DisplaySettings.jsx:12-13). ROUTE_COVERAGE 의 F-0006(캡처 하네스 미포함)이 아직 열려 있다.",
+   "derivation_notes": "S19: 설정 하나(화면 강조색)뿐인 화면이 사이드바 항목도 ROUTE_OWNER 도 없이 따로 서 있었다 — 그 화면에서는 사이드바 선택 표시가 통째로 사라졌고 본문의 70%가 빈 채였다. 같은 개인 설정을 이미 전부 갖고 있는 `/profile` 로 합치고 주소는 리다이렉트로 남긴다.",
    "harness_id": "user_my-display",
    "requirements_why": "컨트롤 하나(AccentPicker)만 있는 27줄 화면이라 '이 페이지가 목적에 필요한 것을 다 갖고 있는가'가 핵심 질문이다(R-62). 색 선택 컨트롤과 현재 값 표기(R-17·R-11), 색만으로 상태를 전달하지 않기와 포커스(R-25), '이 브라우저에만 저장된다'는 적용 범위 설명이 본문 산문인지 Help 인지(R-3·R-22), 설정을 카드로 감싸지 않는 B10 계약(R-82).",
    "advisory": {

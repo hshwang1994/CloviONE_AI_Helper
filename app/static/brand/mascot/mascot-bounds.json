@@ -454,6 +454,134 @@
       ],
       "hfrac": 0.777,
       "wfrac": 0.713
+    },
+    "spot-assistant.png": {
+      "file": "spot-assistant.png",
+      "sha256": "9228ab5ce921c6443457ed9c46e2a8ecac31539b16dad08a7cffd5252193fba0",
+      "size": [
+        512,
+        512
+      ],
+      "visibleBounds": [
+        121,
+        142,
+        430,
+        372
+      ],
+      "hfrac": 0.451,
+      "wfrac": 0.605
+    },
+    "spot-board.png": {
+      "file": "spot-board.png",
+      "sha256": "aa222aa23a3403c0bdc5c3bc88fdcef8becec8c62a3c51db9bcea914c57f9a73",
+      "size": [
+        512,
+        512
+      ],
+      "visibleBounds": [
+        87,
+        127,
+        479,
+        387
+      ],
+      "hfrac": 0.51,
+      "wfrac": 0.768
+    },
+    "spot-chat.png": {
+      "file": "spot-chat.png",
+      "sha256": "3c63de551e0c594666668cf225c1246c71bd49fcfcf6696c42e50b18135c9b32",
+      "size": [
+        512,
+        512
+      ],
+      "visibleBounds": [
+        168,
+        131,
+        417,
+        373
+      ],
+      "hfrac": 0.475,
+      "wfrac": 0.488
+    },
+    "spot-docs.png": {
+      "file": "spot-docs.png",
+      "sha256": "0b5ab8ae029637eb902d9c7cb5b7d118ccb5b0bf09843e7f538979c0c07e0b6d",
+      "size": [
+        512,
+        512
+      ],
+      "visibleBounds": [
+        82,
+        126,
+        443,
+        360
+      ],
+      "hfrac": 0.459,
+      "wfrac": 0.707
+    },
+    "spot-games.png": {
+      "file": "spot-games.png",
+      "sha256": "c78f0b280390ed90ecdc46fca1463d1a4e3abc111ad9cfccda6fefeb9e500fb0",
+      "size": [
+        512,
+        512
+      ],
+      "visibleBounds": [
+        85,
+        107,
+        482,
+        375
+      ],
+      "hfrac": 0.525,
+      "wfrac": 0.777
+    },
+    "spot-mywork.png": {
+      "file": "spot-mywork.png",
+      "sha256": "b85a8ef5248cf71713da979e3ad108cf5f1c573702ed725d4b175a34bb372b14",
+      "size": [
+        1024,
+        1024
+      ],
+      "visibleBounds": [
+        45,
+        89,
+        983,
+        838
+      ],
+      "hfrac": 0.732,
+      "wfrac": 0.917
+    },
+    "spot-sprint.png": {
+      "file": "spot-sprint.png",
+      "sha256": "293b9aae3e8982f645e162521629f60217cb04ba2809f0b9d5289e7116039ace",
+      "size": [
+        1024,
+        1024
+      ],
+      "visibleBounds": [
+        80,
+        42,
+        907,
+        924
+      ],
+      "hfrac": 0.862,
+      "wfrac": 0.809
+    },
+    "spot-teamspace.png": {
+      "file": "spot-teamspace.png",
+      "sha256": "fa6949d9a6e1d56f9878f77b72b88587f57adee1b930a9a5caa91f5b13c5ef41",
+      "size": [
+        512,
+        512
+      ],
+      "visibleBounds": [
+        110,
+        118,
+        482,
+        369
+      ],
+      "hfrac": 0.492,
+      "wfrac": 0.729
     }
   }
 }

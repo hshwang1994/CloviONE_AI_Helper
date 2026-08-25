@@ -6,6 +6,9 @@ import FilterListRoundedIcon from "@mui/icons-material/FilterListRounded";
 import { FONT_SIZE } from "./theme.js";
 import { ColumnFilterPopover } from "./columnFilter.jsx";
 
+/* 이름 자리 — 넘치면 한 줄로 자르고 전체는 `th` 의 `title` 에 남는다. */
+const LABEL_SX = { minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
+
 /* DataTable 과 GroupedTickets 가 같이 쓰는 머리글 칸.
  * 정렬 화살표는 onSort 가 있을 때만, 필터 단추는 onFilter 가 있을 때만 그린다.
  * 호출부가 안 넘기면 예전 머리글과 같다. */
@@ -26,11 +29,18 @@ export function TableHeaderCell({
       scope="col"
       align={align}
       data-col-role={colRole}
-      title={c.help || undefined}
+      /* 이름이 잘렸을 때 전체를 볼 길 — 본문 칸이 `title` 로 하는 것과 같다.
+         도움말이 있으면 그것이 이긴다(그쪽이 더 많은 것을 말한다). */
+      title={c.help || (typeof c.label === "string" ? c.label : undefined)}
       aria-sort={sortable ? (dir === "asc" ? "ascending" : dir === "desc" ? "descending" : "none") : undefined}
       sx={cellSx}
     >
-      <Box sx={{ display: "inline-flex", alignItems: "center", gap: 0.25, whiteSpace: "nowrap", maxWidth: "100%" }}>
+      {/* 🔴 머리글이 자기 칸 밖으로 나가지 않는다 (S19).
+          예전에는 `maxWidth: 100%` 만 걸려 있어서, 열이 이름보다 좁아지면 글자가 상자를
+          넘어 **옆 머리글 위에 그려졌다**. 「카테고리」·「상태」·「작성자」가 한 자리에서
+          겹쳐 읽을 수 없던 것이 그것이다. 이름은 잘리고 정렬 화살표·필터 단추는 안 줄어든다
+          — 조작기가 먼저 사라지면 그 열은 정렬도 필터도 할 수 없게 된다. */}
+      <Box sx={{ display: "flex", alignItems: "center", gap: 0.25, minWidth: 0, maxWidth: "100%", overflow: "hidden" }}>
         {sortable ? (
           <Box
             component="button"
@@ -39,24 +49,24 @@ export function TableHeaderCell({
             sx={{
               font: "inherit", color: "inherit", border: 0, background: "none", p: 0,
               display: "inline-flex", alignItems: "center", gap: 0.5, cursor: "pointer",
-              whiteSpace: "nowrap", minWidth: 0,
+              whiteSpace: "nowrap", minWidth: 0, maxWidth: "100%", overflow: "hidden",
               "&:hover": { color: "text.primary" },
               "&:focus-visible": (t) => ({ outline: `2px solid ${t.palette.focusRing}`, outlineOffset: 2 }),
             }}
           >
-            {c.label}
-            <Box component="span" aria-hidden="true" sx={{ fontSize: FONT_SIZE.caption, opacity: active ? 1 : 0.35 }}>
+            <Box component="span" sx={LABEL_SX}>{c.label}</Box>
+            <Box component="span" aria-hidden="true" sx={{ flexShrink: 0, fontSize: FONT_SIZE.caption, opacity: active ? 1 : 0.35 }}>
               {dir === "desc" ? "\u2193" : dir === "asc" ? "\u2191" : "\u2195"}
             </Box>
           </Box>
-        ) : (c.label || null)}
+        ) : (c.label ? <Box component="span" sx={LABEL_SX}>{c.label}</Box> : null)}
         {filterable ? (
           <IconButton
             size="small"
             aria-label={`${c.label || "열"} 필터`}
             aria-pressed={filtered}
             onClick={(e) => setAnchor(e.currentTarget)}
-            sx={{ color: filtered ? "primary.main" : "text.secondary" }}
+            sx={{ flexShrink: 0, color: filtered ? "primary.main" : "text.secondary" }}
           >
             <FilterListRoundedIcon fontSize="inherit" />
           </IconButton>

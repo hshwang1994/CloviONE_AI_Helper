@@ -33,9 +33,11 @@ export function LegacyDocRedirect() {
     if (status === 404) {
       return (
         <EmptyState
+          layout="page"
+          art="notFound"
           title="옛 주소가 가리키는 문서를 찾지 못했습니다."
           help="문서 화면이 하나로 합쳐졌습니다. 옮겨 오지 않았거나 볼 수 있는 권한이 없는 문서입니다."
-          action={<Button href="#/knowledge">문서 목록 열기</Button>}
+          action={<Button variant="primary" href="#/knowledge">문서 목록 열기</Button>}
         />
       );
     }

@@ -25,6 +25,7 @@ import Chip from "@mui/material/Chip";
 import StarRoundedIcon from "@mui/icons-material/StarRounded";
 import { FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
 import { fmtDateTimeCompact } from "../lib/format.js";
+import { SPACES_KEY, useKnowledgeSpaces } from "../lib/knowledgeSpaces.js";
 
 /* 지식 공간 — 공간 · 폴더 트리 · 문서 목록 (S7).
  *
@@ -45,7 +46,10 @@ import { fmtDateTimeCompact } from "../lib/format.js";
  * 폴더를 지우면 그 아래 문서는 안 지워지고 공간 뿌리로 올라온다. 그 사실을 화면이 말하지
  * 않으면 사용자는 문서가 사라졌다고 믿는다. */
 
-const SPACES_KEY = ["knowledge", "spaces"];
+/* 공간 목록 질의는 `lib/knowledgeSpaces.js` 가 갖는다 — AI 작업공간과 같은 질의라
+ * 두 벌로 두면 한쪽만 응답 모양을 잘못 읽는다(S19 에서 실제로 그랬다). 무효화 키는
+ * 이 화면이 계속 쓰므로 그대로 다시 내보낸다. */
+export { SPACES_KEY };
 
 /* 한 화면에 보여 주는 문서 수. 서버 기본값과 같은 수다.
  *
@@ -54,10 +58,6 @@ const SPACES_KEY = ["knowledge", "spaces"];
  * 사실 자체가** 사용자에게 안 보였다. 목록이 끊긴 자리에 아무 표시도 없으면 사람은 그것이
  * 전부라고 믿는다. */
 const PAGE_SIZE = 50;
-
-function useSpaces() {
-  return useQuery({ queryKey: SPACES_KEY, queryFn: () => api("/api/knowledge/spaces") });
-}
 
 function useTree(spaceId) {
   return useQuery({
@@ -207,8 +207,7 @@ export function Knowledge() {
     [],
   );
 
-  const spaces = useSpaces();
-  const items = spaces.data?.items || [];
+  const { query: spaces, items } = useKnowledgeSpaces();
 
   /* 공간을 안 고르면 첫 번째를 연다. 빈 화면을 보여 주고 「고르세요」라고 말하면
    * 대부분의 사람에게 공간은 하나뿐이라 한 번 더 누르는 일만 늘어난다. */
@@ -278,6 +277,8 @@ export function Knowledge() {
       <>
         <PageHeader area="팀 업무" title="지식 공간" />
         <EmptyState
+          layout="page"
+          art="docs"
           title="볼 수 있는 지식 공간이 없습니다."
           help="관리자가 공간을 만들면 여기에 나타납니다."
         />
@@ -405,16 +406,19 @@ export function Knowledge() {
             )}
             {/* 0건에는 **두 얼굴**이 있다 — 「문서가 아예 없다」와 「조건 때문에 0건이다」는
                 다른 사실이고 다음 행동도 다르다. 그 분기는 공용 부품이 든다(W5). */}
+            {/* 「정말 없다」 갈래에는 CTA 를 안 준다 (S19) — 상단의 «새 문서» 와 같은 일이라
+                버튼이 둘이 되고, 사용자는 둘이 다른 일을 한다고 읽는다. 조건 때문에 0건인
+                갈래는 다르다: «조건 지우기» 는 상단에 없는 다른 행동이라 그쪽이 갖는다. */}
             {!documents.isLoading && !documents.isError && rows.length === 0 && (
               <ListEmptyState
+                layout="page"
                 filtered={Boolean(favorites || q || tag)}
                 onClear={() => setQuery({ q: null, favorites: false, tag: null, page: null })}
                 clearLabel="검색, 필터 지우기"
                 filteredTitle="조건에 맞는 문서가 없습니다"
                 filteredHelp="검색어와 즐겨찾기 조건을 풀면 전체 문서가 다시 나타납니다."
                 title="문서가 아직 없습니다."
-                help="새 문서를 만들면 이 목록에 나타납니다."
-                action={<Button onClick={() => setDocForm(true)}>새 문서</Button>}
+                help="‘새 문서’로 만들면 이 목록에 나타납니다."
               />
             )}
 

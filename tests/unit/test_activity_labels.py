@@ -67,6 +67,17 @@ def _literal_object_types() -> set[str]:
     return found
 
 
+def test_no_verb_label_is_a_sentence_fragment():
+    """조각 문장이 다시 들어오지 못하게 한다 — 이 표는 술어를 든다."""
+    from app.profiles.activity import VERB_LABELS
+
+    bad = sorted(v for v in VERB_LABELS.values() if not v.endswith("습니다"))
+    assert not bad, (
+        "내 활동 피드의 동사는 완결형이어야 한다(CLAUDE.md 한국어 규칙). 조각 문장:\n  "
+        + "\n  ".join(bad)
+    )
+
+
 def test_every_audit_object_type_has_a_korean_label():
     used = _literal_object_types() | set(DYNAMIC_OBJECT_TYPES)
     missing = sorted(used - set(OBJECT_LABELS))
@@ -93,13 +104,19 @@ def test_object_particle_matches_korean_final_consonant(word, expected):
 
 
 def test_known_action_reads_as_a_sentence():
-    assert describe_action("ticket.update", "notion_task") == "티켓을 고침"
-    assert describe_action("department.create", "department") == "부서를 만듦"
+    """한 피드가 **한 말투**로 말한다 (S19).
+
+    예전에는 표 규칙이 명사형("티켓을 고침")이고 통문장 표가 완결형("로그인했습니다")이라,
+    같은 화면에 두 문체가 섞여 나왔다. 둘 다 완결형이다.
+    """
+    assert describe_action("ticket.update", "notion_task") == "티켓을 고쳤습니다"
+    assert describe_action("department.create", "department") == "부서를 만들었습니다"
+    assert describe_action("board_post.create", "board_post") == "게시글을 만들었습니다"
     assert describe_action("user.login", "user") == "로그인했습니다"
 
 
 def test_unknown_action_keeps_the_original_text():
     """모르는 활동을 '알 수 없는 활동'으로 뭉개면 내가 한 일인데 무엇인지 알 수 없다."""
     assert describe_action("weird.thing", "nope") == "weird.thing"
-    # 동사만 아는 경우에도 원문을 함께 남긴다(예전엔 "만듦" 한 단어만 나왔다).
-    assert describe_action("mystery.create", "unknown_type") == "만듦 (mystery.create)"
+    # 동사만 아는 경우에도 원문을 함께 남긴다(예전엔 동사 한 마디만 나왔다).
+    assert describe_action("mystery.create", "unknown_type") == "만들었습니다 (mystery.create)"

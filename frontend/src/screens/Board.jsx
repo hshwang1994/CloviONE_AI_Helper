@@ -38,8 +38,8 @@ import { Pager } from "../ui/Pager.jsx";
  * 2026-08 MUI 재설계: 손으로 쓴 .k-input/.board-* 마크업을 MUI 컴포넌트로 바꿨다. kit.css가
  * 걷히면서 .k-input에는 이미 아무 규칙도 남아 있지 않아 검색창·정렬 select가 브라우저 기본
  * 모양으로 떠 있었다 — 화면마다 손으로 스타일을 다시 붙이지 않고 테마 하나를 따르게 한다.
- * 열 너비는 열 정의에 함께 적는다(fixed + ellipsis): CSS nth-child로 잡으면 열 순서가 바뀔 때
- * 조용히 어긋난다.
+ * 열 너비는 열 정의가 **뜻으로** 정한다(`ui/columnTypes.js`): CSS nth-child로 잡으면 열
+ * 순서가 바뀔 때 조용히 어긋난다.
  *
  * ## 종류가 둘인데 화면은 하나다 (7단계 #1)
  *
@@ -377,7 +377,7 @@ export const COPY = {
     title: "자유게시판",
     lead: "팀원과 자유롭게 이야기를 나눕니다.",
     empty: "아직 게시글이 없습니다",
-    emptyHelp: "위 ‘글쓰기’로 팀원과 나누고 싶은 첫 이야기를 남겨 보세요.",
+    emptyHelp: "‘글쓰기’로 팀원과 나누고 싶은 첫 이야기를 남길 수 있습니다.",
     writeLabel: "글쓰기",
     route: "/board/",
   },
@@ -386,7 +386,7 @@ export const COPY = {
     title: "기능 개선 제안",
     lead: "불편한 점이나 있으면 좋겠는 기능을 올리고, 공감으로 순서를 정합니다.",
     empty: "아직 제안이 없습니다",
-    emptyHelp: "위 ‘제안하기’로 불편한 점이나 있으면 좋겠는 기능을 남겨 보세요.",
+    emptyHelp: "‘제안하기’로 불편한 점이나 있으면 좋겠는 기능을 남길 수 있습니다.",
     writeLabel: "제안하기",
     route: "/board/",
   },
@@ -430,8 +430,13 @@ function BoardScreen({ kind = "free" }) {
      행마다 신원을 되풀이하면 목록 응답이 그만큼 부푼다. 옛 응답·캐시에는 없을 수 있다. */
   const people = (list.data && list.data.people) || {};
 
-  /* 폭은 열 정의에 함께 적는다(DataTable fixed + ellipsis) — 제목만 남는 폭을 전부 갖고
-   * 나머지는 내용 길이와 무관하게 고정된다. 4K에서도 제목 열만 넓어진다. */
+  /* 폭은 열의 **뜻**에서 나온다(`type`) — 제목만 남는 폭을 전부 갖고 나머지는 내용 폭에
+   * 붙는다. 4K에서도 제목 열만 넓어진다.
+   *
+   * 🔴 이 표는 예전에 `fixed` 로 그려졌고 그것이 열을 부쉈다(S19). `type` 이 주는 폭
+   * (`SHRINK = "1%"` + 바닥값)은 auto 배치에서만 「내용만큼」이라는 뜻이고, fixed 배치는
+   * 그 1% 를 글자 그대로 읽으면서 바닥값을 무시한다 — 실측에서 분류·상태·공감·조회·작성
+   * 다섯 열이 1920 에서 15.6px 로 섰다. 배치 결정은 이제 `DataTable` 이 혼자 갖는다. */
   const columns = [
     {
       key: "title",
@@ -452,7 +457,7 @@ function BoardScreen({ kind = "free" }) {
         </Box>
       ),
     },
-    { key: "category", label: "카테고리", type: "enum", render: (p) => <Tag label={p.category} /> },
+    { key: "category", label: "카테고리", type: "enum", hideNarrow: true, render: (p) => <Tag label={p.category} /> },
     /* 🔴 상태 열은 **아이디어일 때만** 붙는다. 자유게시글에 상태 배지를 그리면
        "이 글은 검토중"이라는 뜻 없는 말이 되고, 서버가 실수로 값을 실어 보내는 날
        (`idea_status` 가 응답에 남는 경우) 그대로 화면에 나온다. 그래서 값이 아니라
@@ -486,7 +491,9 @@ function BoardScreen({ kind = "free" }) {
       type: "name", minWidth: "16rem",
       render: (p) => <AuthorLine name={p.author_name} person={people[p.author_user_id]} />,
     },
-    { key: "view_count", label: "조회", type: "count", sortable: true },
+    /* 좁은 화면(900~1200)에서 먼저 접히는 둘. 분류는 바로 위 칩이 이미 말하고, 조회 수는
+       어느 글을 열지 정하는 데 가장 덜 쓰인다 — 행을 열면 둘 다 상세에 있다. */
+    { key: "view_count", label: "조회", type: "count", sortable: true, hideNarrow: true },
     { key: "created_at", label: "작성", type: "date", sortable: true, render: (p) => <DateCell value={p.created_at} /> },
   ];
 
@@ -596,17 +603,21 @@ function BoardScreen({ kind = "free" }) {
       ) : items.length === 0 ? (
         hasFilter ? (
           <EmptyState
+            layout="page"
             art="search"
             title="검색 결과가 없습니다"
             help="조건에 맞는 게시글이 없습니다. 검색어를 지우거나 카테고리를 ‘전체’로 되돌려 보세요."
             action={<Button variant="primary" onClick={clearFilters}>검색, 카테고리 지우기</Button>}
           />
         ) : (
+          /* 🔴 여기에 «글쓰기» 를 다시 두지 않는다 (S19) — 상단 행동과 같은 일이다.
+             `copy.emptyHelp` 가 그 버튼을 이름으로 가리킨다. 조건 때문에 0건인 위쪽
+             갈래는 다르다: «조건 지우기» 는 상단에 없는 **다른 행동**이라 CTA 를 갖는다. */
           <EmptyState
+            layout="page"
             art="board"
             title={copy.empty}
             help={copy.emptyHelp}
-            action={writeBtn}
           />
         )
       ) : (
@@ -615,7 +626,6 @@ function BoardScreen({ kind = "free" }) {
             columns={columns}
             rows={items}
             rowKey={(p) => p.id}
-            fixed
             ellipsis
             sort={{ key: boardSortKey, dir: "desc" }}
             onSort={onBoardSort}

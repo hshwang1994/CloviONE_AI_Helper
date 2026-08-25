@@ -19,6 +19,11 @@ import {
 } from "../ui/kit.jsx";
 import { FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
 import { Note } from "../ui/adminKit.jsx";
+/* 화면 강조색은 예전에 자기 라우트(`/my-display`)를 갖고 있었다 — 설정 하나뿐인 화면이
+ * 사이드바 항목도 없이 계정 메뉴에서만 열렸고, 그래서 그 화면에서는 사이드바 선택 표시가
+ * 통째로 사라졌다. 개인 설정은 이미 이 화면이 전부 갖고 있으므로(알림·방해금지·둘러보기)
+ * 여기로 합친다(S19). 옛 주소는 이 화면으로 넘긴다. */
+import { AccentPicker } from "./settings/AccentPicker.jsx";
 
 /* 내 프로필 — 아바타 · 알림 설정 · 방해금지 · 내 기기(세션) (계획서 Phase 6 사용자).
  *
@@ -469,7 +474,14 @@ export function Profile() {
           </Box>
           <Box sx={TWO_COL}>
             <NotificationCard prefs={prefsQuery.data} save={savePrefs.mutate} saving={savePrefs.isPending} />
-            <DndCard prefs={prefsQuery.data} save={savePrefs.mutate} saving={savePrefs.isPending} />
+            {/* 알림 설정 카드는 유형이 스물한 개라 세로로 길고, 그 옆 칸은 방해금지
+                하나로 끝나 900px 가까이 비어 있었다(`equal_column_split` 실측). 같은
+                「내 설정」인 강조색을 그 자리에 세운다 — 빈 자리를 메우려고 아무거나
+                옮기는 것이 아니라, 원래 여기 있었어야 할 것이다. */}
+            <Box sx={{ display: "grid", gap: 2.5, alignContent: "start", minWidth: 0 }}>
+              <DndCard prefs={prefsQuery.data} save={savePrefs.mutate} saving={savePrefs.isPending} />
+              <AccentPicker />
+            </Box>
           </Box>
           <Card>
             <SectionTitle component="h2" sx={{ mb: 2 }} help="처음 들어왔을 때 나오는 안내입니다. 언제든 다시 볼 수 있습니다.">

@@ -50,6 +50,7 @@ REPO = Path(__file__).resolve().parents[1]
 MASCOT_DIR = REPO / "app" / "static" / "brand" / "mascot"
 LOGIN_DIR = REPO / "app" / "static" / "brand" / "login"
 ART_DIR = REPO / "app" / "static" / "brand" / "empty-states"
+SPOT_DIR = REPO / "app" / "static" / "brand" / "spot"
 JSON_OUT = MASCOT_DIR / "mascot-bounds.json"
 JS_OUT = REPO / "frontend" / "src" / "ui" / "mascotBounds.js"
 
@@ -68,11 +69,17 @@ def _assets() -> list[Path]:
     `empty-states/` 를 함께 재는 이유: 그 그림들도 같은 여백 문제를 갖고 있고, PLAN 의 Clovi
     계약표가 «Page-level Empty · `ART[...]` 또는 `clovi-sleep` · 132px» 처럼 **같은 밴드로**
     다룬다. 빈 화면의 그림은 클로비가 사는 자리 가운데 가장 큰 자리다.
+
+    `spot/` 도 함께 잰다 (S19). 놀이 화면의 빈 상태에는 «게임」 그림이 필요한데
+    `empty-states/` 에 그런 그림이 없다 — 대화나 게시판 그림을 빌려 쓰면 그 화면이 무엇에
+    대한 것인지 그림이 거짓말을 한다. 자산이 다른 폴더에 있다는 이유로 여백을 안 재면
+    그 그림만 «보이는 크기» 계약 밖에 서고, 그게 정확히 D-294 가 고친 상태다.
     """
     poses = sorted(p for p in MASCOT_DIR.glob("clovi-*.png") if p.is_file())
     canonical = sorted(p for p in LOGIN_DIR.glob("clovi-canonical-*.png") if p.is_file())
     art = sorted(p for p in ART_DIR.glob("*.png") if p.is_file())
-    return poses + canonical + art
+    spot = sorted(p for p in SPOT_DIR.glob("*.png") if p.is_file())
+    return poses + canonical + art + spot
 
 
 def visible_bounds(path: Path) -> dict:

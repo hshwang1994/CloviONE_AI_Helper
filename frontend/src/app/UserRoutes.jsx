@@ -19,7 +19,6 @@ import { Profile } from "../screens/Profile.jsx";
 import { MyStats } from "../screens/MyStats.jsx";
 import { Activity } from "../screens/Activity.jsx";
 import { MyApprovals } from "../screens/MyApprovals.jsx";
-import { DisplaySettings } from "../screens/DisplaySettings.jsx";
 import { DataScreen } from "../screens/DataScreen.jsx";
 /* 알림 화면 설정만 들여온다 — `registry.js` 전체가 아니다 (PF7).
    그 파일은 관리자 화면 스물여덟 개의 설정 덩어리(gzip 43KB)이고, 사용자 콘솔이 거기서
@@ -80,6 +79,7 @@ function UserConsoleFallback() {
   if (isKnownAdminPath(location.pathname)) {
     return (
       <EmptyState
+        layout="page"
         title="권한이 없습니다"
         help="이 화면은 관리자 콘솔 전용입니다. 관리자 권한이 필요하면 관리자에게 문의하세요."
         art="noPermission"
@@ -153,9 +153,11 @@ function UserRoutes() {
       <Route path="/profile" element={<Profile />} />
       <Route path="/my-stats" element={<MyStats />} />
       <Route path="/activity" element={<Activity />} />
-      {/* PA-RC-0022: 화면 강조색은 브라우저 로컬 저장이라 서버 세션·역할과 아예 무관하다 —
-          위 셋보다도 게이트가 더 필요 없다. */}
-      <Route path="/my-display" element={<DisplaySettings />} />
+      {/* 옛 「내 화면 설정」 주소 (S19). 설정 하나짜리 화면이 자기 라우트를 갖고 있었고,
+          사이드바 항목이 없어 그 화면에서는 선택 표시가 통째로 사라졌다. 강조색은 다른
+          개인 설정과 같은 자리(`/profile`)로 옮겼다. 주소는 살려 둔다 — 계정 메뉴에
+          있던 항목이라 북마크가 남아 있을 수 있다. */}
+      <Route path="/my-display" element={<Navigate to="/profile" replace />} />
       <Route path="*" element={<UserConsoleFallback />} />
     </Routes>
   );

@@ -126,30 +126,36 @@ OBJECT_LABELS: dict[str, str] = {
 
 # 액션 문자열의 **마지막 조각** → 한국어 동사. 'ticket.body.update' 처럼 조각이 셋이어도
 # 마지막이 동사라는 규약을 지켜 온 덕에 표 하나로 전부 읽을 수 있다.
+# 🔴 **한 목록이 두 말투를 쓰지 않는다** (S19).
+#
+# 예전에는 이 표가 명사형("만듦"·"고침")이었고 `ACTION_SENTENCES` 는 완결형("로그인했습니다")
+# 이었다. 그래서 같은 피드에 「로그인했습니다」 바로 아래 「게시글을 만듦」이 왔다 — 한 화면이
+# 두 문체로 말하면 사용자는 둘이 다른 종류의 기록이라고 읽는다. CLAUDE.md 의 한국어 규칙도
+# 조각 문장을 금지한다. 완결형으로 통일한다.
 VERB_LABELS: dict[str, str] = {
-    "create": "만듦",
-    "update": "고침",
-    "delete": "지움",
-    "trash": "휴지통으로 보냄",
-    "claim": "가져감",
-    "pin": "고정",
-    "upload": "올림",
-    "sync": "동기화",
-    "publish": "발행",
-    "enable": "켬",
-    "disable": "끔",
-    "login": "로그인",
-    "logout": "로그아웃",
-    "approve": "승인",
-    "cancel": "취소",
-    "retry": "재시도",
-    "rollback": "되돌림",
-    "clone": "복제",
-    "verify": "확인",
-    "run": "실행",
-    "undo": "되돌림",
+    "create": "만들었습니다",
+    "update": "고쳤습니다",
+    "delete": "지웠습니다",
+    "trash": "휴지통으로 보냈습니다",
+    "claim": "가져갔습니다",
+    "pin": "고정했습니다",
+    "upload": "올렸습니다",
+    "sync": "동기화했습니다",
+    "publish": "발행했습니다",
+    "enable": "켰습니다",
+    "disable": "껐습니다",
+    "login": "로그인했습니다",
+    "logout": "로그아웃했습니다",
+    "approve": "승인했습니다",
+    "cancel": "취소했습니다",
+    "retry": "재시도했습니다",
+    "rollback": "되돌렸습니다",
+    "clone": "복제했습니다",
+    "verify": "확인했습니다",
+    "run": "실행했습니다",
+    "undo": "되돌렸습니다",
     # Notion / AI 연결 테스트(9-4, 9-5). 'notion.connection.test' 처럼 마지막이 동사다.
-    "test": "연결 테스트",
+    "test": "연결을 테스트했습니다",
 }
 
 # 위 규칙(명사 + 동사)으로 자연스럽게 읽히지 않는 액션은 통째로 문장을 준다.
@@ -206,8 +212,8 @@ def describe_action(action: str, object_type: str | None) -> str:
     if verb and noun:
         return f"{noun}{object_particle(noun)} {verb}"
     if verb and action:
-        # 동사만 알고 대상을 모르면 동사만 내지 않는다 — "만듦" 한 단어는 무엇을 만들었는지
-        # 알려 주지 않아 원문보다도 정보가 적다. 원문을 함께 남긴다.
+        # 동사만 알고 대상을 모르면 동사만 내지 않는다 — "만들었습니다" 한 마디는 무엇을
+        # 만들었는지 알려 주지 않아 원문보다도 정보가 적다. 원문을 함께 남긴다.
         return f"{verb} ({action})"
     if noun:
         return f"{noun}: {action}"

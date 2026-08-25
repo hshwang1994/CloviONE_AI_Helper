@@ -40,6 +40,14 @@ export const MASCOT_BOUNDS = {
   "state-offline.png": { hfrac: 0.655, wfrac: 0.784, size: [1024, 1024] },
   "state-session-expired.png": { hfrac: 0.677, wfrac: 0.783, size: [1024, 1024] },
   "state-success.png": { hfrac: 0.777, wfrac: 0.713, size: [1024, 1024] },
+  "spot-assistant.png": { hfrac: 0.451, wfrac: 0.605, size: [512, 512] },
+  "spot-board.png": { hfrac: 0.51, wfrac: 0.768, size: [512, 512] },
+  "spot-chat.png": { hfrac: 0.475, wfrac: 0.488, size: [512, 512] },
+  "spot-docs.png": { hfrac: 0.459, wfrac: 0.707, size: [512, 512] },
+  "spot-games.png": { hfrac: 0.525, wfrac: 0.777, size: [512, 512] },
+  "spot-mywork.png": { hfrac: 0.732, wfrac: 0.917, size: [1024, 1024] },
+  "spot-sprint.png": { hfrac: 0.862, wfrac: 0.809, size: [1024, 1024] },
+  "spot-teamspace.png": { hfrac: 0.492, wfrac: 0.729, size: [512, 512] },
 };
 
 /** 자산 경로(또는 파일 이름) → 세로 잉크 비율. 모르는 자산이면 1(= 여백 없음)로 본다. */

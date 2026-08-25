@@ -165,7 +165,7 @@ export function MyStats() {
                       같은 눈금에 겹치면 건수 선이 바닥에 눌려 붙어 아무 정보도 주지 않는다.
                       건수는 바로 아래 표가 정확히 말한다. */}
                   <LineSeries
-                    question="달이 갈수록 완료율이 오르는지 내리는지 **추세**를 봅니다. 그 달의 정확한 건수는 아래 표가 답합니다."
+                    question="달이 갈수록 완료율이 오르는지 내리는지 추세를 봅니다. 그 달의 정확한 건수는 아래 표가 답합니다."
                     series={[{
                       label: "완료율(%)",
                       points: data.months.map((m) => (m.completion_rate == null ? 0 : Math.round(m.completion_rate * 100))),

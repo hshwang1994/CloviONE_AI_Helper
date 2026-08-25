@@ -188,6 +188,77 @@ CASES: list[dict] = [
         </div>""",
     },
     {
+        "name": "optical_alignment/한 줄 입력의 여백이 아래에만 있으면 잡힌다",
+        "assertion": "optical_alignment",
+        "expect": "fail",
+        "why": ("native textarea 는 첫 줄을 내용 상자 위에 붙인다. 한 줄인데 상자가 글보다 크면 "
+                "남는 칸이 전부 아래로 가서 글이 위에 붙어 보인다 — 채팅 입력은 그 한 예일 뿐이다."),
+        "html": """
+        <textarea rows="1" placeholder="메시지를 입력하세요"
+          style="width:320px;height:48px;padding:6px 12px;line-height:20px;font-size:14px;
+                 box-sizing:border-box;border-radius:24px"></textarea>""",
+    },
+    {
+        "name": "optical_alignment/버튼 안 아이콘이 치우치면 잡힌다",
+        "assertion": "optical_alignment",
+        "expect": "fail",
+        "why": "상자 중심이 아니라 자식 잉크 중심을 본다. 아이콘이 위에 붙으면 글이 위에 붙은 것과 같은 부류다.",
+        "html": """
+        <button style="height:44px;width:44px;padding:0;display:flex;align-items:flex-start;
+                       justify-content:center;box-sizing:border-box">
+          <svg width="16" height="16" style="display:block;margin-top:2px">
+            <circle cx="8" cy="8" r="6" fill="#333"/></svg>
+        </button>""",
+    },
+    {
+        "name": "optical_alignment/아무 축도 안 맞는 이웃은 잡힌다",
+        "assertion": "optical_alignment",
+        "expect": "fail",
+        "why": ("키가 다른 입력과 버튼이 위도 아래도 가운데도 안 맞으면 «기준이 없다». "
+                "아래를 맞춘 입력줄(flex-end)은 아래 축을 공유하므로 이쪽이 아니다."),
+        "html": """
+        <div style="display:flex;align-items:flex-start;gap:8px;width:400px">
+          <input style="flex:1;height:48px;margin-top:12px;box-sizing:border-box">
+          <button style="height:32px;width:72px;margin-top:0;box-sizing:border-box">확인</button>
+        </div>""",
+    },
+    {
+        "name": "optical_alignment/글 높이에 맞춘 한 줄 입력은 안 잡힌다",
+        "assertion": "optical_alignment",
+        "expect": "pass",
+        "why": "여백이 거의 없으면 글이 위에 붙었다고 말할 칸이 없다.",
+        "html": """
+        <textarea rows="1" placeholder="검색"
+          style="width:280px;height:32px;padding:4px 8px;line-height:22px;font-size:14px;
+                 box-sizing:border-box"></textarea>""",
+    },
+    {
+        "name": "optical_alignment/아래를 맞춘 여러 줄 입력은 안 잡힌다",
+        "assertion": "optical_alignment",
+        "expect": "pass",
+        "why": ("커진 입력 + 전송은 아래를 맞추는 것이 정상이다. 한 줄짜리 휴식 상태의 여백과 "
+                "구별해야 한다 — 이 면제가 없으면 채팅 입력줄이 글을 쓰는 순간마다 결함이 된다."),
+        "html": """
+        <div style="display:flex;gap:8px;align-items:flex-end;width:400px">
+          <textarea rows="4" style="flex:1;height:80px;padding:8px;line-height:20px;
+            font-size:14px;box-sizing:border-box">가&#10;나&#10;다</textarea>
+          <button style="height:34px;width:64px;display:flex;align-items:center;
+                         justify-content:center">전송</button>
+        </div>""",
+    },
+    {
+        "name": "optical_alignment/가운데를 맞춘 도구 줄은 안 잡힌다",
+        "assertion": "optical_alignment",
+        "expect": "pass",
+        "why": "같은 줄이 가운데 축을 공유하면 기준이 있다.",
+        "html": """
+        <div style="display:flex;gap:8px;align-items:center;width:600px">
+          <input style="flex:1;height:36px;box-sizing:border-box">
+          <button style="height:36px;width:80px;display:flex;align-items:center;
+                         justify-content:center">정렬</button>
+        </div>""",
+    },
+    {
         "name": "plain_dropdown_for_entity/Entity 를 맨 텍스트 상자로 받으면 잡힌다",
         "assertion": "plain_dropdown_for_entity",
         "expect": "fail",
@@ -583,6 +654,34 @@ def _logic_cases() -> list[dict]:
          "skip",
          "교차 출처 캔버스 오염 등으로 못 재면 «모른다» 다. 이것이 pass 로 새면 자산을 "
          "못 불러오는 실행이 전부 초록이 된다")
+
+    # ── optical_alignment 판정 배선 ────────────────────────────────────────
+    # DOM 반례는 위 CASES 가 브라우저로 본다. 여기는 classify 가 프로브 키를 실제로
+    # 읽는지 — 키 이름을 바꾸면 검사가 영원히 skip 이 되는 함정.
+    def oa_status(items, checked):
+        return assertions.classify(
+            {"opticalAlignment": items, "opticalAlignmentChecked": checked},
+            expected_theme="light", viewport_width=1600,
+            final_url="https://example.invalid/#/selftest",
+            console_errors=[], page_errors=[],
+        )["optical_alignment"]["status"]
+
+    case("optical_alignment/CLASSES 에 등록돼 있다",
+         "optical_alignment" in all_classes, True,
+         "등록하지 않으면 요약표와 --fail-on 이 이 검사를 모른다")
+    case("optical_alignment/SEVERITY 표에도 있다",
+         "optical_alignment" in run_mod.SEVERITY_BY_CLASS, True,
+         "표에 없으면 매 실행이 «표에 없는 검사» 경고를 찍고 기본 심각도로 흘려보낸다")
+    case("optical_alignment/후보가 없으면 skip 이다",
+         oa_status([], 0), "skip",
+         "재지 않은 화면을 통과로 세면 커버리지가 거짓말을 한다")
+    case("optical_alignment/재 보고 결함이 없으면 pass 다",
+         oa_status([], 3), "pass",
+         "후보를 봤는데 깨끗하면 통과다")
+    case("optical_alignment/표본이 있으면 fail 이다",
+         oa_status([{"selector": "textarea", "kind": "안쪽", "reason": "위에 붙음",
+                     "delta": 8, "a": "메시지", "b": ""}], 1), "fail",
+         "프로브가 담은 표본을 classify 가 버려서는 안 된다")
     return rows
 
 

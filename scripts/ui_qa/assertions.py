@@ -84,6 +84,7 @@ CLASSES = (
     # `--fail-on` 이 이 검사들을 볼 수 있다.
     "equal_column_split", "column_width_vs_content", "header_cell_alignment_mismatch",
     "numeric_alignment", "isolated_control_row", "control_baseline_mismatch",
+    "optical_alignment",
     "oversized_empty_surface", "dead_blank_region", "plain_dropdown_for_entity",
     "detail_side_imbalance", "surface_repetition",
     # 브랜드·마스코트는 별도 모듈이 `capture.py` 에서 채운다(대비 검사와 같은 구조다).
@@ -851,7 +852,7 @@ PROBE_JS = r"""
   out.fabScrollOver = Math.round(maxOver);
   out.fabOverlapCount = out.fabOverlap.length;
 
-  /* --- 레이아웃·콘텐츠 축 11종 -------------------------------------------
+  /* --- 레이아웃·콘텐츠 축 12종 -------------------------------------------
    *
    * 아래 검사들은 전부 "상자가 크다/작다" 가 아니라 "**요구와 공급이 어긋났다**" 를 잰다.
    * 그래야 정상 패턴(좁은 화면의 줄바꿈, 카드 목록, 짧은 설정 폼)과 결함을 가른다.
@@ -1361,6 +1362,65 @@ PROBE_JS = r"""
     const minH = Math.min(a.height, b.height);
     return minH > 0 && (bottom - top) > minH * 0.5;
   }
+
+  // --- 6b) optical_alignment ------------------------------------------------
+  /* 한 줄·한 상자 안에서 «어느 축에 붙는가»가 없는 상태.
+   *
+   * control_baseline_mismatch 는 컨트롤 **상자**의 높이/중심만 본다. 그래서
+   * (1) 상자 안의 글·아이콘이 한쪽으로 치우친 것
+   * (2) 키가 다른 이웃이 위도 아래도 중심도 안 맞는 것
+   * 을 구조적으로 못 본다. 채팅 입력의 placeholder 가 위에 붙는 것은 (1)의 한 예일 뿐이고,
+   * 채팅 전용 선택자로 잡지 않는다.
+   *
+   * 두 갈래:
+   *   안쪽 — 아직 안 늘어난 한 줄 입력의 내용 상자에 남는 세로 여유가 한쪽에만 있다
+   *          (native textarea 는 첫 줄을 위에 붙인다). 버튼은 자식 잉크 중심 vs 상자 중심.
+   *   줄축 — 한 줄의 이웃이 top/center/bottom 중 하나도 공유하지 않는다.
+   *          커진(여러 줄) 입력 + 전송처럼 아래를 맞춘 배치는 제외한다. */
+  out.opticalAlignment = [];
+  out.opticalAlignmentChecked = 0;
+  const INNER_SLACK = 6;
+  const AXIS_TOP = 2, AXIS_BOT = 2, AXIS_CEN = 3;
+  function lineHeightPx(cs) {
+    const raw = cs.lineHeight;
+    if (raw === 'normal') return (parseFloat(cs.fontSize) || 16) * 1.2;
+    const n = parseFloat(raw);
+    return Number.isFinite(n) && n > 0 ? n : 16;
+  }
+  function contentBox(el) {
+    const r = el.getBoundingClientRect();
+    const cs = getComputedStyle(el);
+    const bt = parseFloat(cs.borderTopWidth) || 0;
+    const bb = parseFloat(cs.borderBottomWidth) || 0;
+    const pt = parseFloat(cs.paddingTop) || 0;
+    const pb = parseFloat(cs.paddingBottom) || 0;
+    return {
+      height: r.height - bt - bb - pt - pb,
+      r: r, cs: cs,
+    };
+  }
+  function opticalField(el) {
+    if (el.tagName === 'TEXTAREA' || el.isContentEditable) return el;
+    const inner = el.querySelector && el.querySelector('textarea, [contenteditable="true"]');
+    return inner || el;
+  }
+  function opticalGrown(el) {
+    const field = opticalField(el);
+    if (field.tagName === 'TEXTAREA') {
+      const rows = parseInt(field.getAttribute('rows') || '2', 10);
+      if (rows >= 3) return true;
+      if (field.scrollHeight > field.clientHeight + 4) return true;
+    }
+    if (field.isContentEditable && textLineCount(field) >= 2) return true;
+    return textLineCount(field) >= 2;
+  }
+  function pushOptical(item) {
+    if (out.opticalAlignment.length >= MAX) return;
+    const key = item.selector + '|' + item.kind + '|' + (item.a || '');
+    if (out.opticalAlignment.some((x) => x.selector + '|' + x.kind + '|' + (x.a || '') === key)) return;
+    out.opticalAlignment.push(item);
+  }
+
   for (const container of MAIN.querySelectorAll('div, section, form, header, nav, td, li')) {
     if (out.controlBaseline.length >= MAX) break;
     const ccs = getComputedStyle(container);
@@ -1392,6 +1452,35 @@ PROBE_JS = r"""
       }
       if (controls.length < 2) continue;
       out.controlBaselineChecked++;
+      out.opticalAlignmentChecked++;
+      {
+        for (let ci = 0; ci < controls.length; ci++) {
+          for (let cj = ci + 1; cj < controls.length; cj++) {
+            const a = controls[ci], b = controls[cj];
+            if (!overlapsRow(a.box, b.box)) continue;
+            if (isGrid && a.item !== b.item) continue;
+            const shareTop = Math.abs(a.box.top - b.box.top) <= AXIS_TOP;
+            const shareBot = Math.abs(a.box.bottom - b.box.bottom) <= AXIS_BOT;
+            const cya = a.box.top + a.box.height / 2;
+            const cyb = b.box.top + b.box.height / 2;
+            const shareCen = Math.abs(cya - cyb) <= AXIS_CEN;
+            if (shareTop || shareBot || shareCen) continue;
+            const tall = a.box.height >= b.box.height ? a : b;
+            if (opticalGrown(tall.el)) continue;
+            const dTop = Math.abs(a.box.top - b.box.top);
+            const dBot = Math.abs(a.box.bottom - b.box.bottom);
+            const dCen = Math.abs(cya - cyb);
+            pushOptical({
+              selector: cssPath(container),
+              kind: '줄축',
+              reason: '한 줄의 컨트롤이 위·가운데·아래 중 아무 축도 공유하지 않는다',
+              delta: Math.round(Math.min(dTop, dBot, dCen) * 10) / 10,
+              a: snippet(a.el) || cssPath(a.el),
+              b: snippet(b.el) || cssPath(b.el),
+            });
+          }
+        }
+      }
       let worst = null;
       const byKind = new Map();
       for (const c of controls) {
@@ -1445,6 +1534,80 @@ PROBE_JS = r"""
       out.controlBaseline.push({
         selector: cssPath(container), reason: worst.reason, kind: worst.kind,
         delta: worst.delta, controls: controls.length, a: worst.a, b: worst.b,
+      });
+    }
+  }
+
+  for (const el of MAIN.querySelectorAll('textarea, [contenteditable="true"]')) {
+    const r = el.getBoundingClientRect();
+    if (!visible(el, r) || r.width < 16 || r.height < 12 || r.height > 64) continue;
+    const box = contentBox(el);
+    if (box.height <= 0) continue;
+    out.opticalAlignmentChecked++;
+    if (opticalGrown(el)) continue;
+    const slack = box.height - lineHeightPx(box.cs);
+    if (slack > INNER_SLACK) {
+      pushOptical({
+        selector: cssPath(el),
+        kind: '안쪽',
+        reason: '한 줄 입력의 글이 상자 위에 붙어 있다',
+        delta: Math.round(slack * 10) / 10,
+        a: snippet(el) || cssPath(el),
+        b: '',
+      });
+    }
+  }
+  function opticalInk(el) {
+    let t = Infinity, b = -Infinity;
+    try {
+      for (const kid of el.querySelectorAll('svg, img, canvas')) {
+        const ir = kid.getBoundingClientRect();
+        if (ir.width < 1 || ir.height < 1) continue;
+        t = Math.min(t, ir.top); b = Math.max(b, ir.bottom);
+      }
+      const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, null);
+      let node;
+      while ((node = walker.nextNode())) {
+        if (!node.nodeValue || !node.nodeValue.trim()) continue;
+        let host = node.parentElement, outOfFlow = false;
+        for (let p = host; p && p !== el; p = p.parentElement) {
+          const pos = getComputedStyle(p).position;
+          if (pos === 'absolute' || pos === 'fixed') { outOfFlow = true; break; }
+        }
+        if (outOfFlow) continue;
+        const rng = document.createRange();
+        rng.selectNode(node);
+        for (const ir of rng.getClientRects()) {
+          if (ir.width <= 0 || ir.height <= 0) continue;
+          t = Math.min(t, ir.top); b = Math.max(b, ir.bottom);
+        }
+      }
+    } catch (e) { return null; }
+    if (!Number.isFinite(t) || b <= t) return null;
+    return { top: t, bottom: b, cy: (t + b) / 2 };
+  }
+  const seenBtn = new Set();
+  for (const el of MAIN.querySelectorAll(
+      'button, [role="button"], input[type="button"], input[type="submit"], .MuiButtonBase-root')) {
+    if (seenBtn.has(el)) continue;
+    seenBtn.add(el);
+    const r = el.getBoundingClientRect();
+    if (!visible(el, r) || r.width < 16 || r.height < 12 || r.height > 64) continue;
+    if (textLineCount(el) >= 2) continue;
+    const type = (el.getAttribute('type') || '').toLowerCase();
+    if (type === 'checkbox' || type === 'radio') continue;
+    out.opticalAlignmentChecked++;
+    const ink = opticalInk(el);
+    if (!ink) continue;
+    const d = Math.abs(ink.cy - (r.top + r.height / 2));
+    if (d > 3) {
+      pushOptical({
+        selector: cssPath(el),
+        kind: '안쪽',
+        reason: '버튼 안의 글·아이콘이 상자 중심에서 치우쳐 있다',
+        delta: Math.round(d * 10) / 10,
+        a: snippet(el) || cssPath(el),
+        b: '',
       });
     }
   }
@@ -2107,7 +2270,7 @@ def classify(probe: dict, *, expected_theme: str, viewport_width: int, final_url
         if blocking else _verdict("pass", 0, None, note)
     )
 
-    # ── 레이아웃·콘텐츠 축 11종 ──────────────────────────────────────────────
+    # ── 레이아웃·콘텐츠 축 12종 ──────────────────────────────────────────────
     #
     # 전부 advisory 다(`CLASSES` 주석 참고). 판정 규칙은 하나로 통일한다:
     #   후보를 하나도 못 봤다  → skip + 왜 못 봤는지
@@ -2187,6 +2350,18 @@ def classify(probe: dict, *, expected_theme: str, viewport_width: int, final_url
                    f" [{s['kind']}] 컨트롤 {s['controls']}개 «{s['a']}» vs «{s['b']}»"),
         "한 줄 안에서 같은 종류끼리 높이가 다르거나 중심선이 어긋났다",
         "컨트롤이 2개 이상 놓인 줄이 이 화면에 없다",
+    )
+
+    _advisory(
+        "optical_alignment",
+        probe.get("opticalAlignment") or [], probe.get("opticalAlignmentChecked", 0),
+        lambda s: (
+            f"{s['selector']} [{s.get('kind')}] {s.get('reason')} 차이 {s.get('delta')}px"
+            + (f" «{s.get('a')}» vs «{s.get('b')}»" if s.get("b")
+               else f" «{s.get('a')}»")
+        ),
+        "상자 안 글·아이콘이 치우쳤거나, 한 줄의 컨트롤이 위·가운데·아래 축을 하나도 공유하지 않는다",
+        "한 줄 컨트롤이나 나란히 선 컨트롤 줄이 이 화면에 없다",
     )
 
     _advisory(

@@ -227,15 +227,16 @@ export function Search() {
 
       {!enabled ? (
         /* '아직 안 쳤다' — 결과가 없는 것이 아니라 아직 묻지 않은 상태다.
-           여기에 '검색 결과 없음'을 띄우면 사용자는 자기가 뭔가 잘못한 줄 안다. */
-        <Card>
-          <EmptyState
-            title="무엇을 찾을까요?"
-            situation={searchKindsSituation}
-            help="한 글자만 쳐도 찾습니다. 어느 화면에서든 Ctrl+K로 이 검색을 열 수 있습니다."
-            art="search"
-          />
-        </Card>
+           여기에 '검색 결과 없음'을 띄우면 사용자는 자기가 뭔가 잘못한 줄 안다.
+           판으로 감싸지 않는다 — 이 상태에서 화면에 있는 것은 이것뿐이고, 판은 「이 안에
+           목록이 있다」는 뜻이라 빈 화면을 목록처럼 보이게 한다. */
+        <EmptyState
+          layout="page"
+          title="무엇을 찾을까요?"
+          situation={searchKindsSituation}
+          help="한 글자만 쳐도 찾습니다. 어느 화면에서든 Ctrl+K로 이 검색을 열 수 있습니다."
+          art="search"
+        />
       ) : q.isPending ? (
         <Card><Skeleton lines={6} /></Card>
       ) : q.isError ? (
@@ -243,19 +244,18 @@ export function Search() {
       ) : groups.length === 0 ? (
         /* '쳤는데 없다' — art="search" 로 '데이터 없음'과 구분한다. 복구 행동은 검색어를
            지우는 것이지, 데이터를 만드는 것이 아니다. */
-        <Card>
-          <EmptyState
-            title="검색 결과 없음"
-            situation={`‘${urlQuery}’ 와 일치하는 항목을 찾지 못했습니다.`}
-            help={
-              result && result.mode === "like"
-                ? "한두 글자 검색어는 정확히 그 글자가 들어간 항목만 찾습니다. 조금 더 길게 쳐 보세요."
-                : "맞춤법을 확인하거나 더 짧은 검색어로 다시 시도해 보세요."
-            }
-            art="search"
-            action={<Button onClick={() => submit("")}>검색어 지우기</Button>}
-          />
-        </Card>
+        <EmptyState
+          layout="page"
+          title="검색 결과 없음"
+          situation={`‘${urlQuery}’ 와 일치하는 항목을 찾지 못했습니다.`}
+          help={
+            result && result.mode === "like"
+              ? "한두 글자 검색어는 정확히 그 글자가 들어간 항목만 찾습니다. 조금 더 길게 쳐 보세요."
+              : "맞춤법을 확인하거나 더 짧은 검색어로 다시 시도해 보세요."
+          }
+          art="search"
+          action={<Button onClick={() => submit("")}>검색어 지우기</Button>}
+        />
       ) : (
         <Fade in timeout={200}>
           <Box>

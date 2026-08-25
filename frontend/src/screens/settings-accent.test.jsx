@@ -5,11 +5,12 @@ import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 
-/* '화면 강조색' 선택기 — PA-RC-0022로 관리자 전용 「설정」 화면에서 계정 메뉴 아래
- * 「내 화면 설정」(DisplaySettings.jsx)으로 옮겼다(예전엔 시스템 정책 표에 못 닿는 역할은
- * 개인 취향인 강조색도 못 바꿨다 — acceptance_criteria 5, "모든 역할이 자기 개인 설정에
- * 접근할 수 있다"). AccentPicker.jsx 자신은 옮기지 않았고 동작도 안 바꿨다, 렌더하는
- * 화면만 바뀌어 이 파일도 그 화면을 따라간다.
+/* '화면 강조색' 선택기 — PA-RC-0022로 관리자 전용 「설정」 화면에서 떼어 냈다. S19 가 그
+ * 자리를 「내 프로필」 안으로 합쳤다(설정 하나짜리 `/my-display` 가 사이드바 항목도 없이
+ * 따로 서 있었다). AccentPicker.jsx 자신은 옮기지 않았고 동작도 안 바꿨다 — 렌더하는
+ * 자리만 바뀐다. 지키는 요구는 그대로다 — 시스템 정책 표에 못 닿는 역할도 개인 취향인
+ * 강조색은 바꿀 수 있어야 한다(acceptance_criteria 5, "모든 역할이 자기 개인 설정에
+ * 접근할 수 있다").
  *
  * 계약이 두 가지다:
  *   1) 강조색은 **개인 설정**이다 — 테마(밝게/어둡게)와 같이 localStorage에만 저장되고 서버로
@@ -23,7 +24,7 @@ vi.mock("../lib/api.js", () => ({
   setCsrf: () => {},
 }));
 
-import { DisplaySettings } from "./DisplaySettings.jsx";
+import { AccentPicker } from "./settings/AccentPicker.jsx";
 import { ThemeModeProvider } from "../ui/ThemeModeProvider.jsx";
 import { ACCENT_PRESETS, DEFAULT_ACCENT } from "../ui/theme.js";
 
@@ -39,7 +40,7 @@ function renderScreen() {
     <QueryClientProvider client={qc}>
       <ThemeModeProvider>
         <MemoryRouter>
-          <DisplaySettings />
+          <AccentPicker />
         </MemoryRouter>
       </ThemeModeProvider>
     </QueryClientProvider>,
@@ -48,8 +49,8 @@ function renderScreen() {
 
 const group = () => screen.getByRole("group", { name: "화면 강조색" });
 
-describe("화면 강조색 선택기 (내 화면 설정, PA-RC-0022)", () => {
-  it("역할과 무관하게 이 화면에 닿는다 — 서버 role 조회 없이 렌더된다", () => {
+describe("화면 강조색 선택기 (내 프로필, PA-RC-0022)", () => {
+  it("역할과 무관하게 이 자리에 닿는다 — 서버 role 조회 없이 렌더된다", () => {
     renderScreen();
     expect(group()).toBeInTheDocument();
     // 서버로는 아무 요청도 나가지 않는다 — 브라우저 로컬 값만으로 완결된다.

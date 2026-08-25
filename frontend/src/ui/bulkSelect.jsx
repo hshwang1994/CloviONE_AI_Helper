@@ -44,9 +44,9 @@ export function selectionColumn(selection, ids, { eligible } = {}) {
   const pick = eligible ? all.filter((id) => eligible(id)) : all;
   const allOn = pick.length > 0 && pick.every((id) => selection.selected.has(id));
   return {
-    // 폭을 여기서 못 박는다. DataTable을 fixed 레이아웃으로 쓰는 화면(문서·게시판·휴지통)에서
-    // 폭이 없으면 체크박스 칸이 남은 공간을 제목 칸과 똑같이 나눠 가져, 체크박스 하나가
-    // 표의 10% 넘게 차지했다. 호출부마다 따로 지정하면 새로 쓰는 화면에서 또 빠진다.
+    // 폭을 여기서 못 박는다. 폭이 없으면 체크박스 칸이 남은 공간을 제목 칸과 똑같이 나눠
+    // 가져, 체크박스 하나가 표의 10% 넘게 차지했다(게시판·문서·휴지통에서 실제로 그랬다).
+    // 호출부마다 따로 지정하면 새로 쓰는 화면에서 또 빠진다.
     key: "_sel", align: "center", className: "k-col-check", width: "3.5rem",
     // 이 열은 행을 구별하는 값의 출처가 아니다. 선택 열은 거의 항상 columns[0] 이라, 걸러
     // 내지 않으면 '첫 열' 폴백이 체크박스 열을 집어 이름이 통째로 비어 버린다.

@@ -20,6 +20,7 @@ import {
   useToast,
 } from "../ui/kit.jsx";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, PROSE_MAX_WIDTH } from "../ui/theme.js";
+import { useKnowledgeSpaces } from "../lib/knowledgeSpaces.js";
 
 /* AI 작업공간 — 묻고, 근거를 보고, 그 자리로 간다 (S10).
  *
@@ -46,13 +47,6 @@ const STATUS_KEY = ["ai", "status"];
 
 function useAiStatus() {
   return useQuery({ queryKey: STATUS_KEY, queryFn: () => api("/api/ai/status") });
-}
-
-function useSpaces() {
-  return useQuery({
-    queryKey: ["knowledge", "spaces"],
-    queryFn: () => api("/api/knowledge/spaces"),
-  });
 }
 
 /* 인용 한 건. **본문 미리보기를 접어 둔다** — 여덟 건이 전부 펼쳐져 있으면 답변이 화면
@@ -139,7 +133,7 @@ export function AiWorkspace() {
   const navigate = useNavigate();
   const toast = useToast();
   const status = useAiStatus();
-  const spaces = useSpaces();
+  const { items: spaces } = useKnowledgeSpaces();
   const [draft, setDraft] = React.useState(params.get("q") || "");
   const [result, setResult] = React.useState(null);
   const [drafting, setDrafting] = React.useState(false);
@@ -281,6 +275,7 @@ export function AiWorkspace() {
         </Stack>
       ) : (
         <EmptyState
+          layout="page"
           title="궁금한 것을 물어보세요"
           help="사내 문서에서 근거를 찾아 답합니다. 답에 쓰인 문서는 아래에 함께 나옵니다."
           art="search"
@@ -298,12 +293,12 @@ export function AiWorkspace() {
             label: "공간",
             type: "select",
             required: true,
-            options: (spaces.data || []).map((space) => ({
+            options: spaces.map((space) => ({
               value: space.id, label: space.name,
             })),
           },
         ]}
-        initial={{ title: draft.slice(0, 60), space_id: (spaces.data || [])[0]?.id || "" }}
+        initial={{ title: draft.slice(0, 60), space_id: spaces[0]?.id || "" }}
         onClose={() => setDrafting(false)}
         onSubmit={(values) =>
           makeDocument.mutateAsync({ ...values, instruction: draft.trim() })

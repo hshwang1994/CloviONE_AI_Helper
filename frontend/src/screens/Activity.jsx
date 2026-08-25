@@ -143,6 +143,7 @@ export function Activity() {
       ) : items.length === 0 ? (
         <Card>
           <EmptyState
+            layout="page"
             art="notify"
             title={kind ? "이 종류의 활동이 없습니다" : "아직 활동 기록이 없습니다"}
             situation={kind

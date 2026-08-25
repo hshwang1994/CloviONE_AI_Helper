@@ -246,7 +246,10 @@ USER_ROUTES: tuple[Route, ...] = (
     # 21개 검사가 전부 통과해 왔다. 관리자 알림은 아래 `/admin-notifications` 다.
     _u("user_notifications", "/notifications", "알림"),
     _u("user_my-approvals", "/my-approvals", "내 승인 요청"),
-    _u("user_my-display", "/my-display", "화면 표시 설정"),
+    # 「내 화면 설정」(`/my-display`) 은 여기 없다 (S19). 설정 하나짜리 화면이 사이드바
+    # 항목도 없이 따로 서 있었고, 그 강조색은 「내 프로필」 안으로 합쳤다. 지금 그 주소는
+    # `<Navigate>` 라 아래 ALIAS_ROUTES 에 있다 — 화면으로 세면 찍히는 것은 도착지고
+    # 검사는 전부 거기서 통과한다.
 )
 
 # --- admin console (App.jsx AdminBody) --------------------------------------
@@ -400,6 +403,9 @@ ALIAS_ROUTES: tuple[Route, ...] = (
     # 사용자 콘솔에도 하나 있다 — S14 가 문서 목록을 `/knowledge` 로 옮기면서 남긴 것이다.
     # 이 목록에 없던 동안 `test_ui_qa_route_registry_completeness` 가 빨간 채였다.
     _alias("user_team-docs", "/team-docs", "/knowledge", "팀 문서(옛 주소)",
+           "user", (), console="user"),
+    # S19 가 「내 화면 설정」을 「내 프로필」로 합치면서 남긴 옛 주소다.
+    _alias("user_my-display", "/my-display", "/profile", "내 화면 설정(옛 주소)",
            "user", (), console="user"),
 )
 

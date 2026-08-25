@@ -68,8 +68,12 @@ export const OVERFLOW = { ellipsis: "ellipsis", nowrap: "nowrap", anywhere: "any
 export const COLUMN_TYPES = {
   /* 표당 **하나**다. 그 행이 무엇인지 말하는 열이고, 폭 경쟁에서 가장 세다. */
   title: { align: "left", numeric: false, minWidth: "16rem", overflow: OVERFLOW.word, identifying: true },
-  /* 사람·프로젝트·조직 이름. 제목보다 짧고 한 줄로 읽힌다. */
-  name: { align: "left", numeric: false, minWidth: "9rem", overflow: OVERFLOW.ellipsis, identifying: true },
+  /* 사람·프로젝트·조직 이름. 제목보다 짧고 한 줄로 읽힌다.
+     **폭 경쟁에 나서지 않는다**(`width: SHRINK`). 이름은 길어야 스무 글자인데 이 열이
+     `title` 과 함께 남는 폭을 나눠 가지면 둘이 반씩 갖는다 — 게시판에서 「작성자」가
+     740px 로 서고 제목이 같은 폭에서 잘렸다(S19 실측). 폭이 더 필요하면 그 화면이
+     `minWidth` 로 바닥을 올린다. 남는 폭을 갖는 열은 표당 하나(`title`)다. */
+  name: { align: "left", numeric: false, width: SHRINK, minWidth: "9rem", overflow: OVERFLOW.ellipsis, identifying: true },
   /* 이메일·코드·UUID·티켓번호. 글자 단위로 끊어도 되는 유일한 부류다. */
   identifier: { align: "left", numeric: true, minWidth: IDENTIFIER_COL_MIN_WIDTH, overflow: OVERFLOW.anywhere, identifying: true },
   /* 설명·오류 원문. 폭 경쟁에서 가장 약하고, 전 행이 비면 수축 후보다(§collapse). */

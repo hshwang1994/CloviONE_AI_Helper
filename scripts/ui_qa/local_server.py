@@ -227,6 +227,8 @@ def seed(database_url: str, email: str, password: str, settings) -> None:
                 read_at=None if i < 12 else now, created_at=now - timedelta(minutes=i)))
         db.commit()
         _seed_pilot(db, settings, me, projects, now)
+        db.flush()
+        _seed_w10(db, me, now)
         db.commit()
     engine.dispose()
 
@@ -412,6 +414,185 @@ def _seed_pilot(db, settings, me, projects, now) -> None:
                         else "저장소에 쓸 수 없습니다 (permission denied)") if failed else None,
             created_at=now - timedelta(minutes=i * 5),
         ))
+
+
+def _seed_w10(db, me, now) -> None:
+    """W10 의 사용자 화면이 **비어 있지 않게** 한다 (S19).
+
+    S18 의 씨앗은 Pilot 8 원형을 겨냥했다. 그 위에서 W10 이 담당하는 나머지 사용자
+    화면 넷은 여전히 빈 화면이었다 — 기능 개선 제안(`/ideas`)에 글이 하나도 없고,
+    놀이(`/games`)에 방이 없고, 승인(`/my-approvals`)에 결재할 건이 없고,
+    내 활동(`/activity`)에 줄이 없다.
+
+    빈 화면을 찍어 놓고 「그 화면을 봤다」고 적으면 그 회차는 아무것도 본 것이 없다.
+    표의 열이 겹치는지, 상태 배지가 값마다 갈리는지, 작성자 칸이 소속까지 그리는지는
+    **행이 있어야만** 보인다. 반대로 빈 화면 자체도 봐야 하는 얼굴이라, 그 얼굴은
+    조건을 걸어 만든다(검색어를 못 맞히는 목록) — 씨앗을 비워서 만들지 않는다.
+    """
+    from datetime import datetime, timedelta, timezone
+
+    from app.approvals.models import Approval
+    from app.audit.models import AuditLog
+    from app.board.models import (
+        IDEA_CATEGORIES, IDEA_STATUSES, KIND_IDEA, LIKE_EMOJI, Post, Reaction,
+    )
+    from app.board.models import Comment as BoardComment
+    from app.games.models import (
+        ROOM_FINISHED, ROOM_PLAYING, ROOM_WAITING, GameRoom, GameRoomMember,
+    )
+    from app.org.constants import DEFAULT_ORG_ID
+    from app.users.models import User
+
+    people = list(db.query(User).order_by(User.created_at, User.id).all()) or [me]
+
+    # ── 기능 개선 제안 (`/ideas`) ────────────────────────────────────────────
+    # 열이 여섯이고 그중 넷(카테고리·상태·작성자·작성)이 값마다 폭이 다르다. 한 값만
+    # 심으면 그 열들이 전부 같은 폭으로 서고, 머리글이 겹치는지 본문이 잘리는지가
+    # **씨앗 때문에 안 보인다.** 그래서 분류 넷과 상태 다섯을 다 돌린다.
+    cats = sorted(IDEA_CATEGORIES)
+    titles = (
+        "티켓 목록에서 담당자를 바로 바꿀 수 있으면 좋겠습니다",
+        "문서 검색이 본문까지 찾도록 해 주세요",
+        "알림을 종류별로 끄고 켤 수 있으면 좋겠습니다",
+        "스프린트 주간 보고를 자동으로 만들어 주세요",
+        "첨부 파일을 목록에서 미리 볼 수 있으면 좋겠습니다",
+        "채팅방을 즐겨찾기에 고정하고 싶습니다",
+    )
+    idea_body = (
+        "지금은 티켓을 하나씩 열어 담당자를 바꿔야 해서 열 건을 옮기는 데 시간이 오래 "
+        "걸립니다. 목록에서 바로 바꿀 수 있으면 좋겠습니다.\n\n"
+        "권한이 있는 사람만 바꿀 수 있어야 하고, 바꾼 뒤에는 담당자에게 알림이 가야 "
+        "합니다. 지금 화면에서 이미 되는 부분이 있으면 알려 주세요."
+    )
+    ideas = []
+    for i in range(22):
+        author = people[i % len(people)]
+        post = Post(
+            author_user_id=author.id, org_id=DEFAULT_ORG_ID, kind=KIND_IDEA,
+            category=cats[i % len(cats)],
+            idea_status=IDEA_STATUSES[i % len(IDEA_STATUSES)],
+            title="%s (%02d)" % (titles[i % len(titles)], i + 1),
+            body=idea_body,
+            view_count=(i * 13) % 97,
+            is_pinned=(i == 0),
+            created_at=now - timedelta(hours=i * 3),
+        )
+        db.add(post)
+        ideas.append(post)
+    db.flush()
+    # 공감은 새 표가 아니라 반응 중 👍 다(`board/models.py`). 값이 0 뿐이면 「공감」 열의
+    # 자릿수 정렬을 확인할 수 없다.
+    for i, post in enumerate(ideas):
+        for person in people[: i % 4]:
+            db.add(Reaction(target_type="post", target_id=post.id, user_id=person.id,
+                            emoji=LIKE_EMOJI, created_at=now - timedelta(minutes=i)))
+    for i, person in enumerate(people[:3]):
+        db.add(BoardComment(post_id=ideas[0].id, author_user_id=person.id,
+                            body="같은 불편을 겪고 있습니다 (%d)." % (i + 1),
+                            created_at=now - timedelta(minutes=40 - i)))
+
+    # ── 놀이 (`/games` · `/games/:id`) ──────────────────────────────────────
+    # 상태 셋이 다 있어야 카드의 배지가 무엇을 구별하는지 보인다. 방 하나는 참가자를
+    # 정원까지 채워 「자리 없음」 쪽도 화면에 나오게 한다.
+    # 🔴 방의 `last_seen` 만은 **씨앗 시각이 아니라 진짜 지금**이어야 한다.
+    # `list_rooms` 가 먼저 `cleanup_idle_rooms` 를 부르고, 그것은 참여자의 마지막 폴링이
+    # 180초보다 오래됐으면 방을 닫는다(`service.IDLE_ROOM_SECONDS`). 고정 시각을 넣으면
+    # 방을 심자마자 전부 닫혀 화면이 언제나 빈 목록이 되고, 그 빈 화면이 제품 결함처럼
+    # 보인다. 씨앗이 제품에 없는 상태를 만든 S18 의 `done` 과 같은 부류다.
+    live = datetime.now(timezone.utc).replace(tzinfo=None)
+    rooms = (
+        ("점심 내기 추첨", "random_draw", ROOM_WAITING, 8, 3),
+        ("회식 장소 투표", "quick_vote", ROOM_PLAYING, 6, 5),
+        ("스터디 팀 나누기", "team_split", ROOM_FINISHED, 4, 4),
+        ("숫자 눈치 한 판", "number", ROOM_WAITING, 10, 2),
+    )
+    for r, (title, gtype, status, cap, joined) in enumerate(rooms):
+        room = GameRoom(
+            title=title, game_type=gtype, host_user_id=me.id, status=status,
+            max_players=cap, allow_spectators=True, org_id=DEFAULT_ORG_ID,
+            event_seq=joined,
+            # 게임이 끝난 것(`finished`)과 방이 닫힌 것(`closed_at`)은 다른 사실이다 —
+            # 목록은 닫힌 방을 아예 안 보여 주므로(`list_open_rooms`), 「결과 확인 중」
+            # 배지를 화면에서 확인하려면 끝난 방이 열려 있어야 한다.
+            closed_at=None,
+            created_at=live - timedelta(minutes=r * 7),
+        )
+        db.add(room)
+        db.flush()
+        for m in range(joined):
+            person = people[m % len(people)]
+            db.add(GameRoomMember(
+                room_id=room.id, user_id=person.id, display_name=person.display_name,
+                role="host" if m == 0 else "player", ready=(m % 2 == 0),
+                joined_at=live - timedelta(minutes=r), last_seen=live))
+
+    # ── 승인 (`/my-approvals`) ──────────────────────────────────────────────
+    # 세 칸이 서로 다른 것을 담는다(처리할 것 · 내가 올린 것 · 내가 처리한 것). 한 칸만
+    # 채우면 나머지 둘의 빈 상태가 전부 같은 얼굴로 보이고, 그 얼굴이 맞는지 알 수 없다.
+    requesters = [p for p in people if p.id != me.id] or [me]
+    # 대기 건은 `(request_type, object_id, payload)` 로 중복이 막혀 있다
+    # (`ux_approvals_pending_dedup`). 같은 요청을 두 번 심을 수 없다는 뜻이라 —
+    # 그것이 제품의 계약이다 — 값을 실제로 다르게 만든다.
+    # 🔴 **제품이 실제로 만드는 종류만** 심는다. 서버가 승인을 거는 자리는 셋뿐이다
+    # (`app/users/router.py` 의 `user.role_change` · `app/integrations/router.py` 의
+    # `integration.change_config` · `app/schedules/router.py` 의 `schedule.enable`).
+    # 없는 종류를 심으면 화면이 그 값을 모르는 채 절반만 번역된 라벨을 그리고, 그것이
+    # 제품 결함처럼 보인다 — S18 이 `done` 으로 같은 함정에 빠졌다.
+    pending = (
+        ("user.role_change", "user", '{"to": "operator"}'),
+        ("user.role_change", "user", '{"to": "admin"}'),
+        ("user.role_change", "user", '{"to": "auditor"}'),
+        ("integration.change_config", "integration", '{"enabled": true}'),
+        ("integration.change_config", "integration", '{"enabled": false}'),
+        ("schedule.enable", "schedule", '{"cron": "0 9 * * 1"}'),
+        ("schedule.enable", "schedule", '{"cron": "0 18 * * 5"}'),
+    )
+    for i, (req_type, obj_type, payload) in enumerate(pending):
+        who = requesters[i % len(requesters)]
+        db.add(Approval(
+            request_type=req_type, object_type=obj_type,
+            object_id="%s-%02d" % (obj_type, i + 1),
+            requested_by=who.id,
+            approver_id=None, status="pending", request_payload_json=payload,
+            requested_at=now - timedelta(hours=i + 1),
+            expires_at=now + timedelta(hours=72 - i),
+        ))
+    for i in range(3):
+        db.add(Approval(
+            request_type="schedule.enable", object_type="schedule",
+            object_id="mine-%02d" % (i + 1),
+            requested_by=me.id, approver_id=None, status="pending",
+            request_payload_json='{"mine": %d}' % (i + 1),
+            requested_at=now - timedelta(hours=i + 2),
+        ))
+    for i, state in enumerate(("approved", "rejected")):
+        db.add(Approval(
+            request_type="user.role_change", object_type="user",
+            object_id="decided-%02d" % (i + 1),
+            requested_by=requesters[i % len(requesters)].id,
+            approver_id=me.id, status=state,
+            request_payload_json='{"decided": %d}' % (i + 1),
+            requested_at=now - timedelta(days=i + 1),
+            decided_at=now - timedelta(days=i + 1) + timedelta(hours=2),
+        ))
+
+    # ── 내 활동 (`/activity`) ───────────────────────────────────────────────
+    # 「내가 한 일」은 감사 로그에서, 「나에게 일어난 일」은 알림에서 온다. 알림은 위에서
+    # 이미 심었으므로 여기서는 감사 쪽만 채운다. 실패 한 줄을 섞는다 — 성공만 있으면
+    # 실패 배지가 화면에 있는지 확인할 방법이 없다.
+    acts = (
+        ("board_post.create", "board_post", "success"),
+        ("notion_task.update", "notion_task", "success"),
+        ("document.update", "document", "success"),
+        ("notion_task.create", "notion_task", "success"),
+        ("board_post.update", "board_post", "failure"),
+    )
+    for i in range(14):
+        action, obj_type, result = acts[i % len(acts)]
+        db.add(AuditLog(
+            user_id=me.id, action=action, object_type=obj_type,
+            object_id=(ideas[i % len(ideas)].id if obj_type == "board_post" else None),
+            result=result, created_at=now - timedelta(hours=i * 5)))
 
 
 def serve(settings, port: int):

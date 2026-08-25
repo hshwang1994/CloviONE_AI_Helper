@@ -77,6 +77,9 @@ SEVERITY_BY_CLASS = {
     "header_cell_alignment_mismatch": "high",
     "numeric_alignment": "high",
     "control_baseline_mismatch": "high",
+    # 상자 안 광학 중심·줄 축. advisory 로 시작한다(`--fail-on` 기본은 비어 있다).
+    # 기존 control_baseline_mismatch 를 조이면 W5 가 잠재운 높이차>8 면제가 다시 열린다.
+    "optical_alignment": "medium",
     "brand_presence": "high",
     # W1 이 이 검사를 추가하면서 severity 표에는 안 넣었다 — 그래서 매 실행이 "표에 없는
     # 검사 1개" 경고를 찍고 SEVERITY_DEFAULT 로 흘려보냈다. 그 경고는 **사람이 분류하라는

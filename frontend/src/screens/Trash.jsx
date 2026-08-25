@@ -125,13 +125,14 @@ export function Trash() {
       { title: "선택 영구 삭제", confirmLabel: "영구 삭제", danger: true });
     if (ok) bulkPurge.mutate([...sel.selected]);
   };
-  /* 열 너비는 열 정의에 함께 적는다(fixed + ellipsis) — 예전처럼 CSS nth-child로 잡으면
-   * 선택 체크박스 열이 앞에 붙는 순간 한 칸씩 밀려 엉뚱한 열의 폭이 된다. */
+  /* 열 너비는 열 정의가 든다(`type` + `ellipsis`) — 예전처럼 CSS nth-child로 잡으면
+   * 선택 체크박스 열이 앞에 붙는 순간 한 칸씩 밀려 엉뚱한 열의 폭이 된다.
+   * `fixed` 는 걷었다 — 그 배치에서는 `type` 이 주는 폭이 뜻을 잃는다(`kit.jsx::DataTable`). */
   const columns = [
     selCol,
-    { key: "type_label", label: "종류", width: "7rem", render: (r) => <Badge value={r.type_label} kind={typeKind(r.item_type)} /> },
+    { key: "type_label", label: "종류", type: "status", minWidth: "7rem", render: (r) => <Badge value={r.type_label} kind={typeKind(r.item_type)} /> },
     {
-      key: "title", label: "제목",
+      key: "title", label: "제목", type: "title",
       // rowName: 휴지통에서 행을 구별하는 값은 제목이다(ui/rowName.js). 여기가 영구 삭제를
       // 고르는 표라, 어느 줄을 고르는지 낭독되지 않으면 되돌릴 수 없는 실수가 난다.
       rowName: (r) => r.title || "제목 없음",
@@ -140,7 +141,7 @@ export function Trash() {
       // 응답에서 `url` 을 걷었다.
       render: (r) => <span>{r.title || "제목 없음"}</span>,
     },
-    { key: "deleted_by", label: "삭제한 사람", width: "11rem" },
+    { key: "deleted_by", label: "삭제한 사람", type: "name", minWidth: "11rem" },
     { key: "deleted_at", label: "삭제일", type: "date", render: (r) => <DateCell value={r.deleted_at} /> },
     { key: "purge_after", label: "삭제 예정", type: "date", render: (r) => <DateCell value={r.purge_after} /> },
     {
@@ -187,6 +188,7 @@ export function Trash() {
         : items.length === 0 ? (
           /* 자산(empty-trash.png)이 처음부터 있었는데 어디에도 연결돼 있지 않았다. */
           <EmptyState
+            layout="page"
             art="trash"
             title="휴지통이 비어 있습니다"
             // WF1 R5 — 예전엔 여기서 "{days}일 동안 여기 보관됩니다"를 또 말했다, 바로 위
@@ -208,7 +210,7 @@ export function Trash() {
               sx={{ mb: 2.5 }}
             />
             <Card className="c-list-card">
-              <DataTable columns={columns} rows={items} rowKey={(r) => r.id} fixed ellipsis
+              <DataTable columns={columns} rows={items} rowKey={(r) => r.id} ellipsis
                 empty="휴지통이 비어 있습니다." />
               {/* UA-10 확증 — 상한(기본 100개)보다 많을 때만 보인다. 대부분은 그 이하라 아무것도
                   안 보이던 예전 그대로다(ConversationSidebar의 "대화 더 보기"와 같은 관용). */}

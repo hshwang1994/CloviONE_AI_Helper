@@ -31,10 +31,15 @@ import { useQueryState } from "../lib/useQueryState.js";
  * 이고 이쪽은 **나에게 배정된 일**이다. 목적이 달라 한 화면으로 합칠 수 없다.
  */
 
+/* 칸마다 «없다» 의 뜻이 다르다 — 처리할 것이 없는 것은 좋은 소식이고, 올린 것이 없는 것은
+ * 아직 아무것도 안 한 것이다. 한 문장으로 뭉치면 화면이 그 차이를 못 말한다. */
 const BOXES = [
-  { key: "todo", label: "처리할 승인", empty: "지금 결재할 건이 없습니다." },
-  { key: "requested", label: "내가 올린 요청", empty: "내가 올린 승인 요청이 없습니다." },
-  { key: "done", label: "내가 처리한 건", empty: "아직 결재한 건이 없습니다." },
+  { key: "todo", label: "처리할 승인", empty: "지금 결재할 건이 없습니다.",
+    emptyHelp: "나에게 배정된 결재가 생기면 여기에 나타납니다." },
+  { key: "requested", label: "내가 올린 요청", empty: "내가 올린 승인 요청이 없습니다.",
+    emptyHelp: "승인이 필요한 일을 하면 그 요청이 여기에 쌓입니다." },
+  { key: "done", label: "내가 처리한 건", empty: "아직 결재한 건이 없습니다.",
+    emptyHelp: "승인하거나 거절한 건이 여기에 기록으로 남습니다." },
 ];
 
 const STATUS_KIND = {
@@ -91,12 +96,14 @@ export function MyApprovals() {
   const current = BOXES.find((b) => b.key === box) || BOXES[0];
 
   const columns = [
+    /* 요청 종류는 닫힌 집합이다 — 식별자가 아니라 낱말이라 `enum` 이다. 예전에는
+       `identifier: true` 라 12.5rem 바닥을 받고 그 폭의 29% 만 채웠다(실측). */
     {
-      key: "request_type", label: "요청", identifier: true, nowrap: true,
+      key: "request_type", label: "요청", type: "enum", minWidth: "9rem",
       render: (r) => actionKo(r.request_type) || r.request_type,
     },
     {
-      key: "requested_by", label: "요청자",
+      key: "requested_by", label: "요청자", type: "name", minWidth: "13rem",
       // 사람이 나오는 자리에는 **조직 경로를 함께** 보여 준다(0060 §5) — 동명이인을 구별할
       // 방법이 화면에 없으면 잘못된 요청을 승인하게 된다.
       render: (r) => (
@@ -108,21 +115,20 @@ export function MyApprovals() {
         </Box>
       ),
     },
-    { key: "object", label: "대상", render: (r) => r.object_type ? `${r.object_type} ${r.object_id || ""}`.trim() : "-" },
+    { key: "object", label: "대상", type: "text", render: (r) => r.object_type ? `${r.object_type} ${r.object_id || ""}`.trim() : "-" },
     {
-      key: "status", label: "상태", nowrap: true,
+      key: "status", label: "상태", type: "status",
       render: (r) => <Badge value={STATUS_KO[r.status] || r.status} kind={STATUS_KIND[r.status]} />,
     },
     {
-      key: "requested_at", label: "요청 시각", nowrap: true,
-      nowrap: true,
+      key: "requested_at", label: "요청 시각", type: "datetime",
       render: (r) => <DateCell value={r.requested_at} />,
     },
   ];
 
   if (box === "todo") {
     columns.push({
-      key: "actions", label: "결재", nowrap: true,
+      key: "actions", label: "결재", type: "actions",
       render: (r) => (
         <Box sx={{ display: "flex", gap: 1 }}>
           <Button size="sm" variant="primary" disabled={decide.isPending}
@@ -154,6 +160,7 @@ export function MyApprovals() {
 
       {data && box === "todo" && !canDecide ? (
         <EmptyState
+          layout="page"
           title="결재 권한이 없습니다"
           help="지금은 결재할 수 있는 자리가 아닙니다. 부재 중 위임을 받으면 이 목록에 결재할 건이 나타납니다."
           art="noPermission"
@@ -164,7 +171,8 @@ export function MyApprovals() {
           안 그려졌다(Integrity.jsx 와 같은 오배선). */}
       {data && (box !== "todo" || canDecide) ? (
         data.items.length === 0 ? (
-          <EmptyState title={current.empty} art="success" />
+          /* 세 칸 전부 화면 전체가 비는 자리다 — 탭 아래에 이 상태밖에 없다. */
+          <EmptyState layout="page" title={current.empty} help={current.emptyHelp} art="success" />
         ) : (
           <Card>
             <DataTable columns={columns} rows={data.items} rowKey={(r) => r.id} />
