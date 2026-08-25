@@ -74,6 +74,11 @@ def _harness_paths(routes) -> set[str]:
         if r.hash_template:
             # `/tickets/{id}` ↔ 소스의 `/tickets/:id`
             out.add(_base(re.sub(r"\{[^}]+\}", ":id", r.hash_template)))
+        # 하네스가 파라미터를 **고정 값으로 박은** 자리(`/team-docs/00000000-…`)는
+        # 어떤 정규화로도 소스의 `:pageId` 와 안 맞는다 — 그래서 그 Route 가 어느
+        # 소스 경로를 대신 서는지 스스로 적는다(`Route.source_path`).
+        if getattr(r, "source_path", ""):
+            out.add(_base(r.source_path))
     return out
 
 

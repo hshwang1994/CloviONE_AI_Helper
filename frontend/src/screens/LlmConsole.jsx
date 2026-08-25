@@ -92,6 +92,18 @@ const SETTINGS_GRID = {
   columnGap: 3,
 };
 
+/* 「지금 적용 중인 값」 넷은 **읽는 줄**이다 — 한 칸에 «라벨: 값» 하나가 들어가고,
+   폭이 넓어지면 아래로 쌓이는 대신 옆으로 편다. 세로로만 쌓던 예전 격자는 1606px 짜리
+   구획에서 왼쪽 30% 만 쓰고 나머지를 흰 면으로 남겼다(S18 실측). 남는 폭을 «더 많은
+   행» 으로 쓰는 것이 넓은 화면 규칙의 ② 다. */
+const EFFECTIVE_GRID = {
+  mt: 1,
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(14rem, 1fr))",
+  columnGap: 3,
+  rowGap: 0.25,
+};
+
 function Field({ label, help, children, kind }) {
   return (
     <Box sx={{ mt: 2, minWidth: 0 }}>
@@ -219,7 +231,12 @@ export function LlmConsole({ embedded = false } = {}) {
           상자로 두면 화면을 열 때마다 같은 문장을 다시 읽어야 한다(지시 44). */}
       {embedded ? null : <PageHeader area="AI" title="AI 관리" help={data.apply_note} />}
 
-      <Card sx={{ mt: 2, p: 2 }}>
+      {/* **판이 아니라 줄이다** (S18 · B10).
+          여기 있던 `Card` 는 1606×211 짜리 흰 면이었고 그 안의 내용은 왼쪽 30% 만
+          썼다(잉크 20%). 설정 원형의 계약은 «라벨/현재값/출처를 행과 괘선으로, 카드
+          아님» 이다 — 지금 값은 **읽는 줄**이지 자기 생명주기를 가진 경계 객체가 아니다.
+          값 네 개도 세로로 쌓지 않고 폭에 맞춰 펴진다(아래 `EFFECTIVE_GRID`). */}
+      <Box component="section" sx={{ mt: 2, pb: 2, borderBottom: 1, borderColor: "divider" }}>
         <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
           <Typography variant="h6" component="h2">지금 적용 중인 값</Typography>
           <Badge value={config.enabled ? "활성" : "비활성"} kind={config.enabled ? "ok" : "muted"} />
@@ -250,7 +267,7 @@ export function LlmConsole({ embedded = false } = {}) {
         {/* 실행 파일은 서버의 경로다 - AI 를 쓰는 사람이 판단할 값이 아니라 이 서버를 만든
             사람이 아는 값이다(지시 38). 지우지는 않는다: 백엔드가 명령줄 도구일 때 장애를
             보는 사람에게는 그것이 첫 단서다. 기술 정보로 내린다. */}
-        <Box data-testid="llm-effective" sx={{ mt: 1, display: "grid", gap: 0.25 }}>
+        <Box data-testid="llm-effective" sx={EFFECTIVE_GRID}>
           {[
             // `cli`·`api` 는 설정 파일의 어휘다. 고르는 자리(아래 select)가 이름으로
             // 말하는데 보는 자리만 원문이면 한 값이 두 이름을 갖는다(지시 36).
@@ -264,12 +281,12 @@ export function LlmConsole({ embedded = false } = {}) {
               {(data.sources || {})[key] === "env" ? " (서버 환경변수 또는 기본값)" : ""}
             </Typography>
           ))}
-          <TechDetail sx={{ mt: 0.5 }}>
+          <TechDetail sx={{ mt: 0.5, gridColumn: "1 / -1" }}>
             실행 파일: {config.executable}
             {(data.sources || {}).llm_executable === "env" ? " (서버 환경변수 또는 기본값)" : ""}
           </TechDetail>
         </Box>
-      </Card>
+      </Box>
 
       <Card sx={{ mt: 2, p: 2 }}>
         <Typography variant="h6" component="h2">설정</Typography>

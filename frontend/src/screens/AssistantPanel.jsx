@@ -92,8 +92,12 @@ function Briefing({ data }) {
   // 빠진다). 여기서 n()으로 그냥 0을 내면 "오늘 마감 0건"이 "모른다"를 "없다"로
   // 오독시킨다 — 위 스프린트 문장과 같은 원칙으로 짧게 참조만 한다.
   const ticketsUsable = t.due_today !== undefined;
+  /* 세 줄을 세로로 쌓지 않는다 (S18). 이 패널은 `/me` 에서 **전체 폭**을 쓰는데(VIS-35),
+     그 폭에 짧은 문장 셋을 세로로 쌓으면 1606×218 짜리 판에 잉크가 17% 만 남는다
+     — 「이유 없는 대형 Blank」다. 남는 폭을 줄 길이가 아니라 **칸**으로 쓴다. */
   return (
-    <Stack gap={1}>
+    <Box sx={{ display: "grid", gap: 1, alignItems: "start",
+               gridTemplateColumns: { xs: "minmax(0,1fr)", md: "repeat(auto-fit, minmax(18rem, 1fr))" } }}>
       <Typography variant="body2">
         {ticketsUsable
           ? `오늘 마감 ${n(t.due_today)}건, 지연 ${n(t.overdue)}건, 진행 중 ${n(t.in_progress)}건, 막힘 ${n(t.blocked)}건`
@@ -114,7 +118,7 @@ function Briefing({ data }) {
         {ticketsUsable ? "위 숫자는 이 화면 상단 카드와 같은 값입니다. " : ""}
         ‘문장 요약 만들기’를 누르면 문장으로 옮겨 줍니다.
       </Typography>
-    </Stack>
+    </Box>
   );
 }
 

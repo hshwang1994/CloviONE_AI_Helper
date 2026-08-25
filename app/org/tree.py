@@ -195,6 +195,11 @@ def tree_rows(db: Session, *, active: bool | None = None, scope=None) -> list[di
             "id": org.id,
             "kind": "organization",
             "name": org.name or org.slug,
+            # 식별자를 함께 싣는다 (S18). 조직 콘솔의 오른쪽 판이 자기 검색 상자를 갖고
+            # 있던 동안 그 상자만 `slug` 를 찾을 수 있었다 — 그 상자를 내리면서(분할 뷰의
+            # 검색은 왼쪽 트리 하나다) 이 축이 함께 사라지면 그건 중복 제거가 아니라
+            # 기능 삭제다. 트리 행이 이 값을 들고 있어야 트리 검색이 그것을 찾는다.
+            "slug": org.slug,
             "depth": 0,
             "path": org.name or org.slug,
             "parent_id": None,

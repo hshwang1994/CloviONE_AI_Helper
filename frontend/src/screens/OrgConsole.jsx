@@ -1,9 +1,13 @@
 import React, { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import Box from "@mui/material/Box";
+import Link from "@mui/material/Link";
+import Typography from "@mui/material/Typography";
+import { api } from "../lib/api.js";
 import { DataScreen } from "./DataScreen.jsx";
 import { OrgTree, isOrgRow } from "./OrgTree.jsx";
 import { ORG_SCREENS } from "./registry/org.js";
-import { PageHeader } from "../ui/kit.jsx";
+import { Badge, Card, EmptyState, ErrorState, SectionTitle, Skeleton, PageHeader } from "../ui/kit.jsx";
 import { Note } from "../ui/adminKit.jsx";
 
 /* 조직 콘솔 — 조직 관리, 부서 관리, 조직도를 한 화면으로.
@@ -50,9 +54,89 @@ import { Note } from "../ui/adminKit.jsx";
  */
 const TREE_PANE = { flexGrow: 1, flexShrink: 1, flexBasis: "16rem", minWidth: 0 };
 const MANAGE_PANE = { flexGrow: 2, flexShrink: 1, flexBasis: "32rem", minWidth: 0 };
+/* 셋째 판 — **관련 컬렉션**. 분할 뷰 원형의 계약이 «≥1920 에서 3번째 pane» 이다.
+   그 폭이 안 되면 아예 안 그린다(줄바꿈으로 아래에 쌓으면 그건 3판이 아니라 목록 하나가
+   더 생긴 것이다). 기준 폭은 두 판의 합(48rem)에 이 판(20rem)을 더한 값이라,
+   판단 기준이 뷰포트가 아니라 **이 칸에 남은 폭**이다 — 위 두 판과 같은 규칙이다. */
+const PEOPLE_PANE = { flexGrow: 1, flexShrink: 1, flexBasis: "20rem", minWidth: 0,
+                      display: { xs: "none", xl: "block" } };
 
 /** 트리 행의 종류 → 오른쪽에 띄울 관리 화면 키. */
 const screenKeyFor = (row) => (isOrgRow(row) ? "organizations" : "departments");
+
+/* 이 부서에 **누가 있는가** — 분할 뷰의 셋째 판.
+ *
+ * 계획서가 이 화면에 적은 가장 값진 숫자는 「부서 미지정 12명」이었다. 트리는 부서마다
+ * 인원수를 이미 말하는데, 그 수를 눌러 **사람 목록으로 내려갈 길이 없었다** — 그래서
+ * 관리자는 「이 부서에 누가 있지」를 물으려고 사용자 화면으로 나가 필터를 다시 걸었다.
+ * 필요한 엔드포인트는 이미 있다(`/api/admin/users?department_id=`).
+ *
+ * 목록을 다시 만들지 않는다. 여기서 보여 주는 것은 «이 마디에 속한 사람» 여덟까지고,
+ * 그보다 많으면 그 조건이 걸린 사용자 화면으로 보낸다 — 같은 목록을 두 화면이 각자
+ * 그리기 시작하면 언젠가 두 화면이 다른 답을 한다.
+ */
+const PEOPLE_PREVIEW = 8;
+
+function DepartmentPeople({ node }) {
+  const departmentId = node && node.screenKey === "departments" ? node.id : null;
+  const q = useQuery({
+    queryKey: ["org-console", "people", departmentId],
+    queryFn: () => api("/api/admin/users?department_id=" + encodeURIComponent(departmentId)),
+    enabled: !!departmentId,
+    retry: false,
+  });
+
+  if (!departmentId) {
+    return (
+      <Card>
+        <SectionTitle component="h2" title="소속 인원" />
+        <EmptyState
+          layout="inline"
+          title="부서를 고르면 그 부서 사람이 보입니다"
+          help="조직을 고른 상태에서는 인원이 부서별로 나뉘어 있어 한 줄로 셀 수 없습니다."
+        />
+      </Card>
+    );
+  }
+  const items = (q.data && q.data.items) || [];
+  const total = q.data && q.data.total != null ? q.data.total : items.length;
+  return (
+    <Card>
+      <SectionTitle component="h2" title={"소속 인원 " + (q.isPending ? "" : total + "명")} />
+      {q.isPending ? <Skeleton lines={4} /> : null}
+      {q.isError ? <ErrorState error={q.error} onRetry={() => q.refetch()} /> : null}
+      {!q.isPending && !q.isError && items.length === 0 ? (
+        <EmptyState
+          layout="inline"
+          title="이 부서에 배치된 사람이 없습니다"
+          help="사용자 화면에서 부서를 지정하면 여기에 표시됩니다."
+        />
+      ) : null}
+      {items.length ? (
+        <Box component="ul" sx={{ listStyle: "none", m: 0, p: 0, display: "grid", gap: 1 }}>
+          {items.slice(0, PEOPLE_PREVIEW).map((u) => (
+            <Box component="li" key={u.id} sx={{ display: "flex", gap: 1, alignItems: "baseline",
+                                                 justifyContent: "space-between", minWidth: 0 }}>
+              <Link href={"#/users/" + u.id} underline="hover"
+                    sx={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {u.display_name || u.email}
+              </Link>
+              <Badge value={u.title || u.role} />
+            </Box>
+          ))}
+        </Box>
+      ) : null}
+      {total > PEOPLE_PREVIEW ? (
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5 }}>
+          {PEOPLE_PREVIEW}명만 표시했습니다.{" "}
+          <Link href={"#/users?department_id=" + encodeURIComponent(departmentId)} underline="hover">
+            사용자 화면에서 {total}명 모두 보기
+          </Link>
+        </Typography>
+      ) : null}
+    </Card>
+  );
+}
 
 export function OrgConsole({ defaultKind = "organizations" }) {
   // {id, screenKey} — 아직 아무것도 고르지 않았으면 null 이다.
@@ -74,7 +158,17 @@ export function OrgConsole({ defaultKind = "organizations" }) {
       <Box sx={{ mb: 2.5 }}>
         <Note sx={{ mt: 0 }}>조직이나 부서를 누르면 오른쪽에서 바로 관리할 수 있습니다.</Note>
       </Box>
-      <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "flex-start", gap: 2.5 }}>
+      {/* **전체 높이 판**이다 (B11 · S18).
+          예전에는 세 판이 각자 자기 내용 높이에서 멈춰, 조직 하나·부서 셋인 조직에서
+          트리가 y≈490 에서 끝나고 그 아래 590px 가 죽은 채 남았다(하단 공백 46% — S18
+          실측). 분할 뷰의 계약은 «2~3 전체 높이 pane» 이다: 판이 화면 높이를 차지하고
+          그 안에서 내용이 흐른다. 좁은 화면에서는 줄바꿈으로 쌓이므로 그때는 높이를
+          강요하지 않는다(내용 높이 그대로). */}
+      <Box sx={{
+        display: "flex", flexWrap: "wrap", alignItems: "stretch", gap: 2.5,
+        minHeight: { xs: "auto", lg: "calc(100vh - 16rem)" },
+        "& > * > .MuiPaper-root": { height: "100%" },
+      }}>
         <Box data-testid="org-console-tree" sx={TREE_PANE}>
           <OrgTree
             selectedId={selected ? selected.id : null}
@@ -83,8 +177,17 @@ export function OrgConsole({ defaultKind = "organizations" }) {
         </Box>
         <Box data-testid="org-console-panel" sx={{ ...MANAGE_PANE, "& .k-page-head": { mb: 1.5 } }}>
           {/* key 로 갈아 끼운다 — 같은 자리에 다른 설정만 넘기면 React 는 컴포넌트를 유지해
-              조직 화면에서 걸어 둔 검색어, 페이지 번호가 부서 화면에 그대로 남는다. */}
-          <DataScreen key={config.key} config={panelConfig} />
+              조직 화면에서 걸어 둔 검색어, 페이지 번호가 부서 화면에 그대로 남는다.
+
+              `inSplitView` — **왼쪽 트리가 이미 검색이다.** 그 한 줄이 이 판의 검색 상자와
+              저장된 뷰를 내린다(DataScreen 의 같은 이름 주석에 이유를 적었다). 이 화면에는
+              같은 엔티티를 찾는 상자가 둘 있었고, 계획서가 그것을 이 화면의 결함으로 이름
+              대어 적어 두었다. 조건 축(상태 필터)은 **그대로 둔다** — 트리가 대신하지 않는
+              축이라, 지우면 그건 중복 제거가 아니라 기능 삭제다. */}
+          <DataScreen key={config.key} config={panelConfig} inSplitView />
+        </Box>
+        <Box data-testid="org-console-people" sx={PEOPLE_PANE}>
+          <DepartmentPeople node={selected} />
         </Box>
       </Box>
     </div>

@@ -204,10 +204,20 @@ def seed(database_url: str, email: str, password: str, settings) -> None:
             if i % 2 == 0:
                 db.add(DocumentTag(document_id=doc.id, tag_id=tag.id))
 
+        # 본문이 «본문» 두 글자면 읽기 화면을 **평가할 수 없다**. 판 하나가 잉크 19% 로
+        # 남는 것이 화면 탓인지 씨앗 탓인지 구별이 안 되고, 실제로 S18 이 그 자리에서
+        # 한 번 헷갈렸다. 길이는 실제 게시글의 중간값 언저리로 둔다.
+        body = (
+            "이번 주 배포에서 바뀐 것을 정리합니다. 티켓 목록의 조건이 주소에 실려서 "
+            "새로고침하거나 링크를 공유해도 같은 화면이 열립니다.\n\n"
+            "확인이 필요한 것은 두 가지입니다. 첫째, 담당자 선택 목록에 새로 들어온 "
+            "계정이 보이는지 확인해 주세요. 둘째, 지연된 티켓의 마감일을 다시 정해야 "
+            "합니다. 질문은 이 글에 댓글로 남겨 주시면 답을 달겠습니다."
+        )
         for i in range(26):
             db.add(Post(author_user_id=me.id, org_id=DEFAULT_ORG_ID, kind="free",
                         category=("공지" if i % 3 == 0 else "자유"),
-                        title=f"게시글 {i + 1:02d}", body="본문",
+                        title=f"게시글 {i + 1:02d} — 배포 뒤 확인할 것", body=body,
                         is_pinned=(i == 0), created_at=now - timedelta(hours=i)))
         for i in range(24):
             db.add(Notification(
@@ -216,7 +226,192 @@ def seed(database_url: str, email: str, password: str, settings) -> None:
                 title=f"알림 {i + 1:02d}", body="본문",
                 read_at=None if i < 12 else now, created_at=now - timedelta(minutes=i)))
         db.commit()
+        _seed_pilot(db, settings, me, projects, now)
+        db.commit()
     engine.dispose()
+
+
+def _seed_pilot(db, settings, me, projects, now) -> None:
+    """Pilot 8 Archetype 이 **비어 있지 않게** 한다 (S18).
+
+    S15 의 씨앗은 목록·상세 화면을 위한 것이었다 — 티켓·문서·게시글·알림. 그 위에서
+    W8 이 대표로 삼는 여덟 원형 중 **다섯이 빈 화면**이었다: 조직(B11)에 마디가 없고,
+    사용자 목록(B2)에 사람이 하나뿐이고, 채팅(B9)에 방이 없고, 작업 이력(B8)에 줄이
+    없고, 읽기 화면(B3)에 댓글이 없었다.
+
+    빈 화면을 찍어 놓고 「원형을 검증했다」고 적으면 그 회차는 아무것도 본 것이 없다 —
+    검사는 전부 통과하는데(볼 것이 없으니) 그 통과가 아무 뜻이 없는 상태다. 그래서
+    여기서 각 원형이 자기 구조를 실제로 보여 줄 만큼만 심는다.
+
+    **적게 심는 데에도 이유가 있다.** 20건 안팎을 쓰는 이유는 쪽 넘김(pagination)이
+    실제로 일어나는 최소 규모이기 때문이고, 사람을 여섯 심는 이유는 부서 둘로 갈렸을 때
+    한쪽이 비지 않게 하려는 것이다.
+    """
+    from datetime import date, timedelta
+
+    from app.board.models import Comment as BoardComment
+    from app.board.models import Post, Reaction
+    from app.jobs.models import Job
+    from app.org.constants import DEFAULT_ORG_ID
+    from app.org.models import JobTitle, OrgUnit
+    from app.projects.models import (
+        Project, ProjectHealthSnapshot, ProjectMember, ProjectMilestone,
+    )
+    from app.tickets.models import TicketCache, TicketComment
+    from app.team_chat.models import ChatMessage, ChatRoom, ChatRoomMember
+    from app.users.service import create_user
+
+    # ── 조직 트리 (B11 Split view) ────────────────────────────────────────────
+    # 본부 하나 아래 팀 둘. 트리의 «접힘/펼침» 과 «선택하면 오른쪽 판이 바뀐다» 는
+    # 마디가 최소 두 층은 있어야 보인다.
+    hq = OrgUnit(name="플랫폼본부", kind="department", org_id=DEFAULT_ORG_ID)
+    db.add(hq)
+    db.flush()
+    teams = []
+    for name in ("플랫폼개발팀", "서비스운영팀"):
+        unit = OrgUnit(name=name, kind="department", parent_id=hq.id, org_id=DEFAULT_ORG_ID)
+        db.add(unit)
+        teams.append(unit)
+    db.flush()
+    titles = []
+    for name in ("팀장", "선임", "주임"):
+        title = JobTitle(name=name, org_id=DEFAULT_ORG_ID)
+        db.add(title)
+        titles.append(title)
+    db.flush()
+
+    me.department_id = teams[0].id
+    me.title_id = titles[0].id
+
+    # ── 사람 (B2 · B11) ──────────────────────────────────────────────────────
+    # 역할을 섞는다 — 역할 열이 한 값뿐이면 그 열은 아무것도 구별하지 않는다.
+    people = [me]
+    plan = (
+        ("kim.jihoon", "김지훈", "operator", 0, 1, True),
+        ("lee.seoyeon", "이서연", "user", 0, 2, True),
+        ("park.minjun", "박민준", "admin", 1, 1, True),
+        ("choi.yuna", "최유나", "user", 1, 2, True),
+        # 비활성 계정 하나 — 「활성/비활성」 필터가 실제로 무엇을 거르는지 보이게.
+        ("jung.dohyun", "정도현", "user", 1, 2, False),
+    )
+    for local, name, role, team_idx, title_idx, active in plan:
+        person = create_user(
+            db, email=f"{local}@goodmit.co.kr", password="Ui-Qa-Local-1!",
+            display_name=name, role=role, settings=settings, actor_role="system_admin",
+            must_change_password=False, membership_kind="organization",
+            department_id=teams[team_idx].id, title_id=titles[title_idx].id,
+        )
+        person.active = active
+        people.append(person)
+    db.flush()
+
+    # ── 프로젝트의 «왜» (B1 · B2) ────────────────────────────────────────────
+    # 목록이 Health 점수만 보여 주고 무엇이 그것을 떨어뜨렸는지는 안 보여 준다는 것이
+    # 계획서가 이 화면에 적은 가장 큰 공백이다. 그 «왜» 를 화면에서 확인하려면 점수와
+    # 근거가 실제로 있어야 한다.
+    monday = date(2026, 8, 24) - timedelta(days=date(2026, 8, 24).weekday())
+    scores = (47, 72, 91)
+    reason_sets = (
+        '["지연된 마일스톤이 2건 있습니다.", "이번 주 진행률이 지난주와 같습니다."]',
+        '["담당자가 없는 티켓이 3건 있습니다."]',
+        "[]",
+    )
+    for idx, project in enumerate(projects):
+        project.dept_id = teams[idx % len(teams)].id
+        project.owner_user_id = people[(idx + 1) % len(people)].id
+        project.health_score = scores[idx]
+        project.progress_pct = (18.0, 55.0, 92.0)[idx]
+        project.starts_on = date(2026, 6, 1)
+        project.ends_on = date(2026, 12, 31)
+        db.add(ProjectMember(project_id=project.id, user_id=people[(idx + 1) % len(people)].id,
+                             role="owner"))
+        db.add(ProjectHealthSnapshot(project_id=project.id, week_of=monday,
+                                     score=scores[idx], reasons_json=reason_sets[idx],
+                                     created_at=now))
+        for m, (mname, days, status) in enumerate((
+            ("요구사항 확정", -20, "done"),
+            ("1차 오픈", -3, "planned"),      # 지난 날짜인데 계획 상태 = 지연
+            ("안정화", 21, "planned"),
+        )):
+            db.add(ProjectMilestone(project_id=project.id, name=f"{mname}",
+                                    due_on=date(2026, 8, 24) + timedelta(days=days),
+                                    status=status, sort_order=m))
+    # 보관한 프로젝트 하나 — 「보관 포함」 스위치가 실제로 무엇을 더 보여 주는지 보이게.
+    from app.work import codes as work_codes
+
+    archived = Project(name="사내 위키 이관(보관)", org_id=DEFAULT_ORG_ID,
+                       dept_id=teams[0].id, archived_at=now - timedelta(days=30),
+                       status="완료", health_score=88, progress_pct=100.0)
+    work_codes.insert_with_code(db, archived)
+    db.flush()
+
+    # ── 읽기 화면의 댓글 (B3) · 상세의 논의 (B4) ─────────────────────────────
+    first_post = db.query(Post).order_by(Post.created_at.desc()).first()
+    if first_post is not None:
+        for i, person in enumerate(people[:4]):
+            db.add(BoardComment(post_id=first_post.id, author_user_id=person.id,
+                                body=f"댓글 {i + 1} — 이 글에 대한 의견입니다.",
+                                created_at=now - timedelta(minutes=30 - i)))
+        db.add(Reaction(target_type="post", target_id=first_post.id,
+                        user_id=me.id, emoji="👍", created_at=now))
+    tickets = db.query(TicketCache).order_by(TicketCache.notion_ticket_number).all()
+    if tickets:
+        for i, person in enumerate(people[:3]):
+            db.add(TicketComment(ticket_uid=tickets[0].id, author_user_id=person.id,
+                                 body=f"확인했습니다 ({i + 1}). 다음 단계는 검증입니다.",
+                                 created_at=now - timedelta(minutes=20 - i)))
+
+    # ── 채팅 (B9) ────────────────────────────────────────────────────────────
+    # 방 셋: 팀 방(부서에 묶인 것) · 일반 그룹 방 · 안 읽은 것이 남은 방.
+    rooms = (
+        ("플랫폼개발팀", teams[0].id, 6),
+        ("배포 준비", None, 3),
+        ("장애 대응", None, 12),
+    )
+    for r, (title, dept_id, message_count) in enumerate(rooms):
+        room = ChatRoom(kind="group", title=title, created_by_user_id=me.id,
+                        department_id=dept_id, org_id=DEFAULT_ORG_ID,
+                        event_seq=message_count)
+        db.add(room)
+        db.flush()
+        members = people[: 3 + r]
+        for person in members:
+            db.add(ChatRoomMember(
+                room_id=room.id, user_id=person.id,
+                role="owner" if person.id == me.id else "member",
+                # 마지막 방만 안 읽은 것이 남는다 — 안읽음 배지가 «있다/없다» 둘 다 보이게.
+                last_read_seq=0 if r == 2 else message_count,
+                joined_at=now - timedelta(days=3), last_seen=now - timedelta(minutes=5)))
+        for s in range(1, message_count + 1):
+            db.add(ChatMessage(
+                room_id=room.id, seq=s, sender_user_id=members[s % len(members)].id,
+                kind="text", body=f"{title} 메시지 {s:02d}",
+                created_at=now - timedelta(minutes=message_count - s)))
+
+    # ── 작업 이력 (B8 Operations console) ────────────────────────────────────
+    # 실패가 섞여 있어야 「지금 확인할 것」이 무엇인지 화면이 말할 수 있다. 실패 사유를
+    # 두 종류로 나눈다 — 원인별 묶기가 실제로 묶을 것이 있어야 보인다.
+    for i in range(22):
+        failed = i % 7 == 3
+        # 상태 낱말도 **제품이 쓰는 것**이어야 한다(`app/jobs/models.py::ALL_STATUSES`).
+        # `done` 은 이 제품에 없는 값이라, 그것을 심으면 화면의 «완료»(succeeded) 조건이
+        # 언제나 0건을 돌려주고 그 0건이 화면 결함처럼 보인다 — 바로 위 유형 주석과 같은 실수다.
+        status = "failed" if failed else ("succeeded" if i % 3 else "queued")
+        # 유형은 제품이 실제로 쓰는 것만이다(`app/jobs/models.py`·`registry/shared.js`
+        # 의 `JOB_TYPE`). 없는 유형을 심으면 운영 콘솔의 «유형» 조건이 그 값을 모르는
+        # 채로 그리고, 화면이 실제로 무엇을 거르는지 확인할 수 없다.
+        db.add(Job(
+            job_type=("chat_message" if i % 3 == 0 else
+                      "schedule_run" if i % 3 == 1 else "mail_send"),
+            user_id=me.id, payload_json="{}", status=status,
+            attempt_count=3 if failed else 1, max_attempts=3,
+            available_at=now - timedelta(minutes=i * 5),
+            started_at=None if status == "queued" else now - timedelta(minutes=i * 5 - 1),
+            finished_at=None if status == "queued" else now - timedelta(minutes=i * 5 - 2),
+            last_error=("연결 시간이 초과됐습니다 (timeout)" if i % 14 == 3
+                        else "저장소에 쓸 수 없습니다 (permission denied)") if failed else None,
+            created_at=now - timedelta(minutes=i * 5),
+        ))
 
 
 def serve(settings, port: int):

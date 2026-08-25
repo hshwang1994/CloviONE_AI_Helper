@@ -142,7 +142,12 @@ export function ticketColumns({ showAssignee, onEdit, onClaim, onOpen, compact, 
     /* 티켓 번호는 **식별자형 숫자**다 — 크기를 비교하지 않으므로 좌정렬이고, 자릿수만
        고정한다. 그 뜻을 표가 `data-col-role="identifier"` 로 내보내 QA 가 이 열을 «우정렬
        안 된 숫자 열» 로 세지 않는다. */
-    { key: "tid", label: "티켓", type: "identifier", width: compact ? "6rem" : "7rem", sortable: true, render: (t) => ticketId(t) },
+    /* 번호는 `AAAAAA-123456` 같이 접두 여섯 + 숫자 여섯까지 한 줄이다. 예전 7rem 은
+       접두가 긴 값이 두 줄로 접혀 행 높이가 들쭉날쭉했다. 식별자 기본(anywhere)은
+       끄고, 폭이 모자라면 표를 가로로 민다. */
+    { key: "tid", label: "티켓", type: "identifier",
+      width: compact ? "8.5rem" : "10rem", minWidth: compact ? "8.5rem" : "10rem",
+      nowrap: true, sortable: true, render: (t) => ticketId(t) },
     // minWidth: 제목 열이 절대 그 아래로 줄지 않는 폭. 나머지 열이 전부 고정폭 + nowrap 이라,
     // 컨테이너가 좁으면(홈의 2단 배치, 1366 화면) 제목만 남은 폭을 다 먹히고 24px 로 눌려
     // 글자가 한 음절씩 세로로 무너졌다(QA vertical_text_collapse 가 실제로 잡았다).

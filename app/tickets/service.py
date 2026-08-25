@@ -25,7 +25,7 @@ from app.core.errors import (
     NotFoundError,
     ValidationAppError,
 )
-from app.core.models_base import utcnow
+from app.core.models_base import split_names, utcnow
 from app.core.notion_blocks import rendered_to_markdown
 from app.notion_mapping.models import STATUS_VERIFIED, UserNotionMapping
 from app.reports.service import STATUS_CANCELLED, STATUS_DONE, _load_name_map

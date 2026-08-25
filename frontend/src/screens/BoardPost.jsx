@@ -513,7 +513,13 @@ export function BoardPost() {
       {/* 1열: 산문(78ch 상한). 2열: 메타 + 댓글 레일. lg부터 갈라진다 — 그 아래에서는 레일이
           본문 밑으로 자연스럽게 흐른다(소스 순서 = 읽는 순서라 스크린리더도 그대로 따라간다). */}
       <Box sx={{ display: "grid", rowGap: 3, maxWidth: PROSE_MAX_WIDTH_WIDE }}>
-        <Card component="article" sx={{ minWidth: 0 }}>
+        {/* **읽기 화면에는 판 경계가 없다** (B3 · S18).
+            여기 있던 `Card` 는 본문·반응까지만 감싸고 댓글은 그 밖에 있었다 — 한 글을
+            읽는 흐름이 판 경계로 두 동강 나고, 짧은 글에서는 그 판이 1086×198 짜리 흰
+            면으로 남아 잉크 19% 였다(S18 실측). 읽기 원형의 계약은 «제목 → 본문 →
+            반응 → 댓글이 한 열로 이어지고 사이에 카드 경계가 없다» 이다. 판을 걷으면
+            네 구획이 같은 바닥 위에서 이어진다. */}
+        <Box component="article" sx={{ minWidth: 0 }}>
           <Stack direction="row" gap={1} flexWrap="wrap" alignItems="center">
             {post.is_pinned ? <Tag label="고정" /> : null}
             <Tag label={post.category} />
@@ -567,7 +573,7 @@ export function BoardPost() {
               onChanged={refetch}
             />
           </Box>
-        </Card>
+        </Box>
 
         {/* 댓글은 **본문 아래 전체 폭**이다. 예전에는 메타와 함께 오른쪽 곁열에 있었는데,
             댓글은 글에 대한 대화지 글의 속성이 아니다 — 좁은 칸에 밀어 넣으면 한 줄에 대여섯

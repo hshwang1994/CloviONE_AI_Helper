@@ -83,6 +83,11 @@ class Route:
     surface_id: str = ""
     # 소스가 `<Navigate>` 로 바꾼 옛 주소. 값이 있으면 **화면이 아니라 별칭**이다.
     alias_of: str = ""
+    # 이 Route 가 대신 서는 소스의 `<Route path=…>`. 하네스가 파라미터를 **고정 값으로
+    # 박을 때만** 적는다(`/team-docs/00000000-…` 이 `/team-docs/:pageId` 를 선다).
+    # 경로를 보고 짐작하면 그 짐작은 한쪽이 바뀌는 날 조용히 어긋난다 — `surface_id` 를
+    # 명시하는 것과 같은 이유다.
+    source_path: str = ""
 
     @property
     def is_alias(self) -> bool:
@@ -134,7 +139,7 @@ def _u(rid, path, label, **kw) -> Route:
     return Route(id=rid, hash_path=path, console="user", label=label, min_role="user", **kw)
 
 
-def _alias(rid, path, target, label, min_role="operator", allowed=()) -> Route:
+def _alias(rid, path, target, label, min_role="operator", allowed=(), console="admin") -> Route:
     """옛 주소. `AdminRoutes.jsx` 가 `<Navigate>` 로 바꿔 **자기 화면이 없다**.
 
     화면으로 세면 PNG 는 도착지 화면인데 검사는 전부 통과하고 커버리지는 한 화면을 둘로
@@ -146,7 +151,7 @@ def _alias(rid, path, target, label, min_role="operator", allowed=()) -> Route:
     남겨 두면 하네스가 없어진 계약을 확인하려다 404 를 찍는다.
     """
     return Route(
-        id=rid, hash_path=path, console="admin", label=label,
+        id=rid, hash_path=path, console=console, label=label,
         min_role=min_role, allowed_roles=tuple(allowed), alias_of=target,
     )
 
@@ -185,8 +190,16 @@ USER_ROUTES: tuple[Route, ...] = (
     _u("user_board-post", "/board", "게시글 상세",
        hash_template="/board/{id}", discover=("/api/board/posts",)),
     _u("user_team-docs-trash", "/team-docs/trash", "문서 휴지통"),
-    # 문서는 화면 하나다 (S14 · C2). 옛 `/team-docs`, `/team-docs/{id}` 는 여기로 넘기는
-    # 자리라 찍을 것이 없다 — 찍으면 같은 화면이 두 이름으로 두 번 들어온다.
+    # 문서는 화면 하나다 (S14 · C2). 옛 `/team-docs` 는 `<Navigate>` 라 아래 ALIAS_ROUTES 에
+    # 있고, 옛 `/team-docs/:pageId` 는 **자기 화면이 있다** — `LegacyDocRedirect.jsx` 가
+    # 옛 page id 로 지금 문서를 찾아 데려간다.
+    #
+    # 찍는 것은 **못 찾은 얼굴**이다. 찾으면 곧바로 `/knowledge/:id` 로 넘어가 도착지와
+    # 같은 그림이 두 이름으로 들어오고, 옛 page id 는 S14 가 legacy 층을 내린 뒤로 새로
+    # 생기지 않는다 — 이 주소에만 있는 얼굴은 «못 찾았고 그 이유를 말한다» 쪽이다.
+    # 그래서 존재할 수 없는 id 를 고정으로 준다(무작위가 아니라 고정이라 매번 같은 그림이다).
+    _u("user_legacy-doc-redirect", "/team-docs/00000000-0000-0000-0000-000000000000",
+       "옛 문서 주소 — 못 찾음", source_path="/team-docs/:pageId"),
     _u("user_knowledge", "/knowledge", "문서"),
     _u("user_knowledge-doc", "/knowledge", "문서 상세",
        hash_template="/knowledge/{id}", discover=("/api/knowledge/documents",)),
@@ -332,12 +345,15 @@ ADMIN_ROUTES: tuple[Route, ...] = (
     # `/settings` 탭이 됐고 옛 주소는 `<Navigate>` 다 — 아래 ALIAS_ROUTES 로 옮겼다.
     _a("admin_setup", "/setup", "초기 설정", "system_admin", ("system_admin",)),
     # ── /settings 탭 본문 (2026-08-19, W0) ────────────────────────────────────
-    # `SettingsShell.jsx::TAB_DEFS` 의 네 탭 중 `policy` 만 `/settings` 로 찍혀 왔다.
-    # 나머지 셋이 그리는 SystemOps(389) · NotionConsole(433) · LlmConsole(394) 는
-    # **직접 캡처된 적이 없다** — 1,216줄이 시각 검사 밖에 있었다.
+    # `SettingsShell.jsx::TAB_DEFS` 의 탭 중 `policy` 만 `/settings` 로 찍혀 왔다.
+    # 나머지가 그리는 SystemOps(389) · LlmConsole(394) 는 **직접 캡처된 적이 없었다**.
+    #
+    # 넷째 탭 `integration` 은 여기 있었고 **지금은 없다**(S18). S14 가 Notion 런타임을
+    # 걷으면서 그 탭과 화면이 함께 없어졌는데 이 목록만 남아, 하네스가 `?tab=integration`
+    # 으로 가면 설정 화면이 모르는 탭 키를 첫 탭으로 되돌린다 — 그래서 그 캡처에는
+    # **'시스템 정책' 탭이 '연동' 이라는 이름으로** 담긴다. 없는 화면을 찍어 다른 화면을
+    # 그 이름으로 기록하는 것이 가장 조용한 종류의 거짓이라 목록에서 지운다.
     _a("admin_settings-os", "/settings?tab=os", "설정 — OS와 서비스 동작",
-       "system_admin", ("system_admin",)),
-    _a("admin_settings-integration", "/settings?tab=integration", "설정 — 연동",
        "system_admin", ("system_admin",)),
     _a("admin_settings-ai", "/settings?tab=ai", "설정 — AI",
        "system_admin", ("system_admin",)),
@@ -381,6 +397,10 @@ ALIAS_ROUTES: tuple[Route, ...] = (
     _alias("admin_maintenance", "/maintenance", "/settings?tab=policy",
            "유지보수(옛 주소)", "operator",
            ("operator", "admin", "system_admin", "auditor")),
+    # 사용자 콘솔에도 하나 있다 — S14 가 문서 목록을 `/knowledge` 로 옮기면서 남긴 것이다.
+    # 이 목록에 없던 동안 `test_ui_qa_route_registry_completeness` 가 빨간 채였다.
+    _alias("user_team-docs", "/team-docs", "/knowledge", "팀 문서(옛 주소)",
+           "user", (), console="user"),
 )
 
 # --- 로그인 전 화면 -----------------------------------------------------------
@@ -409,7 +429,6 @@ SURFACE_ID_OVERRIDES: dict[str, str] = {
     "admin_schedules": "admin_schedules__schedules",
     "admin_schedules-calendar-tab": "admin_schedules__scheduler-calendar",
     "admin_settings-ai": "admin_settings__ai",
-    "admin_settings-integration": "admin_settings__integration",
     "admin_settings-os": "admin_settings__os",
     "admin_users-detail": "admin_users-id",
     "user_board-post": "user_board-id",

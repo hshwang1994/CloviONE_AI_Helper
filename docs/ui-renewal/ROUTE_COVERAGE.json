@@ -7303,11 +7303,38 @@
     "notes": ""
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
-    "evidence": [],
-    "flows": []
+    "result": "FAIL",
+    "by": "S18 — scripts/ui_qa/pilot_e2e.py (실 브라우저 Chromium · 로컬 PostgreSQL 씨앗, 258 Flow)",
+    "at": "2026-08-25",
+    "evidence": [
+     "ev:qa_run:s18-pilot (dist/ui-qa/pilot/flows.json)",
+     "ev:commit:S18 — scripts/ui_qa/pilot_*.py (Flow 표 · 실행기 · 기록기)"
+    ],
+    "flows": [
+     "FF-0929",
+     "FF-0930",
+     "FF-0931",
+     "FF-0932",
+     "FF-0933",
+     "FF-0935",
+     "FF-0936",
+     "FF-0937",
+     "FF-0938",
+     "FF-0939",
+     "FF-0940",
+     "FF-0941",
+     "FF-0942",
+     "FF-0943",
+     "FF-0944",
+     "FF-0945",
+     "FF-0946",
+     "FF-1410",
+     "FF-1411",
+     "FF-1412",
+     "FF-1413",
+     "FF-1414"
+    ],
+    "notes": "Flow 22건을 실브라우저에서 눌러 사슬을 기록했다(통과 21 · 실패 1). 쓰기 범주는 바꾼 값을 **다른 화면에서 다시 찾아**(cross_surface) 확인했고, 서버를 안 부르는 것이 정답인 동작은 `server_free` 로 사유를 적고 화면 사슬 셋으로 통과시켰다(D-300 · D-301). 실패 FF-0946 는 이 회차에서 닫지 않았다 — 사유는 BACKLOG P-44."
    },
    "responsive_audit": {
     "result": "PENDING",
@@ -7353,7 +7380,7 @@
     "all_combos": 12,
     "results_json": "dist/ui-qa/w5-after/results.json"
    },
-   "status": "NOT_AUDITED",
+   "status": "IN_PROGRESS",
    "wave": "W8",
    "findings": [
     {
@@ -8208,27 +8235,26 @@
     }
    ],
    "visual_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
+    "result": "N/A",
+    "by": "S18",
+    "at": "2026-08-25",
     "evidence": [],
-    "notes": ""
+    "notes": "화면이 제품에 없다 — 볼 것이 없다."
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
+    "result": "N/A",
+    "by": "S18",
+    "at": "2026-08-25",
     "evidence": [],
     "flows": []
    },
    "responsive_audit": {
-    "result": "PENDING",
-    "required_profile": "minor_v1",
+    "required_profile": null,
     "matrix": []
    },
    "before_capture": null,
    "after_capture": null,
-   "status": "NOT_AUDITED",
+   "status": "RETIRED",
    "wave": "W11",
    "findings": [
     {
@@ -8270,7 +8296,12 @@
    ],
    "derivation_notes": "쿼리 보존 판정은 admin_system 과 동일하다 — `<Navigate to=\"/settings?tab=integration\" replace />` 의 to 가 리터럴이라 들어온 해시 쿼리를 전부 버린다(AdminRoutes.jsx:217). 같은 파일 96-99·235-238 주석이 리다이렉트를 피한 이유로 바로 이 쿼리 손실을 든다. 도착 본문 NotionConsole.jsx(433줄)에 쿼리 상태 훅이 없어 현재 소비자는 없다. 결함 후보: scripts/ui_qa/routes.py:288 이 이 주소를 'Notion 관리' 화면으로 등록해 캡처한다(F-0002).",
    "harness_id": "admin_notion-console",
-   "requirements_why": "/notion-console 은 '연동' 탭으로 흡수된 옛 주소다. 착지 정확성(?tab=integration)과 위치 인지 복원(R-46), 통합 분류의 정당성(R-30·R-0-14·R-51·R-41), 죽은 Route·잘못된 Query Parameter 부재(R-42·R-94)만 이 주소에서 검수된다. 연동 화면의 내용 요구(R-37 등)는 도착지인 admin_settings__integration 이 갖는다 — 여기에 또 적으면 같은 것을 두 번 세게 된다. 연동 탭도 system_admin 전용이라 권한 없는 역할의 옛 주소 진입 경로(R-21)가 살아 있다."
+   "requirements_why": "/notion-console 은 '연동' 탭으로 흡수된 옛 주소다. 착지 정확성(?tab=integration)과 위치 인지 복원(R-46), 통합 분류의 정당성(R-30·R-0-14·R-51·R-41), 죽은 Route·잘못된 Query Parameter 부재(R-42·R-94)만 이 주소에서 검수된다. 연동 화면의 내용 요구(R-37 등)는 도착지인 admin_settings__integration 이 갖는다 — 여기에 또 적으면 같은 것을 두 번 세게 된다. 연동 탭도 system_admin 전용이라 권한 없는 역할의 옛 주소 진입 경로(R-21)가 살아 있다.",
+   "retired": {
+    "at": "2026-08-25",
+    "by": "S18",
+    "reason": "`/notion-console`. 도착지였던 '연동' 탭이 없어져 리다이렉트도 남기지 않고 지웠다 — `AdminRoutes.jsx` 가 그 판단을 적어 두었고 `settings-route-redirects.test.jsx` 가 404 임을 고정한다."
+   }
   },
   {
    "id": "admin_notion-mapping",
@@ -9198,11 +9229,39 @@
     "notes": ""
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
-    "evidence": [],
-    "flows": []
+    "result": "FAIL",
+    "by": "S18 — scripts/ui_qa/pilot_e2e.py (실 브라우저 Chromium · 로컬 PostgreSQL 씨앗, 258 Flow)",
+    "at": "2026-08-25",
+    "evidence": [
+     "ev:qa_run:s18-pilot (dist/ui-qa/pilot/flows.json)",
+     "ev:commit:S18 — scripts/ui_qa/pilot_*.py (Flow 표 · 실행기 · 기록기)"
+    ],
+    "flows": [
+     "FF-0522",
+     "FF-0523",
+     "FF-0524",
+     "FF-0525",
+     "FF-0526",
+     "FF-0527",
+     "FF-0528",
+     "FF-0529",
+     "FF-0530",
+     "FF-0531",
+     "FF-0532",
+     "FF-0533",
+     "FF-0534",
+     "FF-0535",
+     "FF-0536",
+     "FF-0537",
+     "FF-0538",
+     "FF-0539",
+     "FF-1415",
+     "FF-1416",
+     "FF-1417",
+     "FF-1418",
+     "FF-1419"
+    ],
+    "notes": "Flow 23건을 실브라우저에서 눌러 사슬을 기록했다(통과 22 · 실패 1). 쓰기 범주는 바꾼 값을 **다른 화면에서 다시 찾아**(cross_surface) 확인했고, 서버를 안 부르는 것이 정답인 동작은 `server_free` 로 사유를 적고 화면 사슬 셋으로 통과시켰다(D-300 · D-301). 실패 FF-0536 는 이 회차에서 닫지 않았다 — 사유는 BACKLOG P-44."
    },
    "responsive_audit": {
     "result": "PENDING",
@@ -9248,7 +9307,7 @@
     "all_combos": 12,
     "results_json": "dist/ui-qa/w5-after/results.json"
    },
-   "status": "NOT_AUDITED",
+   "status": "IN_PROGRESS",
    "wave": "W8",
    "findings": [
     {
@@ -12479,11 +12538,21 @@
     "notes": ""
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
-    "evidence": [],
-    "flows": []
+    "result": "FAIL",
+    "by": "S18 — scripts/ui_qa/pilot_e2e.py (실 브라우저 Chromium · 로컬 PostgreSQL 씨앗, 258 Flow)",
+    "at": "2026-08-25",
+    "evidence": [
+     "ev:qa_run:s18-pilot (dist/ui-qa/pilot/flows.json)",
+     "ev:commit:S18 — scripts/ui_qa/pilot_*.py (Flow 표 · 실행기 · 기록기)"
+    ],
+    "flows": [
+     "FF-0477",
+     "FF-0478",
+     "FF-0479",
+     "FF-0480",
+     "FF-0481"
+    ],
+    "notes": "Flow 5건을 실브라우저에서 눌러 사슬을 기록했다(통과 4 · 실패 1). 쓰기 범주는 바꾼 값을 **다른 화면에서 다시 찾아**(cross_surface) 확인했고, 서버를 안 부르는 것이 정답인 동작은 `server_free` 로 사유를 적고 화면 사슬 셋으로 통과시켰다(D-300 · D-301). 실패 FF-0480 는 이 회차에서 닫지 않았다 — 사유는 BACKLOG P-44."
    },
    "responsive_audit": {
     "result": "PENDING",
@@ -12529,7 +12598,7 @@
     "all_combos": 12,
     "results_json": "dist/ui-qa/w5-after/results.json"
    },
-   "status": "NOT_AUDITED",
+   "status": "IN_PROGRESS",
    "wave": "W8",
    "findings": [
     {
@@ -12742,11 +12811,25 @@
     "notes": ""
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
-    "evidence": [],
-    "flows": []
+    "result": "PASS",
+    "by": "S18 — scripts/ui_qa/pilot_e2e.py (실 브라우저 Chromium · 로컬 PostgreSQL 씨앗, 258 Flow)",
+    "at": "2026-08-25",
+    "evidence": [
+     "ev:qa_run:s18-pilot (dist/ui-qa/pilot/flows.json)",
+     "ev:commit:S18 — scripts/ui_qa/pilot_*.py (Flow 표 · 실행기 · 기록기)"
+    ],
+    "flows": [
+     "FF-0776",
+     "FF-0777",
+     "FF-0778",
+     "FF-0779",
+     "FF-0780",
+     "FF-0781",
+     "FF-0782",
+     "FF-0783",
+     "FF-0784"
+    ],
+    "notes": "Flow 9건을 실브라우저에서 눌러 사슬을 기록했다(통과 9 · 실패 0). 쓰기 범주는 바꾼 값을 **다른 화면에서 다시 찾아**(cross_surface) 확인했고, 서버를 안 부르는 것이 정답인 동작은 `server_free` 로 사유를 적고 화면 사슬 셋으로 통과시켰다(D-300 · D-301)."
    },
    "responsive_audit": {
     "result": "PENDING",
@@ -12792,7 +12875,7 @@
     "all_combos": 12,
     "results_json": "dist/ui-qa/w5-after/results.json"
    },
-   "status": "NOT_AUDITED",
+   "status": "IN_PROGRESS",
    "wave": "W8",
    "findings": [
     {
@@ -13083,22 +13166,21 @@
     }
    ],
    "visual_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
+    "result": "N/A",
+    "by": "S18",
+    "at": "2026-08-25",
     "evidence": [],
-    "notes": ""
+    "notes": "화면이 제품에 없다 — 볼 것이 없다."
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
+    "result": "N/A",
+    "by": "S18",
+    "at": "2026-08-25",
     "evidence": [],
     "flows": []
    },
    "responsive_audit": {
-    "result": "PENDING",
-    "required_profile": "minor_v1",
+    "required_profile": null,
     "matrix": []
    },
    "before_capture": {
@@ -13140,7 +13222,7 @@
     "all_combos": 12,
     "results_json": "dist/ui-qa/w5-after/results.json"
    },
-   "status": "NOT_AUDITED",
+   "status": "RETIRED",
    "wave": "W8",
    "findings": [
     {
@@ -13307,6 +13389,11 @@
      "measured_note": "큰 면이 비어 있다 — 상자를 줄이거나 그 자리에 들어갈 것을 넣어야 한다",
      "sample_combo": "1200x900/light"
     }
+   },
+   "retired": {
+    "at": "2026-08-25",
+    "by": "S18",
+    "reason": "설정의 '연동' 탭. S14 가 Notion 런타임을 걷으면서 이 탭이 고치던 값(토큰·DB id)이 제품에서 없어졌고 화면(`NotionConsole.jsx`)과 탭 정의(`TAB_DEFS`)가 함께 지워졌다. 외부 연동은 자기 화면 `/integrations` 를 갖고 있다."
    }
   },
   {
@@ -13400,11 +13487,25 @@
     "notes": ""
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
-    "evidence": [],
-    "flows": []
+    "result": "PASS",
+    "by": "S18 — scripts/ui_qa/pilot_e2e.py (실 브라우저 Chromium · 로컬 PostgreSQL 씨앗, 258 Flow)",
+    "at": "2026-08-25",
+    "evidence": [
+     "ev:qa_run:s18-pilot (dist/ui-qa/pilot/flows.json)",
+     "ev:commit:S18 — scripts/ui_qa/pilot_*.py (Flow 표 · 실행기 · 기록기)"
+    ],
+    "flows": [
+     "FF-0756",
+     "FF-0757",
+     "FF-0758",
+     "FF-0759",
+     "FF-0760",
+     "FF-0761",
+     "FF-0762",
+     "FF-0763",
+     "FF-0764"
+    ],
+    "notes": "Flow 9건을 실브라우저에서 눌러 사슬을 기록했다(통과 9 · 실패 0). 쓰기 범주는 바꾼 값을 **다른 화면에서 다시 찾아**(cross_surface) 확인했고, 서버를 안 부르는 것이 정답인 동작은 `server_free` 로 사유를 적고 화면 사슬 셋으로 통과시켰다(D-300 · D-301)."
    },
    "responsive_audit": {
     "result": "PENDING",
@@ -13450,7 +13551,7 @@
     "all_combos": 12,
     "results_json": "dist/ui-qa/w5-after/results.json"
    },
-   "status": "NOT_AUDITED",
+   "status": "IN_PROGRESS",
    "wave": "W8",
    "findings": [
     {
@@ -13692,11 +13793,41 @@
     "notes": ""
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
-    "evidence": [],
-    "flows": []
+    "result": "PASS",
+    "by": "S18 — scripts/ui_qa/pilot_e2e.py (실 브라우저 Chromium · 로컬 PostgreSQL 씨앗, 258 Flow)",
+    "at": "2026-08-25",
+    "evidence": [
+     "ev:qa_run:s18-pilot (dist/ui-qa/pilot/flows.json)",
+     "ev:commit:S18 — scripts/ui_qa/pilot_*.py (Flow 표 · 실행기 · 기록기)"
+    ],
+    "flows": [
+     "FF-0736",
+     "FF-0737",
+     "FF-0738",
+     "FF-0739",
+     "FF-0740",
+     "FF-0741",
+     "FF-0742",
+     "FF-0743",
+     "FF-0744",
+     "FF-0745",
+     "FF-0746",
+     "FF-0747",
+     "FF-0748",
+     "FF-0749",
+     "FF-0750",
+     "FF-0751",
+     "FF-0752",
+     "FF-0753",
+     "FF-0754",
+     "FF-0755",
+     "FF-1420",
+     "FF-1421",
+     "FF-1422",
+     "FF-1423",
+     "FF-1424"
+    ],
+    "notes": "Flow 25건을 실브라우저에서 눌러 사슬을 기록했다(통과 25 · 실패 0). 쓰기 범주는 바꾼 값을 **다른 화면에서 다시 찾아**(cross_surface) 확인했고, 서버를 안 부르는 것이 정답인 동작은 `server_free` 로 사유를 적고 화면 사슬 셋으로 통과시켰다(D-300 · D-301)."
    },
    "responsive_audit": {
     "result": "PENDING",
@@ -13721,7 +13852,7 @@
     "shared_reason": "`/settings` 는 기본 탭이 policy 다 — 같은 주소, 같은 렌더라 캡처가 하나다"
    },
    "after_capture": null,
-   "status": "NOT_AUDITED",
+   "status": "IN_PROGRESS",
    "wave": "W8",
    "findings": [
     {
@@ -14314,11 +14445,42 @@
     "notes": ""
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
-    "evidence": [],
-    "flows": []
+    "result": "PASS",
+    "by": "S18 — scripts/ui_qa/pilot_e2e.py (실 브라우저 Chromium · 로컬 PostgreSQL 씨앗, 258 Flow)",
+    "at": "2026-08-25",
+    "evidence": [
+     "ev:qa_run:s18-pilot (dist/ui-qa/pilot/flows.json)",
+     "ev:commit:S18 — scripts/ui_qa/pilot_*.py (Flow 표 · 실행기 · 기록기)"
+    ],
+    "flows": [
+     "FF-0421",
+     "FF-0422",
+     "FF-0423",
+     "FF-0424",
+     "FF-0425",
+     "FF-0426",
+     "FF-0427",
+     "FF-0428",
+     "FF-0429",
+     "FF-0430",
+     "FF-0431",
+     "FF-0432",
+     "FF-0433",
+     "FF-0434",
+     "FF-0435",
+     "FF-0436",
+     "FF-0437",
+     "FF-0438",
+     "FF-0439",
+     "FF-0440",
+     "FF-1199",
+     "FF-1356",
+     "FF-1357",
+     "FF-1358",
+     "FF-1359",
+     "FF-1360"
+    ],
+    "notes": "Flow 26건을 실브라우저에서 눌러 사슬을 기록했다(통과 26 · 실패 0). 쓰기 범주는 바꾼 값을 **다른 화면에서 다시 찾아**(cross_surface) 확인했고, 서버를 안 부르는 것이 정답인 동작은 `server_free` 로 사유를 적고 화면 사슬 셋으로 통과시켰다(D-300 · D-301)."
    },
    "responsive_audit": {
     "result": "PENDING",
@@ -14364,7 +14526,7 @@
     "all_combos": 12,
     "results_json": "dist/ui-qa/w5-after/results.json"
    },
-   "status": "NOT_AUDITED",
+   "status": "IN_PROGRESS",
    "wave": "W8",
    "findings": [
     {
@@ -14853,11 +15015,31 @@
     "notes": ""
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
-    "evidence": [],
-    "flows": []
+    "result": "PASS",
+    "by": "S18 — scripts/ui_qa/pilot_e2e.py (실 브라우저 Chromium · 로컬 PostgreSQL 씨앗, 258 Flow)",
+    "at": "2026-08-25",
+    "evidence": [
+     "ev:qa_run:s18-pilot (dist/ui-qa/pilot/flows.json)",
+     "ev:commit:S18 — scripts/ui_qa/pilot_*.py (Flow 표 · 실행기 · 기록기)"
+    ],
+    "flows": [
+     "FF-1165",
+     "FF-1166",
+     "FF-1167",
+     "FF-1168",
+     "FF-1169",
+     "FF-1170",
+     "FF-1171",
+     "FF-1172",
+     "FF-1173",
+     "FF-1174",
+     "FF-1425",
+     "FF-1426",
+     "FF-1427",
+     "FF-1428",
+     "FF-1429"
+    ],
+    "notes": "Flow 15건을 실브라우저에서 눌러 사슬을 기록했다(통과 15 · 실패 0). 쓰기 범주는 바꾼 값을 **다른 화면에서 다시 찾아**(cross_surface) 확인했고, 서버를 안 부르는 것이 정답인 동작은 `server_free` 로 사유를 적고 화면 사슬 셋으로 통과시켰다(D-300 · D-301)."
    },
    "responsive_audit": {
     "result": "PENDING",
@@ -14866,7 +15048,7 @@
    },
    "before_capture": null,
    "after_capture": null,
-   "status": "NOT_AUDITED",
+   "status": "IN_PROGRESS",
    "wave": "W8",
    "findings": [],
    "suppressions": [],
@@ -17399,11 +17581,37 @@
     "notes": ""
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
-    "evidence": [],
-    "flows": []
+    "result": "PASS",
+    "by": "S18 — scripts/ui_qa/pilot_e2e.py (실 브라우저 Chromium · 로컬 PostgreSQL 씨앗, 258 Flow)",
+    "at": "2026-08-25",
+    "evidence": [
+     "ev:qa_run:s18-pilot (dist/ui-qa/pilot/flows.json)",
+     "ev:commit:S18 — scripts/ui_qa/pilot_*.py (Flow 표 · 실행기 · 기록기)"
+    ],
+    "flows": [
+     "FF-0249",
+     "FF-0250",
+     "FF-0251",
+     "FF-0252",
+     "FF-0253",
+     "FF-0254",
+     "FF-0255",
+     "FF-0256",
+     "FF-0257",
+     "FF-0258",
+     "FF-0259",
+     "FF-0260",
+     "FF-0261",
+     "FF-0262",
+     "FF-0263",
+     "FF-0264",
+     "FF-0265",
+     "FF-0266",
+     "FF-0267",
+     "FF-0268",
+     "FF-0269"
+    ],
+    "notes": "Flow 21건을 실브라우저에서 눌러 사슬을 기록했다(통과 21 · 실패 0). 쓰기 범주는 바꾼 값을 **다른 화면에서 다시 찾아**(cross_surface) 확인했고, 서버를 안 부르는 것이 정답인 동작은 `server_free` 로 사유를 적고 화면 사슬 셋으로 통과시켰다(D-300 · D-301)."
    },
    "responsive_audit": {
     "result": "PENDING",
@@ -17449,7 +17657,7 @@
     "all_combos": 12,
     "results_json": "dist/ui-qa/w5-after/results.json"
    },
-   "status": "NOT_AUDITED",
+   "status": "IN_PROGRESS",
    "wave": "W8",
    "findings": [
     {
@@ -18012,11 +18220,26 @@
     "notes": ""
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
-    "evidence": [],
-    "flows": []
+    "result": "PASS",
+    "by": "S18 — scripts/ui_qa/pilot_e2e.py (실 브라우저 Chromium · 로컬 PostgreSQL 씨앗, 258 Flow)",
+    "at": "2026-08-25",
+    "evidence": [
+     "ev:qa_run:s18-pilot (dist/ui-qa/pilot/flows.json)",
+     "ev:commit:S18 — scripts/ui_qa/pilot_*.py (Flow 표 · 실행기 · 기록기)"
+    ],
+    "flows": [
+     "FF-0201",
+     "FF-0202",
+     "FF-0203",
+     "FF-0204",
+     "FF-0205",
+     "FF-0206",
+     "FF-0207",
+     "FF-0208",
+     "FF-0209",
+     "FF-0210"
+    ],
+    "notes": "Flow 10건을 실브라우저에서 눌러 사슬을 기록했다(통과 10 · 실패 0). 쓰기 범주는 바꾼 값을 **다른 화면에서 다시 찾아**(cross_surface) 확인했고, 서버를 안 부르는 것이 정답인 동작은 `server_free` 로 사유를 적고 화면 사슬 셋으로 통과시켰다(D-300 · D-301)."
    },
    "responsive_audit": {
     "result": "PENDING",
@@ -18062,7 +18285,7 @@
     "all_combos": 12,
     "results_json": "dist/ui-qa/w5-after/results.json"
    },
-   "status": "NOT_AUDITED",
+   "status": "IN_PROGRESS",
    "wave": "W8",
    "findings": [
     {
@@ -18607,11 +18830,26 @@
     "notes": ""
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
-    "evidence": [],
-    "flows": []
+    "result": "PASS",
+    "by": "S18 — scripts/ui_qa/pilot_e2e.py (실 브라우저 Chromium · 로컬 PostgreSQL 씨앗, 258 Flow)",
+    "at": "2026-08-25",
+    "evidence": [
+     "ev:qa_run:s18-pilot (dist/ui-qa/pilot/flows.json)",
+     "ev:commit:S18 — scripts/ui_qa/pilot_*.py (Flow 표 · 실행기 · 기록기)"
+    ],
+    "flows": [
+     "FF-1155",
+     "FF-1156",
+     "FF-1157",
+     "FF-1158",
+     "FF-1159",
+     "FF-1160",
+     "FF-1161",
+     "FF-1162",
+     "FF-1163",
+     "FF-1164"
+    ],
+    "notes": "Flow 10건을 실브라우저에서 눌러 사슬을 기록했다(통과 10 · 실패 0). 쓰기 범주는 바꾼 값을 **다른 화면에서 다시 찾아**(cross_surface) 확인했고, 서버를 안 부르는 것이 정답인 동작은 `server_free` 로 사유를 적고 화면 사슬 셋으로 통과시켰다(D-300 · D-301)."
    },
    "responsive_audit": {
     "result": "PENDING",
@@ -18620,7 +18858,7 @@
    },
    "before_capture": null,
    "after_capture": null,
-   "status": "NOT_AUDITED",
+   "status": "IN_PROGRESS",
    "wave": "W8",
    "findings": [],
    "suppressions": [],
@@ -19857,11 +20095,32 @@
     "notes": ""
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
-    "evidence": [],
-    "flows": []
+    "result": "PASS",
+    "by": "S18 — scripts/ui_qa/pilot_e2e.py (실 브라우저 Chromium · 로컬 PostgreSQL 씨앗, 258 Flow)",
+    "at": "2026-08-25",
+    "evidence": [
+     "ev:qa_run:s18-pilot (dist/ui-qa/pilot/flows.json)",
+     "ev:commit:S18 — scripts/ui_qa/pilot_*.py (Flow 표 · 실행기 · 기록기)"
+    ],
+    "flows": [
+     "FF-0001",
+     "FF-0002",
+     "FF-0003",
+     "FF-0004",
+     "FF-0005",
+     "FF-0006",
+     "FF-0007",
+     "FF-0008",
+     "FF-0009",
+     "FF-0010",
+     "FF-0011",
+     "FF-0012",
+     "FF-0013",
+     "FF-0014",
+     "FF-0015",
+     "FF-0016"
+    ],
+    "notes": "Flow 16건을 실브라우저에서 눌러 사슬을 기록했다(통과 16 · 실패 0). 쓰기 범주는 바꾼 값을 **다른 화면에서 다시 찾아**(cross_surface) 확인했고, 서버를 안 부르는 것이 정답인 동작은 `server_free` 로 사유를 적고 화면 사슬 셋으로 통과시켰다(D-300 · D-301)."
    },
    "responsive_audit": {
     "result": "PENDING",
@@ -19899,7 +20158,7 @@
     "all_combos": 4,
     "results_json": "dist/ui-qa/s16-after/results.json"
    },
-   "status": "NOT_AUDITED",
+   "status": "IN_PROGRESS",
    "wave": "W8",
    "findings": [
     {
@@ -20126,11 +20385,23 @@
     "notes": ""
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
-    "evidence": [],
-    "flows": []
+    "result": "PASS",
+    "by": "S18 — scripts/ui_qa/pilot_e2e.py (실 브라우저 Chromium · 로컬 PostgreSQL 씨앗, 258 Flow)",
+    "at": "2026-08-25",
+    "evidence": [
+     "ev:qa_run:s18-pilot (dist/ui-qa/pilot/flows.json)",
+     "ev:commit:S18 — scripts/ui_qa/pilot_*.py (Flow 표 · 실행기 · 기록기)"
+    ],
+    "flows": [
+     "FF-1148",
+     "FF-1149",
+     "FF-1150",
+     "FF-1151",
+     "FF-1152",
+     "FF-1153",
+     "FF-1154"
+    ],
+    "notes": "Flow 7건을 실브라우저에서 눌러 사슬을 기록했다(통과 7 · 실패 0). 쓰기 범주는 바꾼 값을 **다른 화면에서 다시 찾아**(cross_surface) 확인했고, 서버를 안 부르는 것이 정답인 동작은 `server_free` 로 사유를 적고 화면 사슬 셋으로 통과시켰다(D-300 · D-301)."
    },
    "responsive_audit": {
     "result": "PENDING",
@@ -20139,7 +20410,7 @@
    },
    "before_capture": null,
    "after_capture": null,
-   "status": "NOT_AUDITED",
+   "status": "IN_PROGRESS",
    "wave": "W8",
    "findings": [],
    "suppressions": [],
@@ -20251,11 +20522,21 @@
     "notes": ""
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
-    "evidence": [],
-    "flows": []
+    "result": "PASS",
+    "by": "S18 — scripts/ui_qa/pilot_e2e.py (실 브라우저 Chromium · 로컬 PostgreSQL 씨앗, 258 Flow)",
+    "at": "2026-08-25",
+    "evidence": [
+     "ev:qa_run:s18-pilot (dist/ui-qa/pilot/flows.json)",
+     "ev:commit:S18 — scripts/ui_qa/pilot_*.py (Flow 표 · 실행기 · 기록기)"
+    ],
+    "flows": [
+     "FF-1143",
+     "FF-1144",
+     "FF-1145",
+     "FF-1146",
+     "FF-1147"
+    ],
+    "notes": "Flow 5건을 실브라우저에서 눌러 사슬을 기록했다(통과 5 · 실패 0). 쓰기 범주는 바꾼 값을 **다른 화면에서 다시 찾아**(cross_surface) 확인했고, 서버를 안 부르는 것이 정답인 동작은 `server_free` 로 사유를 적고 화면 사슬 셋으로 통과시켰다(D-300 · D-301)."
    },
    "responsive_audit": {
     "result": "PENDING",
@@ -20264,7 +20545,7 @@
    },
    "before_capture": null,
    "after_capture": null,
-   "status": "NOT_AUDITED",
+   "status": "IN_PROGRESS",
    "wave": "W8",
    "findings": [],
    "suppressions": [],
@@ -22434,11 +22715,27 @@
     "notes": ""
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
-    "evidence": [],
-    "flows": []
+    "result": "PASS",
+    "by": "S18 — scripts/ui_qa/pilot_e2e.py (실 브라우저 Chromium · 로컬 PostgreSQL 씨앗, 258 Flow)",
+    "at": "2026-08-25",
+    "evidence": [
+     "ev:qa_run:s18-pilot (dist/ui-qa/pilot/flows.json)",
+     "ev:commit:S18 — scripts/ui_qa/pilot_*.py (Flow 표 · 실행기 · 기록기)"
+    ],
+    "flows": [
+     "FF-0122",
+     "FF-0123",
+     "FF-0124",
+     "FF-0125",
+     "FF-0126",
+     "FF-0127",
+     "FF-0128",
+     "FF-0129",
+     "FF-0130",
+     "FF-0131",
+     "FF-0132"
+    ],
+    "notes": "Flow 11건을 실브라우저에서 눌러 사슬을 기록했다(통과 11 · 실패 0). 쓰기 범주는 바꾼 값을 **다른 화면에서 다시 찾아**(cross_surface) 확인했고, 서버를 안 부르는 것이 정답인 동작은 `server_free` 로 사유를 적고 화면 사슬 셋으로 통과시켰다(D-300 · D-301)."
    },
    "responsive_audit": {
     "result": "PENDING",
@@ -22476,7 +22773,7 @@
     "all_combos": 4,
     "results_json": "dist/ui-qa/s16-after/results.json"
    },
-   "status": "NOT_AUDITED",
+   "status": "IN_PROGRESS",
    "wave": "W8",
    "findings": [
     {
@@ -23805,11 +24102,41 @@
     "notes": ""
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
-    "evidence": [],
-    "flows": []
+    "result": "FAIL",
+    "by": "S18 — scripts/ui_qa/pilot_e2e.py (실 브라우저 Chromium · 로컬 PostgreSQL 씨앗, 258 Flow)",
+    "at": "2026-08-25",
+    "evidence": [
+     "ev:qa_run:s18-pilot (dist/ui-qa/pilot/flows.json)",
+     "ev:commit:S18 — scripts/ui_qa/pilot_*.py (Flow 표 · 실행기 · 기록기)"
+    ],
+    "flows": [
+     "FF-0159",
+     "FF-0160",
+     "FF-0161",
+     "FF-0162",
+     "FF-0163",
+     "FF-0164",
+     "FF-0165",
+     "FF-0166",
+     "FF-0167",
+     "FF-0168",
+     "FF-0169",
+     "FF-0170",
+     "FF-0171",
+     "FF-0172",
+     "FF-0173",
+     "FF-0174",
+     "FF-0175",
+     "FF-0176",
+     "FF-0177",
+     "FF-0178",
+     "FF-1361",
+     "FF-1362",
+     "FF-1363",
+     "FF-1364",
+     "FF-1365"
+    ],
+    "notes": "Flow 25건을 실브라우저에서 눌러 사슬을 기록했다(통과 23 · 실패 2). 쓰기 범주는 바꾼 값을 **다른 화면에서 다시 찾아**(cross_surface) 확인했고, 서버를 안 부르는 것이 정답인 동작은 `server_free` 로 사유를 적고 화면 사슬 셋으로 통과시켰다(D-300 · D-301). 실패 FF-0171, FF-0172 는 이 회차에서 닫지 않았다 — 사유는 BACKLOG P-44."
    },
    "responsive_audit": {
     "result": "PENDING",
@@ -23847,7 +24174,7 @@
     "all_combos": 4,
     "results_json": "dist/ui-qa/s16-after/results.json"
    },
-   "status": "NOT_AUDITED",
+   "status": "IN_PROGRESS",
    "wave": "W8",
    "findings": [
     {
@@ -24386,22 +24713,21 @@
     }
    ],
    "visual_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
+    "result": "N/A",
+    "by": "S18",
+    "at": "2026-08-25",
     "evidence": [],
-    "notes": ""
+    "notes": "화면이 제품에 없다 — 볼 것이 없다."
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
+    "result": "N/A",
+    "by": "S18",
+    "at": "2026-08-25",
     "evidence": [],
     "flows": []
    },
    "responsive_audit": {
-    "result": "PENDING",
-    "required_profile": "minor_v1",
+    "required_profile": null,
     "matrix": []
    },
    "before_capture": {
@@ -24443,7 +24769,7 @@
     "all_combos": 12,
     "results_json": "dist/ui-qa/w5-after/results.json"
    },
-   "status": "NOT_AUDITED",
+   "status": "RETIRED",
    "wave": "W9",
    "findings": [
     {
@@ -24575,6 +24901,11 @@
      "measured_note": "후보 1건 · 가장 빈 면 356x2722 잉크 60% (내용 폭 비 0.93) div.c-screen > div.MuiBox-root.css-165i35y > div.MuiBox-root.css-15k9qvj > article.MuiPaper-root.MuiPaper-elevation",
      "sample_combo": "390x844/light"
     }
+   },
+   "retired": {
+    "at": "2026-08-25",
+    "by": "S18",
+    "reason": "`/team-docs/:id`. S7 이 문서 정본을 `/knowledge/:id` 로 옮기면서 `TeamDoc.jsx` 가 없어졌다. 옛 주소는 `/team-docs/:pageId` 의 `LegacyDocRedirect` 가 받고 그쪽은 `user_legacy-doc-redirect` 로 이미 등록돼 있다 — 이 행은 그것과 겹치는 옛 기록이다."
    }
   },
   {
@@ -25250,11 +25581,35 @@
     "notes": ""
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
-    "evidence": [],
-    "flows": []
+    "result": "FAIL",
+    "by": "S18 — scripts/ui_qa/pilot_e2e.py (실 브라우저 Chromium · 로컬 PostgreSQL 씨앗, 258 Flow)",
+    "at": "2026-08-25",
+    "evidence": [
+     "ev:qa_run:s18-pilot (dist/ui-qa/pilot/flows.json)",
+     "ev:commit:S18 — scripts/ui_qa/pilot_*.py (Flow 표 · 실행기 · 기록기)"
+    ],
+    "flows": [
+     "FF-0078",
+     "FF-0079",
+     "FF-0080",
+     "FF-0081",
+     "FF-0082",
+     "FF-0083",
+     "FF-0084",
+     "FF-0085",
+     "FF-0086",
+     "FF-0087",
+     "FF-0088",
+     "FF-0089",
+     "FF-0090",
+     "FF-0091",
+     "FF-0092",
+     "FF-0093",
+     "FF-0094",
+     "FF-0095",
+     "FF-0096"
+    ],
+    "notes": "Flow 19건을 실브라우저에서 눌러 사슬을 기록했다(통과 18 · 실패 1). 쓰기 범주는 바꾼 값을 **다른 화면에서 다시 찾아**(cross_surface) 확인했고, 서버를 안 부르는 것이 정답인 동작은 `server_free` 로 사유를 적고 화면 사슬 셋으로 통과시켰다(D-300 · D-301). 실패 FF-0088 는 이 회차에서 닫지 않았다 — 사유는 BACKLOG P-44."
    },
    "responsive_audit": {
     "result": "PENDING",
@@ -25300,7 +25655,7 @@
     "all_combos": 12,
     "results_json": "dist/ui-qa/w5-after/results.json"
    },
-   "status": "NOT_AUDITED",
+   "status": "IN_PROGRESS",
    "wave": "W8",
    "findings": [
     {

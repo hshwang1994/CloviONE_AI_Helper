@@ -35,7 +35,11 @@ export const ORG_SCREENS = {
     filters: [{ key: "status", type: "select", label: "상태", clientFilter: true, options: opt([["active", "사용 중"], ["suspended", "미사용"]]) }],
     columns: [
       { ...col("name", "조직 이름"), identifier: true },
-      col("slug", "식별자"),
+      /* 식별자형이다 (S18 · C3). 타입이 없으면 바닥폭 4.5rem 에 잘림 처리라, 분할 뷰의
+         가운데 판처럼 좁은 자리에서 `default` 가 «defa…» 로 잘렸다 — 화면의 46% 가 비어
+         있는데 식별자만 잘리는 상태였다. `identifier` 는 12.5rem 을 바닥으로 갖고
+         글자 단위로 끊는다(코드·UUID 부류). */
+      { ...col("slug", "식별자"), type: "identifier" },
       { key: "status", label: "상태", render: (r) => (r.status === "active" ? "사용 중" : "미사용") },
       col("department_count", "부서"),
       col("user_count", "사용자"),
@@ -186,8 +190,12 @@ export const ORG_SCREENS = {
     emptyTitle: "추가된 부서가 없습니다",
     emptyHelp: "‘부서 관리’에서 부서를 추가하고 상위 부서를 지정하면 여기에 계층으로 표시됩니다.",
     emptyRelatedLink: { href: "#/departments", label: "부서 관리로 이동" },
-    searchFields: ["name", "path"],
-    searchPlaceholder: "조직 또는 부서 이름으로 검색",
+    /* `slug` 가 여기 있는 이유 (S18): 조직 콘솔의 오른쪽 판에는 자기 검색 상자가 있었고,
+       한 화면에 같은 엔티티를 찾는 상자가 둘이었다(계획서가 그 화면의 결함으로 지목).
+       분할 뷰의 검색은 navigator 하나이므로 그 상자를 내렸는데, **식별자로 찾는 축은 그쪽
+       상자에만 있었다** — 축을 함께 잃지 않도록 트리 검색이 그것까지 본다. */
+    searchFields: ["name", "path", "slug"],
+    searchPlaceholder: "조직 또는 부서를 이름·식별자로 검색",
     filters: ACTIVE_FILTER,
     columns: [
       // 들여쓰기가 곧 트리다 — 표 하나로 조직도를 그리기 위한 유일한 장치라 여기서만 만든다.

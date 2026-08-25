@@ -855,11 +855,10 @@ def latest_checked_rule_counts(db: Session, project_ids: list[str]) -> dict[str,
     ).all()
     counts: dict[str, int] = {}
     for project_id, reasons_json in rows:
-        try:
-            checked = json.loads(reasons_json).get("checked") or []
-        except (TypeError, ValueError):
-            continue
-        counts[project_id] = len(checked)
+        # 이 컬럼은 **한 모양이 아니다** — 아래 `parse_health_snapshot_reasons` 가 정본이다.
+        # 손으로 `json.loads(...).get("checked")` 를 쓰던 자리라, 컬럼 기본값(빈 리스트)이
+        # 든 행 하나가 `AttributeError` 로 홈 화면 전체를 500 으로 죽였다(S18 실측).
+        counts[project_id] = len(parse_health_snapshot_reasons(reasons_json)["checked"])
     return counts
 
 
@@ -1049,22 +1048,50 @@ def health_history(
     return list(rows)
 
 
-def health_snapshot_reasons(row: ProjectHealthSnapshot) -> dict:
-    """저장된 이유 JSON 을 화면이 쓸 모양으로. **깨진 값에 500 을 내지 않는다.**
+def parse_health_snapshot_reasons(reasons_json: str | None) -> dict:
+    """`project_health_snapshots.reasons_json` 을 읽는 **한 곳** (S18).
 
-    이력은 과거에 다른 모양으로 적혔을 수 있고(컬럼 기본값은 빈 리스트다), 한 줄이 깨졌다고
-    추세 화면 전체가 죽으면 남은 이력까지 못 보게 된다. 읽을 수 없으면 빈 목록으로 둔다.
+    이 컬럼은 한 모양이 아니다. 세 가지가 실제로 들어 있다:
+
+      * `record_health_snapshot` 이 쓴 `HealthResult.as_dict()` — `reasons`·`checked`·
+        `unknown` 을 가진 객체
+      * **컬럼 기본값 `"[]"`** — 모델이 그렇게 선언돼 있고, 행을 그 기본값으로 만드는
+        경로가 실재한다
+      * 이유만 배열로 적힌 옛 모양
+
+    읽는 쪽이 둘로 갈려 있었다. `health_snapshot_reasons` 는 세 모양을 전부 다뤘는데
+    `latest_checked_rule_counts` 는 «객체다» 라고 가정하고 `.get("checked")` 를 불렀고,
+    리스트가 오면 `AttributeError` 다 — 그 예외는 그쪽 `except (TypeError, ValueError)` 에
+    안 걸려 그대로 **500** 이 됐다. 홈의 «내 업무» 구역 전체가 죽는다(S18 실측:
+    `GET /api/home/work-dashboard` 500, 12개 화면 캡처에서 8회).
+
+    같은 컬럼을 두 곳이 다르게 읽으면 언젠가 한쪽이 틀린다. 파싱을 여기 하나로 모은다.
+    **깨진 값에 500 을 내지 않는다** — 한 줄이 깨졌다고 화면 전체가 죽으면 남은 이력까지
+    못 보게 된다.
     """
+    empty = {"reasons": [], "unknown": [], "checked": []}
     try:
-        parsed = json.loads(row.reasons_json or "[]")
+        parsed = json.loads(reasons_json or "[]")
     except (TypeError, ValueError):
-        return {"reasons": [], "unknown": []}
+        return dict(empty)
     if isinstance(parsed, list):
-        # 컬럼 기본값(빈 리스트) 또는 이유만 적힌 옛 모양.
-        return {"reasons": parsed, "unknown": []}
+        # 컬럼 기본값(빈 리스트) 또는 이유만 적힌 옛 모양. `checked` 는 **모른다** —
+        # 빈 목록이 곧 「하나도 안 쟀다」라서, 신뢰도 안내가 그대로 켜지는 것이 맞다.
+        return {"reasons": parsed, "unknown": [], "checked": []}
     if isinstance(parsed, dict):
         return {
             "reasons": parsed.get("reasons") or [],
             "unknown": parsed.get("unknown") or [],
+            "checked": parsed.get("checked") or [],
         }
-    return {"reasons": [], "unknown": []}
+    return dict(empty)
+
+
+def health_snapshot_reasons(row: ProjectHealthSnapshot) -> dict:
+    """저장된 이유 JSON 을 **화면이 쓸 모양**으로. 파싱은 위 한 곳이 한다.
+
+    화면 응답에는 `checked` 를 싣지 않는다 — 그 값은 신뢰도 판정에만 쓰이고
+    (`latest_checked_rule_counts`), 응답 계약을 넓히면 그것도 지켜야 할 약속이 된다.
+    """
+    parsed = parse_health_snapshot_reasons(row.reasons_json)
+    return {"reasons": parsed["reasons"], "unknown": parsed["unknown"]}

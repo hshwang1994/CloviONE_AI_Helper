@@ -14,6 +14,7 @@ import { invalidateTicketViews } from "./ticket-views.js";
 import { TicketBody } from "./TicketBody.jsx";
 import { TicketComments } from "./TicketComments.jsx";
 import { TicketAttachments } from "./TicketAttachments.jsx";
+import { TicketHistory } from "./TicketHistory.jsx";
 import { priorityKo, priorityKind } from "../lib/priority.js";
 import { setItemTitle } from "../app/documentTitle.js";
 
@@ -244,9 +245,14 @@ export function Ticket() {
         </Box>
 
         {/* 부속 레일 — 본문에 딸린 것들이다. 첨부가 먼저고(무엇에 대한 파일인지 본문을
-            보면서 확인한다) 그다음이 논의다. order 는 두지 않는다: 좁은 화면에서 한 열로
-            접히면 DOM 순서 그대로 본문 → 첨부 → 댓글로 쌓인다 — 논의가 대상보다 먼저
-            나오지 않는다. */}
+            보면서 확인한다) 그다음이 논의, 마지막이 이력이다. order 는 두지 않는다:
+            좁은 화면에서 한 열로 접히면 DOM 순서 그대로 본문 → 첨부 → 댓글 → 이력으로
+            쌓인다 — 논의가 대상보다 먼저 나오지 않는다.
+
+            **활동 이력이 마지막인 이유**: 이 티켓을 열고 가장 먼저 하는 일은 지금 무엇이
+            달려 있고 무슨 말이 오갔는지 보는 것이고, 「언제 이렇게 됐나」는 그다음에 묻는
+            질문이다. 그래도 화면 안에 있어야 한다 — 예전에는 이 기록을 보려면 일반
+            사용자가 못 여는 감사 화면으로 가야 했고, 그 자리는 그냥 비어 있었다(S18). */}
         <Box data-testid="ticket-detail-rail" sx={{ minWidth: 0, display: "grid", gap: 2.5, alignContent: "start" }}>
           <TicketAttachments
             ticketId={id}
@@ -255,6 +261,7 @@ export function Ticket() {
             onChanged={() => detail.refetch()}
           />
           <TicketComments ticketId={id} />
+          <TicketHistory key={id} ticketId={id} />
         </Box>
       </Box>
       <TicketEditModal ticket={t} open={editing} onClose={() => { setEditing(false); detail.refetch(); }} />

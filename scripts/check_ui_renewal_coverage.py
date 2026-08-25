@@ -361,13 +361,22 @@ ARCHETYPES = {
 SURFACE_STATUSES = {
     "NOT_AUDITED", "IN_PROGRESS", "IMPLEMENTED", "VISUAL_PASS", "FUNCTIONAL_PASS",
     "DONE", "BLOCKED", "DEFERRED",
+    # 제품에서 **없어진** 화면. 「아직 안 봤다」와 완전히 다른 사실이라 같은 칸에 적으면
+    # 안 된다 — 안 본 화면은 누군가 봐야 하고, 없는 화면은 볼 것이 없다. 행을 지우지 않는
+    # 이유는 Before 캡처와 Requirement Matrix 가 그 id 를 가리키기 때문이다(C1c).
+    "RETIRED",
 }
+# `RETIRED` 는 여기 없다 — 없어진 화면에 감사·캡처·Flow 를 요구하지 않는다.
+NO_AUDIT_STATUSES = {"NOT_AUDITED", "IN_PROGRESS", "BLOCKED", "DEFERRED", "RETIRED"}
 BAD_STATUSES = {"UNKNOWN", "TODO", "NOT_AUDITED"}
 AUDIT_RESULTS = {"PASS", "FAIL", "PENDING", "N/A"}
 FLOW_STATUSES = {"NOT_AUDITED", "IN_PROGRESS", "PASS", "FAIL", "BLOCKED"}
 CHAIN_STEPS = ("ui_action", "frontend_state", "url_state", "api_request",
                "backend_query", "data_relation", "api_response", "rendered")
 CHAIN_MIN = ("api_request", "backend_query", "api_response", "rendered")
+# 서버를 안 부르는 Flow 가 PASS 이려면 대신 **화면 쪽 사슬**이 끝까지 있어야 한다
+# (`server_free` 선언과 짝이다 — c11 의 주석 참고).
+CHAIN_MIN_CLIENT = ("ui_action", "frontend_state", "rendered")
 FILTERISH = {"search", "filter", "sort", "pagination", "combobox"}
 ACTIONISH = {"row_action", "overflow_action", "modal_action", "settings_apply",
              "admin_op", "notification_action", "approval_action"}
@@ -619,9 +628,18 @@ def c0_source_readers(rep: Report) -> dict | None:
     return src
 
 
+_ROUTE_PARAM = re.compile(r":[A-Za-z_]\w*|\{[^}]+\}")
+
+
 def base_path(route: str) -> str:
-    """쿼리를 뗀 경로. 탭·검색 상태 Surface 는 `?tab=`·`?q=` 로 구분해 등록된다."""
-    return (route or "").split("?", 1)[0]
+    """쿼리를 뗀 경로. 탭·검색 상태 Surface 는 `?tab=`·`?q=` 로 구분해 등록된다.
+
+    경로 파라미터의 **이름은 지운다.** `/team-docs/:pageId`(소스) · `/team-docs/{id}`
+    (하네스) · `/team-docs/:id`(커버리지)는 같은 화면이고, 이름은 소스가 뜻을 담아 정하는
+    것이라 대조하는 쪽이 그것까지 맞추라고 요구하면 안 된다 — 실제로 그 이름 하나 때문에
+    세 목록이 갈라져 `/team-docs/:pageId` 가 하네스에서 통째로 빠져 있었다(S18).
+    """
+    return _ROUTE_PARAM.sub(":id", (route or "").split("?", 1)[0])
 
 
 def is_major(surface: dict) -> bool:
@@ -663,21 +681,27 @@ def c1_source_vs_coverage(rep: Report, surfaces: list[dict], src: dict) -> None:
     literal = {}
     navigate = {}
     # 반복 변수를 `src` 로 두면 위 인자를 가린다 — 실제로 한 번 가렸고 `KeyError` 로 드러났다.
+    # 키는 `base_path` 로 맞춘다 — 파라미터 이름은 목록마다 다르고, 그 차이로 갈라지면
+    # 안 된다(위 `base_path` 주석). 원래 표기는 메시지에 쓰려고 meta 에 담는다.
     for in_file in (user, admin):
         for path, meta in in_file.items():
             if path == "*":
                 continue
-            (navigate if meta["navigate_to"] else literal)[path] = meta
+            meta = dict(meta, source_path=path)
+            (navigate if meta["navigate_to"] else literal)[base_path(path)] = meta
 
     missing = []
     for path, meta in sorted(literal.items()):
         hits = [x for x in by_route.get(path, []) if x.get("kind") in ("route", "tab")]
         if not hits:
-            missing.append("%s (%s:%d)" % (path, meta["file"], meta["line"]))
+            missing.append("%s (%s:%d)" % (meta["source_path"], meta["file"], meta["line"]))
     for path in missing:
         rep.fail("C1 소스에 있는데 커버리지에 없는 Route", path)
 
     # 탭 그릇 · 탭 본문 · 설정 탭 — Route 리터럴이 아니라 계산돼 위 정규식이 못 본다.
+    # `tab_bodies` 는 **소스가 실제로 그리는 탭 본문의 집합**이고 C1c 가 반대 방향으로 쓴다.
+    tab_bodies = {"%s?tab=%s" % (g["path"], t) for g in src["tab_groups"] for t in g["tabs"]}
+    tab_bodies |= {"/settings?tab=%s" % t for t in src["settings_tabs"]}
     for grp in src["tab_groups"]:
         if not [x for x in by_route.get(grp["path"], []) if x.get("kind") in ("route", "tab")]:
             rep.fail("C1 소스에 있는데 커버리지에 없는 Route",
@@ -702,23 +726,29 @@ def c1_source_vs_coverage(rep: Report, surfaces: list[dict], src: dict) -> None:
         hits = by_route.get(path) or []
         if not hits:
             rep.fail("C1b 리다이렉트가 커버리지에 없다",
-                     "%s → %s (%s:%d)" % (path, meta["navigate_to"], meta["file"], meta["line"]))
+                     "%s → %s (%s:%d)" % (meta["source_path"], meta["navigate_to"],
+                                          meta["file"], meta["line"]))
             continue
         for sf in hits:
             if sf.get("kind") != "state_variant" or not sf.get("alias_of"):
                 rep.fail("C1b 리다이렉트를 화면으로 세고 있다",
                          "%s 은 %s 로 가는 <Navigate> 다(%s:%d). Surface %s 의 kind=%s alias_of=%s "
                          "— 찍히는 것은 도착지 화면이고 검사는 전부 거기서 통과한다"
-                         % (path, meta["navigate_to"], meta["file"], meta["line"],
+                         % (meta["source_path"], meta["navigate_to"], meta["file"], meta["line"],
                             sf.get("id"), sf.get("kind"), sf.get("alias_of")))
 
     # 하네스 ↔ 커버리지 (리더 ⑤, 역방향)
     all_routes, alias_routes = src["harness"]
+    surface_ids = {s.get("id") for s in surfaces}
     for r in all_routes:
-        p = base_path(r.hash_template.replace("{id}", ":id") or r.hash_path)
-        if not by_route.get(base_path(p)):
-            rep.fail("C1 하네스에 있는데 커버리지에 없는 Route",
-                     "%s (%s) — 찍히는데 추적되지 않는 화면이다" % (r.id, p))
+        p = base_path(r.source_path or r.hash_template or r.hash_path)
+        # `surface_id` 가 커버리지의 진짜 id 면 그것이 답이다 — 경로로 짐작하지 않는다.
+        # 짐작이 필요한 자리는 하나 남는다: 같은 화면의 **상태 변종**(`/ai?q=…`,
+        # `/jobs?id=…`)은 자기 Surface 가 없고 host 화면의 경로로만 닿는다.
+        if r.surface_id in surface_ids or by_route.get(p):
+            continue
+        rep.fail("C1 하네스에 있는데 커버리지에 없는 Route",
+                 "%s (%s) — 찍히는데 추적되지 않는 화면이다" % (r.id, p))
     misfiled = [r.id for r in all_routes if base_path(r.hash_path) in navigate]
     for rid in misfiled:
         rep.fail("C1b 하네스가 리다이렉트를 화면으로 등록했다", rid)
@@ -727,11 +757,130 @@ def c1_source_vs_coverage(rep: Report, surfaces: list[dict], src: dict) -> None:
             rep.fail("C1b 별칭인데 소스는 리다이렉트가 아니다",
                      "%s (%s) — 별칭 목록이 늙었다" % (r.id, r.hash_path))
 
+    c1c_coverage_vs_source(
+        rep, surfaces, literal, navigate, tab_bodies,
+        # 쿼리는 남긴다 — `?tab=` 은 다른 화면이라 여기서 뭉개면 없어진 탭이 안 보인다.
+        {_ROUTE_PARAM.sub(":id", r.source_path or r.hash_template or r.hash_path)
+         for r in all_routes} |
+        {_ROUTE_PARAM.sub(":id", r.hash_path) for r in alias_routes},
+        {r.surface_id for r in all_routes} | {r.surface_id for r in alias_routes})
+
     if not rep.count("C1"):
         rep.ok("소스 Route %d개 · 탭 본문 %d개 · 리다이렉트 %d개가 커버리지와 일치한다"
                % (len(literal),
                   len(src["settings_tabs"]) + sum(len(g["tabs"]) for g in src["tab_groups"]),
                   len(navigate)))
+
+
+def component_path(surface: dict) -> str:
+    """Surface 의 `component` 에서 **실재해야 하는 파일 경로**만 떼어 낸다.
+
+    이 칸은 파일 하나일 때도 있고 `…/UserRoutes.jsx (<Navigate to="/knowledge">)` 처럼
+    파일 + 그 안의 위치를 함께 적을 때도 있다. 괄호 앞까지가 파일이다.
+    """
+    head = (surface.get("component") or "").split(" (")[0].strip()
+    return head if ("/" in head and re.search(r"\.[a-z]{2,4}$", head)) else ""
+
+
+def c1c_coverage_vs_source(rep: Report, surfaces: list[dict], literal: dict,
+                           navigate: dict, tab_bodies: set[str],
+                           harness_paths: set[str] | None = None,
+                           harness_surface_ids: set[str] | None = None) -> None:
+    """C1c — **커버리지가 없는 화면을 들고 있지 않은가.** C1 의 반대 방향이다.
+
+    C1 은 지금까지 한 방향만 봤다: *소스에 있는 화면이 커버리지에 있는가.* 그 방향은
+    「새로 만든 화면을 등록 안 했다」를 잡는다. 반대 방향 — *커버리지가 주장하는 화면이
+    소스에 아직 있는가* — 은 아무도 안 봤고, 그래서 **지운 화면의 Surface 가 그대로 남아
+    있었다.** S18 이 셋을 찾았다:
+
+      * `admin_settings__integration` — 설정의 '연동' 탭. S14 가 Notion 런타임을 걷으면서
+        탭과 화면(`NotionConsole.jsx`)이 함께 없어졌는데 Surface 는 Flow 11개를 «있다»고
+        선언한 채 W8 의 검사 대상으로 남았다.
+      * `admin_notion-console` — `/notion-console`. 리다이렉트도 없이 지워진 주소다.
+      * `user_team-docs-id` — `/team-docs/:id`. S7 이 `/knowledge/:id` 로 옮기면서
+        `TeamDoc.jsx` 가 없어졌고 옛 주소는 `LegacyDocRedirect` 가 받는다(그쪽은 별도
+        Surface 로 이미 등록돼 있다).
+
+    셋 다 **같은 형태**다: 없는 것을 있다고 적어 둔 원장. S16 이 `data-col-role` 에서,
+    S17 이 `data-mascot-context` 에서 찾은 「선언만 있고 배선이 없다」의 **거울상**이다.
+    이 원장이 늙으면 다음 회차는 지워진 화면을 감사하려다 시간을 쓰거나, 더 나쁘게는
+    열리지도 않는 화면의 Flow 를 «PASS» 로 적게 된다.
+
+    지운 화면은 **삭제하지 않고 `RETIRED`** 로 남긴다 — Before 캡처와 Requirement Matrix 의
+    참조가 그 id 를 가리키고 있어서, 행을 지우면 그 자리에 무엇이 있었는지가 사라진다.
+    """
+    harness_paths = harness_paths or set()
+    harness_surface_ids = harness_surface_ids or set()
+    # **한 주소를 두 Surface 가 주장할 수 있다.** `/team-docs/:pageId` 가 그렇다 — 옛 행
+    # `user_team-docs-id`(지운 `TeamDoc.jsx`)와 지금 행 `user_legacy-doc-redirect` 가
+    # 같은 주소를 가리킨다. 그럴 때 옛 행을 RETIRED 로 적는 것이 **정확히 맞는 정정**이라,
+    # 「RETIRED 인데 주소가 소스에 있다」로 되받으면 고칠 방법이 없어진다.
+    # 그래서 주소가 아니라 **그 주소를 살아 있는 다른 행이 이미 맡고 있는가**를 본다.
+    live_claims: dict[str, set[str]] = {}
+    for other in surfaces:
+        if other.get("status") == "RETIRED":
+            continue
+        live_claims.setdefault(_ROUTE_PARAM.sub(":id", other.get("route") or ""),
+                               set()).add(other.get("id"))
+
+    for sf in surfaces:
+        sid = sf.get("id")
+        retired = sf.get("status") == "RETIRED"
+        route = _ROUTE_PARAM.sub(":id", sf.get("route") or "")
+        handed_over = sorted(live_claims.get(route, set()) - {sid})
+
+        # ── 그리는 파일. **한 방향으로만 쓴다.**
+        # 파일이 없으면 화면도 없다. 그러나 파일이 있다는 것은 화면이 닿는다는 뜻이 아니다 —
+        # 별칭 Surface 의 `component` 는 라우터 파일(`AdminRoutes.jsx`)을 가리키고 그 파일은
+        # 주소를 지운 뒤에도 남아 있다. 첫 구현이 이것을 «살아 있다» 의 근거로 셌고,
+        # `/notion-console` 이 지워졌는데도 살아 있다고 판정했다.
+        comp = component_path(sf)
+        if comp and not retired and not os.path.exists(os.path.join(ROOT, comp)):
+            rep.fail("C1c 커버리지가 없는 파일을 가리킨다",
+                     "%s → %s — 그리는 파일이 없으면 그 화면은 없다. 지운 화면이면 "
+                     "status 를 RETIRED 로 적어라" % (sid, comp))
+
+        # 살아 있는 다른 행이 그 주소를 이미 맡았으면 이 RETIRED 행은 «옛 기록»이고,
+        # 그 상태가 정답이다 — 주소가 소스에 있어도 이 행이 살아난 것이 아니다.
+        if retired and handed_over:
+            continue
+
+        # ── 닿는가. 이것만이 «살아 있다» 의 근거다.
+        alive = []
+        if sid in harness_surface_ids:
+            alive.append("하네스가 이 Surface 를 찍는다")
+        elif route in harness_paths:
+            alive.append("하네스 %s" % route)
+        if "?tab=" in route:
+            if route in tab_bodies:
+                alive.append("탭 %s" % route)
+            elif not retired:
+                rep.fail("C1c 커버리지에만 있는 탭 본문",
+                         "%s (%s) — 소스의 탭 목록에 이 키가 없다. 없어진 탭이면 "
+                         "status 를 RETIRED 로 적어라" % (sid, route))
+        elif sf.get("kind") == "state_variant" and sf.get("alias_of"):
+            if route in navigate:
+                alive.append("리다이렉트 %s" % route)
+            elif not retired:
+                rep.fail("C1c 커버리지에만 있는 리다이렉트",
+                         "%s (%s) — 소스에 이 경로의 <Navigate> 가 없다. 지운 주소면 "
+                         "status 를 RETIRED 로 적어라" % (sid, route))
+        elif base_path(route) in literal:
+            alive.append("Route %s" % base_path(route))
+
+        # 반대편도 막는다 — «RETIRED 라고 적어 두고 화면은 그대로» 는 원장이 늙는
+        # 또 다른 방향이다. 되살린 화면의 status 를 안 되돌리면 그 화면은 다시
+        # 검사 밖으로 나간다. 하네스도 여기서 본다: 없어진 탭을 하네스가 계속 찍고
+        # 있으면 그 캡처에는 **다른 화면**이 담긴다(설정은 모르는 탭 키를 첫 탭으로
+        # 되돌리므로, `?tab=integration` 을 찍으면 '시스템 정책' 이 그 이름으로 남는다).
+        if retired and alive:
+            rep.fail("C1c RETIRED 인데 소스에 아직 있다",
+                     "%s — %s. 되살렸으면 status 를 되돌리고, 지운 것이면 그쪽에서도 지워라"
+                     % (sid, " · ".join(alive)))
+
+    if not rep.count("C1c"):
+        n = sum(1 for s in surfaces if s.get("status") == "RETIRED")
+        rep.ok("커버리지가 주장하는 화면이 전부 소스에 실재한다 (RETIRED %d개는 소스에도 없다)" % n)
 
 
 def c_parity_test_alive(rep: Report) -> None:
@@ -925,7 +1074,7 @@ def c4_c6_evidence(rep: Report, surfaces: list[dict], scoped: list[dict], build_
 def c5_audits(rep: Report, scoped: list[dict], profiles: dict) -> None:
     for sf in scoped:
         sid = sf.get("id")
-        if sf.get("status") in ("NOT_AUDITED", "IN_PROGRESS", "BLOCKED", "DEFERRED"):
+        if sf.get("status") in NO_AUDIT_STATUSES:
             continue
         for key in ("visual_audit", "functional_audit"):
             aud = sf.get(key) or {}
@@ -1210,11 +1359,16 @@ def c8_entity_selectors(rep: Report, scoped: list[dict], cov: dict) -> None:
     results = _latest_results(rep, cov=cov)
     per_class = _assert_status(results)
     runtime = per_class.get("plain_dropdown_for_entity") or {}
+    # **위젯은 자기 페이지가 없다.** 이 판정은 Route 단위로 찍히므로, 위젯의 증거는 그것을
+    # 그리는 host 화면의 판정이다 — Responsive 교차곱을 host 에서 빌려 오는 것과 같은 이유다.
+    # 이 줄이 없으면 `admin_users__bulk` 처럼 host 안에서만 사는 위젯은 영원히 «증거 없음» 이다.
+    host_of = {s.get("id"): s for s in (cov.get("surfaces") or [])}
     for sf in scoped:
         declared = sf.get("entity_selectors") or []
         if not declared:
             continue
-        key = sf.get("harness_id") or sf.get("id")
+        host = host_of.get(sf.get("host_surface") or "") or {}
+        key = sf.get("harness_id") or host.get("harness_id") or sf.get("id")
         st = runtime.get(key)
         if st == "fail":
             rep.fail("C8 검색형이어야 할 Entity Selector 가 평범한 Dropdown 이다",
@@ -1234,6 +1388,13 @@ def c11_c14_functional(rep: Report, surfaces: list[dict], func: dict, scoped_ids
         if entry.get("inventory_status") in (None, "NOT_INVENTORIED"):
             rep.fail("C12 Functional Inventory 미작성",
                      "%s — 27개 범주 중 이 화면에 실재하는 것이 무엇인지 아무도 세지 않았다" % sid)
+        # 없어진 화면(C1c)의 Flow 는 «있다» 고 말할 수 없다. 그대로 두면 다음 회차가
+        # 열리지도 않는 화면을 감사하려 들거나, 더 나쁘게는 PASS 로 적게 된다.
+        if (by_id.get(sid) or {}).get("status") == "RETIRED":
+            live = [fl.get("id") for fl in (entry.get("flows") or []) if fl.get("exists")]
+            if live:
+                rep.fail("C12 RETIRED 인데 Flow 가 «있다» 고 적혀 있다",
+                         "%s: %s — 화면이 없으면 그 Flow 도 없다" % (sid, ", ".join(live[:6])))
 
     # Flow ID 는 **전역 유일**해야 한다. Surface 별로만 유일하면 증거가 어느 화면 것인지
     # 말할 수 없다 — `functional_audit.flows` 는 ID 목록일 뿐이고, `*_e2e.py` 산출물도
@@ -1298,11 +1459,41 @@ def c11_c14_functional(rep: Report, surfaces: list[dict], func: dict, scoped_ids
                              "%s/%s — 화면에서 값이 바뀐 것은 정상 동작의 증거가 아니다"
                              % (sid, fl.get("id")))
                 chain = fl.get("chain") or {}
-                gap = [k for k in CHAIN_MIN if not chain.get(k)]
-                if gap:
-                    rep.fail("C11 PASS 인데 사슬이 비어 있다",
-                             "%s/%s: %s 없음 — 화면에서 값이 바뀐 것은 정상 동작의 증거가 아니다"
-                             % (sid, fl.get("id"), ", ".join(gap)))
+                # ── 서버가 관여하지 않는 Flow (S18) ─────────────────────────
+                #
+                # 이 조건은 «모든 Flow 가 서버를 부른다» 를 전제로 쓰였다. 그런데 모달을
+                # 여는 것, 탭을 옮기는 것, 필수값을 비운 채 제출이 막히는 것은 **부르지
+                # 않는 것이 정답**이다. 그런 Flow 에 서버 칸을 요구하면 답이 둘뿐이다:
+                # 사슬을 지어내거나(거짓), 영원히 `IN_PROGRESS` 로 두거나(W2~W4 가 그렇게
+                # 했다 — `shell_topbar` 둘·`kit_primitives` 다섯이 아직 그 상태다).
+                #
+                # 그래서 **선언하게** 한다. `server_free` 에 사유를 적으면 서버 칸 대신
+                # 화면 사슬(무엇을 눌렀나 → 화면 상태가 어떻게 바뀌었나 → 무엇이 그려졌나)을
+                # 요구한다. 느슨해지는 것이 아니라 **하나가 더 필요해진다** — 왜 서버를
+                # 안 부르는지를 글로 적어야 하고, 적어 놓고 서버 칸을 채우면 모순으로 잡힌다.
+                server_free = fl.get("server_free")
+                if server_free:
+                    if not isinstance(server_free, str) or len(server_free.strip()) < 15:
+                        rep.fail("C11 server_free 사유가 없다",
+                                 "%s/%s — 왜 서버를 안 부르는 동작인지 한 문장으로 적어라"
+                                 % (sid, fl.get("id")))
+                    leaked = [k for k in ("api_request", "api_response", "backend_query")
+                              if chain.get(k)]
+                    if leaked:
+                        rep.fail("C11 server_free 인데 서버 칸이 채워져 있다",
+                                 "%s/%s: %s — 둘 중 하나는 거짓이다"
+                                 % (sid, fl.get("id"), ", ".join(leaked)))
+                    gap = [k for k in CHAIN_MIN_CLIENT if not chain.get(k)]
+                    if gap:
+                        rep.fail("C11 PASS 인데 화면 사슬이 비어 있다",
+                                 "%s/%s: %s 없음 — 서버를 안 불렀으면 화면 쪽을 끝까지 적어라"
+                                 % (sid, fl.get("id"), ", ".join(gap)))
+                else:
+                    gap = [k for k in CHAIN_MIN if not chain.get(k)]
+                    if gap:
+                        rep.fail("C11 PASS 인데 사슬이 비어 있다",
+                                 "%s/%s: %s 없음 — 화면에서 값이 바뀐 것은 정상 동작의 증거가 아니다"
+                                 % (sid, fl.get("id"), ", ".join(gap)))
                 bad = [k for k in chain if k not in CHAIN_STEPS]
                 if bad:
                     rep.fail("C11 사슬에 없는 단계", "%s/%s: %s" % (sid, fl.get("id"), bad))

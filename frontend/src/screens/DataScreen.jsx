@@ -46,7 +46,23 @@ export {
  * 각 화면은 registry.js의 config만 다르다. 행 클릭 → 상세 모달(열 + config.detailFields 전체 필드).
  * 생성·수정은 공통 중앙 모달 폼. headerActions=폼 없는 즉시 실행/입력폼. 액션에 subList가 있으면
  * 하위 리소스(버전·실행 이력 등)를 별도 드로어로 조회한다. config.paginated면 서버 페이지네이션. */
-export function DataScreen({ config, embedded = false }) {
+/* `embedded` — 탭 그릇 안이라 **그릇이 제목을 그린다**(아래 렌더 분기).
+ *
+ * `inSplitView` — 분할 뷰의 **상세 판**이라 바깥 navigator 가 검색을 갖는다 (S18 · W8).
+ *
+ *   둘은 다른 사실이다. 탭 그릇 안에서는 그 탭 본문이 곧 화면이라 검색은 여기 있는 것이
+ *   맞다. 분할 뷰에서는 왼쪽 트리가 같은 엔티티를 이미 찾고 있어서, 이 셸이 자기 검색
+ *   상자를 그리면 한 화면에 **같은 것을 찾는 상자가 둘**이 된다 — 계획서가 `/organizations`
+ *   의 결함으로 이름을 대어 적어 둔 상태이고, 분할 뷰 원형의 계약도 «상세 pane 은 자체
+ *   Filter bar·SavedViews 금지» 다. 저장된 뷰도 같은 이유로 내린다: 조건 조합을 재사용할
+ *   가치는 «그 조건으로 목록을 여는 화면» 에 있지, 트리에서 고른 마디를 보는 판에 없다.
+ *
+ *   W8 은 «공유 파일 무변경» 이 원칙이고 필요한 공유 변경은 W4~W7 의 결함으로 본다 —
+ *   이것이 그 결함이다. 이 셸에는 「나는 navigator 가 딸린 판이다」를 말할 방법이 아예
+ *   없었고, 그래서 어떤 분할 뷰도 자기 도구 줄을 두 번 그리게 돼 있었다. 목록·조건 축·
+ *   폼·액션은 그대로다 — 내리는 것은 **바깥이 이미 가진 것** 둘뿐이다.
+ */
+export function DataScreen({ config, embedded = false, inSplitView = false }) {
   /* 첫 렌더에서 주소의 쿼리(#/audit?action=user.login)를 그대로 읽어 초기 상태로 삼는다.
    * 마운트 후에 setState 로 넣으면 기본 필터로 한 번 조회한 뒤 다시 조회해 목록이 두 번
    * 깜빡이고, 그 사이 사용자는 자기가 연 링크와 다른 화면을 본다. 게으른 초기화가 그
@@ -451,10 +467,15 @@ export function DataScreen({ config, embedded = false }) {
     try { new URLSearchParams(hash.slice(qi + 1)).forEach((v, k) => { params[k] = v; }); } catch (e) { return; }
     if (!Object.keys(params).length) return;
     const intent = config.onQuery(params);
-    /* 딥링크 쿼리는 한 번 쓰고 지운다 — 다만 그릇(탭 셸)이 소유한 키는 남긴다. 예전에는
-       쿼리 전체를 지워서, 이 화면이 탭 안에 있으면 딥링크로 들어오는 순간 `?tab=` 까지
-       함께 사라지고 첫 탭으로 튕겼다. */
-    const keptShell = keepQueryKeys(hash.slice(qi + 1), SHELL_QUERY_KEYS);
+    /* 딥링크 쿼리는 한 번 쓰고 지운다 — 다만 **남의 키만** 지운다.
+       그릇(탭 셸)이 소유한 `?tab=` 은 예전부터 남겼다(안 남기면 딥링크로 들어오는 순간
+       첫 탭으로 튕긴다). 여기에 **이 화면 자신의 뷰 키**(q·page·필터)를 더한다.
+       그것까지 지우면 `#/jobs?status=succeeded` 로 들어온 순간 조건이 주소에서 사라져,
+       링크를 공유해도 다른 화면이 열리고 뒤로가기가 조건을 잃는다 — `onQuery` 를 가진
+       화면 전부가 그랬다(S18 이 `admin_jobs` 의 뒤로가기 축에서 실측). 소비 대상은
+       `job_id` 같은 **의도 키**이고, 뷰 키는 어차피 바로 아래에서 이 화면이 다시 쓴다. */
+    const keptShell = keepQueryKeys(hash.slice(qi + 1),
+      SHELL_QUERY_KEYS.concat(ownedQueryKeys(config)));
     const cleaned = (hash.slice(0, qi) || "#") + (keptShell ? "?" + keptShell : "");
     try { window.history.replaceState(null, "", cleaned); } catch (e) { /* ignore */ }
     if (!intent) return;
@@ -643,7 +664,8 @@ export function DataScreen({ config, embedded = false }) {
     return v != null && v !== "";
   });
   // 페이지네이션되지만 서버 검색이 없는 화면(감사·작업·문서 등)은 클라이언트 부분검색이 오해를 낳으므로 검색창을 숨긴다.
-  const showSearch = config.searchable || !config.paginated;
+  // `inSplitView` 면 **바깥의 navigator 가 이미 같은 엔티티를 찾는다**(위 prop 주석).
+  const showSearch = !inSplitView && (config.searchable || !config.paginated);
   const showToolbar = showSearch || (config.filters || []).length > 0;
 
   /* ── 탐색 줄이 쓰는 파생값 넷 (W5) ──────────────────────────────────────────
@@ -674,7 +696,7 @@ export function DataScreen({ config, embedded = false }) {
      화면(정책 2건·통합 4건·기능 플래그 11건)에 붙으면 그것은 기능이 아니라 소음이고,
      C2 는 그런 화면을 «검색만 있는 Toolbar» 로 규정한다. 판단은 화면마다 다르므로
      숫자를 기계 적용하지 않고 registry 가 `smallSet` 한 줄로 선언한다(R-88). */
-  const showSavedViews = !config.smallSet;
+  const showSavedViews = !config.smallSet && !inSplitView;
 
   /* 결과 건수 — 서버가 total 을 주면 그것이 정본이고, 안 주는 화면은 지금 그려지는 행 수다.
      Pager 안의 «총 N건» 과 같은 값이지만 자리가 다르다: Pager 는 «어디쯤인가» 를 말하고
