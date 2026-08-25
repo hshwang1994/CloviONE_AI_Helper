@@ -404,6 +404,19 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
     finally { setBusyKey(null); }
   }
   async function runHeaderAction(a, key) {
+    /* 🔴 머리의 이동 버튼도 **이동한다** (S21).
+     *
+     * 행 액션(runAction)은 맨 앞에서 `a.navigate` 를 처리하는데 여기에는 그 가지가 없었다.
+     * 그래서 registry 가 `{ label: "백업 목록", navigate: () => "#/backup" }` 로 선언한
+     * 머리 버튼은 아래 쓰기 분기로 떨어져 `a.path()` 를 불렀고 — 이동 액션에는 `path` 가
+     * 없으므로 — 그 자리에서 예외가 났다. 잡히는 곳이 `handleApiError` 라, 화면에는 아무
+     * 일도 안 일어난 것처럼 보였다. **눌러도 아무 데도 안 가는 버튼이 일곱 개 있었다**:
+     * 백업 목록 · 백업 일정 설정 · 정책 사용 통계 · 프롬프트 사용 통계 · 이상 징후 보기 ·
+     * 감사 로그 전체 · 감사 로그에서 보기.
+     *
+     * 행 액션과 같은 순서로 맨 앞에 둔다 — 확인 문구도 폼도 필요 없는 동작이다. 머리
+     * 액션에는 행이 없으므로 `navigate()` 를 인자 없이 부른다(registry 의 선언도 그렇다). */
+    if (a.navigate) { setSel(null); window.location.hash = a.navigate(); return; }
     if (a.info) {
       // 조회형 헤더 작업(예: 복원 안내) — 결과를 안내 모달로 보여준다. busy를 걸어 완료 전 중복 클릭을 막는다
       // (그 아래 쓰기 액션 분기와 동일한 패턴 — 예전엔 이 분기만 setBusy가 빠져 있었다).

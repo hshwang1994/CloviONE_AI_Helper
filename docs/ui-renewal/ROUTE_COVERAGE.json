@@ -179,11 +179,26 @@
     "notes": ""
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
-    "evidence": [],
-    "flows": []
+    "result": "PASS",
+    "by": "S21 — scripts/ui_qa/s21_e2e.py (실 브라우저 Chromium · 로컬 PostgreSQL 씨앗)",
+    "at": "2026-08-25",
+    "evidence": [
+     "ev:qa_run:s21 (dist/ui-qa/s21/flows.json)"
+    ],
+    "flows": [
+     "FF-1175",
+     "FF-1176",
+     "FF-1177",
+     "FF-1178",
+     "FF-1179",
+     "FF-1180",
+     "FF-1181",
+     "FF-1182",
+     "FF-1183",
+     "FF-1185"
+    ],
+    "passed": 10,
+    "failed": 0
    },
    "responsive_audit": {
     "result": "PENDING",
@@ -229,7 +244,7 @@
     "all_combos": 12,
     "results_json": "dist/ui-qa/w5-after/results.json"
    },
-   "status": "NOT_AUDITED",
+   "status": "FUNCTIONAL_PASS",
    "wave": "W12",
    "findings": [
     {
@@ -459,11 +474,32 @@
     "notes": ""
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
-    "evidence": [],
-    "flows": []
+    "result": "PASS",
+    "by": "S21 — scripts/ui_qa/s21_e2e.py (실 브라우저 Chromium · 로컬 PostgreSQL 씨앗)",
+    "at": "2026-08-25",
+    "evidence": [
+     "ev:qa_run:s21 (dist/ui-qa/s21/flows.json)"
+    ],
+    "flows": [
+     "FF-0785",
+     "FF-0786",
+     "FF-0787",
+     "FF-0788",
+     "FF-0789",
+     "FF-0790",
+     "FF-0791",
+     "FF-0792",
+     "FF-0793",
+     "FF-0794",
+     "FF-0795",
+     "FF-0796",
+     "FF-0797",
+     "FF-0798",
+     "FF-0799",
+     "FF-0800"
+    ],
+    "passed": 16,
+    "failed": 0
    },
    "responsive_audit": {
     "result": "PENDING",
@@ -509,7 +545,7 @@
     "all_combos": 12,
     "results_json": "dist/ui-qa/w5-after/results.json"
    },
-   "status": "NOT_AUDITED",
+   "status": "FUNCTIONAL_PASS",
    "wave": "W12",
    "findings": [
     {
@@ -753,11 +789,27 @@
     "notes": ""
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
-    "evidence": [],
-    "flows": []
+    "result": "PASS",
+    "by": "S21 — scripts/ui_qa/s21_e2e.py (실 브라우저 Chromium · 로컬 PostgreSQL 씨앗)",
+    "at": "2026-08-25",
+    "evidence": [
+     "ev:qa_run:s21 (dist/ui-qa/s21/flows.json)"
+    ],
+    "flows": [
+     "FF-0677",
+     "FF-0678",
+     "FF-0679",
+     "FF-0680",
+     "FF-0681",
+     "FF-0683",
+     "FF-0684",
+     "FF-0685",
+     "FF-0686",
+     "FF-0687",
+     "FF-0688"
+    ],
+    "passed": 11,
+    "failed": 0
    },
    "responsive_audit": {
     "result": "PENDING",
@@ -803,7 +855,7 @@
     "all_combos": 12,
     "results_json": "dist/ui-qa/w5-after/results.json"
    },
-   "status": "NOT_AUDITED",
+   "status": "FUNCTIONAL_PASS",
    "wave": "W12",
    "findings": [
     {
@@ -1051,11 +1103,27 @@
     "notes": ""
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
-    "evidence": [],
-    "flows": []
+    "result": "PASS",
+    "by": "S21 — scripts/ui_qa/s21_e2e.py (실 브라우저 Chromium · 로컬 PostgreSQL 씨앗)",
+    "at": "2026-08-25",
+    "evidence": [
+     "ev:qa_run:s21 (dist/ui-qa/s21/flows.json)"
+    ],
+    "flows": [
+     "FF-0689",
+     "FF-0690",
+     "FF-0691",
+     "FF-0692",
+     "FF-0693",
+     "FF-0695",
+     "FF-0696",
+     "FF-0697",
+     "FF-0698",
+     "FF-0699",
+     "FF-0700"
+    ],
+    "passed": 11,
+    "failed": 0
    },
    "responsive_audit": {
     "result": "PENDING",
@@ -1101,7 +1169,7 @@
     "all_combos": 12,
     "results_json": "dist/ui-qa/w5-after/results.json"
    },
-   "status": "NOT_AUDITED",
+   "status": "FUNCTIONAL_PASS",
    "wave": "W12",
    "findings": [
     {
@@ -1372,11 +1440,33 @@
     "notes": ""
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
-    "evidence": [],
-    "flows": []
+    "result": "PASS",
+    "by": "S21 — scripts/ui_qa/s21_e2e.py (실 브라우저 Chromium · 로컬 PostgreSQL 씨앗)",
+    "at": "2026-08-25",
+    "evidence": [
+     "ev:qa_run:s21 (dist/ui-qa/s21/flows.json)"
+    ],
+    "flows": [
+     "FF-0801",
+     "FF-0802",
+     "FF-0803",
+     "FF-0804",
+     "FF-0805",
+     "FF-0806",
+     "FF-0807",
+     "FF-0808",
+     "FF-0809",
+     "FF-0810",
+     "FF-0811",
+     "FF-0812",
+     "FF-0813",
+     "FF-0814",
+     "FF-0815",
+     "FF-0816",
+     "FF-0817"
+    ],
+    "passed": 17,
+    "failed": 0
    },
    "responsive_audit": {
     "result": "PENDING",
@@ -1422,7 +1512,7 @@
     "all_combos": 12,
     "results_json": "dist/ui-qa/w5-after/results.json"
    },
-   "status": "NOT_AUDITED",
+   "status": "FUNCTIONAL_PASS",
    "wave": "W12",
    "findings": [
     {
@@ -1644,11 +1734,32 @@
     "notes": ""
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
-    "evidence": [],
-    "flows": []
+    "result": "PASS",
+    "by": "S21 — scripts/ui_qa/s21_e2e.py (실 브라우저 Chromium · 로컬 PostgreSQL 씨앗)",
+    "at": "2026-08-25",
+    "evidence": [
+     "ev:qa_run:s21 (dist/ui-qa/s21/flows.json)"
+    ],
+    "flows": [
+     "FF-0818",
+     "FF-0819",
+     "FF-0820",
+     "FF-0821",
+     "FF-0822",
+     "FF-0823",
+     "FF-0824",
+     "FF-0825",
+     "FF-0826",
+     "FF-0827",
+     "FF-0828",
+     "FF-0829",
+     "FF-0830",
+     "FF-0831",
+     "FF-0832",
+     "FF-0833"
+    ],
+    "passed": 16,
+    "failed": 0
    },
    "responsive_audit": {
     "result": "PENDING",
@@ -1694,7 +1805,7 @@
     "all_combos": 12,
     "results_json": "dist/ui-qa/w5-after/results.json"
    },
-   "status": "NOT_AUDITED",
+   "status": "FUNCTIONAL_PASS",
    "wave": "W12",
    "findings": [
     {
@@ -1942,11 +2053,32 @@
     "notes": ""
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
-    "evidence": [],
-    "flows": []
+    "result": "PASS",
+    "by": "S21 — scripts/ui_qa/s21_e2e.py (실 브라우저 Chromium · 로컬 PostgreSQL 씨앗)",
+    "at": "2026-08-25",
+    "evidence": [
+     "ev:qa_run:s21 (dist/ui-qa/s21/flows.json)"
+    ],
+    "flows": [
+     "FF-0627",
+     "FF-0628",
+     "FF-0629",
+     "FF-0630",
+     "FF-0631",
+     "FF-0632",
+     "FF-0633",
+     "FF-0634",
+     "FF-0635",
+     "FF-0636",
+     "FF-0637",
+     "FF-0638",
+     "FF-0639",
+     "FF-0640",
+     "FF-0641",
+     "FF-0642"
+    ],
+    "passed": 16,
+    "failed": 0
    },
    "responsive_audit": {
     "result": "PENDING",
@@ -1992,7 +2124,7 @@
     "all_combos": 12,
     "results_json": "dist/ui-qa/w5-after/results.json"
    },
-   "status": "NOT_AUDITED",
+   "status": "FUNCTIONAL_PASS",
    "wave": "W12",
    "findings": [
     {
@@ -2241,11 +2373,34 @@
     "notes": ""
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
-    "evidence": [],
-    "flows": []
+    "result": "FAIL",
+    "by": "S21 — scripts/ui_qa/s21_e2e.py (실 브라우저 Chromium · 로컬 PostgreSQL 씨앗)",
+    "at": "2026-08-25",
+    "evidence": [
+     "ev:qa_run:s21 (dist/ui-qa/s21/flows.json)"
+    ],
+    "flows": [
+     "FF-0609",
+     "FF-0610",
+     "FF-0611",
+     "FF-0612",
+     "FF-0613",
+     "FF-0614",
+     "FF-0615",
+     "FF-0616",
+     "FF-0617",
+     "FF-0618",
+     "FF-0619",
+     "FF-0620",
+     "FF-0621",
+     "FF-0622",
+     "FF-0623",
+     "FF-0624",
+     "FF-0625",
+     "FF-0626"
+    ],
+    "passed": 15,
+    "failed": 3
    },
    "responsive_audit": {
     "result": "PENDING",
@@ -2291,7 +2446,7 @@
     "all_combos": 12,
     "results_json": "dist/ui-qa/w5-after/results.json"
    },
-   "status": "NOT_AUDITED",
+   "status": "IN_PROGRESS",
    "wave": "W12",
    "findings": [
     {
@@ -2555,11 +2710,29 @@
     "notes": ""
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
-    "evidence": [],
-    "flows": []
+    "result": "PASS",
+    "by": "S21 — scripts/ui_qa/s21_e2e.py (실 브라우저 Chromium · 로컬 PostgreSQL 씨앗)",
+    "at": "2026-08-25",
+    "evidence": [
+     "ev:qa_run:s21 (dist/ui-qa/s21/flows.json)"
+    ],
+    "flows": [
+     "FF-0834",
+     "FF-0835",
+     "FF-0836",
+     "FF-0837",
+     "FF-0838",
+     "FF-0839",
+     "FF-0840",
+     "FF-0841",
+     "FF-0842",
+     "FF-0843",
+     "FF-0844",
+     "FF-0845",
+     "FF-0846"
+    ],
+    "passed": 13,
+    "failed": 0
    },
    "responsive_audit": {
     "result": "PENDING",
@@ -2605,7 +2778,7 @@
     "all_combos": 12,
     "results_json": "dist/ui-qa/w5-after/results.json"
    },
-   "status": "NOT_AUDITED",
+   "status": "FUNCTIONAL_PASS",
    "wave": "W12",
    "findings": [
     {
@@ -2871,11 +3044,25 @@
     "notes": ""
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
-    "evidence": [],
-    "flows": []
+    "result": "FAIL",
+    "by": "S21 — scripts/ui_qa/s21_e2e.py (실 브라우저 Chromium · 로컬 PostgreSQL 씨앗)",
+    "at": "2026-08-25",
+    "evidence": [
+     "ev:qa_run:s21 (dist/ui-qa/s21/flows.json)"
+    ],
+    "flows": [
+     "FF-0572",
+     "FF-0573",
+     "FF-0574",
+     "FF-0575",
+     "FF-0576",
+     "FF-0577",
+     "FF-0578",
+     "FF-0579",
+     "FF-0580"
+    ],
+    "passed": 8,
+    "failed": 1
    },
    "responsive_audit": {
     "result": "PENDING",
@@ -2921,7 +3108,7 @@
     "all_combos": 12,
     "results_json": "dist/ui-qa/w5-after/results.json"
    },
-   "status": "NOT_AUDITED",
+   "status": "IN_PROGRESS",
    "wave": "W12",
    "findings": [
     {
@@ -3194,11 +3381,37 @@
     "notes": ""
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
-    "evidence": [],
-    "flows": []
+    "result": "FAIL",
+    "by": "S21 — scripts/ui_qa/s21_e2e.py (실 브라우저 Chromium · 로컬 PostgreSQL 씨앗)",
+    "at": "2026-08-25",
+    "evidence": [
+     "ev:qa_run:s21 (dist/ui-qa/s21/flows.json)"
+    ],
+    "flows": [
+     "FF-0643",
+     "FF-0644",
+     "FF-0645",
+     "FF-0646",
+     "FF-0647",
+     "FF-0648",
+     "FF-0649",
+     "FF-0650",
+     "FF-0651",
+     "FF-0652",
+     "FF-0653",
+     "FF-0654",
+     "FF-0655",
+     "FF-0656",
+     "FF-0657",
+     "FF-0658",
+     "FF-0659",
+     "FF-0660",
+     "FF-0661",
+     "FF-0662",
+     "FF-0663"
+    ],
+    "passed": 19,
+    "failed": 2
    },
    "responsive_audit": {
     "result": "PENDING",
@@ -3244,7 +3457,7 @@
     "all_combos": 12,
     "results_json": "dist/ui-qa/w5-after/results.json"
    },
-   "status": "NOT_AUDITED",
+   "status": "IN_PROGRESS",
    "wave": "W12",
    "findings": [
     {
@@ -3492,11 +3705,29 @@
     "notes": ""
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
-    "evidence": [],
-    "flows": []
+    "result": "PASS",
+    "by": "S21 — scripts/ui_qa/s21_e2e.py (실 브라우저 Chromium · 로컬 PostgreSQL 씨앗)",
+    "at": "2026-08-25",
+    "evidence": [
+     "ev:qa_run:s21 (dist/ui-qa/s21/flows.json)"
+    ],
+    "flows": [
+     "FF-0664",
+     "FF-0665",
+     "FF-0666",
+     "FF-0667",
+     "FF-0668",
+     "FF-0669",
+     "FF-0670",
+     "FF-0671",
+     "FF-0672",
+     "FF-0673",
+     "FF-0674",
+     "FF-0675",
+     "FF-0676"
+    ],
+    "passed": 13,
+    "failed": 0
    },
    "responsive_audit": {
     "result": "PENDING",
@@ -3542,7 +3773,7 @@
     "all_combos": 12,
     "results_json": "dist/ui-qa/w5-after/results.json"
    },
-   "status": "NOT_AUDITED",
+   "status": "FUNCTIONAL_PASS",
    "wave": "W12",
    "findings": [
     {
@@ -3813,11 +4044,31 @@
     "notes": ""
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
-    "evidence": [],
-    "flows": []
+    "result": "PASS",
+    "by": "S21 — scripts/ui_qa/s21_e2e.py (실 브라우저 Chromium · 로컬 PostgreSQL 씨앗)",
+    "at": "2026-08-25",
+    "evidence": [
+     "ev:qa_run:s21 (dist/ui-qa/s21/flows.json)"
+    ],
+    "flows": [
+     "FF-0581",
+     "FF-0582",
+     "FF-0583",
+     "FF-0584",
+     "FF-0585",
+     "FF-0586",
+     "FF-0587",
+     "FF-0588",
+     "FF-0589",
+     "FF-0590",
+     "FF-0591",
+     "FF-0592",
+     "FF-0593",
+     "FF-0594",
+     "FF-0595"
+    ],
+    "passed": 15,
+    "failed": 0
    },
    "responsive_audit": {
     "result": "PENDING",
@@ -3863,7 +4114,7 @@
     "all_combos": 12,
     "results_json": "dist/ui-qa/w5-after/results.json"
    },
-   "status": "NOT_AUDITED",
+   "status": "FUNCTIONAL_PASS",
    "wave": "W12",
    "findings": [
     {
@@ -4113,11 +4364,29 @@
     "notes": ""
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
-    "evidence": [],
-    "flows": []
+    "result": "PASS",
+    "by": "S21 — scripts/ui_qa/s21_e2e.py (실 브라우저 Chromium · 로컬 PostgreSQL 씨앗)",
+    "at": "2026-08-25",
+    "evidence": [
+     "ev:qa_run:s21 (dist/ui-qa/s21/flows.json)"
+    ],
+    "flows": [
+     "FF-0596",
+     "FF-0597",
+     "FF-0598",
+     "FF-0599",
+     "FF-0600",
+     "FF-0601",
+     "FF-0602",
+     "FF-0603",
+     "FF-0604",
+     "FF-0605",
+     "FF-0606",
+     "FF-0607",
+     "FF-0608"
+    ],
+    "passed": 13,
+    "failed": 0
    },
    "responsive_audit": {
     "result": "PENDING",
@@ -4163,7 +4432,7 @@
     "all_combos": 12,
     "results_json": "dist/ui-qa/w5-after/results.json"
    },
-   "status": "NOT_AUDITED",
+   "status": "FUNCTIONAL_PASS",
    "wave": "W12",
    "findings": [
     {
@@ -4426,11 +4695,29 @@
     "notes": ""
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
-    "evidence": [],
-    "flows": []
+    "result": "FAIL",
+    "by": "S21 — scripts/ui_qa/s21_e2e.py (실 브라우저 Chromium · 로컬 PostgreSQL 씨앗)",
+    "at": "2026-08-25",
+    "evidence": [
+     "ev:qa_run:s21 (dist/ui-qa/s21/flows.json)"
+    ],
+    "flows": [
+     "FF-0390",
+     "FF-0391",
+     "FF-0392",
+     "FF-0393",
+     "FF-0394",
+     "FF-0395",
+     "FF-0396",
+     "FF-0397",
+     "FF-0398",
+     "FF-0399",
+     "FF-0400",
+     "FF-0401",
+     "FF-0402"
+    ],
+    "passed": 12,
+    "failed": 1
    },
    "responsive_audit": {
     "result": "PENDING",
@@ -4476,7 +4763,7 @@
     "all_combos": 12,
     "results_json": "dist/ui-qa/w5-after/results.json"
    },
-   "status": "NOT_AUDITED",
+   "status": "IN_PROGRESS",
    "wave": "W12",
    "findings": [
     {
@@ -4707,11 +4994,34 @@
     "notes": ""
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
-    "evidence": [],
-    "flows": []
+    "result": "FAIL",
+    "by": "S21 — scripts/ui_qa/s21_e2e.py (실 브라우저 Chromium · 로컬 PostgreSQL 씨앗)",
+    "at": "2026-08-25",
+    "evidence": [
+     "ev:qa_run:s21 (dist/ui-qa/s21/flows.json)"
+    ],
+    "flows": [
+     "FF-0541",
+     "FF-0542",
+     "FF-0543",
+     "FF-0544",
+     "FF-0545",
+     "FF-0546",
+     "FF-0547",
+     "FF-0548",
+     "FF-0549",
+     "FF-0550",
+     "FF-0551",
+     "FF-0552",
+     "FF-0553",
+     "FF-0554",
+     "FF-0556",
+     "FF-0557",
+     "FF-0558",
+     "FF-0559"
+    ],
+    "passed": 17,
+    "failed": 1
    },
    "responsive_audit": {
     "result": "PENDING",
@@ -4757,7 +5067,7 @@
     "all_combos": 12,
     "results_json": "dist/ui-qa/w5-after/results.json"
    },
-   "status": "NOT_AUDITED",
+   "status": "IN_PROGRESS",
    "wave": "W12",
    "findings": [
     {
@@ -5022,11 +5332,28 @@
     "notes": ""
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
-    "evidence": [],
-    "flows": []
+    "result": "FAIL",
+    "by": "S21 — scripts/ui_qa/s21_e2e.py (실 브라우저 Chromium · 로컬 PostgreSQL 씨앗)",
+    "at": "2026-08-25",
+    "evidence": [
+     "ev:qa_run:s21 (dist/ui-qa/s21/flows.json)"
+    ],
+    "flows": [
+     "FF-0560",
+     "FF-0561",
+     "FF-0562",
+     "FF-0563",
+     "FF-0564",
+     "FF-0565",
+     "FF-0566",
+     "FF-0567",
+     "FF-0568",
+     "FF-0569",
+     "FF-0570",
+     "FF-0571"
+    ],
+    "passed": 11,
+    "failed": 1
    },
    "responsive_audit": {
     "result": "PENDING",
@@ -5072,7 +5399,7 @@
     "all_combos": 12,
     "results_json": "dist/ui-qa/w5-after/results.json"
    },
-   "status": "NOT_AUDITED",
+   "status": "IN_PROGRESS",
    "wave": "W12",
    "findings": [
     {
@@ -5336,11 +5663,23 @@
     "notes": ""
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
-    "evidence": [],
-    "flows": []
+    "result": "PASS",
+    "by": "S21 — scripts/ui_qa/s21_e2e.py (실 브라우저 Chromium · 로컬 PostgreSQL 씨앗)",
+    "at": "2026-08-25",
+    "evidence": [
+     "ev:qa_run:s21 (dist/ui-qa/s21/flows.json)"
+    ],
+    "flows": [
+     "FF-0504",
+     "FF-0505",
+     "FF-0506",
+     "FF-0507",
+     "FF-0508",
+     "FF-0509",
+     "FF-0510"
+    ],
+    "passed": 7,
+    "failed": 0
    },
    "responsive_audit": {
     "result": "PENDING",
@@ -5386,7 +5725,7 @@
     "all_combos": 12,
     "results_json": "dist/ui-qa/w5-after/results.json"
    },
-   "status": "NOT_AUDITED",
+   "status": "FUNCTIONAL_PASS",
    "wave": "W12",
    "findings": [
     {
@@ -5609,11 +5948,28 @@
     "notes": ""
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
-    "evidence": [],
-    "flows": []
+    "result": "PASS",
+    "by": "S21 — scripts/ui_qa/s21_e2e.py (실 브라우저 Chromium · 로컬 PostgreSQL 씨앗)",
+    "at": "2026-08-25",
+    "evidence": [
+     "ev:qa_run:s21 (dist/ui-qa/s21/flows.json)"
+    ],
+    "flows": [
+     "FF-0492",
+     "FF-0493",
+     "FF-0494",
+     "FF-0495",
+     "FF-0496",
+     "FF-0497",
+     "FF-0498",
+     "FF-0499",
+     "FF-0500",
+     "FF-0501",
+     "FF-0502",
+     "FF-0503"
+    ],
+    "passed": 12,
+    "failed": 0
    },
    "responsive_audit": {
     "result": "PENDING",
@@ -5659,7 +6015,7 @@
     "all_combos": 12,
     "results_json": "dist/ui-qa/w5-after/results.json"
    },
-   "status": "NOT_AUDITED",
+   "status": "FUNCTIONAL_PASS",
    "wave": "W12",
    "findings": [
     {
@@ -5884,11 +6240,28 @@
     "notes": ""
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
-    "evidence": [],
-    "flows": []
+    "result": "PASS",
+    "by": "S21 — scripts/ui_qa/s21_e2e.py (실 브라우저 Chromium · 로컬 PostgreSQL 씨앗)",
+    "at": "2026-08-25",
+    "evidence": [
+     "ev:qa_run:s21 (dist/ui-qa/s21/flows.json)"
+    ],
+    "flows": [
+     "FF-0865",
+     "FF-0866",
+     "FF-0867",
+     "FF-0870",
+     "FF-0871",
+     "FF-0872",
+     "FF-0873",
+     "FF-0874",
+     "FF-0875",
+     "FF-0876",
+     "FF-0877",
+     "FF-0878"
+    ],
+    "passed": 12,
+    "failed": 0
    },
    "responsive_audit": {
     "result": "PENDING",
@@ -5934,7 +6307,7 @@
     "all_combos": 12,
     "results_json": "dist/ui-qa/w5-after/results.json"
    },
-   "status": "NOT_AUDITED",
+   "status": "FUNCTIONAL_PASS",
    "wave": "W12",
    "findings": [
     {
@@ -6144,11 +6517,31 @@
     "notes": ""
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
-    "evidence": [],
-    "flows": []
+    "result": "FAIL",
+    "by": "S21 — scripts/ui_qa/s21_e2e.py (실 브라우저 Chromium · 로컬 PostgreSQL 씨앗)",
+    "at": "2026-08-25",
+    "evidence": [
+     "ev:qa_run:s21 (dist/ui-qa/s21/flows.json)"
+    ],
+    "flows": [
+     "FF-0879",
+     "FF-0880",
+     "FF-0881",
+     "FF-0882",
+     "FF-0883",
+     "FF-0884",
+     "FF-0885",
+     "FF-0886",
+     "FF-0887",
+     "FF-0888",
+     "FF-0889",
+     "FF-0890",
+     "FF-0891",
+     "FF-0892",
+     "FF-0893"
+    ],
+    "passed": 7,
+    "failed": 8
    },
    "responsive_audit": {
     "result": "PENDING",
@@ -6194,7 +6587,7 @@
     "all_combos": 12,
     "results_json": "dist/ui-qa/w5-after/results.json"
    },
-   "status": "NOT_AUDITED",
+   "status": "IN_PROGRESS",
    "wave": "W12",
    "findings": [
     {
@@ -6418,11 +6811,33 @@
     "notes": ""
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
-    "evidence": [],
-    "flows": []
+    "result": "PASS",
+    "by": "S21 — scripts/ui_qa/s21_e2e.py (실 브라우저 Chromium · 로컬 PostgreSQL 씨앗)",
+    "at": "2026-08-25",
+    "evidence": [
+     "ev:qa_run:s21 (dist/ui-qa/s21/flows.json)"
+    ],
+    "flows": [
+     "FF-0894",
+     "FF-0896",
+     "FF-0897",
+     "FF-0898",
+     "FF-0900",
+     "FF-0901",
+     "FF-0902",
+     "FF-0903",
+     "FF-0904",
+     "FF-0905",
+     "FF-0906",
+     "FF-0907",
+     "FF-0908",
+     "FF-0909",
+     "FF-0910",
+     "FF-0911",
+     "FF-0912"
+    ],
+    "passed": 17,
+    "failed": 0
    },
    "responsive_audit": {
     "result": "PENDING",
@@ -6468,7 +6883,7 @@
     "all_combos": 12,
     "results_json": "dist/ui-qa/w5-after/results.json"
    },
-   "status": "NOT_AUDITED",
+   "status": "FUNCTIONAL_PASS",
    "wave": "W12",
    "findings": [
     {
@@ -6726,11 +7141,24 @@
     "notes": ""
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
-    "evidence": [],
-    "flows": []
+    "result": "PASS",
+    "by": "S21 — scripts/ui_qa/s21_e2e.py (실 브라우저 Chromium · 로컬 PostgreSQL 씨앗)",
+    "at": "2026-08-25",
+    "evidence": [
+     "ev:qa_run:s21 (dist/ui-qa/s21/flows.json)"
+    ],
+    "flows": [
+     "FF-0403",
+     "FF-0404",
+     "FF-0405",
+     "FF-0406",
+     "FF-0407",
+     "FF-0408",
+     "FF-0409",
+     "FF-0410"
+    ],
+    "passed": 8,
+    "failed": 0
    },
    "responsive_audit": {
     "result": "PENDING",
@@ -6776,7 +7204,7 @@
     "all_combos": 12,
     "results_json": "dist/ui-qa/w5-after/results.json"
    },
-   "status": "NOT_AUDITED",
+   "status": "FUNCTIONAL_PASS",
    "wave": "W12",
    "findings": [
     {
@@ -7007,11 +7435,32 @@
     "notes": ""
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
-    "evidence": [],
-    "flows": []
+    "result": "PASS",
+    "by": "S21 — scripts/ui_qa/s21_e2e.py (실 브라우저 Chromium · 로컬 PostgreSQL 씨앗)",
+    "at": "2026-08-25",
+    "evidence": [
+     "ev:qa_run:s21 (dist/ui-qa/s21/flows.json)"
+    ],
+    "flows": [
+     "FF-0913",
+     "FF-0914",
+     "FF-0915",
+     "FF-0916",
+     "FF-0917",
+     "FF-0918",
+     "FF-0919",
+     "FF-0920",
+     "FF-0921",
+     "FF-0922",
+     "FF-0923",
+     "FF-0924",
+     "FF-0925",
+     "FF-0926",
+     "FF-0927",
+     "FF-0928"
+    ],
+    "passed": 16,
+    "failed": 0
    },
    "responsive_audit": {
     "result": "PENDING",
@@ -7057,7 +7506,7 @@
     "all_combos": 12,
     "results_json": "dist/ui-qa/w5-after/results.json"
    },
-   "status": "NOT_AUDITED",
+   "status": "FUNCTIONAL_PASS",
    "wave": "W12",
    "findings": [
     {
@@ -7791,11 +8240,21 @@
     "notes": ""
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
-    "evidence": [],
-    "flows": []
+    "result": "PASS",
+    "by": "S21 — scripts/ui_qa/s21_e2e.py (실 브라우저 Chromium · 로컬 PostgreSQL 씨앗)",
+    "at": "2026-08-25",
+    "evidence": [
+     "ev:qa_run:s21 (dist/ui-qa/s21/flows.json)"
+    ],
+    "flows": [
+     "FF-0487",
+     "FF-0488",
+     "FF-0489",
+     "FF-0490",
+     "FF-0491"
+    ],
+    "passed": 5,
+    "failed": 0
    },
    "responsive_audit": {
     "result": "PENDING",
@@ -7841,7 +8300,7 @@
     "all_combos": 12,
     "results_json": "dist/ui-qa/w5-after/results.json"
    },
-   "status": "NOT_AUDITED",
+   "status": "FUNCTIONAL_PASS",
    "wave": "W12",
    "findings": [
     {
@@ -8660,11 +9119,33 @@
     "notes": ""
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
-    "evidence": [],
-    "flows": []
+    "result": "FAIL",
+    "by": "S21 — scripts/ui_qa/s21_e2e.py (실 브라우저 Chromium · 로컬 PostgreSQL 씨앗)",
+    "at": "2026-08-25",
+    "evidence": [
+     "ev:qa_run:s21 (dist/ui-qa/s21/flows.json)"
+    ],
+    "flows": [
+     "FF-0460",
+     "FF-0461",
+     "FF-0462",
+     "FF-0463",
+     "FF-0464",
+     "FF-0465",
+     "FF-0466",
+     "FF-0467",
+     "FF-0468",
+     "FF-0469",
+     "FF-0470",
+     "FF-0471",
+     "FF-0472",
+     "FF-0473",
+     "FF-0474",
+     "FF-0475",
+     "FF-0476"
+    ],
+    "passed": 9,
+    "failed": 8
    },
    "responsive_audit": {
     "result": "PENDING",
@@ -8710,7 +9191,7 @@
     "all_combos": 12,
     "results_json": "dist/ui-qa/w5-after/results.json"
    },
-   "status": "NOT_AUDITED",
+   "status": "IN_PROGRESS",
    "wave": "W12",
    "findings": [
     {
@@ -8898,11 +9379,26 @@
     "notes": ""
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
-    "evidence": [],
-    "flows": []
+    "result": "FAIL",
+    "by": "S21 — scripts/ui_qa/s21_e2e.py (실 브라우저 Chromium · 로컬 PostgreSQL 씨앗)",
+    "at": "2026-08-25",
+    "evidence": [
+     "ev:qa_run:s21 (dist/ui-qa/s21/flows.json)"
+    ],
+    "flows": [
+     "FF-0511",
+     "FF-0512",
+     "FF-0513",
+     "FF-0514",
+     "FF-0515",
+     "FF-0516",
+     "FF-0517",
+     "FF-0518",
+     "FF-0519",
+     "FF-0521"
+    ],
+    "passed": 9,
+    "failed": 1
    },
    "responsive_audit": {
     "result": "PENDING",
@@ -8948,7 +9444,7 @@
     "all_combos": 12,
     "results_json": "dist/ui-qa/w5-after/results.json"
    },
-   "status": "NOT_AUDITED",
+   "status": "IN_PROGRESS",
    "wave": "W12",
    "findings": [
     {
@@ -9561,11 +10057,34 @@
     "notes": ""
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
-    "evidence": [],
-    "flows": []
+    "result": "FAIL",
+    "by": "S21 — scripts/ui_qa/s21_e2e.py (실 브라우저 Chromium · 로컬 PostgreSQL 씨앗)",
+    "at": "2026-08-25",
+    "evidence": [
+     "ev:qa_run:s21 (dist/ui-qa/s21/flows.json)"
+    ],
+    "flows": [
+     "FF-0975",
+     "FF-0976",
+     "FF-0977",
+     "FF-0979",
+     "FF-0980",
+     "FF-0981",
+     "FF-0982",
+     "FF-0983",
+     "FF-0984",
+     "FF-0985",
+     "FF-0986",
+     "FF-0987",
+     "FF-0988",
+     "FF-0990",
+     "FF-0991",
+     "FF-0992",
+     "FF-0993",
+     "FF-0994"
+    ],
+    "passed": 14,
+    "failed": 4
    },
    "responsive_audit": {
     "result": "PENDING",
@@ -9611,7 +10130,7 @@
     "all_combos": 12,
     "results_json": "dist/ui-qa/w5-after/results.json"
    },
-   "status": "NOT_AUDITED",
+   "status": "IN_PROGRESS",
    "wave": "W12",
    "findings": [
     {
@@ -9854,11 +10373,27 @@
     "notes": ""
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
-    "evidence": [],
-    "flows": []
+    "result": "PASS",
+    "by": "S21 — scripts/ui_qa/s21_e2e.py (실 브라우저 Chromium · 로컬 PostgreSQL 씨앗)",
+    "at": "2026-08-25",
+    "evidence": [
+     "ev:qa_run:s21 (dist/ui-qa/s21/flows.json)"
+    ],
+    "flows": [
+     "FF-0995",
+     "FF-0996",
+     "FF-0997",
+     "FF-0998",
+     "FF-0999",
+     "FF-1001",
+     "FF-1002",
+     "FF-1003",
+     "FF-1004",
+     "FF-1005",
+     "FF-1006"
+    ],
+    "passed": 11,
+    "failed": 0
    },
    "responsive_audit": {
     "result": "PENDING",
@@ -9904,7 +10439,7 @@
     "all_combos": 12,
     "results_json": "dist/ui-qa/w5-after/results.json"
    },
-   "status": "NOT_AUDITED",
+   "status": "FUNCTIONAL_PASS",
    "wave": "W12",
    "findings": [
     {
@@ -10151,11 +10686,27 @@
     "notes": ""
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
-    "evidence": [],
-    "flows": []
+    "result": "PASS",
+    "by": "S21 — scripts/ui_qa/s21_e2e.py (실 브라우저 Chromium · 로컬 PostgreSQL 씨앗)",
+    "at": "2026-08-25",
+    "evidence": [
+     "ev:qa_run:s21 (dist/ui-qa/s21/flows.json)"
+    ],
+    "flows": [
+     "FF-1007",
+     "FF-1008",
+     "FF-1009",
+     "FF-1010",
+     "FF-1011",
+     "FF-1013",
+     "FF-1014",
+     "FF-1015",
+     "FF-1016",
+     "FF-1017",
+     "FF-1018"
+    ],
+    "passed": 11,
+    "failed": 0
    },
    "responsive_audit": {
     "result": "PENDING",
@@ -10201,7 +10752,7 @@
     "all_combos": 12,
     "results_json": "dist/ui-qa/w5-after/results.json"
    },
-   "status": "NOT_AUDITED",
+   "status": "FUNCTIONAL_PASS",
    "wave": "W12",
    "findings": [
     {
@@ -10472,11 +11023,36 @@
     "notes": ""
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
-    "evidence": [],
-    "flows": []
+    "result": "PASS",
+    "by": "S21 — scripts/ui_qa/s21_e2e.py (실 브라우저 Chromium · 로컬 PostgreSQL 씨앗)",
+    "at": "2026-08-25",
+    "evidence": [
+     "ev:qa_run:s21 (dist/ui-qa/s21/flows.json)"
+    ],
+    "flows": [
+     "FF-1019",
+     "FF-1020",
+     "FF-1021",
+     "FF-1022",
+     "FF-1023",
+     "FF-1024",
+     "FF-1025",
+     "FF-1026",
+     "FF-1027",
+     "FF-1028",
+     "FF-1029",
+     "FF-1030",
+     "FF-1031",
+     "FF-1032",
+     "FF-1033",
+     "FF-1034",
+     "FF-1036",
+     "FF-1037",
+     "FF-1038",
+     "FF-1039"
+    ],
+    "passed": 20,
+    "failed": 0
    },
    "responsive_audit": {
     "result": "PENDING",
@@ -10522,7 +11098,7 @@
     "all_combos": 12,
     "results_json": "dist/ui-qa/w5-after/results.json"
    },
-   "status": "NOT_AUDITED",
+   "status": "FUNCTIONAL_PASS",
    "wave": "W12",
    "findings": [
     {
@@ -10784,11 +11360,20 @@
     "notes": ""
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
-    "evidence": [],
-    "flows": []
+    "result": "PASS",
+    "by": "S21 — scripts/ui_qa/s21_e2e.py (실 브라우저 Chromium · 로컬 PostgreSQL 씨앗)",
+    "at": "2026-08-25",
+    "evidence": [
+     "ev:qa_run:s21 (dist/ui-qa/s21/flows.json)"
+    ],
+    "flows": [
+     "FF-1040",
+     "FF-1042",
+     "FF-1044",
+     "FF-1045"
+    ],
+    "passed": 4,
+    "failed": 0
    },
    "responsive_audit": {
     "result": "PENDING",
@@ -10834,7 +11419,7 @@
     "all_combos": 12,
     "results_json": "dist/ui-qa/w5-after/results.json"
    },
-   "status": "NOT_AUDITED",
+   "status": "FUNCTIONAL_PASS",
    "wave": "W12",
    "findings": [
     {
@@ -11051,11 +11636,29 @@
     "notes": ""
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
-    "evidence": [],
-    "flows": []
+    "result": "PASS",
+    "by": "S21 — scripts/ui_qa/s21_e2e.py (실 브라우저 Chromium · 로컬 PostgreSQL 씨앗)",
+    "at": "2026-08-25",
+    "evidence": [
+     "ev:qa_run:s21 (dist/ui-qa/s21/flows.json)"
+    ],
+    "flows": [
+     "FF-1046",
+     "FF-1047",
+     "FF-1048",
+     "FF-1049",
+     "FF-1050",
+     "FF-1051",
+     "FF-1052",
+     "FF-1053",
+     "FF-1054",
+     "FF-1055",
+     "FF-1056",
+     "FF-1057",
+     "FF-1058"
+    ],
+    "passed": 13,
+    "failed": 0
    },
    "responsive_audit": {
     "result": "PENDING",
@@ -11101,7 +11704,7 @@
     "all_combos": 12,
     "results_json": "dist/ui-qa/w5-after/results.json"
    },
-   "status": "NOT_AUDITED",
+   "status": "FUNCTIONAL_PASS",
    "wave": "W12",
    "findings": [
     {
@@ -11340,11 +11943,28 @@
     "notes": ""
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
-    "evidence": [],
-    "flows": []
+    "result": "FAIL",
+    "by": "S21 — scripts/ui_qa/s21_e2e.py (실 브라우저 Chromium · 로컬 PostgreSQL 씨앗)",
+    "at": "2026-08-25",
+    "evidence": [
+     "ev:qa_run:s21 (dist/ui-qa/s21/flows.json)"
+    ],
+    "flows": [
+     "FF-1081",
+     "FF-1082",
+     "FF-1083",
+     "FF-1084",
+     "FF-1085",
+     "FF-1086",
+     "FF-1087",
+     "FF-1088",
+     "FF-1089",
+     "FF-1090",
+     "FF-1091",
+     "FF-1092"
+    ],
+    "passed": 11,
+    "failed": 1
    },
    "responsive_audit": {
     "result": "PENDING",
@@ -11390,7 +12010,7 @@
     "all_combos": 12,
     "results_json": "dist/ui-qa/w5-after/results.json"
    },
-   "status": "NOT_AUDITED",
+   "status": "IN_PROGRESS",
    "wave": "W12",
    "findings": [
     {
@@ -11653,11 +12273,28 @@
     "notes": ""
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
-    "evidence": [],
-    "flows": []
+    "result": "FAIL",
+    "by": "S21 — scripts/ui_qa/s21_e2e.py (실 브라우저 Chromium · 로컬 PostgreSQL 씨앗)",
+    "at": "2026-08-25",
+    "evidence": [
+     "ev:qa_run:s21 (dist/ui-qa/s21/flows.json)"
+    ],
+    "flows": [
+     "FF-0724",
+     "FF-0725",
+     "FF-0726",
+     "FF-0727",
+     "FF-0728",
+     "FF-0729",
+     "FF-0730",
+     "FF-0731",
+     "FF-0732",
+     "FF-0733",
+     "FF-0734",
+     "FF-0735"
+    ],
+    "passed": 11,
+    "failed": 1
    },
    "responsive_audit": {
     "result": "PENDING",
@@ -11703,7 +12340,7 @@
     "all_combos": 12,
     "results_json": "dist/ui-qa/w5-after/results.json"
    },
-   "status": "NOT_AUDITED",
+   "status": "IN_PROGRESS",
    "wave": "W12",
    "findings": [
     {
@@ -11968,11 +12605,39 @@
     "notes": ""
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
-    "evidence": [],
-    "flows": []
+    "result": "FAIL",
+    "by": "S21 — scripts/ui_qa/s21_e2e.py (실 브라우저 Chromium · 로컬 PostgreSQL 씨앗)",
+    "at": "2026-08-25",
+    "evidence": [
+     "ev:qa_run:s21 (dist/ui-qa/s21/flows.json)"
+    ],
+    "flows": [
+     "FF-0701",
+     "FF-0702",
+     "FF-0703",
+     "FF-0704",
+     "FF-0705",
+     "FF-0706",
+     "FF-0707",
+     "FF-0708",
+     "FF-0709",
+     "FF-0710",
+     "FF-0711",
+     "FF-0712",
+     "FF-0713",
+     "FF-0714",
+     "FF-0715",
+     "FF-0716",
+     "FF-0717",
+     "FF-0718",
+     "FF-0719",
+     "FF-0720",
+     "FF-0721",
+     "FF-0722",
+     "FF-0723"
+    ],
+    "passed": 20,
+    "failed": 3
    },
    "responsive_audit": {
     "result": "PENDING",
@@ -12018,7 +12683,7 @@
     "all_combos": 12,
     "results_json": "dist/ui-qa/w5-after/results.json"
    },
-   "status": "NOT_AUDITED",
+   "status": "IN_PROGRESS",
    "wave": "W12",
    "findings": [
     {
@@ -12281,11 +12946,26 @@
     "notes": ""
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
-    "evidence": [],
-    "flows": []
+    "result": "FAIL",
+    "by": "S21 — scripts/ui_qa/s21_e2e.py (실 브라우저 Chromium · 로컬 PostgreSQL 씨앗)",
+    "at": "2026-08-25",
+    "evidence": [
+     "ev:qa_run:s21 (dist/ui-qa/s21/flows.json)"
+    ],
+    "flows": [
+     "FF-0411",
+     "FF-0412",
+     "FF-0413",
+     "FF-0414",
+     "FF-0415",
+     "FF-0416",
+     "FF-0417",
+     "FF-0418",
+     "FF-0419",
+     "FF-0420"
+    ],
+    "passed": 9,
+    "failed": 1
    },
    "responsive_audit": {
     "result": "PENDING",
@@ -12331,7 +13011,7 @@
     "all_combos": 12,
     "results_json": "dist/ui-qa/w5-after/results.json"
    },
-   "status": "NOT_AUDITED",
+   "status": "IN_PROGRESS",
    "wave": "W12",
    "findings": [
     {
@@ -12801,11 +13481,25 @@
     "notes": ""
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
-    "evidence": [],
-    "flows": []
+    "result": "PASS",
+    "by": "S21 — scripts/ui_qa/s21_e2e.py (실 브라우저 Chromium · 로컬 PostgreSQL 씨앗)",
+    "at": "2026-08-25",
+    "evidence": [
+     "ev:qa_run:s21 (dist/ui-qa/s21/flows.json)"
+    ],
+    "flows": [
+     "FF-1430",
+     "FF-1431",
+     "FF-1432",
+     "FF-1433",
+     "FF-1434",
+     "FF-1435",
+     "FF-1436",
+     "FF-1437",
+     "FF-1438"
+    ],
+    "passed": 9,
+    "failed": 0
    },
    "responsive_audit": {
     "result": "PENDING",
@@ -12814,7 +13508,7 @@
    },
    "before_capture": null,
    "after_capture": null,
-   "status": "NOT_AUDITED",
+   "status": "FUNCTIONAL_PASS",
    "wave": "W12",
    "findings": [],
    "suppressions": [],
@@ -14184,11 +14878,21 @@
     "notes": ""
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
-    "evidence": [],
-    "flows": []
+    "result": "PASS",
+    "by": "S21 — scripts/ui_qa/s21_e2e.py (실 브라우저 Chromium · 로컬 PostgreSQL 씨앗)",
+    "at": "2026-08-25",
+    "evidence": [
+     "ev:qa_run:s21 (dist/ui-qa/s21/flows.json)"
+    ],
+    "flows": [
+     "FF-0482",
+     "FF-0483",
+     "FF-0484",
+     "FF-0485",
+     "FF-0486"
+    ],
+    "passed": 5,
+    "failed": 0
    },
    "responsive_audit": {
     "result": "PENDING",
@@ -14234,7 +14938,7 @@
     "all_combos": 12,
     "results_json": "dist/ui-qa/w5-after/results.json"
    },
-   "status": "NOT_AUDITED",
+   "status": "FUNCTIONAL_PASS",
    "wave": "W12",
    "findings": [
     {
@@ -14874,11 +15578,34 @@
     "notes": ""
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
-    "evidence": [],
-    "flows": []
+    "result": "PASS",
+    "by": "S21 — scripts/ui_qa/s21_e2e.py (실 브라우저 Chromium · 로컬 PostgreSQL 씨앗)",
+    "at": "2026-08-25",
+    "evidence": [
+     "ev:qa_run:s21 (dist/ui-qa/s21/flows.json)"
+    ],
+    "flows": [
+     "FF-0441",
+     "FF-0442",
+     "FF-0443",
+     "FF-0444",
+     "FF-0445",
+     "FF-0446",
+     "FF-0447",
+     "FF-0448",
+     "FF-0449",
+     "FF-0451",
+     "FF-0452",
+     "FF-0453",
+     "FF-0454",
+     "FF-0455",
+     "FF-0456",
+     "FF-0457",
+     "FF-0458",
+     "FF-0459"
+    ],
+    "passed": 18,
+    "failed": 0
    },
    "responsive_audit": {
     "result": "PENDING",
@@ -14924,7 +15651,7 @@
     "all_combos": 12,
     "results_json": "dist/ui-qa/w5-after/results.json"
    },
-   "status": "NOT_AUDITED",
+   "status": "FUNCTIONAL_PASS",
    "wave": "W12",
    "findings": [
     {
@@ -16746,11 +17473,24 @@
     "notes": ""
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
-    "evidence": [],
-    "flows": []
+    "result": "PASS",
+    "by": "S21 — scripts/ui_qa/s21_e2e.py (실 브라우저 Chromium · 로컬 PostgreSQL 씨앗)",
+    "at": "2026-08-25",
+    "evidence": [
+     "ev:qa_run:s21 (dist/ui-qa/s21/flows.json)"
+    ],
+    "flows": [
+     "FF-0947",
+     "FF-0948",
+     "FF-0949",
+     "FF-0950",
+     "FF-0951",
+     "FF-0952",
+     "FF-0953",
+     "FF-0954"
+    ],
+    "passed": 8,
+    "failed": 0
    },
    "responsive_audit": {
     "result": "PENDING",
@@ -16795,7 +17535,7 @@
     "all_combos": 11,
     "results_json": "dist/ui-qa/w5-after/results.json"
    },
-   "status": "NOT_AUDITED",
+   "status": "FUNCTIONAL_PASS",
    "wave": "W10",
    "findings": [
     {
@@ -17030,11 +17770,22 @@
     "notes": ""
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
-    "evidence": [],
-    "flows": []
+    "result": "PASS",
+    "by": "S21 — scripts/ui_qa/s21_e2e.py (실 브라우저 Chromium · 로컬 PostgreSQL 씨앗)",
+    "at": "2026-08-25",
+    "evidence": [
+     "ev:qa_run:s21 (dist/ui-qa/s21/flows.json)"
+    ],
+    "flows": [
+     "FF-0383",
+     "FF-0384",
+     "FF-0385",
+     "FF-0386",
+     "FF-0387",
+     "FF-0388"
+    ],
+    "passed": 6,
+    "failed": 0
    },
    "responsive_audit": {
     "result": "PENDING",
@@ -17072,7 +17823,7 @@
     "all_combos": 4,
     "results_json": "dist/ui-qa/s16-after/results.json"
    },
-   "status": "NOT_AUDITED",
+   "status": "FUNCTIONAL_PASS",
    "wave": "W10",
    "findings": [
     {
@@ -17284,11 +18035,19 @@
     "notes": ""
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
-    "evidence": [],
-    "flows": []
+    "result": "PASS",
+    "by": "S21 — scripts/ui_qa/s21_e2e.py (실 브라우저 Chromium · 로컬 PostgreSQL 씨앗)",
+    "at": "2026-08-25",
+    "evidence": [
+     "ev:qa_run:s21 (dist/ui-qa/s21/flows.json)"
+    ],
+    "flows": [
+     "FF-1315",
+     "FF-1316",
+     "FF-1317"
+    ],
+    "passed": 3,
+    "failed": 0
    },
    "responsive_audit": {
     "result": "PENDING",
@@ -17300,7 +18059,7 @@
     "born_in_session": "S7"
    },
    "after_capture": {},
-   "status": "NOT_AUDITED",
+   "status": "FUNCTIONAL_PASS",
    "wave": "W10",
    "findings": [],
    "suppressions": [],
@@ -17413,11 +18172,34 @@
     "notes": ""
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
-    "evidence": [],
-    "flows": []
+    "result": "PASS",
+    "by": "S21 — scripts/ui_qa/s21_e2e.py (실 브라우저 Chromium · 로컬 PostgreSQL 씨앗)",
+    "at": "2026-08-25",
+    "evidence": [
+     "ev:qa_run:s21 (dist/ui-qa/s21/flows.json)"
+    ],
+    "flows": [
+     "FF-0224",
+     "FF-0225",
+     "FF-0226",
+     "FF-0227",
+     "FF-0228",
+     "FF-0229",
+     "FF-0230",
+     "FF-0231",
+     "FF-0232",
+     "FF-0233",
+     "FF-0234",
+     "FF-0235",
+     "FF-1344",
+     "FF-1345",
+     "FF-1346",
+     "FF-1347",
+     "FF-1348",
+     "FF-1349"
+    ],
+    "passed": 18,
+    "failed": 0
    },
    "responsive_audit": {
     "result": "PENDING",
@@ -17455,7 +18237,7 @@
     "all_combos": 4,
     "results_json": "dist/ui-qa/s16-after/results.json"
    },
-   "status": "NOT_AUDITED",
+   "status": "FUNCTIONAL_PASS",
    "wave": "W10",
    "findings": [
     {
@@ -18018,11 +18800,38 @@
     "notes": ""
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
-    "evidence": [],
-    "flows": []
+    "result": "FAIL",
+    "by": "S21 — scripts/ui_qa/s21_e2e.py (실 브라우저 Chromium · 로컬 PostgreSQL 씨앗)",
+    "at": "2026-08-25",
+    "evidence": [
+     "ev:qa_run:s21 (dist/ui-qa/s21/flows.json)"
+    ],
+    "flows": [
+     "FF-0179",
+     "FF-0180",
+     "FF-0181",
+     "FF-0182",
+     "FF-0183",
+     "FF-0184",
+     "FF-0185",
+     "FF-0186",
+     "FF-0187",
+     "FF-0188",
+     "FF-0189",
+     "FF-0190",
+     "FF-0191",
+     "FF-0192",
+     "FF-0193",
+     "FF-0194",
+     "FF-0195",
+     "FF-0196",
+     "FF-0197",
+     "FF-0198",
+     "FF-0199",
+     "FF-0200"
+    ],
+    "passed": 21,
+    "failed": 1
    },
    "responsive_audit": {
     "result": "PENDING",
@@ -18068,7 +18877,7 @@
     "all_combos": 12,
     "results_json": "dist/ui-qa/w5-after/results.json"
    },
-   "status": "NOT_AUDITED",
+   "status": "IN_PROGRESS",
    "wave": "W9",
    "findings": [
     {
@@ -18625,11 +19434,29 @@
     "notes": ""
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
-    "evidence": [],
-    "flows": []
+    "result": "FAIL",
+    "by": "S21 — scripts/ui_qa/s21_e2e.py (실 브라우저 Chromium · 로컬 PostgreSQL 씨앗)",
+    "at": "2026-08-25",
+    "evidence": [
+     "ev:qa_run:s21 (dist/ui-qa/s21/flows.json)"
+    ],
+    "flows": [
+     "FF-0211",
+     "FF-0212",
+     "FF-0213",
+     "FF-0214",
+     "FF-0215",
+     "FF-0216",
+     "FF-0217",
+     "FF-0218",
+     "FF-0219",
+     "FF-0220",
+     "FF-0221",
+     "FF-0222",
+     "FF-0223"
+    ],
+    "passed": 12,
+    "failed": 1
    },
    "responsive_audit": {
     "result": "PENDING",
@@ -18675,7 +19502,7 @@
     "all_combos": 12,
     "results_json": "dist/ui-qa/w5-after/results.json"
    },
-   "status": "NOT_AUDITED",
+   "status": "IN_PROGRESS",
    "wave": "W9",
    "findings": [
     {
@@ -19085,11 +19912,25 @@
     "notes": ""
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
-    "evidence": [],
-    "flows": []
+    "result": "PASS",
+    "by": "S21 — scripts/ui_qa/s21_e2e.py (실 브라우저 Chromium · 로컬 PostgreSQL 씨앗)",
+    "at": "2026-08-25",
+    "evidence": [
+     "ev:qa_run:s21 (dist/ui-qa/s21/flows.json)"
+    ],
+    "flows": [
+     "FF-0320",
+     "FF-0321",
+     "FF-0322",
+     "FF-0323",
+     "FF-0324",
+     "FF-0325",
+     "FF-0326",
+     "FF-0327",
+     "FF-0328"
+    ],
+    "passed": 9,
+    "failed": 0
    },
    "responsive_audit": {
     "result": "PENDING",
@@ -19135,7 +19976,7 @@
     "all_combos": 12,
     "results_json": "dist/ui-qa/w5-after/results.json"
    },
-   "status": "NOT_AUDITED",
+   "status": "FUNCTIONAL_PASS",
    "wave": "W10",
    "findings": [
     {
@@ -19330,11 +20171,34 @@
     "notes": ""
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
-    "evidence": [],
-    "flows": []
+    "result": "FAIL",
+    "by": "S21 — scripts/ui_qa/s21_e2e.py (실 브라우저 Chromium · 로컬 PostgreSQL 씨앗)",
+    "at": "2026-08-25",
+    "evidence": [
+     "ev:qa_run:s21 (dist/ui-qa/s21/flows.json)"
+    ],
+    "flows": [
+     "FF-0329",
+     "FF-0330",
+     "FF-0331",
+     "FF-0332",
+     "FF-0333",
+     "FF-0334",
+     "FF-0335",
+     "FF-0336",
+     "FF-0337",
+     "FF-0338",
+     "FF-0339",
+     "FF-0340",
+     "FF-0341",
+     "FF-0342",
+     "FF-0343",
+     "FF-0344",
+     "FF-0345",
+     "FF-0346"
+    ],
+    "passed": 17,
+    "failed": 1
    },
    "responsive_audit": {
     "result": "PENDING",
@@ -19358,7 +20222,7 @@
     "fixture": "놀이방이 0건이라 제품 API 로 QA 방을 만들고 찍었다 — POST /api/games/rooms, 되돌리기는 같은 경로의 /disband"
    },
    "after_capture": null,
-   "status": "NOT_AUDITED",
+   "status": "IN_PROGRESS",
    "wave": "W10",
    "findings": [],
    "suppressions": [],
@@ -19507,11 +20371,29 @@
     "notes": ""
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
-    "evidence": [],
-    "flows": []
+    "result": "PASS",
+    "by": "S21 — scripts/ui_qa/s21_e2e.py (실 브라우저 Chromium · 로컬 PostgreSQL 씨앗)",
+    "at": "2026-08-25",
+    "evidence": [
+     "ev:qa_run:s21 (dist/ui-qa/s21/flows.json)"
+    ],
+    "flows": [
+     "FF-0236",
+     "FF-0237",
+     "FF-0238",
+     "FF-0239",
+     "FF-0240",
+     "FF-0241",
+     "FF-0242",
+     "FF-0243",
+     "FF-0244",
+     "FF-0245",
+     "FF-0246",
+     "FF-0247",
+     "FF-0248"
+    ],
+    "passed": 13,
+    "failed": 0
    },
    "responsive_audit": {
     "result": "PENDING",
@@ -19549,7 +20431,7 @@
     "all_combos": 4,
     "results_json": "dist/ui-qa/s16-after/results.json"
    },
-   "status": "NOT_AUDITED",
+   "status": "FUNCTIONAL_PASS",
    "wave": "W10",
    "findings": [
     {
@@ -19790,11 +20672,30 @@
     "notes": ""
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
-    "evidence": [],
-    "flows": []
+    "result": "PASS",
+    "by": "S21 — scripts/ui_qa/s21_e2e.py (실 브라우저 Chromium · 로컬 PostgreSQL 씨앗)",
+    "at": "2026-08-25",
+    "evidence": [
+     "ev:qa_run:s21 (dist/ui-qa/s21/flows.json)"
+    ],
+    "flows": [
+     "FF-1301",
+     "FF-1302",
+     "FF-1303",
+     "FF-1304",
+     "FF-1305",
+     "FF-1306",
+     "FF-1307",
+     "FF-1308",
+     "FF-1309",
+     "FF-1339",
+     "FF-1340",
+     "FF-1341",
+     "FF-1342",
+     "FF-1343"
+    ],
+    "passed": 14,
+    "failed": 0
    },
    "responsive_audit": {
     "result": "PENDING",
@@ -19821,7 +20722,7 @@
     "all_combos": 4,
     "results_json": "dist/ui-qa/s16-after/results.json"
    },
-   "status": "NOT_AUDITED",
+   "status": "FUNCTIONAL_PASS",
    "wave": "W10",
    "findings": [
     {
@@ -19966,11 +20867,21 @@
     "notes": ""
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
-    "evidence": [],
-    "flows": []
+    "result": "FAIL",
+    "by": "S21 — scripts/ui_qa/s21_e2e.py (실 브라우저 Chromium · 로컬 PostgreSQL 씨앗)",
+    "at": "2026-08-25",
+    "evidence": [
+     "ev:qa_run:s21 (dist/ui-qa/s21/flows.json)"
+    ],
+    "flows": [
+     "FF-1310",
+     "FF-1311",
+     "FF-1312",
+     "FF-1313",
+     "FF-1314"
+    ],
+    "passed": 4,
+    "failed": 1
    },
    "responsive_audit": {
     "result": "PENDING",
@@ -19982,7 +20893,7 @@
     "born_in_session": "S7"
    },
    "after_capture": {},
-   "status": "NOT_AUDITED",
+   "status": "IN_PROGRESS",
    "wave": "W10",
    "findings": [],
    "suppressions": [],
@@ -20082,11 +20993,17 @@
     "notes": ""
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
-    "evidence": [],
-    "flows": []
+    "result": "PASS",
+    "by": "S21 — scripts/ui_qa/s21_e2e.py (실 브라우저 Chromium · 로컬 PostgreSQL 씨앗)",
+    "at": "2026-08-25",
+    "evidence": [
+     "ev:qa_run:s21 (dist/ui-qa/s21/flows.json)"
+    ],
+    "flows": [
+     "FF-1321"
+    ],
+    "passed": 1,
+    "failed": 0
    },
    "responsive_audit": {
     "result": "PENDING",
@@ -20098,7 +21015,7 @@
     "born_in_session": "S14"
    },
    "after_capture": {},
-   "status": "NOT_AUDITED",
+   "status": "FUNCTIONAL_PASS",
    "wave": "W10",
    "findings": [],
    "suppressions": [],
@@ -20778,11 +21695,30 @@
     "notes": ""
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
-    "evidence": [],
-    "flows": []
+    "result": "PASS",
+    "by": "S21 — scripts/ui_qa/s21_e2e.py (실 브라우저 Chromium · 로컬 PostgreSQL 씨앗)",
+    "at": "2026-08-25",
+    "evidence": [
+     "ev:qa_run:s21 (dist/ui-qa/s21/flows.json)"
+    ],
+    "flows": [
+     "FF-0359",
+     "FF-0360",
+     "FF-0361",
+     "FF-0362",
+     "FF-0363",
+     "FF-0364",
+     "FF-0365",
+     "FF-0366",
+     "FF-1366",
+     "FF-1367",
+     "FF-1368",
+     "FF-1369",
+     "FF-1370",
+     "FF-1371"
+    ],
+    "passed": 14,
+    "failed": 0
    },
    "responsive_audit": {
     "result": "PENDING",
@@ -20820,7 +21756,7 @@
     "all_combos": 4,
     "results_json": "dist/ui-qa/s16-after/results.json"
    },
-   "status": "NOT_AUDITED",
+   "status": "FUNCTIONAL_PASS",
    "wave": "W10",
    "findings": [
     {
@@ -21052,11 +21988,17 @@
     "notes": ""
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
-    "evidence": [],
-    "flows": []
+    "result": "PASS",
+    "by": "S21 — scripts/ui_qa/s21_e2e.py (실 브라우저 Chromium · 로컬 PostgreSQL 씨앗)",
+    "at": "2026-08-25",
+    "evidence": [
+     "ev:qa_run:s21 (dist/ui-qa/s21/flows.json)"
+    ],
+    "flows": [
+     "FF-0389"
+    ],
+    "passed": 1,
+    "failed": 0
    },
    "responsive_audit": {
     "result": "PENDING",
@@ -21102,7 +22044,7 @@
     "all_combos": 12,
     "results_json": "dist/ui-qa/w5-after/results.json"
    },
-   "status": "NOT_AUDITED",
+   "status": "FUNCTIONAL_PASS",
    "wave": "W10",
    "findings": [
     {
@@ -21356,11 +22298,20 @@
     "notes": ""
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
-    "evidence": [],
-    "flows": []
+    "result": "PASS",
+    "by": "S21 — scripts/ui_qa/s21_e2e.py (실 브라우저 Chromium · 로컬 PostgreSQL 씨앗)",
+    "at": "2026-08-25",
+    "evidence": [
+     "ev:qa_run:s21 (dist/ui-qa/s21/flows.json)"
+    ],
+    "flows": [
+     "FF-0379",
+     "FF-0380",
+     "FF-0381",
+     "FF-0382"
+    ],
+    "passed": 4,
+    "failed": 0
    },
    "responsive_audit": {
     "result": "PENDING",
@@ -21398,7 +22349,7 @@
     "all_combos": 4,
     "results_json": "dist/ui-qa/s16-after/results.json"
    },
-   "status": "NOT_AUDITED",
+   "status": "FUNCTIONAL_PASS",
    "wave": "W10",
    "findings": [
     {
@@ -21652,11 +22603,47 @@
     "notes": ""
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
-    "evidence": [],
-    "flows": []
+    "result": "PASS",
+    "by": "S21 — scripts/ui_qa/s21_e2e.py (실 브라우저 Chromium · 로컬 PostgreSQL 씨앗)",
+    "at": "2026-08-25",
+    "evidence": [
+     "ev:qa_run:s21 (dist/ui-qa/s21/flows.json)"
+    ],
+    "flows": [
+     "FF-0021",
+     "FF-0022",
+     "FF-0023",
+     "FF-0024",
+     "FF-0025",
+     "FF-0026",
+     "FF-0027",
+     "FF-0028",
+     "FF-0029",
+     "FF-0030",
+     "FF-0031",
+     "FF-0032",
+     "FF-0033",
+     "FF-0034",
+     "FF-0035",
+     "FF-0036",
+     "FF-0037",
+     "FF-0038",
+     "FF-0039",
+     "FF-0040",
+     "FF-0041",
+     "FF-0042",
+     "FF-0043",
+     "FF-0044",
+     "FF-1206",
+     "FF-1328",
+     "FF-1329",
+     "FF-1330",
+     "FF-1331",
+     "FF-1332",
+     "FF-1333"
+    ],
+    "passed": 31,
+    "failed": 0
    },
    "responsive_audit": {
     "result": "PENDING",
@@ -21694,7 +22681,7 @@
     "all_combos": 4,
     "results_json": "dist/ui-qa/s16-after/results.json"
    },
-   "status": "NOT_AUDITED",
+   "status": "FUNCTIONAL_PASS",
    "wave": "W9",
    "findings": [
     {
@@ -21950,11 +22937,25 @@
     "notes": ""
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
-    "evidence": [],
-    "flows": []
+    "result": "PASS",
+    "by": "S21 — scripts/ui_qa/s21_e2e.py (실 브라우저 Chromium · 로컬 PostgreSQL 씨앗)",
+    "at": "2026-08-25",
+    "evidence": [
+     "ev:qa_run:s21 (dist/ui-qa/s21/flows.json)"
+    ],
+    "flows": [
+     "FF-0069",
+     "FF-0070",
+     "FF-0071",
+     "FF-0072",
+     "FF-0073",
+     "FF-0074",
+     "FF-0075",
+     "FF-0076",
+     "FF-0077"
+    ],
+    "passed": 9,
+    "failed": 0
    },
    "responsive_audit": {
     "result": "PENDING",
@@ -22000,7 +23001,7 @@
     "all_combos": 12,
     "results_json": "dist/ui-qa/w5-after/results.json"
    },
-   "status": "NOT_AUDITED",
+   "status": "FUNCTIONAL_PASS",
    "wave": "W9",
    "findings": [
     {
@@ -22245,11 +23246,33 @@
     "notes": ""
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
-    "evidence": [],
-    "flows": []
+    "result": "PASS",
+    "by": "S21 — scripts/ui_qa/s21_e2e.py (실 브라우저 Chromium · 로컬 PostgreSQL 씨앗)",
+    "at": "2026-08-25",
+    "evidence": [
+     "ev:qa_run:s21 (dist/ui-qa/s21/flows.json)"
+    ],
+    "flows": [
+     "FF-0347",
+     "FF-0348",
+     "FF-0349",
+     "FF-0350",
+     "FF-0351",
+     "FF-0352",
+     "FF-0353",
+     "FF-0354",
+     "FF-0355",
+     "FF-0356",
+     "FF-0358",
+     "FF-1350",
+     "FF-1351",
+     "FF-1352",
+     "FF-1353",
+     "FF-1354",
+     "FF-1355"
+    ],
+    "passed": 17,
+    "failed": 0
    },
    "responsive_audit": {
     "result": "PENDING",
@@ -22287,7 +23310,7 @@
     "all_combos": 4,
     "results_json": "dist/ui-qa/s16-after/results.json"
    },
-   "status": "NOT_AUDITED",
+   "status": "FUNCTIONAL_PASS",
    "wave": "W10",
    "findings": [
     {
@@ -22515,11 +23538,28 @@
     "notes": ""
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
-    "evidence": [],
-    "flows": []
+    "result": "FAIL",
+    "by": "S21 — scripts/ui_qa/s21_e2e.py (실 브라우저 Chromium · 로컬 PostgreSQL 씨앗)",
+    "at": "2026-08-25",
+    "evidence": [
+     "ev:qa_run:s21 (dist/ui-qa/s21/flows.json)"
+    ],
+    "flows": [
+     "FF-0367",
+     "FF-0368",
+     "FF-0369",
+     "FF-0370",
+     "FF-0371",
+     "FF-0372",
+     "FF-0373",
+     "FF-0374",
+     "FF-0375",
+     "FF-0376",
+     "FF-0377",
+     "FF-0378"
+    ],
+    "passed": 11,
+    "failed": 1
    },
    "responsive_audit": {
     "result": "PENDING",
@@ -22565,7 +23605,7 @@
     "all_combos": 12,
     "results_json": "dist/ui-qa/w5-after/results.json"
    },
-   "status": "NOT_AUDITED",
+   "status": "IN_PROGRESS",
    "wave": "W10",
    "findings": [
     {
@@ -23167,11 +24207,42 @@
     "notes": ""
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
-    "evidence": [],
-    "flows": []
+    "result": "FAIL",
+    "by": "S21 — scripts/ui_qa/s21_e2e.py (실 브라우저 Chromium · 로컬 PostgreSQL 씨앗)",
+    "at": "2026-08-25",
+    "evidence": [
+     "ev:qa_run:s21 (dist/ui-qa/s21/flows.json)"
+    ],
+    "flows": [
+     "FF-0133",
+     "FF-0134",
+     "FF-0135",
+     "FF-0136",
+     "FF-0137",
+     "FF-0138",
+     "FF-0139",
+     "FF-0140",
+     "FF-0141",
+     "FF-0142",
+     "FF-0143",
+     "FF-0144",
+     "FF-0145",
+     "FF-0146",
+     "FF-0147",
+     "FF-0148",
+     "FF-0149",
+     "FF-0150",
+     "FF-0151",
+     "FF-0152",
+     "FF-0153",
+     "FF-0154",
+     "FF-0155",
+     "FF-0156",
+     "FF-0157",
+     "FF-0158"
+    ],
+    "passed": 25,
+    "failed": 1
    },
    "responsive_audit": {
     "result": "PENDING",
@@ -23217,7 +24288,7 @@
     "all_combos": 12,
     "results_json": "dist/ui-qa/w5-after/results.json"
    },
-   "status": "NOT_AUDITED",
+   "status": "IN_PROGRESS",
    "wave": "W10",
    "findings": [
     {
@@ -23478,11 +24549,20 @@
     "notes": ""
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
-    "evidence": [],
-    "flows": []
+    "result": "PASS",
+    "by": "S21 — scripts/ui_qa/s21_e2e.py (실 브라우저 Chromium · 로컬 PostgreSQL 씨앗)",
+    "at": "2026-08-25",
+    "evidence": [
+     "ev:qa_run:s21 (dist/ui-qa/s21/flows.json)"
+    ],
+    "flows": [
+     "FF-0017",
+     "FF-0018",
+     "FF-0019",
+     "FF-0020"
+    ],
+    "passed": 4,
+    "failed": 0
    },
    "responsive_audit": {
     "result": "PENDING",
@@ -23528,7 +24608,7 @@
     "all_combos": 12,
     "results_json": "dist/ui-qa/w5-after/results.json"
    },
-   "status": "NOT_AUDITED",
+   "status": "FUNCTIONAL_PASS",
    "wave": "W10",
    "findings": [
     {
@@ -23720,11 +24800,21 @@
     "notes": ""
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
-    "evidence": [],
-    "flows": []
+    "result": "PASS",
+    "by": "S21 — scripts/ui_qa/s21_e2e.py (실 브라우저 Chromium · 로컬 PostgreSQL 씨앗)",
+    "at": "2026-08-25",
+    "evidence": [
+     "ev:qa_run:s21 (dist/ui-qa/s21/flows.json)"
+    ],
+    "flows": [
+     "FF-1093",
+     "FF-1094",
+     "FF-1095",
+     "FF-1096",
+     "FF-1097"
+    ],
+    "passed": 5,
+    "failed": 0
    },
    "responsive_audit": {
     "result": "PENDING",
@@ -23770,7 +24860,7 @@
     "all_combos": 12,
     "results_json": "dist/ui-qa/w5-after/results.json"
    },
-   "status": "NOT_AUDITED",
+   "status": "FUNCTIONAL_PASS",
    "wave": "W10",
    "findings": [
     {
@@ -23964,11 +25054,24 @@
     "notes": ""
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
-    "evidence": [],
-    "flows": []
+    "result": "FAIL",
+    "by": "S21 — scripts/ui_qa/s21_e2e.py (실 브라우저 Chromium · 로컬 PostgreSQL 씨앗)",
+    "at": "2026-08-25",
+    "evidence": [
+     "ev:qa_run:s21 (dist/ui-qa/s21/flows.json)"
+    ],
+    "flows": [
+     "FF-1098",
+     "FF-1099",
+     "FF-1100",
+     "FF-1101",
+     "FF-1102",
+     "FF-1103",
+     "FF-1104",
+     "FF-1105"
+    ],
+    "passed": 7,
+    "failed": 1
    },
    "responsive_audit": {
     "result": "PENDING",
@@ -24014,7 +25117,7 @@
     "all_combos": 12,
     "results_json": "dist/ui-qa/w5-after/results.json"
    },
-   "status": "NOT_AUDITED",
+   "status": "IN_PROGRESS",
    "wave": "W10",
    "findings": [
     {
@@ -24572,11 +25675,12 @@
     "notes": ""
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
+    "result": "RETIRED",
+    "by": "S21 — scripts/ui_qa/s21_e2e.py (실 브라우저 Chromium · 로컬 PostgreSQL 씨앗)",
+    "at": "2026-08-25",
     "evidence": [],
-    "flows": []
+    "flows": [],
+    "note": "S14·S19 — `/team-docs` 는 `/knowledge` 로 옮겼고 이 주소는 되보내기만 한다"
    },
    "responsive_audit": {
     "result": "PENDING",
@@ -25113,11 +26217,26 @@
     "notes": ""
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
-    "evidence": [],
-    "flows": []
+    "result": "PASS",
+    "by": "S21 — scripts/ui_qa/s21_e2e.py (실 브라우저 Chromium · 로컬 PostgreSQL 씨앗)",
+    "at": "2026-08-25",
+    "evidence": [
+     "ev:qa_run:s21 (dist/ui-qa/s21/flows.json)"
+    ],
+    "flows": [
+     "FF-0294",
+     "FF-0295",
+     "FF-0296",
+     "FF-0297",
+     "FF-0298",
+     "FF-0299",
+     "FF-0300",
+     "FF-0301",
+     "FF-0302",
+     "FF-0303"
+    ],
+    "passed": 10,
+    "failed": 0
    },
    "responsive_audit": {
     "result": "PENDING",
@@ -25155,7 +26274,7 @@
     "all_combos": 4,
     "results_json": "dist/ui-qa/s16-after/results.json"
    },
-   "status": "NOT_AUDITED",
+   "status": "FUNCTIONAL_PASS",
    "wave": "W9",
    "findings": [
     {
@@ -25417,11 +26536,45 @@
     "notes": ""
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
-    "evidence": [],
-    "flows": []
+    "result": "PASS",
+    "by": "S21 — scripts/ui_qa/s21_e2e.py (실 브라우저 Chromium · 로컬 PostgreSQL 씨앗)",
+    "at": "2026-08-25",
+    "evidence": [
+     "ev:qa_run:s21 (dist/ui-qa/s21/flows.json)"
+    ],
+    "flows": [
+     "FF-0097",
+     "FF-0098",
+     "FF-0099",
+     "FF-0100",
+     "FF-0101",
+     "FF-0102",
+     "FF-0103",
+     "FF-0104",
+     "FF-0105",
+     "FF-0106",
+     "FF-0107",
+     "FF-0108",
+     "FF-0109",
+     "FF-0110",
+     "FF-0111",
+     "FF-0112",
+     "FF-0113",
+     "FF-0114",
+     "FF-0115",
+     "FF-0116",
+     "FF-0117",
+     "FF-0121",
+     "FF-1322",
+     "FF-1323",
+     "FF-1324",
+     "FF-1325",
+     "FF-1326",
+     "FF-1327",
+     "FF-1372"
+    ],
+    "passed": 29,
+    "failed": 0
    },
    "responsive_audit": {
     "result": "PENDING",
@@ -25459,7 +26612,7 @@
     "all_combos": 4,
     "results_json": "dist/ui-qa/s16-after/results.json"
    },
-   "status": "NOT_AUDITED",
+   "status": "FUNCTIONAL_PASS",
    "wave": "W9",
    "findings": [
     {
@@ -26023,11 +27176,45 @@
     "notes": ""
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
-    "evidence": [],
-    "flows": []
+    "result": "PASS",
+    "by": "S21 — scripts/ui_qa/s21_e2e.py (실 브라우저 Chromium · 로컬 PostgreSQL 씨앗)",
+    "at": "2026-08-25",
+    "evidence": [
+     "ev:qa_run:s21 (dist/ui-qa/s21/flows.json)"
+    ],
+    "flows": [
+     "FF-0045",
+     "FF-0046",
+     "FF-0047",
+     "FF-0048",
+     "FF-0049",
+     "FF-0050",
+     "FF-0051",
+     "FF-0052",
+     "FF-0053",
+     "FF-0054",
+     "FF-0055",
+     "FF-0056",
+     "FF-0057",
+     "FF-0058",
+     "FF-0059",
+     "FF-0060",
+     "FF-0061",
+     "FF-0062",
+     "FF-0063",
+     "FF-0064",
+     "FF-0065",
+     "FF-0066",
+     "FF-0067",
+     "FF-0068",
+     "FF-1334",
+     "FF-1335",
+     "FF-1336",
+     "FF-1337",
+     "FF-1338"
+    ],
+    "passed": 29,
+    "failed": 0
    },
    "responsive_audit": {
     "result": "PENDING",
@@ -26065,7 +27252,7 @@
     "all_combos": 4,
     "results_json": "dist/ui-qa/s16-after/results.json"
    },
-   "status": "NOT_AUDITED",
+   "status": "FUNCTIONAL_PASS",
    "wave": "W9",
    "findings": [
     {
@@ -26319,11 +27506,19 @@
     "notes": ""
    },
    "functional_audit": {
-    "result": "PENDING",
-    "by": "",
-    "at": "",
-    "evidence": [],
-    "flows": []
+    "result": "PASS",
+    "by": "S21 — scripts/ui_qa/s21_e2e.py (실 브라우저 Chromium · 로컬 PostgreSQL 씨앗)",
+    "at": "2026-08-25",
+    "evidence": [
+     "ev:qa_run:s21 (dist/ui-qa/s21/flows.json)"
+    ],
+    "flows": [
+     "FF-1318",
+     "FF-1319",
+     "FF-1320"
+    ],
+    "passed": 3,
+    "failed": 0
    },
    "responsive_audit": {
     "result": "PENDING",
@@ -26350,7 +27545,7 @@
     "all_combos": 4,
     "results_json": "dist/ui-qa/s16-after/results.json"
    },
-   "status": "NOT_AUDITED",
+   "status": "FUNCTIONAL_PASS",
    "wave": "W10",
    "findings": [],
    "suppressions": [

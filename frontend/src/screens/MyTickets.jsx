@@ -1150,6 +1150,12 @@ export function NewTicket() {
   const me = auth.data && (auth.data.user || auth.data);
   const set = (k, v) => setForm((s) => ({ ...s, [k]: v }));
   const notConfigured = (projectsQ.data && projectsQ.data.configured === false) || (metaQ.data && metaQ.data.configured === false);
+  /* 후보를 **못 받은 것**과 후보가 **없는 것**은 다른 사실이다. 예전에는 조회가 실패해도
+     `projects` 가 그냥 빈 배열이 되어 프로젝트 칸이 "선택할 수 있는 프로젝트가 없습니다"
+     라고만 말했다 — 사용자는 자기 권한에 프로젝트가 없다고 읽고, 실제로는 서버를 못
+     불렀는데 다시 시도할 자리도 없었다. 실패는 실패라고 말하고 다시 부를 길을 준다. */
+  const loadFailed = projectsQ.isError || metaQ.isError;
+  const retryLoad = () => { projectsQ.refetch(); metaQ.refetch(); };
 
   function submit() {
     if (!form.title.trim()) { toast("제목을 입력하세요.", "error"); return; }
@@ -1173,6 +1179,10 @@ export function NewTicket() {
       <PageHeader crumbRoot="내 업무" area="새 티켓" title="새 티켓" />
       {notConfigured ? (
         <Callout tone="warn">지금은 티켓을 만들 수 없습니다. 잠시 뒤 다시 시도해 보시고, 계속 같으면 관리자에게 문의하세요.</Callout>
+      ) : loadFailed ? (
+        /* `ErrorState` 는 상태 코드로 제목과 안내를 스스로 고른다(401·403·404·네트워크를
+           갈라 쓴다) — 여기서 문구를 덧씌우지 않는다. */
+        <ErrorState error={projectsQ.error || metaQ.error} onRetry={retryLoad} />
       ) : (
         /* 폼 + 작성 도움 레일 2열(기준 목업과 같은 구조). 좁아지면 레일이 폼 아래로 내려간다 —
            레일을 옆에 억지로 붙여 두면 폼이 짜부라져 정작 쓸 수가 없다. */

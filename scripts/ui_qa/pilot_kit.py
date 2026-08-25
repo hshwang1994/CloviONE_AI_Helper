@@ -71,7 +71,11 @@ def row_title(r, index: int = 0, prefix: str = "업무") -> str:
     C13 의 대조는 «그 행에 그 값이 있는가» 라, 행을 찾을 열쇠가 필요하다. 씨앗의 티켓
     제목은 «업무 07 — …» 꼴이라 앞 여섯 글자면 한 행을 가리킨다.
     """
-    row = r.page.locator("table tbody tr").nth(index)
+    # **값이 있는 행만 센다.** 티켓 표는 프로젝트로 묶여서 `tbody` 안에 «인프라 정비 4건»
+    # 짜리 머리글 줄이 섞인다. 그 줄을 «행» 으로 잡으면 이 함수가 묶음 이름을 돌려주고,
+    # 그 이름으로 다른 화면에서 행을 찾으니 언제나 못 찾는다 — S21 이 여섯 Flow 에서
+    # 「저장이 안 갔다」를 그 이유로 잘못 적었다.
+    row = r.page.locator("table tbody tr:has(td)").nth(index)
     if not row.count():
         return ""
     text = " ".join((row.inner_text() or "").split())
@@ -676,13 +680,29 @@ def hidden_without_role(control: str, *, role: str = "user", kind: str = "button
     return _act
 
 
+def read_main(p) -> str:
+    """본문 글을 읽되, **본문이 없으면 그것도 관측이다**.
+
+    `locator("#main-content").inner_text()` 는 그 자리가 없으면 30초를 기다리다 죽는다.
+    그런데 관리자 화면을 일반 사용자로 열면 본문이 **아예 안 그려지는** 것이 정답이고,
+    그 정답 위에서 하네스가 죽으면 기록에는 「측정 실패」가 남는다 — 제품의 가장 강한
+    차단이 결함처럼 보인다. S18 의 실패 여섯 중 셋이 이 자리였다.
+    """
+    main = p.locator("#main-content")
+    if not main.count():
+        body = " ".join((p.evaluate("() => document.body.innerText || ''") or "").split())
+        return "(본문 없음) " + body[:140]
+    try:
+        return " ".join((main.inner_text(timeout=5000) or "").split())[:140]
+    except Exception:  # noqa: BLE001
+        return "(본문을 못 읽었다)"
+
+
 def blocked_route(hash_path: str, *, role: str = "user", shell: str = "/admin"):
     """이 역할에게는 **화면 자체가 안 열린다**. 열리면 그것이 권한 결함이다."""
     def _act(r, ctx):
-        text = r.as_role(role, hash_path, shell,
-                         lambda p: " ".join((p.locator("#main-content").inner_text()
-                                             or "").split())[:140])
-        denied = any(w in text for w in ("권한", "찾을 수 없", "로그인"))
+        text = r.as_role(role, hash_path, shell, read_main)
+        denied = any(w in text for w in ("권한", "찾을 수 없", "로그인", "본문 없음"))
         return {"ui_action": "역할 %s 로 %s 를 연다" % (role, hash_path),
                 "frontend_state": "라우트 역할 가드",
                 "observed": {"body": text},

@@ -158,8 +158,15 @@ export function ConversationSidebar({
             빈 "새 대화" {emptyUnarchived.length}개 일괄 보관
           </Button>
         ) : null}
-        {/* 대화가 쌓일수록 스크롤만으로 찾기 어렵다 — 제목·본문 검색(AI-38, 서버가 거른다). */}
-        {convItems.length > 0 ? (
+        {/* 대화가 쌓일수록 스크롤만으로 찾기 어렵다 — 제목·본문 검색(AI-38, 서버가 거른다).
+         *
+         * 🔴 **검색 중에는 결과가 0건이어도 상자를 남긴다** (S21). `convItems` 는 서버가
+         * 이미 걸러 온 결과라, 조건이 하나도 안 맞는 순간 이 상자가 **자기를 지웠다** —
+         * 한 글자를 잘못 친 사람은 그 글자를 지울 칸을 잃는다. 브라우저 실측에서 «존재하지
+         * 않는대화zz» 를 친 뒤 입력 칸이 DOM 에서 사라졌다. 아래 빈 상태의 «검색어 지우기»
+         * 가 유일한 출구였는데, 조건을 **좁힌 사람이 넓히는 길**은 그 조건을 적은 자리여야
+         * 한다. 검색어가 있으면 결과가 없어도 상자를 남긴다. */}
+        {(convItems.length > 0 || convFilter.trim()) ? (
           <Paper variant="outlined" sx={{ display: "flex", alignItems: "center", gap: 1, px: 1.25, py: 0.25, borderRadius: 2 }}>
             <SearchRoundedIcon aria-hidden="true" sx={{ fontSize: "1.125rem", color: "text.secondary" }} />
             <InputBase

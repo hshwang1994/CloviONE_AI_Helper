@@ -48,6 +48,18 @@ DEFAULT_PG = os.environ.get(
 DB_NAME = "clovir_uiqa_%d" % os.getpid()
 
 
+def set_db_name(name: str) -> None:
+    """이 프로세스가 쓸 데이터베이스 이름을 고정한다 (S21).
+
+    기본값은 pid 를 붙여 매번 다르다 — 한 번 띄우고 한 번 찍는 회차에는 그것이 맞다.
+    그런데 Acceptance 는 **같은 서버에 여러 묶음을 나눠 붙인다**(§7 의 bounded batch).
+    묶음마다 새 데이터베이스를 만들면 alembic 을 열두 번 더 돌리고, 더 나쁘게는 묶음마다
+    씨앗의 id 가 달라져 앞 묶음이 찾은 주소가 다음 묶음에서 죽는다.
+    """
+    global DB_NAME
+    DB_NAME = name
+
+
 def _url_for(name: str) -> str:
     head, _, _ = DEFAULT_PG.rpartition("/")
     return f"{head}/{name}"
@@ -113,13 +125,22 @@ def build_settings(database_url: str, workdir: Path):
 
     secrets_dir = workdir / "secrets"
     secrets_dir.mkdir(parents=True, exist_ok=True)
+    # 🔴 설정 디렉터리를 **베껴서** 쓴다 (S21). 예전에는 저장소의 `config/` 를 그대로
+    # 가리켰는데, 기능 플래그 쓰기(`PUT /api/admin/feature-flags/{key}`)의 정본이 그 안의
+    # 파일이라 **QA 실행이 저장소의 tracked 파일을 고쳤다.** 값은 같았지만 파일이 다시
+    # 쓰이며 키 순서가 바뀌었고, 그 diff 는 이번 작업과 아무 상관이 없다.
+    config_dir = workdir / "config"
+    if not config_dir.exists():
+        import shutil
+
+        shutil.copytree(REPO_ROOT / "config", config_dir)
     return Settings(
         _env_file=None,
         app_env="test",
         database_url=database_url,
         session_secret="ui-qa-local-session-secret",
         cookie_secure=False,          # http 로 띄우므로 Secure 쿠키는 안 붙는다
-        config_dir=REPO_ROOT / "config",
+        config_dir=config_dir,
         secrets_dir=secrets_dir,
         data_dir=workdir,
     )
@@ -229,8 +250,35 @@ def seed(database_url: str, email: str, password: str, settings) -> None:
         _seed_pilot(db, settings, me, projects, now)
         db.flush()
         _seed_w10(db, me, now)
+        db.flush()
+        _seed_s21(db, me, now)
+        db.commit()
+        _seed_search_index(db, settings, now)
         db.commit()
     engine.dispose()
+
+
+def _seed_search_index(db, settings, now) -> None:
+    """검색 색인을 한 번 세운다 (S21).
+
+    검색은 표를 직접 훑지 않는다 — `search_documents` 색인을 읽고, 그 색인은 정기 워커 틱
+    (`search_index_interval_seconds`)이나 `POST /api/search/reindex` 가 세운다. 이 서버에는
+    워커가 없으니 심은 티켓·문서·게시글·사용자가 **하나도 검색되지 않았다**. 그것은 검색이
+    고장 난 것이 아니라 **아직 색인한 적이 없는 것**이라, 여기서 제품이 쓰는 그 함수를
+    그대로 한 번 부른다.
+    """
+    from app.core.allowlist import AllowlistRegistry
+    from app.core.http_client import OutboundClient
+    from app.core.secret_refs import FileSecretReferenceProvider
+    from app.core.source_registry import build_repositories
+    from app.search.indexer import reindex_all
+
+    outbound = OutboundClient(
+        AllowlistRegistry(settings.config_dir),
+        FileSecretReferenceProvider(settings.secrets_dir),
+    )
+    result = reindex_all(db, tickets=build_repositories(settings, outbound).tickets, now=now)
+    print("SEARCH_INDEX=%s items=%s" % (result.status, result.item_count), flush=True)
 
 
 def _seed_pilot(db, settings, me, projects, now) -> None:
@@ -414,6 +462,184 @@ def _seed_pilot(db, settings, me, projects, now) -> None:
                         else "저장소에 쓸 수 없습니다 (permission denied)") if failed else None,
             created_at=now - timedelta(minutes=i * 5),
         ))
+
+
+def _seed_s21(db, me, now) -> None:
+    """관리자 영역이 **빈 화면이 아니게** 한다 (S21 · W14).
+
+    S15·S18 의 씨앗은 사용자 화면을 위한 것이었다. 그 위에서 S21 이 감사해야 하는 관리자
+    화면 열둘이 **0행**이었다: 프롬프트 · 정책 · 공지 · AI 상한 · 외부 연동 · 실행 일정 ·
+    승인 위임 · 백업 · 복구 리허설 · 놀이방 · 사용 통계 둘.
+
+    빈 목록 위에서 「행을 골라 고친다」를 돌리면 Flow 는 「누를 것이 없다」로 죽고, 그
+    죽음이 **제품 결함처럼 보인다**. 반대로 그 Flow 를 지우면 원장에는 「감사했다」가
+    남는데 실제로 본 것은 빈 화면뿐이다 — 두 쪽 다 거짓이다.
+
+    **UI 로 만들 수 있는 것도 여기서 심는다.** 만드는 Flow 는 만드는 Flow 대로 돌지만,
+    그 Flow 하나가 실패하면 뒤따르는 열 몇 개가 연쇄로 죽는다. Flow 는 서로 독립이어야
+    한다(S18 이 같은 이유로 `goto` 를 다시 읽게 했다).
+    """
+    import json as _json
+    from datetime import timedelta
+
+    from app.announcements.models import Announcement
+    from app.approvals.models import ApprovalDelegation
+    from app.backups.models import (
+        BACKUP_TYPE_PG_DUMP, FILE_PRESENT, STATUS_VERIFIED, Backup, RestoreRehearsal,
+    )
+    from app.games.models import (
+        GAME_QUICK_VOTE, GAME_RANDOM_DRAW, ROLE_HOST, ROLE_PLAYER, ROOM_WAITING,
+        GameRoom, GameRoomMember,
+    )
+    from app.integrations.models import Integration
+    from app.org.constants import DEFAULT_ORG_ID
+    from app.prompts.models import STATUS_DRAFT, STATUS_PUBLISHED, Policy, Prompt
+    from app.quotas.models import GLOBAL_USER_ID, PERIOD_DAY, SCOPE_GLOBAL, AiQuota
+    from app.schedules.models import (
+        RUN_FAILED, RUN_SUCCEEDED, TARGET_SYSTEM, TYPE_CRON, Schedule, ScheduleRun,
+    )
+    from app.users.models import User
+
+    people = db.query(User).order_by(User.created_at).all()
+    other = next((u for u in people if u.id != me.id), me)
+
+    # 프롬프트·정책 (AI 저작). 발행본과 초안을 **같은 이름으로** 둔다 — 「버전 기록」 하위
+    # 목록과 「초안일 때만 수정」 갈래는 한 이름에 판이 둘 이상이어야 화면에 나타난다.
+    prompts = []
+    for name, version, status, published in (
+        ("티켓 요약", 1, STATUS_PUBLISHED, now - timedelta(days=3)),
+        ("티켓 요약", 2, STATUS_DRAFT, None),
+        ("회의록 정리", 1, STATUS_PUBLISHED, now - timedelta(days=9)),
+    ):
+        row = Prompt(name=name, purpose="%s 용 지시문입니다." % name, version=version,
+                     content="다음 내용을 세 문장으로 요약해 주세요.",
+                     status=status, created_by=me.id,
+                     created_at=now - timedelta(days=10 - version),
+                     published_at=published)
+        db.add(row)
+        prompts.append(row)
+    for name, version, status in (("응답 길이 제한", 1, STATUS_PUBLISHED),
+                                  ("금지어", 1, STATUS_DRAFT)):
+        db.add(Policy(name=name, purpose="%s 정책입니다." % name, version=version,
+                      content_json=_json.dumps({"max_tokens": 800}, ensure_ascii=False),
+                      status=status, created_by=me.id,
+                      created_at=now - timedelta(days=6),
+                      published_at=(now - timedelta(days=5)
+                                    if status == STATUS_PUBLISHED else None)))
+    db.flush()
+
+    # 실행 일정 + 실행 이력. 사용 통계 화면은 「이 프롬프트를 가리키는 일정이 있는가」로
+    # «쓰이는가» 를 센다 — 일정이 하나도 없으면 모든 행이 «쓰이지 않음» 이라 판정력이 0 이다.
+    schedules = []
+    for i, (name, enabled, prompt_ref) in enumerate((
+        ("야간 티켓 요약", True, prompts[0].id),
+        ("주간 회의록 정리", False, prompts[2].id),
+    )):
+        row = Schedule(name=name, description="%s 을(를) 정해진 시각에 돌립니다." % name,
+                       schedule_type=TYPE_CRON, cron_expression="0 %d * * *" % (2 + i),
+                       owner_user_id=me.id, target_type=TARGET_SYSTEM,
+                       target_ref="ai.summarize", prompt_id=prompt_ref,
+                       enabled=enabled, next_run_at=now + timedelta(hours=6 + i),
+                       last_run_at=now - timedelta(hours=18 - i))
+        db.add(row)
+        schedules.append(row)
+    db.flush()
+    for i, status in enumerate((RUN_SUCCEEDED, RUN_SUCCEEDED, RUN_FAILED)):
+        db.add(ScheduleRun(
+            schedule_id=schedules[0].id, scheduled_at=now - timedelta(days=i + 1),
+            idempotency_key="s21-run-%d" % i, status=status,
+            response_summary=("성공했습니다." if status == RUN_SUCCEEDED
+                              else "대상이 응답하지 않았습니다."),
+            started_at=now - timedelta(days=i + 1),
+            finished_at=now - timedelta(days=i + 1) + timedelta(seconds=12)))
+
+    # 공지 배너·AI 사용 상한. 공지 하나는 **꺼진 채로** 둔다: 「사용」 조건이 실제로 무엇을
+    # 거르는지 보이게.
+    for title, active in (("정기 점검 안내", True), ("지난 분기 공지", False)):
+        db.add(Announcement(title=title, body="자세한 내용은 공지 게시판을 확인해 주세요.",
+                            level="info", audience="all", active=active,
+                            created_by=me.id, created_at=now - timedelta(days=2)))
+    db.add(AiQuota(scope_type=SCOPE_GLOBAL, user_id=GLOBAL_USER_ID, period=PERIOD_DAY,
+                   max_calls=500, note="전체 기본 상한입니다.", created_by=me.id))
+    db.add(AiQuota(scope_type="user", user_id=other.id, period=PERIOD_DAY,
+                   max_calls=50, note="개별 상한입니다.", created_by=me.id))
+
+    # 외부 연동.
+    for name, enabled, health in (("사내 메신저", True, "ok"), ("사내 위키", False, "unknown")):
+        db.add(Integration(name=name, provider_type="http_service",
+                           description="%s 로 보내는 바깥 호출입니다." % name,
+                           base_url="https://example.invalid/%s" % name,
+                           health_url="https://example.invalid/%s/health" % name,
+                           auth_type="none", enabled=enabled, last_health_status=health,
+                           last_health_at=now - timedelta(hours=1)))
+
+    # 승인 위임.
+    db.add(ApprovalDelegation(delegator_user_id=me.id, delegate_user_id=other.id,
+                              reason="휴가 기간 동안 대신 결재합니다.",
+                              starts_at=now - timedelta(days=1),
+                              ends_at=now + timedelta(days=6), created_by=me.id))
+
+    # 백업·복구 리허설. 리허설 하나는 **실패**로 둔다 — 성공만 있으면 실패 배지가 화면에
+    # 있는지 확인할 방법이 없다(같은 이유로 `_seed_w10` 이 감사 실패 한 줄을 섞는다).
+    for i in range(2):
+        db.add(Backup(backup_type=BACKUP_TYPE_PG_DUMP,
+                      path="/var/backups/clovirassist/2026082%d-020000/db.dump" % (3 + i),
+                      status=STATUS_VERIFIED, size_bytes=48_000_000 + i, checksum="0" * 64,
+                      created_by=me.id, created_at=now - timedelta(days=i + 1),
+                      verified_at=now - timedelta(days=i + 1) + timedelta(minutes=4),
+                      file_state=FILE_PRESENT,
+                      manifest_json=_json.dumps({"tables": 93}, ensure_ascii=False)))
+    for i, ok in enumerate((True, False)):
+        db.add(RestoreRehearsal(
+            source_label="2026082%d-020000" % (3 + i),
+            started_at=now - timedelta(days=i + 1),
+            finished_at=now - timedelta(days=i + 1) + timedelta(minutes=9), ok=ok,
+            failures_json=None if ok else _json.dumps(["첨부 3건이 안 맞습니다."],
+                                                      ensure_ascii=False),
+            summary_json=_json.dumps({"tables": 93, "rows": 12004}, ensure_ascii=False),
+            created_by=me.id))
+
+    # 놀이방. **두 종류를 심는다** (S21): «준비/준비 해제» 는 `canReady = isDraw && …`
+    # 라서 추첨 게임에만 있다(`frontend/src/screens/game-room/useGameRoomController.js`).
+    # 투표 방만 심어 두면 그 동작은 영영 「버튼이 없다」로 적힌다 — 없는 것이 아니라
+    # 이 방에 없는 것이다.
+    draw = GameRoom(title="S21 추첨 방", game_type=GAME_RANDOM_DRAW, host_user_id=me.id,
+                    status=ROOM_WAITING, max_players=8, allow_spectators=True,
+                    org_id=DEFAULT_ORG_ID)
+    db.add(draw)
+    db.flush()
+    db.add(GameRoomMember(room_id=draw.id, user_id=me.id, role=ROLE_PLAYER))
+
+    room = GameRoom(title="점심 메뉴 정하기", game_type=GAME_QUICK_VOTE, host_user_id=me.id,
+                    status=ROOM_WAITING, max_players=8, allow_spectators=True,
+                    config_json=_json.dumps({"options": ["국밥", "돈가스", "비빔밥"]},
+                                            ensure_ascii=False),
+                    org_id=DEFAULT_ORG_ID)
+    db.add(room)
+    db.flush()
+    db.add(GameRoomMember(room_id=room.id, user_id=me.id, role=ROLE_HOST))
+
+    # 휴지통. **복원과 영구 삭제는 되돌릴 대상이 있어야 잴 수 있다.** 하나는 남이 버린
+    # 것으로 둔다 — 「관리할 수 있는 행만 고를 수 있다」는 두 종류가 섞여야 보인다.
+    from app.org.constants import DEFAULT_ORG_ID as _ORG
+    from app.trash.models import TRASH_DOCUMENT, TRASH_TICKET, TrashItem
+
+    # **여섯 건을 심는다.** 이 화면의 Flow 는 복원·영구 삭제·일괄 복원·일괄 영구 삭제를
+    # 차례로 하는데, 셋만 심으면 뒤의 두 Flow 가 「고를 행이 없다」로 죽는다 — 화면이
+    # 아니라 씨앗이 모자란 것이다.
+    for i, (kind, title, owner) in enumerate((
+        (TRASH_TICKET, "업무 90 — 버린 티켓", me),
+        (TRASH_DOCUMENT, "문서 90 — 버린 문서", me),
+        (TRASH_TICKET, "업무 91 — 남이 버린 티켓", other),
+        (TRASH_TICKET, "업무 92 — 버린 티켓", me),
+        (TRASH_DOCUMENT, "문서 92 — 버린 문서", me),
+        (TRASH_TICKET, "업무 93 — 버린 티켓", me),
+    )):
+        db.add(TrashItem(
+            item_type=kind, notion_page_id="s21-trash-%02d" % i, title=title,
+            url=None, target_uid=None, deleted_by_user_id=owner.id,
+            deleted_by_name=owner.display_name or "", deleted_at=now - timedelta(hours=i + 1),
+            org_id=_ORG))
 
 
 def _seed_w10(db, me, now) -> None:
@@ -618,11 +844,19 @@ def main() -> int:
     ap.add_argument("--password", default="Ui-Qa-Local-1!")
     ap.add_argument("--port", type=int, default=0)
     ap.add_argument("--hold", action="store_true", help="Ctrl+C 까지 붙잡는다")
+    ap.add_argument("--db-name", default="", help="고정 데이터베이스 이름 (S21 bounded batch)")
+    ap.add_argument("--data-dir", default="", help="고정 작업 디렉터리 (비밀·업로드)")
+    ap.add_argument("--keep", action="store_true",
+                    help="끝나도 데이터베이스를 안 지운다 — 여러 묶음이 같은 씨앗을 본다")
     args = ap.parse_args()
 
     import tempfile
 
-    workdir = Path(tempfile.mkdtemp(prefix="clovir-uiqa-"))
+    if args.db_name:
+        set_db_name(args.db_name)
+    workdir = Path(args.data_dir) if args.data_dir else Path(
+        tempfile.mkdtemp(prefix="clovir-uiqa-"))
+    workdir.mkdir(parents=True, exist_ok=True)
     url = create_database()
     try:
         settings = build_settings(url, workdir)
@@ -630,6 +864,12 @@ def main() -> int:
         port = args.port or _free_port()
         server, _ = serve(settings, port)
         print("http://127.0.0.1:%d" % port, flush=True)
+        # 다른 프로세스(하네스 묶음)가 같은 DB·같은 비밀 디렉터리를 보게 하는 데 필요한 값.
+        # 이것을 안 알려 주면 `auth.py` 의 역할 계정 프로비저닝이 **기본 주소**로 붙다가
+        # 시간 초과로 죽는다 — 실제로 S21 첫 실행이 그렇게 죽었다.
+        print("DATABASE_URL=%s" % url, flush=True)
+        print("DATA_DIR=%s" % workdir, flush=True)
+        print("SECRETS_DIR=%s" % settings.secrets_dir, flush=True)
         if args.hold:
             try:
                 while True:
@@ -639,7 +879,8 @@ def main() -> int:
         server.should_exit = True
         time.sleep(0.5)
     finally:
-        drop_database()
+        if not args.keep:
+            drop_database()
     return 0
 
 

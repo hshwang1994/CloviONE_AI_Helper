@@ -205,7 +205,11 @@ class Runner:
             raise Stop("역할 전환에는 브라우저가 필요하다 — Runner 에 안 넘겨졌다")
         page = self._role_pages.get(role)
         if page is None:
-            out_dir = REPO_ROOT / "dist" / "ui-qa" / ("role-" + role)
+            # 세션 자리를 바꿀 수 있게 둔다 — 같은 표를 여러 프로세스가 나눠 돌릴 때
+            # (S21 의 bounded batch) 네 실행이 같은 `storage_state.json` 을 서로 덮으면
+            # 한쪽이 남의 역할로 로그인한 채로 잰다.
+            base = getattr(self, "session_dir", None) or (REPO_ROOT / "dist" / "ui-qa")
+            out_dir = base / ("role-" + role)
             session = ensure_session(self._browser, self.base, out_dir,
                                      insecure=self._insecure, role=role)
             context = new_context(self._browser, storage_state=session.storage_state,
@@ -629,7 +633,11 @@ def _cross_check(runner: "Runner", flow: Flow, action: dict, record: dict) -> li
         ".map(el => el.value || '').filter(Boolean).join(' | ')") or ""
     text = (runner.main_text(4000) + " | " + values)[:8000]
     if spec.get("row"):
-        row = runner.page.locator("table tbody tr").filter(has_text=spec["row"]).first
+        # **묶음 머리글은 행이 아니다.** 티켓 표는 프로젝트로 묶여서 `tbody` 안에 값이 없는
+        # 줄이 섞인다. 그 줄이 먼저 잡히면 대조는 언제나 «인프라 정비 5건» 을 보고 실패한다 —
+        # 화면이 아니라 표를 잘못 센 것이다(S21 이 여섯 Flow 에서 같은 자리를 밟았다).
+        row = runner.page.locator("table tbody tr:has(td)").filter(
+            has_text=spec["row"]).first
         row_text = " ".join((row.inner_text() or "").split()) if row.count() else ""
         if spec.get("row_absent"):
             entry.update({"row": spec["row"], "expect": "그 행에 없어야 한다: %s" % spec["row_absent"],

@@ -545,7 +545,7 @@ SHA256SUMS}` 세트다. 파생 넷은 **행만** 빠지고(`--exclude-table-data
 
 | S | 이름 | 원 Wave | Exit 조건 |
 |---|---|---|---|
-| **S21** | Functional E2E 전수 (27범주 + Backlog/Sprint/Board/Space/Citation/Storage) | W14 | C11~C14 통과 · `exists:true` Flow 에 `NOT_AUDITED` 0 |
+| **S21** ✅ | Functional E2E 전수 (27범주 + Backlog/Sprint/Board/Space/Citation/Storage) | W14 | **완료 (2026-08-26 · `S21_COMMIT_SHA`).** 물은 것은 하나다 — **사용자가 실제로 그 기능을 쓸 수 있는가.** 원장의 `exists:true` NOT_AUDITED 931건을 먼저 소스와 대조해 **111건이 이미 없어진 기능**임을 확인하고(`/team-docs` 되보내기 · 러너·워크플로·템플릿 · 수동 동기화 · S20 이 내린 「유형」 선택기), 남은 820건을 실브라우저(Chromium · 로컬 PostgreSQL 씨앗)에서 눌렀다 — 첫 전수 **662 PASS / 158 FAIL** → 마지막 전수 **738 / 82** → 표적 재검증 뒤 **최종 766 PASS / 43 FAIL**. `exists:true` 에 `NOT_AUDITED` **0건**이고 `--stage plan` 초록이다. 🔴 **눌러도 아무 데도 안 가는 버튼이 일곱 개 있었다**(D-324): 행 액션은 `a.navigate` 를 맨 앞에서 처리하는데 머리 액션에는 그 가지가 없어, registry 가 `navigate` 로 선언한 버튼이 쓰기 분기로 떨어져 `a.path()` 에서 예외가 났고 그 예외를 오류 처리기가 삼켰다 — **오류도 이동도 없어서 어떤 시험도 못 봤다**(백업 목록 · 백업 일정 설정 · 정책/프롬프트 사용 통계 · 이상 징후 보기 · 감사 로그 전체 · 감사 로그에서 보기, Flow 10건). 🔴 **AI 도우미의 대화 검색 상자가 결과 0건이면 자기를 지웠다**(D-325) — 한 글자를 잘못 친 사람이 그 글자를 지울 칸을 잃는다. 🔴 **원장이 제품에 없는 동작을 「안 봤다」로 들고 있었다**(D-323): 정렬은 날짜 열에만 붙고(`dateCol`), 조직 콘솔의 오른쪽 판은 `inSplitView` 라 검색 상자도 저장된 뷰도 안 그리며, 알림 화면은 `?id=` 딥링크가 없다 — 제품을 원장에 맞추지 않고 원장을 제품에 맞춰 122건을 `exists:false` 로 내렸다. **권한은 양방향으로 쟀다**: 역할 다섯 × 관리자 엔드포인트 18 + 목록·상세 일관성 4종(표본 8·8·8·3), 어긋남 **0건** — 일반 사용자는 전부 403 이고 목록에서 안 보이는 문서·티켓·프로젝트가 **상세 주소로도 안 열린다**. 화면 판정 **PASS 46 · FAIL 21 · RETIRED 1**. 남은 실패 43건은 전부 QA(31)·씨앗(10)·환경(2)이고 **제품 결함은 0** 이다(**P-53**). 결정 **D-322~D-325** |
 | **S22** | Final Audit · **Full Capture(최초이자 유일)** · **설치 Acceptance 완주** · **S21 Evidence 재사용** | W15 | 이 문서 §10 + CLAUDE.md §11 + INSTALLATION §8 전 단계 |
 
 ### 9.2 Dependency
@@ -824,7 +824,7 @@ Wave 별 전체 Regression·전량 Capture 를 반복하지 않는다.
 | W11 | 관리자 IA | **REDEFINE**(§14.1 IA 로 교체) | **S20** |
 | W12 | 관리자 Console 44 Surface | **REDEFINE** — Notion/SQLite 화면 제거 후 재산정 | **S20** (W11 과 `navConfig.js`·`AdminRoutes.jsx` 를 공유해 분리하면 충돌한다 — 이 묶음만 예외로 합친다) |
 | **W13** | Identity + Hostname + TLS | **MOVE — 맨 앞으로** | **S3 단독.** 이후 모든 캡처 증거가 한 origin 으로 남아야 한다 |
-| W14 | Functional E2E 27범주 전수 | **KEEP + 확장**(Backlog·Sprint·Board·Space·AI Citation·Storage) | **S21 단독** |
+| W14 | Functional E2E 27범주 전수 | **KEEP + 확장**(Backlog·Sprint·Board·Space·AI Citation·Storage) | **S21 ✅ 완료** |
 | W15 | Whole-product 재감사 | **KEEP + 확장**(설치 Acceptance 포함) | **S22 단독** |
 
 **W0~W5 자산 보존**: `theme.js` · `kit.jsx` · `FilterBar`/`filters.jsx` · `EntityCombobox` ·
