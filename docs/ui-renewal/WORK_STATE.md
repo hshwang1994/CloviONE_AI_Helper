@@ -29,6 +29,7 @@
 - remaining: **비차단 잔여 3종은 P-44 다** — ① C11 사슬의 서버 칸 243건(하네스가
   `/openapi.json` 에서 핸들러 표를 만드는데 제품이 그 경로를 안 연다) ② 조건 다섯 축이 아직
   없는 화면 24건 ③ 화면 사슬 칸이 빈 Flow 7건. 실패 6건도 같은 항목이다
+- commit: `f1968a09` (S18 본체)
 - suppressions: **1건 (SUP-01)** — 칸반 레인의 균등 격자. 만료 2026-10-20
 - plan: `docs/ui-renewal/PLAN.md`(UI 축 정본) · `DIRECTIVE_v7.txt`(원 지시서) ·
   **`docs/platform/MASTER_PLAN.md`(제품 전체 정본 — 여기가 상위다)**

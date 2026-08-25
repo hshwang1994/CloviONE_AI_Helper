@@ -18,6 +18,7 @@
   **S18 도 옮기지 않는다.** 이유는 S11~S17 과 같다 — 그 기준을 옮기는 순간 그동안 지운
   시험들이 검사 시야에서 사라진다.
 - working_tree: clean
+- s18_commit: **`f1968a09`** — S18 본체(문서·원장·하네스·화면·시험)
 - deployed: **S15~S17 이 운영에 나갔다. S18 은 아직 안 나갔다** (2026-08-25 04:13, `install.sh upgrade --source local`).
   Stage 0~18 전부 OK · `VERIFY_OK` · 스냅샷 `/var/backups/clovirassist/20260825-041314`.
   `/healthz` `{"status":"ok","ticket_source":"native"}` · `/readyz` `{"status":"ready"}` ·
