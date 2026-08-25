@@ -1,0 +1,27 @@
+    "parent_st_dev": 64512,
+    "fstype": "nfs4",
+    "source": "127.0.0.1:/srv/clv-nfs-export",
+    "detail": "마운트되어 있습니다."
+  },
+  "boot_id_before": "8de9720b-f01e-47d0-bac7-93f741e474c4",
+  "written_at": "2026-08-26T04:34:23+0900"
+}
+
+PRE_REBOOT_OK — 이제 `sudo reboot` 하고, 올라온 뒤 post-reboot 를 돌린다
+    "parent_st_dev": 64512,
+    "fstype": "cifs",
+    "source": "//127.0.0.1/clvtest",
+    "detail": "마운트되어 있습니다."
+  },
+  "boot_id_before": "8de9720b-f01e-47d0-bac7-93f741e474c4",
+  "written_at": "2026-08-26T04:34:24+0900"
+}
+
+PRE_REBOOT_OK — 이제 `sudo reboot` 하고, 올라온 뒤 post-reboot 를 돌린다
+=== 재부팅 전 상태를 적는다 ===
+boot_id_before=8de9720b-f01e-47d0-bac7-93f741e474c4
+tickets_before=1145
+users_before=26
+files_before=58
+commit=2f4fc587
+at=2026-08-26T04:34:24+09:00

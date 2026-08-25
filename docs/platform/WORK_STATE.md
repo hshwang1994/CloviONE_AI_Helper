@@ -22,8 +22,21 @@
   시험들이 검사 시야에서 사라진다.
 - working_tree: clean
 - s20_commit: `136b00aa` · `9a3ade64` · s21_commit: `ede55e47` · `916f20fe`
-- s22_commit: **`__S22_COMMIT__`** — S22 본체(제품 결함 여덟 · 프로브 · 원장 · 문서)
-- deployed: **`__DEPLOYED__`**
+- s22_commit: **`2f4fc587`** — S22 본체(제품 결함 · 프로브 · 원장 · 문서). **배포 대상이다**
+- deployed: **`2f4fc587`** 이 운영에 나갔다 (2026-08-26 04:33, `install.sh upgrade --source local`).
+  Stage 0~18 전부 OK · `VERIFY_OK` · `UPGRADE_OK` · 스냅샷 `/var/backups/clovirassist/20260826-043036`.
+  로그에 **D-328 이 실제로 도는 것**이 찍혔다 — 「걷어낸 런타임의 죽은 설정 줄을 지웠습니다」 둘.
+  스모크: `/healthz` `{"status":"ok","ticket_source":"native"}` · `/readyz` `{"status":"ready"}` ·
+  `ssl_verify_result=0` · `/login` 200(12,332바이트) · 대표 API 다섯이 **404 가 아니라 401** ·
+  유닛 8종 active · 티켓 1,145 / 사용자 26 · `storage_cli status` `operational_ok: true`.
+  **운영이 내보내는 번들이 캡처가 잰 번들과 같은 바이트**임을 sha256 으로 확인했다
+  (`index.html 57956ba3…` · `index.DjLYTf33.js 6d949d74…`) — 브라우저 전수는 운영에서 다시
+  안 돌렸다(운영 데이터를 인수 편의로 건드리지 않는다).
+  🔴 **재부팅 복구를 실제로 쟀다**: `boot_id` 가 바뀌었고 **수동 명령 0회**로 유닛 8종 ·
+  NFS·SMB 마운트 · health · ready · TLS · 데이터(1,145 / 26 / 58)가 전부 돌아왔다
+  (`EVIDENCE/S22/reboot.txt` · Storage 매트릭스 10·11 `POST_REBOOT_PASS`).
+  되돌리려면 `sudo /opt/clovirassist/deploy/install.sh rollback --target /var/backups/clovirassist/20260826-043036`
+- deployed_prev: `916f20fe`(S21, 2026-08-26 00:02 · 스냅샷 `20260826-000222`)
 - full_regression: **전량 0 실패** (2026-08-26). 정적 전량 `STATIC_CHECKS_OK` · 백엔드 전량
   `FULL_REGRESSION_OK`(unit · regression · security 757건 · integration 4청크) · vitest 전량
   **334 파일 / 2,464건 전부 통과**. S21 이 넘긴 빨간 것 여덟은 전부 **QA 부채였고 고쳤다** —

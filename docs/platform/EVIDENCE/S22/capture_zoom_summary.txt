@@ -1,0 +1,40 @@
+fab_overlap                        112      0       0      0
+image_cropped                      112      0       0      0
+content_clipped                    112      0       0      0
+rail_wider_than_prose              106      6       0      0
+equal_column_split                  32      0      80      1  ← 대부분 건너뜀  ← 억제(1)가 실패(0)보다 많음
+column_width_vs_content             72      0      40      0
+header_cell_alignment_mismatch      64      0      48      0
+numeric_alignment                   40      0      72      0  ← 대부분 건너뜀
+isolated_control_row                66      0      46      0
+control_baseline_mismatch          112      0       0      0
+optical_alignment                  112      0       0      0
+oversized_empty_surface             86     16      10      0
+dead_blank_region                   34      8      70      0  ← 대부분 건너뜀
+plain_dropdown_for_entity           40      0      72      0  ← 대부분 건너뜀
+detail_side_imbalance               24      0      88      0  ← 대부분 건너뜀
+surface_repetition                 104      0       8      0
+brand_presence                      96     16       0      0
+brand_role_coverage                112      0       0      0
+mascot_visible_size                112      0       0      0
+modal_footer_outside_actions         0      0       0      0  ← 한 번도 돌지 않음
+modal_full_width_buttons             0      0       0      0  ← 한 번도 돌지 않음
+modal_offscreen                      0      0       0      0  ← 한 번도 돌지 않음
+modal_no_close                       0      0       0      0  ← 한 번도 돌지 않음
+modal_cannot_close                   0      0       0      0  ← 한 번도 돌지 않음
+modal_radius                         0      0       0      0  ← 한 번도 돌지 않음
+modal_width_spread                   0      0       0      0  ← 한 번도 돌지 않음
+contrast                           112      0       0      0
+
+[주의] 이 실행에서 **억제가 실패보다 많은 검사 1개**: equal_column_split
+       초록에 가까운 것이 아니라 거의 꺼져 있는 것이다. docs/ui-renewal/QA_SUPPRESSIONS.md 의 해당 행을 다시 읽어라.
+
+[주의] 이 실행에서 **한 번도 돌지 않은 검사 9개**: tiny_text, narrow_main, modal_footer_outside_actions, modal_full_width_buttons, modal_offscreen, modal_no_close, modal_cannot_close, modal_radius, modal_width_spread
+       통과가 아니라 미실행이다. 게이트 조건(뷰포트·모달 등)을 맞춰 다시 돌려야 한다.
+
+[주의] 이 실행에서 **건너뜀이 우세한 검사 5개**: equal_column_split, numeric_alignment, dead_blank_region, plain_dropdown_for_entity, detail_side_imbalance
+       통과 수만 보면 널리 확인된 것처럼 보이지만, 실제로는 이번 실행 대부분에서 건너뛰었다(예: narrow_main은 3840 이상에서만 돈다 — QA-13).
+
+results.json : C:\Users\hshwa\clovirone-web-assistant\dist\ui-qa\s22-zoom\results.json  (897,287 bytes)
+report.html  : C:\Users\hshwa\clovirone-web-assistant\dist\ui-qa\s22-zoom\report.html  (1,226,944 bytes)
+[OK] 치명 검사 실패 없음 (--fail-on=brand_role_coverage,column_width_vs_content,control_baseline_mismatch,detail_side_imbalance,equal_column_split,header_cell_alignment_mismatch,isolated_control_row,mascot_visible_size,numeric_alignment,plain_dropdown_for_entity,horizontal_overflow,content_clipped,page_errors), 억제 1건

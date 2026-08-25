@@ -1,0 +1,53 @@
+=== 사람이 아무 명령도 안 넣었다 — 지금 상태 ===
+boot_id_now=929b2eee-fc72-468f-95f7-73154b126cdd
+boot_id_before=8de9720b-f01e-47d0-bac7-93f741e474c4
+tickets_before=1145
+users_before=26
+files_before=58
+commit=2f4fc587
+at=2026-08-26T04:34:24+09:00
+
+=== systemd (수동 start 0회) ===
+postgresql                                   active / enabled
+nginx                                        active / enabled
+clovirassist-privhelper                      active / enabled
+clovirassist-web                             active / enabled
+clovirassist-worker                          active / enabled
+clovirassist-worker-conversational           active / enabled
+clovirassist-scheduler                       active / enabled
+clovirassist-index                           active / enabled
+=== 실패한 유닛 ===
+(위가 비면 실패 유닛 0)
+=== 마운트 ===
+active
+active
+  //127.0.0.1/clvtest on /mnt/clv-smb type cifs (rw,relatime,vers=3.1.1,cache=strict,upcall_target=app,username=clvsmb,uid=1003,forceuid,gid=1003,forcegid,addr=127.0.0.1,file_mode=0640,dir_mode=0750,soft,nounix,serverino,mapposix,rsize=4194304,wsize=4194304,bsize=1048576,echo_interval=60,actimeo=1,closetimeo=1,_netdev)
+  127.0.0.1:/srv/clv-nfs-export on /mnt/clv-nfs type nfs4 (rw,relatime,vers=4.2,rsize=1048576,wsize=1048576,namlen=255,soft,proto=tcp,timeo=50,retrans=2,sec=sys,clientaddr=127.0.0.1,local_lock=none,addr=127.0.0.1,_netdev)
+=== health / ready / TLS ===
+{"status":"ok","ticket_source":"native"}
+{"status":"ready"}
+ssl_verify_result=0 login=200 bytes=12332
+=== DB 데이터가 그대로인가 ===
+tickets_now=1145
+users_now=26
+files_now=58
+=== Storage ===
+  ],
+  "operational_ok": true,
+  "warning": null,
+  "file_count": 58
+}
+=== Storage 매트릭스 10·11 (재부팅 축) ===
+[OK ] 10. boot_id 가 바뀌었다 — 실제로 재부팅됐다
+[OK ] 11. 수동 명령 0회로 마운트가 돌아왔고(unit=active) 재부팅 전 파일이 그대로다
+POST_REBOOT_PASS
+[OK ] 10. boot_id 가 바뀌었다 — 실제로 재부팅됐다
+[OK ] 11. 수동 명령 0회로 마운트가 돌아왔고(unit=active) 재부팅 전 파일이 그대로다
+POST_REBOOT_PASS
+=== install.sh verify ===
+[OK ] 서브되는 인증서 SAN 에 clovirassist.gooddi.lab
+[OK ] server_name 블록이 :80·:443 둘뿐(현재 2)
+[OK ] 실패한 제품 유닛이 없다
+[OK ] alembic head 가 코드와 같다(db=0016_document_axis_to_documents code=0016_document_axis_to_documents)
+[OK ] extension vector · pg_trgm 이 있다
+VERIFY_OK

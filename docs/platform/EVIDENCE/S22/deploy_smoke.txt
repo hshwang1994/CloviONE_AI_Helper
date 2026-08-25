@@ -1,0 +1,45 @@
+=== 배포된 커밋 ===
+commit: 2f4fc587
+ClovirAssist (clovirassist)
+  VERSION       : 0.1.0-dev
+  git           : (bundle 설치이거나 git 트리가 아닙니다)
+  manifest ref  : 
+  alembic head  : 0016_document_axis_to_documents  (코드: 0016_document_axis_to_documents)
+  PostgreSQL    : 16.15 (Ubuntu 16.15-0ubuntu0.24.04.1)
+  extensions    : pg_trgm 1.6 · vector 0.6.0
+  installed_at  : 2026-08-26T04:33:29+09:00
+=== health / ready (TLS 검증) ===
+{"status":"ok","ticket_source":"native"}
+{"status":"ready"}
+=== TLS ===
+ssl_verify_result=0 http=200
+=== Frontend load ===
+login=200 bytes=12332
+ClovirAssist
+asset: /static/react/assets/index.DjLYTf33.js
+asset=200 bytes=132245 type=text/javascript; charset=utf-8
+=== 대표 화면(해시 라우팅은 셸을 준다) ===
+/#/me -> 303
+/#/my-tickets -> 303
+/#/users -> 303
+/#/audit -> 303
+=== 대표 API 는 404 가 아니라 401 이다 (라우터가 실려 있다) ===
+/api/me -> 401
+/api/tickets/mine -> 401
+/api/admin/users -> 401
+/api/admin/audit -> 401
+/api/storage/providers -> 401
+=== systemd ===
+active active active active active active active active 
+=== DB ===
+1145 tickets / 26 users
+=== Storage ===
+    }
+  ],
+  "operational_ok": true,
+  "warning": null,
+  "file_count": 58
+}
+=== env 에 죽은 줄이 남았나 ===
+0
+0 (없다)

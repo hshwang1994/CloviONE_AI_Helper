@@ -64,9 +64,9 @@ excluded_tables: ai_index_state · document_chunks · rate_limit_buckets · sear
 
 | | NFS | SMB |
 |---|---|---|
-| 실행한 항목 | 14 PASS · 1 「해당 없음」 · 2 재부팅 단계 | 같음 |
-
-10·11(재부팅)은 §4 가 잰다.
+| 1~9 · 13~16 | **14 PASS** | **14 PASS** |
+| 10 · 11 (재부팅) | **PASS** — §4 가 잰 `POST_REBOOT_PASS` | **PASS** |
+| 12 (`RequiresMountsFor=`) | 이 설치의 사실 — 아래 | 같음 |
 
 **12번(`RequiresMountsFor=`)은 이 설치의 사실이지 결함이 아니다.** 이 설치의 운영 저장소는
 `LOCAL`(`/var/lib/clovirassist/files`) 하나이고 켜진 NFS/SMB Provider 가 **없다**. 그래서
@@ -90,11 +90,48 @@ excluded_tables: ai_index_state · document_chunks · rate_limit_buckets · sear
 
 ---
 
-## 4. Reboot 복구 — [`reboot.txt`](reboot.txt)
+## 4. Reboot 복구 — [`reboot_pre.txt`](reboot_pre.txt) · [`reboot.txt`](reboot.txt)
 
-§18 최종 배포 뒤에 **설치처를 실제로 재부팅**하고 잰 원문이다. 「사람이 아무 명령도 안 쳐도
-돌아온다」를 보려면 두 조각이어야 한다 — 재부팅 전 상태를 적고, 재부팅하고, 그 사이에
-아무것도 안 한 채 지금과 비교한다.
+최종 배포 뒤에 **설치처를 실제로 재부팅**하고 잰 원문이다. 「사람이 아무 명령도 안 쳐도
+돌아온다」를 보려면 두 조각이어야 한다 — 재부팅 전 상태를 적고(`reboot_pre.txt`), 재부팅하고,
+그 사이에 아무것도 안 한 채 지금과 비교한다(`reboot.txt`).
+
+`boot_id` 가 `8de9720b…` → `929b2eee…` 로 바뀌었다. **진짜 커널 재부팅이다.**
+
+| | |
+|---|---|
+| 유닛 8종 | 전부 `active / enabled` — **수동 start 0회**. `systemctl --failed` 비어 있다 |
+| 마운트 | `mnt-clv\x2dnfs.mount` · `mnt-clv\x2dsmb.mount` 둘 다 `active`, 실제 `nfs4`·`cifs` 로 붙어 있다 |
+| health · ready · TLS | `{"status":"ok"}` · `{"status":"ready"}` · `ssl_verify_result=0` · `/login` 200(12,332바이트) |
+| 데이터 | 티켓 1,145 · 사용자 26 · 파일 58 — **재부팅 전과 같다** |
+| Storage | `operational_ok: true` · `file_count 58` |
+| 매트릭스 10·11 | `POST_REBOOT_PASS` (NFS · SMB 둘 다) — 재부팅 전 파일의 체크섬이 그대로다 |
+| `install.sh verify` | `VERIFY_OK` |
+
+## 4.1 최종 배포 스모크 — [`deploy_smoke.txt`](deploy_smoke.txt)
+
+배포 커밋 `2f4fc587` · 스냅샷 `/var/backups/clovirassist/20260826-043036` ·
+`UPGRADE_OK` · Stage 0~18 전부 OK.
+
+로그에 **D-328 이 실제로 도는 것**이 찍혀 있다 —
+`걷어낸 런타임의 죽은 설정 줄을 지웠습니다: N8N_WORK_ASSISTANT_URL / N8N_TIMEOUT_SECONDS`.
+배포 뒤 그 파일에 `^N8N` 은 **0줄**이다.
+
+대표 API 다섯(`/api/me` · `/api/tickets/mine` · `/api/admin/users` · `/api/admin/audit` ·
+`/api/storage/providers`)이 **404 가 아니라 401** 이다 — 라우터가 실려 있고 인증벽만 막는다.
+
+🔴 **운영에서 브라우저 전수를 다시 안 돌렸다.** 그것은 로컬 PostgreSQL 위에서 만들고 지우는
+실행이고, 운영 데이터를 인수 편의로 건드리지 않는다(S21 과 같은 규칙). 대신 **운영이 실제로
+내보내는 번들이 캡처가 잰 번들과 같은 바이트인지**를 확인했다:
+
+```
+served  /static/react/index.html                    sha256 57956ba3ea73d674…
+local   app/static/react/index.html                 sha256 57956ba3ea73d674…   (= build_index_sha256)
+served  /static/react/assets/index.DjLYTf33.js      sha256 6d949d74f7937825…
+local   app/static/react/assets/index.DjLYTf33.js   sha256 6d949d74f7937825…
+```
+
+그래서 §8 의 1,440페이지는 **운영이 지금 내보내는 화면**에 대한 증거다.
 
 ---
 
@@ -147,9 +184,34 @@ QA 부채**였다 — S20 이 그 콘솔을 내려 지금 그 주소는 404 다.
 
 ---
 
-## 8. Final Capture / UI·UX — `dist/ui-qa/s22-final/`
+## 8. Final Capture / UI·UX — [`capture_summary.txt`](capture_summary.txt)
 
-라벨 `s22-final` · 번들 지문 `5a28773c6a62be11` · **81 라우트 × 2 테마 × 9 뷰포트**.
-산출물은 `dist/`(gitignore)이고 커밋되는 것은 `docs/ui-renewal/captures/after/` 의 썸네일과
-`ROUTE_COVERAGE.json` 의 포인터다. 판정 요약은
+라벨 `s22-final` · 번들 지문 `57956ba3ea73d674` · **81 라우트 × 2 테마 × 9 뷰포트 =
+1,440 페이지** · 30분 39초.
+
+**승격 검사 열 종 실패 0** — `[OK] 치명 검사 실패 없음`. 첫 회차에서는 넷이 115페이지에서
+빨갰고(`brand_role_coverage` 13 · `control_baseline_mismatch` 46 · `equal_column_split` 14 ·
+`numeric_alignment` 42), 원인 다섯을 뿌리에서 고친 뒤 **같은 라벨로 전량을 다시 찍어** 그 0 을
+만들었다(D-329~D-334).
+
+남은 것은 전부 **승격 안 된 자문 검사**이고 요약표가 그 수를 그대로 적는다:
+`brand_presence` 482(절대 정족수 — 모듈 자신이 도달 불가 구간을 적어 뒀다) ·
+`dead_blank_region` 200 · `oversized_empty_surface` 146 · `rail_wider_than_prose` 24 ·
+`console_errors` 17(일부러 없는 id 로 여는 「못 찾음」 화면) · `surface_repetition` 2.
+소유는 **P-54 · P-55** 다.
+
+리포트가 스스로 적는 **미실행** 도 그대로 남긴다: 모달 검사 일곱은 `--modals` 를 켜야 돌고
+이번 실행에서 **0회 실행**이다 — 통과가 아니다(**P-56**).
+
+### 8.1 배율 — [`capture_zoom_summary.txt`](capture_zoom_summary.txt)
+
+라벨 `s22-zoom` · 촘촘한 화면 14개 × **125%·150%**(FHD·QHD 환산 CSS 뷰포트 + DPR) × 두 테마
+= 112페이지. `horizontal_overflow` · `content_clipped` · `page_errors` · 승격 검사 전부 **0** —
+**배율을 올려도 구조가 안 무너진다.**
+
+배율을 「CSS 뷰포트 ÷ 배율 + DPR × 배율」로 환산한 것은 브라우저가 실제로 하는 일과 같다.
+새 하네스를 만들지 않았다 — `--viewports 1536x864@1.25x` 처럼 **이미 있는 표기**를 쓴다.
+
+산출물 원본은 `dist/`(gitignore)이고 커밋되는 것은 `docs/ui-renewal/captures/after/` 의
+썸네일 1,440장과 `ROUTE_COVERAGE.json` 의 포인터다. 판정 요약은
 [`../../../ui-renewal/WORK_STATE.md`](../../../ui-renewal/WORK_STATE.md).
