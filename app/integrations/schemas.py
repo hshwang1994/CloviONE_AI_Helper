@@ -8,14 +8,26 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.core.http_client import AUTH_TYPES
 
-#: S11 이 n8n 과 러너 셋을 걷어내 그 provider 이름들이 사라졌고, S14 가 Notion 런타임을
-#: 걷었다. **새로 만들 수 있는 유형은 `http_service` 하나뿐**이고 화면에서도 그 선택기를
-#: 내렸다(S20) — 고를 것이 하나뿐인 선택기는 고를 것이 없는 선택기다.
-#: `notion` 을 여기서 지우지는 않는다: 남아 있는 옛 행과 그 행의 롤백 스냅샷이 이 어휘로
-#: 다시 검증되기 때문이다. 지우면 옛 연동 하나가 되돌릴 수 없게 된다.
-PROVIDER_TYPES = frozenset({"http_service", "notion"})
+#: 새로 만들 수 있는 유형. **하나뿐**이라 화면에서 그 선택기를 내렸다(S20) — 고를 것이
+#: 하나뿐인 선택기는 고를 것이 없는 선택기다.
+NEW_PROVIDER_TYPES = frozenset({"http_service"})
 
-#: 화면이 안 보내면 이 값이다. 유형이 실제로 하나뿐이라 화면이 물을 것도 없다.
+#: 이미 저장돼 있을 수 있는 값. S11 이 n8n 과 러너 셋을, S14 가 Notion 런타임을 걷으면서
+#: 그 이름들은 **새로 만들 수 없게** 됐지만 **행은 남았다.**
+#:
+#: 🔴 그 둘을 같은 목록으로 두면 남은 행이 **고칠 수 없게 된다.** 수정 경로는 저장된 값에
+#: 화면이 보낸 것만 얹어 이 스키마로 다시 검증하는데(`router.py::update_integration` 의
+#: `merged`), 저장된 값이 어휘 밖이면 이름 한 글자를 고치려 해도 422 다. 롤백도 같은
+#: 스키마를 지나므로 그 행의 옛 판으로 되돌릴 수도 없다. 운영 실측(2026-08-25): 연동 넷 중
+#: `n8n` 행 하나가 정확히 그 상태였다 — 화면에는 「수정」이 그려져 있고 누르면 언제나 실패했다.
+#:
+#: 그래서 **읽기 어휘는 넓고 쓰기 어휘는 좁다.** 여기 있는 이름을 화면이 새로 고를 수는
+#: 없지만(그 선택기가 없다), 이미 그 값을 든 행은 계속 고칠 수 있다.
+LEGACY_PROVIDER_TYPES = frozenset({"notion", "n8n"})
+
+PROVIDER_TYPES = NEW_PROVIDER_TYPES | LEGACY_PROVIDER_TYPES
+
+#: 화면이 안 보내면 이 값이다. 새로 고를 수 있는 유형이 하나뿐이라 화면이 물을 것도 없다.
 DEFAULT_PROVIDER_TYPE = "http_service"
 
 

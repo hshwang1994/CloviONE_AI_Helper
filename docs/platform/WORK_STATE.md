@@ -23,7 +23,7 @@
   시험들이 검사 시야에서 사라진다.
 - working_tree: clean
 - s19_commit: **`ee2e4118`** · hc_commit: **`2c3e6c60`**
-- s20_commit: **`__S20_SHA__`** — S20 본체(화면·registry·백엔드·원장·하네스·문서)
+- s20_commit: **`136b00aa`** — S20 본체(화면·registry·백엔드·원장·하네스·문서)
 - deployed: **`__DEPLOYED_SHA__`** — 아래 「배포」 절
 - full_snapshot: **HC 마지막 Full 1회** (`python scripts/verify.py --full`, 2026-08-25 17:29~18:13).
   정적 전량 **PASS** · 프런트 전량 **329 파일 / 2,451건 전부 PASS** · 백엔드 전량 **FAIL 7건**

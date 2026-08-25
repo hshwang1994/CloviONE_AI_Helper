@@ -85,9 +85,13 @@ export const objField = (key, label) => ({ key, label, render: (r) => objKo(r[ke
 
 /* 목록 화면 설정 — 열/엔드포인트만 다르고 렌더는 DataScreen이 공통 처리한다.
  * 상태 열은 badgeCol(배지), enum 열은 mapCol/actionKo(한국어)로. 값은 서버 계약 그대로. */
-// 옛 행이 raw 문자열로 보이지 않게 이름표는 남긴다 — `notion` 유형을 **새로 만드는 경로는
-// 없다**(S20). 이 제품에는 그 시스템이 없고, 유형이 하나뿐인 선택기는 고를 것이 없는 선택기다.
-export const PROVIDER = { http_service: "HTTP 서비스", notion: "Notion(옛 방식)" };
+// 옛 행이 raw 슬러그로 보이지 않게 이름표는 남긴다 — 이 둘을 **새로 만드는 경로는 없다**
+// (S20). 그 시스템들이 제품에서 없어졌고, 고를 것이 하나뿐인 선택기는 고를 것이 없는
+// 선택기라 유형 입력 자체를 내렸다. 목록의 열은 남는다: 옛 행이 그 값을 들고 있고, 열이
+// 없어지면 그 행이 무엇인지 화면에서 사라진다.
+export const PROVIDER = {
+  http_service: "HTTP 서비스", notion: "Notion(옛 방식)", n8n: "n8n(옛 방식)",
+};
 export const SCHED_TYPE = { cron: "Cron 반복", once: "1회 실행" };
 // 실제 enqueue되는 job_type 문자열과 정확히 일치해야 한다. 큐에 안 들어가는 것은 안 적는다
 // (backup 은 큐에 없어서, document_generate·notion_mapping_sync 는 S11 이 걷어내서 — 오해 방지).

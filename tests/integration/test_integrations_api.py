@@ -283,3 +283,60 @@ def test_discovery_seed_is_idempotent(db, settings, monkeypatch):
     db.commit()
     assert first == ["seed-sample"], f"표본을 한 번도 안 만들었다: {first}"
     assert discovery.seed_known_integrations(db, allowlists=allowlists) == []
+
+
+# ── 옛 행이 계속 고쳐지는가 (S20 · D-321) ───────────────────────────────────
+#
+# S11 이 n8n 과 러너 셋을, S14 가 Notion 을 걷으면서 그 provider 이름들은 **새로 만들 수
+# 없게** 됐다. 그런데 행은 남았다. 수정 경로는 저장된 값에 화면이 보낸 것만 얹어 같은
+# 스키마로 다시 검증하므로(router.py::update_integration 의 merged), 저장된 값이 어휘 밖이면
+# **이름 한 글자를 고치려 해도 422** 다 — 화면에는 「수정」이 그려져 있고 누르면 언제나
+# 실패한다. 운영 실측(2026-08-25)에서 연동 넷 중 `n8n` 행 하나가 정확히 그 상태였다.
+
+
+def _make_legacy_row(db, name: str, provider_type: str):
+    """어휘 밖 유형을 든 행을 **DB 에 직접** 심는다 — API 로는 만들 수 없는 것이 요점이다."""
+    from app.integrations.models import Integration
+
+    row = Integration(
+        name=name, provider_type=provider_type, base_url="https://api.anthropic.com",
+        health_url="https://api.anthropic.com", auth_type="none",
+        capabilities_json="{}", enabled=True,
+    )
+    db.add(row)
+    db.commit()
+    return row
+
+
+@pytest.mark.parametrize("legacy_type", ["n8n", "notion"])
+def test_a_row_with_a_retired_provider_type_can_still_be_edited(
+    client, admin_csrf, db, legacy_type
+):
+    row = _make_legacy_row(db, f"legacy-{legacy_type}", legacy_type)
+
+    r = client.patch(
+        f"/api/admin/integrations/{row.id}",
+        json={"description": "이름표만 고친다"},
+        headers=_headers(admin_csrf),
+    )
+    assert r.status_code == 200, r.text
+    # 유형은 **그대로다** — 화면이 안 보냈으니 저장된 값이 이긴다(조용히 바뀌면 그 행이
+    # 무엇이었는지가 사라진다).
+    assert r.json()["integration"]["provider_type"] == legacy_type
+
+
+def test_but_a_retired_type_cannot_be_chosen_for_a_new_one(client, admin_csrf):
+    """반례 — 읽기 어휘가 넓다고 쓰기 어휘까지 넓어진 것은 아니다."""
+    from app.integrations.schemas import LEGACY_PROVIDER_TYPES, NEW_PROVIDER_TYPES
+
+    assert NEW_PROVIDER_TYPES == {"http_service"}
+    assert not (NEW_PROVIDER_TYPES & LEGACY_PROVIDER_TYPES)
+
+
+def test_a_new_integration_needs_no_provider_type(client, admin_csrf):
+    """화면이 그 입력을 안 그린다 — 서버가 기본값을 넣는다(S20)."""
+    payload = {k: v for k, v in VALID.items() if k != "provider_type"}
+    payload["name"] = "no-type-given"
+    r = client.post("/api/admin/integrations", json=payload, headers=_headers(admin_csrf))
+    assert r.status_code == 201, r.text
+    assert r.json()["integration"]["provider_type"] == "http_service"
