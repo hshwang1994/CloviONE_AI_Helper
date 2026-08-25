@@ -1,0 +1,8 @@
+=== systemd 가 이 유닛에 대해 무엇을 아는가 ===
+/mnt/clv-nfs /mnt/clv-smb
+=== 그 경로들이 실제로 어느 .mount 유닛으로 풀리는가 ===
+"mnt-clv\\x2dsmb.mount"
+"mnt-clv\\x2dnfs.mount"
+-.mount
+=== 지운다 ===
+not-found

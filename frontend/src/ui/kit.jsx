@@ -725,6 +725,15 @@ export function MetricStrip({ items, ariaLabel, emptyCause, sx }) {
       aria-label={ariaLabel}
       /* 아직 원인을 안 넘기는 자리. 지우지 않고 **세는** 이유는 위 ④ 에 적었다. */
       data-metrics-empty={allEmpty ? "true" : undefined}
+      /* **이 줄에 지배 판독값이 있는가**를 줄 자신이 말한다 (S22 · P-43).
+         값이 0 이면 판독 슬롯을 안 준다(위 `earnsReadout`) — 「0 오늘 마감」이 40px 을
+         차지하는 것은 위계가 반대이기 때문이다. 그런데 프로브는 선언이 없으면 이 줄에서
+         **가장 큰 글자**를 그 화면의 지배값으로 읽어서, 할 일이 없는 날의 홈이 「지배값이
+         회색이다」로 세어졌다(배포한 실데이터에서만 나오는 조합이다 — 임시 데이터베이스로
+         찍는 로컬 캡처는 값이 전부 0 이 아니다). 슬롯이 없다는 것은 모르는 것이 아니라
+         **알아낸 사실**이고, 사실일 때의 답은 「없다」다. 판독값이 없는 상세 화면을
+         `unknown` 으로 두는 것과 같은 어휘다. */
+      data-readout-slot={hasReadout ? "value" : "none"}
       sx={(t) => ({
         display: "flex", flexWrap: "wrap", alignItems: "stretch",
         /* 실선이 항목을 가른다. 각 항목이 앞머리 선을 갖고 첫 항목만 그것을 지운다 —

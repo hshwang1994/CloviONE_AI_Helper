@@ -1,4 +1,6 @@
-"""Sweep every admin GET endpoint as system_admin with a seeded secret and
+"""qa-contract-change: 훑는 목록에서 `/api/admin/notion-mapping` 을 뺀다. S20 이 그 콘솔을 걷어 지금은 404 이고, 이 시험은 «훑은 모든 주소가 200 이었다» 를 먼저 단언하므로 없는 주소 하나 때문에 **비밀 유출 검사 자체가 한 번도 안 돌고 있었다**. 나머지 13개 주소는 그대로라 훑는 범위는 줄지 않았다 — 사라진 화면 하나가 빠졌을 뿐이다.
+
+Sweep every admin GET endpoint as system_admin with a seeded secret and
 assert the plaintext value never appears in any response (spec §25.4, §31.10)."""
 
 import pytest
@@ -42,7 +44,6 @@ ADMIN_GET_ENDPOINTS = [
     "/api/admin/audit",
     "/api/admin/settings",
     "/api/admin/backups",
-    "/api/admin/notion-mapping",
     "/api/admin/dashboard",
     "/api/admin/diagnostics/bundle",
     "/api/admin/jobs",

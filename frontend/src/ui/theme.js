@@ -893,6 +893,14 @@ export function createClovirTheme(mode = "light", accent = DEFAULT_ACCENT) {
       MuiChip: {
         styleOverrides: {
           root: { borderRadius: RADIUS.sm, fontWeight: FONT_WEIGHT.medium },
+          /* 🔴 **칩도 rem 으로 선다** (S22 · `control_baseline_mismatch`).
+             MUI `Chip size="small"` 은 높이가 **24px 리터럴**이다. 옆에 서는 작은 버튼은
+             `remPx(CONTROL.buttonSm)` 이라 4K 레버(`styles/root.css` 가 루트 폰트사이즈를
+             16→18→20 으로 올린다)를 함께 타는데, 칩만 안 탄다 — 그래서 3840 에서만 조건
+             칩과 「전체 보기」 버튼이 8px 어긋났다(`/my-tickets` 실측). 좁은 화면에서는
+             둘 다 30px 이라 아무도 못 봤다.
+             값을 새로 만들지 않는다 — 같은 줄에 서는 컨트롤과 **같은 토큰**이다. */
+          sizeSmall: { height: remPx(CONTROL.buttonSm) },
         },
       },
       MuiDrawer: { styleOverrides: { paper: { backgroundImage: "none" } } },

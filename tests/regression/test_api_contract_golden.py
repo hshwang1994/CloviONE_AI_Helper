@@ -1,4 +1,6 @@
-"""THIS FILE IS THE API CONTRACT.
+"""qa-contract-change: 티켓 읽기 골든 7건을 S22 가 다시 찍는다(P-51). 어긋남은 두 가지였고 둘 다 **의도된 변경**임을 소스에서 확인했다 — ① 응답에 `created_at` 칸이 생겼다(목록 머리글 정렬을 열면서 늘린 열이다) ② 목록의 첫 행이 바뀌었다. ②의 원인은 `5d7c5192`(목록 머리글에서 정렬·필터하고, 서버가 전체 결과 순서를 지킨다)가 이 목록 API 의 기본 정렬을 «마감 오름차순»에서 «`created_at` 내림차순 · 동률이면 id 내림차순»으로 바꾼 것이다(`app/tickets/service.py` 의 `raw_sort ... or "created_at"`). 골든의 마지막 갱신은 그 커밋보다 여덟 개 앞선 S15(`1872dd6f`)라 그 변경이 원장에 안 적혔다. 「마감 오름차순」은 sort_key 를 안 주는 내부 집계 호출부가 여전히 쓰는 `query.ORDER` 로 살아 있다 — 사라진 규칙이 아니라 이 API 의 규칙이 아니었을 뿐이다. 골든 자체를 지키는 `test_three_lists_three_row_sets` 의 네 목록도 같은 근거로 새 순서를 못 박는다(집합은 그대로이고 순서만 뒤집혔다).
+
+THIS FILE IS THE API CONTRACT.
 
 The JSON under ``tests/regression/golden/`` is the byte-for-byte response shape
 that ``frontend/`` is built against. A diff here is never "just a test failure":
@@ -499,10 +501,15 @@ def test_three_lists_three_row_sets(contract_client):
     team_active = tids("/api/tickets/team?active=true")
     team_all = tids("/api/tickets/team?active=false")
 
-    assert mine == [101, 102, 107]            # assignee contains me, due ascending
+    # 순서는 **API 목록의 기본 정렬**이다: `created_at` 내림차순, 동률이면 id 내림차순
+    # (`app/tickets/service.py` — 화면이 sort 를 안 주면 `sort=created_at&order=desc`).
+    # 씨앗은 일곱 줄이 같은 `created_at` 을 갖게 만들어져 있어 동률 규칙이 그대로 드러난다.
+    # 예전 값은 「마감 오름차순」이었다 — 그 순서는 sort_key 를 안 주는 내부 집계 호출부가
+    # 여전히 쓰는 `query.ORDER` 이고, 이 목록 API 의 순서가 아니다.
+    assert mine == [107, 102, 101]            # assignee contains me
     assert unassigned == [104]                # no assignee, terminal dropped
-    assert team_active == [101, 103, 104, 107]
-    assert team_all == [105, 101, 102, 103, 104, 106, 107]
+    assert team_active == [107, 104, 103, 101]
+    assert team_all == [107, 106, 105, 104, 103, 102, 101]
     assert len({tuple(mine), tuple(unassigned), tuple(team_active), tuple(team_all)}) == 4
 
 

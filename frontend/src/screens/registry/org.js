@@ -111,7 +111,10 @@ export const ORG_SCREENS = {
     // 서버가 이제 부서 응답에 org_id/org_name 을 싣는다. 연결을 만들어 놓고 화면에 안 보이면
     // 같은 말을 다시 듣는다. 조직이 하나뿐인 지금도 "이 부서가 어느 조직 것인지" 가 보인다.
     columns: [{ ...col("name", "부서 이름"), identifier: true }, col("org_name", "조직"), activeCol("사용"),
-      col("user_count", "소속 인원(보관 포함)"), dateCol("created_at", "추가")],
+      // 개수 열은 **우정렬 + 자릿수 고정**이다(columnTypes.js `count`). S22 캡처가 이 두
+      // 열(부서·직책)만 좌정렬·비고정으로 남아 있는 것을 잡았다 — 세로로 훑으며 비교할 수
+      // 없는 상태였다. 폭·정렬·자릿수는 어휘가 정한다.
+      { ...col("user_count", "소속 인원(보관 포함)"), type: "count" }, dateCol("created_at", "추가")],
     // id는 감사 로그의 object_id와 대조할 때 쓰이므로 상세에서 노출한다.
     // 삭제 버튼은 소속 인원>0이면 아래 actions에서 통째로 숨겨진다(사용 중이면 비활성화만 가능) — 그
     // 이유가 코드 주석에만 있어 화면엔 아무 설명 없이 버튼만 사라졌었다. 상세에 이유를 남긴다.
@@ -171,7 +174,8 @@ export const ORG_SCREENS = {
     filters: ACTIVE_FILTER,
     // usage_count(보유 인원)는 보관(soft-delete)된 사용자도 센다(부서와 동일한 계산 — app/org/service.py).
     // 라벨은 부서 화면과 다르게 '보유'를 쓴다 — 직책은 사람이 '보유'하는 것이지 '소속'되는 게 아니다.
-    columns: [{ ...col("name", "직책 이름"), identifier: true }, activeCol("사용"), col("user_count", "보유 인원(보관 포함)"), dateCol("created_at", "추가")],
+    columns: [{ ...col("name", "직책 이름"), identifier: true }, activeCol("사용"),
+      { ...col("user_count", "보유 인원(보관 포함)"), type: "count" }, dateCol("created_at", "추가")],
     // 삭제 버튼은 소속 인원>0이면 아래 actions에서 통째로 숨겨진다(부서와 동일한 이유) — 상세에 이유를 남긴다.
     detailFields: [field("id", "직책 ID"),
       { key: "_delete_note", label: "삭제 안내", render: (r) => r.user_count ? "사용 중인 직책(보유 인원 " + r.user_count + "명, 보관 계정 포함)은 삭제할 수 없습니다. 대신 ‘비활성화’를 이용하세요." : "-" }],

@@ -99,8 +99,19 @@ NEUTRAL_SPREAD_MIN = 0.06
 # 그래서 조건을 하나 더 건다: **아주 어둡거나 아주 밝은 색은 채널 폭이 넉넉할 때만
 # 유채색으로 센다.** 잉크(#161A2C L=0.13)와 종이(#E9ECFA L=0.95)는 폭이 좁으면 무채색이고,
 # Shell(#1E2758 L=0.23, 폭 0.227)과 rail(#A9BAFF L=0.83, 폭 0.337)은 폭이 넓어 그대로 통과한다.
-EXTREME_L_LOW, EXTREME_L_HIGH = 0.20, 0.90
-EXTREME_SPREAD_MIN = 0.15
+#
+# 🔴 그 문턱이 **절벽이면 안 된다** (S22 · P-40). 예전에는 「L < 0.20 이거나 L > 0.90 이면
+# 폭 0.15 를 요구하고, 아니면 0.06 만 요구한다」였다. 그러면 문턱 바로 아래가 공짜로
+# 통과한다 — `divider #DCDFEC` 는 L 0.894 · 폭 0.063 으로 **간발의 차로** 0.90 아래라
+# 색상각과 채도만 맞으면 어떤 role 이든 「브랜드다」로 세어졌다. 눈에는 아주 옅은 회선이다.
+# `dividerStrong #BCC2D9`(L 0.794 · 폭 0.114)도 같은 길로 통과했다.
+#
+# 그래서 요구하는 폭이 **중간 회색에서 멀어질수록 연속으로** 오르게 한다. 거리는
+# `d = |2L - 1|` 이고(중간 회색 0, 검정·흰색 1), 요구 폭은 `NEUTRAL_SPREAD_MIN` 에서
+# `EXTREME_SPREAD_MIN` 까지 그 거리에 비례해 오른다. 평평한 구간을 두지 않는 것이 요점이다 —
+# 평평한 구간을 두면 그 가장자리가 곧 새 절벽이 되고, `dividerStrong` 이 정확히 그 자리에
+# 앉는다. 실측 반례는 `probe_selftest.py` 에 있다.
+EXTREME_SPREAD_MIN = 0.16
 
 # 알파가 이보다 작으면 그 후보는 **아무 것도 칠하지 않는다**. 이 문턱이 없으면 MUI 가 요소마다
 # 다는 투명 `::before` 가 뒷면 색을 그대로 합성해 돌려주고, 브랜드 면 위에 놓인 요소는 전부
@@ -213,6 +224,14 @@ BRAND_PROBE_JS = r"""() => {
          로 칠하는 것이 아니다 — 그 화면에 판독값이 없다는 것이 사실이고, 사실일 때의 답은
          `unknown` 이다(활성 주요 버튼이 없는 화면을 `unknown` 으로 두는 것과 같다). */
       sel: ['[data-brand-role="highlight"]', '.k-metrics', '.k-readout'],
+      /* 🔴 **판독 슬롯이 없는 줄은 이 role 의 자리가 아니다** (S22 · P-43). `MetricStrip`
+         은 값이 0 이거나 비면 판독 슬롯을 안 준다 — 그때 그 줄에는 «그 화면을 지배하는
+         판독값» 이 없고, 없는 것을 아래 `refine` 이 «가장 큰 글자» 로 대신 집으면 (옳게)
+         본문 잉크인 그 값이 «회색인 브랜드 자리» 로 세어진다. 할 일이 없는 날의 홈이
+         정확히 그 경로로 빨갰다(S17 배포 뒤 실데이터 스모크). `closest` 는 자기 자신도
+         보므로 이 한 줄이 줄(`.k-metrics`)과 칸(`.k-readout`) 둘 다 걸러 낸다. */
+      notInside: '[data-readout-slot="none"]',
+      notFoundNote: '판독 슬롯을 받은 지표가 이 화면에 없음(값이 0 이거나 비었다)',
       /* `.k-metrics` 는 줄이고 `.k-readout` 은 칸이지 판독값이 아니다. 그 화면을 지배하는
          숫자는 **그 안에서 가장 큰 글자**다(kit.jsx MetricStrip: 값은 readout/title,
          라벨은 bodySm). */
@@ -247,6 +266,15 @@ BRAND_PROBE_JS = r"""() => {
       try { list = document.querySelectorAll(s); } catch (e) { continue; }
       for (const el of list) {
         if (!_vis(el)) continue;
+        /* 🔴 **화면이 「여기는 그 자리가 아니다」라고 말할 수 있다** (S22).
+           `data-brand-role="none"` 은 억제가 아니라 **의미 선언**이다(`data-brand-tone`
+           과 같은 부류) — 태그 이름만 보고 고르는 뒤쪽 선택자들이 정렬용 상자를 그 role 의
+           자리로 잘못 집는 것을 막는다. 실제로 로그인 화면이 그랬다: Brand 면은 히어로인데
+           (그쪽이 `data-brand-role="header"` 를 선언한다) 좁은 폭에서 히어로가 숨으면
+           프로브가 `<header>` 를 찾아 **아무것도 안 칠하는 정렬 줄**을 집고 「이 화면의
+           header 가 회색이다」라고 말했다. 그 화면의 사실은 «그 자리가 없다» 이고, 없을 때의
+           답은 `unknown` 이다. 선언은 마크업에 남으므로 grep 으로 셀 수 있다. */
+        if (el.closest('[data-brand-role="none"]')) continue;
         if (spec.notInside && el.closest(spec.notInside)) continue;
         if (spec.notMatching) {
           try { if (el.matches(spec.notMatching)) continue; } catch (e) { /* 무시 */ }
@@ -318,7 +346,7 @@ BRAND_PROBE_JS = r"""() => {
     const spec = ROLE_SPEC[name];
     const hit = pickOne(spec);
     if (!hit) {
-      roles[name] = { found: false, note: '이 화면에서 해당 요소를 찾지 못함' };
+      roles[name] = { found: false, note: spec.notFoundNote || '이 화면에서 해당 요소를 찾지 못함' };
       continue;
     }
     roles[name] = {
@@ -583,17 +611,28 @@ def _spread(rgb) -> float:
     return (max(rgb) - min(rgb)) / 255.0
 
 
+def required_spread(lightness: float) -> float:
+    """이 명도에서 «유채색이다» 라고 부르려면 필요한 채널 폭 (S22 · P-40).
+
+    중간 회색(L 0.5)에서 `NEUTRAL_SPREAD_MIN`, 검정·흰색으로 갈수록 `EXTREME_SPREAD_MIN`
+    까지 **거리에 비례해** 오른다. 평평한 구간이 없는 것이 요점이다 — 평평하게 두면 그
+    가장자리가 곧 새 절벽이 되고, 절벽 바로 아래 색이 공짜로 통과한다.
+    """
+    distance = abs(2.0 * max(0.0, min(1.0, float(lightness))) - 1.0)
+    return NEUTRAL_SPREAD_MIN + distance * (EXTREME_SPREAD_MIN - NEUTRAL_SPREAD_MIN)
+
+
 def _is_extreme_neutral(rgb, spread: float) -> bool:
     """아주 어둡거나 아주 밝은데 채널 폭이 좁으면 **눈에는 잉크이거나 종이**다.
 
     HSL 채도만으로는 이 구간을 못 거른다. 실측: 새 본문 글자색 `#161A2C` 는 색상각 231도 ·
     S 0.33 · 폭 0.086 으로 세 조건을 전부 통과하지만 화면에서는 검정이다. 그 색이 브랜드로
     세어지면 `highlight` role 이 "그 화면을 지배하는 판독값이 브랜드다"라고 잘못 말한다.
+
+    문턱은 `required_spread()` 가 명도에 따라 **연속으로** 정한다(P-40).
     """
     lightness = (max(rgb[:3]) + min(rgb[:3])) / 2.0 / 255.0
-    if spread >= EXTREME_SPREAD_MIN:
-        return False
-    return lightness < EXTREME_L_LOW or lightness > EXTREME_L_HIGH
+    return spread < required_spread(lightness)
 
 
 def _is_chromatic(sat: float, spread: float, rgb=None) -> bool:

@@ -2,6 +2,7 @@ import React from "react";
 import Box from "@mui/material/Box";
 import Chip from "@mui/material/Chip";
 import Typography from "@mui/material/Typography";
+import { CONTROL, remPx } from "./theme.js";
 
 /* 탐색 줄 — 목록 화면의 «어떻게 볼지»(도구)와 «무엇을 볼지»(필터)를 담는 자리.
  *
@@ -187,6 +188,20 @@ export function ResultLine({ total, unit = "건", conditions, action, sx }) {
 
 /* 지금 걸린 조건을 Chip 으로 보여 주고 하나씩 뗄 수 있게 한다.
  * 숨은 기본 조건은 여기에 안 넣는다 — 넣은 것만 사용자가 본 조건이다. */
+/* 🔴 조건 줄의 **모든 조작기가 한 높이로 선다** (S22 · `control_baseline_mismatch`).
+ *
+ * 이 줄에는 세 종류가 섞인다: 조건 칩(`Chip size="small"`) · 「필터 초기화」 · 화면이
+ * 넘기는 `extraAction`(「전체 보기」 같은 글자 단추). 칩은 토큰 높이로 서는데 글자 단추는
+ * 자기 줄 높이라, 4K 레버가 루트 폰트사이즈를 올리면 둘이 갈렸다 — `/my-tickets` 3840 에서
+ * 다섯 컨트롤이 5.5px 어긋났다. 좁은 화면에서는 우연히 같아서 아무도 못 봤다.
+ *
+ * 줄이 자기 높이를 주는 것만으로는 모자란다 — 프로브가 재는 것은 **버튼 요소 자신**이라
+ * 감싼 상자의 높이는 그 판정에 안 들어간다(실측으로 확인했다). 그래서 이 값을 내보내
+ * `extraAction` 을 만드는 화면이 **그 버튼에 직접** 얹게 한다. */
+export const CHIP_ROW_CONTROL = {
+  display: "inline-flex", alignItems: "center", minHeight: remPx(CONTROL.buttonSm),
+};
+
 export function FilterChips({ items, onClearAll, clearLabel = "필터 초기화", extraAction }) {
   const chips = Array.isArray(items) ? items.filter((c) => c && c.label) : [];
   if (!chips.length && !extraAction) return null;
@@ -208,13 +223,14 @@ export function FilterChips({ items, onClearAll, clearLabel = "필터 초기화"
           onClick={onClearAll}
           sx={{
             border: 0, background: "none", cursor: "pointer", color: "primary.main", font: "inherit",
+            ...CHIP_ROW_CONTROL,
             "&:focus-visible": (t) => ({ outline: `2px solid ${t.palette.focusRing}`, outlineOffset: 2 }),
           }}
         >
           {clearLabel}
         </Typography>
       ) : null}
-      {extraAction}
+      {extraAction ? <Box sx={CHIP_ROW_CONTROL}>{extraAction}</Box> : null}
     </Box>
   );
 }

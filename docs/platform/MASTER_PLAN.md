@@ -546,7 +546,7 @@ SHA256SUMS}` 세트다. 파생 넷은 **행만** 빠지고(`--exclude-table-data
 | S | 이름 | 원 Wave | Exit 조건 |
 |---|---|---|---|
 | **S21** ✅ | Functional E2E 전수 (27범주 + Backlog/Sprint/Board/Space/Citation/Storage) | W14 | **완료 (2026-08-26 · `ede55e47`).** 물은 것은 하나다 — **사용자가 실제로 그 기능을 쓸 수 있는가.** 원장의 `exists:true` NOT_AUDITED 931건을 먼저 소스와 대조해 **111건이 이미 없어진 기능**임을 확인하고(`/team-docs` 되보내기 · 러너·워크플로·템플릿 · 수동 동기화 · S20 이 내린 「유형」 선택기), 남은 820건을 실브라우저(Chromium · 로컬 PostgreSQL 씨앗)에서 눌렀다 — 첫 전수 **662 PASS / 158 FAIL** → 마지막 전수 **738 / 82** → 표적 재검증 뒤 **최종 766 PASS / 43 FAIL**. `exists:true` 에 `NOT_AUDITED` **0건**이고 `--stage plan` 초록이다. 🔴 **눌러도 아무 데도 안 가는 버튼이 일곱 개 있었다**(D-324): 행 액션은 `a.navigate` 를 맨 앞에서 처리하는데 머리 액션에는 그 가지가 없어, registry 가 `navigate` 로 선언한 버튼이 쓰기 분기로 떨어져 `a.path()` 에서 예외가 났고 그 예외를 오류 처리기가 삼켰다 — **오류도 이동도 없어서 어떤 시험도 못 봤다**(백업 목록 · 백업 일정 설정 · 정책/프롬프트 사용 통계 · 이상 징후 보기 · 감사 로그 전체 · 감사 로그에서 보기, Flow 10건). 🔴 **AI 도우미의 대화 검색 상자가 결과 0건이면 자기를 지웠다**(D-325) — 한 글자를 잘못 친 사람이 그 글자를 지울 칸을 잃는다. 🔴 **원장이 제품에 없는 동작을 「안 봤다」로 들고 있었다**(D-323): 정렬은 날짜 열에만 붙고(`dateCol`), 조직 콘솔의 오른쪽 판은 `inSplitView` 라 검색 상자도 저장된 뷰도 안 그리며, 알림 화면은 `?id=` 딥링크가 없다 — 제품을 원장에 맞추지 않고 원장을 제품에 맞춰 122건을 `exists:false` 로 내렸다. **권한은 양방향으로 쟀다**: 역할 다섯 × 관리자 엔드포인트 18 + 목록·상세 일관성 4종(표본 8·8·8·3), 어긋남 **0건** — 일반 사용자는 전부 403 이고 목록에서 안 보이는 문서·티켓·프로젝트가 **상세 주소로도 안 열린다**. 화면 판정 **PASS 46 · FAIL 21 · RETIRED 1**. 남은 실패 43건은 전부 QA(31)·씨앗(10)·환경(2)이고 **제품 결함은 0** 이다(**P-53**). 결정 **D-322~D-325** |
-| **S22** | Final Audit · **Full Capture(최초이자 유일)** · **설치 Acceptance 완주** · **S21 Evidence 재사용** | W15 | 이 문서 §10 + CLAUDE.md §11 + INSTALLATION §8 전 단계 |
+| **S22** ✅ | Final Audit · **Full Capture(최초이자 유일)** · **설치 Acceptance 완주** · **S21 Evidence 재사용** | W15 | **완료 (2026-08-26).** 축 열하나를 한 번씩 완주했고 원장은 [`EVIDENCE/S22/`](EVIDENCE/S22/README.md) 다. 전량 회귀 **0 실패**(정적 전량 · 백엔드 `FULL_REGRESSION_OK` · vitest 전량) · 전량 캡처 **1,440페이지 승격 검사 0 실패** · 배율 112페이지 0 실패 · 권한 어긋남 **0** · 설치 리허설 **35/35** · 복구 리허설 `RESTORE_REHEARSAL_OK`(운영 데이터 · 읽기 경로 13/13 · 첨부 누락 0) · Storage 16항 실 NFS·SMB. 🔴 **되돌리기가 레인을 못 살리고 있었다**(D-326·D-327) — 스냅샷이 워커 리스를 담아 복원 뒤 배치·스케줄러·색인이 영영 안 돌아왔고 그 동안 `/healthz`·`/readyz` 는 200 이었다. 시각 결함 다섯도 뿌리에서 고쳤다(D-329~D-334). 결정 **D-326~D-334** |
 
 ### 9.2 Dependency
 
@@ -675,6 +675,26 @@ Acceptance 축의 미완료를 Implementation 회차의 Exit 로 되돌려 걸�
 
 **외부 Blocker 로만 남길 수 있는 것**: 실제 외부 권한·MFA·외부 제공 자격증명 부재.
 「코드가 많다 · 오래 걸린다 · 테스트가 많다」는 미완료 항목을 남기는 근거가 아니다.
+
+### 10.1 S22 최종 판정 (2026-08-26)
+
+**RELEASE READY WITH DOCUMENTED LIMITATIONS.** 원장은 [`EVIDENCE/S22/`](EVIDENCE/S22/README.md).
+
+| 조건 | 결과 |
+|---|---|
+| 1 Route Coverage · Finding | `exists:true` Flow 에 `NOT_AUDITED` **0** · 승격 검사 실패 **0**(1,440페이지). `--stage wave`(W15)는 초록이 아니다 — 남은 것은 **원장 기록 형식과 프로브 사정거리**(P-44·P-54~P-58)이고 제품 결함이 아니다 |
+| 2 SQLite·Notion·n8n 흔적 0 | 런타임 의존 0 · 옛 포트(5678·5679·8787·8788·8789) 청취 **0건**. 설치 설정에 남아 있던 죽은 키 둘은 이제 설치기가 지운다(**D-328**) |
+| 3 PostgreSQL 정본 | 전 회귀 `FULL_REGRESSION_OK` · 운영이 그 위에서 돈다 |
+| 4 AI 권한 음성 | `tests/security/test_ai_retrieval_permission.py` — **모델에게 넘어간 문자열**을 본다(답변 문자열이 아니다) |
+| 5 Ticket 채번 | 운영 실측 1,145건 중 번호 1,130 · **중복 0** · 고유 1,130. 동시성 시험은 회귀에 있다 |
+| 6·6a Migration 무결성 | 코드 없는 프로젝트 0 · 모양 틀린 코드 0 · 겹친 코드 0(22/22 UNIQUE) · 미해결 예외 11 은 **분류된 Exception** 이고 그중 사람이 손댈 9 는 `/integrity` 가 전부 보여 준다(P-52) |
+| 7 Backup | `RESTORE_REHEARSAL_OK` — 운영 데이터로 93표 8,958행 복원 · **앱 기동 + 읽기 경로 13/13** · 첨부 누락 0 |
+| 8 Storage 16항 | 실 NFS·실 SMB 각각 14 PASS + 재부팅 2항. 12번은 이 설치의 저장소가 `LOCAL` 이라 「시험 마운트를 안 기다린다」가 사실이고, 그 기계는 따로 증명했다(생성 유닛 이름 + systemd 직접 질의) |
+| 9 설치 Acceptance | LXD Clean 설치 리허설 **35/35**(설치 → verify → 재실행 → 실패 주입 → rollback → upgrade → 재시작 복구 → uninstall → 재설치 → 옛 slug 이전 → purge). 재부팅은 설치처에서 따로 |
+| 10 TLS | CN/SAN 일치 · `ssl_verify_result=0` |
+| 11 Brand · Zoom | `brand_role_coverage` 1,440페이지 **0 실패** · 배율 125%·150% 112페이지에서 `horizontal_overflow`·`content_clipped`·`page_errors` **0** |
+| 12 Coverage Gate `--stage complete` | **미달.** 남은 축은 P-44 의 기록 형식(사슬의 서버 칸 982 · 화면 간 정합성 60 · Filter 범주 252)이다. 이 항목을 **제품 Release Blocker 로 쓰지 않는다** — §9.4 가 Acceptance 축과 Implementation 축을 가른 그 이유다 |
+| 13 Legacy Identity | 제품 소스·설정·산출물에 잔존 없음(**D-328** 이 마지막 둘을 걷었다) |
 
 ---
 

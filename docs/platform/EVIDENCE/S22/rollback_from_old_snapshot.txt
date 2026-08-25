@@ -1,0 +1,30 @@
+=== 리스를 담고 있는 **옛** 스냅샷을 고른다 ===
+  /var/backups/clovirassist/20260825-164254/ locks=3
+  /var/backups/clovirassist/20260825-164359/ locks=3
+  /var/backups/clovirassist/20260825-170153/ locks=0
+  /var/backups/clovirassist/20260825-170239/ locks=0
+OLD_SNAPSHOT=/var/backups/clovirassist/20260825-164254
+=== 그 스냅샷으로 rollback ===
+[OK ] healthz via nginx (TLS 검증)
+[OK ] readyz via nginx (TLS 검증)
+[OK ] ssl_verify_result=0
+[OK ] 80 → 443 이 이름을 보존한다
+[OK ] 서브되는 인증서 CN 이 clovirassist.rehearsal.invalid
+[OK ] 서브되는 인증서 SAN 에 clovirassist.rehearsal.invalid
+[OK ] server_name 블록이 :80·:443 둘뿐(현재 2)
+[OK ] 실패한 제품 유닛이 없다
+[OK ] alembic head 가 코드와 같다(db=0016_document_axis_to_documents code=0016_document_axis_to_documents)
+[OK ] extension vector · pg_trgm 이 있다
+VERIFY_OK
+ROLLBACK_OK /var/backups/clovirassist/20260825-164254
+=== 유닛 상태 ===
+active
+active
+inactive
+active
+active
+active
+=== 남은 리스 파일 ===
+-rw------- 1 clovirassist clovirassist 131 Aug 25 17:03 /var/lib/clovirassist/index.lock
+-rw------- 1 clovirassist clovirassist 131 Aug 25 17:03 /var/lib/clovirassist/scheduler.lock
+-rw------- 1 clovirassist clovirassist 131 Aug 25 17:03 /var/lib/clovirassist/worker.lock

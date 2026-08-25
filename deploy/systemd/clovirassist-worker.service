@@ -10,8 +10,15 @@ Wants=network-online.target postgresql.service
 # (잡·스케줄러·하트비트가 전부 죽었는데 능동적으로 지켜보지 않으면 아무도 모른다). 지금은
 # WorkerLockError 를 잡아 깨끗이 종료하지만(app/worker_main.py), 그래도 순간적인 문제가
 # 스스로 풀릴 시간을 더 주고 - 그래도 안 풀리면 여전히 결국은 멈춘다(무한 재시도는 아니다).
+# 🔴 재시도 예산이 **리스 수명보다 길어야 한다** (S22). 워커 리스는 120초를 산다
+# (app/core/worker_lock.py::DEFAULT_LEASE_SECONDS). 앞선 프로세스가 리스를 남기고
+# 사라진 상태 - 되돌리기 · 갑작스러운 정전 · 강제 종료 - 에서 새 워커는 리스가 만료될
+# 때까지 «다른 워커가 이미 돌고 있다» 며 물러난다. RestartSec=10 · Burst=10 이면
+# 재시도가 100초 남짓에 끝나 **리스가 풀리기 전에 systemd 가 먼저 포기했다** - 그러면
+# 레인은 사람이 손대기 전까지 영영 안 돌아온다. Burst 를 20 으로 두어 재시도 창
+# (약 200초)이 리스를 넘게 한다. 300초 안에 20회이므로 여전히 유한한 고리다.
 StartLimitIntervalSec=300
-StartLimitBurst=10
+StartLimitBurst=20
 
 [Service]
 Type=simple

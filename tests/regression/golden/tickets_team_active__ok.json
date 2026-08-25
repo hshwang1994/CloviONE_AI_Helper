@@ -14,12 +14,13 @@
         "00000000-0000-4000-8000-00000000a001"
       ],
       "category": null,
-      "difficulty": "3",
-      "due": "2026-07-10",
-      "est_wd": 2.0,
-      "id": "page-0001",
+      "created_at": "2026-07-14T08:00:00",
+      "difficulty": null,
+      "due": null,
+      "est_wd": null,
+      "id": "page-0007",
       "key": null,
-      "priority": "높음",
+      "priority": null,
       "project": "알파 프로젝트",
       "project_ids": [
         "proj-alpha-0001"
@@ -29,45 +30,17 @@
       ],
       "project_uid": "00000000-0000-4000-8000-00000000c001",
       "start": null,
-      "status": "진행",
-      "tid": 101,
-      "title": "관리자 진행 티켓",
-      "uid": "00000000-0000-4000-8000-00000000d001"
-    },
-    {
-      "act_wd": null,
-      "assignee_names": [
-        "개발자 이"
-      ],
-      "assignee_user_ids": [
-        "00000000-0000-4000-8000-00000000a002"
-      ],
-      "category": null,
-      "difficulty": "1",
-      "due": "2026-07-20",
-      "est_wd": 3.0,
-      "id": "page-0003",
-      "key": null,
-      "priority": "낮음",
-      "project": "베타 프로젝트",
-      "project_ids": [
-        "proj-beta-0001"
-      ],
-      "project_names": [
-        "베타 프로젝트"
-      ],
-      "project_uid": "00000000-0000-4000-8000-00000000c002",
-      "start": null,
-      "status": "검증",
-      "tid": 103,
-      "title": "개발자 검증 티켓",
-      "uid": "00000000-0000-4000-8000-00000000d003"
+      "status": "이슈",
+      "tid": 107,
+      "title": "마감 없는 이슈 티켓",
+      "uid": "00000000-0000-4000-8000-00000000d007"
     },
     {
       "act_wd": null,
       "assignee_names": [],
       "assignee_user_ids": [],
       "category": null,
+      "created_at": "2026-07-14T08:00:00",
       "difficulty": null,
       "due": "2026-07-25",
       "est_wd": 0.5,
@@ -91,18 +64,49 @@
     {
       "act_wd": null,
       "assignee_names": [
+        "개발자 이"
+      ],
+      "assignee_user_ids": [
+        "00000000-0000-4000-8000-00000000a002"
+      ],
+      "category": null,
+      "created_at": "2026-07-14T08:00:00",
+      "difficulty": "1",
+      "due": "2026-07-20",
+      "est_wd": 3.0,
+      "id": "page-0003",
+      "key": null,
+      "priority": "낮음",
+      "project": "베타 프로젝트",
+      "project_ids": [
+        "proj-beta-0001"
+      ],
+      "project_names": [
+        "베타 프로젝트"
+      ],
+      "project_uid": "00000000-0000-4000-8000-00000000c002",
+      "start": null,
+      "status": "검증",
+      "tid": 103,
+      "title": "개발자 검증 티켓",
+      "uid": "00000000-0000-4000-8000-00000000d003"
+    },
+    {
+      "act_wd": null,
+      "assignee_names": [
         "관리자 김"
       ],
       "assignee_user_ids": [
         "00000000-0000-4000-8000-00000000a001"
       ],
       "category": null,
-      "difficulty": null,
-      "due": null,
-      "est_wd": null,
-      "id": "page-0007",
+      "created_at": "2026-07-14T08:00:00",
+      "difficulty": "3",
+      "due": "2026-07-10",
+      "est_wd": 2.0,
+      "id": "page-0001",
       "key": null,
-      "priority": null,
+      "priority": "높음",
       "project": "알파 프로젝트",
       "project_ids": [
         "proj-alpha-0001"
@@ -112,10 +116,10 @@
       ],
       "project_uid": "00000000-0000-4000-8000-00000000c001",
       "start": null,
-      "status": "이슈",
-      "tid": 107,
-      "title": "마감 없는 이슈 티켓",
-      "uid": "00000000-0000-4000-8000-00000000d007"
+      "status": "진행",
+      "tid": 101,
+      "title": "관리자 진행 티켓",
+      "uid": "00000000-0000-4000-8000-00000000d001"
     }
   ],
   "ok": true,
@@ -131,12 +135,13 @@
         "00000000-0000-4000-8000-00000000a001"
       ],
       "category": null,
-      "difficulty": "3",
-      "due": "2026-07-10",
-      "est_wd": 2.0,
-      "id": "page-0001",
+      "created_at": "2026-07-14T08:00:00",
+      "difficulty": null,
+      "due": null,
+      "est_wd": null,
+      "id": "page-0007",
       "key": null,
-      "priority": "높음",
+      "priority": null,
       "project": "알파 프로젝트",
       "project_ids": [
         "proj-alpha-0001"
@@ -146,45 +151,17 @@
       ],
       "project_uid": "00000000-0000-4000-8000-00000000c001",
       "start": null,
-      "status": "진행",
-      "tid": 101,
-      "title": "관리자 진행 티켓",
-      "uid": "00000000-0000-4000-8000-00000000d001"
-    },
-    {
-      "act_wd": null,
-      "assignee_names": [
-        "개발자 이"
-      ],
-      "assignee_user_ids": [
-        "00000000-0000-4000-8000-00000000a002"
-      ],
-      "category": null,
-      "difficulty": "1",
-      "due": "2026-07-20",
-      "est_wd": 3.0,
-      "id": "page-0003",
-      "key": null,
-      "priority": "낮음",
-      "project": "베타 프로젝트",
-      "project_ids": [
-        "proj-beta-0001"
-      ],
-      "project_names": [
-        "베타 프로젝트"
-      ],
-      "project_uid": "00000000-0000-4000-8000-00000000c002",
-      "start": null,
-      "status": "검증",
-      "tid": 103,
-      "title": "개발자 검증 티켓",
-      "uid": "00000000-0000-4000-8000-00000000d003"
+      "status": "이슈",
+      "tid": 107,
+      "title": "마감 없는 이슈 티켓",
+      "uid": "00000000-0000-4000-8000-00000000d007"
     },
     {
       "act_wd": null,
       "assignee_names": [],
       "assignee_user_ids": [],
       "category": null,
+      "created_at": "2026-07-14T08:00:00",
       "difficulty": null,
       "due": "2026-07-25",
       "est_wd": 0.5,
@@ -208,18 +185,49 @@
     {
       "act_wd": null,
       "assignee_names": [
+        "개발자 이"
+      ],
+      "assignee_user_ids": [
+        "00000000-0000-4000-8000-00000000a002"
+      ],
+      "category": null,
+      "created_at": "2026-07-14T08:00:00",
+      "difficulty": "1",
+      "due": "2026-07-20",
+      "est_wd": 3.0,
+      "id": "page-0003",
+      "key": null,
+      "priority": "낮음",
+      "project": "베타 프로젝트",
+      "project_ids": [
+        "proj-beta-0001"
+      ],
+      "project_names": [
+        "베타 프로젝트"
+      ],
+      "project_uid": "00000000-0000-4000-8000-00000000c002",
+      "start": null,
+      "status": "검증",
+      "tid": 103,
+      "title": "개발자 검증 티켓",
+      "uid": "00000000-0000-4000-8000-00000000d003"
+    },
+    {
+      "act_wd": null,
+      "assignee_names": [
         "관리자 김"
       ],
       "assignee_user_ids": [
         "00000000-0000-4000-8000-00000000a001"
       ],
       "category": null,
-      "difficulty": null,
-      "due": null,
-      "est_wd": null,
-      "id": "page-0007",
+      "created_at": "2026-07-14T08:00:00",
+      "difficulty": "3",
+      "due": "2026-07-10",
+      "est_wd": 2.0,
+      "id": "page-0001",
       "key": null,
-      "priority": null,
+      "priority": "높음",
       "project": "알파 프로젝트",
       "project_ids": [
         "proj-alpha-0001"
@@ -229,10 +237,10 @@
       ],
       "project_uid": "00000000-0000-4000-8000-00000000c001",
       "start": null,
-      "status": "이슈",
-      "tid": 107,
-      "title": "마감 없는 이슈 티켓",
-      "uid": "00000000-0000-4000-8000-00000000d007"
+      "status": "진행",
+      "tid": 101,
+      "title": "관리자 진행 티켓",
+      "uid": "00000000-0000-4000-8000-00000000d001"
     }
   ],
   "total": 4

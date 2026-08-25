@@ -817,6 +817,30 @@ stage_8_config() {
     env_set DATABASE_URL "postgresql://$PG_ROLE@/$PG_DB?host=/var/run/postgresql"
   fi
 
+  # 🔴 걷어낸 런타임이 남긴 죽은 줄을 지운다 (S22 · §10-13).
+  #
+  # 설정 보존은 **운영자가 정한 값을 안 덮어쓴다**는 뜻이지, 이 제품이 더는 안 읽는 줄을
+  # 영원히 들고 다닌다는 뜻이 아니다. 옛 slug 설치에서 넘어온 `web.env` 에는 S11 이 걷어낸
+  # 런타임이 쓰던 두 줄이 그대로 남아 있었고, 그 값은 **옛 제품 이름**을 담고 있다.
+  # 앱은 그 키를 한 번도 안 읽는다 — 확인은 `grep -ri <키> app/` 이고 지금 0건이다. 남겨
+  # 두면 설정을 읽는 운영자가 「이 제품이 아직 그 엔진을 부른다」고 읽는다. 위 `DATABASE_URL`
+  # 의 `sqlite://` 예외와 같은 종류다: 이전 전의 잔재이지 운영자의 선택이 아니다.
+  #
+  # **아는 이름만 지운다.** 「소스가 안 읽는 키를 전부 지운다」로 넓히면 아직 배선 안 된
+  # 설치처 값이나 운영자가 손으로 적어 둔 것까지 함께 사라진다.
+  #
+  # 아래 목록에 그 엔진 이름이 글자로 남는 것은 **지우기 위해서**다 — 부르기 위해서가
+  # 아니다. `test_installer_and_ops_scripts_have_no_n8n_trace` 가 같은 줄의 `S11` 표식으로
+  # 그 둘을 구별한다(그 검사가 처음부터 그렇게 적혀 있다).
+  local dead tmp
+  for dead in N8N_WORK_ASSISTANT_URL N8N_TIMEOUT_SECONDS; do  # S11 이 걷어낸 엔진의 죽은 키
+    grep -qE "^${dead}=" "$ENV_FILE" 2>/dev/null || continue
+    tmp="$(mktemp)"
+    grep -vE "^${dead}=" "$ENV_FILE" >"$tmp" && cat "$tmp" >"$ENV_FILE"
+    rm -f "$tmp"
+    log "걷어낸 런타임의 죽은 설정 줄을 지웠습니다: $dead"
+  done
+
   ai_env_apply
 
   # 목록을 손으로 적지 않고 `config/` 에 실제로 있는 것을 전부 옮긴다.
@@ -1388,7 +1412,10 @@ take_snapshot() {
   # `ai/models` 는 뺀다. 수 GB 이고 **되받을 수 있는 것**이라(설치기가 다시 깐다) 여기
   # 넣으면 스냅샷 하나가 디스크를 채워 되돌릴 지점 자체를 못 만들게 된다. `temp` 도 뺀다 —
   # 이름 그대로 중간 파일이다.
-  [ -d "$VAR_DIR" ] && tar czf "$dir/data.tar.gz"     --exclude="$SLUG/ai/models" --exclude="$SLUG/temp" -C /var/lib "$SLUG" 2>/dev/null || true
+  # 🔴 워커 리스 파일(`*.lock`)은 **데이터가 아니라 지금 누가 살아 있는가**다. 담으면
+  # 되돌릴 때 죽은 프로세스의 리스가 되살아나고, 그 뒤에 뜬 워커는 «다른 워커가 이미 돌고
+  # 있다» 며 스스로 물러난다(S22 실측 — 배치·스케줄러·색인 세 레인이 그렇게 안 돌아왔다).
+  [ -d "$VAR_DIR" ] && tar czf "$dir/data.tar.gz"     --exclude="$SLUG/ai/models" --exclude="$SLUG/temp" --exclude="$SLUG/*.lock" -C /var/lib "$SLUG" 2>/dev/null || true
   [ -d "/var/lib/$LEGACY_SLUG" ] && tar czf "$dir/data-legacy.tar.gz"     --exclude="$LEGACY_SLUG/ai/models" --exclude="$LEGACY_SLUG/temp"     -C /var/lib "$LEGACY_SLUG" 2>/dev/null || true
   local u
   for u in "${ALL_UNITS[@]}" "${LEGACY_UNITS[@]}"; do
@@ -1493,6 +1520,13 @@ do_rollback() {
     tar xzf "$dir/data.tar.gz" -C /var/lib
     id "$SVC_USER" >/dev/null 2>&1 && chown -R "$SVC_USER":"$SVC_USER" "$VAR_DIR" 2>/dev/null || true
   fi
+  # 🔴 되살아난 리스를 지운다. 위에서 유닛을 **전부 멈춘 뒤**라 지금 이 호스트에 도는
+  # 워커는 없다 — 그러니 남아 있는 `*.lock` 은 전부 죽은 프로세스의 것이다. 옛 스냅샷은
+  # 아직 리스를 담고 있고(그 자리를 이번에 `take_snapshot` 에서 뺐다), 담긴 리스를 그대로
+  # 되돌리면 뒤이어 뜨는 워커가 «다른 워커가 이미 돌고 있다» 며 1 로 죽는다. 유닛은
+  # `Restart=on-failure` · `RestartSec=10` · `StartLimitBurst=10` 이라 100초 만에 시도를
+  # 멈추는데 리스는 120초를 산다 — **재시도가 먼저 끝나서 레인이 영영 안 돌아온다.**
+  rm -f "$VAR_DIR"/*.lock 2>/dev/null || true
   for u in "${ALL_UNITS[@]}"; do
     [ -f "$dir/$u" ] && install -m 0644 "$dir/$u" "/etc/systemd/system/$u" || true
   done

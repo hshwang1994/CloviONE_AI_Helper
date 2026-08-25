@@ -1,0 +1,403 @@
+{
+ "base_url": "http://127.0.0.1:8110",
+ "roles": [
+  "user",
+  "operator",
+  "auditor",
+  "admin",
+  "system_admin"
+ ],
+ "cases": [
+  {
+   "case": "사용자 목록",
+   "method": "GET",
+   "path": "/api/admin/users",
+   "allowed_roles": [
+    "admin",
+    "system_admin"
+   ],
+   "by_role": {
+    "user": 403,
+    "operator": 403,
+    "auditor": 403,
+    "admin": 200,
+    "system_admin": 200
+   }
+  },
+  {
+   "case": "사용자 만들기",
+   "method": "POST",
+   "path": "/api/admin/users",
+   "allowed_roles": [
+    "admin",
+    "system_admin"
+   ],
+   "by_role": {
+    "user": 403,
+    "operator": 403,
+    "auditor": 403,
+    "admin": 201,
+    "system_admin": 201
+   }
+  },
+  {
+   "case": "역할 매트릭스",
+   "method": "GET",
+   "path": "/api/admin/rbac-matrix",
+   "allowed_roles": [
+    "operator",
+    "auditor",
+    "admin",
+    "system_admin"
+   ],
+   "by_role": {
+    "user": 403,
+    "operator": 200,
+    "auditor": 200,
+    "admin": 200,
+    "system_admin": 200
+   }
+  },
+  {
+   "case": "감사 로그",
+   "method": "GET",
+   "path": "/api/admin/audit",
+   "allowed_roles": [
+    "auditor",
+    "admin",
+    "system_admin"
+   ],
+   "by_role": {
+    "user": 403,
+    "operator": 403,
+    "auditor": 200,
+    "admin": 200,
+    "system_admin": 200
+   }
+  },
+  {
+   "case": "백업 목록",
+   "method": "GET",
+   "path": "/api/admin/backups",
+   "allowed_roles": [
+    "operator",
+    "auditor",
+    "admin",
+    "system_admin"
+   ],
+   "by_role": {
+    "user": 403,
+    "operator": 200,
+    "auditor": 200,
+    "admin": 200,
+    "system_admin": 200
+   }
+  },
+  {
+   "case": "백업 실행",
+   "method": "POST",
+   "path": "/api/admin/backups",
+   "allowed_roles": [
+    "system_admin"
+   ],
+   "by_role": {
+    "user": 403,
+    "operator": 403,
+    "auditor": 403,
+    "admin": 403,
+    "system_admin": 201
+   }
+  },
+  {
+   "case": "기능 플래그 읽기",
+   "method": "GET",
+   "path": "/api/admin/feature-flags",
+   "allowed_roles": [
+    "operator",
+    "auditor",
+    "admin",
+    "system_admin"
+   ],
+   "by_role": {
+    "user": 403,
+    "operator": 200,
+    "auditor": 200,
+    "admin": 200,
+    "system_admin": 200
+   }
+  },
+  {
+   "case": "기능 플래그 쓰기",
+   "method": "PUT",
+   "path": "/api/admin/feature-flags/games_enabled",
+   "allowed_roles": [
+    "admin",
+    "system_admin"
+   ],
+   "by_role": {
+    "user": 403,
+    "operator": 403,
+    "auditor": 403,
+    "admin": 200,
+    "system_admin": 200
+   }
+  },
+  {
+   "case": "프롬프트 만들기",
+   "method": "POST",
+   "path": "/api/admin/prompts",
+   "allowed_roles": [
+    "admin",
+    "system_admin"
+   ],
+   "by_role": {
+    "user": 403,
+    "operator": 403,
+    "auditor": 403,
+    "admin": 201,
+    "system_admin": 201
+   }
+  },
+  {
+   "case": "공지 만들기",
+   "method": "POST",
+   "path": "/api/admin/announcements",
+   "allowed_roles": [
+    "admin",
+    "system_admin"
+   ],
+   "by_role": {
+    "user": 403,
+    "operator": 403,
+    "auditor": 403,
+    "admin": 201,
+    "system_admin": 201
+   }
+  },
+  {
+   "case": "파일 저장소 목록",
+   "method": "GET",
+   "path": "/api/storage/providers",
+   "allowed_roles": [
+    "system_admin"
+   ],
+   "by_role": {
+    "user": 403,
+    "operator": 403,
+    "auditor": 403,
+    "admin": 403,
+    "system_admin": 200
+   }
+  },
+  {
+   "case": "파일 저장소 추가",
+   "method": "POST",
+   "path": "/api/storage/providers",
+   "allowed_roles": [
+    "system_admin"
+   ],
+   "by_role": {
+    "user": 403,
+    "operator": 403,
+    "auditor": 403,
+    "admin": 403,
+    "system_admin": 200
+   }
+  },
+  {
+   "case": "초기 설정 점검표",
+   "method": "GET",
+   "path": "/api/admin/setup/checklist",
+   "allowed_roles": [
+    "system_admin"
+   ],
+   "by_role": {
+    "user": 403,
+    "operator": 403,
+    "auditor": 403,
+    "admin": 403,
+    "system_admin": 200
+   }
+  },
+  {
+   "case": "대리 보기 시작",
+   "method": "POST",
+   "path": "/api/admin/impersonation/start",
+   "allowed_roles": [
+    "admin",
+    "system_admin"
+   ],
+   "by_role": {
+    "user": 403,
+    "operator": 403,
+    "auditor": 403,
+    "admin": 422,
+    "system_admin": 422
+   }
+  },
+  {
+   "case": "오프보딩 실행",
+   "method": "POST",
+   "path": "/api/admin/offboarding/run",
+   "allowed_roles": [],
+   "by_role": {
+    "user": 405,
+    "operator": 405,
+    "auditor": 405,
+    "admin": 405,
+    "system_admin": 405
+   }
+  },
+  {
+   "case": "정합성 진단",
+   "method": "GET",
+   "path": "/api/admin/integrity",
+   "allowed_roles": [
+    "operator",
+    "auditor",
+    "admin",
+    "system_admin"
+   ],
+   "by_role": {
+    "user": 403,
+    "operator": 200,
+    "auditor": 200,
+    "admin": 200,
+    "system_admin": 200
+   }
+  },
+  {
+   "case": "메일 현황",
+   "method": "GET",
+   "path": "/api/admin/mail/status",
+   "allowed_roles": [
+    "operator",
+    "auditor",
+    "admin",
+    "system_admin"
+   ],
+   "by_role": {
+    "user": 403,
+    "operator": 200,
+    "auditor": 200,
+    "admin": 200,
+    "system_admin": 200
+   }
+  },
+  {
+   "case": "실행 일정 만들기",
+   "method": "POST",
+   "path": "/api/admin/schedules",
+   "allowed_roles": [
+    "admin",
+    "system_admin"
+   ],
+   "by_role": {
+    "user": 403,
+    "operator": 403,
+    "auditor": 403,
+    "admin": 201,
+    "system_admin": 201
+   }
+  }
+ ],
+ "consistency": [
+  {
+   "kind": "문서",
+   "checked": 8,
+   "by_role": {
+    "user": {
+     "list_status": 200,
+     "visible": 0,
+     "leaked_by_url": [],
+     "blocked_though_listed": []
+    },
+    "operator": {
+     "list_status": 200,
+     "visible": 12,
+     "leaked_by_url": [],
+     "blocked_though_listed": []
+    },
+    "auditor": {
+     "list_status": 200,
+     "visible": 12,
+     "leaked_by_url": [],
+     "blocked_though_listed": []
+    }
+   }
+  },
+  {
+   "kind": "티켓",
+   "checked": 8,
+   "by_role": {
+    "user": {
+     "list_status": 200,
+     "visible": 0,
+     "leaked_by_url": [],
+     "blocked_though_listed": []
+    },
+    "operator": {
+     "list_status": 200,
+     "visible": 18,
+     "leaked_by_url": [],
+     "blocked_though_listed": []
+    },
+    "auditor": {
+     "list_status": 200,
+     "visible": 18,
+     "leaked_by_url": [],
+     "blocked_though_listed": []
+    }
+   }
+  },
+  {
+   "kind": "게시글",
+   "checked": 8,
+   "by_role": {
+    "user": {
+     "list_status": 200,
+     "visible": 26,
+     "leaked_by_url": [],
+     "blocked_though_listed": []
+    },
+    "operator": {
+     "list_status": 200,
+     "visible": 26,
+     "leaked_by_url": [],
+     "blocked_though_listed": []
+    },
+    "auditor": {
+     "list_status": 200,
+     "visible": 26,
+     "leaked_by_url": [],
+     "blocked_though_listed": []
+    }
+   }
+  },
+  {
+   "kind": "프로젝트",
+   "checked": 3,
+   "by_role": {
+    "user": {
+     "list_status": 200,
+     "visible": 0,
+     "leaked_by_url": [],
+     "blocked_though_listed": []
+    },
+    "operator": {
+     "list_status": 200,
+     "visible": 3,
+     "leaked_by_url": [],
+     "blocked_though_listed": []
+    },
+    "auditor": {
+     "list_status": 200,
+     "visible": 3,
+     "leaked_by_url": [],
+     "blocked_though_listed": []
+    }
+   }
+  }
+ ],
+ "failures": []
+}

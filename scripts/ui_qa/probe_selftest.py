@@ -599,6 +599,69 @@ def _logic_cases() -> list[dict]:
          coverage(nav_active=BRAND_INK, primary_action=BRAND_INK, highlight=BRAND_INK), "pass",
          "고친 뒤의 모습 — 이 사례가 없으면 «전부 unknown» 으로도 초록이 된다")
 
+    # ── S22 · P-40 ─ 유채색 문턱은 절벽이 아니라 경사다 ──────────────────
+    # 예전 규칙은 「L>0.90 이면 폭 0.15, 아니면 0.06」이라 문턱 **바로 아래**가 공짜로
+    # 통과했다. 아래 여섯이 그 경사를 양방향으로 못 박는다 — 중립 램프 둘은 떨어지고,
+    # 진짜 Brand 색 둘은 통과하고, 잉크와 종이는 예전 판정을 그대로 유지한다.
+    def chromatic(hexcode: str) -> bool:
+        rgb = (int(hexcode[1:3], 16), int(hexcode[3:5], 16), int(hexcode[5:7], 16))
+        _hue, sat, _light = brand._hsl(rgb)
+        return brand._is_chromatic(sat, brand._spread(rgb), rgb)
+
+    case("brand/divider 는 Brand 로 세지 않는다", chromatic("#DCDFEC"), False,
+         "🔴 P-40 이 잡은 그 자리 — L 0.894 로 옛 절벽(0.90) 바로 아래라 색상각·채도만 맞으면 "
+         "어떤 role 이든 통과했다. 눈에는 아주 옅은 회선이다")
+    case("brand/dividerStrong 도 Brand 로 세지 않는다", chromatic("#BCC2D9"), False,
+         "평평한 구간을 두면 그 가장자리가 새 절벽이 되고 이 색이 정확히 그 자리에 앉는다 — "
+         "경사에 평평한 구간을 두지 않는 이유")
+    case("brand/rail 은 통과한다", chromatic("#A9BAFF"), True,
+         "🔴 반대 방향 — 문턱을 올린 것이 진짜 Brand 색까지 떨어뜨리지 않았음을 보인다")
+    case("brand/focusRing 도 통과한다", chromatic("#C3CEFF"), True,
+         "밝은 쪽에서 가장 아슬아슬한 진짜 Brand 색이다(L 0.882 · 폭 0.235)")
+    case("brand/본문 잉크는 여전히 무채색이다", chromatic("#161A2C"), False,
+         "이 판정이 뒤집히면 `highlight` 가 본문 글자를 Brand 로 세고 지표가 부풀어 오른다")
+    case("brand/brandTint 는 사람이 정한 대로 무채색이다", chromatic("#E9ECFA"), False,
+         "옛 규칙에서도 무채색이었다(L 0.947). AI 면은 배경 role 이라 캔버스와의 ΔE 가 따로 "
+         "판정하므로 이 값이 그 자리를 막지 않는다")
+    case("brand/Shell 은 어두운 쪽에서 통과한다", chromatic("#1E2758"), True,
+         "어두운 쪽 경사도 진짜 Brand 색을 떨어뜨리지 않는지 — 양방향")
+
+    # ── S22 · P-43 ─ 판독 슬롯이 없는 줄은 «회색인 자리» 가 아니다 ────────
+    # 제품(`kit.jsx::MetricStrip`)이 `data-readout-slot="none"` 으로 그 사실을 선언하고,
+    # 프로브의 `notInside` 가 그 줄과 그 안의 칸을 함께 건너뛴다. 여기서는 그 결과 —
+    # 「자리가 없다」가 `unknown` 으로 읽히고, 정말 회색인 판독값은 **여전히 실패** — 를
+    # 양방향으로 못 박는다.
+    case("brand/판독 슬롯이 없으면 회색 결함이 아니다",
+         coverage(nav_active=BRAND_INK, primary_action=BRAND_INK, selected_state=RAIL), "pass",
+         "🔴 P-43 — 할 일이 없는 날의 홈이 그 상태다. 값이 0 이면 `MetricStrip` 이 판독 슬롯을 "
+         "안 주므로 그 화면에는 지배 판독값이 없다. 없는 것은 `unknown` 이다")
+    case("brand/그렇다고 정족수를 공짜로 채우지도 않는다",
+         brand.brand_verdict(probe(nav_active=BRAND_INK, primary_action=BRAND_INK,
+                                   selected_state=RAIL))["present_brand"], 3,
+         "unknown 은 통과가 아니다 — 슬롯이 없는 화면은 세 자리로만 정족수를 채운다")
+    case("brand/슬롯이 있는데 회색이면 여전히 실패다",
+         coverage(nav_active=BRAND_INK, primary_action=BRAND_INK, highlight=GREY_INK), "fail",
+         "🔴 반대 방향 — 이 사례가 없으면 P-43 의 고침이 「판독값 검사를 통째로 껐다」와 "
+         "구별되지 않는다")
+    case("brand/`notInside` 는 판독 role 에만 걸린다",
+         "data-readout-slot" in brand.BRAND_PROBE_JS
+         and brand.BRAND_PROBE_JS.count("notInside: '[data-readout-slot=\"none\"]'"), 1,
+         "다른 role 까지 함께 건너뛰면 그 화면의 다른 결함이 조용히 사라진다")
+
+    # ── S22 ─ 화면이 「여기는 그 자리가 아니다」라고 말할 수 있다 ──────────
+    case("brand/`data-brand-role=\"none\"` 은 모든 role 에서 한 번만 걸린다",
+         brand.BRAND_PROBE_JS.count("el.closest('[data-brand-role=\"none\"]')"), 1,
+         "🔴 role 마다 따로 적으면 어느 role 이 그 선언을 존중하는지 갈린다 — `pickOne` 한 "
+         "자리에서만 본다")
+    case("brand/그 선언은 마크업에 남아 셀 수 있다",
+         '[data-brand-role="none"]' in brand.BRAND_PROBE_JS, True,
+         "억제가 아니라 선언이다 — grep 으로 어느 화면이 무엇을 선언했는지 셀 수 있어야 한다")
+    case("brand/선언 없는 회색 header 는 여전히 실패다",
+         coverage(nav_active=BRAND_INK, primary_action=BRAND_INK,
+                  header=("background-color", "rgb(236, 237, 238)")), "fail",
+         "🔴 반대 방향 — 이 사례가 없으면 새 opt-out 이 「header 검사를 통째로 껐다」와 "
+         "구별되지 않는다")
+
     # ── W7 이 고친 마스코트 판정 (지시 71) ────────────────────────────────
     # `mascot_verdict` 도 측정과 분리돼 있어(dict 만 받는다) 브라우저 없이 양방향을 보인다.
     # 여기서 못 박는 것은 셋이다: 잉크 비율이 부풀면 작은 마스코트가 통과한다 · 자리를

@@ -1,0 +1,118 @@
+=== [B] upgrade --inject-failure 9 ===
+[16:44:06] pip install (online)
+STAGE_4_PYTHON: OK venv + 의존성 import 확인
+STAGE_5_FRONTEND: OK 번들이 소스와 맞습니다
+STAGE_6_POSTGRES: OK PostgreSQL 16.15 (Ubuntu 16.15-0ubuntu0.24.04.1) · role=clovirassist db=clovirassist · max_connections=120
+STAGE_7_EXTENSIONS: OK pg_trgm 1.6 · vector 0.6.0
+STAGE_8_CONFIG: OK 기존 설정을 보존하고 설치처 값만 맞췄습니다 · secrets 0개
+STAGE_9_MIGRATION: FAIL 의도적 실패 주입(--inject-failure 9) | 조치: 리허설용 스위치다. 실제 설치에서는 이 인자를 주지 않는다
+INSTALL_FAILED stage=9 name=MIGRATION
+SNAP=/var/backups/clovirassist/20260825-164359/
+=== 유닛 상태(주입 실패 뒤) ===
+active
+active
+inactive
+active
+active
+active
+=== [C] rollback — 전체 출력 ===
+[16:44:15] rollback ← /var/backups/clovirassist/20260825-164359
+  체크섬 확인
+  복원 확인: public 표 93개
+=== ClovirAssist 검증 (dns=clovirassist.rehearsal.invalid bind=10.154.245.145) ===
+[OK ] clovirassist-privhelper.service active
+[FAIL] clovirassist-worker.service active
+[FAIL] clovirassist-scheduler.service active
+[FAIL] clovirassist-index.service active
+[OK ] clovirassist-web.service active
+[OK ] postgresql active
+[OK ] nginx active
+[OK ] postgresql enabled
+[OK ] nginx enabled
+[OK ] clovirassist-privhelper.service enabled
+[OK ] clovirassist-worker.service enabled
+[OK ] clovirassist-worker-conversational.service enabled
+[OK ] clovirassist-scheduler.service enabled
+[OK ] clovirassist-index.service enabled
+[OK ] clovirassist-web.service enabled
+[OK ] 앱이 127.0.0.1:8080 를 듣는다
+[OK ] nginx 가 :443 을 듣는다
+[OK ] healthz via nginx (TLS 검증)
+[OK ] readyz via nginx (TLS 검증)
+[OK ] ssl_verify_result=0
+[OK ] 80 → 443 이 이름을 보존한다
+[OK ] 서브되는 인증서 CN 이 clovirassist.rehearsal.invalid
+[OK ] 서브되는 인증서 SAN 에 clovirassist.rehearsal.invalid
+[OK ] server_name 블록이 :80·:443 둘뿐(현재 2)
+[OK ] 실패한 제품 유닛이 없다
+[OK ] alembic head 가 코드와 같다(db=0016_document_axis_to_documents code=0016_document_axis_to_documents)
+[OK ] extension vector · pg_trgm 이 있다
+VERIFY_FAILED
+ROLLBACK_DEGRADED /var/backups/clovirassist/20260825-164359 — verify 가 실패했습니다
+=== 유닛 상태(rollback 뒤) ===
+active
+activating
+inactive
+activating
+activating
+active
+=== 워커 journal ===
+Aug 25 16:42:41 s22-repro systemd[1]: Starting clovirassist-worker.service - ClovirAssist Background Worker (batch jobs)...
+Aug 25 16:42:41 s22-repro systemd[1]: Started clovirassist-worker.service - ClovirAssist Background Worker (batch jobs).
+Aug 25 16:42:42 s22-repro python[5088]: 2026-08-25 16:42:42,764 INFO app.worker 워커 리스 획득(lane=batch): 5088@s22-repro
+Aug 25 16:42:43 s22-repro python[5088]: 2026-08-25 16:42:43,830 INFO app.worker 주간 헬스 스냅샷(2026-08-26): 기록 0건, 건너뜀 0건, 실패 0건
+Aug 25 16:43:26 s22-repro python[5088]: 2026-08-25 16:43:26,785 INFO app.worker signal 15: graceful shutdown
+Aug 25 16:43:26 s22-repro python[5088]: 2026-08-25 16:43:26,785 INFO app.worker worker stopped gracefully
+Aug 25 16:43:26 s22-repro systemd[1]: Stopping clovirassist-worker.service - ClovirAssist Background Worker (batch jobs)...
+Aug 25 16:43:27 s22-repro systemd[1]: clovirassist-worker.service: Deactivated successfully.
+Aug 25 16:43:27 s22-repro systemd[1]: Stopped clovirassist-worker.service - ClovirAssist Background Worker (batch jobs).
+Aug 25 16:43:27 s22-repro systemd[1]: clovirassist-worker.service: Consumed 2.800s CPU time, 81.1M memory peak, 0B memory swap peak.
+Aug 25 16:43:27 s22-repro systemd[1]: Starting clovirassist-worker.service - ClovirAssist Background Worker (batch jobs)...
+Aug 25 16:43:27 s22-repro systemd[1]: Started clovirassist-worker.service - ClovirAssist Background Worker (batch jobs).
+Aug 25 16:43:28 s22-repro python[6631]: 2026-08-25 16:43:28,511 INFO app.worker 워커 리스 획득(lane=batch): 6631@s22-repro
+Aug 25 16:43:29 s22-repro python[6631]: 2026-08-25 16:43:29,573 INFO app.worker 주간 헬스 스냅샷(2026-08-26): 기록 0건, 건너뜀 0건, 실패 0건
+Aug 25 16:44:15 s22-repro python[6631]: 2026-08-25 16:44:15,574 INFO app.worker signal 15: graceful shutdown
+Aug 25 16:44:15 s22-repro python[6631]: 2026-08-25 16:44:15,574 INFO app.worker worker stopped gracefully
+Aug 25 16:44:15 s22-repro systemd[1]: Stopping clovirassist-worker.service - ClovirAssist Background Worker (batch jobs)...
+Aug 25 16:44:15 s22-repro systemd[1]: clovirassist-worker.service: Deactivated successfully.
+Aug 25 16:44:15 s22-repro systemd[1]: Stopped clovirassist-worker.service - ClovirAssist Background Worker (batch jobs).
+Aug 25 16:44:15 s22-repro systemd[1]: clovirassist-worker.service: Consumed 2.877s CPU time, 81.0M memory peak, 0B memory swap peak.
+Aug 25 16:44:19 s22-repro systemd[1]: Starting clovirassist-worker.service - ClovirAssist Background Worker (batch jobs)...
+Aug 25 16:44:19 s22-repro systemd[1]: Started clovirassist-worker.service - ClovirAssist Background Worker (batch jobs).
+Aug 25 16:44:20 s22-repro python[7458]: 2026-08-25 16:44:20,745 ERROR app.worker 다른 워커가 이미 돌고 있다(lane=batch, owner=6631@s22-repro, lock=/var/lib/clovirassist/worker.lock). 중복 실행을 막기 위해 종료한다. 정말 이전 워커가 죽었다면 리스가 만료된 뒤(기본 120초) 다시 시도하면 인수한다.
+Aug 25 16:44:20 s22-repro systemd[1]: clovirassist-worker.service: Main process exited, code=exited, status=1/FAILURE
+Aug 25 16:44:20 s22-repro systemd[1]: clovirassist-worker.service: Failed with result 'exit-code'.
+Aug 25 16:44:20 s22-repro systemd[1]: clovirassist-worker.service: Consumed 1.465s CPU time.
+=== 스케줄러 journal ===
+Aug 25 16:43:27 s22-repro systemd[1]: Stopping clovirassist-scheduler.service - ClovirAssist Scheduler (due-schedule evaluation)...
+Aug 25 16:43:27 s22-repro systemd[1]: clovirassist-scheduler.service: Deactivated successfully.
+Aug 25 16:43:27 s22-repro systemd[1]: Stopped clovirassist-scheduler.service - ClovirAssist Scheduler (due-schedule evaluation).
+Aug 25 16:43:27 s22-repro systemd[1]: clovirassist-scheduler.service: Consumed 2.087s CPU time, 65.8M memory peak, 0B memory swap peak.
+Aug 25 16:43:27 s22-repro systemd[1]: Starting clovirassist-scheduler.service - ClovirAssist Scheduler (due-schedule evaluation)...
+Aug 25 16:43:27 s22-repro systemd[1]: Started clovirassist-scheduler.service - ClovirAssist Scheduler (due-schedule evaluation).
+Aug 25 16:43:28 s22-repro python[6647]: 2026-08-25 16:43:28,996 INFO app.worker 워커 리스 획득(lane=scheduler): 6647@s22-repro
+Aug 25 16:43:29 s22-repro python[6647]: 2026-08-25 16:43:29,243 INFO app.worker 스케줄러 레인 시작(tick=1.0s)
+Aug 25 16:44:15 s22-repro python[6647]: 2026-08-25 16:44:15,862 INFO app.worker signal 15: graceful shutdown
+Aug 25 16:44:15 s22-repro python[6647]: 2026-08-25 16:44:15,862 INFO app.worker 스케줄러 레인 정상 종료
+Aug 25 16:44:15 s22-repro systemd[1]: Stopping clovirassist-scheduler.service - ClovirAssist Scheduler (due-schedule evaluation)...
+Aug 25 16:44:16 s22-repro systemd[1]: clovirassist-scheduler.service: Deactivated successfully.
+Aug 25 16:44:16 s22-repro systemd[1]: Stopped clovirassist-scheduler.service - ClovirAssist Scheduler (due-schedule evaluation).
+Aug 25 16:44:16 s22-repro systemd[1]: clovirassist-scheduler.service: Consumed 1.987s CPU time, 66.1M memory peak, 0B memory swap peak.
+Aug 25 16:44:19 s22-repro systemd[1]: Starting clovirassist-scheduler.service - ClovirAssist Scheduler (due-schedule evaluation)...
+Aug 25 16:44:19 s22-repro systemd[1]: Started clovirassist-scheduler.service - ClovirAssist Scheduler (due-schedule evaluation).
+Aug 25 16:44:21 s22-repro python[7471]: 2026-08-25 16:44:21,143 ERROR app.worker 다른 워커가 이미 돌고 있다(lane=scheduler, owner=6647@s22-repro, lock=/var/lib/clovirassist/scheduler.lock). 중복 실행을 막기 위해 종료한다. 정말 이전 워커가 죽었다면 리스가 만료된 뒤(기본 120초) 다시 시도하면 인수한다.
+Aug 25 16:44:21 s22-repro systemd[1]: clovirassist-scheduler.service: Main process exited, code=exited, status=1/FAILURE
+Aug 25 16:44:21 s22-repro systemd[1]: clovirassist-scheduler.service: Failed with result 'exit-code'.
+Aug 25 16:44:21 s22-repro systemd[1]: clovirassist-scheduler.service: Consumed 1.482s CPU time.
+=== systemctl status worker ===
+● clovirassist-worker.service - ClovirAssist Background Worker (batch jobs)
+     Loaded: loaded (/etc/systemd/system/clovirassist-worker.service; enabled; preset: enabled)
+    Drop-In: /etc/systemd/system/clovirassist-worker.service.d
+             └─10-storage-mounts.conf
+     Active: activating (auto-restart) (Result: exit-code) since Tue 2026-08-25 16:44:20 UTC; 9s ago
+    Process: 7453 ExecStartPre=/opt/clovirassist/deploy/wait-for-postgres.sh (code=exited, status=0/SUCCESS)
+    Process: 7458 ExecStart=/opt/clovirassist/venv/bin/python -m app.worker_main --lane=batch (code=exited, status=1/FAILURE)
+   Main PID: 7458 (code=exited, status=1/FAILURE)
+        CPU: 1.465s
+
+Aug 25 16:44:20 s22-repro systemd[1]: clovirassist-worker.service: Consumed 1.465s CPU time.

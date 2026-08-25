@@ -1,0 +1,40 @@
+# ── mnt-clv\x2dnfs.mount ──
+[Unit]
+Description=ClovirAssist NFS 공유 (NFS 시험)
+After=network-online.target
+Wants=network-online.target
+
+[Mount]
+What=127.0.0.1:/srv/clv-nfs-export
+Where=/mnt/clv-nfs
+Type=nfs
+Options=soft,timeo=50,retrans=2,_netdev
+TimeoutSec=30
+
+[Install]
+WantedBy=multi-user.target
+
+# ── mnt-clv\x2dsmb.mount ──
+[Unit]
+Description=ClovirAssist SMB 공유 (SMB 시험)
+After=network-online.target
+Wants=network-online.target
+
+[Mount]
+What=//127.0.0.1/clvtest
+Where=/mnt/clv-smb
+Type=cifs
+Options=uid=clovirassist,gid=clovirassist,file_mode=0640,dir_mode=0750,_netdev
+TimeoutSec=30
+
+[Install]
+WantedBy=multi-user.target
+
+# ── 10-storage-mounts.conf ──
+# ClovirAssist Storage (S8, D-199 12번).
+# 마운트가 붙기 전에는 앱이 뜨지 않는다. 부팅 경합에서 앱이 먼저 뜨면 그 창에
+# 들어온 업로드가 로컬 디스크에 쌓인다.
+[Unit]
+RequiresMountsFor=
+RequiresMountsFor=/mnt/clv-nfs /mnt/clv-smb
+

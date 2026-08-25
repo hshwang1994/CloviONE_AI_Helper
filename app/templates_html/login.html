@@ -103,7 +103,12 @@
 
     <section class="form-panel" aria-labelledby="login-title">
       <div class="form-container">
-        <header class="mobile-brand-row">
+        {# `data-brand-role="none"` — 이 줄은 **정렬용**이고 아무 면도 안 칠한다. 넓은
+           폭에서는 히어로가 이 화면의 Brand 면이지만(위 `data-brand-role="header"`), 좁은
+           폭에서는 히어로가 숨는다. 그 선언이 없으면 프로브가 `<header>` 태그를 찾아 이 줄을
+           집고 「이 화면의 header 가 회색이다」라고 말한다 — 사실은 «좁은 폭에 그 자리가
+           없다» 이고, 브랜드는 워드마크와 주요 버튼이 나른다. #}
+        <header class="mobile-brand-row" data-brand-role="none">
           {# 폼 패널은 흰 면이라 워드마크 글자가 잉크색을 따른다(login.css의 .panel-logo). #}
           {% with class = 'panel-logo', sub = 'SMART WORKSPACE ASSISTANT' %}{% include "_wordmark.html" %}{% endwith %}
           <img class="mobile-clovi" src="{{ asset('/static/brand/login/clovi-canonical-avatar.png') }}" alt="클로비" />

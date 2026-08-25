@@ -2,7 +2,7 @@ import React from "react";
 import Typography from "@mui/material/Typography";
 import { Button, EmptyState } from "../ui/kit.jsx";
 import { DebouncedTextField, EntityCombobox, FilterSelect, SearchBox } from "../ui/filters.jsx";
-import { FilterActions, FilterChips, FilterRow, FilterSurface, ResultLine, ToolbarRow } from "../ui/FilterBar.jsx";
+import { CHIP_ROW_CONTROL, FilterActions, FilterChips, FilterRow, FilterSurface, ResultLine, ToolbarRow } from "../ui/FilterBar.jsx";
 import { priorityKo } from "../lib/priority.js";
 import { affiliation, needsOrg } from "../lib/people.js";
 import { useAssigneeOptions, useTicketMeta, useTicketProjects } from "./ticket-options.js";
@@ -478,6 +478,10 @@ export function TicketFilterBar({
             onClick={onShowAll}
             sx={{
               border: 0, background: "none", cursor: "pointer", color: "text.secondary", font: "inherit",
+              /* 조건 줄의 컨트롤은 한 높이로 선다 (S22 — `FilterBar.jsx::CHIP_ROW_CONTROL`).
+                 이 값이 없으면 이 글자 단추만 자기 줄 높이로 서서, 4K 레버가 루트 폰트를
+                 올리는 순간 옆의 조건 칩과 5.5px 어긋난다(`/my-tickets` 3840 실측). */
+              ...CHIP_ROW_CONTROL,
               "&:focus-visible": (t) => ({ outline: `2px solid ${t.palette.focusRing}`, outlineOffset: 2 }),
             }}
           >

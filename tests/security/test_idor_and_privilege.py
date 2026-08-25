@@ -1,4 +1,6 @@
-"""IDOR sweep + privilege-escalation matrix (spec §25.5, §31.10)."""
+"""qa-contract-change: 권한 승격 매트릭스에서 `/api/admin/notion-mapping` 축을 뺀다. S20 이 그 콘솔을 걷어 지금은 어느 역할이 불러도 404 라, 이 축은 «권한이 막았다» 가 아니라 «문이 없다» 를 재고 있었다 — 그 둘을 같은 칸에 적으면 문이 다시 열려도 시험은 계속 초록이다. 남은 `/api/admin/users` · `/api/admin/settings` 두 축이 같은 규칙(admin 이상만)을 그대로 지킨다.
+
+IDOR sweep + privilege-escalation matrix (spec §25.5, §31.10)."""
 
 import pytest
 
@@ -32,15 +34,11 @@ def test_user_cannot_access_other_users_objects(app, make_user):
 @pytest.mark.parametrize("endpoint", [
     "/api/admin/users",
     "/api/admin/settings",
-    "/api/admin/notion-mapping",
 ])
 def test_insufficient_role_blocked_from_admin_write_endpoints(app, make_user, role, endpoint):
-    # settings/users/notion-mapping require admin+; user and operator are blocked.
+    # settings/users require admin+; user and operator are blocked.
     make_user(f"{role}-esc@goodmit.co.kr", role=role)
     c = _client_as(app, f"{role}-esc@goodmit.co.kr")
-    if role == "operator" and endpoint == "/api/admin/notion-mapping":
-        # operator can READ notion-mapping list.
-        assert c.get(endpoint).status_code in (200, 403)
     r = c.get(endpoint)
     # user is always blocked; operator blocked from users/settings write scopes' list too? users list is admin+.
     if role == "user":

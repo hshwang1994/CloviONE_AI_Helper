@@ -4,8 +4,15 @@ Description=ClovirAssist Conversational Worker (chat + LLM connection test)
 After=network-online.target postgresql.service clovirassist-web.service
 Wants=network-online.target postgresql.service
 # 배치 워커 유닛과 같은 이유(OPS-10).
+# 🔴 재시도 예산이 **리스 수명보다 길어야 한다** (S22). 워커 리스는 120초를 산다
+# (app/core/worker_lock.py::DEFAULT_LEASE_SECONDS). 앞선 프로세스가 리스를 남기고
+# 사라진 상태 - 되돌리기 · 갑작스러운 정전 · 강제 종료 - 에서 새 워커는 리스가 만료될
+# 때까지 «다른 워커가 이미 돌고 있다» 며 물러난다. RestartSec=10 · Burst=10 이면
+# 재시도가 100초 남짓에 끝나 **리스가 풀리기 전에 systemd 가 먼저 포기했다** - 그러면
+# 레인은 사람이 손대기 전까지 영영 안 돌아온다. Burst 를 20 으로 두어 재시도 창
+# (약 200초)이 리스를 넘게 한다. 300초 안에 20회이므로 여전히 유한한 고리다.
 StartLimitIntervalSec=300
-StartLimitBurst=10
+StartLimitBurst=20
 
 # D-118: 이 유닛은 **설치·활성화돼 있어도 안전하다.** `worker_conversational_lane_enabled`
 # 가 꺼져 있으면(기본값) `main()` 이 리스를 잡기 전에 exit(0) 하고 `inactive (dead)` 로

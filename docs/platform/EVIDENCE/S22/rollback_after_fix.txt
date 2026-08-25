@@ -1,0 +1,57 @@
+=== 고친 배포 자산을 컨테이너 소스에 넣는다 ===
+1
+1
+=== 먼저 정상 upgrade 로 고친 유닛을 깐다 ===
+VERIFY_OK
+STAGE_18_VERIFY: OK verify 통과 · /etc/clovirassist/installed_manifest.json 기록
+UPGRADE_OK ref=<현재> snapshot=/var/backups/clovirassist/20260825-170153 log=/var/log/clovirassist/install-20260825-170153.log
+20
+active
+active
+active
+active
+active
+=== [B2] upgrade --inject-failure 9 (스냅샷은 이제 리스를 안 담는다) ===
+STAGE_8_CONFIG: OK 기존 설정을 보존하고 설치처 값만 맞췄습니다 · secrets 0개
+STAGE_9_MIGRATION: FAIL 의도적 실패 주입(--inject-failure 9) | 조치: 리허설용 스위치다. 실제 설치에서는 이 인자를 주지 않는다
+INSTALL_FAILED stage=9 name=MIGRATION
+SNAP=/var/backups/clovirassist/20260825-170239
+SNAPSHOT_HAS_NO_LOCKS
+=== [C2] rollback ===
+=== ClovirAssist 검증 (dns=clovirassist.rehearsal.invalid bind=10.154.245.145) ===
+[OK ] clovirassist-privhelper.service active
+[OK ] clovirassist-worker.service active
+[OK ] clovirassist-scheduler.service active
+[OK ] clovirassist-index.service active
+[OK ] clovirassist-web.service active
+[OK ] postgresql active
+[OK ] nginx active
+[OK ] postgresql enabled
+[OK ] nginx enabled
+[OK ] clovirassist-privhelper.service enabled
+[OK ] clovirassist-worker.service enabled
+[OK ] clovirassist-worker-conversational.service enabled
+[OK ] clovirassist-scheduler.service enabled
+[OK ] clovirassist-index.service enabled
+[OK ] clovirassist-web.service enabled
+[OK ] 앱이 127.0.0.1:8080 를 듣는다
+[OK ] nginx 가 :443 을 듣는다
+[OK ] healthz via nginx (TLS 검증)
+[OK ] readyz via nginx (TLS 검증)
+[OK ] ssl_verify_result=0
+[OK ] 80 → 443 이 이름을 보존한다
+[OK ] 서브되는 인증서 CN 이 clovirassist.rehearsal.invalid
+[OK ] 서브되는 인증서 SAN 에 clovirassist.rehearsal.invalid
+[OK ] server_name 블록이 :80·:443 둘뿐(현재 2)
+[OK ] 실패한 제품 유닛이 없다
+[OK ] alembic head 가 코드와 같다(db=0016_document_axis_to_documents code=0016_document_axis_to_documents)
+[OK ] extension vector · pg_trgm 이 있다
+VERIFY_OK
+ROLLBACK_OK /var/backups/clovirassist/20260825-170239
+=== 유닛 상태(rollback 뒤) ===
+active
+active
+inactive
+active
+active
+active

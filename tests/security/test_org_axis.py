@@ -1,4 +1,6 @@
-"""조직 축 — **두 조직이 실제로 존재하는 세계**에서만 의미가 있다 (7단계 #5).
+"""qa-contract-change: Notion 매핑 콘솔이 조직 범위를 지키는지 재던 시험 하나를 내린다. S20 이 그 콘솔을 걷어 그 주소는 지금 404 이고, 없는 문 앞에서 «막혔다» 를 세면 문이 다시 열려도 시험은 초록이다. 그 시험이 지키던 규칙 둘 — 목록에서 가린 것이 단건 id 로 새면 안 된다 · 범위 밖 단건은 403 이 아니라 404 다 — 은 `tests/security/test_scope_idor_matrix.py` 가 (전역·조직·부서·일반) × (자기 범위·남의 범위) 전수로 그대로 지킨다.
+
+조직 축 — **두 조직이 실제로 존재하는 세계**에서만 의미가 있다 (7단계 #5).
 
 계획서(PLAN4)가 못박은 것: 조직이 하나뿐이면 `WHERE org_id = :org` 는 한 행도 안 거르고
 **걸린 것과 안 건 것이 구별되지 않는다**. 그래서 `two_orgs` 픽스처가 먼저 있어야 한다.
@@ -170,42 +172,6 @@ def test_you_can_still_dm_someone_in_your_own_organization(client, login_as, two
         headers={"X-CSRF-Token": csrf},
     )
     assert r.status_code == 200, f"같은 조직 다른 팀에 DM 을 못 연다: {r.status_code} {r.text[:120]}"
-
-
-def test_the_notion_mapping_console_respects_scope(client, login_as, two_orgs, db):
-    """같은 명부를 **옆문으로** 전부 볼 수 없다 (2순위 #2 / 3순위 IDOR).
-
-    `/api/admin/users` 는 범위를 거는데 `/api/admin/notion-mapping` 은 안 걸었다 —
-    같은 역할 게이트를 지나면서 같은 사람 목록(이메일 포함)을 그대로 내줬다.
-    그리고 `/{user_id}` 경로들이 `get_scoped_user_or_404` 가 아니라 `get_user_or_404` 를
-    썼다. 저장소가 **규칙으로 못박아 놓은** 것의 예외였다:
-
-    > 관리자 라우터의 모든 `/{user_id}` 경로가 이 함수 하나를 통과해야 한다 — 한 군데라도
-    > `get_user_or_404` 를 그대로 쓰면 그 경로만 범위를 무시한다.
-    """
-    from app.users.models import ROLE_ADMIN
-
-    boss = two_orgs.user_b
-    boss.role = ROLE_ADMIN
-    db.commit()
-
-    csrf = login_as("system_admin")
-    r = client.patch(
-        f"/api/admin/users/{boss.id}",
-        json={"admin_scope": "org", "scope_org_id": two_orgs.org_b_id},
-        headers={"X-CSRF-Token": csrf},
-    )
-    assert r.status_code == 200, r.text
-
-    login_as("admin", email="orgb@goodmit.co.kr")
-
-    emails = {m["user_email"] for m in client.get("/api/admin/notion-mapping").json()["items"]}
-    assert "orgb@goodmit.co.kr" in emails, "자기 조직 사람이 안 보인다"
-    assert "orga@goodmit.co.kr" not in emails, "다른 조직 사람의 이메일이 매핑 화면에서 보인다"
-
-    # 단건도 같아야 한다 — 목록에서 가린 것이 id 로 뚫리면 가린 의미가 없다.
-    one = client.get(f"/api/admin/notion-mapping/{two_orgs.user_a.id}")
-    assert one.status_code == 404, f"범위 밖 사용자의 매핑이 id 로 열린다: {one.status_code}"
 
 
 def test_the_audit_log_does_not_show_other_organizations_activity(

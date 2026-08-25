@@ -49,14 +49,25 @@ import { AccentPicker } from "./settings/AccentPicker.jsx";
  *
  * 짧은 카드에 여백이 생기는 것은 감수한다. 카드 안 여백은 흔하고(스탯 카드가 이미 그렇다),
  * 줄 바닥이 어긋나는 것보다 훨씬 덜 눈에 띈다. */
-const TWO_COL = {
+/* 🔴 **똑같이 나누지 않는다** (S22 · `equal_column_split`). 줄 바닥을 맞추는 것(`stretch`)과
+ * 폭을 반씩 주는 것은 다른 결정인데 한 값이 둘 다 하고 있었다. 실측(1920): 두 트랙이
+ * 794px 로 같은데 **요구 폭은 2.88배 차이**였다 — 「내 기기」의 설명문과 UA 문자열이 열 줄로
+ * 접히는 동안 옆 칸은 92%가 비어 있었다. 1200 에서도 같은 모양이다(2.52배).
+ *
+ * 그래서 줄마다 **어느 쪽이 폭을 요구하는지**를 적는다. `weight` 는 그 선언이다 — 1.35:1 로
+ * 기울이되 반으로 접히는 지점(`lg` 미만)에서는 예전처럼 한 열이다. 바닥 정렬은 그대로다. */
+const twoCol = (weight = "1fr 1fr") => ({
   display: "grid", gap: 2.5, alignItems: "stretch",
   gridTemplateColumns: {
     xs: "minmax(0, 1fr)",
-    lg: "minmax(0, 1fr) minmax(0, 1fr)",
-    xxl: "minmax(0, 1fr) minmax(0, 1fr)",
+    lg: weight,
+    xxl: weight,
   },
-};
+});
+/** 계정(라벨·값 짝) | 내 기기(설명문·기기 문자열) — 오른쪽이 폭을 요구한다. */
+const TWO_COL_WIDE_RIGHT = twoCol("minmax(0, 0.85fr) minmax(0, 1.15fr)");
+/** 알림 설정(유형 스물한 줄) | 방해금지·강조색 — 왼쪽이 폭을 요구한다. */
+const TWO_COL_WIDE_LEFT = twoCol("minmax(0, 1.15fr) minmax(0, 0.85fr)");
 
 // 방해금지 빠른 시간. '무한'을 기본으로 두지 않는다 — 실수로 켜 두고 잊는 것이 이 기능의
 // 가장 흔한 실패다.
@@ -456,7 +467,7 @@ export function Profile() {
         <ErrorState error={error} onRetry={() => { profileQuery.refetch(); prefsQuery.refetch(); }} />
       ) : (
         <Box sx={{ display: "grid", gap: 2.5 }}>
-          <Box sx={TWO_COL}>
+          <Box sx={TWO_COL_WIDE_RIGHT}>
             <AccountCard
               profile={profileQuery.data}
               prefs={prefsQuery.data}
@@ -469,7 +480,7 @@ export function Profile() {
             />
             <SessionsCard />
           </Box>
-          <Box sx={TWO_COL}>
+          <Box sx={TWO_COL_WIDE_LEFT}>
             <NotificationCard prefs={prefsQuery.data} save={savePrefs.mutate} saving={savePrefs.isPending} />
             {/* 알림 설정 카드는 유형이 스물한 개라 세로로 길고, 그 옆 칸은 방해금지
                 하나로 끝나 900px 가까이 비어 있었다(`equal_column_split` 실측). 같은

@@ -1,0 +1,22 @@
+=== 정상일 때 ===
+{"status":"ok","ticket_source":"native"}
+readyz=200 {"status":"ready"}
+=== PostgreSQL 을 내린다 ===
+stopped
+healthz=200
+{"status":"ok","ticket_source":"native"}
+readyz=503
+{"status":"unready"}
+=== 로그인 화면(정적)은? ===
+login=200
+=== API 는? ===
+api_me=401
+{"error":{"code":"unauthorized","message":"로그인이 필요합니다. 다시 로그인해 주세요.","request_id":"01a1dd79126140d780568d4ac7acee3a"}}
+=== 되살린다 ===
+started
+healthz=200 readyz=200
+active
+active
+active
+active
+active

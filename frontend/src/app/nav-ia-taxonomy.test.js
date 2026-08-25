@@ -1,3 +1,4 @@
+/* qa-contract-change: 사이드바 항목 수 기대값을 27 → 26 으로 내린다. S20 이 「Notion 사용자 연결」을 걷어내면서 이 숫자를 안 옮겼다 — 그 회차는 표적 검증으로 끝났고 이 파일은 표적에 안 들어 있었다. 숫자만 고치면 「합치기로 줄었다」와 「기능이 사라져 줄었다」가 다시 섞이므로, 사라진 주소 `/notion-mapping` 을 이름으로 함께 못 박는다(기존 넷과 같은 방식). 단언 수는 줄지 않고 하나 늘었다. */
 import { describe, it, expect } from "vitest";
 
 import SettingsOutlinedIcon from "@mui/icons-material/SettingsOutlined";
@@ -90,16 +91,18 @@ describe("짝을 이루는 화면은 형제 항목이 아니라 한 화면의 �
     expect(allPaths()).toContain(host);
   });
 
-  // S11 이 n8n·러너 화면 넷을 걷어내 31 → 27 이 됐다. 이 숫자는 「합치기로 줄었다」와
-  // 「기능이 사라져 줄었다」를 구별하지 못하므로, 사라진 넷을 이름으로 함께 못 박는다.
-  it("합쳐서 36항목이 27항목이 됐다", () => {
+  // S11 이 n8n·러너 화면 넷을 걷어내 31 → 27 이 됐고, S20 이 Notion 사용자 연결을 걷어
+  // 27 → 26 이 됐다. 이 숫자는 「합치기로 줄었다」와 「기능이 사라져 줄었다」를 구별하지
+  // 못하므로, 사라진 다섯을 이름으로 함께 못 박는다.
+  it("합쳐서 36항목이 26항목이 됐다", () => {
     const total = NAV.reduce((sum, g) => sum + g.items.length, 0);
-    expect(total).toBe(27);
+    expect(total).toBe(26);
     const all = NAV.flatMap((g) => g.items.map((i) => i.to));
     expect(all).not.toContain("/runners");
     expect(all).not.toContain("/workflows");
     expect(all).not.toContain("/documents");
     expect(all).not.toContain("/templates");
+    expect(all).not.toContain("/notion-mapping");
   });
 });
 

@@ -22,7 +22,7 @@ import {
   useToast,
 } from "../ui/kit.jsx";
 import { fmtDateTime, affiliationOf, ARCHIVED_SUFFIX } from "../lib/format.js";
-import { FONT_SIZE, FONT_WEIGHT } from "../ui/theme.js";
+import { CONTROL, FONT_SIZE, FONT_WEIGHT, remPx } from "../ui/theme.js";
 import { ideaStatusKind } from "../lib/badges.js";
 import { buildPostsQuery, reactionMap } from "./board-helpers.js";
 import { useQueryState } from "../lib/useQueryState.js";
@@ -338,8 +338,14 @@ export function Reactions({ targetType, targetId, reactions, palette, onChanged 
                「답글·수정·삭제」(`Button size="sm"`, 30px)와 한 줄에 선다. MUI 의
                `Chip size="small"` 은 24px 이라 같은 줄의 컨트롤 아홉이 두 높이로
                갈렸다(`control_baseline_mismatch`, 6px 차이 — S18 실측). 한 줄 안에서
-               같은 종류의 컨트롤은 한 높이를 갖는다. */
-            sx={{ fontSize: FONT_SIZE.body, height: 30 }}
+               같은 종류의 컨트롤은 한 높이를 갖는다.
+
+               🔴 **px 가 아니라 토큰이다** (S22). S18 은 그 값을 `30` 이라고 적었는데,
+               옆의 작은 버튼은 `remPx(CONTROL.buttonSm)` 이라 4K 레버(`styles/root.css` 가
+               루트 폰트사이즈를 16→18→20 으로 올린다)를 함께 탄다. 그래서 3072·3840 에서만
+               버튼이 37.5px 로 자라고 이 칩은 30px 에 남아 **다시 7.5px 어긋났다** — 같은
+               결함이 같은 자리에서 두 번 났고, 두 번째는 px 리터럴이 원인이다. */
+            sx={{ fontSize: FONT_SIZE.body, height: remPx(CONTROL.buttonSm) }}
           />
         );
       })}

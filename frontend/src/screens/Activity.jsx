@@ -129,7 +129,26 @@ export function Activity() {
           aria-label="활동 종류"
         >
           {KINDS.map((k) => (
-            <ToggleButton key={k.value || "all"} value={k.value} sx={{ textTransform: "none", px: 2 }}>
+            /* 🔴 **선택은 면이 아니라 잉크와 레일로 말한다** (D-289 · S22 실측).
+               MUI 기본 `Mui-selected` 는 `rgba(0,0,0,.08)` 회색 면이라, 캡처가 이 화면의
+               선택 자리를 `#ECEDEE`(S 0.05 · ΔE 3.1)로 읽고 「있는 자리가 회색이다」로
+               세었다. 이 제품은 사이드바(3px 레일)도 판독 줄(아래 레일)도 같은 어휘를
+               쓴다 — 한 제품이 선택을 두 가지 말로 하지 않는다. */
+            <ToggleButton
+              key={k.value || "all"}
+              value={k.value}
+              data-brand-role={kind === k.value ? "selected-state" : undefined}
+              sx={(t) => ({
+                textTransform: "none", px: 2,
+                "&.Mui-selected": {
+                  color: t.palette.brand.core,
+                  borderColor: t.palette.brand.core,
+                  backgroundColor: "transparent",
+                  fontWeight: FONT_WEIGHT.semibold,
+                  "&:hover": { backgroundColor: "transparent" },
+                },
+              })}
+            >
               {k.label}
             </ToggleButton>
           ))}
