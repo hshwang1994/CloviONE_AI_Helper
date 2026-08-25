@@ -1,3 +1,13 @@
+/* 일괄 작업의 실패 사유를 **그대로** 말한다 (UA-25).
+ *
+ * qa-contract-replaced-by: frontend/src/screens/teamdocs-bulk-failure-reason.test.jsx
+ *
+ * 예전에는 화면마다 이 문구를 각자 만들었고, 전부 실제 사유와 무관하게 「권한이 없어
+ * 건너뛰었습니다」였다 — Notion 장애일 때 관리자가 이 문구만 보고 더 높은 권한의 계정으로
+ * 헛되이 재시도했다. 옛 문서 화면의 그 시험은 화면이 사라지며 함께 지웠고, 계약은 여기로
+ * 내려왔다: 문구를 만드는 곳이 `lib/format.js::bulkFailureNote` 하나뿐이라 여기서 지키면
+ * 그 함수를 쓰는 화면 전부에서 지켜진다.
+ */
 import { describe, it, expect } from "vitest";
 import { bulkFailureNote } from "./format.js";
 

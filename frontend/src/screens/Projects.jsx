@@ -209,7 +209,7 @@ function columns(deptNames) {
       ) : p.health_score + "점"),
     },
     {
-      key: "created_at", label: "생성", type: "date", minWidth: "8rem", sortable: true,
+      key: "created_at", label: "추가", type: "date", minWidth: "8rem", sortable: true,
       render: (p) => <DateCell value={p.created_at} />,
     },
   ];

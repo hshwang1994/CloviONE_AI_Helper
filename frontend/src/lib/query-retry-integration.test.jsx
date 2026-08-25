@@ -1,3 +1,10 @@
+/* qa-contract-replaced-by: frontend/src/screens/teamdocs-failure-retry.test.jsx
+ *
+ * 「목록이 500 인데 몇 초씩 로딩 중처럼 보인다」(FAIL-03)를 막던 계약이다. 예전에는 화면
+ * 하나가 자기 쿼리에서 `retry` 를 껐는지 세는 방식이라, 새 화면이 생길 때마다 같은 결함이
+ * 다시 들어왔다. 지금은 `main.jsx` 의 전역 기본값 `shouldRetryQuery` 가 4xx 를 재시도하지
+ * 않고 5xx 만 두 번 다시 부른다 — 정책이 한 곳이라 이 파일이 그 한 곳을 지킨다.
+ */
 import React from "react";
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";

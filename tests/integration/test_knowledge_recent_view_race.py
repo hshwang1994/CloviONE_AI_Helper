@@ -1,5 +1,11 @@
 """최근 열람 기록은 이미 성공한 본문 응답을 500 으로 만들면 안 된다.
 
+qa-contract-replaced-by: tests/integration/test_team_docs_record_view_race.py
+
+옛 문서 화면의 같은 계약을 그대로 이어받았다 (S14 · C2) — 대상 함수만 미러 쪽
+`team_docs.service.record_view` 에서 정본 쪽 `app/knowledge/recent_views.py` 로 옮겼고,
+사례 넷(행 생성 · 충돌 뒤 재시도 성공 · 예산 소진 뒤 조용한 포기 · 공유 예산 값)은 같다.
+
 실측(2026-08-15, 테스트 서버 Chrome E2E): 문서 상세 GET 이 본문을 성공적으로 받아 온
 **뒤**, 마지막 줄인 최근 열람 기록의 「이미 있는 행 갱신」 분기에서 처리되지 않은 쓰기
 충돌로 원시 500 이 났다. 「행이 아직 없어 새로 만드는」 분기에는 재시도 폴백이 있었는데,

@@ -55,7 +55,10 @@ export function TicketHistory({ ticketId }) {
                    같은 어휘다(D-289). 점·아이콘을 새로 만들지 않는다. */
                 borderInlineStartStyle: "solid",
                 borderInlineStartWidth: "2px",
-                borderInlineStartColor: "divider",
+                /* 색은 **콜백으로** 푼다. 논리 이름에는 MUI 가 팔레트 경로를 안 풀어 줘서
+                   `"divider"` 를 그대로 두면 `border-inline-start-color: divider` 라는
+                   무효 선언이 나가고 레일이 아예 안 그려진다(CommandPalette 와 같은 자리). */
+                borderInlineStartColor: (t) => t.palette.divider,
               }}
             >
               <Typography variant="body2" sx={{ fontWeight: FONT_WEIGHT.bold, minWidth: 0 }}>

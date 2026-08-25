@@ -116,6 +116,31 @@ UI 관련 작업에서는 필요할 때 `docs/ui-renewal/` Control Artifact를 �
 
 ## 7. 테스트와 검증 실행 경제
 
+### 7.0 완료 계약은 둘이다 — Implementation 과 Acceptance
+
+정본은 `docs/platform/MASTER_PLAN.md` §9.4 (**D-314**)다. 여기서는 매일 쓰는 형태만 적는다.
+
+**일반 개발**(신규 기능·버그 수정·UI 개선·API 변경·Refactor)의 기본 흐름:
+
+```
+구현 → 직접 관련 Targeted Test → 실제 결함 수정
+     → 직접 영향 범위 Targeted 재검증 → 문서 → Commit → 종료
+```
+
+**다음은 일반 개발의 완료 실패 사유가 아니다.**
+Functional Flow 미작성 · `NOT_AUDITED` · Pilot 미실행 · Capture 미측정 · Evidence 미승격 ·
+전체 Route Coverage 미완료 · unrelated 기존 Test 실패.
+
+Coverage / Pilot / Capture / Evidence 를 **일반 개발의 Exit Gate 로 쓰지 않는다.** 그 다섯은
+Acceptance 회차(S21·S22)의 산출물이다. 원장은 「감사했는가」를 적는 칸이지 「구현했는가」를
+적는 칸이 아니다 — 구현 회차가 지나갔다는 이유로 원장 상태를 올리지도 않는다.
+
+바꾸지 않는 것 둘: **이번 변경이 만든 Regression 은 넘기지 않는다**, 그리고 §9.3 의
+「어떤 경우에도 면제되지 않는 검증」(권한·RBAC 음성, 채번 동시성, Migration 무결성, Backup
+복원, Storage 매트릭스, Reboot 복귀, Secret·CSRF·Prompt Injection)은 그대로다.
+
+### 7.1 실행
+
 기본 순서:
 `Implementation → Targeted Test → Static/Contract → Related Integration → Impacted Flow/E2E → 필요한 Reviewer → Finding 수정 → 영향 범위 재검증 → Exit Gate`
 
@@ -127,6 +152,7 @@ python scripts/verify.py --failed     # 직전 실패만
 ```
 
 전량은 명시적으로만 돌린다. 작은 변경의 부수 효과로 전체를 열지 않는다.
+표적 실행기가 못 뜨면 **전량으로 갈아타지 않는다** — 실행기 오류로 그 단계만 실패한다(D-315).
 
 ```
 python scripts/verify.py --full       # 정적 전량 + 백엔드 청크 회귀 + vitest 전량 (캡처 없음)
@@ -222,6 +248,11 @@ AI:
 
 특정 Stage/Packet이 현재 범위면 그 Exit Gate를 만족한 시점이 정상 완료다.
 전체 프로젝트 완료가 요청된 경우에만 전체 Product Acceptance를 완료 기준으로 사용한다.
+
+§7.0 을 여기서 다시 못박는다: **Acceptance 축(Coverage · Functional Flow · Pilot · Capture ·
+Evidence)의 미완료는 일반 개발의 미완료가 아니다.** 그것을 완료 조건으로 쓰는 것은 전용
+Acceptance 작업뿐이다. 반대로 Acceptance 작업이 「구현 회차가 지나갔으니 감사도 됐다」고
+적지도 않는다 — 「안 봤다」와 「없다」와 「봤고 통과했다」는 서로 다른 세 사실이다.
 
 ## 12. 마지막 규칙
 

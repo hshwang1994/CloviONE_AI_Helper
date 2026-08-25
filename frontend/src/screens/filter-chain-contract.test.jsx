@@ -17,7 +17,7 @@
  */
 import React from "react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Routes, Route, useLocation, useNavigate } from "react-router-dom";
@@ -35,11 +35,17 @@ const META = { configured: true, ok: true, statuses: ["진행", "검증", "완�
 const PROJECTS = { configured: true, ok: true, projects: [{ id: "p-1", name: "인프라" }] };
 const ASSIGNEES = { assignees: [] };
 
-/** 조건별로 **다른 행**을 돌려준다 — 그래야 「엉뚱한 결과를 그렸다」가 화면에서 보인다. */
+/** 조건별로 **다른 행**을 돌려준다 — 그래야 「엉뚱한 결과를 그렸다」가 화면에서 보인다.
+ *
+ * 상태는 **여러 값**이다(`TicketFilterBar.MULTI_FIELDS`). `get()` 은 첫 값만 주므로 그걸로
+ * 꼬리표를 만들면 「진행」과 「진행+완료」가 화면에서 같은 글자가 되고, 그러면 이 파일의
+ * 네 계약이 전부 판정력을 잃는다. 조건 전체를 읽는다.
+ */
 function rowsFor(query) {
-  const status = query.get("status") || "";
+  const picked = query.getAll("status").filter(Boolean);
+  const status = picked[0] || "";
   const page = query.get("page") || "1";
-  const tag = `${status || "전체"}·${page}쪽`;
+  const tag = `${picked.length ? picked.join("+") : "전체"}·${page}쪽`;
   return {
     configured: true, ok: true,
     items: [{ id: `t-${tag}`, tid: 1, title: `티켓 ${tag}`, status: status || "진행",
@@ -101,14 +107,29 @@ function renderMine(entries = ["/my-tickets"]) {
   return view;
 }
 
-const addrParam = (key) => {
+const addrQuery = () => {
   const s = screen.getByTestId("addr").textContent;
-  return new URLSearchParams(s.includes("?") ? s.slice(s.indexOf("?") + 1) : "").get(key);
+  return new URLSearchParams(s.includes("?") ? s.slice(s.indexOf("?") + 1) : "");
 };
+const addrParam = (key) => addrQuery().get(key);
+/** 여러 값을 갖는 조건(상태·우선순위·프로젝트 등)은 **전부** 봐야 한다. */
+const addrParamAll = (key) => addrQuery().getAll(key);
 
+/* 상태 조건 하나를 **토글**한다 (P-47).
+ *
+ * 상태는 다중 선택이다. MUI 의 `Select multiple` 은 항목을 눌러도 **메뉴를 안 닫는다** —
+ * 그것이 다중 선택의 정답이다(연달아 여러 개를 고른다). 그런데 메뉴가 떠 있는 동안 MUI 는
+ * 나머지 화면 전체에 `aria-hidden` 을 건다. 그래서 고르고 나서 안 닫으면 그 뒤의
+ * `getByRole` 이 **하나도 안 걸린다** — 예전 도우미는 단일 선택 시절 그대로라 여기서
+ * 「combobox 상태 없음」으로 죽었고, 그것을 화면 결함으로 오해할 만한 모양이었다.
+ * 제품은 맞다. 사용자가 하는 것과 같이 **닫고** 다음으로 간다.
+ */
 async function pickStatus(user, label) {
   await user.click(screen.getByRole("combobox", { name: "상태" }));
-  await user.click(await screen.findByRole("option", { name: label }));
+  const listbox = await screen.findByRole("listbox");
+  await user.click(within(listbox).getByRole("option", { name: label }));
+  await user.keyboard("{Escape}");
+  await waitFor(() => expect(screen.queryByRole("listbox")).toBeNull());
 }
 
 describe("조건이 바뀔 때 화면이 지키는 것", () => {
@@ -136,15 +157,17 @@ describe("조건이 바뀔 때 화면이 지키는 것", () => {
     await pickStatus(user, "진행");
     expect(await screen.findByText("티켓 진행·1쪽")).toBeInTheDocument();
 
+    // 다중 선택이라 누를수록 **쌓인다**. 그래서 조건은 [진행, 완료] 가 된다.
     await pickStatus(user, "완료");
-    expect(await screen.findByText("티켓 완료·1쪽")).toBeInTheDocument();
+    expect(await screen.findByText("티켓 진행+완료·1쪽")).toBeInTheDocument();
     // 앞 조건의 행이 남아 있으면 키에 조건이 안 들어간 것이다.
     expect(screen.queryByText("티켓 진행·1쪽")).toBeNull();
 
-    // 되돌아가도 그 조건의 결과다(다른 조건의 캐시를 물어 오지 않는다).
-    await pickStatus(user, "진행");
+    // 같은 항목을 다시 누르면 빠진다 — **앞서 본 적 있는 조건**으로 되돌아가는 이동이다.
+    // 그때 다른 조건의 캐시를 물어 오면 안 된다.
+    await pickStatus(user, "완료");
     expect(await screen.findByText("티켓 진행·1쪽")).toBeInTheDocument();
-    expect(screen.queryByText("티켓 완료·1쪽")).toBeNull();
+    expect(screen.queryByText("티켓 진행+완료·1쪽")).toBeNull();
   });
 
   it("경합 — 먼저 보낸 요청의 늦은 응답이 최신 조건을 덮지 않는다", async () => {
@@ -160,20 +183,20 @@ describe("조건이 바뀔 때 화면이 지키는 것", () => {
     await waitFor(() => expect(pending.length).toBe(1));
     const slow = pending.shift();                 // 「진행」 요청 — 아직 안 풀었다
 
-    await pickStatus(user, "완료");
+    await pickStatus(user, "완료");               // 조건이 [진행, 완료] 로 넓어진다
     await waitFor(() => expect(pending.length).toBe(1));
-    const fast = pending.shift();                 // 「완료」 요청
+    const fast = pending.shift();                 // 「진행+완료」 요청
 
     // 🔴 나중 조건이 먼저 도착하고, 먼저 보낸 조건이 **나중에** 도착한다.
     fast.resolve(rowsFor(fast.query));
-    expect(await screen.findByText("티켓 완료·1쪽")).toBeInTheDocument();
+    expect(await screen.findByText("티켓 진행+완료·1쪽")).toBeInTheDocument();
     slow.resolve(rowsFor(slow.query));
 
     // 늦게 도착한 옛 조건의 결과가 화면을 덮으면 안 된다.
     await new Promise((r) => setTimeout(r, 50));
-    expect(screen.getByText("티켓 완료·1쪽")).toBeInTheDocument();
+    expect(screen.getByText("티켓 진행+완료·1쪽")).toBeInTheDocument();
     expect(screen.queryByText("티켓 진행·1쪽")).toBeNull();
-    expect(addrParam("status")).toBe("완료");
+    expect(addrParamAll("status")).toEqual(["진행", "완료"]);
   });
 
   /* 뒤로가기·앞으로가기는 화면이 **바깥에서 주소가 바뀌는** 이동이다. 그때 조건 상자와

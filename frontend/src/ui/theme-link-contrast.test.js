@@ -1,3 +1,5 @@
+/* qa-contract-change: 옛 문서 목록(TeamDocs.jsx)의 제목 링크 hover 두 자리를 걷었다. 그 화면이 S14 에서 사라졌고 없는 파일을 readFileSync 하면 이 파일 전체가 죽는다. 계약(본문 링크의 raw .main 은 대비 보강 색을 쓴다)과 남은 세 자리·모든 accent 조합의 계산 대비는 그대로다.
+ */
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";

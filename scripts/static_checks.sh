@@ -194,38 +194,16 @@ else
   echo "$LBORDER"; fail "논리 테두리가 선언만 있고 화면에는 없다"
 fi
 
-step "User-facing text does not comma-splice two sentences (PA-RC-0002)"
-# docs/UX_WRITING.md §1: 두 문장은 마침표로 구분한다. "-습니다/-세요" 등으로 끝난 절 바로
-# 뒤에 쉼표로 다음 문장을 잇는 관용이 kit.jsx를 포함해 화면 20여 개에 흩어져 있었다(감사가
-# kit.jsx 내부의 6:5 불일치를 지목했는데, 실제로는 저장소 전체가 같은 패턴이었다). 목록
-# 나열(예: "중단, 응답 없음")은 서술어 종결 어미로 안 끝나 이 정규식에 안 걸린다. 프런트만
-# 본다 — frontend/src/ui/ux-writing-punctuation.test.js 가 같은 규칙을 npm test 경로에서
-# 지킨다(둘 다 static_checks.sh 는 npm test 를 안 부르므로 독립된 게이트가 필요하다).
-SPLICE="$(grep -rnE '(습니다|입니다|합니다|됩니다|세요|까요),\s*[가-힣]' frontend/src \
-  --include='*.js' --include='*.jsx' | grep -vE '\.test\.jsx?:' || true)"
-if [ -z "$SPLICE" ]; then ok "no comma-spliced sentences in user-facing text"; else echo "$SPLICE"; fail "쉼표로 이어붙인 문장(마침표여야 함)"; fi
-
-step "User-facing text uses the standard verb table (PA-RC-0002 §3)"
-# docs/UX_WRITING.md §3: 같은 개념(새로 만든다/고친다/없앤다/막는다/다시 쓰게 한다)에
-# 생성·등록·만들다/편집·변경/제거·지우다/끄기·중지·정지/켜기 같은 동의어가 섞여 있었다.
-# JSX 텍스트 자식(`>...텍스트...<`)만 본다 — registry/*.js처럼 문구를 객체 속성으로 정의하고
-# 다른 컴포넌트가 나중에 렌더링하는 간접 정의는 정적 grep으로 못 따라간다(의도적 범위 제한,
-# frontend/src/ui/ux-writing-verb-table.test.js 상단 주석 참고 — 그 파일에 "문서 생성"처럼
-# 정당한 도메인 용어와 부딪혀 범위를 넓히길 포기한 이유가 적혀 있다). 6번째 축(반영/적용→저장)
-# 은 예외가 너무 다양해 여기도 안 건다. 허용 문구는 위 vitest 파일의 allow 목록과 반드시
-# 같게 유지한다 — 둘이 갈라지면 이 게이트만 통과하고 npm test는 실패하거나 그 반대가 된다.
+# UX Writing 두 계약(쉼표 이어붙이기 · 표준 동사표)은 **여기 없다.**
 #
-# grep은 한 줄씩만 보므로(-z 등 없이는 여러 줄에 안 걸친다) vitest 버전과 달리 폭 제한이
-# 필요 없다 — 애초에 JS 비교연산자 `>`가 몇 줄 뒤 `<`와 잘못 짝지어질 수가 없다. 다만 grep
-# -E(POSIX ERE)는 부정 전방탐색이 없어 "편집기"(동사 아닌 컴포넌트 고유명사, 편집 뒤 "기")를
-# 정규식 안에서 못 뺀다 — 별도 grep -v 단계로 그 줄만 다시 뺀다. 주석은 안 지운다(한 줄
-# 기준이라 vitest만큼 오탐 위험이 크지 않고, 주석 스트리핑을 bash에서 안전하게 하기 어렵다) —
-# 그래서 코멘트에서 우연히 걸리면 아래 허용 목록에 추가한다(계속 인간이 감시).
-VERB_HITS="$(grep -rnE '>[^<]*(생성|등록|만들기|만들다|편집|변경|제거|지우기|지우다|끄기|중지|정지|켜기)[^<]*<' \
-  frontend/src --include='*.js' --include='*.jsx' | grep -vE '\.test\.jsx?:' | grep -v '편집기' || true)"
-VERB_VIOLATIONS="$(echo "$VERB_HITS" | grep -vE \
-  '(AI로 문제 생성|생성 중…|주제를 적고 생성하면|문장 요약 만들기|요약 만드는 중|AI 요약 생성|등록된 부서|등록된 직책|등록된 조직|임시 비밀번호는 생성|예: 서버 등록 IP|역할 변경|비밀번호 변경|시 변경을 요구|변경 이력|변경 기록|새 변경으로 다시 기록|적용 시점은 항목마다|이전 변경 이력을 볼|어떤 변경도 저장되지|차단된 변경 시도|>변경<|최근 주요 변경은 대시보드|필터 지우기|검색어 지우기|카테고리 지우기)' || true)"
-if [ -z "$VERB_VIOLATIONS" ]; then ok "no banned verb synonyms in user-facing text"; else echo "$VERB_VIOLATIONS"; fail "표준 동사표(UX_WRITING.md §3) 위반 — 금지된 동의어가 화면 텍스트에 있다"; fi
+# 예전에는 같은 규칙을 두 벌 들고 있었다: 여기 bash grep 한 벌, `frontend/src/ui/
+# ux-writing-*.test.js` 에 vitest 한 벌. 각자 자기 허용 목록을 손으로 유지했고, 그 둘은
+# 실제로 갈라졌다 — 「이 조건 지우기」가 bash 목록에는 없는 형태라 이쪽만 통과하고 vitest 는
+# 빨간 채로 남았다(P-46). 「둘을 같게 유지하라」는 주석은 그 자리에 이미 있었고, 그래도
+# 갈라졌다.
+#
+# 정본은 vitest 쪽 하나다(JS 문자열을 JS 가 판정한다 — 주석 제거와 부정 전방탐색이 필요한데
+# POSIX ERE 에는 둘 다 없다). 아래 "UX Writing 계약" 단계가 그 파일들을 직접 돌린다.
 
 step "No new typography literals (PA-RC-0001 §5)"
 # FONT_SIZE(6단계)가 있는데 fontSize: raw 값을 새로 쓰면 이 Root Cause가 다시 생긴다.
@@ -488,19 +466,40 @@ else
   echo "$STALE_BASELINE"; fail "폐기한 목업을 아직 참조한다"
 fi
 
-step "REGISTRY 28키 ↔ ROUTE_COVERAGE 대조 (JS 진실은 JS 가 증명한다)"
-# 이 한 가지 대조만 Python 이 못 한다. REGISTRY 는 7개 도메인 파일의 객체 조립 결과라
-# 정규식으로 훑으면 조용히 놓친다 — 실제로 `admin-notifications` 하나를 놓쳤고, 그 화면은
-# 하네스에도 커버리지에도 없어서 한 번도 캡처된 적이 없었다. Vitest 는 REGISTRY 를 import
-# 해서 세므로 놓칠 수가 없다.
-if command -v npx >/dev/null 2>&1; then
-  if PARITY="$(cd frontend && npx vitest run src/screens/registry-surface-parity.test.js 2>&1)"; then
+step "JS 진실은 JS 가 증명한다 — REGISTRY 대조 + UX Writing 계약"
+# 세 가지를 한 번에 돌린다. 셋 다 **JS 소스 자체가 판정 대상**이라 Python·grep 이 대신 못 한다.
+#
+#   registry-surface-parity  REGISTRY 는 7개 도메인 파일의 객체 조립 결과라 정규식으로 훑으면
+#                            조용히 놓친다 — 실제로 `admin-notifications` 하나를 놓쳤고 그
+#                            화면은 한 번도 캡처된 적이 없었다. vitest 는 import 해서 센다.
+#   ux-writing-punctuation   "-습니다," 로 두 문장을 잇는 관용. 주석을 먼저 지워야 오탐이 안 난다.
+#   ux-writing-verb-table    표준 동사표. "편집기" 를 빼려면 부정 전방탐색이 필요한데 POSIX
+#                            ERE 에 없다. 예전에는 이 둘을 bash grep 으로 한 벌 더 들고 있었고,
+#                            두 허용 목록이 갈라져 한쪽만 통과하는 상태가 실제로 생겼다(P-46).
+#
+# 실행기는 `frontend/node_modules/.bin` 을 먼저 본다 — 윈도우에서 `npx` 는 `npx.CMD` 라
+# 부르는 쪽이 셸 없이 넘기면 안 뜬다(같은 함정을 `scripts/verify.py` 가 P-48 로 겪었다).
+JS_CONTRACT_TESTS="src/screens/registry-surface-parity.test.js src/ui/ux-writing-punctuation.test.js src/ui/ux-writing-verb-table.test.js"
+VITEST_BIN=""
+for cand in frontend/node_modules/.bin/vitest frontend/node_modules/.bin/vitest.cmd; do
+  [ -x "$cand" ] || [ -f "$cand" ] && VITEST_BIN="$cand" && break
+done
+if [ -n "$VITEST_BIN" ]; then
+  VITEST_CMD="../$VITEST_BIN"
+elif command -v npx >/dev/null 2>&1; then
+  VITEST_CMD="npx vitest"
+else
+  VITEST_CMD=""
+fi
+if [ -n "$VITEST_CMD" ]; then
+  # shellcheck disable=SC2086
+  if PARITY="$(cd frontend && $VITEST_CMD run $JS_CONTRACT_TESTS 2>&1)"; then
     ok "$(echo "$PARITY" | grep -E 'Tests +[0-9]+ passed' | tail -1)"
   else
-    echo "$PARITY" | tail -25; fail "ROUTE_COVERAGE 가 REGISTRY/TAB_GROUPS 와 어긋난다"
+    echo "$PARITY" | tail -30; fail "JS 계약 시험이 실패했다 (REGISTRY 대조 · UX Writing)"
   fi
 else
-  fail "npx 가 없어 REGISTRY 대조를 못 돌렸다 — 이 검사는 건너뛸 수 없다(Python 이 대신 못 한다)"
+  fail "vitest 를 못 찾아 JS 계약 시험을 못 돌렸다 — 건너뛸 수 없다(Python 이 대신 못 한다). cd frontend && npm ci"
 fi
 
 step "프로브 판정 «규칙» 반례 (브라우저 없이 — S1)"

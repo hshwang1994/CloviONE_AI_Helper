@@ -1,3 +1,14 @@
+/* qa-contract-replaced-by: frontend/src/screens/teamdoc-edit.test.jsx
+ * qa-contract-replaced-by: frontend/src/screens/teamdoc.test.jsx
+ *
+ * 옛 문서 화면(`TeamDoc.jsx`)의 상세·편집 계약을 이 파일이 이어받는다 (S14 · C2).
+ * 편집 쪽 셋은 그대로 산다: 저장이 **새 지문을 받아 다음 저장에 쓰는가** · 판이 쌓였을
+ * 때와 안 쌓였을 때를 다르게 말하는가 · 되돌리기가 잠금 값을 함께 보내는가. 옛 파일의
+ * 나머지(Notion 블록 렌더러 `DocBody`·`safeExternal`, 본문만 따로 실패하는 장애 격리)는
+ * **대상이 사라졌다** — 본문의 정본이 블록 JSON 이 되면서 실시간 원격 읽기 자체가 없다.
+ * 댓글과 열람 제한은 서버 쪽으로 옮겨 `tests/integration/test_knowledge_comments.py` 와
+ * `tests/security/test_search_restricted_documents.py` 가 실제 요청으로 본다.
+ */
 import React from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";

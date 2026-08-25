@@ -1,6 +1,15 @@
+/* qa-contract-replaced-by: frontend/src/screens/teamdocs-view.test.jsx
+ * qa-contract-replaced-by: frontend/src/screens/doc-create-form.test.jsx
+ *
+ * 옛 문서 목록(`TeamDocs.jsx`)의 목록·생성 계약을 이 파일이 이어받는다 (S14 · C2).
+ * 살아 있는 것: 조건이 **서버 질의에 실려 나가는가**(화면에서만 거르면 다음 쪽에서
+ * 조건이 사라진다) · 조건을 바꾸면 첫 쪽으로 돌아오는가 · 목록 줄이 종류와 태그를
+ * 그리는가 · 새 문서 폼이 적은 값과 지금 보고 있는 공간을 그대로 실어 보내는가.
+ * 옛 파일의 「카드/표 보기 전환」은 **그 기능이 없어졌다** — 지금 목록은 한 가지 보기다.
+ */
 import React from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
@@ -178,5 +187,32 @@ describe("문서 목록의 쪽 넘기기", () => {
       expect(documentCalls().some((p) => p.includes("tag=meeting-notes"))).toBe(true));
     // 필터를 바꾸면 첫 쪽으로 — 다른 필터와 같은 규칙이다.
     expect(documentCalls()[documentCalls().length - 1]).toContain("offset=0");
+  });
+});
+
+/* 폼과 API 가 어긋나면 사용자가 적은 값이 조용히 사라진다.
+ *
+ * 옛 문서 화면에서 실제로 그랬다: 서버는 소유자 칸을 받는데 폼에 그 칸이 없어서, 포털에서
+ * 만든 문서는 그 값을 채울 방법이 아예 없었고 상세 화면은 빈 줄을 보여 줬다. 지금 새 문서
+ * 폼은 한 칸(제목)이지만 **어디에 만드는지**(공간·폴더)를 화면 상태에서 실어야 한다 —
+ * 그것이 빠지면 문서는 만들어지되 사용자가 보고 있던 자리가 아닌 곳에 생긴다.
+ */
+describe("새 문서 폼 → 생성 요청", () => {
+  it("적은 제목과 지금 보고 있는 공간이 그대로 생성 요청에 실린다", async () => {
+    renderList();
+    await screen.findByText("문서 0");
+
+    await userEvent.click(screen.getByRole("button", { name: "새 문서" }));
+    const dialog = await screen.findByRole("dialog");
+    await userEvent.type(within(dialog).getByLabelText(/문서 제목/), "인수인계 메모");
+    await userEvent.click(within(dialog).getByRole("button", { name: "만들기" }));
+
+    await waitFor(() => {
+      const post = apiMock.mock.calls.find(
+        ([p, opts]) => String(p) === "/api/knowledge/documents" && opts && opts.method === "POST");
+      expect(post, "생성 요청이 안 나갔다").toBeTruthy();
+      expect(post[1].body.title).toBe("인수인계 메모");
+      expect(post[1].body.space_id, "지금 보고 있는 공간이 안 실렸다").toBe(SPACE);
+    });
   });
 });

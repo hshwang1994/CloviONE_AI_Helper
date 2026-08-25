@@ -12,7 +12,7 @@ import { useToast } from "../ui/kit.jsx";
 import { FONT_SIZE, FONT_WEIGHT, RADIUS } from "../ui/theme.js";
 import { applyTheme, readTheme, storeTheme, clearBootTheme } from "./theme-store.js";
 import { clearBootAccent, useThemeMode } from "../ui/ThemeModeProvider.jsx";
-import { OrgPath, PATH_SEP } from "../ui/OrgPath.jsx";
+import { OrgPath, PATH_SEP, pathText } from "../ui/OrgPath.jsx";
 
 /* 사용자 메뉴 — 이름/아바타를 누르면 내 프로필·비밀번호 변경·로그아웃.
  * 로그아웃이 없던 것이 큰 공백이었다(공용 PC 보안).
@@ -58,7 +58,7 @@ function MyAffiliation({ user }) {
     mgmt.kind === "global" ? "전체"
       : mgmt.kind === "org" ? (mgmt.org?.name || "소속 조직")
         : mgmt.kind === "dept"
-          ? (mgmt.path || []).map((n) => n.name).join(PATH_SEP) + " 및 하위 부서"
+          ? pathText(mgmt.path) + " 및 하위 부서"
           : null;
   return (
     <Box sx={{ px: 2, py: 1.25, minWidth: 0 }}>

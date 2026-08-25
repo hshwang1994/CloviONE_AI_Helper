@@ -81,6 +81,19 @@ KNOWN_RENAMED = {
     # 사람이 `ix_ticket_cache_status` 를 보고 없는 표를 찾는다.
     "ix_ticket_cache_project_link": "ix_tickets_project_link",
     "ix_ticket_cache_project_uid": "ix_tickets_project_uid",
+    # ── S14: 문서 축이 미러에서 정본으로 옮겨 갔다 (`0016_document_axis_to_documents`) ──
+    #
+    # 셋 다 옛 축(`notion_page_id`)에 걸려 있던 것이고, 같은 성질이 새 축(`document_id`)
+    # 위에 그대로 서 있다. 「이제 없다」가 아니라 「같은 것이 새 이름으로 있다」라서
+    # `KNOWN_RETIRED` 가 아니라 여기다 — 오른쪽 이름이 모델에 실제로 있는지는 아래
+    # `test_renamed_indexes_landed_under_their_new_name` 이 확인한다.
+    #
+    # 🔴 이 셋이 안 적혀 있어서 이 시험이 S14 이후 계속 빨간 채였고(P-39 ①), 그동안
+    # **진짜로 빠뜨린 인덱스가 생겨도 같은 빨강에 묻혔다.** 면제를 적는 것이 검사를
+    # 달래는 일이 아니라 검사를 **다시 쓸 수 있게** 만드는 일인 자리다.
+    "uq_doc_favorite": "uq_doc_favorite_document",
+    "uq_doc_recent": "uq_doc_recent_document",
+    "ix_document_comments_notion_page_id": "ix_document_comments_document_id",
 }
 
 

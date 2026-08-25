@@ -195,7 +195,7 @@ export const ORG_SCREENS = {
        분할 뷰의 검색은 navigator 하나이므로 그 상자를 내렸는데, **식별자로 찾는 축은 그쪽
        상자에만 있었다** — 축을 함께 잃지 않도록 트리 검색이 그것까지 본다. */
     searchFields: ["name", "path", "slug"],
-    searchPlaceholder: "조직 또는 부서를 이름·식별자로 검색",
+    searchPlaceholder: "조직 또는 부서를 이름이나 식별자로 검색",
     filters: ACTIVE_FILTER,
     columns: [
       // 들여쓰기가 곧 트리다 — 표 하나로 조직도를 그리기 위한 유일한 장치라 여기서만 만든다.

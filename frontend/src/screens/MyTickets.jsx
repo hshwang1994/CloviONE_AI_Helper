@@ -28,6 +28,7 @@ import { useAuth } from "../app/auth.jsx";
 import { BodyEditor, editorContainerSx, editorSurfaceWidthSx } from "../ui/BodyEditor.jsx";
 import { useRowSelection, selectionColumn, BulkActions } from "../ui/bulkSelect.jsx";
 import { rowNameOf } from "../ui/rowName.js";
+import { pathText } from "../ui/OrgPath.jsx";
 import { FAB_CLEARANCE, FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, TABLE_CARD_QUERY } from "../ui/theme.js";
 import { BASELINE_TRACKS, GRID_GAP } from "../ui/density.js";
 import { affiliation, needsOrg, personLabel } from "../lib/people.js";
@@ -60,7 +61,9 @@ function useBulkTrash(path, qc, toast, onDone) {
       // 가도 최신으로 보이게 한다(이전엔 비활성 목록이 stale로만 남아 '자동 갱신 안 됨'처럼 보였다).
       // 어떤 키가 티켓을 그리는지는 ticket-views.js 한 곳이 안다(홈·스프린트가 여기서 빠져 있었다).
       invalidateTicketViews(qc, { refetchType: "all" });
-      qc.invalidateQueries({ queryKey: ["team-docs"], refetchType: "all" });
+      // 문서 목록은 여기서 안 부른다 — 이 훅은 티켓만 지운다(두 호출부 다
+      // `/api/tickets/trash-bulk`). 예전에는 `["team-docs"]` 를 함께 불렀는데 그 키를 쓰는
+      // 질의는 이제 없고, 있었더라도 티켓 삭제가 문서 목록을 바꾸지는 않는다.
       qc.invalidateQueries({ queryKey: ["trash"], refetchType: "all" });
       onDone && onDone();
     },
@@ -168,7 +171,7 @@ export function ticketColumns({ showAssignee, onEdit, onClaim, onOpen, compact, 
   }
   cols.push({ key: "due", label: "마감", type: "date", width: compact ? "6.5rem" : "7rem", sortable: true, render: (t) => (t.due || "-") });
   if (!compact) {
-    cols.push({ key: "created_at", label: "생성", type: "date", width: "8rem", sortable: true, filter: { kind: "date", field: "created_at" }, render: (t) => <DateCell value={t.created_at} /> });
+    cols.push({ key: "created_at", label: "추가", type: "date", width: "8rem", sortable: true, filter: { kind: "date", field: "created_at" }, render: (t) => <DateCell value={t.created_at} /> });
   }
   if (showAssignee) {
     // VIS-163: 이 열만 nowrap이 빠져 있었다 — 좁은 컨테이너(1200×900)에서 overflowWrap:
@@ -1087,13 +1090,13 @@ export function TicketShareScope({ project, me }) {
   const myPath = (me && me.department_path) || [];
   const orgName = (me && me.organization && me.organization.name) || "";
   const owner = project.dept_path && project.dept_path.length
-    ? project.dept_path.map((n) => n.name).join(PATH_SEP)
+    ? pathText(project.dept_path)
     : `${orgName || "조직"} 전체 공통`;
   return (
     <Box sx={{ mb: 2.5, display: "grid", gap: 0.5 }}>
       <Typography variant="body2" sx={{ fontWeight: FONT_WEIGHT.bold }}>공유 범위</Typography>
       <Typography variant="body2" color="text.secondary">
-        요청자 {myPath.length ? myPath.map((n) => n.name).join(PATH_SEP) : (orgName || "-")}
+        요청자 {myPath.length ? pathText(myPath) : (orgName || "-")}
       </Typography>
       <Typography variant="body2" color="text.secondary">
         이 티켓은 <b>{owner}</b>의 일로 기록되고, 그 범위의 사람들에게 보입니다.

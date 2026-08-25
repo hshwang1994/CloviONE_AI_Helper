@@ -5,7 +5,7 @@ import { alpha } from "@mui/material/styles";
 import { useLocation } from "react-router-dom";
 import { useAuth } from "./auth.jsx";
 import { isScopeEnforcedRoute } from "./navConfig.js";
-import { PATH_SEP } from "../ui/OrgPath.jsx";
+import { pathText } from "../ui/OrgPath.jsx";
 import { FONT_SIZE, FONT_WEIGHT, RADIUS } from "../ui/theme.js";
 
 /* 스코프 바 — **지금 보고 있는 범위를 화면에 적는다** (S4 / A8).
@@ -28,9 +28,8 @@ import { FONT_SIZE, FONT_WEIGHT, RADIUS } from "../ui/theme.js";
  * 그건 정보가 아니라 소음이다 — 좁혀진 사람에게만 뜻이 있다.
  */
 
-function pathText(path) {
-  return (path || []).map((n) => n.name).filter(Boolean).join(PATH_SEP);
-}
+/* 경로 문자열은 `ui/OrgPath.jsx::pathText` 하나가 만든다. 여기에도 같은 세 줄이 있었는데,
+ * 그런 사본은 구분자를 바꾸는 날 한쪽만 바뀐다 — 그러면 같은 부서가 화면마다 다르게 보인다. */
 
 /* 관리 범위가 목록을 좁히는 화면. 나머지 범위 화면은 **조회 범위**(내 소속)가 좁힌다.
  *
