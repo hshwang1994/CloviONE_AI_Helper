@@ -21,13 +21,21 @@
   시험들이 검사 시야에서 사라진다.
 - working_tree: clean
 - s22_commit: `2f4fc587` · `1921f884` · prev_commit: `b3c368c6` · `fde09fb2`
-- this_commit: **`ca49e7d8`** — 대시보드 높이 예산
-- deployed: **아직 안 나갔다.** 운영에 있는 것은 `b3c368c6` 이다 (2026-08-26 12:07 ·
-  `install.sh upgrade --source local` · 스냅샷 `/var/backups/clovirassist/20260826-120709` ·
-  Stage 0~18 OK · `VERIFY_OK` · `UPGRADE_OK` · 스모크 전부 통과 · 스키마 `0017` 그대로).
-  이번 회차는 **배포를 안 했다** — 요구가 구조와 실브라우저 확인이었고 배포는 그 범위 밖이다.
-  되돌리려면 `sudo /opt/clovirassist/deploy/install.sh rollback --target /var/backups/clovirassist/20260826-120709`
-- deployed_prev: `44520b66`(2026-08-26 10:26 · 스냅샷 `20260826-102648`)
+- this_commit: **`ca49e7d8`**(높이 예산) + **`3804bc0e`**(바닥 재조정) — 대시보드 높이 예산
+- deployed: **`3804bc0e`** 이 운영에 나갔다 (2026-08-26 16:37 · `install.sh upgrade --source local --yes`).
+  Stage 0~18 전부 OK · `VERIFY_OK` · `UPGRADE_OK` · 스냅샷 `/var/backups/clovirassist/20260826-163715`.
+  스키마는 안 건드렸다 — alembic 이 `0017` 에서 `0017` 로 그대로다(표 93개 · 사용자 26명).
+  **이번 커밋의 것이 실제로 올라갔다**: 운영이 내보내는 번들 이름이 이 저장소가 만든 것과
+  같다(`index.IwLRAoOI.js`).
+  스모크(최소 · 사용자 지시): `/healthz` `{"status":"ok","ticket_source":"native"}` 200 ·
+  `/readyz` `{"status":"ready"}` 200 · `ssl_verify_result=0`.
+  **`/me` 는 서버 경로가 아니라 SPA 해시 라우트**(`/#/me`)라 그 이름으로 치면 404 다 —
+  화면이 실제로 걸린 자리를 셋으로 나눠 확인했다: `/` 303→`/login?next=%2F` ·
+  `/api/me` **404 가 아니라 401** · `/static/react/index.html` 200(3,028바이트).
+  제품 유닛 여섯 + nginx + postgresql 전부 active.
+  브라우저 전수는 운영에서 안 돌렸다 — 운영 데이터를 확인 편의로 건드리지 않는다.
+  되돌리려면 `sudo /home/cloviradmin/clovirassist-src/deploy/install.sh rollback --target /var/backups/clovirassist/20260826-163715`
+- deployed_prev: `b3c368c6`(2026-08-26 12:07 · 스냅샷 `20260826-120709`)
 - verification: 이번 회차도 **표적**이다(§7.0 일반 개발). `STATIC_CHECKS_DEV_OK` ·
   `TARGETED_OK`(11 파일 / 150건) · vitest **전량 338 파일 / 2,509건 통과**(공용 부품 둘을
   건드려 넓혔다 — `kit.jsx::DataTable` · `Mascot.jsx`) · 백엔드는 안 건드렸다(서버 파일 변경 0).
