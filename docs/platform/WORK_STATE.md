@@ -21,7 +21,7 @@
   시험들이 검사 시야에서 사라진다.
 - working_tree: clean
 - s22_commit: `2f4fc587` · `1921f884` · prev_commit: `b3c368c6` · `fde09fb2`
-- this_commit: **`<이번 커밋>`** — 대시보드 높이 예산
+- this_commit: **`ca49e7d8`** — 대시보드 높이 예산
 - deployed: **아직 안 나갔다.** 운영에 있는 것은 `b3c368c6` 이다 (2026-08-26 12:07 ·
   `install.sh upgrade --source local` · 스냅샷 `/var/backups/clovirassist/20260826-120709` ·
   Stage 0~18 OK · `VERIFY_OK` · `UPGRADE_OK` · 스모크 전부 통과 · 스키마 `0017` 그대로).
