@@ -131,10 +131,10 @@ describe("AI 도우미 패널", () => {
     });
     renderPanel();
 
-    expect(await screen.findByText("담당 티켓을 판단할 수 없어 오늘 요약을 계산할 수 없습니다.")).toBeInTheDocument();
+    expect(await screen.findByText("담당 티켓을 읽지 못해 오늘 요약을 만들 수 없습니다.")).toBeInTheDocument();
     expect(screen.queryByText(/오늘 마감 0건/)).not.toBeInTheDocument();
     // 「지금 볼 것」도 0건을 지어내지 않고 왜 비었는지 말한다.
-    expect(screen.getByText("티켓 소스를 다시 읽을 수 있게 되면 여기에 급한 순서로 표시됩니다.")).toBeInTheDocument();
+    expect(screen.getByText("티켓을 다시 읽을 수 있게 되면 여기에 급한 순서로 표시됩니다.")).toBeInTheDocument();
   });
 
   it("문장 생성이 꺼져 있으면 숫자는 그대로 두고 이유만 덧붙인다", async () => {
@@ -161,18 +161,18 @@ describe("AI 도우미 패널", () => {
     expect(screen.getByRole("button", { name: "문장 복사" })).toBeInTheDocument();
   });
 
-  it("스탠드업 탭은 최근 끝낸 일 / 오늘 할 일 / 막힌 것 세 단으로 나눈다", async () => {
+  it("업무 공유 초안 탭은 최근 끝낸 일 / 오늘 할 일 / 막힌 일 세 단으로 나눈다", async () => {
     routeApi();
     renderPanel();
     await screen.findByText("마감이 지난 티켓 1건이 오늘 가장 급합니다.");
 
-    await userEvent.click(screen.getByRole("tab", { name: "스탠드업 초안" }));
+    await userEvent.click(screen.getByRole("tab", { name: "업무 공유 초안" }));
 
     expect(await screen.findByText("끝낸 일")).toBeInTheDocument();
     expect(screen.getByText("오늘 처리할 티켓")).toBeInTheDocument();
     expect(screen.getByText("지연된 일")).toBeInTheDocument();
-    // 막힌 것이 0건이면 빈 칸이 아니라 '없다'고 말한다.
-    expect(screen.getByText("상태가 ‘이슈’인 티켓이 없습니다.")).toBeInTheDocument();
+    // 막힌 일이 0건이면 빈 칸이 아니라 '없다'고 말한다.
+    expect(screen.getByText("상태가 이슈인 티켓이 없습니다.")).toBeInTheDocument();
   });
 
   it("트리아지는 '제안'이라고 말하고 배정 버튼을 두지 않는다", async () => {
@@ -180,7 +180,7 @@ describe("AI 도우미 패널", () => {
     renderPanel();
     await screen.findByText("마감이 지난 티켓 1건이 오늘 가장 급합니다.");
 
-    await userEvent.click(screen.getByRole("tab", { name: "미할당 트리아지" }));
+    await userEvent.click(screen.getByRole("tab", { name: "담당자 지정 필요" }));
 
     expect(await screen.findByText(/이 화면은 아무것도 배정하지 않습니다/)).toBeInTheDocument();
     // 순서는 서버가 준 그대로(지연이 먼저).
@@ -199,8 +199,8 @@ describe("AI 도우미 패널", () => {
     renderPanel();
     await screen.findByText("마감이 지난 티켓 1건이 오늘 가장 급합니다.");
 
-    await userEvent.click(screen.getByRole("tab", { name: "미할당 트리아지" }));
-    expect(await screen.findByText("담당자 없는 티켓이 없습니다")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("tab", { name: "담당자 지정 필요" }));
+    expect(await screen.findByText("담당자를 지정할 티켓이 없습니다")).toBeInTheDocument();
   });
 
   it("SEM-02: 패널 제목은 h2, 안의 소제목(TicketLines)은 h3다", async () => {
@@ -212,11 +212,11 @@ describe("AI 도우미 패널", () => {
     await screen.findByText("마감이 지난 티켓 1건이 오늘 가장 급합니다.");
     expect(screen.getByRole("heading", { level: 2, name: "AI 도우미" })).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole("tab", { name: "스탠드업 초안" }));
+    await userEvent.click(screen.getByRole("tab", { name: "업무 공유 초안" }));
     await screen.findByText("오늘 처리할 티켓");
     expect(screen.getByRole("heading", { level: 3, name: /최근 끝낸 일/ })).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 3, name: /오늘 할 일/ })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { level: 3, name: /막힌 것/ })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 3, name: /막힌 일/ })).toBeInTheDocument();
   });
 });
 
@@ -287,9 +287,9 @@ describe("daysBetween", () => {
 describe("standupDraft — 그대로 붙여 넣을 수 있는 초안", () => {
   it("세 단을 제목과 함께 담고, 빈 단은 '없음'이라고 적는다", () => {
     const text = standupDraft(STANDUP);
-    expect(text).toContain("2026-08-03 스탠드업");
+    expect(text).toContain("2026-08-03 업무 공유");
     expect(text).toContain("- 오늘 처리할 티켓 (마감 2026-08-03)");
-    expect(text).toContain("막힌 것: 없음");
+    expect(text).toContain("막힌 일: 없음");
   });
 });
 
@@ -301,7 +301,7 @@ describe("tabLinks — 갈 이유가 있을 때만 버튼을 낸다", () => {
     expect(tabLinks("triage", { total: 0 })).toEqual([]);
     expect(tabLinks("triage", { total: 3 })[0].href).toBe("#/unassigned");
   });
-  it("주간 업데이트는 언제나 스프린트 회의로 이어진다", () => {
+  it("이번 주 요약은 언제나 스프린트 회의로 이어진다", () => {
     expect(tabLinks("weekly", {})[0].href).toBe("#/sprint");
   });
 });

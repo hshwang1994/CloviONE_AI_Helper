@@ -8,7 +8,7 @@ import { api } from "../lib/api.js";
 import { fmtDateTime, actionKo, objKo } from "../lib/format.js";
 import { useAuth } from "../app/auth.jsx";
 import { canReach } from "../app/navConfig.js";
-import { PageHeader, Card, Badge, Skeleton, ErrorState, Button, Callout, SubGroup, useToast } from "../ui/kit.jsx";
+import { PageHeader, Card, Badge, Skeleton, ErrorState, Button, Callout, SubGroup, Surface, useToast } from "../ui/kit.jsx";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
 import { DashSection, StatusList, StatusTile, Note } from "../ui/adminKit.jsx";
 import {
@@ -422,8 +422,9 @@ function HealthyStrip({ items }) {
 function Fact({ label, value, tone }) {
   return (
     /* 이름과 값 사이를 넓은 화면에서 무한히 벌리지 않는다. 4K 에서 한 칸이 700px 이면
-       「처리 요청」과 「0」이 그만큼 떨어져 한 줄로 안 읽힌다. */
-    <Box sx={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 1.5, py: 0.5, minWidth: 0, maxWidth: "26rem" }}>
+       「처리 요청」과 「0」이 그만큼 떨어져 한 줄로 안 읽힌다 — 값이 무슨 값인지 다시
+       찾아야 한다. 상한을 20rem 으로 좁혔다(예전 26rem 은 2560 에서 여전히 396px 였다). */
+    <Box sx={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 1.5, py: 0.5, minWidth: 0, maxWidth: "20rem" }}>
       <Typography variant="body2" color="text.secondary" sx={{ minWidth: 0, ...KO_WORD_BREAK }}>{label}</Typography>
       <Typography
         component="div"
@@ -456,28 +457,66 @@ function OpsLink({ label, onClick }) {
   );
 }
 
-/* 운영 자료 세 칸의 격자. 좁으면 쌓이고, 넓으면 세로 실선이 칸을 가른다 —
- * 판을 셋으로 쪼개지 않고 한 판 안에서 나눈다. */
-/* ⚠️ 중단점 미디어쿼리를 **키로 직접 적지 않는다.** `gridTemplateColumns: { xs, md }` 도
-   같은 `@media (min-width:900px)` 키로 펴지기 때문에, 같은 객체에 `[t.breakpoints.up("md")]`
-   를 또 두면 뒤에 적은 쪽이 앞의 것을 통째로 덮는다 — 실제로 이 격자가 4K 에서 한 열로
-   그려지던 원인이 그것이었다. 값마다 반응형 객체를 쓴다. */
-const OPS_GRID = (t) => ({
-  display: "grid", gap: 3, alignItems: "start",
-  gridTemplateColumns: { xs: "minmax(0,1fr)", md: "repeat(3, minmax(0,1fr))" },
-  "& > *:not(:first-of-type)": {
-    // 좁으면 가로 실선으로 위아래를 가르고, 넓으면 세로 실선으로 좌우를 가른다.
-    // 논리 테두리는 style·width·color 를 따로 적어야 그려진다(check_logical_border_props.py).
-    borderBlockStartStyle: "solid",
-    borderBlockStartWidth: { xs: "1px", md: 0 },
-    borderBlockStartColor: t.palette.divider,
-    pt: { xs: 3, md: 0 },
-    borderInlineStartStyle: "solid",
-    borderInlineStartWidth: { xs: 0, md: "1px" },
-    borderInlineStartColor: t.palette.divider,
-    pl: { xs: 0, md: 3 },
+/* 운영 자료 세 칸의 격자.
+ *
+ * ## 🔴 세로 실선만으로는 «다른 자료» 가 안 보였다 (2026-08-26 실측)
+ *
+ * 예전에는 한 흰 판 안에서 셋을 세로 실선으로만 갈랐다. 배경도 같고 여백도 같아서 화면에는
+ * 저장소·백업·작업이 **한 표의 세 단**처럼 평평하게 놓였다 — 서로 다른 성격의 운영 정보라는
+ * 사실이 어디에도 없었다.
+ *
+ * 판을 셋으로 쪼개지 않는다(흰 판 안에 흰 판을 넣는 것이다). 대신 묶음마다 **아주 옅은
+ * 함몰면**을 준다(`Surface tone="inset"`). 테두리도 그림자도 없다 — 면 하나와 여백이면
+ * 「여기부터 다른 이야기」가 읽힌다.
+ *
+ * ## 폭은 정보량으로 나눈다
+ *
+ * 정확히 3분의 1씩 주지 않는다. 백업의 「마지막 성공」은 날짜와 시각이 함께 들어가 이 화면
+ * 에서 가장 긴 값이고, 작업 지표는 짧은 수 셋뿐이다. 같은 폭을 주면 한쪽은 꺾이고 한쪽은
+ * 빈다.
+ *
+ * ⚠️ 중단점 미디어쿼리를 **키로 직접 적지 않는다.** `gridTemplateColumns: { xs, md }` 도
+ * 같은 `@media (min-width:900px)` 키로 펴지기 때문에, 같은 객체에 `[t.breakpoints.up("md")]`
+ * 를 또 두면 뒤에 적은 쪽이 앞의 것을 통째로 덮는다 — 실제로 이 격자가 4K 에서 한 열로
+ * 그려지던 원인이 그것이었다. 값마다 반응형 객체를 쓴다. */
+const OPS_GRID = {
+  display: "grid", gap: 2, alignItems: "stretch",
+  gridTemplateColumns: {
+    xs: "minmax(0,1fr)",
+    md: "repeat(2, minmax(0,1fr))",
+    lg: "minmax(0,1.05fr) minmax(0,1.15fr) minmax(0,0.8fr)",
   },
-});
+};
+
+/* 화면 아래 두 구역 — 운영 자료와 최근 주요 변경.
+ *
+ * 🔴 4K 에서 «내용이 한쪽에만 몰린» 면이 생겼다(2026-08-26 실측: 833×221 판에 잉크 18%,
+ * 내용이 폭의 43% — `oversized_empty_surface` 가 잡았다). 값이 서넛뿐인 자료에 2,200px
+ * 를 셋으로 나눠 주면 판마다 800px 씩 가는데, 그 안에 들어갈 것이 없다.
+ *
+ * 이 앱의 4K 규칙은 **남는 폭을 두 번째 열로 보내는 것**이다(density.js) — 위쪽
+ * 「필수 서비스 / 외부 연동」이 이미 같은 방식이다. 2200 이상에서 이 둘을 나란히 두면
+ * 운영 자료의 판이 350px 대가 되어 이름과 값이 한 줄로 읽히고, 아래 빈 캔버스도 줄어든다.
+ * 1920 에서는 나누지 않는다 — 그 폭에서 반으로 자르면 「마지막 성공」의 날짜와 시각이
+ * 꺾인다. */
+const BOTTOM_GRID = {
+  display: "grid", alignItems: "start", columnGap: 4,
+  gridTemplateColumns: { xs: "minmax(0,1fr)", xxl: "repeat(2, minmax(0,1fr))" },
+};
+
+/* 운영 자료 한 묶음 — 옅은 함몰면 위에 「제목 → 상태 → 핵심 값 → 설명 → 이동」.
+ *
+ * 세 묶음이 **같은 순서**를 쓴다. 예전에는 백업만 상태가 둘째 줄에 있어서, 세 칸을 훑을 때
+ * 눈이 매번 다른 높이에서 상태를 찾아야 했다. */
+function OpsGroup({ title, children }) {
+  return (
+    <Surface tone="inset" sx={{ p: 2.5, minWidth: 0, display: "flex", flexDirection: "column" }}>
+      <SubGroup first title={title} sx={{ flex: 1, display: "flex", flexDirection: "column" }}>
+        {children}
+      </SubGroup>
+    </Surface>
+  );
+}
 
 export function Dashboard() {
   const nav = useNavigate();
@@ -589,6 +628,9 @@ function DashboardBody({ d, nav, role, stale }) {
   const compKeys = Object.keys(compStates).sort((a, b) => rank(compStates[a]) - rank(compStates[b]));
   const integKeys = Object.keys(integStates).sort((a, b) => rank(integStates[a]) - rank(integStates[b]));
 
+  // 「처리한 작업이 한 건도 없다」 — 0 을 세 줄 늘어놓는 대신 한 문장으로 말하는 조건.
+  // `total` 이 없거나(구형 응답) 0 이면 나머지 둘도 볼 것이 없다.
+  const jobsQuiet = !(jobs.total > 0);
   const storage = storageState(d.storage);
   const fileCount = d.storage && typeof d.storage.file_count === "number" ? d.storage.file_count : null;
   const backupAgeDays = d.last_backup_at ? daysSince(d.last_backup_at) : null;
@@ -655,56 +697,66 @@ function DashboardBody({ d, nav, role, stale }) {
       </DashSection>
       </Box>
 
-      {/* 운영 자료 셋 — 값이 몇 개뿐이라 각자 한 구역을 차지하지 않는다. 한 판 안에서
-          실선으로 나눈다. */}
+      <Box sx={BOTTOM_GRID}>
+      {/* 운영 자료 셋 — 값이 몇 개뿐이라 각자 한 구역을 차지하지 않는다. 한 구역 안에서
+          옅은 함몰면 셋으로 나눈다(위 `OpsGroup` 주석). */}
       <DashSection title="운영">
-        <Card>
-          <Box sx={OPS_GRID}>
-            <SubGroup first title="파일 저장소">
-              <Fact
-                label="상태"
-                value={<Badge value={SERVICE_STATE_LABEL[storage.state]} kind={SERVICE_STATE_KIND[storage.state]} />}
-              />
-              <Fact label="보관 파일" value={fileCount == null ? "-" : fmtNum(fileCount) + "개"} />
-              <Note sx={{ mt: 1 }}>{storage.detail}</Note>
-              {d.storage && d.storage.warning ? <Note sx={{ mt: 0.75 }}>{d.storage.warning}</Note> : null}
-              {role === "system_admin" ? <OpsLink label="저장소 설정" onClick={goto(STORAGE_TO)} /> : null}
-            </SubGroup>
+        <Box sx={OPS_GRID}>
+          <OpsGroup title="파일 저장소">
+            <Fact
+              label="상태"
+              value={<Badge value={SERVICE_STATE_LABEL[storage.state]} kind={SERVICE_STATE_KIND[storage.state]} />}
+            />
+            <Fact label="보관 파일" value={fileCount == null ? "-" : fmtNum(fileCount) + "개"} />
+            <Note sx={{ mt: 1 }}>{storage.detail}</Note>
+            {d.storage && d.storage.warning ? <Note sx={{ mt: 0.75 }}>{d.storage.warning}</Note> : null}
+            {role === "system_admin" ? <OpsLink label="저장소 설정" onClick={goto(STORAGE_TO)} /> : null}
+          </OpsGroup>
 
-            <SubGroup first title="백업">
+          <OpsGroup title="백업">
+            {/* 상태가 첫 줄이다 — 세 묶음이 같은 순서로 읽히게 한다. */}
+            <Fact
+              label="상태"
+              value={d.last_backup_status ? <Badge value={d.last_backup_status} /> : "기록 없음"}
+            />
+            <Fact
+              label="마지막 성공"
+              value={d.last_backup_at ? fmtDateTime(d.last_backup_at) : "없음"}
+              tone={!d.last_backup_at ? "warning" : undefined}
+            />
+            {/* 오래된 백업 배지는 system_admin에게는 이미 위 조치 목록에 같은 사실이 행으로
+                떠 있다 — 그 역할이 아니면 여기가 그 사실을 보여주는 유일한 자리다. */}
+            {backupAgeDays != null ? (
               <Fact
-                label="마지막 성공"
-                value={d.last_backup_at ? fmtDateTime(d.last_backup_at) : "없음"}
-                tone={!d.last_backup_at ? "warning" : undefined}
+                label="경과"
+                value={Math.floor(backupAgeDays) + "일 전"}
+                tone={backupAgeDays > BACKUP_STALE_DAYS ? (backupAgeDays > BACKUP_STALE_DAYS * 2 ? "error" : "warning") : undefined}
               />
-              <Fact
-                label="상태"
-                value={d.last_backup_status ? <Badge value={d.last_backup_status} /> : "기록 없음"}
-              />
-              {/* 오래된 백업 배지는 system_admin에게는 이미 위 조치 목록에 같은 사실이 행으로
-                  떠 있다 — 그 역할이 아니면 여기가 그 사실을 보여주는 유일한 자리다. */}
-              {backupAgeDays != null ? (
-                <Fact
-                  label="경과"
-                  value={Math.floor(backupAgeDays) + "일 전"}
-                  tone={backupAgeDays > BACKUP_STALE_DAYS ? (backupAgeDays > BACKUP_STALE_DAYS * 2 ? "error" : "warning") : undefined}
-                />
-              ) : null}
-              <OpsLink label="백업 관리" onClick={goto("/backup")} />
-            </SubGroup>
+            ) : null}
+            <OpsLink label="백업 관리" onClick={goto("/backup")} />
+          </OpsGroup>
 
-            <SubGroup first title="최근 24시간 작업">
-              {/* 성공률은 이 24시간 지표군의 하나이지만 위 스트립·조치 목록과 겹치는 값이라
-                  여기서는 뺐다 — 나머지 셋은 스트립·경보 어디에도 없는 유일한 자리다.
-                  이 값들에는 시계열이 없다(백엔드가 24시간 집계 스칼라만 내려준다) — 없는
-                  추세선을 그리면 한 점을 선으로 잇는 거짓말이 된다. */}
-              <Fact label="처리 요청" value={fmtNum(jobs.total != null ? jobs.total : 0)} />
-              <Fact label="성공" value={fmtNum(jobs.succeeded != null ? jobs.succeeded : 0)} />
-              <Fact label="평균 처리" value={fmtProcessingTime(jobs.avg_processing_seconds)} />
-              <OpsLink label="작업 큐" onClick={jobsTo ? goto(jobsTo) : undefined} />
-            </SubGroup>
-          </Box>
-        </Card>
+          <OpsGroup title="최근 24시간 작업">
+            {/* 성공률은 이 24시간 지표군의 하나이지만 위 스트립·조치 목록과 겹치는 값이라
+                여기서는 뺐다 — 나머지 셋은 스트립·경보 어디에도 없는 유일한 자리다.
+                이 값들에는 시계열이 없다(백엔드가 24시간 집계 스칼라만 내려준다) — 없는
+                추세선을 그리면 한 점을 선으로 잇는 거짓말이 된다.
+
+                🔴 **한 건도 없으면 0 을 셋 늘어놓지 않는다.** 실측(2026-08-26)에서 이 칸이
+                「처리 요청 0 · 성공 0 · 평균 처리 -」 세 줄이었다. 세 줄을 다 읽고 나서야
+                「아무 일도 없었다」를 알게 되는데, 그것은 한 문장이면 되는 사실이다. */}
+            {jobsQuiet ? (
+              <Note sx={{ mt: 0 }}>최근 24시간 동안 처리한 작업이 없습니다.</Note>
+            ) : (
+              <>
+                <Fact label="처리 요청" value={fmtNum(jobs.total)} />
+                <Fact label="성공" value={fmtNum(jobs.succeeded != null ? jobs.succeeded : 0)} />
+                <Fact label="평균 처리" value={fmtProcessingTime(jobs.avg_processing_seconds)} />
+              </>
+            )}
+            <OpsLink label="작업 큐" onClick={jobsTo ? goto(jobsTo) : undefined} />
+          </OpsGroup>
+        </Box>
       </DashSection>
 
       <RecentChanges
@@ -714,6 +766,7 @@ function DashboardBody({ d, nav, role, stale }) {
         revealedId={revealedId}
         onCopyId={copyObjectId}
       />
+      </Box>
     </Box>
   );
 }

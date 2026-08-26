@@ -8,7 +8,8 @@ import { api } from "../lib/api.js";
 // 두 화면에서 달라지면 같은 값이 다르게 보인다).
 import { fmtNum } from "./ops/opsHelpers.js";
 import { ErrorState, Skeleton, SubGroup, TechDetail } from "../ui/kit.jsx";
-import { BarSeries } from "../ui/charts/BarSeries.jsx";
+import { ProgressRows } from "../ui/charts/ProgressRows.jsx";
+import { fmtDayKo } from "../lib/format.js";
 import { FONT_WEIGHT, KO_WORD_BREAK, MOTION } from "../ui/theme.js";
 
 /* 이번 주 업무 상태 — **사용자 홈 오른쪽 레일의 한 묶음** (0060 §3).
@@ -34,13 +35,24 @@ import { FONT_WEIGHT, KO_WORD_BREAK, MOTION } from "../ui/theme.js";
  * 한 줄 요약만 남기고 자세한 이유는 접어 둔다 — 지우지는 않는다(§불변 6: 없는 것을 있는
  * 척하지 않는다. 빠진 것이 있으면 빠졌다고 말해야 한다).
  *
- * ## 막대를 «가장 큰 값 = 꽉 참» 으로 그리지 않는다
+ * ## 막대는 «그 주에 마감이던 일 가운데 얼마나 끝냈는가» 다
  *
- * 완료 1건짜리 주가 화면 폭을 가득 채운 막대로 그려지고 있었다. `BarSeries` 의 상대 축소는
- * 값들 사이의 크기 비교에는 맞지만, 「많이 했나 적게 했나」를 묻는 자리에서는 규모를
- * 부풀린다. 이제 기준을 **그 주에 마감이던 건수**로 잡는다 — 마감 12건 중 3건을 끝낸 주는
- * 4분의 1 만큼만 찬다. `done` 은 언제나 `assigned` 의 부분집합이라(sprint_progress) 막대가
- * 기준을 넘지 않는다.
+ * 완료 1건짜리 주가 화면 폭을 가득 채운 막대로 그려지고 있었다. 가장 큰 값을 꽉 찬 막대로
+ * 보는 상대 축소는 값들 사이의 크기 비교에는 맞지만, 「많이 했나 적게 했나」를 묻는 자리
+ * 에서는 규모를 부풀린다.
+ *
+ * 다행히 이 자료에는 **제대로 된 분모가 있다.** `assigned` 는 그 주에 마감이던 내 티켓
+ * 전부이고 `done` 은 그중 상태가 완료인 것이라, 둘은 같은 모집단이다
+ * (`app/home/aggregate.py::sprint_progress` — 창 판정이 두 값에 똑같이 걸린다). 그래서
+ * 막대를 **비율**로 읽을 수 있다: 마감 12건 중 3건을 끝낸 주는 4분의 1 만큼 찬다.
+ *
+ * 마감이 0건인 주는 0% 가 아니라 **분모가 없는 주**다. 0% 로 그리면 「아무것도 못 했다」로
+ * 읽히는데 사실은 「할 것이 없었다」다 — 그 줄은 중립 트랙과 「마감 없음」이다.
+ *
+ * 줄 모양도 바꿨다. 예전에는 [이름 | 값 | 막대] 가 한 행이었고 부연이 **어떤 줄에만** 한
+ * 줄을 더 만들어 행 높이가 들쭉날쭉했다(실측 1920: 넉 주 중 둘만 아래에 한 줄이 더 있었고
+ * 막대는 110px 였다). 이제 모든 주가 「기간 + 사실」 한 줄과 「가득 폭 막대」 한 줄로
+ * 똑같다(`ui/charts/ProgressRows.jsx`).
  *
  * **별도 파일로 둔 이유**는 번들이다. 사용자 콘솔은 관리자 화면 설정(registry.js)을 일부러
  * 안 들여온다(UserRoutes.jsx 헤더 주석). 이 묶음을 `Dashboard.jsx` 안에 두면 관리자 화면
@@ -52,12 +64,16 @@ import { FONT_WEIGHT, KO_WORD_BREAK, MOTION } from "../ui/theme.js";
  * **같은 화면에서 같은 문장을 두 번 말하지 않는다.** 바로 위 스프린트 도넛이 이미 "티켓
  * 소스를 읽지 못해 …" 를 말하는 자리다. 원인은 그쪽이 말하고, 여기서는 **이 묶음에만
  * 해당하는 사실**만 말한다. AssistantPanel 이 같은 이유로 짧게 참조만 한다. */
-export const WORK_UNKNOWN = "같은 이유로 주마다 끝낸 양도 셀 수 없습니다. 프로젝트와 마일스톤은 다른 소스라 정상 집계됩니다.";
+export const WORK_UNKNOWN = "같은 이유로 최근 완료 추이도 셀 수 없습니다. 프로젝트와 마일스톤은 다른 소스라 정상 집계됩니다.";
 
 // 완료 추이의 기준. 소스에 '상태가 완료로 바뀐 시각'이 없다(app/projects/weekly.py 와
 // app/sprints/burndown.py 가 같은 사정을 적어 뒀다). 없는 이력을 추정해 선을 그으면 그건
 // 추이가 아니라 창작이라, 화면이 기준을 그대로 말한다.
-export const TREND_BASIS = "완료는 마감일 기준이고, 막대는 그 주에 마감이던 건수를 기준으로 그렸습니다.";
+//
+// 다만 **본문에 상시로 두지 않는다.** 이 두 문장은 그림을 의심할 때만 필요하고, 평소에는
+// 좁은 레일에서 넉 줄을 차지하며 그림보다 길었다. 「집계 기준」 도움말 안으로 내린다.
+export const TREND_BASIS = "한 주는 월요일에 시작합니다. 완료 여부는 마감일이 그 주에 든 티켓만 셉니다.";
+export const TREND_BASIS_LIMIT = "티켓에는 완료로 바꾼 시각이 없어서, 지난주에 끝낸 일도 마감일이 있는 주에 셉니다.";
 
 // 창에 **포함되는** 마지막 날. 계약(end_exclusive)은 배타적 끝이 맞지만, 사람에게
 // "08-03 ~ 08-10"이라고 보이면 08-10이 포함인지 매번 다시 생각해야 하고 반쯤은 틀리게 읽는다
@@ -70,13 +86,21 @@ export function lastDayOf(endExclusive) {
   return d.toISOString().slice(0, 10);
 }
 
-/** 막대의 기준값 — 그 넉 주 가운데 가장 바빴던 주의 마감 건수.
+/** 추이 한 줄 — 기간 이름과 그 주의 두 수.
  *
- * 0 이면 기준이 없다(그 넉 주에 마감이 하나도 없었다). 그때는 막대가 전부 0 폭이고, 그것이
- * 사실이다. `undefined` 를 돌려주면 `BarSeries` 가 상대 축소로 되돌아가므로 0 을 그대로 낸다. */
-export function trendPeak(trend) {
+ * `total` 이 0 이면 **분모가 없는 주**다(그 주에 마감이 하나도 없었다). `ProgressRows` 가
+ * 그 줄을 0% 가 아니라 중립 트랙으로 그린다. 여기서 0 을 1 로 바꾸거나 그 줄을 빼면
+ * 「그 주가 없었다」가 되어 추이의 간격이 거짓말을 한다.
+ *
+ * 라벨에서 연도를 뺀다 — 넉 주짜리 그림에서 같은 해가 네 번 나오면 폭만 먹는다. */
+export function trendRows(trend) {
   const rows = Array.isArray(trend) ? trend : [];
-  return rows.reduce((m, w) => Math.max(m, w.assigned || 0, w.done || 0), 0);
+  return rows.map((w) => ({
+    key: w.week_of,
+    label: `${fmtDayKo(w.week_of)} 주간`,
+    value: w.done || 0,
+    total: w.assigned || 0,
+  }));
 }
 
 /* 프로젝트 축 한 줄 — 이름과 값, 누르면 그 목록으로 간다.
@@ -140,7 +164,7 @@ export function WorkSection() {
   const troubled = projects.troubled || { count: 0, items: [] };
   const overdueMs = (d.milestones || {}).overdue || { count: 0, items: [] };
   const trend = d.completion_trend;
-  const peak = trendPeak(trend);
+  const rows = trendRows(trend);
   // 지문에 **값**이 들어가야 그림이 실제로 바뀔 때만 다시 그려진다(ui/motion.js).
   const trendKey = trend ? "home-trend:" + trend.map((w) => `${w.week_of}:${w.done}:${w.assigned}`).join(",") : null;
   const caveat = !!(projects.unscored || projects.low_confidence || projects.truncated);
@@ -187,27 +211,24 @@ export function WorkSection() {
         ) : null}
       </SubGroup>
 
-      <SubGroup title="주마다 끝낸 일">
+      <SubGroup title="최근 완료 추이">
         {trend ? (
           <>
-            <BarSeries
-              question="주마다 끝내는 양이 늘고 있는지 줄고 있는지 봅니다."
-              items={trend.map((w) => ({
-                // 연도를 뺀다. 넉 주짜리 그림에서 「2026」은 네 번 같은 값이라 폭만 먹는다.
-                label: String(w.week_of || "").slice(5) + " 주",
-                value: w.done,
-                /* W5: 완료 건수는 **하나의 시리즈**다 — 상태가 아니다. 색은 부품이 Brand
-                   슬롯에서 준다. */
-                color: undefined,
-                note: w.assigned ? "그 주 마감 " + w.assigned + "건" : undefined,
-              }))}
-              unit="건" formatValue={fmtNum} max={peak || undefined}
-              emptyLabel="완료 추이를 만들 표본이 없습니다"
+            <ProgressRows
+              question="주마다 마감을 얼마나 지켰는지 봅니다."
+              items={rows}
               revealKey={trendKey}
+              emptyLabel="완료 추이를 만들 표본이 없습니다"
+              emptyRowLabel="마감 없음"
+              formatRow={(r) => `마감 ${fmtNum(r.total)}건 중 ${fmtNum(r.value)}건 완료`}
             />
-            <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1, ...KO_WORD_BREAK }}>
-              {TREND_BASIS}
-            </Typography>
+            {/* 기준은 그림을 의심할 때만 필요하다 — 접어 둔다(지우지는 않는다). */}
+            <Box sx={{ mt: 1.25 }}>
+              <TechDetail label="집계 기준">
+                <Typography variant="body2" color="text.secondary" sx={KO_WORD_BREAK}>{TREND_BASIS}</Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75, ...KO_WORD_BREAK }}>{TREND_BASIS_LIMIT}</Typography>
+              </TechDetail>
+            </Box>
           </>
         ) : (
           <Typography variant="body2" color="text.secondary" sx={KO_WORD_BREAK}>{WORK_UNKNOWN}</Typography>

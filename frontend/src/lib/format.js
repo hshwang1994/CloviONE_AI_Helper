@@ -112,6 +112,23 @@ export function fmtRelative(v) {
   return fmtDateTime(v);
 }
 
+/** 달력일(YYYY-MM-DD) → "8월 24일".
+ *
+ * 화면에 기간을 적을 때 `2026-08-24` 를 그대로 쓰면 읽는 사람이 연·월·일을 매번 다시
+ * 분해한다. 서버가 주는 것은 **KST 달력일 문자열**이라 시간대 변환을 하면 안 된다 —
+ * `new Date("2026-08-24")` 는 UTC 자정으로 읽혀서 KST 로 그리면 하루가 밀린다. 그래서
+ * 문자열을 그대로 쪼갠다.
+ *
+ * 연도는 뺀다. 한 화면 안에서 같은 해가 여러 번 나오면 폭만 먹고 아무것도 구별해 주지
+ * 않는다 — 해가 넘어가는 기간이면 호출부가 두 값을 나란히 적어 그 사실을 보여 준다.
+ */
+export function fmtDayKo(v) {
+  if (v == null || v === "") return "";
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(v).slice(0, 10));
+  if (!m) return String(v);
+  return `${Number(m[2])}월 ${Number(m[3])}일`;
+}
+
 // 짧은 기기/브라우저 표기 — user-agent 원문은 너무 길어 표·카드를 망가뜨린다. Users.jsx(관리자의
 // 다른 사용자 세션 목록)에만 있었다가 Profile.jsx(내 기기 목록)로도 쓰이며 공용으로 옮겼다 —
 // 후자는 원문을 자르지도, 전체 문구를 Tooltip으로 보존하지도 않아 긴 UA가 카드 레이아웃을 밀어냈다.

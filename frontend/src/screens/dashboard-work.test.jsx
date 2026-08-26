@@ -13,7 +13,7 @@ import { MemoryRouter } from "react-router-dom";
  * 🔴 **티켓 축의 수는 여기서 뺐다.** `mine.open` 은 홈 상단 판독 줄의 「진행 중」과 같은
  * 함수가 센 값이고 `mine.overdue` 는 「지연」과 같은 값이다(app/home/work.py). 실측에서
  * 한 화면에 「지연 12」와 「지연 티켓 12」가 나란히 떠 있었다. 남는 것은 다른 축이다 —
- * 프로젝트와 마일스톤, 그리고 주마다 끝낸 양의 흐름.
+ * 프로젝트와 마일스톤, 그리고 최근 완료 추이.
  *
  * 여기서 고정하는 계약은 넷이다.
  *
@@ -146,18 +146,28 @@ describe("이번 주 업무 상태 묶음", () => {
     expect(screen.queryByText(/점수의 신뢰도가 낮을 수 있습니다/)).toBeNull();
   });
 
-  it("주마다 끝낸 일을 보여주고 기준과 규모를 밝힌다", async () => {
+  it("최근 완료 추이는 네 주가 모두 같은 모양이고, 마감이 없던 주를 0% 로 그리지 않는다", async () => {
     renderDashboard();
-    expect(await screen.findByText("주마다 끝낸 일")).toBeInTheDocument();
-    // 연도는 넉 주 내내 같은 값이라 라벨에서 뺀다.
-    expect(screen.getByText("07-27 주")).toBeInTheDocument();
-    // 완료 시각이 소스에 없다 - 마감일 기준이라는 사실을 화면이 그대로 말해야 한다.
-    expect(screen.getByText(/마감일 기준/)).toBeInTheDocument();
-    /* 🔴 막대의 기준은 «가장 큰 완료 수»가 아니라 «그 주 마감 건수»다. 상대 축소를 쓰면
-       완료 1건짜리 주가 꽉 찬 막대가 되어 규모를 부풀린다. 그래서 화면에 상대 비교
-       안내가 아니라 마감 규모가 적힌다. */
+    expect(await screen.findByText("최근 완료 추이")).toBeInTheDocument();
+
+    /* 넉 주가 **전부** 「기간」 한 줄을 갖는다. 예전에는 부연(`그 주 마감 N건`)이 마감이
+       있던 주에만 한 줄 더 붙어 행 높이가 들쭉날쭉했다. 연도는 넉 주 내내 같은 값이라 뺀다. */
+    for (const label of ["7월 13일 주간", "7월 20일 주간", "7월 27일 주간", "8월 3일 주간"]) {
+      expect(screen.getByText(label)).toBeInTheDocument();
+    }
+
+    /* 🔴 막대는 «그 주 마감 대상 가운데 얼마나 끝냈는가» 다. 상대 축소를 쓰면 완료 1건짜리
+       주가 꽉 찬 막대가 되어 규모를 부풀린다 — 그래서 화면에 상대 비교 안내가 없다. */
     expect(screen.queryByText(/100%로 본 상대 비교/)).toBeNull();
-    expect(screen.getAllByText(/그 주 마감 2건/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText("마감 2건 중 1건 완료")).toHaveLength(2);
+
+    // 마감이 0건인 주는 0% 가 아니라 **분모가 없는 주**다.
+    expect(screen.getAllByText("마감 없음")).toHaveLength(2);
+
+    /* 집계 기준은 본문에 상시로 두지 않는다 — 접힘은 남아 있고(사실을 지우지 않는다)
+       그 안에 문장이 있다. */
+    expect(screen.getByText("집계 기준")).toBeInTheDocument();
+    expect(screen.getByText(/마감일이 그 주에 든 티켓만 셉니다/)).toBeInTheDocument();
   });
 });
 
@@ -177,7 +187,7 @@ describe("이번 주 업무 상태 묶음 - 0 과 없음", () => {
     renderDashboard();
     expect(await screen.findByText(WORK_UNKNOWN)).toBeInTheDocument();
     // 못 세는 것을 0 으로 그리지 않는다 — 그림 자체가 없다.
-    expect(screen.queryByText("07-27 주")).not.toBeInTheDocument();
+    expect(screen.queryByText("7월 27일 주간")).not.toBeInTheDocument();
     // 프로젝트 쪽은 다른 소스다 - 티켓이 죽었다고 함께 사라지면 안 된다.
     expect(screen.getByText("차질 프로젝트")).toBeInTheDocument();
   });

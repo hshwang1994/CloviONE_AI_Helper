@@ -569,24 +569,44 @@ export function Card({ className, children, sx, ...rest }) {
  * 1. **내용이 짧으면 스크롤바가 없다** — `overflow-y: auto` 라 넘칠 때만 생긴다.
  * 2. **스크롤바가 글자를 덮지 않는다** — `scrollbar-gutter: stable` 이 자리를 미리 잡아
  *    두므로, 목록이 길어져 스크롤바가 생기는 순간에도 글자가 옆으로 밀리지 않는다.
- * 3. **키보드로 굴릴 수 있다** — 스크롤 영역은 초점을 받아야 한다(WCAG 2.1.1). 그래서
- *    `tabIndex=0` 이고 이름을 갖는다.
+ * 3. **넘칠 때만 초점을 받는다** — 스크롤 영역은 키보드로 굴릴 수 있어야 하고(WCAG 2.1.1),
+ *    그러려면 초점을 받아야 한다. 그런데 **굴릴 것이 없는 칸까지 초점을 받으면** 탭 순서에
+ *    아무 일도 안 하는 정거장이 하나 생긴다. 그래서 실제 넘침을 재서 그때만 `tabIndex` 를
+ *    준다 — 덕분에 「지금은 안 넘치지만 자료가 늘면 넘치는 자리」에도 안심하고 쓸 수 있다.
  */
 export function ScrollArea({ maxHeight, ariaLabel, children, sx }) {
+  const ref = React.useRef(null);
+  const [overflows, setOverflows] = React.useState(false);
+  React.useEffect(() => {
+    const el = ref.current;
+    if (!el) return undefined;
+    const measure = () => setOverflows(el.scrollHeight > el.clientHeight + 1);
+    measure();
+    if (typeof ResizeObserver !== "function") return undefined;
+    // 칸 자체가 줄어들 때와 내용이 늘어날 때를 모두 본다.
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    if (el.firstElementChild) ro.observe(el.firstElementChild);
+    return () => ro.disconnect();
+  });
   return (
     <Box
+      ref={ref}
       className="k-scrollarea"
-      role="group"
-      tabIndex={0}
-      aria-label={ariaLabel}
+      data-overflows={overflows ? "true" : "false"}
+      role={overflows ? "group" : undefined}
+      tabIndex={overflows ? 0 : undefined}
+      aria-label={overflows ? ariaLabel : undefined}
       sx={(t) => ({
         maxHeight,
         overflowY: "auto",
         // 바깥(브라우저) 스크롤로 이어지지 않게 한다 — 칸 끝에서 페이지가 함께 튀면
         // 사용자는 자기가 무엇을 굴렸는지 모른다.
         overscrollBehavior: "contain",
-        scrollbarGutter: "stable",
-        pr: 0.5,
+        // 자리는 넘칠 때만 잡는다. 안 넘치는 칸에까지 8px 를 비워 두면 옆 줄과 오른쪽
+        // 끝이 어긋나 보인다.
+        scrollbarGutter: overflows ? "stable" : "auto",
+        pr: overflows ? 0.5 : 0,
         "&:focus-visible": { outline: `2px solid ${t.palette.focusRing}`, outlineOffset: 2 },
         ...(typeof sx === "function" ? sx(t) : sx),
       })}
@@ -1230,6 +1250,10 @@ export function EmptyState({
    *
    *   page    **화면 전체가 비었다.** 콘텐츠 영역 안에서 가운데 구성으로 선다 —
    *           클로비 → 제목 → 짧은 설명 → (필요하면) 다음 행동, 위에서 아래로.
+   *   card    **그 화면의 주요 판 하나가 비었다.** `page` 와 같은 세로 가운데 구성인데,
+   *           높이를 스스로 만들지 않고 **부모 판이 이미 가진 높이를 채운다**. 카드가
+   *           안정적인 높이 범위를 갖는 자리(홈의 「오늘 마감」)에서, 0건이 «작은 그림과
+   *           한 줄이 왼쪽 위에 몰리고 나머지가 빈 흰 판» 이 되지 않게 한다.
    *   region  **판·카드 하나가 비었다**(기본). 그 카드의 문맥 안에 왼쪽으로 붙는다 —
    *           대시보드의 칸 하나가 비었을 때 그 칸만 조용히 비어 있으면 된다.
    *   inline  팝오버·모달 하위목록처럼 폭도 높이도 좁은 자리. `size="compact"` 와 같은 뜻이다.
@@ -1247,6 +1271,11 @@ export function EmptyState({
   /* 화면 전체가 빈 자리. 이 하나가 방향(세로)·정렬(가운데)·높이(남은 화면)를 함께 정한다 —
      화면마다 크기와 자리를 따로 적으면 같은 상태가 화면마다 다르게 보인다. */
   const page = layout === "page";
+  /* 판 하나를 채우는 가운데 배치. `page` 와 **모양은 같고 높이의 출처만 다르다** — 여기서는
+     부모 판이 높이를 정하고 이 빈 상태는 그 안에서 가운데에 선다. 그래서 `minHeight` 를
+     스스로 만들지 않는다(만들면 판의 높이 계약을 빈 상태가 덮어쓴다). */
+  const card = layout === "card";
+  const centered = page || card;
   const stepList = Array.isArray(steps) ? steps.filter((s) => s != null && s !== "") : null;
   /* compact 는 여전히 그림을 안 그린다(DS-15). 팝오버·모달 하위목록은 폭도 높이도 좁아서
      그림이 «다음에 무엇을 하면 되는지» 를 밀어낸다. 그 자리에 캐릭터가 필요한 화면은
@@ -1256,7 +1285,7 @@ export function EmptyState({
      예전에는 `width: {sm:72, xxl:88, uhd:112}` 였는데, 그 72 는 자산마다 다른 크기로 보였다 —
      `empty-notify`(잉크 84%)는 60px 인데 `empty-tickets`(62%)는 45px 였다. 같은 자리에서
      그림이 두 크기로 나오는 것이고, 박스를 재는 검사로는 안 보인다. */
-  const artPlace = layout === "page" ? "emptyPage" : "emptyRegion";
+  const artPlace = page ? "emptyPage" : card ? "emptyCard" : "emptyRegion";
   const artBox = artSrc ? mascotBoxPx(artPlace, artSrc) : null;
   const detail = [prerequisite, stepList && stepList.length ? stepList : null, expected].some(Boolean);
   /* 칸 폭은 EMPTY_STATE_MAX_CH. 문구 한도는 COPY_LIMIT.emptyHelp — 폭을 바꾸면 한도가 따라간다. */
@@ -1264,7 +1293,7 @@ export function EmptyState({
     maxWidth: `${EMPTY_STATE_MAX_CH}ch`,
     fontSize: compact ? FONT_SIZE.bodySm : FONT_SIZE.body,
     ...KO_WORD_BREAK,
-    ...(page ? { mx: "auto" } : null),
+    ...(centered ? { mx: "auto" } : null),
   };
 
   /* 빈 상태 — 읽는 순서가 **제목 → 다음 행동 → 보조 설명**이다 (지시 18).
@@ -1291,11 +1320,13 @@ export function EmptyState({
         /* page — 남은 높이를 실제로 차지하고 그 안에서 **가운데**에 선다. `minHeight` 는
            본문 열의 남은 높이를 겨냥한 값이고, 마스코트 밴드의 분모이기도 하다 — 그림이
            컨테이너 높이를 정하면 어떤 비율 규칙도 성립하지 않는다(`Mascot.jsx::emptyPage`). */
-        ...(page
+        ...(centered
           ? {
               flexDirection: "column", alignItems: "center", justifyContent: "center",
-              textAlign: "center", gap: 2.5, py: 6, px: 3,
-              minHeight: "min(30rem, 60vh)",
+              textAlign: "center", gap: card ? 2 : 2.5, px: 3,
+              // `page` 는 남은 화면을 실제로 차지한다. `card` 는 부모가 준 높이를 채운다 —
+              // 자기 높이를 만들면 판의 높이 계약을 빈 상태가 덮어쓴다.
+              ...(card ? { height: "100%", py: 4 } : { py: 6, minHeight: "min(30rem, 60vh)" }),
             }
           : null),
       }}
@@ -1317,7 +1348,7 @@ export function EmptyState({
         <Box aria-hidden="true" sx={{ flexShrink: 0, fontSize: compact ? FONT_SIZE.pageTitle : FONT_SIZE.readout, color: "text.faint", lineHeight: 1 }}>{icon}</Box>
       ) : null}
 
-      <Box sx={{ display: "grid", gap: compact ? 0.5 : 0.75, minWidth: 0, ...(page ? { justifyItems: "center" } : null) }}>
+      <Box sx={{ display: "grid", gap: compact ? 0.5 : 0.75, minWidth: 0, ...(centered ? { justifyItems: "center" } : null) }}>
         <Typography
           role="heading"
           aria-level={2}
@@ -1332,7 +1363,7 @@ export function EmptyState({
 
         {/* 다음 행동이 설명보다 위에 온다. */}
         {action || (relatedLink && relatedLink.href) ? (
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap", mt: page ? 1 : 0.25, justifyContent: page ? "center" : "flex-start" }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap", mt: centered ? 1 : 0.25, justifyContent: centered ? "center" : "flex-start" }}>
             {action}
             {relatedLink && relatedLink.href ? (
               <Link href={relatedLink.href} underline="hover" sx={{ fontSize: compact ? FONT_SIZE.bodySm : FONT_SIZE.body }}>
@@ -1344,7 +1375,7 @@ export function EmptyState({
 
         {/* 준비물·절차·기대 결과는 보조다. 실선 하나로 아래에 붙인다(상자를 만들지 않는다). */}
         {detail ? (
-          <Box sx={{ mt: 0.5, pt: 1, borderTop: 1, borderColor: "divider", display: "grid", gap: 0.5, textAlign: "left", justifySelf: page ? "center" : "stretch" }}>
+          <Box sx={{ mt: 0.5, pt: 1, borderTop: 1, borderColor: "divider", display: "grid", gap: 0.5, textAlign: "left", justifySelf: centered ? "center" : "stretch" }}>
             {prerequisite ? (
               <Typography color="text.secondary" sx={{ ...bodySx, fontSize: FONT_SIZE.bodySm }}>
                 <Box component="span" sx={{ fontWeight: FONT_WEIGHT.semibold, mr: 1 }}>필요한 것</Box>{prerequisite}

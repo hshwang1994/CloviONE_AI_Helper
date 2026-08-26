@@ -116,8 +116,8 @@ describe("홈 '오늘' — 커맨드 센터", () => {
     renderHome();
 
     expect(await screen.findByText("오늘 마감")).toBeInTheDocument();
-    // 판독 다섯: 오늘 마감 / 지연 / 진행 중 / 7일 내 마감 / 막힘(이슈).
-    for (const label of ["오늘 마감", "지연", "진행 중", "7일 내 마감", "막힘(이슈)"]) {
+    // 판독 다섯: 오늘 마감 / 지연 / 진행 중 / 7일 내 마감 / 막힌 일.
+    for (const label of ["오늘 마감", "지연", "진행 중", "7일 내 마감", "막힌 일"]) {
       expect(screen.getAllByText(label).length).toBeGreaterThan(0);
     }
     // 값은 판독 칸 안에서 확인한다 — 같은 숫자가 화면 다른 곳(요약 문장 등)에도 나올 수 있다.
@@ -143,7 +143,7 @@ describe("홈 '오늘' — 커맨드 센터", () => {
     const before = apiMock.mock.calls.length;
 
     await userEvent.click(statCard("지연"));
-    expect(await screen.findByText("지연 (1건)")).toBeInTheDocument();
+    expect(await screen.findByText("지연 1건")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "지연 티켓" })).toBeInTheDocument();
     // 버킷은 이미 응답 안에 다 들어 있다 — 칸을 바꾼다고 네트워크가 다시 돌면 안 된다.
     expect(apiMock.mock.calls.length).toBe(before);
@@ -208,8 +208,8 @@ describe("홈 '오늘' — 커맨드 센터", () => {
     for (const fixed of ["이번 주", "최근 문서", "AI 도우미"]) {
       expect(level2Names).toContain(fixed);
     }
-    // 티켓 칸 제목은 "진행 중 (4건)"처럼 고른 칸에 따라 바뀐다 — 값이 아니라 모양만 확인한다.
-    expect(level2Names.some((t) => /\(\d+건\)$/.test(t))).toBe(true);
+    // 티켓 칸 제목은 "진행 중 4건"처럼 고른 칸에 따라 바뀐다 — 값이 아니라 모양만 확인한다.
+    expect(level2Names.some((t) => /\d+건$/.test(t))).toBe(true);
     /* 최상위 구역은 **넷**이다: 오늘 할 일 · AI 도우미(본문 열), 이번 주 · 최근 문서(레일).
        예전에는 다섯이었다 — '이번 주 내 진척'과 '내 업무'가 따로 있었고 그 둘이 같은 주의
        같은 수를 각자 말했다. 하나로 합치면서 h2 가 하나 줄었다. */
@@ -247,17 +247,17 @@ describe("홈 '오늘' — 커맨드 센터", () => {
     expect(rail.contains(docs)).toBe(true);
   });
 
-  it("'막힘(이슈)'은 채팅 설정과 무관하게 항상 있다", async () => {
+  it("'막힌 일'은 채팅 설정과 무관하게 항상 있다", async () => {
     /* 예전에는 지표가 격자 여섯 칸이라 자리가 모자랐고, 채팅이 켜져 있으면 '막힘'이 그
        산수 때문에 화면에서 빠졌다 — 막힌 티켓은 채팅 개수보다 먼저 봐야 하는 정보다.
        판독 줄에는 칸 수 제약이 없고, 애초에 채팅 개수가 이 줄에 없다. */
     routeApi();
     renderHome();
-    expect(await screen.findByText("막힘(이슈)")).toBeInTheDocument();
+    expect(await screen.findByText("막힌 일")).toBeInTheDocument();
 
     routeApi({ today: { ...TODAY_OK, inbox: { notifications_unread: 0, chat_unread: null } } });
     renderHome();
-    expect((await screen.findAllByText("막힘(이슈)")).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText("막힌 일")).length).toBeGreaterThan(0);
   });
 
   it("지표가 카드 여섯 장이 아니라 판(plate) 하나에 담긴다 — 마지막 줄 빈 칸이 생기지 않는다", async () => {
@@ -273,7 +273,7 @@ describe("홈 '오늘' — 커맨드 센터", () => {
     expect(plates).toHaveLength(1);
 
     const ticketPlate = document.querySelector('[aria-label="내 티켓"]');
-    for (const label of ["오늘 마감", "지연", "진행 중", "7일 내 마감", "막힘(이슈)"]) {
+    for (const label of ["오늘 마감", "지연", "진행 중", "7일 내 마감", "막힌 일"]) {
       expect(within(ticketPlate).getByText(label), label).toBeInTheDocument();
     }
     // 판독 칸은 자기 판(카드)을 갖지 않는다 — 판은 줄 하나당 하나뿐이다.
@@ -295,7 +295,7 @@ describe("홈 '오늘' — 커맨드 센터", () => {
     expect(screen.getByText(/이번 주 진척을 계산할 수 없습니다/)).toBeInTheDocument();
   });
 
-  // VIS-34: 스프린트 카드(SprintProgress)와 AI 도우미의 '오늘 브리핑'(AssistantPanel의
+  // VIS-34: 스프린트 카드(SprintProgress)와 AI 도우미의 '오늘 요약'(AssistantPanel의
   // Briefing)이 같은 실패를 각자 전체 문장으로 반복해 같은 화면에 같은 경고가 두 번
   // 떴다. AssistantPanel은 자기 쿼리가 따로 있어 findByText로 그 완료까지 기다려야
   // 실제로 렌더된 내용을 본다(Home 쿼리 완료만 기다리면 이 컴포넌트를 놓친다).
@@ -313,7 +313,7 @@ describe("홈 '오늘' — 커맨드 센터", () => {
     expect(await screen.findByText(/이번 주 진척을 계산할 수 없습니다\. 관리자에게 문의하세요\./)).toBeInTheDocument();
     // Briefing은 그 문장을 반복하지 않고 짧게 참조한다 — AssistantPanel 자신의 쿼리가
     // 끝나야 나타나므로 findByText로 기다린다.
-    expect(await screen.findByText(/위 스프린트 카드와 같은 이유로/)).toBeInTheDocument();
+    expect(await screen.findByText(/「이번 주」 카드와 같은 이유로/)).toBeInTheDocument();
     // "티켓 소스를 읽지 못해"로 시작하는 전체 문장이 두 번 나오지는 않는다(딱 한 곳,
     // 스프린트 카드에만). 0060 에서 '내 업무' 구역이 이 화면으로 옮겨왔는데, 그 구역도
     // 원인을 다시 설명하지 않고 "같은 이유로 …"라고 참조한다(WorkSummary.jsx::WORK_UNKNOWN).

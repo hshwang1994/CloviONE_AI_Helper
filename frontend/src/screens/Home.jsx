@@ -7,10 +7,10 @@ import Link from "@mui/material/Link";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
-import { fmtRelative } from "../lib/format.js";
+import { fmtDayKo, fmtRelative } from "../lib/format.js";
 import {
-  Badge, Button, Card, DataTable, EmptyState, ErrorState, MetricStrip, PageHeader, SectionTitle,
-  Skeleton, SubGroup,
+  Badge, Button, Card, DataTable, EmptyState, ErrorState, MetricStrip, PageHeader, ScrollArea,
+  SectionTitle, Skeleton, SubGroup,
 } from "../ui/kit.jsx";
 import { Donut } from "../ui/charts/Donut.jsx";
 import { GRID_GAP } from "../ui/density.js";
@@ -66,24 +66,66 @@ import { lastDayOf, WorkSection } from "./WorkSummary.jsx";
 
 /* 본문 두 열 — 왼쪽은 본문 흐름, 오른쪽은 레일. 좁으면 한 줄로 쌓인다.
  *
- * 레일 폭에 상한을 둔다. 넓은 화면에서 `1fr 1fr` 류로 두면 레일 카드가 화면 폭을 따라
- * 끝없이 늘어나 문서 다섯 줄이 800px 를 차지한다. 하한(18rem)은 도넛과 범례가 나란히
- * 서지 못하고 접히는 폭이고, 상한(22rem)은 4K 에서도 레일이 본문을 압도하지 않는 폭이다.
- * 두 값 다 rem 이라 루트 폰트사이즈 레버를 함께 탄다. */
+ * ## 레일 폭은 «정보 밀도» 로 정한다
+ *
+ * 실측(2026-08-26): 상한이 22rem 이라 1366 과 1920 에서 레일이 **똑같이 352px** 였다.
+ * 그 폭에서 「2026-08-24 부터 2026-08-30 까지, 예상 WD 3 / 10.5」가 두 줄로 꺾이고,
+ * 주별 막대는 110px 로 쪼그라들었다. 1920 은 본문에 1,232px 를 주면서 레일에는 1366 과
+ * 같은 폭을 준 셈이다 — 남는 폭을 한쪽만 가져갔다.
+ *
+ * 그래서 상한을 **비율과 절대값 가운데 작은 쪽**으로 준다. 좁은 데스크톱에서는 비율이
+ * 이겨 레일이 본문을 잡아먹지 않고, 넓어지면 절대값이 이겨 레일이 끝없이 자라지 않는다.
+ * 하한(20rem)은 도넛과 범례가 나란히 서지 못하고 접히는 폭이다. 실측:
+ *
+ *   1200 레일 320 · 본문 544     1366 레일 358 · 본문 672
+ *   1920 레일 448 · 본문 1,136   2560 레일 504 · 본문 1,680  (2200 이상은 루트 18px)
+ *
+ * 중단점을 하나만 쓰는 것도 이유가 있다 — 폭이 계단으로 튀면 그 경계에서 줄바꿈이 통째로
+ * 바뀐다. 두 값 다 rem 이라 4K 루트 폰트사이즈 레버를 함께 탄다. */
 const BODY_GRID = {
   display: "grid", gap: GRID_GAP, alignItems: "start",
   gridTemplateColumns: {
     xs: "minmax(0, 1fr)",
-    lg: "minmax(0, 1fr) minmax(18rem, 22rem)",
+    lg: "minmax(0, 1fr) minmax(20rem, min(28rem, 34%))",
   },
 };
+
+/* 「오늘 마감」 판의 **높이 범위** (사용자 지시 §1 · §2).
+ *
+ * 해상도별 고정 px 을 박지 않는다. 아래 셋이 함께 «범위» 를 만든다:
+ *
+ *   판 minHeight      0건일 때 제목 한 줄짜리 판이 되어 다음 구역이 위로 튀어 올라오는
+ *                     것을 막는다. 빈 상태가 이 높이를 채운다(`EmptyState layout="card"`).
+ *   목록 maxHeight    티켓이 늘어도 판이 계속 아래로 자라지 않는다 — 목록 칸만 굴린다.
+ *
+ * 최소 높이는 **17rem** 이다. 더 크게 주면(22rem 을 재 봤다) 두 줄짜리 목록 아래에 120px 가
+ * 비어, 안정적인 대신 «빈 판» 이 된다. 이 값이면 한 줄과 다섯 줄 사이에서 아래 AI 도우미가
+ * 안 움직이면서도 남는 자리가 40px 뿐이다.
+ *
+ * 좁은 화면(lg 미만)에는 **아무 높이도 주지 않는다.** 세로로 쌓인 화면에서 판마다 최소
+ * 높이를 주면 스크롤만 길어지고, 그 자리에서는 자연스러운 세로 흐름이 맞다. */
+const TODAY_CARD = {
+  display: "flex", flexDirection: "column",
+  minHeight: { lg: "17rem" },
+};
+const TODAY_BODY = { flex: 1, minHeight: 0, display: "flex", flexDirection: "column" };
+
+/* 목록 칸의 높이 상한 — **넓은 화면에만 준다.**
+ *
+ * 세로로 쌓인 좁은 화면에서는 브라우저 스크롤 안에 또 스크롤 칸을 만드는 것이 손해다.
+ * 손가락으로 훑다가 그 칸에 들어가면 페이지가 안 움직이고, 무엇보다 좁은 화면에서는 판이
+ * 길어지는 것이 자연스러운 세로 흐름이다(사용자 지시 §1 마지막 줄). */
+const TODAY_LIST_MAX = { xs: "none", lg: "20rem" };
+const DOC_LIST_MAX = { xs: "none", lg: "15rem" };
 
 const VIEWS = [
   { key: "due_today", label: "오늘 마감", kind: "warn" },
   { key: "overdue", label: "지연", kind: "danger" },
   { key: "in_progress", label: "진행 중" },
   { key: "due_soon", label: "7일 내 마감" },
-  { key: "blocked", label: "막힘(이슈)", kind: "danger" },
+  // 「막힘(이슈)」였다. 괄호 안이 티켓 상태값 그대로라, 그 값을 모르는 사람에게는 설명이
+  // 아니라 암호였다. 상태값은 아래 목록의 배지가 이미 보여 준다.
+  { key: "blocked", label: "막힌 일", kind: "danger" },
 ];
 
 /* 목록 한 줄(문서 공용). 제목은 링크, 오른쪽은 메타.
@@ -131,13 +173,14 @@ function SprintProgress({ sprint }) {
     return (
       <EmptyState
         art="tickets"
-        title="이번 주 내 몫이 없습니다"
-        help={`${sprint.window.start} 주에 마감인 내 티켓이 없습니다.`}
+        title="이번 주에 맡은 일이 없습니다"
+        help={`${fmtDayKo(sprint.window.start)}부터 한 주 동안 마감인 내 티켓이 없습니다.`}
       />
     );
   }
   const rate = sprint.completion_rate;
   const lastDay = lastDayOf(sprint.window.end_exclusive);
+  const wdTotal = sprint.est_wd_total;
   return (
     <Box sx={{ display: "grid", gap: 1.5, justifyItems: { xs: "start", sm: "start", lg: "center" } }}>
       {/* 「남음」은 **Brand 시리즈 슬롯**을 받는다(색을 안 준다). 예전 값 `"primary"` 는
@@ -163,10 +206,18 @@ function SprintProgress({ sprint }) {
           {sprint.overdue ? `, 지연 ${sprint.overdue}건` : ""}
         </Typography>
         {/* 「이번 주」가 어느 주인지 화면이 스스로 말한다. 끝을 **포함되는 날**로 적는다 —
-            계약값(end_exclusive)을 그대로 보이면 그 날이 포함인지 매번 다시 생각해야 한다. */}
-        <Typography variant="caption" color="text.secondary" sx={{ fontVariantNumeric: "tabular-nums" }}>
-          {sprint.window.start} 부터 {lastDay} 까지, 예상 WD {sprint.est_wd_done} / {sprint.est_wd_total}
+            계약값(end_exclusive)을 그대로 보이면 그 날이 포함인지 매번 다시 생각해야 한다.
+            예전에는 이 자리가 「2026-08-24 부터 2026-08-30 까지, 예상 WD 3 / 10.5」였다.
+            날짜는 매번 연·월·일로 다시 분해해야 했고 「WD」는 내부 낱말이다. 둘을 갈라
+            각각 완전한 문장으로 적는다. */}
+        <Typography variant="caption" color="text.secondary" sx={KO_WORD_BREAK}>
+          {fmtDayKo(sprint.window.start)}부터 {fmtDayKo(lastDay)}까지 마감인 일입니다.
         </Typography>
+        {wdTotal > 0 ? (
+          <Typography variant="caption" color="text.secondary" sx={KO_WORD_BREAK}>
+            예상 작업량 {wdTotal}일 가운데 {sprint.est_wd_done}일치를 끝냈습니다.
+          </Typography>
+        ) : null}
       </Box>
     </Box>
   );
@@ -180,19 +231,24 @@ function RecentDocuments({ items }) {
     );
   }
   return (
-    <Stack component="ul" gap={1} sx={{ listStyle: "none", m: 0, p: 0 }}>
-      {items.map((d) => (
-        <RowLink
-          key={d.id}
-          /* 서버가 주는 id 는 정본 문서(`documents.id`)다 — 옛 미러의 page id 가 아니다
-             (S14 · C2, `app/home/readers.py`). 그래서 목적지도 정본 문서 화면이다. */
-          href={"#/knowledge/" + d.id}
-          title={d.title}
-          badge={d.document_type ? <Badge value={d.document_type} kind="info" /> : null}
-          meta={fmtRelative(d.last_edited)}
-        />
-      ))}
-    </Stack>
+    /* 문서는 계속 늘어나는 보조 목록이다 — 칸에 높이를 주고 그 안에서 굴린다. 짧으면
+       스크롤바가 안 생기고, 그때는 초점도 안 받는다(`ScrollArea`). 제목과 「문서 전체」는
+       이 칸 밖에 있어 언제나 보인다. */
+    <ScrollArea maxHeight={DOC_LIST_MAX} ariaLabel="최근 문서 목록">
+      <Stack component="ul" gap={1} sx={{ listStyle: "none", m: 0, p: 0 }}>
+        {items.map((d) => (
+          <RowLink
+            key={d.id}
+            /* 서버가 주는 id 는 정본 문서(`documents.id`)다 — 옛 미러의 page id 가 아니다
+               (S14 · C2, `app/home/readers.py`). 그래서 목적지도 정본 문서 화면이다. */
+            href={"#/knowledge/" + d.id}
+            title={d.title}
+            badge={d.document_type ? <Badge value={d.document_type} kind="info" /> : null}
+            meta={fmtRelative(d.last_edited)}
+          />
+        ))}
+      </Stack>
+    </ScrollArea>
   );
 }
 
@@ -256,7 +312,9 @@ export function Home() {
           <Box sx={{ mb: 2.5 }}><Skeleton lines={2} /></Box>
           <Box sx={BODY_GRID}>
             <Stack gap={GRID_GAP}>
-              <Card><Skeleton lines={6} /></Card>
+              {/* 판의 최소 높이를 스켈레톤에도 그대로 준다 — 이것이 없으면 로딩이 끝나는
+                  순간 아래 AI 도우미가 한 판 높이만큼 아래로 밀린다. */}
+              <Card sx={TODAY_CARD}><Skeleton lines={6} /></Card>
               <Card><Skeleton lines={5} /></Card>
             </Stack>
             <Stack gap={GRID_GAP}>
@@ -320,52 +378,62 @@ function HomeBody({ data, focus, onFocus, onEdit, onOpen }) {
       <Box data-testid="home-body-grid" sx={BODY_GRID}>
         {/* 본문 열 — 오늘 할 일과 그 해석. 두 카드 다 데이터 양에 따라 길이가 변한다. */}
         <Stack gap={GRID_GAP} sx={{ minWidth: 0 }}>
-          <Card>
-            {/* SEM-02: 이 화면은 h1(PageHeader "오늘") 아래 최상위 구역이 넷이고 전부 h2 다. */}
+          <Card sx={TODAY_CARD}>
+            {/* SEM-02: 이 화면은 h1(PageHeader "오늘") 아래 최상위 구역이 넷이고 전부 h2 다.
+                제목과 「내 티켓 전체」는 목록 칸 밖에 있어 목록을 굴려도 안 사라진다. */}
             <SectionTitle
               component="h2"
-              title={`${view.label} (${total}건)`}
+              title={`${view.label} ${total}건`}
               action={<Link href="#/my-tickets" underline="hover">내 티켓 전체</Link>}
             />
-            {conn ? conn : rows.length ? (
-              <>
-                <DataTable
-                  /* compact: 본문 열은 2단 배치라 좁다 — 4K 계약의 '표(핵심열)'을 그대로
-                     따른다(난이도·예상 WD 는 빼고, 편집은 아이콘). 전체 열을 넣으면 1366
-                     화면에서 마감·편집이 잘려 가로로 긁어야 보였다. */
-                  columns={ticketColumns({ onEdit, onOpen, compact: true })}
-                  rows={rows}
-                  rowKey={(t) => t.id}
+            <Box sx={TODAY_BODY}>
+              {conn ? conn : rows.length ? (
+                <>
+                  {/* 목록 칸만 굴린다 — 티켓이 늘어도 판이 계속 아래로 자라지 않는다.
+                      짧으면 스크롤바도 초점도 없다(`ScrollArea`). */}
+                  <ScrollArea maxHeight={TODAY_LIST_MAX} ariaLabel={`${view.label} 티켓 목록`}>
+                    <DataTable
+                      /* compact: 본문 열은 2단 배치라 좁다 — 4K 계약의 '표(핵심열)'을 그대로
+                         따른다(난이도·예상 WD 는 빼고, 편집은 아이콘). 전체 열을 넣으면 1366
+                         화면에서 마감·편집이 잘려 가로로 긁어야 보였다. */
+                      columns={ticketColumns({ onEdit, onOpen, compact: true })}
+                      rows={rows}
+                      rowKey={(t) => t.id}
+                      /* 굴려도 열 이름이 안 사라진다. 이 표를 감싼 것이 스크롤 컨테이너라
+                         (`ScrollArea`) 붙는 자리가 그 칸의 위쪽이다. */
+                      stickyHeader
+                    />
+                  </ScrollArea>
+                  {/* 잘라서 보여 준 목록은 잘랐다고 말한다. `count` 는 언제나 진짜 총계라
+                      (`app/home/aggregate.py::bucket`) 이 두 수가 어긋날 일이 없다. */}
+                  {total > rows.length ? (
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5 }}>
+                      {rows.length}건만 표시했습니다.{" "}
+                      <Link href="#/my-tickets" underline="hover">내 티켓에서 {total}건 모두 보기</Link>
+                    </Typography>
+                  ) : null}
+                </>
+              ) : anyTicket ? (
+                /* 다른 칸에는 티켓이 있는데 이 칸만 비었다 — '검색 결과 없음'과 같은 상황이다.
+                   그림도 문장도 '데이터 없음'과 달라야 사용자가 자기가 고른 칸 때문임을 안다. */
+                <EmptyState
+                  layout="card"
+                  art="search"
+                  title={`${view.label}에 해당하는 티켓이 없습니다`}
+                  help="다른 칸을 눌러 보거나 전체 목록에서 확인하세요."
+                  action={<Button size="sm" onClick={() => onFocus("in_progress")}>진행 중 전체 보기</Button>}
                 />
-                {/* 서버가 잘라 준 목록이다. **안쪽 스크롤을 만들지 않는다** — 다섯 줄짜리
-                    스크롤 칸은 굴릴 것이 없고, 나머지는 여기 없으므로 굴려도 안 나온다.
-                    상한을 말하고 전체 목록으로 보낸다. */}
-                {total > rows.length ? (
-                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5 }}>
-                    {rows.length}건만 표시했습니다.{" "}
-                    <Link href="#/my-tickets" underline="hover">내 티켓에서 {total}건 모두 보기</Link>
-                  </Typography>
-                ) : null}
-              </>
-            ) : anyTicket ? (
-              /* 다른 칸에는 티켓이 있는데 이 칸만 비었다 — '검색 결과 없음'과 같은 상황이다.
-                 그림도 문장도 '데이터 없음'과 달라야 사용자가 자기가 고른 칸 때문임을 안다. */
-              <EmptyState
-                art="search"
-                title={`${view.label}에 해당하는 티켓이 없습니다`}
-                help="다른 칸을 눌러 보거나 전체 목록에서 확인하세요."
-                action={<Button size="sm" onClick={() => onFocus("in_progress")}>진행 중 전체 보기</Button>}
-              />
-            ) : (
-              /* 내 티켓 자체가 하나도 없다 — 진짜 '데이터 없음'. */
-              <EmptyState
-                art="tickets"
-                title="담당한 티켓이 없습니다"
-                situation="지금 나에게 배정된 티켓이 없습니다."
-                steps={["미할당 티켓에서 가져오거나", "새 티켓을 직접 만듭니다."]}
-                action={<Button variant="primary" size="sm" href="#/unassigned">미할당 티켓 보기</Button>}
-              />
-            )}
+              ) : (
+                /* 내 티켓 자체가 하나도 없다 — 진짜 '데이터 없음'. */
+                <EmptyState
+                  layout="card"
+                  art="tickets"
+                  title="담당한 티켓이 없습니다"
+                  help="미할당 티켓에서 가져오거나 새 티켓을 직접 만들 수 있습니다."
+                  action={<Button variant="primary" size="sm" href="#/unassigned">미할당 티켓 보기</Button>}
+                />
+              )}
+            </Box>
           </Card>
           <AssistantPanel />
         </Stack>

@@ -114,6 +114,13 @@ export const MASCOT_PLACE = {
      그 자리가 바로 지시 18 이 지목한 자리다(4K 에서 세로 450px 를 마스코트가 차지하던 화면).
      구획·팝오버의 빈 상태는 본문 안 그림이라 `inline` 이다. */
   emptyPage:     { visible: 132, context: "empty_state" },
+  /* 판 하나가 통째로 빈 자리(`EmptyState layout="card"`). `emptyRegion` 보다 크다 — 그
+     자리는 카드 안의 한 칸이 조용히 비어 있는 것이고, 이 자리는 **그 화면의 주요 판이
+     비어 있는 것**이라 「의도해서 만든 빈 상태」로 읽혀야 한다.
+     `empty_state` 가 아니라 `inline` 을 선언하는 이유는 `emptyRegion` 과 같다: 그 밴드의
+     뒤쪽 절반(컨테이너의 40% 이하)은 컨테이너 높이를 그림이 **아닌 것**이 정할 때만
+     성립하는데, 좁은 화면에서는 판의 높이 계약이 풀려 그림이 가장 큰 요소가 된다. */
+  emptyCard:     { visible: 112, context: "inline" },
   emptyRegion:   { visible: 84,  context: "inline" },
   emptyCompact:  { visible: 84,  context: "inline" },
   errorState:    { visible: 112, context: "empty_state" },

@@ -91,9 +91,21 @@ def load_my_tickets(db: Session, outbound, settings, user: User, *, repo) -> dic
             "tickets": list(result.get("tickets") or [])}
 
 
+# 홈 '오늘' 한 화면이 싣는 줄 수. 공용 기본값(5)보다 크다.
+#
+# 다섯 줄은 «맛보기» 지 오늘 할 일 목록이 아니다 — 지연이 열둘인 사람이 홈에서 다섯 줄을
+# 보고 「5건만 표시했습니다」를 읽는다. 화면이 자기 칸 안에서 굴려서 볼 수 있으면 그 열둘을
+# 여기서 다 볼 수 있고, 그것이 이 화면의 목적이다(`Home.jsx` 의 목록 칸이 안쪽 스크롤을
+# 갖는 이유이기도 하다).
+#
+# 그렇다고 전량을 싣지는 않는다. `count` 는 언제나 진짜 총계라(`aggregate.bucket`) 화면이
+# 「N건 모두 보기」로 넘길 수 있고, 이 상한은 **한 요청의 크기**를 붙잡는 자리다.
+HOME_ITEM_LIMIT = 12
+
+
 def build_today(
     db: Session, outbound, settings, user: User, *, repo, now: datetime,
-    item_limit: int = aggregate.DEFAULT_ITEM_LIMIT,
+    item_limit: int = HOME_ITEM_LIMIT,
 ) -> dict:
     """홈 '오늘' 한 화면에 필요한 모든 숫자. 문장(LLM)은 여기 없다."""
     today = local_today(settings, now)

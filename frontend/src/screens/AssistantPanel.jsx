@@ -13,15 +13,23 @@ import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, MOTION } from "../ui/theme.js";
 import { useAutoHeight } from "../ui/motion.js";
 import { BarSeries } from "../ui/charts/BarSeries.jsx";
 import { copyText } from "./ops/opsHelpers.js";
+import { priorityKind, priorityKo } from "../lib/priority.js";
+import { fmtDayKo } from "../lib/format.js";
 import { lastDayOf } from "./WorkSummary.jsx";
 
-/* AI 도우미 — 오늘 브리핑 / 스탠드업 초안 / 주간 업데이트 / 미할당 트리아지.
+/* AI 도우미 — 오늘 요약 / 업무 공유 초안 / 이번 주 요약 / 담당자 지정 필요.
  *
  * ## 이 패널이 하는 일은 «숫자를 다시 읽어 주는 것»이 아니다
  *
  * 예전 브리핑 탭은 첫 줄이 「오늘 마감 2건, 지연 12건, 진행 중 14건, 막힘 0건」이었고 그
  * 아래에 「위 숫자는 이 화면 상단 카드와 같은 값입니다」라고 적혀 있었다. 스스로 중복임을
  * 밝히는 영역이 화면 폭 전체를 쓰고 있었던 셈이다. 같은 숫자는 위 판독 줄이 이미 말한다.
+ *
+ * ## 탭 이름은 «영어 업무 낱말» 이 아니라 하는 일이다
+ *
+ * 「스탠드업 초안」·「미할당 트리아지」·「주간 업데이트」는 그 낱말을 아는 사람에게만 뜻이
+ * 통한다. 트리아지는 응급실 낱말이고, 스탠드업은 특정 회의 관행의 이름이다. 화면은 **그
+ * 탭이 무엇을 주는지**를 말한다: 업무 공유 초안 · 담당자 지정 필요 · 이번 주 요약.
  *
  * 그래서 각 탭은 **해석**을 낸다: 지금 무엇이 가장 급한가, 그 이유는 무엇인가, 다음에 무엇을
  * 누르면 되는가. 값은 전부 서버가 준 사실에서 규칙으로 뽑는다(아래 순수 함수들) — 없는
@@ -45,11 +53,12 @@ import { lastDayOf } from "./WorkSummary.jsx";
  * 읽힌다. 순서와 근거만 준다.
  */
 
+/* `path` 는 서버 계약(`/api/assistant/<path>`)이라 그대로 두고, `label` 만 사람의 말로 바꾼다. */
 const TABS = [
-  { key: "briefing", path: "briefing", label: "오늘 브리핑", narratable: true },
-  { key: "standup", path: "standup", label: "스탠드업 초안", narratable: true },
-  { key: "weekly", path: "weekly-digest", label: "주간 업데이트", narratable: true },
-  { key: "triage", path: "triage", label: "미할당 트리아지", narratable: false },
+  { key: "briefing", path: "briefing", label: "오늘 요약", narratable: true },
+  { key: "standup", path: "standup", label: "업무 공유 초안", narratable: true },
+  { key: "weekly", path: "weekly-digest", label: "이번 주 요약", narratable: true },
+  { key: "triage", path: "triage", label: "담당자 지정 필요", narratable: false },
 ];
 
 /** 이 탭에서 갈 만한 곳. **의미 없는 버튼을 두지 않는다** — 갈 이유가 실제로 있을 때만 낸다.
@@ -100,14 +109,14 @@ const bucketItems = (tickets, key) => {
 export function briefingFocus(tickets) {
   const t = tickets || {};
   if (t.due_today === undefined) {
-    return { key: "unknown", text: "담당 티켓을 판단할 수 없어 오늘 요약을 계산할 수 없습니다." };
+    return { key: "unknown", text: "담당 티켓을 읽지 못해 오늘 요약을 만들 수 없습니다." };
   }
   const n = (k) => bucketCount(t, k);
   if (n("overdue")) return { key: "overdue", text: `마감이 지난 티켓 ${n("overdue")}건이 오늘 가장 급합니다.` };
   if (n("blocked")) return { key: "blocked", text: `막힌 티켓 ${n("blocked")}건이 진행을 멈추고 있습니다.` };
   if (n("due_today")) return { key: "due_today", text: `오늘 마감인 일이 ${n("due_today")}건 있습니다.` };
-  if (n("due_soon")) return { key: "due_soon", text: `오늘 마감은 없고 이레 안에 ${n("due_soon")}건이 옵니다.` };
-  if (n("in_progress")) return { key: "in_progress", text: `급한 일은 없습니다. 진행 중인 ${n("in_progress")}건을 이어서 봅니다.` };
+  if (n("due_soon")) return { key: "due_soon", text: `오늘 마감은 없고 앞으로 7일 안에 ${n("due_soon")}건이 마감입니다.` };
+  if (n("in_progress")) return { key: "in_progress", text: `급한 일은 없습니다. 진행 중인 ${n("in_progress")}건을 이어서 하면 됩니다.` };
   return { key: "none", text: "지금 맡고 있는 티켓이 없습니다." };
 }
 
@@ -145,12 +154,12 @@ export function standupDraft(data) {
     const lines = items.map((t) => `- ${t.title || "제목 없음"}${t.due ? ` (마감 ${t.due})` : ""}`);
     return [`${label}:`, ...lines].join("\n");
   };
-  const head = `${d.today || ""} 스탠드업`.trim();
+  const head = `${d.today || ""} 업무 공유`.trim();
   return [
     head,
     section("최근 끝낸 일", d.recently_done),
     section("오늘 할 일", d.today_plan),
-    section("막힌 것", d.blocked),
+    section("막힌 일", d.blocked),
   ].join("\n\n");
 }
 
@@ -276,7 +285,7 @@ function Briefing({ data }) {
         /* 스프린트 카드가 같은 화면에서 이미 원인을 문장으로 설명한다. 여기서 그 문장을
            다시 쓰면 같은 화면에 같은 경고가 두 번 뜬다. 짧게 참조만 한다. */
         <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
-          위 스프린트 카드와 같은 이유로 이번 주 진척도 계산할 수 없습니다.
+          「이번 주」 카드와 같은 이유로 이번 주 진척도 계산할 수 없습니다.
         </Typography>
       )}
 
@@ -290,7 +299,7 @@ function Briefing({ data }) {
         ) : (
           <Typography variant="body2" color="text.secondary">
             {focus.key === "unknown"
-              ? "티켓 소스를 다시 읽을 수 있게 되면 여기에 급한 순서로 표시됩니다."
+              ? "티켓을 다시 읽을 수 있게 되면 여기에 급한 순서로 표시됩니다."
               : "지금 따로 챙길 티켓이 없습니다."}
           </Typography>
         )}
@@ -309,14 +318,14 @@ function Standup({ data }) {
     <>
       <Lede>
         {plan || stuck || done
-          ? `끝낸 일 ${done}건, 오늘 할 일 ${plan}건, 막힌 것 ${stuck}건을 말합니다.`
-          : "이번 주 창에서 말할 항목이 아직 없습니다."}
+          ? `끝낸 일 ${done}건과 오늘 할 일 ${plan}건, 막힌 일 ${stuck}건을 공유합니다.`
+          : "이번 주에 공유할 일이 아직 없습니다."}
       </Lede>
-      <SubGroup title="세 단으로 본 내 일">
+      <SubGroup title="공유할 내용">
         <Box sx={SECTION_GRID}>
-          <TicketLines label="최근 끝낸 일" block={data.recently_done} empty="이번 주 창에서 완료한 티켓이 없습니다." />
+          <TicketLines label="최근 끝낸 일" block={data.recently_done} empty="이번 주에 완료한 티켓이 없습니다." />
           <TicketLines label="오늘 할 일" block={data.today_plan} empty="오늘 마감이거나 지연된 티켓이 없습니다." />
-          <TicketLines label="막힌 것" block={data.blocked} empty="상태가 ‘이슈’인 티켓이 없습니다." />
+          <TicketLines label="막힌 일" block={data.blocked} empty="상태가 이슈인 티켓이 없습니다." />
         </Box>
       </SubGroup>
     </>
@@ -343,11 +352,11 @@ function WeeklyDigest({ data }) {
         {/* 끝은 **포함되는 마지막 날**로 적는다. 계약값(end_exclusive)을 그대로 보이면 그
             날이 포함인지 매번 다시 생각해야 하고 반쯤은 틀리게 읽는다(오른쪽 레일과 같은
             규칙 — `WorkSummary.jsx::lastDayOf` 하나를 쓴다). */}
-        {win.start ? `${win.start} 부터 ${lastDayOf(win.end_exclusive)} 까지 마감인 일을 셉니다.` : null}
+        {win.start ? `${fmtDayKo(win.start)}부터 ${fmtDayKo(lastDayOf(win.end_exclusive))}까지 마감인 일을 셉니다.` : null}
         {mine && mine.overdue ? ` 지연 ${mine.overdue}건이 남아 있습니다.` : null}
       </Typography>
 
-      <SubGroup title="팀의 이번 주">
+      <SubGroup title="팀은 이번 주에 무엇을 했나">
         {team ? (
           <Box sx={{ display: "grid", gap: 2.5, alignItems: "start", gridTemplateColumns: { xs: "minmax(0,1fr)", lg: "minmax(0,1.4fr) minmax(0,1fr)" } }}>
             <BarSeries
@@ -432,7 +441,10 @@ function WeeklyDigest({ data }) {
   );
 }
 
-/** 미할당 트리아지 — 순서와 근거만 준다. 배정은 사람이 다른 화면에서 누른다. */
+/** 어휘 표에 없는 등급의 색 — 서버가 매긴 순위로만 정한다(`app/home/aggregate.py::priority_rank`). */
+const rankKind = (rank) => (rank === 0 ? "danger" : rank === 1 ? "warn" : "neutral");
+
+/** 담당자 지정 필요 — 순서와 근거만 준다. 배정은 사람이 다른 화면에서 누른다. */
 function Triage({ data }) {
   if (data.ok === false) {
     return (
@@ -442,7 +454,7 @@ function Triage({ data }) {
   }
   if (!data.total) {
     return (
-      <EmptyState art="tickets" title="담당자 없는 티켓이 없습니다"
+      <EmptyState art="tickets" title="담당자를 지정할 티켓이 없습니다"
         help="새로 들어온 티켓에 담당자가 비어 있으면 여기에 급한 순서로 표시됩니다." />
     );
   }
@@ -458,7 +470,7 @@ function Triage({ data }) {
         담당자 없는 티켓이 {data.total}건 있습니다{late ? `. 그중 ${late}건은 이미 지연입니다` : ""}.
       </Lede>
       <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75, ...KO_WORD_BREAK }}>
-        아래는 제안입니다. 이 화면은 아무것도 배정하지 않습니다. 배정은 미할당 티켓 화면에서 사람이 확인하고 누릅니다.
+        아래는 제안이고 이 화면은 아무것도 배정하지 않습니다. 배정은 미할당 티켓 화면에서 직접 확인하고 누릅니다.
       </Typography>
 
       <SubGroup title={data.total > items.length ? `급한 순서 (앞의 ${items.length}건)` : "급한 순서"}>
@@ -467,8 +479,12 @@ function Triage({ data }) {
             <TicketRow
               key={t.id || t.tid}
               ticket={t}
-              lead={t.overdue ? "지연" : (t.priority || null)}
-              leadKind={t.overdue ? "danger" : (t.priority_rank === 0 ? "danger" : t.priority_rank === 1 ? "warn" : "neutral")}
+              /* 🔴 우선순위를 **원문 그대로** 찍고 있었다 — 실측에서 이 자리에 「Low」가 떴다.
+                 같은 값이 티켓 표에서는 「낮음」이다. 한 제품이 한 낱말을 두 가지로 말하지
+                 않는다: 어휘는 `lib/priority.js` 한 곳에서 온다. 그 표에 없는 등급이면
+                 서버가 매긴 순위로 색만 정한다. */
+              lead={t.overdue ? "지연" : (t.priority ? priorityKo(t.priority) : null)}
+              leadKind={t.overdue ? "danger" : (priorityKind(t.priority) || rankKind(t.priority_rank))}
             />
           ))}
         </TicketList>
@@ -477,7 +493,7 @@ function Triage({ data }) {
       <SubGroup title="지금 손이 비어 있는 사람">
         {candidates.length ? (
           <BarSeries
-            question="담당 중인 활성 티켓이 적은 순입니다. 누가 무엇을 잘하는지는 판단하지 않습니다."
+            question="맡고 있는 티켓이 적은 순입니다. 누가 무엇을 잘하는지는 판단하지 않습니다."
             items={candidates.map((c) => ({ label: c.display_name, value: c.active_tickets }))}
             unit="건"
             emptyLabel="후보 없음"
@@ -577,7 +593,7 @@ export function AssistantPanel() {
       <SectionTitle
         component="h2"
         title="AI 도우미"
-        help="숫자를 다시 읽어 주지 않고, 지금 급한 것과 다음에 할 일을 정리합니다."
+        help="지금 급한 일과 다음에 할 일을 정리합니다."
         sx={{ mb: 1 }}
       />
       <Tabs
