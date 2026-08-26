@@ -20,22 +20,24 @@
   시험들이 검사 시야에서 사라진다.
 - working_tree: clean
 - s22_commit: `2f4fc587` · `1921f884` · prev_commit: `44520b66` · `433e6ecf`
-- this_commit: **`b3c368c6`** — 화면 셋 UI/UX 마무리. **배포 대상이다**
-- deployed: **`44520b66`** 이 운영에 나갔다 (2026-08-26 10:26, `install.sh upgrade --source local`).
-  Stage 0~18 전부 OK · `VERIFY_OK` · `UPGRADE_OK` · 스냅샷 `/var/backups/clovirassist/20260826-102648`.
-  🔴 **0017 이 실제로 도는 것**이 로그에 찍혔다 — 「걷어낸 런타임의 연동 등록 행 4개를
-  지웠습니다」. 배포 뒤 운영 `integrations` 표는 **0행**이고, 그래서 관리자 대시보드의
-  「외부 연동」은 이제 「추가된 외부 연동이 없습니다」다(장애가 아니라 정상 상태다).
+- this_commit: **`b3c368c6`** — 화면 셋 UI/UX 마무리
+- deployed: **`b3c368c6`** 이 운영에 나갔다 (2026-08-26 12:07, `install.sh upgrade --source local`).
+  Stage 0~18 전부 OK · `VERIFY_OK` · `UPGRADE_OK` · 스냅샷 `/var/backups/clovirassist/20260826-120709`.
+  스키마는 안 건드렸다 — alembic 이 `0017` 에서 `0017` 로 그대로다(표 93개).
   스모크(비파괴): `/healthz` `{"status":"ok","ticket_source":"native"}` · `/readyz`
   `{"status":"ready"}` · `ssl_verify_result=0` · `/login` 200(12,332바이트) ·
-  번들 `index.CV9dZmOE.js` 200(132,245바이트) · `/` 303 ·
-  세 화면이 부르는 API 다섯(`/api/home/today` · `/api/home/work-dashboard` ·
-  `/api/assistant/briefing` · `/api/admin/dashboard` · `/api/me`)이 **404 가 아니라 401**.
-  **운영이 내보내는 번들이 이 저장소가 만든 번들과 같은 바이트**임을 sha256 으로 확인했다
-  (`index.CV9dZmOE.js 7d4398839974f51f` · `BUILD_STAMP 4afb3306…`).
+  번들 `index.B6axrasC.js` 200(132,245바이트) · `/` 303→`/login?next=%2F` ·
+  `/admin` 303→`/login?next=%2Fadmin` · `/static/react/index.html` 200(3,028바이트) ·
+  두 화면이 부르는 API 다섯(`/api/home/today` · `/api/home/work-dashboard` ·
+  `/api/assistant/briefing` · `/api/admin/dashboard` · `/api/me`)이 **404 가 아니라 401** ·
+  제품 유닛 다섯 + nginx + postgresql 전부 active.
+  **이번 커밋의 것이 실제로 올라갔다**: `HOME_ITEM_LIMIT = 12`(103줄)와
+  `frontend/src/ui/charts/ProgressRows.jsx` 가 설치처에 있고, 운영이 내보내는 번들이 이
+  저장소가 만든 번들과 **같은 바이트**다(`index.B6axrasC.js sha256 a7ab6035bf2b6b1a` ·
+  `BUILD_STAMP ba7be5c1eeb1…` 212 입력).
   브라우저 전수는 운영에서 안 돌렸다 — 운영 데이터를 확인 편의로 건드리지 않는다.
-  되돌리려면 `sudo /opt/clovirassist/deploy/install.sh rollback --target /var/backups/clovirassist/20260826-102648`
-- deployed_prev: `2f4fc587`(S22, 2026-08-26 04:33 · 스냅샷 `20260826-043036`)
+  되돌리려면 `sudo /opt/clovirassist/deploy/install.sh rollback --target /var/backups/clovirassist/20260826-120709`
+- deployed_prev: `44520b66`(2026-08-26 10:26 · 스냅샷 `20260826-102648`)
 - verification: 이번 회차도 **표적**이다(§7.0 일반 개발). `STATIC_CHECKS_DEV_OK` ·
   `TARGETED_OK` · vitest 전량 **337 파일 / 2,496건 통과**(공용 부품 셋을 건드려 전량으로
   넓혔다 — `kit.jsx` · `Mascot.jsx` · `format.js`) · 백엔드는 바뀐 축의 표적(home today ·
