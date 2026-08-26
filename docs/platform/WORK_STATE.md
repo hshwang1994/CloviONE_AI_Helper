@@ -18,25 +18,26 @@
   결정 **D-335~D-340**
 - branch: `ui/mui-migration`
 - last_stable_commit: **`eec4886c`** — S2 본체 커밋이고 `check_test_strength.py` 가 이 값을 읽는다.
-  **S22 도 옮기지 않는다.** 이유는 S11~S21 과 같다 — 그 기준을 옮기는 순간 그동안 지운
+  **이번 회차도 안 옮긴다.** 이유는 S11~S22 와 같다 — 그 기준을 옮기는 순간 그동안 지운
   시험들이 검사 시야에서 사라진다.
 - working_tree: clean
 - s21_commit: `ede55e47` · `916f20fe` · s22_commit: `2f4fc587` · `1921f884`
-- this_commit: **`__COMMIT__`** — 화면 셋 고도화 + Legacy 정리. **배포 대상이다**
-- deployed: **`2f4fc587`** 이 운영에 나갔다 (2026-08-26 04:33, `install.sh upgrade --source local`).
-  Stage 0~18 전부 OK · `VERIFY_OK` · `UPGRADE_OK` · 스냅샷 `/var/backups/clovirassist/20260826-043036`.
-  로그에 **D-328 이 실제로 도는 것**이 찍혔다 — 「걷어낸 런타임의 죽은 설정 줄을 지웠습니다」 둘.
-  스모크: `/healthz` `{"status":"ok","ticket_source":"native"}` · `/readyz` `{"status":"ready"}` ·
-  `ssl_verify_result=0` · `/login` 200(12,332바이트) · 대표 API 다섯이 **404 가 아니라 401** ·
-  유닛 8종 active · 티켓 1,145 / 사용자 26 · `storage_cli status` `operational_ok: true`.
-  **운영이 내보내는 번들이 캡처가 잰 번들과 같은 바이트**임을 sha256 으로 확인했다
-  (`index.html 57956ba3…` · `index.DjLYTf33.js 6d949d74…`) — 브라우저 전수는 운영에서 다시
-  안 돌렸다(운영 데이터를 인수 편의로 건드리지 않는다).
-  🔴 **재부팅 복구를 실제로 쟀다**: `boot_id` 가 바뀌었고 **수동 명령 0회**로 유닛 8종 ·
-  NFS·SMB 마운트 · health · ready · TLS · 데이터(1,145 / 26 / 58)가 전부 돌아왔다
-  (`EVIDENCE/S22/reboot.txt` · Storage 매트릭스 10·11 `POST_REBOOT_PASS`).
-  되돌리려면 `sudo /opt/clovirassist/deploy/install.sh rollback --target /var/backups/clovirassist/20260826-043036`
-- deployed_prev: `916f20fe`(S21, 2026-08-26 00:02 · 스냅샷 `20260826-000222`)
+- this_commit: **`44520b66`** — 화면 셋 고도화 + Legacy 정리
+- deployed: **`44520b66`** 이 운영에 나갔다 (2026-08-26 10:26, `install.sh upgrade --source local`).
+  Stage 0~18 전부 OK · `VERIFY_OK` · `UPGRADE_OK` · 스냅샷 `/var/backups/clovirassist/20260826-102648`.
+  🔴 **0017 이 실제로 도는 것**이 로그에 찍혔다 — 「걷어낸 런타임의 연동 등록 행 4개를
+  지웠습니다」. 배포 뒤 운영 `integrations` 표는 **0행**이고, 그래서 관리자 대시보드의
+  「외부 연동」은 이제 「추가된 외부 연동이 없습니다」다(장애가 아니라 정상 상태다).
+  스모크(비파괴): `/healthz` `{"status":"ok","ticket_source":"native"}` · `/readyz`
+  `{"status":"ready"}` · `ssl_verify_result=0` · `/login` 200(12,332바이트) ·
+  번들 `index.CV9dZmOE.js` 200(132,245바이트) · `/` 303 ·
+  세 화면이 부르는 API 다섯(`/api/home/today` · `/api/home/work-dashboard` ·
+  `/api/assistant/briefing` · `/api/admin/dashboard` · `/api/me`)이 **404 가 아니라 401**.
+  **운영이 내보내는 번들이 이 저장소가 만든 번들과 같은 바이트**임을 sha256 으로 확인했다
+  (`index.CV9dZmOE.js 7d4398839974f51f` · `BUILD_STAMP 4afb3306…`).
+  브라우저 전수는 운영에서 안 돌렸다 — 운영 데이터를 확인 편의로 건드리지 않는다.
+  되돌리려면 `sudo /opt/clovirassist/deploy/install.sh rollback --target /var/backups/clovirassist/20260826-102648`
+- deployed_prev: `2f4fc587`(S22, 2026-08-26 04:33 · 스냅샷 `20260826-043036`)
 - verification: 이번 회차는 **표적**이다(§7.0 일반 개발). `STATIC_CHECKS_DEV_OK` ·
   vitest 전량 **335 파일 / 2,488건 통과**(공용 부품을 건드려 전량으로 넓혔다) · 백엔드는
   바뀐 축의 표적(setup checklist · dashboard metrics · health · integrations API ·
@@ -64,7 +65,7 @@
 | 프로젝트 코드 | **22 / 22** · 중복 0 · 전부 여섯 자 대문자 · UNIQUE 인덱스가 지킨다 |
 | 첨부 | `files` 58 · 티켓 첨부 237 · 문서 첨부 54 · **DB 가 가리키는 바이트 누락 0** |
 | 이관 예외 | 미해결 11 — 그중 사람이 프로젝트를 정해야 하는 **9 건은 `/integrity` 가 전부 보여 준다**(P-52) |
-| 옛 이름 층 | **없다** · 옛 포트(5678·5679·8787·8788·8789) 청취 **0건** |
+| 옛 이름 층 | **없다** · 옛 포트(5678·5679·8787·8788·8789) 청취 **0건** · 그 포트를 가리키던 연동 등록 행 넷도 이제 없다(0017) |
 
 ## 이번 회차가 한 것 — 화면 셋 고도화 + Legacy 정리
 
