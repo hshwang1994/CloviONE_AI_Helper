@@ -20,7 +20,7 @@
   시험들이 검사 시야에서 사라진다.
 - working_tree: clean
 - s22_commit: `2f4fc587` · `1921f884` · prev_commit: `44520b66` · `433e6ecf`
-- this_commit: **`__COMMIT__`** — 화면 셋 UI/UX 마무리. **배포 대상이다**
+- this_commit: **`b3c368c6`** — 화면 셋 UI/UX 마무리. **배포 대상이다**
 - deployed: **`44520b66`** 이 운영에 나갔다 (2026-08-26 10:26, `install.sh upgrade --source local`).
   Stage 0~18 전부 OK · `VERIFY_OK` · `UPGRADE_OK` · 스냅샷 `/var/backups/clovirassist/20260826-102648`.
   🔴 **0017 이 실제로 도는 것**이 로그에 찍혔다 — 「걷어낸 런타임의 연동 등록 행 4개를
