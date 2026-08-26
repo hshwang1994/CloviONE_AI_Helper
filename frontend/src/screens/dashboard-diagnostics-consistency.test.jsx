@@ -42,9 +42,9 @@ function wrap(children) {
   );
 }
 
-// 두 화면이 각각 "internal 컴포넌트"와 "external 연동"으로 나누는 것은 이미 의도된 분류다
-// (target_design) — 여기서 대조하는 것은 그 분류의 옳고 그름이 아니라, 같은 키가 두 화면에서
-// 같은 한국어 이름으로 나오는가다.
+// 두 화면이 각각 "필수 서비스"와 "외부 연동"으로 나누는 것은 이미 의도된 분류다 — 여기서
+// 대조하는 것은 그 분류의 옳고 그름이 아니라, 같은 키가 두 화면에서 같은 한국어 이름으로
+// 나오는가다. 구역 이름 자체도 두 화면이 같아야 한다(그래서 둘 다 "필수 서비스"를 찾는다).
 const COMPONENTS = { web: "up", worker: "down" };
 const INTEGRATIONS = { notion: { enabled: true, last_health: "up" } };
 
@@ -67,7 +67,7 @@ describe("서비스 이름 어휘 일관성 — /dashboard vs /diagnostics (PA-R
       return Promise.reject(new Error("unexpected api call: " + path));
     });
     const dashboardRender = render(wrap(<Dashboard />));
-    await within(dashboardRender.container).findByText("서비스 상태");
+    await within(dashboardRender.container).findByText("필수 서비스");
     /* 2026-08-19: 상단 경보도 `serviceLabel` 을 쓰게 하면서 같은 이름이 한 화면에 두 번
        나올 수 있게 됐다(경보 + 서비스 타일). 그게 **이 시험이 원하던 상태**다 — 예전에는
        경보만 "워커"라고 짧게 부르고 타일은 "백그라운드 워커"라고 불렀다. 그러니 여기서
@@ -87,7 +87,7 @@ describe("서비스 이름 어휘 일관성 — /dashboard vs /diagnostics (PA-R
       return Promise.reject(new Error("unexpected api call: " + path));
     });
     const diagnosticsRender = render(wrap(<Diagnostics />));
-    await within(diagnosticsRender.container).findByText("서비스 상태");
+    await within(diagnosticsRender.container).findByText("필수 서비스");
     // 같은 문자열이 두 번째 화면에도 그대로 있어야 한다 — 렌더 자체가 실패하면(다른 이름이면)
     // getByText가 여기서 던진다. 첫 화면에서 읽은 텍스트를 그대로 다시 찾는 것 자체가 대조다.
     for (const el of [dashboardWeb, dashboardWorker, dashboardNotion]) {

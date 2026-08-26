@@ -3,7 +3,8 @@ import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import { useTheme } from "@mui/material/styles";
 import { ChartNoData, ChartQuestion, resolveChartColor, useTrackColor } from "./base.jsx";
-import { FONT_WEIGHT } from "../theme.js";
+import { useRevealOnce } from "../motion.js";
+import { FONT_WEIGHT, MOTION } from "../theme.js";
 
 /* 가로 막대 묶음 — 항목별 크기를 서로 비교하는 용도(담당자별 업무량, 큐 상태 등).
  *
@@ -26,12 +27,20 @@ import { FONT_WEIGHT } from "../theme.js";
  * 모든 막대가 청록이 되고, D-179 가 Identity(제품 고정)와 Interaction(사용자 선택)을 갈라
  * 놓은 경계를 차트가 혼자 넘는다. 행별 `color` 는 그대로 남는다 — 그건 «이 항목이 위험하다»
  * 같은 **강조**지 범주 시리즈가 아니다. */
+/* `revealKey` — **처음 보거나 값이 바뀐 그림만** 짧게 자란다.
+ *
+ * 지문에 값이 들어가야 한다(`ui/motion.js::useRevealOnce`). 탭을 옮겼다 돌아오면 부품이
+ * 다시 마운트되는데, 지문이 같으면 연출을 건너뛰고 최종 상태로 그린다 — 볼 때마다 막대가
+ * 자라면 그것은 연출이 아니라 방해다.
+ *
+ * 지문을 안 주면 아무것도 안 움직인다(기존 호출부의 렌더는 그대로다). */
 export function BarSeries({
   items, color, max, unit = "", emptyLabel = "데이터 없음", formatValue, relativeNote,
-  question,
+  question, revealKey,
 }) {
   const theme = useTheme();
   const track = useTrackColor();
+  const grown = useRevealOnce(revealKey);
   const rows = (Array.isArray(items) ? items : []).filter(
     (it) => it && typeof it.value === "number" && Number.isFinite(it.value)
   );
@@ -92,7 +101,19 @@ export function BarSeries({
               sx={{ display: "block", width: "100%", height: "0.75rem", borderRadius: 1, overflow: "hidden" }}
             >
               <rect x="0" y="0" width="100" height="10" fill={track} />
-              {pct > 0 ? <rect x="0" y="0" width={pct} height="10" fill={fill} /> : null}
+              {/* 자라는 것은 채운 막대뿐이고 트랙은 처음부터 제자리다 — 그래야 «얼마나
+                  차는가»가 보인다. `width` 는 SVG2 에서 CSS 기하 속성이라 전환이 걸린다.
+                  전환이 안 걸리는 브라우저에서는 그냥 최종 폭으로 서고, 그림은 정상이다.
+                  ⚠️ **MUI `Box` 로 감싸지 않는다.** `width` 는 MUI 의 sizing system prop 이라
+                  0 과 1 사이의 값을 **백분율로** 바꾼다 — 0.8% 짜리 막대가 80% 로 그려진다.
+                  전환은 `style` 로 직접 준다. */}
+              {pct > 0 ? (
+                <rect
+                  x="0" y="0" height="10" fill={fill}
+                  width={grown ? pct : 0}
+                  style={{ transition: `width ${MOTION.base} ${MOTION.ease}` }}
+                />
+              ) : null}
             </Box>
             {r.note ? (
               <Typography variant="caption" color="text.secondary" sx={{ gridColumn: "1 / -1" }}>

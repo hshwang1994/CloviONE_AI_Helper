@@ -564,8 +564,12 @@ def _seed_s21(db, me, now) -> None:
     db.add(AiQuota(scope_type="user", user_id=other.id, period=PERIOD_DAY,
                    max_calls=50, note="개별 상한입니다.", created_by=me.id))
 
-    # 외부 연동.
-    for name, enabled, health in (("사내 메신저", True, "ok"), ("사내 위키", False, "unknown")):
+    # 외부 연동. 상태 어휘는 백엔드가 실제로 쓰는 셋뿐이다(app/integrations/models.py 의
+    # `up`/`down`/`unknown`). 예전 씨앗은 `"ok"` 를 넣고 있었는데 그 값은 어디서도 안
+    # 만들어진다 — 배지는 지나가는 값이라 「정상」으로 그리고 요약은 `up` 만 세어서, 캡처가
+    # 「줄은 정상인데 요약은 정상 0 / 6」인 화면을 찍고 있었다. 없는 상태로 화면을 재면
+    # 그 판정은 제품이 아니라 씨앗을 잰 것이다.
+    for name, enabled, health in (("사내 메신저", True, "up"), ("사내 위키", False, "unknown")):
         db.add(Integration(name=name, provider_type="http_service",
                            description="%s 로 보내는 바깥 호출입니다." % name,
                            base_url="https://example.invalid/%s" % name,

@@ -3,7 +3,8 @@ import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import { useTheme } from "@mui/material/styles";
 import { ChartNoData, ChartQuestion, capSeries, resolveChartColor, useTrackColor } from "./base.jsx";
-import { FONT_WEIGHT, KO_WORD_BREAK } from "../theme.js";
+import { useRevealOnce } from "../motion.js";
+import { FONT_WEIGHT, KO_WORD_BREAK, MOTION } from "../theme.js";
 
 /* 도넛 — 전체가 무엇으로 이루어져 있는지(구성비)를 보여준다. 크기 비교는 BarSeries가 낫다.
  *
@@ -16,12 +17,15 @@ import { FONT_WEIGHT, KO_WORD_BREAK } from "../theme.js";
  * 가운데 합계와 범례는 SVG가 아니라 HTML이다 — SVG <text>는 px 단위라 4K에서 혼자 작게 남는다.
  * 범례가 곧 이 그림의 텍스트 대체물이라서, 도넛을 못 보는 사람도 같은 수치를 그대로 읽는다.
  */
+/* `revealKey` — BarSeries 와 같은 규약이다. 처음 보거나 값이 바뀐 링만 한 번 그려지고,
+ * 같은 값으로 다시 마운트되면 최종 상태로 선다(`ui/motion.js::useRevealOnce`). */
 export function Donut({
   segments, size = "9rem", unit = "", centerLabel, emptyLabel = "데이터 없음", thickness = 5,
-  total: totalProp, restLabel = "기타", question,
+  total: totalProp, restLabel = "기타", question, revealKey,
 }) {
   const theme = useTheme();
   const track = useTrackColor();
+  const drawn = useRevealOnce(revealKey);
   const visible = (Array.isArray(segments) ? segments : []).filter(
     (s) => s && typeof s.value === "number" && Number.isFinite(s.value) && s.value > 0
   );
@@ -75,11 +79,16 @@ export function Donut({
         >
           <circle cx="21" cy="21" r={R} fill="none" stroke={track} strokeWidth={thickness} />
           {arcs.map((a) => (
+            /* 조각은 자기 시작점(dashoffset)에 가만히 있고 **길이만** 0 에서 자란다 —
+               링이 돌면 그것은 연출이 아니라 산만함이다. */
+            /* MUI `Box` 로 감싸지 않는다 — SVG 기하 값을 system prop 이 다시 해석하는 자리를
+               만들지 않는다(`BarSeries` 의 `width` 가 그 함정을 밟았다). 전환은 `style` 로. */
             <circle
               key={a.key} cx="21" cy="21" r={R} fill="none"
               stroke={a.color} strokeWidth={thickness}
-              strokeDasharray={`${a.pct.toFixed(2)} ${(100 - a.pct).toFixed(2)}`}
+              strokeDasharray={drawn ? `${a.pct.toFixed(2)} ${(100 - a.pct).toFixed(2)}` : "0 100"}
               strokeDashoffset={a.offset.toFixed(2)}
+              style={{ transition: `stroke-dasharray ${MOTION.base} ${MOTION.ease}` }}
             />
           ))}
         </Box>

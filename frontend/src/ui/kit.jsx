@@ -552,6 +552,50 @@ export function Card({ className, children, sx, ...rest }) {
   );
 }
 
+/** 계속 늘어나는 **보조 목록**만 담는 스크롤 칸.
+ *
+ * ## 아무 데나 쓰지 않는다
+ *
+ * 판마다 안쪽 스크롤을 만들면 한 화면에 스크롤 축이 서넛 생기고, 사용자는 지금 무엇을
+ * 굴리고 있는지 모른다. 이 부품이 맞는 자리는 **하나뿐**이다: 서버가 상한을 두지 않아
+ * 길이가 예측되지 않는 목록. 서버가 이미 잘라 주는 목록(홈의 최근 문서 5건, 대시보드의
+ * 최근 주요 변경 5건)은 그대로 다 그리고 「전체 보기」로 넘긴다 — 다섯 줄짜리 스크롤 칸은
+ * 굴릴 것이 없는 스크롤바를 만들 뿐이다.
+ *
+ * **핵심 지표·그래프에는 쓰지 않는다.** 값 하나를 보려고 굴려야 하는 KPI 는 KPI 가 아니다.
+ *
+ * ## 지키는 것 셋
+ *
+ * 1. **내용이 짧으면 스크롤바가 없다** — `overflow-y: auto` 라 넘칠 때만 생긴다.
+ * 2. **스크롤바가 글자를 덮지 않는다** — `scrollbar-gutter: stable` 이 자리를 미리 잡아
+ *    두므로, 목록이 길어져 스크롤바가 생기는 순간에도 글자가 옆으로 밀리지 않는다.
+ * 3. **키보드로 굴릴 수 있다** — 스크롤 영역은 초점을 받아야 한다(WCAG 2.1.1). 그래서
+ *    `tabIndex=0` 이고 이름을 갖는다.
+ */
+export function ScrollArea({ maxHeight, ariaLabel, children, sx }) {
+  return (
+    <Box
+      className="k-scrollarea"
+      role="group"
+      tabIndex={0}
+      aria-label={ariaLabel}
+      sx={(t) => ({
+        maxHeight,
+        overflowY: "auto",
+        // 바깥(브라우저) 스크롤로 이어지지 않게 한다 — 칸 끝에서 페이지가 함께 튀면
+        // 사용자는 자기가 무엇을 굴렸는지 모른다.
+        overscrollBehavior: "contain",
+        scrollbarGutter: "stable",
+        pr: 0.5,
+        "&:focus-visible": { outline: `2px solid ${t.palette.focusRing}`, outlineOffset: 2 },
+        ...(typeof sx === "function" ? sx(t) : sx),
+      })}
+    >
+      {children}
+    </Box>
+  );
+}
+
 /** 기술 정보 — 원문·내부 키·경로처럼 **평소에는 화면의 내용이 아닌 것**을 접어 둔다.
  *
  * 지시 36 이 요구하는 것은 기술 정보의 **삭제가 아니라 강등**이다: 장애를 분석하려면
@@ -2556,6 +2600,46 @@ export function SectionTitle({ title, children, action, help, component = "h3", 
         ) : null}
       </Box>
       {action}
+    </Box>
+  );
+}
+
+/** 판 **안쪽**의 정보 묶음 — 판을 새로 만들지 않고 실선과 여백과 소제목으로 가른다.
+ *
+ * 카드 안에 또 흰 카드를 넣으면 표면이 두 겹이 되고, 두 겹이 되는 순간 사용자는 안쪽
+ * 상자를 「다른 것」으로 읽는다. 같은 판 위의 다른 문단일 뿐인데 그렇다. `Surface` 가
+ * 깊이 1 이상의 판을 자동으로 눕히기는 하지만, 눕은 판은 여백만 남기고 아무 뜻도 안
+ * 나른다 — 처음부터 이 부품을 쓰는 것이 맞다.
+ *
+ * 위 실선 하나와 소제목 하나가 묶음의 전부다. `first` 를 주면 실선을 안 그린다(첫 묶음은
+ * 위에 가를 것이 없다).
+ *
+ * 소제목은 기본 `h3` 다 — 판 제목이 `h2` 인 화면(홈의 구역들)에서 단계를 안 건너뛴다.
+ */
+export function SubGroup({ title, help, component = "h3", first = false, children, sx }) {
+  return (
+    <Box
+      sx={{
+        minWidth: 0,
+        ...(first ? null : { mt: 2.5, pt: 2.5, borderTop: 1, borderColor: "divider" }),
+        ...sx,
+      }}
+    >
+      {title ? (
+        <Typography
+          component={component}
+          sx={{
+            fontSize: FONT_SIZE.bodySm, fontWeight: FONT_WEIGHT.bold, color: "text.secondary",
+            mb: help ? 0.5 : 1, ...KO_WORD_BREAK,
+          }}
+        >
+          {title}
+        </Typography>
+      ) : null}
+      {help ? (
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 1.25, ...KO_WORD_BREAK }}>{help}</Typography>
+      ) : null}
+      {children}
     </Box>
   );
 }

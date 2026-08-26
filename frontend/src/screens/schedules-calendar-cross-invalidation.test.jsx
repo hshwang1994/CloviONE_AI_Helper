@@ -84,7 +84,7 @@ describe("실행 달력 -> 실행 일정 DataScreen 캐시", () => {
   function body(extra = {}) {
     return {
       items: [{ kind: "run", schedule_id: "s-1", schedule_name: "매일 리포트",
-        occurs_at: `${todayKst}T00:00:00`, status: "failed", run_id: "r-1", error_message: "n8n 500" }],
+        occurs_at: `${todayKst}T00:00:00`, status: "failed", run_id: "r-1", error_message: "대상 서비스 500" }],
       start: "2026-08-01T00:00:00", end: "2026-08-31T00:00:00", truncated: false,
       schedules: SCHEDULES, ...extra,
     };

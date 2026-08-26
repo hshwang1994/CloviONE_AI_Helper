@@ -213,16 +213,18 @@ def probe_integrations(ctx: ProbeContext) -> Outcome:
 
     rows = ctx.db.execute(select(Integration)).scalars().all()
     if not rows:
-        return _todo(
-            "외부 연동이 하나도 등록되지 않았습니다.",
-            "설치 스크립트의 연동 등록(python -m app.integrations.discovery)을 실행하세요.",
-        )
+        # 🔴 예전에는 이 자리가 `_todo` 였고 「discovery 를 실행하세요」라고 말했다. 그
+        # 문장이 참이던 시절이 있었지만 지금은 아니다 — S11·S14 가 걷어내면서 시드 목록
+        # (`KNOWN_INTEGRATIONS`)이 비었고, 그 명령을 돌려도 아무것도 안 생긴다. 없는 할
+        # 일을 시키는 빨간 줄이 남으면 체크리스트 전체를 안 믿게 된다.
+        #
+        # 외부 연동은 **선택**이다. 하나도 없는 것은 장애가 아니라 「이 설치는 바깥으로
+        # 나가는 호출이 없다」는 정상 상태다.
+        return _done("추가된 외부 연동이 없습니다. 이 설치는 바깥으로 나가는 호출을 쓰지 않습니다.")
     enabled = [row for row in rows if row.enabled]
     if not enabled:
-        return _todo(
-            f"연동 {len(rows)}개가 등록됐지만 전부 비활성 상태입니다.",
-            "관리 콘솔의 외부 연동 화면에서 사용할 연동을 활성화하세요.",
-        )
+        # 전부 꺼 둔 것도 운영자의 선택이다 — 「사용 안 함」이지 「고장」이 아니다.
+        return _done(f"연동 {len(rows)}개가 전부 사용 안 함 상태입니다.")
     return _health_outcome(
         [row.last_health_status for row in enabled],
         noun="연동",

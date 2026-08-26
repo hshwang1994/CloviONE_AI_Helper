@@ -303,12 +303,19 @@ Storage Provider 가 이 시점 제품에 없다. S22 가 전 Component 로 다�
 
 ---
 
-## 10. 제품 slug 이전 (R13)
+## 10. 제품 slug 이전 (R13) — **끝났다**
 
-현재 slug `clovirone-web-assistant` 가 경로·유닛·백업 루트에 박혀 있고 템플릿화돼 있지 않다.
+현재 slug 는 `clovirassist` 다. 경로·유닛·백업 루트·서비스 계정이 전부 그 이름이고,
+운영 설치는 Cutover 로 그리로 넘어갔다.
 
-- **새 설치**: Installer 가 새 slug `clovirassist` 로 설치한다 (`/opt/clovirassist` ·
-  `/etc/clovirassist` · `/var/lib/clovirassist` · `/var/backups/clovirassist` ·
-  `clovirassist-{web,worker,scheduler,index,privhelper}.service`)
-- **기존 설치**: 경로 이전은 **upgrade 경로**로 처리한다
-- 사용자 노출 면은 전부 `ClovirAssist` 로 통일한다 (S3)
+- **경로**: `/opt/clovirassist` · `/etc/clovirassist` · `/var/lib/clovirassist` ·
+  `/var/backups/clovirassist`
+- **유닛**: `clovirassist-{web,worker,worker-conversational,scheduler,index,privhelper}.service`
+  (`deploy/install.sh` 의 `ALL_UNITS` 가 정본이다)
+- **사용자 노출 면**은 전부 `ClovirAssist` 다 (S3)
+
+옛 slug `clovirone-web-assistant` 를 **아는 자리는 둘뿐**이고, 둘 다 「이전 대상을 찾기
+위해서」다: `deploy/install.sh` 의 `LEGACY_SLUG`·`LEGACY_SVC_USER`·`LEGACY_UNITS`(옛 설치를
+찾아 멈추고 스냅샷에 담아 이전한다)와 `deploy/00-precheck.sh` 의 재실행 감지다.
+그 밖의 곳에 옛 이름을 다시 적지 않는다 — 그러면 걷어낸 정체성이 제품에 되살아난다
+(CLAUDE.md §0).

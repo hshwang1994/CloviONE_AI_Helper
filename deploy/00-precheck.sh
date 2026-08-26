@@ -11,8 +11,11 @@ export LC_ALL=C.UTF-8
 case "$(head -c 200 "$0" 2>/dev/null)" in
   *$'\r'*) echo "CRLF detected in script"; exit 64;; esac
 
-REPORT=/home/cloviradmin/clovirone-web-precheck.md
-INVENTORY=/home/cloviradmin/clovirone-system-inventory.json
+# 이 제품의 slug. `deploy/install.sh` 의 `SLUG` 와 같은 값이어야 한다 — 사전 점검이
+# 다른 이름을 보면 「설치돼 있지 않다」고 말하면서 실제로는 도는 설치를 못 본다.
+SLUG=clovirassist
+REPORT=/home/cloviradmin/$SLUG-precheck.md
+INVENTORY=/home/cloviradmin/$SLUG-system-inventory.json
 # 설치처 고유값. 기본값을 두지 않는다(설치 스크립트와 같은 이유: 저장소에 한 고객사의
 # 호스트명·IP 를 박아 두면 다른 곳에서 남의 주소를 점검하고 통과해 버린다).
 # 이 스크립트는 읽기 전용 사전 점검이라 값이 없다고 멈추지는 않지만, **확인하지 않았다는
@@ -65,7 +68,17 @@ FAILED_UNITS="$(systemctl --failed --no-pager 2>/dev/null)"
 UNIT_FILES="$(systemctl list-unit-files --type=service 2>/dev/null | grep -Ei 'clovir|nginx' || true)"
 
 # Existing service metadata (path/user only — no env contents)
-declare -a KNOWN_UNITS=(nginx clovirone-web-assistant clovirone-web-worker)
+#
+# 🔴 예전에는 이 목록이 **옛 유닛 둘뿐**이었다. 그래서 이 제품이 이미 깔린 호스트에서
+# 사전 점검을 다시 돌리면 유닛을 하나도 못 보고 「깨끗한 호스트」처럼 보고했다 — 재실행
+# 감지가 존재 이유의 절반인 스크립트가 그 절반을 못 한 셈이다.
+#
+# 지금 유닛을 먼저 적고, 옛 유닛은 **이전 대상이 있는지 보려고** 뒤에 남긴다(설치기의
+# `LEGACY_UNITS` 와 같은 이유다). 목록은 `deploy/install.sh` 의 `ALL_UNITS` 와 같아야 한다.
+declare -a KNOWN_UNITS=(nginx
+  "$SLUG-web" "$SLUG-worker" "$SLUG-worker-conversational" "$SLUG-scheduler"
+  "$SLUG-index" "$SLUG-privhelper"
+  clovirone-web-assistant clovirone-web-worker)
 SERVICES_JSON=""
 for unit in "${KNOWN_UNITS[@]}"; do
   props="$(systemctl show -p LoadState,ActiveState,SubState,User,ExecStart,EnvironmentFiles,Restart "$unit" 2>/dev/null)"
@@ -108,12 +121,17 @@ PYPI_CODE="$(curl -sI --max-time 10 https://pypi.org 2>/dev/null | head -1)"
 APT_SIM="$(apt-get -s install python3.12-venv nginx openssl postgresql-client-16 zip rsync 2>&1 | tail -5)"
 echo "$APT_SIM" | grep -qiE 'newly installed|already the newest|0 upgraded' && APT_OK=true || APT_OK=false
 
-# Existing clovirone-web install (re-run detection)
+# 재실행 감지. **두 가지를 따로 센다** — 이 제품이 이미 깔려 있는가(재실행·업그레이드)와
+# 옛 제품의 흔적이 남아 있는가(이전 대상). 하나로 뭉치면 「무엇을 하려는 실행인가」를
+# 사전 점검이 못 말한다.
 EXISTING_INSTALL=false
-for d in /opt/clovirone-web-assistant /etc/clovirone-web-assistant /var/lib/clovirone-web-assistant; do
+for d in "/opt/$SLUG" "/etc/$SLUG" "/var/lib/$SLUG"; do
   [ -e "$d" ] && EXISTING_INSTALL=true
 done
-CLOVIRONE_WEB_USER="$(id clovirone-web 2>/dev/null && echo exists || echo absent)"
+LEGACY_INSTALL=false
+for d in /opt/clovirone-web-assistant /etc/clovirone-web-assistant /var/lib/clovirone-web-assistant; do
+  [ -e "$d" ] && LEGACY_INSTALL=true
+done
 
 # ---- STOP condition evaluation (spec §3.2) -------------------------------
 # DNS server-side
@@ -179,8 +197,10 @@ fi
   echo "  \"dns_expected\": \"${EXPECT_IP:-not-configured}\","
   echo "  \"pypi_reachable\": $PYPI_OK,"
   echo "  \"apt_ok\": $APT_OK,"
-  echo "  \"existing_clovirone_web_install\": $EXISTING_INSTALL,"
-  echo "  \"clovirone_web_user\": \"$(id -u clovirone-web 2>/dev/null && echo present || echo absent)\","
+  echo "  \"existing_install\": $EXISTING_INSTALL,"
+  echo "  \"legacy_install\": $LEGACY_INSTALL,"
+  echo "  \"service_user\": \"$(id -u "$SLUG" 2>/dev/null && echo present || echo absent)\","
+  echo "  \"legacy_service_user\": \"$(id -u clovirone-web 2>/dev/null && echo present || echo absent)\","
   echo "  \"services\": $SERVICES_JSON,"
   echo "  \"ports\": {"
   psep=""
@@ -257,10 +277,12 @@ fi
   echo "PyPI reachable: $PYPI_OK ($PYPI_CODE)"
   echo "apt install simulation ok: $APT_OK"
   echo '```'
-  echo "## 기존 clovirone-web 설치 흔적"
+  echo "## 기존 설치 흔적"
   echo '```'
-  echo "existing_install: $EXISTING_INSTALL"
-  echo "clovirone-web user: $(id clovirone-web 2>/dev/null || echo absent)"
+  echo "existing_install ($SLUG): $EXISTING_INSTALL"
+  echo "service user ($SLUG): $(id "$SLUG" 2>/dev/null || echo absent)"
+  echo "legacy_install (clovirone-web-assistant): $LEGACY_INSTALL"
+  echo "legacy service user (clovirone-web): $(id clovirone-web 2>/dev/null || echo absent)"
   echo '```'
 } > "$REPORT"
 

@@ -9,7 +9,10 @@ import { fmtDateTime } from "../../lib/format.js";
 import { DashSection, Note, StatusList, StatusTile } from "../../ui/adminKit.jsx";
 import { PageHeader, Card, Badge, Callout, MetricStrip, Skeleton, ErrorState, EmptyState, useToast } from "../../ui/kit.jsx";
 import { FONT_SIZE, FONT_WEIGHT } from "../../ui/theme.js";
-import { serviceLabel, fmtNum, errorBuckets, healthVerdict, copyText, bundleStamp } from "./opsHelpers.js";
+import {
+  serviceLabel, fmtNum, errorBuckets, healthVerdict, copyText, bundleStamp,
+  integrationState, upSummaryText, SERVICE_STATE_LABEL, SERVICE_STATE_KIND,
+} from "./opsHelpers.js";
 import { LogRow, LogList } from "./LogList.jsx";
 import { ServiceStatusPanel } from "./ServiceStatusPanel.jsx";
 import { JobQueuePanel } from "./JobQueuePanel.jsx";
@@ -151,7 +154,10 @@ export function Diagnostics() {
             <Note sx={{ mt: 0, mb: 3 }}>수집 시각: {fmtDateTime(bundle.generated_at)}, 이 번들은 민감정보가 가려져 있어 지원팀에 그대로 전달해도 안전합니다.</Note>
             {/* 상태 요약(정상/주의)은 수집마다 바뀌므로 낭독되도록 라이브 영역으로 감싼다. */}
             {(() => {
-              const hv = healthVerdict(comps, disk, mem, dash.cert_days_remaining, jobs24, integrations, dash);
+              // 저장소도 함께 넘긴다 — 대시보드의 조치 목록이 「운영 저장소에 못 씀」을
+              // 위험으로 올리는데 이 배너만 그것을 모르면 두 화면이 같은 순간에 다른
+              // 말을 한다(dashboard-diagnostics-consistency 가 지키는 성질).
+              const hv = healthVerdict(comps, disk, mem, dash.cert_days_remaining, jobs24, integrations, dash, dash.storage);
               return (
                 <Box sx={{ mb: 4 }} role="status" aria-live="polite">
                   <Callout tone={hv.tone}>
@@ -186,7 +192,7 @@ export function Diagnostics() {
                   {/* PA-RC-0028: 도넛 대신 제목 옆 'N / M' 한 줄로 — 옆 카드가 이미 개별 상태를
                       말하므로, 100% 정상일 때 도넛이 화면에서 가장 큰 시각 요소가 되어 '볼 것
                       없음'에 최대 면적을 주는 문제를 없앤다(Dashboard.jsx의 같은 처방과 동일). */}
-                  정상 {Object.values(integrations).filter((it) => it && it.enabled !== false && it.last_health === "up").length} / {Object.keys(integrations).length}
+                  {upSummaryText(Object.values(integrations).map(integrationState))}
                 </Typography>
               ) : null}>
               {/* down만이 아니라 전체 연동 상태를 보여준다, unknown도 드러나야 진단에 쓸모가 있다.
@@ -198,18 +204,16 @@ export function Diagnostics() {
               {Object.keys(integrations).length ? (
                 <StatusList ariaLabel="외부 연동">
                   {Object.keys(integrations).map((k) => {
-                    const it = integrations[k] || {};
-                    // last_health는 NOT NULL이라 'unknown'으로 채워져 온다(models.py), 'it.last_health ||'
-                    // 폴백은 결코 타지 않아 갓 만든/미점검 연동이 '알 수 없음'으로 새고 있었다.
-                    // 'unknown'(과 만일의 빈 값)을 명시적으로 '미점검'으로 표기한다.
-                    const raw = it.last_health;
-                    const val = it.enabled === false ? "disabled" : (!raw || raw === "unknown") ? "미점검" : raw;
+                    /* 상태 어휘는 `opsHelpers.js` 한 곳에서 온다(대시보드와 같은 함수) —
+                       꺼 둔 것 · 한 번도 안 잰 것 · 실제로 죽은 것 셋을 그 함수가 가른다.
+                       세는 규칙(위 요약)과 그리는 규칙이 갈리지 않는 유일한 방법이다. */
+                    const state = integrationState(integrations[k]);
                     // 다른 화면(Dashboard.jsx의 서비스 목록)과 같은 방식으로 누를 수 있는 줄로 만든다 -
                     // 이름, 상태 배지만 보여주고 조치할 곳이 없는 막다른 줄로 남기지 않는다.
                     return (
                       <StatusTile key={k} name={serviceLabel(k)} onClick={() => nav("/integrations")}
                         ariaLabel={serviceLabel(k) + " 연동 관리로 이동"}>
-                        <Badge value={val} />
+                        <Badge value={SERVICE_STATE_LABEL[state]} kind={SERVICE_STATE_KIND[state]} />
                       </StatusTile>
                     );
                   })}
@@ -220,7 +224,8 @@ export function Diagnostics() {
                 // 그래서 integrations가 비어 있으면 그 부분집합도 항상 비어 있다. '등록된 연동은 없지만
                 // 오류만 있는' 중간 분기는 절대 일어나지 않아 제거하고, 곧장 빈 상태로 간다.
                 <Card>
-                  <EmptyState title="추가된 외부 연동이 없습니다" help="‘외부 연동’ 관리 화면에서 서비스를 추가하면 여기에 상태가 표시됩니다."
+                  <EmptyState title="추가된 외부 연동이 없습니다"
+                    help="이 설치는 바깥으로 나가는 호출을 쓰지 않습니다. 연동을 추가하면 여기에 상태가 표시됩니다."
                     art="search"
                     relatedLink={{ href: "#/integrations", label: "외부 연동으로 이동" }} />
                 </Card>

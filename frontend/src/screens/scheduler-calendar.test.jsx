@@ -111,7 +111,7 @@ describe("실행 달력", () => {
       return Promise.resolve(body({
         items: [
           { kind: "run", schedule_id: "s-1", schedule_name: "매일 리포트",
-            occurs_at: `${todayKst}T00:00:00`, status: "failed", run_id: "r-1", error_message: "n8n 500" },
+            occurs_at: `${todayKst}T00:00:00`, status: "failed", run_id: "r-1", error_message: "대상 서비스 500" },
           { kind: "planned", schedule_id: "s-1", schedule_name: "매일 리포트",
             occurs_at: `${todayKst}T02:00:00`, status: null, run_id: null, error_message: null },
         ],
@@ -133,14 +133,14 @@ describe("실행 달력", () => {
     }).format(new Date());
     mockApi(() => Promise.resolve(body({
       items: [{ kind: "run", schedule_id: "s-1", schedule_name: "매일 리포트",
-        occurs_at: `${todayKst}T00:00:00`, status: "failed", run_id: "r-1", error_message: "n8n 500" }],
+        occurs_at: `${todayKst}T00:00:00`, status: "failed", run_id: "r-1", error_message: "대상 서비스 500" }],
     })));
     renderCalendar();
     const dot = await screen.findByTitle(/매일 리포트/);
     await userEvent.click(dot);
     const dialog = await screen.findByRole("dialog");
     expect(dialog).toHaveTextContent("실행 기록");
-    expect(dialog).toHaveTextContent("n8n 500");
+    expect(dialog).toHaveTextContent("대상 서비스 500");
   });
 
   it("서버가 잘렸다고 하면 그 사실을 숨기지 않는다", async () => {
@@ -191,7 +191,7 @@ describe("실행 상세의 재시도 액션 (M9)", () => {
   function bodyWithRun(status, extra = {}) {
     return body({
       items: [{ kind: "run", schedule_id: "s-1", schedule_name: "매일 리포트",
-        occurs_at: `${todayKst}T00:00:00`, status, run_id: "r-1", error_message: status === "failed" ? "n8n 500" : null }],
+        occurs_at: `${todayKst}T00:00:00`, status, run_id: "r-1", error_message: status === "failed" ? "대상 서비스 500" : null }],
       ...extra,
     });
   }
@@ -214,7 +214,7 @@ describe("실행 상세의 재시도 액션 (M9)", () => {
     await openFailedRunDetail();
     const retryBtn = await screen.findByRole("button", { name: "재시도" });
     await userEvent.click(retryBtn);
-    // 되돌릴 수 없는 부수효과(다시 큐에 넣어 n8n/워크플로를 다시 실행)라 확인창을 거친다 —
+    // 되돌릴 수 없는 부수효과(다시 큐에 넣어 그 스케줄을 다시 실행)라 확인창을 거친다 —
     // DataScreen의 다른 운영 액션(job.retry 등)과 같은 관용. 확인창의 확인 버튼도 같은
     // 라벨("재시도")을 쓴다(DataScreen.jsx의 confirmLabel: a.label 관용과 동일).
     const buttons = await screen.findAllByRole("button", { name: "재시도" });

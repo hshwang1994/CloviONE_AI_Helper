@@ -5,11 +5,17 @@ import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 
-/* AI 도우미 패널 — 계획서 Phase 5 의 "숫자 먼저, 문장은 나중"을 화면에서 고정한다.
+/* AI 도우미 패널.
  *
  *   * 기본 상태에서는 문장을 요청하지 않는다(?narrate 를 붙이지 않는다).
- *   * 러너가 죽거나 기능이 꺼져 있어도 **숫자는 그대로 남고** 왜 문장이 없는지만 덧붙는다.
+ *   * 러너가 죽거나 기능이 꺼져 있어도 **사실은 그대로 남고** 왜 문장이 없는지만 덧붙는다.
  *   * 트리아지는 제안만 한다 — 배정 버튼이 없고, '제안'이라고 화면이 직접 말한다.
+ *
+ * 🔴 이 패널은 더 이상 **위 카드의 숫자를 그대로 다시 읽지 않는다.** 예전 첫 줄은
+ * 「오늘 마감 2건, 지연 1건, 진행 중 5건, 막힘 0건」이었고 그 아래에 「위 숫자는 이 화면
+ * 상단 카드와 같은 값입니다」라고 스스로 적고 있었다. 지금은 같은 사실에서 **무엇이 가장
+ * 급한가**를 뽑아 한 문장으로 낸다 — 아래 `briefingFocus` 단위 시험이 그 규칙 자체를
+ * 값으로 고정한다.
  */
 
 const apiMock = vi.fn();
@@ -99,7 +105,11 @@ describe("AI 도우미 패널", () => {
     routeApi();
     renderPanel();
 
-    expect(await screen.findByText(/오늘 마감 2건, 지연 1건/)).toBeInTheDocument();
+    // 지연 1건이 있으므로 그것이 오늘의 결론이다(개수 나열이 아니라 판단 한 줄).
+    expect(await screen.findByText("마감이 지난 티켓 1건이 오늘 가장 급합니다.")).toBeInTheDocument();
+    // 같은 화면 위 판독 줄이 이미 말하는 개수 나열을 여기서 되풀이하지 않는다.
+    expect(screen.queryByText(/오늘 마감 2건, 지연 1건/)).toBeNull();
+    expect(screen.queryByText(/위 숫자는 이 화면 상단 카드와 같은 값입니다/)).toBeNull();
     expect(apiMock.mock.calls.every(([p]) => !p.includes("narrate"))).toBe(true);
   });
 
@@ -123,36 +133,38 @@ describe("AI 도우미 패널", () => {
 
     expect(await screen.findByText("담당 티켓을 판단할 수 없어 오늘 요약을 계산할 수 없습니다.")).toBeInTheDocument();
     expect(screen.queryByText(/오늘 마감 0건/)).not.toBeInTheDocument();
-    // 두 번째 절("위 스프린트 카드와...")도 "0"을 지어낸 상단 줄을 다시 가리키지 않는다.
-    expect(screen.queryByText(/위 숫자는 이 화면 상단 카드와 같은 값입니다/)).not.toBeInTheDocument();
+    // 「지금 볼 것」도 0건을 지어내지 않고 왜 비었는지 말한다.
+    expect(screen.getByText("티켓 소스를 다시 읽을 수 있게 되면 여기에 급한 순서로 표시됩니다.")).toBeInTheDocument();
   });
 
   it("문장 생성이 꺼져 있으면 숫자는 그대로 두고 이유만 덧붙인다", async () => {
     routeApi();
     renderPanel();
-    await screen.findByText(/오늘 마감 2건, 지연 1건/);
+    await screen.findByText("마감이 지난 티켓 1건이 오늘 가장 급합니다.");
 
     await userEvent.click(screen.getByRole("button", { name: "문장 요약 만들기" }));
 
     expect(await screen.findByText("요약 문장 생성이 꺼져 있습니다.")).toBeInTheDocument();
-    // 숫자는 한 글자도 사라지지 않는다 — 이것이 계획서 Phase 5 의 요구사항이다.
-    expect(screen.getByText(/오늘 마감 2건, 지연 1건/)).toBeInTheDocument();
+    // 사실은 한 글자도 사라지지 않는다 — 문장은 그 위에 얹히는 것이지 대신하는 것이 아니다.
+    expect(screen.getByText("마감이 지난 티켓 1건이 오늘 가장 급합니다.")).toBeInTheDocument();
     expect(apiMock.mock.calls.some(([p]) => p.includes("narrate=true"))).toBe(true);
   });
 
   it("러너가 문장을 주면 요약으로 보여준다", async () => {
     routeApi({ narrative: { enabled: true, text: "오늘 마감 2건, 지연 1건입니다.", error: null } });
     renderPanel();
-    await screen.findByText(/오늘 마감 2건, 지연 1건/);
+    await screen.findByText("마감이 지난 티켓 1건이 오늘 가장 급합니다.");
 
     await userEvent.click(screen.getByRole("button", { name: "문장 요약 만들기" }));
     expect(await screen.findByText("오늘 마감 2건, 지연 1건입니다.")).toBeInTheDocument();
+    // 문장이 생기면 그것을 그대로 쓸 수 있는 행동이 함께 나온다.
+    expect(screen.getByRole("button", { name: "문장 복사" })).toBeInTheDocument();
   });
 
   it("스탠드업 탭은 최근 끝낸 일 / 오늘 할 일 / 막힌 것 세 단으로 나눈다", async () => {
     routeApi();
     renderPanel();
-    await screen.findByText(/오늘 마감 2건/);
+    await screen.findByText("마감이 지난 티켓 1건이 오늘 가장 급합니다.");
 
     await userEvent.click(screen.getByRole("tab", { name: "스탠드업 초안" }));
 
@@ -166,7 +178,7 @@ describe("AI 도우미 패널", () => {
   it("트리아지는 '제안'이라고 말하고 배정 버튼을 두지 않는다", async () => {
     routeApi();
     renderPanel();
-    await screen.findByText(/오늘 마감 2건/);
+    await screen.findByText("마감이 지난 티켓 1건이 오늘 가장 급합니다.");
 
     await userEvent.click(screen.getByRole("tab", { name: "미할당 트리아지" }));
 
@@ -185,7 +197,7 @@ describe("AI 도우미 패널", () => {
   it("미할당이 하나도 없으면 '데이터 없음'을 분명히 말한다", async () => {
     routeApi({ triage: { ...TRIAGE, total: 0, items: [], candidates: [] } });
     renderPanel();
-    await screen.findByText(/오늘 마감 2건/);
+    await screen.findByText("마감이 지난 티켓 1건이 오늘 가장 급합니다.");
 
     await userEvent.click(screen.getByRole("tab", { name: "미할당 트리아지" }));
     expect(await screen.findByText("담당자 없는 티켓이 없습니다")).toBeInTheDocument();
@@ -197,7 +209,7 @@ describe("AI 도우미 패널", () => {
     // (h2 → h4로 건너뛰지 않게).
     routeApi();
     renderPanel();
-    await screen.findByText(/오늘 마감 2건/);
+    await screen.findByText("마감이 지난 티켓 1건이 오늘 가장 급합니다.");
     expect(screen.getByRole("heading", { level: 2, name: "AI 도우미" })).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("tab", { name: "스탠드업 초안" }));
@@ -205,5 +217,91 @@ describe("AI 도우미 패널", () => {
     expect(screen.getByRole("heading", { level: 3, name: /최근 끝낸 일/ })).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 3, name: /오늘 할 일/ })).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 3, name: /막힌 것/ })).toBeInTheDocument();
+  });
+});
+
+/* 해석 규칙 자체를 값으로 고정한다.
+ *
+ * 렌더를 통해서만 재면 문구가 조금 바뀔 때마다 시험이 깨지고, 정작 **순서가 뒤바뀐 것**은
+ * 안 잡힌다. 이 패널의 존재 이유가 「무엇이 가장 급한가」를 정하는 그 순서라 따로 잰다. */
+import { attentionRows, briefingFocus, daysBetween, standupDraft, tabLinks } from "./AssistantPanel.jsx";
+
+const T = (over) => ({ id: "p" + (over.tid || 1), tid: 1, title: "제목", status: "진행", due: null, ...over });
+
+describe("briefingFocus — 오늘의 결론 한 줄", () => {
+  it("버킷이 아예 없으면 0 을 지어내지 않고 모른다고 한다", () => {
+    expect(briefingFocus({ configured: true, ok: true }).key).toBe("unknown");
+    expect(briefingFocus(null).key).toBe("unknown");
+  });
+
+  it("지연이 막힘보다, 막힘이 오늘 마감보다 앞선다", () => {
+    const full = {
+      due_today: { count: 5 }, overdue: { count: 2 }, blocked: { count: 1 },
+      due_soon: { count: 3 }, in_progress: { count: 9 },
+    };
+    expect(briefingFocus(full).key).toBe("overdue");
+    expect(briefingFocus({ ...full, overdue: { count: 0 } }).key).toBe("blocked");
+    expect(briefingFocus({ ...full, overdue: { count: 0 }, blocked: { count: 0 } }).key).toBe("due_today");
+  });
+
+  it("급한 것이 하나도 없으면 진행 중을 이어서 보라고 한다", () => {
+    const calm = {
+      due_today: { count: 0 }, overdue: { count: 0 }, blocked: { count: 0 },
+      due_soon: { count: 0 }, in_progress: { count: 4 },
+    };
+    expect(briefingFocus(calm).key).toBe("in_progress");
+    expect(briefingFocus({ ...calm, in_progress: { count: 0 } }).key).toBe("none");
+  });
+});
+
+describe("attentionRows — 버킷을 가로질러 급한 셋", () => {
+  it("같은 티켓을 두 번 넣지 않고 셋에서 멈춘다", () => {
+    const dup = T({ tid: 7, id: "p7", due: "2026-07-30" });
+    const rows = attentionRows({
+      overdue: { items: [dup, T({ tid: 8, id: "p8", due: "2026-07-31" })] },
+      blocked: { items: [dup] },
+      due_today: { items: [T({ tid: 9, id: "p9", due: "2026-08-03" }), T({ tid: 10, id: "p10" })] },
+    }, "2026-08-03");
+    expect(rows).toHaveLength(3);
+    expect(rows.map((r) => r.item.id)).toEqual(["p7", "p8", "p9"]);
+    // 지연 일수는 오늘과의 차이에서 나온다(문자열 날짜를 UTC 로 읽는다).
+    expect(rows[0].reason).toBe("지연 4일");
+    expect(rows[0].kind).toBe("danger");
+  });
+
+  it("마감일이 없는 지연 티켓도 사유를 잃지 않는다", () => {
+    const rows = attentionRows({ overdue: { items: [T({ due: null })] } }, "2026-08-03");
+    expect(rows[0].reason).toBe("지연");
+  });
+});
+
+describe("daysBetween", () => {
+  it("두 달력일 사이의 날짜 수를 센다", () => {
+    expect(daysBetween("2026-07-30", "2026-08-03")).toBe(4);
+    expect(daysBetween("2026-08-03", "2026-08-03")).toBe(0);
+    expect(daysBetween(null, "2026-08-03")).toBeNull();
+    expect(daysBetween("nope", "2026-08-03")).toBeNull();
+  });
+});
+
+describe("standupDraft — 그대로 붙여 넣을 수 있는 초안", () => {
+  it("세 단을 제목과 함께 담고, 빈 단은 '없음'이라고 적는다", () => {
+    const text = standupDraft(STANDUP);
+    expect(text).toContain("2026-08-03 스탠드업");
+    expect(text).toContain("- 오늘 처리할 티켓 (마감 2026-08-03)");
+    expect(text).toContain("막힌 것: 없음");
+  });
+});
+
+describe("tabLinks — 갈 이유가 있을 때만 버튼을 낸다", () => {
+  it("브리핑은 위 카드가 이미 같은 목적지를 주므로 비어 있다", () => {
+    expect(tabLinks("briefing", {})).toEqual([]);
+  });
+  it("트리아지는 볼 것이 있을 때만 미할당 화면을 연다", () => {
+    expect(tabLinks("triage", { total: 0 })).toEqual([]);
+    expect(tabLinks("triage", { total: 3 })[0].href).toBe("#/unassigned");
+  });
+  it("주간 업데이트는 언제나 스프린트 회의로 이어진다", () => {
+    expect(tabLinks("weekly", {})[0].href).toBe("#/sprint");
   });
 });

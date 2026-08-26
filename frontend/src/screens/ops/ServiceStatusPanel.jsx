@@ -4,7 +4,10 @@ import Link from "@mui/material/Link";
 import Typography from "@mui/material/Typography";
 import { Badge, MetricStrip, Callout, useToast } from "../../ui/kit.jsx";
 import { DashSection, StatusList, StatusTile } from "../../ui/adminKit.jsx";
-import { fmtNum, serviceLabel, fmtCertDays, copyText } from "./opsHelpers.js";
+import {
+  fmtNum, serviceLabel, fmtCertDays, copyText,
+  componentState, upSummaryText, SERVICE_STATE_LABEL, SERVICE_STATE_KIND,
+} from "./opsHelpers.js";
 
 /* 진단 화면의 "시스템 리소스" + "서비스 상태" 카드 — 둘 다 '지금 이 순간' 스냅샷이라 한 패널로 묶는다.
  * 서비스가 중단·응답 없음이면 재시작 안내(journalctl 명령 + 복사)까지 이 패널이 책임진다 — 상태를
@@ -53,10 +56,11 @@ export function ServiceStatusPanel({ disk, mem, certDaysRemaining, comps, nav })
           채워진 dict로 돌려준다, 이 Object.keys(...).length 가드는 기능적으로 결코 false가 될
           수 없다(사전 방어일 뿐). 실제 통제는 bundle 자체의 존재 여부다(부모의 !bundle 가드). */}
       {Object.keys(comps).length ? (
-        <DashSection title="서비스 상태"
-          // PA-RC-0028: Dashboard.jsx의 같은 섹션과 동일하게 도넛 대신 'N / M' 한 줄 요약을
-          // 제목 옆에 둔다(up만 정상으로 센다 — unknown/down은 위 Callout이 이미 별도로 알린다).
-          action={<Typography variant="body2" color="text.secondary">정상 {Object.values(comps).filter((v) => v === "up").length} / {Object.keys(comps).length}</Typography>}>
+        /* 이름은 대시보드와 **같아야 한다** — 같은 데이터를 두 화면이 다른 이름으로 부르면
+           운영자는 그것이 다른 것인지 확인해야 한다. 그쪽이 「필수 서비스」로 부르면서
+           외부 연동과 분모를 갈랐고, 여기도 같은 말을 쓴다. */
+        <DashSection title="필수 서비스"
+          action={<Typography variant="body2" color="text.secondary">{upSummaryText(Object.values(comps).map(componentState))}</Typography>}>
           {/* 중단·응답 없음을 빨간 배지로만 두면 조치할 곳이 없는 막다른 화면이 된다 — 다음 행동을 한 줄로 안내한다.
               (스펙 §10: 임의 systemd 재시작 API는 제공하지 않으므로 로그 확인·담당자 재시작으로 안내한다.) */}
           {downUnits.length ? (() => {
@@ -73,23 +77,21 @@ export function ServiceStatusPanel({ disk, mem, certDaysRemaining, comps, nav })
               </Box>
             );
           })() : null}
-          <StatusList ariaLabel="서비스 상태">
+          <StatusList ariaLabel="필수 서비스">
             {Object.keys(comps).map((k) => {
-              // 'unknown'(하트비트 없음/오래됨)도 상단 healthVerdict()가 이미 주의 대상으로 세는 문제다 -
-              // 배지를 무채색 그대로 두면 상단 '주의 N건' 배너와 이 타일의 심각도가 서로 어긋나 보인다.
-              const badgeKind = comps[k] === "unknown" ? "warn" : undefined;
+              /* 상태 어휘는 `opsHelpers.js` 한 곳에서 온다 — 예전에는 이 화면이 배지 값을
+                 직접 고르고 요약은 `v === "up"` 만 세어서, 세는 규칙과 그리는 규칙이 갈릴
+                 수 있었다(대시보드에서 실제로 갈렸다). */
+              const state = componentState(comps[k]);
               // 바로 아래 '외부 연동' 카드는 클릭 가능한데 이 서비스 카드만 정적이라, 시각적으로
               // 똑같은 두 그리드가 나란히 있어 죽은 카드를 눌러 보게 유도했다, 워커/스케줄러는
               // Dashboard.jsx compNav처럼 작업 큐(/jobs)로 드릴다운시킨다(웹은 드릴다운할 곳이 없어 정적 유지).
               const dest = (k === "worker" || k === "scheduler" || k === "worker_conversational") ? "/jobs" : null;
-              // 상단 healthVerdict() 배너, Dashboard.jsx 서비스 카드는 이 상태를 '응답 없음'이라
-              // 부른다, kit.jsx STATUS_TEXT는 'unknown'을 '알 수 없음'으로 옮겨, 같은 상태를
-              // 이 화면 안에서만 다른 한국어로 말하고 있었다(배너와 타일이 서로 모순).
               return (
                 <StatusTile key={k} name={serviceLabel(k)}
                   onClick={dest ? () => nav(dest) : undefined}
                   ariaLabel={serviceLabel(k) + " 관련 작업 큐로 이동"}>
-                  <Badge value={comps[k] === "unknown" ? "응답 없음" : comps[k]} kind={badgeKind} />
+                  <Badge value={SERVICE_STATE_LABEL[state]} kind={SERVICE_STATE_KIND[state]} />
                 </StatusTile>
               );
             })}

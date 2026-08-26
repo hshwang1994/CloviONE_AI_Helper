@@ -128,7 +128,7 @@ describe("진단 — 서비스 중단 표시와 재시작 안내", () => {
     });
     renderDiagnostics();
 
-    expect(await screen.findByText("서비스 상태")).toBeInTheDocument();
+    expect(await screen.findByText("필수 서비스")).toBeInTheDocument();
     expect(screen.queryByText(/일부 서비스가 응답하지/)).toBeNull();
   });
 });
@@ -184,7 +184,7 @@ describe("진단 — 대시보드와 중복이던 섹션 제거(PA-RC-0028)", ()
     });
     renderDiagnostics();
 
-    await screen.findByText("서비스 상태");
+    await screen.findByText("필수 서비스");
     expect(screen.queryByText("최근 주요 변경")).toBeNull();
     expect(screen.queryByText("백업")).toBeNull();
     expect(screen.queryByText("백업 관리")).toBeNull(); // 예전 백업 카드의 CTA 버튼

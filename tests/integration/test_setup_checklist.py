@@ -339,9 +339,13 @@ def test_the_regular_user_notice_has_no_link(client, login_as):
 def test_an_unchecked_integration_is_a_question_not_a_failure(client, db, sysadmin):
     from app.integrations.models import Integration
 
+    # 이름과 유형은 **지금 만들 수 있는 것**으로 둔다. 예전에는 이 픽스처가 걷어낸 엔진을
+    # (`n8n` / `provider_type="n8n"` / `127.0.0.1:5678`) 다시 심고 있었다 — 없는 기능을
+    # 시험이 되살리면 원장이 제품과 다른 것을 말하게 된다.
     db.add(
         Integration(
-            name="n8n", provider_type="n8n", base_url="http://127.0.0.1:5678",
+            name="사내 메신저", provider_type="http_service",
+            base_url="https://example.invalid/messenger",
             capabilities_json="{}", enabled=True, last_health_status="unknown",
         )
     )

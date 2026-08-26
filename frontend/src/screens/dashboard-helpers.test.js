@@ -67,11 +67,11 @@ describe("canGo — 정본 한 표에서 읽는다", () => {
  * 예전에는 같은 값들이 여섯 구역에 흩어져 있어 "지금 괜찮은가" 를 알려면 끝까지 스크롤하며
  * 여섯 번 찾아야 했다. 운영 화면에서는 매일 반복되는 비용이다.
  */
-import { headlineStats, serviceMix as _mix } from "./Dashboard.jsx";
+import { componentStates, headlineStats, integrationStates } from "./Dashboard.jsx";
+import { countStates } from "./ops/opsHelpers.js";
 
 const ARGS = {
-  services: { web: "up", worker: "up", scheduler: "down", n8n: "unknown" },
-  counts: { active_workflows: 3 },
+  components: { web: "up", worker: "up", scheduler: "down" },
   jobs: { success_rate_pct: 72, failed_open: 2 },
   disk: { used_pct: 91 },
   jobsNote: "",
@@ -80,19 +80,41 @@ const ARGS = {
 };
 
 describe("머리 지표", () => {
-  it("도넛과 **같은 계산**을 써서 두 곳이 다른 말을 할 수 없다", () => {
-    const mix = _mix(ARGS.services);
-    const up = mix.find((m) => m.label === "정상").value;
-    const total = mix.reduce((a, m) => a + m.value, 0);
-
+  /* 🔴 분모는 **필수 서비스뿐**이다. 예전에는 외부 연동까지 한 분모에 넣어서, 연동을 몇 개
+     등록했는지에 따라 제품의 건강도가 달라 보였다 — 걷어낸 런타임을 가리키는 등록 행 넷이
+     남아 있던 운영 설치에서 이 값이 「3 / 7」이었다. */
+  it("서비스 정상 요약은 필수 서비스만 센다 — 외부 연동은 자기 분모를 따로 갖는다", () => {
+    const counts = countStates(Object.values(componentStates(ARGS.components)));
     const services = headlineStats(ARGS).find((t) => t.key === "services");
-    expect(services.value).toBe(`${up} / ${total}`);
+    expect(services.value).toBe(`${counts.ok} / ${counts.total}`);
+    expect(services.value).toBe("2 / 3");
+    expect(services.label).toBe("필수 서비스 정상");
+
+    // 연동을 넷 더 붙여도 이 값은 안 움직인다.
+    const withIntegrations = { ...ARGS };
+    expect(headlineStats(withIntegrations).find((t) => t.key === "services").value).toBe("2 / 3");
   });
 
   it("중단이 있으면 위험으로 표시한다 — 요약이 '정상'처럼 보이면 요약이 아니다", () => {
     expect(headlineStats(ARGS).find((t) => t.key === "services").kind).toBe("danger");
-    const allUp = { ...ARGS, services: { web: "up", worker: "up" } };
+    const allUp = { ...ARGS, components: { web: "up", worker: "up" } };
     expect(headlineStats(allUp).find((t) => t.key === "services").kind).toBe("ok");
+    // 하트비트가 없는 것(unknown)은 중단이 아니라 주의다.
+    const stale = { ...ARGS, components: { web: "up", worker: "unknown" } };
+    expect(headlineStats(stale).find((t) => t.key === "services").kind).toBe("warn");
+  });
+
+  /* 상태 어휘 다섯이 서로 다른 뜻이라는 것을 값으로 고정한다. Red 는 `down` 하나뿐이고,
+     「사용 안 함」과 「미점검」은 장애가 아니다. */
+  it("연동 상태는 사용 안 함, 미점검, 중단을 서로 다르게 읽는다", () => {
+    const states = integrationStates({
+      off: { enabled: false, last_health: "down" },
+      fresh: { enabled: true, last_health: "unknown" },
+      dead: { enabled: true, last_health: "down" },
+      live: { enabled: true, last_health: "up" },
+    });
+    expect(states).toEqual({ off: "off", fresh: "unset", dead: "down", live: "ok" });
+    expect(countStates(Object.values(states))).toMatchObject({ ok: 1, down: 1, unset: 1, off: 1, total: 4 });
   });
 
   it("성공률과 디스크는 값에 따라 심각도가 바뀐다", () => {
@@ -106,7 +128,7 @@ describe("머리 지표", () => {
   });
 
   it("값이 없으면 0이 아니라 '-' 다 — 없는 것과 0은 다르다", () => {
-    const empty = headlineStats({ ...ARGS, services: {}, jobs: {}, disk: {}, counts: {} });
+    const empty = headlineStats({ ...ARGS, components: {}, jobs: {}, disk: {} });
     expect(empty.find((x) => x.key === "services").value).toBe("-");
     expect(empty.find((x) => x.key === "rate").value).toBe("-");
     expect(empty.find((x) => x.key === "disk").value).toBe("-");
@@ -198,20 +220,53 @@ describe("buildAlerts — 조치 대기 목록의 값(원본 로직 그대로)",
     expect(buildAlerts({ jobs_24h: { success_rate_pct: 10, total: 0 } }, "admin").find((x) => x.src === "job:rate")).toBeUndefined();
   });
 
-  it("워커/스케줄러는 down이면 danger, unknown이면 warn이다", () => {
+  it("필수 서비스는 down이면 danger, 응답 없음이면 warn이다", () => {
     const a = buildAlerts({ components: { worker: "down", scheduler: "unknown" } }, "admin");
     expect(a.find((x) => x.src === "comp:worker")).toMatchObject({ value: "중단", kind: "danger" });
     expect(a.find((x) => x.src === "comp:scheduler")).toMatchObject({ value: "응답 없음", kind: "warn" });
   });
 
-  it("비활성화된 연동은 down이어도 경보를 만들지 않는다", () => {
-    const a = buildAlerts({ integrations: { n8n: { enabled: false, last_health: "down" } } }, "admin");
-    expect(a.find((x) => x.src === "integ:n8n")).toBeUndefined();
+  /* 예전에는 `worker`·`scheduler` 두 이름을 손으로 적어 두고 있었다 — 켠 설치에만 실리는
+     대화형 워커 레인이 죽으면 이 목록에 아무것도 안 떴다. `web` 은 이 응답이 도착했다는
+     사실 자체가 증거라 판정 대상이 아니다. */
+  it("서버가 실어 준 필수 서비스를 전부 본다(web 은 제외한다)", () => {
+    const a = buildAlerts({ components: { web: "up", worker_conversational: "down" } }, "admin");
+    expect(a.map((x) => x.src)).toEqual(["comp:worker_conversational"]);
   });
 
-  it("활성 연동이 down이면 danger, /integrations로 보낸다", () => {
-    const a = buildAlerts({ integrations: { n8n: { enabled: true, last_health: "down" } } }, "admin");
-    expect(a.find((x) => x.src === "integ:n8n")).toMatchObject({ label: expect.any(String), value: "중단", kind: "danger", to: "/integrations" });
+  it("비활성화된 연동은 down이어도 경보를 만들지 않는다", () => {
+    const a = buildAlerts({ integrations: { legacy: { enabled: false, last_health: "down" } } }, "admin");
+    expect(a.find((x) => x.src === "integ:legacy")).toBeUndefined();
+  });
+
+  it("한 번도 점검 안 한 연동도 경보가 아니다 — 등록하는 순간 노란불이 켜지면 안 된다", () => {
+    const a = buildAlerts({ integrations: { fresh: { enabled: true, last_health: "unknown" } } }, "admin");
+    expect(a.find((x) => x.src === "integ:fresh")).toBeUndefined();
+  });
+
+  /* 🔴 **위험이 아니라 주의다.** 외부 연동은 선택 구성요소라 죽어도 그 기능만 멈추고 제품은
+     돈다. 예전에는 danger 라, 걷어낸 런타임을 가리키던 등록 행 넷이 정상 제품을 매일 장애로
+     보이게 만들었다. */
+  it("활성 연동이 down이면 위험이 아니라 주의로 올린다", () => {
+    const a = buildAlerts({ integrations: { messenger: { enabled: true, last_health: "down" } } }, "admin");
+    expect(a.find((x) => x.src === "integ:messenger")).toMatchObject({ value: "중단", kind: "warn", to: "/integrations" });
+  });
+
+  /* 저장소는 디스크와 다른 결함을 잡는다 — 자리는 넉넉한데 못 쓰는 경우다. 그리고
+     「설정 안 됨」은 장애가 아니다. */
+  it("운영 저장소에 못 쓰면 위험이지만, 설정 자체가 없으면 경보가 아니다", () => {
+    const broken = buildAlerts({
+      storage: { providers: [{ role: "operational", enabled: true, writable: false }] },
+    }, "system_admin");
+    expect(broken.find((x) => x.src === "storage")).toMatchObject({ kind: "danger" });
+
+    expect(buildAlerts({ storage: { providers: [] } }, "system_admin").find((x) => x.src === "storage")).toBeUndefined();
+    expect(buildAlerts({}, "system_admin").find((x) => x.src === "storage")).toBeUndefined();
+  });
+
+  it("업로드 폴더에 못 쓰면 위험이다(저장소 공급자와 별개 신호)", () => {
+    expect(buildAlerts({ uploads_writable: false }, "admin").find((x) => x.src === "uploads")).toMatchObject({ kind: "danger" });
+    expect(buildAlerts({ uploads_writable: true }, "admin").find((x) => x.src === "uploads")).toBeUndefined();
   });
 
   it("마지막 백업 없음/오래됨은 system_admin에게만 뜬다(캔 액트 없는 경보를 상시 띄우지 않는다)", () => {
@@ -239,5 +294,44 @@ describe("buildAlerts — 조치 대기 목록의 값(원본 로직 그대로)",
       disk: { used_pct: 90 },
     }, "admin");
     expect(a.map((x) => x.src)).toEqual(["maintenance", "job:failed", "job:queued", "disk"]);
+  });
+});
+
+
+/* 「지금 제품이 정상인가」 한 문장 — 조치 목록과 **같은 재료**로 만든다. 두 줄이 서로 다른
+ * 말을 하면 어느 쪽도 안 믿게 된다. */
+import { systemVerdict } from "./Dashboard.jsx";
+
+describe("systemVerdict", () => {
+  it("조치할 것이 없으면 정상이라고 말한다", () => {
+    expect(systemVerdict([])).toMatchObject({ tone: "ok", label: "정상" });
+    expect(systemVerdict([]).text).toBe("지금 조치가 필요한 문제가 없습니다.");
+  });
+
+  it("주의만 있으면 제품은 돌고 있다고 말한다 — 빨간 판정으로 올리지 않는다", () => {
+    const v = systemVerdict([{ kind: "warn" }, { kind: "warn" }]);
+    expect(v.tone).toBe("warn");
+    expect(v.text).toContain("지켜볼 것이 2건");
+  });
+
+  it("위험이 하나라도 있으면 위험이고, 주의 건수도 함께 말한다", () => {
+    const v = systemVerdict([{ kind: "danger" }, { kind: "warn" }]);
+    expect(v.tone).toBe("danger");
+    expect(v.text).toContain("문제가 1건");
+    expect(v.text).toContain("지켜볼 것이 1건");
+  });
+});
+
+/* 최근 주요 변경의 두 칸 — 대상 이름과 동작이 한 줄에 같은 낱말을 두 번 쓰지 않는다. */
+import { actionOnly } from "./Dashboard.jsx";
+
+describe("actionOnly", () => {
+  it("대상 칸과 겹치는 앞머리를 걷어 낸다", () => {
+    expect(actionOnly("user.role_change", "user")).toBe("역할 변경");
+    expect(actionOnly("cli.user.set_role", "user")).toContain("(CLI)");
+    expect(actionOnly("cli.user.set_role", "user").startsWith("사용자")).toBe(false);
+  });
+  it("겹치지 않으면 그대로 둔다", () => {
+    expect(actionOnly("approval.approve", "approval")).toBe("승인됨");
   });
 });

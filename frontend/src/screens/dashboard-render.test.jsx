@@ -57,15 +57,19 @@ describe("대시보드 — 빈 payload", () => {
     apiMock.mockResolvedValue({});
     renderDashboard();
 
-    // 섹션 뼈대는 그대로 선다(현재 큐 상태·인벤토리·지금 상태는 PA-RC-0018로 없어졌다).
-    expect(await screen.findByText("서비스 상태")).toBeInTheDocument();
-    expect(screen.getByText("작업 지표 (최근 24시간)")).toBeInTheDocument();
+    // 섹션 뼈대는 그대로 선다.
+    expect(await screen.findByText("필수 서비스")).toBeInTheDocument();
+    expect(screen.getByText("외부 연동")).toBeInTheDocument();
+    expect(screen.getByText("최근 24시간 작업")).toBeInTheDocument();
     expect(screen.getByText("백업")).toBeInTheDocument();
+    expect(screen.getByText("파일 저장소")).toBeInTheDocument();
     expect(screen.queryByText("현재 큐 상태")).toBeNull();
     expect(screen.queryByText("인벤토리")).toBeNull();
-    expect(screen.queryByText("지금 상태")).toBeNull();
     // 경보가 하나도 없으면 '조치 필요 없음'을 명시한다(빈 화면과 구분).
     expect(screen.getByText("지금 조치가 필요한 문제가 없습니다.")).toBeInTheDocument();
+    /* 🔴 연동이 하나도 없는 것은 **장애가 아니다.** 이 설치가 바깥으로 나가는 호출을 안
+       쓴다는 정상 상태이고, 그렇게 말한다. */
+    expect(screen.getByText(/추가된 외부 연동이 없습니다/)).toBeInTheDocument();
     // 감사 로그를 볼 수 있는 역할인데 목록이 비었으면 '정말 없다'고 말해 준다.
     expect(screen.getByText("최근 주요 변경 이력이 없습니다.")).toBeInTheDocument();
     // disk/memory/cert가 전부 없으면 '-' 죽은 타일 대신 섹션 자체가 사라진다.
@@ -106,15 +110,20 @@ describe("대시보드 — 빈 payload", () => {
     apiMock.mockResolvedValue({});
     renderDashboard();
 
-    expect(await screen.findByText("확인이 필요한 항목")).toBeInTheDocument();
+    expect(await screen.findByText("지금 상태")).toBeInTheDocument();
     expect(screen.getByText("마지막 백업")).toBeInTheDocument();
-    expect(screen.getByText("없음")).toBeInTheDocument();
+    // 경보 행의 값과 '백업' 구역의 값 둘 다 '없음'이다 — 같은 사실을 두 자리에서 말하는
+    // 것이 아니라, 하나는 조치 목록이고 하나는 그 구역의 사실이다.
+    expect(screen.getAllByText("없음").length).toBeGreaterThan(0);
     // 조치 목록의 기본 동작 버튼은 정확히 하나이고(이 경보 하나뿐이므로 primary), 백업
     // 구역의 버튼은 같은 화면의 두 번째 채운 버튼이 되지 않도록 outlined로 남는다
     // (PA-RC-0023 규범: 화면당 contained 정확히 1개).
     expect(screen.getAllByRole("button", { name: "백업 관리로 이동" })).toHaveLength(1);
     expect(screen.getByRole("button", { name: "백업 관리로 이동" }).className).toMatch(/containedPrimary/);
-    expect(screen.getByRole("button", { name: "백업 관리" }).className).not.toMatch(/contained/);
+    /* 운영 자료 구역의 이동 수단은 **버튼이 아니라 링크**다 — 이 화면에서 버튼은 조치
+       목록의 몫이라, 「지금 손대야 하는 것」과 「가서 보면 되는 것」이 같은 모양이 되지
+       않는다. 그래서 이 화면의 채운 버튼은 여전히 정확히 하나다. */
+    expect(screen.getByRole("button", { name: /백업 관리 →/ }).className).not.toMatch(/contained/);
   });
 });
 
@@ -131,7 +140,7 @@ describe("대시보드 — 경보와 정상 지표의 중복 없음(PA-RC-0018 a
     });
     const { container } = renderDashboard();
 
-    expect(await screen.findByText("확인이 필요한 항목")).toBeInTheDocument();
+    expect(await screen.findByText("지금 상태")).toBeInTheDocument();
     // 경보 행: 스케줄러 중단, 실패 2, 대기 4, 성공률 낮음(70%) — 넷 다 행으로 뜬다.
     expect(screen.getByText("2")).toBeInTheDocument(); // 실패 작업 값
     expect(screen.getByText("4")).toBeInTheDocument(); // 대기 작업 값
@@ -198,7 +207,7 @@ describe("대시보드 — 조치 버튼의 권한 노출(PA-RC-0018 acceptance 
     apiMock.mockResolvedValue({ jobs_24h: { failed_open: 3 } });
     renderDashboard();
 
-    expect(await screen.findByText("확인이 필요한 항목")).toBeInTheDocument();
+    expect(await screen.findByText("지금 상태")).toBeInTheDocument();
     // auditor는 /jobs 권한이 없다(NAV_ROLES) — 라벨에 "관리자 문의"가 붙고, 갈 곳이 없으니
     // 버튼도 "작업 큐 열기"라고 거짓 약속하지 않고 "이동 불가"로 비활성 표시한다.
     expect(screen.getByText(/실패 작업.*관리자 문의/)).toBeInTheDocument();
@@ -211,7 +220,7 @@ describe("대시보드 — 조치 버튼의 권한 노출(PA-RC-0018 acceptance 
     apiMock.mockResolvedValue({ jobs_24h: { failed_open: 3 } });
     renderDashboard();
 
-    expect(await screen.findByText("확인이 필요한 항목")).toBeInTheDocument();
+    expect(await screen.findByText("지금 상태")).toBeInTheDocument();
     const btn = screen.getByRole("button", { name: "작업 큐 열기" });
     expect(btn).not.toBeDisabled();
   });

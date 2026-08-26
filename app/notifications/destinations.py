@@ -55,7 +55,7 @@ RELATED_DESTINATIONS: dict[str, str] = {
     # ticket/document 항목이 추가될 때 이 자리만 표에서 빠져 related_route 가 늘 null
     # 이었다 — ticket_comment·document_comment 가 겪었던 것과 같은 결함이다.
     "board_post": "/board/{id}",
-    # 승인/스케줄/작업 큐/러너 — 넷 다 같은 모양의 결함이었다: 화면은 이미 `?id=`(작업 큐만
+    # 승인/스케줄/작업 큐/사용자 — 넷 다 같은 모양의 결함이었다: 화면은 이미 `?id=`(작업 큐만
     # `?job_id=`) 딥링크(`onQuery`)를 지원하고 백엔드도 그 id를 실어 `related=(...)`로
     # 이미 보내고 있는데(각 서비스 코드에서 직접 확인), 이 표에만 칸이 없어 `related_route`가
     # 항상 null이었다 — 예전에 이 표를 처음 만들 때 "목록 화면이라 id 자리가 없다"고 적어

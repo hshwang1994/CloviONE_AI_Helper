@@ -34,6 +34,93 @@ export function serviceLabel(name) {
   return s;
 }
 
+/* ── 상태 어휘 다섯 ──────────────────────────────────────────────────────────
+ *
+ * 관리 화면이 말할 수 있는 상태는 **다섯 개뿐**이고, 그 다섯이 서로 다른 뜻이다.
+ *
+ *   ok     정상        지금 떠 있다
+ *   warn   응답 없음   있어야 하는데 하트비트가 없다(재시작 직후 등)
+ *   down   중단        실제로 죽었다 — 관리자가 조치할 일이다
+ *   unset  미점검      한 번도 안 재 봤다. 「죽었다」가 아니다
+ *   off    사용 안 함  운영자가 꺼 뒀다. 장애가 아니다
+ *
+ * 🔴 **Red 는 `down` 하나뿐이다.** 「사용 안 함」과 「미점검」을 빨갛게 칠하면 정상적으로
+ * 돌고 있는 설치가 매일 장애처럼 보이고, 그러면 진짜 빨간 줄도 함께 안 읽힌다.
+ *
+ * 어휘를 여기 한 곳에 두는 이유는 실측된 결함 때문이다: 대시보드의 「외부 연동」 요약이
+ * `v === "up"` 만 세는 동안 그 아래 배지는 `statusText()` 로 그려져서, 같은 줄이
+ * 「정상」이라고 적혀 있는데 요약은 「정상 0 / 6」이라고 말하고 있었다. 세는 함수와
+ * 그리는 함수가 다른 표를 보면 언제나 이렇게 갈라진다. */
+export const SERVICE_STATE_LABEL = {
+  ok: "정상", warn: "응답 없음", down: "중단", unset: "미점검", off: "사용 안 함",
+};
+/* 배지·타일이 쓰는 톤. `kit.jsx::Badge` 의 kind 어휘와 같은 낱말이다. */
+export const SERVICE_STATE_KIND = {
+  ok: "ok", warn: "warn", down: "danger", unset: "neutral", off: "neutral",
+};
+
+/** 필수 서비스(하트비트) 한 칸의 상태. `up`·`down`·`unknown`(app/health/service.py). */
+export function componentState(raw) {
+  if (raw === "up") return "ok";
+  if (raw === "down") return "down";
+  // 하트비트 행이 없거나 낡았다. 필수 서비스라 「없어도 되는 것」이 아니므로 주의로 본다.
+  return "warn";
+}
+
+/** 외부 연동 한 칸의 상태. `{enabled, last_health, last_health_at}` 를 받는다.
+ *
+ * 꺼 둔 것이 가장 먼저다 — 꺼 둔 연동의 `last_health` 는 껐을 때의 값이 그대로 굳어
+ * 있어서, 그 값을 먼저 보면 꺼 놓은 것이 「중단」으로 보인다.
+ *
+ * `unknown` 은 **한 번도 안 잰 것**이다(`last_health_status` 의 기본값). 방금 등록한
+ * 연동은 첫 스윕 전까지 늘 이 상태라, 이것을 빨갛게 칠하면 등록하는 순간 장애가 뜬다. */
+export function integrationState(entry) {
+  const v = entry || {};
+  if (v.enabled === false) return "off";
+  const h = v.last_health;
+  if (h === "up") return "ok";
+  if (h === "down") return "down";
+  return "unset";
+}
+
+/** 상태 문자열들을 세어 `{ok, warn, down, unset, off, total}` 로. */
+export function countStates(states) {
+  const out = { ok: 0, warn: 0, down: 0, unset: 0, off: 0, total: 0 };
+  (Array.isArray(states) ? states : []).forEach((s) => {
+    if (out[s] === undefined) return;
+    out[s] += 1;
+    out.total += 1;
+  });
+  return out;
+}
+
+/** 「정상 3 / 4」 한 줄. 세는 기준이 위 어휘와 같아야 배지와 요약이 안 갈라진다. */
+export function upSummaryText(states) {
+  const c = countStates(states);
+  return `정상 ${c.ok} / ${c.total}`;
+}
+
+/* 저장소 한 줄 판정. `storage_health()`(app/storage/service.py)를 받는다.
+ *
+ * 저장소가 **하나도 없는 것**과 **있는데 못 쓰는 것**은 다른 사실이다. `operational_ok`
+ * 는 `bool(operational) and all(writable)` 이라 둘 다 false 로 뭉개진다 — 여기서
+ * providers 를 직접 보고 갈라 준다(없으면 미설정, 있는데 못 쓰면 중단). */
+export function storageState(storage) {
+  const s = storage || {};
+  const providers = Array.isArray(s.providers) ? s.providers : [];
+  const operational = providers.filter((p) => p && p.role === "operational" && p.enabled);
+  if (!providers.length) return { state: "unset", detail: "저장소가 설정되지 않았습니다." };
+  if (!operational.length) return { state: "unset", detail: "쓰고 있는 운영 저장소가 없습니다." };
+  const broken = operational.filter((p) => !p.writable);
+  if (broken.length) {
+    return {
+      state: "down",
+      detail: `운영 저장소 ${broken.length}개에 쓸 수 없습니다.`,
+    };
+  }
+  return { state: "ok", detail: `운영 저장소 ${operational.length}개가 정상입니다.` };
+}
+
 // 마지막 성공 백업 이후 이만큼 지나면 '오래됨' 경보를 띄운다, 성공/실패 이분법(마지막 백업 없음)만
 // 보면, 몇 주째 계속 실패 중인데도 예전의 마지막 성공 기록이 남아 있어 조용히 '정상'처럼 보인다.
 export const BACKUP_STALE_DAYS = 7;
@@ -137,7 +224,7 @@ export function errorBuckets(errors, bins = 12) {
 // 외부 연동 상태·최근 백업 실패 여부)를 검사한다 — 어느 타일이라도 warn/danger면 '정상'이라 말하지 않는다
 // (예전엔 disk/mem warn 밴드와 성공률·대기를 아예 빼먹어, 성공률 60%로 빨간 타일이 떠도 상단은 '시스템 정상'이라
 // 거짓 안심시켰다; 외부 연동 중단도 마찬가지로 빠져 있어 '외부 연동' 섹션이 빨간 배지를 보여도 상단은 정상이라 했다).
-export function healthVerdict(comps, disk, mem, certDays, jobs, integrations, backup) {
+export function healthVerdict(comps, disk, mem, certDays, jobs, integrations, backup, storage) {
   // problems는 {msg, tone} 객체 배열이다 — 예전엔 문자열만 담아, 디스크 warn과 컴포넌트 down이
   // 동시에 나면 한 배너 안에서 둘 다 색·모양이 똑같아 어느 항목이 진짜 급한지 구분이 안 됐다.
   // dang()/warn()이 이미 그 순간의 심각도를 알고 있으므로 그 정보를 항목별로 함께 담아 아래
@@ -182,16 +269,29 @@ export function healthVerdict(comps, disk, mem, certDays, jobs, integrations, ba
   if (jobs.queued) warn("대기 작업 " + jobs.queued + "건");
   // 미해결 실패(전체): >0 danger (아래 타일과 동일)
   if (jobs.failed_open) dang("미해결 실패 작업 " + jobs.failed_open + "건");
-  // 외부 연동: down(비활성 제외) — '외부 연동' 섹션 배지와 동일 기준,
-  // Dashboard.jsx의 대시보드 상단 경보 기준과도 일치시킨다.
+  /* 외부 연동: down(비활성·미점검 제외) — '외부 연동' 섹션 배지·대시보드 조치 목록과 같은 기준.
+   *
+   * 🔴 **위험이 아니라 주의다.** 예전에는 `dang()` 이라, 선택 구성요소 하나가 죽으면 필수
+   * 서비스가 전부 멀쩡한데도 상단이 「위험」으로 붉어졌다. 운영 실측(2026-08-26)에서
+   * 걷어낸 런타임을 가리키던 등록 행 넷이 정확히 그 화면을 만들었다 — 정상 제품이 매일
+   * 장애로 보였고, 그 사이 진짜 빨간 줄이 섞여도 구별되지 않았다.
+   *
+   * 연동은 **바깥으로 나가는 선택 호출**이다. 죽으면 그 기능만 멈추고 제품은 돈다. 필수
+   * 서비스(위 comps 루프)와 같은 등급으로 세지 않는다.
+   *
+   * 'unknown'(미점검)은 여전히 안 센다: 갓 등록한 연동은 첫 스윕 전까지 늘 그 값이라,
+   * 주의로 올리면 등록하는 순간 노란불이 켜진다(섹션 배지가 '미점검'으로 이미 말한다). */
   Object.entries(integrations || {}).forEach(([name, v]) => {
-    if (!v || v.enabled === false) return;
-    // 'degraded'는 백엔드가 만들어내지 않는 값이라(models.py는 up/down/unknown만, writer도 up/down만
-    // 기록) 죽은 분기였다 — 제거한다. 'unknown'(미점검)은 Dashboard.jsx 상단 경보와 동일하게 의도적으로
-    // 세지 않는다: 갓 만든/시드된 연동은 첫 헬스체크 전까지 늘 unknown이라, 이를 '주의'로 올리면 정상
-    // 설치가 상시 노란불이 된다(바로 아래 '외부 연동' 섹션에서 '미점검' 배지로 이미 드러난다).
-    if (v.last_health === "down") dang(serviceLabel(name) + " 연동 중단");
+    if (integrationState(v) !== "down") return;
+    warn(serviceLabel(name) + " 연동 중단");
   });
+  /* 저장소: 운영 저장소에 못 쓰면 첨부·업로드가 통째로 멈춘다 — 디스크 용량과 다른 결함이다
+     (용량은 멀쩡한데 마운트가 빠지거나 소유권이 어긋난 경우). 「설정 안 됨」은 장애가 아니다. */
+  if (storage) {
+    const st = storageState(storage);
+    if (st.state === "down") dang(st.detail);
+    if (storage.warning) warn(storage.warning);
+  }
   // 백업: 실패는 danger, '없음'·'오래됨'은 Dashboard.jsx(daysSince/BACKUP_STALE_DAYS)와 같은 기준으로
   // 상단 요약에도 반영한다 — 예전엔 last_backup_status==='failed'만 보고 null·stale은 지나쳐,
   // Dashboard는 '마지막 백업 없음/오래됨' 경보를 띄우는데 이 화면 상단만 '정상'이라 서로 어긋났다.

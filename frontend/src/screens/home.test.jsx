@@ -205,30 +205,46 @@ describe("홈 '오늘' — 커맨드 센터", () => {
     // 카드에서 빠지고 사이드바 "채팅방"/"자유게시판"으로 돌아갔다 — 더 이상 이 화면의 구역이
     // 아니다.
     const level2Names = screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
-    for (const fixed of ["이번 주 내 진척", "최근 문서", "AI 도우미"]) {
+    for (const fixed of ["이번 주", "최근 문서", "AI 도우미"]) {
       expect(level2Names).toContain(fixed);
     }
     // 티켓 칸 제목은 "진행 중 (4건)"처럼 고른 칸에 따라 바뀐다 — 값이 아니라 모양만 확인한다.
     expect(level2Names.some((t) => /\(\d+건\)$/.test(t))).toBe(true);
-    // 0060: '내 업무' 구역이 관리자 대시보드에서 이 화면으로 옮겨와 h2 가 하나 늘었다.
-    expect(level2Names).toHaveLength(5);
+    /* 최상위 구역은 **넷**이다: 오늘 할 일 · AI 도우미(본문 열), 이번 주 · 최근 문서(레일).
+       예전에는 다섯이었다 — '이번 주 내 진척'과 '내 업무'가 따로 있었고 그 둘이 같은 주의
+       같은 수를 각자 말했다. 하나로 합치면서 h2 가 하나 줄었다. */
+    expect(level2Names).toHaveLength(4);
     // AssistantPanel 내부 소제목(내 몫 등)이 h3로 낮아졌는지는 assistant-panel.test.jsx가
     // 그 화면 자신의 데이터 모양으로 직접 확인한다.
   });
 
-  // VIS-35: 티켓 카드(행 수만큼 커짐)와 AssistantPanel을 같은 왼쪽 열에 쌓아 두면, 실데이터가
-  // 있을수록 오른쪽 SideRail(고정 크기 카드 둘)과의 높이 차이가 벌어져 오른쪽 아래에 큰 흰
-  // 여백이 남았다. AssistantPanel을 격자 밖 전체 폭으로 내려 그 조합 자체를 없앤다.
-  it("AssistantPanel은 티켓/속성 2단 격자 밖, 전체 폭에 있다(격자 안에서 왼쪽 열과 쌓이지 않는다)", async () => {
+  /* 🔴 두 열은 서로의 높이에 매이지 않는다.
+   *
+   * 예전에는 본문 격자가 **한 줄**이었고 그 아래에 '내 업무'와 AI 도우미가 전체 폭으로
+   * 이어졌다. 격자 한 줄의 높이는 두 칸 중 큰 쪽이 정하므로, 레일이 티켓 카드보다 길면
+   * 왼쪽 카드 아래에 레일 높이만큼의 빈 판이 남았다(실측: 티켓 두 건인 계정에서 화면 절반).
+   *
+   * 지금은 격자가 **독립된 세로 흐름 둘**을 담고, 격자 **뒤에 오는 것이 없다** — 뒤에
+   * 무엇이든 두면 그것이 다시 두 열 중 큰 쪽을 기다린다. 그 성질을 DOM 으로 고정한다. */
+  it("본문 열과 레일이 각자 쌓이고, 격자 뒤에 이어지는 구역이 없다", async () => {
     routeApi();
     renderHome();
     await screen.findByText("오늘 마감");
 
     const grid = screen.getByTestId("home-body-grid");
-    const heading = screen.getByRole("heading", { level: 2, name: "AI 도우미" });
-    expect(grid.contains(heading)).toBe(false);
-    // 격자 다음에 이어지는 형제 구역이어야 한다(화면에서 그 아래로 온다).
-    expect(grid.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const ai = screen.getByRole("heading", { level: 2, name: "AI 도우미" });
+    const week = screen.getByRole("heading", { level: 2, name: "이번 주" });
+    const docs = screen.getByRole("heading", { level: 2, name: "최근 문서" });
+    // 네 구역이 전부 격자 안에 있다 — 격자 뒤에 남는 것이 없어야 높이가 안 묶인다.
+    for (const h of [ai, week, docs]) expect(grid.contains(h)).toBe(true);
+    expect(grid.children).toHaveLength(2);
+
+    // AI 도우미는 본문 열(첫 칸), 이번 주·최근 문서는 레일(둘째 칸)에 산다.
+    const [main, rail] = grid.children;
+    expect(main.contains(ai)).toBe(true);
+    expect(rail.contains(ai)).toBe(false);
+    expect(rail.contains(week)).toBe(true);
+    expect(rail.contains(docs)).toBe(true);
   });
 
   it("'막힘(이슈)'은 채팅 설정과 무관하게 항상 있다", async () => {

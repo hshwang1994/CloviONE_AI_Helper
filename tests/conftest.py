@@ -558,8 +558,7 @@ def two_orgs(db, make_user) -> "OrgWorld":
 
 # ── 설치가 끝난 세계 (9-3) ────────────────────────────────────────────────────
 #
-# 기본 테스트 세계는 마이그레이션만 돈 **갓 설치한** 상태다: 부서도 Notion 토큰도 러너도
-# 연동도 없다. 그 상태에서 사용자 화면 배너는 이제 "초기 설정이 아직 끝나지 않았습니다" 를
+# 기본 테스트 세계는 마이그레이션만 돈 **갓 설치한** 상태다: 부서도 AI 도 연동도 없다. 그 상태에서 사용자 화면 배너는 이제 "초기 설정이 아직 끝나지 않았습니다" 를
 # 말한다(app/setup/checklist.py) - 그게 이 과제가 없애려던 침묵의 반대편이다.
 #
 # 그래서 "정상이면 배너가 조용하다" 같은 성질을 검사하는 테스트는 **정상인 세계**를 먼저
@@ -571,10 +570,11 @@ def two_orgs(db, make_user) -> "OrgWorld":
 def setup_complete(db, app, settings, make_user, fake_clock):
     """셋업 체크리스트가 일반 사용자에게 말할 것이 없는 상태로 만든다.
 
-    사용자에게 보이는 항목(조직, Notion, 매핑, AI, 연동)만 채운다. 관리자 계정과 TLS 는
-    사용자 화면이 비는 이유가 아니라 배너에 쓰이지 않는다(app/setup/steps.py).
+    사용자에게 보이는 항목(조직, AI, 연동)만 채운다. 관리자 계정과 TLS 는 사용자 화면이
+    비는 이유가 아니라 배너에 쓰이지 않는다(app/setup/steps.py). 「Notion 토큰」과
+    「사용자 매핑」 단계는 그 런타임과 함께 없어졌다(S14).
 
-    AI 항목은 S11 부터 Model Gateway 가 판정한다 — 러너 행을 심는 것으로는 안 되고,
+    AI 항목은 S11 부터 Model Gateway 가 판정한다 — 레지스트리 행을 심는 것으로는 안 되고,
     이 앱이 실제로 읽는 `app.state.ai_gateway` 를 「둘 다 된다」로 바꿔야 한다.
     """
     from app.ai.gateway import contract
@@ -617,10 +617,14 @@ def setup_complete(db, app, settings, make_user, fake_clock):
             component=COMPONENT_DOCUMENTS, status=SYNC_OK, last_success_at=now, item_count=1
         )
     )
+    # 🔴 예전에는 이 픽스처가 `provider_type="notion"` · `https://api.notion.com` 짜리 행을
+    # 심었다. 그 런타임은 S14 가 걷었고 그 호스트는 런타임 허용 목록에도 없다
+    # (`config/allowed-services.json`) — **제품이 오늘 만들 수 없는 행**을 시험이 만들고
+    # 있었던 셈이다. 지금 만들 수 있는 유형 하나(`http_service`)로 심는다.
     db.add(
         Integration(
-            name="setup-notion", provider_type="notion",
-            base_url="https://api.notion.com",
+            name="사내 메신저", provider_type="http_service",
+            base_url="https://example.invalid/messenger",
             capabilities_json="{}", enabled=True, last_health_status=HEALTH_UP,
         )
     )

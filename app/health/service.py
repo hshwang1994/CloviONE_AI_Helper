@@ -352,8 +352,21 @@ def build_dashboard(
                 else {}
             ),
         },
+        # 외부 연동은 **선택 구성요소**다. `components` 와 한 묶음으로 세지 않는다 —
+        # 필수 서비스 셋이 전부 떠 있는데 연동 하나가 죽었다고 「서비스 정상 3 / 4」로
+        # 보이면 운영자는 제품이 고장 났다고 읽는다(0017 이 지운 죽은 등록 행 넷이 실제로
+        # 그 화면을 만들었다).
+        #
+        # `last_health_at` 을 함께 싣는다. 「중단」이라는 말은 **언제 잰 값인가**를 알아야
+        # 믿을 수 있고, 값이 None 이면 그것은 중단이 아니라 **한 번도 안 잰 것**이다
+        # (`last_health_status` 의 기본값이 `unknown` 인 이유가 그것이다). 화면이 그 둘을
+        # 같은 빨간색으로 그리지 않으려면 이 칸이 필요하다.
         "integrations": {
-            i.name: {"enabled": i.enabled, "last_health": i.last_health_status}
+            i.name: {
+                "enabled": i.enabled,
+                "last_health": i.last_health_status,
+                "last_health_at": i.last_health_at.isoformat() if i.last_health_at else None,
+            }
             for i in db.execute(select(Integration)).scalars().all()
         },
         "counts": {
