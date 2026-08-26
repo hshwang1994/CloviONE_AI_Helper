@@ -90,17 +90,24 @@ const BODY_GRID = {
   },
 };
 
-/* 판 셋의 **높이 예산**. 값과 근거는 `ui/density.js::PLATE_BUDGET` 한 곳에 있다.
+/* 업무 판의 **높이 계약**. 값과 근거는 `ui/density.js::PLATE_BUDGET.today` 한 곳에 있다.
  *
- * 예전에는 이 자리에 판의 최소 높이(17rem)와 목록의 최대 높이(20rem)가 **따로** 있었다.
- * 그 둘은 서로를 모르는 두 숫자라, 실측하면 판이 272 / 440 / 451px 세 높이로 서 있었다 —
- * 가장 큰 것이 하필 **0건**이었다(빈 상태가 자기 높이를 스스로 만들었다). 「최소 높이를
- * 줬다」와 「높이가 안정적이다」는 다른 말이다.
+ * 아래 `VIEWS` 다섯은 판 다섯이 아니라 **한 판의 다섯 칸**이다. 그래서 이 판은 예산
+ * (범위)이 아니라 계약(하나의 높이)을 갖는다 — 데스크톱에서 어떤 칸을 누르든, 그 칸에
+ * 0건이 있든 30건이 있든 판의 바깥 높이가 같다. 판이 칸마다 다른 높이로 서면 바로 아래에
+ * 있는 AI 도우미가 누를 때마다 위아래로 뛴다(실측: 같은 판이 164~512px 사이를 오갔다).
  *
- * 지금은 판이 «바닥과 천장» 을 함께 갖고, 넘치는 것은 판이 아니라 판 안의 자라는 칸이
- * 맡는다. 머리(제목·전체 보기)와 꼬리(잘랐다는 안내)는 그 칸 밖이라 언제나 보인다. */
-const TODAY_CARD = plateBudget("today");
-const TODAY_BODY = BUDGET_BODY;
+ * 안에서는 셋이 각자 자기 일을 한다:
+ *   머리   제목과 「내 티켓 전체」 — 계약 높이 안에 고정이라 굴려도 안 사라진다
+ *   몸     남는 높이를 받는 칸(`BUDGET_BODY`). 목록만 그 안에서 굴린다(`BUDGET_SCROLL`)
+ *   꼬리   「N건만 표시했습니다」 — 몸 밖이라 언제나 보인다
+ *
+ * 0건은 몸 전체를 채우는 가운데 구성(`EmptyState layout="card"`)이라, 계약 높이가 곧
+ * 클로비가 서는 자리가 된다. 소량일 때 목록 아래가 남는 것은 이 판이 받아들이는 값이다 —
+ * 「칸마다 같은 높이」와 「빈 자리 없음」은 한 판에서 동시에 참일 수 없고, 사용자가 이
+ * 판에서는 앞을 골랐다(D-348). 좁은 화면에는 계약이 없다 — 세로로 자연스럽게 흐른다. */
+const WORK_PANEL = plateBudget("today");
+const WORK_PANEL_BODY = BUDGET_BODY;
 
 const VIEWS = [
   { key: "due_today", label: "오늘 마감", kind: "warn" },
@@ -303,9 +310,9 @@ export function Home() {
           <Box sx={{ mb: 2.5 }}><Skeleton lines={2} /></Box>
           <Box sx={BODY_GRID}>
             <Stack gap={GRID_GAP}>
-              {/* 판의 최소 높이를 스켈레톤에도 그대로 준다 — 이것이 없으면 로딩이 끝나는
-                  순간 아래 AI 도우미가 한 판 높이만큼 아래로 밀린다. */}
-              <Card sx={TODAY_CARD}><Skeleton lines={6} /></Card>
+              {/* 업무 판의 계약 높이를 스켈레톤에도 그대로 준다 — 이것이 없으면 로딩이
+                  끝나는 순간 아래 AI 도우미가 한 판 높이만큼 아래로 밀린다. */}
+              <Card sx={WORK_PANEL}><Skeleton lines={6} /></Card>
               <Card><Skeleton lines={5} /></Card>
             </Stack>
             <Stack gap={GRID_GAP}>
@@ -369,7 +376,8 @@ function HomeBody({ data, focus, onFocus, onEdit, onOpen }) {
       <Box data-testid="home-body-grid" sx={BODY_GRID}>
         {/* 본문 열 — 오늘 할 일과 그 해석. 두 카드 다 데이터 양에 따라 길이가 변한다. */}
         <Stack gap={GRID_GAP} sx={{ minWidth: 0 }}>
-          <Card sx={TODAY_CARD}>
+          {/* 업무 판 — 판독 줄에서 고른 칸의 내용이 여기 들어온다. 바깥 높이는 계약이다. */}
+          <Card sx={WORK_PANEL}>
             {/* SEM-02: 이 화면은 h1(PageHeader "오늘") 아래 최상위 구역이 넷이고 전부 h2 다.
                 제목과 「내 티켓 전체」는 목록 칸 밖에 있어 목록을 굴려도 안 사라진다. */}
             <SectionTitle
@@ -377,11 +385,11 @@ function HomeBody({ data, focus, onFocus, onEdit, onOpen }) {
               title={`${view.label} ${total}건`}
               action={<Link href="#/my-tickets" underline="hover">내 티켓 전체</Link>}
             />
-            <Box sx={TODAY_BODY}>
+            <Box sx={WORK_PANEL_BODY}>
               {conn ? conn : rows.length ? (
                 <>
-                  {/* 목록 칸만 굴린다 — 티켓이 늘어도 판이 예산의 천장에서 멈춘다.
-                      짧으면 스크롤바도 초점도 없다(`ScrollArea`). */}
+                  {/* 목록 칸만 굴린다 — 티켓이 늘어도 판은 계약 높이에 그대로 선다.
+                      짧으면 스크롤바도 초점도 없고 목록이 위에서부터 그려진다(`ScrollArea`). */}
                   <ScrollArea sx={BUDGET_SCROLL} ariaLabel={`${view.label} 티켓 목록`}>
                     <DataTable
                       /* compact: 본문 열은 2단 배치라 좁다 — 4K 계약의 '표(핵심열)'을 그대로
