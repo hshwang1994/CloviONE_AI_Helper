@@ -119,8 +119,12 @@ export const MASCOT_PLACE = {
      비어 있는 것**이라 「의도해서 만든 빈 상태」로 읽혀야 한다.
      `empty_state` 가 아니라 `inline` 을 선언하는 이유는 `emptyRegion` 과 같다: 그 밴드의
      뒤쪽 절반(컨테이너의 40% 이하)은 컨테이너 높이를 그림이 **아닌 것**이 정할 때만
-     성립하는데, 좁은 화면에서는 판의 높이 계약이 풀려 그림이 가장 큰 요소가 된다. */
-  emptyCard:     { visible: 112, context: "inline" },
+     성립하는데, 좁은 화면에서는 판의 높이 계약이 풀려 그림이 가장 큰 요소가 된다.
+     112 였다. 실측(1920)에서 판 451px 안의 그림이 180px 라 **시각적 중심이 아니라 삽화**
+     였다 — 제목과 설명과 버튼이 같은 무게로 서서 「이 판은 비어 있다」가 한눈에 안 읽혔다.
+     `emptyPage` 와 같은 132 로 올린다. 두 자리는 같은 뜻(이 면이 통째로 비었다)이고,
+     다른 것은 «면» 이 화면이냐 판이냐뿐이라 보이는 크기가 같아야 한다. */
+  emptyCard:     { visible: 132, context: "inline" },
   emptyRegion:   { visible: 84,  context: "inline" },
   emptyCompact:  { visible: 84,  context: "inline" },
   errorState:    { visible: 112, context: "empty_state" },

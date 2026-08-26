@@ -171,9 +171,10 @@ export function WorkSection() {
 
   return (
     <>
-      {/* `first` 를 안 준다 — 이 묶음 위에는 언제나 스프린트 진척이 있다(Home.jsx 의
-          「이번 주」 카드). 위에 가를 것이 있으면 실선을 그린다. */}
-      <SubGroup title="프로젝트">
+      {/* `first` 를 준다 — 이 묶음 위에 스프린트 진척이 있는 것은 맞지만, 그 둘을 가르는
+          실선은 이제 **굴리지 않는 상자**가 갖는다(Home.jsx 의 「이번 주」 판). 여기에
+          두면 몇 줄만 굴려도 경계가 스크롤 밖으로 사라진다. */}
+      <SubGroup title="프로젝트" first>
         <Box component="ul" sx={{ m: 0, p: 0 }}>
           <StatRow
             label="차질 프로젝트" value={fmtNum(troubled.count)}

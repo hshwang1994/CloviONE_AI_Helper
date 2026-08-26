@@ -1739,7 +1739,16 @@ export function DataTable({ columns, rows, rowKey, onRow, empty, ellipsis, stick
           {collapse.caption}
         </Typography>
       ) : null}
-      <TableContainer>
+      {/* 🔴 `stickyHeader` 는 «바깥에 굴러가는 상자가 있다» 는 뜻이다. 그런데 MUI
+          `TableContainer` 는 기본이 `overflow-x: auto` 라 **자기가 스크롤 컨테이너가
+          된다** — 그 순간 `position: sticky` 한 열 이름이 붙는 대상이 바깥 상자가 아니라
+          이 상자가 되고, 이 상자에는 높이 제한이 없어 절대 굴러가지 않는다. 결과는
+          「속성은 sticky 인데 굴리면 열 이름이 사라진다」다.
+          실측(2026-08-26 · 홈 「오늘 마감」 12행): 176px 굴렸더니 열 이름이 정확히 176px
+          위로 사라졌다. 속성만 재는 검사로는 안 보인다 — `getComputedStyle(th).position`
+          은 그때도 `sticky` 였다.
+          그래서 이 경우에만 넘침을 바깥에 넘긴다. 가로 넘침도 같은 바깥 상자가 맡는다. */}
+      <TableContainer sx={stickyHeader ? { overflowX: "visible", overflowY: "visible" } : null}>
       {/* 표 리듬 (지시 10) — 세로 괘선이 없고, 행 사이는 실선 하나로만 나눈다. 마지막 행의
           아래 선은 지운다(판의 테두리와 겹쳐 두 줄로 보인다). 행 추적은 괘선이 아니라
           **hover 면**과 머리행의 굵은 선이 만든다 — 엑셀 표가 아니라 계기판 판독부다. */}

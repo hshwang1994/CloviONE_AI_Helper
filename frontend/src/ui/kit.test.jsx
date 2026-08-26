@@ -272,6 +272,28 @@ describe("DataTable", () => {
       expect(bg).not.toBe("transparent");
       expect(bg).not.toMatch(/rgba\([^)]*,\s*0\s*\)$/);
     });
+
+    /* 🔴 위 두 시험은 **속성만** 본다. 그래서 이 결함을 3회차 동안 못 잡았다: 열 이름의
+       `position` 은 내내 `sticky` 였는데 실브라우저에서는 굴리면 사라졌다(실측 2026-08-26 ·
+       홈 「오늘 마감」 12행: 176px 굴렸더니 열 이름이 정확히 176px 위로 사라졌다).
+       원인은 표를 감싼 `TableContainer` 다 — 기본이 `overflow-x: auto` 라 **자기가 스크롤
+       컨테이너가 되고**, sticky 는 그 상자에 붙는다. 그 상자에는 높이 제한이 없으니 절대
+       굴러가지 않고, 결국 열 이름은 바깥 상자와 함께 위로 밀려 나간다.
+       그래서 여기서는 «붙을 대상이 바깥에 있는가» 를 본다. */
+    it("stickyHeader=true면 표를 감싼 상자가 **스스로 굴러가지 않는다**", () => {
+      ui(<DataTable columns={columns} rows={rows} rowKey={(r) => r.id} stickyHeader />);
+      const container = screen.getByRole("table").parentElement;
+      expect(container.className).toMatch(/MuiTableContainer-root/);
+      // 축 이름을 그대로 적는다 — 줄임 표기(`overflow`)는 jsdom 이 축별 값으로 펴지 않아
+      // 「시험은 통과하는데 브라우저는 다르게 읽는다」가 다시 생긴다.
+      expect(getComputedStyle(container).overflowX).toBe("visible");
+    });
+
+    it("stickyHeader 가 없으면 넓은 표는 그 상자가 가로로 굴린다 — 전역으로 끄지 않는다", () => {
+      ui(<DataTable columns={columns} rows={rows} rowKey={(r) => r.id} />);
+      const container = screen.getByRole("table").parentElement;
+      expect(getComputedStyle(container).overflowX).toBe("auto");
+    });
   });
 
   /* VIS-73/RESP-01/RESP-02/HOST-01/HOST-02 — 열 폭이 순수하게 내용에서 파생돼 ① 열이 많으면

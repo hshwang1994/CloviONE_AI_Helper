@@ -13,7 +13,7 @@ import {
   SectionTitle, Skeleton, SubGroup,
 } from "../ui/kit.jsx";
 import { Donut } from "../ui/charts/Donut.jsx";
-import { GRID_GAP } from "../ui/density.js";
+import { BUDGET_BODY, BUDGET_SCROLL, GRID_GAP, plateBudget } from "../ui/density.js";
 import { KO_WORD_BREAK } from "../ui/theme.js";
 import { ticketColumns, ticketConnState, TicketEditModal } from "./MyTickets.jsx";
 import { AssistantPanel } from "./AssistantPanel.jsx";
@@ -90,33 +90,17 @@ const BODY_GRID = {
   },
 };
 
-/* 「오늘 마감」 판의 **높이 범위** (사용자 지시 §1 · §2).
+/* 판 셋의 **높이 예산**. 값과 근거는 `ui/density.js::PLATE_BUDGET` 한 곳에 있다.
  *
- * 해상도별 고정 px 을 박지 않는다. 아래 셋이 함께 «범위» 를 만든다:
+ * 예전에는 이 자리에 판의 최소 높이(17rem)와 목록의 최대 높이(20rem)가 **따로** 있었다.
+ * 그 둘은 서로를 모르는 두 숫자라, 실측하면 판이 272 / 440 / 451px 세 높이로 서 있었다 —
+ * 가장 큰 것이 하필 **0건**이었다(빈 상태가 자기 높이를 스스로 만들었다). 「최소 높이를
+ * 줬다」와 「높이가 안정적이다」는 다른 말이다.
  *
- *   판 minHeight      0건일 때 제목 한 줄짜리 판이 되어 다음 구역이 위로 튀어 올라오는
- *                     것을 막는다. 빈 상태가 이 높이를 채운다(`EmptyState layout="card"`).
- *   목록 maxHeight    티켓이 늘어도 판이 계속 아래로 자라지 않는다 — 목록 칸만 굴린다.
- *
- * 최소 높이는 **17rem** 이다. 더 크게 주면(22rem 을 재 봤다) 두 줄짜리 목록 아래에 120px 가
- * 비어, 안정적인 대신 «빈 판» 이 된다. 이 값이면 한 줄과 다섯 줄 사이에서 아래 AI 도우미가
- * 안 움직이면서도 남는 자리가 40px 뿐이다.
- *
- * 좁은 화면(lg 미만)에는 **아무 높이도 주지 않는다.** 세로로 쌓인 화면에서 판마다 최소
- * 높이를 주면 스크롤만 길어지고, 그 자리에서는 자연스러운 세로 흐름이 맞다. */
-const TODAY_CARD = {
-  display: "flex", flexDirection: "column",
-  minHeight: { lg: "17rem" },
-};
-const TODAY_BODY = { flex: 1, minHeight: 0, display: "flex", flexDirection: "column" };
-
-/* 목록 칸의 높이 상한 — **넓은 화면에만 준다.**
- *
- * 세로로 쌓인 좁은 화면에서는 브라우저 스크롤 안에 또 스크롤 칸을 만드는 것이 손해다.
- * 손가락으로 훑다가 그 칸에 들어가면 페이지가 안 움직이고, 무엇보다 좁은 화면에서는 판이
- * 길어지는 것이 자연스러운 세로 흐름이다(사용자 지시 §1 마지막 줄). */
-const TODAY_LIST_MAX = { xs: "none", lg: "20rem" };
-const DOC_LIST_MAX = { xs: "none", lg: "15rem" };
+ * 지금은 판이 «바닥과 천장» 을 함께 갖고, 넘치는 것은 판이 아니라 판 안의 자라는 칸이
+ * 맡는다. 머리(제목·전체 보기)와 꼬리(잘랐다는 안내)는 그 칸 밖이라 언제나 보인다. */
+const TODAY_CARD = plateBudget("today");
+const TODAY_BODY = BUDGET_BODY;
 
 const VIEWS = [
   { key: "due_today", label: "오늘 마감", kind: "warn" },
@@ -231,10 +215,10 @@ function RecentDocuments({ items }) {
     );
   }
   return (
-    /* 문서는 계속 늘어나는 보조 목록이다 — 칸에 높이를 주고 그 안에서 굴린다. 짧으면
-       스크롤바가 안 생기고, 그때는 초점도 안 받는다(`ScrollArea`). 제목과 「문서 전체」는
-       이 칸 밖에 있어 언제나 보인다. */
-    <ScrollArea maxHeight={DOC_LIST_MAX} ariaLabel="최근 문서 목록">
+    /* 문서는 계속 늘어나는 보조 목록이다 — 판의 예산이 남긴 높이만 쓰고 넘치면 굴린다.
+       짧으면 스크롤바가 안 생기고, 그때는 초점도 안 받는다(`ScrollArea`). 제목과
+       「문서 전체」는 이 칸 밖에 있어 언제나 보인다. */
+    <ScrollArea sx={BUDGET_SCROLL} ariaLabel="최근 문서 목록">
       <Stack component="ul" gap={1} sx={{ listStyle: "none", m: 0, p: 0 }}>
         {items.map((d) => (
           <RowLink
@@ -261,19 +245,26 @@ function SideRail({ data }) {
   const recent = data.recent || {};
   return (
     <Stack gap={GRID_GAP} sx={{ minWidth: 0 }}>
-      <Card>
+      <Card sx={plateBudget("week")}>
         <SectionTitle
           component="h2"
           title="이번 주"
           action={<Link href="#/sprint" underline="hover">스프린트 회의</Link>}
         />
-        {/* 첫 묶음은 위에 가를 것이 없다. 아래 `WorkSection` 의 두 묶음이 실선을 갖는다. */}
+        {/* **핵심 요약은 굴리지 않는다** (사용자 지시 §3). 이 주에 얼마나 끝냈는가는 이
+            판의 결론이라 언제나 같은 자리에 있어야 한다. 첫 묶음이므로 위에 가를 것이 없다. */}
         <SubGroup first>
           <SprintProgress sprint={data.sprint} />
         </SubGroup>
-        <WorkSection />
+        {/* 세부(프로젝트 · 최근 완료 추이)만 예산 안에서 굴린다. 실선은 이 **고정된**
+            상자가 갖는다 — `WorkSection` 안에 두면 굴릴 때 머리와 몸의 경계가 사라진다. */}
+        <Box sx={{ ...BUDGET_BODY, mt: 2.5, pt: 2.5, borderTop: 1, borderColor: "divider" }}>
+          <ScrollArea sx={BUDGET_SCROLL} ariaLabel="이번 주 세부 목록">
+            <WorkSection />
+          </ScrollArea>
+        </Box>
       </Card>
-      <Card>
+      <Card sx={plateBudget("docs")}>
         <SectionTitle component="h2" title="최근 문서" action={<Link href="#/knowledge" underline="hover">문서 전체</Link>} />
         <RecentDocuments items={recent.documents || []} />
       </Card>
@@ -389,9 +380,9 @@ function HomeBody({ data, focus, onFocus, onEdit, onOpen }) {
             <Box sx={TODAY_BODY}>
               {conn ? conn : rows.length ? (
                 <>
-                  {/* 목록 칸만 굴린다 — 티켓이 늘어도 판이 계속 아래로 자라지 않는다.
+                  {/* 목록 칸만 굴린다 — 티켓이 늘어도 판이 예산의 천장에서 멈춘다.
                       짧으면 스크롤바도 초점도 없다(`ScrollArea`). */}
-                  <ScrollArea maxHeight={TODAY_LIST_MAX} ariaLabel={`${view.label} 티켓 목록`}>
+                  <ScrollArea sx={BUDGET_SCROLL} ariaLabel={`${view.label} 티켓 목록`}>
                     <DataTable
                       /* compact: 본문 열은 2단 배치라 좁다 — 4K 계약의 '표(핵심열)'을 그대로
                          따른다(난이도·예상 WD 는 빼고, 편집은 아이콘). 전체 열을 넣으면 1366

@@ -10,6 +10,7 @@ import { keyframes } from "@mui/system";
 import { api } from "../lib/api.js";
 import { Badge, Button, Card, EmptyState, ErrorState, ScrollArea, SectionTitle, Skeleton, SubGroup, useToast } from "../ui/kit.jsx";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, MOTION } from "../ui/theme.js";
+import { AI_DETAIL_MAX } from "../ui/density.js";
 import { useAutoHeight } from "../ui/motion.js";
 import { BarSeries } from "../ui/charts/BarSeries.jsx";
 import { copyText } from "./ops/opsHelpers.js";
@@ -209,17 +210,18 @@ function TicketRow({ ticket, lead, leadKind }) {
   );
 }
 
-function TicketList({ children, ariaLabel, scrollAfter, maxHeight = "18rem" }) {
-  const rows = React.Children.toArray(children).filter(Boolean);
-  const list = (
+/* 티켓 목록 한 덩이. **여기에는 스크롤이 없다.**
+ *
+ * 예전에는 이 부품이 스스로 스크롤 칸을 만들 수 있었다(`scrollAfter`). 그런데 지금은 이
+ * 판의 세부 콘텐츠 전체가 이미 하나의 스크롤 칸이라, 목록이 다시 상자를 만들면 한 판
+ * 안에 스크롤 축이 둘이 된다 — 굴리는 사람은 자기가 무엇을 굴리는지 모른다. 판의 예산은
+ * 한 자리(세부 칸)에서만 걸린다. */
+function TicketList({ children }) {
+  return (
     <Stack component="ul" gap={0.25} sx={{ listStyle: "none", m: 0, p: 0, minWidth: 0 }}>
-      {rows}
+      {React.Children.toArray(children).filter(Boolean)}
     </Stack>
   );
-  /* 스크롤 칸은 **실제로 길어질 수 있는 목록에만** 준다. 서버가 다섯 건까지만 주는 목록에
-     상자를 씌우면 굴릴 것이 없는 스크롤 칸이 하나 더 생길 뿐이다. */
-  if (!scrollAfter || rows.length <= scrollAfter) return list;
-  return <ScrollArea maxHeight={maxHeight} ariaLabel={ariaLabel}>{list}</ScrollArea>;
 }
 
 /* 잘라서 보여 주는 목록은 **잘랐다고 말한다.**
@@ -249,7 +251,7 @@ function TicketLines({ label, block, empty }) {
         <Typography variant="body2" color="text.secondary">{empty}</Typography>
       ) : (
         <>
-          <TicketList ariaLabel={label}>
+          <TicketList>
             {items.map((t) => <TicketRow key={t.id || t.tid} ticket={t} />)}
           </TicketList>
           <MoreNote count={count} shown={items.length} />
@@ -266,32 +268,48 @@ const SECTION_GRID = {
   gridTemplateColumns: { xs: "minmax(0,1fr)", md: "repeat(2, minmax(0,1fr))", xxl: "repeat(3, minmax(0,1fr))" },
 };
 
-/* ── 탭 넷 ──────────────────────────────────────────────────────────────── */
+/* ── 탭 넷 ──────────────────────────────────────────────────────────────────
+ *
+ * 탭은 컴포넌트가 아니라 **{ head, detail } 두 조각**을 낸다 (사용자 지시 §2).
+ *
+ * 이유는 높이다. 이 판은 탭마다 담는 것이 달라 실측에서 444px 와 **1,318px** 사이를
+ * 오갔다(이번 주 요약 + 문장 요약 1,200자). 판 전체에 상한을 걸면 결론 한 줄과 다음에
+ * 누를 버튼까지 함께 굴려야 하고, 그러면 「무엇을 먼저 볼지」를 알려 주는 판에서 그
+ * 문장을 찾으려고 스크롤을 해야 한다.
+ *
+ *   head    결론 한 문장과 그 부연. **굴리지 않는다.**
+ *   detail  묶음·목록·그림·문장 요약. 길어지는 것은 전부 여기다 — 이 칸만 굴린다.
+ *
+ * 조각을 나누는 일을 부품(`<PanelHead>`)이 아니라 반환값으로 하는 이유: 스크롤 칸은
+ * 조각을 **감싸야** 하는데, 자식으로 넘어온 JSX 는 어디까지가 머리인지 알 수 없다. */
 
 /** 오늘 브리핑 — 결론 한 줄, 지금 볼 티켓 셋, 그리고 문장 요약. */
-function Briefing({ data }) {
+function briefingParts(data) {
   const tickets = data.tickets || {};
   const focus = briefingFocus(tickets);
   const rows = attentionRows(tickets, data.today);
   const sprint = data.sprint;
-  return (
-    <>
-      <Lede>{focus.text}</Lede>
-      {sprint ? (
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75, ...KO_WORD_BREAK }}>
-          이번 주 맡은 {sprint.assigned}건 가운데 {sprint.done}건을 끝냈고 {sprint.remaining ?? Math.max(0, sprint.assigned - sprint.done)}건이 남았습니다.
-        </Typography>
-      ) : (
-        /* 스프린트 카드가 같은 화면에서 이미 원인을 문장으로 설명한다. 여기서 그 문장을
-           다시 쓰면 같은 화면에 같은 경고가 두 번 뜬다. 짧게 참조만 한다. */
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
-          「이번 주」 카드와 같은 이유로 이번 주 진척도 계산할 수 없습니다.
-        </Typography>
-      )}
-
-      <SubGroup title="지금 볼 것">
+  return {
+    head: (
+      <>
+        <Lede>{focus.text}</Lede>
+        {sprint ? (
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75, ...KO_WORD_BREAK }}>
+            이번 주 맡은 {sprint.assigned}건 가운데 {sprint.done}건을 끝냈고 {sprint.remaining ?? Math.max(0, sprint.assigned - sprint.done)}건이 남았습니다.
+          </Typography>
+        ) : (
+          /* 스프린트 카드가 같은 화면에서 이미 원인을 문장으로 설명한다. 여기서 그 문장을
+             다시 쓰면 같은 화면에 같은 경고가 두 번 뜬다. 짧게 참조만 한다. */
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
+            「이번 주」 카드와 같은 이유로 이번 주 진척도 계산할 수 없습니다.
+          </Typography>
+        )}
+      </>
+    ),
+    detail: (
+      <SubGroup title="지금 볼 것" first>
         {rows.length ? (
-          <TicketList ariaLabel="지금 볼 티켓">
+          <TicketList>
             {rows.map((r) => (
               <TicketRow key={r.item.id || r.item.tid} ticket={r.item} lead={r.reason} leadKind={r.kind} />
             ))}
@@ -304,36 +322,38 @@ function Briefing({ data }) {
           </Typography>
         )}
       </SubGroup>
-    </>
-  );
+    ),
+  };
 }
 
 /** 스탠드업 초안 — 세 단으로 나눈 목록과, 그대로 복사할 수 있는 초안. */
-function Standup({ data }) {
+function standupParts(data) {
   const count = (block) => (block && typeof block.count === "number" ? block.count : 0);
   const done = count(data.recently_done);
   const plan = count(data.today_plan);
   const stuck = count(data.blocked);
-  return (
-    <>
+  return {
+    head: (
       <Lede>
         {plan || stuck || done
           ? `끝낸 일 ${done}건과 오늘 할 일 ${plan}건, 막힌 일 ${stuck}건을 공유합니다.`
           : "이번 주에 공유할 일이 아직 없습니다."}
       </Lede>
-      <SubGroup title="공유할 내용">
+    ),
+    detail: (
+      <SubGroup title="공유할 내용" first>
         <Box sx={SECTION_GRID}>
           <TicketLines label="최근 끝낸 일" block={data.recently_done} empty="이번 주에 완료한 티켓이 없습니다." />
           <TicketLines label="오늘 할 일" block={data.today_plan} empty="오늘 마감이거나 지연된 티켓이 없습니다." />
           <TicketLines label="막힌 일" block={data.blocked} empty="상태가 이슈인 티켓이 없습니다." />
         </Box>
       </SubGroup>
-    </>
-  );
+    ),
+  };
 }
 
 /** 주간 업데이트 — 내 몫과 팀의 이번 주, 그 주에 바뀐 것. */
-function WeeklyDigest({ data }) {
+function weeklyParts(data) {
   const mine = data.mine;
   const team = data.team;
   const docs = data.documents_changed || {};
@@ -341,7 +361,7 @@ function WeeklyDigest({ data }) {
   const contributors = Array.isArray(data.top_contributors) ? data.top_contributors : [];
   const win = data.window || {};
   const teamKey = team ? `weekly-team:${team.done}:${team.in_progress}:${team.verify}:${team.overdue}:${team.total}` : null;
-  return (
+  const head = (
     <>
       <Lede>
         {mine
@@ -355,8 +375,11 @@ function WeeklyDigest({ data }) {
         {win.start ? `${fmtDayKo(win.start)}부터 ${fmtDayKo(lastDayOf(win.end_exclusive))}까지 마감인 일을 셉니다.` : null}
         {mine && mine.overdue ? ` 지연 ${mine.overdue}건이 남아 있습니다.` : null}
       </Typography>
-
-      <SubGroup title="팀은 이번 주에 무엇을 했나">
+    </>
+  );
+  const detail = (
+    <>
+      <SubGroup title="팀은 이번 주에 무엇을 했나" first>
         {team ? (
           <Box sx={{ display: "grid", gap: 2.5, alignItems: "start", gridTemplateColumns: { xs: "minmax(0,1fr)", lg: "minmax(0,1.4fr) minmax(0,1fr)" } }}>
             <BarSeries
@@ -439,24 +462,32 @@ function WeeklyDigest({ data }) {
       </SubGroup>
     </>
   );
+  return { head, detail };
 }
 
 /** 어휘 표에 없는 등급의 색 — 서버가 매긴 순위로만 정한다(`app/home/aggregate.py::priority_rank`). */
 const rankKind = (rank) => (rank === 0 ? "danger" : rank === 1 ? "warn" : "neutral");
 
 /** 담당자 지정 필요 — 순서와 근거만 준다. 배정은 사람이 다른 화면에서 누른다. */
-function Triage({ data }) {
+function triageParts(data) {
+  /* 빈 상태에는 결론 문장이 없다 — 빈 상태 자체가 결론이다. 머리 없이 세부만 낸다. */
   if (data.ok === false) {
-    return (
-      <EmptyState art="tickets" title="미할당 티켓을 불러오지 못했습니다"
-        help={data.message || data.error || "잠시 뒤에 다시 시도하거나 관리자에게 문의하세요."} />
-    );
+    return {
+      head: null,
+      detail: (
+        <EmptyState art="tickets" title="미할당 티켓을 불러오지 못했습니다"
+          help={data.message || data.error || "잠시 뒤에 다시 시도하거나 관리자에게 문의하세요."} />
+      ),
+    };
   }
   if (!data.total) {
-    return (
-      <EmptyState art="tickets" title="담당자를 지정할 티켓이 없습니다"
-        help="새로 들어온 티켓에 담당자가 비어 있으면 여기에 급한 순서로 표시됩니다." />
-    );
+    return {
+      head: null,
+      detail: (
+        <EmptyState art="tickets" title="담당자를 지정할 티켓이 없습니다"
+          help="새로 들어온 티켓에 담당자가 비어 있으면 여기에 급한 순서로 표시됩니다." />
+      ),
+    };
   }
   const items = Array.isArray(data.items) ? data.items : [];
   const late = items.filter((t) => t.overdue).length;
@@ -464,7 +495,7 @@ function Triage({ data }) {
   const candidateKey = candidates.length
     ? "triage-load:" + candidates.map((c) => `${c.user_id}:${c.active_tickets}`).join(",")
     : null;
-  return (
+  const head = (
     <>
       <Lede>
         담당자 없는 티켓이 {data.total}건 있습니다{late ? `. 그중 ${late}건은 이미 지연입니다` : ""}.
@@ -472,9 +503,12 @@ function Triage({ data }) {
       <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75, ...KO_WORD_BREAK }}>
         아래는 제안이고 이 화면은 아무것도 배정하지 않습니다. 배정은 미할당 티켓 화면에서 직접 확인하고 누릅니다.
       </Typography>
-
-      <SubGroup title={data.total > items.length ? `급한 순서 (앞의 ${items.length}건)` : "급한 순서"}>
-        <TicketList ariaLabel="미할당 티켓 순서" scrollAfter={6} maxHeight="17rem">
+    </>
+  );
+  const detail = (
+    <>
+      <SubGroup title={data.total > items.length ? `급한 순서 (앞의 ${items.length}건)` : "급한 순서"} first>
+        <TicketList>
           {items.map((t) => (
             <TicketRow
               key={t.id || t.tid}
@@ -507,9 +541,12 @@ function Triage({ data }) {
       </SubGroup>
     </>
   );
+  return { head, detail };
 }
 
-const RENDERERS = { briefing: Briefing, standup: Standup, weekly: WeeklyDigest, triage: Triage };
+const RENDERERS = {
+  briefing: briefingParts, standup: standupParts, weekly: weeklyParts, triage: triageParts,
+};
 
 /* 문장 블록 — 성공하면 문단, 실패하면 왜 없는지. 어느 쪽이든 위의 숫자는 그대로다.
  *
@@ -559,12 +596,34 @@ export function AssistantPanel() {
   };
 
   const narrative = q.data && q.data.narrative;
+  const parts = q.isLoading || q.isError ? null : Renderer(q.data || {});
   const body = q.isLoading ? <Skeleton kind="chart" height="8rem" />
     : q.isError ? <ErrorState error={q.error} onRetry={() => q.refetch()} />
       : (
         <>
-          <Renderer data={q.data || {}} />
-          <Narrative narrative={narrative} />
+          {parts.head}
+          {/* **자라는 것은 전부 이 칸 안이다** (사용자 지시 §2). 상한은 판이 아니라 칸이
+              갖는다 — 그 이유는 `density.js::AI_DETAIL_MAX` 에 적혀 있다. 짧으면
+              스크롤바도 초점도 없고 남는 자리도 안 만든다(`ScrollArea` 는 최소 높이를
+              모른다). 넓은 화면에만 건다: 세로로 쌓인 화면에서는 판이 자기 자료만큼
+              길어지는 것이 자연스러운 흐름이다.
+              머리와 몸을 가르는 실선은 **굴리지 않는 이 상자**가 갖는다. 안쪽 첫 묶음이
+              그것을 들고 있으면 몇 줄만 굴려도 경계가 사라져 결론과 목록이 붙어 읽힌다 —
+              그래서 탭 넷이 자기 첫 묶음에 `first` 를 준다. */}
+          <Box
+            sx={{
+              minWidth: 0,
+              ...(parts.head ? { mt: 2.5, pt: 2.5, borderTop: 1, borderColor: "divider" } : null),
+            }}
+          >
+            <ScrollArea
+              maxHeight={{ xs: "none", lg: AI_DETAIL_MAX }}
+              ariaLabel={`${tab.label} 세부 내용`}
+            >
+              {parts.detail}
+              <Narrative narrative={narrative} />
+            </ScrollArea>
+          </Box>
           {/* 행동은 탭마다 다르지만 **자리는 하나**다. 목적지 링크와 복사와 문장 요청이
               각자 자기 줄을 만들면 탭 아래가 버튼 세 줄이 된다. */}
           <Actions>
