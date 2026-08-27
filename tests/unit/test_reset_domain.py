@@ -99,3 +99,46 @@ def test_the_witness_tables_are_protected_ones():
         assert name in mod.PROTECTED, f"대조군 {name} 이 보호 목록에 없다"
         for tables in mod.DOMAINS.values():
             assert name not in tables
+
+
+# ── 구조 행은 지운 뒤 다시 심는다 ────────────────────────────────────────────
+
+
+def test_the_global_room_is_reseeded_after_a_chat_reset():
+    """🔴 실제로 한 번 밟은 자리다.
+
+    `chat_rooms` 를 비웠더니 「전체 채팅」 방이 함께 사라졌다. 그 행은 사람이 만든 대화가
+    아니라 마이그레이션 `0001` 이 심은 **구조**이고, 마이그레이션은 한 번만 돌기 때문에
+    저절로 안 돌아온다. 앱은 그 방이 없어도 안 죽어서(`get_global_room` 이 `None` 을 곱게
+    다룬다) 기능 하나가 조용히 없어진 채로 남았다.
+    """
+    seeds = _load().RESEED["chat"]
+    assert seeds, "채팅 초기화에 재시드가 없다"
+    sql, params = seeds[0]
+    assert "chat_rooms" in sql
+    assert "ON CONFLICT" in sql, "두 번 돌려도 하나여야 한다"
+    assert params["title"] == "전체 채팅"
+
+
+def test_the_reseeded_room_id_matches_the_migration():
+    """id 가 마이그레이션과 달라지면 방이 **둘**이 된다 — 옛 것과 새 것.
+
+    고정 id 를 쓰는 이유가 그것이고, 그 값이 두 곳에 적혀 있으므로 여기서 맞물어 둔다.
+    """
+    import re
+
+    migration = (PROJECT_ROOT / "alembic" / "versions" / "0001_pg_baseline.py").read_text(
+        encoding="utf-8"
+    )
+    m = re.search(r'_GLOBAL_CHAT_ROOM_ID\s*=\s*"([^"]+)"', migration)
+    assert m, "마이그레이션에서 전체 채팅 방 id 를 못 찾았다"
+    assert _load().RESEED["chat"][0][1]["id"] == m.group(1)
+
+
+def test_reseeded_rows_are_not_user_data():
+    """재시드는 **구조**만이다. 사람이 쓴 것을 다시 심으면 그건 초기화가 아니다."""
+    for domain, seeds in _load().RESEED.items():
+        for sql, _params in seeds:
+            lowered = sql.lower()
+            assert "chat_messages" not in lowered, f"{domain}: 메시지를 다시 심고 있다"
+            assert "chat_room_members" not in lowered, f"{domain}: 참여자를 다시 심고 있다"

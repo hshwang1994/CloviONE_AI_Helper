@@ -44,9 +44,11 @@ __all__ = [
     "Capability",
     "CAPABILITIES",
     "ROLE_ORDER",
+    "ROLE_CHARACTER",
     "ROLE_LABELS",
     "SCOPE_LABELS",
     "rbac_matrix",
+    "role_help",
 ]
 
 # 관리 콘솔 **읽기**: 운영자군 전부 + 감사자. 목록·상세·버전 조회가 여기에 걸린다.
@@ -198,6 +200,68 @@ CAPABILITIES: tuple[Capability, ...] = (
 )
 
 
+#: 역할 하나를 한 문장으로 말할 때 쓰는 «성격». 능력 목록에서 파생되지 않는 유일한 값이라
+#: 여기에만 적는다 — 나머지(무엇을 할 수 있는가 · 무엇을 못 하는가)는 전부 계산한다.
+#:
+#: 이 한 줄까지 계산으로 만들 수는 없다. 「감사자는 읽기 전용 가지다」는 능력 목록의 합이
+#: 아니라 **설계 의도**이고, 그 의도를 모르면 화면은 「이 역할은 다섯 가지를 할 수 있다」는
+#: 말만 할 수 있다. 대신 이 문장이 능력 목록과 어긋나지 않는지는 시험이 본다
+#: (`tests/security/test_rbac_role_help.py`).
+ROLE_CHARACTER: dict[str, str] = {
+    ROLE_USER: "자기 일만 한다. 관리 콘솔에 들어갈 수 없다.",
+    ROLE_OPERATOR: "운영은 하되 설정은 못 바꾼다.",
+    ROLE_AUDITOR: "읽기 전용 가지다. 무엇도 바꾸지 않는다.",
+    ROLE_ADMIN: "설정과 사람을 관리한다. 관리 범위로 더 좁혀질 수 있다.",
+    ROLE_SYSTEM_ADMIN: "서버 한 대 전체를 본다. 백업과 시스템 설정은 이 역할뿐이다.",
+}
+
+
+def role_help() -> list[dict]:
+    """역할 다섯을 **능력 표에서 계산해** 설명한다 (지시 19).
+
+    ## 왜 손으로 안 쓰는가
+
+    「관리자는 …를 할 수 있습니다」를 화면에 적는 순간 규칙이 두 벌이 된다. 권한을
+    `CAPABILITIES` 에서 고쳐도 그 문장은 안 따라오고, **틀린 설명은 아무 오류도 안 낸다** —
+    이 파일이 애초에 생긴 이유와 같은 결함이다(파일 머리말 참조).
+
+    그래서 「무엇을 할 수 있는가」는 능력 표에서 그대로 뽑고, 「무엇을 못 하는가」는 **바로
+    윗 역할과의 차이**로 계산한다. 역할을 고르는 사람이 실제로 묻는 것이 그 차이이기
+    때문이다 — 「운영자와 관리자가 뭐가 다른가」에 답하지 못하면 그 선택기는 이름 다섯 개
+    목록일 뿐이다.
+
+    감사자는 계층 밖(읽기 전용 가지)이라 「윗 역할」이 없다. 그쪽은 일반 사용자와 견준다.
+    """
+    # 계층 비교의 짝. 감사자만 계층 밖이라 따로 적는다(`ROLE_ORDER` 주석과 같은 사정).
+    below = {
+        ROLE_OPERATOR: ROLE_USER,
+        ROLE_AUDITOR: ROLE_USER,
+        ROLE_ADMIN: ROLE_OPERATOR,
+        ROLE_SYSTEM_ADMIN: ROLE_ADMIN,
+    }
+    can: dict[str, list[str]] = {
+        role: [cap.label for cap in CAPABILITIES if role in cap.roles] for role in ROLE_ORDER
+    }
+    out = []
+    for role in ROLE_ORDER:
+        lower = below.get(role)
+        gained = [c for c in can[role] if lower is None or c not in can[lower]]
+        # 아래 역할은 되는데 이 역할은 안 되는 것. 감사자에게서 실제로 나온다 —
+        # 「운영 동작」이 그렇다(읽기 전용이라 뺐다).
+        lost = [c for c in (can.get(lower) or []) if c not in can[role]]
+        out.append({
+            "value": role,
+            "label": ROLE_LABELS.get(role, role),
+            "character": ROLE_CHARACTER.get(role, ""),
+            "can": can[role],
+            # 「바로 아래 역할과 견줘 새로 되는 것」. 첫 역할은 비교 대상이 없어 빈 목록이다.
+            "gains": gained if lower is not None else [],
+            "loses": lost,
+            "compared_to": ROLE_LABELS.get(lower, "") if lower else "",
+        })
+    return out
+
+
 def _permission_rows() -> list[dict]:
     from app.authz.permissions import PERMISSIONS
 
@@ -243,6 +307,9 @@ def rbac_matrix() -> dict:
         #
         # 지연 import 인 이유: `app/authz/permissions.py` 가 이 파일의 그룹 상수를 읽는다.
         # 위에서 부르면 순환이 된다 — 방향은 언제나 authz → permissions 한쪽이다.
+        # 역할 하나를 고르는 자리(사용자 추가·수정)가 읽는 값. 위 `items` 를 그대로
+        # 계산해서 나오므로 규칙을 고치면 그 화면의 설명도 함께 바뀐다.
+        "role_help": role_help(),
         "permissions": _permission_rows(),
         # admin_scope(조직/부서로 좁히기)가 실제로 걸리는 역할. 화면이 "admin" 을 직접
         # 하드코딩하면 tests/security/test_rbac_matrix.py 가 잡는다 — 역할 이름은 여기서만 안다.

@@ -523,17 +523,10 @@ export function Profile() {
             />
             <SessionsCard />
           </Box>
-          <Box sx={TWO_COL_WIDE_LEFT}>
-            <NotificationCard prefs={prefsQuery.data} save={savePrefs.mutate} saving={savePrefs.isPending} />
-            {/* 알림 설정 카드는 유형이 스물한 개라 세로로 길고, 그 옆 칸은 방해금지
-                하나로 끝나 900px 가까이 비어 있었다(`equal_column_split` 실측). 같은
-                「내 설정」인 강조색을 그 자리에 세운다 — 빈 자리를 메우려고 아무거나
-                옮기는 것이 아니라, 원래 여기 있었어야 할 것이다. */}
-            <Box sx={{ display: "grid", gap: 2.5, alignContent: "start", minWidth: 0 }}>
-              <DndCard prefs={prefsQuery.data} save={savePrefs.mutate} saving={savePrefs.isPending} />
-              <AccentPicker />
-            </Box>
-          </Box>
+          {/* 🔴 **둘러보기가 개인 UI 설정보다 위다** (지시 18).
+              예전에는 이 화면 맨 아래, 강조색 다음이었다. 둘러보기는 「제품을 어떻게 쓰는가」를
+              알려 주는 자리이고 강조색은 취향인데, 순서가 반대면 처음 온 사람이 취향부터
+              고르고 사용법은 스크롤 끝에서 만난다. */}
           <Card>
             <SectionTitle component="h2" sx={{ mb: 2 }} help="처음 들어왔을 때 나오는 안내입니다. 언제든 다시 볼 수 있습니다.">
               둘러보기
@@ -547,6 +540,17 @@ export function Profile() {
               둘러보기 다시 보기
             </Button>
           </Card>
+          <Box sx={TWO_COL_WIDE_LEFT}>
+            <NotificationCard prefs={prefsQuery.data} save={savePrefs.mutate} saving={savePrefs.isPending} />
+            {/* 알림 설정 카드는 유형이 스물한 개라 세로로 길고, 그 옆 칸은 방해금지
+                하나로 끝나 900px 가까이 비어 있었다(`equal_column_split` 실측). 같은
+                「내 설정」인 강조색을 그 자리에 세운다 — 빈 자리를 메우려고 아무거나
+                옮기는 것이 아니라, 원래 여기 있었어야 할 것이다. */}
+            <Box sx={{ display: "grid", gap: 2.5, alignContent: "start", minWidth: 0 }}>
+              <DndCard prefs={prefsQuery.data} save={savePrefs.mutate} saving={savePrefs.isPending} />
+              <AccentPicker />
+            </Box>
+          </Box>
         </Box>
       )}
     </div>

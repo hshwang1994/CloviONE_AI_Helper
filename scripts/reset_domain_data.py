@@ -20,9 +20,14 @@ Domain 인가**를 치는 사람이 그때그때 기억으로 정하기 때문�
     3. 행 수를 센다      — 지우기 전/후를 둘 다 남긴다
     4. 스냅샷을 받는다   — `pg_dump` 로 **그 표들만**. 경로를 보고서에 적는다
     5. 지운다           — 한 트랜잭션. 자식부터
-    6. 확인한다         — 대상은 0 이고 **보호 대상은 그대로다**
+    6. 구조를 다시 심는다 — 마이그레이션이 심었던 행(「전체 채팅」 방 같은 것)
+    7. 확인한다         — 사용자 데이터는 0, **보호 대상은 그대로**
 
-6번이 이 스크립트의 마지막 방어다. 「지웠다」가 아니라 「지우지 말아야 할 것이 그대로다」를
+6번을 빼면 기능이 조용히 없어진다. 「전체 채팅」 방은 사람이 만든 대화가 아니라
+마이그레이션 `0001` 이 심은 구조이고, 마이그레이션은 한 번만 돌기 때문에 저절로 안 돌아온다.
+앱은 그 방이 없어도 안 죽어서 아무도 모른 채 지나간다 — 실제로 한 번 밟았다.
+
+7번이 이 스크립트의 마지막 방어다. 「지웠다」가 아니라 「지우지 말아야 할 것이 그대로다」를
 확인한다 — 전자는 성공했다는 말이고 후자는 사고가 없었다는 말이다.
 
 ## 파일
@@ -66,6 +71,36 @@ DOMAINS: dict[str, tuple[str, ...]] = {
         "chat_read_cursors",     # → chat_rooms
         "chat_room_members",     # → chat_rooms
         "chat_rooms",
+    ),
+}
+
+#: 🔴 **데이터를 지우면 함께 사라지는 구조 행.** 지운 뒤 다시 심는다.
+#:
+#: 이 목록이 왜 필요한가는 실제로 밟아 봐서 안다. 채팅 초기화에서 `chat_rooms` 를 비웠더니
+#: 「전체 채팅」 방이 함께 사라졌다 — 그 행은 사람이 만든 대화가 아니라 **마이그레이션
+#: `0001` 이 심은 구조**였고, 마이그레이션은 한 번만 돌기 때문에 저절로 돌아오지 않는다.
+#: 앱은 그 방이 없어도 안 죽는다(`get_global_room` 이 `None` 을 곱게 다룬다) — 그래서
+#: 기능 하나가 조용히 없어진 채로 남는다. 「일관성 있게 초기화한다」가 뜻하는 것이 이것이다:
+#: 사용자 데이터는 0 으로, 구조는 처음 상태로.
+#:
+#: 부서 방은 여기 없다. 그쪽은 방 목록을 여는 길목에서 게으르게 다시 만들어진다
+#: (`app/team_chat/service.py::ensure_team_room`) — 저절로 돌아오는 것을 심으면 두 곳이
+#: 같은 행을 만들려고 다툰다.
+RESEED: dict[str, tuple[tuple[str, dict], ...]] = {
+    "chat": (
+        (
+            "INSERT INTO chat_rooms"
+            " (id, kind, title, is_global, dm_key, event_seq, org_id, created_at, updated_at)"
+            " VALUES (:id, 'group', :title, true, NULL, 0, :org, :now, :now)"
+            " ON CONFLICT (id) DO NOTHING",
+            {
+                # `alembic/versions/0001_pg_baseline.py` 의 `_GLOBAL_CHAT_ROOM_ID` 와 같은 값이다.
+                # 고정 id 라 두 번 심어도 하나다(`ON CONFLICT DO NOTHING`).
+                "id": "00000000-0000-0000-0000-0000cha70001",
+                "title": "전체 채팅",
+                "org": "00000000-0000-0000-0000-00000000org1",
+            },
+        ),
     ),
 }
 
@@ -215,6 +250,17 @@ def main() -> int:
         for t in tables:
             conn.execute(sa_text(f'DELETE FROM "{t}"'))
 
+    # 지운 **뒤에** 구조를 다시 심는다. 순서가 반대면 방금 심은 행을 그 자리에서 지운다.
+    seeds = RESEED.get(args.domain, ())
+    if seeds:
+        from datetime import datetime, timezone
+
+        # naive UTC 다 — 이 저장소의 저장 규약이다(§불변 7).
+        stamp = datetime.now(timezone.utc).replace(tzinfo=None)
+        with engine.begin() as conn:
+            for sql, params in seeds:
+                conn.execute(sa_text(sql), {**params, "now": stamp})
+
     with engine.connect() as conn:
         after = {t: _count(conn, t) for t in tables}
         witness_after = {t: _count(conn, t) for t in witness_before}
@@ -222,10 +268,16 @@ def main() -> int:
     print("== 결과 ==")
     for t in tables:
         print(f"  {t:24s} {before[t]:>8,} → {after[t]:>8,}")
+    # 남아도 되는 것은 **다시 심은 구조 행뿐**이다. 그 수를 세어 두고 그만큼만 허용한다 —
+    # 「0 이 아니면 실패」로 두면 재시드를 넣는 순간 검사가 늘 빨개지고, 「그냥 통과」로
+    # 두면 안 지워진 사용자 데이터를 못 잡는다.
+    seeded = len(RESEED.get(args.domain, ()))
     left = [t for t, n in after.items() if n]
-    if left:
+    if sum(after.values()) > seeded:
         print(f"[FAIL] 지워지지 않은 표가 있다: {', '.join(left)}")
         return 1
+    if seeded:
+        print(f"  (구조 행 {seeded}개를 다시 심었다 — 사용자 데이터가 아니다)")
 
     # 🔴 마지막 방어. 「지웠다」가 아니라 **「지우지 말아야 할 것이 그대로다」** 를 본다.
     moved = {t: (witness_before[t], witness_after[t])

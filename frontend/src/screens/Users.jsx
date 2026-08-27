@@ -62,6 +62,76 @@ function useDebounced(value, delay) {
 const ROLE_KO ={ user: "일반 사용자", operator: "운영자", admin: "관리자", auditor: "감사자", system_admin: "시스템 관리자" };
 const ROLE_OPTS = Object.keys(ROLE_KO).map((v) => ({ value: v, label: ROLE_KO[v] }));
 
+/** 역할 다섯의 실제 차이 — **서버 권한 표에서 온다** (지시 19).
+ *
+ * 「관리자는 …를 할 수 있습니다」를 여기 적으면 규칙이 두 벌이 된다. 권한을 서버에서
+ * 고쳐도 이 문장은 안 따라오고, **틀린 설명은 아무 오류도 안 낸다.** 그래서 문장을 안 적고
+ * `app/core/authz.py::role_help` 가 능력 표에서 계산한 것을 그대로 받는다 — 권한 매트릭스
+ * 화면(`#/rbac`)과 **같은 응답이자 같은 질의 키**라 요청은 한 번이다.
+ *
+ * 못 받아도 화면은 선다. 그때는 설명 없이 이름만 나오고, 그것이 틀린 설명보다 낫다.
+ */
+export function useRoleHelp(enabled) {
+  const { data } = useQuery({
+    queryKey: ["admin", "rbac-matrix"],
+    queryFn: () => api("/api/admin/rbac-matrix"),
+    enabled: !!enabled,
+    retry: false,
+    staleTime: 300000,
+  });
+  return (data && Array.isArray(data.role_help)) ? data.role_help : [];
+}
+
+/** 역할 한 줄을 사람이 읽는 문장으로. 없으면 빈 문자열이다.
+ *
+ * 순서가 「성격 → 새로 되는 것 → 안 되는 것」인 이유: 역할을 고르는 사람이 먼저 묻는
+ * 것은 「이게 어떤 자리인가」이고, 「바로 아래와 뭐가 다른가」가 그 다음이다. 능력을 전부
+ * 나열하면 다섯 줄이 되어 아무도 안 읽는다 — 셋까지만 적고 나머지는 수로 말한다.
+ */
+export function roleHelpText(row) {
+  if (!row) return "";
+  const parts = [row.character].filter(Boolean);
+  const gains = Array.isArray(row.gains) ? row.gains : [];
+  if (gains.length && row.compared_to) {
+    const shown = gains.slice(0, 3).join(", ");
+    const rest = gains.length > 3 ? ` 외 ${gains.length - 3}가지` : "";
+    parts.push(`${row.compared_to}에 더해 ${shown}${rest}를 할 수 있습니다.`);
+  }
+  const loses = Array.isArray(row.loses) ? row.loses : [];
+  if (loses.length && row.compared_to) {
+    parts.push(`${row.compared_to}와 달리 ${loses.join(", ")}는 할 수 없습니다.`);
+  }
+  return parts.join(" ");
+}
+
+/** 역할 칸 아래에 서는 설명. **다섯을 나란히** 놓는다.
+ *
+ * 고른 역할 하나만 설명하면 「이 역할이 무엇인가」에는 답하지만 「어느 것을 골라야 하는가」에는
+ * 답하지 못한다 — 고르는 사람이 실제로 하는 일은 **비교**다. 다섯이라 한눈에 들어온다.
+ *
+ * 후보를 걸러 보여 주지 않는다: 행위자가 만들 수 없는 역할(`roleOptionsFor`)도 설명에는
+ * 남는다. 「내가 왜 이걸 못 고르나」의 답이 그 줄에 있기 때문이다.
+ */
+export function RoleHelp({ rows, lead }) {
+  const list = Array.isArray(rows) ? rows : [];
+  return (
+    <Box component="span" sx={{ display: "block" }}>
+      {lead ? <Box component="span" sx={{ display: "block" }}>{lead}</Box> : null}
+      {list.length ? (
+    <Box component="span" sx={{ display: "block", mt: 0.5 }}>
+      {list.map((r) => (
+        <Box key={r.value} component="span" sx={{ display: "block", mb: 0.375, ...KO_WORD_BREAK }}>
+          <Box component="span" sx={{ fontWeight: FONT_WEIGHT.semibold }}>{r.label}</Box>
+          {": "}
+          {roleHelpText(r)}
+        </Box>
+      ))}
+    </Box>
+      ) : null}
+    </Box>
+  );
+}
+
 /* 관리 범위 — `app/users/models.py` 의 `ALL_ADMIN_SCOPES` 와 같은 세 값이다.
  * 라벨은 '무엇을 볼 수 있는가'로 쓴다: `global`/`org`/`dept` 는 개발자 말이다. */
 const SCOPE_KO = { global: "전체 포털", org: "소속 조직", dept: "소속 부서(하위 포함)" };
@@ -539,8 +609,12 @@ export function Users() {
     if (!query.isLoading && !query.isError && items.length === 0 && page > 1) setPage((p) => Math.max(1, p - 1));
   }, [items.length, page, query.isLoading, query.isError]);
 
+  // 역할 설명은 **관리 콘솔 권한 표**에서 온다. 이 화면을 열 수 있는 사람이면 그 표도
+  // 읽을 수 있다(둘 다 `console.read`) — 못 읽으면 빈 목록이라 설명 없이 이름만 나온다.
+  const roleRows = useRoleHelp(true);
+
   const createFields = [
-    { name: "email", label: "이메일", type: "email", required: true, help: "로그인 아이디로 쓰입니다." }, { name: "display_name", label: "이름", type: "text", required: true }, { name: "role", label: "역할", type: "select", value: "user", options: roleOptionsFor(actorRole, "create", ROLE_OPTS), help: actorRole === "system_admin" ? "관리자, 시스템 관리자 계정도 추가할 수 있습니다." : "관리자, 시스템 관리자 계정 추가는 시스템 관리자만 가능합니다." }, { name: "department_id", label: "부서", type: "entity", value: "", options: dept.options, help: deptHelp }, { name: "title_id", label: "직책", type: "entity", value: "", options: title.options, help: titleHelp }, { name: "password", label: "초기 비밀번호(선택)", type: "password", help: pwHelp }, { name: "active", label: "활성", type: "checkbox", value: true, checkLabel: "활성", help: "비활성화하면 비활성 상태로 추가됩니다(로그인 불가). 나중에 상세에서 활성화할 수 있습니다." }, { name: "must_change_password", label: "첫 로그인 시 비밀번호 변경", type: "checkbox", value: true, checkLabel: "변경 요구" }, ];
+    { name: "email", label: "이메일", type: "email", required: true, help: "로그인 아이디로 쓰입니다." }, { name: "display_name", label: "이름", type: "text", required: true }, { name: "role", label: "역할", type: "select", value: "user", options: roleOptionsFor(actorRole, "create", ROLE_OPTS), help: <RoleHelp rows={roleRows} lead={actorRole === "system_admin" ? "관리자, 시스템 관리자 계정도 추가할 수 있습니다." : "관리자, 시스템 관리자 계정 추가는 시스템 관리자만 가능합니다."} /> }, { name: "department_id", label: "부서", type: "entity", value: "", options: dept.options, help: deptHelp }, { name: "title_id", label: "직책", type: "entity", value: "", options: title.options, help: titleHelp }, { name: "password", label: "초기 비밀번호(선택)", type: "password", help: pwHelp }, { name: "active", label: "활성", type: "checkbox", value: true, checkLabel: "활성", help: "비활성화하면 비활성 상태로 추가됩니다(로그인 불가). 나중에 상세에서 활성화할 수 있습니다." }, { name: "must_change_password", label: "다음 로그인 시 비밀번호 변경", type: "checkbox", value: true, checkLabel: "다음 로그인 시 바꾸게 한다", help: "켜 두면 이 사람은 다음 로그인 직후 비밀번호를 바꿀 때까지 다른 화면으로 갈 수 없습니다." }, ];
   const editFields = [
     // required: 빈 이름으로 제출하면 서버는 display_name=null을 '변경 없음'으로 취급해 조용히
     // 아무것도 안 바꾼다(update_user는 not None일 때만 반영), 클라이언트에서 먼저 막아 저장됐다는
@@ -549,7 +623,7 @@ export function Users() {
       // 관리자 승인 흐름 안내는 system_admin이 아닌 행위자에게만 붙어 있었는데, 역할이 실제로
       // 바뀌면(어떤 역할로든) 이 사용자의 모든 세션이 즉시 강제 로그아웃된다(app/users/service.py
       // update_user, docs/USER_LIFECYCLE.md §3), 이 부작용은 actorRole과 무관하게 항상 적용되므로 별도로 안내한다.
-      name: "role", label: "역할", type: "select", options: roleOptionsFor(actorRole, "edit", ROLE_OPTS), help: (actorRole === "system_admin" ? "" : "관리자로 변경하면 승인 요청이 접수됩니다. ") + "역할이 바뀌면 이 사용자의 모든 로그인 세션이 즉시 해제됩니다.", }, { name: "department_id", label: "부서", type: "entity", options: dept.options, help: deptHelp }, { name: "title_id", label: "직책", type: "entity", options: title.options, help: titleHelp }, { name: "must_change_password", label: "첫 로그인 시 비밀번호 변경", type: "checkbox", checkLabel: "변경 요구" },
+      name: "role", label: "역할", type: "select", options: roleOptionsFor(actorRole, "edit", ROLE_OPTS), help: <RoleHelp rows={roleRows} lead={(actorRole === "system_admin" ? "" : "관리자로 변경하면 승인 요청이 접수됩니다. ") + "역할이 바뀌면 이 사용자의 모든 로그인 세션이 즉시 해제됩니다."} />, }, { name: "department_id", label: "부서", type: "entity", options: dept.options, help: deptHelp }, { name: "title_id", label: "직책", type: "entity", options: title.options, help: titleHelp }, { name: "must_change_password", label: "다음 로그인 시 비밀번호 변경", type: "checkbox", checkLabel: "다음 로그인 시 바꾸게 한다", help: "켜 두면 이 사람은 다음 로그인 직후 비밀번호를 바꿀 때까지 다른 화면으로 갈 수 없습니다." },
       /* 관리 범위 (F2) — **부서 관리자를 만들 수 있는 유일한 입구**다.
        *
        * 모델(`users.admin_scope`)과 읽는 쪽(`app/core/scope.py`)은 0024 부터 있었는데
@@ -1071,7 +1145,7 @@ function UserDetail({ user, notFound, onClose, onEdit, onChanged, onTempPw, pwHe
         {/* 목록 컬럼과 같은 어휘('잠김')를 쓴다, 여기서만 원시 불리언을 Badge에 그대로 넘기면
             '잠금: 예/아니오'로 읽혀, 같은 화면 안에서 같은 상태를 다른 말로 부르게 된다. */}
         <Row label="잠금"><Badge value={d.locked ? "잠김" : "정상"} kind={d.locked ? "danger" : "neutral"} /></Row>
-        <Row label="비밀번호 변경 요구"><Badge value={!!d.must_change_password} /></Row>
+        <Row label="다음 로그인 시 비밀번호 변경"><Badge value={!!d.must_change_password} /></Row>
         <Row label="최근 로그인">{fmtDateTime(d.last_login_at)}</Row>
         <Row label="추가일">{fmtDateTime(d.created_at)}</Row>
         {d.archived_at ? <Row label="보관 시각">{fmtDateTime(d.archived_at)}</Row> : null}
