@@ -85,6 +85,16 @@ _HEADING_PREFIXES: tuple[tuple[str, str], ...] = (
     ("### ", "heading_3"), ("## ", "heading_2"), ("# ", "heading_1"),
 )
 _BULLET_PREFIXES = ("- ", "* ")
+#: 체크 목록과 울타리. 규칙은 저장 쪽(`app/core/notion_blocks.py`)과 **한 글자도 달라선
+#: 안 되지만 import 하지는 않는다** — 이 구현체는 소스 특화 모듈을 하나도 모르는 것이
+#: 자기 성질이고(같은 파일의 시험이 import 이름까지 본다), 그래서 여기서는 값을 다시 적고
+#: 두 벌이 갈라지지 않는지는 시험이 본문 한 덩어리로 비교해서 지킨다.
+#:
+#: 갈라지면 무슨 일이 나는가는 이번에 실제로 봤다: 저장 쪽이 인용·체크 목록·코드를 알게
+#: 됐는데 이쪽이 몰라서, 편집기에서 인용으로 쓴 줄이 저장 뒤 문단으로 보였다.
+_TODO_LINE = re.compile(r"^[-*]\s+\[([ xX])\]\s*(.*)$")
+_FENCE = re.compile(r"^```")
+
 _NUMBERED_LINE = re.compile(r"^(\d+)\.\s+(.*)$")
 
 
@@ -105,6 +115,16 @@ def _line_item(line: str) -> dict:
         if stripped.startswith(prefix):
             text = stripped[len(prefix):]
             return {"kind": kind, "text": text if text.strip() else ""}
+    # **글머리보다 먼저 본다** — 체크 목록도 `- ` 로 시작한다. 순서가 뒤집히면
+    # 「할 일」이 「[ ] 할 일」이라는 글머리 항목이 된다(`notion_blocks` 와 같은 순서).
+    todo = _TODO_LINE.match(stripped)
+    if todo:
+        text = todo.group(2)
+        return {
+            "kind": "to_do",
+            "text": text if text.strip() else "",
+            "checked": todo.group(1).lower() == "x",
+        }
     for prefix in _BULLET_PREFIXES:
         if stripped.startswith(prefix):
             text = stripped[len(prefix):]
@@ -113,6 +133,9 @@ def _line_item(line: str) -> dict:
     if numbered:
         text = numbered.group(2)
         return {"kind": "numbered", "text": text if text.strip() else ""}
+    if stripped.startswith("> "):
+        text = stripped[2:]
+        return {"kind": "quote", "text": text if text.strip() else ""}
     return {"kind": "paragraph", "text": line if line.strip() else ""}
 
 
@@ -122,10 +145,35 @@ def markdown_to_items(body_markdown: str | None) -> list[dict]:
     `has_children` 를 안 싣는다. 그 값은 Notion 페이지의 접힌 토글·중첩 목록처럼 **한 겹만
     읽어서 화면에 안 실린 자식**이 있다는 경고였는데(H-1), 마크다운 본문에는 못 읽은 자식이라는
     상태 자체가 없다. 없는 경고를 싣는 것은 화면에 거짓을 하나 더 만드는 일이다.
+
+    🔴 **줄 단위가 아니라 `notion_blocks` 와 같은 상태 기계다.** 예전에는 한 줄씩 분류했고,
+    그때는 그것으로 충분했다 — 분류 규칙에 여러 줄에 걸치는 종류가 없었기 때문이다. 묶음 B
+    가 체크 목록·인용·코드 블록을 만들 수 있게 하면서 그 전제가 깨졌다: 울타리 안쪽은
+    **서식을 해석하지 않는** 한 덩어리라, 줄 단위로 읽으면 붙여 넣은 코드의 `# include` 가
+    제목이 되어 화면에서 모양을 잃는다. 사용자에게는 「편집기에서 본 것과 저장 뒤가 다르다」로
+    보인다.
     """
     if not body_markdown:
         return []
-    return [_line_item(line) for line in body_markdown.split("\n")]
+    out: list[dict] = []
+    code: list[str] | None = None
+    for line in body_markdown.split("\n"):
+        if _FENCE.match(line.strip()):
+            if code is None:
+                code = []
+            else:
+                out.append({"kind": "code", "text": "\n".join(code)})
+                code = None
+            continue
+        if code is not None:
+            code.append(line)
+            continue
+        out.append(_line_item(line))
+    # 닫히지 않은 울타리. 버리지 않는다 — 사용자가 친 글자는 어떤 경우에도 안 사라진다
+    # (`notion_blocks.markdown_to_blocks` 가 같은 판단을 한다).
+    if code is not None:
+        out.append({"kind": "code", "text": "\n".join(code)})
+    return out
 
 
 class NativeDocumentRepository:

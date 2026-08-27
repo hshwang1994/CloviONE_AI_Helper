@@ -496,7 +496,7 @@ export function Sprint() {
                   labels={burndown.labels}
                   unit="인일"
                   summary={burndown.summary}
-                  question="이 회차가 계획대로 줄고 있습니까?"
+                  question="이 회차가 계획대로 줄고 있는지 봅니다."
                 />
               ) : (
                 <Typography variant="body2" color="text.secondary">
@@ -580,7 +580,7 @@ export function Sprint() {
                   max={workload.max}
                   unit="인일"
                   relativeNote={workload.summary}
-                  question="한 사람에게 일이 몰려 있습니까?"
+                  question="한 사람에게 일이 몰려 있는지 봅니다."
                   revealKey={body.sprint.id}
                 />
               ) : (

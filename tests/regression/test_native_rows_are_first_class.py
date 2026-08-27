@@ -95,7 +95,13 @@ def test_a_ticket_can_actually_be_created_in_a_native_project(client, login_as, 
 
     made = client.post(
         "/api/tickets",
-        json={"title": "자체 프로젝트의 첫 티켓", "project_id": project.id},
+        # 예상 WD 와 마감일은 **생성 계약에서 필수**다(묶음 B · 지시 4). 화면에서 별표만
+        # 붙이고 끝냈으면 그 계약은 없는 것과 같아서 서버가 받아 준다 — 그래서 여기서도
+        # 실제 계약대로 보낸다.
+        json={
+            "title": "자체 프로젝트의 첫 티켓", "project_id": project.id,
+            "est_wd": 1.0, "due_date": "2026-09-30",
+        },
         headers={"X-CSRF-Token": csrf},
     )
     assert made.status_code in (200, 201), (

@@ -20,6 +20,10 @@ from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.orm import Session
 
 from app.core.dates import iso_date
+# 🔴 **모듈 맨 위에서 들여온다.** 예전에는 주간 리포트 함수 **안에서만** 들여왔는데
+# 목록(`list_projects`)이 같은 이름을 쓰고 있어서, 목록 요청이 `NameError` 로 500 이 났다.
+# 함수 안 import 는 그 함수에만 이름을 만든다 — 같은 파일이라고 공유되지 않는다.
+from app.home.service import local_today
 from app.core.audit import record_audit_from_request
 from app.core.authz import CONSOLE_OPS_ROLES
 from app.authz.visibility import visibility_context
@@ -176,8 +180,6 @@ def _week_from(request: Request, week: str | None) -> weekly.Week:
     오늘을 UTC 로 판정하면 KST 09:00 이전에 날짜가 하루 밀려, 월요일 아침에 여는 사람이
     지난 주 리포트를 본다(§불변 9, `app/home/service.py::local_today` 와 같은 판단).
     """
-    from app.home.service import local_today
-
     settings = request.app.state.settings
     today = local_today(settings, request.app.state.clock.now())
     return weekly.resolve_week(week, today=today)

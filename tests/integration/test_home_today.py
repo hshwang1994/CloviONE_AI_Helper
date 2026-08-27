@@ -63,11 +63,18 @@ def notion(fake_http) -> FakeNotionTasksDB:
     return FakeNotionTasksDB(rows=[]).install(fake_http)
 
 
-def _cache(uid, page, *, tid, title, status, due, people, est=None, priority=None):
+def _cache(uid, page, *, tid, title, status, due, people, est=None, priority=None,
+           issue=False):
+    """티켓 한 줄.
+
+    `issue` 는 **상태가 아니라 신호**다(D-349). 예전에는 이 픽스처가 `status="이슈"` 를
+    썼는데, 어휘에서 그 상태가 없어지면서 「막힌 티켓」이 한 건도 안 세어졌다 — 홈의
+    `blocked` 칸이 0 이 됐고, 그것은 제품이 아니라 이 픽스처가 옛 어휘를 들고 있어서였다.
+    """
     return TicketCache(
         id=uid, notion_page_id=page, notion_ticket_number=tid,
         url=f"https://www.notion.so/{page}", title=title, status=status,
-        due_date=due, est_wd=est, priority=priority,
+        due_date=due, est_wd=est, priority=priority, issue_flag=issue,
         project_ids="", project_names=join_names(["홈 프로젝트"]),
         assignee_notion_ids=join_names(people),
         synced_at=SYNCED_AT, created_at=SYNCED_AT, updated_at=SYNCED_AT,
@@ -93,7 +100,8 @@ def _seed(db) -> None:
                due=TODAY, people=[N_ME], est=1.0),
         _cache("h-uid-2", "h-2", tid=2, title="지연", status="진행",
                due="2026-07-30", people=[N_ME], est=2.0),
-        _cache("h-uid-3", "h-3", tid=3, title="곧 마감", status="이슈",
+        # 진행 중이면서 **막혀 있다.** 상태와 신호는 다른 축이다(D-349).
+        _cache("h-uid-3", "h-3", tid=3, title="곧 마감", status="진행", issue=True,
                due="2026-08-06", people=[N_ME], est=0.5),
         _cache("h-uid-4", "h-4", tid=4, title="이번 주 완료", status="완료",
                due="2026-08-04", people=[N_ME], est=1.5),

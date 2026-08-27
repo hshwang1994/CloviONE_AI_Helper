@@ -475,6 +475,11 @@ _TYPE_TO_KIND = {
     "bulleted_list_item": "bulleted",
     "numbered_list_item": "numbered",
     "paragraph": "paragraph",
+    # 묶음 B 가 저장 쪽에 더한 셋. 이 표에 없으면 그 종류를 만나는 순간 `KeyError` 라,
+    # 「분류가 갈라졌다」가 조용한 통과가 아니라 실패로 드러난다 — 실제로 그렇게 잡혔다.
+    "to_do": "to_do",
+    "quote": "quote",
+    "code": "code",
 }
 
 _SAMPLE_LINES = (
@@ -482,7 +487,10 @@ _SAMPLE_LINES = (
     "- 항목", "* 별표 항목", "-붙은 하이픈", "  - 들여쓴 항목",
     "1. 첫째", "10. 열째", "1.점만", "- ", "# ",
     "---", "___", "***", "----",
-    "그냥 문단", "  들여쓴 문단", "", "   ", "> 인용은 문단이다", "```",
+    "그냥 문단", "  들여쓴 문단", "", "   ",
+    # 묶음 B 가 저장 쪽에 인용·체크 목록·코드를 더했다. 예전 이 줄은 「인용은 문단이다」라고
+    # 적혀 있었고 그때는 사실이었다 — 지금은 인용이 인용이다.
+    "> 인용", "- [ ] 안 한 일", "- [x] 한 일", "```",
 )
 
 
@@ -492,7 +500,12 @@ def _kind_from_notion_block(block: dict) -> dict:
     text = "".join(
         seg["text"]["content"] for seg in (container.get("rich_text") or [])
     )
-    return {"kind": _TYPE_TO_KIND[btype], "text": text}
+    item = {"kind": _TYPE_TO_KIND[btype], "text": text}
+    # 체크 상태는 종류만큼이나 그 줄의 뜻이다 — 「한 일」과 「안 한 일」이 같은 항목으로
+    # 그려지면 체크 목록을 쓸 이유가 없다.
+    if btype == "to_do":
+        item["checked"] = bool(container.get("checked"))
+    return item
 
 
 def test_every_line_is_classified_exactly_like_the_shared_markdown_rules():

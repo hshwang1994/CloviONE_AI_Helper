@@ -72,16 +72,20 @@ def notion(fake_http) -> FakeNotionTasksDB:
 
 
 def _cache(uid, page, *, tid, title, status, due, people, est=None, priority=None,
-           project_uid=None):
+           project_uid=None, issue=False):
     """티켓 미러 한 행.
 
     `project_uid` 는 **소속**이다 (0060 §11). 없으면 그 티켓은 전역 관리자 말고는 아무에게도
     안 보이고, 그러면 도우미가 아무것도 못 읽어 이 파일이 무엇을 재는지 흐려진다.
+
+    `issue` 는 **상태가 아니라 신호**다(D-349). 예전에는 `status="이슈"` 로 막힌 티켓을
+    만들었는데 어휘에서 그 상태가 없어졌다 — 그대로 두면 브리핑의 「막힘」이 0 건이 되고,
+    그것은 제품이 아니라 이 픽스처가 옛 어휘를 들고 있는 것이다.
     """
     return TicketCache(
         id=uid, notion_page_id=page, notion_ticket_number=tid,
         url=f"https://www.notion.so/{page}", title=title, status=status,
-        due_date=due, est_wd=est, priority=priority,
+        due_date=due, est_wd=est, priority=priority, issue_flag=issue,
         project_ids="", project_names=join_names(["도우미 프로젝트"]),
         project_uid=project_uid,
         project_link=PROJECT_LINK_OK if project_uid else PROJECT_LINK_MISSING,
@@ -137,7 +141,8 @@ def _seed(db) -> None:
                due=TODAY, people=[N_ME], est=1.0, project_uid=project.id),
         _cache("a-uid-2", "a-2", tid=2, title="지연", status="진행",
                due="2026-07-30", people=[N_ME], est=2.0, project_uid=project.id),
-        _cache("a-uid-3", "a-3", tid=3, title="막힘", status="이슈",
+        # 진행 중이면서 막혔다 — 상태와 신호는 다른 축이다(D-349).
+        _cache("a-uid-3", "a-3", tid=3, title="막힘", status="진행", issue=True,
                due="2026-08-06", people=[N_ME], project_uid=project.id),
         _cache("a-uid-4", "a-4", tid=4, title="이번 주 완료", status="완료",
                due="2026-08-04", people=[N_ME], est=1.5, project_uid=project.id),

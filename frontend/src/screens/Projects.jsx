@@ -155,6 +155,9 @@ function OverdueBars({ items, today }) {
   const worst = rows[0].late || 1;
   return (
     <BarSeries
+      /* 그림마다 «이 그림이 답하는 업무 질문» 을 적는다(W6). 이 자리는 「6건」이라는 수
+         옆에 서는 그림이라, 그 수를 본 사람이 다음에 할 일이 무엇인지를 말해야 한다. */
+      question="가장 오래 밀린 마일스톤이 무엇인지 봅니다."
       items={rows.map((m) => ({
         // 가운뎃점을 안 쓴다(`scripts/check_user_text.py`) — 화면 문구의 구분자는 여백이다.
         label: m.project_name ? `${m.project_name} ${m.name}` : m.name,
