@@ -302,7 +302,10 @@ STAGE 0~18 전부 OK · VERIFY_OK · 스냅샷 `/var/backups/clovirassist/202608
 
 ## NEXT
 
-- 이 계획(A~G)은 끝났다. 다음 작업은 사용자의 다음 지시가 정한다.
+- 이 계획(A~G)은 끝났다.
+- **다음 실행 계획은 [`REAUDIT_PLAN.md`](REAUDIT_PLAN.md) 다** — 배포 제품 재검수(2026-08-27)에서
+  나온 결함과 문서 도메인 축 복구를 다루는 **별도 회차**다. 이 파일과 `PLAN.md` 는 그 계획이
+  덮어쓰지 않는다.
 
 ## BLOCKERS
 
