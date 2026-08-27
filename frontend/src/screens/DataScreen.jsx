@@ -17,6 +17,7 @@ import { PageHeader, Card, Button, DataTable, FormDrawer, Modal, OverflowMenu, S
  * 지면서 올렸다: 같은 뜻의 검색창이 세 벌이면 한쪽만 고쳐지는 날이 오고, 그때 증상은
  * "이 화면 검색만 느리다" 라서 원인이 안 보인다. */
 import { DebouncedTextField, EMPTYABLE_SELECT, EntityCombobox, FilterSelect, SearchBox, kindSx } from "../ui/filters.jsx";
+import { DateField } from "../ui/DateField.jsx";
 /* 탐색 줄 — TicketFilterBar.jsx 와 공유(ui/FilterBar.jsx). **판이 아니다**(지시 80).
    폭은 격자 트랙이 아니라 컨트롤의 종류가 정한다(C2 «폭 배분»). */
 import { FILTER_GROUP_ORDER, FilterActions, FilterRow, FilterSurface, ResultLine, ToolbarEnd, ToolbarRow, filterGroupOf } from "../ui/FilterBar.jsx";
@@ -984,9 +985,22 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
                     />
                   );
                 }
-                if (f.type === "date" || f.type === "datetime-local") {
-                  // 브라우저는 date/datetime 입력의 placeholder를 무시한다 — 라벨을 항상 띄워 둬야
-                  // 나란히 놓인 시작/종료 두 상자를 구분할 수 있다.
+                if (f.type === "date") {
+                  // REAUDIT §15.5 — 기간 필터도 적용 대상이다. `common.onChange` 는 이미 값
+                  // 하나만 받는 계약이라(이벤트가 아니다) `DateField` 와 그대로 맞는다.
+                  return (
+                    <DateField
+                      {...common} id={f.key} size="small"
+                      data-filter-kind="date"
+                      sx={kindSx("date")}
+                    />
+                  );
+                }
+                if (f.type === "datetime-local") {
+                  // 날짜만 다루는 `DateField` 와 계약이 다르다(시각 포함, KST 경계) — 순수
+                  // 달력일이 아니라서 그 부품을 그대로 못 쓴다. 브라우저는 datetime 입력의
+                  // placeholder를 무시한다 — 라벨을 항상 띄워 둬야 나란히 놓인 시작/종료 두
+                  // 상자를 구분할 수 있다.
                   return (
                     <TextField
                       key={f.key} type={f.type} size="small" label={f.label}
@@ -1101,6 +1115,11 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
               activeFilters: Object.keys(filters).filter((k) => filters[k] !== "" && filters[k] != null),
               fixedColumns: config.fixedColumns || [],
             }}
+            // §15.1 재검수 — registry 마다 손으로 켜지 않는다(정책 2건짜리와 감사 로그
+            // 몇백 건짜리가 같은 화면을 쓴다). 행이 실제로 많을 때만 자동으로 켠다.
+            // `stickyHeader` 와는 같이 못 쓴다 — 그 모드는 바깥(page) 이 스크롤 창이라
+            // `DataTable` 내부 스크롤 창을 재는 이 가상화의 전제가 깨진다(kit.jsx 주석).
+            virtualize={!config.stickyHeader && filtered.length > 60 ? {} : undefined}
           />
           {/* total 없는 응답의 '더 있음' 판정은 서버가 실제로 돌려준 원본 페이지 크기(items)로 해야
            * 한다, clientFilter로 걸러진 filtered를 쓰면 paginated+clientFilter 화면에서 필터 후 행

@@ -1,5 +1,6 @@
 import React from "react";
 import Box from "@mui/material/Box";
+import Tooltip from "@mui/material/Tooltip";
 import BlockRoundedIcon from "@mui/icons-material/BlockRounded";
 import ScheduleRoundedIcon from "@mui/icons-material/ScheduleRounded";
 import ErrorOutlineRoundedIcon from "@mui/icons-material/ErrorOutlineRounded";
@@ -37,9 +38,12 @@ const TONE_INK = { danger: "error.strong", warn: "warning.strong" };
 const TONE_BG = { danger: "error.bg", warn: "warning.bg" };
 const TONE_DOT = { danger: "error.main", warn: "warning.main" };
 
+/* REAUDIT A8 — `blocked_reason` 은 API 가 이미 실었는데 어느 화면도 안 읽었다(차단됐다는
+ * 사실만 보이고 왜인지는 안 보였다). `signal.reason` 이 있을 때만(차단 신호 · 사연이 실제로
+ * 있을 때) Tooltip 으로 감싼다 — 나머지 신호(지연·이슈)와 사연 없는 차단은 지금과 똑같다. */
 function SignalPill({ signal }) {
   const Icon = ICON[signal.key];
-  return (
+  const body = (
     <Box
       component="span"
       className="k-signal"
@@ -59,10 +63,14 @@ function SignalPill({ signal }) {
       </Box>
     </Box>
   );
+  return signal.reason ? <Tooltip title={signal.reason}>{body}</Tooltip> : body;
 }
 
 function SignalMark({ signal }) {
   const Icon = ICON[signal.key];
+  // `title` 은 브라우저 기본 툴팁이다 — 사연이 있으면 그 자리에 이어 붙인다(좁은 목록은
+  // MUI Tooltip 을 안 쓴다, 위 밀도 설명 참고).
+  const title = signal.reason ? `${signal.label}: ${signal.reason}` : signal.label;
   return (
     <Box
       component="span"
@@ -70,8 +78,8 @@ function SignalMark({ signal }) {
       data-signal={signal.key}
       data-tone={signal.tone}
       role="img"
-      aria-label={signal.label}
-      title={signal.label}
+      aria-label={title}
+      title={title}
       sx={{
         display: "inline-flex", alignItems: "center", flexShrink: 0,
         fontSize: FONT_SIZE.bodySm, lineHeight: 1,

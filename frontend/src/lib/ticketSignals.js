@@ -67,7 +67,12 @@ export function isOverdue(ticket, { today, terminal }) {
   return String(due).slice(0, 10) < today;
 }
 
-/** 이 티켓에 켜져 있는 신호 전부. 순서는 급한 것부터다. */
+/** 이 티켓에 켜져 있는 신호 전부. 순서는 급한 것부터다.
+ *
+ * REAUDIT A8 — `blocked_reason` 은 API 가 이미 싣는데(`app/tickets/service.py`) 어느
+ * 화면도 안 썼다. `SIGNALS.blocked` 는 표에 하나뿐인 공유 어휘 항목이라(모든 차단 티켓이
+ * 같은 참조를 본다) 거기 직접 사연을 못 싣는다 — 차단인 자리만 사연을 얹은 새 객체로
+ * 복제해서 돌려준다. 사연이 없으면(옛 데이터) 공유 항목을 그대로 준다. */
 export function ticketSignals(ticket, { today, terminal }) {
   const t = ticket || {};
   const on = {
@@ -75,7 +80,9 @@ export function ticketSignals(ticket, { today, terminal }) {
     overdue: isOverdue(t, { today, terminal }),
     issue: !!t.issue,
   };
-  return SIGNAL_ORDER.filter((k) => on[k]).map((k) => SIGNALS[k]);
+  return SIGNAL_ORDER.filter((k) => on[k]).map((k) =>
+    (k === "blocked" && t.blocked_reason) ? { ...SIGNALS[k], reason: t.blocked_reason } : SIGNALS[k]
+  );
 }
 
 /** 화면이 쓰는 입구 하나. 어휘 질의는 `useWorkStatuses` 와 **같은 키**라 요청은 한 번이다.

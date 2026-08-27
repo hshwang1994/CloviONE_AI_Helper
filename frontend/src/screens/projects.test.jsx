@@ -35,6 +35,8 @@ import { Projects } from "./Projects.jsx";
 import { Project } from "./Project.jsx";
 import { ConfirmProvider, ToastProvider } from "../ui/kit.jsx";
 import { ThemeModeProvider } from "../ui/ThemeModeProvider.jsx";
+import { fillDateField } from "../test-helpers/dateField.js";
+import { DETAIL_SOLO_WIDTH } from "../ui/DetailLayout.jsx";
 
 /* ── 표본 ──────────────────────────────────────────────────────────────────── */
 
@@ -346,6 +348,17 @@ describe("프로젝트 목록 — 표", () => {
     await waitFor(() => expect(addr()).toBe("/projects/p-1"));
   });
 
+  it("🔴 이름 칸이 실제 링크다 — 새 탭·주소 복사가 된다(A9)", async () => {
+    renderAt("/projects");
+    await screen.findByText("배포 자동화");
+
+    // HashRouter 다 — 진짜 이동은 `#` 이 붙은 경로여야 한다(§주석: kit.jsx rowAnchorProps).
+    // 이름 칸이 코드(DEP)도 함께 그려 접근성 이름이 "배포 자동화 DEP" 로 이어진다 —
+    // 앞부분만 짚는다.
+    const link = screen.getByRole("link", { name: /^배포 자동화/ });
+    expect(link.getAttribute("href")).toBe("#/projects/p-1");
+  });
+
   it("진행률 캐시가 비어 있으면 0% 라고 하지 않는다", async () => {
     listPayload = {
       items: [project({ progress_pct: null, notion_progress_pct: null, health_score: null })],
@@ -630,6 +643,27 @@ describe("프로젝트 상세 — Health", () => {
   });
 });
 
+describe("프로젝트 상세 — 개요 판 폭 (C8·C9)", () => {
+  it("🔴 개요·진행률·Health 판은 DETAIL_SOLO_WIDTH 로 좁고, 발생 추이 판은 폭 제한이 없다", async () => {
+    renderAt("/projects/p-1");
+    await screen.findByText("42.9%"); // 진행률 판이 실제로 그려질 때까지 기다린다.
+
+    const overviewHeading = screen.getByRole("heading", { name: "개요" });
+    const overviewCard = overviewHeading.closest(".MuiCard-root");
+    expect(getComputedStyle(overviewCard).maxWidth).toBe(DETAIL_SOLO_WIDTH);
+
+    const progressHeading = screen.getByRole("heading", { name: "진행률" });
+    expect(getComputedStyle(progressHeading.closest(".MuiCard-root")).maxWidth).toBe(DETAIL_SOLO_WIDTH);
+
+    const healthHeading = screen.getByRole("heading", { name: "Health" });
+    expect(getComputedStyle(healthHeading.closest(".MuiCard-root")).maxWidth).toBe(DETAIL_SOLO_WIDTH);
+
+    // 시계열 막대는 넓을수록 하루하루가 잘 읽힌다 — 이 판만 폭 제한이 없다(C10).
+    const trendHeading = screen.getByRole("heading", { name: "티켓 발생 추이" });
+    expect(getComputedStyle(trendHeading.closest(".MuiCard-root")).maxWidth).not.toBe(DETAIL_SOLO_WIDTH);
+  });
+});
+
 describe("프로젝트 상세 — 탭", () => {
   it("고른 탭이 주소에 남고, WBS 트리와 못 그린 작업을 보여 준다", async () => {
     const user = userEvent.setup();
@@ -754,9 +788,19 @@ describe("프로젝트 상세 — 탭", () => {
  * 없었다. 그래서 여기서 보는 것은 "버튼이 있는가" 가 아니라 **나간 요청**이다 - 버튼만
  * 그려 놓고 배선이 없는 상태가 이 저장소에서 여러 번 나왔다. */
 
-/** 폼 모달의 칸을 채운다. 라벨로 찾는다(placeholder 는 화면 문구가 아니다). */
+/** 폼 모달의 칸을 채운다. 라벨로 찾는다(placeholder 는 화면 문구가 아니다).
+ *
+ * REAUDIT §15.5 — 날짜 칸(`DateField`)의 지연 로드·구간(연·월·일) 상호작용은 이 화면
+ * 하나만의 사정이 아니다(새 티켓 폼 등 다른 화면에도 있다) — 그 지식은
+ * `test-helpers/dateField.js` 하나에 모으고 여기서는 그 판단만 위임한다. */
 async function fill(user, label, value) {
+  await waitFor(() => {
+    expect(screen.getByLabelText(new RegExp("^" + label))).not.toBeDisabled();
+  });
   const input = screen.getByLabelText(new RegExp("^" + label));
+  if (input.getAttribute("aria-hidden") === "true") {
+    return fillDateField(user, new RegExp("^" + label), value);
+  }
   await user.clear(input);
   await user.type(input, value);
 }

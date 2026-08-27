@@ -16,6 +16,7 @@ import { useQueryState } from "../lib/useQueryState.js";
 import { useListReturn } from "../lib/listReturn.js";
 import { HealthBlock, HealthHistory, ProgressBlock } from "./ProjectMetrics.jsx";
 import { DateHistogram } from "../ui/charts/DateHistogram.jsx";
+import { DETAIL_SOLO_WIDTH } from "../ui/DetailLayout.jsx";
 import { ProjectTickets } from "./ProjectTickets.jsx";
 import { ProjectWbs } from "./ProjectWbs.jsx";
 import { ProjectWeekly } from "./ProjectWeekly.jsx";
@@ -203,9 +204,16 @@ function Overview({
   const dept = deptLabel(p, deptNames);
   const progress = progressQuery.data || {};
   const health = healthQuery.data || {};
+  /* C8·C9 — 「개요」·「진행률」·「Health」세 판은 짧은 라벨-값 줄과 작은 원(6rem) 하나가
+     내용의 전부인데, 이 화면 어디에도 폭 상한이 없어 카드가 그리드 전체 폭(2560 에서
+     1,300px 안팎)까지 늘어났다. 「목표」문단만 `PROSE_MAX_WIDTH` 로 좁아 같은 카드 안에서
+     한쪽만 유독 좁아 보였다. 「티켓 발생 추이」는 다르다 — 시계열 막대는 넓을수록 하루하루가
+     잘 읽혀 폭 상한을 안 준다(C10 은 그 자체의 문제라 축 쪽에서 따로 고친다). `DETAIL_SOLO_WIDTH`
+     를 재사용한다 — 곁열 없는 상세(`DetailLayout`)와 같은 「혼자 서는 한 열」이다. */
+  const infoCardSx = { maxWidth: DETAIL_SOLO_WIDTH };
   return (
     <Stack gap={2.5}>
-      <Card>
+      <Card sx={infoCardSx}>
         <Stack direction="row" gap={1} sx={{ flexWrap: "wrap", alignItems: "center", mb: 1 }}>
           <Typography component="h2" variant="h6" sx={{ fontSize: FONT_SIZE.sectionTitle, flex: 1 }}>개요</Typography>
           {canWrite ? <Button size="sm" onClick={onEdit}>수정</Button> : null}
@@ -290,7 +298,7 @@ function Overview({
           )}
       </Card>
 
-      <Card>
+      <Card sx={infoCardSx}>
         <Stack direction="row" gap={1} sx={{ flexWrap: "wrap", alignItems: "center", mb: 1.5 }}>
           <Typography component="h2" variant="h6" sx={{ fontSize: FONT_SIZE.sectionTitle, flex: 1 }}>진행률</Typography>
           {/* FN-06: progress_pct/health_score는 이미 백그라운드가 채운다(project-queries.js
@@ -311,7 +319,7 @@ function Overview({
           )}
       </Card>
 
-      <Card>
+      <Card sx={infoCardSx}>
         <Stack direction="row" gap={1} sx={{ flexWrap: "wrap", alignItems: "center", mb: 1.5 }}>
           <Typography component="h2" variant="h6" sx={{ fontSize: FONT_SIZE.sectionTitle, flex: 1 }}>Health</Typography>
           {canWrite ? (

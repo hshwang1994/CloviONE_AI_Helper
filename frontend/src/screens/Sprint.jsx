@@ -32,12 +32,13 @@ import { LineSeries } from "../ui/charts/LineSeries.jsx";
 import { Gauge } from "../ui/charts/Gauge.jsx";
 import { ProgressBar } from "../ui/charts/ProgressBar.jsx";
 import { burndownSeries, workloadItems } from "./sprint-charts.js";
-import { SPRINT_FIELDS } from "./WorkBoard.jsx";
+import { SPRINT_FIELDS } from "./sprint-fields.js";
 import { useQueryState } from "../lib/useQueryState.js";
 import { useTicketProjects } from "./ticket-options.js";
 import { useTicketSignals } from "../lib/ticketSignals.js";
 import { TicketSignals } from "../ui/TicketSignals.jsx";
 import { UserAvatar } from "../ui/UserAvatar.jsx";
+import { DateField } from "../ui/DateField.jsx";
 import { invalidateTicketViews } from "./ticket-views.js";
 import { priorityKind, priorityKo } from "../lib/priority.js";
 import { KO_WORD_BREAK } from "../ui/theme.js";
@@ -235,13 +236,11 @@ function DecisionComposer({ onAdd, busy }) {
         InputLabelProps={{ shrink: true }}
         sx={{ flex: "1 1 20rem" }}
       />
-      <TextField
+      <DateField
         size="small"
-        type="date"
         label="마감"
         value={due}
-        onChange={(e) => setDue(e.target.value)}
-        InputLabelProps={{ shrink: true }}
+        onChange={setDue}
         sx={{ minWidth: "10rem" }}
       />
       <Button type="submit" disabled={busy || !body.trim()}>
@@ -620,10 +619,23 @@ export function Sprint() {
               {/* 「기록이 없다」와 「안 바뀌었다」는 다른 사실이다. 0 으로 적으면 화면이
                   안정된 회차라고 말하는데, 실은 아무것도 모르는 것이다. */}
               {body.scope.tracked ? (
-                <Stack spacing={0.5}>
+                <Stack spacing={1}>
                   <Typography variant="body2">
                     {`회차가 시작한 뒤 ${body.scope.added}건이 들어오고 ${body.scope.removed}건이 빠졌습니다.`}
                   </Typography>
+                  {/* REAUDIT §15.2 — 여섯 번째 ECharts 그림. 들어온 건수와 빠진 건수를 나란히
+                      비교한다. 새 API(일자별 시계열)를 만들지 않고 이미 있는 두 집계값을
+                      막대로 낸다 — 이미 마이그레이션한 BarSeries 를 그대로 재사용한다. */}
+                  {body.scope.added > 0 || body.scope.removed > 0 ? (
+                    <BarSeries
+                      question="이번 회차 동안 범위가 얼마나 드나들었는지 봅니다."
+                      unit="건"
+                      items={[
+                        { label: "들어옴", value: body.scope.added },
+                        { label: "빠짐", value: body.scope.removed, color: body.scope.removed > 0 ? "warn" : undefined },
+                      ]}
+                    />
+                  ) : null}
                   <Typography variant="caption" color="text.secondary">
                     어떤 티켓이 드나들었는지는 위 논의 항목 탭에서 볼 수 있습니다.
                   </Typography>

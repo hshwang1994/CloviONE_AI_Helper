@@ -19,6 +19,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { KO_WORD_BREAK } from "./theme.js";
+import { VirtualRows } from "./VirtualRows.jsx";
 
 /* 끌어 놓기 공통 부품 (S6). **저장소에서 DnD 를 쓰는 자리는 전부 여기를 지난다.**
  *
@@ -102,7 +103,11 @@ export function DragItem({ id, label, disabled, children }) {
 
 /* 카드를 받는 칸. 비어 있어도 **높이를 유지한다** — 빈 칸이 사라지면 그 칸으로 옮길
  * 방법이 없어진다(칸반에서 마지막 카드를 뺀 순간 정확히 그 상태가 된다). */
-export function DropColumn({ id, title, count, hint, children, sx, bodyMaxHeight, action }) {
+/* `virtualized` — §15.1. `VirtualRows` 는 자기 자신의 스크롤 창(`height`+`overflowY:auto`)을
+ * 갖는다 — 이 칸의 `bodyMaxHeight` 스크롤 상자 **안에** 그것을 또 두면 스크롤 상자가
+ * 둘 겹친다. 그래서 켜져 있으면 이 칸은 자기 스크롤·역할(role="list")·레이아웃을 접고
+ * `children` 을 그대로 낸다 — 그 자리를 `VirtualRows` 가 통째로 맡는다. */
+export function DropColumn({ id, title, count, hint, children, sx, bodyMaxHeight, action, virtualized }) {
   const { setNodeRef, isOver } = useDroppable({ id });
   return (
     <Box
@@ -144,15 +149,17 @@ export function DropColumn({ id, title, count, hint, children, sx, bodyMaxHeight
           하나를 통째로 쓴다. 그때 사용자가 하는 일은 페이지를 굴려 다른 열의 카드를
           찾는 것이고, 그 순간 칸반은 목록 넷과 다르지 않다.
           `bodyMaxHeight` 를 안 주면 예전처럼 자란다(회귀 0). */}
-      <Box
-        role="list"
-        sx={{
-          display: "flex", flexDirection: "column", gap: 1, minHeight: "4rem",
-          ...(bodyMaxHeight ? { maxHeight: bodyMaxHeight, overflowY: "auto", pr: 0.5 } : null),
-        }}
-      >
-        {children}
-      </Box>
+      {virtualized ? children : (
+        <Box
+          role="list"
+          sx={{
+            display: "flex", flexDirection: "column", gap: 1, minHeight: "4rem",
+            ...(bodyMaxHeight ? { maxHeight: bodyMaxHeight, overflowY: "auto", pr: 0.5 } : null),
+          }}
+        >
+          {children}
+        </Box>
+      )}
     </Box>
   );
 }
@@ -189,7 +196,14 @@ export function neighboursForBoard(targetIds, activeId, overId) {
   return { beforeId: ids[at - 1] || null, afterId: ids[at] };
 }
 
-export function SortableList({ items, labelOf, onReorder, disabled, children }) {
+/* `virtualize` — §15.1 재검수. opt-in 이다(안 주면 예전과 한 픽셀도 안 다르다,
+ * `Knowledge.jsx` 폴더 목록은 8개라 안 켠다). 켜면 창 밖 항목은 DOM에 없지만
+ * `SortableContext` 의 `items`(바로 아래 `ids`)는 **항상 전체 배열**이라 dnd-kit 은
+ * 그 카드들이 "지금 안 보일 뿐 목록에는 있다"로 안다 — 끌어다 창 밖에 가까이 가면
+ * dnd-kit `PointerSensor` 의 기본 자동 스크롤이 창을 옮겨 그 카드를 보이게 한다
+ * (§15.1 주의 1). `VirtualRows` 자신의 `role="listitem"` 은 끈다 — `children(it)` 이
+ * 돌려주는 `DragItem` 이 이미 그 role 을 스스로 단다(이중 listitem 방지). */
+export function SortableList({ items, labelOf, onReorder, disabled, children, virtualize }) {
   const sensors = useDragSensors();
   const [activeId, setActiveId] = React.useState(null);
   const ids = items.map((it) => it.id);
@@ -203,6 +217,23 @@ export function SortableList({ items, labelOf, onReorder, disabled, children }) 
     onReorder({ id: active.id, ...where });
   }
 
+  const list = virtualize ? (
+    <VirtualRows
+      items={items}
+      getItemKey={(it) => it.id}
+      estimateSize={virtualize.estimateSize}
+      height={virtualize.height}
+      ariaLabel={virtualize.ariaLabel}
+      overscan={virtualize.overscan}
+      itemRole={null}
+      renderItem={(it) => children(it)}
+    />
+  ) : (
+    <Box role="list" sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+      {items.map((it) => children(it))}
+    </Box>
+  );
+
   return (
     <DndContext
       sensors={sensors}
@@ -213,9 +244,7 @@ export function SortableList({ items, labelOf, onReorder, disabled, children }) 
       onDragEnd={handleEnd}
     >
       <SortableContext items={ids} strategy={verticalListSortingStrategy} disabled={disabled}>
-        <Box role="list" sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
-          {items.map((it) => children(it))}
-        </Box>
+        {list}
       </SortableContext>
       <DragOverlay>{activeId ? <Box sx={{ opacity: 0.9 }}>{labelOf(activeId)}</Box> : null}</DragOverlay>
     </DndContext>
@@ -227,7 +256,11 @@ export function SortableList({ items, labelOf, onReorder, disabled, children }) 
  * `onMove({ id, fromColumn, toColumn, beforeId, afterId })`. 칸이 안 바뀌었으면
  * `fromColumn === toColumn` 이고, 그때는 순서만 바뀐 것이다 — 부르는 쪽이 그 둘을 다른
  * 요청으로 보낼지 한 요청으로 보낼지 정한다. */
-export function DragBoard({ columns, labelOf, onMove, disabled, children, sx, columnMaxHeight }) {
+/* `virtualize` — §15.1, `SortableList` 위 주석과 같은 계약(opt-in · `SortableContext`
+ * 의 `items` 는 항상 전체 배열 · dnd-kit 기본 자동 스크롤이 창 밖 이동을 처리한다).
+ * 켜지면 `columnMaxHeight` 는 각 칸의 `VirtualRows` `height` 로 넘어간다 — 칸 자신의
+ * `overflowY:auto` 상자는 접는다(스크롤 상자 이중화 방지, `DropColumn` 위 주석 참고). */
+export function DragBoard({ columns, labelOf, onMove, disabled, children, sx, columnMaxHeight, virtualize }) {
   const sensors = useDragSensors();
   const [activeId, setActiveId] = React.useState(null);
 
@@ -298,14 +331,26 @@ export function DragBoard({ columns, labelOf, onMove, disabled, children, sx, co
             count={column.count != null ? column.count : column.items.length}
             hint={column.hint}
             action={column.action}
-            bodyMaxHeight={columnMaxHeight}
+            bodyMaxHeight={virtualize ? undefined : columnMaxHeight}
+            virtualized={!!virtualize}
           >
             <SortableContext
               items={column.items.map((it) => it.id)}
               strategy={verticalListSortingStrategy}
               disabled={disabled}
             >
-              {column.items.map((it) => children(it, column))}
+              {virtualize ? (
+                <VirtualRows
+                  items={column.items}
+                  getItemKey={(it) => it.id}
+                  estimateSize={virtualize.estimateSize}
+                  height={columnMaxHeight || virtualize.height}
+                  ariaLabel={`${column.title} 카드 목록`}
+                  overscan={virtualize.overscan}
+                  itemRole={null}
+                  renderItem={(it) => children(it, column)}
+                />
+              ) : column.items.map((it) => children(it, column))}
             </SortableContext>
           </DropColumn>
         ))}

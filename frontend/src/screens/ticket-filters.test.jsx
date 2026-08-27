@@ -150,7 +150,11 @@ describe("내 티켓 — 조건이 주소에 남는다", () => {
     expect(await screen.findByText("티켓 1")).toBeInTheDocument();
     expect(addr()).toBe("/my-tickets");
     expect(lastListQuery("/api/tickets/mine").getAll("status")).toEqual(["계획", "이슈", "진행", "검증"]);
-    expect(screen.getByText("상태: 계획")).toBeInTheDocument();
+    // C6 재검수 — 기본값(종료 제외)은 사용자가 건 조건이 아니다. 상태마다 칩을 하나씩
+    // 펴면("상태: 계획"·"상태: 이슈"·"상태: 진행"·"상태: 검증") "조건 4개"로 읽히는데
+    // 실제로는 아무것도 안 골랐다 — 칩 하나로 그 사실 하나만 말한다.
+    expect(screen.getByText("종료 제외(기본값)")).toBeInTheDocument();
+    expect(screen.queryByText("상태: 계획")).not.toBeInTheDocument();
   });
 
   it("상태를 고르면 주소에 실리고 같은 값이 서버 질의로 나간다", async () => {

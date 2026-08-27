@@ -445,3 +445,27 @@ describe("등록 화면 maxLength가 fieldLimits.json까지 실제로 이어진�
     expect(await screen.findByLabelText(/이름/)).not.toHaveAttribute("maxlength");
   });
 });
+
+describe("REAUDIT §15.1 — 행이 많으면 가상화가 자동으로 켜진다", () => {
+  it("🔴 60건을 넘으면 DataTable이 가상화된다 — 총 건수는 그대로고 그려진 행은 그보다 적다", async () => {
+    const items = Array.from({ length: 100 }, (_, i) => ({ id: `a${i}`, action: `동작-${i}`, actor: "관리자" }));
+    apiMock.mockResolvedValue({ items, total: 100 });
+    const { container } = renderScreen(BASE_CONFIG);
+    await screen.findByText("동작-0");
+
+    const list = container.querySelector('[data-virtual-total]');
+    expect(list, "가상화 스크롤 창을 찾지 못했다").not.toBeNull();
+    expect(list).toHaveAttribute("data-virtual-total", "100");
+    // 100건 전부가 <tr>로 그려지지는 않는다 — 가상화의 요점이다.
+    expect(container.querySelectorAll("tbody tr").length).toBeLessThan(100);
+  });
+
+  it("60건 이하면 그대로 전부 그린다 — 가상화 창이 없다(회귀 0)", async () => {
+    const items = Array.from({ length: 10 }, (_, i) => ({ id: `a${i}`, action: `동작-${i}`, actor: "관리자" }));
+    apiMock.mockResolvedValue({ items, total: 10 });
+    const { container } = renderScreen(BASE_CONFIG);
+    await screen.findByText("동작-0");
+    expect(container.querySelector('[data-virtual-total]')).toBeNull();
+    expect(container.querySelectorAll("tbody tr").length).toBe(10);
+  });
+});

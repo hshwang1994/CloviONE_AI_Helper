@@ -144,6 +144,16 @@ def ticket_view(t: TicketDTO, id_to_name: dict[str, str], id_to_user: dict[str, 
     """
     names = [id_to_name.get(a) for a in t.assignee_ids]
     uids = [id_to_user.get(a) for a in t.assignee_ids]
+    # `assignee_names`/`assignee_user_ids` 는 **각자** None 을 걸러 낸다 — 담당자 하나가
+    # 이름은 풀렸는데 user_id 는 안 풀리면(또는 그 반대) 두 목록 길이가 갈라져 i번째끼리
+    # 짝지으면 다른 사람의 이름·아바타가 붙는다(REAUDIT A7). 아바타를 그리려는 화면은
+    # 원본 assignee_ids 한 번만 훑어 같은 사람의 두 값을 **같은 자리에서** 묶은 이 목록을
+    # 쓴다 — 인덱스로 다시 짝짓지 않는다.
+    # 이름은 `assignees` 가 아니다 — 그 이름은 이 파일의 골든 계약 changelog 가 이미
+    # "원본 소스 인물 id 배열, S14 에서 뺐다"로 못박은 자리다(tests/regression/
+    # test_api_contract_golden.py). 모양이 전혀 달라도 같은 키를 다시 쓰면 그 기록이
+    # 「되돌아왔다」로 잘못 읽힌다.
+    assignee_people = [{"user_id": u, "name": n} for u, n in zip(uids, names) if u or n]
     pnames = list(t.project_names)
     return {
         "id": t.page_id,
@@ -172,6 +182,7 @@ def ticket_view(t: TicketDTO, id_to_name: dict[str, str], id_to_user: dict[str, 
         "project_uid": t.project_uid,
         "assignee_names": [n for n in names if n],
         "assignee_user_ids": [u for u in uids if u],
+        "assignee_people": assignee_people,
         "project_names": pnames,
         "project": pnames[0] if pnames else "",
         # ── Signal — 상태와 직교하는 축 (D-349) ─────────────────────────────

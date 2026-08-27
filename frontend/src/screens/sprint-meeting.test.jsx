@@ -148,13 +148,19 @@ describe("스프린트 회의", () => {
 
   it("회차 기간과 오늘을 화면이 말한다", async () => {
     renderSprint();
-    await waitFor(() => expect(screen.getByText(/2026-08-24부터/)).toBeTruthy());
+    // 이 화면은 이제 ECharts 차트 여러 개(번다운·건강·Workload)를 함께 그린다(§15.2) —
+    // 그 자체는 이 문장과 무관하지만, 전체 표적 검증처럼 차트가 많은 시험 파일 여럿이
+    // 동시에 도는 동안에는 동적 import 의 시스템 부하가 늘어 기본 시간 제한(1000ms)을
+    // 넘길 수 있다. 넉넉히 준다.
+    await waitFor(() => expect(screen.getByText(/2026-08-24부터/)).toBeTruthy(), { timeout: 5000 });
     expect(screen.getByText(/오늘은 2026-08-27입니다/)).toBeTruthy();
   });
 
   it("🔴 논의 항목은 유형별이고 각 탭이 건수를 말한다", async () => {
     renderSprint();
-    await waitFor(() => expect(screen.getByRole("tab", { name: "지연 1" })).toBeTruthy());
+    // 위 시험과 같은 이유(§15.2 차트 여럿 + §15.5 `DateField` 지연 로드) — 전량 실행처럼
+    // 동적 import 부하가 큰 상황에서 기본 1000ms 를 넘길 수 있어 넉넉히 준다.
+    await waitFor(() => expect(screen.getByRole("tab", { name: "지연 1" })).toBeTruthy(), { timeout: 5000 });
     for (const name of ["차단 1", "미할당 0", "마감 임박 0", "범위 변경 0"]) {
       expect(screen.getByRole("tab", { name })).toBeTruthy();
     }

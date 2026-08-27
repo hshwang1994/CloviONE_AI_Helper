@@ -20,6 +20,8 @@ import { setItemTitle } from "../app/documentTitle.js";
 import { useListReturn } from "../lib/listReturn.js";
 import { useTicketSignals } from "../lib/ticketSignals.js";
 import { TicketSignals } from "../ui/TicketSignals.jsx";
+import { PersonLine } from "../ui/UserAvatar.jsx";
+import { DateCell } from "../ui/cells.jsx";
 
 /* 티켓 상세 — 문서처럼 우리 화면에서 내용을 읽고, '원본 열기'로 노션에 간다. 속성은 메타 레일에,
  * 본문은 TicketBody(읽기·편집·동기화 상태), 논의는 TicketComments 가 맡는다. 편집·삭제(휴지통)도 여기서.
@@ -197,7 +199,20 @@ export function Ticket() {
       : null,
     t.priority ? { key: "priority", label: "우선순위", type: "status", rank: "primary", value: <Badge value={priorityKo(t.priority)} kind={priorityKind(t.priority)} /> } : null,
     t.project ? { key: "project", label: "프로젝트", type: "name", rank: "primary", value: t.project } : null,
-    (t.assignee_names || []).length ? { key: "assignee", label: "담당자", type: "name", rank: "primary", value: t.assignee_names.join(", ") } : null,
+    /* A7 — 담당자를 이름 텍스트로만 나열했다(아바타 없음). `assignee_people` 은
+       `assignee_ids` 한 번만 훑어 만든, 이름·user_id 가 어긋나지 않는 목록이다
+       (`app/tickets/service.py::ticket_view` 주석) — 인덱스로 두 배열을 다시 짝짓지
+       않는다. 목록·보드는 이미 `UserAvatar` 를 쓰므로 여기도 같은 부품으로 맞춘다. */
+    (t.assignee_people || []).length ? {
+      key: "assignee", label: "담당자", type: "name", rank: "primary",
+      value: (
+        <Stack direction="row" gap={1.25} sx={{ flexWrap: "wrap", alignItems: "center" }}>
+          {t.assignee_people.map((p) => (
+            <PersonLine key={p.user_id || p.name} person={p} name={p.name} size="sm" />
+          ))}
+        </Stack>
+      ),
+    } : null,
     t.due ? { key: "due", label: "마감", type: "date", rank: "primary", value: t.due } : null,
     // SEM-03 재확인 — PageHeader의 h1이 이제 원시 ID(GIT-57 등) 대신 실제 제목을 보여준다
     // (VIS-133과 같은 원인). 그 ID는 지원 문의 등에서 여전히 참조되는 값이라 사라지면 안
@@ -206,6 +221,8 @@ export function Ticket() {
     t.difficulty ? { key: "difficulty", label: "난이도", type: "enum", value: t.difficulty } : null,
     t.est_wd != null ? { key: "est", label: "예상 WD", type: "number", value: t.est_wd } : null,
     t.act_wd != null ? { key: "act", label: "실제 WD", type: "number", value: t.act_wd } : null,
+    // C11 — 우선순위·난이도·예상 WD·마감은 이미 있었는데 생성일만 없었다.
+    t.created_at ? { key: "created_at", label: "생성일", type: "date", value: <DateCell value={t.created_at} /> } : null,
   ].filter(Boolean);
 
   /* 부속 레일 — 본문에 딸린 것들이다. 첨부가 먼저고(무엇에 대한 파일인지 본문을 보면서

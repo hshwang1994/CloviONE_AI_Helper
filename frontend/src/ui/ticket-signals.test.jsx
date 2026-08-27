@@ -1,6 +1,7 @@
 import React from "react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 
 /* Status 와 Signal 은 **다른 축**이다 (D-349).
@@ -78,6 +79,22 @@ describe("한 티켓이 신호를 여러 개 갖는다", () => {
     // 이슈는 알고는 있어야 하지만 오늘 당장은 아니다. 셋 다 빨강이면 셋 다 안 보인다.
     expect(SIGNALS.issue.tone).toBe("warn");
   });
+
+  it("🔴 차단 사연이 있으면 그 신호에만 붙는다(A8) — 공유 어휘 항목은 안 건드린다", () => {
+    const got = ticketSignals(
+      { status: "진행", blocked: true, blocked_reason: "배포 승인 대기" },
+      { today: TODAY, terminal: TERMINAL },
+    );
+    expect(got.find((s) => s.key === "blocked").reason).toBe("배포 승인 대기");
+    // `SIGNALS.blocked` 는 모든 차단 티켓이 보는 공유 참조다 — 복제본에 사연을 얹었다고
+    // 원본까지 오염되면 안 된다(다음 티켓이 이전 티켓의 사연을 보게 된다).
+    expect(SIGNALS.blocked.reason).toBeUndefined();
+  });
+
+  it("사연 없는 차단은 지금과 같다 — reason 이 없다", () => {
+    const got = ticketSignals({ status: "진행", blocked: true }, { today: TODAY, terminal: TERMINAL });
+    expect(got.find((s) => s.key === "blocked").reason).toBeUndefined();
+  });
 });
 
 describe("밀도는 둘이고 어휘는 하나다", () => {
@@ -96,6 +113,18 @@ describe("밀도는 둘이고 어휘는 하나다", () => {
     const { container } = draw(<TicketSignals signals={[]} />);
     // 「신호가 없다」는 값이 빠진 것이 아니라 정상이고, 목록의 대부분이 그 상태다.
     expect(container.textContent).toBe("");
+  });
+
+  it("🔴 차단 사연은 Tooltip 으로 본다(A8) — 넓은 표에서 hover 하면 사연이 뜬다", async () => {
+    const user = userEvent.setup();
+    draw(<TicketSignals signals={[{ ...SIGNALS.blocked, reason: "배포 승인 대기" }]} />);
+    await user.hover(screen.getByText("차단됨"));
+    expect(await screen.findByText("배포 승인 대기")).toBeInTheDocument();
+  });
+
+  it("좁은 표는 title 에 사연을 이어 붙인다 — 사연 없으면 이름만이다", () => {
+    draw(<TicketSignals signals={[{ ...SIGNALS.blocked, reason: "배포 승인 대기" }]} variant="mark" />);
+    expect(screen.getByRole("img", { name: "차단됨: 배포 승인 대기" })).toBeInTheDocument();
   });
 });
 

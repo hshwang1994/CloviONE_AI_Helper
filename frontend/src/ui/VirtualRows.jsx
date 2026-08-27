@@ -31,6 +31,22 @@ import { useVirtualizer } from "@tanstack/react-virtual";
  *    검색 상자가 반드시 함께 있어야 한다.
  * 3. **표 접근성**(`scope="colgroup"` 등)은 그대로 둔다 — 그룹 머리행은 가상화하지 않고
  *    그룹 **안쪽 행만** `VirtualTableBody` 로 감싼다.
+ *
+ *    🔴 **다만 `GroupedTickets`(내 티켓·팀 티켓)에는 이 설계로 그대로 못 얹는다.** 그
+ *    화면은 그룹(프로젝트·담당자)마다 **자기 `<tbody>`** 를 갖되 하나의 `<table>` 을
+ *    공유해 열 폭을 맞춘다 — 그런데 `VirtualTableBody` 는 "스크롤 창 하나 = 가상화기
+ *    하나"를 전제해서, 그룹마다 독립된 `VirtualTableBody` 를 여러 개 두면 각자 "내가
+ *    스크롤 창의 유일한 내용"이라고 착각해 서로 앞 그룹들의 누적 높이를 모른 채 자기
+ *    위치를 계산한다(뒤 그룹일수록 어긋난다). 제대로 하려면 모든 그룹의 행을 "그룹 머리
+ *    행"까지 포함해 **하나의 평평한 목록**으로 합쳐 가상화하는 새 설계가 필요하다 — 지금
+ *    있는 API 로 억지로 끼워 맞추지 않는다(REAUDIT §17 bundle 1, 2026-08 판단).
+ * 4. **`VirtualTableBody` 는 조상의 스크롤 창을 읽는다 — 그 조상 ref 는 `useState` +
+ *    콜백 ref 로 쥔다, 평범한 `useRef` 가 아니다.** React 는 커밋을 자손→조상 순서로
+ *    처리하므로(레이아웃 이펙트도 같다), 평범한 ref 라면 이 부품의 첫 레이아웃 이펙트가
+ *    도는 시점에 조상 ref 가 아직 안 붙어 있어 react-virtual 이 그 null 을 그대로
+ *    확정해 버린다(행이 하나도 안 그려진 채 영원히 멈춘다 — 실제로 겪은 결함). 자세한
+ *    이유는 `VirtualTableBody` 의 `scrollElement` 파라미터 주석, 실제 배선은
+ *    `ui/kit.jsx::DataTable` 참고.
  */
 
 const DEFAULT_OVERSCAN = 8;
@@ -45,10 +61,14 @@ const DEFAULT_OVERSCAN = 8;
  *   `height`        스크롤 창의 높이(문자열, 예: "60vh" · "32rem")
  *   `overscan`      창 밖에 미리 그려 둘 행 수(스크롤 튐 방지)
  *   `footer`        끝에 닿았을 때 그릴 것(더 보기 단추 등) — 가상 목록 **다음**에 온다
+ *   `itemRole`      각 행 감싸개의 role. 기본은 "listitem". `renderItem` 이 돌려주는
+ *                   것(예: dnd-kit `DragItem`)이 **자기 스스로** `listitem` 을 이미 달면
+ *                   `null` 을 준다 — 안 그러면 listitem 이 listitem 을 감싸는 이중 구조가
+ *                   된다(§15.1 가상화 · dnd-kit 공존).
  */
 export function VirtualRows({
   items, estimateSize, renderItem, getItemKey, height = "32rem", overscan = DEFAULT_OVERSCAN,
-  ariaLabel, footer, sx,
+  ariaLabel, footer, sx, itemRole = "listitem",
 }) {
   const parentRef = React.useRef(null);
   const list = Array.isArray(items) ? items : [];
@@ -79,7 +99,7 @@ export function VirtualRows({
               key={getItemKey ? getItemKey(item, row.index) : row.key}
               data-index={row.index}
               ref={virtualizer.measureElement}
-              role="listitem"
+              role={itemRole || undefined}
               sx={{
                 position: "absolute", top: 0, left: 0, width: "100%",
                 transform: `translateY(${row.start}px)`,
@@ -103,14 +123,24 @@ export function VirtualRows({
  *
  * `colSpan` 은 여백 행의 `<td>` 하나가 표 전체 폭을 차지하게 한다 — 안 주면 여백 행이
  * 첫 열 폭만큼만 좁게 그려지고 표 모양이 깨진다.
- */
+ *
+ * 🔴 `scrollElement` 는 **DOM 노드 값**이지 `useRef` 객체가 아니다 — 이 부품의 호출부가
+ * 조상(`TableContainer`)이고, 여기(자손)에서 그 조상의 ref 를 읽는 구조라서다. React 는
+ * 커밋을 자손→조상 순서로 처리하는데(레이아웃 이펙트도 같은 순서), **평범한 `useRef`
+ * 라면** 이 부품(자손)의 첫 레이아웃 이펙트가 실행되는 시점에 조상의 ref 는 **아직 안
+ * 붙어 있다** — react-virtual 은 그 순간 `getScrollElement()` 가 준 값(null)을 그대로
+ * 확정해 버리고, 그 뒤로는 스스로 다시 확인하지 않는다(제 라이브러리 소스 확인함). 값이
+ * 있는 척 렌더되다가 실제로는 행이 하나도 안 그려지는 상태로 영원히 멈춘다 — 다른 이유로
+ * 우연히 다시 렌더되는 화면(비동기로 자료가 늦게 오는 화면)에서만 안 드러났을 뿐이다.
+ * 호출부가 `useState` + 콜백 ref 로 조상 노드를 쥐면(`DataTable` 참고), 그 노드가 실제로
+ * 붙는 순간 **state 갱신 → 리렌더**가 일어나 이 문제 자체가 생기지 않는다. */
 export function VirtualTableBody({
-  items, estimateSize, renderRow, getItemKey, colSpan, scrollElementRef, overscan = DEFAULT_OVERSCAN,
+  items, estimateSize, renderRow, getItemKey, colSpan, scrollElement, overscan = DEFAULT_OVERSCAN,
 }) {
   const list = Array.isArray(items) ? items : [];
   const virtualizer = useVirtualizer({
     count: list.length,
-    getScrollElement: () => scrollElementRef.current,
+    getScrollElement: () => scrollElement,
     estimateSize: typeof estimateSize === "function" ? estimateSize : () => estimateSize || 44,
     overscan,
   });

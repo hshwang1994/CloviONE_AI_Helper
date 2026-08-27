@@ -23,6 +23,7 @@ import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded";
 import { api } from "../lib/api.js";
 import { Card, Badge, EmptyState, ErrorState, Skeleton, Callout, PageHeader, Modal, ModalFooter, Button, useToast, useConfirm, cardFieldLabel, cardHeaderControls, tableCellProps } from "../ui/kit.jsx";
+import { DateField } from "../ui/DateField.jsx";
 import { priorityKo, priorityKind } from "../lib/priority.js";
 import { useAuth } from "../app/auth.jsx";
 import { BodyEditor, editorContainerSx, editorSurfaceWidthSx } from "../ui/BodyEditor.jsx";
@@ -699,10 +700,8 @@ export function TicketEditModal({ ticket, open, onClose }) {
       InputLabelProps={{ shrink: true }} id="te-act-wd" fullWidth size="small" label="실제 WD" type="number" inputProps={{ step: "0.5", min: "0" }}
             value={form.act_wd} onChange={(e) => set("act_wd", e.target.value)}
             helperText="다 끝낸 뒤 실제로 들인 공수" />
-          <TextField id="te-start" fullWidth size="small" label="시작일" type="date" InputLabelProps={{ shrink: true }}
-            value={form.start} onChange={(e) => set("start", e.target.value)} />
-          <TextField id="te-due" fullWidth size="small" label="마감일" type="date" InputLabelProps={{ shrink: true }}
-            value={form.due} onChange={(e) => set("due", e.target.value)} />
+          <DateField id="te-start" label="시작일" value={form.start} onChange={(v) => set("start", v)} />
+          <DateField id="te-due" label="마감일" value={form.due} onChange={(v) => set("due", v)} />
           {/* 새 티켓 폼과 **같은 부품**이다 — 같은 값을 고르는 자리가 화면마다 다른 상호작용을
               갖지 않는다(C8 «하나의 Model, 세 개의 표면»). 지금 걸린 프로젝트가 후보에
               없으면(아카이브·권한 밖) `withCurrentProject` 가 끼워 넣는 계약은 그대로다 —
@@ -1109,7 +1108,51 @@ const TICKET_SECTIONS = [
 ];
 
 
+/* REAUDIT C19 — 여섯 단추가 전부 같은 무게로 그려져 "넷이 핵심"이라는 §지시 10 의 판단이
+   화면에 없었다(위 TICKET_SECTIONS 주석의 「네 가지가 핵심이고 둘은 보조다」가 `optional`
+   에만 있고 렌더에는 없었다). 실측한 사람은 여섯을 그냥 여섯으로 세었다 — 넷과 둘로
+   갈라 보여야 "넷이 기본, 둘은 더"라고 읽힌다. */
+function WritingAidButton({ sec, already, onInsert }) {
+  return (
+    <Box
+      component="button" type="button"
+      onClick={() => onInsert(sec)}
+      disabled={already}
+      aria-label={already ? `${sec.title}: 이미 넣었습니다` : `설명에 '${sec.title}' 절 넣기`}
+      sx={{
+        display: "grid", gap: 0.25, textAlign: "left", width: "100%",
+        px: 1.5, py: 1.25, border: 1, borderColor: "divider", borderRadius: "12px",
+        cursor: already ? "default" : "pointer",
+        /* 흰 Card 위에 배경 없는 버튼(bgcolor:"transparent")이라 경계가 안 보였다
+           (사용자 지적: "버튼이 명확하지가 않다. 버튼이 흰배경이라서"). BodyEditor
+           툴바 버튼과 같은 표면 톤(background.surface2)을 써 카드와 구별한다. */
+        bgcolor: "background.surface2", color: "inherit", font: "inherit",
+        opacity: already ? 0.5 : 1,
+        "&:hover": { bgcolor: already ? "background.surface2" : "action.hover" },
+      }}
+    >
+      <Stack direction="row" gap={0.75} alignItems="center">
+        <Typography component="span" sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: FONT_SIZE.body }}>
+          {sec.title}{already ? " ✓" : ""}
+        </Typography>
+        {sec.optional ? <Badge value="선택" /> : null}
+      </Stack>
+      <Typography component="span" variant="body2" color="text.secondary">{sec.hint}</Typography>
+      {/* 예시는 **넣어 주지 않는다.** 이 자리에서 보여 주기만 한다 — 눌러서 들어가는
+          것은 절 제목뿐이고, 남의 문장이 자기 티켓에 남으면 안 된다. */}
+      <Typography
+        component="span" variant="body2"
+        sx={{ color: "text.secondary", fontStyle: "italic", opacity: 0.9, ...KO_WORD_BREAK }}
+      >
+        {sec.example}
+      </Typography>
+    </Box>
+  );
+}
+
 function WritingAid({ description, onInsert }) {
+  const core = TICKET_SECTIONS.filter((sec) => !sec.optional);
+  const optional = TICKET_SECTIONS.filter((sec) => sec.optional);
   return (
     <Card sx={{ display: "grid", gap: 1.5, alignContent: "start" }}>
       <Typography component="h2" sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: FONT_SIZE.sectionTitle }}>작성 도움</Typography>
@@ -1117,42 +1160,17 @@ function WritingAid({ description, onInsert }) {
         좋은 티켓은 <strong>왜 하는지와 무엇을 하면 끝인지</strong>가 적혀 있습니다. 아래를 누르면 설명에 그 절이 들어갑니다.
       </Typography>
       <Box sx={{ display: "grid", gap: 0.5 }}>
-        {TICKET_SECTIONS.map((sec) => {
-          const already = description.includes(sec.heading);
-          return (
-            <Box
-              key={sec.title}
-              component="button" type="button"
-              onClick={() => onInsert(sec)}
-              disabled={already}
-              aria-label={already ? `${sec.title}: 이미 넣었습니다` : `설명에 '${sec.title}' 절 넣기`}
-              sx={{
-                display: "grid", gap: 0.25, textAlign: "left", width: "100%",
-                px: 1.5, py: 1.25, border: 1, borderColor: "divider", borderRadius: "12px",
-                cursor: already ? "default" : "pointer",
-                /* 흰 Card 위에 배경 없는 버튼(bgcolor:"transparent")이라 경계가 안 보였다
-                   (사용자 지적: "버튼이 명확하지가 않다. 버튼이 흰배경이라서"). BodyEditor
-                   툴바 버튼과 같은 표면 톤(background.surface2)을 써 카드와 구별한다. */
-                bgcolor: "background.surface2", color: "inherit", font: "inherit",
-                opacity: already ? 0.5 : 1,
-                "&:hover": { bgcolor: already ? "background.surface2" : "action.hover" },
-              }}
-            >
-              <Typography component="span" sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: FONT_SIZE.body }}>
-                {sec.title}{already ? " ✓" : ""}
-              </Typography>
-              <Typography component="span" variant="body2" color="text.secondary">{sec.hint}</Typography>
-              {/* 예시는 **넣어 주지 않는다.** 이 자리에서 보여 주기만 한다 — 눌러서 들어가는
-                  것은 절 제목뿐이고, 남의 문장이 자기 티켓에 남으면 안 된다. */}
-              <Typography
-                component="span" variant="body2"
-                sx={{ color: "text.secondary", fontStyle: "italic", opacity: 0.9, ...KO_WORD_BREAK }}
-              >
-                {sec.example}
-              </Typography>
-            </Box>
-          );
-        })}
+        {core.map((sec) => (
+          <WritingAidButton key={sec.title} sec={sec} already={description.includes(sec.heading)} onInsert={onInsert} />
+        ))}
+      </Box>
+      <Typography variant="caption" color="text.secondary" sx={{ fontWeight: FONT_WEIGHT.bold, pt: 1, borderTop: 1, borderColor: "divider" }}>
+        더 적으면 좋은 항목
+      </Typography>
+      <Box sx={{ display: "grid", gap: 0.5 }}>
+        {optional.map((sec) => (
+          <WritingAidButton key={sec.title} sec={sec} already={description.includes(sec.heading)} onInsert={onInsert} />
+        ))}
       </Box>
       <Typography variant="body2" color="text.secondary" sx={{ pt: 1, borderTop: 1, borderColor: "divider" }}>
         배경이 복잡한 티켓은 <Link href="#/chat" underline="hover">AI 도우미</Link>가 초안을 잡아 줍니다.
@@ -1409,8 +1427,7 @@ export function NewTicket() {
       InputLabelProps={{ shrink: true }} id="nt-wd" fullWidth size="small" required label="예상 WD" type="number" inputProps={{ step: "0.5", min: "0" }}
                   helperText="사람이 며칠 붙는 일인가요. 0 도 됩니다."
                   value={form.est_wd} onChange={(e) => set("est_wd", e.target.value)} />
-                <TextField id="nt-due" fullWidth size="small" required label="마감일" type="date" InputLabelProps={{ shrink: true }}
-                  value={form.due} onChange={(e) => set("due", e.target.value)} />
+                <DateField id="nt-due" required label="마감일" value={form.due} onChange={(v) => set("due", v)} />
               </Box>
             </Box>
             {/* 이 티켓이 **어디로 공유되는가** (0060 §13).

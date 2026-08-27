@@ -1,5 +1,5 @@
 import React from "react";
-import { describe, it, expect, vi, beforeAll } from "vitest";
+import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 
 /* `@tanstack/react-virtual` 감싸개의 계약 (§15.1 · §18.2).
@@ -9,33 +9,13 @@ import { render, screen } from "@testing-library/react";
  * 그 계약이 실제로 성립하는지 본다: 총 건수는 렌더된 행 수와 무관하게 정확하고, 목록
  * 전체 높이는 행 수 × 예상 높이와 일치한다(끝까지 스크롤하면 마지막 행이 실제로 있다).
  *
- * jsdom 은 레이아웃이 없어 `ResizeObserver`/`clientHeight` 를 손으로 준다 — 그러지
- * 않으면 가상화 계산 자체가 항상 빈 뷰포트(0px)로 떨어진다.
+ * jsdom 레이아웃 mock(`offsetHeight`/`offsetWidth` — 행 40px·그 외 400px)은
+ * `test-setup.js` 가 전역으로 준다 — 이 부품 하나만의 사정이 아니라 `VirtualRows`/
+ * `VirtualTableBody` 를 쓰는 모든 화면 시험이 같은 문제를 겪는다(WorkBoard 등). 아래
+ * 숫자(500건 중 <50 렌더, 총 높이 = 행수×40)는 그 전역 값을 그대로 전제한다.
  */
 
 import { VirtualRows } from "./VirtualRows.jsx";
-
-beforeAll(() => {
-  global.ResizeObserver = global.ResizeObserver || class {
-    observe() {}
-    unobserve() {}
-    disconnect() {}
-  };
-  // jsdom 은 레이아웃이 없어 `offsetWidth`/`offsetHeight` 가 항상 0 이다 — react-virtual
-  // 의 초기 측정(`getRect`)과 행별 재측정(`measureElement`)이 이 값을 그대로 읽는다.
-  // 스크롤 창 자신은 400px(뷰포트), 각 행(`data-index` 를 가진 요소)은 이 시험의
-  // `ROW_HEIGHT`(40px) 를 돌려준다 — 실제 브라우저에서 글자 한 줄짜리 행이 재는 값과
-  // 같은 크기다. 다르게 주면 `measureElement` 의 재측정이 예상 높이를 덮어써 총 높이가
-  // 어긋난다.
-  Object.defineProperty(HTMLElement.prototype, "offsetHeight", {
-    configurable: true,
-    get() { return this.hasAttribute("data-index") ? 40 : 400; },
-  });
-  Object.defineProperty(HTMLElement.prototype, "offsetWidth", {
-    configurable: true,
-    get() { return this.hasAttribute("data-index") ? 800 : 800; },
-  });
-});
 
 const ROW_HEIGHT = 40;
 const ITEMS = Array.from({ length: 500 }, (_, i) => ({ id: `r-${i}`, label: `행 ${i}` }));

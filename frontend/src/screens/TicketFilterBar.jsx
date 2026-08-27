@@ -2,7 +2,7 @@ import React from "react";
 import Typography from "@mui/material/Typography";
 import { Button, EmptyState } from "../ui/kit.jsx";
 import { DebouncedTextField, EntityCombobox, FilterSelect, SearchBox } from "../ui/filters.jsx";
-import { CHIP_ROW_CONTROL, FilterActions, FilterChips, FilterRow, FilterSurface, ResultLine, ToolbarRow } from "../ui/FilterBar.jsx";
+import { CHIP_ROW_CONTROL, FilterActions, FilterChips, FilterRow, FilterSurface, ResultLine } from "../ui/FilterBar.jsx";
 import { priorityKo } from "../lib/priority.js";
 import { affiliation, needsOrg } from "../lib/people.js";
 import { useAssigneeOptions, useTicketMeta, useTicketProjects } from "./ticket-options.js";
@@ -189,6 +189,11 @@ function appendQueryValue(p, key, v) {
 /** 화면 상태 → 서버 질의 파라미터. 빈 값은 보내지 않는다(서버는 빈 문자열을 조건 없음으로 읽지만, 주소가 지저분해진다). */
 export function ticketQueryParams(state, fields, extra) {
   const p = extra instanceof URLSearchParams ? extra : new URLSearchParams(extra || "");
+  // REAUDIT §15.1 — 20행/쪽(181건이면 10쪽)이던 자리를 쪽 크기 100(서버 상한,
+  // app/core/pagination.py::MAX_PAGE_SIZE) + 가상 행으로 바꾼다. 이 함수를 부르는
+  // 화면은 내 티켓·팀 티켓·미배정 셋뿐이라(TicketFilterBar.jsx 는 정의만 하는 자리) 여기
+  // 한 곳에서 기본을 올려도 다른 소비처가 놀라지 않는다.
+  if (!p.has("page_size")) p.set("page_size", "100");
   for (const key of fields) appendQueryValue(p, key, state[key]);
   for (const key of RANGE_KEYS) {
     if (state[key]) p.set(key, String(state[key]));
@@ -341,12 +346,18 @@ export function TicketFilterBar({
     chips.push({ key, label, onDelete });
   };
   if (show("status")) {
-    for (const s of effectiveStatus) {
-      pushChip(`status:${s}`, `상태: ${optionLabel(statusOpts, s)}`, () => {
-        const next = effectiveStatus.filter((v) => v !== s);
-        if (!next.length && usingDefaultStatus) onChange({ status: [], all_status: true });
-        else onChange({ status: next, all_status: false });
-      });
+    if (usingDefaultStatus) {
+      /* C6 재검수 — 「종료 제외」는 사용자가 고른 조건이 아니라 **화면의 기본값**이다.
+         상태마다 칩을 하나씩 펴면(계획·진행·검증·보류 넷) "조건 4개를 걸었다"로 읽히는데,
+         실제로 사용자는 아무것도 안 걸었다 — 그저 기본값이 종료 상태를 뺄 뿐이다.
+         하나의 칩으로 그 사실 하나만 말하고, 지우면 (기본이 하던 대로) 전체를 본다. */
+      pushChip("status:default", "종료 제외(기본값)", () => onChange({ status: [], all_status: true }));
+    } else {
+      for (const s of effectiveStatus) {
+        pushChip(`status:${s}`, `상태: ${optionLabel(statusOpts, s)}`, () => {
+          onChange({ status: effectiveStatus.filter((v) => v !== s), all_status: false });
+        });
+      }
     }
   }
   if (show("priority") && isFilled(value.priority)) {
@@ -399,19 +410,20 @@ export function TicketFilterBar({
       {/* 판이 아니다 — 지시 80. 컨트롤 다섯 개를 페이지 폭 흰 사각형에 담으면 오른쪽
           대부분이 빈다. 목록과의 경계는 아래 실선과 결과 줄이 만든다. */}
       <FilterSurface>
-        {show("q") ? (
-          <ToolbarRow>
+        {/* C4 재검수 — 검색 상자 하나만 있는 줄을 따로 두지 않는다. `SearchBox` 는
+            `filters.jsx::CONTROL_KIND.search` 로 이미 "이 줄에서 늘어나되 32rem 까지만"
+            폭을 스스로 든다 — 다른 필터와 같은 흐름 줄에 있어도 자기 몫만 차지한다.
+            순서는 C2 가 정한다: scope(부서) → entity(프로젝트·담당자) → 분류 → 상태 → 기간.
+            검색은 '무엇을 찾는가'라 scope 보다도 앞, 흐름의 맨 앞에 선다. */}
+        <FilterRow>
+          {show("q") ? (
             <SearchBox
               value={value.q}
               onSearch={commitSearch}
               placeholder="제목 검색"
               ariaLabel={LABELS.q}
             />
-          </ToolbarRow>
-        ) : null}
-        {/* 순서는 C2 가 정한다: scope(부서) → entity(프로젝트·담당자) → 분류 → 상태 → 기간.
-            예전에는 선언 순서가 곧 화면 순서라 화면마다 축의 순서가 달랐다. */}
-        <FilterRow>
+          ) : null}
           {/* scope 가 먼저다 — 「어느 범위를 볼 것인가」는 나머지 조건의 전제다. */}
           {scope}
           {show("project_id") ? (

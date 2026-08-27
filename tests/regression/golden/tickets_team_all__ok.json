@@ -10,6 +10,12 @@
       "assignee_names": [
         "관리자 김"
       ],
+      "assignee_people": [
+        {
+          "name": "관리자 김",
+          "user_id": "00000000-0000-4000-8000-00000000a001"
+        }
+      ],
       "assignee_user_ids": [
         "00000000-0000-4000-8000-00000000a001"
       ],
@@ -43,6 +49,7 @@
     {
       "act_wd": null,
       "assignee_names": [],
+      "assignee_people": [],
       "assignee_user_ids": [],
       "blocked": false,
       "blocked_reason": null,
@@ -74,6 +81,7 @@
     {
       "act_wd": 1.0,
       "assignee_names": [],
+      "assignee_people": [],
       "assignee_user_ids": [],
       "blocked": false,
       "blocked_reason": null,
@@ -103,6 +111,7 @@
     {
       "act_wd": null,
       "assignee_names": [],
+      "assignee_people": [],
       "assignee_user_ids": [],
       "blocked": false,
       "blocked_reason": null,
@@ -135,6 +144,12 @@
       "act_wd": null,
       "assignee_names": [
         "개발자 이"
+      ],
+      "assignee_people": [
+        {
+          "name": "개발자 이",
+          "user_id": "00000000-0000-4000-8000-00000000a002"
+        }
       ],
       "assignee_user_ids": [
         "00000000-0000-4000-8000-00000000a002"
@@ -172,6 +187,16 @@
         "관리자 김",
         "개발자 이"
       ],
+      "assignee_people": [
+        {
+          "name": "관리자 김",
+          "user_id": "00000000-0000-4000-8000-00000000a001"
+        },
+        {
+          "name": "개발자 이",
+          "user_id": "00000000-0000-4000-8000-00000000a002"
+        }
+      ],
       "assignee_user_ids": [
         "00000000-0000-4000-8000-00000000a001",
         "00000000-0000-4000-8000-00000000a002"
@@ -207,6 +232,12 @@
       "act_wd": null,
       "assignee_names": [
         "관리자 김"
+      ],
+      "assignee_people": [
+        {
+          "name": "관리자 김",
+          "user_id": "00000000-0000-4000-8000-00000000a001"
+        }
       ],
       "assignee_user_ids": [
         "00000000-0000-4000-8000-00000000a001"
@@ -248,6 +279,12 @@
       "assignee_names": [
         "관리자 김"
       ],
+      "assignee_people": [
+        {
+          "name": "관리자 김",
+          "user_id": "00000000-0000-4000-8000-00000000a001"
+        }
+      ],
       "assignee_user_ids": [
         "00000000-0000-4000-8000-00000000a001"
       ],
@@ -281,6 +318,7 @@
     {
       "act_wd": null,
       "assignee_names": [],
+      "assignee_people": [],
       "assignee_user_ids": [],
       "blocked": false,
       "blocked_reason": null,
@@ -312,6 +350,7 @@
     {
       "act_wd": 1.0,
       "assignee_names": [],
+      "assignee_people": [],
       "assignee_user_ids": [],
       "blocked": false,
       "blocked_reason": null,
@@ -341,6 +380,7 @@
     {
       "act_wd": null,
       "assignee_names": [],
+      "assignee_people": [],
       "assignee_user_ids": [],
       "blocked": false,
       "blocked_reason": null,
@@ -373,6 +413,12 @@
       "act_wd": null,
       "assignee_names": [
         "개발자 이"
+      ],
+      "assignee_people": [
+        {
+          "name": "개발자 이",
+          "user_id": "00000000-0000-4000-8000-00000000a002"
+        }
       ],
       "assignee_user_ids": [
         "00000000-0000-4000-8000-00000000a002"
@@ -410,6 +456,16 @@
         "관리자 김",
         "개발자 이"
       ],
+      "assignee_people": [
+        {
+          "name": "관리자 김",
+          "user_id": "00000000-0000-4000-8000-00000000a001"
+        },
+        {
+          "name": "개발자 이",
+          "user_id": "00000000-0000-4000-8000-00000000a002"
+        }
+      ],
       "assignee_user_ids": [
         "00000000-0000-4000-8000-00000000a001",
         "00000000-0000-4000-8000-00000000a002"
@@ -445,6 +501,12 @@
       "act_wd": null,
       "assignee_names": [
         "관리자 김"
+      ],
+      "assignee_people": [
+        {
+          "name": "관리자 김",
+          "user_id": "00000000-0000-4000-8000-00000000a001"
+        }
       ],
       "assignee_user_ids": [
         "00000000-0000-4000-8000-00000000a001"

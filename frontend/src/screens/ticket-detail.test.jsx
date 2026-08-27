@@ -36,7 +36,8 @@ import { ThemeModeProvider } from "../ui/ThemeModeProvider.jsx";
 const TICKET = {
   id: "page-1", uid: "uid-1", tid: 42, key: "ABCDEF-42", title: "샘플 티켓", status: "진행",
   priority: "높음", difficulty: "3", est_wd: 2, due: "2026-09-01",
-  project: "알파", assignee_names: ["나"], url: "https://notion.so/page-1",
+  project: "알파", assignee_names: ["나"], assignee_people: [{ user_id: "u-me", name: "나" }],
+  created_at: "2026-08-01T00:00:00", url: "https://notion.so/page-1",
 };
 
 const BLOCKS = [
@@ -360,6 +361,34 @@ describe("VIS-134 — 상태·우선순위가 라벨과 함께 속성 줄에 있
     const metaWrap = container.querySelector('[data-testid="ticket-detail-meta"]');
     expect(metaWrap.contains(bar)).toBe(true);
     expect(metaWrap.compareDocumentPosition(main) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+});
+
+describe("REAUDIT A7/C11 — 담당자 아바타와 생성일", () => {
+  it("🔴 담당자가 이름 텍스트뿐 아니라 아바타와 함께 선다", async () => {
+    apiMock.mockImplementation((path) => Promise.resolve(route(path, [
+      ["/api/tickets/page-1/comments", { ok: true, comments: [] }],
+      ["/api/tickets/page-1", detailPayload()],
+    ])));
+    wrap();
+    const bar = await screen.findByLabelText("티켓 속성");
+    const cell = within(bar).getByText("담당자").closest(".k-metacell");
+    expect(cell).not.toBeNull();
+    expect(within(cell).getByText("나")).toBeInTheDocument();
+    // 아바타 부품(UserAvatar)이 실제로 그려졌다 — 이름 텍스트만 있는 게 아니다.
+    expect(cell.querySelector(".k-avatar")).not.toBeNull();
+  });
+
+  it("생성일이 속성 줄에 있다 — 예전엔 우선순위·난이도·WD·마감만 있고 생성일이 없었다", async () => {
+    apiMock.mockImplementation((path) => Promise.resolve(route(path, [
+      ["/api/tickets/page-1/comments", { ok: true, comments: [] }],
+      ["/api/tickets/page-1", detailPayload()],
+    ])));
+    wrap();
+    const bar = await screen.findByLabelText("티켓 속성");
+    const cell = within(bar).getByText("생성일").closest(".k-metacell");
+    expect(cell).not.toBeNull();
+    expect(cell).toHaveTextContent("2026-08-01");
   });
 });
 

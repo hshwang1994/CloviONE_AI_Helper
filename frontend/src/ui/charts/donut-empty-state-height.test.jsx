@@ -7,7 +7,7 @@
    같은 자리에서 이제는 **반대**를 단언한다. */
 import React from "react";
 import { describe, it, expect } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 
 import { Donut } from "./Donut.jsx";
 import { ThemeModeProvider } from "../ThemeModeProvider.jsx";
@@ -38,10 +38,18 @@ describe("Donut 빈 상태", () => {
     expect(getComputedStyle(screen.getByText("데이터 없음")).minHeight).toBe(first);
   });
 
-  it("값이 있으면 `size` 가 다시 도넛의 치수가 된다", () => {
+  it("값이 있으면 `size` 가 다시 도넛의 치수가 된다", async () => {
     const { container } = renderDonut({ segments: [{ label: "완료", value: 3 }], size: "14rem" });
-    const svg = container.querySelector("svg");
-    expect(svg).not.toBeNull();
-    expect(getComputedStyle(svg.parentElement).width).toBe("14rem");
+    // ECharts는 `useEChart.js`가 지연 import(§15.8)한 뒤 붙는다 — 실제 사용자에게는
+    // 감지 안 되는 지연이지만, 시험은 그 마운트를 기다려야 한다(값이 없을 때는 이 부품이
+    // ECharts를 아예 안 부르므로 위 두 시험은 그대로 동기다). 치수는 ECharts가 그린
+    // svg 자신이 아니라 그것을 감싼 `data-chart-frame` 상자가 받는다 — ECharts는 잰
+    // 컨테이너 크기를 못 구하면(jsdom) 자기 루트에 임의의 기본 픽셀 크기를 매긴다.
+    // 시간 제한은 기본(1000ms)보다 넉넉히 준다 — 전체 표적 검증처럼 차트 시험 여러 개가
+    // 동시에 도는 동안에는 동적 import 자체가 시스템 부하를 받아 더 걸릴 수 있다.
+    await waitFor(() => expect(container.querySelector("svg")).not.toBeNull(), { timeout: 5000 });
+    const frame = container.querySelector('[data-chart-frame="donut"]');
+    expect(frame).not.toBeNull();
+    expect(getComputedStyle(frame).width).toBe("14rem");
   });
 });

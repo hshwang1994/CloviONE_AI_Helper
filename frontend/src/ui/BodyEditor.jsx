@@ -244,8 +244,18 @@ export function BodyPreview({ text, wide = false }) {
   };
 
   if (blocks.length === 0) {
+    /* REAUDIT C19 — 이 자리는 "빈 회색 띠"로 읽혔다. 글자는 있었지만(아래 문장) 상자가
+       한 줄 높이라 테두리 안쪽 여백만 있는 얇은 띠로 보이고, 눈이 스치면 안내문이 있는지도
+       모른다. 안내 상자라는 것을 실제로 알아보게 최소 높이를 주고 가운데로 모은다 — 다른
+       빈 자리(EmptyState)가 이미 쓰는 "여기에 무엇이 올지 알려준다"는 원칙을 이 작은
+       자리에도 지킨다(전체 EmptyState 부품은 이 편집기 폭에 비해 과하다). */
     return (
-      <Box sx={{ ...shell, color: "text.secondary", fontSize: FONT_SIZE.body }}>
+      <Box
+        sx={{
+          ...shell, color: "text.secondary", fontSize: FONT_SIZE.body,
+          minHeight: "4rem", display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center",
+        }}
+      >
         본문을 입력하면 실제 모양이 여기에 보입니다.
       </Box>
     );

@@ -3,37 +3,66 @@ import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import { useTheme } from "@mui/material/styles";
 import { ChartNoData, ChartQuestion, resolveChartColor, useTrackColor } from "./base.jsx";
+import { baseOption, useEChart } from "./useEChart.js";
 import { useRevealOnce } from "../motion.js";
-import { FONT_WEIGHT, MOTION } from "../theme.js";
+import { FONT_WEIGHT } from "../theme.js";
 
-/* 가로 막대 묶음 — 항목별 크기를 서로 비교하는 용도(담당자별 업무량, 큐 상태 등).
+/* 가로 막대 묶음 — 항목별 크기를 서로 비교하는 용도(담당자별 업무량, 큐 상태 등)
+ * (REAUDIT §15.2 — ECharts 재구현).
  *
  * items: [{ label, value, color?, note? }]. color는 팔레트 이름(위험한 항목만 'error' 등).
  * max: 기준 최대값. 안 주면 값들의 최대값을 100%로 잡는다. 백분율처럼 상한이 정해진 지표는
  *      반드시 max=100을 넘겨라 — 안 그러면 '가장 큰 값'이 항상 꽉 찬 막대가 되어, 82%와 8%가
  *      똑같이 꽉 찬 막대로 보인다.
  *
- * 배치는 [이름 | 값 | 막대] 순이고, **전체가 격자 하나**다. 두 가지 이유가 있다:
- *   1) 행마다 따로 격자를 만들면 값 칸 폭이 행마다 달라져(1자리 vs 4자리) 막대 시작점이
- *      들쭉날쭉해진다 — 비교하려고 만든 그림에서 기준선이 어긋나면 그리는 의미가 없다.
- *   2) 값을 막대 오른쪽 끝에 두면 화면 오른쪽 아래에 떠 있는 클로비 버튼(앱 셸의 고정 위젯)에
- *      숫자가 가려진다. 실제로 1920 캡처에서 '3건'이 통째로 덮여 있었다. 그림은 가려도 되지만
- *      숫자는 가려지면 안 된다 — 그래서 숫자를 왼쪽(이름 옆)으로 옮겼다.
+ * ## 이름·값·막대가 여전히 **한 CSS 격자**인 이유
  *
- * 막대는 aria-hidden이고 값은 항상 숫자로 함께 나간다. 흑백 인쇄·스크린리더에서도 정보량이 그대로다.
+ * ECharts 의 카테고리 축으로 옮기면 이름·값·막대가 차트 라이브러리의 좌표계 안에 갇혀
+ * 이 배치 규칙 둘을 잃는다:
+ *   1) 값을 막대 **왼쪽**(이름 옆)에 둔다 — 오른쪽 끝에 두면 화면 우하단 고정 클로비
+ *      버튼에 숫자가 가려진다(1920 캡처 실측: "3건"이 통째로 덮였다).
+ *   2) `note`(행마다 붙는 보조 문장)가 격자 전체 폭을 쓰는 자유 행(`gridColumn:"1 / -1"`)
+ *      이다 — 카테고리 축에는 그런 자유 행이 없다.
+ * 그래서 **막대 자체**만 ECharts 로 그린다 — 행 하나짜리 미니 차트를 항목 수만큼 만들어
+ * 이름·값 칸은 그대로 HTML 격자에 남긴다. 값은 여전히 항상 숫자로 함께 나간다(aria-hidden).
  */
-/* 색 기본값은 **Brand 시리즈 슬롯 0** 이다(`color` 를 안 주면 `resolveChartColor` 가 준다).
- * 예전 기본값은 `"primary"` — 즉 사용자 Accent 였다. 그러면 청록을 고른 사용자의 화면에서
- * 모든 막대가 청록이 되고, D-179 가 Identity(제품 고정)와 Interaction(사용자 선택)을 갈라
- * 놓은 경계를 차트가 혼자 넘는다. 행별 `color` 는 그대로 남는다 — 그건 «이 항목이 위험하다»
- * 같은 **강조**지 범주 시리즈가 아니다. */
-/* `revealKey` — **처음 보거나 값이 바뀐 그림만** 짧게 자란다.
- *
- * 지문에 값이 들어가야 한다(`ui/motion.js::useRevealOnce`). 탭을 옮겼다 돌아오면 부품이
- * 다시 마운트되는데, 지문이 같으면 연출을 건너뛰고 최종 상태로 그린다 — 볼 때마다 막대가
- * 자라면 그것은 연출이 아니라 방해다.
- *
- * 지문을 안 주면 아무것도 안 움직인다(기존 호출부의 렌더는 그대로다). */
+
+/** 옵션 — **순수 함수**다(§18.2). `pct` 는 0~100, `grown` 은 `useRevealOnce` 값이다. */
+export function barRowOption({ pct, fillColor, trackColor, grown }) {
+  return {
+    ...baseOption(),
+    grid: { left: 0, right: 0, top: 0, bottom: 0 },
+    xAxis: { type: "value", min: 0, max: 100, show: false },
+    yAxis: { type: "category", data: [""], show: false },
+    series: [
+      {
+        type: "bar",
+        data: [{ value: grown ? pct : 0, itemStyle: { color: fillColor } }],
+        barWidth: "100%",
+        backgroundStyle: { color: trackColor },
+        showBackground: true,
+        z: 2,
+        animationDuration: 400,
+      },
+    ],
+  };
+}
+
+function BarRow({ pct, fill, track, grown }) {
+  const option = React.useMemo(
+    () => barRowOption({ pct, fillColor: fill, trackColor: track, grown }),
+    [pct, fill, track, grown],
+  );
+  const containerRef = useEChart(option);
+  return (
+    <Box
+      ref={containerRef}
+      aria-hidden="true"
+      sx={{ width: "100%", height: "0.75rem", borderRadius: 1, overflow: "hidden" }}
+    />
+  );
+}
+
 export function BarSeries({
   items, color, max, unit = "", emptyLabel = "데이터 없음", formatValue, relativeNote,
   question, revealKey,
@@ -54,8 +83,7 @@ export function BarSeries({
   const fmt = formatValue || ((v) => String(v));
 
   /* 기준을 안 주면 «가장 큰 값 = 꽉 찬 막대» 다. 그 사실을 화면에 적지 않으면 82% 와 8% 가
-     둘 다 꽉 찬 막대로 보이는 것을 읽는 사람이 알 방법이 없다 — 이 파일 머리 주석이 그
-     함정을 경고만 하고 강제하지는 않고 있었다. 이제 말은 부품이 한다. */
+     둘 다 꽉 찬 막대로 보이는 것을 읽는 사람이 알 방법이 없다. */
   const scaleNote = relative && rows.length > 1 && peak > 0
     ? (relativeNote || `가장 큰 값 ${fmt(peak)}${unit}을 100%로 본 상대 비교입니다.`)
     : null;
@@ -90,31 +118,7 @@ export function BarSeries({
             >
               {fmt(r.value)}{unit}
             </Typography>
-            <Box
-              component="svg"
-              viewBox="0 0 100 10"
-              preserveAspectRatio="none"
-              aria-hidden="true"
-              focusable="false"
-              /* 모서리 둥글기는 svg 요소 자체에 건다 — viewBox 안에서 rx를 주면 폭이 늘어난
-                 만큼 가로로만 늘어나 한쪽만 찌그러진 모서리가 된다. */
-              sx={{ display: "block", width: "100%", height: "0.75rem", borderRadius: 1, overflow: "hidden" }}
-            >
-              <rect x="0" y="0" width="100" height="10" fill={track} />
-              {/* 자라는 것은 채운 막대뿐이고 트랙은 처음부터 제자리다 — 그래야 «얼마나
-                  차는가»가 보인다. `width` 는 SVG2 에서 CSS 기하 속성이라 전환이 걸린다.
-                  전환이 안 걸리는 브라우저에서는 그냥 최종 폭으로 서고, 그림은 정상이다.
-                  ⚠️ **MUI `Box` 로 감싸지 않는다.** `width` 는 MUI 의 sizing system prop 이라
-                  0 과 1 사이의 값을 **백분율로** 바꾼다 — 0.8% 짜리 막대가 80% 로 그려진다.
-                  전환은 `style` 로 직접 준다. */}
-              {pct > 0 ? (
-                <rect
-                  x="0" y="0" height="10" fill={fill}
-                  width={grown ? pct : 0}
-                  style={{ transition: `width ${MOTION.base} ${MOTION.ease}` }}
-                />
-              ) : null}
-            </Box>
+            <BarRow pct={pct} fill={fill} track={track} grown={grown} />
             {r.note ? (
               <Typography variant="caption" color="text.secondary" sx={{ gridColumn: "1 / -1" }}>
                 {r.note}

@@ -3,23 +3,25 @@ import { describe, expect, it } from "vitest";
 import { render } from "@testing-library/react";
 import { ThemeProvider } from "@mui/material/styles";
 
-import { BarSeries } from "./BarSeries.jsx";
-import { Donut } from "./Donut.jsx";
-import { LineSeries } from "./LineSeries.jsx";
 import { Sparkline } from "./Sparkline.jsx";
+import { resolveChartColor } from "./base.jsx";
+import { lineSeriesOption } from "./LineSeries.jsx";
+import { donutOption } from "./Donut.jsx";
+import { barRowOption } from "./BarSeries.jsx";
 import { CHART_DASH, CHART_SERIES, createClovirTheme } from "../theme.js";
 
-/* **렌더되는 색**을 잰다 — 정의된 토큰이 아니라.
+/* qa-contract-change: LineSeries·Donut·BarSeries 를 ECharts 로 옮기며(§15.2) DOM의 circle[stroke-dasharray]·path[stroke] 를 직접 세던 단언을 걷었다 — 이제 그 색이 option.series[]에 실제로 들어가는지를 렌더 없이 순수 함수로 잰다. */
+/* **렌더되는 색**을 잰다 — 정의된 토큰이 아니라 (REAUDIT §18.2 — ECharts 로 옮긴 뒤).
  *
- * `theme-contract.test.js` 는 `palette.chart` 가 세 면에서 3:1 을 넘는다고 단언하고 계속
- * 초록이었다. 그런데 그 값은 **아무도 쓰지 않았다**: `CHART_SERIES` 의 제품 소비처가 0곳이라
- * 화면에 실제로 나간 색은 `resolveChartColor` 의 옛 기본값 `primary.main`(사용자 Accent)이고,
- * dark 에서 그 색은 plate 대비 2.90:1 로 비텍스트 3:1 을 깼다. 즉 통과하는 검사가 제품과
- * 무관한 표본을 재고 있었다(F-W4-15 와 같은 형태 — "아무것도 안 재면서 통과").
+ * LineSeries·Donut·BarSeries 는 이제 ECharts 가 그린다 — 그림을 렌더해서 픽셀을 재는
+ * 시험은 안 만든다(계획 §18.2). 대신 **option 객체**를 겨눈다: 각 부품이 실제로 export 하는
+ * 순수 함수(`lineSeriesOption`/`donutOption`/`barRowOption`)에 `resolveChartColor` 가
+ * 돌려준 색을 그대로 먹여서, "테마가 고른 색이 옵션의 색 자리에 그대로 들어가는가"를
+ * jsdom 렌더 없이 잰다. `resolveChartColor` 자신의 계약(Identity 는 Accent 를 안 따른다,
+ * 팔레트 문자열 슬롯도 처리한다)은 `chart-color.test.js` 가 이미 지킨다 — 여기서 다시
+ * 안 잰다.
  *
- * 그래서 이 파일은 토큰이 아니라 **DOM 에 실제로 찍힌 stroke/fill** 을 읽는다. 그리고
- * Accent 를 바꿔 가며 같은 값이 나오는지 확인한다 — Identity(제품 고정)와 Interaction
- * (사용자 선택)의 경계가 차트에서 지켜지는지가 이 파일의 질문이다(D-179).
+ * Sparkline 은 이번 회차에서 안 옮겼다(§15.2 «남기는 셋») — 그 부분만 그대로 DOM 을 잰다.
  */
 
 const MODES = ["light", "dark"];
@@ -46,88 +48,105 @@ function contrast(a, b) {
   return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
 }
 
-const TWO_SERIES = [
-  { label: "계획", points: [5, 3, 0] },
-  { label: "잔여", points: [3, 2, 0] },
-];
+function toDashType(dash) {
+  return dash ? dash.split(/\s+/).map(Number) : "solid";
+}
 
-describe("차트 시리즈 색은 Brand 고정 팔레트에서 온다 (렌더 결과 기준)", () => {
-  it.each(MODES)("%s — LineSeries 의 두 선이 chart[0]·chart[1] 로 그려진다", (mode) => {
-    const { container } = withTheme(<LineSeries series={TWO_SERIES} />, mode);
-    const strokes = Array.from(container.querySelectorAll("path[stroke]")).map((p) => p.getAttribute("stroke"));
-    expect(strokes).toEqual([CHART_SERIES[mode][0], CHART_SERIES[mode][1]]);
+describe("LineSeries — option 의 색·선 스타일 (렌더 없이, ECharts 로 옮긴 뒤)", () => {
+  it.each(MODES)("%s — 두 시리즈가 chart[0]·chart[1] 로 들어간다", (mode) => {
+    const theme = createClovirTheme(mode);
+    const rows = [0, 1].map((idx) => ({
+      color: resolveChartColor(theme, undefined, idx), dashType: toDashType(CHART_DASH[idx]),
+      points: [5, 3, 0],
+    }));
+    const opt = lineSeriesOption({ rows, peak: 5, drawn: true });
+    expect(opt.series.map((s) => s.lineStyle.color)).toEqual([CHART_SERIES[mode][0], CHART_SERIES[mode][1]]);
   });
 
-  it("색만으로는 시리즈를 못 나르므로 2번 선은 실제로 파선으로 그려진다", () => {
-    const { container } = withTheme(<LineSeries series={TWO_SERIES} />);
-    const paths = Array.from(container.querySelectorAll("path[stroke]"));
-    expect(paths[0].getAttribute("stroke-dasharray")).toBeNull();
-    expect(paths[1].getAttribute("stroke-dasharray")).toBe(CHART_DASH[1]);
+  it("색만으로는 시리즈를 못 나르므로 2번 선은 실제로 파선 패턴이다", () => {
+    const theme = createClovirTheme("light");
+    const rows = [0, 1].map((idx) => ({
+      color: resolveChartColor(theme, undefined, idx), dashType: toDashType(CHART_DASH[idx]),
+      points: [5, 3, 0],
+    }));
+    const opt = lineSeriesOption({ rows, peak: 5, drawn: true });
+    expect(opt.series[0].lineStyle.type).toBe("solid");
+    expect(opt.series[1].lineStyle.type).toEqual(CHART_DASH[1].split(" ").map(Number));
   });
 
   it("사용자 Accent 를 바꿔도 시리즈 색은 그대로다 (Identity 는 Interaction 을 따르지 않는다)", () => {
-    const a = withTheme(<LineSeries series={TWO_SERIES} />, "light");
-    const strokesA = Array.from(a.container.querySelectorAll("path[stroke]")).map((p) => p.getAttribute("stroke"));
-    const b = withTheme(<LineSeries series={TWO_SERIES} />, "light", OTHER_ACCENT);
-    const strokesB = Array.from(b.container.querySelectorAll("path[stroke]")).map((p) => p.getAttribute("stroke"));
-    expect(strokesB).toEqual(strokesA);
-    // 그리고 그 색은 Accent 자체가 아니다 — 예전 기본값이 정확히 Accent 였다.
-    expect(strokesB).not.toContain(OTHER_ACCENT);
+    const a = resolveChartColor(createClovirTheme("light"), undefined, 0);
+    const b = resolveChartColor(createClovirTheme("light", OTHER_ACCENT), undefined, 0);
+    expect(b).toBe(a);
+    expect(b).not.toBe(OTHER_ACCENT);
   });
 
-  it.each(MODES)("%s — Donut 의 조각들이 서로 다른 색으로 그려진다", (mode) => {
-    const { container } = withTheme(
-      <Donut segments={[{ label: "계획", value: 4 }, { label: "진행", value: 2 }, { label: "완료", value: 1 }]} />,
-      mode,
-    );
-    // 첫 <circle> 은 트랙이다 — 조각은 그 뒤부터.
-    const arcs = Array.from(container.querySelectorAll("circle[stroke-dasharray]")).map((c) => c.getAttribute("stroke"));
-    expect(arcs).toEqual([CHART_SERIES[mode][0], CHART_SERIES[mode][1], CHART_SERIES[mode][2]]);
-    expect(new Set(arcs).size).toBe(3);
-  });
-
-  it("Donut 의 모수는 입력이다 — 안 주면 조각 합, 주면 그 값이고 차이를 글자로 말한다", () => {
-    const segs = [{ label: "완료", value: 3 }, { label: "남음", value: 2 }];
-    const derived = withTheme(<Donut segments={segs} unit="건" />);
-    expect(derived.container.textContent).toContain("5건");
-    expect(derived.container.textContent).not.toContain("분류 없음");
-
-    const explicit = withTheme(<Donut segments={segs} total={8} unit="건" />);
-    expect(explicit.container.textContent).toContain("8건");
-    expect(explicit.container.textContent).toContain("분류 없음");
-    expect(explicit.container.textContent).toContain("3건");   // 8 - 5
-  });
-
-  it.each(MODES)("%s — BarSeries 와 Sparkline 의 기본색도 chart[0] 이다", (mode) => {
-    const bar = withTheme(<BarSeries items={[{ label: "가", value: 3 }, { label: "나", value: 1 }]} />, mode);
-    const fills = Array.from(bar.container.querySelectorAll("rect"))
-      .map((r) => r.getAttribute("fill"))
-      .filter((f) => f === CHART_SERIES[mode][0]);
-    expect(fills.length).toBeGreaterThan(0);
-
-    const spark = withTheme(<Sparkline points={[1, 4, 2, 5]} />, mode);
-    const line = spark.container.querySelector("path[stroke]");
-    expect(line.getAttribute("stroke")).toBe(CHART_SERIES[mode][0]);
-  });
-
-  it.each(MODES)("%s — 실제로 그려지는 시리즈 색이 세 면에서 비텍스트 3:1 을 넘는다", (mode) => {
-    const theme = createClovirTheme(mode);
-    const { container } = withTheme(<LineSeries series={TWO_SERIES} />, mode);
-    const strokes = Array.from(container.querySelectorAll("path[stroke]")).map((p) => p.getAttribute("stroke"));
+  it("실제로 쓰이는 시리즈 색이 세 면에서 비텍스트 3:1 을 넘는다", () => {
+    const theme = createClovirTheme("light");
     const faces = [theme.palette.background.plate, theme.palette.background.inset, theme.palette.background.canvas];
-    for (const s of strokes) {
+    for (const idx of [0, 1]) {
+      const color = resolveChartColor(theme, undefined, idx);
       for (const face of faces) {
-        expect(contrast(s, face), `${s} on ${face}`).toBeGreaterThanOrEqual(3);
+        expect(contrast(color, face), `${color} on ${face}`).toBeGreaterThanOrEqual(3);
       }
     }
   });
 
-  it("시리즈가 5개를 넘으면 나머지를 '기타' 하나로 접는다 — 6번째부터는 구분되지 않는다", () => {
-    const many = Array.from({ length: 8 }, (_, i) => ({ label: `S${i}`, points: [i + 1, i] }));
-    const { container } = withTheme(<LineSeries series={many} />);
-    const strokes = container.querySelectorAll("path[stroke]");
-    expect(strokes.length).toBe(6);
-    expect(container.textContent).toContain("기타");
+  it("시리즈가 5개를 넘으면 옵션에 6개(기타 포함)만 들어간다", () => {
+    const theme = createClovirTheme("light");
+    const rows = Array.from({ length: 6 }, (_, idx) => ({
+      color: resolveChartColor(theme, undefined, idx), dashType: toDashType(CHART_DASH[idx]),
+      points: [idx + 1, idx],
+    }));
+    const opt = lineSeriesOption({ rows, peak: 6, drawn: true });
+    expect(opt.series.length).toBe(6);
+  });
+});
+
+describe("Donut — option 의 조각 색", () => {
+  it.each(MODES)("%s — 조각마다 다른 색이 itemStyle 에 들어간다", (mode) => {
+    const theme = createClovirTheme(mode);
+    const arcs = [0, 1, 2].map((idx) => ({ key: `s${idx}`, value: idx + 1, color: resolveChartColor(theme, undefined, idx) }));
+    const opt = donutOption({ arcs, missing: 0, thickness: 5, size: "9rem", trackColor: "#track", drawn: true });
+    const colors = opt.series[0].data.map((d) => d.itemStyle.color);
+    expect(colors).toEqual([CHART_SERIES[mode][0], CHART_SERIES[mode][1], CHART_SERIES[mode][2]]);
+    expect(new Set(colors).size).toBe(3);
+  });
+
+  it("모수와 조각 합의 차이(missing)는 트랙 색 조각으로 따로 들어간다", () => {
+    const theme = createClovirTheme("light");
+    const arcs = [{ key: "완료", value: 3, color: resolveChartColor(theme, undefined, 0) }];
+    const opt = donutOption({ arcs, missing: 5, thickness: 5, size: "9rem", trackColor: "#track", drawn: true });
+    expect(opt.series[0].data).toHaveLength(2);
+    expect(opt.series[0].data[1]).toEqual({ name: "분류 없음", value: 5, itemStyle: { color: "#track" } });
+  });
+
+  it("drawn=false 면 모든 조각의 값이 0이다(useRevealOnce 지문 규약)", () => {
+    const arcs = [{ key: "완료", value: 3, color: "#333" }];
+    const opt = donutOption({ arcs, missing: 0, thickness: 5, size: "9rem", trackColor: "#track", drawn: false });
+    expect(opt.series[0].data[0].value).toBe(0);
+  });
+});
+
+describe("BarSeries — 막대 한 행의 option", () => {
+  it.each(MODES)("%s — 기본색이 chart[0] 이다", (mode) => {
+    const theme = createClovirTheme(mode);
+    const fill = resolveChartColor(theme, undefined, 0);
+    const opt = barRowOption({ pct: 50, fillColor: fill, trackColor: "#track", grown: true });
+    expect(opt.series[0].data[0].itemStyle.color).toBe(CHART_SERIES[mode][0]);
+  });
+
+  it("grown=false 면 값이 0이다(useRevealOnce 지문 규약)", () => {
+    const opt = barRowOption({ pct: 80, fillColor: "#333", trackColor: "#track", grown: false });
+    expect(opt.series[0].data[0].value).toBe(0);
+  });
+});
+
+describe("Sparkline 의 기본색도 chart[0] 이다 (이번 회차에서 안 옮겼다 — §15.2)", () => {
+  it.each(MODES)("%s", (mode) => {
+    const spark = withTheme(<Sparkline points={[1, 4, 2, 5]} />, mode);
+    const line = spark.container.querySelector("path[stroke]");
+    expect(line.getAttribute("stroke")).toBe(CHART_SERIES[mode][0]);
   });
 });
 

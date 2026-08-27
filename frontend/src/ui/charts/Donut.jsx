@@ -3,22 +3,57 @@ import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import { useTheme } from "@mui/material/styles";
 import { ChartNoData, ChartQuestion, capSeries, resolveChartColor, useTrackColor } from "./base.jsx";
+import { baseOption, useEChart } from "./useEChart.js";
 import { useRevealOnce } from "../motion.js";
-import { FONT_WEIGHT, KO_WORD_BREAK, MOTION } from "../theme.js";
+import { FONT_WEIGHT, KO_WORD_BREAK } from "../theme.js";
 
-/* 도넛 — 전체가 무엇으로 이루어져 있는지(구성비)를 보여준다. 크기 비교는 BarSeries가 낫다.
+/* 도넛 — 전체가 무엇으로 이루어져 있는지(구성비)를 보여준다 (REAUDIT §15.2 — ECharts 재구현).
+ * 크기 비교는 BarSeries가 낫다.
  *
  * segments: [{ label, value, color? }]. value가 0 이하인 조각은 그리지 않는다(0%짜리 조각은
  * 테두리 한 줄로만 남아 '아주 작은 값'처럼 오해된다).
  *
- * 반지름을 15.91549431(= 100 / 2π)로 잡으면 원둘레가 정확히 100이 되어, strokeDasharray에
- * 백분율을 그대로 써 넣을 수 있다. 각도 계산·arc 경로가 통째로 사라진다.
- *
- * 가운데 합계와 범례는 SVG가 아니라 HTML이다 — SVG <text>는 px 단위라 4K에서 혼자 작게 남는다.
- * 범례가 곧 이 그림의 텍스트 대체물이라서, 도넛을 못 보는 사람도 같은 수치를 그대로 읽는다.
+ * 가운데 합계와 범례는 SVG가 아니라 HTML이다 — SVG <text>는 px 단위라 4K에서 혼자 작게 남는다
+ * (ECharts 자신의 라벨·범례·툴팁은 끈다 — `useEChart.js` 문서). 범례가 곧 이 그림의 텍스트
+ * 대체물이라서, 도넛을 못 보는 사람도 같은 수치를 그대로 읽는다.
  */
 /* `revealKey` — BarSeries 와 같은 규약이다. 처음 보거나 값이 바뀐 링만 한 번 그려지고,
- * 같은 값으로 다시 마운트되면 최종 상태로 선다(`ui/motion.js::useRevealOnce`). */
+ * 같은 값으로 다시 마운트되면 최종 상태로 선다(`ui/motion.js::useRevealOnce`). ECharts 는
+ * 자기 자신의 데이터 전환 애니메이션으로 "0 → 실제 값" 을 그린다 — `drawn` 이 그 스위치다. */
+
+/** 옵션 — **순수 함수**다(§18.2). `arcs` 는 컴포넌트가 이미 계산해 둔 조각(색 포함)이고,
+ * `missing` 은 모수와 조각 합의 차이(트랙 색 몫)다. */
+export function donutOption({ arcs, missing, thickness, size, trackColor, drawn }) {
+  const data = arcs.map((a) => ({
+    name: a.key,
+    value: drawn ? a.value : 0,
+    itemStyle: { color: a.color },
+  }));
+  if (missing > 0) {
+    data.push({ name: "분류 없음", value: drawn ? missing : 0, itemStyle: { color: trackColor } });
+  }
+  return {
+    ...baseOption(),
+    series: [
+      {
+        type: "pie",
+        // ECharts 는 반지름을 %면 컨테이너 기준으로, 값이면 px 로 읽는다 — 두께는 안·바깥
+        // 반지름의 차이로만 표현할 수 있어 %를 쓴다(고정 두께 px 대신 size 에 비례한다).
+        radius: ["70%", "100%"],
+        startAngle: 90,
+        clockwise: true,
+        avoidLabelOverlap: false,
+        label: { show: false },
+        labelLine: { show: false },
+        emphasis: { scale: false },
+        itemStyle: { borderWidth: 0 },
+        data,
+        animationDuration: 400,
+      },
+    ],
+  };
+}
+
 export function Donut({
   segments, size = "9rem", unit = "", centerLabel, emptyLabel = "데이터 없음", thickness = 5,
   total: totalProp, restLabel = "기타", question, revealKey,
@@ -45,53 +80,26 @@ export function Donut({
     : shown;
   const missing = Math.max(0, total - shown);
 
-  // 값이 없으면 **도넛을 통째로 접는다** — 빈 원을 그리지도, 도넛 높이만큼 빈 상자를
-  // 남기지도 않는다(PLAN «빈 데이터 규칙» ⓑ). 예전에는 여기서 `size` 를 빈 상태에 그대로
-  // 넘겨 높이를 지켰는데, 그건 «없는 데이터를 위한 컨테이너» 를 9rem 짜리로 만드는 일이었다.
-  // 로딩 자리는 `Skeleton kind="chart"` 가 같은 높이의 차트 모양으로 잡으므로, 이제
-  // 「불러오는 중」과 「없다」가 서로 다르게 보인다.
-  if (!rows.length || total <= 0) return <ChartNoData label={emptyLabel} />;
+  const arcs = rows.map((s, idx) => ({
+    key: s.label, value: s.value, color: resolveChartColor(theme, s.color, idx),
+  }));
+  const option = React.useMemo(
+    () => (rows.length && total > 0 ? donutOption({ arcs, missing, thickness, size, trackColor: track, drawn }) : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [JSON.stringify(arcs), missing, thickness, size, track, drawn, total, rows.length],
+  );
+  const containerRef = useEChart(option);
 
-  const R = 15.91549431;
-  let acc = 0;
-  const arcs = rows.map((s, idx) => {
-    const pct = (s.value / total) * 100;
-    // dashoffset 25는 12시 방향에서 시작하게 만든다(기본은 3시 방향 — 사람은 시계처럼 위에서 읽는다).
-    // 색을 **안 준** 조각은 시리즈 슬롯을 받는다. 예전에는 전부 `primary.main` 하나여서
-    // «계획 4건»과 «진행 2건»의 스와치 픽셀이 문자 그대로 같았다 — 구성비 차트가 구성을
-    // 못 보여 주던 자리다.
-    const arc = { key: s.label, pct, offset: 25 - acc, color: resolveChartColor(theme, s.color, idx) };
-    acc += pct;
-    return arc;
-  });
+  // 값이 없으면 **도넛을 통째로 접는다** — 빈 원을 그리지도, 도넛 높이만큼 빈 상자를
+  // 남기지도 않는다(PLAN «빈 데이터 규칙» ⓑ).
+  if (!rows.length || total <= 0) return <ChartNoData label={emptyLabel} />;
 
   return (
     <Box>
     <ChartQuestion>{question}</ChartQuestion>
     <Box sx={{ display: "flex", alignItems: "center", gap: { xs: 2, sm: 3 }, flexWrap: "wrap" }}>
-      <Box sx={{ position: "relative", width: size, height: size, flex: "0 0 auto" }}>
-        <Box
-          component="svg"
-          viewBox="0 0 42 42"
-          aria-hidden="true"
-          focusable="false"
-          sx={{ display: "block", width: "100%", height: "100%" }}
-        >
-          <circle cx="21" cy="21" r={R} fill="none" stroke={track} strokeWidth={thickness} />
-          {arcs.map((a) => (
-            /* 조각은 자기 시작점(dashoffset)에 가만히 있고 **길이만** 0 에서 자란다 —
-               링이 돌면 그것은 연출이 아니라 산만함이다. */
-            /* MUI `Box` 로 감싸지 않는다 — SVG 기하 값을 system prop 이 다시 해석하는 자리를
-               만들지 않는다(`BarSeries` 의 `width` 가 그 함정을 밟았다). 전환은 `style` 로. */
-            <circle
-              key={a.key} cx="21" cy="21" r={R} fill="none"
-              stroke={a.color} strokeWidth={thickness}
-              strokeDasharray={drawn ? `${a.pct.toFixed(2)} ${(100 - a.pct).toFixed(2)}` : "0 100"}
-              strokeDashoffset={a.offset.toFixed(2)}
-              style={{ transition: `stroke-dasharray ${MOTION.base} ${MOTION.ease}` }}
-            />
-          ))}
-        </Box>
+      <Box data-chart-frame="donut" sx={{ position: "relative", width: size, height: size, flex: "0 0 auto" }}>
+        <Box ref={containerRef} aria-hidden="true" sx={{ width: "100%", height: "100%" }} />
         {/* 가운데 합계 — 도넛의 구멍은 비워 두면 아깝고, 구성비만 있고 모수가 없으면 해석이 안 된다. */}
         <Box sx={{ position: "absolute", inset: 0, display: "grid", placeContent: "center", textAlign: "center" }}>
           {/* PA-RC-0001: 24px — ProjectWbs.jsx·game-room/GameStage.jsx와 같은 값+굵기(의도된

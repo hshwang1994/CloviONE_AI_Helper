@@ -4,10 +4,11 @@ import Typography from "@mui/material/Typography";
 import { useTheme } from "@mui/material/styles";
 
 import { resolveChartColor, useTrackColor } from "./base.jsx";
+import { baseOption, useEChart } from "./useEChart.js";
 import { useRevealOnce } from "../motion.js";
-import { FONT_SIZE, FONT_WEIGHT, MOTION } from "../theme.js";
+import { FONT_SIZE, FONT_WEIGHT } from "../theme.js";
 
-/* 점수 하나를 **원으로** 그린다 (지시 10 · 16).
+/* 점수 하나를 **원으로** 그린다 (지시 10 · 16 · REAUDIT §15.2 — ECharts 재구현).
  *
  * ## 왜 도넛이 아니라 따로 있나
  *
@@ -18,13 +19,56 @@ import { FONT_SIZE, FONT_WEIGHT, MOTION } from "../theme.js";
  * ## 숫자가 먼저다
  *
  * 가운데 글자가 그림 없이도 읽히는 값이고, 원은 그것을 거든다. 그림을 못 보는 사람이
- * 잃는 것이 없어야 한다 — 그래서 원은 `aria-hidden` 이고 점수는 글자로 나간다.
+ * 잃는 것이 없어야 한다 — 그래서 원은 `aria-hidden` 이고 점수는 글자로 나간다(ECharts
+ * 자신의 `detail`/`title` 은 끈다 — 이 컴포넌트의 HTML `<Typography>` 가 그 자리를 대신한다,
+ * `useEChart.js` 문서 참고).
  *
- * 반지름을 15.91549431(= 100 / 2π)로 잡으면 원둘레가 정확히 100 이 되어, `strokeDasharray`
- * 에 백분율을 그대로 써 넣을 수 있다(`Donut` 과 같은 수법이고 같은 이유다).
+ * ## ECharts 로 다시 그린 이유(§15.2)
+ *
+ * 게이지가 **1급 차트**다(회차 건강·프로젝트 Health). 손으로 만든 원(`stroke-dasharray`
+ * 트릭)을 유지하는 대신 ECharts 의 `gauge` 시리즈를 쓴다 — 이 저장소의 대비·마스코트
+ * 프로브가 DOM 을 읽으므로 `SVGRenderer` 로 실제 `<path>` 를 그린다.
+ *
+ * `startAngle:90, endAngle:-270` 로 **완전한 원**을 만든다(기본 게이지는 반원이다) —
+ * 이 제품의 게이지는 처음부터 12시에서 시작해 시계 방향으로 도는 온전한 원이었다.
  */
 
-const R = 15.91549431;
+/** 옵션 — **순수 함수**다. 시험이 이 함수를 직접 불러 렌더 없이 값만 잰다(§18.2). */
+export function gaugeOption({ pct, thickness, trackColor, strokeColor, drawn }) {
+  return {
+    ...baseOption(),
+    series: [
+      {
+        type: "gauge",
+        startAngle: 90,
+        endAngle: -270,
+        min: 0,
+        max: 100,
+        radius: "100%",
+        pointer: { show: false },
+        anchor: { show: false },
+        axisTick: { show: false },
+        splitLine: { show: false },
+        axisLabel: { show: false },
+        title: { show: false },
+        detail: { show: false },
+        axisLine: { lineStyle: { width: thickness, color: [[1, trackColor]] } },
+        progress: {
+          show: true,
+          overlap: false,
+          width: thickness,
+          roundCap: true,
+          itemStyle: { color: strokeColor },
+        },
+        // 0 -> 실제 값으로 자라는 것은 ECharts 자신의 데이터 전환 애니메이션이다 —
+        // `drawn` 이 false 인 동안은 0을 그려 두고, true 로 바뀌면 실제 값으로 다시
+        // `setOption` 되어 그 사이를 ECharts 가 채운다(`useRevealOnce` 와 같은 지문 규약).
+        data: [{ value: drawn ? pct : 0 }],
+        animationDuration: 400,
+      },
+    ],
+  };
+}
 
 export function Gauge({
   value, max = 100, size = "7rem", thickness = 5,
@@ -35,6 +79,17 @@ export function Gauge({
   const drawn = useRevealOnce(revealKey);
 
   const known = typeof value === "number" && Number.isFinite(value);
+  const pct = known ? Math.max(0, Math.min(100, (value / (max || 100)) * 100)) : 0;
+  const stroke = resolveChartColor(theme, color, 0);
+
+  const option = React.useMemo(
+    () => (known
+      ? gaugeOption({ pct, thickness, trackColor: track, strokeColor: stroke, drawn })
+      : null),
+    [known, pct, thickness, track, stroke, drawn],
+  );
+  const containerRef = useEChart(option);
+
   /* **모르는 것과 0 은 다른 값이다.** 안 잰 점수를 0 으로 그리면 한 번도 안 잰 프로젝트가
      화면에서 가장 나쁜 프로젝트가 된다(`app/projects/health.py` 가 같은 판단을 한다). */
   if (!known) {
@@ -53,23 +108,10 @@ export function Gauge({
     );
   }
 
-  const pct = Math.max(0, Math.min(100, (value / (max || 100)) * 100));
-  const stroke = resolveChartColor(theme, color, 0);
-
   return (
     <Box sx={{ display: "grid", gap: 0.5, justifyItems: "center", minWidth: 0 }}>
-      <Box sx={{ position: "relative", width: size, height: size }}>
-        <Box component="svg" viewBox="0 0 42 42" aria-hidden="true" sx={{ width: "100%", height: "100%", display: "block" }}>
-          <circle cx="21" cy="21" r={R} fill="none" stroke={track} strokeWidth={thickness} />
-          <circle
-            cx="21" cy="21" r={R} fill="none"
-            stroke={stroke} strokeWidth={thickness} strokeLinecap="round"
-            /* 12시에서 시작해 시계 방향. 기본 원은 3시에서 시작하므로 90도 돌린다. */
-            transform="rotate(-90 21 21)"
-            strokeDasharray={`${drawn ? pct : 0} ${100 - (drawn ? pct : 0)}`}
-            style={{ transition: `stroke-dasharray ${MOTION.base} ${MOTION.ease}` }}
-          />
-        </Box>
+      <Box data-chart-frame="gauge" sx={{ position: "relative", width: size, height: size }}>
+        <Box ref={containerRef} aria-hidden="true" sx={{ width: "100%", height: "100%" }} />
         <Box sx={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", textAlign: "center" }}>
           <Typography
             component="span"

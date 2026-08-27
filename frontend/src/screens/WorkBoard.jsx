@@ -30,6 +30,7 @@ import { KO_WORD_BREAK } from "../ui/theme.js";
 import { MODERATOR_ROLES, hasRole } from "../lib/roles.js";
 import { useAuth } from "../app/auth.jsx";
 import { invalidateTicketViews } from "./ticket-views.js";
+import { SPRINT_FIELDS } from "./sprint-fields.js";
 import { TicketEditModal } from "./MyTickets.jsx";
 import { useAssigneeOptions, useTicketMeta, useTicketProjects } from "./ticket-options.js";
 import { useTicketSignals } from "../lib/ticketSignals.js";
@@ -296,16 +297,6 @@ function BacklogRow({ card, onOpen, signals, onAddToSprint, canAdd, onQuickEdit,
     </Card>
   );
 }
-
-/* 새 스프린트 폼. 기간은 ISO 날짜라 서버 스키마(`SprintCreate`)와 같은 모양이다.
- * 프로젝트를 비우면 팀 전체 회차다 — 그 갈래가 있어야 한 프로젝트에 묶이지 않는
- * 주간 회차를 만들 수 있다. */
-export const SPRINT_FIELDS = [
-  { name: "name", label: "이름", required: true, maxLength: 120 },
-  { name: "starts_on", label: "시작일", type: "date", required: true },
-  { name: "ends_on", label: "종료일", type: "date", required: true },
-  { name: "goal", label: "목표", type: "textarea", maxLength: 2000 },
-];
 
 /** 값이 있는 조건만 질의 문자열에 넣는다. 빈 값을 실어 보내면 캐시 키가 갈라진다. */
 function qs(pairs) {
@@ -861,6 +852,10 @@ export function WorkBoard() {
             labelOf={labelOf}
             onMove={handleBoardMove}
             columnMaxHeight={COLUMN_BODY_MAX}
+            // §15.1 재검수 — 서버가 이미 열마다 커서로 잘라 준 것(§8.5) 위에 렌더링만
+            // 가상화한다. 카드 하나(TicketCard)는 배지·신호·담당자까지 있어 백로그 행보다
+            // 조금 크다 — 실측 없이 어림한 값이고 실제 높이는 measureElement가 다시 잰다.
+            virtualize={{ estimateSize: 128 }}
           >
             {(card) => (
               <DragItem key={card.id} id={card.id} label={labelOf(card.id)}>
@@ -882,7 +877,15 @@ export function WorkBoard() {
         ) : (
           <Box>
             <BacklogHead />
-            <SortableList items={backlogRows} labelOf={labelOf} onReorder={handleBacklogReorder}>
+            <SortableList
+              items={backlogRows}
+              labelOf={labelOf}
+              onReorder={handleBacklogReorder}
+              // §15.1 재검수 — 서버 커서 페이징(§8.5, useInfiniteQuery) 위에 렌더링만
+              // 가상화한다. 181행을 한 번에 그리던 자리다. 판 열과 같은 높이(60vh)를
+              // 써서 두 탭이 같은 느낌으로 스크롤한다.
+              virtualize={{ estimateSize: 72, height: "60vh", ariaLabel: "백로그 목록" }}
+            >
               {(card) => (
                 <DragItem key={card.id} id={card.id} label={labelOf(card.id)}>
                   <BacklogRow

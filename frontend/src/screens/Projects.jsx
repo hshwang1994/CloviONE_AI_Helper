@@ -289,8 +289,17 @@ function Summary({ query, filters, onFilter }) {
             {overdue.count || 0}
           </Typography>
           {/* 가장 오래 지난 것 셋. 「3건」만 말하면 그것을 본 사람이 할 수 있는 일이 없다 —
-              어느 것이 얼마나 지났는지가 곧 할 일 목록이다. */}
-          <OverdueBars items={overdue.items} today={d.today} />
+              어느 것이 얼마나 지났는지가 곧 할 일 목록이다.
+              REAUDIT C7/RC6 — 0건이면 그림이 사라지고 큰 숫자 0만 남아 이웃 두 칸(둘 다
+              숫자 아래에 사연을 까는 줄이 있다)보다 가벼워 보였다. 0도 「쟀고 없었다」는
+              답이라 같은 자리에 문장을 채운다. */}
+          {overdue.count ? (
+            <OverdueBars items={overdue.items} today={d.today} />
+          ) : (
+            <Typography variant="body2" color="text.secondary" sx={KO_WORD_BREAK}>
+              지연된 마일스톤이 없습니다.
+            </Typography>
+          )}
         </SummaryPanel>
       </Box>
     </Box>
@@ -527,6 +536,9 @@ export function Projects() {
             <Card sx={{ p: 0, overflow: "hidden" }}>
               <DataTable
                 columns={cols} rows={items} rowKey={(p) => p.id} onRow={open}
+                // HashRouter다 — 실제 `href` 는 `#` 이 붙어야 새 탭에서 이 라우트로 실제
+                // 도착한다(순수 클릭은 `open`/`nav()` 가 처리해 이 값을 안 본다).
+                rowHref={(p) => "#/projects/" + p.id}
                 empty="표시할 프로젝트가 없습니다."
                 sort={{ key: filters.sort, dir: filters.order }}
                 onSort={(key) => {

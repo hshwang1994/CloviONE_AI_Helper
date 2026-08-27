@@ -123,6 +123,11 @@ describe("티켓 편집 뒤 화면 갱신", () => {
 
     expect(await screen.findByText(NEW_TITLE)).toBeInTheDocument();
     expect(screen.queryByText(OLD_TITLE)).toBeNull();
+  }, {
+    // REAUDIT §15.5 — 이 모달(TicketEditModal)이 이제 지연 로드 DateField(시작일·마감일)를
+    // 그린다. 전량 실행처럼 동적 import 부하가 큰 상황에서 모달 전체 마운트가 기본
+    // 5000ms 를 넘길 수 있어 넉넉히 준다(§15.2 차트 시험들과 같은 이유).
+    timeout: 10000,
   });
 
   it("지금 안 보고 있는 스프린트 회의 화면의 캐시도 함께 낡은 것으로 표시된다", async () => {

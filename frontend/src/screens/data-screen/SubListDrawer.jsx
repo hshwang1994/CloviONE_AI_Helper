@@ -7,6 +7,7 @@ import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { Callout, Button, DataTable, Modal, EmptyState, ErrorState, useConfirm, useToast } from "../../ui/kit.jsx";
+import { DateField } from "../../ui/DateField.jsx";
 import { handleApiError } from "./apiError.js";
 import { JsonBlock } from "./JsonBlock.jsx";
 import { successMessageFor } from "./successMessages.js";
@@ -115,10 +116,10 @@ export function SubListDrawer({ view, onClose, onActed }) {
       {(sl.filters || []).length ? (
         <Stack direction="row" gap={1.5} flexWrap="wrap" sx={{ mb: 2 }}>
           {(sl.filters).map((f) => f.type === "date" ? (
-            <TextField
-              key={f.key} type="date" size="small" label={f.label}
-              InputLabelProps={{ shrink: true }} sx={{ minWidth: "11rem" }}
-              value={subFilters[f.key] || ""} onChange={(e) => setSubFilter(f.key, e.target.value)}
+            <DateField
+              key={f.key} id={f.key} size="small" label={f.label}
+              sx={{ minWidth: "11rem" }}
+              value={subFilters[f.key] || ""} onChange={(v) => setSubFilter(f.key, v)}
             />
           ) : f.type === "text" ? (
             <TextField

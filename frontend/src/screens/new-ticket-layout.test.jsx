@@ -1,7 +1,8 @@
 import React from "react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { fillDateField } from "../test-helpers/dateField.js";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "@mui/material/styles";
 
@@ -271,7 +272,14 @@ describe("새 티켓 — 폼과 레일은 그대로다(오탐 방지)", () => {
     const user = userEvent.setup();
     renderNewTicket();
     for (const label of ["프로젝트", "진행상태", "우선순위", "난이도", "예상 WD", "마감일"]) {
-      expect(await screen.findByLabelText(new RegExp(label))).toBeInTheDocument();
+      /* `getAllByLabelText` + `waitFor` — "마감일"(`DateField`)은 지연 로드라 초기에는
+         자리표시만 있고(§15.5), 청크가 온 뒤에는 라벨 하나에 걸리는 요소가 둘(구간 그룹 +
+         숨은 입력)이라 단수 `find/getByLabelText` 는 부하가 큰 전량 실행에서 "여럿 걸림"으로
+         떨어지거나, `find` 가 잡은 자리표시 참조가 이후 실제 필드로 바뀌며 끊겨 있을 수
+         있다 — 매번 새로 질의해 "지금 이 순간 하나 이상 있다"만 본다. */
+      await waitFor(() => {
+        expect(screen.getAllByLabelText(new RegExp(label)).length).toBeGreaterThan(0);
+      });
     }
     await user.type(screen.getByLabelText(/제목/), "서버 등록 IP 중복 방지");
     // 프로젝트는 후보가 있으면 필수다 — 고르지 않으면 제출이 막힌다(그 검증도 함께 지킨다).
@@ -279,7 +287,7 @@ describe("새 티켓 — 폼과 레일은 그대로다(오탐 방지)", () => {
     await user.click(await screen.findByRole("option", { name: "인프라" }));
     /* 예상 WD 와 마감일도 필수다 (지시 10) — 서버가 같은 요구를 한다(`TicketCreate`). */
     await user.type(screen.getByLabelText(/예상 WD/), "2");
-    fireEvent.change(screen.getByLabelText(/마감일/), { target: { value: "2026-09-30" } });
+    await fillDateField(user, /마감일/, "2026-09-30");
     await user.click(screen.getByRole("button", { name: "티켓 추가" }));
     await waitFor(() => {
       expect(apiMock).toHaveBeenCalledWith("/api/tickets", expect.objectContaining({
@@ -308,7 +316,7 @@ describe("새 티켓 — 폼과 레일은 그대로다(오탐 방지)", () => {
     expect(apiMock).not.toHaveBeenCalledWith("/api/tickets", expect.anything());
 
     // 둘 다 채우면 그때 나간다.
-    fireEvent.change(screen.getByLabelText(/마감일/), { target: { value: "2026-10-01" } });
+    await fillDateField(user, /마감일/, "2026-10-01");
     await user.click(screen.getByRole("button", { name: "티켓 추가" }));
     await waitFor(() => {
       expect(apiMock).toHaveBeenCalledWith("/api/tickets", expect.objectContaining({

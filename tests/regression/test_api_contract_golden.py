@@ -148,6 +148,16 @@ Deliberate contract changes recorded here (each landed with its golden edit):
     live accounts to ask an administrator for a Notion link that can no longer be
     created. The same axis left ``/api/home/today``, ``/api/me/stats`` and the
     offboarding preview (``notion_mapped``) in the same change.
+  * every ticket view gained ``assignee_people`` — ``[{"user_id", "name"}, ...]``,
+    one entry per resolved assignee (REAUDIT A7, ``ui/UserAvatar.jsx``).
+    ``assignee_names`` / ``assignee_user_ids`` each drop an entry independently
+    when only one side of a given assignee resolves, so their lengths can
+    diverge and zipping them by index can attach the wrong name to the wrong
+    id. ``assignee_people`` is built from ``assignee_ids`` in one pass so each
+    entry's two fields always describe the same person. This is **not** the
+    ``assignees`` field the S14 note above dropped — that was the raw source
+    people-id array; this is a new, differently-shaped field and deliberately
+    does not reuse that name.
 """
 
 from __future__ import annotations

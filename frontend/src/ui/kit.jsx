@@ -47,6 +47,8 @@ import { EMPTY_STATE_MAX_CH, ERROR_STATE_MAX_CH, FONT_SIZE, FONT_WEIGHT, KO_WORD
 import { CARD_PADDING, SECTION_GAP } from "./density.js";
 import { EntityCombobox } from "./filters.jsx";
 import { TableHeaderCell } from "./TableHeaderCell.jsx";
+import { DateField } from "./DateField.jsx";
+import { VirtualTableBody } from "./VirtualRows.jsx";
 import { loginUrl, redirectToLogin } from "../lib/sessionRedirect.js";
 import { prefersReducedMotion } from "./motion.js";
 
@@ -1731,7 +1733,51 @@ export function cardHeaderControls(cols) {
  * 그래서 두 규칙 중 하나를 없앤다. 남기는 것은 열 어휘 쪽이다 — 폭을 화면마다 손으로 적던
  * 시절로 돌아가지 않는 것이 S16 의 결론이었다. `fixed` 를 쓰던 두 화면(게시판·휴지통)이
  * 원한 것(「제목만 남는 폭을 갖고 나머지는 고정」)은 지금 `type` + `ellipsis` 가 그대로 준다. */
-export function DataTable({ columns, rows, rowKey, onRow, empty, ellipsis, stickyHeader, loading, sort, onSort, resultScope, filters, onFilter, filterOptions, entityOptions }) {
+/* REAUDIT A9 — 행에 실제 `<a href>` 가 하나도 없어 새 탭·가운데 클릭·주소 복사가 안 됐다.
+ * `onRow` 는 클릭·키보드만 처리하는 진짜 링크가 아니다.
+ *
+ * `rowHref` 를 준 화면만 opt-in 으로 받는다(`resultScope` 와 같은 원칙 — 안 쓰는 화면은
+ * 한 픽셀도 안 바뀐다). `type:"title"` 열 하나에만 건다 — 행 전체를 앵커로 덮으면 그
+ * 안의 실제 버튼·링크(행 액션)를 가린다, 위 PA-RC-0023 주석이 이미 그 이유로 행 자체에
+ * `role="button"` 을 안 준다.
+ *
+ * 🔴 이 앱은 `HashRouter` 다(`app/App.jsx`) — `rowHref` 가 주는 값은 **진짜 `href`** 로
+ * 그대로 나가므로 반드시 `"#/..."` 로 시작해야 한다. `"/projects/…"` 처럼 `#` 를 빠뜨리면
+ * 평범한 클릭(=`onRow`/`nav()` 경로)은 멀쩡히 동작해 눈에 안 띄지만, 새 탭·가운데 클릭·
+ * 주소 복사(이 opt-in 을 만든 바로 그 이유)는 서버가 모르는 실제 경로로 나가 조용히
+ * 깨진다.
+ *
+ * 평범한 왼쪽 클릭만 가로챈다(preventDefault 뒤 `onRow` 로 SPA 이동) — 수정자 키·가운데
+ * 클릭은 막지 않고 브라우저 기본 동작(새 탭 등)에 맡긴다. `tabIndex=-1` 로 tab 정지점을
+ * 늘리지 않는다 — 행 자신이 이미 `tabIndex=0`+`aria-label` 로 키보드 진입을 준다(이중
+ * 정지점을 만들지 않는다). 바깥 행의 `closest("a,button")` 가드가 이미 있어 이중 nav
+ * 걱정은 없다. */
+function rowAnchorProps(href, onActivate) {
+  return {
+    href,
+    tabIndex: -1,
+    onClick: (e) => {
+      if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      e.preventDefault();
+      onActivate();
+    },
+  };
+}
+
+export function DataTable({ columns, rows, rowKey, onRow, rowHref, empty, ellipsis, stickyHeader, loading, sort, onSort, resultScope, filters, onFilter, filterOptions, entityOptions, virtualize }) {
+  // §15.1 재검수 — `VirtualTableBody` 는 스크롤 창을 스스로 안 만든다(문서 전체가 표
+  // 흐름을 지키게, `VirtualRows`와 다른 이유는 그 부품 docblock 참고). 이 상자가 그 창
+  // 이다 — `virtualize` 를 안 쓰면 아무도 안 읽는다(회귀 0).
+  //
+  // 🔴 평범한 `useRef` 가 아니라 `useState` + 콜백 ref 다. `TableContainer`(조상)의 DOM
+  // 노드는 이 컴포넌트 자신이 아니라 그 **자손**(`VirtualTableBody`)이 읽는데, React 는
+  // 커밋을 자손→조상 순서로 처리한다(레이아웃 이펙트도 같다) — 평범한 ref 였다면
+  // `VirtualTableBody` 의 첫 레이아웃 이펙트가 도는 시점에 이 조상 ref 는 아직 안 붙어
+  // 있어, react-virtual 이 그 순간의 null 값을 그대로 확정해 버리고 다시 안 돈다(제
+  // 라이브러리 소스로 확인함 — 실제로 겪은 결함이다: 60건 넘는 표가 행을 하나도 못
+  // 그렸다). 콜백 ref 로 노드를 state 에 담으면, 그 노드가 실제로 붙는 순간 **state
+  // 갱신 → 리렌더**가 일어나 `VirtualTableBody` 가 이번에는 값이 있는 채로 다시 돈다. */
+  const [scrollEl, setScrollEl] = React.useState(null);
   // 방어: 비정상 입력이 와도 렌더 중 throw하지 않고 빈-목록 안내로 폴백한다.
   // 공용 표라 한 화면의 실수나 API shape 변화가 전역 크래시로 번지지 않게 한다.
   const declaredCols = Array.isArray(columns) ? columns : [];
@@ -1809,13 +1855,95 @@ export function DataTable({ columns, rows, rowKey, onRow, empty, ellipsis, stick
                   <Typography variant="caption" color="text.secondary">{cardFieldLabel(c)}</Typography>
                   {/* `overflowWrap:anywhere` 만 걸면 한글이 음절 단위로 끊긴다 - 영문에서는
                       안 생기는 일이라 눈에 잘 안 띈다. 단어는 지키고 긴 토큰만 끊는다. */}
-                  <Box sx={{ minWidth: 0, fontSize: FONT_SIZE.body, ...KO_WORD_BREAK }}>{cellValue(c, row, ctx)}</Box>
+                  {rowHref && onRow && c.type === "title" ? (
+                    <Box
+                      component="a"
+                      {...rowAnchorProps(rowHref(row), () => onRow(row))}
+                      sx={{ minWidth: 0, fontSize: FONT_SIZE.body, ...KO_WORD_BREAK, display: "block", color: "inherit", textDecoration: "none" }}
+                    >
+                      {cellValue(c, row, ctx)}
+                    </Box>
+                  ) : (
+                    <Box sx={{ minWidth: 0, fontSize: FONT_SIZE.body, ...KO_WORD_BREAK }}>{cellValue(c, row, ctx)}</Box>
+                  )}
                 </Box>
               ))}
             </Paper>
           );
         })}
       </Stack>
+    );
+  }
+
+  /* 셀 안의 링크/버튼 클릭이 행 클릭(상세 열기)으로 번지지 않게 막는다 —
+     문서 '발행 링크'를 누르면 새 탭이 열리면서 상세까지 같이 열리던 이중 동작.
+     같은 이유로 키보드 Enter/Space도 셀 안의 실제 버튼·링크에서 눌렀으면
+     행 전체의 onRow를 다시 부르지 않는다(그 버튼 자신의 키보드 활성화가
+     이미 처리한다). PA-RC-0023: role="button"은 일부러 안 준다 — 이 행 안에
+     재시도/취소 같은 진짜 버튼이 함께 있는 표가 있어(registry 행 액션),
+     role=button 위에 포커스 가능한 자손을 두는 것은 WAI-ARIA 금지다
+     (StatusTile의 같은 이유 참고, adminKit.jsx). tabIndex + aria-label +
+     Enter 처리만으로 키보드 도달을 준다.
+     `virtualize`(§15.1)와 평범한 렌더 둘 다 이 함수 하나를 쓴다 — 가상화가
+     행 하나를 다르게 그리면 그 자체가 회귀다. */
+  function renderDataRow(row, i) {
+    // 행마다 한 번만 구한다 — 셀마다 다시 구하면 열 수만큼 같은 계산을 반복한다.
+    const ctx = { rowName: rowNameOf(baseCols, row) };
+    return (
+      <TableRow
+        key={keyOf(row, i)}
+        hover={!!onRow}
+        onClick={onRow ? (e) => { if (e.target.closest("a,button")) return; onRow(row); } : undefined}
+        onKeyDown={onRow ? (e) => { if (e.target.closest("a,button")) return; if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onRow(row); } } : undefined}
+        tabIndex={onRow ? 0 : undefined}
+        aria-label={onRow ? rowOpenLabel(baseCols, row) : undefined}
+        sx={{ cursor: onRow ? "pointer" : "default" }}
+      >
+        {wideCols.map((c) => {
+          /* HOST-01/HOST-02/VIS-73 — 열 폭이 순수하게 내용에서 파생되던 게 두 방향 모두에서
+             문제였다: ① 값 하나가 길면 그 셀이 51px×2,353px까지 벌어지고 같은 행의 다른
+             셀도 그 높이로 끌려간다(HOST-01, truncateCol이 있는 자리에만 부분 적용돼 있었다)
+             ② 열이 많으면 `overflowWrap:anywhere`가 각 열을 '한 글자' 폭까지 짜부라뜨린다
+             (VIS-73). `c.render`가 있는 열(배지·버튼·직접 JSX)은 이미 자기 폭을 스스로
+             관리하므로 건드리지 않는다 — 값을 있는 그대로 보여주는 순수 텍스트 열만 기본을
+             말줄임으로 바꾼다(`truncateCol`이 문자 수 기준으로 이미 하던 것과 같은 방향,
+             이제 그걸 안 쓴 나머지 열에도 `DataTable` 자신이 최소한의 보호를 준다).
+             `title`로 전체 값은 그대로 hover에 남는다 — truncateCol과 같은 힌트 패턴. */
+          const truncate = ellipsis || !c.render || c.type === "title" || c.type === "name" || c.type === "text";
+          const raw = !c.render ? cellValue(c, row, ctx) : null;
+          /* 그림을 그리는 열(배지·태그·작성자 줄)도 잘린다 — 그러면 전체 값을 볼 길이
+             있어야 한다. 그 열의 원시 값이 낱말 하나면 그것이 답이다(분류 「기능」,
+             작성자 이름). 값이 객체·배열이면 짓지 않는다 — `[object Object]` 를
+             hover 로 보여 주는 것은 없느니만 못하다. */
+          const plain = c.render && (typeof row[c.key] === "string" || typeof row[c.key] === "number")
+            ? String(row[c.key])
+            : null;
+          const hint = truncate && raw && raw !== "-"
+            ? raw
+            : (truncate && typeof c.rowName === "function" ? c.rowName(row)
+              : (truncate && plain ? plain : undefined));
+          const content = raw != null ? raw : cellValue(c, row, ctx);
+          return (
+            <TableCell
+              key={c.key}
+              align={resolveColumn(c).align}
+              data-col-role={colRole(c)}
+              title={hint || undefined}
+              sx={colCellSx(c, { truncate })}
+            >
+              {rowHref && onRow && c.type === "title" ? (
+                <Box
+                  component="a"
+                  {...rowAnchorProps(rowHref(row), () => onRow(row))}
+                  sx={{ display: "block", color: "inherit", textDecoration: "none" }}
+                >
+                  {content}
+                </Box>
+              ) : content}
+            </TableCell>
+          );
+        })}
+      </TableRow>
     );
   }
 
@@ -1842,13 +1970,22 @@ export function DataTable({ columns, rows, rowKey, onRow, empty, ellipsis, stick
           위로 사라졌다. 속성만 재는 검사로는 안 보인다 — `getComputedStyle(th).position`
           은 그때도 `sticky` 였다.
           그래서 이 경우에만 넘침을 바깥에 넘긴다. 가로 넘침도 같은 바깥 상자가 맡는다. */}
-      <TableContainer sx={stickyHeader ? { overflowX: "visible", overflowY: "visible" } : null}>
+      <TableContainer
+        ref={virtualize ? setScrollEl : undefined}
+        sx={stickyHeader
+          ? { overflowX: "visible", overflowY: "visible" }
+          : (virtualize ? { maxHeight: virtualize.height || "32rem", overflowY: "auto" } : null)}
+      >
       {/* 표 리듬 (지시 10) — 세로 괘선이 없고, 행 사이는 실선 하나로만 나눈다. 마지막 행의
           아래 선은 지운다(판의 테두리와 겹쳐 두 줄로 보인다). 행 추적은 괘선이 아니라
           **hover 면**과 머리행의 굵은 선이 만든다 — 엑셀 표가 아니라 계기판 판독부다. */}
       <Table
         size="small"
         stickyHeader={stickyHeader}
+        // `VirtualRows` 와 같은 QA 프로브 계약(§18.2) — 가상화 중엔 그려진 <tr> 수 대신
+        // 이 총 건수를 본다. `VirtualTableBody` 자신은 Fragment 라 붙일 단일 요소가 없어
+        // 전체 행 수를 이미 아는 이 자리(`DataTable`)에서 낸다.
+        data-virtual-total={virtualize ? safeRows.length : undefined}
         sx={{
           tableLayout: "auto",
           "& td, & th": { borderInline: 0 },
@@ -1880,66 +2017,17 @@ export function DataTable({ columns, rows, rowKey, onRow, empty, ellipsis, stick
           </TableRow>
         </TableHead>
         <TableBody>
-          {safeRows.map((row, i) => {
-            // 행마다 한 번만 구한다 — 셀마다 다시 구하면 열 수만큼 같은 계산을 반복한다.
-            const ctx = { rowName: rowNameOf(baseCols, row) };
-            return (
-              /* 셀 안의 링크/버튼 클릭이 행 클릭(상세 열기)으로 번지지 않게 막는다 —
-                 문서 '발행 링크'를 누르면 새 탭이 열리면서 상세까지 같이 열리던 이중 동작.
-                 같은 이유로 키보드 Enter/Space도 셀 안의 실제 버튼·링크에서 눌렀으면
-                 행 전체의 onRow를 다시 부르지 않는다(그 버튼 자신의 키보드 활성화가
-                 이미 처리한다). PA-RC-0023: role="button"은 일부러 안 준다 — 이 행 안에
-                 재시도/취소 같은 진짜 버튼이 함께 있는 표가 있어(registry 행 액션),
-                 role=button 위에 포커스 가능한 자손을 두는 것은 WAI-ARIA 금지다
-                 (StatusTile의 같은 이유 참고, adminKit.jsx). tabIndex + aria-label +
-                 Enter 처리만으로 키보드 도달을 준다. */
-              <TableRow
-                key={keyOf(row, i)}
-                hover={!!onRow}
-                onClick={onRow ? (e) => { if (e.target.closest("a,button")) return; onRow(row); } : undefined}
-                onKeyDown={onRow ? (e) => { if (e.target.closest("a,button")) return; if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onRow(row); } } : undefined}
-                tabIndex={onRow ? 0 : undefined}
-                aria-label={onRow ? rowOpenLabel(baseCols, row) : undefined}
-                sx={{ cursor: onRow ? "pointer" : "default" }}
-              >
-                {wideCols.map((c) => {
-                  /* HOST-01/HOST-02/VIS-73 — 열 폭이 순수하게 내용에서 파생되던 게 두 방향 모두에서
-                     문제였다: ① 값 하나가 길면 그 셀이 51px×2,353px까지 벌어지고 같은 행의 다른
-                     셀도 그 높이로 끌려간다(HOST-01, truncateCol이 있는 자리에만 부분 적용돼 있었다)
-                     ② 열이 많으면 `overflowWrap:anywhere`가 각 열을 '한 글자' 폭까지 짜부라뜨린다
-                     (VIS-73). `c.render`가 있는 열(배지·버튼·직접 JSX)은 이미 자기 폭을 스스로
-                     관리하므로 건드리지 않는다 — 값을 있는 그대로 보여주는 순수 텍스트 열만 기본을
-                     말줄임으로 바꾼다(`truncateCol`이 문자 수 기준으로 이미 하던 것과 같은 방향,
-                     이제 그걸 안 쓴 나머지 열에도 `DataTable` 자신이 최소한의 보호를 준다).
-                     `title`로 전체 값은 그대로 hover에 남는다 — truncateCol과 같은 힌트 패턴. */
-                  const truncate = ellipsis || !c.render || c.type === "title" || c.type === "name" || c.type === "text";
-                  const raw = !c.render ? cellValue(c, row, ctx) : null;
-                  /* 그림을 그리는 열(배지·태그·작성자 줄)도 잘린다 — 그러면 전체 값을 볼 길이
-                     있어야 한다. 그 열의 원시 값이 낱말 하나면 그것이 답이다(분류 「기능」,
-                     작성자 이름). 값이 객체·배열이면 짓지 않는다 — `[object Object]` 를
-                     hover 로 보여 주는 것은 없느니만 못하다. */
-                  const plain = c.render && (typeof row[c.key] === "string" || typeof row[c.key] === "number")
-                    ? String(row[c.key])
-                    : null;
-                  const hint = truncate && raw && raw !== "-"
-                    ? raw
-                    : (truncate && typeof c.rowName === "function" ? c.rowName(row)
-                      : (truncate && plain ? plain : undefined));
-                  return (
-                    <TableCell
-                      key={c.key}
-                      align={resolveColumn(c).align}
-                      data-col-role={colRole(c)}
-                      title={hint || undefined}
-                      sx={colCellSx(c, { truncate })}
-                    >
-                      {raw != null ? raw : cellValue(c, row, ctx)}
-                    </TableCell>
-                  );
-                })}
-              </TableRow>
-            );
-          })}
+          {virtualize ? (
+            <VirtualTableBody
+              items={safeRows}
+              estimateSize={virtualize.estimateSize}
+              overscan={virtualize.overscan}
+              colSpan={wideCols.length}
+              scrollElement={scrollEl}
+              getItemKey={(row, i) => keyOf(row, i)}
+              renderRow={renderDataRow}
+            />
+          ) : safeRows.map((row, i) => renderDataRow(row, i))}
         </TableBody>
       </Table>
       </TableContainer>
@@ -2209,6 +2297,25 @@ export function FormField({ field: f, value, onChange, invalid, maxLength, error
     onChange: (e) => onChange(e.target.value),
     sx: { mb: 0 },
   };
+
+  /* 순수 달력일(`date`) — §15.5 재검수. `datetime-local` 은 손대지 않는다: 그쪽은
+     KST 벽시계 변환(`apiToKstLocal`)이 걸린 다른 계약이고, 이 화면들(회차·마감일)은
+     원래도 날짜만 다뤘다(네이티브 `input[type=date]` 가 처음부터 시각을 안 받았다). */
+  if (f.type === "date") {
+    return (
+      <Box className="k-field" sx={{ mb: 2.5 }}>
+        <FieldLabel htmlFor={id} required={required}>{f.label}</FieldLabel>
+        <DateField
+          id={id}
+          value={value}
+          onChange={onChange}
+          error={!!invalid}
+          helperText={helpText}
+          required={required}
+        />
+      </Box>
+    );
+  }
 
   /* Entity 필드 — 값 집합이 **데이터가 쌓이는 만큼 자라는** 것(사용자·부서·직책·프로젝트·
    * 조직·일정)을 고르는 자리. 닫힌 열거형과 같은 부품으로 그리면 후보가 200명이 되는 날

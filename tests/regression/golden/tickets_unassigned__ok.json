@@ -4,6 +4,7 @@
     {
       "act_wd": null,
       "assignee_names": [],
+      "assignee_people": [],
       "assignee_user_ids": [],
       "blocked": false,
       "blocked_reason": null,
@@ -40,6 +41,7 @@
     {
       "act_wd": null,
       "assignee_names": [],
+      "assignee_people": [],
       "assignee_user_ids": [],
       "blocked": false,
       "blocked_reason": null,
