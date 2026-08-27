@@ -169,11 +169,24 @@ describe("본문 렌더", () => {
   });
 
   it("나를 부른 말에는 표시가 붙는다(판정은 서버의 mentions_me)", async () => {
+    /* 표식이 붙는 자리가 말풍선에서 **줄 전체**로 옮겼다(지시 17). 말풍선이 없어졌기
+       때문이다 — 지금은 모든 줄이 아바타·이름·시각·본문이라는 같은 구조다. 지키는
+       성질은 그대로다: 알림은 갔는데 대화에서 어느 줄인지 못 찾으면 알림만 시끄럽다. */
     mount(payload({
       messages: [msg({ seq: 1, sender_user_id: PEER, sender_name: "상대", body: "@나 봐주세요", mentions_me: true })],
     }));
-    const bubble = (await screen.findByText("@나")).closest(".MuiPaper-root");
-    expect(bubble).toBeTruthy();
-    expect(bubble.style.borderLeftStyle || getComputedStyle(bubble).borderLeftStyle).toBe("solid");
+    const row = (await screen.findByText("@나")).closest("[data-chat-row]");
+    expect(row).toBeTruthy();
+    const style = getComputedStyle(row);
+    expect(style.borderInlineStartStyle || style.borderLeftStyle).toBe("solid");
+  });
+
+  it("🔴 부르지 않은 말에는 그 표시가 없다 — 전부 표시되면 아무것도 표시가 아니다", async () => {
+    mount(payload({
+      messages: [msg({ seq: 1, sender_user_id: PEER, sender_name: "상대", body: "그냥 하는 말" })],
+    }));
+    const row = (await screen.findByText("그냥 하는 말")).closest("[data-chat-row]");
+    const style = getComputedStyle(row);
+    expect(style.borderInlineStartStyle || style.borderLeftStyle || "none").not.toBe("solid");
   });
 });

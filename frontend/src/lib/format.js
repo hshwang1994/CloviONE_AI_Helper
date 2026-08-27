@@ -92,6 +92,55 @@ export function fmtTimeShort(v) {
   return KST_TIME_ONLY.format(d);
 }
 
+/* KST 달력일 형식기 둘 — **날짜 구분선**이 쓴다 (지시 17).
+ *
+ * 채팅의 시각은 지금까지 `HH:MM` 뿐이었다. 그것만으로는 어제 온 말과 오늘 온 말이 같아
+ * 보이고, 「금요일에 그거 얘기했잖아」를 확인하려면 스크롤을 세면서 올라가야 한다.
+ *
+ * 시간대를 반드시 박는다. 안 박으면 브라우저 로컬로 나가서, 시계가 어긋난 사람에게만
+ * 날짜 구분선이 하루 밀린다(같은 이유로 `KST_TIME_ONLY` 도 KST 를 박는다). */
+const KST_DAY_KEY = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit",
+});
+const KST_DAY_LABEL = new Intl.DateTimeFormat("ko-KR", {
+  timeZone: "Asia/Seoul", year: "numeric", month: "long", day: "numeric", weekday: "short",
+});
+
+/** naive-UTC 값 → KST 달력일 키(`YYYY-MM-DD`). 못 읽으면 빈 문자열.
+ *
+ * 두 메시지가 **같은 날인가**를 판정하는 유일한 자리다. 문자열이라 비교가 곧 판정이고,
+ * `Date` 를 두 개 만들어 연·월·일을 각각 비교하는 것보다 틀릴 자리가 적다.
+ * `en-CA` 를 쓰는 이유는 그 로케일의 짧은 날짜가 정확히 `YYYY-MM-DD` 이기 때문이다.
+ */
+export function kstDayKey(v) {
+  const d = toUTCDate(v);
+  return d ? KST_DAY_KEY.format(d) : "";
+}
+
+/** 날짜 구분선에 적는 말. 오늘과 어제는 이름으로 부른다.
+ *
+ * 「2026년 8월 27일 (수)」는 정확하지만, 대화를 훑는 사람이 가장 자주 확인하는 것은
+ * 「이게 오늘 온 말인가」다. 그 둘만 이름을 주고 나머지는 날짜를 그대로 적는다 —
+ * 「그저께」까지 이름을 붙이면 세는 기준이 사람마다 달라 오히려 헷갈린다.
+ *
+ * `now` 를 인자로 받는다. 안 받으면 시험이 시계를 못 고정하고, 자정 근처에서만 깨지는
+ * 검사가 된다.
+ */
+export function chatDayLabel(v, now) {
+  const d = toUTCDate(v);
+  if (!d) return "";
+  const key = KST_DAY_KEY.format(d);
+  const today = KST_DAY_KEY.format(now instanceof Date ? now : new Date());
+  if (key === today) return "오늘";
+  // 하루 전 키는 **KST 달력일에서** 뺀다. UTC 로 24시간을 빼면 서머타임 없는 KST 에서도
+  // 자정 직후에 이틀 전이 나올 수 있다.
+  const [y, m, dd] = today.split("-").map(Number);
+  const prev = new Date(Date.UTC(y, m - 1, dd - 1));
+  const yesterday = `${prev.getUTCFullYear()}-${String(prev.getUTCMonth() + 1).padStart(2, "0")}-${String(prev.getUTCDate()).padStart(2, "0")}`;
+  if (key === yesterday) return "어제";
+  return KST_DAY_LABEL.format(d);
+}
+
 // 상대 시간(방금/N분 전/N시간 전/N일 전) — 좁은 알림 팝오버처럼 훑어보는 피드용.
 // 7일이 넘거나 미래 값이면 절대 시각으로 폴백한다. 전체 목록/상세는 절대 시각(fmtDateTime)을 쓴다.
 export function fmtRelative(v) {

@@ -13,7 +13,7 @@ import MoodRoundedIcon from "@mui/icons-material/MoodRounded";
 import AlternateEmailRoundedIcon from "@mui/icons-material/AlternateEmailRounded";
 import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded";
 import { api } from "../lib/api.js";
-import { fmtTimeShort, affiliationOf, ARCHIVED_SUFFIX } from "../lib/format.js";
+import { fmtDateTime, fmtTimeShort, affiliationOf, ARCHIVED_SUFFIX } from "../lib/format.js";
 import { useIdleGetter } from "../lib/idle.js";
 import { Button, EmptyState, ErrorState, Skeleton, useConfirm, useToast } from "../ui/kit.jsx";
 import { EMOJI_GROUPS, EMOJI_LABELS, imageFromClipboard, imageRejectReason, insertAtCursor } from "./chat-compose.js";
@@ -23,7 +23,8 @@ import { idlePollDelayMs } from "./teamchat-poll.js";
 import { markRoomRead } from "./teamchat-unread.js";
 import { ImageLightbox, useLightbox } from "../ui/ImageLightbox.jsx";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, RADIUS } from "../ui/theme.js";
-import { UserAvatar } from "../ui/UserAvatar.jsx";
+import { AVATAR_SIZE, UserAvatar } from "../ui/UserAvatar.jsx";
+import { groupMessages } from "./chat-groups.js";
 
 /* 팀 채팅 핵심 창(폴링 로그 + 입력). 방 페이지와 홈 위젯이 공유한다. 놀이(GameRoom) 폴링 패턴 이식:
  * since=0 로 최근 메시지를 받아 seq 커서로 따라오고, 내 메시지는 오른쪽 말풍선. 탭이 숨으면 폴링을
@@ -294,7 +295,10 @@ export function ChatPane({ roomId, compact = false, interval = 2000, idleMax = 0
           // 붙는다. 기본값(flex-start)이면 내용이 위에 쌓이고 아래가 빈다 — 운영에서 재현된
           // 증상(대화가 참여자 표시 바로 아래에 붙고 입력창까지 큰 빈 공간이 남음). 내용이
           // 넘칠 때는 그대로 위쪽이 잘려 스크롤해야 보이고, 아래(최신)는 항상 보인다.
-          display: "flex", flexDirection: "column", justifyContent: "flex-end", gap: 1, overflowY: "auto",
+          // 줄 사이 고정 간격을 없앤다 — 줄 자신이 자기 위아래 여백을 갖고(묶음의 첫
+          // 줄은 넉넉히, 이어지는 줄은 촘촘히), 그래야 같은 사람의 연속 발언이 한
+          // 덩어리로 읽힌다. 고정 `gap` 이 있으면 그 차이가 뭉개진다.
+          display: "flex", flexDirection: "column", justifyContent: "flex-end", overflowY: "auto",
           mb: 1.25, px: 0.5, py: 1, minWidth: 0,
           ...(compact ? LOG_SX.compact : LOG_SX.full),
         }}
@@ -308,7 +312,29 @@ export function ChatPane({ roomId, compact = false, interval = 2000, idleMax = 0
           // 아이콘/마스코트+제목+안내를 갖췄다). game-room/ChatPanel.jsx의 같은 빈 상태와
           // 짝을 맞춘다 — 문구·아이콘이 다르면 사용자는 "다른 채팅 기능"이라고 오해한다.
           : msgs.length === 0 ? <EmptyState size="compact" icon="💬" title="아직 메시지가 없습니다" help="먼저 인사해 보세요." />
-          : msgs.map((m) => {
+          : groupMessages(msgs, you.user_id).map((row) => {
+            if (row.kind === "day") {
+              /* 🔴 **날짜 구분선** (지시 17). 시각만 그리면 어제 온 말과 오늘 온 말이
+                 같아 보이고, 「금요일에 그거 얘기했잖아」를 확인하려면 스크롤을 세면서
+                 올라가야 한다. 날짜는 KST 달력일이다 — 브라우저 로컬로 재면 시계가
+                 어긋난 사람에게만 구분선이 하루 밀린다. */
+              return (
+                <Box
+                  key={"day-" + row.day}
+                  role="separator"
+                  aria-label={row.label}
+                  data-day-separator={row.day}
+                  sx={{ display: "flex", alignItems: "center", gap: 1, my: 0.5, px: 0.5 }}
+                >
+                  <Box sx={{ flex: 1, height: "1px", bgcolor: "divider" }} />
+                  <Typography sx={{ fontSize: FONT_SIZE.caption, color: "text.secondary", whiteSpace: "nowrap" }}>
+                    {row.label}
+                  </Typography>
+                  <Box sx={{ flex: 1, height: "1px", bgcolor: "divider" }} />
+                </Box>
+              );
+            }
+            const m = row.message;
             if (m.kind === "system") {
               return <Chip key={m.seq} size="small" label={m.body} sx={{ alignSelf: "center", fontSize: FONT_SIZE.caption, height: "1.5rem", maxWidth: "100%" }} />;
             }
@@ -317,118 +343,154 @@ export function ChatPane({ roomId, compact = false, interval = 2000, idleMax = 0
             const receipt = mine && peerReadSeq !== null && m.seq === myLastSeq
               ? (peerReadSeq >= m.seq ? "읽음" : "안 읽음")
               : null;
+            const person = people[m.sender_user_id];
             return (
+              /* 🔴 **줄 하나의 구조가 모두 같다** — 아바타 · 이름 · 날짜/시간 · 메시지
+                 (지시 17).
+
+                 예전에는 내 말이 오른쪽 말풍선이었고 **아바타도 이름도 없었다.** 이 파일
+                 주석은 「자기가 쓴 메시지도 예외가 아니다」라고 적고 있었는데 코드는
+                 `{!mine ? … : null}` 이었다 — 주석이 지키던 계약을 코드가 안 지켰다.
+
+                 좌우로 가르면 화자는 빨리 읽히지만 **누가 언제 썼는가**가 한쪽에서
+                 통째로 사라지고, 사람 셋이 넘는 방에서는 오른쪽 줄들만 익명이 된다.
+                 업무용 대화는 나중에 **인용되는 기록**이라 그쪽을 택했다. 화자 구분은
+                 정렬이 아니라 이름과 얼굴이 한다. */
               <Box
                 key={m.seq}
+                data-chat-row={mine ? "mine" : "theirs"}
                 sx={{
-                  display: "flex", flexDirection: "column", gap: 0.25, maxWidth: "85%", minWidth: 0,
-                  alignSelf: mine ? "flex-end" : "flex-start",
-                  alignItems: mine ? "flex-end" : "flex-start",
+                  display: "grid", gridTemplateColumns: "auto minmax(0, 1fr)", columnGap: 1.25,
+                  alignItems: "start", px: 0.5, py: row.head ? 0.5 : 0.125, minWidth: 0,
+                  borderRadius: RADIUS.md + "px",
+                  // 나를 부른 말은 눈에 띄어야 한다 — 알림은 갔는데 대화에서 어느 줄인지
+                  // 못 찾으면 알림만 시끄럽고 쓸모가 없다. 판정은 서버가 한다(mentions_me).
+                  ...(m.mentions_me
+                    ? {
+                      bgcolor: (t) => alpha(t.palette.warning.main, 0.08),
+                      borderInlineStartStyle: "solid",
+                      borderInlineStartWidth: "3px",
+                      borderInlineStartColor: (t) => t.palette.warning.main,
+                    }
+                    : null),
+                  "&:hover [data-row-time]": { opacity: 1 },
+                  "&:hover [data-row-delete]": { opacity: 1 },
                 }}
               >
-                {!mine ? (
-                  <Typography
-                    component="div"
-                    sx={{ fontWeight: FONT_WEIGHT.semibold, color: "text.secondary", fontSize: FONT_SIZE.caption, px: 0.5,
-                          display: "flex", alignItems: "center", gap: 0.625 }}
-                  >
-                    {/* **모든 메시지가 아바타를 갖는다.** 사진이 없으면 기본 아바타가
-                        선다(`UserAvatar`) — 예전에는 없으면 안 그려서, 같은 방에서 어떤
-                        줄에는 원이 있고 어떤 줄에는 없었다. 자기가 쓴 메시지도 예외가
-                        아니다: 누가 언제 썼는지는 언제나 확인할 수 있어야 한다. */}
-                    <UserAvatar person={people[m.sender_user_id]} name={m.sender_name} size="inline" />
-                    {m.sender_name || "알 수 없음"}
-                    {/* 소속을 이름 옆에 — 사용자 지시("어느 조직 어느 부서인지"). 없으면
-                        아무것도 그리지 않는다(빈 괄호가 붙으면 그게 더 어수선하다). */}
-                    {affiliationOf(people[m.sender_user_id]) ? (
-                      <Box component="span" sx={{ fontWeight: FONT_WEIGHT.regular, ml: 0.5, opacity: 0.75 }}>
-                        {affiliationOf(people[m.sender_user_id])}
-                      </Box>
-                    ) : null}
-                    {/* 보관된 계정이면 그렇다고 말한다(N3) — 안 하면 답이 안 오는 대화를
-                        며칠 기다린다. */}
-                    {people[m.sender_user_id]?.archived ? (
-                      <Box component="span" sx={{ fontWeight: FONT_WEIGHT.regular, ml: 0.5, opacity: 0.6 }}>
-                        {ARCHIVED_SUFFIX}
-                      </Box>
-                    ) : null}
-                  </Typography>
-                ) : null}
-                <Box sx={{ display: "flex", alignItems: "flex-end", gap: 0.75, flexDirection: mine ? "row-reverse" : "row", minWidth: 0 }}>
-                  <Paper
-                    elevation={0}
-                    sx={{
-                      /* 지시 15 — 팀 채팅도 AI 채팅과 같은 이유로 채팅 앱 관용구를 벗는다:
-                         모서리마다 다른 반지름(꼬리)과 강조색 번짐 그림자를 걷고, 화자 구분은
-                         정렬 + 면으로만 한다. `MessageThread` 와 같은 규칙이다. */
-                      px: 1.5, py: 1, borderRadius: `${RADIUS.lg}px`, minWidth: 0,
-                      fontSize: FONT_SIZE.body, lineHeight: 1.5, whiteSpace: "pre-wrap", ...KO_WORD_BREAK,
-                      ...(mine
-                        ? { bgcolor: "primary.main", color: "primary.contrastText" }
-                        : { bgcolor: "background.inset" }),
-                      // 나를 부른 말은 눈에 띄어야 한다 — 알림은 갔는데 대화에서 어느 줄인지
-                      // 찾을 수 없으면 알림만 시끄럽고 쓸모가 없다. 판정은 서버가 한다(mentions_me).
-                      ...(m.mentions_me
-                        ? { borderLeft: 3, borderLeftColor: "warning.main", borderLeftStyle: "solid" }
-                        : null),
-                    }}
-                  >
-                    {/* 이미지 메시지: 말풍선 안에 인라인. body(파일명)는 alt 로만 쓴다 —
-                        말풍선에 파일명과 그림을 같이 두면 그림이 캡션 달린 첨부처럼 보인다. */}
-                    {/* 예전에는 클릭조차 되지 않았다 — 말풍선 안에서 18rem 으로 줄어든 그림이
-                        전부였고 원본 크기로 볼 방법이 없었다(사용자 지시 §4). */}
-                    {m.kind === "image" && (m.images || []).length > 0
-                      ? (m.images || []).map((img, ii) => (
-                        <Box
-                          key={img.id}
-                          component="button"
-                          type="button"
-                          onClick={() => lb.open(
-                            (m.images || []).map((x) => ({ src: x.url, title: x.filename })), ii)}
-                          aria-label={(img.filename || "이미지") + " 크게 보기"}
-                          sx={{
-                            p: 0, border: 0, background: "none", cursor: "zoom-in", display: "block",
-                            "&:focus-visible": { outline: "3px solid", outlineColor: "primary.main", outlineOffset: 2 },
-                          }}
-                        >
+                {/* 왼쪽 홈통. 묶음의 첫 줄은 얼굴이 서고, 이어지는 줄은 그 자리에 시각이
+                    선다 — **비워 두지 않는다.** 비우면 「누가 언제 썼는지는 항상 확인
+                    가능해야 한다」가 이어지는 줄에서만 깨진다. */}
+                <Box sx={{ width: AVATAR_SIZE.md, flexShrink: 0, display: "flex", justifyContent: "center", pt: row.head ? 0.25 : 0.375 }}>
+                  {row.head ? (
+                    <UserAvatar person={person} name={m.sender_name} size="md" label={m.sender_name} />
+                  ) : (
+                    <Typography
+                      data-row-time="gutter"
+                      title={fmtDateTime(m.created_at)}
+                      sx={{
+                        fontSize: "0.625rem", color: "text.disabled", fontVariantNumeric: "tabular-nums",
+                        opacity: 0, transition: "opacity 120ms ease", lineHeight: 1.4,
+                      }}
+                    >
+                      {fmtTimeShort(m.created_at)}
+                    </Typography>
+                  )}
+                </Box>
+                <Box sx={{ minWidth: 0 }}>
+                  {row.head ? (
+                    <Box sx={{ display: "flex", alignItems: "baseline", gap: 0.75, flexWrap: "wrap", minWidth: 0, mb: 0.125 }}>
+                      <Typography component="span" sx={{ fontWeight: FONT_WEIGHT.semibold, fontSize: FONT_SIZE.bodySm, ...KO_WORD_BREAK }}>
+                        {m.sender_name || "알 수 없음"}
+                      </Typography>
+                      {/* 소속을 이름 옆에 — 사용자 지시("어느 조직 어느 부서인지"). 없으면
+                          아무것도 그리지 않는다(빈 괄호가 붙으면 그게 더 어수선하다). */}
+                      {affiliationOf(person) ? (
+                        <Typography component="span" sx={{ fontSize: FONT_SIZE.caption, color: "text.secondary" }}>
+                          {affiliationOf(person)}
+                        </Typography>
+                      ) : null}
+                      {/* 보관된 계정이면 그렇다고 말한다(N3) — 안 하면 답이 안 오는 대화를
+                          며칠 기다린다. */}
+                      {person && person.archived ? (
+                        <Typography component="span" sx={{ fontSize: FONT_SIZE.caption, color: "text.disabled" }}>
+                          {ARCHIVED_SUFFIX}
+                        </Typography>
+                      ) : null}
+                      {/* **시간만 보여 주지 않는다**(지시 17). 날짜는 구분선이 이미 말했지만
+                          그 선은 스크롤 밖으로 나간다 — `title` 로 언제나 전체 시각을 준다. */}
+                      <Typography
+                        component="time"
+                        dateTime={m.created_at}
+                        title={fmtDateTime(m.created_at)}
+                        sx={{ fontSize: FONT_SIZE.caption, color: "text.secondary", fontVariantNumeric: "tabular-nums" }}
+                      >
+                        {fmtTimeShort(m.created_at)}
+                      </Typography>
+                    </Box>
+                  ) : null}
+                  <Box sx={{ display: "flex", alignItems: "flex-start", gap: 0.75, minWidth: 0 }}>
+                    <Box
+                      sx={{
+                        minWidth: 0, flex: 1,
+                        fontSize: FONT_SIZE.body, lineHeight: 1.5, whiteSpace: "pre-wrap", ...KO_WORD_BREAK,
+                      }}
+                    >
+                      {/* 이미지 메시지: 줄 안에 인라인. body(파일명)는 alt 로만 쓴다 —
+                          같은 줄에 파일명과 그림을 같이 두면 그림이 캡션 달린 첨부처럼 보인다. */}
+                      {m.kind === "image" && (m.images || []).length > 0
+                        ? (m.images || []).map((img, ii) => (
                           <Box
-                            component="img" src={img.url} alt={img.filename || "붙여넣은 이미지"}
-                            loading="lazy"
+                            key={img.id}
+                            component="button"
+                            type="button"
+                            onClick={() => lb.open(
+                              (m.images || []).map((x) => ({ src: x.url, title: x.filename })), ii)}
+                            aria-label={(img.filename || "이미지") + " 크게 보기"}
                             sx={{
-                              display: "block", maxWidth: "100%", maxHeight: "18rem",
-                              width: "auto", height: "auto", borderRadius: 1.5,
+                              p: 0, border: 0, background: "none", cursor: "zoom-in", display: "block",
+                              "&:focus-visible": { outline: "3px solid", outlineColor: "primary.main", outlineOffset: 2 },
                             }}
-                          />
-                        </Box>
-                      ))
-                      : <ChatBubbleText body={m.body} names={names} mine={mine} />}
-                  </Paper>
-                  <Box sx={{ flexShrink: 0, display: "flex", flexDirection: "column", alignItems: mine ? "flex-end" : "flex-start", gap: 0.25 }}>
+                          >
+                            <Box
+                              component="img" src={img.url} alt={img.filename || "붙여넣은 이미지"}
+                              loading="lazy"
+                              sx={{
+                                display: "block", maxWidth: "100%", maxHeight: "18rem",
+                                width: "auto", height: "auto", borderRadius: 1.5,
+                              }}
+                            />
+                          </Box>
+                        ))
+                        : <ChatBubbleText body={m.body} names={names} mine={false} />}
+                    </Box>
                     {receipt ? (
                       /* QAH-07 — "읽음" 색이 dark 모드에서 대비 미달(최저 2.81) 실측, primary.dark로 교체.
                          PA-RC-0001: 10px는 스케일 최하단(caption=12px)보다도 작다 — 메신저 관용상
-                         읽음 표시는 말풍선보다 눈에 덜 띄어야 하는 보조 지표라 의도적으로 더 작게
-                         뒀다(카카오톡·슬랙 등도 같은 관용). caption으로 올리면 오히려 본문과
-                         경쟁하게 돼 실측 없이 바꾸지 않는다(의도된 예외). */
-                      <Typography sx={{ fontSize: "0.625rem", fontWeight: FONT_WEIGHT.bold, color: receipt === "읽음" ? "primary.dark" : "text.disabled" }}>
+                         읽음 표시는 본문보다 눈에 덜 띄어야 하는 보조 지표라 의도적으로 더 작게
+                         뒀다. caption으로 올리면 본문과 경쟁한다(의도된 예외). */
+                      <Typography sx={{ flexShrink: 0, alignSelf: "flex-end", fontSize: "0.625rem", fontWeight: FONT_WEIGHT.bold, color: receipt === "읽음" ? "primary.dark" : "text.disabled" }}>
                         {receipt}
                       </Typography>
                     ) : null}
-                    <Typography sx={{ fontSize: FONT_SIZE.caption, color: "text.secondary", fontVariantNumeric: "tabular-nums" }}>
-                      {fmtTimeShort(m.created_at)}
-                    </Typography>
+                    {/* 지우기는 내 말에만. 서버가 소유권을 다시 검사하므로 이 게이팅은 UX 일 뿐이다.
+                        평소에는 투명하고 줄에 손을 올리거나 초점이 오면 나타난다 — 줄마다 아이콘이
+                        서 있으면 대화가 아니라 목록으로 보인다. */}
+                    {mine ? (
+                      <IconButton
+                        data-row-delete="own"
+                        size="small" aria-label={"메시지 삭제 (" + fmtDateTime(m.created_at) + ")"}
+                        disabled={del.isPending}
+                        onClick={() => askDelete(m.seq)}
+                        sx={{
+                          flexShrink: 0, color: "text.disabled", opacity: 0,
+                          transition: "opacity 120ms ease",
+                          "&:hover, &:focus-visible": { opacity: 1, color: "error.main" },
+                        }}
+                      >
+                        <DeleteOutlineRoundedIcon sx={{ fontSize: "1rem" }} />
+                      </IconButton>
+                    ) : null}
                   </Box>
-                  {/* 지우기는 내 말에만. 서버가 소유권을 다시 검사하므로 이 게이팅은 UX 일 뿐이다. */}
-                  {mine ? (
-                    <IconButton
-                      size="small" aria-label={`메시지 삭제 (${fmtTimeShort(m.created_at)})`}
-                      disabled={del.isPending}
-                      onClick={() => askDelete(m.seq)}
-                      sx={{ flexShrink: 0, color: "text.disabled", "&:hover": { color: "error.main" } }}
-                    >
-                      <DeleteOutlineRoundedIcon sx={{ fontSize: "1rem" }} />
-                    </IconButton>
-                  ) : null}
                 </Box>
               </Box>
             );
