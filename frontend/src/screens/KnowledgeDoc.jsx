@@ -34,6 +34,7 @@ import { UserAvatar } from "../ui/UserAvatar.jsx";
 import { FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
 import { fmtDateTimeCompact } from "../lib/format.js";
 import { useListReturn } from "../lib/listReturn.js";
+import { appendTag } from "./document-views.js";
 
 /* 문서 한 건 — 본문 편집 · 문서 정보 · 관계 · 첨부 · 댓글 (지시 22.6).
  *
@@ -91,6 +92,10 @@ function useVersions(id) {
     queryFn: () => api(`/api/knowledge/documents/${id}/versions`),
     enabled: Boolean(id),
   });
+}
+
+function useTags() {
+  return useQuery({ queryKey: ["knowledge", "tags"], queryFn: () => api("/api/knowledge/tags") });
 }
 
 function useSpaceTree(spaceId) {
@@ -477,6 +482,7 @@ export function KnowledgeDoc() {
   const doc = useDocument(id);
   const versions = useVersions(id);
   const tree = useSpaceTree(doc.data?.space_id);
+  const tagVocab = useTags();
 
   const [title, setTitle] = React.useState("");
   const [body, setBody] = React.useState(null);
@@ -649,9 +655,31 @@ export function KnowledgeDoc() {
                본문이 안 저장됐다」가 생기고, 사용자는 어느 버튼이 무엇을 저장하는지 못 외운다. */
             helperText="저장을 누르면 본문과 함께 저장됩니다."
           />
-          <Stack direction="row" spacing={0.5} sx={{ flexWrap: "wrap", rowGap: 0.5, mt: 1 }}>
-            {(data.tags || []).map((t) => <Chip key={t.id} size="small" label={t.name} />)}
-          </Stack>
+          {/* 이미 있는 태그를 눌러서 더한다 — 같은 뜻의 태그를 새 표기로 또 만들지 않게.
+              누르면 상자에 들어가고, 상자에서 지우면 문서에서 떨어진다. */}
+          {(tagVocab.data?.items || []).length > 0 ? (
+            <Stack direction="row" spacing={0.5} sx={{ flexWrap: "wrap", rowGap: 0.5, mt: 1 }}>
+              {(tagVocab.data?.items || []).slice(0, 20).map((t) => {
+                const on = tags.split(",").map((x) => x.trim().toLowerCase()).includes(
+                  t.name.toLowerCase(),
+                );
+                return (
+                  <Chip
+                    key={t.id}
+                    component="button"
+                    type="button"
+                    clickable
+                    size="small"
+                    label={t.name}
+                    aria-pressed={on}
+                    color={on ? "primary" : "default"}
+                    variant={on ? "filled" : "outlined"}
+                    onClick={() => setTags((prev) => appendTag(prev, t.name))}
+                  />
+                );
+              })}
+            </Stack>
+          ) : null}
         </Section>
       </Card>
 

@@ -356,6 +356,18 @@ def run_retention(db: Session, *, now: datetime, settings_cache, outbound=None, 
         result["trash"] = trash_service.purge_expired(
             db, now=now, retention_days=trash_days, outbound=outbound, settings=settings
         )
+    # 문서 휴지통은 **다른 정책**이다 (D-352). 위 정리는 원본을 보관처리하는 것이라 되돌릴
+    # 여지가 남지만, 문서는 이미 보관된 상태로 휴지통에 있으므로 다음 단계가 행을 지우는
+    # 것이다. 그래서 기간이 따로 있고 **끌 수 있다** — 기본값은 켜짐(이레)이다.
+    #
+    # 저장소 seam 을 안 지나므로 `outbound` 가 없어도 돈다(문서는 우리 DB 가 정본이다).
+    from app.knowledge import service as knowledge_service
+
+    result["document_trash"] = knowledge_service.purge_expired_documents(
+        db, now=now,
+        retention_days=int(values.get("document_trash_retention_days", 7)),
+        enabled=bool(values.get("document_trash_autopurge", True)),
+    )
     return result
 
 

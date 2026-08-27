@@ -113,6 +113,16 @@ class VersionRestore(BaseModel):
     base_version: int | None = Field(default=None, ge=1)
 
 
+class TagCreate(BaseModel):
+    """태그 추가와 이름 고치기가 같은 모양을 쓴다 — 둘 다 받는 것이 이름 하나뿐이다.
+
+    상한은 `app/knowledge/tags.py::TAG_NAME_MAX` 와 같은 값이어야 한다. 여기서 숫자를 다시
+    정하면 한쪽만 고치는 날 화면이 받아 주는 길이와 서버가 받아 주는 길이가 어긋난다.
+    """
+
+    name: str = Field(min_length=1, max_length=80)
+
+
 class DocumentRelationCreate(BaseModel):
     to_document_id: str = Field(min_length=1, max_length=36)
     kind: str = Field(pattern="^(" + "|".join(DREL_KINDS) + ")$")

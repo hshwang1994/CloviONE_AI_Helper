@@ -50,6 +50,7 @@ from app.knowledge.schemas import (
     FolderUpdate,
     SpaceCreate,
     SpaceUpdate,
+    TagCreate,
     VersionRestore,
 )
 from app.settings.gate import block_if_maintenance
@@ -674,21 +675,87 @@ def drop_relation(
 # ── 태그 ─────────────────────────────────────────────────────────────────────
 
 
+def _tag_json(tag, used: int | None = None) -> dict:
+    out = {"id": tag.id, "name": tag.name, "slug": tag.slug}
+    if used is not None:
+        out["documents"] = used
+    return out
+
+
 @router.get("/tags")
 def list_tags(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("DOCUMENT_READ")),
 ) -> dict:
-    """이 조직의 태그. 화면의 자동완성이 쓴다 — 그것이 없으면 사람이 같은 뜻의
-    다른 표기를 계속 새로 만든다."""
-    from sqlalchemy import select
+    """이 조직의 태그. 화면의 자동완성과 **관리 화면**이 함께 쓴다.
 
-    from app.knowledge.models import Tag
-
+    「몇 건에 붙어 있는가」를 함께 낸다 — 그 수가 없으면 태그를 지우려는 사람이 무엇이
+    끊기는지 모른 채 누른다. 수는 **내가 볼 수 있는 문서 안에서만** 센다: 수 하나도 남의
+    공간에 무엇이 있는지 말해 준다.
+    """
     org_id = getattr(user, "org_id", None)
-    stmt = select(Tag).where(Tag.org_id.is_(None) if org_id is None else Tag.org_id == org_id)
-    rows = db.execute(stmt.order_by(Tag.slug)).scalars().all()
-    return {"items": [{"id": t.id, "name": t.name, "slug": t.slug} for t in rows]}
+    rows = tags_mod.list_for_org(db, org_id)
+    visible = service.visible_document_ids(db, user)
+    used = tags_mod.usage_counts(db, [t.id for t in rows], document_ids=visible)
+    return {"items": [_tag_json(t, used.get(t.id, 0)) for t in rows]}
+
+
+@router.post("/tags", dependencies=[Depends(require_csrf)])
+def create_tag(
+    payload: TagCreate,
+    db: Session = Depends(get_db),
+    # 문서를 저장하면서 태그가 **이미 만들어진다**(`tags.ensure`). 관리 화면의 「추가」에
+    # 더 좁은 문을 두면 같은 일이 두 규칙을 갖는다.
+    user: User = Depends(require_permission("DOCUMENT_UPDATE")),
+) -> dict:
+    tag = tags_mod.create(db, getattr(user, "org_id", None), payload.name)
+    return _tag_json(tag, 0)
+
+
+@router.patch("/tags/{tag_id}", dependencies=[Depends(require_csrf)])
+def rename_tag(
+    tag_id: str,
+    payload: TagCreate,
+    request: Request,
+    db: Session = Depends(get_db),
+    # 이름을 고치면 **그 태그를 쓰는 모든 문서**의 분류 표기가 바뀐다. 남의 문서에 영향을
+    # 주는 동작이라 문서 삭제와 같은 선이다(`DOCUMENT_DELETE` = 운영자군).
+    user: User = Depends(require_permission("DOCUMENT_DELETE")),
+) -> dict:
+    org_id = getattr(user, "org_id", None)
+    tag = tags_mod.get_or_404(db, org_id, tag_id)
+    before = tag.name
+    tags_mod.rename(db, tag, payload.name)
+    record_audit_from_request(
+        request, db, action="knowledge.tag_rename", object_type="tag", object_id=tag_id,
+        before={"name": before}, after={"name": tag.name},
+    )
+    visible = service.visible_document_ids(db, user)
+    used = tags_mod.usage_counts(db, [tag.id], document_ids=visible)
+    return _tag_json(tag, used.get(tag.id, 0))
+
+
+@router.delete("/tags/{tag_id}", dependencies=[Depends(require_csrf)])
+def delete_tag(
+    tag_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("DOCUMENT_DELETE")),
+) -> dict:
+    """태그를 지운다. **문서는 안 지운다** — 연결만 끊긴다(`document_tags` 는 CASCADE).
+
+    몇 건에서 떼어졌는지 돌려준다. 화면이 그 수를 그대로 말해야 사용자가 방금 무슨 일이
+    일어났는지 안다.
+    """
+    org_id = getattr(user, "org_id", None)
+    tag = tags_mod.get_or_404(db, org_id, tag_id)
+    name = tag.name
+    detached = tags_mod.remove(db, tag)
+    record_audit_from_request(
+        request, db, action="knowledge.tag_delete", object_type="tag", object_id=tag_id,
+        before={"name": name, "documents": detached},
+    )
+    return {"ok": True, "name": name, "detached": detached}
 
 
 # ── 첨부 (S8) ────────────────────────────────────────────────────────────────

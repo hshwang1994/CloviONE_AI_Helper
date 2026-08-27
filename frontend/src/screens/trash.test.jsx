@@ -146,8 +146,10 @@ describe("권한과 빈 상태", () => {
     mockList([]);
     renderTrash();
     await screen.findByRole("heading", { name: "휴지통이 비어 있습니다" });
-    // 상시 안내문(보관 일수 포함)은 여전히 있다 — 빈 상태에서도 사라지지 않는다.
-    expect(screen.getByText(/삭제한 티켓과 문서를 7일 동안 보관합니다/)).toBeInTheDocument();
+    /* 상시 안내문(보관 일수 포함)은 여전히 있다 — 빈 상태에서도 사라지지 않는다.
+       문구가 「티켓 7일, 문서 7일」로 갈라진 것은 두 정책이 실제로 다르기 때문이다(D-352):
+       티켓 쪽은 원본을 보관처리하고, 문서 쪽은 행을 지운다. */
+    expect(screen.getByText(/삭제한 티켓은 7일, 문서는 7일 동안 보관합니다/)).toBeInTheDocument();
     // 빈 상태 자체의 문구는 그 사실을 다시 말하지 않는다.
     expect(screen.queryByText(/7일 동안 여기 보관됩니다/)).not.toBeInTheDocument();
     // 그래도 되돌릴 수 있다는 재확인(이 화면의 핵심 안심 메시지)은 남아 있다.

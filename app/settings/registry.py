@@ -255,6 +255,18 @@ REGISTRY: dict[str, SettingSpec] = {
                     "알림 보존 기간(일). 초과 시 백그라운드 작업이 정리", _positive_int(3650)),
         SettingSpec("trash_retention_days", "int", 7, False,
                     "휴지통 보관 기간(일). 초과 시 원본을 보관처리하고 휴지통에서 삭제", _positive_int(365)),
+        # 문서 휴지통은 **다른 정책**을 갖는다 (지시 22.7 개정 · D-352).
+        #
+        # 위 `trash_retention_days` 가 하는 일은 「원본을 보관처리하고 휴지통 행을 지우는」
+        # 것이라 되돌릴 여지가 남는다. 문서 쪽은 이미 보관된 상태로 휴지통에 있으므로 그
+        # 다음 단계가 **행을 지우는 것**이다 — 판·태그·댓글·색인이 함께 사라지고 되돌릴 수
+        # 없다. 그래서 기간을 따로 두고, 무엇보다 **끌 수 있게** 둔다: 자동으로 지우는 일을
+        # 원하지 않는 설치가 그것을 고르는 방법이 있어야 한다.
+        SettingSpec("document_trash_autopurge", "bool", True, False,
+                    "문서 휴지통 자동 영구 삭제 사용 여부. 끄면 사람이 누를 때만 지워집니다", _bool),
+        SettingSpec("document_trash_retention_days", "int", 7, False,
+                    "문서 휴지통 보관 기간(일). archived_at 기준이며, 초과한 문서를 영구 삭제",
+                    _positive_int(365)),
         SettingSpec("ui_branding", "object", {"product_name": "ClovirAssist"}, False,
                     "UI 브랜딩(제품명). 로그인/채팅 화면 제목", _ui_branding),
         SettingSpec("maintenance_mode", "bool", False, False,

@@ -70,11 +70,13 @@ __all__ = [
     "delete_document",
     "restore_document",
     "purge_document",
+    "purge_expired_documents",
     "can_manage_trashed",
     "list_page_extras",
     "workspace_summary",
     "author_options",
     "titles_of",
+    "visible_document_ids",
     "recent_documents",
     "document_detail",
     "restore_document_version",
@@ -585,6 +587,65 @@ def purge_document(db: Session, user: User, document_id: str) -> dict:
     return info
 
 
+def purge_expired_documents(
+    db: Session, *, now, retention_days: int, enabled: bool = True, limit: int = 200
+) -> dict:
+    """보관 기간이 지난 문서를 **영구 삭제한다** (지시 22.9 개정 · D-352).
+
+    ## 기준은 `archived_at` 하나다
+
+    `created_at` 도 `updated_at` 도 아니다. 3년 전에 쓴 문서를 어제 버렸다면 남은 시간은
+    이레이고, 어제 고친 문서를 3주 전에 버렸다면 이미 지났다. 그 둘을 뒤집는 값으로 판정하면
+    사람이 예상한 것과 정확히 반대로 사라진다.
+
+    되살린 문서는 `archived_at` 이 NULL 로 돌아가므로(`restore_document`) **그 순간 대상에서
+    빠진다.** 조건에 `archived` 와 `archived_at IS NOT NULL` 을 함께 거는 이유다.
+
+    ## 끌 수 있다
+
+    `enabled` 가 거짓이면 아무것도 안 지운다. 자동으로 지우는 일을 원하지 않는 설치가 그것을
+    고르는 방법이 있어야 하고, 그 선택은 설정 한 곳(`document_trash_autopurge`)에서 온다.
+
+    ## 한 번에 다 지우지 않는다
+
+    `limit` 이 있는 이유는 락이다. 정리는 배경 작업이고, 그 작업이 문서 수백 건의 CASCADE
+    를 한 트랜잭션에 묶으면 그동안 문서 쓰기가 전부 기다린다. 남은 것은 다음 주기에 지운다 —
+    하루에 여러 번 도는 작업이라 밀리지 않는다.
+
+    ## 파일은 안 지운다
+
+    첨부의 연결(`document_attachments`)은 CASCADE 로 사라지지만 `files` 행과 그 뒤의
+    바이너리는 그대로 둔다. 같은 파일이 다른 문서에도 붙어 있을 수 있고(같은 체크섬은 한
+    행을 나눠 쓴다), 무엇보다 **추측해서 지우면 안 되는 것**이 파일이다. 도달할 수 없는
+    바이트의 정리는 저장소 정책의 별도 Sweep 이 맡는다.
+    """
+    from datetime import timedelta
+
+    if not enabled:
+        return {"purged": 0, "skipped": "자동 영구 삭제가 꺼져 있습니다."}
+    days = max(1, int(retention_days or 1))
+    cutoff = now - timedelta(days=days)
+
+    rows = list(db.execute(
+        select(Document)
+        .where(
+            Document.archived.is_(True),
+            Document.archived_at.is_not(None),
+            Document.archived_at <= cutoff,
+        )
+        .order_by(Document.archived_at)
+        .limit(max(1, limit))
+    ).scalars().all())
+    titles = [d.title for d in rows[:20]]
+    for document in rows:
+        # 판·태그·멘션·관계·댓글·즐겨찾기·최근 열람·색인 조각·첨부 연결이 전부 이 한 줄에
+        # 딸려 사라진다(전부 `ON DELETE CASCADE`). 표를 여기서 하나씩 지우지 않는 이유가
+        # 그것이다 — 손으로 적으면 새 표가 생긴 날 그 표만 고아로 남는다.
+        db.delete(document)
+    db.flush()
+    return {"purged": len(rows), "retention_days": days, "titles": titles}
+
+
 def can_manage_trashed(user: User, document: Document) -> bool:
     """되살리기·영구 삭제를 할 수 있는 사람 — **공용 휴지통과 같은 규칙**이다.
 
@@ -656,6 +717,19 @@ def _visible_document_ids(db: Session, user: User, ids: list[str]) -> set[str]:
     if clause is not None:
         stmt = stmt.where(clause)
     return {str(v) for v in db.execute(stmt).scalars().all()}
+
+
+def visible_document_ids(db: Session, user: User) -> list[str]:
+    """내가 볼 수 있는 문서 id 전부. 태그 사용 수를 셀 때 쓴다.
+
+    보관된 문서도 **포함한다** — 휴지통에 있는 문서에 붙은 태그도 그 태그를 지우면 함께
+    끊긴다. 「지우면 무엇이 끊기는가」를 적게 말하면 안 된다.
+    """
+    _, clause = _document_scope(db, user)
+    stmt = select(Document.id)
+    if clause is not None:
+        stmt = stmt.where(clause)
+    return [str(v) for v in db.execute(stmt).scalars().all()]
 
 
 def _all_visible_document_ids(db: Session, user: User) -> set[str]:

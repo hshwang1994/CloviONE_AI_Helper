@@ -121,6 +121,10 @@ export function Trash() {
   });
 
   const days = (q.data && q.data.retention_days) || 7;
+  // 문서 정책은 티켓과 따로다(D-352) — 그쪽의 다음 단계는 「행을 지우는 것」이라 되돌릴 수
+  // 없고, 그래서 끌 수 있다. 화면은 둘을 구별해서 말한다.
+  const docAuto = !q.data || q.data.document_autopurge !== false;
+  const docDays = (q.data && q.data.document_retention_days) || days;
   const items = (q.data && q.data.items) || [];
   // UA-10 확증 — total이 지금 받은 개수보다 크면 상한(TRASH_PAGE_SIZE) 너머에 더 있다는 뜻.
   const total = (q.data && q.data.total) || 0;
@@ -170,7 +174,16 @@ export function Trash() {
     },
     { key: "deleted_by", label: "삭제한 사람", type: "name", minWidth: "11rem" },
     { key: "deleted_at", label: "삭제일", type: "date", render: (r) => <DateCell value={r.deleted_at} /> },
-    { key: "purge_after", label: "삭제 예정", type: "date", render: (r) => <DateCell value={r.purge_after} /> },
+    {
+      /* 🔴 「삭제 예정」이 비어 있는 것과 「자동으로 안 지운다」는 다른 사실이다.
+         문서 휴지통의 자동 영구 삭제는 끌 수 있고(설정 `document_trash_autopurge`), 꺼져
+         있으면 서버가 이 값을 안 싣는다 — 그때 빈 칸을 두면 사람은 「곧 사라지는데 날짜만
+         안 보인다」로 읽는다. */
+      key: "purge_after", label: "삭제 예정", type: "date",
+      render: (r) => (r.purge_after
+        ? <DateCell value={r.purge_after} />
+        : <Typography variant="body2" color="text.secondary">자동 삭제 안 함</Typography>),
+    },
     {
       key: "_actions", label: "", type: "actions", minWidth: "14rem",
       render: (r) => (r.can_manage ? (
@@ -207,7 +220,11 @@ export function Trash() {
           자식은 옛 이름에 남아 갈라진다. */}
       <PageHeader
         area="휴지통" title="휴지통" actions={headerActions}
-        description={`삭제한 티켓과 문서를 ${days}일 동안 보관합니다. 그 전에 복원하면 원래 목록으로 돌아옵니다. 기간이 지나면 원본이 정리됩니다.`}
+        description={
+          docAuto
+            ? `삭제한 티켓은 ${days}일, 문서는 ${docDays}일 동안 보관합니다. 그 전에 복원하면 원래 목록으로 돌아옵니다. 기간이 지나면 문서는 영구 삭제됩니다.`
+            : `삭제한 티켓을 ${days}일 동안 보관합니다. 문서는 자동으로 지워지지 않으며, 영구 삭제는 사람이 누를 때만 실행됩니다.`
+        }
       />
 
       {/* 좁히는 축은 하나다 — 종류. 「삭제한 사람」과 「공간」은 이 표에 조건으로 안 건다:

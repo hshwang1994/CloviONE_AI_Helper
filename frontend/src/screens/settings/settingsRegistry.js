@@ -4,6 +4,10 @@ export const SETTING_LABELS = {
   conversation_retention_days: "대화 보존 기간(일)",
   notification_retention_days: "알림 보존 기간(일)",
   trash_retention_days: "휴지통 보관 기간(일)",
+  // 문서 휴지통은 다른 정책이다(D-352) — 그쪽의 다음 단계는 「행을 지우는 것」이라
+  // 되돌릴 수 없다. 그래서 기간이 따로 있고, 무엇보다 끌 수 있다.
+  document_trash_autopurge: "문서 휴지통 자동 영구 삭제",
+  document_trash_retention_days: "문서 휴지통 보관 기간(일)",
   ui_branding: "브랜딩",
   // 메일 발송(9-9 P4). 라벨이 없으면 이 표에 `smtp` 라는 영문 키가 그대로 새어 나간다.
   smtp: "메일(SMTP) 발송",
@@ -84,7 +88,7 @@ export const SMTP_SECURITY_LABELS = { none: "사용 안 함", starttls: "STARTTL
 export const STRUCTURED_OBJECT_KEYS = ["password_policy", "session_policy", "lockout_policy", "allowed_email_domains", "ui_branding", "smtp", "backup_schedule"];
 // 평범한 int 설정도 상한이 있다(registry.py _positive_int(3650)) — object 설정들처럼 min/max와 범위
 // 힌트를 붙여, 값을 저장 왕복 없이도 눈치챌 수 있게 한다(이전엔 이 둘만 아무 제약 없는 숫자 입력이었다).
-export const INT_BOUNDS = { conversation_retention_days: [1, 3650], notification_retention_days: [1, 3650], trash_retention_days: [1, 365] };
+export const INT_BOUNDS = { conversation_retention_days: [1, 3650], notification_retention_days: [1, 3650], trash_retention_days: [1, 365], document_trash_retention_days: [1, 365] };
 
 // 강조색 프리셋의 한국어 이름 — 색만으로 고르게 두면 색각 이상 사용자는 무엇을 골랐는지 알 수 없고,
 // 스크린리더는 아무것도 읽을 게 없다(WCAG 1.4.1). 이름을 모르면 hex를 그대로 읽어 준다.
@@ -113,7 +117,7 @@ export function fmtDuration(sec) {
 export function summarizeSetting(key, v) {
   // 나머지 object 설정은 이미 완결된 한국어 요약('최소 12자' 등)을 보여주는데, 정수 타입인 이
   // 두 보존 기간 키만 '값' 칸에 단위 없는 맨숫자('90')로 떨어져 옆 행들과 표기가 어긋났다.
-  if ((key === "conversation_retention_days" || key === "notification_retention_days" || key === "trash_retention_days") && typeof v === "number") return v + "일";
+  if ((key === "conversation_retention_days" || key === "notification_retention_days" || key === "trash_retention_days" || key === "document_trash_retention_days") && typeof v === "number") return v + "일";
   /* 동기화 주기(지시 1 · 29). `0` 은 "서버 기본값을 따른다" 센티널이라(registry.py) 맨숫자
      0 으로 그리면 "0초마다 동기화"로 읽힌다 — 정확히 반대 뜻이다. */
   if (INTERVAL_KEYS.includes(key) && typeof v === "number") {

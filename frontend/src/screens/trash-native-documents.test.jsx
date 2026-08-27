@@ -62,14 +62,18 @@ const TICKET_ROW = {
 
 const calls = [];
 
-function stub(rows) {
+function stub(rows, policy) {
   api.mockImplementation((path, options) => {
     calls.push(String(path));
     if (String(path).startsWith("/api/trash?")) {
       const url = new URL(String(path), "https://x");
       const kind = url.searchParams.get("kind");
       const items = kind ? rows.filter((r) => r.item_type === kind) : rows;
-      return Promise.resolve({ items, total: items.length, retention_days: 7 });
+      return Promise.resolve({
+        items, total: items.length, retention_days: 7,
+        document_autopurge: true, document_retention_days: 7,
+        ...(policy || {}),
+      });
     }
     if (options && options.method === "POST") return Promise.resolve({ ok: true });
     return Promise.resolve({});
@@ -148,5 +152,29 @@ describe("휴지통의 Native 문서", () => {
       expect(post, "영구 삭제 요청이 안 나갔다").toBeTruthy();
       expect(post[0]).toBe(`/api/trash/doc:${DOC_UUID}/purge`);
     });
+  });
+});
+
+/* 자동 영구 삭제는 **끌 수 있다** (D-352). 화면이 그 사실을 말해야 한다.
+ *
+ * 꺼져 있을 때 「삭제 예정」 칸을 비워 두면 사람은 「곧 사라지는데 날짜만 안 보인다」로
+ * 읽는다 — 정확히 반대 뜻이다.
+ */
+describe("자동 영구 삭제 정책", () => {
+  it("켜져 있으면 언제 지워지는지 날짜로 말한다", async () => {
+    renderScreen();
+    await screen.findByText("서버 인프라 리소스 현황");
+    expect(screen.getByText(/문서는 7일 동안 보관합니다/)).toBeTruthy();
+  });
+
+  it("🔴 꺼져 있으면 「자동 삭제 안 함」이라고 말한다", async () => {
+    stub(
+      [{ ...DOC_ROW, purge_after: null }],
+      { document_autopurge: false },
+    );
+    renderScreen();
+    await screen.findByText("서버 인프라 리소스 현황");
+    expect(screen.getByText("자동 삭제 안 함")).toBeTruthy();
+    expect(screen.getByText(/문서는 자동으로 지워지지 않으며/)).toBeTruthy();
   });
 });

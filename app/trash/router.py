@@ -44,7 +44,7 @@ def _document_id(trash_id: str) -> str | None:
     return trash_id[len(DOC_PREFIX):] if trash_id.startswith(DOC_PREFIX) else None
 
 
-def _document_view(document, extras, *, retention_days: int, me: User) -> dict:
+def _document_view(document, extras, *, retention_days: int | None, me: User) -> dict:
     """Native 문서 한 건을 휴지통 줄로. 열 이름은 옛 항목과 **같다**.
 
     같지 않으면 화면이 종류마다 다른 표를 그리게 되고, 그 순간 「티켓과 문서를 한 목록에서
@@ -53,7 +53,11 @@ def _document_view(document, extras, *, retention_days: int, me: User) -> dict:
     from app.knowledge import service as knowledge_service
 
     deleted_at = document.archived_at
-    purge_after = deleted_at + timedelta(days=retention_days) if deleted_at else None
+    # 자동 삭제가 꺼져 있으면 `retention_days` 가 None 이고, 그때는 삭제 예정도 없다.
+    purge_after = (
+        deleted_at + timedelta(days=retention_days)
+        if (deleted_at and retention_days is not None) else None
+    )
     people = extras.get("people") or {}
     archiver = people.get(document.archived_by) or {}
     folder = (extras.get("folders") or {}).get(document.folder_id) if document.folder_id else None
@@ -83,6 +87,23 @@ def _retention_days(request: Request) -> int:
         return max(1, int(request.app.state.settings_cache.current_value("trash_retention_days") or 7))
     except (TypeError, ValueError):
         return 7
+
+
+def _document_policy(request: Request) -> tuple[bool, int]:
+    """문서 휴지통의 자동 영구 삭제 정책 — **켜졌는가와 며칠인가** (D-352).
+
+    티켓 쪽 기간과 따로 읽는다. 두 정책이 하는 일이 다르기 때문이다: 옛 항목의 정리는
+    원본을 보관처리하는 것이고, 문서는 이미 보관된 상태라 다음 단계가 **행을 지우는 것**이다.
+
+    꺼져 있으면 화면이 「삭제 예정」을 말하면 안 된다 — 안 지워지는데 날짜를 적으면 거짓말이다.
+    """
+    cache = request.app.state.settings_cache
+    try:
+        days = max(1, int(cache.current_value("document_trash_retention_days") or 7))
+    except (TypeError, ValueError):
+        days = 7
+    enabled = cache.current_value("document_trash_autopurge")
+    return (True if enabled is None else bool(enabled)), days
 
 
 def _item_view(item, *, retention_days: int, me: User) -> dict:
@@ -124,6 +145,7 @@ def list_trash(
     kind: str | None = Query(default=None, max_length=16),
 ):
     days = _retention_days(request)
+    doc_autopurge, doc_days = _document_policy(request)
     # 범위를 건다 — 예전에는 조건이 하나도 없어 남의 팀이 지운 것까지 보였다.
     from app.core.scope import visibility_scope
     from app.knowledge import service as knowledge_service
@@ -151,7 +173,10 @@ def list_trash(
         if want_documents else ([], 0)
     )
     extras = knowledge_service.list_page_extras(db, me, docs)
-    rows += [_document_view(d, extras, retention_days=days, me=me) for d in docs]
+    rows += [
+        _document_view(d, extras, retention_days=doc_days if doc_autopurge else None, me=me)
+        for d in docs
+    ]
     # 종류가 섞이므로 **삭제일 최신순**으로 다시 세운다. 시각을 모르는 옛 행은 뒤로 간다.
     rows.sort(key=lambda r: (r["deleted_at"] or ""), reverse=True)
 
@@ -159,6 +184,10 @@ def list_trash(
     return etag_json_response(request, {
         "items": rows,
         "retention_days": days,
+        # 문서 정책은 따로 싣는다 — 화면이 「문서는 이레 뒤 자동으로 지워집니다」와
+        # 「문서는 자동으로 지워지지 않습니다」를 구별해서 말할 수 있어야 한다.
+        "document_autopurge": doc_autopurge,
+        "document_retention_days": doc_days,
         "total": total + doc_total,
     })
 

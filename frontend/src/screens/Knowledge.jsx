@@ -11,7 +11,7 @@ import StarRoundedIcon from "@mui/icons-material/StarRounded";
 import StarOutlineRoundedIcon from "@mui/icons-material/StarOutlineRounded";
 import { api } from "../lib/api.js";
 import { useAuth } from "../app/auth.jsx";
-import { CONSOLE_WRITE_ROLES, hasRole } from "../lib/roles.js";
+import { CONSOLE_WRITE_ROLES, MODERATOR_ROLES, hasRole } from "../lib/roles.js";
 import {
   Button,
   Card,
@@ -39,6 +39,7 @@ import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
 import { fmtDateTimeCompact } from "../lib/format.js";
 import { useListMemory } from "../lib/listReturn.js";
 import { SPACES_KEY, useKnowledgeSpaces } from "../lib/knowledgeSpaces.js";
+import { appendTag } from "./document-views.js";
 
 /* 문서 작업공간 — 탐색기 · 목록 · 보조 정보 (지시 22.4).
  *
@@ -213,6 +214,7 @@ function NavRow({ label, count, selected, indent = 0, onClick, action }) {
 function Explorer({
   spaces, spaceId, tree, folderId, view, tags, tag, summary,
   onView, onSpace, onFolder, onTag, onNewFolder, onDeleteFolder, onReorderFolder, onNewSpace,
+  onManageTags,
 }) {
   const folders = flatten(tree.data?.folders || []);
   const labelOf = (id) => (folders.find((f) => f.id === id) || {}).name || "";
@@ -290,8 +292,18 @@ function Explorer({
         </Section>
       ) : null}
 
-      {tags.length > 0 ? (
-        <Section title="태그">
+      {/* 태그 칸은 **비어 있어도 선다.** 태그가 하나도 없을 때가 관리 입구가 가장 필요한
+          때다 — 없으면 사람은 태그를 문서 저장 화면에서만 만들 수 있다고 믿는다.
+          열둘까지만 보여 준다: 그 아래는 목록 위의 「태그」 조건으로 고른다. */}
+      <Section
+        title="태그"
+        action={<Button size="small" variant="ghost" onClick={onManageTags}>태그 관리</Button>}
+      >
+        {tags.length === 0 ? (
+          <Typography variant="body2" color="text.secondary" sx={KO_WORD_BREAK}>
+            문서에 태그를 붙이면 여기에서 태그로 좁힐 수 있습니다.
+          </Typography>
+        ) : (
           <Stack direction="row" spacing={0.5} sx={{ flexWrap: "wrap", rowGap: 0.5 }}>
             {tags.slice(0, 12).map((t) => (
               <Chip
@@ -308,8 +320,8 @@ function Explorer({
               />
             ))}
           </Stack>
-        </Section>
-      ) : null}
+        )}
+      </Section>
     </Card>
   );
 }
@@ -404,6 +416,161 @@ function Rail({ recent, favorites, templates, onOpen, onTemplate }) {
   );
 }
 
+/** 이미 있는 태그를 눌러서 고른다. **새로 적는 것도 그대로 된다** — 고르는 자리를 준다고
+ * 적는 자리를 막지 않는다(지시 22-5 는 둘 다 요구한다). */
+function TagPicker({ tags, value, onPick }) {
+  if (!tags.length) return null;
+  const chosen = new Set(
+    String(value || "").split(",").map((t) => t.trim().toLowerCase()).filter(Boolean),
+  );
+  return (
+    <Stack direction="row" spacing={0.5} sx={{ flexWrap: "wrap", rowGap: 0.5 }}>
+      {tags.slice(0, 20).map((t) => (
+        <Chip
+          key={t.id}
+          component="button"
+          type="button"
+          clickable
+          size="small"
+          label={t.name}
+          aria-pressed={chosen.has(t.name.toLowerCase())}
+          variant={chosen.has(t.name.toLowerCase()) ? "filled" : "outlined"}
+          color={chosen.has(t.name.toLowerCase()) ? "primary" : "default"}
+          onClick={() => onPick(t.name)}
+        />
+      ))}
+    </Stack>
+  );
+}
+
+/* 태그 관리 — 어휘를 사람이 고칠 수 있게 한다 (지시 22-5 개정).
+ *
+ * ## 왜 이 창이 필요한가
+ *
+ * 태그는 지금까지 **문서를 저장할 때 곁다리로** 생겼다. 그래서 오타로 만든 태그를 고칠
+ * 방법이 없었고 안 쓰는 태그를 치울 방법도 없었다 — 목록은 늘기만 했다. 운영의 태그
+ * 열아홉 중 여덟이 고객사 이름이라, 계약이 끝나거나 이름이 바뀌면 누군가는 그것을 고쳐야 한다.
+ *
+ * ## 「몇 건에 붙어 있는가」를 먼저 보여 준다
+ *
+ * 지우려는 사람에게 필요한 것은 그 수다. 0건인 태그를 지우는 것과 서른 건에서 떼는 것은
+ * 다른 일이고, 화면이 그 차이를 말하지 않으면 사람은 같은 마음으로 누른다.
+ *
+ * ## 고치고 지우는 것은 운영자군이다
+ *
+ * 이름을 고치면 그 태그를 쓰는 **모든 문서**의 표기가 바뀐다. 서버가 같은 기준으로 막으므로
+ * (`DOCUMENT_DELETE`) 여기서 감추는 것은 방어가 아니라 안내다.
+ */
+function TagManager({ open, onClose, tags, canManage, busy, onAdd, onRename, onRemove }) {
+  const [name, setName] = React.useState("");
+  const [editing, setEditing] = React.useState(null);
+  const [draft, setDraft] = React.useState("");
+
+  React.useEffect(() => {
+    if (!open) { setName(""); setEditing(null); setDraft(""); }
+  }, [open]);
+
+  const add = () => {
+    const clean = name.trim();
+    if (!clean) return;
+    onAdd(clean, () => setName(""));
+  };
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="태그 관리"
+      footer={<ModalFooter onCancel={onClose} cancelLabel="닫기" />}
+    >
+      <Stack spacing={2}>
+        <Stack direction="row" spacing={1} alignItems="flex-start">
+          <TextField
+            label="새 태그"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); add(); } }}
+            InputLabelProps={{ shrink: true }}
+            inputProps={{ maxLength: 80 }}
+            size="small"
+            fullWidth
+          />
+          <Button variant="primary" disabled={!name.trim() || busy} onClick={add}>추가</Button>
+        </Stack>
+
+        {tags.length === 0 ? (
+          <Typography variant="body2" color="text.secondary" sx={KO_WORD_BREAK}>
+            아직 태그가 없습니다. 문서를 쓰면서 적은 태그도 여기에 모입니다.
+          </Typography>
+        ) : (
+          <Stack spacing={0.5} sx={{ maxHeight: "22rem", overflowY: "auto" }}>
+            {tags.map((tag) => (
+              <Stack
+                key={tag.id}
+                direction="row"
+                spacing={1}
+                alignItems="center"
+                sx={(theme) => ({
+                  py: 0.75, borderBottom: `1px solid ${theme.palette.divider}`,
+                })}
+              >
+                {editing === tag.id ? (
+                  <>
+                    <TextField
+                      value={draft}
+                      onChange={(e) => setDraft(e.target.value)}
+                      size="small"
+                      autoFocus
+                      inputProps={{ maxLength: 80 }}
+                      sx={{ flex: 1, minWidth: 0 }}
+                    />
+                    <Button
+                      size="small"
+                      variant="primary"
+                      disabled={!draft.trim() || busy}
+                      onClick={() => onRename(tag, draft.trim(), () => setEditing(null))}
+                    >
+                      저장
+                    </Button>
+                    <Button size="small" variant="ghost" onClick={() => setEditing(null)}>취소</Button>
+                  </>
+                ) : (
+                  <>
+                    <Typography sx={{ ...KO_WORD_BREAK, flex: 1, minWidth: 0 }}>{tag.name}</Typography>
+                    <Typography variant="caption" color="text.secondary" sx={{ flexShrink: 0 }}>
+                      문서 {tag.documents ?? 0}건
+                    </Typography>
+                    {canManage ? (
+                      <>
+                        <Button
+                          size="small"
+                          variant="ghost"
+                          onClick={() => { setEditing(tag.id); setDraft(tag.name); }}
+                        >
+                          수정
+                        </Button>
+                        <Button size="small" variant="ghost" onClick={() => onRemove(tag)}>
+                          삭제
+                        </Button>
+                      </>
+                    ) : null}
+                  </>
+                )}
+              </Stack>
+            ))}
+          </Stack>
+        )}
+
+        {canManage ? null : (
+          <Typography variant="body2" color="text.secondary" sx={KO_WORD_BREAK}>
+            태그 이름을 고치거나 지우는 것은 운영자만 할 수 있습니다. 새 태그는 누구나 추가할 수 있습니다.
+          </Typography>
+        )}
+      </Stack>
+    </Modal>
+  );
+}
+
 /* 새 문서 — 제목과 공간이 필수이고 나머지 셋은 선택이다 (지시 22.5).
  *
  * ## 「공개 범위」를 안 묻는다
@@ -417,7 +584,9 @@ function Rail({ recent, favorites, templates, onOpen, onTemplate }) {
  *
  * 본문까지 미리 그리려면 네 벌의 Block JSON 을 받아야 한다. 고르는 사람이 알고 싶은 것은
  * 「이 틀이 무엇을 채워 주는가」이고, 그건 한 문장이면 된다. */
-function NewDocumentModal({ open, onClose, onSubmit, busy, spaces, folders, templates, initial }) {
+function NewDocumentModal({
+  open, onClose, onSubmit, busy, spaces, folders, templates, tags, initial,
+}) {
   const [values, setValues] = React.useState(initial);
   React.useEffect(() => { if (open) setValues(initial); }, [open, initial]);
 
@@ -492,14 +661,21 @@ function NewDocumentModal({ open, onClose, onSubmit, busy, spaces, folders, temp
               <MenuItem key={f.id} value={f.id}>{"　".repeat(f.depth) + f.name}</MenuItem>
             ))}
           </TextField>
-          <TextField
-            label="태그"
-            value={values.tags}
-            onChange={(e) => set({ tags: e.target.value })}
-            InputLabelProps={{ shrink: true }}
-            helperText="쉼표로 나눠 적습니다."
-            fullWidth
-          />
+          <Stack spacing={1}>
+            <TextField
+              label="태그"
+              value={values.tags}
+              onChange={(e) => set({ tags: e.target.value })}
+              InputLabelProps={{ shrink: true }}
+              helperText="쉼표로 나눠 적습니다. 없는 태그를 적으면 새로 만들어집니다."
+              fullWidth
+            />
+            <TagPicker
+              tags={tags}
+              value={values.tags}
+              onPick={(name) => set({ tags: appendTag(values.tags, name) })}
+            />
+          </Stack>
         </Stack>
 
         <Stack spacing={1.5}>
@@ -593,6 +769,16 @@ export function Knowledge() {
   );
 
   const { query: spaces, items } = useKnowledgeSpaces();
+
+  /* 공간이 **하나뿐이면** 그것을 연다. 폴더 트리는 공간을 고른 뒤에야 뜻이 있는데, 고를
+     것이 하나인 화면에서 「모든 공간」에 머무르면 탐색기의 절반이 비어 보인다. 둘 이상이면
+     안 고른다 — 그때는 「전체」가 실제로 다른 답이다. */
+  React.useEffect(() => {
+    if (!spaceId && items.length === 1) {
+      setParams({ space: items[0].id }, { replace: true });
+    }
+  }, [spaceId, items, setParams]);
+
   const tree = useTree(spaceId);
   const tags = useTags();
   const summary = useSummary();
@@ -603,6 +789,7 @@ export function Knowledge() {
   const [folderForm, setFolderForm] = React.useState(false);
   const [spaceForm, setSpaceForm] = React.useState(false);
   const [newDoc, setNewDoc] = React.useState(null);
+  const [tagForm, setTagForm] = React.useState(false);
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["knowledge", "documents"] });
@@ -652,6 +839,39 @@ export function Knowledge() {
     onError: (e) => toast(e.message, "error"),
   });
 
+  /* 태그 어휘를 고치면 **목록의 줄과 조건 후보가 함께** 달라진다 — 셋을 같이 무효화한다.
+     하나만 무효화하면 이름을 고친 태그가 필터에서는 새 이름, 줄에서는 옛 이름이 된다. */
+  const invalidateTags = () => {
+    qc.invalidateQueries({ queryKey: ["knowledge", "tags"] });
+    qc.invalidateQueries({ queryKey: ["knowledge", "documents"] });
+  };
+
+  const addTag = useMutation({
+    mutationFn: (name) => api("/api/knowledge/tags", { method: "POST", body: { name } }),
+    onSuccess: () => { invalidateTags(); toast("태그를 추가했습니다."); },
+    onError: (e) => toast(e.message, "error"),
+  });
+
+  const renameTag = useMutation({
+    mutationFn: ({ id, name }) =>
+      api(`/api/knowledge/tags/${id}`, { method: "PATCH", body: { name } }),
+    onSuccess: () => { invalidateTags(); toast("태그 이름을 고쳤습니다."); },
+    onError: (e) => toast(e.message, "error"),
+  });
+
+  const removeTag = useMutation({
+    mutationFn: (id) => api(`/api/knowledge/tags/${id}`, { method: "DELETE" }),
+    onSuccess: (result) => {
+      invalidateTags();
+      toast(
+        result.detached
+          ? `태그를 지웠고 문서 ${result.detached}건에서 뗐습니다.`
+          : "태그를 지웠습니다.",
+      );
+    },
+    onError: (e) => toast(e.message, "error"),
+  });
+
   const createDocument = useMutation({
     mutationFn: (body) => api("/api/knowledge/documents", { method: "POST", body }),
     onSuccess: (doc) => {
@@ -693,7 +913,11 @@ export function Knowledge() {
   const rows = documents.data?.items || [];
   const total = documents.data?.total ?? rows.length;
   const authors = documents.data?.authors || [];
-  const canMakeSpace = hasRole(CONSOLE_WRITE_ROLES, (auth.data && auth.data.role) || "");
+  const role = (auth.data && auth.data.role) || "";
+  const canMakeSpace = hasRole(CONSOLE_WRITE_ROLES, role);
+  /* 이름을 고치고 지우는 것은 그 태그를 쓰는 **모든 문서**에 닿는다. 서버가 같은 기준으로
+     막으므로(`DOCUMENT_DELETE` = 운영자군) 여기서 감추는 것은 방어가 아니라 안내다. */
+  const canManageTags = hasRole(MODERATOR_ROLES, role);
   const listed = view === VIEW.recent;
 
   const columns = React.useMemo(() => [
@@ -918,6 +1142,7 @@ export function Knowledge() {
           onReorderFolder={({ id, beforeId, afterId }) =>
             moveFolder.mutate({ id, before_id: beforeId, after_id: afterId })}
           onNewSpace={canMakeSpace ? () => setSpaceForm(true) : null}
+          onManageTags={() => setTagForm(true)}
         />
 
         <Box sx={{ minWidth: 0 }}>
@@ -1077,12 +1302,36 @@ export function Knowledge() {
         onSubmit={(values) => createSpace.mutateAsync(values)}
       />
 
+      <TagManager
+        open={tagForm}
+        tags={tagRows}
+        canManage={canManageTags}
+        busy={addTag.isPending || renameTag.isPending || removeTag.isPending}
+        onClose={() => setTagForm(false)}
+        onAdd={(name, done) => addTag.mutate(name, { onSuccess: done })}
+        onRename={(tag, name, done) =>
+          renameTag.mutate({ id: tag.id, name }, { onSuccess: done })}
+        onRemove={async (tag) => {
+          /* 몇 건에서 떼어지는지를 **묻는 문장에** 넣는다. 0건인 태그를 지우는 것과 서른
+             건에서 떼는 것은 다른 일이고, 확인 문구가 그 차이를 말해야 한다. */
+          const used = tag.documents ?? 0;
+          const ok = await confirm(
+            used
+              ? `문서 ${used}건에서 이 태그가 떨어집니다. 문서 자체는 그대로 남습니다.`
+              : "이 태그를 쓰는 문서가 없습니다.",
+            { title: `${tag.name} 태그를 삭제할까요?`, confirmLabel: "삭제", danger: used > 0 },
+          );
+          if (ok) removeTag.mutate(tag.id);
+        }}
+      />
+
       <NewDocumentModal
         open={Boolean(newDoc)}
         initial={newDoc || { title: "", space_id: "", folder_id: "", tags: "", template: "blank" }}
         spaces={items}
         folders={folders}
         templates={templateRows}
+        tags={tagRows}
         busy={createDocument.isPending}
         onClose={() => setNewDoc(null)}
         onSubmit={(values) => createDocument.mutate({

@@ -54,7 +54,7 @@
 | **D** | Sprint Domain · Backlog · 작업 보드 · 스프린트 회의 | 12 + Backlog/Sprint 흐름 |
 | **E** | Chat 재설계와 Chat 데이터 초기화 | 14 |
 | **F** | Profile · 역할 UX · `변경 요구` 의미 확정 | 17·22 |
-| **G** | Document 초기화와 Knowledge Workspace/Editor/Trash 재설계 | 23 |
+| **G** | Knowledge Workspace/Editor/Trash 재설계 · 기존 문서 제자리 분류 · Tag 관리 | 23 |
 
 ## 3. 묶음별 Exit 조건
 
@@ -126,8 +126,10 @@
 
 ### G. Document
 
-- 현재 사용자 Document 데이터와 그 문서에서 파생된 DB 데이터를 비운다. User · Organization ·
-  Project · Ticket · Storage Binary 는 건드리지 않는다. Notion 재이관은 이번 범위가 아니다.
+- 🔴 **기존 문서 데이터를 지우지 않는다** (사용자 결정 2026-08-27 · D-352). 지금 데이터가
+  이미 Notion → Native 이관의 결과이므로, 지웠다 같은 것을 다시 넣지 않는다. 대신 제자리에서
+  Space/Folder 구조에 매핑한다. 기존 Tag 열아홉도 그대로 살리고 사용자가 관리할 수 있게 한다.
+  Notion 재이관과 런타임 동기화는 둘 다 이번 범위가 아니다.
 - Document Main 이 Explorer(Space/Folder/즐겨찾기/최근/내 초안) + 밀도 있는 목록 + 필요한
   경우의 Right Rail 이다. 공통 PageShell 을 유지한다.
 - `새 문서` 가 제목(필수) · Space(필수) · Folder · Tags · Template 를 받고 성공하면
@@ -136,8 +138,10 @@
   첨부 · 댓글을 든다. 좁은 화면에서는 Drawer/Tab 으로 내려간다.
 - 서버에 있는데 화면이 없던 것을 배선한다 — Move · Archive · Version Detail · Relation ·
   Attachment · Space 생성/수정.
-- Native Knowledge Trash 가 공통 휴지통 Layout 과 7일 정책을 그대로 쓰고 `archived` 를 되돌리는
-  Restore API 를 갖는다. Legacy `team_docs` Trash 를 정본으로 쓰지 않는다.
+- Native Knowledge Trash 가 공통 휴지통 Layout 을 그대로 쓰고 `archived` 를 되돌리는 Restore
+  API 를 갖는다. Legacy `team_docs` Trash 를 정본으로 쓰지 않는다.
+- 자동 영구 삭제가 **설정**이다: 사용 여부와 기간(기본 7일)을 관리자가 정하고, 기준은
+  `archived_at` 이다. 되살리면 즉시 대상에서 빠진다. 첨부의 Binary 는 안 지운다.
 - Search/AI 의 권한 계약은 그대로다. 권한 없는 문서와 Archived 문서는 후보에 안 들어간다.
 
 ## 4. 검증 방식
@@ -173,7 +177,7 @@
 | 20 | 공통 안내/주의 | A |
 | 21 | 관리자 공통 Layout | A |
 | 22 | 역할 차이와 `변경 요구` | F |
-| 23 | Document 초기화와 재설계 | G |
+| 23 | Document 재설계와 기존 데이터 제자리 분류 | G |
 | + | 기본 Avatar 와 Crop 업로드 | A |
 | + | Backlog 는 Status 가 아니다 | A·D |
 | + | Sprint Domain 과 Board 연결 | D |

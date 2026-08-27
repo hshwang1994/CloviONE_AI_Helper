@@ -36,8 +36,12 @@ import { MemoryRouter } from "react-router-dom";
 
 const apiMock = vi.fn();
 vi.mock("../lib/api.js", () => ({ api: (...args) => apiMock(...args), setCsrf: () => {} }));
+/* 로그인 사용자의 역할은 시험마다 다르다 — 태그를 고치고 지우는 것은 운영자만이다.
+   `vi.hoisted` 로 만든 상자를 대역이 읽는다(`vi.mock` 은 끌어올려지므로 평범한 변수를
+   참조하면 초기화 전에 읽는다). */
+const authState = vi.hoisted(() => ({ role: "user" }));
 vi.mock("../app/auth.jsx", () => ({
-  useAuth: () => ({ data: { id: "u-1", display_name: "나", role: "user" } }),
+  useAuth: () => ({ data: { id: "u-1", display_name: "나", role: authState.role } }),
 }));
 
 import { Knowledge } from "./Knowledge.jsx";
@@ -79,7 +83,12 @@ function baseRoutes(path) {
   if (text.startsWith("/api/knowledge/spaces/")) return { folders: [] };
   if (text === "/api/knowledge/spaces") return { items: [{ id: SPACE, name: "우리 공간" }] };
   if (text === "/api/knowledge/tags") {
-    return { items: [{ id: "tag-1", name: "회의록", slug: "meeting-notes" }] };
+    return {
+      items: [
+        { id: "tag-1", name: "회의록", slug: "meeting-notes", documents: 3 },
+        { id: "tag-2", name: "인프라", slug: "infra", documents: 0 },
+      ],
+    };
   }
   if (text === "/api/knowledge/summary") {
     return { total: 110, recent: 4, favorites: 3, drafts: 2 };
@@ -93,6 +102,7 @@ function baseRoutes(path) {
 
 beforeEach(() => {
   calls.length = 0;
+  authState.role = "user";
   apiMock.mockReset();
   apiMock.mockImplementation((path) => {
     calls.push(String(path));
@@ -298,5 +308,105 @@ describe("새 문서 만들기", () => {
     const dialog = await screen.findByRole("dialog");
     const submit = within(dialog).getByRole("button", { name: "만들기" });
     expect(submit.hasAttribute("disabled")).toBe(true);
+  });
+});
+
+/* 태그 어휘를 사람이 관리한다 (지시 22-5 개정).
+ *
+ * 태그는 지금까지 문서를 저장할 때 곁다리로 생겼다 — 오타를 고칠 방법도, 안 쓰는 것을
+ * 치울 방법도 없었다. 여기서 보는 것은 그 세 동작이 **실제 요청으로** 나가는가와,
+ * 지우기 전에 화면이 「몇 건에 붙어 있는가」를 말하는가다.
+ */
+describe("태그 관리", () => {
+  it("목록이 태그마다 몇 건에 붙어 있는지 말한다", async () => {
+    renderList();
+    await seeRows();
+
+    await userEvent.click(screen.getByRole("button", { name: "태그 관리" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText("문서 3건")).toBeTruthy();
+    expect(within(dialog).getByText("문서 0건")).toBeTruthy();
+  });
+
+  it("새 태그를 추가한다 — 문서를 열지 않고도 어휘를 만들 수 있다", async () => {
+    renderList();
+    await seeRows();
+
+    await userEvent.click(screen.getByRole("button", { name: "태그 관리" }));
+    const dialog = await screen.findByRole("dialog");
+    await userEvent.type(within(dialog).getByLabelText("새 태그"), "배포 관리");
+    await userEvent.click(within(dialog).getByRole("button", { name: "추가" }));
+
+    await waitFor(() => {
+      const post = apiMock.mock.calls.find(
+        ([p, o]) => String(p) === "/api/knowledge/tags" && o && o.method === "POST");
+      expect(post, "태그 추가 요청이 안 나갔다").toBeTruthy();
+      expect(post[1].body.name).toBe("배포 관리");
+    });
+  });
+
+  it("🔴 지우기 전에 몇 건에서 떨어지는지 묻는다 — 0건과 3건은 다른 일이다", async () => {
+    authState.role = "admin";
+    renderList();
+    await seeRows();
+
+    await userEvent.click(screen.getByRole("button", { name: "태그 관리" }));
+    const dialog = await screen.findByRole("dialog");
+    // 첫 줄이 「회의록」(문서 3건)이다. 태그 목록은 서버가 준 순서 그대로 선다.
+    await userEvent.click(within(dialog).getAllByRole("button", { name: "삭제" })[0]);
+
+    expect(await screen.findByText(/문서 3건에서 이 태그가 떨어집니다/)).toBeTruthy();
+    // 확인하기 전에는 아무 요청도 안 나간다.
+    expect(apiMock.mock.calls.some(([, o]) => o && o.method === "DELETE")).toBe(false);
+  });
+
+  it("운영자는 이름을 고칠 수 있고, 그 요청이 서버로 나간다", async () => {
+    authState.role = "admin";
+    renderList();
+    await seeRows();
+
+    await userEvent.click(screen.getByRole("button", { name: "태그 관리" }));
+    const dialog = await screen.findByRole("dialog");
+    await userEvent.click(within(dialog).getAllByRole("button", { name: "수정" })[0]);
+    const box = within(dialog).getByDisplayValue("회의록");
+    await userEvent.clear(box);
+    await userEvent.type(box, "회의 기록");
+    await userEvent.click(within(dialog).getByRole("button", { name: "저장" }));
+
+    await waitFor(() => {
+      const patch = apiMock.mock.calls.find(([, o]) => o && o.method === "PATCH");
+      expect(patch, "이름 고치기 요청이 안 나갔다").toBeTruthy();
+      expect(String(patch[0])).toBe("/api/knowledge/tags/tag-1");
+      expect(patch[1].body.name).toBe("회의 기록");
+    });
+  });
+
+  it("이름 고치기와 지우기는 운영자만 본다 — 서버가 같은 기준으로 막는다", async () => {
+    renderList();
+    await seeRows();
+    await userEvent.click(screen.getByRole("button", { name: "태그 관리" }));
+    const dialog = await screen.findByRole("dialog");
+    /* 이 시험의 로그인 사용자는 일반 사용자다(맨 위 `useAuth` 대역). 추가는 되고
+       고치기·지우기는 안 보인다. */
+    expect(within(dialog).getByRole("button", { name: "추가" })).toBeTruthy();
+    expect(within(dialog).queryByRole("button", { name: "수정" })).toBeNull();
+    expect(within(dialog).getByText(/운영자만 할 수 있습니다/)).toBeTruthy();
+  });
+
+  it("새 문서 창에서 이미 있는 태그를 눌러 고른다", async () => {
+    renderList();
+    await seeRows();
+
+    await userEvent.click(screen.getByRole("button", { name: "새 문서" }));
+    const dialog = await screen.findByRole("dialog");
+    await userEvent.type(within(dialog).getByLabelText(/문서 제목/), "새 회의록");
+    await userEvent.click(within(dialog).getByRole("button", { name: "인프라" }));
+    await userEvent.click(within(dialog).getByRole("button", { name: "만들기" }));
+
+    await waitFor(() => {
+      const post = apiMock.mock.calls.find(
+        ([p, o]) => String(p) === "/api/knowledge/documents" && o && o.method === "POST");
+      expect(post[1].body.tag_names).toEqual(["인프라"]);
+    });
   });
 });
