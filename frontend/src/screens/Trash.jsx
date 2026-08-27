@@ -1,10 +1,13 @@
 import React, { useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
 import { Badge, Button, Card, DataTable, EmptyState, ErrorState, MetricStrip, PageHeader, useConfirm, useToast } from "../ui/kit.jsx";
+import { FilterRow, FilterSurface } from "../ui/FilterBar.jsx";
+import { FilterSelect } from "../ui/filters.jsx";
 import { bulkFailureNote, fmtDateTime, toUTCDate } from "../lib/format.js";
 import { useRowSelection, selectionColumn, BulkActions } from "../ui/bulkSelect.jsx";
 import { invalidateTicketViews } from "./ticket-views.js";
@@ -37,14 +40,25 @@ export function urgentCount(items, nowMs) {
   }).length;
 }
 
+/* 종류로 좁히는 조건. **서버가 좁힌다** — 화면에서만 거르면 상한 너머의 그 종류가 안
+ * 보이면서 화면은 「이게 전부」라고 말한다. 문서 화면의 「휴지통」 버튼이 이 값을 걸고 연다
+ * (`#/team-docs/trash?kind=document`). */
+const KINDS = [
+  { value: "ticket", label: "티켓" },
+  { value: "document", label: "문서" },
+];
+
 export function Trash() {
   const toast = useToast();
   const confirm = useConfirm();
   const qc = useQueryClient();
   const [limit, setLimit] = useState(TRASH_PAGE_SIZE);
+  const [params, setParams] = useSearchParams();
+  const kind = params.get("kind") || "";
+  const setKind = (next) => setParams(next ? { kind: next } : {});
   const q = useQuery({
-    queryKey: ["trash", limit],
-    queryFn: () => api("/api/trash?limit=" + limit),
+    queryKey: ["trash", limit, kind],
+    queryFn: () => api(`/api/trash?limit=${limit}${kind ? `&kind=${kind}` : ""}`),
     refetchInterval: 15000,
     // AI-18과 같은 이유 — "더 보기"가 상한을 늘려 새 쿼리 키로 다시 받는 동안 이전 목록을
     // 그대로 보여준다(없으면 15초 폴링과 무관하게 매번 스켈레톤이 깜빡인다).
@@ -141,6 +155,19 @@ export function Trash() {
       // 응답에서 `url` 을 걷었다.
       render: (r) => <span>{r.title || "제목 없음"}</span>,
     },
+    {
+      /* 「어느 공간의 문서였나」 (지시 22.7). 옛 미러 항목은 이 값을 모른다 — 그 개념이
+         없는 표에서 왔다. 없는 값을 「-」로 지어내지 않고 자리를 비운다. */
+      key: "place", label: "공간, 폴더", type: "name", minWidth: "10rem",
+      render: (r) => (r.space ? (
+        <Box sx={{ display: "grid", gap: 0.25, minWidth: 0 }}>
+          <Typography variant="body2">{r.space}</Typography>
+          {r.folder ? (
+            <Typography variant="caption" color="text.secondary">{r.folder}</Typography>
+          ) : null}
+        </Box>
+      ) : ""),
+    },
     { key: "deleted_by", label: "삭제한 사람", type: "name", minWidth: "11rem" },
     { key: "deleted_at", label: "삭제일", type: "date", render: (r) => <DateCell value={r.deleted_at} /> },
     { key: "purge_after", label: "삭제 예정", type: "date", render: (r) => <DateCell value={r.purge_after} /> },
@@ -183,6 +210,21 @@ export function Trash() {
         description={`삭제한 티켓과 문서를 ${days}일 동안 보관합니다. 그 전에 복원하면 원래 목록으로 돌아옵니다. 기간이 지나면 원본이 정리됩니다.`}
       />
 
+      {/* 좁히는 축은 하나다 — 종류. 「삭제한 사람」과 「공간」은 이 표에 조건으로 안 건다:
+          휴지통은 대개 몇십 줄이고, 없는 서버 조건을 화면에서 흉내 내면 상한 너머가
+          조용히 빠진다. */}
+      <FilterSurface>
+        <FilterRow>
+          <FilterSelect
+            label="종류"
+            allLabel="전체"
+            value={kind}
+            onChange={setKind}
+            options={KINDS}
+          />
+        </FilterRow>
+      </FilterSurface>
+
       {q.isError ? <ErrorState error={q.error} onRetry={() => q.refetch()} />
         : q.isPending ? <Card>{/* 표가 들어올 자리에는 표 모양을 그린다 (지시 20) - 빈 목록과 아직 안 온 목록은 다른 사실이다. */}<DataTable columns={columns} rows={[]} loading /></Card>
         : items.length === 0 ? (
@@ -202,9 +244,18 @@ export function Trash() {
             <MetricStrip
               ariaLabel="휴지통 요약"
               items={[
-                { key: "all", value: items.length, label: "보관 중", primary: true },
-                { key: "tickets", value: tickets, label: "티켓" },
-                { key: "docs", value: docs, label: "문서" },
+                {
+                  key: "all", value: total || items.length, label: "보관 중", primary: true,
+                  active: !kind, onClick: () => setKind(""),
+                },
+                {
+                  key: "tickets", value: tickets, label: "티켓",
+                  active: kind === "ticket", onClick: () => setKind("ticket"),
+                },
+                {
+                  key: "docs", value: docs, label: "문서",
+                  active: kind === "document", onClick: () => setKind("document"),
+                },
                 { key: "urgent", value: urgent, label: "24시간 내 영구 삭제", kind: urgent > 0 ? "warn" : undefined },
               ]}
               sx={{ mb: 2.5 }}

@@ -26,7 +26,7 @@ def list_items(db: Session) -> list[TrashItem]:
 
 
 def list_visible(
-    db: Session, scope, *, limit: int = DEFAULT_TRASH_LIST_LIMIT
+    db: Session, scope, *, limit: int = DEFAULT_TRASH_LIST_LIMIT, item_type: str | None = None
 ) -> tuple[list[TrashItem], int]:
     """그 사람이 볼 수 있는 휴지통 항목만 (1순위 유출 #6 / Z15).
 
@@ -55,6 +55,10 @@ def list_visible(
     from app.core.scope import visible_user_ids
 
     rows = list_items(db)
+    # 종류로 좁히는 것도 **자르기 전에** 한다. 화면에서 거르면 상한 안에 그 종류가 몇 건
+    # 들어왔는지에 따라 목록이 달라지고, 「몇 건 중 어디쯤」도 함께 틀린다.
+    if item_type:
+        rows = [r for r in rows if r.item_type == item_type]
     # RBAC 재감사(2026-08-16)로 발견: `is_dept`일 때만 걸렀던 원래 조건은 org 범위
     # (admin_scope='org') 관리자를 global과 똑같이 취급해 다른 조직이 지운 항목까지
     # 그대로 냈다. 진짜 무제한은 global뿐이므로 그 경우만 건너뛴다.

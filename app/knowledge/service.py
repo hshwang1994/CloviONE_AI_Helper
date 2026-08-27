@@ -39,6 +39,7 @@ from app.knowledge import (
     recent_views,
     relations,
     tags,
+    templates as doc_templates,
     versions,
 )
 from app.knowledge.models import (
@@ -67,6 +68,14 @@ __all__ = [
     "save_document",
     "move_document",
     "delete_document",
+    "restore_document",
+    "purge_document",
+    "can_manage_trashed",
+    "list_page_extras",
+    "workspace_summary",
+    "author_options",
+    "titles_of",
+    "recent_documents",
     "document_detail",
     "restore_document_version",
     "get_scoped_document_by_legacy_page_id",
@@ -258,15 +267,43 @@ def _document_scope(db: Session, user: User):
     return ctx, effective_visibility_clause(ctx, RESOURCE_KNOWLEDGE_DOC)
 
 
+#: 목록의 정렬 축. 이름 → SQL 표현으로 **여기 한 곳**에서 푼다.
+#:
+#: 화면이 컬럼 이름을 문자열로 보내고 서버가 그대로 `order_by` 에 넣으면 그것은 SQL 에
+#: 임의의 이름을 실어 보내는 길이다(같은 이유로 `app/work/rank.py` 가 허용 목록을 둔다).
+#: 모르는 값은 기본값으로 떨어진다 — 거절하면 옛 주소를 들고 온 사람의 목록이 통째로 깨진다.
+SORTS: tuple[str, ...] = ("recent", "created", "title", "archived")
+
+
+def _order_by(sort: str | None):
+    """정렬은 **전순서**여야 한다 — 뒤에 `id` 를 붙이는 이유가 그것이다(아래 주석)."""
+    if sort == "created":
+        return (Document.created_at.desc(), Document.id.asc())
+    if sort == "title":
+        return (Document.title.asc(), Document.id.asc())
+    if sort == "archived":
+        # 휴지통이 쓰는 축. 0021 이전에 보관된 문서는 이 값이 NULL 이라 뒤로 보낸다 —
+        # 앞에 세우면 「가장 최근에 버린 것」 자리에 시각을 모르는 행이 선다.
+        return (Document.archived_at.desc().nullslast(), Document.id.asc())
+    return (Document.updated_at.desc(), Document.id.asc())
+
+
 def list_documents(
     db: Session, user: User, *, space_id: str | None = None, folder_id: str | None = None,
     q: str | None = None, tag: str | None = None, favorites: bool = False,
-    include_archived: bool = False, limit: int = 50, offset: int = 0,
+    include_archived: bool = False, archived_only: bool = False,
+    created_by: str | None = None, drafts: bool = False, sort: str | None = None,
+    limit: int = 50, offset: int = 0,
 ) -> tuple[list[Document], int]:
     """문서 목록. **권한 조건이 상한 앞에 걸린다**(Z6 · D-202).
 
     `folder_id` 는 그 폴더 **아래 전부**를 뜻한다. 직계 자식만 보여 주면 사용자는
     「분명 여기 넣었는데 없다」를 자주 만난다 — 폴더를 한 겹 더 만든 사실을 잊기 때문이다.
+
+    `drafts` 는 「아직 한 번도 고치지 않은 문서」다. 이 제품에 **초안 상태 같은 것은
+    없고**(문서에 상태 칸이 없다) 만들지도 않는다 — 대신 이미 있는 사실 하나를 읽는다:
+    `version` 은 만들 때 1 이고 저장할 때마다 오른다. 그래서 `version <= 1` 은 「만들어
+    놓고 아직 손대지 않았다」와 정확히 같은 말이다.
     """
     ctx, clause = _document_scope(db, user)
 
@@ -279,11 +316,29 @@ def list_documents(
     if folder_id:
         folder = get_scoped_folder_or_404(db, user, folder_id)
         stmt = stmt.where(Document.folder_id.in_(folders.subtree_ids(db, folder)))
-    if not include_archived:
+    if archived_only:
+        # 휴지통이 쓰는 갈래다. `include_archived` 는 「보관된 것도 함께」이고 이쪽은
+        # 「보관된 것만」이라 다른 질문이다 — 한 깃발로 둘을 표현하면 휴지통이 살아 있는
+        # 문서를 함께 보여 준다.
+        stmt = stmt.where(Document.archived.is_(True))
+    elif not include_archived:
         stmt = stmt.where(Document.archived.is_(False))
+    if created_by:
+        stmt = stmt.where(Document.created_by == created_by)
+    if drafts:
+        stmt = stmt.where(Document.version <= 1)
     if q and q.strip():
         needle = f"%{q.strip()}%"
-        stmt = stmt.where(Document.title.ilike(needle))
+        # 제목**과 본문**을 본다 (지시 22.4). 본문은 현재 판의 파생 텍스트에서 찾는다 —
+        # Block JSON 을 뒤지면 서식 속성까지 걸려서 「없는 말」이 찾아진다.
+        from app.knowledge.models import DocumentVersion
+
+        stmt = stmt.where(
+            Document.title.ilike(needle)
+            | Document.current_version_id.in_(
+                select(DocumentVersion.id).where(DocumentVersion.body_text.ilike(needle))
+            )
+        )
     if tag and tag.strip():
         from app.knowledge.models import DocumentTag, Tag
 
@@ -318,7 +373,7 @@ def list_documents(
             # **1쪽에 나온 문서를 2쪽에 또 내거나 아예 빠뜨린다** — 사용자에게는 "문서가
             # 사라졌다" 로 보이고 새로고침하면 돌아와서 재현조차 안 된다. 이관은 문서
             # 여럿을 한 회차에 적재하므로 같은 시각이 실제로 생긴다.
-            stmt.order_by(Document.updated_at.desc(), Document.id.asc())
+            stmt.order_by(*_order_by(sort))
             .limit(max(1, min(limit, PAGE_MAX)))
             .offset(max(0, offset))
         ).scalars().all()
@@ -341,6 +396,7 @@ def create_document(
     folder_id: str | None = None, body: dict | None = None,
     doc_type: str | None = None, source_type: str = SOURCE_USER,
     tag_names: list[str] | None = None, confidential: bool = False,
+    template: str | None = None,
 ) -> Document:
     space = get_scoped_space_or_404(db, user, space_id)
     if source_type not in SOURCE_TYPES:
@@ -353,6 +409,11 @@ def create_document(
     clean_title = (title or "").strip()
     if not clean_title:
         raise ValidationAppError("문서 제목을 입력해 주세요.")
+
+    # 틀은 **본문이 없을 때만** 채운다. 본문을 들고 온 경로(제안을 문서로 옮기는 자리)가
+    # 틀 때문에 그 내용을 잃으면, 사용자는 자기가 쓴 글이 사라진 것으로 본다.
+    if body is None:
+        body = doc_templates.body_for(template)
 
     document = Document(
         space_id=space.id,
@@ -453,17 +514,89 @@ def move_document(
     return document
 
 
-def delete_document(db: Session, user: User, document_id: str) -> Document:
+def delete_document(db: Session, user: User, document_id: str, *, now=None) -> Document:
     """보관 처리다 — 행을 지우지 않는다.
 
     지우면 이력·멘션·관계가 CASCADE 로 함께 사라지고, 셋 다 재계산으로 안 돌아온다.
     「지웠다」와 「보이지 않는다」는 사용자에게 같은 일이지만 복구 가능성이 다르다.
+
+    **누가 언제 버렸는지를 함께 적는다** (0021). 그 둘이 없으면 휴지통이 「삭제한 사람」도
+    「삭제 예정」도 말할 수 없고, 되살릴 권한을 누구에게 줄지도 판정할 수 없다.
     """
     document = get_scoped_document_or_404(db, user, document_id)
     document.archived = True
+    document.archived_at = now or utcnow()
+    document.archived_by = user.id
     document.version += 1
     db.flush()
     return document
+
+
+def restore_document(db: Session, user: User, document_id: str) -> Document:
+    """휴지통에서 되살린다 — `archived` 를 내린다 (지시 22.7).
+
+    ## 무엇을 확인하는가
+
+    * **공간**은 확인할 필요가 없다. 공간이 사라졌으면 문서도 CASCADE 로 함께 사라져
+      여기까지 못 온다.
+    * **폴더**도 마찬가지다. 폴더를 지우면 문서의 `folder_id` 는 그때 이미 NULL 이 됐고
+      (SET NULL), 그 문서는 공간 첫 화면으로 올라온다.
+    * **권한**은 지금 이 사람의 것으로 다시 본다 — `get_scoped_document_or_404` 가 그
+      문이다. 버릴 때 보이던 문서가 지금은 안 보일 수 있고, 그때는 404 다.
+    * **판 · 관계 · 첨부**는 애초에 안 사라졌다. 보관은 행을 지우는 것이 아니었다.
+    * **색인**은 다시 건다. 보관 중에는 검색과 AI 후보에서 빠져 있었으므로
+      (`app/search/indexer.py` · `app/ai/retrieval/service.py`), 되살린 문서가 다시
+      찾아지려면 신호가 필요하다.
+
+    두 번 눌러도 같은 결과다 — 이미 살아 있으면 아무 일도 안 한다. 실패로 만들면 목록을
+    열어 둔 사이에 누가 먼저 되살린 경우가 오류로 보인다.
+    """
+    from app.ai.index import service as index_service
+
+    document = get_scoped_document_or_404(db, user, document_id)
+    if not document.archived:
+        return document
+    document.archived = False
+    document.archived_at = None
+    document.archived_by = None
+    document.version += 1
+    index_service.enqueue(db, document.id)
+    db.flush()
+    return document
+
+
+def purge_document(db: Session, user: User, document_id: str) -> dict:
+    """영구 삭제 — **행을 지운다. 되돌릴 수 없다.**
+
+    보관과 다른 동작이다. 보관은 `archived` 를 세우는 것이라 되살릴 수 있고, 이것은
+    `documents` 행을 지워 판·태그·관계·멘션·댓글·즐겨찾기·색인 조각이 CASCADE 로 함께
+    사라진다. 그래서 **휴지통에 있는 문서만** 지날 수 있다: 살아 있는 문서를 이 문으로
+    지우는 경로를 열어 두면 「삭제」 버튼 하나가 실수로 영구 삭제가 된다.
+
+    첨부의 **파일 자체는 안 지운다**. 지우는 것은 문서와 파일을 잇는 줄(`document_attachments`)
+    뿐이고, 바이너리는 저장소 정책의 별도 Sweep 이 맡는다(지시 22.3).
+    """
+    document = get_scoped_document_or_404(db, user, document_id)
+    if not document.archived:
+        raise ValidationAppError("휴지통에 있는 문서만 영구 삭제할 수 있습니다.")
+    info = {"id": document.id, "title": document.title}
+    db.delete(document)
+    db.flush()
+    return info
+
+
+def can_manage_trashed(user: User, document: Document) -> bool:
+    """되살리기·영구 삭제를 할 수 있는 사람 — **공용 휴지통과 같은 규칙**이다.
+
+    `app/trash/service.py::ensure_can_manage` 가 「운영자군이거나 버린 본인」으로 정해
+    뒀다. 문서라고 다른 기준을 쓰면 같은 화면의 두 줄이 다른 규칙으로 움직인다.
+
+    범위(어느 문서가 보이는가)는 여기서 안 본다 — 그것은 이미
+    `get_scoped_document_or_404` 가 답했고, 두 곳에서 답하면 한쪽만 고쳐지는 날이 온다.
+    """
+    from app.core.authz import MODERATOR_ROLES
+
+    return user.role in MODERATOR_ROLES or document.archived_by == user.id
 
 
 def document_detail(db: Session, user: User, document_id: str) -> dict:
@@ -490,7 +623,29 @@ def document_detail(db: Session, user: User, document_id: str) -> dict:
         "tags": tags.of_document(db, document.id),
         "relations": related,
         "backlinks": [{"document_id": m.document_id, "block_id": m.block_id} for m in back],
+        # 이 문서가 가리키는 티켓 (지시 22.8). **티켓 축으로 좁혀서** 낸다 — 문서가 보인다고
+        # 그 문서가 언급한 티켓이 보이는 것은 아니다(회의 화면에서 같은 것을 놓칠 뻔했다).
+        "ticket_mentions": _visible_ticket_mentions(db, user, document.id),
     }
+
+
+def _visible_ticket_mentions(db: Session, user: User, document_id: str) -> list[dict]:
+    """{ticket_id, key, title} — 내가 볼 수 있는 티켓만.
+
+    판정은 업무 도메인이 이미 가진 것을 그대로 쓴다(`work.service._visible_tickets_stmt`,
+    D-194). 여기서 규칙을 다시 적으면 문서 화면만 옛 규칙으로 남는다.
+    """
+    from app.tickets.models import Ticket
+    from app.work import service as work_service
+    from app.work.resolve import display_key
+
+    ids = [m.target_id for m in mentions.of_document(db, document_id, target_kind="ticket")]
+    if not ids:
+        return []
+    rows = db.execute(
+        work_service._visible_tickets_stmt(db, user).where(Ticket.id.in_(tuple(dict.fromkeys(ids))))
+    ).scalars().all()
+    return [{"ticket_id": t.id, "key": display_key(t), "title": t.title} for t in rows]
 
 
 def _visible_document_ids(db: Session, user: User, ids: list[str]) -> set[str]:
@@ -522,6 +677,227 @@ def restore_document_version(
     mentions.sync(db, document, version.body)
     db.flush()
     return {"document": document, "version": version}
+
+
+# ── 목록 한 쪽에 붙는 것들 (지시 22.4) ──────────────────────────────────────
+#
+# 목록 화면이 문서마다 물어야 하는 것이 다섯이다: 누가 썼는가 · 무슨 내용인가 · 어느
+# 폴더인가 · 첨부와 댓글이 있는가. 문서마다 묻게 두면 한 화면이 문서 수의 다섯 배만큼
+# 질의를 낸다. 그래서 **쪽 단위로 한 번에** 모은다 — 판·회의 화면이 사람 조각을 한 번에
+# 만드는 것과 같은 관용이다(`app/work/service.py::_people`).
+
+
+#: 목록에 싣는 본문 미리보기의 길이. 줄이면 무슨 문서인지 못 알아보고, 늘리면 목록이
+#: 본문 읽는 자리가 된다.
+EXCERPT_CHARS = 160
+
+
+def _excerpt(text: str | None) -> str:
+    """본문 앞머리 한 줄. 줄바꿈은 공백으로 편다 — 목록 한 줄에 들어가야 한다."""
+    clean = " ".join((text or "").split())
+    if len(clean) <= EXCERPT_CHARS:
+        return clean
+    return clean[:EXCERPT_CHARS].rstrip() + "…"
+
+
+def _folder_paths(db: Session, space_ids: list[str]) -> dict[str, dict]:
+    """{folder_id: {name, path}} — 「어느 폴더인가」를 조상까지 적는다.
+
+    `1-1. CloviONE` 만 보여 주면 같은 이름의 폴더가 두 공간에 있을 때 구별이 안 된다.
+    공간의 폴더는 몇 개뿐이라 그 공간 것을 통째로 읽고 파이썬에서 잇는다 — 폴더마다
+    조상을 재귀 질의로 물으면 목록 한 쪽이 트리 깊이만큼 느려진다.
+    """
+    if not space_ids:
+        return {}
+    rows = list(db.execute(
+        select(Folder).where(Folder.space_id.in_(tuple(sorted(set(space_ids)))))
+    ).scalars().all())
+    by_id = {f.id: f for f in rows}
+    out: dict[str, dict] = {}
+    for folder in rows:
+        names = []
+        seen = set()
+        cursor = folder
+        # 순환은 생길 수 없지만(`folders.move` 가 막는다) 방어는 둔다 — 여기서 도는
+        # 무한 루프는 목록 응답 하나가 통째로 멈추는 결과다.
+        while cursor is not None and cursor.id not in seen:
+            seen.add(cursor.id)
+            names.append(cursor.name)
+            cursor = by_id.get(cursor.parent_id) if cursor.parent_id else None
+        out[folder.id] = {"name": folder.name, "path": " > ".join(reversed(names))}
+    return out
+
+
+def list_page_extras(db: Session, user: User, documents: list[Document]) -> dict:
+    """목록 한 쪽이 그리는 데 필요한 것 전부 — **질의 수는 문서 수와 무관하다.**"""
+    from app.core.people import identities_for
+    from app.knowledge.models import (
+        DocumentAttachment,
+        DocumentComment,
+        DocumentRelation,
+        DocumentVersion,
+    )
+    from app.users.models import User as UserModel
+
+    ids = [d.id for d in documents]
+    if not ids:
+        return {"people": {}, "excerpts": {}, "counts": {}, "folders": {}, "spaces": {}}
+
+    version_ids = [d.current_version_id for d in documents if d.current_version_id]
+    excerpts: dict[str, str] = {}
+    if version_ids:
+        rows = db.execute(
+            select(DocumentVersion.document_id, DocumentVersion.body_text)
+            .where(DocumentVersion.id.in_(tuple(sorted(set(version_ids)))))
+        ).all()
+        excerpts = {doc_id: _excerpt(text) for doc_id, text in rows}
+
+    author_ids = {d.created_by for d in documents if d.created_by}
+    author_ids |= {d.archived_by for d in documents if d.archived_by}
+    authors: dict[str, object] = {}
+    if author_ids:
+        for row in db.execute(
+            select(UserModel).where(UserModel.id.in_(tuple(sorted(author_ids))))
+        ).scalars().all():
+            authors[row.id] = row
+    people = identities_for(db, authors) if authors else {}
+
+    def _counts(model, column) -> dict[str, int]:
+        rows = db.execute(
+            select(column, func.count())
+            .where(column.in_(tuple(ids)))
+            .group_by(column)
+        ).all()
+        return {key: int(n) for key, n in rows}
+
+    counts = {
+        "attachments": _counts(DocumentAttachment, DocumentAttachment.document_id),
+        "comments": _counts(DocumentComment, DocumentComment.document_id),
+        # 관계는 **양방향**이다. 「관련 문서 2건」이라고 적어 놓고 상세에서 3건이 나오면
+        # 목록이 틀린 것처럼 보인다 — 상세(`relations.of_document`)도 양쪽을 센다.
+        "relations": _counts(DocumentRelation, DocumentRelation.from_document_id),
+    }
+    inverse = _counts(DocumentRelation, DocumentRelation.to_document_id)
+    for doc_id, n in inverse.items():
+        counts["relations"][doc_id] = counts["relations"].get(doc_id, 0) + n
+
+    space_ids = [d.space_id for d in documents]
+    spaces = {
+        row.id: row.name
+        for row in db.execute(
+            select(KnowledgeSpace).where(KnowledgeSpace.id.in_(tuple(sorted(set(space_ids)))))
+        ).scalars().all()
+    }
+    return {
+        "people": people,
+        "excerpts": excerpts,
+        "counts": counts,
+        "folders": _folder_paths(db, space_ids),
+        "spaces": spaces,
+    }
+
+
+def author_options(db: Session, user: User) -> list[dict]:
+    """「작성자」로 좁힐 후보 — **내가 볼 수 있는 문서의 작성자만.**
+
+    후보를 사용자 표에서 통째로 뽑으면 문서를 한 건도 안 쓴 사람이 목록에 서고, 무엇보다
+    **남의 부서 문서만 쓴 사람의 이름이 이 화면에 나온다.** 후보 목록도 데이터다.
+
+    한 쪽치가 아니라 **보이는 전체**에서 뽑는다 — 지금 쪽에 없는 사람으로 좁힐 수 있어야
+    필터가 뜻을 갖는다.
+    """
+    from app.core.people import name_map
+
+    _, clause = _document_scope(db, user)
+    stmt = select(Document.created_by).where(
+        Document.archived.is_(False), Document.created_by.is_not(None)
+    ).distinct()
+    if clause is not None:
+        stmt = stmt.where(clause)
+    ids = [str(v) for v in db.execute(stmt).scalars().all() if v]
+    names = name_map(db, ids)
+    rows = [
+        {"value": uid, "label": (names.get(uid) or {}).get("display_name") or "이름 없음"}
+        for uid in ids
+    ]
+    return sorted(rows, key=lambda r: r["label"])
+
+
+def titles_of(db: Session, user: User, document_ids: list[str]) -> dict[str, str]:
+    """{문서 id: 제목} — **볼 수 있는 것만.**
+
+    관계와 역링크는 이미 가시성으로 좁혀서 온다(`document_detail`). 여기서 한 번 더 좁히는
+    이유는 이 함수가 그 사실을 모르기 때문이다 — 다음에 다른 곳에서 부르는 날, 안 좁히면
+    남의 공간 문서 제목이 그 화면으로 나간다.
+    """
+    ids = [i for i in dict.fromkeys(document_ids or []) if i]
+    if not ids:
+        return {}
+    _, clause = _document_scope(db, user)
+    stmt = select(Document.id, Document.title).where(Document.id.in_(tuple(ids)))
+    if clause is not None:
+        stmt = stmt.where(clause)
+    return {doc_id: title for doc_id, title in db.execute(stmt).all()}
+
+
+def workspace_summary(db: Session, user: User, *, now) -> dict:
+    """작업공간 위에 서는 수 넷 (지시 22.4).
+
+    **누르면 좁혀지는 수만 낸다.** 장식용 숫자는 화면을 채우지만 아무 행동으로도 이어지지
+    않고, 이어지지 않는 수는 다음 회차에 아무도 안 본다. 그래서 각 수는 아래 목록의 조건
+    하나와 **같은 판정**을 쓴다 — 「최근 수정 12」를 눌렀는데 아홉 줄이 나오면 화면이 자기
+    말을 못 지킨 것이다.
+    """
+    from datetime import timedelta
+
+    from app.knowledge.models import DocumentFavorite
+
+    _, clause = _document_scope(db, user)
+
+    def _count(*conditions) -> int:
+        stmt = select(func.count()).select_from(Document).where(Document.archived.is_(False))
+        if clause is not None:
+            stmt = stmt.where(clause)
+        for condition in conditions:
+            stmt = stmt.where(condition)
+        return int(db.execute(stmt).scalar_one())
+
+    return {
+        "total": _count(),
+        # 「오늘」이 아니라 「최근 24시간」이다. 달력일로 자르면 자정 직후에 이 수가 0 이
+        # 되는데, 그때 사람이 보고 싶은 것은 어젯밤에 고친 문서다.
+        "recent": _count(Document.updated_at >= now - timedelta(hours=24)),
+        "favorites": _count(
+            Document.id.in_(
+                select(DocumentFavorite.document_id).where(DocumentFavorite.user_id == user.id)
+            )
+        ),
+        "drafts": _count(Document.created_by == user.id, Document.version <= 1),
+    }
+
+
+def recent_documents(db: Session, user: User, *, limit: int = 8) -> list[Document]:
+    """내가 최근에 연 문서. **지금 볼 수 있는 것만** 낸다.
+
+    옛 기록은 그대로 남아 있어도 그 사이 공간 권한이 바뀌었을 수 있다 — 기록을 근거로
+    보여 주면 목록에서 가린 문서를 「최근 열람」이 열어 준다.
+    """
+    from app.knowledge.models import DocumentRecentView
+
+    _, clause = _document_scope(db, user)
+    stmt = (
+        select(Document)
+        .join(DocumentRecentView, DocumentRecentView.document_id == Document.id)
+        .where(
+            DocumentRecentView.user_id == user.id,
+            Document.archived.is_(False),
+        )
+    )
+    if clause is not None:
+        stmt = stmt.where(clause)
+    return list(db.execute(
+        stmt.order_by(DocumentRecentView.viewed_at.desc()).limit(max(1, min(limit, 50)))
+    ).scalars().all())
 
 
 # ── 옛 주소를 지금 문서로 (S14 · C2) ─────────────────────────────────────────

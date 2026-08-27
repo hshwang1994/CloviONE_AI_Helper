@@ -39,6 +39,7 @@ Domain 인가**를 치는 사람이 그때그때 기억으로 정하기 때문�
 ## 쓰는 법
 
     python scripts/reset_domain_data.py chat --dry-run      # 표·FK·행 수만 보고 끝낸다
+    python scripts/reset_domain_data.py document --dry-run --snapshot-dir …  # 받아만 둔다
     python scripts/reset_domain_data.py chat --snapshot-dir /var/backups/clovir
     python scripts/reset_domain_data.py chat --snapshot-dir … --purge-files --yes
 
@@ -51,6 +52,7 @@ import argparse
 import os
 import subprocess
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -61,16 +63,67 @@ if str(PROJECT_ROOT) not in sys.path:
 #:
 #: 순서를 FK 로 자동 계산하지 않는 이유: 계산이 맞아도 사람이 읽어서 확인할 수 없다.
 #: 여기 적힌 순서가 틀리면 외래키가 즉시 거절하므로, 틀린 채로 지나가지 않는다.
-DOMAINS: dict[str, tuple[str, ...]] = {
+@dataclass(frozen=True)
+class Target:
+    """지울 표 하나. `where` 가 있으면 **그 표의 일부**다.
+
+    부분 삭제가 필요한 이유는 하나뿐이다: 검색 색인(`search_documents`)은 티켓·게시판·
+    사용자와 문서를 **한 표에** 담는다. 표 전체를 비우면 문서를 지우면서 티켓 검색이
+    함께 사라지고, 그것은 이 작업이 허락받은 범위가 아니다.
+
+    조건은 코드에 상수로만 적는다 — 명령행에서 받지 않는다. 받는 순간 이 스크립트는
+    「임의의 DELETE 를 실행하는 도구」가 되고, 목록을 코드에 적어 둔 의미가 없어진다.
+    """
+
+    table: str
+    where: str = ""
+
+    def __str__(self) -> str:
+        return f"{self.table} ({self.where})" if self.where else self.table
+
+
+DOMAINS: dict[str, tuple[Target, ...]] = {
     # 팀 채팅(사내 메신저). `conversations`/`messages` 는 **여기 없다** — 그쪽은 AI 도우미의
     # 대화 기록이라 다른 Domain 이고, 지시 17 이 말한 「Chat DB 데이터」가 아니다.
     # 넣고 싶으면 사용자에게 다시 확인받고 이 목록에 적는다.
     "chat": (
-        "chat_message_images",   # → chat_messages
-        "chat_messages",         # → chat_rooms
-        "chat_read_cursors",     # → chat_rooms
-        "chat_room_members",     # → chat_rooms
-        "chat_rooms",
+        Target("chat_message_images"),   # -> chat_messages
+        Target("chat_messages"),         # -> chat_rooms
+        Target("chat_read_cursors"),     # -> chat_rooms
+        Target("chat_room_members"),     # -> chat_rooms
+        Target("chat_rooms"),
+    ),
+    # 문서(Native Knowledge). 지시 22.3 이 「사용자 Document 데이터와 그 문서에서 직접
+    # 파생된 DB 데이터」라고 적은 범위다.
+    #
+    # **여기 없는 것이 여기 있는 것만큼 중요하다.**
+    #
+    #   * `knowledge_spaces` · `folders` — 문서가 아니라 문서가 사는 **골격**이다. 비우면
+    #     초기화 뒤 「새 문서」가 고를 공간이 하나도 없어서 문서를 만들 수 없다.
+    #   * `files` — 첨부의 **본체 메타데이터**이고 그 뒤에 실제 바이너리가 있다. 지시가
+    #     이름으로 지우지 말라고 적었다. 여기서 지우는 것은 문서와 파일을 잇는 줄
+    #     (`document_attachments`)뿐이고, 파일 자체는 남아 별도 Sweep 대상이 된다.
+    #   * `document_cache` — 옛 Notion 미러다. 향후 1회성 재이관의 계보라 지시 22.2 가
+    #     남기라고 적었다. 지금 화면은 이 표를 읽지 않는다.
+    #   * `trash_items` — 티켓도 함께 들어 있는 공용 표다. Native 문서는 이 표를 쓰지 않고
+    #     (`documents.archived` 가 휴지통의 정본이다), 지금 문서 항목도 0건이다.
+    "document": (
+        Target("document_chunks"),         # -> documents, files, document_versions
+        Target("ai_index_state"),          # -> documents
+        Target("document_recent_views"),   # -> documents
+        Target("document_favorites"),      # -> documents
+        Target("document_comments"),       # -> documents
+        Target("document_mentions"),       # -> documents
+        Target("document_attachments"),    # -> documents, files (**연결만** 지운다)
+        Target("document_relations"),      # -> documents (양방향)
+        Target("document_tags"),           # -> documents, tags
+        Target("tags"),                    # 문서 태그 어휘. 문서가 없으면 뜻이 없다
+        # 판을 문서보다 **먼저** 지운다. 두 표가 서로를 가리키는데
+        # (`documents.current_version_id` -> SET NULL) 이 방향이라야 한 번에 풀린다.
+        Target("document_versions"),
+        Target("documents"),
+        # 부분 삭제 하나 — 문서 색인만. 티켓·게시판·사용자 색인은 그대로 둔다.
+        Target("search_documents", where="kind = 'document'"),
     ),
 }
 
@@ -114,17 +167,35 @@ PROTECTED: tuple[str, ...] = (
     "tickets", "ticket_cache", "ticket_activities", "ticket_comments",
     "roles", "role_permissions", "user_roles", "permissions",
     "audit_logs",
+    # ── 문서 회차가 이름으로 지목한 것들 (지시 22.3) ──────────────────────────
+    # 문서를 지우면서 함께 사라지기 **쉬운** 것들이라 여기 적는다. 셋 다 「문서 데이터」로
+    # 읽힐 수 있지만 하나도 문서가 아니다.
+    "knowledge_spaces",   # 문서가 사는 골격. 비우면 새 문서를 만들 공간이 없어진다
+    "folders",            # 같은 골격의 정리 축
+    "files",              # 첨부의 본체 메타데이터. 그 뒤에 실제 바이너리가 있다
+    "document_cache",     # 옛 Notion 미러 — 향후 1회성 재이관의 계보 (지시 22.2)
+    "trash_items",        # 티켓이 함께 들어 있는 공용 표
+    # AI 도우미의 대화 기록. 사내 메신저(`chat_*`)와 다른 Domain 이고, 지우라는 요청을
+    # 받은 적이 없다. 채팅 회차에 실제로 헷갈릴 뻔한 자리라 이름으로 잠근다.
+    "conversations", "messages",
 )
 
 #: 삭제 뒤 「그대로인가」를 확인할 표. 여기 수가 바뀌었으면 사고다.
 WITNESS: tuple[str, ...] = ("users", "projects", "tickets")
 
 
+def _settings():
+    """설치의 설정 한 벌. **`Settings()` 를 직접 만든다** — 이 저장소에는 캐시된 접근자가
+    없다(`app/main.py` 도 같은 방식으로 만든다). 값은 서비스가 읽는 환경 파일에서 온다."""
+    from app.core.config import Settings
+
+    return Settings()
+
+
 def _engine():
-    from app.core.config import get_settings
     from app.core.db import make_engine
 
-    return make_engine(get_settings().database_url)
+    return make_engine(_settings().database_url)
 
 
 def _table_names(conn) -> set[str]:
@@ -133,10 +204,13 @@ def _table_names(conn) -> set[str]:
     return set(inspect(conn).get_table_names())
 
 
-def _count(conn, table: str) -> int:
+def _count(conn, table: str, where: str = "") -> int:
     from sqlalchemy import text as sa_text
 
-    return conn.execute(sa_text(f'SELECT count(*) FROM "{table}"')).scalar_one()
+    sql = f'SELECT count(*) FROM "{table}"'
+    if where:
+        sql += f" WHERE {where}"
+    return conn.execute(sa_text(sql)).scalar_one()
 
 
 def _foreign_keys(conn, table: str) -> list[str]:
@@ -150,12 +224,15 @@ def _foreign_keys(conn, table: str) -> list[str]:
     return out
 
 
-def _snapshot(tables: tuple[str, ...], out_dir: Path, url: str) -> Path:
+def _snapshot(domain: str, tables: list[str], out_dir: Path, url: str) -> Path:
     """`pg_dump` 로 **그 표들만** 받는다. 경로를 돌려준다.
 
     전체 덤프를 받지 않는 이유: 이 작업의 되돌리기 대상은 그 표들이고, 전체 덤프는
     되돌릴 때 남의 Domain 까지 함께 되돌릴 수 있는 도구가 된다. 좁은 스냅샷이 좁은
     복구를 강제한다.
+
+    부분 삭제 대상(`Target.where`)도 **표 전체**를 받는다. 조건에 맞는 행만 받으면
+    되돌릴 때 그 표의 나머지가 어떤 상태였는지 알 수 없고, 스냅샷은 넉넉한 쪽이 안전하다.
 
     `pg_dump` 경로는 `PGDUMP` 로 덮을 수 있다 — `PATH` 의 것이 서버보다 낮은 버전이면
     거절당한다(`app/core/config.py` 가 같은 사정을 적어 뒀다).
@@ -163,7 +240,7 @@ def _snapshot(tables: tuple[str, ...], out_dir: Path, url: str) -> Path:
     out_dir.mkdir(parents=True, exist_ok=True)
     # 파일 이름에 시각을 넣지 않는다 — 이 스크립트는 시계를 읽지 않고, 호출부가 디렉터리로
     # 회차를 가른다. 같은 디렉터리에 두 번 받으면 덮어쓴다는 뜻이고, 그게 의도다.
-    target = out_dir / "chat-domain.sql"
+    target = out_dir / f"{domain}-domain.sql"
     cmd = [os.environ.get("PGDUMP", "pg_dump"), "--data-only", "--no-owner", "--no-privileges"]
     for t in tables:
         cmd += ["--table", t]
@@ -201,12 +278,11 @@ def main() -> int:
 
     from sqlalchemy import text as sa_text
 
-    from app.core.config import get_settings
+    settings = _settings()
+    targets = DOMAINS[args.domain]
+    tables = [t.table for t in targets]
 
-    settings = get_settings()
-    tables = DOMAINS[args.domain]
-
-    bad = [t for t in tables if t in PROTECTED]
+    bad = [t.table for t in targets if t.table in PROTECTED]
     if bad:
         print(f"[FAIL] 보호 대상이 삭제 목록에 있다: {', '.join(bad)}")
         return 1
@@ -219,18 +295,23 @@ def main() -> int:
             print(f"[FAIL] DB 에 없는 표를 적고 있다: {', '.join(missing)}")
             return 1
 
-        print(f"== {args.domain} Domain — 표 {len(tables)}개 ==")
+        print(f"== {args.domain} Domain — 표 {len(targets)}개 ==")
         before = {}
-        for t in tables:
-            before[t] = _count(conn, t)
-            fks = _foreign_keys(conn, t)
-            print(f"  {t:24s} {before[t]:>8,}행   FK: {', '.join(fks) or '없음'}")
+        for t in targets:
+            before[t] = _count(conn, t.table, t.where)
+            fks = _foreign_keys(conn, t.table)
+            print(f"  {str(t):34s} {before[t]:>8,}행   FK: {', '.join(fks) or '없음'}")
         witness_before = {t: _count(conn, t) for t in WITNESS if t in present}
         print("== 지우지 않는 것(대조군) ==")
         for t, n in witness_before.items():
-            print(f"  {t:24s} {n:>8,}행")
+            print(f"  {t:34s} {n:>8,}행")
 
     if args.dry_run:
+        # 스냅샷은 **여기서도** 받을 수 있다. 승인을 받기 전에 되돌릴 자리를 먼저 만들어
+        # 두려는 것이라, 「받아 두기」와 「지우기」를 한 명령에 묶지 않는다.
+        if args.snapshot_dir:
+            snap = _snapshot(args.domain, tables, Path(args.snapshot_dir), settings.database_url)
+            print(f"\n스냅샷: {snap}  ({snap.stat().st_size:,} bytes)")
         print("\nDRY_RUN — 아무것도 지우지 않았다.")
         return 0
 
@@ -241,14 +322,17 @@ def main() -> int:
         print("\n[FAIL] `--yes` 없이는 지우지 않는다. 되돌리기 어려운 일이라 기본값이 «안 함» 이다.")
         return 1
 
-    snap = _snapshot(tables, Path(args.snapshot_dir), settings.database_url)
+    snap = _snapshot(args.domain, tables, Path(args.snapshot_dir), settings.database_url)
     print(f"\n스냅샷: {snap}  ({snap.stat().st_size:,} bytes)")
 
     with engine.begin() as conn:
-        # 한 트랜잭션이다. 중간에 실패하면 **하나도 안 지워진다** — 반쯤 지워진 채팅은
-        # 고아 행과 깨진 방이 남아, 되돌리려면 결국 스냅샷을 통째로 되살려야 한다.
-        for t in tables:
-            conn.execute(sa_text(f'DELETE FROM "{t}"'))
+        # 한 트랜잭션이다. 중간에 실패하면 **하나도 안 지워진다** — 반쯤 지워진 도메인은
+        # 고아 행과 깨진 참조가 남아, 되돌리려면 결국 스냅샷을 통째로 되살려야 한다.
+        for t in targets:
+            sql = f'DELETE FROM "{t.table}"'
+            if t.where:
+                sql += f" WHERE {t.where}"
+            conn.execute(sa_text(sql))
 
     # 지운 **뒤에** 구조를 다시 심는다. 순서가 반대면 방금 심은 행을 그 자리에서 지운다.
     seeds = RESEED.get(args.domain, ())
@@ -262,17 +346,17 @@ def main() -> int:
                 conn.execute(sa_text(sql), {**params, "now": stamp})
 
     with engine.connect() as conn:
-        after = {t: _count(conn, t) for t in tables}
+        after = {t: _count(conn, t.table, t.where) for t in targets}
         witness_after = {t: _count(conn, t) for t in witness_before}
 
     print("== 결과 ==")
-    for t in tables:
-        print(f"  {t:24s} {before[t]:>8,} → {after[t]:>8,}")
+    for t in targets:
+        print(f"  {str(t):34s} {before[t]:>8,} → {after[t]:>8,}")
     # 남아도 되는 것은 **다시 심은 구조 행뿐**이다. 그 수를 세어 두고 그만큼만 허용한다 —
     # 「0 이 아니면 실패」로 두면 재시드를 넣는 순간 검사가 늘 빨개지고, 「그냥 통과」로
     # 두면 안 지워진 사용자 데이터를 못 잡는다.
     seeded = len(RESEED.get(args.domain, ()))
-    left = [t for t, n in after.items() if n]
+    left = [str(t) for t, n in after.items() if n]
     if sum(after.values()) > seeded:
         print(f"[FAIL] 지워지지 않은 표가 있다: {', '.join(left)}")
         return 1
@@ -288,7 +372,7 @@ def main() -> int:
             print(f"  {t}: {b:,} → {a:,}")
         return 1
     for t, n in witness_after.items():
-        print(f"  {t:24s} {n:>8,} (그대로)")
+        print(f"  {t:34s} {n:>8,} (그대로)")
 
     if args.purge_files and args.domain == "chat":
         removed = _purge_files(Path(settings.data_dir), "team_chat")

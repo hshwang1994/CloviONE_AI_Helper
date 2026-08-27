@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 from app.knowledge import blocks
 from app.knowledge.models import Document, DocumentMention
 
-__all__ = ["sync", "backlinks"]
+__all__ = ["sync", "backlinks", "of_document"]
 
 
 def sync(db: Session, document: Document, body: dict) -> tuple[int, int]:
@@ -55,6 +55,21 @@ def sync(db: Session, document: Document, body: dict) -> tuple[int, int]:
 
     db.flush()
     return added, removed
+
+
+def of_document(db: Session, document_id: str, *, target_kind: str) -> list[DocumentMention]:
+    """이 문서가 **가리키는** 것들. `backlinks` 의 반대 방향이다.
+
+    상세 화면의 「관련 티켓」이 이것을 쓴다(지시 22.8). 권한은 여기서 안 본다 — 가리키는
+    대상이 무엇인가에 따라 판정이 다르고(티켓은 프로젝트 축, 문서는 공간 축), 그 판정은
+    각 도메인이 갖는다. 부르는 쪽이 좁히지 않으면 **안 보이는 티켓의 제목이 나간다.**
+    """
+    return list(db.execute(
+        select(DocumentMention).where(
+            DocumentMention.document_id == document_id,
+            DocumentMention.target_kind == target_kind,
+        ).order_by(DocumentMention.created_at)
+    ).scalars().all())
 
 
 def backlinks(

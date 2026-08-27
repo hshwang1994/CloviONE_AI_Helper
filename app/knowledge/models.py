@@ -307,6 +307,15 @@ class Document(TimestampMixin, UUIDPrimaryKeyMixin, Base):
     archived: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default=text("false"), index=True
     )
+    # 「누가 · 언제 버렸는가」 (0021). `archived` 만으로는 휴지통이 「삭제한 사람」도
+    # 「삭제 예정」도 말할 수 없고, 7일 보관 정책을 잴 기준도 없다.
+    #
+    # 되살리면 둘 다 NULL 로 돌아간다 — 살아 있는 문서에 옛 삭제 흔적이 남아 있으면
+    # 다음에 그 값을 읽는 코드가 「이 문서는 버려졌다」로 읽는다.
+    archived_at: Mapped[datetime | None] = mapped_column(DateTime)
+    archived_by: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("users.id", ondelete="SET NULL")
+    )
     created_by: Mapped[str | None] = mapped_column(String(36), ForeignKey("users.id"))
     # 낙관적 잠금 (D-240). 티켓·프로젝트·미러와 **같은 이름의 같은 규약**이다.
     version: Mapped[int] = mapped_column(
@@ -332,6 +341,8 @@ class Document(TimestampMixin, UUIDPrimaryKeyMixin, Base):
             postgresql_where=text("legacy_page_id IS NOT NULL"),
         ),
         Index("ix_document_space_folder", "space_id", "folder_id", "archived"),
+        # 휴지통 목록의 정렬 축. 보관된 문서만 들고 다닌다(0021).
+        Index("ix_document_archived_at", "archived_at", postgresql_where=text("archived")),
         Index("ix_document_updated", "space_id", "updated_at"),
     )
 

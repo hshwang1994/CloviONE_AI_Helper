@@ -1961,11 +1961,17 @@ export function ModalBody({ children }) {
 const MODAL_RADIUS = `${RADIUS.lg}px`;
 
 /* 표준 하단 작업줄 — 취소(고스트), 기본 작업(오른쪽). 전 화면 동일 위치·크기. */
-export function ModalFooter({ onCancel, onSubmit, submitLabel = "저장", cancelLabel = "취소", busy, submitVariant = "primary" }) {
+/* 모달의 마지막 줄. `disabled` 는 **감추는 것과 다르다.**
+ *
+ * 필수 칸을 아직 안 채운 사람에게 필요한 것은 단추가 사라지는 것이 아니라 「무엇이
+ * 모자란가」다. 단추가 없어지면 그 사람은 자기가 잘못 들어온 화면이라고 읽는다 — 그래서
+ * 조건을 못 채운 상태는 **꺼진 단추**로 말하고, `onSubmit` 을 아예 안 주는 것은 「이
+ * 모달에는 확인 동작이 없다」는 다른 뜻으로 남긴다. */
+export function ModalFooter({ onCancel, onSubmit, submitLabel = "저장", cancelLabel = "취소", busy, disabled, submitVariant = "primary" }) {
   return (
     <MuiDialogActions className="k-footer-row" sx={{ px: 3, py: 2, gap: 1 }}>
       {onCancel ? <Button variant="ghost" onClick={onCancel} disabled={busy}>{cancelLabel}</Button> : null}
-      {onSubmit ? <Button variant={submitVariant} onClick={onSubmit} disabled={busy} loading={busy}>{submitLabel}</Button> : null}
+      {onSubmit ? <Button variant={submitVariant} onClick={onSubmit} disabled={busy || disabled} loading={busy}>{submitLabel}</Button> : null}
     </MuiDialogActions>
   );
 }

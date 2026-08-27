@@ -2,62 +2,94 @@ import React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import Box from "@mui/material/Box";
+import Chip from "@mui/material/Chip";
 import MenuItem from "@mui/material/MenuItem";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
+import StarRoundedIcon from "@mui/icons-material/StarRounded";
+import StarOutlineRoundedIcon from "@mui/icons-material/StarOutlineRounded";
 import { api } from "../lib/api.js";
+import { useAuth } from "../app/auth.jsx";
+import { CONSOLE_WRITE_ROLES, hasRole } from "../lib/roles.js";
 import {
   Button,
   Card,
+  DataTable,
   EmptyState,
   ErrorState,
   FormModal,
   ListEmptyState,
+  MetricStrip,
+  Modal,
+  ModalFooter,
+  OverflowMenu,
   PageHeader,
+  Section,
   Skeleton,
+  useConfirm,
   useToast,
 } from "../ui/kit.jsx";
+import { FilterActions, FilterRow, FilterSurface, ResultLine, ToolbarRow } from "../ui/FilterBar.jsx";
 import { DragItem, SortableList } from "../ui/DragDrop.jsx";
-import { EntityCombobox, SearchBox } from "../ui/filters.jsx";
+import { FilterSelect, SearchBox } from "../ui/filters.jsx";
 import { Pager } from "../ui/Pager.jsx";
-import Chip from "@mui/material/Chip";
-import StarRoundedIcon from "@mui/icons-material/StarRounded";
-import { FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
+import { UserAvatar } from "../ui/UserAvatar.jsx";
+import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
 import { fmtDateTimeCompact } from "../lib/format.js";
+import { useListMemory } from "../lib/listReturn.js";
 import { SPACES_KEY, useKnowledgeSpaces } from "../lib/knowledgeSpaces.js";
 
-/* 지식 공간 — 공간 · 폴더 트리 · 문서 목록 (S7).
+/* 문서 작업공간 — 탐색기 · 목록 · 보조 정보 (지시 22.4).
  *
- * ## 폴더와 권한은 다른 축이다
+ * ## 무엇을 바꿨나
  *
- * 폴더는 **정리**다. 문서를 다른 폴더로 옮겨도 볼 수 있는 사람은 안 바뀐다(§5.3). 그래서
- * 이 화면의 폴더 트리에는 권한 표시가 하나도 없다 — 있으면 사람이 「여기로 옮기면 안
- * 보이게 되겠구나」라고 잘못 믿는다. 권한은 공간을 고르는 자리에서만 말한다.
+ * 예전 이 화면은 「왼쪽 좁은 공간 칸 + 오른쪽 긴 카드 목록」이었다. 카드 한 장이 말하는
+ * 것은 제목과 「사람이 쓴 문서입니다」 한 줄뿐이라, 문서가 백 건이 되면 훑어서 찾는 일이
+ * 불가능했다. 문서를 고르는 사람이 실제로 쓰는 단서 — **누가 썼는가 · 어디에 있는가 ·
+ * 언제 고쳤는가 · 무슨 내용인가** — 가 화면에 하나도 없었다.
  *
- * ## 폴더 정렬은 공용 부품을 쓴다
+ * 지금은 표다. 표는 카드보다 밀도가 높고, 무엇보다 **열이 이름을 갖는다** — 같은 자리에
+ * 같은 종류의 값이 서면 눈이 그 열만 훑는다.
  *
- * `DragDrop.jsx` 한 곳이 포인터와 키보드를 함께 받고 스크린리더에 상황을 말한다. 여기서
- * 다시 만들면 그 둘 중 하나가 반드시 빠지고, 빠지는 것은 대개 키보드다 — 마우스로
- * 시험하면 빠진 것처럼 안 보이기 때문이다.
+ * ## 세 칸의 역할이 다르다
  *
- * ## 서버가 「몇 건이 올라왔는지」를 알려 준다
+ *   탐색기 — 「어느 묶음을 볼까」 (공간 · 폴더 · 태그 · 내 것)
+ *   목록   — 「그 안에서 무엇을 열까」
+ *   곁열   — 「방금 보던 것과 자주 보는 것」
  *
- * 폴더를 지우면 그 아래 문서는 안 지워지고 공간 뿌리로 올라온다. 그 사실을 화면이 말하지
- * 않으면 사용자는 문서가 사라졌다고 믿는다. */
+ * 곁열은 **넓을 때만** 선다(지시 22.4). 1366 에서 세 칸을 우기면 목록이 좁아져 제목이
+ * 두 줄로 접히는데, 그러면 밀도를 높이려고 표로 바꾼 의미가 없어진다.
+ *
+ * ## 요약 넷은 누르면 좁혀진다
+ *
+ * 장식용 숫자를 안 둔다. 각 수는 아래 목록의 조건 하나와 **같은 판정**을 쓴다
+ * (`app/knowledge/service.py::workspace_summary`) — 서버가 세는 것과 화면이 좁히는 것이
+ * 갈라지면 「최근 수정 12」를 눌렀는데 아홉 줄이 나온다. */
 
 /* 공간 목록 질의는 `lib/knowledgeSpaces.js` 가 갖는다 — AI 작업공간과 같은 질의라
  * 두 벌로 두면 한쪽만 응답 모양을 잘못 읽는다(S19 에서 실제로 그랬다). 무효화 키는
  * 이 화면이 계속 쓰므로 그대로 다시 내보낸다. */
 export { SPACES_KEY };
 
-/* 한 화면에 보여 주는 문서 수. 서버 기본값과 같은 수다.
+/* 한 화면에 보여 주는 문서 수. 한 줄이 예전 카드보다 낮아져서 스물다섯 줄이 한 화면에
+ * 들어온다 — 쉰 줄로 두면 아래 절반은 아무도 안 보면서 응답만 두 배가 된다. */
+const PAGE_SIZE = 25;
+
+/* 이 목록의 **정체**. 상세를 열었다 돌아오면 조건과 스크롤이 이 이름으로 되살아난다. */
+const LIST_KEY = "/knowledge";
+
+/* 탐색기의 「보기」 넷. 값은 주소에 실린다 — 링크로 건네도 같은 화면이 선다.
  *
- * 예전에는 화면이 `limit`·`offset`·`total` 을 하나도 안 썼다. 서버는 50건에서 자르고
- * 전체 건수를 함께 알려 줬는데 화면이 그 값을 안 읽어서, 문서 110건 중 **60건은 있다는
- * 사실 자체가** 사용자에게 안 보였다. 목록이 끊긴 자리에 아무 표시도 없으면 사람은 그것이
- * 전부라고 믿는다. */
-const PAGE_SIZE = 50;
+ * `recent` 만 다른 입구를 쓴다(`/api/knowledge/recent`). 최근 열람은 사람마다 다르고 길지
+ * 않아서 쪽을 나눌 것이 없다 — 없는 쪽 나누기를 흉내 내지 않는다. */
+const VIEW = { all: "", favorites: "favorites", drafts: "drafts", recent: "recent" };
+
+const SORTS = [
+  { value: "recent", label: "최근 수정순" },
+  { value: "created", label: "만든 날짜순" },
+  { value: "title", label: "제목순" },
+];
 
 function useTree(spaceId) {
   return useQuery({
@@ -69,27 +101,52 @@ function useTree(spaceId) {
 
 /* 옛 문서 화면의 「문서 종류·업무 분야·기술 태그」 세 필터는 대신하지 않는다 — 그 셋은
  * `document_cache` 의 고정 상수 축이고 이관에서 태그(`document_tags`, 61/61)로 손실 없이
- * 들어왔다(S14 결정 D6). 여기서는 그 결과인 **태그 하나**로 좁힌다 — 서버가 이미
- * `tag` 질의를 받는다(`app/knowledge/service.py::list_documents`). */
+ * 들어왔다(S14 결정 D6). 여기서는 그 결과인 **태그 하나**로 좁힌다. */
 function useTags() {
   return useQuery({ queryKey: ["knowledge", "tags"], queryFn: () => api("/api/knowledge/tags") });
 }
 
-function useDocuments({ spaceId, folderId, q, favorites, tag, page }) {
+function useSummary() {
   return useQuery({
-    queryKey: ["knowledge", "documents", spaceId, folderId, q, favorites, tag, page],
+    queryKey: ["knowledge", "summary"],
+    queryFn: () => api("/api/knowledge/summary"),
+  });
+}
+
+function useTemplates() {
+  return useQuery({
+    queryKey: ["knowledge", "templates"],
+    queryFn: () => api("/api/knowledge/templates"),
+    staleTime: 600000,
+  });
+}
+
+function useRecent() {
+  return useQuery({
+    queryKey: ["knowledge", "recent"],
+    queryFn: () => api("/api/knowledge/recent?limit=8"),
+  });
+}
+
+function useDocuments(params) {
+  const { view, spaceId, folderId, q, tag, author, sort, page } = params;
+  return useQuery({
+    queryKey: ["knowledge", "documents", view, spaceId, folderId, q, tag, author, sort, page],
     queryFn: () => {
-      const params = new URLSearchParams();
-      if (spaceId) params.set("space_id", spaceId);
-      if (folderId) params.set("folder_id", folderId);
-      if (q) params.set("q", q);
-      if (favorites) params.set("favorites", "true");
-      if (tag) params.set("tag", tag);
-      params.set("limit", String(PAGE_SIZE));
-      params.set("offset", String((page - 1) * PAGE_SIZE));
-      return api(`/api/knowledge/documents?${params.toString()}`);
+      if (view === VIEW.recent) return api("/api/knowledge/recent?limit=50");
+      const search = new URLSearchParams();
+      if (spaceId) search.set("space_id", spaceId);
+      if (folderId) search.set("folder_id", folderId);
+      if (q) search.set("q", q);
+      if (tag) search.set("tag", tag);
+      if (author) search.set("created_by", author);
+      if (sort) search.set("sort", sort);
+      if (view === VIEW.favorites) search.set("favorites", "true");
+      if (view === VIEW.drafts) { search.set("mine", "true"); search.set("drafts", "true"); }
+      search.set("limit", String(PAGE_SIZE));
+      search.set("offset", String((page - 1) * PAGE_SIZE));
+      return api(`/api/knowledge/documents?${search.toString()}`);
     },
-    enabled: Boolean(spaceId),
   });
 }
 
@@ -104,88 +161,417 @@ function flatten(nodes, out = []) {
   return out;
 }
 
-function FolderTree({ spaceId, folders, selected, onSelect, onReorder, onCreate, onDelete }) {
-  const rows = flatten(folders);
+/** 탐색기 한 줄. 고른 줄은 색과 `aria-current` 둘 다로 말한다. */
+function NavRow({ label, count, selected, indent = 0, onClick, action }) {
+  return (
+    <Stack direction="row" alignItems="center" spacing={0.5} sx={{ width: "100%" }}>
+      <Box
+        component="button"
+        type="button"
+        onClick={onClick}
+        aria-current={selected ? "true" : undefined}
+        sx={(theme) => ({
+          ...KO_WORD_BREAK,
+          flex: 1,
+          minWidth: 0,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 1,
+          textAlign: "left",
+          background: selected ? theme.palette.action.selected : "none",
+          border: "none",
+          borderRadius: 1,
+          cursor: "pointer",
+          font: "inherit",
+          color: "inherit",
+          px: 1,
+          py: 0.625,
+          pl: `${0.75 + indent * 1.1}rem`,
+          fontWeight: selected ? FONT_WEIGHT.semibold : FONT_WEIGHT.regular,
+        })}
+      >
+        <Box component="span" sx={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>
+          {label}
+        </Box>
+        {count == null ? null : (
+          <Box component="span" sx={{ color: "text.secondary", fontSize: FONT_SIZE.caption }}>
+            {count}
+          </Box>
+        )}
+      </Box>
+      {action}
+    </Stack>
+  );
+}
 
-  if (!rows.length) {
-    return (
-      <Stack spacing={1}>
-        <EmptyState
-          title="폴더가 아직 없습니다."
-          help="폴더를 만들면 문서를 주제별로 모아 둘 수 있습니다."
-          action={<Button onClick={onCreate}>폴더 추가</Button>}
-        />
-      </Stack>
-    );
-  }
-
-  const labelOf = (id) => (rows.find((f) => f.id === id) || {}).name || "";
+/* 탐색기 — 「어느 묶음을 볼까」.
+ *
+ * 폴더는 **정리**다. 문서를 다른 폴더로 옮겨도 볼 수 있는 사람은 안 바뀐다(§5.3). 그래서
+ * 폴더 줄에는 권한 표시가 하나도 없다 — 있으면 사람이 「여기로 옮기면 안 보이게 되겠구나」
+ * 라고 잘못 믿는다. 권한은 공간을 고르는 자리에서만 말한다. */
+function Explorer({
+  spaces, spaceId, tree, folderId, view, tags, tag, summary,
+  onView, onSpace, onFolder, onTag, onNewFolder, onDeleteFolder, onReorderFolder, onNewSpace,
+}) {
+  const folders = flatten(tree.data?.folders || []);
+  const labelOf = (id) => (folders.find((f) => f.id === id) || {}).name || "";
 
   return (
-    <Stack spacing={1}>
-      <SortableList items={rows} labelOf={labelOf} onReorder={onReorder}>
-        {(folder) => (
-          <DragItem key={folder.id} id={folder.id} label={folder.name}>
-            <Stack direction="row" alignItems="center" spacing={1} sx={{ width: "100%" }}>
-              <Box
+    <Card sx={{ display: "grid", gap: 2.5, alignContent: "start" }}>
+      <Section title="보기">
+        <Stack spacing={0.25}>
+          <NavRow label="전체 문서" count={summary?.total} selected={view === VIEW.all}
+                  onClick={() => onView(VIEW.all)} />
+          <NavRow label="즐겨찾기" count={summary?.favorites} selected={view === VIEW.favorites}
+                  onClick={() => onView(VIEW.favorites)} />
+          <NavRow label="내 초안" count={summary?.drafts} selected={view === VIEW.drafts}
+                  onClick={() => onView(VIEW.drafts)} />
+          <NavRow label="최근 열람" selected={view === VIEW.recent}
+                  onClick={() => onView(VIEW.recent)} />
+        </Stack>
+      </Section>
+
+      <Section
+        title="문서 공간"
+        action={onNewSpace ? (
+          <Button size="small" variant="ghost" onClick={onNewSpace}>공간 추가</Button>
+        ) : null}
+      >
+        <Stack spacing={0.25}>
+          <NavRow label="모든 공간" selected={!spaceId} onClick={() => onSpace("")} />
+          {spaces.map((space) => (
+            <NavRow
+              key={space.id}
+              label={space.name}
+              selected={spaceId === space.id}
+              onClick={() => onSpace(space.id)}
+            />
+          ))}
+        </Stack>
+      </Section>
+
+      {/* 폴더는 공간을 골랐을 때만 뜻이 있다. 안 골랐는데 빈 칸을 남겨 두면 「폴더가
+          없다」로 읽힌다 — 실제로는 아직 안 물어본 것이다(지시 22.4). */}
+      {spaceId ? (
+        <Section
+          title="폴더"
+          action={<Button size="small" variant="ghost" onClick={onNewFolder}>폴더 추가</Button>}
+        >
+          {tree.isLoading ? <Skeleton kind="section" lines={3} /> : null}
+          {!tree.isLoading && folders.length === 0 ? (
+            <Typography variant="body2" color="text.secondary" sx={KO_WORD_BREAK}>
+              폴더를 만들면 문서를 주제별로 모아 둘 수 있습니다.
+            </Typography>
+          ) : null}
+          {folders.length > 0 ? (
+            /* 트리가 길어지면 **탐색기 안에서만** 굴러간다 (지시 22.4). 이 칸이 페이지를
+               늘리면 목록을 보려고 폴더를 지나쳐 내려가야 한다. */
+            <Box sx={{ maxHeight: "18rem", overflowY: "auto" }}>
+              <SortableList items={folders} labelOf={labelOf} onReorder={onReorderFolder}>
+                {(folder) => (
+                  <DragItem key={folder.id} id={folder.id} label={folder.name}>
+                    <NavRow
+                      label={folder.name}
+                      indent={folder.depth}
+                      selected={folderId === folder.id}
+                      onClick={() => onFolder(folder.id)}
+                      action={(
+                        <Button size="small" variant="ghost" onClick={() => onDeleteFolder(folder)}>
+                          삭제
+                        </Button>
+                      )}
+                    />
+                  </DragItem>
+                )}
+              </SortableList>
+            </Box>
+          ) : null}
+        </Section>
+      ) : null}
+
+      {tags.length > 0 ? (
+        <Section title="태그">
+          <Stack direction="row" spacing={0.5} sx={{ flexWrap: "wrap", rowGap: 0.5 }}>
+            {tags.slice(0, 12).map((t) => (
+              <Chip
+                key={t.id}
                 component="button"
                 type="button"
-                onClick={() => onSelect(folder.id)}
-                aria-current={selected === folder.id ? "true" : undefined}
+                clickable
+                size="small"
+                label={t.name}
+                aria-pressed={tag === t.slug}
+                color={tag === t.slug ? "primary" : "default"}
+                variant={tag === t.slug ? "filled" : "outlined"}
+                onClick={() => onTag(tag === t.slug ? "" : t.slug)}
+              />
+            ))}
+          </Stack>
+        </Section>
+      ) : null}
+    </Card>
+  );
+}
+
+/** 곁열 — 넓은 화면에서만 선다. 여기 있는 것은 전부 **바로 여는** 목록이다. */
+function Rail({ recent, favorites, templates, onOpen, onTemplate }) {
+  return (
+    <Stack spacing={2}>
+      <Card>
+        <Section title="최근 열람">
+          {recent.length === 0 ? (
+            <Typography variant="body2" color="text.secondary" sx={KO_WORD_BREAK}>
+              문서를 열면 여기에 쌓입니다.
+            </Typography>
+          ) : (
+            <Stack spacing={0.75}>
+              {recent.map((doc) => (
+                <Box
+                  key={doc.id}
+                  component="button"
+                  type="button"
+                  onClick={() => onOpen(doc)}
+                  sx={{
+                    ...KO_WORD_BREAK, textAlign: "left", background: "none", border: "none",
+                    cursor: "pointer", font: "inherit", color: "inherit", p: 0,
+                  }}
+                >
+                  <Typography variant="body2" sx={{ fontWeight: FONT_WEIGHT.semibold }}>
+                    {doc.title}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {doc.space_name}
+                  </Typography>
+                </Box>
+              ))}
+            </Stack>
+          )}
+        </Section>
+      </Card>
+
+      <Card>
+        <Section title="즐겨찾기">
+          {favorites.length === 0 ? (
+            <Typography variant="body2" color="text.secondary" sx={KO_WORD_BREAK}>
+              자주 보는 문서에 별을 달면 여기에 모입니다.
+            </Typography>
+          ) : (
+            <Stack spacing={0.75}>
+              {favorites.map((doc) => (
+                <Box
+                  key={doc.id}
+                  component="button"
+                  type="button"
+                  onClick={() => onOpen(doc)}
+                  sx={{
+                    ...KO_WORD_BREAK, textAlign: "left", background: "none", border: "none",
+                    cursor: "pointer", font: "inherit", color: "inherit", p: 0,
+                  }}
+                >
+                  <Typography variant="body2">{doc.title}</Typography>
+                </Box>
+              ))}
+            </Stack>
+          )}
+        </Section>
+      </Card>
+
+      <Card>
+        <Section title="문서 템플릿">
+          <Stack spacing={0.75}>
+            {templates.filter((t) => !t.empty).map((t) => (
+              <Box
+                key={t.id}
+                component="button"
+                type="button"
+                onClick={() => onTemplate(t.id)}
                 sx={{
+                  ...KO_WORD_BREAK, textAlign: "left", background: "none", border: "none",
+                  cursor: "pointer", font: "inherit", color: "inherit", p: 0,
+                }}
+              >
+                <Typography variant="body2" sx={{ fontWeight: FONT_WEIGHT.semibold }}>
+                  {t.name}
+                </Typography>
+                <Typography variant="caption" color="text.secondary">{t.help}</Typography>
+              </Box>
+            ))}
+          </Stack>
+        </Section>
+      </Card>
+    </Stack>
+  );
+}
+
+/* 새 문서 — 제목과 공간이 필수이고 나머지 셋은 선택이다 (지시 22.5).
+ *
+ * ## 「공개 범위」를 안 묻는다
+ *
+ * 시안에는 그 칸이 있다. 그런데 이 제품에서 문서의 가시성은 **공간이 정한다**(§5.3) —
+ * 문서마다 범위를 따로 고르게 하면 없는 권한 모델을 새로 만드는 것이고, 사용자는 자기가
+ * 고른 값이 실제로 지켜진다고 믿는다. 대신 공간을 고르는 자리에서 그 공간이 누구 것인지를
+ * 말한다.
+ *
+ * ## 틀 미리보기는 **이름과 설명**이다
+ *
+ * 본문까지 미리 그리려면 네 벌의 Block JSON 을 받아야 한다. 고르는 사람이 알고 싶은 것은
+ * 「이 틀이 무엇을 채워 주는가」이고, 그건 한 문장이면 된다. */
+function NewDocumentModal({ open, onClose, onSubmit, busy, spaces, folders, templates, initial }) {
+  const [values, setValues] = React.useState(initial);
+  React.useEffect(() => { if (open) setValues(initial); }, [open, initial]);
+
+  const set = (patch) => setValues((prev) => ({ ...prev, ...patch }));
+  const chosen = templates.find((t) => t.id === values.template) || templates[0];
+  const spaceRow = spaces.find((s) => s.id === values.space_id);
+  const canSubmit = Boolean((values.title || "").trim() && values.space_id);
+  /* 화살표 함수를 JSX 안에 안 둔다. `=>` 의 `>` 가 뒤따르는 라벨과 짝지어져 UX 동사표
+     검사(`ux-writing-verb-table.test.js`)의 JSX 텍스트 추출을 오탐시킨다 — 검사의 알려진
+     한계라 소비처가 피한다. */
+  const submit = () => onSubmit(values);
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="새 문서 만들기"
+      size="lg"
+      dirty={Boolean((values.title || "").trim())}
+      /* 「만들기」를 **감추지 않고 비활성으로** 둔다. 조건을 못 채운 사람에게 필요한 것은
+         버튼이 사라지는 것이 아니라 「무엇이 모자란가」이고, 그 답은 필수 표시가 붙은 두
+         칸(제목·공간)에 있다. */
+      footer={(
+        <ModalFooter
+          onCancel={onClose}
+          onSubmit={submit}
+          disabled={!canSubmit}
+          submitLabel="만들기"
+          busy={busy}
+        />
+      )}
+    >
+      <Box sx={{ display: "grid", gap: 3, gridTemplateColumns: { xs: "1fr", md: "1fr 16rem" } }}>
+        <Stack spacing={2}>
+          <TextField
+            label="문서 제목"
+            required
+            autoFocus
+            value={values.title}
+            onChange={(e) => set({ title: e.target.value })}
+            inputProps={{ maxLength: 500 }}
+            InputLabelProps={{ shrink: true }}
+            fullWidth
+          />
+          <TextField
+            select
+            required
+            label="공간"
+            value={values.space_id}
+            onChange={(e) => set({ space_id: e.target.value, folder_id: "" })}
+            InputLabelProps={{ shrink: true }}
+            helperText={
+              spaceRow
+                ? "이 공간을 볼 수 있는 사람이 이 문서를 볼 수 있습니다."
+                : "문서가 속할 공간을 고릅니다."
+            }
+            fullWidth
+          >
+            {spaces.map((s) => <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>)}
+          </TextField>
+          <TextField
+            select
+            label="폴더"
+            value={values.folder_id}
+            onChange={(e) => set({ folder_id: e.target.value })}
+            InputLabelProps={{ shrink: true }}
+            helperText="폴더는 정리 자리입니다. 문서를 볼 수 있는 사람은 바뀌지 않습니다."
+            fullWidth
+          >
+            <MenuItem value="">폴더 없음</MenuItem>
+            {folders.map((f) => (
+              <MenuItem key={f.id} value={f.id}>{"　".repeat(f.depth) + f.name}</MenuItem>
+            ))}
+          </TextField>
+          <TextField
+            label="태그"
+            value={values.tags}
+            onChange={(e) => set({ tags: e.target.value })}
+            InputLabelProps={{ shrink: true }}
+            helperText="쉼표로 나눠 적습니다."
+            fullWidth
+          />
+        </Stack>
+
+        <Stack spacing={1.5}>
+          <Typography sx={{ fontWeight: FONT_WEIGHT.semibold }}>템플릿</Typography>
+          <Stack spacing={0.75}>
+            {templates.map((t) => (
+              <Box
+                key={t.id}
+                component="button"
+                type="button"
+                onClick={() => set({ template: t.id })}
+                aria-pressed={values.template === t.id}
+                sx={(theme) => ({
                   ...KO_WORD_BREAK,
-                  flex: 1,
-                  minWidth: 0,
                   textAlign: "left",
-                  background: "none",
-                  border: "none",
                   cursor: "pointer",
                   font: "inherit",
                   color: "inherit",
-                  // 계층은 들여쓰기로 보인다 — `depth` 는 트리거가 만든 값이라 화면이
-                  // 다시 세지 않는다(세면 옮긴 직후 한 회차 어긋난다).
-                  pl: `${folder.depth * 1.2}rem`,
-                  fontWeight: selected === folder.id ? FONT_WEIGHT.semibold : FONT_WEIGHT.regular,
-                }}
+                  p: 1.25,
+                  borderRadius: 1,
+                  border: `1px solid ${values.template === t.id
+                    ? theme.palette.primary.main : theme.palette.divider}`,
+                  background: values.template === t.id ? theme.palette.action.selected : "none",
+                })}
               >
-                {folder.name}
+                <Typography variant="body2" sx={{ fontWeight: FONT_WEIGHT.semibold }}>
+                  {t.name}
+                </Typography>
               </Box>
-              <Button size="small" variant="ghost" onClick={() => onDelete(folder)}>
-                삭제
-              </Button>
-            </Stack>
-          </DragItem>
-        )}
-      </SortableList>
-      <Box>
-        <Button size="small" onClick={onCreate}>폴더 추가</Button>
+            ))}
+          </Stack>
+          {chosen ? (
+            <Typography variant="body2" color="text.secondary" sx={KO_WORD_BREAK}>
+              {chosen.help}
+            </Typography>
+          ) : null}
+        </Stack>
       </Box>
-    </Stack>
+    </Modal>
   );
 }
 
 export function Knowledge() {
   const navigate = useNavigate();
   const toast = useToast();
+  const confirm = useConfirm();
   const qc = useQueryClient();
+  const auth = useAuth();
   const [params, setParams] = useSearchParams();
+  useListMemory(LIST_KEY);
 
   const spaceId = params.get("space") || "";
   const folderId = params.get("folder") || "";
   const q = params.get("q") || "";
-  const favorites = params.get("favorites") === "1";
   const tag = params.get("tag") || "";
+  const author = params.get("author") || "";
+  const sort = params.get("sort") || "recent";
+  const view = params.get("view") || VIEW.all;
   const page = Math.max(1, Number(params.get("page") || 1));
 
   /* 주소를 고칠 때 지금 조건을 그대로 들고 간다 — 쪽을 넘겼다고 검색어가 사라지면
    * 사용자는 방금 무엇을 보고 있었는지 다시 만들어야 한다. `page` 는 조건이 바뀌면
    * 1로 돌아간다: 세 번째 쪽을 보다가 검색을 하면 결과가 한 쪽뿐인데 빈 화면이 뜬다. */
   const setQuery = (patch, { keepPage = false } = {}) => {
-    const next = { space: spaceId };
+    const next = {};
+    if (spaceId) next.space = spaceId;
     if (folderId) next.folder = folderId;
     if (q) next.q = q;
-    if (favorites) next.favorites = "1";
     if (tag) next.tag = tag;
+    if (author) next.author = author;
+    if (sort && sort !== "recent") next.sort = sort;
+    if (view) next.view = view;
     if (keepPage && page > 1) next.page = String(page);
     Object.entries(patch).forEach(([key, value]) => {
       if (value === null || value === undefined || value === "" || value === false) {
@@ -198,8 +584,7 @@ export function Knowledge() {
   };
 
   /* 검색 확정은 `SearchBox` 가 디바운스해서 부른다. **참조가 고정**돼야 한다 — 매 렌더마다
-     새로 만들면 `React.memo` 가 깨져 글자마다 목록 전체가 다시 그려진다(다른 목록 화면과
-     같은 규칙이다). `setQuery` 는 렌더마다 새로 만들어지므로 최신 값을 ref 로 읽는다. */
+     새로 만들면 `React.memo` 가 깨져 글자마다 목록 전체가 다시 그려진다. */
   const setQueryRef = React.useRef(setQuery);
   setQueryRef.current = setQuery;
   const commitSearch = React.useCallback(
@@ -208,22 +593,21 @@ export function Knowledge() {
   );
 
   const { query: spaces, items } = useKnowledgeSpaces();
-
-  /* 공간을 안 고르면 첫 번째를 연다. 빈 화면을 보여 주고 「고르세요」라고 말하면
-   * 대부분의 사람에게 공간은 하나뿐이라 한 번 더 누르는 일만 늘어난다. */
-  React.useEffect(() => {
-    if (!spaceId && items.length) {
-      setParams({ space: items[0].id }, { replace: true });
-    }
-  }, [spaceId, items, setParams]);
-
   const tree = useTree(spaceId);
-  const documents = useDocuments({ spaceId, folderId, q, favorites, tag, page });
   const tags = useTags();
-  const tagRows = tags.data?.items || [];
+  const summary = useSummary();
+  const templates = useTemplates();
+  const recent = useRecent();
+  const documents = useDocuments({ view, spaceId, folderId, q, tag, author, sort, page });
 
   const [folderForm, setFolderForm] = React.useState(false);
-  const [docForm, setDocForm] = React.useState(false);
+  const [spaceForm, setSpaceForm] = React.useState(false);
+  const [newDoc, setNewDoc] = React.useState(null);
+
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ["knowledge", "documents"] });
+    qc.invalidateQueries({ queryKey: ["knowledge", "summary"] });
+  };
 
   const createFolder = useMutation({
     mutationFn: (body) => api("/api/knowledge/folders", { method: "POST", body }),
@@ -246,7 +630,7 @@ export function Knowledge() {
     mutationFn: (id) => api(`/api/knowledge/folders/${id}`, { method: "DELETE" }),
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ["knowledge", "tree", spaceId] });
-      qc.invalidateQueries({ queryKey: ["knowledge", "documents"] });
+      invalidate();
       const moved = data?.documents_moved_to_root || 0;
       toast(
         moved
@@ -257,15 +641,171 @@ export function Knowledge() {
     onError: (e) => toast(e.message, "error"),
   });
 
-  const createDocument = useMutation({
-    mutationFn: (body) => api("/api/knowledge/documents", { method: "POST", body }),
-    onSuccess: (doc) => {
-      qc.invalidateQueries({ queryKey: ["knowledge", "documents"] });
-      setDocForm(false);
-      navigate(`/knowledge/${doc.id}`);
+  const createSpace = useMutation({
+    mutationFn: (body) => api("/api/knowledge/spaces", { method: "POST", body }),
+    onSuccess: (space) => {
+      qc.invalidateQueries({ queryKey: SPACES_KEY });
+      setSpaceForm(false);
+      toast("공간을 만들었습니다.");
+      if (space?.id) setParams({ space: space.id });
     },
     onError: (e) => toast(e.message, "error"),
   });
+
+  const createDocument = useMutation({
+    mutationFn: (body) => api("/api/knowledge/documents", { method: "POST", body }),
+    onSuccess: (doc) => {
+      invalidate();
+      setNewDoc(null);
+      navigate(`/knowledge/${doc.id}`, { state: { from: LIST_KEY } });
+    },
+    onError: (e) => toast(e.message, "error"),
+  });
+
+  const favorite = useMutation({
+    mutationFn: ({ id, on }) =>
+      api(`/api/knowledge/documents/${id}/favorite?on=${on ? "true" : "false"}`, { method: "POST" }),
+    onSuccess: () => {
+      invalidate();
+      qc.invalidateQueries({ queryKey: ["knowledge", "recent"] });
+    },
+    onError: (e) => toast(e.message, "error"),
+  });
+
+  const archive = useMutation({
+    mutationFn: (id) => api(`/api/knowledge/documents/${id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      invalidate();
+      toast("문서를 휴지통으로 보냈습니다. 휴지통에서 되살릴 수 있습니다.");
+    },
+    onError: (e) => toast(e.message, "error"),
+  });
+
+  const openDoc = React.useCallback(
+    (doc) => navigate(`/knowledge/${doc.id}`, { state: { from: LIST_KEY } }),
+    [navigate],
+  );
+
+  const folders = flatten(tree.data?.folders || []);
+  const tagRows = tags.data?.items || [];
+  const templateRows = templates.data?.items || [];
+  const summaryRow = summary.data;
+  const rows = documents.data?.items || [];
+  const total = documents.data?.total ?? rows.length;
+  const authors = documents.data?.authors || [];
+  const canMakeSpace = hasRole(CONSOLE_WRITE_ROLES, (auth.data && auth.data.role) || "");
+  const listed = view === VIEW.recent;
+
+  const columns = React.useMemo(() => [
+    {
+      key: "star", label: "별", type: "select", width: "3rem",
+      render: (doc) => (
+        <Box
+          component="button"
+          type="button"
+          aria-label={doc.is_favorite ? `${doc.title} 즐겨찾기 해제` : `${doc.title} 즐겨찾기`}
+          aria-pressed={Boolean(doc.is_favorite)}
+          onClick={(e) => {
+            e.stopPropagation();
+            favorite.mutate({ id: doc.id, on: !doc.is_favorite });
+          }}
+          sx={{
+            background: "none", border: "none", cursor: "pointer", p: 0, lineHeight: 0,
+            color: doc.is_favorite ? "warning.main" : "text.disabled",
+          }}
+        >
+          {doc.is_favorite
+            ? <StarRoundedIcon sx={{ fontSize: "1.125rem" }} />
+            : <StarOutlineRoundedIcon sx={{ fontSize: "1.125rem" }} />}
+        </Box>
+      ),
+    },
+    {
+      key: "title", label: "제목", type: "title", minWidth: "16rem", rowName: (d) => d.title,
+      render: (doc) => (
+        <Box sx={{ display: "grid", gap: 0.25, minWidth: 0 }}>
+          <Typography sx={{ fontWeight: FONT_WEIGHT.semibold, fontSize: FONT_SIZE.body, ...KO_WORD_BREAK }}>
+            {doc.title}
+          </Typography>
+          {doc.excerpt ? (
+            <Typography variant="caption" color="text.secondary" sx={KO_WORD_BREAK}>
+              {doc.excerpt}
+            </Typography>
+          ) : null}
+          {(doc.doc_type || (doc.tags || []).length > 0) ? (
+            <Stack direction="row" spacing={0.5} sx={{ flexWrap: "wrap", rowGap: 0.5, mt: 0.25 }}>
+              {doc.doc_type ? <Chip size="small" variant="outlined" label={doc.doc_type} /> : null}
+              {(doc.tags || []).map((t) => <Chip key={t.id} size="small" label={t.name} />)}
+            </Stack>
+          ) : null}
+        </Box>
+      ),
+    },
+    {
+      key: "place", label: "공간", type: "name", minWidth: "10rem",
+      render: (doc) => (
+        <Box sx={{ display: "grid", gap: 0.25, minWidth: 0 }}>
+          <Typography variant="body2" sx={KO_WORD_BREAK}>{doc.space_name || "-"}</Typography>
+          {doc.folder_path ? (
+            <Typography variant="caption" color="text.secondary" sx={KO_WORD_BREAK}>
+              {doc.folder_path}
+            </Typography>
+          ) : null}
+        </Box>
+      ),
+    },
+    {
+      key: "author", label: "작성자", type: "name", minWidth: "8rem",
+      render: (doc) => (
+        <Stack direction="row" spacing={0.75} alignItems="center" sx={{ minWidth: 0 }}>
+          <UserAvatar person={doc.author} size="sm" />
+          <Typography variant="body2" sx={KO_WORD_BREAK}>
+            {doc.author?.display_name || "-"}
+          </Typography>
+        </Stack>
+      ),
+    },
+    {
+      key: "updated_at", label: "최종 수정", type: "datetime", minWidth: "9rem",
+      render: (doc) => fmtDateTimeCompact(doc.updated_at),
+    },
+    {
+      /* 첨부와 댓글이 있다는 사실은 **문서를 고르는 근거**다. 열어 봐야 아는 값이면
+         목록에서 못 고른다. 0 은 안 그린다 — 대부분이 0 이라 그리면 소음이다. */
+      key: "counts", label: "첨부, 댓글", type: "enum", minWidth: "8rem",
+      render: (doc) => {
+        const c = doc.counts || {};
+        const parts = [];
+        if (c.attachments) parts.push(`첨부 ${c.attachments}`);
+        if (c.comments) parts.push(`댓글 ${c.comments}`);
+        if (c.relations) parts.push(`관련 ${c.relations}`);
+        return parts.length ? (
+          <Typography variant="caption" color="text.secondary">{parts.join(", ")}</Typography>
+        ) : "";
+      },
+    },
+    {
+      key: "more", label: "작업", type: "actions", width: "4rem",
+      render: (doc) => (
+        <OverflowMenu
+          ariaLabel={`${doc.title} 작업`}
+          items={[
+            { label: "문서 열기", onClick: () => openDoc(doc) },
+            {
+              label: "휴지통으로 보내기",
+              onClick: async () => {
+                const ok = await confirm(
+                  "휴지통에서 되살릴 수 있습니다. 판 이력과 댓글은 그대로 남습니다.",
+                  { title: `${doc.title}을(를) 휴지통으로 보낼까요?`, confirmLabel: "보내기" },
+                );
+                if (ok) archive.mutate(doc.id);
+              },
+            },
+          ]}
+        />
+      ),
+    },
+  ], [archive, confirm, favorite, openDoc]);
 
   if (spaces.isLoading) return <Skeleton kind="page" lines={4} />;
   if (spaces.isError) {
@@ -275,7 +815,7 @@ export function Knowledge() {
   if (!items.length) {
     return (
       <>
-        <PageHeader area="팀 업무" title="지식 공간" />
+        <PageHeader crumbRoot="팀 업무" area="문서" title="문서" />
         <EmptyState
           layout="page"
           art="docs"
@@ -286,208 +826,205 @@ export function Knowledge() {
     );
   }
 
-  const rows = documents.data?.items || [];
-  const folderRows = flatten(tree.data?.folders || []);
+  const hasFilter = Boolean(q || tag || author || folderId || view);
 
   return (
     <>
       <PageHeader
-        area="팀 업무"
+        crumbRoot="팀 업무"
+        area="문서"
         /* 사이드바 항목과 **같은 낱말**이어야 한다 (S14 · C2). 「문서」를 눌러 왔는데 화면
            제목이 「지식 공간」이면 사용자는 다른 데로 왔다고 읽는다. */
         title="문서"
-        actions={
+        description="팀이 쌓아 온 문서를 찾아보고 새로 씁니다."
+        actions={(
           <>
-            {/* 휴지통 입구는 옛 문서 목록 화면에 있었다 (S14 · C2). 그 화면이 사라지면서
-                입구가 통째로 없어지면 사람이 지운 티켓과 문서를 되살릴 길이 주소를
-                직접 치는 것뿐이 된다. */}
-            <Button href="#/team-docs/trash">휴지통</Button>
-            <Button onClick={() => setDocForm(true)}>새 문서</Button>
+            {/* 휴지통은 공용 화면이고 문서 조건으로 열린다 (지시 22.7). 문서 전용 휴지통을
+                따로 만들면 티켓과 문서를 각각 다른 곳에서 되살리게 된다. */}
+            <Button href="#/team-docs/trash?kind=document">휴지통</Button>
+            <Button
+              variant="primary"
+              onClick={() => setNewDoc({
+                title: "", space_id: spaceId || items[0].id, folder_id: folderId || "",
+                tags: "", template: "blank",
+              })}
+            >
+              새 문서
+            </Button>
           </>
-        }
+        )}
       />
 
-      <Stack direction={{ xs: "column", md: "row" }} spacing={2} alignItems="flex-start">
-        <Card sx={{ width: { xs: "100%", md: "20rem" }, flexShrink: 0 }}>
-          <Stack spacing={2}>
-            {/* 공간은 **기수가 무한히 자라는 대상**이다 — 팀이 늘면 공간도 는다. 평범한
-                드롭다운으로 두면 데이터가 쌓이는 만큼 목록을 눈으로 훑게 되고, 이름을
-                알면서도 못 찾는 상태가 된다(C2 · R-5). 실브라우저 검사(S15 캡처의
-                `plain_dropdown_for_entity`)가 이 자리를 지목했다. */}
-            <EntityCombobox
-              label="공간"
-              value={spaceId}
-              onChange={(next) => { if (next) setParams({ space: next }); }}
-              loading={spaces.isLoading}
-              options={items.map((s) => ({ value: s.id, label: s.name }))}
-              allLabel="공간 고르기"
-              sx={{ width: "100%", maxWidth: "none" }}
-            />
+      {summaryRow ? (
+        <MetricStrip
+          ariaLabel="문서 요약"
+          sx={{ mb: 2 }}
+          items={[
+            {
+              key: "total", label: "전체 문서", value: summaryRow.total, primary: true,
+              active: view === VIEW.all && !folderId,
+              onClick: () => setQuery({ view: null, folder: null, page: null }),
+            },
+            {
+              key: "recent", label: "최근 수정", value: summaryRow.recent,
+              note: "최근 24시간",
+              active: sort === "recent" && view === VIEW.all,
+              onClick: () => setQuery({ view: null, sort: "recent", page: null }),
+            },
+            {
+              key: "favorites", label: "즐겨찾기", value: summaryRow.favorites,
+              active: view === VIEW.favorites,
+              onClick: () => setQuery({ view: VIEW.favorites, page: null }),
+            },
+            {
+              key: "drafts", label: "내 초안", value: summaryRow.drafts,
+              note: "아직 고치지 않은 내 문서",
+              active: view === VIEW.drafts,
+              onClick: () => setQuery({ view: VIEW.drafts, page: null }),
+            },
+          ]}
+        />
+      ) : null}
 
-            <Box
-              component="button"
-              type="button"
-              onClick={() => setQuery({ folder: null, page: null })}
-              aria-current={folderId ? undefined : "true"}
-              sx={{
-                textAlign: "left", background: "none", border: "none", cursor: "pointer",
-                font: "inherit", color: "inherit", fontWeight: folderId ? FONT_WEIGHT.regular : FONT_WEIGHT.semibold,
-              }}
-            >
-              전체 문서
-            </Box>
+      <Box
+        sx={{
+          display: "grid",
+          alignItems: "start",
+          gap: 2,
+          gridTemplateColumns: {
+            xs: "1fr",
+            md: "17rem minmax(0, 1fr)",
+            /* 곁열은 **넓을 때만** 선다 (지시 22.4). 1366 에서 세 칸을 우기면 목록이
+               좁아져 제목이 두 줄로 접힌다. */
+            xl: "17rem minmax(0, 1fr) 19rem",
+          },
+        }}
+      >
+        <Explorer
+          spaces={items}
+          spaceId={spaceId}
+          tree={tree}
+          folderId={folderId}
+          view={view}
+          tags={tagRows}
+          tag={tag}
+          summary={summaryRow}
+          onView={(next) => setQuery({ view: next || null, page: null })}
+          onSpace={(next) => setQuery({ space: next || null, folder: null, page: null })}
+          onFolder={(next) => setQuery({ folder: next || null, page: null })}
+          onTag={(next) => setQuery({ tag: next || null, page: null })}
+          onNewFolder={() => setFolderForm(true)}
+          onDeleteFolder={(folder) => removeFolder.mutate(folder.id)}
+          onReorderFolder={({ id, beforeId, afterId }) =>
+            moveFolder.mutate({ id, before_id: beforeId, after_id: afterId })}
+          onNewSpace={canMakeSpace ? () => setSpaceForm(true) : null}
+        />
 
-            {tree.isLoading ? (
-              <Skeleton kind="section" lines={3} />
-            ) : (
-              <FolderTree
-                spaceId={spaceId}
-                folders={tree.data?.folders || []}
-                selected={folderId}
-                onSelect={(id) => setQuery({ folder: id, page: null })}
-                onCreate={() => setFolderForm(true)}
-                onDelete={(folder) => removeFolder.mutate(folder.id)}
-                onReorder={({ id, beforeId, afterId }) =>
-                  moveFolder.mutate({ id, before_id: beforeId, after_id: afterId })}
-              />
-            )}
-          </Stack>
-        </Card>
-
-        <Card sx={{ flex: 1, minWidth: 0 }}>
-          <Stack spacing={2}>
-            <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} alignItems={{ sm: "center" }}>
-              {/* 공용 검색 상자를 쓴다 (W5 · `ui/filters.jsx`). 예전에는 이 자리가 맨
-                  `TextField` 에 `defaultValue={q}` 였다 — 값을 **처음 한 번만** 읽는 입력이라,
-                  주소가 바깥에서 바뀌는 세 가지 이동에서 상자가 따라오지 않았다: 뒤로가기·
-                  앞으로가기, 그리고 「검색, 필터 지우기」. 목록은 조건 없이 다시 받아 오는데
-                  상자에는 방금 지운 검색어가 그대로 남아 있어, 화면이 말하는 조건과 실제
-                  질의 조건이 어긋난다(C7). 공용 부품은 바깥 값이 바뀌면 초안을 맞춘다. */}
+        <Box sx={{ minWidth: 0 }}>
+          <FilterSurface>
+            <ToolbarRow>
               <SearchBox
                 value={q}
                 onSearch={commitSearch}
-                placeholder="문서 찾기"
-                ariaLabel="문서 찾기"
-                sx={{ flex: 1, minWidth: 0 }}
+                placeholder="문서 제목, 내용 검색"
+                ariaLabel="문서 검색"
               />
-              {/* 옛 문서 종류·업무 분야·기술 태그 필터를 대신한다 — 그 축은 태그로 손실 없이
-                  들어왔다(S14 · C2, D6). 태그가 하나도 없으면 상자를 안 그린다: 빈 상자는
-                  「고를 게 있는데 안 보인다」로 읽힌다. */}
-              {tagRows.length > 0 ? (
-                <TextField
-                  select
-                  size="small"
-                  label="분류"
-                  InputLabelProps={{ shrink: true }}
-                  value={tag}
-                  sx={{ minWidth: "8rem" }}
-                  onChange={(e) => setQuery({ tag: e.target.value || null, page: null })}
-                >
-                  <MenuItem value="">전체</MenuItem>
-                  {tagRows.map((t) => (
-                    <MenuItem key={t.id} value={t.slug}>{t.name}</MenuItem>
-                  ))}
-                </TextField>
+            </ToolbarRow>
+            <FilterRow>
+              {/* 빈 값 항목은 `FilterSelect` 가 스스로 그린다 — 여기서 또 넣으면
+                  「전체」가 두 줄이 된다. */}
+              <FilterSelect
+                label="태그"
+                allLabel="전체"
+                value={tag}
+                onChange={(v) => setQuery({ tag: v || null, page: null })}
+                options={tagRows.map((t) => ({ value: t.slug, label: t.name }))}
+              />
+              <FilterSelect
+                label="작성자"
+                allLabel="전체"
+                kind="entity"
+                value={author}
+                onChange={(v) => setQuery({ author: v || null, page: null })}
+                options={authors}
+              />
+              <FilterSelect
+                label="정렬"
+                value={sort}
+                onChange={(v) => setQuery({ sort: v, page: null })}
+                options={SORTS}
+              />
+              {hasFilter ? (
+                <FilterActions>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setQuery({
+                      q: null, tag: null, author: null, folder: null, view: null, page: null,
+                    })}
+                  >
+                    필터 지우기
+                  </Button>
+                </FilterActions>
               ) : null}
-              {/* 즐겨찾기는 **내용 필터**다(무엇을 볼지). 켜짐과 꺼짐을 색과 `aria-pressed`
-                  둘 다로 말한다 — 색만으로 말하면 켜졌는지 스크린리더가 모른다. */}
-              <Chip
-                component="button" type="button" clickable label="즐겨찾기만"
-                aria-pressed={favorites}
-                color={favorites ? "primary" : "default"}
-                variant={favorites ? "filled" : "outlined"}
-                onClick={() => setQuery({ favorites: !favorites, page: null })}
-              />
-            </Stack>
+            </FilterRow>
+          </FilterSurface>
 
-            {documents.isLoading && <Skeleton kind="list" rows={5} />}
-            {documents.isError && (
-              <ErrorState error={documents.error} onRetry={() => documents.refetch()} />
-            )}
-            {/* 0건에는 **두 얼굴**이 있다 — 「문서가 아예 없다」와 「조건 때문에 0건이다」는
-                다른 사실이고 다음 행동도 다르다. 그 분기는 공용 부품이 든다(W5). */}
-            {/* 「정말 없다」 갈래에는 CTA 를 안 준다 (S19) — 상단의 «새 문서» 와 같은 일이라
-                버튼이 둘이 되고, 사용자는 둘이 다른 일을 한다고 읽는다. 조건 때문에 0건인
-                갈래는 다르다: «조건 지우기» 는 상단에 없는 다른 행동이라 그쪽이 갖는다. */}
-            {!documents.isLoading && !documents.isError && rows.length === 0 && (
-              <ListEmptyState
-                layout="page"
-                filtered={Boolean(favorites || q || tag)}
-                onClear={() => setQuery({ q: null, favorites: false, tag: null, page: null })}
-                clearLabel="검색, 필터 지우기"
-                filteredTitle="조건에 맞는 문서가 없습니다"
-                filteredHelp="검색어와 즐겨찾기 조건을 풀면 전체 문서가 다시 나타납니다."
-                title="문서가 아직 없습니다."
-                help="‘새 문서’로 만들면 이 목록에 나타납니다."
-              />
-            )}
+          {/* 「최근 열람」은 쪽을 안 나눈다 — 사람마다 다르고 길지 않다. 그 사실을 건수
+              줄이 그대로 말한다. */}
+          <ResultLine total={total} />
 
-            <Stack spacing={1}>
-              {rows.map((doc) => (
-                <Box
-                  key={doc.id}
-                  component="button"
-                  type="button"
-                  onClick={() => navigate(`/knowledge/${doc.id}`)}
-                  sx={(theme) => ({
-                    ...KO_WORD_BREAK,
-                    textAlign: "left",
-                    background: "none",
-                    border: `1px solid ${theme.palette.divider}`,
-                    borderRadius: 1,
-                    cursor: "pointer",
-                    font: "inherit",
-                    color: "inherit",
-                    p: 1.5,
+          {documents.isError ? (
+            <ErrorState error={documents.error} onRetry={() => documents.refetch()} />
+          ) : (
+            <Card>
+              {!documents.isLoading && rows.length === 0 ? (
+                <ListEmptyState
+                  filtered={hasFilter}
+                  onClear={() => setQuery({
+                    q: null, tag: null, author: null, folder: null, view: null, page: null,
                   })}
-                >
-                  <Stack direction="row" alignItems="center" spacing={0.75}>
-                    <Typography sx={{ fontWeight: FONT_WEIGHT.semibold, minWidth: 0 }}>
-                      {doc.title}
-                    </Typography>
-                    {doc.is_favorite ? (
-                      <StarRoundedIcon
-                        aria-label="즐겨찾기" role="img"
-                        sx={{ color: "warning.main", flexShrink: 0, fontSize: "1rem" }}
-                      />
-                    ) : null}
-                  </Stack>
-                  <Typography variant="body2" color="text.secondary">
-                    {doc.source_type === "AI" ? "AI가 만든 문서입니다." : "사람이 쓴 문서입니다."}
-                    {doc.created_at || doc.updated_at
-                      ? ` ${fmtDateTimeCompact(doc.created_at)}에 만들었고 ${fmtDateTimeCompact(doc.updated_at)}에 고쳤습니다.`
-                      : ""}
-                  </Typography>
-                  {/* 종류(doc_type)와 태그. 옛 문서 종류·업무 분야·기술 태그 필터가 여기로
-                      옮겨 왔다(S14 · D6) — 골라 좁히는 자리(위 「분류」)뿐 아니라 목록 각
-                      줄에서도 보여야 「손실 없이 이관됐다」가 눈으로 확인된다. */}
-                  {(doc.doc_type || doc.tags?.length > 0) && (
-                    <Stack direction="row" spacing={0.5} flexWrap="wrap" sx={{ mt: 0.5, rowGap: 0.5 }}>
-                      {doc.doc_type ? (
-                        <Chip size="small" variant="outlined" label={doc.doc_type} />
-                      ) : null}
-                      {(doc.tags || []).map((t) => (
-                        <Chip key={t.id} size="small" label={t.name} />
-                      ))}
-                    </Stack>
-                  )}
-                </Box>
-              ))}
-            </Stack>
+                  clearLabel="검색, 필터 지우기"
+                  filteredTitle="조건에 맞는 문서가 없습니다"
+                  filteredHelp="검색어와 태그, 작성자 조건을 풀면 전체 문서가 다시 나타납니다."
+                  title="문서가 아직 없습니다."
+                  help="위의 새 문서로 만들면 이 목록에 나타납니다."
+                />
+              ) : (
+                <DataTable
+                  columns={columns}
+                  rows={rows}
+                  rowKey={(d) => d.id}
+                  onRow={openDoc}
+                  loading={documents.isLoading}
+                />
+              )}
+            </Card>
+          )}
 
-            {/* 「몇 건 중 어디쯤인가」를 여기서 말한다. 서버가 한 쪽씩 잘라 주므로 이 줄이
-                없으면 51번째 문서는 있다는 사실 자체가 화면에서 사라진다. */}
-            {!documents.isLoading && !documents.isError && (
-              <Pager
-                page={page}
-                pageSize={PAGE_SIZE}
-                total={documents.data?.total}
-                onPage={(next) => setQuery({ page: next > 1 ? next : null }, { keepPage: true })}
-              />
-            )}
-          </Stack>
-        </Card>
-      </Stack>
+          {!documents.isLoading && !documents.isError && !listed ? (
+            <Pager
+              page={page}
+              pageSize={PAGE_SIZE}
+              total={documents.data?.total}
+              onPage={(next) => setQuery({ page: next > 1 ? next : null }, { keepPage: true })}
+            />
+          ) : null}
+        </Box>
+
+        <Box sx={{ display: { xs: "none", xl: "block" }, minWidth: 0 }}>
+          <Rail
+            recent={recent.data?.items || []}
+            favorites={(rows || []).filter((d) => d.is_favorite).slice(0, 5)}
+            templates={templateRows}
+            onOpen={openDoc}
+            onTemplate={(id) => setNewDoc({
+              title: "", space_id: spaceId || items[0].id, folder_id: folderId || "",
+              tags: "", template: id,
+            })}
+          />
+        </Box>
+      </Box>
 
       <FormModal
         open={folderForm}
@@ -499,7 +1036,7 @@ export function Knowledge() {
             label: "상위 폴더",
             type: "select",
             options: [{ value: "", label: "없음" }].concat(
-              folderRows.map((f) => ({ value: f.id, label: f.name })),
+              folders.map((f) => ({ value: f.id, label: f.name })),
             ),
           },
         ]}
@@ -514,19 +1051,49 @@ export function Knowledge() {
           })}
       />
 
+      {/* 공간 만들기는 관리자만 본다 (`SPACE_ADMIN`). 서버가 같은 요청을 403 으로 막으므로
+          숨기는 것은 안내이지 방어가 아니다. */}
       <FormModal
-        open={docForm}
-        title="새 문서"
-        fields={[{ name: "title", label: "문서 제목", required: true, maxLength: 500 }]}
-        initial={{ title: "" }}
+        open={spaceForm}
+        title="문서 공간 추가"
+        fields={[
+          { name: "name", label: "공간 이름", required: true, maxLength: 200 },
+          {
+            name: "slug", label: "주소", required: true, maxLength: 64,
+            help: "영문 소문자와 숫자, 붙임표만 씁니다.",
+          },
+          {
+            name: "owner_kind", label: "누구의 공간인가", type: "select", required: true,
+            options: [
+              { value: "organization", label: "조직 전체" },
+              { value: "unset", label: "정하지 않음" },
+            ],
+            help: "부서와 프로젝트 공간은 관리 콘솔에서 대상을 골라 만듭니다.",
+          },
+        ]}
+        initial={{ name: "", slug: "", owner_kind: "organization" }}
         submitLabel="만들기"
-        onClose={() => setDocForm(false)}
-        onSubmit={(values) =>
-          createDocument.mutateAsync({
-            space_id: spaceId,
-            title: values.title,
-            folder_id: folderId || null,
-          })}
+        onClose={() => setSpaceForm(false)}
+        onSubmit={(values) => createSpace.mutateAsync(values)}
+      />
+
+      <NewDocumentModal
+        open={Boolean(newDoc)}
+        initial={newDoc || { title: "", space_id: "", folder_id: "", tags: "", template: "blank" }}
+        spaces={items}
+        folders={folders}
+        templates={templateRows}
+        busy={createDocument.isPending}
+        onClose={() => setNewDoc(null)}
+        onSubmit={(values) => createDocument.mutate({
+          space_id: values.space_id,
+          title: values.title.trim(),
+          folder_id: values.folder_id || null,
+          template: values.template || null,
+          tag_names: values.tags
+            ? values.tags.split(",").map((t) => t.trim()).filter(Boolean)
+            : null,
+        })}
       />
     </>
   );

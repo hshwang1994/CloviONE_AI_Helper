@@ -87,6 +87,12 @@ class DocumentCreate(BaseModel):
     )
     tag_names: list[str] | None = Field(default=None, max_length=20)
     confidential: bool = False
+    # 시작할 틀 (지시 22.5). 본문을 직접 보내면 그쪽이 이긴다 — 「제안을 문서로」처럼
+    # 이미 내용을 들고 오는 경로가 틀 때문에 그 내용을 잃으면 안 된다.
+    #
+    # 값 목록을 여기 문자열로 다시 적지 않는다. 틀 하나를 없앤 날 스키마만 옛 이름을
+    # 받아 주면, 서버는 200 을 내면서 빈 문서를 만든다.
+    template: str | None = Field(default=None, max_length=32)
 
 
 class DocumentSave(BaseModel):

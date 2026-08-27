@@ -8,10 +8,12 @@
  * **대상이 사라졌다** — 본문의 정본이 블록 JSON 이 되면서 실시간 원격 읽기 자체가 없다.
  * 댓글과 열람 제한은 서버 쪽으로 옮겨 `tests/integration/test_knowledge_comments.py` 와
  * `tests/security/test_search_restricted_documents.py` 가 실제 요청으로 본다.
+ *
+ * qa-contract-change: 화면이 탭 둘에서 편집기와 곁열 두 열로 재설계돼(지시 22.6) 이력이 탭이 아니라 버튼이 됐다. 옛 성질 다섯은 그대로 두고 이동·관계·첨부 배선을 더했다.
  */
 import React from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
@@ -67,10 +69,22 @@ function stubDocument({ version = 3 } = {}) {
     id: DOC_ID,
     title: "주간 회의록",
     version,
+    space_id: "space-1",
+    space_name: "우리 공간",
+    folder_id: null,
+    updated_at: "2026-08-20T01:00:00",
+    created_at: "2026-08-01T01:00:00",
+    author: { user_id: "u-1", display_name: "김동현" },
     current: { version_no: 2, body: { type: "doc", content: [] } },
-    tags: [],
-    relations: [],
+    tags: [{ id: "tag-1", name: "회의록", slug: "meeting" }],
+    relations: [{ document_id: "doc-2", kind: "relates_to", label: "관련 문서", title: "요구사항 정의서" }],
     backlinks: [],
+    attachments: [
+      { id: "att-1", filename: "회의자료.pdf", size_bytes: 2048, mime_type: "application/pdf" },
+    ],
+  });
+  responses.set("GET /api/knowledge/spaces/space-1/tree", {
+    folders: [{ id: "f-1", name: "01. 기획", depth: 0, children: [] }],
   });
   // 화면이 본문 아래에 논의를 함께 그린다 (S14 · C2). 대역이 없으면 그 자리가 오류 상태로
   // 뜨는데, 이 파일이 보려는 것은 판·차이·되돌리기라 소음만 는다.
@@ -138,9 +152,11 @@ describe("문서 저장", () => {
 describe("판 이력", () => {
   it("지금 보는 판을 표시하고 그 판의 되돌리기는 막는다", async () => {
     await renderDoc();
-    await userEvent.click(screen.getByRole("tab", { name: /이력/ }));
+    await userEvent.click(screen.getByRole("button", { name: /이력/ }));
 
-    expect(await screen.findByText("2판")).toBeInTheDocument();
+    /* 「2판」은 두 자리에 선다 — 상단 맥락의 「현재 판」과 이력의 그 줄. 그것이 의도다:
+       본문을 읽다가 몇 판인지 보려고 이력을 열 이유가 없다. */
+    expect((await screen.findAllByText("2판")).length).toBeGreaterThan(1);
     expect(screen.getByText("지금 보는 판")).toBeInTheDocument();
 
     const buttons = screen.getAllByRole("button", { name: "되돌리기" });
@@ -156,7 +172,7 @@ describe("판 이력", () => {
       return { id: DOC_ID, version: 4, current: { version_no: 3 } };
     });
     await renderDoc();
-    await userEvent.click(screen.getByRole("tab", { name: /이력/ }));
+    await userEvent.click(screen.getByRole("button", { name: /이력/ }));
 
     const buttons = await screen.findAllByRole("button", { name: "되돌리기" });
     await userEvent.click(buttons.find((b) => !b.disabled));
@@ -177,7 +193,7 @@ describe("판 사이의 차이", () => {
       ],
     });
     await renderDoc();
-    await userEvent.click(screen.getByRole("tab", { name: /이력/ }));
+    await userEvent.click(screen.getByRole("button", { name: /이력/ }));
 
     const compare = await screen.findAllByRole("button", { name: "지금 판과 비교" });
     await userEvent.click(compare.find((b) => !b.disabled));
@@ -194,10 +210,52 @@ describe("판 사이의 차이", () => {
       base: { version_no: 1 }, target: { version_no: 2 }, changes: [],
     });
     await renderDoc();
-    await userEvent.click(screen.getByRole("tab", { name: /이력/ }));
+    await userEvent.click(screen.getByRole("button", { name: /이력/ }));
     const compare = await screen.findAllByRole("button", { name: "지금 판과 비교" });
     await userEvent.click(compare.find((b) => !b.disabled));
 
     expect(await screen.findByText("두 판의 본문이 같습니다.")).toBeInTheDocument();
+  });
+});
+
+/* 서버에 있는데 화면이 없던 것들 (지시 22.6). 「연결했다」는 주장은 요청으로만 확인된다. */
+describe("곁열이 문서에 대한 것을 든다", () => {
+  it("작성자, 공간, 태그, 관련 문서, 첨부가 한자리에 있다", async () => {
+    await renderDoc();
+    expect(screen.getByText("김동현")).toBeInTheDocument();
+    expect(screen.getAllByText("우리 공간").length).toBeGreaterThan(0);
+    expect(screen.getByText("요구사항 정의서")).toBeInTheDocument();
+    expect(screen.getByText("회의자료.pdf")).toBeInTheDocument();
+  });
+
+  it("🔴 이동이 폴더와 잠금 값을 함께 보낸다 — 옮기는 사이 남이 저장했으면 서버가 막아야 한다", async () => {
+    const seen = [];
+    responses.set(`POST /api/knowledge/documents/${DOC_ID}/move`, (options) => {
+      seen.push(options.body);
+      return { id: DOC_ID, version: 4 };
+    });
+    await renderDoc();
+
+    await userEvent.click(screen.getByRole("button", { name: "이동" }));
+    const dialog = await screen.findByRole("dialog");
+    await userEvent.click(within(dialog).getByLabelText("폴더"));
+    await userEvent.click(await screen.findByRole("option", { name: "01. 기획" }));
+    await userEvent.click(within(dialog).getByRole("button", { name: "옮기기" }));
+
+    await waitFor(() => expect(seen).toHaveLength(1));
+    expect(seen[0].folder_id).toBe("f-1");
+    expect(seen[0].base_version).toBe(3);
+  });
+
+  it("태그도 저장 버튼 하나로 함께 저장된다 — 버튼마다 다른 것이 저장되면 아무도 못 외운다", async () => {
+    const seen = [];
+    responses.set(`PUT /api/knowledge/documents/${DOC_ID}`, (options) => {
+      seen.push(options.body);
+      return { created_version: false, version: 4 };
+    });
+    await renderDoc();
+    await userEvent.click(screen.getByRole("button", { name: "저장" }));
+    await waitFor(() => expect(seen).toHaveLength(1));
+    expect(seen[0].tag_names).toEqual(["회의록"]);
   });
 });

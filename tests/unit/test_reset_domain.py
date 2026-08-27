@@ -6,18 +6,22 @@
 
 여기서 보는 것 넷:
 
-  1. 목록이 **모델과 맞는가.** 채팅 도메인의 표가 늘거나 줄면 이 시험이 먼저 깨진다 —
+  1. 목록이 **모델과 맞는가.** 도메인의 표가 늘거나 줄면 이 시험이 먼저 깨진다 —
      스크립트가 조용히 옛 목록으로 도는 것이 가장 나쁜 결과다.
   2. 삭제 **순서**가 외래키를 거스르지 않는가. 자식이 부모보다 먼저 와야 한다.
   3. 보호 목록의 표가 삭제 목록에 **없는가.**
   4. AI 도우미의 대화 기록(`conversations`·`messages`)이 채팅 도메인에 **안 들어갔는가.**
      지시 17 이 말한 「Chat DB 데이터」는 사내 메신저이고, 그쪽은 다른 도메인이다.
      사용자가 지우라고 한 적 없는 것을 지우는 것은 되돌릴 수 없는 사고다.
+
+문서 도메인은 여기에 축을 하나 더 갖는다 — **부분 삭제**. 검색 색인은 문서와 티켓을 한
+표에 담으므로, 그 표를 통째로 비우면 문서를 지우면서 티켓 검색이 함께 사라진다.
 """
 
 from __future__ import annotations
 
 import importlib.util
+import sys
 from pathlib import Path
 
 import pytest
@@ -32,8 +36,16 @@ def _load():
     path = PROJECT_ROOT / "scripts" / "reset_domain_data.py"
     spec = importlib.util.spec_from_file_location("reset_domain_data", path)
     mod = importlib.util.module_from_spec(spec)
+    # `sys.modules` 에 먼저 넣는다. 스크립트가 `from __future__ import annotations` 아래에서
+    # `@dataclass` 를 쓰는데, 그때 dataclasses 는 문자열 주석을 풀려고 **자기 모듈을**
+    # `sys.modules` 에서 되찾는다 — 없으면 클래스 정의 자체가 죽는다.
+    sys.modules[spec.name] = mod
     spec.loader.exec_module(mod)
     return mod
+
+
+def _tables(domain: str) -> list[str]:
+    return [t.table for t in _load().DOMAINS[domain]]
 
 
 def test_the_chat_domain_list_matches_the_models():
@@ -44,7 +56,7 @@ def test_the_chat_domain_list_matches_the_models():
     """
     from app.team_chat import models as chat_models
 
-    declared = set(_load().DOMAINS["chat"])
+    declared = set(_tables("chat"))
     actual = {
         getattr(v, "__tablename__")
         for v in vars(chat_models).values()
@@ -58,7 +70,7 @@ def test_the_chat_domain_list_matches_the_models():
 
 def test_children_come_before_their_parents():
     """자식이 먼저다. 부모를 먼저 지우면 외래키가 거절한다."""
-    order = list(_load().DOMAINS["chat"])
+    order = _tables("chat")
     at = order.index
     assert at("chat_message_images") < at("chat_messages")
     assert at("chat_messages") < at("chat_rooms")
@@ -68,8 +80,8 @@ def test_children_come_before_their_parents():
 
 def test_no_protected_table_is_ever_in_a_delete_list():
     mod = _load()
-    for domain, tables in mod.DOMAINS.items():
-        overlap = set(tables) & set(mod.PROTECTED)
+    for domain in mod.DOMAINS:
+        overlap = set(_tables(domain)) & set(mod.PROTECTED)
         assert not overlap, f"{domain} 목록에 보호 대상이 있다: {sorted(overlap)}"
 
 
@@ -87,9 +99,11 @@ def test_the_assistant_conversation_log_is_not_chat_domain():
     데이터는 `chat_*` 다. `conversations`/`messages` 를 여기 끼워 넣으면 사용자가 지우라고
     한 적 없는 것을 지우게 되고, 그것은 되돌릴 수 없다.
     """
-    chat = set(_load().DOMAINS["chat"])
+    chat = set(_tables("chat"))
     assert "conversations" not in chat
     assert "messages" not in chat
+    # 이름으로도 잠근다 — 어느 도메인 목록에 적어도 스크립트가 거절한다.
+    assert {"conversations", "messages"} <= set(_load().PROTECTED)
 
 
 def test_the_witness_tables_are_protected_ones():
@@ -97,8 +111,100 @@ def test_the_witness_tables_are_protected_ones():
     mod = _load()
     for name in mod.WITNESS:
         assert name in mod.PROTECTED, f"대조군 {name} 이 보호 목록에 없다"
-        for tables in mod.DOMAINS.values():
-            assert name not in tables
+        for domain in mod.DOMAINS:
+            assert name not in _tables(domain)
+
+
+# ── 문서 도메인 (지시 22.3) ──────────────────────────────────────────────────
+
+
+def test_the_document_domain_covers_everything_that_hangs_off_a_document():
+    """🔴 문서를 가리키는 표가 하나라도 빠지면 **고아 행**이 남는다.
+
+    목록을 손으로 적지 않고 모델에서 계산해 대조한다: `documents.id` 를 외래키로 가리키는
+    표는 전부 문서에서 파생된 것이고, 문서가 사라지면 뜻을 잃는다. 새 표가 생기는 날
+    (댓글 반응·읽음 표시 같은 것) 이 시험이 먼저 깨진다.
+    """
+    from app.knowledge import models as k
+
+    declared = set(_tables("document"))
+    hangs_off = set()
+    for value in vars(k).values():
+        table = getattr(value, "__table__", None)
+        if table is None:
+            continue
+        for column in table.columns:
+            for fk in column.foreign_keys:
+                if fk.column.table.name == "documents":
+                    hangs_off.add(table.name)
+    # `documents` 자신은 자기를 안 가리킨다. 목록에는 있어야 한다.
+    hangs_off.discard("documents")
+    assert "documents" in declared
+    missing = hangs_off - declared
+    assert not missing, f"문서를 가리키는데 삭제 목록에 없는 표: {sorted(missing)}"
+
+
+def test_the_derived_ai_and_search_data_is_in_the_list():
+    """문서에서 나온 파생 데이터도 함께 지운다 (지시 22.3 의 「Search/AI Index/Chunk」).
+
+    안 지우면 초기화 뒤에도 검색이 없는 문서를 찾아 주고, 누르면 404 다. 「지웠다」와
+    「안 보인다」가 여기서 갈라진다.
+    """
+    declared = set(_tables("document"))
+    for name in ("document_chunks", "ai_index_state", "search_documents"):
+        assert name in declared, f"파생 데이터 {name} 이 목록에 없다"
+
+
+def test_the_search_index_is_narrowed_to_documents():
+    """🔴 검색 색인은 **한 표에 넷**이 산다 — 문서만 골라 지운다.
+
+    `search_documents` 를 통째로 비우면 문서를 초기화하면서 티켓·게시판·사용자 검색이
+    함께 사라진다. 그 표에는 외래키가 없어서 DB 가 막아 주지도 않고, 워커가 다시 채울
+    때까지 검색창은 조용히 빈 결과를 낸다.
+    """
+    target = next(t for t in _load().DOMAINS["document"] if t.table == "search_documents")
+    assert target.where, "검색 색인을 조건 없이 지우고 있다"
+    assert "kind" in target.where and "document" in target.where
+
+
+def test_the_skeleton_and_the_binaries_survive():
+    """지시 22.3 이 「지우지 않는다」고 이름으로 적은 것들.
+
+    공간과 폴더는 문서가 아니라 문서가 **사는 자리**다. 비우면 초기화 뒤 「새 문서」가
+    고를 공간이 하나도 없어서 문서를 만들 수 없다. `files` 는 첨부의 본체 메타데이터이고
+    그 뒤에 실제 바이너리가 있다 — 여기서 지우는 것은 문서와 파일을 잇는 줄뿐이다.
+    """
+    mod = _load()
+    declared = set(_tables("document"))
+    for name in ("knowledge_spaces", "folders", "files", "document_cache", "trash_items"):
+        assert name not in declared, f"{name} 은 지우지 않기로 한 표다"
+        assert name in mod.PROTECTED, f"{name} 이 보호 목록에 없다"
+    # 잇는 줄은 지운다 — 그것까지 남기면 없는 문서를 가리키는 첨부가 남는다.
+    assert "document_attachments" in declared
+
+
+def test_document_children_come_before_their_parents():
+    """판을 문서보다 먼저 지운다 — 두 표가 서로를 가리킨다.
+
+    `document_versions.document_id → documents` 와 `documents.current_version_id →
+    document_versions` 가 둘 다 있다. 판을 먼저 지우면 문서의 그 칸이 NULL 이 되어 한 번에
+    풀리고, 반대로 하면 순서에 따라 거절당한다.
+    """
+    order = _tables("document")
+    at = order.index
+    assert at("document_versions") < at("documents")
+    assert at("document_chunks") < at("document_versions")
+    assert at("document_tags") < at("tags")
+    assert at("document_tags") < at("documents")
+    assert at("document_attachments") < at("documents")
+
+
+def test_a_partial_target_prints_its_condition():
+    """보고서에 조건이 보여야 한다 — 「search_documents 111행」만 적히면 읽는 사람은
+    표 전체가 111행이라고 읽는다."""
+    mod = _load()
+    assert str(mod.Target("t")) == "t"
+    assert str(mod.Target("t", where="kind = 'document'")) == "t (kind = 'document')"
 
 
 # ── 구조 행은 지운 뒤 다시 심는다 ────────────────────────────────────────────
@@ -142,3 +248,4 @@ def test_reseeded_rows_are_not_user_data():
             lowered = sql.lower()
             assert "chat_messages" not in lowered, f"{domain}: 메시지를 다시 심고 있다"
             assert "chat_room_members" not in lowered, f"{domain}: 참여자를 다시 심고 있다"
+            assert "document_versions" not in lowered, f"{domain}: 문서 본문을 다시 심고 있다"

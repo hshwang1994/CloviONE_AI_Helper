@@ -33,7 +33,12 @@ from app.core.deps import (
 )
 from app.knowledge import attachments as attachments_mod
 from app.knowledge import relations as relations_mod
-from app.knowledge import service, tags as tags_mod, versions as versions_mod
+from app.knowledge import (
+    service,
+    tags as tags_mod,
+    templates as doc_templates,
+    versions as versions_mod,
+)
 from app.knowledge.schemas import (
     CommentCreate,
     CommentUpdate,
@@ -91,7 +96,7 @@ def _folder_json(folder) -> dict:
     }
 
 
-def _document_json(document, *, tags=None, is_favorite: bool | None = None) -> dict:
+def _document_json(document, *, tags=None, is_favorite: bool | None = None, extras=None) -> dict:
     out = {
         "id": document.id,
         "space_id": document.space_id,
@@ -101,6 +106,8 @@ def _document_json(document, *, tags=None, is_favorite: bool | None = None) -> d
         "source_type": document.source_type,
         "confidential": document.confidential,
         "archived": document.archived,
+        "archived_at": document.archived_at,
+        "archived_by": document.archived_by,
         "version": document.version,
         "current_version_id": document.current_version_id,
         "created_by": document.created_by,
@@ -111,6 +118,20 @@ def _document_json(document, *, tags=None, is_favorite: bool | None = None) -> d
         out["tags"] = [{"id": t.id, "name": t.name, "slug": t.slug} for t in tags]
     if is_favorite is not None:
         out["is_favorite"] = is_favorite
+    if extras is not None:
+        # 목록이 그리는 것들 — 작성자 · 미리보기 · 공간/폴더 이름 · 개수 (지시 22.4).
+        # **한 쪽치를 한 번에** 모아 둔 것을 나눠 담는다(`service.list_page_extras`).
+        folder = (extras["folders"] or {}).get(document.folder_id) if document.folder_id else None
+        out["excerpt"] = (extras["excerpts"] or {}).get(document.id, "")
+        out["space_name"] = (extras["spaces"] or {}).get(document.space_id, "")
+        out["folder_path"] = folder["path"] if folder else ""
+        out["author"] = (extras["people"] or {}).get(document.created_by)
+        out["archiver"] = (extras["people"] or {}).get(document.archived_by)
+        counts = extras["counts"] or {}
+        out["counts"] = {
+            key: (counts.get(key) or {}).get(document.id, 0)
+            for key in ("attachments", "comments", "relations")
+        }
     return out
 
 
@@ -270,28 +291,77 @@ def list_documents(
     tag: str | None = Query(default=None, max_length=80),
     favorites: bool = Query(default=False),
     include_archived: bool = Query(default=False),
+    archived_only: bool = Query(default=False),
+    created_by: str | None = Query(default=None, max_length=36),
+    mine: bool = Query(default=False),
+    drafts: bool = Query(default=False),
+    sort: str | None = Query(default=None, max_length=16),
     limit: int = Query(default=50, ge=1, le=service.PAGE_MAX),
     offset: int = Query(default=0, ge=0),
 ) -> dict:
     """한 페이지치 문서. `total` 을 함께 낸다 — 화면이 「몇 건 중 어디쯤」을 말할 수 있어야
-    50번째 뒤에 문서가 더 있다는 사실이 사용자에게 보인다."""
+    50번째 뒤에 문서가 더 있다는 사실이 사용자에게 보인다.
+
+    `mine` 은 **내 id 를 서버가 넣는다.** 화면이 자기 id 를 `created_by` 에 실어 보내게
+    두면 그 값은 요청마다 바꿔 넣을 수 있는 값이 된다 — 지금 계약에서 남의 문서를 보는
+    것이 유출은 아니지만(가시성은 그대로 걸린다), 「내 것」이라는 말의 뜻이 요청에 따라
+    달라지는 것은 다른 문제다."""
     rows, total = service.list_documents(
         db, user, space_id=space_id, folder_id=folder_id, q=q, tag=tag,
-        favorites=favorites, include_archived=include_archived, limit=limit, offset=offset,
+        favorites=favorites, include_archived=include_archived, archived_only=archived_only,
+        created_by=(user.id if mine else created_by), drafts=drafts, sort=sort,
+        limit=limit, offset=offset,
     )
     # 즐겨찾기·태그는 **한 질의씩**으로 이 페이지치만 묻는다. 문서마다 묻게 두면 목록
-    # 한 화면이 문서 수만큼의 질의가 된다.
+    # 한 화면이 문서 수만큼의 질의가 된다. 작성자·미리보기·개수도 같은 규칙이다.
     starred = service.favorite_ids(db, user, [d.id for d in rows])
     doc_tags = tags_mod.of_documents(db, [d.id for d in rows])
+    extras = service.list_page_extras(db, user, rows)
     return {
         "items": [
-            _document_json(d, tags=doc_tags.get(d.id, []), is_favorite=d.id in starred)
+            _document_json(
+                d, tags=doc_tags.get(d.id, []), is_favorite=d.id in starred, extras=extras,
+            )
             for d in rows
         ],
+        # 「작성자」 필터의 후보. **응답이 들고 온다** — 화면이 사용자 목록을 따로 받으면
+        # 문서를 한 건도 안 쓴 사람까지 후보에 서고, 그 목록은 일반 사용자가 볼 수 없다
+        # (프로젝트 목록이 부서 후보를 같은 이유로 함께 싣는다).
+        "authors": service.author_options(db, user),
         "total": total,
         "limit": limit,
         "offset": offset,
     }
+
+
+@router.get("/summary")
+def workspace_summary(
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("DOCUMENT_READ")),
+) -> dict:
+    """작업공간 위의 수 넷 (지시 22.4). 전부 아래 목록의 조건 하나와 짝이다."""
+    return service.workspace_summary(db, user, now=request.app.state.clock.now())
+
+
+@router.get("/templates")
+def list_templates(
+    user: User = Depends(require_permission("DOCUMENT_READ")),
+) -> dict:
+    """새 문서가 시작할 틀 (지시 22.5). 본문은 안 싣는다 — 고르는 자리에는 이름이면 된다."""
+    return {"items": doc_templates.catalog()}
+
+
+@router.get("/recent")
+def recent_documents(
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("DOCUMENT_READ")),
+    limit: int = Query(default=8, ge=1, le=50),
+) -> dict:
+    """내가 최근에 연 문서. **지금 볼 수 있는 것만** 낸다."""
+    rows = service.recent_documents(db, user, limit=limit)
+    extras = service.list_page_extras(db, user, rows)
+    return {"items": [_document_json(d, extras=extras) for d in rows]}
 
 
 @router.post("/documents", dependencies=[Depends(require_csrf)])
@@ -305,6 +375,7 @@ def create_document(
         space_id=payload.space_id, title=payload.title, folder_id=payload.folder_id,
         body=payload.body, doc_type=payload.doc_type, source_type=payload.source_type,
         tag_names=payload.tag_names, confidential=payload.confidential,
+        template=payload.template,
     )
     return _document_json(document, tags=tags_mod.of_document(db, document.id))
 
@@ -344,14 +415,28 @@ def get_document(
     # 남는다.
     if not auth.impersonating:
         service.record_view(db, user, document.id, now=request.app.state.clock.now())
+    # 곁열이 그리는 것들 — 작성자 · 공간 이름 · 이어진 문서의 **제목**.
+    #
+    # 제목이 없으면 화면이 「관련 문서 3건」이라고 적어 놓고 uuid 세 줄을 보여 준다. 그 값을
+    # 문서마다 다시 물으면 상세 한 번이 관계 수만큼의 요청이 되므로 여기서 한 번에 푼다.
+    extras = service.list_page_extras(db, user, [document])
+    titles = service.titles_of(
+        db, user,
+        [r["document_id"] for r in detail["relations"]]
+        + [m.document_id for m in detail["backlinks"]],
+    )
     return {
         **_document_json(
             document, tags=detail["tags"],
             is_favorite=document.id in service.favorite_ids(db, user, [document.id]),
+            extras=extras,
         ),
         "current": _version_json(detail["version"], body=True),
-        "relations": detail["relations"],
-        "backlinks": detail["backlinks"],
+        "relations": [{**r, "title": titles.get(r["document_id"], "")} for r in detail["relations"]],
+        "backlinks": [
+            {**b, "title": titles.get(b["document_id"], "")} for b in detail["backlinks"]
+        ],
+        "ticket_mentions": detail["ticket_mentions"],
         "attachments": [
             attachments_mod.json_of(link, record)
             for link, record in attachments_mod.of_document(db, document_id)
@@ -407,13 +492,76 @@ def delete_document(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("DOCUMENT_DELETE")),
 ) -> dict:
-    """보관 처리다 — 행을 지우지 않는다(이력·멘션·관계가 함께 사라진다)."""
-    document = service.delete_document(db, user, document_id)
+    """보관 처리다 — 행을 지우지 않는다(이력·멘션·관계가 함께 사라진다).
+
+    **되돌릴 수 있다**(0021 · 지시 22.7). 「누가 언제」를 함께 적어 두므로 휴지통이
+    그 문서를 보관 기간 동안 보여 주고, `restore` 가 다시 내린다.
+    """
+    document = service.delete_document(
+        db, user, document_id, now=request.app.state.clock.now(),
+    )
     record_audit_from_request(
         request, db, action="knowledge.document_archive", object_type="document",
         object_id=document_id, after={"archived": True},
     )
     return _document_json(document)
+
+
+@router.post("/documents/{document_id}/restore", dependencies=[Depends(require_csrf)])
+def restore_document(
+    document_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("DOCUMENT_DELETE")),
+) -> dict:
+    """휴지통에서 되살린다 (지시 22.7).
+
+    권한 게이트가 `DOCUMENT_DELETE` 인 것은 **버리기와 되살리기가 한 쌍**이기 때문이다.
+    되살리기를 더 넓게 열면 버릴 수 없는 사람이 남이 버린 문서를 되돌릴 수 있고, 더 좁게
+    두면 자기가 버린 문서를 자기가 못 되살린다.
+
+    게이트를 지난 뒤 **누가 그 문서를 되살릴 수 있는가**를 한 번 더 본다 — 공용 휴지통과
+    같은 규칙이다(운영자군이거나 버린 본인).
+    """
+    from app.core.errors import ForbiddenError
+
+    document = service.get_scoped_document_or_404(db, user, document_id)
+    if not service.can_manage_trashed(user, document):
+        raise ForbiddenError("이 문서를 되살릴 권한이 없습니다.")
+    document = service.restore_document(db, user, document_id)
+    record_audit_from_request(
+        request, db, action="knowledge.document_restore", object_type="document",
+        object_id=document_id, after={"archived": False},
+    )
+    return _document_json(document)
+
+
+@router.post("/documents/{document_id}/purge", dependencies=[Depends(require_csrf)])
+def purge_document(
+    document_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("DOCUMENT_DELETE")),
+) -> dict:
+    """영구 삭제 — **행을 지운다. 되돌릴 수 없다** (지시 22.7).
+
+    `DELETE /documents/{id}` 와 다른 주소인 것이 요점이다. 같은 동사에 깃발 하나로 두면
+    그 깃발을 잘못 보낸 요청 하나가 문서를 영구히 지운다.
+
+    휴지통에 있는 문서만 지날 수 있고(서비스가 막는다), 그 문서를 관리할 수 있는 사람만
+    지난다 — 되살리기와 같은 판정이다.
+    """
+    from app.core.errors import ForbiddenError
+
+    document = service.get_scoped_document_or_404(db, user, document_id)
+    if not service.can_manage_trashed(user, document):
+        raise ForbiddenError("이 문서를 영구 삭제할 권한이 없습니다.")
+    info = service.purge_document(db, user, document_id)
+    record_audit_from_request(
+        request, db, action="knowledge.document_purge", object_type="document",
+        object_id=document_id, before={"title": info["title"]},
+    )
+    return {"ok": True, **info}
 
 
 # ── 판 ───────────────────────────────────────────────────────────────────────

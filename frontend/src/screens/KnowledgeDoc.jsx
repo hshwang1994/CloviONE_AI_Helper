@@ -1,12 +1,15 @@
 import React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useParams, useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import Box from "@mui/material/Box";
+import Chip from "@mui/material/Chip";
+import Link from "@mui/material/Link";
+import MenuItem from "@mui/material/MenuItem";
 import Stack from "@mui/material/Stack";
-import Tab from "@mui/material/Tab";
-import Tabs from "@mui/material/Tabs";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
+import StarRoundedIcon from "@mui/icons-material/StarRounded";
+import StarOutlineRoundedIcon from "@mui/icons-material/StarOutlineRounded";
 import { api } from "../lib/api.js";
 import {
   Badge,
@@ -14,24 +17,41 @@ import {
   Card,
   EmptyState,
   ErrorState,
+  MetaBar,
+  Modal,
+  ModalFooter,
+  OverflowMenu,
   PageHeader,
   Section,
   Skeleton,
   useConfirm,
   useToast,
 } from "../ui/kit.jsx";
+import { DetailLayout } from "../ui/DetailLayout.jsx";
 import { prefersReducedMotion } from "../ui/motion.js";
 import { DocComments } from "./DocComments.jsx";
+import { UserAvatar } from "../ui/UserAvatar.jsx";
 import { FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
+import { fmtDateTimeCompact } from "../lib/format.js";
+import { useListReturn } from "../lib/listReturn.js";
 
-/* 문서 한 건 — 본문 · 이력 · 차이 · 되돌리기 (S7 Exit).
+/* 문서 한 건 — 본문 편집 · 문서 정보 · 관계 · 첨부 · 댓글 (지시 22.6).
+ *
+ * ## 본문이 화면을 실제로 쓴다
+ *
+ * 예전 이 화면은 탭 둘(본문 · 이력)에 카드 하나였다. 본문 폭은 공통 상세 폭 문제 그대로라
+ * 오른쪽이 비었고, 서버에 있는 기능 절반이 화면에 없었다 — 이동 · 관계 · 첨부 · 판 하나
+ * 열어 보기가 전부 API 로만 존재했다.
+ *
+ * 지금은 두 열이다. 왼쪽이 편집기, 오른쪽이 「이 문서에 대한 것」이고, 둘 다 `fr` 트랙이라
+ * 어느 폭에서도 오른쪽이 안 빈다(`ui/DetailLayout.jsx`). 좁은 화면에서는 곁열이 본문
+ * 아래로 흐른다.
  *
  * ## 편집기를 늦게 싣는다 (D-198)
  *
  * TipTap 과 ProseMirror 는 무겁다. 문서를 여는 사람만 받으면 되고, 목록만 보는 사람의
  * 첫 로딩에 그 무게를 얹을 이유가 없다. **`React.lazy` 로 들여오는 것이 계약이고**
- * `knowledge-editor-lazy.test.jsx` 가 그것을 코드로 확인한다 — 어느 날 누군가 정적
- * import 로 바꾸면 번들 예산이 조용히 넘어가고, 그때는 원인을 찾기 어렵다.
+ * `knowledge-editor-lazy.test.jsx` 가 그것을 코드로 확인한다.
  *
  * ## 이력 화면이 「변경 없음」으로 차지 않게 한다
  *
@@ -47,19 +67,15 @@ import { FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
 const BlockEditor = React.lazy(() =>
   import("../ui/BlockEditor.jsx").then((m) => ({ default: m.BlockEditor })));
 
-const CHANGE_LABEL = {
-  added: "추가",
-  removed: "삭제",
-  changed: "수정",
-  moved: "이동",
-};
+const CHANGE_LABEL = { added: "추가", removed: "삭제", changed: "수정", moved: "이동" };
+const CHANGE_TONE = { added: "ok", removed: "danger", changed: "info", moved: "neutral" };
 
-const CHANGE_TONE = {
-  added: "ok",
-  removed: "danger",
-  changed: "info",
-  moved: "neutral",
-};
+/** 관계 종류. 서버의 `DREL_KINDS` 와 같은 목록이다 — 갈라지면 만들 때 422 가 난다. */
+const RELATION_KINDS = [
+  { value: "relates_to", label: "관련 문서" },
+  { value: "references", label: "참조하는 문서" },
+  { value: "supersedes", label: "대체하는 문서" },
+];
 
 function useDocument(id) {
   return useQuery({
@@ -75,6 +91,29 @@ function useVersions(id) {
     queryFn: () => api(`/api/knowledge/documents/${id}/versions`),
     enabled: Boolean(id),
   });
+}
+
+function useSpaceTree(spaceId) {
+  return useQuery({
+    queryKey: ["knowledge", "tree", spaceId],
+    queryFn: () => api(`/api/knowledge/spaces/${spaceId}/tree`),
+    enabled: Boolean(spaceId),
+  });
+}
+
+function flatten(nodes, out = []) {
+  for (const node of nodes || []) {
+    out.push(node);
+    flatten(node.children, out);
+  }
+  return out;
+}
+
+function humanSize(bytes) {
+  const n = Number(bytes) || 0;
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${Math.round(n / 1024)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 function VersionDiff({ documentId, base, target }) {
@@ -135,10 +174,7 @@ function VersionDiff({ documentId, base, target }) {
  * 판이 올라도 안 바뀌므로(D-198) 어제 만든 인용이 오늘도 같은 문장을 가리킨다.
  *
  * **못 찾으면 아무 일도 안 한다.** 문서 맨 위에 그대로 서는 것이 맞다 — 그 블록이 지워진
- * 문서에서 엉뚱한 문단을 표시하면 사람은 그것을 인용된 문장으로 읽는다.
- *
- * 편집기가 늦게 실려 오므로 한 번만 보고 포기하지 않는다. 짧은 간격으로 몇 번 다시 본다.
- */
+ * 문서에서 엉뚱한 문단을 표시하면 사람은 그것을 인용된 문장으로 읽는다. */
 function useBlockAnchor(blockId, ready) {
   React.useEffect(() => {
     if (!blockId || !ready) return undefined;
@@ -162,20 +198,293 @@ function useBlockAnchor(blockId, ready) {
   }, [blockId, ready]);
 }
 
+/** 곁열의 「문서 정보」 한 줄. 라벨이 먼저다 — 찾는 이름을 알고 보는 자리다. */
+function InfoRow({ label, children }) {
+  return (
+    <Box sx={{ display: "grid", gridTemplateColumns: "5.5rem minmax(0, 1fr)", gap: 1, py: 0.375 }}>
+      <Typography variant="body2" color="text.secondary">{label}</Typography>
+      <Box sx={{ minWidth: 0, ...KO_WORD_BREAK }}>{children}</Box>
+    </Box>
+  );
+}
+
+/* 첨부 — 서버에 있는데 화면이 없던 기능 (지시 22.6).
+ *
+ * 파일은 우리 저장소에 있고 우리 라우트로 나간다. 인증이 걸린 같은 출처라 링크 하나면
+ * 쿠키가 함께 간다. */
+function Attachments({ documentId, items, onChanged }) {
+  const toast = useToast();
+  const confirm = useConfirm();
+  const inputRef = React.useRef(null);
+
+  const upload = useMutation({
+    mutationFn: async (picked) => {
+      const failed = [];
+      for (const file of picked) {
+        try {
+          const form = new FormData();
+          form.append("file", file);
+          await api(`/api/knowledge/documents/${documentId}/attachments`,
+                    { method: "POST", body: form });
+        } catch {
+          failed.push(file.name);
+        }
+      }
+      return { failed };
+    },
+    onSuccess: ({ failed }) => {
+      onChanged();
+      if (failed.length) {
+        toast(`파일 ${failed.length}개를 올리지 못했습니다: ${failed.join(", ")}`, "error");
+      } else {
+        toast("파일을 첨부했습니다.");
+      }
+    },
+    onError: (e) => toast(e.message, "error"),
+  });
+
+  const remove = useMutation({
+    mutationFn: (attachmentId) =>
+      api(`/api/knowledge/attachments/${attachmentId}`, { method: "DELETE" }),
+    onSuccess: () => { onChanged(); toast("첨부를 뗐습니다."); },
+    onError: (e) => toast(e.message, "error"),
+  });
+
+  return (
+    <Section
+      title={`첨부 ${items.length}`}
+      action={(
+        <Button size="small" variant="ghost" onClick={() => inputRef.current?.click()}>
+          파일 올리기
+        </Button>
+      )}
+    >
+      <Box
+        component="input"
+        ref={inputRef}
+        type="file"
+        multiple
+        sx={{ display: "none" }}
+        onChange={(e) => {
+          /* `FileList` 는 살아 있는 목록이라 **동기적으로** 배열로 뜬다. 아래에서 입력을
+             비우는 순간 그 목록도 비워지므로, 참조를 그대로 넘기면 아무것도 안 올라가면서
+             성공 안내만 뜬다(티켓 첨부가 실제로 밟은 자리다). */
+          const picked = Array.from(e.target.files || []);
+          e.target.value = "";
+          if (picked.length) upload.mutate(picked);
+        }}
+      />
+      {items.length === 0 ? (
+        <Typography variant="body2" color="text.secondary" sx={KO_WORD_BREAK}>
+          이 문서에 붙은 파일이 없습니다.
+        </Typography>
+      ) : (
+        <Stack spacing={0.75}>
+          {items.map((file) => (
+            <Stack key={file.id} direction="row" alignItems="center" spacing={1}>
+              <Link
+                href={`/api/knowledge/attachments/${file.id}/content`}
+                target="_blank"
+                rel="noreferrer"
+                sx={{ ...KO_WORD_BREAK, flex: 1, minWidth: 0 }}
+              >
+                {file.filename}
+              </Link>
+              <Typography variant="caption" color="text.secondary" sx={{ flexShrink: 0 }}>
+                {humanSize(file.size_bytes)}
+              </Typography>
+              <Button
+                size="small"
+                variant="ghost"
+                onClick={async () => {
+                  const ok = await confirm(
+                    "이 문서에서 파일을 뗍니다. 파일 자체는 저장소에 남습니다.",
+                    { title: `${file.filename}을(를) 뗄까요?`, confirmLabel: "떼기" },
+                  );
+                  if (ok) remove.mutate(file.id);
+                }}
+              >
+                삭제
+              </Button>
+            </Stack>
+          ))}
+        </Stack>
+      )}
+    </Section>
+  );
+}
+
+/* 관련 문서와 역링크 — 서버에 있는데 화면이 없던 기능 (지시 22.6 · 22.8).
+ *
+ * **양쪽이 다 보여야 잇는다**(서버가 그렇게 판정한다). 그래서 후보는 내가 볼 수 있는
+ * 문서 목록에서 고르고, 목록에 없는 문서는 이을 수 없다 — 그것이 맞다. */
+function Relations({ documentId, relations, backlinks, tickets, onChanged }) {
+  const toast = useToast();
+  const [open, setOpen] = React.useState(false);
+  const [target, setTarget] = React.useState("");
+  const [kind, setKind] = React.useState("relates_to");
+  const [q, setQ] = React.useState("");
+
+  const candidates = useQuery({
+    queryKey: ["knowledge", "documents", "relation-candidates", q],
+    queryFn: () => api(`/api/knowledge/documents?limit=20${q ? `&q=${encodeURIComponent(q)}` : ""}`),
+    enabled: open,
+  });
+
+  const add = useMutation({
+    mutationFn: (body) =>
+      api(`/api/knowledge/documents/${documentId}/relations`, { method: "POST", body }),
+    onSuccess: () => { onChanged(); setOpen(false); setTarget(""); toast("문서를 이었습니다."); },
+    onError: (e) => toast(e.message, "error"),
+  });
+
+  const drop = useMutation({
+    mutationFn: (body) =>
+      api(`/api/knowledge/documents/${documentId}/relations`, { method: "DELETE", body }),
+    onSuccess: () => { onChanged(); toast("연결을 끊었습니다."); },
+    onError: (e) => toast(e.message, "error"),
+  });
+
+  const rows = candidates.data?.items || [];
+
+  return (
+    <Section
+      title={`관련 문서 ${relations.length}`}
+      action={<Button size="small" variant="ghost" onClick={() => setOpen(true)}>문서 잇기</Button>}
+    >
+      <Stack spacing={1}>
+        {relations.length === 0 ? (
+          <Typography variant="body2" color="text.secondary" sx={KO_WORD_BREAK}>
+            이어 둔 문서가 없습니다.
+          </Typography>
+        ) : relations.map((rel) => (
+          <Stack key={`${rel.document_id}-${rel.kind}`} direction="row" alignItems="center" spacing={1}>
+            <Link href={`#/knowledge/${rel.document_id}`} sx={{ ...KO_WORD_BREAK, flex: 1, minWidth: 0 }}>
+              {rel.title || rel.document_id}
+            </Link>
+            <Chip size="small" variant="outlined" label={rel.label || rel.kind} />
+            <Button
+              size="small"
+              variant="ghost"
+              onClick={() => drop.mutate({ to_document_id: rel.document_id, kind: rel.kind })}
+            >
+              삭제
+            </Button>
+          </Stack>
+        ))}
+
+        {/* 이 문서가 가리키는 티켓 (지시 22.8). 본문에서 티켓을 언급하면 여기 선다 —
+            **볼 수 있는 티켓만** 나온다(문서가 보인다고 그 티켓이 보이는 것은 아니다). */}
+        {tickets.length > 0 ? (
+          <Box sx={{ mt: 1 }}>
+            <Typography variant="body2" sx={{ fontWeight: FONT_WEIGHT.semibold, mb: 0.5 }}>
+              관련 티켓 {tickets.length}
+            </Typography>
+            <Stack spacing={0.5}>
+              {tickets.map((t) => (
+                <Link key={t.ticket_id} href={`#/tickets/${t.ticket_id}`} sx={KO_WORD_BREAK}>
+                  {t.key ? `${t.key} ${t.title}` : t.title}
+                </Link>
+              ))}
+            </Stack>
+          </Box>
+        ) : null}
+
+        {backlinks.length > 0 ? (
+          <Box sx={{ mt: 1 }}>
+            <Typography variant="body2" sx={{ fontWeight: FONT_WEIGHT.semibold, mb: 0.5 }}>
+              이 문서를 인용한 문서 {backlinks.length}
+            </Typography>
+            <Stack spacing={0.5}>
+              {backlinks.map((link) => (
+                <Link
+                  key={`${link.document_id}-${link.block_id}`}
+                  href={`#/knowledge/${link.document_id}?block=${link.block_id}`}
+                  sx={KO_WORD_BREAK}
+                >
+                  {link.title || link.document_id}
+                </Link>
+              ))}
+            </Stack>
+          </Box>
+        ) : null}
+      </Stack>
+
+      <Modal
+        open={open}
+        onClose={() => setOpen(false)}
+        title="문서 잇기"
+        footer={(
+          <ModalFooter
+            onCancel={() => setOpen(false)}
+            onSubmit={target ? () => add.mutate({ to_document_id: target, kind }) : undefined}
+            submitLabel="잇기"
+            busy={add.isPending}
+          />
+        )}
+      >
+        <Stack spacing={2}>
+          <TextField
+            label="문서 찾기"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            InputLabelProps={{ shrink: true }}
+            helperText="내가 볼 수 있는 문서만 이을 수 있습니다."
+            fullWidth
+          />
+          <TextField
+            select
+            label="이을 문서"
+            value={target}
+            onChange={(e) => setTarget(e.target.value)}
+            InputLabelProps={{ shrink: true }}
+            fullWidth
+          >
+            {rows.filter((d) => d.id !== documentId).map((d) => (
+              <MenuItem key={d.id} value={d.id}>{d.title}</MenuItem>
+            ))}
+          </TextField>
+          <TextField
+            select
+            label="관계"
+            value={kind}
+            onChange={(e) => setKind(e.target.value)}
+            InputLabelProps={{ shrink: true }}
+            fullWidth
+          >
+            {RELATION_KINDS.map((k) => (
+              <MenuItem key={k.value} value={k.value}>{k.label}</MenuItem>
+            ))}
+          </TextField>
+        </Stack>
+      </Modal>
+    </Section>
+  );
+}
+
 export function KnowledgeDoc() {
   const { id } = useParams();
   const [params] = useSearchParams();
+  const navigate = useNavigate();
   const toast = useToast();
   const confirm = useConfirm();
   const qc = useQueryClient();
+  /* 「목록으로」는 **주소**로 돌아간다 — 조건과 쪽과 스크롤이 살아 있는 그 목록이다
+     (`lib/listReturn.js`). 경로만 알고 돌아가면 사용자가 방금 걸어 둔 조건을 다시 만든다. */
+  const location = useLocation();
+  const backTo = useListReturn(location.state?.from, "/knowledge");
 
   const doc = useDocument(id);
   const versions = useVersions(id);
+  const tree = useSpaceTree(doc.data?.space_id);
 
-  const [tab, setTab] = React.useState(0);
   const [title, setTitle] = React.useState("");
   const [body, setBody] = React.useState(null);
+  const [tags, setTags] = React.useState("");
   const [compareTo, setCompareTo] = React.useState(null);
+  const [history, setHistory] = React.useState(false);
+  const [moving, setMoving] = React.useState(false);
+  const [folderId, setFolderId] = React.useState("");
 
   /* 서버가 준 값을 편집 상태의 출발점으로 삼는다. 문서 id 가 바뀔 때만 다시 잡는다 —
    * 매 응답마다 덮으면 사용자가 타이핑하는 중에 화면이 되감긴다. */
@@ -183,16 +492,23 @@ export function KnowledgeDoc() {
     if (!doc.data) return;
     setTitle(doc.data.title);
     setBody(doc.data.current?.body || null);
+    setTags((doc.data.tags || []).map((t) => t.name).join(", "));
+    setFolderId(doc.data.folder_id || "");
     setCompareTo(null);
   }, [doc.data?.id]);
 
   useBlockAnchor(params.get("block"), Boolean(body));
 
+  const refresh = () => {
+    qc.invalidateQueries({ queryKey: ["knowledge", "document", id] });
+    qc.invalidateQueries({ queryKey: ["knowledge", "documents"] });
+  };
+
   const save = useMutation({
     mutationFn: (payload) =>
       api(`/api/knowledge/documents/${id}`, { method: "PUT", body: payload }),
     onSuccess: (result) => {
-      qc.invalidateQueries({ queryKey: ["knowledge", "document", id] });
+      refresh();
       qc.invalidateQueries({ queryKey: ["knowledge", "versions", id] });
       toast(
         result.created_version
@@ -210,9 +526,32 @@ export function KnowledgeDoc() {
       api(`/api/knowledge/documents/${id}/favorite?on=${on ? "true" : "false"}`,
         { method: "POST" }),
     onSuccess: (result) => {
-      qc.invalidateQueries({ queryKey: ["knowledge", "document", id] });
-      qc.invalidateQueries({ queryKey: ["knowledge", "documents"] });
+      refresh();
       toast(result.is_favorite ? "즐겨찾기에 담았습니다." : "즐겨찾기에서 뺐습니다.");
+    },
+    onError: (e) => toast(e.message, "error"),
+  });
+
+  const move = useMutation({
+    mutationFn: (next) =>
+      api(`/api/knowledge/documents/${id}/move`, {
+        method: "POST",
+        body: { folder_id: next || null, base_version: doc.data?.version },
+      }),
+    onSuccess: () => {
+      refresh();
+      setMoving(false);
+      toast("문서를 옮겼습니다. 볼 수 있는 사람은 그대로입니다.");
+    },
+    onError: (e) => toast(e.message, "error"),
+  });
+
+  const archive = useMutation({
+    mutationFn: () => api(`/api/knowledge/documents/${id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["knowledge", "documents"] });
+      toast("문서를 휴지통으로 보냈습니다. 휴지통에서 되살릴 수 있습니다.");
+      navigate(backTo);
     },
     onError: (e) => toast(e.message, "error"),
   });
@@ -224,157 +563,281 @@ export function KnowledgeDoc() {
         body: { base_version: doc.data?.version },
       }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["knowledge", "document", id] });
+      refresh();
       qc.invalidateQueries({ queryKey: ["knowledge", "versions", id] });
       toast("옛 판의 본문으로 새 판을 만들었습니다. 이력은 그대로 남아 있습니다.");
     },
     onError: (e) => toast(e.message, "error"),
   });
 
+  /* 본문에 그림을 넣는 길 — **첨부로 올리고 주소만 본문에 남긴다** (D4 · 지시 22.6).
+   *
+   * 바이트를 본문에 넣지 않는다: `data:` 이미지는 판마다 통째로 복사되고, 서버가 그 스킴을
+   * 거절한다(app/knowledge/blocks.py). 첨부로 올리면 그림이 첨부 목록에도 함께 서서
+   * 「본문에 있는 그림」과 「붙인 파일」이 갈라지지 않는다.
+   *
+   * 파일 고르기는 사용자가 취소할 수 있다. 그때는 아무 일도 안 일어나야 하므로 약속이
+   * 조용히 끝난다 — 오류로 만들면 취소가 실패로 보인다. */
+  const pickImage = React.useCallback(() => new Promise((resolve) => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "image/*";
+    input.onchange = async () => {
+      const file = (input.files || [])[0];
+      if (!file) { resolve(null); return; }
+      try {
+        const form = new FormData();
+        form.append("file", file);
+        const made = await api(`/api/knowledge/documents/${id}/attachments`,
+                              { method: "POST", body: form });
+        refresh();
+        resolve(`/api/knowledge/attachments/${made.id}/content`);
+      } catch (e) {
+        toast(e.message, "error");
+        resolve(null);
+      }
+    };
+    input.click();
+  }), [id]);
+
   if (doc.isLoading) return <Skeleton kind="page" lines={5} />;
   if (doc.isError) return <ErrorState error={doc.error} onRetry={() => doc.refetch()} />;
 
-  const current = doc.data.current || {};
-  const history = versions.data?.items || [];
+  const data = doc.data;
+  const current = data.current || {};
+  const versionRows = versions.data?.items || [];
+  const folders = flatten(tree.data?.folders || []);
+  const folderPath = folders.find((f) => f.id === data.folder_id);
+  const attachments = data.attachments || [];
+
+  const submit = () => save.mutate({
+    title,
+    body,
+    tag_names: tags.split(",").map((t) => t.trim()).filter(Boolean),
+    base_version: data.version,
+  });
+
+  const aside = (
+    <Stack spacing={2} sx={{ minWidth: 0 }}>
+      <Card>
+        <Section title="문서 정보">
+          <InfoRow label="작성자">
+            <Stack direction="row" spacing={0.75} alignItems="center">
+              <UserAvatar person={data.author} size="sm" />
+              <Typography variant="body2">{data.author?.display_name || "-"}</Typography>
+            </Stack>
+          </InfoRow>
+          <InfoRow label="공간">{data.space_name || "-"}</InfoRow>
+          <InfoRow label="폴더">{folderPath ? folderPath.name : "공간 첫 화면"}</InfoRow>
+          <InfoRow label="현재 판">
+            {current.version_no != null ? `${current.version_no}판` : "아직 없습니다"}
+          </InfoRow>
+          <InfoRow label="마지막 수정">{fmtDateTimeCompact(data.updated_at)}</InfoRow>
+          <InfoRow label="만든 날">{fmtDateTimeCompact(data.created_at)}</InfoRow>
+        </Section>
+      </Card>
+
+      <Card>
+        <Section title="태그">
+          <TextField
+            value={tags}
+            onChange={(e) => setTags(e.target.value)}
+            placeholder="쉼표로 나눠 적습니다."
+            size="small"
+            fullWidth
+            /* 태그도 **저장 버튼 하나**로 함께 저장된다. 별도 저장을 두면 「태그만 저장했는데
+               본문이 안 저장됐다」가 생기고, 사용자는 어느 버튼이 무엇을 저장하는지 못 외운다. */
+            helperText="저장을 누르면 본문과 함께 저장됩니다."
+          />
+          <Stack direction="row" spacing={0.5} sx={{ flexWrap: "wrap", rowGap: 0.5, mt: 1 }}>
+            {(data.tags || []).map((t) => <Chip key={t.id} size="small" label={t.name} />)}
+          </Stack>
+        </Section>
+      </Card>
+
+      <Card>
+        <Relations
+          documentId={id}
+          relations={data.relations || []}
+          backlinks={data.backlinks || []}
+          tickets={data.ticket_mentions || []}
+          onChanged={refresh}
+        />
+      </Card>
+
+      <Card>
+        <Attachments documentId={id} items={attachments} onChanged={refresh} />
+      </Card>
+
+      <Card>
+        <Section title="댓글">
+          <DocComments documentId={id} />
+        </Section>
+      </Card>
+    </Stack>
+  );
 
   return (
     <>
       <PageHeader
+        crumbRoot="팀 업무"
         area="문서"
-        title={doc.data.title}
-        actions={
+        title={data.title}
+        actions={(
           <>
             <Button
+              aria-pressed={Boolean(data.is_favorite)}
               loading={favorite.isPending}
-              onClick={() => favorite.mutate(!doc.data.is_favorite)}
+              onClick={() => favorite.mutate(!data.is_favorite)}
             >
-              {doc.data.is_favorite ? "즐겨찾기 해제" : "즐겨찾기"}
+              {data.is_favorite
+                ? <StarRoundedIcon sx={{ fontSize: "1.125rem" }} />
+                : <StarOutlineRoundedIcon sx={{ fontSize: "1.125rem" }} />}
+              {data.is_favorite ? "즐겨찾기 해제" : "즐겨찾기"}
             </Button>
-            <Button
-              variant="primary"
-              loading={save.isPending}
-              onClick={() => save.mutate({ title, body, base_version: doc.data.version })}
-            >
-              저장
+            <Button onClick={() => setMoving(true)}>이동</Button>
+            <Button onClick={() => setHistory((v) => !v)}>
+              {history ? "이력 닫기" : `이력 ${versionRows.length}`}
             </Button>
+            <Button variant="primary" loading={save.isPending} onClick={submit}>저장</Button>
+            <OverflowMenu
+              ariaLabel="문서 작업"
+              items={[
+                { label: "목록으로", onClick: () => navigate(backTo) },
+                {
+                  label: "휴지통으로 보내기",
+                  onClick: async () => {
+                    const ok = await confirm(
+                      "휴지통에서 되살릴 수 있습니다. 판 이력과 댓글은 그대로 남습니다.",
+                      { title: "이 문서를 휴지통으로 보낼까요?", confirmLabel: "보내기" },
+                    );
+                    if (ok) archive.mutate();
+                  },
+                },
+              ]}
+            />
           </>
-        }
+        )}
       />
 
-      <Tabs value={tab} onChange={(_e, v) => setTab(v)} sx={{ mb: 2 }}>
-        <Tab label="본문" />
-        <Tab label={`이력 ${history.length}건`} />
-      </Tabs>
+      {/* 상단 맥락 — 「이 문서가 어디에 있고 지금 몇 판인가」 (지시 22.6). 본문을 읽다가
+          확인하려고 곁열 끝까지 갔다 오지 않게 한 줄로 눕힌다. */}
+      <MetaBar
+        ariaLabel="문서 맥락"
+        sx={{ mb: 2 }}
+        items={[
+          { key: "space", label: "공간", value: data.space_name || "-", rank: "primary" },
+          { key: "folder", label: "폴더", value: folderPath ? folderPath.name : "공간 첫 화면" },
+          {
+            key: "version", label: "현재 판",
+            value: current.version_no != null ? `${current.version_no}판` : "-",
+          },
+          { key: "updated", label: "마지막 수정", value: fmtDateTimeCompact(data.updated_at) },
+        ]}
+      />
 
-      {tab === 0 && (
-        <Card>
-          <Stack spacing={2}>
-            <TextField
-              label="문서 제목"
-              InputLabelProps={{ shrink: true }}
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              inputProps={{ maxLength: 500 }}
-              fullWidth
-            />
-            <React.Suspense fallback={<Skeleton kind="section" lines={6} />}>
-              <BlockEditor value={body} onChange={setBody} />
-            </React.Suspense>
-          </Stack>
-        </Card>
-      )}
-
-      {/* 논의는 본문 아래에 그대로 둔다. 탭 뒤에 감추면 「질문이 하나도 없다」와 「질문 칸이
-          어디 있는지 모르겠다」가 화면에서 똑같이 보인다. */}
-      {tab === 0 && (
-        <Card sx={{ mt: 2 }}>
-          <Section title="댓글">
-            <DocComments documentId={id} />
-          </Section>
-        </Card>
-      )}
-
-      {tab === 1 && (
-        <Stack spacing={2}>
+      <DetailLayout aside={aside}>
+        <Stack spacing={2} sx={{ minWidth: 0 }}>
           <Card>
-            <Section title="판 이력">
-              {versions.isLoading && <Skeleton kind="list" rows={4} />}
-              {versions.isError && (
-                <ErrorState error={versions.error} onRetry={() => versions.refetch()} />
-              )}
-              {!versions.isLoading && history.length === 0 && (
-                <EmptyState
-                  title="아직 판이 없습니다."
-                  help="본문을 저장하면 판이 하나씩 쌓입니다."
-                />
-              )}
-              <Stack spacing={1} component="ul" sx={{ listStyle: "none", p: 0, m: 0 }}>
-                {history.map((version) => {
-                  const isCurrent = version.version_no === versions.data?.current_version_no;
-                  return (
-                    <Box
-                      key={version.id}
-                      component="li"
-                      sx={(theme) => ({
-                        border: `1px solid ${theme.palette.divider}`,
-                        borderRadius: 1,
-                        p: 1.5,
-                      })}
-                    >
-                      <Stack
-                        direction={{ xs: "column", sm: "row" }}
-                        spacing={1}
-                        alignItems={{ sm: "center" }}
-                      >
-                        <Typography sx={{ fontWeight: FONT_WEIGHT.semibold, minWidth: "4rem" }}>
-                          {version.version_no}판
-                        </Typography>
-                        {isCurrent && <Badge value="지금 보는 판" kind="info" />}
-                        {version.source === "RESTORE" && <Badge value="되돌림" kind="neutral" />}
-                        {version.ai_used && <Badge value="AI 사용" kind="neutral" />}
-                        <Typography
-                          variant="body2"
-                          color="text.secondary"
-                          sx={{ ...KO_WORD_BREAK, flex: 1, minWidth: 0 }}
-                        >
-                          {version.change_reason || "사유를 적지 않았습니다."}
-                        </Typography>
-                        <Stack direction="row" spacing={1}>
-                          <Button
-                            size="small"
-                            disabled={isCurrent}
-                            onClick={() => setCompareTo(version.version_no)}
-                          >
-                            지금 판과 비교
-                          </Button>
-                          <Button
-                            size="small"
-                            disabled={isCurrent}
-                            loading={restore.isPending}
-                            onClick={async () => {
-                              const ok = await confirm(
-                                "지금 본문을 지우지 않습니다. 옛 판의 내용으로 새 판을"
-                                + " 하나 더 쌓고, 이력은 그대로 남습니다.",
-                                {
-                                  title: `${version.version_no}판으로 되돌릴까요?`,
-                                  confirmLabel: "되돌리기",
-                                },
-                              );
-                              if (ok) restore.mutate(version.version_no);
-                            }}
-                          >
-                            되돌리기
-                          </Button>
-                        </Stack>
-                      </Stack>
-                    </Box>
-                  );
-                })}
-              </Stack>
-            </Section>
+            <Stack spacing={2}>
+              <TextField
+                label="문서 제목"
+                InputLabelProps={{ shrink: true }}
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                inputProps={{ maxLength: 500 }}
+                fullWidth
+              />
+              <React.Suspense fallback={<Skeleton kind="section" lines={6} />}>
+                <BlockEditor value={body} onChange={setBody} onPickImage={pickImage} />
+              </React.Suspense>
+            </Stack>
           </Card>
 
-          {compareTo != null && versions.data?.current_version_no != null && (
+          {history ? (
+            <Card>
+              <Section title="판 이력">
+                {versions.isLoading && <Skeleton kind="list" rows={4} />}
+                {versions.isError && (
+                  <ErrorState error={versions.error} onRetry={() => versions.refetch()} />
+                )}
+                {!versions.isLoading && versionRows.length === 0 && (
+                  <EmptyState
+                    title="아직 판이 없습니다."
+                    help="본문을 저장하면 판이 하나씩 쌓입니다."
+                  />
+                )}
+                <Stack spacing={1} component="ul" sx={{ listStyle: "none", p: 0, m: 0 }}>
+                  {versionRows.map((version) => {
+                    const isCurrent = version.version_no === versions.data?.current_version_no;
+                    return (
+                      <Box
+                        key={version.id}
+                        component="li"
+                        sx={(theme) => ({
+                          border: `1px solid ${theme.palette.divider}`,
+                          borderRadius: 1,
+                          p: 1.5,
+                        })}
+                      >
+                        <Stack
+                          direction={{ xs: "column", sm: "row" }}
+                          spacing={1}
+                          alignItems={{ sm: "center" }}
+                        >
+                          <Typography sx={{ fontWeight: FONT_WEIGHT.semibold, minWidth: "4rem" }}>
+                            {version.version_no}판
+                          </Typography>
+                          {isCurrent && <Badge value="지금 보는 판" kind="info" />}
+                          {version.source === "RESTORE" && <Badge value="되돌림" kind="neutral" />}
+                          {version.ai_used && <Badge value="AI 사용" kind="neutral" />}
+                          <Typography
+                            variant="body2"
+                            color="text.secondary"
+                            sx={{ ...KO_WORD_BREAK, flex: 1, minWidth: 0 }}
+                          >
+                            {version.change_reason || "사유를 적지 않았습니다."}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {fmtDateTimeCompact(version.created_at)}
+                          </Typography>
+                          <Stack direction="row" spacing={1}>
+                            <Button
+                              size="small"
+                              disabled={isCurrent}
+                              onClick={() => setCompareTo(version.version_no)}
+                            >
+                              지금 판과 비교
+                            </Button>
+                            <Button
+                              size="small"
+                              disabled={isCurrent}
+                              loading={restore.isPending}
+                              onClick={async () => {
+                                const ok = await confirm(
+                                  "지금 본문을 지우지 않습니다. 옛 판의 내용으로 새 판을"
+                                  + " 하나 더 쌓고, 이력은 그대로 남습니다.",
+                                  {
+                                    title: `${version.version_no}판으로 되돌릴까요?`,
+                                    confirmLabel: "되돌리기",
+                                  },
+                                );
+                                if (ok) restore.mutate(version.version_no);
+                              }}
+                            >
+                              되돌리기
+                            </Button>
+                          </Stack>
+                        </Stack>
+                      </Box>
+                    );
+                  })}
+                </Stack>
+              </Section>
+            </Card>
+          ) : null}
+
+          {history && compareTo != null && versions.data?.current_version_no != null ? (
             <Card>
               <Section
                 title={`${compareTo}판과 ${versions.data.current_version_no}판의 차이`}
@@ -387,15 +850,40 @@ export function KnowledgeDoc() {
                 />
               </Section>
             </Card>
-          )}
+          ) : null}
         </Stack>
-      )}
+      </DetailLayout>
 
-      {current.version_no != null && (
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
-          지금 보고 있는 것은 {current.version_no}판입니다.
-        </Typography>
-      )}
+      {/* 이동은 **같은 공간 안**이다. 공간을 옮기는 것은 볼 수 있는 사람이 바뀌는 동작이라
+          다른 입구여야 하고, 정리 동작과 같은 버튼에 두면 사람이 그 차이를 못 본다. */}
+      <Modal
+        open={moving}
+        onClose={() => setMoving(false)}
+        title="문서 옮기기"
+        footer={(
+          <ModalFooter
+            onCancel={() => setMoving(false)}
+            onSubmit={() => move.mutate(folderId)}
+            submitLabel="옮기기"
+            busy={move.isPending}
+          />
+        )}
+      >
+        <TextField
+          select
+          label="폴더"
+          value={folderId}
+          onChange={(e) => setFolderId(e.target.value)}
+          InputLabelProps={{ shrink: true }}
+          helperText="폴더는 정리 자리입니다. 문서를 볼 수 있는 사람은 바뀌지 않습니다."
+          fullWidth
+        >
+          <MenuItem value="">공간 첫 화면</MenuItem>
+          {folders.map((f) => (
+            <MenuItem key={f.id} value={f.id}>{"　".repeat(f.depth) + f.name}</MenuItem>
+          ))}
+        </TextField>
+      </Modal>
     </>
   );
 }

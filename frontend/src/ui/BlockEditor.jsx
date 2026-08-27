@@ -106,17 +106,39 @@ const Mention = Node.create({
 export const EMPTY_DOC = { type: "doc", content: [] };
 
 /* 서식 도구. 이모지를 안 쓴다 — 화면에서 이모지를 전수 제거한 결정과 같은 자리이고,
- * 도구가 스스로 그것을 권하면 안 된다(`BodyEditor.jsx` 가 같은 이유로 여덟 개를 없앴다). */
+ * 도구가 스스로 그것을 권하면 안 된다(`BodyEditor.jsx` 가 같은 이유로 여덟 개를 없앴다).
+ *
+ * ## 목록은 **렌더러가 아는 것**과 정확히 같다 (지시 22.6)
+ *
+ * 서버의 `BLOCK_NODES`·`MARKS`(app/knowledge/blocks.py)가 그 목록이다. 거기 없는 노드를
+ * 만드는 버튼을 두면 사용자는 그 서식을 쓰고 저장했다가 **다시 열었을 때 사라진 것**을
+ * 본다 — 저장이 실패하는 것도 아니라서 원인을 짐작할 수 없다. 그래서 밑줄과 체크 목록은
+ * 여기 없다: 둘 다 렌더러에 노드가 없고, 노드를 더하는 것은 파생(markdown·본문 텍스트)과
+ * 차이 계산과 AI 색인까지 함께 손대는 일이라 이 회차의 범위가 아니다.
+ *
+ * 지시가 이름으로 적은 나머지는 전부 있다 — 제목 셋 · 굵게 · 기울임 · 취소선 · 글머리 ·
+ * 번호 · 인용 · 코드 · 코드 블록 · 구분선 · 표 · 되돌리기 · 다시 실행. 이미지는 문서에
+ * 붙이는 일이라 부르는 쪽이 `onPickImage` 를 줄 때만 선다. */
 const TOOLS = [
+  { id: "h1", label: "제목1", run: (c) => c.toggleHeading({ level: 1 }), on: ["heading", { level: 1 }] },
+  { id: "h2", label: "제목2", run: (c) => c.toggleHeading({ level: 2 }), on: ["heading", { level: 2 }] },
+  { id: "h3", label: "제목3", run: (c) => c.toggleHeading({ level: 3 }), on: ["heading", { level: 3 }] },
   { id: "bold", label: "굵게", run: (c) => c.toggleBold(), on: "bold" },
   { id: "italic", label: "기울임", run: (c) => c.toggleItalic(), on: "italic" },
   { id: "strike", label: "취소선", run: (c) => c.toggleStrike(), on: "strike" },
   { id: "code", label: "코드", run: (c) => c.toggleCode(), on: "code" },
-  { id: "h2", label: "제목", run: (c) => c.toggleHeading({ level: 2 }), on: ["heading", { level: 2 }] },
+  { id: "codeBlock", label: "코드 블록", run: (c) => c.toggleCodeBlock(), on: "codeBlock" },
   { id: "bullet", label: "글머리", run: (c) => c.toggleBulletList(), on: "bulletList" },
   { id: "ordered", label: "번호", run: (c) => c.toggleOrderedList(), on: "orderedList" },
   { id: "quote", label: "인용", run: (c) => c.toggleBlockquote(), on: "blockquote" },
   { id: "rule", label: "구분선", run: (c) => c.setHorizontalRule(), on: null },
+  {
+    id: "table", label: "표",
+    run: (c) => c.insertTable({ rows: 3, cols: 3, withHeaderRow: true }),
+    on: "table",
+  },
+  { id: "undo", label: "되돌리기", run: (c) => c.undo(), on: null },
+  { id: "redo", label: "다시 실행", run: (c) => c.redo(), on: null },
 ];
 
 function isActive(editor, on) {
@@ -129,7 +151,7 @@ function isActive(editor, on) {
  * `value` 는 서버가 준 Block JSON 이고 `onChange` 는 그것과 같은 모양을 돌려준다.
  * 부르는 쪽이 저장 시점을 정한다 — 여기서 저장을 부르지 않는 이유는 `DragDrop.jsx` 가
  * 낙관적 갱신을 안 하는 이유와 같다: 언제가 진실인지는 부르는 쪽이 알아야 한다. */
-export function BlockEditor({ value, onChange, readOnly = false, label = "본문" }) {
+export function BlockEditor({ value, onChange, readOnly = false, label = "본문", onPickImage }) {
   const editor = useEditor({
     editable: !readOnly,
     extensions: [
@@ -201,6 +223,23 @@ export function BlockEditor({ value, onChange, readOnly = false, label = "본문
                 {tool.label}
               </MuiButton>
             ))}
+            {/* 이미지는 **문서에 파일을 붙이는 일**이라 부르는 쪽이 그 방법을 안다. 바이트를
+                본문에 넣지 않는다(`allowBase64: false`) — 우리 첨부 저장소에 넣고 주소만
+                본문에 남긴다(D4). 주소를 못 받으면 아무것도 안 넣는다. */}
+            {onPickImage ? (
+              <MuiButton
+                size="small"
+                type="button"
+                variant="text"
+                onClick={async () => {
+                  const src = await onPickImage();
+                  if (src) editor.chain().focus().setImage({ src }).run();
+                }}
+                sx={{ minWidth: 0, px: 1, fontSize: FONT_SIZE.bodySm }}
+              >
+                이미지
+              </MuiButton>
+            ) : null}
           </Stack>
           <Divider sx={{ mb: 1 }} />
         </>
