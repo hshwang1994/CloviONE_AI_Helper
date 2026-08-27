@@ -12,6 +12,7 @@
 - packet: **A ✅ · B ✅ · C ✅ · D ✅ · E ✅ · F ✅ · G 구현 ✅.**
   남은 것은 **문서 데이터 초기화(사용자 승인 대기)** 와 전량 회귀·최종 캡처
 - branch: `ui/mui-migration` · A `89b0caa6` · B·C·D `18c67683` · E `d8fc267c` · F `2dd7befa`
+  · G `0638d900`
 - schema: alembic head **`0021_document_trash`** — `documents` 에 칸 둘(`archived_at` ·
   `archived_by`)이 늘었다. 기존 표는 안 지웠다
 - 결정: **D-349** (Status 와 Signal 은 다른 축이다) · **D-350** (기본 아바타는
