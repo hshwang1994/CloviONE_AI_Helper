@@ -263,9 +263,10 @@ REGISTRY: dict[str, SettingSpec] = {
         # 없다. 그래서 기간을 따로 두고, 무엇보다 **끌 수 있게** 둔다: 자동으로 지우는 일을
         # 원하지 않는 설치가 그것을 고르는 방법이 있어야 한다.
         SettingSpec("document_trash_autopurge", "bool", True, False,
-                    "문서 휴지통 자동 영구 삭제 사용 여부. 끄면 사람이 누를 때만 지워집니다", _bool),
+                    "켜 두면 보관 기간이 지난 문서를 자동으로 영구 삭제합니다. 끄면 사람이 누를 때만 지워집니다",
+                    _bool),
         SettingSpec("document_trash_retention_days", "int", 7, False,
-                    "문서 휴지통 보관 기간(일). archived_at 기준이며, 초과한 문서를 영구 삭제",
+                    "문서를 휴지통에 두는 기간(일). 버린 시각부터 세고, 그 기간이 지나면 영구 삭제합니다",
                     _positive_int(365)),
         SettingSpec("ui_branding", "object", {"product_name": "ClovirAssist"}, False,
                     "UI 브랜딩(제품명). 로그인/채팅 화면 제목", _ui_branding),

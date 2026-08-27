@@ -697,11 +697,9 @@ export function KnowledgeDoc() {
         <Attachments documentId={id} items={attachments} onChanged={refresh} />
       </Card>
 
-      <Card>
-        <Section title="댓글">
-          <DocComments documentId={id} />
-        </Section>
-      </Card>
+      {/* 판을 씌우지 않는다. `CommentThread` 가 이미 자기 판과 제목(「댓글 N」)을 든다 —
+          감싸면 제목이 두 번 서고 판이 판 안에 든다. 실브라우저 캡처에서 그대로 보였다. */}
+      <DocComments documentId={id} />
     </Stack>
   );
 

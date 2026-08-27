@@ -32,7 +32,7 @@ import {
 } from "../ui/kit.jsx";
 import { FilterActions, FilterRow, FilterSurface, ResultLine, ToolbarRow } from "../ui/FilterBar.jsx";
 import { DragItem, SortableList } from "../ui/DragDrop.jsx";
-import { FilterSelect, SearchBox } from "../ui/filters.jsx";
+import { EntityCombobox, FilterSelect, SearchBox } from "../ui/filters.jsx";
 import { Pager } from "../ui/Pager.jsx";
 import { UserAvatar } from "../ui/UserAvatar.jsx";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
@@ -1117,10 +1117,14 @@ export function Knowledge() {
           gap: 2,
           gridTemplateColumns: {
             xs: "1fr",
-            md: "17rem minmax(0, 1fr)",
+            /* 🔴 17rem 이었다. 그 폭에서는 탐색기 안의 줄이 **45px 잘렸다** — 「공간 추가」·
+               「폴더 추가」·「태그 관리」가 판 밖으로 나가고 `overflow:hidden` 이라 스크롤로도
+               못 봤다(실브라우저 캡처의 `content_clipped`). 제목과 조작기가 한 줄에 서는
+               칸이라 그만큼 넓어야 한다. */
+            md: "20rem minmax(0, 1fr)",
             /* 곁열은 **넓을 때만** 선다 (지시 22.4). 1366 에서 세 칸을 우기면 목록이
                좁아져 제목이 두 줄로 접힌다. */
-            xl: "17rem minmax(0, 1fr) 19rem",
+            xl: "20rem minmax(0, 1fr) 19rem",
           },
         }}
       >
@@ -1165,10 +1169,12 @@ export function Knowledge() {
                 onChange={(v) => setQuery({ tag: v || null, page: null })}
                 options={tagRows.map((t) => ({ value: t.slug, label: t.name }))}
               />
-              <FilterSelect
+              {/* 사람은 **기수가 무한히 자라는 대상**이다 — 사람이 늘면 후보도 는다. 평범한
+                  드롭다운으로 두면 이름을 알면서도 목록을 눈으로 훑게 된다(C2 · R-5).
+                  공간 고르개가 같은 이유로 이 부품을 쓴다. */}
+              <EntityCombobox
                 label="작성자"
                 allLabel="전체"
-                kind="entity"
                 value={author}
                 onChange={(v) => setQuery({ author: v || null, page: null })}
                 options={authors}
