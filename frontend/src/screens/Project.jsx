@@ -1,5 +1,5 @@
 import React from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
 import Tab from "@mui/material/Tab";
@@ -13,6 +13,7 @@ import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, PROSE_MAX_WIDTH } from "../ui/th
 import { EntityCombobox } from "../ui/filters.jsx";
 import { useAuth } from "../app/auth.jsx";
 import { useQueryState } from "../lib/useQueryState.js";
+import { useListReturn } from "../lib/listReturn.js";
 import { HealthBlock, HealthHistory, ProgressBlock } from "./ProjectMetrics.jsx";
 import { ProjectTickets } from "./ProjectTickets.jsx";
 import { ProjectWbs } from "./ProjectWbs.jsx";
@@ -311,6 +312,8 @@ function Overview({
 export function Project() {
   const { id } = useParams();
   const nav = useNavigate();
+  const loc = useLocation();
+  const backToList = useListReturn(loc.state && loc.state.from, "/projects");
   const toast = useToast();
   const confirm = useConfirm();
   const auth = useAuth();
@@ -336,7 +339,8 @@ export function Project() {
   const role = (auth.data && auth.data.role) || "";
   const canWrite = PROJECT_WRITE_ROLES.includes(role);
 
-  const back = <Button onClick={() => nav("/projects")}>목록</Button>;
+  /* 「목록」은 왔던 목록의 그 상태로 돌아간다 (지시 19). */
+  const back = <Button onClick={() => nav(backToList)}>목록</Button>;
 
   if (projectQuery.isError) {
     return (

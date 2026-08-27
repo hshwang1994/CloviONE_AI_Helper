@@ -16,6 +16,7 @@ import { Donut } from "../ui/charts/Donut.jsx";
 import { BUDGET_BODY, BUDGET_SCROLL, GRID_GAP, plateBudget } from "../ui/density.js";
 import { KO_WORD_BREAK } from "../ui/theme.js";
 import { ticketColumns, ticketConnState, TicketEditModal } from "./MyTickets.jsx";
+import { useTicketSignals } from "../lib/ticketSignals.js";
 import { AssistantPanel } from "./AssistantPanel.jsx";
 import { lastDayOf, WorkSection } from "./WorkSummary.jsx";
 
@@ -344,6 +345,7 @@ export function Home() {
 
 /* 본문 — 로딩·오류가 아닌 정상 상태만 그린다(위 컴포넌트가 분기를 이미 끝냈다). */
 function HomeBody({ data, focus, onFocus, onEdit, onOpen }) {
+  const signalsOf = useTicketSignals();
   const tickets = data.tickets || {};
   const conn = ticketConnState(tickets);
   const view = VIEWS.find((v) => v.key === focus) || VIEWS[0];
@@ -395,7 +397,7 @@ function HomeBody({ data, focus, onFocus, onEdit, onOpen }) {
                       /* compact: 본문 열은 2단 배치라 좁다 — 4K 계약의 '표(핵심열)'을 그대로
                          따른다(난이도·예상 WD 는 빼고, 편집은 아이콘). 전체 열을 넣으면 1366
                          화면에서 마감·편집이 잘려 가로로 긁어야 보였다. */
-                      columns={ticketColumns({ onEdit, onOpen, compact: true })}
+                      columns={ticketColumns({ onEdit, onOpen, compact: true, signalsOf })}
                       rows={rows}
                       rowKey={(t) => t.id}
                       /* 굴려도 열 이름이 안 사라진다. 이 표를 감싼 것이 스크롤 컨테이너라

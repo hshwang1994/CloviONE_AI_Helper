@@ -16,7 +16,7 @@ from app.auth.models import UserSession
 from app.core.db import is_insert_race
 from app.core.errors import ConflictError, NotFoundError, ValidationAppError
 from app.profiles import prefs
-from app.profiles.models import SavedView, UserPreference
+from app.profiles.models import SavedView, UserPreference, is_known_avatar_key
 from app.users.models import User
 
 # 저장된 뷰의 상한. 목록이 길어지면 고르는 일 자체가 필터링이 되어 버린다.
@@ -85,6 +85,8 @@ def preference_view(
     return {
         "avatar": {
             "url": avatar_url,
+            # 사진이 없을 때 쓸 그림. 비어 있으면 화면이 사용자 id 로 안정 배정한다.
+            "default_key": pref.avatar_default_key if pref else None,
             "updated_at": (
                 pref.avatar_updated_at.isoformat()
                 if pref and pref.avatar_updated_at else None
@@ -174,6 +176,17 @@ def apply_preference_changes(
             raise ValidationAppError("시간은 'HH:MM' 형식이어야 합니다(예: 22:00).")
         setattr(pref, key, value)
         after[key] = value
+
+    if "avatar_default_key" in changes and changes["avatar_default_key"] is not None:
+        key = (changes["avatar_default_key"] or "").strip()
+        if key and not is_known_avatar_key(key):
+            # 모르는 값을 저장하면 그 사람은 어느 그림도 못 받는다 — 화면은 빈 원을 그리고
+            # 오류는 안 난다. 어휘 밖은 여기서 막는다.
+            raise ValidationAppError(f"모르는 기본 아바타입니다: {key}")
+        pref.avatar_default_key = key or None
+        # 그림을 고르는 것은 **사진을 지우는 것이 아니다.** 사진이 있으면 그대로 보이고,
+        # 사진을 지운 뒤에 이 선택이 살아난다.
+        after["avatar_default_key"] = pref.avatar_default_key
 
     if pref.quiet_hours_enabled and pref.quiet_start == pref.quiet_end:
         # 길이 0 창을 켜 두면 화면은 '조용시간 켜짐'인데 실제로는 한 번도 조용하지 않다.

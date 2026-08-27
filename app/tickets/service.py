@@ -47,7 +47,7 @@ from app.users.models import User
 
 logger = logging.getLogger("app.tickets")
 
-# 완료·취소는 '끝난' 티켓 — 미할당 목록의 기본에서 뺀다(진행/계획/이슈/검증만 담당자 필요).
+# 완료·취소는 '끝난' 티켓 — 미할당 목록의 기본에서 뺀다(계획/진행/검증/보류만 담당자 필요).
 _TERMINAL = {STATUS_DONE, STATUS_CANCELLED}
 
 
@@ -174,6 +174,19 @@ def ticket_view(t: TicketDTO, id_to_name: dict[str, str], id_to_user: dict[str, 
         "assignee_user_ids": [u for u in uids if u],
         "project_names": pnames,
         "project": pnames[0] if pnames else "",
+        # ── Signal — 상태와 직교하는 축 (D-349) ─────────────────────────────
+        #
+        # `지연` 은 여기 없다. 그것은 **오늘이 며칠인지**를 알아야 답할 수 있고, 이
+        # 함수는 시계를 모르는 순수 함수다. 화면은 `due` 와 상태의 종료 여부
+        # (`/api/work/statuses` 의 `terminal`)로 그 자리에서 판정한다
+        # (`frontend/src/lib/ticketSignals.js`) — 서버 쪽 집계의 같은 규칙은
+        # `app/work/workflow.py::is_overdue` 다.
+        "issue": t.issue_flag,
+        "blocked": t.blocked_flag,
+        "blocked_reason": t.blocked_reason,
+        # 계획 위치. 값이 없으면 백로그다 — 별도 상태가 아니다.
+        "sprint_id": t.sprint_id,
+        "completed_at": t.completed_at.isoformat() if t.completed_at else None,
     }
 
 

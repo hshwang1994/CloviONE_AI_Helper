@@ -62,9 +62,13 @@ class _FakeResult:
 
 
 class _FakeRow:
-    def __init__(self, user_id, avatar_updated_at):
+    def __init__(self, user_id, avatar_updated_at, stored_name="avatar.png", default_key=None):
         self.user_id = user_id
         self.avatar_updated_at = avatar_updated_at
+        # 사진이 없는 사람도 이 맵에 실린다 — 그 사람이 **고른 기본 그림**을 화면이
+        # 알아야 하기 때문이다(D-349 회차의 Avatar 시스템). 그때 URL 은 `None` 이다.
+        self.avatar_stored_name = stored_name
+        self.avatar_default_key = default_key
 
 
 class _FakeDB:
@@ -83,4 +87,24 @@ def test_avatar_map_stamp_treats_naive_datetime_as_utc():
 
     db = _FakeDB([_FakeRow("user-1", NAIVE_UTC)])
     result = avatar_map(db, ["user-1"])
-    assert result == {"user-1": f"/api/profile/avatar/user-1?v={EXPECTED_EPOCH}"}
+    assert result == {
+        "user-1": {
+            "url": f"/api/profile/avatar/user-1?v={EXPECTED_EPOCH}",
+            "default_key": None,
+        }
+    }
+
+
+def test_avatar_map_carries_the_chosen_default_even_without_a_photo():
+    """🔴 사진이 없는 사람도 이 맵에 실린다.
+
+    예전에는 질의가 `avatar_stored_name IS NOT NULL` 로 좁혀 있었다. 그때는 사진이 없으면
+    화면이 아무것도 안 그렸으니 그것으로 충분했다. 지금은 사진이 없는 사람도 그림을 갖고,
+    그 사람이 **직접 고른 그림**이 있으면 화면이 그것을 알아야 한다.
+    """
+    from app.core.people import avatar_map
+
+    db = _FakeDB([_FakeRow("user-2", None, stored_name=None, default_key="penguin")])
+    assert avatar_map(db, ["user-2"]) == {
+        "user-2": {"url": None, "default_key": "penguin"}
+    }

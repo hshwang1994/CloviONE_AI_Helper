@@ -17,7 +17,6 @@ from __future__ import annotations
 
 STATUS_DONE = "완료"
 STATUS_CANCELLED = "취소"
-STATUS_BLOCKED = "이슈"
 # 끝난 티켓 — '진행 중'·'지연' 계산에서 뺀다(리포트·화면과 같은 어휘).
 TERMINAL = frozenset({STATUS_DONE, STATUS_CANCELLED})
 
@@ -42,6 +41,16 @@ _PRIORITY_UNKNOWN = 4
 def is_active(ticket: dict) -> bool:
     """아직 끝나지 않은 티켓(완료·취소 제외)."""
     return (ticket.get("status") or "") not in TERMINAL
+
+
+def is_stuck(ticket: dict) -> bool:
+    """막혀 있는가 — **상태가 아니라 신호로 판정한다** (D-349).
+
+    예전에는 `status == "이슈"` 였다. 그래서 이슈가 생긴 티켓은 자기가 어디까지
+    왔는지를 잃었고, 「진행 중인데 막혔다」를 적을 자리가 없었다. 지금은 상태와
+    직교하는 두 플래그가 답한다 — 둘 중 하나만 켜져도 사람이 손을 대야 한다.
+    """
+    return bool(ticket.get("issue")) or bool(ticket.get("blocked"))
 
 
 def is_overdue(ticket: dict, today: str) -> bool:
@@ -86,7 +95,7 @@ def bucket_my_tickets(
     overdue = [t for t in active if is_overdue(t, today)]
     # 곧 마감 = 내일부터 지평까지(오늘은 due_today 가 따로 세므로 중복 표시하지 않는다).
     due_soon = [t for t in active if t.get("due") and today < t["due"] <= horizon]
-    blocked = [t for t in active if (t.get("status") or "") == STATUS_BLOCKED]
+    blocked = [t for t in active if is_stuck(t)]
     return {
         "due_today": bucket(_by_due(due_today), limit=limit),
         "overdue": bucket(_by_due(overdue), limit=limit),
@@ -150,7 +159,7 @@ def standup_sections(
     active = [t for t in tickets if is_active(t)]
     # 오늘 할 일 = 오늘 마감 + 이미 지연된 것(지연을 빼면 '오늘 할 일'이 거짓말이 된다).
     today_plan = [t for t in active if t.get("due") == today or is_overdue(t, today)]
-    blocked = [t for t in active if (t.get("status") or "") == STATUS_BLOCKED]
+    blocked = [t for t in active if is_stuck(t)]
     return {
         "window": {"start": start, "end_exclusive": end},
         "recently_done": bucket(_by_due(recently_done), limit=limit),

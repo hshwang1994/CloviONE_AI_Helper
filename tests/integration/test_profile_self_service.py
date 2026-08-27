@@ -17,21 +17,24 @@
 
 from __future__ import annotations
 
+import io
+
 import pytest
 from fastapi.testclient import TestClient
 
 from tests.conftest import DEFAULT_TEST_PASSWORD
+
+pytest.importorskip("PIL", reason="Pillow 가 없으면 아바타 업로드 경로 자체가 없다")
+from tests.fakes.images import png_bytes
 
 pytestmark = pytest.mark.integration
 
 EMAIL = "selfservice@goodmit.co.kr"
 
 # 최소 PNG (매직바이트 검사 통과용). 확장자·Content-Type 이 아니라 이 앞 8바이트가 형식을 정한다.
-PNG_BYTES = (
-    b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06"
-    b"\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\nIDATx\x9cc\x00\x01\x00\x00\x05"
-    b"\x00\x01\r\n-\xb4\x00\x00\x00\x00IEND\xaeB`\x82"
-)
+# **진짜 사진**이다. 서버가 이제 디코드해서 다시 그리므로 손으로 적은 1×1 PNG 는
+# 「너무 작다」로 거절된다(app/profiles/avatar_image.py).
+PNG_BYTES = png_bytes()
 
 
 @pytest.fixture()
@@ -302,9 +305,19 @@ def test_avatar_upload_serve_and_delete(client, me):
 
     served = client.get(url)
     assert served.status_code == 200
-    assert served.headers["content-type"].startswith("image/png")
     assert served.headers["X-Content-Type-Options"] == "nosniff"
-    assert served.content == PNG_BYTES
+    # 🔴 **올린 바이트가 그대로 나오지 않는다.** 서버가 디코드해서 다시 그린 표시용
+    # 사진이 나온다(app/profiles/avatar_image.py) — 그것이 이 경로의 요점이다. 원본을
+    # 그대로 내보내면 EXIF 와 주석이 함께 나가고, 20px 목록 한 줄에 원본 크기가 실린다.
+    assert served.headers["content-type"].startswith("image/webp")
+    assert served.content != PNG_BYTES, "원본 바이트가 그대로 나왔다 — 다시 그리지 않았다"
+
+    from PIL import Image
+
+    from app.profiles import avatar_image
+
+    rendered = Image.open(io.BytesIO(served.content))
+    assert rendered.size == (avatar_image.THUMB_SIZE, avatar_image.THUMB_SIZE)
 
     removed = client.delete("/api/me/avatar", headers={"X-CSRF-Token": csrf})
     assert removed.status_code == 200 and removed.json()["avatar_url"] is None

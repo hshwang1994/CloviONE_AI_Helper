@@ -247,6 +247,21 @@ class TicketUpdate(BaseModel):
     due_date: str | None = None
     start_date: str | None = None
     category: str | None = None
+    # Signal — 상태와 직교하는 축 (D-349). 「진행 중인데 막혀 있다」를 여기서 적는다.
+    # `지연` 은 여기 없다 — 마감일과 종료 여부에서 계산한다.
+    issue_flag: bool | None = None
+    blocked_flag: bool | None = None
+    blocked_reason: str | None = None
+
+    @field_validator("blocked_reason")
+    @classmethod
+    def _check_blocked_reason(cls, v):
+        if v is None:
+            return None
+        v = v.strip()
+        if len(v) > 500:
+            raise ValueError("차단 사유는 500자 이하여야 합니다.")
+        return v   # 빈 문자열 = 지움
 
     @field_validator("title")
     @classmethod

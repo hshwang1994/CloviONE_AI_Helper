@@ -67,6 +67,16 @@ export default defineConfig({
             id.includes("/src/screens/registry/notifications.js")
           ) return "datascreen";
           if (!id.includes("node_modules")) return undefined;
+          /* 기본 아바타 그림(DiceBear 스타일 다섯 + core). **이름을 준다.**
+           *
+           * 이름이 없으면 rollup 이 각 패키지의 진입 파일 이름을 그대로 써서 청크 여섯이
+           * 전부 `index.<hash>.js` 가 된다 — 크기 보고서에서 무엇이 무엇인지 못 읽고,
+           * 모듈이 하나 늘고 줄 때마다 해시가 흔들려 브라우저 캐시가 매번 버려진다.
+           *
+           * 초기 로드가 아니다: `ui/DefaultAvatar.jsx` 가 `import()` 로 받으므로
+           * `index.html` 에 안 실린다(그 파일 머리말의 「그림은 따로 받는다」). 이 이름은
+           * 그 지연 청크를 **하나로 묶어** 한 번 받고 오래 캐시되게 한다. */
+          if (id.includes("node_modules/@dicebear/")) return "avatar";
           /* react·emotion·query 만 이름을 준다 — 셋 다 **첫 화면이 어차피 쓰고** 거의 안
              바뀌는 것들이라, 이름을 고정해 두면 앱 코드만 바뀌는 배포에서 브라우저 캐시가
              살아남는다.

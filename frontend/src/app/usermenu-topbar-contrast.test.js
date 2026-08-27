@@ -6,7 +6,9 @@ import { describe, expect, it } from "vitest";
 
 import { ACCENT_PRESETS, createClovirTheme } from "../ui/theme.js";
 
-/* 상단바 사용자 영역의 대비 — **실제 chrome 색**으로 잰다.
+/* qa-contract-change: 상단바 계정 아바타가 「이니셜이 담긴 트랙색 원」에서 「사진이나 이 사람의 기본 아바타 그림」으로 바뀌었다(Avatar 시스템). 그래서 이니셜의 대비를 재던 단언들은 잴 대상이 사라졌다 — 사용자가 올린 사진의 명도를 제품이 정할 수 없고, 정하려 들면 사진을 덧칠하게 된다. 면 토큰을 요구하던 단언도 같은 이유로 원의 **둘레** 토큰 단언으로 옮겼다. 계정 이름의 대비 단언은 한 줄도 줄이지 않았다.
+ *
+ * 상단바 사용자 영역의 대비 — **실제 chrome 색**으로 잰다.
  *
  * ## 이 파일이 무엇을 대체했는가
  *
@@ -24,28 +26,6 @@ import { ACCENT_PRESETS, createClovirTheme } from "../ui/theme.js";
  */
 
 const AA_NORMAL_TEXT = 4.5;
-
-/** `rgba(r,g,b,a)` 를 배경 hex 위에 합성한 hex. */
-function over(tint, base) {
-  const m = /rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*(?:,\s*([\d.]+)\s*)?\)/.exec(String(tint));
-  if (!m) throw new Error(`rgba 가 아니다: ${tint}`);
-  const a = m[4] === undefined ? 1 : Number(m[4]);
-  const [br, bg, bb] = rgb(base);
-  const mix = (t, b) => Math.round(Number(t) * a + b * (1 - a));
-  const hex = (v) => v.toString(16).padStart(2, "0");
-  return `#${hex(mix(m[1], br))}${hex(mix(m[2], bg))}${hex(mix(m[3], bb))}`.toUpperCase();
-}
-
-/** 아바타 원이 실제로 앉는 면 전부 — shell 의 모든 stop × (AI Wash 있음/없음) × track. */
-function avatarFaces(p) {
-  const stops = [p.chrome.shell, ...(String(p.chrome.shellImage).match(/#[0-9A-Fa-f]{6}/g) || [])];
-  const faces = [];
-  for (const stop of stops) {
-    faces.push(over(p.chrome.track, stop));
-    faces.push(over(p.chrome.track, over(p.chrome.aiWash.match(/rgba\([^)]*\)/)[0], stop)));
-  }
-  return faces;
-}
 
 function channel(c8) {
   const c = c8 / 255;
@@ -85,16 +65,19 @@ describe("사용자 영역은 chrome 색을 리터럴로 다시 박지 않는다
     expect(BUTTON_BLOCK).not.toMatch(/(bgcolor|color|background)\s*:\s*"rgba\(/);
   });
 
-  /* W2 재작성. 옛 단언은 아바타 원이 `background.plate` 를 쓰는지 확인했다 — 그때는
-     chrome 이 캔버스 계열이라 그 값이 맞았다. D-179 로 셸이 인디고가 되면서 같은 값이
-     **하우징에 뚫린 순백 원판**이 됐다(F-W1R-32 가 배포본 상단 우측 크롭에서 잡았다).
-     즉 이 시험은 값이 배경을 따라오는지 보겠다고 만들어졌는데, 정작 자기가 고정한 값
-     때문에 따라오지 못했다. 이제 **캔버스 면 토큰 자체를 금지**하고 chrome 반전 컨트롤
-     토큰을 요구한다 — 셸 밝기가 또 바뀌어도 알파 흰빛은 같은 방향으로 따라온다. */
-  it("호버·아바타가 chrome 반전 컨트롤 토큰을 쓴다 — 상단바 색이 바뀌면 같이 따라온다", () => {
+  /* W2 재작성 · 이번 회차 재정정. 옛 단언은 아바타 **면**이 chrome 반전 트랙인지 봤다 —
+     그때 그 원 안에는 이니셜 한 글자가 있었고, 면과 잉크의 대비가 읽기의 전부였다.
+     지금 그 자리에는 사진이나 이 사람의 기본 아바타가 선다(`ui/UserAvatar.jsx`).
+     면이 아니라 그림이라 트랙색을 요구할 수 없고, 요구하면 그림 위에 색을 덧칠하게 된다.
+     남은 계약은 **원의 둘레**다: 밝은 그림이 밝은 셸에 얹히면 원의 경계가 사라진다. */
+  it("호버가 chrome 반전 컨트롤 토큰을 쓴다 — 상단바 색이 바뀌면 같이 따라온다", () => {
     expect(BUTTON_BLOCK).toMatch(/bgcolor:\s*"sidebar\.hover"/);
-    expect(BUTTON_BLOCK).toMatch(/bgcolor:\s*"sidebar\.track"/);
-    expect(BUTTON_BLOCK).toMatch(/borderColor:\s*"sidebar\.edge"/);
+  });
+
+  it("아바타 둘레가 chrome 테두리 토큰에서 온다", () => {
+    // `palette.sidebar` 가 없는 격리 렌더에서는 캔버스 구분선으로 떨어진다 — 그 폴백이
+    // 있어야 이 부품을 테마 없이 그리는 시험들이 안 죽는다. 앞엣것이 정본이다.
+    expect(BUTTON_BLOCK).toMatch(/palette\.sidebar \|\| t\.palette\)\.edge/);
   });
 
   it("아바타가 캔버스 면 토큰으로 되돌아가지 않는다 (그 되돌림이 곧 순백 원판이다)", () => {
@@ -126,26 +109,12 @@ describe("사용자 영역 대비 — 강조색 프리셋 전부 × 두 모드",
       .toBeGreaterThanOrEqual(AA_NORMAL_TEXT);
   });
 
-  /* 아바타 면은 이제 **알파**다(`chrome.track`). 알파 면의 대비는 그 아래 깔린 것에
-     달려 있으므로 한 값을 재는 것으로는 부족하다 — 아바타는 상단바의 AI 앵커 안에 살고,
-     그 앵커는 Gradient stop 전부 위에 AI Wash 를 한 겹 더 얹는다. 그래서 실제로 밟히는
-     합성 순서 그대로(shell stop → aiWash → track) 쌓아 놓고 **최악값**을 잰다.
-     D-179 «Wash 위 잉크 하드 룰» 이 이 영역의 잉크를 `onShell` 하나로 못박은 근거가
-     바로 이 계산이다. */
-  it.each(cases)("%s / accent=%s — 아바타 이니셜이 AI 앵커 안 모든 합성면에서 AA", (mode, accent) => {
-    const p = createClovirTheme(mode, accent).palette;
-    const faces = avatarFaces(p);
-    expect(faces.length, "합성면을 하나도 못 만들었다 — 토큰 이름이 바뀌었는지 확인하라")
-      .toBeGreaterThanOrEqual(8);
-    for (const face of faces) {
-      const ratio = contrast(p.sidebar.text, face);
-      expect(ratio, `이니셜 ${p.sidebar.text} on ${face} = ${ratio.toFixed(2)}`)
-        .toBeGreaterThanOrEqual(AA_NORMAL_TEXT);
-    }
-  });
-
-  /* 아바타 **원 자체**의 대비는 재지 않는다. `aria-hidden` 인 장식 원이고 상태를 알리는
-     컨트롤이 아니다(WCAG 1.4.11 의 대상이 아니다) — 읽어야 하는 것은 그 안의 이니셜이고
-     위 시험이 그것을 잰다. 원을 chrome 에서 떼어 놓는 하이라인은 시각적 마감이라 값만
-     토큰(`sidebar.line`)에서 오게 하고(위 배선 시험), 비율을 못박지 않는다. */
+  /* 🔴 **이니셜 대비 시험은 여기서 은퇴한다.** 잴 대상이 없어졌기 때문이다 — 아바타
+     원 안에는 더 이상 글자가 없고, 사진이거나 이 사람의 기본 아바타 그림이다.
+     그림의 대비를 AA 로 재는 것은 뜻이 없다: 사용자가 올린 사진의 명도를 제품이 정할 수
+     없고, 정하려 들면 사진을 덧칠하게 된다.
+     아바타 **원 자체**의 대비도 재지 않는다. 상태를 알리는 컨트롤이 아니라 사람을
+     가리키는 그림이고(WCAG 1.4.11 의 대상이 아니다), 그 옆에는 언제나 계정 이름이 있다 —
+     위 시험이 그 이름의 대비를 잰다. 원이 셸에 묻히지 않게 하는 것은 둘레 한 줄이고,
+     그 값이 chrome 토큰에서 오는지는 배선 시험이 본다. */
 });

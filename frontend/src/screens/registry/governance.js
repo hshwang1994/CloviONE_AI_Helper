@@ -194,7 +194,7 @@ export const GOVERNANCE_SCREENS = {
       truncateCol("reason", "사유", 40),
     ],
     detailFields: [field("id", "위임 ID"), field("delegator_email", "위임한 사람 이메일"),
-      field("delegate_email", "대리 승인자 이메일"), dateCol("revoked_at", "거둔 시각"), dateCol("created_at", "추가")],
+      field("delegate_email", "대리 승인자 이메일"), dateCol("revoked_at", "거둔 시각"), dateCol("created_at", "생성 일자")],
     /* 사람 후보 — 아래 두 필드가 이름으로 고를 수 있으려면 후보가 있어야 한다(W5 · R-5). */
     refLists: [{ key: "people", endpoint: "/api/admin/users", labelKey: "display_name", secondaryKey: "email" }],
     create: { roles: WRITE_ROLES, fields: [

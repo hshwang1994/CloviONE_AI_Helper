@@ -84,7 +84,8 @@ def identity(
     if user is None:
         return {
             "user_id": None, "display_name": "", "dept": "", "title": "", "org": "",
-            "dept_path": [], "archived": False, "avatar_url": None,
+            "dept_path": [], "archived": False,
+            "avatar_url": None, "avatar_default_key": None,
         }
     org_id = getattr(user, "org_id", None)
     return {
@@ -110,7 +111,12 @@ def identity(
         or not getattr(user, "active", True),
         # 사진은 **있으면 싣고 없으면 None** 이다 (X13). 호출부가 `avatars` 를 안 주면 예전과
         # 똑같이 동작한다 — 배치 조회가 필요한 값이라 모든 호출부에 강제하지 않는다.
-        "avatar_url": (avatars or {}).get(user.id),
+        #
+        # `avatar_default_key` 는 사진과 **다른 축**이다: 사진이 없을 때 화면이 그릴 그림을
+        # 이 사람이 직접 골랐는가. 비어 있으면 화면이 사용자 id 로 안정 배정한다 — 그래서
+        # 이 값이 없어도 빈 원이 되지 않는다.
+        "avatar_url": ((avatars or {}).get(user.id) or {}).get("url"),
+        "avatar_default_key": ((avatars or {}).get(user.id) or {}).get("default_key"),
     }
 
 
@@ -150,8 +156,8 @@ def affiliation(person: dict, *, with_org: bool = False) -> str:
     return " ".join(parts)
 
 
-def avatar_map(db, user_ids) -> dict[str, str]:
-    """{user_id: 아바타 URL} — **한 번의 질의로** (X13).
+def avatar_map(db, user_ids) -> dict[str, dict]:
+    """{user_id: {url, default_key}} — **한 번의 질의로** (X13).
 
     서빙 경로(`/api/profile/avatar/{user_id}`)는 **이미 전 직원 대상**이다. 빠져 있던 것은
     "남의 아바타 주소를 알려 주는 payload" 하나뿐이라, 사진 기능이 있는데 **자기 우상단에만**
@@ -173,13 +179,14 @@ def avatar_map(db, user_ids) -> dict[str, str]:
 
     from app.profiles.models import UserPreference
 
+    # **사진이 없는 사람도 실어 나른다.** 예전에는 `avatar_stored_name IS NOT NULL` 로
+    # 좁혀서 사진 있는 사람만 나왔다 — 그때는 사진이 없으면 화면이 아무것도 안 그렸으니
+    # 그것으로 충분했다. 지금은 사진이 없는 사람도 기본 그림을 갖고, 그 사람이 **직접
+    # 고른 그림**이 있으면 화면이 그것을 알아야 한다(안 고르면 화면이 id 로 배정한다).
     rows = db.execute(
-        select(UserPreference).where(
-            UserPreference.user_id.in_(ids),
-            UserPreference.avatar_stored_name.is_not(None),
-        )
+        select(UserPreference).where(UserPreference.user_id.in_(ids))
     ).scalars().all()
-    out: dict[str, str] = {}
+    out: dict[str, dict] = {}
     for r in rows:
         # naive UTC 저장값이다 — tzinfo 없이 .timestamp() 를 부르면 서버 로컬 시각으로
         # 해석돼 UTC 가 아닌 호스트에서 지문이 어긋난다(profiles/router.py::_avatar_url 과
@@ -188,5 +195,11 @@ def avatar_map(db, user_ids) -> dict[str, str]:
             int(r.avatar_updated_at.replace(tzinfo=timezone.utc).timestamp())
             if r.avatar_updated_at else 0
         )
-        out[r.user_id] = f"/api/profile/avatar/{r.user_id}?v={stamp}"
+        out[r.user_id] = {
+            "url": (
+                f"/api/profile/avatar/{r.user_id}?v={stamp}"
+                if r.avatar_stored_name else None
+            ),
+            "default_key": r.avatar_default_key,
+        }
     return out

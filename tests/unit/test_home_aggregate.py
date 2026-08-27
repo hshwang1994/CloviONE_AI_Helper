@@ -16,12 +16,18 @@ WEEK_START = "2026-08-03"
 WEEK_END = "2026-08-10"       # 배타
 
 
-def t(tid, *, status="진행", due=None, est=None, priority=None, users=()):
-    """ticket_view 가 내는 dict 중 집계가 실제로 읽는 필드만."""
+def t(tid, *, status="진행", due=None, est=None, priority=None, users=(),
+      issue=False, blocked=False):
+    """ticket_view 가 내는 dict 중 집계가 실제로 읽는 필드만.
+
+    `issue`·`blocked` 는 **상태와 직교하는 신호**다 (D-349) — 예전에는 막힘이
+    `status == "이슈"` 였고, 그래서 막힌 티켓은 자기가 어디까지 왔는지를 잃었다.
+    """
     return {
         "id": f"p{tid}", "tid": tid, "title": f"티켓 {tid}",
         "status": status, "due": due, "est_wd": est, "priority": priority,
         "assignee_user_ids": list(users),
+        "issue": issue, "blocked": blocked,
     }
 
 
@@ -35,7 +41,7 @@ def test_bucket_counts_today_overdue_in_progress_separately():
         t(4, due="2026-09-30"),                # 지평 밖 + 진행 중
         t(5, due=TODAY, status="완료"),         # 끝남 — 어느 활성 버킷에도 없다
         t(6, due="2026-07-01", status="취소"),  # 끝남 — 지연 아님
-        t(7, status="이슈", due="2026-08-05"),  # 막힘 + 곧 마감 + 진행 중
+        t(7, blocked=True, due="2026-08-05"),  # 막힘 + 곧 마감 + 진행 중
     ]
     b = aggregate.bucket_my_tickets(rows, today=TODAY)
 
@@ -125,7 +131,7 @@ def test_standup_sections_split_done_plan_blocked():
         t(1, due="2026-08-04", status="완료"),   # 창 안 완료
         t(2, due=TODAY),                        # 오늘 할 일
         t(3, due="2026-07-31"),                 # 지연 → 오늘 할 일에도 들어간다
-        t(4, due="2026-08-06", status="이슈"),   # 막힘
+        t(4, due="2026-08-06", issue=True),      # 막힘
     ]
     s = aggregate.standup_sections(rows, today=TODAY, start=WEEK_START, end=WEEK_END)
     assert s["recently_done"]["count"] == 1

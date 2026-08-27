@@ -107,8 +107,8 @@ sudo /opt/clovirassist/deploy/install.sh <subcommand> [options]
 | 1 | apt dependency | `postgresql-16` `postgresql-16-pgvector` `postgresql-contrib` `nginx` `python3.12-venv` `rsync` `openssl` `nfs-common` `cifs-utils` (+ Storage 사용 시) | 패키지명·원인 표시 |
 | 2 | 계정·디렉터리 | `clovirassist` 시스템 계정 · `/opt` `/etc` `/var/lib` `/var/backups` 권한 | |
 | 3 | Source 배치 | git clone/checkout 또는 bundle 전개 (`rsync --delete`) | |
-| 4 | Python Runtime | venv + wheelhouse 우선 `pip install` | |
-| 5 | Frontend Artifact | **커밋된 빌드 산출물(`app/static/react/`) 사용이 기본.** `check_bundle_fresh.py` 로 신선도 검증. Node 가 있으면 소스 빌드 옵션 | 번들 stale 이면 중단 |
+| 4 | Python Runtime | venv + wheelhouse 우선 `pip install`. **폐쇄망은 wheelhouse 에 `Pillow` 가 있어야 한다** — 프로필 사진을 서버가 디코드해서 다시 그린다(D-350). 없으면 아바타 업로드만 거절되고 나머지 제품은 그대로 돈다 | |
+| 5 | Frontend Artifact | **커밋된 빌드 산출물(`app/static/react/`) 사용이 기본.** `check_bundle_fresh.py` 로 신선도 검증. Node 가 있으면 소스 빌드 옵션. 기본 아바타(DiceBear)는 이 산출물 안에 이미 들어 있다 — **설치 시점에 npm 도 인터넷도 필요 없다**(D-350) | 번들 stale 이면 중단 |
 | 6 | **PostgreSQL 설치·초기화** | cluster 확인 · `clovirassist` role/DB 생성 · locale/encoding(UTF-8) · `pg_hba` 최소 권한 · listen 127.0.0.1 · 접속 검증 · **`PG_BIN_DIR` 를 `web.env` 에 쓴다**(비우면 `PATH` 의 낮은 버전 `pg_dump` 를 집어 백업이 조용히 실패한다 — S2) · **`max_connections` ≥ 워커수 ×(pool 5 + overflow 10)** | |
 | 7 | **Extension** | `CREATE EXTENSION vector; CREATE EXTENSION pg_trgm;` + 버전 기록 | 미설치 원인 표시 |
 | 8 | Configuration/Secret 분리 | `/etc/clovirassist/clovirassist.env`(0640) + `/etc/clovirassist/secrets/`(**0750** — 소유 `root`, 그룹이 서비스 계정이다. `0700` 이면 제품이 자기 비밀을 못 읽는다. S14 가 실측으로 고쳤다). **DB 비밀번호는 DSN 이 아니라 `.pgpass`/파일 참조** | |

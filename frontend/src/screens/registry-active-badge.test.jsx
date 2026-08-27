@@ -47,17 +47,18 @@ describe.each([
  * `align:"right"` 대신 `type:"number"` 를 선언하고 정렬은 어휘표가 준다. 그래서 이 시험의
  * 앞절(REGISTRY 리터럴이 `align` 인가)은 검사할 대상이 사라졌다. 리터럴을 지우는 대신
  * **선언한 의미**를 검사하도록 다시 적고, 동시에 **약하지 않게 강화**한다: 옛 시험은
- * 우정렬만 봤는데 그것만으로는 자릿수가 세로로 안 맞는다 — `numeric_alignment` 8건이
- * 정확히 「우정렬은 맞는데 tabular-nums 가 없다」였다. 이제 셋을 다 본다.
+ * 정렬만 봤는데 그것만으로는 자릿수가 세로로 안 맞는다 — `numeric_alignment` 8건이
+ * 정확히 「정렬은 맞는데 tabular-nums 가 없다」였다. 이제 셋을 다 본다. 정렬 자체는
+ * 우정렬에서 가운데로 옮겼고(지시 6·13) 자릿수 고정이 남은 세로 비교 수단이다.
  *
  * WF1 R1 — 백업(backup) 목록의 '크기' 열이 숫자인데도 문자열처럼 왼쪽 정렬됐던 자리다.
  * REGISTRY의 실제 설정으로 렌더링까지 확인한다(값만 보는 정적 검사가 아니라). */
 describe("backup 목록의 '크기' 열", () => {
-  it("REGISTRY 가 수치라고 선언하고, 우정렬 + 자릿수 고정으로 렌더된다", () => {
+  it("REGISTRY 가 수치라고 선언하고, 가운데 정렬 + 자릿수 고정으로 렌더된다", () => {
     const cols = REGISTRY.backup.columns;
     const sizeCol = cols.find((c) => c.key === "size_bytes");
     expect(sizeCol.type).toBe("number");
-    expect(COLUMN_TYPES[sizeCol.type].align).toBe("right");
+    expect(COLUMN_TYPES[sizeCol.type].align).toBe("center");
 
     const { container } = render(
       <DataTable columns={cols} rows={[{ path: "web-20260101.sqlite3", status: "verified", size_bytes: 1024 }]} rowKey={(r) => r.path} />,
@@ -65,8 +66,9 @@ describe("backup 목록의 '크기' 열", () => {
     const headerCell = container.querySelector("th:nth-child(3)");
     const bodyCell = container.querySelector("td:nth-child(3)");
     expect(headerCell).toHaveTextContent("크기");
-    expect(headerCell.className).toMatch(/alignRight/);
-    expect(bodyCell.className).toMatch(/alignRight/);
+    // 머리글은 열의 정렬과 상관없이 언제나 가운데다(지시 6). 몸통은 수치라 가운데다.
+    expect(headerCell.className).toMatch(/alignCenter/);
+    expect(bodyCell.className).toMatch(/alignCenter/);
     // 🔴 옛 시험이 안 보던 것 — 자릿수가 세로로 맞아야 값을 비교할 수 있다.
     expect(getComputedStyle(bodyCell).fontVariantNumeric).toContain("tabular-nums");
   });

@@ -156,9 +156,12 @@ describe("내 티켓 — 목록", () => {
   it("표 머리행에 열 이름이 모두 있다(그룹 표가 하나의 table을 공유한다)", async () => {
     renderMyTickets();
     const table = await screen.findByRole("table");
-    // 「추가」는 `created_at` 열이다 — 표준 동사표(§3)가 「새로 만든다 → 추가」이고 registry
-    // 9곳이 이미 그 이름을 쓴다. 여기만 「생성」이라 두 말이 섞여 있었다(P-46).
-    for (const label of ["티켓", "제목", "상태", "우선순위", "난이도", "예상 WD", "실제 WD", "마감", "추가", "담당자"]) {
+    // 「생성 일자」는 `created_at` 열이다. 예전 이름은 「추가」였는데 무엇을 추가했다는
+    // 말인지 알 수 없었다 — 동사표(§3)가 정한 것은 **동작의 이름**이고 이 열은 시각을
+    // 가리키는 명사구다(「임시 비밀번호는 생성 시점」과 같은 부류).
+    // 「신호」는 상태와 직교하는 축이다(D-349) — 상태 칸에 넣으면 「진행 중」과 「차단됨」이
+    // 한 낱말처럼 읽힌다.
+    for (const label of ["티켓", "제목", "상태", "신호", "우선순위", "난이도", "예상 WD", "실제 WD", "마감", "생성 일자", "담당자"]) {
       expect(within(table).getByRole("columnheader", { name: new RegExp(label) })).toBeInTheDocument();
     }
   });

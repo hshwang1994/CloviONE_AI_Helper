@@ -1,4 +1,4 @@
-import React, { useRef } from "react";
+import React, { useRef, useState } from "react";
 import Box from "@mui/material/Box";
 import Divider from "@mui/material/Divider";
 import MuiButton from "@mui/material/Button";
@@ -6,8 +6,9 @@ import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { alpha } from "@mui/material/styles";
 import { FONT_SIZE, FONT_WEIGHT } from "./theme.js";
+import { EmojiPicker } from "./EmojiPicker.jsx";
 
-/* 공용 본문 편집기 — 새 문서와 새 티켓 설명이 같은 서식(제목/글머리/번호/구분선)과
+/* 공용 본문 편집기 — 새 문서와 새 티켓 설명이 같은 서식(제목·글머리·번호·체크·인용·코드·구분선)과
  * 라이브 미리보기를 쓴다. 서식 규칙은 백엔드 app/core/notion_blocks.py(markdown_to_blocks)와
  * 같아야 미리보기와 실제 저장 결과가 어긋나지 않는다. 서식 도구는 커서가 있는 '줄 맨 앞'에 표식을 붙인다.
  *
@@ -15,14 +16,15 @@ import { FONT_SIZE, FONT_WEIGHT } from "./theme.js";
  * 기대고 있었는데, 이 편집기는 MUI 폼 필드들 사이에 끼어 있어 혼자만 옛 모양으로 남아 있었다.
  * 캐럿 조작·미리보기 규칙은 한 줄도 바꾸지 않았다 — 그건 백엔드 파서와 맞춰 둔 계약이다. */
 
-/* 이모지 버튼은 없앴다 (지시 28).
+/* 이모지 버튼이 **돌아왔다** (2026-08-27 지시 10).
  *
- * 예전에는 서식 도구 옆에 ✅📌⚠️🔹👉🎯🎉💡 여덟 개가 있었다. 지시 28 은 "이모지, 장식
- * Unicode, 불필요한 특수기호"를 화면에서 전수 제거하라고 했고, **이 여덟 개는 그것을 화면이
- * 스스로 권하는 자리**였다 — 없애는 것으로 끝나지 않고 넣으라고 버튼까지 줬다.
+ * 한때 서식 도구 옆에 ✅📌⚠️🔹👉🎯🎉💡 여덟 개가 박혀 있었고, 지시 28 이 그것을 걷었다 —
+ * 화면이 장식 문자를 **스스로 권하는** 자리였기 때문이다. 걷은 판단 자체는 그때 옳았다.
  *
- * 본문에 이모지를 못 쓰게 막지는 않는다(사용자가 직접 치면 그대로 저장된다). 제품이 그것을
- * **권하지 않을** 뿐이다. 강조가 필요하면 위의 제목·글머리·번호·구분선이 그 일을 한다.
+ * 지금 들어오는 것은 그것과 다르다. 여덟 개를 툴바에 박아 권하는 것이 아니라, **눌러서
+ * 여는 고르개**다(`ui/EmojiPicker.jsx`, 채팅 컴포저와 같은 부품). 툴바의 기본 얼굴에는
+ * 글자 한 자도 안 늘고, 필요한 사람이 열어서 고른다. 그리고 이 편집기가 쓰이는 자리는
+ * 회의록·요구사항 같은 실제 문서라 「완료 ✅」 한 자가 문장 열 개를 대신하는 일이 실제로 있다.
  */
 /* 백엔드 app/core/notion_blocks.py 의 MAX_BLOCKS 와 같은 값이다. 프런트에 두 번 적지 않으려고
  * 내보낸다 — 티켓 본문 편집(TicketBody.jsx)은 이 상한을 넘으면 저장 자체를 막는다. */
@@ -74,6 +76,7 @@ export function editorSurfaceWidthSx(containerName) {
  * 로 이미 이름을 주고 있어서, 여기서 제 이름을 우기면 **보이는 라벨과 낭독되는 이름이 갈린다**. */
 export function BodyEditor({ id, value, onChange, rows = 12, placeholder, label }) {
   const ref = useRef(null);
+  const [emojiAnchor, setEmojiAnchor] = useState(null);
   const caret = () => {
     const ta = ref.current;
     const val = value || "";
@@ -98,6 +101,19 @@ export function BodyEditor({ id, value, onChange, rows = 12, placeholder, label 
     const chunk = (before && !before.endsWith("\n") ? "\n" : "") + "---\n";
     apply(before + chunk + val.slice(pos), pos + chunk.length);
   };
+  /* 코드 구간은 **두 줄을 함께** 넣고 그 사이에 커서를 둔다. 한 줄만 넣으면 사용자가
+     닫는 울타리를 직접 쳐야 하고, 안 치면 그 아래 본문 전체가 코드가 된다. */
+  const insertFence = () => {
+    const { val, pos } = caret();
+    const before = val.slice(0, pos);
+    const lead = before && !before.endsWith("\n") ? "\n" : "";
+    const chunk = lead + "```\n\n```\n";
+    apply(before + chunk + val.slice(pos), pos + lead.length + 4);
+  };
+  const insertAtCaret = (text) => {
+    const { val, pos } = caret();
+    apply(val.slice(0, pos) + text + val.slice(pos), pos + text.length);
+  };
   /* 카드 배경(흰색)과 구별되는 옅은 표면 — theme.js 의 background.surface2 토큰을 그대로
    * 쓴다(표 머리·칸반 열이 이미 쓰는 것과 같은 위계). 예전에는 `variant="outlined"
    * color="inherit"` 라 배경이 투명이어서 흰 Card 위에서 버튼 경계가 잘 안 보였다. */
@@ -115,11 +131,34 @@ export function BodyEditor({ id, value, onChange, rows = 12, placeholder, label 
         aria-label={label ? label + " 서식 도구" : "본문 서식"}
         sx={{ display: "flex", alignItems: "center", gap: 0.5, flexWrap: "wrap", mb: 1 }}
       >
+        {/* 도구는 **렌더러가 실제로 그리는 것만** 있다 (지시 10). 아홉 다
+            `app/core/notion_blocks.py` 가 블록으로 만들고 `ui/DocBody.jsx` 가 그린다 —
+            숫자를 늘리려고 렌더러가 모르는 버튼을 넣지 않는다. */}
         <MuiButton size="small" variant="outlined" color="inherit" sx={fmtBtn} onClick={() => prefixLine("## ")}>제목</MuiButton>
         <MuiButton size="small" variant="outlined" color="inherit" sx={fmtBtn} onClick={() => prefixLine("- ")}>글머리</MuiButton>
         <MuiButton size="small" variant="outlined" color="inherit" sx={fmtBtn} onClick={() => prefixLine("1. ")}>번호</MuiButton>
+        <MuiButton size="small" variant="outlined" color="inherit" sx={fmtBtn} onClick={() => prefixLine("- [ ] ")}>체크</MuiButton>
+        <MuiButton size="small" variant="outlined" color="inherit" sx={fmtBtn} onClick={() => prefixLine("> ")}>인용</MuiButton>
+        <MuiButton size="small" variant="outlined" color="inherit" sx={fmtBtn} onClick={insertFence}>코드</MuiButton>
         <MuiButton size="small" variant="outlined" color="inherit" sx={fmtBtn} onClick={insertDivider}>구분선</MuiButton>
+        {/* 주소는 **그대로 적으면 링크가 된다**(`ui/DocBody.jsx` 의 `linkifyText`).
+            `[글자](주소)` 문법을 흉내 내지 않는다 — 렌더러가 그것을 모르므로 넣는 순간
+            화면에 대괄호가 그대로 남는다. 이 버튼은 그 사실을 알려 주는 자리다. */}
+        <MuiButton size="small" variant="outlined" color="inherit" sx={fmtBtn} onClick={() => insertAtCaret("https://")}>링크</MuiButton>
+        <MuiButton
+          size="small" variant="outlined" color="inherit" sx={fmtBtn}
+          aria-haspopup="dialog" aria-expanded={!!emojiAnchor}
+          onClick={(e) => setEmojiAnchor(e.currentTarget)}
+        >
+          이모지
+        </MuiButton>
       </Box>
+      <EmojiPicker
+        anchorEl={emojiAnchor}
+        onClose={() => setEmojiAnchor(null)}
+        onPick={(emoji) => { setEmojiAnchor(null); insertAtCaret(emoji); }}
+        ariaLabel="본문에 넣을 이모지 고르기"
+      />
       <TextField
         id={id}
         inputRef={ref}
@@ -156,13 +195,29 @@ export function BodyPreview({ text, wide = false }) {
   const blocks = [];
   let list = null;
   const flush = () => { if (list) { blocks.push(list); list = null; } };
+  /* 코드 구간 안에서는 서식을 **해석하지 않는다** — 서버 파서와 같은 규칙이다
+     (`app/core/notion_blocks.py`). 두 곳이 갈라지면 사용자가 본 미리보기와 저장 결과가
+     다른데, 그 어긋남은 저장한 뒤에야 보인다. */
+  let code = null;
   lines.forEach((ln) => {
     const s = ln.trim();
+    if (s.startsWith("```")) {
+      if (code === null) { flush(); code = []; }
+      else { blocks.push({ type: "code", text: code.join("\n") }); code = null; }
+      return;
+    }
+    if (code !== null) { code.push(ln); return; }
     if (!s) { flush(); blocks.push({ type: "spacer" }); return; }
     if (s === "---" || s === "___" || s === "***") { flush(); blocks.push({ type: "hr" }); return; }
     if (s.startsWith("### ")) { flush(); blocks.push({ type: "h3", text: s.slice(4) }); return; }
     if (s.startsWith("## ")) { flush(); blocks.push({ type: "h2", text: s.slice(3) }); return; }
     if (s.startsWith("# ")) { flush(); blocks.push({ type: "h1", text: s.slice(2) }); return; }
+    // **글머리보다 먼저 본다** — 체크 목록도 `- ` 로 시작한다.
+    const todo = s.match(/^[-*]\s+\[([ xX])\]\s*(.*)$/);
+    if (todo) {
+      if (!list || list.type !== "todo") { flush(); list = { type: "todo", items: [] }; }
+      list.items.push({ text: todo[2], checked: todo[1].toLowerCase() === "x" }); return;
+    }
     if (s.startsWith("- ") || s.startsWith("* ")) {
       if (!list || list.type !== "ul") { flush(); list = { type: "ul", items: [] }; }
       list.items.push(s.slice(2)); return;
@@ -172,10 +227,13 @@ export function BodyPreview({ text, wide = false }) {
       if (!list || list.type !== "ol") { flush(); list = { type: "ol", items: [] }; }
       list.items.push(m[2]); return;
     }
+    if (s.startsWith("> ")) { flush(); blocks.push({ type: "quote", text: s.slice(2) }); return; }
     flush();
     blocks.push({ type: "p", text: ln });
   });
   flush();
+  // 닫히지 않은 울타리도 코드로 보여 준다 — 서버가 같은 판단을 한다.
+  if (code !== null) blocks.push({ type: "code", text: code.join("\n") });
 
   const shell = {
     border: 1, borderColor: "divider", borderRadius: 2, p: 2,
@@ -202,6 +260,44 @@ export function BodyPreview({ text, wide = false }) {
         if (b.type === "h3") return <Typography key={i} component="h4" sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: FONT_SIZE.body, mt: 0.5 }}>{b.text}</Typography>;
         if (b.type === "ul") return <Box component="ul" key={i} sx={{ m: 0, pl: 3 }}>{b.items.map((it, j) => <li key={j}>{it}</li>)}</Box>;
         if (b.type === "ol") return <Box component="ol" key={i} sx={{ m: 0, pl: 3 }}>{b.items.map((it, j) => <li key={j}>{it}</li>)}</Box>;
+        if (b.type === "todo") {
+          return (
+            <Box component="ul" key={i} sx={{ m: 0, pl: 0, listStyle: "none" }}>
+              {b.items.map((it, j) => (
+                <Box component="li" key={j} sx={{ display: "flex", gap: 1, alignItems: "baseline" }}>
+                  {/* 상세 화면(`ui/DocBody.jsx`)이 쓰는 것과 **같은 글리프**다. 미리보기와
+                      실제 화면이 다른 모양이면 미리보기가 미리보기가 아니다. */}
+                  <Box component="span" aria-hidden="true">{it.checked ? "☑" : "☐"}</Box>
+                  <Box component="span">{it.text}</Box>
+                </Box>
+              ))}
+            </Box>
+          );
+        }
+        if (b.type === "quote") {
+          return (
+            <Box
+              component="blockquote" key={i}
+              sx={{ my: 1, ml: 0, pl: 2, borderLeft: 3, borderColor: "primary.light", color: "text.secondary", fontStyle: "italic" }}
+            >
+              {b.text}
+            </Box>
+          );
+        }
+        if (b.type === "code") {
+          return (
+            <Box
+              component="pre" key={i}
+              sx={{
+                my: 1, p: 1.5, borderRadius: 2, border: 1, borderColor: "divider", bgcolor: "action.hover",
+                overflowX: "auto", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+                fontSize: FONT_SIZE.bodySm, lineHeight: 1.6,
+              }}
+            >
+              {b.text}
+            </Box>
+          );
+        }
         return <Typography key={i} variant="body2" sx={{ whiteSpace: "pre-wrap" }}>{b.text}</Typography>;
       })}
       {truncated ? (

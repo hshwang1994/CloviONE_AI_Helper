@@ -119,6 +119,6 @@ export const INTEGRATION_SCREENS = {
       // auth_type이 '없음'이면 secret_status는 null이다(원래 정상) — 일반 Badge는 null을 '알 수 없음'으로
       // 오해하게 표시하므로, 인증 자체가 필요 없는 경우엔 '해당 없음'으로 구분한다(그 외엔 기존 배지 재사용).
       { key: "secret_status", label: "인증 정보 상태", render: (r) => r.auth_type === "none" ? "해당 없음" : badgeCol("secret_status", "인증 정보 상태").render(r) },
-      field("description", "설명"), dateCol("created_at", "추가"), dateCol("updated_at", "수정")],
+      field("description", "설명"), dateCol("created_at", "생성 일자"), dateCol("updated_at", "수정")],
   },
 };

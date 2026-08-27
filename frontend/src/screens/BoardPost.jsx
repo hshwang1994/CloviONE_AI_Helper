@@ -22,13 +22,8 @@ import {
   useToast,
 } from "../ui/kit.jsx";
 import { fmtDateTime } from "../lib/format.js";
-import { KO_WORD_BREAK, PROSE_MAX_WIDTH } from "../ui/theme.js";
+import { KO_WORD_BREAK } from "../ui/theme.js";
 
-/* 본문(78ch)보다 조금 넓은 상한. 본문은 산문이라 78ch 에서 멈추는 게 맞지만,
-   그 아래 댓글 목록까지 78ch 로 묶으면 답글 들여쓰기에서 또 좁아져 한 줄에
-   몇 글자 안 들어간다. 화면 전체로 늘리지도 않는다 — 4K 에서 3,000px 짜리
-   한 줄은 눈이 다음 줄 첫 글자를 못 찾는다. */
-const PROSE_MAX_WIDTH_WIDE = "min(100%, 68rem)";
 import { ideaStatusKind } from "../lib/badges.js";
 import { AuthorLine, COPY, PostFormModal, Reactions } from "./Board.jsx";
 import { splitComments } from "./board-helpers.js";
@@ -36,17 +31,22 @@ import { ImageLightbox, useLightbox } from "../ui/ImageLightbox.jsx";
 import { useTicketProjects } from "./ticket-options.js";
 import { EMPTYABLE_SELECT } from "../ui/filters.jsx";
 import { setItemTitle } from "../app/documentTitle.js";
+import { useListReturn } from "../lib/listReturn.js";
+import { DetailLayout } from "../ui/DetailLayout.jsx";
 
 /* 게시글 상세 (팀 공간 §18). 본문·댓글은 {값}으로만 렌더(React 자동 이스케이프, 불변 §6).
  * 첨부 이미지는 같은 출처 인증 엔드포인트라 <img src>로 쿠키가 함께 전송된다(objectURL 불필요).
  *
  * 2026-08 MUI 재설계 — 레이아웃 규칙:
- * 본문은 산문이라 줄 길이를 PROSE_MAX_WIDTH(78ch)로 묶는다. 4K에서 남는 폭은 줄을 늘리는 데
- * 쓰지 않고 **두 번째 열**(메타 + 댓글 레일)로 보낸다. 3,000px짜리 한 줄은 눈이 다음 줄
- * 첫 글자를 못 찾는다. 레일 안의 댓글도 uhd에서는 두 갈래로 접어 폭을 실제로 쓴다. */
+ * 폭은 `ui/DetailLayout.jsx` 한 곳이 정한다. 곁열이 없는 화면이라 열 하나가 곧 글줄이고
+ * 그 열이 본문 영역 가운데에 선다 — 본문에 상한을 또 걸지 않는다. */
 
+/* 본문에 **다시 상한을 걸지 않는다** (지시 8 · 14 · 16).
+ *
+ * 예전에는 열(68rem)과 본문(72ch)이 각각 상한을 갖고 둘 다 왼쪽에 붙어서, 열 안에서 또
+ * 한 번 왼쪽 쏠림이 생겼다. 지금은 `DetailLayout` 의 한 열이 글줄 길이를 정하고 그 열이
+ * 가운데에 선다 — 본문·반응·댓글이 같은 왼쪽 모서리에서 시작한다. */
 const PROSE_SX = {
-  maxWidth: PROSE_MAX_WIDTH,
   whiteSpace: "pre-wrap",
   ...KO_WORD_BREAK,
   lineHeight: 1.75,
@@ -402,6 +402,9 @@ export function BoardPost() {
   const [editing, setEditing] = useState(false);
 
   const qc = useQueryClient();
+  /* 「목록」은 왔던 목록의 그 상태로 돌아간다 (지시 19). 상세는 하나지만 온 곳은 둘이라
+     (`/board` · `/ideas`) 어느 쪽이었는지도 함께 기억해야 한다. */
+  const backToList = useListReturn(loc.state && loc.state.from, "/board");
   const meta = useQuery({ queryKey: ["board-meta"], queryFn: () => api("/api/board/meta") });
   const detail = useQuery({
     queryKey: ["board-post", id],
@@ -491,7 +494,7 @@ export function BoardPost() {
     <>
       {/* 상세는 하나지만 **온 곳은 둘**이다. 제안을 열었다가 '목록'을 누르면 자유게시판이
           뜨는 것은 길을 잃는 것이다 - 종류를 보고 돌려보낸다. */}
-      <Button variant="ghost" onClick={() => nav(isIdea ? "/ideas" : "/board")}>목록</Button>
+      <Button variant="ghost" onClick={() => nav(backToList)}>목록</Button>
       {post.can_moderate ? (
         <Button onClick={() => pin.mutate(!post.is_pinned)} disabled={pin.isPending}>
           {post.is_pinned ? "고정 해제" : "공지 고정"}
@@ -510,9 +513,9 @@ export function BoardPost() {
           보여줘 화면 안에 h1이 하나 더 필요했다). */}
       <PageHeader crumbRoot="팀 공간" area={boardArea} title={post.title} actions={actions} />
 
-      {/* 1열: 산문(78ch 상한). 2열: 메타 + 댓글 레일. lg부터 갈라진다 — 그 아래에서는 레일이
-          본문 밑으로 자연스럽게 흐른다(소스 순서 = 읽는 순서라 스크린리더도 그대로 따라간다). */}
-      <Box sx={{ display: "grid", rowGap: 3, maxWidth: PROSE_MAX_WIDTH_WIDE }}>
+      {/* 읽는 화면이라 곁열이 없다 — 한 열이 가운데에 선다(`DetailLayout`). 제목 → 본문 →
+          반응 → 댓글이 같은 왼쪽 모서리에서 이어지고, 남는 폭은 양쪽에 똑같이 남는다. */}
+      <DetailLayout>
         {/* **읽기 화면에는 판 경계가 없다** (B3 · S18).
             여기 있던 `Card` 는 본문·반응까지만 감싸고 댓글은 그 밖에 있었다 — 한 글을
             읽는 흐름이 판 경계로 두 동강 나고, 짧은 글에서는 그 판이 1086×198 짜리 흰
@@ -613,7 +616,7 @@ export function BoardPost() {
               (board-post-comment-stale-draft.test.jsx). */}
           <CommentComposer key={post.id} postId={post.id} palette={palette} onDone={refetch} />
         </Box>
-      </Box>
+      </DetailLayout>
 
       <PostFormModal
         open={editing}

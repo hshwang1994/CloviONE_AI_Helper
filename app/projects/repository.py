@@ -77,6 +77,7 @@ def list_in_scope(
     ctx: VisibilityContext,
     *,
     include_archived: bool = False,
+    q: str | None = None,
     offset: int = 0,
     limit: int = 50,
     sort: str | None = None,
@@ -87,10 +88,18 @@ def list_in_scope(
     정렬은 전순서다. 화면 기본은 이름 오름차순이고, 그래도 같으면 id. 마지막 id 가
     없으면 같은 이름 행들의 상대 순서를 DB 가 마음대로 정하고, 그러면 OFFSET
     페이지네이션이 같은 행을 두 번 보여 주거나 빠뜨린다(app/tickets/query.py 의 Z9 와 같다).
+
+    `q` 는 이름과 **코드** 둘 다 본다. 코드를 빼면 「HAASFT」를 아는 사람이 그 여섯 글자로
+    프로젝트를 못 찾는다 — 티켓 이름이 그 코드로 시작하므로 사람들은 코드로 기억한다.
     """
     stmt = apply_scope(select(Project), ctx)
     if not include_archived:
         stmt = stmt.where(Project.archived_at.is_(None))
+    needle = (q or "").strip()
+    if needle:
+        # `ilike` 다 — 코드는 대문자이고 사람들은 소문자로 친다.
+        like = f"%{needle}%"
+        stmt = stmt.where(Project.name.ilike(like) | Project.code.ilike(like))
     total = db.execute(select(func.count()).select_from(stmt.subquery())).scalar_one()
     key = sort if sort in {"name", "created_at", "updated_at"} else "name"
     descending = (order or "asc") == "desc"

@@ -1,8 +1,21 @@
-"""Workflow — 표시 Status 와 내부 Category 를 나눈다 (§5.2).
+"""Workflow — 표시 Status 와 내부 Category 를 나누고, **Status 와 Signal 을 가른다** (§5.2 · D-349).
 
-## 왜 나누는가
+## 축이 둘이다
 
-화면에 보이는 말은 여섯이다: 계획 · 이슈 · 진행 · 검증 · 완료 · 취소.
+**Status 는 업무가 어디까지 왔는가**이고 티켓 하나가 정확히 하나를 갖는다:
+계획 · 진행 중 · 검증 · 완료 · 보류 · 취소.
+
+**Signal 은 그 진행에 무슨 일이 있는가**이고 동시에 여러 개가 켜질 수 있다:
+이슈 있음 · 차단됨 · 지연.
+
+둘을 한 컬럼에 섞으면 「진행 중인데 막혀 있다」를 적을 자리가 없다. 실제로 이
+제품이 그랬다 — `이슈` 가 Status 였고, 그래서 이슈가 생긴 티켓은 자기가 어디까지
+왔는지를 잃었다. 「백로그」도 Status 가 아니다. 그것은 위치이고
+`tickets.sprint_id IS NULL` 이 답한다.
+
+## 왜 Category 를 또 나누는가
+
+화면에 보이는 말은 여섯이다.
 집계가 알아야 하는 것은 넷이다: 시작 전 · 하는 중 · 끝남 · 접음.
 
 둘을 한 컬럼으로 두면 「진행률」이 표시 어휘에 묶인다. 실제로 그 사고가 이 제품에
@@ -20,16 +33,17 @@
 표가 따로 있어야 하는 이유는 조인이다. 칸반이 「하는 중인 것」을 물을 때 파이썬
 사전을 SQL 에 실어 보낼 수는 없다.
 
-## 두 표현을 한 객체가 든다
+## 네 표현을 한 객체가 든다
 
-`_Status` 하나가 표시 이름·집계 갈래·열 순서를 함께 갖는다. 상태를 더하면 셋이
-같이 생긴다 — 한쪽만 만들 수가 없다. S5 가 가시성 규칙에서 배운 모양 그대로다
-(D-231): 같은 파일에 있다는 것만으로는 「한 곳」이 아니다.
+`_Status` 하나가 표시 이름·집계 갈래·열 순서·판에서의 자리를 함께 갖는다. 상태를
+더하면 넷이 같이 생긴다 — 한쪽만 만들 수가 없다. S5 가 가시성 규칙에서 배운 모양
+그대로다 (D-231): 같은 파일에 있다는 것만으로는 「한 곳」이 아니다.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import date
 
 from sqlalchemy import case
 from sqlalchemy.sql.elements import Case
@@ -48,29 +62,43 @@ CATEGORIES: tuple[str, ...] = (CAT_OPEN, CAT_IN_PROGRESS, CAT_DONE, CAT_CANCELED
 TERMINAL_CATEGORIES: frozenset[str] = frozenset({CAT_DONE, CAT_CANCELED})
 
 
+# ── 판에서의 자리 ────────────────────────────────────────────────────────────
+#
+# 여섯이 전부 열이 되면 판이 화면 폭을 넘고, 사용자가 매일 보는 넷이 매일 안 보는
+# 둘 때문에 좁아진다. 자리는 셋이다.
+BOARD_COLUMN = "column"      # 기본 실행 열
+BOARD_COLLAPSED = "collapsed"  # 접힌 칸. 펴면 보인다
+BOARD_HIDDEN = "hidden"      # 기본 판에서 숨는다. Filter/Archive 로만 본다
+
+
 @dataclass(frozen=True, slots=True)
 class _Status:
-    """표시 Status 한 줄. **세 표현을 함께 든다.**"""
+    """표시 Status 한 줄. **네 표현을 함께 든다.**"""
 
-    key: str          # 저장값이자 표시값. 지금 데이터가 이 문자열이다
-    label: str        # 화면에 쓰는 말. 지금은 key 와 같지만 축을 분리해 둔다
+    key: str          # 저장값. 지금 데이터가 이 문자열이다
+    label: str        # 화면에 쓰는 말. key 와 다를 수 있다 — 「진행」의 표시는 「진행 중」이다
     category: str     # 집계 갈래
     sort_order: int   # 칸반 열 순서. 화면마다 다시 정하면 두 화면이 다른 순서를 보인다
     is_default: bool  # 새 티켓의 시작 상태. 정확히 하나다
+    board: str        # 판에서의 자리
 
 
-# 실측 어휘(INVENTORY 07 · `ticket_cache.status` 실데이터)를 그대로 쓴다. 새 말을
-# 짓지 않는다 — 지금 1,124건이 이 여섯 문자열로 저장돼 있고, 새 어휘를 만들면
-# 데이터 이관이 아니라 데이터 번역이 된다.
+# 저장값은 실측 어휘(INVENTORY 07 · `ticket_cache.status` 실데이터)를 그대로 쓴다.
+# **표시 이름만 바꾼다** — `진행` 은 화면에서 `진행 중` 이다. 저장값을 옮기면 데이터
+# 이관이 아니라 데이터 번역이 되고, 옛 링크·옛 필터·옛 감사 기록이 함께 갈린다.
+#
+# 「이슈」가 여기 없는 이유는 **그것이 업무 진행 단계가 아니기 때문**이다 (D-349).
+# 이슈·차단·지연은 상태와 **직교하는 신호**라서 아래 절이 따로 든다 — 「진행 중이면서
+# 이슈가 있다」가 표현 가능해야 하고, 한 컬럼으로는 그것을 못 적는다.
 STATUSES: tuple[_Status, ...] = (
-    _Status("계획", "계획", CAT_OPEN, 10, True),
-    # 「이슈」가 IN_PROGRESS 가 아니라 OPEN 인 이유: 막혀서 아무도 손대지 못하는
-    # 상태다. 진행 중으로 세면 번다운이 내려가지 않는데 이유가 안 보인다.
-    _Status("이슈", "이슈", CAT_OPEN, 20, False),
-    _Status("진행", "진행", CAT_IN_PROGRESS, 30, False),
-    _Status("검증", "검증", CAT_IN_PROGRESS, 40, False),
-    _Status("완료", "완료", CAT_DONE, 50, False),
-    _Status("취소", "취소", CAT_CANCELED, 60, False),
+    _Status("계획", "계획", CAT_OPEN, 10, True, BOARD_COLUMN),
+    _Status("진행", "진행 중", CAT_IN_PROGRESS, 20, False, BOARD_COLUMN),
+    _Status("검증", "검증", CAT_IN_PROGRESS, 30, False, BOARD_COLUMN),
+    _Status("완료", "완료", CAT_DONE, 40, False, BOARD_COLUMN),
+    # 「보류」가 IN_PROGRESS 가 아니라 OPEN 인 이유: 의도적으로 멈춘 일이다. 진행으로
+    # 세면 번다운이 안 내려가는데 이유가 안 보이고, 끝난 것으로 세면 남은 일이 사라진다.
+    _Status("보류", "보류", CAT_OPEN, 50, False, BOARD_COLLAPSED),
+    _Status("취소", "취소", CAT_CANCELED, 60, False, BOARD_HIDDEN),
 )
 
 _BY_KEY: dict[str, _Status] = {s.key: s for s in STATUSES}
@@ -78,9 +106,74 @@ _BY_KEY: dict[str, _Status] = {s.key: s for s in STATUSES}
 DEFAULT_STATUS: str = next(s.key for s in STATUSES if s.is_default)
 
 
+# ── Signal ───────────────────────────────────────────────────────────────────
+#
+# 셋의 출처가 서로 다르다. 그것이 이 절이 존재하는 이유다 — 「지연」을 컬럼으로 저장하면
+# 어제 지연이던 티켓이 오늘 마감을 미뤄도 계속 지연으로 남고, 아무도 그 값을 지우러
+# 오지 않는다.
+SIGNAL_ISSUE = "issue"      # 사람이 켠다. 「문제가 있다」
+SIGNAL_BLOCKED = "blocked"  # 사람이 켜거나 `blocks` 관계가 만든다. 「남이 끝나야 움직인다」
+SIGNAL_OVERDUE = "overdue"  # **계산한다.** 저장하지 않는다
+SIGNALS: tuple[str, ...] = (SIGNAL_ISSUE, SIGNAL_BLOCKED, SIGNAL_OVERDUE)
+
+SIGNAL_LABEL: dict[str, str] = {
+    SIGNAL_ISSUE: "이슈 있음",
+    SIGNAL_BLOCKED: "차단됨",
+    SIGNAL_OVERDUE: "지연",
+}
+
+
+def is_overdue(due_date: date | None, status: str | None, *, today: date) -> bool:
+    """마감이 지났는데 안 끝났는가. **이 판정이 제품에 한 곳이다.**
+
+    끝난 일은 마감이 지났어도 지연이 아니다 — 지난주에 끝낸 일이 오늘 빨갛게 뜨면
+    그 색은 아무 행동도 요구하지 않고, 요구하지 않는 색은 곧 무시된다.
+    """
+    if due_date is None or is_terminal(status):
+        return False
+    return due_date < today
+
+
+def signals_of(
+    *,
+    due_date: date | None,
+    status: str | None,
+    today: date,
+    issue: bool = False,
+    blocked: bool = False,
+) -> tuple[str, ...]:
+    """켜져 있는 신호 전부. 화면과 집계가 **같은 목록**을 본다."""
+    out: list[str] = []
+    if issue:
+        out.append(SIGNAL_ISSUE)
+    if blocked:
+        out.append(SIGNAL_BLOCKED)
+    if is_overdue(due_date, status, today=today):
+        out.append(SIGNAL_OVERDUE)
+    return tuple(out)
+
+
 def all_statuses() -> tuple[_Status, ...]:
     """열 순서대로 전부. 칸반 열과 폼 드롭다운이 같은 순서를 본다."""
     return tuple(sorted(STATUSES, key=lambda s: s.sort_order))
+
+
+def label_of(status: str | None) -> str:
+    """화면에 쓸 말. 모르는 값은 **그대로 돌려준다** — 지어내지 않는다."""
+    found = _BY_KEY.get(status or "")
+    return found.label if found is not None else (status or "")
+
+
+def board_placement(status: str | None) -> str:
+    """이 상태가 판에서 어디에 서는가. 모르는 상태는 숨기지 않는다 — 안 보이는
+    티켓은 아무도 못 고친다."""
+    found = _BY_KEY.get(status or "")
+    return found.board if found is not None else BOARD_COLUMN
+
+
+def board_column_keys() -> tuple[str, ...]:
+    """기본 실행 열 넷. 화면이 상태 이름을 적지 않게 한다."""
+    return tuple(s.key for s in all_statuses() if s.board == BOARD_COLUMN)
 
 
 def is_known(status: str | None) -> bool:

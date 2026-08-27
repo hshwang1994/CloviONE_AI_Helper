@@ -59,11 +59,35 @@ export const OVERFLOW = { ellipsis: "ellipsis", nowrap: "nowrap", anywhere: "any
  * 것이라 이름을 갈라 둔다: 하나는 «어느 열의 값을 읽어 주나», 하나는 «어느 열을 없애면
  * 안 되나» 다.
  *
- * `numeric` 은 «자릿수를 세로로 맞춘다»(tabular-nums)는 뜻이다. 우정렬과 짝이지만 같은
- * 것은 아니다 — 식별자형 숫자(티켓번호·포트·버전)는 **좌정렬인데 자릿수는 고정**이다.
- * 크기를 비교하지 않으므로 우정렬이 오히려 틀렸고, 그래서 `identifier` 는 `align:"left"`
- * 에 `numeric:true` 다. QA 의 `numeric_alignment` 가 그 열을 우정렬 위반으로 세지 않게
- * `DataTable` 이 `data-col-role="identifier"` 를 함께 내보낸다.
+ * `numeric` 은 «자릿수를 세로로 맞춘다»(tabular-nums)는 뜻이고 정렬과는 다른 축이다.
+ * 지금은 모든 수치 열이 가운데지만 자릿수 고정은 그대로 필요하다 — 고정 폭이라야 값이
+ * 칸 안에서 흔들리지 않는다. 식별자형 숫자(티켓번호·포트·버전)는 크기를 비교하지
+ * 않는다는 사실을 `DataTable` 이 `data-col-role="identifier"` 로 내보낸다.
+ */
+/* ── 머리글은 언제나 가운데다 ──────────────────────────────────────────────
+ *
+ * 몸통 칸의 정렬은 값의 의미가 정하고(아래 표), 머리글은 그것과 **따로** 가운데에 선다.
+ * 둘을 같은 값으로 묶으면 표마다 머리글 줄이 들쭉날쭉해진다 — 왼쪽에 붙은 이름 옆에
+ * 가운데 이름이 서고 그 옆에 오른쪽 이름이 서면, 눈이 머리글 줄을 한 줄로 못 읽는다.
+ *
+ * 정렬·필터 조작기 때문에 이름의 중심이 밀리지 않는 것은 `TableHeaderCell` 이 격자
+ * (`1fr auto 1fr`)로 지킨다. 이름이 가운데 칸에 서고 조작기는 오른쪽 칸에 산다.
+ */
+export const HEADER_ALIGN = "center";
+
+/* ── 몸통 칸의 정렬 ────────────────────────────────────────────────────────
+ *
+ * **왼쪽은 「읽는 것」이다** — 티켓 제목 · 프로젝트 이름 · 문서 이름 · 사람 이름 ·
+ * 설명. 이 값들은 길이가 제각각이라 왼쪽 모서리가 맞아야 눈이 다음 줄로 내려간다.
+ *
+ * **가운데는 「보는 것」이다** — 티켓 ID · 상태 · 우선순위 · 난이도 · WD · 날짜 ·
+ * 건수 · 퍼센트 · 점수 · 짧은 코드 · 행 동작. 폭이 고정된 짧은 값이고, 칸 안에서
+ * 가운데에 서면 열이 하나의 띠로 읽힌다.
+ *
+ * ⚠️ **수치 열의 우정렬을 가운데로 바꿨다** (2026-08-27 지시 6·13). 우정렬은 자릿수가
+ * 다른 값을 세로로 비교하기에 낫고, 그것이 예전 계약이었다. 대신 `tabular-nums` 는
+ * 그대로 둔다 — 자릿수가 같은 값끼리는 가운데에서도 세로로 맞는다. 자릿수가 크게
+ * 다른 열(1 과 1,240)에서는 비교가 예전만 못하다는 것을 알고 고른 값이다.
  */
 export const COLUMN_TYPES = {
   /* 표당 **하나**다. 그 행이 무엇인지 말하는 열이고, 폭 경쟁에서 가장 세다. */
@@ -75,27 +99,26 @@ export const COLUMN_TYPES = {
      `minWidth` 로 바닥을 올린다. 남는 폭을 갖는 열은 표당 하나(`title`)다. */
   name: { align: "left", numeric: false, width: SHRINK, minWidth: "9rem", overflow: OVERFLOW.ellipsis, identifying: true },
   /* 이메일·코드·UUID·티켓번호. 글자 단위로 끊어도 되는 유일한 부류다. */
-  identifier: { align: "left", numeric: true, minWidth: IDENTIFIER_COL_MIN_WIDTH, overflow: OVERFLOW.anywhere, identifying: true },
+  identifier: { align: "center", numeric: true, minWidth: IDENTIFIER_COL_MIN_WIDTH, overflow: OVERFLOW.anywhere, identifying: true },
   /* 설명·오류 원문. 폭 경쟁에서 가장 약하고, 전 행이 비면 수축 후보다(§collapse). */
   text: { align: "left", numeric: false, minWidth: "12rem", overflow: OVERFLOW.ellipsis, collapsible: true },
-  /* 상태 배지. 배지 자체가 시각 앵커라 좌정렬이다. */
-  status: { align: "left", numeric: false, width: SHRINK, minWidth: "5rem", overflow: OVERFLOW.nowrap },
+  /* 상태 배지. 폭이 짧고 값이 닫힌 집합이라 칸 가운데에 선다. */
+  status: { align: "center", numeric: false, width: SHRINK, minWidth: "5rem", overflow: OVERFLOW.nowrap },
   /* 짧은 닫힌 집합(종류·범위·대상). 배지가 아니라 낱말이다. */
-  enum: { align: "left", numeric: false, width: SHRINK, minWidth: DEFAULT_COL_MIN_WIDTH, overflow: OVERFLOW.nowrap },
-  /* 개수. **우정렬 + 자릿수 고정** — 그래야 세로로 훑으며 비교할 수 있다. */
-  count: { align: "right", numeric: true, width: SHRINK, minWidth: "4rem", overflow: OVERFLOW.nowrap },
+  enum: { align: "center", numeric: false, width: SHRINK, minWidth: DEFAULT_COL_MIN_WIDTH, overflow: OVERFLOW.nowrap },
+  /* 개수. **가운데 + 자릿수 고정.** 고정 자릿수가 세로 비교를 남겨 준다. */
+  count: { align: "center", numeric: true, width: SHRINK, minWidth: "4rem", overflow: OVERFLOW.nowrap },
   /* 크기·금액처럼 단위가 붙는 수치. 개수와 같은 규칙이다. */
-  number: { align: "right", numeric: true, width: SHRINK, minWidth: "4rem", overflow: OVERFLOW.nowrap },
+  number: { align: "center", numeric: true, width: SHRINK, minWidth: "4rem", overflow: OVERFLOW.nowrap },
   /* 비율·점수. 자릿수가 하나 더 붙어 최소폭이 개수보다 넓다. */
-  percent: { align: "right", numeric: true, width: SHRINK, minWidth: "5rem", overflow: OVERFLOW.nowrap },
-  score: { align: "right", numeric: true, width: SHRINK, minWidth: "5rem", overflow: OVERFLOW.nowrap },
-  /* 날짜·시각. **라벨이라 좌정렬**이 기본이다 — 「언제 만들어졌나」는 크기 비교가 아니라
-     그 행의 성질이다. 값끼리 세로로 비교하는 자리(백업 목록의 크기 옆 시각 등)는 열이
-     `align:"right"` 를 직접 적어 뒤집는다. 자릿수 고정은 어느 쪽이든 붙는다. */
-  date: { align: "left", numeric: true, width: SHRINK, minWidth: "8.5rem", overflow: OVERFLOW.nowrap },
-  datetime: { align: "left", numeric: true, width: SHRINK, minWidth: "8.5rem", overflow: OVERFLOW.nowrap },
-  /* 행 액션 묶음. 오른쪽 끝에 놓인다. */
-  actions: { align: "right", numeric: false, width: SHRINK, minWidth: DEFAULT_COL_MIN_WIDTH, overflow: OVERFLOW.nowrap },
+  percent: { align: "center", numeric: true, width: SHRINK, minWidth: "5rem", overflow: OVERFLOW.nowrap },
+  score: { align: "center", numeric: true, width: SHRINK, minWidth: "5rem", overflow: OVERFLOW.nowrap },
+  /* 날짜·시각. 폭이 고정된 짧은 값이라 가운데다. 자릿수 고정은 그대로 붙는다 —
+     'YYYY-MM-DD' 는 자릿수가 언제나 같아서 가운데에서도 세로로 맞는다. */
+  date: { align: "center", numeric: true, width: SHRINK, minWidth: "8.5rem", overflow: OVERFLOW.nowrap },
+  datetime: { align: "center", numeric: true, width: SHRINK, minWidth: "8.5rem", overflow: OVERFLOW.nowrap },
+  /* 행 액션 묶음. 표의 마지막 열이고 칸 가운데에 선다. */
+  actions: { align: "center", numeric: false, width: SHRINK, minWidth: DEFAULT_COL_MIN_WIDTH, overflow: OVERFLOW.nowrap },
   /* 선택 체크박스처럼 라벨이 낱말이 아닌 열. */
   select: { align: "left", numeric: false, width: SHRINK, minWidth: "2.5rem", overflow: OVERFLOW.nowrap },
 };
@@ -107,9 +130,12 @@ const UNTYPED = { align: "left", numeric: false, minWidth: DEFAULT_COL_MIN_WIDTH
 export const NUMERIC_TYPES = Object.freeze(
   Object.keys(COLUMN_TYPES).filter((k) => COLUMN_TYPES[k].numeric));
 
-/** 우정렬이 계약인 타입. `numeric_alignment` 가 재는 것과 같은 집합이다. */
-export const END_ALIGNED_TYPES = Object.freeze(
-  Object.keys(COLUMN_TYPES).filter((k) => COLUMN_TYPES[k].align === "right"));
+/** 가운데 정렬이 계약인 타입. `numeric_alignment` 가 재는 것과 같은 집합이다.
+ *
+ * 이름을 `END_ALIGNED_TYPES` 에서 바꿨다 — 「끝에 붙인다」가 더 이상 사실이 아니다.
+ * 이름과 뜻이 갈린 상수는 다음 사람이 읽고 반대로 고친다. */
+export const CENTER_ALIGNED_TYPES = Object.freeze(
+  Object.keys(COLUMN_TYPES).filter((k) => COLUMN_TYPES[k].align === "center"));
 
 /** 표당 하나만 허용하는 타입. 둘이면 무엇이 그 행의 이름인지 알 수 없다. */
 export const SINGLETON_TYPES = Object.freeze(["title"]);

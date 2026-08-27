@@ -49,7 +49,7 @@ describe("VIS-158R 재확인 — 좁은 화면(레일 없음)에서도 말풍선
     // 카드 특유의 구조(제목 + '상태' 라벨 + 배지)가 실제로 렌더된다 — 평문 목록이 아니다.
     expect(screen.getByText("로그인 실패 조사")).toBeInTheDocument();
     expect(screen.getByText("상태")).toBeInTheDocument();
-    expect(screen.getByText("진행")).toBeInTheDocument();
+    expect(screen.getByText("진행 중")).toBeInTheDocument();
     expect(screen.getByText("담당자")).toBeInTheDocument();
     expect(screen.getByText("김운영")).toBeInTheDocument();
   });

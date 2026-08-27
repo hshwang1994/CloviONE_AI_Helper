@@ -264,7 +264,7 @@ def test_meta_statuses_are_the_products_vocabulary(db, settings, project):
     """
     _seed(db, project, prio="높음", diff="어려움")
     meta = service.ticket_meta(None, settings, db)
-    assert meta["statuses"] == ["계획", "이슈", "진행", "검증", "완료", "취소"]
+    assert meta["statuses"] == ["계획", "진행", "검증", "완료", "보류", "취소"]
     assert meta["priorities"] == ["높음"]
     assert meta["difficulties"] == ["어려움"]
 
@@ -288,6 +288,10 @@ _FIELD_CASES = {
     "due_date": ("2026-10-01", "due_date", date(2026, 10, 1)),
     "start_date": ("2026-09-01", "start_date", date(2026, 9, 1)),
     "category": ("인프라", "category", "인프라"),
+    # Signal — 상태와 직교하는 축 (D-349). 차단 사유는 차단이 켜져 있을 때만 남는다.
+    "issue_flag": (True, "issue_flag", True),
+    "blocked_flag": (True, "blocked_flag", True),
+    "blocked_reason": ("앞 티켓이 안 끝났다", "blocked_reason", "앞 티켓이 안 끝났다"),
 }
 
 

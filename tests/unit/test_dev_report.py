@@ -84,8 +84,8 @@ def test_aggregates_by_developer_with_names_and_overdue(db, settings, make_user)
     report = _report(db, settings)
 
     assert report["team"] == {
-        "total": 3, "done": 1, "in_progress": 1, "verify": 0, "plan": 1, "cancel": 0,
-        "overdue": 1, "est_done_total": 3.0, "est_all_total": 6.0,
+        "total": 3, "done": 1, "in_progress": 1, "verify": 0, "plan": 1, "hold": 0,
+        "cancel": 0, "overdue": 1, "est_done_total": 3.0, "est_all_total": 6.0,
     }
     assert report["unassigned"]["total"] == 1
     assert report["unassigned"]["plan"] == 1
@@ -123,16 +123,34 @@ def test_verify_status_split_from_in_progress(db, settings, make_user):
             people=["notion-v"], est=2, diff="2")
     _ticket(db, tid=11, title="검증건", status="검증", due="2026-07-21",
             people=["notion-v"], est=3, diff="3")
-    _ticket(db, tid=12, title="이슈건", status="이슈", due="2026-07-22",
-            people=["notion-v"], est=1, diff="1")
 
     report = _report(db, settings, today=date(2026, 7, 10))
-    # 팀 합계: 진행+이슈=2 는 in_progress, 검증=1 은 verify 로 분리.
-    assert report["team"]["in_progress"] == 2
+    assert report["team"]["in_progress"] == 1
     assert report["team"]["verify"] == 1
-    # 담당자 집계도 동일하게 분리된다(진행+이슈=2 는 prog, 검증=1 은 verify).
     v = {r["name"]: r for r in report["developers"]}["검증자"]
-    assert v["prog"] == 2 and v["verify"] == 1
+    assert v["prog"] == 1 and v["verify"] == 1
+
+
+def test_hold_is_counted_apart_from_plan_and_progress(db, settings, make_user):
+    """보류는 **자기 칸을 갖는다** (D-349).
+
+    계획으로 세면 아직 손도 안 댄 일과 섞이고, 진행으로 세면 아무도 안 하는 일이
+    진행 중 건수를 부풀린다. 어느 쪽이든 회의에서 「이번 주에 무엇이 멈춰 있나」에
+    답할 수 없다. 예전에는 이 자리에 `이슈` 가 있었고 그것은 상태가 아니었다.
+    """
+    dev = make_user(email="h@goodmit.co.kr", display_name="보류자", role="admin")
+    _map(db, dev, "notion-h")
+    _ticket(db, tid=13, title="보류건", status="보류", due="2026-07-22",
+            people=["notion-h"], est=1, diff="1")
+    _ticket(db, tid=14, title="계획건", status="계획", due="2026-07-23",
+            people=["notion-h"], est=1, diff="1")
+
+    report = _report(db, settings, today=date(2026, 7, 10))
+    assert report["team"]["hold"] == 1
+    assert report["team"]["plan"] == 1
+    assert report["team"]["in_progress"] == 0
+    h = {r["name"]: r for r in report["developers"]}["보류자"]
+    assert h["hold"] == 1 and h["plan"] == 1 and h["prog"] == 0
 
 
 def test_unmapped_assignee_falls_back_to_placeholder(db, settings, make_user):

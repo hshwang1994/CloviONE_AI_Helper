@@ -8,7 +8,7 @@ import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
 import { Badge, Button, Callout, Card, EmptyState, ErrorState, MetaBar, OverflowMenu, PageHeader, Skeleton, useConfirm, useToast } from "../ui/kit.jsx";
 import { PROSE_MAX_WIDTH } from "../ui/theme.js";
-import { BASELINE_TRACKS, GRID_GAP } from "../ui/density.js";
+import { DETAIL_GRID, DetailLayout } from "../ui/DetailLayout.jsx";
 import { TicketEditModal } from "./MyTickets.jsx";
 import { invalidateTicketViews } from "./ticket-views.js";
 import { TicketBody } from "./TicketBody.jsx";
@@ -17,6 +17,9 @@ import { TicketAttachments } from "./TicketAttachments.jsx";
 import { TicketHistory } from "./TicketHistory.jsx";
 import { priorityKo, priorityKind } from "../lib/priority.js";
 import { setItemTitle } from "../app/documentTitle.js";
+import { useListReturn } from "../lib/listReturn.js";
+import { useTicketSignals } from "../lib/ticketSignals.js";
+import { TicketSignals } from "../ui/TicketSignals.jsx";
 
 /* 티켓 상세 — 문서처럼 우리 화면에서 내용을 읽고, '원본 열기'로 노션에 간다. 속성은 메타 레일에,
  * 본문은 TicketBody(읽기·편집·동기화 상태), 논의는 TicketComments 가 맡는다. 편집·삭제(휴지통)도 여기서.
@@ -38,31 +41,24 @@ import { setItemTitle } from "../app/documentTitle.js";
    제목 폴백은 그대로 두는 것이 맞다 — 거기서는 「제목이 없는 티켓」의 이름이 필요하다. */
 function ticketId(t) { return (t && t.key) || null; }
 
-/* 두 열 그리드 — 기준선 `.ticket-layout` 을 그대로 쓴다.
+/* 두 열 그리드의 정본은 **`ui/DetailLayout.jsx`** 다 (지시 8 · 14 · 16).
  *
- * 예전 값은 `minmax(0, 78ch) minmax(18rem, 26rem)` 이었고, 이것이 사용자가 본
- * "티켓 상세가 왼쪽으로 쏠려있다"의 원인이다. **두 트랙 모두 상한이 고정값**이라
- * 격자가 컨테이너보다 좁게 멈추고 오른쪽을 빈 채로 남긴다: 1920 기준 본문 열
- * 1,592px 중 78ch(약 600px) + 26rem(416px) + 간격만 쓰고 550px 가까이가 그냥 비었다.
- * 바깥 셸의 `mx:"auto"` 는 이걸 못 고친다 — 가운데로 옮길 뿐 폭을 채우지 않는다.
- *
- * 기준선은 두 트랙을 다 `fr` 로 둔다(1.5 : 0.65). 남는 폭이 본문과 레일에 비율대로 배분돼
- * 어느 폭에서도 오른쪽이 비지 않고, 레일에는 300px 하한이 있어 짜부라지지도 않는다.
- * 본문이 레일보다 2.3배 넓으므로 "본문이 속성보다 좁다"(Q1)도 그대로 지켜진다.
- *
- * 한 열로 접히는 지점은 lg(1200)다. 기준선은 960px 이하에서 한 열이 되는데, 우리 셸은
- * 사이드바 264px 를 더 빼므로 그보다 한 단 위에서 접는 것이 같은 여유가 된다.
- * 문서 상세(TeamDoc)도 같은 값을 쓴다 — 성격이 같은 두 화면이 다른 폭이면 안 된다. */
-export const DETAIL_GRID = {
-  display: "grid", gap: GRID_GAP, alignItems: "start",
-  gridTemplateColumns: { xs: "1fr", lg: BASELINE_TRACKS.detail },
-};
+ * 여기 있던 값을 그쪽으로 옮겼다. 이유는 곁열이 **없는** 상세 화면(게시글 · 기능 개선
+ * 제안)이 같은 문제를 다른 모양으로 갖고 있었기 때문이다 — 한 계약이 둘 다 답해야 한다.
+ * 이 이름은 그대로 다시 내보낸다: `density-contract.test.jsx` 가 이 이름으로 계약을
+ * 확인하고 있고, 이름을 옮기면 그 검사가 조용히 아무것도 안 지키게 된다. */
+export { DETAIL_GRID };
 
 
 export function Ticket() {
   const { id } = useParams();
   const nav = useNavigate();
   const loc = useLocation();
+  /* 「목록」은 **왔던 목록의 그 상태**로 돌아간다 (지시 19). 어디서 왔는지는 목록이
+     `state.from` 으로 남겼고, 그 목록이 어떤 조건·페이지·스크롤이었는지는
+     `lib/listReturn.js` 가 기억한다. 딥링크로 바로 들어왔으면 내 티켓으로 간다. */
+  const backToList = useListReturn(loc.state && loc.state.from, "/my-tickets");
+  const signalsOf = useTicketSignals();
   const toast = useToast();
   const confirm = useConfirm();
   const qc = useQueryClient();
@@ -89,7 +85,8 @@ export function Ticket() {
       // 티켓을 그리는 질의 키는 ticket-views.js 한 곳이 안다(홈·스프린트도 이 티켓을 세고 있다).
       invalidateTicketViews(qc, { refetchType: "all" });
       qc.invalidateQueries({ queryKey: ["trash"], refetchType: "all" });
-      nav("/my-tickets");
+      // 지운 뒤에도 왔던 목록으로 돌아간다 — 지우기 전에 보던 조건이 그대로다.
+      nav(backToList);
     },
     onError: (e) => toast((e && e.message) || "삭제하지 못했습니다. 다시 시도해 주세요.", "error"),
   });
@@ -97,7 +94,7 @@ export function Ticket() {
   if (detail.isError) {
     return (
       <div className="c-screen">
-        <PageHeader crumbRoot="내 업무" area="티켓" title="티켓" actions={<Button onClick={() => nav("/my-tickets")}>목록</Button>} />
+        <PageHeader crumbRoot="내 업무" area="티켓" title="티켓" actions={<Button onClick={() => nav(backToList)}>목록</Button>} />
         <ErrorState error={detail.error} onRetry={() => detail.refetch()} />
       </div>
     );
@@ -115,7 +112,7 @@ export function Ticket() {
   if (data.configured === false) {
     return (
       <div className="c-screen">
-        <PageHeader crumbRoot="내 업무" area="티켓" title="티켓" actions={<Button onClick={() => nav("/my-tickets")}>목록</Button>} />
+        <PageHeader crumbRoot="내 업무" area="티켓" title="티켓" actions={<Button onClick={() => nav(backToList)}>목록</Button>} />
         {/* 연동 미설정은 이 화면에서 가장 흔한 '데이터 없음'이다 — 경고 한 줄로 끝내지 않고
             무엇이 필요한지·연동 후 무엇이 보이는지까지 알려준다(목록 화면들과 같은 규칙). */}
         {/* 이 갈래는 더 이상 안 열린다 — 티켓의 정본이 이 서버라 사람이 채워 넣을 접속
@@ -127,7 +124,7 @@ export function Ticket() {
           situation="서버가 티켓을 읽지 못했습니다."
           steps={["잠시 뒤 이 화면을 새로고침해 보세요.", "계속 같으면 관리자에게 문의하세요."]}
           expected="다시 열면 제목, 속성, 본문이 이 자리에 표시됩니다."
-          action={<Button variant="primary" onClick={() => nav("/my-tickets")}>내 티켓으로</Button>}
+          action={<Button variant="primary" onClick={() => nav(backToList)}>내 티켓으로</Button>}
         />
       </div>
     );
@@ -135,16 +132,17 @@ export function Ticket() {
   if (data.ok === false) {
     return (
       <div className="c-screen">
-        <PageHeader crumbRoot="내 업무" area="티켓" title="티켓" actions={<Button onClick={() => nav("/my-tickets")}>목록</Button>} />
+        <PageHeader crumbRoot="내 업무" area="티켓" title="티켓" actions={<Button onClick={() => nav(backToList)}>목록</Button>} />
         <Callout tone="danger">{data.error || "티켓을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요."}</Callout>
       </div>
     );
   }
 
   const t = data.ticket || {};
+  const signals = signalsOf(t);
   const actions = (
     <Stack direction="row" gap={1} sx={{ flexWrap: "wrap" }}>
-      <Button variant="ghost" onClick={() => nav("/my-tickets")}>목록</Button>
+      <Button variant="ghost" onClick={() => nav(backToList)}>목록</Button>
       {/* 이 화면에서 가장 자주 하는 일은 수정이다 — 이 앱 안에서 바로 되는 유일한
           쓰기 동작이라 primary 자리를 준다. */}
       {/* VIS-135: 본문 카드 안에도 별도의 "본문 수정"(EditableBody.jsx)이 있어, 둘의 차이가
@@ -191,6 +189,12 @@ export function Ticket() {
        티켓 번호·난이도·예상/실제 WD 는 **찾을 때만 읽는** 값이라 아래 압축 띠로 내린다.
        예전에는 아홉이 같은 무게로 한 줄이었고, 4K 에서 그 줄은 2,880px 였다. */
     t.status ? { key: "status", label: "상태", type: "status", rank: "primary", value: <Badge value={t.status} /> } : null,
+    /* 신호는 상태와 **다른 칸**이다 (D-349). 같은 칸에 넣으면 「진행 중」과 「차단됨」이
+       한 낱말처럼 읽히고, 「지금 어떤 상태인가」에 답이 둘이 된다. 켜진 신호가 하나도
+       없으면 이 칸 자체를 안 만든다 — 목록의 대부분이 그 상태다. */
+    signals.length
+      ? { key: "signals", label: "신호", type: "status", rank: "primary", value: <TicketSignals signals={signals} /> }
+      : null,
     t.priority ? { key: "priority", label: "우선순위", type: "status", rank: "primary", value: <Badge value={priorityKo(t.priority)} kind={priorityKind(t.priority)} /> } : null,
     t.project ? { key: "project", label: "프로젝트", type: "name", rank: "primary", value: t.project } : null,
     (t.assignee_names || []).length ? { key: "assignee", label: "담당자", type: "name", rank: "primary", value: t.assignee_names.join(", ") } : null,
@@ -203,6 +207,27 @@ export function Ticket() {
     t.est_wd != null ? { key: "est", label: "예상 WD", type: "number", value: t.est_wd } : null,
     t.act_wd != null ? { key: "act", label: "실제 WD", type: "number", value: t.act_wd } : null,
   ].filter(Boolean);
+
+  /* 부속 레일 — 본문에 딸린 것들이다. 첨부가 먼저고(무엇에 대한 파일인지 본문을 보면서
+     확인한다) 그다음이 논의, 마지막이 이력이다. 좁은 화면에서 한 열로 접히면 본문 → 첨부
+     → 댓글 → 이력 순서 그대로 쌓인다 — 논의가 대상보다 먼저 나오지 않는다.
+
+     **활동 이력이 마지막인 이유**: 이 티켓을 열고 가장 먼저 하는 일은 지금 무엇이 달려
+     있고 무슨 말이 오갔는지 보는 것이고, 「언제 이렇게 됐나」는 그다음에 묻는 질문이다.
+     그래도 화면 안에 있어야 한다 — 예전에는 이 기록을 보려면 일반 사용자가 못 여는 감사
+     화면으로 가야 했고, 그 자리는 그냥 비어 있었다(S18). */
+  const rail = (
+    <Box data-testid="ticket-detail-rail" sx={{ minWidth: 0, display: "grid", gap: 2.5, alignContent: "start" }}>
+      <TicketAttachments
+        ticketId={id}
+        attachments={data.attachments}
+        canEdit={data.can_edit !== false}
+        onChanged={() => detail.refetch()}
+      />
+      <TicketComments ticketId={id} />
+      <TicketHistory key={id} ticketId={id} />
+    </Box>
+  );
 
   return (
     <div className="c-screen">
@@ -223,10 +248,10 @@ export function Ticket() {
           <Card><Typography variant="body2" color="text.secondary">표시할 속성이 없습니다.</Typography></Card>
         )}
       </Box>
-      <Box sx={DETAIL_GRID}>
-        {/* 본문 열 — 본문만 그린다. 첨부와 댓글은 오른쪽 레일이고, 속성은 위 전폭 줄이다
-            (지시 7). lg+ 에서는 첫 자식이 1열, 둘째 자식이 2열에 자동으로 놓인다 — CSS
-            트릭 없이 배치와 좁은 화면 순서가 같이 풀린다. */}
+      {/* 폭 계약은 `ui/DetailLayout.jsx` 한 곳이다 — 곁열이 없는 상세 화면(게시글 · 기능
+          개선 제안)과 같은 부품을 쓴다. lg+ 에서는 본문이 1열, `aside` 가 2열에 놓이고
+          좁은 화면에서는 DOM 순서 그대로 한 열로 흐른다. */}
+      <DetailLayout aside={rail}>
         <Box data-testid="ticket-detail-main" sx={{ minWidth: 0, display: "grid", gap: 2.5, alignContent: "start" }}>
           <Card component="article" sx={{ minWidth: 0 }}>
             {/* SEM-03 재확인 — 제목은 이제 위 PageHeader가 h1로 보여준다. 여기서 같은 글자를
@@ -243,27 +268,7 @@ export function Ticket() {
             />
           </Card>
         </Box>
-
-        {/* 부속 레일 — 본문에 딸린 것들이다. 첨부가 먼저고(무엇에 대한 파일인지 본문을
-            보면서 확인한다) 그다음이 논의, 마지막이 이력이다. order 는 두지 않는다:
-            좁은 화면에서 한 열로 접히면 DOM 순서 그대로 본문 → 첨부 → 댓글 → 이력으로
-            쌓인다 — 논의가 대상보다 먼저 나오지 않는다.
-
-            **활동 이력이 마지막인 이유**: 이 티켓을 열고 가장 먼저 하는 일은 지금 무엇이
-            달려 있고 무슨 말이 오갔는지 보는 것이고, 「언제 이렇게 됐나」는 그다음에 묻는
-            질문이다. 그래도 화면 안에 있어야 한다 — 예전에는 이 기록을 보려면 일반
-            사용자가 못 여는 감사 화면으로 가야 했고, 그 자리는 그냥 비어 있었다(S18). */}
-        <Box data-testid="ticket-detail-rail" sx={{ minWidth: 0, display: "grid", gap: 2.5, alignContent: "start" }}>
-          <TicketAttachments
-            ticketId={id}
-            attachments={data.attachments}
-            canEdit={data.can_edit !== false}
-            onChanged={() => detail.refetch()}
-          />
-          <TicketComments ticketId={id} />
-          <TicketHistory key={id} ticketId={id} />
-        </Box>
-      </Box>
+      </DetailLayout>
       <TicketEditModal ticket={t} open={editing} onClose={() => { setEditing(false); detail.refetch(); }} />
     </div>
   );

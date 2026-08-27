@@ -7,6 +7,7 @@ import MenuItem from "@mui/material/MenuItem";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
+import { useListMemory } from "../lib/listReturn.js";
 import {
   Badge,
   Button,
@@ -22,6 +23,7 @@ import {
   useToast,
 } from "../ui/kit.jsx";
 import { fmtDateTime, affiliationOf, ARCHIVED_SUFFIX } from "../lib/format.js";
+import { UserAvatar } from "../ui/UserAvatar.jsx";
 import { CONTROL, FONT_SIZE, FONT_WEIGHT, remPx } from "../ui/theme.js";
 import { ideaStatusKind } from "../lib/badges.js";
 import { buildPostsQuery, reactionMap } from "./board-helpers.js";
@@ -73,17 +75,10 @@ export function AuthorLine({ name, person, bold = false }) {
   const affiliation = affiliationOf(person);
   return (
     <Box sx={{ display: "inline-flex", alignItems: "center", gap: 0.625, minWidth: 0, maxWidth: "100%" }}>
-      {/* 사진이 없으면 자리를 만들지 않는다 — 빈 회색 원이 줄줄이 붙으면 더 어수선하다. */}
-      {person?.avatar_url ? (
-        <Box
-          component="img"
-          src={person.avatar_url}
-          alt=""
-          loading="lazy"
-          decoding="async"
-          sx={{ width: 20, height: 20, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }}
-        />
-      ) : null}
+      {/* **사진이 없어도 자리가 있다.** 예전에는 없으면 아무것도 안 그렸는데, 그러면
+          같은 목록에서 어떤 줄에는 원이 있고 어떤 줄에는 없어 왼쪽 모서리가 들쭉날쭉했다.
+          지금은 사진이 없는 사람도 자기 그림을 갖는다(`UserAvatar` → `DefaultAvatar`). */}
+      <UserAvatar person={person} name={name} size="inline" />
       <Box component="span" sx={{ fontWeight: bold ? FONT_WEIGHT.bold : "inherit", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>
         {name || "알 수 없음"}
       </Box>
@@ -401,6 +396,9 @@ export const COPY = {
 function BoardScreen({ kind = "free" }) {
   const nav = useNavigate();
   const isIdea = kind === "idea";
+  /* 글을 열었다 돌아오면 분류·검색·정렬·페이지·스크롤이 그대로다 (지시 19). 두 게시판은
+     같은 화면이지만 **다른 목록**이라 기억도 따로 한다. */
+  useListMemory(isIdea ? "/ideas" : "/board");
   const copy = COPY[kind] || COPY.free;
   const [query, setQuery] = useQueryState(SPEC_BY_KIND[kind] || FREE_SPEC, PAGE_RESET);
   const { category, q, sort, page } = query;
@@ -518,10 +516,7 @@ function BoardScreen({ kind = "free" }) {
 
   return (
     <div className="c-screen">
-      <PageHeader crumbRoot="팀 공간" area={copy.area} title={copy.title} actions={writeBtn} />
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-        {copy.lead}
-      </Typography>
+      <PageHeader crumbRoot="팀 공간" area={copy.area} title={copy.title} actions={writeBtn} description={copy.lead} />
 
       {/* SEM-02(PA-F-031): h1 하나뿐이라 필터·목록이 스크린리더 제목 탐색에서 구획 없는
           한 덩어리였다. 시각은 그대로(.sr-only), DataScreen.jsx/TeamDocs.jsx와 같은 패턴. */}
@@ -635,7 +630,10 @@ function BoardScreen({ kind = "free" }) {
             ellipsis
             sort={{ key: boardSortKey, dir: "desc" }}
             onSort={onBoardSort}
-            onRow={(p) => nav(copy.route + p.id)}
+            /* 어디서 왔는지를 남긴다 — 상세의 「목록」이 그 목록의 **그 상태**로
+               돌아가는 근거다(`lib/listReturn.js`). 두 게시판이 상세를 공유하므로
+               이 값이 없으면 제안 글에서 자유게시판으로 떨어진다. */
+            onRow={(p) => nav(copy.route + p.id, { state: { from: isIdea ? "/ideas" : "/board" } })}
           />
           {/* 서버가 자른 목록에는 쪽을 넘길 길이 있어야 한다 — 없으면 위 결과 줄이 말하는
               건수의 대부분이 열 수 없는 숫자가 된다. */}

@@ -1,5 +1,4 @@
 import React from "react";
-import Avatar from "@mui/material/Avatar";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Divider from "@mui/material/Divider";
@@ -12,6 +11,7 @@ import { useToast } from "../ui/kit.jsx";
 import { FONT_SIZE, FONT_WEIGHT, RADIUS } from "../ui/theme.js";
 import { applyTheme, readTheme, storeTheme, clearBootTheme } from "./theme-store.js";
 import { clearBootAccent, useThemeMode } from "../ui/ThemeModeProvider.jsx";
+import { UserAvatar } from "../ui/UserAvatar.jsx";
 import { OrgPath, PATH_SEP, pathText } from "../ui/OrgPath.jsx";
 
 /* 사용자 메뉴 — 이름/아바타를 누르면 내 프로필·비밀번호 변경·로그아웃.
@@ -171,28 +171,20 @@ export function UserMenu({ name, userId, avatarUrl, me }) {
         {/* 좁은 화면에서는 이름을 숨긴다. 버튼 자체에 aria-label이 있어 접근 가능한 이름은 유지된다
             — 예전엔 이름이 유일한 텍스트 자식이라 모바일에서 이름이 통째로 사라졌다. */}
         <Box component="span" sx={{ display: { xs: "none", md: "inline" }, fontWeight: FONT_WEIGHT.bold }} aria-hidden="true">{label}</Box>
-        {/* 프로필 사진이 있으면 그것을, 없으면 이니셜을. src 가 없거나 로드에 실패하면
-            MUI Avatar 가 자식(이니셜)으로 자동 폴백하므로 깨진 이미지가 뜨지 않는다. */}
-        <Avatar
-          src={avatarUrl || undefined}
-          /* 이니셜 색을 명시한다. MUI Avatar 의 기본 글자색은 `palette.background.default`
-             인데, 밝은 배경 위 밝은 원 안에서는 그 값이 곧 "안 보임"이다. */
-          sx={{
-            /* rem — 셸의 틀과 같은 배율로 자란다(4K 레버). px 로 두면 상단바가 68px 로
-               커지는 동안 아바타만 30px 에 머물러 비율이 어긋난다. */
-            width: "1.875rem", height: "1.875rem", fontSize: FONT_SIZE.bodySm,
-            /* 아바타 원은 **셸 위에 있다** — 캔버스 판 토큰(`background.plate`)을 쓰면
-               라이트에서 인디고 하우징에 뚫린 순백 원판이 되고(F-W1R-32 가 상단 우측 크롭에서
-               '순백 원판' 으로 잡았다) 다크에서는 셸에 묻힌다. chrome 자신의 반전 컨트롤
-               토큰이 두 방향 모두를 따라온다. 이니셜은 AI Wash 하드 룰에 따라 `onShell`
-               (=`sidebar.text`)이다 — 이 원은 AI 앵커 안에 산다. */
-            bgcolor: "sidebar.track", color: "sidebar.text",
-            border: 1, borderColor: "sidebar.edge",
-          }}
-          aria-hidden="true"
-        >
-          {label[0]}
-        </Avatar>
+        {/* 사진이 있으면 그것을, 없으면 **이 사람의 기본 아바타**를. 예전에는 없으면
+            이니셜 한 글자였는데, 그 한 글자는 동명이인을 못 가르고 사람마다 다른 것도
+            아니었다(같은 성이면 같은 글자다). 지금은 제품 전체가 같은 부품을 쓴다 —
+            사이드바 옆 이 원과 채팅의 원과 목록의 원이 같은 그림이다.
+            원 둘레의 얇은 선은 셸 위에서도 원이 원으로 보이게 한다(`UserAvatar`). */}
+        <UserAvatar
+          person={{ user_id: userId, avatar_url: avatarUrl, avatar_default_key: me && me.avatar_default_key }}
+          name={label}
+          size="md"
+          /* 셸 위에서는 원의 둘레도 셸을 따라온다. `sidebar` 팔레트가 없는 자리
+             (부품을 테마 없이 격리해 그리는 시험)에서는 캔버스 구분선으로 떨어진다 —
+             거기서 터지면 이 부품을 쓰는 화면 전부가 함께 죽는다. */
+          sx={{ boxShadow: (t) => `inset 0 0 0 1px ${(t.palette.sidebar || t.palette).edge || t.palette.divider}` }}
+        />
       </Button>
       <Menu
         anchorEl={anchor}

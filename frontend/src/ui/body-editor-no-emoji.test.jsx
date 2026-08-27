@@ -1,37 +1,82 @@
-/* 지시 28 — 본문 편집기가 이모지를 **권하지 않는다.**
+/* qa-contract-change: 본문 편집기의 이모지 계약이 「버튼을 아예 두지 않는다」에서 「툴바에
+ * 글자를 박지 않되 눌러서 여는 고르개를 준다」로 바뀌었다(2026-08-27 지시 10 이 Emoji 를
+ * 서식 도구에 이름으로 넣었다). 지시 28 이 걷은 것은 ✅📌⚠️ 여덟 개를 툴바에 **박아 놓고
+ * 권하던** 자리였고 그 판단은 그대로 남는다 — 그래서 「툴바 글자에 이모지가 없다」는 단언은
+ * 유지하고, 「이모지를 넣을 길이 아예 없다」만 「고르개로 연다」로 바꾼다. 서식 도구가 넷에서
+ * 아홉으로 늘어난 만큼 단언도 늘었다(체크·인용·코드·링크·이모지).
  *
- * 예전에는 서식 도구 옆에 ✅📌⚠️🔹👉🎯🎉💡 여덟 개가 있었다. 지시 28 은 이모지와 장식
- * 문자를 화면에서 전수 제거하라고 했는데, 이 여덟 개는 그것을 **화면이 스스로 권하는**
- * 자리였다 — 없애는 것으로 끝나지 않고 넣으라고 버튼까지 줬다.
+ * 본문 편집기의 이모지 — **툴바가 권하지 않고, 필요한 사람이 연다.**
  *
- * 이 파일은 그 전 결함(VIS-86: `aria-label="이모지 ✅"` 처럼 이모지를 되읽던 것)을 지키던
- * 시험을 대신한다. 그 결함은 버튼이 사라지면서 함께 사라졌다 — 시험이 지키던 것이
- * 없어졌으면 시험도 그 사실을 말해야 한다(초록불이 근거가 못 되는 자리를 남기지 않는다).
+ * 예전에는 서식 도구 옆에 ✅📌⚠️🔹👉🎯🎉💡 여덟 개가 나란히 있었다. 그 자리는 화면이
+ * 장식 문자를 **스스로 권하는** 자리였다 — 없애는 것으로 끝나지 않고 넣으라고 버튼까지 줬다.
+ * 지금은 툴바의 기본 얼굴에 글자 한 자도 없고, 고르개는 눌러야 열린다.
  *
  * 본문에 이모지를 못 쓰게 막지는 않는다. 사용자가 직접 치면 그대로 저장된다.
  */
 import React from "react";
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 import { BodyEditor } from "./BodyEditor.jsx";
 
-describe("본문 편집기 — 이모지를 권하지 않는다 (지시 28)", () => {
-  it("서식 도구에 이모지 버튼이 없다", () => {
+describe("본문 편집기 — 이모지를 툴바에 박지 않는다", () => {
+  it("🔴 서식 도구의 글자에 이모지가 한 자도 없다", () => {
     render(<BodyEditor id="b1" value="" onChange={() => {}} />);
     const toolbar = screen.getByRole("group", { name: /서식/ });
     for (const glyph of ["✅", "📌", "⚠️", "🔹", "👉", "🎯", "🎉", "💡"]) {
       expect(toolbar.textContent, `이모지 버튼이 남아 있다: ${glyph}`).not.toContain(glyph);
     }
-    // 예전 버튼들의 접근 이름도 함께 사라졌는지 본다(숨겨 두고 남기지 않았다는 확인).
+    // 예전 버튼들의 접근 이름도 그대로 없다(숨겨 두고 남기지 않았다는 확인).
     expect(screen.queryByRole("button", { name: /표시 넣기$/ })).toBeNull();
   });
 
-  it("글의 구조를 만드는 도구는 그대로 있다 — 강조는 이것들이 한다", () => {
+  it("필요한 사람은 눌러서 고른다 — 고르개가 열리고 이름표는 표준 명칭이다", async () => {
+    const user = userEvent.setup();
     render(<BodyEditor id="b1" value="" onChange={() => {}} />);
-    for (const name of ["제목", "글머리", "번호", "구분선"]) {
-      expect(screen.getByRole("button", { name })).toBeInTheDocument();
+    const open = screen.getByRole("button", { name: "이모지" });
+    expect(open).toHaveAttribute("aria-expanded", "false");
+    await user.click(open);
+    // 이모지 글자를 이름으로 두면 플랫폼·폰트에 따라 스크린리더가 아무것도 못 읽는다(VIS-86).
+    expect(await screen.findByRole("button", { name: "엄지척" })).toBeInTheDocument();
+  });
+
+  it("고른 이모지가 본문에 들어간다", async () => {
+    const user = userEvent.setup();
+    let value = "회의 결과 ";
+    const onChange = (next) => { value = next; };
+    render(<BodyEditor id="b1" value={value} onChange={onChange} />);
+    await user.click(screen.getByRole("button", { name: "이모지" }));
+    await user.click(await screen.findByRole("button", { name: "엄지척" }));
+    expect(value).toContain("👍");
+  });
+});
+
+describe("글의 구조를 만드는 도구", () => {
+  it("🔴 렌더러가 실제로 그리는 아홉이 전부 있다", () => {
+    /* 숫자를 늘리려고 렌더러가 모르는 버튼을 넣지 않는다(지시 10). 아홉 다
+       `app/core/notion_blocks.py` 가 블록으로 만들고 `ui/DocBody.jsx` 가 그린다. */
+    render(<BodyEditor id="b1" value="" onChange={() => {}} />);
+    for (const name of ["제목", "글머리", "번호", "체크", "인용", "코드", "구분선", "링크", "이모지"]) {
+      expect(screen.getByRole("button", { name }), `${name} 도구가 없다`).toBeInTheDocument();
     }
+  });
+
+  it("체크 도구가 넣는 것은 **체크 목록 표식**이다 — 그냥 글머리가 아니다", async () => {
+    const user = userEvent.setup();
+    let value = "";
+    render(<BodyEditor id="b1" value={value} onChange={(next) => { value = next; }} />);
+    await user.click(screen.getByRole("button", { name: "체크" }));
+    expect(value).toBe("- [ ] ");
+  });
+
+  it("코드 도구는 **여는 줄과 닫는 줄을 함께** 넣는다", async () => {
+    const user = userEvent.setup();
+    let value = "";
+    render(<BodyEditor id="b1" value={value} onChange={(next) => { value = next; }} />);
+    await user.click(screen.getByRole("button", { name: "코드" }));
+    // 한 줄만 넣으면 사용자가 닫는 울타리를 직접 쳐야 하고, 안 치면 아래 본문 전체가 코드가 된다.
+    expect(value.match(/```/g)).toHaveLength(2);
   });
 
   it("사용자가 직접 친 이모지는 그대로 남는다 — 막는 것이 아니라 권하지 않는 것이다", () => {

@@ -107,7 +107,7 @@ describe("AI-25 — 드로어도 전체화면과 같은 카드를 그린다", ()
 
     expect(await screen.findByText("로그인 실패 조사")).toBeInTheDocument();
     expect(screen.getByText("상태")).toBeInTheDocument();
-    expect(screen.getByText("진행")).toBeInTheDocument();
+    expect(screen.getByText("진행 중")).toBeInTheDocument();
     expect(screen.getByText("담당자")).toBeInTheDocument();
   });
 

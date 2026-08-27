@@ -98,7 +98,7 @@ export const AUTOMATION_SCREENS = {
     // 소유자는 서버가 이름을 함께 준다(app/schedules/router.py `_view`) — UUID 대신 그 이름을 쓴다.
     detailFields: [field("id", "스케줄 ID"), personField("owner_user_id", "소유자", "owner_name", "owner_email"),
       { key: "_next_run_scheduled", label: "다음 실행(예정)", render: (r) => r.next_run_at ? fmtDateTime(r.next_run_at) + (r.enabled ? "" : " (현재 비활성)") : "-" },
-      field("description", "설명"), field("timezone", "시간대"), mapCol("misfire_policy", "누락 처리 정책", { skip: "건너뛰기", run_once: "한 번만 실행" }), mapCol("concurrency_policy", "동시 실행 정책", { skip: "건너뛰기", allow: "동시 실행 허용" }), field("timeout_seconds", "제한 시간(초)"), dateCol("start_at", "시작 시각"), dateCol("created_at", "추가"), jsonField("payload_template", "실행 입력값"), jsonField("retry_policy", "재시도 정책")],
+      field("description", "설명"), field("timezone", "시간대"), mapCol("misfire_policy", "누락 처리 정책", { skip: "건너뛰기", run_once: "한 번만 실행" }), mapCol("concurrency_policy", "동시 실행 정책", { skip: "건너뛰기", allow: "동시 실행 허용" }), field("timeout_seconds", "제한 시간(초)"), dateCol("start_at", "시작 시각"), dateCol("created_at", "생성 일자"), jsonField("payload_template", "실행 입력값"), jsonField("retry_policy", "재시도 정책")],
     actions: [
       // once형은 백엔드 enable이 실행 시각이 이미 지났으면 항상 409('실행 시각이 이미 지났습니다')로
       // 거절한다 — 눌러도 항상 실패하는 '활성화'를 숨긴다. next_run_at이 아예 없거나(이미 실행됨),

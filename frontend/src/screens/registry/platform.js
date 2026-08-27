@@ -228,7 +228,7 @@ export const PLATFORM_SCREENS = {
     ],
     detailFields: [field("id", "공지 ID"), field("body", "내용"),
       { key: "dismissible", label: "닫기 허용", render: (r) => r.dismissible ? "닫을 수 있음" : "닫을 수 없음(기간이 끝나야 사라짐)" },
-      field("link_url", "링크 주소"), field("link_label", "링크 문구"), dateCol("created_at", "추가")],
+      field("link_url", "링크 주소"), field("link_label", "링크 문구"), dateCol("created_at", "생성 일자")],
     create: { roles: WRITE_ROLES, fields: [
       { name: "title", label: "제목", type: "text", required: true },
       { name: "body", label: "내용", type: "textarea" },
@@ -319,7 +319,7 @@ export const PLATFORM_SCREENS = {
       dateCol("resets_at", "초기화"),
     ],
     detailFields: [field("id", "상한 ID"), field("user_email", "대상 이메일"), field("note", "메모"),
-      dateCol("created_at", "추가"), dateCol("updated_at", "수정"),
+      dateCol("created_at", "생성 일자"), dateCol("updated_at", "수정"),
       { key: "_over", label: "상태", render: (r) => (r.used != null && r.used >= r.max_calls) ? "상한에 도달했습니다. 이 대상의 AI 요청이 지금 거절됩니다." : "여유가 있습니다." }],
     create: { roles: WRITE_ROLES, fields: [
       { name: "scope_type", label: "범위", type: "select", value: "global", required: true, options: opt([["global", "전체"], ["user", "사용자"]]) },

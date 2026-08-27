@@ -23,6 +23,9 @@ class PreferenceUpdate(BaseModel):
     quiet_hours_enabled: bool | None = None
     quiet_start: str | None = Field(default=None, max_length=5)
     quiet_end: str | None = Field(default=None, max_length=5)
+    # 고른 기본 아바타. 빈 문자열은 「고르지 않음」으로 되돌린다 — 그러면 사용자 id 로
+    # 다시 안정 배정된다. 사진과 다른 축이라 사진을 지우지 않는다.
+    avatar_default_key: str | None = Field(default=None, max_length=32)
 
 
 class TourUpdate(BaseModel):

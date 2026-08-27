@@ -178,10 +178,10 @@ export function Trash() {
           지금 경로가 속한 navConfig 그룹에서 유도한다(부모 /team-docs와 항상 같은 값). 여기서
           "문서"를 계속 하드코딩하면 PA-RC-0031이 그 그룹 이름을 바꿀 때 부모만 따라가고 이
           자식은 옛 이름에 남아 갈라진다. */}
-      <PageHeader area="휴지통" title="휴지통" actions={headerActions} />
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-        삭제한 티켓과 문서를 {days}일 동안 보관합니다. 그 전에 복원하면 원래 목록으로 돌아옵니다. 기간이 지나면 원본이 정리됩니다.
-      </Typography>
+      <PageHeader
+        area="휴지통" title="휴지통" actions={headerActions}
+        description={`삭제한 티켓과 문서를 ${days}일 동안 보관합니다. 그 전에 복원하면 원래 목록으로 돌아옵니다. 기간이 지나면 원본이 정리됩니다.`}
+      />
 
       {q.isError ? <ErrorState error={q.error} onRetry={() => q.refetch()} />
         : q.isPending ? <Card>{/* 표가 들어올 자리에는 표 모양을 그린다 (지시 20) - 빈 목록과 아직 안 온 목록은 다른 사실이다. */}<DataTable columns={columns} rows={[]} loading /></Card>

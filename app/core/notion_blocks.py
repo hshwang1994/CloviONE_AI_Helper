@@ -7,9 +7,23 @@
 인식 규칙:
 - `---` / `___` / `***` (그 줄만) → 구분선(divider)
 - `# ` / `## ` / `### ` → 제목 1/2/3
+- `- [ ] ` / `- [x] ` → 체크 목록(to_do). **글머리보다 먼저 본다** — `- ` 로 시작하므로
+  순서가 뒤집히면 체크 목록이 영영 글머리로 읽힌다
 - `- ` / `* ` → 글머리 목록,  `1. ` 등 → 번호 목록
+- `> ` → 인용(quote)
+- ``` 로 감싼 구간 → 코드 블록(code). 안쪽 줄은 서식을 해석하지 않는다
 - 그 외 → 문단(빈 줄은 빈 문단 = 간격). 이모지/기호는 그대로 텍스트.
 Notion children 상한(100)까지, 각 줄 1900자까지.
+
+## 왜 뒤늦게 셋이 늘었나
+
+되돌리는 쪽(`blocks_to_markdown`)은 처음부터 `to_do`·`quote`·`code` 를 마크다운으로
+내리고 있었는데 **앞으로 가는 쪽에 그 셋이 없었다.** 그래서 왕복이 한쪽으로만 성립했다:
+본문에 체크 목록이 있는 문서를 편집기로 열면 `- [ ] 할 일` 이 보이지만, 저장하는 순간
+그 줄은 평범한 문단이 되어 체크 상자가 사라졌다. **오류는 안 났다.**
+
+화면 쪽 렌더러(`ui/DocBody.jsx`)도 이미 셋을 그리고 있었다 — 못 그린 것이 아니라
+**만들어 준 적이 없었을 뿐**이다.
 """
 
 from __future__ import annotations
@@ -20,6 +34,10 @@ MAX_BLOCKS = 100
 MAX_LINE_CHARS = 1900
 
 _NUM_LINE = re.compile(r"^(\d+)\.\s+(.*)$")
+#: `- [ ] 할 일` · `- [x] 한 일`. 대문자 X 도 받는다 — 사람이 손으로 치는 표식이다.
+_TODO_LINE = re.compile(r"^[-*]\s+\[([ xX])\]\s*(.*)$")
+#: 코드 구간의 울타리. 뒤에 오는 언어 이름은 읽되 쓰지 않는다(렌더러가 강조를 안 한다).
+_FENCE = re.compile(r"^```")
 
 
 def _rt_block(btype: str, text: str) -> dict:
@@ -27,11 +45,30 @@ def _rt_block(btype: str, text: str) -> dict:
     return {"object": "block", "type": btype, btype: {"rich_text": rt}}
 
 
+def _todo_block(text: str, checked: bool) -> dict:
+    block = _rt_block("to_do", text)
+    block["to_do"]["checked"] = checked
+    return block
+
+
 def markdown_to_blocks(body: str) -> list[dict]:
     lines = (body or "").split("\n")[:MAX_BLOCKS]
     out: list[dict] = []
+    # 코드 구간 안에서는 서식을 **해석하지 않는다.** `# include` 로 시작하는 C 코드 한 줄이
+    # 제목이 되면 붙여 넣은 코드가 문서에서 모양을 잃는다.
+    code: list[str] | None = None
     for ln in lines:
         s = ln.strip()
+        if _FENCE.match(s):
+            if code is None:
+                code = []
+            else:
+                out.append(_rt_block("code", "\n".join(code)))
+                code = None
+            continue
+        if code is not None:
+            code.append(ln)
+            continue
         if s in ("---", "___", "***"):
             out.append({"object": "block", "type": "divider", "divider": {}})
             continue
@@ -44,6 +81,12 @@ def markdown_to_blocks(body: str) -> list[dict]:
         if s.startswith("# "):
             out.append(_rt_block("heading_1", s[2:]))
             continue
+        # **글머리보다 먼저 본다.** 체크 목록도 `- ` 로 시작하므로 순서가 뒤집히면
+        # `- [ ] 할 일` 이 「[ ] 할 일」이라는 글머리 항목이 된다.
+        todo = _TODO_LINE.match(s)
+        if todo:
+            out.append(_todo_block(todo.group(2), todo.group(1).lower() == "x"))
+            continue
         if s.startswith("- ") or s.startswith("* "):
             out.append(_rt_block("bulleted_list_item", s[2:]))
             continue
@@ -51,8 +94,14 @@ def markdown_to_blocks(body: str) -> list[dict]:
         if m:
             out.append(_rt_block("numbered_list_item", m.group(2)))
             continue
+        if s.startswith("> "):
+            out.append(_rt_block("quote", s[2:]))
+            continue
         rt = [{"text": {"content": ln[:MAX_LINE_CHARS]}}] if ln.strip() else []
         out.append({"object": "block", "type": "paragraph", "paragraph": {"rich_text": rt}})
+    # 닫히지 않은 울타리. 버리지 않는다 — 사용자가 친 글자는 어떤 경우에도 안 사라진다.
+    if code is not None:
+        out.append(_rt_block("code", "\n".join(code)))
     return out
 
 

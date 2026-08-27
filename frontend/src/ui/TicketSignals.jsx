@@ -1,0 +1,110 @@
+import React from "react";
+import Box from "@mui/material/Box";
+import BlockRoundedIcon from "@mui/icons-material/BlockRounded";
+import ScheduleRoundedIcon from "@mui/icons-material/ScheduleRounded";
+import ErrorOutlineRoundedIcon from "@mui/icons-material/ErrorOutlineRounded";
+
+import { FONT_SIZE, FONT_WEIGHT, RADIUS } from "./theme.js";
+import { SIGNALS } from "../lib/ticketSignals.js";
+
+/* Signal 표시 — **상태 옆에 서지만 상태가 아니다** (D-349).
+ *
+ * ## 왜 밀도가 둘인가
+ *
+ * 같은 의미는 제품 전체에서 같은 색과 같은 모양이어야 한다. 그런데 이 신호가 서는
+ * 자리는 밀도가 다르다: 목록의 한 칸은 7rem 이고 상세 화면의 머리글은 한 줄이 통째로
+ * 비어 있다. 한쪽에 맞추면 다른 쪽이 깨진다 — 목록에 글자 알약 셋을 넣으면 열이
+ * 가로로 밀리고, 상세에 점 셋만 찍으면 아무도 그것이 무슨 뜻인지 모른다.
+ *
+ * 그래서 **밀도만 둘이고 어휘는 하나다.** 색·아이콘·이름이 전부 `lib/ticketSignals.js`
+ * 의 같은 표에서 나오고, 좁은 쪽에서도 접근 이름은 온전한 낱말이다 — 화면을 읽어
+ * 주는 사람에게는 두 밀도가 같은 말을 한다.
+ *
+ *   variant="pill"  아이콘 + 낱말. 상세 · 보드 카드 · 넓은 목록
+ *   variant="mark"  아이콘만. 좁은 목록의 상태 칸에 딸려 선다
+ *
+ * 색만으로 전달하지 않는다(WCAG 1.4.1): 아이콘 **모양**이 셋 다 다르고
+ * (막음 · 시계 · 느낌표) 낱말이 항상 접근 이름에 있다.
+ */
+
+const ICON = {
+  blocked: BlockRoundedIcon,
+  overdue: ScheduleRoundedIcon,
+  issue: ErrorOutlineRoundedIcon,
+};
+
+const TONE_INK = { danger: "error.strong", warn: "warning.strong" };
+const TONE_BG = { danger: "error.bg", warn: "warning.bg" };
+const TONE_DOT = { danger: "error.main", warn: "warning.main" };
+
+function SignalPill({ signal }) {
+  const Icon = ICON[signal.key];
+  return (
+    <Box
+      component="span"
+      className="k-signal"
+      data-signal={signal.key}
+      data-tone={signal.tone}
+      sx={{
+        display: "inline-flex", alignItems: "center", gap: 0.5,
+        px: 0.75, py: 0.125, borderRadius: `${RADIUS.sm}px`,
+        maxWidth: "100%", minWidth: 0, whiteSpace: "nowrap",
+        fontSize: FONT_SIZE.bodySm, fontWeight: FONT_WEIGHT.semibold, lineHeight: 1.4,
+        bgcolor: TONE_BG[signal.tone], color: TONE_INK[signal.tone],
+      }}
+    >
+      <Icon aria-hidden="true" fontSize="inherit" />
+      <Box component="span" sx={{ overflow: "hidden", textOverflow: "ellipsis" }}>
+        {signal.label}
+      </Box>
+    </Box>
+  );
+}
+
+function SignalMark({ signal }) {
+  const Icon = ICON[signal.key];
+  return (
+    <Box
+      component="span"
+      className="k-signal-mark"
+      data-signal={signal.key}
+      data-tone={signal.tone}
+      role="img"
+      aria-label={signal.label}
+      title={signal.label}
+      sx={{
+        display: "inline-flex", alignItems: "center", flexShrink: 0,
+        fontSize: FONT_SIZE.bodySm, lineHeight: 1,
+        color: TONE_DOT[signal.tone],
+      }}
+    >
+      <Icon aria-hidden="true" fontSize="inherit" />
+    </Box>
+  );
+}
+
+/** 켜져 있는 신호를 그린다. 하나도 없으면 **아무것도 그리지 않는다.**
+ *
+ * 빈 자리에 «-» 를 찍지 않는 이유: 「신호가 없다」는 값이 빠진 것이 아니라 정상이고,
+ * 목록의 대부분이 그 상태다. 대시를 찍으면 화면이 없는 데이터로 가득 찬 것처럼 보인다.
+ */
+export function TicketSignals({ signals, variant = "pill", sx }) {
+  const list = Array.isArray(signals) ? signals : [];
+  if (!list.length) return null;
+  const Item = variant === "mark" ? SignalMark : SignalPill;
+  return (
+    <Box
+      component="span"
+      sx={{
+        display: "inline-flex", alignItems: "center", minWidth: 0,
+        gap: variant === "mark" ? 0.375 : 0.5,
+        ...sx,
+      }}
+    >
+      {list.map((s) => <Item key={s.key} signal={s} />)}
+    </Box>
+  );
+}
+
+/** 어휘 표를 그대로 다시 내보낸다 — 화면이 두 곳을 import 하지 않게. */
+export { SIGNALS };

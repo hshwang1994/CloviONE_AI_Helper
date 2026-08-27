@@ -32,6 +32,10 @@ import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import ChevronRightRoundedIcon from "@mui/icons-material/ChevronRightRounded";
 import MoreHorizRoundedIcon from "@mui/icons-material/MoreHorizRounded";
 import HelpOutlineRoundedIcon from "@mui/icons-material/HelpOutlineRounded";
+import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
+import CheckCircleOutlineRoundedIcon from "@mui/icons-material/CheckCircleOutlineRounded";
+import WarningAmberRoundedIcon from "@mui/icons-material/WarningAmberRounded";
+import ErrorOutlineRoundedIcon from "@mui/icons-material/ErrorOutlineRounded";
 import Collapse from "@mui/material/Collapse";
 import { ART } from "../lib/assets.js";
 import { MASCOT_PLACE, mascotBoxPx } from "./Mascot.jsx";
@@ -83,13 +87,16 @@ const STATUS_TEXT = {
   configured: "등록됨", missing: "없음",
   // Notion 티켓 워크플로 상태(채팅 결과 카드) — 관리자 상태 어휘엔 없어 영어/무채색으로 뜨던 값들.
   "Not started": "시작 전", "In progress": "진행 중", "Done": "완료", "Todo": "할 일",
-  "시작 전": "시작 전", "진행 중": "진행 중", "완료": "완료", "할 일": "할 일",
+  "시작 전": "시작 전", "진행 중": "진행 중", "할 일": "할 일",
   // 조직마다 Notion 보드에서 흔히 쓰는 그 밖의 상태값 — 위 4종만 있으면 실제 워크스페이스가
   // 쓰는 'In Review'/'Blocked' 등이 여전히 원시 영어로 새어 나온다.
   "In Review": "검토 중", "Blocked": "막힘", "Cancelled": "취소됨", "On Hold": "보류",
-  "Backlog": "백로그", "검토 중": "검토 중", "막힘": "막힘", "보류": "보류", "백로그": "백로그",
-  // 이 워크스페이스 작업 DB의 실제 진행상태 6종(채팅 티켓 카드·배지) — 원시 그대로 통과하지만 명시해 둔다.
-  "계획": "계획", "이슈": "이슈", "검증": "검증", "진행": "진행", "취소": "취소",
+  "Backlog": "백로그", "검토 중": "검토 중", "막힘": "막힘", "백로그": "백로그",
+  // 이 제품의 Workflow Status 여섯. **저장값과 표시값이 다른 것이 하나 있다** —
+  // `진행` 은 화면에서 `진행 중` 이다(app/work/workflow.py::STATUSES 의 label).
+  // 저장값을 옮기면 옛 링크·옛 필터·옛 감사 기록이 함께 갈리므로 표시만 바꾼다.
+  "계획": "계획", "진행": "진행 중", "검증": "검증", "완료": "완료",
+  "보류": "보류", "취소": "취소",
 };
 const STATUS_KIND = {
   up: "ok", verified: "ok", succeeded: "ok", success: "ok", published: "ok", active: "ok",
@@ -108,15 +115,26 @@ const STATUS_KIND = {
   running: "info", processing: "info", read: "info", test: "info", preview_ready: "info",
   archived: "neutral", disabled: "neutral", "false": "neutral",
   // secret_ref: 등록됨=정상 / 없음=주의(위 missing:warn). 티켓 상태 톤.
-  configured: "ok", "Done": "ok", "완료": "ok",
+  configured: "ok", "Done": "ok",
   "In progress": "info", "진행 중": "info",
   "Not started": "neutral", "시작 전": "neutral", "Todo": "neutral", "할 일": "neutral",
   "In Review": "info", "검토 중": "info", "Blocked": "danger", "막힘": "danger",
-  "Cancelled": "neutral", "취소됨": "neutral", "On Hold": "warn", "보류": "warn",
+  "Cancelled": "neutral", "취소됨": "neutral", "On Hold": "warn",
   "Backlog": "neutral", "백로그": "neutral",
-  // 작업 DB 실제 진행상태 6종의 톤 — 예전엔 대부분 매핑이 없어 회색 일색이었다. 의미 있는 색으로:
-  // 계획=회색(대기) 이슈=빨강(주의) 검증=주황(리뷰) 진행=파랑(활성) 완료=초록 취소=회색(비활성).
-  "계획": "neutral", "이슈": "danger", "검증": "warn", "진행": "info", "취소": "neutral",
+  // Workflow Status 여섯의 톤 (D-349). **빨강은 여기 없다.**
+  //
+  //   계획   회색   아직 시작 안 했다
+  //   진행   파랑   지금 하고 있다
+  //   검증   주황   남의 손을 기다린다
+  //   완료   초록   끝났다
+  //   보류   회색   의도적으로 멈췄다
+  //   취소   회색   더 이상 안 한다
+  //
+  // 빨강은 **Signal 이 쓴다**(차단됨 · 지연). 상태값에 강한 빨강을 주면 화면에서
+  // 늘 켜져 있는 색이 되고, 늘 켜져 있는 경고는 아무도 안 본다. 예전에는 `이슈` 가
+  // 상태이면서 빨강이었다 — 그 티켓은 자기가 어디까지 왔는지도 잃었다.
+  "계획": "neutral", "진행": "info", "검증": "warn", "완료": "ok",
+  "보류": "neutral", "취소": "neutral",
 };
 export function statusText(v) {
   if (v === true) return "예"; if (v === false) return "아니오";
@@ -649,7 +667,19 @@ export function TechDetail({ label = "기술 정보", children, sx }) {
   );
 }
 
-export function Callout({ tone = "info", variant = "block", detail, detailLabel = "기술 정보", children }) {
+/* 네 종의 아이콘. 색만으로 심각도를 전하지 않는다(WCAG 1.4.1) — 모양이 넷 다 다르고,
+ * 그 옆의 **글자 라벨**은 그대로 남는다. 아이콘은 글자를 대신하는 것이 아니라 거든다. */
+const CALLOUT_ICON = {
+  info: InfoOutlinedIcon,
+  success: CheckCircleOutlineRoundedIcon,
+  warn: WarningAmberRoundedIcon,
+  danger: ErrorOutlineRoundedIcon,
+};
+
+export function Callout({
+  tone = "info", variant = "block", title, action,
+  detail, detailLabel = "기술 정보", children,
+}) {
   /* 안내 — **큰 외곽선 상자를 기본형으로 쓰지 않는다** (지시 35).
    *
    * 예전에는 tone 과 무관하게 전부 `MuiAlert variant="outlined"` 였다. 호출부 67곳 중
@@ -663,36 +693,37 @@ export function Callout({ tone = "info", variant = "block", detail, detailLabel 
    *   danger  옅은 바탕 + 앞머리 실선 + 라벨 굵게. 페이지 전폭 빨간 테두리는 쓰지 않는다.
    *
    * 심각도를 색만으로 구분하지 않는다(WCAG 1.4.1) — 짧은 **텍스트 라벨**을 항상 붙인다.
-   * 기호는 문화·스크린리더별로 읽히는 방식이 달라 이 앱은 처음부터 글자를 택했다.
+   * 아이콘은 그 글자를 대신하지 않고 거든다: 넷의 모양이 서로 다르고(정보·확인·경고·오류)
+   * 글자를 못 읽는 상황에서도 종류가 구별된다.
+   *
+   * 구조는 넷이다 — **아이콘 · 제목 · 본문 · 동작**(지시 20). `title` 을 안 주면 톤의 이름
+   * (안내 · 주의 · 성공 · 오류)이 제목이 된다. `action` 은 본문 아래 한 줄이다.
    *
    * `detail` 은 긴 기술 설명을 접어 둔다(지시 35: "긴 기술 설명을 하나의 Alert 안에 모두
    * 넣지 않는다"). 표현은 `TechDetail` 이 맡는다 - 표·카드도 같은 접기를 쓴다.
    */
   const kind = tone === "ok" ? "success" : tone;
-  const label = kind === "danger" ? "오류" : kind === "warn" ? "주의" : kind === "success" ? "완료" : "안내";
+  const toneWord = kind === "danger" ? "오류" : kind === "warn" ? "주의" : kind === "success" ? "성공" : "안내";
+  const label = title || toneWord;
   const paletteKey = kind === "danger" ? "error" : kind === "warn" ? "warning" : kind === "success" ? "success" : "info";
   const quiet = kind === "info";
-
-  const body = (
-    <>
-      <Box
-        component="span"
-        sx={{
-          fontWeight: FONT_WEIGHT.semibold, mr: 1.25, whiteSpace: "nowrap",
-          color: `${paletteKey}.strong`, fontSize: FONT_SIZE.bodySm,
-        }}
-      >
-        {label}
-      </Box>
-      <Box component="span" className="k-callout-body">{children}</Box>
-    </>
-  );
+  const Icon = CALLOUT_ICON[kind] || InfoOutlinedIcon;
 
   if (variant === "inline") {
-    // 문장 흐름 안에 놓이는 한 줄. 상자도 바탕도 없다.
+    /* 문장 흐름 안에 놓이는 한 줄. 상자도 바탕도 아이콘도 없다 — 여기서는 라벨과 본문이
+       한 줄에 이어지는 것이 맞다. 구조(아이콘·제목·본문·동작)는 아래 판형의 계약이다. */
     return (
       <Typography className="k-callout" data-tone={kind} component="p" sx={{ fontSize: FONT_SIZE.bodySm, ...KO_WORD_BREAK }}>
-        {body}
+        <Box
+          component="span"
+          sx={{
+            fontWeight: FONT_WEIGHT.semibold, mr: 1.25, whiteSpace: "nowrap",
+            color: `${paletteKey}.strong`, fontSize: FONT_SIZE.bodySm,
+          }}
+        >
+          {label}
+        </Box>
+        <Box component="span" className="k-callout-body">{children}</Box>
       </Typography>
     );
   }
@@ -706,9 +737,19 @@ export function Callout({ tone = "info", variant = "block", detail, detailLabel 
          한 픽셀도 그려지지 않았다 — MUI 의 border 스타일 함수가 논리 속성을 펴 주지 않아
          `border-inline-start: 2px` 가 나가고 `border-style` 초기값이 `none` 이기 때문이다.
          배포본 실측으로 확인한 결함이다(F-W2R-01). style·width·color 를 따로 적는다. */
+      /* 구조는 넷이다 — **아이콘 · 제목 · 본문 · 동작** (지시 20).
+       *
+       * 예전에는 라벨과 본문이 한 줄에 붙어 있었고, 그래서 「주의」와 첫 글자 사이가
+       * 문장 안의 낱말 간격도 아니고 줄바꿈도 아닌 어정쩡한 틈으로 보였다. 지금은
+       * 제목이 자기 줄에 서고 본문이 그 **바로 아래**에 붙는다(간격 0.25) — 제목과
+       * 본문은 한 덩어리이므로 그 사이가 아이콘과 글자 사이보다 넓으면 안 된다.
+       *
+       * 격자는 `auto 1fr` 이다. 아이콘 칸이 고정이라 본문이 여러 줄이어도 둘째 줄부터의
+       * 왼쪽 모서리가 제목과 맞는다 — 아이콘 아래로 글자가 흘러 들어가지 않는다. */
       sx={(t) => ({
-        display: "grid", gap: 0.5,
-        px: 1.5, py: 1, borderRadius: `${RADIUS.sm}px`,
+        display: "grid", gridTemplateColumns: "auto 1fr", columnGap: 1, rowGap: 0.75,
+        alignItems: "start",
+        px: 1.5, py: 1.25, borderRadius: `${RADIUS.sm}px`,
         borderInlineStartStyle: "solid",
         borderInlineStartWidth: "2px",
         borderInlineStartColor: t.palette[paletteKey].main,
@@ -717,8 +758,29 @@ export function Callout({ tone = "info", variant = "block", detail, detailLabel 
         ...KO_WORD_BREAK,
       })}
     >
-      <Box sx={{ minWidth: 0 }}>{body}</Box>
-      <TechDetail label={detailLabel}>{detail}</TechDetail>
+      <Icon
+        aria-hidden="true"
+        fontSize="small"
+        sx={{ color: `${paletteKey}.main`, mt: "0.125rem" }}
+      />
+      <Box sx={{ minWidth: 0, display: "grid", rowGap: 0.25 }}>
+        <Box
+          component="span"
+          sx={{
+            fontWeight: FONT_WEIGHT.semibold, color: `${paletteKey}.strong`,
+            fontSize: FONT_SIZE.bodySm,
+          }}
+        >
+          {label}
+        </Box>
+        <Box component="span" className="k-callout-body" sx={{ minWidth: 0 }}>{children}</Box>
+        <TechDetail label={detailLabel}>{detail}</TechDetail>
+        {action ? (
+          /* 동작은 본문 아래 한 줄이다. 오른쪽 끝으로 밀지 않는다 — 읽은 자리에서 바로
+             누르는 것이 이 부품의 뜻이고, 넓은 화면에서 오른쪽 끝에 두면 글에서 멀어진다. */
+          <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", mt: 0.5 }}>{action}</Box>
+        ) : null}
+      </Box>
     </Box>
   );
 }
@@ -2501,7 +2563,7 @@ export function CrumbRootProvider({ value, children }) {
  * 알려 주는 기능» 이다. prop 과 호출부 열일곱을 함께 지웠다(지시 71 «Clovi 금지 구역»:
  * 데이터 표·설정 화면·상세 본문·Page Header 장식). 클로비는 히어로·빈 상태·드로어·상단바
  * 처럼 **의미가 있는 자리**에만 둔다. */
-export function PageHeader({ area, title, tab, actions, overflow, crumbRoot, size = "page", help, helpTone }) {
+export function PageHeader({ area, title, tab, actions, overflow, crumbRoot, size = "page", description, help, helpTone }) {
   const ctxCrumbRoot = React.useContext(CrumbRootCtx);
   const resolvedCrumbRoot = crumbRoot !== undefined ? crumbRoot : (ctxCrumbRoot !== undefined ? ctxCrumbRoot : "관리자");
   /* size="section" — 다른 화면 안에 곁들여지는 하위 패널(예: OrgConsole 오른쪽의 DataScreen)이
@@ -2526,7 +2588,10 @@ export function PageHeader({ area, title, tab, actions, overflow, crumbRoot, siz
     <>
       <Box
         className="k-page-head"
-        sx={{ position: "relative", display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: isSection ? 1.5 : 3, flexWrap: "wrap", mb: help && helpOpen ? 1 : (isSection ? 1.5 : 3) }}
+        /* 아래 여백은 **다음에 무엇이 오는가**가 정한다. 짧은 설명이 오면 그것은 제목의
+           일부라 바짝 붙고(1), 그 설명이 자기 아래로 화면 간격을 만든다. 설명도 도움말도
+           없으면 예전과 같다. */
+        sx={{ position: "relative", display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: isSection ? 1.5 : 3, flexWrap: "wrap", mb: (description || (help && helpOpen)) ? 1 : (isSection ? 1.5 : 3) }}
       >
         <Box sx={{ position: "relative", zIndex: 1, flex: 1, minWidth: 0 }}>
           {crumb ? (
@@ -2579,6 +2644,20 @@ export function PageHeader({ area, title, tab, actions, overflow, crumbRoot, siz
           </Box>
         ) : null}
       </Box>
+      {/* 짧은 화면 설명 — **자리와 간격이 화면마다 같다** (지시 21).
+          예전에는 화면 여섯이 각자 `<Typography sx={{ mb: 3 }}>` 을 손으로 적었고 바닥
+          여백이 1.5·2.5·3 으로 갈려 있었다. 그래서 같은 성격의 두 화면을 나란히 열면
+          목록 시작점이 서로 달랐다.
+          `70ch` 를 안 건다 — 이것은 긴 산문이 아니라 한 문장이다(CLAUDE.md §10). */}
+      {description ? (
+        <Typography
+          className="k-page-desc"
+          variant="body2" color="text.secondary" component="p"
+          sx={{ mb: help && helpOpen ? 1 : (isSection ? 1.5 : 3), ...KO_WORD_BREAK }}
+        >
+          {description}
+        </Typography>
+      ) : null}
       {help ? (
         <Collapse in={helpOpen} id={helpId}>
           <Box sx={{ mb: isSection ? 1.5 : 3 }}>

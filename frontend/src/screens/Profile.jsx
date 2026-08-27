@@ -11,6 +11,9 @@ import DevicesOtherRoundedIcon from "@mui/icons-material/DevicesOtherRounded";
 import { api } from "../lib/api.js";
 import { fmtDateTime, fmtRelative, shortUA } from "../lib/format.js";
 import { useAuth } from "../app/auth.jsx";
+import { UserAvatar } from "../ui/UserAvatar.jsx";
+import { AvatarCropDialog } from "../ui/AvatarCropDialog.jsx";
+import { DefaultAvatarPicker } from "../ui/DefaultAvatarPicker.jsx";
 import { ROLE_KO } from "../app/navConfig.js";
 import { invalidateNotifications } from "../app/notification-keys.js";
 import {
@@ -101,17 +104,29 @@ function AccountCard({ profile, prefs, onChanged }) {
   const confirm = useConfirm();
   const fileRef = React.useRef(null);
   const [busy, setBusy] = React.useState(false);
+  /* 고른 파일은 **바로 올리지 않는다.** 어디를 쓸지 사람이 정한 뒤에 올린다
+     (`AvatarCropDialog`) — 예전에는 서버가 가운데를 잘랐고, 세로 사진에서는 그것이
+     대개 어깨였다. */
+  const [cropping, setCropping] = React.useState(null);
   const name = profile.display_name || (auth.data && auth.data.display_name) || "";
   const avatarUrl = (prefs && prefs.avatar && prefs.avatar.url) || profile.avatar_url || null;
+  const defaultKey = (prefs && prefs.avatar && prefs.avatar.default_key) || null;
+  const person = { user_id: profile.id, avatar_url: avatarUrl, avatar_default_key: defaultKey };
 
-  async function upload(file) {
+  async function upload(crop) {
+    const file = cropping;
     if (!file) return;
     setBusy(true);
     try {
       const form = new FormData();
       form.append("file", file);
+      // 원본 짧은 변을 1.0 으로 본 비율. 서버가 같은 축으로 읽는다.
+      form.append("crop_x", String(crop.crop_x));
+      form.append("crop_y", String(crop.crop_y));
+      form.append("crop_zoom", String(crop.crop_zoom));
       await api("/api/me/avatar", { method: "POST", body: form });
       toast("프로필 사진을 바꿨습니다.", "success");
+      setCropping(null);
       onChanged();
     } catch (e) {
       toast(e.message, "error");
@@ -123,11 +138,25 @@ function AccountCard({ profile, prefs, onChanged }) {
   }
 
   async function remove() {
-    if (!(await confirm("기본 이니셜 아바타로 돌아갑니다.", { title: "프로필 사진 삭제", confirmLabel: "삭제" }))) return;
+    if (!(await confirm("사진을 지우면 기본 아바타로 돌아갑니다.", { title: "프로필 사진 삭제", confirmLabel: "삭제" }))) return;
     setBusy(true);
     try {
       await api("/api/me/avatar", { method: "DELETE" });
       toast("프로필 사진을 지웠습니다.", "success");
+      onChanged();
+    } catch (e) {
+      toast(e.message, "error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function pickDefault(key) {
+    setBusy(true);
+    try {
+      await api("/api/me/preferences", {
+        method: "PATCH", body: JSON.stringify({ avatar_default_key: key }),
+      });
       onChanged();
     } catch (e) {
       toast(e.message, "error");
@@ -142,22 +171,18 @@ function AccountCard({ profile, prefs, onChanged }) {
         계정
       </SectionTitle>
       <Box sx={{ display: "flex", gap: 3, alignItems: "center", flexWrap: "wrap", mb: 2 }}>
-        <Avatar
-          src={avatarUrl || undefined}
-          alt=""
-          sx={{ width: "5rem", height: "5rem", fontSize: "2rem", bgcolor: "primary.main" }}
-        >
-          {name ? name[0] : "?"}
-        </Avatar>
+        {/* 사진이 없어도 빈 원이 아니다 — 이 사람의 기본 아바타가 선다. 제품 전체가
+            같은 부품을 쓰므로 여기서 보는 그림이 채팅과 목록에서 보는 그것이다. */}
+        <UserAvatar person={person} name={name} size="xl" />
         <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
           {/* 파일 입력은 숨기고 버튼으로 연다 — 기본 파일 입력은 브라우저마다 생김새가 달라
               4K에서 혼자 작게 남는다. 라벨은 버튼이 갖는다(스크린리더도 버튼을 읽는다). */}
           <input
             ref={fileRef}
             type="file"
-            accept="image/png,image/jpeg,image/gif,image/webp"
+            accept="image/png,image/jpeg,image/webp"
             style={{ display: "none" }}
-            onChange={(e) => upload(e.target.files && e.target.files[0])}
+            onChange={(e) => setCropping((e.target.files && e.target.files[0]) || null)}
             aria-hidden="true"
             tabIndex={-1}
           />
@@ -167,6 +192,24 @@ function AccountCard({ profile, prefs, onChanged }) {
           {avatarUrl ? <Button disabled={busy} onClick={remove}>사진 삭제</Button> : null}
         </Box>
       </Box>
+
+      {/* 기본 아바타 고르기 — **사진과 다른 축이다.** 사진이 있으면 사진이 보이고, 사진을
+          지운 뒤에 여기서 고른 그림이 살아난다. 아무것도 안 고르면 사용자 id 로 안정
+          배정된 그림이 그대로 쓰인다. */}
+      <DefaultAvatarPicker
+        seed={profile.id}
+        value={defaultKey}
+        busy={busy}
+        onPick={pickDefault}
+      />
+
+      <AvatarCropDialog
+        open={!!cropping}
+        file={cropping}
+        busy={busy}
+        onClose={() => { setCropping(null); if (fileRef.current) fileRef.current.value = ""; }}
+        onSave={upload}
+      />
       <Row label="이름">{name || "-"}</Row>
       <Row label="이메일">{profile.email || "-"}</Row>
       <Row label="역할">{profile.role ? (ROLE_KO[profile.role] || profile.role) : "-"}</Row>

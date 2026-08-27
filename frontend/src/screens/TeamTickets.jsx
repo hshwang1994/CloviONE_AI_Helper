@@ -8,6 +8,8 @@ import { Pager } from "../ui/Pager.jsx";
 import { useQueryState } from "../lib/useQueryState.js";
 import { DepartmentFilter } from "../ui/filters.jsx";
 import { ticketColumns, GroupedTickets, TicketEditModal, ticketConnState } from "./MyTickets.jsx";
+import { useTicketSignals } from "../lib/ticketSignals.js";
+import { useListMemory } from "../lib/listReturn.js";
 import { ticketRows, useAssigneeOptions, useTicketList, useTicketMeta } from "./ticket-options.js";
 import {
   TicketEmptyState, TicketFilterBar, applyColumnFilter, clearTicketFilters, hasTicketFilter,
@@ -58,6 +60,8 @@ export function groupByAssignee(rows) {
 }
 
 export function TeamTickets() {
+  useListMemory("/team-tickets");
+  const signalsOf = useTicketSignals();
   const nav = useNavigate();
   const [filters, setFilters] = useQueryState(TEAM_SPEC, PAGE_RESET);
   const [editing, setEditing] = React.useState(null);
@@ -117,10 +121,10 @@ export function TeamTickets() {
       {/* 머리의 넘침 메뉴에는 「지금 동기화」 하나만 들어 있었다. 그 동작이 없어져 메뉴에
           담을 것이 남지 않았으므로 메뉴 자체를 뺀다 — 눌러도 빈 목록만 열리는 버튼은
           사용자에게 자기가 못 쓰는 기능이 있다고 말하는 셈이다. */}
-      <PageHeader crumbRoot="팀 공간" area="팀 티켓" title="팀 티켓" />
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 2.5 }}>
-        팀 전체 티켓을 담당자별로 묶어서 봅니다. 제목을 누르면 상세가 열립니다. 수정은 담당자와 운영자만 할 수 있습니다.
-      </Typography>
+      <PageHeader
+        crumbRoot="팀 공간" area="팀 티켓" title="팀 티켓"
+        description="팀 전체 티켓을 담당자별로 묶어서 봅니다. 수정은 담당자와 운영자만 할 수 있습니다."
+      />
       {q.isPending ? <Card><Skeleton lines={6} /></Card>
         : q.isError ? <ErrorState error={q.error} onRetry={() => q.refetch()} />
         : (() => {
@@ -130,7 +134,7 @@ export function TeamTickets() {
           if (conn) return conn;
           if (data.ok === false) return <Callout tone="danger">{data.error || "티켓을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요."}</Callout>;
           const rows = ticketRows(data);
-          const cols = ticketColumns({ onEdit: setEditing, filterAssignee: true, onOpen: (t) => nav("/tickets/" + t.id, { state: { from: "/team-tickets" } }) });
+          const cols = ticketColumns({ onEdit: setEditing, filterAssignee: true, signalsOf, onOpen: (t) => nav("/tickets/" + t.id, { state: { from: "/team-tickets" } }) });
           return (
             <>
               {/* 여기 미러 신선도 안내가 있었다. 서버가 `sync` 블록을 더 이상 안 싣는다 —

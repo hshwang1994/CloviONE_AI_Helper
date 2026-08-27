@@ -255,6 +255,18 @@ class TicketDTO:
     created_at: datetime | None = None
     source: str = "notion"
 
+    # ── Signal 과 계획 위치 (D-349) ─────────────────────────────────────────
+    #
+    # 「진행 중이면서 막혀 있다」를 실어 나르는 자리다. `지연` 은 여기 없다 — 마감일과
+    # 종료 여부에서 계산하고(`app/work/workflow.py::is_overdue`) 그 계산은 오늘이
+    # 며칠인지를 알아야 하므로 DTO 가 아니라 화면에 값을 싣는 층이 한다.
+    issue_flag: bool = False
+    blocked_flag: bool = False
+    blocked_reason: str | None = None
+    # 「이 티켓이 어느 회차에 담겼는가」. 값이 없으면 백로그다 — 별도 상태가 아니다.
+    sprint_id: str | None = None
+    completed_at: datetime | None = None
+
 
 @dataclass(frozen=True, slots=True)
 class TicketList:

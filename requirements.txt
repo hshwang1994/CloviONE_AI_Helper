@@ -18,3 +18,14 @@ tzdata==2025.2
 # 임베딩 런타임(onnxruntime·tokenizers·numpy)은 여기 없다 — `requirements-ai.txt` 가
 # 들고 Installer Stage 12 가 깐다. 파싱은 AI 가 아니라 문서 처리라 항상 되어야 한다.
 pypdf==6.1.1
+
+# 아바타 사진을 **서버가 다시 그린다**(app/profiles/avatar_image.py). 받은 바이트를 그대로
+# 서빙하지 않으려면 디코드가 필요하고, 그 일을 표준 라이브러리로 할 수는 없다 —
+# JPEG·WebP 디코더를 직접 쓰는 것은 여기서 하려는 일(안전하게 다시 그리기)의 반대다.
+#
+# `requirements-ai.txt` 쪽으로 안 보낸다. AI 는 끌 수 있는 Component 지만(D-201) 프로필
+# 사진은 그렇지 않다 — 못 깔린 설치에서는 아바타 업로드만 조용히 거절되고 나머지 제품은
+# 그대로 돈다(제품 코드가 함수 안에서 import 한다).
+#
+# 폐쇄망 설치는 wheelhouse 에 이 wheel 이 함께 있어야 한다(deploy/install.sh --offline).
+Pillow==12.3.0

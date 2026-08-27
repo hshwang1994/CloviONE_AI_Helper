@@ -102,6 +102,9 @@ _RENDER_KIND: dict[str, str] = {
     "heading_3": "heading_3",
     "bulleted_list_item": "bulleted",
     "numbered_list_item": "numbered",
+    "to_do": "todo",
+    "quote": "quote",
+    "code": "code",
 }
 
 
@@ -141,6 +144,23 @@ def _sorted_options(values: list[str], *, by_priority: bool) -> tuple[str, ...]:
             return (1, 0.0, value)
 
     return tuple(sorted(values, key=_numeric_first))
+
+
+def _stamp_completion(row, stamp: datetime) -> None:
+    """`completed_at` 을 찍거나 지운다. **상태를 쓰는 자리마다 다시 적지 않는다.**
+
+    `updated_at` 으로 대신할 수 없다 — 완료한 뒤에 제목만 고쳐도 그 값이 움직여서
+    번다운의 「그날 끝난 일」이 뒤로 밀린다. 완료에서 되돌아 나오면 지운다: 안 지우면
+    다시 연 티켓이 「끝난 날」을 든 채로 남고, 그 날짜는 이미 거짓이다.
+
+    이미 찍혀 있으면 덮지 않는다. 완료 상태에서 완료로 저장하는 일(제목만 고친 저장이
+    상태를 함께 실어 보내는 경우)이 끝난 날을 오늘로 옮기면 안 된다.
+    """
+    if workflow.category_of(row.status) == workflow.CAT_DONE:
+        if row.completed_at is None:
+            row.completed_at = stamp
+    else:
+        row.completed_at = None
 
 
 class NativeTicketRepository:
@@ -224,6 +244,11 @@ class NativeTicketRepository:
             body_markdown=row.body_markdown,
             created_at=row.created_at,
             source=row.source or SOURCE_NOTION,
+            issue_flag=bool(row.issue_flag),
+            blocked_flag=bool(row.blocked_flag),
+            blocked_reason=row.blocked_reason,
+            sprint_id=row.sprint_id,
+            completed_at=row.completed_at,
         )
 
     # ── 목록 ─────────────────────────────────────────────────────────────────
@@ -488,6 +513,8 @@ class NativeTicketRepository:
             synced_at=stamp,
             created_at=stamp,
             updated_at=stamp,
+            # 만들자마자 완료인 티켓(이미 한 일을 기록으로 남기는 경우)도 끝난 날을 갖는다.
+            completed_at=stamp if workflow.category_of(status) == workflow.CAT_DONE else None,
         )
         self._apply_project(db, row, project, external_id)
         db.add(row)
@@ -522,6 +549,7 @@ class NativeTicketRepository:
                 if not value:
                     raise ValidationAppError("진행상태는 비울 수 없습니다.")
                 row.status = workflow.validate_transition(row.status, value)
+                _stamp_completion(row, stamp)
             elif key == "priority":
                 # 빈 값은 '지움'이다(`app/tickets/schemas.py` 가 정한 규약이다).
                 # 허용 목록으로 막지 않는 이유는 `meta` 의 docstring 에 적었다 —
@@ -553,6 +581,16 @@ class NativeTicketRepository:
                     [project.name] if project is not None and project.name else []
                 )
                 self._apply_project(db, row, project, external_id)
+            elif key == "issue_flag":
+                row.issue_flag = bool(value)
+            elif key == "blocked_flag":
+                # 차단을 풀면 이유도 함께 지운다. 안 지우면 다음에 막혔을 때 예전
+                # 이유가 그대로 붙어 나오고, 그 이유는 이미 틀린 말이다.
+                row.blocked_flag = bool(value)
+                if not row.blocked_flag:
+                    row.blocked_reason = None
+            elif key == "blocked_reason":
+                row.blocked_reason = (value or None) if row.blocked_flag else None
             # 그 밖의 키는 건너뛴다(위 docstring).
 
         row.updated_at = stamp

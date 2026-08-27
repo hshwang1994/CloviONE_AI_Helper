@@ -517,7 +517,7 @@ export function Users() {
     // width로 줄인다. overflowWrap:anywhere가 이미 있어(kit.jsx) 좁아지면 두 줄로 접힐 뿐
     // 잘리지 않는다.
     { key: "last_login_at", label: "최근 로그인", width: "11rem", nowrap: true, render: (r) => <DateCell value={r.last_login_at} />, hideNarrow: true },
-    { key: "created_at", label: "추가", type: "date", width: "8rem", sortable: true, nowrap: true, render: (r) => <DateCell value={r.created_at} />, hideNarrow: true },
+    { key: "created_at", label: "생성 일자", type: "date", width: "8rem", sortable: true, nowrap: true, render: (r) => <DateCell value={r.created_at} />, hideNarrow: true },
   ];
 
   const items = (query.data && query.data.items) || [];

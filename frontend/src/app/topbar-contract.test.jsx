@@ -363,7 +363,7 @@ describe("셸의 상단바", () => {
      **철자를 좁게 잡아 아무것도 못 막은 전력**이 있다(독립 검수자가 되돌림 변이로 실증했다).
      그래서 같은 계약을 **렌더 후 실제 색**으로 한 번 더 확인한다. 소스가 어떤 철자를 쓰든
      화면에 나온 색은 하나다. */
-  it("셸 위 컨트롤 넷이 전부 chrome 반전 트랙 위에 앉는다 (렌더 후 실제 색)", async () => {
+  it("셸 위 컨트롤 셋이 전부 chrome 반전 트랙 위에 앉는다 (렌더 후 실제 색)", async () => {
     renderAdminShell();
     await waitFor(() => expect(screen.getByText("본문")).toBeInTheDocument());
     const p = createClovirTheme("light").palette;
@@ -373,7 +373,6 @@ describe("셸의 상단바", () => {
       ["상단바 검색", screen.getByLabelText("통합 검색과 명령 열기")],
       ["사이드바 메뉴 찾기", document.querySelector("#app-sidebar .MuiOutlinedInput-root")],
       ["클로비 알약", document.querySelector('.MuiAppBar-root [aria-label="클로비 AI 도우미 열기"]')],
-      ["계정 아바타", document.querySelector(".MuiAppBar-root .MuiAvatar-root")],
     ];
     for (const [label, el] of targets) {
       expect(el, `${label} 를 못 찾았다`).toBeTruthy();
@@ -381,6 +380,34 @@ describe("셸의 상단바", () => {
       expect(nums(bg), `${label} 가 chrome.track 이 아니다 (${bg})`).toEqual(track);
       expect(bg, `${label} 가 캔버스 판으로 되돌아갔다`).not.toBe(plate);
     }
+  });
+
+  /* 🔴 **계정 아바타는 넷째가 아니다.** 예전에는 이니셜 한 글자가 담긴 트랙색 원이라
+     위 목록에 함께 있었다 — 그때 재던 것은 「그 면이 셸을 따라오는가」였다.
+     지금 그 자리에는 사진이나 이 사람의 기본 아바타가 선다(`UserAvatar`). 면이 아니라
+     그림이라 트랙색을 요구할 수 없고, 대신 **원의 둘레**가 셸을 따라와야 한다 — 밝은
+     그림이 밝은 셸에 얹히면 원의 경계가 사라진다(F-W1R-32 가 잡았던 「순백 원판」의
+     반대편 증상이다). */
+  it("계정 아바타가 셸 위에서 chrome 테두리 토큰으로 원을 지킨다", async () => {
+    renderAdminShell();
+    await waitFor(() => expect(screen.getByText("본문")).toBeInTheDocument());
+    const avatar = document.querySelector(".MuiAppBar-root .k-avatar");
+    expect(avatar, "상단바에서 계정 아바타를 못 찾았다").toBeTruthy();
+    const p = createClovirTheme("light").palette;
+    // `box-shadow` 는 앞에 offset·blur·spread 를 달고 나오므로 색은 **꼬리**에 있다.
+    const shadow = getComputedStyle(avatar).boxShadow;
+    const want = nums(p.sidebar.edge);
+    expect(nums(shadow).slice(-want.length), `아바타 둘레가 chrome 테두리 토큰이 아니다 (${shadow})`)
+      .toEqual(want);
+    // 사진이 없는 계정도 빈 원이 아니다 — 이 사람의 기본 아바타가 그려진다.
+    /* 사진이 없는 계정도 **자리가 빈 원이 아니다.** 그림(DiceBear)은 지연 청크라
+       도착 전에는 씨앗에서 뽑은 색이 서고, 도착하면 `data:` SVG 를 문 `<img>` 가 된다 —
+       둘 다 그 사람의 키를 달고 있다(`ui/DefaultAvatar.jsx`). 여기서는 **자리가 있다**를
+       확인한다: 어느 쪽이든 키가 붙어 있어야 한다. */
+    const drawn = avatar.querySelector("[data-avatar-key], [data-avatar-pending]");
+    expect(drawn, "기본 아바타 자리가 없다").toBeTruthy();
+    const src = drawn.getAttribute("src");
+    if (src) expect(src.startsWith("data:image/svg+xml")).toBe(true);
   });
 
   it("본문 열이 이름을 갖는다 — 폭 캡을 소유한 층을 하네스가 잴 수 있어야 한다", async () => {

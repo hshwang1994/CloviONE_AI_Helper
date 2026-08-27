@@ -16,10 +16,16 @@ from sqlalchemy.orm import Session
 
 from app.notion_mapping.models import UserNotionMapping
 from app.users.models import User
+from app.work import workflow
 
 STATUS_DONE = "완료"
 STATUS_CANCELLED = "취소"
-_IN_PROGRESS = {"진행", "검증", "이슈"}
+STATUS_HOLD = "보류"
+# 「하는 중」으로 세는 상태. **어휘를 손으로 적지 않는다** — 상태가 늘거나 이름이 바뀌는
+# 날 여기만 옛 목록으로 남으면 그 티켓들은 어느 칸에도 안 세어지고, 합계는 조용히 준다.
+_IN_PROGRESS = frozenset(
+    s.key for s in workflow.STATUSES if s.category == workflow.CAT_IN_PROGRESS
+)
 UNKNOWN_ASSIGNEE_NAME = "(미확인 담당자)"
 _UNKNOWN_NAME = UNKNOWN_ASSIGNEE_NAME  # 하위 호환 별칭(내부 사용)
 
@@ -96,7 +102,7 @@ def _load_name_map(db: Session) -> tuple[dict[str, str], list[str]]:
 def _blank_dev(user_id: str | None = None) -> dict:
     return {
         "user_id": user_id,
-        "done": 0, "prog": 0, "verify": 0, "plan": 0, "cancel": 0,
+        "done": 0, "prog": 0, "verify": 0, "plan": 0, "hold": 0, "cancel": 0,
         "assigned": 0, "overdue": 0,
         "est_done": 0.0, "est_all": 0.0, "act_done": 0.0,
         "_diff_sum": 0, "_diff_n": 0,
@@ -133,10 +139,12 @@ def _bump(bucket: dict, ticket, *, overdue: bool) -> None:
         bucket["act_done"] += act
     elif status == STATUS_CANCELLED:
         bucket["cancel"] += 1
-    elif status == "진행" or status == "이슈":
-        bucket["prog"] += 1
     elif status == "검증":
         bucket["verify"] += 1
+    elif status in _IN_PROGRESS:
+        bucket["prog"] += 1
+    elif status == STATUS_HOLD:
+        bucket["hold"] += 1
     elif status == "계획":
         bucket["plan"] += 1
     if status != STATUS_CANCELLED:
@@ -164,7 +172,8 @@ def _finalize_dev(name: str, b: dict, *, has_tickets: bool) -> dict:
         # 동명이인이 한 줄로 합쳐지는 문제와 부서 스코핑이 이 값을 필요로 한다.
         "user_id": b.get("user_id"),
         "done": b["done"], "prog": b["prog"], "verify": b["verify"],
-        "plan": b["plan"], "cancel": b["cancel"], "assigned": b["assigned"],
+        "plan": b["plan"], "hold": b["hold"], "cancel": b["cancel"],
+        "assigned": b["assigned"],
         "overdue": b["overdue"],
         "completion_rate": rate,
         "est_done": round(b["est_done"], 1),
@@ -214,10 +223,11 @@ def build_period_report(
         ]
 
     devs: dict[str, dict] = {}
-    unassigned = {"done": 0, "prog": 0, "verify": 0, "plan": 0, "cancel": 0, "total": 0}
+    unassigned = {"done": 0, "prog": 0, "verify": 0, "plan": 0, "hold": 0,
+                  "cancel": 0, "total": 0}
     # 팀 합계는 티켓 단위(중복 없이)로 센다. 담당자별 합은 다중 담당 티켓을 양쪽에 세므로 팀 합계와 다르다.
-    team = {"total": 0, "done": 0, "in_progress": 0, "verify": 0, "plan": 0, "cancel": 0,
-            "overdue": 0, "est_done_total": 0.0, "est_all_total": 0.0}
+    team = {"total": 0, "done": 0, "in_progress": 0, "verify": 0, "plan": 0, "hold": 0,
+            "cancel": 0, "overdue": 0, "est_done_total": 0.0, "est_all_total": 0.0}
 
     for t in tickets:
         status = t.status
@@ -232,8 +242,10 @@ def build_period_report(
             team["cancel"] += 1
         elif status == "검증":
             team["verify"] += 1
-        elif status in _IN_PROGRESS:  # 진행, 이슈 (검증은 위에서 분리)
+        elif status in _IN_PROGRESS:  # 검증은 위에서 따로 센다
             team["in_progress"] += 1
+        elif status == STATUS_HOLD:
+            team["hold"] += 1
         elif status == "계획":
             team["plan"] += 1
         if status != STATUS_CANCELLED:
@@ -249,6 +261,8 @@ def build_period_report(
                 unassigned["cancel"] += 1
             elif status in _IN_PROGRESS:
                 unassigned["prog" if status != "검증" else "verify"] += 1
+            elif status == STATUS_HOLD:
+                unassigned["hold"] += 1
             elif status == "계획":
                 unassigned["plan"] += 1
             continue
@@ -285,6 +299,7 @@ def build_period_report(
             "in_progress": team["in_progress"],
             "verify": team["verify"],
             "plan": team["plan"],
+            "hold": team["hold"],
             "cancel": team["cancel"],
             "overdue": team["overdue"],
             "est_done_total": round(team["est_done_total"], 1),

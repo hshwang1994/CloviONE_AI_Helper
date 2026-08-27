@@ -5,8 +5,9 @@ import { render, screen } from "@testing-library/react";
 /* 표의 열이 «무엇인가»로 폭·정렬·자릿수를 정하는 계약 (C3 · R-91 · W6).
  *
  * 여기서 지키는 것은 셋이다:
- *   1) 개수형 열은 **우정렬 + 자릿수 고정**이다 — `numeric_alignment` 8건의 뿌리.
- *   2) 식별자형 열은 좌정렬이고 `data-col-role="identifier"` 를 **실제로 내보낸다**.
+ *   1) 개수형 열은 **가운데 + 자릿수 고정**이다. 우정렬에서 가운데로 옮겼고(지시 6·13)
+ *      자릿수 고정은 그대로다 — 그것이 남은 세로 비교 수단이다.
+ *   2) 식별자형 열도 가운데이고 `data-col-role="identifier"` 를 **실제로 내보낸다**.
  *      QA 가 그 표식으로 예외를 읽는데 그것을 붙이는 소스가 이 저장소에 없었다.
  *   3) **`resultScope` 없이는 어떤 열도 사라지지 않는다** (R-91). 서버가 페이지를 자르는
  *      목록에서 이번 페이지의 값이 우연히 같다고 열을 빼면, 페이지를 넘길 때마다 열이
@@ -22,16 +23,25 @@ function draw(ui) {
 }
 
 describe("열 어휘 — 폭·정렬·자릿수는 의미에서 나온다", () => {
-  it("개수·비율은 우정렬이고 자릿수를 고정한다", () => {
+  it("개수·비율은 가운데이고 자릿수를 고정한다", () => {
     for (const t of ["count", "number", "percent", "score"]) {
-      expect(COLUMN_TYPES[t].align, t).toBe("right");
+      expect(COLUMN_TYPES[t].align, t).toBe("center");
       expect(COLUMN_TYPES[t].numeric, t).toBe(true);
     }
   });
 
-  it("식별자형 숫자는 **좌정렬**인데 자릿수는 고정한다", () => {
-    // 티켓번호·포트·버전은 크기를 비교하지 않는다 — 우정렬이 오히려 틀렸다.
-    expect(COLUMN_TYPES.identifier.align).toBe("left");
+  it("읽는 열만 왼쪽에 붙는다 — 제목·이름·설명", () => {
+    // 길이가 제각각인 값이라 왼쪽 모서리가 맞아야 눈이 다음 줄로 내려간다.
+    for (const t of ["title", "name", "text"]) {
+      expect(COLUMN_TYPES[t].align, t).toBe("left");
+    }
+  });
+
+  it("보는 열은 가운데에 선다 — 티켓 ID·상태·짧은 닫힌 집합·날짜·행 동작", () => {
+    for (const t of ["identifier", "status", "enum", "date", "datetime", "actions"]) {
+      expect(COLUMN_TYPES[t].align, t).toBe("center");
+    }
+    // 식별자형 숫자도 자릿수는 고정한다 — 값이 칸 안에서 흔들리지 않게.
     expect(COLUMN_TYPES.identifier.numeric).toBe(true);
   });
 
@@ -63,7 +73,7 @@ describe("열 어휘 — 폭·정렬·자릿수는 의미에서 나온다", () =
       rowKey={(r) => r.n}
     />);
     const cell = screen.getByText("340").closest("td");
-    expect(cell.getAttribute("class")).toContain("MuiTableCell-alignRight");
+    expect(cell.getAttribute("class")).toContain("MuiTableCell-alignCenter");
     // 인라인 style 이 아니라 주입된 규칙으로 붙는다 — 브라우저가 실제로 계산하는 값을 본다
     // (QA 프로브도 `getComputedStyle(td)` 를 읽는다).
     expect(getComputedStyle(cell).fontVariantNumeric).toContain("tabular-nums");
@@ -79,17 +89,43 @@ describe("열 어휘 — 폭·정렬·자릿수는 의미에서 나온다", () =
     expect(screen.getByText("ABC-1").closest("td").getAttribute("data-col-role")).toBe("identifier");
   });
 
-  it("머리글과 본문이 **같은 함수**에서 정렬을 받는다", () => {
-    // 한쪽만 설정하는 경로가 실제로 있었고, 그게 `header_cell_alignment_mismatch` 의 뿌리다.
+  it("머리글 이름은 열의 정렬과 상관없이 **언제나 가운데**다", () => {
+    /* 몸통이 왼쪽인 열에서도 머리글은 가운데다(지시 6). 예전에는 호출부가 몸통의 정렬을
+       머리글에 그대로 넘겨서, 왼쪽에 붙은 이름 옆에 오른쪽에 붙은 이름이 섰다. */
     draw(<DataTable
-      columns={[{ key: "n", label: "건수", type: "count" }]}
-      rows={[{ n: 1 }]}
+      columns={[
+        { key: "t", label: "제목", type: "title" },
+        { key: "n", label: "건수", type: "count" },
+      ]}
+      rows={[{ t: "가", n: 1 }]}
       rowKey={() => "r"}
     />);
-    const th = screen.getByText("건수").closest("th");
-    const td = screen.getByText("1").closest("td");
-    expect(th.getAttribute("class")).toContain("alignRight");
-    expect(td.getAttribute("class")).toContain("alignRight");
+    expect(screen.getByText("제목").closest("th").getAttribute("class")).toContain("alignCenter");
+    expect(screen.getByText("건수").closest("th").getAttribute("class")).toContain("alignCenter");
+    // 몸통은 의미대로 갈린다.
+    expect(screen.getByText("가").closest("td").getAttribute("class")).toContain("alignLeft");
+    expect(screen.getByText("1").closest("td").getAttribute("class")).toContain("alignCenter");
+  });
+
+  it("정렬·필터 조작기가 머리글 이름의 중심을 **안 민다**", () => {
+    /* `1fr auto 1fr` 격자라 이름은 가운데 칸에 서고 조작기는 오른쪽 칸에 산다. 조작기가
+       같은 줄을 나눠 쓰면 조작기 있는 열과 없는 열의 이름이 서로 다른 자리에 선다. */
+    draw(<DataTable
+      columns={[
+        { key: "a", label: "가나", type: "enum" },
+        { key: "b", label: "다라", type: "enum", sortable: true, filter: { kind: "enum", field: "b" } },
+      ]}
+      rows={[{ a: "x", b: "y" }]}
+      rowKey={() => "r"}
+      sort={{ key: "b", dir: "asc" }}
+      onSort={() => {}}
+      onFilter={() => {}}
+    />);
+    const plain = screen.getByText("가나").closest("th").firstElementChild;
+    const busy = screen.getByText("다라").closest("th").firstElementChild;
+    for (const grid of [plain, busy]) {
+      expect(getComputedStyle(grid).gridTemplateColumns).toBe("1fr auto 1fr");
+    }
   });
 });
 

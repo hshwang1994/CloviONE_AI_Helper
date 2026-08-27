@@ -1,6 +1,6 @@
 """내 업무량 · 완료 통계의 **순수 집계** — DB도 네트워크도 LLM도 모른다.
 
-`app/home/aggregate.py` 와 같은 층이고 **같은 어휘를 쓴다**(완료/취소/이슈, 지연 판정,
+`app/home/aggregate.py` 와 같은 층이고 **같은 어휘를 쓴다**(완료/취소, 막힘 신호, 지연 판정,
 마감일 기준 창 판정). 어휘를 새로 만들면 홈의 '지연 3건'과 통계의 '지연 5건'이 서로 다른
 말을 하게 되고, 사용자는 어느 쪽을 믿어야 할지 알 수 없다 — 그래서 여기서는 판정 함수를
 직접 정의하지 않고 aggregate 의 것을 부른다.
@@ -23,12 +23,12 @@ from datetime import date, timedelta
 
 from app.home.aggregate import (
     DUE_SOON_DAYS,
-    STATUS_BLOCKED,
     STATUS_CANCELLED,
     STATUS_DONE,
     add_days,
     is_active,
     is_overdue,
+    is_stuck,
 )
 
 DEFAULT_MONTHS = 6
@@ -202,7 +202,7 @@ def build_stats(
     horizon = add_days(today, horizon_days)
     due_today = [t for t in active if t.get("due") == today]
     due_soon = [t for t in active if t.get("due") and today < t["due"] <= horizon]
-    blocked = [t for t in active if (t.get("status") or "") == STATUS_BLOCKED]
+    blocked = [t for t in active if is_stuck(t)]
     no_due = [t for t in active if not t.get("due")]
 
     week_buckets, week_extra = weekly_load(tickets, today=today, weeks=weeks)

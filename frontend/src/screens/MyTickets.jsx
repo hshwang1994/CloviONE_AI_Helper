@@ -42,6 +42,9 @@ import { NumberCell, DateCell } from "../ui/cells.jsx";
 import { TableHeaderCell } from "../ui/TableHeaderCell.jsx";
 import { TicketEmptyState, TicketFilterBar, applyColumnFilter, clearTicketFilters, columnFilterValue, hasTicketFilter, nextTicketSort, ticketFilterSpec, ticketQueryParams, ticketSortOf, TICKET_LIST_EXTRA } from "./TicketFilterBar.jsx";
 import { openStatusKeys } from "../lib/openTicketStatuses.js";
+import { TicketSignals } from "../ui/TicketSignals.jsx";
+import { useTicketSignals } from "../lib/ticketSignals.js";
+import { useListMemory } from "../lib/listReturn.js";
 
 /* `EMPTYABLE_SELECT` 는 이제 ui/filters.jsx 가 정본이다(필터 select 와 편집 폼 select 가
  * 같은 함정을 밟는다). 여기서 다시 내보내는 이유는 팀 티켓 화면이 예전부터 이 경로로
@@ -136,7 +139,15 @@ function TitleCell({ t, onOpen }) {
 // 좁은 열 안에 표가 들어갈 때 쓴다. 전체 열을 그대로 넣으면 1366 화면에서 마감·편집이 잘려
 // 나가 가로로 긁어야 보인다 — 실제 캡처에서 그 상태였다. 난이도·예상 WD 는 '오늘 뭘 할까'를
 // 정하는 데 필요 없고, 편집은 글자 대신 아이콘 버튼으로 줄여 자리를 아낀다.
-export function ticketColumns({ showAssignee, onEdit, onClaim, onOpen, compact, filterAssignee } = {}) {
+export function ticketColumns({ showAssignee, onEdit, onClaim, onOpen, compact, filterAssignee, signalsOf } = {}) {
+  /* `signalsOf` 는 티켓 하나의 **켜져 있는 신호**를 돌려주는 함수다
+   * (`lib/ticketSignals.js::useTicketSignals`). 화면이 주지 않으면 신호를 안 그린다 —
+   * 어휘 질의가 아직 안 왔거나 시험이 표만 볼 때가 그 경우이고, 그때 빈 알약을 그리면
+   * 「신호가 없다」와 「아직 모른다」가 같은 그림이 된다.
+   *
+   * 밀도가 둘인 이유는 `ui/TicketSignals.jsx` 에 적었다: 좁은 표는 상태 칸에 아이콘만
+   * 딸려 서고, 넓은 표는 자기 열에서 낱말을 쓴다. 어휘와 색은 한 표에서 나온다. */
+  const marksOf = (t) => (signalsOf ? signalsOf(t) : []);
   // nowrap: 한 덩어리 값(티켓 번호·날짜·숫자)은 절대 줄바꿈하지 않는다. 예전에는 모든 셀이
   // `overflowWrap: anywhere` 라 열의 최소 폭이 '한 글자'가 됐고, 폭이 모자라면 'GIT-4101'이
   // 세 줄로 쪼개져 세로로 무너졌다(QA vertical_text_collapse). 폭이 정말 모자라면 표를 줄이는
@@ -158,10 +169,24 @@ export function ticketColumns({ showAssignee, onEdit, onClaim, onOpen, compact, 
     // 열기 버튼이 이 값을 접근 이름에 쓴다 — 없으면 스무 행이 전부 "이 항목 선택"으로 읽힌다.
     { key: "title", label: "제목", type: "title", minWidth: compact ? "11rem" : "16rem", sortable: true, rowName: (t) => t.title || "제목 없음",
       render: (t) => <TitleCell t={t} onOpen={onOpen} /> },
-    { key: "status", label: "상태", type: "status", width: compact ? "6rem" : "7rem", sortable: true, filter: { kind: "enum", field: "status" }, render: (t) => (t.status ? <Badge value={t.status} /> : "-") },
+    { key: "status", label: "상태", type: "status", width: compact ? "7.5rem" : "7rem", sortable: true, filter: { kind: "enum", field: "status" },
+      render: (t) => (t.status
+        ? (
+          <Box component="span" sx={{ display: "inline-flex", alignItems: "center", gap: 0.5, minWidth: 0 }}>
+            <Badge value={t.status} />
+            {compact ? <TicketSignals signals={marksOf(t)} variant="mark" /> : null}
+          </Box>
+        )
+        : "-") },
     { key: "priority", label: "우선순위", type: "status", width: compact ? "6.5rem" : "7rem", sortable: true, filter: { kind: "enum", field: "priority" }, render: (t) => (t.priority ? <Badge value={priorityKo(t.priority)} kind={priorityKind(t.priority)} /> : "-") },
   ];
   if (!compact) {
+    /* 신호는 상태와 **다른 축**이라 다른 열이다 (D-349). 한 칸에 넣으면 「진행 중」과
+       「차단됨」이 한 낱말처럼 읽히고, 정렬·필터도 둘을 못 가른다. */
+    cols.push({
+      key: "_signals", label: "신호", type: "status", width: "9rem", nowrap: true,
+      render: (t) => <TicketSignals signals={marksOf(t)} />,
+    });
     cols.push(
       /* 난이도는 «상·중·하» 라 수치가 아니다 — 우정렬하면 없는 크기 비교를 암시한다. */
       { key: "difficulty", label: "난이도", type: "enum", sortable: true, filter: { kind: "enum", field: "difficulty" }, render: (t) => (t.difficulty || "-") },
@@ -171,7 +196,8 @@ export function ticketColumns({ showAssignee, onEdit, onClaim, onOpen, compact, 
   }
   cols.push({ key: "due", label: "마감", type: "date", width: compact ? "6.5rem" : "7rem", sortable: true, render: (t) => (t.due || "-") });
   if (!compact) {
-    cols.push({ key: "created_at", label: "추가", type: "date", width: "8rem", sortable: true, filter: { kind: "date", field: "created_at" }, render: (t) => <DateCell value={t.created_at} /> });
+    /* 「추가」는 무엇을 추가했다는 말인지 알 수 없었다 — 이 값은 티켓이 만들어진 날이다. */
+    cols.push({ key: "created_at", label: "생성 일자", type: "date", width: "8rem", sortable: true, filter: { kind: "date", field: "created_at" }, render: (t) => <DateCell value={t.created_at} /> });
   }
   if (showAssignee) {
     // VIS-163: 이 열만 nowrap이 빠져 있었다 — 좁은 컨테이너(1200×900)에서 overflowWrap:
@@ -787,6 +813,9 @@ function resetListFilters(fields) {
 
 /* 내 티켓. 조건은 서버가 걸고(질의 파라미터), 그 조건은 주소에 남는다. */
 export function MyTickets() {
+  /* 상세를 열었다 돌아오면 조건·페이지·스크롤이 그대로다 (지시 19). */
+  useListMemory("/my-tickets");
+  const signalsOf = useTicketSignals();
   const confirm = useConfirm();
   const nav = useNavigate();
   const [filters, setFilters] = useQueryState(MY_SPEC, PAGE_RESET);
@@ -832,7 +861,7 @@ export function MyTickets() {
           if (conn) return conn;
           const rows = ticketRows(data);
           const cols = [selectionColumn(sel, rows.map((r) => r.id)),
-            ...ticketColumns({ showAssignee: true, onEdit: setEditing, onOpen: openTicket(nav, "/my-tickets") })];
+            ...ticketColumns({ showAssignee: true, onEdit: setEditing, signalsOf, onOpen: openTicket(nav, "/my-tickets") })];
           return (
             <>
               {/* SEM-02(PA-F-031): 이 화면은 h1 하나뿐이라 필터·표가 스크린리더 제목
@@ -886,6 +915,8 @@ export function Unassigned() {
      danger·건수 라벨 같은 옵션은 조용히 무시됐다. */
   const confirm = useConfirm();
   const nav = useNavigate();
+  useListMemory("/unassigned");
+  const signalsOf = useTicketSignals();
   const [filters, setFilters] = useQueryState(SELF_SPEC, PAGE_RESET);
   const qs = ticketQueryParams(filters, SELF_FILTER_FIELDS).toString();
   const q = useTicketList("/api/tickets/unassigned", qs);
@@ -923,7 +954,7 @@ export function Unassigned() {
           if (conn) return conn;
           const rows = ticketRows(data);
           const cols = [selectionColumn(sel, rows.map((r) => r.id)),
-            ...ticketColumns({ onEdit: setEditing, onClaim: (t) => claim.mutate(t.id), onOpen: openTicket(nav, "/unassigned") })];
+            ...ticketColumns({ onEdit: setEditing, onClaim: (t) => claim.mutate(t.id), signalsOf, onOpen: openTicket(nav, "/unassigned") })];
           return (
             <>
               {/* 여기 미러 신선도 안내가 있었다. 위 목록과 같은 이유로 걷었다(S14). */}
@@ -971,13 +1002,55 @@ export function Unassigned() {
  * 대신 **실제로 일을 해 주는 것**으로 바꾼다: 누르면 설명 본문에 그 절이 실제로 들어간다.
  * 좋은 티켓이 무엇인지 알려 주면서 동시에 쓰는 수고를 던다. 이미 있는 절은 다시 넣지 않는다.
  * 진짜 AI 도움이 필요하면 그 자리에서 AI 도우미로 넘어갈 수 있게 links 를 남긴다. */
+/* 네 가지가 핵심이고 둘은 보조다 (지시 10).
+ *
+ * 예전 셋(검증 범위 명시 · 예외 처리 · 완료 기준)은 **추상적이었다.** 「검증 범위를
+ * 명시하라」는 말은 이미 무엇을 쓸지 아는 사람에게만 뜻이 통하고, 처음 티켓을 쓰는
+ * 사람에게는 그 자리에 무슨 문장이 들어가야 하는지 알려 주지 않는다. 그리고 셋 다
+ * **끝에 대한 이야기**여서 정작 「왜 이 일을 하는가」를 묻는 칸이 없었다.
+ *
+ * 그래서 각 항목이 **묻는 문장**과 **짧은 실제 예시**를 함께 든다. 예시는 설명 본문에
+ * 안 들어간다 — 들어가면 남의 문장이 자기 티켓에 남는다. 들어가는 것은 절 제목뿐이다.
+ */
 const TICKET_SECTIONS = [
-  { title: "검증 범위 명시", hint: "무엇을 확인하면 '됐다'고 할 수 있는지 적습니다.",
-    heading: "## 검증 범위" },
-  { title: "예외 처리", hint: "정상 경로 말고, 실패하면 어떻게 되어야 하는지 적습니다.",
-    heading: "## 예외 처리" },
-  { title: "완료 기준", hint: "받는 사람이 이 문장만 보고 끝났는지 판단할 수 있어야 합니다.",
-    heading: "## 완료 기준" },
+  {
+    title: "배경과 문제",
+    hint: "왜 필요한가요? 지금 무엇이 문제인가요?",
+    example: "예: 서버를 등록할 때 같은 IP 를 두 번 넣을 수 있어 운영에서 중복 장비가 생깁니다.",
+    heading: "## 배경과 문제",
+  },
+  {
+    title: "목표",
+    hint: "무엇을 달성하려고 하나요?",
+    example: "예: 같은 IP 로는 등록이 안 되게 막고, 막힌 이유를 화면에서 알려 줍니다.",
+    heading: "## 목표",
+  },
+  {
+    title: "작업 범위",
+    hint: "이번에 할 것과 하지 않을 것을 나눠 적습니다.",
+    example: "예: 등록 화면과 저장 API 를 고칩니다. 이미 들어간 중복 데이터 정리는 이번에 안 합니다.",
+    heading: "## 작업 범위",
+  },
+  {
+    title: "완료 기준",
+    hint: "어떤 상태가 되면 끝난 건가요?",
+    example: "예: 같은 IP 를 저장하면 오류 문구가 뜨고, 목록에 새 줄이 안 생깁니다.",
+    heading: "## 완료 기준",
+  },
+  {
+    title: "예외 처리",
+    hint: "정상 경로 말고, 실패하면 어떻게 되어야 하나요?",
+    example: "예: 저장 도중 연결이 끊기면 아무것도 저장되지 않고 입력한 값이 화면에 남습니다.",
+    heading: "## 예외 처리",
+    optional: true,
+  },
+  {
+    title: "확인 방법",
+    hint: "받는 사람이 무엇을 눌러 보면 되나요?",
+    example: "예: 서버 등록에서 10.0.0.1 을 두 번 저장해 봅니다.",
+    heading: "## 확인 방법",
+    optional: true,
+  },
 ];
 
 
@@ -986,7 +1059,7 @@ function WritingAid({ description, onInsert }) {
     <Card sx={{ display: "grid", gap: 1.5, alignContent: "start" }}>
       <Typography component="h2" sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: FONT_SIZE.sectionTitle }}>작성 도움</Typography>
       <Typography variant="body2" color="text.secondary">
-        좋은 티켓은 <strong>무엇을 하면 끝인지</strong>가 적혀 있습니다. 아래를 누르면 설명에 그 절이 들어갑니다.
+        좋은 티켓은 <strong>왜 하는지와 무엇을 하면 끝인지</strong>가 적혀 있습니다. 아래를 누르면 설명에 그 절이 들어갑니다.
       </Typography>
       <Box sx={{ display: "grid", gap: 0.5 }}>
         {TICKET_SECTIONS.map((sec) => {
@@ -1014,6 +1087,14 @@ function WritingAid({ description, onInsert }) {
                 {sec.title}{already ? " ✓" : ""}
               </Typography>
               <Typography component="span" variant="body2" color="text.secondary">{sec.hint}</Typography>
+              {/* 예시는 **넣어 주지 않는다.** 이 자리에서 보여 주기만 한다 — 눌러서 들어가는
+                  것은 절 제목뿐이고, 남의 문장이 자기 티켓에 남으면 안 된다. */}
+              <Typography
+                component="span" variant="body2"
+                sx={{ color: "text.secondary", fontStyle: "italic", opacity: 0.9, ...KO_WORD_BREAK }}
+              >
+                {sec.example}
+              </Typography>
             </Box>
           );
         })}

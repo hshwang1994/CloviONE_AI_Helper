@@ -23,6 +23,7 @@ import { idlePollDelayMs } from "./teamchat-poll.js";
 import { markRoomRead } from "./teamchat-unread.js";
 import { ImageLightbox, useLightbox } from "../ui/ImageLightbox.jsx";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, RADIUS } from "../ui/theme.js";
+import { UserAvatar } from "../ui/UserAvatar.jsx";
 
 /* 팀 채팅 핵심 창(폴링 로그 + 입력). 방 페이지와 홈 위젯이 공유한다. 놀이(GameRoom) 폴링 패턴 이식:
  * since=0 로 최근 메시지를 받아 seq 커서로 따라오고, 내 메시지는 오른쪽 말풍선. 탭이 숨으면 폴링을
@@ -331,17 +332,11 @@ export function ChatPane({ roomId, compact = false, interval = 2000, idleMax = 0
                     sx={{ fontWeight: FONT_WEIGHT.semibold, color: "text.secondary", fontSize: FONT_SIZE.caption, px: 0.5,
                           display: "flex", alignItems: "center", gap: 0.625 }}
                   >
-                    {/* 프로필 사진이 **자기 우상단에만** 보이던 것(X13). 서빙 경로는 이미
-                        전 직원 대상이었고, 빠져 있던 건 남의 주소를 알려 주는 payload 뿐이다.
-                        없으면 자리를 만들지 않는다 — 빈 회색 원이 줄줄이 붙으면 더 어수선하다. */}
-                    {people[m.sender_user_id]?.avatar_url ? (
-                      <Box
-                        component="img"
-                        src={people[m.sender_user_id].avatar_url}
-                        alt=""
-                        sx={{ width: 20, height: 20, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }}
-                      />
-                    ) : null}
+                    {/* **모든 메시지가 아바타를 갖는다.** 사진이 없으면 기본 아바타가
+                        선다(`UserAvatar`) — 예전에는 없으면 안 그려서, 같은 방에서 어떤
+                        줄에는 원이 있고 어떤 줄에는 없었다. 자기가 쓴 메시지도 예외가
+                        아니다: 누가 언제 썼는지는 언제나 확인할 수 있어야 한다. */}
+                    <UserAvatar person={people[m.sender_user_id]} name={m.sender_name} size="inline" />
                     {m.sender_name || "알 수 없음"}
                     {/* 소속을 이름 옆에 — 사용자 지시("어느 조직 어느 부서인지"). 없으면
                         아무것도 그리지 않는다(빈 괄호가 붙으면 그게 더 어수선하다). */}

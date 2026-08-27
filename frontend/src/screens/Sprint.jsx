@@ -288,10 +288,10 @@ export function Sprint() {
 
   return (
     <div className="c-screen">
-      <PageHeader crumbRoot="도우미" area="스프린트 회의" title="스프린트 회의" actions={nudge} />
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }} aria-live="polite">
-        {weekLabel} ({start} ~ {sunday}) 기준입니다. 담당자별로 진행을 보고, 회의 중에 바로 수정할 수 있습니다.
-      </Typography>
+      <PageHeader
+        crumbRoot="도우미" area="스프린트 회의" title="스프린트 회의" actions={nudge}
+        description={`${weekLabel} (${start} ~ ${sunday}) 기준입니다. 담당자별로 진행을 보고, 회의 중에 바로 수정할 수 있습니다.`}
+      />
       {/* 조회 부서 — **필터가 아니라 화면 Context** 다(0060 §18). 필터처럼 목록 위에 작게
           두지 않고 화면 머리에 크게 둔다: 회의 참석자 전원이 "지금 어느 팀 이야기인가" 를
           같은 자리에서 봐야 한다. 고를 수 있는 부서는 서버가 조회 범위에서 계산해 준다

@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from datetime import timezone
 
-from fastapi import APIRouter, Depends, File, Query, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Query, Request, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -33,7 +33,9 @@ from app.core.deps import (
 from app.core.errors import NotFoundError, ValidationAppError
 from app.core.pagination import MAX_PAGE_SIZE, PageParams
 from app.profiles import activity as activity_mod
+from app.profiles import avatar_image
 from app.profiles import service, stats
+from app.profiles.models import AVATAR_SOURCE_DEFAULT, AVATAR_SOURCE_UPLOADED
 from app.profiles.schemas import PreferenceUpdate, SavedViewCreate, TourUpdate
 from app.users.models import User
 
@@ -328,17 +330,36 @@ def upload_avatar(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
     file: UploadFile = File(...),
+    # 원본 짧은 변을 1.0 으로 본 비율이다. 픽셀로 받지 않는 이유는
+    # `avatar_image.py` 머리말에 있다 — 원본 해상도가 바뀌면 픽셀의 뜻이 같이 바뀐다.
+    crop_x: float = Form(0.0),
+    crop_y: float = Form(0.0),
+    crop_zoom: float = Form(1.0),
 ):
-    """프로필 사진 교체. 형식 판정은 **매직바이트**가 한다(app/core/uploads.py).
+    """프로필 사진 교체. 형식 판정은 매직바이트가 하고, **서버가 다시 그린다.**
 
     새 업로드 경로를 만들지 않고 기존 네임스페이스 방식을 그대로 쓴다 — 크기 상한,
-    traversal 가드, 서버 생성 저장명, 실행 불가 서빙이 이미 그 안에 있다.
+    traversal 가드, 서버 생성 저장명, 실행 불가 서빙이 이미 그 안에 있다. 그 위에 둘을
+    더한다:
+
+    1. **원본과 표시용을 나눠 저장한다.** 원본을 매번 줄여 보내면 20px 목록 한 줄에 몇
+       MB 가 실리고, 원본을 안 남기면 다시 자를 때 이미 자른 그림을 또 자르게 된다.
+    2. **표시용은 서버가 디코드해서 새로 만든다**(`avatar_image.render_thumbnail`).
+       EXIF 회전을 펴고, 자른 뒤, 픽셀만으로 WebP 를 쓴다 — 원본의 메타데이터는 한
+       바이트도 안 따라온다.
+
+    자르기 값은 화면이 준다. 값을 안 믿는다 — 범위 밖이면 서버가 원본 안으로 접는다.
     """
     # sync 핸들러에서는 UploadFile 의 내부 파일 객체를 직접 읽는다(await 불필요, 불변 §1).
     content = file.file.read(uploads.MAX_UPLOAD_BYTES + 1)
     with audit_failure_on_exception(
         request, db, action="profile.avatar.update", object_type="user", object_id=user.id,
     ):
+        # 표시용을 **먼저** 만든다. 여기서 거절될 사진이면 원본도 저장하지 않는다 —
+        # 저장한 뒤에 실패하면 아무 데서도 안 쓰이는 파일이 디스크에 남는다.
+        thumb = avatar_image.render_thumbnail(
+            content, crop_x=crop_x, crop_y=crop_y, zoom=crop_zoom,
+        )
         stored_name, media_type, size, _display = uploads.save_upload(
             request.app.state.settings.data_dir,
             user.id,
@@ -348,17 +369,32 @@ def upload_avatar(
             # 프로필 사진에 PDF 를 허용할 이유가 없다 — 좁은 쪽이 항상 옳다.
             allowed_media_types=uploads.IMAGE_MEDIA_TYPES,
         )
+        thumb_name, _thumb_type, _thumb_size, _thumb_display = uploads.save_upload(
+            request.app.state.settings.data_dir,
+            user.id,
+            filename="avatar" + avatar_image.OUTPUT_EXTENSION,
+            content=thumb,
+            namespace=uploads.NS_AVATAR,
+            allowed_media_types=uploads.IMAGE_MEDIA_TYPES,
+        )
     now = request.app.state.clock.now()
     pref = service.ensure_preference(db, user.id, now=now)
     old_name = pref.avatar_stored_name
+    old_thumb = pref.avatar_thumb_name
+    pref.avatar_source = AVATAR_SOURCE_UPLOADED
     pref.avatar_stored_name = stored_name
     pref.avatar_media_type = media_type
+    pref.avatar_thumb_name = thumb_name
+    pref.avatar_crop_x = crop_x
+    pref.avatar_crop_y = crop_y
+    pref.avatar_crop_zoom = crop_zoom
     pref.avatar_updated_at = now
     pref.updated_at = now
     db.flush()
     # 예전 파일은 지운다. 남겨 두면 계정 하나가 업로드 횟수만큼 디스크를 먹고, 그 파일들은
     # 어디에서도 참조되지 않아 다시 찾을 방법도 없다.
     _unlink_avatar(request, user.id, old_name)
+    _unlink_avatar(request, user.id, old_thumb)
     record_audit_from_request(
         request, db, action="profile.avatar.update", object_type="user",
         object_id=user.id, after={"media_type": media_type, "size_bytes": size},
@@ -379,12 +415,21 @@ def delete_avatar(
         # 있지도 않은 오류를 본다.
         return {"ok": True, "avatar_url": None}
     old_name = pref.avatar_stored_name
+    old_thumb = pref.avatar_thumb_name
+    # 사진을 지우면 **기본 그림으로 돌아간다.** 골라 뒀던 그림(`avatar_default_key`)은
+    # 그대로 남긴다 — 사진을 지운 것이 그 선택을 취소한다는 뜻은 아니다.
+    pref.avatar_source = AVATAR_SOURCE_DEFAULT
     pref.avatar_stored_name = None
     pref.avatar_media_type = None
+    pref.avatar_thumb_name = None
+    pref.avatar_crop_x = None
+    pref.avatar_crop_y = None
+    pref.avatar_crop_zoom = None
     pref.avatar_updated_at = now
     pref.updated_at = now
     db.flush()
     _unlink_avatar(request, user.id, old_name)
+    _unlink_avatar(request, user.id, old_thumb)
     record_audit_from_request(
         request, db, action="profile.avatar.delete", object_type="user", object_id=user.id,
     )
@@ -429,8 +474,13 @@ def serve_avatar(
     pref = service.get_preference(db, user_id)
     if pref is None or not pref.avatar_stored_name:
         raise NotFoundError("프로필 사진을 찾을 수 없습니다.")
+    # **표시용이 있으면 그것을 준다.** 원본은 다시 자를 때만 쓴다 — 매번 원본을 보내면
+    # 20px 목록 한 줄에 몇 MB 가 실린다. 0019 이전에 올린 사진에는 표시용이 없으므로
+    # 그때는 원본으로 떨어진다(다음에 사진을 바꾸면 그때 생긴다).
+    serving_thumb = bool(pref.avatar_thumb_name)
     path = uploads.attachment_path(
-        request.app.state.settings.data_dir, user_id, pref.avatar_stored_name,
+        request.app.state.settings.data_dir, user_id,
+        pref.avatar_thumb_name if serving_thumb else pref.avatar_stored_name,
         namespace=uploads.NS_AVATAR,
     )
     if path is None:
@@ -438,7 +488,10 @@ def serve_avatar(
     # nosniff + inline. 서버가 판정·저장한 media_type 만 신뢰한다. 실행 불가.
     return FileResponse(
         str(path),
-        media_type=pref.avatar_media_type or "application/octet-stream",
+        media_type=(
+            avatar_image.OUTPUT_MEDIA_TYPE if serving_thumb
+            else (pref.avatar_media_type or "application/octet-stream")
+        ),
         headers={
             "Content-Disposition": "inline",
             "X-Content-Type-Options": "nosniff",

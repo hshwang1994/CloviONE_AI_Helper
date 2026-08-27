@@ -4,6 +4,7 @@ import IconButton from "@mui/material/IconButton";
 import TableCell from "@mui/material/TableCell";
 import FilterListRoundedIcon from "@mui/icons-material/FilterListRounded";
 import { CONTROL, FONT_SIZE, remPx } from "./theme.js";
+import { HEADER_ALIGN } from "./columnTypes.js";
 import { ColumnFilterPopover } from "./columnFilter.jsx";
 
 /* 이름 자리 — 넘치면 한 줄로 자르고 전체는 `th` 의 `title` 에 남는다. */
@@ -33,8 +34,25 @@ const HEADER_ICON_SX = {
  * 정렬 화살표는 onSort 가 있을 때만, 필터 단추는 onFilter 가 있을 때만 그린다.
  * 호출부가 안 넘기면 예전 머리글과 같다. */
 
+/* 🔴 머리글 이름은 **언제나 칸 가운데**다 — 몸통 칸의 정렬과 따로다 (지시 6 · 13).
+ *
+ * 격자를 쓰는 이유가 여기 있다. `justifyContent: center` 만 주면 정렬 화살표와 필터
+ * 단추가 같은 줄을 차지하는 만큼 이름이 왼쪽으로 밀린다 — 조작기가 있는 열과 없는 열의
+ * 이름이 서로 다른 자리에 서고, 그 어긋남은 열마다 다르다.
+ *
+ * `1fr auto 1fr` 은 가운데 칸을 **컨테이너의 정중앙**에 세운다. 이름이 그 칸에 들어가고
+ * 조작기는 오른쪽 1fr 칸 안에서 왼쪽에 붙는다 — 보기에는 예전처럼 이름 바로 옆이지만,
+ * 이름의 중심은 조작기가 몇 개든 안 움직인다.
+ *
+ * 몸통 칸의 정렬을 안 받는다. 예전에는 호출부가 `align` 을 넘겼는데, 그러면 왼쪽에 붙은
+ * 이름 옆에 가운데 이름이 서고 그 옆에 오른쪽 이름이 서서 머리글 줄을 한 줄로 못 읽었다. */
+const HEADER_GRID_SX = {
+  display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center",
+  minWidth: 0, maxWidth: "100%", overflow: "hidden",
+};
+
 export function TableHeaderCell({
-  column, sort, onSort, filterValue, onFilter, filterOptions, entityOptions, cellSx, colRole, align,
+  column, sort, onSort, filterValue, onFilter, filterOptions, entityOptions, cellSx, colRole,
 }) {
   const c = column || {};
   const sortable = !!(c.sortable && onSort);
@@ -47,7 +65,7 @@ export function TableHeaderCell({
   return (
     <TableCell
       scope="col"
-      align={align}
+      align={HEADER_ALIGN}
       data-col-role={colRole}
       /* 이름이 잘렸을 때 전체를 볼 길 — 본문 칸이 `title` 로 하는 것과 같다.
          도움말이 있으면 그것이 이긴다(그쪽이 더 많은 것을 말한다). */
@@ -60,7 +78,9 @@ export function TableHeaderCell({
           넘어 **옆 머리글 위에 그려졌다**. 「카테고리」·「상태」·「작성자」가 한 자리에서
           겹쳐 읽을 수 없던 것이 그것이다. 이름은 잘리고 정렬 화살표·필터 단추는 안 줄어든다
           — 조작기가 먼저 사라지면 그 열은 정렬도 필터도 할 수 없게 된다. */}
-      <Box sx={{ display: "flex", alignItems: "center", gap: 0.25, minWidth: 0, maxWidth: "100%", overflow: "hidden" }}>
+      <Box sx={HEADER_GRID_SX}>
+        {/* 왼쪽 저울추. 오른쪽 조작기 칸과 같은 무게(1fr)라 가운데 칸이 정중앙에 선다. */}
+        <Box aria-hidden="true" />
         {sortable ? (
           <Box
             component="button"
@@ -68,7 +88,7 @@ export function TableHeaderCell({
             onClick={() => onSort(c.key)}
             sx={{
               font: "inherit", color: "inherit", border: 0, background: "none", p: 0,
-              display: "inline-flex", alignItems: "center", gap: 0.5, cursor: "pointer",
+              display: "inline-flex", alignItems: "center", cursor: "pointer",
               whiteSpace: "nowrap", minWidth: 0, maxWidth: "100%", overflow: "hidden",
               ...HEADER_CONTROL_SX,
               "&:hover": { color: "text.primary" },
@@ -76,22 +96,27 @@ export function TableHeaderCell({
             }}
           >
             <Box component="span" sx={LABEL_SX}>{c.label}</Box>
-            <Box component="span" aria-hidden="true" sx={{ flexShrink: 0, fontSize: FONT_SIZE.caption, opacity: active ? 1 : 0.35 }}>
-              {dir === "desc" ? "\u2193" : dir === "asc" ? "\u2191" : "\u2195"}
-            </Box>
           </Box>
-        ) : (c.label ? <Box component="span" sx={LABEL_SX}>{c.label}</Box> : null)}
-        {filterable ? (
-          <IconButton
-            size="small"
-            aria-label={`${c.label || "열"} 필터`}
-            aria-pressed={filtered}
-            onClick={(e) => setAnchor(e.currentTarget)}
-            sx={{ flexShrink: 0, color: filtered ? "primary.main" : "text.secondary", ...HEADER_ICON_SX }}
-          >
-            <FilterListRoundedIcon fontSize="inherit" />
-          </IconButton>
-        ) : null}
+        ) : (c.label ? <Box component="span" sx={LABEL_SX}>{c.label}</Box> : <Box aria-hidden="true" />)}
+        {/* 조작기는 이름의 중심을 안 민다 — 오른쪽 칸 안에서 왼쪽에 붙어 이름 바로 옆에 선다. */}
+        <Box sx={{ display: "inline-flex", alignItems: "center", gap: 0.25, justifySelf: "start", minWidth: 0 }}>
+          {sortable ? (
+            <Box component="span" aria-hidden="true" sx={{ flexShrink: 0, pl: 0.5, fontSize: FONT_SIZE.caption, opacity: active ? 1 : 0.35 }}>
+                {dir === "desc" ? "\u2193" : dir === "asc" ? "\u2191" : "\u2195"}
+            </Box>
+          ) : null}
+          {filterable ? (
+            <IconButton
+              size="small"
+              aria-label={`${c.label || "열"} 필터`}
+              aria-pressed={filtered}
+              onClick={(e) => setAnchor(e.currentTarget)}
+              sx={{ flexShrink: 0, color: filtered ? "primary.main" : "text.secondary", ...HEADER_ICON_SX }}
+            >
+              <FilterListRoundedIcon fontSize="inherit" />
+            </IconButton>
+          ) : null}
+        </Box>
       </Box>
       {filterable ? (
         <ColumnFilterPopover

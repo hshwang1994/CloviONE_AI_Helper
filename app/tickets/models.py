@@ -231,6 +231,33 @@ class Ticket(OrgScopedMixin, TimestampMixin, UUIDPrimaryKeyMixin, Base):
     )
     backlog_rank: Mapped[Decimal | None] = mapped_column(Numeric())
 
+    # `board_rank` 는 `backlog_rank` 와 **다른 목록의 순서**다. 백로그는 한 줄이고
+    # 판은 열마다 한 줄이라, 한 컬럼으로 두면 카드를 판에서 옮긴 순간 백로그 순서가
+    # 함께 흐트러진다 — 그 흐트러짐은 오류를 안 내고 다음 계획 회의에서야 보인다.
+    board_rank: Mapped[Decimal | None] = mapped_column(Numeric())
+
+    # ── Signal — 상태와 직교하는 축 (D-349) ─────────────────────────────────
+    #
+    # 「진행 중이면서 막혀 있다」를 적을 자리다. 예전에는 `이슈` 가 Status 여서 그
+    # 티켓이 자기가 어디까지 왔는지를 잃었다.
+    #
+    # **`지연` 은 여기 없다.** 마감일과 종료 여부에서 계산한다
+    # (`app/work/workflow.py::is_overdue`). 컬럼으로 두면 어제 지연이던 티켓이 오늘
+    # 마감을 미뤄도 계속 지연으로 남고, 아무도 그 값을 지우러 오지 않는다.
+    issue_flag: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false", index=True
+    )
+    blocked_flag: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false", index=True
+    )
+    # 왜 막혔는가. 이유 없는 차단은 풀 수 없다 — 「누가 무엇을 끝내야 하는가」를
+    # 모르면 그 카드는 회의 때마다 같은 질문을 다시 받는다.
+    blocked_reason: Mapped[str | None] = mapped_column(Text)
+
+    # 언제 끝났는가. `updated_at` 으로 대신할 수 없다 — 완료한 뒤에 제목만 고쳐도
+    # 그 값이 움직여서 번다운의 「그날 끝난 일」이 뒤로 밀린다.
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime, index=True)
+
     __table_args__ = (
         CheckConstraint("seq IS NULL OR seq > 0", name="ck_tickets_seq_positive"),
         # **번호와 표시 이름은 함께 있거나 함께 없다.** 그리고 번호가 있으면 소속

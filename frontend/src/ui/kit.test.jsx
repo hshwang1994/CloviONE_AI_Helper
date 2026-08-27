@@ -36,8 +36,12 @@ describe("상태 어휘", () => {
     expect(statusText("unmapped")).toBe("미연결");
     expect(statusKind("unmapped")).toBe("warn");   // 회색(중립)이 아니라 실행 가능한 주의 상태다
     expect(statusKind("maintenance")).toBe("warn"); // 점검이 정상(up)보다 안전해 보이면 안 된다
-    expect(statusText("이슈")).toBe("이슈");
-    expect(statusKind("이슈")).toBe("danger");
+    // Workflow Status 여섯 (D-349). 저장값 「진행」의 표시 이름은 「진행 중」이다.
+    expect(statusText("진행")).toBe("진행 중");
+    expect(statusKind("진행")).toBe("info");
+    // 상태값에는 빨강이 없다 — 빨강은 신호(차단됨 · 지연)가 쓴다.
+    expect(statusKind("보류")).toBe("neutral");
+    expect(statusKind("취소")).toBe("neutral");
   });
 
   it("매핑에 없는 값도 원시 식별자로 새지 않는다", () => {

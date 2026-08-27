@@ -15,7 +15,8 @@ import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
 import { useAuth } from "../app/auth.jsx";
 import { useQueryState } from "../lib/useQueryState.js";
 import { DepartmentFilter } from "../ui/filters.jsx";
-import { FilterActions, FilterRow, FilterSurface, ResultLine } from "../ui/FilterBar.jsx";
+import { FilterActions, FilterRow, FilterSurface, ResultLine, ToolbarRow } from "../ui/FilterBar.jsx";
+import { SearchBox } from "../ui/filters.jsx";
 import { useCreateProject, useDeptNames, useProjectDashboard, useProjectList } from "./project-queries.js";
 import {
   NO_HEALTH_CACHE, NO_PROGRESS_CACHE, PROJECT_FORM_FIELDS, PROJECT_STATUS_KO,
@@ -23,6 +24,7 @@ import {
 } from "./project-format.js";
 import { DateCell } from "../ui/cells.jsx";
 import { toggleSort } from "../ui/TableHeaderCell.jsx";
+import { useListMemory } from "../lib/listReturn.js";
 
 /* 프로젝트 목록 — **요약 + 표**.
  *
@@ -52,7 +54,7 @@ import { toggleSort } from "../ui/TableHeaderCell.jsx";
 
 // `dept` 는 부서 필터 (0060 §32). 주소에 두는 이유는 나머지 조건과 같다 — 상세를 보고
 // 돌아왔을 때 풀리면 안 되고, 링크로 "A-1 팀 프로젝트" 를 공유할 수 있어야 한다.
-const PROJECT_SPEC = { page: 1, archived: false, dept: "", sort: "name", order: "asc" };
+const PROJECT_SPEC = { page: 1, q: "", archived: false, dept: "", sort: "name", order: "asc" };
 const PAGE_RESET = { reset: ["page"] };
 
 
@@ -60,6 +62,9 @@ const PAGE_RESET = { reset: ["page"] };
 export function projectListQuery(filters) {
   const p = new URLSearchParams();
   if (filters.archived) p.set("include_archived", "true");
+  // 검색은 티켓·게시판과 **같은 이름의 조건**이다(`q`). 화면마다 다른 키를 쓰면 공용
+  // 탐색 줄이 화면별 번역표를 갖게 된다.
+  if (filters.q) p.set("q", filters.q);
   // 주소 키(`dept`)와 API 키(`department_id`)가 다르다 — 옮겨 적는 자리는 여기 하나다.
   if (filters.dept) p.set("department_id", filters.dept);
   if (filters.sort && (filters.sort !== "name" || filters.order !== "asc")) {
@@ -209,7 +214,7 @@ function columns(deptNames) {
       ) : p.health_score + "점"),
     },
     {
-      key: "created_at", label: "추가", type: "date", minWidth: "8rem", sortable: true,
+      key: "created_at", label: "생성 일자", type: "date", minWidth: "8rem", sortable: true,
       render: (p) => <DateCell value={p.created_at} />,
     },
   ];
@@ -217,6 +222,7 @@ function columns(deptNames) {
 
 export function Projects() {
   const nav = useNavigate();
+  useListMemory("/projects");
   const toast = useToast();
   const auth = useAuth();
   const [filters, setFilters] = useQueryState(PROJECT_SPEC, PAGE_RESET);
@@ -241,6 +247,9 @@ export function Projects() {
     ),
     [filters]
   );
+  /* 검색어 확정은 `SearchBox` 가 디바운스해서 부른다. **참조가 고정**돼야 한다 —
+     매 렌더마다 새로 만들면 React.memo 가 깨져 글자마다 목록이 다시 그려진다. */
+  const commitSearch = React.useCallback((next) => setFilters({ q: next }), [setFilters]);
   const qs = projectListQuery(filters).toString();
   const q = useProjectList(qs);
   const dashboard = useProjectDashboard(filters.dept);
@@ -294,10 +303,8 @@ export function Projects() {
         actions={canWrite ? (
           <Button variant="primary" onClick={() => setCreating(true)}>새 프로젝트</Button>
         ) : null}
+        description="내가 볼 수 있는 프로젝트가 지금 어디까지 왔는지 봅니다."
       />
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 2.5, ...KO_WORD_BREAK }}>
-        내가 볼 수 있는 프로젝트의 상태, 기간, 진행률, Health를 한눈에 봅니다.
-      </Typography>
 
       <Summary query={dashboard} />
 
@@ -306,6 +313,17 @@ export function Projects() {
           「없앴다」고 적은 `/policies` 판(0.43)보다 오히려 나빴다. 나머지 넷과 같은 부품을 쓴다:
           scope(부서)가 먼저, 보기 방식(보관 포함)은 흐름 끝, 건수는 필터와 목록 **사이**. */}
       <FilterSurface>
+        {/* 탐색 줄의 구조가 티켓·게시판과 **같다** (지시 2 · 8): 위 줄이 「무엇을
+            찾는가」(검색), 아래 줄이 「무엇으로 좁히는가」(부서·보관). 예전에는 이 화면만
+            검색이 아예 없어서, 프로젝트가 스무 개를 넘으면 이름을 눈으로 훑어야 했다. */}
+        <ToolbarRow>
+          <SearchBox
+            value={filters.q}
+            onSearch={commitSearch}
+            placeholder="프로젝트 이름, 코드 검색"
+            ariaLabel="프로젝트 검색"
+          />
+        </ToolbarRow>
         <FilterRow>
           {/* 후보는 이 응답이 들고 온다 — 서버가 계산한 내 조회 범위다. */}
           <DepartmentFilter

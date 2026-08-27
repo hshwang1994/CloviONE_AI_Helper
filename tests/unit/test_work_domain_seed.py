@@ -22,9 +22,12 @@ from app.work.models import TicketStatus
 
 pytestmark = pytest.mark.unit
 
+# 어휘를 **마지막으로 쓴** 마이그레이션을 본다. 0003 이 처음 심었지만 0018 이 다시
+# 썼으므로(Status 와 Signal 분리 · D-349), 지금 「이 파일이 심을 값」을 말하는 것은 0018 이다.
+# 여기를 0003 에 둔 채로 두면 검사는 초록인데 새 설치의 어휘는 옛 여섯 종이 된다.
 MIGRATION = (
     pathlib.Path(__file__).resolve().parents[2]
-    / "alembic" / "versions" / "0003_work_domain.py"
+    / "alembic" / "versions" / "0018_status_signal_axis.py"
 )
 
 

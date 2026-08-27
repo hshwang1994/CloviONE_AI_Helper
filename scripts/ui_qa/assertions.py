@@ -25,8 +25,8 @@ Assertion classes (these strings are what ``--fail-on`` accepts):
 
   equal_column_split      폭은 똑같이 나눴는데 두 트랙이 요구하는 폭은 배 이상 다르다
   column_width_vs_content 한 열은 접히는데 다른 열은 절반이 비어 있다(폭 1200 이상)
-  header_cell_alignment_mismatch  `th` 정렬이 그 열 `td` 들의 정렬과 다르다
-  numeric_alignment       숫자 열이 우정렬이 아니거나 `tabular-nums` 가 없다
+  header_cell_alignment_mismatch  `th` 이름이 가운데가 아니다 (머리글 정렬 계약)
+  numeric_alignment       숫자 열이 가운데 정렬이 아니거나 `tabular-nums` 가 없다
   isolated_control_row    컨트롤 하나가 줄을 통째로 쓰면서 그 줄의 절반 넘게 비운다(고아 줄)
   control_baseline_mismatch  한 줄 안에서 컨트롤 높이(같은 종류)나 중심선이 어긋난다
   oversized_empty_surface 큰 상자가 거의 비었거나 내용이 왼쪽에만 몰려 있다
@@ -1088,27 +1088,33 @@ PROBE_JS = r"""
   }
 
   // --- 3) header_cell_alignment_mismatch ------------------------------------
-  /* `th` 정렬과 그 열 `td` 들의 최빈 정렬이 다르면 언제나 결함이다 — 머리와 몸이 다른 축에
-   * 붙어 눈이 열을 따라 내려가지 못한다. 억제 수단을 두지 않는다.
+  /* 🔴 **계약이 바뀌었다** (2026-08-27 지시 6·13 · `ui/columnTypes.js`).
    *
-   * 실제로 그런 경로가 있다: kit.css 는 둘 다 left 로 두는데 kit.jsx 의 DataTable 이
-   * head/body 에 `align` 을 따로 넘겨서, 한쪽만 설정되면 그대로 어긋난다. */
+   * 예전 계약은 「머리와 몸이 같은 축」이었다. 지금은 축이 둘로 갈렸다:
+   *
+   *   머리글 이름  **언제나 가운데.** 열마다 다르면 머리글 줄을 한 줄로 못 읽는다
+   *   몸통 칸      값의 의미대로 — 읽는 것(제목·이름·설명)은 왼쪽, 나머지는 가운데
+   *
+   * 그래서 이 프로브가 재는 것도 바뀐다: 「둘이 같은가」가 아니라 **「머리가 가운데인가」**다.
+   * 옛 판정을 그대로 두면 제목 열이 있는 표가 전부 빨개지는데, 그것은 제품이 아니라
+   * 검사가 옛 계약을 들고 있는 것이다. */
   out.headerCellAlignment = [];
   out.headerCellAlignmentChecked = 0;
   for (const c of tableColumns) {
     if (out.headerCellAlignment.length >= MAX) break;
-    if (c.aligns.length < 2 || !c.bodyAlign) continue;
+    if (!c.headerAlign) continue;
     out.headerCellAlignmentChecked++;
-    if (c.bodyAlign === c.headerAlign) continue;
+    if (c.headerAlign === 'center') continue;
     out.headerCellAlignment.push({
       selector: cssPath(c.th), column: c.header,
-      header: c.headerAlign, body: c.bodyAlign,
-      bodyShare: Math.round(c.bodyAlignShare * 100),
+      header: c.headerAlign, body: c.bodyAlign || '(없음)',
+      bodyShare: Math.round((c.bodyAlignShare || 0) * 100),
     });
   }
 
   // --- 4) numeric_alignment -------------------------------------------------
-  /* 숫자 열은 우정렬 + tabular-nums 여야 자릿수가 세로로 맞고, 그래야 값을 **비교** 할 수 있다.
+  /* 숫자 열은 **가운데 + tabular-nums** 다 (2026-08-27 지시 6·13). 우정렬에서 옮겼고
+   * 자릿수 고정은 그대로 남는다 — 그것이 이제 유일한 세로 비교 수단이다.
    * 억제 수단을 두지 않는다.
    *
    * 오탐의 근원은 '숫자처럼 생겼지만 숫자가 아닌 것' 이다. 티켓번호·포트·버전은 크기를
@@ -1142,13 +1148,13 @@ PROBE_JS = r"""
     const scs = getComputedStyle(sample);
     const tabular = (scs.fontVariantNumeric || '').indexOf('tabular-nums') >= 0
       || (scs.fontFeatureSettings || '').indexOf('tnum') >= 0;
-    const right = c.bodyAlign === 'right';
-    if (right && tabular) continue;
+    const centered = c.bodyAlign === 'center';
+    if (centered && tabular) continue;
     out.numericAlignment.push({
       selector: cssPath(sample), column: c.header,
       align: c.bodyAlign, tabular: tabular,
       numericShare: Math.round((numeric / texts.length) * 100),
-      reason: right ? 'tabular-nums 가 없다' : (tabular ? '우정렬이 아니다' : '우정렬도 tabular-nums 도 없다'),
+      reason: centered ? 'tabular-nums 가 없다' : (tabular ? '가운데 정렬이 아니다' : '가운데 정렬도 tabular-nums 도 없다'),
     });
   }
 
@@ -2320,8 +2326,8 @@ def classify(probe: dict, *, expected_theme: str, viewport_width: int, final_url
         probe.get("headerCellAlignment") or [], probe.get("headerCellAlignmentChecked", 0),
         lambda s: (f"{s['selector']} «{s['column']}» 머리는 {s['header']} 인데"
                    f" 몸은 {s['body']} ({s['bodyShare']}%)"),
-        "머리와 몸이 다른 축에 붙어 눈이 열을 따라 내려가지 못한다",
-        "본문 셀이 2개 이상인 표 열이 이 화면에 없다",
+        "머리글 이름이 열마다 다른 자리에 서면 머리글 줄을 한 줄로 못 읽는다 — 언제나 가운데다",
+        "머리글 칸이 있는 표가 이 화면에 없다",
     )
 
     _advisory(
@@ -2329,7 +2335,7 @@ def classify(probe: dict, *, expected_theme: str, viewport_width: int, final_url
         probe.get("numericAlignment") or [], probe.get("numericAlignmentChecked", 0),
         lambda s: (f"{s['selector']} «{s['column']}» (숫자 {s['numericShare']}%)"
                    f" 정렬={s['align']} tabular={s['tabular']} — {s['reason']}"),
-        "자릿수가 세로로 안 맞으면 값을 비교할 수 없다 — 우정렬 + tabular-nums 가 있어야 한다",
+        "자릿수가 세로로 안 맞으면 값을 비교할 수 없다 — 가운데 정렬 + tabular-nums 가 있어야 한다",
         "숫자 열(비어있지 않은 셀의 80% 이상이 숫자)이 이 화면에 없다",
     )
 

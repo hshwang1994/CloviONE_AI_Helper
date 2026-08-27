@@ -19,10 +19,13 @@ pytestmark = pytest.mark.unit
 TODAY = "2026-08-03"  # 월요일
 
 
-def t(tid, status="진행", due=None, est=None, act=None, priority=None):
+def t(tid, status="진행", due=None, est=None, act=None, priority=None,
+      issue=False, blocked=False):
     return {
         "id": f"page-{tid}", "tid": tid, "title": f"티켓 {tid}", "status": status,
         "due": due, "est_wd": est, "act_wd": act, "priority": priority,
+        # 막힘은 상태가 아니라 신호다 (D-349).
+        "issue": issue, "blocked": blocked,
     }
 
 
@@ -105,7 +108,7 @@ def test_workload_sums_only_count_the_right_tickets():
 def test_totals_are_mutually_consistent():
     tickets = [
         t(1, "진행", TODAY),
-        t(2, "이슈", "2026-08-04"),
+        t(2, "진행", "2026-08-04", blocked=True),
         t(3, "완료", "2026-08-01"),
         t(4, "취소", "2026-08-02"),
         t(5, "진행", None),

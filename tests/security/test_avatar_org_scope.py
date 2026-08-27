@@ -23,14 +23,15 @@ from __future__ import annotations
 
 import pytest
 
+from tests.fakes.images import png_bytes
+
 pytestmark = pytest.mark.security
 
-# 최소 PNG. 형식 판정은 확장자가 아니라 이 앞 8바이트가 한다(app/core/uploads.py).
-PNG_BYTES = (
-    b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06"
-    b"\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\nIDATx\x9cc\x00\x01\x00\x00\x05"
-    b"\x00\x01\r\n-\xb4\x00\x00\x00\x00IEND\xaeB`\x82"
-)
+# **진짜 사진**이다. 서버가 이제 디코드해서 다시 그리므로(app/profiles/avatar_image.py)
+# 손으로 적은 1×1 PNG 는 「너무 작다」로 거절된다 — 그 상태로 두면 이 파일의 모든 시험이
+# 업로드 단계에서 죽고, 죽은 시험은 조직 판정에 대해 아무것도 증명하지 못한다.
+pytest.importorskip("PIL", reason="Pillow 가 없으면 아바타 업로드 경로 자체가 없다")
+PNG_BYTES = png_bytes()
 
 
 def _upload_avatar_as(client, login_as, email: str) -> str:
@@ -97,7 +98,11 @@ def test_a_teammate_in_another_department_still_gets_the_photo(
     assert r.status_code == 200, (
         f"같은 조직 다른 팀 사람의 사진이 안 보인다({r.status_code}) — 부서로 좁히면 안 된다"
     )
-    assert r.content == PNG_BYTES
+    # 서버가 다시 그린 표시용 사진이라 올린 바이트와 같지 않다. 여기서 재는 것은
+    # 「사진이 나오는가」이므로 실제 이미지가 왔는지만 본다 — 원본과 같은지는 이 파일의
+    # 질문이 아니다(그쪽은 `tests/unit/test_avatar_image.py` 가 본다).
+    assert r.headers["content-type"].startswith("image/")
+    assert len(r.content) > 0
 
 
 def test_an_archived_accounts_avatar_is_still_hidden(

@@ -380,7 +380,10 @@ describe("프로젝트 목록 — 표", () => {
     await screen.findByText("배포 자동화");
 
     expect(screen.queryByText(/Notion 값을 나란히/)).toBeNull();
-    expect(screen.getByText(/한눈에 봅니다/)).toBeInTheDocument();
+    /* 설명은 **한 문장**이고 나열이 아니다(CLAUDE.md §10). 예전 문구는 「상태, 기간,
+       진행률, Health를 한눈에 봅니다」라 화면이 무엇을 해 주는지가 아니라 열 이름을
+       읽어 주고 있었다. 자리는 `PageHeader` 의 `description` 이다(지시 21). */
+    expect(screen.getByText(/지금 어디까지 왔는지 봅니다/)).toBeInTheDocument();
   });
 });
 

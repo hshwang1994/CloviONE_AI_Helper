@@ -49,7 +49,6 @@ from app.sprints.service import default_sprint_window
 # 새로 정의하면 Notion 의 상태 이름이 바뀔 때 고칠 자리가 하나 더 늘어난다.
 STATUS_DONE = "완료"
 STATUS_CANCELLED = "취소"
-STATUS_BLOCKED = "이슈"
 TERMINAL = frozenset({STATUS_DONE, STATUS_CANCELLED})
 
 # 응답에 싣는 항목 수 상한. `count` 는 언제나 진짜 총계이고 `items` 만 잘린다 - 화면이
@@ -143,12 +142,22 @@ class Item:
     status: str | None
     due: str | None
     est_wd: float | None
+    # 상태와 직교하는 신호 (D-349). 「진행 중인데 막혀 있다」가 이 두 값으로 적힌다 —
+    # 예전에는 `status == "이슈"` 여서 그 티켓이 진행 중 칸에서 사라졌다.
+    issue: bool = False
+    blocked: bool = False
 
     def as_dict(self) -> dict:
         return {
             "id": self.id, "tid": self.tid, "key": self.key, "title": self.title,
             "status": self.status, "due": self.due, "est_wd": self.est_wd,
+            "issue": self.issue, "blocked": self.blocked,
         }
+
+    @property
+    def stuck(self) -> bool:
+        """막혀 있는가. `app/home/aggregate.py::is_stuck` 와 같은 판정이다."""
+        return bool(self.issue) or bool(self.blocked)
 
 
 def item_from_ticket(row) -> Item:
@@ -161,6 +170,8 @@ def item_from_ticket(row) -> Item:
         status=row.status,
         due=iso_date(row.due_date),
         est_wd=row.est_wd,
+        issue=bool(row.issue_flag),
+        blocked=bool(row.blocked_flag),
     )
 
 
@@ -217,14 +228,14 @@ def _by_due(items: list[Item]) -> list[Item]:
 
 
 def build_sections(items: list[Item], week: Week) -> dict:
-    """이번 주 완료 / 진행 중 / 지연 / 이슈 / 다음 주 계획.
+    """이번 주 완료 / 진행 중 / 지연 / 막힌 일 / 다음 주 계획.
 
     창 판정은 **마감일** 기준이다 - 리포트·스프린트·홈이 전부 같은 규칙을 쓴다
     (`app/home/aggregate.py::sprint_progress`). 같은 화면에서 두 숫자가 다른 기준을 쓰면
     사용자는 어느 쪽을 믿어야 할지 알 수 없다.
 
-    칸은 **배타적이지 않다**: '이슈'는 대부분 '진행 중'에도 들어간다. 배타적으로 만들면
-    이슈로 표시한 순간 진행 중 목록에서 사라져 개수가 안 맞는 것처럼 보인다
+    칸은 **배타적이지 않다**: 막힌 일은 대부분 '진행 중'에도 들어간다. 배타적으로 만들면
+    막힘으로 표시한 순간 진행 중 목록에서 사라져 개수가 안 맞는 것처럼 보인다
     (aggregate.bucket_my_tickets 가 같은 판단을 기록한다).
 
     취소는 어느 칸에도 안 들어간다. 진행률이 취소를 분자·분모에서 함께 빼는 것과 같은
@@ -243,10 +254,9 @@ def build_sections(items: list[Item], week: Week) -> dict:
         "delayed": _bucket(_by_due([
             i for i in items if i.due and i.due < week.start and _is_active(i.status)
         ])),
-        # 이슈는 마감과 무관하게 본다 - 막혀 있는 일은 마감이 언제든 이번 주에 말해야 한다.
+        # 막힌 일은 마감과 무관하게 본다 - 마감이 언제든 이번 주에 말해야 한다.
         "issues": _bucket(_by_due([
-            i for i in items
-            if (i.status or "") == STATUS_BLOCKED and _is_active(i.status)
+            i for i in items if i.stuck and _is_active(i.status)
         ])),
         "next_week": _bucket(_by_due(next_week)),
     }
@@ -303,7 +313,7 @@ SECTION_TITLES = (
     ("done", "이번 주 완료"),
     ("in_progress", "진행 중"),
     ("delayed", "지연"),
-    ("issues", "이슈"),
+    ("issues", "막힌 일"),
     ("next_week", "다음 주 계획"),
 )
 

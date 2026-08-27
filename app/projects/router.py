@@ -108,6 +108,9 @@ def list_projects(
     include_archived: bool = Query(default=False),
     # 부서 필터 (0060 §32) — 조회 범위 **안에서만** 좁힌다. 넓히지 못한다.
     department_id: str | None = Query(default=None, max_length=36),
+    # 이름·코드 검색. 티켓 목록과 **같은 이름의 조건**이다 — 화면마다 다른 키를 쓰면
+    # 공용 탐색 줄이 화면별 번역표를 갖게 된다.
+    q: str | None = Query(default=None, max_length=200),
     sort: str | None = Query(default=None, max_length=32),
     order: str | None = Query(default=None, pattern="^(asc|desc)$"),
     principal: Principal = Depends(get_principal),
@@ -119,6 +122,7 @@ def list_projects(
         db,
         visibility_context(db, principal, scope=picked),
         include_archived=include_archived,
+        q=q,
         offset=page.offset,
         limit=page.page_size,
         sort=sort,

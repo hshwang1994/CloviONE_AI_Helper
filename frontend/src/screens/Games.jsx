@@ -390,10 +390,10 @@ export function Games() {
 
   return (
     <div className="c-screen">
-      <PageHeader crumbRoot="팀 공간" area="놀이" title="놀이" actions={createBtn} />
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-        팀원과 실시간으로 같이 하는 게임입니다.
-      </Typography>
+      <PageHeader
+        crumbRoot="팀 공간" area="놀이" title="놀이" actions={createBtn}
+        description="팀원과 실시간으로 같이 하는 게임입니다."
+      />
 
       {list.isError ? (
         <ErrorState error={list.error} onRetry={() => list.refetch()} />
