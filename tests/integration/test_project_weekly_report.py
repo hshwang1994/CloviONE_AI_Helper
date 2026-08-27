@@ -3,10 +3,15 @@
 숫자를 세는 일 자체는 어렵지 않다. 이 기능이 조용히 틀리는 자리는 두 곳이고, 둘 다
 "화면에는 그럴듯한 숫자가 떠 있다" 로 나타나기 때문에 아무도 신고하지 않는다.
 
-1. **주 경계가 스프린트와 갈라지는 것.** 같은 화면 두 개가 서로 다른 주를 '이번 주'라고
+1. **주 경계가 다른 화면과 갈라지는 것.** 같은 화면 두 개가 서로 다른 주를 '이번 주'라고
    부르면 사용자는 둘 중 하나를 거짓말로 받아들인다. 그래서 여기서는 리포트의 창을
-   `/api/sprint/summary` 가 내는 창과 **직접 맞대어** 본다. 상수를 두 곳에 적어 두고
-   비교하면 두 상수가 함께 틀렸을 때 통과한다.
+   **공용 계산기**(`app/sprints/service.py::default_sprint_window`)와 직접 맞대어 본다.
+   상수를 두 곳에 적어 두고 각각 비교하면 두 상수가 함께 틀렸을 때 통과한다.
+
+   예전에는 그 상대가 `/api/sprint/summary` 였다. 지시 4 회차에서 그 API 를 걷었다 —
+   「그 주에 마감인 티켓 묶음」을 스프린트라고 부르던 자리인데, 이제 이 제품에는
+   회차라는 실체가 있다(`sprints` 표 · `app/work/meeting.py`). 맞댈 상대가 API 에서
+   함수로 바뀌었을 뿐, **두 벌이 되는 순간을 잡는다**는 이 시험의 목적은 그대로다.
 
 2. **KST 날짜를 UTC 타임스탬프와 비교하는 것(M4).** 주간 다이제스트가 실제로 이 결함을
    갖고 있다(`app/home/readers.py::documents_changed_since` 는 'YYYY-MM-DD' 라는 KST
@@ -69,7 +74,14 @@ def fake_clock():
     return FakeClock(NOW)
 
 
-def _ticket(db, *, uid, page_id, project_page, status, due, tid=None, est=None):
+def _ticket(db, *, uid, page_id, project_page, status, due, tid=None, est=None, issue=False):
+    """리포트가 읽는 캐시 행 하나.
+
+    `issue` 가 **상태가 아니라 플래그**다 (D-349). 예전에는 `status="이슈"` 였고, 그
+    티켓은 진행 중 칸에서 통째로 사라졌다 — 「진행 중인데 막혀 있다」를 한 칸에 적으려니
+    둘 중 하나를 버릴 수밖에 없었기 때문이다. 지금은 축이 둘이라 같은 티켓이 진행 중
+    칸에도 서고 막힌 일 칸에도 선다.
+    """
     db.add(TicketCache(
         id=uid,
         notion_page_id=page_id,
@@ -79,6 +91,7 @@ def _ticket(db, *, uid, page_id, project_page, status, due, tid=None, est=None):
         status=status,
         due_date=due,
         est_wd=est,
+        issue_flag=issue,
         project_ids=join_names([project_page]),
         project_names="",
         assignee_notion_ids="",
@@ -128,8 +141,9 @@ def world(db, make_user):
             status="완료", due="2026-08-05", tid=101, est=2)
     _ticket(db, uid="w-102", page_id="wp-102", project_page=ALPHA_PAGE,
             status="진행", due="2026-08-06", tid=102, est=3)
+    # 진행 중이면서 이슈가 켜진 티켓. 두 칸에 함께 서는 것이 D-349 의 요점이다.
     _ticket(db, uid="w-103", page_id="wp-103", project_page=ALPHA_PAGE,
-            status="이슈", due="2026-08-07", tid=103, est=1)
+            status="진행", due="2026-08-07", tid=103, est=1, issue=True)
     _ticket(db, uid="w-104", page_id="wp-104", project_page=ALPHA_PAGE,
             status="진행", due="2026-07-30", tid=104, est=1)
     _ticket(db, uid="w-105", page_id="wp-105", project_page=ALPHA_PAGE,
@@ -174,19 +188,24 @@ def _tids(bucket) -> set[int]:
 
 # ── 1. 주 경계는 스프린트와 **같은 한 벌**이어야 한다 ────────────────────────────
 
-def test_the_report_week_is_the_very_same_window_as_the_sprint(client, login_as, world):
-    """리포트의 '이번 주'와 스프린트의 '이번 주'를 **직접 맞대어** 본다.
+def test_the_report_week_is_the_very_same_window_as_the_shared_calculator(
+    client, login_as, world
+):
+    """리포트의 '이번 주'를 **공용 계산기**와 직접 맞대어 본다.
 
-    상수를 두 곳에 적어 놓고 각각 비교하면 두 상수가 함께 틀렸을 때 통과한다. 두 응답을
-    서로 비교해야 주 경계 계산이 두 벌이 된 순간을 잡을 수 있다.
+    상수를 두 곳에 적어 놓고 각각 비교하면 두 상수가 함께 틀렸을 때 통과한다. 응답과
+    계산기를 서로 비교해야 주 경계 계산이 두 벌이 된 순간을 잡을 수 있다 — 홈·비서·
+    리포트가 전부 이 한 함수를 부른다.
     """
+    from app.sprints.service import default_sprint_window
+
     headers = _hdr(login_as)
-    sprint = _get(client, "/api/sprint/summary", headers)["window"]
+    shared = default_sprint_window(date.fromisoformat(WEEK))
     report = _get(client, "/api/projects/weekly-report", headers)["window"]
 
-    assert (report["start"], report["end_exclusive"]) == (
-        sprint["start"], sprint["end_exclusive"]
-    ), f"리포트와 스프린트가 다른 주를 가리킨다: {report} vs {sprint}"
+    assert (report["start"], report["end_exclusive"]) == shared, (
+        f"리포트와 공용 계산기가 다른 주를 가리킨다: {report} vs {shared}"
+    )
     # 그리고 그 창이 실제로 KST 월요일에서 시작하는지도 못박는다(둘 다 틀린 경우 방지).
     assert (report["start"], report["end_exclusive"]) == (WEEK, WEEK_END), report
     assert report["week_of"] == WEEK, report

@@ -313,3 +313,63 @@ class Sprint(OrgScopedMixin, TimestampMixin, UUIDPrimaryKeyMixin, Base):
 # 잃지 않는다. 자리수가 무한히 늘지 않도록 `app/work/rank.py` 가 재조정한다.
 BACKLOG_RANK_TYPE = Numeric()
 BACKLOG_RANK_STEP = Decimal(1024)
+
+
+#: 회의가 남기는 것 둘. **다른 표로 나누지 않는다** — 같은 회의의 같은 목록이고,
+#: 대개 「결정」 바로 아래 그 결정이 만든 「할 일」이 붙는다. 표를 가르면 화면이 둘을
+#: 시간순으로 합칠 방법이 없다.
+DECISION_KIND_DECISION = "decision"
+DECISION_KIND_ACTION = "action"
+DECISION_KINDS: tuple[str, ...] = (DECISION_KIND_DECISION, DECISION_KIND_ACTION)
+
+
+class SprintDecision(TimestampMixin, UUIDPrimaryKeyMixin, Base):
+    """회의에서 정한 것과 그래서 할 일 (지시 4).
+
+    ## 왜 표가 필요한가
+
+    「회의 결과가 화면을 닫으면 사라지지 않게 저장한다」가 요구다. 지금까지 스프린트
+    회의 화면은 **읽기 전용 집계**였다 — 회의에서 정한 것은 어디에도 안 남았고, 다음
+    주에 「지난주에 뭐 하기로 했지」를 물으면 아무도 답할 수 없었다. 티켓 코멘트로
+    대신할 수도 있었지만, 회의의 결정은 **티켓 하나에 안 걸리는 것**이 대부분이다.
+
+    ## 왜 티켓이 아닌가
+
+    할 일이 곧 티켓이면 좋겠지만, 회의에서 나오는 Action 의 절반은 티켓이 될 만한
+    크기가 아니다(「A 팀에 물어본다」). 티켓으로 만들도록 강요하면 사람들은 아무것도
+    안 적는다. 대신 `ticket_id` 를 **선택**으로 두어, 티켓이 될 만한 것은 이어 둔다.
+
+    ## 비우는 칸이 셋이다
+
+    `ticket_id` · `assignee_user_id` · `due_date` 전부 nullable 이다. 회의 중에 다
+    안 정해지기 때문이다 — 필수로 만들면 「담당자 미정」인 결정을 적을 수 없고, 그러면
+    사람들은 그 결정을 아예 안 적는다.
+    """
+
+    __tablename__ = "sprint_decisions"
+
+    sprint_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("sprints.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    kind: Mapped[str] = mapped_column(String(16), nullable=False, default=DECISION_KIND_DECISION)
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+    # 티켓이 지워지면 이 줄은 남되 연결만 끊는다 — 결정 자체는 회의의 기록이라, 걸려
+    # 있던 티켓이 사라졌다고 함께 사라지면 회의록에 구멍이 난다.
+    ticket_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("tickets.id", ondelete="SET NULL"), index=True
+    )
+    assignee_user_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("users.id", ondelete="SET NULL"), index=True
+    )
+    due_date: Mapped[date | None] = mapped_column(Date)
+    done: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # 누가 적었는가. 회의록은 사람이 쓴 글이라 저자가 남아야 나중에 물어볼 수 있다.
+    author_user_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("users.id", ondelete="SET NULL")
+    )
+
+    __table_args__ = (
+        CheckConstraint(_in_list("kind", DECISION_KINDS), name="ck_sprint_decisions_kind"),
+        # 회의록은 적은 순서대로 읽는다. 회차별로 시간순 조회가 유일한 접근 패턴이다.
+        Index("ix_sprint_decisions_feed", "sprint_id", "created_at"),
+    )

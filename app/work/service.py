@@ -43,7 +43,7 @@ from app.authz.visibility import (
 )
 from app.core.dates import iso_date, parse_date
 from app.core.errors import ConflictError, NotFoundError, ValidationAppError
-from app.core.models_base import utcnow
+from app.core.models_base import split_names, utcnow
 from app.projects.models import Project
 from app.tickets.models import Ticket, api_page_id
 from app.trash import repository as trash_repo
@@ -149,35 +149,132 @@ def _drop_trashed(db: Session, tickets: list[Ticket]) -> list[Ticket]:
     return [t for t in tickets if api_page_id(t) not in trashed]
 
 
-def _card(ticket: Ticket) -> dict:
+def _card(ticket: Ticket, *, names: dict[str, str] | None = None) -> dict:
     """판에 그리는 카드 한 장. 목록 API 와 **다른 모양**인 이유는 목적이 다르기 때문이다.
 
     목록은 표라서 열이 많고, 판은 카드라서 한 장에 다섯 줄이 최대다. 같은 dict 를
     쓰면 판이 안 쓰는 필드까지 매번 실려 나간다.
+
+    ## 무엇이 늘었나 (지시 5 · D-349)
+
+    신호 둘(`issue` · `blocked`)과 사람(`assignee_*`)과 프로젝트 이름이다. 셋 다 카드가
+    **실제로 그리는 것**이라, 없으면 화면이 카드마다 상세를 다시 부르거나(N+1) 아예
+    안 그린다. `지연` 은 여기 없다 — 오늘이 며칠인지에 달린 값이라 화면이 그 자리에서
+    판정한다(`frontend/src/lib/ticketSignals.js`).
+
+    `names` 는 담당자 토큰 → **사람 조각** 맵이다(`_people`). 카드마다 조회하면 판 한
+    장에 질의가 이백 번 난다 — 부르는 쪽이 한 번 만들어 넘긴다.
     """
+    tokens = [t for t in split_names(ticket.assignee_notion_ids) if t]
+    people = [(names or {}).get(t) for t in tokens]
+    people = [p for p in people if p]
+    project_names = [n for n in split_names(ticket.project_names) if n]
     return {
         "id": ticket.id,
         "page_id": api_page_id(ticket),
         "key": display_key(ticket),
         "title": ticket.title,
         "status": ticket.status,
-        "category": workflow.category_of(ticket.status),
+        # 「상태가 어느 갈래인가」다(OPEN · IN_PROGRESS · DONE · CANCELED). 이름이
+        # `category` 였는데 티켓에는 **같은 이름의 자기 필드**가 따로 있어(사람이 적는
+        # 분류) 빠른 수정 모달이 이 값을 그 칸에 그대로 넣을 뻔했다. 이름을 갈라 둔다.
+        "status_category": workflow.category_of(ticket.status),
         "priority": ticket.priority,
+        "difficulty": ticket.difficulty,
         "due": iso_date(ticket.due_date),
         "est_wd": ticket.est_wd,
+        # 아래 넷은 **빠른 수정**이 여는 폼이 그리는 값이다(지시 5). 없으면 모달이 이미
+        # 있는 값을 빈칸으로 보여 주고, 사용자는 자기가 안 지운 값이 지워졌다고 읽는다.
+        "act_wd": ticket.act_wd,
+        "start": iso_date(ticket.start_date),
+        "category": ticket.category,
         "sprint_id": ticket.sprint_id,
         "rank": str(ticket.backlog_rank) if ticket.backlog_rank is not None else None,
+        "board_rank": str(ticket.board_rank) if ticket.board_rank is not None else None,
         "version": ticket.version,
+        # 여러 프로젝트가 걸린 판에서는 카드가 자기 프로젝트를 말해야 한다(지시 §2.4).
+        "project_uid": ticket.project_uid,
+        "project": project_names[0] if project_names else "",
+        # 담당자는 **토큰이 아니라 사람**으로 나간다. 원본 소스 id 는 절대 안 싣는다(§12.3).
+        # 카드가 얼굴을 그려야 해서(지시 6) 이름만으로는 모자란다 — 이름을 씨앗으로 쓰면
+        # 개명한 사람의 기본 아바타가 바뀌고, 동명이인은 같은 얼굴을 받는다.
+        "assignees": people,
+        "assignee_names": [p["display_name"] for p in people if p.get("display_name")],
+        "assignee_user_ids": [p["user_id"] for p in people if p.get("user_id")],
+        # 해석 못 한 담당자가 몇인가. 이름이 빈 카드를 「담당자 없음」으로 읽지 않게 한다.
+        "assignee_tokens": len(tokens),
+        # Signal — 상태와 직교하는 축 (D-349).
+        "issue": bool(ticket.issue_flag),
+        "blocked": bool(ticket.blocked_flag),
+        "blocked_reason": ticket.blocked_reason,
     }
 
 
+def _people(db: Session) -> dict[str, dict]:
+    """담당자 토큰 → 카드가 그릴 사람 조각. **한 번만 만든다.**
+
+    카드마다 조회하면 판 한 장에 질의가 이백 번 난다. 여기서는 두 번이다 — 활성 사용자
+    해석표 한 번(`load_display_maps`)과 아바타 한 번(`avatar_map`).
+
+    조각에 `user_id` 를 넣는 이유는 아바타 때문이다(지시 6). 기본 아바타의 씨앗은
+    **UUID** 라, 이름을 씨앗으로 쓰면 개명한 사람의 얼굴이 바뀌고 동명이인이 같은 얼굴을
+    받는다. 소스 토큰은 안 나간다(§12.3) — 나가는 것은 앱 user_id 다.
+    """
+    from app.core.people import avatar_map
+    from app.reports.service import load_display_maps
+
+    maps = load_display_maps(db)
+    avatars = avatar_map(db, list(maps.id_to_user.values()))
+    out: dict[str, dict] = {}
+    for token, user_id in maps.id_to_user.items():
+        art = avatars.get(user_id) or {}
+        out[token] = {
+            "user_id": user_id,
+            "display_name": maps.id_to_name.get(token, ""),
+            "avatar_url": art.get("url"),
+            "avatar_default_key": art.get("default_key"),
+        }
+    return out
+
+
+def _matches_assignee(ticket: Ticket, token: str | None) -> bool:
+    if not token:
+        return True
+    return token in split_names(ticket.assignee_notion_ids)
+
+
 def board(
-    db: Session, user: User, *, project_id: str | None = None, sprint_id: str | None = None
+    db: Session,
+    user: User,
+    *,
+    project_id: str | None = None,
+    sprint_id: str | None = None,
+    assignee_token: str | None = None,
+    blocked_only: bool = False,
+    today: date | None = None,
 ) -> dict:
     """칸반 한 판. 열은 상태 어휘가 정하고 순서도 거기서 온다.
 
     모르는 상태(어휘에 없는 값)는 **버리지 않고 따로 모은다.** 버리면 그 티켓이 어느
     화면에도 안 나타나고, 안 나타나는 티켓은 아무도 못 고친다.
+
+    ## 열이 셋으로 갈린다 (지시 5 · D-349)
+
+    여섯이 전부 열이 되면 판이 화면 폭을 넘고, 매일 보는 넷이 매일 안 보는 둘 때문에
+    좁아진다. 어느 상태가 어디에 서는가는 어휘가 안다(`workflow.board_placement`) —
+    화면이 상태 이름을 적어 열을 고르면 어휘가 바뀐 날 그 화면만 옛 목록으로 남는다.
+
+      column     기본 실행 열 (계획 · 진행 중 · 검증 · 완료)
+      collapsed  접힌 칸 (보류). 펴면 보인다
+      hidden     기본 판에서 숨는다 (취소). Filter 로만 본다
+
+    **신호 때문에 카드를 다른 열로 옮기지 않는다.** 차단된 진행 중 티켓은 진행 중 열에
+    있고 카드가 신호를 단다 — 옮기면 「지금 무엇이 진행 중인가」에 답이 둘이 된다.
+
+    ## 요약은 판이 센다
+
+    화면이 열의 카드 수를 더해서 세면 **잘린 열**(`BOARD_COLUMN_LIMIT`)에서 조용히
+    틀린다. 여기서 자르기 전에 세고, 신호 셋은 열과 무관하게 판 전체에서 센다.
     """
     stmt = _visible_tickets_stmt(db, user)
     if project_id:
@@ -185,33 +282,46 @@ def board(
     if sprint_id:
         stmt = stmt.where(Ticket.sprint_id == sprint_id)
     stmt = stmt.where(Ticket.notion_missing_at.is_(None)).order_by(
-        Ticket.backlog_rank.nulls_last(), Ticket.created_at
+        # 판의 순서는 `board_rank` 다. `backlog_rank` 와 다른 목록의 순서라, 한 컬럼으로
+        # 두면 카드를 판에서 옮긴 순간 백로그 순서가 함께 흐트러진다.
+        Ticket.board_rank.nulls_last(), Ticket.backlog_rank.nulls_last(), Ticket.created_at
     )
     tickets = _drop_trashed(db, list(db.execute(stmt).scalars().all()))
+    if assignee_token:
+        tickets = [t for t in tickets if _matches_assignee(t, assignee_token)]
+    if blocked_only:
+        tickets = [t for t in tickets if t.blocked_flag or t.issue_flag]
 
     # 열은 **표에서 읽는다**(`ticket_statuses`). 어휘의 정본은 코드이고
-    # (`app/work/workflow.py::STATUSES`) 이 표는 그 결과지만, 런타임이 읽는 것은 표다 —
-    # S5 의 `effective_permissions` 가 `permissions` 표를 읽는 것과 같은 배치이고,
-    # 둘이 갈라지지 않는 것은 `tests/unit/test_work_domain_seed.py` 가 맞물려 둔다.
-    #
+    # (`app/work/workflow.py::STATUSES`) 이 표는 그 결과지만, 런타임이 읽는 것은 표다.
     # 코드 목록을 그대로 쓰면 이 표에 소비자가 없어진다 — 아무도 안 읽는 표는 시드가
     # 틀려도 아무 일이 안 일어나고, 그러면 시드를 맞물어 두는 시험도 헛돈다.
     status_rows = db.execute(
         select(TicketStatus).order_by(TicketStatus.sort_order, TicketStatus.key)
     ).scalars().all()
 
+    names = _people(db)
     by_status: dict[str, list[dict]] = {row.key: [] for row in status_rows}
     unknown: list[dict] = []
+    signals = {"issue": 0, "blocked": 0, "overdue": 0}
     for ticket in tickets:
-        card = _card(ticket)
+        card = _card(ticket, names=names)
         bucket = by_status.get(ticket.status or "")
         (unknown if bucket is None else bucket).append(card)
+        if ticket.issue_flag:
+            signals["issue"] += 1
+        if ticket.blocked_flag:
+            signals["blocked"] += 1
+        if today is not None and workflow.is_overdue(ticket.due_date, ticket.status, today=today):
+            signals["overdue"] += 1
 
     columns = [
         {
             "key": row.key,
             "label": row.label,
             "category": row.category,
+            # 화면이 열 이름을 적어 자리를 고르지 않게 한다.
+            "placement": workflow.board_placement(row.key),
             "total": len(by_status[row.key]),
             "cards": by_status[row.key][:BOARD_COLUMN_LIMIT],
         }
@@ -220,14 +330,39 @@ def board(
     return {
         "columns": columns,
         "column_limit": BOARD_COLUMN_LIMIT,
+        # 판 전체의 판독 줄. **자르기 전에** 센다.
+        "summary": {
+            "total": len(tickets),
+            "by_status": {row.key: len(by_status[row.key]) for row in status_rows},
+            "signals": signals,
+        },
         # 어휘 밖 상태. 비어 있으면 화면이 이 칸을 그리지 않는다.
         "unclassified": unknown[:BOARD_COLUMN_LIMIT],
         "unclassified_total": len(unknown),
     }
 
 
-def backlog(db: Session, user: User, *, project_id: str | None = None) -> dict:
-    """백로그 — **순서가 전부인 목록**.
+def backlog(
+    db: Session,
+    user: User,
+    *,
+    project_id: str | None = None,
+    q: str | None = None,
+    assignee_token: str | None = None,
+    priority: str | None = None,
+    difficulty: str | None = None,
+) -> dict:
+    """백로그 — **아직 어느 회차에도 안 담긴 일**.
+
+    ## 「백로그」는 상태가 아니라 위치다 (D-349)
+
+    별도 Status 를 만들지 않는다. `sprint_id IS NULL` 인 활성 티켓이 백로그다 — 상태를
+    손으로 「계획」으로 바꾸는 것이 편입이 아니고, 편입은 `move(set_sprint=...)` 라는
+    **명시적 동작**이다(지시 §2.3).
+
+    예전에는 이 목록이 회차에 담긴 티켓까지 함께 실었다. 그러면 같은 티켓이 판에도 있고
+    백로그에도 있어서, 「다음에 무엇을 할까」를 고르는 화면이 이미 이번 주에 하기로 한
+    일로 절반이 찬다.
 
     끝난 것은 안 싣는다. 백로그는 "다음에 무엇을 하는가" 라서 완료·취소가 섞이면
     스크롤 대부분이 지나간 일이 된다.
@@ -235,14 +370,30 @@ def backlog(db: Session, user: User, *, project_id: str | None = None) -> dict:
     stmt = _visible_tickets_stmt(db, user)
     if project_id:
         stmt = stmt.where(Ticket.project_uid == project_id)
-    stmt = stmt.where(Ticket.notion_missing_at.is_(None)).order_by(
-        Ticket.backlog_rank.nulls_last(), Ticket.created_at
-    )
+    stmt = stmt.where(
+        Ticket.notion_missing_at.is_(None),
+        # 회차에 담기지 않은 것만. 이 한 줄이 「백로그」의 정의다.
+        Ticket.sprint_id.is_(None),
+    ).order_by(Ticket.backlog_rank.nulls_last(), Ticket.created_at)
     tickets = [
         t for t in _drop_trashed(db, list(db.execute(stmt).scalars().all()))
         if not workflow.is_terminal(t.status)
     ]
-    return {"items": [_card(t) for t in tickets], "total": len(tickets)}
+    if assignee_token:
+        tickets = [t for t in tickets if _matches_assignee(t, assignee_token)]
+    if priority:
+        tickets = [t for t in tickets if (t.priority or "") == priority]
+    if difficulty:
+        tickets = [t for t in tickets if (t.difficulty or "") == difficulty]
+    needle = (q or "").strip().lower()
+    if needle:
+        # 제목과 이름(`ABC-12`) 둘 다 본다 — 사람들은 티켓을 번호로 기억한다.
+        tickets = [
+            t for t in tickets
+            if needle in (t.title or "").lower() or needle in (t.canonical_key or "").lower()
+        ]
+    names = _people(db)
+    return {"items": [_card(t, names=names) for t in tickets], "total": len(tickets)}
 
 
 # ── Drop ─────────────────────────────────────────────────────────────────────
@@ -334,6 +485,8 @@ def move(
     before_id: str | None = None,
     after_id: str | None = None,
     reorder: bool = False,
+    # 판에서 옮겼는가, 백로그에서 옮겼는가. 두 목록의 순서는 다른 컬럼이다.
+    on_board: bool = False,
     base_version: int | None = None,
     now: datetime | None = None,
     repo=None,
@@ -385,14 +538,20 @@ def move(
         )
 
     if reorder:
-        before_rank = ticket.backlog_rank
-        ticket.backlog_rank = rank_mod.place(
-            db, project_id=ticket.project_uid, before_id=before_id, after_id=after_id
+        # **어느 목록의 순서인가.** 판과 백로그는 다른 줄이라 한 컬럼으로 두면 카드를
+        # 판에서 옮긴 순간 백로그 순서가 함께 흐트러진다 — 그 흐트러짐은 오류를 안 내고
+        # 다음 계획 회의에서야 보인다.
+        field = "board_rank" if on_board else "backlog_rank"
+        before_rank = getattr(ticket, field)
+        placed = rank_mod.place(
+            db, project_id=ticket.project_uid, before_id=before_id, after_id=after_id,
+            field=field,
         )
+        setattr(ticket, field, placed)
         activity.record(
-            db, ticket_id=ticket.id, kind=ACT_RANK, actor_id=user.id, field="backlog_rank",
+            db, ticket_id=ticket.id, kind=ACT_RANK, actor_id=user.id, field=field,
             from_value=str(before_rank) if before_rank is not None else None,
-            to_value=str(ticket.backlog_rank), now=stamp,
+            to_value=str(placed), now=stamp,
         )
 
     ticket.version = int(ticket.version) + 1

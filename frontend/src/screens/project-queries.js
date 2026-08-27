@@ -69,6 +69,12 @@ export function useProjectProgress(id, enabled) {
   return useQuery(detail(id, "progress", enabled));
 }
 
+/* 티켓이 **언제 생겼는가** (지시 16). 기간은 서버가 정한 기본값을 쓴다 — 화면이 숫자를
+ * 적으면 서버의 상한과 갈라지고, 갈라진 쪽은 조용히 잘린다. */
+export function useProjectTicketTrend(id, enabled) {
+  return useQuery(detail(id, "ticket-trend", enabled));
+}
+
 export function useProjectHealth(id, enabled) {
   return useQuery(detail(id, "health", enabled));
 }

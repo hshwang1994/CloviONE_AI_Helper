@@ -102,7 +102,7 @@ export function DragItem({ id, label, disabled, children }) {
 
 /* 카드를 받는 칸. 비어 있어도 **높이를 유지한다** — 빈 칸이 사라지면 그 칸으로 옮길
  * 방법이 없어진다(칸반에서 마지막 카드를 뺀 순간 정확히 그 상태가 된다). */
-export function DropColumn({ id, title, count, hint, children, sx }) {
+export function DropColumn({ id, title, count, hint, children, sx, bodyMaxHeight, action }) {
   const { setNodeRef, isOver } = useDroppable({ id });
   return (
     <Box
@@ -131,13 +131,26 @@ export function DropColumn({ id, title, count, hint, children, sx }) {
         <Typography variant="caption" color="text.secondary">
           {count}
         </Typography>
+        {action ? <Box sx={{ marginInlineStart: "auto" }}>{action}</Box> : null}
       </Box>
       {hint ? (
         <Typography variant="caption" color="text.secondary" sx={{ ...KO_WORD_BREAK }}>
           {hint}
         </Typography>
       ) : null}
-      <Box role="list" sx={{ display: "flex", flexDirection: "column", gap: 1, minHeight: "4rem" }}>
+      {/* 🔴 **칸 안에서만 굴러간다** (지시 5).
+          티켓이 늘어도 판은 자기 높이에 그대로 선다 — 안 그러면 한 열이 백 장이 되는 날
+          판 전체가 그 열만큼 아래로 자라고, 옆 열들은 그 아래 빈 자리를 지키느라 화면
+          하나를 통째로 쓴다. 그때 사용자가 하는 일은 페이지를 굴려 다른 열의 카드를
+          찾는 것이고, 그 순간 칸반은 목록 넷과 다르지 않다.
+          `bodyMaxHeight` 를 안 주면 예전처럼 자란다(회귀 0). */}
+      <Box
+        role="list"
+        sx={{
+          display: "flex", flexDirection: "column", gap: 1, minHeight: "4rem",
+          ...(bodyMaxHeight ? { maxHeight: bodyMaxHeight, overflowY: "auto", pr: 0.5 } : null),
+        }}
+      >
         {children}
       </Box>
     </Box>
@@ -214,7 +227,7 @@ export function SortableList({ items, labelOf, onReorder, disabled, children }) 
  * `onMove({ id, fromColumn, toColumn, beforeId, afterId })`. 칸이 안 바뀌었으면
  * `fromColumn === toColumn` 이고, 그때는 순서만 바뀐 것이다 — 부르는 쪽이 그 둘을 다른
  * 요청으로 보낼지 한 요청으로 보낼지 정한다. */
-export function DragBoard({ columns, labelOf, onMove, disabled, children, sx }) {
+export function DragBoard({ columns, labelOf, onMove, disabled, children, sx, columnMaxHeight }) {
   const sensors = useDragSensors();
   const [activeId, setActiveId] = React.useState(null);
 
@@ -284,6 +297,8 @@ export function DragBoard({ columns, labelOf, onMove, disabled, children, sx }) 
             title={column.title}
             count={column.count != null ? column.count : column.items.length}
             hint={column.hint}
+            action={column.action}
+            bodyMaxHeight={columnMaxHeight}
           >
             <SortableContext
               items={column.items.map((it) => it.id)}

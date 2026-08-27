@@ -130,7 +130,10 @@ def test_creating_a_ticket_for_someone_notifies_them(client, app, people, ticket
     csrf = _login(client, "amy@goodmit.co.kr")
     response = client.post(
         "/api/tickets",
+        # 예상 WD 와 마감일은 신규 생성의 **계약**이다(지시 10 · `TicketCreate`) —
+        # 빼면 422 라 이 시험은 알림에 대해 아무것도 증명하지 못한다.
         json={"title": "새로 만든 티켓", "project_id": people["project_id"],
+              "est_wd": 1, "due_date": "2026-12-31",
               "assignee_user_ids": [people["cho"]]},
         headers={"X-CSRF-Token": csrf},
     )

@@ -17,6 +17,15 @@
 
 우선순위는 "얼마나 급한가", 순서는 "다음에 무엇을 하는가"다. 「높음」 세 건의 선후는
 우선순위가 답하지 못하고, 그 답이 없으면 스탠드업에서 매번 다시 정하게 된다.
+
+## 목록이 둘이다 (D-349 회차)
+
+백로그와 판은 **다른 줄**이다. 한 컬럼으로 두면 카드를 판에서 옮긴 순간 백로그 순서가
+함께 흐트러지고, 그 흐트러짐은 오류를 안 내고 다음 계획 회의에서야 보인다. 그래서
+이 모듈의 함수들이 `field` 를 받는다 — 계산은 하나이고 어느 줄인지만 다르다.
+
+`field` 는 **호출부가 고르는 컬럼 이름**이라 SQL 에 문자열로 들어간다. 그 값이 바깥에서
+오면 곧 SQL 주입이므로, 여기서 **허용 목록으로 막는다** — 모르는 이름은 예외다.
 """
 
 from __future__ import annotations
@@ -37,6 +46,19 @@ MAX_SCALE = 40
 # 중점을 정확히 계산할 만큼의 유효자릿수. 2로 나누는 것은 십진에서 항상 끝나므로
 # 넉넉하면 반올림이 일어나지 않는다.
 _PRECISION = 200
+
+
+#: 순서를 담는 컬럼 둘. 이 목록 밖의 이름은 SQL 에 안 들어간다.
+RANK_FIELDS: frozenset[str] = frozenset({"backlog_rank", "board_rank"})
+
+
+def _column(field: str | None) -> str:
+    """SQL 에 넣어도 되는 컬럼 이름인가. 아니면 **예외** — 조용히 기본값으로 떨어지면
+    카드를 판에서 옮긴 것이 백로그 순서를 바꾼다."""
+    name = field or "backlog_rank"
+    if name not in RANK_FIELDS:
+        raise ValueError(f"모르는 순서 컬럼입니다: {name}")
+    return name
 
 
 def _scale(value: Decimal) -> int:
@@ -73,19 +95,22 @@ def needs_rebalance(value: Decimal | None) -> bool:
 
 
 def neighbours(
-    db: Session, *, project_id: str | None, before_id: str | None, after_id: str | None
+    db: Session, *, project_id: str | None, before_id: str | None, after_id: str | None,
+    field: str | None = None,
 ) -> tuple[Decimal | None, Decimal | None]:
     """드롭 위치의 두 이웃 값. 이웃이 아직 순위가 없으면 `None` 이다.
 
     `project_id` 는 이웃이 **같은 목록** 것인지 확인하는 데 쓴다 — 다른 프로젝트의
     티켓을 이웃으로 주면 두 백로그의 순위 공간이 섞인다.
     """
+    column = _column(field)
+
     def _rank_of(ticket_id: str | None) -> Decimal | None:
         if not ticket_id:
             return None
         row = db.execute(
             sa_text(
-                "SELECT backlog_rank FROM tickets "
+                f"SELECT {column} FROM tickets "
                 "WHERE id = :tid AND project_uid IS NOT DISTINCT FROM :pid"
             ),
             {"tid": ticket_id, "pid": project_id},
@@ -95,11 +120,12 @@ def neighbours(
     return _rank_of(before_id), _rank_of(after_id)
 
 
-def append_rank(db: Session, *, project_id: str | None) -> Decimal:
+def append_rank(db: Session, *, project_id: str | None, field: str | None = None) -> Decimal:
     """이 목록의 맨 뒤 값. 비어 있으면 첫 값."""
+    column = _column(field)
     last = db.execute(
         sa_text(
-            "SELECT MAX(backlog_rank) FROM tickets "
+            f"SELECT MAX({column}) FROM tickets "
             "WHERE project_uid IS NOT DISTINCT FROM :pid"
         ),
         {"pid": project_id},
@@ -107,17 +133,18 @@ def append_rank(db: Session, *, project_id: str | None) -> Decimal:
     return between(Decimal(last) if last is not None else None, None)
 
 
-def rebalance(db: Session, *, project_id: str | None) -> int:
+def rebalance(db: Session, *, project_id: str | None, field: str | None = None) -> int:
     """이 목록의 순위를 `STEP` 간격으로 다시 매긴다. **순서는 그대로다.**
 
     `row_number()` 로 현재 순서를 그대로 읽어 곱하기만 한다. 순위가 없던 행
     (`NULL`)은 뒤로 간다 — 그것이 지금 목록에서 보이는 순서이기도 하다.
     """
+    column = _column(field)
     return db.execute(
         sa_text(
-            "UPDATE tickets t SET backlog_rank = ordered.rank_value FROM ("
+            f"UPDATE tickets t SET {column} = ordered.rank_value FROM ("
             "  SELECT id, (row_number() OVER ("
-            "    ORDER BY backlog_rank NULLS LAST, created_at, id"
+            f"    ORDER BY {column} NULLS LAST, created_at, id"
             "  ))::numeric * :step AS rank_value"
             "  FROM tickets"
             "  WHERE project_uid IS NOT DISTINCT FROM :pid"
@@ -133,26 +160,28 @@ def place(
     project_id: str | None,
     before_id: str | None,
     after_id: str | None,
+    field: str | None = None,
 ) -> Decimal:
     """드롭 위치의 순위 값. 필요하면 **먼저 재조정하고 다시 계산한다.**
 
     재조정 뒤에 다시 읽는 것이 중요하다 — 재조정은 이웃들의 값을 바꾸므로, 바꾸기
     전에 계산한 중점은 이제 다른 자리를 가리킨다.
     """
+    column = _column(field)
     low, high = neighbours(
-        db, project_id=project_id, before_id=before_id, after_id=after_id
+        db, project_id=project_id, before_id=before_id, after_id=after_id, field=column
     )
     if low is None and high is None:
         # 이웃이 하나도 없다 — 빈 칸에 놓았거나, 이웃이 아직 순위를 못 받았다.
         # 그때 `between(None, None)` 은 언제나 같은 값(`STEP`)을 주므로 목록에 이미
         # 있는 카드와 겹친다. 겹친 순위는 제약 위반이 아니라 **순서가 흔들리는 상태**라
         # 아무도 신고하지 않는다 — 맨 뒤에 붙인다.
-        return append_rank(db, project_id=project_id)
+        return append_rank(db, project_id=project_id, field=column)
     value = between(low, high)
     if not needs_rebalance(value):
         return value
-    rebalance(db, project_id=project_id)
+    rebalance(db, project_id=project_id, field=column)
     low, high = neighbours(
-        db, project_id=project_id, before_id=before_id, after_id=after_id
+        db, project_id=project_id, before_id=before_id, after_id=after_id, field=column
     )
     return between(low, high)

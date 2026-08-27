@@ -32,7 +32,7 @@ def test_impossible_dates_are_refused(bad):
 def test_real_dates_still_pass(good):
     from app.tickets.schemas import TicketCreate
 
-    assert TicketCreate(title="t", project_id="p1", due_date=good).due_date == good
+    assert TicketCreate(title="t", project_id="p1", est_wd=1.0, due_date=good).due_date == good
 
 
 def test_the_shape_check_still_runs_first():

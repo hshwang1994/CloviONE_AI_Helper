@@ -1,6 +1,6 @@
 import React from "react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "@mui/material/styles";
@@ -267,7 +267,7 @@ describe("새 티켓 — 폼과 레일은 그대로다(오탐 방지)", () => {
     expect(declaration(rail, "grid-template-columns")).toBe(BASELINE_TRACKS.two);
   });
 
-  it("여섯 개 입력이 모두 그려지고, 제목을 채워 제출하면 티켓을 만든다", async () => {
+  it("여섯 개 입력이 모두 그려지고, 필수를 채워 제출하면 티켓을 만든다", async () => {
     const user = userEvent.setup();
     renderNewTicket();
     for (const label of ["프로젝트", "진행상태", "우선순위", "난이도", "예상 WD", "마감일"]) {
@@ -277,11 +277,42 @@ describe("새 티켓 — 폼과 레일은 그대로다(오탐 방지)", () => {
     // 프로젝트는 후보가 있으면 필수다 — 고르지 않으면 제출이 막힌다(그 검증도 함께 지킨다).
     await user.click(screen.getByRole("combobox", { name: /프로젝트/ }));
     await user.click(await screen.findByRole("option", { name: "인프라" }));
+    /* 예상 WD 와 마감일도 필수다 (지시 10) — 서버가 같은 요구를 한다(`TicketCreate`). */
+    await user.type(screen.getByLabelText(/예상 WD/), "2");
+    fireEvent.change(screen.getByLabelText(/마감일/), { target: { value: "2026-09-30" } });
     await user.click(screen.getByRole("button", { name: "티켓 추가" }));
     await waitFor(() => {
       expect(apiMock).toHaveBeenCalledWith("/api/tickets", expect.objectContaining({
         method: "POST",
-        body: expect.objectContaining({ title: "서버 등록 IP 중복 방지" }),
+        body: expect.objectContaining({
+          title: "서버 등록 IP 중복 방지", est_wd: 2, due_date: "2026-09-30",
+        }),
+      }));
+    });
+  });
+
+  it("🔴 예상 WD 나 마감일이 비면 **보내지 않는다** — 서버까지 다녀와 422 를 보이지 않는다", async () => {
+    const user = userEvent.setup();
+    renderNewTicket();
+    await user.type(await screen.findByLabelText(/제목/), "예상 WD 없는 티켓");
+    await user.click(screen.getByRole("combobox", { name: /프로젝트/ }));
+    await user.click(await screen.findByRole("option", { name: "인프라" }));
+    /* 재는 것은 **안 보냈다**이다. 토스트 문구가 아니라 요청을 본다 — 이 하네스에는
+       토스트 공급자가 없고, 문구를 재면 그 문구를 다듬을 때마다 시험이 깨진다. */
+    await user.click(screen.getByRole("button", { name: "티켓 추가" }));
+    expect(apiMock).not.toHaveBeenCalledWith("/api/tickets", expect.anything());
+
+    // 예상 WD 만 채워도 아직 안 보낸다 — 마감일이 남았다.
+    await user.type(screen.getByLabelText(/예상 WD/), "3");
+    await user.click(screen.getByRole("button", { name: "티켓 추가" }));
+    expect(apiMock).not.toHaveBeenCalledWith("/api/tickets", expect.anything());
+
+    // 둘 다 채우면 그때 나간다.
+    fireEvent.change(screen.getByLabelText(/마감일/), { target: { value: "2026-10-01" } });
+    await user.click(screen.getByRole("button", { name: "티켓 추가" }));
+    await waitFor(() => {
+      expect(apiMock).toHaveBeenCalledWith("/api/tickets", expect.objectContaining({
+        body: expect.objectContaining({ est_wd: 3, due_date: "2026-10-01" }),
       }));
     });
   });

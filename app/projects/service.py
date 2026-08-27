@@ -14,7 +14,8 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -487,6 +488,69 @@ DASHBOARD_ITEM_LIMIT = 5
 
 def _dashboard_bucket(items: list[dict]) -> dict:
     return {"count": len(items), "items": items[:DASHBOARD_ITEM_LIMIT]}
+
+
+# 추이가 덮는 기간의 기본값과 상한. 90일이면 분기 하나가 들어오고, 그보다 길면 막대
+# 하나가 1px 이 되어 「언제 몰렸나」를 못 읽는다. 상한을 두는 이유는 다르다 — 기간을
+# 손으로 늘려 전 이력을 한 요청에 담게 하지 않는다.
+TREND_DEFAULT_DAYS = 90
+TREND_MAX_DAYS = 365
+
+
+def ticket_trend(
+    db: Session, project: Project, *, today: date, days: int | None = None, tz: str
+) -> dict:
+    """이 프로젝트에 **티켓이 언제 생겼는가** (지시 16).
+
+    ## 왜 진행률과 따로인가
+
+    진행률은 「얼마나 끝났나」고 이것은 「언제 일이 몰렸나」다. 둘은 같은 티켓을 세지만
+    묻는 것이 달라서, 한 숫자로 합치면 둘 다 못 읽는다 — 8월 3일에 스무 건이 한꺼번에
+    들어온 프로젝트와 석 달에 걸쳐 스무 건이 들어온 프로젝트는 진행률이 같아도 전혀
+    다른 프로젝트다.
+
+    ## 날짜는 KST 달력일이다
+
+    `created_at` 은 naive UTC 로 저장돼 있다(앱 전체 규약). 그것을 그대로 잘라 날짜로
+    쓰면 **KST 09:00 이전에 만든 티켓이 전날로 세어진다** — 아침에 만든 티켓이 어제
+    막대에 붙는다. 경계를 이 함수 한 곳에서 옮긴다.
+
+    ## 빈 날도 낸다
+
+    값이 있는 날만 보내면 화면이 그 사이를 어떻게 그릴지 스스로 정하게 되고, 그러면
+    「사흘 연속 없었다」와 「사흘이 하루로 붙었다」가 같은 그림이 된다.
+    """
+    # `None` 만 기본값이다. `0` 을 기본값으로 읽으면 「0일치를 달라」가 조용히 90일이 된다 —
+    # 부르는 쪽은 자기가 0 을 줬다는 것을 알고, 화면에는 90 개가 뜬다.
+    span = TREND_DEFAULT_DAYS if days is None else max(1, min(int(days), TREND_MAX_DAYS))
+    start = today - timedelta(days=span - 1)
+
+    # 축 판정은 목록·진행률·WBS 와 **같은 조회**를 쓴다 — 여기서 조건을 다시 적으면
+    # 「트리에는 있는데 추이에는 없다」가 생기고 아무도 원인을 못 찾는다.
+    rows = repository.ticket_rows_for_project(db, project)
+    zone = ZoneInfo(tz)
+    counts: dict[date, int] = {}
+    for row in rows:
+        made = getattr(row, "created_at", None)
+        if made is None:
+            continue
+        day = made.replace(tzinfo=timezone.utc).astimezone(zone).date()
+        if day < start or day > today:
+            continue
+        counts[day] = counts.get(day, 0) + 1
+
+    series = [
+        {"date": iso_date(start + timedelta(days=i)), "count": counts.get(start + timedelta(days=i), 0)}
+        for i in range(span)
+    ]
+    return {
+        "from": iso_date(start),
+        "to": iso_date(today),
+        "days": series,
+        # 창 **밖**은 안 센다. 「전체 티켓 수」는 다른 질문이고 다른 화면이 답한다.
+        "total": sum(counts.values()),
+        "peak": max((d["count"] for d in series), default=0),
+    }
 
 
 def project_dashboard(

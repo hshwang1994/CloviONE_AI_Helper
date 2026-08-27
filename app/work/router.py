@@ -19,15 +19,20 @@ from sqlalchemy.orm import Session
 
 from app.core.audit import record_audit_from_request
 from app.core.deps import get_current_user, get_db, require_csrf, require_permission
-from app.core.errors import NotFoundError
+from app.core.dates import parse_date
+from app.core.errors import NotFoundError, ValidationAppError
+from app.home.service import local_today
 from app.settings.gate import block_if_maintenance
+from app.tickets import service as tickets_service
 from app.users.models import User
 from app.work import relations as relations_mod
-from app.work import service, triage, workflow
+from app.work import meeting, service, triage, workflow
 from app.work.models import MigrationException, TicketStatus
 from app.work.resolve import resolve
 from app.work.schemas import (
     BoardMove,
+    DecisionCreate,
+    DecisionUpdate,
     ExceptionAssign,
     RelationCreate,
     SprintClose,
@@ -72,6 +77,10 @@ def list_statuses(
                 "key": r.key, "label": r.label, "category": r.category,
                 "sort_order": r.sort_order, "is_default": bool(r.is_default),
                 "terminal": workflow.is_terminal(r.key),
+                # 판에서 어디에 서는가 — 열인가, 접힌 칸인가, 숨는가 (D-349). 화면이
+                # 상태 이름을 적어 자리를 고르면 어휘가 바뀐 날 그 화면만 옛 목록으로
+                # 남는다. 폼 드롭다운은 이 값을 안 본다 — 여섯 전부를 고를 수 있다.
+                "board": workflow.board_placement(r.key),
             }
             for r in rows
         ],
@@ -85,12 +94,31 @@ def list_statuses(
 
 @router.get("/board")
 def get_board(
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
     project_id: str | None = Query(default=None, max_length=36),
     sprint_id: str | None = Query(default=None, max_length=36),
+    # 담당자는 **앱 user_id** 로 받는다. 브라우저는 원본 소스 토큰을 절대 모른다(§12.3) —
+    # 해석은 서버가 한다.
+    assignee_user_id: str | None = Query(default=None, max_length=36),
+    mine: bool = Query(default=False),
+    blocked_only: bool = Query(default=False),
 ) -> dict:
-    return service.board(db, user, project_id=project_id, sprint_id=sprint_id)
+    """칸반 한 판. 「내 티켓만」은 담당자 필터의 특수한 경우라 같은 축으로 접는다.
+
+    「지연」의 기준일은 서버가 정한다(§불변 9) — 화면이 브라우저에서 오늘을 구하면
+    KST 09:00 이전에 하루 밀린 건수를 요약 줄에 그린다.
+    """
+    token = tickets_service.assignee_token(db, user) if mine else (
+        tickets_service.assignee_token_for_user(db, assignee_user_id) if assignee_user_id else None
+    )
+    return service.board(
+        db, user,
+        project_id=project_id, sprint_id=sprint_id,
+        assignee_token=token, blocked_only=blocked_only,
+        today=local_today(request.app.state.settings, request.app.state.clock.now()),
+    )
 
 
 @router.get("/backlog")
@@ -98,8 +126,21 @@ def get_backlog(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
     project_id: str | None = Query(default=None, max_length=36),
+    q: str | None = Query(default=None, max_length=200),
+    assignee_user_id: str | None = Query(default=None, max_length=36),
+    mine: bool = Query(default=False),
+    priority: str | None = Query(default=None, max_length=64),
+    difficulty: str | None = Query(default=None, max_length=64),
 ) -> dict:
-    return service.backlog(db, user, project_id=project_id)
+    """백로그 — 아직 어느 회차에도 안 담긴 일. 조건은 판과 **같은 이름**을 쓴다."""
+    token = tickets_service.assignee_token(db, user) if mine else (
+        tickets_service.assignee_token_for_user(db, assignee_user_id) if assignee_user_id else None
+    )
+    return service.backlog(
+        db, user,
+        project_id=project_id, q=q, assignee_token=token,
+        priority=priority, difficulty=difficulty,
+    )
 
 
 @router.post("/board/{ticket_id}/move", dependencies=[Depends(require_csrf)])
@@ -124,6 +165,7 @@ def move_card(
         before_id=payload.before_id,
         after_id=payload.after_id,
         reorder=payload.reorder,
+        on_board=payload.on_board,
         base_version=payload.base_version,
         repo=_repo(request),
         request=request,
@@ -201,6 +243,90 @@ def sprint_scope(
     user: User = Depends(get_current_user),
 ) -> dict:
     return service.sprint_scope(db, sprint_id, user)
+
+
+# ── 회의 (지시 4) ────────────────────────────────────────────────────────────
+
+
+@router.get("/sprints/{sprint_id}/meeting")
+def sprint_meeting(
+    sprint_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict:
+    """회의 한 판. 여섯 질문의 답이 한 응답에 있다(`app/work/meeting.py`).
+
+    「오늘」은 **서버가 정한다**(§불변 9). 화면이 브라우저에서 오늘을 구하면 KST 09:00
+    이전에 접속한 사람과 이후에 접속한 사람이 서로 다른 「지연 목록」을 보고, 같은
+    회의에서 두 사람이 다른 화면을 읽게 된다.
+    """
+    return meeting.meeting(
+        db, user, sprint_id=sprint_id,
+        today=local_today(request.app.state.settings, request.app.state.clock.now()),
+    )
+
+
+@router.post("/sprints/{sprint_id}/decisions", dependencies=[Depends(require_csrf)])
+def add_decision(
+    sprint_id: str,
+    payload: DecisionCreate,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict:
+    """회의록을 적는다. **역할로 막지 않는다.**
+
+    회의에 앉은 사람이 곧 적는 사람이다. 「기록은 관리자만」이면 회의가 끝난 뒤 아무도
+    안 적고, 그러면 이 표는 빈 채로 남는다. 대신 회차가 보여야 하고(`get_scoped_...`)
+    고칠 수 있는 사람은 좁다(적은 사람 · 걸린 담당자 · 운영군).
+    """
+    row = meeting.add_decision(
+        db, user, sprint_id=sprint_id, kind=payload.kind, body=payload.body,
+        ticket_id=payload.ticket_id, assignee_user_id=payload.assignee_user_id,
+        due_date=parse_date(payload.due_date),
+    )
+    record_audit_from_request(
+        request, db, action="sprint.decision.add", object_type="sprint_decision",
+        object_id=row["id"], after={"sprint_id": sprint_id, "kind": payload.kind},
+    )
+    return row
+
+
+@router.patch("/decisions/{decision_id}", dependencies=[Depends(require_csrf)])
+def edit_decision(
+    decision_id: str,
+    payload: DecisionUpdate,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict:
+    changes = payload.model_dump(exclude_unset=True)
+    if "due_date" in changes:
+        changes["due_date"] = parse_date(changes["due_date"])
+    if not changes:
+        raise ValidationAppError("변경할 내용이 없습니다.")
+    row = meeting.update_decision(db, user, decision_id=decision_id, changes=changes)
+    record_audit_from_request(
+        request, db, action="sprint.decision.edit", object_type="sprint_decision",
+        object_id=decision_id, after={k: v for k, v in changes.items() if k != "body"},
+    )
+    return row
+
+
+@router.delete("/decisions/{decision_id}", dependencies=[Depends(require_csrf)])
+def remove_decision(
+    decision_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict:
+    meeting.delete_decision(db, user, decision_id=decision_id)
+    record_audit_from_request(
+        request, db, action="sprint.decision.delete", object_type="sprint_decision",
+        object_id=decision_id,
+    )
+    return {"ok": True}
 
 
 # ── 이름 (3층 식별자) ────────────────────────────────────────────────────────

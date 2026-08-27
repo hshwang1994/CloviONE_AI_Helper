@@ -281,6 +281,22 @@ function lastQuery(path) {
    "각주가 자기 숫자 옆에 있다"는 계약이다. */
 const READOUT = ".k-stat, .k-readout";
 
+/** 판독 칸 하나를 이름으로. 접근 이름은 값과 라벨이 붙은 문자열이라 역할로 못 짚는다. */
+function tile(label) {
+  for (const el of document.querySelectorAll(READOUT)) {
+    const labelEl = el.querySelector('[data-readout="label"]');
+    if (labelEl && labelEl.textContent.trim().replace(/(위험|주의)$/, "").trim() === label) return el;
+  }
+  throw new Error(`판독 칸 「${label}」 을 못 찾았다`);
+}
+
+/** 그림을 낀 요약 칸 하나. 자식 순서가 아니라 **이름**으로 짚는다(위 `summaryTiles` 와 같은 이유). */
+function panel(label) {
+  const el = document.querySelector(`[data-summary-panel="${label}"]`);
+  expect(el, `요약 칸 「${label}」 을 못 찾았다`).not.toBeNull();
+  return el;
+}
+
 function summaryTiles() {
   const out = {};
   for (const el of document.querySelectorAll(READOUT)) {
@@ -393,16 +409,69 @@ describe("프로젝트 목록 — 요약", () => {
     renderAt("/projects");
     await screen.findByText("배포 자동화");
 
-    // 통째로 비교한다. 타일 하나씩 보면 화면이 새 타일을 몰래 더해도 안 걸린다.
+    /* 통째로 비교한다. 타일 하나씩 보면 화면이 새 타일을 몰래 더해도 안 걸린다.
+       구성 칸 다섯은 판독 줄에 있고, 진행·위험 셋은 그림을 낀 칸으로 내려갔다(지시 15) —
+       아래 단언이 그 셋을 이어서 본다. */
     expect(summaryTiles()).toEqual({
       "전체": "22",
       "진행": "12",
       "완료": "5",
       "보류": "3",
       "계획": "2",
-      "평균 진행률": "47.3%",
-      "Health 하위": "4",
-      "지연 마일스톤": "6",
+    });
+
+    // 진행과 위험 — 숫자는 그림 옆에 그대로 있다.
+    expect(within(panel("평균 진행률")).getByText("47.3%")).toBeInTheDocument();
+    expect(within(panel("Health 하위")).getByText("4")).toBeInTheDocument();
+    expect(within(panel("지연 마일스톤")).getByText("6")).toBeInTheDocument();
+  });
+
+  it("🔴 숫자만 두지 않는다 — 진행률은 막대가, Health 는 원이 함께 선다 (지시 15)", async () => {
+    renderAt("/projects");
+    await screen.findByText("배포 자동화");
+
+    /* 「63.3%」와 「97.6%」는 글자로만 보면 비슷한 길이지만 막대로 보면 다른 그림이다.
+       그림은 `aria-hidden` 이고 숫자는 글자로 그대로 있다 — 정보량은 안 줄어든다. */
+    expect(panel("평균 진행률").querySelector('[aria-hidden="true"]')).toBeTruthy();
+    expect(panel("Health 하위").querySelector("svg")).toBeTruthy();
+  });
+
+  it("🔴 요약 칸을 누르면 목록이 그 조건으로 좁아지고, 다시 누르면 풀린다", async () => {
+    const user = userEvent.setup();
+    renderAt("/projects");
+    await screen.findByText("배포 자동화");
+
+    await user.click(tile("진행"));
+    await waitFor(() => {
+      expect(apiMock.mock.calls.map(([p]) => String(p))
+        .some((p) => p.startsWith("/api/projects?") && p.includes("status=active"))).toBe(true);
+    });
+
+    // 조건을 켜는 자리와 끄는 자리가 다르면 사용자는 끄는 법을 못 찾는다.
+    apiMock.mockClear();
+    await user.click(tile("진행"));
+    await waitFor(() => {
+      const listCalls = apiMock.mock.calls.map(([p]) => String(p)).filter((p) => p.startsWith("/api/projects"));
+      expect(listCalls.length).toBeGreaterThan(0);
+      expect(listCalls.every((p) => !p.includes("status=active"))).toBe(true);
+    });
+  });
+
+  it("🔴 Health 하위와 지연 마일스톤도 같은 방식으로 목록을 좁힌다", async () => {
+    const user = userEvent.setup();
+    renderAt("/projects");
+    await screen.findByText("배포 자동화");
+
+    await user.click(screen.getByRole("button", { name: "Health 하위 프로젝트만 보기" }));
+    await waitFor(() => {
+      expect(apiMock.mock.calls.map(([p]) => String(p))
+        .some((p) => p.startsWith("/api/projects?") && p.includes("trouble=true"))).toBe(true);
+    });
+
+    await user.click(screen.getByRole("button", { name: "지연 마일스톤이 있는 프로젝트만 보기" }));
+    await waitFor(() => {
+      expect(apiMock.mock.calls.map(([p]) => String(p))
+        .some((p) => p.startsWith("/api/projects?") && p.includes("overdue_milestones=true"))).toBe(true);
     });
   });
 
@@ -433,10 +502,10 @@ describe("프로젝트 목록 — 요약", () => {
     // 예전엔 두 각주가 합쳐진 문단 하나가 그리드 전체 아래에 떨어져 있었다 - 어느 타일
     // 얘기인지 DOM 만으로 확인할 방법이 없었다. 지금은 각 각주가 자기 판독 칸 안에
     // 있어야 한다(kit.jsx::MetricStrip 의 note).
-    const avgTile = screen.getByText("평균 진행률").closest(READOUT);
+    const avgTile = panel("평균 진행률");
     expect(within(avgTile).getByText(/계산이 끝난 14건만 셌습니다/)).toBeInTheDocument();
 
-    const healthTile = screen.getByText("Health 하위").closest(READOUT);
+    const healthTile = panel("Health 하위");
     expect(within(healthTile).getByText(/Health 는 5건을 아직 재지 않았습니다/)).toBeInTheDocument();
 
     // Health 각주가 평균 진행률 타일 안에는 없다(서로 새지 않는다).

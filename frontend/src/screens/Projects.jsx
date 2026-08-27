@@ -17,6 +17,9 @@ import { useQueryState } from "../lib/useQueryState.js";
 import { DepartmentFilter } from "../ui/filters.jsx";
 import { FilterActions, FilterRow, FilterSurface, ResultLine, ToolbarRow } from "../ui/FilterBar.jsx";
 import { SearchBox } from "../ui/filters.jsx";
+import { BarSeries } from "../ui/charts/BarSeries.jsx";
+import { Gauge } from "../ui/charts/Gauge.jsx";
+import { ProgressBar } from "../ui/charts/ProgressBar.jsx";
 import { useCreateProject, useDeptNames, useProjectDashboard, useProjectList } from "./project-queries.js";
 import {
   NO_HEALTH_CACHE, NO_PROGRESS_CACHE, PROJECT_FORM_FIELDS, PROJECT_STATUS_KO,
@@ -54,7 +57,12 @@ import { useListMemory } from "../lib/listReturn.js";
 
 // `dept` 는 부서 필터 (0060 §32). 주소에 두는 이유는 나머지 조건과 같다 — 상세를 보고
 // 돌아왔을 때 풀리면 안 되고, 링크로 "A-1 팀 프로젝트" 를 공유할 수 있어야 한다.
-const PROJECT_SPEC = { page: 1, q: "", archived: false, dept: "", sort: "name", order: "asc" };
+/* `status` · `trouble` · `overdue` 는 **요약 줄을 누르면 켜지는 조건**이다 (지시 15).
+ * 주소에 실리므로 뒤로 갔다 와도, 링크로 건네도 같은 목록이 선다. */
+const PROJECT_SPEC = {
+  page: 1, q: "", archived: false, dept: "", status: "", trouble: false, overdue: false,
+  sort: "name", order: "asc",
+};
 const PAGE_RESET = { reset: ["page"] };
 
 
@@ -65,6 +73,10 @@ export function projectListQuery(filters) {
   // 검색은 티켓·게시판과 **같은 이름의 조건**이다(`q`). 화면마다 다른 키를 쓰면 공용
   // 탐색 줄이 화면별 번역표를 갖게 된다.
   if (filters.q) p.set("q", filters.q);
+  if (filters.status) p.set("status", filters.status);
+  if (filters.trouble) p.set("trouble", "true");
+  // 주소 키(`overdue`)와 API 키(`overdue_milestones`)가 다르다 — 옮겨 적는 자리는 여기 하나다.
+  if (filters.overdue) p.set("overdue_milestones", "true");
   // 주소 키(`dept`)와 API 키(`department_id`)가 다르다 — 옮겨 적는 자리는 여기 하나다.
   if (filters.dept) p.set("department_id", filters.dept);
   if (filters.sort && (filters.sort !== "name" || filters.order !== "asc")) {
@@ -75,12 +87,101 @@ export function projectListQuery(filters) {
   return p;
 }
 
+/* 구성 칸 넷. 서버가 세는 상태 어휘와 **같은 키**다(`app/projects/models.py::PROJECT_STATUSES`) —
+ * 그 키가 곧 목록을 좁히는 조건이라, 화면이 이름을 새로 지으면 눌러도 아무것도 안 걸러진다. */
+const STATUS_TILES = [
+  ["active", "진행"],
+  ["done", "완료"],
+  ["on_hold", "보류"],
+  ["planned", "계획"],
+];
+
+/* 요약의 한 칸. **판이 아니다** — 캔버스 위에 서고 실선이 이웃과 가른다(`MetricStrip` 과
+ * 같은 위계). 누를 수 있으면 버튼이 되고, 켜져 있으면 앞머리 레일이 그 사실을 말한다
+ * (D-289: 이 제품은 선택을 면이 아니라 잉크와 레일로 말한다). */
+/** 선택을 말하는 앞머리 레일의 색. 켜져 있으면 강조색, 아니면 구분선이다(D-289). */
+function railColor(theme, active) {
+  return active ? theme.palette.primary.main : theme.palette.divider;
+}
+
+function SummaryPanel({ label, active, onClick, actionLabel, children }) {
+  const clickable = !!onClick;
+  return (
+    <Box
+      component={clickable ? "button" : "div"}
+      type={clickable ? "button" : undefined}
+      onClick={onClick}
+      aria-pressed={clickable ? !!active : undefined}
+      aria-label={clickable ? actionLabel || label : undefined}
+      data-brand-role={clickable && active ? "selected-state" : undefined}
+      /* 시험이 「이 값과 이 각주가 **같은 칸**에 있다」를 짚는 자리. 자식 순서로 짚으면
+         안쪽 배치를 조금만 바꿔도 시험이 조용히 빈 문자열끼리 비교하며 통과한다. */
+      data-summary-panel={label}
+      sx={(t) => ({
+        textAlign: "left", font: "inherit", color: "inherit", bgcolor: "transparent",
+        border: 0, borderRadius: 0, px: 2, py: 1.5, minWidth: 0,
+        display: "grid", gap: 0.75, alignContent: "start",
+        cursor: clickable ? "pointer" : "default",
+        borderInlineStartStyle: "solid",
+        borderInlineStartWidth: "2px",
+        /* 논리 테두리는 MUI 가 안 펴 준다 — style·width·color 셋을 따로, 색은 **해석된
+           값**으로 적는다(F-W2R-01). 삼항을 여기 직접 쓰면 값이 식별자로 시작하지 않아
+           `check_logical_border_props.py` 가 「선언만 있고 안 그려진다」로 읽는다. */
+        borderInlineStartColor: railColor(t, active),
+        "&:hover": clickable ? { bgcolor: t.palette.background.inset } : undefined,
+        "&:focus-visible": { outline: `2px solid ${t.palette.focusRing}`, outlineOffset: 2 },
+      })}
+    >
+      <Typography variant="body2" color="text.secondary" sx={{ fontWeight: FONT_WEIGHT.semibold }}>
+        {label}
+      </Typography>
+      {children}
+    </Box>
+  );
+}
+
+/* 가장 오래 지난 마일스톤 셋. 「3건」만 말하면 그것을 본 사람이 할 수 있는 일이 없다 —
+ * 어느 것이 얼마나 지났는지가 곧 할 일 목록이다.
+ *
+ * 기준일은 **서버가 준 것**을 쓴다(`d.today`). 브라우저에서 오늘을 구하면 KST 09:00
+ * 이전에 하루 밀린 「지연 일수」를 그린다(§불변 9). */
+function OverdueBars({ items, today }) {
+  const rows = (Array.isArray(items) ? items : [])
+    .map((m) => ({ ...m, late: daysBetween(m.due_on, today) }))
+    .filter((m) => typeof m.late === "number")
+    .sort((a, b) => b.late - a.late)
+    .slice(0, 3);
+  if (!rows.length) return null;
+  const worst = rows[0].late || 1;
+  return (
+    <BarSeries
+      items={rows.map((m) => ({
+        // 가운뎃점을 안 쓴다(`scripts/check_user_text.py`) — 화면 문구의 구분자는 여백이다.
+        label: m.project_name ? `${m.project_name} ${m.name}` : m.name,
+        value: m.late,
+        note: `${m.late}일 지남`,
+        color: "warning",
+      }))}
+      max={worst}
+      unit="일"
+    />
+  );
+}
+
+/** 'YYYY-MM-DD' 두 개의 날짜 차이(일). 못 읽으면 `null` — 지어내지 않는다. */
+function daysBetween(from, to) {
+  const a = Date.parse(String(from || "") + "T00:00:00Z");
+  const b = Date.parse(String(to || "") + "T00:00:00Z");
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return null;
+  return Math.round((b - a) / 86400000);
+}
+
 /* 요약 줄. **숫자는 응답을 그대로 쓴다** - 여기서 더하거나 빼면 서버가 센 것과 갈라진다.
  *
  * 못 잰 것을 함께 말하는 것이 이 줄의 계약이다. "Health 하위 0건" 이 '다 건강하다' 인지
  * '아무것도 안 쟀다' 인지는 완전히 다른 사실이고, 안 말하면 화면이 조용히 후자를 전자처럼
  * 보이게 한다(app/projects/service.py::project_dashboard). */
-function Summary({ query }) {
+function Summary({ query, filters, onFilter }) {
   if (query.isPending) return <Card><Skeleton lines={3} /></Card>;
   if (query.isError) return <ErrorState error={query.error} onRetry={() => query.refetch()} />;
 
@@ -97,6 +198,8 @@ function Summary({ query }) {
   const trouble = health.trouble || {};
   const overdue = (d.milestones || {}).overdue || {};
   const avg = percentText(progress.average_pct);
+  // 재 본 프로젝트 수. 안 잰 것을 분모에 넣으면 아무것도 안 잰 조직이 가장 건강해 보인다.
+  const scored = Math.max(0, (d.total || 0) - (health.unscored || 0));
 
   /* 지표를 성격으로 **두 묶음**으로 나눈다 (지시 2).
    *
@@ -109,44 +212,84 @@ function Summary({ query }) {
    */
   return (
     <Box sx={{ mb: 2.5, display: "grid", gap: 1.5 }}>
+      {/* 구성 칸은 **누르면 목록이 그 상태로 좁아진다** (지시 15). 같은 칸을 다시 누르면
+          조건이 풀린다 — 조건을 켜는 자리와 끄는 자리가 다르면 사용자는 끄는 법을 못 찾는다. */}
       <MetricStrip
         ariaLabel="프로젝트 구성"
         items={[
-          { key: "total", value: d.total, label: "전체", primary: true },
-          { key: "active", value: status.active, label: "진행" },
-          { key: "done", value: status.done, label: "완료" },
-          { key: "on_hold", value: status.on_hold, label: "보류" },
-          { key: "planned", value: status.planned, label: "계획" },
+          { key: "total", value: d.total, label: "전체", primary: true,
+            active: !filters.status && !filters.trouble && !filters.overdue,
+            onClick: () => onFilter({ status: "", trouble: false, overdue: false }) },
+          ...STATUS_TILES.map(([key, label]) => ({
+            key, value: status[key], label,
+            active: filters.status === key,
+            onClick: () => onFilter({ status: filters.status === key ? "" : key, trouble: false, overdue: false }),
+          })),
         ]}
       />
-      <MetricStrip
-        ariaLabel="진행과 위험"
-        items={[
-          {
-            key: "progress",
-            value: avg,
-            label: "평균 진행률",
-            /* 평균을 못 낼 수도 있다(계산된 프로젝트가 하나도 없음). 그때 0% 로 그리면
-               "세어 봤더니 0" 이라는 거짓말이 된다 — null 은 '-' 로 그린다.
-               각주는 그 숫자 바로 아래 붙인다(VIS-09). */
-            note: "계산이 끝난 " + (progress.counted || 0) + "건만 셌습니다"
-              + (progress.not_counted ? ", " + progress.not_counted + "건은 아직 계산하지 않았습니다" : "") + ".",
-          },
-          {
-            key: "health",
-            value: trouble.count,
-            label: "Health 하위",
-            kind: trouble.count > 0 ? "danger" : undefined,
-            note: "Health 는 " + (health.unscored || 0) + "건을 아직 재지 않았습니다.",
-          },
-          {
-            key: "overdue",
-            value: overdue.count,
-            label: "지연 마일스톤",
-            kind: overdue.count > 0 ? "warn" : undefined,
-          },
-        ]}
-      />
+      {/* 진행과 위험 — **숫자만 나열하지 않는다** (지시 15).
+          평균 진행률은 막대가, Health 는 원이 그 값을 그린다. 셋 다 성격이 달라서 한
+          판독 줄에 밀어 넣으면 무엇이 조치를 요구하는 값인지 안 보인다. */}
+      <Box
+        sx={{
+          display: "grid", gap: 1.5,
+          gridTemplateColumns: { xs: "1fr", md: "repeat(3, minmax(0, 1fr))" },
+          alignItems: "stretch",
+        }}
+      >
+        <SummaryPanel label="평균 진행률">
+          <Typography sx={{ fontSize: FONT_SIZE.readout, fontWeight: FONT_WEIGHT.extrabold, lineHeight: 1.15 }}>
+            {avg || "-"}
+          </Typography>
+          <ProgressBar
+            percent={typeof progress.average_pct === "number" ? progress.average_pct : null}
+            revealKey={progress.average_pct}
+          />
+          <Typography variant="body2" color="text.secondary" sx={KO_WORD_BREAK}>
+            {"계산이 끝난 " + (progress.counted || 0) + "건만 셌습니다"
+              + (progress.not_counted ? ", " + progress.not_counted + "건은 아직 계산하지 않았습니다" : "") + "."}
+          </Typography>
+        </SummaryPanel>
+
+        <SummaryPanel
+          label="Health 하위"
+          active={filters.trouble}
+          onClick={() => onFilter({ trouble: !filters.trouble, status: "", overdue: false })}
+          actionLabel="Health 하위 프로젝트만 보기"
+        >
+          <Box sx={{ display: "flex", alignItems: "center", gap: 2, minWidth: 0 }}>
+            {/* 재 본 것 중 몇이 차질인가. **안 잰 것은 분모가 아니다** — 넣으면 아무것도
+                안 잰 조직이 가장 건강해 보인다. */}
+            <Gauge
+              value={scored ? trouble.count : null}
+              max={scored || 1}
+              size="4.5rem"
+              thickness={6}
+              centerText={String(trouble.count || 0)}
+              color={trouble.count > 0 ? "error" : "success"}
+              emptyLabel="아직 안 쟀습니다"
+              revealKey={trouble.count}
+            />
+            <Typography variant="body2" color="text.secondary" sx={{ minWidth: 0, ...KO_WORD_BREAK }}>
+              {"Health 는 " + (health.unscored || 0) + "건을 아직 재지 않았습니다."}
+            </Typography>
+          </Box>
+        </SummaryPanel>
+
+        <SummaryPanel
+          label="지연 마일스톤"
+          active={filters.overdue}
+          onClick={() => onFilter({ overdue: !filters.overdue, status: "", trouble: false })}
+          actionLabel="지연 마일스톤이 있는 프로젝트만 보기"
+        >
+          <Typography sx={{ fontSize: FONT_SIZE.readout, fontWeight: FONT_WEIGHT.extrabold, lineHeight: 1.15 }}>
+            {overdue.count || 0}
+          </Typography>
+          {/* 가장 오래 지난 것 셋. 「3건」만 말하면 그것을 본 사람이 할 수 있는 일이 없다 —
+              어느 것이 얼마나 지났는지가 곧 할 일 목록이다. */}
+          <OverdueBars items={overdue.items} today={d.today} />
+        </SummaryPanel>
+      </Box>
     </Box>
   );
 }
@@ -306,7 +449,11 @@ export function Projects() {
         description="내가 볼 수 있는 프로젝트가 지금 어디까지 왔는지 봅니다."
       />
 
-      <Summary query={dashboard} />
+      <Summary
+        query={dashboard}
+        filters={filters}
+        onFilter={(patch) => setFilters(patch)}
+      />
 
       {/* 탐색 줄은 **판이 아니다** (지시 80 · W5). 이 화면만 `c-toolbar-card` 를 달고 남아
           있었다 — 독립 검수 실측: 1920 에서 잉크 폭 비 0.355, 3840 에서 0.234 로, W5 가

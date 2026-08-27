@@ -35,6 +35,7 @@ from app.authz.visibility import (
     VisibilityContext,
     effective_visibility_clause,
 )
+from app.projects.health import TROUBLE_HEALTH_SCORE
 from app.projects.models import MILESTONE_PLANNED, Project, ProjectMilestone
 from app.projects.progress import Task, task_from_ticket
 from app.tickets.models import TicketCache
@@ -78,6 +79,10 @@ def list_in_scope(
     *,
     include_archived: bool = False,
     q: str | None = None,
+    status: str | None = None,
+    trouble: bool = False,
+    overdue_milestones: bool = False,
+    today: str | None = None,
     offset: int = 0,
     limit: int = 50,
     sort: str | None = None,
@@ -100,6 +105,33 @@ def list_in_scope(
         # `ilike` 다 — 코드는 대문자이고 사람들은 소문자로 친다.
         like = f"%{needle}%"
         stmt = stmt.where(Project.name.ilike(like) | Project.code.ilike(like))
+    if status:
+        stmt = stmt.where(Project.status == status)
+    if trouble:
+        # **판정은 `health.py` 한 곳이다.** 문턱 숫자를 여기 다시 적으면 화면의 요약과
+        # 목록이 서로 다른 프로젝트를 차질이라고 부르는 날이 온다.
+        # `NULL` 은 차질이 아니다 — 아직 한 번도 안 잰 것이지 나쁜 것이 아니고,
+        # `<` 비교가 NULL 을 안 고르는 것이 그 판정과 같은 답을 낸다.
+        stmt = stmt.where(Project.health_score < TROUBLE_HEALTH_SCORE)
+    if overdue_milestones:
+        # 기한이 지났는데 아직 예정인 마일스톤을 **가진** 프로젝트. 판정 조건 셋은
+        # `overdue_milestones_in_scope` 와 같은 것이다 — 두 곳이 갈리면 요약의 건수와
+        # 목록의 건수가 서로를 부정한다.
+        day = parse_date(today) if today else None
+        if day is None:
+            # 기준일이 없으면 **아무것도 안 거른다.** 오늘을 여기서 지어내면 브라우저
+            # 시간대와 서버 시간대가 갈린 날 목록이 조용히 달라진다(§불변 9).
+            pass
+        else:
+            stmt = stmt.where(
+                Project.id.in_(
+                    select(ProjectMilestone.project_id).where(
+                        ProjectMilestone.due_on.is_not(None),
+                        ProjectMilestone.due_on < day,
+                        ProjectMilestone.status == MILESTONE_PLANNED,
+                    )
+                )
+            )
     total = db.execute(select(func.count()).select_from(stmt.subquery())).scalar_one()
     key = sort if sort in {"name", "created_at", "updated_at"} else "name"
     descending = (order or "asc") == "desc"

@@ -398,8 +398,11 @@ def _drop_trashed(db: Session, rows: list[dict]) -> list[dict]:
 # 일부를 파이썬 뒤처리로 남기면 페이지네이션이 그 뒤처리 **앞에서** 일어나고, 그 순간
 # "20건을 달랬는데 13건이 왔다" + "total 이 사용자가 세는 수와 다르다" 가 동시에 난다.
 
-def _assignee_token_for_user(db: Session, user_id: str) -> str | None:
+def assignee_token_for_user(db: Session, user_id: str) -> str | None:
     """앱 user_id → 담당자 토큰(`assignee_token` 참조). 활성 사용자가 아니면 None.
+
+    이름 앞의 밑줄을 뗐다 — 작업 보드·백로그의 담당자 필터가 같은 해석을 필요로 하면서
+    두 번째 소비자가 생겼다(`app/work/router.py`). 사본을 만들면 한쪽만 §12.3 을 지키게 된다.
 
     브라우저는 소스 user id 를 주지도 받지도 않는다(§12.3) — 담당자 필터도 앱 user_id 로만
     받고 여기서 한 번 해석한다. 옛 짝이 있으면 그 값이, 없으면 자기 id 가 토큰이다.
@@ -456,7 +459,7 @@ def build_filters(
             and assignee_id is None):
         resolved: list[str] = []
         for uid in as_filter_values(query.assignee_user_id):
-            token = _assignee_token_for_user(db, uid)
+            token = assignee_token_for_user(db, uid)
             if token is not None:
                 resolved.append(token)
         if not resolved:
@@ -887,8 +890,30 @@ def trash_tickets_bulk(
 
 # ── 수동 편집(쓰기) ────────────────────────────────────────────────────────────
 
-def ensure_can_edit(ticket: TicketDTO, user: User, my_token: str | None) -> None:
+#: 범위 안이면 **담당자가 아니어도** 바꿀 수 있는 축 (지시 11).
+#:
+#: 「이 일은 내가 할게」와 「이건 김OO 씨 일이에요」는 팀이 매일 하는 말이고, 그때마다
+#: 운영자를 부르게 하면 담당자 칸은 결국 비어 있게 된다. 이 목록이 **한 칸뿐인 것**이
+#: 요점이다: 제목·상태·마감을 남의 티켓에서 고치는 것은 다른 이야기이고, 그쪽은 예전
+#: 규칙 그대로다.
+COLLABORATIVE_FIELDS: frozenset[str] = frozenset({"assignee_user_ids"})
+
+
+def ensure_can_edit(
+    ticket: TicketDTO, user: User, my_token: str | None, *, changes: dict | None = None
+) -> None:
     """소유권 검증(스펙 §25.5·IDOR). 운영/관리자군은 우회, 그 외는 본인 담당 또는 미할당만.
+
+    ## 담당자 축은 예외다 (지시 11)
+
+    `changes` 가 **담당자만** 담고 있으면 범위 안 누구나 바꿀 수 있다. 후보는 서버가
+    그 프로젝트에 닿을 수 있는 사람으로 이미 좁혀 준다
+    (`/api/tickets/assignees` → `_assignable_users`) — 즉 「볼 수 없는 사람에게 떠넘기기」는
+    이 예외로도 안 된다. 넓어지는 것은 **누가 바꾸는가**이지 **누구에게 줄 수 있는가**가
+    아니다.
+
+    `changes` 를 안 주면 예전과 정확히 같이 동작한다(회귀 0). 「가져가기」가 그렇게 부른다 —
+    담당자를 쓰는 것은 같지만 **뜻이 다른 동작**이기 때문이다(`claim_ticket`).
 
     소스에서 **방금 읽은** '현재' 티켓의 담당자로 판정한다(프런트가 준 값도, 캐시 값도 아니다).
 
@@ -913,6 +938,10 @@ def ensure_can_edit(ticket: TicketDTO, user: User, my_token: str | None) -> None
         return  # 미할당 — 담당자가 필요한 일이므로 (범위 안이면) 누구나 손댈 수 있다
     if my_token and my_token in assignees:
         return  # 본인 담당
+    # 담당자만 바꾸는 요청이면 범위 안 누구나 할 수 있다. **다른 칸이 하나라도 섞이면**
+    # 이 예외는 안 선다 — 그렇지 않으면 담당자를 함께 보내는 것만으로 아무 칸이나 열린다.
+    if changes and set(changes) <= COLLABORATIVE_FIELDS:
+        return
     raise ForbiddenError("이 티켓을 편집할 권한이 없습니다(담당자 또는 미할당 티켓만 편집할 수 있습니다).")
 
 
@@ -1024,7 +1053,7 @@ def _notify_assignees_added(
 
 def update_ticket(
     db: Session, outbound, settings, user: User, *, page_id: str, changes: dict,
-    now: datetime | None = None, repo=None,
+    now: datetime | None = None, repo=None, collaborative: bool = True,
 ) -> dict:
     """티켓 속성을 수동 편집한다(소유권·스키마 검증 후 소스 반영). 감사용 before/after 포함.
 
@@ -1038,7 +1067,12 @@ def update_ticket(
     ensure_not_trashed(db, page_id)   # H2 — 휴지통 항목은 없는 것으로 본다
     ensure_in_scope(db, page_id, user)   # 쓰기도 범위 밖은 404 (3순위 IDOR)
     current = r.get_live(db, page_id=page_id)
-    ensure_can_edit(current, user, assignee_token(db, user))
+    # **바꾸려는 칸이 무엇인지**를 함께 넘긴다 — 담당자만 바꾸는 요청은 범위 안 누구나
+    # 할 수 있다(지시 11). 이름을 옮기기 전의 원본 키를 넘긴다: 판정이 API 어휘로 돼야
+    # 화면이 보낸 것과 같은 말로 읽힌다.
+    ensure_can_edit(
+        current, user, assignee_token(db, user), changes=changes if collaborative else None
+    )
 
     repo_changes = dict(changes)
     if "assignee_user_ids" in repo_changes:
@@ -1346,6 +1380,16 @@ def claim_ticket(
     본다.** 앞사람은 자기 티켓이라고 믿고 일을 시작한다.
 
     잠금의 한계는 `app/tickets/claim_lock.py` 에 적었다.
+
+    ## 「가져가기」는 담당자 변경이 아니다 (지시 11 회차)
+
+    지시 11로 담당자 축이 넓어졌다 — 범위 안 사람이면 남의 티켓 담당자도 바꿀 수 있다.
+    그 완화를 이 동작까지 끌고 오면 「가져가기」 단추 하나로 **남이 하던 일을 가져올 수
+    있고, 뺏긴 사람은 아무 것도 못 본다.** 넓어진 것은 담당자 선택기(누구를 넣을지 고르는
+    화면)이지, 자기를 밀어 넣는 한 번의 클릭이 아니다.
+
+    그래서 여기서는 `collaborative=False` 로 부른다 — 예전 규칙 그대로 미할당이거나 본인
+    담당일 때만 지나간다.
     """
     from app.tickets.claim_lock import claim_guard
 
@@ -1353,6 +1397,7 @@ def claim_ticket(
         return update_ticket(
             db, outbound, settings, user, page_id=page_id,
             changes={"assignee_user_ids": [user.id]}, now=now, repo=repo,
+            collaborative=False,
         )
 
 
@@ -1427,6 +1472,8 @@ def create_ticket(
     # 다음이라야 그 행에 `seq` 를 줄 수 있고, 채번과 티켓 삽입이 같은 트랜잭션에 있어야
     # 롤백될 때 번호도 함께 돌아간다.
     _number_new_ticket(db, page_id=created.page_id, actor=user, now=stamp)
+    _place_in_sprint(db, ticket_id=created.uid, sprint_id=getattr(payload, "sprint_id", None),
+                     user=user, now=stamp)
     # 생성과 동시에 남에게 배정하는 것도 배정이다. 여기가 빠지면 "남이 나에게 일을 만든"
     # 경우만 조용해지는데, 그게 배정 알림이 가장 필요한 자리 중 하나다.
     _notify_assignees_added(
@@ -1435,6 +1482,42 @@ def create_ticket(
         after=resolve_assignee_user_ids(db, created.assignee_ids), now=stamp,
     )
     return {"ticket": ticket_views(db, [created])[0], "after": snapshot(created)}
+
+
+def _place_in_sprint(
+    db: Session, *, ticket_id: str | None, sprint_id: str | None, user: User, now: datetime
+) -> None:
+    """만든 티켓을 회차에 담는다. `sprint_id` 가 없으면 아무것도 안 한다 — 그게 백로그다.
+
+    회차는 **범위를 지난다**(`get_scoped_sprint_or_404`) — 안 보이는 회차 id 를 넣어
+    남의 팀 회의에 티켓을 밀어 넣을 수 없다. 프로젝트가 어긋나면 거절한다: 다른 프로젝트의
+    회차에 담긴 티켓은 그 회의에서 「우리 일이 아닌데 왜 여기 있지」가 된다.
+
+    활동으로도 남긴다. 「이 티켓이 언제 이 회차에 들어왔나」는 회의의 범위 변경이 읽는
+    바로 그 기록이고, 여기서 안 남기면 만들자마자 담긴 티켓만 그 셈에서 빠진다.
+    """
+    if not sprint_id or not ticket_id:
+        return
+    from app.tickets.models import Ticket
+    from app.work import activity as work_activity
+    from app.work import service as work_service
+    from app.work.models import ACT_SPRINT
+
+    sprint = work_service.get_scoped_sprint_or_404(db, sprint_id, user)
+    # 행 **id** 로 찾는다. 자체 DB 에서 만든 티켓은 `notion_page_id` 가 NULL 이라
+    # (`repository_native.py` 서문) 그 컬럼으로 찾으면 새 티켓만 조용히 안 잡힌다 —
+    # 즉 이 기능이 옛 이관 티켓에서만 동작한다.
+    row = db.get(Ticket, ticket_id)
+    if row is None:
+        return
+    if sprint.project_id and sprint.project_id != row.project_uid:
+        raise ValidationAppError("다른 프로젝트의 스프린트에는 넣을 수 없습니다.")
+    row.sprint_id = sprint.id
+    work_activity.record(
+        db, ticket_id=row.id, kind=ACT_SPRINT, actor_id=user.id,
+        field="sprint_id", from_value=None, to_value=sprint.id, now=now,
+    )
+    db.flush()
 
 
 def _number_new_ticket(db: Session, *, page_id: str | None, actor: User, now: datetime) -> None:

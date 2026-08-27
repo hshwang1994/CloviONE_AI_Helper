@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
-from app.work.models import REL_KINDS, SPRINT_STATES
+from app.work.models import DECISION_KINDS, REL_KINDS, SPRINT_STATES
 
 _ISO_DATE = r"^\d{4}-\d{2}-\d{2}$"
 
@@ -28,6 +28,10 @@ class BoardMove(BaseModel):
     before_id: str | None = Field(default=None, max_length=36)
     after_id: str | None = Field(default=None, max_length=36)
     reorder: bool = False
+    # 판에서 옮겼는가, 백로그에서 옮겼는가. 두 목록의 순서는 **다른 컬럼**이라
+    # (`tickets.board_rank` · `backlog_rank`) 어느 줄에서 끈 것인지를 화면이 말해야 한다 —
+    # 안 말하면 판에서 옮긴 것이 백로그 순서를 흐트러뜨린다.
+    on_board: bool = False
     base_version: int | None = Field(default=None, ge=1)
 
 
@@ -47,6 +51,35 @@ class SprintClose(BaseModel):
     """닫으면서 안 끝난 일을 어디로 옮길지. 비우면 어느 회차에도 안 들어간다."""
 
     target_sprint_id: str | None = Field(default=None, max_length=36)
+
+
+class DecisionCreate(BaseModel):
+    """회의록 한 줄 (지시 4).
+
+    비우는 칸이 셋이다(`ticket_id` · `assignee_user_id` · `due_date`). 회의 중에 다 안
+    정해지기 때문이다 — 필수로 만들면 「담당자 미정」인 결정을 적을 수 없고, 그러면
+    사람들은 그 결정을 아예 안 적는다.
+    """
+
+    kind: str = Field(pattern="^(" + "|".join(DECISION_KINDS) + ")$")
+    body: str = Field(min_length=1, max_length=2000)
+    ticket_id: str | None = Field(default=None, max_length=36)
+    assignee_user_id: str | None = Field(default=None, max_length=36)
+    due_date: str | None = Field(default=None, pattern=_ISO_DATE)
+
+
+class DecisionUpdate(BaseModel):
+    """고칠 수 있는 칸만. **보낸 칸만 바뀐다**(`exclude_unset`).
+
+    `kind` 가 여기 없는 것은 일부러다. 「결정」을 「할 일」로 바꾸는 것은 고치기가 아니라
+    다른 줄을 쓰는 것이고, 그렇게 바뀌면 회의록을 나중에 읽는 사람이 그때 무슨 말이
+    오갔는지 알 수 없다.
+    """
+
+    body: str | None = Field(default=None, min_length=1, max_length=2000)
+    assignee_user_id: str | None = Field(default=None, max_length=36)
+    due_date: str | None = Field(default=None, pattern=_ISO_DATE)
+    done: bool | None = None
 
 
 class RelationCreate(BaseModel):

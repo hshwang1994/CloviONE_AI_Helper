@@ -77,3 +77,44 @@ def test_equal_neighbours_do_not_produce_a_duplicate():
     """두 이웃이 같은 값이면(재조정 전의 낡은 목록) 그 값을 그대로 쓰지 않는다."""
     same = Decimal(1024)
     assert rank.between(same, same) != same
+
+
+# ── 목록이 둘이다 (D-349) ────────────────────────────────────────────────────
+
+
+def test_the_two_lists_have_two_columns():
+    """백로그와 판은 **다른 줄**이다.
+
+    한 컬럼으로 두면 카드를 판에서 옮긴 순간 백로그 순서가 함께 흐트러지고, 그
+    흐트러짐은 오류를 안 내고 다음 계획 회의에서야 보인다.
+    """
+    assert rank.RANK_FIELDS == {"backlog_rank", "board_rank"}
+
+
+@pytest.mark.parametrize("blank", [None, ""])
+def test_no_field_means_the_backlog(blank):
+    """안 고르면 예전 그대로다 — 이 인자를 안 넘기는 호출부가 조용히 달라지지 않는다.
+
+    빈 문자열도 「안 골랐다」로 읽는다. 화면이 `field: ""` 를 보내는 것과 아예 안 보내는
+    것은 같은 뜻이고, 둘을 갈라 한쪽만 예외로 만들면 그 예외가 오류가 아니라 **버그**다.
+    """
+    assert rank._column(blank) == "backlog_rank"
+
+
+@pytest.mark.parametrize(
+    "evil",
+    [
+        "board_rank; DROP TABLE tickets",
+        "backlog_rank UNION SELECT password_hash FROM users",
+        "version",
+    ],
+)
+def test_an_unknown_column_name_is_refused(evil):
+    """🔴 이 값은 **SQL 에 문자열로 들어간다.**
+
+    바인딩할 수 없는 자리(컬럼 이름)라 허용 목록이 유일한 방어다. 조용히 기본값으로
+    떨어지면 두 가지가 한꺼번에 나쁘다: 주입이 통하지 않아도 카드를 판에서 옮긴 것이
+    백로그 순서를 바꾸고, 아무도 그 이유를 못 찾는다.
+    """
+    with pytest.raises(ValueError):
+        rank._column(evil)

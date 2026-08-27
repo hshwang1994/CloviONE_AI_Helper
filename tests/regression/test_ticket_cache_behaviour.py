@@ -148,6 +148,9 @@ def test_created_ticket_is_visible_immediately(cache_client, db):
         "title": "방금 만든 티켓",
         "project_id": portal_project_id,
         "status": "계획",
+        # 신규 생성의 계약이다(지시 10 · `TicketCreate`).
+        "est_wd": 2,
+        "due_date": "2026-12-31",
         "assignee_user_ids": [U_ME],
     })
     assert created.status_code == 200, created.text

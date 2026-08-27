@@ -15,6 +15,7 @@ import { useAuth } from "../app/auth.jsx";
 import { useQueryState } from "../lib/useQueryState.js";
 import { useListReturn } from "../lib/listReturn.js";
 import { HealthBlock, HealthHistory, ProgressBlock } from "./ProjectMetrics.jsx";
+import { DateHistogram } from "../ui/charts/DateHistogram.jsx";
 import { ProjectTickets } from "./ProjectTickets.jsx";
 import { ProjectWbs } from "./ProjectWbs.jsx";
 import { ProjectWeekly } from "./ProjectWeekly.jsx";
@@ -25,7 +26,7 @@ import {
 import {
   DEPT_ROLES, useArchiveProject, useCreateMilestone, useDeleteMilestone, useDeptNames,
   useProject, useProjectHealth, useProjectHealthHistory, useProjectMilestones,
-  useProjectProgress, useProjectWbs, useProjectWeekly, useRecomputeProgress,
+  useProjectProgress, useProjectTicketTrend, useProjectWbs, useProjectWeekly, useRecomputeProgress,
   useSnapshotHealth, useUpdateMilestone, useUpdateProject,
 } from "./project-queries.js";
 
@@ -194,7 +195,7 @@ function MilestoneTimeline({ projectId, query, canWrite }) {
 }
 
 function Overview({
-  project, deptNames, progressQuery, healthQuery, healthHistoryQuery, canWrite, onEdit,
+  project, deptNames, progressQuery, healthQuery, healthHistoryQuery, trendQuery, canWrite, onEdit,
   onArchive, archiving, onRecomputeProgress, recomputingProgress, onSnapshotHealth, snapshottingHealth,
   canAssignDept, onAssignDept, assigningDept,
 }) {
@@ -270,6 +271,25 @@ function Overview({
         ) : null}
       </Card>
 
+      {/* 🔴 **진행률보다 먼저 온다** (지시 16). 이 프로젝트를 열고 처음 묻는 것은
+          「얼마나 끝났나」가 아니라 「무슨 일이 있었나」다 — 8월 3일에 스무 건이 한꺼번에
+          들어온 프로젝트와 석 달에 걸쳐 스무 건이 들어온 프로젝트는 진행률이 같아도
+          전혀 다른 프로젝트다. */}
+      <Card>
+        <Typography component="h2" variant="h6" sx={{ fontSize: FONT_SIZE.sectionTitle, mb: 1.5 }}>
+          티켓 발생 추이
+        </Typography>
+        {trendQuery.isPending ? <Skeleton lines={4} />
+          : trendQuery.isError ? <ErrorState error={trendQuery.error} onRetry={() => trendQuery.refetch()} />
+          : (
+            <DateHistogram
+              days={(trendQuery.data || {}).days}
+              question="언제 일이 몰렸나요?"
+              emptyLabel="이 기간에 만든 티켓이 없습니다"
+            />
+          )}
+      </Card>
+
       <Card>
         <Stack direction="row" gap={1} sx={{ flexWrap: "wrap", alignItems: "center", mb: 1.5 }}>
           <Typography component="h2" variant="h6" sx={{ fontSize: FONT_SIZE.sectionTitle, flex: 1 }}>진행률</Typography>
@@ -327,6 +347,7 @@ export function Project() {
   const progressQuery = useProjectProgress(id, tab === "overview");
   const healthQuery = useProjectHealth(id, tab === "overview");
   const healthHistoryQuery = useProjectHealthHistory(id, tab === "overview");
+  const trendQuery = useProjectTicketTrend(id, tab === "overview");
   const wbsQuery = useProjectWbs(id, tab === "wbs");
   const milestoneQuery = useProjectMilestones(id, tab === "milestones");
   const weeklyQuery = useProjectWeekly(id, state.week, tab === "weekly");
@@ -441,6 +462,7 @@ export function Project() {
         <Overview
           project={project} deptNames={deptNames}
           progressQuery={progressQuery} healthQuery={healthQuery} healthHistoryQuery={healthHistoryQuery}
+          trendQuery={trendQuery}
           canWrite={canWrite} onEdit={() => setEditing(true)}
           onArchive={handleArchive} archiving={archive.isPending}
           onRecomputeProgress={handleRecomputeProgress} recomputingProgress={recomputeProgress.isPending}

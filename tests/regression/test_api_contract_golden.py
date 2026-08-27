@@ -36,6 +36,17 @@ Nothing in these payloads is normalised away — every field is frozen exactly a
 served today.
 
 Deliberate contract changes recorded here (each landed with its golden edit):
+
+  * **진행 상태와 신호가 갈렸다** (D-349 · 지시 2). 상태 어휘에서 ``이슈`` 가 빠지고
+    ``보류`` 가 들어왔다 — 여섯이 전부다(``계획 · 진행 · 검증 · 완료 · 보류 · 취소``).
+    ``이슈`` 는 상태가 아니라 **신호**였다: 「진행 중인데 문제가 있다」를 한 칸에 적으려니
+    둘 중 하나를 버려야 했고, 실제로 그 티켓들은 진행 중 목록에서 통째로 사라져 있었다.
+    그래서 모든 티켓 뷰가 ``issue`` · ``blocked`` · ``blocked_reason`` 셋을 함께 싣는다.
+    ``지연`` 은 여기 없다 — 오늘이 며칠인지에 달린 값이라 저장하지 않고 그 자리에서 센다.
+    같은 회차에서 ``sprint_id`` (어느 회차에 담겼는가 — ``null`` 이면 백로그다)와
+    ``completed_at`` (끝난 시각)이 늘었고, 개발자 리포트에 ``hold`` 칸이 생겼다.
+    옛 ``이슈`` 데이터 아홉 건은 상태를 ``계획`` 으로 옮기고 ``issue_flag`` 를 켜서
+    보존했다(마이그레이션 ``0018``) — 무엇이 왜 바뀌었는지는 티켓 타임라인에 남는다.
   * the raw ``assignees`` array (source people IDs) was **dropped** from
     ``/api/tickets/*``; ``assignee_user_ids`` / ``assignee_names`` carry the
     resolved values and nothing in ``frontend/`` ever read the raw array
@@ -44,8 +55,7 @@ Deliberate contract changes recorded here (each landed with its golden edit):
   * every ticket carries ``uid``, the internal row UUID. ``id`` deliberately
     stays the imported page id — deep links, trash and audit all key on it.
   * ``developers[]`` rows gained ``user_id`` (keying developers by display name
-    breaks on duplicate names) and ``/api/sprint/summary`` gained
-    ``by_assignee``. ``unassigned`` stayed — the in-meeting triage flow uses it.
+    breaks on duplicate names).
   * ``/api/tickets/{id}`` gained **``body_markdown``** and **``body_sync_error``**
     (ticket body editing, plan Phase 3 §E). Only the *detail* response changed;
     the list rows are untouched, because shipping every ticket's body inside a
@@ -63,12 +73,14 @@ Deliberate contract changes recorded here (each landed with its golden edit):
     server-allocated sequence. The field exists because the screens used to
     build the name themselves by prefixing ``tid`` with ``"GIT-"``; once the old
     codes are discarded (D-283) that string names nothing.
-  * ``/api/sprint/summary`` gained **``burndown``** (plan Phase 3 §F). It is a
-    *due-date* burndown, not a historical one, and the shape says so: two series
-    over one day axis — ``planned`` (est_wd still due on or after that day,
-    cancelled excluded) and ``open`` (the same, minus what is already done). No
-    completion timestamp exists anywhere, so the payload carries only what the
-    data supports and the screen labels the two lines with exactly those words.
+  * the due-date **burndown** (plan Phase 3 §F) is a *due-date* burndown, not a
+    historical one, and the shape says so: two series over one day axis —
+    ``planned`` (est_wd still due on or after that day, cancelled excluded) and
+    ``open`` (the same, minus what is already done). No completion timestamp
+    exists anywhere, so the payload carries only what the data supports and the
+    screen labels the two lines with exactly those words. It moved off
+    ``/api/sprint/summary`` (retired) onto the sprint meeting payload, over the
+    **sprint window** rather than a calendar week (지시 4).
   * the three ticket **lists** (``/mine``, ``/unassigned``, ``/team``) gained the
     repository's standard page envelope: ``items`` / ``total`` / ``page`` /
     ``page_size`` (Z11 — a production mirror of 1,058 tickets used to ship in a
@@ -414,8 +426,13 @@ def contract_client(client, db, notion):
 
 
 # Every ticket-backed read endpoint, with the exact query string that is frozen.
-# `/api/sprint/summary` is the real path (there is no bare `/api/sprint`); the
-# period on the monthly report is pinned so the golden never depends on "today".
+# The period on the monthly report is pinned so the golden never depends on "today".
+#
+# `/api/sprint/summary` **was** here. 지시 4 회차에서 그 API 를 걷었다 — 「그 주에 마감인
+# 티켓 묶음」을 스프린트라고 부르던 자리인데, 이제 이 제품에는 회차라는 실체가 있다
+# (`sprints` 표 · `app/work/meeting.py`). 새 회의 API 는 회차 하나를 인자로 받으므로
+# 「고정된 질의 문자열 하나」로 얼릴 수 있는 모양이 아니고, 그 계약은 회차 픽스처를 세우는
+# `tests/unit/test_sprint_meeting.py` 와 `tests/security/test_sprint_scope.py` 가 지킨다.
 READ_ENDPOINTS = [
     ("tickets_mine", "/api/tickets/mine"),
     ("tickets_unassigned", "/api/tickets/unassigned"),
@@ -426,7 +443,6 @@ READ_ENDPOINTS = [
     # 소속을 정하므로 그 목록의 정본이 외부일 수 없다.
     ("tickets_projects", "/api/tickets/projects"),
     ("tickets_detail", f"/api/tickets/{DETAIL_PAGE_ID}"),
-    ("sprint_summary", "/api/sprint/summary"),
     ("dev_monthly", "/api/admin/reports/dev-monthly?period=2026-07"),
 ]
 

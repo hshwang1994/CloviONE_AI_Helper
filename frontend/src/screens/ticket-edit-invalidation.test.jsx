@@ -9,7 +9,7 @@ import "@testing-library/jest-dom/vitest";
 /* 티켓을 고치면 **그 티켓을 보여 주는 모든 화면**이 같이 바뀐다 (E6).
  *
  * 예전에는 `TicketEditModal` 이 저장 뒤 `["tickets"]` 하나만 무효화했다. 그런데 홈('오늘')은
- * `["home","today"]` 로, 스프린트 회의는 `["sprint", …]` 로 같은 티켓을 그린다 — 두 화면 모두
+ * `["home","today"]` 로, 스프린트 회의는 `["sprint-meeting", …]` 로 같은 티켓을 그린다 — 두 화면 모두
  * 편집 버튼을 달고 있으면서 저장 뒤에는 **옛 값을 그대로** 보여 줬다. 사용자는 "저장했습니다"
  * 토스트를 보고도 값이 안 바뀌니 저장이 안 된 줄 알고 같은 편집을 되풀이했다.
  *
@@ -130,7 +130,8 @@ describe("티켓 편집 뒤 화면 갱신", () => {
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     // 스프린트 회의는 다른 키를 쓴다 — 사용자가 홈에서 고치고 스프린트 탭으로 넘어가면
     // 그 화면은 캐시에 남은 옛 값을 그대로 그린다(무효화가 이 키까지 닿지 않으면).
-    const SPRINT_KEY = ["sprint", "2026-08-03", "2026-08-10"];
+    // 회차 하나가 키다 — 지시 4 이후 이 화면은 주가 아니라 **회차**를 읽는다.
+    const SPRINT_KEY = ["sprint-meeting", "sp-now"];
     qc.setQueryData(SPRINT_KEY, { ok: true, people: [] });
     const user = userEvent.setup();
     renderHome(qc);

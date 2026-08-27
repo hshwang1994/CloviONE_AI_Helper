@@ -302,10 +302,13 @@ def _create_linked_ticket(
     Notion 배선)을 끌어오면 게시판만 쓰는 경로까지 그 무게를 지게 된다. 알림에서 쓰는
     방식과 같다.
     """
-    from app.tickets.schemas import TicketCreate
+    from app.tickets.schemas import TicketDraft
     from app.tickets.service import create_ticket
 
-    payload = TicketCreate(
+    # **`TicketCreate` 가 아니라 `TicketDraft` 다.** 「새 티켓」 화면은 예상 WD 와 마감일을
+    # 요구하지만(지시 10) 제안을 전환하는 사람은 대개 공수를 모른다 — 그 자리에서 아무 수나
+    # 적게 만드는 것은 없는 값을 있는 척하는 것이다. 생성 경로는 여전히 하나다.
+    payload = TicketDraft(
         title=post.title,
         project_id=project_id,
         # 제안 본문을 그대로 옮긴다 — 티켓만 보는 사람이 원문을 찾아 헤매지 않게.

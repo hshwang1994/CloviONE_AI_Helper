@@ -25,7 +25,9 @@
  *   tickets     내 티켓·팀 티켓·프로젝트 티켓·미할당 목록 + 후보 목록(ticket-options.js)
  *   ticket      티켓 상세 (Ticket.jsx)
  *   home        오늘(/api/home/today) · 업무 대시보드(/api/home/work-dashboard)
- *   sprint      스프린트 회의(/api/sprint/summary)
+ *   sprint-meeting  스프린트 회의(/api/work/sprints/{id}/meeting) — 회차에 담긴 티켓의
+ *               요약·번다운·논의 목록·후보를 한 응답으로 만든다. 티켓 하나를 고치면
+ *               그 넷이 전부 낡는다.
  *   my-stats    내 업무량·완료 통계(/api/me/stats — 홈과 같은 티켓 로더를 쓴다)
  *   projects    프로젝트 진행률·WBS·헬스(app/projects/repository.tasks_for_project 가 티켓을 센다)
  *   dev-report  개발자 월간 리포트(DevReport.jsx, /api/admin/reports/dev-monthly)— 담당자별
@@ -41,7 +43,7 @@ export const TICKET_VIEW_KEYS = [
   ["tickets"],
   ["ticket"],
   ["home"],
-  ["sprint"],
+  ["sprint-meeting"],
   ["my-stats"],
   ["projects"],
   ["dev-report"],

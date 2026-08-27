@@ -394,9 +394,15 @@ def test_the_impersonation_history_stays_scoped_when_visible_users_exceed_one_sq
     assert two_orgs.user_a.id not in targets, "다른 조직의 대리 보기 이력이 새어 나왔다"
 
 
-# UA-02: `_visible_ids`(sprints)와 `drop_out_of_scope_dtos`(tickets) 둘 다 예전엔
-# `scope.is_dept`일 때만 걸러 org 범위 뷰어는 그대로 무제한(None)이었다. 이 세계의
-# `two_orgs`는 org 범위(부서가 아니라)이므로 그 구멍을 정확히 재현한다.
+# UA-02: `visible_user_ids` 를 안 넘기는 호출부는 예전엔 `scope.is_dept`일 때만 걸러
+# org 범위 뷰어는 그대로 무제한(None)이었다. 이 세계의 `two_orgs`는 org 범위(부서가
+# 아니라)이므로 그 구멍을 정확히 재현한다.
+#
+# 예전에는 여기 `/api/sprint/summary` 를 겨눈 짝 시험이 하나 더 있었다. 지시 4 회차에서
+# 그 API 를 걷었다 — 「그 주에 마감인 티켓 묶음」을 스프린트라고 부르던 자리다. 회차를
+# 아는 새 회의 API 의 같은 성질(내가 못 보는 프로젝트의 티켓이 회차 안에 있어도 안 실린다)은
+# `tests/security/test_sprint_scope.py` 가 지킨다 — 그쪽은 조직 축이 아니라 프로젝트 축이라
+# 세계 자체가 다르고, 한 파일에 억지로 합치면 둘 다 읽기 어려워진다.
 @pytest.fixture()
 def two_orgs_with_tickets(two_orgs, db, make_ticket):
     from app.notion_mapping.models import STATUS_VERIFIED, UserNotionMapping
@@ -416,16 +422,6 @@ def two_orgs_with_tickets(two_orgs, db, make_ticket):
                 due="2026-07-16", assignees=[nid_b], est_wd=3.0,
                 external_project_ids=["oa-p1"])
     return two_orgs
-
-
-def test_org_scoped_sprint_summary_does_not_leak_the_other_organization(
-    client, login_as, two_orgs_with_tickets, db
-):
-    _scope_boss_to_org_b(client, login_as, two_orgs_with_tickets, db)
-    body = client.get("/api/sprint/summary?start=2026-07-01&end=2026-08-01").json()
-    names = {d["name"] for d in body.get("developers", [])}
-    assert "B사람" in names, f"자기 조직 담당자가 없다: {names}"
-    assert "A사람" not in names, f"org 범위 뷰어에게 다른 조직 담당자 생산성이 보인다: {names}"
 
 
 def test_org_scoped_weekly_digest_does_not_leak_the_other_organization(

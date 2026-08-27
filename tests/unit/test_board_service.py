@@ -259,13 +259,36 @@ def test_fit_for_ticket_description_wraps_a_single_long_line():
 
 
 def test_fit_for_ticket_description_passes_ticket_create_validation():
-    """실제 관문(TicketCreate._check_desc)을 통과하는지 — 문자열 모양만 보지 않는다."""
-    from app.tickets.schemas import TicketCreate
+    """실제 관문(`TicketDraft._check_desc`)을 통과하는지 — 문자열 모양만 보지 않는다.
+
+    **`TicketCreate` 가 아니라 `TicketDraft` 다.** 제안을 티켓으로 만드는 경로가 쓰는 것이
+    그쪽이기 때문이다(`app/board/service.py`) — 「새 티켓」 화면은 예상 WD 와 마감일을
+    요구하지만(지시 10) 전환하는 사람은 대개 공수를 모른다. 여기서 `TicketCreate` 를 쓰면
+    이 함수의 소비처가 아닌 계약을 재게 된다.
+    """
+    from app.tickets.schemas import TicketDraft
 
     body = "긴 문단입니다. " * 400  # 공백 섞인 긴 문단, 줄바꿈 없음
     fitted = service._fit_for_ticket_description(body)
-    payload = TicketCreate(title="t", project_id="p1", description=fitted)  # 안 터지면 통과
+    payload = TicketDraft(title="t", project_id="p1", description=fitted)  # 안 터지면 통과
     assert payload.description == fitted.strip()
+
+
+def test_the_new_ticket_form_demands_an_estimate_and_a_due_date():
+    """반례 — 같은 본문이라도 **사람이 만드는 티켓**의 계약은 더 엄하다 (지시 10).
+
+    이 단언이 없으면 위 시험은 「검증을 통과했다」까지만 말하고, 두 계약이 실은 같은
+    것이었어도 초록이 뜬다.
+    """
+    import pytest as _pytest
+    from pydantic import ValidationError
+
+    from app.tickets.schemas import TicketCreate
+
+    with _pytest.raises(ValidationError):
+        TicketCreate(title="t", project_id="p1")
+    # 둘을 채우면 통과한다 — 막는 것은 「안 적은 것」이지 값 자체가 아니다.
+    TicketCreate(title="t", project_id="p1", est_wd=0, due_date="2026-12-31")
 
 
 def test_fit_for_ticket_description_caps_line_count():

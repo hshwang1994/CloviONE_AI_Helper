@@ -74,7 +74,6 @@ from app.setup.router import router as setup_router
 from app.sysops.router import router as sysops_router
 from app.team_docs.router import router as team_docs_router
 from app.trash.router import router as trash_router
-from app.sprints.router import router as sprint_router
 from app.ai.router import router as ai_router
 from app.knowledge.router import router as knowledge_router
 from app.storage.router import router as storage_router
@@ -251,7 +250,6 @@ def create_app(
     # 취소한 티켓을 완료로 세기 때문이다(app/projects/progress.py).
     app.include_router(projects_router)
     app.include_router(trash_router)
-    app.include_router(sprint_router)
     # Work Domain(S6) — 판·백로그·스프린트·이름 세 층·예외. 티켓 목록 API 와 나뉜
     # 이유는 소비자다: 저쪽은 표, 이쪽은 판이고 순서다.
     app.include_router(work_router)

@@ -1,3 +1,5 @@
+/* qa-contract-change: 스프린트 회의의 담당자 타일 격자 PEOPLE_GRID 가 없어져 그 열 수를 세던 단정이 사라졌다. 그 자리는 이제 담당자별 남은 WD 막대이고, 「나란히 놓고 비교된다」는 성질은 격자 열 수가 아니라 하나의 축을 공유하는가로 지켜진다 — 아래에서 그 성질을 직접 단정한다(지시 4).
+ */
 import { describe, it, expect } from "vitest";
 
 import {
@@ -11,7 +13,7 @@ import { FONT_SIZE } from "./theme.js";
 import { DETAIL_GRID } from "../screens/Ticket.jsx";
 import { DOC_DETAIL_GRID } from "./DocBody.jsx";
 import { NEW_TICKET_GRID } from "../screens/MyTickets.jsx";
-import { PEOPLE_GRID } from "../screens/Sprint.jsx";
+import { workloadItems } from "../screens/sprint-charts.js";
 
 /* 밀도·격자 계약 — 목업이 아니라 **레이아웃이 지켜야 하는 성질**을 본다.
  *
@@ -46,13 +48,6 @@ function trackEntries(sx) {
   return typeof v === "string" ? [["(기본)", v]] : Object.entries(v);
 }
 
-/* `repeat(N, ...)` 과 명시 트랙 나열을 모두 센다. */
-function columnCount(track) {
-  const repeat = /repeat\(\s*(\d+)/.exec(track);
-  if (repeat) return Number(repeat[1]);
-  return track.trim().split(/\s+(?![^(]*\))/).length;
-}
-
 describe("왼쪽 쏠림 방지 — 상세·폼 격자는 본문 폭을 채운다 (지시 6)", () => {
   const grids = [
     ["티켓 상세", DETAIL_GRID],
@@ -82,13 +77,28 @@ describe("개수가 고정된 카드 줄은 마지막 줄에 빈 칸을 남기�
      ("지표가 카드 여섯 장이 아니라 판 두 개에 담긴다")로 옮겼다. 트랙 문자열 대신 DOM 을
      보므로 더 강한 검사다. */
 
-  it("담당자 현황은 넓은 화면에서 촘촘하게 편다(작은 타일이므로)", () => {
-    /* 이름 + 숫자 셋짜리 작은 타일이다. `card.pad` 급 3열로 펴면 한 사람이 화면 1/3 을
-       차지해 비교가 안 된다 — 스프린트 회의는 담당자끼리 **나란히 놓고 비교**하는 자리다.
-       정확한 열 수는 방향과 함께 움직이므로 하한만 못박는다.
-       (열 수 자체의 재설계는 지시 9 / P7-3 에서 다룬다.) */
-    const widest = Math.max(...trackEntries(PEOPLE_GRID).map(([, t]) => columnCount(t)));
-    expect(widest).toBeGreaterThanOrEqual(4);
+  it("🔴 담당자 현황은 한 축을 공유한다 — 그래야 나란히 비교된다", () => {
+    /* 여기 있던 것은 담당자 타일 **격자**의 열 수 하한이었다. 그 격자가 없어졌다.
+       지키던 성질은 「한 사람이 화면 1/3 을 차지해 비교가 안 되는 것을 막는다」였고,
+       스프린트 회의는 담당자끼리 **나란히 놓고 비교**하는 자리라는 것이 그 이유다.
+
+       지금 그 자리는 막대다. 막대가 비교되려면 **분모가 하나**여야 한다 — 줄마다 자기
+       최대값으로 그리면 남은 1WD 와 남은 9WD 가 같은 길이가 되고, 그때 그림은 거짓말을
+       한다. 그래서 `max` 를 목록 전체의 최대값 하나로 낸다.
+
+       그리고 예상 WD 를 안 적은 티켓은 합계에 못 들어가므로 그 건수를 줄 설명으로
+       따로 말한다 — 「남은 3WD」와 「남은 3WD + 예상 없는 다섯 건」은 다른 이야기다. */
+    const rows = [
+      { user_id: "u-1", display_name: "가", remaining_wd: 9, open: 4, unestimated: 0 },
+      { user_id: "u-2", display_name: "나", remaining_wd: 1, open: 1, unestimated: 2 },
+    ];
+    const out = workloadItems(rows);
+    expect(out.max).toBe(9);
+    expect(out.items.map((i) => i.value)).toEqual([9, 1]);
+    expect(out.items[1].note).toContain("예상을 안 적은 것 2건");
+    // 아무도 남은 일이 없으면 **빈 막대를 그리지 않는다** — 0 짜리 줄만 늘어선 그림은
+    // 「고르다」가 아니라 「아무것도 없다」이고, 그 둘은 다른 사실이다.
+    expect(workloadItems([])).toBeNull();
   });
 });
 

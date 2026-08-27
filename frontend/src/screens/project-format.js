@@ -100,6 +100,13 @@ export const NO_PROGRESS_SAMPLE = "작업이 아직 없습니다";
 export const NO_HEALTH_SCORE = "점수를 낼 수 없습니다";
 export const NO_HEALTH_CACHE = "Health 를 아직 계산하지 않았습니다";
 
+/** 차질 문턱. **판정의 정본은 서버다**(`app/projects/health.py::TROUBLE_HEALTH_SCORE`) —
+ * 화면은 그 값으로 **색만** 고른다(원을 빨갛게 할지 초록으로 할지). 여기서 판정을 새로
+ * 하지 않는다: 요약의 「Health 하위 3건」은 서버가 센 값이고, 화면이 다른 문턱으로 색을
+ * 칠하면 3 건이라고 적힌 줄 아래에 빨간 원 다섯 개가 서는 화면이 된다.
+ * 두 값이 갈리지 않는 것은 `projects.test.jsx` 가 맞물어 둔다. */
+export const TROUBLE_HEALTH_SCORE = 60;
+
 /** 숫자를 화면용 문자열로. 소수점 뒤 0은 떨군다(70.0% 는 사람이 쓰는 말이 아니다). */
 function trimmed(value, digits) {
   const n = Number(value);

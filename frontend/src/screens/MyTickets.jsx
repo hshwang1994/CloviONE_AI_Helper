@@ -43,6 +43,7 @@ import { TableHeaderCell } from "../ui/TableHeaderCell.jsx";
 import { TicketEmptyState, TicketFilterBar, applyColumnFilter, clearTicketFilters, columnFilterValue, hasTicketFilter, nextTicketSort, ticketFilterSpec, ticketQueryParams, ticketSortOf, TICKET_LIST_EXTRA } from "./TicketFilterBar.jsx";
 import { openStatusKeys } from "../lib/openTicketStatuses.js";
 import { TicketSignals } from "../ui/TicketSignals.jsx";
+import { InlineEdit } from "../ui/InlineEdit.jsx";
 import { useTicketSignals } from "../lib/ticketSignals.js";
 import { useListMemory } from "../lib/listReturn.js";
 
@@ -139,7 +140,7 @@ function TitleCell({ t, onOpen }) {
 // 좁은 열 안에 표가 들어갈 때 쓴다. 전체 열을 그대로 넣으면 1366 화면에서 마감·편집이 잘려
 // 나가 가로로 긁어야 보인다 — 실제 캡처에서 그 상태였다. 난이도·예상 WD 는 '오늘 뭘 할까'를
 // 정하는 데 필요 없고, 편집은 글자 대신 아이콘 버튼으로 줄여 자리를 아낀다.
-export function ticketColumns({ showAssignee, onEdit, onClaim, onOpen, compact, filterAssignee, signalsOf } = {}) {
+export function ticketColumns({ showAssignee, onEdit, onClaim, onOpen, compact, filterAssignee, signalsOf, statusEdit } = {}) {
   /* `signalsOf` 는 티켓 하나의 **켜져 있는 신호**를 돌려주는 함수다
    * (`lib/ticketSignals.js::useTicketSignals`). 화면이 주지 않으면 신호를 안 그린다 —
    * 어휘 질의가 아직 안 왔거나 시험이 표만 볼 때가 그 경우이고, 그때 빈 알약을 그리면
@@ -148,6 +149,10 @@ export function ticketColumns({ showAssignee, onEdit, onClaim, onOpen, compact, 
    * 밀도가 둘인 이유는 `ui/TicketSignals.jsx` 에 적었다: 좁은 표는 상태 칸에 아이콘만
    * 딸려 서고, 넓은 표는 자기 열에서 낱말을 쓴다. 어휘와 색은 한 표에서 나온다. */
   const marksOf = (t) => (signalsOf ? signalsOf(t) : []);
+  /* `statusEdit` 는 「이 표에서 상태를 그 자리에서 바꿀 수 있다」는 선언이다 (지시 18).
+   * `{ options, save(ticket, next) }` 를 준다. 안 주면 상태는 예전처럼 읽기만 한다 —
+   * 바꿀 수 없는 표에 눌리는 컨트롤을 두지 않는다(`ui/InlineEdit.jsx` 의 `locked` 규칙). */
+  const editableStatus = statusEdit && (statusEdit.options || []).length > 0;
   // nowrap: 한 덩어리 값(티켓 번호·날짜·숫자)은 절대 줄바꿈하지 않는다. 예전에는 모든 셀이
   // `overflowWrap: anywhere` 라 열의 최소 폭이 '한 글자'가 됐고, 폭이 모자라면 'GIT-4101'이
   // 세 줄로 쪼개져 세로로 무너졌다(QA vertical_text_collapse). 폭이 정말 모자라면 표를 줄이는
@@ -173,7 +178,22 @@ export function ticketColumns({ showAssignee, onEdit, onClaim, onOpen, compact, 
       render: (t) => (t.status
         ? (
           <Box component="span" sx={{ display: "inline-flex", alignItems: "center", gap: 0.5, minWidth: 0 }}>
-            <Badge value={t.status} />
+            {editableStatus ? (
+              /* 상세로 들어갔다 나오지 않고 여기서 바꾼다. 저장 중 표시·서버 값 반영·
+                 실패 시 원복은 전부 `InlineEdit` 의 상태 기계가 한다 — 이 표가 그 규칙을
+                 다시 적으면 다른 자리와 갈라진다. */
+              <InlineEdit
+                value={t.status}
+                options={statusEdit.options}
+                canEdit
+                label="상태"
+                rowName={t.title || (t.key || "")}
+                render={(v) => <Badge value={v} />}
+                onSave={(next) => statusEdit.save(t, next)}
+              />
+            ) : (
+              <Badge value={t.status} />
+            )}
             {compact ? <TicketSignals signals={marksOf(t)} variant="mark" /> : null}
           </Box>
         )
@@ -816,6 +836,7 @@ export function MyTickets() {
   /* 상세를 열었다 돌아오면 조건·페이지·스크롤이 그대로다 (지시 19). */
   useListMemory("/my-tickets");
   const signalsOf = useTicketSignals();
+  const statusEdit = useInlineStatusEdit();
   const confirm = useConfirm();
   const nav = useNavigate();
   const [filters, setFilters] = useQueryState(MY_SPEC, PAGE_RESET);
@@ -861,7 +882,7 @@ export function MyTickets() {
           if (conn) return conn;
           const rows = ticketRows(data);
           const cols = [selectionColumn(sel, rows.map((r) => r.id)),
-            ...ticketColumns({ showAssignee: true, onEdit: setEditing, signalsOf, onOpen: openTicket(nav, "/my-tickets") })];
+            ...ticketColumns({ showAssignee: true, onEdit: setEditing, signalsOf, statusEdit, onOpen: openTicket(nav, "/my-tickets") })];
           return (
             <>
               {/* SEM-02(PA-F-031): 이 화면은 h1 하나뿐이라 필터·표가 스크린리더 제목
@@ -989,6 +1010,40 @@ export function Unassigned() {
     </div>
   );
 }
+
+/* 목록에서 상태를 그 자리에서 바꾸는 배선 (지시 18).
+ *
+ * 「내 티켓」에서만 켠다. 그 목록의 티켓은 정의상 내가 담당자라 서버의 편집 판정
+ * (`app/tickets/service.py::ensure_can_edit`)을 언제나 지난다 — 눌러 보고 403 을 받는
+ * 경로를 만들지 않는다는 규칙이 여기서 지켜지는 방식이다. 팀 티켓·미할당 목록은 사람마다
+ * 답이 달라서, 그 목록에 컨트롤을 두려면 서버가 행마다 판정을 실어 줘야 한다.
+ *
+ * 어휘는 서버가 준다(`/api/work/statuses`) — 화면이 상태 이름을 적으면 어휘가 바뀐 날
+ * 이 드롭다운만 옛 목록으로 남는다.
+ */
+function useInlineStatusEdit() {
+  const qc = useQueryClient();
+  const workQ = useWorkStatuses(true);
+  const options = ((workQ.data && workQ.data.statuses) || []).map((st) => ({
+    value: st.key,
+    // 저장값과 표시값이 다른 것이 하나 있다(`진행` → `진행 중`). 서버가 준 라벨을 쓴다.
+    label: st.label || st.key,
+  }));
+  return React.useMemo(() => ({
+    options,
+    save: async (ticket, next) => {
+      const res = await api(`/api/tickets/${encodeURIComponent(ticket.id)}`, {
+        method: "PATCH", body: JSON.stringify({ status: next }),
+      });
+      /* 티켓 값을 그리는 질의는 한 표가 안다(`ticket-views.js`) — 홈·스프린트·보드가
+         같은 티켓을 세고 있으므로 여기만 고치면 그쪽 숫자가 남는다. */
+      invalidateTicketViews(qc);
+      // 서버가 돌려준 값이 정본이다. 안 주면 넘긴 값을 쓴다(`InlineEdit` 의 §정직한 성공).
+      return (res && res.ticket && res.ticket.status) || next;
+    },
+  }), [JSON.stringify(options), qc]);   // eslint-disable-line react-hooks/exhaustive-deps
+}
+
 
 /* 새 티켓 — 채팅 없이 폼으로 생성(제목·프로젝트 필수). 담당자 기본값은 나(연결된 경우).
  * 복잡한 배경/요구사항이 필요한 티켓은 AI 도우미가 더 낫다 — 여기선 빠른 생성에 집중한다. */
@@ -1193,7 +1248,22 @@ export function NewTicket() {
   const qc = useQueryClient();
   const toast = useToast();
   const projectsQ = useTicketProjects(true);
-  const [form, setForm] = React.useState({ title: "", project_id: "", status: "", priority: "", difficulty: "", est_wd: "", due: "", assignees: [], description: "" });
+  /* **티켓을 만드는 자리가 기본값을 정한다** (지시 5).
+   *
+   * 일반 「새 티켓」은 아직 언제 할지 안 정한 일이라 백로그로 간다(회차를 안 붙인다).
+   * 판의 회차 맥락 안에서 누른 「티켓 추가」는 주소에 `project` 와 `sprint` 를 싣고 오고,
+   * 그러면 그 회차의 일이 된다 — 만든 사람이 곧바로 「스프린트에 담기」를 한 번 더 눌러야
+   * 한다면 그 한 번을 빠뜨린 티켓은 회의에서 아무도 못 본다.
+   *
+   * 회차 id 는 서버가 다시 본다(`app/tickets/service.py::_place_in_sprint`) — 주소에
+   * 남의 팀 회차 id 를 적어 넣어도 그 문을 못 지난다. */
+  const context = React.useMemo(() => {
+    const raw = String(window.location.hash || "");
+    const q = raw.indexOf("?");
+    const sp = new URLSearchParams(q >= 0 ? raw.slice(q + 1) : "");
+    return { project: sp.get("project") || "", sprint: sp.get("sprint") || "" };
+  }, []);
+  const [form, setForm] = React.useState({ title: "", project_id: context.project, status: "", priority: "", difficulty: "", est_wd: "", due: "", assignees: [], description: "" });
   // 담당자 후보는 **선택한 프로젝트에 닿을 수 있는 사람**만이다 (0060 §14).
   const assigneesQ = useAssigneeOptions(!!form.project_id, form.project_id);
   const metaQ = useTicketMeta(true);
@@ -1220,7 +1290,9 @@ export function NewTicket() {
 
   const create = useMutation({
     mutationFn: (body) => api("/api/tickets", { method: "POST", body }),
-    onSuccess: () => { toast("티켓을 추가했습니다.", "success"); invalidateTicketViews(qc); window.location.hash = "#/my-tickets"; },
+    // 회차 맥락에서 왔으면 그 판으로 돌아간다. 만든 티켓이 안 보이는 화면으로 튕기면
+    // 사용자는 방금 만든 것이 어디 갔는지 확인할 방법이 없다.
+    onSuccess: () => { toast("티켓을 추가했습니다.", "success"); invalidateTicketViews(qc); window.location.hash = context.sprint ? "#/work-board" : "#/my-tickets"; },
     onError: (e) => { toast((e && e.message) || "추가하지 못했습니다. 잠시 후 다시 시도해 주세요.", "error"); },
   });
 
@@ -1243,15 +1315,24 @@ export function NewTicket() {
     // 프로젝트는 **언제나** 필수다 (0060 §11). 예전에는 후보 목록이 비면 그냥 통과시켰는데,
     // 그러면 소속이 없는 티켓이 만들어지고 그 티켓은 전체 관리자 말고는 아무에게도 안 보인다.
     if (!form.project_id) { toast("프로젝트를 선택하세요.", "error"); return; }
-    if (form.est_wd !== "" && Number.isNaN(Number(form.est_wd))) { toast("예상 WD에는 숫자를 입력하세요.", "error"); return; }
-    const body = { title: form.title.trim(), project_id: form.project_id };
+    /* 예상 WD 와 마감일은 필수다 (지시 10). 서버도 같은 요구를 하므로 여기서 막는 것은
+       방어가 아니라 **먼저 말해 주는 것**이다 — 서버까지 다녀와서 422 를 보여 주면
+       사용자는 무엇이 빠졌는지 폼에서 다시 찾아야 한다. */
+    if (form.est_wd === "" || Number.isNaN(Number(form.est_wd))) { toast("예상 WD를 숫자로 입력하세요.", "error"); return; }
+    if (!form.due) { toast("마감일을 입력하세요.", "error"); return; }
+    const body = {
+      title: form.title.trim(),
+      project_id: form.project_id,
+      est_wd: Number(form.est_wd),
+      due_date: form.due,
+    };
     if (form.status) body.status = form.status;
     if (form.priority) body.priority = form.priority;
     if (form.difficulty) body.difficulty = form.difficulty;
-    if (form.est_wd !== "") body.est_wd = Number(form.est_wd);
-    if (form.due) body.due_date = form.due;
     if (form.assignees.length) body.assignee_user_ids = form.assignees;
     if (form.description.trim()) body.description = form.description.trim();
+    // 회차 맥락에서 왔으면 그 회차로 간다. 안 왔으면 이 칸을 아예 안 보낸다 — 그게 백로그다.
+    if (context.sprint) body.sprint_id = context.sprint;
     create.mutate(body);
   }
 
@@ -1320,10 +1401,15 @@ export function NewTicket() {
                   <MenuItem value="">없음</MenuItem>
                   {withCurrent(meta.difficulties, form.difficulty).map((d) => <MenuItem key={d} value={d}>{d}</MenuItem>)}
                 </TextField>
+                {/* 예상 WD 와 마감일은 **필수**다 (지시 10). 이 제품의 계획이 그 둘 위에
+                    선다 — 예상 WD 가 없으면 스프린트의 남은 일과 담당자별 부하를 못 세고,
+                    마감일이 없으면 「지연」이라는 신호 자체가 계산되지 않는다(D-349).
+                    별표만 붙이고 끝내지 않는다: 서버도 같은 요구를 한다(`TicketCreate`). */}
                 <TextField
-      InputLabelProps={{ shrink: true }} id="nt-wd" fullWidth size="small" label="예상 WD" type="number" inputProps={{ step: "0.5", min: "0" }}
+      InputLabelProps={{ shrink: true }} id="nt-wd" fullWidth size="small" required label="예상 WD" type="number" inputProps={{ step: "0.5", min: "0" }}
+                  helperText="사람이 며칠 붙는 일인가요. 0 도 됩니다."
                   value={form.est_wd} onChange={(e) => set("est_wd", e.target.value)} />
-                <TextField id="nt-due" fullWidth size="small" label="마감일" type="date" InputLabelProps={{ shrink: true }}
+                <TextField id="nt-due" fullWidth size="small" required label="마감일" type="date" InputLabelProps={{ shrink: true }}
                   value={form.due} onChange={(e) => set("due", e.target.value)} />
               </Box>
             </Box>

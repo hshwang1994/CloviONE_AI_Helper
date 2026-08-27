@@ -246,6 +246,13 @@ def test_claim_assigns_me(db, settings, make_user, project):
 
 
 def test_claim_forbidden_on_others_ticket(db, settings, make_user, project):
+    """지시 11로 담당자 축이 넓어져도 **「가져가기」는 안 넓어진다.**
+
+    담당자 선택기에서 남의 티켓 담당자를 바꾸는 것은 이제 범위 안 누구나 할 수 있다
+    (`tests/security/test_ticket_assignee_change_scope.py`). 하지만 단추 한 번으로 남이
+    하던 일을 자기 앞으로 끌어오는 것은 다른 이야기다 — 뺏긴 사람은 그 사실을 어디서도
+    못 본다. `claim_ticket` 이 `collaborative=False` 로 부르는 이유가 이 줄이다.
+    """
     me = make_user(email="me@goodmit.co.kr", display_name="나", role="user")
     _map(db, me, "notion-me")
     _seed(db, project, people=["notion-other"])  # 남이 이미 담당

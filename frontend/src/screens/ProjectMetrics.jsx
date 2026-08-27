@@ -3,8 +3,10 @@ import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
 import { Skeleton } from "../ui/kit.jsx";
+import { Gauge } from "../ui/charts/Gauge.jsx";
+import { ProgressBar } from "../ui/charts/ProgressBar.jsx";
 import {
-  NO_HEALTH_SCORE, NO_PROGRESS_SAMPLE,
+  NO_HEALTH_SCORE, NO_PROGRESS_SAMPLE, TROUBLE_HEALTH_SCORE,
   formulaText, percentText, sampleText, weightModeText,
 } from "./project-format.js";
 
@@ -80,6 +82,12 @@ export function ProgressBlock({ percent, basis }) {
   return (
     <Box>
       <Metric label="진행률" value={value || NO_PROGRESS_SAMPLE} dim={!value} />
+      {/* 숫자만 두지 않는다 (지시 10 · 16). 「63.3%」와 「97.6%」는 글자로만 보면 비슷한
+          길이지만 막대로 보면 다른 그림이다 — 목록을 훑을 때 눈이 읽는 것은 그 그림이다.
+          값이 없으면 막대도 없다: 0% 로 그리면 「세어 봤더니 0」이라는 거짓말이 된다. */}
+      <Box sx={{ mt: 1 }}>
+        <ProgressBar percent={typeof percent === "number" ? percent : null} revealKey={percent} />
+      </Box>
       <ProgressBasis basis={basis} />
     </Box>
   );
@@ -94,15 +102,24 @@ export function HealthBlock({ score, reasons, unknown }) {
     <Box>
       {score == null ? (
         <>
-          <Typography sx={{ fontSize: FONT_SIZE.sectionTitle, fontWeight: FONT_WEIGHT.bold }}>{NO_HEALTH_SCORE}</Typography>
+          {/* 안 잰 것은 0 점이 아니다. 원도 **점선 테두리**로 두어 「값이 없다」가
+              「값이 0 이다」와 다르게 보인다. */}
+          <Gauge value={null} size="6rem" emptyLabel={NO_HEALTH_SCORE} />
           <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, ...KO_WORD_BREAK }}>
             판정할 수 있는 지표가 하나도 없었습니다. 0점과는 다른 상태입니다.
           </Typography>
         </>
       ) : (
-        <Typography sx={{ fontSize: "clamp(1.5rem, 1.2rem + .6vw, 2rem)", fontWeight: FONT_WEIGHT.extrabold, lineHeight: 1.1 }}>
-          {score + "점"}
-        </Typography>
+        /* 점수와 **원**을 함께 둔다 (지시 10 · 16). 47 점과 82 점은 글자로만 보면 두
+           자리 수 둘이지만, 원으로 보면 「절반쯤」과 「거의 다」다. 원은 `aria-hidden`
+           이고 점수는 가운데 글자로 그대로 읽힌다. */
+        <Gauge
+          value={score}
+          size="6rem"
+          centerText={score + "점"}
+          color={score < TROUBLE_HEALTH_SCORE ? "error" : "success"}
+          revealKey={score}
+        />
       )}
 
       <Typography component="h3" variant="body2" sx={{ fontWeight: FONT_WEIGHT.bold, mt: 2 }}>

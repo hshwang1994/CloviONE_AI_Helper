@@ -1,6 +1,6 @@
 import React from "react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "@mui/material/styles";
@@ -170,6 +170,10 @@ describe("새 티켓 — 담당자는 검색 가능한 자동완성이다 (PA-RC
     await screen.findByText("나");
 
     await user.type(screen.getByLabelText(/제목/), "담당자 배정 확인");
+    /* 예상 WD 와 마감일도 필수다 (지시 10) — 이 시험이 재는 것은 담당자 축이지만,
+       필수를 안 채우면 제출 자체가 막혀 아무것도 못 잰다. */
+    await user.type(screen.getByLabelText(/예상 WD/), "1");
+    fireEvent.change(screen.getByLabelText(/마감일/), { target: { value: "2026-09-30" } });
 
     const input = screen.getByRole("combobox", { name: /담당자/ });
     await user.click(input);

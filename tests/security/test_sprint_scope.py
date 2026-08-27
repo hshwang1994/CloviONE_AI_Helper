@@ -1,72 +1,211 @@
-"""스프린트 요약도 **내 팀**이다 (1순위 유출 #3).
+"""스프린트 회의도 **범위를 지킨다** — 문이 둘이다 (D-194 · 지시 4).
 
-`GET /api/sprint/summary` 는 담당자별 집계·티켓 목록을 포탈 전체로 돌려줬다 — 즉
-**담당자별 생산성이 전사 공개**였다. 사용자가 S4 에서 이 화면을 직접 지목했다
-("스프린트 회의, 팀 티켓 등은 기본적으로 본인이 속한 팀 정보를 봐야 한다").
+## 이 파일이 바뀐 이유
 
-같은 성격의 `dev-monthly` 리포트는 민감 역할 게이트 + 범위를 둘 다 지나는데
-이쪽은 **role 게이트조차 없었다** — 로그인만 하면 누구나 볼 수 있었다.
+예전 이 파일은 `GET /api/sprint/summary` 를 봤다. 그 API 는 「그 주에 마감인 티켓 묶음」을
+스프린트라고 불렀고, 담당자별 생산성을 포탈 전체로 돌려주던 자리였다(1순위 유출 #3).
+지시 4 회차에서 그 API 를 걷고 회차를 아는 화면으로 갈아탔다 — 이 제품에는 이제
+`sprints` 표가 있고, 「스프린트」에 뜻이 둘이면 두 화면이 같은 말로 다른 것을 센다.
+
+그 API 가 없어졌다고 이 파일이 없어지지는 않는다. **지키던 성질을 새 문에 다시 건다.**
+
+## 문이 둘인 것이 요점이다
+
+회차가 보이는가와 그 안의 티켓이 보이는가는 **다른 질문**이다.
+
+  1. 회차 자체 — `get_scoped_sprint_or_404`. 안 보이는 회차는 404 다(403 이 아니다:
+     존재를 알리면 id 를 찍어 남의 팀 회차 목록을 열거할 수 있다).
+  2. 회차 안의 티켓 — 팀 전체 회차(`project_id IS NULL`)는 조직 안에서 열려 있는데,
+     거기 담긴 티켓은 여러 프로젝트에 걸린다. 회차 문만 지나고 `WHERE sprint_id = ?` 로
+     읽으면 그중 내가 못 보는 프로젝트의 제목·담당자·마감이 회의 화면에 그대로 실린다.
+
+두 번째가 이 파일의 핵심 단정이다 — 첫 번째만 걸어 두고 통과했다고 믿기 쉬운 자리다.
+
+## 양쪽을 함께 본다
+
+「안 보인다」만 확인하면 **전부 안 보이는 구현**도 통과한다. 그래서 각 단정에 「우리 팀
+것은 보인다」를 함께 둔다.
 """
 
 from __future__ import annotations
 
+from datetime import date, timedelta
+
 import pytest
+
+from app.org.constants import DEFAULT_ORG_ID
+from app.org.models import Department
+from app.projects.models import Project
+from app.tickets.models import PROJECT_LINK_OK, Ticket
+from app.work import codes as work_codes
+from app.work.models import Sprint
 
 pytestmark = pytest.mark.security
 
-NID_MINE, NID_THEIRS = "notion-s-mine", "notion-s-theirs"
-WINDOW = "?start=2026-08-01&end=2026-09-01"
+BOSS = "sprint-scope-boss@goodmit.co.kr"
+TODAY = date(2026, 8, 27)
 
 
 @pytest.fixture()
-def world(make_user, db, make_ticket, portal_project):
-    from app.notion_mapping.models import STATUS_VERIFIED, UserNotionMapping
-    from app.org.constants import DEFAULT_ORG_ID
-    from app.org.models import Department
+def world(db, make_user):
+    """부서 둘 + 각 팀 프로젝트 + **팀 전체 회차 하나에 양쪽 티켓이 담긴** 상태.
 
+    양쪽을 한 회차에 담는 것이 이 픽스처의 요점이다. 프로젝트별 회차만 만들면 첫 번째
+    문(회차 가시성)이 두 번째 문을 가려 버려서, 티켓 절이 빠져 있어도 시험이 통과한다.
+    """
     mine = Department(name="우리팀", org_id=DEFAULT_ORG_ID)
     theirs = Department(name="남의팀", org_id=DEFAULT_ORG_ID)
     db.add_all([mine, theirs])
-    db.flush()
-    me = make_user("sp-me@goodmit.co.kr", role="user", display_name="나")
-    other = make_user("sp-other@goodmit.co.kr", role="user", display_name="남")
-    me.department_id = mine.id
-    other.department_id = theirs.id
-    db.add(UserNotionMapping(user_id=me.id, notion_user_id=NID_MINE, status=STATUS_VERIFIED))
-    db.add(UserNotionMapping(user_id=other.id, notion_user_id=NID_THEIRS, status=STATUS_VERIFIED))
     db.commit()
-    make_ticket(page_id="s-mine", project=portal_project, tid=1, title="우리팀 스프린트",
-                status="진행", due="2026-08-10", assignees=[NID_MINE], est_wd=2.0)
-    make_ticket(page_id="s-theirs", project=portal_project, tid=2, title="남의팀 스프린트",
-                status="진행", due="2026-08-11", assignees=[NID_THEIRS], est_wd=3.0)
 
+    boss = make_user(BOSS, role="admin", display_name="팀관리자")
+    boss.department_id = mine.id
+    boss.admin_scope = "dept"
+    boss.scope_dept_id = mine.id
+    db.commit()
 
-def _summary(client):
-    return client.get("/api/sprint/summary" + WINDOW).json()
+    def project(name, dept, page):
+        # 코드는 제품의 생성기가 짓는다(D-282). 시험이 읽기 좋은 값을 고르면 그 문자열은
+        # `ck_projects_code_shape` 가 INSERT 를 거절할 때까지 안 보이게 갈라진다.
+        return work_codes.insert_with_code(
+            db,
+            Project(name=name, org_id=DEFAULT_ORG_ID, dept_id=dept.id, notion_page_id=page),
+        )
 
+    ours = project("우리 프로젝트", mine, "sp-proj-ours")
+    yours = project("남의 프로젝트", theirs, "sp-proj-theirs")
 
-def test_the_sprint_board_shows_my_team_not_the_portal(client, login_as, world):
-    login_as("user", email="sp-me@goodmit.co.kr")
-    body = _summary(client)
-    names = {d["name"] for d in body.get("developers", [])}
+    # 팀 전체 회차 — `project_id` 가 없다. 조직 안에서 **누구에게나 보인다.**
+    open_sprint = Sprint(
+        name="전사 8월 회차", project_id=None, org_id=DEFAULT_ORG_ID,
+        starts_on=TODAY - timedelta(days=3), ends_on=TODAY + timedelta(days=4),
+        state="active",
+    )
+    # 남의 팀 프로젝트에 묶인 회차 — 이 사람에게는 **없는 것**이어야 한다.
+    theirs_sprint = Sprint(
+        name="남의팀 8월 회차", project_id=yours.id, org_id=DEFAULT_ORG_ID,
+        starts_on=TODAY - timedelta(days=3), ends_on=TODAY + timedelta(days=4),
+        state="planned",
+    )
+    db.add_all([open_sprint, theirs_sprint])
+    db.flush()
 
-    assert "나" in names, f"자기 팀 담당자가 집계에 없다: {names}"
-    assert "남" not in names, f"남의 팀 담당자별 생산성이 그대로 보인다: {names}"
+    def ticket(page_id, proj, number, title, sprint):
+        row = Ticket(
+            title=title, notion_page_id=page_id, project_uid=proj.id,
+            project_link=PROJECT_LINK_OK, status="진행", org_id=DEFAULT_ORG_ID,
+            source="notion", notion_ticket_number=number, seq=number,
+            sprint_id=sprint.id, est_wd=2.0, due_date=TODAY + timedelta(days=1),
+        )
+        db.add(row)
+        db.flush()
+        db.refresh(row)
+        return row
 
-
-def test_the_per_assignee_ticket_lists_follow_too(client, login_as, world):
-    """집계만 좁히고 티켓 목록을 열어 두면 제목으로 다 새어 나간다."""
-    login_as("user", email="sp-me@goodmit.co.kr")
-    body = _summary(client)
-    titles = {
-        t.get("title")
-        for group in (body.get("by_assignee") or [])
-        for t in (group.get("tickets") or [])
+    ours_ticket = ticket("sp-page-ours", ours, 31, "우리팀 일", open_sprint)
+    theirs_ticket = ticket("sp-page-theirs", yours, 32, "남의팀 일", open_sprint)
+    db.commit()
+    return {
+        "boss": boss, "ours": ours, "yours": yours,
+        "open_sprint": open_sprint, "theirs_sprint": theirs_sprint,
+        "ours_ticket": ours_ticket, "theirs_ticket": theirs_ticket,
     }
-    assert "남의팀 스프린트" not in titles, f"남의 팀 티켓 제목이 보인다: {titles}"
 
 
-def test_a_global_admin_still_sees_the_whole_portal(client, login_as, world):
-    login_as("system_admin")
-    names = {d["name"] for d in _summary(client).get("developers", [])}
-    assert {"나", "남"} <= names, f"전체 관리자가 전부 못 본다: {names}"
+def _hdr(login_as):
+    return {"X-CSRF-Token": login_as("admin", email=BOSS)}
+
+
+def _meeting(client, login_as, sprint_id):
+    return client.get(f"/api/work/sprints/{sprint_id}/meeting", headers=_hdr(login_as))
+
+
+def test_a_sprint_outside_my_scope_is_not_found(client, login_as, world):
+    """403 이 아니라 404 다. 존재를 알리면 id 를 찍어 남의 팀 회차를 열거할 수 있다."""
+    res = _meeting(client, login_as, world["theirs_sprint"].id)
+    assert res.status_code == 404, res.text
+
+
+def test_a_shared_sprint_still_hides_tickets_i_cannot_see(client, login_as, world):
+    """🔴 **문이 둘이다.** 회차가 보인다고 그 안의 티켓이 다 보이는 것은 아니다.
+
+    이 단정이 없으면 「회차 게이트만 지나고 `WHERE sprint_id = ?` 로 읽는」 구현이 통과한다.
+    그 구현에서는 팀 전체 회차 하나가 남의 팀 프로젝트 전체의 제목·담당자·마감을 실어 나른다.
+    """
+    body = _meeting(client, login_as, world["open_sprint"].id).json()
+    titles = {
+        row["title"]
+        for bucket in body["discuss"].values()
+        for row in bucket["items"]
+    }
+    assert "우리팀 일" in titles, f"우리 팀 티켓이 안 보인다 — 검사가 헛돈다: {titles}"
+    assert "남의팀 일" not in titles, f"남의 팀 티켓 제목이 회의 화면에 실렸다: {titles}"
+
+
+def test_the_summary_counts_only_what_i_can_see(client, login_as, world):
+    """제목을 가리고 **숫자만** 남겨도 유출이다.
+
+    「이 회차에 티켓이 몇이고 남은 공수가 얼마인가」는 그 팀의 상태를 그대로 말한다 —
+    `sprint_scope` 가 같은 판단을 이미 적어 뒀다.
+    """
+    body = _meeting(client, login_as, world["open_sprint"].id).json()
+    assert body["summary"]["total"] == 1, body["summary"]
+    assert body["summary"]["remaining_wd"] == 2.0, body["summary"]
+
+
+def test_the_candidates_stay_inside_my_scope(client, login_as, world, db):
+    """후보 목록은 백로그를 그대로 읽는다 — 그쪽 범위 절을 우회하지 않는다."""
+    stray = Ticket(
+        title="남의팀 백로그", notion_page_id="sp-page-backlog", project_uid=world["yours"].id,
+        project_link=PROJECT_LINK_OK, status="계획", org_id=DEFAULT_ORG_ID,
+        source="notion", notion_ticket_number=33, seq=33,
+    )
+    mine = Ticket(
+        title="우리팀 백로그", notion_page_id="sp-page-backlog-ours", project_uid=world["ours"].id,
+        project_link=PROJECT_LINK_OK, status="계획", org_id=DEFAULT_ORG_ID,
+        source="notion", notion_ticket_number=34, seq=34,
+    )
+    db.add_all([stray, mine])
+    db.commit()
+    body = _meeting(client, login_as, world["open_sprint"].id).json()
+    titles = {c["title"] for c in body["candidates"]}
+    assert "우리팀 백로그" in titles, f"우리 팀 후보가 없다 — 검사가 헛돈다: {titles}"
+    assert "남의팀 백로그" not in titles, f"남의 팀 백로그가 후보로 나왔다: {titles}"
+
+
+def test_a_global_admin_sees_both(client, login_as, world):
+    """반례 — 좁히기가 **전부 안 보이는 구현**이 아님을 확인한다."""
+    body = client.get(
+        f"/api/work/sprints/{world['open_sprint'].id}/meeting",
+        headers={"X-CSRF-Token": login_as("system_admin")},
+    ).json()
+    assert body["summary"]["total"] == 2, body["summary"]
+
+
+def test_a_note_on_a_sprint_i_cannot_see_is_not_found(client, login_as, world):
+    """쓰기도 같은 문을 지난다. 목록만 좁히고 쓰기를 열어 두면 좁힌 의미가 없다."""
+    res = client.post(
+        f"/api/work/sprints/{world['theirs_sprint'].id}/decisions",
+        json={"kind": "decision", "body": "남의 회의에 적기"},
+        headers=_hdr(login_as),
+    )
+    assert res.status_code == 404, res.text
+
+
+def test_a_note_on_a_visible_sprint_persists_across_requests(client, login_as, world):
+    """🔴 반례이자 **커밋 경로 시험**이다.
+
+    막는 쪽만 보면 「전부 404 인 구현」도 통과한다. 그리고 서비스가 `flush` 까지만 하므로
+    (커밋은 `get_db` 가 요청 끝에 한다) 실제로 남는지는 **다음 요청**에서만 확인된다 —
+    같은 세션 안에서 되읽는 유닛 시험으로는 이 성질이 안 보인다.
+    """
+    posted = client.post(
+        f"/api/work/sprints/{world['open_sprint'].id}/decisions",
+        json={"kind": "action", "body": "다음 회의 전에 담당 팀을 정합니다."},
+        headers=_hdr(login_as),
+    )
+    assert posted.status_code == 200, posted.text
+
+    again = _meeting(client, login_as, world["open_sprint"].id).json()
+    assert [d["body"] for d in again["decisions"]] == ["다음 회의 전에 담당 팀을 정합니다."]
+    assert again["decisions"][0]["kind"] == "action"

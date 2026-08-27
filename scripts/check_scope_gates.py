@@ -487,9 +487,22 @@ def main() -> int:
     files = sum(len(v) for v in modules.values())
 
     for module_dir, route_srcs in sorted(modules.items()):
-        helpers = [(module_dir / s).read_text(encoding="utf-8")
-                   for s in ("service.py", "repository.py")
-                   if (module_dir / s).exists()]
+        # 헬퍼 소스는 그 모듈의 **라우터가 아닌 파일 전부**다.
+        #
+        # 예전에는 `service.py` 와 `repository.py` 두 이름만 읽었다. 모듈이 커져 판정을
+        # 세 번째 파일로 옮기는 순간(실제로 `app/work/meeting.py` 에서 겪었다) 그 파일의
+        # 게이트가 이 검사에 **안 보이고**, 멀쩡히 막고 있는 경로가 「게이트 없음」으로
+        # 보고된다. 그런 오탐이 몇 번 나면 사람은 이 검사를 안 믿게 되고, 안 믿는 검사는
+        # 없는 것과 같다.
+        #
+        # 넓혀도 판정 자체는 안 느슨해진다: 후보 이름을 **라우트 본문이 실제로 부를 때만**
+        # 따라가고, 따라간 헬퍼의 본문에 게이트가 없으면 그대로 걸린다(자체 시험의
+        # `_OR404_HELPER_BLIND` 사례가 그 성질을 고정한다).
+        helpers = [
+            f.read_text(encoding="utf-8")
+            for f in sorted(module_dir.glob("*.py"))
+            if f.name not in route_srcs and not f.name.startswith("router")
+        ]
         found, n, scoped = scan_module(route_srcs, helpers, gaps=gaps, seen=seen)
         offenders += found
         checked += n

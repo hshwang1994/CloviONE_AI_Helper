@@ -76,3 +76,39 @@ export function wdBalanceItems(developers) {
   if (idle > 0) parts.push(`이번 주 배정이 없는 사람 ${idle}명`);
   return { items, max: peak, summary: parts.join(", ") };
 }
+
+/* 담당자별 **남은** 업무량. 회차 회의가 실제로 묻는 것이 이 값이다 (지시 4 · 질문 3).
+ *
+ * `wdBalanceItems` 와 다른 그림이다. 그쪽은 「이번 주에 누가 얼마를 맡았나」(계획 업무량)를
+ * 그리고, 이것은 「지금 누가 얼마를 지고 있나」(남은 업무량)를 그린다. 회의에서 쓰는 것은
+ * 뒤엣것이다 — 회차 중반에 「맡은 양」은 다 비슷한데 「남은 양」은 세 배씩 벌어진다.
+ *
+ * 예상 WD 를 안 적은 티켓은 **숫자에 안 들어간다.** 0 으로 세면 「일이 없는 사람」과
+ * 「예상을 안 적은 사람」이 같아 보이므로, 그 사실을 줄의 설명으로 따로 말한다.
+ */
+export function workloadItems(workload) {
+  const rows = (Array.isArray(workload) ? workload : []).filter(
+    (r) => r && (Number(r.remaining_wd) > 0 || Number(r.open) > 0)
+  );
+  if (!rows.length) return null;
+  const loads = rows.map((r) => Number(r.remaining_wd) || 0);
+  const total = loads.reduce((a, b) => a + b, 0);
+  const avg = Math.round((total / rows.length) * 10) / 10;
+  const peak = Math.max(...loads);
+  const items = rows.map((r) => {
+    const load = Number(r.remaining_wd) || 0;
+    const missing = Number(r.unestimated) || 0;
+    return {
+      label: r.display_name || "알 수 없음",
+      value: load,
+      // 평균의 1.5배를 넘는 사람만 색으로 짚는다. 전부 칠하면 아무 데도 눈이 안 간다.
+      color: avg > 0 && load > avg * 1.5 ? "warn" : undefined,
+      note: missing
+        ? `남은 ${Number(r.open) || 0}건, 예상을 안 적은 것 ${missing}건`
+        : `남은 ${Number(r.open) || 0}건`,
+    };
+  });
+  const parts = [`${rows.length}명 평균 ${avg}인일`];
+  if (peak > 0) parts.push(`가장 많은 사람 ${peak}인일`);
+  return { items, max: peak, summary: parts.join(", ") };
+}

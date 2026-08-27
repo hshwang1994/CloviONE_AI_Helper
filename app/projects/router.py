@@ -103,6 +103,7 @@ def _project_view(project: Project) -> dict:
 
 @router.get("")
 def list_projects(
+    request: Request,
     db: Session = Depends(get_db),
     page: PageParams = Depends(),
     include_archived: bool = Query(default=False),
@@ -111,6 +112,12 @@ def list_projects(
     # 이름·코드 검색. 티켓 목록과 **같은 이름의 조건**이다 — 화면마다 다른 키를 쓰면
     # 공용 탐색 줄이 화면별 번역표를 갖게 된다.
     q: str | None = Query(default=None, max_length=200),
+    # 요약 줄의 칸을 누르면 목록이 그 조건으로 좁아진다 (지시 15). 세 조건 다 **요약이
+    # 이미 세고 있는 것과 같은 판정**을 쓴다 — 다른 규칙으로 좁히면 「Health 하위 3건」을
+    # 눌렀는데 목록에 다섯 줄이 나오는 화면이 된다.
+    status: str | None = Query(default=None, max_length=32),
+    trouble: bool = Query(default=False),
+    overdue_milestones: bool = Query(default=False),
     sort: str | None = Query(default=None, max_length=32),
     order: str | None = Query(default=None, pattern="^(asc|desc)$"),
     principal: Principal = Depends(get_principal),
@@ -123,6 +130,12 @@ def list_projects(
         visibility_context(db, principal, scope=picked),
         include_archived=include_archived,
         q=q,
+        status=status,
+        trouble=trouble,
+        overdue_milestones=overdue_milestones,
+        # 오늘의 정본은 서버다(§불변 9) — 화면이 브라우저 시간대로 판정하면 KST 09:00
+        # 이전에 하루 밀린 「지연」을 그린다.
+        today=iso_date(local_today(request.app.state.settings, request.app.state.clock.now())),
         offset=page.offset,
         limit=page.page_size,
         sort=sort,
@@ -580,6 +593,32 @@ def get_health_history(
     project = service.get_scoped_project_or_404(db, project_id, principal)
     rows = service.health_history(db, project)
     return {"project_id": project.id, "items": [_snapshot_view(r) for r in rows]}
+
+
+@router.get("/{project_id}/ticket-trend")
+def get_ticket_trend(
+    request: Request,
+    project_id: str,
+    days: int = Query(default=service.TREND_DEFAULT_DAYS, ge=1, le=service.TREND_MAX_DAYS),
+    db: Session = Depends(get_db),
+    principal: Principal = Depends(get_principal),
+):
+    """티켓이 **언제 생겼는가** — 날짜별 생성량 (지시 16).
+
+    기준일과 시간대의 정본은 서버다(§불변 9). 화면이 브라우저에서 오늘을 구하면 KST
+    09:00 이전에 하루 밀린 막대를 그리고, 그 어긋남은 아침에만 보인다.
+    """
+    project = service.get_scoped_project_or_404(db, project_id, principal)
+    settings = request.app.state.settings
+    return {
+        "project_id": project.id,
+        **service.ticket_trend(
+            db, project,
+            today=local_today(settings, request.app.state.clock.now()),
+            days=days,
+            tz=settings.timezone,
+        ),
+    }
 
 
 # ── WBS 트리 ─────────────────────────────────────────────────────────────────

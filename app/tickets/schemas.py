@@ -334,8 +334,8 @@ class TicketUpdate(BaseModel):
         return [s for s in v if isinstance(s, str) and s.strip()]
 
 
-class TicketCreate(BaseModel):
-    """새 티켓 수동 생성(채팅 없이 폼으로). 제목과 **프로젝트**가 필수, 나머지는 선택.
+class TicketDraft(BaseModel):
+    """티켓 하나를 만드는 데 필요한 값. **제목과 프로젝트가 필수**다.
 
     ## 프로젝트가 필수인 이유 (0060)
 
@@ -346,6 +346,20 @@ class TicketCreate(BaseModel):
     `project_id` 는 **Portal 프로젝트 id** 다(외부 소스의 relation id 가 아니다). 외부
     id 로의 번역은 서버가 한다 — 브라우저가 외부 시스템의 키를 알 이유가 없고, Portal id 로
     받아야 그 프로젝트에 대한 권한을 검증할 수 있다.
+
+    ## 왜 이 클래스가 둘로 갈렸나
+
+    사람이 「새 티켓」 화면에서 만드는 티켓에는 **예상 WD 와 마감일이 필수**다(지시 10) —
+    그 둘이 없으면 백로그·번다운·부하 계산이 전부 그 티켓을 못 센다. 그래서 그 요구는
+    아래 `TicketCreate` 가 진다.
+
+    반대로 「기능 개선 제안을 티켓으로 만든다」는 다른 동작이다. 전환하는 사람은 대개
+    공수를 모르고, 그 자리에서 아무 수나 적게 만드는 것은 없는 값을 있는 척하는 것이다.
+    그쪽은 이 `TicketDraft` 를 그대로 쓴다.
+
+    **서비스 입구는 여전히 하나다**(`app/tickets/service.py::create_ticket`) — 갈린 것은
+    요청 계약이지 생성 경로가 아니다. 경로가 둘이 되면 그중 무엇이 빠졌는지 아무도 모르는
+    티켓이 생긴다(이 파일 위의 게시판 주석이 같은 말을 한다).
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -359,6 +373,13 @@ class TicketCreate(BaseModel):
     due_date: str | None = None
     assignee_user_ids: list[str] | None = None
     description: str | None = None
+    #: 만들자마자 어느 회차에 담는가. 안 주면 **백로그**다 (지시 5 · D-349).
+    #:
+    #: 티켓을 만드는 자리가 기본값을 정한다. 일반 「새 티켓」은 아직 언제 할지 안 정한
+    #: 일이라 백로그로 가고, 판의 회차 맥락 안에서 만든 것은 그 회차의 일이다. 이 칸이
+    #: 없으면 만든 사람이 곧바로 「스프린트에 담기」를 한 번 더 눌러야 하고, 그 한 번을
+    #: 빠뜨린 티켓은 회의에서 아무도 못 본다.
+    sprint_id: str | None = Field(default=None, max_length=36)
 
     @field_validator("title")
     @classmethod
@@ -429,3 +450,38 @@ class TicketCreate(BaseModel):
         if len(v) > 20:
             raise ValueError("담당자는 최대 20명까지 지정할 수 있습니다.")
         return [s for s in v if isinstance(s, str) and s.strip()]
+
+
+class TicketCreate(TicketDraft):
+    """사람이 「새 티켓」 화면에서 만드는 티켓. **예상 WD 와 마감일이 필수**다 (지시 10).
+
+    화면에서 별표만 붙이고 서버가 받아 주면 그 계약은 없는 것과 같다 — 다른 클라이언트가
+    (또는 같은 화면의 다음 회차가) 빈 값을 보내면 그대로 들어온다. 여기서 막는다.
+
+    **왜 그 둘인가**: 이 제품의 계획은 그 둘 위에 선다. 예상 WD 가 없으면 스프린트의
+    남은 일과 담당자별 부하를 못 세고, 마감일이 없으면 「지연」이라는 신호 자체가 계산되지
+    않는다(D-349). 값이 없는 티켓 하나는 그 계산에서 조용히 빠지고, 빠진 사실은 아무 데도
+    안 적힌다.
+
+    `0` 과 「없음」은 다른 값이다 — 0 WD 는 그대로 받는다(이미 끝난 일을 기록으로 남기는
+    경우가 그렇다). 막는 것은 **안 적은 것**이다.
+    """
+
+    est_wd: float = Field(description="예상 WD. 신규 생성 시 필수다.")
+    due_date: str = Field(min_length=1, description="마감일(YYYY-MM-DD). 신규 생성 시 필수다.")
+
+    @field_validator("est_wd")
+    @classmethod
+    def _require_wd(cls, v):
+        if v is None:
+            raise ValueError("예상 WD를 입력하세요.")
+        return v
+
+    @field_validator("due_date")
+    @classmethod
+    def _require_due(cls, v):
+        # 부모의 검증기가 빈 문자열을 `None` 으로 바꾼 뒤 여기 온다 — 「비웠다」와
+        # 「안 보냈다」가 같은 값이 되는 자리라 둘 다 여기서 막힌다.
+        if v is None or not str(v).strip():
+            raise ValueError("마감일을 입력하세요.")
+        return v

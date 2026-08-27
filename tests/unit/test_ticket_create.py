@@ -61,8 +61,13 @@ def me(db, make_user):
     return user
 
 
+#: 생성 계약의 필수 칸. 지시 10 이후 `TicketCreate` 는 예상 WD 와 마감을 요구한다 —
+#: 이 파일이 검사하는 것은 그 필수성이 아니라 생성 **동작**이라, 여기서 한 번만 채운다.
+REQUIRED = {"est_wd": 1.0, "due_date": "2026-09-30"}
+
+
 def _payload(project, **kw):
-    base = {"title": "테스트 티켓", "project_id": project.id}
+    base = {"title": "테스트 티켓", "project_id": project.id, **REQUIRED}
     base.update(kw)
     return TicketCreate(**base)
 
@@ -98,9 +103,9 @@ def test_create_requires_a_project(db, settings, me, project):
     from pydantic import ValidationError
 
     with pytest.raises(ValidationError):
-        TicketCreate(title="테스트 티켓", project_id=None)
+        TicketCreate(title="테스트 티켓", project_id=None, **REQUIRED)
     with pytest.raises(ValidationError):
-        TicketCreate(title="테스트 티켓", project_id="   ")
+        TicketCreate(title="테스트 티켓", project_id="   ", **REQUIRED)
 
 
 def test_create_rejects_a_project_outside_my_scope(db, settings, me, make_project):
@@ -127,7 +132,7 @@ def test_create_rejects_a_project_outside_my_scope(db, settings, me, make_projec
 
     with pytest.raises(NotFoundError):
         _create(db, settings, me,
-                TicketCreate(title="몰래 만들기", project_id=other_project.id))
+                TicketCreate(title="몰래 만들기", project_id=other_project.id, **REQUIRED))
     assert db.execute(select(func.count()).select_from(TicketCache)).scalar_one() == 0
 
 
@@ -204,7 +209,7 @@ def test_list_projects_offers_only_portal_projects_i_can_see(db, me, make_projec
 
 def test_title_required_by_schema():
     with pytest.raises(Exception):
-        TicketCreate(title="   ", project_id="p1")
+        TicketCreate(title="   ", project_id="p1", **REQUIRED)
 
 
 def test_description_over_line_cap_is_rejected_not_truncated():
@@ -215,10 +220,10 @@ def test_description_over_line_cap_is_rejected_not_truncated():
     desc = "\n".join(f"line {i}" for i in range(150))
     assert len(desc) < 4000  # 글자 수 상한은 통과하는 입력이어야 이 테스트의 의미가 있다
     with pytest.raises(Exception):
-        TicketCreate(title="t", project_id="p1", description=desc)
+        TicketCreate(title="t", project_id="p1", description=desc, **REQUIRED)
 
 
 def test_description_within_line_cap_is_accepted():
     desc = "\n".join(f"line {i}" for i in range(50))
-    tc = TicketCreate(title="t", project_id="p1", description=desc)
+    tc = TicketCreate(title="t", project_id="p1", description=desc, **REQUIRED)
     assert tc.description == desc
