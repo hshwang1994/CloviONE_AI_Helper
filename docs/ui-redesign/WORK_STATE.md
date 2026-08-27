@@ -12,7 +12,7 @@
 - packet: **A ✅ · B ✅ · C ✅ · D ✅ · E ✅ · F ✅ · G ✅.**
   남은 것은 전량 회귀·실브라우저 확인·최종 캡처 **한 번**과 그 결과의 일괄 수정, 배포
 - branch: `ui/mui-migration` · A `89b0caa6` · B·C·D `18c67683` · E `d8fc267c` · F `2dd7befa`
-  · G `0638d900`
+  · G `0638d900` `914da9ab`
 - schema: alembic head **`0022_document_folders`** — `documents` 에 칸 둘(`archived_at` ·
   `archived_by`)이 늘었고, 이관 문서 111건의 `folder_id` 를 채우는 데이터 마이그레이션이
   하나 더 있다. **기존 표를 지우는 마이그레이션은 없다**
