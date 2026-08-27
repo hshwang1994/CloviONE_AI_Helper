@@ -7,8 +7,13 @@ import { CONTROL, FONT_SIZE, remPx } from "./theme.js";
 import { HEADER_ALIGN } from "./columnTypes.js";
 import { ColumnFilterPopover } from "./columnFilter.jsx";
 
-/* 이름 자리 — 넘치면 한 줄로 자르고 전체는 `th` 의 `title` 에 남는다. */
-const LABEL_SX = { minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
+/* 이름 자리 — **잘리지 않는다** (A4 재검수). 예전엔 `min-width:0` + `overflow:hidden` 으로
+ * 좁으면 조용히 자르고 `title` 로만 전체를 남겼는데, 실측(「예상 WD」 client 40 / scroll 49)은
+ * 그 잘림이 실제로 일어난다는 것을 보여줬다 — 이름은 짧은 고정 어휘라 접어서 지킬 이유가
+ * 없다. `table-layout:auto` 표에서 이 칸이 자기 내용 폭을 그대로 요구하면(`minWidth:0` 을
+ * 안 주면) 그 요구가 열 폭 계산에 들어가 열 자체가 넓어진다 — 잘리는 대신 칸이 넓어지는
+ * 쪽으로 옮긴다. */
+const LABEL_SX = { whiteSpace: "nowrap" };
 
 /* 🔴 머리글 칸의 두 조작기는 **같은 높이**로 선다 (S22 · `control_baseline_mismatch`).
  *
@@ -48,7 +53,6 @@ const HEADER_ICON_SX = {
  * 이름 옆에 가운데 이름이 서고 그 옆에 오른쪽 이름이 서서 머리글 줄을 한 줄로 못 읽었다. */
 const HEADER_GRID_SX = {
   display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center",
-  minWidth: 0, maxWidth: "100%", overflow: "hidden",
 };
 
 export function TableHeaderCell({
@@ -73,11 +77,14 @@ export function TableHeaderCell({
       aria-sort={sortable ? (dir === "asc" ? "ascending" : dir === "desc" ? "descending" : "none") : undefined}
       sx={cellSx}
     >
-      {/* 🔴 머리글이 자기 칸 밖으로 나가지 않는다 (S19).
-          예전에는 `maxWidth: 100%` 만 걸려 있어서, 열이 이름보다 좁아지면 글자가 상자를
-          넘어 **옆 머리글 위에 그려졌다**. 「카테고리」·「상태」·「작성자」가 한 자리에서
-          겹쳐 읽을 수 없던 것이 그것이다. 이름은 잘리고 정렬 화살표·필터 단추는 안 줄어든다
-          — 조작기가 먼저 사라지면 그 열은 정렬도 필터도 할 수 없게 된다. */}
+      {/* 🔴 머리글이 잘리지 않는다 (S19 → A4 재검수로 계약이 바뀌었다).
+          예전 해법은 `overflow:hidden` 으로 이름을 자르는 것이었다 — 그런데 그 잘림 자체가
+          실측된 결함이 됐다(「예상 WD」 client 40 / scroll 49). 지금은 이름·버튼 모두
+          `min-width` 를 스스로 0으로 낮추지 않는다 — `table-layout:auto` 표에서는 칸이
+          자기 내용 폭을 그대로 요구하면 그 요구가 열 폭 계산에 들어가 **열 자체가 넓어진다**
+          (박스가 내용보다 좁아지는 그 순간이 없으니, S19 가 겪은 "박스는 좁은데 글자만
+          삐져나온다"도 다시 생기지 않는다). 정렬 화살표·필터 단추는 여전히 `flexShrink:0`
+          로 따로 보호된다. */}
       <Box sx={HEADER_GRID_SX}>
         {/* 왼쪽 저울추. 오른쪽 조작기 칸과 같은 무게(1fr)라 가운데 칸이 정중앙에 선다. */}
         <Box aria-hidden="true" />
@@ -89,7 +96,7 @@ export function TableHeaderCell({
             sx={{
               font: "inherit", color: "inherit", border: 0, background: "none", p: 0,
               display: "inline-flex", alignItems: "center", cursor: "pointer",
-              whiteSpace: "nowrap", minWidth: 0, maxWidth: "100%", overflow: "hidden",
+              whiteSpace: "nowrap", minWidth: "max-content",
               ...HEADER_CONTROL_SX,
               "&:hover": { color: "text.primary" },
               "&:focus-visible": (t) => ({ outline: `2px solid ${t.palette.focusRing}`, outlineOffset: 2 }),

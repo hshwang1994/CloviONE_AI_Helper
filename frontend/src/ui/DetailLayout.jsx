@@ -67,3 +67,39 @@ export function DetailLayout({ aside, children, sx, ...rest }) {
     </Box>
   );
 }
+
+/** 상세 화면 한 판 — **머리글까지 같은 축**에 세운다 (C1 재검수).
+ *
+ * `PageHeader` 는 자기 폭을 모른다(콘텐츠 영역 전체를 그대로 받는다). 곁열 없는 상세는
+ * `DetailLayout` 이 그 아래 `children` 만 46rem 으로 좁혀 가운데 세우는데, 머리글은 그
+ * 밖에 남아 폭 전체 왼쪽에 선다 — 2560 에서 제목 x≈0, 본문 x≈820(§5 C1 실측). 「제목 →
+ * 본문 → 반응 → 댓글이 같은 왼쪽 모서리에서 시작한다」는 `DetailLayout` 자신의 계약을
+ * 머리글이 어기고 있었다.
+ *
+ * `DetailPage` 는 `header` 와 `children`(그리고 있으면 `aside`)을 **한 상자**로 감싼다 —
+ * 곁열이 없으면 그 상자 전체가 46rem 으로 가운데 서서 머리글도 같은 왼쪽 모서리에서
+ * 시작한다. 곁열이 있으면(두 열이 이미 컨테이너 전체 폭을 쓴다) 머리글도 그 폭 그대로
+ * 두면 되므로 감싸기만 하고 폭은 건드리지 않는다. */
+export function DetailPage({ header, aside, children, sx }) {
+  if (!aside) {
+    return (
+      <Box
+        data-detail-layout="solo-page"
+        sx={{
+          display: "grid", rowGap: 3, minWidth: 0,
+          maxWidth: DETAIL_SOLO_WIDTH, marginInline: "auto",
+          ...sx,
+        }}
+      >
+        {header}
+        {children}
+      </Box>
+    );
+  }
+  return (
+    <Box data-detail-layout="split-page" sx={{ display: "grid", rowGap: 3, minWidth: 0, ...sx }}>
+      {header}
+      <DetailLayout aside={aside}>{children}</DetailLayout>
+    </Box>
+  );
+}

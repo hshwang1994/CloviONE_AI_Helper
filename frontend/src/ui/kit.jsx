@@ -199,7 +199,13 @@ export function Badge({ value, kind, emphasis }) {
       data-tone={k}
       sx={{
         display: "inline-flex", alignItems: "center", gap: 0.625,
-        maxWidth: "100%", minWidth: 0,
+        /* **알약은 자기 라벨보다 작아지지 않는다** (A3 재검수). 감싸는 사슬(InlineEdit 의
+           버튼 등)이 `flex` 컨테이너일 때 `flex-shrink` 기본값(1)이 이 칸을 라벨보다
+           좁게 눌렀고, 그 압축이 `overflow:hidden` 인 라벨 자리에 닿으면 "검…"처럼
+           글자가 잘렸다(내 티켓 실측: 칸 126px 인데 알약 34.4px). 알약은 칸 하나에서
+           "상태"를 나르는 유일한 표지라 줄어들 값이 아니다 — 칸이 좁으면 칸을 넓히지,
+           알약을 안 줄인다. */
+        flexShrink: 0, minWidth: "max-content",
         fontSize: FONT_SIZE.bodySm, fontWeight: FONT_WEIGHT.medium, lineHeight: 1.4,
         whiteSpace: "nowrap",
         color: extra ? extra.fg : palette ? `${palette}.strong` : "text.secondary",
@@ -1304,10 +1310,36 @@ export function ListEmptyState({
   );
 }
 
-export function EmptyState({
-  icon = null, title = "표시할 항목이 없습니다", help, situation, prerequisite,
-  steps, expected, action, relatedLink, art, size, layout = "region",
-}) {
+/** `EmptyState` 가 실제로 받는 prop 전체 — 아래 개발 모드 검사의 정본이다. */
+const EMPTY_STATE_PROPS = [
+  "icon", "title", "help", "situation", "prerequisite", "steps", "expected",
+  "action", "relatedLink", "art", "size", "layout",
+];
+
+export function EmptyState(props) {
+  const {
+    icon = null, title = "표시할 항목이 없습니다", help, situation, prerequisite,
+    steps, expected, action, relatedLink, art, size, layout = "region",
+    ...rest
+  } = props;
+  /* 🔴 **모르는 prop 은 개발 모드에서 조용히 사라지지 않는다** (A2 · RC2).
+   *
+   * `screens/Sprint.jsx` 가 이 컴포넌트에 없는 `hint` 를 넘겼는데, 구조 분해는 목록에
+   * 없는 키를 그냥 버린다 — 화면은 "안내 문장을 줬다"고 믿고, 실제로는 그 문장이 통째로
+   * 없어져 회차 0건일 때 빈 상태가 **아무 문장도 없이** 한 줄로만 떴다(§3 A2 실측).
+   * 「선언은 있는데 화면에는 없다」는 이 계약이 처음이 아니다 — 여기서는 조용히 넘어가지
+   * 않고 개발 모드에서 바로 멈춘다. 프로덕션 빌드는 `import.meta.env.DEV` 가 정적으로
+   * `false` 라 이 블록 자체가 번들에서 제거된다(트리 셰이킹) — 실사용자 화면은 안 죽는다. */
+  if (import.meta.env.DEV) {
+    const unknown = Object.keys(rest);
+    if (unknown.length) {
+      throw new Error(
+        `EmptyState: 모르는 prop [${unknown.join(", ")}] 을 받았다. 이 컴포넌트가 받는 것은 ` +
+        `[${EMPTY_STATE_PROPS.join(", ")}] 뿐이다. 오타이거나, 이 요구를 표현하려면 ` +
+        `기존 prop(help/action 등)으로 옮겨야 한다.`,
+      );
+    }
+  }
   /* `layout` — **이 빈 상태가 무엇을 대신하는가** (PLAN «C1»).
    *
    *   page    **화면 전체가 비었다.** 콘텐츠 영역 안에서 가운데 구성으로 선다 —

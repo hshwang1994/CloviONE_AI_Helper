@@ -1,5 +1,5 @@
 import React from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import Box from "@mui/material/Box";
 import FormControlLabel from "@mui/material/FormControlLabel";
@@ -12,6 +12,7 @@ import { api } from "../lib/api.js";
 import {
   Badge,
   Button,
+  Callout,
   Card,
   EmptyState,
   ErrorState,
@@ -35,7 +36,7 @@ import { useTicketSignals } from "../lib/ticketSignals.js";
 import { TicketSignals } from "../ui/TicketSignals.jsx";
 import { UserAvatar } from "../ui/UserAvatar.jsx";
 
-/* 작업 보드 — 칸반과 백로그 (S6 · 지시 5).
+/* 작업 보드 — 칸반과 백로그 (S6 · 지시 5 · REAUDIT §8).
  *
  * ## 두 화면이 아니라 두 탭인 이유
  *
@@ -65,7 +66,16 @@ import { UserAvatar } from "../ui/UserAvatar.jsx";
  * ## 버전을 함께 보낸다
  *
  * 카드마다 `version` 을 싣고 이동할 때 그대로 돌려보낸다. 두 사람이 같은 판을 열어 두고
- * 같은 카드를 옮기면 나중 사람이 앞사람의 이동을 덮어쓰는데, **둘 다 성공한 것처럼 보인다.** */
+ * 같은 카드를 옮기면 나중 사람이 앞사람의 이동을 덮어쓰는데, **둘 다 성공한 것처럼 보인다.**
+ *
+ * ## 범위(scope)와 쪽(page) — REAUDIT §8
+ *
+ * 회차 미선택 기본은 **실행 중인 업무만**(`execution`, 완료·취소 제외)이다 — 전체
+ * 1,148건을 기본 칸반에 그리던 fallback 을 없앴다(A1). 진입 시 오늘에 걸린 활성 회차가
+ * 있으면 자동으로 고른다. 열·백로그는 서버가 **커서**로 쪽을 낸다 — 「앞의 200건만
+ * 보여 줍니다」로 끝내지 않는다. 이 화면은 첫 쪽을 그리고, 열 머리의 「더 보기」와 백로그
+ * 아래의 「더 보기」가 다음 쪽을 **같은 조건으로** 요청한다(`app/work/service.py`
+ * `_board_scope_stmt`/`_backlog_scope_stmt`). */
 
 const TAB_BOARD = "board";
 const TAB_BACKLOG = "backlog";
@@ -83,6 +93,10 @@ const PLACE_COLLAPSED = "collapsed";
 const PLACE_HIDDEN = "hidden";
 
 const UNCLASSIFIED = "__unclassified__";
+
+/* 열 하나가 받아 온 다음 쪽 카드. 초기값(board() 첫 쪽) 위에 얹인다 — board() 가 다시
+ * 불리면(필터가 바뀌면) 이 상태도 함께 비워야 한다(§8.5, 아래 useEffect). */
+const EMPTY_EXTRA = { cards: [], nextCursor: null, loading: false };
 
 function cardKey(card) {
   return card.key || "이름 없음";
@@ -203,7 +217,7 @@ function BacklogHead() {
   );
 }
 
-function BacklogRow({ card, onOpen, signals, onAddToSprint, canAdd, onQuickEdit }) {
+function BacklogRow({ card, onOpen, signals, onAddToSprint, canAdd, onQuickEdit, onMoveToTop, onMoveToBottom }) {
   return (
     <Card sx={{ ...BACKLOG_GRID, p: 1.25, cursor: "pointer" }} onClick={() => onOpen(card)}>
       <Box sx={{ minWidth: 0 }}>
@@ -243,7 +257,7 @@ function BacklogRow({ card, onOpen, signals, onAddToSprint, canAdd, onQuickEdit 
       <Box sx={{ display: "flex", justifyContent: "center", minWidth: 0 }}>
         <AssigneeRow card={card} />
       </Box>
-      <Box sx={{ display: "flex", justifyContent: "center", gap: 0.5 }}>
+      <Box sx={{ display: "flex", justifyContent: "center", gap: 0.5, flexWrap: "wrap" }}>
         {/* 「빠른 수정」이 여기 있는 이유: 백로그를 다듬는 일은 **여러 건을 연달아**
             고치는 일이다(우선순위 셋, 예상 WD 다섯). 건마다 상세로 갔다 돌아오면 그
             사이에 방금 어디까지 봤는지를 잊는다. */}
@@ -257,6 +271,14 @@ function BacklogRow({ card, onOpen, signals, onAddToSprint, canAdd, onQuickEdit 
           }}
         >
           빠른 수정
+        </Button>
+        {/* 화면에 없는 카드 기준 이동(§8.5) — 181행 중 맨 끝으로 보낼 때 그 자리의
+            이웃은 아직 안 받아 왔을 수 있다. 끌기 대신 이 둘로 그 자리에 닿는다. */}
+        <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); onMoveToTop(card); }}>
+          맨 위로
+        </Button>
+        <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); onMoveToBottom(card); }}>
+          맨 아래로
         </Button>
         {canAdd ? (
           <Button
@@ -278,7 +300,7 @@ function BacklogRow({ card, onOpen, signals, onAddToSprint, canAdd, onQuickEdit 
 /* 새 스프린트 폼. 기간은 ISO 날짜라 서버 스키마(`SprintCreate`)와 같은 모양이다.
  * 프로젝트를 비우면 팀 전체 회차다 — 그 갈래가 있어야 한 프로젝트에 묶이지 않는
  * 주간 회차를 만들 수 있다. */
-const SPRINT_FIELDS = [
+export const SPRINT_FIELDS = [
   { name: "name", label: "이름", required: true, maxLength: 120 },
   { name: "starts_on", label: "시작일", type: "date", required: true },
   { name: "ends_on", label: "종료일", type: "date", required: true },
@@ -293,6 +315,9 @@ function qs(pairs) {
   ).toString();
 }
 
+const COLUMN_PAGE_SIZE = 50;
+const BACKLOG_PAGE_SIZE = 50;
+
 export function WorkBoard() {
   const navigate = useNavigate();
   // `useAuth()` 는 react-query 결과 객체다 — `data` 안에 사용자가 있다.
@@ -306,12 +331,16 @@ export function WorkBoard() {
   const [mine, setMine] = React.useState(false);
   const [troubleOnly, setTroubleOnly] = React.useState(false);
   const [showHold, setShowHold] = React.useState(false);
-  const [showHidden, setShowHidden] = React.useState(false);
+  // §8.1 — 회차 미선택일 때 완료·취소까지 보는 토글. 회차 안에서는 뜻이 없다(그 회차의
+  // 전체 이력이 이미 다 보인다) — 그래서 sprintId 가 있을 때는 안 보여 준다.
+  const [showAll, setShowAll] = React.useState(false);
   const [query, setQuery] = React.useState("");
   const [priority, setPriority] = React.useState("");
   const [difficulty, setDifficulty] = React.useState("");
   const [sprintFormOpen, setSprintFormOpen] = React.useState(false);
   const [editing, setEditing] = React.useState(null);
+  // 열 하나가 첫 쪽 위에 받아 온 다음 쪽들. `{ [statusKey]: { cards, nextCursor, loading } }`
+  const [colExtra, setColExtra] = React.useState({});
 
   const signalsOf = useTicketSignals();
 
@@ -326,9 +355,25 @@ export function WorkBoard() {
     queryKey: ["work-sprints", projectId],
     queryFn: () => api("/api/work/sprints?" + qs({ project_id: projectId })),
   });
+  const sprintRows = (sprints.data && sprints.data.sprints) || [];
+
+  // §8.3 — 진입 시 오늘에 걸린 활성 회차가 있으면 자동으로 고른다. 한 번만 한다 — 사용자가
+  // 그 뒤 직접 회차를 비우면(「전체」로 되돌리면) 자동 선택이 다시 덮어쓰지 않는다.
+  const autoSelectedRef = React.useRef(false);
+  React.useEffect(() => {
+    if (autoSelectedRef.current || !sprints.data || sprintId) return;
+    autoSelectedRef.current = true;
+    const active = sprintRows.find((s) => s.active);
+    if (active) setSprintId(active.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sprints.data]);
+
+  // §8.1 — scope. 회차를 골랐으면 그 회차 전체(완료·취소 포함)를 본다 — "실행분만"이라는
+  // 개념 자체가 회차 문맥에는 없다. 안 골랐으면 execution(기본)/all(토글) 이다.
+  const scope = sprintId ? undefined : (showAll ? "all" : "execution");
 
   // 판과 백로그가 **같은 조건 이름**을 쓴다. 탭을 옮겨도 방금 건 조건이 그대로 산다.
-  const boardKey = [projectId, sprintId, assigneeId, mine, troubleOnly];
+  const boardKey = [projectId, sprintId, assigneeId, mine, troubleOnly, scope];
   const board = useQuery({
     queryKey: ["work-board", ...boardKey],
     queryFn: () =>
@@ -340,14 +385,21 @@ export function WorkBoard() {
             assignee_user_id: mine ? "" : assigneeId,
             mine,
             blocked_only: troubleOnly,
+            scope,
+            column_page_size: COLUMN_PAGE_SIZE,
           })
       ),
     enabled: tab === TAB_BOARD,
   });
+
+  // 필터가 바뀌면 다음 쪽으로 받아 둔 것도 함께 비운다 — 안 그러면 옛 조건의 카드가
+  // 새 조건의 열 아래에 그대로 남는다.
+  React.useEffect(() => { setColExtra({}); }, [JSON.stringify(boardKey)]);
+
   const backlogKey = [projectId, query, assigneeId, mine, priority, difficulty];
-  const backlog = useQuery({
+  const backlog = useInfiniteQuery({
     queryKey: ["work-backlog", ...backlogKey],
-    queryFn: () =>
+    queryFn: ({ pageParam }) =>
       api(
         "/api/work/backlog?" +
           qs({
@@ -357,8 +409,12 @@ export function WorkBoard() {
             mine,
             priority,
             difficulty,
+            cursor: pageParam || "",
+            limit: BACKLOG_PAGE_SIZE,
           })
       ),
+    initialPageParam: null,
+    getNextPageParam: (lastPage) => lastPage.next_cursor || undefined,
     enabled: tab === TAB_BACKLOG,
   });
 
@@ -419,45 +475,106 @@ export function WorkBoard() {
   );
 
   /* 열은 서버가 정한 **자리**로 고른다(`placement`). 화면이 상태 이름을 적어 열을 고르면
-     어휘가 바뀐 날 이 화면만 옛 목록으로 남고, 그 어긋남은 아무 오류도 안 낸다. */
+     어휘가 바뀐 날 이 화면만 옛 목록으로 남고, 그 어긋남은 아무 오류도 안 낸다.
+     첫 쪽(board.data) 위에 `colExtra` 로 받아 둔 다음 쪽들을 얹는다. */
   const columns = React.useMemo(() => {
     const data = board.data;
     if (!data) return [];
     const wanted = [PLACE_COLUMN];
     if (showHold) wanted.push(PLACE_COLLAPSED);
-    if (showHidden) wanted.push(PLACE_HIDDEN);
+    if (showAll) wanted.push(PLACE_HIDDEN);
     const cols = (data.columns || [])
       .filter((c) => wanted.indexOf(c.placement || PLACE_COLUMN) >= 0)
-      .map((c) => ({
-        id: c.key,
-        title: c.label,
-        count: c.total,
-        items: c.cards || [],
-        // 잘렸다는 사실을 말한다. 안 말하면 사용자는 이 열이 전부라고 믿는다.
-        hint:
-          c.total > (c.cards || []).length
-            ? `앞의 ${(c.cards || []).length}건만 보여 줍니다.`
-            : null,
-      }));
-    if ((data.unclassified || []).length) {
+      .map((c) => {
+        const extra = colExtra[c.key] || EMPTY_EXTRA;
+        const items = [...(c.cards || []), ...extra.cards];
+        const nextCursor = extra.cards.length ? extra.nextCursor : c.next_cursor;
+        return {
+          id: c.key,
+          title: c.label,
+          count: c.total,
+          items,
+          // 「N건 중 M건」— 잘랐다는 사실이 아니라 지금까지 받은 양을 말한다(§8.5).
+          hint: c.total > items.length ? `${c.total}건 중 ${items.length}건을 받았습니다.` : null,
+          action: nextCursor ? (
+            <Button
+              variant="ghost" size="sm" loading={extra.loading}
+              onClick={() => loadMoreColumn(c.key, nextCursor)}
+            >
+              더 보기
+            </Button>
+          ) : null,
+        };
+      });
+    if ((data.unclassified || []).length || data.unclassified_next_cursor) {
+      const extra = colExtra[UNCLASSIFIED] || EMPTY_EXTRA;
+      const items = [...(data.unclassified || []), ...extra.cards];
+      const nextCursor = extra.cards.length ? extra.nextCursor : data.unclassified_next_cursor;
       // 어휘 밖 상태. **버리지 않는다** — 안 보이는 티켓은 아무도 못 고친다.
       cols.push({
         id: UNCLASSIFIED,
         title: "분류되지 않음",
         count: data.unclassified_total,
-        items: data.unclassified,
+        items,
         hint: "상태 값이 목록에 없습니다.",
+        action: nextCursor ? (
+          <Button
+            variant="ghost" size="sm" loading={extra.loading}
+            onClick={() => loadMoreColumn(UNCLASSIFIED, nextCursor)}
+          >
+            더 보기
+          </Button>
+        ) : null,
       });
     }
     return cols;
-  }, [board.data, showHold, showHidden]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [board.data, showHold, showAll, colExtra]);
+
+  /* 열 하나의 다음 쪽 — **같은 조건**으로(§8.5). 필터가 바뀌면 boardKey 도 바뀌어
+     colExtra 가 비워지므로, 여기서는 "지금 이 boardKey" 를 그대로 싣는다. */
+  async function loadMoreColumn(statusKey, cursor) {
+    setColExtra((prev) => ({
+      ...prev, [statusKey]: { ...(prev[statusKey] || EMPTY_EXTRA), loading: true },
+    }));
+    try {
+      const body = await api(
+        `/api/work/board/columns/${encodeURIComponent(statusKey)}?` +
+          qs({
+            project_id: projectId, sprint_id: sprintId,
+            assignee_user_id: mine ? "" : assigneeId, mine, blocked_only: troubleOnly,
+            scope, cursor, limit: COLUMN_PAGE_SIZE,
+          })
+      );
+      setColExtra((prev) => {
+        const before = prev[statusKey] || EMPTY_EXTRA;
+        return {
+          ...prev,
+          [statusKey]: {
+            cards: [...before.cards, ...(body.cards || [])],
+            nextCursor: body.next_cursor || null,
+            loading: false,
+          },
+        };
+      });
+    } catch (e) {
+      setColExtra((prev) => ({
+        ...prev, [statusKey]: { ...(prev[statusKey] || EMPTY_EXTRA), loading: false },
+      }));
+      toast((e && e.message) || "더 받아오지 못했습니다. 다시 시도해 주세요.", "error");
+    }
+  }
+
+  const backlogPages = (backlog.data && backlog.data.pages) || [];
+  const backlogRows = backlogPages.flatMap((p) => p.items || []);
+  const backlogTotal = backlogPages.length ? backlogPages[0].total : 0;
 
   const cardById = React.useMemo(() => {
     const out = {};
     for (const c of columns) for (const it of c.items) out[it.id] = it;
-    for (const it of (backlog.data && backlog.data.items) || []) out[it.id] = it;
+    for (const it of backlogRows) out[it.id] = it;
     return out;
-  }, [columns, backlog.data]);
+  }, [columns, backlogRows]);
 
   const labelOf = React.useCallback(
     (id) => {
@@ -494,6 +611,24 @@ export function WorkBoard() {
     });
   }
 
+  /* 화면에 없는 카드 기준 이동(§8.5) — "지금 화면이 보는 백로그"와 같은 조건을
+     `position_*` 로 다시 실어, 서버가 카드를 안 끌어오고도 목표 순위를 잰다. */
+  function movePosition(card, position) {
+    move.mutate({
+      id: card.id,
+      body: {
+        reorder: true, base_version: card.version,
+        to_position: position,
+        position_project_id: projectId || null,
+        position_q: query || null,
+        position_assignee_user_id: mine ? null : (assigneeId || null),
+        position_mine: mine,
+        position_priority: priority || null,
+        position_difficulty: difficulty || null,
+      },
+    });
+  }
+
   function addToSprint(card) {
     if (!sprintId) {
       toast("먼저 담을 스프린트를 고르세요.", "warn");
@@ -508,7 +643,6 @@ export function WorkBoard() {
   const canPlanSprint = hasRole(MODERATOR_ROLES, auth.data && auth.data.role);
   const active = tab === TAB_BOARD ? board : backlog;
   const summary = (board.data && board.data.summary) || null;
-  const sprintRows = (sprints.data && sprints.data.sprints) || [];
   const projectRows = (projects.data && projects.data.projects) || [];
   const assigneeRows = (assignees.data && assignees.data.assignees) || [];
   const metaBody = meta.data || {};
@@ -538,7 +672,6 @@ export function WorkBoard() {
   const newTicketPath = "/new-ticket" + (newTicketQuery ? `?${newTicketQuery}` : "");
 
   const boardEmpty = columns.every((c) => c.items.length === 0);
-  const backlogRows = (backlog.data && backlog.data.items) || [];
 
   return (
     <>
@@ -561,12 +694,27 @@ export function WorkBoard() {
                 것은 권한 보장이 아니라 **누를 수 없는 버튼을 안 보여 주는 것**이다 —
                 눌러서 403 을 보는 것은 안내가 아니다. */}
             {canPlanSprint ? (
-              <Button onClick={() => setSprintFormOpen(true)}>스프린트 추가</Button>
+              <Button
+                variant={sprintRows.length === 0 ? "primary" : "secondary"}
+                onClick={() => setSprintFormOpen(true)}
+              >
+                스프린트 추가
+              </Button>
             ) : null}
           </Stack>
         }
         help="카드를 끌어 상태와 순서를 바꿉니다. 키보드로는 스페이스로 집고 화살표로 옮긴 뒤 스페이스로 놓습니다."
       />
+
+      {/* §8.2 — 회차 미선택일 때 판 위에 맥락을 말한다. 회차가 0건이면 「스프린트
+          만들기」를 강조 단추로 둔다(위 actions). */}
+      {tab === TAB_BOARD && !sprintId ? (
+        <Callout tone="info" variant="inline" sx={{ mb: 1.5 }}>
+          {showAll
+            ? "완료와 취소를 포함한 전체 티켓을 보여 줍니다."
+            : "회차를 고르지 않아 실행 중인 업무만 보여 줍니다."}
+        </Callout>
+      ) : null}
 
       {/* 탐색 줄의 구조가 프로젝트·티켓과 **같다**(지시 8): 위 줄이 「무엇을 찾는가」,
           아래 줄이 「무엇으로 좁히는가」. 프로젝트와 스프린트가 맨 앞인 이유는 이 화면의
@@ -599,7 +747,10 @@ export function WorkBoard() {
             value={sprintId}
             onChange={(next) => setSprintId(next || "")}
             loading={sprints.isLoading}
-            options={sprintRows.map((s) => ({ value: s.id, label: s.name }))}
+            options={sprintRows.map((s) => ({
+              value: s.id,
+              label: s.active ? `${s.name} (진행 중)` : s.name,
+            }))}
             allLabel="전체"
             sx={{ minWidth: "12rem" }}
           />
@@ -653,15 +804,19 @@ export function WorkBoard() {
           ) : null}
           {tab === TAB_BOARD ? (
             <FilterActions>
-              {/* 보류와 취소는 기본 판에서 비켜 있다(D-349). 없애는 것이 아니라 **접는
-                  것**이라, 펴는 스위치가 늘 여기 있다 — 안 그러면 보류한 일이 어느
-                  화면에도 없어서 영영 잊힌다. */}
+              {/* 보류는 기본 판에서 비켜 있다(D-349). 없애는 것이 아니라 **접는 것**이라,
+                  펴는 스위치가 늘 여기 있다 — 안 그러면 보류한 일이 어느 화면에도 없어서
+                  영영 잊힌다. */}
               <Button variant="ghost" size="sm" onClick={() => setShowHold((v) => !v)}>
                 {showHold ? "보류 접기" : "보류 펴기"}
               </Button>
-              <Button variant="ghost" size="sm" onClick={() => setShowHidden((v) => !v)}>
-                {showHidden ? "취소 감추기" : "취소 보기"}
-              </Button>
+              {/* 완료·취소는 열이 아니라 이 토글로 본다(§8.1) — 회차를 이미 골랐으면
+                  그 회차 전체가 항상 다 보이므로 이 토글 자체가 뜻이 없다. */}
+              {!sprintId ? (
+                <Button variant="ghost" size="sm" onClick={() => setShowAll((v) => !v)}>
+                  {showAll ? "완료와 취소 감추기" : "완료와 취소 보기"}
+                </Button>
+              ) : null}
             </FilterActions>
           ) : null}
         </FilterRow>
@@ -691,7 +846,15 @@ export function WorkBoard() {
 
       {tab === TAB_BOARD && board.data ? (
         boardEmpty ? (
-          <EmptyState title="보여 줄 티켓이 없습니다." />
+          <EmptyState
+            title="보여 줄 티켓이 없습니다."
+            help={!sprintId && !showAll ? "완료와 취소를 포함해 보면 있을 수 있습니다." : undefined}
+            action={
+              !sprintId && !showAll
+                ? <Button variant="secondary" onClick={() => setShowAll(true)}>완료와 취소 보기</Button>
+                : undefined
+            }
+          />
         ) : (
           <DragBoard
             columns={columns}
@@ -713,7 +876,7 @@ export function WorkBoard() {
         )
       ) : null}
 
-      {tab === TAB_BACKLOG && backlog.data ? (
+      {tab === TAB_BACKLOG && backlogPages.length ? (
         backlogRows.length === 0 ? (
           <EmptyState title="백로그가 비어 있습니다." />
         ) : (
@@ -729,10 +892,27 @@ export function WorkBoard() {
                     onAddToSprint={addToSprint}
                     canAdd={canPlanSprint}
                     onQuickEdit={(c) => setEditing(asTicket(c))}
+                    onMoveToTop={(c) => movePosition(c, "top")}
+                    onMoveToBottom={(c) => movePosition(c, "bottom")}
                   />
                 </DragItem>
               )}
             </SortableList>
+            {/* 「N건 중 M건」과 「더 보기」— 서버가 실제로 다음 쪽을 내주는 계약(§8.5).
+                키보드·스크린리더 사용자는 무한 스크롤에 닿을 수 없어 단추를 함께 둔다. */}
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, mt: 2 }}>
+              <Typography variant="caption" color="text.secondary">
+                {backlogTotal}건 중 {backlogRows.length}건을 받았습니다.
+              </Typography>
+              {backlog.hasNextPage ? (
+                <Button
+                  variant="ghost" size="sm" loading={backlog.isFetchingNextPage}
+                  onClick={() => backlog.fetchNextPage()}
+                >
+                  백로그 더 보기
+                </Button>
+              ) : null}
+            </Box>
           </Box>
         )
       ) : null}

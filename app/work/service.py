@@ -29,11 +29,12 @@
 
 from __future__ import annotations
 
+import base64
 import logging
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.authz.visibility import (
@@ -43,11 +44,11 @@ from app.authz.visibility import (
 )
 from app.core.dates import iso_date, parse_date
 from app.core.errors import ConflictError, NotFoundError, ValidationAppError
-from app.core.models_base import split_names, utcnow
+from app.core.models_base import NAMES_SEP, split_names, utcnow
 from app.projects.models import Project
-from app.tickets.models import Ticket, api_page_id
+from app.tickets.models import Ticket, api_page_id, api_page_id_expr
 from app.trash import repository as trash_repo
-from app.trash.models import TRASH_TICKET
+from app.trash.models import TRASH_TICKET, TrashItem
 from app.users.models import User
 from app.work import activity, numbering, rank as rank_mod, relations, workflow
 from app.work.models import (
@@ -66,9 +67,161 @@ from app.work.resolve import display_key
 
 logger = logging.getLogger(__name__)
 
-# 한 열에 싣는 카드 수. 칸반은 스크롤 목록이 아니라 한눈에 보는 판이라, 이 수를 넘으면
-# 필터를 좁히라고 말하는 편이 정직하다 — 800장을 그려 놓고 브라우저를 세우지 않는다.
-BOARD_COLUMN_LIMIT = 200
+# 한 쪽 기본 카드 수(§8.5 재검수). 예전 `BOARD_COLUMN_LIMIT` 는 "이 이상은 없다"는 상한—
+# 열이 200장을 넘으면 201번째부터는 화면도 서버도 아예 안 낸다(D3). 지금은 "이 이상은
+# 다음 쪽에 있다"로 바뀐다 — 커서를 따라가면 열 전체를 받는다. `MAX_COLUMN_PAGE_SIZE` 는
+# 한 요청이 한 번에 실어 나르는 카드 수의 그릇 크기일 뿐, 열 전체 조회 상한이 아니다.
+DEFAULT_COLUMN_PAGE_SIZE = 50
+MAX_COLUMN_PAGE_SIZE = 200
+
+# 어휘 밖 상태를 모으는 칸의 열쇠. 프런트(`screens/WorkBoard.jsx::UNCLASSIFIED`)와
+# 글자까지 같아야 한다 — 다르면 "더 보기"가 엉뚱한 열을 요청한다.
+UNCLASSIFIED_KEY = "__unclassified__"
+
+# ── 범위(scope) 계약 (§8.1) ──────────────────────────────────────────────────
+SCOPE_SPRINT = "sprint"
+SCOPE_EXECUTION = "execution"
+SCOPE_ALL = "all"
+BOARD_SCOPES: tuple[str, ...] = (SCOPE_SPRINT, SCOPE_EXECUTION, SCOPE_ALL)
+
+
+def resolve_board_scope(scope: str | None, sprint_id: str | None) -> str:
+    """어느 범위로 보는가. **모르는 값은 예외**다 — 조용히 기본값으로 떨어지면 화면은
+    좁혔다고 믿는데 서버는 전체(또는 반대로 실행분만)를 준 것이 된다.
+
+      sprint     회차가 담긴 티켓만. `sprint_id` 가 있어야 한다
+      execution  회차 미선택. 종료 상태(완료·취소, `workflow.TERMINAL_CATEGORIES`)를 뺀다
+      all        완료·취소를 포함한 전부. 명시할 때만
+
+    `scope` 를 안 주면 `sprint_id` 유무로 고른다 — 화면이 회차를 이미 골랐다면 그
+    맥락에서는 "실행분만"이라는 개념 자체가 없다(회차 안에 완료된 일도 회의의 자료다).
+    """
+    resolved = scope or (SCOPE_SPRINT if sprint_id else SCOPE_EXECUTION)
+    if resolved not in BOARD_SCOPES:
+        raise ValidationAppError(f"모르는 scope 입니다: {resolved}")
+    if resolved == SCOPE_SPRINT and not sprint_id:
+        raise ValidationAppError("scope=sprint 에는 sprint_id 가 필요합니다.")
+    return resolved
+
+
+def _not_trashed_ticket_clause():
+    """이 티켓이 휴지통에 없다 — **SQL 절**로 (§8.5).
+
+    예전엔(`_drop_trashed`) 전량을 파이썬으로 끌어와 `trashed_page_ids()` 집합과
+    대조했다. 쪽 단위로 받는 목록에서 그렇게 하면 이번 쪽에서 휴지통이라 걸러진 건수만큼
+    `total`(SQL COUNT)과 실제로 받은 카드 수가 어긋난다 — 커서를 끝까지 따라가도 받은
+    수가 `total` 에 못 미친다. `TrashItem` 은 API 가 부르는 이름(`api_page_id_expr`)으로
+    조회 가능한 표라 여기서 NOT EXISTS 로 만든다 — 파이썬 집합을 다시 만들 필요가 없다.
+    """
+    return ~(
+        select(TrashItem.id)
+        .where(
+            TrashItem.item_type == TRASH_TICKET,
+            TrashItem.notion_page_id == api_page_id_expr(),
+        )
+        .correlate(Ticket)
+        .exists()
+    )
+
+
+def _assignee_sql_clause(assignee_token: str | None):
+    """담당자 한 명 — **SQL 절**로. `assignee_notion_ids` 는 앞뒤로 구분자(`NAMES_SEP`)를
+    두른 문자열이다(`join_names`) — 그래서 짧은 토큰이 더 긴 토큰 안에 우연히 끼어드는
+    부분 일치 오탐이 없다. `%`·`_`·`\\` 는 LIKE 메타문자라 이스케이프한다."""
+    if not assignee_token:
+        return None
+    escaped = (
+        assignee_token.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    )
+    return Ticket.assignee_notion_ids.like(
+        f"%{NAMES_SEP}{escaped}{NAMES_SEP}%", escape="\\"
+    )
+
+
+def _ilike_escape(text: str) -> str:
+    """검색어를 LIKE 패턴 자리에 안전하게 넣는다. 사용자가 적은 글자라 `%`·`_` 가
+    실제로 들어올 수 있다(담당자 토큰과 달리 이건 **사람이 타이핑한 값**이다)."""
+    return text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+def _board_scope_stmt(
+    db: Session,
+    user: User,
+    *,
+    project_id: str | None,
+    sprint_id: str | None,
+    scope: str,
+    assignee_token: str | None = None,
+    blocked_only: bool = False,
+):
+    """판·백로그가 공유하는 **한 조건**(§8.5). 첫 쪽과 다음 쪽이 같은 조건을 본다 —
+    안 그러면 이번 쪽에서 본 카드가 다음 쪽에서 다른 조건에 걸려 새거나 겹친다.
+
+    범위(가시성) 절이 **무엇보다도 먼저** 걸린다(D-202). 커서·상한은 이 위에 얹힐 뿐,
+    이 절을 지나지 않은 행은 어느 쪽에도 새어 나오지 않는다.
+    """
+    stmt = _visible_tickets_stmt(db, user)
+    if project_id:
+        stmt = stmt.where(Ticket.project_uid == project_id)
+    if sprint_id:
+        stmt = stmt.where(Ticket.sprint_id == sprint_id)
+    stmt = stmt.where(
+        Ticket.notion_missing_at.is_(None),
+        _not_trashed_ticket_clause(),
+    )
+    if scope == SCOPE_EXECUTION:
+        cat = workflow.category_sql(Ticket.status)
+        # 어휘 밖 상태(`category` 가 `None`)는 실행분에 남는다 — 종료라고 알려진 것만 뺀다.
+        stmt = stmt.where(cat.is_(None) | cat.notin_(workflow.TERMINAL_CATEGORIES))
+    assignee_clause = _assignee_sql_clause(assignee_token)
+    if assignee_clause is not None:
+        stmt = stmt.where(assignee_clause)
+    if blocked_only:
+        stmt = stmt.where(Ticket.blocked_flag.is_(True) | Ticket.issue_flag.is_(True))
+    return stmt
+
+
+def _encode_rank_cursor(rank: Decimal | None, row_id: str) -> str:
+    """열/백로그 한 쪽의 마지막 행 — **불투명 문자열**로. 화면은 내용을 몰라도 된다."""
+    payload = f"{'' if rank is None else str(rank)}|{row_id}"
+    return base64.urlsafe_b64encode(payload.encode("utf-8")).decode("ascii")
+
+
+def _decode_rank_cursor(cursor: str) -> tuple[Decimal | None, str]:
+    try:
+        raw = base64.urlsafe_b64decode(cursor.encode("ascii")).decode("utf-8")
+        rank_part, row_id = raw.split("|", 1)
+        return (Decimal(rank_part) if rank_part else None, row_id)
+    except Exception as exc:  # noqa: BLE001 — 형식이 뭐든 "잘못된 커서"로 뭉친다
+        raise ValidationAppError("잘못된 커서입니다.") from exc
+
+
+def _rank_keyset_page(
+    db: Session, stmt, rank_col, *, cursor: str | None, limit: int
+) -> tuple[list[Ticket], str | None]:
+    """`rank_col` NULLS LAST, `Ticket.id` 순으로 커서 다음 `limit` 건 + 「더 있다」.
+
+    `offset` 대신 keyset 을 쓴다(D-202 옆 §8.5) — 순위가 바뀔 수 있는 목록에서 `offset`
+    은 그 사이 옮겨진 카드를 건너뛰거나 두 번 돌려주는데, 그 어긋남은 오류를 안 낸다.
+    `limit`+1 을 직접 받아 다음 쪽 유무를 본다 — 별도 COUNT 와 비교하면 그 사이 자료가
+    바뀌었을 때 어긋날 수 있다.
+    """
+    q = stmt.order_by(rank_col.nulls_last(), Ticket.id.asc())
+    if cursor:
+        last_rank, last_id = _decode_rank_cursor(cursor)
+        if last_rank is not None:
+            q = q.where(
+                (rank_col > last_rank)
+                | ((rank_col == last_rank) & (Ticket.id > last_id))
+                | rank_col.is_(None)
+            )
+        else:
+            q = q.where(rank_col.is_(None), Ticket.id > last_id)
+    rows = list(db.execute(q.limit(limit + 1)).scalars().all())
+    has_more = len(rows) > limit
+    page = rows[:limit]
+    next_cursor = _encode_rank_cursor(getattr(page[-1], rank_col.key), page[-1].id) if has_more and page else None
+    return page, next_cursor
 
 
 def number_if_possible(db: Session, ticket: Ticket, *, now: datetime | None = None) -> bool:
@@ -237,20 +390,16 @@ def _people(db: Session) -> dict[str, dict]:
     return out
 
 
-def _matches_assignee(ticket: Ticket, token: str | None) -> bool:
-    if not token:
-        return True
-    return token in split_names(ticket.assignee_notion_ids)
-
-
 def board(
     db: Session,
     user: User,
     *,
     project_id: str | None = None,
     sprint_id: str | None = None,
+    scope: str | None = None,
     assignee_token: str | None = None,
     blocked_only: bool = False,
+    column_page_size: int = DEFAULT_COLUMN_PAGE_SIZE,
     today: date | None = None,
 ) -> dict:
     """칸반 한 판. 열은 상태 어휘가 정하고 순서도 거기서 온다.
@@ -271,26 +420,29 @@ def board(
     **신호 때문에 카드를 다른 열로 옮기지 않는다.** 차단된 진행 중 티켓은 진행 중 열에
     있고 카드가 신호를 단다 — 옮기면 「지금 무엇이 진행 중인가」에 답이 둘이 된다.
 
-    ## 요약은 판이 센다
+    ## 범위 (§8.1 재검수)
 
-    화면이 열의 카드 수를 더해서 세면 **잘린 열**(`BOARD_COLUMN_LIMIT`)에서 조용히
-    틀린다. 여기서 자르기 전에 세고, 신호 셋은 열과 무관하게 판 전체에서 센다.
+    회차 미선택 기본은 `execution` 이다 — 완료·취소가 실행 판을 덮던 A1 이 그 fallback
+    때문이었다. `scope="all"` 을 명시할 때만 종료 상태까지 본다.
+
+    ## 열은 **한 쪽만** 낸다 (§8.5 재검수)
+
+    옛 `BOARD_COLUMN_LIMIT` 는 200건에서 자르고 그 뒤를 아예 안 냈다. 지금은 각 열의
+    첫 쪽(`column_page_size`, 기본 50)과 `next_cursor` 를 낸다 — 나머지는
+    `GET /api/work/board/columns/{status_key}` 가 **같은 조건**으로 이어 준다.
+
+    ## 요약은 SQL 이 센다
+
+    옛 구현은 전량을 파이썬으로 끌어와 세었다(`scope=all` 이면 1,148행). 지금은
+    `total`·`by_status`·신호 셋 전부 `GROUP BY`/`FILTER` 로 낸다 — 자르기 전에 센다는
+    성질은 그대로이면서 메모리에서 행이 사라진다.
     """
-    stmt = _visible_tickets_stmt(db, user)
-    if project_id:
-        stmt = stmt.where(Ticket.project_uid == project_id)
-    if sprint_id:
-        stmt = stmt.where(Ticket.sprint_id == sprint_id)
-    stmt = stmt.where(Ticket.notion_missing_at.is_(None)).order_by(
-        # 판의 순서는 `board_rank` 다. `backlog_rank` 와 다른 목록의 순서라, 한 컬럼으로
-        # 두면 카드를 판에서 옮긴 순간 백로그 순서가 함께 흐트러진다.
-        Ticket.board_rank.nulls_last(), Ticket.backlog_rank.nulls_last(), Ticket.created_at
+    resolved_scope = resolve_board_scope(scope, sprint_id)
+    page_size = max(1, min(column_page_size or DEFAULT_COLUMN_PAGE_SIZE, MAX_COLUMN_PAGE_SIZE))
+    base_stmt = _board_scope_stmt(
+        db, user, project_id=project_id, sprint_id=sprint_id, scope=resolved_scope,
+        assignee_token=assignee_token, blocked_only=blocked_only,
     )
-    tickets = _drop_trashed(db, list(db.execute(stmt).scalars().all()))
-    if assignee_token:
-        tickets = [t for t in tickets if _matches_assignee(t, assignee_token)]
-    if blocked_only:
-        tickets = [t for t in tickets if t.blocked_flag or t.issue_flag]
 
     # 열은 **표에서 읽는다**(`ticket_statuses`). 어휘의 정본은 코드이고
     # (`app/work/workflow.py::STATUSES`) 이 표는 그 결과지만, 런타임이 읽는 것은 표다.
@@ -299,47 +451,168 @@ def board(
     status_rows = db.execute(
         select(TicketStatus).order_by(TicketStatus.sort_order, TicketStatus.key)
     ).scalars().all()
+    known_keys = [row.key for row in status_rows]
 
     names = _people(db)
-    by_status: dict[str, list[dict]] = {row.key: [] for row in status_rows}
-    unknown: list[dict] = []
-    signals = {"issue": 0, "blocked": 0, "overdue": 0}
-    for ticket in tickets:
-        card = _card(ticket, names=names)
-        bucket = by_status.get(ticket.status or "")
-        (unknown if bucket is None else bucket).append(card)
-        if ticket.issue_flag:
-            signals["issue"] += 1
-        if ticket.blocked_flag:
-            signals["blocked"] += 1
-        if today is not None and workflow.is_overdue(ticket.due_date, ticket.status, today=today):
-            signals["overdue"] += 1
-
-    columns = [
-        {
+    columns = []
+    for row in status_rows:
+        page, next_cursor = _rank_keyset_page(
+            db, base_stmt.where(Ticket.status == row.key), Ticket.board_rank,
+            cursor=None, limit=page_size,
+        )
+        columns.append({
             "key": row.key,
             "label": row.label,
             "category": row.category,
             # 화면이 열 이름을 적어 자리를 고르지 않게 한다.
             "placement": workflow.board_placement(row.key),
-            "total": len(by_status[row.key]),
-            "cards": by_status[row.key][:BOARD_COLUMN_LIMIT],
-        }
-        for row in status_rows
+            "cards": [_card(t, names=names) for t in page],
+            "total": 0,  # 아래 SQL 집계로 채운다 — 잘리기 전 값이다.
+            "next_cursor": next_cursor,
+        })
+
+    unclassified_stmt = (
+        base_stmt.where(Ticket.status.is_(None) | Ticket.status.notin_(known_keys))
+        if known_keys else base_stmt
+    )
+    unknown_page, unknown_next = _rank_keyset_page(
+        db, unclassified_stmt, Ticket.board_rank, cursor=None, limit=page_size,
+    )
+
+    base_sq = base_stmt.subquery()
+    total = db.execute(select(func.count()).select_from(base_sq)).scalar_one()
+    status_counts = dict(
+        db.execute(select(base_sq.c.status, func.count()).group_by(base_sq.c.status)).all()
+    )
+    for col in columns:
+        col["total"] = status_counts.get(col["key"], 0)
+    unclassified_total = sum(n for key, n in status_counts.items() if key not in known_keys)
+
+    count_cols = [
+        func.count().filter(base_sq.c.blocked_flag.is_(True)),
+        func.count().filter(base_sq.c.issue_flag.is_(True)),
     ]
+    if today is not None:
+        cat_case = workflow.category_sql(base_sq.c.status)
+        overdue_expr = (
+            base_sq.c.due_date.is_not(None)
+            & (base_sq.c.due_date < today)
+            & (cat_case.is_(None) | cat_case.notin_(workflow.TERMINAL_CATEGORIES))
+        )
+        count_cols.append(func.count().filter(overdue_expr))
+    signal_row = db.execute(select(*count_cols)).one()
+    signals = {
+        "blocked": signal_row[0],
+        "issue": signal_row[1],
+        "overdue": signal_row[2] if today is not None else 0,
+    }
+
     return {
+        "scope": resolved_scope,
+        "column_page_size": page_size,
         "columns": columns,
-        "column_limit": BOARD_COLUMN_LIMIT,
         # 판 전체의 판독 줄. **자르기 전에** 센다.
         "summary": {
-            "total": len(tickets),
-            "by_status": {row.key: len(by_status[row.key]) for row in status_rows},
+            "total": total,
+            "by_status": {key: status_counts.get(key, 0) for key in known_keys},
             "signals": signals,
         },
         # 어휘 밖 상태. 비어 있으면 화면이 이 칸을 그리지 않는다.
-        "unclassified": unknown[:BOARD_COLUMN_LIMIT],
-        "unclassified_total": len(unknown),
+        "unclassified": [_card(t, names=names) for t in unknown_page],
+        "unclassified_next_cursor": unknown_next,
+        "unclassified_total": unclassified_total,
     }
+
+
+def board_column(
+    db: Session,
+    user: User,
+    *,
+    status_key: str,
+    project_id: str | None = None,
+    sprint_id: str | None = None,
+    scope: str | None = None,
+    assignee_token: str | None = None,
+    blocked_only: bool = False,
+    cursor: str | None = None,
+    limit: int = DEFAULT_COLUMN_PAGE_SIZE,
+) -> dict:
+    """판의 열 하나 — **다음 쪽**(§8.5). `board()` 와 **글자까지 같은 조건**을 받아야
+    한다 — 조건이 어긋나면 이 쪽에서 board() 가 안 보여준 카드가 새거나, board() 가
+    보여준 카드가 이 쪽에서 다시 나와 중복된다.
+
+    범위(가시성) 절은 `_board_scope_stmt` 안에서 **상한(limit)보다 먼저** 걸린다
+    (D-202) — 다음 쪽 요청도 그 순서를 지킨다.
+    """
+    resolved_scope = resolve_board_scope(scope, sprint_id)
+    page_size = max(1, min(limit or DEFAULT_COLUMN_PAGE_SIZE, MAX_COLUMN_PAGE_SIZE))
+    base_stmt = _board_scope_stmt(
+        db, user, project_id=project_id, sprint_id=sprint_id, scope=resolved_scope,
+        assignee_token=assignee_token, blocked_only=blocked_only,
+    )
+    known_keys = [key for key in db.execute(select(TicketStatus.key)).scalars().all()]
+    if status_key == UNCLASSIFIED_KEY:
+        col_stmt = (
+            base_stmt.where(Ticket.status.is_(None) | Ticket.status.notin_(known_keys))
+            if known_keys else base_stmt
+        )
+    elif status_key in known_keys:
+        col_stmt = base_stmt.where(Ticket.status == status_key)
+    else:
+        raise NotFoundError("모르는 열입니다.")
+
+    page, next_cursor = _rank_keyset_page(db, col_stmt, Ticket.board_rank, cursor=cursor, limit=page_size)
+    total = db.execute(select(func.count()).select_from(col_stmt.subquery())).scalar_one()
+    names = _people(db)
+    return {"cards": [_card(t, names=names) for t in page], "total": total, "next_cursor": next_cursor}
+
+
+def _backlog_scope_stmt(
+    db: Session,
+    user: User,
+    *,
+    project_id: str | None = None,
+    q: str | None = None,
+    assignee_token: str | None = None,
+    priority: str | None = None,
+    difficulty: str | None = None,
+    exclude_ticket_id: str | None = None,
+):
+    """백로그의 **한 조건** — 목록(`backlog`)과 위치 이동(`_backlog_position_rank`)이
+    같은 조건을 봐야 한다. 조건이 어긋나면 "지금 화면에 보이는 백로그"와 "맨 위로/맨
+    아래로가 계산한 백로그"가 다른 집합이 되고, 그 어긋남은 카드 순서가 화면마다
+    다르게 보이는 것으로만 드러난다(오류가 안 난다).
+    """
+    stmt = _visible_tickets_stmt(db, user)
+    if project_id:
+        stmt = stmt.where(Ticket.project_uid == project_id)
+    cat = workflow.category_sql(Ticket.status)
+    stmt = stmt.where(
+        Ticket.notion_missing_at.is_(None),
+        # 회차에 담기지 않은 것만. 이 한 줄이 「백로그」의 정의다.
+        Ticket.sprint_id.is_(None),
+        _not_trashed_ticket_clause(),
+        # 끝난 것은 안 싣는다 — `workflow.is_terminal` 과 같은 판정을 SQL 로.
+        cat.is_(None) | cat.notin_(workflow.TERMINAL_CATEGORIES),
+    )
+    if exclude_ticket_id:
+        stmt = stmt.where(Ticket.id != exclude_ticket_id)
+    assignee_clause = _assignee_sql_clause(assignee_token)
+    if assignee_clause is not None:
+        stmt = stmt.where(assignee_clause)
+    if priority:
+        stmt = stmt.where(Ticket.priority == priority)
+    if difficulty:
+        stmt = stmt.where(Ticket.difficulty == difficulty)
+    needle = (q or "").strip()
+    if needle:
+        # 제목과 이름(`ABC-12`) 둘 다 본다 — 사람들은 티켓을 번호로 기억한다.
+        pattern = f"%{_ilike_escape(needle)}%"
+        stmt = stmt.where(
+            Ticket.title.ilike(pattern, escape="\\")
+            | Ticket.canonical_key.ilike(pattern, escape="\\")
+        )
+    return stmt
 
 
 def backlog(
@@ -351,8 +624,11 @@ def backlog(
     assignee_token: str | None = None,
     priority: str | None = None,
     difficulty: str | None = None,
+    cursor: str | None = None,
+    limit: int = DEFAULT_COLUMN_PAGE_SIZE,
 ) -> dict:
-    """백로그 — **아직 어느 회차에도 안 담긴 일**.
+    """백로그 — **아직 어느 회차에도 안 담긴 일**. 서버 커서 페이징(§8.5) — 181행을
+    한 번에 받던 것을 `backlog_rank` 순으로 쪽 낸다.
 
     ## 「백로그」는 상태가 아니라 위치다 (D-349)
 
@@ -367,33 +643,59 @@ def backlog(
     끝난 것은 안 싣는다. 백로그는 "다음에 무엇을 하는가" 라서 완료·취소가 섞이면
     스크롤 대부분이 지나간 일이 된다.
     """
-    stmt = _visible_tickets_stmt(db, user)
-    if project_id:
-        stmt = stmt.where(Ticket.project_uid == project_id)
-    stmt = stmt.where(
-        Ticket.notion_missing_at.is_(None),
-        # 회차에 담기지 않은 것만. 이 한 줄이 「백로그」의 정의다.
-        Ticket.sprint_id.is_(None),
-    ).order_by(Ticket.backlog_rank.nulls_last(), Ticket.created_at)
-    tickets = [
-        t for t in _drop_trashed(db, list(db.execute(stmt).scalars().all()))
-        if not workflow.is_terminal(t.status)
-    ]
-    if assignee_token:
-        tickets = [t for t in tickets if _matches_assignee(t, assignee_token)]
-    if priority:
-        tickets = [t for t in tickets if (t.priority or "") == priority]
-    if difficulty:
-        tickets = [t for t in tickets if (t.difficulty or "") == difficulty]
-    needle = (q or "").strip().lower()
-    if needle:
-        # 제목과 이름(`ABC-12`) 둘 다 본다 — 사람들은 티켓을 번호로 기억한다.
-        tickets = [
-            t for t in tickets
-            if needle in (t.title or "").lower() or needle in (t.canonical_key or "").lower()
-        ]
+    page_size = max(1, min(limit or DEFAULT_COLUMN_PAGE_SIZE, MAX_COLUMN_PAGE_SIZE))
+    stmt = _backlog_scope_stmt(
+        db, user, project_id=project_id, q=q, assignee_token=assignee_token,
+        priority=priority, difficulty=difficulty,
+    )
+    page, next_cursor = _rank_keyset_page(db, stmt, Ticket.backlog_rank, cursor=cursor, limit=page_size)
+    total = db.execute(select(func.count()).select_from(stmt.subquery())).scalar_one()
     names = _people(db)
-    return {"items": [_card(t, names=names) for t in tickets], "total": len(tickets)}
+    return {
+        "items": [_card(t, names=names) for t in page],
+        "total": total,
+        "next_cursor": next_cursor,
+    }
+
+
+def backlog_position_rank(
+    db: Session,
+    user: User,
+    *,
+    ticket_id: str,
+    position: str,
+    project_id: str | None = None,
+    q: str | None = None,
+    assignee_token: str | None = None,
+    priority: str | None = None,
+    difficulty: str | None = None,
+) -> Decimal:
+    """「맨 위로 / 맨 아래로」의 목표 순위 값 (§8.5).
+
+    `before_id`/`after_id`(`rank.place`)는 그 카드가 **화면에 있어야** 쓸 수 있다 —
+    181행 중 맨 아래로 보내려는 카드의 새 이웃(현재 맨 끝 카드)이 아직 안 받아 온
+    쪽에 있을 수 있다. 여기서는 카드 자체를 끌어오지 않고 `backlog_rank` 값만
+    다시 조회해 그 사이 값을 계산한다 — **지금 화면과 같은 조건**(`_backlog_scope_stmt`)
+    으로, 옮기는 카드 자신은 이웃 후보에서 뺀다.
+
+    `rank.place()` 를 안 쓰는 이유: 그 함수는 이웃을 **옮기는 카드의 project_uid** 로
+    좁힌다(단일 프로젝트 화면의 드래그를 겨눈 설계다). 이 화면은 프로젝트를 안 좁히면
+    여러 프로젝트가 섞인 채로 `backlog_rank` 하나로 정렬되므로, "맨 위/맨 아래"는 그
+    화면이 보는 전체 순서 기준이어야 한다 — 옮기는 카드의 프로젝트로 좁히면 안 된다.
+    """
+    if position not in ("top", "bottom"):
+        raise ValidationAppError(f"모르는 위치입니다: {position}")
+    stmt = _backlog_scope_stmt(
+        db, user, project_id=project_id, q=q, assignee_token=assignee_token,
+        priority=priority, difficulty=difficulty, exclude_ticket_id=ticket_id,
+    )
+    sq = stmt.subquery()
+    ranked = db.execute(
+        select(sq.c.backlog_rank).order_by(sq.c.backlog_rank.nulls_last(), sq.c.id.asc())
+    ).scalars().all()
+    if position == "top":
+        return rank_mod.between(None, ranked[0] if ranked else None)
+    return rank_mod.between(ranked[-1] if ranked else None, None)
 
 
 # ── Drop ─────────────────────────────────────────────────────────────────────
@@ -487,6 +789,14 @@ def move(
     reorder: bool = False,
     # 판에서 옮겼는가, 백로그에서 옮겼는가. 두 목록의 순서는 다른 컬럼이다.
     on_board: bool = False,
+    # 화면에 없는 카드 기준 이동(§8.5) — before_id/after_id 대신 쓴다. 백로그에서만
+    # 뜻이 있다("맨 위/맨 아래"는 판의 열에는 없는 개념이다 — 열은 상태가 자리를 정한다).
+    to_position: str | None = None,
+    position_project_id: str | None = None,
+    position_q: str | None = None,
+    position_assignee_token: str | None = None,
+    position_priority: str | None = None,
+    position_difficulty: str | None = None,
     base_version: int | None = None,
     now: datetime | None = None,
     repo=None,
@@ -543,10 +853,18 @@ def move(
         # 다음 계획 회의에서야 보인다.
         field = "board_rank" if on_board else "backlog_rank"
         before_rank = getattr(ticket, field)
-        placed = rank_mod.place(
-            db, project_id=ticket.project_uid, before_id=before_id, after_id=after_id,
-            field=field,
-        )
+        if to_position and not on_board:
+            placed = backlog_position_rank(
+                db, user, ticket_id=ticket.id, position=to_position,
+                project_id=position_project_id, q=position_q,
+                assignee_token=position_assignee_token,
+                priority=position_priority, difficulty=position_difficulty,
+            )
+        else:
+            placed = rank_mod.place(
+                db, project_id=ticket.project_uid, before_id=before_id, after_id=after_id,
+                field=field,
+            )
         setattr(ticket, field, placed)
         activity.record(
             db, ticket_id=ticket.id, kind=ACT_RANK, actor_id=user.id, field=field,
@@ -581,7 +899,7 @@ def move(
 # ── Sprint ───────────────────────────────────────────────────────────────────
 
 
-def _sprint_view(sprint: Sprint) -> dict:
+def _sprint_view(sprint: Sprint, *, today: date | None = None) -> dict:
     return {
         "id": sprint.id,
         "name": sprint.name,
@@ -591,10 +909,19 @@ def _sprint_view(sprint: Sprint) -> dict:
         "ends_on": iso_date(sprint.ends_on),
         "state": sprint.state,
         "goal": sprint.goal,
+        # 오늘이 이 회차에 걸려 있는가(§8.3) — 작업 보드가 진입 시 자동으로 고르는
+        # 회차가 이 값이다. `today` 를 안 주면(마이그레이션·단위 시험 등) 판정하지
+        # 않는다 — 모르면서 `False` 로 답하면 "활성 회차가 없다"는 다른 사실이 된다.
+        "active": (
+            sprint.state == SPRINT_ACTIVE
+            and sprint.starts_on <= today <= sprint.ends_on
+        ) if today is not None else None,
     }
 
 
-def list_sprints(db: Session, user: User, *, project_id: str | None = None) -> list[dict]:
+def list_sprints(
+    db: Session, user: User, *, project_id: str | None = None, today: date | None = None
+) -> list[dict]:
     """스프린트 목록. 프로젝트 스프린트는 그 프로젝트가 보이는 사람에게만 보인다."""
     ctx = context_for_user(db, user)
     stmt = select(Sprint)
@@ -607,7 +934,7 @@ def list_sprints(db: Session, user: User, *, project_id: str | None = None) -> l
     if project_id:
         stmt = stmt.where(Sprint.project_id == project_id)
     rows = db.execute(stmt.order_by(Sprint.starts_on.desc(), Sprint.name)).scalars().all()
-    return [_sprint_view(s) for s in rows]
+    return [_sprint_view(s, today=today) for s in rows]
 
 
 def create_sprint(

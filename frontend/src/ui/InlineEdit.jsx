@@ -161,7 +161,10 @@ export function InlineEdit({ value, render, options, canEdit, deniedReason, labe
         sx={(t) => ({
           font: "inherit", color: "inherit", p: 0.25, mx: -0.25, borderRadius: 1,
           border: 0, background: "none", display: "inline-flex", alignItems: "center", gap: 0.5,
-          cursor: openable ? "pointer" : "default", minWidth: 0, maxWidth: "100%",
+          /* **감싸는 사슬이 값을 줄이지 않는다** (A3). 이 버튼이 `min-width:0` 이면 부모가
+             표 셀처럼 좁을 때 자식(배지 등)이 자기 라벨보다 작게 눌린다 — 줄어야 하는
+             것은 칸이지 값이 아니다. `columnTypes.js` 가 칸의 최소 폭을 종류별로 보장한다. */
+          cursor: openable ? "pointer" : "default", minWidth: "max-content",
           transition: `background-color ${MOTION.instant} ${MOTION.ease}`,
           /* 평상시엔 값 그대로다. **가리키거나 포커스가 왔을 때만** 바꿀 수 있다는 것이
              드러난다 — 그래야 표가 컨트롤 밭이 되지 않는다(C8). */

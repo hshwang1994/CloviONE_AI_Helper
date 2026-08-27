@@ -17,6 +17,7 @@ import {
   DataTable,
   EmptyState,
   ErrorState,
+  FormModal,
   MetricStrip,
   PageHeader,
   Section,
@@ -31,6 +32,7 @@ import { LineSeries } from "../ui/charts/LineSeries.jsx";
 import { Gauge } from "../ui/charts/Gauge.jsx";
 import { ProgressBar } from "../ui/charts/ProgressBar.jsx";
 import { burndownSeries, workloadItems } from "./sprint-charts.js";
+import { SPRINT_FIELDS } from "./WorkBoard.jsx";
 import { useQueryState } from "../lib/useQueryState.js";
 import { useTicketProjects } from "./ticket-options.js";
 import { useTicketSignals } from "../lib/ticketSignals.js";
@@ -257,6 +259,8 @@ export function Sprint() {
   const signalsOf = useTicketSignals();
   const [state, setState] = useQueryState(SPRINT_SPEC);
   const [discussTab, setDiscussTab] = React.useState(DISCUSS_TABS[0].key);
+  // §8.3 — 스프린트를 만드는 자리 셋 중 하나가 이 화면의 빈 상태다.
+  const [sprintFormOpen, setSprintFormOpen] = React.useState(false);
 
   const projects = useTicketProjects(true);
   const sprints = useQuery({
@@ -290,6 +294,19 @@ export function Sprint() {
   function refreshMeeting() {
     qc.invalidateQueries({ queryKey: ["sprint-meeting"] });
   }
+
+  const createSprint = useMutation({
+    mutationFn: (body) => api("/api/work/sprints", { method: "POST", body }),
+    onSuccess: (sprint) => {
+      qc.invalidateQueries({ queryKey: ["work-sprints"] });
+      setSprintFormOpen(false);
+      // 만든 회차를 바로 연다 — 안 열면 「만들었는데 아무 일도 안 일어난」 것으로 보인다.
+      setState({ sprint: sprint.id });
+      toast("스프린트를 만들었습니다.", "success");
+    },
+    onError: (e) =>
+      toast((e && e.message) || "스프린트를 만들지 못했습니다. 다시 시도해 주세요.", "error"),
+  });
 
   const addDecision = useMutation({
     mutationFn: (payload) =>
@@ -451,9 +468,19 @@ export function Sprint() {
       {meeting.isLoading ? <Skeleton kind="section" /> : null}
       {meeting.isError ? <ErrorState error={meeting.error} onRetry={meeting.refetch} /> : null}
       {!state.sprint && !sprints.isLoading && sprintRows.length === 0 ? (
+        // §8.3 — 회의 빈 상태는 화면 전체가 비었다(layout="page")로 그린다. 없는 prop
+        // `hint` 를 넘기던 자리라 안내 문장 자체가 안 나왔다(A2) — `help` 로 옮기고,
+        // 「스프린트 만들기」·「백로그 보기」 둘을 다음 행동으로 준다.
         <EmptyState
+          layout="page"
           title="아직 만든 스프린트가 없습니다."
-          hint="작업 보드에서 스프린트를 먼저 만들면 여기서 회의를 진행할 수 있습니다."
+          help="회차를 만들면 여기서 번다운과 건강, 담당자별 남은 일을 보고 회의를 진행할 수 있습니다."
+          action={
+            <>
+              <Button variant="primary" onClick={() => setSprintFormOpen(true)}>스프린트 추가</Button>
+              <Button variant="secondary" onClick={() => navigate("/work-board?tab=backlog")}>백로그 보기</Button>
+            </>
+          }
         />
       ) : null}
 
@@ -662,6 +689,23 @@ export function Sprint() {
           </Section>
         </>
       ) : null}
+
+      <FormModal
+        open={sprintFormOpen}
+        title="새 스프린트"
+        submitLabel="만들기"
+        fields={SPRINT_FIELDS}
+        onSubmit={(values) =>
+          createSprint.mutateAsync({
+            name: values.name,
+            starts_on: values.starts_on,
+            ends_on: values.ends_on,
+            project_id: state.project || null,
+            goal: values.goal || null,
+          })
+        }
+        onClose={() => setSprintFormOpen(false)}
+      />
     </>
   );
 }

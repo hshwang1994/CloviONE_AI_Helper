@@ -32,6 +32,17 @@ class BoardMove(BaseModel):
     # (`tickets.board_rank` · `backlog_rank`) 어느 줄에서 끈 것인지를 화면이 말해야 한다 —
     # 안 말하면 판에서 옮긴 것이 백로그 순서를 흐트러뜨린다.
     on_board: bool = False
+    # 화면에 없는 카드 기준 이동(§8.5) — "맨 위로"·"맨 아래로". `before_id`/`after_id`
+    # 는 그 카드가 이미 받아 온 쪽에 있어야 쓸 수 있는데, 181행 중 맨 끝으로 보낼 때
+    # 그 자리의 이웃은 아직 안 받아 왔을 수 있다. `position_*` 는 "지금 화면이 보는
+    # 백로그"와 같은 조건을 다시 태워, 서버가 카드를 안 끌어오고도 목표 순위를 잰다.
+    to_position: str | None = Field(default=None, pattern="^(top|bottom)$")
+    position_project_id: str | None = Field(default=None, max_length=36)
+    position_q: str | None = Field(default=None, max_length=200)
+    position_assignee_user_id: str | None = Field(default=None, max_length=36)
+    position_mine: bool = False
+    position_priority: str | None = Field(default=None, max_length=64)
+    position_difficulty: str | None = Field(default=None, max_length=64)
     base_version: int | None = Field(default=None, ge=1)
 
 

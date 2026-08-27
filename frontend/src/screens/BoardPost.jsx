@@ -32,7 +32,7 @@ import { useTicketProjects } from "./ticket-options.js";
 import { EMPTYABLE_SELECT } from "../ui/filters.jsx";
 import { setItemTitle } from "../app/documentTitle.js";
 import { useListReturn } from "../lib/listReturn.js";
-import { DetailLayout } from "../ui/DetailLayout.jsx";
+import { DetailPage } from "../ui/DetailLayout.jsx";
 
 /* 게시글 상세 (팀 공간 §18). 본문·댓글은 {값}으로만 렌더(React 자동 이스케이프, 불변 §6).
  * 첨부 이미지는 같은 출처 인증 엔드포인트라 <img src>로 쿠키가 함께 전송된다(objectURL 불필요).
@@ -509,13 +509,17 @@ export function BoardPost() {
 
   return (
     <div className="c-screen">
-      {/* SEM-03 재확인(2026-08-13) — PageHeader에 실제 제목을 넘긴다(예전엔 "게시글"만
-          보여줘 화면 안에 h1이 하나 더 필요했다). */}
-      <PageHeader crumbRoot="팀 공간" area={boardArea} title={post.title} actions={actions} />
-
-      {/* 읽는 화면이라 곁열이 없다 — 한 열이 가운데에 선다(`DetailLayout`). 제목 → 본문 →
-          반응 → 댓글이 같은 왼쪽 모서리에서 이어지고, 남는 폭은 양쪽에 똑같이 남는다. */}
-      <DetailLayout>
+      {/* 읽는 화면이라 곁열이 없다 — 머리글까지 포함해 한 열이 가운데에 선다(`DetailPage`,
+          C1 재검수). 제목 → 본문 → 반응 → 댓글이 같은 왼쪽 모서리에서 이어지고, 남는 폭은
+          양쪽에 똑같이 남는다. 예전엔 머리글이 이 감싸개 밖에 있어 2560 에서 제목은
+          왼쪽 끝(x≈0), 본문은 가운데(x≈820)로 서로 다른 축에 섰다. */}
+      <DetailPage
+        header={
+          // SEM-03 재확인(2026-08-13) — PageHeader에 실제 제목을 넘긴다(예전엔 "게시글"만
+          // 보여줘 화면 안에 h1이 하나 더 필요했다).
+          <PageHeader crumbRoot="팀 공간" area={boardArea} title={post.title} actions={actions} />
+        }
+      >
         {/* **읽기 화면에는 판 경계가 없다** (B3 · S18).
             여기 있던 `Card` 는 본문·반응까지만 감싸고 댓글은 그 밖에 있었다 — 한 글을
             읽는 흐름이 판 경계로 두 동강 나고, 짧은 글에서는 그 판이 1086×198 짜리 흰
@@ -616,7 +620,7 @@ export function BoardPost() {
               (board-post-comment-stale-draft.test.jsx). */}
           <CommentComposer key={post.id} postId={post.id} palette={palette} onDone={refetch} />
         </Box>
-      </DetailLayout>
+      </DetailPage>
 
       <PostFormModal
         open={editing}

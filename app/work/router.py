@@ -92,6 +92,18 @@ def list_statuses(
 # ── 판과 백로그 ──────────────────────────────────────────────────────────────
 
 
+def _resolve_assignee_token(
+    db: Session, user: User, *, mine: bool, assignee_user_id: str | None
+) -> str | None:
+    """담당자는 **앱 user_id** 로 받는다. 브라우저는 원본 소스 토큰을 절대 모른다
+    (§12.3) — 해석은 서버가 한다. 판·백로그·이동 위치 계산 셋이 같은 규칙을 쓴다."""
+    if mine:
+        return tickets_service.assignee_token(db, user)
+    if assignee_user_id:
+        return tickets_service.assignee_token_for_user(db, assignee_user_id)
+    return None
+
+
 @router.get("/board")
 def get_board(
     request: Request,
@@ -104,20 +116,53 @@ def get_board(
     assignee_user_id: str | None = Query(default=None, max_length=36),
     mine: bool = Query(default=False),
     blocked_only: bool = Query(default=False),
+    # §8.1 — 회차 미선택 기본은 execution(종료 상태 제외). all 은 명시할 때만.
+    scope: str | None = Query(default=None, pattern="^(sprint|execution|all)$"),
+    # §8.5 — 열 하나가 첫 쪽에 싣는 카드 수. 나머지는 /board/columns/{status_key} 가 잇는다.
+    column_page_size: int = Query(default=service.DEFAULT_COLUMN_PAGE_SIZE, ge=1, le=service.MAX_COLUMN_PAGE_SIZE),
 ) -> dict:
     """칸반 한 판. 「내 티켓만」은 담당자 필터의 특수한 경우라 같은 축으로 접는다.
 
     「지연」의 기준일은 서버가 정한다(§불변 9) — 화면이 브라우저에서 오늘을 구하면
     KST 09:00 이전에 하루 밀린 건수를 요약 줄에 그린다.
     """
-    token = tickets_service.assignee_token(db, user) if mine else (
-        tickets_service.assignee_token_for_user(db, assignee_user_id) if assignee_user_id else None
-    )
+    token = _resolve_assignee_token(db, user, mine=mine, assignee_user_id=assignee_user_id)
     return service.board(
         db, user,
-        project_id=project_id, sprint_id=sprint_id,
+        project_id=project_id, sprint_id=sprint_id, scope=scope,
         assignee_token=token, blocked_only=blocked_only,
+        column_page_size=column_page_size,
         today=local_today(request.app.state.settings, request.app.state.clock.now()),
+    )
+
+
+@router.get("/board/columns/{status_key}")
+def get_board_column(
+    status_key: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    project_id: str | None = Query(default=None, max_length=36),
+    sprint_id: str | None = Query(default=None, max_length=36),
+    assignee_user_id: str | None = Query(default=None, max_length=36),
+    mine: bool = Query(default=False),
+    blocked_only: bool = Query(default=False),
+    scope: str | None = Query(default=None, pattern="^(sprint|execution|all)$"),
+    cursor: str | None = Query(default=None, max_length=200),
+    limit: int = Query(default=service.DEFAULT_COLUMN_PAGE_SIZE, ge=1, le=service.MAX_COLUMN_PAGE_SIZE),
+) -> dict:
+    """판의 열 하나 — **다음 쪽**(§8.5). `GET /board` 와 같은 조건을 받는다 — 조건이
+    어긋나면 이 쪽에서 다른 카드가 새거나 겹친다.
+
+    🔴 「N건 중 앞 200건만 보여 줍니다」로 끝내지 않는다 — 커서를 끝까지 따라가면
+    `total` 과 정확히 같은 수의 카드를 받는다(중복 0 · 누락 0).
+    """
+    token = _resolve_assignee_token(db, user, mine=mine, assignee_user_id=assignee_user_id)
+    return service.board_column(
+        db, user,
+        status_key=status_key,
+        project_id=project_id, sprint_id=sprint_id, scope=scope,
+        assignee_token=token, blocked_only=blocked_only,
+        cursor=cursor, limit=limit,
     )
 
 
@@ -131,15 +176,17 @@ def get_backlog(
     mine: bool = Query(default=False),
     priority: str | None = Query(default=None, max_length=64),
     difficulty: str | None = Query(default=None, max_length=64),
+    # §8.5 — 181행을 한 번에 받던 것을 커서로 잇는다.
+    cursor: str | None = Query(default=None, max_length=200),
+    limit: int = Query(default=service.DEFAULT_COLUMN_PAGE_SIZE, ge=1, le=service.MAX_COLUMN_PAGE_SIZE),
 ) -> dict:
     """백로그 — 아직 어느 회차에도 안 담긴 일. 조건은 판과 **같은 이름**을 쓴다."""
-    token = tickets_service.assignee_token(db, user) if mine else (
-        tickets_service.assignee_token_for_user(db, assignee_user_id) if assignee_user_id else None
-    )
+    token = _resolve_assignee_token(db, user, mine=mine, assignee_user_id=assignee_user_id)
     return service.backlog(
         db, user,
         project_id=project_id, q=q, assignee_token=token,
         priority=priority, difficulty=difficulty,
+        cursor=cursor, limit=limit,
     )
 
 
@@ -156,6 +203,9 @@ def move_card(
     감사는 서비스가 남긴다(`request` 를 넘긴다) — 라우터에서 따로 남기면 서비스가
     거절한 요청에도 기록이 생긴다.
     """
+    position_token = _resolve_assignee_token(
+        db, user, mine=payload.position_mine, assignee_user_id=payload.position_assignee_user_id,
+    )
     return service.move(
         db, request.app.state.outbound_client, request.app.state.settings, user,
         ticket_id=ticket_id,
@@ -166,6 +216,12 @@ def move_card(
         after_id=payload.after_id,
         reorder=payload.reorder,
         on_board=payload.on_board,
+        to_position=payload.to_position,
+        position_project_id=payload.position_project_id,
+        position_q=payload.position_q,
+        position_assignee_token=position_token,
+        position_priority=payload.position_priority,
+        position_difficulty=payload.position_difficulty,
         base_version=payload.base_version,
         repo=_repo(request),
         request=request,
@@ -177,11 +233,19 @@ def move_card(
 
 @router.get("/sprints")
 def list_sprints(
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
     project_id: str | None = Query(default=None, max_length=36),
 ) -> dict:
-    return {"sprints": service.list_sprints(db, user, project_id=project_id)}
+    """스프린트 목록 — 각 회차가 **오늘 활성인가**(`active`)를 함께 낸다(§8.3).
+
+    화면(작업 보드)이 진입 시 이 값으로 자동 선택할 회차를 고른다. 「오늘」의 정본은
+    서버다(§불변 9) — 브라우저가 자기 시계로 판정하면 자정 앞뒤 몇 분 사용자마다
+    다른 회차가 활성으로 보인다.
+    """
+    today = local_today(request.app.state.settings, request.app.state.clock.now())
+    return {"sprints": service.list_sprints(db, user, project_id=project_id, today=today)}
 
 
 @router.post("/sprints", dependencies=[Depends(require_csrf)])

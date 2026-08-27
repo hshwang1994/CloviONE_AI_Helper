@@ -93,6 +93,13 @@ GATES = (
     "principal.visibility", "principal.management", "ensure_access",
     "ensure_can_manage", "ensure_member", "doc_in_scope", "any_assignee_visible",
     "get_owned_", "ensure_owner", "in_scope",
+    # REAUDIT §8.5: `app/work/service.py::_visible_tickets_stmt` 가 판·백로그·열 이동이
+    # 공유하는 실제 범위 절이다(`effective_visibility_clause` 를 감싼다) — 티켓 도메인의
+    # `get_scoped_*` 짝이지만 목록 질의(`Select`)를 돌려주는 함수라 그 접두어를 안 쓴다.
+    # `GET /api/work/board/columns/{status_key}` 가 이 이름을 통해서만 이 검사를 지나므로
+    # (호출 사슬 `get_board_column → board_column → _board_scope_stmt → 이 함수`),
+    # 이름을 등록하지 않으면 실제로 지나는 게이트를 검사가 "없다"고 오탐한다.
+    "_visible_tickets_stmt",
 )
 
 # 이름을 하나씩 등록하면 새 게이트가 생길 때마다 이 파일을 고쳐야 하고, 안 고치면 **오탐**이
