@@ -10,7 +10,7 @@
 
 - checkpoint_at: **2026-08-27**
 - packet: **A ✅ · B ✅ · C ✅ · D ✅.** 다음은 E(채팅 재설계와 채팅 데이터 초기화)
-- branch: `ui/mui-migration` · base_commit: `50a3dad6`
+- branch: `ui/mui-migration` · A `89b0caa6` · B·C·D `18c67683`
 - schema: alembic head **`0020_sprint_decisions`** — 표 하나(`sprint_decisions`)를
   새로 만들었고 기존 표는 안 지웠다. 앞선 회차에서 `tickets` 에 여섯, `user_preferences` 에
   여섯 컬럼이 늘었다
