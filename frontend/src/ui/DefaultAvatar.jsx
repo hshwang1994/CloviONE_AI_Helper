@@ -16,7 +16,7 @@ import React from "react";
  * ## 그림은 **따로 받는다** — 그리고 그것이 이 파일의 구조를 정한다
  *
  * 스타일 다섯의 SVG 경로 데이터는 gzip 284KB 다. 그것을 진입 번들에 넣으면 초기 예산
- * 280KB 가 통째로 두 배가 된다(`scripts/check_bundle_size.sh` 실측: 45KB → 324KB).
+ * 320KB 를 그것 하나로 거의 다 써버린다(`scripts/check_bundle_size.sh` 실측: 45KB → 324KB).
  * 아바타는 **그림**이지 배치가 아니므로, 첫 페인트를 그것 때문에 기다릴 이유가 없다.
  *
  * 그래서 이 파일은 둘로 나뉜다.

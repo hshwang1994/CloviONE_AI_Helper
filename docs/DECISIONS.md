@@ -12664,3 +12664,40 @@ Docker 를 다루는 문서에 붙은 진짜 연결**이다 — 유실·오염�
 **정리.** 사본 DB·임시 소스·덤프 파일 전부 리허설 종료 후 정리했다(운영
 DB·운영 설치본 `/opt/clovirassist` 는 처음부터 끝까지 건드리지 않았다 — 유일한
 쓰기는 새로 만든 사본 DB 안에서만 일어났다).
+
+### D-363. 진입 번들 예산을 gzip 280KB → 320KB 로 올린다 — Lazy Loading 원칙은 그대로다
+
+REAUDIT §15.8 이래 초기 예산은 gzip 280KB 였다(D-161 이 그 값으로 「이미 깨져
+있었다」를 잡아낸 뒤 계속 그 기준을 썼다). 묶음 1·2 를 거치며 실측이 계속
+278KB(여유 2KB)에 붙어 있었다 — 공용 UI 를 정상적으로 한 줄만 늘려도 그 2KB 를
+넘길 수 있는 폭이라, 게이트가 **실제 무게 문제가 아니라 여유 부족 자체** 때문에
+막을 위험이 커졌다(사용자 지시 2026-08-28). 새 기준은 **gzip 320KB**다.
+
+**바뀌는 것은 숫자뿐이다.** 무거운 기능(ECharts·편집기·`react-easy-crop`)을
+진입 청크로 합치지 않는다는 원칙, `React.lazy`/동적 `import()` 로 가르는
+기존 Code Splitting 구조는 그대로 유지한다 — 예산을 늘린 이유가 "지연 로딩을
+그만해도 된다"가 아니라 "정상적인 공용 UI 개선이 2KB 여유 때문에 막히지 않게
+한다"이기 때문이다. §15.8 표의 지연 청크 배치(ECharts ~60KB·날짜 고르개
+~25KB·자르기 ~15KB·편집기 확장 ~8KB)는 전부 그대로 지연이다.
+
+**바꾼 자리:**
+- `scripts/check_bundle_size.sh` — `GZIP_BUDGET_KB` 기본값 280 → 320(env
+  `GZIP_BUDGET_KB` 로 여전히 덮어쓸 수 있다. `CSS_BUDGET_KB`(120)는 이번
+  지시 범위 밖이라 안 건드렸다).
+- `docs/ui-redesign/REAUDIT_PLAN.md` — §15.8 표제·본문·§16 규칙·§20 완료
+  기준·부록의 진입 예산 인용 다섯 자리.
+- 컴포넌트 주석의 **현재 정책** 인용 — `frontend/src/ui/DateField.jsx` ·
+  `frontend/src/ui/DefaultAvatar.jsx` · `frontend/src/app/UserRoutes.jsx` ·
+  `frontend/src/app/AdminRoutes.jsx` · `frontend/src/ui/charts/base.jsx`.
+
+**안 바꾼 자리 — 의도적이다.** `vite.config.js`·`docs/DECISIONS.md`(D-161·
+D-350)·`docs/platform/MASTER_PLAN.md`(S7)·`docs/ui-redesign/WORK_STATE.md`
+(Avatar 절)의 "실측 287KB > 280KB", "gzip 265KB(예산 280)" 같은 문장은
+**그 순간 실제로 쓰던 예산으로 무엇을 쟀는지**를 적은 과거 기록이다 — 지금
+숫자로 고치면 그 세션이 실제로 본 값을 왜곡한다. REAUDIT_PLAN §17 묶음 1·
+묶음 2·§19 의 "278KB(예산 280KB)" 완료 기록도 같은 이유로 그대로 둔다.
+
+**되짚는 값:** 실측이 다시 320KB 의 여유를 거의 다 쓰는 시점이 오면, 그때는
+숫자를 더 올리기 전에 §15.8 표의 지연 청크 중 하나가 진입으로 새고 있지
+않은지부터 `check_bundle_size.sh` 로 확인한다 — D-161 이 이미 한 번 겪은
+실패 모양이다.

@@ -14,7 +14,7 @@ set -u
 cd "$(dirname "$0")/.."
 DIR="app/static/react/assets"
 
-GZIP_BUDGET_KB=${GZIP_BUDGET_KB:-280}
+GZIP_BUDGET_KB=${GZIP_BUDGET_KB:-320}
 RAW_WARN_KB=${RAW_WARN_KB:-1000}
 CSS_BUDGET_KB=${CSS_BUDGET_KB:-120}
 

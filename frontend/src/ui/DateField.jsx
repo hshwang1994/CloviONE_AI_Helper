@@ -8,7 +8,7 @@ import TextField from "@mui/material/TextField";
  * 못 바꾼다), 폭·높이가 이 제품의 다른 입력과 안 맞았다.
  *
  * 실제 몸통(`DateFieldInner.jsx`)은 **지연 로드**한다 — `@mui/x-date-pickers`+`dayjs` 를
- * 이 화면이 열릴 때만 받는다(§15.8, 진입 번들 예산 280KB). `React.lazy` 가 그 경계다.
+ * 이 화면이 열릴 때만 받는다(§15.8, 진입 번들 예산 320KB). `React.lazy` 가 그 경계다.
  *
  * 저장 값은 ISO 날짜 문자열('YYYY-MM-DD')이다 — 서버 계약이 안 바뀐다.
  */

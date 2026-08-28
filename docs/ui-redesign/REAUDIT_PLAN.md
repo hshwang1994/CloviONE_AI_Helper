@@ -721,7 +721,7 @@ MARKS         bold · italic · strike · code · link
 
 ---
 
-### 15.8 번들 영향 (초기 예산 gzip **280KB** · CSS 120KB — `scripts/check_bundle_size.sh`)
+### 15.8 번들 영향 (초기 예산 gzip **320KB** · CSS 120KB — `scripts/check_bundle_size.sh`)
 
 | 라이브러리 | 청크 | 대략 |
 |---|---|---|
@@ -732,8 +732,12 @@ MARKS         bold · italic · strike · code · link
 | TipTap 확장 넷 | 이미 지연인 편집기 청크 | ~8KB gz |
 
 **진입 번들에 들어가는 것은 `@tanstack/react-virtual` 하나**다. 나머지는 전부 지연 청크라
-초기 예산 280KB 는 그대로 지킨다. `check_bundle_size.sh` 가 이것을 매번 잰다.
+초기 예산 320KB 는 그대로 지킨다. `check_bundle_size.sh` 가 이것을 매번 잰다.
 숫자는 **추정이고, 도입 뒤 실측으로 이 표를 고친다.**
+
+예산 자체는 280KB → 320KB 로 올랐다(D-363, 2026-08-28) — 이 표의 지연 청크 배치
+원칙(무거운 기능은 첫 화면에 안 실린다)은 그대로다. 예산이 늘었다고 위 표의
+"지연" 청크를 진입으로 옮기지 않는다.
 
 ---
 
@@ -757,7 +761,7 @@ MARKS         bold · italic · strike · code · link
   **브라우저 안에서** 그린다(D-350).
 - 게이트는 이미 있다: `scripts/static_checks.sh` 의 외부 URL 검사(255행 근처) ·
   `scripts/check_bundle_fresh.py` · `scripts/check_bundle_size.sh`.
-  **진입 번들 예산 280KB** 를 넘기지 않는다 — 새 부품은 지연 청크로 받는다.
+  **진입 번들 예산 320KB** 를 넘기지 않는다 — 새 부품은 지연 청크로 받는다.
 - 인터넷을 끊은 상태에서도 기능과 디자인이 같아야 한다.
 
 ---
@@ -1159,7 +1163,7 @@ vitest 전량 358 파일 2,666건 전부 통과)으로 마무리했다. 배경 �
 - [ ] 같은 상태가 제품 전체에서 같은 색·알약·이름이다
 - [ ] 1366 · 1920 · 2560 × Light · Dark 에서 가로 넘침 0, 잘린 글자 0, 의미 없는 큰 빈 자리 없음
 - [ ] 런타임 외부 인터넷 의존 0 (정적 검사 통과)
-- [ ] 진입 번들 예산 280KB 이내
+- [ ] 진입 번들 예산 320KB 이내
 - [ ] 이번 변경이 만든 Regression 0 · Security/Permission 약화 0
 - [ ] 정본(이 파일 · `WORK_STATE.md` · `../DECISIONS.md`)이 실제 상태와 일치
 
@@ -1182,7 +1186,7 @@ frontend/src/ui/BodyEditor.jsx         ← 티켓 본문 편집기 (마크다운
 frontend/src/ui/AvatarCropDialog.jsx   ← react-easy-crop 으로 교체 (§15.6)
 app/knowledge/blocks.py                ← 편집기 저장 스키마 (underline·taskList 확장)
 frontend/package.json                  ← 의존성 도입 지점
-scripts/check_bundle_size.sh           ← 초기 gzip 280KB 예산
+scripts/check_bundle_size.sh           ← 초기 gzip 320KB 예산
 frontend/src/screens/WorkBoard.jsx     ← 보드·백로그
 frontend/src/screens/Sprint.jsx        ← 회의
 frontend/src/screens/Knowledge.jsx     ← 문서 작업공간
