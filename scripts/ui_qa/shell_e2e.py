@@ -373,8 +373,8 @@ def ff_1189_theme(browser, sess, base: str, out: Path, insecure: bool) -> dict:
     page.wait_for_timeout(900)
     after = page.evaluate("document.documentElement.getAttribute('data-theme')")
     stored = page.evaluate("""() => ({
-      boot: window.localStorage.getItem('clovirone_theme'),
-      keys: Object.keys(window.localStorage).filter((k) => k.indexOf('clovirone_theme') === 0),
+      boot: window.localStorage.getItem('clovirassist_theme'),
+      keys: Object.keys(window.localStorage).filter((k) => k.indexOf('clovirassist_theme') === 0),
     })""")
     f["observed"] = {"theme_before": before, "theme_after": after,
                      "localStorage": stored, "api_calls_during_toggle": rec.calls[:5],

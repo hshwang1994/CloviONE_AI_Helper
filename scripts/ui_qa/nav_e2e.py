@@ -525,7 +525,7 @@ def ff_1200_navigate(page, rec: Recorder, out: Path, base: str) -> dict:
 def ff_1201_collapse(browser, sess, base: str, out: Path, insecure: bool) -> dict:
     """**시딩 없는 컨텍스트**에서 잰다.
 
-    `capture.py::new_context` 는 매 이동마다 `clovirone_nav_collapsed:<userId>` 를 `'{}'` 로
+    `capture.py::new_context` 는 매 이동마다 `clovirassist_nav_collapsed:<userId>` 를 `'{}'` 로
     되돌리는 init script 를 심는다 — 스크린샷을 결정적으로 만들려고 일부러 그렇게 한 것이고
     옳다. 그런데 이 Flow 가 재려는 것이 바로 그 키의 **지속성**이라, 그 컨텍스트에서 재면
     하네스가 지운 것을 제품이 잃어버렸다고 읽게 된다. 첫 실행이 정확히 그 위양성을 냈다
@@ -554,7 +554,7 @@ def ff_1201_collapse(browser, sess, base: str, out: Path, insecure: bool) -> dic
     f["observed"]["after_click"] = header.get_attribute("aria-expanded")
     stored = page.evaluate(
         "() => Object.entries(window.localStorage)"
-        ".filter(([k]) => k.startsWith('clovirone_nav_collapsed')).map(([k, v]) => k + '=' + v)")
+        ".filter(([k]) => k.startsWith('clovirassist_nav_collapsed')).map(([k, v]) => k + '=' + v)")
     f["observed"]["localStorage"] = stored
     f["chain"]["frontend_state"] = f"collapsed 기록 {stored}"
     f["screenshots"].append(_shot(page, out, "ff1201-collapsed"))
@@ -568,7 +568,7 @@ def ff_1201_collapse(browser, sess, base: str, out: Path, insecure: bool) -> dic
     f["observed"]["api_calls_during"] = len(rec.since("/api/nav"))
     f["notes"].append(
         "이 Flow 에는 서버 왕복이 **구조적으로 없다** — 접힘 상태는 계정별 localStorage 키"
-        "(`clovirone_nav_collapsed:<userId>`)에만 산다. 사슬의 API 칸을 지어내지 않는다.")
+        "(`clovirassist_nav_collapsed:<userId>`)에만 산다. 사슬의 API 칸을 지어내지 않는다.")
     f["screenshots"].append(_shot(page, out, "ff1201-after-reload"))
     ctx.close()
     return f

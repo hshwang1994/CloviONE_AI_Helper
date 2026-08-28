@@ -151,9 +151,9 @@ dist/ui-qa/
 `UI_QA_EMAIL` / `UI_QA_PASSWORD` / `UI_QA_ROLE` 환경변수로 덮어쓸 수 있다.
 
 ### 테마 강제 (`capture.py`)
-`App.jsx` 는 모듈 로드 시점에 `localStorage["clovirone_theme"]` 로 테마를 적용하고,
-로그인 이후 `UserMenu` 가 **계정별 키** `clovirone_theme:<userId>` 가 있으면 그것으로
-덮어쓴다. 그래서 두 키를 **모두** `context.add_init_script` 로 심는다(번들 첫 줄보다 먼저).
+`app/theme-store.js` 는 모듈 로드 시점에 `localStorage["clovirassist_theme"]` 로 테마를
+적용하고, **계정별 키** `clovirassist_theme:<userId>` 가 있으면 그것으로 덮어쓴다.
+그래서 두 키를 **모두** `context.add_init_script` 로 심는다(번들 첫 줄보다 먼저).
 심어 놓고 믿는 게 아니라, 로드 후 `<html data-theme>` 를 실제로 읽어
 `theme_applied` 로 확인한다.
 

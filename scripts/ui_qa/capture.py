@@ -1,12 +1,12 @@
 """Navigate, settle, probe and screenshot one route × theme × viewport.
 
-Theme forcing is not a guess: App.jsx applies the theme at module scope with
-``applyTheme(initialTheme())`` reading ``localStorage["clovirone_theme"]``, and
-``UserMenu`` later re-applies the *per-account* key
-``clovirone_theme:<userId>`` when one exists. Both keys therefore have to be
-seeded, and we seed them through ``context.add_init_script`` so they are in
-place before the bundle's first line runs on every navigation. After load we
-assert ``<html data-theme>`` actually equals what we asked for
+Theme forcing is not a guess: ``app/theme-store.js`` applies the theme at
+module scope with ``applyTheme(readTheme(userId))`` reading the boot key
+``localStorage["clovirassist_theme"]``, falling back to the *per-account* key
+``clovirassist_theme:<userId>`` when one exists. Both keys therefore have to
+be seeded, and we seed them through ``context.add_init_script`` so they are
+in place before the bundle's first line runs on every navigation. After load
+we assert ``<html data-theme>`` actually equals what we asked for
 (``assertions.theme_applied``) rather than assuming it worked.
 """
 
@@ -134,18 +134,19 @@ THEMES = ("light", "dark")
 DEFAULT_NAV_TIMEOUT_MS = 30_000
 DEFAULT_SETTLE_MS = 300
 
-# App.jsx: THEME_KEY / themeKey(userId), NAV_COLLAPSE_KEY / navCollapseKey(userId).
-# BrowserContext.add_init_script() in the Python API takes no argument payload,
-# so the two values are JSON-embedded into the source instead.
+# app/theme-store.js: THEME_KEY/accountKey(userId). app/AppShell.jsx:
+# NAV_COLLAPSE_KEY/navCollapseKey(userId). BrowserContext.add_init_script() in
+# the Python API takes no argument payload, so the two values are JSON-embedded
+# into the source instead.
 _INIT_SCRIPT_TEMPLATE = """
 (() => {
   var seed = %s;
   try {
-    localStorage.setItem('clovirone_theme', seed.theme);
-    localStorage.setItem('clovirone_nav_collapsed', '{}');
+    localStorage.setItem('clovirassist_theme', seed.theme);
+    localStorage.setItem('clovirassist_nav_collapsed', '{}');
     if (seed.userId) {
-      localStorage.setItem('clovirone_theme:' + seed.userId, seed.theme);
-      localStorage.setItem('clovirone_nav_collapsed:' + seed.userId, '{}');
+      localStorage.setItem('clovirassist_theme:' + seed.userId, seed.theme);
+      localStorage.setItem('clovirassist_nav_collapsed:' + seed.userId, '{}');
     }
   } catch (e) { /* about:blank etc. — no storage for this origin yet */ }
 })();
