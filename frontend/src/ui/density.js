@@ -70,6 +70,15 @@ export const BASELINE_TRACKS = {
   health: "repeat(5, minmax(0, 1fr))",
 };
 
+/* 보드·회의 KPI / 논의 카드. `auto-fill` 이라 마지막 줄이 2~3칸만 남아 커지지 않는다. */
+export const KPI_TILE_TRACK = "repeat(auto-fill, minmax(8.5rem, 1fr))";
+export const DISCUSS_TILE_TRACK = "repeat(auto-fill, minmax(9rem, 1fr))";
+export const MEETING_PAIR_TRACKS = {
+  xs: "1fr",
+  lg: "minmax(0, 2fr) minmax(0, 1fr)",
+};
+export const PAIR_CHART_MIN_HEIGHT = { lg: "16rem" };
+
 /* px 를 기본 루트(16px)에서 같은 픽셀이 되는 rem 문자열로. */
 export function rem(px) {
   return `${px / 16}rem`;

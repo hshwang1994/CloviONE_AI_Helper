@@ -2,7 +2,8 @@ import React from "react";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import { useTheme } from "@mui/material/styles";
-import { ChartNoData, ChartQuestion, resolveChartColor, useTrackColor } from "./base.jsx";
+import { ChartNoData, ChartQuestion, CHART_MOTION, resolveChartColor, useTrackColor } from "./base.jsx";
+import { Badge } from "../kit.jsx";
 import { baseOption, useEChart } from "./useEChart.js";
 import { useRevealOnce } from "../motion.js";
 import { FONT_WEIGHT } from "../theme.js";
@@ -37,12 +38,13 @@ export function barRowOption({ pct, fillColor, trackColor, grown }) {
     series: [
       {
         type: "bar",
-        data: [{ value: grown ? pct : 0, itemStyle: { color: fillColor } }],
+        data: [{ value: grown ? pct : 0, itemStyle: { color: fillColor, borderRadius: [0, 4, 4, 0] } }],
         barWidth: "100%",
-        backgroundStyle: { color: trackColor },
+        backgroundStyle: { color: trackColor, borderRadius: [0, 4, 4, 0] },
         showBackground: true,
         z: 2,
-        animationDuration: 400,
+        animationDuration: CHART_MOTION.duration,
+        animationEasing: CHART_MOTION.easing,
       },
     ],
   };
@@ -106,12 +108,15 @@ export function BarSeries({
           <React.Fragment key={r.label}>
             {/* 이름이 길면 줄바꿈 대신 말줄임 — 줄이 늘면 막대들의 세로 리듬이 깨져 비교가 어려워진다.
                 전체 이름은 title로 남긴다. */}
-            <Typography
-              variant="body2" title={r.label}
-              sx={{ fontWeight: FONT_WEIGHT.bold, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
-            >
-              {r.label}
-            </Typography>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, minWidth: 0 }}>
+              <Typography
+                variant="body2" title={r.label}
+                sx={{ fontWeight: FONT_WEIGHT.bold, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+              >
+                {r.label}
+              </Typography>
+              {r.badge ? <Badge value={r.badge.label} kind={r.badge.kind} /> : null}
+            </Box>
             <Typography
               variant="body2"
               sx={{ fontWeight: FONT_WEIGHT.extrabold, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap", textAlign: "right" }}

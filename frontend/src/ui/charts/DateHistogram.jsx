@@ -3,7 +3,7 @@ import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import { useTheme } from "@mui/material/styles";
 
-import { ChartNoData, ChartQuestion, resolveChartColor, useTrackColor } from "./base.jsx";
+import { ChartNoData, ChartQuestion, CHART_MOTION, resolveChartColor, useTrackColor } from "./base.jsx";
 import { baseOption, useEChart } from "./useEChart.js";
 import { useRevealOnce } from "../motion.js";
 import { FONT_SIZE, FONT_WEIGHT } from "../theme.js";
@@ -66,16 +66,18 @@ export function dateHistogramOption({ days, fillColor, trackColor, drawn }) {
     grid: { left: 2, right: 2, top: 4, bottom: 2 },
     xAxis: { type: "category", data: days.map((d) => d.date), show: false },
     yAxis: { type: "value", show: false },
+    tooltip: { trigger: "axis" },
     dataZoom: [{ type: "inside", zoomOnMouseWheel: true, ...zoom }],
     series: [
       {
         type: "bar",
         data: days.map((d) => ({
           value: drawn ? d.count : 0,
-          itemStyle: { color: d.count > 0 ? fillColor : trackColor },
+          itemStyle: { color: d.count > 0 ? fillColor : trackColor, borderRadius: [3, 3, 0, 0] },
         })),
         barCategoryGap: "25%",
-        animationDuration: 400,
+        animationDuration: CHART_MOTION.duration,
+        animationEasing: CHART_MOTION.easing,
       },
     ],
   };

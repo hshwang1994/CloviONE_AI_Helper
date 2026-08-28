@@ -107,7 +107,7 @@ export function DragItem({ id, label, disabled, children }) {
  * 갖는다 — 이 칸의 `bodyMaxHeight` 스크롤 상자 **안에** 그것을 또 두면 스크롤 상자가
  * 둘 겹친다. 그래서 켜져 있으면 이 칸은 자기 스크롤·역할(role="list")·레이아웃을 접고
  * `children` 을 그대로 낸다 — 그 자리를 `VirtualRows` 가 통째로 맡는다. */
-export function DropColumn({ id, title, count, hint, children, sx, bodyMaxHeight, action, virtualized }) {
+export function DropColumn({ id, title, count, hint, children, sx, bodyMaxHeight, action, footer, virtualized }) {
   const { setNodeRef, isOver } = useDroppable({ id });
   return (
     <Box
@@ -160,6 +160,7 @@ export function DropColumn({ id, title, count, hint, children, sx, bodyMaxHeight
           {children}
         </Box>
       )}
+      {footer ? <Box sx={{ mt: "auto" }}>{footer}</Box> : null}
     </Box>
   );
 }
@@ -332,6 +333,7 @@ export function DragBoard({ columns, labelOf, onMove, disabled, children, sx, co
             count={column.count != null ? column.count : column.items.length}
             hint={column.hint}
             action={column.action}
+            footer={column.footer}
             bodyMaxHeight={virtualize ? undefined : columnMaxHeight}
             virtualized={!!virtualize}
           >

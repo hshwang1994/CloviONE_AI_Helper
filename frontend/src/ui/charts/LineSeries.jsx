@@ -2,7 +2,7 @@ import React from "react";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import { useTheme } from "@mui/material/styles";
-import { ChartNoData, ChartQuestion, capSeries, resolveChartColor, seriesDash } from "./base.jsx";
+import { ChartNoData, ChartQuestion, areaFill, capSeries, CHART_MOTION, resolveChartColor, seriesDash } from "./base.jsx";
 import { baseOption, useEChart } from "./useEChart.js";
 import { useRevealOnce } from "../motion.js";
 import { FONT_WEIGHT } from "../theme.js";
@@ -52,17 +52,21 @@ export function lineSeriesOption({ rows, peak, drawn }) {
       show: false, boundaryGap: false,
     },
     yAxis: { type: "value", show: false, min: 0, max: peak > 0 ? peak : undefined },
+    tooltip: { trigger: "axis" },
     dataZoom: [{ type: "inside", zoomOnMouseWheel: true }],
     series: rows.map((r, idx) => ({
       type: "line",
       data: drawn ? r.points : r.points.map(() => null),
       showSymbol: false,
+      smooth: 0.35,
       connectNulls: false,
       lineStyle: { color: r.color, width: 2.5, type: r.dashType },
       itemStyle: { color: r.color },
-      areaStyle: idx === 0 ? { color: r.color, opacity: 0.14 } : undefined,
+      areaStyle: idx === 0 ? { color: areaFill(r.color) } : undefined,
+      emphasis: { focus: "series" },
       animation: drawn,
-      animationDuration: 400,
+      animationDuration: CHART_MOTION.duration,
+      animationEasing: CHART_MOTION.easing,
     })),
   };
 }

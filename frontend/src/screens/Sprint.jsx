@@ -4,8 +4,6 @@ import { useNavigate } from "react-router-dom";
 import Box from "@mui/material/Box";
 import Checkbox from "@mui/material/Checkbox";
 import Stack from "@mui/material/Stack";
-import Tab from "@mui/material/Tab";
-import Tabs from "@mui/material/Tabs";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
@@ -18,7 +16,6 @@ import {
   EmptyState,
   ErrorState,
   FormModal,
-  MetricStrip,
   PageHeader,
   Section,
   Skeleton,
@@ -31,17 +28,22 @@ import { BarSeries } from "../ui/charts/BarSeries.jsx";
 import { LineSeries } from "../ui/charts/LineSeries.jsx";
 import { Gauge } from "../ui/charts/Gauge.jsx";
 import { ProgressBar } from "../ui/charts/ProgressBar.jsx";
-import { burndownSeries, workloadItems } from "./sprint-charts.js";
+import {
+  burndownSeries, datedLabel, healthBand, healthCuts, pickOpenSprint, workloadItems,
+} from "./sprint-charts.js";
 import { SPRINT_FIELDS } from "./sprint-fields.js";
 import { useQueryState } from "../lib/useQueryState.js";
 import { useTicketProjects } from "./ticket-options.js";
 import { useTicketSignals } from "../lib/ticketSignals.js";
-import { TicketSignals } from "../ui/TicketSignals.jsx";
-import { UserAvatar } from "../ui/UserAvatar.jsx";
+import { TicketFace, TicketPeople } from "../ui/TicketFace.jsx";
+import { StatusKpiStrip } from "../ui/StatusKpi.jsx";
+import { DiscussBucketRow } from "../ui/DiscussBucket.jsx";
 import { DateField } from "../ui/DateField.jsx";
 import { invalidateTicketViews } from "./ticket-views.js";
 import { priorityKind, priorityKo } from "../lib/priority.js";
+import { MEETING_PAIR_TRACKS, PAIR_CHART_MIN_HEIGHT } from "../ui/density.js";
 import { KO_WORD_BREAK } from "../ui/theme.js";
+import { UserAvatar } from "../ui/UserAvatar.jsx";
 
 /* 스프린트 회의 (지시 4).
  *
@@ -82,10 +84,10 @@ const KIND_ACTION = "action";
 
 /** 「오늘 논의할 항목」의 다섯 갈래. 순서는 회의에서 말하는 순서다 — 급한 것부터. */
 const DISCUSS_TABS = [
-  { key: "overdue", label: "지연", empty: "지연된 티켓이 없습니다." },
-  { key: "blocked", label: "차단", empty: "차단된 티켓이 없습니다." },
+  { key: "overdue", label: "지연", empty: "지연된 티켓이 없습니다.", tone: "danger" },
+  { key: "blocked", label: "차단", empty: "차단된 티켓이 없습니다.", tone: "danger" },
   { key: "unassigned", label: "미할당", empty: "담당자가 비어 있는 티켓이 없습니다." },
-  { key: "due_soon", label: "마감 임박", empty: "곧 마감인 티켓이 없습니다." },
+  { key: "due_soon", label: "마감 임박", empty: "곧 마감인 티켓이 없습니다.", tone: "warn" },
   { key: "scope_changes", label: "범위 변경", empty: "회차가 시작한 뒤 드나든 티켓이 없습니다." },
 ];
 
@@ -93,57 +95,19 @@ const SPRINT_SPEC = { project: "", sprint: "" };
 
 /** 담당자 얼굴 줄. 판의 카드와 **같은 부품**을 쓴다 (지시 6). */
 function People({ row }) {
-  const people = Array.isArray(row.assignees) ? row.assignees : [];
-  if (!people.length) {
-    return (
-      <Typography variant="caption" color="text.secondary">
-        {row.assignee_tokens > 0 ? "읽지 못함" : "없음"}
-      </Typography>
-    );
-  }
-  return (
-    <Box sx={{ display: "inline-flex", alignItems: "center", gap: 0.375, minWidth: 0 }}>
-      {people.slice(0, 3).map((p) => (
-        <UserAvatar key={p.user_id || p.display_name} person={p} size="sm" label={p.display_name} />
-      ))}
-      {people.length > 3 ? (
-        <Typography variant="caption" color="text.secondary">
-          {`외 ${people.length - 3}명`}
-        </Typography>
-      ) : null}
-    </Box>
-  );
+  return <TicketPeople card={row} />;
 }
 
 /** 논의 목록 한 줄. 누르면 그 티켓으로 간다 — 「관련 티켓으로 바로 이동」이 요구다. */
-function DiscussRow({ row, onOpen, signals }) {
+function DiscussRow({ row, onOpen, signals, showProject }) {
   return (
-    <Card
-      sx={{
-        p: 1, display: "grid", gap: 1, alignItems: "center", cursor: "pointer",
-        gridTemplateColumns: { xs: "1fr", md: "6rem minmax(0, 1fr) 7rem 8rem" },
-      }}
-      onClick={() => onOpen(row)}
-    >
-      <Typography variant="caption" color="text.secondary">
-        {row.key || row.ticket_id || "이름 없음"}
-      </Typography>
-      <Box sx={{ minWidth: 0, display: "flex", alignItems: "center", gap: 0.75 }}>
-        <Typography variant="body2" sx={{ ...KO_WORD_BREAK }}>
-          {row.title || "제목 없음"}
-        </Typography>
-        <TicketSignals signals={signals} variant="mark" />
-      </Box>
-      <Typography
-        variant="caption"
-        color="text.secondary"
-        sx={{ textAlign: "center", fontVariantNumeric: "tabular-nums" }}
-      >
-        {row.due || (row.direction === "added" ? "들어옴" : row.direction === "removed" ? "빠짐" : "-")}
-      </Typography>
-      <Box sx={{ display: "flex", justifyContent: "center" }}>
-        {row.assignees || row.assignee_tokens != null ? <People row={row} /> : null}
-      </Box>
+    <Card sx={{ p: 1.25, cursor: "pointer" }} onClick={() => onOpen(row)}>
+      <TicketFace
+        card={row}
+        signals={signals}
+        showProject={showProject}
+        compact
+      />
     </Card>
   );
 }
@@ -279,8 +243,8 @@ export function Sprint() {
      같은 것을 다시 고르게 하지 않는다. 열린 회차가 없으면 가장 최근 회차다. */
   React.useEffect(() => {
     if (state.sprint || !sprintRows.length) return;
-    const active = sprintRows.find((s) => s.state === "active");
-    setState({ sprint: (active || sprintRows[0]).id }, { replace: true });
+    const picked = pickOpenSprint(sprintRows);
+    if (picked) setState({ sprint: picked.id }, { replace: true });
   }, [state.sprint, sprintRows, setState]);
 
   const meeting = useQuery({
@@ -487,7 +451,7 @@ export function Sprint() {
         <>
           <Callout
             tone="info"
-            title={body.sprint.name}
+            title={`${body.sprint.name} (${datedLabel(body.sprint.starts_on)} ~ ${datedLabel(body.sprint.ends_on)})`}
             detail={body.sprint.goal || undefined}
             detailLabel="회차 목표"
           >
@@ -495,13 +459,14 @@ export function Sprint() {
           </Callout>
 
           {/* 1 — 정상 진행인가 */}
-          <MetricStrip
+          <StatusKpiStrip
             ariaLabel="이번 회차 요약"
+            revealKey="sprint-meeting:kpi"
             sx={{ mb: 2 }}
             items={[
               { label: "전체", value: String(summary.total), primary: true },
-              { label: "완료", value: String(summary.done) },
-              { label: "진행 중", value: String(summary.in_progress) },
+              { label: "완료", value: String(summary.done), kind: "ok", pct: summary.total ? Math.round((summary.done / summary.total) * 100) : 0 },
+              { label: "진행 중", value: String(summary.in_progress), kind: "info" },
               { label: "지연", value: String(summary.overdue), kind: summary.overdue ? "danger" : undefined },
               { label: "차단", value: String(summary.blocked), kind: summary.blocked ? "danger" : undefined },
               { label: "이슈", value: String(summary.issue), kind: summary.issue ? "warn" : undefined },
@@ -512,10 +477,11 @@ export function Sprint() {
           <Box
             sx={{
               display: "grid", gap: 2, mb: 2,
-              gridTemplateColumns: { xs: "1fr", lg: "minmax(0, 2fr) minmax(0, 1fr)" },
+              gridTemplateColumns: MEETING_PAIR_TRACKS,
+              "& > *": { minHeight: PAIR_CHART_MIN_HEIGHT, display: "flex", flexDirection: "column" },
             }}
           >
-            <Section title="번다운" rule>
+            <Section title="번다운" rule sx={{ mb: 0 }}>
               {burndown ? (
                 <LineSeries
                   series={burndown.series}
@@ -523,6 +489,7 @@ export function Sprint() {
                   unit="인일"
                   summary={burndown.summary}
                   question="이 회차가 계획대로 줄고 있는지 봅니다."
+                  revealKey={body.sprint.id}
                 />
               ) : (
                 <Typography variant="body2" color="text.secondary">
@@ -530,11 +497,14 @@ export function Sprint() {
                 </Typography>
               )}
             </Section>
-            <Section title="회차 건강" rule>
+            <Section title="회차 건강" rule sx={{ mb: 0 }}>
               <Stack spacing={1.5} alignItems="center">
                 <Gauge
                   value={body.health ? body.health.score : null}
-                  label="지연과 차단을 반영한 점수입니다."
+                  centerText={body.health && healthBand(body.health.score)
+                    ? `${body.health.score} ${healthBand(body.health.score).label}`
+                    : undefined}
+                  label={body.health ? healthCuts(summary) : "지연과 차단을 반영한 점수입니다."}
                   emptyLabel="담긴 티켓이 없어 아직 재지 않았습니다."
                   revealKey={body.sprint.id}
                 />
@@ -553,22 +523,16 @@ export function Sprint() {
 
           {/* 2 — 어떤 티켓이 문제인가 */}
           <Section title="오늘 논의할 항목" rule>
-            <Tabs
+            <DiscussBucketRow
               value={tab.key}
-              onChange={(_e, v) => setDiscussTab(v)}
-              aria-label="논의 항목 선택"
-              variant="scrollable"
-              scrollButtons="auto"
-              sx={{ mb: 1.5 }}
-            >
-              {DISCUSS_TABS.map((t) => (
-                <Tab
-                  key={t.key}
-                  value={t.key}
-                  label={`${t.label} ${body.discuss[t.key].total}`}
-                />
-              ))}
-            </Tabs>
+              onChange={setDiscussTab}
+              items={DISCUSS_TABS.map((t) => ({
+                key: t.key,
+                label: t.label,
+                count: body.discuss[t.key].total,
+                tone: t.tone,
+              }))}
+            />
             {bucket.items.length === 0 ? (
               <Typography variant="body2" color="text.secondary">
                 {tab.empty}
@@ -581,6 +545,7 @@ export function Sprint() {
                     row={row}
                     onOpen={openTicket}
                     signals={signalsOf(row)}
+                    showProject={!state.project}
                   />
                 ))}
                 {bucket.truncated ? (
@@ -596,10 +561,11 @@ export function Sprint() {
           <Box
             sx={{
               display: "grid", gap: 2, mb: 2,
-              gridTemplateColumns: { xs: "1fr", lg: "minmax(0, 2fr) minmax(0, 1fr)" },
+              gridTemplateColumns: MEETING_PAIR_TRACKS,
+              "& > *": { minHeight: PAIR_CHART_MIN_HEIGHT, display: "flex", flexDirection: "column" },
             }}
           >
-            <Section title="담당자별 남은 WD" rule>
+            <Section title="담당자별 남은 WD" rule sx={{ mb: 0 }}>
               {workload ? (
                 <BarSeries
                   items={workload.items}
@@ -615,7 +581,7 @@ export function Sprint() {
                 </Typography>
               )}
             </Section>
-            <Section title="범위 변경" rule>
+            <Section title="범위 변경" rule sx={{ mb: 0 }}>
               {/* 「기록이 없다」와 「안 바뀌었다」는 다른 사실이다. 0 으로 적으면 화면이
                   안정된 회차라고 말하는데, 실은 아무것도 모르는 것이다. */}
               {body.scope.tracked ? (
@@ -637,7 +603,7 @@ export function Sprint() {
                     />
                   ) : null}
                   <Typography variant="caption" color="text.secondary">
-                    어떤 티켓이 드나들었는지는 위 논의 항목 탭에서 볼 수 있습니다.
+                    어떤 티켓이 드나들었는지는 위 논의 항목에서 볼 수 있습니다.
                   </Typography>
                 </Stack>
               ) : (
@@ -680,23 +646,45 @@ export function Sprint() {
                 아직 적은 것이 없습니다.
               </Typography>
             ) : (
-              <Stack spacing={1}>
-                {body.decisions.map((row) => (
-                  <DecisionRow
-                    key={row.id}
-                    row={row}
-                    onToggle={(r, done) => editDecision.mutate({ id: r.id, patch: { done } })}
-                    onOpenTicket={openTicket}
-                    onDelete={async (r) => {
-                      const ok = await confirm(
-                        "삭제한 회의 기록은 되살릴 수 없습니다. 이 기록을 삭제할까요?",
-                        { danger: true, confirmLabel: "삭제" }
-                      );
-                      if (ok) removeDecision.mutate(r.id);
-                    }}
-                  />
-                ))}
-              </Stack>
+              <Box
+                sx={{
+                  display: "grid", gap: 2,
+                  gridTemplateColumns: MEETING_PAIR_TRACKS,
+                }}
+              >
+                {[
+                  { kind: KIND_DECISION, title: "결정", empty: "아직 적은 결정이 없습니다." },
+                  { kind: KIND_ACTION, title: "할 일", empty: "아직 적은 할 일이 없습니다." },
+                ].map((lane) => {
+                  const rows = body.decisions.filter((r) => r.kind === lane.kind);
+                  return (
+                    <Box key={lane.kind}>
+                      <Typography variant="subtitle2" sx={{ mb: 1 }}>{lane.title}</Typography>
+                      {rows.length === 0 ? (
+                        <Typography variant="body2" color="text.secondary">{lane.empty}</Typography>
+                      ) : (
+                        <Stack spacing={1}>
+                          {rows.map((row) => (
+                            <DecisionRow
+                              key={row.id}
+                              row={row}
+                              onToggle={(r, done) => editDecision.mutate({ id: r.id, patch: { done } })}
+                              onOpenTicket={openTicket}
+                              onDelete={async (r) => {
+                                const ok = await confirm(
+                                  "삭제한 회의 기록은 되살릴 수 없습니다. 이 기록을 삭제할까요?",
+                                  { danger: true, confirmLabel: "삭제" }
+                                );
+                                if (ok) removeDecision.mutate(r.id);
+                              }}
+                            />
+                          ))}
+                        </Stack>
+                      )}
+                    </Box>
+                  );
+                })}
+              </Box>
             )}
           </Section>
         </>

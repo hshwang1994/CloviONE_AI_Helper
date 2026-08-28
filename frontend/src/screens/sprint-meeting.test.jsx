@@ -40,7 +40,7 @@ import { ThemeModeProvider } from "../ui/ThemeModeProvider.jsx";
 const SPRINTS = {
   sprints: [
     { id: "sp-old", name: "8월 셋째 주", project_id: "p-1", starts_on: "2026-08-17", ends_on: "2026-08-23", state: "closed", goal: null },
-    { id: "sp-now", name: "8월 넷째 주", project_id: "p-1", starts_on: "2026-08-24", ends_on: "2026-08-30", state: "active", goal: "결제 모듈을 붙입니다." },
+    { id: "sp-now", name: "8월 넷째 주", project_id: "p-1", starts_on: "2026-08-24", ends_on: "2026-08-30", state: "active", active: true, goal: "결제 모듈을 붙입니다." },
   ],
 };
 

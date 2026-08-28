@@ -209,4 +209,11 @@ describe("작업 보드의 열", () => {
     // 그 한 번을 빠뜨린 티켓은 회의에서 아무도 못 본다.
     expect(to).toContain("sprint=sp-1");
   });
+
+  it("칸 아래 「이 칸에 추가」는 그 칸의 상태를 싣는다", async () => {
+    renderBoard();
+    const adders = await screen.findAllByRole("link", { name: "이 칸에 추가" });
+    expect(adders.length).toBeGreaterThan(0);
+    expect(adders[0].getAttribute("href")).toContain("status=");
+  });
 });

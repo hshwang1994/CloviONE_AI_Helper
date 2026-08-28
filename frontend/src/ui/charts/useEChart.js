@@ -22,7 +22,7 @@ import React from "react";
  *
  * ## 글자는 여전히 바깥 HTML 이 낸다
  *
- * ECharts 자신의 축 눈금·범례·툴팁은 **전부 끈다**(옵션에서 `show:false`). 그 글자들은
+ * ECharts 자신의 축 눈금·범례는 **끈다**(옵션에서 `show:false`). 그 글자들은
  * SVG `<text>` 로 그려지는데, SVG 텍스트는 `font-size` 가 px 고정이라 `styles/root.css` 의
  * 4K 폰트 레버(16→18→20px)를 못 따른다 — 이 저장소가 손으로 그린 옛 차트가 처음부터
  * 그 이유로 모든 글자를 SVG 밖에 뒀다(`charts/base.jsx` 문서 참고). ECharts 로 옮긴 뒤에도
@@ -75,14 +75,26 @@ function resolveFontStack() {
 }
 
 /** 이 차트가 항상 지키는 바탕 옵션 — 배경 투명(캔버스 색은 화면이 이미 칠한다), 글꼴,
- * 그리고 **ECharts 자신의 글자는 전부 끈다**(위 문서 참고, dataZoom 은 예외). 각 차트가
- * 자기 옵션을 여기에 덮어씌운다. */
+ * 축 눈금·범례 SVG 글자는 끈다. 호버 툴팁만 HTML 로 켠다. 각 차트가 자기 옵션을
+ * 여기에 덮어씌운다. */
 export function baseOption() {
   const fontFamily = resolveFontStack();
   return {
     backgroundColor: "transparent",
     textStyle: { fontFamily },
-    tooltip: { show: false },
+    animationDuration: 400,
+    animationEasing: "cubicOut",
+    tooltip: {
+      show: true,
+      trigger: "item",
+      confine: true,
+      appendToBody: false,
+      backgroundColor: "var(--color-card)",
+      borderColor: "var(--color-border)",
+      borderWidth: 1,
+      textStyle: { color: "var(--color-ink)", fontFamily },
+      extraCssText: "max-width:18rem;pointer-events:none;margin-inline-end:5rem;margin-block-end:5rem;",
+    },
     legend: { show: false },
   };
 }

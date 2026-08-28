@@ -1313,9 +1313,9 @@ export function NewTicket() {
     const raw = String(window.location.hash || "");
     const q = raw.indexOf("?");
     const sp = new URLSearchParams(q >= 0 ? raw.slice(q + 1) : "");
-    return { project: sp.get("project") || "", sprint: sp.get("sprint") || "" };
+    return { project: sp.get("project") || "", sprint: sp.get("sprint") || "", status: sp.get("status") || "" };
   }, []);
-  const [form, setForm] = React.useState({ title: "", project_id: context.project, status: "", priority: "", difficulty: "", est_wd: "", due: "", assignees: [], description: "" });
+  const [form, setForm] = React.useState({ title: "", project_id: context.project, status: context.status, priority: "", difficulty: "", est_wd: "", due: "", assignees: [], description: "" });
   // 담당자 후보는 **선택한 프로젝트에 닿을 수 있는 사람**만이다 (0060 §14).
   const assigneesQ = useAssigneeOptions(!!form.project_id, form.project_id);
   const metaQ = useTicketMeta(true);

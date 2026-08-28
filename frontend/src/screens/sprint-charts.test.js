@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { burndownSeries, shortDate, wdBalanceItems } from "./sprint-charts.js";
+import {
+  burndownSeries, shortDate, weekdayKo, datedLabel, healthBand, healthCuts,
+  pickOpenSprint, loadBand, wdBalanceItems,
+} from "./sprint-charts.js";
 
 /* 스프린트 두 그림의 해석 규칙.
  *
@@ -110,5 +113,45 @@ describe("shortDate", () => {
   it("모르는 모양은 그대로 둔다(임의로 지어내지 않는다)", () => {
     expect(shortDate("nope")).toBe("nope");
     expect(shortDate(null)).toBe("");
+  });
+});
+
+describe("weekdayKo · datedLabel", () => {
+  it("달력일 기준으로 요일을 붙인다 — 월요일 주가 아니다", () => {
+    expect(weekdayKo("2026-08-24")).toBe("월");
+    expect(weekdayKo("2026-08-27")).toBe("목");
+    expect(datedLabel("2026-08-24")).toBe("8/24 월");
+  });
+});
+
+describe("healthBand · healthCuts", () => {
+  it("점수를 양호·주의·위험으로만 나눈다 — 식을 다시 계산하지 않는다", () => {
+    expect(healthBand(75).label).toBe("양호");
+    expect(healthBand(62.5).label).toBe("주의");
+    expect(healthBand(40).kind).toBe("danger");
+    expect(healthBand(null)).toBeNull();
+  });
+  it("깎인 이유를 지연·차단 건수로 말한다", () => {
+    expect(healthCuts({ overdue: 1, blocked: 1 })).toBe("지연 1건·차단 1건이 깎습니다.");
+    expect(healthCuts({ overdue: 0, blocked: 0 })).toContain("깎인 점수가 없습니다");
+  });
+});
+
+describe("pickOpenSprint", () => {
+  it("오늘에 걸린 회차(active)를 상태 폴백보다 앞세운다", () => {
+    const rows = [
+      { id: "old", state: "active" },
+      { id: "now", state: "active", active: true },
+    ];
+    expect(pickOpenSprint(rows).id).toBe("now");
+    expect(pickOpenSprint([{ id: "a", state: "closed" }, { id: "b", state: "active" }]).id).toBe("b");
+  });
+});
+
+describe("loadBand", () => {
+  it("중앙값의 1.5배를 높음으로 본다", () => {
+    expect(loadBand(9, 4).kind).toBe("danger");
+    expect(loadBand(1, 4).kind).toBe("ok");
+    expect(loadBand(4, 4).label).toBe("보통");
   });
 });

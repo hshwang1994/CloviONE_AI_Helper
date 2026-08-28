@@ -87,6 +87,30 @@ export function seriesDash(index) {
   return CHART_DASH[Math.min(i, CHART_DASH.length - 1)] || "";
 }
 
+export const CHART_MOTION = { duration: 400, easing: "cubicOut" };
+
+/** hex → rgba. 팔레트가 hex 가 아니면 원문을 그대로 둔다. */
+export function hexAlpha(hex, a) {
+  const h = String(hex || "").replace("#", "");
+  if (h.length !== 6 || /[^0-9a-fA-F]/.test(h)) return hex;
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  return `rgba(${r},${g},${b},${a})`;
+}
+
+/** 꺾은선 아래 면 채움. 위가 진하고 아래로 옅어진다. */
+export function areaFill(hex) {
+  return {
+    type: "linear",
+    x: 0, y: 0, x2: 0, y2: 1,
+    colorStops: [
+      { offset: 0, color: hexAlpha(hex, 0.28) },
+      { offset: 1, color: hexAlpha(hex, 0.02) },
+    ],
+  };
+}
+
 /* 시리즈가 상한을 넘으면 나머지를 '기타' 하나로 접는다 (PLAN «Data Visualization» ⑥).
  * 6번째부터는 색으로도 선 스타일로도 구분이 안 되므로, 구분되는 척하는 대신 합친다. */
 export function capSeries(rows, { label = "기타", merge } = {}) {

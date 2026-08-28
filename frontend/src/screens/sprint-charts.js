@@ -11,6 +11,67 @@ export function shortDate(iso) {
   return m ? `${Number(m[2])}/${Number(m[3])}` : String(iso || "");
 }
 
+const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
+
+/** ISO 날짜의 요일 한글. 못 읽으면 빈 문자열. */
+export function weekdayKo(iso) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || ""));
+  if (!m) return "";
+  const dt = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  if (Number.isNaN(dt.getTime())) return "";
+  return WEEKDAYS[dt.getDay()] || "";
+}
+
+/** 축·배너용 짧은 날짜에 요일을 붙인다. `8/24 월`. */
+export function datedLabel(iso) {
+  const day = weekdayKo(iso);
+  const short = shortDate(iso);
+  return day ? `${short} ${day}` : short;
+}
+
+/** 목록에서 **오늘에 걸린 열린 회차**를 고른다. `active` 가 있으면 그걸 우선하고,
+ * 없으면 `state === "active"` 로 물러난다. 둘 다 없으면 첫 줄. */
+export function pickOpenSprint(rows) {
+  const list = Array.isArray(rows) ? rows : [];
+  return list.find((s) => s && s.active)
+    || list.find((s) => s && s.state === "active")
+    || list[0]
+    || null;
+}
+
+/** 건강 점수 밴드. 식은 서버(`meeting.py::_health`)가 이미 깎아 둔 값이다. */
+export function healthBand(score) {
+  if (typeof score !== "number" || !Number.isFinite(score)) return null;
+  if (score >= 75) return { label: "양호", kind: "ok" };
+  if (score >= 50) return { label: "주의", kind: "warn" };
+  return { label: "위험", kind: "danger" };
+}
+
+/** 지연·차단이 깎은 것을 한 문장으로. 숫자를 다시 계산하지 않는다. */
+export function healthCuts(summary) {
+  if (!summary) return "";
+  const parts = [];
+  if (summary.overdue) parts.push(`지연 ${summary.overdue}건`);
+  if (summary.blocked) parts.push(`차단 ${summary.blocked}건`);
+  if (!parts.length) return "지연과 차단이 없어 깎인 점수가 없습니다.";
+  return `${parts.join("·")}이 깎습니다.`;
+}
+
+function medianOf(nums) {
+  const s = [...nums].sort((a, b) => a - b);
+  if (!s.length) return 0;
+  const mid = Math.floor(s.length / 2);
+  return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
+}
+
+/** 남은 WD 를 팀 중앙값과 비교한 부하 띠. 1.5배면 높음, 절하면 낮음. */
+export function loadBand(value, median) {
+  if (!(median > 0)) return { label: "보통", kind: "neutral" };
+  if (value >= median * 1.5) return { label: "높음", kind: "danger" };
+  if (value <= median * 0.5) return { label: "낮음", kind: "ok" };
+  return { label: "보통", kind: "warn" };
+}
+
 /* 번다운 두 선. 서버(app/sprints/burndown.py)가 준 points 를 그대로 옮기기만 한다.
  *
  * **이 그림이 주장하는 것은 마감일 배치뿐이다.** 완료 시각이 어디에도 없어서(원본은 생성·
@@ -95,6 +156,7 @@ export function workloadItems(workload) {
   const total = loads.reduce((a, b) => a + b, 0);
   const avg = Math.round((total / rows.length) * 10) / 10;
   const peak = Math.max(...loads);
+  const median = medianOf(loads);
   const items = rows.map((r) => {
     const load = Number(r.remaining_wd) || 0;
     const missing = Number(r.unestimated) || 0;
@@ -103,6 +165,10 @@ export function workloadItems(workload) {
       value: load,
       // 평균의 1.5배를 넘는 사람만 색으로 짚는다. 전부 칠하면 아무 데도 눈이 안 간다.
       color: avg > 0 && load > avg * 1.5 ? "warn" : undefined,
+      badge: (() => {
+        const band = loadBand(load, median);
+        return band.label === "보통" ? undefined : band;
+      })(),
       note: missing
         ? `남은 ${Number(r.open) || 0}건, 예상을 안 적은 것 ${missing}건`
         : `남은 ${Number(r.open) || 0}건`,

@@ -1,6 +1,6 @@
 import React from "react";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link as RouterLink } from "react-router-dom";
 import Box from "@mui/material/Box";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import Stack from "@mui/material/Stack";
@@ -17,9 +17,9 @@ import {
   EmptyState,
   ErrorState,
   FormModal,
-  MetricStrip,
   PageHeader,
   Skeleton,
+  statusKind,
   useToast,
 } from "../ui/kit.jsx";
 import { FilterActions, FilterRow, FilterSurface, ToolbarRow } from "../ui/FilterBar.jsx";
@@ -35,7 +35,10 @@ import { TicketEditModal } from "./MyTickets.jsx";
 import { useAssigneeOptions, useTicketMeta, useTicketProjects } from "./ticket-options.js";
 import { useTicketSignals } from "../lib/ticketSignals.js";
 import { TicketSignals } from "../ui/TicketSignals.jsx";
-import { UserAvatar } from "../ui/UserAvatar.jsx";
+import { TicketFace, TicketPeople } from "../ui/TicketFace.jsx";
+import { StatusKpiStrip } from "../ui/StatusKpi.jsx";
+import { useQueryState } from "../lib/useQueryState.js";
+import { pickOpenSprint } from "./sprint-charts.js";
 
 /* 작업 보드 — 칸반과 백로그 (S6 · 지시 5 · REAUDIT §8).
  *
@@ -80,6 +83,7 @@ import { UserAvatar } from "../ui/UserAvatar.jsx";
 
 const TAB_BOARD = "board";
 const TAB_BACKLOG = "backlog";
+const BOARD_SPEC = { tab: TAB_BOARD, project: "", sprint: "" };
 
 /** 판이 어디까지 자랄 수 있는가. 칸 **안에서만** 굴러가고 페이지는 안 밀린다(지시 5).
  *
@@ -101,81 +105,6 @@ const EMPTY_EXTRA = { cards: [], nextCursor: null, loading: false };
 
 function cardKey(card) {
   return card.key || "이름 없음";
-}
-
-/** 담당자 얼굴 줄. 셋까지 그리고 나머지는 숫자로 접는다.
- *
- * 카드 한 장의 폭이 정해져 있어서, 여섯 명이 걸린 티켓의 얼굴을 다 그리면 제목이 갈 자리가
- * 없다. 접는 기준을 숫자로 두는 대신 이름을 지우는 선택도 있었지만, 카드에서 사람은
- * **누가 하는가**라 가장 마지막까지 남아야 하는 정보다. */
-function AssigneeRow({ card }) {
-  const people = Array.isArray(card.assignees) ? card.assignees : [];
-  if (!people.length) {
-    // 「담당자가 없다」와 「이름을 못 읽었다」는 다른 사실이다. 뒤엣것을 「없음」으로
-    // 적으면 미할당 필터가 그 티켓을 안 집는 이유를 아무도 못 찾는다.
-    const unresolved = card.assignee_tokens > 0;
-    return (
-      <Typography variant="caption" color="text.secondary">
-        {unresolved ? "담당자를 읽지 못했습니다." : "담당자 없음"}
-      </Typography>
-    );
-  }
-  const shown = people.slice(0, 3);
-  const rest = people.length - shown.length;
-  return (
-    <Box sx={{ display: "inline-flex", alignItems: "center", gap: 0.375, minWidth: 0 }}>
-      {shown.map((p) => (
-        <UserAvatar key={p.user_id || p.display_name} person={p} size="sm" label={p.display_name} />
-      ))}
-      {rest > 0 ? (
-        <Typography variant="caption" color="text.secondary">
-          {`외 ${rest}명`}
-        </Typography>
-      ) : null}
-    </Box>
-  );
-}
-
-/** 판의 카드 한 장.
- *
- * 다섯 줄이 최대다: 이름·우선순위·신호 / 제목 / 프로젝트 / 마감·예상 / 담당자.
- * 여섯째 줄을 더하고 싶어질 때마다 그 정보가 **카드에서 결정에 쓰이는가**를 먼저 묻는다 —
- * 아니면 상세로 간다. */
-function TicketCard({ card, onOpen, signals, showProject }) {
-  return (
-    <Card
-      sx={{ p: 1.25, display: "flex", flexDirection: "column", gap: 0.5, cursor: "pointer" }}
-      onClick={() => onOpen(card)}
-    >
-      <Stack direction="row" spacing={0.75} alignItems="center" sx={{ minWidth: 0 }}>
-        <Typography variant="caption" color="text.secondary" sx={{ flexShrink: 0 }}>
-          {cardKey(card)}
-        </Typography>
-        {card.priority ? (
-          <Badge value={priorityKo(card.priority)} kind={priorityKind(card.priority)} />
-        ) : null}
-        {/* 신호는 카드를 옮기지 않는다 — 표식으로만 선다. 좁은 카드라 `mark` 다. */}
-        <TicketSignals signals={signals} variant="mark" sx={{ marginInlineStart: "auto" }} />
-      </Stack>
-      <Typography variant="body2" sx={{ ...KO_WORD_BREAK }}>
-        {card.title || "제목 없음"}
-      </Typography>
-      {/* 프로젝트를 이미 하나로 좁혔으면 카드마다 같은 이름을 적지 않는다. */}
-      {showProject && card.project ? (
-        <Typography variant="caption" color="text.secondary" sx={{ ...KO_WORD_BREAK }}>
-          {card.project}
-        </Typography>
-      ) : null}
-      {card.due || card.est_wd != null ? (
-        <Typography variant="caption" color="text.secondary">
-          {[card.due ? `마감 ${card.due}` : null, card.est_wd != null ? `예상 ${card.est_wd}WD` : null]
-            .filter(Boolean)
-            .join("  ")}
-        </Typography>
-      ) : null}
-      <AssigneeRow card={card} />
-    </Card>
-  );
 }
 
 /** 백로그 한 줄. 표처럼 보이지만 표가 아니다 — 끌어서 순서를 바꿀 수 있어야 하기 때문이다.
@@ -264,7 +193,7 @@ function BacklogRow({ card, onOpen, signals, onAddToSprint, canAdd, onQuickEdit,
         {card.due || "-"}
       </Typography>
       <Box sx={{ display: "flex", justifyContent: "center", minWidth: 0 }}>
-        <AssigneeRow card={card} />
+        <TicketPeople card={card} />
       </Box>
       <Box sx={{ display: "flex", justifyContent: "center", gap: 0.5, flexWrap: "wrap" }}>
         {/* 「빠른 수정」이 여기 있는 이유: 백로그를 다듬는 일은 **여러 건을 연달아**
@@ -323,9 +252,10 @@ export function WorkBoard() {
   const auth = useAuth();
   const qc = useQueryClient();
   const toast = useToast();
-  const [tab, setTab] = React.useState(TAB_BOARD);
-  const [projectId, setProjectId] = React.useState("");
-  const [sprintId, setSprintId] = React.useState("");
+  const [state, setState] = useQueryState(BOARD_SPEC);
+  const tab = state.tab === TAB_BACKLOG ? TAB_BACKLOG : TAB_BOARD;
+  const projectId = state.project;
+  const sprintId = state.sprint;
   const [assigneeId, setAssigneeId] = React.useState("");
   const [mine, setMine] = React.useState(false);
   const [troubleOnly, setTroubleOnly] = React.useState(false);
@@ -362,8 +292,8 @@ export function WorkBoard() {
   React.useEffect(() => {
     if (autoSelectedRef.current || !sprints.data || sprintId) return;
     autoSelectedRef.current = true;
-    const active = sprintRows.find((s) => s.active);
-    if (active) setSprintId(active.id);
+    const picked = pickOpenSprint(sprintRows);
+    if (picked) setState({ sprint: picked.id });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sprints.data]);
 
@@ -423,7 +353,7 @@ export function WorkBoard() {
       qc.invalidateQueries({ queryKey: ["work-sprints"] });
       setSprintFormOpen(false);
       // 만든 회차를 바로 고른다. 안 고르면 「만들었는데 아무 일도 안 일어난」 것으로 보인다.
-      setSprintId(sprint.id);
+      setState({ sprint: sprint.id });
       toast("스프린트를 만들었습니다.", "success");
     },
     onError: (e) =>
@@ -503,6 +433,20 @@ export function WorkBoard() {
               더 보기
             </Button>
           ) : null,
+          footer: (
+            <Button
+              variant="ghost" size="sm"
+              component={RouterLink}
+              to={"/new-ticket?" + qs({
+                project: projectId,
+                sprint: tab === TAB_BOARD ? sprintId : "",
+                status: c.key,
+              })}
+              onClick={(e) => e.stopPropagation()}
+            >
+              이 칸에 추가
+            </Button>
+          ),
         };
       });
     if ((data.unclassified || []).length || data.unclassified_next_cursor) {
@@ -528,7 +472,7 @@ export function WorkBoard() {
     }
     return cols;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [board.data, showHold, showAll, colExtra]);
+  }, [board.data, showHold, showAll, colExtra, projectId, sprintId, tab, navigate]);
 
   /* 열 하나의 다음 쪽 — **같은 조건**으로(§8.5). 필터가 바뀌면 boardKey 도 바뀌어
      colExtra 가 비워지므로, 여기서는 "지금 이 boardKey" 를 그대로 싣는다. */
@@ -649,10 +593,15 @@ export function WorkBoard() {
   /* 판독 줄 — **자르기 전에 센** 값이다(`app/work/service.py::board`). 열의 카드를 더해
      세면 잘린 열에서 조용히 틀린다. */
   const statusTiles = summary
-    ? (board.data.columns || []).map((c) => ({
-        label: c.label,
-        value: String((summary.by_status || {})[c.key] ?? 0),
-      }))
+    ? (board.data.columns || []).map((c) => {
+        const n = (summary.by_status || {})[c.key] ?? 0;
+        return {
+          label: c.label,
+          value: String(n),
+          kind: statusKind(c.key) !== "neutral" ? statusKind(c.key) : statusKind(c.label),
+          pct: summary.total ? Math.round((n / summary.total) * 100) : 0,
+        };
+      })
     : [];
   const signalTiles = summary
     ? [
@@ -735,7 +684,7 @@ export function WorkBoard() {
           <EntityCombobox
             label="프로젝트"
             value={projectId}
-            onChange={(next) => setProjectId(next || "")}
+            onChange={(next) => setState({ project: next || "" })}
             loading={projects.isLoading}
             options={projectRows.map((p) => ({ value: p.id, label: p.name }))}
             allLabel="전체"
@@ -744,7 +693,7 @@ export function WorkBoard() {
           <EntityCombobox
             label="스프린트"
             value={sprintId}
-            onChange={(next) => setSprintId(next || "")}
+            onChange={(next) => setState({ sprint: next || "" })}
             loading={sprints.isLoading}
             options={sprintRows.map((s) => ({
               value: s.id,
@@ -821,7 +770,7 @@ export function WorkBoard() {
         </FilterRow>
       </FilterSurface>
 
-      <Tabs value={tab} onChange={(_e, v) => setTab(v)} aria-label="보기 선택" sx={{ mb: 2 }}>
+      <Tabs value={tab} onChange={(_e, v) => setState({ tab: v })} aria-label="보기 선택" sx={{ mb: 2 }}>
         <Tab value={TAB_BOARD} label="칸반" />
         <Tab value={TAB_BACKLOG} label="백로그" />
       </Tabs>
@@ -830,15 +779,20 @@ export function WorkBoard() {
       {active.isError ? <ErrorState error={active.error} onRetry={active.refetch} /> : null}
 
       {tab === TAB_BOARD && summary ? (
-        <Stack spacing={1} sx={{ mb: 2 }}>
-          <MetricStrip
+        <Stack spacing={1.5} sx={{ mb: 2 }}>
+          <StatusKpiStrip
             ariaLabel="상태별 티켓 수"
+            revealKey="work-board:status-kpi"
             items={[{ label: "전체", value: String(summary.total), primary: true }, ...statusTiles]}
           />
           {/* 신호 줄은 켜진 것이 하나라도 있을 때만 선다. 「차단 0 · 지연 0 · 이슈 0」은
               매일 같은 자리를 쓰면서 아무 것도 말하지 않는다. */}
           {signalTiles.some((t) => t.value !== "0") ? (
-            <MetricStrip ariaLabel="신호별 티켓 수" items={signalTiles} />
+            <StatusKpiStrip
+              ariaLabel="신호별 티켓 수"
+              revealKey="work-board:signal-kpi"
+              items={signalTiles}
+            />
           ) : null}
         </Stack>
       ) : null}
@@ -861,15 +815,15 @@ export function WorkBoard() {
             onMove={handleBoardMove}
             columnMaxHeight={COLUMN_BODY_MAX}
             // §15.1 재검수 — 서버가 이미 열마다 커서로 잘라 준 것(§8.5) 위에 렌더링만
-            // 가상화한다. 카드 하나(TicketCard)는 배지·신호·담당자까지 있어 백로그 행보다
+            // 가상화한다. 카드 하나(TicketFace)는 배지·신호·담당자 이름까지 있어 백로그 행보다
             // 조금 크다 — 실측 없이 어림한 값이고 실제 높이는 measureElement가 다시 잰다.
-            virtualize={{ estimateSize: 128 }}
+            virtualize={{ estimateSize: 156 }}
           >
             {(card) => (
               <DragItem key={card.id} id={card.id} label={labelOf(card.id)}>
-                <TicketCard
+                <TicketFace
                   card={card}
-                  onOpen={openTicket}
+                  onClick={openTicket}
                   signals={signalsOf(card)}
                   showProject={!projectId}
                 />

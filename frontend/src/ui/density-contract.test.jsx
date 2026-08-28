@@ -8,6 +8,7 @@ import {
   SECTION_GAP,
   TILE_GRID_GAP,
   TILE_PADDING,
+  MEETING_PAIR_TRACKS,
 } from "./density.js";
 import { FONT_SIZE } from "./theme.js";
 import { DETAIL_GRID } from "../screens/Ticket.jsx";
@@ -67,6 +68,13 @@ describe("왼쪽 쏠림 방지 — 상세·폼 격자는 본문 폭을 채운다
     /* `240px 1fr` 은 괜찮다(보조 열이 고정, 본문이 늘어남). `240px 320px` 은 안 된다. */
     const allFixed = trackEntries(sx).filter(([, t]) => /px/.test(t) && !/fr/.test(t));
     expect(allFixed.map(([bp]) => bp), `${name}: 고정 px 만으로 짠 트랙`).toEqual([]);
+  });
+});
+
+describe("회의 짝 판은 폭을 채운다", () => {
+  it("좁은 화면·넓은 화면 트랙에 모두 fr 이 있다", () => {
+    expect(fills(MEETING_PAIR_TRACKS.xs)).toBe(true);
+    expect(fills(MEETING_PAIR_TRACKS.lg)).toBe(true);
   });
 });
 

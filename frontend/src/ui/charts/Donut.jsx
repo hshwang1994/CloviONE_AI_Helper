@@ -2,7 +2,7 @@ import React from "react";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import { useTheme } from "@mui/material/styles";
-import { ChartNoData, ChartQuestion, capSeries, resolveChartColor, useTrackColor } from "./base.jsx";
+import { ChartNoData, ChartQuestion, capSeries, CHART_MOTION, resolveChartColor, useTrackColor } from "./base.jsx";
 import { baseOption, useEChart } from "./useEChart.js";
 import { useRevealOnce } from "../motion.js";
 import { FONT_WEIGHT, KO_WORD_BREAK } from "../theme.js";
@@ -23,7 +23,7 @@ import { FONT_WEIGHT, KO_WORD_BREAK } from "../theme.js";
 
 /** 옵션 — **순수 함수**다(§18.2). `arcs` 는 컴포넌트가 이미 계산해 둔 조각(색 포함)이고,
  * `missing` 은 모수와 조각 합의 차이(트랙 색 몫)다. */
-export function donutOption({ arcs, missing, thickness, size, trackColor, drawn }) {
+export function donutOption({ arcs, missing, thickness, size, trackColor, drawn, gapColor }) {
   const data = arcs.map((a) => ({
     name: a.key,
     value: drawn ? a.value : 0,
@@ -34,6 +34,7 @@ export function donutOption({ arcs, missing, thickness, size, trackColor, drawn 
   }
   return {
     ...baseOption(),
+    tooltip: { trigger: "item" },
     series: [
       {
         type: "pie",
@@ -46,9 +47,13 @@ export function donutOption({ arcs, missing, thickness, size, trackColor, drawn 
         label: { show: false },
         labelLine: { show: false },
         emphasis: { scale: false },
-        itemStyle: { borderWidth: 0 },
+        itemStyle: {
+          borderWidth: gapColor ? 2 : 0,
+          borderColor: gapColor || "transparent",
+        },
         data,
-        animationDuration: 400,
+        animationDuration: CHART_MOTION.duration,
+        animationEasing: CHART_MOTION.easing,
       },
     ],
   };
@@ -84,9 +89,12 @@ export function Donut({
     key: s.label, value: s.value, color: resolveChartColor(theme, s.color, idx),
   }));
   const option = React.useMemo(
-    () => (rows.length && total > 0 ? donutOption({ arcs, missing, thickness, size, trackColor: track, drawn }) : null),
+    () => (rows.length && total > 0 ? donutOption({
+      arcs, missing, thickness, size, trackColor: track, drawn,
+      gapColor: theme.palette.background.plate,
+    }) : null),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [JSON.stringify(arcs), missing, thickness, size, track, drawn, total, rows.length],
+    [JSON.stringify(arcs), missing, thickness, size, track, drawn, total, rows.length, theme.palette.background.plate],
   );
   const containerRef = useEChart(option);
 

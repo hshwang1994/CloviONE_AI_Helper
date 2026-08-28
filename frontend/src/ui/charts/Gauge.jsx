@@ -3,7 +3,7 @@ import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import { useTheme } from "@mui/material/styles";
 
-import { resolveChartColor, useTrackColor } from "./base.jsx";
+import { CHART_MOTION, resolveChartColor, useTrackColor } from "./base.jsx";
 import { baseOption, useEChart } from "./useEChart.js";
 import { useRevealOnce } from "../motion.js";
 import { FONT_SIZE, FONT_WEIGHT } from "../theme.js";
@@ -64,7 +64,8 @@ export function gaugeOption({ pct, thickness, trackColor, strokeColor, drawn }) 
         // `drawn` 이 false 인 동안은 0을 그려 두고, true 로 바뀌면 실제 값으로 다시
         // `setOption` 되어 그 사이를 ECharts 가 채운다(`useRevealOnce` 와 같은 지문 규약).
         data: [{ value: drawn ? pct : 0 }],
-        animationDuration: 400,
+        animationDuration: CHART_MOTION.duration,
+        animationEasing: CHART_MOTION.easing,
       },
     ],
   };
@@ -80,7 +81,8 @@ export function Gauge({
 
   const known = typeof value === "number" && Number.isFinite(value);
   const pct = known ? Math.max(0, Math.min(100, (value / (max || 100)) * 100)) : 0;
-  const stroke = resolveChartColor(theme, color, 0);
+  const band = pct >= 75 ? "ok" : pct >= 50 ? "warn" : "danger";
+  const stroke = resolveChartColor(theme, color || band, 0);
 
   const option = React.useMemo(
     () => (known
