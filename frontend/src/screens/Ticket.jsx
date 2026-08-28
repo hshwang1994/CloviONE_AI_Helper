@@ -206,7 +206,7 @@ export function Ticket() {
       value: (
         <Stack direction="row" gap={1.25} sx={{ flexWrap: "wrap", alignItems: "center" }}>
           {t.assignee_people.map((p) => (
-            <PersonLine key={p.user_id || p.name} person={p} name={p.name} size="sm" />
+            <PersonLine key={p.user_id || p.name} person={p} name={p.name || p.display_name} size="sm" />
           ))}
         </Stack>
       ),

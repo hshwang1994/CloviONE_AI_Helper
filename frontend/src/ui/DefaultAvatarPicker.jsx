@@ -96,7 +96,7 @@ function DefaultAvatarDialog({ open, onClose, seed, value, busy, onPick }) {
       open={open}
       onClose={onClose}
       title="기본 아바타 고르기"
-      size="md"
+      size="fit"
       dirty={dirty}
       footer={
         <ModalFooter
@@ -108,23 +108,31 @@ function DefaultAvatarDialog({ open, onClose, seed, value, busy, onPick }) {
         />
       }
     >
-      <Box sx={{ display: "flex", alignItems: "baseline", gap: 1.5, flexWrap: "wrap", mb: 1.5 }}>
-        <Typography variant="body2" color="text.secondary" sx={{ flex: 1, minWidth: "16rem" }}>
-          사진이 없을 때 쓸 기본 아바타를 고를 수 있습니다. 얼굴을 고른 뒤 저장을 눌러야 반영됩니다. 고르지 않으면 계정마다 자동으로 하나가 정해집니다.
-        </Typography>
+      {/* 설명 문단은 두지 않는다. 창 폭은 아바타 여섯 칸에 맞추고, 동작은 단추 이름으로
+         말한다. 「선택 해제」는 고른 얼굴을 지워 계정마다 정해지는 자동 얼굴로 돌아간다. */}
+      <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 1, mb: 1.5, flexWrap: "wrap" }}>
         <Button size="sm" disabled={busy} onClick={() => setRound((r) => r + 1)}>
           다른 후보 보기
         </Button>
         {chosen ? (
-          <Button size="sm" disabled={busy} onClick={() => setStaged("")}>
-            자동으로 되돌리기
+          <Button
+            size="sm"
+            disabled={busy}
+            onClick={() => setStaged("")}
+            title="고른 얼굴을 지우고 이 계정에 자동으로 정해진 얼굴을 씁니다"
+          >
+            선택 해제
           </Button>
         ) : null}
       </Box>
 
-      <Box role="radiogroup" aria-label="기본 아바타" sx={{ display: "grid", gap: 1.5 }}>
+      <Box
+        role="radiogroup"
+        aria-label="기본 아바타"
+        sx={{ display: "grid", gap: 1.5, width: "max-content", maxWidth: "100%" }}
+      >
         {DEFAULT_AVATAR_STYLES.map((style) => (
-          <Box key={style} sx={{ display: "grid", gap: 0.75, minWidth: 0 }}>
+          <Box key={style} sx={{ display: "grid", gap: 0.75, width: "max-content" }}>
             <Typography
               component="span"
               sx={{
@@ -140,6 +148,7 @@ function DefaultAvatarDialog({ open, onClose, seed, value, busy, onPick }) {
                 gridTemplateColumns: "repeat(6, 2.5rem)",
                 gap: 0.75,
                 justifyContent: "start",
+                py: 0.25,
               }}
             >
             {candidates.filter((c) => c.style === style).map((c, i) => {

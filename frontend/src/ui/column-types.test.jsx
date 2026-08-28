@@ -107,9 +107,9 @@ describe("열 어휘 — 폭·정렬·자릿수는 의미에서 나온다", () =
     expect(screen.getByText("1").closest("td").getAttribute("class")).toContain("alignCenter");
   });
 
-  it("정렬·필터 조작기가 머리글 이름의 중심을 **안 민다**", () => {
-    /* `1fr auto 1fr` 격자라 이름은 가운데 칸에 서고 조작기는 오른쪽 칸에 산다. 조작기가
-       같은 줄을 나눠 쓰면 조작기 있는 열과 없는 열의 이름이 서로 다른 자리에 선다. */
+  it("정렬·필터 조작기는 이름과 한 덩어리로 칸 가운데에 선다", () => {
+    /* 예전 `1fr auto 1fr` 격자는 이름의 중심을 지키려다 좁은 열에서 옆 칸과 겹쳤다.
+       지금은 이름+화살표+필터가 한 flex 줄이고, 그 줄 전체가 가운데다. */
     draw(<DataTable
       columns={[
         { key: "a", label: "가나", type: "enum" },
@@ -123,9 +123,23 @@ describe("열 어휘 — 폭·정렬·자릿수는 의미에서 나온다", () =
     />);
     const plain = screen.getByText("가나").closest("th").firstElementChild;
     const busy = screen.getByText("다라").closest("th").firstElementChild;
-    for (const grid of [plain, busy]) {
-      expect(getComputedStyle(grid).gridTemplateColumns).toBe("1fr auto 1fr");
+    for (const row of [plain, busy]) {
+      expect(getComputedStyle(row).display).toBe("flex");
+      expect(getComputedStyle(row).justifyContent).toBe("center");
+      expect(getComputedStyle(row).gridTemplateColumns).not.toBe("1fr auto 1fr");
     }
+  });
+
+  it("수치 열은 「예상 WD」 머리글이 한 줄로 설 바닥 폭을 갖는다", () => {
+    expect(COLUMN_TYPES.number.minWidth).toBe("8rem");
+  });
+
+  it("상태·닫힌 집합·개수·시각 열도 머리글+정렬이 한 줄로 설 바닥 폭을 갖는다", () => {
+    expect(COLUMN_TYPES.status.minWidth).toBe("7.5rem");
+    expect(COLUMN_TYPES.enum.minWidth).toBe("6.5rem");
+    expect(COLUMN_TYPES.count.minWidth).toBe("6rem");
+    expect(COLUMN_TYPES.datetime.minWidth).toBe("11rem");
+    expect(COLUMN_TYPES.actions.minWidth).toBe("6.5rem");
   });
 });
 

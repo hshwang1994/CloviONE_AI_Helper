@@ -89,6 +89,13 @@ def test_list_my_tickets_returns_only_my_own(db, settings, make_user, project):
     assert "동료 것" not in {t["title"] for t in out["tickets"]}
     # 소스 user id 는 응답에 실리지 않는다(§12.3) — 이름과 앱 user_id 로 해석한 값만 나간다.
     assert out["tickets"][1]["assignee_user_ids"] == [me.id, mate.id]
+    # 고른 얼굴·사진은 담당자 같은 자리에 실려야 한다. 이름·id 만 나가면 화면이 사용자 id
+    # 로 기본 그림을 새로 배정하고, 상단바와 티켓 상세가 다른 얼굴이 된다.
+    people = out["tickets"][1]["assignee_people"]
+    assert [p["user_id"] for p in people] == [me.id, mate.id]
+    for p in people:
+        assert "avatar_url" in p
+        assert "avatar_default_key" in p
 
 
 def test_list_my_tickets_answers_for_an_account_with_no_legacy_link(

@@ -148,8 +148,11 @@ Deliberate contract changes recorded here (each landed with its golden edit):
     live accounts to ask an administrator for a Notion link that can no longer be
     created. The same axis left ``/api/home/today``, ``/api/me/stats`` and the
     offboarding preview (``notion_mapped``) in the same change.
-  * every ticket view gained ``assignee_people`` — ``[{"user_id", "name"}, ...]``,
-    one entry per resolved assignee (REAUDIT A7, ``ui/UserAvatar.jsx``).
+  * every ticket view gained ``assignee_people`` — ``[{"user_id", "name",
+    "avatar_url", "avatar_default_key"}, ...]``, one entry per resolved assignee
+    (REAUDIT A7, ``ui/UserAvatar.jsx``). The two avatar fields are the same
+    payload the work board already sent; without them the ticket detail draws a
+    seed-based default face while the top bar shows the face the person chose.
     ``assignee_names`` / ``assignee_user_ids`` each drop an entry independently
     when only one side of a given assignee resolves, so their lengths can
     diverge and zipping them by index can attach the wrong name to the wrong

@@ -81,8 +81,9 @@ export const OVERFLOW = { ellipsis: "ellipsis", nowrap: "nowrap", anywhere: "any
  * 둘을 같은 값으로 묶으면 표마다 머리글 줄이 들쭉날쭉해진다 — 왼쪽에 붙은 이름 옆에
  * 가운데 이름이 서고 그 옆에 오른쪽 이름이 서면, 눈이 머리글 줄을 한 줄로 못 읽는다.
  *
- * 정렬·필터 조작기 때문에 이름의 중심이 밀리지 않는 것은 `TableHeaderCell` 이 격자
- * (`1fr auto 1fr`)로 지킨다. 이름이 가운데 칸에 서고 조작기는 오른쪽 칸에 산다.
+ * 정렬·필터 조작기는 이름과 **한 덩어리**로 칸 가운데에 선다. 이름만 따로 가운데에
+ * 두고 조작기를 양옆 저울추로 밀면(`1fr auto 1fr`), 좁은 숫자 열에서 글자가 옆 칸과
+ * 겹친다. `TableHeaderCell` 이 그 한 덩어리를 그린다.
  */
 export const HEADER_ALIGN = "center";
 
@@ -113,23 +114,25 @@ export const COLUMN_TYPES = {
   identifier: { align: "center", numeric: true, minWidth: IDENTIFIER_COL_MIN_WIDTH, overflow: OVERFLOW.anywhere, identifying: true },
   /* 설명·오류 원문. 폭 경쟁에서 가장 약하고, 전 행이 비면 수축 후보다(§collapse). */
   text: { align: "left", numeric: false, minWidth: "12rem", overflow: OVERFLOW.ellipsis, collapsible: true },
-  /* 상태 배지. 폭이 짧고 값이 닫힌 집합이라 칸 가운데에 선다. */
-  status: { align: "center", numeric: false, width: SHRINK, minWidth: "5rem", overflow: OVERFLOW.nowrap },
-  /* 짧은 닫힌 집합(종류·범위·대상). 배지가 아니라 낱말이다. */
-  enum: { align: "center", numeric: false, width: SHRINK, minWidth: DEFAULT_COL_MIN_WIDTH, overflow: OVERFLOW.nowrap },
-  /* 개수. **가운데 + 자릿수 고정.** 고정 자릿수가 세로 비교를 남겨 준다. */
-  count: { align: "center", numeric: true, width: SHRINK, minWidth: "4rem", overflow: OVERFLOW.nowrap },
-  /* 크기·금액처럼 단위가 붙는 수치. 개수와 같은 규칙이다. */
-  number: { align: "center", numeric: true, width: SHRINK, minWidth: "4rem", overflow: OVERFLOW.nowrap },
-  /* 비율·점수. 자릿수가 하나 더 붙어 최소폭이 개수보다 넓다. */
-  percent: { align: "center", numeric: true, width: SHRINK, minWidth: "5rem", overflow: OVERFLOW.nowrap },
-  score: { align: "center", numeric: true, width: SHRINK, minWidth: "5rem", overflow: OVERFLOW.nowrap },
+  /* 상태 배지. 머리글이 「우선순위」처럼 네 글자면 5rem 으로는 정렬 화살표와 겹친다. */
+  status: { align: "center", numeric: false, width: SHRINK, minWidth: "7.5rem", overflow: OVERFLOW.nowrap },
+  /* 짧은 닫힌 집합(종류·범위·대상). 머리글 「난이도」+정렬이 한 줄로 서는 폭. */
+  enum: { align: "center", numeric: false, width: SHRINK, minWidth: "6.5rem", overflow: OVERFLOW.nowrap },
+  /* 개수. **가운데 + 자릿수 고정.** 머리글 「조회」+정렬이 한 줄로 서는 폭. */
+  count: { align: "center", numeric: true, width: SHRINK, minWidth: "6rem", overflow: OVERFLOW.nowrap },
+  /* 크기·금액·공수처럼 단위가 붙는 수치. 머리글이 「예상 WD」처럼 두 토막이면 4rem 으로는
+     이름+정렬 화살표가 칸을 넘쳐 옆 열과 겹친다(`table-layout:fixed`). 바닥을 머리글이
+     한 줄로 서는 폭에 맞춘다. */
+  number: { align: "center", numeric: true, width: SHRINK, minWidth: "8rem", overflow: OVERFLOW.nowrap },
+  /* 비율·점수. 머리글 「진행률」+정렬이 한 줄로 서는 폭. */
+  percent: { align: "center", numeric: true, width: SHRINK, minWidth: "6.5rem", overflow: OVERFLOW.nowrap },
+  score: { align: "center", numeric: true, width: SHRINK, minWidth: "6.5rem", overflow: OVERFLOW.nowrap },
   /* 날짜·시각. 폭이 고정된 짧은 값이라 가운데다. 자릿수 고정은 그대로 붙는다 —
      'YYYY-MM-DD' 는 자릿수가 언제나 같아서 가운데에서도 세로로 맞는다. */
   date: { align: "center", numeric: true, width: SHRINK, minWidth: "8.5rem", overflow: OVERFLOW.nowrap },
-  datetime: { align: "center", numeric: true, width: SHRINK, minWidth: "8.5rem", overflow: OVERFLOW.nowrap },
-  /* 행 액션 묶음. 표의 마지막 열이고 칸 가운데에 선다. */
-  actions: { align: "center", numeric: false, width: SHRINK, minWidth: DEFAULT_COL_MIN_WIDTH, overflow: OVERFLOW.nowrap },
+  datetime: { align: "center", numeric: true, width: SHRINK, minWidth: "11rem", overflow: OVERFLOW.nowrap },
+  /* 행 액션 묶음. 표의 마지막 열이고 칸 가운데에 선다. 머리글 「작업」·「결재」가 서는 폭. */
+  actions: { align: "center", numeric: false, width: SHRINK, minWidth: "6.5rem", overflow: OVERFLOW.nowrap },
   /* 선택 체크박스처럼 라벨이 낱말이 아닌 열. */
   select: { align: "left", numeric: false, width: SHRINK, minWidth: "2.5rem", overflow: OVERFLOW.nowrap },
 };

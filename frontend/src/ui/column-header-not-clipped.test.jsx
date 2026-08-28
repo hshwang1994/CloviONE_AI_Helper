@@ -38,7 +38,8 @@ describe("표 머리글 — 두 단어 이름도 잘리지 않는다", () => {
       // 감싸는 정렬 버튼도 스스로 줄어들지 않는다 — 칸에 자리가 있으면 이름 전체가 보인다.
       const button = label.closest("button");
       expect(button).not.toBeNull();
-      expect(getComputedStyle(button).minWidth).toBe("max-content");
+      expect(getComputedStyle(button).whiteSpace).toBe("nowrap");
+      expect(getComputedStyle(button).flexShrink).toBe("0");
       // 칸 자체에 overflow:hidden 을 걸면 한글 받침과 정렬 아이콘이 아래로 잘린다.
       const th = label.closest("th");
       expect(th).not.toBeNull();

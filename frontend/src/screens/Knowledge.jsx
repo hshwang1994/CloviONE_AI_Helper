@@ -1005,7 +1005,7 @@ export function Knowledge() {
       },
     },
     {
-      key: "more", label: "작업", type: "actions", width: "4rem",
+      key: "more", label: "작업", type: "actions", width: "6.5rem",
       render: (doc) => (
         <OverflowMenu
           ariaLabel={`${doc.title} 작업`}

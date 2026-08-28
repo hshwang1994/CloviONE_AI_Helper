@@ -2077,7 +2077,7 @@ export function DataTable({ columns, rows, rowKey, onRow, rowHref, empty, ellips
  * 예전에는 포커스 트랩·Esc 스택·배경 스크롤 잠금을 직접 구현했다. MUI Dialog가 셋 다
  * 정확히 처리하므로(중첩 모달 포함) 그 코드는 지웠다 — 직접 구현이 남아 있으면 MUI와
  * 이중으로 걸려 Esc 한 번에 두 개가 닫히는 예전 버그가 다시 난다.
- * size: sm|md|lg. 모바일에서는 전체 화면. */
+ * size: sm|md|lg|fit. 모바일에서는 전체 화면. */
 /* 모달 폭 — **레이아웃 브레이크포인트와 분리한다** (M7).
  *
  * 예전에는 `maxWidth={SIZE_MAP[size]}` 로 MUI 브레이크포인트 키를 넘겼다. 그런데 이 테마의
@@ -2089,6 +2089,9 @@ export function DataTable({ columns, rows, rowKey, onRow, rowHref, empty, ellips
  *   sm 30rem — 확인 대화상자. 한 문장과 버튼 둘.
  *   md 45rem — 폼·상세. 산문 78ch 보다 좁다(모달 안은 라벨+값이라 더 좁아도 읽힌다).
  *   lg 62rem — 표·CSV 미리보기처럼 열이 여럿인 것.
+ *   fit     — 내용 폭. 아바타 고르기처럼 칸 수가 고정된 격자만 쓴다. 폼에는 쓰지 않는다
+ *             (`width:auto` 가 화면마다 다른 폭을 만들던 그 버그를 다시 열지 않기 위해
+ *             이름이 따로다).
  */
 const MODAL_MAX_WIDTH = { sm: "30rem", md: "45rem", lg: "62rem" };
 
@@ -2167,6 +2170,7 @@ function ModalActions({ children }) {
 export function Modal({ open, onClose, title, size = "md", children, footer, dirty = false }) {
   const titleId = React.useId();
   const confirm = useConfirm();
+  const isFit = size === "fit";
   const requestClose = React.useCallback(async (...args) => {
     if (!dirty) return onClose && onClose(...args);
     const ok = await confirm("입력한 내용이 저장되지 않았습니다. 창을 닫을까요?",
@@ -2181,21 +2185,24 @@ export function Modal({ open, onClose, title, size = "md", children, footer, dir
       onClose={requestClose}
       /* `maxWidth={false}` + sx 로 직접 준다 — MUI 의 브레이크포인트 척도를 쓰지 않는다. */
       maxWidth={false}
-      fullWidth
+      fullWidth={!isFit}
       aria-labelledby={titleId}
       /* 모바일에서는 전체 화면 — 좁은 화면에서 폼이 잘려 스크롤조차 안 되던 문제.
        *
-       * `width` 를 지정하지 않는다(M7). 예전에는 `sm` 이상에서 `width:"auto"` 였는데, 그것이
-       * 바로 위 `fullWidth` 를 **무력화**했다 — 폭이 내용 길이로 정해져 같은 성격의 모달이
-       * 화면마다 다른 크기가 됐다(실측: 한 화면에서 폭 7~8가지, `+ 직책 추가` 286px vs
+       * 폼 모달은 `width` 를 지정하지 않는다(M7). 예전에는 `sm` 이상에서 `width:"auto"` 였는데,
+       * 그것이 바로 위 `fullWidth` 를 **무력화**했다 — 폭이 내용 길이로 정해져 같은 성격의
+       * 모달이 화면마다 다른 크기가 됐다(실측: 한 화면에서 폭 7~8가지, `+ 직책 추가` 286px vs
        * `+ 공지 추가` 1200px 로 4배 차이). 이제 `maxWidth`(sm/md/lg) 세 등급만 남는다 —
        * 크기를 고르는 일이 `size` prop 한 곳으로 모인다.
+       *
+       * `fit` 만 내용 폭이다. 칸 수가 고정된 격자(아바타 고르기)처럼, 등급 폭이 오른쪽에
+       * 빈 칸을 만드는 자리에 쓴다. 폼에는 쓰지 않는다.
        *
        * xs 는 그대로 전체 화면이다(좁은 화면에서 등급 폭을 쓰면 좌우가 잘린다). */
       sx={{ "& .MuiDialog-paper": {
         m: { xs: 0, sm: 4 },
-        width: { xs: "100%" },
-        maxWidth: { xs: "100%", sm: MODAL_MAX_WIDTH[size] || MODAL_MAX_WIDTH.md },
+        width: { xs: "100%", sm: isFit ? "max-content" : undefined },
+        maxWidth: { xs: "100%", sm: isFit ? "calc(100% - 4rem)" : (MODAL_MAX_WIDTH[size] || MODAL_MAX_WIDTH.md) },
         maxHeight: { xs: "100%", sm: "calc(100% - 4rem)" },
         height: { xs: "100%", sm: "auto" },
         borderRadius: { xs: 0, sm: MODAL_RADIUS },

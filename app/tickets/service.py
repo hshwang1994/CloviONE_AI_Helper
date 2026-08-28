@@ -135,7 +135,12 @@ def _assignee_id_to_user(db: Session) -> dict[str, str]:
     return out
 
 
-def ticket_view(t: TicketDTO, id_to_name: dict[str, str], id_to_user: dict[str, str]) -> dict:
+def ticket_view(
+    t: TicketDTO,
+    id_to_name: dict[str, str],
+    id_to_user: dict[str, str],
+    avatars: dict | None = None,
+) -> dict:
     """티켓 한 건의 API 응답 dict.
 
     `id` 는 계속 Notion page id 다 — 딥링크·휴지통·감사가 전부 이 값을 키로 쓴다. 자체 UUID 는
@@ -153,7 +158,22 @@ def ticket_view(t: TicketDTO, id_to_name: dict[str, str], id_to_user: dict[str, 
     # "원본 소스 인물 id 배열, S14 에서 뺐다"로 못박은 자리다(tests/regression/
     # test_api_contract_golden.py). 모양이 전혀 달라도 같은 키를 다시 쓰면 그 기록이
     # 「되돌아왔다」로 잘못 읽힌다.
-    assignee_people = [{"user_id": u, "name": n} for u, n in zip(uids, names) if u or n]
+    #
+    # `avatar_url`/`avatar_default_key` 도 같은 자리에 붙는다. 이름·id 만 나가면 화면이
+    # 사용자 id 로 기본 그림을 새로 배정하고, 그 사람이 고른 얼굴·올린 사진은 상단바에만
+    # 남는다. 작업 보드 카드(`app/work/service.py::_people`)는 이미 이 두 값을 싣는다 —
+    # 티켓 상세만 빠져 같은 사람이 화면마다 다른 얼굴이었다.
+    assignee_people = []
+    for u, n in zip(uids, names):
+        if not (u or n):
+            continue
+        art = (avatars or {}).get(u) or {}
+        assignee_people.append({
+            "user_id": u,
+            "name": n,
+            "avatar_url": art.get("url"),
+            "avatar_default_key": art.get("default_key"),
+        })
     pnames = list(t.project_names)
     return {
         "id": t.page_id,
@@ -205,7 +225,11 @@ def ticket_views(db: Session, tickets, *, with_names: bool = True) -> list[dict]
     """DTO 목록 → API 응답 dict 목록. 스프린트의 담당자별 리스트도 이걸 써서 모양이 같다."""
     id_to_name = _load_name_map(db)[0] if with_names else {}
     id_to_user = _assignee_id_to_user(db) if with_names else {}
-    return [ticket_view(t, id_to_name, id_to_user) for t in tickets]
+    avatars: dict = {}
+    if with_names:
+        uids = {id_to_user.get(a) for t in tickets for a in t.assignee_ids}
+        avatars = people.avatar_map(db, [u for u in uids if u])
+    return [ticket_view(t, id_to_name, id_to_user, avatars) for t in tickets]
 
 
 def _project_visibility(db: Session, viewer, scope=None) -> "ProjectVisibility | None":

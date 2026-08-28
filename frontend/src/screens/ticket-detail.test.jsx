@@ -36,7 +36,8 @@ import { ThemeModeProvider } from "../ui/ThemeModeProvider.jsx";
 const TICKET = {
   id: "page-1", uid: "uid-1", tid: 42, key: "ABCDEF-42", title: "샘플 티켓", status: "진행",
   priority: "높음", difficulty: "3", est_wd: 2, due: "2026-09-01",
-  project: "알파", assignee_names: ["나"], assignee_people: [{ user_id: "u-me", name: "나" }],
+  project: "알파", assignee_names: ["나"],
+  assignee_people: [{ user_id: "u-me", name: "나", avatar_url: null, avatar_default_key: "lorelei:12" }],
   created_at: "2026-08-01T00:00:00", url: "https://notion.so/page-1",
 };
 
@@ -377,6 +378,10 @@ describe("REAUDIT A7/C11 — 담당자 아바타와 생성일", () => {
     expect(within(cell).getByText("나")).toBeInTheDocument();
     // 아바타 부품(UserAvatar)이 실제로 그려졌다 — 이름 텍스트만 있는 게 아니다.
     expect(cell.querySelector(".k-avatar")).not.toBeNull();
+    // 서버가 준 고른 얼굴을 쓴다. 키가 빠지면 사용자 id 씨앗으로 다른 그림이 선다.
+    const face = cell.querySelector("[data-avatar-key], [data-avatar-pending]");
+    expect(face).not.toBeNull();
+    expect(face.getAttribute("data-avatar-key") || face.getAttribute("data-avatar-pending")).toBe("lorelei:12");
   });
 
   it("생성일이 속성 줄에 있다 — 예전엔 우선순위·난이도·WD·마감만 있고 생성일이 없었다", async () => {

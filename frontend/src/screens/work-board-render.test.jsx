@@ -27,7 +27,7 @@ vi.mock("../app/auth.jsx", () => ({
   useAuth: () => ({ data: { role: "system_admin", id: "u-1" } }),
 }));
 
-import { WorkBoard } from "./WorkBoard.jsx";
+import { WorkBoard, BACKLOG_TRACKS } from "./WorkBoard.jsx";
 import { ConfirmProvider, ToastProvider } from "../ui/kit.jsx";
 import { ThemeModeProvider } from "../ui/ThemeModeProvider.jsx";
 
@@ -88,5 +88,12 @@ describe("작업 보드", () => {
       || box.getAttribute("aria-autocomplete") === "list"
       || !!box.querySelector("input");
     expect(searchable).toBe(true);
+  });
+
+  it("백로그 열 폭은 머리와 줄이 같은 고정 트랙이다 — auto 가 있으면 빈 머리가 0 이 된다", () => {
+    expect(BACKLOG_TRACKS.md).not.toMatch(/\bauto\b/);
+    expect(BACKLOG_TRACKS.md).toBe(
+      "minmax(12rem, 1fr) 7.5rem 6.5rem 6rem 8.5rem 8rem 14rem",
+    );
   });
 });

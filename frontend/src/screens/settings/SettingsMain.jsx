@@ -107,7 +107,7 @@ export function Settings({ embedded = false } = {}) {
     // 반복해 가로 공간만 먹었다. 그 앞부분이 라벨 그대로면 벗겨내고 나머지만 보여준다(라벨
     // 자체를 여기서 다시 만들지 않고 실제 렌더된 r.label과 대조 — 두 소스가 갈리면 이 열이
     // 조용히 잘못 벗겨내는 대신 원문을 그대로 보여주게 안전한 쪽으로 둔다).
-    { key: "description", label: "설명", render: (r) => {
+    { key: "description", label: "설명", type: "text", render: (r) => {
       const desc = r.description;
       if (!desc) return "-";
       if (desc.startsWith(r.label)) {

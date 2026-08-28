@@ -12,6 +12,8 @@
       ],
       "assignee_people": [
         {
+          "avatar_default_key": null,
+          "avatar_url": null,
           "name": "관리자 김",
           "user_id": "00000000-0000-4000-8000-00000000a001"
         }
@@ -85,6 +87,8 @@
       ],
       "assignee_people": [
         {
+          "avatar_default_key": null,
+          "avatar_url": null,
           "name": "개발자 이",
           "user_id": "00000000-0000-4000-8000-00000000a002"
         }
@@ -126,6 +130,8 @@
       ],
       "assignee_people": [
         {
+          "avatar_default_key": null,
+          "avatar_url": null,
           "name": "관리자 김",
           "user_id": "00000000-0000-4000-8000-00000000a001"
         }
@@ -172,6 +178,8 @@
       ],
       "assignee_people": [
         {
+          "avatar_default_key": null,
+          "avatar_url": null,
           "name": "관리자 김",
           "user_id": "00000000-0000-4000-8000-00000000a001"
         }
@@ -245,6 +253,8 @@
       ],
       "assignee_people": [
         {
+          "avatar_default_key": null,
+          "avatar_url": null,
           "name": "개발자 이",
           "user_id": "00000000-0000-4000-8000-00000000a002"
         }
@@ -286,6 +296,8 @@
       ],
       "assignee_people": [
         {
+          "avatar_default_key": null,
+          "avatar_url": null,
           "name": "관리자 김",
           "user_id": "00000000-0000-4000-8000-00000000a001"
         }

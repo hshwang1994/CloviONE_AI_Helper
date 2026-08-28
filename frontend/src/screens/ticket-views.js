@@ -62,3 +62,31 @@ export function invalidateTicketViews(qc, options) {
     qc.invalidateQueries({ queryKey, ...(options || {}) });
   }
 }
+
+/* 얼굴을 그리는 질의. 아바타를 바꾸면 티켓 값 자체는 그대로여도 **그 사람을 그린 화면**은
+ * 전부 낡는다. `TICKET_VIEW_KEYS` 에 없는 게시판·채팅·문서 작성자 줄이 여기 있다. */
+export const PERSON_FACE_KEYS = [
+  ["me"],
+  ["board"],
+  ["conversations"],
+  ["messages"],
+  ["knowledge"],
+  ["team-chat-rooms"],
+  ["team-chat-msgs"],
+  ["team-chat-directory"],
+  ["users"],
+  ["search"],
+  ["games-rooms"],
+  ["game-room"],
+  ["my-activity"],
+  ["ticket-history"],
+  ["ticket-comments"],
+  ["doc-comments"],
+];
+
+export function invalidatePersonFaces(qc, options) {
+  invalidateTicketViews(qc, options);
+  for (const queryKey of PERSON_FACE_KEYS) {
+    qc.invalidateQueries({ queryKey, ...(options || {}) });
+  }
+}

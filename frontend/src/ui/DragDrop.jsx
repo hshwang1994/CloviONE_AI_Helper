@@ -227,6 +227,7 @@ export function SortableList({ items, labelOf, onReorder, disabled, children, vi
       overscan={virtualize.overscan}
       itemRole={null}
       renderItem={(it) => children(it)}
+      sx={virtualize.sx}
     />
   ) : (
     <Box role="list" sx={{ display: "flex", flexDirection: "column", gap: 1 }}>

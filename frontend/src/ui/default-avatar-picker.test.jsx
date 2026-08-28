@@ -98,10 +98,10 @@ describe("저장", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
-  it("이미 고른 값이 있는 채로 열면, 같은 값을 다시 눌러 '자동으로 되돌리기'를 고르고 저장하면 빈 문자열이 나간다", async () => {
+  it("이미 고른 값이 있는 채로 열면, 같은 값을 다시 눌러 선택 해제하고 저장하면 빈 문자열이 나간다", async () => {
     const user = userEvent.setup();
     // value가 있으면 그 후보가 이미 선택 표시(aria-checked)로 열린다 — 같은 후보를 다시
-    // 누르면 선택 해제(자동으로 되돌리기와 같은 뜻)다.
+    // 누르면 선택 해제(계정 자동 얼굴로 돌아가는 것과 같은 뜻)다.
     const { onPick } = mount({ value: "lorelei:0" });
     await user.click(screen.getByRole("button", { name: "기본 아바타 고르기" }));
     const dialog = await screen.findByRole("dialog");
@@ -113,6 +113,17 @@ describe("저장", () => {
 });
 
 describe("다른 후보 보기", () => {
+  it("안내 문단은 없고, 고른 값이 있으면 선택 해제로 자동 얼굴로 돌아갈 수 있다", async () => {
+    const user = userEvent.setup();
+    const { onPick } = mount({ value: "lorelei:0" });
+    await user.click(screen.getByRole("button", { name: "기본 아바타 고르기" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).queryByText(/사진이 없을 때/)).not.toBeInTheDocument();
+    await user.click(within(dialog).getByRole("button", { name: "선택 해제" }));
+    await user.click(screen.getByRole("button", { name: "저장" }));
+    expect(onPick).toHaveBeenCalledWith("");
+  });
+
   it("스타일마다 후보가 여섯이고 한 줄 격자에 선다", async () => {
     const user = userEvent.setup();
     mount();
@@ -131,9 +142,9 @@ describe("다른 후보 보기", () => {
     mount({ value: "lorelei:0" });
     await user.click(screen.getByRole("button", { name: "기본 아바타 고르기" }));
     const dialog = await screen.findByRole("dialog");
-    // 처음에는 고른 후보가 화면에 없을 수도 있다(회차 0에 없으면). '자동으로 되돌리기'
+    // 처음에는 고른 후보가 화면에 없을 수도 있다(회차 0에 없으면). '선택 해제'
     // 버튼이 있다는 것 자체가 무언가 골라져 있다는 뜻이다.
-    expect(within(dialog).getByRole("button", { name: "자동으로 되돌리기" })).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "선택 해제" })).toBeInTheDocument();
     await user.click(within(dialog).getByRole("button", { name: "다른 후보 보기" }));
     // 다시 눌러도 대화상자는 그대로 열려 있고 후보 격자도 여전히 있다.
     expect(within(dialog).getByRole("radiogroup", { name: "기본 아바타" })).toBeInTheDocument();

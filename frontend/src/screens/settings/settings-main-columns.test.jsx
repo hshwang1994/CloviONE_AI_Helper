@@ -64,11 +64,10 @@ describe("설정 표 — '항목명' 열의 최소 폭 (PA-RC-0037)", () => {
     expect(header).toHaveStyle({ minWidth: "10rem" });
   });
 
-  it("'설명' 열은 이전처럼 폭이 지정되지 않는다 — auto 레이아웃이 남는 공간을 그대로 가져간다(DS-06 회귀 방지)", async () => {
+  it("'설명' 열은 식별자·동작 열이 아니라 설명(text) 바닥 폭을 받는다 — 남는 폭은 항목명이 지킨다(DS-06)", async () => {
     renderSettings();
     const header = await screen.findByRole("columnheader", { name: "설명" });
-    expect(header).toHaveStyle({ width: "" });
-    expect(header).toHaveStyle({ minWidth: "4.5rem" });
+    expect(header).toHaveStyle({ minWidth: "12rem" });
   });
 });
 

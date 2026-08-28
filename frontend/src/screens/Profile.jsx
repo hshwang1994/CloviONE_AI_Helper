@@ -15,6 +15,7 @@ import { AvatarCropDialog } from "../ui/AvatarCropDialog.jsx";
 import { DefaultAvatarPicker } from "../ui/DefaultAvatarPicker.jsx";
 import { ROLE_KO } from "../app/navConfig.js";
 import { invalidateNotifications } from "../app/notification-keys.js";
+import { invalidatePersonFaces } from "./ticket-views.js";
 import {
   Badge, Button, Callout, Card, EmptyState, ErrorState, PageHeader, SectionTitle, Skeleton,
   useConfirm, useToast,
@@ -532,8 +533,8 @@ export function Profile() {
               onChanged={() => {
                 prefsQuery.refetch();
                 profileQuery.refetch();
-                // 상단바 아바타는 /api/me 를 본다 — 같이 새로 받아야 사진이 바로 바뀐다.
-                qc.invalidateQueries({ queryKey: ["me"] });
+                // 상단바는 /api/me, 티켓·보드·채팅은 각자 캐시에 얼굴을 들고 있다.
+                invalidatePersonFaces(qc);
               }}
             />
             <SessionsCard />

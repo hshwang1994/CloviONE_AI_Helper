@@ -181,19 +181,25 @@ function TicketCard({ card, onOpen, signals, showProject }) {
 /** 백로그 한 줄. 표처럼 보이지만 표가 아니다 — 끌어서 순서를 바꿀 수 있어야 하기 때문이다.
  *
  * 공용 `DataTable` 은 행을 끌 수 없다. 순서가 이 목록의 **본질**이라(다음에 무엇을 하는가)
- * 그것을 포기하고 표를 얻는 거래는 안 한다. 대신 열 이름을 머리줄에 적어 표처럼 읽힌다. */
+ * 그것을 포기하고 표를 얻는 거래는 안 한다. 대신 열 이름을 머리줄에 적어 표처럼 읽힌다.
+ *
+ * 열 폭은 **머리와 줄이 같은 고정 트랙**이다. 마지막을 `auto` 로 두면 머리의 빈 칸은 0 이고
+ * 줄의 단추 네 개는 14rem 을 먹어, 우선순위·난이도·예상·마감·담당자가 한 칸씩 밀린다. */
+export const BACKLOG_TRACKS = {
+  xs: "1fr",
+  md: "minmax(12rem, 1fr) 7.5rem 6.5rem 6rem 8.5rem 8rem 14rem",
+};
+
 const BACKLOG_GRID = {
   display: "grid",
-  gridTemplateColumns: {
-    xs: "1fr",
-    md: "minmax(0, 1fr) 6rem 6rem 5rem 7rem minmax(6rem, 9rem) minmax(0, auto)",
-  },
-  gap: 1,
+  gridTemplateColumns: BACKLOG_TRACKS,
+  columnGap: 1,
+  rowGap: 0.5,
   alignItems: "center",
 };
 
 function BacklogHead() {
-  const cells = ["티켓", "우선순위", "난이도", "예상", "마감", "담당자", ""];
+  const cells = ["티켓", "우선순위", "난이도", "예상", "마감", "담당자", "작업"];
   return (
     <Box
       sx={{
@@ -201,6 +207,8 @@ function BacklogHead() {
         px: 1.25,
         py: 0.5,
         display: { xs: "none", md: "grid" },
+        /* 목록 스크롤바와 같은 자리를 비워 머리·줄 열이 같은 선에 선다. */
+        scrollbarGutter: "stable",
       }}
     >
       {cells.map((c, i) => (
@@ -884,7 +892,10 @@ export function WorkBoard() {
               // §15.1 재검수 — 서버 커서 페이징(§8.5, useInfiniteQuery) 위에 렌더링만
               // 가상화한다. 181행을 한 번에 그리던 자리다. 판 열과 같은 높이(60vh)를
               // 써서 두 탭이 같은 느낌으로 스크롤한다.
-              virtualize={{ estimateSize: 72, height: "60vh", ariaLabel: "백로그 목록" }}
+              virtualize={{
+                estimateSize: 72, height: "60vh", ariaLabel: "백로그 목록",
+                sx: { scrollbarGutter: "stable" },
+              }}
             >
               {(card) => (
                 <DragItem key={card.id} id={card.id} label={labelOf(card.id)}>

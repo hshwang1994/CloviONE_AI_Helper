@@ -1,1 +1,0 @@
-const o=[["tickets"],["ticket"],["home"],["sprint-meeting"],["my-stats"],["projects"],["dev-report"],["work-board"],["work-backlog"]];function r(e,t){for(const i of o)e.invalidateQueries({queryKey:i,...t||{}})}export{r as i};

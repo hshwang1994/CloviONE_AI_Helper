@@ -24,6 +24,7 @@ import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded";
 import { api } from "../lib/api.js";
 import { Card, Badge, EmptyState, ErrorState, Skeleton, Callout, PageHeader, Modal, ModalFooter, Button, useToast, useConfirm, cardFieldLabel, cardHeaderControls, tableCellProps, TABLE_FIXED_LAYOUT_SX, TableColGroup, columnShouldTruncate, columnCellHint } from "../ui/kit.jsx";
 import { DateField } from "../ui/DateField.jsx";
+import { PersonLine } from "../ui/UserAvatar.jsx";
 import { priorityKo, priorityKind } from "../lib/priority.js";
 import { useAuth } from "../app/auth.jsx";
 import { BodyEditor, editorContainerSx, editorSurfaceWidthSx } from "../ui/BodyEditor.jsx";
@@ -175,7 +176,7 @@ export function ticketColumns({ showAssignee, onEdit, onClaim, onOpen, compact, 
     // 열기 버튼이 이 값을 접근 이름에 쓴다 — 없으면 스무 행이 전부 "이 항목 선택"으로 읽힌다.
     { key: "title", label: "제목", type: "title", minWidth: compact ? "11rem" : "16rem", sortable: true, rowName: (t) => t.title || "제목 없음",
       render: (t) => <TitleCell t={t} onOpen={onOpen} /> },
-    { key: "status", label: "상태", type: "status", width: compact ? "7.5rem" : "7rem", sortable: true, filter: { kind: "enum", field: "status" },
+    { key: "status", label: "상태", type: "status", width: "7.5rem", sortable: true, filter: { kind: "enum", field: "status" },
       render: (t) => (t.status
         ? (
           <Box component="span" sx={{ display: "inline-flex", alignItems: "center", gap: 0.5, minWidth: 0 }}>
@@ -199,7 +200,7 @@ export function ticketColumns({ showAssignee, onEdit, onClaim, onOpen, compact, 
           </Box>
         )
         : "-") },
-    { key: "priority", label: "우선순위", type: "status", width: compact ? "6.5rem" : "7rem", sortable: true, filter: { kind: "enum", field: "priority" }, render: (t) => (t.priority ? <Badge value={priorityKo(t.priority)} kind={priorityKind(t.priority)} /> : "-") },
+    { key: "priority", label: "우선순위", type: "status", width: "7.5rem", sortable: true, filter: { kind: "enum", field: "priority" }, render: (t) => (t.priority ? <Badge value={priorityKo(t.priority)} kind={priorityKind(t.priority)} /> : "-") },
   ];
   if (!compact) {
     /* 신호는 상태와 **다른 축**이라 다른 열이다 (D-349). 한 칸에 넣으면 「진행 중」과
@@ -215,10 +216,10 @@ export function ticketColumns({ showAssignee, onEdit, onClaim, onOpen, compact, 
       { key: "act_wd", label: "실제 WD", type: "number", sortable: true, filter: { kind: "number", field: "act_wd" }, render: (t) => <NumberCell value={t.act_wd} /> },
     );
   }
-  cols.push({ key: "due", label: "마감", type: "date", width: compact ? "6.5rem" : "7rem", sortable: true, render: (t) => (t.due || "-") });
+  cols.push({ key: "due", label: "마감", type: "date", width: "8.5rem", sortable: true, render: (t) => (t.due || "-") });
   if (!compact) {
     /* 「추가」는 무엇을 추가했다는 말인지 알 수 없었다 — 이 값은 티켓이 만들어진 날이다. */
-    cols.push({ key: "created_at", label: "생성 일자", type: "date", width: "8rem", sortable: true, filter: { kind: "date", field: "created_at" }, render: (t) => <DateCell value={t.created_at} /> });
+    cols.push({ key: "created_at", label: "생성 일자", type: "date", width: "8.5rem", sortable: true, filter: { kind: "date", field: "created_at" }, render: (t) => <DateCell value={t.created_at} /> });
   }
   if (showAssignee) {
     // VIS-163: 이 열만 nowrap이 빠져 있었다 — 좁은 컨테이너(1200×900)에서 overflowWrap:
@@ -226,9 +227,31 @@ export function ticketColumns({ showAssignee, onEdit, onClaim, onOpen, compact, 
     // 이유와 같다, 위 주석 참고). 담당자가 많아 셀이 넓어지면 이 표도 다른 nowrap 열처럼
     // 가로 스크롤로 넘긴다 — 읽을 수 없는 표보다 낫다는 같은 트레이드오프.
     cols.push({
-      key: "assignee_names", label: "담당자", type: "name", width: "10rem", nowrap: true,
+      key: "assignee_names", label: "담당자", type: "name", width: "12rem", nowrap: true,
       filter: filterAssignee ? { kind: "entity", field: "assignee_user_id" } : undefined,
-      render: (t) => ((t.assignee_names || []).join(", ") || "-"),
+      render: (t) => {
+        const people = Array.isArray(t.assignee_people) ? t.assignee_people : [];
+        if (people.length) {
+          return (
+            <Box sx={{ display: "inline-flex", alignItems: "center", gap: 0.75, minWidth: 0 }}>
+              {people.slice(0, 2).map((p) => (
+                <PersonLine
+                  key={p.user_id || p.name}
+                  person={p}
+                  name={p.name || p.display_name}
+                  size="inline"
+                />
+              ))}
+              {people.length > 2 ? (
+                <Typography variant="caption" color="text.secondary">
+                  {`외 ${people.length - 2}명`}
+                </Typography>
+              ) : null}
+            </Box>
+          );
+        }
+        return ((t.assignee_names || []).join(", ") || "-");
+      },
     });
   }
   if (onEdit || onClaim) {

@@ -39,20 +39,21 @@ const HEADER_ICON_SX = {
  * 정렬 화살표는 onSort 가 있을 때만, 필터 단추는 onFilter 가 있을 때만 그린다.
  * 호출부가 안 넘기면 예전 머리글과 같다. */
 
-/* 🔴 머리글 이름은 **언제나 칸 가운데**다 — 몸통 칸의 정렬과 따로다 (지시 6 · 13).
+/* 🔴 머리글은 **이름+조작기를 한 덩어리로** 칸 가운데에 둔다 (지시 6 · 13).
  *
- * 격자를 쓰는 이유가 여기 있다. `justifyContent: center` 만 주면 정렬 화살표와 필터
- * 단추가 같은 줄을 차지하는 만큼 이름이 왼쪽으로 밀린다 — 조작기가 있는 열과 없는 열의
- * 이름이 서로 다른 자리에 서고, 그 어긋남은 열마다 다르다.
- *
- * `1fr auto 1fr` 은 가운데 칸을 **컨테이너의 정중앙**에 세운다. 이름이 그 칸에 들어가고
- * 조작기는 오른쪽 1fr 칸 안에서 왼쪽에 붙는다 — 보기에는 예전처럼 이름 바로 옆이지만,
- * 이름의 중심은 조작기가 몇 개든 안 움직인다.
- *
- * 몸통 칸의 정렬을 안 받는다. 예전에는 호출부가 `align` 을 넘겼는데, 그러면 왼쪽에 붙은
- * 이름 옆에 가운데 이름이 서고 그 옆에 오른쪽 이름이 서서 머리글 줄을 한 줄로 못 읽었다. */
-const HEADER_GRID_SX = {
-  display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center",
+ * 예전 `1fr auto 1fr` 격자는 이름의 중심을 조작기와 따로 지키려다 좁은 숫자 열에서
+ * 옆 칸 위로 글자가 겹쳤다. `table-layout:fixed` 에서 「예상 WD」 칸은 4rem 인데, 왼쪽
+ * 저울추와 오른쪽 화살표가 같은 폭을 요구하면 이름 자리가 사라져 두 줄이 한 줄 위에
+ * 그려진다. 이름과 화살표를 한 flex 로 묶으면 칸이 모자랄 때도 한 덩어리로 잘리고,
+ * 옆 머리글과 겹치지 않는다. 몸통 칸의 정렬은 여전히 안 받는다. */
+const HEADER_ROW_SX = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 0.25,
+  width: "100%",
+  minWidth: 0,
+  whiteSpace: "nowrap",
 };
 
 export function TableHeaderCell({
@@ -85,9 +86,7 @@ export function TableHeaderCell({
           (박스가 내용보다 좁아지는 그 순간이 없으니, S19 가 겪은 "박스는 좁은데 글자만
           삐져나온다"도 다시 생기지 않는다). 정렬 화살표·필터 단추는 여전히 `flexShrink:0`
           로 따로 보호된다. */}
-      <Box sx={HEADER_GRID_SX}>
-        {/* 왼쪽 저울추. 오른쪽 조작기 칸과 같은 무게(1fr)라 가운데 칸이 정중앙에 선다. */}
-        <Box aria-hidden="true" />
+      <Box sx={HEADER_ROW_SX}>
         {sortable ? (
           <Box
             component="button"
@@ -96,7 +95,7 @@ export function TableHeaderCell({
             sx={{
               font: "inherit", color: "inherit", border: 0, background: "none", p: 0,
               display: "inline-flex", alignItems: "center", cursor: "pointer",
-              whiteSpace: "nowrap", minWidth: "max-content",
+              whiteSpace: "nowrap", flexShrink: 0,
               ...HEADER_CONTROL_SX,
               "&:hover": { color: "text.primary" },
               "&:focus-visible": (t) => ({ outline: `2px solid ${t.palette.focusRing}`, outlineOffset: 2 }),
@@ -104,26 +103,23 @@ export function TableHeaderCell({
           >
             <Box component="span" sx={LABEL_SX}>{c.label}</Box>
           </Box>
-        ) : (c.label ? <Box component="span" sx={LABEL_SX}>{c.label}</Box> : <Box aria-hidden="true" />)}
-        {/* 조작기는 이름의 중심을 안 민다 — 오른쪽 칸 안에서 왼쪽에 붙어 이름 바로 옆에 선다. */}
-        <Box sx={{ display: "inline-flex", alignItems: "center", gap: 0.25, justifySelf: "start", minWidth: 0 }}>
-          {sortable ? (
-            <Box component="span" aria-hidden="true" sx={{ flexShrink: 0, pl: 0.5, fontSize: FONT_SIZE.caption, opacity: active ? 1 : 0.35 }}>
-                {dir === "desc" ? "\u2193" : dir === "asc" ? "\u2191" : "\u2195"}
-            </Box>
-          ) : null}
-          {filterable ? (
-            <IconButton
-              size="small"
-              aria-label={`${c.label || "열"} 필터`}
-              aria-pressed={filtered}
-              onClick={(e) => setAnchor(e.currentTarget)}
-              sx={{ flexShrink: 0, color: filtered ? "primary.main" : "text.secondary", ...HEADER_ICON_SX }}
-            >
-              <FilterListRoundedIcon fontSize="inherit" />
-            </IconButton>
-          ) : null}
-        </Box>
+        ) : (c.label ? <Box component="span" sx={LABEL_SX}>{c.label}</Box> : null)}
+        {sortable ? (
+          <Box component="span" aria-hidden="true" sx={{ flexShrink: 0, fontSize: FONT_SIZE.caption, opacity: active ? 1 : 0.35 }}>
+            {dir === "desc" ? "\u2193" : dir === "asc" ? "\u2191" : "\u2195"}
+          </Box>
+        ) : null}
+        {filterable ? (
+          <IconButton
+            size="small"
+            aria-label={`${c.label || "열"} 필터`}
+            aria-pressed={filtered}
+            onClick={(e) => setAnchor(e.currentTarget)}
+            sx={{ flexShrink: 0, color: filtered ? "primary.main" : "text.secondary", ...HEADER_ICON_SX }}
+          >
+            <FilterListRoundedIcon fontSize="inherit" />
+          </IconButton>
+        ) : null}
       </Box>
       {filterable ? (
         <ColumnFilterPopover
