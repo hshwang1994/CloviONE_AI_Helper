@@ -676,6 +676,7 @@ export function Users() {
           비활성화 대 보관, 승인, 임시 비밀번호)을 몰아넣으면 스캔하기 어려웠다는 이전 결정은
           그대로 유지한다 — "& p" 간격 스타일을 help 내용 쪽에 그대로 옮긴다. */}
       <PageHeader area="사용자와 권한" title="사용자"
+        description="조직의 모든 사용자 계정을 찾고, 권한과 상태를 관리합니다."
         actions={<>
           {/* 내보내기는 지금 화면에 걸린 필터 그대로 나간다(같은 filterParams). */}
           <CsvTools exportQuery={filterParams(false)} onImported={refresh} />

@@ -160,9 +160,9 @@ export function Trash() {
       render: (r) => <span>{r.title || "제목 없음"}</span>,
     },
     {
-      /* 「어느 공간의 문서였나」 (지시 22.7). 옛 미러 항목은 이 값을 모른다 — 그 개념이
+      /* 「어느 프로젝트의 문서였나」 (지시 22.7). 옛 미러 항목은 이 값을 모른다 — 그 개념이
          없는 표에서 왔다. 없는 값을 「-」로 지어내지 않고 자리를 비운다. */
-      key: "place", label: "공간, 폴더", type: "name", minWidth: "10rem",
+      key: "place", label: "프로젝트, 폴더", type: "name", minWidth: "10rem",
       render: (r) => (r.space ? (
         <Box sx={{ display: "grid", gap: 0.25, minWidth: 0 }}>
           <Typography variant="body2">{r.space}</Typography>

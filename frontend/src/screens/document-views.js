@@ -44,18 +44,3 @@ export function invalidateDocumentViews(qc, options) {
     qc.invalidateQueries({ queryKey, ...(options || {}) });
   }
 }
-
-
-/* 태그 상자에 이름 하나를 더한다. 이미 있으면 그대로 둔다 — 같은 태그가 두 번 적히면
- * 서버가 하나로 접지만, 사용자는 자기가 두 번 눌렀다고 읽는다.
- *
- * **여기 있는 이유**: 목록 화면과 상세 화면이 둘 다 태그 상자를 갖는다. 한쪽에서 다른 쪽을
- * import 하면 늦게 싣기로 한 두 청크가 하나로 붙는다(문서를 안 여는 사람이 편집 화면을
- * 함께 받는다). 화면 둘이 나눠 쓰는 작은 함수는 이런 모듈이 갖는다.
- */
-export function appendTag(value, name) {
-  const parts = String(value || "").split(",").map((t) => t.trim()).filter(Boolean);
-  if (parts.some((t) => t.toLowerCase() === String(name).toLowerCase())) return parts.join(", ");
-  parts.push(name);
-  return parts.join(", ");
-}

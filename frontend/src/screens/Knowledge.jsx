@@ -35,11 +35,12 @@ import { DragItem, SortableList } from "../ui/DragDrop.jsx";
 import { EntityCombobox, FilterSelect, SearchBox } from "../ui/filters.jsx";
 import { Pager } from "../ui/Pager.jsx";
 import { UserAvatar } from "../ui/UserAvatar.jsx";
+import { ProjectPicker } from "../ui/ProjectPicker.jsx";
+import { TagPicker } from "../ui/TagPicker.jsx";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
 import { fmtDateTimeCompact } from "../lib/format.js";
 import { useListMemory } from "../lib/listReturn.js";
 import { SPACES_KEY, useKnowledgeSpaces } from "../lib/knowledgeSpaces.js";
-import { appendTag } from "./document-views.js";
 
 /* 문서 작업공간 — 탐색기 · 목록 · 보조 정보 (지시 22.4).
  *
@@ -73,9 +74,10 @@ import { appendTag } from "./document-views.js";
  * 이 화면이 계속 쓰므로 그대로 다시 내보낸다. */
 export { SPACES_KEY };
 
-/* 한 화면에 보여 주는 문서 수. 한 줄이 예전 카드보다 낮아져서 스물다섯 줄이 한 화면에
- * 들어온다 — 쉰 줄로 두면 아래 절반은 아무도 안 보면서 응답만 두 배가 된다. */
-const PAGE_SIZE = 25;
+/* 한 쪽의 문서 수. `DataTable` 이 가상 스크롤을 쓰므로(§15.1) 스물다섯 줄로 조회 상한을
+ * 만들 이유가 없어졌다 — 백 줄을 한 번에 받아도 화면은 보이는 줄만 그린다(가상화가
+ * 렌더링을 감당하고, 쪽 나누기는 순수하게 조회량만 줄인다). */
+const PAGE_SIZE = 100;
 
 /* 이 목록의 **정체**. 상세를 열었다 돌아오면 조건과 스크롤이 이 이름으로 되살아난다. */
 const LIST_KEY = "/knowledge";
@@ -130,16 +132,18 @@ function useRecent() {
 }
 
 function useDocuments(params) {
-  const { view, spaceId, folderId, q, tag, author, sort, page } = params;
+  const { view, spaceId, folderId, q, tags, author, sort, page } = params;
   return useQuery({
-    queryKey: ["knowledge", "documents", view, spaceId, folderId, q, tag, author, sort, page],
+    queryKey: ["knowledge", "documents", view, spaceId, folderId, q, tags, author, sort, page],
     queryFn: () => {
       if (view === VIEW.recent) return api("/api/knowledge/recent?limit=50");
       const search = new URLSearchParams();
       if (spaceId) search.set("space_id", spaceId);
       if (folderId) search.set("folder_id", folderId);
       if (q) search.set("q", q);
-      if (tag) search.set("tag", tag);
+      // 다중 태그는 AND 다(app/knowledge/service.py::list_documents) — 서버가 같은 이름의
+      // 반복 파라미터를 배열로 받는다.
+      (tags || []).forEach((t) => search.append("tags", t));
       if (author) search.set("created_by", author);
       if (sort) search.set("sort", sort);
       if (view === VIEW.favorites) search.set("favorites", "true");
@@ -212,8 +216,8 @@ function NavRow({ label, count, selected, indent = 0, onClick, action }) {
  * 폴더 줄에는 권한 표시가 하나도 없다 — 있으면 사람이 「여기로 옮기면 안 보이게 되겠구나」
  * 라고 잘못 믿는다. 권한은 공간을 고르는 자리에서만 말한다. */
 function Explorer({
-  spaces, spaceId, tree, folderId, view, tags, tag, summary,
-  onView, onSpace, onFolder, onTag, onNewFolder, onDeleteFolder, onReorderFolder, onNewSpace,
+  spaces, spaceId, tree, folderId, view, tagVocab, selectedTags, summary,
+  onView, onSpace, onFolder, onToggleTag, onNewFolder, onDeleteFolder, onReorderFolder, onNewSpace,
   onManageTags,
 }) {
   const folders = flatten(tree.data?.folders || []);
@@ -234,18 +238,20 @@ function Explorer({
         </Stack>
       </Section>
 
+      {/* 「공간」이라는 낱말은 관리 화면에서만 쓴다(§11.2) — 여기서는 「프로젝트」다.
+          조직 소유 공간(팀 문서)은 프로젝트가 아니므로 「공통 문서」로 부른다. */}
       <Section
-        title="문서 공간"
+        title="프로젝트"
         action={onNewSpace ? (
           <Button size="small" variant="ghost" onClick={onNewSpace}>공간 추가</Button>
         ) : null}
       >
         <Stack spacing={0.25}>
-          <NavRow label="모든 공간" selected={!spaceId} onClick={() => onSpace("")} />
+          <NavRow label="전체" selected={!spaceId} onClick={() => onSpace("")} />
           {spaces.map((space) => (
             <NavRow
               key={space.id}
-              label={space.name}
+              label={spaceDisplayName(space)}
               selected={spaceId === space.id}
               onClick={() => onSpace(space.id)}
             />
@@ -299,26 +305,29 @@ function Explorer({
         title="태그"
         action={<Button size="small" variant="ghost" onClick={onManageTags}>태그 관리</Button>}
       >
-        {tags.length === 0 ? (
+        {tagVocab.length === 0 ? (
           <Typography variant="body2" color="text.secondary" sx={KO_WORD_BREAK}>
             문서에 태그를 붙이면 여기에서 태그로 좁힐 수 있습니다.
           </Typography>
         ) : (
           <Stack direction="row" spacing={0.5} sx={{ flexWrap: "wrap", rowGap: 0.5 }}>
-            {tags.slice(0, 12).map((t) => (
-              <Chip
-                key={t.id}
-                component="button"
-                type="button"
-                clickable
-                size="small"
-                label={t.name}
-                aria-pressed={tag === t.slug}
-                color={tag === t.slug ? "primary" : "default"}
-                variant={tag === t.slug ? "filled" : "outlined"}
-                onClick={() => onTag(tag === t.slug ? "" : t.slug)}
-              />
-            ))}
+            {tagVocab.slice(0, 12).map((t) => {
+              const on = selectedTags.includes(t.name);
+              return (
+                <Chip
+                  key={t.id}
+                  component="button"
+                  type="button"
+                  clickable
+                  size="small"
+                  label={t.name}
+                  aria-pressed={on}
+                  color={on ? "primary" : "default"}
+                  variant={on ? "filled" : "outlined"}
+                  onClick={() => onToggleTag(t.name)}
+                />
+              );
+            })}
           </Stack>
         )}
       </Section>
@@ -412,33 +421,6 @@ function Rail({ recent, favorites, templates, onOpen, onTemplate }) {
           </Stack>
         </Section>
       </Card>
-    </Stack>
-  );
-}
-
-/** 이미 있는 태그를 눌러서 고른다. **새로 적는 것도 그대로 된다** — 고르는 자리를 준다고
- * 적는 자리를 막지 않는다(지시 22-5 는 둘 다 요구한다). */
-function TagPicker({ tags, value, onPick }) {
-  if (!tags.length) return null;
-  const chosen = new Set(
-    String(value || "").split(",").map((t) => t.trim().toLowerCase()).filter(Boolean),
-  );
-  return (
-    <Stack direction="row" spacing={0.5} sx={{ flexWrap: "wrap", rowGap: 0.5 }}>
-      {tags.slice(0, 20).map((t) => (
-        <Chip
-          key={t.id}
-          component="button"
-          type="button"
-          clickable
-          size="small"
-          label={t.name}
-          aria-pressed={chosen.has(t.name.toLowerCase())}
-          variant={chosen.has(t.name.toLowerCase()) ? "filled" : "outlined"}
-          color={chosen.has(t.name.toLowerCase()) ? "primary" : "default"}
-          onClick={() => onPick(t.name)}
-        />
-      ))}
     </Stack>
   );
 }
@@ -538,7 +520,7 @@ function TagManager({ open, onClose, tags, canManage, busy, onAdd, onRename, onR
                   <>
                     <Typography sx={{ ...KO_WORD_BREAK, flex: 1, minWidth: 0 }}>{tag.name}</Typography>
                     <Typography variant="caption" color="text.secondary" sx={{ flexShrink: 0 }}>
-                      문서 {tag.documents ?? 0}건
+                      문서 {tag.document_count ?? 0}건
                     </Typography>
                     {canManage ? (
                       <>
@@ -584,8 +566,14 @@ function TagManager({ open, onClose, tags, canManage, busy, onAdd, onRename, onR
  *
  * 본문까지 미리 그리려면 네 벌의 Block JSON 을 받아야 한다. 고르는 사람이 알고 싶은 것은
  * 「이 틀이 무엇을 채워 주는가」이고, 그건 한 문장이면 된다. */
+/** 공간 목록의 표시 이름 — 프로젝트 소유는 그 이름 그대로, 조직 소유는 「공통 문서」로
+ * 부른다(§11.2). "공간"이라는 낱말을 일반 사용자 화면에 쓰지 않는다. */
+function spaceDisplayName(space) {
+  return space.owner_kind === "organization" ? "공통 문서" : space.name;
+}
+
 function NewDocumentModal({
-  open, onClose, onSubmit, busy, spaces, folders, templates, tags, initial,
+  open, onClose, onSubmit, busy, spaces, folders, templates, initial,
 }) {
   const [values, setValues] = React.useState(initial);
   React.useEffect(() => { if (open) setValues(initial); }, [open, initial]);
@@ -634,18 +622,20 @@ function NewDocumentModal({
           <TextField
             select
             required
-            label="공간"
+            label="프로젝트"
             value={values.space_id}
             onChange={(e) => set({ space_id: e.target.value, folder_id: "" })}
             InputLabelProps={{ shrink: true }}
             helperText={
               spaceRow
-                ? "이 공간을 볼 수 있는 사람이 이 문서를 볼 수 있습니다."
-                : "문서가 속할 공간을 고릅니다."
+                ? "이 프로젝트를 볼 수 있는 사람이 이 문서를 볼 수 있습니다."
+                : "문서가 속할 프로젝트를 고릅니다."
             }
             fullWidth
           >
-            {spaces.map((s) => <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>)}
+            {spaces.map((s) => (
+              <MenuItem key={s.id} value={s.id}>{spaceDisplayName(s)}</MenuItem>
+            ))}
           </TextField>
           <TextField
             select
@@ -661,21 +651,11 @@ function NewDocumentModal({
               <MenuItem key={f.id} value={f.id}>{"　".repeat(f.depth) + f.name}</MenuItem>
             ))}
           </TextField>
-          <Stack spacing={1}>
-            <TextField
-              label="태그"
-              value={values.tags}
-              onChange={(e) => set({ tags: e.target.value })}
-              InputLabelProps={{ shrink: true }}
-              helperText="쉼표로 나눠 적습니다. 없는 태그를 적으면 새로 만들어집니다."
-              fullWidth
-            />
-            <TagPicker
-              tags={tags}
-              value={values.tags}
-              onPick={(name) => set({ tags: appendTag(values.tags, name) })}
-            />
-          </Stack>
+          <TagPicker
+            value={values.tags}
+            onChange={(next) => set({ tags: next })}
+            helperText="검색하거나 없는 이름을 적어 새로 만듭니다."
+          />
         </Stack>
 
         <Stack spacing={1.5}>
@@ -730,7 +710,7 @@ export function Knowledge() {
   const spaceId = params.get("space") || "";
   const folderId = params.get("folder") || "";
   const q = params.get("q") || "";
-  const tag = params.get("tag") || "";
+  const tags = params.getAll("tags");
   const author = params.get("author") || "";
   const sort = params.get("sort") || "recent";
   const view = params.get("view") || VIEW.all;
@@ -738,17 +718,22 @@ export function Knowledge() {
 
   /* 주소를 고칠 때 지금 조건을 그대로 들고 간다 — 쪽을 넘겼다고 검색어가 사라지면
    * 사용자는 방금 무엇을 보고 있었는지 다시 만들어야 한다. `page` 는 조건이 바뀌면
-   * 1로 돌아간다: 세 번째 쪽을 보다가 검색을 하면 결과가 한 쪽뿐인데 빈 화면이 뜬다. */
+   * 1로 돌아간다: 세 번째 쪽을 보다가 검색을 하면 결과가 한 쪽뿐인데 빈 화면이 뜬다.
+   *
+   * `tags` 는 배열이라 다른 축과 다르게 다룬다 — patch 에 `tags` 가 있으면 그 배열을
+   * 그대로 쓰고, 없으면 지금 값을 들고 간다(react-router 의 `setParams` 는 배열 값을
+   * 같은 키 반복으로 직렬화한다). */
   const setQuery = (patch, { keepPage = false } = {}) => {
     const next = {};
     if (spaceId) next.space = spaceId;
     if (folderId) next.folder = folderId;
     if (q) next.q = q;
-    if (tag) next.tag = tag;
     if (author) next.author = author;
     if (sort && sort !== "recent") next.sort = sort;
     if (view) next.view = view;
     if (keepPage && page > 1) next.page = String(page);
+    const nextTags = "tags" in patch ? patch.tags : tags;
+    delete patch.tags;
     Object.entries(patch).forEach(([key, value]) => {
       if (value === null || value === undefined || value === "" || value === false) {
         delete next[key];
@@ -756,6 +741,7 @@ export function Knowledge() {
         next[key] = value === true ? "1" : String(value);
       }
     });
+    if (nextTags && nextTags.length) next.tags = nextTags;
     setParams(next);
   };
 
@@ -780,11 +766,11 @@ export function Knowledge() {
   }, [spaceId, items, setParams]);
 
   const tree = useTree(spaceId);
-  const tags = useTags();
+  const tagsQuery = useTags();
   const summary = useSummary();
   const templates = useTemplates();
   const recent = useRecent();
-  const documents = useDocuments({ view, spaceId, folderId, q, tag, author, sort, page });
+  const documents = useDocuments({ view, spaceId, folderId, q, tags, author, sort, page });
 
   const [folderForm, setFolderForm] = React.useState(false);
   const [spaceForm, setSpaceForm] = React.useState(false);
@@ -821,7 +807,7 @@ export function Knowledge() {
       const moved = data?.documents_moved_to_root || 0;
       toast(
         moved
-          ? `폴더를 지웠고 문서 ${moved}건이 공간 첫 화면으로 올라왔습니다.`
+          ? `폴더를 지웠고 문서 ${moved}건이 정리 안 함 상태가 됐습니다.`
           : "폴더를 지웠습니다.",
       );
     },
@@ -907,7 +893,7 @@ export function Knowledge() {
   );
 
   const folders = flatten(tree.data?.folders || []);
-  const tagRows = tags.data?.items || [];
+  const tagRows = tagsQuery.data?.items || [];
   const templateRows = templates.data?.items || [];
   const summaryRow = summary.data;
   const rows = documents.data?.items || [];
@@ -956,9 +942,10 @@ export function Knowledge() {
               {doc.excerpt}
             </Typography>
           ) : null}
-          {(doc.doc_type || (doc.tags || []).length > 0) ? (
+          {/* 제목 칸의 칩은 기술 태그만이다(§11.3) — doc_type 은 폴더 열 옆의 보조 글자로
+              내린다. 프로젝트 이름이 태그로 안 남는 것도 같은 원칙(0024)의 결과다. */}
+          {(doc.tags || []).length > 0 ? (
             <Stack direction="row" spacing={0.5} sx={{ flexWrap: "wrap", rowGap: 0.5, mt: 0.25 }}>
-              {doc.doc_type ? <Chip size="small" variant="outlined" label={doc.doc_type} /> : null}
               {(doc.tags || []).map((t) => <Chip key={t.id} size="small" label={t.name} />)}
             </Stack>
           ) : null}
@@ -966,13 +953,22 @@ export function Knowledge() {
       ),
     },
     {
-      key: "place", label: "공간", type: "name", minWidth: "10rem",
+      key: "place", label: "프로젝트", type: "name", minWidth: "10rem",
       render: (doc) => (
         <Box sx={{ display: "grid", gap: 0.25, minWidth: 0 }}>
-          <Typography variant="body2" sx={KO_WORD_BREAK}>{doc.space_name || "-"}</Typography>
+          <Typography variant="body2" sx={KO_WORD_BREAK}>
+            {doc.project ? doc.project.name : "공통 문서"}
+          </Typography>
           {doc.folder_path ? (
             <Typography variant="caption" color="text.secondary" sx={KO_WORD_BREAK}>
               {doc.folder_path}
+            </Typography>
+          ) : null}
+          {/* doc_type 은 칩이 아니라 폴더 옆의 보조 글자다(§11.3) — 기술 태그와 섞이면
+              "이 문서가 다루는 기술"과 "이 문서의 종류"가 같은 모양으로 보인다. */}
+          {doc.doc_type ? (
+            <Typography variant="caption" color="text.secondary" sx={KO_WORD_BREAK}>
+              {doc.doc_type}
             </Typography>
           ) : null}
         </Box>
@@ -1043,14 +1039,14 @@ export function Knowledge() {
         <EmptyState
           layout="page"
           art="docs"
-          title="볼 수 있는 지식 공간이 없습니다."
-          help="관리자가 공간을 만들면 여기에 나타납니다."
+          title="볼 수 있는 프로젝트 문서가 없습니다."
+          help="관리자가 프로젝트를 만들면 여기에 나타납니다."
         />
       </>
     );
   }
 
-  const hasFilter = Boolean(q || tag || author || folderId || view);
+  const hasFilter = Boolean(q || tags.length || author || folderId || view);
 
   return (
     <>
@@ -1070,7 +1066,7 @@ export function Knowledge() {
               variant="primary"
               onClick={() => setNewDoc({
                 title: "", space_id: spaceId || items[0].id, folder_id: folderId || "",
-                tags: "", template: "blank",
+                tags: [], template: "blank",
               })}
             >
               새 문서
@@ -1134,13 +1130,16 @@ export function Knowledge() {
           tree={tree}
           folderId={folderId}
           view={view}
-          tags={tagRows}
-          tag={tag}
+          tagVocab={tagRows}
+          selectedTags={tags}
           summary={summaryRow}
           onView={(next) => setQuery({ view: next || null, page: null })}
           onSpace={(next) => setQuery({ space: next || null, folder: null, page: null })}
           onFolder={(next) => setQuery({ folder: next || null, page: null })}
-          onTag={(next) => setQuery({ tag: next || null, page: null })}
+          onToggleTag={(name) => setQuery({
+            tags: tags.includes(name) ? tags.filter((t) => t !== name) : [...tags, name],
+            page: null,
+          })}
           onNewFolder={() => setFolderForm(true)}
           onDeleteFolder={(folder) => removeFolder.mutate(folder.id)}
           onReorderFolder={({ id, beforeId, afterId }) =>
@@ -1160,14 +1159,12 @@ export function Knowledge() {
               />
             </ToolbarRow>
             <FilterRow>
-              {/* 빈 값 항목은 `FilterSelect` 가 스스로 그린다 — 여기서 또 넣으면
-                  「전체」가 두 줄이 된다. */}
-              <FilterSelect
-                label="태그"
-                allLabel="전체"
-                value={tag}
-                onChange={(v) => setQuery({ tag: v || null, page: null })}
-                options={tagRows.map((t) => ({ value: t.slug, label: t.name }))}
+              {/* 다중 선택은 AND 다 — 고른 태그를 전부 가진 문서로 좁힌다(§11.3).
+                  값은 이름 배열이라 문서 저장 계약과 같다(slug 를 화면이 따로 안 다룬다). */}
+              <TagPicker
+                label="기술 태그"
+                value={tags}
+                onChange={(next) => setQuery({ tags: next, page: null })}
               />
               {/* 사람은 **기수가 무한히 자라는 대상**이다 — 사람이 늘면 후보도 는다. 평범한
                   드롭다운으로 두면 이름을 알면서도 목록을 눈으로 훑게 된다(C2 · R-5).
@@ -1191,7 +1188,7 @@ export function Knowledge() {
                     variant="ghost"
                     size="sm"
                     onClick={() => setQuery({
-                      q: null, tag: null, author: null, folder: null, view: null, page: null,
+                      q: null, tags: [], author: null, folder: null, view: null, page: null,
                     })}
                   >
                     필터 지우기
@@ -1213,7 +1210,7 @@ export function Knowledge() {
                 <ListEmptyState
                   filtered={hasFilter}
                   onClear={() => setQuery({
-                    q: null, tag: null, author: null, folder: null, view: null, page: null,
+                    q: null, tags: [], author: null, folder: null, view: null, page: null,
                   })}
                   clearLabel="검색, 필터 지우기"
                   filteredTitle="조건에 맞는 문서가 없습니다"
@@ -1228,6 +1225,7 @@ export function Knowledge() {
                   rowKey={(d) => d.id}
                   onRow={openDoc}
                   loading={documents.isLoading}
+                  virtualize={rows.length > 60 ? {} : undefined}
                 />
               )}
             </Card>
@@ -1251,7 +1249,7 @@ export function Knowledge() {
             onOpen={openDoc}
             onTemplate={(id) => setNewDoc({
               title: "", space_id: spaceId || items[0].id, folder_id: folderId || "",
-              tags: "", template: id,
+              tags: [], template: id,
             })}
           />
         </Box>
@@ -1320,7 +1318,7 @@ export function Knowledge() {
         onRemove={async (tag) => {
           /* 몇 건에서 떼어지는지를 **묻는 문장에** 넣는다. 0건인 태그를 지우는 것과 서른
              건에서 떼는 것은 다른 일이고, 확인 문구가 그 차이를 말해야 한다. */
-          const used = tag.documents ?? 0;
+          const used = tag.document_count ?? 0;
           const ok = await confirm(
             used
               ? `문서 ${used}건에서 이 태그가 떨어집니다. 문서 자체는 그대로 남습니다.`
@@ -1333,11 +1331,10 @@ export function Knowledge() {
 
       <NewDocumentModal
         open={Boolean(newDoc)}
-        initial={newDoc || { title: "", space_id: "", folder_id: "", tags: "", template: "blank" }}
+        initial={newDoc || { title: "", space_id: "", folder_id: "", tags: [], template: "blank" }}
         spaces={items}
         folders={folders}
         templates={templateRows}
-        tags={tagRows}
         busy={createDocument.isPending}
         onClose={() => setNewDoc(null)}
         onSubmit={(values) => createDocument.mutate({
@@ -1345,9 +1342,7 @@ export function Knowledge() {
           title: values.title.trim(),
           folder_id: values.folder_id || null,
           template: values.template || null,
-          tag_names: values.tags
-            ? values.tags.split(",").map((t) => t.trim()).filter(Boolean)
-            : null,
+          tag_names: values.tags && values.tags.length ? values.tags : null,
         })}
       />
     </>

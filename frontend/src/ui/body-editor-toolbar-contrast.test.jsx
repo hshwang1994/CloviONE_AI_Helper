@@ -84,10 +84,12 @@ function renderEditor() {
 }
 
 describe("작성 도움 툴바 — 버튼이 카드 배경과 구별되는 배경을 스스로 선언한다", () => {
-  it("서식 버튼(제목)에 우리가 준 배경색이 선언돼 있다", () => {
+  it("서식 버튼(제목1/2/3)에 우리가 준 배경색이 선언돼 있다", () => {
+    // 제목 단추가 셋으로 늘었다(REAUDIT §15.4 — BlockEditor 와 기능 집합을 맞춘다).
     const { getByRole } = renderEditor();
-    const btn = getByRole("button", { name: "제목" });
-    expect(hasOwnBackground(btn)).toBe(true);
+    for (const name of ["제목1", "제목2", "제목3"]) {
+      expect(hasOwnBackground(getByRole("button", { name }))).toBe(true);
+    }
   });
 
   it("서식 버튼(글머리/번호/구분선)에도 배경색이 선언돼 있다", () => {

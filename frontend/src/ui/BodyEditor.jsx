@@ -131,10 +131,17 @@ export function BodyEditor({ id, value, onChange, rows = 12, placeholder, label 
         aria-label={label ? label + " 서식 도구" : "본문 서식"}
         sx={{ display: "flex", alignItems: "center", gap: 0.5, flexWrap: "wrap", mb: 1 }}
       >
-        {/* 도구는 **렌더러가 실제로 그리는 것만** 있다 (지시 10). 아홉 다
+        {/* 도구는 **렌더러가 실제로 그리는 것만** 있다 (지시 10). 열하나 다
             `app/core/notion_blocks.py` 가 블록으로 만들고 `ui/DocBody.jsx` 가 그린다 —
-            숫자를 늘리려고 렌더러가 모르는 버튼을 넣지 않는다. */}
-        <MuiButton size="small" variant="outlined" color="inherit" sx={fmtBtn} onClick={() => prefixLine("## ")}>제목</MuiButton>
+            숫자를 늘리려고 렌더러가 모르는 버튼을 넣지 않는다.
+
+            제목은 REAUDIT §15.4 에서 셋으로 늘었다(문서 편집기 `BlockEditor.jsx` 와
+            기능 집합을 맞춘다) — 예전에는 단추 하나가 `##`(제목2) 로 고정돼 있었지만,
+            `markdown_to_blocks` 는 처음부터 `#`·`##`·`###` 셋을 다 읽고 있었다. 렌더러가
+            이미 아는 것을 도구가 하나만 주고 있었을 뿐이다. */}
+        <MuiButton size="small" variant="outlined" color="inherit" sx={fmtBtn} onClick={() => prefixLine("# ")}>제목1</MuiButton>
+        <MuiButton size="small" variant="outlined" color="inherit" sx={fmtBtn} onClick={() => prefixLine("## ")}>제목2</MuiButton>
+        <MuiButton size="small" variant="outlined" color="inherit" sx={fmtBtn} onClick={() => prefixLine("### ")}>제목3</MuiButton>
         <MuiButton size="small" variant="outlined" color="inherit" sx={fmtBtn} onClick={() => prefixLine("- ")}>글머리</MuiButton>
         <MuiButton size="small" variant="outlined" color="inherit" sx={fmtBtn} onClick={() => prefixLine("1. ")}>번호</MuiButton>
         <MuiButton size="small" variant="outlined" color="inherit" sx={fmtBtn} onClick={() => prefixLine("- [ ] ")}>체크</MuiButton>

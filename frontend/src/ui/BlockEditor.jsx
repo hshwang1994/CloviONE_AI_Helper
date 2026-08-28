@@ -2,16 +2,46 @@ import React from "react";
 import Box from "@mui/material/Box";
 import Divider from "@mui/material/Divider";
 import MuiButton from "@mui/material/Button";
+import IconButton from "@mui/material/IconButton";
+import Popover from "@mui/material/Popover";
 import Stack from "@mui/material/Stack";
+import TextField from "@mui/material/TextField";
+import Tooltip from "@mui/material/Tooltip";
 import { alpha } from "@mui/material/styles";
 import { useEditor, EditorContent } from "@tiptap/react";
 import { Extension, Node, mergeAttributes } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
+import Underline from "@tiptap/extension-underline";
+import TaskList from "@tiptap/extension-task-list";
+import TaskItem from "@tiptap/extension-task-item";
+import Link from "@tiptap/extension-link";
+import Placeholder from "@tiptap/extension-placeholder";
 import Image from "@tiptap/extension-image";
 import Table from "@tiptap/extension-table";
 import TableRow from "@tiptap/extension-table-row";
 import TableHeader from "@tiptap/extension-table-header";
 import TableCell from "@tiptap/extension-table-cell";
+import FormatBoldRoundedIcon from "@mui/icons-material/FormatBoldRounded";
+import FormatItalicRoundedIcon from "@mui/icons-material/FormatItalicRounded";
+import FormatUnderlinedRoundedIcon from "@mui/icons-material/FormatUnderlinedRounded";
+import FormatStrikethroughRoundedIcon from "@mui/icons-material/FormatStrikethroughRounded";
+import CodeRoundedIcon from "@mui/icons-material/CodeRounded";
+import LooksOneRoundedIcon from "@mui/icons-material/LooksOneRounded";
+import LooksTwoRoundedIcon from "@mui/icons-material/LooksTwoRounded";
+import Looks3RoundedIcon from "@mui/icons-material/Looks3Rounded";
+import FormatQuoteRoundedIcon from "@mui/icons-material/FormatQuoteRounded";
+import TerminalRoundedIcon from "@mui/icons-material/TerminalRounded";
+import HorizontalRuleRoundedIcon from "@mui/icons-material/HorizontalRuleRounded";
+import FormatListBulletedRoundedIcon from "@mui/icons-material/FormatListBulletedRounded";
+import FormatListNumberedRoundedIcon from "@mui/icons-material/FormatListNumberedRounded";
+import ChecklistRoundedIcon from "@mui/icons-material/ChecklistRounded";
+import TableChartRoundedIcon from "@mui/icons-material/TableChartRounded";
+import InsertLinkRoundedIcon from "@mui/icons-material/InsertLinkRounded";
+import InsertPhotoRoundedIcon from "@mui/icons-material/InsertPhotoRounded";
+import InsertEmoticonRoundedIcon from "@mui/icons-material/InsertEmoticonRounded";
+import UndoRoundedIcon from "@mui/icons-material/UndoRounded";
+import RedoRoundedIcon from "@mui/icons-material/RedoRounded";
+import { EmojiPicker } from "./EmojiPicker.jsx";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "./theme.js";
 
 /* 블록 편집기 — 본문의 정본이 Block JSON 이라는 결정(D-198)의 화면 쪽 절반이다 (S7).
@@ -42,7 +72,7 @@ const BLOCK_ID_ATTR = "blockId";
  * 앵커 없이 저장돼 서버가 새 id 를 발급한다 — 둘 다 인용이 끊기는 길이다. */
 const ANCHORED_NODES = [
   "paragraph", "heading", "bulletList", "orderedList", "blockquote",
-  "codeBlock", "horizontalRule", "image", "table",
+  "codeBlock", "horizontalRule", "image", "table", "taskList",
 ];
 
 /* 서버가 준 `blockId` 를 편집 중에도 들고 있다가 그대로 돌려주는 전역 속성.
@@ -105,45 +135,151 @@ const Mention = Node.create({
 
 export const EMPTY_DOC = { type: "doc", content: [] };
 
-/* 서식 도구. 이모지를 안 쓴다 — 화면에서 이모지를 전수 제거한 결정과 같은 자리이고,
- * 도구가 스스로 그것을 권하면 안 된다(`BodyEditor.jsx` 가 같은 이유로 여덟 개를 없앴다).
+/* 서식 도구 — **묶음 다섯**(REAUDIT §15.4). 글자 단추 열다섯 개가 한 줄로 늘어서 있던
+ * 자리를 아이콘 + 묶음으로 다시 짰다.
  *
  * ## 목록은 **렌더러가 아는 것**과 정확히 같다 (지시 22.6)
  *
  * 서버의 `BLOCK_NODES`·`MARKS`(app/knowledge/blocks.py)가 그 목록이다. 거기 없는 노드를
  * 만드는 버튼을 두면 사용자는 그 서식을 쓰고 저장했다가 **다시 열었을 때 사라진 것**을
- * 본다 — 저장이 실패하는 것도 아니라서 원인을 짐작할 수 없다. 그래서 밑줄과 체크 목록은
- * 여기 없다: 둘 다 렌더러에 노드가 없고, 노드를 더하는 것은 파생(markdown·본문 텍스트)과
- * 차이 계산과 AI 색인까지 함께 손대는 일이라 이 회차의 범위가 아니다.
+ * 본다 — 저장이 실패하는 것도 아니라서 원인을 짐작할 수 없다. 밑줄과 체크 목록이 이번에
+ * 들어온 이유가 그것이다: 서버 스키마가 `underline` 마크와 `taskList`/`taskItem` 노드를
+ * 받아들이도록 먼저 넓어졌다(파생·차이 계산·색인까지 함께).
  *
- * 지시가 이름으로 적은 나머지는 전부 있다 — 제목 셋 · 굵게 · 기울임 · 취소선 · 글머리 ·
- * 번호 · 인용 · 코드 · 코드 블록 · 구분선 · 표 · 되돌리기 · 다시 실행. 이미지는 문서에
- * 붙이는 일이라 부르는 쪽이 `onPickImage` 를 줄 때만 선다. */
-const TOOLS = [
-  { id: "h1", label: "제목1", run: (c) => c.toggleHeading({ level: 1 }), on: ["heading", { level: 1 }] },
-  { id: "h2", label: "제목2", run: (c) => c.toggleHeading({ level: 2 }), on: ["heading", { level: 2 }] },
-  { id: "h3", label: "제목3", run: (c) => c.toggleHeading({ level: 3 }), on: ["heading", { level: 3 }] },
-  { id: "bold", label: "굵게", run: (c) => c.toggleBold(), on: "bold" },
-  { id: "italic", label: "기울임", run: (c) => c.toggleItalic(), on: "italic" },
-  { id: "strike", label: "취소선", run: (c) => c.toggleStrike(), on: "strike" },
-  { id: "code", label: "코드", run: (c) => c.toggleCode(), on: "code" },
-  { id: "codeBlock", label: "코드 블록", run: (c) => c.toggleCodeBlock(), on: "codeBlock" },
-  { id: "bullet", label: "글머리", run: (c) => c.toggleBulletList(), on: "bulletList" },
-  { id: "ordered", label: "번호", run: (c) => c.toggleOrderedList(), on: "orderedList" },
-  { id: "quote", label: "인용", run: (c) => c.toggleBlockquote(), on: "blockquote" },
-  { id: "rule", label: "구분선", run: (c) => c.setHorizontalRule(), on: null },
+ * 이모지는 이번에 **새로 만들지 않는다** — `EmojiPicker.jsx` 가 이미 있고
+ * `BodyEditor.jsx`(티켓 본문)가 같은 부품을 쓴다. 두 편집기가 같은 이모지 표를 쓰는 것이
+ * 자연스럽다(REAUDIT §15.4 point 4, 기능 집합을 맞춘다). 툴바에 이모지 여덟 개를 박아
+ * 권하던 옛 자리와는 다르다 — 여기도 **눌러서 여는 고르개**뿐이다.
+ *
+ * 멘션은 아직 없다. 이 파일의 `Mention` 노드는 **서버가 이미 보낸 멘션을 그리고 그대로
+ * 돌려주는 것**만 한다 — `@` 를 치면 사용자·티켓·문서를 검색해 주는 자동완성이 없다.
+ * 그 자동완성 없이 버튼만 두면 「눌렀는데 아무 일도 안 난다」가 되므로, 자동완성이 생기는
+ * 날 버튼도 같이 생긴다. */
+function toolButtonSx(active) {
+  /* 선택은 **잉크(글자색) + 옅은 배경 물듦**으로 말한다 — MUI 기본 회색 `Mui-selected`
+   * 채움은 이 제품이 이미 버린 어휘다(`screens/Activity.jsx` 의 D-289 실측: 옅은 회색
+   * 채움이 다른 자리의 회색 hover 와 섞여 「선택 안 됨」으로 오독됐다). 여기서는 Brand
+   * 잉크(`brand.core`)로 색을 주고 채움은 그 잉크의 옅은 알파일 뿐, 새 회색을 안 만든다. */
+  return (theme) => ({
+    color: active ? theme.palette.brand.core : theme.palette.text.secondary,
+    backgroundColor: active ? alpha(theme.palette.brand.core, 0.12) : "transparent",
+    borderRadius: 1,
+    "&:hover": {
+      backgroundColor: active
+        ? alpha(theme.palette.brand.core, 0.18)
+        : alpha(theme.palette.text.primary, 0.06),
+    },
+  });
+}
+
+const TOOL_GROUPS = [
   {
-    id: "table", label: "표",
-    run: (c) => c.insertTable({ rows: 3, cols: 3, withHeaderRow: true }),
-    on: "table",
+    id: "format", label: "서식",
+    tools: [
+      { id: "bold", label: "굵게", Icon: FormatBoldRoundedIcon, run: (c) => c.toggleBold(), on: "bold" },
+      { id: "italic", label: "기울임", Icon: FormatItalicRoundedIcon, run: (c) => c.toggleItalic(), on: "italic" },
+      { id: "underline", label: "밑줄", Icon: FormatUnderlinedRoundedIcon, run: (c) => c.toggleUnderline(), on: "underline" },
+      { id: "strike", label: "취소선", Icon: FormatStrikethroughRoundedIcon, run: (c) => c.toggleStrike(), on: "strike" },
+      { id: "code", label: "코드", Icon: CodeRoundedIcon, run: (c) => c.toggleCode(), on: "code" },
+    ],
   },
-  { id: "undo", label: "되돌리기", run: (c) => c.undo(), on: null },
-  { id: "redo", label: "다시 실행", run: (c) => c.redo(), on: null },
+  {
+    id: "paragraph", label: "문단",
+    tools: [
+      { id: "h1", label: "제목1", Icon: LooksOneRoundedIcon, run: (c) => c.toggleHeading({ level: 1 }), on: ["heading", { level: 1 }] },
+      { id: "h2", label: "제목2", Icon: LooksTwoRoundedIcon, run: (c) => c.toggleHeading({ level: 2 }), on: ["heading", { level: 2 }] },
+      { id: "h3", label: "제목3", Icon: Looks3RoundedIcon, run: (c) => c.toggleHeading({ level: 3 }), on: ["heading", { level: 3 }] },
+      { id: "quote", label: "인용", Icon: FormatQuoteRoundedIcon, run: (c) => c.toggleBlockquote(), on: "blockquote" },
+      { id: "codeBlock", label: "코드 블록", Icon: TerminalRoundedIcon, run: (c) => c.toggleCodeBlock(), on: "codeBlock" },
+      { id: "rule", label: "구분선", Icon: HorizontalRuleRoundedIcon, run: (c) => c.setHorizontalRule(), on: null },
+    ],
+  },
+  {
+    id: "list", label: "목록",
+    tools: [
+      { id: "bullet", label: "글머리", Icon: FormatListBulletedRoundedIcon, run: (c) => c.toggleBulletList(), on: "bulletList" },
+      { id: "ordered", label: "번호", Icon: FormatListNumberedRoundedIcon, run: (c) => c.toggleOrderedList(), on: "orderedList" },
+      { id: "checklist", label: "체크 목록", Icon: ChecklistRoundedIcon, run: (c) => c.toggleTaskList(), on: "taskList" },
+    ],
+  },
+  {
+    id: "insert", label: "삽입",
+    tools: [
+      {
+        id: "table", label: "표",
+        Icon: TableChartRoundedIcon,
+        run: (c) => c.insertTable({ rows: 3, cols: 3, withHeaderRow: true }),
+        on: "table",
+      },
+    ],
+  },
+  {
+    id: "history", label: "실행",
+    tools: [
+      { id: "undo", label: "되돌리기", Icon: UndoRoundedIcon, run: (c) => c.undo(), on: null },
+      { id: "redo", label: "다시 실행", Icon: RedoRoundedIcon, run: (c) => c.redo(), on: null },
+    ],
+  },
 ];
 
 function isActive(editor, on) {
   if (!editor || on == null) return false;
   return Array.isArray(on) ? editor.isActive(on[0], on[1]) : editor.isActive(on);
+}
+
+/* 링크 주소를 묻는 가벼운 팝오버 — `window.prompt` 대신 쓴다. 브라우저 기본 대화상자는
+ * 이 저장소의 브라우저 자동화 지침이 다루기 어려워하는 대상이고(포커스를 페이지 밖으로
+ * 던진다), 이름도 없고 테마도 안 탄다. 앵커에서 여는 작은 팝오버는 이 파일의 이웃
+ * (`EmojiPicker.jsx`)과 `columnFilter.jsx` 가 이미 쓰는 관례라 새 패턴이 아니다.
+ *
+ * 이미 링크인 자리에서 열면 현재 주소가 입력칸에 채워진다(`initialHref`) — 링크를
+ * 지우려고 전부 다시 치게 하지 않는다. */
+function LinkPopover({ anchorEl, initialHref, onClose, onSubmit, onRemove }) {
+  const [href, setHref] = React.useState(initialHref || "");
+  React.useEffect(() => {
+    if (anchorEl) setHref(initialHref || "");
+  }, [anchorEl, initialHref]);
+
+  const submit = (e) => {
+    e.preventDefault();
+    const trimmed = href.trim();
+    if (trimmed) onSubmit(trimmed);
+  };
+
+  // Paper 자체에는 이름을 안 준다 — 안의 `TextField` 라벨("링크 주소")과 겹치면
+  // `getByLabelText` 류 조회가 둘을 다 찾아 어느 쪽인지 알 수 없다. `ColumnFilterPopover`
+  // 도 같은 이유로 안의 필드 라벨 하나에만 기댄다.
+  return (
+    <Popover
+      open={!!anchorEl}
+      anchorEl={anchorEl}
+      onClose={onClose}
+      anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
+      transformOrigin={{ vertical: "top", horizontal: "left" }}
+      slotProps={{ paper: { sx: { p: 1.5 } } }}
+    >
+      <Box component="form" onSubmit={submit} sx={{ display: "flex", gap: 1, alignItems: "flex-start", width: "20rem" }}>
+        <TextField
+          autoFocus
+          size="small"
+          fullWidth
+          label="링크 주소"
+          placeholder="https://"
+          value={href}
+          onChange={(e) => setHref(e.target.value)}
+          InputLabelProps={{ shrink: true }}
+        />
+        {initialHref ? (
+          <MuiButton type="button" size="small" color="inherit" onClick={onRemove} sx={{ flexShrink: 0 }}>
+            삭제
+          </MuiButton>
+        ) : null}
+        <MuiButton type="submit" size="small" variant="contained" sx={{ flexShrink: 0 }}>
+          적용
+        </MuiButton>
+      </Box>
+    </Popover>
+  );
 }
 
 /* 편집기 한 대.
@@ -156,10 +292,32 @@ export function BlockEditor({ value, onChange, readOnly = false, label = "본문
     editable: !readOnly,
     extensions: [
       StarterKit.configure({
-        // 링크는 StarterKit 밖이다(별도 확장). 지금은 붙여 넣은 링크를 **그대로 보존**하되
-        // 편집기가 새로 만들지는 않는다 — 서버가 위험한 스킴을 떼어 내므로 저장은 안전하고,
-        // 도구를 안 주는 것은 아직 그 UI 를 설계하지 않았기 때문이다.
+        // 링크는 StarterKit 밖이다(별도 확장) — 아래에서 따로 등록한다.
         heading: { levels: [1, 2, 3] },
+      }),
+      /* 밑줄·체크 목록(REAUDIT §15.4). 서버 스키마(app/knowledge/blocks.py)가 `underline`
+       * 마크와 `taskList`/`taskItem` 노드를 받아들이도록 먼저 넓어진 뒤에야 여기 넣을 수
+       * 있었다 — 순서를 바꾸면(먼저 버튼부터) 쓰고 저장했다가 다시 열었을 때 사라진다. */
+      Underline,
+      TaskList,
+      /* `nested: true` — 체크 목록 항목 안에 체크 목록을 또 넣을 수 있게 한다(Tab 로
+       * 들여쓰기). 서버도 이것을 막지 않는다: `taskItem` 은 `listItem` 과 같은 자리라
+       * `NODE_CHILDREN` 에 제 나름의 제한이 없다(중첩 `bulletList` 를 담는 `listItem` 과
+       * 정확히 같은 모양이다). */
+      TaskItem.configure({ nested: true }),
+      /* 링크. 자동으로는 안 만든다(`autolink`·`linkOnPaste` 모두 끔) — 링크는 아래
+       * 도구모음의 「링크」 단추로 사용자가 명시적으로 만든다. `openOnClick` 도 끈다 —
+       * 편집 중에 링크를 누르면 커서를 두는 대신 새 탭이 열려서, 그 자리를 고치려던
+       * 사용자가 매번 방해받는다. 읽기 전용 화면(`BlockView`)은 이 설정과 무관하게 그대로
+       * 눌러 이동한다 — TipTap 의 클릭 가로채기(`openOnClick`)는 편집 가능할 때만 동작하고,
+       * 읽기 전용에서는 보통의 `<a>` 태그가 그 일을 그대로 한다.
+       * `rel="noopener noreferrer nofollow"` 는 외부 문서로 이동할 때 그 문서가
+       * `window.opener` 로 이 화면을 조작하지 못하게 막는다(reverse tabnabbing). */
+      Link.configure({
+        openOnClick: false,
+        autolink: false,
+        linkOnPaste: false,
+        HTMLAttributes: { target: "_blank", rel: "noopener noreferrer nofollow" },
       }),
       /* 이미지와 표. 둘 다 TipTap 공식 **MIT** 확장이다 — Pro 확장은 상용이라 못 쓴다(D-198).
        *
@@ -178,12 +336,29 @@ export function BlockEditor({ value, onChange, readOnly = false, label = "본문
       TableRow,
       TableHeader,
       TableCell,
+      /* 빈 문서에 안내 글자를 흐리게 얹는다 — 여백만 있으면 "여기가 편집 자리인가"부터
+       * 헷갈린다. `showOnlyWhenEditable` 은 이 확장의 기본값이라 읽기 전용(`BlockView`)의
+       * 빈 문서에는 안 뜬다 — 안 뜨는 것이 맞다, 볼 줄만 아는 화면에 "입력하세요"는
+       * 거짓말이다. */
+      Placeholder.configure({ placeholder: `${label} 내용을 입력하세요…` }),
       BlockId,
       Mention,
     ],
     content: value || EMPTY_DOC,
     onUpdate: ({ editor: e }) => onChange?.(e.getJSON()),
   }, [readOnly]);
+
+  // 이모지 팝오버의 열림 자리(앵커). `null` 이면 닫힌 것으로 본다(`ColumnFilterPopover`
+  // 와 같은 관례).
+  const [emojiAnchor, setEmojiAnchor] = React.useState(null);
+  /* 링크 팝오버 — 앵커에 더해 **누른 순간의 선택 범위**(`from`·`to`)를 함께 담는다.
+   * 팝오버가 열려 있는 동안 포커스가 입력칸으로 옮겨 가고, 그동안 ProseMirror 의 실시간
+   * 선택(`editor.state.selection`)은 그대로라는 보장이 없다 — 포커스가 편집기 밖으로
+   * 나가면 브라우저 native selection 이 바뀌고, ProseMirror 가 그것을 좇다가 문서 전체를
+   * 가리키는 `AllSelection` 으로 떨어지는 경우를 실측했다(빈 문서에서 특히 그렇다). 그래서
+   * "무엇에 링크를 걸지"는 **누른 순간 한 번** 확정해 들고 있는다 — 적용할 때 다시
+   * `editor.state.selection` 을 읽으면 이미 달라져 있을 수 있다. */
+  const [linkPopover, setLinkPopover] = React.useState(null);
 
   /* 밖에서 문서가 바뀌면(되돌리기·다른 판 열람) 편집기 내용을 갈아 끼운다.
    * `emitUpdate: false` 로 넣는다 — 안 그러면 넣자마자 `onUpdate` 가 돌아 부르는 쪽이
@@ -205,42 +380,157 @@ export function BlockEditor({ value, onChange, readOnly = false, label = "본문
         <>
           <Stack
             direction="row"
-            spacing={0.5}
+            spacing={0.75}
             role="toolbar"
             aria-label={`${label} 서식`}
-            sx={{ flexWrap: "wrap", rowGap: 0.5, mb: 1 }}
+            sx={{ flexWrap: "wrap", rowGap: 0.75, alignItems: "center", mb: 1 }}
           >
-            {TOOLS.map((tool) => (
-              <MuiButton
-                key={tool.id}
-                size="small"
-                type="button"
-                variant={isActive(editor, tool.on) ? "contained" : "text"}
-                aria-pressed={tool.on ? isActive(editor, tool.on) : undefined}
-                onClick={() => tool.run(editor.chain().focus()).run()}
-                sx={{ minWidth: 0, px: 1, fontSize: FONT_SIZE.bodySm }}
-              >
-                {tool.label}
-              </MuiButton>
+            {TOOL_GROUPS.map((group, index) => (
+              <React.Fragment key={group.id}>
+                {/* 다섯 묶음을 세로선으로 나눈다 — REAUDIT §15.4 이 이름 붙인 서식·문단·
+                    목록·삽입·실행이다. 첫 묶음 앞에는 안 긋는다. */}
+                {index > 0 ? <Divider orientation="vertical" flexItem sx={{ my: 0.25 }} /> : null}
+                <Stack direction="row" spacing={0.25} aria-label={group.label} sx={{ alignItems: "center" }}>
+                  {group.tools.map((tool) => {
+                    const active = isActive(editor, tool.on);
+                    return (
+                      <Tooltip key={tool.id} title={tool.label}>
+                        {/* 아이콘 하나만으로는 스크린리더에 이름이 없다 — `aria-label` 을
+                            따로 준다(Tooltip 의 title 은 마우스 사용자를 위한 것일 뿐
+                            접근 이름을 자동으로 만들어 주지 않는다). */}
+                        <IconButton
+                          size="small"
+                          type="button"
+                          aria-label={tool.label}
+                          aria-pressed={tool.on ? active : undefined}
+                          onClick={() => tool.run(editor.chain().focus()).run()}
+                          sx={toolButtonSx(active)}
+                        >
+                          <tool.Icon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    );
+                  })}
+                  {group.id === "insert" ? (
+                    <>
+                      <Tooltip title="링크">
+                        <IconButton
+                          size="small"
+                          type="button"
+                          aria-label="링크"
+                          aria-pressed={isActive(editor, "link")}
+                          onClick={(e) => {
+                            // 지금 선택을 여기서 한 번 확정해 둔다 — 팝오버가 열려 있는
+                            // 동안 포커스가 입력칸으로 옮겨 가면 편집기의 실시간 선택이
+                            // 바뀔 수 있다(LinkPopover 위 docstring).
+                            const { from, to } = editor.state.selection;
+                            setLinkPopover({
+                              anchorEl: e.currentTarget,
+                              from,
+                              to,
+                              initialHref: editor.getAttributes("link").href || "",
+                            });
+                          }}
+                          sx={toolButtonSx(isActive(editor, "link"))}
+                        >
+                          <InsertLinkRoundedIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                      {/* 이미지는 **문서에 파일을 붙이는 일**이라 부르는 쪽이 그 방법을 안다.
+                          바이트를 본문에 넣지 않는다(`allowBase64: false`) — 우리 첨부
+                          저장소에 넣고 주소만 본문에 남긴다(D4). 주소를 못 받으면 아무것도
+                          안 넣는다. */}
+                      {onPickImage ? (
+                        <Tooltip title="이미지">
+                          <IconButton
+                            size="small"
+                            type="button"
+                            aria-label="이미지"
+                            onClick={async () => {
+                              const src = await onPickImage();
+                              if (src) editor.chain().focus().setImage({ src }).run();
+                            }}
+                            sx={toolButtonSx(false)}
+                          >
+                            <InsertPhotoRoundedIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      ) : null}
+                      <Tooltip title="이모지">
+                        <IconButton
+                          size="small"
+                          type="button"
+                          aria-label="이모지"
+                          aria-haspopup="dialog"
+                          aria-expanded={!!emojiAnchor}
+                          onClick={(e) => setEmojiAnchor(e.currentTarget)}
+                          sx={toolButtonSx(false)}
+                        >
+                          <InsertEmoticonRoundedIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    </>
+                  ) : null}
+                </Stack>
+              </React.Fragment>
             ))}
-            {/* 이미지는 **문서에 파일을 붙이는 일**이라 부르는 쪽이 그 방법을 안다. 바이트를
-                본문에 넣지 않는다(`allowBase64: false`) — 우리 첨부 저장소에 넣고 주소만
-                본문에 남긴다(D4). 주소를 못 받으면 아무것도 안 넣는다. */}
-            {onPickImage ? (
-              <MuiButton
-                size="small"
-                type="button"
-                variant="text"
-                onClick={async () => {
-                  const src = await onPickImage();
-                  if (src) editor.chain().focus().setImage({ src }).run();
-                }}
-                sx={{ minWidth: 0, px: 1, fontSize: FONT_SIZE.bodySm }}
-              >
-                이미지
-              </MuiButton>
-            ) : null}
           </Stack>
+          <LinkPopover
+            anchorEl={linkPopover?.anchorEl}
+            initialHref={linkPopover?.initialHref || ""}
+            onClose={() => setLinkPopover(null)}
+            onSubmit={(href) => {
+              const { from, to } = linkPopover;
+              // 「글이 골라져 있었는가」는 `from !== to` 가 아니라 **그 사이에 실제 글자가
+              // 있는가**로 본다 — 포커스가 팝오버 입력칸으로 옮겨 가는 사이 ProseMirror 의
+              // 선택이 문서 전체를 가리키는 `AllSelection` 으로 떨어지는 경우를 실측했다
+              // (빈 문서에서, `from`·`to` 가 0·2 처럼 서로 달라도 그 사이에 글자가 없다).
+              // MUI Popover 의 포커스 관리와 ProseMirror 의 선택 추적이 만나는 자리라 실
+              // 브라우저에서도 안 일어난다고 장담할 수 없다.
+              const selectedText = editor.state.doc.textBetween(from, to, "\n");
+              if (selectedText) {
+                // 실제로 글이 선택돼 있었다 — 그 범위를 다시 세운 뒤(위 state docstring)
+                // 링크를 씌운다. `extendMarkRange` 는 그 범위가 이미 링크 안이면 링크
+                // 전체로 넓힌다(수정 자리).
+                editor.chain().focus().setTextSelection({ from, to })
+                  .extendMarkRange("link").setLink({ href }).run();
+                setLinkPopover(null);
+                return;
+              }
+              // 선택 없이 눌렀다 — 걸 글자가 없으니 주소 글자 자체를 링크 글로 넣는다.
+              // `from` 이 안 노드(text)를 받을 수 있는 자리(문단 안)인지 먼저 본다 — 못
+              // 받는 자리(문단이 하나도 없는 빈 문서의 0번 자리, 또는 위에서 말한 선택
+              // 어긋남)에 그대로 꽂으면 ProseMirror 가 자리를 통째로 버려 조용히 아무 일도
+              // 안 난다. 못 받으면 새 문단으로 감싸 문서 끝에 넣는다 — 문서 끝은 항상
+              // 유효한 자리다.
+              const linkText = { type: "text", text: href, marks: [{ type: "link", attrs: { href } }] };
+              const canInsertInline = editor.state.doc.resolve(from).parent.isTextblock;
+              if (canInsertInline) {
+                editor.chain().focus().insertContentAt(from, linkText).run();
+              } else {
+                editor.chain().focus().insertContentAt(
+                  editor.state.doc.content.size,
+                  { type: "paragraph", content: [linkText] },
+                ).run();
+              }
+              setLinkPopover(null);
+            }}
+            onRemove={() => {
+              const { from, to } = linkPopover;
+              editor.chain().focus().setTextSelection({ from, to })
+                .extendMarkRange("link").unsetLink().run();
+              setLinkPopover(null);
+            }}
+          />
+          <EmojiPicker
+            anchorEl={emojiAnchor}
+            onClose={() => setEmojiAnchor(null)}
+            onPick={(emoji) => {
+              setEmojiAnchor(null);
+              editor.chain().focus().insertContent(emoji).run();
+            }}
+            ariaLabel="문서에 넣을 이모지 고르기"
+          />
           <Divider sx={{ mb: 1 }} />
         </>
       )}
@@ -300,6 +590,34 @@ export function BlockEditor({ value, onChange, readOnly = false, label = "본문
           },
           // 칸 안의 문단은 위아래 여백을 안 준다. 주면 한 줄짜리 표가 두 배로 높아진다.
           "& .ProseMirror th > p, & .ProseMirror td > p": { margin: 0 },
+          /* 체크 목록. TipTap 의 기본 렌더는 `<ul><li><label><input type=checkbox>…` 다
+           * (`@tiptap/extension-task-item`) — 손대지 않으면 브라우저 기본 글머리 점이
+           * 체크박스 옆에 겹쳐 나온다(REAUDIT §15.4). 점을 지우고 체크박스·글을 가로로
+           * 나란히 둔다. */
+          "& .ProseMirror ul[data-type='taskList']": {
+            listStyle: "none",
+            paddingLeft: 0,
+            marginBlock: "0.6em",
+          },
+          "& .ProseMirror ul[data-type='taskList'] li": {
+            display: "flex",
+            alignItems: "flex-start",
+            gap: "0.5em",
+          },
+          // 중첩된 체크 목록(`nested: true`)은 항목의 글 아래, 체크박스 폭만큼 들여써야
+          // 부모 항목과 같은 세로줄에서 시작하지 않는다.
+          "& .ProseMirror ul[data-type='taskList'] ul[data-type='taskList']": {
+            marginBlock: "0.2em 0",
+            paddingLeft: "1.5em",
+          },
+          "& .ProseMirror ul[data-type='taskList'] li > label": {
+            display: "flex",
+            alignItems: "center",
+            marginTop: "0.15em",
+            userSelect: "none",
+          },
+          "& .ProseMirror ul[data-type='taskList'] li > div": { flex: 1, minWidth: 0 },
+          "& .ProseMirror ul[data-type='taskList'] li > div > p": { margin: 0 },
           "& .k-mention": {
             color: theme.palette.primary.main,
             fontWeight: FONT_WEIGHT.medium,

@@ -12498,3 +12498,60 @@ REAUDIT 묶음 1 에서 실제로 배선했다. 세 번째("티켓 표")는 실�
 이름은 S14 가 "원본 소스 인물 id 배열" 을 뺀 자리로 이 파일에 이미 기록돼 있다(D-284
 전후 골든 계약 changelog, `tests/regression/test_api_contract_golden.py`). 모양이
 전혀 달라도 같은 키를 다시 쓰면 그 기록이 "되돌아왔다"로 잘못 읽힌다.
+
+### D-358. `Principal` 없이 `User` 만 있는 자리의 프로젝트 가시성은 `context_for_user`+`effective_visibility_clause` 다 — `get_scoped_project_or_404` 를 억지로 안 쓴다
+
+REAUDIT 묶음 2, `app/knowledge/service.py::resolve_or_create_project_space(db, user,
+project_id)` 를 만들며 실제로 걸린 자리다. 프로젝트 하나를 가시성 검사와 함께
+찾는 기존 함수는 `app.projects.service.get_scoped_project_or_404` 하나뿐인데, 이
+함수는 `Principal`(역할·부서·프로젝트 멤버십을 미리 얹어 둔 인가 컨텍스트)을
+요구한다. `list_documents`/`create_document` 계열은 라우터에서 `Principal` 을 만들지
+않고 원본 `User` 만 받으므로, 그대로 불러쓰면
+`AttributeError: 'User' object has no attribute 'visibility'` 로 죽는다.
+
+`app/work/service.py` 가 이미 같은 처지(원본 `User` 만 있는 자리에서 프로젝트
+가시성이 필요함)를 겪었고, 그 파일 자체의 docstring 에 해법이 적혀 있었다 —
+`app/authz/visibility.py::context_for_user(db, user)` 로 가벼운 컨텍스트를 만들고
+`effective_visibility_clause(ctx, RESOURCE_PROJECT)` 로 SQL 절을 얻는다.
+`resolve_or_create_project_space` 도 같은 조합으로 다시 짰다.
+
+기준: **`Principal` 이 이미 있는 자리(라우터 진입점)는 `get_scoped_project_or_404` 를
+쓰고, 서비스 내부에서 원본 `User` 만 쥔 채로 가시성이 필요해지면
+`context_for_user`+`effective_visibility_clause` 다.** 후자를 위해 `Principal` 을
+새로 조립하지 않는다 — 그 조립 자체가 이미 있는 인가 컨텍스트를 다른 모양으로
+복제하는 일이다.
+
+### D-359. 문서 휴지통의 공간 라벨은 **프로젝트 공간만** 실제 이름으로 바꾼다 — 부서 공간은 이번 회차 범위 밖이다
+
+REAUDIT 묶음 2 가 `knowledge_spaces` 에 프로젝트 소유 공간을 새로 만들면서(§11.4)
+`app/trash/router.py::_document_view` 의 공간 라벨이 그 프로젝트의 코드나 raw id 를
+그대로 보여주는 문제가 생겼다. `list_page_extras()` 가 이미 내는
+`projects: {space_id: {...}}` 를 휴지통도 같이 받아 프로젝트 소유 공간만 실제
+프로젝트 이름으로 바꿨다.
+
+부서 소유 공간은 **그대로 뒀다** — REAUDIT §11.2 는 문서 공간 소유자를 조직·
+프로젝트 두 경우로만 정하고 부서 공간의 표시 정책은 다루지 않는다. 여기서 부서
+공간에 "공통 문서" 같은 대표 이름을 새로 지어 붙이면, 이미 그 공간의 원래 이름
+("우리 공간")을 기대값으로 고정해 둔 기존 `tests/.../test_knowledge_trash.py` 를
+근거 없이 깨는 것이면서 동시에 이번 회차가 조사하지 않은 부서 공간 명명 정책을
+암묵적으로 확정하는 일이 된다. 부서 공간의 표시 정책이 필요해지면 §11.2 를 먼저
+넓히는 별도 작업이다.
+
+### D-360. `@tiptap/extension-placeholder` — §15.0 확정 도입 목록에 있었지만 위임한 에이전트 둘 다 실제로는 안 걸었다
+
+REAUDIT 묶음 2 의 편집기 작업(§15.4)을 general-purpose 에이전트에 위임했는데, 그
+에이전트는 자기 작업 요약에 이 패키지를 "범위 밖이라 건너뜀"이라고 적었다. 그러나
+`§15.0 도입 확정 목록`은 이 패키지를 다른 넷(`underline`/`task-list`/`task-item`/
+`link`)과 **같은 줄**에 확정 도입으로 적어 뒀다 — 실제로는 범위 밖이 아니라
+에이전트가 계획 문서를 다시 확인하지 않고 자기 판단으로 좁힌 것이었다.
+
+`bash scripts/static_checks.sh`(`dependencies.test.js`, PF10 — package.json 에 있는
+의존성은 실제 소비처가 있어야 한다는 계약)가 이 gap 을 그대로 잡아냈다. 위임한
+결과를 신뢰하되 검증한다는 원칙대로 이 실패를 직접 좇아, `BlockEditor.jsx` 에
+`Placeholder.configure({ placeholder: `${label} 내용을 입력하세요…` })` 를 직접
+추가해 닫았다.
+
+기록하는 이유: **위임 프롬프트에 "정본 §번호를 다시 확인하라"고 적어도 에이전트가
+자기 나름의 범위 판단으로 항목을 누락할 수 있다.** 위임한 작업의 검증은 에이전트의
+자체 요약이 아니라 `scripts/verify.py`/`static_checks.sh` 같은 독립된 계약 검사로
+한다(CLAUDE.md §5 "Subagent PASS 보고만으로 완료 판정하지 않는다").

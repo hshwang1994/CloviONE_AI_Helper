@@ -172,6 +172,7 @@ export function Integrity() {
     <Box className="c-screen">
       <PageHeader
         area="운영" title="조직 정합성"
+        description="조직 정합성 규칙이 소속을 정할 수 없어 자동으로 닫아 둔 항목을 모아 봅니다."
         help="소속을 판정할 수 없어 화면에서 닫혀 있는 데이터를 모았습니다. 여기서 지정하면 바로 열립니다."
       />
 

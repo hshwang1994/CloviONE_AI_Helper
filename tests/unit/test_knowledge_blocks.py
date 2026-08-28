@@ -534,3 +534,125 @@ def test_ordinary_cell_attributes_survive():
     }))))
     attrs = body["content"][0]["content"][0]["content"][0]["attrs"]
     assert (attrs["colspan"], attrs["rowspan"], attrs["colwidth"]) == (2, 3, [120, 240])
+
+
+# ── 체크 목록과 밑줄 (REAUDIT §15.4) ────────────────────────────────────────
+#
+# 앞 회차가 이 둘의 단추를 안 넣은 이유는 스키마에 자리가 없어서였다 — 버튼을 두면
+# 사용자가 쓰고 저장했다가 다시 열었을 때 사라진다. 여기서 확인하는 것은 이미지·표가
+# 겪은 것과 같은 셋이다: 정본이 받는다 · 자리가 틀리면 거절한다 · 파생 둘(마크다운·평문)이
+# 잃지 않고 나온다.
+
+
+def _task_item(text="", checked=False, extra=None):
+    content = [_p(text)]
+    if extra is not None:
+        content.append(extra)
+    return {"type": "taskItem", "attrs": {"checked": checked}, "content": content}
+
+
+def _task_list(*items):
+    return {"type": "taskList", "content": list(items)}
+
+
+def test_a_task_list_is_accepted_at_the_top_level():
+    body = blocks.normalize(_doc(_task_list(_task_item("할 일"), _task_item("완료", checked=True))))
+    assert body["content"][0]["type"] == "taskList"
+    assert body["content"][0]["attrs"][blocks.BLOCK_ID_ATTR], "체크 목록이 인용 앵커를 못 받았다"
+    items = body["content"][0]["content"]
+    assert [i["attrs"]["checked"] for i in items] == [False, True]
+
+
+def test_a_task_item_cannot_sit_at_the_top_level():
+    with pytest.raises(blocks.BlockError):
+        blocks.normalize(_doc(_task_item("가")))
+
+
+@pytest.mark.parametrize("bad", [
+    # taskItem 이 평범한 글머리 목록 안에 있다 — 부모가 taskList 가 아니다.
+    {"type": "bulletList", "content": [_task_item("가")]},
+    # 평범한 listItem 이 체크 목록 안에 있다 — taskList 의 자식은 taskItem 뿐이다.
+    {"type": "taskList", "content": [{"type": "listItem", "content": [_p("가")]}]},
+])
+def test_task_items_and_ordinary_list_items_do_not_mix(bad):
+    """자리가 틀리면 ProseMirror 가 문서를 통째로 버린다 — 표 노드가 이미 겪은 것과
+    같은 실패 모양이다."""
+    with pytest.raises(blocks.BlockError):
+        blocks.normalize(_doc(bad))
+
+
+@pytest.mark.parametrize("checked", ["true", 1, "x", [], {}])
+def test_a_non_bool_checked_falls_back_to_unchecked(checked):
+    """`checked` 는 `alt`·`language` 와 같은 자리다 — 장식 상태라 저장을 거절하지 않고
+    안전한 기본값으로 눕힌다(TipTap 자신의 기본값과 같은 미체크). 표 칸의 colspan 처럼
+    다른 노드의 배치를 틀어지게 하는 구조값이 아니라서 거절 목록(파일 docstring)에 없다."""
+    body = blocks.normalize(_doc(_task_list({"type": "taskItem", "attrs": {"checked": checked}, "content": [_p("가")]})))
+    assert body["content"][0]["content"][0]["attrs"]["checked"] is False
+
+
+def test_a_missing_checked_also_falls_back_to_unchecked():
+    body = blocks.normalize(_doc(_task_list({"type": "taskItem", "attrs": {"nested": True}, "content": [_p("가")]})))
+    assert body["content"][0]["content"][0]["attrs"]["checked"] is False
+
+
+def test_an_actual_bool_checked_survives():
+    """반대편 — 여기서 실패하면 위 폴백들은 체크 상태를 저장할 방법이 아예 없는
+    구현도 통과시킨다."""
+    body = blocks.normalize(_doc(_task_list(_task_item("가", checked=True))))
+    assert body["content"][0]["content"][0]["attrs"]["checked"] is True
+
+
+def test_task_list_markdown_uses_github_checkbox_syntax():
+    derived = blocks.derive(_doc(_task_list(_task_item("할 일", checked=False), _task_item("완료", checked=True))))
+    assert derived.markdown == "- [ ] 할 일\n- [x] 완료"
+    assert derived.text == "할 일\n완료", "체크 여부는 평문에 안 남아야 같은 글이 같은 벡터가 된다"
+
+
+def test_task_list_keeps_nested_structure_like_bullet_list():
+    """중첩은 목록과 같은 규칙을 따른다 — 표식 너비만큼 이어지는 줄을 들여쓴다."""
+    doc = _doc(_task_list(
+        _task_item("바깥", checked=False, extra=_task_list(_task_item("안쪽", checked=True))),
+    ))
+    derived = blocks.derive(doc)
+    assert derived.markdown == "- [ ] 바깥\n\n      - [x] 안쪽"
+    assert derived.text == "바깥\n안쪽"
+
+
+def test_underline_mark_is_accepted():
+    body = blocks.normalize(_doc(_p("밑줄", marks=[{"type": "underline"}])))
+    marks = body["content"][0]["content"][0]["marks"]
+    assert [m["type"] for m in marks] == ["underline"]
+
+
+def test_underline_markdown_is_html_passthrough_since_there_is_no_markdown_syntax():
+    derived = blocks.derive(_doc(_p("밑줄", marks=[{"type": "underline"}])))
+    assert derived.markdown == "<u>밑줄</u>"
+    assert derived.text == "밑줄", "평문에는 서식이 안 남아야 같은 문장이 같은 벡터가 된다"
+
+
+def test_underline_combines_with_other_marks():
+    derived = blocks.derive(_doc(_p("강조", marks=[{"type": "bold"}, {"type": "underline"}])))
+    assert derived.markdown == "<u>**강조**</u>"
+
+
+def test_saving_and_reopening_a_document_with_underline_and_a_task_list_keeps_both_nodes():
+    """REAUDIT §18.2 — 왕복 시험: 밑줄·체크 목록이 든 문서를 저장 → 다시 열기 → 같은
+    노드가 살아 있다. '다시 열기' 는 `derive()` 가 낸 정본을 화면이 그대로 편집기에
+    되돌려주는 것과 같은 모양이라, 그 정본을 다시 `derive()` 에 넣어 확인한다."""
+    doc = _doc(
+        _p("밑줄 문장", marks=[{"type": "underline"}]),
+        _task_list(_task_item("할 일", checked=False), _task_item("완료", checked=True)),
+    )
+    saved = blocks.derive(doc)
+    reopened = blocks.derive(saved.body)
+
+    for derived in (saved, reopened):
+        assert [b["type"] for b in derived.body["content"]] == ["paragraph", "taskList"]
+        task_items = derived.body["content"][1]["content"]
+        assert [i["attrs"]["checked"] for i in task_items] == [False, True]
+        assert derived.markdown == "<u>밑줄 문장</u>\n\n- [ ] 할 일\n- [x] 완료"
+        assert derived.text == "밑줄 문장\n할 일\n완료"
+
+    assert blocks.block_ids(reopened.body) == blocks.block_ids(saved.body), (
+        "다시 열어 저장했더니 앵커가 바뀌었다 — 인용이 끊긴다"
+    )

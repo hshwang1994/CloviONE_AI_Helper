@@ -75,7 +75,10 @@ class FolderUpdate(BaseModel):
 
 
 class DocumentCreate(BaseModel):
-    space_id: str = Field(min_length=1, max_length=36)
+    # 화면은 보통 `project_id` 만 안다(§14.4) — "공간"은 관리 화면에서만 쓰는 말이다.
+    # 서비스 계층이 "둘 중 하나는 있어야 한다"를 검사한다(`ValidationAppError`).
+    space_id: str | None = Field(default=None, max_length=36)
+    project_id: str | None = Field(default=None, max_length=36)
     title: str = Field(min_length=1, max_length=500)
     folder_id: str | None = Field(default=None, max_length=36)
     # ProseMirror 노드 트리. 모양 검사는 `blocks.normalize` 가 한다 — pydantic 으로
@@ -106,6 +109,8 @@ class DocumentSave(BaseModel):
 
 class DocumentMove(BaseModel):
     folder_id: str | None = Field(default=None, max_length=36)
+    # 오면 소속(공간) 이동으로 해석한다(§11.4·§14.4) — 그 프로젝트의 공간을 찾거나 만든다.
+    project_id: str | None = Field(default=None, max_length=36)
     base_version: int | None = Field(default=None, ge=1)
 
 

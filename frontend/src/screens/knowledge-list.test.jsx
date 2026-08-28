@@ -49,7 +49,7 @@ import { ConfirmProvider, ToastProvider } from "../ui/kit.jsx";
 import { ThemeModeProvider } from "../ui/ThemeModeProvider.jsx";
 
 const SPACE = "space-1";
-const PAGE = 25;
+const PAGE = 100;
 
 function docsPage(offset, count, total) {
   return {
@@ -64,9 +64,13 @@ function docsPage(offset, count, total) {
       excerpt: "",
       author: { user_id: "u-1", display_name: "나" },
       counts: { attachments: 0, comments: 0, relations: 0 },
-      // 첫 문서에만 종류·태그를 준다 — 목록 줄이 실제로 그리는지만 보면 된다.
+      // 첫 문서에만 종류·태그·프로젝트를 준다 — 목록 줄이 실제로 그리는지만 보면 된다.
+      // 나머지는 project: undefined 라 "공통 문서"로 보여야 한다(§11.2).
       ...(offset + i === 0
-        ? { doc_type: "회의록", tags: [{ id: "tag-1", name: "인프라" }] }
+        ? {
+          doc_type: "회의록", tags: [{ id: "tag-1", name: "인프라" }],
+          project: { id: "proj-1", code: "AAAAAA", name: "알파 프로젝트" },
+        }
         : {}),
     })),
     authors: [{ value: "u-1", label: "나" }],
@@ -81,12 +85,14 @@ const calls = [];
 function baseRoutes(path) {
   const text = String(path);
   if (text.startsWith("/api/knowledge/spaces/")) return { folders: [] };
-  if (text === "/api/knowledge/spaces") return { items: [{ id: SPACE, name: "우리 공간" }] };
+  if (text === "/api/knowledge/spaces") {
+    return { items: [{ id: SPACE, name: "우리 공간", owner_kind: "organization" }] };
+  }
   if (text === "/api/knowledge/tags") {
     return {
       items: [
-        { id: "tag-1", name: "회의록", slug: "meeting-notes", documents: 3 },
-        { id: "tag-2", name: "인프라", slug: "infra", documents: 0 },
+        { id: "tag-1", name: "회의록", slug: "meeting-notes", document_count: 3 },
+        { id: "tag-2", name: "인프라", slug: "infra", document_count: 0 },
       ],
     };
   }
@@ -201,6 +207,16 @@ describe("문서 목록의 쪽 넘기기", () => {
     expect(screen.getAllByText("회의록").length).toBeGreaterThan(0);
   });
 
+  it("🔴 프로젝트 열이 공간이 아니라 프로젝트를 낸다 — 없으면 「공통 문서」다(§11.2·§11.3)", async () => {
+    renderList();
+    await seeRows();
+    // doc-0 만 project 를 받았다(픽스처) — 그 줄은 프로젝트 이름, 나머지는 공통 문서.
+    expect((await screen.findAllByText("알파 프로젝트")).length).toBeGreaterThan(0);
+    expect(screen.getAllByText("공통 문서").length).toBeGreaterThan(0);
+    // "공간"이라는 낱말 자체가 목록 화면에 안 남는다("공간 추가" 관리자 버튼은 예외).
+    expect(screen.queryByText("우리 공간")).toBeNull();
+  });
+
   /* 🔴 **화면이 말하는 조건과 실제 질의 조건이 같아야 한다** (S15 · C7).
    *
    * 이 검색 상자는 한때 맨 `TextField` 에 `defaultValue={q}` 였다 — 값을 **처음 한 번만**
@@ -227,10 +243,10 @@ describe("문서 목록의 쪽 넘기기", () => {
     renderList();
     await seeRows();
 
-    await userEvent.click(screen.getByLabelText("태그"));
-    await userEvent.click(await screen.findByRole("option", { name: "회의록" }));
+    await userEvent.click(screen.getByLabelText("기술 태그"));
+    await userEvent.click(await screen.findByRole("option", { name: /^회의록/ }));
     await waitFor(() =>
-      expect(documentCalls().some((p) => p.includes("tag=meeting-notes"))).toBe(true));
+      expect(documentCalls().some((p) => p.includes(`tags=${encodeURIComponent("회의록")}`))).toBe(true));
     expect(lastDocumentCall()).toContain("offset=0");
   });
 
@@ -393,14 +409,17 @@ describe("태그 관리", () => {
     expect(within(dialog).getByText(/운영자만 할 수 있습니다/)).toBeTruthy();
   });
 
-  it("새 문서 창에서 이미 있는 태그를 눌러 고른다", async () => {
+  it("새 문서 창에서 이미 있는 태그를 검색해 고른다", async () => {
     renderList();
     await seeRows();
 
     await userEvent.click(screen.getByRole("button", { name: "새 문서" }));
     const dialog = await screen.findByRole("dialog");
     await userEvent.type(within(dialog).getByLabelText(/문서 제목/), "새 회의록");
-    await userEvent.click(within(dialog).getByRole("button", { name: "인프라" }));
+    await userEvent.click(within(dialog).getByLabelText("기술 태그"));
+    // MUI Autocomplete 의 옵션 목록은 Portal 로 document.body 에 붙는다 — dialog DOM
+    // 서브트리 밖이라 within(dialog) 로는 못 찾는다.
+    await userEvent.click(await screen.findByRole("option", { name: /^인프라/ }));
     await userEvent.click(within(dialog).getByRole("button", { name: "만들기" }));
 
     await waitFor(() => {

@@ -254,6 +254,7 @@ export function SchedulerCalendar({ embedded = false } = {}) {
         <PageHeader
           area="자동화"
           title="실행 달력"
+          description="자동화 작업이 특정 요일이나 시간대에 몰려 있지 않은지 분포로 확인합니다."
           actions={
             <Button variant="ghost" href="#/schedules">일정 목록으로</Button>
           }

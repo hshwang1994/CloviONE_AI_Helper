@@ -52,6 +52,10 @@ export function RoomDetailPanel({ id }) {
   const room = (meta.data && meta.data.room) || {};
   const you = (meta.data && meta.data.you) || {};
   const members = (meta.data && meta.data.members) || [];
+  // 참여자 줄의 사진 — `members`(_member_view)는 role·online 같은 운영값 위주라 사진이 없다.
+  // 같은 응답의 `people`(말풍선이 이미 쓰는 전체 신원 맵, avatar_url 포함)에서 사람별로 찾아
+  // 쓴다 — 다른 조회를 새로 만들지 않는다.
+  const people = (meta.data && meta.data.people) || {};
 
   // 방을 떠나면 그 방은 더 이상 볼 수 없다. 목록은 옆에 그대로 있으므로 선택만 푼다.
   const backToList = (msg) => {
@@ -158,7 +162,7 @@ export function RoomDetailPanel({ id }) {
         {meta.isPending ? <Skeleton lines={6} /> : (
           <>
             {/* 누가 지금 이 대화를 보고 있는지. 전체 채팅은 참여자 행이 없어 아무것도 그리지 않는다. */}
-            <MemberStrip members={members} />
+            <MemberStrip members={members} people={people} />
             {/* ChatPane 은 height:"100%" 로 자기 몫을 채우는 컴포넌트라, 그 100% 를 계산할
                 기준(정해진 높이를 가진 부모)이 있어야 한다. flex:"1 1 auto" + minHeight:0 로
                 이 자리를 만들어 준다 — 부모(위 Box)가 flex 컬럼이라 MemberStrip 이 먼저
@@ -171,7 +175,7 @@ export function RoomDetailPanel({ id }) {
       </Box>
       <ManageRoomModal
         open={manageOpen} onClose={() => setManageOpen(false)}
-        roomId={id} title={room.title} members={members} meId={you.user_id}
+        roomId={id} title={room.title} members={members} meId={you.user_id} people={people}
       />
     </Box>
   );

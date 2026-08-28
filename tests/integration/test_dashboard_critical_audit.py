@@ -44,6 +44,37 @@ def test_admin_dashboard_shows_critical_audit(client, login_as, db):
     assert "user.role_change" in actions
 
 
+def test_critical_audit_row_carries_a_readable_target_name(client, login_as, db, make_user):
+    """C16 재감사: "「대상」 열에 UUID 앞머리가 그대로 보인다" — object_type == "user" 인
+    행은 object_id(대상 사용자 UUID)를 그 사람의 display_name 으로도 함께 내려준다.
+    Dashboard.jsx 는 이 값이 있으면 그것을 보여주고, 없으면(다른 object_type 이거나
+    대상이 이미 지워졌으면) 기존의 잘린 ID + 복사 표시로 물러난다."""
+    from app.audit.models import AuditLog
+
+    target = make_user(email="target@goodmit.co.kr", display_name="대상 사용자")
+    row = AuditLog(action="user.role_change", object_type="user", object_id=target.id)
+    db.add(row)
+    db.commit()
+
+    login_as("admin")
+    body = client.get("/api/admin/dashboard").json()
+    matches = [r for r in body["recent_critical_audit"] if r["object_id"] == target.id]
+    assert len(matches) == 1
+    assert matches[0]["object_label"] == "대상 사용자"
+
+
+def test_critical_audit_row_falls_back_when_target_user_is_gone(client, login_as, db):
+    """대상 사용자가 이미 지워졌거나(레코드 없음) object_type 이 user 가 아니면
+    object_label 은 조용히 사라지지 않고 명시적으로 "모른다"고 말한다 — actor 해석이
+    이미 지키는 것과 같은 계약(빈 값은 "삭제됨"과 "원래 없음"을 구별 못 한다)."""
+    _seed_critical_audit(db)  # object_id="target-user-123" — 실제로 존재하지 않는 사용자
+    login_as("admin")
+    body = client.get("/api/admin/dashboard").json()
+    matches = [r for r in body["recent_critical_audit"] if r["object_id"] == "target-user-123"]
+    assert len(matches) == 1
+    assert matches[0]["object_label"] == "(알 수 없는 사용자)"
+
+
 def test_auditor_dashboard_shows_critical_audit(client, login_as, db):
     _seed_critical_audit(db)
     login_as("auditor")

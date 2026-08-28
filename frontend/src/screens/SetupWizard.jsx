@@ -182,7 +182,7 @@ export function SetupWizard() {
   if (!allowed) {
     return (
       <Box className="c-screen">
-        <PageHeader area="설정" title="초기 설정" />
+        <PageHeader area="설정" title="초기 설정" description="처음 설치할 때 필요한 설정 중 아직 안 끝난 항목을 순서대로 안내합니다." />
         <EmptyState
           title="권한이 없습니다"
           help="이 화면은 시스템 관리자만 사용할 수 있습니다. 여기 담긴 것은 조직 단위가 아니라 서버 한 대 전체의 상태입니다."
@@ -195,7 +195,7 @@ export function SetupWizard() {
   if (query.isLoading) {
     return (
       <Box className="c-screen">
-        <PageHeader area="설정" title="초기 설정" />
+        <PageHeader area="설정" title="초기 설정" description="처음 설치할 때 필요한 설정 중 아직 안 끝난 항목을 순서대로 안내합니다." />
         <Card><Skeleton lines={7} /></Card>
       </Box>
     );
@@ -203,7 +203,7 @@ export function SetupWizard() {
   if (query.isError) {
     return (
       <Box className="c-screen">
-        <PageHeader area="설정" title="초기 설정" />
+        <PageHeader area="설정" title="초기 설정" description="처음 설치할 때 필요한 설정 중 아직 안 끝난 항목을 순서대로 안내합니다." />
         <ErrorState error={query.error} onRetry={() => query.refetch()} />
       </Box>
     );
@@ -216,6 +216,7 @@ export function SetupWizard() {
       <PageHeader
         area="설정"
         title="초기 설정"
+        description="처음 설치할 때 필요한 설정 중 아직 안 끝난 항목을 순서대로 안내합니다."
         actions={
           <Button onClick={() => setOpen((v) => !v)}>
             {open ? "목록 접기" : "목록 펼치기"}

@@ -226,6 +226,7 @@ export function DevReport() {
           라고 말하고 있었다 — 그 이름의 묶음은 이제 「자동화와 연동」이고 이 화면은 거기
           없다. 같은 화면이 두 자리에 있다고 읽히던 자리다(S20). */}
       <PageHeader area="감사" title="개발자 월간 리포트"
+        description="마감일이 이번 달인 티켓을 담당자별로 모아 업무량과 위험을 봅니다."
         actions={<Button variant="primary" onClick={() => query.refetch()}>새로고침</Button>} />
 
       <Box sx={{ mb: 3 }}>

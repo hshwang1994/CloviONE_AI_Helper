@@ -126,6 +126,9 @@ def _document_json(document, *, tags=None, is_favorite: bool | None = None, extr
         out["excerpt"] = (extras["excerpts"] or {}).get(document.id, "")
         out["space_name"] = (extras["spaces"] or {}).get(document.space_id, "")
         out["folder_path"] = folder["path"] if folder else ""
+        # 공간이 프로젝트 소유면 그 프로젝트 — 아니면 None(공통 문서). §11.2가 정한 대로
+        # 문서 목록·상세는 "공간"이 아니라 "프로젝트"라는 말을 쓴다.
+        out["project"] = (extras["projects"] or {}).get(document.space_id)
         out["author"] = (extras["people"] or {}).get(document.created_by)
         out["archiver"] = (extras["people"] or {}).get(document.archived_by)
         counts = extras["counts"] or {}
@@ -287,9 +290,10 @@ def list_documents(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("DOCUMENT_READ")),
     space_id: str | None = Query(default=None, max_length=36),
+    project_id: str | None = Query(default=None, max_length=36),
     folder_id: str | None = Query(default=None, max_length=36),
     q: str | None = Query(default=None, max_length=200),
-    tag: str | None = Query(default=None, max_length=80),
+    tags: list[str] = Query(default=[]),
     favorites: bool = Query(default=False),
     include_archived: bool = Query(default=False),
     archived_only: bool = Query(default=False),
@@ -308,7 +312,8 @@ def list_documents(
     것이 유출은 아니지만(가시성은 그대로 걸린다), 「내 것」이라는 말의 뜻이 요청에 따라
     달라지는 것은 다른 문제다."""
     rows, total = service.list_documents(
-        db, user, space_id=space_id, folder_id=folder_id, q=q, tag=tag,
+        db, user, space_id=space_id, project_id=project_id, folder_id=folder_id, q=q,
+        tags=tags,
         favorites=favorites, include_archived=include_archived, archived_only=archived_only,
         created_by=(user.id if mine else created_by), drafts=drafts, sort=sort,
         limit=limit, offset=offset,
@@ -373,7 +378,8 @@ def create_document(
 ) -> dict:
     document = service.create_document(
         db, user,
-        space_id=payload.space_id, title=payload.title, folder_id=payload.folder_id,
+        space_id=payload.space_id, project_id=payload.project_id,
+        title=payload.title, folder_id=payload.folder_id,
         body=payload.body, doc_type=payload.doc_type, source_type=payload.source_type,
         tag_names=payload.tag_names, confidential=payload.confidential,
         template=payload.template,
@@ -475,14 +481,24 @@ def save_document(
 def move_document(
     document_id: str,
     payload: DocumentMove,
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("DOCUMENT_UPDATE")),
 ) -> dict:
-    """폴더를 옮긴다. **권한은 안 바뀐다** (§5.3) — 정리 축과 권한 축은 별개다."""
-    document = service.move_document(
-        db, user, document_id, folder_id=payload.folder_id,
+    """폴더(정리)와 프로젝트(소속)를 한 호출로 옮긴다(§14.4 이동 대화상자).
+
+    폴더 이동은 권한을 안 바꾼다(§5.3). 프로젝트 이동은 바꾼다 — 그래서 그 경우에만
+    감사 로그를 남긴다(`space_changed`).
+    """
+    document, space_changed = service.move_document(
+        db, user, document_id, folder_id=payload.folder_id, project_id=payload.project_id,
         expected_version=payload.base_version,
     )
+    if space_changed:
+        record_audit_from_request(
+            request, db, action="knowledge.document_move_project", object_type="document",
+            object_id=document_id, after={"space_id": document.space_id},
+        )
     return _document_json(document)
 
 
@@ -678,7 +694,7 @@ def drop_relation(
 def _tag_json(tag, used: int | None = None) -> dict:
     out = {"id": tag.id, "name": tag.name, "slug": tag.slug}
     if used is not None:
-        out["documents"] = used
+        out["document_count"] = used
     return out
 
 

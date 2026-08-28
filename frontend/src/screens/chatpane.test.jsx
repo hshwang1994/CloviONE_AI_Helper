@@ -243,4 +243,17 @@ describe("메시지 로그 정렬", () => {
     expect(cs.flexDirection).toBe("column");
     expect(cs.justifyContent).toBe("flex-end");
   });
+
+  // C15 — 위 규칙(flex-end)을 메시지가 하나도 없을 때도 그대로 쓰면, 로그 상자의 하나뿐인
+  // 자식인 빈 방 안내가 화면 맨 아래로 밀려나고 그 위가 통째로 빈다(실브라우저에서 재현됨).
+  it("메시지가 없을 때는 justify-content:flex-end 를 쓰지 않는다 — 안내가 맨 아래로 밀려나 위가 비면 안 된다", async () => {
+    const { container } = mount(messagesPayload({ messages: [] }));
+    await screen.findByText("아직 메시지가 없습니다");
+
+    const logBox = Array.from(container.querySelectorAll("*")).find(
+      (el) => getComputedStyle(el).overflowY === "auto",
+    );
+    expect(logBox, "overflowY:auto 인 로그 상자를 찾지 못했다").toBeTruthy();
+    expect(getComputedStyle(logBox).justifyContent).not.toBe("flex-end");
+  });
 });

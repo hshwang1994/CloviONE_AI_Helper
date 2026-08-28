@@ -171,6 +171,11 @@ export function ChatPane({ roomId, compact = false, interval = 2000, idleMax = 0
 
   const data = q.data || {};
   const msgs = data.messages || [];
+  /* 로그 상자가 아래로 붙이는(`justify-content: flex-end`) 것은 **실제 대화가 있을 때만**
+     맞다. 로딩·오류·빈 방 안내는 상자의 하나뿐인 자식이라, 그 규칙을 그대로 쓰면 안내
+     문구가 화면 맨 아래로 밀려나고 그 위가 통째로 빈다(C15 — 사용자 지적: "채팅방의
+     「메시지 없음」이 맨 아래 붙고 위가 빈다"). 진짜 로그가 있을 때만 아래에서부터 쌓는다. */
+  const hasLog = !q.isPending && msgs.length > 0;
   const you = data.you || {};
   const room = data.room || {};
   const members = data.members || [];
@@ -298,7 +303,7 @@ export function ChatPane({ roomId, compact = false, interval = 2000, idleMax = 0
           // 줄 사이 고정 간격을 없앤다 — 줄 자신이 자기 위아래 여백을 갖고(묶음의 첫
           // 줄은 넉넉히, 이어지는 줄은 촘촘히), 그래야 같은 사람의 연속 발언이 한
           // 덩어리로 읽힌다. 고정 `gap` 이 있으면 그 차이가 뭉개진다.
-          display: "flex", flexDirection: "column", justifyContent: "flex-end", overflowY: "auto",
+          display: "flex", flexDirection: "column", justifyContent: hasLog ? "flex-end" : "flex-start", overflowY: "auto",
           mb: 1.25, px: 0.5, py: 1, minWidth: 0,
           ...(compact ? LOG_SX.compact : LOG_SX.full),
         }}

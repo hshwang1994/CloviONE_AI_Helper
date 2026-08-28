@@ -261,9 +261,24 @@ export function normalizeOptions(options) {
 export function EntityCombobox({
   label, value, onChange, options, loading, disabled, sx, kind = "entity", id,
   placeholder, allLabel, noOptionsText = "일치하는 항목이 없습니다", required, helperText,
-  ariaLabelledBy, hideLabel, multiple = false,
+  ariaLabelledBy, hideLabel, multiple = false, renderOption,
 }) {
   const list = normalizeOptions(options);
+  // 기본 렌더(라벨 + 보조줄)는 그대로 두고, 부르는 쪽이 다른 그림(아바타 등)이 필요하면
+  // 이것 하나로 갈아 끼운다 — §15.3 의 UserPicker 가 이 자리를 쓴다.
+  const renderRow = renderOption || ((props, o) => {
+    const { key, ...rest } = props;
+    return (
+      <Box component="li" key={key ?? o.value} {...rest} sx={{ display: "block !important" }}>
+        <Typography variant="body2" sx={{ lineHeight: 1.35 }}>{o.label}</Typography>
+        {o.secondary ? (
+          <Typography variant="caption" color="text.secondary" sx={{ display: "block", lineHeight: 1.35 }}>
+            {o.secondary}
+          </Typography>
+        ) : null}
+      </Box>
+    );
+  });
   if (multiple) {
     const selected = Array.isArray(value) ? value : (value ? [value] : []);
     const current = selected.map((v) => (
@@ -289,6 +304,7 @@ export function EntityCombobox({
         data-filter-kind={kind}
         sx={kindSx(kind, sx)}
         ListboxProps={{ sx: FILTER_LISTBOX_SX }}
+        renderOption={renderRow}
         renderInput={(params) => (
           <TextField
             {...params}
@@ -338,21 +354,7 @@ export function EntityCombobox({
       data-filter-kind={kind}
       sx={kindSx(kind, sx)}
       ListboxProps={{ sx: FILTER_LISTBOX_SX }}
-      renderOption={(props, o) => {
-        const { key, ...rest } = props;
-        return (
-          <Box component="li" key={key ?? o.value} {...rest} sx={{ display: "block !important" }}>
-            <Typography variant="body2" sx={{ lineHeight: 1.35 }}>{o.label}</Typography>
-            {/* 보조 식별자는 **앞부분이 같은 후보를 가르는 유일한 수단**이다. 없는 항목은
-                줄을 만들지 않는다 — 빈 줄이 생기면 목록 높이가 들쭉날쭉해진다. */}
-            {o.secondary ? (
-              <Typography variant="caption" color="text.secondary" sx={{ display: "block", lineHeight: 1.35 }}>
-                {o.secondary}
-              </Typography>
-            ) : null}
-          </Box>
-        );
-      }}
+      renderOption={renderRow}
       renderInput={(params) => {
         /* 라벨이 있을 때만 노치를 연다. `shrink: true` 를 라벨 없이 넘기면 TextField 가
            `notched=true` 를 강제하고, 윗테두리에 빈 구멍이 난다 — 폼의 `FieldLabel` 아래

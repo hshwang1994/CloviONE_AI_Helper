@@ -59,7 +59,11 @@ import {
  * 표가 둘이면 한쪽만 고쳐지고, 그때 증상이 「볼 수 있는 화면인데 링크가 죽어 있다」다. */
 const canGo = canReach;
 
-/** 대상 표기 — **사람이 못 읽는 값만** 줄인다.
+/** 대상 표기 — 사람이 읽을 이름이 없을 때만 쓰는 **마지막 수단**이다.
+ *
+ * object_type이 "user"인 행은 서버가 이미 대상의 display_name을 `object_label`로 함께
+ * 내려준다(app/health/service.py) — 그 이름을 그대로 보여준다(아래 RecentChanges).
+ * 이름이 없는 나머지 object_type(설정 키·승인 요청 id 등)만 여기로 온다.
  *
  * 예전에는 길이만 보고 여덟 자에서 잘랐다. 그래서 설정 키 `maintenance_mode` 가
  * `maintena…` 가 됐다 — 그 값은 내부 식별자가 아니라 **그 행에서 가장 중요한 정보**다.
@@ -216,7 +220,11 @@ export function systemVerdict(alerts) {
   const warn = list.length - danger;
   if (danger) {
     return {
-      tone: "danger", label: "문제",
+      // 배지 낱말은 아래 조치 목록의 심각도 태그(SEV_TEXT)와 같은 어휘여야 한다 — 예전엔
+      // 여기만 "문제"였고 목록 각 줄은 "위험"이라 같은 화면에 같은 뜻의 경고가 다른 말로
+      // 두 번 떴다(재감사 C16, "경고 관용구를 둘 쓴다"). 문장 속의 "문제"는 자연스러운
+      // 서술이라 그대로 둔다 — 배지처럼 위험/주의/정상 셋 중 하나로 끊어 읽는 낱말만 맞춘다.
+      tone: "danger", label: "위험",
       text: warn
         ? `지금 조치가 필요한 문제가 ${danger}건 있고, 지켜볼 것이 ${warn}건 있습니다.`
         : `지금 조치가 필요한 문제가 ${danger}건 있습니다.`,
@@ -545,6 +553,10 @@ export function Dashboard() {
   return (
     <Box className="c-screen">
       <PageHeader area="운영" title="대시보드"
+        // C17 재감사 — 사용자 화면(ui/kit.jsx PageHeader description)은 다 갖고 있는 한 줄
+        // 설명이 관리자 화면에는 없었다. 이 화면 머리말이 이미 답이라고 적어 둔 두 질문을
+        // 그대로 옮긴다("이 화면이 답하는 질문은 둘이다" 위 주석 참고).
+        description="제품이 지금 정상인지, 조치해야 할 문제가 있는지 봅니다."
         actions={<>
           {/* 30초마다 갱신되는 비-조치성 타임스탬프에 aria-live를 달면 스크린리더 사용자에게
               "오후 3:45 기준", "오후 3:46 기준" ...이 탭을 열어 둔 내내 끊임없이 낭독된다. */}
@@ -835,18 +847,22 @@ function RecentChanges({ rows, role, nav, revealedId, onCopyId }) {
               </Typography>
               <Box sx={{ minWidth: 0, display: "flex", alignItems: "baseline", gap: 0.75, flexWrap: "wrap" }}>
                 <Typography variant="body2" sx={{ minWidth: 0, ...KO_WORD_BREAK }}>{objKo(a.object_type)}</Typography>
-                {/* 줄인 ID엔 …을 붙여 '전체 값'처럼 보이지 않게 하고, 눌러서 복사할 수 있게
-                    한다(title 툴팁은 터치·스크린리더에서 안 보인다). 이름 **뒤에** 작은
-                    글자로 둬서 훑을 때 먼저 읽히지 않는다. */}
+                {/* 이름이 있으면(현재는 object_type "user") 그 이름을 보여준다 — 예전엔 이
+                    자리가 항상 UUID 앞머리였다(재감사 C16). 이름이 없는 대상만 줄인 ID로
+                    물러난다: …을 붙여 '전체 값'처럼 보이지 않게 하고, 눌러서 복사할 수
+                    있게 한다(title 툴팁은 터치·스크린리더에서 안 보인다). 어느 쪽이든
+                    object_id 자체는 title/aria-label과 클립보드 복사에 그대로 남는다 —
+                    지원 문의 등에서 정확한 값을 찾아야 하는 경우가 있다. */}
                 {a.object_id ? (
                   <Link
-                    component="button" type="button" underline="hover" color="text.secondary"
-                    title={a.object_id}
-                    aria-label={objKo(a.object_type) + " 전체 ID 복사: " + a.object_id}
+                    component="button" type="button" underline="hover"
+                    color={a.object_label ? "text.primary" : "text.secondary"}
+                    title={a.object_label ? `${a.object_label} (${a.object_id})` : a.object_id}
+                    aria-label={objKo(a.object_type) + " " + (a.object_label || "전체") + " ID 복사: " + a.object_id}
                     onClick={() => onCopyId(a.object_id)}
                     sx={{ fontSize: FONT_SIZE.caption, textAlign: "left", fontVariantNumeric: "tabular-nums" }}
                   >
-                    {targetId(a.object_id)}
+                    {a.object_label || targetId(a.object_id)}
                   </Link>
                 ) : null}
               </Box>

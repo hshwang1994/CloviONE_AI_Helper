@@ -30,6 +30,7 @@ from app.authz.visibility import (
 )
 from app.core.errors import ConflictError, NotFoundError, ValidationAppError
 from app.core.models_base import utcnow
+from app.core.ownership import OWNER_PROJECT
 from app.knowledge import (
     blocks,
     comments as doc_comments,
@@ -167,6 +168,49 @@ def create_space(
     return space
 
 
+def resolve_or_create_project_space(db: Session, user: User, project_id: str) -> KnowledgeSpace:
+    """그 프로젝트의 지식 공간을 찾거나 만든다 (§14.2).
+
+    사용자가 이해해야 하는 것은 "어느 프로젝트"뿐이다(§14.4) — "공간"이라는 개념을
+    몰라도 새 문서를 그 프로젝트 아래 만들 수 있어야 한다. 프로젝트마다 미리 만들지
+    않는다: 문서가 하나라도 그 프로젝트를 고르는 순간에만 만든다(그러지 않으면 문서가
+    하나도 없는 프로젝트 공간이 탐색기에 줄줄이 선다).
+
+    권한 재검증은 **프로젝트 자체의 범위 게이트**로 한다(`SPACE_ADMIN` 이 아니다) —
+    이 경로를 타는 사용자는 문서를 만들 뿐 공간을 관리하는 것이 아니다. 그 프로젝트를
+    볼 수 없으면 여기서 404 를 낸다.
+
+    `app/projects/service.py::get_scoped_project_or_404` 를 부르지 않는다 — 그쪽은
+    `Principal` 을 받는데, 그것을 새로 만들면(`app/work/service.py` 가 같은 이유로
+    자기 게이트를 하나 더 둔 이유) 이 모듈이 이미 쓰는 `context_for_user` 경로와 갈라진
+    판정 경로가 생긴다. 판정 자체는 양쪽 다 `effective_visibility_clause` 하나다(D-194).
+    """
+    from app.authz.visibility import RESOURCE_PROJECT
+    from app.projects.models import Project
+
+    ctx = context_for_user(db, user)
+    stmt = select(Project).where(Project.id == project_id)
+    clause = effective_visibility_clause(ctx, RESOURCE_PROJECT)
+    if clause is not None:
+        stmt = stmt.where(clause)
+    project = db.execute(stmt).scalar_one_or_none()
+    if project is None:
+        raise NotFoundError("프로젝트를 찾을 수 없습니다.")
+    existing = db.execute(
+        select(KnowledgeSpace).where(
+            KnowledgeSpace.owner_kind == OWNER_PROJECT,
+            KnowledgeSpace.owner_project_id == project.id,
+        )
+    ).scalars().first()
+    if existing is not None:
+        return existing
+    return create_space(
+        db, user,
+        name=project.name, slug=(project.code or project.id[:8]).lower(),
+        owner_kind=OWNER_PROJECT, owner_project_id=project.id,
+    )
+
+
 def update_space(
     db: Session, user: User, space_id: str, *, expected_version: int | None = None, **fields
 ) -> KnowledgeSpace:
@@ -291,8 +335,9 @@ def _order_by(sort: str | None):
 
 
 def list_documents(
-    db: Session, user: User, *, space_id: str | None = None, folder_id: str | None = None,
-    q: str | None = None, tag: str | None = None, favorites: bool = False,
+    db: Session, user: User, *, space_id: str | None = None, project_id: str | None = None,
+    folder_id: str | None = None,
+    q: str | None = None, tags: list[str] | None = None, favorites: bool = False,
     include_archived: bool = False, archived_only: bool = False,
     created_by: str | None = None, drafts: bool = False, sort: str | None = None,
     limit: int = 50, offset: int = 0,
@@ -301,6 +346,13 @@ def list_documents(
 
     `folder_id` 는 그 폴더 **아래 전부**를 뜻한다. 직계 자식만 보여 주면 사용자는
     「분명 여기 넣었는데 없다」를 자주 만난다 — 폴더를 한 겹 더 만든 사실을 잊기 때문이다.
+
+    `project_id` 는 그 프로젝트가 소유한 공간의 문서로 좁힌다(§11.4). 권한은 이미 걸린
+    `clause` 가 맡는다 — 볼 수 없는 프로젝트를 넘기면 조건을 만족하는 공간이 없어 결과가
+    0건이 될 뿐이다(별도 게이트를 다시 걸지 않는다, 다른 필터들과 같은 방식).
+
+    `tags` 는 **다중이고 AND** 다 — 고른 태그를 전부 가진 문서로 좁힌다(고르개가 늘수록
+    범위가 넓어지면 "좁히는 필터"라는 사용자의 기대와 어긋난다).
 
     `drafts` 는 「아직 한 번도 고치지 않은 문서」다. 이 제품에 **초안 상태 같은 것은
     없고**(문서에 상태 칸이 없다) 만들지도 않는다 — 대신 이미 있는 사실 하나를 읽는다:
@@ -315,6 +367,15 @@ def list_documents(
     if space_id:
         space = get_scoped_space_or_404(db, user, space_id)
         stmt = stmt.where(Document.space_id == space.id)
+    if project_id:
+        stmt = stmt.where(
+            Document.space_id.in_(
+                select(KnowledgeSpace.id).where(
+                    KnowledgeSpace.owner_kind == OWNER_PROJECT,
+                    KnowledgeSpace.owner_project_id == project_id,
+                )
+            )
+        )
     if folder_id:
         folder = get_scoped_folder_or_404(db, user, folder_id)
         stmt = stmt.where(Document.folder_id.in_(folders.subtree_ids(db, folder)))
@@ -341,16 +402,23 @@ def list_documents(
                 select(DocumentVersion.id).where(DocumentVersion.body_text.ilike(needle))
             )
         )
-    if tag and tag.strip():
+    clean_tags = [t.strip() for t in (tags or []) if t and t.strip()]
+    if clean_tags:
+        from app.knowledge import tags as tags_mod
         from app.knowledge.models import DocumentTag, Tag
 
-        stmt = stmt.where(
-            Document.id.in_(
-                select(DocumentTag.document_id)
-                .join(Tag, Tag.id == DocumentTag.tag_id)
-                .where(Tag.slug == tags.slugify(tag))
+        wanted_slugs = tuple(sorted({tags_mod.slugify(t) for t in clean_tags}))
+        # AND: 고른 태그 수만큼 EXISTS 를 겹친다. 문서 하나가 그 태그 전부를 가져야 하므로
+        # 단순 `IN` + `GROUP BY HAVING COUNT` 대신 태그마다 독립된 존재 조건을 건다 —
+        # 읽는 사람이 "왜 3개"인지 SQL 만 보고 알 수 있다(고른 태그 수와 조건 수가 같다).
+        for slug in wanted_slugs:
+            stmt = stmt.where(
+                Document.id.in_(
+                    select(DocumentTag.document_id)
+                    .join(Tag, Tag.id == DocumentTag.tag_id)
+                    .where(Tag.slug == slug)
+                )
             )
-        )
     if favorites:
         # 즐겨찾기는 **내용 필터**다(무엇을 볼지). 권한 조건과 나란히 걸리므로, 남이 담아 둔
         # 문서가 이 목록에 새어 들어올 수 없다.
@@ -394,13 +462,25 @@ def get_scoped_document_or_404(db: Session, user: User, document_id: str) -> Doc
 
 
 def create_document(
-    db: Session, user: User, *, space_id: str, title: str,
+    db: Session, user: User, *, space_id: str | None = None, project_id: str | None = None,
+    title: str,
     folder_id: str | None = None, body: dict | None = None,
     doc_type: str | None = None, source_type: str = SOURCE_USER,
     tag_names: list[str] | None = None, confidential: bool = False,
     template: str | None = None,
 ) -> Document:
-    space = get_scoped_space_or_404(db, user, space_id)
+    """`space_id` 나 `project_id` 중 하나를 받는다 — 화면은 보통 후자만 안다(§14.4).
+
+    `project_id` 를 주면 그 프로젝트의 공간을 찾거나 만든다
+    (`resolve_or_create_project_space`). 화면이 "공간" 개념을 몰라도 프로젝트 문서를
+    만들 수 있는 것이 이 매개변수가 존재하는 이유다.
+    """
+    if project_id:
+        space = resolve_or_create_project_space(db, user, project_id)
+    elif space_id:
+        space = get_scoped_space_or_404(db, user, space_id)
+    else:
+        raise ValidationAppError("어느 프로젝트(또는 공간)의 문서인지 골라 주세요.")
     if source_type not in SOURCE_TYPES:
         raise ValidationAppError(f"모르는 문서 출처입니다: {source_type}")
     if folder_id:
@@ -495,25 +575,47 @@ def save_document(
 
 
 def move_document(
-    db: Session, user: User, document_id: str, *, folder_id: str | None,
-    expected_version: int | None = None,
-) -> Document:
-    """폴더를 옮긴다. **권한은 안 바뀐다** (§5.3).
+    db: Session, user: User, document_id: str, *, folder_id: str | None = None,
+    project_id: str | None = None, expected_version: int | None = None,
+) -> tuple[Document, bool]:
+    """정리(폴더)와 소속(프로젝트)을 한 호출로 옮긴다 (§14.4 이동 대화상자).
 
-    같은 공간 안에서만 옮긴다. 공간을 옮기는 것은 권한이 바뀌는 동작이라 다른 입구여야
-    하고, 정리 동작과 같은 버튼에 두면 사람이 그 차이를 못 본다.
+    `folder_id` 만 오면 폴더 이동 — **같은 공간 안에서만** 옮긴다. `project_id` 가 오면
+    소속(공간) 이동이다: 그 프로젝트의 공간을 찾거나 만들고(`resolve_or_create_project_space`),
+    권한 경계가 바뀌므로 옛 폴더 참조는 버린다(다른 공간의 폴더를 가리키게 둘 수 없다 —
+    0023 마이그레이션이 프로젝트 재배치에서 하는 것과 같은 처리). 이 함수를 부르는
+    라우터는 소속이 실제로 바뀐 경우에만 감사 로그를 남긴다 — **폴더 정리는 권한을 안
+    바꾸지만 소속 이동은 바꾼다**(§5.3), 그 차이가 로그에도 드러나야 한다.
+
+    두 번째 반환값은 "소속(공간)이 실제로 바뀌었는가" — 라우터가 감사 로그 여부를
+    그것으로 정한다.
     """
     document = get_scoped_document_or_404(db, user, document_id)
     _check_lock(document, expected_version)
 
-    if folder_id:
+    space_changed = False
+    if project_id:
+        new_space = resolve_or_create_project_space(db, user, project_id)
+        if new_space.id != document.space_id:
+            document.space_id = new_space.id
+            document.folder_id = None
+            space_changed = True
+        elif folder_id:
+            folder = get_scoped_folder_or_404(db, user, folder_id)
+            if folder.space_id != document.space_id:
+                raise ValidationAppError("다른 공간의 폴더로는 옮길 수 없습니다.")
+            document.folder_id = folder_id
+    elif folder_id:
         folder = get_scoped_folder_or_404(db, user, folder_id)
         if folder.space_id != document.space_id:
             raise ValidationAppError("다른 공간의 폴더로는 옮길 수 없습니다.")
-    document.folder_id = folder_id
+        document.folder_id = folder_id
+    else:
+        document.folder_id = None
+
     document.version += 1
     db.flush()
-    return document
+    return document, space_changed
 
 
 def delete_document(db: Session, user: User, document_id: str, *, now=None) -> Document:
@@ -815,7 +917,10 @@ def list_page_extras(db: Session, user: User, documents: list[Document]) -> dict
 
     ids = [d.id for d in documents]
     if not ids:
-        return {"people": {}, "excerpts": {}, "counts": {}, "folders": {}, "spaces": {}}
+        return {
+            "people": {}, "excerpts": {}, "counts": {}, "folders": {}, "spaces": {},
+            "projects": {},
+        }
 
     version_ids = [d.current_version_id for d in documents if d.current_version_id]
     excerpts: dict[str, str] = {}
@@ -856,18 +961,41 @@ def list_page_extras(db: Session, user: User, documents: list[Document]) -> dict
         counts["relations"][doc_id] = counts["relations"].get(doc_id, 0) + n
 
     space_ids = [d.space_id for d in documents]
-    spaces = {
-        row.id: row.name
-        for row in db.execute(
-            select(KnowledgeSpace).where(KnowledgeSpace.id.in_(tuple(sorted(set(space_ids)))))
-        ).scalars().all()
-    }
+    space_rows = list(db.execute(
+        select(KnowledgeSpace).where(KnowledgeSpace.id.in_(tuple(sorted(set(space_ids)))))
+    ).scalars().all())
+    spaces = {row.id: row.name for row in space_rows}
+
+    # 프로젝트 소유 공간만 프로젝트를 낸다 — 공통(조직) 공간의 문서는 `project: null`.
+    from app.projects.models import Project
+
+    project_space_ids = [
+        row.id for row in space_rows
+        if row.owner_kind == OWNER_PROJECT and row.owner_project_id
+    ]
+    projects: dict[str, dict] = {}
+    if project_space_ids:
+        project_by_id = {
+            p.id: p for p in db.execute(
+                select(Project).where(Project.id.in_(
+                    tuple(sorted({r.owner_project_id for r in space_rows if r.id in project_space_ids}))
+                ))
+            ).scalars().all()
+        }
+        for row in space_rows:
+            if row.id not in project_space_ids:
+                continue
+            project = project_by_id.get(row.owner_project_id)
+            if project is not None:
+                projects[row.id] = {"id": project.id, "code": project.code, "name": project.name}
+
     return {
         "people": people,
         "excerpts": excerpts,
         "counts": counts,
         "folders": _folder_paths(db, space_ids),
         "spaces": spaces,
+        "projects": projects,
     }
 
 

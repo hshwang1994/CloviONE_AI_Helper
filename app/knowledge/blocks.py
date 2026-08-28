@@ -57,21 +57,25 @@ class BlockError(ValueError):
 
 # ── 스키마 ───────────────────────────────────────────────────────────────────
 #
-# TipTap StarterKit 과 공식 MIT 확장(`extension-image`·`extension-table`)이 내는 노드
-# 그대로다. Pro extension 은 상용 라이선스라 쓰지 않는다(D-198). 목록에 없는 종류는
-# **거절한다** — 통과시키면 편집기가 못 그리는 값이 DB 에 들어가고, 그 문서는 열 때마다
-# 빈 화면이 된다.
+# TipTap StarterKit 과 공식 MIT 확장(`extension-image`·`extension-table`·`extension-underline`·
+# `extension-task-list`·`extension-task-item`)이 내는 노드 그대로다. Pro extension 은 상용
+# 라이선스라 쓰지 않는다(D-198). 목록에 없는 종류는 **거절한다** — 통과시키면 편집기가 못
+# 그리는 값이 DB 에 들어가고, 그 문서는 열 때마다 빈 화면이 된다.
 #
 # `image` 와 `table` 은 S14 에서 들어왔다. 그 전에는 스키마에 자리가 없어서 이관이 원본
 # 이미지 49블록과 표 93개를 `[원본에서 확인: image]` 같은 **글자**로 바꿔 넣었고, 표
 # 셀의 31,310자는 어디에도 남지 않았다.
+#
+# `taskList` 는 REAUDIT §15.4 에서 들어왔다. 앞 회차가 밑줄·체크 목록 단추를 안 넣은
+# 이유는 이 스키마에 자리가 없어서였다 — 버튼을 두면 사용자가 쓰고 저장했다가 다시 열었을
+# 때 사라졌다. 이번에 자리를 넓힌다.
 BLOCK_NODES: frozenset[str] = frozenset({
     "paragraph", "heading", "bulletList", "orderedList", "blockquote",
-    "codeBlock", "horizontalRule", "image", "table",
+    "codeBlock", "horizontalRule", "image", "table", "taskList",
 })
 # 블록 안에서만 나오는 구조 노드. 최상위에 오면 편집기가 못 그린다.
 NESTED_NODES: frozenset[str] = frozenset({
-    "listItem", "tableRow", "tableHeader", "tableCell",
+    "listItem", "tableRow", "tableHeader", "tableCell", "taskItem",
 })
 INLINE_NODES: frozenset[str] = frozenset({"text", "hardBreak", "mention"})
 KNOWN_NODES = BLOCK_NODES | NESTED_NODES | INLINE_NODES
@@ -85,16 +89,18 @@ NODE_PARENTS: dict[str, frozenset[str]] = {
     "tableRow": frozenset({"table"}),
     "tableHeader": frozenset({"tableRow"}),
     "tableCell": frozenset({"tableRow"}),
+    "taskItem": frozenset({"taskList"}),
 }
 NODE_CHILDREN: dict[str, frozenset[str]] = {
     "bulletList": frozenset({"listItem"}),
     "orderedList": frozenset({"listItem"}),
     "table": frozenset({"tableRow"}),
     "tableRow": frozenset({"tableHeader", "tableCell"}),
+    "taskList": frozenset({"taskItem"}),
 }
 TABLE_CELL_NODES: frozenset[str] = frozenset({"tableHeader", "tableCell"})
 
-MARKS: frozenset[str] = frozenset({"bold", "italic", "strike", "code", "link"})
+MARKS: frozenset[str] = frozenset({"bold", "italic", "strike", "code", "link", "underline"})
 
 # 링크가 가리킬 수 있는 것. 목록에 없으면 **마크를 떼고 글자만 남긴다** — 저장을 통째로
 # 거절하면 사용자가 방금 쓴 글을 잃는다. `javascript:` 가 이 목록에 없는 이유는 설명이
@@ -325,6 +331,12 @@ def _normalize_attrs(kind: str, attrs: dict) -> dict[str, Any]:
             out["title"] = title.strip()
         else:
             out.pop("title", None)
+    elif kind == "taskItem":
+        # `alt`·`language` 와 같은 자리다 — 체크 여부는 장식적 상태지 표 칸의 colspan 처럼
+        # 다른 노드의 배치를 틀어지게 하는 구조값이 아니다. 그래서 거절하지 않고 안전한
+        # 기본값(TipTap 자체 기본값과 같은 미체크)으로 조용히 눕힌다: 편집기가 보낼 수
+        # 없는 값(문자열 "true", 1, 없음)을 만나도 문서 저장 전체를 잃게 하지 않는다.
+        out["checked"] = out.get("checked") is True
     elif kind in TABLE_CELL_NODES:
         for name in ("colspan", "rowspan"):
             span = out.get(name, 1)
@@ -442,7 +454,9 @@ def _block_markdown(node: dict[str, Any], *, depth: int, ordinal: int = 1) -> st
         return "\n".join(f"> {line}" if line else ">" for line in inner.split("\n"))
     if kind in ("bulletList", "orderedList"):
         return _list_markdown(node, depth=depth)
-    if kind == "listItem":
+    if kind == "taskList":
+        return _task_list_markdown(node, depth=depth)
+    if kind in ("listItem", "taskItem"):
         return "\n\n".join(
             filter(None, (_block_markdown(c, depth=depth) for c in children))
         )
@@ -468,6 +482,24 @@ def _list_markdown(node: dict[str, Any], *, depth: int) -> str:
         lines.append(f"{marker} {rows[0]}")
         # 이어지는 줄은 표식 너비만큼 들여쓴다. 안 하면 다음 줄이 목록에서 빠져나온다.
         # 빈 줄에는 안 붙인다 — 공백만 있는 줄은 눈에 안 보이는 차이를 diff 에 만든다.
+        indent = " " * (len(marker) + 1)
+        lines.extend(f"{indent}{row}" if row else "" for row in rows[1:])
+    return "\n".join(lines)
+
+
+def _task_list_markdown(node: dict[str, Any], *, depth: int) -> str:
+    """체크 목록 하나. `_list_markdown` 과 들여쓰기 규칙은 같지만, 표식이 항목의 **순서**가
+    아니라 **`checked`** 에서 나온다 — GitHub 이 읽는 `- [ ]` / `- [x]` 문법이다."""
+    lines: list[str] = []
+    for item in node.get("content") or []:
+        checked = bool((item.get("attrs") or {}).get("checked"))
+        marker = "- [x]" if checked else "- [ ]"
+        body = _block_markdown(item, depth=depth + 1)
+        if not body:
+            lines.append(marker)
+            continue
+        rows = body.split("\n")
+        lines.append(f"{marker} {rows[0]}")
         indent = " " * (len(marker) + 1)
         lines.extend(f"{indent}{row}" if row else "" for row in rows[1:])
     return "\n".join(lines)
@@ -544,6 +576,10 @@ def _inline_markdown(nodes: list[Any]) -> str:
             piece = f"*{piece}*"
         if "strike" in marks:
             piece = f"~~{piece}~~"
+        # 마크다운에는 밑줄 문법이 없다 — HTML 통과가 표준 선택이다(CommonMark 는 인라인
+        # HTML 을 그대로 통과시킨다).
+        if "underline" in marks:
+            piece = f"<u>{piece}</u>"
         if "link" in marks:
             href = (marks["link"].get("attrs") or {}).get("href", "")
             piece = f"[{piece}]({href})"
@@ -554,7 +590,9 @@ def _inline_markdown(nodes: list[Any]) -> str:
 def _block_text(node: dict[str, Any], lines: list[str]) -> None:
     kind = node.get("type")
     children = node.get("content") or []
-    if kind in ("bulletList", "orderedList", "blockquote", "listItem"):
+    if kind in ("bulletList", "orderedList", "blockquote", "listItem", "taskList", "taskItem"):
+        # 체크 상태는 검색·임베딩에 안 남는다 — 같은 글이 체크 여부만 달라 다른 벡터가
+        # 되면 안 된다(파일 docstring의 `to_text` 계약과 같다).
         for child in children:
             _block_text(child, lines)
         return

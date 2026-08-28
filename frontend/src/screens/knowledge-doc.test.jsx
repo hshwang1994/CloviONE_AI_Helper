@@ -71,6 +71,7 @@ function stubDocument({ version = 3 } = {}) {
     version,
     space_id: "space-1",
     space_name: "우리 공간",
+    project: { id: "proj-1", code: "AAAAAA", name: "알파 프로젝트" },
     folder_id: null,
     updated_at: "2026-08-20T01:00:00",
     created_at: "2026-08-01T01:00:00",
@@ -85,6 +86,15 @@ function stubDocument({ version = 3 } = {}) {
   });
   responses.set("GET /api/knowledge/spaces/space-1/tree", {
     folders: [{ id: "f-1", name: "01. 기획", depth: 0, children: [] }],
+  });
+  // 이동 대화상자의 ProjectPicker 가 쓴다(§14.4) — 지금 프로젝트(alpha)와 다른 프로젝트(beta)
+  // 로 실제로 옮기는 시험에 필요하다.
+  responses.set("GET /api/projects?page_size=200", {
+    items: [
+      { id: "proj-1", code: "AAAAAA", name: "알파 프로젝트" },
+      { id: "proj-2", code: "BBBBBB", name: "베타 프로젝트" },
+    ],
+    total: 2,
   });
   // 화면이 본문 아래에 논의를 함께 그린다 (S14 · C2). 대역이 없으면 그 자리가 오류 상태로
   // 뜨는데, 이 파일이 보려는 것은 판·차이·되돌리기라 소음만 는다.
@@ -223,7 +233,7 @@ describe("곁열이 문서에 대한 것을 든다", () => {
   it("작성자, 공간, 태그, 관련 문서, 첨부가 한자리에 있다", async () => {
     await renderDoc();
     expect(screen.getByText("김동현")).toBeInTheDocument();
-    expect(screen.getAllByText("우리 공간").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("알파 프로젝트").length).toBeGreaterThan(0);
     expect(screen.getByText("요구사항 정의서")).toBeInTheDocument();
     expect(screen.getByText("회의자료.pdf")).toBeInTheDocument();
   });
@@ -245,6 +255,29 @@ describe("곁열이 문서에 대한 것을 든다", () => {
     await waitFor(() => expect(seen).toHaveLength(1));
     expect(seen[0].folder_id).toBe("f-1");
     expect(seen[0].base_version).toBe(3);
+  });
+
+  it("🔴 프로젝트를 바꾸면 폴더 칸이 잠기고, 새 프로젝트 id 가 그대로 나간다(§14.4)", async () => {
+    const seen = [];
+    responses.set(`POST /api/knowledge/documents/${DOC_ID}/move`, (options) => {
+      seen.push(options.body);
+      return { id: DOC_ID, version: 4 };
+    });
+    await renderDoc();
+
+    await userEvent.click(screen.getByRole("button", { name: "이동" }));
+    const dialog = await screen.findByRole("dialog");
+    await userEvent.click(within(dialog).getByLabelText("프로젝트"));
+    await userEvent.click(await screen.findByRole("option", { name: /베타 프로젝트/ }));
+
+    // 프로젝트를 바꾸면 폴더는 새 프로젝트 쪽에서 뜻이 없어 칸이 잠긴다.
+    // MUI Select 의 내부 combobox 는 진짜 <select disabled> 가 아니라 aria-disabled 로
+    // 신호하므로 toBeDisabled() 가 아니라 이 속성으로 확인한다.
+    expect(within(dialog).getByLabelText("폴더")).toHaveAttribute("aria-disabled", "true");
+
+    await userEvent.click(within(dialog).getByRole("button", { name: "옮기기" }));
+    await waitFor(() => expect(seen).toHaveLength(1));
+    expect(seen[0].project_id).toBe("proj-2");
   });
 
   it("태그도 저장 버튼 하나로 함께 저장된다 — 버튼마다 다른 것이 저장되면 아무도 못 외운다", async () => {

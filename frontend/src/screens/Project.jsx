@@ -17,6 +17,7 @@ import { useListReturn } from "../lib/listReturn.js";
 import { HealthBlock, HealthHistory, ProgressBlock } from "./ProjectMetrics.jsx";
 import { DateHistogram } from "../ui/charts/DateHistogram.jsx";
 import { DETAIL_SOLO_WIDTH } from "../ui/DetailLayout.jsx";
+import { ProjectDocuments } from "./ProjectDocuments.jsx";
 import { ProjectTickets } from "./ProjectTickets.jsx";
 import { ProjectWbs } from "./ProjectWbs.jsx";
 import { ProjectWeekly } from "./ProjectWeekly.jsx";
@@ -54,6 +55,7 @@ const TABS = [
   ["wbs", "WBS"],
   ["milestones", "마일스톤"],
   ["tickets", "티켓"],
+  ["documents", "문서"],
   ["weekly", "주간 리포트"],
 ];
 
@@ -495,6 +497,10 @@ export function Project() {
           project={project} page={state.page}
           onPage={(page) => setState({ page })}
         />
+      ) : null}
+
+      {tab === "documents" ? (
+        <ProjectDocuments projectId={id} />
       ) : null}
 
       {tab === "weekly" ? (

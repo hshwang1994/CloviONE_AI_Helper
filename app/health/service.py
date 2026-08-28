@@ -323,15 +323,25 @@ def build_dashboard(
         .scalars()
         .all()
     ) if include_critical_audit else []
-    # Resolve actor ids to display names so the dashboard can show WHO acted
-    # (spec §14.1 "최근 주요 변경"). Missing/system actors fall back to "시스템".
+    # 행위자 id 를 표시 이름으로 바꾼다 — 대시보드가 「누가 했는가」를 말해야 한다
+    # (지시 §14.1 "최근 주요 변경"). 행위자가 없거나 시스템이면 "시스템"으로 대신한다.
+    #
+    # 같은 자리에서 user.disable·user.role_change 행의 **대상**(object_type == "user")
+    # 이름도 함께 푼다 — 안 그러면 Dashboard.jsx의 「대상」 열에는 원시 object_id UUID밖에
+    # 없다(C16 재감사 — "「대상」 열에 UUID 앞머리가 그대로 보인다"). 이 목록은 위
+    # `.limit(5)`로 다섯 줄까지만 오므로, 이미 한 번 묶어 보내는 질의에 id 하나 더 넣는
+    # 비용은 없다. 나머지 CRITICAL_ACTIONS 대상 종류(setting.rollback의 설정 키,
+    # approval.approve의 요청 id)는 사용자가 아니라서 그대로 잘린 id + 복사 버튼으로
+    # 남는다 — 설정 키나 결재 요청에는 여기서 풀 「이름」이라는 것 자체가 없다.
     actor_ids = {a.user_id for a in recent_critical if a.user_id}
-    actor_names: dict[str, str] = {}
-    if actor_ids:
+    target_user_ids = {a.object_id for a in recent_critical if a.object_type == "user" and a.object_id}
+    resolved_user_names: dict[str, str] = {}
+    user_ids_to_resolve = actor_ids | target_user_ids
+    if user_ids_to_resolve:
         for u in db.execute(
-            select(User.id, User.display_name).where(User.id.in_(actor_ids))
+            select(User.id, User.display_name).where(User.id.in_(user_ids_to_resolve))
         ).all():
-            actor_names[u.id] = u.display_name
+            resolved_user_names[u.id] = u.display_name
 
     last_backup = last_successful_backup(db)
 
@@ -387,15 +397,21 @@ def build_dashboard(
         },
         "recent_critical_audit": [
             {"action": a.action, "object_type": a.object_type, "object_id": a.object_id,
+             # 대상이 사용자일 때 object_id 대신 보여줄 사람이 읽는 이름(위
+             # resolved_user_names 주석 참고). 나머지 CRITICAL_ACTIONS 대상 종류는
+             # None — Dashboard.jsx가 그때는 기존의 잘린 id 표시로 대신한다.
+             "object_label": (
+                 resolved_user_names.get(a.object_id, "(알 수 없는 사용자)")
+                 if a.object_type == "user" and a.object_id else None
+             ),
              "created_at": a.created_at.isoformat(),
-             # Dashboard.jsx renders `a.actor || "시스템"` — None must mean "no actor
-             # at all" (a truly system-initiated row), never "we couldn't resolve who
-             # it was". If user_id is set but the user no longer resolves (deleted/
-             # unavailable), say so explicitly instead of letting a real, accountable
-             # human action get mislabeled as an automated one on a widget whose whole
-             # point is "who did this".
+             # Dashboard.jsx는 `a.actor || "시스템"`으로 그린다 — None은 반드시
+             # "행위자 자체가 없다"(정말 시스템이 한 일)만 뜻해야 하고, "누군지 못
+             # 풀었다"의 대역이 되면 안 된다. user_id는 있는데 그 사용자를 못 찾으면
+             # (탈퇴·접근 불가) 그 사실을 그대로 말한다 — 실제로 책임질 사람이 한 일을
+             # 「누가 했는가」가 요점인 위젯에서 자동화된 일로 잘못 읽히게 두지 않는다.
              "actor": (
-                 actor_names.get(a.user_id, "(알 수 없는 사용자)") if a.user_id else None
+                 resolved_user_names.get(a.user_id, "(알 수 없는 사용자)") if a.user_id else None
              )}
             for a in recent_critical
         ],

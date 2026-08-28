@@ -85,9 +85,9 @@ def _tags(client, hdr):
 def test_the_usage_count_only_sees_documents_i_can_see(client, login_as, world):
     """🔴 「인프라」는 문서 둘에 붙어 있지만 내가 볼 수 있는 것은 하나다."""
     rows = _tags(client, _hdr(login_as))
-    assert rows["인프라"]["documents"] == 1
+    assert rows["인프라"]["document_count"] == 1
     # 남의 공간 문서에만 붙은 태그는 어휘로는 보이되 **사용 수는 0** 이다.
-    assert rows["남의태그"]["documents"] == 0
+    assert rows["남의태그"]["document_count"] == 0
 
 
 # ── 추가 ─────────────────────────────────────────────────────────────────────
@@ -99,7 +99,7 @@ def test_a_tag_can_be_added_by_anyone_who_can_edit_documents(client, login_as, w
     hdr = _hdr(login_as)
     made = client.post("/api/knowledge/tags", headers=hdr, json={"name": "배포 관리"})
     assert made.status_code == 200, made.text
-    assert made.json()["documents"] == 0
+    assert made.json()["document_count"] == 0
     assert "배포 관리" in _tags(client, hdr)
 
 

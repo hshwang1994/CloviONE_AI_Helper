@@ -877,6 +877,102 @@ C10(발생 추이 dataZoom 초기 창을 실제 자료 구간으로)·C11(생성
    관리자(짧은 설명 · 경고 관용구 하나 · UUID 노출).
 8. Targeted 검증(§18) → 커밋.
 
+#### 묶음 2 — 완료 (2026-08-28)
+
+1~7 단계를 전부 구현했다.
+
+**1. 서버·도메인**(§11.4) — `list_documents()` 가 `project_id`(공간 조인) ·
+`tags`(다중, AND — 태그마다 EXISTS 서브쿼리를 겹친다) 를 받는다. 새 함수
+`resolve_or_create_project_space(db, user, project_id)` 가 프로젝트 공간을 찾아 없으면
+만든다(§14.2). `create_document`/`move_document` 는 `project_id` 를 `space_id` 의
+대안으로 받고, `move_document` 는 실제 공간이 바뀔 때만 `folder_id` 를 비운다(옛
+폴더는 새 공간에 없는 자리라서다) — 이때만 감사 로그(`knowledge.document_move_project`)를
+남긴다. `list_page_extras()` 가 `projects: {space_id: {id,code,name}}` 를 함께 낸다 —
+문서 응답의 `project` 필드와 휴지통 라벨이 이 하나를 같이 쓴다.
+
+**2. 마이그레이션 둘.** `0023` 은 문서 1건 이상 받는 실제 프로젝트 코드 11개로
+`knowledge_spaces` 를 만들고 실문서 58건을 재배치한다(`folder_id` 리셋, `updated_at`
+불변 — downgrade 는 이름으로 원래 공간·폴더를 되찾는다). `0024` 는 실기술태그
+41개를 만들거나 재사용하고(문서 80건·연결 253건, `docker`→`Docker` 개명 포함) §13
+순서 그대로 **연결을 먼저 끊고** 안 쓰는 옛 태그 18개(문서 61건·연결 103건)를
+지운다. 둘 다 0022 의 방어 관례(`.scalar()`+스킵)를 따른다 — 없는 자료를 만나면
+죽지 않고 건너뛴다. 전용 DB(`@pytest.mark.real_db`)에 실문서 하나를 심어
+downgrade→upgrade 왕복을 실제로 검증했다(`tests/regression/test_migration_0023_0024_reaudit.py`).
+
+**3. 화면.** `Knowledge.jsx`(탐색기 재정렬 · URL `tags` 배열로 다중 태그 필터 ·
+`ProjectPicker`/`TagPicker` 를 쓰는 새 문서 대화상자 · 목록 열 재구성 · 문서
+60건 초과 시 가상화, 쪽 크기 25→100) · `KnowledgeDoc.jsx`(정보 줄·메타바에
+프로젝트 표시와 링크 · 프로젝트+폴더 통합 이동 대화상자 · `TagPicker` 태그 판) ·
+`Project.jsx` 「문서」 탭(신규 `ProjectDocuments.jsx` — 새 API 를 안 만들고
+`GET /api/knowledge/documents?project_id=` 그대로 써서 §11.4 의 권한 계약을 한 벌로
+유지) · 휴지통(프로젝트 소유 공간만 실제 이름으로 바꿨다 — 부서 공간은 범위 밖이라
+원래 이름 그대로 둔다, D-359).
+
+**4. 편집기**(§15.4) — 서버 `blocks.py` 스키마를 `underline` 마크·`taskList`/
+`taskItem` 노드까지 넓히고(마크다운은 `<u>` 인라인 HTML 로 왕복), TipTap 에
+`Underline`·`TaskList`·`TaskItem.configure({nested:true})`·`Link`(자동 링크 없음,
+`openOnClick` 꺼짐)를 붙였다. 툴바를 아이콘 5묶음으로 다시 짰고 `window.prompt`
+대신 MUI `Popover` 기반 `LinkPopover` 를 새로 뒀다(선택 구간은 팝오버로 포커스가
+옮겨가기 **전에** `editor.state.selection` 에서 미리 잡아 둔다 — 안 그러면
+ProseMirror 선택이 문서 전체로 퍼진다). 저장→재열람 왕복 시험으로 `block_ids`
+안정성까지 확인했다(`tests/unit/test_knowledge_blocks.py`). `BodyEditor.jsx` 의
+제목 버튼이 하나(H2)뿐이라 렌더러가 이미 아는 제목1/2/3 과 어긋나 있던 것도 함께
+맞췄다.
+
+**5. 고르개**(§15.3) — `TagPicker`(검색·다중·새 태그 생성·사용 문서 수, MUI
+`Autocomplete`+`freeSolo`+`filterOptions` 를 직접 쓴다 — `EntityCombobox` 는 닫힌
+후보집합을 전제라 안 맞는다)·`ProjectPicker`·`UserPicker` 셋을 문서 목록 필터·새
+문서·문서 상세 곁열·`ProjectDocuments` 에 같은 부품으로 걸었다.
+
+**6. 가상화**(§15.1) — 문서 목록(`DataTable` 의 기존
+`virtualize={rows.length > 60 ? {} : undefined}` 관례 그대로). 「알림 설정」은
+`Profile.jsx` 의 알림 유형이 스물한 줄 고정(서버가 주는 catalog, 사용자 자료로
+불어나지 않는다)이라 가상화가 필요한 규모가 아니었다 — 없는 일을 만들지 않았다.
+
+**7. 나머지 화면.** 채팅 — `ChatPane` 빈/로딩 로그가 아래로 붙던 결함(`hasLog`
+분기로 고침) · `ChatRoom`/`ChatRoomMembers` 에 이미 있는 identity map 을 그대로
+꿰어 아바타가 실제로 뜨게 함(새 API 호출 0건). 프로필 — `AvatarCropDialog` 를
+`react-easy-crop` 로 전면 교체(순수 함수 `pixelsToServerCrop` 로 서버 축 환산을
+분리, `app/profiles/avatar_image.py::_square_box` 수식의 역함수로 대수적으로
+검산함) · `DefaultAvatarPicker` 를 트리거+대화상자화(바깥 prop 계약 불변,
+`Profile.jsx` 무수정). 관리자 — Dashboard 포함 9개 화면에 `PageHeader
+description` 한 줄 · **C16**(대시보드가 경고 관용구를 둘 씀)을 배지 낱말
+"문제"→"위험" 통일로 고침(아래 조치 목록과 같은 말) · **UUID 노출**을
+`object_label`(대상 실명, `app/health/service.py` 신규 배치 조회 — 다섯 줄 상한
+`recent_critical` 에서 나온 id 들을 한 질의로 묶어 푼다)로 대체.
+
+**실제로 도입됐다(만들고 안 쓴 것 없음):** `Underline`/`TaskList`/`TaskItem`/
+`Link`/`@tiptap/extension-placeholder`(다섯 다 §15.0 확정 목록에 있었는데, **위임한
+에이전트 둘 다 placeholder 를 안 걸었다** — 서버는 이미 받는데 화면엔 안내 문구가
+없는 상태로 남을 뻔한 것을 `dependencies.test.js`(PF10) 로 잡아 직접 배선했다) ·
+`react-easy-crop`(이번에 처음 진입 그래프에 실제로 들어갔다 — 지연 청크라 초기
+예산엔 안 잡힌다) · `TagPicker`/`ProjectPicker`/`UserPicker`.
+
+**구현 중 실제로 찾은 결함 하나(새로 얹은 부품 자체):** `taskList` 가 서버
+`BLOCK_NODES` 에는 있는데 프런트 `ANCHORED_NODES`(인용 앵커가 붙는 노드 목록,
+`BlockEditor.jsx`)에는 빠져 있었다 — 체크 목록에 인용을 달면 조용히 안 붙었을
+결함이다. 편집기 작업 중에 찾아 목록에 추가했다.
+
+**Targeted 검증(§18) — 573/574.** 정적 검사(`--scope dev`) 전부 `OK`, 백엔드 표적
+`pytest` `OK`, 프런트 574건 중 573건 통과. 유일한 실패(`projects.test.jsx` 「새
+프로젝트 폼이 실제로 POST 를 부른다」)는 이번 회차가 안 건드린 화면(`Projects.jsx`,
+이번 diff 에 없음)이고, 격리 재실행 3회 모두 52/52 통과 — 전량 동시 실행의 타이밍
+경합(무관 기존 결함)으로 결론짓고 더 쫓지 않았다(CLAUDE.md §7.0 "unrelated 기존
+Test 실패").
+
+번들 예산: 초기 gzip **278KB**(예산 280KB, 묶음 1 과 동일) — `react-easy-crop` 이
+처음 진입 그래프에 들어왔지만 지연 청크(`avatar.*.js`)라 초기 예산엔 안 잡힌다.
+`BUNDLE_BUDGET_OK`.
+
+**의도적으로 그대로 둔 것 하나:** 휴지통의 부서 소유 공간 라벨은 원래 공간 이름
+그대로 둔다 — §11.2 는 조직·프로젝트 두 경우만 정하고, 부서 공간을 다른 이름으로
+바꾸면 기존 `test_knowledge_trash.py` 의 "우리 공간" 기대값과 충돌한다. 부서 공간
+자체의 표시 정책은 이번 회차 범위가 아니다(D-359).
+
+**묶음 1 이 미룬 셋(C5 대분류 셀렉트화 · 백로그 「N번째로」 · `GroupedTickets`
+가상화)은 이번 묶음에서 손대지 않았다** — 사용자 지시대로 최종 Browser Audit(§19)
+전에 다시 판단한다.
+
 ---
 
 ## 18. Targeted 검증 범위

@@ -12,6 +12,7 @@ import { PeopleFilter, filterPeople } from "./chat/peoplePicker.jsx";
 import { FONT_SIZE, FONT_WEIGHT } from "../ui/theme.js";
 import { affiliation, hasDuplicateNames, personLabel } from "../lib/people.js";
 import { ARCHIVED_SUFFIX } from "../lib/format.js";
+import { UserAvatar } from "../ui/UserAvatar.jsx";
 
 /* 채팅방 참여자 — 접속 점(누구나 본다) + 그룹 관리 대화상자(방장만).
  *
@@ -30,6 +31,12 @@ import { ARCHIVED_SUFFIX } from "../lib/format.js";
  *
  * **권한은 서버가 준 `can_manage` 하나만 본다.** 여기서 '그룹인가? 방장인가? 전체인가?'를
  * 다시 계산하면 서버 규칙과 어긋나는 순간 '보이는데 누르면 403'이 된다.
+ *
+ * **참여자 줄도 제품 전체와 같은 얼굴을 쓴다.** 예전에는 이름 옆에 접속 점만 있고 사진이
+ * 없었다 — 말풍선(ChatPane.jsx)은 같은 사람을 `UserAvatar` 로 그리는데 참여자 목록만
+ * 다르면, 같은 방에서 위(대화)와 아래(참여자)가 다른 사람처럼 보인다. 새로 조회를 만들지
+ * 않는다: 방 메시지 응답(`GET .../messages`)이 이미 `people`(전체 신원 맵, avatar_url
+ * 포함)을 함께 주므로 `ChatRoom.jsx` 가 그걸 그대로 내려 준다.
  */
 
 function Dot({ online }) {
@@ -44,8 +51,8 @@ function Dot({ online }) {
   );
 }
 
-/** 참여자 한 줄(이름 + 접속 상태 + 방장 표시). 관리 동작은 오른쪽 slot 으로 받는다. */
-function MemberRow({ member, meId, actions }) {
+/** 참여자 한 줄(사진 + 이름 + 접속 상태 + 방장 표시). 관리 동작은 오른쪽 slot 으로 받는다. */
+function MemberRow({ member, meId, actions, person }) {
   return (
     <Box
       sx={{
@@ -55,6 +62,7 @@ function MemberRow({ member, meId, actions }) {
       }}
     >
       <Dot online={member.online} />
+      <UserAvatar person={person} name={member.name} size="sm" />
       {/* 이름 아래에 소속 한 줄. 방을 만들 때 쓰는 디렉터리는 부서를 보여 주는데 정작
           **만들어진 방의 참여자 목록은 이름만** 보여 줘서, 같은 이름 두 사람을 초대하면
           누가 누구인지 구분할 수 없었다(사용자 지시 2026-08-04). */}
@@ -93,7 +101,7 @@ function MemberRow({ member, meId, actions }) {
  */
 const STRIP_NAMES = 8;
 
-export function MemberStrip({ members }) {
+export function MemberStrip({ members, people }) {
   const rows = members || [];
   const dupNames = hasDuplicateNames(rows);
   if (!rows.length) return null;
@@ -111,6 +119,7 @@ export function MemberStrip({ members }) {
       {shown.map((m) => (
         <Box key={m.user_id} sx={{ display: "flex", alignItems: "center", gap: 0.5, minWidth: 0 }}>
           <Dot online={m.online} />
+          <UserAvatar person={people && people[m.user_id]} name={m.name} size="inline" />
           <Typography sx={{ fontSize: FONT_SIZE.bodySm, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {dupNames && affiliation(m) ? personLabel(m) : (m.name || "알 수 없음")}
           </Typography>
@@ -138,7 +147,7 @@ const PICKER_SX = {
   border: 1, borderColor: "divider", borderRadius: 2, p: 0.5,
 };
 
-export function ManageRoomModal({ open, onClose, roomId, title, members, meId }) {
+export function ManageRoomModal({ open, onClose, roomId, title, members, meId, people }) {
   const qc = useQueryClient();
   const toast = useToast();
   const confirm = useConfirm();
@@ -246,7 +255,7 @@ export function ManageRoomModal({ open, onClose, roomId, title, members, meId })
         <Box sx={PICKER_SX}>
           {rows.map((m) => (
             <MemberRow
-              key={m.user_id} member={m} meId={meId}
+              key={m.user_id} member={m} meId={meId} person={people && people[m.user_id]}
               actions={m.user_id === meId ? null : (
                 <Box sx={{ display: "flex", gap: 0.5, flexShrink: 0 }}>
                   <Button size="sm" disabled={busy} onClick={() => askHandOver(m)}>방장 넘기기</Button>

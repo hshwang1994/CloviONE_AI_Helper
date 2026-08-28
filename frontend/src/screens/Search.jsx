@@ -217,6 +217,7 @@ export function Search() {
         crumbRoot=""
         area="통합 검색"
         title={enabled ? `‘${urlQuery}’ 검색 결과` : "통합 검색"}
+        description="검색어와 관련된 항목을 유형별로 모아 봅니다."
         actions={canReindex ? (
           <Button size="sm" onClick={doReindex} disabled={reindex.isPending}>
             {reindex.isPending ? "재색인 중…" : "지금 재색인"}

@@ -346,7 +346,13 @@ export function SystemOps({ embedded = false } = {}) {
 
   return (
     <Box className="c-screen">
-      {embedded ? null : <PageHeader area="운영" title="OS와 서비스" help={HELP} />}
+      {embedded ? null : (
+        <PageHeader
+          area="운영" title="OS와 서비스"
+          description="시간대, DNS, 아웃바운드 프록시 같은 서버 설정을 지금 값과 함께 봅니다."
+          help={HELP}
+        />
+      )}
 
       {!usable && (
         /* 도우미가 없는 것은 오류가 아니라 이 서버의 상태다 - 사람이 할 일이 있으므로 조용한

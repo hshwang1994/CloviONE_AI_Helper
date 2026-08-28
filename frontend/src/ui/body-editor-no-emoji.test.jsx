@@ -51,13 +51,35 @@ describe("본문 편집기 — 이모지를 툴바에 박지 않는다", () => {
 });
 
 describe("글의 구조를 만드는 도구", () => {
-  it("🔴 렌더러가 실제로 그리는 아홉이 전부 있다", () => {
-    /* 숫자를 늘리려고 렌더러가 모르는 버튼을 넣지 않는다(지시 10). 아홉 다
-       `app/core/notion_blocks.py` 가 블록으로 만들고 `ui/DocBody.jsx` 가 그린다. */
+  it("🔴 렌더러가 실제로 그리는 열하나가 전부 있다", () => {
+    /* 숫자를 늘리려고 렌더러가 모르는 버튼을 넣지 않는다(지시 10). 열하나 다
+       `app/core/notion_blocks.py` 가 블록으로 만들고 `ui/DocBody.jsx` 가 그린다. 제목이
+       셋인 이유는 REAUDIT §15.4 — `markdown_to_blocks` 는 처음부터 `#`·`##`·`###` 를 다
+       읽고 있었는데 도구는 `##` 하나만 줬었다(문서 편집기 `BlockEditor.jsx` 와 기능 집합을
+       맞추며 나머지 둘을 채웠다). */
     render(<BodyEditor id="b1" value="" onChange={() => {}} />);
-    for (const name of ["제목", "글머리", "번호", "체크", "인용", "코드", "구분선", "링크", "이모지"]) {
+    for (const name of ["제목1", "제목2", "제목3", "글머리", "번호", "체크", "인용", "코드", "구분선", "링크", "이모지"]) {
       expect(screen.getByRole("button", { name }), `${name} 도구가 없다`).toBeInTheDocument();
     }
+  });
+
+  it("제목 도구 셋이 각자 다른 수준을 넣는다 — 하나가 다른 것의 별명이 아니다", async () => {
+    const user = userEvent.setup();
+    let value = "";
+    const onChange = (next) => { value = next; };
+    const { rerender } = render(<BodyEditor id="b1" value={value} onChange={onChange} />);
+    await user.click(screen.getByRole("button", { name: "제목1" }));
+    expect(value).toBe("# ");
+
+    value = "";
+    rerender(<BodyEditor id="b1" value={value} onChange={onChange} />);
+    await user.click(screen.getByRole("button", { name: "제목2" }));
+    expect(value).toBe("## ");
+
+    value = "";
+    rerender(<BodyEditor id="b1" value={value} onChange={onChange} />);
+    await user.click(screen.getByRole("button", { name: "제목3" }));
+    expect(value).toBe("### ");
   });
 
   it("체크 도구가 넣는 것은 **체크 목록 표식**이다 — 그냥 글머리가 아니다", async () => {

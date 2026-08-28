@@ -61,7 +61,10 @@ def _document_view(document, extras, *, retention_days: int | None, me: User) ->
     people = extras.get("people") or {}
     archiver = people.get(document.archived_by) or {}
     folder = (extras.get("folders") or {}).get(document.folder_id) if document.folder_id else None
-    space = (extras.get("spaces") or {}).get(document.space_id, "")
+    # 프로젝트 소유 공간은 "프로젝트"로 보인다(§11.2) — 부서 공간은 이 화면의 범위 밖이라
+    # (§11.2 는 조직·프로젝트 두 경우만 정한다) 그 공간의 실제 이름을 그대로 쓴다.
+    project = (extras.get("projects") or {}).get(document.space_id)
+    space = project["name"] if project else (extras.get("spaces") or {}).get(document.space_id, "")
     return {
         "id": DOC_PREFIX + document.id,
         "item_type": "document",
