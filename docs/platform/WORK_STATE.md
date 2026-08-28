@@ -9,41 +9,29 @@
 
 ## CHECKPOINT
 
-- checkpoint_at: **2026-08-27** (업무 판 높이 계약 뒤)
+- checkpoint_at: **2026-08-28** (백로그 열 · 담당자 얼굴)
 - phase: **F — Acceptance 완료(S22).** 그 뒤는 CLAUDE.md §7.0 의 **일반 개발**이다
-- session: **업무 판 높이 계약** — 홈(`/me`) 판독 줄의 다섯 칸(오늘 마감 · 지연 · 진행 중 ·
-  7일 내 마감 · 막힌 일)이 데스크톱에서 **하나의 판 높이**를 공유한다. 앞 회차(`3804bc0e`)의
-  예산(13~32rem)으로는 같은 판이 칸마다 164~512px 사이를 오갔고 아래 AI 도우미가 함께
-  움직였다. 아래 「이번 회차가 한 것」 절. 결정 **D-348**
+- session: **백로그 열 정렬 · 담당자 아바타** — 작업 보드 백로그 머리글이 `auto` 폭 때문에
+  내용과 한 칸씩 밀리던 것과, 티켓 상세 담당자가 고른 얼굴 없이 기본 그림을 그리던 것을
+  고친다. 표 머리글 바닥 폭도 함께 맞췄다.
 - branch: `ui/mui-migration`
 - last_stable_commit: **`eec4886c`** — S2 본체 커밋이고 `check_test_strength.py` 가 이 값을 읽는다.
   **이번 회차도 안 옮긴다.** 이유는 S11~S22 와 같다 — 그 기준을 옮기는 순간 그동안 지운
   시험들이 검사 시야에서 사라진다.
 - working_tree: clean
 - s22_commit: `2f4fc587` · `1921f884` · prev_commit: `ca49e7d8` · `3804bc0e` · `91bf3af9`
-- this_commit: **`e8206a18`** — 업무 판 높이 계약
-- deployed: **`e8206a18`** 이 운영에 나갔다 (2026-08-27 08:43 · `install.sh upgrade --source local --yes`).
-  Stage 0~18 전부 OK · `VERIFY_OK` · `UPGRADE_OK` · 스냅샷 `/var/backups/clovirassist/20260827-084326`.
-  스키마는 안 건드렸다 — alembic 이 `0017` 에서 `0017` 로 그대로다(표 93개 · 사용자 26명).
-  **이번 커밋의 것이 실제로 올라갔다**: 운영이 내보내는 `assets/kit.C34rDyIe.js` 가 이 저장소가
-  만든 것과 **바이트까지 같고**(sha256 앞 16자 `66814eb8236d4a1f`) 그 안에
-  `today:{height:"32rem"}` 이 들어 있다. 진입 번들 이름도 이번 빌드의 `index.Br2znMPb.js` 다.
-  스모크(최소 · 사용자 지시): `/healthz` `{"status":"ok","ticket_source":"native"}` 200 ·
-  `/readyz` `{"status":"ready"}` 200 · `ssl_verify_result=0`.
-  **`/#/me` 화면 자체는 로그인 없이는 못 본다.** 실브라우저 둘(사용자 Chrome · 헤드리스
-  Chromium)로 `https://clovirassist.gooddi.lab/#/me` 를 열면 `/login?next=%2F#/me` 로 가고 서버가
-  그린 로그인 화면이 선다(콘솔 오류 0 · 4xx·5xx 0). 운영 계정 자격은 이 저장소에 없고 계정을
-  새로 만들지 않는다. 판의 높이는 **같은 커밋의 같은 번들**을 씨앗 자료와 함께 로컬에 띄워
-  쟀다(위 browser 줄).
+- this_commit: **`93c6ce76`** — 백로그 열 정렬 · 담당자 얼굴
+- deployed: **`93c6ce76`** 이 운영에 나갔다 (2026-08-28 15:20 · `install.sh upgrade --source local --yes`).
+  Stage 0~18 전부 OK · `VERIFY_OK` · `UPGRADE_OK` · 스냅샷 `/var/backups/clovirassist/20260828-152003`.
+  스키마는 안 건드렸다 — alembic 이 `0024_technology_tags` 에서 그대로다(표 94개 · 사용자 26명).
+  **이번 커밋의 것이 실제로 올라갔다**: 진입 번들 `index.ColsBMPK.js` · `WorkBoard.CLmlRt1q.js` 가
+  운영에서 200 이다. 스모크: `/healthz` `{"status":"ok","ticket_source":"native"}` 200 ·
+  `/readyz` `{"status":"ready"}` 200.
   제품 유닛 여섯 + nginx + postgresql 전부 active.
-  되돌리려면 `sudo /home/cloviradmin/clovirassist-src/deploy/install.sh rollback --target /var/backups/clovirassist/20260827-084326`
-- deployed_prev: `3804bc0e`(2026-08-26 16:37 · 스냅샷 `20260826-163715`)
-- verification: 이번 회차도 **표적**이다(§7.0 일반 개발). `STATIC_CHECKS_DEV_OK` ·
-  `TARGETED_OK`(6 파일 / 49건). 백엔드는 안 건드렸다(서버 파일 변경 0). 공용 부품도 안
-  건드렸다 — 바뀐 것은 `ui/density.js` 의 값과 `screens/Home.jsx` 의 배선뿐이라 vitest 전량을
-  다시 열지 않았다(앞 회차 `3804bc0e` 의 전량 338 파일 / 2,509건이 그때 통과했다).
-  새 시험 둘은 **반례로 먼저 확인했다**: 되돌린 코드(min 13rem / max 32rem)로 둘 다 깨진다.
-  S22 의 전량(`FULL_REGRESSION_OK`)은 `2f4fc587` 기준으로 그대로 유효하다
+  되돌리려면 `sudo /home/cloviradmin/clovirassist-upgrade/deploy/install.sh rollback --target /var/backups/clovirassist/20260828-152003`
+- deployed_prev: `e8206a18`(2026-08-27 08:43 · 스냅샷 `20260827-084326`)
+- verification: 이번 회차도 **표적**이다(§7.0 일반 개발). 티켓 조회·API 골든과 관련 vitest가
+  통과했고, 배포 뒤 `/healthz` · `/readyz` · 새 번들 자산이 200 이다.
 - browser: 로컬 서버(`scripts/ui_qa/local_server`)에 **칸마다 건수가 다른** 자료(오늘 마감 0 ·
   지연 3 · 진행 중 30 · 7일 내 마감 1 · 막힌 일 0)와 **전부 0건** 자료를 심고, 1366 · 1920 ·
   2560 에서 다섯 칸을 차례로 눌러 가며 판 높이와 AI 도우미 시작 Y 를 쟀다. 수치는 아래 절
