@@ -9,14 +9,13 @@ import {
   Badge, Button, Callout, Card, EmptyState, ErrorState, FormModal, PageHeader,
   Skeleton, useConfirm, useToast,
 } from "../ui/kit.jsx";
-import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, PROSE_MAX_WIDTH } from "../ui/theme.js";
+import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
 import { EntityCombobox } from "../ui/filters.jsx";
 import { useAuth } from "../app/auth.jsx";
 import { useQueryState } from "../lib/useQueryState.js";
 import { useListReturn } from "../lib/listReturn.js";
 import { HealthBlock, HealthHistory, ProgressBlock } from "./ProjectMetrics.jsx";
 import { DateHistogram } from "../ui/charts/DateHistogram.jsx";
-import { DETAIL_SOLO_WIDTH } from "../ui/DetailLayout.jsx";
 import { ProjectDocuments } from "./ProjectDocuments.jsx";
 import { ProjectTickets } from "./ProjectTickets.jsx";
 import { ProjectWbs } from "./ProjectWbs.jsx";
@@ -206,16 +205,12 @@ function Overview({
   const dept = deptLabel(p, deptNames);
   const progress = progressQuery.data || {};
   const health = healthQuery.data || {};
-  /* C8·C9 — 「개요」·「진행률」·「Health」세 판은 짧은 라벨-값 줄과 작은 원(6rem) 하나가
-     내용의 전부인데, 이 화면 어디에도 폭 상한이 없어 카드가 그리드 전체 폭(2560 에서
-     1,300px 안팎)까지 늘어났다. 「목표」문단만 `PROSE_MAX_WIDTH` 로 좁아 같은 카드 안에서
-     한쪽만 유독 좁아 보였다. 「티켓 발생 추이」는 다르다 — 시계열 막대는 넓을수록 하루하루가
-     잘 읽혀 폭 상한을 안 준다(C10 은 그 자체의 문제라 축 쪽에서 따로 고친다). `DETAIL_SOLO_WIDTH`
-     를 재사용한다 — 곁열 없는 상세(`DetailLayout`)와 같은 「혼자 서는 한 열」이다. */
-  const infoCardSx = { maxWidth: DETAIL_SOLO_WIDTH };
+  /* 개요·진행률·Health 도 콘텐츠 영역 전폭이다. 짧은 라벨-값 줄이라고 46rem 기둥에
+     가두면 바로 아래 추이 차트만 넓고 위 카드는 왼쪽에 붙어, 페이지가 반만 있는 것처럼
+     보인다. 목표 문단도 같은 카드 폭을 쓴다. */
   return (
     <Stack gap={2.5}>
-      <Card sx={infoCardSx}>
+      <Card>
         <Stack direction="row" gap={1} sx={{ flexWrap: "wrap", alignItems: "center", mb: 1 }}>
           <Typography component="h2" variant="h6" sx={{ fontSize: FONT_SIZE.sectionTitle, flex: 1 }}>개요</Typography>
           {canWrite ? <Button size="sm" onClick={onEdit}>수정</Button> : null}
@@ -274,7 +269,7 @@ function Overview({
         {p.goal ? (
           <Box sx={{ mt: 2 }}>
             <Typography variant="body2" color="text.secondary">목표</Typography>
-            <Typography sx={{ mt: 0.5, maxWidth: PROSE_MAX_WIDTH, whiteSpace: "pre-wrap", ...KO_WORD_BREAK }}>
+            <Typography sx={{ mt: 0.5, whiteSpace: "pre-wrap", ...KO_WORD_BREAK }}>
               {p.goal}
             </Typography>
           </Box>
@@ -300,7 +295,7 @@ function Overview({
           )}
       </Card>
 
-      <Card sx={infoCardSx}>
+      <Card>
         <Stack direction="row" gap={1} sx={{ flexWrap: "wrap", alignItems: "center", mb: 1.5 }}>
           <Typography component="h2" variant="h6" sx={{ fontSize: FONT_SIZE.sectionTitle, flex: 1 }}>진행률</Typography>
           {/* FN-06: progress_pct/health_score는 이미 백그라운드가 채운다(project-queries.js
@@ -321,7 +316,7 @@ function Overview({
           )}
       </Card>
 
-      <Card sx={infoCardSx}>
+      <Card>
         <Stack direction="row" gap={1} sx={{ flexWrap: "wrap", alignItems: "center", mb: 1.5 }}>
           <Typography component="h2" variant="h6" sx={{ fontSize: FONT_SIZE.sectionTitle, flex: 1 }}>Health</Typography>
           {canWrite ? (

@@ -15,12 +15,14 @@ const PRIORITY_TEXT = {
   긴급: "긴급", 높음: "높음", 보통: "보통", 낮음: "낮음",
 };
 
+/* 등급 넷은 **서로 다른 색**이다. 회색(neutral)은 값이 없다는 뜻이라 「낮음」에 쓰면
+ * 표에서 빠진 칸처럼 보인다. 빨강(danger)은 가장 급한 등급만 쓴다. */
 const PRIORITY_KIND = {
   urgent: "danger", critical: "danger", 긴급: "danger",
   high: "warn", 높음: "warn",
   medium: "info", normal: "info", 보통: "info",
-  low: "neutral", 낮음: "neutral",
-  "1": "danger", "2": "info", "3": "neutral",
+  low: "teal", 낮음: "teal",
+  "1": "warn", "2": "info", "3": "teal",
 };
 
 export function priorityKo(p) {

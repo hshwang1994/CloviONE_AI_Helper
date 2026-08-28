@@ -1,6 +1,5 @@
 import React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import Avatar from "@mui/material/Avatar";
 import Box from "@mui/material/Box";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import Switch from "@mui/material/Switch";
@@ -109,9 +108,12 @@ function AccountCard({ profile, prefs, onChanged }) {
      대개 어깨였다. */
   const [cropping, setCropping] = React.useState(null);
   const name = profile.display_name || (auth.data && auth.data.display_name) || "";
+  /* 씨앗은 사용자 id. `/api/profile` 이 id 를 주기 전에는 여기가 비어 이름이 씨앗이 됐고,
+     상단바(UUID)와 이 큰 원이 서로 다른 얼굴이었다. 세션의 id 를 폴백으로 둔다. */
+  const userId = profile.id || (auth.data && auth.data.id) || "";
   const avatarUrl = (prefs && prefs.avatar && prefs.avatar.url) || profile.avatar_url || null;
   const defaultKey = (prefs && prefs.avatar && prefs.avatar.default_key) || null;
-  const person = { user_id: profile.id, avatar_url: avatarUrl, avatar_default_key: defaultKey };
+  const person = { user_id: userId, avatar_url: avatarUrl, avatar_default_key: defaultKey };
 
   async function upload(crop) {
     const file = cropping;
@@ -155,8 +157,14 @@ function AccountCard({ profile, prefs, onChanged }) {
     setBusy(true);
     try {
       await api("/api/me/preferences", {
-        method: "PATCH", body: JSON.stringify({ avatar_default_key: key }),
+        method: "PATCH", body: { avatar_default_key: key },
       });
+      toast(
+        avatarUrl
+          ? "기본 아바타를 저장했습니다. 지금은 올린 사진이 보이므로, 기본 그림을 보려면 사진을 지우세요."
+          : (key ? "기본 아바타를 저장했습니다." : "기본 아바타를 자동으로 되돌렸습니다."),
+        "success",
+      );
       onChanged();
     } catch (e) {
       toast(e.message, "error");
@@ -173,7 +181,7 @@ function AccountCard({ profile, prefs, onChanged }) {
       <Box sx={{ display: "flex", gap: 3, alignItems: "center", flexWrap: "wrap", mb: 2 }}>
         {/* 사진이 없어도 빈 원이 아니다 — 이 사람의 기본 아바타가 선다. 제품 전체가
             같은 부품을 쓰므로 여기서 보는 그림이 채팅과 목록에서 보는 그것이다. */}
-        <UserAvatar person={person} name={name} size="xl" />
+        <UserAvatar person={person} name={name} size="xl" userId={userId} />
         <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
           {/* 파일 입력은 숨기고 버튼으로 연다 — 기본 파일 입력은 브라우저마다 생김새가 달라
               4K에서 혼자 작게 남는다. 라벨은 버튼이 갖는다(스크린리더도 버튼을 읽는다). */}
@@ -196,8 +204,15 @@ function AccountCard({ profile, prefs, onChanged }) {
       {/* 기본 아바타 고르기 — **사진과 다른 축이다.** 사진이 있으면 사진이 보이고, 사진을
           지운 뒤에 여기서 고른 그림이 살아난다. 아무것도 안 고르면 사용자 id 로 안정
           배정된 그림이 그대로 쓰인다. */}
+      {avatarUrl ? (
+        <Box sx={{ mb: 1.5 }}>
+          <Callout tone="info">
+            지금은 올린 사진이 보입니다. 아래에서 고른 기본 아바타는 사진을 지운 뒤에 쓰입니다.
+          </Callout>
+        </Box>
+      ) : null}
       <DefaultAvatarPicker
-        seed={profile.id}
+        seed={userId}
         value={defaultKey}
         busy={busy}
         onPick={pickDefault}

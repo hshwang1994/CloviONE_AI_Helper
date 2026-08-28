@@ -445,6 +445,9 @@ describe("컨트롤 높이는 한 곳에서 나온다", () => {
     // padding 이 남아 있으면 MUI 기본값이 높이를 다시 밀어 올린다.
     expect(ir.paddingTop).toBe(0);
     expect(ir.paddingBottom).toBe(0);
+    expect(ir.alignItems).toBe("center");
+    expect(ir["&:has(.MuiChip-root)"].height).toBe("auto");
+    expect(ir["&:has(.MuiChip-root)"].alignItems).toBe("center");
     expect(remValue(ir.height)).toBe(remValue(t.components.MuiOutlinedInput.styleOverrides.root.minHeight));
   });
 
@@ -750,6 +753,11 @@ describe("컴포넌트 계약 — 옛 목업 대조 시험이 지키던 목적�
     const head = t.components.MuiTableCell.styleOverrides.head({ theme: t });
     expect(head.background).toBe(t.palette.background.inset);
     expect(head.borderBottom).toBe(`1px solid ${t.palette.dividerStrong}`);
+  });
+
+  it.each(MODES)("%s — 표 칸은 세로 가운데다", (mode) => {
+    const root = createClovirTheme(mode).components.MuiTableCell.styleOverrides.root;
+    expect(root.verticalAlign).toBe("middle");
   });
 
   it.each(MODES)("%s — 버튼은 판보다 좁은 모서리를 쓰고 높이가 밀도에 맞다", (mode) => {

@@ -39,9 +39,10 @@ describe("상태 어휘", () => {
     // Workflow Status 여섯 (D-349). 저장값 「진행」의 표시 이름은 「진행 중」이다.
     expect(statusText("진행")).toBe("진행 중");
     expect(statusKind("진행")).toBe("info");
-    // 상태값에는 빨강이 없다 — 빨강은 신호(차단됨 · 지연)가 쓴다.
-    expect(statusKind("보류")).toBe("neutral");
-    expect(statusKind("취소")).toBe("neutral");
+    // 상태값에는 빨강이 없다 — 빨강은 차단 신호가 쓴다.
+    expect(statusKind("보류")).toBe("purple");
+    expect(statusKind("취소")).toBe("teal");
+    expect(statusKind("계획")).toBe("indigo");
   });
 
   it("매핑에 없는 값도 원시 식별자로 새지 않는다", () => {
@@ -319,6 +320,32 @@ describe("DataTable", () => {
       const cell = screen.getByText("진행");
       expect(cell).not.toHaveAttribute("title");
       expect(cell.closest("td")).not.toHaveStyle({ textOverflow: "ellipsis" });
+    });
+
+    it("type:status + Badge render 열은 td overflow:hidden 으로 표지를 자르지 않는다", () => {
+      ui(
+        <DataTable
+          columns={[{ key: "status", label: "상태", type: "status", render: (r) => <Badge value={r.status} /> }]}
+          rows={[{ id: 1, status: "진행" }]}
+          rowKey={(r) => r.id}
+        />,
+      );
+      const td = screen.getByText("진행 중").closest("td");
+      expect(getComputedStyle(td).overflow).not.toBe("hidden");
+    });
+
+    it("보는 열(상태)은 가로·세로 가운데다", () => {
+      ui(
+        <DataTable
+          columns={[{ key: "status", label: "상태", type: "status", render: (r) => <Badge value={r.status} /> }]}
+          rows={[{ id: 1, status: "진행" }]}
+          rowKey={(r) => r.id}
+        />,
+      );
+      const td = screen.getByText("진행 중").closest("td");
+      expect(td.getAttribute("class")).toContain("MuiTableCell-alignCenter");
+      expect(getComputedStyle(td).textAlign).toBe("center");
+      expect(getComputedStyle(td).verticalAlign).toBe("middle");
     });
 
     it("값이 비어 '-'로 표시될 때는 의미 없는 title을 안 붙인다", () => {

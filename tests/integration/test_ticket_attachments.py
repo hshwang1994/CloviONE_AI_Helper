@@ -8,7 +8,7 @@
   * **256KB 를 넘는 파일이 올라간다.** 미들웨어의 본문 상한 예외 목록에 이 라우트가 없으면
     10MB 를 받는다고 해 놓고 413 이 난다(팀 채팅 이미지에서 실제로 그랬다).
   * 없는 첨부는 **404**. 403 은 "그런 첨부가 있긴 하다"를 알려 준다.
-  * 남의 담당 티켓에는 못 붙인다(편집 권한과 같은 선).
+    * 남의 담당 티켓에도 범위 안이면 붙일 수 있다(편집과 같은 문).
 """
 
 from __future__ import annotations
@@ -51,10 +51,8 @@ def notion(fake_http) -> FakeNotionTasksDB:
 def tickets(db, portal_project) -> tuple[TicketCache, TicketCache]:
     """첨부를 붙일 티켓 두 건을 자체 DB 표에 심는다.
 
-    한 건은 담당자가 없다(미할당이라 범위 안이면 누구나 편집할 수 있다). 다른 한 건은
-    앱 사용자로 해석되지 않는 사람이 맡고 있어서, 편집 권한 선이 실제로 걸리는지
-    확인하는 데 쓴다 — 이 파일이 보려는 것은 첨부이지 소유권 규칙 자체가 아니지만,
-    그 선이 없으면 「남의 티켓에 파일을 붙인다」를 확인할 수가 없다.
+    한 건은 담당자가 없다(미할당). 다른 한 건은 앱 사용자로 해석되지 않는 사람이 맡고
+    있어서, 「남의 담당 티켓에도 범위 안이면 붙는다」를 확인하는 데 쓴다.
 
     둘 다 프로젝트를 매단다. 소속이 `ok` 로 풀리지 않으면 `ensure_in_scope` 가 티켓을
     404 로 감춰 첨부 시험 전부가 「없는 티켓」 위에서 죽는다.
@@ -186,11 +184,11 @@ def test_serving_requires_a_session(client, api):
     assert client.get(url).status_code == 401
 
 
-def test_cannot_attach_to_someone_elses_ticket(client, api):
-    """남의 담당 티켓에 파일을 붙이는 것은 티켓을 고치는 일이다 — 편집 권한과 같은 선."""
+def test_a_teammate_can_attach_to_someone_elses_ticket(client, api):
+    """남의 담당 티켓에 파일을 붙이는 것도 티켓을 고치는 일이다 — 편집과 같은 문."""
     csrf = api("outsider@goodmit.co.kr")
     r = _upload(client, csrf, OTHERS_PAGE_ID)
-    assert r.status_code == 403, r.text
+    assert r.status_code == 200, r.text
 
 
 def test_uploader_can_remove_their_own_attachment(client, api):
@@ -202,19 +200,15 @@ def test_uploader_can_remove_their_own_attachment(client, api):
     assert client.get(f"/api/tickets/{PAGE_ID}").json()["attachments"] == []
 
 
-def test_others_cannot_remove_an_attachment_on_a_ticket_they_cannot_edit(client, api):
+def test_a_teammate_can_remove_an_attachment_on_an_assigned_ticket(client, api):
+    """올린 사람이 아니어도 범위 안이면 남의 담당 티켓 첨부를 뗄 수 있다."""
     owner_csrf = api("owner@goodmit.co.kr")
-    att = _upload(client, owner_csrf, PAGE_ID).json()["attachments"][0]
+    others_att = _upload(client, owner_csrf, OTHERS_PAGE_ID)
+    assert others_att.status_code == 200, others_att.text
+    att = others_att.json()["attachments"][0]
     client.post("/logout", headers={"X-CSRF-Token": owner_csrf})
 
-    # 남의 티켓(OTHERS_PAGE_ID)이 아니라 미할당 티켓이라 '편집 가능'으로 잡히는 상황을 피하려면
-    # 첨부가 붙은 티켓의 담당자를 바꿔야 한다. 여기서는 더 단순하게, 올린 사람이 아닌 사용자가
-    # **편집 불가한 티켓**의 첨부를 지우려는 경우를 본다.
     other_csrf = api("nosy@goodmit.co.kr")
-    others_att = _upload(client, owner_csrf, OTHERS_PAGE_ID)
-    assert others_att.status_code == 403  # 애초에 붙일 수도 없다
-
-    # 올린 사람이 아니고 티켓이 미할당이면 편집 가능 — 지울 수 있다(정책상 맞다).
     r = client.delete(f"/api/tickets/attachments/{att['id']}",
                       headers={"X-CSRF-Token": other_csrf})
     assert r.status_code == 200, r.text

@@ -39,6 +39,11 @@ describe("표 머리글 — 두 단어 이름도 잘리지 않는다", () => {
       const button = label.closest("button");
       expect(button).not.toBeNull();
       expect(getComputedStyle(button).minWidth).toBe("max-content");
+      // 칸 자체에 overflow:hidden 을 걸면 한글 받침과 정렬 아이콘이 아래로 잘린다.
+      const th = label.closest("th");
+      expect(th).not.toBeNull();
+      expect(getComputedStyle(th).overflow).not.toBe("hidden");
+      expect(getComputedStyle(th).verticalAlign).toBe("middle");
     }
   });
 

@@ -3,7 +3,7 @@ import Box from "@mui/material/Box";
 import Divider from "@mui/material/Divider";
 import Typography from "@mui/material/Typography";
 import { Callout } from "./kit.jsx";
-import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, PROSE_MAX_WIDTH } from "./theme.js";
+import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "./theme.js";
 import { BASELINE_TRACKS, GRID_GAP } from "./density.js";
 import { ClickableImage, ImageLightbox, useLightbox } from "./ImageLightbox.jsx";
 import { linkifyText } from "../screens/chat/links.jsx";
@@ -139,9 +139,9 @@ export function DocBody({ blocks, blocksError }) {
     }
   });
   flush();
-  // 산문 줄 길이 상한 — 3,000px짜리 한 줄은 눈이 다음 줄 첫 글자를 찾지 못한다.
+  // 줄 길이는 담는 열이 정한다. 여기에 72ch 를 다시 걸면 열은 넓은데 글만 왼쪽에 붙는다.
   return (
-    <Box sx={{ maxWidth: PROSE_MAX_WIDTH, ...KO_WORD_BREAK }}>
+    <Box sx={KO_WORD_BREAK}>
       {out}
       <ImageLightbox {...lb.props} />
     </Box>

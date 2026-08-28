@@ -29,6 +29,7 @@ import { ConfirmProvider, ToastProvider } from "../ui/kit.jsx";
 import { ThemeModeProvider } from "../ui/ThemeModeProvider.jsx";
 
 const PROFILE = {
+  id: "u-1",
   email: "me@goodmit.co.kr", display_name: "나", role: "user",
   department: "개발팀", title: "선임", last_login_at: "2026-08-03T00:00:00",
   active_session_count: 2, notion_mapping_status: "verified", avatar_url: null,
@@ -162,6 +163,20 @@ describe("내 프로필", () => {
   it("보안 알림은 끌 수 없다는 사실을 화면이 말한다", async () => {
     renderProfile();
     expect(await screen.findByText(/보안에 관한 알림은 끌 수 없습니다/)).toBeInTheDocument();
+  });
+
+  it("프로필 큰 아바타는 사용자 id 로 그린다 — 이름이면 상단바와 다른 얼굴이 된다", async () => {
+    const { autoAvatarKey, preloadAvatarStyles } = await import("../ui/DefaultAvatar.jsx");
+    await preloadAvatarStyles();
+    renderProfile();
+    await screen.findByText("me@goodmit.co.kr");
+    const face = await waitFor(() => {
+      const el = document.querySelector("[data-avatar-key]");
+      expect(el).toBeTruthy();
+      return el;
+    });
+    expect(face).toHaveAttribute("data-avatar-key", autoAvatarKey("u-1"));
+    expect(face.getAttribute("data-avatar-key")).not.toBe(autoAvatarKey("나"));
   });
 
   it("설정 조회가 실패하면 다시 시도할 길을 준다", async () => {

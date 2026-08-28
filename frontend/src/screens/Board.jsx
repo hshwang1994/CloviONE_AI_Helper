@@ -74,17 +74,17 @@ const MAX_FILE_BYTES = 10 * 1024 * 1024; // 서버 uploads.MAX_UPLOAD_BYTES와 �
 export function AuthorLine({ name, person, bold = false }) {
   const affiliation = affiliationOf(person);
   return (
-    <Box sx={{ display: "inline-flex", alignItems: "center", gap: 0.625, minWidth: 0, maxWidth: "100%" }}>
+    <Box sx={{ display: "inline-flex", alignItems: "center", gap: 0.625, minWidth: 0, maxWidth: "100%", lineHeight: 1.25, fontSize: FONT_SIZE.bodySm }}>
       {/* **사진이 없어도 자리가 있다.** 예전에는 없으면 아무것도 안 그렸는데, 그러면
           같은 목록에서 어떤 줄에는 원이 있고 어떤 줄에는 없어 왼쪽 모서리가 들쭉날쭉했다.
           지금은 사진이 없는 사람도 자기 그림을 갖는다(`UserAvatar` → `DefaultAvatar`). */}
       <UserAvatar person={person} name={name} size="inline" />
-      <Box component="span" sx={{ fontWeight: bold ? FONT_WEIGHT.bold : "inherit", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>
+      <Box component="span" sx={{ fontWeight: bold ? FONT_WEIGHT.bold : "inherit", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", lineHeight: 1.25 }}>
         {name || "알 수 없음"}
       </Box>
       {/* 소속이 없으면 아무것도 그리지 않는다 — 빈 괄호가 붙으면 그게 더 어수선하다. */}
       {affiliation ? (
-        <Box component="span" sx={{ fontWeight: FONT_WEIGHT.regular, opacity: 0.75, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>
+        <Box component="span" sx={{ fontWeight: FONT_WEIGHT.regular, opacity: 0.75, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", lineHeight: 1.25 }}>
           {affiliation}
         </Box>
       ) : null}

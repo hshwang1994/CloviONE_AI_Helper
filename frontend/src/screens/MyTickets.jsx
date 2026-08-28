@@ -22,7 +22,7 @@ import { alpha } from "@mui/material/styles";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded";
 import { api } from "../lib/api.js";
-import { Card, Badge, EmptyState, ErrorState, Skeleton, Callout, PageHeader, Modal, ModalFooter, Button, useToast, useConfirm, cardFieldLabel, cardHeaderControls, tableCellProps } from "../ui/kit.jsx";
+import { Card, Badge, EmptyState, ErrorState, Skeleton, Callout, PageHeader, Modal, ModalFooter, Button, useToast, useConfirm, cardFieldLabel, cardHeaderControls, tableCellProps, TABLE_FIXED_LAYOUT_SX, TableColGroup, columnShouldTruncate, columnCellHint } from "../ui/kit.jsx";
 import { DateField } from "../ui/DateField.jsx";
 import { priorityKo, priorityKind } from "../lib/priority.js";
 import { useAuth } from "../app/auth.jsx";
@@ -415,7 +415,8 @@ export function GroupedTickets({ rows, columns, empty, emptyHelp, emptyState, gr
 
   return (
     <TableContainer>
-      <Table size="small">
+      <Table size="small" sx={TABLE_FIXED_LAYOUT_SX}>
+        <TableColGroup columns={cols} />
         <TableHead>
           <TableRow>
             {cols.map((c) => {
@@ -468,14 +469,25 @@ export function GroupedTickets({ rows, columns, empty, emptyHelp, emptyState, gr
                 const ctx = { rowName: rowNameOf(cols, t) };
                 return (
                   <TableRow key={groupedRowKey(t, i)} hover>
-                    {cols.map((c) => (
-                      /* 자릿수 고정을 예전에는 **모든 칸**에 걸었다. 숫자가 아닌 칸까지 고정폭
-                         숫자를 쓰면 «1» 뒤에 빈 자리가 남아 한글 사이에서 글자가 떠 보인다 —
-                         이제 열이 자기 타입으로 말하고(`type:"count"` 등) 그 열만 고정한다. */
-                      <TableCell key={c.key} {...tableCellProps(c, { truncate: c.type === "title" || c.type === "name" || c.type === "text" })}>
-                        {groupedCell(c, t, ctx)}
-                      </TableCell>
-                    ))}
+                    {cols.map((c) => {
+                      const truncate = columnShouldTruncate(c, false);
+                      const content = groupedCell(c, t, ctx);
+                      const plain = c.render && (typeof t[c.key] === "string" || typeof t[c.key] === "number")
+                        ? String(t[c.key])
+                        : null;
+                      const raw = !c.render && typeof content === "string" ? content : null;
+                      const hint = columnCellHint(c, t, ctx, { truncate, raw, plain });
+                      const cellProps = tableCellProps(c, { truncate });
+                      return (
+                        <TableCell key={c.key} {...cellProps} title={hint || undefined}>
+                          {truncate && hint ? (
+                            <Box component="span" title={hint} sx={{ display: "block", minWidth: 0, maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "inherit" }}>
+                              {content}
+                            </Box>
+                          ) : content}
+                        </TableCell>
+                      );
+                    })}
                   </TableRow>
                 );
               }) : null}
@@ -1012,15 +1024,14 @@ export function Unassigned() {
 
 /* 목록에서 상태를 그 자리에서 바꾸는 배선 (지시 18).
  *
- * 「내 티켓」에서만 켠다. 그 목록의 티켓은 정의상 내가 담당자라 서버의 편집 판정
- * (`app/tickets/service.py::ensure_can_edit`)을 언제나 지난다 — 눌러 보고 403 을 받는
- * 경로를 만들지 않는다는 규칙이 여기서 지켜지는 방식이다. 팀 티켓·미할당 목록은 사람마다
- * 답이 달라서, 그 목록에 컨트롤을 두려면 서버가 행마다 판정을 실어 줘야 한다.
+ * 범위 안의 티켓은 담당자가 아니어도 고칠 수 있으므로, 이 목록에 보이는 행은 서버의
+ * 편집 판정(`app/tickets/service.py::ensure_can_edit`)을 지난다 — 눌러 보고 403 을 받는
+ * 경로를 만들지 않는다는 규칙이 여기서 지켜지는 방식이다.
  *
  * 어휘는 서버가 준다(`/api/work/statuses`) — 화면이 상태 이름을 적으면 어휘가 바뀐 날
  * 이 드롭다운만 옛 목록으로 남는다.
  */
-function useInlineStatusEdit() {
+export function useInlineStatusEdit() {
   const qc = useQueryClient();
   const workQ = useWorkStatuses(true);
   const options = ((workQ.data && workQ.data.statuses) || []).map((st) => ({
@@ -1032,7 +1043,7 @@ function useInlineStatusEdit() {
     options,
     save: async (ticket, next) => {
       const res = await api(`/api/tickets/${encodeURIComponent(ticket.id)}`, {
-        method: "PATCH", body: JSON.stringify({ status: next }),
+        method: "PATCH", body: { status: next },
       });
       /* 티켓 값을 그리는 질의는 한 표가 안다(`ticket-views.js`) — 홈·스프린트·보드가
          같은 티켓을 세고 있으므로 여기만 고치면 그쪽 숫자가 남는다. */

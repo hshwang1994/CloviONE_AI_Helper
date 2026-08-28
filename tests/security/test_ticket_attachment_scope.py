@@ -40,7 +40,7 @@ PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 64
 def world(settings, make_user, make_project, make_ticket, db):
     """부서가 갈린 두 사용자 + 세 티켓 + 각 티켓에 붙은 첨부.
 
-    첨부는 업로드 API 가 아니라 직접 만든다 — 업로드는 편집 권한(`ensure_can_edit`)에 먼저
+    첨부는 업로드 API 가 아니라 직접 만든다 — 업로드는 범위 문(`ensure_in_scope`)에 먼저
     막히므로 API 로는 "남의 팀 티켓에 첨부가 이미 붙어 있는" 상태를 만들 수 없다. 이 테스트가
     보는 것은 붙이는 권한이 아니라 **이미 붙어 있는 첨부를 누가 열 수 있나**다.
     """

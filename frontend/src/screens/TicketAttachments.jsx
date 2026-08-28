@@ -161,8 +161,7 @@ export function TicketAttachments({ ticketId, attachments, canEdit, onChanged })
           `ensure_can_edit`)과 같은 선이다 — 한쪽만 고치면 화면이 거짓말을 하게 된다. */}
       {!canEdit ? (
         <Note sx={{ mt: 0 }}>
-          이 티켓의 담당자가 아니라 첨부를 올리거나 뗄 수 없습니다. 담당자이거나 담당자가 아직
-          없는 티켓만 수정할 수 있습니다. 파일을 붙이고 떼는 것도 티켓을 고치는 일입니다.
+          이 티켓을 고칠 권한이 없어 첨부를 올리거나 뗄 수 없습니다.
         </Note>
       ) : null}
 

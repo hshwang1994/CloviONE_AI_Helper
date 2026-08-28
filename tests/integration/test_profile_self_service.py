@@ -326,6 +326,30 @@ def test_avatar_upload_serve_and_delete(client, me):
     assert client.delete("/api/me/avatar", headers={"X-CSRF-Token": csrf}).status_code == 200
 
 
+def test_profile_and_me_carry_the_id_and_default_avatar_key(client, me):
+    """프로필 화면과 상단바가 같은 사람으로 그림을 그리려면 id 와 고른 키가 둘 다 있어야 한다.
+
+    `/api/profile` 에 id 가 없으면 화면이 표시 이름을 씨앗으로 쓰고, `/api/me` 에
+    `avatar_default_key` 가 없으면 상단바는 고른 얼굴을 모른다 — 둘이 다른 그림이 된다.
+    """
+    csrf, user = me
+    profile = client.get("/api/profile").json()
+    assert profile["id"] == user["id"]
+    me_user = client.get("/api/me").json()["user"]
+    assert "avatar_default_key" in me_user
+    assert me_user["avatar_default_key"] is None
+
+    chosen = "pixelArt:7"
+    patched = client.patch(
+        "/api/me/preferences",
+        json={"avatar_default_key": chosen},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert patched.status_code == 200, patched.text
+    assert patched.json()["avatar"]["default_key"] == chosen
+    assert client.get("/api/me").json()["user"]["avatar_default_key"] == chosen
+
+
 def test_avatar_rejects_a_non_image_regardless_of_filename(client, me):
     csrf, _user = me
     response = client.post(

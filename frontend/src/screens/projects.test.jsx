@@ -36,7 +36,6 @@ import { Project } from "./Project.jsx";
 import { ConfirmProvider, ToastProvider } from "../ui/kit.jsx";
 import { ThemeModeProvider } from "../ui/ThemeModeProvider.jsx";
 import { fillDateField } from "../test-helpers/dateField.js";
-import { DETAIL_SOLO_WIDTH } from "../ui/DetailLayout.jsx";
 
 /* ── 표본 ──────────────────────────────────────────────────────────────────── */
 
@@ -644,23 +643,20 @@ describe("프로젝트 상세 — Health", () => {
 });
 
 describe("프로젝트 상세 — 개요 판 폭 (C8·C9)", () => {
-  it("🔴 개요·진행률·Health 판은 DETAIL_SOLO_WIDTH 로 좁고, 발생 추이 판은 폭 제한이 없다", async () => {
+  it("개요·진행률·Health 판도 발생 추이 판과 같이 콘텐츠 영역 전폭이다", async () => {
     renderAt("/projects/p-1");
     await screen.findByText("42.9%"); // 진행률 판이 실제로 그려질 때까지 기다린다.
 
-    const overviewHeading = screen.getByRole("heading", { name: "개요" });
-    const overviewCard = overviewHeading.closest(".MuiCard-root");
-    expect(getComputedStyle(overviewCard).maxWidth).toBe(DETAIL_SOLO_WIDTH);
-
-    const progressHeading = screen.getByRole("heading", { name: "진행률" });
-    expect(getComputedStyle(progressHeading.closest(".MuiCard-root")).maxWidth).toBe(DETAIL_SOLO_WIDTH);
-
-    const healthHeading = screen.getByRole("heading", { name: "Health" });
-    expect(getComputedStyle(healthHeading.closest(".MuiCard-root")).maxWidth).toBe(DETAIL_SOLO_WIDTH);
-
-    // 시계열 막대는 넓을수록 하루하루가 잘 읽힌다 — 이 판만 폭 제한이 없다(C10).
-    const trendHeading = screen.getByRole("heading", { name: "티켓 발생 추이" });
-    expect(getComputedStyle(trendHeading.closest(".MuiCard-root")).maxWidth).not.toBe(DETAIL_SOLO_WIDTH);
+    const overviewCard = screen.getByRole("heading", { name: "개요" }).closest(".MuiCard-root");
+    const progressCard = screen.getByRole("heading", { name: "진행률" }).closest(".MuiCard-root");
+    const healthCard = screen.getByRole("heading", { name: "Health" }).closest(".MuiCard-root");
+    const trendCard = screen.getByRole("heading", { name: "티켓 발생 추이" }).closest(".MuiCard-root");
+    const trendMax = getComputedStyle(trendCard).maxWidth;
+    // 짧은 라벨-값 줄이라고 46rem 기둥에 가두면 추이 차트만 넓고 위 카드는 왼쪽에 붙는다.
+    expect(getComputedStyle(overviewCard).maxWidth).toBe(trendMax);
+    expect(getComputedStyle(progressCard).maxWidth).toBe(trendMax);
+    expect(getComputedStyle(healthCard).maxWidth).toBe(trendMax);
+    expect(trendMax).not.toBe("46rem");
   });
 });
 

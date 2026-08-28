@@ -6,7 +6,7 @@ import Switch from "@mui/material/Switch";
 import Typography from "@mui/material/Typography";
 import { Callout, Card, EmptyState, ErrorState, Skeleton } from "../ui/kit.jsx";
 import { Pager } from "../ui/Pager.jsx";
-import { GroupedTickets, TicketEditModal, ticketColumns, ticketConnState } from "./MyTickets.jsx";
+import { GroupedTickets, TicketEditModal, ticketColumns, ticketConnState, useInlineStatusEdit } from "./MyTickets.jsx";
 import { useTicketSignals } from "../lib/ticketSignals.js";
 import { groupByAssignee } from "./TeamTickets.jsx";
 import { ticketRows, useTicketList } from "./ticket-options.js";
@@ -34,6 +34,7 @@ import { ticketRows, useTicketList } from "./ticket-options.js";
 function ProjectTicketList({ pageId, page, onPage }) {
   const nav = useNavigate();
   const signalsOf = useTicketSignals();
+  const statusEdit = useInlineStatusEdit();
   const [editing, setEditing] = React.useState(null);
   // 팀 티켓 화면과 같은 기본값(활성만) — 다른 이유는 팀 티켓의 activeToggle 주석과 같다:
   // 완료·취소까지 항상 섞으면 "지금 할 일"을 찾는 화면이 끝난 일로 덮인다.
@@ -77,6 +78,7 @@ function ProjectTicketList({ pageId, page, onPage }) {
     onEdit: setEditing,
     onOpen: (t) => nav("/tickets/" + t.id, { state: { from: "/projects" } }),
     signalsOf,
+    statusEdit,
   });
 
   return (

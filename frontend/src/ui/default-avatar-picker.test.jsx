@@ -94,7 +94,7 @@ describe("저장", () => {
     expect(typeof sentKey).toBe("string");
     expect(sentKey.length).toBeGreaterThan(0);
     // 실제로 눌렀던 그 후보의 키가 나갔는지는 라벨(스타일명)로 교차 확인한다.
-    expect(expectedLabel).toContain("아바타 고르기");
+    expect(expectedLabel).toContain("아바타");
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
@@ -113,6 +113,19 @@ describe("저장", () => {
 });
 
 describe("다른 후보 보기", () => {
+  it("스타일마다 후보가 여섯이고 한 줄 격자에 선다", async () => {
+    const user = userEvent.setup();
+    mount();
+    await user.click(screen.getByRole("button", { name: "기본 아바타 고르기" }));
+    const group = await screen.findByRole("radiogroup", { name: "기본 아바타" });
+    expect(within(group).getAllByRole("radio")).toHaveLength(30);
+    const rows = group.querySelectorAll("[data-avatar-row]");
+    expect(rows).toHaveLength(5);
+    for (const row of rows) {
+      expect(within(row).getAllByRole("radio")).toHaveLength(6);
+    }
+  });
+
   it("눌러도 이미 고른 값의 선택 표시는 유지된다 — 회차만 바뀐다", async () => {
     const user = userEvent.setup();
     mount({ value: "lorelei:0" });

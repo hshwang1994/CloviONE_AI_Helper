@@ -7,10 +7,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 /* 티켓/문서 본문 편집(EditableBody) — 편집 중 표면은 78ch 산문 상한이 아니라 컨테이너
  * 폭을 따라간다.
  *
- * 왜 필요한가 — 읽기 모드는 산문이라 PROSE_MAX_WIDTH(78ch)에서 멈추는 게 맞지만, 예전엔
- * 편집 모드(툴바+입력 상자+미리보기)도 같은 78ch 로 묶었다. BodyEditor 안의 입력 상자는
- * 애초에 fullWidth 로 설계돼 있는데(BodyEditor.jsx 의 BodyPreview wide 설명 참고), 그
- * 바깥 Box 가 78ch 로 눌러 놓아 4K 등 넓은 화면에서 편집기 전체가 왼쪽으로 쏠려 보였다.
+ * 왜 필요한가 — 예전엔 편집 모드(툴바+입력 상자+미리보기)를 읽기용 78ch 로 묶었다.
+ * BodyEditor 안의 입력 상자는 애초에 fullWidth 인데, 바깥 Box 가 78ch 로 눌러 놓아
+ * 넓은 화면에서 편집기 전체가 왼쪽으로 쏠려 보였다.
  *
  * jsdom 은 컨테이너 질의를 평가하지 않으므로(new-ticket-layout.test.jsx 의 같은 이유),
  * emotion 이 실제로 낸 CSS 규칙 텍스트를 읽어 판정 규칙 자체를 검사한다.

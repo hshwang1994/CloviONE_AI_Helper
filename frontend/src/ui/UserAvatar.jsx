@@ -36,7 +36,10 @@ export const AVATAR_SIZE = {
 /** `person` 은 서버가 주는 identity dict 다(`app/core/people.py::identity`). */
 export function UserAvatar({ person, userId, name, size = "inline", label, sx }) {
   const p = person || {};
-  const seed = p.user_id || p.id || userId || name || "";
+  /* 씨앗은 **사용자 id** 다. 이름이 들어가면 같은 사람이 화면마다 다른 얼굴을 갖는다 —
+     프로필 API 에 id 가 없던 동안 큰 원이 표시 이름으로, 상단바는 UUID 로 그려진 것이
+     그 결함이다. id 를 아직 모르는 자리는 빈 씨앗의 색 원이 선다(지어내지 않는다). */
+  const seed = p.user_id || p.id || userId || "";
   const url = p.avatar_url || null;
   const box = AVATAR_SIZE[size] || size;
 
@@ -76,7 +79,7 @@ export function UserAvatar({ person, userId, name, size = "inline", label, sx })
 /** 아바타 + 이름 한 줄. 사람을 이름으로만 부르던 자리를 이것으로 바꾼다. */
 export function PersonLine({ person, name, size = "inline", bold, suffix, sx }) {
   return (
-    <Box sx={{ display: "inline-flex", alignItems: "center", gap: 0.625, minWidth: 0, maxWidth: "100%", ...sx }}>
+    <Box sx={{ display: "inline-flex", alignItems: "center", gap: 0.625, minWidth: 0, maxWidth: "100%", lineHeight: 1.25, ...sx }}>
       <UserAvatar person={person} name={name} size={size} />
       <Box
         component="span"

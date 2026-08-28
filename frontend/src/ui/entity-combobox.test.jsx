@@ -136,4 +136,16 @@ describe("EntityCombobox", () => {
     await user.type(input, "없는것");
     expect(await screen.findByText("일치하는 프로젝트가 없습니다")).toBeTruthy();
   });
+
+  it("다중 선택 칩은 입력 상자 세로 가운데에 선다", () => {
+    const { container } = renderBox({
+      multiple: true,
+      value: ["p1"],
+    });
+    const root = container.querySelector(".MuiAutocomplete-inputRoot");
+    expect(root).toBeTruthy();
+    expect(getComputedStyle(root).alignItems).toBe("center");
+    const chip = container.querySelector(".MuiChip-root");
+    expect(chip).toBeTruthy();
+  });
 });

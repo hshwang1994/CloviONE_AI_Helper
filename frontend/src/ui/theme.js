@@ -844,6 +844,18 @@ export function createClovirTheme(mode = "light", accent = DEFAULT_ACCENT) {
             paddingBottom: 0,
             minHeight: remPx(CONTROL.input),
             height: remPx(CONTROL.input),
+            alignItems: "center",
+            /* 칩이 있으면 한 줄 높이(36)에 가두지 않는다. 고정 height + padding 0 이면
+               칩이 상자 위에 붙고, 옆 자리표시자만 가운데에 선다(프로젝트 다중 선택 실측). */
+            "& .MuiChip-root": { marginTop: 0, marginBottom: 0 },
+            "& .MuiAutocomplete-input": { alignSelf: "center" },
+            "&:has(.MuiChip-root)": {
+              height: "auto",
+              minHeight: remPx(CONTROL.input),
+              paddingTop: 6,
+              paddingBottom: 6,
+              alignItems: "center",
+            },
           },
         },
       },
@@ -917,6 +929,7 @@ export function createClovirTheme(mode = "light", accent = DEFAULT_ACCENT) {
           }),
           root: {
             fontSize: FONT_SIZE.bodySm,
+            verticalAlign: "middle",
             [`@media (min-width:${BREAKPOINTS.xxl}px)`]: { paddingTop: 10, paddingBottom: 10 },
             [`@media (min-width:${BREAKPOINTS.uhd}px)`]: { paddingTop: 12, paddingBottom: 12 },
           },
@@ -1043,8 +1056,8 @@ export function createClovirTheme(mode = "light", accent = DEFAULT_ACCENT) {
 /* 본문 최대 폭. 넓은 화면에서 가운데 좁은 기둥을 만들지 않는다(지시 63) — 판독 밀도를
  * 유지하면서 열 수와 여백으로 공간을 쓴다. */
 export const CONTENT_MAX_WIDTH = { xs: "100%", lg: "100%", xl: 1720, xxl: 2320, uhd: 3080 };
-/* 긴 산문(티켓 본문·게시글·댓글) 전용. 짧은 화면 설명에 70ch 를 걸면 한글이 일찍 접히고
- * 오른쪽이 빈다 — 페이지 머리글·구획 도움말에는 쓰지 않는다. */
+/* 말풍선·AI 답 같은 **짧은 읽기 칸** 전용. 티켓·문서·게시글 페이지 열에는 걸지 않는다 —
+ * 열 안에 72ch 를 다시 걸면 카드는 넓은데 글만 왼쪽에 붙는다. 짧은 화면 설명에도 쓰지 않는다. */
 export const PROSE_MAX_WIDTH = "72ch";
 /* 짧은 UI 문구 한도. 칸 폭(ch)이 정본이고, 글자 수는 거기서 계산한다.
  * 한글 1자 ≈ 2ch (`ch`는 `0` 폭). 목표 3줄. EmptyState 폭을 바꾸면 emptyHelp 가 따라간다.

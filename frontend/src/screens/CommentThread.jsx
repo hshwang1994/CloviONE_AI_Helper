@@ -7,7 +7,7 @@ import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
 import { fmtDateTime } from "../lib/format.js";
 import { Button, Card, ErrorState, Skeleton, useConfirm, useToast } from "../ui/kit.jsx";
-import { FONT_SIZE, KO_WORD_BREAK, PROSE_MAX_WIDTH } from "../ui/theme.js";
+import { FONT_SIZE, KO_WORD_BREAK } from "../ui/theme.js";
 import { AuthorLine } from "./Board.jsx";
 
 /* 댓글 타래 (티켓 · 문서 공용).
@@ -21,7 +21,8 @@ import { AuthorLine } from "./Board.jsx";
  * 서버는 쓰기(작성·수정·삭제)마다 **목록 전체**를 돌려준다. 그래서 여기서는 응답을 그대로
  * 캐시에 넣기만 하면 되고, 클라이언트가 목록을 직접 기워 맞추지 않는다.
  *
- * 폭: 댓글도 산문이라 78ch에서 멈춘다. */
+ * 폭은 담는 열(또는 페이지 전폭)을 그대로 쓴다. 댓글만 72ch 로 줄이면 바로 위 본문보다
+ * 좁아 두 덩어리가 어긋난다. */
 
 /* app/tickets/comments.py 와 app/team_docs/comments.py 의 MAX_COMMENT_CHARS 와 같은 값
  * (둘은 서로 같다). 여기 값은 입력을 잘라 주는 힌트일 뿐이고 실제 거절은 서버가 한다
@@ -51,13 +52,12 @@ function CommentRow({ comment, person, busy, onEdit, onDelete }) {
   const edited = comment.updated_at && comment.updated_at !== comment.created_at;
   return (
     <Box sx={{ py: 1.5, borderBottom: 1, borderColor: "divider", "&:last-of-type": { borderBottom: 0 } }}>
-      <Stack direction="row" gap={1} sx={{ alignItems: "baseline", flexWrap: "wrap", mb: 0.5 }}>
+      <Stack direction="row" gap={1} sx={{ alignItems: "center", flexWrap: "wrap", mb: 0.5 }}>
         {/* 댓글에서도 작성자의 소속·사진을 말한다(사용자 지시 #13/#8, 게시판과 같은 규칙) —
             동명이인이면 이름 두 글자로는 "누가 답을 달았는지"에 답할 수 없다. Board.jsx의
-            AuthorLine을 그대로 쓴다: 자리를 두 벌로 만들면 규칙이 갈라진다. */}
-        <Typography variant="body2" component="div">
-          <AuthorLine name={comment.author_name} person={person} bold />
-        </Typography>
+            AuthorLine을 그대로 쓴다: 자리를 두 벌로 만들면 규칙이 갈라진다.
+            아바타·이름·시각은 **가운데 축**을 나눈다. baseline 이면 원이 글자보다 위에 선다. */}
+        <AuthorLine name={comment.author_name} person={person} bold />
         <TimeStamp value={comment.created_at} />
         {edited ? (
           <Typography component="span" variant="caption" color="text.secondary">(수정됨)</Typography>
@@ -135,11 +135,8 @@ export function CommentThread({ queryKey, listUrl, itemUrl, emptyHint }) {
   };
 
   return (
-    /* 카드는 본문 카드와 같은 폭(열 전체)이고, 줄 길이 상한은 카드가 아니라 **안쪽 내용**에
-       건다. 카드 자체를 78ch로 줄이면 바로 위 본문 카드보다 좁아 보여 두 카드가 어긋난다
-       (xl 미만에서 열이 열 전체 폭을 쓰기 때문). */
     <Card component="section" aria-label="댓글" sx={{ minWidth: 0 }}>
-      <Typography component="h2" variant="h6" sx={{ fontSize: FONT_SIZE.sectionTitle, mb: 1, maxWidth: PROSE_MAX_WIDTH }}>
+      <Typography component="h2" variant="h6" sx={{ fontSize: FONT_SIZE.sectionTitle, mb: 1 }}>
         댓글 {liveCount > 0 ? liveCount : ""}
       </Typography>
 
@@ -149,12 +146,12 @@ export function CommentThread({ queryKey, listUrl, itemUrl, emptyHint }) {
       ) : null}
 
       {!list.isPending && !list.isError && comments.length === 0 ? (
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 2, maxWidth: PROSE_MAX_WIDTH }}>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
           {emptyHint}
         </Typography>
       ) : null}
 
-      <Box sx={{ display: "grid", maxWidth: PROSE_MAX_WIDTH }}>
+      <Box sx={{ display: "grid" }}>
         {comments.map((c) => (
           editingId === c.id ? (
             <Box key={c.id} sx={{ py: 1.5, borderBottom: 1, borderColor: "divider" }}>
@@ -183,7 +180,7 @@ export function CommentThread({ queryKey, listUrl, itemUrl, emptyHint }) {
         ))}
       </Box>
 
-      <Box sx={{ mt: 2, maxWidth: PROSE_MAX_WIDTH }}>
+      <Box sx={{ mt: 2 }}>
         <TextField
           multiline minRows={3} fullWidth size="small"
           value={draft}

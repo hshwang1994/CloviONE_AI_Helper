@@ -42,7 +42,7 @@ import { MASCOT_PLACE, mascotBoxPx } from "./Mascot.jsx";
 import { maxLengthFor } from "../lib/fieldLimits.js";
 import { apiToKstLocal, kstLocalToApi } from "../lib/format.js";
 import { declaredRowName, rowNameOf } from "./rowName.js";
-import { ANYWHERE_BREAK, OVERFLOW, SHRINK, planColumnCollapse, resolveColumn } from "./columnTypes.js";
+import { ANYWHERE_BREAK, OVERFLOW, SHRINK, columnLayoutWidth, planColumnCollapse, resolveColumn } from "./columnTypes.js";
 import { EMPTY_STATE_MAX_CH, ERROR_STATE_MAX_CH, FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, MOTION, NUMERIC, RADIUS, TABLE_CARD_QUERY, TABLE_COMPACT_QUERY } from "./theme.js";
 import { CARD_PADDING, SECTION_GAP } from "./density.js";
 import { EntityCombobox } from "./filters.jsx";
@@ -123,20 +123,10 @@ const STATUS_KIND = {
   "In Review": "info", "검토 중": "info", "Blocked": "danger", "막힘": "danger",
   "Cancelled": "neutral", "취소됨": "neutral", "On Hold": "warn",
   "Backlog": "neutral", "백로그": "neutral",
-  // Workflow Status 여섯의 톤 (D-349). **빨강은 여기 없다.**
-  //
-  //   계획   회색   아직 시작 안 했다
-  //   진행   파랑   지금 하고 있다
-  //   검증   주황   남의 손을 기다린다
-  //   완료   초록   끝났다
-  //   보류   회색   의도적으로 멈췄다
-  //   취소   회색   더 이상 안 한다
-  //
-  // 빨강은 **Signal 이 쓴다**(차단됨 · 지연). 상태값에 강한 빨강을 주면 화면에서
-  // 늘 켜져 있는 색이 되고, 늘 켜져 있는 경고는 아무도 안 본다. 예전에는 `이슈` 가
-  // 상태이면서 빨강이었다 — 그 티켓은 자기가 어디까지 왔는지도 잃었다.
-  "계획": "neutral", "진행": "info", "검증": "warn", "완료": "ok",
-  "보류": "neutral", "취소": "neutral",
+  // Workflow Status 여섯 — **서로 다른 색** (사용자 요청 · D-349 유지).
+  // 빨강은 차단 신호 전용. 상태 여섯이 회색끼리 겹치면 표에서 구분이 안 된다.
+  "계획": "indigo", "진행": "info", "검증": "warn", "완료": "ok",
+  "보류": "purple", "취소": "teal",
 };
 export function statusText(v) {
   if (v === true) return "예"; if (v === false) return "아니오";
@@ -1621,7 +1611,7 @@ function rowOpenLabel(columns, row) {
  * `header_cell_alignment_mismatch` 가 잡는 결함의 구조적 원인이었다(kit.jsx:1036/1124). */
 function colCellSx(c, { truncate, head } = {}) {
   const s = resolveColumn(c);
-  const sx = { minWidth: s.minWidth };
+  const sx = { minWidth: s.minWidth, verticalAlign: "middle" };
   /* 자릿수 고정은 **`td` 자신**이 들어야 한다 — QA 의 `numeric_alignment` 가 셀의
      computed style 을 읽고, 안쪽 `<span>` 에만 걸면 그 검사는 없다고 본다. */
   if (s.numeric) Object.assign(sx, NUMERIC);
@@ -1629,32 +1619,42 @@ function colCellSx(c, { truncate, head } = {}) {
      말하면 충분하고, 본문 칸의 말줄임은 `maxWidth: 0` 이 맡는데 그 둘을 한 칸에 함께 걸면
      서로를 무력화한다(말줄임이 안 되거나 폭이 안 줄거나 — 브라우저마다 다르다).
 
-     🔴 머리글도 **넘치면 자른다**(S19). 예전에는 `nowrap` 만 걸고 넘침을 열어 뒀는데, 열이
-     자기 이름보다 좁아지는 순간 그 이름이 칸 밖에 그려져 **옆 머리글 위에 겹쳤다** —
-     본문은 같은 폭에서 잘리는데 머리글만 안 잘리니 두 줄이 서로 다른 규칙을 쓴 셈이다.
-     전체 이름은 `title` 로 남는다(본문 칸과 같은 방식). */
+     🔴 머리글 칸에 `overflow:hidden` 을 걸지 않는다. `table-cell` 은 기본이
+     `vertical-align:baseline` 이라, hidden 을 거는 순간 칸 높이가 **글자 줄상자**로
+     줄어들고 안쪽 32px 정렬·필터 단추와 한글 받침이 아래쪽에서 잘린다(내 티켓 실측).
+     옆 머리글과 겹치는 문제는 `table-layout:fixed` + `columnLayoutWidth` 가 맡는다.
+     이름은 `TableHeaderCell` 이 자르지 않는다(A4). */
   if (head) {
+    const layoutW = columnLayoutWidth(c);
     return {
-      ...sx, width: s.width, whiteSpace: "nowrap", overflow: "hidden",
+      ...sx,
+      ...(layoutW ? { width: layoutW } : null),
+      whiteSpace: "nowrap",
+      verticalAlign: "middle",
+      overflow: "visible",
+      lineHeight: 1.5,
       ...(c.help ? { cursor: "help" } : null),
     };
   }
   if (truncate) {
-    return { ...sx, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 0 };
+    return { ...sx, textAlign: s.align, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 0 };
   }
-  /* 자르지도 접지도 않는 열(배지·개수·날짜)도 **넘치면 자른다.** 값이 짧다는 전제가 깨지는
+  /* 자르지도 접지도 않는 열(개수·날짜)도 **넘치면 자른다.** 값이 짧다는 전제가 깨지는
      날 — 새 상태 낱말이 길어지거나 좁은 화면에서 열이 눌릴 때 — 그 값이 옆 칸 위에 그려진다.
      행 동작 묶음(`actions`)과 선택 칸은 제외한다: 그 안은 글이 아니라 누를 것이라 잘리면
-     닿을 수 없게 된다. */
+     닿을 수 없게 된다.
+     **`render` 가 있는 열도 제외한다** — 배지·신호·태그·인라인 편집은 자기 폭을 스스로
+     관리한다(위 `renderDataRow` 주석). `nowrap` 타입에 `overflow:hidden` 을 걸면 알약·표지가
+     칸 중간에서 잘려 「반쯤 깨진 알약」처럼 보인다 — 상태·신호 열에서 실제로 그랬다. */
   if (s.overflow === OVERFLOW.nowrap) {
-    const clip = s.type !== "actions" && s.type !== "select";
+    const clip = s.type !== "actions" && s.type !== "select" && !c.render;
     return {
-      ...sx, overflowWrap: "normal", whiteSpace: "nowrap",
+      ...sx, textAlign: s.align, overflowWrap: "normal", whiteSpace: "nowrap",
       ...(clip ? { overflow: "hidden", textOverflow: "ellipsis" } : null),
     };
   }
-  if (s.overflow === OVERFLOW.anywhere) return { ...sx, ...ANYWHERE_BREAK };
-  return { ...sx, ...KO_WORD_BREAK };
+  if (s.overflow === OVERFLOW.anywhere) return { ...sx, textAlign: s.align, ...ANYWHERE_BREAK };
+  return { ...sx, textAlign: s.align, ...KO_WORD_BREAK };
 }
 
 /* 식별자형 열은 **우정렬 대상이 아니다** — 티켓번호·포트·버전은 크기를 비교하지 않는다.
@@ -1717,22 +1717,62 @@ export function cardHeaderControls(cols) {
   return (cols || []).filter((c) => c && c.cardHeader);
 }
 
-/* ── 표 배치는 **하나**다: `auto` (S19) ─────────────────────────────────────
+/* ── 표 배치는 **하나**다: `fixed` + `columnLayoutWidth` (S19 → 사용자 요청) ─────
  *
- * 예전에는 호출부가 `fixed` 를 넘겨 `table-layout: fixed` 로 그릴 수 있었다. S16 이 열에
- * «의미» 어휘를 준 뒤로 그 둘은 **양립하지 않는다**: `columnTypes.SHRINK` 는 `"1%"` 이고,
- * 그 값이 「내용만큼」이라는 뜻이 되는 것은 auto 배치에서뿐이다. fixed 배치는 첫 행의 폭을
- * 글자 그대로 읽고 `min-width` 를 **무시한다.**
+ * 예전 auto 배치 + `SHRINK="1%"` 는 열 폭이 흔들리고 머리글이 겹쳤다. fixed 배치에서
+ * `1%` 를 그대로 쓰면 바닥 minWidth 가 무시되므로, `columnTypes.columnLayoutWidth` 가
+ * `title` 을 제외한 열에 **rem 바닥값**을 준다. `title` 은 남는 폭을 먹는다.
  *
- * 실측(1920 / 1440 / 1200, `/ideas`): 카테고리·상태·공감·조회·작성 다섯 열이 각각
- * **15.6px / 10.9px / 8.5px** 로 섰다 — 선언한 바닥값(72·80·64·136px)이 하나도 안 걸렸고,
- * 남은 폭은 제목과 작성자가 740px 씩 나눠 가졌다. 머리글은 그 15px 밖에 그려져 옆 이름과
- * 겹쳤고 본문 값(분류 태그·상태 배지·공감 수)은 그 15px 안에서 잘려 아예 안 보였다.
- * 폭이 화면 폭의 1% 라 **화면을 넓힐수록 더 어긋난다.**
- *
- * 그래서 두 규칙 중 하나를 없앤다. 남기는 것은 열 어휘 쪽이다 — 폭을 화면마다 손으로 적던
- * 시절로 돌아가지 않는 것이 S16 의 결론이었다. `fixed` 를 쓰던 두 화면(게시판·휴지통)이
- * 원한 것(「제목만 남는 폭을 갖고 나머지는 고정」)은 지금 `type` + `ellipsis` 가 그대로 준다. */
+ * 긴 값은 말줄임 + `title` hover(전역). 배지·버튼·인라인 편집 열은 자르지 않는다. */
+export const TABLE_FIXED_LAYOUT_SX = { tableLayout: "fixed", width: "100%" };
+
+/** 말줄임 대상 열인가 — DataTable·GroupedTickets 가 같은 규칙을 쓴다. */
+export function columnShouldTruncate(col, ellipsis) {
+  const c = col || {};
+  return !!(ellipsis || !c.render || c.type === "title" || c.type === "name" || c.type === "text" || c.type === "enum");
+}
+
+/** 잘린 셀 hover 시 보여 줄 전체 문자열. */
+export function columnCellHint(col, row, ctx, { truncate, raw, plain } = {}) {
+  const c = col || {};
+  if (!truncate) return undefined;
+  if (raw && raw !== "-") return raw;
+  if (typeof c.rowName === "function") {
+    try { const v = c.rowName(row, ctx); if (v) return String(v); } catch (e) { /* ignore */ }
+  }
+  if (plain) return plain;
+  if (c.key === "assignee_names" && row) {
+    const names = (row.assignee_names || []).join(", ");
+    return names || undefined;
+  }
+  return undefined;
+}
+
+export function TableColGroup({ columns }) {
+  const cols = Array.isArray(columns) ? columns : [];
+  return (
+    <colgroup>
+      {cols.map((c) => {
+        const w = columnLayoutWidth(c);
+        return <col key={c.key} style={w ? { width: w } : undefined} />;
+      })}
+    </colgroup>
+  );
+}
+
+const ELLIPSIS_CELL_SX = {
+  display: "block", minWidth: 0, maxWidth: "100%",
+  overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+  textAlign: "inherit",
+};
+
+function wrapTableCellContent(content, { truncate, hint }) {
+  if (!truncate) return content;
+  if (hint) {
+    return <Box component="span" title={hint} sx={ELLIPSIS_CELL_SX}>{content}</Box>;
+  }
+  return content;
+}
 /* REAUDIT A9 — 행에 실제 `<a href>` 가 하나도 없어 새 탭·가운데 클릭·주소 복사가 안 됐다.
  * `onRow` 는 클릭·키보드만 처리하는 진짜 링크가 아니다.
  *
@@ -1909,37 +1949,34 @@ export function DataTable({ columns, rows, rowKey, onRow, rowHref, empty, ellips
              말줄임으로 바꾼다(`truncateCol`이 문자 수 기준으로 이미 하던 것과 같은 방향,
              이제 그걸 안 쓴 나머지 열에도 `DataTable` 자신이 최소한의 보호를 준다).
              `title`로 전체 값은 그대로 hover에 남는다 — truncateCol과 같은 힌트 패턴. */
-          const truncate = ellipsis || !c.render || c.type === "title" || c.type === "name" || c.type === "text";
+          const truncate = columnShouldTruncate(c, ellipsis);
           const raw = !c.render ? cellValue(c, row, ctx) : null;
-          /* 그림을 그리는 열(배지·태그·작성자 줄)도 잘린다 — 그러면 전체 값을 볼 길이
-             있어야 한다. 그 열의 원시 값이 낱말 하나면 그것이 답이다(분류 「기능」,
-             작성자 이름). 값이 객체·배열이면 짓지 않는다 — `[object Object]` 를
-             hover 로 보여 주는 것은 없느니만 못하다. */
           const plain = c.render && (typeof row[c.key] === "string" || typeof row[c.key] === "number")
             ? String(row[c.key])
             : null;
-          const hint = truncate && raw && raw !== "-"
-            ? raw
-            : (truncate && typeof c.rowName === "function" ? c.rowName(row)
-              : (truncate && plain ? plain : undefined));
+          const hint = columnCellHint(c, row, ctx, { truncate, raw, plain });
           const content = raw != null ? raw : cellValue(c, row, ctx);
+          const body = wrapTableCellContent(
+            rowHref && onRow && c.type === "title" ? (
+              <Box
+                component="a"
+                {...rowAnchorProps(rowHref(row), () => onRow(row))}
+                sx={{ display: "block", color: "inherit", textDecoration: "none" }}
+              >
+                {content}
+              </Box>
+            ) : content,
+            { truncate, hint },
+          );
           return (
             <TableCell
               key={c.key}
               align={resolveColumn(c).align}
               data-col-role={colRole(c)}
-              title={hint || undefined}
+              title={!truncate && hint ? hint : undefined}
               sx={colCellSx(c, { truncate })}
             >
-              {rowHref && onRow && c.type === "title" ? (
-                <Box
-                  component="a"
-                  {...rowAnchorProps(rowHref(row), () => onRow(row))}
-                  sx={{ display: "block", color: "inherit", textDecoration: "none" }}
-                >
-                  {content}
-                </Box>
-              ) : content}
+              {body}
             </TableCell>
           );
         })}
@@ -1987,13 +2024,14 @@ export function DataTable({ columns, rows, rowKey, onRow, rowHref, empty, ellips
         // 전체 행 수를 이미 아는 이 자리(`DataTable`)에서 낸다.
         data-virtual-total={virtualize ? safeRows.length : undefined}
         sx={{
-          tableLayout: "auto",
+          ...TABLE_FIXED_LAYOUT_SX,
           "& td, & th": { borderInline: 0 },
           "& tbody tr:last-of-type td": { borderBottom: 0 },
           "& tbody tr": { transition: `background-color ${MOTION.instant} ${MOTION.ease}` },
           "& tbody tr.MuiTableRow-hover:hover": { bgcolor: "background.inset" },
         }}
       >
+        <TableColGroup columns={wideCols} />
         <TableHead>
           <TableRow>
             {wideCols.map((c) => (

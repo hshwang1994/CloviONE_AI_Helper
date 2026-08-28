@@ -73,11 +73,11 @@ describe("한 티켓이 신호를 여러 개 갖는다", () => {
     expect(ticketSignals({ status: "진행", due: null }, { today: TODAY, terminal: TERMINAL })).toEqual([]);
   });
 
-  it("🔴 상태값에는 빨강이 없다 — 빨강은 신호가 쓴다", () => {
+  it("🔴 신호 셋은 서로 다른 색이다 — 차단만 빨강", () => {
     expect(SIGNALS.blocked.tone).toBe("danger");
-    expect(SIGNALS.overdue.tone).toBe("danger");
-    // 이슈는 알고는 있어야 하지만 오늘 당장은 아니다. 셋 다 빨강이면 셋 다 안 보인다.
-    expect(SIGNALS.issue.tone).toBe("warn");
+    expect(SIGNALS.overdue.tone).toBe("warn");
+    expect(SIGNALS.issue.tone).toBe("purple");
+    expect(new Set(Object.values(SIGNALS).map((s) => s.tone)).size).toBe(3);
   });
 
   it("🔴 차단 사연이 있으면 그 신호에만 붙는다(A8) — 공유 어휘 항목은 안 건드린다", () => {

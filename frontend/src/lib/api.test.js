@@ -100,6 +100,25 @@ describe("api() — 422 검증 실패의 details (UX-40)", () => {
   });
 });
 
+describe("api() — PATCH 본문 직렬화", () => {
+  beforeEach(() => { vi.restoreAllMocks(); });
+
+  it("body가 객체이면 JSON으로 직렬화하고 Content-Type을 붙인다", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse(200, { ok: true }));
+    await api("/api/tickets/t-1", { method: "PATCH", body: { status: "진행" } });
+    const [, opts] = fetchMock.mock.calls[0];
+    expect(opts.headers["Content-Type"]).toBe("application/json");
+    expect(opts.body).toBe(JSON.stringify({ status: "진행" }));
+  });
+
+  it("body를 미리 stringify 하면 Content-Type이 빠진다 — 서버가 본문을 못 읽는다", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse(200, { ok: true }));
+    await api("/api/tickets/t-1", { method: "PATCH", body: JSON.stringify({ status: "진행" }) });
+    const [, opts] = fetchMock.mock.calls[0];
+    expect(opts.headers["Content-Type"]).toBeUndefined();
+  });
+});
+
 /* PA-RC-0002 — docs/UX_WRITING.md "회복 절을 고르는 법". 서버가 봉투 문구를 안 준
  * 대비책(fallbackMessage)과 네트워크 자체 실패는 각각 이 파일 한 곳에서만 만들어진다 —
  * 여기서 막다른 길이면 그 문구를 보는 화면 전부가 막다른 길이다(공용 진입점).

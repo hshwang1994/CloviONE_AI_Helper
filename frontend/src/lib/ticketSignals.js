@@ -27,12 +27,12 @@ import { api } from "./api.js";
 
 /** 신호 셋의 표시 이름과 톤. **같은 의미는 제품 전체에서 같은 말과 같은 색이다.**
  *
- * 톤이 둘로 갈리는 기준은 「지금 손을 대야 하는가」다. 차단과 지연은 그렇고(빨강),
- * 이슈는 알고는 있어야 하지만 오늘 당장은 아니다(주황). 셋 다 빨강이면 셋 다 안 보인다. */
+ * 셋은 **서로 다른 색**이다. 예전에는 차단과 지연이 둘 다 빨강이라 표에서 구분이 안 됐다.
+ * 빨강은 지금 막힌 것(차단), 주황은 시간이 지난 것(지연), 보라는 알고 있어야 하는 것(이슈). */
 export const SIGNALS = {
-  issue: { key: "issue", label: "이슈 있음", tone: "warn" },
+  issue: { key: "issue", label: "이슈 있음", tone: "purple" },
   blocked: { key: "blocked", label: "차단됨", tone: "danger" },
-  overdue: { key: "overdue", label: "지연", tone: "danger" },
+  overdue: { key: "overdue", label: "지연", tone: "warn" },
 };
 
 export const SIGNAL_ORDER = ["blocked", "overdue", "issue"];

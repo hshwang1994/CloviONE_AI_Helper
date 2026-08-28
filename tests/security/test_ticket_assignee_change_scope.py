@@ -1,21 +1,15 @@
-"""담당자는 **범위 안 누구나** 바꿀 수 있다 — 그리고 그것이 다른 칸을 열지 않는다 (지시 11).
+"""범위 안의 티켓은 담당자가 아니어도 고칠 수 있다.
 
-## 무엇이 문제였나
+담당은 「누가 그 일을 하는가」이지 「누가 고칠 수 있는가」가 아니다. 제목·상태·본문·
+담당자가 같은 문을 지난다. 바꾼 내용은 감사 이력에 남는다.
 
-일반 사용자는 「본인 담당이거나 미할당인 티켓」만 편집할 수 있었다. 그래서 「이 일은 제가
-할게요」도, 「이건 김OO 씨 일이에요」도 운영자를 불러야 했다 — 팀이 매일 하는 말이 매번
-관리 요청이 되면 담당자 칸은 결국 비어 있게 된다.
+막혀 있는 것은 두 가지다.
 
-## 넓힌 것과 안 넓힌 것
+  · 범위 밖 티켓 → 404. 이 문은 편집 판정 **앞에** 산다
+  · 감사자 → 읽기 전용. 「가져가기」 단추로 남의 일을 한 번에 가져오는 것도 별도 문이다
 
-넓어진 것은 **누가 바꾸는가** 하나다.
-
-  · 담당자만 바꾸는 요청 → 그 티켓의 프로젝트가 보이면 누구나 할 수 있다
-  · 다른 칸이 하나라도 섞이면 → 예전 규칙 그대로다(담당자 또는 미할당만)
-  · 범위 밖 티켓 → 예전처럼 404 다. 이 예외는 범위 문 **뒤에** 산다
-
-마지막 줄이 이 파일의 절반이다. 「담당자는 누구나」를 범위 문 앞에 두면 남의 부서 티켓의
-담당자를 id 하나로 바꿀 수 있게 되는데, 그 사고는 목록에 아무 흔적을 안 남긴다.
+마지막 줄이 이 파일의 절반이다. 편집을 범위 문 앞에 두면 남의 부서 티켓을 id 하나로
+고칠 수 있게 되는데, 그 사고는 목록에 아무 흔적을 안 남긴다.
 """
 
 from __future__ import annotations
@@ -41,34 +35,38 @@ WITH_OTHER_FIELD = {"assignee_user_ids": ["someone"], "title": "제목까지 바
 
 
 def test_a_bystander_can_hand_the_ticket_to_someone(people):  # noqa: F811
-    """🔴 **이 한 줄이 이 파일의 이유다.** 고치기 전에는 여기서 403 이 났다."""
+    """담당자만 바꾸는 요청도 범위 안이면 통과한다."""
     ticket = _ticket(assignees=["someone-elses-token"])
-    # 예외가 없다 = 통과다. 담당자도 아니고 미할당도 아닌 티켓인데 담당자만 바꾼다.
     ensure_can_edit(ticket, people["a1"], "my-token", changes=ASSIGNEE_ONLY)
 
 
-def test_that_exception_does_not_open_any_other_field(people):  # noqa: F811
-    """**반례.** 담당자를 함께 보내는 것만으로 아무 칸이나 열리면 안 된다.
+def test_a_bystander_can_edit_any_other_field(people):  # noqa: F811
+    """🔴 **이 한 줄이 이 파일의 이유다.** 고치기 전에는 여기서 403 이 났다.
 
-    이것이 없으면 위 시험은 「담당자를 실으면 통과」까지만 증명하고, 실제로는 제목·상태·
-    마감을 남의 티켓에서 고치는 길이 열린 채로 초록이 뜬다.
+    담당은 소유가 아니다. 제목·상태를 함께 보내도 범위 안이면 통과한다.
     """
     ticket = _ticket(assignees=["someone-elses-token"])
-    with pytest.raises(ForbiddenError):
-        ensure_can_edit(ticket, people["a1"], "my-token", changes=WITH_OTHER_FIELD)
+    ensure_can_edit(ticket, people["a1"], "my-token", changes=WITH_OTHER_FIELD)
 
 
-def test_the_old_rule_is_unchanged_when_nobody_says_what_changes(people):  # noqa: F811
-    """`changes` 를 안 주는 호출부(본문·첨부·댓글 경로)는 예전과 똑같다 — 회귀 0."""
+def test_body_and_attachment_paths_are_the_same_gate(people):  # noqa: F811
+    """`changes` 를 안 주는 호출부(본문·첨부)도 같은 문이다 — 담당자가 아니어도 통과."""
     ticket = _ticket(assignees=["someone-elses-token"])
-    with pytest.raises(ForbiddenError):
-        ensure_can_edit(ticket, people["a1"], "my-token")
+    ensure_can_edit(ticket, people["a1"], "my-token")
 
 
 def test_my_own_and_unassigned_tickets_still_open(people):  # noqa: F811
     """반례 둘 — 예전에 되던 것이 그대로 된다."""
     ensure_can_edit(_ticket(assignees=[]), people["a1"], "my-token", changes=WITH_OTHER_FIELD)
     ensure_can_edit(_ticket(assignees=["my-token"]), people["a1"], "my-token", changes=WITH_OTHER_FIELD)
+
+
+def test_an_auditor_cannot_edit_even_in_scope(make_user):
+    """감사자는 읽기 전용이다. 미할당이어도 고치지 못한다."""
+    auditor = make_user(email="ticket-auditor@goodmit.co.kr", role="auditor",
+                        display_name="감사")
+    with pytest.raises(ForbiddenError):
+        ensure_can_edit(_ticket(assignees=[]), auditor, "tok")
 
 
 @pytest.fixture()
@@ -93,7 +91,7 @@ def their_ticket(db, people, make_project):  # noqa: F811
 def test_the_exception_lives_behind_the_scope_gate(db, people, their_ticket):  # noqa: F811
     """🔴 **범위 밖은 여전히 없는 티켓이다.**
 
-    담당자 예외가 범위 문 앞에 서면 남의 부서 티켓의 담당자를 id 하나로 바꿀 수 있게 된다.
+    편집이 범위 문 앞에 서면 남의 부서 티켓을 id 하나로 고칠 수 있게 된다.
     그 사고는 목록에 아무 흔적을 안 남긴다 — 그 티켓은 애초에 이 사람 목록에 없다.
     """
     from app.core.errors import NotFoundError

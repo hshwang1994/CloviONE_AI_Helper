@@ -67,9 +67,16 @@ describe("priorityKind", () => {
     expect(priorityKind("urgent")).toBe("danger");
     expect(priorityKind("high")).toBe("warn");
     expect(priorityKind("normal")).toBe("info");
+    expect(priorityKind("낮음")).toBe("teal");
+  });
+  it("등급 넷은 서로 다른 색이다", () => {
+    const kinds = ["긴급", "높음", "보통", "낮음"].map(priorityKind);
+    expect(new Set(kinds).size).toBe(4);
+    expect(kinds).not.toContain("neutral");
   });
   it("maps numeric grades", () => {
     expect(priorityKind(2)).toBe("info");
+    expect(priorityKind(3)).toBe("teal");
   });
   it("returns undefined for unknown grades (Badge falls back to neutral)", () => {
     expect(priorityKind("p1_urgent")).toBeUndefined();

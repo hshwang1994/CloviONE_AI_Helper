@@ -146,3 +146,5 @@ def test_list_assignees_is_every_active_account(db, make_user):
     names = [x["display_name"] for x in service.list_assignees(db)]
     assert names == ["비", "씨(짝 없음)", "에이"]
     assert off.display_name not in names
+    # 사진·고른 기본 그림 자리가 있어야 선택기와 채팅이 같은 얼굴을 그린다.
+    assert all("avatar_url" in x and "avatar_default_key" in x for x in service.list_assignees(db))

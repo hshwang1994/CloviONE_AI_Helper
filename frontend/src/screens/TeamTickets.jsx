@@ -7,7 +7,7 @@ import { Card, Callout, ErrorState, PageHeader, Skeleton } from "../ui/kit.jsx";
 import { Pager } from "../ui/Pager.jsx";
 import { useQueryState } from "../lib/useQueryState.js";
 import { DepartmentFilter } from "../ui/filters.jsx";
-import { ticketColumns, GroupedTickets, TicketEditModal, ticketConnState } from "./MyTickets.jsx";
+import { ticketColumns, GroupedTickets, TicketEditModal, ticketConnState, useInlineStatusEdit } from "./MyTickets.jsx";
 import { useTicketSignals } from "../lib/ticketSignals.js";
 import { useListMemory } from "../lib/listReturn.js";
 import { ticketRows, useAssigneeOptions, useTicketList, useTicketMeta } from "./ticket-options.js";
@@ -18,7 +18,8 @@ import {
 import { priorityKo } from "../lib/priority.js";
 
 /* 팀 공간 > 팀 티켓 — 팀 전체 티켓을 담당자별로 묶어 본다(미할당 티켓이 프로젝트별로 묶이듯).
- * 제목을 누르면 상세로. 편집은 담당자/운영자만. 조건은 서버가 걸고, 그 조건은 주소에 남는다. */
+ * 제목을 누르면 상세로. 보이는 티켓은 담당자가 아니어도 고칠 수 있고, 고친 내용은 이력에 남는다.
+ * 조건은 서버가 걸고, 그 조건은 주소에 남는다. */
 
 const UNASSIGNED = "(미할당)";
 
@@ -62,6 +63,7 @@ export function groupByAssignee(rows) {
 export function TeamTickets() {
   useListMemory("/team-tickets");
   const signalsOf = useTicketSignals();
+  const statusEdit = useInlineStatusEdit();
   const nav = useNavigate();
   const [filters, setFilters] = useQueryState(TEAM_SPEC, PAGE_RESET);
   const [editing, setEditing] = React.useState(null);
@@ -123,7 +125,7 @@ export function TeamTickets() {
           사용자에게 자기가 못 쓰는 기능이 있다고 말하는 셈이다. */}
       <PageHeader
         crumbRoot="팀 공간" area="팀 티켓" title="팀 티켓"
-        description="팀 전체 티켓을 담당자별로 묶어서 봅니다. 수정은 담당자와 운영자만 할 수 있습니다."
+        description="팀 전체 티켓을 담당자별로 묶어서 봅니다. 보이는 티켓은 담당자가 아니어도 고칠 수 있고, 고친 내용은 이력에 남습니다."
       />
       {q.isPending ? <Card><Skeleton lines={6} /></Card>
         : q.isError ? <ErrorState error={q.error} onRetry={() => q.refetch()} />
@@ -134,7 +136,7 @@ export function TeamTickets() {
           if (conn) return conn;
           if (data.ok === false) return <Callout tone="danger">{data.error || "티켓을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요."}</Callout>;
           const rows = ticketRows(data);
-          const cols = ticketColumns({ onEdit: setEditing, filterAssignee: true, signalsOf, onOpen: (t) => nav("/tickets/" + t.id, { state: { from: "/team-tickets" } }) });
+          const cols = ticketColumns({ onEdit: setEditing, filterAssignee: true, signalsOf, statusEdit, onOpen: (t) => nav("/tickets/" + t.id, { state: { from: "/team-tickets" } }) });
           return (
             <>
               {/* 여기 미러 신선도 안내가 있었다. 서버가 `sync` 블록을 더 이상 안 싣는다 —

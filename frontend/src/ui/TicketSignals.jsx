@@ -34,15 +34,27 @@ const ICON = {
   issue: ErrorOutlineRoundedIcon,
 };
 
-const TONE_INK = { danger: "error.strong", warn: "warning.strong" };
-const TONE_BG = { danger: "error.bg", warn: "warning.bg" };
-const TONE_DOT = { danger: "error.main", warn: "warning.main" };
+const TONE_PALETTE = {
+  danger: { ink: "error.strong", bg: "error.bg", dot: "error.main" },
+  warn: { ink: "warning.strong", bg: "warning.bg", dot: "warning.main" },
+  info: { ink: "info.strong", bg: "info.bg", dot: "info.main" },
+};
+const TONE_VARS = {
+  purple: { ink: "var(--badge-purple-fg)", bg: "var(--badge-purple-bg)", dot: "var(--badge-purple-fg)" },
+  teal: { ink: "var(--badge-teal-fg)", bg: "var(--badge-teal-bg)", dot: "var(--badge-teal-fg)" },
+  indigo: { ink: "var(--badge-indigo-fg)", bg: "var(--badge-indigo-bg)", dot: "var(--badge-indigo-fg)" },
+  pink: { ink: "var(--badge-pink-fg)", bg: "var(--badge-pink-bg)", dot: "var(--badge-pink-fg)" },
+};
+function toneColors(tone) {
+  return TONE_PALETTE[tone] || TONE_VARS[tone] || TONE_PALETTE.warn;
+}
 
 /* REAUDIT A8 — `blocked_reason` 은 API 가 이미 실었는데 어느 화면도 안 읽었다(차단됐다는
  * 사실만 보이고 왜인지는 안 보였다). `signal.reason` 이 있을 때만(차단 신호 · 사연이 실제로
  * 있을 때) Tooltip 으로 감싼다 — 나머지 신호(지연·이슈)와 사연 없는 차단은 지금과 똑같다. */
 function SignalPill({ signal }) {
   const Icon = ICON[signal.key];
+  const tone = toneColors(signal.tone);
   const body = (
     <Box
       component="span"
@@ -54,7 +66,7 @@ function SignalPill({ signal }) {
         px: 0.75, py: 0.125, borderRadius: `${RADIUS.sm}px`,
         maxWidth: "100%", minWidth: 0, whiteSpace: "nowrap",
         fontSize: FONT_SIZE.bodySm, fontWeight: FONT_WEIGHT.semibold, lineHeight: 1.4,
-        bgcolor: TONE_BG[signal.tone], color: TONE_INK[signal.tone],
+        bgcolor: tone.bg, color: tone.ink,
       }}
     >
       <Icon aria-hidden="true" fontSize="inherit" />
@@ -68,6 +80,7 @@ function SignalPill({ signal }) {
 
 function SignalMark({ signal }) {
   const Icon = ICON[signal.key];
+  const tone = toneColors(signal.tone);
   // `title` 은 브라우저 기본 툴팁이다 — 사연이 있으면 그 자리에 이어 붙인다(좁은 목록은
   // MUI Tooltip 을 안 쓴다, 위 밀도 설명 참고).
   const title = signal.reason ? `${signal.label}: ${signal.reason}` : signal.label;
@@ -83,7 +96,7 @@ function SignalMark({ signal }) {
       sx={{
         display: "inline-flex", alignItems: "center", flexShrink: 0,
         fontSize: FONT_SIZE.bodySm, lineHeight: 1,
-        color: TONE_DOT[signal.tone],
+        color: tone.dot,
       }}
     >
       <Icon aria-hidden="true" fontSize="inherit" />

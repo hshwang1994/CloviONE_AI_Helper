@@ -29,6 +29,17 @@
 /** auto 배치 표에서 「내용 폭만큼」을 뜻하는 값. 위 주석 참고. */
 export const SHRINK = "1%";
 
+/** `table-layout:fixed` 에서 열 하나의 폭. `title` 은 남는 폭을 먹는다(undefined).
+ *  `SHRINK`(`1%`)는 fixed 배치에서 망가지므로 **바닥 minWidth** 를 쓴다. */
+export function columnLayoutWidth(col) {
+  const s = resolveColumn(col);
+  if (s.type === "title") return undefined;
+  const c = col || {};
+  const explicit = c.width != null ? c.width : s.width;
+  if (explicit && explicit !== SHRINK) return explicit;
+  return s.minWidth;
+}
+
 /* 글자 단위로 끊는 유일한 자리 — **식별자형 열**(이메일·UUID·코드·URL).
  *
  * 한글 산문은 낱말을 지켜야 하고(`root.css` 의 `keep-all`), 그 규칙을 화면이 제멋대로

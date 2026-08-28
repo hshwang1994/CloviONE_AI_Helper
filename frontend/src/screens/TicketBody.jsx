@@ -1,7 +1,5 @@
 import React from "react";
-import Box from "@mui/material/Box";
 import { EditableBody, hasUnsupportedBlocks, lineCount } from "../ui/EditableBody.jsx";
-import { PROSE_MAX_WIDTH } from "../ui/theme.js";
 import { DocBody } from "../ui/DocBody.jsx";
 
 /* 티켓 본문 읽기·편집 (계획 Phase 3 §E).
@@ -11,12 +9,13 @@ import { DocBody } from "../ui/DocBody.jsx";
  * 남는다(이 저장소가 서버 쪽에서 반복해 적어 온 그 이유가 화면에도 똑같이 적용된다).
  *
  * 여기서 정하는 것은 티켓에만 해당하는 것들뿐이다: 어느 엔드포인트에 저장하는가, 어느 목록
- * 질의를 무효화하는가, 소스 본문을 어떤 폭으로 그리는가.
+ * 질의를 무효화하는가.
+ *
+ * 본문 폭은 담는 열(티켓 상세의 본문 트랙)이 정한다. 여기에 72ch 를 다시 걸면 카드는
+ * 넓은데 글만 왼쪽에 붙는다.
  *
  * 헬퍼(lineCount/hasUnsupportedBlocks)는 이 경로로 계속 내보낸다 — 기존 테스트가 여기서
  * 가져오고, 옮겼다는 사실 때문에 그 계약을 깨뜨릴 이유는 없다. */
-
-const PROSE_SX = { maxWidth: PROSE_MAX_WIDTH };
 
 export { lineCount, hasUnsupportedBlocks };
 
@@ -33,11 +32,7 @@ export function TicketBody({ ticketId, blocks, blocksError, bodyMarkdown, bodyVe
       // VIS-135: 헤더의 '수정'(TicketEditModal)과 이 버튼이 다른 것을 편집한다는 것을
       // 밝힌다 — 상태·담당자 같은 속성은 여기서 못 고친다.
       editButtonHint="본문 텍스트만 수정합니다. 상태, 담당자 등 속성은 위 '수정' 버튼에서 고칩니다."
-      sourceView={(
-        <Box sx={PROSE_SX}>
-          <DocBody blocks={blocks} blocksError={blocksError} />
-        </Box>
-      )}
+      sourceView={<DocBody blocks={blocks} blocksError={blocksError} />}
     />
   );
 }

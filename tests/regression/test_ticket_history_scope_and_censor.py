@@ -145,3 +145,32 @@ def test_history_reads_names_in_one_go_not_per_row(
     # 세션·권한 판정도 users 를 읽으므로 정확한 수를 못 박지 않는다 — «행 수만큼 늘지
     # 않는다» 만 본다. 행마다 읽으면 12를 넘는다.
     assert len(seen) <= 6, "이력 12줄에 users 질의 %d번" % len(seen)
+
+
+def test_a_teammate_edit_is_attributed_in_history(
+    client, login_as, make_ticket, make_user, make_project,
+):
+    """담당자가 아닌 사람이 고친 것도 이력에 **누가** 남는다."""
+    owner = make_user(email="hist-owner@goodmit.co.kr", role="user", display_name="원래담당")
+    make_user(email="hist-editor@goodmit.co.kr", role="user", display_name="김편집")
+    project = make_project(name="이력 프로젝트")
+    make_ticket(
+        title="이력 대상", project=project, page_id="page-peer-hist",
+        assignees=[owner.id], status="진행",
+    )
+    csrf = login_as("user", email="hist-editor@goodmit.co.kr")
+    patched = client.patch(
+        "/api/tickets/page-peer-hist",
+        json={"status": "완료"},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert patched.status_code == 200, patched.text[:400]
+    items = client.get("/api/tickets/page-peer-hist/history").json()["items"]
+    assert items, "동료가 고쳤는데 이력이 없다"
+    entry = items[0]
+    assert entry["actor"] == "김편집"
+    assert entry["action"] == "ticket.update"
+    status = next(c for c in entry["changes"] if c["field"] == "status")
+    assert status["from"] == "진행"
+    assert status["to"] == "완료"
+

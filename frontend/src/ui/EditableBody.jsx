@@ -7,7 +7,7 @@ import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
 import { BodyEditor, BODY_MAX_LINES, editorContainerSx, editorSurfaceWidthSx } from "./BodyEditor.jsx";
 import { Button, Callout, useConfirm, useToast } from "./kit.jsx";
-import { FONT_SIZE, PROSE_MAX_WIDTH } from "./theme.js";
+import { FONT_SIZE } from "./theme.js";
 
 /* 편집 중인 표면(제목 행 + 안내문 + BodyEditor)의 컨테이너 질의 이름. 이 화면 전용 지역
  * 값이라 상수로 뽑는다 — editorSurfaceWidthSx 가 만드는 `@container` 규칙과
@@ -32,10 +32,8 @@ const EDIT_SURFACE_CONTAINER = "editable-body-edit";
  * 적어 온 그 이유("판정을 두 벌로 적지 않는다")가 화면에도 똑같이 적용된다.
  *
  * 소스 본문 렌더러(DocBody)는 **prop 으로 받는다**. 여기서 직접 import 하면 화면 모듈과
- * 순환 import 가 된다(TeamDoc.jsx 가 이 파일을 쓴다). 폭 상한도 화면마다 달라서 그쪽이
- * 정하는 편이 맞다.
- *
- * 폭: 본문은 산문이라 78ch 에서 멈춘다. 4K 에서 남는 폭은 줄 길이가 아니라 옆 레일로 간다. */
+ * 순환 import 가 된다. 폭은 담는 열이 정한다 — 여기에 72ch 를 다시 걸면 열은 넓은데
+ * 글만 왼쪽에 붙는다. */
 
 export function lineCount(text) {
   return (text || "").split("\n").length;
@@ -132,11 +130,9 @@ export function EditableBody({
   };
 
   if (editing) {
-    /* 폭: 읽기 모드(아래 non-editing return)는 산문이라 PROSE_MAX_WIDTH(78ch)에서 멈추는 게
-     * 맞다. 그런데 예전엔 편집 모드도 같은 78ch 로 묶었다 — 편집 표면은 툴바+입력 상자+
-     * 미리보기라 산문이 아니고, BodyEditor 안의 TextField 는 애초에 fullWidth 로 설계돼 있다
-     * (BodyEditor.jsx 의 BodyPreview wide 설명 참고). 그 결과 4K 등 넓은 화면에서 편집기 전체가
-     * 좁은 고정 폭에 갇혀 왼쪽으로 쏠려 보였다. `editorContainerSx`/`editorSurfaceWidthSx` 는
+    /* 폭: 읽기 모드도 담는 열을 그대로 쓴다. 예전엔 편집 모드를 78ch 로 묶어서, 편집 표면
+     * (툴바+입력 상자+미리보기)이 좁은 고정 폭에 갇혀 왼쪽으로 쏠려 보였다. BodyEditor 안의
+     * TextField 는 애초에 fullWidth 다. `editorContainerSx`/`editorSurfaceWidthSx` 는
      * 컨테이너의 실제 폭을 재서, 충분히 넓어졌을 때만(EDITOR_WIDE_STOP_REM) 상한을 건다. */
     return (
       <Box sx={editorContainerSx(EDIT_SURFACE_CONTAINER)}>
@@ -206,7 +202,7 @@ export function EditableBody({
         )}
       </Stack>
       {!canEdit ? (
-        <Box sx={{ mb: 1.5, maxWidth: PROSE_MAX_WIDTH }}>
+        <Box sx={{ mb: 1.5 }}>
           <Callout tone="danger">
             본문을 불러오지 못해 수정할 수 없습니다. 지금 저장하면 저장된 본문을 지우게
             되므로 수정을 막았습니다. 잠시 후 새로고침해 주세요.

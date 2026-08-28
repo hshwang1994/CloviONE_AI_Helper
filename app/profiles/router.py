@@ -193,6 +193,9 @@ def me(
             **_identity_context(db, user),
             # 셸(상단바 아바타)이 이 한 필드 때문에 별도 요청을 하지 않게 여기 싣는다.
             "avatar_url": _avatar_url(pref, user.id),
+            # 고른 기본 그림. 없으면 화면이 user id 로 안정 배정한다 — 이 값이 안 실리면
+            # 프로필에서 고른 얼굴과 상단바 얼굴이 서로 다른 씨앗으로 그려진다.
+            "avatar_default_key": pref.avatar_default_key if pref else None,
         },
         # 기능 플래그 — **껐으면 화면에서도 사라져야 한다** (X4).
         # 예전에는 서버만 껐다. 껐다고 믿은 메뉴가 사이드바에 남고, 눌리고, 404 를 뱉었다.
@@ -229,6 +232,7 @@ def profile(
 
     pref = service.get_preference(db, user.id)
     return {
+        "id": user.id,
         "email": user.email,
         "display_name": user.display_name,
         "role": user.role,

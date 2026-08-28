@@ -137,7 +137,8 @@ PERMISSIONS: tuple[PermissionSpec, ...] = (
     PermissionSpec(TICKET_CREATE, "티켓 생성", "티켓", EVERYONE),
     PermissionSpec(
         TICKET_UPDATE, "티켓 편집", "티켓", EVERYONE,
-        "담당자와 작성자 판정, 그리고 프로젝트 범위가 실제 문을 지킨다. 역할로는 막지 않는다.",
+        "프로젝트 범위가 실제 문을 지킨다. 담당 여부는 편집을 막지 않는다. "
+        "감사자만 읽기 전용이다.",
     ),
     PermissionSpec(
         TICKET_DELETE, "티켓 삭제와 휴지통 이동", "티켓", MODERATOR_ROLES,

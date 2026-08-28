@@ -3,7 +3,7 @@
 이 모듈은 **소스를 모른다**. 티켓을 읽고 쓰는 일은 전부 TicketRepository(app/tickets/repository.py)
 뒤에 있고, Notion 속성 이름·스키마·페이지네이션은 구현체(repository_notion.py) 안에만 있다.
 여기 남는 것은 소스와 무관한 규칙뿐이다: 로그인 사용자 기준 필터, 담당자 이름/앱 user_id 해석,
-소유권(IDOR) 검사, 감사 스냅샷, 휴지통.
+범위(IDOR) 검사, 감사 스냅샷, 휴지통.
 
 보안(스펙 §12.3): 대상 notion_user_id 는 **세션 사용자에서만** 도출한다. 브라우저는 소스 user id 를
 주지도 받지도 않는다 — 응답에는 해석된 user_id/이름만 싣는다.
@@ -42,7 +42,7 @@ from app.tickets.repository import (
 from app.trash import repository as trash_repo
 from app.trash import service as trash_service
 from app.trash.models import TRASH_TICKET
-from app.core.authz import MODERATOR_ROLES
+from app.core.authz import MODERATOR_ROLES, ROLE_AUDITOR
 from app.users.models import User
 
 logger = logging.getLogger("app.tickets")
@@ -819,7 +819,10 @@ def list_assignees(
     org_names = people.org_name_map(db)
     # 조직 경로까지 싣는다 — 담당자 선택기에서 동명이인을 이름만으로 고르면 안 된다.
     tree = DeptTree.load(db)
-    return [people.identity(u, org_names, None, tree) for u in users]
+    # 사진·고른 기본 그림도 함께. 안 실리면 선택기만 자동 배정 얼굴이 되고, 채팅·프로필과
+    # 같은 사람이 다른 그림으로 보인다.
+    avatars = people.avatar_map(db, [u.id for u in users])
+    return [people.identity(u, org_names, avatars, tree) for u in users]
 
 
 def _users_who_can_reach_project(db: Session, users: list[User], project_id: str) -> list[User]:
@@ -839,9 +842,9 @@ def _users_who_can_reach_project(db: Session, users: list[User], project_id: str
 def can_trigger_sync(user: User) -> bool:
     """지금 당장 동기화를 돌릴 수 있는 사람 — 운영자군.
 
-    `team_docs.service.can_trigger_sync`, `ensure_can_edit` 와 **같은 기준**
-    (`MODERATOR_ROLES`)이다. 기준을 여기서 새로 정의하지 않는다 — "운영자"의 뜻이 화면마다
-    갈라지면 어떤 콘솔에서는 되는데 다른 콘솔에서는 막히는 혼란이 생긴다.
+    `team_docs.service.can_trigger_sync` 와 **같은 기준**(`MODERATOR_ROLES`)이다.
+    티켓 편집(`ensure_can_edit`)과는 다른 문이다 — 범위 안 티켓은 담당자가 아니어도
+    고칠 수 있지만, 강제 재동기화는 운영 동작이라 운영자군만 연다.
     """
     return user.role in MODERATOR_ROLES
 
@@ -849,7 +852,7 @@ def can_trigger_sync(user: User) -> bool:
 # ── 휴지통 ────────────────────────────────────────────────────────────────────
 
 def trash_ticket(db: Session, outbound, settings, user: User, *, page_id: str, now, repo=None) -> dict:
-    """티켓을 휴지통으로 보낸다(노션은 손대지 않음). 편집 권한이 있어야 한다(담당자/미할당/운영자군).
+    """티켓을 휴지통으로 보낸다(노션은 손대지 않음). 편집과 같은 문(범위 안이면 담당자가 아니어도).
     보관기간이 지나면 백그라운드가 노션 원본을 보관처리한다. 복원 가능."""
     ensure_not_trashed(db, page_id)   # H2 — 휴지통 항목은 없는 것으로 본다
     ensure_in_scope(db, page_id, user)   # 쓰기도 범위 밖은 404 (3순위 IDOR)
@@ -870,11 +873,11 @@ def trash_tickets_bulk(
     """티켓 여러 건을 휴지통으로 보낸다. 건별로 검사하고, 실패(범위 밖·권한 없음·이미 휴지통·
     없음)는 건너뛰고 나머지는 계속한다(부분 성공). {trashed:[...], failed:[{id,error}]}.
 
-    ⚠️ **범위와 권한은 다른 축이다.** 예전에는 이 루프가 `ensure_can_edit` 만 지났는데, 그건
-    `MODERATOR_ROLES` 를 **무조건** 통과시키고 미할당 티켓은 누구나 통과시킨다 — 즉 다른
-    부서의 운영자가 page_id 목록만 던지면 범위 밖 티켓을 통째로 휴지통에 넣을 수 있었다.
-    단건 경로(`trash_ticket`)는 `ensure_in_scope` 를 지나는데 **일괄만 안 지났다.**
-    휴지통 모듈에서 정확히 같은 것("단건만 막으면 소용없다")을 겪고도 여기서 반복했다.
+    ⚠️ **범위와 권한은 다른 축이다.** 예전에는 이 루프가 `ensure_can_edit` 만 지났는데,
+    그때의 그 함수는 운영자군을 **무조건** 통과시켰다 — 즉 다른 부서의 운영자가 page_id
+    목록만 던지면 범위 밖 티켓을 통째로 휴지통에 넣을 수 있었다. 단건 경로(`trash_ticket`)는
+    `ensure_in_scope` 를 지나는데 **일괄만 안 지났다.** 휴지통 모듈에서 정확히 같은 것
+    ("단건만 막으면 소용없다")을 겪고도 여기서 반복했다.
     """
     from app.core.errors import AppError
 
@@ -901,59 +904,50 @@ def trash_tickets_bulk(
 
 # ── 수동 편집(쓰기) ────────────────────────────────────────────────────────────
 
-#: 범위 안이면 **담당자가 아니어도** 바꿀 수 있는 축 (지시 11).
-#:
-#: 「이 일은 내가 할게」와 「이건 김OO 씨 일이에요」는 팀이 매일 하는 말이고, 그때마다
-#: 운영자를 부르게 하면 담당자 칸은 결국 비어 있게 된다. 이 목록이 **한 칸뿐인 것**이
-#: 요점이다: 제목·상태·마감을 남의 티켓에서 고치는 것은 다른 이야기이고, 그쪽은 예전
-#: 규칙 그대로다.
-COLLABORATIVE_FIELDS: frozenset[str] = frozenset({"assignee_user_ids"})
+_AUDITOR_EDIT_DENIED = "감사자는 티켓을 편집할 수 없습니다."
+_CLAIM_DENIED = (
+    "이미 담당자가 있는 티켓은 가져갈 수 없습니다. 담당자 칸에서 바꿀 수 있습니다."
+)
 
 
 def ensure_can_edit(
     ticket: TicketDTO, user: User, my_token: str | None, *, changes: dict | None = None
 ) -> None:
-    """소유권 검증(스펙 §25.5·IDOR). 운영/관리자군은 우회, 그 외는 본인 담당 또는 미할당만.
+    """범위 안의 티켓은 담당자가 아니어도 고칠 수 있다.
 
-    ## 담당자 축은 예외다 (지시 11)
+    담당은 **누가 그 일을 하는가**이지 **누가 고칠 수 있는가**가 아니다. 제목·상태·본문·
+    담당자·첨부·휴지통이 같은 문을 지난다. 바꾼 내용은 감사 이력에 남는다.
 
-    `changes` 가 **담당자만** 담고 있으면 범위 안 누구나 바꿀 수 있다. 후보는 서버가
-    그 프로젝트에 닿을 수 있는 사람으로 이미 좁혀 준다
-    (`/api/tickets/assignees` → `_assignable_users`) — 즉 「볼 수 없는 사람에게 떠넘기기」는
-    이 예외로도 안 된다. 넓어지는 것은 **누가 바꾸는가**이지 **누구에게 줄 수 있는가**가
-    아니다.
+    이 함수는 범위를 보지 않는다 — 그건 앞 문(`ensure_in_scope`)이 이미 했다. 호출부는
+    전부 그 문을 먼저 지난다. 두 축을 한 함수에 섞으면 한쪽을 고칠 때 다른 쪽이 조용히
+    넓어진다. 범위 밖은 여기서 403 이 아니라 앞에서 404 다.
 
-    `changes` 를 안 주면 예전과 정확히 같이 동작한다(회귀 0). 「가져가기」가 그렇게 부른다 —
-    담당자를 쓰는 것은 같지만 **뜻이 다른 동작**이기 때문이다(`claim_ticket`).
-
-    소스에서 **방금 읽은** '현재' 티켓의 담당자로 판정한다(프런트가 준 값도, 캐시 값도 아니다).
-
-    ## 이 함수는 범위를 보지 않는다 — 그건 앞 문이 이미 했다
-
-    호출부는 전부 `ensure_in_scope` 를 먼저 지난다(쓰기 경로 여덟 곳). 즉 여기 도달했다는
-    것은 **그 티켓의 프로젝트가 이 사람 범위 안**이라는 뜻이고, 여기서는 그 안에서 누가
-    손댈 수 있는가만 정한다. 두 축(범위·소유권)을 한 함수에 섞으면 한쪽을 고칠 때 다른
-    쪽이 조용히 넓어진다.
-
-    아래 "미할당은 누구나" 예외가 예전에는 위험했다 — 범위 판정이 담당자 축이었고, 담당자를
-    해석 못 하는 티켓(운영 실측 21.5%)을 `ensure_in_scope` 가 **통과시켰기** 때문에 사실상
-    전 포털 대상 무제한 편집이었다. 0060 에서 범위가 프로젝트 축으로 바뀌면서 그 통과 예외가
-    사라졌고, 이제 이 예외는 "내가 볼 수 있는 프로젝트의, 주인 없는 일" 로 정확히 좁혀진다.
+    `my_token` 과 `changes` 는 예전 소유권 예외를 부르던 자리가 남아 있다. 호출부가 그대로
+    넘겨도 되고, 판정에는 쓰지 않는다. 「가져가기」만 다른 문(`ensure_can_claim`)이다.
     """
-    # 운영/관리자군(MODERATOR_ROLES)은 소유권을 우회해 아무 티켓이나 편집할 수 있다.
-    # 그 외(user/auditor)는 본인 담당이거나 미할당인 티켓만 편집할 수 있다(IDOR 차단).
+    # ticket 은 호출부가 방금 소스에서 읽은 현재 값이다. 여기서는 역할만 본다.
+    _ = (ticket, my_token, changes)
+    if user.role == ROLE_AUDITOR:
+        raise ForbiddenError(_AUDITOR_EDIT_DENIED)
+
+
+def ensure_can_claim(ticket: TicketDTO, user: User, my_token: str | None) -> None:
+    """가져가기는 담당자 선택기와 다른 동작이다.
+
+    범위 안이면 담당자 칸에서 누구를 넣을지 고를 수 있다. 그 완화를 단추 한 번에 끌어오면
+    남이 하던 일을 가져오고, 뺏긴 사람은 아무 것도 못 본다. 미할당이거나 이미 본인 담당일
+    때만 통과하고, 운영자군은 우회한다. 감사자는 읽기 전용이라 여기도 막힌다.
+    """
+    if user.role == ROLE_AUDITOR:
+        raise ForbiddenError(_AUDITOR_EDIT_DENIED)
     if user.role in MODERATOR_ROLES:
         return
     assignees = ticket.assignee_ids
     if not assignees:
-        return  # 미할당 — 담당자가 필요한 일이므로 (범위 안이면) 누구나 손댈 수 있다
-    if my_token and my_token in assignees:
-        return  # 본인 담당
-    # 담당자만 바꾸는 요청이면 범위 안 누구나 할 수 있다. **다른 칸이 하나라도 섞이면**
-    # 이 예외는 안 선다 — 그렇지 않으면 담당자를 함께 보내는 것만으로 아무 칸이나 열린다.
-    if changes and set(changes) <= COLLABORATIVE_FIELDS:
         return
-    raise ForbiddenError("이 티켓을 편집할 권한이 없습니다(담당자 또는 미할당 티켓만 편집할 수 있습니다).")
+    if my_token and my_token in assignees:
+        return
+    raise ForbiddenError(_CLAIM_DENIED)
 
 
 def _resolve_assignee_ids(db: Session, user_ids: list[str]) -> list[str]:
@@ -1078,12 +1072,12 @@ def update_ticket(
     ensure_not_trashed(db, page_id)   # H2 — 휴지통 항목은 없는 것으로 본다
     ensure_in_scope(db, page_id, user)   # 쓰기도 범위 밖은 404 (3순위 IDOR)
     current = r.get_live(db, page_id=page_id)
-    # **바꾸려는 칸이 무엇인지**를 함께 넘긴다 — 담당자만 바꾸는 요청은 범위 안 누구나
-    # 할 수 있다(지시 11). 이름을 옮기기 전의 원본 키를 넘긴다: 판정이 API 어휘로 돼야
-    # 화면이 보낸 것과 같은 말로 읽힌다.
-    ensure_can_edit(
-        current, user, assignee_token(db, user), changes=changes if collaborative else None
-    )
+    my_token = assignee_token(db, user)
+    # 「가져가기」만 소유권 문을 남긴다. 그 외 속성 편집은 범위 안이면 담당자가 아니어도 된다.
+    if collaborative:
+        ensure_can_edit(current, user, my_token, changes=changes)
+    else:
+        ensure_can_claim(current, user, my_token)
 
     repo_changes = dict(changes)
     if "assignee_user_ids" in repo_changes:
@@ -1155,7 +1149,8 @@ HISTORY_ACTIONS: dict[str, str] = {
     "ticket.create": "만들었습니다",
     "ticket.update": "속성을 고쳤습니다",
     "ticket.claim": "담당자로 자신을 지정했습니다",
-    "ticket.body_update": "본문을 고쳤습니다",
+    "ticket.body.update": "본문을 고쳤습니다",
+    "ticket.body_update": "본문을 고쳤습니다",  # 옛 키 — 이미 쌓인 행이 있으면 같은 말로 읽는다
     "ticket.trash": "휴지통으로 옮겼습니다",
 }
 HISTORY_LIMIT = 50
@@ -1392,15 +1387,14 @@ def claim_ticket(
 
     잠금의 한계는 `app/tickets/claim_lock.py` 에 적었다.
 
-    ## 「가져가기」는 담당자 변경이 아니다 (지시 11 회차)
+    ## 「가져가기」는 담당자 변경이 아니다
 
-    지시 11로 담당자 축이 넓어졌다 — 범위 안 사람이면 남의 티켓 담당자도 바꿀 수 있다.
-    그 완화를 이 동작까지 끌고 오면 「가져가기」 단추 하나로 **남이 하던 일을 가져올 수
-    있고, 뺏긴 사람은 아무 것도 못 본다.** 넓어진 것은 담당자 선택기(누구를 넣을지 고르는
-    화면)이지, 자기를 밀어 넣는 한 번의 클릭이 아니다.
+    범위 안이면 담당자 칸에서 누구를 넣을지 고를 수 있다. 그 완화를 이 동작까지 끌고 오면
+    「가져가기」 단추 하나로 **남이 하던 일을 가져올 수 있고, 뺏긴 사람은 아무 것도 못
+    본다.** 넓어진 것은 담당자 선택기이지, 자기를 밀어 넣는 한 번의 클릭이 아니다.
 
-    그래서 여기서는 `collaborative=False` 로 부른다 — 예전 규칙 그대로 미할당이거나 본인
-    담당일 때만 지나간다.
+    그래서 여기서는 `collaborative=False` 로 부른다 — 미할당이거나 본인 담당일 때만
+    지나간다.
     """
     from app.tickets.claim_lock import claim_guard
 
@@ -1610,16 +1604,16 @@ def save_ticket_body(
     db: Session, outbound, settings, user: User, *, page_id: str, body_markdown: str,
     now: datetime | None = None, repo=None, base_version: str | None = None,
 ) -> dict:
-    """티켓 본문을 저장한다. 편집 권한은 속성 편집과 **같은 규칙**(담당자/미할당/운영자군).
+    """티켓 본문을 저장한다. 편집 권한은 속성 편집과 **같은 규칙**(범위 안이면 담당자가 아니어도).
 
     밀어 넣을 소스가 없으므로 저장은 이 서버의 티켓 표 하나에서 끝난다. 예전에 이 자리에
     있던 「push 실패를 오류로 바꾸지 않는다」와 그것을 나르던 `synced=False` 는 정본이 두
     곳에 있을 때만 뜻이 있던 규칙이라 함께 걷었다.
 
-    다만 바로 아래 `get_live` 는 정본을 쓰기 **전에** 소스를 부른다. 소유권은 프런트가 준 값도
-    캐시 값도 아닌 '지금 소스의 담당자'로 판정해야 하기 때문이다(IDOR). 그래서 소스가 아예
-    닿지 않는 순간에는 저장이 시작되지도 못하고 요청이 실패한다 — 아무것도 저장되지 않지만
-    '저장했다'고 하지도 않는다. 이 함수가 지키는 것은 '소스가 살아서 거절한 경우'다.
+    다만 바로 아래 `get_live` 는 정본을 쓰기 **전에** 소스를 부른다. 범위 문은 프런트가 준
+    값도 캐시 값도 아닌 '지금 소스의 소속'으로 판정해야 하기 때문이다(IDOR). 그래서 소스가
+    아예 닿지 않는 순간에는 저장이 시작되지도 못하고 요청이 실패한다 — 아무것도 저장되지
+    않지만 '저장했다'고 하지도 않는다. 이 함수가 지키는 것은 '소스가 살아서 거절한 경우'다.
     """
     r = _repo(settings, outbound, repo)
     ensure_not_trashed(db, page_id)   # H2 — 휴지통 항목은 없는 것으로 본다
@@ -1773,16 +1767,15 @@ def add_ticket_attachment(
     db: Session, outbound, settings, user: User, *, page_id: str, data_dir,
     filename: str, content: bytes, now: datetime | None = None, repo=None,
 ) -> dict:
-    """티켓에 파일을 붙인다. **편집 권한이 필요하다** — 남의 담당 티켓에 파일을 붙이는 것은
-    티켓을 고치는 일이다. 권한 판정은 방금 소스에서 읽은 '현재' 담당자로 한다(ensure_can_edit).
+    """티켓에 파일을 붙인다. **편집과 같은 문**이다 — 범위 안이면 담당자가 아니어도 붙일 수 있다.
     """
     stamp = now or utcnow()
     r = _repo(settings, outbound, repo)
     ensure_not_trashed(db, page_id)   # H2 — 휴지통 항목은 없는 것으로 본다
+    ensure_in_scope(db, page_id, user)   # 쓰기도 범위 밖은 404 (3순위 IDOR)
     current = r.get_live(db, page_id=page_id)
     ensure_can_edit(current, user, assignee_token(db, user))
     ensure_not_trashed(db, page_id)   # H2 — 첨부도 같은 이유
-    ensure_in_scope(db, page_id, user)   # 쓰기도 범위 밖은 404 (3순위 IDOR)
     uid = r.ensure_local(db, page_id=page_id, now=stamp)
     att = ticket_attachments.add_attachment(
         db, data_dir, ticket_uid=uid, uploader=user,

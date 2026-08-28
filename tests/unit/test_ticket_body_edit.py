@@ -11,9 +11,10 @@
 
 정본이 한 곳뿐이라 **어긋날 짝이 없다**. push 실패·재시도·삭제 순서·원본 이미지 보존·너무
 큰 원본 거절은 전부 그 두 번째 정본이 있어야 성립하던 성질이라 함께 사라졌다. 남은 것은
-소스가 어디든 같아야 하는 것들이다: 남의 티켓 본문은 못 고친다, 운영자는 고칠 수 있다,
-저장한 글이 상세 화면에 정본으로 돌아온다, 그리고 **컷오버 전에 찍혀 넘어온 오류 배너가
-저장 한 번으로 사라진다**(어긋날 원본이 없어진 뒤에도 남으면 고칠 수 없는 경고가 된다).
+소스가 어디든 같아야 하는 것들이다: 범위 안의 티켓 본문은 담당자가 아니어도 고칠 수 있다,
+운영자도 고칠 수 있다, 저장한 글이 상세 화면에 정본으로 돌아온다, 그리고 **컷오버 전에
+찍혀 넘어온 오류 배너가 저장 한 번으로 사라진다**(어긋날 원본이 없어진 뒤에도 남으면
+고칠 수 없는 경고가 된다).
 
 본문의 마크다운 왕복과 빈 본문 처리는 저장소 계약이라
 `tests/integration/test_native_ticket_repository.py` 가 본다. 티켓에 붙는 그림은 이제
@@ -28,7 +29,6 @@ from __future__ import annotations
 import pytest
 from sqlalchemy import select
 
-from app.core.errors import ForbiddenError
 from app.core.models_base import join_names
 from app.notion_mapping.models import STATUS_VERIFIED, UserNotionMapping
 from app.tickets import service
@@ -133,17 +133,18 @@ def test_a_stale_sync_banner_is_cleared_by_the_next_save(db, settings, make_user
     assert _row(db).body_sync_error is None
 
 
-# ── 소유권 ───────────────────────────────────────────────────────────────────
+# ── 범위 안의 편집 ────────────────────────────────────────────────────────────
 
-def test_cannot_edit_someone_elses_ticket_body(db, settings, make_user, ticket):
+def test_a_teammate_can_edit_someone_elses_ticket_body(db, settings, make_user, ticket):
+    """담당은 소유가 아니다. 범위 안이면 남의 본문도 고치고, 글이 실제로 바뀐다."""
     me = make_user(email="me@goodmit.co.kr", display_name="나", role="user")
     _map(db, me, "notion-me")
     ticket(people=["notion-other"], body="원래 본문")
 
-    with pytest.raises(ForbiddenError):
-        _save(db, settings, me)
+    out = _save(db, settings, me)
 
-    assert _row(db).body_markdown == "원래 본문"   # 한 글자도 안 바뀌었다
+    assert out["body_markdown"] == BODY
+    assert _row(db).body_markdown == BODY
 
 
 def test_operator_can_edit_any_ticket_body(db, settings, make_user, ticket):

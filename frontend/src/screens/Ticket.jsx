@@ -7,7 +7,6 @@ import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
 import { Badge, Button, Callout, Card, EmptyState, ErrorState, MetaBar, OverflowMenu, PageHeader, Skeleton, useConfirm, useToast } from "../ui/kit.jsx";
-import { PROSE_MAX_WIDTH } from "../ui/theme.js";
 import { DETAIL_GRID, DetailLayout } from "../ui/DetailLayout.jsx";
 import { TicketEditModal } from "./MyTickets.jsx";
 import { invalidateTicketViews } from "./ticket-views.js";
@@ -26,13 +25,12 @@ import { DateCell } from "../ui/cells.jsx";
 /* 티켓 상세 — 문서처럼 우리 화면에서 내용을 읽고, '원본 열기'로 노션에 간다. 속성은 메타 레일에,
  * 본문은 TicketBody(읽기·편집·동기화 상태), 논의는 TicketComments 가 맡는다. 편집·삭제(휴지통)도 여기서.
  *
- * 2026-08 재설계 — 폭 정책이 이 화면의 핵심이고, **두 층으로 나뉜다.**
- *   1) 열 폭: 기준선 `.ticket-layout`(아래 DETAIL_GRID)이 정한다. 비율 트랙이라 본문 열이
- *      화면을 꽉 채우고, 남는 폭은 속성 레일이 비율대로 나눠 갖는다.
- *   2) 글줄 길이: 그 열 **안에서** PROSE_MAX_WIDTH(78ch)가 잡는다. 산문은 줄이 길수록
- *      읽기 어렵다(눈이 다음 줄 첫 글자를 못 찾는다).
- * 2026-08-07 이전에는 (1)을 (2)로 대신했다 — 격자 트랙 자체를 78ch 로 못 박아서, 열이
- * 채우지 못한 폭이 오른쪽에 그대로 남았다(사용자 지적 "왼쪽으로 쏠려있다"). 둘은 다른 문제다.
+ * 2026-08 재설계 — 폭 정책이 이 화면의 핵심이다.
+ *   열 폭: 기준선 `.ticket-layout`(아래 DETAIL_GRID)이 정한다. 비율 트랙이라 본문 열이
+ *   화면을 꽉 채우고, 남는 폭은 속성 레일이 비율대로 나눠 갖는다. 본문 글줄은 그 열이
+ *   정한다 — 열 안에 72ch 를 다시 걸면 카드는 넓은데 글만 왼쪽에 붙는다.
+ * 2026-08-07 이전에는 격자 트랙 자체를 78ch 로 못 박아서, 열이 채우지 못한 폭이 오른쪽에
+ * 그대로 남았다.
  * 좁은 화면에서는 레일이 본문 '위'로 온다(order) — 아래로 밀면 담당자·마감을 보려고 본문 전체를
  * 스크롤해 지나가야 한다. */
 

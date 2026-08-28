@@ -4,10 +4,10 @@ import { render } from "@testing-library/react";
 
 /* 곁열 없는 상세에서 제목과 본문이 같은 왼쪽 모서리에서 시작한다 (C1 재검수).
  *
- * 실측: `/board/{id}` 에서 `PageHeader` 가 `DetailLayout` **밖**에 있어, 2560 에서
- * 제목은 x≈0(콘텐츠 영역 전체 폭), 본문은 x≈820(46rem 으로 좁혀 가운데 선 열)에 섰다.
- * jsdom 은 실제 좌표를 재지 못하므로, 여기서는 **그 좌표 차이를 만드는 구조**를 본다 —
- * 머리글과 본문이 폭 제약을 공유하는 같은 상자의 자손인가.
+ * 옛 결함: `/board/{id}` 에서 `PageHeader` 가 `DetailLayout` **밖**에 있어, 2560 에서
+ * 제목은 x≈0(콘텐츠 영역 전체 폭), 본문은 x≈820(46rem 기둥)에 섰다. 지금은 그 상자가
+ * 전폭이라 기둥은 없지만, 머리글과 본문이 **같은 상자**의 자손인 계약은 그대로다.
+ * jsdom 은 실제 좌표를 재지 못하므로 그 구조를 본다.
  */
 
 import { DetailPage, DetailLayout, DETAIL_SOLO_WIDTH } from "./DetailLayout.jsx";

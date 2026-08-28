@@ -13,7 +13,7 @@ import { ColumnFilterPopover } from "./columnFilter.jsx";
  * 없다. `table-layout:auto` 표에서 이 칸이 자기 내용 폭을 그대로 요구하면(`minWidth:0` 을
  * 안 주면) 그 요구가 열 폭 계산에 들어가 열 자체가 넓어진다 — 잘리는 대신 칸이 넓어지는
  * 쪽으로 옮긴다. */
-const LABEL_SX = { whiteSpace: "nowrap" };
+const LABEL_SX = { whiteSpace: "nowrap", lineHeight: 1.5 };
 
 /* 🔴 머리글 칸의 두 조작기는 **같은 높이**로 선다 (S22 · `control_baseline_mismatch`).
  *

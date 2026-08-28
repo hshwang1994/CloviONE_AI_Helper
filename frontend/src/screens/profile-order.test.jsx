@@ -33,6 +33,7 @@ import { ConfirmProvider, ToastProvider } from "../ui/kit.jsx";
 import { ThemeModeProvider } from "../ui/ThemeModeProvider.jsx";
 
 const PROFILE = {
+  id: "u-1",
   email: "me@goodmit.co.kr", display_name: "나", role: "user",
   department: "개발팀", title: "선임", last_login_at: "2026-08-03T00:00:00",
   active_session_count: 1, notion_mapping_status: "verified", avatar_url: null,

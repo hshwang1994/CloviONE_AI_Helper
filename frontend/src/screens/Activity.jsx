@@ -57,14 +57,14 @@ function ActivityRow({ item, onOpen }) {
     <Box
       component="li"
       sx={{
-        display: "flex", gap: 2, alignItems: "flex-start", py: 1.25,
+        display: "flex", gap: 2, alignItems: "center", py: 1.25,
         borderBottom: 1, borderColor: "divider", minWidth: 0,
       }}
     >
       <Box
         aria-hidden="true"
         sx={{
-          mt: 0.25, display: "grid", placeItems: "center", flexShrink: 0,
+          display: "grid", placeItems: "center", flexShrink: 0,
           width: "2rem", height: "2rem", borderRadius: "50%",
           bgcolor: isDid ? "primary.main" : "action.selected",
           color: isDid ? "primary.contrastText" : "text.secondary",

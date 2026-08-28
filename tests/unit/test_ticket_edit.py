@@ -4,10 +4,10 @@
 
 예전에는 이 파일이 가짜 Notion 서버를 세워 두고 **PATCH 페이로드**를 검사했다. 티켓의
 정본이 이 서버의 `tickets` 표로 옮겨 왔으므로, 이제는 표본을 그 표에 심고 **저장된 행**을
-검사한다. 판정 대상만 옮겼을 뿐 이 파일이 지키는 것은 그대로다: 소유권(남의 티켓은 못
-고친다·운영자는 우회한다·미할당은 누구나), 값 검증(모르는 상태·빈 제목·프로젝트 분리),
+검사한다. 판정 대상만 옮겼을 뿐 이 파일이 지키는 것은 그대로다: 범위(남의 부서 티켓은 못
+고친다)·감사자 읽기 전용·운영자는 우회한다·미할당은 누구나, 값 검증(모르는 상태·빈 제목·프로젝트 분리),
 담당자 해석과 **외부 담당자 보존**, 그리고 편집 가능한 필드가 하나도 빠짐없이 실제로
-저장되는가.
+저장되는가. 범위 안의 티켓은 담당자가 아니어도 고칠 수 있다.
 
 마지막 항목이 특히 중요하다. 예전에는 노션 속성 별칭표에 이름이 빠지면 화면에서는 저장된
 것처럼 보이고 값만 사라졌다. 지금은 그 자리가 저장소의 도메인 키 분기이고, 증상은 그때와
@@ -84,15 +84,18 @@ def _row(db) -> TicketCache:
     return service.ticket_row_for(db, PAGE_ID)
 
 
-# ── 소유권 ──────────────────────────────────────────────────────────────────
+# ── 범위 안의 편집 ──────────────────────────────────────────────────────────
 
-def test_update_forbidden_when_not_owner(db, settings, make_user, project):
+def test_a_teammate_can_edit_someone_elses_ticket(db, settings, make_user, project):
+    """담당은 소유가 아니다. 범위 안이면 남의 티켓 속성도 고친다."""
     me = make_user(email="me@goodmit.co.kr", display_name="나", role="user")
     _map(db, me, "notion-me")
-    _seed(db, project, people=["notion-other"])  # 남의 티켓
-    with pytest.raises(ForbiddenError):
-        _edit(db, settings, me, {"est_wd": 3.0})
-    assert _row(db).est_wd == 2.0  # 쓰기까지 못 감
+    _seed(db, project, people=["notion-other"])  # 남의 담당
+    out = _edit(db, settings, me, {"est_wd": 3.0, "title": "동료가 고침"})
+    assert _row(db).est_wd == 3.0
+    assert _row(db).title == "동료가 고침"
+    assert out["before"]["est_wd"] == 2.0
+    assert out["after"]["est_wd"] == 3.0
 
 
 def test_update_allowed_for_owner(db, settings, make_user, project):
@@ -245,13 +248,21 @@ def test_claim_assigns_me(db, settings, make_user, project):
     assert me.id in out["ticket"]["assignee_user_ids"]
 
 
-def test_claim_forbidden_on_others_ticket(db, settings, make_user, project):
-    """지시 11로 담당자 축이 넓어져도 **「가져가기」는 안 넓어진다.**
+def test_an_auditor_cannot_edit_a_ticket(db, settings, make_user, project):
+    auditor = make_user(email="aud@goodmit.co.kr", display_name="감사", role="auditor")
+    _seed(db, project, people=[])
+    with pytest.raises(ForbiddenError):
+        _edit(db, settings, auditor, {"est_wd": 3.0})
+    assert _row(db).est_wd == 2.0
 
-    담당자 선택기에서 남의 티켓 담당자를 바꾸는 것은 이제 범위 안 누구나 할 수 있다
-    (`tests/security/test_ticket_assignee_change_scope.py`). 하지만 단추 한 번으로 남이
-    하던 일을 자기 앞으로 끌어오는 것은 다른 이야기다 — 뺏긴 사람은 그 사실을 어디서도
-    못 본다. `claim_ticket` 이 `collaborative=False` 로 부르는 이유가 이 줄이다.
+
+def test_claim_forbidden_on_others_ticket(db, settings, make_user, project):
+    """담당자 칸은 열려도 **「가져가기」는 안 넓어진다.**
+
+    담당자 선택기에서 남의 티켓 담당자를 바꾸는 것은 범위 안 누구나 할 수 있다.
+    하지만 단추 한 번으로 남이 하던 일을 자기 앞으로 끌어오는 것은 다른 이야기다 —
+    뺏긴 사람은 그 사실을 어디서도 못 본다. `claim_ticket` 이 `collaborative=False` 로
+    부르는 이유가 이 줄이다.
     """
     me = make_user(email="me@goodmit.co.kr", display_name="나", role="user")
     _map(db, me, "notion-me")

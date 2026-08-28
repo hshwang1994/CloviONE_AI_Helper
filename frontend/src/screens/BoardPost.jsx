@@ -38,14 +38,14 @@ import { DetailPage } from "../ui/DetailLayout.jsx";
  * 첨부 이미지는 같은 출처 인증 엔드포인트라 <img src>로 쿠키가 함께 전송된다(objectURL 불필요).
  *
  * 2026-08 MUI 재설계 — 레이아웃 규칙:
- * 폭은 `ui/DetailLayout.jsx` 한 곳이 정한다. 곁열이 없는 화면이라 열 하나가 곧 글줄이고
- * 그 열이 본문 영역 가운데에 선다 — 본문에 상한을 또 걸지 않는다. */
+ * 폭은 `ui/DetailLayout.jsx` 한 곳이 정한다. 곁열이 없는 화면이라 한 열이 콘텐츠 영역
+ * 전폭을 쓰고, 본문에 상한을 또 걸지 않는다. */
 
-/* 본문에 **다시 상한을 걸지 않는다** (지시 8 · 14 · 16).
+/* 본문에 **다시 상한을 걸지 않는다** (지시 8 · 14 · 16 · 63).
  *
- * 예전에는 열(68rem)과 본문(72ch)이 각각 상한을 갖고 둘 다 왼쪽에 붙어서, 열 안에서 또
- * 한 번 왼쪽 쏠림이 생겼다. 지금은 `DetailLayout` 의 한 열이 글줄 길이를 정하고 그 열이
- * 가운데에 선다 — 본문·반응·댓글이 같은 왼쪽 모서리에서 시작한다. */
+ * 예전에는 열(46rem)과 본문(72ch)이 각각 상한을 갖고, 열은 가운데·본문은 그 안 왼쪽에
+ * 붙어서 페이지가 반만 있는 것처럼 보였다. 지금은 한 열이 콘텐츠 영역을 채우고
+ * 본문·반응·댓글이 같은 왼쪽 모서리에서 시작한다. */
 const PROSE_SX = {
   whiteSpace: "pre-wrap",
   ...KO_WORD_BREAK,
@@ -238,9 +238,7 @@ function CommentItem({ comment, postId, palette, isReply, person, onChanged }) {
       <Stack direction="row" gap={1.5} alignItems="center" flexWrap="wrap">
         {/* 댓글에서도 작성자의 소속·사진을 말한다(사용자 지시 #13/#8) — 동명이인이면
             이름 두 글자로는 "누가 답을 달았는지"에 답할 수 없다. */}
-        <Typography variant="body2" component="div">
-          <AuthorLine name={comment.author_name} person={person} bold />
-        </Typography>
+        <AuthorLine name={comment.author_name} person={person} bold />
         <Typography variant="caption" color="text.secondary">{fmtDateTime(comment.created_at)}</Typography>
         {edited ? (
           <Typography component="span" variant="caption" color="text.secondary">(수정됨)</Typography>
@@ -509,10 +507,10 @@ export function BoardPost() {
 
   return (
     <div className="c-screen">
-      {/* 읽는 화면이라 곁열이 없다 — 머리글까지 포함해 한 열이 가운데에 선다(`DetailPage`,
-          C1 재검수). 제목 → 본문 → 반응 → 댓글이 같은 왼쪽 모서리에서 이어지고, 남는 폭은
-          양쪽에 똑같이 남는다. 예전엔 머리글이 이 감싸개 밖에 있어 2560 에서 제목은
-          왼쪽 끝(x≈0), 본문은 가운데(x≈820)로 서로 다른 축에 섰다. */}
+      {/* 읽는 화면이라 곁열이 없다 — 머리글까지 포함해 한 열이 콘텐츠 영역 전폭이다
+          (`DetailPage`, C1 재검수). 제목 → 본문 → 반응 → 댓글이 같은 왼쪽 모서리에서
+          이어진다. 예전엔 머리글이 이 감싸개 밖에 있고 본문만 46rem 기둥이어서, 제목은
+          왼쪽 끝·본문은 가운데로 서로 다른 축에 섰다. */}
       <DetailPage
         header={
           // SEM-03 재확인(2026-08-13) — PageHeader에 실제 제목을 넘긴다(예전엔 "게시글"만
@@ -540,9 +538,9 @@ export function BoardPost() {
               글자를 또 한 번 반복하지 않는다. */}
           <Stack direction="row" gap={2} flexWrap="wrap" alignItems="center" sx={{ mt: 1 }}>
             {/* 글쓴이가 누구인지 — 이름 옆에 소속과 사진(사용자 지시 #13/#8). */}
-            <Typography variant="body2" color="text.secondary" component="div">
+            <Box sx={{ color: "text.secondary" }}>
               <AuthorLine name={post.author_name} person={people[post.author_user_id]} />
-            </Typography>
+            </Box>
             <Typography variant="body2" color="text.secondary">{fmtDateTime(post.created_at)}</Typography>
             <Typography variant="body2" color="text.secondary">조회 {post.view_count}</Typography>
           </Stack>

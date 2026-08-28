@@ -156,7 +156,8 @@ CAPABILITIES: tuple[Capability, ...] = (
     Capability(
         "content.moderate", "사용자 콘텐츠 중재(게시판, 문서, 휴지통, 티켓 편집 우회)", "콘텐츠",
         tuple(r for r in ROLE_ORDER if r in MODERATOR_ROLES),
-        "본인 글이 아니어도 지울 수 있는 권한. 티켓은 담당자가 아니어도 편집할 수 있다.",
+        "본인 글이 아니어도 지울 수 있는 권한. 티켓 편집은 범위 안이면 담당자가 아니어도 "
+        "되고, 이 능력은 게시판·문서 중재와 휴지통에 쓴다.",
     ),
     Capability(
         "users.manage", "사용자 계정 관리(생성, 수정, 비활성화, 보관)", "사용자",

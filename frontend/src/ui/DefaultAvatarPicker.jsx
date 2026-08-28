@@ -36,7 +36,8 @@ import {
  */
 
 /* 스타일마다 한 줄에 몇 개. 다섯 스타일 × 여섯이면 서른 개가 한 화면에 들어가고,
- * 그 정도면 「마음에 드는 게 없다」를 판단할 수 있다. */
+ * 그 정도면 「마음에 드는 게 없다」를 판단할 수 있다. 한 줄은 flex-wrap 이 아니라
+ * 여섯 칸 격자라, 다섯이 앉고 하나가 아래로 떨어지는 모양이 나오지 않는다. */
 const PER_STYLE = 6;
 
 function candidatesFor(round) {
@@ -95,7 +96,8 @@ function DefaultAvatarDialog({ open, onClose, seed, value, busy, onPick }) {
       open={open}
       onClose={onClose}
       title="기본 아바타 고르기"
-      size="sm"
+      size="md"
+      dirty={dirty}
       footer={
         <ModalFooter
           onCancel={onClose}
@@ -108,7 +110,7 @@ function DefaultAvatarDialog({ open, onClose, seed, value, busy, onPick }) {
     >
       <Box sx={{ display: "flex", alignItems: "baseline", gap: 1.5, flexWrap: "wrap", mb: 1.5 }}>
         <Typography variant="body2" color="text.secondary" sx={{ flex: 1, minWidth: "16rem" }}>
-          사진이 없을 때 쓸 기본 아바타를 고를 수 있습니다. 고르지 않으면 계정마다 자동으로 하나가 정해집니다.
+          사진이 없을 때 쓸 기본 아바타를 고를 수 있습니다. 얼굴을 고른 뒤 저장을 눌러야 반영됩니다. 고르지 않으면 계정마다 자동으로 하나가 정해집니다.
         </Typography>
         <Button size="sm" disabled={busy} onClick={() => setRound((r) => r + 1)}>
           다른 후보 보기
@@ -120,19 +122,27 @@ function DefaultAvatarDialog({ open, onClose, seed, value, busy, onPick }) {
         ) : null}
       </Box>
 
-      <Box role="radiogroup" aria-label="기본 아바타" sx={{ display: "grid", gap: 1.25 }}>
+      <Box role="radiogroup" aria-label="기본 아바타" sx={{ display: "grid", gap: 1.5 }}>
         {DEFAULT_AVATAR_STYLES.map((style) => (
-          <Box key={style} sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
+          <Box key={style} sx={{ display: "grid", gap: 0.75, minWidth: 0 }}>
             <Typography
               component="span"
               sx={{
-                width: "7rem", flexShrink: 0,
                 fontSize: FONT_SIZE.bodySm, fontWeight: FONT_WEIGHT.semibold, color: "text.secondary",
               }}
             >
               {DEFAULT_AVATAR_STYLE_LABELS[style]}
             </Typography>
-            {candidates.filter((c) => c.style === style).map((c) => {
+            <Box
+              data-avatar-row
+              sx={{
+                display: "grid",
+                gridTemplateColumns: "repeat(6, 2.5rem)",
+                gap: 0.75,
+                justifyContent: "start",
+              }}
+            >
+            {candidates.filter((c) => c.style === style).map((c, i) => {
               const isChosen = chosen === c.key;
               const isAuto = !chosen && auto === c.key;
               return (
@@ -142,12 +152,12 @@ function DefaultAvatarDialog({ open, onClose, seed, value, busy, onPick }) {
                   type="button"
                   role="radio"
                   aria-checked={isChosen}
-                  aria-label={`${DEFAULT_AVATAR_STYLE_LABELS[style]} 아바타 고르기`}
+                  aria-label={`${DEFAULT_AVATAR_STYLE_LABELS[style]} 아바타 ${i + 1}`}
                   disabled={busy}
                   onClick={() => setStaged(isChosen ? "" : c.key)}
                   sx={{
-                    p: 0.375, border: 0, background: "none", cursor: busy ? "default" : "pointer",
-                    borderRadius: "50%", lineHeight: 0,
+                    p: 0, border: 0, background: "none", cursor: busy ? "default" : "pointer",
+                    borderRadius: "50%", lineHeight: 0, width: "2.5rem", height: "2.5rem",
                     /* 고른 것은 굵은 테, 자동으로 정해진 것은 옅은 테. 둘을 같은 표시로
                        두면 「내가 고른 것」과 「그냥 그렇게 된 것」이 구별되지 않는다. */
                     outline: isChosen ? "2px solid" : isAuto ? "1px dashed" : "2px solid transparent",
@@ -156,12 +166,13 @@ function DefaultAvatarDialog({ open, onClose, seed, value, busy, onPick }) {
                     "&:focus-visible": (t) => ({ outline: `2px solid ${t.palette.focusRing}`, outlineOffset: 2 }),
                   }}
                 >
-                  <Box sx={{ width: "2.5rem", height: "2.5rem", borderRadius: "50%", overflow: "hidden" }}>
+                  <Box sx={{ width: "100%", height: "100%", borderRadius: "50%", overflow: "hidden" }}>
                     <DefaultAvatar seed={seed} avatarKey={c.key} />
                   </Box>
                 </Box>
               );
             })}
+            </Box>
           </Box>
         ))}
       </Box>
