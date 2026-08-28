@@ -432,13 +432,13 @@ def test_document_filters_return_exactly_the_matching_documents(client, signed_i
              {"q": "회의록"}, lambda r: "회의록" in (r.get("title") or ""),
              "list_documents: documents.title ILIKE %?%"),
         Case("user_knowledge", "분류(태그) 단독", "/api/knowledge/documents",
-             {"tag": "meeting"},
+             {"tags": "meeting"},
              lambda r: any(t.get("slug") == "meeting" or t.get("name") == "회의록"
                            for t in (r.get("tags") or [])),
              "list_documents: documents.id IN (SELECT document_id FROM document_tags …)",
              "document_tags → tags.slug"),
         Case("user_knowledge", "복합 — 검색어 × 분류", "/api/knowledge/documents",
-             {"q": "배포", "tag": "meeting"},
+             {"q": "배포", "tags": "meeting"},
              lambda r: "배포" in (r.get("title") or "")
              and any(t.get("slug") == "meeting" or t.get("name") == "회의록"
                      for t in (r.get("tags") or [])),
