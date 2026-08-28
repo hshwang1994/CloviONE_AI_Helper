@@ -665,8 +665,15 @@ function DashboardBody({ d, nav, role, stale }) {
       {/* 같은 성격의 목록 둘을 넓은 화면에서 나란히 둔다. 남는 폭을 **줄 길이**로 쓰면
           이름과 배지가 2,100px 떨어져 한 줄로 안 읽힌다 — 이 앱의 4K 규칙은 남는 폭을
           두 번째 열로 보내는 것이다(density.js). 둘 다 짧은 목록이라 한 줄 안에서 키가
-          맞지 않아도 그 차이가 화면을 밀지 않는다. */}
-      <Box sx={{ display: "grid", alignItems: "start", columnGap: 4, gridTemplateColumns: { xs: "minmax(0,1fr)", xl: "repeat(2, minmax(0,1fr))" } }}>
+          맞지 않아도 그 차이가 화면을 밀지 않는다.
+
+          균등 2열은 **양쪽 다 목록일 때만** 켠다(재검수 §19 — 실브라우저에서 실측).
+          외부 연동을 하나도 안 쓰는 설치(정상 상태, 위 주석)에서는 오른쪽이 문장 한
+          줄뿐이라 균등 분할이 그 옆을 92% 빈 칸으로 남기고 왼쪽 목록만 두 줄로
+          접어 눌렀다 — 트랙 폭이 내용 요구를 안 보고 있었다(D-343). 연동이 실제로
+          있을 때는 양쪽 다 목록이라 원래 의도(나란히 두어 줄 길이를 줄인다)가
+          그대로 맞는다. */}
+      <Box sx={{ display: "grid", alignItems: "start", columnGap: 4, gridTemplateColumns: { xs: "minmax(0,1fr)", xl: integKeys.length ? "repeat(2, minmax(0,1fr))" : "minmax(0,1fr)" } }}>
       <DashSection
         title="필수 서비스"
         action={<Typography variant="body2" color="text.secondary">정상 {compCounts.ok} / {compCounts.total}</Typography>}

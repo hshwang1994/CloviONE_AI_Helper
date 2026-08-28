@@ -1084,6 +1084,43 @@ vitest 전량 358 파일 2,666건 전부 통과)으로 마무리했다. 배경 �
 다운그레이드가 링크를 완전히 안 되돌리는 자리 하나를 발견 — §12/§13 요구 밖이고
 데이터 유실이 아니라 의도된 설계라 결함 처리 안 함).
 
+**3단계 — 배포.** `deploy/install.sh upgrade --source local --yes` (커밋
+`cf6679a3`). Stage 0~18 전부 OK, alembic `0022_document_folders` →
+`0024_technology_tags`, `VERIFY_OK`, `UPGRADE_OK`. 스냅샷
+`/var/backups/clovirassist/20260828-114936`(실패 시 되돌릴 대상). 배포 뒤
+`alembic head 가 코드와 같다(db=0024_technology_tags code=0024_technology_tags)`
+까지 스크립트 자체 검증 통과.
+
+**4단계 — Final Browser Audit.** `python -m scripts.ui_qa.run`(대표 화면 16개
+× 1366/1920/2560 × Light/Dark = 96 페이지, 배포본 겨냥)으로 돌렸다.
+
+첫 실행에서 다크 페이지 48/48 이 `theme_applied` 실패로 떴다 — 그런데 같은
+페이지에서 `contrast` 는 96/96 통과라 앞뒤가 안 맞았다. 직접 브라우저에서 다크
+토글을 눌러 실제 `data-theme` 가 정확히 바뀌는 것부터 확인한 뒤(진짜 결함이면
+`contrast` 도 같이 죽어야 한다), 하네스 쪽을 봤다 — `scripts/ui_qa/capture.py`
+(+`nav_e2e.py`·`shell_e2e.py`·`README.md`)가 제품이 이미 `clovirassist_theme`/
+`clovirassist_nav_collapsed` 로 개명한 뒤에도 옛 `clovirone_` 키를 그대로 심고
+읽고 있었다(제품 정체성 이전 잔재, CLAUDE.md §0). 넷을 고치고 나니
+`theme_applied` 96/96 통과 — **위양성 48건, 실제 화면 결함 0건.**
+
+정정한 하네스로 다시 돌린 96 페이지 중 실제 검토가 필요한 항목은 여섯 갈래였다
+(findings 60건 → class 6종):
+
+| class | 화면 | 처리 |
+|---|---|---|
+| `equal_column_split` | 대시보드 | **실제 결함 — 고쳤다.** 외부 연동 0건 설치에서 「필수 서비스」/「외부 연동」균등 2열이 왼쪽 목록을 두 줄로 욱여넣고 오른쪽을 92% 비웠다. 연동이 있을 때만 균등 2열을 켜도록 조건화(`Dashboard.jsx`, D-343) |
+| `image_cropped` | 작업 보드(담당자 아바타) | 검사 오탐 — `k-avatar` 는 정사각 아바타라 원본을 `object-fit:cover` 로 자르는 것이 설계 의도다(자르는 자리를 사람이 고르라고 `AvatarCropDialog` 가 있다). 화면 결함 아님 |
+| `rail_wider_than_prose` | 내 프로필 | 검사 모델 불일치 — 이 화면은 "본문+곁열" 상세가 아니라 "내용 크기대로 카드를 나열"하는 화면이다(알림 설정/방해금지 줄이 이미 같은 원칙으로 문서화돼 있다, D-343). 계정/내 기기 카드도 같은 원칙 — 세션 줄의 긴 User-Agent 문자열이 더 넓은 칸을 요구한다 |
+| `brand_presence` | 게시글 상세 | 검사가 찾는 role 7개 중 이 화면에 실재하는 3개는 다 브랜드색이다 — 나머지 4개(`primary_action` 포함)는 이 화면 자체에 없거나(AI 면 · highlight) 첫 로드 시점엔 비활성 상태(댓글칸이 비어 「댓글 추가」가 눌림 전이다)라 검사가 못 찾은 것이지 화면이 브랜드를 뺀 게 아니다. 묶음 2 가 안 건드린 화면 |
+| `oversized_empty_surface` | 문서 상세 등 5개 화면(18건) | 자료 모양 — 본문이 빈 문서 8건 중 하나가 표본에 걸렸다. §13 이 이미 "8건은 본문이 비어 있다"로 적어 둔 실제 자료 상태고, Bundle 1 실브라우저 감사가 같은 성격의 결함을 이미 「자료 모양」으로 받아들였다(REAUDIT §17 묶음1) |
+| `dead_blank_region` | 내 티켓 등 3개 화면(10건) | 자료 모양 — 실제 행 수가 적은 목록(이 계정 티켓 2건 등)이 2560px 화면 아래를 못 채운다. 같은 부류가 이미 휴지통에서 받아들여진 결함이다(REAUDIT §17 묶음1) |
+
+**equal_column_split 재검증.** `Dashboard.jsx` 고친 뒤 프런트 재빌드
+(`check_bundle_fresh.py --write`, `BUNDLE_STAMP_WRITTEN`) · 예산 재확인
+(초기 gzip 278KB, 예산 280KB, 여유 그대로) · `static_checks.sh --scope dev`
+`STATIC_CHECKS_DEV_OK` · 재배포(`deploy/install.sh upgrade`) 뒤 `admin_dashboard`
+만 표적 재캡처 — `equal_column_split` 0건.
+
 ## 20. 완료 기준
 
 **기능**
