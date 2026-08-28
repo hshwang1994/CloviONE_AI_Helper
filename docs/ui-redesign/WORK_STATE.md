@@ -316,8 +316,18 @@ STAGE 0~18 전부 OK · VERIFY_OK · 스냅샷 `/var/backups/clovirassist/202608
   문서 재배치)·`0024`(기술 태그 재구성) 적용 — schema head 는 이제 **`0024_technology_tags`**.
   Targeted 검증(§18) 573/574 통과, 유일한 실패는 이번 회차가 안 건드린 화면의 무관
   기존 결함(격리 재실행 3회 52/52 확인). 새 결정 D-358~360.
-  **다음은 §19**(전량 회귀 · 마이그레이션 리허설 · 배포 · Final Browser Audit —
-  묶음 1 이 미룬 셋 C5/백로그 「N번째로」/`GroupedTickets` 가상화도 그때 다시 판단한다).
+- **REAUDIT §19(마지막 단계) 완료 — 2026-08-28.** 상세 기록은 `REAUDIT_PLAN.md` §19
+  "진행 기록" 절 하나다. 묶음 1 이 미룬 셋(C5·백로그「N번째로」·`GroupedTickets`
+  가상화)을 실운영 자료로 재판단해 **셋 다 그대로 둔다**(D-361). 전량 회귀 1회 —
+  실제 결함 둘 고침(옛 `tag=` 질의 시험·프런트 번들 재굳힘 누락). 마이그레이션
+  `0023`/`0024` 를 운영 스냅샷 **사본**에 리허설 — §12 수치(문서 111·판 167·첨부
+  54) 전 구간 불변, `docker` 태그 하나의 다운그레이드 링크 불완전 복원은 의도된
+  설계로 판정(D-362). 실배포 완료(`deploy/install.sh upgrade`, alembic head
+  **`0024_technology_tags`**). Final Browser Audit(16 화면 × 1366/1920/2560 ×
+  Light/Dark, 96 페이지) — QA 하네스 자체의 옛 `clovirone_` localStorage 키
+  잔재를 먼저 고쳤고(위양성 48건 제거), 실제 결함 하나(대시보드 균등 2열)를
+  고쳐 재배포·재검증했다. healthz/readyz 200(TLS 검증) · 외부 연동 0 ·
+  working tree clean. **REAUDIT_PLAN.md 는 끝났다.**
 
 ## BLOCKERS
 
