@@ -29,20 +29,23 @@
 - working_tree: **깨끗하다**(이 회차를 커밋한 뒤 기준).
 - s22_commit: `2f4fc587` · `1921f884` · prev_commit: `e8d39fd3` · `757b6e22`
 - this_commit: **`9fb6187f`**(바닥 폭 · 백로그 트랙 · D-379) · **`34c77989`**(칸에 맞춘 열 접기 · D-380)
+  (+ `a4edd8bf`·`36cd310b` 기록 · `acd378ca` 번들 기준)
 - prev_session_commit: `bc55228c` · `4ca1aab5` · `b340ab09` · `5db48df3`
-- deployed: **`b340ab09`** 이 운영에 나갔다 (2026-09-01 17:24 · `scripts/deploy-upgrade.sh`).
-  Stage 0~18 전부 OK · `VERIFY_OK` · `UPGRADE_OK` · 스냅샷 `/var/backups/clovirassist/20260901-172145`.
-  **스키마가 바뀌었다** — alembic `0024_technology_tags` → **`0025_ticket_body_doc`**(표 94개 ·
-  사용자 26명). 운영 DB 에서 `tickets.body_doc jsonb` 를 직접 확인했다.
-  **이번 커밋의 것이 실제로 올라갔다**: 새 진입 번들 `index.CPdJHECE.js` 와
-  `BlockEditor.BdP7d9UQ.js`(티켓 폼이 지연 로드하는 편집기)가 200 이고, 직전 배포의 진입
-  번들 `index.D5HRTY7W.js` 는 404 다.
-  스모크: `/healthz` `{"status":"ok","ticket_source":"native"}` · `/readyz` `{"status":"ready"}` ·
-  `postgresql`·`nginx`·제품 유닛 다섯 전부 active · `ssl_verify_result=0`.
-  이번에는 `STAGE_5_FRONTEND` 가 한 번에 통과했다 — 빌드 직후
-  `check_bundle_fresh.py --write` 로 기준을 다시 적었기 때문이다(앞 회차가 두 번 멈춘 자리).
-  되돌리려면 `sudo /home/cloviradmin/clovirassist-upgrade/deploy/install.sh rollback --target /var/backups/clovirassist/20260901-172145`
-- deployed_prev: `757b6e22`(2026-09-01 14:36 · 스냅샷 `20260901-143412`)
+- deployed: **`acd378ca`** 이 운영에 나갔다 (2026-09-01 18:58 · `scripts/deploy-upgrade.sh`).
+  Stage 0~18 전부 OK · `VERIFY_OK` · `UPGRADE_OK` · 스냅샷 `/var/backups/clovirassist/20260901-185824`.
+  **스키마는 그대로다** — alembic `0025_ticket_body_doc` → `0025_ticket_body_doc`(표 94개 ·
+  사용자 26명). 이번 회차는 프런트만 바뀌었다.
+  **이번 커밋의 것이 실제로 올라갔다**: 새 진입 번들 `index.Cjg-73PL.js` 가 200 이고,
+  직전 배포의 진입 번들 `index.CPdJHECE.js` 는 404 다.
+  스모크(`--cacert` + `--resolve clovirassist.gooddi.lab:443:10.100.64.71`):
+  `/healthz` `{"status":"ok","ticket_source":"native"}` · `/readyz` `{"status":"ready"}` ·
+  `ssl_verify_result=0` · `postgresql`·`nginx`·제품 유닛 여섯 전부 active.
+  🔴 **첫 시도는 `STAGE_5_FRONTEND` 에서 멈췄다.** 정적 검사가 잡은 `tokens.css` 드리프트를
+  `generate_design_tokens.mjs` 로 고친 것이 **번들 기준을 적은 뒤**였고, `tokens.css` 도
+  프런트 소스 입력이라 지문이 밀렸다. 번들 자체는 안 바뀌었다(재빌드 결과 동일).
+  순서는 언제나 **빌드 → 소스 고침 끝 → `check_bundle_fresh.py --write` → 커밋**이다.
+  되돌리려면 `sudo /home/cloviradmin/clovirassist-upgrade/deploy/install.sh rollback --target /var/backups/clovirassist/20260901-185824`
+- deployed_prev: `b340ab09`(2026-09-01 17:24 · 스냅샷 `20260901-172145`)
 - verification: **표적**이다(§7.0 일반 개발). `scripts/verify.py` **초록**
   (`static_checks --scope dev` + vitest 표적). 공용 표를 건드렸으므로 `src/ui` 전량과
   접기가 닿는 화면 시험을 함께 돌렸다 — 67 파일 / 784 시험, 실패는 `editable-body-*`
