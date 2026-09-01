@@ -22,7 +22,7 @@ import { alpha } from "@mui/material/styles";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded";
 import { api } from "../lib/api.js";
-import { Card, Badge, EmptyState, ErrorState, Skeleton, Callout, PageHeader, Modal, ModalFooter, Button, useToast, useConfirm, cardFieldLabel, cardHeaderControls, tableCellProps, tableLayoutSx, TableColGroup, columnShouldTruncate, columnCellHint } from "../ui/kit.jsx";
+import { Card, Badge, EmptyState, ErrorState, Skeleton, Callout, PageHeader, Modal, ModalFooter, Button, useToast, useConfirm, cardFieldLabel, cardHeaderControls, tableCellProps, tableLayoutSx, useFittedColumns, HiddenColumnsNote, TableColGroup, columnShouldTruncate, columnCellHint } from "../ui/kit.jsx";
 import { DateField } from "../ui/DateField.jsx";
 import { PersonLine } from "../ui/UserAvatar.jsx";
 import { priorityKo, priorityKind } from "../lib/priority.js";
@@ -207,8 +207,18 @@ export function ticketColumns({ showAssignee, onEdit, onClaim, onOpen, compact, 
           </Box>
         )
         : "-") },
-    { key: "priority", label: "우선순위", type: "status", width: "7.5rem", sortable: true, filter: { kind: "enum", field: "priority" }, render: (t) => (t.priority ? <Badge value={priorityKo(t.priority)} kind={priorityKind(t.priority)} /> : "-") },
+    { key: "priority", label: "우선순위", type: "status", width: "7.5rem", sortable: true, hideNarrow: true, filter: { kind: "enum", field: "priority" }, render: (t) => (t.priority ? <Badge value={priorityKo(t.priority)} kind={priorityKind(t.priority)} /> : "-") },
   ];
+  /* ── 칸이 좁을 때 **접히는 열** (`hideNarrow` · D-380) ──────────────────────
+   *
+   * 티켓 열셋을 1366 화면(칸 1020px)에 다 세울 방법은 없다. 표는 들어갈 때까지 열 목록의
+   * **뒤에서부터** 접으므로, 접히는 순서는 여기 적은 순서의 역순이다:
+   * 생성 일자 → 실제 WD → 예상 WD → 난이도 → 우선순위.
+   *
+   * 접지 않는 것을 고른 이유가 더 중요하다. 티켓 번호·제목·상태·마감·담당자·행 동작은
+   * 「무엇이 누구 것이고 언제까지인가」라서 이 목록의 존재 이유다. **신호도 안 접는다** —
+   * 지연·차단·이슈는 「지금 무엇이 잘못됐나」이고, 그것을 접으면 목록을 보는 이유가 하나
+   * 사라진다. 접힌 값은 행을 열면 상세에 그대로 있고, 표가 무엇을 접었는지 한 줄로 말한다. */
   if (!compact) {
     /* 신호는 상태와 **다른 축**이라 다른 열이다 (D-349). 한 칸에 넣으면 「진행 중」과
        「차단됨」이 한 낱말처럼 읽히고, 정렬·필터도 둘을 못 가른다. */
@@ -218,15 +228,15 @@ export function ticketColumns({ showAssignee, onEdit, onClaim, onOpen, compact, 
     });
     cols.push(
       /* 난이도는 «상·중·하» 라 수치가 아니다 — 우정렬하면 없는 크기 비교를 암시한다. */
-      { key: "difficulty", label: "난이도", type: "enum", sortable: true, filter: { kind: "enum", field: "difficulty" }, render: (t) => (t.difficulty || "-") },
-      { key: "est_wd", label: "예상 WD", type: "number", sortable: true, filter: { kind: "number", field: "est_wd" }, render: (t) => <NumberCell value={t.est_wd} /> },
-      { key: "act_wd", label: "실제 WD", type: "number", sortable: true, filter: { kind: "number", field: "act_wd" }, render: (t) => <NumberCell value={t.act_wd} /> },
+      { key: "difficulty", label: "난이도", type: "enum", sortable: true, hideNarrow: true, filter: { kind: "enum", field: "difficulty" }, render: (t) => (t.difficulty || "-") },
+      { key: "est_wd", label: "예상 WD", type: "number", sortable: true, hideNarrow: true, filter: { kind: "number", field: "est_wd" }, render: (t) => <NumberCell value={t.est_wd} /> },
+      { key: "act_wd", label: "실제 WD", type: "number", sortable: true, hideNarrow: true, filter: { kind: "number", field: "act_wd" }, render: (t) => <NumberCell value={t.act_wd} /> },
     );
   }
   cols.push({ key: "due", label: "마감", type: "date", width: "8.5rem", sortable: true, render: (t) => (t.due || "-") });
   if (!compact) {
     /* 「추가」는 무엇을 추가했다는 말인지 알 수 없었다 — 이 값은 티켓이 만들어진 날이다. */
-    cols.push({ key: "created_at", label: "생성 일자", type: "date", width: "8.5rem", sortable: true, filter: { kind: "date", field: "created_at" }, render: (t) => <DateCell value={t.created_at} /> });
+    cols.push({ key: "created_at", label: "생성 일자", type: "date", width: "8.5rem", sortable: true, hideNarrow: true, filter: { kind: "date", field: "created_at" }, render: (t) => <DateCell value={t.created_at} /> });
   }
   if (showAssignee) {
     // VIS-163: 이 열만 nowrap이 빠져 있었다 — 좁은 컨테이너(1200×900)에서 overflowWrap:
@@ -338,6 +348,13 @@ export function GroupedTickets({ rows, columns, empty, emptyHelp, emptyState, gr
   const safeRows = Array.isArray(rows) ? rows : [];
   const grouper = groupBy || groupByProject;
   const narrow = useMediaQuery(TABLE_CARD_QUERY);
+  /* 좁은 칸에서 부가 열을 접는 규칙은 **kit 이 든다** — `DataTable` 과 같은 함수다
+     (D-380). 예전에는 그 규칙이 `DataTable` 에만 있어서 내 티켓·팀 티켓·미할당은
+     열 열셋을 그대로 이고 가로로 밀렸다. `TableContainer` 의 DOM 노드를 자손이 아니라
+     이 컴포넌트가 읽으므로 평범한 ref 로 충분하다(콜백 ref 가 필요한 이유는 kit 의
+     `DataTable` 주석 참고 — 거기서는 자손이 읽는다). */
+  const [boxEl, setBoxEl] = React.useState(null);
+  const fit = useFittedColumns(cols, narrow ? null : boxEl);
 
   /* VIS-64: 담당자가 많으면(스프린트 회의) 이 표 하나가 11,000px를 넘어 페이지네이션도
    * 없이 한 화면에 다 들어간다. `collapsible`이면 그룹을 접어서 시작해, 회의에서 한 사람씩
@@ -443,13 +460,19 @@ export function GroupedTickets({ rows, columns, empty, emptyHelp, emptyState, gr
     );
   }
 
+  /* 그린 열은 `wideCols` 다. `cols` 는 **선언 전체**라 행 이름(`rowNameOf`)과 카드 뷰가
+     그것을 본다 — 열이 접혔다고 낭독되는 이름이 바뀌면 안 된다. */
+  const wideCols = fit.shown;
+
   return (
-    <TableContainer>
-      <Table size="small" sx={tableLayoutSx(cols)}>
-        <TableColGroup columns={cols} />
+    <>
+    <HiddenColumnsNote columns={fit.hidden} />
+    <TableContainer ref={setBoxEl}>
+      <Table size="small" sx={tableLayoutSx(wideCols)}>
+        <TableColGroup columns={wideCols} />
         <TableHead>
           <TableRow>
-            {cols.map((c) => {
+            {wideCols.map((c) => {
               const head = tableCellProps(c, { head: true });
               return (
                 <TableHeaderCell
@@ -478,7 +501,7 @@ export function GroupedTickets({ rows, columns, empty, emptyHelp, emptyState, gr
                 <TableCell
                   component="th"
                   scope="colgroup"
-                  colSpan={cols.length}
+                  colSpan={wideCols.length}
                   sx={{
                     bgcolor: (theme) => alpha(theme.palette.primary.main, 0.07),
                     fontSize: FONT_SIZE.bodySm,
@@ -500,7 +523,7 @@ export function GroupedTickets({ rows, columns, empty, emptyHelp, emptyState, gr
                 const ctx = { rowName: rowNameOf(cols, t) };
                 return (
                   <TableRow key={groupedRowKey(t, i)} hover>
-                    {cols.map((c) => {
+                    {wideCols.map((c) => {
                       const truncate = columnShouldTruncate(c, false);
                       const content = groupedCell(c, t, ctx);
                       const plain = c.render && (typeof t[c.key] === "string" || typeof t[c.key] === "number")
@@ -527,6 +550,7 @@ export function GroupedTickets({ rows, columns, empty, emptyHelp, emptyState, gr
         })}
       </Table>
     </TableContainer>
+    </>
   );
 }
 

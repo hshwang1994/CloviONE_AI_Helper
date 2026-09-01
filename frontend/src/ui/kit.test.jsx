@@ -1,6 +1,6 @@
 import React from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 import {
@@ -361,67 +361,114 @@ describe("DataTable", () => {
     });
   });
 
-  /* RESP-01: 900~1200(카드로 접히기 전, 사이드바는 아직 264px)에서 열이 많은 표만 겪는
-   * 문제라 c.hideNarrow는 그 구간의 표 렌더링에서만 열을 뺀다 — 카드 뷰(폭 제약 없음)와
-   * 넓은 화면(자리 충분)에서는 항상 전체 열이 보인다. */
-  describe("hideNarrow 열 (RESP-01)", () => {
+  /* 열을 접을지는 **그 표가 받은 칸**이 정한다 (D-380).
+   *
+   * 예전 규칙은 「뷰포트가 900~1200 이면 `hideNarrow` 열을 전부 뺀다」였고 두 방향으로
+   * 틀렸다: 뷰포트는 칸이 아니고(문서 목록의 표는 1920 에서도 칸이 902px 이라 넘쳤다),
+   * 전부 아니면 전무였다(90px 모자란다고 열 다섯을 지울 이유가 없다).
+   *
+   * jsdom 에는 배치가 없어 `clientWidth` 가 언제나 0 이다. 그래서 그 값을 시험이 직접
+   * 정해 준다 — 재는 대상이 무엇인지가 이 규칙의 전부이므로, 그것을 흉내내는 것이 곧
+   * 규칙을 재는 것이다. */
+  describe("좁은 칸에서 접히는 열 (hideNarrow · D-380)", () => {
     const cols = [
-      { key: "name", label: "이름" },
-      { key: "extra", label: "부가정보", hideNarrow: true },
+      { key: "name", label: "이름", width: "10rem" },
+      { key: "extra", label: "부가정보", width: "10rem", hideNarrow: true },
+      { key: "more", label: "덤", width: "10rem", hideNarrow: true },
     ];
-    const rows = [{ id: 1, name: "홍길동", extra: "부가값" }];
+    const rows = [{ id: 1, name: "홍길동", extra: "부가값", more: "덤값" }];
 
-    function mockMedia({ card = false, compact = false } = {}) {
+    let boxWidth = 0;
+    let original;
+    beforeEach(() => {
+      original = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "clientWidth");
+      Object.defineProperty(HTMLElement.prototype, "clientWidth", {
+        configurable: true, get() { return boxWidth; },
+      });
+    });
+    afterEach(() => {
+      if (original) Object.defineProperty(HTMLElement.prototype, "clientWidth", original);
+      else delete HTMLElement.prototype.clientWidth;
+      delete window.matchMedia;
+    });
+
+    /* 표가 카드로 안 접히게(뷰포트는 넓다) 두고 **칸 폭만** 정한다.
+     *
+     * 그리고 나서 한 틱을 흘린다 — 시험 설정의 `ResizeObserver` 대역은 관찰을 시작하면
+     * 마이크로태스크로 현재 크기를 한 번 알린다(`test-setup.js`). 그것을 안 흘리면 그
+     * 알림이 `act` 밖에서 도착해 경고가 난다. 실제 브라우저에서도 같은 순서다. */
+    async function draw(px) {
+      boxWidth = px;
       window.matchMedia = (query) => ({
-        matches: query.includes("899.95") ? card : query.includes("1199.95") ? compact : false,
-        media: query,
+        matches: false, media: query,
         addEventListener() {}, removeEventListener() {},
         addListener() {}, removeListener() {}, onchange: null,
         dispatchEvent: () => false,
       });
+      const r = ui(<DataTable columns={cols} rows={rows} rowKey={(r2) => r2.id} />);
+      await act(async () => {});
+      return r;
     }
 
-    afterEach(() => { delete window.matchMedia; });
-
-    it("넓은 화면(둘 다 거짓)에서는 hideNarrow 열도 그대로 보인다", () => {
-      mockMedia({ card: false, compact: false });
-      ui(<DataTable columns={cols} rows={rows} rowKey={(r) => r.id} />);
+    it("칸이 넉넉하면 전부 보인다", async () => {
+      await draw(600);   // 바닥 30rem = 480px
       expect(screen.getByRole("columnheader", { name: "부가정보" })).toBeInTheDocument();
+      expect(screen.getByRole("columnheader", { name: "덤" })).toBeInTheDocument();
+      expect(screen.queryByText(/열을 숨겼습니다/)).toBeNull();
     });
 
-    it("900~1200 압축 구간(compact만 참)에서는 hideNarrow 열이 빠진다", () => {
-      mockMedia({ card: false, compact: true });
-      ui(<DataTable columns={cols} rows={rows} rowKey={(r) => r.id} />);
-      expect(screen.queryByRole("columnheader", { name: "부가정보" })).toBeNull();
-      // 일반 열은 그대로 남는다 — 표 자체가 카드로 바뀐 게 아니다.
+    it("🔴 모자란 만큼만 접는다 — 한 열이면 한 열이다", async () => {
+      await draw(400);   // 30rem 은 안 들어가고 20rem 은 들어간다
+      // 뒤에 적은 열부터 접힌다.
+      expect(screen.queryByRole("columnheader", { name: "덤" })).toBeNull();
+      expect(screen.getByRole("columnheader", { name: "부가정보" })).toBeInTheDocument();
       expect(screen.getByRole("columnheader", { name: "이름" })).toBeInTheDocument();
     });
 
-    it("카드 뷰(card도 참)에서는 폭 제약이 없으니 hideNarrow 열도 다시 보인다", () => {
-      mockMedia({ card: true, compact: true });
-      ui(<DataTable columns={cols} rows={rows} rowKey={(r) => r.id} />);
-      expect(screen.getByText("부가정보")).toBeInTheDocument();
-      expect(screen.getByText("부가값")).toBeInTheDocument();
+    it("더 좁으면 더 접는다 — 접을 수 있는 열까지만", async () => {
+      await draw(200);
+      expect(screen.queryByRole("columnheader", { name: "덤" })).toBeNull();
+      expect(screen.queryByRole("columnheader", { name: "부가정보" })).toBeNull();
+      // `hideNarrow` 가 아닌 열은 안 접는다 — 그 표가 무엇인지 말하는 열이다.
+      expect(screen.getByRole("columnheader", { name: "이름" })).toBeInTheDocument();
     });
 
-    // PA-RC-0037 acceptance (4): 열이 접힌 경우 그 사실이 화면에 표시돼야 한다 — hideNarrow는
-    // PA-RC-0037 이전부터 있었지만(Users.jsx) 예전엔 아무 표시 없이 조용히 사라졌다.
-    it("compact 구간에서 열이 숨으면 그 사실과 숨은 열 이름을 알린다", () => {
-      mockMedia({ card: false, compact: true });
-      ui(<DataTable columns={cols} rows={rows} rowKey={(r) => r.id} />);
-      expect(screen.getByText(/부가정보 열을 숨겼습니다/)).toBeInTheDocument();
+    // PA-RC-0037 acceptance (4): 조용히 사라지면 사용자는 그 값을 못 봤다는 사실조차 모른다.
+    it("접은 열이 무엇인지 표가 말한다 — 표에 적힌 순서로", async () => {
+      await draw(200);
+      expect(screen.getByText(/부가정보, 덤 열을 숨겼습니다/)).toBeInTheDocument();
     });
 
-    it("숨는 열이 없으면(hideNarrow 미지정) compact여도 안내를 안 보여준다 — REGRESSION 없음", () => {
-      mockMedia({ card: false, compact: true });
+    it("접을 수 있는 열이 없으면 좁아도 안내를 안 보여준다 — REGRESSION 없음", async () => {
+      boxWidth = 100;
+      window.matchMedia = (q) => ({
+        matches: false, media: q,
+        addEventListener() {}, removeEventListener() {},
+        addListener() {}, removeListener() {}, onchange: null,
+        dispatchEvent: () => false,
+      });
       ui(<DataTable columns={columns} rows={rows} rowKey={(r) => r.id} />);
+      await act(async () => {});
       expect(screen.queryByText(/열을 숨겼습니다/)).toBeNull();
     });
 
-    it("넓은 화면에서는 hideNarrow 열이 있어도 안내를 안 보여준다(열이 안 숨었으므로)", () => {
-      mockMedia({ card: false, compact: false });
+    it("카드 뷰에서는 폭 제약이 없으니 접힌 열도 다시 보인다", async () => {
+      boxWidth = 100;
+      window.matchMedia = (query) => ({
+        matches: query.includes("899.95"), media: query,
+        addEventListener() {}, removeEventListener() {},
+        addListener() {}, removeListener() {}, onchange: null,
+        dispatchEvent: () => false,
+      });
       ui(<DataTable columns={cols} rows={rows} rowKey={(r) => r.id} />);
-      expect(screen.queryByText(/열을 숨겼습니다/)).toBeNull();
+      await act(async () => {});
+      expect(screen.getByText("부가정보")).toBeInTheDocument();
+      expect(screen.getByText("덤값")).toBeInTheDocument();
+    });
+
+    it("아직 못 쟀으면(칸 폭 0) 아무 것도 안 접는다 — 열이 사라졌다 돌아오지 않는다", async () => {
+      await draw(0);
+      expect(screen.getByRole("columnheader", { name: "덤" })).toBeInTheDocument();
     });
   });
 

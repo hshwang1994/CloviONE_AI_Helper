@@ -525,9 +525,10 @@ export function stickyTopSx(extra = 0) {
 /* 표가 카드 목록으로 접히는 지점. 899.95 는 MUI 가 `down("md")` 에서 만드는 값과 같다. */
 export const TABLE_CARD_QUERY = `(max-width:${BREAKPOINTS.md - 0.05}px)`;
 
-/* 카드로 접히기 전, 사이드바가 아직 안 접힌 900~1200 구간. 열이 많은 표는 여기서
- * `hideNarrow` 열을 뺀다(카드 뷰는 폭 제약이 없으니 전부 보여준다). */
-export const TABLE_COMPACT_QUERY = `(max-width:${BREAKPOINTS.lg - 0.05}px)`;
+/* 🔴 `TABLE_COMPACT_QUERY`(900~1200)를 **지웠다** (D-380). 열을 접을지는 뷰포트가 아니라
+ * **그 표가 받은 칸**이 정한다 — 문서 목록의 표는 1920 에서도 자기 칸이 902px 이라 넘쳤고,
+ * 그 구간 규칙은 그때 아무 열도 안 뺐다. 판단은 `ui/columnTypes.js::planNarrowColumns` 다.
+ * 뜻이 사라진 상수를 남겨 두면 다음 사람이 그것을 근거로 반대로 고친다. */
 
 /* 한글은 기본 `word-break: normal` 이 음절 단위로 잘라도 된다고 본다.
  * 전역 값은 정적 CSS(`styles/root.css`)와 CssBaseline `body`/`html` 이 같이 갖는다.

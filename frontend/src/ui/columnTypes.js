@@ -83,6 +83,86 @@ export function tableMinWidth(columns) {
   return parts.length === 1 ? parts[0] : `calc(${parts.join(" + ")})`;
 }
 
+/* ── 바닥을 **숫자로** 도 알아야 한다 (좁은 칸에서 열을 접으려면) ────────────────
+ *
+ * 위 `tableMinWidth` 는 CSS 에 거는 문자열이라 브라우저가 더한다. 그런데 「이 칸에
+ * 들어가는가」는 우리가 **렌더 전에** 판단해야 한다 — 안 들어가면 열을 빼야 하고, 그
+ * 결정은 CSS 가 대신 못 한다. 그래서 같은 폭을 px 로도 낸다. 두 값이 갈리지 않게
+ * 둘 다 `columnLayoutWidth` 하나에서 나온다.
+ *
+ * rem 은 루트 폰트사이즈로 곱한다 — 2200/3000 에서 그 값이 커지므로(`styles/root.css`)
+ * 16 을 상수로 박으면 4K 에서 「들어간다」고 잘못 센다. */
+export function lengthToPx(token, rootPx) {
+  const root = rootPx > 0 ? rootPx : 16;
+  if (typeof token === "number") return Number.isFinite(token) ? token : null;
+  const t = String(token || "").trim();
+  const m = /^(-?\d*\.?\d+)(rem|em|px)?$/.exec(t);
+  if (!m) return null;                       // `%`·`calc()`·`auto` — 셀 수 없다
+  const n = parseFloat(m[1]);
+  if (!Number.isFinite(n)) return null;
+  return m[2] === "px" || !m[2] ? n : n * root;
+}
+
+/** 열 하나가 지키려는 폭(px). 못 읽는 단위는 0 으로 센다 — 없는 것보다 낮게 잡는다. */
+export function columnFloorPx(col, rootPx) {
+  const s = resolveColumn(col);
+  const w = columnLayoutWidth(col) || s.minWidth || DEFAULT_COL_MIN_WIDTH;
+  return lengthToPx(w, rootPx) || 0;
+}
+
+/** 이 열 목록으로 그린 표의 바닥 폭(px). `tableMinWidth` 와 **같은 폭**이다. */
+export function tableFloorPx(columns, rootPx) {
+  let sum = 0;
+  for (const c of columns || []) if (c) sum += columnFloorPx(c, rootPx);
+  return sum;
+}
+
+/* 칸에 안 들어가면 `hideNarrow` 열을 **필요한 만큼만** 뺀다 (2026-09-01).
+ *
+ * 예전 규칙은 「뷰포트가 900~1200 이면 `hideNarrow` 열을 전부 뺀다」였다. 그것은 두
+ * 방향으로 틀렸다.
+ *
+ *   ① **뷰포트는 칸이 아니다.** 문서 목록의 표는 1920 에서도 자기 칸이 902px 이라
+ *      66px 넘쳤는데, 뷰포트가 1200 을 넘으니 아무 열도 안 뺐다.
+ *   ② **전부 아니면 전무였다.** 「내 티켓」은 1920 에서 218px 만 모자란데 규칙이 참이면
+ *      부가 열 다섯을 한꺼번에 잃는다. 90px 때문에 열 다섯을 지울 이유가 없다.
+ *
+ * 그래서 판단의 입력을 **그 표가 실제로 받은 폭**으로 바꾸고, 들어갈 때까지 **하나씩**
+ * 뺀다. 빼는 순서는 열 목록의 **뒤에서부터**다 — 표는 왼쪽에서 오른쪽으로 중요도가
+ * 낮아지게 적는 것이 이 저장소의 관행이고(제목이 앞, 부가 수치가 뒤), 순서를 뜻으로
+ * 읽으면 열마다 우선순위 숫자를 손으로 매길 필요가 없다.
+ *
+ * 폭을 아직 못 쟀으면(`availablePx` 가 없다 — 첫 그림) **아무 것도 안 뺀다.** 열이
+ * 사라졌다 돌아오는 것보다 한 프레임 넘치는 편이 낫다. */
+export function planNarrowColumns(columns, availablePx, rootPx) {
+  const cols = (columns || []).filter(Boolean);
+  const empty = { shown: cols, hidden: [] };
+  if (!(availablePx > 0)) return empty;
+  let floor = tableFloorPx(cols, rootPx);
+  if (floor <= availablePx) return empty;
+
+  const shown = cols.slice();
+  const hidden = [];
+  for (let i = cols.length - 1; i >= 0 && floor > availablePx; i -= 1) {
+    const c = cols[i];
+    if (!c.hideNarrow) continue;
+    floor -= columnFloorPx(c, rootPx);
+    shown.splice(shown.indexOf(c), 1);
+    hidden.push(c);
+  }
+  // 뺀 순서(뒤→앞)가 아니라 **표에 적힌 순서**로 알린다 — 사용자가 읽는 순서다.
+  hidden.reverse();
+  return { shown, hidden };
+}
+
+/** 지금 루트 폰트사이즈(px). 4K 에서 커진다(`styles/root.css`). */
+export function rootFontPx(doc) {
+  const d = doc || (typeof document !== "undefined" ? document : null);
+  if (!d || !d.documentElement || typeof getComputedStyle !== "function") return 16;
+  const v = parseFloat(getComputedStyle(d.documentElement).fontSize);
+  return v > 0 ? v : 16;
+}
+
 /* 글자 단위로 끊는 유일한 자리 — **식별자형 열**(이메일·UUID·코드·URL).
  *
  * 한글 산문은 낱말을 지켜야 하고(`root.css` 의 `keep-all`), 그 규칙을 화면이 제멋대로

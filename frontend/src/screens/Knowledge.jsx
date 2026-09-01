@@ -1042,7 +1042,9 @@ export function Knowledge() {
     {
       /* 첨부와 댓글이 있다는 사실은 **문서를 고르는 근거**다. 열어 봐야 아는 값이면
          목록에서 못 고른다. 0 은 안 그린다 — 대부분이 0 이라 그리면 소음이다. */
-      key: "counts", label: "첨부, 댓글", type: "enum", minWidth: "8rem",
+      /* 셋 중 **가장 먼저 접히는** 열이다 (D-380) — 방·제목·작성자·최종 수정이 목록의
+         뼈대이고 이것은 근거를 더하는 값이다. 접히면 표가 그 사실을 한 줄로 말한다. */
+      key: "counts", label: "첨부, 댓글", type: "enum", minWidth: "8rem", hideNarrow: true,
       render: (doc) => {
         const c = doc.counts || {};
         const parts = [];

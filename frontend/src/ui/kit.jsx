@@ -42,8 +42,8 @@ import { MASCOT_PLACE, mascotBoxPx } from "./Mascot.jsx";
 import { maxLengthFor } from "../lib/fieldLimits.js";
 import { apiToKstLocal, kstLocalToApi } from "../lib/format.js";
 import { declaredRowName, rowNameOf } from "./rowName.js";
-import { ANYWHERE_BREAK, OVERFLOW, SHRINK, columnLayoutWidth, planColumnCollapse, resolveColumn, tableMinWidth } from "./columnTypes.js";
-import { EMPTY_STATE_MAX_CH, ERROR_STATE_MAX_CH, FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, MOTION, NUMERIC, RADIUS, TABLE_CARD_QUERY, TABLE_COMPACT_QUERY, stickyTopSx } from "./theme.js";
+import { ANYWHERE_BREAK, OVERFLOW, SHRINK, columnLayoutWidth, planColumnCollapse, planNarrowColumns, resolveColumn, rootFontPx, tableMinWidth } from "./columnTypes.js";
+import { EMPTY_STATE_MAX_CH, ERROR_STATE_MAX_CH, FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, MOTION, NUMERIC, RADIUS, TABLE_CARD_QUERY, stickyTopSx } from "./theme.js";
 import { CARD_PADDING, SECTION_GAP } from "./density.js";
 import { EntityCombobox } from "./filters.jsx";
 import { TableHeaderCell } from "./TableHeaderCell.jsx";
@@ -1773,6 +1773,55 @@ export function tableLayoutSx(columns) {
   return { ...TABLE_FIXED_LAYOUT_SX, minWidth: tableMinWidth(columns) };
 }
 
+/* 이 칸에 들어가는 열만 남긴다 — `DataTable` 과 `GroupedTickets` 가 **같은 함수**를 본다.
+ *
+ * 규칙을 두 곳에 적으면 한쪽만 고쳐진다. 이 파일이 이미 두 번 그렇게 잃었고(카드 접기의
+ * `cardFieldLabel`·`cardHeaderControls`, 그리고 정렬의 `tableCellProps`), 열 접기에서 같은
+ * 일이 나면 「팀 티켓은 접히는데 내 티켓은 안 접히는」 상태가 된다.
+ *
+ * `boxEl` 은 표를 담은 `TableContainer` 다. 그 칸의 폭은 우리가 그리는 열 수와 **무관**
+ * 하므로(폭은 바깥 배치가 정한다) 열을 빼도 되먹임이 없다 — 행 높이도 안 변한다, 긴 값은
+ * 접히지 않고 말줄임이기 때문이다.
+ *
+ * 못 재는 동안에는 아무 것도 안 뺀다(`planNarrowColumns` 참고). */
+export function useFittedColumns(columns, boxEl) {
+  const [avail, setAvail] = React.useState(0);
+  const [rootPx, setRootPx] = React.useState(() => rootFontPx());
+  React.useLayoutEffect(() => {
+    if (!boxEl) return undefined;
+    /* 관찰을 끊은 뒤에 오는 알림은 버린다. `ResizeObserver` 는 마지막 알림이 큐에 남은
+       채로 `disconnect()` 될 수 있고, 그때 이미 떨어져 나간 노드의 폭(0)을 읽어 「칸이
+       0 이 됐다」로 한 번 더 그린다 — 화면에서는 열이 깜빡이고 시험에서는 act 경고다. */
+    let live = true;
+    const measure = () => {
+      if (!live) return;
+      setAvail(boxEl.clientWidth || 0);
+      setRootPx(rootFontPx());
+    };
+    measure();
+    if (typeof ResizeObserver === "undefined") return () => { live = false; };
+    const ro = new ResizeObserver(measure);
+    ro.observe(boxEl);
+    return () => { live = false; ro.disconnect(); };
+  }, [boxEl]);
+  return React.useMemo(
+    () => planNarrowColumns(columns, avail, rootPx),
+    [columns, avail, rootPx],
+  );
+}
+
+/* 열이 조용히 사라지면 사용자는 그 값을 못 봤다는 사실조차 모른다 (PA-RC-0037).
+ * 무엇이 왜 없는지를 표가 직접 말한다 — 두 표가 **같은 문장**을 쓴다. */
+export function HiddenColumnsNote({ columns }) {
+  const names = (columns || []).map((c) => c.label).filter(Boolean);
+  if (!names.length) return null;
+  return (
+    <Typography variant="caption" color="text.secondary" sx={{ display: "block", px: 2, pt: 1.5 }}>
+      칸이 좁아 {names.join(", ")} 열을 숨겼습니다. 행을 열면 전체 정보를 볼 수 있습니다.
+    </Typography>
+  );
+}
+
 /** 말줄임 대상 열인가 — DataTable·GroupedTickets 가 같은 규칙을 쓴다. */
 export function columnShouldTruncate(col, ellipsis) {
   const c = col || {};
@@ -1942,14 +1991,13 @@ export function DataTable({ columns, rows, rowKey, onRow, rowHref, empty, ellips
   const cols = baseCols;
   const keyOf = typeof rowKey === "function" ? rowKey : (_, i) => i;
   const narrow = useMediaQuery(TABLE_CARD_QUERY);
-  // RESP-01: 900~1200 구간(사이드바 아직 안 접힘)에서 열이 많은 표만 겪는 문제라 카드 뷰는
-  // 안 건드린다 — 폭 제약이 없는 카드에서 열을 빼면 정보만 준다.
-  const compact = useMediaQuery(TABLE_COMPACT_QUERY);
-  const wideCols = compact ? baseCols.filter((c) => !c.hideNarrow) : baseCols;
-  // PA-RC-0037 acceptance (4): 열이 접힌 경우 그 사실을 화면에 알린다 — 예전엔 hideNarrow
-  // 열이 900~1200 구간에서 아무 표시 없이 사라졌다(Users.jsx가 이미 그렇게 2열 쓰고 있었다).
+  /* 열을 접는 판단은 **이 표가 받은 칸**이 한다 (D-380). 뷰포트가 아니다 — 문서 목록의
+     표는 1920 에서도 자기 칸이 902px 이라 넘쳤고, 옛 규칙(900~1200)은 그때 아무 열도
+     안 뺐다. 카드 뷰는 안 건드린다: 폭 제약이 없는 카드에서 열을 빼면 정보만 준다. */
+  const fit = useFittedColumns(baseCols, narrow ? null : scrollEl);
+  const wideCols = fit.shown;
   // 값 자체는 행을 열면(onRow) 상세에서 그대로 보인다 — 여기서는 "더 있다"는 사실만 알린다.
-  const hiddenCols = compact ? baseCols.filter((c) => c.hideNarrow) : [];
+  const hiddenCols = fit.hidden;
 
   /* 로딩 모양을 표가 스스로 안다 (지시 20). 호출부가 각자 `<Skeleton lines={6} />` 을 두면
      열 수도 행 높이도 표와 다르고, 무엇보다 **빈 목록과 아직 안 온 목록이 같아 보인다** -
@@ -2090,11 +2138,7 @@ export function DataTable({ columns, rows, rowKey, onRow, rowHref, empty, ellips
 
   return (
     <>
-      {hiddenCols.length ? (
-        <Typography variant="caption" color="text.secondary" sx={{ display: "block", px: 2, pt: 1.5 }}>
-          화면 폭이 좁아 {hiddenCols.map((c) => c.label).join(", ")} 열을 숨겼습니다. 행을 열면 전체 정보를 볼 수 있습니다.
-        </Typography>
-      ) : null}
+      <HiddenColumnsNote columns={hiddenCols} />
       {/* 뺀 열은 **한 번 적는다** (R-91). 열이 조용히 사라지면 사용자는 그 값을 못 봤다는
           사실조차 모른다 — 무엇이 왜 없는지를 표가 직접 말한다. */}
       {collapse.caption ? (
