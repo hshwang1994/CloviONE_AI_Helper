@@ -28,7 +28,7 @@
   시험들이 검사 시야에서 사라진다.
 - working_tree: **깨끗하다**(이 회차를 커밋한 뒤 기준).
 - s22_commit: `2f4fc587` · `1921f884` · prev_commit: `e8d39fd3` · `757b6e22`
-- this_commit: **`9fb6187f`**(바닥 폭 · 백로그 트랙 · D-379) · **`__THIS__`**(칸에 맞춘 열 접기 · D-380)
+- this_commit: **`9fb6187f`**(바닥 폭 · 백로그 트랙 · D-379) · **`34c77989`**(칸에 맞춘 열 접기 · D-380)
 - prev_session_commit: `bc55228c` · `4ca1aab5` · `b340ab09` · `5db48df3`
 - deployed: **`b340ab09`** 이 운영에 나갔다 (2026-09-01 17:24 · `scripts/deploy-upgrade.sh`).
   Stage 0~18 전부 OK · `VERIFY_OK` · `UPGRADE_OK` · 스냅샷 `/var/backups/clovirassist/20260901-172145`.
