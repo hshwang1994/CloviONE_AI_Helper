@@ -2,6 +2,7 @@
 import React from "react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 
@@ -150,7 +151,8 @@ describe("대시보드 — 경보와 정상 지표의 중복 없음(PA-RC-0018 a
     expect(primaryButtons.length).toBe(1);
 
     // 지금 경보 중인 값(대기 작업·성공률)은 정상 지표 스트립에 다시 나오지 않는다 —
-    // 스트립에 남는 건 서비스 정상 요약과 디스크(42%, 경보 임계값 80% 미만)뿐이다.
+    // 스케줄러가 중단이라 「필수 서비스 정상 N / M」도 빠지고, 스트립에 남는 건
+    // 디스크(42%, 경보 임계값 80% 미만) 하나뿐이다.
     // within으로 스트립 영역만 좁혀 판정한다(경보 행에는 같은 라벨 "대기 작업"이
     // 존재해야 정상이므로 전체 문서에서 부재만 보면 안 된다). 라벨+값이 한 노드의
     // textContent로 합쳐지므로(예: "디스크 사용 42%") 정규식으로 부분일치를 본다.
@@ -158,6 +160,46 @@ describe("대시보드 — 경보와 정상 지표의 중복 없음(PA-RC-0018 a
     expect(within(strip).queryByText(/대기 작업/)).toBeNull();
     expect(within(strip).queryByText(/24시간 성공률/)).toBeNull();
     expect(within(strip).getByText(/42%/)).toBeInTheDocument();
+  });
+
+  /* 🔴 필수 서비스는 「대응하는 경보가 없다」고 적혀 있었지만 사실이 아니었다 —
+     buildAlerts 는 web 을 뺀 모든 필수 서비스에 `comp:<이름>` 경보를 만든다. 그래서 워커가
+     응답 없음일 때 그 사실이 한 화면에 세 번 있었다(실측 2026-09-01): 조치 목록 한 줄,
+     아래 「필수 서비스」 구역의 배지, 그리고 「지금 정상인」 줄의 「정상 1 / 3」. */
+  it("필수 서비스가 경보 중이면 「필수 서비스 정상 N / M」이 정상 줄에서 빠진다", async () => {
+    apiMock.mockResolvedValue({
+      components: { web: "up", worker: "unknown", scheduler: "unknown" },
+      jobs_24h: { total: 20, succeeded: 20, success_rate_pct: 100, queued: 0, failed_open: 0 },
+      disk: { used_pct: 45 },
+    });
+    renderDashboard();
+
+    expect(await screen.findByText(/디스크 사용 45%/)).toBeInTheDocument();
+    const strip = screen.getByText(/디스크 사용/).closest("div");
+    expect(within(strip).queryByText(/필수 서비스 정상/)).toBeNull();
+    // 그 사실을 어디에서도 안 말하는 것이 아니다 — 아래 구역이 자기 분모로 말한다.
+    expect(screen.getByText("정상 1 / 3")).toBeInTheDocument();
+  });
+
+  /* 「-」는 정상 지표가 아니라 **낼 수 없는 값**이다. 24시간 안에 끝난 작업이 없으면
+     성공률에 분모가 없고, 그 사실은 아래 「최근 24시간 작업」 칸이 한 문장으로 말한다. */
+  it("값이 없는 지표(성공률 「-」)는 정상 줄에 서지 않는다", async () => {
+    apiMock.mockResolvedValue({
+      components: { web: "up", worker: "up", scheduler: "up" },
+      jobs_24h: { total: 0, succeeded: 0, success_rate_pct: null, queued: 0, failed_open: 0 },
+      disk: { used_pct: 45 },
+    });
+    renderDashboard();
+
+    expect(await screen.findByText(/디스크 사용 45%/)).toBeInTheDocument();
+    const strip = screen.getByText(/디스크 사용/).closest("div");
+    expect(within(strip).queryByText(/24시간 성공률/)).toBeNull();
+    expect(screen.getByText("최근 24시간 동안 처리한 작업이 없습니다.")).toBeInTheDocument();
+    // 대기 작업은 「미해결 실패」 다음, 「디스크」 앞이다 — 자리를 인덱스가 아니라 이웃으로 정한다.
+    const labels = Array.from(strip.querySelectorAll("span"))
+      .map((el) => el.textContent).filter((t) => /^(대기 작업|디스크 사용|미해결 실패)/.test(t));
+    expect(labels.findIndex((t) => t.startsWith("대기 작업")))
+      .toBeLessThan(labels.findIndex((t) => t.startsWith("디스크 사용")));
   });
 
   it("경보가 없는 지표는 스트립에 뜨고, 값이 조치 목록과 스트립 양쪽에 겹치지 않는다", async () => {
@@ -224,4 +266,33 @@ describe("대시보드 — 조치 버튼의 권한 노출(PA-RC-0018 acceptance 
     const btn = screen.getByRole("button", { name: "작업 큐 열기" });
     expect(btn).not.toBeDisabled();
   });
+});
+
+/* 🔴 **실패한 새로고침을 성공이라고 알리지 않는다.**
+ *
+ * 이 화면은 30초마다 스스로 다시 읽고, 그것과 별개로 사람이 누르는 「새로고침」이 있다.
+ * 누른 결과는 눈으로 보는 사람에게는 머리말의 「, 새로고침 실패」로, 스크린리더 사용자
+ * 에게는 `role="status"` 한 줄로 간다 — 예전에는 그 한 줄이 결과를 안 보고 언제나
+ * 「대시보드를 갱신했습니다」였고, 뒤에 붙는 시각은 **직전에 성공한** 조회의 것이었다.
+ * 한 화면이 두 사람에게 반대로 말하고 있었다. */
+describe("대시보드 — 수동 새로고침의 결과 알림", () => {
+  it("새로고침이 실패하면 성공이 아니라 실패를 알린다", async () => {
+    apiMock.mockResolvedValueOnce({
+      components: { web: "up", worker: "up", scheduler: "up" },
+      jobs_24h: { total: 5, succeeded: 5, success_rate_pct: 100, queued: 0, failed_open: 0 },
+      disk: { used_pct: 30 },
+    });
+    renderDashboard();
+    expect(await screen.findByText("지금 조치가 필요한 문제가 없습니다.")).toBeInTheDocument();
+
+    apiMock.mockRejectedValue(new Error("네트워크 오류"));
+    await userEvent.click(screen.getByRole("button", { name: "새로고침" }));
+
+    // `retry: 1` 이라 한 번 더 시도한다 — 그 뒤에 결과가 나온다.
+    expect(await screen.findByText(/갱신하지 못했습니다/, {}, { timeout: 5000 })).toBeInTheDocument();
+    expect(screen.queryByText(/대시보드를 갱신했습니다/)).toBeNull();
+    // 마지막으로 성공한 값은 그대로 남는다 — 폴링 실패로 화면을 비우지 않는다.
+    expect(screen.getByText("지금 조치가 필요한 문제가 없습니다.")).toBeInTheDocument();
+    expect(screen.getByText(/새로고침 실패/)).toBeInTheDocument();
+  }, 15000);   // `retry: 1` 의 재시도 대기(1초)가 기본 5초 예산 안에서 아슬아슬하다.
 });

@@ -365,3 +365,107 @@ describe("홈 '오늘' — 커맨드 센터", () => {
     await waitFor(() => expect(screen.getByText("오늘 마감")).toBeInTheDocument());
   });
 });
+
+/* 🔴 홈이 **빈 판으로 열리지 않는다** (실측 2026-09-01).
+ *
+ * 이 화면의 업무 판은 언제나 「오늘 마감」으로 열었다. 그래서 오늘 마감이 0 이고 지연이
+ * 14 인 계정에서 화면의 가장 큰 판이 「오늘 마감에 해당하는 티켓이 없습니다」로 비어 있었고,
+ * 바로 그 아래 AI 도우미는 같은 데이터를 읽고 「마감이 지난 티켓 14건이 오늘 가장 급합니다」
+ * 라고 말했다 — 한 화면이 서로 반대되는 말을 둘 했고, 정작 급한 티켓 열넷은 한 번 더
+ * 눌러야 나왔다.
+ *
+ * 「오늘 마감」이 먼저인 것은 그대로 둔다(화면 이름이 「오늘」이다). 바뀌는 것은 **그 칸이
+ * 비었을 때**뿐이고, 그때 여는 칸은 AI 도우미와 같은 급한 순이 정한다(`URGENCY_ORDER`). */
+describe("홈 — 처음 여는 칸", () => {
+  const bucket = (count, items = []) => ({ count, items });
+
+  it("오늘 마감이 0 이고 지연이 있으면 지연 칸으로 연다", async () => {
+    routeApi({
+      today: {
+        ...TODAY_OK,
+        tickets: {
+          configured: true, ok: true, mapped: true,
+          due_today: bucket(0), overdue: bucket(2, [ticket(9, { title: "지연 티켓", due: "2026-07-30" })]),
+          in_progress: bucket(2, [ticket(9)]), due_soon: bucket(0), blocked: bucket(0), done_total: 0,
+        },
+      },
+    });
+    renderHome();
+
+    expect(await screen.findByRole("heading", { level: 2, name: "지연 2건" })).toBeInTheDocument();
+    // 빈 판으로 열지 않는다 — 그 문장이 화면 어디에도 없어야 한다.
+    expect(screen.queryByText("오늘 마감에 해당하는 티켓이 없습니다")).toBeNull();
+    // 판독 줄의 선택 신호도 같은 칸에 있다(고른 칸과 그려진 칸이 어긋나면 안 된다).
+    expect(statCard("지연")).toHaveAttribute("aria-pressed", "true");
+    expect(statCard("오늘 마감")).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("오늘 마감이 있으면 그 칸으로 연다(지연이 함께 있어도)", async () => {
+    routeApi();   // TODAY_OK: 오늘 마감 2 · 지연 1
+    renderHome();
+    expect(await screen.findByRole("heading", { level: 2, name: "오늘 마감 2건" })).toBeInTheDocument();
+  });
+
+  it("모든 칸이 0 이면 「오늘 마감」으로 열고 데이터 없음을 말한다", async () => {
+    routeApi({ today: { ...TODAY_OK, tickets: EMPTY_BUCKETS } });
+    renderHome();
+    expect(await screen.findByRole("heading", { level: 2, name: "오늘 마감 0건" })).toBeInTheDocument();
+    expect(screen.getByText("담당한 티켓이 없습니다")).toBeInTheDocument();
+  });
+
+  it("사용자가 고른 칸은 데이터가 다시 와도 그 자리에 남는다", async () => {
+    routeApi();
+    renderHome();
+    await screen.findByRole("heading", { level: 2, name: "오늘 마감 2건" });
+
+    await userEvent.click(statCard("7일 내 마감"));
+    expect(await screen.findByText("7일 내 마감에 해당하는 티켓이 없습니다")).toBeInTheDocument();
+    // 고른 칸이 비어 있다고 해서 화면이 자기 마음대로 다른 칸으로 옮겨 가지 않는다 —
+    // 「비었으니 골라 준다」는 아직 아무것도 안 고른 첫 화면에서만이다.
+    expect(screen.getByRole("heading", { level: 2, name: "7일 내 마감 0건" })).toBeInTheDocument();
+  });
+});
+
+/* 🔴 **배경 갱신 한 번이 실패했다고 화면을 지우지 않는다.**
+ *
+ * 홈은 30초마다 스스로 다시 읽고(`useToday`) 재시도를 안 한다. 예전에는 `q.isError` 하나만
+ * 보고 오류 화면을 그려서, 순간 끊김 한 번이면 이미 손에 들고 있던 오늘 티켓·이번 주·최근
+ * 문서가 통째로 사라졌다. 관리자 대시보드는 같은 상황을 이미 「낡았다」로 다루고 있었다. */
+describe("홈 — 갱신 실패", () => {
+  it("한 번 받아 둔 값이 있으면 지우지 않고 낡았다고만 말한다", async () => {
+    routeApi();
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={qc}>
+        <ThemeModeProvider><ToastProvider><ConfirmProvider><MemoryRouter>
+          <Home />
+        </MemoryRouter></ConfirmProvider></ToastProvider></ThemeModeProvider>
+      </QueryClientProvider>
+    );
+    await screen.findByRole("heading", { level: 2, name: "오늘 마감 2건" });
+
+    apiMock.mockImplementation((path) =>
+      path.startsWith("/api/home/today")
+        ? Promise.reject(new Error("네트워크 오류"))
+        : Promise.resolve({})
+    );
+    await qc.refetchQueries({ queryKey: ["home", "today"] });
+
+    expect(await screen.findByText(/실시간 갱신이 실패했습니다/)).toBeInTheDocument();
+    // 화면은 그대로 있다 — 티켓 목록도, 최근 문서도.
+    expect(screen.getByRole("heading", { level: 2, name: "오늘 마감 2건" })).toBeInTheDocument();
+    expect(screen.getByText("회의록 초안")).toBeInTheDocument();
+  });
+
+  it("한 번도 못 받았으면 오류 화면을 그린다", async () => {
+    apiMock.mockImplementation((path) =>
+      path.startsWith("/api/home/today")
+        ? Promise.reject(new Error("네트워크 오류"))
+        : Promise.resolve({})
+    );
+    renderHome();
+
+    expect(await screen.findByText(/네트워크 오류/)).toBeInTheDocument();
+    expect(screen.queryByText("오늘 마감")).toBeNull();
+  });
+});

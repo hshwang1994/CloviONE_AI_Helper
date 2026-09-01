@@ -285,9 +285,22 @@ export function headlineStats({ components, jobs, disk, jobsNote, diagTo, diagNo
   ];
 }
 
-// 위 네 지표 중 지금 경보 중이면(buildAlerts의 src) 스트립에서 빼는 대응표.
-// services는 대응하는 경보 자체가 없다(항상 스트립에 남는다).
+/* 위 네 지표 중 지금 경보 중이면(buildAlerts 의 src) 스트립에서 빼는 대응표.
+ *
+ * 🔴 `services` 에는 **"대응하는 경보가 없다"고 적혀 있었지만 사실이 아니었다.** buildAlerts
+ * 는 `web` 을 뺀 모든 필수 서비스에 `comp:<이름>` 경보를 만든다. 그래서 워커와 스케줄러가
+ * 응답 없음일 때, 그 사실이 **한 화면에 세 번** 나왔다(실측 2026-09-01): 조치 목록의 두 줄,
+ * 아래 「필수 서비스」 구역의 배지, 그리고 이 스트립의 「필수 서비스 정상 1 / 3」.
+ *
+ * 이 스트립은 「**지금 정상인** 지표」 줄이다. 「정상 1 / 3」은 정상 지표가 아니라 고장
+ * 요약이고, 그 요약을 굳이 여기 둘 이유는 없다 — 조치 목록이 어느 서비스인지까지 말하고
+ * 아래 구역이 배지로 다시 말한다. 하나가 아니라 **여럿 중 하나라도** 경보 중이면 뺀다. */
 const HEALTHY_SRC_FOR_KEY = { rate: "job:rate", failed: "job:failed", disk: "disk" };
+const isHealthySrcActive = (key, alertSrcs) => (
+  key === "services"
+    ? [...alertSrcs].some((s) => s.startsWith("comp:"))
+    : !!HEALTHY_SRC_FOR_KEY[key] && alertSrcs.has(HEALTHY_SRC_FOR_KEY[key])
+);
 
 // 경보 행의 기본 조치 버튼 — 라벨은 "어디로 가는가"로 정한다(경보 종류가 아니라). 워커·
 // 스케줄러·디스크·메모리·인증서는 전부 diagTo/procTo로 모이므로 종류별로 따로 정의하면
@@ -545,7 +558,14 @@ export function Dashboard() {
     if (q.isFetching) return;
     if (manualRefreshing) {
       setManualRefreshing(false);
-      setRefreshAnnounce("대시보드를 갱신했습니다" + (q.dataUpdatedAt ? " (" + fmtDateTime(new Date(q.dataUpdatedAt).toISOString()) + " 기준)" : "") + ".");
+      /* 🔴 **실패한 새로고침을 성공이라고 알리지 않는다.** 예전에는 결과를 안 보고 언제나
+         「대시보드를 갱신했습니다」였고, 뒤에 붙는 시각은 **직전에 성공한** 조회의
+         `dataUpdatedAt` 이었다. 그래서 새로고침이 실패하면 눈으로 보는 사람은 머리말에서
+         「새로고침 실패」를 읽는데 스크린리더 사용자만 「갱신했습니다 (오후 3:45 기준)」를
+         들었다 — 한 화면이 두 사람에게 반대로 말했다. */
+      setRefreshAnnounce(q.isError
+        ? "대시보드를 갱신하지 못했습니다. 표시된 값이 최신이 아닐 수 있습니다."
+        : "대시보드를 갱신했습니다" + (q.dataUpdatedAt ? " (" + fmtDateTime(new Date(q.dataUpdatedAt).toISOString()) + " 기준)" : "") + ".");
     }
   }, [q.isFetching]); // eslint-disable-line react-hooks/exhaustive-deps
   const onManualRefresh = () => { setManualRefreshing(true); q.refetch(); };
@@ -618,16 +638,27 @@ function DashboardBody({ d, nav, role, stale }) {
   const compCounts = countStates(Object.values(compStates));
   const integCounts = countStates(Object.values(integStates));
 
-  // 정상 지표 스트립: headlineStats의 넷 중 지금 경보 중이 아닌 것만 남긴다 + 대기 작업.
+  /* 정상 지표 스트립: headlineStats 의 넷 중 지금 경보 중이 아닌 것만 남긴다 + 대기 작업.
+   *
+   * 🔴 **값이 없는 항목은 여기 오지 않는다.** 실측(2026-09-01)에서 이 줄이 「필수 서비스
+   * 정상 1 / 3 · 24시간 성공률 - · 디스크 사용 45.8%」였다. 가운데 「-」는 24시간 안에 끝난
+   * 작업이 하나도 없어서 성공률을 **낼 수 없다**는 뜻인데, 그 사실은 아래 「최근 24시간
+   * 작업」 칸이 이미 한 문장으로 말한다. 「지금 정상인 지표」 줄에 모르는 값을 세워 두면
+   * 옆의 진짜 값까지 같은 무게로 읽힌다 — `MetricStrip` 이 같은 이유로 「-」를 빈 값으로
+   * 친다(ui/kit.jsx::isEmptyValue). */
   const headline = headlineStats({ components: comps, jobs, disk, jobsNote, diagTo, diagNote });
+  const hasValue = (v) => v != null && v !== "" && v !== "-";
   const stripItems = headline
-    .filter((t) => {
-      const src = HEALTHY_SRC_FOR_KEY[t.key];
-      return !src || !alertSrcs.has(src);
-    })
+    .filter((t) => hasValue(t.value) && !isHealthySrcActive(t.key, alertSrcs))
     .map((t) => ({ key: t.key, label: t.label, value: t.value, onClick: t.to && canGo(t.to, role) ? goto(t.to) : undefined }));
-  if (jobs.queued != null && !alertSrcs.has("job:queued"))
-    stripItems.splice(3, 0, { key: "queued", label: "대기 작업" + jobsNote, value: fmtNum(jobs.queued), onClick: jobsTo ? goto(jobsTo) : undefined });
+  /* 대기 작업은 「미해결 실패」 다음, 「디스크」 앞이다. 자리를 **인덱스 3** 으로 적어
+     두면 위 필터가 앞 항목을 하나라도 뺀 순간 그 뜻이 사라진다 — 실제로 실패 작업이 경보
+     중이면 대기가 디스크 뒤로 밀려 있었다. 자리를 **이웃으로** 정한다. */
+  if (jobs.queued != null && !alertSrcs.has("job:queued")) {
+    const at = stripItems.findIndex((it) => it.key === "disk");
+    stripItems.splice(at < 0 ? stripItems.length : at, 0,
+      { key: "queued", label: "대기 작업" + jobsNote, value: fmtNum(jobs.queued), onClick: jobsTo ? goto(jobsTo) : undefined });
+  }
 
   // 서비스 타일의 이동 대상. 워커/스케줄러는 상단 경보와 동일하게 진단을 못 보는 역할이면
   // 작업 큐로 대체한다 — 같은 사실이 경보에선 클릭 가능한데 타일에선 죽어 보이면 안 된다.

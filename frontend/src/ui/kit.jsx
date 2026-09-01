@@ -43,7 +43,7 @@ import { maxLengthFor } from "../lib/fieldLimits.js";
 import { apiToKstLocal, kstLocalToApi } from "../lib/format.js";
 import { declaredRowName, rowNameOf } from "./rowName.js";
 import { ANYWHERE_BREAK, OVERFLOW, SHRINK, columnLayoutWidth, planColumnCollapse, planNarrowColumns, resolveColumn, rootFontPx, tableMinWidth } from "./columnTypes.js";
-import { EMPTY_STATE_MAX_CH, ERROR_STATE_MAX_CH, FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, MOTION, NUMERIC, RADIUS, TABLE_CARD_QUERY, stickyTopSx } from "./theme.js";
+import { EMPTY_STATE_MAX_CH, ERROR_STATE_MAX_CH, FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, MOTION, NUMERIC, RADIUS, SCROLL_BOX_STICKY_TOP, TABLE_CARD_QUERY, stickyTopSx } from "./theme.js";
 import { CARD_PADDING, SECTION_GAP } from "./density.js";
 import { EntityCombobox } from "./filters.jsx";
 import { TableHeaderCell } from "./TableHeaderCell.jsx";
@@ -643,6 +643,11 @@ export function ScrollArea({ maxHeight, ariaLabel, children, sx }) {
       sx={(t) => ({
         maxHeight,
         overflowY: "auto",
+        /* **이 칸이 스크롤 창이라는 사실을 안쪽에 알린다.** 안에 든 표가 `stickyHeader` 를
+           켜면 그 열 이름은 이 칸의 **위쪽**에 붙어야 한다 — 기본값(상단바 높이)은 윈도가
+           굴러갈 때의 값이라, 여기서 그대로 쓰면 열 이름이 52px 내려앉고 그 위로 행이
+           굴러 올라가 겹친다(`theme.js::STICKY_TOP_VAR`). */
+        ...SCROLL_BOX_STICKY_TOP,
         // 바깥(브라우저) 스크롤로 이어지지 않게 한다 — 칸 끝에서 페이지가 함께 튀면
         // 사용자는 자기가 무엇을 굴렸는지 모른다.
         overscrollBehavior: "contain",

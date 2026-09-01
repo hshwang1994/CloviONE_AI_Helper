@@ -9,15 +9,15 @@ import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
 import { fmtDayKo, fmtRelative } from "../lib/format.js";
 import {
-  Badge, Button, Card, DataTable, EmptyState, ErrorState, MetricStrip, PageHeader, ScrollArea,
-  SectionTitle, Skeleton, SubGroup,
+  Badge, Button, Callout, Card, DataTable, EmptyState, ErrorState, MetricStrip, PageHeader,
+  ScrollArea, SectionTitle, Skeleton, SubGroup,
 } from "../ui/kit.jsx";
 import { Donut } from "../ui/charts/Donut.jsx";
 import { BUDGET_BODY, BUDGET_SCROLL, GRID_GAP, plateBudget } from "../ui/density.js";
 import { KO_WORD_BREAK } from "../ui/theme.js";
 import { ticketColumns, ticketConnState, TicketEditModal, useInlineStatusEdit } from "./MyTickets.jsx";
 import { useTicketSignals } from "../lib/ticketSignals.js";
-import { AssistantPanel } from "./AssistantPanel.jsx";
+import { AssistantPanel, mostUrgentBucket, URGENCY_ORDER } from "./AssistantPanel.jsx";
 import { lastDayOf, WorkSection } from "./WorkSummary.jsx";
 
 /* 홈 '오늘' 커맨드 센터.
@@ -119,6 +119,24 @@ const VIEWS = [
   // 아니라 암호였다. 상태값은 아래 목록의 배지가 이미 보여 준다.
   { key: "blocked", label: "막힌 일", kind: "danger" },
 ];
+
+/* 처음 열 칸을 정하는 순서.
+ *
+ * 🔴 예전에는 언제나 `"due_today"` 였다. 그래서 오늘 마감이 0 이고 지연이 14 인 계정에서
+ * 이 화면의 **가장 큰 판**이 「오늘 마감에 해당하는 티켓이 없습니다」로 비어 있었고, 바로
+ * 그 아래 AI 도우미는 같은 데이터를 읽고 「마감이 지난 티켓 14건이 오늘 가장 급합니다」라고
+ * 말했다(실측 2026-09-01). 한 화면이 서로 반대되는 말을 둘 하고 있었고, 그 사이에 정작
+ * 급한 티켓 열넷은 한 번 더 눌러야 나왔다.
+ *
+ * **「오늘 마감」이 먼저인 것은 그대로 둔다** — 이 화면의 이름이 「오늘」이고, 판독 줄의
+ * 지배값도 그 칸이다. 바꾸는 것은 **그 칸이 비었을 때**뿐이고, 그때 무엇을 여는지는
+ * AI 도우미와 **같은 급한 순**(`URGENCY_ORDER`)이 정한다. 순서를 여기 다시 적지 않는
+ * 이유는 그것이 갈라진 결과가 바로 위에 적은 그 화면이기 때문이다.
+ *
+ * 사용자가 칸을 한 번 누르면 그 선택이 이긴다(아래 `focus`) — 30초마다 오는 갱신이 개수를
+ * 바꿨다고 보고 있던 칸이 발밑에서 옮겨 가면 안 된다. */
+const DEFAULT_FOCUS_ORDER = ["due_today", ...URGENCY_ORDER.filter((k) => k !== "due_today")];
+const defaultFocus = (tickets) => mostUrgentBucket(tickets, DEFAULT_FOCUS_ORDER) || "due_today";
 
 /* 목록 한 줄(문서 공용). 제목은 링크, 오른쪽은 메타.
  *
@@ -298,13 +316,28 @@ function useToday() {
 export function Home() {
   const q = useToday();
   const nav = useNavigate();
-  const [focus, setFocus] = React.useState("due_today");
+  // `null` 은 「사용자가 아직 안 골랐다」다 — 그동안은 데이터가 칸을 정한다(`defaultFocus`).
+  // 한 번 누르면 키가 들어오고, 그 뒤로는 갱신이 와도 그 칸이 유지된다.
+  const [focus, setFocus] = React.useState(null);
   const [editing, setEditing] = React.useState(null);
+  /* 🔴 **배경 갱신 한 번이 실패했다고 화면을 지우지 않는다.** 이 화면은 30초마다 스스로
+     다시 읽고(`useToday`) 재시도를 안 한다 — 예전에는 `q.isError` 하나만 보고 오류 화면을
+     그려서, 순간 끊김 한 번이면 이미 손에 들고 있던 오늘 티켓·이번 주·최근 문서가 통째로
+     사라졌다. 마지막으로 성공한 값을 계속 보여 주고, **낡았다는 사실만** 배너로 말한다
+     (관리자 대시보드가 같은 상황을 이미 그렇게 다룬다 — `Dashboard.jsx::staleAfterError`). */
+  const staleAfterError = q.isError && !!q.data;
 
   return (
     <div className="c-screen">
       <PageHeader crumbRoot="" title="오늘" />
-      {q.isLoading ? (
+      {staleAfterError ? (
+        <Box sx={{ mb: 2.5 }} role="status" aria-live="polite">
+          <Callout tone="warn">실시간 갱신이 실패했습니다. 표시된 값이 최신이 아닐 수 있습니다. 새로고침해 주세요.</Callout>
+        </Box>
+      ) : null}
+      {!q.data && q.isError ? (
+        <ErrorState error={q.error} onRetry={() => q.refetch()} />
+      ) : !q.data ? (
         /* 스켈레톤은 **실제 배치와 같은 모양**을 쓴다 — 로딩이 끝나는 순간 요소가 뛰지
            않는다. 판독 줄은 판이 아니므로 카드로 감싸지 않는다. */
         <>
@@ -322,14 +355,12 @@ export function Home() {
             </Stack>
           </Box>
         </>
-      ) : q.isError ? (
-        <ErrorState error={q.error} onRetry={() => q.refetch()} />
       ) : (
         <Fade in timeout={220}>
           {/* Fade 는 자식 하나에 ref 를 걸어야 한다 — div 로 감싼다. */}
           <div>
             <HomeBody
-              data={q.data || {}}
+              data={q.data}
               focus={focus}
               onFocus={setFocus}
               onEdit={setEditing}
@@ -349,7 +380,9 @@ function HomeBody({ data, focus, onFocus, onEdit, onOpen }) {
   const statusEdit = useInlineStatusEdit();
   const tickets = data.tickets || {};
   const conn = ticketConnState(tickets);
-  const view = VIEWS.find((v) => v.key === focus) || VIEWS[0];
+  // 고른 칸이 없으면 데이터가 정한다(위 `defaultFocus`). 고른 뒤에는 그 선택이 이긴다.
+  const focusKey = focus || defaultFocus(tickets);
+  const view = VIEWS.find((v) => v.key === focusKey) || VIEWS[0];
   const rows = (tickets[view.key] && tickets[view.key].items) || [];
   const total = (tickets[view.key] && tickets[view.key].count) || 0;
   const anyTicket = VIEWS.some((v) => tickets[v.key] && tickets[v.key].count > 0);
@@ -370,7 +403,7 @@ function HomeBody({ data, focus, onFocus, onEdit, onOpen }) {
             // 색은 셀 값이 있을 때만 — 0건인 '지연'을 빨갛게 칠하면 없는 문제를 만든다.
             kind: v.kind && tickets[v.key] && tickets[v.key].count ? v.kind : undefined,
             primary: v.key === "due_today",
-            active: focus === v.key,
+            active: view.key === v.key,
             onClick: () => onFocus(v.key),
           }))}
         />

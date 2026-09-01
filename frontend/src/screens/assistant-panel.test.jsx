@@ -137,6 +137,31 @@ describe("AI 도우미 패널", () => {
     expect(screen.getByText("티켓을 다시 읽을 수 있게 되면 여기에 급한 순서로 표시됩니다.")).toBeInTheDocument();
   });
 
+  /* 🔴 이번 주에 맡은 일이 없으면 **아무 말도 안 한다.** 실측(2026-09-01)에서 이 자리가
+     「이번 주 맡은 0건 가운데 0건을 끝냈고 0건이 남았습니다」였다 — 한 문장에 0 이 셋인데
+     알게 되는 사실은 하나뿐이고, 그 하나는 바로 옆 「이번 주」 카드가 이미 말한다. */
+  it("이번 주에 맡은 일이 없으면 0 을 셋 늘어놓지 않는다", async () => {
+    apiMock.mockImplementation((path) => {
+      if (path.startsWith("/api/assistant/briefing")) {
+        return Promise.resolve({
+          ...BRIEFING,
+          sprint: { assigned: 0, done: 0, remaining: 0, cancelled: 0, completion_rate: null },
+          narrative: null,
+        });
+      }
+      if (path.startsWith("/api/assistant/standup")) return Promise.resolve(STANDUP);
+      if (path.startsWith("/api/assistant/triage")) return Promise.resolve(TRIAGE);
+      return Promise.resolve({});
+    });
+    renderPanel();
+
+    // 결론 한 줄은 그대로 나온다 — 지운 것은 그 아래 부연뿐이다.
+    expect(await screen.findByText("마감이 지난 티켓 1건이 오늘 가장 급합니다.")).toBeInTheDocument();
+    expect(screen.queryByText(/이번 주 맡은/)).toBeNull();
+    // 못 읽은 것과 헷갈리게 하지도 않는다 — 그 갈래의 문장은 여기 없다.
+    expect(screen.queryByText(/이번 주 진척도 계산할 수 없습니다/)).toBeNull();
+  });
+
   it("문장 생성이 꺼져 있으면 숫자는 그대로 두고 이유만 덧붙인다", async () => {
     routeApi();
     renderPanel();
@@ -224,7 +249,7 @@ describe("AI 도우미 패널", () => {
  *
  * 렌더를 통해서만 재면 문구가 조금 바뀔 때마다 시험이 깨지고, 정작 **순서가 뒤바뀐 것**은
  * 안 잡힌다. 이 패널의 존재 이유가 「무엇이 가장 급한가」를 정하는 그 순서라 따로 잰다. */
-import { attentionRows, briefingFocus, daysBetween, standupDraft, tabLinks } from "./AssistantPanel.jsx";
+import { attentionRows, briefingFocus, daysBetween, mostUrgentBucket, standupDraft, tabLinks, URGENCY_ORDER } from "./AssistantPanel.jsx";
 
 const T = (over) => ({ id: "p" + (over.tid || 1), tid: 1, title: "제목", status: "진행", due: null, ...over });
 
@@ -251,6 +276,32 @@ describe("briefingFocus — 오늘의 결론 한 줄", () => {
     };
     expect(briefingFocus(calm).key).toBe("in_progress");
     expect(briefingFocus({ ...calm, in_progress: { count: 0 } }).key).toBe("none");
+  });
+});
+
+/* 급한 순은 **배열 하나**다 — 이 패널의 결론 문장과 위 업무 판이 처음 여는 칸이 같은 것을
+ * 본다(`Home.jsx::defaultFocus`). 순서가 두 벌이 되면 판은 비어 있는데 그 아래 문장은 급한
+ * 일이 있다고 말하는 화면이 다시 나온다(실측 2026-09-01). */
+describe("mostUrgentBucket — 급한 순 한 벌", () => {
+  it("briefingFocus 와 같은 순서를 본다", () => {
+    const full = {
+      due_today: { count: 5 }, overdue: { count: 2 }, blocked: { count: 1 },
+      due_soon: { count: 3 }, in_progress: { count: 9 },
+    };
+    expect(URGENCY_ORDER).toEqual(["overdue", "blocked", "due_today", "due_soon", "in_progress"]);
+    expect(mostUrgentBucket(full)).toBe(briefingFocus(full).key);
+  });
+
+  it("호출부가 준 순서를 그대로 쓴다 — 홈은 「오늘 마감」을 앞에 세운다", () => {
+    const order = ["due_today", "overdue", "blocked", "due_soon", "in_progress"];
+    const both = { due_today: { count: 2 }, overdue: { count: 3 }, blocked: { count: 0 }, due_soon: { count: 0 }, in_progress: { count: 5 } };
+    expect(mostUrgentBucket(both, order)).toBe("due_today");
+    expect(mostUrgentBucket({ ...both, due_today: { count: 0 } }, order)).toBe("overdue");
+  });
+
+  it("전부 0 이면 null, 버킷 자체가 없어도 null 이다(0 을 지어내지 않는다)", () => {
+    expect(mostUrgentBucket({ due_today: { count: 0 }, overdue: { count: 0 }, blocked: { count: 0 }, due_soon: { count: 0 }, in_progress: { count: 0 } })).toBeNull();
+    expect(mostUrgentBucket({ configured: true, ok: false })).toBeNull();
   });
 });
 

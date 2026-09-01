@@ -352,9 +352,12 @@ describe("높이 예산 — 무엇이 굴러가고 무엇이 안 굴러가는가
   it("업무 판 — 다섯 칸을 오가도 같은 상자가 같은 높이 하나를 받는다", async () => {
     routeApi({ today: MIXED });
     renderHome();
-    await screen.findByRole("heading", { level: 2, name: /오늘 마감 0건/ });
+    /* MIXED 는 「오늘 마감 0 · 지연 3」이라 화면이 **지연 칸으로 연다**(Home.jsx 의
+       `defaultFocus`) — 빈 판으로 열지 않는다. 이 시험이 잡는 것은 어느 칸으로 여는가가
+       아니라 «칸을 옮겨도 판이 같은 상자에 같은 높이로 서는가» 다. */
+    await screen.findByRole("heading", { level: 2, name: /지연 3건/ });
 
-    const card = plate("오늘 마감");
+    const card = plate("지연");
     const contract = heightsOf(lgRule(card));
     // 계약은 «범위» 가 아니다 — 셋이 같은 값이라야 0건과 30건이 같은 자리에 선다.
     expect(contract.height, "판이 데스크톱 높이 규칙을 안 받았다").toBeTruthy();

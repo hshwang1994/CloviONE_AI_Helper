@@ -103,22 +103,43 @@ const bucketItems = (tickets, key) => {
   return b && Array.isArray(b.items) ? b.items : [];
 };
 
-/** 오늘 무엇이 가장 급한가. 순서가 곧 판단이다: 지연 → 막힘 → 오늘 마감 → 곧 마감 → 진행 중.
+/* 급한 순 — 「지금 무엇을 먼저 볼 것인가」의 **정본 순서**다: 지연 → 막힘 → 오늘 마감 →
+ * 곧 마감 → 진행 중.
+ *
+ * 배열로 빼 둔 이유는 홈이 같은 판단을 **두 자리**에서 하기 때문이다. 하나는 이 패널의
+ * 결론 문장(`briefingFocus`)이고, 다른 하나는 위 업무 판이 **처음 여는 칸**이다
+ * (`Home.jsx::defaultFocus`). 순서를 각자 적으면 한쪽만 고쳐지고, 그때 증상이 정확히
+ * 실측(2026-09-01)에서 나온 화면이다 — 판은 「오늘 마감에 해당하는 티켓이 없습니다」로
+ * 비어 있는데 바로 아래 이 문장은 「마감이 지난 티켓 14건이 오늘 가장 급합니다」였다. */
+export const URGENCY_ORDER = ["overdue", "blocked", "due_today", "due_soon", "in_progress"];
+
+const FOCUS_TEXT = {
+  overdue: (n) => `마감이 지난 티켓 ${n}건이 오늘 가장 급합니다.`,
+  blocked: (n) => `막힌 티켓 ${n}건이 진행을 멈추고 있습니다.`,
+  due_today: (n) => `오늘 마감인 일이 ${n}건 있습니다.`,
+  due_soon: (n) => `오늘 마감은 없고 앞으로 7일 안에 ${n}건이 마감입니다.`,
+  in_progress: (n) => `급한 일은 없습니다. 진행 중인 ${n}건을 이어서 하면 됩니다.`,
+};
+
+/** 주어진 순서에서 **비어 있지 않은 첫 칸**. 티켓을 못 읽었으면 `null` 이다.
  *
  * `due_today` 키가 아예 없으면 티켓을 못 읽은 것이다(app/home/service.py 는 그 다섯 버킷을
  * 함께 싣거나 함께 뺀다). 그때 0 을 그리면 「모른다」가 「없다」로 바뀐다. */
+export function mostUrgentBucket(tickets, order = URGENCY_ORDER) {
+  const t = tickets || {};
+  if (t.due_today === undefined) return null;
+  return order.find((k) => bucketCount(t, k) > 0) || null;
+}
+
+/** 오늘 무엇이 가장 급한가. 순서는 위 `URGENCY_ORDER` 하나가 정한다. */
 export function briefingFocus(tickets) {
   const t = tickets || {};
   if (t.due_today === undefined) {
     return { key: "unknown", text: "담당 티켓을 읽지 못해 오늘 요약을 만들 수 없습니다." };
   }
-  const n = (k) => bucketCount(t, k);
-  if (n("overdue")) return { key: "overdue", text: `마감이 지난 티켓 ${n("overdue")}건이 오늘 가장 급합니다.` };
-  if (n("blocked")) return { key: "blocked", text: `막힌 티켓 ${n("blocked")}건이 진행을 멈추고 있습니다.` };
-  if (n("due_today")) return { key: "due_today", text: `오늘 마감인 일이 ${n("due_today")}건 있습니다.` };
-  if (n("due_soon")) return { key: "due_soon", text: `오늘 마감은 없고 앞으로 7일 안에 ${n("due_soon")}건이 마감입니다.` };
-  if (n("in_progress")) return { key: "in_progress", text: `급한 일은 없습니다. 진행 중인 ${n("in_progress")}건을 이어서 하면 됩니다.` };
-  return { key: "none", text: "지금 맡고 있는 티켓이 없습니다." };
+  const key = mostUrgentBucket(t);
+  if (!key) return { key: "none", text: "지금 맡고 있는 티켓이 없습니다." };
+  return { key, text: FOCUS_TEXT[key](bucketCount(t, key)) };
 }
 
 /** 지금 눈으로 확인할 값어치가 있는 티켓 셋. 버킷을 가로질러 급한 순으로 모은다.
@@ -293,17 +314,25 @@ function briefingParts(data) {
     head: (
       <>
         <Lede>{focus.text}</Lede>
-        {sprint ? (
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75, ...KO_WORD_BREAK }}>
-            이번 주 맡은 {sprint.assigned}건 가운데 {sprint.done}건을 끝냈고 {sprint.remaining ?? Math.max(0, sprint.assigned - sprint.done)}건이 남았습니다.
-          </Typography>
-        ) : (
-          /* 스프린트 카드가 같은 화면에서 이미 원인을 문장으로 설명한다. 여기서 그 문장을
-             다시 쓰면 같은 화면에 같은 경고가 두 번 뜬다. 짧게 참조만 한다. */
+        {/* 부연 한 줄. **셋 중 하나만** 참이고, 셋 다 「이번 주」 카드와 겹치지 않는다.
+         *
+         *   못 읽음   그 카드가 원인을 이미 문장으로 말한다 — 짧게 참조만 한다
+         *   맡은 것 있음   진척을 숫자로 말한다
+         *   맡은 것 없음   **아무것도 안 쓴다**
+         *
+         * 🔴 셋째가 없었다. 그래서 실측(2026-09-01)에서 이 줄이 「이번 주 맡은 0건 가운데
+         * 0건을 끝냈고 0건이 남았습니다」였다 — 한 문장에 0 이 셋인데 읽고 나서 아는 사실은
+         * 「이번 주에 맡은 일이 없다」 하나뿐이고, 그 하나는 바로 옆 「이번 주」 카드가 이미
+         * 자기 빈 상태로 말하고 있었다. 첫째가 문장을 다시 안 쓰는 것과 같은 이유다. */}
+        {!sprint ? (
           <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
             「이번 주」 카드와 같은 이유로 이번 주 진척도 계산할 수 없습니다.
           </Typography>
-        )}
+        ) : sprint.assigned ? (
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75, ...KO_WORD_BREAK }}>
+            이번 주 맡은 {sprint.assigned}건 가운데 {sprint.done}건을 끝냈고 {sprint.remaining ?? Math.max(0, sprint.assigned - sprint.done)}건이 남았습니다.
+          </Typography>
+        ) : null}
       </>
     ),
     detail: (

@@ -514,11 +514,29 @@ export const BREAKPOINTS = { xs: 0, sm: 600, md: 900, lg: 1200, xl: 1536, xxl: 2
  * px 라, 두 축이 다른 단위를 타면 넓은 화면에서만 어긋난다(D-182 가 고친 그 결함). */
 export const APPBAR_HEIGHT = { xs: 52, xxl: 60, uhd: 68 };
 
+/* 🔴 **상단바 높이가 정답인 것은 스크롤 창이 윈도일 때뿐이다.**
+ *
+ * 위 값은 「fixed AppBar 뒤로 숨지 마라」는 뜻이라 윈도가 굴러갈 때만 맞다. 표가 **자기
+ * 스크롤 칸 안**에 있으면(`ScrollArea`) 그 칸의 위쪽에는 AppBar 가 없다 — 그런데도 52px
+ * 를 주면 열 이름이 칸 위쪽에서 52px 내려온 자리에 붙박이고, 그 위로 데이터 행이 굴러
+ * 올라가 **열 이름과 겹쳐 그려진다.** 실측(2026-09-01 · 홈 「지연 14건」): 머리글 줄
+ * 「티켓 · 제목 · 상태」 위로 첫 행이 그대로 비쳤다.
+ *
+ * 그래서 오프셋을 **CSS 변수**로 낸다. 값을 아는 것은 스크롤 창을 만드는 쪽이고
+ * (`kit.jsx::ScrollArea` 가 자기 위에 0 을 박는다), 아무도 안 박으면 이 앱의 기본 —
+ * 윈도가 스크롤 창이고 그 위에 상단바가 있다 — 이 그대로 대체값으로 선다. 호출부에
+ * 「지금 어느 창이 굴러가는가」를 묻는 prop 을 새로 만들지 않는 이유는, 그 답을 이미
+ * 아는 쪽이 DOM 상의 조상이기 때문이다. */
+export const STICKY_TOP_VAR = "--c-sticky-top";
+/** 스크롤 칸이 스스로 붙이는 선언 — 「내 위에는 상단바가 없다」. */
+export const SCROLL_BOX_STICKY_TOP = { [STICKY_TOP_VAR]: "0px" };
+
 export function stickyTopSx(extra = 0) {
+  const at = (h) => `calc(var(${STICKY_TOP_VAR}, ${h}px) + ${extra}px)`;
   return {
-    top: `${APPBAR_HEIGHT.xs + extra}px`,
-    [`@media (min-width:${BREAKPOINTS.xxl}px)`]: { top: `${APPBAR_HEIGHT.xxl + extra}px` },
-    [`@media (min-width:${BREAKPOINTS.uhd}px)`]: { top: `${APPBAR_HEIGHT.uhd + extra}px` },
+    top: at(APPBAR_HEIGHT.xs),
+    [`@media (min-width:${BREAKPOINTS.xxl}px)`]: { top: at(APPBAR_HEIGHT.xxl) },
+    [`@media (min-width:${BREAKPOINTS.uhd}px)`]: { top: at(APPBAR_HEIGHT.uhd) },
   };
 }
 
