@@ -94,6 +94,32 @@ MILESTONE_STATUSES: tuple[str, ...] = (
     MILESTONE_PLANNED, MILESTONE_DONE, MILESTONE_MISSED,
 )
 
+
+def milestone_unmet(status: str | None) -> bool:
+    """이 마일스톤이 **아직 지켜지지 않았나**. 끝난 것만 지켜진 것이다.
+
+    ## 왜 이 한 줄이 함수인가
+
+    「기한 넘김」을 판정하는 자리가 다섯이다 — Health 규칙(`health.py`), 홈의 지연 목록
+    (`app/home/work.py`), 프로젝트 목록의 `overdue_milestones` 필터와 대시보드 요약
+    (`repository.py` 둘), 주간 리포트의 「기한을 넘긴 마일스톤」(`weekly.py`). 상태 축이
+    한때 두 갈래였다: Health 만 「완료가 아니면」으로 셌고 나머지 넷은 「아직 예정이면」
+    으로 셌다.
+
+    그래서 마일스톤을 **「놓침」으로 표시하면** 같은 화면이 서로 반대되는 말을 했다 —
+    요약 칸은 「지연 마일스톤 0건」인데 바로 옆 Health 는 「기한이 적힌 마일스톤 3건 중
+    1건이 기한을 넘겼습니다」로 12점을 깎았다. 게다가 그 상태로 빠져나갈 길이 없었다:
+    놓쳤다고 인정하면 요약에서는 사라지는데 점수는 계속 깎였다.
+
+    **놓침도 기한 넘김이다.** 늦었다고 적는 것이 늦지 않은 것으로 만들어 주지는 않는다 —
+    상태를 바꿔 지표를 지우는 길을 열어 두면 그 지표는 곧 아무 말도 안 하게 된다.
+    닫는 길은 하나뿐이고 그것은 **끝내는 것**이다.
+
+    모르는 상태값(스키마 밖의 값)은 「끝나지 않음」으로 본다. 조용히 사라지는 것보다
+    보이는 채로 남는 편이 고칠 기회를 준다.
+    """
+    return status != MILESTONE_DONE
+
 # 주간 리포트를 누가 썼는가. 구별을 안 남기면 몇 주 뒤에 "이 문장 규칙이 만든 건가 모델이
 # 쓴 건가" 에 답할 수 없고, 그러면 둘 다 못 믿게 된다.
 REPORT_SOURCE_RULE = "rule"
@@ -281,6 +307,15 @@ class ProjectMilestone(TimestampMixin, UUIDPrimaryKeyMixin, Base):
     # `order` 가 아닌 이유: SQL 예약어라 raw text() 질의에서 따옴표를 빠뜨리면 조용히 깨진다
     # (이 저장소는 실제로 raw 질의를 쓴다 — app/jobs/repository.py::claim_next). 뜻은 같다.
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+
+def milestone_unmet_clause():
+    """`milestone_unmet` 의 SQL 쪽 얼굴. 질의로 거르는 자리(`repository.py`)가 쓴다.
+
+    파이썬 판정과 **한 규칙에서 나와야** 한다 — 한쪽만 고치면 목록이 거르는 것과 Health 가
+    세는 것이 또 갈린다. 그 어긋남이 정확히 이 함수가 생긴 이유다(`milestone_unmet`).
+    """
+    return ProjectMilestone.status != MILESTONE_DONE
 
 
 class ProjectHealthSnapshot(UUIDPrimaryKeyMixin, Base):

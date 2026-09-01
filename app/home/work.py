@@ -61,7 +61,7 @@ from app.projects import milestones as milestones_repo
 from app.projects import repository as projects_repo
 from app.projects import service as projects_service
 from app.projects import weekly
-from app.projects.models import MILESTONE_PLANNED
+from app.projects.models import milestone_unmet
 from app.users.models import User
 
 # 추이에 그리는 주 수. 4주면 스프린트 두 사이클이라 "지난번보다 나아졌나" 에 답할 수 있고,
@@ -191,15 +191,17 @@ def _projects_and_milestones(db: Session, principal: Principal, *, today_iso: st
         if reasons:
             troubled.append(_project_row(project, reasons))
         for milestone in milestones_repo.list_for_project(db, project):
-            # 지연 = 기한이 **오늘(KST)보다 이전**인데 아직 예정 상태. 기한이 오늘이면 아직
-            # 늦은 것이 아니다(오늘 자정까지 남아 있다). 완료·놓침 처리된 것은 지연이 아니다
-            # — 이미 결론이 난 일을 계속 빨갛게 띄우면 진짜 지연이 묻힌다.
+            # 지연 = 기한이 **오늘(KST)보다 이전**인데 아직 안 끝난 것. 기한이 오늘이면
+            # 아직 늦은 것이 아니다(오늘 자정까지 남아 있다). 상태 판정은 공용 규칙
+            # `models.milestone_unmet` 하나이고 **놓침도 끝난 것이 아니다** — 한때 여기만
+            # 「아직 예정이면」으로 좁혀 놓아서, 놓쳤다고 표시하는 순간 이 목록에서는
+            # 사라지는데 Health 는 계속 그 건으로 점수를 깎았다. 빠져나갈 길이 없었다.
             # 컬럼이 `date` 라 창도 날짜로 비교한다 (S7 · P-14a). 예전에는 둘 다
             # 문자열이라 사전순 비교가 우연히 맞았는데, 그 우연은 값 하나가 이상해지는
             # 날 조용히 깨진다.
             due_on = parse_date(milestone.due_on)
             if due_on is not None and due_on < parse_date(today_iso) \
-                    and milestone.status == MILESTONE_PLANNED:
+                    and milestone_unmet(milestone.status):
                 overdue.append(_milestone_row(project, milestone))
 
     # 순서를 고정한다. 나쁜 것이 위로 오되(점수 낮은 순), 같은 점수면 이름순이라 같은 화면을

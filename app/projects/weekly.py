@@ -43,7 +43,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 
 from app.core.dates import iso_date
-from app.projects.models import MILESTONE_DONE, MILESTONE_MISSED, MILESTONE_PLANNED
+from app.projects.models import MILESTONE_DONE, MILESTONE_MISSED, MILESTONE_PLANNED, milestone_unmet
 from app.sprints.service import default_sprint_window
 
 # 상태 어휘는 app/home/aggregate.py, app/projects/progress.py 와 **같은 문자열**이다.
@@ -296,9 +296,12 @@ def split_milestones(
         item for _row, item in paired
         if item.due_on and week.start <= item.due_on < week.end_exclusive
     ]
+    # 「기한을 넘긴」의 상태 축은 공용 규칙이다(`models.milestone_unmet`) — **놓침도
+    # 넘긴 것이다.** 한때 여기만 「아직 예정이면」으로 좁혀, 놓쳤다고 표시한 마일스톤이
+    # 주간 리포트에서만 사라지고 Health 에서는 계속 점수를 깎았다.
     overdue = [
         item for _row, item in paired
-        if item.due_on and item.due_on < week.start and item.status == MILESTONE_PLANNED
+        if item.due_on and item.due_on < week.start and milestone_unmet(item.status)
     ]
     return {
         "changed": _bucket(sorted(changed, key=_milestone_key)),

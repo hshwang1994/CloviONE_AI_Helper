@@ -37,7 +37,7 @@ from dataclasses import dataclass, field
 from datetime import date
 
 from app.core.dates import parse_date
-from app.projects.models import MILESTONE_DONE
+from app.projects.models import milestone_unmet
 from app.projects.progress import STATUS_CANCELLED, STATUS_DONE
 
 # 규칙 키. 화면, 스냅샷 JSON, 테스트가 같은 문자열을 쓴다.
@@ -234,7 +234,8 @@ def _rule_milestone_overdue(data: HealthInput, out: _Ledger) -> None:
 
     출처: `project_milestones.due_on` / `.status`.
     완료한 마일스톤은 날짜가 지났어도 지연이 아니다 - 끝난 일을 계속 세면 마일스톤을 닫을
-    이유가 없어진다.
+    이유가 없어진다. **놓침은 끝난 것이 아니다** — 판정은 `models.milestone_unmet` 한 곳이고,
+    목록·요약·주간·홈이 같은 함수를 본다.
     """
     today = _as_date(data.today)
     dated = [(m, _as_date(m.due_on)) for m in data.milestones]
@@ -245,7 +246,7 @@ def _rule_milestone_overdue(data: HealthInput, out: _Ledger) -> None:
             "기한이 적힌 마일스톤이 없어 일정 준수 여부를 판정할 수 없습니다.",
         )
         return
-    overdue = [m for m, due in dated if due < today and m.status != MILESTONE_DONE]
+    overdue = [m for m, due in dated if due < today and milestone_unmet(m.status)]
     penalty = min(len(overdue) * PENALTY_PER_OVERDUE_MILESTONE, MAX_MILESTONE_PENALTY)
     out.checked(
         RULE_MILESTONE_OVERDUE, penalty,

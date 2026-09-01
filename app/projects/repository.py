@@ -36,7 +36,7 @@ from app.authz.visibility import (
     effective_visibility_clause,
 )
 from app.projects.health import TROUBLE_HEALTH_SCORE
-from app.projects.models import MILESTONE_PLANNED, Project, ProjectMilestone
+from app.projects.models import Project, ProjectMilestone, milestone_unmet_clause
 from app.projects.progress import Task, task_from_ticket
 from app.tickets.models import TicketCache
 from app.tickets.query import token
@@ -114,9 +114,10 @@ def list_in_scope(
         # `<` 비교가 NULL 을 안 고르는 것이 그 판정과 같은 답을 낸다.
         stmt = stmt.where(Project.health_score < TROUBLE_HEALTH_SCORE)
     if overdue_milestones:
-        # 기한이 지났는데 아직 예정인 마일스톤을 **가진** 프로젝트. 판정 조건 셋은
+        # 기한이 지났는데 **아직 안 끝난** 마일스톤을 가진 프로젝트. 판정 조건 셋은
         # `overdue_milestones_in_scope` 와 같은 것이다 — 두 곳이 갈리면 요약의 건수와
-        # 목록의 건수가 서로를 부정한다.
+        # 목록의 건수가 서로를 부정한다. 상태 축은 `models.milestone_unmet_clause` 로
+        # Health·홈·주간과도 한 규칙을 쓴다(놓침도 기한 넘김이다).
         day = parse_date(today) if today else None
         if day is None:
             # 기준일이 없으면 **아무것도 안 거른다.** 오늘을 여기서 지어내면 브라우저
@@ -128,7 +129,7 @@ def list_in_scope(
                     select(ProjectMilestone.project_id).where(
                         ProjectMilestone.due_on.is_not(None),
                         ProjectMilestone.due_on < day,
-                        ProjectMilestone.status == MILESTONE_PLANNED,
+                        milestone_unmet_clause(),
                     )
                 )
             )
@@ -180,7 +181,7 @@ def summary_rows_in_scope(db: Session, ctx: VisibilityContext) -> list:
 
 
 def overdue_milestones_in_scope(db: Session, ctx: VisibilityContext, *, today: str) -> list:
-    """기한이 지났는데 아직 예정인 마일스톤 - **범위 안 프로젝트 전부**에서 한 질의로.
+    """기한이 지났는데 아직 안 끝난 마일스톤 - **범위 안 프로젝트 전부**에서 한 질의로.
 
     프로젝트마다 `milestones_for_project` 를 부르면 질의가 프로젝트 수만큼 늘어난다
     (`app/home/work.py` 가 그렇게 하고, 그래서 그쪽은 상한이 있다). 대시보드는 상한 없이
@@ -189,7 +190,8 @@ def overdue_milestones_in_scope(db: Session, ctx: VisibilityContext, *, today: s
     판정 조건 셋은 `app/home/work.py::_projects_and_milestones` 와 **같은 것**이다:
       * 기한이 있다 (기한 없는 마일스톤은 늦을 수가 없다)
       * 기한이 **오늘(KST)보다 이전**이다 (오늘이 기한이면 아직 자정까지 남았다)
-      * 아직 `planned` 다 (완료·놓침은 이미 결론이 난 일이라 계속 빨갛게 띄우면 진짜 지연이 묻힌다)
+      * 아직 안 끝났다 (`models.milestone_unmet` — **놓침도 끝난 것이 아니다**. 늦었다고
+        적는 것이 늦지 않은 것으로 만들어 주지 않는다. 닫는 길은 끝내는 것 하나다)
 
     `due_on` 은 이제 `date` 컬럼이다 (S7 · P-14a). 부르는 쪽은 여전히 'YYYY-MM-DD'
     문자열을 주므로 여기서 한 번 옮긴다 — 문자열을 그대로 바인드해도 PG 가 캐스트하지만,
@@ -205,7 +207,7 @@ def overdue_milestones_in_scope(db: Session, ctx: VisibilityContext, *, today: s
             Project.archived_at.is_(None),
             ProjectMilestone.due_on.is_not(None),
             ProjectMilestone.due_on < parse_date(today),
-            ProjectMilestone.status == MILESTONE_PLANNED,
+            milestone_unmet_clause(),
         ),
         ctx,
     ).order_by(
