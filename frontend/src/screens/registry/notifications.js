@@ -69,8 +69,10 @@ function notificationsScreen({ key, audience, area, title, help, emptyHelp }) {
     emptyTitle: "새 알림이 없습니다",
     emptyHelp,
     paginated: true,
-    // 목록 응답이 이미 unread 총합을 함께 돌려준다(app/notifications/router.py) — 벨 팝오버의
-    // '안 읽음 N'과 같은 값을 이 화면에서도 그대로 보여준다(행마다 배지를 세지 않아도 되게).
+    // 목록 응답이 **이 audience 의** 안 읽음 수를 함께 돌려준다(app/notifications/router.py)
+    // — 벨 팝오버의 '안 읽음 N'과 같은 값을 이 화면에서도 그대로 보여준다(행마다 배지를
+    // 세지 않아도 되게). 한때 서버가 여기만 두 콘솔 합계를 실어, 관리 알림만 안 읽힌
+    // 사람의 이 화면이 빈 목록 위에 「안 읽음 3」을 띄웠다.
     unreadCountKey: "unread",
     // 안 읽은 알림만 골라 보는 트리아지(백엔드 unread_only 쿼리).
     filters: [{ key: "unread_only", type: "select", label: "읽음 상태", options: opt([["true", "안 읽음만"]]) }],
@@ -95,7 +97,11 @@ function notificationsScreen({ key, audience, area, title, help, emptyHelp }) {
     headerActions: [
       // unread===0이면 눌러도 항상 '0건을 읽음 처리했습니다' 무의미 토스트만 나므로, 안 읽은 알림이
       // 있을 때만 노출한다(같은 화면 상단 판독 줄의 unread 값과 동일한 기준).
-      { label: "모두 읽음", variant: "primary", when: (ctx) => ctx.unreadCount > 0, path: () => "/api/notifications/read-all", confirm: "모든 알림을 읽음 처리할까요?",
+      // audience 를 실어 보낸다 — **이 화면이 보여 준 것만** 읽음이 된다. 안 실으면 서버가
+      // 전체를 지워, 「내 업무 > 알림」에서 누른 한 번이 백업 실패·계정 잠금 같은 관리
+      // 알림까지 읽음으로 바꾼다(app/notifications/router.py::read_all_notifications).
+      // 확인 문구도 그 범위대로 말한다 — "모든 알림"은 두 콘솔 전부로 읽힌다.
+      { label: "모두 읽음", variant: "primary", when: (ctx) => ctx.unreadCount > 0, path: () => `/api/notifications/read-all?audience=${audience}`, confirm: audience === "admin" ? "관리 알림을 모두 읽음 처리할까요?" : "내 업무 알림을 모두 읽음 처리할까요?",
         result: (res) => ({ ok: true, msg: (res && res.read_count != null ? res.read_count : 0) + "건을 읽음 처리했습니다." }) },
     ],
     actions: [

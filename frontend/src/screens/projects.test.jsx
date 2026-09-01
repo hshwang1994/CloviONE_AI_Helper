@@ -235,6 +235,14 @@ function AddressProbe() {
   return <div data-testid="addr">{loc.pathname + loc.search}</div>;
 }
 
+/* 다른 화면으로 나갈 때 상세가 **어디로 돌아오라고 적었는지**를 읽는 자리.
+   그 값(`state.from`)이 곧 그 화면 「목록」 버튼의 목적지다(`lib/listReturn.js`). */
+function ReturnProbe() {
+  const loc = useLocation();
+  return <div data-testid="from">{(loc.state && loc.state.from) || ""}</div>;
+}
+const returnedFrom = () => screen.getByTestId("from").textContent;
+
 function renderAt(path) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
@@ -247,6 +255,8 @@ function renderAt(path) {
               <Routes>
                 <Route path="/projects" element={<Projects />} />
                 <Route path="/projects/:id" element={<Project />} />
+                <Route path="/tickets/:id" element={<ReturnProbe />} />
+                <Route path="/knowledge/:id" element={<ReturnProbe />} />
               </Routes>
             </MemoryRouter>
           </ConfirmProvider>
@@ -581,6 +591,49 @@ describe("프로젝트 목록 — 조건이 주소에 남는다", () => {
     });
     /* 🔴 쪽 번호는 **주소에 안 남는다.** 「어디까지 봤는가」는 조건이 아니라 시야다. */
     expect(addrParam("page")).toBeNull();
+  });
+});
+
+/* 「필터 지우기」가 **정말로 지우는가**.
+ *
+ * 이 버튼이 뜨는 조건은 여섯 축(검색어·보관·부서·상태·Health 하위·지연) 중 하나라도
+ * 기본값과 다른 것이다. 그런데 지우는 쪽은 그중 둘(`archived`·`dept`)만 되돌려 놓았다 —
+ * 그리고 `setFilters` 는 **준 키만** 바꾼다(`lib/useQueryState.js`). 그래서 가장 흔한 길
+ * (검색어를 쳐서 0건 → 「필터 지우기」)에서 주소가 한 글자도 안 바뀌었고, 같은 빈 화면이
+ * 같은 버튼을 단 채 그대로 남았다. 그 화면의 안내문은 「조건(검색어, 부서, 상태)에 맞는
+ * 프로젝트가 없습니다. 조건을 지우면 전체를 볼 수 있습니다」였다 — 화면이 못 지키는 약속을
+ * 글로 적어 두고 있었던 셈이다.
+ *
+ * 주소를 본다. 「버튼을 눌렀다」가 아니라 「조건이 실제로 사라졌다」가 지킬 성질이라서다. */
+describe("프로젝트 목록 — 필터 지우기", () => {
+  it("검색어, 상태, Health 하위, 지연까지 한 번에 지운다", async () => {
+    const user = userEvent.setup();
+    listPayload = { items: [], total: 0, page: 1, page_size: 20 };
+    renderAt("/projects?q=%EC%97%86%EB%8A%94%EA%B2%83&status=done&trouble=1&overdue=1&dept=d-1&archived=1");
+
+    await user.click(await screen.findByRole("button", { name: "필터 지우기" }));
+
+    await waitFor(() => expect(addr()).toBe("/projects"));
+    // 조건이 사라졌으니 서버로도 아무 조건이 안 나간다.
+    await waitFor(() => expect(lastQuery("/api/projects").toString()).toBe(""));
+  });
+
+  it("정렬은 조건이 아니라 남는다 — 버튼이 지우는 것은 필터다", async () => {
+    const user = userEvent.setup();
+    listPayload = { items: [], total: 0, page: 1, page_size: 20 };
+    renderAt("/projects?q=%EC%97%86%EB%8A%94%EA%B2%83&sort=created_at&order=desc");
+
+    await user.click(await screen.findByRole("button", { name: "필터 지우기" }));
+
+    await waitFor(() => expect(addrParam("q")).toBeNull());
+    expect(addrParam("sort")).toBe("created_at");
+    expect(addrParam("order")).toBe("desc");
+  });
+
+  it("조건이 하나도 없으면 버튼 자체가 없다 (누를 것이 없는 버튼을 그리지 않는다)", async () => {
+    renderAt("/projects");
+    await screen.findByText("배포 자동화");
+    expect(screen.queryByRole("button", { name: "필터 지우기" })).toBeNull();
   });
 });
 
@@ -1185,5 +1238,31 @@ describe("진행률/Health 다시 계산 + 주간 추세 (FN-06)", () => {
     renderAt("/projects/p-1");
     await screen.findByText("63점");
     expect(screen.queryByRole("button", { name: "다시 계산" })).toBeNull();
+  });
+});
+
+/* 상세 안에서 무언가를 열고 「목록」을 누르면 **읽던 프로젝트로** 돌아온다 (지시 19).
+ *
+ * 상세 화면의 「목록」이 가는 곳은 들어올 때 받은 `state.from` 이다(`lib/listReturn.js`).
+ * 티켓 탭과 주간 리포트 탭이 그 자리에 `"/projects"` 를 적고 있었다 — 그 값은 **목록이
+ * 상세로 보낼 때** 쓰라고 만든 것이라, 프로젝트 안에서 티켓 하나를 열어 본 사람이 「목록」
+ * 을 누르면 읽던 프로젝트가 통째로 사라지고 프로젝트 목록으로 떨어졌다. 문서 탭은 같은
+ * 자리를 처음부터 프로젝트 경로로 적고 있었다 — 세 탭 중 하나만 맞았던 것이다.
+ */
+describe("프로젝트 상세 — 나갔다가 돌아올 자리", () => {
+  it("티켓 탭에서 연 티켓은 그 프로젝트의 티켓 탭으로 돌아온다", async () => {
+    const user = userEvent.setup();
+    renderAt("/projects/p-1?tab=tickets");
+    await user.click(await screen.findByText("스키마 확정"));
+
+    await waitFor(() => expect(returnedFrom()).toBe("/projects/p-1?tab=tickets"));
+  });
+
+  it("주간 리포트에서 연 티켓은 읽던 그 주로 돌아온다", async () => {
+    const user = userEvent.setup();
+    renderAt("/projects/p-1?tab=weekly&week=2026-08-17");
+    await user.click(await screen.findByRole("button", { name: "스키마 확정" }));
+
+    await waitFor(() => expect(returnedFrom()).toBe("/projects/p-1?tab=weekly&week=2026-08-17"));
   });
 });

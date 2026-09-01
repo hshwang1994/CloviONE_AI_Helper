@@ -249,18 +249,25 @@ def mark_read(db: Session, user_id: str, notification_id: str, *, now: datetime)
     return True
 
 
-def mark_all_read(db: Session, user_id: str, *, now: datetime) -> int:
+def mark_all_read(
+    db: Session, user_id: str, *, now: datetime, audience: str | None = None
+) -> int:
     """현재 사용자의 안 읽은 알림을 한 번에 읽음 처리한다(소유권 범위 안에서만).
     반환값은 읽음 처리된 건수.
 
+    `audience` 는 선택 필터다 — None(기본값)이면 예전과 똑같이 전체다. 부르는 쪽이 값을
+    주면 **그 화면이 실제로 보여 준 것만** 읽음이 된다(`unread_count` 와 같은 규칙).
+    이 인자가 없던 동안 「내 업무 > 알림」의 '모두 읽음' 한 번이 관리 알림까지 삼켰다.
+
     `mark_types_read`와 같은 이유(잦은 동시 쓰기)로 같은 SAVEPOINT 재시도를 쓴다."""
+    where = [Notification.user_id == user_id, Notification.read_at.is_(None)]
+    if audience:
+        where.append(Notification.audience == audience)
     for attempt in range(DEFAULT_WRITE_CONFLICT_RETRIES):
         try:
             with db.begin_nested():
                 result = db.execute(
-                    update(Notification)
-                    .where(Notification.user_id == user_id, Notification.read_at.is_(None))
-                    .values(read_at=now)
+                    update(Notification).where(*where).values(read_at=now)
                 )
             db.flush()
             return int(result.rowcount or 0)

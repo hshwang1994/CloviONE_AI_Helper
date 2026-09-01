@@ -262,3 +262,86 @@ def test_no_role_can_be_told_apart_from_a_missing_approval(client, login_as, wor
     assert _shape(hidden) == _shape(missing), (
         f"범위 밖과 없는 id 의 응답이 다르다: {hidden.text} vs {missing.text}"
     )
+
+
+def _id_of(db, email: str) -> str:
+    from app.users.service import get_user_by_email
+
+    return get_user_by_email(db, email).id
+
+
+def _delegate_to(db, fake_clock, delegator_id: str, delegate_id: str) -> None:
+    from app.approvals import delegation
+    from app.users.models import User
+
+    now = fake_clock.now()
+    delegation.create(
+        db,
+        delegator=db.get(User, delegator_id),
+        delegate=db.get(User, delegate_id),
+        starts_at=now - timedelta(hours=1),
+        ends_at=now + timedelta(days=3),
+        reason="휴가",
+        created_by=delegator_id,
+        now=now,
+        visible=None,
+    )
+    db.commit()
+
+
+def test_a_delegated_plain_user_can_decide_what_their_inbox_shows(
+    client, login_as, db, make_user, world, fake_clock
+):
+    """위임은 **관리 콘솔 밖의 일반 사용자도** 받는다 — 그 사람이 실제로 결재할 수 있어야 한다.
+
+    `/my-approvals`(GET /api/approvals/mine)가 존재하는 이유가 정확히 이 사람이다. 그 목록은
+    범위를 안 걸어 줄을 보여 주고 승인 버튼도 켠다. 그런데 결재 경로가 언제나 **결재자 본인의
+    관리 범위**로 좁히고 있었고, 일반 사용자의 관리 범위는 `SCOPE_NONE`(빈 집합)이다 —
+    그래서 목록에 보이는 건을 눌러도 전부 404("승인 요청을 찾을 수 없습니다")였다.
+    화면은 결재하라고 하고 서버는 그런 건 없다고 답하는, 기능 전체가 죽은 상태였다.
+    """
+    helper = make_user("ap-helper@goodmit.co.kr", role="user", display_name="위임받은사원")
+    db.commit()
+    _delegate_to(db, fake_clock, world.mate_id, helper.id)
+
+    headers = {"X-CSRF-Token": login_as("user", email="ap-helper@goodmit.co.kr")}
+
+    # ① 내 결재함이 그 건을 보여 주고 결재 권한이 있다고 말한다.
+    mine = client.get("/api/approvals/mine?box=todo", headers=headers)
+    assert mine.status_code == 200, mine.text
+    body = mine.json()
+    assert body["can_decide"] is True, f"위임받았는데 결재 권한이 없다고 답한다: {body}"
+    assert world.outside_id in [i["id"] for i in body["items"]], "내 결재함에 위임받은 건이 없다"
+
+    # ② 그 줄의 승인 버튼이 실제로 동작한다.
+    r = client.post(f"/api/admin/approvals/{world.outside_id}/approve", headers=headers)
+    assert r.status_code == 200, f"결재함에 보이는 건을 결재할 수 없다: {r.status_code} {r.text}"
+    assert r.json()["approval"]["decided_on_behalf_of"] == world.mate_id
+    assert _role_of(db, world.victim_id) == "admin", "승인했는데 실제로 적용되지 않았다"
+
+
+def test_a_delegate_cannot_exceed_the_delegator(
+    client, login_as, db, make_user, world, fake_clock
+):
+    """대리인의 한계는 **위임한 사람이 닿던 곳**이다 — 넘으면 그건 위임이 아니라 승격이다.
+
+    위 시험의 오답이 하나 있다: 일반 사용자가 막힌다고 범위 판정을 통째로 빼는 것. 그러면
+    부서 범위 관리자가 자기 부서 밖을 못 건드리게 해 둔 IDOR 방어가, 그 관리자가 아무에게나
+    위임하는 순간 전사로 뚫린다(같은 파일 첫 시험이 막아 둔 바로 그 경로).
+    """
+    helper = make_user("ap-helper2@goodmit.co.kr", role="user", display_name="부서위임사원")
+    db.commit()
+    # boss 는 '우리팀' 만 관리하는 부서 범위 관리자다.
+    _delegate_to(db, fake_clock, _id_of(db, world.boss_email), helper.id)
+
+    headers = {"X-CSRF-Token": login_as("user", email="ap-helper2@goodmit.co.kr")}
+
+    out = client.post(f"/api/admin/approvals/{world.outside_id}/approve", headers=headers)
+    assert out.status_code == 404, f"대리인이 위임자의 범위를 넘었다: {out.status_code} {out.text}"
+    assert _status_of(db, world.outside_id) == "pending", "404 인데 요청이 처리돼 버렸다"
+    assert _role_of(db, world.victim_id) == "user", "남의 팀 사람의 역할이 올라갔다"
+
+    # 오탐 방지 — 위임자가 닿던 곳은 대리인도 닿는다.
+    ok = client.post(f"/api/admin/approvals/{world.inside_id}/approve", headers=headers)
+    assert ok.status_code == 200, f"위임자 범위 안인데 결재할 수 없다: {ok.status_code} {ok.text}"
+    assert _role_of(db, world.promotee_id) == "operator", "승인했는데 실제로 적용되지 않았다"

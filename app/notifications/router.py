@@ -162,8 +162,9 @@ def list_notifications(
         stmt = stmt.where(Notification.type == type)
     # 알 수 없는 값은 조용히 무시한다(전체 보기로 폴백) — 오타 하나로 목록이 통째로 비어
     # "알림이 없다"로 오독되는 것보다, 필터가 안 걸린 채 전체가 나오는 편이 덜 위험하다.
-    if audience in AUDIENCES:
-        stmt = stmt.where(Notification.audience == audience)
+    aud = audience if audience in AUDIENCES else None
+    if aud:
+        stmt = stmt.where(Notification.audience == aud)
     total = db.execute(select(func.count()).select_from(stmt.subquery())).scalar_one()
     # ① 조건 → ② 범위(user_id) → ③ 정렬 → ④ 상한. append-heavy 목록이라 묶음을 이어 받는
     # 사이에 새 알림이 들어오면 OFFSET 이 밀린다 — 화면이 행 id 로 중복만 거른다(커서는 별건).
@@ -184,7 +185,13 @@ def list_notifications(
     return {
         "items": [_view(r, muted) for r in rows],
         "total": total,
-        "unread": unread_count(db, user.id),
+        # 이 숫자는 **이 목록의** 안 읽음이다 — 화면이 목록 바로 위에 「안 읽음 N」으로
+        # 그리고(DataScreen 의 `unreadCountKey`), 벨 팝오버 헤더도 같은 값을 읽는다.
+        # 한때 여기만 audience 를 안 걸어 전체 총계를 돌려줬고, 그래서 관리 알림 3건이
+        # 안 읽힌 사람의 「내 업무 > 알림」 화면이 **한 줄도 없는 목록 위에 "안 읽음 3"**
+        # 을 띄웠다. 한 화면이 서로 반대되는 말을 한 것이고, 그 숫자를 근거로 뜨는
+        # '모두 읽음' 버튼이 화면에 보인 적 없는 알림까지 지웠다.
+        "unread": unread_count(db, user.id, audience=aud),
         "page": page.page,
         "page_size": page.page_size,
     }
@@ -235,8 +242,26 @@ def read_all_notifications(
     request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
+    audience: str | None = Query(
+        default=None,
+        max_length=16,
+        description="대상 필터: 'user'(내 업무) | 'admin'(관리). 기본값은 전체.",
+    ),
 ):
-    count = mark_all_read(db, user.id, now=request.app.state.clock.now())
+    """**보고 있는 것만** 읽음 처리한다.
+
+    `audience` 를 안 주면 예전과 똑같이 전체다(API 를 직접 부르는 쪽의 계약 유지). 화면과
+    벨은 언제나 자기 콘솔의 값을 실어 보낸다 — 안 그러면 「내 업무 > 알림」의 '모두 읽음'
+    한 번이 백업 실패·계정 잠금 같은 **그 화면에 나온 적 없는 관리 알림까지** 읽음으로
+    바꿔 버린다. 관리자 콘솔 벨은 그 뒤로 0 을 띄우고, 조치가 필요한 사건은 아무도 못 본 채
+    조용히 묻힌다. 두 콘솔을 경로부터 갈라 놓은 이유(0060)가 여기서도 그대로 적용된다.
+    """
+    count = mark_all_read(
+        db,
+        user.id,
+        now=request.app.state.clock.now(),
+        audience=audience if audience in AUDIENCES else None,
+    )
     return {"ok": True, "read_count": count}
 
 

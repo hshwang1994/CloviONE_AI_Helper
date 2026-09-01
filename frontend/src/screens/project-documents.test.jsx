@@ -69,4 +69,38 @@ describe("ProjectDocuments", () => {
       expect(post, "문서 생성 요청이 안 나갔다").toBeTruthy();
     });
   });
+
+  /* 이 탭은 쪽을 안 넘긴다 — 받은 만큼이 곧 보이는 전부다. 서버가 `total` 을 함께 주는
+     이유가 바로 그것이다(app/knowledge/router.py::list_documents 의 docstring). 그 값을
+     안 읽으면 상한을 넘긴 문서가 **오류도 빈자리도 없이** 화면에서 사라진다. */
+  it("받은 것보다 문서가 더 있으면 그 사실을 말한다", async () => {
+    apiMock.mockImplementation((path) => {
+      if (String(path).startsWith("/api/knowledge/documents?")) {
+        return Promise.resolve({
+          items: [{ id: "d-1", title: "설계 문서", tags: [], updated_at: "2026-08-20T01:00:00" }],
+          total: 137,
+        });
+      }
+      return Promise.resolve({ items: [] });
+    });
+    renderTab();
+
+    expect(await screen.findByText(/총 137건 가운데 1건을 보여 줍니다/)).toBeInTheDocument();
+  });
+
+  it("다 보여 준 때는 건수만 말한다 (없는 잘림을 있다고 하지 않는다)", async () => {
+    apiMock.mockImplementation((path) => {
+      if (String(path).startsWith("/api/knowledge/documents?")) {
+        return Promise.resolve({
+          items: [{ id: "d-1", title: "설계 문서", tags: [], updated_at: "2026-08-20T01:00:00" }],
+          total: 1,
+        });
+      }
+      return Promise.resolve({ items: [] });
+    });
+    renderTab();
+
+    expect(await screen.findByText("총 1건")).toBeInTheDocument();
+    expect(screen.queryByText(/가운데/)).toBeNull();
+  });
 });

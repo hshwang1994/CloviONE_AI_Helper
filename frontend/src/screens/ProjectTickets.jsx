@@ -31,6 +31,17 @@ import { ListFooter } from "../ui/InfiniteScroll.jsx";
  * 조건 없이 부르는 일은 여전히 없다. `project.id` 는 이 화면이 열려 있는 한 항상 있다.
  */
 
+/* 이 티켓을 열고 「목록」을 누르면 **여기로** 돌아온다 (지시 19 · `lib/listReturn.js`).
+ *
+ * 한때 `"/projects"` 를 넘겼다. 그 값은 목록 → 상세로 들어갈 때 목록이 자기를 가리키라고
+ * 쓰는 것이고, 여기는 목록이 아니라 **상세 안의 탭**이다 — 그래서 프로젝트 안에서 티켓
+ * 하나를 열어 본 사람이 「목록」을 누르면 읽던 프로젝트가 통째로 사라지고 프로젝트 목록
+ * 으로 떨어졌다. 탭까지 실어 보낸다: 티켓 탭에서 나갔으면 티켓 탭으로 돌아온다.
+ * (`ProjectDocuments.jsx` 가 이미 이렇게 하고 있었다 — 세 탭 중 하나만 맞았다.) */
+function backToProject(projectId, tab) {
+  return "/projects/" + encodeURIComponent(projectId) + "?tab=" + tab;
+}
+
 function ProjectTicketList({ pageId }) {
   const nav = useNavigate();
   const signalsOf = useTicketSignals();
@@ -76,7 +87,7 @@ function ProjectTicketList({ pageId }) {
   const rows = q.rows;
   const cols = ticketColumns({
     onEdit: setEditing,
-    onOpen: (t) => nav("/tickets/" + t.id, { state: { from: "/projects" } }),
+    onOpen: (t) => nav("/tickets/" + t.id, { state: { from: backToProject(pageId, "tickets") } }),
     signalsOf,
     statusEdit,
   });

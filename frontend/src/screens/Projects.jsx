@@ -65,6 +65,26 @@ const PROJECT_SPEC = {
   sort: "name", order: "asc",
 };
 
+/* **무엇이 «조건» 인가는 한 번만 적는다.**
+ *
+ * 이 목록을 쓰는 자리가 셋이다: 조건이 걸렸는지 판정하는 곳(빈 화면의 갈래), 결과 줄이
+ * 세는 곳, 그리고 「필터 지우기」가 지우는 곳. 셋이 각자 적으면 갈라진다 — 실제로
+ * 갈라져 있었다: 앞의 둘은 여섯 축을 다 셌는데 지우는 쪽은 `archived` 와 `dept` 만 되돌려
+ * 놓았다. 그래서 검색어로 0건이 된 화면에서 「필터 지우기」를 눌러도 **주소가 한 글자도
+ * 안 바뀌었고**, 같은 빈 화면이 같은 버튼을 달고 그대로 남았다. 바로 그 화면의 안내가
+ * 「조건(검색어, 부서, 상태)을 지우면 전체를 볼 수 있습니다」라고 적혀 있었다.
+ *
+ * 정렬은 여기 없다. 정렬은 **어느 프로젝트가 목록에 있는가**를 바꾸지 않으므로 0건의
+ * 원인이 될 수 없고, 지울 이유도 없다 — 버튼이 「필터 지우기」라고 말하는 그대로다. */
+const PROJECT_FILTER_KEYS = Object.keys(PROJECT_SPEC).filter((k) => k !== "sort" && k !== "order");
+
+/** 조건 전부를 기본값으로 되돌리는 조각. `setFilters` 는 준 키만 바꾸므로 **다 적어야** 한다. */
+function clearedProjectFilters() {
+  const patch = {};
+  for (const k of PROJECT_FILTER_KEYS) patch[k] = PROJECT_SPEC[k];
+  return patch;
+}
+
 
 /** 화면 상태 → 서버 질의. 기본값은 안 싣는다(주소도 질의도 깨끗해야 조건이 눈에 보인다). */
 export function projectListQuery(filters) {
@@ -387,19 +407,20 @@ export function Projects() {
      화면에 「프로젝트가 없습니다」라고 말하면 그 스위치가 원인이라는 사실이 사라진다.
      기본값은 주소에 안 실리므로(`useQueryState`) 여기서 **기본값과 다른가**로 센다. */
   const hasProjectFilter = React.useMemo(
-    () => Object.keys(PROJECT_SPEC).some(
-      (k) => k !== "sort" && k !== "order" && filters[k] !== PROJECT_SPEC[k] && filters[k] !== "" && filters[k] != null
+    () => PROJECT_FILTER_KEYS.some(
+      (k) => filters[k] !== PROJECT_SPEC[k] && filters[k] !== "" && filters[k] != null
     ),
     [filters]
   );
+  /* 지우는 축은 위에서 세는 축과 **같은 목록**이다(`PROJECT_FILTER_KEYS`). */
   const clearProjectFilters = React.useCallback(
-    () => setFilters({ archived: false, dept: "", sort: "name", order: "asc" }),
+    () => setFilters(clearedProjectFilters()),
     [setFilters]
   );
   /* 결과 줄이 세는 것은 «지금 걸린 조건» 이다 — 기본값과 다른 축만 센다. */
   const activeProjectConditions = React.useMemo(
-    () => Object.keys(PROJECT_SPEC).filter(
-      (k) => k !== "sort" && k !== "order" && filters[k] !== PROJECT_SPEC[k] && filters[k] !== "" && filters[k] != null
+    () => PROJECT_FILTER_KEYS.filter(
+      (k) => filters[k] !== PROJECT_SPEC[k] && filters[k] !== "" && filters[k] != null
     ),
     [filters]
   );

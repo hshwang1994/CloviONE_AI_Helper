@@ -160,7 +160,12 @@ export function ProjectWeekly({ projectId, week, onWeek, query }) {
   const win = data.window || {};
   const basis = data.basis || {};
   const milestones = data.milestones || {};
-  const openTicket = (it) => nav("/tickets/" + it.id, { state: { from: "/projects" } });
+  /* 「목록」이 **읽던 그 주**로 돌아오게 한다 (지시 19 · `lib/listReturn.js`). 한때
+     `"/projects"` 를 넘겨 프로젝트 목록으로 떨어졌다 — 8월 셋째 주를 보다가 티켓 하나를
+     열면 프로젝트도 주도 함께 잃었다(`ProjectTickets.jsx` 의 같은 주석). */
+  const backHere = "/projects/" + encodeURIComponent(projectId) + "?tab=weekly"
+    + (week ? "&week=" + encodeURIComponent(week) : "");
+  const openTicket = (it) => nav("/tickets/" + it.id, { state: { from: backHere } });
 
   return (
     <Stack gap={2.5}>

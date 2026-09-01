@@ -31,7 +31,7 @@ from app.approvals.service import (
 from app.core.sort import SortParams, order_by
 from app.core.audit import record_audit_from_request
 from app.core.authz import CONSOLE_OPS_ROLES, CONSOLE_READ_ROLES, CONSOLE_WRITE_ROLES
-from app.core.scope import Principal, visible_user_ids
+from app.core.scope import Principal, management_scope, visible_user_ids
 from app.core.deps import get_current_user, get_db, get_principal, require_csrf, require_roles
 from app.core.errors import ValidationAppError
 
@@ -293,11 +293,31 @@ def _decide(
     # 순서를 뒤로 미뤄도 새로 새는 정보가 없다. 반대로 범위를 권한보다 앞에 두려고 조회를
     # 먼저 하면 위의 열거 구멍이 그대로 돌아온다.
     #
-    # 범위는 **결재자(위임 여부)와 무관하다**: 위임은 '결재할 수 있는가'를 바꾸고, 범위는
-    # '어느 요청이 보이는가'를 바꾼다. 위임받은 운영자는 build_scope 상 대개 전역이므로
-    # 좁혀지지 않는다(tests/security/test_approval_scope.py 가 이걸 못 박아 둔다).
+    # 범위를 **누구 기준으로 재는가**는 위임 여부가 정한다. 위임은 '결재할 수 있는가'를
+    # 바꾸고 범위는 '어느 요청이 보이는가'를 바꾸지만, 대리 결재자가 자기 이름으로 재면
+    # 두 축이 어긋난다 — 한때 여기가 언제나 결재자 본인의 관리 범위로 쟀고, 그래서
+    # **위임받은 일반 사용자는 결재할 수 있는 건이 하나도 없었다**: 일반 사용자의 관리
+    # 범위는 `SCOPE_NONE`(= 빈 집합)이라 무엇을 눌러도 404 였다. 내 결재함
+    # (`GET /api/approvals/mine`)은 범위를 안 걸어 줄과 승인 버튼을 그대로 보여 주므로,
+    # 화면은 「결재하세요」라고 하고 서버는 「그런 요청은 없습니다」라고 답했다.
+    # 위임을 받은 일반 사용자에게 자리를 만들어 준 `/my-approvals` 가 정확히 그 사람을
+    # 위한 화면이라, 그 화면의 버튼 전부가 죽어 있었던 셈이다.
+    #
+    # 빌려온 것은 권한이므로 **빌려준 사람이 닿던 곳까지**가 정확한 한계다. 대리인은
+    # 위임자를 절대 넘지 못하고(부서 범위 관리자의 위임은 그 부서까지만), 위쪽 IDOR
+    # 방어도 그대로다 — 좁히는 축이 '누구의 범위인가' 로 바뀔 뿐이다.
+    # (tests/security/test_approval_scope.py 가 양쪽을 다 못 박아 둔다.)
     on_behalf_of = delegation_service.require_decider(db, actor, now)
-    row = get_scoped_approval_or_404(db, approval_id, visible_user_ids(db, principal.management))
+    if on_behalf_of:
+        delegator = db.get(User, on_behalf_of)
+        visible = (
+            visible_user_ids(db, management_scope(db, delegator, principal.tree))
+            if delegator is not None
+            else frozenset()
+        )
+    else:
+        visible = visible_user_ids(db, principal.management)
+    row = get_scoped_approval_or_404(db, approval_id, visible)
     flags = load_feature_flags(request.app.state.settings.config_dir)
     decide(
         db,
