@@ -19,6 +19,57 @@
     }
   ],
   "blocks_error": null,
+  "body": {
+    "content": [
+      {
+        "attrs": {
+          "level": 2
+        },
+        "content": [
+          {
+            "text": "배경",
+            "type": "text"
+          }
+        ],
+        "type": "heading"
+      },
+      {
+        "content": [
+          {
+            "text": "본문 한 줄.",
+            "type": "text"
+          }
+        ],
+        "type": "paragraph"
+      },
+      {
+        "content": [
+          {
+            "attrs": {
+              "checked": true
+            },
+            "content": [
+              {
+                "content": [
+                  {
+                    "text": "할 일",
+                    "type": "text"
+                  }
+                ],
+                "type": "paragraph"
+              }
+            ],
+            "type": "taskItem"
+          }
+        ],
+        "type": "taskList"
+      },
+      {
+        "type": "horizontalRule"
+      }
+    ],
+    "type": "doc"
+  },
   "body_markdown": "## 배경\n본문 한 줄.\n- [x] 할 일\n---",
   "body_version": "e26a892bb10c84f7",
   "can_edit": true,
