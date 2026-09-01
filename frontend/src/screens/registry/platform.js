@@ -9,7 +9,7 @@
  * 화면 설정만 있고 그리는 코드는 없다. 그리는 것은 DataScreen.jsx 하나다.
  */
 import React from "react";
-import { Badge, WRITE_ROLES, activeCol, backupReasonText, badgeCol, col, dateCol, field, fmtBytes, fmtDateTime, mapCol, opt, personField, truncateCol, writerEmptyHelp } from "./shared.js";
+import { Badge, WRITE_ROLES, activeCol, backupReasonText, badgeCol, col, dateCol, field, fmtBytes, fmtDateTime, fmtDateTimeCompact, mapCol, opt, personField, truncateCol, writerEmptyHelp } from "./shared.js";
 
 export const PLATFORM_SCREENS = {
   backup: {
@@ -24,16 +24,21 @@ export const PLATFORM_SCREENS = {
     // 밝힌다(안 그러면 '필터에 안 걸림'과 '애초에 안 옴'을 구별할 수 없다).
     help: "데이터베이스를 백업합니다. 백업 하나는 덤프와 매니페스트가 함께 든 세트입니다. 오래된 백업은 정한 개수와 기간에 따라 정리됩니다. 복원은 시스템 관리자가 서버에서 별도 스크립트로 수행합니다. 목록에는 최근 50건까지만 표시됩니다.",
     emptyTitle: "아직 백업이 없습니다",
-    // 상태 필터가 하나도 없어 '실패한 백업만' 같은 질문에 답할 방법이 없었다. 이 엔드포인트는
-    // 쿼리 파라미터를 받지 않고 페이지네이션도 하지 않는다(위 50건 상한이 전부) — 받아 온 것이
-    // 곧 전부이므로 clientFilter로 걸러도 다른 페이지에 숨는 행이 생기지 않는다.
+    // 🔴 **거르는 자리는 서버다** (2026-09-01). 처음엔 두 필터가 `clientFilter` 였고, 그
+    // 근거는 「받아 온 것이 곧 전부라 다른 쪽에 숨는 행이 없다」였다. 그 전제가 틀렸다 —
+    // 이 목록은 최신 50건에서 **잘린다**(BACKUP_LIST_LIMIT). 그래서 「실패한 백업만」이
+    // 실제로는 「최근 50건 안의 실패만」이었고, 51번째 이후의 실패는 구조적으로 답이
+    // 안 나오는데 화면은 「없다」처럼 그렸다. 이제 조건을 서버가 받아, 상한이 **그 조건
+    // 안에서** 최신 50건이 된다.
+    // 상한 자체는 `cap` 으로 선언한다 — 화면이 그 경계를 말한다(`capWarning`).
     // 검색도 대상 필드를 못박는다. 기본 검색은 JSON.stringify(row) 전체를 훑어 원시 UUID·체크섬·
     // UTC ISO 시각까지 매칭했다(화면에 보이지 않는 값으로 결과가 걸린다 — 부서/직책 화면과 같은 함정).
     // 「파일이 서버에 남아 있는가」는 상태와 다른 축이다 — 내려받고 지운 백업은 성공한
     // 백업이지만 **복원 지점이 아니다.** 한 열에 섞으면 그 둘을 구별할 방법이 없다.
+    cap: 50, capWarning: 50,
     filters: [
-      { key: "status", type: "select", label: "상태", clientFilter: true, options: opt([["verified", "확인됨"], ["succeeded", "성공"], ["failed", "실패"], ["running", "진행 중"]]) },
-      { key: "file_state", type: "select", label: "서버 파일", clientFilter: true, options: opt([["present", "있음"], ["removed", "삭제함"]]) },
+      { key: "status", type: "select", label: "상태", options: opt([["verified", "확인됨"], ["succeeded", "성공"], ["failed", "실패"], ["running", "진행 중"]]) },
+      { key: "file_state", type: "select", label: "서버 파일", options: opt([["present", "있음"], ["removed", "삭제함"]]) },
     ],
     searchFields: ["path"],
     searchPlaceholder: "백업 파일 이름으로 검색",
@@ -44,13 +49,13 @@ export const PLATFORM_SCREENS = {
     pollWhile: (r) => r.status === "running",
     // 백업 실행·복원·검증은 모두 system_admin 전용(백엔드 RBAC). 그 외 역할에는 CTA 대신 읽기 전용 안내를 준다.
     emptyHelp: (role) => role === "system_admin"
-      ? "‘+ 백업 실행’으로 지금 데이터베이스를 백업하세요. 오래된 백업은 정한 개수와 기간에 따라 정리됩니다."
+      ? "‘백업 실행’으로 지금 데이터베이스를 백업하세요. 오래된 백업은 정한 개수와 기간에 따라 정리됩니다."
       : "아직 백업이 없습니다. 백업은 시스템 관리자가 실행할 수 있습니다.",
-    // 첫 실행 시스템 관리자에게 단계별 안내를 준다(canOnboard가 primary 헤더 작업 '+ 백업 실행'을
+    // 첫 실행 시스템 관리자에게 단계별 안내를 준다(canOnboard가 primary 헤더 작업 '백업 실행'을
     // 근거로 system_admin에만 보여준다). 다른 운영 화면(연동/러너)의 온보딩 패턴과 통일.
     emptySituation: "아직 데이터베이스 백업이 하나도 없습니다.",
     emptyPrerequisite: "백업 세트는 서버에 만들어집니다. 복원은 서버에서 별도 스크립트로 수행합니다.",
-    emptySteps: ["‘+ 백업 실행’으로 지금 세트를 만듭니다.", "상태가 ‘확인됨(verified)’이 되는지 확인합니다. 임시 데이터베이스에 실제로 복원해 본 상태입니다.", "필요하면 ‘내려받기’로 받아 두고, 받은 뒤에 ‘서버에서 삭제’를 고를 수 있습니다."],
+    emptySteps: ["‘백업 실행’으로 지금 세트를 만듭니다.", "상태가 ‘확인됨(verified)’이 되는지 확인합니다. 임시 데이터베이스에 실제로 복원해 본 상태입니다.", "필요하면 ‘내려받기’로 받아 두고, 받은 뒤에 ‘서버에서 삭제’를 고를 수 있습니다."],
     emptyExpected: "실행한 백업이 상태, 크기와 함께 목록에 남고, 정한 개수와 기간만큼 보관됩니다.",
     headerActions: [
       { label: "복원 안내", method: "GET", roles: ["system_admin"], path: () => "/api/admin/backups/restore-instructions",
@@ -68,7 +73,32 @@ export const PLATFORM_SCREENS = {
       // 알려진 사유 코드만 한국어로 치환해 영어가 그대로 새지 않게 한다(backupReasonText).
       { label: "백업 실행", variant: "primary", primary: true, roles: ["system_admin"], path: () => "/api/admin/backups", confirm: "지금 데이터베이스 백업을 실행할까요?",
         result: (res) => { const s = res.backup && res.backup.status; const ok = s === "verified" || s === "succeeded"; return { ok, msg: ok ? "백업 완료" : ("백업 실패: " + backupReasonText((res.backup && res.backup.error_message) || "확인 실패")) }; } },
+      /* 🔴 이 화면에서 **예약을 만질 길이 없었다** (2026-09-01). 이 화면은 「지금 한 번」만
+         할 수 있었고 「매일 새벽 3시」는 관리 콘솔 설정 표 어딘가에 있었다 — 그래서
+         `check_backup_health` 가 「백업 화면에서 예약을 켜세요」라고 알려도 그 화면에는
+         켤 것이 없었다. 항목 딥링크로 그 자리를 바로 연다(`SettingsMain` 의 `?setting=`). */
+      { label: "백업 일정 설정", roles: WRITE_ROLES, navigate: () => "#/settings?setting=backup_schedule" },
     ],
+    /* 이 화면은 「백업이 있는가」만 말하고 「백업이 **돌고 있는가**」는 한 번도 말하지 않았다.
+       그 답은 이미 서버에 있었는데(`GET /api/admin/backups/schedule`) 옆 탭 하나만 읽고
+       있었다 — 예약이 꺼진 채로 이 목록을 열면 마지막 백업이 20일 전이어도 화면은
+       평온했다(RSTR-03 이 겪은 그 상태다). */
+    summary: {
+      endpoint: "/api/admin/backups/schedule",
+      cards: (data) => {
+        const s = (data && data.schedule) || {};
+        const last = data && data.last_backup;
+        return [
+          { value: s.enabled ? s.cron : "비활성", label: s.enabled ? "자동 백업 (" + (s.timezone || "Asia/Seoul") + ")" : "자동 백업", kind: s.enabled ? "ok" : "warn" },
+          { value: last ? fmtDateTimeCompact(last.created_at) : "없음", label: "마지막 백업", kind: last ? "ok" : "danger" },
+          { value: s.keep == null ? "-" : String(s.keep), label: "보관 개수" },
+          { value: s.keep_days == null ? "-" : (String(s.keep_days) + "일"), label: "보관 기간" },
+        ];
+      },
+      /* 「백업이 있다」와 「그 백업을 믿을 수 있다」는 다른 질문이고, 후자의 답이 여기 있다.
+         세는 대신 **문장 그대로** 낸다 — 「1건」으로는 무엇을 해야 할지 알 수 없다. */
+      notes: (data) => (data && data.warnings) || [],
+    },
     // 경로는 파일명만 목록에 보이고(내부 배포 경로 노출·너비 낭비 방지), 전체 경로는 상세에서 본다.
     // SEM-01: 첫 열(생성 시각)이 dateCol(render 있음)이라 표식 없이는 전부 "상세 보기"였다 —
     // 파일명(아래 "파일" 열과 동일한 추출 로직)으로 실제로 구별되는 이름을 만든다.
@@ -82,7 +112,10 @@ export const PLATFORM_SCREENS = {
       { key: "path", label: "파일", type: "text", render: (r) => { const p = r.path; if (p == null || p === "") return "-"; const s = String(p); const i = Math.max(s.lastIndexOf("/"), s.lastIndexOf("\\")); return i >= 0 ? s.slice(i + 1) : s; } },
       // 「성공한 백업」과 「지금 되돌릴 수 있는 백업」은 다르다. 내려받고 서버에서 지운
       // 백업은 전자이지 후자가 아니고, 그 차이가 목록에서 보여야 한다.
-      { key: "file_state", label: "서버 파일", type: "text", render: (r) => React.createElement(Badge, { value: r.file_state === "removed" ? "삭제함" : "있음", kind: r.file_state === "removed" ? "warn" : "ok" }) }],
+      // 🔴 `type:"text"` 였다. 이 칸에 들어가는 것은 산문이 아니라 **배지**인데, `text` 는
+      // 왼쪽 정렬 + 12rem 바닥 + 수축 후보라 머리글(언제나 가운데)과 값이 서로 다른 자리에
+      // 섰다 — 1920 실측에서 「서버 파일」머리는 1677, 그 아래 배지는 1527 이었다.
+      { key: "file_state", label: "서버 파일", type: "status", render: (r) => React.createElement(Badge, { value: r.file_state === "removed" ? "삭제함" : "있음", kind: r.file_state === "removed" ? "warn" : "ok" }) }],
     // 목록 열은 파일명만 보여주고(위 columns "파일") 상세는 전체 경로를 보여준다 — 둘 다 실제로는
     // r.path를 읽지만 표시가 다르므로(파일명 vs 전체 경로), 새 드로어 중복 제거(key 기준, DataScreen.jsx
     // mergeDetailFields)가 이 상세 전용 항목을 columns의 "파일"과 같은 것으로 오인해 지우지 않도록
@@ -109,7 +142,11 @@ export const PLATFORM_SCREENS = {
       // run_backup()) — 그 창에 '검증'을 누르면 체크섬 비교를 건너뛰고 그 순간의 불완전한 파일만
       // 보게 되어, 정상적으로 진행 중인 백업을 failed로 격하시킬 수 있다. 서버도 독립적으로 막지만
       // (409) 화면에서도 안 보여준다. 완료된 백업에만 노출한다.
-      { label: "검증", roles: ["system_admin"], when: (r) => r.status !== "running", path: (r) => "/api/admin/backups/" + r.id + "/verify",
+      // 🔴 서버에서 지운 백업에는 검증할 파일이 없다 — 눌러도 언제나 「이 백업 파일은
+      // 서버에서 이미 삭제했습니다」로 끝난다(`verify_existing` 의 `file_removed` 조기 반환).
+      // 그 사실은 「서버 파일」열이 이미 말하고 있으므로, 실패밖에 못 내는 단추를 남기지
+      // 않는다. 실패한 백업은 그대로 재검증할 수 있다(파일이 남아 있으면).
+      { label: "검증", roles: ["system_admin"], when: (r) => r.status !== "running" && r.file_state !== "removed", path: (r) => "/api/admin/backups/" + r.id + "/verify",
         result: (res) => ({ ok: !!(res.verify && res.verify.ok), msg: (res.verify && res.verify.ok) ? "검증 완료: 정상" : "검증 실패: " + backupReasonText((res.verify && res.verify.reason) || "손상 가능성") }) },
       // 내려받기 — 브라우저가 직접 그 주소로 가야 Content-Disposition 이 먹는다
       // (DataScreen.runAction 주석 참조). 진행 중이면 반쪽 덤프를 받게 되므로 감춘다.
@@ -150,11 +187,11 @@ export const PLATFORM_SCREENS = {
     emptyExpected: "‘마지막으로 복원을 시험한 게 언제인가’에 이 화면 하나로 답할 수 있게 됩니다.",
     emptyRelatedLink: { href: "#/backup", label: "백업 목록으로 이동" },
     // 이 화면이 답해야 하는 질문은 '언제 마지막으로 실패했나'인데, 필터가 하나도 없어
-    // 통과한 기록 사이에서 실패를 눈으로 찾아야 했다. GET /api/admin/backups/rehearsals는
-    // 쿼리 파라미터를 받지 않고 페이지네이션도 하지 않는다(app/backups/router.py
-    // list_rehearsals) — 받아 온 것이 곧 전부라 clientFilter가 숨기는 행이 없다.
-    // 다만 그 응답 자체가 최근 20건까지다(.limit(20)) — 그 경계는 help에 적었다.
-    filters: [{ key: "ok", type: "select", label: "결과", clientFilter: true, options: opt([["true", "통과"], ["false", "실패"]]) }],
+    // 통과한 기록 사이에서 실패를 눈으로 찾아야 했다. 그 필터를 붙였고, **거르는 자리는
+    // 서버다** — 응답이 최근 20건에서 잘리므로(REHEARSAL_LIST_LIMIT) 화면 안에서 거르면
+    // 「마지막 실패」가 「최근 20건 안의 실패」로 조용히 좁아진다(백업 목록과 같은 이유).
+    cap: 20, capWarning: 20,
+    filters: [{ key: "ok", type: "select", label: "결과", options: opt([["true", "통과"], ["false", "실패"]]) }],
     // 기본 검색은 JSON.stringify(row) 전체를 훑는다 — 이 행에는 summary 객체와 ok 불리언이 들어
     // 있어서 '실패'를 찾으려고 true를 쳐 넣으면 통과한 기록이 전부 걸린다(화면에 없는 값으로
     // 결과가 걸리는, 부서/직책 화면에서 이미 한 번 고친 함정). 사람이 읽는 원본 라벨만 본다.
@@ -168,17 +205,18 @@ export const PLATFORM_SCREENS = {
         const drill = data && data.last_rehearsal;
         return [
           { value: s.enabled ? s.cron : "비활성", label: s.enabled ? "자동 백업 (" + (s.timezone || "Asia/Seoul") + ")" : "자동 백업", kind: s.enabled ? "ok" : "warn" },
-          { value: last ? fmtDateTime(last.created_at) : "없음", label: "마지막 백업", kind: last ? "ok" : "danger" },
+          // 🔴 `fmtDateTime` 이었다 — 그 형식기는 「2026. 8. 23. 오후 12:00」을 내는데, 바로
+          // 아래 표의 같은 값은 「2026-08-23 12:00」이다(`dateCol` → `DateCell`). 한 화면이
+          // 같은 시각을 두 가지 말로 적으면 눈이 그 둘을 대조하지 못한다. 표와 같은 형식기로.
+          { value: last ? fmtDateTimeCompact(last.created_at) : "없음", label: "마지막 백업", kind: last ? "ok" : "danger" },
           { value: drill ? (drill.ok ? "통과" : "실패") : "한 번도 안 함", label: "마지막 리허설", kind: drill ? (drill.ok ? "ok" : "danger") : "warn" },
           { value: s.keep == null ? "-" : String(s.keep), label: "보관 개수" },
           { value: s.keep_days == null ? "-" : (String(s.keep_days) + "일"), label: "보관 기간" },
-          // 경고가 있으면 그 개수를 카드로 세운다. 「백업이 돌고 있다」와 「그 백업을
-          // 믿을 수 있다」는 다른 질문이고, 후자의 답이 여기에 있다.
-          ...(((data && data.warnings) || []).length
-            ? [{ value: String(data.warnings.length) + "건", label: "백업 경고", kind: "warn" }]
-            : []),
         ];
       },
+      // 경고는 **문장 그대로** 낸다. 예전에는 「1건」이라는 카드 하나였는데, 그 숫자를 본
+      // 사람이 할 수 있는 일이 없었다 — 무엇이 경고인지는 어디에도 안 적혀 있었다.
+      notes: (data) => (data && data.warnings) || [],
     },
     columns: [
       { key: "ok", label: "결과", type: "status", render: (r) => React.createElement(Badge, { value: r.ok ? "통과" : "실패", kind: r.ok ? "ok" : "danger" }) },
@@ -196,7 +234,8 @@ export const PLATFORM_SCREENS = {
     ],
     headerActions: [
       { label: "백업 목록", navigate: () => "#/backup" },
-      { label: "백업 일정 설정", roles: WRITE_ROLES, navigate: () => "#/settings" },
+      // 설정 표 스무 줄 앞에 내려놓지 않는다 — 보내는 쪽이 어느 줄인지 이미 알고 있다.
+      { label: "백업 일정 설정", roles: WRITE_ROLES, navigate: () => "#/settings?setting=backup_schedule" },
     ],
   },
   announcements: {

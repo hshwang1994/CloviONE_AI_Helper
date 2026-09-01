@@ -14,6 +14,12 @@ STATUS_SUCCEEDED = "succeeded"
 STATUS_VERIFIED = "verified"
 STATUS_FAILED = "failed"
 
+#: 목록 필터가 받아들이는 상태 어휘 — 화면의 `status` 선택지와 **같은 집합**이다
+#: (`frontend/src/screens/registry/platform.js`). 여기 없는 값은 조건으로 안 쓴다.
+BACKUP_STATUSES = frozenset(
+    {STATUS_RUNNING, STATUS_SUCCEEDED, STATUS_VERIFIED, STATUS_FAILED}
+)
+
 # 덤프 형식. 옛 `sqlite` 행은 운영 DB 에 남아 있을 수 있다(S13 이 이관할 때 본다).
 BACKUP_TYPE_PG_DUMP = "pg_dump"
 
@@ -21,6 +27,9 @@ BACKUP_TYPE_PG_DUMP = "pg_dump"
 # 답한 결과**가 이 값이다 — 자동으로 바뀌지 않는다(D-204).
 FILE_PRESENT = "present"
 FILE_REMOVED = "removed"
+
+#: 목록 필터가 받아들이는 파일 상태 어휘. 위 `BACKUP_STATUSES` 와 같은 이유로 둔다.
+BACKUP_FILE_STATES = frozenset({FILE_PRESENT, FILE_REMOVED})
 
 
 class Backup(UUIDPrimaryKeyMixin, Base):

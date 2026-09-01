@@ -702,7 +702,14 @@ def backup_health_alert_reason(db: Session, config: dict, *, now: datetime) -> s
     """예약 백업이 꺼져 있거나, 켜져 있는데도 너무 오래 안 돌았으면 그 이유를 돌려준다.
     문제 없으면 None."""
     if not config.get("enabled"):
-        return "예약 백업이 꺼져 있어 자동 백업이 되고 있지 않습니다. 백업 화면에서 예약을 켜거나, 정기적으로 수동 백업을 만드세요."
+        # 🔴 「백업 화면에서 예약을 켜세요」였다. 그 화면에는 켤 것이 없었다 — 예약은 설정의
+        # `backup_schedule` 이고 백업 화면에는 「지금 한 번」 버튼뿐이었다. 안내가 가리키는
+        # 자리에 실제로 그 조작기가 있어야 한다(이제 백업 화면의 «백업 일정 설정» 이 그
+        # 항목을 바로 연다 — `registry/platform.js`).
+        return (
+            "예약 백업이 꺼져 있어 자동 백업이 되고 있지 않습니다. "
+            "백업 화면의 '백업 일정 설정'에서 예약을 켜거나, 정기적으로 수동 백업을 만드세요."
+        )
     last = last_successful_backup(db)
     if last is None:
         return "예약 백업이 켜져 있지만 아직 성공한 백업이 하나도 없습니다."

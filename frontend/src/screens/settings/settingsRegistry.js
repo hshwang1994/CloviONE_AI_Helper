@@ -58,7 +58,7 @@ export const OBJECT_SCHEMA_HELP = {
   smtp: 'JSON 예: {"enabled": true, "host": "smtp.example.com", "port": 587, "security": "starttls", "from_address": "portal@example.com", "password_ref": "smtp_password"}, 비밀번호는 여기 적지 않습니다. 서버의 secret 파일 이름만 password_ref 에 적습니다.',
   // 백엔드(_backup_schedule)가 **저장 시점에** cron·타임존을 검증한다 — 여기 예시는 그것과
   // 같은 모양이라야 한다(틀린 예시를 그대로 붙여 넣으면 저장이 거부된다).
-  backup_schedule: 'JSON 예: {"enabled": true, "cron": "0 3 * * *", "timezone": "Asia/Seoul", "keep": 14}, cron 은 분 시 일 월 요일(0 3 * * * = 매일 새벽 3시), keep 은 남길 백업 개수(1~365).',
+  backup_schedule: 'JSON 예: {"enabled": true, "cron": "0 3 * * *", "timezone": "Asia/Seoul", "keep": 14, "keep_days": 7}, cron 은 분 시 일 월 요일(0 3 * * * = 매일 새벽 3시), keep 은 남길 백업 개수(1~365), keep_days 는 개수를 넘어도 남기는 기간(0~365일).',
 };
 // 값의 정본은 서버(app/core/authz.py)이고, 화면 쪽 사본은 lib/roles.js 한 곳이다(지시 21).
 export const WRITE_ROLES = CONSOLE_WRITE_ROLES;
@@ -153,6 +153,9 @@ export function summarizeSetting(key, v) {
     const parts = ["활성"];
     if (v.cron) parts.push(String(v.cron) + " (" + String(v.timezone || "Asia/Seoul") + ")");
     if (v.keep != null) parts.push(v.keep + "개 보관");
+    // 보존은 개수와 **기간** 둘 다 본다(app/backups/service.py::apply_retention) — 한쪽만
+    // 요약하면 표에서 「14개 보관」만 읽고 실제 삭제 기준을 반쪽으로 안다.
+    if (v.keep_days != null) parts.push(v.keep_days + "일 보관");
     return parts.join(", ");
   }
   if (key === "ui_branding") {

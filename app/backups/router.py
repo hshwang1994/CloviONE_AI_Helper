@@ -15,6 +15,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.backups.models import (
+    BACKUP_FILE_STATES,
+    BACKUP_STATUSES,
     FILE_REMOVED,
     STATUS_FAILED,
     STATUS_RUNNING,
@@ -52,14 +54,42 @@ router = APIRouter(
 
 
 
+#: 목록이 한 번에 내는 최대 행 수. 화면(`registry/platform.js` 의 `cap`)이 같은 숫자를
+#: 적어 두고 잘림 경고를 낸다 — 두 값이 갈라지면 화면이 없는 경계를 말하게 된다.
+BACKUP_LIST_LIMIT = 50
+REHEARSAL_LIST_LIMIT = 20
+
+
 @router.get("", dependencies=[Depends(require_permission(BACKUP_READ))])
-def list_backups(request: Request, db: Session = Depends(get_db)):
+def list_backups(
+    request: Request,
+    status: str | None = None,
+    file_state: str | None = None,
+    db: Session = Depends(get_db),
+):
+    """백업 목록. 상한 안에서 **최신순**이고, 상태·파일 여부는 **서버가 거른다**.
+
+    🔴 거르는 자리가 서버여야 하는 이유는 상한 때문이다. 이 목록은 50건에서 잘리는데
+    필터가 화면 안에서만 돌면 「실패한 백업만」이 **받아 온 50건 안의 실패**만 뜻하게
+    된다 — 51번째 이후에 있는 실패는 구조적으로 답이 안 나오고, 화면은 그 사실을 말할
+    방법이 없다(「필터에 안 걸림」과 「애초에 안 옴」이 같아 보인다). 조건을 서버가
+    받으면 상한은 **그 조건 안에서** 최신 50건이 되어 질문에 실제로 답한다.
+
+    모르는 값은 **무시한다**(400 이 아니다) — 옛 저장된 뷰 링크가 조용히 오류 화면이
+    되지 않게. 목록 라우터가 모르는 정렬 키를 기본값으로 떨어뜨리는 것과 같은 규약이다.
+
     # UA-18: 오래 running으로 멈춘 행 정리는 이제 순수 읽기인 이 GET이 아니라
     # worker_main.py의 10분 백업 틱이 한다 — "화면을 열 때만 청소되고 require_csrf가
     # 안전 메서드로 통과시켜 CSRF에도 무방비"였던 write-in-GET을 없앴다(그 자리에
     # 있던 reap_stuck_running(db, now=...) 호출 제거, 정리 자체는 그대로 계속 돈다).
+    """
+    stmt = select(Backup)
+    if status in BACKUP_STATUSES:
+        stmt = stmt.where(Backup.status == status)
+    if file_state in BACKUP_FILE_STATES:
+        stmt = stmt.where(Backup.file_state == file_state)
     rows = (
-        db.execute(select(Backup).order_by(Backup.created_at.desc()).limit(50))
+        db.execute(stmt.order_by(Backup.created_at.desc()).limit(BACKUP_LIST_LIMIT))
         .scalars()
         .all()
     )
@@ -100,18 +130,23 @@ def create_backup(request: Request, db: Session = Depends(get_db)):
 # `/rehearsals` 가 backup_id 로 해석될 여지가 생긴다(경로 모양이 달라 지금은 충돌하지
 # 않지만, 규칙을 지켜 두면 나중에 세그먼트 하나를 더할 때 사고가 안 난다).
 @router.get("/rehearsals", dependencies=[Depends(require_permission(BACKUP_READ))])
-def list_rehearsals(db: Session = Depends(get_db)):
+def list_rehearsals(ok: str | None = None, db: Session = Depends(get_db)):
     """복구 리허설 기록 — "마지막으로 복원을 시험한 게 언제인가"에 답한다.
 
     앱은 리허설을 스스로 돌리지 않는다(app/backups/models.py::RestoreRehearsal 참조).
     그래서 기록이 비어 있으면 **한 번도 안 했다**는 뜻이고, 화면은 그 사실과 함께
     실행 방법을 그대로 보여 준다 — 하지 않은 일을 한 것처럼 꾸미지 않는다.
+
+    이 화면이 답해야 하는 질문은 「언제 마지막으로 **실패**했나」다. 그 조건은 서버가
+    받는다 — 상한(20건) 안에서만 거르면 스무 번째 이전의 실패는 안 보이는데 화면은
+    「없다」처럼 그린다(`list_backups` 의 같은 이유).
     """
+    stmt = select(RestoreRehearsal)
+    if ok in ("true", "false"):
+        stmt = stmt.where(RestoreRehearsal.ok.is_(ok == "true"))
     rows = (
         db.execute(
-            select(RestoreRehearsal)
-            .order_by(RestoreRehearsal.started_at.desc())
-            .limit(20)
+            stmt.order_by(RestoreRehearsal.started_at.desc()).limit(REHEARSAL_LIST_LIMIT)
         )
         .scalars()
         .all()
@@ -145,7 +180,8 @@ def get_backup_schedule(request: Request, db: Session = Depends(get_db)):
     return {
         "schedule": config,
         # 설정 화면이 정본이다 — 여기서 고치는 API 를 따로 만들면 값이 두 곳에서 바뀐다.
-        "edit_hint": "일정은 관리 콘솔 '설정' 화면의 backup_schedule 에서 바꿉니다.",
+        # 문구에 내부 키 이름을 적지 않는다(지시 36) — 화면의 버튼 이름 그대로 말한다.
+        "edit_hint": "일정은 백업 화면의 '백업 일정 설정'에서 바꿉니다.",
         "last_backup": backup_view(last) if last is not None else None,
         "last_rehearsal": rehearsal_view(rehearsal) if rehearsal is not None else None,
         # 무엇이 담기고 무엇이 안 담기는가. 백업을 만들기 **전에** 읽을 수 있어야 한다 —

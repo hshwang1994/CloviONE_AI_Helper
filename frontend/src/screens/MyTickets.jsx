@@ -236,7 +236,7 @@ export function ticketColumns({ showAssignee, onEdit, onClaim, onOpen, compact, 
   cols.push({ key: "due", label: "마감", type: "date", width: "8.5rem", sortable: true, render: (t) => (t.due || "-") });
   if (!compact) {
     /* 「추가」는 무엇을 추가했다는 말인지 알 수 없었다 — 이 값은 티켓이 만들어진 날이다. */
-    cols.push({ key: "created_at", label: "생성 일자", type: "date", width: "8.5rem", sortable: true, hideNarrow: true, filter: { kind: "date", field: "created_at" }, render: (t) => <DateCell value={t.created_at} /> });
+    cols.push({ key: "created_at", label: "생성 일자", type: "datetime", sortable: true, hideNarrow: true, filter: { kind: "date", field: "created_at" }, render: (t) => <DateCell value={t.created_at} /> });
   }
   if (showAssignee) {
     // VIS-163: 이 열만 nowrap이 빠져 있었다 — 좁은 컨테이너(1200×900)에서 overflowWrap:

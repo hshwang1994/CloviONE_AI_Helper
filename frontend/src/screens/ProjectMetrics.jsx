@@ -5,6 +5,7 @@ import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
 import { Skeleton } from "../ui/kit.jsx";
 import { Gauge } from "../ui/charts/Gauge.jsx";
 import { ProgressBar } from "../ui/charts/ProgressBar.jsx";
+import { Sparkline } from "../ui/charts/Sparkline.jsx";
 import {
   NO_HEALTH_SCORE, NO_PROGRESS_SAMPLE, TROUBLE_HEALTH_SCORE,
   formulaText, percentText, sampleText, weightModeText,
@@ -98,72 +99,88 @@ export function ProgressBlock({ percent, basis }) {
 export function HealthBlock({ score, reasons, unknown }) {
   const list = Array.isArray(reasons) ? reasons : [];
   const unsure = Array.isArray(unknown) ? unknown : [];
+  /* 🔴 **원과 이유는 나란히 선다** (2026-09-01).
+   *
+   * 예전에는 둘이 세로로 쌓였다. `Gauge` 의 뿌리가 `justifyItems:center` 라 96px 짜리
+   * 원이 **1558px 판 한가운데**에 혼자 떠 있고, 그 아래 이유 목록만 왼쪽에 붙었다 —
+   * 판 하나가 1606×482 에 잉크 18% 였고(`oversized_empty_surface` 실측) 눈이 점수에서
+   * 이유로 가려면 가로로 700px 을 되돌아와야 했다. 점수와 그 점수를 만든 규칙은 한
+   * 줄에서 함께 읽히는 것이 맞다. 좁은 화면에서는 예전처럼 다시 쌓인다. */
   return (
-    <Box>
-      {score == null ? (
-        <>
-          {/* 안 잰 것은 0 점이 아니다. 원도 **점선 테두리**로 두어 「값이 없다」가
-              「값이 0 이다」와 다르게 보인다. */}
-          <Gauge value={null} size="6rem" emptyLabel={NO_HEALTH_SCORE} />
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, ...KO_WORD_BREAK }}>
-            판정할 수 있는 지표가 하나도 없었습니다. 0점과는 다른 상태입니다.
-          </Typography>
-        </>
-      ) : (
-        /* 점수와 **원**을 함께 둔다 (지시 10 · 16). 47 점과 82 점은 글자로만 보면 두
-           자리 수 둘이지만, 원으로 보면 「절반쯤」과 「거의 다」다. 원은 `aria-hidden`
-           이고 점수는 가운데 글자로 그대로 읽힌다. */
-        <Gauge
-          value={score}
-          size="6rem"
-          centerText={score + "점"}
-          color={score < TROUBLE_HEALTH_SCORE ? "error" : "success"}
-          revealKey={score}
-        />
-      )}
+    <Box
+      sx={{
+        display: "grid", gap: 2.5, alignItems: "start",
+        gridTemplateColumns: { xs: "1fr", sm: "auto minmax(0, 1fr)" },
+      }}
+    >
+      <Box sx={{ minWidth: 0 }}>
+        {score == null ? (
+          <>
+            {/* 안 잰 것은 0 점이 아니다. 원도 **점선 테두리**로 두어 「값이 없다」가
+                「값이 0 이다」와 다르게 보인다. */}
+            <Gauge value={null} size="6rem" emptyLabel={NO_HEALTH_SCORE} />
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, maxWidth: "14rem", ...KO_WORD_BREAK }}>
+              판정할 수 있는 지표가 하나도 없었습니다. 0점과는 다른 상태입니다.
+            </Typography>
+          </>
+        ) : (
+          /* 점수와 **원**을 함께 둔다 (지시 10 · 16). 47 점과 82 점은 글자로만 보면 두
+             자리 수 둘이지만, 원으로 보면 「절반쯤」과 「거의 다」다. 원은 `aria-hidden`
+             이고 점수는 가운데 글자로 그대로 읽힌다. */
+          <Gauge
+            value={score}
+            size="6rem"
+            centerText={score + "점"}
+            color={score < TROUBLE_HEALTH_SCORE ? "error" : "success"}
+            revealKey={score}
+          />
+        )}
+      </Box>
 
-      <Typography component="h3" variant="body2" sx={{ fontWeight: FONT_WEIGHT.bold, mt: 2 }}>
-        점수를 깎은 이유
-      </Typography>
-      {list.length ? (
-        <Box component="ul" sx={{ m: 0, mt: 1, pl: 0, listStyle: "none", display: "grid", gap: 1.25 }}>
-          {list.map((r) => (
-            <Box component="li" key={r.rule} sx={{ display: "grid", gap: 0.25 }}>
-              <Box sx={{ display: "flex", gap: 1, alignItems: "baseline", flexWrap: "wrap" }}>
-                <Typography component="span" sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: FONT_SIZE.body }}>
-                  {r.label}
-                </Typography>
-                <Typography component="span" color="error.main" sx={{ fontWeight: FONT_WEIGHT.extrabold, fontSize: FONT_SIZE.body }}>
-                  {"-" + r.penalty + "점"}
-                </Typography>
-              </Box>
-              <Typography variant="body2" color="text.secondary" sx={KO_WORD_BREAK}>{r.detail}</Typography>
-            </Box>
-          ))}
-        </Box>
-      ) : (
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-          점수를 깎은 규칙이 없습니다.
+      <Box sx={{ minWidth: 0 }}>
+        <Typography component="h3" variant="body2" sx={{ fontWeight: FONT_WEIGHT.bold }}>
+          점수를 깎은 이유
         </Typography>
-      )}
-
-      {unsure.length ? (
-        <>
-          <Typography component="h3" variant="body2" sx={{ fontWeight: FONT_WEIGHT.bold, mt: 2 }}>
-            판정하지 못한 항목
-          </Typography>
-          <Box component="ul" sx={{ m: 0, mt: 1, pl: 0, listStyle: "none", display: "grid", gap: 1 }}>
-            {unsure.map((u) => (
-              <Box component="li" key={u.rule} sx={{ display: "grid", gap: 0.25 }}>
-                <Typography component="span" sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: FONT_SIZE.body }}>
-                  {u.label}
-                </Typography>
-                <Typography variant="body2" color="text.secondary" sx={KO_WORD_BREAK}>{u.why}</Typography>
+        {list.length ? (
+          <Box component="ul" sx={{ m: 0, mt: 1, pl: 0, listStyle: "none", display: "grid", gap: 1.25 }}>
+            {list.map((r) => (
+              <Box component="li" key={r.rule} sx={{ display: "grid", gap: 0.25 }}>
+                <Box sx={{ display: "flex", gap: 1, alignItems: "baseline", flexWrap: "wrap" }}>
+                  <Typography component="span" sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: FONT_SIZE.body }}>
+                    {r.label}
+                  </Typography>
+                  <Typography component="span" color="error.main" sx={{ fontWeight: FONT_WEIGHT.extrabold, fontSize: FONT_SIZE.body }}>
+                    {"-" + r.penalty + "점"}
+                  </Typography>
+                </Box>
+                <Typography variant="body2" color="text.secondary" sx={KO_WORD_BREAK}>{r.detail}</Typography>
               </Box>
             ))}
           </Box>
-        </>
-      ) : null}
+        ) : (
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+            점수를 깎은 규칙이 없습니다.
+          </Typography>
+        )}
+
+        {unsure.length ? (
+          <>
+            <Typography component="h3" variant="body2" sx={{ fontWeight: FONT_WEIGHT.bold, mt: 2 }}>
+              판정하지 못한 항목
+            </Typography>
+            <Box component="ul" sx={{ m: 0, mt: 1, pl: 0, listStyle: "none", display: "grid", gap: 1 }}>
+              {unsure.map((u) => (
+                <Box component="li" key={u.rule} sx={{ display: "grid", gap: 0.25 }}>
+                  <Typography component="span" sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: FONT_SIZE.body }}>
+                    {u.label}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={KO_WORD_BREAK}>{u.why}</Typography>
+                </Box>
+              ))}
+            </Box>
+          </>
+        ) : null}
+      </Box>
     </Box>
   );
 }
@@ -183,17 +200,49 @@ export function HealthHistory({ query }) {
       </Typography>
     );
   }
+  /* 서버는 최신 주가 먼저 오게 보낸다. **그림은 시간 순서**라야 읽힌다 — 오른쪽으로
+     갈수록 최근이다. 목록은 서버 순서를 그대로 둔다(지금 점수가 맨 앞). */
+  const chrono = items.slice().reverse();
+  const first = chrono[0];
+  const last = chrono[chrono.length - 1];
   return (
     <Box sx={{ mt: 2, pt: 2, borderTop: 1, borderColor: "divider" }}>
       <Typography component="h3" variant="body2" sx={{ fontWeight: FONT_WEIGHT.bold, mb: 1 }}>주간 추세</Typography>
-      <Box component="ul" sx={{ m: 0, p: 0, listStyle: "none", display: "grid", gap: 0.75 }}>
+      {/* 🔴 숫자만 세로로 쌓지 않는다 (지시 10 · 16). 예전에는 「2026-08-24 91점」한 줄이
+          1558×70 판을 잉크 8% 로 차지했고(`oversized_empty_surface` 실측), 그 줄로는
+          「나아지고 있나」에 답할 수 없었다 — 그것이 이 구획의 이름(«추세»)이 하는 약속이다.
+          점이 둘 미만이면 그림을 안 그린다(`Sparkline` 이 스스로 거절한다) — 점 하나짜리
+          추세선은 없는 추세를 있는 것처럼 보이게 한다. */}
+      {chrono.length >= 2 ? (
+        <Sparkline
+          points={chrono.map((it) => it.score)}
+          height="3.5rem"
+          question="Health 가 오르고 있는지 내리고 있는지 봅니다."
+          summary={`${first.week_of} 주 ${first.score}점에서 ${last.week_of} 주 ${last.score}점으로 왔습니다.`}
+        />
+      ) : null}
+      <Box
+        component="ul"
+        sx={{
+          m: 0, mt: chrono.length >= 2 ? 1 : 0, p: 0, listStyle: "none",
+          display: "flex", flexWrap: "wrap", columnGap: 2.5, rowGap: 0.75,
+        }}
+      >
         {items.map((it) => (
-          <Box component="li" key={it.week_of} sx={{ display: "flex", gap: 1, alignItems: "baseline", flexWrap: "wrap" }}>
-            <Typography variant="body2" color="text.secondary" sx={{ minWidth: "6rem" }}>{it.week_of}</Typography>
+          <Box component="li" key={it.week_of} sx={{ display: "flex", gap: 0.75, alignItems: "baseline" }}>
+            <Typography variant="body2" color="text.secondary">{it.week_of}</Typography>
             <Typography sx={{ fontWeight: FONT_WEIGHT.bold }}>{it.score + "점"}</Typography>
           </Box>
         ))}
       </Box>
+      {/* 한 주뿐이면 **그것이 사실**이다 — 점 하나로 그림을 그리는 대신 그 사실을 적는다.
+          이 줄이 없으면 「주간 추세」라는 이름 아래에 숫자 한 줄만 남아, 화면은 추세를
+          약속하고 아무것도 안 보여 주는 상자가 된다. */}
+      {chrono.length < 2 ? (
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75, ...KO_WORD_BREAK }}>
+          아직 한 주치만 쌓였습니다. 다음 주 점수가 남으면 오르내림을 그림으로 볼 수 있습니다.
+        </Typography>
+      ) : null}
     </Box>
   );
 }

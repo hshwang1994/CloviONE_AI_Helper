@@ -174,13 +174,13 @@ export function Trash() {
       ) : ""),
     },
     { key: "deleted_by", label: "삭제한 사람", type: "name", minWidth: "11rem" },
-    { key: "deleted_at", label: "삭제일", type: "date", render: (r) => <DateCell value={r.deleted_at} /> },
+    { key: "deleted_at", label: "삭제일", type: "datetime", render: (r) => <DateCell value={r.deleted_at} /> },
     {
       /* 🔴 「삭제 예정」이 비어 있는 것과 「자동으로 안 지운다」는 다른 사실이다.
          문서 휴지통의 자동 영구 삭제는 끌 수 있고(설정 `document_trash_autopurge`), 꺼져
          있으면 서버가 이 값을 안 싣는다 — 그때 빈 칸을 두면 사람은 「곧 사라지는데 날짜만
          안 보인다」로 읽는다. */
-      key: "purge_after", label: "삭제 예정", type: "date",
+      key: "purge_after", label: "삭제 예정", type: "datetime",
       render: (r) => (r.purge_after
         ? <DateCell value={r.purge_after} />
         : <Typography variant="body2" color="text.secondary">자동 삭제 안 함</Typography>),

@@ -12,7 +12,7 @@
 import React from "react";
 import Typography from "@mui/material/Typography";
 export { badgeCol, boolCol, mapCol, dateCol, jsonField, objectField, readCol, linkCol, listField, previewField, activeCol, enabledCol, truncateCol } from "../DataScreen.jsx";
-export { objKo, actionKo, fmtDateTime, TYPE_KO } from "../../lib/format.js";
+export { objKo, actionKo, fmtDateTime, fmtDateTimeCompact, TYPE_KO } from "../../lib/format.js";
 export { Badge } from "../../ui/kit.jsx";
 import { objKo, actionKo, fmtDateTime, TYPE_KO } from "../../lib/format.js";
 import { CONSOLE_OPS_ROLES, CONSOLE_READ_ROLES, CONSOLE_WRITE_ROLES } from "../../lib/roles.js";

@@ -238,9 +238,29 @@ export function StructuredObjectFields({ settingKey, val, onChange, canWrite, de
             InputLabelProps={{ shrink: true }}
             id={fieldId("keep")} label="남길 백업 개수(1~365)" type="number" size="small" fullWidth
             disabled={!canWrite} error={!!invalid}
+            helperText="최근 이 개수만큼은 나이와 상관없이 남습니다."
             inputProps={{ min: 1, max: 365, "aria-invalid": ariaInvalid, "aria-describedby": describedBy }}
             value={safe.keep != null ? safe.keep : ""}
             onChange={(e) => patch({ keep: e.target.value === "" ? null : Number(e.target.value) })}
+          />
+        </Box>
+
+        {/* 🔴 **보관 기간을 화면에서 고칠 수 없었다** (2026-09-01).
+            서버는 개수와 나이를 **둘 다** 보고 지운다(`app/backups/service.py::apply_retention`
+            — 개수만 걸면 하루에 여러 번 돌린 날이 지난 주를 통째로 밀어낸다). 그런데 이
+            편집기에는 개수 칸만 있었다. 그래서 「복구 리허설」 화면은 «보관 기간 7일» 이라는
+            카드를 보여 주는데 그 값을 바꿀 자리가 제품 어디에도 없었고, 이 설정의 설명문
+            («정한 개수와 기간만큼 남깁니다»)은 절반이 지킬 수 없는 약속이었다.
+            0 은 「개수만으로 자른다」를 **명시적으로** 고르는 값이라 허용한다(서버도 그렇다). */}
+        <Box sx={pairGrid}>
+          <TextField
+            InputLabelProps={{ shrink: true }}
+            id={fieldId("keep_days")} label="보관 기간(0~365일)" type="number" size="small" fullWidth
+            disabled={!canWrite} error={!!invalid}
+            helperText="이 기간 안에 만든 백업은 개수를 넘어도 남습니다. 0이면 개수로만 정리합니다."
+            inputProps={{ min: 0, max: 365, "aria-invalid": ariaInvalid, "aria-describedby": describedBy }}
+            value={safe.keep_days != null ? safe.keep_days : ""}
+            onChange={(e) => patch({ keep_days: e.target.value === "" ? null : Number(e.target.value) })}
           />
         </Box>
 

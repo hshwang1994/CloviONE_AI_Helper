@@ -13,9 +13,17 @@ export const mapCol = (key, label, map) => ({ key, label, type: "enum", render: 
  * 날짜 열은 **정렬 대상이다**(지시 10). "언제 추가됐나 / 무엇이 가장 오래됐나"는 목록에서
  * 가장 자주 묻는 질문이고, 화면에 보이는 압축 표기(`2026-08-18 15:33`)가 아니라 **원본 ISO**
  * 로 비교한다 — 표기 문자열로 비교하면 오전/오후 같은 지역 표기에 순서가 끌려간다.
- * 정렬 UI 를 실제로 그릴지는 `DataScreen` 이 정한다(서버가 페이지를 자르는 목록에는 안 붙인다). */
+ * 정렬 UI 를 실제로 그릴지는 `DataScreen` 이 정한다(서버가 페이지를 자르는 목록에는 안 붙인다).
+ *
+ * 🔴 **`date` 가 아니라 `datetime` 이다.** 이 열이 그리는 것은 `DateCell` 이고 그 값은
+ * 언제나 `2026-09-01 23:30` — 날짜가 아니라 **날짜와 시각**이다. 그런데 `type:"date"` 의
+ * 바닥은 `YYYY-MM-DD` 열 글자를 재고 잡은 8.5rem(136px)이라 16px 이 모자랐다. 모자란
+ * 폭이 조용히 넘어가지 않는 이유는 `kit.jsx::colCellSx` 에 있다 — `render` 가 있는
+ * nowrap 열에는 `overflow:hidden` 을 안 건다(배지가 반쪽으로 잘리는 것을 막으려고).
+ * 그래서 글자가 **칸 밖으로, 표 밖으로 그대로 나갔다**: `/projects` 1920 실측에서
+ * 마지막 열의 «2026-09-01 23:30» 이 표 오른쪽 테두리를 8px 넘어 그려졌다. */
 export const dateCol = (key, label) => ({
-  key, label, type: "date", sortable: true, sortValue: (r) => r[key],
+  key, label, type: "datetime", sortable: true, sortValue: (r) => r[key],
   render: (r) => <DateCell value={r[key]} />,
 });
 // 사용 여부(boolean) → 도메인 어휘 배지('사용 중'/'미사용'). 일반 badgeCol의 '예/아니오'는

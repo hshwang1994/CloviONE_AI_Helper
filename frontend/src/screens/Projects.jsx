@@ -367,8 +367,13 @@ function columns(deptNames) {
     {
       /* 기간은 **날짜**다. 타입을 안 주면 auto 배치가 남는 폭을 이 열의 max-content 비율만큼
          가져가는데, 그 문자열이 「2026-08-01 ~ 2026-12-31」이라 길다 — 실측에서 358px 를 42%만
-         채운 채 「이름」이 100% 접혔다. 날짜는 자기 내용 폭만 쓰고 여유는 접히는 열이 갖는다. */
-      key: "period", label: "기간", type: "date", minWidth: "11rem",
+         채운 채 「이름」이 100% 접혔다. 날짜는 자기 내용 폭만 쓰고 여유는 접히는 열이 갖는다.
+
+         바닥은 **두 날짜 + 물결**이 들어가는 폭이다. 11rem(176px)으로 잡아 뒀는데 이 열의
+         값은 「2026-06-01 ~ 2026-12-31」 한 줄(157px)이고 칸 안쪽 여백이 2rem 이라 13px 이
+         모자랐다 — `render` 가 있는 nowrap 열에는 `overflow:hidden` 이 안 붙어서
+         (`kit.jsx::colCellSx`), 모자란 폭이 잘림이 아니라 **옆 칸 침범**으로 나온다. */
+      key: "period", label: "기간", type: "date", minWidth: "12.5rem",
       render: (p) => periodText(p.starts_on, p.ends_on),
     },
     {
@@ -390,7 +395,10 @@ function columns(deptNames) {
       ) : p.health_score + "점"),
     },
     {
-      key: "created_at", label: "생성 일자", type: "date", minWidth: "8rem", sortable: true,
+      /* 이 칸이 그리는 것은 날짜가 아니라 **날짜와 시각**이다(`DateCell` — `2026-09-01 23:30`).
+         `type:"date"` + 8rem 바닥으로 잡아 두었더니 128px 칸에 152px 이 필요해, 표의 마지막
+         열이 오른쪽 테두리를 8px 넘어 그려졌다(1920·1366 둘 다 실측). 어휘를 값에 맞춘다. */
+      key: "created_at", label: "생성 일자", type: "datetime", sortable: true,
       render: (p) => <DateCell value={p.created_at} />,
     },
   ];

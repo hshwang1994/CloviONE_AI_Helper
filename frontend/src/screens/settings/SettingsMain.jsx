@@ -6,6 +6,7 @@ import FormControlLabel from "@mui/material/FormControlLabel";
 import Typography from "@mui/material/Typography";
 import { api } from "../../lib/api.js";
 import { useAuth } from "../../app/auth.jsx";
+import { useQueryState } from "../../lib/useQueryState.js";
 import { PageHeader, Card, Badge, Button, DataTable, EmptyState, ErrorState, Tag, useToast } from "../../ui/kit.jsx";
 import { ToolbarEnd, ToolbarRow } from "../../ui/FilterBar.jsx";
 import {
@@ -29,8 +30,17 @@ import { SettingEditor } from "./SettingEditor.jsx";
  * 설정/유지보수/Notion 관리/AI 관리는 다른 화면에 있다"는 안내 4문단(Callout)이 있었다 —
  * 그 화면들이 이제 같은 탭 줄에 나란히 보이는 형제 탭이라 어디 있는지 설명할 필요 자체가
  * 없어져 통째로 없앴다(Handoff acceptance_criteria: "안내 4문단이 삭제되어 있다"). */
+/* 주소로 **항목 하나**를 연다 (`#/settings?setting=backup_schedule`).
+ *
+ * 다른 화면이 「여기서 고치세요」라고 보낼 곳이 필요하다. 예전에는 그런 버튼이
+ * (백업 화면의 «백업 일정 설정») `#/settings` 만 가리켰고, 눌린 사람은 스무 항목짜리 표
+ * 앞에 서서 어느 줄인지를 스스로 찾아야 했다 — 보내 준 쪽은 어느 줄인지 알고 있었는데도.
+ * 스펙 상수는 **모듈에 둔다**(useQueryState 문서: 렌더마다 새 객체면 메모가 깨진다). */
+const DEEPLINK_SPEC = { setting: "" };
+
 export function Settings({ embedded = false } = {}) {
   const [sel, setSel] = useState(null);
+  const [deepLink, setDeepLink] = useQueryState(DEEPLINK_SPEC);
   // PA-RC-0022 acceptance_criteria 6: 백엔드 키(raw REGISTRY 키 문자열)는 운영 디버깅에는
   // 유용하지만 일반 사용자 언어가 아니다 — 기본 숨김 + 열 토글로 내린다(완전히 없애지는
   // 않는다, constraints가 명시).
@@ -72,6 +82,21 @@ export function Settings({ embedded = false } = {}) {
   const rows = Object.keys(map)
     .filter((k) => !MAINTENANCE_KEYS.includes(k) && !DEDICATED_SCREEN_KEYS.includes(k))
     .map((k) => ({ key: k, label: settingLabel(k), ...map[k] }));
+  /* 주소가 항목 하나를 지목했으면 그 편집기를 연다 — **한 번만**. 열고 나서 주소를 비우는
+     이유는 둘이다: 닫은 뒤 화면을 다시 그릴 때 같은 모달이 계속 되살아나지 않게, 그리고
+     그 상태에서 새로고침하면 사용자가 이미 닫은 것이 또 열리지 않게. 모르는 키는 조용히
+     둔다 — 옛 링크가 오류 화면이 되지 않게 하는 이 저장소의 딥링크 규약 그대로다. */
+  const deepLinkKey = deepLink.setting;
+  React.useEffect(() => {
+    if (!deepLinkKey) return;
+    /* 이 표가 실제로 그리는 줄만 연다. 유지보수·AI 키는 여기서 일부러 숨긴 것이라
+       (전용 화면이 따로 있고, 서버가 역할도 다르게 막는다) 주소로 뒷문을 내지 않는다. */
+    const row = rows.find((r) => r.key === deepLinkKey);
+    if (!row) return;
+    setSel(row);
+    setDeepLink({ setting: "" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deepLinkKey, q.data]);
   /* '항목명' 외 열엔 width를 주지 않는다(DataTable이 지원하긴 한다). 이 표는 '설명'만
    * 길고 나머지는 짧은데, 앞 네 열 전부에 고정 폭을 주면 요청 폭 합이 1366px 화면의 가용
    * 폭을 넘겨 브라우저가 폭을 지정하지 않은 '설명' 열을 0에 가깝게 짜부라뜨린다 — 실제로

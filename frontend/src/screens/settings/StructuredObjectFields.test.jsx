@@ -1,6 +1,6 @@
 import React from "react";
 import { describe, it, expect } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 
 /* H-2 회귀 고정: fmtDuration import 누락으로 '세션 정책' 편집기가 ReferenceError로
@@ -144,5 +144,43 @@ describe("StructuredObjectFields — backup_schedule (지시 32 · 36)", () => {
   it("잘못된 JSON 에도 크래시하지 않는다", () => {
     renderField("backup_schedule", "{ not valid json");
     expect(screen.getByLabelText("주기")).toBeTruthy();
+  });
+});
+
+/* 🔴 **보관 기간을 고칠 칸이 없었다** (2026-09-01).
+ *
+ * 서버는 지울지 말지를 개수와 나이 **둘 다** 보고 정한다
+ * (`app/backups/service.py::apply_retention` — 개수만 걸면 하루에 여러 번 돌린 날이 지난
+ * 주를 통째로 밀어낸다). 그런데 이 편집기에는 개수 칸만 있어서, 「복구 리허설」 화면이
+ * «보관 기간 7일» 이라는 카드를 보여 주는데 그 값을 바꿀 자리가 제품 어디에도 없었다.
+ * 이 설정의 설명문(«정한 개수와 기간만큼 남깁니다»)은 절반이 지킬 수 없는 약속이었다.
+ */
+describe("StructuredObjectFields — backup_schedule 의 보관 기간", () => {
+  it("저장된 keep_days 를 그 칸이 보여 준다", () => {
+    renderField("backup_schedule", JSON.stringify({
+      enabled: true, cron: "0 3 * * *", keep: 14, keep_days: 30,
+    }));
+    expect(screen.getByLabelText("보관 기간(0~365일)")).toHaveValue(30);
+  });
+
+  it("0 도 값이다 — 「개수로만 정리한다」를 고른 것이지 빈 칸이 아니다", () => {
+    renderField("backup_schedule", JSON.stringify({
+      enabled: true, cron: "0 3 * * *", keep: 14, keep_days: 0,
+    }));
+    expect(screen.getByLabelText("보관 기간(0~365일)")).toHaveValue(0);
+  });
+
+  it("칸을 고치면 keep_days 가 담긴 JSON 으로 돌려준다 — 다른 값은 그대로 둔다", () => {
+    const seen = [];
+    renderField(
+      "backup_schedule",
+      JSON.stringify({ enabled: true, cron: "0 3 * * *", keep: 14, keep_days: 7 }),
+      { onChange: (v) => seen.push(JSON.parse(v)) },
+    );
+    fireEvent.change(screen.getByLabelText("보관 기간(0~365일)"), { target: { value: "21" } });
+    expect(seen).toHaveLength(1);
+    expect(seen[0].keep_days).toBe(21);
+    expect(seen[0].keep).toBe(14);
+    expect(seen[0].cron).toBe("0 3 * * *");
   });
 });

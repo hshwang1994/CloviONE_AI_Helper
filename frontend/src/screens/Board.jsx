@@ -499,7 +499,7 @@ function BoardScreen({ kind = "free" }) {
     /* 좁은 화면(900~1200)에서 먼저 접히는 둘. 분류는 바로 위 칩이 이미 말하고, 조회 수는
        어느 글을 열지 정하는 데 가장 덜 쓰인다 — 행을 열면 둘 다 상세에 있다. */
     { key: "view_count", label: "조회", type: "count", sortable: true, hideNarrow: true },
-    { key: "created_at", label: "작성", type: "date", sortable: true, render: (p) => <DateCell value={p.created_at} /> },
+    { key: "created_at", label: "작성", type: "datetime", sortable: true, render: (p) => <DateCell value={p.created_at} /> },
   ];
 
   const writeBtn = <Button variant="primary" onClick={() => setComposing(true)}>{copy.writeLabel}</Button>;

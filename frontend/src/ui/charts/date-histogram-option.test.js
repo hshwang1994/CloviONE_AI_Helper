@@ -55,3 +55,40 @@ describe("dateHistogramOption", () => {
     expect(opt.dataZoom[0].zoomOnMouseWheel).toBe(true);
   });
 });
+
+/* 🔴 날짜 눈금 — 2026-09-01 이전에는 이 그림 밖 HTML `flex` 줄이 그렸고, 그 줄이 두 가지로
+ * 틀렸다: 90 칸을 등분해 「6/14」를 「6/1」로 **잘랐고**, 그림이 실제로 보여 주는 구간
+ * (dataZoom 이 연 창)과 무관하게 언제나 90 일 전체를 말했다. 축을 그림에 넘기면 둘 다
+ * 구조적으로 없어진다 — 축은 지금 보이는 카테고리를 알고, 자리가 모자라면 뺀다. */
+describe("dateHistogramOption — 날짜 눈금", () => {
+  const opt = () => dateHistogramOption({
+    days: days([1, 0, 2, 0, 3]), fillColor: "#f", trackColor: "#t", drawn: true,
+    axisColor: "#666", axisLineColor: "#ddd", fontSize: 12,
+  });
+
+  it("x축을 그린다 — 눈금이 그림 안에 있어야 확대·이동을 따라간다", () => {
+    const x = opt().xAxis;
+    expect(x.show).toBe(true);
+    expect(x.axisLabel.show).toBe(true);
+  });
+
+  it("자리가 모자라면 **자르지 않고 뺀다** — 잘린 「6/1」은 6월 1일이라는 거짓말이다", () => {
+    expect(opt().xAxis.axisLabel.hideOverlap).toBe(true);
+  });
+
+  it("눈금 글자는 'M/D' 다 — 축에 연도를 반복해 적지 않는다", () => {
+    expect(opt().xAxis.axisLabel.formatter("2026-06-14")).toBe("6/14");
+  });
+
+  it("눈금 글꼴은 호출부가 넘긴 px 다 — SVG 는 rem 을 안 받으므로 4K 레버를 여기서 푼다", () => {
+    expect(opt().xAxis.axisLabel.fontSize).toBe(12);
+  });
+
+  it("눈금이 판 안쪽에 자리를 얻는다(containLabel) — 끄면 상자 밖으로 나가 잘린다", () => {
+    expect(opt().grid.containLabel).toBe(true);
+  });
+
+  it("가장 높은 막대 위에 여백이 있다 — 0 이면 최댓값 막대가 판 위에 붙어 잘린 것처럼 보인다", () => {
+    expect(opt().grid.top).toBeGreaterThanOrEqual(8);
+  });
+});

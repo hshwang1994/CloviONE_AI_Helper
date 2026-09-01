@@ -99,7 +99,7 @@ const FAILURE_COLUMNS = [
   },
   { key: "attempt_count", label: "시도", hideNarrow: true, render: (r) => <NumberCell value={r.attempt_count} unit="회" /> },
   { key: "reason", label: "원인", render: (r) => <FailureReason row={r} /> },
-  { key: "created_at", label: "발생", render: (r) => <DateCell value={r.created_at} /> },
+  { key: "created_at", label: "발생", type: "datetime", render: (r) => <DateCell value={r.created_at} /> },
 ];
 
 export function MailStatus() {

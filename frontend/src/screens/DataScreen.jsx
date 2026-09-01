@@ -403,6 +403,17 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
       const listUrl = buildUrl();
       const qs = listUrl.includes("?") ? listUrl.slice(listUrl.indexOf("?") + 1) : "";
       window.location.href = a.download(qs, row);
+      /* 🔴 **내려받기는 행을 바꾼다** (2026-09-01). 백업 내려받기는 서버에서
+         `downloaded_at` 을 남기고(`mark_downloaded`), 그 값이 다음 행동의 조건이다 —
+         「서버에서 삭제」는 **내려받은 적이 있는 행에만** 뜬다(D-204: 다 받았다고 답할 수
+         있는 것은 사람뿐이다). 그런데 이 갈래는 목록을 다시 받지 않고 그대로 빠져나가서,
+         받은 직후의 화면에는 그 단추가 여전히 없었다. 사람이 새로고침을 떠올리기 전까지
+         D-204 의 두 번째 절반이 화면에서 존재하지 않았다.
+
+         받는 요청이 서버에 닿는 것을 기다렸다가 다시 읽는다 — 곧장 무효화하면 그 GET 보다
+         목록 질의가 먼저 도착해 여전히 옛 값을 받는다. 브라우저가 파일 저장 대화상자를
+         띄우는 동안 이 페이지는 그대로 살아 있으므로 타이머는 계속 돈다. */
+      window.setTimeout(refresh, 1200);
       return;
     }
     if (a.subList) { setSubView({ a, row }); return; }        // 하위 리소스 드로어
@@ -800,8 +811,16 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
    * 두지 않는다. 예전에는 registry 의 `variant:"danger"` 머리 액션(예: '전체 삭제')이
    * '추가' 바로 왼쪽에 같은 크기로 앉았다. */
   /* 머리 액션의 위험 판정 — 상세 액션(`isRisky`)과 같은 규칙이지만 그쪽은 아래에서
-   * 정의된다(sel 이 필요하다). 판정 자체는 한 줄이라 두 번 쓰는 대신 여기 먼저 둔다. */
-  const isRiskyHeader = (a) => a.variant === "danger" || !!a.confirm;
+   * 정의된다(sel 이 필요하다). 판정 자체는 한 줄이라 두 번 쓰는 대신 여기 먼저 둔다.
+   *
+   * 🔴 **`primary` 는 그 화면의 주 동작이라 «...» 뒤로 안 숨긴다** (2026-09-01).
+   *
+   * 「확인을 한 번 묻는다」와 「파괴적이다」는 다른 사실인데 이 한 줄이 둘을 같은 것으로
+   * 읽었다. 그래서 백업 화면의 «백업 실행» — `primary: true` 인 그 화면의 존재 이유 —
+   * 이 머리에서 사라지고 «...» 메뉴 안에 **빨간 글씨**로 들어가 있었다. 백업을 지금
+   * 한 번 뜨는 것은 되돌릴 수 없는 파괴가 아니라 이 화면이 하라고 있는 일이다.
+   * `primary` 를 선언한 액션은 언제나 머리에 선다 — 확인 대화는 그대로 뜬다. */
+  const isRiskyHeader = (a) => !a.primary && (a.variant === "danger" || !!a.confirm);
   const inlineHeaderActions = visibleHeaderActions.filter((a) => !isRiskyHeader(a));
   const overflowHeaderActions = visibleHeaderActions.filter(isRiskyHeader);
   const headerKeyOf = (a) => "h" + visibleHeaderActions.indexOf(a);
@@ -958,13 +977,23 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
             <Callout tone="danger">요약 통계를 불러오지 못했습니다. <Button size="sm" onClick={() => summaryQuery.refetch()}>다시 시도</Button></Callout>
           )
         ) : summaryQuery.data ? (
-          <MetricStrip
-            ariaLabel="요약"
-            sx={{ mb: 2.5 }}
-            items={config.summary.cards(summaryQuery.data, { setFilter }).map((c, i) => ({
-              key: i, value: c.value, label: c.label, kind: c.kind, onClick: c.onClick,
-            }))}
-          />
+          <>
+            <MetricStrip
+              ariaLabel="요약"
+              sx={{ mb: config.summary.notes ? 1.5 : 2.5 }}
+              items={config.summary.cards(summaryQuery.data, { setFilter }).map((c, i) => ({
+                key: i, value: c.value, label: c.label, kind: c.kind, onClick: c.onClick,
+              }))}
+            />
+            {/* 🔴 **경고는 개수가 아니라 문장이다** (2026-09-01). 요약 줄은 「N건」밖에 못
+                말하는데, 이 자리에 오는 것들(「백업이 앱과 같은 디스크에만 있습니다」)은
+                읽는 순간 할 일이 정해지는 문장이라 세어 봐야 아무 소용이 없다. 화면이
+                `notes(data)` 로 문장 목록을 주면 그대로 낸다. 빈 배열이면 아무것도 안 그린다 —
+                할 말이 없을 때 빈 상자를 남기지 않는다. */}
+            {(config.summary.notes ? config.summary.notes(summaryQuery.data) : []).map((note, i) => (
+              <Callout key={i} tone="warn">{note}</Callout>
+            ))}
+          </>
         ) : null
       ) : null}
       {showToolbar ? (
