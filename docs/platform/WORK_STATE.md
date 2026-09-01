@@ -9,59 +9,56 @@
 
 ## CHECKPOINT
 
-- checkpoint_at: **2026-09-01** (표의 바닥 폭 · 백로그 트랙 · 칸에 맞춘 열 접기 — D-379·D-380)
+- checkpoint_at: **2026-09-01** (홈·관리자 대시보드 결함 다섯 — D-381~D-384)
 - phase: **F — Acceptance 완료(S22).** 그 뒤는 CLAUDE.md §7.0 의 **일반 개발**이다
-- session: **표가 자기 바닥 폭을 갖고, 칸에 맞춰 열을 접는다** (D-379 · D-380).
-  사용자가 「보드 칼럼 너비가 이상하고 배율을 조정하면 그리드가 깨져서 안 보인다」고 했다.
-  `table-layout: fixed` 는 열의 `min-width` 를 안 보므로, 나머지 열의 고정 폭 합이 칸보다
-  크면 남는 폭을 먹기로 한 **제목 열이 0** 이 되고 머리글이 옆 이름 위에 겹쳤다 — 팀 티켓은
-  1280·1366·1536·1600 **네 폭 모두에서 제목이 0px** 였다. `tableMinWidth`/`tableLayoutSx` 로
-  표에 바닥을 걸었다. 백로그는 반대쪽이었다: 제목 트랙이 26rem 에서 멈춰 줄 오른쪽이 2560
-  에서 955px 비었고, `minmax(14rem, 1fr)` 로 표의 `title` 과 같은 규칙에 맞췄다.
-  그 대가(좁은 화면의 가로 스크롤)를 **열 접기**로 갚았다 — 판단의 입력을 뷰포트에서
-  **그 표가 받은 칸**으로 바꾸고(옛 900~1200 규칙은 칸이 902px 인 1920 화면에서 아무 열도
-  안 뺐다) 들어갈 때까지 뒤에서부터 하나씩 뺀다. 규칙은 kit 하나가 들어
-  `DataTable` 과 `GroupedTickets` 가 같은 함수를 본다. 1920 에서 넘치는 표가 **0개**가 됐다.
+- session: **홈과 관리자 대시보드에 버그가 있는지 실브라우저로 보고, 있는 것을 고쳤다.**
+  다섯 가운데 셋이 「한 화면이 서로 반대되는 말을 한다」는 같은 모양이었다.
+  ① **홈이 빈 판으로 열렸다**(D-381) — 업무 판이 언제나 「오늘 마감」으로 열어서, 오늘
+  마감 0 · 지연 14 인 계정에서 가장 큰 판이 「없습니다」인데 바로 아래 AI 도우미는
+  「지난 티켓 14건이 오늘 가장 급합니다」였다. 그 칸이 **비었을 때만** 급한 순으로 연다.
+  순서는 `AssistantPanel::URGENCY_ORDER` 한 벌을 두 자리가 함께 본다.
+  ② **고정 열 이름이 첫 행 위에 겹쳤다**(D-382) — `stickyTopSx()` 의 상단바 높이는 윈도가
+  스크롤 창일 때의 값인데 홈의 표는 `ScrollArea` 안에 있다. 오프셋을 CSS 변수로 내고
+  스크롤 창을 만드는 쪽이 자기 위에 0 을 박게 했다. 나머지 표 넷은 안 바뀐다.
+  ③ **「지금 정상인」 줄이 정상이 아닌 것을 말했다**(D-383) — 「필수 서비스 정상 1 / 3」은
+  고장 요약이고(같은 사실이 한 화면에 세 번 있었다), 「24시간 성공률 -」는 낼 수 없는 값이다.
+  ④ **배경 갱신 한 번이 홈을 지웠다**(D-384) — 폴링하는 화면 중 홈만 `staleAfterError`
+  규칙 밖이었다. 같은 자리에서 실패한 수동 새로고침이 성공이라고 낭독되던 것도 고쳤다.
+  ⑤ AI 도우미가 「이번 주 맡은 0건 가운데 0건을 끝냈고 0건이 남았습니다」를 적고 있었다.
 - branch: `ui/mui-migration`
 - last_stable_commit: **`eec4886c`** — S2 본체 커밋이고 `check_test_strength.py` 가 이 값을 읽는다.
   **이번 회차도 안 옮긴다.** 이유는 S11~S22 와 같다 — 그 기준을 옮기는 순간 그동안 지운
   시험들이 검사 시야에서 사라진다.
 - working_tree: **깨끗하다**(이 회차를 커밋한 뒤 기준).
 - s22_commit: `2f4fc587` · `1921f884` · prev_commit: `e8d39fd3` · `757b6e22`
-- this_commit: **`9fb6187f`**(바닥 폭 · 백로그 트랙 · D-379) · **`34c77989`**(칸에 맞춘 열 접기 · D-380)
-  (+ `a4edd8bf`·`36cd310b` 기록 · `acd378ca` 번들 기준)
-- prev_session_commit: `bc55228c` · `4ca1aab5` · `b340ab09` · `5db48df3`
-- deployed: **`acd378ca`** 이 운영에 나갔다 (2026-09-01 18:58 · `scripts/deploy-upgrade.sh`).
-  Stage 0~18 전부 OK · `VERIFY_OK` · `UPGRADE_OK` · 스냅샷 `/var/backups/clovirassist/20260901-185824`.
+- this_commit: **`0f93c572`**(홈·대시보드 결함 다섯 · D-381~D-384)
+- prev_session_commit: `9fb6187f` · `34c77989` · `acd378ca` · `34ba7a1f`
+- deployed: **`0f93c572`** 가 운영에 나갔다 (2026-09-01 20:15 · `scripts/deploy-upgrade.sh`).
+  Stage 0~18 전부 OK · `VERIFY_OK` · `UPGRADE_OK` · 스냅샷 `/var/backups/clovirassist/20260901-201250`.
   **스키마는 그대로다** — alembic `0025_ticket_body_doc` → `0025_ticket_body_doc`(표 94개 ·
   사용자 26명). 이번 회차는 프런트만 바뀌었다.
-  **이번 커밋의 것이 실제로 올라갔다**: 새 진입 번들 `index.Cjg-73PL.js` 가 200 이고,
-  직전 배포의 진입 번들 `index.CPdJHECE.js` 는 404 다.
-  스모크(`--cacert` + `--resolve clovirassist.gooddi.lab:443:10.100.64.71`):
+  **이번 커밋의 것이 실제로 올라갔다**: 새 진입 번들 `index.-JF0krO5.js` 가 200 이고 직전
+  배포의 `index.Cjg-73PL.js` 는 404 다. sticky 고침이 사는 `kit.BpOSQT1C.js` 도 200 이고
+  그 안에 `--c-sticky-top` 이 들어 있다(옛 `kit.tZTcWnff.js` 는 404).
+  스모크(`--cacert /etc/clovirassist/tls/clovirassist.gooddi.lab.crt` +
+  `--resolve clovirassist.gooddi.lab:443:10.100.64.71`):
   `/healthz` `{"status":"ok","ticket_source":"native"}` · `/readyz` `{"status":"ready"}` ·
   `ssl_verify_result=0` · `postgresql`·`nginx`·제품 유닛 여섯 전부 active.
-  🔴 **첫 시도는 `STAGE_5_FRONTEND` 에서 멈췄다.** 정적 검사가 잡은 `tokens.css` 드리프트를
-  `generate_design_tokens.mjs` 로 고친 것이 **번들 기준을 적은 뒤**였고, `tokens.css` 도
-  프런트 소스 입력이라 지문이 밀렸다. 번들 자체는 안 바뀌었다(재빌드 결과 동일).
   순서는 언제나 **빌드 → 소스 고침 끝 → `check_bundle_fresh.py --write` → 커밋**이다.
-  되돌리려면 `sudo /home/cloviradmin/clovirassist-upgrade/deploy/install.sh rollback --target /var/backups/clovirassist/20260901-185824`
-- deployed_prev: `b340ab09`(2026-09-01 17:24 · 스냅샷 `20260901-172145`)
-- verification: **표적**이다(§7.0 일반 개발). `scripts/verify.py` **초록**
-  (`static_checks --scope dev` + vitest 표적). 공용 표를 건드렸으므로 `src/ui` 전량과
-  접기가 닿는 화면 시험을 함께 돌렸다 — 67 파일 / 784 시험, 실패는 `editable-body-*`
-  하나이고 **단독 실행에서 통과**하는 tiptap/jsdom 부하 흔들림이다(표와 무관).
-  D-379 회차의 vitest 전량(363 파일)도 이번 변경 전에 초록이었다.
+  되돌리려면 `sudo /home/cloviradmin/clovirassist-upgrade/deploy/install.sh rollback --target /var/backups/clovirassist/20260901-201250`
+- deployed_prev: `acd378ca`(2026-09-01 18:58 · 스냅샷 `20260901-185824`)
+- verification: 새 시험 열셋을 전부 **빨간불부터 확인**했다(홈 여섯 · 대시보드 셋 ·
+  AI 도우미 넷 · sticky 둘). 공용 층(`ui/kit.jsx`·`ui/theme.js`)을 건드렸으므로 vitest
+  **전량**을 돌렸다 — 364 파일 2,755 시험 초록이고, 실패한 파일 하나
+  (`registry-active-badge`)는 S11 이 걷은 `integrations` 화면을 아직 부르는 것이라
+  **이 변경을 stash 하고 돌려도 똑같이 실패한다**(§7.0 의 unrelated 기존 실패).
+  `static_checks.sh --scope full` **`STATIC_CHECKS_OK`**(`BUNDLE_FRESH_OK` 포함).
   🔴 `theme.js` 를 고쳐 `tokens.css` 의 source-hash 가 밀렸다 —
   `node scripts/generate_design_tokens.mjs` 로 다시 냈고 **토큰 값은 한 줄도 안 바뀌었다**.
-- browser: **실브라우저로 쟀다**(로컬 QA 서버 · 헤드리스 Chromium · light).
-  ① **전후 실측**(D-379) — 팀 티켓의 제목 열이 1280/1366/1536/1600 네 폭에서 `0px → 256px`
-  이고, 1920·2560·3840 은 **한 픽셀도 안 바뀐다**. 백로그의 줄 오른쪽 빈 자리는
-  494/955/1608px → 68/76/85px(=칸 사이와 여백뿐)이다.
-  ② **회귀**(D-379) — 12 화면 × 2 뷰포트를 전후로 찍어 `results.json` 의 assertion 결과를
-  대조했다. **달라진 항목 0**(실패 9건은 전후 동일 · 열 폭과 무관).
-  ③ **전 화면 훑기**(D-380) — 20 화면 × 3 뷰포트의 표 48개. **폭이 0 인 열 0개**이고,
-  가로로 밀리는 표가 1920 에서 **3개 → 0개**, 1366 에서 8개(최대 756px) → 5개(최대 260px),
-  1200 에서 13개(최대 922px) → 11개(최대 426px)다. 남은 것은 접을 열을 아직 안 정한 표다.
+- browser: **실브라우저로 전후를 쟀다**(로컬 QA 서버 · 헤드리스 Chromium · 1920 · light).
+  홈은 「오늘 마감 0건」 빈 판 → 「지연 14건」 목록으로 열리고, 고정 열 이름이 첫 행과
+  안 겹친다. 대시보드의 정상 줄은 「필수 서비스 정상 1 / 3 · 24시간 성공률 - · 디스크
+  45.8%」 → 「디스크 45.8%」 하나다. 하네스 단언은 전후 모두 **치명 실패 0**.
 - capture: 전량 정본은 **`s22-final`** 그대로다. 이번 회차도 캡처 하네스를 전량으로 안 돌렸다.
   **부분 캡처는 전량 원장을 안 덮는다**(D-306) — `capture_labels.after` 를 옮기지 않았다
 - ui_gate: `--stage plan` **PASS**. `--stage wave`(W15)는 **초록이 아니다** — 남은 것은
@@ -84,7 +81,7 @@
 | 이관 예외 | 미해결 11 — 그중 사람이 프로젝트를 정해야 하는 **9 건은 `/integrity` 가 전부 보여 준다**(P-52) |
 | 옛 이름 층 | **없다** · 옛 포트(5678·5679·8787·8788·8789) 청취 **0건** · 그 포트를 가리키던 연동 등록 행 넷도 이제 없다(0017) |
 
-## 이번 회차가 한 것 — 목록 · 필터/정렬 · 티켓 만들기
+## 앞선 회차가 한 것 — 목록 · 필터/정렬 · 티켓 만들기
 
 **목록에서 쪽이 사라졌다.** 페이저 다섯 벌(`ui/Pager.jsx` · `DataScreen` · `Users` ·
 `Offboarding` · `SubListDrawer`)이 목록 끝 줄 하나(`ui/InfiniteScroll.jsx::ListFooter`)가 됐다.
