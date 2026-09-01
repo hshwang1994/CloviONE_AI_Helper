@@ -9,86 +9,78 @@
 
 ## CHECKPOINT
 
-- checkpoint_at: **2026-09-02** (프로젝트 화면의 넘침·잘림, 그리고 백업 전반 — D-391~D-397)
+- checkpoint_at: **2026-09-02** (「이슈 있음」을 켤 자리를 만든다 — D-398~D-402)
 - phase: **F — Acceptance 완료(S22).** 그 뒤는 CLAUDE.md §7.0 의 **일반 개발**이다
-- session: **프로젝트 화면의 「그리드가 넘어간다 · 차트가 잘린다」와 백업에 딸린 것 전부를
-  보고 고쳤다.** 눈으로 고르지 않고 실브라우저에서 **좌표로** 쟀다 — 어느 요소가 자기 칸
-  오른쪽을 몇 픽셀 넘는가, 어느 글자가 `scrollWidth > clientWidth` 인가.
-  ① **표의 마지막 열이 표 밖으로 나갔다**(D-391). 원인은 어휘였다 — `DateCell` 은 언제나
-  「날짜와 시각」(120px)을 그리는데 그 열들이 `type:"date"`(8.5rem)나 더 좁은 명시 폭으로
-  선언돼 있었다. 필요한 폭은 9.5rem 이고, `render` 가 있는 nowrap 열에는 `overflow:hidden`
-  이 안 붙으므로(kit.jsx 의 의도된 규칙) 모자란 만큼이 **잘림이 아니라 침범**으로 나왔다.
-  1920 실측 8px, 1366 실측 8px. 공용 `dateCol()` 과 화면 여섯이 같은 모양이라 공용 층에서
-  고쳤고, 넓힌 뒤 열한 화면을 다시 찍어 `horizontal_overflow` **22/22 통과**를 확인했다.
-  ② **「티켓 발생 추이」의 날짜 눈금이 두 가지로 틀렸다**(D-392). 「6/14」가 「6/1」로
-  **말줄임표 없이** 잘렸고(1칸 17px · 390 에서는 3px), 게다가 **그림이 보여 주는 구간과
-  다른 날짜**를 말했다 — 막대는 8/29~9/1 네 칸인데 눈금은 6/4~8/23 이었다. 축을 그림에
-  넘겼다: 축은 지금 보이는 카테고리를 알고, 자리가 모자라면 자르는 대신 뺀다.
-  ③ Health 판의 원이 1558px 판 **한가운데**에 혼자 떠 있었다(잉크 18%) — 점수와 그것을
-  만든 규칙이 한 줄에서 함께 읽히게 나란히 세웠다. 「주간 추세」는 숫자 한 줄이던 것을
-  스파크라인 + 가로 목록으로 바꿨고, 한 주뿐이면 그 사실을 문장으로 적는다.
-  ④ **백업 화면의 「백업 실행」이 «...» 메뉴 안에 빨간 글씨로 숨어 있었다**(D-393).
-  「확인을 한 번 묻는다」를 「파괴적이다」로 읽은 한 줄 때문이다. `primary` 는 그 화면의
-  주 동작이므로 언제나 머리에 선다.
-  ⑤ **상한이 있는 목록의 조건이 화면 안에서만 돌았다**(D-394 · 남겨 뒀던 항목 3). 「실패한
-  백업만」이 실제로는 「최근 50건 안의 실패만」이었다. 조건을 서버로 옮기고 상한은
-  `cap`/`capWarning` 으로 밝힌다.
-  ⑥ **「백업 화면에서 예약을 켜세요」라는 알림이 가리키는 화면에 켤 것이 없었다**(D-395).
-  백업 화면에 「백업 일정 설정」(설정 항목 딥링크)을 두고, 예약·마지막 백업·보존을 요약
-  줄로, 경고를 **문장 그대로** 낸다(예전에는 「1건」이라는 숫자 카드였다).
-  ⑦ **보관 기간을 고칠 자리가 제품 어디에도 없었다**(D-396) — 화면은 그 값을 카드로 보여
-  주고 서버는 그것으로 지우는데 편집기에는 개수 칸만 있었다.
-  ⑧ **내려받은 직후에 「서버에서 삭제」가 안 떴다**(D-397) — 그 단추의 조건이 서버가 방금
-  남긴 값인데 목록을 다시 안 읽었다. D-204 의 두 번째 절반이 화면에 없었다.
+- session: **「티켓 조건의 `이슈 있음` 이 무엇인가」에서 시작해, 그 조건을 아무도 켤 수
+  없다는 것을 찾아 고쳤다.** 조건 자체는 한 줄이다 — `tickets.issue_flag = true`.
+  ① **켜는 자리가 제품 어디에도 없었다**(D-398). 설계는 그것을 「사람이 켜는 플래그」라고
+  적었고(D-349) 서버는 `issue_flag`·`blocked_flag`·`blocked_reason` 셋을 받는데, 목록·상세·
+  작업 보드·회의·주간보고가 **읽기만** 했다. 그래서 그 필터는 이관 시점 데이터 말고는
+  영원히 비어 있었다. `TicketEditModal` 에 「신호」 절을 넣었다 — 상태 격자와 **다른 축**이라
+  따로 세우고, 사유 칸은 차단을 켰을 때만 선다.
+  ② **켠 사실이 아무 데도 안 남았다**(D-399). `snapshot()` 이 신호 둘을 안 실어서 이슈를
+  켠 편집은 before 와 after 가 똑같은 감사 기록이었고, 「바뀐 것만」 말하는 이력 화면에는
+  그 줄이 빈 채로 섰다. 두 칸을 넣고 깃발은 「켜짐/꺼짐」으로 읽는다.
+  ③ **사유가 요청 안의 키 순서에 걸려 있었다**(D-400). 저장소가 사유를 적용할 때 그
+  시점의 차단 여부를 봐서, 사유가 깃발보다 먼저 오면 「막혔다 + 이유」를 한 번에 보낸
+  저장에서 이유만 조용히 사라졌다. 지금까지는 스키마의 필드 순서가 우연히 지켜 줬다.
+  ④ **같은 신호가 화면마다 다른 색이었다**(D-401). 어휘 표는 `lib/ticketSignals.js`
+  하나인데 작업 보드와 회의 화면이 이름과 색을 다시 적어 뒀다 — 보드 한 화면 안에서 같은
+  티켓의 「이슈 있음」이 목록에서는 보라, 위 타일에서는 주황이었고 지연과 차단은 타일에서
+  둘 다 빨강이었다(묶음 A Exit 조건 위반). 공용 표로 되돌렸다.
+  ⑤ **되돌려도 보라가 안 그려졌다**(D-402). `paletteAt` 이 톤 색을 팔레트 경로로 푸는데
+  보라·틸·인디고는 `--badge-*-fg` CSS 변수라 `undefined` 가 나갔고, `border-color` 가
+  기본값 `currentColor` 로 떨어져 **글자색 띠**가 그려졌다. 경로가 아닌 값은 그대로
+  돌려주게 고치고, 톤 표를 `kit.jsx` 한 곳으로 모았다.
+  ⑥ 낡은 문구 둘 — `이슈` 는 마이그레이션 0018 이후 상태가 아닌데 AI 도우미가 「상태가
+  이슈인 티켓이 없습니다」로, 내 업무량이 「막힘(이슈)」로 그렇게 부르고 있었다.
 - branch: `ui/mui-migration`
 - last_stable_commit: **`eec4886c`** — S2 본체 커밋이고 `check_test_strength.py` 가 이 값을 읽는다.
   **이번 회차도 안 옮긴다.** 이유는 S11~S22 와 같다 — 그 기준을 옮기는 순간 그동안 지운
   시험들이 검사 시야에서 사라진다.
 - working_tree: **깨끗하다**(이 회차를 커밋한 뒤 기준).
 - s22_commit: `2f4fc587` · `1921f884` · prev_commit: `e8d39fd3` · `757b6e22`
-- this_commit: **`1d6e0514`**(프로젝트 넘침·잘림 + 백업 전반 · D-391~D-397) · 앞 회차 `b27f948c`(D-390)
-- prev_session_commit: `7f221d6e` · `0f93c572` · `3accdf0a` · `0e771a90`
-- deployed: **`1d6e0514`** 가 운영에 나갔다 (2026-09-02 00:47 · `scripts/deploy-upgrade.sh`).
-  Stage 0~18 전부 OK · `VERIFY_OK` · `UPGRADE_OK` · 스냅샷 `/var/backups/clovirassist/20260902-004719`.
+- this_commit: **`d6a32933`**(신호를 켤 자리 + 어휘·톤 통일 · D-398~D-402) · 앞 회차 `1d6e0514`(D-391~D-397)
+- prev_session_commit: `b27f948c` · `7f221d6e` · `0f93c572` · `3accdf0a`
+- deployed: **`d6a32933`** 가 운영에 나갔다 (2026-09-02 08:03 · `scripts/deploy-upgrade.sh`).
+  Stage 0~18 전부 OK · `VERIFY_OK` · `UPGRADE_OK` · 스냅샷 `/var/backups/clovirassist/20260902-080057`.
   **스키마는 그대로다** — alembic `0025_ticket_body_doc` → `0025_ticket_body_doc`(표 94개 ·
-  사용자 26명). 이 회차는 프런트가 바뀌어 번들을 다시 만들었다 — 새 진입 번들
-  `index.BD0VOgjF.js` 가 200 이고(`ssl_verify_result=0`), 새 청크 `Sparkline.BARvLvDJ.js`
-  도 설치처에 있다.
-  **이번 커밋의 것이 실제로 돌고 있다**: `/opt/clovirassist` 의 `list_backups` 가
-  `(request, status, file_state, db)` 를 받고 `list_rehearsals` 가 `(ok, db)` 를 받는다.
-  `BACKUP_LIST_LIMIT=50` · `REHEARSAL_LIST_LIMIT=20` 이고, 서버 venv 로 직접 불러
-  `backup_health_alert_reason` 이 「백업 화면의 '백업 일정 설정'에서」로 답하는 것을
-  확인했다(예전 문구가 가리키던 자리에는 켤 것이 없었다).
+  사용자 26명). 프런트가 바뀌어 번들을 다시 만들었다 — 새 진입 번들 `index.DSBT6Jpt.js` 가
+  200 이고(`ssl_verify_result=0`), 새 `kit.B9Kw3lwL.js` 도 200 이다.
+  **이번 커밋의 것이 실제로 돌고 있다**: `/opt/clovirassist` 의 `snapshot()` 이
+  `blocked`·`issue` 를 포함한 여덟 칸을 돌려주고, `HISTORY_FIELDS` 가 그 둘을 「이슈 있음」·
+  「차단됨」으로 부르며, `_history_value` 가 「켜짐/꺼짐」으로 답한다. 배포된
+  `UserRoutes.B-NXGEZD.js` 에 새 편집 칸(`te-blocked-reason`)이 들어 있다.
   스모크(`--cacert /etc/clovirassist/tls/clovirassist.gooddi.lab.crt` +
   `--resolve clovirassist.gooddi.lab:443:10.100.64.71`, 인증서는 sudo 로 읽는다):
   `/healthz` `{"status":"ok","ticket_source":"native"}` · `/readyz` `{"status":"ready"}` ·
   `clovirassist-web`·`postgresql`·`nginx` 를 포함한 유닛 다섯이 전부 active.
   순서는 언제나 **빌드 → 소스 고침 끝 → `check_bundle_fresh.py --write` → 커밋**이다.
-  되돌리려면 `sudo /home/cloviradmin/clovirassist-upgrade/deploy/install.sh rollback --target /var/backups/clovirassist/20260902-004719`
-- deployed_prev: `b27f948c`(2026-09-01 22:53 · 스냅샷 `20260901-225325`) · `7f221d6e`(21:59)
-- verification: 새 시험 **열여덟**(파일 다섯 벌)을 **전부 빨간불부터 확인**했다 — 차트 축
-  여섯 · 어휘 둘 · 주 동작 하나 · 내려받기 하나 · 보존 기간 셋 · 서버 필터 넷(그중 셋이
-  고침 전에 빨갛다, 넷째 「모르는 값은 무시」는 전후 모두 초록이라 그 사실을 시험에 적었다).
-  공용 층(`DataScreen`·`columnHelpers`)을 건드렸으므로 vitest **전량**을 돌렸다 —
-  368 파일 **2,781 시험 전부 초록**이고, 빨간 파일 둘(`registry-active-badge` ·
-  `editable-body-identity-reset`)은 **깨끗한 HEAD 에서도 똑같이 빨갛다**(각각 S11 이 걷은
-  화면을 부르는 수집 오류, jsdom 의 `getClientRects` 미구현). §7.0 의 unrelated 기존 실패다.
-  백엔드는 backup·restore·settings·registry 이름이 걸린 시험 **231개**와 backup·worker·
-  notification·project·admin 이름이 걸린 시험 **576개**, `tests/security` **전량**이 초록이다.
-  `static_checks.sh --scope full` **`STATIC_CHECKS_OK`**(`BUNDLE_FRESH_OK` 포함).
-- browser: **이번 회차는 실브라우저로 쟀다.** 고친 것의 절반이 좌표라 그래야 했다.
-  `/projects` · `/projects/{id}` · `/backup` · `/backup?tab=restore-drills` · `/settings` 를
-  1366·1920·390 에서 열어 **모든 요소의 오른쪽 넘침과 글자 잘림을 직접 쟀다**. 고치기 전
-  넘침 다섯 자리 · 잘린 날짜 눈금 아홉 개였고, 고친 뒤 **프로젝트 두 화면에서 0**이다
-  (남은 것은 `.sr-only` 머리글 둘 — 폭 1px 은 그 부품의 계약이다). 날짜 눈금은 이제
-  8/30·8/31·9/1·9/2 로 **막대가 서 있는 그 날짜**를 말한다.
+  되돌리려면 `sudo /home/cloviradmin/clovirassist-upgrade/deploy/install.sh rollback --target /var/backups/clovirassist/20260902-080057`
+- deployed_prev: `1d6e0514`(2026-09-02 00:47 · 스냅샷 `20260902-004719`) · `b27f948c`(2026-09-01 22:53)
+- verification: 새 시험 **열여덟**(파일 셋)을 **전부 빨간불부터 확인**했다 — 프런트 편집
+  여섯 · 어휘 다섯 · 백엔드 일곱. 백엔드 일곱 중 **셋이 고침 전에 빨갛다**(사유 순서 ·
+  감사 스냅샷 · 이력 어휘)고, 나머지 넷은 전후 모두 초록인 회귀 방지막이라 그 사실을
+  시험에 적었다. 공용 층(`kit.jsx`)을 건드렸으므로 vitest **전량**을 돌렸다 — 370 파일
+  **2,792 시험 전부 초록**이고, 빨간 파일 하나(`editable-body-identity-reset`)는 **깨끗한
+  HEAD 에서도 똑같이 빨갛다**(jsdom 의 `getClientRects` 미구현). 백엔드는 ticket·work·
+  audit·history·sprint·home·weekly 이름이 걸린 시험이 전부 초록이고, 빨간 둘
+  (`test_review3_fixes` · `test_ticket_create`)도 깨끗한 HEAD 에서 똑같이 빨갛다 — §7.0 의
+  unrelated 기존 실패다. `static_checks.sh --scope full` **`STATIC_CHECKS_OK`**
+  (`BUNDLE_FRESH_OK` 포함).
+- browser: **실브라우저로 한 바퀴를 돌았다** — 새 하네스 `scripts/ui_qa/signal_e2e.py`
+  (`local_capture --harness signal_e2e`). 팀 티켓에서 편집을 열어 「이슈 있음」을 켜고
+  저장 → 목록에 표식이 서고(`rgb(74,62,140)`) → 작업 보드의 「이슈 있음」 타일이 0 에서
+  1 로 올랐다. 타일 셋의 위색 띠는 차단 `rgb(179,38,30)` · 지연 `rgb(138,83,0)` ·
+  이슈 `rgb(74,62,140)` 으로 **서로 다르다** — 고치기 전에는 보라가 글자색으로 떨어졌으므로
+  이 값이 곧 그 고침의 증거다. 색은 좌표가 아니라 **계산된 스타일**로 쟀다.
 - capture: 전량 정본은 **`s22-final`** 그대로다. 이번 회차도 캡처 하네스를 전량으로 안 돌렸다.
   **부분 캡처는 전량 원장을 안 덮는다**(D-306) — `capture_labels.after` 를 옮기지 않았다
 - ui_gate: `--stage plan` **PASS**. `--stage wave`(W15)는 **초록이 아니다** — 남은 것은
   **P-44** 의 기록 형식(사슬의 서버 칸 982)과 그것이 붙잡고 있는 축들이다. 상세는
   [`../ui-renewal/WORK_STATE.md`](../ui-renewal/WORK_STATE.md)
 - 스키마는 **94 표**다. alembic head 는 **`0025_ticket_body_doc`** 다 — 이 회차는 표도 칸도
-  안 건드렸다(백업 목록 조건은 이미 있는 칸을 읽기만 한다).
+  안 건드렸다(신호 세 칸은 0018 이 이미 만들어 뒀고, 이번에는 그것을 **쓰는 길**만 열었다).
 
 ## 이번 회차가 **안 고친** 것 — 그리고 그 이유
 
