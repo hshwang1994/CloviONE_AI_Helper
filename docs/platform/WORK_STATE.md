@@ -35,22 +35,24 @@
   시험들이 검사 시야에서 사라진다.
 - working_tree: **깨끗하다**(이 회차를 커밋한 뒤 기준).
 - s22_commit: `2f4fc587` · `1921f884` · prev_commit: `e8d39fd3` · `757b6e22`
-- this_commit: **`0f93c572`**(홈·대시보드 결함 다섯 · D-381~D-384)
-- prev_session_commit: `9fb6187f` · `34c77989` · `acd378ca` · `34ba7a1f`
-- deployed: **`0f93c572`** 가 운영에 나갔다 (2026-09-01 20:15 · `scripts/deploy-upgrade.sh`).
-  Stage 0~18 전부 OK · `VERIFY_OK` · `UPGRADE_OK` · 스냅샷 `/var/backups/clovirassist/20260901-201250`.
+- this_commit: **`7f221d6e`**(승인·알림·프로젝트 결함 여섯 · D-385~D-389)
+- prev_session_commit: `0f93c572` · `3accdf0a` · `0e771a90` · `acd378ca`
+- deployed: **`7f221d6e`** 가 운영에 나갔다 (2026-09-01 21:59 · `scripts/deploy-upgrade.sh`).
+  Stage 0~18 전부 OK · `VERIFY_OK` · `UPGRADE_OK` · 스냅샷 `/var/backups/clovirassist/20260901-215720`.
   **스키마는 그대로다** — alembic `0025_ticket_body_doc` → `0025_ticket_body_doc`(표 94개 ·
-  사용자 26명). 이번 회차는 프런트만 바뀌었다.
-  **이번 커밋의 것이 실제로 올라갔다**: 새 진입 번들 `index.-JF0krO5.js` 가 200 이고 직전
-  배포의 `index.Cjg-73PL.js` 는 404 다. sticky 고침이 사는 `kit.BpOSQT1C.js` 도 200 이고
-  그 안에 `--c-sticky-top` 이 들어 있다(옛 `kit.tZTcWnff.js` 는 404).
+  사용자 26명). 이번 회차는 프런트와 백엔드가 함께 바뀌었다(마이그레이션은 없다).
+  **이번 커밋의 것이 실제로 올라갔다**: 새 진입 번들 `index.AsjPK74b.js` 가 200 이고 직전
+  배포의 `index.-JF0krO5.js` 는 404 다. 프로젝트 고침이 사는 `UserRoutes.BoWMgWh7.js` 와
+  알림 화면이 사는 `datascreen.CKfSgxY2.js` 도 200 이다. 백엔드도 서버에서 직접 확인했다 —
+  `/opt/clovirassist` 의 `approvals/router.py` 에 위임자 범위 판정이, `notifications/` 의
+  라우터와 서비스에 `audience` 인자가 들어 있다.
   스모크(`--cacert /etc/clovirassist/tls/clovirassist.gooddi.lab.crt` +
-  `--resolve clovirassist.gooddi.lab:443:10.100.64.71`):
+  `--resolve clovirassist.gooddi.lab:443:10.100.64.71`, 인증서는 sudo 로 읽는다):
   `/healthz` `{"status":"ok","ticket_source":"native"}` · `/readyz` `{"status":"ready"}` ·
   `ssl_verify_result=0` · `postgresql`·`nginx`·제품 유닛 여섯 전부 active.
   순서는 언제나 **빌드 → 소스 고침 끝 → `check_bundle_fresh.py --write` → 커밋**이다.
-  되돌리려면 `sudo /home/cloviradmin/clovirassist-upgrade/deploy/install.sh rollback --target /var/backups/clovirassist/20260901-201250`
-- deployed_prev: `acd378ca`(2026-09-01 18:58 · 스냅샷 `20260901-185824`)
+  되돌리려면 `sudo /home/cloviradmin/clovirassist-upgrade/deploy/install.sh rollback --target /var/backups/clovirassist/20260901-215720`
+- deployed_prev: `0f93c572`(2026-09-01 20:15 · 스냅샷 `20260901-201250`)
 - verification: 새 시험 **열다섯**(파일 다섯 벌)을 전부 **빨간불부터 확인**했다 — 위임
   결재 둘 · 알림 audience 셋 · 벨 낙관 갱신 셋 · 프로젝트 필터 지우기 셋 · 돌아올 자리
   둘 · 문서 잘림 둘. 고침을 되돌리면 빨갛고 되돌려 놓으면 초록인 것을 짝으로 확인했다.
