@@ -23,16 +23,20 @@
   `density.js` 와 그 시험들)이 그대로 깔려 있다. 남은 정적 실패 다섯은 전부 그 아래층 것이다 —
   커밋을 가를 때 두 층을 섞지 않는다.
 - s22_commit: `2f4fc587` · `1921f884` · prev_commit: `ca49e7d8` · `3804bc0e` · `91bf3af9`
-- this_commit: **`31bfb341`** — 작업 보드 · 스프린트 회의 재설계
-- deployed: **`31bfb341`** 이 운영에 나갔다 (2026-08-28 16:32 · `install.sh upgrade --source local --yes`).
-  Stage 0~18 전부 OK · `VERIFY_OK` · `UPGRADE_OK` · 스냅샷 `/var/backups/clovirassist/20260828-163250`.
-  스키마는 안 건드렸다 — alembic 이 `0024_technology_tags` 에서 그대로다(표 94개 · 사용자 26명).
-  **이번 커밋의 것이 실제로 올라갔다**: 진입 번들 `index.DPCnHHw3.js` · `WorkBoard.9wriO0YU.js` ·
-  `UserRoutes.HklDhJl7.js` 가 운영에서 200 이다. 옛 `WorkBoard.CLmlRt1q.js` 는 404.
-  스모크: `/healthz` `{"status":"ok","ticket_source":"native"}` 200 · `/readyz` `{"status":"ready"}` 200.
-  제품 유닛 여섯 + nginx + postgresql 전부 active.
-  되돌리려면 `sudo /home/cloviradmin/clovirassist-upgrade/deploy/install.sh rollback --target /var/backups/clovirassist/20260828-163250`
-- deployed_prev: `93c6ce76`(2026-08-28 15:20 · 스냅샷 `20260828-152003`)
+- this_commit: **`e8d39fd3`** — 목록 무한 스크롤 · 서버 필터/정렬 · 티켓 만들기 (+ `20c36510` · `757b6e22` 번들 기준)
+- deployed: **`757b6e22`** 이 운영에 나갔다 (2026-09-01 14:36 · `install.sh upgrade --source local --yes`).
+  Stage 0~18 전부 OK · `VERIFY_OK` · `UPGRADE_OK` · 스냅샷 `/var/backups/clovirassist/20260901-143412`.
+  스키마는 안 건드렸다 — alembic 이 `0024_technology_tags` 그대로다(표 94개 · 사용자 26명).
+  **이번 커밋의 것이 실제로 올라갔다**: `/static/react/assets/index.D5HRTY7W.js` 와
+  `kit.BKCgD_qw.js` 가 200 이고 옛 진입 번들 `index.DPCnHHw3.js` 는 404 다.
+  스모크: `/healthz` `{"status":"ok","ticket_source":"native"}` · `/readyz` `{"status":"ready"}` ·
+  `postgresql`·`nginx`·제품 유닛 넷 전부 active.
+  🔴 배포가 `STAGE_5_FRONTEND` 에서 두 번 멈췄다. 첫째는 `BUILD_STAMP.json` 이 없어서였고,
+  둘째 원인은 소스 두 파일에 섞인 **떠도는 캐리지리턴**(뒤에 줄바꿈이 없는 CR)이다 —
+  `check_bundle_fresh.py` 는 CRLF 만 정규화하므로 빌드 머신과 서버가 같은 소스에서 다른
+  해시를 봤다(455a9f2c vs 21fa35cb). 그 CR 을 지워 양쪽을 맞췄다.
+  되돌리려면 `sudo /home/cloviradmin/clovirassist-upgrade/deploy/install.sh rollback --target /var/backups/clovirassist/20260901-143412`
+- deployed_prev: `31bfb341`(2026-08-28 16:32 · 스냅샷 `20260828-163250`)
 - verification: **표적**이다(§7.0 일반 개발). vitest 전량 **365 파일 / 2,746 시험 초록** ·
   백엔드 `tests/unit` · `tests/regression` · `tests/integration`(exit 0) · `tests/security` 초록 ·
   `static_checks.sh --scope dev` 의 이번 회차 새 단계 둘(`SORT_KEYS_FRESH_OK` ·
