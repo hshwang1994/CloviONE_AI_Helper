@@ -46,10 +46,25 @@
   시험들이 검사 시야에서 사라진다.
 - working_tree: **깨끗하다**(이 회차를 커밋한 뒤 기준).
 - s22_commit: `2f4fc587` · `1921f884` · prev_commit: `e8d39fd3` · `757b6e22`
-- this_commit: **`bd9e1234`**(프로젝트 넘침·잘림 + 백업 전반 · D-391~D-397) · 앞 회차 `b27f948c`(D-390)
+- this_commit: **`1d6e0514`**(프로젝트 넘침·잘림 + 백업 전반 · D-391~D-397) · 앞 회차 `b27f948c`(D-390)
 - prev_session_commit: `7f221d6e` · `0f93c572` · `3accdf0a` · `0e771a90`
-- deployed: **`bd9e1234`** 가 운영에 나갔다 (2026-09-02 · `scripts/deploy-upgrade.sh`).
-  상세는 아래 「배포」 절.
+- deployed: **`1d6e0514`** 가 운영에 나갔다 (2026-09-02 00:47 · `scripts/deploy-upgrade.sh`).
+  Stage 0~18 전부 OK · `VERIFY_OK` · `UPGRADE_OK` · 스냅샷 `/var/backups/clovirassist/20260902-004719`.
+  **스키마는 그대로다** — alembic `0025_ticket_body_doc` → `0025_ticket_body_doc`(표 94개 ·
+  사용자 26명). 이 회차는 프런트가 바뀌어 번들을 다시 만들었다 — 새 진입 번들
+  `index.BD0VOgjF.js` 가 200 이고(`ssl_verify_result=0`), 새 청크 `Sparkline.BARvLvDJ.js`
+  도 설치처에 있다.
+  **이번 커밋의 것이 실제로 돌고 있다**: `/opt/clovirassist` 의 `list_backups` 가
+  `(request, status, file_state, db)` 를 받고 `list_rehearsals` 가 `(ok, db)` 를 받는다.
+  `BACKUP_LIST_LIMIT=50` · `REHEARSAL_LIST_LIMIT=20` 이고, 서버 venv 로 직접 불러
+  `backup_health_alert_reason` 이 「백업 화면의 '백업 일정 설정'에서」로 답하는 것을
+  확인했다(예전 문구가 가리키던 자리에는 켤 것이 없었다).
+  스모크(`--cacert /etc/clovirassist/tls/clovirassist.gooddi.lab.crt` +
+  `--resolve clovirassist.gooddi.lab:443:10.100.64.71`, 인증서는 sudo 로 읽는다):
+  `/healthz` `{"status":"ok","ticket_source":"native"}` · `/readyz` `{"status":"ready"}` ·
+  `clovirassist-web`·`postgresql`·`nginx` 를 포함한 유닛 다섯이 전부 active.
+  순서는 언제나 **빌드 → 소스 고침 끝 → `check_bundle_fresh.py --write` → 커밋**이다.
+  되돌리려면 `sudo /home/cloviradmin/clovirassist-upgrade/deploy/install.sh rollback --target /var/backups/clovirassist/20260902-004719`
 - deployed_prev: `b27f948c`(2026-09-01 22:53 · 스냅샷 `20260901-225325`) · `7f221d6e`(21:59)
 - verification: 새 시험 **열여덟**(파일 다섯 벌)을 **전부 빨간불부터 확인**했다 — 차트 축
   여섯 · 어휘 둘 · 주 동작 하나 · 내려받기 하나 · 보존 기간 셋 · 서버 필터 넷(그중 셋이
