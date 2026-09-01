@@ -41,24 +41,23 @@
   시험들이 검사 시야에서 사라진다.
 - working_tree: **깨끗하다**(이 회차를 커밋한 뒤 기준).
 - s22_commit: `2f4fc587` · `1921f884` · prev_commit: `e8d39fd3` · `757b6e22`
-- this_commit: **`7f221d6e`**(승인·알림·프로젝트 결함 여섯 · D-385~D-389)
+- this_commit: **`b27f948c`**(마일스톤 지연 규칙 통일 · D-390) · 앞 회차 `7f221d6e`(D-385~D-389)
 - prev_session_commit: `0f93c572` · `3accdf0a` · `0e771a90` · `acd378ca`
-- deployed: **`7f221d6e`** 가 운영에 나갔다 (2026-09-01 21:59 · `scripts/deploy-upgrade.sh`).
-  Stage 0~18 전부 OK · `VERIFY_OK` · `UPGRADE_OK` · 스냅샷 `/var/backups/clovirassist/20260901-215720`.
+- deployed: **`b27f948c`** 가 운영에 나갔다 (2026-09-01 22:53 · `scripts/deploy-upgrade.sh`).
+  Stage 0~18 전부 OK · `VERIFY_OK` · `UPGRADE_OK` · 스냅샷 `/var/backups/clovirassist/20260901-225325`.
   **스키마는 그대로다** — alembic `0025_ticket_body_doc` → `0025_ticket_body_doc`(표 94개 ·
-  사용자 26명). 이번 회차는 프런트와 백엔드가 함께 바뀌었다(마이그레이션은 없다).
-  **이번 커밋의 것이 실제로 올라갔다**: 새 진입 번들 `index.AsjPK74b.js` 가 200 이고 직전
-  배포의 `index.-JF0krO5.js` 는 404 다. 프로젝트 고침이 사는 `UserRoutes.BoWMgWh7.js` 와
-  알림 화면이 사는 `datascreen.CKfSgxY2.js` 도 200 이다. 백엔드도 서버에서 직접 확인했다 —
-  `/opt/clovirassist` 의 `approvals/router.py` 에 위임자 범위 판정이, `notifications/` 의
-  라우터와 서비스에 `audience` 인자가 들어 있다.
+  사용자 26명). 이 회차는 **파이썬만** 바뀌어 번들을 다시 만들지 않았다(앞 회차 `7f221d6e`
+  의 번들 `index.AsjPK74b.js` 가 그대로 200 이다).
+  **이번 커밋의 것이 실제로 돌고 있다**: `/opt/clovirassist` 의 다섯 자리가 전부
+  `milestone_unmet` 을 부르고 `status == MILESTONE_PLANNED` 판정은 **0개**다. 서버 venv 로
+  직접 불러 `milestone_unmet("missed") is True` 를 확인했다. 웹 유닛은 22:56 KST 에 다시 섰다.
   스모크(`--cacert /etc/clovirassist/tls/clovirassist.gooddi.lab.crt` +
   `--resolve clovirassist.gooddi.lab:443:10.100.64.71`, 인증서는 sudo 로 읽는다):
   `/healthz` `{"status":"ok","ticket_source":"native"}` · `/readyz` `{"status":"ready"}` ·
-  `ssl_verify_result=0` · `postgresql`·`nginx`·제품 유닛 여섯 전부 active.
+  `ssl_verify_result=0` · `clovirassist-web`·`postgresql`·`nginx` 전부 active.
   순서는 언제나 **빌드 → 소스 고침 끝 → `check_bundle_fresh.py --write` → 커밋**이다.
-  되돌리려면 `sudo /home/cloviradmin/clovirassist-upgrade/deploy/install.sh rollback --target /var/backups/clovirassist/20260901-215720`
-- deployed_prev: `0f93c572`(2026-09-01 20:15 · 스냅샷 `20260901-201250`)
+  되돌리려면 `sudo /home/cloviradmin/clovirassist-upgrade/deploy/install.sh rollback --target /var/backups/clovirassist/20260901-225325`
+- deployed_prev: `7f221d6e`(2026-09-01 21:59 · 스냅샷 `20260901-215720`) · `0f93c572`(20:15)
 - verification: 새 시험 **열다섯**(파일 다섯 벌)을 전부 **빨간불부터 확인**했다 — 위임
   결재 둘 · 알림 audience 셋 · 벨 낙관 갱신 셋 · 프로젝트 필터 지우기 셋 · 돌아올 자리
   둘 · 문서 잘림 둘. 고침을 되돌리면 빨갛고 되돌려 놓으면 초록인 것을 짝으로 확인했다.
