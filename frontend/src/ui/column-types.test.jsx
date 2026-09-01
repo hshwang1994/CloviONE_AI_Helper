@@ -14,13 +14,73 @@ import { render, screen } from "@testing-library/react";
  *      생겼다 사라진다.
  */
 
-import { COLUMN_TYPES, planColumnCollapse, resolveColumn } from "./columnTypes.js";
-import { DataTable } from "./kit.jsx";
+import { COLUMN_TYPES, planColumnCollapse, resolveColumn, tableMinWidth } from "./columnTypes.js";
+import { DataTable, tableLayoutSx } from "./kit.jsx";
 import { ThemeModeProvider } from "./ThemeModeProvider.jsx";
 
 function draw(ui) {
   return render(<ThemeModeProvider>{ui}</ThemeModeProvider>);
 }
+
+/* ── 표가 줄어들 수 있는 바닥 (2026-09-01) ────────────────────────────────────
+ *
+ * `table-layout: fixed` 는 열의 `min-width` 를 안 본다. 그래서 나머지 열의 고정 폭 합이
+ * 칸보다 크면 남는 폭을 먹기로 한 `title` 이 **0** 을 받고, 제목 칸은 `maxWidth: 0` +
+ * `overflow: hidden` 이라 글자가 통째로 사라진다. 머리글은 `overflow: visible` 이라
+ * 옆 이름 위에 겹쳐 그려진다 — 「제목이 안 보이고 열 이름이 겹치는」 그 화면이다.
+ *
+ * 실측(팀 티켓 · light): 1280·1366·1536·1600 네 폭 모두에서 제목 열이 0px 였다. 창을
+ * 줄여서가 아니라 그 표의 나머지 열이 이미 1272px 을 차지하기 때문이고, 그래서 1920
+ * 화면에서 배율을 125% 로 올리기만 해도 같은 일이 났다.
+ */
+describe("표는 바닥 아래로 줄지 않는다 — 대신 가로로 민다", () => {
+  const COLS = [
+    { key: "tid", label: "티켓", type: "identifier", width: "10rem", minWidth: "10rem" },
+    { key: "title", label: "제목", type: "title" },
+    { key: "status", label: "상태", type: "status", width: "7.5rem" },
+    { key: "due", label: "마감", type: "date", width: "8.5rem" },
+  ];
+
+  it("🔴 바닥은 제목 열의 바닥까지 **포함한** 합이다", () => {
+    // 제목을 빼고 더하면 제목이 0 이 되는 그 폭이 바닥이 된다 — 고치기 전과 같아진다.
+    expect(tableMinWidth(COLS)).toBe("calc(10rem + 16rem + 7.5rem + 8.5rem)");
+  });
+
+  it("바닥은 `type` 이 정한 폭에서 나온다 — 화면이 숫자를 다시 적지 않는다", () => {
+    expect(tableMinWidth([{ key: "n", type: "count" }])).toBe(COLUMN_TYPES.count.minWidth);
+    expect(tableMinWidth([{ key: "d", type: "datetime" }])).toBe(COLUMN_TYPES.datetime.minWidth);
+  });
+
+  it("폭을 아무도 안 적은 열도 바닥에 자기 몫을 낸다", () => {
+    expect(tableMinWidth([{ key: "a" }, { key: "b" }])).toBe("calc(4.5rem + 4.5rem)");
+  });
+
+  it("퍼센트 폭은 바닥에 안 들어간다 — 표 폭에서 파생하는 값이라 순환이다", () => {
+    expect(tableMinWidth([{ key: "a", width: "50%" }, { key: "b", type: "count" }]))
+      .toBe(COLUMN_TYPES.count.minWidth);
+  });
+
+  it("열이 없으면 바닥도 없다", () => {
+    expect(tableMinWidth([])).toBeUndefined();
+    expect(tableMinWidth(null)).toBeUndefined();
+  });
+
+  it("🔴 표의 sx 가 그 바닥을 실제로 든다 — 값만 만들고 안 붙이면 아무 것도 안 고쳐진다", () => {
+    const sx = tableLayoutSx(COLS);
+    expect(sx.tableLayout).toBe("fixed");
+    expect(sx.width).toBe("100%");
+    expect(sx.minWidth).toBe(tableMinWidth(COLS));
+  });
+
+  it("🔴 그려진 표에 그 바닥이 붙어 있다", () => {
+    const rows = [{ tid: "AAA-1", title: "화면에서 읽히는 제목", status: "진행", due: "2026-09-01" }];
+    const { container } = draw(<DataTable columns={COLS} rows={rows} rowKey={(r) => r.tid} />);
+    const table = container.querySelector("table");
+    expect(table).toBeTruthy();
+    expect(table.style.minWidth || getComputedStyle(table).minWidth)
+      .toContain("16rem");
+  });
+});
 
 describe("열 어휘 — 폭·정렬·자릿수는 의미에서 나온다", () => {
   it("개수·비율은 가운데이고 자릿수를 고정한다", () => {

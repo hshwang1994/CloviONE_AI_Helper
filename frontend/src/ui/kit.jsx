@@ -42,7 +42,7 @@ import { MASCOT_PLACE, mascotBoxPx } from "./Mascot.jsx";
 import { maxLengthFor } from "../lib/fieldLimits.js";
 import { apiToKstLocal, kstLocalToApi } from "../lib/format.js";
 import { declaredRowName, rowNameOf } from "./rowName.js";
-import { ANYWHERE_BREAK, OVERFLOW, SHRINK, columnLayoutWidth, planColumnCollapse, resolveColumn } from "./columnTypes.js";
+import { ANYWHERE_BREAK, OVERFLOW, SHRINK, columnLayoutWidth, planColumnCollapse, resolveColumn, tableMinWidth } from "./columnTypes.js";
 import { EMPTY_STATE_MAX_CH, ERROR_STATE_MAX_CH, FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, MOTION, NUMERIC, RADIUS, TABLE_CARD_QUERY, TABLE_COMPACT_QUERY, stickyTopSx } from "./theme.js";
 import { CARD_PADDING, SECTION_GAP } from "./density.js";
 import { EntityCombobox } from "./filters.jsx";
@@ -1760,6 +1760,19 @@ export function cardHeaderControls(cols) {
  * 긴 값은 말줄임 + `title` hover(전역). 배지·버튼·인라인 편집 열은 자르지 않는다. */
 export const TABLE_FIXED_LAYOUT_SX = { tableLayout: "fixed", width: "100%" };
 
+/* 이 열 목록으로 그리는 표의 배치 — 고정 배치 + **줄어들 바닥**.
+ *
+ * `width: 100%` 만으로는 칸이 좁아질 때 표가 같이 좁아지고, 그러면 남는 폭을 먹기로 한
+ * 제목 열이 0 이 된다(`columnTypes.tableMinWidth` 의 실측표). 바닥을 함께 주면 표는
+ * 안 줄고 `TableContainer` 가 가로로 굴러간다 — 그 거래는 이 파일이 이미 여러 번 적어
+ * 뒀지만 실제로 만드는 값이 없었다.
+ *
+ * **열이 정해진 뒤에 부른다.** 좁은 화면에서 빠지는 열(`hideNarrow`)까지 세면 바닥이
+ * 실제보다 넓어져, 안 그려지는 열 때문에 표가 가로로 밀린다. */
+export function tableLayoutSx(columns) {
+  return { ...TABLE_FIXED_LAYOUT_SX, minWidth: tableMinWidth(columns) };
+}
+
 /** 말줄임 대상 열인가 — DataTable·GroupedTickets 가 같은 규칙을 쓴다. */
 export function columnShouldTruncate(col, ellipsis) {
   const c = col || {};
@@ -2123,7 +2136,7 @@ export function DataTable({ columns, rows, rowKey, onRow, rowHref, empty, ellips
            `ui/virtual-rows.test.jsx` 와 `scripts/ui_qa/assertions.py` 가 함께 깨진다. */
         data-list-total={total != null ? total : undefined}
         sx={{
-          ...TABLE_FIXED_LAYOUT_SX,
+          ...tableLayoutSx(wideCols),
           "& td, & th": { borderInline: 0 },
           "& tbody tr:last-of-type td": { borderBottom: 0 },
           "& tbody tr": { transition: `background-color ${MOTION.instant} ${MOTION.ease}` },

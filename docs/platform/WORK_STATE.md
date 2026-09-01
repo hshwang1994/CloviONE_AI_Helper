@@ -9,23 +9,25 @@
 
 ## CHECKPOINT
 
-- checkpoint_at: **2026-09-01** (스프린트 한 바퀴 · 티켓 본문 정본 통일 · 관리자 열 어휘)
+- checkpoint_at: **2026-09-01** (표의 바닥 폭 · 백로그 트랙 — D-379)
 - phase: **F — Acceptance 완료(S22).** 그 뒤는 CLAUDE.md §7.0 의 **일반 개발**이다
-- session: **스프린트에 한 바퀴를 만들었다.** 회차를 여는 UI 도 닫는 UI 도 없어서(서버 API 는
-  처음부터 있었다) 회차가 영원히 `planned` 이었고, 그래서 「진행 중」 배지도 미완료 이월도
-  도달 불가였다. 열기·닫기(+이월)를 붙이고, 회차 안에서도 완료·취소를 접게 했다
-  (「보드에서 안 빠진다」의 원인). 번다운은 `completed_at` 으로 **실제 소진**을 재고,
-  판·백로그가 같은 축(검색·부서·우선순위·난이도·신호)으로 좁힌다. 티켓 본문 정본을 문서와
-  같은 Block JSON 으로 옮겨 **같은 편집기**를 쓰고, Notion 시절의 길이 상한을 전부 걷었다.
-  관리자 표의 열 83개에 `type` 을 채우고 검사로 고정했다.
+- session: **표가 자기 바닥 폭을 갖게 했다** (D-379). 사용자가 「보드 칼럼 너비가 이상하고
+  배율을 조정하면 그리드가 깨져서 안 보인다」고 했다. 원인은 하나였다 —
+  `table-layout: fixed` 는 열의 `min-width` 를 안 보므로, 나머지 열의 고정 폭 합이 칸보다
+  크면 남는 폭을 먹기로 한 **제목 열이 0** 이 되고 머리글이 옆 이름 위에 겹친다.
+  실측으로 팀 티켓은 1280·1366·1536·1600 **네 폭 모두에서 제목이 0px** 였고(1920 에서만
+  286px), 내 티켓은 1920 에서도 38px 였다. `tableMinWidth`/`tableLayoutSx` 로 표에 바닥을
+  걸어 그 아래로는 안 줄이고 가로로 민다. 백로그는 반대쪽이었다 — 제목 트랙이 26rem 에서
+  멈춰 줄 오른쪽이 2560 에서 955px, 3840 에서 1608px 비어 있었다. `minmax(14rem, 1fr)` 로
+  표의 `title` 과 같은 규칙에 맞추고, 열 이름·트랙·바닥을 목록 하나에서 냈다.
 - branch: `ui/mui-migration`
 - last_stable_commit: **`eec4886c`** — S2 본체 커밋이고 `check_test_strength.py` 가 이 값을 읽는다.
   **이번 회차도 안 옮긴다.** 이유는 S11~S22 와 같다 — 그 기준을 옮기는 순간 그동안 지운
   시험들이 검사 시야에서 사라진다.
 - working_tree: **깨끗하다**(이 회차를 커밋한 뒤 기준).
 - s22_commit: `2f4fc587` · `1921f884` · prev_commit: `e8d39fd3` · `757b6e22`
-- this_commit: **`bc55228c`** — 스프린트 한 바퀴 · 티켓 본문 정본 통일 · 관리자 열 어휘
-  (+ `4ca1aab5` 배포 스크립트 · `b340ab09` 골든)
+- this_commit: **`__THIS__`** — 표의 바닥 폭 · 백로그 트랙 (D-379)
+- prev_session_commit: `bc55228c` · `4ca1aab5` · `b340ab09` · `5db48df3`
 - deployed: **`b340ab09`** 이 운영에 나갔다 (2026-09-01 17:24 · `scripts/deploy-upgrade.sh`).
   Stage 0~18 전부 OK · `VERIFY_OK` · `UPGRADE_OK` · 스냅샷 `/var/backups/clovirassist/20260901-172145`.
   **스키마가 바뀌었다** — alembic `0024_technology_tags` → **`0025_ticket_body_doc`**(표 94개 ·
@@ -39,21 +41,20 @@
   `check_bundle_fresh.py --write` 로 기준을 다시 적었기 때문이다(앞 회차가 두 번 멈춘 자리).
   되돌리려면 `sudo /home/cloviradmin/clovirassist-upgrade/deploy/install.sh rollback --target /var/backups/clovirassist/20260901-172145`
 - deployed_prev: `757b6e22`(2026-09-01 14:36 · 스냅샷 `20260901-143412`)
-- verification: **표적**이다(§7.0 일반 개발). vitest **전량 초록**(363 파일 / 2,736 시험) ·
-  백엔드는 이번 변경이 닿는 곳을 전부 돌렸다(`work`·`sprint`·`tickets`·`board`·`team_docs`·
-  `knowledge`·`middleware` · `tests/integration` exit 0 · `tests/security` 초록) ·
-  `static_checks.sh --scope dev` **초록**(새 단계 `COLUMN_TYPES_OK` 포함).
-  🔴 전량 pytest 가 골든 하나를 잡았다 — `tickets_detail` 응답에 본문 정본(`body`)이
-  더해진 것이라 **더하기만 한 변경**(51줄 추가 · 0줄 삭제)이고, 골든을 다시 적어
-  `b340ab09` 로 커밋했다. 그 뒤 전량을 다시 돌리는 중이다.
-- browser: **실브라우저로 봤다**(로컬 QA 서버 · 헤드리스 Chromium 1920×1080 · Light/Dark).
-  확인한 것 셋. ① **작업 보드**: 탐색 줄이 두 탭에서 같고(검색·프로젝트·스프린트·부서·
-  담당자·우선순위·난이도·신호), 판 위 한 줄이 회차 단계를 말하며, 칸반의 **바깥 흰 판이
-  없어졌다**(칸=함몰면 · 카드=판, 두 겹), 빈 칸이 큰 상자 대신 점선 한 줄이다.
-  ② **새 티켓**: 설명이 문서와 **같은 아이콘 툴바**다(굵게·기울임·밑줄·취소선·인라인코드·
-  H1~3·인용·코드블록·구분선·목록 3종·표·링크·이모지·되돌리기).
-  ③ **관리자 사용자 표**: 두 날짜 열(최근 로그인·생성 일자)이 **같은 정렬**이다 — 하나만
-  타입을 적어서 갈렸던 그 자리다.
+- verification: **표적**이다(§7.0 일반 개발). `scripts/verify.py` **초록**
+  (`static_checks --scope dev` + vitest 표적 6파일 116시험). 공용 표를 건드렸으므로 vitest
+  **전량**도 돌렸다 — 363 파일 / 2,734 시험 중 실패는 둘이고 **둘 다 이번 변경과 무관**하다:
+  `registry-active-badge.test.jsx` 는 stash 한 기준에서도 같은 자리에서 죽고(수집 단계의
+  `REGISTRY[key]` undefined), `projects.test.jsx` 는 단독 실행에서 52건 전부 통과하는
+  전량 부하 흔들림이다(같은 트리 두 번 실행에 실패 집합이 5→2 로 바뀐다).
+- browser: **실브라우저로 쟀다**(로컬 QA 서버 · 헤드리스 Chromium · light).
+  ① **전후 실측** — 팀 티켓의 제목 열이 1280/1366/1536/1600 네 폭에서 `0px → 256px` 이 되고
+  표가 칸을 넘으면 가로로 구른다. 1920·2560·3840 은 **한 픽셀도 안 바뀐다**(표 폭·열 폭
+  동일). 백로그의 줄 오른쪽 빈 자리는 494/955/1608px → 68/76/85px(=칸 사이와 여백뿐)이다.
+  ② **회귀** — 12 화면 × 2 뷰포트를 고치기 전/후로 각각 찍어 `results.json` 의 assertion
+  결과를 대조했다. **달라진 항목 0**(실패 9건은 전후 동일 · 전부 `brand_presence`·
+  `oversized_empty_surface`·`dead_blank_region` 으로 열 폭과 무관).
+  ③ **전 화면 훑기** — 20 화면 × 3 뷰포트의 표 48개에서 **폭이 0 인 열은 하나도 없다**.
 - capture: 전량 정본은 **`s22-final`** 그대로다. 이번 회차도 캡처 하네스를 전량으로 안 돌렸다.
   **부분 캡처는 전량 원장을 안 덮는다**(D-306) — `capture_labels.after` 를 옮기지 않았다
 - ui_gate: `--stage plan` **PASS**. `--stage wave`(W15)는 **초록이 아니다** — 남은 것은

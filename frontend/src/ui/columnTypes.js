@@ -40,6 +40,49 @@ export function columnLayoutWidth(col) {
   return s.minWidth;
 }
 
+/* 이 표가 **줄어들 수 있는 바닥 폭** — 모든 열이 자기 폭을 지킬 때의 합.
+ *
+ * `table-layout: fixed` 는 열의 `min-width` 를 **안 본다.** 열 폭은 `<col>`(=위
+ * `columnLayoutWidth`) 하나로 정해지고, 그 합이 표 폭보다 크면 남는 폭을 먹기로 한
+ * `title` 이 0 을 받는다. 그러면 제목 칸은 `maxWidth: 0` + `overflow: hidden` 이라
+ * **글자가 통째로 사라지고**, 머리글은 `overflow: visible` 이라 옆 이름 위에 겹쳐 그려진다.
+ *
+ * 실측(2026-09-01 · 팀 티켓 · light):
+ *
+ *     폭      표     칸    제목 열
+ *     1280   1272   934      0px
+ *     1366   1272  1020      0px
+ *     1536   1272  1174      0px     ← 1920 화면 브라우저 125%
+ *     1600   1272  1238      0px
+ *     1920   1558  1558    286px
+ *
+ * 1920 아래로는 **어느 해상도에서도 제목이 없었다.** 창을 줄여서가 아니라 그 표의 나머지
+ * 열이 1272px 을 이미 차지하기 때문이고, 그래서 배율을 한 칸만 올려도 같은 일이 난다.
+ *
+ * 바닥을 **표 자신**(`min-width`)에 걸면 그 일이 안 일어난다. 표는 바닥 아래로 안 줄고
+ * `TableContainer` 가 가로로 굴러간다 — 이 저장소가 이미 여러 번 적어 둔 거래다
+ * (「폭이 정말 모자라면 표를 줄이는 대신 가로로 민다, 읽을 수 없는 표보다 낫다」).
+ * 그 문장은 있었는데 그것을 실제로 만드는 값이 없었다.
+ *
+ * 합은 `calc()` 로 낸다. 단위가 섞여도(rem·px) CSS 가 더하고, 루트 폰트사이즈가
+ * 2200/3000 에서 커지면(`styles/root.css`) 바닥도 같은 비율로 함께 커진다.
+ */
+export function tableMinWidth(columns) {
+  const parts = [];
+  for (const c of columns || []) {
+    if (!c) continue;
+    const s = resolveColumn(c);
+    const w = columnLayoutWidth(c) || s.minWidth || DEFAULT_COL_MIN_WIDTH;
+    const token = typeof w === "number" ? `${w}px` : String(w);
+    /* 퍼센트는 표 폭에서 파생하는 값이라 표 폭의 바닥이 될 수 없다(순환). `SHRINK` 는
+       `columnLayoutWidth` 가 이미 rem 바닥으로 바꿔 주므로 여기 오는 일은 드물다. */
+    if (!token || token.indexOf("%") >= 0) continue;
+    parts.push(token);
+  }
+  if (!parts.length) return undefined;
+  return parts.length === 1 ? parts[0] : `calc(${parts.join(" + ")})`;
+}
+
 /* 글자 단위로 끊는 유일한 자리 — **식별자형 열**(이메일·UUID·코드·URL).
  *
  * 한글 산문은 낱말을 지켜야 하고(`root.css` 의 `keep-all`), 그 규칙을 화면이 제멋대로

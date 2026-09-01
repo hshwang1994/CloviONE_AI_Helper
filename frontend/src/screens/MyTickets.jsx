@@ -22,7 +22,7 @@ import { alpha } from "@mui/material/styles";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded";
 import { api } from "../lib/api.js";
-import { Card, Badge, EmptyState, ErrorState, Skeleton, Callout, PageHeader, Modal, ModalFooter, Button, useToast, useConfirm, cardFieldLabel, cardHeaderControls, tableCellProps, TABLE_FIXED_LAYOUT_SX, TableColGroup, columnShouldTruncate, columnCellHint } from "../ui/kit.jsx";
+import { Card, Badge, EmptyState, ErrorState, Skeleton, Callout, PageHeader, Modal, ModalFooter, Button, useToast, useConfirm, cardFieldLabel, cardHeaderControls, tableCellProps, tableLayoutSx, TableColGroup, columnShouldTruncate, columnCellHint } from "../ui/kit.jsx";
 import { DateField } from "../ui/DateField.jsx";
 import { PersonLine } from "../ui/UserAvatar.jsx";
 import { priorityKo, priorityKind } from "../lib/priority.js";
@@ -445,7 +445,7 @@ export function GroupedTickets({ rows, columns, empty, emptyHelp, emptyState, gr
 
   return (
     <TableContainer>
-      <Table size="small" sx={TABLE_FIXED_LAYOUT_SX}>
+      <Table size="small" sx={tableLayoutSx(cols)}>
         <TableColGroup columns={cols} />
         <TableHead>
           <TableRow>

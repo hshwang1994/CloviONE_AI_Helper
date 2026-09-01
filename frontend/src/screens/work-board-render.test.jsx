@@ -27,7 +27,7 @@ vi.mock("../app/auth.jsx", () => ({
   useAuth: () => ({ data: { role: "system_admin", id: "u-1" } }),
 }));
 
-import { WorkBoard, BACKLOG_TRACKS } from "./WorkBoard.jsx";
+import { WorkBoard, BACKLOG_TRACKS, BACKLOG_MIN_WIDTH } from "./WorkBoard.jsx";
 import { ConfirmProvider, ToastProvider } from "../ui/kit.jsx";
 import { ThemeModeProvider } from "../ui/ThemeModeProvider.jsx";
 
@@ -90,10 +90,27 @@ describe("작업 보드", () => {
     expect(searchable).toBe(true);
   });
 
-  it("백로그 열 폭은 머리와 줄이 같은 고정 트랙이다 — auto 가 있으면 빈 머리가 0 이 된다", () => {
+  it("백로그 열 폭은 머리와 줄이 같은 트랙이다 — auto 가 있으면 빈 머리가 0 이 된다", () => {
     expect(BACKLOG_TRACKS.md).not.toMatch(/\bauto\b/);
     expect(BACKLOG_TRACKS.md).toBe(
-      "minmax(14rem, 26rem) 6.5rem 5.5rem 5rem 7.5rem 9rem 10rem",
+      "minmax(14rem, 1fr) 6.5rem 5.5rem 5rem 7.5rem 9rem 10rem",
     );
+  });
+
+  /* 🔴 넓은 화면에서 줄 오른쪽이 통째로 비어 있었다 — 제목 트랙이 26rem 에서 멈춰서다.
+     실측(2026-09-01 · light): 1920 에서 494px, 2560 에서 955px, 3840 에서 1608px 이
+     줄 오른쪽의 죽은 자리였다. 늘어나는 트랙이 하나는 있어야 줄이 판 끝까지 간다. */
+  it("🔴 백로그에서 남는 폭을 먹는 트랙은 제목 하나다", () => {
+    expect(BACKLOG_TRACKS.md.startsWith("minmax(14rem, 1fr)")).toBe(true);
+    // 뒤의 트랙은 전부 고정이다 — 둘이 나눠 가지면 제목이 반만 갖는다.
+    const rest = BACKLOG_TRACKS.md.slice("minmax(14rem, 1fr)".length);
+    expect(rest).not.toMatch(/fr/);
+  });
+
+  /* 반대쪽 — 칸이 좁아도 트랙을 눌러 담지 않는다. 판이 `overflow: hidden` 이라
+     눌러 담으면 마지막 열(작업)이 소리 없이 잘려 단추에 닿을 수 없다. */
+  it("🔴 백로그 바닥 폭은 모든 열이 자기 폭을 지키는 합이다", () => {
+    // 14 + 6.5 + 5.5 + 5 + 7.5 + 9 + 10 = 57.5, 칸 사이 6 × 0.5 = 3, 좌우 여백 1.25
+    expect(BACKLOG_MIN_WIDTH).toBe("61.75rem");
   });
 });

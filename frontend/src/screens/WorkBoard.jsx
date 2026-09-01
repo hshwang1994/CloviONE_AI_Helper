@@ -141,12 +141,53 @@ function cardKey(card) {
  * 공용 `DataTable` 은 행을 끌 수 없다. 순서가 이 목록의 **본질**이라(다음에 무엇을 하는가)
  * 그것을 포기하고 표를 얻는 거래는 안 한다. 대신 열 이름을 머리줄에 적어 표처럼 읽힌다.
  *
- * 열 폭은 **머리와 줄이 같은 고정 트랙**이다. 마지막을 `auto` 로 두면 머리의 빈 칸은 0 이고
- * 줄의 단추 네 개는 14rem 을 먹어, 우선순위·난이도·예상·마감·담당자가 한 칸씩 밀린다. */
+ * 열 폭은 **머리와 줄이 같은 트랙**이다. 어느 트랙도 `auto` 가 아니다 — 마지막을 `auto` 로
+ * 두면 머리의 빈 칸은 0 이고 줄의 단추 네 개는 14rem 을 먹어, 우선순위·난이도·예상·마감·
+ * 담당자가 한 칸씩 밀린다. 늘어나는 트랙은 제목 하나뿐이다(아래 `BACKLOG_COLUMNS`). */
+
+/* 백로그 줄의 열을 **한 자리**에서 적는다.
+ *
+ * 머리줄의 이름, 격자 트랙, 그리고 「줄어들 바닥」이 같은 목록에서 나와야 한쪽만 고쳐지는
+ * 일이 없다. 예전에는 이름이 `BacklogHead` 안의 배열이고 폭은 문자열 하나라, 열을 하나
+ * 더하면 두 곳을 같이 고쳐야 했다.
+ *
+ * 🔴 제목이 **남는 폭을 먹는다**(`1fr`). 예전 `minmax(14rem, 26rem)` 은 26rem 에서 멈췄고,
+ * 그보다 넓은 화면에서는 줄의 오른쪽이 통째로 빈 채 남았다 — 실측(2026-09-01 · light):
+ * 1920 에서 494px, 2560 에서 955px, 3840 에서 1608px 이 죽은 자리였다. 단추가 줄 가운데서
+ * 끝나고 그 뒤로 흰 판만 이어지는 그림이다. 표(`DataTable`)의 `title` 열이 이미 같은
+ * 규칙이라, 이렇게 해야 두 화면이 같은 모양으로 선다. */
+const BACKLOG_COLUMNS = [
+  { label: "티켓", rem: 14, grows: true },
+  { label: "우선순위", rem: 6.5 },
+  { label: "난이도", rem: 5.5 },
+  { label: "예상", rem: 5 },
+  { label: "마감", rem: 7.5 },
+  { label: "담당자", rem: 9 },
+  { label: "작업", rem: 10 },
+];
+
+/** 칸 사이(`columnGap: 1` = `spacing(1)`)와 줄 좌우 여백(`px: 1.25`). 둘 다 rem 이라
+ *  루트 폰트사이즈가 커지는 4K 에서 트랙과 같은 비율로 함께 자란다. */
+const BACKLOG_GAP_REM = 0.5;
+const BACKLOG_PAD_REM = 1.25;
+
 export const BACKLOG_TRACKS = {
   xs: "1fr",
-  md: "minmax(14rem, 26rem) 6.5rem 5.5rem 5rem 7.5rem 9rem 10rem",
+  md: BACKLOG_COLUMNS
+    .map((c) => (c.grows ? `minmax(${c.rem}rem, 1fr)` : `${c.rem}rem`))
+    .join(" "),
 };
+
+/* 백로그가 줄어들 수 있는 **바닥 폭** — 모든 열이 자기 폭을 지킬 때의 줄 폭.
+ *
+ * 표의 `tableMinWidth`(`ui/columnTypes.js`)와 같은 뜻이고 같은 이유로 필요하다. 이 판은
+ * `overflow: hidden` 이라, 칸이 이 폭보다 좁으면 트랙이 그대로 밖으로 나가 「작업」 열이
+ * 소리 없이 잘렸다. 바닥 아래로는 줄이지 않고 **가로로 민다.** */
+export const BACKLOG_MIN_WIDTH = `${
+  BACKLOG_COLUMNS.reduce((sum, c) => sum + c.rem, 0)
+  + BACKLOG_GAP_REM * (BACKLOG_COLUMNS.length - 1)
+  + BACKLOG_PAD_REM
+}rem`;
 
 const BACKLOG_GRID = {
   display: "grid",
@@ -157,7 +198,7 @@ const BACKLOG_GRID = {
 };
 
 function BacklogHead() {
-  const cells = ["티켓", "우선순위", "난이도", "예상", "마감", "담당자", "작업"];
+  const cells = BACKLOG_COLUMNS.map((c) => c.label);
   return (
     <Box
       sx={{
@@ -936,34 +977,42 @@ export function WorkBoard() {
           <EmptyState title="백로그가 비어 있습니다." />
         ) : (
           <Box sx={{ ...LANE_SURFACE, overflow: "hidden" }}>
-            <BacklogHead />
-            <SortableList
-              items={backlogRows}
-              labelOf={labelOf}
-              onReorder={handleBacklogReorder}
-              // §15.1 재검수 — 서버 커서 페이징(§8.5, useInfiniteQuery) 위에 렌더링만
-              // 가상화한다. 181행을 한 번에 그리던 자리다. 판 열과 같은 높이(60vh)를
-              // 써서 두 탭이 같은 느낌으로 스크롤한다.
-              virtualize={{
-                estimateSize: 56, height: "60vh", ariaLabel: "백로그 목록",
-                sx: { scrollbarGutter: "stable" },
-              }}
-            >
-              {(card) => (
-                <DragItem key={card.id} id={card.id} label={labelOf(card.id)}>
-                  <BacklogRow
-                    card={card}
-                    onOpen={openTicket}
-                    signals={signalsOf(card)}
-                    onAddToSprint={addToSprint}
-                    canAdd={canPlanSprint}
-                    onQuickEdit={(c) => setEditing(asTicket(c))}
-                    onMoveToTop={(c) => movePosition(c, "top")}
-                    onMoveToBottom={(c) => movePosition(c, "bottom")}
-                  />
-                </DragItem>
-              )}
-            </SortableList>
+            {/* 칸이 바닥보다 좁으면 줄을 짜부라뜨리는 대신 **가로로 민다** — 열을
+                눌러 담으면 「작업」이 잘려 단추에 닿을 수 없다. 머리줄과 목록이 같은
+                상자 안에 있어야 함께 밀린다: 따로 두면 이름만 제자리에 남아 값이 다른
+                열 이름 아래에 선다. */}
+            <Box sx={{ overflowX: "auto" }}>
+              <Box sx={{ minWidth: { xs: 0, md: BACKLOG_MIN_WIDTH } }}>
+                <BacklogHead />
+                <SortableList
+                  items={backlogRows}
+                  labelOf={labelOf}
+                  onReorder={handleBacklogReorder}
+                  // §15.1 재검수 — 서버 커서 페이징(§8.5, useInfiniteQuery) 위에 렌더링만
+                  // 가상화한다. 181행을 한 번에 그리던 자리다. 판 열과 같은 높이(60vh)를
+                  // 써서 두 탭이 같은 느낌으로 스크롤한다.
+                  virtualize={{
+                    estimateSize: 56, height: "60vh", ariaLabel: "백로그 목록",
+                    sx: { scrollbarGutter: "stable" },
+                  }}
+                >
+                  {(card) => (
+                    <DragItem key={card.id} id={card.id} label={labelOf(card.id)}>
+                      <BacklogRow
+                        card={card}
+                        onOpen={openTicket}
+                        signals={signalsOf(card)}
+                        onAddToSprint={addToSprint}
+                        canAdd={canPlanSprint}
+                        onQuickEdit={(c) => setEditing(asTicket(c))}
+                        onMoveToTop={(c) => movePosition(c, "top")}
+                        onMoveToBottom={(c) => movePosition(c, "bottom")}
+                      />
+                    </DragItem>
+                  )}
+                </SortableList>
+              </Box>
+            </Box>
             {/* 「N건 중 M건」과 「더 보기」— 서버가 실제로 다음 쪽을 내주는 계약(§8.5).
                 키보드·스크린리더 사용자는 무한 스크롤에 닿을 수 없어 단추를 함께 둔다.
                 이 문구가 이 저장소 목록 전부의 정본이 됐다 — 이제 공용 부품을 쓴다.
