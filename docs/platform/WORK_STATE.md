@@ -23,41 +23,44 @@
   **이번 회차도 안 옮긴다.** 이유는 S11~S22 와 같다 — 그 기준을 옮기는 순간 그동안 지운
   시험들이 검사 시야에서 사라진다.
 - working_tree: **깨끗하다**(이 회차를 커밋한 뒤 기준).
-- s22_commit: `2f4fc587` · `1921f884` · prev_commit: `ca49e7d8` · `3804bc0e` · `91bf3af9`
-- this_commit: **`e8d39fd3`** — 목록 무한 스크롤 · 서버 필터/정렬 · 티켓 만들기 (+ `20c36510` · `757b6e22` 번들 기준)
-- deployed: **`757b6e22`** 이 운영에 나갔다 (2026-09-01 14:36 · `install.sh upgrade --source local --yes`).
-  Stage 0~18 전부 OK · `VERIFY_OK` · `UPGRADE_OK` · 스냅샷 `/var/backups/clovirassist/20260901-143412`.
-  스키마는 안 건드렸다 — alembic 이 `0024_technology_tags` 그대로다(표 94개 · 사용자 26명).
-  **이번 커밋의 것이 실제로 올라갔다**: `/static/react/assets/index.D5HRTY7W.js` 와
-  `kit.BKCgD_qw.js` 가 200 이고 옛 진입 번들 `index.DPCnHHw3.js` 는 404 다.
+- s22_commit: `2f4fc587` · `1921f884` · prev_commit: `e8d39fd3` · `757b6e22`
+- this_commit: **`bc55228c`** — 스프린트 한 바퀴 · 티켓 본문 정본 통일 · 관리자 열 어휘
+  (+ `4ca1aab5` 배포 스크립트 · `b340ab09` 골든)
+- deployed: **`b340ab09`** 이 운영에 나갔다 (2026-09-01 17:24 · `scripts/deploy-upgrade.sh`).
+  Stage 0~18 전부 OK · `VERIFY_OK` · `UPGRADE_OK` · 스냅샷 `/var/backups/clovirassist/20260901-172145`.
+  **스키마가 바뀌었다** — alembic `0024_technology_tags` → **`0025_ticket_body_doc`**(표 94개 ·
+  사용자 26명). 운영 DB 에서 `tickets.body_doc jsonb` 를 직접 확인했다.
+  **이번 커밋의 것이 실제로 올라갔다**: 새 진입 번들 `index.CPdJHECE.js` 와
+  `BlockEditor.BdP7d9UQ.js`(티켓 폼이 지연 로드하는 편집기)가 200 이고, 직전 배포의 진입
+  번들 `index.D5HRTY7W.js` 는 404 다.
   스모크: `/healthz` `{"status":"ok","ticket_source":"native"}` · `/readyz` `{"status":"ready"}` ·
-  `postgresql`·`nginx`·제품 유닛 넷 전부 active.
-  🔴 배포가 `STAGE_5_FRONTEND` 에서 두 번 멈췄다. 첫째는 `BUILD_STAMP.json` 이 없어서였고,
-  둘째 원인은 소스 두 파일에 섞인 **떠도는 캐리지리턴**(뒤에 줄바꿈이 없는 CR)이다 —
-  `check_bundle_fresh.py` 는 CRLF 만 정규화하므로 빌드 머신과 서버가 같은 소스에서 다른
-  해시를 봤다(455a9f2c vs 21fa35cb). 그 CR 을 지워 양쪽을 맞췄다.
-  되돌리려면 `sudo /home/cloviradmin/clovirassist-upgrade/deploy/install.sh rollback --target /var/backups/clovirassist/20260901-143412`
-- deployed_prev: `31bfb341`(2026-08-28 16:32 · 스냅샷 `20260828-163250`)
-- verification: **표적**이다(§7.0 일반 개발). vitest 전량 **365 파일 / 2,746 시험 초록** ·
-  백엔드 `tests/unit` · `tests/regression` · `tests/integration`(exit 0) · `tests/security` 초록 ·
-  `static_checks.sh --scope dev` 의 이번 회차 새 단계 둘(`SORT_KEYS_FRESH_OK` ·
-  `registry-filter-axes.test.js`)이 초록이다. 남은 정적 실패 다섯은 **이번 변경 밖**이고
-  전부 앞 회차의 미커밋 파일이다(`Sprint.jsx` heading · `DiscussBucket`·`StatusKpi` 논리 테두리 ·
-  `sprint-charts.js`·`authz.py` 글자 · `settings-main-columns.test.jsx` 시험 강도).
-- browser: **실브라우저로 봤다**(로컬 QA 서버 · Chromium 1600×900 · 감사 355건 · 티켓 398건 ·
-  문서 264건). 잰 것: 굴리면 다음 묶음이 실제로 붙고(`page=2,3,4` · `offset=100,200`),
-  붙는 동안 `scrollY` 가 안 튀며(15,018 → 15,018), 고정 열 이름이 상단바 **아래**에 서고
-  (`th.top = 52` = AppBar 높이), 조건을 바꾸면 `page=1` 로 처음부터 다시 받고(스크롤도 0 으로),
-  가상화가 걸린 표는 받은 건수가 100 → 355 로 늘어도 그려진 `<tr>` 이 19 → 34 로만 늘며,
-  「내 티켓」은 300행에서 자동이 멎고 단추만 남는다. **그 자리에서 결함 둘을 잡아 고쳤다**
-  (D-372) — 유닛 시험이 통과시킨 부류다.
-- capture: 전량 정본은 **`s22-final`** 그대로다. 이번 회차도 캡처 하네스를 안 돌렸다.
+  `postgresql`·`nginx`·제품 유닛 다섯 전부 active · `ssl_verify_result=0`.
+  이번에는 `STAGE_5_FRONTEND` 가 한 번에 통과했다 — 빌드 직후
+  `check_bundle_fresh.py --write` 로 기준을 다시 적었기 때문이다(앞 회차가 두 번 멈춘 자리).
+  되돌리려면 `sudo /home/cloviradmin/clovirassist-upgrade/deploy/install.sh rollback --target /var/backups/clovirassist/20260901-172145`
+- deployed_prev: `757b6e22`(2026-09-01 14:36 · 스냅샷 `20260901-143412`)
+- verification: **표적**이다(§7.0 일반 개발). vitest **전량 초록**(363 파일 / 2,736 시험) ·
+  백엔드는 이번 변경이 닿는 곳을 전부 돌렸다(`work`·`sprint`·`tickets`·`board`·`team_docs`·
+  `knowledge`·`middleware` · `tests/integration` exit 0 · `tests/security` 초록) ·
+  `static_checks.sh --scope dev` **초록**(새 단계 `COLUMN_TYPES_OK` 포함).
+  🔴 전량 pytest 가 골든 하나를 잡았다 — `tickets_detail` 응답에 본문 정본(`body`)이
+  더해진 것이라 **더하기만 한 변경**(51줄 추가 · 0줄 삭제)이고, 골든을 다시 적어
+  `b340ab09` 로 커밋했다. 그 뒤 전량을 다시 돌리는 중이다.
+- browser: **실브라우저로 봤다**(로컬 QA 서버 · 헤드리스 Chromium 1920×1080 · Light/Dark).
+  확인한 것 셋. ① **작업 보드**: 탐색 줄이 두 탭에서 같고(검색·프로젝트·스프린트·부서·
+  담당자·우선순위·난이도·신호), 판 위 한 줄이 회차 단계를 말하며, 칸반의 **바깥 흰 판이
+  없어졌다**(칸=함몰면 · 카드=판, 두 겹), 빈 칸이 큰 상자 대신 점선 한 줄이다.
+  ② **새 티켓**: 설명이 문서와 **같은 아이콘 툴바**다(굵게·기울임·밑줄·취소선·인라인코드·
+  H1~3·인용·코드블록·구분선·목록 3종·표·링크·이모지·되돌리기).
+  ③ **관리자 사용자 표**: 두 날짜 열(최근 로그인·생성 일자)이 **같은 정렬**이다 — 하나만
+  타입을 적어서 갈렸던 그 자리다.
+- capture: 전량 정본은 **`s22-final`** 그대로다. 이번 회차도 캡처 하네스를 전량으로 안 돌렸다.
   **부분 캡처는 전량 원장을 안 덮는다**(D-306) — `capture_labels.after` 를 옮기지 않았다
 - ui_gate: `--stage plan` **PASS**. `--stage wave`(W15)는 **초록이 아니다** — 남은 것은
   **P-44** 의 기록 형식(사슬의 서버 칸 982)과 그것이 붙잡고 있는 축들이다. 상세는
   [`../ui-renewal/WORK_STATE.md`](../ui-renewal/WORK_STATE.md)
-- 스키마는 **93 표**다. alembic head 는 **`0017_drop_retired_integrations`** 다 — 표를 만들거나
-  지우지 않았고, 걷어낸 런타임의 **등록 행 넷**만 지운다(D-338)
+- 스키마는 **94 표**다. alembic head 는 **`0025_ticket_body_doc`** 다 — 표를 만들거나 지우지
+  않았고, `tickets` 에 nullable 칸 하나(`body_doc jsonb`)를 더한다(D-374). 전량 백필은 안 한다
 
 ## 🔴 운영이 PostgreSQL 위에서 돈다
 
