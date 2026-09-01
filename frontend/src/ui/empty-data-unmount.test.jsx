@@ -148,28 +148,28 @@ describe("0건이면 표와 페이저를 언마운트한다", () => {
     expect(screen.queryByText("이름")).toBeNull();
   });
 
-  it("페이저가 사라진다 — 「총 0건」짜리 페이저를 남기지 않는다", async () => {
+  it("목록 끝 줄이 사라진다 — 「0건 중 0건」을 남기지 않는다", async () => {
     apiMock.mockResolvedValue({ items: [], page: 1, page_size: 20, total: 0 });
     renderScreen(config({ paginated: true }));
     await screen.findByText("표시할 항목이 없습니다");
-    expect(screen.queryByRole("navigation", { name: /페이지 이동/ })).toBeNull();
-    expect(screen.queryByRole("button", { name: "다음" })).toBeNull();
+    expect(document.querySelector("[data-list-footer]")).toBeNull();
+    expect(screen.queryByRole("button", { name: "더 보기" })).toBeNull();
   });
 
   it("값이 있으면 둘 다 선다 — 언마운트가 조건부인지 확인한다", async () => {
     apiMock.mockResolvedValue({
-      items: [{ id: "r1", name: "행 1" }], page: 1, page_size: 20, total: 1,
+      items: [{ id: "r1", name: "행 1" }], page: 1, page_size: 20, total: 9,
     });
     const { container } = renderScreen(config({ paginated: true }));
     await screen.findByText("행 1");
     expect(container.querySelector("table")).not.toBeNull();
-    expect(screen.getByRole("button", { name: "다음" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "더 보기" })).toBeInTheDocument();
   });
 
-  it("클라이언트 필터가 있는 목록에서는 페이저만 남는다 — 다른 쪽에 값이 있을 수 있다", async () => {
-    /* 문서화된 예외다. 서버가 페이지를 자르고 그 위에 화면이 다시 거르는 목록에서는
-       이번 페이지가 통째로 걸러져도 다음 페이지에 일치 항목이 있을 수 있다. 그때 페이저를
-       치우면 사용자가 그 페이지에 갇힌다 — 표는 사라지지만 이동 수단은 남는다. */
+  it("클라이언트 필터가 있는 목록에서는 끝 줄만 남는다 — 더 받으면 값이 있을 수 있다", async () => {
+    /* 문서화된 예외다. 서버가 묶음을 자르고 그 위에 화면이 다시 거르는 목록에서는 지금
+       받아 둔 것이 통째로 걸러져도 다음 묶음에 일치 항목이 있을 수 있다. 그때 「더 보기」를
+       치우면 사용자가 그 자리에 갇힌다 — 표는 사라지지만 더 받을 수단은 남는다. */
     apiMock.mockResolvedValue({
       items: [{ id: "r1", name: "행 1", kind: "b" }], page: 1, page_size: 1, total: 9,
     });
@@ -181,7 +181,7 @@ describe("0건이면 표와 페이저를 언마운트한다", () => {
       }],
     }));
     await waitFor(() => expect(apiMock).toHaveBeenCalled());
-    await screen.findByRole("button", { name: "다음" });
+    await screen.findByRole("button", { name: "더 보기" });
     expect(container.querySelector("table")).toBeNull();
   });
 });

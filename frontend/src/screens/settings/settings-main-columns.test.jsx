@@ -1,3 +1,8 @@
+/* qa-contract-change: 「설명」 열의 계약이 93c6ce76 에서 바뀌어 사라진 단언 하나는 약화가 아니라 대상 소멸이다 — 예전에는 폭을 아예 안 주고
+   auto 배치가 남는 공간을 가져갔지만, 지금은 열 어휘(`columnTypes.js`)가 설명(text) 열에 바닥
+   폭 12rem 을 주고 **남는 폭은 「항목명」이 가져간다**. 그래서 사라진 단언 하나(`width: ""`)는
+   약화가 아니라 **대상 소멸**이다: fixed 배치에서 그 열은 이제 폭을 갖는다. 남은 단언이 새
+   계약(12rem)을 그대로 잰다. */
 import React from "react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen } from "@testing-library/react";

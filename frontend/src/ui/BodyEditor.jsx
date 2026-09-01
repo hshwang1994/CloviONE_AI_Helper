@@ -7,6 +7,7 @@ import Typography from "@mui/material/Typography";
 import { alpha } from "@mui/material/styles";
 import { FONT_SIZE, FONT_WEIGHT } from "./theme.js";
 import { EmojiPicker } from "./EmojiPicker.jsx";
+import { insertAtCursor, useCaretTracker } from "../lib/caret.js";
 
 /* 공용 본문 편집기 — 새 문서와 새 티켓 설명이 같은 서식(제목·글머리·번호·체크·인용·코드·구분선)과
  * 라이브 미리보기를 쓴다. 서식 규칙은 백엔드 app/core/notion_blocks.py(markdown_to_blocks)와
@@ -74,17 +75,30 @@ export function editorSurfaceWidthSx(containerName) {
  *
  * 넘기지 않으면 아무 것도 붙이지 않는다. 새 티켓·새 문서 폼은 화면에 보이는 <label htmlFor>
  * 로 이미 이름을 주고 있어서, 여기서 제 이름을 우기면 **보이는 라벨과 낭독되는 이름이 갈린다**. */
-export function BodyEditor({ id, value, onChange, rows = 12, placeholder, label }) {
+export function BodyEditor({ id, value, onChange, rows = 12, placeholder, label, preview = false }) {
   const ref = useRef(null);
   const [emojiAnchor, setEmojiAnchor] = useState(null);
+  /* 🔴 「커서를 모른다」와 「커서가 맨 앞이다」는 **다른 사실**이다.
+   *
+   * 예전에는 `ta.selectionStart != null ? ta.selectionStart : val.length` 였다. 그런데
+   * 포커스를 한 번도 안 준 `<textarea>` 의 `selectionStart` 는 `null` 이 아니라 **0** 이라,
+   * 저 삼항은 언제나 앞쪽을 골랐다 — 서식·이모지 단추 넷이 전부 글 맨 앞에 값을 꽂았다.
+   * 새 티켓 폼이 특히 그랬다: 「작성 도움」 레일이 상태만 바꿔 설명을 채우니 편집기는
+   * 포커스를 받은 적이 없고, 그 뒤 이모지를 고르면 `🎯## 배경` 이 되어 제목 파싱까지 깨진다.
+   *
+   * `useCaretTracker` 는 **사용자가 실제로 만졌을 때만** 자리를 적어 둔다. 안 만졌으면
+   * `null` 이고, 그러면 맨 뒤에 붙는다(`lib/caret.js` · 채팅 컴포저가 이미 쓰던 규칙). */
+  const tracker = useCaretTracker(value);
   const caret = () => {
-    const ta = ref.current;
     const val = value || "";
-    const pos = ta && ta.selectionStart != null ? ta.selectionStart : val.length;
-    return { val, pos };
+    const sel = tracker.caret();
+    return { val, pos: sel ? sel.start : val.length, end: sel ? sel.end : val.length };
   };
   const apply = (next, cursor) => {
     onChange(next);
+    /* 프로그램이 옮긴 커서는 `select` 이벤트를 안 내므로 직접 알려 준다 — 없으면 연달아
+       두 번 넣을 때 두 번째가 첫 번째 자리로 되돌아간다. */
+    tracker.set(cursor);
     requestAnimationFrame(() => {
       const ta = ref.current;
       if (ta) { try { ta.focus(); ta.setSelectionRange(cursor, cursor); } catch (e) { /* noop */ } }
@@ -111,8 +125,10 @@ export function BodyEditor({ id, value, onChange, rows = 12, placeholder, label 
     apply(before + chunk + val.slice(pos), pos + lead.length + 4);
   };
   const insertAtCaret = (text) => {
-    const { val, pos } = caret();
-    apply(val.slice(0, pos) + text + val.slice(pos), pos + text.length);
+    const { val, pos, end } = caret();
+    /* 고른 글자가 있으면 그것을 **바꾼다** — 채팅 컴포저와 같은 규칙 하나를 쓴다. */
+    const next = insertAtCursor(val, text, pos, end);
+    apply(next.text, next.caret);
   };
   /* 카드 배경(흰색)과 구별되는 옅은 표면 — theme.js 의 background.surface2 토큰을 그대로
    * 쓴다(표 머리·칸반 열이 이미 쓰는 것과 같은 위계). 예전에는 `variant="outlined"
@@ -174,16 +190,26 @@ export function BodyEditor({ id, value, onChange, rows = 12, placeholder, label 
         fullWidth
         size="small"
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e) => { onChange(e.target.value); tracker.handlers.onSelect(e); }}
         placeholder={placeholder}
         /* placeholder 는 이름이 아니다 — 글자를 치는 순간 사라지고, 브라우저·리더에 따라
            아예 안 읽힌다. 이름은 label 로만 준다. */
-        slotProps={{ htmlInput: label ? { "aria-label": label } : {} }}
+        slotProps={{ htmlInput: { ...(label ? { "aria-label": label } : {}), ...tracker.handlers } }}
       />
-      <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 2, mb: 0.5, fontWeight: FONT_WEIGHT.bold }}>
-        미리보기
-      </Typography>
-      <BodyPreview text={value} wide />
+      {/* 미리보기는 **기본이 꺼짐**이다.
+       *
+       * 왜: 새로 쓰는 자리에서는 입력칸과 같은 높이의 판이 하나 더 늘 펼쳐져 있어 폼이 두 배로
+       * 길어진다. 아직 아무것도 안 쓴 사람에게 「지금 쓴 것이 이렇게 보인다」는 빈 상자다.
+       * 켜는 자리는 **이미 있는 긴 본문을 고치는 자리**뿐이다(`ui/EditableBody.jsx`) — 거기서는
+       * 무엇을 쳤는지와 어떻게 보일지를 나란히 대조하는 것이 실제로 일이다. */}
+      {preview ? (
+        <>
+          <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 2, mb: 0.5, fontWeight: FONT_WEIGHT.bold }}>
+            미리보기
+          </Typography>
+          <BodyPreview text={value} wide />
+        </>
+      ) : null}
     </>
   );
 }

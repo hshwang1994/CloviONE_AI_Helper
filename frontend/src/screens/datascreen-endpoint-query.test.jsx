@@ -83,13 +83,12 @@ describe("질의를 이미 달고 있는 목록 주소", () => {
     expect(first.get("page")).toBe("1");
   });
 
-  it("「다음」을 누르면 page 가 실제로 2가 된다 — 같은 목록을 다시 받지 않는다", async () => {
+  it("더 받으면 page 가 실제로 2가 된다 — 같은 목록을 다시 받지 않는다", async () => {
     renderScreen();
     await screen.findByText("알림 0");
     apiMock.mockClear();
 
-    // 화면 위아래 두 자리에 같은 페이저가 있다 — 위쪽 하나를 누른다.
-    fireEvent.click(screen.getAllByRole("button", { name: "다음" })[0]);
+    fireEvent.click(screen.getByRole("button", { name: "더 보기" }));
 
     await waitFor(() => {
       const pages = listCalls().map((p) => p.get("page"));

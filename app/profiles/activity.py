@@ -279,15 +279,24 @@ def _notification_item(row: Notification) -> dict:
 
 
 def build_feed(
-    db: Session, user_id: str, *, kind: str | None = None, offset: int = 0, limit: int = 20
+    db: Session, user_id: str, *, kind: str | None = None, offset: int = 0, limit: int = 20,
+    order: str | None = None,
 ) -> dict:
-    """두 원천을 합쳐 시간 역순으로 자른다.
+    """두 원천을 합쳐 시간순으로 자른다.
 
     각 원천에서 `offset + limit` 건만 읽는다 — 합친 뒤 자를 것이므로 그보다 더 읽어도
     결과가 달라지지 않고, 무제한으로 읽으면 오래 쓴 계정에서 응답이 통째로 커진다.
     `total` 은 정확한 합계다(개수는 따로 센다) — 목록은 잘려도 "몇 건인지"는 진실이어야
     한다(app/home/aggregate.py 의 bucket 과 같은 규칙).
+
+    🔴 **정렬 축이 시간 하나뿐인 이유.** 이 목록은 SQL 이 아니라 두 원천의 파이썬 병합이다.
+    다른 키로 정렬하려면 각 원천의 읽기 창(`offset + limit`)이 그 키를 기준으로 잘려야 하는데,
+    두 표에 그런 공통 키가 없다 — 억지로 만들면 「읽어 온 범위 안에서만 맞는 정렬」이 되고
+    그것은 정렬이 아니라 착시다. 그래서 `sort` 키는 안 만들고 **방향만** 받는다. 방향을 뒤집을
+    때는 **두 원천의 `order_by` 를 함께** 뒤집는다 — 한쪽만 뒤집으면 읽기 창이 서로 다른
+    구간을 집어 합친 결과가 어느 쪽도 아니게 된다.
     """
+    asc = (order or "desc") == "asc"
     take = max(offset + limit, 1)
     items: list[dict] = []
     total = 0
@@ -297,7 +306,10 @@ def build_feed(
             db.execute(
                 select(AuditLog)
                 .where(AuditLog.user_id == user_id)
-                .order_by(AuditLog.created_at.desc(), AuditLog.id.desc())
+                .order_by(
+                    AuditLog.created_at.asc() if asc else AuditLog.created_at.desc(),
+                    AuditLog.id.asc() if asc else AuditLog.id.desc(),
+                )
                 .limit(take)
             ).scalars().all()
         )
@@ -309,15 +321,19 @@ def build_feed(
             db.execute(
                 select(Notification)
                 .where(Notification.user_id == user_id)
-                .order_by(Notification.created_at.desc(), Notification.id.desc())
+                .order_by(
+                    Notification.created_at.asc() if asc else Notification.created_at.desc(),
+                    Notification.id.asc() if asc else Notification.id.desc(),
+                )
                 .limit(take)
             ).scalars().all()
         )
         items.extend(_notification_item(r) for r in rows)
         total += _count(db, Notification, Notification.user_id == user_id)
 
-    # 같은 시각이면 id 로 안정 정렬한다 — 페이지를 넘길 때 항목이 왔다 갔다 하지 않게.
-    items.sort(key=lambda it: (it["at"], it["id"]), reverse=True)
+    # 같은 시각이면 id 로 안정 정렬한다 — 묶음을 이어 받을 때 항목이 왔다 갔다 하지 않게.
+    # 이것이 이 목록의 전순서다(audit id 와 notification id 는 서로 겹치지 않는 UUID 공간이다).
+    items.sort(key=lambda it: (it["at"], it["id"]), reverse=not asc)
     return {
         "items": items[offset:offset + limit],
         "total": total,

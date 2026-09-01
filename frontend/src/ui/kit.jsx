@@ -43,12 +43,12 @@ import { maxLengthFor } from "../lib/fieldLimits.js";
 import { apiToKstLocal, kstLocalToApi } from "../lib/format.js";
 import { declaredRowName, rowNameOf } from "./rowName.js";
 import { ANYWHERE_BREAK, OVERFLOW, SHRINK, columnLayoutWidth, planColumnCollapse, resolveColumn } from "./columnTypes.js";
-import { EMPTY_STATE_MAX_CH, ERROR_STATE_MAX_CH, FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, MOTION, NUMERIC, RADIUS, TABLE_CARD_QUERY, TABLE_COMPACT_QUERY } from "./theme.js";
+import { EMPTY_STATE_MAX_CH, ERROR_STATE_MAX_CH, FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, MOTION, NUMERIC, RADIUS, TABLE_CARD_QUERY, TABLE_COMPACT_QUERY, stickyTopSx } from "./theme.js";
 import { CARD_PADDING, SECTION_GAP } from "./density.js";
 import { EntityCombobox } from "./filters.jsx";
 import { TableHeaderCell } from "./TableHeaderCell.jsx";
 import { DateField } from "./DateField.jsx";
-import { VirtualTableBody } from "./VirtualRows.jsx";
+import { VirtualTableBody, WindowVirtualTableBody, useScrollMargin } from "./VirtualRows.jsx";
 import { loginUrl, redirectToLogin } from "../lib/sessionRedirect.js";
 import { prefersReducedMotion } from "./motion.js";
 
@@ -477,7 +477,7 @@ export const SURFACE_TONES = {
 
 /* 팔레트 경로("brand.core")를 실제 색으로. `borderInlineStartColor` 는 MUI 의 border 설정
    목록에 없어 팔레트 경로를 해석해 주지 않는다 — 그래서 여기서 직접 푼다. */
-function paletteAt(theme, path) {
+export function paletteAt(theme, path) {
   return String(path).split(".").reduce((o, k) => (o == null ? o : o[k]), theme.palette);
 }
 
@@ -565,6 +565,33 @@ export function Card({ className, children, sx, ...rest }) {
     <Surface tone="plate" className={className} sx={merged} {...rest}>
       {children}
     </Surface>
+  );
+}
+
+/* 목록 표를 담는 판 — **자기 안을 자르지 않는다.**
+ *
+ * 🔴 왜 `Card` 와 따로 있는가. `Card` 는 `Surface tone="plate"` 이고 그것은 MUI `Card` 로
+ * 그려지는데, MUI `Card` 의 root 는 `overflow: hidden` 이다. `overflow` 가 `visible` 이
+ * 아닌 조상은 **`position: sticky` 의 스크롤 컨테이너가 된다** — 그래서 표에 `stickyHeader`
+ * 를 켜도 열 이름이 이 판 안에 붙박이고 페이지를 굴려도 절대 안 따라온다.
+ *
+ * 실측: `/audit` 이 `stickyHeader: true` 를 켜 둔 채로 그 상태였다. 아무도 신고하지 않은
+ * 이유는 속성만 재는 검사에는 `position: sticky` 가 그대로 보이기 때문이다(D-347 이 같은
+ * 부류를 «속성은 sticky 인데 굴리면 열 이름이 사라진다» 로 이미 한 번 적었다).
+ *
+ * 가로 넘침은 이 판이 아니라 표 안의 `TableContainer` 가 맡는다(`DataTable` 참고). 그리고
+ * `.c-list-card` 의 안쪽 여백(6px 8px)이 있어 둥근 모서리에 표가 닿지도 않는다 — 즉 자를
+ * 이유가 애초에 없었다.
+ *
+ * 지역 규칙이 화면마다 흩어지지 않게 이름을 하나 준다. 목록을 담는 판은 전부 이것을 쓴다. */
+export function ListCard({ className, children, sx, ...rest }) {
+  const merged = typeof sx === "function"
+    ? (theme) => ({ overflow: "visible", ...sx(theme) })
+    : { overflow: "visible", ...sx };
+  return (
+    <Card className={className ? `c-list-card ${className}` : "c-list-card"} sx={merged} {...rest}>
+      {children}
+    </Card>
   );
 }
 
@@ -1804,7 +1831,20 @@ function rowAnchorProps(href, onActivate) {
   };
 }
 
-export function DataTable({ columns, rows, rowKey, onRow, rowHref, empty, ellipsis, stickyHeader, loading, sort, onSort, resultScope, filters, onFilter, filterOptions, entityOptions, virtualize }) {
+/* 열 접힘 판정을 **앞 묶음으로만** 한다 (무한 스크롤).
+ *
+ * `planColumnCollapse` 는 지금 보이는 행 전체에서 「값이 전부 같은가」를 본다. 목록이 굴릴수록
+ * 자라면 그 판정이 **스크롤 도중에 뒤집혀** 열 폭이 통째로 재배치된다 — 읽던 표가 눈앞에서
+ * 움직인다. 조건이 바뀌어 열이 달라지는 것은 사용자가 유발한 변화라 예측 가능하지만, 굴리는
+ * 것은 그렇지 않다.
+ *
+ * 표본으로 줄여도 **정보를 잃지 않는다**: 서버가 쪽을 자르는 목록(`serverPaged`)에서 열을
+ * 실제로 **빼는** 갈래는 `structural && same`(=그 열이 지금 걸린 조건이다) 하나뿐이고, 그것은
+ * 서버가 거른 결과라 어느 묶음에서나 참이다. 「전부 비었다」로 빼는 갈래는 그 목록에서 애초에
+ * 안 돈다. 전량을 받는 목록은 표본을 쓰지 않는다 — 거기서는 51번째 행의 값이 진짜 반례다. */
+const COLLAPSE_SAMPLE = 50;
+
+export function DataTable({ columns, rows, rowKey, onRow, rowHref, empty, ellipsis, stickyHeader, loading, sort, onSort, resultScope, filters, onFilter, filterOptions, entityOptions, virtualize, total }) {
   // §15.1 재검수 — `VirtualTableBody` 는 스크롤 창을 스스로 안 만든다(문서 전체가 표
   // 흐름을 지키게, `VirtualRows`와 다른 이유는 그 부품 docblock 참고). 이 상자가 그 창
   // 이다 — `virtualize` 를 안 쓰면 아무도 안 읽는다(회귀 0).
@@ -1818,6 +1858,46 @@ export function DataTable({ columns, rows, rowKey, onRow, rowHref, empty, ellips
   // 그렸다). 콜백 ref 로 노드를 state 에 담으면, 그 노드가 실제로 붙는 순간 **state
   // 갱신 → 리렌더**가 일어나 `VirtualTableBody` 가 이번에는 값이 있는 채로 다시 돈다. */
   const [scrollEl, setScrollEl] = React.useState(null);
+  /* 스크롤 창이 어디인가 — 이 표의 두 모드.
+   *
+   *   window(기본) 문서가 굴러간다. 이 앱의 셸이 그렇다(`AppShell` 은 `main` 에 overflow 를
+   *                안 준다). 스크롤바가 하나이고, `lib/listReturn.js` 의 스크롤 복원이 그대로
+   *                산다(그 파일은 `window.scrollY` 만 안다).
+   *   box          이 상자가 굴러간다. **스스로 높이를 가진 자리**만 쓴다 — 작업 보드 레인은
+   *                「칸 안에서만 굴러가고 페이지는 안 밀린다」가 요구다.
+   *
+   * `height` 를 주면 box 다(옛 호출부 호환). 아무것도 안 주면 window 다. */
+  const virtualBox = !!(virtualize && (virtualize.mode === "box" || virtualize.height));
+  const virtualWindow = !!virtualize && !virtualBox;
+  const scrollMargin = useScrollMargin(virtualWindow ? scrollEl : null);
+  /* 표가 자기 칸보다 넓은가 — 넘침을 바깥으로 넘길지 말지가 여기서 갈린다.
+   *
+   * 🔴 CSS 는 `overflow-x: auto; overflow-y: visible` 을 허용하지 않는다 — 한쪽이 `visible`
+   * 이 아니면 나머지 `visible` 도 `auto` 로 계산된다. 그래서 「가로는 이 상자가 굴리고
+   * 세로 넘침은 바깥에 넘긴다」는 **한 요소 안에서 성립할 수 없다.** 둘 중 하나다.
+   *
+   * 그러면 무엇을 고르는가. 표가 칸 안에 들어가면 가로 스크롤 창이 애초에 필요 없으니
+   * 넘김(=고정 열 이름이 바깥 창을 따라간다)을 고른다. 표가 칸보다 넓으면 다르다 —
+   * 넘김을 고르면 표가 판 밖으로 삐져나와 **옆 사이드바 위에 겹쳐 그려진다**(문서 목록에서
+   * 130px 을 쟀다). 그 자리는 오늘처럼 이 상자가 가로로 굴러야 한다. 고정 열 이름은
+   * 그 화면에서 원래도 안 따라왔으므로 잃는 것이 없다.
+   *
+   * 되먹임은 없다: 두 모드 다 표 너비도 칸 너비도 안 바꾼다(가로 스크롤바는 높이만 먹는다). */
+  const measureRef = React.useRef(null);
+  const [xOverflow, setXOverflow] = React.useState(false);
+  React.useLayoutEffect(() => {
+    const box = scrollEl;
+    const table = measureRef.current;
+    if (!box || !table || typeof ResizeObserver === "undefined") return undefined;
+    const measure = () => {
+      setXOverflow(Math.ceil(table.getBoundingClientRect().width) > box.clientWidth + 1);
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(box);
+    ro.observe(table);
+    return () => ro.disconnect();
+  }, [scrollEl]);
   // 방어: 비정상 입력이 와도 렌더 중 throw하지 않고 빈-목록 안내로 폴백한다.
   // 공용 표라 한 화면의 실수나 API shape 변화가 전역 크래시로 번지지 않게 한다.
   const declaredCols = Array.isArray(columns) ? columns : [];
@@ -1825,7 +1905,11 @@ export function DataTable({ columns, rows, rowKey, onRow, rowHref, empty, ellips
   /* 열을 뺄지 말지는 **호출부가 준 질의 계약**으로만 판단한다 (R-91).
      `resultScope` 가 없으면 `removed` 가 언제나 비어 있어 이 줄은 아무 것도 안 한다 —
      즉 이 기능을 안 쓰는 화면 28개의 렌더는 한 픽셀도 안 바뀐다. */
-  const collapse = planColumnCollapse(declaredCols, safeRows, resultScope);
+  const collapse = planColumnCollapse(
+    declaredCols,
+    resultScope && resultScope.serverPaged ? safeRows.slice(0, COLLAPSE_SAMPLE) : safeRows,
+    resultScope,
+  );
   const dropped = collapse.removed.map((r) => r.key);
   const shrunk = collapse.shrink;
   /* 「우연히 같다」로 판정된 열은 **빼지 않고 줄인다** — 폭을 내용만큼으로 좁히고 좁은
@@ -2006,23 +2090,31 @@ export function DataTable({ columns, rows, rowKey, onRow, rowHref, empty, ellips
           실측(2026-08-26 · 홈 「오늘 마감」 12행): 176px 굴렸더니 열 이름이 정확히 176px
           위로 사라졌다. 속성만 재는 검사로는 안 보인다 — `getComputedStyle(th).position`
           은 그때도 `sticky` 였다.
-          그래서 이 경우에만 넘침을 바깥에 넘긴다. 가로 넘침도 같은 바깥 상자가 맡는다. */}
+          그래서 이 경우에만 넘침을 바깥에 넘긴다. **다만 표가 칸 안에 들어갈 때만이다** —
+          넓은 표까지 넘기면 판 밖으로 삐져나온다(`xOverflow` 주석). */}
       <TableContainer
-        ref={virtualize ? setScrollEl : undefined}
-        sx={stickyHeader
-          ? { overflowX: "visible", overflowY: "visible" }
-          : (virtualize ? { maxHeight: virtualize.height || "32rem", overflowY: "auto" } : null)}
+        ref={setScrollEl}
+        sx={virtualBox
+          ? { maxHeight: virtualize.height || "32rem", overflowY: "auto" }
+          : ((stickyHeader || virtualWindow) && !xOverflow
+            ? { overflowX: "visible", overflowY: "visible" }
+            : null)}
       >
       {/* 표 리듬 (지시 10) — 세로 괘선이 없고, 행 사이는 실선 하나로만 나눈다. 마지막 행의
           아래 선은 지운다(판의 테두리와 겹쳐 두 줄로 보인다). 행 추적은 괘선이 아니라
           **hover 면**과 머리행의 굵은 선이 만든다 — 엑셀 표가 아니라 계기판 판독부다. */}
       <Table
+        ref={measureRef}
         size="small"
         stickyHeader={stickyHeader}
         // `VirtualRows` 와 같은 QA 프로브 계약(§18.2) — 가상화 중엔 그려진 <tr> 수 대신
         // 이 총 건수를 본다. `VirtualTableBody` 자신은 Fragment 라 붙일 단일 요소가 없어
         // 전체 행 수를 이미 아는 이 자리(`DataTable`)에서 낸다.
         data-virtual-total={virtualize ? safeRows.length : undefined}
+        /* 두 숫자는 **다른 질문**이다. `data-virtual-total` 은 「그려질 수 있는 행이 몇인가」
+           (=지금까지 받은 행 수)이고, 이것은 「전체가 몇 건인가」다. 한 속성에 두 뜻을 실으면
+           `ui/virtual-rows.test.jsx` 와 `scripts/ui_qa/assertions.py` 가 함께 깨진다. */
+        data-list-total={total != null ? total : undefined}
         sx={{
           ...TABLE_FIXED_LAYOUT_SX,
           "& td, & th": { borderInline: 0 },
@@ -2048,14 +2140,30 @@ export function DataTable({ columns, rows, rowKey, onRow, rowHref, empty, ellips
                 align={resolveColumn(c).align}
                 cellSx={{
                   ...colCellSx(c, { head: true }),
-                  ...(stickyHeader ? { bgcolor: "background.paper" } : null),
+                  /* 🔴 고정 열 이름은 **상단바 아래**에 선다.
+                     이 앱의 스크롤 창은 윈도다(`AppShell` 은 본문에 overflow 를 안 준다).
+                     그래서 MUI 가 붙이는 `top: 0` 은 «뷰포트 맨 위» 이고, 거기에는
+                     `position: fixed` 인 AppBar 가 이미 앉아 있다 — 열 이름을 보려고 켠
+                     sticky 가 열 이름을 가린다. 값은 리터럴이 아니라 셸과 같은 토큰이다
+                     (`theme.js::APPBAR_HEIGHT` · `stickyTopSx`). */
+                  ...(stickyHeader ? { bgcolor: "background.paper", ...stickyTopSx() } : null),
                 }}
               />
             ))}
           </TableRow>
         </TableHead>
         <TableBody>
-          {virtualize ? (
+          {virtualWindow ? (
+            <WindowVirtualTableBody
+              items={safeRows}
+              estimateSize={virtualize.estimateSize}
+              overscan={virtualize.overscan}
+              colSpan={wideCols.length}
+              scrollMargin={scrollMargin}
+              getItemKey={(row, i) => keyOf(row, i)}
+              renderRow={renderDataRow}
+            />
+          ) : virtualBox ? (
             <VirtualTableBody
               items={safeRows}
               estimateSize={virtualize.estimateSize}

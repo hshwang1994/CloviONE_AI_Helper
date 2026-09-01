@@ -5,7 +5,7 @@ import { DebouncedTextField, EntityCombobox, FilterSelect, SearchBox } from "../
 import { CHIP_ROW_CONTROL, FilterActions, FilterChips, FilterRow, FilterSurface, ResultLine } from "../ui/FilterBar.jsx";
 import { priorityKo } from "../lib/priority.js";
 import { affiliation, needsOrg } from "../lib/people.js";
-import { useAssigneeOptions, useTicketMeta, useTicketProjects } from "./ticket-options.js";
+import { useAssigneeOptions, useTicketMeta, useTicketProjects, statusOptions } from "./ticket-options.js";
 
 /* 티켓 목록 화면 네 곳(내 티켓·미할당·팀 티켓·스프린트)이 함께 쓰는 필터 줄.
  *
@@ -57,8 +57,9 @@ const META_FIELDS = ["status", "priority", "difficulty"];
 const MULTI_FIELDS = ["status", "priority", "difficulty", "project_id", "assignee_user_id"];
 const RANGE_KEYS = ["created_from", "created_to", "est_wd_min", "est_wd_max", "act_wd_min", "act_wd_max"];
 
+/* 필터가 아닌 상태 한 벌. **쪽 번호는 여기 없다** — 목록은 쪽을 넘기지 않고 묶음을 이어
+   받는다(`ticket-options.js::useTicketList`). 정렬은 조건이라 남는다(서버로 나간다). */
 export const TICKET_LIST_EXTRA = {
-  page: 1,
   sort: "created_at",
   order: "desc",
   created_from: "",
@@ -136,10 +137,9 @@ export const SPRINT_REPORT_FIELDS = ["q", "status", "priority", "difficulty"];
 
 /* 이 화면이 URL 에 둘 상태 한 벌.
  *
- * `extra` 는 필터가 아닌 상태다. 기본값은 `{ page: 1 }` — 서버가 목록을 자르는 화면이라면
- * 페이지가 **반드시** 같이 주소에 있어야 한다(필터만 남기면 공유한 링크가 늘 1페이지다).
- * 페이지가 없는 화면(스프린트는 그 주치를 전량 받는다)은 자기 것으로 바꿔 넘긴다. */
-export function ticketFilterSpec(fields, extra = { page: 1 }) {
+ * `extra` 는 필터가 아닌 상태다(정렬 축 등). **쪽 번호는 더 이상 없다** — 「어디까지 봤는가」는
+ * 조건이 아니라 시야이고, 남에게 준 「3쪽」 링크는 그 사람의 3쪽과 애초에 다른 목록이었다. */
+export function ticketFilterSpec(fields, extra = {}) {
   const spec = {};
   for (const key of fields) spec[key] = MULTI_FIELDS.includes(key) ? [] : "";
   return { ...spec, ...extra };
@@ -187,13 +187,12 @@ function appendQueryValue(p, key, v) {
 }
 
 /** 화면 상태 → 서버 질의 파라미터. 빈 값은 보내지 않는다(서버는 빈 문자열을 조건 없음으로 읽지만, 주소가 지저분해진다). */
+/** 화면 상태 → 서버 **조건**. 쪽 파라미터는 여기서 안 붙인다 — 그것은 「무엇을 거를까」가
+ * 아니라 「얼마씩 받을까」이고, 목록 훅이 묶음마다 스스로 붙인다
+ * (`ticket-options.js::useTicketList`). 두 관심사를 한 함수가 들면 조건이 같은데 질의
+ * 문자열만 다른 캐시 키가 생긴다. */
 export function ticketQueryParams(state, fields, extra) {
   const p = extra instanceof URLSearchParams ? extra : new URLSearchParams(extra || "");
-  // REAUDIT §15.1 — 20행/쪽(181건이면 10쪽)이던 자리를 쪽 크기 100(서버 상한,
-  // app/core/pagination.py::MAX_PAGE_SIZE) + 가상 행으로 바꾼다. 이 함수를 부르는
-  // 화면은 내 티켓·팀 티켓·미배정 셋뿐이라(TicketFilterBar.jsx 는 정의만 하는 자리) 여기
-  // 한 곳에서 기본을 올려도 다른 소비처가 놀라지 않는다.
-  if (!p.has("page_size")) p.set("page_size", "100");
   for (const key of fields) appendQueryValue(p, key, state[key]);
   for (const key of RANGE_KEYS) {
     if (state[key]) p.set(key, String(state[key]));
@@ -202,7 +201,6 @@ export function ticketQueryParams(state, fields, extra) {
     p.set("sort", String(state.sort));
     p.set("order", String(state.order || "desc"));
   }
-  if (state.page > 1) p.set("page", String(state.page));
   return p;
 }
 
@@ -314,7 +312,7 @@ export function TicketFilterBar({
   const meta = metaQ.data || {};
   const projectOpts = ((projectsQ.data && projectsQ.data.projects) || []).map((p) => ({ value: p.id, label: p.name || "(제목 없음)" }));
   const peopleOpts = assigneeOptions(assigneesQ.data && assigneesQ.data.assignees);
-  const statusOpts = meta.statuses || [];
+  const statusOpts = statusOptions(meta.statuses);
   const priorityOpts = (meta.priorities || []).map((p) => ({ value: p, label: priorityKo(p) }));
   const difficultyOpts = meta.difficulties || [];
 

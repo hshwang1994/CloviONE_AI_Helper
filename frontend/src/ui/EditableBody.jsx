@@ -178,7 +178,10 @@ export function EditableBody({
           {/* 이름은 바로 위 heading 과 같은 말로 준다. 이 자리에는 화면에 보이는 <label> 이
               없어서, 주지 않으면 스크린리더가 "편집" 이라고만 읽는다 — 티켓 본문인지 문서
               본문인지 알 수 없다. heading 을 따라가므로 문구가 두 벌로 갈리지 않는다. */}
-          <BodyEditor id={editorId} value={draft} onChange={setDraft} rows={14}
+          {/* 미리보기를 **여기서만** 켠다 — 이미 있는 긴 본문을 고치는 자리라 무엇을 쳤는지와
+              어떻게 보일지를 나란히 대조하는 것이 실제로 일이다. 새로 쓰는 자리(새 티켓 폼)는
+              끄고 폼을 짧게 둔다(`ui/BodyEditor.jsx` 의 `preview`). */}
+          <BodyEditor preview id={editorId} value={draft} onChange={setDraft} rows={14}
             label={heading + " 수정"}
             placeholder={placeholder || "본문을 입력하세요. 제목, 글머리, 번호, 구분선을 쓸 수 있습니다."} />
         </Box>

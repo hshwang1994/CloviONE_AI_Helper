@@ -27,7 +27,7 @@ vi.mock("../lib/api.js", () => ({ api: (...args) => apiMock(...args), setCsrf: (
 vi.mock("../app/auth.jsx", () => ({ useAuth: () => ({ data: { role: "user", id: "me-1" } }) }));
 
 import { MyTickets } from "./MyTickets.jsx";
-import { ConfirmProvider, ToastProvider } from "../ui/kit.jsx";
+import { ConfirmProvider, ToastProvider, statusText } from "../ui/kit.jsx";
 import { ThemeModeProvider } from "../ui/ThemeModeProvider.jsx";
 
 const META = { configured: true, ok: true, statuses: ["진행", "검증", "완료"],
@@ -124,25 +124,32 @@ const addrParamAll = (key) => addrQuery().getAll(key);
  * 「combobox 상태 없음」으로 죽었고, 그것을 화면 결함으로 오해할 만한 모양이었다.
  * 제품은 맞다. 사용자가 하는 것과 같이 **닫고** 다음으로 간다.
  */
-async function pickStatus(user, label) {
+/* 🔴 인자는 **저장 키**다. 화면에 보이는 이름은 그것과 다를 수 있다 — 「진행」은 「진행 중」으로
+   그려진다(`app/work/workflow.py` 가 키와 라벨을 나눠 갖고 있고 화면이 그 라벨을 쓴다).
+   그래서 고를 때는 라벨로 찾고, 서버로 나가는 값은 키로 단언한다. */
+async function pickStatus(user, key) {
   await user.click(screen.getByRole("combobox", { name: "상태" }));
   const listbox = await screen.findByRole("listbox");
-  await user.click(within(listbox).getByRole("option", { name: label }));
+  await user.click(within(listbox).getByRole("option", { name: statusText(key) }));
   await user.keyboard("{Escape}");
   await waitFor(() => expect(screen.queryByRole("listbox")).toBeNull());
 }
 
 describe("조건이 바뀔 때 화면이 지키는 것", () => {
-  it("쪽 초기화 — 3쪽에서 조건을 바꾸면 1쪽으로 돌아온다", async () => {
+  it("묶음 초기화 — 더 받아 둔 뒤 조건을 바꾸면 첫 묶음부터 다시 받는다", async () => {
     const user = userEvent.setup();
-    renderMine(["/my-tickets?page=3"]);
-    await screen.findByText("티켓 전체·3쪽");
-    expect(addrParam("page")).toBe("3");
+    renderMine();
+    await screen.findByText("티켓 전체·1쪽");
+    await user.click(await screen.findByRole("button", { name: "티켓 더 보기" }));
+    await waitFor(() => {
+      expect(listCalls[listCalls.length - 1].get("page")).toBe("2");
+    });
 
     await pickStatus(user, "진행");
 
     await waitFor(() => expect(addrParam("status")).toBe("진행"));
-    // 주소에서 page 가 빠졌다 = 기본값(1쪽)이다.
+    /* 쪽 번호는 주소에도 요청에도 없다 — 조건이 바뀌면 받아 둔 묶음을 통째로 버리고
+       첫 묶음부터 다시 받는다. */
     expect(addrParam("page")).toBeNull();
     const last = listCalls[listCalls.length - 1];
     expect(last.get("status")).toBe("진행");

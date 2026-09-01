@@ -16,6 +16,7 @@ from app.core.authz import CONSOLE_OPS_ROLES, CONSOLE_READ_ROLES, CONSOLE_WRITE_
 from app.core.deps import get_db, require_csrf, require_roles
 from app.core.errors import ConflictError, NotFoundError, ValidationAppError
 from app.core.pagination import PageParams
+from app.core.sort import SortParams, SortSpec, order_by
 from app.jobs import repository as jobs_repo
 from app.jobs.models import STATUS_QUEUED, STATUS_RUNNING, Job
 from app.schedules import cron
@@ -680,12 +681,29 @@ def run_now(
     return {"ok": True, "run": _run_view(run) if run else None}
 
 
+#: 실행 이력의 정렬 계약. 부모 스케줄 하나에 종속된 목록이라 축이 시간과 결과뿐이다.
+_RUN_SORT = SortSpec(
+    columns={
+        "created_at": ScheduleRun.created_at,
+        "scheduled_at": ScheduleRun.scheduled_at,
+        "started_at": ScheduleRun.started_at,    # nullable
+        "finished_at": ScheduleRun.finished_at,  # nullable
+        "status": ScheduleRun.status,
+        "retry_count": ScheduleRun.retry_count,
+    },
+    default="created_at",
+    tiebreak=ScheduleRun.id,
+    default_order="desc",
+)
+
+
 @router.get("/{schedule_id}/runs", dependencies=[Depends(require_roles(*CONSOLE_READ_ROLES))])
 def run_history(
     schedule_id: str,
     db: Session = Depends(get_db),
     page: PageParams = Depends(),
     status: str | None = Query(default=None, max_length=16),
+    sort: SortParams = Depends(),
 ):
     _get_or_404(db, schedule_id)
     stmt = select(ScheduleRun).where(ScheduleRun.schedule_id == schedule_id)
@@ -694,7 +712,7 @@ def run_history(
     total = db.execute(select(func.count()).select_from(stmt.subquery())).scalar_one()
     rows = (
         db.execute(
-            stmt.order_by(ScheduleRun.created_at.desc(), ScheduleRun.id.desc())
+            stmt.order_by(*order_by(_RUN_SORT, sort))
             .offset(page.offset)
             .limit(page.page_size)
         )

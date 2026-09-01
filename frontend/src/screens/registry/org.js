@@ -96,6 +96,9 @@ export const ORG_SCREENS = {
     // 불러 404 토스트가 뜬다 — TEST SERVER 실측으로 잡은 결함, users-scope-form.test.jsx류의
     // 목(mock)은 애초에 감싸지 않은 응답을 흉내 내서 이 문제를 못 잡았다.
     selectKey: "department",
+    /* 상위 부서 후보는 **조건과 무관한 전량**이어야 한다 — 목록에 걸린 필터가 후보를 좁히면
+       「미사용 부서만 상위로 고를 수 있는」 폼이 된다(`registry/actions.js::PARENT_DEPT_FIELD`). */
+    refLists: [{ key: "allDepartments", endpoint: "/api/admin/departments" }],
     help: "부서 이름을 한 곳에서 관리합니다. 사용자 폼의 '부서'는 여기 목록에서 고릅니다.", createLabel: "부서 추가",
     emptyTitle: "추가된 부서가 없습니다", emptyHelp: "‘+ 부서 추가’로 부서를 추가하면 사용자 폼의 ‘부서’ 목록에 바로 나타납니다.",
     // 이 화면은 paginated가 아니라 클라이언트 검색창이 항상 뜨는데, searchFields가 없으면 기본 검색이

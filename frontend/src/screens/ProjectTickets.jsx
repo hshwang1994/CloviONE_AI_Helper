@@ -5,11 +5,11 @@ import Stack from "@mui/material/Stack";
 import Switch from "@mui/material/Switch";
 import Typography from "@mui/material/Typography";
 import { Callout, Card, EmptyState, ErrorState, Skeleton } from "../ui/kit.jsx";
-import { Pager } from "../ui/Pager.jsx";
 import { GroupedTickets, TicketEditModal, ticketColumns, ticketConnState, useInlineStatusEdit } from "./MyTickets.jsx";
 import { useTicketSignals } from "../lib/ticketSignals.js";
 import { groupByAssignee } from "./TeamTickets.jsx";
-import { ticketRows, useTicketList } from "./ticket-options.js";
+import { TICKET_AUTO_MAX_ROWS, useTicketList } from "./ticket-options.js";
+import { ListFooter } from "../ui/InfiniteScroll.jsx";
 
 /* 프로젝트에 걸린 티켓 — **기존 팀 티켓 목록을 그대로 재사용**한다.
  *
@@ -31,7 +31,7 @@ import { ticketRows, useTicketList } from "./ticket-options.js";
  * 조건 없이 부르는 일은 여전히 없다. `project.id` 는 이 화면이 열려 있는 한 항상 있다.
  */
 
-function ProjectTicketList({ pageId, page, onPage }) {
+function ProjectTicketList({ pageId }) {
   const nav = useNavigate();
   const signalsOf = useTicketSignals();
   const statusEdit = useInlineStatusEdit();
@@ -48,12 +48,11 @@ function ProjectTicketList({ pageId, page, onPage }) {
   const params = new URLSearchParams();
   params.set("project_id", pageId);
   params.set("active", includeDone ? "false" : "true");
-  if (page > 1) params.set("page", String(page));
   const q = useTicketList("/api/tickets/team", params.toString());
 
-  // 범위(완료·취소 포함 여부)를 바꾸면 페이지는 처음으로 - 필터를 바꿨는데 3페이지에 남으면
-  // 빈 목록을 "티켓이 없다"로 읽는다(다른 티켓 화면들과 같은 규약).
-  const toggleIncludeDone = (checked) => { setIncludeDone(checked); onPage(1); };
+  /* 범위(완료·취소 포함)를 바꾸면 받아 둔 묶음은 질의 키가 바뀌며 함께 버려진다 —
+     되돌릴 쪽 번호가 없다. */
+  const toggleIncludeDone = (checked) => { setIncludeDone(checked); };
   const activeToggle = (
     <FormControlLabel
       sx={{ m: 0 }}
@@ -62,10 +61,11 @@ function ProjectTicketList({ pageId, page, onPage }) {
     />
   );
 
-  if (q.isPending) return <Card><Skeleton lines={6} /></Card>;
+  if (q.isLoading) return <Card><Skeleton lines={6} /></Card>;
   if (q.isError) return <ErrorState error={q.error} onRetry={() => q.refetch()} />;
 
-  const data = q.data || {};
+  /* 목록 밖의 값(연결 상태)은 첫 묶음 원본이 들고 온다 — 묶음마다 같다. */
+  const data = q.first || {};
   // 연동 미설정, 조회 실패 안내는 티켓 화면들과 같은 함수를 쓴다(문구가 갈라지지 않게).
   const conn = ticketConnState(data);
   if (conn) return conn;
@@ -73,7 +73,7 @@ function ProjectTicketList({ pageId, page, onPage }) {
     return <Callout tone="danger">{data.error || "티켓을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요."}</Callout>;
   }
 
-  const rows = ticketRows(data);
+  const rows = q.rows;
   const cols = ticketColumns({
     onEdit: setEditing,
     onOpen: (t) => nav("/tickets/" + t.id, { state: { from: "/projects" } }),
@@ -85,7 +85,7 @@ function ProjectTicketList({ pageId, page, onPage }) {
     <Card>
       <Stack direction="row" gap={2} sx={{ flexWrap: "wrap", alignItems: "center", mb: 1.5 }}>
         <Typography variant="body2" color="text.secondary" aria-live="polite">
-          총 {data.total != null ? data.total : rows.length}건
+          총 {q.total != null ? q.total : rows.length}건
         </Typography>
         {activeToggle}
       </Stack>
@@ -99,13 +99,18 @@ function ProjectTicketList({ pageId, page, onPage }) {
           />
         }
       />
-      <Pager page={data.page} pageSize={data.page_size} total={data.total} onPage={onPage} />
+      <ListFooter
+        total={q.total} loaded={q.loaded}
+        hasNext={q.hasNext} isFetchingNext={q.isFetchingNext} onMore={q.fetchNext}
+        moreLabel="티켓 더 보기"
+        autoMaxRows={TICKET_AUTO_MAX_ROWS}
+      />
       <TicketEditModal ticket={editing} open={!!editing} onClose={() => setEditing(null)} />
     </Card>
   );
 }
 
-export function ProjectTickets({ project, page, onPage }) {
+export function ProjectTickets({ project }) {
   const projectId = (project && project.id) || "";
   if (!projectId) {
     // 프로젝트를 아직 못 읽은 순간뿐이다. 조건 없이 부르면 회사의 모든 티켓이 이
@@ -121,5 +126,5 @@ export function ProjectTickets({ project, page, onPage }) {
       </Card>
     );
   }
-  return <ProjectTicketList pageId={projectId} page={page} onPage={onPage} />;
+  return <ProjectTicketList pageId={projectId} />;
 }

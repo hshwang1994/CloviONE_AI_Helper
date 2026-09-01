@@ -389,6 +389,13 @@ else
   echo "$SPENC"; fail "subprocess 텍스트 모드에 encoding 이 없다"
 fi
 
+step "sortKeys.json matches backend sort whitelists"
+if SORTK="$("$PY" scripts/check_sort_keys_fresh.py 2>&1)"; then
+  ok "$SORTK"
+else
+  echo "$SORTK"; fail "sortKeys.json 이 지금의 서버 정렬 계약과 다르다"
+fi
+
 step "fieldLimits.json matches backend Pydantic schemas (PA-RC-0005)"
 # 관리자 폼 maxLength의 정본은 Pydantic 스키마다 - 생성기를 다시 안 돌리면 화면이 조용히
 # 낡은 상한을 계속 보여준다(check_bundle_fresh.py와 같은 관용).
@@ -479,7 +486,10 @@ step "JS 진실은 JS 가 증명한다 — REGISTRY 대조 + UX Writing 계약"
 #
 # 실행기는 `frontend/node_modules/.bin` 을 먼저 본다 — 윈도우에서 `npx` 는 `npx.CMD` 라
 # 부르는 쪽이 셸 없이 넘기면 안 뜬다(같은 함정을 `scripts/verify.py` 가 P-48 로 겪었다).
-JS_CONTRACT_TESTS="src/screens/registry-surface-parity.test.js src/ui/ux-writing-punctuation.test.js src/ui/ux-writing-verb-table.test.js"
+# `registry-filter-axes` 가 여기 있는 이유는 `registry-surface-parity` 와 같다 — REGISTRY 는
+# 일곱 파일의 객체 조립 결과라 Python 정규식으로 훑으면 조용히 놓친다. 그 검사가 막는 것은
+# 「서버가 묶음을 자르는 화면에서 받아 둔 행만 보고 거르거나 후보를 뽑는」 선언이다.
+JS_CONTRACT_TESTS="src/screens/registry-surface-parity.test.js src/screens/registry-filter-axes.test.js src/ui/ux-writing-punctuation.test.js src/ui/ux-writing-verb-table.test.js"
 VITEST_BIN=""
 for cand in frontend/node_modules/.bin/vitest frontend/node_modules/.bin/vitest.cmd; do
   [ -x "$cand" ] || [ -f "$cand" ] && VITEST_BIN="$cand" && break

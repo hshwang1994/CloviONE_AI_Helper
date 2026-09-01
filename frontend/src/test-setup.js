@@ -24,6 +24,45 @@ if (typeof globalThis.ResizeObserver === "undefined") {
   };
 }
 
+/* jsdom 에는 `IntersectionObserver` 가 없다 — 무한 스크롤의 센티넬(`ui/InfiniteScroll.jsx`)이
+ * 이 생성자를 부른다.
+ *
+ * 🔴 **자동으로 교차시키지 않는다.** 진짜로 교차하는 폴리필을 넣으면 목록을 그리는 시험
+ * 전부가 마운트 즉시 끝까지 받아 「첫 묶음만 받는다」 자체를 아무도 못 본다 — 그러면 이
+ * 기능의 핵심 계약을 검사하는 시험이 하나도 안 남는다.
+ *
+ * 시험은 둘 중 하나로 「끝까지 굴렸다」를 말한다:
+ *   · `await user.click(screen.getByRole("button", { name: "더 보기" }))`  ← 정본.
+ *     키보드·스크린리더 사용자가 실제로 쓰는 길이고 IO 가 아예 안 끼어든다.
+ *   · `await act(async () => { globalThis.__intersect(); })`               ← 자동 경로. */
+/* jsdom 은 `window.scrollTo` 를 «구현 안 됨» 으로 던진다(콘솔에 스택을 통째로 뱉는다).
+ * 창 가상화기가 스크롤 보정에서 이것을 부르고(`virtual-core::scrollWithAdjustments`),
+ * 조건이 바뀌면 목록 머리로 되돌리는 훅(`lib/useInfiniteList.js`)도 부른다. 실제 스크롤은
+ * jsdom 에 레이아웃이 없어 어차피 뜻이 없으므로 **조용한 no-op** 으로 둔다 — 그래야 목록
+ * 시험의 출력이 이 스택으로 덮이지 않고, 「되돌렸는가」를 재려는 시험은 이것을 spy 로 감쌀 수
+ * 있다(`ResizeObserver` 를 여기서 대신 주는 것과 같은 이유). */
+if (typeof window !== "undefined") {
+  window.scrollTo = () => {};
+}
+
+const __ioInstances = new Set();
+if (typeof globalThis.IntersectionObserver === "undefined") {
+  globalThis.IntersectionObserver = class IntersectionObserver {
+    constructor(callback) { this.callback = callback; this.targets = new Set(); __ioInstances.add(this); }
+    observe(target) { this.targets.add(target); }
+    unobserve(target) { this.targets.delete(target); }
+    disconnect() { this.targets.clear(); __ioInstances.delete(this); }
+    takeRecords() { return []; }
+  };
+}
+/** 지금 관찰 중인 센티넬이 전부 「보인다」고 알린다. 시험이 스크롤을 대신하는 손잡이다. */
+globalThis.__intersect = () => {
+  for (const io of [...__ioInstances]) {
+    const entries = [...io.targets].map((target) => ({ target, isIntersecting: true, intersectionRatio: 1 }));
+    if (entries.length) io.callback(entries, io);
+  }
+};
+
 /* jsdom 은 레이아웃이 없어 `offsetWidth`/`offsetHeight` 가 항상 0 이다 — `VirtualRows`/
  * `VirtualTableBody`(`@tanstack/react-virtual`)의 초기 측정과 `measureElement` 재측정이
  * 이 값을 그대로 읽어, 손대지 않으면 가상화 계산이 항상 빈 뷰포트(0px)로 떨어져 화면에

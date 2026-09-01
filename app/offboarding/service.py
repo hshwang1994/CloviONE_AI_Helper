@@ -38,6 +38,7 @@ from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
 from app.core.db import is_insert_race
+from app.core.sort import SortSpec, order_by
 from app.core.errors import AppError, ConflictError, ValidationAppError
 from app.core.models_base import join_names, split_names, utcnow
 from app.core.scope import apply_user_scope
@@ -499,13 +500,36 @@ def get_scoped_run_or_404(db: Session, run_id: str, scope) -> OffboardingRun:
     return run
 
 
-def list_runs(db: Session, scope, *, offset: int, limit: int) -> tuple[list[dict], int]:
-    """실행 목록 — 대상 사용자가 범위 안인 것만. 관리 콘솔의 목록 화면이 그대로 쓴다."""
+#: 실행 이력의 정렬 계약.
+#:
+#: `user_name` 은 **이미 있는 조인**을 쓴다 — 아래 `list_runs` 가 범위를 걸려고 `User` 를
+#: 이미 조인한다. 새 조인이 아니라서 대리 보기(FK 없음)와 사정이 다르다.
+LIST_SORT = SortSpec(
+    columns={
+        "created_at": OffboardingRun.created_at,
+        "status": OffboardingRun.status,
+        "ticket_total": OffboardingRun.ticket_total,
+        "ticket_moved": OffboardingRun.ticket_moved,
+        "ticket_failed": OffboardingRun.ticket_failed,
+        "undone_at": OffboardingRun.undone_at,   # nullable — 안 되돌린 것이 뒤로 간다
+        "user_name": User.display_name,
+    },
+    default="created_at",
+    tiebreak=OffboardingRun.id,
+    default_order="desc",
+)
+
+
+def list_runs(db: Session, scope, *, offset: int, limit: int, sort=None) -> tuple[list[dict], int]:
+    """실행 목록 — 대상 사용자가 범위 안인 것만. 관리 콘솔의 목록 화면이 그대로 쓴다.
+
+    절 순서: ① 조건(없다) → ② 범위 → ③ 정렬 → ④ 상한.
+    """
     stmt = select(OffboardingRun).join(User, User.id == OffboardingRun.user_id)
     stmt = apply_user_scope(stmt, scope)
     total = db.execute(select(func.count()).select_from(stmt.subquery())).scalar_one()
     rows = db.execute(
-        stmt.order_by(OffboardingRun.created_at.desc(), OffboardingRun.id.desc()).offset(offset).limit(limit)
+        stmt.order_by(*order_by(LIST_SORT, sort)).offset(offset).limit(limit)
     ).scalars().all()
     names = _name_map(db, rows)
     return [run_view(r, names=names) for r in rows], total

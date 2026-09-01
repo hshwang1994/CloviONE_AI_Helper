@@ -618,11 +618,23 @@ def my_activity(
         default=None,
         description="did(내가 한 일), happened(나에게 일어난 일), 비우면 전부",
     ),
+    order: str | None = Query(
+        default=None,
+        pattern="^(asc|desc)$",
+        description="시간 방향. 기본은 최신순(desc).",
+    ),
 ):
+    """내 활동 피드.
+
+    🔴 **정렬 키가 없다 — 방향만 있다.** 이 목록은 감사 로그와 알림 **두 원천의 파이썬
+    병합**이라(`app/profiles/activity.py::build_feed`) 다른 축으로 정렬하면 각 원천의 읽기
+    창이 틀린 구간을 집는다. 없는 축에 조작기를 그리지 않기 위해 여기에도 안 만든다.
+    """
     if kind not in (None, "", activity_mod.KIND_DID, activity_mod.KIND_HAPPENED):
         raise ValidationAppError("kind 는 did 또는 happened 여야 합니다.")
     result = activity_mod.build_feed(
-        db, user.id, kind=kind, offset=page.offset, limit=min(page.page_size, MAX_PAGE_SIZE)
+        db, user.id, kind=kind, offset=page.offset,
+        limit=min(page.page_size, MAX_PAGE_SIZE), order=order,
     )
     return {
         "items": result["items"],

@@ -177,7 +177,11 @@ def _build_router(kind: str, model, view, create_schema, content_update_schema):
         total = db.execute(select(func.count()).select_from(stmt.subquery())).scalar_one()
         rows = (
             db.execute(
-                stmt.order_by(model.name, model.version.desc())
+                # 🔴 마지막 절이 PK 다 — **전순서**여야 한다. `(name, version)` 은 실무상
+                # 유일하지만 계약으로 보장되지 않고, 전순서가 아니면 OFFSET 페이징이 같은 행을
+                # 두 묶음에 내거나 아예 빠뜨린다(그 어긋남은 오류를 안 낸다).
+                # 같은 이유를 `app/knowledge/service.py::_order_by` 가 이미 적어 뒀다(Z9).
+                stmt.order_by(model.name, model.version.desc(), model.id.asc())
                 .offset((page - 1) * page_size)
                 .limit(page_size)
             )

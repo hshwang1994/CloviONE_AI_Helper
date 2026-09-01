@@ -1,0 +1,136 @@
+{
+  "admin-notifications": {
+    "default": {
+      "dir": "desc",
+      "key": "created_at"
+    },
+    "keys": [
+      "created_at",
+      "read_at",
+      "title",
+      "type"
+    ]
+  },
+  "announcements": {
+    "default": {
+      "dir": "desc",
+      "key": "created_at"
+    },
+    "keys": [
+      "active",
+      "created_at",
+      "ends_at",
+      "level",
+      "starts_at",
+      "title",
+      "updated_at"
+    ]
+  },
+  "approvals": {
+    "default": {
+      "dir": "desc",
+      "key": "requested_at"
+    },
+    "keys": [
+      "due_at",
+      "expires_at",
+      "request_type",
+      "requested_at",
+      "requested_by",
+      "status"
+    ]
+  },
+  "audit": {
+    "default": {
+      "dir": "desc",
+      "key": "created_at"
+    },
+    "keys": [
+      "action",
+      "created_at",
+      "object_type",
+      "result"
+    ]
+  },
+  "impersonation": {
+    "default": {
+      "dir": "desc",
+      "key": "started_at"
+    },
+    "keys": [
+      "blocked_write_count",
+      "ended_at",
+      "read_count",
+      "started_at"
+    ]
+  },
+  "jobs": {
+    "default": {
+      "dir": "desc",
+      "key": "created_at"
+    },
+    "keys": [
+      "attempt_count",
+      "available_at",
+      "created_at",
+      "finished_at",
+      "job_type",
+      "started_at",
+      "status"
+    ]
+  },
+  "my-approvals": {
+    "default": {
+      "dir": "desc",
+      "key": "requested_at"
+    },
+    "keys": [
+      "due_at",
+      "expires_at",
+      "request_type",
+      "requested_at",
+      "status"
+    ]
+  },
+  "notifications": {
+    "default": {
+      "dir": "desc",
+      "key": "created_at"
+    },
+    "keys": [
+      "created_at",
+      "read_at",
+      "title",
+      "type"
+    ]
+  },
+  "offboarding": {
+    "default": {
+      "dir": "desc",
+      "key": "created_at"
+    },
+    "keys": [
+      "created_at",
+      "status",
+      "ticket_failed",
+      "ticket_moved",
+      "ticket_total",
+      "undone_at",
+      "user_name"
+    ]
+  },
+  "schedule-runs": {
+    "default": {
+      "dir": "desc",
+      "key": "created_at"
+    },
+    "keys": [
+      "created_at",
+      "finished_at",
+      "retry_count",
+      "scheduled_at",
+      "started_at",
+      "status"
+    ]
+  }
+}

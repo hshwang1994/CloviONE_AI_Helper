@@ -132,7 +132,7 @@ describe("healthBand · healthCuts", () => {
     expect(healthBand(null)).toBeNull();
   });
   it("깎인 이유를 지연·차단 건수로 말한다", () => {
-    expect(healthCuts({ overdue: 1, blocked: 1 })).toBe("지연 1건·차단 1건이 깎습니다.");
+    expect(healthCuts({ overdue: 1, blocked: 1 })).toBe("지연 1건, 차단 1건이 깎습니다.");
     expect(healthCuts({ overdue: 0, blocked: 0 })).toContain("깎인 점수가 없습니다");
   });
 });

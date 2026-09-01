@@ -1,5 +1,6 @@
 import React from "react";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ListFooter } from "../ui/InfiniteScroll.jsx";
 import { useNavigate, Link as RouterLink } from "react-router-dom";
 import Box from "@mui/material/Box";
 import FormControlLabel from "@mui/material/FormControlLabel";
@@ -17,6 +18,7 @@ import {
   EmptyState,
   ErrorState,
   FormModal,
+  OverflowMenu,
   PageHeader,
   Skeleton,
   statusKind,
@@ -37,6 +39,7 @@ import { useTicketSignals } from "../lib/ticketSignals.js";
 import { TicketSignals } from "../ui/TicketSignals.jsx";
 import { TicketFace, TicketPeople } from "../ui/TicketFace.jsx";
 import { StatusKpiStrip } from "../ui/StatusKpi.jsx";
+import { LANE_SURFACE, PANEL_SURFACE } from "../ui/density.js";
 import { useQueryState } from "../lib/useQueryState.js";
 import { pickOpenSprint } from "./sprint-charts.js";
 
@@ -116,7 +119,7 @@ function cardKey(card) {
  * 줄의 단추 네 개는 14rem 을 먹어, 우선순위·난이도·예상·마감·담당자가 한 칸씩 밀린다. */
 export const BACKLOG_TRACKS = {
   xs: "1fr",
-  md: "minmax(12rem, 1fr) 7.5rem 6.5rem 6rem 8.5rem 8rem 14rem",
+  md: "minmax(14rem, 26rem) 6.5rem 5.5rem 5rem 7.5rem 9rem 10rem",
 };
 
 const BACKLOG_GRID = {
@@ -195,41 +198,28 @@ function BacklogRow({ card, onOpen, signals, onAddToSprint, canAdd, onQuickEdit,
       <Box sx={{ display: "flex", justifyContent: "center", minWidth: 0 }}>
         <TicketPeople card={card} />
       </Box>
-      <Box sx={{ display: "flex", justifyContent: "center", gap: 0.5, flexWrap: "wrap" }}>
-        {/* 「빠른 수정」이 여기 있는 이유: 백로그를 다듬는 일은 **여러 건을 연달아**
-            고치는 일이다(우선순위 셋, 예상 WD 다섯). 건마다 상세로 갔다 돌아오면 그
-            사이에 방금 어디까지 봤는지를 잊는다. */}
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={(e) => {
-            // 줄 전체가 상세로 가는 자리라, 단추가 그 이동을 막아야 한다.
-            e.stopPropagation();
-            onQuickEdit(card);
-          }}
-        >
-          빠른 수정
-        </Button>
-        {/* 화면에 없는 카드 기준 이동(§8.5) — 181행 중 맨 끝으로 보낼 때 그 자리의
-            이웃은 아직 안 받아 왔을 수 있다. 끌기 대신 이 둘로 그 자리에 닿는다. */}
-        <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); onMoveToTop(card); }}>
-          맨 위로
-        </Button>
-        <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); onMoveToBottom(card); }}>
-          맨 아래로
-        </Button>
+      <Box
+        sx={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 0.5 }}
+        onClick={(e) => e.stopPropagation()}
+      >
         {canAdd ? (
           <Button
-            variant="ghost"
+            variant="secondary"
             size="sm"
-            onClick={(e) => {
-              e.stopPropagation();
-              onAddToSprint(card);
-            }}
+            onClick={() => onAddToSprint(card)}
           >
             스프린트에 담기
           </Button>
         ) : null}
+        <OverflowMenu
+          size="sm"
+          ariaLabel={`${cardKey(card)} 백로그 작업`}
+          items={[
+            { label: "빠른 수정", onClick: () => onQuickEdit(card) },
+            { label: "맨 위로", onClick: () => onMoveToTop(card) },
+            { label: "맨 아래로", onClick: () => onMoveToBottom(card) },
+          ]}
+        />
       </Box>
     </Card>
   );
@@ -779,22 +769,22 @@ export function WorkBoard() {
       {active.isError ? <ErrorState error={active.error} onRetry={active.refetch} /> : null}
 
       {tab === TAB_BOARD && summary ? (
-        <Stack spacing={1.5} sx={{ mb: 2 }}>
-          <StatusKpiStrip
-            ariaLabel="상태별 티켓 수"
-            revealKey="work-board:status-kpi"
-            items={[{ label: "전체", value: String(summary.total), primary: true }, ...statusTiles]}
-          />
-          {/* 신호 줄은 켜진 것이 하나라도 있을 때만 선다. 「차단 0 · 지연 0 · 이슈 0」은
-              매일 같은 자리를 쓰면서 아무 것도 말하지 않는다. */}
-          {signalTiles.some((t) => t.value !== "0") ? (
+        <Box sx={{ ...PANEL_SURFACE, mb: 2 }}>
+          <Stack spacing={1.5}>
             <StatusKpiStrip
-              ariaLabel="신호별 티켓 수"
-              revealKey="work-board:signal-kpi"
-              items={signalTiles}
+              ariaLabel="상태별 티켓 수"
+              revealKey="work-board:status-kpi"
+              items={[{ label: "전체", value: String(summary.total), primary: true }, ...statusTiles]}
             />
-          ) : null}
-        </Stack>
+            {signalTiles.some((t) => t.value !== "0") ? (
+              <StatusKpiStrip
+                ariaLabel="신호별 티켓 수"
+                revealKey="work-board:signal-kpi"
+                items={signalTiles}
+              />
+            ) : null}
+          </Stack>
+        </Box>
       ) : null}
 
       {tab === TAB_BOARD && board.data ? (
@@ -809,6 +799,7 @@ export function WorkBoard() {
             }
           />
         ) : (
+          <Box sx={{ ...LANE_SURFACE, p: { xs: 1, md: 1.5 } }}>
           <DragBoard
             columns={columns}
             labelOf={labelOf}
@@ -830,6 +821,7 @@ export function WorkBoard() {
               </DragItem>
             )}
           </DragBoard>
+          </Box>
         )
       ) : null}
 
@@ -837,7 +829,7 @@ export function WorkBoard() {
         backlogRows.length === 0 ? (
           <EmptyState title="백로그가 비어 있습니다." />
         ) : (
-          <Box>
+          <Box sx={{ ...LANE_SURFACE, overflow: "hidden" }}>
             <BacklogHead />
             <SortableList
               items={backlogRows}
@@ -847,7 +839,7 @@ export function WorkBoard() {
               // 가상화한다. 181행을 한 번에 그리던 자리다. 판 열과 같은 높이(60vh)를
               // 써서 두 탭이 같은 느낌으로 스크롤한다.
               virtualize={{
-                estimateSize: 72, height: "60vh", ariaLabel: "백로그 목록",
+                estimateSize: 56, height: "60vh", ariaLabel: "백로그 목록",
                 sx: { scrollbarGutter: "stable" },
               }}
             >
@@ -867,20 +859,17 @@ export function WorkBoard() {
               )}
             </SortableList>
             {/* 「N건 중 M건」과 「더 보기」— 서버가 실제로 다음 쪽을 내주는 계약(§8.5).
-                키보드·스크린리더 사용자는 무한 스크롤에 닿을 수 없어 단추를 함께 둔다. */}
-            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, mt: 2 }}>
-              <Typography variant="caption" color="text.secondary">
-                {backlogTotal}건 중 {backlogRows.length}건을 받았습니다.
-              </Typography>
-              {backlog.hasNextPage ? (
-                <Button
-                  variant="ghost" size="sm" loading={backlog.isFetchingNextPage}
-                  onClick={() => backlog.fetchNextPage()}
-                >
-                  백로그 더 보기
-                </Button>
-              ) : null}
-            </Box>
+                키보드·스크린리더 사용자는 무한 스크롤에 닿을 수 없어 단추를 함께 둔다.
+                이 문구가 이 저장소 목록 전부의 정본이 됐다 — 이제 공용 부품을 쓴다.
+                🔴 `root="auto"` 다: 백로그는 **자기 스크롤 창**(60vh 짜리 가상 목록) 안에 있고,
+                뷰포트를 기준으로 재면 열자마자 끝까지 받는다. */}
+            <ListFooter
+              total={backlogTotal} loaded={backlogRows.length}
+              hasNext={backlog.hasNextPage} isFetchingNext={backlog.isFetchingNextPage}
+              onMore={() => backlog.fetchNextPage()}
+              root="auto"
+              moreLabel="백로그 더 보기"
+            />
           </Box>
         )
       ) : null}

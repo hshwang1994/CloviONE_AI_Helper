@@ -2,6 +2,7 @@ import React from "react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { MemoryRouter } from "react-router-dom";
 import { ThemeProvider } from "@mui/material/styles";
 
 /* '새 티켓' 설명 편집기 블록의 폭이 컨테이너를 따라가는가(고정 60rem 캡이 아닌가).
@@ -44,10 +45,15 @@ beforeEach(() => {
 
 function renderNewTicket() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  /* 라우터 안에서 그린다 — 실제 앱이 그렇고(`app/UserRoutes.jsx`), 만든 뒤 그 티켓으로
+     이동하는 것이 이 화면의 마지막 단계다(`navigate('/tickets/:id')`). 라우터 없이 그리면
+     그 단계 자체를 시험이 못 본다. */
   return render(
     <QueryClientProvider client={qc}>
       <ThemeProvider theme={createClovirTheme()}>
-        <NewTicket />
+        <MemoryRouter initialEntries={["/new-ticket"]}>
+          <NewTicket />
+        </MemoryRouter>
       </ThemeProvider>
     </QueryClientProvider>,
   );

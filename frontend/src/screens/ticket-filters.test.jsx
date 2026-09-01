@@ -180,20 +180,21 @@ describe("내 티켓 — 조건이 주소에 남는다", () => {
   });
 
   it("주소에 실린 조건으로 시작한다 (새로고침, 링크 공유)", async () => {
-    renderScreen(MyTickets, "/my-tickets?status=검증&page=2");
+    renderScreen(MyTickets, "/my-tickets?status=검증");
     await screen.findByText("티켓 1");
     const sent = lastListQuery("/api/tickets/mine");
     expect(sent.get("status")).toBe("검증");
-    expect(sent.get("page")).toBe("2");
+    /* 쪽 번호는 조건이 아니다 — 첫 묶음 요청에 실리지 않는다. */
+    expect(sent.get("page")).toBeNull();
   });
 
-  it("페이지를 넘겨도 걸어 둔 조건은 그대로 간다", async () => {
+  it("더 받아도 걸어 둔 조건은 그대로 간다", async () => {
     const user = userEvent.setup();
     listPayload = { ...listPayload, total: 45 };
     renderScreen(MyTickets, "/my-tickets?status=검증");
     await screen.findByText("티켓 1");
 
-    await user.click(await screen.findByRole("button", { name: "다음" }));
+    await user.click(await screen.findByRole("button", { name: "티켓 더 보기" }));
 
     await waitFor(() => {
       const sent = lastListQuery("/api/tickets/mine");
@@ -202,14 +203,19 @@ describe("내 티켓 — 조건이 주소에 남는다", () => {
     });
   });
 
-  it("조건을 바꾸면 페이지는 처음으로 돌아간다", async () => {
+  it("조건을 바꾸면 받아 둔 묶음을 버린다 — 옛 조건의 행이 새 목록 위에 남지 않는다", async () => {
     const user = userEvent.setup();
-    listPayload = { ...listPayload, total: 45, page: 3 };
-    renderScreen(MyTickets, "/my-tickets?page=3");
+    listPayload = { ...listPayload, total: 45 };
+    renderScreen(MyTickets, "/my-tickets");
     await screen.findByText("티켓 1");
+    await user.click(await screen.findByRole("button", { name: "티켓 더 보기" }));
+    await waitFor(() => expect(lastListQuery("/api/tickets/mine").get("page")).toBe("2"));
 
     await pickOption(user, "상태", "검증");
 
+    /* 다시 첫 묶음부터다. 이 단언이 `keepPreviousData` 를 안 쓰기로 한 판단의 회귀 방지선이다 —
+       그것을 켜면 옛 조건 묶음이 남은 채 hasNext 가 옛 데이터에서 나오고, 센티넬이 그 자리에서
+       다음을 불러 옛 조건 아래에 새 조건이 붙는다. */
     await waitFor(() => expect(lastListQuery("/api/tickets/mine").has("page")).toBe(false));
   });
 });

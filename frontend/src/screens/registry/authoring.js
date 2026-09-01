@@ -45,8 +45,20 @@ export const AUTHORING_SCREENS = {
     // '지금 발행된 것만'·'검토 대기만' 같은 질문에 답할 방법이 없었다.
     // status 기본값을 'published'로 스코프한다(정책 화면과 동일 — 여전히 '전체'로 바꿀 수 있다).
     // 기본값이 없으면 첫 방문마다 초안/테스트/검토/발행/보관 버전이 모두 뒤섞여, '지금 실제로 쓰이는
-    // 것'을 알아보려면 매번 손으로 필터를 걸어야 했다. name도 정책처럼 현재 페이지 값으로 자동완성 제안.
-    filters: [{ key: "name", type: "text", label: "이름(정확히)", datalistFrom: (items) => items.map((r) => r.name) },
+    // 것'을 알아보려면 매번 손으로 필터를 걸어야 했다.
+    //
+    // 🔴 이름 후보는 **지금 화면에 받아 둔 행에서 뽑지 않는다.** 예전에는
+    // `datalistFrom: (items) => items.map(r => r.name)` 이었는데, 이 화면은 서버가 목록을
+    // 자르므로 그 제안은 언제나 「지금 받아 둔 것 안에 있는 이름」뿐이었다 — 서버 필터는
+    // **정확 일치**(`app/prompts/router.py` 의 `model.name == name`)라 후보를 못 보면
+    // 사실상 못 쓰는 필터다.
+    //
+    // 후보 목록은 이미 서버에 있다: `/usage/stats` 가 **이름당 한 행**을 무페이징으로 주고
+    // 게이트가 이 목록과 같다(`CONSOLE_READ_ROLES`) — 새 권한 표면이 0이다. 그리고 이름은
+    // 사람이 짓는 식별자이고 `uq_prompts_name_version` 이 유일성을 강제하는 **통제 어휘**라
+    // D-355(통제 어휘가 아닌 값을 셀렉트로 승격하지 않는다)와 어긋나지 않는다.
+    refLists: [{ key: "promptNames", endpoint: "/api/admin/prompts/usage/stats", valueKey: "name", labelKey: "name" }],
+    filters: [{ key: "name", type: "select", kind: "entity", label: "이름", optionsFromRefList: "promptNames" },
       { key: "status", type: "select", label: "상태", value: "published", options: opt([["draft", "초안"], ["test", "테스트"], ["review", "검토"], ["published", "발행됨"], ["archived", "보관됨"]]) }],
     // 용도(purpose)를 목록 열로 노출 — _prompt_view가 이미 돌려주는데도 상세에만 있어 여러 버전이
     // 쌓인 목록에서 각 프롬프트가 '무엇을 위한 것인지' 행마다 열어보지 않고는 알 수 없었다.
@@ -128,9 +140,11 @@ export const AUTHORING_SCREENS = {
     // status 기본값을 'published'로 스코프한다(여전히 '전체'로 바꿀 수 있다) — 기본값이 없으면
     // 첫 방문마다 초안/테스트/검토/발행/보관 버전이 모두 뒤섞여, '지금 실제로 쓰이는 것'을
     // 알아보려면 매번 손으로 필터를 걸어야 했다.
-    // name 필터는 백엔드가 정확 일치만 지원한다(model.name == name) — 이름을 미리 몰라도 시도할
-    // 수 있게, 이미 불러온 현재 페이지에서 뽑은 이름으로 자동완성 제안(datalist)을 준다.
-    filters: [{ key: "name", type: "text", label: "이름(정확히)", datalistFrom: (items) => items.map((r) => r.name) },
+    // 🔴 이름 후보는 프롬프트와 **같은 이유로** 받아 둔 행이 아니라 전량 엔드포인트에서 온다
+    // (위 프롬프트 항목의 긴 주석 참고 — 서버 필터가 정확 일치라 후보를 못 보면 못 쓰는
+    // 필터이고, `/usage/stats` 가 이름당 한 행을 같은 게이트로 무페이징 제공한다).
+    refLists: [{ key: "policyNames", endpoint: "/api/admin/policies/usage/stats", valueKey: "name", labelKey: "name" }],
+    filters: [{ key: "name", type: "select", kind: "entity", label: "이름", optionsFromRefList: "policyNames" },
       { key: "status", type: "select", label: "상태", value: "published", options: opt([["draft", "초안"], ["test", "테스트"], ["review", "검토"], ["published", "발행됨"], ["archived", "보관됨"]]) }],
     // WF1 단독 결함 — purpose는 이제 Policy에도 있다(app/prompts/models.py::Policy.purpose,
     // 마이그레이션 0058). 프롬프트와 동일하게 목록 열로 노출한다 — 여러 버전이 쌓인 목록에서

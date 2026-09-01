@@ -21,6 +21,8 @@ import { KO_WORD_BREAK } from "../ui/theme.js";
 import { useRowSelection, selectionColumn } from "../ui/bulkSelect.jsx";
 import { invalidateTicketViews } from "./ticket-views.js";
 import { DateCell } from "../ui/cells.jsx";
+import { ListFooter } from "../ui/InfiniteScroll.jsx";
+import { useInfiniteList } from "../lib/useInfiniteList.js";
 
 /* 오프보딩 (PLAN Phase 6 — 관리자 백로그 최우선 항목)
  *
@@ -395,23 +397,20 @@ const RUN_PAGE_SIZE = 20;
 
 /* 실행 이력 + 되돌리기. 되돌릴 방법이 화면 안에 없으면 아무도 실행 버튼을 못 쓴다.
  *
- * 페이지를 둔다 — 이 표는 감사 이력이라 지우지 않고 계속 쌓인다(휴지통처럼 보관기간이
- * 지나 스스로 줄지 않는다). 20건에서 자르고 다음 페이지로 갈 길을 안 주면, 21번째
- * 실행부터는 화면에서 조용히 사라져 아무도 다시 못 찾는다(내 활동 피드 Activity.jsx와
- * 같은 이유로 같은 방식을 쓴다). */
+ * 이 표는 감사 이력이라 지우지 않고 계속 쌓인다(휴지통처럼 보관기간이 지나 스스로 줄지
+ * 않는다). 서버가 자른 뒤 더 받을 길을 안 주면 21번째 실행부터는 화면에서 조용히 사라져
+ * 아무도 다시 못 찾는다 — 굴리면 이어 받는다(내 활동 피드와 같은 방식). */
 function RunHistory() {
   const [sel, setSel] = useState(null);
   const [busy, setBusy] = useState(false);
-  const [page, setPage] = useState(1);
   const qc = useQueryClient();
   const toast = useToast();
   const confirm = useConfirm();
-  const query = useQuery({
-    queryKey: ["offboarding-runs", page],
-    queryFn: () => api(`/api/admin/offboarding?page=${page}&page_size=${RUN_PAGE_SIZE}`),
-    retry: false,
-    // 페이지를 넘길 때 표가 통째로 Skeleton으로 사라졌다 나타나지 않게 한다.
-    placeholderData: keepPreviousData,
+  const query = useInfiniteList({
+    key: ["offboarding-runs"],
+    size: RUN_PAGE_SIZE,
+    rowId: (r) => (r && r.id) || undefined,
+    fetch: ({ page, page_size: size }) => api(`/api/admin/offboarding?page=${page}&page_size=${size}`),
   });
   const detailQ = useQuery({
     queryKey: ["offboarding-run", sel && sel.id],
@@ -419,9 +418,8 @@ function RunHistory() {
     enabled: !!sel,
     retry: false,
   });
-  const items = (query.data && query.data.items) || [];
-  const total = query.data && query.data.total;
-  const totalPages = total != null ? Math.max(1, Math.ceil(total / RUN_PAGE_SIZE)) : null;
+  const items = query.rows;
+  const total = query.total;
 
   async function undo(run) {
     const message = [
@@ -471,31 +469,19 @@ function RunHistory() {
         <Card><Skeleton lines={3} /></Card>
       ) : query.isError ? (
         <ErrorState error={query.error} onRetry={() => query.refetch()} />
-      ) : items.length === 0 && page === 1 ? (
+      ) : items.length === 0 ? (
         <EmptyState title="아직 실행한 오프보딩이 없습니다"
           help="위에서 대상을 고르고 실행하면 여기에 기록이 남고, 그 자리에서 되돌릴 수 있습니다." />
       ) : (
         <Card>
-          <DataTable columns={columns} rows={items} rowKey={(r) => r.id} onRow={setSel} />
-          {/* 감사 이력은 지워지지 않고 계속 쌓인다 — 20건을 넘으면 다음 페이지로 갈 길을
-              준다(Activity.jsx와 같은 이유, 같은 방식). */}
-          <Box
-            component="nav"
-            aria-label="페이지 이동"
-            sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 2, p: 2, borderTop: 1, borderColor: "divider" }}
-          >
-            <Button size="sm" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>이전</Button>
-            <Typography variant="body2" color="text.secondary" aria-live="polite" sx={{ minWidth: "8rem", textAlign: "center" }}>
-              {totalPages != null ? `${page} / ${totalPages}, 총 ${total}건` : `${page}페이지`}
-            </Typography>
-            <Button
-              size="sm"
-              disabled={totalPages != null ? page >= totalPages : items.length < RUN_PAGE_SIZE}
-              onClick={() => setPage((p) => p + 1)}
-            >
-              다음
-            </Button>
-          </Box>
+          <DataTable columns={columns} rows={items} rowKey={(r) => r.id} onRow={setSel} total={total} />
+          {/* 감사 이력은 지워지지 않고 계속 쌓인다 — 굴리면 이어 받는다(손으로 그린 페이저가
+              여기 있었다, 이제 목록 끝 줄 하나를 다른 화면과 함께 쓴다). */}
+          <ListFooter
+            total={total} loaded={query.loaded}
+            hasNext={query.hasNext} isFetchingNext={query.isFetchingNext} onMore={query.fetchNext}
+            moreLabel="실행 이력 더 보기"
+          />
         </Card>
       )}
 

@@ -77,11 +77,14 @@ export const GOVERNANCE_SCREENS = {
     // SEM-01: 이 화면 첫 열(유형)이 actionCol(render 있음)이라 표식 없이는 100건이 전부
     // "상세 보기"로 읽혔다 — 요청자까지 합쳐 행마다 실제로 다른 이름을 만든다(둘 다 이미
     // 목록에 보이는 값). requester_name 폴백은 바로 아래 요청자 열과 동일한 우선순위.
-    columns: [{ ...actionCol("request_type", "유형"), rowName: (r) => actionKo(r.request_type) + " / " + (r.requester_name || r.requester_email || (r.requested_by === "system" ? "시스템(자동)" : r.requested_by) || "-") }, objCol("object_type", "대상"),
+    /* 「상태」로 정렬하면 서버가 **유효 상태**로 센다(만료 시각이 지난 pending 은 만료로) —
+       화면의 배지·필터와 같은 판정이다(`app/approvals/service.py::effective_status_rank`). */
+    serverSort: { keys: ["requested_at", "due_at", "expires_at", "request_type", "requested_by", "status"], default: { key: "requested_at", dir: "desc" } },
+    columns: [{ ...actionCol("request_type", "유형"), sortable: true, rowName: (r) => actionKo(r.request_type) + " / " + (r.requester_name || r.requester_email || (r.requested_by === "system" ? "시스템(자동)" : r.requested_by) || "-") }, objCol("object_type", "대상"),
       // 시스템이 자동 생성한 승인은 requested_by="system"이다(사람이 아니므로 resolve_names가
       // 못 찾는다) — 그 원시 영어 리터럴이 그대로 새지 않게 한국어로 특별 취급한다.
       { key: "requester_name", label: "요청자", identifier: true, render: (r) => r.requester_name || r.requester_email || (r.requested_by === "system" ? "시스템(자동)" : r.requested_by) || "-" },
-      badgeCol("status", "상태"), dateCol("requested_at", "요청 시각"),
+      { ...badgeCol("status", "상태"), sortable: true }, dateCol("requested_at", "요청 시각"),
       // 기한(SLA, 0033)은 만료와 **다른 축**이다: 만료는 요청이 죽는 시각, 기한은 사람이 답해야
       // 하는 시각이다. 둘을 한 열로 합치면 "아직 살아 있지만 이미 늦었다"를 표현할 수 없다.
       // 판정은 서버(approval_view)가 한 `overdue` 를 그대로 쓴다 — 화면이 시각을 다시 비교하면
@@ -289,9 +292,22 @@ export const GOVERNANCE_SCREENS = {
       // '대상.동작'을 조합한 열린 네임스페이스라(예: user.update, prompts.update_content, cli.user.enable,
       // user.role_change_requested) 유한한 select로 담으면 유효한 값을 가려 버린다 — 정확한 문자열을
       // 그대로 입력받는 자유 입력을 유지하되, 라벨로 정확 일치임을 분명히 한다.
-      // '작업'은 정확 일치 자유 입력인데, 목록의 '작업' 열은 한국어 번역만 보여줘(원문은 hover title뿐)
-      // 필터에 뭘 입력해야 할지 알 방법이 없었다 — 현재 페이지의 실제 action 문자열로 자동완성 제안을 준다.
-      { key: "action", type: "text", label: "작업(정확히, 예: user.update)", datalistFrom: (items) => items.map((r) => r.action) },
+      //
+      // 🔴 예전에는 **현재 페이지의 action 문자열**로 자동완성을 줬다. 그것은 이 화면이 서버가
+      // 자르는 목록이라는 사실과 정면으로 어긋난다 — 제안 목록이 「지금 받아 둔 것 안에 있는
+      // 동작」뿐이라, 사용자는 그것을 「이 시스템에 있는 동작이 이게 전부」로 읽는다.
+      //
+      // 그렇다고 서버에 후보 목록을 만들지도 **않는다**. 세 가지가 겹친다:
+      //   ① 유한 등록부가 존재하지 않는다 — `app/audit/actions.py::with_cli_variants` 가
+      //      `"cli." + action` 으로 문자열을 만들어 낸다.
+      //   ② `SELECT DISTINCT action` 은 범위를 타야 한다. 부서 범위 관리자가 자기 범위 밖에
+      //      어떤 동작이 존재하는지 알면 안 된다 — 후보 목록 자체가 새 범위 표면이 된다.
+      //   ③ 지금은 없어진 경로의 옛 값이 「지금 고를 수 있는 값」으로 격상된다.
+      // D-355·D-361 과 같은 판단이다: 통제 어휘가 아닌 값을 후보로 승격하지 않는다.
+      //
+      // 무엇을 적어야 하는지는 상세 드로어의 「작업(원문)」과 열의 hover 힌트가 답한다.
+      { key: "action", type: "text", label: "작업(정확히, 예: user.update)",
+        freeTextReason: "감사 작업 이름은 코드가 만들어 내므로 고를 수 있는 후보 목록이 존재하지 않습니다. 상세의 ‘작업(원문)’에서 정확한 문자열을 확인해 그대로 적으세요." },
       // VIS-59: 로그인/로그아웃이 같은 대상 ID로 수십 행씩 연속돼 실제로 봐야 할 사건
       // (실패·설정 변경 등)이 그 사이에 묻힌다. action(하나만 골라 좁히는 정확 일치)과는
       // 반대 방향이 필요해서 별도 필터로 둔다 — exclude_actions는 이것만 빼고 전부 보여준다
@@ -321,11 +337,16 @@ export const GOVERNANCE_SCREENS = {
     // SEM-01: 첫 열(시각)이 dateCol(render 있음)이라 표식 없이는 페이지 100건이 전부 "상세
     // 보기"였다 — 작업·행위자·시각을 합쳐 실제로 구별되는 이름을 만든다(마지막 요소인
     // 행위자 판정은 바로 아래 '행위자' 열과 동일한 우선순위: 이름 → 이메일 → 시스템).
-    columns: [{ ...dateCol("created_at", "시각"), rowName: (r) => actionKo(r.action) + " / " + (r.actor_name || r.actor_email || (r.user_id ? r.user_id : "시스템")) + " / " + fmtDateTime(r.created_at) }, actionCol("action", "작업"), objCol("object_type", "대상"),
+    /* 정렬을 **서버로 넘긴다.** 허용 키의 정본은 서버이고(`app/audit/repository.py::LIST_SORT`),
+       이 목록은 그것을 미러(`frontend/src/generated/sortKeys.json`)와 대조해 고정한다 —
+       두 벌이 갈라지면 화살표는 그려지는데 눌러도 순서가 그대로다.
+       「행위자」가 없는 이유도 서버 쪽에 적혀 있다(열은 이름을 그리는데 컬럼은 UUID 다). */
+    serverSort: { keys: ["created_at", "action", "object_type", "result"], default: { key: "created_at", dir: "desc" } },
+    columns: [{ ...dateCol("created_at", "시각"), rowName: (r) => actionKo(r.action) + " / " + (r.actor_name || r.actor_email || (r.user_id ? r.user_id : "시스템")) + " / " + fmtDateTime(r.created_at) }, { ...actionCol("action", "작업"), sortable: true }, { ...objCol("object_type", "대상"), sortable: true },
       // object_type/action/actor로만 필터해도(대상 ID로 좁히지 않으면) 같은 유형·같은 작업·같은
       // 행위자의 여러 행이 목록에서 서로 구별되지 않았다 — 대상 ID를 목록에 바로 노출한다.
       truncateCol("object_id", "대상 ID", 24),
-      badgeCol("result", "결과"),
+      { ...badgeCol("result", "결과"), sortable: true },
       { key: "user_id", label: "행위자", render: (r) => r.actor_name || r.actor_email || (r.user_id ? r.user_id : "시스템") }],
     // '무엇을 바꿨는지'(before→after)와 포렌식 필드(기록 ID·행위자·대상 ID·IP·요청 ID)를 상세에서 본다.
     // user_id는 이미 목록 열(행위자, 이름/이메일 우선 표시)이라 상세에서 중복 제거(드로어는 열+detailFields 합집합을 그린다).

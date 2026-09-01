@@ -4,13 +4,13 @@ import FormControlLabel from "@mui/material/FormControlLabel";
 import Switch from "@mui/material/Switch";
 import Typography from "@mui/material/Typography";
 import { Card, Callout, ErrorState, PageHeader, Skeleton } from "../ui/kit.jsx";
-import { Pager } from "../ui/Pager.jsx";
 import { useQueryState } from "../lib/useQueryState.js";
 import { DepartmentFilter } from "../ui/filters.jsx";
 import { ticketColumns, GroupedTickets, TicketEditModal, ticketConnState, useInlineStatusEdit } from "./MyTickets.jsx";
 import { useTicketSignals } from "../lib/ticketSignals.js";
 import { useListMemory } from "../lib/listReturn.js";
-import { ticketRows, useAssigneeOptions, useTicketList, useTicketMeta } from "./ticket-options.js";
+import { TICKET_AUTO_MAX_ROWS, useAssigneeOptions, useTicketList, useTicketMeta } from "./ticket-options.js";
+import { ListFooter } from "../ui/InfiniteScroll.jsx";
 import {
   TicketEmptyState, TicketFilterBar, applyColumnFilter, clearTicketFilters, hasTicketFilter,
   nextTicketSort, ticketFilterSpec, ticketQueryParams, ticketSortOf, TICKET_LIST_EXTRA,
@@ -37,7 +37,6 @@ const TEAM_FIELDS = ["q", "project_id", "status", "priority", "difficulty", "ass
  * `/team?department_id=` 가 그대로 받는다. `TEAM_FIELDS` 에 넣지 않는 이유: 그 배열은
  * 주소 키와 API 키가 같은 것들만 담는 목록이고, 여기서 이름이 다르다. */
 const TEAM_SPEC = ticketFilterSpec(TEAM_FIELDS, { ...TICKET_LIST_EXTRA, active: true, dept: "" });
-const PAGE_RESET = { reset: ["page"] };
 
 /* 담당자별로 묶는다. 담당자가 여럿이면 각자 그룹에 들어간다(팀 부담을 한눈에). 없으면 '(미할당)' 맨 뒤.
  * export인 이유: 스프린트 회의 화면(Sprint.jsx)의 담당자별 티켓 목록이 같은 규칙을 써야 한다.
@@ -65,7 +64,7 @@ export function TeamTickets() {
   const signalsOf = useTicketSignals();
   const statusEdit = useInlineStatusEdit();
   const nav = useNavigate();
-  const [filters, setFilters] = useQueryState(TEAM_SPEC, PAGE_RESET);
+  const [filters, setFilters] = useQueryState(TEAM_SPEC);
   const [editing, setEditing] = React.useState(null);
   const qs = ticketQueryParams(filters, TEAM_FIELDS, {
     active: filters.active ? "true" : "false",
@@ -111,7 +110,7 @@ export function TeamTickets() {
      방식이라 흐름 끝에 남는다. 예전에는 둘을 한 덩어리로 넘겨 부서가 기한 뒤에 섰다. */
   const scopeControls = (
     <DepartmentFilter
-      departments={q.data && q.data.departments}
+      departments={q.first && q.first.departments}
       value={filters.dept}
       onChange={(v) => setFilters({ dept: v })}
       sx={{ minWidth: "16rem" }}
@@ -127,15 +126,16 @@ export function TeamTickets() {
         crumbRoot="팀 공간" area="팀 티켓" title="팀 티켓"
         description="팀 전체 티켓을 담당자별로 묶어서 봅니다. 보이는 티켓은 담당자가 아니어도 고칠 수 있고, 고친 내용은 이력에 남습니다."
       />
-      {q.isPending ? <Card><Skeleton lines={6} /></Card>
+      {q.isLoading ? <Card><Skeleton lines={6} /></Card>
         : q.isError ? <ErrorState error={q.error} onRetry={() => q.refetch()} />
         : (() => {
-          const data = q.data || {};
+          /* 목록 밖의 값(부서 후보·연결 상태)은 첫 묶음 원본이 들고 온다 — 묶음마다 같다. */
+          const data = q.first || {};
           // 연동 미설정/실패 안내는 내 티켓 화면과 같은 함수를 쓴다(문구가 화면마다 갈라지지 않게).
           const conn = ticketConnState(data);
           if (conn) return conn;
           if (data.ok === false) return <Callout tone="danger">{data.error || "티켓을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요."}</Callout>;
-          const rows = ticketRows(data);
+          const rows = q.rows;
           const cols = ticketColumns({ onEdit: setEditing, filterAssignee: true, signalsOf, statusEdit, onOpen: (t) => nav("/tickets/" + t.id, { state: { from: "/team-tickets" } }) });
           return (
             <>
@@ -143,7 +143,7 @@ export function TeamTickets() {
                   티켓 표가 이 서버의 정본이라 낡을 것이 없다(S14). */}
               <TicketFilterBar
                 fields={TEAM_FIELDS} value={filters} onChange={setFilters}
-                total={data.total} scope={scopeControls} extra={activeToggle}
+                total={q.total} scope={scopeControls} extra={activeToggle}
                 onClear={() => setFilters({ ...clearTicketFilters(TEAM_FIELDS), dept: "", ...TICKET_LIST_EXTRA, active: filters.active })}
               />
               <Card>
@@ -166,8 +166,14 @@ export function TeamTickets() {
                     />
                   }
                 />
-                <Pager page={data.page} pageSize={data.page_size} total={data.total}
-                       onPage={(p) => setFilters({ page: p })} />
+                <ListFooter
+                  total={q.total} loaded={q.loaded}
+                  hasNext={q.hasNext} isFetchingNext={q.isFetchingNext} onMore={q.fetchNext}
+                  moreLabel="티켓 더 보기"
+                  /* 담당자별로 묶은 이 표는 가상화가 없다(D-354 · D-361) — 자동 로딩에만
+                     상한을 두고, 「더 보기」로는 계속 받는다. */
+                  autoMaxRows={TICKET_AUTO_MAX_ROWS}
+                />
               </Card>
             </>
           );

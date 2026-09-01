@@ -18,6 +18,8 @@ import { PageHeader, Card, Badge, Button, DataTable, FormModal, Modal, OverflowM
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
 import { useRowSelection, selectionColumn } from "../ui/bulkSelect.jsx";
 import { FilterActions, FilterRow, FilterSurface, ResultLine, ToolbarRow } from "../ui/FilterBar.jsx";
+import { ListFooter } from "../ui/InfiniteScroll.jsx";
+import { useInfiniteList } from "../lib/useInfiniteList.js";
 import { BulkBar, CsvTools } from "./UsersBulk.jsx";
 import { buildViewQuery, hashQuery, withHashQuery } from "./datascreen-view.js";
 import { DateCell } from "../ui/cells.jsx";
@@ -344,21 +346,15 @@ export function Users() {
       setSearchParams((prev) => { const next = new URLSearchParams(prev); next.delete("id"); return next; }, { replace: true });
     }
   }, [searchParams]);
-  // PA-RC-0013: 페이지도 주소에서 복원한다(page=1은 기본값이라 주소에 안 실린다 — 없으면 1).
-  const [page, setPage] = useState(() => {
+  /* 🔴 쪽 번호는 **상태가 아니다.** 목록은 쪽을 넘기지 않고 묶음을 이어 받는다. 옛 주소·
+     저장된 뷰는 여전히 `page=3` 을 들고 오므로 그만큼 미리 받아 대략 그 자리에 떨어뜨린다.
+     여기 있던 「필터가 바뀌면 1쪽으로, 단 마운트는 빼고」 효과도 함께 사라진다 —
+     조건이 바뀌면 질의 키가 바뀌며 받아 둔 묶음을 통째로 버리므로 되돌릴 쪽이 없다. */
+  const resumeChunks = (() => {
     const n = parseInt(searchParams.get("page"), 10);
     return Number.isFinite(n) && n >= 1 ? n : 1;
-  });
+  })();
   const dq = useDebounced(q, 250); // 검색어는 250ms 디바운스 후에만 쿼리로 들어간다
-  // 필터가 바뀌면 1쪽으로 되돌린다 — 단, **마운트(첫 실행)는 빼고**. 이 효과는 원래
-  // dq/필터 dependency 배열이 바뀔 때마다 도는데, React는 마운트도 "바뀜"으로 쳐서 첫
-  // 실행이 무조건 한 번 돈다 — 그 첫 실행이 위에서 주소로부터 막 복원한 page를 조용히
-  // 1로 덮어썼다(딥링크로 page=3을 열어도 항상 1쪽이 뜨는 회귀가 될 뻔했다).
-  const skipFirstPageReset = React.useRef(true);
-  React.useEffect(() => {
-    if (skipFirstPageReset.current) { skipFirstPageReset.current = false; return; }
-    setPage(1);
-  }, [dq, roleFilter, activeFilter, lockedFilter, showArchived, deptFilter, sortKey, sortOrder]);
   // PA-RC-0013: 지금 상태를 주소로 되쓴다(DataScreen.jsx와 같은 raw history.replaceState —
   // setSearchParams를 쓰지 않는 이유는 위 import 옆 주석 참고). 이 효과는 반드시 위 id를
   // 소비하는 효과보다 **아래**(=나중 실행)여야 한다 — 그 효과가 `?id=`를 지우려고
@@ -367,7 +363,7 @@ export function Users() {
   const viewQuery = (() => {
     const base = buildViewQuery(
     {
-      q: dq, page,
+      q: dq,
       filters: {
         role: roleFilter, active: activeFilter, locked: lockedFilter,
         department_id: deptFilter, archived: showArchived ? "true" : "",
@@ -474,8 +470,8 @@ export function Users() {
     : undefined;
   // 목록·CSV 내보내기가 **같은 필터 문자열**을 쓴다. 두 벌로 만들면 화면에 필터를 걸고
   // 내보낸 파일에 전 직원이 담기는 식으로 갈라지고, 그건 파일을 열기 전까지 아무도 모른다.
-  function filterParams(withPage) {
-    const p = withPage ? ["page=" + page] : [];
+  function filterParams(pageParams) {
+    const p = pageParams && pageParams.page > 1 ? ["page=" + pageParams.page] : [];
     if (dq) p.push("q=" + encodeURIComponent(dq));
     if (roleFilter) p.push("role=" + encodeURIComponent(roleFilter));
     if (activeFilter) p.push("active=" + activeFilter);
@@ -488,12 +484,11 @@ export function Users() {
     }
     return p.join("&");
   }
-  const query = useQuery({
-    queryKey: ["users", dq, roleFilter, activeFilter, lockedFilter, deptFilter, showArchived, page, sortKey, sortOrder],
-    queryFn: () => api("/api/admin/users?" + filterParams(true)),
-    // 이전 결과를 유지해 새 쿼리 로딩 중에도 표를 스켈레톤으로 갈아엎지 않는다(깜빡임/스크롤 유실 방지).
-    placeholderData: keepPreviousData,
-    retry: false,
+  const query = useInfiniteList({
+    key: ["users", dq, roleFilter, activeFilter, lockedFilter, deptFilter, showArchived, sortKey, sortOrder],
+    rowId: (r) => (r && r.id) || undefined,
+    resume: resumeChunks,
+    fetch: (pageParams) => api("/api/admin/users?" + filterParams(pageParams)),
   });
   // 사용자를 만들거나(부서/직책/조직 배정) 고치거나(단일 수정 또는 UsersBulk.jsx 대량 지정),
   // 부서·직책·조직 화면(registry/org.js)과 조직도(OrgTree.jsx)가 보여주는 소속/보유 인원
@@ -508,9 +503,7 @@ export function Users() {
     qc.invalidateQueries({ queryKey: ["organizations"] });
     qc.invalidateQueries({ queryKey: ["org-tree"] });
   };
-  const total = query.data && query.data.total;
-  const pageSize = (query.data && query.data.page_size) || 20;
-  const totalPages = total != null ? Math.max(1, Math.ceil(total / pageSize)) : null;
+  const total = query.total;
 
   /* 열 폭은 브라우저 auto 레이아웃에 맡긴다 — 8개 열에 고정 폭(rem)을 주면 요청 폭 합이 1366px
    * 사내 장비의 가용 폭을 넘겨, 이메일·이름·날짜가 단어 중간에서 꺾여 3줄로 접혔다(설정 표에서는
@@ -518,7 +511,7 @@ export function Users() {
    * 비례해 자연히 벌어지므로 4K에서도 손해가 없다. */
   const columns = [
     // 대량 작업의 선택 열. 체크박스 클릭은 행 클릭(상세 열기)으로 번지지 않는다(bulkSelect.jsx).
-    selectionColumn(selection, (query.data && query.data.items || []).map((r) => r.id)),
+    selectionColumn(selection, query.rows.map((r) => r.id)),
     // SEM-01: 선택 체크박스가 첫 열이라(rowName:false로 스스로 제외됨) 표식 없이는 이 표의
     // "상세 보기" 버튼과 체크박스 라벨(selectLabel, bulkSelect.jsx) 둘 다 모든 행이
     // 동일했다 — 이미 화면에 보이는 이메일로 실제로 구별되는 이름을 만든다.
@@ -590,7 +583,7 @@ export function Users() {
     { key: "created_at", label: "생성 일자", type: "date", width: "8rem", sortable: true, nowrap: true, render: (r) => <DateCell value={r.created_at} />, hideNarrow: true },
   ];
 
-  const items = (query.data && query.data.items) || [];
+  const items = query.rows;
   const hasFilter = !!(q || roleFilter || activeFilter || lockedFilter || deptFilter || showArchived);
   // 실제 '내용' 필터(검색·역할·활성·잠김·부서)만 — '보관된 계정 보기' 토글은 뷰 전환일 뿐 지울 필터가 아니다.
   const hasContentFilter = !!(q || roleFilter || activeFilter || lockedFilter || deptFilter);
@@ -603,11 +596,9 @@ export function Users() {
   const deptFilterName = deptFilter
     ? ((dept.items || []).find((d) => String(d.id) === String(deptFilter)) || {}).name
     : null;
-  // 페이지에 항목이 없는데 이전 페이지엔 있으면(마지막 행을 보관·비활성 처리한 경우 등)
-  // '사용자가 없습니다' 대신 범위 안 페이지로 되돌린다(pager가 사라져 돌아갈 길이 막히는 문제).
-  React.useEffect(() => {
-    if (!query.isLoading && !query.isError && items.length === 0 && page > 1) setPage((p) => Math.max(1, p - 1));
-  }, [items.length, page, query.isLoading, query.isError]);
+  /* 예전에 여기 있던 것: 「이 쪽이 비었는데 앞 쪽엔 있으면 앞 쪽으로 되돌린다」. 쪽 번호가
+     없어지면서 그 되돌리기가 필요한 상태 자체가 사라졌다 — 마지막 행이 보관되면 목록이
+     그만큼 짧아질 뿐이고, 사용자는 여전히 자기가 보던 자리에 있다. */
 
   // 역할 설명은 **관리 콘솔 권한 표**에서 온다. 이 화면을 열 수 있는 사람이면 그 표도
   // 읽을 수 있다(둘 다 `console.read`) — 못 읽으면 빈 목록이라 설명 없이 이름만 나온다.
@@ -730,9 +721,9 @@ export function Users() {
       </FilterSurface>
       {/* keepPreviousData라 검색, 필터를 바꿔도 표는 그대로 있어(깜빡임 방지) 타자/필터 조작이 씹혔다고
           오인하기 쉽다, isLoading(최초 로딩)과 별개로, 백그라운드 재조회 중임을 결과 줄에 알린다. */}
-      {query.data ? (
+      {query.first ? (
         <ResultLine
-          total={query.data.total != null ? query.data.total : (query.data.items || []).length}
+          total={total != null ? total : items.length}
           conditions={[q, roleFilter, activeFilter, lockedFilter, showArchived ? "archived" : "", deptFilter].filter(Boolean)}
           action={query.isFetching && !query.isLoading ? (
             <Typography variant="caption" color="text.secondary" role="status" aria-live="polite">불러오는 중…</Typography>
@@ -784,18 +775,12 @@ export function Users() {
               setSortOrder(next.dir);
             }}
           />
-          {total != null ? (
-            // DataScreen.jsx의 모든 목록 화면과 같은 landmark, 라이브 영역(다른 19개 관리 섹션과 동일) -
-            // 이 화면만 bare div라 스크린리더 사용자에게 페이지 이동 랜드마크도, 페이지 변경 안내도 없었다.
-            <Box component="nav" aria-label="페이지 이동"
-              sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 2, pt: 2, mt: 1, borderTop: 1, borderColor: "divider" }}>
-              {totalPages > 1 ? <Button size="sm" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>이전</Button> : null}
-              <Typography variant="body2" color="text.secondary" aria-live="polite" sx={{ minWidth: "8rem", textAlign: "center" }}>
-                {totalPages > 1 ? `${page} / ${totalPages}, ` : ""}총 {total}명
-              </Typography>
-              {totalPages > 1 ? <Button size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>다음</Button> : null}
-            </Box>
-          ) : null}
+          {/* 손으로 그린 페이저가 여기 있었다 — 이제 목록 끝 줄 하나를 다른 화면과 함께 쓴다. */}
+          <ListFooter
+            total={total} loaded={query.loaded}
+            hasNext={query.hasNext} isFetchingNext={query.isFetchingNext} onMore={query.fetchNext}
+            unit="명" moreLabel="사용자 더 보기"
+          />
         </Card>
         </>
       )}

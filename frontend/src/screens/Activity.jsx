@@ -10,10 +10,11 @@ import InboxRoundedIcon from "@mui/icons-material/InboxRounded";
 import { api } from "../lib/api.js";
 import { fmtDateTime, fmtRelative } from "../lib/format.js";
 import {
-  Badge, Button, Card, EmptyState, ErrorState, PageHeader, Skeleton,
+  Badge, Button, Card, EmptyState, ErrorState, ListCard, PageHeader, Skeleton,
 } from "../ui/kit.jsx";
-import { Pager } from "../ui/Pager.jsx";
-import { FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
+import { ListFooter } from "../ui/InfiniteScroll.jsx";
+import { useInfiniteList } from "../lib/useInfiniteList.js";
+import { FONT_WEIGHT, KO_WORD_BREAK, stickyTopSx } from "../ui/theme.js";
 
 /* 내 활동 피드 — 내가 한 일 / 나에게 일어난 일 (계획서 Phase 6 사용자).
  *
@@ -27,7 +28,8 @@ import { FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
  * 문장을 만든다).
  */
 
-const PAGE_SIZE = 20;
+/* 이 피드의 행은 싸다(한 줄짜리 항목이 날짜로 묶인다) — 20은 굴릴 때마다 왕복이라 너무 작다. */
+const PAGE_SIZE = 50;
 
 const KINDS = [
   { value: "", label: "전체" },
@@ -99,21 +101,19 @@ function ActivityRow({ item, onOpen }) {
 
 export function Activity() {
   const [kind, setKind] = React.useState("");
-  const [page, setPage] = React.useState(1);
   const nav = useNavigate();
 
-  const q = useQuery({
-    queryKey: ["my-activity", kind, page],
-    queryFn: () => api(
-      `/api/me/activity?page=${page}&page_size=${PAGE_SIZE}` + (kind ? `&kind=${kind}` : "")
+  const q = useInfiniteList({
+    key: ["my-activity", kind],
+    size: PAGE_SIZE,
+    rowId: (r) => (r && r.id) || undefined,
+    fetch: ({ page, page_size: size }) => api(
+      `/api/me/activity?page=${page}&page_size=${size}` + (kind ? `&kind=${kind}` : "")
     ),
-    retry: false,
-    // 페이지를 넘길 때 목록이 통째로 Skeleton 으로 사라졌다 나타나지 않게 한다.
-    placeholderData: keepPreviousData,
   });
 
-  const items = (q.data && q.data.items) || [];
-  const total = q.data && q.data.total;
+  const items = q.rows;
+  const total = q.total;
   const groups = groupByDay(items);
 
   return (
@@ -125,7 +125,7 @@ export function Activity() {
           exclusive
           size="small"
           value={kind}
-          onChange={(_e, value) => { if (value != null) { setKind(value); setPage(1); } }}
+          onChange={(_e, value) => { if (value != null) setKind(value); }}
           aria-label="활동 종류"
         >
           {KINDS.map((k) => (
@@ -168,18 +168,23 @@ export function Activity() {
             situation={kind
               ? "고른 종류에는 기록이 없습니다. 다른 종류를 보거나 전체로 되돌려 보세요."
               : "로그인, 티켓 수정, 받은 알림 같은 일이 생기면 여기에 시간순으로 쌓입니다."}
-            action={kind ? <Button onClick={() => { setKind(""); setPage(1); }}>전체 보기</Button> : null}
+            action={kind ? <Button onClick={() => setKind("")}>전체 보기</Button> : null}
           />
         </Card>
       ) : (
-        <Card>
+        <ListCard>
           {groups.map((g) => (
             <Box key={g.day} sx={{ mb: 2 }}>
+              {/* 날짜 머리는 굴려도 남는다 — 어느 날의 일을 보고 있는지가 이 화면의 축이다.
+                  두 가지가 필요하다: ① 담는 판이 자기 안을 안 자를 것(`ListCard` — MUI Card 의
+                  `overflow:hidden` 은 sticky 의 스크롤 창이 되어 버린다) ② 오프셋이 fixed
+                  AppBar 높이만큼일 것(`stickyTopSx`). 둘 중 하나만 있으면 «속성은 sticky 인데
+                  안 따라온다» 나 «따라오는데 상단바 뒤로 숨는다» 가 된다. */}
               <Typography
                 component="h2"
                 variant="caption"
                 color="text.secondary"
-                sx={{ display: "block", fontWeight: FONT_WEIGHT.bold, py: 1, position: "sticky", top: 0, bgcolor: "background.paper", zIndex: 1 }}
+                sx={{ display: "block", fontWeight: FONT_WEIGHT.bold, py: 1, position: "sticky", ...stickyTopSx(), bgcolor: "background.paper", zIndex: 1 }}
               >
                 {g.day}
               </Typography>
@@ -190,14 +195,14 @@ export function Activity() {
               </Box>
             </Box>
           ))}
-          <Pager
-            page={page}
-            pageSize={PAGE_SIZE}
-            total={total}
-            hasNext={items.length >= PAGE_SIZE}
-            onPage={(p) => setPage(Math.max(1, p))}
+          {/* 이 응답은 `total` 을 준다. 안 주는 응답이었다면 「마지막 묶음이 가득 찼는가」로
+              더 있음을 판정한다 — 그 폴백은 `useInfiniteList` 의 봉투 어댑터가 든다(DS-22). */}
+          <ListFooter
+            total={total} loaded={q.loaded}
+            hasNext={q.hasNext} isFetchingNext={q.isFetchingNext} onMore={q.fetchNext}
+            moreLabel="활동 더 보기"
           />
-        </Card>
+        </ListCard>
       )}
     </div>
   );

@@ -93,7 +93,7 @@ describe("작업 보드", () => {
   it("백로그 열 폭은 머리와 줄이 같은 고정 트랙이다 — auto 가 있으면 빈 머리가 0 이 된다", () => {
     expect(BACKLOG_TRACKS.md).not.toMatch(/\bauto\b/);
     expect(BACKLOG_TRACKS.md).toBe(
-      "minmax(12rem, 1fr) 7.5rem 6.5rem 6rem 8.5rem 8rem 14rem",
+      "minmax(14rem, 26rem) 6.5rem 5.5rem 5rem 7.5rem 9rem 10rem",
     );
   });
 });

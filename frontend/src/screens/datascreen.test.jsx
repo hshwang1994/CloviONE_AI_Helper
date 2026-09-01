@@ -1,6 +1,6 @@
 import React from "react";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { render, screen, within, waitFor } from "@testing-library/react";
+import { act, render, screen, within, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
@@ -149,61 +149,51 @@ describe("페이지네이션", () => {
     renderScreen(paged);
     await screen.findByText("동작-1");
 
-    // VIS-117: totalPages(4/2=2) > 1이라 목록 위·아래에 페이저가 하나씩(총 2벌) 뜬다 —
-    // 둘 다 같은 page 상태를 공유하므로 아무 쪽이나 눌러도 동작은 같다.
-    await user.click(screen.getAllByRole("button", { name: "다음" })[0]);
-    // 새 페이지가 오기 전에도 이전 결과가 남아 있어야 한다(placeholderData).
-    // getAllByText로 센다 — 전환 순간에는 옛 행과 새 행이 잠깐 함께 있을 수 있고,
-    // getByText는 그때 '여러 개 찾음'으로 던져서 테스트가 간헐적으로 실패했다.
-    expect(screen.getAllByText(/동작-/).length).toBeGreaterThan(0);
+    /* 단추 경로가 정본이다 — 키보드·스크린리더 사용자가 실제로 쓰는 길이고, 그 길이 없으면
+       이 목록은 그들에게 첫 묶음이 전부다. */
+    await user.click(screen.getByRole("button", { name: "더 보기" }));
     await screen.findByText("동작-2");
     expect(apiMock.mock.calls.some((c) => String(c[0]).includes("page=2"))).toBe(true);
-
-    await user.click(screen.getAllByRole("button", { name: "이전" })[0]);
-    await screen.findByText("동작-1");
+    /* 🔴 **이어 붙였다** — 갈아 끼운 게 아니다. 앞 묶음의 행이 그대로 남아 있어야 한다. */
+    expect(screen.getByText("동작-1")).toBeTruthy();
+    expect(screen.getByText("4건 중 2건을 받았습니다.")).toBeTruthy();
   });
 
-  it("페이지가 2쪽 이상이면 목록 위에도 같은 이동 버튼을 하나 더 둔다(VIS-117)", async () => {
-    apiMock.mockResolvedValue({
-      items: [{ id: "p1", action: "동작-1", actor: "a" }], total: 4, page_size: 2,
+  it("끝까지 굴려도 같은 일이 일어난다 — 단추와 자동 로딩이 같은 것을 부른다", async () => {
+    apiMock.mockImplementation((url) => {
+      const m = /page=(\d+)/.exec(url);
+      const n = m ? Number(m[1]) : 1;
+      return Promise.resolve({
+        items: [{ id: `p${n}`, action: `동작-${n}`, actor: "a" }], total: 4, page_size: 2,
+      });
     });
     renderScreen(paged);
     await screen.findByText("동작-1");
-    // 아래 페이저 하나뿐이던 화면에 위쪽 페이저(nav aria-label이 다르다)가 새로 생겼는지 직접 본다 —
-    // 버튼 개수만 세면 우연히 둘 다 사라져도(둘 다 0) 통과할 수 있어 landmark로 확실히 짚는다.
-    expect(screen.getByRole("navigation", { name: "페이지 이동(목록 위)" })).toBeTruthy();
-    expect(screen.getAllByRole("button", { name: "다음" })).toHaveLength(2);
-    expect(screen.getAllByRole("button", { name: "이전" })).toHaveLength(2);
+    await act(async () => { globalThis.__intersect(); });
+    await screen.findByText("동작-2");
+    expect(apiMock.mock.calls.some((c) => String(c[0]).includes("page=2"))).toBe(true);
   });
 
-  it("1쪽뿐이면 위쪽 페이저를 얹지 않는다(안 쓰는 컨트롤을 보여주지 않는다)", async () => {
+  it("다 받았으면 「더 보기」가 사라진다 — 안 쓰는 컨트롤을 남기지 않는다", async () => {
     apiMock.mockResolvedValue({
       items: [{ id: "p1", action: "동작-1", actor: "a" }], total: 1, page_size: 2,
     });
     renderScreen(paged);
     await screen.findByText("동작-1");
-    expect(screen.queryByRole("navigation", { name: "페이지 이동(목록 위)" })).toBeNull();
-    expect(screen.getAllByRole("button", { name: "다음" })).toHaveLength(1);
+    expect(screen.queryByRole("button", { name: "더 보기" })).toBeNull();
   });
 
-  it("마지막 페이지가 사라지면 페이지 번호만 유효한 값으로 되돌린다", async () => {
-    let total = 4;
-    apiMock.mockImplementation((url) => {
-      const m = /page=(\d+)/.exec(url);
-      const n = m ? Number(m[1]) : 1;
-      const items = n * 2 <= total ? [{ id: `p${n}`, action: `동작-${n}`, actor: "a" }] : [];
-      return Promise.resolve({ items, total, page_size: 2 });
+  it("VIS-117 이 고치려던 결함 자체가 없어졌다 — 위쪽 이동 조작기를 두지 않는다", async () => {
+    /* 예전 결함: 100행짜리 화면에서 다음 쪽으로 넘기려고 매번 6,186px 를 굴러 내려가야 했다.
+       그래서 목록 위에 같은 페이저를 하나 더 뒀었다. 이제는 굴러 내려가는 그 행동이 곧
+       다음 묶음을 부른다 — 위쪽 조작기는 아무 문제도 안 푼다. */
+    apiMock.mockResolvedValue({
+      items: [{ id: "p1", action: "동작-1", actor: "a" }], total: 4, page_size: 2,
     });
-    const user = userEvent.setup();
     renderScreen(paged);
     await screen.findByText("동작-1");
-    await user.click(screen.getAllByRole("button", { name: "다음" })[0]);
-    await screen.findByText("동작-2");
-
-    total = 2; // 마지막 페이지의 항목이 사라진 상황 — totalPages도 1로 줄어 위 페이저는 사라진다.
-    await waitFor(() => {
-      for (const btn of screen.getAllByRole("button", { name: "다음" })) expect(btn).toBeDisabled();
-    });
+    expect(screen.queryByRole("navigation", { name: "페이지 이동(목록 위)" })).toBeNull();
+    expect(screen.getAllByRole("button", { name: "더 보기" })).toHaveLength(1);
   });
 });
 

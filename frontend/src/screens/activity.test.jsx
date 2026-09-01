@@ -94,7 +94,7 @@ describe("내 활동", () => {
     await screen.findByText("티켓을(를) 고침");
     await userEvent.click(screen.getByRole("button", { name: "내가 한 일" }));
     await waitFor(() =>
-      expect(apiMock).toHaveBeenCalledWith("/api/me/activity?page=1&page_size=20&kind=did")
+      expect(apiMock).toHaveBeenCalledWith("/api/me/activity?page=1&page_size=50&kind=did")
     );
   });
 
@@ -118,24 +118,30 @@ describe("내 활동", () => {
   // /api/me/activity는 total을 안 준다(app/profiles/activity.py) — Pager가 공용 컴포넌트로
   // 바뀌면서(DS-22) total 없이도 페이지 이동이 동작해야 한다. 가득 찬 페이지(20건)면 '다음'이
   // 눌리고, 덜 찬 페이지면 더 볼 게 없다는 뜻이라 '다음'이 막힌다.
-  it("total 없이도(활동 로그는 총 개수를 안 줌) 다음 페이지 존재 여부로 '다음' 버튼이 열리고 닫힌다", async () => {
-    const fullPage = {
-      items: Array.from({ length: 20 }, (_, i) => ({
-        id: "audit:" + i, kind: "did", at: "2026-08-03T05:00:00", action: "ticket.update",
-        object_type: "notion_task", object_id: "p-" + i, title: "티켓을(를) 고침 " + i, body: null,
-        result: "success", route: "/tickets/p-" + i, read_at: null,
-      })),
-      page: 1, page_size: 20,
-    };
-    apiMock.mockResolvedValue(fullPage);
+  it("total 없이도(활동 로그는 총 개수를 안 줌) 마지막 묶음이 가득 찼는지로 더 있음을 판정한다", async () => {
+    const row = (i) => ({
+      id: "audit:" + i, kind: "did", at: "2026-08-03T05:00:00", action: "ticket.update",
+      object_type: "notion_task", object_id: "p-" + i, title: "티켓을(를) 고침 " + i, body: null,
+      result: "success", route: "/tickets/p-" + i, read_at: null,
+    });
+    /* 가득 찬 묶음(50건)이면 더 있을 수 있다고 보고, 덜 찬 묶음이면 거기서 끝난다.
+       이 폴백은 `Pager` 의 `hasNext` 가 하던 판정 그대로이고, 이제 봉투 어댑터가 든다. */
+    apiMock.mockImplementation((url) => {
+      const n = Number(new URL(String(url), "https://x").searchParams.get("page") || 1);
+      return Promise.resolve({
+        items: n === 1
+          ? Array.from({ length: 50 }, (_, i) => row(i))
+          : Array.from({ length: 5 }, (_, i) => row(50 + i)),
+        page: n, page_size: 50,
+      });
+    });
     renderActivity();
-    await screen.findByText("1페이지");
-    expect(screen.getByRole("button", { name: "다음" })).toBeEnabled();
+    await screen.findByText("50건을 받았습니다.");
+    const more = screen.getByRole("button", { name: "활동 더 보기" });
+    expect(more).toBeEnabled();
 
-    const shortPage = { ...fullPage, items: fullPage.items.slice(0, 5), page: 2 };
-    apiMock.mockResolvedValue(shortPage);
-    await userEvent.click(screen.getByRole("button", { name: "다음" }));
-    await screen.findByText("2페이지");
-    expect(screen.getByRole("button", { name: "다음" })).toBeDisabled();
+    await userEvent.click(more);
+    await screen.findByText("55건을 받았습니다.");
+    expect(screen.queryByRole("button", { name: "활동 더 보기" })).toBeNull();
   });
 });

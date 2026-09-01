@@ -20,6 +20,25 @@ from __future__ import annotations
 from sqlalchemy import Select, or_ as sa_or
 
 from app.audit.models import AuditLog
+from app.core.sort import SortSpec
+
+# 목록의 정렬 계약. 기계는 `app/core/sort.py` 가 들고, **어떤 키를 허용할지는 여기서** 정한다
+# — 그 판단이 옆의 범위 절과 같은 파일에 있어야 둘이 갈라지지 않는다.
+#
+# `user_id` 를 **일부러 뺐다**: 목록의 그 열은 «행위자 이름» 을 그리는데 컬럼은 UUID 다.
+# UUID 순 정렬은 사람에게 무의미하고 화면이 보여 주는 것과 다른 축이다. 이름으로 정렬하려면
+# `User` LEFT JOIN 이 필요하고 그건 별건이다.
+LIST_SORT = SortSpec(
+    columns={
+        "created_at": AuditLog.created_at,   # 인덱스 있음
+        "action": AuditLog.action,           # 인덱스 있음
+        "object_type": AuditLog.object_type,  # 인덱스 있음
+        "result": AuditLog.result,
+    },
+    default="created_at",
+    tiebreak=AuditLog.id,
+    default_order="desc",
+)
 
 
 def scope_clause(visible: frozenset[str] | None):

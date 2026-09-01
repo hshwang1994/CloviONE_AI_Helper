@@ -70,31 +70,35 @@ function renderApprovals() {
 
 const addr = () => screen.getByTestId("addr").textContent;
 
-describe("내 결재함 — 쪽 넘기기", () => {
-  it("총 건수를 말하고 다음 쪽을 실제로 요청한다", async () => {
+describe("내 결재함 — 묶음 이어 받기", () => {
+  it("총 건수와 받은 건수를 말하고, 더 받으면 이어 붙인다", async () => {
     renderApprovals();
     expect(await screen.findByText("요청자 0")).toBeInTheDocument();
-    expect(screen.getByText("1 / 3, 총 45건")).toBeInTheDocument();
+    expect(screen.getByText("45건 중 20건을 받았습니다.")).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole("button", { name: "다음" }));
+    await userEvent.click(screen.getByRole("button", { name: "결재 더 보기" }));
     await waitFor(() => expect(calls.some((u) => u.includes("page=2"))).toBe(true));
     expect(await screen.findByText("요청자 20")).toBeInTheDocument();
-    // 쪽은 주소에 남는다 — 링크를 건네면 상대가 같은 자리를 본다.
-    expect(addr()).toContain("page=2");
+    /* 앞 묶음이 그대로 남아 있다 = 갈아 끼운 게 아니라 이어 붙였다. */
+    expect(screen.getByText("요청자 0")).toBeInTheDocument();
+    /* 🔴 쪽 번호는 **주소에 안 남는다.** 「어디까지 봤는가」는 조건이 아니라 시야다 —
+       남에게 준 「2쪽」 링크는 그 사람의 2쪽과 애초에 다른 목록이었다. */
+    expect(addr()).not.toContain("page=");
   });
 
-  it("칸을 바꾸면 첫 쪽으로 돌아온다", async () => {
+  it("칸을 바꾸면 첫 묶음부터 다시 받는다", async () => {
     renderApprovals();
     expect(await screen.findByText("요청자 0")).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "다음" }));
+    await userEvent.click(screen.getByRole("button", { name: "결재 더 보기" }));
     await waitFor(() => expect(calls.some((u) => u.includes("page=2"))).toBe(true));
 
     await userEvent.click(screen.getByRole("tab", { name: "내가 올린 요청" }));
 
     await waitFor(() => expect(addr()).toContain("box=requested"));
-    expect(addr()).not.toContain("page=2");
-    const last = calls[calls.length - 1];
-    expect(last).toContain("box=requested");
-    expect(last).not.toContain("page=2");
+    await waitFor(() => {
+      const last = calls[calls.length - 1];
+      expect(last).toContain("box=requested");
+      expect(last).not.toContain("page=2");
+    });
   });
 });

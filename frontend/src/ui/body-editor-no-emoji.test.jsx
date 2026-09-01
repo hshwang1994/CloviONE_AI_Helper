@@ -13,7 +13,7 @@
  */
 import React from "react";
 import { describe, it, expect } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 import { BodyEditor } from "./BodyEditor.jsx";
@@ -47,6 +47,51 @@ describe("본문 편집기 — 이모지를 툴바에 박지 않는다", () => {
     await user.click(screen.getByRole("button", { name: "이모지" }));
     await user.click(await screen.findByRole("button", { name: "엄지척" }));
     expect(value).toContain("👍");
+  });
+
+  /* 🔴 **어디에** 들어가는지를 잰다.
+   *
+   * 위 시험은 `toContain` 뿐이라 「글 맨 앞에 꽂힌다」를 통과시켰다 — 실제로 그 결함이
+   * 그렇게 살아 있었다. 원인은 포커스를 한 번도 안 준 `<textarea>` 의 `selectionStart` 가
+   * `null` 이 아니라 **0** 이라는 것이고, 새 티켓 폼은 「작성 도움」이 상태만 바꿔 설명을
+   * 채우기 때문에 정확히 그 상태에서 이모지를 고르게 된다. */
+  it("한 번도 안 만진 입력칸에서는 **맨 뒤**에 붙는다 — 0을 커서로 믿지 않는다", async () => {
+    const user = userEvent.setup();
+    let value = "## 배경\n- ";
+    render(<BodyEditor id="b1" value={value} onChange={(next) => { value = next; }} />);
+    await user.click(screen.getByRole("button", { name: "이모지" }));
+    await user.click(await screen.findByRole("button", { name: "엄지척" }));
+    expect(value).toBe("## 배경\n- 👍");
+    /* 맨 앞에 꽂히면 `👍## 배경` 이 되어 마크다운 제목 파싱까지 함께 깨진다. */
+    expect(value.startsWith("👍")).toBe(false);
+  });
+
+  it("사용자가 둔 커서 자리에 들어간다", async () => {
+    const user = userEvent.setup();
+    let value = "가나다";
+    const { rerender } = render(
+      <BodyEditor id="b1" value={value} onChange={(next) => { value = next; }} />,
+    );
+    const box = document.getElementById("b1");
+    box.focus();
+    box.setSelectionRange(2, 2);
+    fireEvent.select(box);
+    await user.click(screen.getByRole("button", { name: "이모지" }));
+    await user.click(await screen.findByRole("button", { name: "엄지척" }));
+    expect(value).toBe("가나👍다");
+    rerender(<BodyEditor id="b1" value={value} onChange={(next) => { value = next; }} />);
+  });
+
+  it("서식 단추도 같은 자리를 본다 — 이모지만 고친 것이 아니다", async () => {
+    const user = userEvent.setup();
+    let value = "첫 줄\n둘째 줄";
+    render(<BodyEditor id="b1" value={value} onChange={(next) => { value = next; }} />);
+    const box = document.getElementById("b1");
+    box.focus();
+    box.setSelectionRange(7, 7);   // 「둘째 줄」 안
+    fireEvent.select(box);
+    await user.click(screen.getByRole("button", { name: "제목2" }));
+    expect(value).toBe("첫 줄\n## 둘째 줄");
   });
 });
 

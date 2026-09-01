@@ -35,9 +35,9 @@ import { FAB_CLEARANCE, FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, TABLE_CARD_QUERY 
 import { BASELINE_TRACKS, GRID_GAP } from "../ui/density.js";
 import { affiliation, needsOrg, personLabel } from "../lib/people.js";
 import { EMPTYABLE_SELECT, EntityCombobox } from "../ui/filters.jsx";
-import { Pager } from "../ui/Pager.jsx";
 import { useQueryState } from "../lib/useQueryState.js";
-import { useAssigneeOptions, useTicketList, useTicketMeta, useTicketProjects, useWorkStatuses, ticketProjectId, ticketRows } from "./ticket-options.js";
+import { TICKET_AUTO_MAX_ROWS, useAssigneeOptions, useTicketList, useTicketMeta, useTicketProjects, useWorkStatuses, statusOptions, ticketProjectId, ticketRows } from "./ticket-options.js";
+import { ListFooter } from "../ui/InfiniteScroll.jsx";
 import { invalidateTicketViews } from "./ticket-views.js";
 import { bulkFailureNote, fmtDateTime } from "../lib/format.js";
 import { NumberCell, DateCell } from "../ui/cells.jsx";
@@ -718,7 +718,7 @@ export function TicketEditModal({ ticket, open, onClose }) {
         <Box sx={{ display: "grid", gap: 2.5, gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0,1fr))" } }}>
           <TextField
       InputLabelProps={{ shrink: true }} id="te-status" select fullWidth size="small" label="진행상태" value={form.status} onChange={(e) => set("status", e.target.value)}>
-            {statusOpts.map((s) => <MenuItem key={s} value={s}>{s}</MenuItem>)}
+            {statusOptions(statusOpts).map((o) => <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>)}
           </TextField>
           <TextField id="te-prio" select fullWidth size="small" label="우선순위" {...EMPTYABLE_SELECT} value={form.priority} onChange={(e) => set("priority", e.target.value)}>
             <MenuItem value="">없음</MenuItem>
@@ -832,9 +832,6 @@ export function ticketConnState(data, onRetry) {
 export const SELF_FILTER_FIELDS = ["q", "project_id", "status", "priority", "difficulty", "due", "category"];
 const SELF_SPEC = ticketFilterSpec(SELF_FILTER_FIELDS, TICKET_LIST_EXTRA);
 const MY_SPEC = { ...SELF_SPEC, all_status: false };
-/* 필터를 건드리면 페이지는 처음으로. 다른 필터의 3페이지에 남으면 빈 목록이 나오는데
- * 사용자는 그것을 "조건에 맞는 티켓이 없다"로 읽는다. */
-const PAGE_RESET = { reset: ["page"] };
 
 function useTicketColumnOptions(wantAssignee) {
   const metaQ = useTicketMeta(true);
@@ -842,7 +839,7 @@ function useTicketColumnOptions(wantAssignee) {
   const meta = metaQ.data || {};
   return {
     filterOptions: {
-      status: meta.statuses || [],
+      status: statusOptions(meta.statuses),
       priority: (meta.priorities || []).map((p) => ({ value: p, label: priorityKo(p) })),
       difficulty: meta.difficulties || [],
     },
@@ -873,7 +870,7 @@ export function MyTickets() {
   const statusEdit = useInlineStatusEdit();
   const confirm = useConfirm();
   const nav = useNavigate();
-  const [filters, setFilters] = useQueryState(MY_SPEC, PAGE_RESET);
+  const [filters, setFilters] = useQueryState(MY_SPEC);
   const workQ = useWorkStatuses(true);
   const openKeys = openStatusKeys(workQ.data && workQ.data.statuses);
   const qs = appendDefaultStatuses(
@@ -908,13 +905,14 @@ export function MyTickets() {
   return (
     <div className="c-screen">
       <PageHeader crumbRoot="내 업무" area="내 티켓" title="내 티켓" actions={headerActions} />
-      {q.isPending ? <Card><Skeleton /></Card>
+      {q.isLoading ? <Card><Skeleton /></Card>
         : q.isError ? <ErrorState error={q.error} onRetry={() => q.refetch()} />
         : (() => {
-          const data = q.data || {};
+          /* 목록 밖의 값(연결 상태 안내)은 첫 묶음 원본이 들고 온다 — 묶음마다 같다. */
+          const data = q.first || {};
           const conn = ticketConnState(data, () => q.refetch());
           if (conn) return conn;
-          const rows = ticketRows(data);
+          const rows = q.rows;
           const cols = [selectionColumn(sel, rows.map((r) => r.id)),
             ...ticketColumns({ showAssignee: true, onEdit: setEditing, signalsOf, statusEdit, onOpen: openTicket(nav, "/my-tickets") })];
           return (
@@ -927,7 +925,7 @@ export function MyTickets() {
                   0건이다(S14). 서버도 `sync` 블록을 더 이상 안 싣는다. */}
               <Typography component="h2" className="sr-only">필터</Typography>
               <TicketFilterBar
-                fields={SELF_FILTER_FIELDS} value={filters} onChange={setFilters} total={data.total}
+                fields={SELF_FILTER_FIELDS} value={filters} onChange={setFilters} total={q.total}
                 defaultStatusKeys={openKeys}
                 allStatus={filters.all_status}
                 onShowAll={() => setFilters({ all_status: true, status: [] })}
@@ -952,8 +950,15 @@ export function MyTickets() {
                     />
                   }
                 />
-                <Pager page={data.page} pageSize={data.page_size} total={data.total}
-                       onPage={(p) => setFilters({ page: p })} />
+                <ListFooter
+                  total={q.total} loaded={q.loaded}
+                  hasNext={q.hasNext} isFetchingNext={q.isFetchingNext} onMore={q.fetchNext}
+                  moreLabel="티켓 더 보기"
+                  /* 이 표는 가상화가 없다(D-354 · D-361) — 받은 행 전부가 DOM 에 남는다.
+                     그래서 **자동 로딩에만** 상한을 둔다. 「더 보기」로는 계속 받을 수 있고,
+                     끝 줄이 「N건 중 M건」을 계속 말한다 — 감추는 것은 없다. */
+                  autoMaxRows={TICKET_AUTO_MAX_ROWS}
+                />
               </Card>
             </>
           );
@@ -972,7 +977,7 @@ export function Unassigned() {
   const nav = useNavigate();
   useListMemory("/unassigned");
   const signalsOf = useTicketSignals();
-  const [filters, setFilters] = useQueryState(SELF_SPEC, PAGE_RESET);
+  const [filters, setFilters] = useQueryState(SELF_SPEC);
   const qs = ticketQueryParams(filters, SELF_FILTER_FIELDS).toString();
   const q = useTicketList("/api/tickets/unassigned", qs);
   const colOpts = useTicketColumnOptions(false);
@@ -1001,19 +1006,20 @@ export function Unassigned() {
   return (
     <div className="c-screen">
       <PageHeader crumbRoot="내 업무" area="미할당 티켓" title="미할당 티켓" actions={headerActions} />
-      {q.isPending ? <Card><Skeleton /></Card>
+      {q.isLoading ? <Card><Skeleton /></Card>
         : q.isError ? <ErrorState error={q.error} onRetry={() => q.refetch()} />
         : (() => {
-          const data = q.data || {};
+          /* 목록 밖의 값(연결 상태 안내)은 첫 묶음 원본이 들고 온다 — 묶음마다 같다. */
+          const data = q.first || {};
           const conn = ticketConnState(data, () => q.refetch());
           if (conn) return conn;
-          const rows = ticketRows(data);
+          const rows = q.rows;
           const cols = [selectionColumn(sel, rows.map((r) => r.id)),
             ...ticketColumns({ onEdit: setEditing, onClaim: (t) => claim.mutate(t.id), signalsOf, onOpen: openTicket(nav, "/unassigned") })];
           return (
             <>
               {/* 여기 미러 신선도 안내가 있었다. 위 목록과 같은 이유로 걷었다(S14). */}
-              <TicketFilterBar fields={SELF_FILTER_FIELDS} value={filters} onChange={setFilters} total={data.total} onClear={clearFilters} />
+              <TicketFilterBar fields={SELF_FILTER_FIELDS} value={filters} onChange={setFilters} total={q.total} onClear={clearFilters} />
               <Card>
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                   담당자 없는 활성 티켓입니다. ‘나에게 배정’ 또는 ‘수정’으로 지정하세요.
@@ -1034,8 +1040,12 @@ export function Unassigned() {
                     />
                   }
                 />
-                <Pager page={data.page} pageSize={data.page_size} total={data.total}
-                       onPage={(p) => setFilters({ page: p })} />
+                <ListFooter
+                  total={q.total} loaded={q.loaded}
+                  hasNext={q.hasNext} isFetchingNext={q.isFetchingNext} onMore={q.fetchNext}
+                  moreLabel="티켓 더 보기"
+                  autoMaxRows={TICKET_AUTO_MAX_ROWS}
+                />
               </Card>
             </>
           );
@@ -1299,6 +1309,10 @@ export function NewTicket() {
   const myId = auth.data && auth.data.id;
   const qc = useQueryClient();
   const toast = useToast();
+  /* 만든 뒤 이동은 라우터가 한다 — 예전에는 `window.location.hash` 에 직접 대입해
+     react-router 의 `navigate` 를 우회했고, 그래서 `state.from`(목록으로 되돌아갈 자리)을
+     실을 수가 없었다. */
+  const nav = useNavigate();
   const projectsQ = useTicketProjects(true);
   /* **티켓을 만드는 자리가 기본값을 정한다** (지시 5).
    *
@@ -1319,16 +1333,26 @@ export function NewTicket() {
   // 담당자 후보는 **선택한 프로젝트에 닿을 수 있는 사람**만이다 (0060 §14).
   const assigneesQ = useAssigneeOptions(!!form.project_id, form.project_id);
   const metaQ = useTicketMeta(true);
-  const meApplied = React.useRef(false);
-  // 후보가 로드되면 최초 1회 '나'를 기본 담당자로 체크(연결된 경우).
+  /* 🔴 「한 번만」의 기준은 **컴포넌트 수명이 아니라 프로젝트**다.
+   *
+   * 프로젝트를 바꾸면 담당자를 비운다(아래 `EntityCombobox` 의 `onChange`) — 후보가 그
+   * 프로젝트에 닿을 수 있는 사람으로 바뀌므로 옛 선택을 들고 갈 수 없다. 그런데 「나」를
+   * 채우는 이 이펙트가 컴포넌트 수명당 한 번만 돌면, **두 번째로 고른 프로젝트에서는
+   * 담당자가 빈 채로 남는다.** 그렇게 만든 티켓은 미할당이라 `/my-tickets`(내가 담당인
+   * 티켓)에 안 뜨고, 사용자에게는 「만들었는데 안 보인다」로 읽힌다.
+   *
+   * 그래서 「그 프로젝트에 대해 한 번」으로 바꾼다. 사용자가 직접 체크를 다 지운 경우를
+   * 덮어쓰지 않게, 지금 비어 있을 때만 채운다. */
+  const meAppliedFor = React.useRef(null);
   React.useEffect(() => {
-    if (meApplied.current) return;
+    if (!form.project_id || meAppliedFor.current === form.project_id) return;
     const cands = (assigneesQ.data && assigneesQ.data.assignees) || [];
+    if (!cands.length) return;
+    meAppliedFor.current = form.project_id;
     if (myId && cands.some((c) => c.user_id === myId)) {
-      meApplied.current = true;
       setForm((s) => ({ ...s, assignees: s.assignees.length ? s.assignees : [myId] }));
     }
-  }, [assigneesQ.data, myId]);
+  }, [assigneesQ.data, myId, form.project_id]);
   // 진행상태 기본값(계획)을 메타 로드 후 한 번 채운다.
   const statusApplied = React.useRef(false);
   React.useEffect(() => {
@@ -1344,7 +1368,20 @@ export function NewTicket() {
     mutationFn: (body) => api("/api/tickets", { method: "POST", body }),
     // 회차 맥락에서 왔으면 그 판으로 돌아간다. 만든 티켓이 안 보이는 화면으로 튕기면
     // 사용자는 방금 만든 것이 어디 갔는지 확인할 방법이 없다.
-    onSuccess: () => { toast("티켓을 추가했습니다.", "success"); invalidateTicketViews(qc); window.location.hash = context.sprint ? "#/work-board" : "#/my-tickets"; },
+    /* 🔴 **만든 것을 연다.** 문서 만들기가 이미 그렇게 한다(`Knowledge.jsx` — `navigate('/knowledge/' + doc.id)`).
+     *
+     * 예전에는 목록으로 튕기고 응답의 `ticket` 을 버렸다. 그런데 그 목록이 방금 만든 티켓을
+     * 보여 준다는 보장이 없다 — 담당자를 안 붙였으면 「내 티켓」에 없고, 상태·기간 조건이
+     * 걸려 있으면 거기에도 없다. 사용자에게는 「만들었는데 안 보인다」가 된다.
+     * 「목록으로」 되돌아갈 자리는 상세 화면의 기존 규약(`Ticket.jsx::useListReturn`)이 준다. */
+    onSuccess: (res) => {
+      toast("티켓을 추가했습니다.", "success");
+      invalidateTicketViews(qc);
+      const made = res && res.ticket;
+      const from = context.sprint ? "/work-board" : "/my-tickets";
+      if (made && made.id) nav(`/tickets/${made.id}`, { state: { from } });
+      else nav(from);
+    },
     onError: (e) => { toast((e && e.message) || "추가하지 못했습니다. 잠시 후 다시 시도해 주세요.", "error"); },
   });
 
@@ -1443,7 +1480,11 @@ export function NewTicket() {
                 />
                 <TextField
       InputLabelProps={{ shrink: true }} id="nt-status" select fullWidth size="small" label="진행상태" value={form.status} onChange={(e) => set("status", e.target.value)}>
-                  {withCurrent(meta.statuses, form.status).map((s) => <MenuItem key={s} value={s}>{s}</MenuItem>)}
+                  {/* 값은 저장 키, 이름은 사람 말이다 — 예전엔 키를 그대로 그려 「진행 중」이
+                      「진행」으로 떴다(`ticket-options.js::statusOptions`). */}
+                  {statusOptions(withCurrent(meta.statuses, form.status)).map((o) => (
+                    <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>
+                  ))}
                 </TextField>
                 <TextField id="nt-prio" select fullWidth size="small" label="우선순위" {...EMPTYABLE_SELECT} value={form.priority} onChange={(e) => set("priority", e.target.value)}>
                   <MenuItem value="">없음</MenuItem>
@@ -1501,7 +1542,7 @@ export function NewTicket() {
                   placeholder="예: 재현 절차와 기대 결과"
                 />
                 <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>
-                  선택 항목입니다. 위 도구로 제목, 글머리, 번호, 구분선, 이모지를 넣을 수 있고 아래 미리보기에서 실제 모양을 확인합니다.
+                  선택 항목입니다. 위 도구로 제목, 글머리, 번호, 구분선, 이모지를 커서 자리에 넣을 수 있습니다.
                 </Typography>
               </Box>
             </Box>

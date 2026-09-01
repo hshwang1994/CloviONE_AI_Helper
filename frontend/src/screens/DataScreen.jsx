@@ -10,7 +10,7 @@ import MenuItem from "@mui/material/MenuItem";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
-import { PageHeader, Card, Button, DataTable, FormDrawer, Modal, OverflowMenu, Skeleton, EmptyState, ErrorState, MetricStrip, Callout, useConfirm, useToast } from "../ui/kit.jsx";
+import { PageHeader, Card, Button, DataTable, FormDrawer, ListCard, Modal, OverflowMenu, Skeleton, EmptyState, ErrorState, MetricStrip, Callout, useConfirm, useToast } from "../ui/kit.jsx";
 /* 검색 입력은 `ui/filters.jsx` 의 `SearchBox` 다 — **자기 상태를 자기가 든다**(PF4).
  *
  * 예전에는 그 부품이 이 파일 안에 있었다. 사용자 콘솔의 티켓·문서 목록도 같은 것이 필요해
@@ -21,6 +21,8 @@ import { DateField } from "../ui/DateField.jsx";
 /* 탐색 줄 — TicketFilterBar.jsx 와 공유(ui/FilterBar.jsx). **판이 아니다**(지시 80).
    폭은 격자 트랙이 아니라 컨트롤의 종류가 정한다(C2 «폭 배분»). */
 import { FILTER_GROUP_ORDER, FilterActions, FilterRow, FilterSurface, ResultLine, ToolbarEnd, ToolbarRow, filterGroupOf } from "../ui/FilterBar.jsx";
+import { ListFooter } from "../ui/InfiniteScroll.jsx";
+import { CHUNK, useInfiniteList, useResetScrollOnKeyChange } from "../lib/useInfiniteList.js";
 import { SavedViews } from "../ui/SavedViews.jsx";
 import { SHELL_QUERY_KEYS, buildViewQuery, describeView, hashQuery, keepQueryKeys, ownedQueryKeys, parseView, withHashQuery, withQuery } from "./datascreen-view.js";
 import { loginUrl } from "../lib/sessionRedirect.js";
@@ -75,17 +77,18 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
     [config.key]
   );
   const [q, setQ] = useState(initialView.q);           // 실제 쿼리에 쓰이는(디바운스된) 검색어
-  const [page, setPage] = useState(initialView.page);
+  /* 🔴 쪽 번호는 **상태가 아니다.** 목록은 쪽을 넘기지 않고 묶음을 이어 받는다.
+     옛 주소·저장된 뷰는 여전히 `page=3` 을 들고 오므로 그만큼 미리 받아 대략 그 자리에
+     떨어뜨린다(`useInfiniteList` 의 `resume`). 주소에서 `page` 는 첫 되쓰기에 사라진다. */
+  const resumeChunks = initialView.page;
   // 검색 디바운스 — 서버 검색 화면(searchable, 특히 Notion 조회처럼 요청당 최대 30초 걸리는 화면)에서
   // 매 키 입력마다 새 요청을 쏘지 않는다(예전엔 한 글자씩 칠 때마다 retry:false 요청이 겹쳐 나가
   // 응답이 뒤죽박죽 도착했다).
   //
-  // **검색어가 실제로 바뀐 경우에만** 돈다. 예전엔 마운트 때도 무조건 한 번 돌아 `setPage(1)`을
-  // 했는데, 이제 주소(#/audit?…&page=3)와 저장된 뷰가 페이지 번호를 복원하므로 그 한 번이
-  // 복원한 페이지를 300ms 뒤에 조용히 1로 되돌린다 — 사용자는 링크를 열었는데 다른 화면을 본다.
   // 검색 확정은 `SearchBox` 가 디바운스해서 부른다. 이 함수는 **참조가 고정**돼야 한다 —
   // 매 렌더마다 새로 만들면 `React.memo` 가 매번 깨져 이 수정이 무효가 된다.
-  const commitSearch = React.useCallback((next) => { setQ(next); setPage(1); }, []);
+  // 조건이 바뀌면 받아 둔 묶음은 질의 키가 바뀌면서 함께 버려진다 — 되돌릴 쪽 번호가 없다.
+  const commitSearch = React.useCallback((next) => { setQ(next); }, []);
   const [sel, setSel] = useState(null);
   // PA-RC-0033: :id 라우트로 들어왔는데 그 레코드가 없으면(삭제됨/권한 밖) 지금까지
   // 토스트 하나만 뜨고(몇 초 뒤 사라짐) 화면은 조용히 목록으로 남았다 — 사용자는 잘못
@@ -161,8 +164,13 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
    * 쌓이는 만큼 자란다 — 닫힌 열거형과 같은 부품으로 그리면 후보가 200개가 되는 날
    * 사용자는 이름을 알면서도 목록을 눈으로 훑는다(R-5). 선언이 말하지 않으면 예전 그대로다. */
   const entityType = (f) => (f.kind === "entity" ? "entity" : "select");
+  /* 🔴 `optionsFrom(row, items)` 갈래는 **없앴다.**
+   *
+   * 후보를 「지금 화면에 받아 둔 행」에서 뽑는 방식이었는데, 그 `items` 는 지금 걸린 조건의
+   * 결과다 — 목록에 필터를 건 채 폼을 열면 후보가 그만큼 좁아진다. 조용하고 오류가 안 난다.
+   * 유일한 사용처(상위 부서)는 `optionsFromRefList` 로 옮겼고, 그 축은 조건과 무관한 별도
+   * 질의다. 되살리지 않는다 — `registry-filter-axes.test.js` 가 이것을 금지한다. */
   const withOptionsFrom = (fields, row) => (fields || []).map((f) => {
-    if (f.optionsFrom) return { ...f, type: entityType(f), options: f.optionsFrom(row, items) };
     if (f.optionsFromRefList) {
       const base = refListOptions[f.optionsFromRefList] || [];
       return { ...f, type: entityType(f), options: [...base, ...(f.extraOptions || [])] };
@@ -186,9 +194,20 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
     [config.key, config.cacheKey]
   );
 
+  /* 정렬 상태는 **질의보다 위**에 있어야 한다 — 아래 목록 질의가 이 값을 질의 키와 URL 에
+     함께 싣는다(`config.serverSort` 인 화면). 밑에 두면 TDZ 로 첫 렌더가 죽는다.
+     세 번째 클릭이 `key` 를 비우면 서버가 정한 원래 순서로 돌아간다. */
+  const [sort, setSort] = useState({ key: "", dir: "asc" });
+  const toggleSort = (key) => setSort((cur) => {
+    if (cur.key !== key) return { key, dir: "asc" };
+    if (cur.dir === "asc") return { key, dir: "desc" };
+    return { key: "", dir: "asc" };
+  });
+
   const serverFilterDefs = (config.filters || []).filter((f) => !f.clientFilter);
   const clientFilterDefs = (config.filters || []).filter((f) => f.clientFilter);
-  function buildUrl() {
+  const listPageSize = config.pageSize || CHUNK;
+  function buildUrl(pageParams) {
     const p = [];
     if (config.searchable && q) p.push("q=" + encodeURIComponent(q));
     serverFilterDefs.forEach((f) => {
@@ -201,25 +220,50 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
       const sendVal = f.type === "datetime-local" ? kstLocalToApi(v) : v;
       p.push(f.key + "=" + encodeURIComponent(sendVal));
     });
-    if (config.paginated) { p.push("page=" + page); if (config.pageSize) p.push("page_size=" + config.pageSize); }
+    if (config.paginated && pageParams) {
+      p.push("page=" + pageParams.page);
+      p.push("page_size=" + pageParams.page_size);
+    }
+    /* 정렬도 조건과 같이 서버로 나간다. 세 번째 클릭이 `key` 를 비우면 두 파라미터가 함께
+       빠지고, 그것이 곧 「서버가 정한 원래 순서로 되돌리기」다. */
+    if (config.serverSort && sort.key) {
+      p.push("sort=" + encodeURIComponent(sort.key));
+      p.push("order=" + encodeURIComponent(sort.dir || "asc"));
+    }
     return withQuery(config.endpoint, p);
   }
   // queryKey는 서버로 실제 전송되는 필터만 반영한다 — clientFilter 값이 바뀌어도 같은 데이터를 다시
   // 받아올 필요가 없다(그 값은 아래 filtered 계산에서만 쓰인다).
   const serverFiltersKey = JSON.stringify(Object.fromEntries(serverFilterDefs.map((f) => [f.key, filters[f.key]])));
-  const query = useQuery({
-    queryKey: [...cacheRoot, config.searchable ? q : "", config.paginated ? page : 0, serverFiltersKey],
-    queryFn: () => api(buildUrl()),
-    retry: false,
-    // 페이지네이션/필터/검색이 바뀌면 queryKey도 바뀌어 캐시가 없다 — placeholderData로 이전 페이지
-    // 결과를 유지한 채 백그라운드로 새 페이지를 받아온다(예전엔 매 클릭·키 입력마다 목록+페이저
-    // 전체가 Skeleton으로 사라졌다가 다시 나타났다).
-    placeholderData: keepPreviousData,
-    // 진행 중(pending 등) 행이 있으면 자동 새로고침(비동기 상태 전이를 화면이 따라간다).
+  /* 🔴 **폴링과 무한 목록은 같이 못 간다.** react-query 는 무한 질의를 다시 받을 때 받아 둔
+     묶음을 **전부** 순서대로 다시 부른다 — 작업 큐처럼 4초마다 도는 화면에서 다섯 묶음을
+     받아 뒀으면 4초마다 요청이 다섯 번이다. 그래서 폴링은 **첫 묶음만 받은 동안**에만 켠다.
+     더 받기 시작한 사람은 스스로 새로 받는다(조건을 건드리거나 목록을 다시 연다). */
+  const list = useInfiniteList({
+    /* 정렬이 질의 키에 들어간다 — 안 들어가면 정렬을 바꿔도 앞 조건의 캐시를 그대로 재사용한다. */
+    key: [...cacheRoot, config.searchable ? q : "", serverFiltersKey,
+      config.serverSort && sort.key ? `${sort.key}:${sort.dir}` : ""],
+    size: listPageSize,
+    enabled: true,
+    resume: config.paginated ? resumeChunks : 1,
+    fetch: (pageParams) => api(buildUrl(config.paginated ? pageParams : null)),
+    itemsKey: config.itemsKey || "items",
+    rowId: (r) => (r && r.id) || undefined,
     refetchInterval: config.pollWhile
-      ? (qy) => { const d = qy.state.data; const its = (d && d[config.itemsKey || "items"]) || []; return its.some(config.pollWhile) ? 4000 : false; }
+      ? (qy) => {
+        const pages = (qy.state.data && qy.state.data.pages) || [];
+        if (pages.length !== 1) return false;
+        const its = (pages[0] && pages[0][config.itemsKey || "items"]) || [];
+        return its.some(config.pollWhile) ? 4000 : false;
+      }
       : false,
   });
+  /* 조건이 바뀌면 목록 머리로 되돌린다 — 한참 내려간 자리에서 걸러 놓고 빈 화면을 보면 안 된다.
+     첫 마운트에는 안 돈다(그 순간은 `listReturn` 이 스크롤을 복원하는 자리다). */
+  useResetScrollOnKeyChange(`${config.key}\u0000${q}\u0000${serverFiltersKey}`);
+  /* 아래 코드가 `query.data` 로 읽던 것은 **첫 묶음 원본**이다 — `columnsFrom`(rbac 매트릭스)과
+     `unreadCountKey`(알림)처럼 목록 밖의 값을 함께 싣는 응답이 있고, 그 값은 묶음마다 같다. */
+  const query = { ...list, data: list.first };
   // 요약 통계(선택) — 목록과 별도 엔드포인트(예: 작업 큐 stats)를 받아 상단 판독 줄로 보여준다.
   // queryKey가 cacheRoot로 시작하므로 refresh()의 무효화에 함께 갱신된다.
   const summaryQuery = useQuery({
@@ -268,14 +312,8 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
   }, [refListsQuery.data, config.refLists]);
   /* 정렬 상태. 같은 열을 다시 누르면 방향이 뒤집히고 **세 번째에 해제된다** — 서버가 정한
      원래 순서로 돌아갈 길이 없으면 정렬은 되돌릴 수 없는 조작이 된다. */
-  const [sort, setSort] = useState({ key: "", dir: "asc" });
-  const toggleSort = (key) => setSort((cur) => {
-    if (cur.key !== key) return { key, dir: "asc" };
-    if (cur.dir === "asc") return { key, dir: "desc" };
-    return { key: "", dir: "asc" };
-  });
 
-  function setFilter(key, val) { setFilters((s) => ({ ...s, [key]: val })); setPage(1); }
+  function setFilter(key, val) { setFilters((s) => ({ ...s, [key]: val })); }
   /* 화면 밖에서도 같은 값을 보여 주는 곳이 있으면 함께 갱신한다 (X10).
    *
    * 알림 화면에서 '모두 읽음' 을 눌러도 **상단 벨은 최대 60초 동안 옛 숫자**를 들고 있었다.
@@ -441,7 +479,9 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
     } catch (e) { handleApiError(e, toast); }
     finally { setBusyKey(null); }
   }
-  const items = (query.data && query.data[config.itemsKey || "items"]) || [];
+  /* 지금까지 받아 둔 행 전부 — 한 쪽이 아니다. 아래 계산(상세 드로어 동기화·클라이언트
+     필터·빈 상태 판정)이 전부 이 배열을 본다. */
+  const items = list.rows;
   // config.columnsFrom(응답) — 열이 **서버 응답에서 결정되는** 화면용(권한 매트릭스: 역할이
   // 곧 열이다). 화면에 역할 목록을 한 벌 더 적으면 백엔드에서 규칙을 고쳐도 표는 옛 열을
   // 계속 보여 준다 — 그리고 그때 사람은 화면을 믿는다(app/core/authz.py가 유일한 출처).
@@ -503,7 +543,7 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
       // 빈 값(undefined/null/"")은 걸러 filters 상태를 오염시키지 않는다.
       const values = {};
       Object.keys(intent.values).forEach((k) => { const v = intent.values[k]; if (v != null && v !== "") values[k] = v; });
-      if (Object.keys(values).length) { setFilters((s) => ({ ...s, ...values })); setPage(1); }
+      if (Object.keys(values).length) { setFilters((s) => ({ ...s, ...values })); }
     } else if (intent.open === "select" && intent.id != null) {
       // 목록 필터가 아니라 특정 id 하나를 곧바로 상세 드로어로 연다(예: 감사/알림에서 특정 작업·
       // 러너로 딥링크). config.endpoint + "/" + id를 그대로 조회한다(이미 다른 곳에서 쓰는 GET
@@ -579,7 +619,7 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
    *
    * pushState 가 아니라 replaceState 다 — 필터를 한 칸 고칠 때마다 히스토리가 쌓이면
    * '뒤로 가기'가 화면을 벗어나기까지 열 번을 눌러야 한다. */
-  const viewQuery = buildViewQuery({ q, page, filters }, config);
+  const viewQuery = buildViewQuery({ q, filters }, config);
   /* 자기 키만 갈아치운다 — 이 화면이 탭 그릇 안에 있으면 그릇이 쓴 `?tab=…` 이 여기 함께
      실려 있고, 예전처럼 쿼리 전체를 덮으면 필터를 한 칸 건드리는 순간 첫 탭으로 튕긴다. */
   const ownedKeys = React.useMemo(() => ownedQueryKeys(config), [config]);
@@ -601,11 +641,10 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
     setFilters({ ...defaults, ...view.filters });
     // `q` 만 바꾼다 — `SearchBox` 가 그 값을 보고 입력을 맞추면서 `onSearch` 는 부르지 않아
     // 뷰가 복원한 페이지 번호가 1로 되돌아가지 않는다.
-    setQ(view.q); setPage(view.page);
+    setQ(view.q);
   }
 
-  const total = query.data && query.data.total;
-  const pageSize = (query.data && query.data.page_size) || config.pageSize || 20;
+  const total = list.total;
   // 서버 검색(searchable)이면 서버가 이미 필터한 페이지이므로 클라이언트 재필터를 하지 않는다.
   // (예전엔 paginated+searchable(예: notion-mapping)에서 q=를 서버로 보내고도 반환 페이지를 다시
   //  JSON.stringify로 걸러, 서버가 매칭한 행이 화면에서 사라지고 '총 N건'과 어긋났다.)
@@ -624,17 +663,42 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
 
   /* 정렬 (지시 10).
    *
-   * **서버가 페이지를 자르는 목록에는 정렬을 붙이지 않는다.** 보이는 20건만 정렬해 놓고
-   * 화살표를 그리면 사용자는 "가장 오래된 것"을 봤다고 믿는데 실제로는 그 페이지 안에서
-   * 가장 오래된 것이다. `clientFilter` 는 결과가 줄어드는 게 눈에 보여 경고 한 줄로 막을 수
-   * 있었지만(위 Callout), 정렬은 틀린 순서가 맞아 보이기 때문에 경고로 못 막는다.
-   * 서버에 정렬 파라미터가 생기면 그때 이 조건을 풀고 서버로 넘긴다.
+   * 옛 규칙은 「서버가 쪽을 자르는 목록에는 정렬을 아예 안 붙인다」였다. 근거는 옳았다 —
+   * 보이는 20건만 정렬해 놓고 화살표를 그리면 사용자는 「가장 오래된 것」을 봤다고 믿는데
+   * 실제로는 그 쪽 안에서 가장 오래된 것이다. `clientFilter` 는 결과가 줄어드는 게 눈에 보여
+   * 경고 한 줄로 막을 수 있었지만, 정렬은 **틀린 순서가 맞아 보이기 때문에** 경고로 못 막는다.
    *
-   * 값 비교는 숫자면 숫자로, 아니면 한국어 로케일 문자열로 한다 — `"10" < "9"` 같은
-   * 사전순 함정을 피한다. 빈 값은 방향과 무관하게 뒤로 보낸다(정렬은 값이 있는 것을
-   * 나란히 놓으려는 것이지 빈 칸을 위로 올리려는 것이 아니다). */
-  const canSort = !config.paginated;
+   * 그 근거는 정렬을 **서버로 넘기는** 순간 사라진다. 그래서 조건이 「paginated 인가」에서
+   * **「서버가 그 키를 실제로 받는가」**로 바뀐다:
+   *
+   *   `config.serverSort: { keys: [...], default: { key, dir } }`
+   *
+   * 선언이 없으면 예전 그대로 화살표를 감춘다 — 서버가 못 받는 축에 조작기를 그리면 눌러도
+   * 서버가 기본 정렬로 조용히 떨어뜨려 「눌렀는데 순서가 그대로」가 된다.
+   * 허용 키는 서버에서 뽑아 미러로 고정한다(`frontend/src/generated/sortKeys.json`,
+   * `scripts/check_sort_keys_fresh.py`) — 두 벌이 갈라지면 정확히 그 증상이 난다.
+   *
+   * 클라이언트 정렬(전량을 받는 화면)의 값 비교는 그대로다: 숫자면 숫자로, 아니면 한국어
+   * 로케일 문자열로 — `"10" < "9"` 같은 사전순 함정을 피한다. 빈 값은 방향과 무관하게 뒤로
+   * 보낸다(정렬은 값이 있는 것을 나란히 놓으려는 것이지 빈 칸을 위로 올리려는 것이 아니다). */
+  const serverSort = config.serverSort || null;
+  const canSort = !config.paginated || !!serverSort;
+  const sortableKeys = React.useMemo(
+    () => (serverSort ? new Set(serverSort.keys) : null),
+    [serverSort],
+  );
+  /* 열마다 다시 묻는다 — 화이트리스트 밖 열은 화살표를 **안 그린다**. */
+  const tableColumns = React.useMemo(
+    () => (columns || []).map((c) => ({
+      ...c,
+      sortable: !!c.sortable && canSort && (!sortableKeys || sortableKeys.has(c.sortKey || c.key)),
+    })),
+    [columns, canSort, sortableKeys],
+  );
   const sortedRows = React.useMemo(() => {
+    /* 서버가 정렬했으면 **다시 정렬하지 않는다** — 다른 비교자로 재정렬하면 묶음 경계에서
+       순서가 어긋나고, 그 어긋남이 곧 누락·중복이다. */
+    if (serverSort) return filteredRows;
     if (!canSort || !sort.key) return filteredRows;
     const col = columns.find((c) => c.key === sort.key);
     if (!col) return filteredRows;
@@ -649,17 +713,12 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
       if (typeof av === "number" && typeof bv === "number") return (av - bv) * sign;
       return String(av).localeCompare(String(bv), "ko") * sign;
     });
-  }, [canSort, sort.key, sort.dir, filteredRows, columns]);
+  }, [serverSort, canSort, sort.key, sort.dir, filteredRows, columns]);
 
   const filtered = sortedRows;
-  const totalPages = total != null ? Math.max(1, Math.ceil(total / pageSize)) : null;
-  // 마지막 페이지의 마지막 행이 사라지는 변경(예: 마지막 대기 승인 처리) 후 total이 줄어 현재 페이지가
-  // 더 이상 존재하지 않게 되면, '필터 지우기'로 검색/필터까지 통째로 지우지 않고 페이지 번호만
-  // 유효한 값으로 되돌린다(그 상태로는 영영 빈 화면만 보였다).
-  useEffect(() => {
-    if (config.paginated && totalPages != null && page > totalPages) setPage(totalPages);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [totalPages]);
+  /* 예전에 여기 있던 것: 「total 이 줄어 현재 쪽이 사라지면 쪽 번호를 되돌린다」. 쪽 번호가
+     없어지면서 그 되돌리기가 필요한 상태 자체가 사라졌다 — 마지막 행이 지워지면 목록이
+     그만큼 짧아질 뿐이고, 사용자는 여전히 자기가 보던 자리에 있다. */
 
   // 서버 필터가 하나라도 걸려 있으면 '검색/필터 결과 없음'으로 안내(빈 화면과 구분).
   // PA-RC-0038 이전에는 config가 준 기본값(f.value — 예: 정책 status='published', 승인
@@ -799,30 +858,22 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
   // headerAction도 없어 canOnboard가 항상 거짓이었다 — 화면 접근 자체가 이미 역할로 걸려 있으니
   // (App.jsx SCREEN_ROLES) 그런 화면은 config.forceOnboarding으로 이 게이트를 우회한다.
   const canOnboard = config.forceOnboarding || canCreate || !!primaryHeaderAction;
-  // 페이저는 목록 카드와, clientFilter로 현재 페이지가 통째로 걸러진 빈 상태 두 곳에서 함께 쓴다
-  // (paginated+clientFilter 화면에서 현재 페이지가 필터로 비어도 다른 페이지로 넘어갈 수 있게).
-  const renderPager = (edge) => (
-    <Box component="nav" aria-label={edge === "top" ? "페이지 이동(목록 위)" : "페이지 이동"}
-      sx={{
-        display: "flex", alignItems: "center", justifyContent: "center", gap: 2,
-        ...(edge === "top"
-          ? { pb: 2, mb: 1, borderBottom: 1, borderColor: "divider" }
-          : { pt: 2, mt: 1, borderTop: 1, borderColor: "divider" }),
-      }}>
-      <Button size="sm" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>이전</Button>
-      <Typography variant="body2" color="text.secondary" aria-live="polite" sx={{ minWidth: "8rem", textAlign: "center" }}>
-        {totalPages != null ? `${page} / ${totalPages}${total != null ? `, 총 ${total}건` : ""}` : `${page}페이지`}
-      </Typography>
-      <Button size="sm" disabled={totalPages != null ? page >= totalPages : items.length < pageSize} onClick={() => setPage((p) => p + 1)}>다음</Button>
-    </Box>
-  );
-  const pager = config.paginated ? renderPager("bottom") : null;
-  // VIS-117: 100행짜리 화면(예: /jobs, 6,186px)에서 페이지 이동이 맨 아래에만 있으면 다음 페이지로
-  // 넘기려고 매번 화면 끝까지 스크롤해야 한다 — 목록 위에도 같은 컨트롤을 하나 더 둔다(총
-  // 페이지가 2 이상일 때만, 1페이지짜리 화면에 안 쓰는 컨트롤을 얹지 않는다). 버튼 하나로
-  // 로직을 공유하므로 동작은 항상 아래 페이저와 같다.
-  const topPager = config.paginated && (totalPages != null ? totalPages > 1 : items.length >= pageSize)
-    ? renderPager("top") : null;
+  /* 목록 끝 줄 — 받은 건수와 「더 보기」. 두 자리에서 쓴다: 목록 카드 안, 그리고
+     clientFilter 로 지금 받아 둔 것이 통째로 걸러진 빈 상태(더 받으면 일치 항목이 나올 수 있다).
+     🔴 「몇 건을 받았는가」는 **서버가 준 원본**(`items`)으로 센다 — clientFilter 로 걸러진
+     `filtered` 로 세면 걸러진 화면에서 「더 보기」가 조용히 꺼진다(옛 페이저가 겪은 결함). */
+  const listFooter = config.paginated ? (
+    <ListFooter
+      total={total}
+      loaded={items.length}
+      hasNext={list.hasNext}
+      isFetchingNext={list.isFetchingNext}
+      onMore={list.fetchNext}
+    />
+  ) : null;
+  /* VIS-117 이 「목록 위에도 페이저를 하나 더」로 고쳤던 것 — 100행짜리 화면에서 다음 쪽으로
+     넘기려고 매번 6,186px 를 굴러 내려가야 했다 — 은 이제 결함 자체가 없다. 굴러 내려가는 그
+     행동이 곧 다음 묶음을 부른다. 그래서 위쪽 조작기를 두지 않는다. */
 
   return (
     <div className="c-screen">
@@ -1012,24 +1063,14 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
                     />
                   );
                 }
-                if (f.datalistFrom) {
-                  // 이미 불러온 목록에서 뽑은 값으로 자동완성 제안을 준다 — 이름을 미리 알아야만 쓸 수
-                  // 있던 자유 입력 필터를 완화한다. 제안일 뿐 입력을 강제하지 않는다.
-                  return (
-                    <React.Fragment key={f.key}>
-                      <DebouncedTextField
-                        label={f.label}
-                        value={filters[f.key] || ""}
-                        onCommit={(v) => setFilter(f.key, v)}
-                        inputProps={{ list: "dl-" + f.key }}
-                        freeTextReason={f.freeTextReason}
-                      />
-                      <datalist id={"dl-" + f.key}>
-                        {Array.from(new Set(f.datalistFrom(items).filter((v) => v != null && v !== ""))).map((v) => <option key={v} value={v} />)}
-                      </datalist>
-                    </React.Fragment>
-                  );
-                }
+                /* 🔴 `datalistFrom` 갈래도 **없앴다** — 같은 이유다.
+                 *
+                 * 「이미 불러온 목록에서 뽑은 값으로 자동완성」은 서버가 목록을 자르는 화면에서
+                 * 「지금 받아 둔 것 안에 있는 값」만 제안한다. 사용자는 그것을 「이 시스템에
+                 * 있는 값이 이게 전부」로 읽는다 — 이 작업이 시작된 바로 그 증상이다.
+                 * 통제 어휘인 축(프롬프트·정책 이름)은 `optionsFromRefList` 로 전량을 받고,
+                 * 열린 네임스페이스인 축(감사 action)은 `freeTextReason` 으로 왜 후보가 없는지
+                 * 말한다. `registry-filter-axes.test.js` 가 이 갈래의 부활을 막는다. */
                 /* 라벨은 **항상 바깥/위**이고(C2), 타자는 **디바운스**된다 — 둘 다 이 부품이 든다.
                    예전에는 이 갈래만 맨 `TextField` 라 ① `shrink` 를 빠뜨려 값이 비면 라벨이
                    입력 자리로 내려앉았고(옆 select 와 기준선이 어긋난다) ② 서버 필터인 키는
@@ -1049,7 +1090,7 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
                * **격자 칸이 아니다** — 되돌리기는 조건이 아니라 동작이다(지시 76). */}
               {(q || hasFilter) ? (
                 <FilterActions>
-                  <Button variant="ghost" size="sm" onClick={() => { setQ(""); setFilters({}); setPage(1); }}>필터 지우기</Button>
+                  <Button variant="ghost" size="sm" onClick={() => { setQ(""); setFilters({}); }}>필터 지우기</Button>
                 </FilterActions>
               ) : null}
             </FilterRow>
@@ -1067,7 +1108,7 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
       {query.isLoading ? (
         /* 표가 들어올 자리에는 표 모양을 그린다 (지시 20). 회색 줄 다섯 개는 "곧 목록이 온다"가
            아니라 "무언가 온다"라는 뜻이고, 실제 표가 도착하면 배치가 통째로 튄다. */
-        <Card className="c-list-card"><DataTable columns={columns} rows={[]} loading /></Card>
+        <ListCard><DataTable columns={columns} rows={[]} loading /></ListCard>
       ) : query.isError ? (
         <ErrorState error={query.error} onRetry={() => query.refetch()} />
       ) : filtered.length === 0 ? (
@@ -1078,7 +1119,7 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
              쓰되 자리가 다르면 다르게 그린다. */
           <EmptyState layout="page" title="검색 결과가 없습니다" art="search"
             help="조건에 맞는 항목이 없습니다. 검색어나 필터를 지워보세요."
-            action={<Button variant="primary" onClick={() => { setQ(""); setFilters({}); setPage(1); }}>검색, 필터 지우기</Button>} />
+            action={<Button variant="primary" onClick={() => { setQ(""); setFilters({}); }}>검색, 필터 지우기</Button>} />
         ) : (
           <EmptyState layout="page" title={config.emptyTitle || "표시할 항목이 없습니다"}
             help={typeof config.emptyHelp === "function" ? config.emptyHelp(role, createBtn) : config.emptyHelp}
@@ -1093,11 +1134,10 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
         )}
         {/* paginated+clientFilter 화면에서 현재 페이지가 필터로 통째로 비어도, 다른 페이지에 일치
          * 항목이 있을 수 있으므로 페이저를 남긴다(위 경고 Callout과 짝을 이룬다). */}
-        {config.paginated && clientFilterDefs.length ? <Card className="c-list-card">{pager}</Card> : null}
+        {config.paginated && clientFilterDefs.length ? <ListCard>{listFooter}</ListCard> : null}
         </>
       ) : (
-        <Card className="c-list-card">
-          {topPager}
+        <ListCard>
           {/* 표에게 **자기 질의 계약**을 알려 준다 (R-91). 이것 없이는 표가 어떤 열도
               없애지 않는다 — 서버가 페이지를 자르는 목록에서 이번 페이지의 값이 우연히
               같다고 열을 빼면, 페이지를 넘길 때마다 열이 생겼다 사라진다.
@@ -1107,7 +1147,13 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
               화면마다 다른 사실이라 registry 가 스스로 선언해야 하고, 그 선언은 아직 없다.
               추측으로 채우면 그 순간 이 계약이 뜻을 잃는다. */}
           <DataTable
-            columns={columns} rows={filtered} onRow={setSel} stickyHeader={config.stickyHeader}
+            columns={tableColumns} rows={filtered} onRow={setSel} total={total}
+            /* 목록 화면은 **전부** 열 이름을 고정한다. 예전에는 registry 가 화면마다 켰고
+               (실제로 켠 것은 감사 로그 하나였다) 그나마도 안 돌았다 — 표를 감싼 판의
+               `overflow:hidden` 이 sticky 의 스크롤 창이 되어 열 이름이 그 판 안에 붙박였다
+               (`kit.jsx::ListCard`). 굴려서 다음 묶음을 받는 목록에서 열 이름이 사라지면
+               스무 줄만 지나도 어느 값이 어느 열인지 알 수 없다. */
+            stickyHeader
             rowKey={(r) => r.id || (columns[0] ? r[columns[0].key] : JSON.stringify(r).slice(0, 24))}
             sort={canSort ? sort : undefined} onSort={canSort ? toggleSort : undefined}
             resultScope={{
@@ -1115,17 +1161,16 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
               activeFilters: Object.keys(filters).filter((k) => filters[k] !== "" && filters[k] != null),
               fixedColumns: config.fixedColumns || [],
             }}
-            // §15.1 재검수 — registry 마다 손으로 켜지 않는다(정책 2건짜리와 감사 로그
-            // 몇백 건짜리가 같은 화면을 쓴다). 행이 실제로 많을 때만 자동으로 켠다.
-            // `stickyHeader` 와는 같이 못 쓴다 — 그 모드는 바깥(page) 이 스크롤 창이라
-            // `DataTable` 내부 스크롤 창을 재는 이 가상화의 전제가 깨진다(kit.jsx 주석).
-            virtualize={!config.stickyHeader && filtered.length > 60 ? {} : undefined}
+            /* §15.1 재검수 — registry 마다 손으로 켜지 않는다(정책 2건짜리와 감사 로그
+               몇백 건짜리가 같은 화면을 쓴다). 행이 실제로 많을 때만 켠다.
+               🔴 판정 기준이 **받은 행 수가 아니라 전체 건수**다. 받은 수로 재면 묶음이
+               붙다가 60을 넘는 순간 가상화가 켜지면서 `<tbody>` 가 통째로 다시 마운트된다 —
+               굴리던 자리가 튄다. 전체 건수는 묶음이 붙어도 안 변한다.
+               `stickyHeader` 와의 상호배타는 없어졌다 — 둘 다 윈도를 스크롤 창으로 본다. */
+            virtualize={(total ?? filtered.length) > 60 ? {} : undefined}
           />
-          {/* total 없는 응답의 '더 있음' 판정은 서버가 실제로 돌려준 원본 페이지 크기(items)로 해야
-           * 한다, clientFilter로 걸러진 filtered를 쓰면 paginated+clientFilter 화면에서 필터 후 행
-           * 수가 우연히 pageSize보다 적어져도 서버엔 다음 페이지가 있는데 '다음'이 조용히 꺼졌다(pager 참고). */}
-          {pager}
-        </Card>
+          {listFooter}
+        </ListCard>
       )}
       {/* 상세는 넓은(lg) 폭 — 액션 버튼이 많은 화면(러너 등)에서 좁은(md) 폭이면 푸터 버튼이 3줄로
           접혀 화면 맨 아래 뭉치가 됐다. lg 폭 + 작은 버튼으로 한두 줄에 담아 깔끔하게 만든다.

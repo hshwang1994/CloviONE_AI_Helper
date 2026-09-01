@@ -216,9 +216,12 @@ export const PLATFORM_SCREENS = {
       { key: "active", type: "select", label: "사용", options: opt([["true", "사용"], ["false", "사용 안 함"]]) },
       { key: "level", type: "select", label: "중요도", options: opt([["info", "안내"], ["warning", "주의"], ["critical", "긴급"]]) },
     ],
+    /* 「중요도」로 정렬하면 서버가 **심각도 순**으로 센다(가나다순이면 긴급이 안내보다
+       앞에 서서 뜻이 뒤집힌다 — `app/announcements/router.py::_level_rank`). */
+    serverSort: { keys: ["created_at", "updated_at", "title", "starts_at", "ends_at", "active", "level"], default: { key: "created_at", dir: "desc" } },
     columns: [
-      { ...col("title", "제목"), identifier: true },
-      { key: "level", label: "중요도", render: (r) => React.createElement(Badge, {
+      { ...col("title", "제목"), identifier: true, sortable: true },
+      { key: "level", label: "중요도", sortable: true, render: (r) => React.createElement(Badge, {
         value: ({ info: "안내", warning: "주의", critical: "긴급" })[r.level] || r.level,
         kind: r.level === "critical" ? "danger" : r.level === "warning" ? "warn" : "info",
       }) },

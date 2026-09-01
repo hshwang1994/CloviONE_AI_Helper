@@ -70,14 +70,25 @@ export const BASELINE_TRACKS = {
   health: "repeat(5, minmax(0, 1fr))",
 };
 
-/* 보드·회의 KPI / 논의 카드. `auto-fill` 이라 마지막 줄이 2~3칸만 남아 커지지 않는다. */
-export const KPI_TILE_TRACK = "repeat(auto-fill, minmax(8.5rem, 1fr))";
-export const DISCUSS_TILE_TRACK = "repeat(auto-fill, minmax(9rem, 1fr))";
+/* 보드·회의 KPI / 논의 카드.
+ *
+ * `auto-fill` 은 컨테이너에 들어갈 **최대 칸 수**만큼 빈 트랙을 만들고, 항목은 앞칸에만
+ * 채운다 — 1920 에서 칸이 일곱인데 트랙이 열한 개면 오른쪽이 통째로 비어 「왼쪽에만
+ * 몰렸다」고 보인다. 개수가 정해진 줄은 `fixedTileTrack` 으로 칸 수만큼만 트랙을 만든다.
+ * 좁은 화면에서 줄바꿈이 필요할 때만 `KPI_TILE_TRACK` 을 쓴다. */
+export function fixedTileTrack(count) {
+  const n = Math.max(1, Number(count) || 1);
+  return `repeat(${n}, minmax(0, 1fr))`;
+}
+
+export const KPI_TILE_TRACK = "repeat(auto-fill, minmax(7.5rem, 1fr))";
+export const DISCUSS_BUCKET_COUNT = 5;
+export const DISCUSS_TILE_TRACK = fixedTileTrack(DISCUSS_BUCKET_COUNT);
 export const MEETING_PAIR_TRACKS = {
   xs: "1fr",
   lg: "minmax(0, 2fr) minmax(0, 1fr)",
 };
-export const PAIR_CHART_MIN_HEIGHT = { lg: "16rem" };
+export const PAIR_CHART_MIN_HEIGHT = { lg: "12rem" };
 
 /* px 를 기본 루트(16px)에서 같은 픽셀이 되는 rem 문자열로. */
 export function rem(px) {
@@ -220,3 +231,20 @@ export const TILE_PADDING = rem(DENSITY_PX.healthCardPadding);  // 16px
 export const GRID_GAP = rem(DENSITY_PX.gridGap);                // 24px
 export const TILE_GRID_GAP = rem(DENSITY_PX.healthGridGap);     // 16px
 export const SECTION_GAP = rem(DENSITY_PX.sectionGap);          // 32px
+
+/** 칸반 레인·논의 목록 등 **캔버스 위의 함몰 구역**. 카드(plate)가 그 위에 선다. */
+export const LANE_SURFACE = {
+  bgcolor: "background.inset",
+  border: 1,
+  borderColor: "divider",
+  borderRadius: rem(8),
+};
+
+/** 차트·건강 등 **판 위의 위젯 상자**. KPI 타일과 같은 계층이다. */
+export const PANEL_SURFACE = {
+  bgcolor: "background.plate",
+  border: 1,
+  borderColor: "divider",
+  borderRadius: rem(8),
+  p: TILE_PADDING,
+};

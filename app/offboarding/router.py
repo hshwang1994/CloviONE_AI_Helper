@@ -18,6 +18,7 @@ from app.core.audit import record_audit_from_request
 from app.authz.permissions import USER_MANAGE
 from app.core.deps import get_db, get_principal, require_csrf, require_permission
 from app.core.pagination import PageParams
+from app.core.sort import SortParams
 from app.core.scope import Principal
 from app.offboarding import service
 from app.offboarding.schemas import OffboardingRunRequest
@@ -39,9 +40,10 @@ def list_offboarding_runs(
     db: Session = Depends(get_db),
     principal: Principal = Depends(get_principal),
     page: PageParams = Depends(),
+    sort: SortParams = Depends(),
 ):
     items, total = service.list_runs(
-        db, principal.management, offset=page.offset, limit=page.page_size
+        db, principal.management, offset=page.offset, limit=page.page_size, sort=sort
     )
     return {"items": items, "total": total, "page": page.page, "page_size": page.page_size}
 

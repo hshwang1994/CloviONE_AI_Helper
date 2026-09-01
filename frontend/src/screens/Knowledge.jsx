@@ -19,6 +19,7 @@ import {
   EmptyState,
   ErrorState,
   FormModal,
+  ListCard,
   ListEmptyState,
   MetricStrip,
   Modal,
@@ -31,9 +32,11 @@ import {
   useToast,
 } from "../ui/kit.jsx";
 import { FilterActions, FilterRow, FilterSurface, ResultLine, ToolbarRow } from "../ui/FilterBar.jsx";
+import { ListFooter } from "../ui/InfiniteScroll.jsx";
+import { offsetEnvelope, useInfiniteList, useResetScrollOnKeyChange } from "../lib/useInfiniteList.js";
 import { DragItem, SortableList } from "../ui/DragDrop.jsx";
 import { EntityCombobox, FilterSelect, SearchBox } from "../ui/filters.jsx";
-import { Pager } from "../ui/Pager.jsx";
+
 import { UserAvatar } from "../ui/UserAvatar.jsx";
 import { ProjectPicker } from "../ui/ProjectPicker.jsx";
 import { TagPicker } from "../ui/TagPicker.jsx";
@@ -131,12 +134,37 @@ function useRecent() {
   });
 }
 
+/* 문서 목록 — **쪽이 아니라 묶음**이다.
+ *
+ * 갈래가 둘인 이유: 「최근 열람」은 다른 입구(`/api/knowledge/recent`)를 쓰고 쪽 자체가 없다.
+ * 사람마다 다르고 길지 않아서 나눌 것이 없다 — 없는 쪽 나누기를 흉내 내지 않는다. 그래서 그
+ * 갈래만 평범한 질의이고, 아래에서 무한 목록과 **같은 모양**으로 펴서 돌려준다. 화면은 둘을
+ * 구별하지 않는다.
+ *
+ * 훅 둘을 언제나 부르고 `enabled` 로 끈다 — 갈래에 따라 훅 수가 달라지면 React 가 상태를
+ * 잘못 짝짓는다. */
 function useDocuments(params) {
-  const { view, spaceId, folderId, q, tags, author, sort, page } = params;
-  return useQuery({
-    queryKey: ["knowledge", "documents", view, spaceId, folderId, q, tags, author, sort, page],
-    queryFn: () => {
-      if (view === VIEW.recent) return api("/api/knowledge/recent?limit=50");
+  const { view, spaceId, folderId, q, tags, author, sort, resume } = params;
+  const isRecent = view === VIEW.recent;
+
+  const recentQ = useQuery({
+    queryKey: ["knowledge", "documents", "recent"],
+    queryFn: () => api("/api/knowledge/recent?limit=50"),
+    enabled: isRecent,
+  });
+
+  const tagKey = (tags || []).join("\u0000");
+  const list = useInfiniteList({
+    key: ["knowledge", "documents", view, spaceId, folderId, q, tagKey, author, sort],
+    envelope: offsetEnvelope,
+    size: PAGE_SIZE,
+    /* offset 페이징은 그 사이 문서가 생기거나 지워지면 경계에서 같은 행을 두 번 준다.
+       쪽 화면에서는 「2쪽을 다시 봤다」로 끝났지만 이어 붙이는 화면에서는 한 화면 안에
+       같은 문서 둘이 된다. */
+    rowId: (d) => d.id,
+    enabled: !isRecent,
+    resume,
+    fetch: ({ limit, offset }) => {
       const search = new URLSearchParams();
       if (spaceId) search.set("space_id", spaceId);
       if (folderId) search.set("folder_id", folderId);
@@ -148,11 +176,27 @@ function useDocuments(params) {
       if (sort) search.set("sort", sort);
       if (view === VIEW.favorites) search.set("favorites", "true");
       if (view === VIEW.drafts) { search.set("mine", "true"); search.set("drafts", "true"); }
-      search.set("limit", String(PAGE_SIZE));
-      search.set("offset", String((page - 1) * PAGE_SIZE));
+      search.set("limit", String(limit));
+      search.set("offset", String(offset));
       return api(`/api/knowledge/documents?${search.toString()}`);
     },
   });
+
+  if (!isRecent) return list;
+  const items = (recentQ.data && recentQ.data.items) || [];
+  return {
+    rows: items,
+    total: items.length,
+    loaded: items.length,
+    first: recentQ.data || null,
+    hasNext: false,
+    fetchNext: () => {},
+    isFetchingNext: false,
+    isLoading: recentQ.isPending,
+    isError: recentQ.isError,
+    error: recentQ.error,
+    refetch: recentQ.refetch,
+  };
 }
 
 /* 트리를 평평하게 편다. 들여쓰기는 `depth` 가 만든다 — 화면이 재귀 컴포넌트를 쓰면
@@ -714,7 +758,11 @@ export function Knowledge() {
   const author = params.get("author") || "";
   const sort = params.get("sort") || "recent";
   const view = params.get("view") || VIEW.all;
-  const page = Math.max(1, Number(params.get("page") || 1));
+  /* 🔴 `page` 는 **주소에 안 쓴다.** 「어디까지 봤는가」는 조건이 아니라 시야다 — 남에게 준
+     「3쪽」 링크는 그 사람의 3쪽과 애초에 다른 목록이었다. 다만 옛 링크·북마크는 여전히
+     이 값을 들고 오므로 **읽어서 그만큼 미리 받고**(`resume`), 첫 `setQuery` 에서 주소를
+     정리한다(`setQuery` 는 `next` 를 처음부터 다시 만든다). */
+  const resumeChunks = Math.max(1, Number(params.get("page") || 1));
 
   /* 주소를 고칠 때 지금 조건을 그대로 들고 간다 — 쪽을 넘겼다고 검색어가 사라지면
    * 사용자는 방금 무엇을 보고 있었는지 다시 만들어야 한다. `page` 는 조건이 바뀌면
@@ -723,7 +771,7 @@ export function Knowledge() {
    * `tags` 는 배열이라 다른 축과 다르게 다룬다 — patch 에 `tags` 가 있으면 그 배열을
    * 그대로 쓰고, 없으면 지금 값을 들고 간다(react-router 의 `setParams` 는 배열 값을
    * 같은 키 반복으로 직렬화한다). */
-  const setQuery = (patch, { keepPage = false } = {}) => {
+  const setQuery = (patch) => {
     const next = {};
     if (spaceId) next.space = spaceId;
     if (folderId) next.folder = folderId;
@@ -731,7 +779,6 @@ export function Knowledge() {
     if (author) next.author = author;
     if (sort && sort !== "recent") next.sort = sort;
     if (view) next.view = view;
-    if (keepPage && page > 1) next.page = String(page);
     const nextTags = "tags" in patch ? patch.tags : tags;
     delete patch.tags;
     Object.entries(patch).forEach(([key, value]) => {
@@ -750,7 +797,7 @@ export function Knowledge() {
   const setQueryRef = React.useRef(setQuery);
   setQueryRef.current = setQuery;
   const commitSearch = React.useCallback(
-    (next) => setQueryRef.current({ q: next || null, page: null }),
+    (next) => setQueryRef.current({ q: next || null }),
     [],
   );
 
@@ -770,7 +817,10 @@ export function Knowledge() {
   const summary = useSummary();
   const templates = useTemplates();
   const recent = useRecent();
-  const documents = useDocuments({ view, spaceId, folderId, q, tags, author, sort, page });
+  const documents = useDocuments({ view, spaceId, folderId, q, tags, author, sort, resume: resumeChunks });
+  /* 조건이 바뀌면 목록 머리로 되돌린다 — 한참 내려간 자리에서 걸러 놓고 빈 화면을 보면 안 된다.
+     첫 마운트에는 안 돈다(그 순간은 `listReturn` 이 스크롤을 복원하는 자리다). */
+  useResetScrollOnKeyChange([view, spaceId, folderId, q, tags.join(","), author, sort].join("\u0000"));
 
   const [folderForm, setFolderForm] = React.useState(false);
   const [spaceForm, setSpaceForm] = React.useState(false);
@@ -896,9 +946,9 @@ export function Knowledge() {
   const tagRows = tagsQuery.data?.items || [];
   const templateRows = templates.data?.items || [];
   const summaryRow = summary.data;
-  const rows = documents.data?.items || [];
-  const total = documents.data?.total ?? rows.length;
-  const authors = documents.data?.authors || [];
+  const rows = documents.rows;
+  const total = documents.total ?? rows.length;
+  const authors = documents.first?.authors || [];
   const role = (auth.data && auth.data.role) || "";
   const canMakeSpace = hasRole(CONSOLE_WRITE_ROLES, role);
   /* 이름을 고치고 지우는 것은 그 태그를 쓰는 **모든 문서**에 닿는다. 서버가 같은 기준으로
@@ -1083,24 +1133,24 @@ export function Knowledge() {
             {
               key: "total", label: "전체 문서", value: summaryRow.total, primary: true,
               active: view === VIEW.all && !folderId,
-              onClick: () => setQuery({ view: null, folder: null, page: null }),
+              onClick: () => setQuery({ view: null, folder: null }),
             },
             {
               key: "recent", label: "최근 수정", value: summaryRow.recent,
               note: "최근 24시간",
               active: sort === "recent" && view === VIEW.all,
-              onClick: () => setQuery({ view: null, sort: "recent", page: null }),
+              onClick: () => setQuery({ view: null, sort: "recent" }),
             },
             {
               key: "favorites", label: "즐겨찾기", value: summaryRow.favorites,
               active: view === VIEW.favorites,
-              onClick: () => setQuery({ view: VIEW.favorites, page: null }),
+              onClick: () => setQuery({ view: VIEW.favorites }),
             },
             {
               key: "drafts", label: "내 초안", value: summaryRow.drafts,
               note: "아직 고치지 않은 내 문서",
               active: view === VIEW.drafts,
-              onClick: () => setQuery({ view: VIEW.drafts, page: null }),
+              onClick: () => setQuery({ view: VIEW.drafts }),
             },
           ]}
         />
@@ -1133,12 +1183,11 @@ export function Knowledge() {
           tagVocab={tagRows}
           selectedTags={tags}
           summary={summaryRow}
-          onView={(next) => setQuery({ view: next || null, page: null })}
-          onSpace={(next) => setQuery({ space: next || null, folder: null, page: null })}
-          onFolder={(next) => setQuery({ folder: next || null, page: null })}
+          onView={(next) => setQuery({ view: next || null })}
+          onSpace={(next) => setQuery({ space: next || null, folder: null })}
+          onFolder={(next) => setQuery({ folder: next || null })}
           onToggleTag={(name) => setQuery({
-            tags: tags.includes(name) ? tags.filter((t) => t !== name) : [...tags, name],
-            page: null,
+            tags: tags.includes(name) ? tags.filter((t) => t !== name) : [...tags, name],
           })}
           onNewFolder={() => setFolderForm(true)}
           onDeleteFolder={(folder) => removeFolder.mutate(folder.id)}
@@ -1164,7 +1213,7 @@ export function Knowledge() {
               <TagPicker
                 label="기술 태그"
                 value={tags}
-                onChange={(next) => setQuery({ tags: next, page: null })}
+                onChange={(next) => setQuery({ tags: next })}
               />
               {/* 사람은 **기수가 무한히 자라는 대상**이다 — 사람이 늘면 후보도 는다. 평범한
                   드롭다운으로 두면 이름을 알면서도 목록을 눈으로 훑게 된다(C2 · R-5).
@@ -1173,13 +1222,13 @@ export function Knowledge() {
                 label="작성자"
                 allLabel="전체"
                 value={author}
-                onChange={(v) => setQuery({ author: v || null, page: null })}
+                onChange={(v) => setQuery({ author: v || null })}
                 options={authors}
               />
               <FilterSelect
                 label="정렬"
                 value={sort}
-                onChange={(v) => setQuery({ sort: v, page: null })}
+                onChange={(v) => setQuery({ sort: v })}
                 options={SORTS}
               />
               {hasFilter ? (
@@ -1188,7 +1237,7 @@ export function Knowledge() {
                     variant="ghost"
                     size="sm"
                     onClick={() => setQuery({
-                      q: null, tags: [], author: null, folder: null, view: null, page: null,
+                      q: null, tags: [], author: null, folder: null, view: null,
                     })}
                   >
                     필터 지우기
@@ -1205,12 +1254,12 @@ export function Knowledge() {
           {documents.isError ? (
             <ErrorState error={documents.error} onRetry={() => documents.refetch()} />
           ) : (
-            <Card>
+            <ListCard>
               {!documents.isLoading && rows.length === 0 ? (
                 <ListEmptyState
                   filtered={hasFilter}
                   onClear={() => setQuery({
-                    q: null, tags: [], author: null, folder: null, view: null, page: null,
+                    q: null, tags: [], author: null, folder: null, view: null,
                   })}
                   clearLabel="검색, 필터 지우기"
                   filteredTitle="조건에 맞는 문서가 없습니다"
@@ -1225,20 +1274,26 @@ export function Knowledge() {
                   rowKey={(d) => d.id}
                   onRow={openDoc}
                   loading={documents.isLoading}
-                  virtualize={rows.length > 60 ? {} : undefined}
+                  stickyHeader
+                  total={documents.total}
+                  /* 판정 기준이 `rows.length` 가 아니라 **전체 건수**다. 받은 행 수로 재면
+                     묶음이 붙다가 60을 넘는 순간 가상화가 켜지면서 `<tbody>` 가 통째로 다시
+                     마운트된다 — 굴리던 자리가 튄다. 전체 건수는 묶음이 붙어도 안 변한다. */
+                  virtualize={(documents.total ?? rows.length) > 60 ? {} : undefined}
                 />
               )}
-            </Card>
+              {!documents.isLoading && !documents.isError && !listed ? (
+                <ListFooter
+                  total={documents.total}
+                  loaded={documents.loaded}
+                  hasNext={documents.hasNext}
+                  isFetchingNext={documents.isFetchingNext}
+                  onMore={documents.fetchNext}
+                  moreLabel="문서 더 보기"
+                />
+              ) : null}
+            </ListCard>
           )}
-
-          {!documents.isLoading && !documents.isError && !listed ? (
-            <Pager
-              page={page}
-              pageSize={PAGE_SIZE}
-              total={documents.data?.total}
-              onPage={(next) => setQuery({ page: next > 1 ? next : null }, { keepPage: true })}
-            />
-          ) : null}
         </Box>
 
         <Box sx={{ display: { xs: "none", xl: "block" }, minWidth: 0 }}>

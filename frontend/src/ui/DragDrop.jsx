@@ -18,7 +18,8 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { KO_WORD_BREAK } from "./theme.js";
+import { KO_WORD_BREAK, RADIUS } from "./theme.js";
+import { LANE_SURFACE, TILE_PADDING } from "./density.js";
 import { VirtualRows } from "./VirtualRows.jsx";
 
 /* 끌어 놓기 공통 부품 (S6). **저장소에서 DnD 를 쓰는 자리는 전부 여기를 지난다.**
@@ -120,12 +121,15 @@ export function DropColumn({ id, title, count, hint, children, sx, bodyMaxHeight
         gap: 1,
         minWidth: 0,
         minHeight: "12rem",
-        p: 1,
-        borderRadius: 1,
-        bgcolor: isOver ? "action.hover" : "transparent",
+        p: TILE_PADDING,
+        ...LANE_SURFACE,
+        borderRadius: `${RADIUS.md}px`,
+        bgcolor: isOver ? "action.hover" : LANE_SURFACE.bgcolor,
+        borderColor: isOver ? "brand.core" : "divider",
         outline: isOver ? "2px dashed" : "none",
         outlineColor: "primary.main",
-        transition: "background-color 120ms ease",
+        outlineOffset: -1,
+        transition: "background-color 120ms ease, border-color 120ms ease",
         ...sx,
       }}
     >
@@ -314,14 +318,18 @@ export function DragBoard({ columns, labelOf, onMove, disabled, children, sx, co
         data-equal-grid="kanban"
         sx={{
           display: "grid",
+          width: "100%",
           gridTemplateColumns: {
             xs: "1fr",
             sm: "repeat(2, minmax(0, 1fr))",
-            lg: `repeat(${Math.min(columns.length, 6)}, minmax(14rem, 1fr))`,
+            lg:
+              columns.length > 6
+                ? `repeat(${columns.length}, minmax(14rem, 1fr))`
+                : `repeat(${columns.length}, minmax(0, 1fr))`,
           },
           gap: 1.5,
           alignItems: "start",
-          overflowX: "auto",
+          overflowX: columns.length > 6 ? "auto" : "visible",
           ...sx,
         }}
       >

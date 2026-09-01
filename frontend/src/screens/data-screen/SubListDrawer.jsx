@@ -10,6 +10,8 @@ import { Callout, Button, DataTable, Modal, EmptyState, ErrorState, useConfirm, 
 import { DateField } from "../../ui/DateField.jsx";
 import { handleApiError } from "./apiError.js";
 import { JsonBlock } from "./JsonBlock.jsx";
+import { ListFooter } from "../../ui/InfiniteScroll.jsx";
+import { useInfiniteList } from "../../lib/useInfiniteList.js";
 import { successMessageFor } from "./successMessages.js";
 
 /* 하위 리소스 드로어 — 액션의 subList로 지정한 엔드포인트(버전·실행 이력 등)를 조회해 표로 보여준다.
@@ -23,7 +25,6 @@ export function SubListDrawer({ view, onClose, onActed }) {
   const role = (auth && auth.data && auth.data.role) || null;
   // 하위 행 작업(롤백·재시도 등)도 role 게이트 — 백엔드 RBAC와 일치시켜 권한 없는 버튼을 숨긴다.
   const canDoRa = (ra) => !ra.roles || (role != null && ra.roles.includes(role));
-  const [subPage, setSubPage] = useState(1);
   const [subFilters, setSubFilters] = useState({});
   const [subInfo, setSubInfo] = useState(null);   // 조회형 하위 행 작업(예: 버전 비교 diff) 결과 모달
   // 하위 행 작업 실행 중 — 부모 drawer의 busyKey와 동일한 패턴으로 '어느 행의 어느 액션'인지
@@ -32,23 +33,23 @@ export function SubListDrawer({ view, onClose, onActed }) {
   const [subBusyKey, setSubBusyKey] = useState(null);
   const subBusy = subBusyKey != null;
   const subRowKey = (r) => r.id != null ? r.id : (r.version != null ? r.version : JSON.stringify(r).slice(0, 24));
-  const setSubFilter = (k, v) => { setSubFilters((s) => ({ ...s, [k]: v })); setSubPage(1); };
+  /* 조건이 바뀌면 받아 둔 묶음은 질의 키가 바뀌며 함께 버려진다 — 되돌릴 쪽 번호가 없다. */
+  const setSubFilter = (k, v) => { setSubFilters((s) => ({ ...s, [k]: v })); };
   // endpoint는 (row, {page, filters})로 호출한다(기존 subList는 2번째 인자를 무시하므로 하위호환).
-  const q = useQuery({
-    queryKey: ["sub", a.label, row.id, subPage, JSON.stringify(subFilters)],
-    queryFn: () => api(sl.endpoint(row, { page: subPage, filters: subFilters })),
-    retry: false,
+  const q = useInfiniteList({
+    key: ["sub", a.label, row.id, JSON.stringify(subFilters)],
+    /* 창이 좁다 — 첫 묶음을 작게 잡고 굴리면 이어 받는다. */
+    size: 25,
+    itemsKey: sl.itemsKey || "items",
+    rowId: (r) => (r && r.id) || undefined,
+    fetch: ({ page }) => api(sl.endpoint(row, { page, filters: subFilters })),
   });
-  const rawRows = (q.data && q.data[sl.itemsKey || "items"]) || [];
+  const rawRows = q.rows;
   // sl.filterRows(row, parentRow) — 백엔드가 이 하위 목록을 부모 행 기준으로 필터할 쿼리 파라미터를
   // 지원하지 않을 때(예: 템플릿 목록엔 policy_id 필터가 없다) 이미 받아 온 전체 목록을 화면에서
   // 직접 거른다(DataScreen 메인 목록의 clientFilter와 동일한 발상).
   const rows = sl.filterRows ? rawRows.filter((r) => sl.filterRows(r, row)) : rawRows;
-  const total = q.data && q.data.total;
-  const pageSize = (q.data && q.data.page_size) || 20;
-  // 부모 목록의 페이저와 동일한 fallback — total이 없는 하위 목록 응답도(paginated:true인데 total
-  // 미포함) 이번 페이지가 꽉 찼으면 '다음'을 계속 켜 둔다(DataScreen.jsx 메인 페이저와 동일한 이유).
-  const totalPages = (sl.paginated && total != null) ? Math.max(1, Math.ceil(total / pageSize)) : null;
+  const total = q.total;
   async function act(ra, subRow, key) {
     // 조회형(로컬) 하위 행 작업 — 네트워크 호출 없이 이미 불러온 하위 행 데이터를 그대로 안내 모달로
     // 보여준다(예: 실행 이력 목록에서는 60자로 자르는 보낸 페이로드/응답 요약의 전체 텍스트 보기).
@@ -155,16 +156,17 @@ export function SubListDrawer({ view, onClose, onActed }) {
         : q.isError ? <ErrorState error={q.error} onRetry={() => q.refetch()} />
         : rows.length === 0 ? <EmptyState title={sl.emptyTitle || "표시할 항목이 없습니다"} help={sl.emptyHelp} />
         : <>
-            <DataTable columns={cols} rows={rows} rowKey={(r) => r.id || r.version || JSON.stringify(r).slice(0, 24)} />
+            <DataTable columns={cols} rows={rows} total={total}
+                       rowKey={(r) => r.id || r.version || JSON.stringify(r).slice(0, 24)} />
             {sl.paginated ? (
-              <Stack component="nav" aria-label="페이지 이동" direction="row" gap={1.5}
-                sx={{ alignItems: "center", justifyContent: "center", mt: 2 }}>
-                <Button size="sm" disabled={subPage <= 1} onClick={() => setSubPage((p) => Math.max(1, p - 1))}>이전</Button>
-                <Typography component="span" aria-live="polite" variant="body2" color="text.secondary">
-                  {totalPages != null ? `${subPage} / ${totalPages}${total != null ? `, 총 ${total}건` : ""}` : `${subPage}페이지`}
-                </Typography>
-                <Button size="sm" disabled={totalPages != null ? subPage >= totalPages : rows.length < pageSize} onClick={() => setSubPage((p) => p + 1)}>다음</Button>
-              </Stack>
+              /* 🔴 이 목록의 스크롤 창은 **윈도가 아니라 모달 본문**이다 — 센티넬이 볼 곳을
+                 넘겨 준다. 이 저장소에서 `root` 를 실제로 넘기는 유일한 자리다. */
+              <ListFooter
+                total={total} loaded={q.loaded}
+                hasNext={q.hasNext} isFetchingNext={q.isFetchingNext} onMore={q.fetchNext}
+                root="auto"
+                moreLabel="더 보기"
+              />
             ) : null}
           </>}
       {subInfo ? (

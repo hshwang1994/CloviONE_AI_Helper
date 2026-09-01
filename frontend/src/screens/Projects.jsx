@@ -10,7 +10,7 @@ import {
   Badge, Button, Callout, Card, DataTable, EmptyState, ErrorState, FormModal,
   MetricStrip, PageHeader, Skeleton, useToast,
 } from "../ui/kit.jsx";
-import { Pager } from "../ui/Pager.jsx";
+import { ListFooter } from "../ui/InfiniteScroll.jsx";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
 import { useAuth } from "../app/auth.jsx";
 import { useQueryState } from "../lib/useQueryState.js";
@@ -59,11 +59,11 @@ import { useListMemory } from "../lib/listReturn.js";
 // 돌아왔을 때 풀리면 안 되고, 링크로 "A-1 팀 프로젝트" 를 공유할 수 있어야 한다.
 /* `status` · `trouble` · `overdue` 는 **요약 줄을 누르면 켜지는 조건**이다 (지시 15).
  * 주소에 실리므로 뒤로 갔다 와도, 링크로 건네도 같은 목록이 선다. */
+/* 쪽 번호는 여기 없다 — 목록은 쪽을 넘기지 않고 묶음을 이어 받는다. 정렬은 조건이라 남는다. */
 const PROJECT_SPEC = {
-  page: 1, q: "", archived: false, dept: "", status: "", trouble: false, overdue: false,
+  q: "", archived: false, dept: "", status: "", trouble: false, overdue: false,
   sort: "name", order: "asc",
 };
-const PAGE_RESET = { reset: ["page"] };
 
 
 /** 화면 상태 → 서버 질의. 기본값은 안 싣는다(주소도 질의도 깨끗해야 조건이 눈에 보인다). */
@@ -83,7 +83,8 @@ export function projectListQuery(filters) {
     p.set("sort", filters.sort);
     p.set("order", filters.order || "asc");
   }
-  if (filters.page > 1) p.set("page", String(filters.page));
+  /* 쪽 파라미터는 여기서 안 붙인다 — 그것은 「무엇을 거를까」가 아니라 「얼마씩 받을까」이고,
+     목록 훅이 묶음마다 스스로 붙인다(`project-queries.js::useProjectList`). */
   return p;
 }
 
@@ -380,25 +381,25 @@ export function Projects() {
   useListMemory("/projects");
   const toast = useToast();
   const auth = useAuth();
-  const [filters, setFilters] = useQueryState(PROJECT_SPEC, PAGE_RESET);
+  const [filters, setFilters] = useQueryState(PROJECT_SPEC);
   const [creating, setCreating] = React.useState(false);
   /* «조건 때문에 0건» 판정 (C1 · W5). `archived` 도 조건이다 — 보관 스위치를 켠 채 0건인
      화면에 「프로젝트가 없습니다」라고 말하면 그 스위치가 원인이라는 사실이 사라진다.
      기본값은 주소에 안 실리므로(`useQueryState`) 여기서 **기본값과 다른가**로 센다. */
   const hasProjectFilter = React.useMemo(
     () => Object.keys(PROJECT_SPEC).some(
-      (k) => k !== "page" && k !== "sort" && k !== "order" && filters[k] !== PROJECT_SPEC[k] && filters[k] !== "" && filters[k] != null
+      (k) => k !== "sort" && k !== "order" && filters[k] !== PROJECT_SPEC[k] && filters[k] !== "" && filters[k] != null
     ),
     [filters]
   );
   const clearProjectFilters = React.useCallback(
-    () => setFilters({ archived: false, dept: "", page: 1, sort: "name", order: "asc" }),
+    () => setFilters({ archived: false, dept: "", sort: "name", order: "asc" }),
     [setFilters]
   );
   /* 결과 줄이 세는 것은 «지금 걸린 조건» 이다 — 기본값과 다른 축만 센다. */
   const activeProjectConditions = React.useMemo(
     () => Object.keys(PROJECT_SPEC).filter(
-      (k) => k !== "page" && k !== "sort" && k !== "order" && filters[k] !== PROJECT_SPEC[k] && filters[k] !== "" && filters[k] != null
+      (k) => k !== "sort" && k !== "order" && filters[k] !== PROJECT_SPEC[k] && filters[k] !== "" && filters[k] != null
     ),
     [filters]
   );
@@ -419,8 +420,9 @@ export function Projects() {
     [nav],
   );
 
-  const data = q.data || {};
-  const items = Array.isArray(data.items) ? data.items : [];
+  /* 목록 밖의 값(부서 후보)은 첫 묶음 원본이 들고 온다 — 조건이 같으면 묶음마다 같다. */
+  const data = q.first || {};
+  const items = q.rows;
   /* 부서 이름은 **목록 응답이 함께 준다** (0060 §32).
    *
    * `useDeptNames` 는 `/api/admin/departments` 를 읽으므로 관리자에게만 값이 있다. 그런데
@@ -510,7 +512,7 @@ export function Projects() {
       </FilterSurface>
       <ResultLine total={data.total} conditions={activeProjectConditions} />
 
-      {q.isPending ? <Card>{/* 표가 들어올 자리에는 표 모양을 그린다 (지시 20) - 빈 목록과 아직 안 온 목록은 다른 사실이다. */}<DataTable columns={cols} rows={[]} loading /></Card>
+      {q.isLoading ? <Card>{/* 표가 들어올 자리에는 표 모양을 그린다 (지시 20) - 빈 목록과 아직 안 온 목록은 다른 사실이다. */}<DataTable columns={cols} rows={[]} loading /></Card>
         : q.isError ? <ErrorState error={q.error} onRetry={() => q.refetch()} />
         : items.length === 0 ? (
           <Card>
@@ -550,9 +552,10 @@ export function Projects() {
             {/* 여기 「이관할 때 이 프로젝트에서 문제가 있었습니다」 배너가 있었다. 얼어붙은
                 이관 흔적 컬럼을 읽던 것이라 관리자에게 문의해도 없앨 방법이 없었다.
                 서버도 그 필드를 걷었다(S14). */}
-            <Pager
-              page={data.page} pageSize={data.page_size} total={data.total}
-              onPage={(page) => setFilters({ page })}
+            <ListFooter
+              total={q.total} loaded={q.loaded}
+              hasNext={q.hasNext} isFetchingNext={q.isFetchingNext} onMore={q.fetchNext}
+              moreLabel="프로젝트 더 보기"
             />
           </>
         )}

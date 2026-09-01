@@ -2,8 +2,8 @@ import React from "react";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 
-import { statusKind } from "./kit.jsx";
-import { KPI_TILE_TRACK, TILE_GRID_GAP, TILE_PADDING } from "./density.js";
+import { paletteAt, statusKind } from "./kit.jsx";
+import { fixedTileTrack, KPI_TILE_TRACK, TILE_GRID_GAP, TILE_PADDING } from "./density.js";
 import { useRevealOnce } from "./motion.js";
 import { FONT_SIZE, FONT_WEIGHT, MOTION, NUMERIC, RADIUS } from "./theme.js";
 
@@ -28,21 +28,29 @@ function accentOf(kind) {
   return KIND_ACCENT[kind] || "brand.core";
 }
 
-export function StatusKpiTile({ label, value, kind, pct, primary }) {
+export function StatusKpiTile({ label, value, kind, pct, primary, reservePct = false }) {
   const k = kind || (primary ? "indigo" : statusKind(label));
   const accent = accentOf(k);
+  const showPct = pct != null && Number.isFinite(pct);
+  const pctSlot = showPct ? `${pct}%` : "\u00a0";
   return (
     <Box
       sx={{
         minWidth: 0,
+        height: "100%",
         p: TILE_PADDING,
         borderRadius: `${RADIUS.md}px`,
         bgcolor: "background.plate",
         border: 1,
         borderColor: "divider",
+        /* 논리 이름에는 MUI 가 팔레트 경로를 안 풀어 주고, `border-style` 이 없으면
+           CSS 기본값 `none` 이라 **폭 3px 짜리 보이지 않는 머리 띠**가 된다
+           (`CommandPalette.jsx` 가 같은 함정을 이미 한 번 적었다). 셋을 다 쓴다. */
+        borderBlockStartStyle: "solid",
         borderBlockStartWidth: 3,
-        borderBlockStartColor: accent,
+        borderBlockStartColor: (theme) => paletteAt(theme, accent),
         display: "grid",
+        gridTemplateRows: reservePct ? "auto auto 1.25rem" : "auto auto",
         gap: 0.25,
         alignContent: "start",
       }}
@@ -62,7 +70,16 @@ export function StatusKpiTile({ label, value, kind, pct, primary }) {
       <Typography variant="caption" color="text.secondary" sx={{ ...KO_KEEP }}>
         {label}
       </Typography>
-      {pct != null && Number.isFinite(pct) ? (
+      {reservePct ? (
+        <Typography
+          variant="caption"
+          color="text.secondary"
+          aria-hidden={!showPct}
+          sx={{ ...NUMERIC, minHeight: "1.25rem", lineHeight: 1.25 }}
+        >
+          {pctSlot}
+        </Typography>
+      ) : showPct ? (
         <Typography variant="caption" color="text.secondary" sx={{ ...NUMERIC }}>
           {`${pct}%`}
         </Typography>
@@ -73,11 +90,15 @@ export function StatusKpiTile({ label, value, kind, pct, primary }) {
 
 const KO_KEEP = { wordBreak: "keep-all", overflowWrap: "break-word" };
 
-/** KPI 타일 줄. `auto-fill` 격자라 마지막 줄이 2~3칸만 남아 커지지 않는다. */
+/** KPI 타일 줄. 칸 수가 정해져 있으면 그 수만큼만 트랙을 만든다 — `auto-fill` 은 빈
+ * 트랙을 오른쪽에 남긴다. */
 export function StatusKpiStrip({ items, ariaLabel, revealKey, sx }) {
   const list = (items || []).filter(Boolean);
   const shown = useRevealOnce(revealKey == null ? null : String(revealKey));
   if (!list.length) return null;
+
+  const wideTrack = fixedTileTrack(list.length);
+  const reservePct = list.some((it) => it.pct != null && Number.isFinite(it.pct));
 
   return (
     <Box
@@ -85,7 +106,12 @@ export function StatusKpiStrip({ items, ariaLabel, revealKey, sx }) {
       aria-label={ariaLabel}
       sx={{
         display: "grid",
-        gridTemplateColumns: KPI_TILE_TRACK,
+        width: "100%",
+        alignItems: "stretch",
+        gridTemplateColumns: {
+          xs: KPI_TILE_TRACK,
+          md: wideTrack,
+        },
         gap: TILE_GRID_GAP,
         ...sx,
       }}
@@ -94,6 +120,7 @@ export function StatusKpiStrip({ items, ariaLabel, revealKey, sx }) {
         <Box
           key={it.key || it.label || i}
           sx={{
+            height: "100%",
             opacity: shown ? 1 : 0,
             transform: shown ? "none" : "translateY(8px)",
             transition: `opacity ${MOTION.base} ${MOTION.ease}, transform ${MOTION.base} ${MOTION.ease}`,
@@ -106,6 +133,7 @@ export function StatusKpiStrip({ items, ariaLabel, revealKey, sx }) {
             kind={it.kind}
             pct={it.pct}
             primary={it.primary}
+            reservePct={reservePct}
           />
         </Box>
       ))}

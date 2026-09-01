@@ -54,7 +54,7 @@ export function healthCuts(summary) {
   if (summary.overdue) parts.push(`지연 ${summary.overdue}건`);
   if (summary.blocked) parts.push(`차단 ${summary.blocked}건`);
   if (!parts.length) return "지연과 차단이 없어 깎인 점수가 없습니다.";
-  return `${parts.join("·")}이 깎습니다.`;
+  return `${parts.join(", ")}이 깎습니다.`;
 }
 
 function medianOf(nums) {

@@ -88,7 +88,7 @@ const MEETING = {
   ],
   decisions: [
     {
-      id: "d-1", kind: "decision", body: "결제 모듈은 다음 회차로 미룹니다.",
+      id: "d-1", kind: "action", body: "결제 모듈은 다음 회차로 미룹니다.",
       ticket_id: null, ticket_key: null, ticket_page_id: null,
       assignee_user_id: null, assignee: null, due_date: null, done: false,
       created_at: "2026-08-27T01:00:00",

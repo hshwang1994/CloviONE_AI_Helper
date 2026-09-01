@@ -51,7 +51,12 @@ function renderPrompts() {
 }
 
 function promptCalls() {
-  return apiMock.mock.calls.map((c) => c[0]).filter((p) => p.startsWith("/api/admin/prompts"));
+  /* 🔴 **목록 호출만** 고른다. 이 화면은 이름 후보를 별도 질의로 받는다
+     (`/api/admin/prompts/usage/stats` — 조건과 무관한 전량이라야 후보가 안 좁혀진다).
+     접두사만 보면 그 호출이 마지막이 되어, 목록 조건을 재려던 단언이 엉뚱한 주소를 본다. */
+  return apiMock.mock.calls
+    .map((c) => c[0])
+    .filter((p) => p.startsWith("/api/admin/prompts") && !p.includes("/usage/stats"));
 }
 
 beforeEach(() => { apiMock.mockReset(); });

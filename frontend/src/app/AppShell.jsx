@@ -45,7 +45,7 @@ import { prefersReducedMotion } from "../ui/motion.js";
 import { Banners } from "./Banners.jsx";
 import { useStatusNotices } from "./StatusNotices.jsx";
 import { NOTI_UNREAD, invalidateNotifications, notiUnreadKey } from "./notification-keys.js";
-import { BREAKPOINTS, CONTENT_MAX_WIDTH, CONTROL, FONT_SIZE, FONT_WEIGHT, ICON,
+import { APPBAR_HEIGHT, BREAKPOINTS, CONTENT_MAX_WIDTH, CONTROL, FONT_SIZE, FONT_WEIGHT, ICON,
   NAV_ANATOMY, RADIUS, remPx } from "../ui/theme.js";
 import { useThemeMode } from "../ui/ThemeModeProvider.jsx";
 import { applyTheme, storeTheme } from "./theme-store.js";
@@ -58,9 +58,9 @@ import { applyTheme, storeTheme } from "./theme-store.js";
 /* 사이드바 폭 — 지시 13·48. 예전 264/300/340 은 로고 칸이 상단바 폭을 결정하는 구조라
  * Navigation 영역이 시각적으로 무거웠다. 한 단씩 줄여 데이터에 폭을 돌려준다. */
 const DRAWER_WIDTH = { xs: 248, xxl: 280, uhd: 320 };
-/* 상단바 높이 — 64 는 상시 도구에서 세로를 너무 먹는다. 로고·검색·사용자 영역을 함께
- * 줄여 균형을 맞춘다(지시 13: 이미지 크기만 줄이지 않는다). */
-const APPBAR_HEIGHT = { xs: 52, xxl: 60, uhd: 68 };
+/* 상단바 높이는 이제 `ui/theme.js::APPBAR_HEIGHT` 다 — 64 는 상시 도구에서 세로를 너무
+ * 먹어서 로고·검색·사용자 영역을 함께 줄인 값이고(지시 13), 그 값을 **셸 밖에서도** 봐야
+ * 한다: 윈도가 스크롤 창인 목록의 고정 열 이름이 이 높이만큼 내려와야 AppBar 뒤로 안 숨는다. */
 
 /* 그룹 접힘 상태는 새로고침에도 유지한다(테마와 같은 이유). 5그룹 20여 항목 트리를 접어
  * 정리한 배치가 새로고침마다 초기화되던 문제. 공용 PC를 위해 계정별로 키를 나눈다. */

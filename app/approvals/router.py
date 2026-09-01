@@ -19,6 +19,7 @@ from app.approvals.models import (
     Approval,
     ApprovalDelegation,
 )
+from app.approvals import service as approval_service
 from app.approvals.service import (
     apply_scope,
     approval_view,
@@ -27,6 +28,7 @@ from app.approvals.service import (
     get_scoped_approval_or_404,
     resolve_names,
 )
+from app.core.sort import SortParams, order_by
 from app.core.audit import record_audit_from_request
 from app.core.authz import CONSOLE_OPS_ROLES, CONSOLE_READ_ROLES, CONSOLE_WRITE_ROLES
 from app.core.scope import Principal, visible_user_ids
@@ -103,6 +105,7 @@ def my_approvals(
     page: PageParams = Depends(),
     box: str = Query(default="todo", pattern="^(todo|requested|done)$"),
     user: User = Depends(get_current_user),
+    sort: SortParams = Depends(),
 ):
     """내 결재함. 역할 게이트가 없다 — **위임받은 일반 사용자도 여기로 들어온다.**
 
@@ -141,10 +144,10 @@ def my_approvals(
     total = db.execute(select(func.count()).select_from(stmt.subquery())).scalar_one()
     rows = list(
         db.execute(
-            # `Approval` 에는 `created_at` 이 없다 — 이 표는 `TimestampMixin` 을 안 쓰고
-            # 요청 시각을 `requested_at` 이라는 도메인 이름으로 직접 든다. 정렬을 id 로만
-            # 하면 UUID 라 시간 순서가 아니므로, 그 열로 정렬한다.
-            stmt.order_by(Approval.requested_at.desc(), Approval.id.desc())
+            # 허용 키와 기본값은 서비스가 든다 — 「상태」 축이 저장 상태가 아니라 **유효 상태**
+            # 여야 하고(만료 지난 pending), 그 판정이 위 필터 절과 같은 정의를 써야 한다
+            # (`service.effective_status_rank`).
+            stmt.order_by(*order_by(approval_service.list_sort_spec(now, admin=False), sort))
             .offset(page.offset).limit(page.page_size)
         ).scalars()
     )
@@ -167,7 +170,10 @@ def list_approvals(
     request_type: str | None = Query(default=None, max_length=48),
     requested_by: str | None = Query(default=None, max_length=36),
     principal: Principal = Depends(get_principal),
+    sort: SortParams = Depends(),
 ):
+    # 절 순서가 계약이다: ① 조건 → ② 범위(D-202) → ③ 정렬 → ④ 상한.
+    #
     # 범위 밖 사람이 올린 승인 요청은 보이지 않는다 (2순위 #4).
     #
     # 승인 큐에는 **역할 변경·설정 변경 같은 것이 그대로 적혀 있다** — 요청자·대상·바뀌는
@@ -180,6 +186,9 @@ def list_approvals(
     # 조건은 `service.apply_scope` 한 곳에만 있다 — 단건 GET·approve·reject·cancel 이 같은
     # 함수를 지난다. 여기에 손으로 다시 적으면 두 판정이 갈라진다 (§0-A 1순위).
     stmt = apply_scope(select(Approval), visible_user_ids(db, principal.management))
+    # 시계는 필터와 정렬이 **함께** 본다 — 둘 다 「만료 시각이 지난 pending」을 만료로 친다.
+    # 한 함수 안에서 두 번 읽으면 그 사이에 경계를 넘는 행이 두 판정에서 다르게 보인다.
+    now = request.app.state.clock.now()
     # 승인 큐는 5개 요청 유형이 뒤섞여 쌓인다 — 대량 큐를 유형/요청자로 좁혀 분류할 수
     # 있게 서버측 필터를 둔다(목록이 서버 페이지네이션이라 clientFilter로는 현재 페이지만
     # 걸러져 부정확하다, round30 감사 E).
@@ -196,7 +205,6 @@ def list_approvals(
         # 전에도 expired로 표시된다(approval_view). 필터도 같은 유효 상태로 골라야
         # 라벨과 결과가 어긋나지 않는다 — 저장된 컬럼만 보면 '만료'가 그런 행을 놓치고
         # '대기'가 화면엔 만료로 뜨는 행을 돌려준다.
-        now = request.app.state.clock.now()
         if status == APPROVAL_EXPIRED:
             stmt = stmt.where(
                 or_(
@@ -220,7 +228,10 @@ def list_approvals(
     total = db.execute(select(func.count()).select_from(stmt.subquery())).scalar_one()
     rows = (
         db.execute(
-            stmt.order_by(Approval.requested_at.desc(), Approval.id.desc())
+            # 「상태」로 정렬할 때도 위 필터와 **같은 유효 상태 판정**을 쓴다
+            # (`service.effective_status_rank`) — 저장 상태로 정렬하면 화면에 「만료」로
+            # 뜨는 행이 「대기」 무리 사이에 앉는다.
+            stmt.order_by(*order_by(approval_service.list_sort_spec(now, admin=True), sort))
             .offset(page.offset)
             .limit(page.page_size)
         )

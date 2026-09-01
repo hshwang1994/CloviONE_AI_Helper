@@ -20,6 +20,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.errors import ConflictError
+from app.core.sort import SortSpec
 from app.jobs.models import (
     STATUS_CANCELLED,
     STATUS_FAILED,
@@ -389,3 +390,27 @@ def queue_stats(db: Session, *, now: datetime, visible: frozenset[str] | None = 
         "recent_failed_24h": recent_failed,
         "avg_processing_seconds_24h": avg_processing_seconds,
     }
+
+
+# 목록의 정렬 계약. 기계는 `app/core/sort.py`, 허용 키는 여기서 — 그 판단이 옆의 범위 절
+# (`scope_clause`)과 같은 파일에 있어야 둘이 갈라지지 않는다.
+#
+# 일부러 뺀 축 둘:
+#   `duration_ms` — 컬럼이 아니라 계산값이고 미완료 잡은 NULL 이다. SQL 로 만들면
+#                   「끝난 잡만 있는 축」이 되어 목록의 절반이 언제나 뒤로 밀린다.
+#   `user_id`     — `_job_view` 가 요청자 이름을 **일부러 안 싣는다**(큐가 대화 열람
+#                   우회로가 되지 않게). 화면에 없는 값으로 정렬하게 두지 않는다.
+LIST_SORT = SortSpec(
+    columns={
+        "created_at": Job.created_at,
+        "available_at": Job.available_at,   # 인덱스 있음
+        "started_at": Job.started_at,       # nullable
+        "finished_at": Job.finished_at,     # nullable
+        "status": Job.status,               # 인덱스 있음
+        "job_type": Job.job_type,           # 인덱스 있음
+        "attempt_count": Job.attempt_count,
+    },
+    default="created_at",
+    tiebreak=Job.id,
+    default_order="desc",
+)

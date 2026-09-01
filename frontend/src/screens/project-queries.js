@@ -1,5 +1,6 @@
 import React from "react";
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
+import { useInfiniteList } from "../lib/useInfiniteList.js";
 import { api } from "../lib/api.js";
 import { useAuth } from "../app/auth.jsx";
 
@@ -17,12 +18,15 @@ const LONG = 5 * 60 * 1000;
 
 /** 목록 한 페이지. `qs` 는 화면이 조립한 질의 문자열이다(조건이 늘어도 키를 안 고쳐도 된다). */
 export function useProjectList(qs) {
-  return useQuery({
-    queryKey: ["projects", "list", qs],
-    queryFn: () => api(qs ? "/api/projects?" + qs : "/api/projects"),
-    retry: false,
-    // 페이지를 넘길 때마다 카드가 통째로 스켈레톤으로 깜빡이면 목록이 어디로 갔는지 알 수 없다.
-    placeholderData: keepPreviousData,
+  return useInfiniteList({
+    key: ["projects", "list", qs],
+    rowId: (p) => (p && p.id) || undefined,
+    fetch: ({ page }) => {
+      const p = new URLSearchParams(qs || "");
+      if (page > 1) p.set("page", String(page));
+      const query = p.toString();
+      return api(query ? "/api/projects?" + query : "/api/projects");
+    },
   });
 }
 

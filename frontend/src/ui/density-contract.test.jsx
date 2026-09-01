@@ -9,6 +9,8 @@ import {
   TILE_GRID_GAP,
   TILE_PADDING,
   MEETING_PAIR_TRACKS,
+  fixedTileTrack,
+  DISCUSS_TILE_TRACK,
 } from "./density.js";
 import { FONT_SIZE } from "./theme.js";
 import { DETAIL_GRID } from "../screens/Ticket.jsx";
@@ -79,6 +81,13 @@ describe("회의 짝 판은 폭을 채운다", () => {
 });
 
 describe("개수가 고정된 카드 줄은 마지막 줄에 빈 칸을 남기지 않는다", () => {
+  it("KPI·논의 타일 트랙은 칸 수만큼만 fr 을 쓴다", () => {
+    expect(fills(fixedTileTrack(7))).toBe(true);
+    expect(fixedTileTrack(7)).toBe("repeat(7, minmax(0, 1fr))");
+    expect(fills(DISCUSS_TILE_TRACK)).toBe(true);
+    expect(DISCUSS_TILE_TRACK).toBe("repeat(5, minmax(0, 1fr))");
+  });
+
   /* 홈 지표 줄(6장)을 여기서 검사하던 자리다. 그 줄은 이제 격자가 아니라 판독 줄
      (kit.jsx::MetricStrip)이라 마지막 줄 빈 칸이라는 결함 자체가 없다 — 검사는 실제
      렌더링을 보는 `screens/home.test.jsx`

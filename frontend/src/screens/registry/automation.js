@@ -298,7 +298,11 @@ export const AUTOMATION_SCREENS = {
     // 보기"였다. job_type 필터로 좁혀 보는 게 흔한 사용 패턴이라 유형만으로는 부족해
     // (필터링하면 보이는 행 전부가 같은 유형이 된다) 생성 시각까지 합친다 — 요청자 이름/
     // 이메일은 이 화면이 일부러 감추는 값이라(아래 detailFields 주석) 후보에서 제외한다.
-    columns: [{ ...dateCol("created_at", "생성"), rowName: (r) => (JOB_TYPE[r.job_type] || r.job_type) + " / " + fmtDateTime(r.created_at) }, mapCol("job_type", "유형", JOB_TYPE), badgeCol("status", "상태"),
+    /* 정렬을 서버로 넘긴다. 「소요 시간」과 「요청자」가 없는 이유는 서버 쪽에 적혀 있다
+       (`app/jobs/repository.py::LIST_SORT`) — 하나는 계산값이라 미완료 잡이 늘 뒤로 밀리고,
+       하나는 이 화면이 일부러 안 싣는 값이다. */
+    serverSort: { keys: ["created_at", "available_at", "started_at", "finished_at", "status", "job_type", "attempt_count"], default: { key: "created_at", dir: "desc" } },
+    columns: [{ ...dateCol("created_at", "생성"), rowName: (r) => (JOB_TYPE[r.job_type] || r.job_type) + " / " + fmtDateTime(r.created_at) }, { ...mapCol("job_type", "유형", JOB_TYPE), sortable: true }, { ...badgeCol("status", "상태"), sortable: true },
       // 대기 중인데 실행 예정 시각이 이미 지났으면 지연(백로그) 신호 — 워커 정체를 이 화면에서 바로 감지.
       { key: "available_at", label: "대기", render: (r) => {
         if (r.status !== "queued" || !r.available_at) return "-";
@@ -309,7 +313,7 @@ export const AUTOMATION_SCREENS = {
         if (m < 1) return "지연 <1분"; if (m < 60) return "지연 " + m + "분";
         return "지연 " + Math.floor(m / 60) + "시간 " + (m % 60) + "분";
       } },
-      { key: "attempt_count", label: "시도", render: (r) => r.max_attempts != null ? r.attempt_count + " / " + r.max_attempts : String(r.attempt_count) },
+      { key: "attempt_count", label: "시도", sortable: true, render: (r) => r.max_attempts != null ? r.attempt_count + " / " + r.max_attempts : String(r.attempt_count) },
       /* 실패 사유를 목록에서 바로 훑을 수 있게(예전엔 상세 드로어를 하나씩 열어야만 보였다).
        *
        * **여기서는 원문이 화면의 내용인 것이 맞다**(지시 36 판정, D-162): 작업 큐는 장애를

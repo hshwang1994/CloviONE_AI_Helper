@@ -13,8 +13,11 @@ export function ProjectPicker({
   label = "프로젝트", value, onChange, multiple = false, disabled, sx, allLabel,
   helperText, required,
 }) {
+  /* 고르개는 **한 묶음이 곧 전부**다 — 200건이면 이 조직의 프로젝트 전체다(실운영 22건).
+     그래서 「더 보기」도 센티넬도 없다. 목록 훅을 함께 쓰는 이유는 캐시와 질의 키를 목록
+     화면과 나누기 위해서다(`project-queries.js` 의 존재 이유 그대로). */
   const q = useProjectList("page_size=200");
-  const projects = q.data?.items || [];
+  const projects = q.rows;
   const options = projects.map((p) => ({
     value: p.id,
     label: p.name,

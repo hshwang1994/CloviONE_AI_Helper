@@ -74,13 +74,16 @@ function notificationsScreen({ key, audience, area, title, help, emptyHelp }) {
     unreadCountKey: "unread",
     // 안 읽은 알림만 골라 보는 트리아지(백엔드 unread_only 쿼리).
     filters: [{ key: "unread_only", type: "select", label: "읽음 상태", options: opt([["true", "안 읽음만"]]) }],
+    /* 정렬을 서버로 넘긴다. 「대상」이 없는 이유: 이 화면은 그 값을 주소에 박아 한 값으로
+       고정하므로(내 업무 / 관리) 정렬해 봐야 한 값이다. */
+    serverSort: { keys: ["created_at", "read_at", "type", "title"], default: { key: "created_at", dir: "desc" } },
     // 제목을 첫 열로 둔다 — DataScreen의 상세 드로어 제목(detailTitle)은 columns[0]을 쓰는데, 예전엔
     // 그게 mapCol('type')이라 같은 유형('승인 요청' 등)의 알림이 모두 같은 제목으로 열려 어느 알림을
     // 보고 있는지 구분이 안 됐다 — 각 알림의 실제 제목이 드로어 제목으로도 보이게 한다.
     // RG-03: 서버는 이 유형을 사용자가 뮤트했는지(muted) 이미 내려주고 있었다(app/notifications/
     // router.py::_view — "목록에서 빼지 않고 표시만 한다"는 그 필드의 존재 이유 자체가 화면에
     // 보여야 성립하는 계약인데, 열이 없어 뮤트해 놓고도 왜 계속 오는지 알 길이 없었다.
-    columns: [{ ...col("title", "제목"), identifier: true }, mapCol("type", "유형", TYPE_KO), readCol("read_at", "읽음"), dateCol("created_at", "시각"),
+    columns: [{ ...col("title", "제목"), identifier: true, sortable: true }, { ...mapCol("type", "유형", TYPE_KO), sortable: true }, { ...readCol("read_at", "읽음"), sortable: true }, dateCol("created_at", "시각"),
       // 이 파일은 .js라 JSX 대신 React.createElement를 직접 쓴다(integrations.js와 같은
       // 이유 — 빌드 설정이 .jsx/.tsx에만 JSX 변환을 적용한다).
       { key: "muted", label: "뮤트 유형", render: (r) => r.muted

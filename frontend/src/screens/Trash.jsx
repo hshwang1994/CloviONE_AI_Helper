@@ -5,7 +5,8 @@ import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
-import { Badge, Button, Card, DataTable, EmptyState, ErrorState, MetricStrip, PageHeader, useConfirm, useToast } from "../ui/kit.jsx";
+import { Badge, Button, Card, DataTable, EmptyState, ErrorState, ListCard, MetricStrip, PageHeader, useConfirm, useToast } from "../ui/kit.jsx";
+import { ListFooter } from "../ui/InfiniteScroll.jsx";
 import { FilterRow, FilterSurface } from "../ui/FilterBar.jsx";
 import { FilterSelect } from "../ui/filters.jsx";
 import { bulkFailureNote, fmtDateTime, toUTCDate } from "../lib/format.js";
@@ -277,17 +278,22 @@ export function Trash() {
               ]}
               sx={{ mb: 2.5 }}
             />
-            <Card className="c-list-card">
+            <ListCard>
               <DataTable columns={columns} rows={items} rowKey={(r) => r.id} ellipsis
                 empty="휴지통이 비어 있습니다." />
-              {/* UA-10 확증 — 상한(기본 100개)보다 많을 때만 보인다. 대부분은 그 이하라 아무것도
-                  안 보이던 예전 그대로다(ConversationSidebar의 "대화 더 보기"와 같은 관용). */}
-              {hasMore ? (
-                <Box sx={{ display: "flex", justifyContent: "center", pt: 2 }}>
-                  <Button size="sm" variant="ghost" loading={q.isFetching} onClick={loadMore}>휴지통 더 보기</Button>
-                </Box>
-              ) : null}
-            </Card>
+              {/* 🔴 여기만 **자동 로딩을 안 켠다**(`autoMaxRows={0}`) — 문서화된 예외다.
+                  `/api/trash` 는 티켓과 문서 **두 원천을 각각 상한으로 받아 합쳐** 정렬한다
+                  (`app/trash/router.py`). offset 이 없고, 얹으면 두 원천 사이 경계에서 항목이
+                  중복·누락된다. 그래서 이 화면은 「상한을 키워 처음부터 다시 받는」 관용을
+                  **의도적으로** 유지하고(`Trash.jsx` 머리말), 굴릴 때마다 100→200→300 을 연달아
+                  다시 받는 일이 없게 단추로만 받는다. 문구는 다른 목록과 같은 부품이 낸다. */}
+              <ListFooter
+                total={total} loaded={items.length}
+                hasNext={hasMore} isFetchingNext={q.isFetching} onMore={loadMore}
+                autoMaxRows={0}
+                moreLabel="휴지통 더 보기"
+              />
+            </ListCard>
           </>
         )}
     </div>

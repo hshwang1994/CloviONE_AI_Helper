@@ -41,7 +41,7 @@ import { DiscussBucketRow } from "../ui/DiscussBucket.jsx";
 import { DateField } from "../ui/DateField.jsx";
 import { invalidateTicketViews } from "./ticket-views.js";
 import { priorityKind, priorityKo } from "../lib/priority.js";
-import { MEETING_PAIR_TRACKS, PAIR_CHART_MIN_HEIGHT } from "../ui/density.js";
+import { MEETING_PAIR_TRACKS, PAIR_CHART_MIN_HEIGHT, PANEL_SURFACE, LANE_SURFACE, TILE_PADDING } from "../ui/density.js";
 import { KO_WORD_BREAK } from "../ui/theme.js";
 import { UserAvatar } from "../ui/UserAvatar.jsx";
 
@@ -112,50 +112,70 @@ function DiscussRow({ row, onOpen, signals, showProject }) {
   );
 }
 
-/** 회의록 한 줄. 결정과 할 일이 **같은 목록**에 시간순으로 선다. */
-function DecisionRow({ row, onToggle, onDelete, onOpenTicket }) {
+/** 회의록 한 줄. 레인 안에서는 종류 뱃지를 숨기고, 할 일만 체크한다. */
+function DecisionRow({ row, onToggle, onDelete, onOpenTicket, inLane = false }) {
+  const isAction = row.kind === KIND_ACTION;
   return (
     <Card sx={{ p: 1.25, display: "flex", alignItems: "flex-start", gap: 1 }}>
-      <Checkbox
-        size="small"
-        checked={!!row.done}
-        onChange={(e) => onToggle(row, e.target.checked)}
-        inputProps={{ "aria-label": `${row.body} 완료 여부` }}
-        sx={{ p: 0.5 }}
-      />
+      {isAction ? (
+        <Checkbox
+          size="small"
+          checked={!!row.done}
+          onChange={(e) => onToggle(row, e.target.checked)}
+          inputProps={{ "aria-label": `${row.body} 완료 여부` }}
+          sx={{ p: 0.5 }}
+        />
+      ) : (
+        <Box sx={{ width: 28, flexShrink: 0 }} aria-hidden />
+      )}
       <Box sx={{ minWidth: 0, flex: 1 }}>
-        <Stack direction="row" spacing={0.75} alignItems="center" sx={{ minWidth: 0, mb: 0.25 }}>
-          <Badge
-            value={row.kind === KIND_ACTION ? "할 일" : "결정"}
-            kind={row.kind === KIND_ACTION ? "info" : "neutral"}
-          />
-          {row.ticket_page_id ? (
-            <Button variant="ghost" size="sm" onClick={() => onOpenTicket(row)}>
-              {row.ticket_key || "티켓 열기"}
-            </Button>
-          ) : null}
-        </Stack>
+        {!inLane ? (
+          <Stack direction="row" spacing={0.75} alignItems="center" sx={{ minWidth: 0, mb: 0.25 }}>
+            <Badge
+              value={isAction ? "할 일" : "결정"}
+              kind={isAction ? "info" : "neutral"}
+            />
+            {row.ticket_page_id ? (
+              <Button variant="ghost" size="sm" onClick={() => onOpenTicket(row)}>
+                {row.ticket_key || "티켓 열기"}
+              </Button>
+            ) : null}
+          </Stack>
+        ) : row.ticket_page_id ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => onOpenTicket(row)}
+            sx={{ mb: 0.25, minHeight: 0, px: 0 }}
+          >
+            {row.ticket_key || "티켓 열기"}
+          </Button>
+        ) : null}
         <Typography
           variant="body2"
           sx={{
             ...KO_WORD_BREAK,
-            /* 끝난 줄은 흐리게 둔다. 지우지 않는 이유는 회의록이기 때문이다 — 「했다」도
-               기록이고, 지우면 다음 회의에서 그 일이 있었다는 사실 자체가 사라진다. */
             color: row.done ? "text.secondary" : "text.primary",
             textDecoration: row.done ? "line-through" : "none",
           }}
         >
           {row.body}
         </Typography>
-        <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 0.25 }}>
-          {row.assignee ? <UserAvatar person={row.assignee} size="sm" label={row.assignee.display_name} /> : null}
-          <Typography variant="caption" color="text.secondary">
-            {[
-              row.assignee ? row.assignee.display_name : null,
-              row.due_date ? `마감 ${row.due_date}` : null,
-            ].filter(Boolean).join("  ") || "담당자와 마감은 아직 정하지 않았습니다."}
+        {isAction ? (
+          <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 0.25 }}>
+            {row.assignee ? <UserAvatar person={row.assignee} size="sm" label={row.assignee.display_name} /> : null}
+            <Typography variant="caption" color="text.secondary">
+              {[
+                row.assignee ? row.assignee.display_name : null,
+                row.due_date ? `마감 ${row.due_date}` : null,
+              ].filter(Boolean).join("  ") || "담당자와 마감은 아직 정하지 않았습니다."}
+            </Typography>
+          </Stack>
+        ) : row.due_date ? (
+          <Typography variant="caption" color="text.secondary" sx={{ mt: 0.25, display: "block" }}>
+            {`마감 ${row.due_date}`}
           </Typography>
-        </Stack>
+        ) : null}
       </Box>
       <Button variant="ghost" size="sm" onClick={() => onDelete(row)}>
         삭제
@@ -164,7 +184,7 @@ function DecisionRow({ row, onToggle, onDelete, onOpenTicket }) {
   );
 }
 
-/** 회의록을 적는 줄. 화면 아래가 아니라 목록 **위**에 둔다 — 회의 중에 쓰는 칸이다. */
+/** 회의록을 적는 줄. 위 입력은 아래 결정·할 일 레인으로 나뉘어 쌓인다. */
 function DecisionComposer({ onAdd, busy }) {
   const [kind, setKind] = React.useState(KIND_DECISION);
   const [body, setBody] = React.useState("");
@@ -181,35 +201,40 @@ function DecisionComposer({ onAdd, busy }) {
   }
 
   return (
-    <Box component="form" onSubmit={submit} sx={{ display: "flex", flexWrap: "wrap", gap: 1, mb: 1.5 }}>
-      <FilterSelect
-        label="종류"
-        value={kind}
-        onChange={setKind}
-        options={[
-          { value: KIND_DECISION, label: "결정" },
-          { value: KIND_ACTION, label: "할 일" },
-        ]}
-      />
-      <TextField
-        size="small"
-        label="내용"
-        value={body}
-        onChange={(e) => setBody(e.target.value)}
-        placeholder="회의에서 정한 것을 한 문장으로 적습니다."
-        InputLabelProps={{ shrink: true }}
-        sx={{ flex: "1 1 20rem" }}
-      />
-      <DateField
-        size="small"
-        label="마감"
-        value={due}
-        onChange={setDue}
-        sx={{ minWidth: "10rem" }}
-      />
-      <Button type="submit" disabled={busy || !body.trim()}>
-        적기
-      </Button>
+    <Box component="form" onSubmit={submit} sx={{ display: "grid", gap: 1.5 }}>
+      <Typography variant="body2" color="text.secondary">
+        위에서 적은 내용은 아래 칸에 나뉘어 쌓입니다. 결정은 사실 기록이고, 할 일은 끝나면 체크합니다.
+      </Typography>
+      <Stack direction="row" flexWrap="wrap" gap={1} alignItems="flex-end">
+        <FilterSelect
+          label="종류"
+          value={kind}
+          onChange={setKind}
+          options={[
+            { value: KIND_DECISION, label: "결정" },
+            { value: KIND_ACTION, label: "할 일" },
+          ]}
+        />
+        <TextField
+          size="small"
+          label="내용"
+          value={body}
+          onChange={(e) => setBody(e.target.value)}
+          placeholder="회의에서 정한 것을 한 문장으로 적습니다."
+          InputLabelProps={{ shrink: true }}
+          sx={{ flex: "1 1 18rem", minWidth: "14rem" }}
+        />
+        <DateField
+          size="small"
+          label="마감"
+          value={due}
+          onChange={setDue}
+          sx={{ minWidth: "10rem" }}
+        />
+        <Button type="submit" disabled={busy || !body.trim()}>
+          적기
+        </Button>
+      </Stack>
     </Box>
   );
 }
@@ -454,34 +479,38 @@ export function Sprint() {
             title={`${body.sprint.name} (${datedLabel(body.sprint.starts_on)} ~ ${datedLabel(body.sprint.ends_on)})`}
             detail={body.sprint.goal || undefined}
             detailLabel="회차 목표"
+            sx={{ mb: 2 }}
           >
             {`${body.sprint.starts_on}부터 ${body.sprint.ends_on}까지의 회차를 봅니다. 오늘은 ${body.today}입니다.`}
           </Callout>
 
           {/* 1 — 정상 진행인가 */}
-          <StatusKpiStrip
-            ariaLabel="이번 회차 요약"
-            revealKey="sprint-meeting:kpi"
-            sx={{ mb: 2 }}
-            items={[
-              { label: "전체", value: String(summary.total), primary: true },
-              { label: "완료", value: String(summary.done), kind: "ok", pct: summary.total ? Math.round((summary.done / summary.total) * 100) : 0 },
-              { label: "진행 중", value: String(summary.in_progress), kind: "info" },
-              { label: "지연", value: String(summary.overdue), kind: summary.overdue ? "danger" : undefined },
-              { label: "차단", value: String(summary.blocked), kind: summary.blocked ? "danger" : undefined },
-              { label: "이슈", value: String(summary.issue), kind: summary.issue ? "warn" : undefined },
-              { label: "남은 WD", value: String(summary.remaining_wd) },
-            ]}
-          />
+          <Box sx={{ ...PANEL_SURFACE, mb: 2 }}>
+            <StatusKpiStrip
+              ariaLabel="이번 회차 요약"
+              revealKey="sprint-meeting:kpi"
+              items={[
+                { label: "전체", value: String(summary.total), primary: true },
+                { label: "완료", value: String(summary.done), kind: "ok", pct: summary.total ? Math.round((summary.done / summary.total) * 100) : 0 },
+                { label: "진행 중", value: String(summary.in_progress), kind: "info" },
+                { label: "지연", value: String(summary.overdue), kind: summary.overdue ? "danger" : undefined },
+                { label: "차단", value: String(summary.blocked), kind: summary.blocked ? "danger" : undefined },
+                { label: "이슈", value: String(summary.issue), kind: summary.issue ? "warn" : undefined },
+                { label: "남은 WD", value: String(summary.remaining_wd) },
+              ]}
+            />
+          </Box>
 
           <Box
             sx={{
               display: "grid", gap: 2, mb: 2,
               gridTemplateColumns: MEETING_PAIR_TRACKS,
               "& > *": { minHeight: PAIR_CHART_MIN_HEIGHT, display: "flex", flexDirection: "column" },
+              "& > * > *:last-child": { flex: 1, minHeight: 0, justifyContent: "flex-start" },
             }}
           >
-            <Section title="번다운" rule sx={{ mb: 0 }}>
+            <Section title="번다운" rule sx={{ mb: 0, flex: 1 }}>
+              <Box sx={{ ...PANEL_SURFACE, flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
               {burndown ? (
                 <LineSeries
                   series={burndown.series}
@@ -496,9 +525,11 @@ export function Sprint() {
                   마감일과 예상 WD 가 적힌 티켓이 있어야 번다운을 그릴 수 있습니다.
                 </Typography>
               )}
+              </Box>
             </Section>
-            <Section title="회차 건강" rule sx={{ mb: 0 }}>
-              <Stack spacing={1.5} alignItems="center">
+            <Section title="회차 건강" rule sx={{ mb: 0, flex: 1 }}>
+              <Box sx={{ ...PANEL_SURFACE, flex: 1, display: "flex", flexDirection: "column", alignItems: "center", minHeight: 0 }}>
+              <Stack spacing={1.5} alignItems="center" sx={{ width: "100%", pt: 0.5 }}>
                 <Gauge
                   value={body.health ? body.health.score : null}
                   centerText={body.health && healthBand(body.health.score)
@@ -518,6 +549,7 @@ export function Sprint() {
                   </Box>
                 ) : null}
               </Stack>
+              </Box>
             </Section>
           </Box>
 
@@ -533,6 +565,7 @@ export function Sprint() {
                 tone: t.tone,
               }))}
             />
+            <Box sx={{ ...LANE_SURFACE, p: PANEL_SURFACE.p, minHeight: "6rem" }}>
             {bucket.items.length === 0 ? (
               <Typography variant="body2" color="text.secondary">
                 {tab.empty}
@@ -555,6 +588,7 @@ export function Sprint() {
                 ) : null}
               </Stack>
             )}
+            </Box>
           </Section>
 
           {/* 3 · 4 — 업무량과 범위 변경 */}
@@ -563,9 +597,11 @@ export function Sprint() {
               display: "grid", gap: 2, mb: 2,
               gridTemplateColumns: MEETING_PAIR_TRACKS,
               "& > *": { minHeight: PAIR_CHART_MIN_HEIGHT, display: "flex", flexDirection: "column" },
+              "& > * > *:last-child": { flex: 1, minHeight: 0, justifyContent: "flex-start" },
             }}
           >
-            <Section title="담당자별 남은 WD" rule sx={{ mb: 0 }}>
+            <Section title="담당자별 남은 WD" rule sx={{ mb: 0, flex: 1 }}>
+              <Box sx={{ ...PANEL_SURFACE, flex: 1, minHeight: 0 }}>
               {workload ? (
                 <BarSeries
                   items={workload.items}
@@ -580,8 +616,10 @@ export function Sprint() {
                   담당자가 걸린 남은 티켓이 없습니다.
                 </Typography>
               )}
+              </Box>
             </Section>
-            <Section title="범위 변경" rule sx={{ mb: 0 }}>
+            <Section title="범위 변경" rule sx={{ mb: 0, flex: 1 }}>
+              <Box sx={{ ...PANEL_SURFACE, flex: 1, minHeight: 0 }}>
               {/* 「기록이 없다」와 「안 바뀌었다」는 다른 사실이다. 0 으로 적으면 화면이
                   안정된 회차라고 말하는데, 실은 아무것도 모르는 것이다. */}
               {body.scope.tracked ? (
@@ -611,6 +649,7 @@ export function Sprint() {
                   이 회차에는 드나든 기록이 없어서 범위가 얼마나 바뀌었는지 알 수 없습니다.
                 </Typography>
               )}
+              </Box>
             </Section>
           </Box>
 
@@ -620,72 +659,99 @@ export function Sprint() {
             help="어느 회차에도 담기지 않은 티켓입니다. 「추가」를 누르면 이번 회차로 들어옵니다."
             rule
           >
-            <DataTable
-              columns={candidateColumns}
-              rows={body.candidates}
-              rowKey={(r) => r.id}
-              onRow={openTicket}
-              empty="담을 수 있는 백로그 티켓이 없습니다."
-            />
+            <Box sx={{ ...LANE_SURFACE, overflow: "hidden" }}>
+              <DataTable
+                columns={candidateColumns}
+                rows={body.candidates}
+                rowKey={(r) => r.id}
+                onRow={openTicket}
+                empty="담을 수 있는 백로그 티켓이 없습니다."
+              />
+            </Box>
           </Section>
 
           {/* 6 — 무엇을 정했나 */}
           <Section
             title="회의 결정과 다음 할 일"
-            help="여기 적은 것은 화면을 닫아도 남습니다."
+            help="회의에서 정한 내용과 할 일을 적어 두면 다음에 다시 열어도 남습니다."
             rule
           >
-            <DecisionComposer
-              busy={addDecision.isPending}
-              onAdd={(payload, reset) =>
-                addDecision.mutate(payload, { onSuccess: reset })
-              }
-            />
-            {body.decisions.length === 0 ? (
-              <Typography variant="body2" color="text.secondary">
-                아직 적은 것이 없습니다.
-              </Typography>
-            ) : (
-              <Box
-                sx={{
-                  display: "grid", gap: 2,
-                  gridTemplateColumns: MEETING_PAIR_TRACKS,
-                }}
-              >
-                {[
-                  { kind: KIND_DECISION, title: "결정", empty: "아직 적은 결정이 없습니다." },
-                  { kind: KIND_ACTION, title: "할 일", empty: "아직 적은 할 일이 없습니다." },
-                ].map((lane) => {
-                  const rows = body.decisions.filter((r) => r.kind === lane.kind);
-                  return (
-                    <Box key={lane.kind}>
-                      <Typography variant="subtitle2" sx={{ mb: 1 }}>{lane.title}</Typography>
-                      {rows.length === 0 ? (
-                        <Typography variant="body2" color="text.secondary">{lane.empty}</Typography>
-                      ) : (
-                        <Stack spacing={1}>
-                          {rows.map((row) => (
-                            <DecisionRow
-                              key={row.id}
-                              row={row}
-                              onToggle={(r, done) => editDecision.mutate({ id: r.id, patch: { done } })}
-                              onOpenTicket={openTicket}
-                              onDelete={async (r) => {
-                                const ok = await confirm(
-                                  "삭제한 회의 기록은 되살릴 수 없습니다. 이 기록을 삭제할까요?",
-                                  { danger: true, confirmLabel: "삭제" }
-                                );
-                                if (ok) removeDecision.mutate(r.id);
-                              }}
-                            />
-                          ))}
-                        </Stack>
-                      )}
-                    </Box>
-                  );
-                })}
-              </Box>
-            )}
+            <Box sx={{ ...PANEL_SURFACE, mb: 2 }}>
+              <DecisionComposer
+                busy={addDecision.isPending}
+                onAdd={(payload, reset) =>
+                  addDecision.mutate(payload, { onSuccess: reset })
+                }
+              />
+            </Box>
+            <Box
+              sx={{
+                display: "grid",
+                gap: 2,
+                gridTemplateColumns: MEETING_PAIR_TRACKS,
+              }}
+            >
+              {[
+                {
+                  kind: KIND_DECISION,
+                  title: "결정",
+                  help: "회의에서 확정한 사실을 적어 둡니다.",
+                  empty: "아직 적은 결정이 없습니다.",
+                },
+                {
+                  kind: KIND_ACTION,
+                  title: "할 일",
+                  help: "다음에 해야 할 일을 적고, 끝나면 체크합니다.",
+                  empty: "아직 적은 할 일이 없습니다.",
+                },
+              ].map((lane) => {
+                const rows = body.decisions.filter((r) => r.kind === lane.kind);
+                return (
+                  <Box
+                    key={lane.kind}
+                    sx={{
+                      ...LANE_SURFACE,
+                      p: TILE_PADDING,
+                      minHeight: "10rem",
+                      display: "flex",
+                      flexDirection: "column",
+                    }}
+                  >
+                    <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 0.5 }}>
+                      <Typography variant="subtitle2" component="h3">{lane.title}</Typography>
+                      <Badge value={String(rows.length)} kind="neutral" />
+                    </Stack>
+                    <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: "block" }}>
+                      {lane.help}
+                    </Typography>
+                    {rows.length === 0 ? (
+                      <Typography variant="body2" color="text.secondary" sx={{ mt: "auto" }}>
+                        {lane.empty}
+                      </Typography>
+                    ) : (
+                      <Stack spacing={1}>
+                        {rows.map((row) => (
+                          <DecisionRow
+                            key={row.id}
+                            row={row}
+                            inLane
+                            onToggle={(r, done) => editDecision.mutate({ id: r.id, patch: { done } })}
+                            onOpenTicket={openTicket}
+                            onDelete={async (r) => {
+                              const ok = await confirm(
+                                "삭제한 회의 기록은 되살릴 수 없습니다. 이 기록을 삭제할까요?",
+                                { danger: true, confirmLabel: "삭제" }
+                              );
+                              if (ok) removeDecision.mutate(r.id);
+                            }}
+                          />
+                        ))}
+                      </Stack>
+                    )}
+                  </Box>
+                );
+              })}
+            </Box>
           </Section>
         </>
       ) : null}

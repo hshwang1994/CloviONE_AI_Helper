@@ -566,20 +566,21 @@ describe("프로젝트 목록 — 조건이 주소에 남는다", () => {
     expect(screen.getByRole("switch", { name: "보관한 프로젝트 포함" })).toBeChecked();
   });
 
-  it("페이지를 넘겨도 걸어 둔 조건은 그대로 간다", async () => {
+  it("더 받아도 걸어 둔 조건은 그대로 간다", async () => {
     const user = userEvent.setup();
     listPayload = { items: [project()], total: 45, page: 1, page_size: 20 };
     renderAt("/projects?archived=1");
     await screen.findByText("배포 자동화");
 
-    await user.click(await screen.findByRole("button", { name: "다음" }));
+    await user.click(await screen.findByRole("button", { name: "프로젝트 더 보기" }));
 
     await waitFor(() => {
       const sent = lastQuery("/api/projects");
       expect(sent.get("page")).toBe("2");
       expect(sent.get("include_archived")).toBe("true");
     });
-    expect(addrParam("page")).toBe("2");
+    /* 🔴 쪽 번호는 **주소에 안 남는다.** 「어디까지 봤는가」는 조건이 아니라 시야다. */
+    expect(addrParam("page")).toBeNull();
   });
 });
 

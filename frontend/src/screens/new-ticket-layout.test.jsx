@@ -4,6 +4,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { fillDateField } from "../test-helpers/dateField.js";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { MemoryRouter } from "react-router-dom";
 import { ThemeProvider } from "@mui/material/styles";
 
 /* '새 티켓' 폼의 짧은 값 입력 격자가 **뷰포트가 아니라 자기가 놓인 칸의 폭**으로 열 수를
@@ -91,10 +92,15 @@ beforeEach(() => {
 
 function renderNewTicket() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  /* 라우터 안에서 그린다 — 실제 앱이 그렇고(`app/UserRoutes.jsx`), 만든 뒤 그 티켓으로
+     이동하는 것이 이 화면의 마지막 단계다(`navigate('/tickets/:id')`). 라우터 없이 그리면
+     그 단계 자체를 시험이 못 본다. */
   return render(
     <QueryClientProvider client={qc}>
       <ThemeProvider theme={createClovirTheme()}>
-        <NewTicket />
+        <MemoryRouter initialEntries={["/new-ticket"]}>
+          <NewTicket />
+        </MemoryRouter>
       </ThemeProvider>
     </QueryClientProvider>,
   );

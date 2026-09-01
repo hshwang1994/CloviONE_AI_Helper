@@ -10,7 +10,7 @@
  */
 import React from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
@@ -148,19 +148,44 @@ function lastDocumentCall() {
   return rows[rows.length - 1];
 }
 
-describe("문서 목록의 쪽 넘기기", () => {
-  it("전체 건수를 말하고, 다음 쪽을 누르면 그 다음 문서를 실제로 요청한다", async () => {
+describe("문서 목록의 묶음 이어 받기", () => {
+  it("전체 건수와 받은 건수를 말하고, 더 받으면 **이어 붙는다**", async () => {
     renderList();
     await seeRows();
 
-    expect(await screen.findByText(/총 110건/)).toBeTruthy();
+    /* 「이 조건에 몇 건인가」는 결과 줄이, 「그중 몇 건을 받았는가」는 목록 끝 줄이 말한다.
+       예전에는 뒤엣것이 페이저 안에만 있어서 한 쪽짜리 목록에서는 통째로 사라졌다. */
+    expect(await screen.findByText(/전체 110건/)).toBeTruthy();
     expect(documentCalls()[0]).toContain(`limit=${PAGE}`);
     expect(documentCalls()[0]).toContain("offset=0");
+    expect(await screen.findByText(`110건 중 ${PAGE}건을 받았습니다.`)).toBeTruthy();
 
-    await userEvent.click(screen.getByRole("button", { name: "다음" }));
+    /* 단추 경로가 정본이다 — 키보드·스크린리더 사용자가 실제로 쓰는 길이고, 그 길이 없으면
+       이 목록은 그들에게 첫 묶음이 전부다. */
+    await userEvent.click(screen.getByRole("button", { name: "문서 더 보기" }));
     await waitFor(() => expect(documentCalls().length).toBeGreaterThan(1));
     expect(lastDocumentCall()).toContain(`offset=${PAGE}`);
-    expect((await screen.findAllByText(`문서 ${PAGE}`)).length).toBeGreaterThan(0);
+
+    /* 🔴 「이어 붙였는가」는 **받은 행 수**로 잰다. 화면에서 100번째 행을 찾으면 안 된다 —
+       가상화가 목적대로 돌면 그 행은 DOM 에 없다(그것이 가상화가 하는 일이다).
+       `data-virtual-total` 이 그 자리를 위해 있는 속성이다(§18.2). */
+    await waitFor(() => {
+      const table = document.querySelector("table[data-virtual-total]");
+      expect(table.getAttribute("data-virtual-total")).toBe("110");
+    });
+    expect(await screen.findByText("110건 중 110건을 받았습니다.")).toBeTruthy();
+    /* 다 받았으면 더 받을 단추가 없다. */
+    expect(screen.queryByRole("button", { name: "문서 더 보기" })).toBeNull();
+    /* 앞 묶음이 그대로 남아 있다 = 갈아 끼운 게 아니라 이어 붙였다. */
+    expect(screen.getAllByText("문서 0").length).toBeGreaterThan(0);
+  });
+
+  it("끝까지 굴려도 같은 일이 일어난다 — 단추와 자동 로딩이 같은 것을 부른다", async () => {
+    renderList();
+    await seeRows();
+    await act(async () => { globalThis.__intersect(); });
+    await waitFor(() => expect(documentCalls().length).toBeGreaterThan(1));
+    expect(lastDocumentCall()).toContain(`offset=${PAGE}`);
   });
 
   it("즐겨찾기 조건은 서버 질의에 실려 나간다", async () => {
@@ -173,17 +198,25 @@ describe("문서 목록의 쪽 넘기기", () => {
       expect(documentCalls().some((p) => p.includes("favorites=true"))).toBe(true));
   });
 
-  it("조건을 바꾸면 첫 쪽으로 돌아온다 — 세 번째 쪽에서 걸러 놓고 빈 화면을 보면 안 된다", async () => {
+  it("조건을 바꾸면 받아 둔 묶음을 **버린다** — 옛 조건의 문서가 새 목록 위에 남지 않는다", async () => {
     renderList();
     await seeRows();
-    await userEvent.click(screen.getByRole("button", { name: "다음" }));
+    await userEvent.click(screen.getByRole("button", { name: "문서 더 보기" }));
     await waitFor(() => expect(documentCalls().length).toBeGreaterThan(1));
+    await waitFor(() => {
+      expect(document.querySelector("table[data-virtual-total]").getAttribute("data-virtual-total")).toBe("110");
+    });
 
     const strip = await screen.findByRole("group", { name: "문서 요약" });
     await userEvent.click(within(strip).getByText("즐겨찾기"));
     await waitFor(() =>
       expect(documentCalls().some((p) => p.includes("favorites=true"))).toBe(true));
     expect(lastDocumentCall()).toContain("offset=0");
+    /* 두 번째 묶음이 사라졌다. 남으면 hasNext 가 옛 데이터에서 나오고, 센티넬이 그 자리에서
+       다음을 불러 옛 조건 아래에 새 조건이 붙는다(`keepPreviousData` 를 안 쓰는 이유). */
+    await waitFor(() => {
+      expect(document.querySelector("table[data-virtual-total]").getAttribute("data-virtual-total")).toBe("100");
+    });
   });
 
   it("담아 둔 문서에는 별이 보이고, 그 별로 담고 뺄 수 있다", async () => {

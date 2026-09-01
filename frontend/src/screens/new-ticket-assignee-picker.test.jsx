@@ -4,6 +4,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { fillDateField } from "../test-helpers/dateField.js";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { MemoryRouter } from "react-router-dom";
 import { ThemeProvider } from "@mui/material/styles";
 
 /* PA-RC-0035: 담당자 선택이 사람 수만큼 자라는 평면 체크박스 목록이었다(14명 기준 새 티켓
@@ -61,10 +62,15 @@ beforeEach(() => {
 
 function renderNewTicket() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  /* 라우터 안에서 그린다 — 실제 앱이 그렇고(`app/UserRoutes.jsx`), 만든 뒤 그 티켓으로
+     이동하는 것이 이 화면의 마지막 단계다(`navigate('/tickets/:id')`). 라우터 없이 그리면
+     그 단계 자체를 시험이 못 본다. */
   return render(
     <QueryClientProvider client={qc}>
       <ThemeProvider theme={createClovirTheme()}>
-        <NewTicket />
+        <MemoryRouter initialEntries={["/new-ticket"]}>
+          <NewTicket />
+        </MemoryRouter>
       </ThemeProvider>
     </QueryClientProvider>,
   );
@@ -198,7 +204,7 @@ describe("새 티켓 — 담당자는 검색 가능한 자동완성이다 (PA-RC
 });
 
 describe("새 티켓 — 설명 필드의 안내는 입력 중에도 남는다 (PA-RC-0035 acceptance 5,6)", () => {
-  it("placeholder는 예시 한 줄이고, 서식/미리보기 안내는 항상 보이는 캡션에 있다", async () => {
+  it("placeholder는 예시 한 줄이고, 서식 안내는 항상 보이는 캡션에 있다", async () => {
     renderNewTicket();
     const editor = await waitFor(() => {
       const el = document.getElementById("nt-desc");
@@ -206,7 +212,10 @@ describe("새 티켓 — 설명 필드의 안내는 입력 중에도 남는다 (
       return el;
     });
     expect(editor).toHaveAttribute("placeholder", expect.stringMatching(/^예:/));
-    expect(screen.getByText(/위 도구로 제목, 글머리, 번호, 구분선, 이모지를 넣을 수 있고/)).toBeInTheDocument();
+    expect(screen.getByText(/위 도구로 제목, 글머리, 번호, 구분선, 이모지를 커서 자리에 넣을 수 있습니다/)).toBeInTheDocument();
+    /* 미리보기 판은 **새로 쓰는 자리에 없다** — 입력칸과 같은 높이의 빈 상자가 폼을 두 배로
+       늘리기만 했다. 켜는 자리는 이미 있는 긴 본문을 고치는 자리뿐이다(`ui/EditableBody.jsx`). */
+    expect(screen.queryByText("미리보기")).toBeNull();
   });
 
   it("설명을 입력해도 안내 캡션이 사라지지 않는다(placeholder와 달리)", async () => {
@@ -216,6 +225,6 @@ describe("새 티켓 — 설명 필드의 안내는 입력 중에도 남는다 (
     await screen.findByText("나");
     const editor = document.getElementById("nt-desc");
     await user.type(editor, "실제 내용을 입력합니다");
-    expect(screen.getByText(/위 도구로 제목, 글머리, 번호, 구분선, 이모지를 넣을 수 있고/)).toBeInTheDocument();
+    expect(screen.getByText(/위 도구로 제목, 글머리, 번호, 구분선, 이모지를 커서 자리에 넣을 수 있습니다/)).toBeInTheDocument();
   });
 });

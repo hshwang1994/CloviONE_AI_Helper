@@ -13,7 +13,9 @@ from app.core.deps import get_db, get_principal, require_csrf, require_roles
 from app.core.errors import ConflictError, NotFoundError, ValidationAppError
 from app.core.pagination import PageParams
 from app.jobs.models import ALL_STATUSES, STATUS_FAILED, STATUS_QUEUED, Job
+from app.core.sort import SortParams, order_by
 from app.jobs.repository import (
+    LIST_SORT,
     apply_scope,
     cancel_queued,
     get_in_scope,
@@ -118,7 +120,16 @@ def list_jobs(
     schedule_id: str | None = Query(default=None, max_length=64),
     schedule_run_id: str | None = Query(default=None, max_length=64),
     principal: Principal = Depends(get_principal),
+    sort: SortParams = Depends(),
 ):
+    """작업 큐 목록.
+
+    절 순서가 계약이다: **① 조건 → ② 범위 → ③ 정렬 → ④ 상한.** 범위가 상한보다 앞이어야
+    하는 이유는 D-202 그대로이고, 정렬이 상한보다 앞이어야 하는 이유도 같다 — 뒤로 옮기면
+    「100건을 뽑아 그 안에서 정렬」이 된다.
+
+    ⚠️ append-heavy 목록이라 묶음 사이에 새 잡이 들어오면 OFFSET 이 밀린다(커서는 별건).
+    """
     stmt = select(Job)
     # 범위 밖 사람의 작업은 안 보인다 (2순위 #6). 잡에는 **요청자의 입력이 payload 로 들어
     # 있다**(채팅 메시지 등) — 큐를 훑는 것은 그 사람이 무엇을
@@ -152,7 +163,7 @@ def list_jobs(
     total = db.execute(select(func.count()).select_from(stmt.subquery())).scalar_one()
     rows = (
         db.execute(
-            stmt.order_by(Job.created_at.desc(), Job.id.desc()).offset(page.offset).limit(page.page_size)
+            stmt.order_by(*order_by(LIST_SORT, sort)).offset(page.offset).limit(page.page_size)
         )
         .scalars()
         .all()

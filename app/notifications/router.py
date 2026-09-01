@@ -10,6 +10,7 @@ from app.core.deps import get_db, get_current_user, require_csrf
 from app.core.etag import etag_json_response
 from app.core.errors import NotFoundError
 from app.core.pagination import PageParams
+from app.core.sort import SortParams, SortSpec, order_by
 from app.notifications.destinations import destination_for
 from app.notifications.models import AUDIENCES, Notification
 from app.notifications.service import (
@@ -113,11 +114,29 @@ class ReadTypesRequest(BaseModel):
 
 
 
+# 목록의 정렬 계약. 기계는 `app/core/sort.py`, 허용 키는 여기서 정한다.
+#
+# `audience` 를 **일부러 뺐다**: 화면이 그 값을 주소에 박아 한 값으로 고정하므로(내 업무 /
+# 관리) 정렬해 봐야 한 값이다.
+LIST_SORT = SortSpec(
+    columns={
+        "created_at": Notification.created_at,  # 인덱스 있음
+        "read_at": Notification.read_at,        # nullable — 안 읽음이 뒤로 간다
+        "type": Notification.type,
+        "title": Notification.title,
+    },
+    default="created_at",
+    tiebreak=Notification.id,
+    default_order="desc",
+)
+
+
 @router.get("")
 def list_notifications(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
     page: PageParams = Depends(),
+    sort: SortParams = Depends(),
     unread_only: bool = Query(default=False),
     read: str | None = Query(
         default=None,
@@ -146,9 +165,11 @@ def list_notifications(
     if audience in AUDIENCES:
         stmt = stmt.where(Notification.audience == audience)
     total = db.execute(select(func.count()).select_from(stmt.subquery())).scalar_one()
+    # ① 조건 → ② 범위(user_id) → ③ 정렬 → ④ 상한. append-heavy 목록이라 묶음을 이어 받는
+    # 사이에 새 알림이 들어오면 OFFSET 이 밀린다 — 화면이 행 id 로 중복만 거른다(커서는 별건).
     rows = (
         db.execute(
-            stmt.order_by(Notification.created_at.desc(), Notification.id.desc())
+            stmt.order_by(*order_by(LIST_SORT, sort))
             .offset(page.offset)
             .limit(page.page_size)
         )

@@ -218,7 +218,12 @@ export function ConversationSidebar({
                         onDelete={async () => { if (await confirm("이 대화를 삭제할까요? 되돌릴 수 없습니다.", { danger: true, confirmLabel: "대화 삭제" })) deleteConv.mutate(c.id); }} />
                     ))}
                     {/* AI-18: 대화가 상한(기본 100개)보다 많을 때만 보인다 — 그 이하인 절대다수
-                        사용자에게는 아무것도 안 보이던 예전 그대로다. */}
+                        사용자에게는 아무것도 안 보이던 예전 그대로다.
+                        🔴 여기는 목록 끝 줄(`ui/InfiniteScroll.jsx::ListFooter`)을 **안 쓴다.**
+                        두 가지가 다르다: ① 봉투에 offset 이 없어 「상한을 키워 다시 받는」
+                        관용이고(`Trash` 와 같은 이유) 자동 로딩을 켤 수 없다 ② 이 곁열은
+                        240px 짜리 세로 레일이라 「N건 중 M건을 받았습니다」 한 줄이 제목들
+                        사이에서 소음이 된다. 단추 하나가 그 자리에 필요한 전부다. */}
                     {hasMoreConvs ? (
                       <Button
                         size="sm" variant="ghost" loading={convs.isFetching}

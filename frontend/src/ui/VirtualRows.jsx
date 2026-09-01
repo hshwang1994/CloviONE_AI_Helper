@@ -2,7 +2,7 @@ import React from "react";
 import Box from "@mui/material/Box";
 import TableRow from "@mui/material/TableRow";
 import TableCell from "@mui/material/TableCell";
-import { useVirtualizer } from "@tanstack/react-virtual";
+import { useVirtualizer, useWindowVirtualizer } from "@tanstack/react-virtual";
 
 /* `@tanstack/react-virtual` 얇은 감싸개 (§15.1 재검수).
  *
@@ -134,20 +134,21 @@ export function VirtualRows({
  * 우연히 다시 렌더되는 화면(비동기로 자료가 늦게 오는 화면)에서만 안 드러났을 뿐이다.
  * 호출부가 `useState` + 콜백 ref 로 조상 노드를 쥐면(`DataTable` 참고), 그 노드가 실제로
  * 붙는 순간 **state 갱신 → 리렌더**가 일어나 이 문제 자체가 생기지 않는다. */
-export function VirtualTableBody({
-  items, estimateSize, renderRow, getItemKey, colSpan, scrollElement, overscan = DEFAULT_OVERSCAN,
-}) {
-  const list = Array.isArray(items) ? items : [];
-  const virtualizer = useVirtualizer({
-    count: list.length,
-    getScrollElement: () => scrollElement,
-    estimateSize: typeof estimateSize === "function" ? estimateSize : () => estimateSize || 44,
-    overscan,
-  });
+/* 여백 행 둘 + 보이는 행 — **두 모드가 같은 몸통을 쓴다.**
+ *
+ * 행 하나를 모드마다 다르게 그리면 그 자체가 회귀다(`kit.jsx::renderDataRow` 가 가상화와
+ * 평범한 렌더에 같은 함수를 쓰는 것과 같은 이유).
+ *
+ * `offset` 은 «항목 좌표의 원점». 창 가상화기는 항목의 `start` 를 **문서 맨 위**부터 재므로
+ * 목록이 시작하는 지점(`scrollMargin`)을 빼야 여백 높이가 나온다. 요소 가상화기는 0 이다.
+ * (`virtual-core` 의 `getTotalSize()` 자체가 `end - scrollMargin` 이라 아래 뺄셈과 짝이 맞는다.) */
+function SpacerRows({ virtualizer, items, renderRow, getItemKey, colSpan, offset = 0 }) {
   const virtualItems = virtualizer.getVirtualItems();
   const totalSize = virtualizer.getTotalSize();
-  const topSpace = virtualItems.length ? virtualItems[0].start : 0;
-  const bottomSpace = virtualItems.length ? totalSize - virtualItems[virtualItems.length - 1].end : 0;
+  const topSpace = virtualItems.length ? virtualItems[0].start - offset : 0;
+  const bottomSpace = virtualItems.length
+    ? totalSize - (virtualItems[virtualItems.length - 1].end - offset)
+    : 0;
 
   return (
     <>
@@ -157,7 +158,7 @@ export function VirtualTableBody({
         </TableRow>
       ) : null}
       {virtualItems.map((row) => {
-        const item = list[row.index];
+        const item = items[row.index];
         return (
           <React.Fragment key={getItemKey ? getItemKey(item, row.index) : row.key}>
             {renderRow(item, row.index)}
@@ -171,4 +172,85 @@ export function VirtualTableBody({
       ) : null}
     </>
   );
+}
+
+export function VirtualTableBody({
+  items, estimateSize, renderRow, getItemKey, colSpan, scrollElement, overscan = DEFAULT_OVERSCAN,
+}) {
+  const list = Array.isArray(items) ? items : [];
+  const virtualizer = useVirtualizer({
+    count: list.length,
+    getScrollElement: () => scrollElement,
+    estimateSize: typeof estimateSize === "function" ? estimateSize : () => estimateSize || 44,
+    overscan,
+  });
+  return (
+    <SpacerRows
+      virtualizer={virtualizer} items={list} renderRow={renderRow}
+      getItemKey={getItemKey} colSpan={colSpan}
+    />
+  );
+}
+
+/** `<table>` 안의 가상 행 — **윈도가 스크롤 창인 경우.**
+ *
+ * 이 앱의 셸은 문서를 굴린다(`AppShell` 은 `main` 에 `overflow` 를 안 준다). 그래서 목록의
+ * 기본 모드는 이쪽이고, 안쪽 상자(`VirtualTableBody`)는 스스로 높이를 가진 자리 — 작업 보드
+ * 레인·모달 안 하위 목록 — 만 쓴다.
+ *
+ * 안쪽 상자를 기본으로 두면 잃는 것이 셋이다: ① 스크롤바가 둘이 되어 휠이 어느 것을 움직이는지
+ * 사용자가 매번 추측한다 ② `maxHeight: 32rem` 은 4K 에서 목록을 문틈으로 만든다(이 저장소의
+ * 루트 폰트사이즈는 2200/3000 에서 커진다) ③ **`lib/listReturn.js` 는 `window.scrollY` 만
+ * 안다** — 행이 안쪽 상자에 있으면 상세에서 돌아왔을 때 아무것도 복원되지 않는다.
+ *
+ * `scrollMargin` 은 «문서 맨 위에서 이 목록까지의 거리» 다. 안 주면 창 가상화기가 목록이
+ * 화면 맨 위에 있다고 믿어 엉뚱한 구간을 그린다 — `useScrollMargin` 이 그 값을 잰다. */
+export function WindowVirtualTableBody({
+  items, estimateSize, renderRow, getItemKey, colSpan, scrollMargin = 0, overscan = DEFAULT_OVERSCAN,
+}) {
+  const list = Array.isArray(items) ? items : [];
+  const virtualizer = useWindowVirtualizer({
+    count: list.length,
+    estimateSize: typeof estimateSize === "function" ? estimateSize : () => estimateSize || 44,
+    overscan,
+    scrollMargin,
+  });
+  return (
+    <SpacerRows
+      virtualizer={virtualizer} items={list} renderRow={renderRow}
+      getItemKey={getItemKey} colSpan={colSpan} offset={scrollMargin}
+    />
+  );
+}
+
+/** 이 노드가 문서 어디서 시작하는가 — 창 가상화기의 `scrollMargin`.
+ *
+ * `getBoundingClientRect().top + window.scrollY` 는 **스크롤 위치와 무관한 값**이라 언제 재도
+ * 같다. 다시 재야 하는 때는 위쪽 것이 늘거나 줄 때다 — 필터 줄이 접히거나 배너가 뜨거나
+ * 창 폭이 바뀌어 줄바꿈이 달라지는 순간.
+ *
+ * 🔴 노드는 **`useState` + 콜백 ref** 로 받는다(D-353). 평범한 `useRef` 를 넘기면 이 훅의
+ * 레이아웃 이펙트가 도는 시점에 아직 `null` 이고, 그 값이 그대로 확정된다. */
+export function useScrollMargin(node) {
+  const [margin, setMargin] = React.useState(0);
+  React.useLayoutEffect(() => {
+    if (!node || typeof window === "undefined") return undefined;
+    const measure = () => {
+      const rect = node.getBoundingClientRect();
+      setMargin(Math.max(0, Math.round(rect.top + window.scrollY)));
+    };
+    measure();
+    window.addEventListener("resize", measure);
+    let ro = null;
+    if (typeof ResizeObserver !== "undefined") {
+      ro = new ResizeObserver(measure);
+      /* 목록 **위쪽**이 자라면 시작점이 내려간다 — 목록 자신이 아니라 문서를 본다. */
+      if (document.body) ro.observe(document.body);
+    }
+    return () => {
+      window.removeEventListener("resize", measure);
+      if (ro) ro.disconnect();
+    };
+  }, [node]);
+  return margin;
 }

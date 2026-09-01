@@ -51,15 +51,10 @@ export const EMOJI_LABELS = {
   "🗓️": "달력", "🧑‍💻": "개발자", "🤖": "로봇",
 };
 
-/** 커서 위치에 문자열을 끼워 넣는다. 반환: { text, caret } — caret 은 삽입 뒤 커서 위치. */
-export function insertAtCursor(text, insert, selStart, selEnd) {
-  const src = typeof text === "string" ? text : "";
-  const add = typeof insert === "string" ? insert : "";
-  // 선택 위치를 모르면(포커스가 없던 경우) 맨 뒤에 붙인다 — 임의로 0을 쓰면 문장 앞에 끼어든다.
-  const start = Number.isInteger(selStart) && selStart >= 0 && selStart <= src.length ? selStart : src.length;
-  const end = Number.isInteger(selEnd) && selEnd >= start && selEnd <= src.length ? selEnd : start;
-  return { text: src.slice(0, start) + add + src.slice(end), caret: start + add.length };
-}
+/* 커서 삽입은 이제 `lib/caret.js` 가 정본이다 — 같은 규칙이 본문 편집기(`ui/BodyEditor.jsx`)
+ * 에도 필요한데, 그쪽이 `screens/` 를 import 하면 의존이 거꾸로 선다. 여기서는 이름을 그대로
+ * 다시 내보내 이 파일의 소비처와 시험이 안 갈라지게 한다. */
+export { insertAtCursor } from "../lib/caret.js";
 
 /** 서버 uploads.IMAGE_MEDIA_TYPES 와 같은 목록 — 여기서 미리 걸러 헛된 업로드를 줄인다.
  *  판정은 어차피 서버가 매직바이트로 다시 한다(브라우저가 붙인 type 은 신뢰하지 않는다). */

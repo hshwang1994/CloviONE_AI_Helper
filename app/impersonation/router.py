@@ -29,6 +29,7 @@ from app.core.deps import (
 )
 from app.core.errors import NotFoundError
 from app.core.pagination import PageParams
+from app.core.sort import SortParams, SortSpec, order_by
 from app.core.scope import Principal, management_scope, visible_user_ids
 from app.impersonation import service
 from app.impersonation.models import END_MANUAL, ImpersonationSession
@@ -150,6 +151,25 @@ def stop_impersonation(
     return {"ok": True, "ended": row is not None}
 
 
+#: 대리 보기 이력의 정렬 계약.
+#:
+#: `actor_name`/`target_name` 을 **일부러 뺐다.** 이 표는 FK 를 안 건다 — 계정이 지워져도
+#: 기록은 남아야 하기 때문이다(모델 docstring). 이름으로 정렬하려면 조인이 필요한데,
+#: INNER JOIN 은 삭제 계정의 행을 조용히 떨구고(감사 산출물에서 행이 사라진다) LEFT JOIN
+#: 두 벌은 이 화면 하나 때문에 질의를 두 배로 만든다. 사람 축은 이미 필터로 있다.
+_LIST_SORT = SortSpec(
+    columns={
+        "started_at": ImpersonationSession.started_at,   # 인덱스 있음
+        "ended_at": ImpersonationSession.ended_at,       # nullable — 진행 중이 뒤로 간다
+        "read_count": ImpersonationSession.read_count,
+        "blocked_write_count": ImpersonationSession.blocked_write_count,
+    },
+    default="started_at",
+    tiebreak=ImpersonationSession.id,
+    default_order="desc",
+)
+
+
 @router.get("/sessions", dependencies=[Depends(require_permission(AUDIT_READ))])
 def list_sessions(
     db: Session = Depends(get_db),
@@ -158,6 +178,7 @@ def list_sessions(
     target_user_id: str | None = None,
     active: bool | None = None,
     principal: Principal = Depends(get_principal),
+    sort: SortParams = Depends(),
 ) -> dict:
     stmt = select(ImpersonationSession)
     # 범위 밖 대리 보기 이력은 안 보인다 (2순위 #5).
@@ -194,9 +215,8 @@ def list_sessions(
     total = db.execute(select(func.count()).select_from(stmt.subquery())).scalar_one()
     rows = (
         db.execute(
-            stmt.order_by(
-                ImpersonationSession.started_at.desc(), ImpersonationSession.id.desc()
-            )
+            # ① 조건 → ② 범위 → ③ 정렬 → ④ 상한. 범위가 상한보다 앞인 이유는 D-202 그대로다.
+            stmt.order_by(*order_by(_LIST_SORT, sort))
             .offset(page.offset)
             .limit(page.page_size)
         )

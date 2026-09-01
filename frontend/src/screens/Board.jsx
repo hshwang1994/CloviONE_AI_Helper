@@ -15,6 +15,7 @@ import {
   DataTable,
   EmptyState,
   ErrorState,
+  ListCard,
   Modal,
   ModalFooter,
   PageHeader,
@@ -31,7 +32,8 @@ import { useQueryState } from "../lib/useQueryState.js";
 import { SearchBox } from "../ui/filters.jsx";
 import { FilterRow, FilterSurface, ResultLine, ToolbarEnd, ToolbarRow } from "../ui/FilterBar.jsx";
 import { DateCell } from "../ui/cells.jsx";
-import { Pager } from "../ui/Pager.jsx";
+import { ListFooter } from "../ui/InfiniteScroll.jsx";
+import { useInfiniteList } from "../lib/useInfiniteList.js";
 
 /* 게시판 목록 (팀 공간 §18). 순수 내부 기능 — 외부 호출 없음. 카테고리 필터·검색·정렬은
  * 페이지 안에서 처리하고, 글쓰기는 이 페이지의 버튼(모달)이다. 행을 누르면 상세로 이동한다.
@@ -363,10 +365,10 @@ export function Reactions({ targetType, targetId, reactions, palette, onChanged 
  * 화면은 그 총 건수를 「총 87건」이라고 적어 놓고 쪽을 넘길 길을 주지 않았다 — 21번째
  * 글부터는 존재한다는 사실만 보이고 열 방법이 없었다. 조건을 바꾸면 첫 쪽으로 돌아온다
  * (`PAGE_RESET`): 세 번째 쪽을 보다가 검색을 하면 결과가 한 쪽뿐인데 빈 화면이 뜬다. */
-const FREE_SPEC = { category: "", q: "", sort: "recent", page: 1 };
-const IDEA_SPEC = { category: "", q: "", sort: "likes", status: "", page: 1 };
+const FREE_SPEC = { category: "", q: "", sort: "recent" };
+const IDEA_SPEC = { category: "", q: "", sort: "likes", status: "" };
 const SPEC_BY_KIND = { free: FREE_SPEC, idea: IDEA_SPEC };
-const PAGE_RESET = { reset: ["page"] };
+
 
 /* 종류마다 다른 것은 문구뿐이다. 화면 구조는 하나다.
  * BoardPost.jsx(상세)도 같은 표를 쓴다 — area(빵부스러기)가 "자유게시판"으로 박혀 있으면
@@ -400,8 +402,8 @@ function BoardScreen({ kind = "free" }) {
      같은 화면이지만 **다른 목록**이라 기억도 따로 한다. */
   useListMemory(isIdea ? "/ideas" : "/board");
   const copy = COPY[kind] || COPY.free;
-  const [query, setQuery] = useQueryState(SPEC_BY_KIND[kind] || FREE_SPEC, PAGE_RESET);
-  const { category, q, sort, page } = query;
+  const [query, setQuery] = useQueryState(SPEC_BY_KIND[kind] || FREE_SPEC);
+  const { category, q, sort } = query;
   // 자유게시판 스펙에는 `status` 자체가 없다 — 주소에 실려 와도 읽지 않는다.
   const status = isIdea ? query.status : "";
   const [composing, setComposing] = useState(false);
@@ -423,16 +425,15 @@ function BoardScreen({ kind = "free" }) {
      화면에 `kind === "idea"` 판정을 하나 더 적으면 규칙이 두 군데가 된다. */
   const statuses = (isIdea && meta.data && meta.data.statuses) || [];
 
-  const list = useQuery({
-    queryKey: ["board", kind, category, q, sort, status, page],
-    queryFn: () => api("/api/board/posts?" + buildPostsQuery({ kind, category, q, sort, status, page })),
-    // 쪽을 넘길 때 목록이 통째로 스켈레톤으로 사라졌다 나타나지 않게 한다(다른 목록과 같다).
-    placeholderData: keepPreviousData,
+  const list = useInfiniteList({
+    key: ["board", kind, category, q, sort, status],
+    rowId: (p) => (p && p.id) || undefined,
+    fetch: ({ page }) => api("/api/board/posts?" + buildPostsQuery({ kind, category, q, sort, status, page })),
   });
 
   /* 작성자 신원 묶음(부서·직책·사진). 사람 한 명당 한 줄만 오고 행은 uid 로 찾아 쓴다 —
      행마다 신원을 되풀이하면 목록 응답이 그만큼 부푼다. 옛 응답·캐시에는 없을 수 있다. */
-  const people = (list.data && list.data.people) || {};
+  const people = (list.first && list.first.people) || {};
 
   /* 폭은 열의 **뜻**에서 나온다(`type`) — 제목만 남는 폭을 전부 갖고 나머지는 내용 폭에
    * 붙는다. 4K에서도 제목 열만 넓어진다.
@@ -502,7 +503,7 @@ function BoardScreen({ kind = "free" }) {
   ];
 
   const writeBtn = <Button variant="primary" onClick={() => setComposing(true)}>{copy.writeLabel}</Button>;
-  const items = (list.data && list.data.items) || [];
+  const items = list.rows;
   // 검색·카테고리가 걸려 있을 때의 '결과 없음'과, 게시판 자체가 비어 있는 '첫 글을 써 보세요'는
   // 사용자가 해야 할 일이 정반대다 — 예전엔 둘 다 "아직 게시글이 없습니다"로 뭉개져 있어서,
   // 검색어를 잘못 친 사람에게 "첫 이야기를 남겨 보세요"라고 안내했다.
@@ -589,9 +590,9 @@ function BoardScreen({ kind = "free" }) {
           ) : null}
         </FilterRow>
       </FilterSurface>
-      {list.data ? (
+      {list.first ? (
         <ResultLine
-          total={list.data.total != null ? list.data.total : items.length}
+          total={list.total != null ? list.total : items.length}
           conditions={[q, category, status].filter(Boolean)}
         />
       ) : null}
@@ -599,7 +600,7 @@ function BoardScreen({ kind = "free" }) {
       <Typography component="h2" className="sr-only">목록</Typography>
       {list.isError ? (
         <ErrorState error={list.error} onRetry={() => list.refetch()} />
-      ) : list.isPending ? (
+      ) : list.isLoading ? (
         <Card>{/* 표가 들어올 자리에는 표 모양을 그린다 (지시 20) - 빈 목록과 아직 안 온 목록은 다른 사실이다. */}<DataTable columns={columns} rows={[]} loading /></Card>
       ) : items.length === 0 ? (
         hasFilter ? (
@@ -622,7 +623,7 @@ function BoardScreen({ kind = "free" }) {
           />
         )
       ) : (
-        <Card className="c-list-card">
+        <ListCard>
           <DataTable
             columns={columns}
             rows={items}
@@ -635,15 +636,14 @@ function BoardScreen({ kind = "free" }) {
                이 값이 없으면 제안 글에서 자유게시판으로 떨어진다. */
             onRow={(p) => nav(copy.route + p.id, { state: { from: isIdea ? "/ideas" : "/board" } })}
           />
-          {/* 서버가 자른 목록에는 쪽을 넘길 길이 있어야 한다 — 없으면 위 결과 줄이 말하는
+          {/* 서버가 자른 목록에는 더 받을 길이 있어야 한다 — 없으면 위 결과 줄이 말하는
               건수의 대부분이 열 수 없는 숫자가 된다. */}
-          <Pager
-            page={list.data.page}
-            pageSize={list.data.page_size}
-            total={list.data.total}
-            onPage={(next) => setQuery({ page: next })}
+          <ListFooter
+            total={list.total} loaded={list.loaded}
+            hasNext={list.hasNext} isFetchingNext={list.isFetchingNext} onMore={list.fetchNext}
+            moreLabel="글 더 보기"
           />
-        </Card>
+        </ListCard>
       )}
 
       <PostFormModal

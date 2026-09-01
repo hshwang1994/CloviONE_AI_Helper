@@ -57,12 +57,16 @@ export const PARENT_DEPT_FIELD = {
   type: "select",
   value: "",
   help: "비우면 최상위 부서가 됩니다. 하위 부서를 상위로 고르면 순환이 되어 저장되지 않습니다.",
-  optionsFrom: (row, rows) => opt([
-    ["", "(최상위)"],
-    ...(rows || [])
-      .filter((d) => !row || d.id !== row.id)
-      .map((d) => [d.id, d.name]),
-  ]),
+  /* 🔴 후보를 **지금 화면에 받아 둔 행에서 뽑지 않는다.**
+   *
+   * 예전에는 `optionsFrom: (row, rows) => …` 로 목록 응답을 그대로 썼다. 부서 목록은 전량이라
+   * 「숨는 행」은 없었지만, 그 `rows` 는 **지금 걸린 조건의 결과**다 — 툴바에서 「미사용」을
+   * 고른 채 부서를 만들면 상위 부서 후보가 「미사용 부서만」이 된다. 조용하고, 오류가 안 난다.
+   *
+   * `optionsFromRefList` 는 조건과 무관한 별도 질의다(`refLists`). 이것으로 이 저장소의
+   * `optionsFrom` 사용처가 0이 된다. */
+  optionsFromRefList: "allDepartments",
+  extraOptions: [{ value: "", label: "(최상위)" }],
 };
 // 버전 스냅샷 열 — 각 버전 행의 config 스냅샷(r.snapshot)에서 값을 읽어 보여준다(롤백 전 내용 확인).
 export const snapCol = (key, label, map) => ({ key: "snap_" + key, label, render: (r) => {

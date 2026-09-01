@@ -501,6 +501,27 @@ export const DEBOUNCE_MS = { filter: 300, palette: 220 };
 
 export const BREAKPOINTS = { xs: 0, sm: 600, md: 900, lg: 1200, xl: 1536, xxl: 2200, uhd: 3000 };
 
+/* 상단바 높이 — `AppShell` 의 fixed AppBar 와 본문 상단 여백, 그리고 **표의 고정 열
+ * 이름**이 같은 값을 봐야 한다.
+ *
+ * 예전에는 `AppShell.jsx` 안의 모듈 상수였다. 그런데 이 값을 알아야 하는 곳이 셸 밖에도
+ * 있다 — 윈도가 스크롤 창인 목록에서 `position: sticky` 한 `<th>` 는 기본 `top: 0` 이라
+ * **fixed AppBar 뒤로 숨는다.** 열 이름을 보려고 켠 sticky 가 열 이름을 가리는 상태다.
+ * `AppShell.jsx` 자신의 주석이 이미 같은 교훈을 적어 뒀다 — 「경계값도 리터럴로 적지 않는다」.
+ *
+ * `stickyTopSx()` 는 그 오프셋을 브레이크포인트째로 낸다. 단위는 **px 다** — 이 저장소의
+ * spacing 은 rem 이고 루트 폰트사이즈가 2200/3000 에서 커지는데 Toolbar 의 `minHeight` 는
+ * px 라, 두 축이 다른 단위를 타면 넓은 화면에서만 어긋난다(D-182 가 고친 그 결함). */
+export const APPBAR_HEIGHT = { xs: 52, xxl: 60, uhd: 68 };
+
+export function stickyTopSx(extra = 0) {
+  return {
+    top: `${APPBAR_HEIGHT.xs + extra}px`,
+    [`@media (min-width:${BREAKPOINTS.xxl}px)`]: { top: `${APPBAR_HEIGHT.xxl + extra}px` },
+    [`@media (min-width:${BREAKPOINTS.uhd}px)`]: { top: `${APPBAR_HEIGHT.uhd + extra}px` },
+  };
+}
+
 /* 표가 카드 목록으로 접히는 지점. 899.95 는 MUI 가 `down("md")` 에서 만드는 값과 같다. */
 export const TABLE_CARD_QUERY = `(max-width:${BREAKPOINTS.md - 0.05}px)`;
 

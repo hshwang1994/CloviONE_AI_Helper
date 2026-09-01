@@ -15,7 +15,8 @@ from sqlalchemy.orm import Session
 
 from app.audit import anomalies
 from app.audit.models import AuditLog
-from app.audit.repository import apply_scope
+from app.audit.repository import LIST_SORT, apply_scope
+from app.core.sort import SortParams, order_by
 from app.authz.permissions import AUDIT_READ
 from app.core.deps import get_db, get_principal, require_permission
 from app.core.scope import Principal, visible_user_ids
@@ -178,7 +179,17 @@ def list_audit_logs(
     principal: Principal = Depends(get_principal),
     since: str | None = Query(default=None),
     until: str | None = Query(default=None),
+    sort: SortParams = Depends(),
 ):
+    """감사 로그 목록.
+
+    절 순서가 계약이다: **① 조건 → ② 범위(D-202) → ③ 정렬 → ④ 상한.** 정렬을 상한 뒤로
+    옮기면 「100건을 뽑아 그 안에서 정렬」이 되어 조용히 틀린 순서가 나온다.
+
+    ⚠️ 이 목록은 append-heavy 다. 전순서는 보장하지만(1차 키 + `id` tiebreak), 사람이 묶음을
+    이어 받는 **사이에 새 행이 들어오면** OFFSET 이 밀려 경계에서 한 건이 건너뛰어질 수 있다.
+    그것은 커서 페이징이라야 풀리고 이번 범위가 아니다 — 화면은 행 id 로 중복만 거른다.
+    """
     stmt = _filtered_stmt(
         action=action, exclude_actions=exclude_actions, object_type=object_type, object_id=object_id,
         user_id=user_id, result=result, request_id=request_id, since=since, until=until,
@@ -188,7 +199,7 @@ def list_audit_logs(
     total = db.execute(select(func.count()).select_from(stmt.subquery())).scalar_one()
     rows = (
         db.execute(
-            stmt.order_by(AuditLog.created_at.desc(), AuditLog.id.desc())
+            stmt.order_by(*order_by(LIST_SORT, sort))
             .offset(page.offset)
             .limit(page.page_size)
         )

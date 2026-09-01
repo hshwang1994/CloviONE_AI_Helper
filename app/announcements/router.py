@@ -14,15 +14,17 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel, Field
-from sqlalchemy import func, or_, select
+from sqlalchemy import case, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.announcements import service
 from app.announcements.models import (
+    ALL_LEVELS,
     AUDIENCE_ALL,
     LEVEL_INFO,
     Announcement,
 )
+from app.core.sort import SortParams, SortSpec, order_by
 from app.core.audit import record_audit_from_request
 from app.core.authz import CONSOLE_READ_ROLES, CONSOLE_WRITE_ROLES
 from app.core.deps import get_current_user, get_db, get_principal, require_csrf, require_roles
@@ -121,6 +123,42 @@ def _ensure_may_touch_announcements(principal: Principal) -> None:
         raise ForbiddenError("공지는 전체 범위 관리자만 만들고 바꿀 수 있습니다.")
 
 
+def _level_rank():
+    """중요도 → 표시 순서.
+
+    가나다순이면 `critical < info < warning` 이다 — 심각도 정렬이 아니라 **철자 정렬**이
+    되고, 「급한 것부터」를 누른 사람이 정확히 반대 순서를 본다. 표는 `models.ALL_LEVELS`
+    하나에서 파생한다(두 벌이 되면 값을 더할 때 한쪽만 는다).
+    """
+    return case(
+        {lvl: i for i, lvl in enumerate(ALL_LEVELS)},
+        value=Announcement.level,
+        else_=10_000,
+    )
+
+
+def _list_sort():
+    """공지 목록의 정렬 계약.
+
+    `audience` 를 뺐다 — 서버 필터 축이 아예 없다. 축이 없는데 정렬만 붙이면 화면이
+    「고를 수 있는 것처럼」 보이고 실제로는 좁힐 수가 없다.
+    """
+    return SortSpec(
+        columns={
+            "created_at": Announcement.created_at,
+            "updated_at": Announcement.updated_at,
+            "title": Announcement.title,
+            "starts_at": Announcement.starts_at,
+            "ends_at": Announcement.ends_at,
+            "active": Announcement.active,
+            "level": _level_rank(),
+        },
+        default="created_at",
+        tiebreak=Announcement.id,
+        default_order="desc",
+    )
+
+
 @admin_router.get("", dependencies=[Depends(require_roles(*CONSOLE_READ_ROLES))])
 def list_announcements(
     db: Session = Depends(get_db),
@@ -128,6 +166,7 @@ def list_announcements(
     active: bool | None = None,
     level: str | None = None,
     q: str | None = Query(default=None, max_length=200),
+    sort: SortParams = Depends(),
 ) -> dict:
     stmt = select(Announcement)
     if active is not None:
@@ -146,7 +185,7 @@ def list_announcements(
     total = db.execute(select(func.count()).select_from(stmt.subquery())).scalar_one()
     rows = (
         db.execute(
-            stmt.order_by(Announcement.created_at.desc(), Announcement.id.desc())
+            stmt.order_by(*order_by(_list_sort(), sort))
             .offset(page.offset)
             .limit(page.page_size)
         )

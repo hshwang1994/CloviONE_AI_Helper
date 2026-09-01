@@ -102,15 +102,28 @@ describe("/users 목록 상태 → URL (쓰기 방향, PA-RC-0013)", () => {
 });
 
 describe("/users 목록 상태 ← URL (읽기 방향/새로고침 복원, PA-RC-0013)", () => {
-  it("?role=admin&page=2로 마운트하면 그 필터·페이지로 목록을 조회한다", async () => {
-    renderAt("/users?role=admin&page=2");
+  it("?role=admin 으로 마운트하면 그 조건으로 첫 묶음을 조회한다", async () => {
+    renderAt("/users?role=admin");
     await screen.findByText("bob@example.com");
 
     const call = apiMock.mock.calls.find((c) => String(c[0]).startsWith("/api/admin/users?"));
     expect(call, "목록 조회 자체가 안 나갔다").toBeTruthy();
     const params = new URL("http://x" + call[0]).searchParams;
     expect(params.get("role")).toBe("admin");
-    expect(params.get("page")).toBe("2");
+    /* 쪽 번호는 조건이 아니다 — 첫 묶음 요청에 실리지 않는다. */
+    expect(params.get("page")).toBeNull();
+  });
+
+  it("옛 링크의 ?page=3 이 첫 요청을 오염시키지 않는다", async () => {
+    /* 북마크와 저장된 뷰가 여전히 이 값을 들고 온다. 화면은 그것을 「미리 받아 둘 묶음 수」로만
+       읽고(`useInfiniteList` 의 `resume` — 그 동작은 `lib/use-infinite-list.test.jsx` 가 잰다)
+       조건에는 안 섞는다. 더 받을 것이 없으면 첫 묶음에서 그대로 멈춘다. */
+    renderAt("/users?page=3");
+    await screen.findByText("bob@example.com");
+    const first = apiMock.mock.calls
+      .map((c) => String(c[0]))
+      .find((u) => u.startsWith("/api/admin/users?"));
+    expect(new URL("http://x" + first).searchParams.get("page")).toBeNull();
   });
 
   it("기존 인바운드 딥링크(?q=)는 여전히 동작한다(회귀 방지)", async () => {

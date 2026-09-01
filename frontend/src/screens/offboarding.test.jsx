@@ -266,9 +266,11 @@ describe("오프보딩 화면", () => {
     runs = [RUN_ROW];
     const user = userEvent.setup();
     renderScreen();
-    // 이력 표의 첫 열(실행 시각)은 render(날짜 포맷)가 있지만 rowName으로 "대상 · 시각"을
-    // 명시했다(SEM-01) — 대상 고르기 표('상세 보기: 퇴사자')와 정규식으로 구별해 고른다.
-    const openRun = await screen.findByRole("row", { name: /상세 보기: 퇴사자/ });
+    // 이력 표의 첫 열(실행 시각)은 render(날짜 포맷)가 있지만 rowName으로 "대상 / 시각"을
+    // 명시했다(SEM-01). 🔴 대상 고르기 표의 행 이름은 "상세 보기: 퇴사자" 라 **접두사가
+    // 같다** — 시각까지 넣어 구별한다(예전 정규식은 둘 다 걸렸고, 어느 것이 먼저 그려지는지에
+    // 따라 통과하기도 했다).
+    const openRun = await screen.findByRole("row", { name: /상세 보기: 퇴사자 \// });
     await user.click(openRun);
     const drawer = await screen.findByRole("dialog");
     expect(within(drawer).getByRole("button", { name: "되돌리기" })).toBeInTheDocument();
@@ -287,7 +289,7 @@ describe("오프보딩 화면", () => {
     });
     const user = userEvent.setup();
     renderScreen();
-    const openRun = await screen.findByRole("row", { name: /상세 보기: 퇴사자/ });
+    const openRun = await screen.findByRole("row", { name: /상세 보기: 퇴사자 \// });
     await user.click(openRun);
     const drawer = await screen.findByRole("dialog");
     const link = within(drawer).getByRole("link", { name: "감사 로그에서 보기" });
@@ -348,8 +350,8 @@ describe("오프보딩 화면", () => {
     expect(screen.queryByText(/명을 보여 줍니다/)).not.toBeInTheDocument();
   });
 
-  it("실행 이력이 20건을 넘으면 총 건수를 말하고 다음 페이지로 넘어갈 수 있다", async () => {
-    // 25건 중 첫 페이지(20건)만 오면, 나머지 5건은 화면에 '없다'가 아니라 '더 있다'로
+  it("실행 이력이 20건을 넘으면 총 건수를 말하고 이어 받을 수 있다", async () => {
+    // 25건 중 첫 묶음(20건)만 오면, 나머지 5건은 화면에 '없다'가 아니라 '더 있다'로
     // 보여야 한다 — 감사 이력이 조용히 잘리면 5건은 아무도 다시 못 찾는다.
     const page1 = Array.from({ length: 20 }, (_, i) => ({
       ...RUN_ROW, id: `run-p1-${i}`, user_name: `퇴사자${i}`,
@@ -371,12 +373,15 @@ describe("오프보딩 화면", () => {
     renderScreen();
 
     await screen.findByText("퇴사자0");
-    expect(screen.getByText(/총 25건/)).toBeInTheDocument();
+    expect(screen.getByText("25건 중 20건을 받았습니다.")).toBeInTheDocument();
     expect(screen.queryByText("퇴사자2-0")).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "다음" }));
+    await user.click(screen.getByRole("button", { name: "실행 이력 더 보기" }));
     await screen.findByText("퇴사자2-0");
-    expect(screen.queryByText("퇴사자0")).not.toBeInTheDocument();
+    /* 갈아 끼운 게 아니라 **이어 붙였다** — 감사 이력에서 앞 묶음이 사라지면 두 줄을
+       나란히 대조할 수 없다. */
+    expect(screen.getByText("퇴사자0")).toBeInTheDocument();
+    expect(await screen.findByText("25건 중 25건을 받았습니다.")).toBeInTheDocument();
   });
 
   it("PA-RC-0012: 미리보기 카드 제목(대상 이름)이 h1 다음 h6이 아니라 h2다", async () => {

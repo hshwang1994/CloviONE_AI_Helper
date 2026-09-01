@@ -2,6 +2,7 @@ import React from "react";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 
+import { paletteAt } from "./kit.jsx";
 import { DISCUSS_TILE_TRACK, TILE_GRID_GAP, TILE_PADDING } from "./density.js";
 import { FONT_SIZE, FONT_WEIGHT, MOTION, NUMERIC, RADIUS } from "./theme.js";
 
@@ -35,8 +36,12 @@ export function DiscussBucket({ label, count, selected, tone, onClick }) {
         bgcolor: "background.plate",
         border: "1px solid",
         borderColor: selected ? "brand.core" : "divider",
+        /* 논리 이름에는 MUI 가 팔레트 경로를 안 풀어 주고, `border-style` 이 없으면
+           CSS 기본값 `none` 이라 **폭 3px 짜리 보이지 않는 머리 띠**가 된다
+           (`CommandPalette.jsx` 가 같은 함정을 이미 한 번 적었다). 셋을 다 쓴다. */
+        borderBlockStartStyle: "solid",
         borderBlockStartWidth: 3,
-        borderBlockStartColor: accent,
+        borderBlockStartColor: (theme) => paletteAt(theme, accent),
         display: "grid",
         gap: 0.25,
         transition: `border-color ${MOTION.fast} ${MOTION.ease}, background-color ${MOTION.fast} ${MOTION.ease}`,
@@ -69,7 +74,11 @@ export function DiscussBucketRow({ items, value, onChange, ariaLabel = "논의 �
       aria-label={ariaLabel}
       sx={{
         display: "grid",
-        gridTemplateColumns: DISCUSS_TILE_TRACK,
+        width: "100%",
+        gridTemplateColumns: {
+          xs: "repeat(auto-fill, minmax(8rem, 1fr))",
+          sm: DISCUSS_TILE_TRACK,
+        },
         gap: TILE_GRID_GAP,
         mb: 1.5,
       }}

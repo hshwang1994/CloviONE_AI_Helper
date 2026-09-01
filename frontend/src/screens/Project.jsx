@@ -44,10 +44,9 @@ import {
  * 여섯 번이고, 그중 사용자가 실제로 보는 것은 하나다. 그래서 질의에 `enabled` 를 준다.
  */
 
-const DETAIL_SPEC = { tab: "overview", week: "", page: 1 };
-/* 탭이나 주를 바꾸면 티켓 목록 페이지는 처음으로 돌아간다. 3페이지에 머무르면 사용자는
- * 빈 목록을 보고 "티켓이 없다"고 읽는다(티켓 화면들과 같은 규약). */
-const DETAIL_RESET = { reset: ["page"] };
+/* 쪽 번호는 여기 없다 — 티켓 탭은 쪽을 넘기지 않고 묶음을 이어 받는다
+   (`ProjectTickets` → `ticket-options.js::useTicketList`). */
+const DETAIL_SPEC = { tab: "overview", week: "" };
 
 const TABS = [
   ["overview", "개요"],
@@ -342,7 +341,7 @@ export function Project() {
   const toast = useToast();
   const confirm = useConfirm();
   const auth = useAuth();
-  const [state, setState] = useQueryState(DETAIL_SPEC, DETAIL_RESET);
+  const [state, setState] = useQueryState(DETAIL_SPEC);
   // 주소를 손으로 고친 사람에게 오류 화면을 주지 않는다 - 모르는 값이면 개요를 보여 준다
   // (`weekly.resolve_week` 가 서버에서 같은 판단을 기록한다).
   const tab = TAB_KEYS.includes(state.tab) ? state.tab : "overview";
@@ -489,8 +488,7 @@ export function Project() {
 
       {tab === "tickets" ? (
         <ProjectTickets
-          project={project} page={state.page}
-          onPage={(page) => setState({ page })}
+          project={project}
         />
       ) : null}
 

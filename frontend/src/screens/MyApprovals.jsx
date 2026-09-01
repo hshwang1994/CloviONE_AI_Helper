@@ -11,7 +11,8 @@ import {
 } from "../ui/kit.jsx";
 import { OrgPath } from "../ui/OrgPath.jsx";
 import { DateCell } from "../ui/cells.jsx";
-import { Pager } from "../ui/Pager.jsx";
+import { ListFooter } from "../ui/InfiniteScroll.jsx";
+import { useInfiniteList } from "../lib/useInfiniteList.js";
 import { useQueryState } from "../lib/useQueryState.js";
 
 /* 개인 결재함 — **승인은 개인 업무이기도 하다** (0060 §22).
@@ -53,27 +54,30 @@ const STATUS_KO = {
 
 /* 고른 칸과 쪽은 **주소에** 둔다 (S15 · `lib/useQueryState.js`).
  *
- * 그리고 `page` 가 여기 생긴 이유를 적어 둔다: 서버는 이 목록을 **20건에서 자르고**
- * 총 건수를 함께 준다(app/approvals/router.py). 화면은 그 둘을 다 무시하고 첫 20건만
- * 그렸다 — 21번째 결재 건은 있다는 사실조차 화면에 없었고, 결재는 **놓치면 남이 못 하는**
- * 일이라 그 침묵이 그대로 지연이 된다. */
-const APPROVAL_SPEC = { box: "todo", page: 1 };
-const PAGE_RESET = { reset: ["page"] };
+ * 서버는 이 목록을 자르고 총 건수를 함께 준다(app/approvals/router.py). 한때 화면이 그 둘을
+ * 다 무시하고 첫 20건만 그렸다 — 21번째 결재 건은 있다는 사실조차 화면에 없었고, 결재는
+ * **놓치면 남이 못 하는** 일이라 그 침묵이 그대로 지연이 된다. 지금은 굴리면 이어 받는다. */
+const APPROVAL_SPEC = { box: "todo" };
 
 export function MyApprovals() {
-  const [view, setView] = useQueryState(APPROVAL_SPEC, PAGE_RESET);
-  const { box, page } = view;
+  const [view, setView] = useQueryState(APPROVAL_SPEC);
+  const { box } = view;
   const setBox = (next) => setView({ box: next });
   const toast = useToast();
   const qc = useQueryClient();
 
-  const q = useQuery({
-    queryKey: ["my-approvals", box, page],
-    queryFn: () => api(`/api/approvals/mine?box=${box}` + (page > 1 ? `&page=${page}` : "")),
-    // 승인 큐는 여러 사람과 자동 만료(72h)가 동시에 건드리는 경합 자원이다 — 열어 둔 채로
-    // 남이 먼저 처리한 건을 눌러 낡은 409 를 보지 않도록 주기적으로 다시 읽는다.
-    refetchInterval: box === "todo" ? 30 * 1000 : false,
-    placeholderData: keepPreviousData,
+  const q = useInfiniteList({
+    key: ["my-approvals", box],
+    rowId: (r) => (r && r.id) || undefined,
+    fetch: ({ page }) => api(`/api/approvals/mine?box=${box}` + (page > 1 ? `&page=${page}` : "")),
+    /* 승인 큐는 여러 사람과 자동 만료(72h)가 동시에 건드리는 경합 자원이다 — 열어 둔 채로
+       남이 먼저 처리한 건을 눌러 낡은 409 를 보지 않도록 주기적으로 다시 읽는다.
+       🔴 **첫 묶음만 받아 둔 동안에만** 켠다: 무한 질의를 다시 받으면 react-query 가 받아 둔
+       묶음을 전부 순서대로 다시 부른다 — 다섯 묶음이면 30초마다 요청이 다섯 번이다.
+       더 받기 시작한 사람은 스스로 새로 받는다(탭을 옮기거나 결재를 처리한다). */
+    refetchInterval: box === "todo"
+      ? (qy) => (((qy.state.data && qy.state.data.pages) || []).length === 1 ? 30 * 1000 : false)
+      : false,
   });
 
   const decide = useMutation({
@@ -91,7 +95,8 @@ export function MyApprovals() {
     onError: (err) => toast(err?.message || "처리하지 못했습니다.", "danger"),
   });
 
-  const data = q.data;
+  /* 목록 밖의 값(결재 권한)은 첫 묶음 원본이 들고 온다 — 묶음마다 같다. */
+  const data = q.first;
   const canDecide = data ? data.can_decide : true;
   const current = BOXES.find((b) => b.key === box) || BOXES[0];
 
@@ -156,7 +161,7 @@ export function MyApprovals() {
       </Tabs>
 
       {q.isError ? <ErrorState error={q.error} onRetry={() => q.refetch()} /> : null}
-      {!q.data && !q.isError ? <Card>{/* 표가 들어올 자리에는 표 모양을 그린다 (지시 20) - 빈 목록과 아직 안 온 목록은 다른 사실이다. */}<DataTable columns={columns} rows={[]} loading /></Card> : null}
+      {!q.first && !q.isError ? <Card>{/* 표가 들어올 자리에는 표 모양을 그린다 (지시 20) - 빈 목록과 아직 안 온 목록은 다른 사실이다. */}<DataTable columns={columns} rows={[]} loading /></Card> : null}
 
       {data && box === "todo" && !canDecide ? (
         <EmptyState
@@ -170,15 +175,16 @@ export function MyApprovals() {
       {/* 아래 `art="success"` 는 예전에 `"done"` 이었다 — ART 에 없는 키라 일러스트가 조용히
           안 그려졌다(Integrity.jsx 와 같은 오배선). */}
       {data && (box !== "todo" || canDecide) ? (
-        data.items.length === 0 ? (
+        q.rows.length === 0 ? (
           /* 세 칸 전부 화면 전체가 비는 자리다 — 탭 아래에 이 상태밖에 없다. */
           <EmptyState layout="page" title={current.empty} help={current.emptyHelp} art="success" />
         ) : (
           <Card>
-            <DataTable columns={columns} rows={data.items} rowKey={(r) => r.id} />
-            <Pager
-              page={data.page} pageSize={data.page_size} total={data.total}
-              onPage={(next) => setView({ page: next })}
+            <DataTable columns={columns} rows={q.rows} rowKey={(r) => r.id} total={q.total} />
+            <ListFooter
+              total={q.total} loaded={q.loaded}
+              hasNext={q.hasNext} isFetchingNext={q.isFetchingNext} onMore={q.fetchNext}
+              moreLabel="결재 더 보기"
             />
           </Card>
         )

@@ -14,10 +14,11 @@ import time
 from datetime import datetime, timedelta
 from typing import Callable
 
-from sqlalchemy import Select, select
+from sqlalchemy import Select, and_, case, select
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
+from app.core.sort import SortSpec
 from app.approvals.models import (
     APPROVAL_APPROVED,
     APPROVAL_CANCELLED,
@@ -366,6 +367,68 @@ def scope_clause(visible: frozenset[str] | None):
     if visible is None:
         return None
     return Approval.requested_by.in_(tuple(sorted(visible)))
+
+
+def effective_status_expr(now):
+    """목록 배지가 실제로 보여 주는 **유효 상태**.
+
+    만료 시각이 지난 `pending` 은 sweep 이 반영하기 전에도 화면에서 「만료」로 뜬다
+    (`approval_view`). 필터도 이미 같은 판정을 쓴다(`router.py` 의 `status` 절).
+    정렬만 **저장된 컬럼**을 보면 화면에 「만료」로 뜨는 행이 「대기」 무리 사이에 앉는다 —
+    세 곳이 같은 정의를 공유하도록 여기 한 번만 적는다. """
+    return case(
+        (
+            and_(
+                Approval.status == APPROVAL_PENDING,
+                Approval.expires_at.is_not(None),
+                Approval.expires_at <= now,
+            ),
+            APPROVAL_EXPIRED,
+        ),
+        else_=Approval.status,
+    )
+
+
+#: 사람이 읽는 순서 — 「지금 처리할 것」이 맨 앞이다. 가나다순이면 approved 가 pending 보다
+#: 앞에 서서 결재함의 목적이 뒤집힌다.
+STATUS_DISPLAY_ORDER: tuple[str, ...] = (
+    APPROVAL_PENDING, APPROVAL_APPROVED, APPROVAL_REJECTED, APPROVAL_EXPIRED, APPROVAL_CANCELLED,
+)
+
+
+def effective_status_rank(now):
+    """유효 상태 → 표시 순서. 정렬 키가 이것을 쓴다."""
+    return case(
+        {s: i for i, s in enumerate(STATUS_DISPLAY_ORDER)},
+        value=effective_status_expr(now),
+        else_=10_000,
+    )
+
+
+def list_sort_spec(now, *, admin: bool):
+    """결재 목록의 정렬 계약.
+
+    `now` 가 필요해서 상수가 아니라 함수다 — 유효 상태 판정이 시계를 본다.
+    개인 결재함에서 `requested_by`/`approver_id` 를 빼는 이유: 그 칸은 이미 box 로 고정돼
+    있어(내가 올린 것 / 내가 결재한 것) 정렬해 봐야 한 값이다.
+    """
+    columns = {
+        "requested_at": Approval.requested_at,
+        "due_at": Approval.due_at,
+        "expires_at": Approval.expires_at,
+        "request_type": Approval.request_type,
+        "status": effective_status_rank(now),
+    }
+    if admin:
+        columns["requested_by"] = Approval.requested_by
+    return SortSpec(
+        columns=columns,
+        default="requested_at",
+        # `Approval` 에는 `created_at` 이 없다 — 이 표는 `TimestampMixin` 을 안 쓰고 요청
+        # 시각을 `requested_at` 이라는 도메인 이름으로 든다. tiebreak 는 PK 다.
+        tiebreak=Approval.id,
+        default_order="desc",
+    )
 
 
 def apply_scope(stmt: Select, visible: frozenset[str] | None) -> Select:

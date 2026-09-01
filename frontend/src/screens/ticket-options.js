@@ -1,5 +1,7 @@
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { api } from "../lib/api.js";
+import { statusText } from "../ui/kit.jsx";
+import { CHUNK, useInfiniteList } from "../lib/useInfiniteList.js";
 
 /* 티켓 화면들이 함께 쓰는 **후보 목록** 질의(진행상태·우선순위·난이도 / 프로젝트 / 담당자).
  *
@@ -37,6 +39,19 @@ export function useTicketMeta(enabled) {
 
 /* 워크플로 정본. 내 티켓 기본 상태(종료가 아닌 것만)는 화면이 이름을 적지 않고
  * 이 목록의 `terminal` 로 고른다. */
+/** 진행상태 후보 → `{value, label}`. **값은 저장 키, 이름만 사람 말이다.**
+ *
+ * 서버는 키와 라벨을 이미 나눠 갖고 있고(`app/work/workflow.py::_Status("진행", "진행 중", …)`
+ * — 저장값을 옮기면 데이터 이관이 아니라 데이터 번역이 되고 옛 링크·필터·감사 기록이 갈린다),
+ * 프런트에도 그 표가 이미 있다(`ui/kit.jsx::statusText`). 그런데 목록 API 는 키만 내려 주고
+ * 화면 넷이 그 키를 **그대로 그리고 있었다** — 드롭다운에 「진행 중」이 아니라 「진행」이 떴다.
+ *
+ * 한 곳에서만 옮긴다. 우선순위는 이미 `priorityKo` 로 같은 일을 하고 있었고, 상태만 빠져 있었다.
+ */
+export function statusOptions(statuses) {
+  return (Array.isArray(statuses) ? statuses : []).map((s) => ({ value: s, label: statusText(s) }));
+}
+
 export function useWorkStatuses(enabled) {
   return useQuery({
     queryKey: ["work", "statuses"], queryFn: () => api("/api/work/statuses"),
@@ -51,21 +66,40 @@ export function useTicketProjects(enabled) {
   });
 }
 
-/* 목록 한 페이지. `qs` 는 화면이 조립한 질의 문자열(TicketFilterBar.ticketQueryParams)이다.
+/* 티켓 목록의 **묶음**. `qs` 는 화면이 조립한 조건 문자열(`TicketFilterBar.ticketQueryParams`)이고
+ * 쪽 파라미터는 여기서 붙인다 — 화면은 「무엇을 거를까」만 알면 된다.
  *
- * 질의 키에 `qs` 를 통째로 넣는다 — 조건 하나가 늘 때마다 키 배열을 같이 고쳐야 하면
- * 언젠가 안 고치고, 그때 증상은 "필터를 바꿨는데 목록이 그대로"(캐시가 안 갈린다)다.
+ * 질의 키에 `qs` 를 통째로 넣는다 — 조건 하나가 늘 때마다 키 배열을 같이 고쳐야 하면 언젠가
+ * 안 고치고, 그때 증상은 "필터를 바꿨는데 목록이 그대로"(캐시가 안 갈린다)다.
  *
- * `placeholderData` 로 이전 페이지를 남긴다. 필터·페이지를 바꿀 때마다 표가 통째로
- * 스켈레톤으로 깜빡이면 목록이 어디로 갔는지 알 수 없다(문서 목록·관리자 목록도 같다). */
+ * 🔴 묶음이 **50**이다(옛 쪽 크기 100에서 낮췄다). 티켓 행은 이 저장소에서 가장 비싸고
+ * (12열 · `InlineEdit` 상태 셀 · 신호 · 앵커 제목) **가상화가 안 된다** — `GroupedTickets` 는
+ * 그룹마다 자기 `<tbody>` 를 갖는 구조라 지금 있는 가상화기를 못 얹는다(D-354 · D-361).
+ * 그래서 첫 페인트를 절반으로 줄이고, 자동 로딩에는 행 상한을 둔다(`TICKET_AUTO_MAX_ROWS`). */
 export function useTicketList(path, qs) {
-  return useQuery({
-    queryKey: ["tickets", path, qs],
-    queryFn: () => api(qs ? `${path}?${qs}` : path),
-    retry: false,
-    placeholderData: keepPreviousData,
+  return useInfiniteList({
+    key: ["tickets", path, qs],
+    size: CHUNK,
+    itemsKey: "items",
+    rowId: (t) => (t && t.id) || undefined,
+    fetch: ({ page, page_size: size }) => {
+      const p = new URLSearchParams(qs || "");
+      p.set("page_size", String(size));
+      if (page > 1) p.set("page", String(page));
+      const query = p.toString();
+      return api(query ? `${path}?${query}` : path);
+    },
   });
 }
+
+/** 가상화가 없는 티켓 표에서 자동 로딩을 멈추는 지점.
+ *
+ * 실측 규모: 조직 전체 활성 티켓 184건(D-361) — 50씩 네 묶음이면 자동으로 끝까지 간다.
+ * 문제는 꼬리다. 「전체 보기」로 조건 없이 열면 1,148건의 세계가 열리고, 가상화가 없으니
+ * 그 전부가 DOM 에 남는다(행당 25~35 노드 × 제어형 컨트롤). **감추는 것은 없다** —
+ * 「더 보기」로 계속 받을 수 있고, 끝 줄이 「N건 중 M건」을 계속 말한다. 기계가 스스로
+ * 끌어오는 것만 멈춘다. */
+export const TICKET_AUTO_MAX_ROWS = 300;
 
 /* 티켓 한 건의 **프로젝트 축**. 행이 두 자리로 실어 오기 때문에 여기 한 곳에서만 고른다.
  *
