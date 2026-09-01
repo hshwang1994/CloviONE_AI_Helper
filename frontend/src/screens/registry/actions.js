@@ -69,7 +69,7 @@ export const PARENT_DEPT_FIELD = {
   extraOptions: [{ value: "", label: "(최상위)" }],
 };
 // 버전 스냅샷 열 — 각 버전 행의 config 스냅샷(r.snapshot)에서 값을 읽어 보여준다(롤백 전 내용 확인).
-export const snapCol = (key, label, map) => ({ key: "snap_" + key, label, render: (r) => {
+export const snapCol = (key, label, map, type = "enum") => ({ key: "snap_" + key, label, type, render: (r) => {
   const v = r.snapshot ? r.snapshot[key] : undefined;
   if (v == null || v === "") return "-";
   return map ? (map[v] || String(v)) : String(v);
@@ -87,8 +87,8 @@ export const versionsAction = (base, extraCols, confirmFn, namedCreator) => ({
   subList: {
     title: "버전 기록",
     endpoint: (r) => base + "/" + r.id + "/versions",
-    columns: [col("version", "버전"),
-      namedCreator ? personField("created_by", "변경자", "created_by_name", "created_by_email") : col("created_by", "변경자 ID"),
+    columns: [col("version", "버전", "identifier"),
+      namedCreator ? personField("created_by", "변경자", "created_by_name", "created_by_email") : col("created_by", "변경자 ID", "identifier"),
       dateCol("created_at", "시각"), ...(extraCols || [])],
     emptyTitle: "버전 기록이 없습니다",
     rowAction: {
@@ -116,8 +116,8 @@ export const nameVersionsAction = (base, title) => ({
     endpoint: (r, p) => base + "?name=" + encodeURIComponent(r.name) + "&page=" + ((p && p.page) || 1),
     // _prompt_view/_policy_view가 감사 로그의 actor_name과 동일한 패턴으로 created_by_name/
     // created_by_email을 이미 계산해 돌려준다 — 원시 UUID 대신 그 이름을 보여준다.
-    columns: [col("version", "버전"), badgeCol("status", "상태"),
-      { key: "created_by", label: "작성자", render: (r) => r.created_by_name || r.created_by_email || r.created_by || "-" },
+    columns: [col("version", "버전", "identifier"), badgeCol("status", "상태"),
+      { key: "created_by", label: "작성자", type: "name", render: (r) => r.created_by_name || r.created_by_email || r.created_by || "-" },
       dateCol("created_at", "생성")],
     emptyTitle: "버전 기록이 없습니다",
     rowActions: [

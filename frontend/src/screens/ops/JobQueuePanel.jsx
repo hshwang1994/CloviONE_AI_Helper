@@ -3,9 +3,9 @@ import Link from "@mui/material/Link";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import { fmtDateTime, jobTypeKo } from "../../lib/format.js";
-import { Card, MetricStrip } from "../../ui/kit.jsx";
+import { Card, MetricStrip, Section } from "../../ui/kit.jsx";
 import { Sparkline } from "../../ui/charts/Sparkline.jsx";
-import { DashSection, Note } from "../../ui/adminKit.jsx";
+import { Note } from "../../ui/adminKit.jsx";
 import { fmtNum, fmtProcessingTime } from "./opsHelpers.js";
 import { LogRow, LogList } from "./LogList.jsx";
 
@@ -16,7 +16,7 @@ export function JobQueuePanel({ jobs24, jobErrors, errorDist, nav }) {
   return (
     <>
       {Object.keys(jobs24).length ? (
-        <DashSection title="작업 지표 (최근 24시간)">
+        <Section titleAs="h2" title="작업 지표 (최근 24시간)">
           {/* 성공률의 분모는 24시간 내 종료된(성공, 실패, 취소) 작업만이며 아직 끝나지 않은
               대기/실행 중 작업은 제외된다(app/health/service.py finished_24h). 라벨을
               Dashboard.jsx와 동일하게 맞춰 같은 값이 화면마다 다른 의미로 읽히지 않게 한다.
@@ -38,9 +38,9 @@ export function JobQueuePanel({ jobs24, jobErrors, errorDist, nav }) {
                 kind: jobs24.failed_open > 0 ? "danger" : undefined, onClick: () => nav("/jobs") },
             ]}
           />
-        </DashSection>
+        </Section>
       ) : null}
-      <DashSection title="최근 작업 오류"
+      <Section titleAs="h2" title="최근 작업 오류"
         action={<Link component="button" type="button" variant="body2" underline="hover" onClick={() => nav("/jobs")}>작업 큐에서 보기 →</Link>}>
         <Card>
           {jobErrors.length ? (
@@ -72,7 +72,7 @@ export function JobQueuePanel({ jobs24, jobErrors, errorDist, nav }) {
             </>
           ) : <Note sx={{ mt: 0 }}>최근 실패한 작업이 없습니다.</Note>}
         </Card>
-      </DashSection>
+      </Section>
     </>
   );
 }

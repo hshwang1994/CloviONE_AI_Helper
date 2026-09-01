@@ -54,7 +54,7 @@ function Findings({ finding, onFix }) {
       key: "name", label: "대상", identifier: true,
       render: (r) => r.display_name || r.title || r.name || r.id,
     },
-    { key: "detail", label: "메모", render: (r) => r.email || r.reason || r.code || (r.projects || []).join(", ") || "-" },
+    { key: "detail", label: "메모", type: "text", render: (r) => r.email || r.reason || r.code || (r.projects || []).join(", ") || "-" },
   ].filter(Boolean);
 
   return (

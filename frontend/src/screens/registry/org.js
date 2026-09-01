@@ -39,15 +39,16 @@ export const ORG_SCREENS = {
     // 일치 항목이 사라지는데, 여기는 다른 페이지 자체가 없다).
     filters: [{ key: "status", type: "select", label: "상태", clientFilter: true, options: opt([["active", "사용 중"], ["suspended", "미사용"]]) }],
     columns: [
-      { ...col("name", "조직 이름"), identifier: true },
+      { ...col("name", "조직 이름", "name"), identifier: true },
       /* 식별자형이다 (S18 · C3). 타입이 없으면 바닥폭 4.5rem 에 잘림 처리라, 분할 뷰의
          가운데 판처럼 좁은 자리에서 `default` 가 «defa…» 로 잘렸다 — 화면의 46% 가 비어
          있는데 식별자만 잘리는 상태였다. `identifier` 는 12.5rem 을 바닥으로 갖고
          글자 단위로 끊는다(코드·UUID 부류). */
-      { ...col("slug", "식별자"), type: "identifier" },
-      { key: "status", label: "상태", render: (r) => (r.status === "active" ? "사용 중" : "미사용") },
-      col("department_count", "부서"),
-      col("user_count", "사용자"),
+      { ...col("slug", "식별자", "identifier") },
+      { key: "status", label: "상태", type: "status", render: (r) => (r.status === "active" ? "사용 중" : "미사용") },
+      // 개수는 **자릿수를 고정하고 가운데**다 — 세로로 훑으며 비교하는 값이다.
+      col("department_count", "부서", "count"),
+      col("user_count", "사용자", "count"),
       dateCol("created_at", "생성 일자"),
     ],
     detailFields: [
@@ -113,11 +114,11 @@ export const ORG_SCREENS = {
     // '조직' 열 — 사용자 지적 P5("부서 추가하면 부서랑 조직을 연결하는 것이 없음").
     // 서버가 이제 부서 응답에 org_id/org_name 을 싣는다. 연결을 만들어 놓고 화면에 안 보이면
     // 같은 말을 다시 듣는다. 조직이 하나뿐인 지금도 "이 부서가 어느 조직 것인지" 가 보인다.
-    columns: [{ ...col("name", "부서 이름"), identifier: true }, col("org_name", "조직"), activeCol("사용"),
+    columns: [{ ...col("name", "부서 이름", "name"), identifier: true }, col("org_name", "조직", "name"), activeCol("사용"),
       // 개수 열은 **우정렬 + 자릿수 고정**이다(columnTypes.js `count`). S22 캡처가 이 두
       // 열(부서·직책)만 좌정렬·비고정으로 남아 있는 것을 잡았다 — 세로로 훑으며 비교할 수
       // 없는 상태였다. 폭·정렬·자릿수는 어휘가 정한다.
-      { ...col("user_count", "소속 인원(보관 포함)"), type: "count" }, dateCol("created_at", "생성 일자")],
+      { ...col("user_count", "소속 인원(보관 포함)", "count") }, dateCol("created_at", "생성 일자")],
     // id는 감사 로그의 object_id와 대조할 때 쓰이므로 상세에서 노출한다.
     // 삭제 버튼은 소속 인원>0이면 아래 actions에서 통째로 숨겨진다(사용 중이면 비활성화만 가능) — 그
     // 이유가 코드 주석에만 있어 화면엔 아무 설명 없이 버튼만 사라졌었다. 상세에 이유를 남긴다.
@@ -230,11 +231,11 @@ export const ORG_SCREENS = {
       // SEM-01: 이 열이 render(들여쓰기 트리)라 표식 없이는 전부 "상세 보기"였다 — 조직/
       // 부서 구분 + 이름으로 실제로 구별되는 이름을 만든다.
       rowName: (r) => (r.kind === "organization" ? "조직 " : "부서 ") + r.name },
-      { key: "kind", label: "구분", render: (r) => (r.kind === "organization" ? "조직" : "부서") },
+      { key: "kind", label: "구분", type: "enum", render: (r) => (r.kind === "organization" ? "조직" : "부서") },
       activeCol("사용"),
-      col("user_count", "소속 인원(보관 포함)"),
-      col("subtree_user_count", "하위 포함 인원"),
-      col("child_count", "하위 부서"),
+      col("user_count", "소속 인원(보관 포함)", "count"),
+      col("subtree_user_count", "하위 포함 인원", "count"),
+      col("child_count", "하위 부서", "count"),
     ],
     detailFields: [field("id", "부서 ID"), field("path", "전체 경로"),
       { key: "parent_name", label: "상위 부서", render: (r) => r.parent_name || "(최상위)" },
@@ -252,11 +253,11 @@ export const ORG_SCREENS = {
         hint: "이 부서에 직접 속한 사람입니다(하위 부서는 그 부서 줄에서 펼쳐 보세요).",
         endpoint: (r) => "/api/admin/users?department_id=" + r.id + "&page_size=100",
         columns: [
-          col("display_name", "이름"),
-          col("title", "직책"),
-          col("email", "이메일"),
-          col("role", "역할"),
-          { key: "active", label: "상태", render: (u) => (u.archived_at ? "보관" : u.active ? "사용" : "비활성") },
+          col("display_name", "이름", "name"),
+          col("title", "직책", "enum"),
+          col("email", "이메일", "identifier"),
+          col("role", "역할", "enum"),
+          { key: "active", label: "상태", type: "status", render: (u) => (u.archived_at ? "보관" : u.active ? "사용" : "비활성") },
         ],
         emptyTitle: "이 부서에 직접 속한 사람이 없습니다",
         emptyHelp: "하위 부서에 사람이 있을 수 있습니다. ‘하위 포함 인원’ 숫자를 확인하세요.",

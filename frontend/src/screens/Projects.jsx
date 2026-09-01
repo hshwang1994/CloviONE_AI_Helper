@@ -8,7 +8,7 @@ import Typography from "@mui/material/Typography";
 import {
   ListEmptyState,
   Badge, Button, Callout, Card, DataTable, EmptyState, ErrorState, FormModal,
-  MetricStrip, PageHeader, Skeleton, useToast,
+  ListCard, MetricStrip, PageHeader, Skeleton, useToast,
 } from "../ui/kit.jsx";
 import { ListFooter } from "../ui/InfiniteScroll.jsx";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
@@ -535,8 +535,11 @@ export function Projects() {
           </Card>
         ) : (
           <>
-            <Card sx={{ p: 0, overflow: "hidden" }}>
+            {/* `overflow: hidden` 을 손으로 박으면 `stickyHeader` 가 죽는다 — 그 판이
+                스크롤 컨테이너가 되어 열 이름이 판 안에 붙박인다. 목록 판은 `ListCard` 다. */}
+            <ListCard sx={{ p: 0 }}>
               <DataTable
+                stickyHeader
                 columns={cols} rows={items} rowKey={(p) => p.id} onRow={open}
                 // HashRouter다 — 실제 `href` 는 `#` 이 붙어야 새 탭에서 이 라우트로 실제
                 // 도착한다(순수 클릭은 `open`/`nav()` 가 처리해 이 값을 안 본다).
@@ -548,7 +551,7 @@ export function Projects() {
                   setFilters({ sort: next.key, order: next.dir });
                 }}
               />
-            </Card>
+            </ListCard>
             {/* 여기 「이관할 때 이 프로젝트에서 문제가 있었습니다」 배너가 있었다. 얼어붙은
                 이관 흔적 컬럼을 읽던 것이라 관리자에게 문의해도 없앨 방법이 없었다.
                 서버도 그 필드를 걷었다(S14). */}

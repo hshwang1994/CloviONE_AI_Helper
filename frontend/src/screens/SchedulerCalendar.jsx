@@ -246,20 +246,13 @@ export function SchedulerCalendar({ embedded = false } = {}) {
     };
   }, [query.data]);
 
+  /* 이 화면은 「실행 일정」의 **달력 탭**이다. 옛 주소 `/scheduler-calendar` 도 그 탭
+     껍데기를 여는 자리로 다시 등록돼 있어(`app/AdminRoutes.jsx`) 단독으로 그려지지 않는다.
+     그래서 자기 머리와 `.c-screen` 을 그리던 갈래를 걷었다 — 바깥 그릇이 이미
+     「실행 일정 › 달력」을 보여 주고, 「일정 목록으로」 링크가 가리키던 곳은 바로 옆 탭이다.
+     (그 머리는 `area="자동화"` 라고 적고 있었는데 사이드바 묶음은 **자동화와 연동**이다.) */
   return (
-    <div className={embedded ? undefined : "c-screen"}>
-      {/* 탭 그릇 안에서는 제목을 그리지 않는다 — 바깥 그릇이 이미 "실행 일정 › 달력"을
-          보여 준다. '일정 목록으로' 링크도 필요 없다: 그 목록이 바로 옆 탭이다. */}
-      {embedded ? null : (
-        <PageHeader
-          area="자동화"
-          title="실행 달력"
-          description="자동화 작업이 특정 요일이나 시간대에 몰려 있지 않은지 분포로 확인합니다."
-          actions={
-            <Button variant="ghost" href="#/schedules">일정 목록으로</Button>
-          }
-        />
-      )}
+    <>
       <Note sx={{ mt: 0 }}>
         예약된 실행을 달력으로 봅니다. <strong>채워진 점</strong>은 실제로 돈 실행,{" "}
         <strong>점선 테두리</strong>는 아직 오지 않은 예정입니다. 시각은 모두 한국 시간입니다.
@@ -474,7 +467,7 @@ export function SchedulerCalendar({ embedded = false } = {}) {
           <Button variant="ghost" onClick={() => setSelected(null)}>닫기</Button>
         </Box>
       </Modal>
-    </div>
+    </>
   );
 }
 

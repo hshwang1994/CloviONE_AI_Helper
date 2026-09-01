@@ -153,6 +153,12 @@ def _board_scope_stmt(
     scope: str,
     assignee_token: str | None = None,
     blocked_only: bool = False,
+    dept_scope=None,
+    q: str | None = None,
+    priority: str | None = None,
+    difficulty: str | None = None,
+    signal: str | None = None,
+    today: date | None = None,
 ):
     """판·백로그가 공유하는 **한 조건**(§8.5). 첫 쪽과 다음 쪽이 같은 조건을 본다 —
     안 그러면 이번 쪽에서 본 카드가 다음 쪽에서 다른 조건에 걸려 새거나 겹친다.
@@ -160,7 +166,7 @@ def _board_scope_stmt(
     범위(가시성) 절이 **무엇보다도 먼저** 걸린다(D-202). 커서·상한은 이 위에 얹힐 뿐,
     이 절을 지나지 않은 행은 어느 쪽에도 새어 나오지 않는다.
     """
-    stmt = _visible_tickets_stmt(db, user)
+    stmt = _visible_tickets_stmt(db, user, scope=dept_scope)
     if project_id:
         stmt = stmt.where(Ticket.project_uid == project_id)
     if sprint_id:
@@ -176,9 +182,10 @@ def _board_scope_stmt(
     assignee_clause = _assignee_sql_clause(assignee_token)
     if assignee_clause is not None:
         stmt = stmt.where(assignee_clause)
-    if blocked_only:
-        stmt = stmt.where(Ticket.blocked_flag.is_(True) | Ticket.issue_flag.is_(True))
-    return stmt
+    return _apply_shared_filters(
+        stmt, q=q, priority=priority, difficulty=difficulty,
+        signal=signal, blocked_only=blocked_only, today=today,
+    )
 
 
 def _encode_rank_cursor(rank: Decimal | None, row_id: str) -> str:
@@ -251,7 +258,7 @@ def number_if_possible(db: Session, ticket: Ticket, *, now: datetime | None = No
 # ── 범위 ─────────────────────────────────────────────────────────────────────
 
 
-def _visible_tickets_stmt(db: Session, user: User):
+def _visible_tickets_stmt(db: Session, user: User, *, scope=None):
     """이 사람에게 보이는 티켓. **프로젝트 축 하나로만 판정한다** (D-194).
 
     티켓은 `app/authz/visibility.py` 의 자원 종류가 아니다 — 소속 프로젝트가 보이면
@@ -259,8 +266,14 @@ def _visible_tickets_stmt(db: Session, user: User):
 
     프로젝트가 없는 티켓(Migration Exception)은 전역이 아닌 사람에게 **안 보인다**.
     `IN (…)` 이 NULL 을 고르지 못하기 때문이고, 그것이 D-197 이 말한 의도된 fail-closed 다.
+
+    `scope` 는 **좁히기만 한다**. 부서(팀) 필터가 고른 범위를 여기로 넘긴다 — 티켓에는
+    부서 칸이 없고(`app/tickets/models.py` 가 그 칸을 일부러 없앴다) 티켓의 팀은
+    `project.dept_id` 한 단계이므로, 판정 함수를 새로 만들지 않고 같은 프로젝트 절에
+    좁힌 Scope 를 넣는다. 넓히지는 못한다 — 부르는 쪽이 이미 그 사람의 조회 범위 안에서
+    고른 값이어야 한다(`org_context.filter_scope` 가 그것을 보장한다).
     """
-    ctx = context_for_user(db, user)
+    ctx = context_for_user(db, user, scope=scope)
     stmt = select(Ticket)
     clause = effective_visibility_clause(ctx, RESOURCE_PROJECT)
     if clause is None:
@@ -268,6 +281,74 @@ def _visible_tickets_stmt(db: Session, user: User):
     return stmt.where(
         Ticket.project_uid.in_(select(Project.id).where(clause))
     )
+
+
+#: 신호 필터의 어휘. 화면과 서버가 같은 말을 쓴다 — 「차단과 이슈만」 하나로 뭉쳐 있던
+#: `blocked_only` 는 지연만 보는 길을 안 줬다(그리고 이름과 뜻도 어긋나 있었다:
+#: 그 깃발 하나가 차단 **또는** 이슈를 뜻했다).
+SIGNAL_BLOCKED = "blocked"
+SIGNAL_OVERDUE = "overdue"
+SIGNAL_ISSUE = "issue"
+SIGNALS: tuple[str, ...] = (SIGNAL_BLOCKED, SIGNAL_OVERDUE, SIGNAL_ISSUE)
+
+
+def _signal_clause(signal: str | None, *, today: date | None):
+    """신호 하나를 SQL 절로. 모르는 이름은 조용히 무시하지 않고 **거절한다** —
+    오타 하나가 「필터를 걸었는데 전부 나온다」로 조용히 지나가면 안 된다."""
+    if not signal:
+        return None
+    if signal not in SIGNALS:
+        raise ValidationAppError("모르는 신호입니다.")
+    if signal == SIGNAL_BLOCKED:
+        return Ticket.blocked_flag.is_(True)
+    if signal == SIGNAL_ISSUE:
+        return Ticket.issue_flag.is_(True)
+    # 지연은 오늘이 며칠인가에 달린 값이라 서버가 준 `today` 없이는 판정하지 않는다.
+    if today is None:
+        return None
+    cat = workflow.category_sql(Ticket.status)
+    return (
+        Ticket.due_date.is_not(None)
+        & (Ticket.due_date < today)
+        & (cat.is_(None) | cat.notin_(workflow.TERMINAL_CATEGORIES))
+    )
+
+
+def _apply_shared_filters(
+    stmt,
+    *,
+    q: str | None = None,
+    priority: str | None = None,
+    difficulty: str | None = None,
+    signal: str | None = None,
+    blocked_only: bool = False,
+    today: date | None = None,
+):
+    """판과 백로그가 **같은 말로 좁힌다**.
+
+    예전에는 검색·우선순위·난이도가 백로그에만 있었다. 백로그에서 검색어를 넣고 칸반
+    탭으로 옮기면 그 조건이 조용히 사라졌고, 사용자는 자기가 무엇을 지웠는지 몰랐다.
+    두 목록이 같은 티켓을 다른 질문으로 볼 뿐이므로 **좁히는 말은 하나여야 한다.**
+    """
+    if priority:
+        stmt = stmt.where(Ticket.priority == priority)
+    if difficulty:
+        stmt = stmt.where(Ticket.difficulty == difficulty)
+    needle = (q or "").strip()
+    if needle:
+        # 제목과 이름(`ABC-12`) 둘 다 본다 — 사람들은 티켓을 번호로 기억한다.
+        pattern = f"%{_ilike_escape(needle)}%"
+        stmt = stmt.where(
+            Ticket.title.ilike(pattern, escape="\\")
+            | Ticket.canonical_key.ilike(pattern, escape="\\")
+        )
+    clause = _signal_clause(signal, today=today)
+    if clause is not None:
+        stmt = stmt.where(clause)
+    elif blocked_only:
+        # 하위호환. 옛 화면과 저장된 링크가 아직 이 이름을 쓴다.
+        stmt = stmt.where(Ticket.blocked_flag.is_(True) | Ticket.issue_flag.is_(True))
+    return stmt
 
 
 def get_scoped_project_or_404(db: Session, project_id: str, user: User) -> Project:
@@ -399,6 +480,11 @@ def board(
     scope: str | None = None,
     assignee_token: str | None = None,
     blocked_only: bool = False,
+    dept_scope=None,
+    q: str | None = None,
+    priority: str | None = None,
+    difficulty: str | None = None,
+    signal: str | None = None,
     column_page_size: int = DEFAULT_COLUMN_PAGE_SIZE,
     today: date | None = None,
 ) -> dict:
@@ -441,7 +527,8 @@ def board(
     page_size = max(1, min(column_page_size or DEFAULT_COLUMN_PAGE_SIZE, MAX_COLUMN_PAGE_SIZE))
     base_stmt = _board_scope_stmt(
         db, user, project_id=project_id, sprint_id=sprint_id, scope=resolved_scope,
-        assignee_token=assignee_token, blocked_only=blocked_only,
+        assignee_token=assignee_token, blocked_only=blocked_only, dept_scope=dept_scope,
+        q=q, priority=priority, difficulty=difficulty, signal=signal, today=today,
     )
 
     # 열은 **표에서 읽는다**(`ticket_statuses`). 어휘의 정본은 코드이고
@@ -534,6 +621,12 @@ def board_column(
     scope: str | None = None,
     assignee_token: str | None = None,
     blocked_only: bool = False,
+    dept_scope=None,
+    q: str | None = None,
+    priority: str | None = None,
+    difficulty: str | None = None,
+    signal: str | None = None,
+    today: date | None = None,
     cursor: str | None = None,
     limit: int = DEFAULT_COLUMN_PAGE_SIZE,
 ) -> dict:
@@ -548,7 +641,8 @@ def board_column(
     page_size = max(1, min(limit or DEFAULT_COLUMN_PAGE_SIZE, MAX_COLUMN_PAGE_SIZE))
     base_stmt = _board_scope_stmt(
         db, user, project_id=project_id, sprint_id=sprint_id, scope=resolved_scope,
-        assignee_token=assignee_token, blocked_only=blocked_only,
+        assignee_token=assignee_token, blocked_only=blocked_only, dept_scope=dept_scope,
+        q=q, priority=priority, difficulty=difficulty, signal=signal, today=today,
     )
     known_keys = [key for key in db.execute(select(TicketStatus.key)).scalars().all()]
     if status_key == UNCLASSIFIED_KEY:
@@ -577,13 +671,17 @@ def _backlog_scope_stmt(
     priority: str | None = None,
     difficulty: str | None = None,
     exclude_ticket_id: str | None = None,
+    dept_scope=None,
+    signal: str | None = None,
+    blocked_only: bool = False,
+    today: date | None = None,
 ):
     """백로그의 **한 조건** — 목록(`backlog`)과 위치 이동(`_backlog_position_rank`)이
     같은 조건을 봐야 한다. 조건이 어긋나면 "지금 화면에 보이는 백로그"와 "맨 위로/맨
     아래로가 계산한 백로그"가 다른 집합이 되고, 그 어긋남은 카드 순서가 화면마다
     다르게 보이는 것으로만 드러난다(오류가 안 난다).
     """
-    stmt = _visible_tickets_stmt(db, user)
+    stmt = _visible_tickets_stmt(db, user, scope=dept_scope)
     if project_id:
         stmt = stmt.where(Ticket.project_uid == project_id)
     cat = workflow.category_sql(Ticket.status)
@@ -600,19 +698,10 @@ def _backlog_scope_stmt(
     assignee_clause = _assignee_sql_clause(assignee_token)
     if assignee_clause is not None:
         stmt = stmt.where(assignee_clause)
-    if priority:
-        stmt = stmt.where(Ticket.priority == priority)
-    if difficulty:
-        stmt = stmt.where(Ticket.difficulty == difficulty)
-    needle = (q or "").strip()
-    if needle:
-        # 제목과 이름(`ABC-12`) 둘 다 본다 — 사람들은 티켓을 번호로 기억한다.
-        pattern = f"%{_ilike_escape(needle)}%"
-        stmt = stmt.where(
-            Ticket.title.ilike(pattern, escape="\\")
-            | Ticket.canonical_key.ilike(pattern, escape="\\")
-        )
-    return stmt
+    return _apply_shared_filters(
+        stmt, q=q, priority=priority, difficulty=difficulty,
+        signal=signal, blocked_only=blocked_only, today=today,
+    )
 
 
 def backlog(
@@ -624,6 +713,10 @@ def backlog(
     assignee_token: str | None = None,
     priority: str | None = None,
     difficulty: str | None = None,
+    dept_scope=None,
+    signal: str | None = None,
+    blocked_only: bool = False,
+    today: date | None = None,
     cursor: str | None = None,
     limit: int = DEFAULT_COLUMN_PAGE_SIZE,
 ) -> dict:
@@ -646,7 +739,8 @@ def backlog(
     page_size = max(1, min(limit or DEFAULT_COLUMN_PAGE_SIZE, MAX_COLUMN_PAGE_SIZE))
     stmt = _backlog_scope_stmt(
         db, user, project_id=project_id, q=q, assignee_token=assignee_token,
-        priority=priority, difficulty=difficulty,
+        priority=priority, difficulty=difficulty, dept_scope=dept_scope,
+        signal=signal, blocked_only=blocked_only, today=today,
     )
     page, next_cursor = _rank_keyset_page(db, stmt, Ticket.backlog_rank, cursor=cursor, limit=page_size)
     total = db.execute(select(func.count()).select_from(stmt.subquery())).scalar_one()
@@ -669,6 +763,10 @@ def backlog_position_rank(
     assignee_token: str | None = None,
     priority: str | None = None,
     difficulty: str | None = None,
+    dept_scope=None,
+    signal: str | None = None,
+    blocked_only: bool = False,
+    today: date | None = None,
 ) -> Decimal:
     """「맨 위로 / 맨 아래로」의 목표 순위 값 (§8.5).
 
@@ -688,6 +786,7 @@ def backlog_position_rank(
     stmt = _backlog_scope_stmt(
         db, user, project_id=project_id, q=q, assignee_token=assignee_token,
         priority=priority, difficulty=difficulty, exclude_ticket_id=ticket_id,
+        dept_scope=dept_scope, signal=signal, blocked_only=blocked_only, today=today,
     )
     sq = stmt.subquery()
     ranked = db.execute(
@@ -797,6 +896,9 @@ def move(
     position_assignee_token: str | None = None,
     position_priority: str | None = None,
     position_difficulty: str | None = None,
+    position_dept_scope=None,
+    position_signal: str | None = None,
+    position_today: date | None = None,
     base_version: int | None = None,
     now: datetime | None = None,
     repo=None,
@@ -859,6 +961,8 @@ def move(
                 project_id=position_project_id, q=position_q,
                 assignee_token=position_assignee_token,
                 priority=position_priority, difficulty=position_difficulty,
+                dept_scope=position_dept_scope, signal=position_signal,
+                today=position_today,
             )
         else:
             placed = rank_mod.place(

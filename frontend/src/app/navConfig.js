@@ -46,7 +46,6 @@ export const SCREEN_ROLES = {
   mail: CONSOLE_READ,
   schedules: CONSOLE_READ,
   approvals: CONSOLE_READ,
-  integrations: CONSOLE_READ,
   prompts: CONSOLE_READ,
   policies: CONSOLE_READ,
   integrity: CONSOLE_READ,
@@ -207,7 +206,10 @@ export const NAV = withRoles([
   { group: "자동화와 연동", icon: AutoAwesomeOutlinedIcon, items: [
     // 실행 일정 화면은 '달력' 탭을 함께 갖는다 — 같은 데이터의 두 표현이다.
     { to: "/schedules", label: "실행 일정" },
-    { to: "/integrations", label: "외부 연동" },
+    /* 🔴 「외부 연동」이 여기 있었다. 0017 마이그레이션이 걷어낸 런타임의 등록 행 넷을
+       지웠고 시드 목록(`app/integrations/discovery.py::KNOWN_INTEGRATIONS`)이 비어 있어
+       **다시 생기지 않는다** — 그 화면은 언제나 빈 표였다. 서버(`app/integrations/`)와
+       `integrations` 표는 남는다: 대시보드·진단이 헬스 스윕 결과를 계속 읽는다. */
   ] },
   { group: "AI", icon: SmartToyOutlinedIcon, items: [
     { to: "/prompts", label: "프롬프트" },

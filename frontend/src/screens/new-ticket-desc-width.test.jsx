@@ -95,12 +95,14 @@ function declaration(rule, prop) {
 const CONTAINER_QUERY = /^@container\s+([\w-]+)\s+\(min-width:\s*([\d.]+)rem\)$/;
 
 async function descNodes() {
-  const label = await waitFor(() => {
-    const el = document.querySelector('label[for="nt-desc"]');
-    if (!el) throw new Error("nt-desc 라벨이 아직 없음");
+  /* 편집기가 TipTap 으로 바뀌면서 `label[for="nt-desc"]` 가 없어졌다 —
+     `contenteditable` 은 `<label htmlFor>` 의 대상이 될 수 없다. 폭 규칙이 걸리는 상자를
+     이름으로 짚는다(`MyTickets.jsx` 의 `data-nt-desc`). */
+  const widthBox = await waitFor(() => {
+    const el = document.querySelector('[data-nt-desc="surface"]');
+    if (!el) throw new Error("설명 폭 상자가 아직 없음");
     return el;
   });
-  const widthBox = label.parentElement;
   const container = widthBox.parentElement;
   return { widthBox, container };
 }

@@ -19,16 +19,18 @@ import { DocBody } from "../ui/DocBody.jsx";
 
 export { lineCount, hasUnsupportedBlocks };
 
-export function TicketBody({ ticketId, blocks, blocksError, bodyMarkdown, bodyVersion, onSaved }) {
+export function TicketBody({ ticketId, blocks, blocksError, body, bodyMarkdown, bodyVersion, onSaved, onPickImage }) {
   return (
     <EditableBody
       editorId={"ticket-body-" + ticketId}
       endpoint={"/api/tickets/" + ticketId + "/body"}
       invalidateKeys={[["tickets"]]}
       blocks={blocks}
+      bodyDoc={body}
       bodyMarkdown={bodyMarkdown}
       bodyVersion={bodyVersion}
       onSaved={onSaved}
+      onPickImage={onPickImage}
       // VIS-135: 헤더의 '수정'(TicketEditModal)과 이 버튼이 다른 것을 편집한다는 것을
       // 밝힌다 — 상태·담당자 같은 속성은 여기서 못 고친다.
       editButtonHint="본문 텍스트만 수정합니다. 상태, 담당자 등 속성은 위 '수정' 버튼에서 고칩니다."

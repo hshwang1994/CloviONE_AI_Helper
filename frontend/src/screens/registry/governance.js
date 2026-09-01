@@ -89,14 +89,14 @@ export const GOVERNANCE_SCREENS = {
       // 하는 시각이다. 둘을 한 열로 합치면 "아직 살아 있지만 이미 늦었다"를 표현할 수 없다.
       // 판정은 서버(approval_view)가 한 `overdue` 를 그대로 쓴다 — 화면이 시각을 다시 비교하면
       // 브라우저 시계가 틀린 PC 에서 목록과 상세가 서로 다른 답을 낸다.
-      { key: "due_at", label: "기한", render: (r) => {
+      { key: "due_at", label: "기한", type: "datetime", render: (r) => {
         if (APPROVAL_DONE.includes(r.status) || !r.due_at) return "-";
         const text = fmtDateTime(r.due_at);
         return r.overdue
           ? React.createElement(Badge, { value: "기한 초과, " + text, kind: "danger" })
           : text;
       } },
-      { key: "expires_at", label: "만료", render: (r) => APPROVAL_DONE.includes(r.status) ? "-" : fmtDateTime(r.expires_at) }],
+      { key: "expires_at", label: "만료", type: "datetime", render: (r) => APPROVAL_DONE.includes(r.status) ? "-" : fmtDateTime(r.expires_at) }],
     // 승인 전에 '무엇을 적용하는지'를 반드시 보여준다(내용 없이 승인 금지). request_payload가 핵심.
     // 요청자는 위 columns에서 이름/이메일로 이미 보여주므로 여기선 원시 ID만(대조용). 결정자는
     // approval_view가 requester_name과 마찬가지로 approver_name/approver_email을 함께 돌려준다
@@ -183,8 +183,8 @@ export const GOVERNANCE_SCREENS = {
       // SEM-01: 첫 열이 render라 표식 없이는 모든 위임이 "상세 보기"로 동일했다 — 위임한
       // 사람→대리 승인자를 합쳐 실제로 구별되는 이름을 만든다.
       { key: "delegator_name", label: "위임한 사람", identifier: true, render: (r) => r.delegator_name || r.delegator_user_id, rowName: (r) => (r.delegator_name || r.delegator_user_id) + " → " + (r.delegate_name || r.delegate_user_id) },
-      { key: "delegate_name", label: "대리 승인자", render: (r) => r.delegate_name || r.delegate_user_id },
-      { key: "state", label: "상태", render: (r) => React.createElement(Badge, {
+      { key: "delegate_name", label: "대리 승인자", type: "name", render: (r) => r.delegate_name || r.delegate_user_id },
+      { key: "state", label: "상태", type: "status", render: (r) => React.createElement(Badge, {
         value: ({ active: "진행 중", scheduled: "예정", ended: "종료", revoked: "거둠" })[r.state] || r.state,
         kind: r.state === "active" ? "ok" : r.state === "scheduled" ? "info" : "neutral",
       }) },
@@ -193,7 +193,7 @@ export const GOVERNANCE_SCREENS = {
       // 진행 중"으로 오해하게 만든다(실제로는 revoked_at에 이미 끝났다). 승인 화면의 만료
       // 열이 같은 이유로 종료된 행엔 원래 시각을 안 보여주는 것(위 expires_at 열 주석)과
       // 같은 판단 — 여기는 대체할 실제 종료 시각(revoked_at)이 있으므로 그걸 보여준다.
-      { key: "ends_at", label: "종료", render: (r) => fmtDateTime(r.state === "revoked" ? r.revoked_at : r.ends_at) },
+      { key: "ends_at", label: "종료", type: "datetime", render: (r) => fmtDateTime(r.state === "revoked" ? r.revoked_at : r.ends_at) },
       truncateCol("reason", "사유", 40),
     ],
     detailFields: [field("id", "위임 ID"), field("delegator_email", "위임한 사람 이메일"),
@@ -347,7 +347,7 @@ export const GOVERNANCE_SCREENS = {
       // 행위자의 여러 행이 목록에서 서로 구별되지 않았다 — 대상 ID를 목록에 바로 노출한다.
       truncateCol("object_id", "대상 ID", 24),
       { ...badgeCol("result", "결과"), sortable: true },
-      { key: "user_id", label: "행위자", render: (r) => r.actor_name || r.actor_email || (r.user_id ? r.user_id : "시스템") }],
+      { key: "user_id", label: "행위자", type: "name", render: (r) => r.actor_name || r.actor_email || (r.user_id ? r.user_id : "시스템") }],
     // '무엇을 바꿨는지'(before→after)와 포렌식 필드(기록 ID·행위자·대상 ID·IP·요청 ID)를 상세에서 본다.
     // user_id는 이미 목록 열(행위자, 이름/이메일 우선 표시)이라 상세에서 중복 제거(드로어는 열+detailFields 합집합을 그린다).
     // before/after는 objectField로 최상위 키/값 행으로 펼쳐 보여준다(원시 JSON 두 덩어리를 눈으로
@@ -402,7 +402,7 @@ export const GOVERNANCE_SCREENS = {
     emptyHelp: "이 기간의 감사 로그에서 규칙에 걸린 항목이 없습니다. 기간을 늘려 다시 보세요.",
     filters: [{ key: "window_hours", type: "select", label: "기간", value: "24", options: opt([["6", "최근 6시간"], ["24", "최근 24시간"], ["168", "최근 7일"], ["720", "최근 30일"]]) }],
     columns: [
-      { key: "severity", label: "중요도", render: (r) => React.createElement(Badge, {
+      { key: "severity", label: "중요도", type: "status", render: (r) => React.createElement(Badge, {
         value: ({ high: "높음", medium: "보통", low: "낮음" })[r.severity] || r.severity,
         kind: r.severity === "high" ? "danger" : r.severity === "medium" ? "warn" : "info",
       }) },
@@ -410,7 +410,7 @@ export const GOVERNANCE_SCREENS = {
         failure_burst: "실패 급증", volume_spike: "동작 급증", off_hours: "심야 변경",
         critical_action: "권한, 계정 변경", new_actor_action: "처음 하는 동작",
       }),
-      { key: "actor_name", label: "행위자", identifier: true, render: (r) => r.actor_name || r.actor_id || "시스템" },
+      { key: "actor_name", label: "행위자", type: "name", identifier: true, render: (r) => r.actor_name || r.actor_id || "시스템" },
       /* SEM-01: 첫 열(중요도)이 render라 표식 없이는 전부 "상세 보기"였다 — 처음엔 서버가
        * 만들어 주는 요약 문장(title)을 그대로 rowName으로 썼는데(app/audit/anomalies.py의
        * _finding), 그 title이 실제로는 **kind별 고정 문자열**이라는 것을 WF1 R1 재검증 중
@@ -419,7 +419,7 @@ export const GOVERNANCE_SCREENS = {
        * rowName이 완전히 같아져 SEM-01이 이 화면에서는 실제로 안 고쳐진 것과 같았다. 화면에
        * 이미 있는 행위자로 보강해 행마다 실제로 구별되게 한다 — 동시에 요약 열이 유형 열과
        * 같은 말만 반복하던 것(WF1 High 발견)도 함께 없어진다. */
-      { key: "title", label: "요약", render: (r) => (r.title || "이상 징후") + " / " + (r.actor_name || r.actor_id || "시스템"),
+      { key: "title", label: "요약", type: "text", render: (r) => (r.title || "이상 징후") + " / " + (r.actor_name || r.actor_id || "시스템"),
         rowName: (r) => (r.title || "이상 징후") + " / " + (r.actor_name || r.actor_id || "시스템") },
       { key: "count", label: "건수", type: "count" },
       dateCol("last_at", "마지막"),
@@ -535,9 +535,9 @@ export const GOVERNANCE_SCREENS = {
       // SEM-01: 첫 열이 render라 표식 없이는 모든 기록이 "상세 보기"로 동일했다 — 관리자→
       // 대상을 합쳐 실제로 구별되는 이름을 만든다(delegations와 동일한 패턴).
       { key: "actor_name", label: "관리자", identifier: true, render: (r) => r.actor_name || r.actor_user_id, rowName: (r) => (r.actor_name || r.actor_user_id) + " → " + (r.target_name || r.target_user_id) },
-      { key: "target_name", label: "대상", render: (r) => r.target_name || r.target_user_id },
+      { key: "target_name", label: "대상", type: "name", render: (r) => r.target_name || r.target_user_id },
       dateCol("started_at", "시작"), dateCol("ended_at", "종료"),
-      { key: "active", label: "상태", render: (r) => React.createElement(Badge, { value: r.active ? "진행 중" : "종료", kind: r.active ? "warn" : "neutral" }) },
+      { key: "active", label: "상태", type: "status", render: (r) => React.createElement(Badge, { value: r.active ? "진행 중" : "종료", kind: r.active ? "warn" : "neutral" }) },
       { key: "blocked_write_count", label: "차단된 쓰기", type: "count" },
     ],
     detailFields: [

@@ -10,10 +10,9 @@ from __future__ import annotations
 import re
 
 from fastapi import Query
-from pydantic import BaseModel, ConfigDict, field_validator, Field
+from pydantic import BaseModel, ConfigDict, field_validator, model_validator, Field
 
-from app.core.notion_blocks import MAX_BLOCKS as BODY_MAX_LINES
-from app.core.notion_blocks import MAX_LINE_CHARS as BODY_MAX_LINE_CHARS
+
 from app.tickets.comments import MAX_COMMENT_CHARS
 from app.tickets.repository import DUE_BUCKETS
 
@@ -160,17 +159,24 @@ class BulkPageIds(BaseModel):
 
 
 class TicketBodyUpdate(BaseModel):
-    """티켓 본문(마크다운 정본) 저장.
+    """티켓 본문 저장. 정본은 **문서와 같은 Block JSON**(`body`)이다.
 
-    상한을 **거절**로 두고 잘라내지 않는 이유: 우리 DB에는 다 들어가는데 Notion 에는 앞
-    100줄만 올라가면 두 곳이 조용히 달라진다. 사용자에게 어긋난 이유를 말하지 않고 어긋나게
-    두느니, 저장을 거절하고 무엇을 줄여야 하는지 알려주는 편이 낫다.
-    (상한값은 app/core/notion_blocks.py 의 MAX_BLOCKS / MAX_LINE_CHARS 와 같은 값이다.)
+    ## 줄 수·줄 길이 상한이 doc 에는 없다
+
+    그 두 상한은 마크다운이 정본이던 시절의 것이다. 이유도 그때의 것이었다 — 우리 DB 에는
+    다 들어가는데 Notion 에는 앞 100줄만 올라가서 두 곳이 조용히 달라지는 것을 막으려고
+    저장을 거절했다. **밀어 넣을 Notion 이 없어졌고**, 문서 본문에는 애초에 그런 상한이
+    없다(`app/knowledge/schemas.py`). 티켓 설명만 100줄에서 막으면 「문서와 같게」가 거짓이
+    된다. 노드 종류·마크·링크 스킴 검증은 `app/knowledge/blocks.py::normalize` 가 한다.
+
+    `body_markdown` 은 **옛 입구**로 남긴다. 아직 그 이름으로 보내는 클라이언트가 있고,
+    저장소가 그것을 doc 으로 옮겨 같은 검증기를 지난다.
     """
 
     model_config = ConfigDict(extra="forbid")
 
-    body_markdown: str
+    body: dict | None = None
+    body_markdown: str | None = None
     # 낙관적 잠금 (Z2). 편집을 시작할 때 받은 본문의 지문을 그대로 돌려보낸다.
     # **선택 사항**이다 — 안 보내면 예전처럼 그냥 덮어쓴다(기존 클라이언트·CLI 호환).
     # 보내면 그 사이 누가 먼저 저장한 경우 409 로 막는다.
@@ -178,17 +184,22 @@ class TicketBodyUpdate(BaseModel):
 
     @field_validator("body_markdown")
     @classmethod
-    def _check_body(cls, v: str) -> str:
-        v = (v or "").replace("\r\n", "\n").replace("\r", "\n")
-        lines = v.split("\n")
-        if len(lines) > BODY_MAX_LINES:
-            raise ValueError(
-                f"본문은 최대 {BODY_MAX_LINES}줄까지 저장할 수 있습니다"
-                f"(현재 {len(lines)}줄). 줄 수를 줄이거나 원본에서 편집해 주세요."
-            )
-        if any(len(ln) > BODY_MAX_LINE_CHARS for ln in lines):
-            raise ValueError(f"한 줄은 {BODY_MAX_LINE_CHARS}자 이하여야 합니다.")
-        return v
+    def _check_body(cls, v: str | None) -> str | None:
+        """줄끝만 고른다. **길이 상한은 없다.**
+
+        「최대 100줄」·「한 줄 1900자」가 여기 있었다. 두 숫자는 우리 것이 아니라 Notion
+        API 의 한 번 호출 상한이었고(`app/core/notion_blocks.py` 참고), 밀어 넣을 Notion 이
+        없어진 뒤로는 지킬 이유가 사라졌다. 본문은 Postgres 에 그대로 들어간다.
+        """
+        if v is None:
+            return None
+        return v.replace("\r\n", "\n").replace("\r", "\n")
+
+    @model_validator(mode="after")
+    def _one_of(self):
+        if self.body is None and self.body_markdown is None:
+            raise ValueError("본문을 보내 주세요.")
+        return self
 
 
 class TicketCommentCreate(BaseModel):
@@ -373,6 +384,9 @@ class TicketDraft(BaseModel):
     due_date: str | None = None
     assignee_user_ids: list[str] | None = None
     description: str | None = None
+    #: 설명의 정본(ProseMirror). 화면이 문서와 같은 편집기를 쓰므로 만들 때부터 이 모양이다.
+    #: 안 주면 위 `description` 을 저장소가 옮긴다 — 두 입구, 저장되는 것은 하나.
+    description_doc: dict | None = None
     #: 만들자마자 어느 회차에 담는가. 안 주면 **백로그**다 (지시 5 · D-349).
     #:
     #: 티켓을 만드는 자리가 기본값을 정한다. 일반 「새 티켓」은 아직 언제 할지 안 정한
@@ -402,26 +416,18 @@ class TicketDraft(BaseModel):
     @field_validator("description")
     @classmethod
     def _check_desc(cls, v):
+        """빈 값을 `None` 으로 눕히는 것이 전부다. **길이 상한은 없다.**
+
+        여기 「4000자」·「최대 100줄」·「한 줄 1900자」가 있었다. 셋 다 Notion 으로 밀어
+        넣던 시절의 상한이고(`app/core/notion_blocks.py`), 밀어 넣을 곳이 없어진 뒤로는
+        지킬 이유가 없다 — 설명은 이제 문서 본문과 같은 정본을 쓰고 그쪽에는 애초에
+        상한이 없었다(`app/knowledge/schemas.py`). 티켓 설명만 짧게 묶으면
+        「문서와 같게」가 거짓이 된다.
+        """
         if v is None:
             return None
         v = v.strip()
-        if len(v) > 4000:
-            raise ValueError("설명은 4000자 이하여야 합니다.")
-        if not v:
-            return None
-        # 이 설명은 그대로 노션 블록으로 변환된다(service.create_ticket → markdown_to_blocks).
-        # 그 변환기는 100줄/줄당 1900자를 넘으면 **조용히 잘라낸다** — 총 글자 수(4000자)만
-        # 봐서는 이 함정을 못 막는다(짧은 줄 150개는 4000자 밑이어도 뒤 50줄이 사라진다).
-        # 본문 수정(TicketBodyUpdate._check_body)과 같은 규칙으로 여기서도 자르지 않고 거절한다.
-        lines = v.split("\n")
-        if len(lines) > BODY_MAX_LINES:
-            raise ValueError(
-                f"설명은 최대 {BODY_MAX_LINES}줄까지 저장할 수 있습니다"
-                f"(현재 {len(lines)}줄). 줄 수를 줄여 주세요."
-            )
-        if any(len(ln) > BODY_MAX_LINE_CHARS for ln in lines):
-            raise ValueError(f"설명의 한 줄은 {BODY_MAX_LINE_CHARS}자 이하여야 합니다.")
-        return v
+        return v or None
 
     @field_validator("est_wd")
     @classmethod

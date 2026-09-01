@@ -62,6 +62,7 @@ from app.core.dates import iso_date, parse_date
 from app.core.errors import TicketNotFoundError, ValidationAppError
 from app.core.models_base import utcnow
 from app.core.notion_blocks import markdown_to_blocks
+from app.tickets import body_doc as body_doc_mod
 from app.home.aggregate import priority_rank
 from app.org.constants import DEFAULT_ORG_ID
 from app.projects.models import Project
@@ -106,6 +107,94 @@ _RENDER_KIND: dict[str, str] = {
     "quote": "quote",
     "code": "code",
 }
+
+
+#: ProseMirror 노드 → 상세 화면 축약형 `kind`. 위 표의 doc 판이다.
+_DOC_KIND: dict[str, str] = {
+    "paragraph": "paragraph",
+    "bulletList": "bulleted",
+    "orderedList": "numbered",
+    "taskList": "todo",
+    "blockquote": "quote",
+    "codeBlock": "code",
+    "horizontalRule": "divider",
+    "image": "image",
+    "table": "table",
+}
+
+
+def _inline_text(nodes) -> str:
+    out = []
+    for node in nodes or []:
+        if not isinstance(node, dict):
+            continue
+        if node.get("type") == "text":
+            out.append(node.get("text") or "")
+        elif node.get("type") == "hardBreak":
+            out.append("\n")
+        elif node.get("type") == "mention":
+            out.append((node.get("attrs") or {}).get("label") or "")
+        else:
+            out.append(_inline_text(node.get("content")))
+    return "".join(out)
+
+
+def _flat_blocks(doc) -> list[dict]:
+    """정본 doc → 옛 화면이 읽는 `[{kind, text, checked?}]`.
+
+    **표현할 수 없는 것은 없는 척하지 않는다.** 표와 이미지는 이 모양으로 못 펴지므로
+    자기 `kind` 를 그대로 달고 나가고, 그리는 쪽이 「여기 표가 있다」를 말할 수 있게 한다 —
+    조용히 버리면 본문의 일부가 화면에서 사라진 것을 아무도 모른다.
+    """
+    out: list[dict] = []
+    for node in (doc or {}).get("content") or []:
+        if not isinstance(node, dict):
+            continue
+        kind = node.get("type")
+        if kind == "heading":
+            level = (node.get("attrs") or {}).get("level") or 1
+            out.append({
+                "kind": f"heading_{min(int(level), 3)}",
+                "text": _inline_text(node.get("content")),
+            })
+        elif kind in ("bulletList", "orderedList"):
+            for item in node.get("content") or []:
+                out.append({"kind": _DOC_KIND[kind], "text": _inline_text(item.get("content"))})
+        elif kind == "taskList":
+            for item in node.get("content") or []:
+                out.append({
+                    "kind": "todo",
+                    "text": _inline_text(item.get("content")),
+                    "checked": (item.get("attrs") or {}).get("checked") is True,
+                })
+        elif kind == "horizontalRule":
+            out.append({"kind": "divider", "text": ""})
+        elif kind == "image":
+            attrs = node.get("attrs") or {}
+            out.append({"kind": "image", "text": attrs.get("alt") or "", "src": attrs.get("src")})
+        elif kind == "table":
+            out.append({"kind": "table", "text": _inline_text(node.get("content"))})
+        elif kind in _DOC_KIND:
+            out.append({"kind": _DOC_KIND[kind], "text": _inline_text(node.get("content"))})
+        else:
+            out.append({"kind": "unsupported", "text": _inline_text(node.get("content"))})
+    return out
+
+
+def _draft_doc(draft) -> dict | None:
+    """새 티켓의 본문 정본. 설명이 아예 없으면 `None` 이다 — 빈 문서와 「안 썼다」는 다르다."""
+    doc = getattr(draft, "description_doc", None)
+    if doc is None:
+        md = (draft.description_markdown or "").strip()
+        if not md:
+            return None
+        doc = body_doc_mod.doc_from_markdown(md)
+    return body_doc_mod.derive(doc).body
+
+
+def _draft_markdown(draft) -> str | None:
+    doc = _draft_doc(draft)
+    return body_doc_mod.derive(doc).markdown if doc is not None else None
 
 
 def _block_text(block: dict) -> str:
@@ -379,6 +468,11 @@ class NativeTicketRepository:
         상세 화면이 「비어 있음」 대신 빈 줄 하나를 그린다.
         """
         row = self._require_row(db, page_id)
+        if row.body_doc is not None:
+            # 정본이 doc 이면 **그것을 납작하게 편다.** 마크다운을 다시 파싱하면 doc 에만
+            # 있는 것(표·이미지·서식 마크)이 두 번 잃는 셈이고, 그 손실이 어디서 났는지
+            # 아무도 못 찾는다.
+            return _flat_blocks(row.body_doc)
         if not row.body_markdown:
             return []
         out: list[dict] = []
@@ -392,6 +486,13 @@ class NativeTicketRepository:
                 continue  # 파서가 내지 않는 종류 — 도달할 수 없지만 조용히 지나간다
             out.append({"kind": kind, "text": _block_text(block)})
         return out
+
+    def body_doc(self, db: Session, *, page_id: str) -> dict:
+        """본문 **정본**. 옛 행은 읽을 때 옮긴다(`app/tickets/body_doc.py` 참고)."""
+        row = self._require_row(db, page_id)
+        if row.body_doc is not None:
+            return row.body_doc
+        return body_doc_mod.doc_from_markdown(row.body_markdown)
 
     # ── 폼 옵션 ──────────────────────────────────────────────────────────────
 
@@ -508,7 +609,11 @@ class NativeTicketRepository:
             project_ids=join_names([external_id] if external_id else []),
             project_names=join_names([project.name] if project is not None and project.name else []),
             assignee_notion_ids=join_names(list(draft.assignee_ids)),
-            body_markdown=draft.description_markdown,
+            # 만들 때부터 정본은 doc 이다. 초안이 마크다운만 주면(옛 클라이언트·마이그레이션)
+            # 여기서 같은 변환기를 지나 doc 이 된다 — 「만든 티켓」과 「저장한 티켓」의 자료
+            # 모양이 다르면 편집기가 둘 중 하나에서만 제대로 열린다.
+            body_doc=_draft_doc(draft),
+            body_markdown=_draft_markdown(draft),
             source=SOURCE_NATIVE,
             synced_at=stamp,
             created_at=stamp,
@@ -632,7 +737,13 @@ class NativeTicketRepository:
     # ── 본문 ─────────────────────────────────────────────────────────────────
 
     def save_body(
-        self, db: Session, *, page_id: str, body_markdown: str, now: datetime | None = None
+        self,
+        db: Session,
+        *,
+        page_id: str,
+        doc=None,
+        body_markdown: str | None = None,
+        now: datetime | None = None,
     ) -> BodySaveResult:
         """본문을 저장한다. 저장 결과에 `synced` 라는 필드가 없다.
 
@@ -650,12 +761,20 @@ class NativeTicketRepository:
         row = self._row(db, page_id)
         if row is None:  # ensure_local 직후이므로 실제로는 오지 않는다
             raise ValidationAppError("티켓을 우리 저장소에서 찾지 못했습니다.")
-        row.body_markdown = body_markdown
+        # 입구는 둘이어도 **저장되는 것은 하나**다. 마크다운만 온 옛 요청도 여기서 doc 으로
+        # 옮겨 같은 검증기를 지난다 — 그래야 「어느 입구로 들어왔나」가 나중에 자료의 모양을
+        # 가르지 않는다.
+        source = doc if doc is not None else body_doc_mod.doc_from_markdown(body_markdown)
+        derived = body_doc_mod.derive(source, carry_from=row.body_doc)
+        row.body_doc = derived.body
+        row.body_markdown = derived.markdown
         row.body_sync_error = None
         row.body_synced_at = stamp
         row.updated_at = stamp
         db.flush()
-        return BodySaveResult(uid=uid, body_markdown=body_markdown)
+        return BodySaveResult(
+            uid=uid, body_markdown=derived.markdown, body_doc=derived.body
+        )
 
     # ── 자체 UUID ────────────────────────────────────────────────────────────
 

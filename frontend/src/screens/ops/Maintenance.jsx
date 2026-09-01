@@ -7,9 +7,9 @@ import Typography from "@mui/material/Typography";
 import { api } from "../../lib/api.js";
 import { fmtDateTime } from "../../lib/format.js";
 import { useAuth } from "../../app/auth.jsx";
-import { DashSection, Note } from "../../ui/adminKit.jsx";
+import { Note } from "../../ui/adminKit.jsx";
 import { SettingVersions } from "../settings/SettingVersions.jsx";
-import { PageHeader, SectionTitle, Card, Badge, Button, Callout, Skeleton, ErrorState, useConfirm, useToast } from "../../ui/kit.jsx";
+import { Section, SectionTitle, Card, Badge, Button, Callout, Skeleton, ErrorState, useConfirm, useToast } from "../../ui/kit.jsx";
 import { FONT_WEIGHT } from "../../ui/theme.js";
 import { isWriteRole, NO_WRITE_REASON } from "./opsHelpers.js";
 
@@ -149,9 +149,9 @@ export function Maintenance({ embedded = false } = {}) {
             <Button size="sm" onClick={() => q.refetch()} disabled={q.isFetching}>{q.isFetching ? "새로고침 중…" : "새로고침"}</Button>
           </>
         );
-        return embedded
-          ? <SectionTitle title="유지보수" action={refreshActions} />
-          : <PageHeader area="운영" title="유지보수" actions={refreshActions} />;
+        /* 옛 주소 `/maintenance` 는 `/settings?tab=policy` 로 보내는 리다이렉트다 —
+           이 화면은 언제나 껍데기 안이라 페이지 머리를 스스로 그릴 자리가 없다. */
+        return <SectionTitle title="유지보수" action={refreshActions} />;
       })()}
       {/* TanStack Query v5에서 isLoading은 '최초' 로딩만 true다, 캐시된 데이터가 이미 있는 상태에서
           (예: 이 화면의 '새로고침' 버튼을 눌렀다가) 재조회가 실패하면 isLoading은 false, isError만
@@ -200,7 +200,7 @@ export function Maintenance({ embedded = false } = {}) {
               </Button>
             </Card>
 
-            <DashSection title="점검 공지 (사용자에게 표시되는 안내)">
+            <Section titleAs="h2" title="점검 공지 (사용자에게 표시되는 안내)">
               <Card>
                 <Note sx={{ mt: 0 }} id="maint-msg-desc">유지보수 모드가 활성화되어 있을 때 사용자가 보게 되는 안내 문구입니다.</Note>
                 {/* 위쪽 유지보수 모드 토글 카드에만 '관리자, 시스템 관리자만' 안내가 붙어 있어, 이 섹션만
@@ -255,7 +255,7 @@ export function Maintenance({ embedded = false } = {}) {
                   <Button variant="ghost" onClick={() => setShowVersions(true)}>버전 기록</Button>
                 </Box>
               </Card>
-            </DashSection>
+            </Section>
           </Box>
         )}
       {showVersions ? (

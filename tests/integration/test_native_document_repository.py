@@ -541,18 +541,19 @@ def test_the_render_round_trips_through_the_shared_reader():
     assert rendered_to_markdown(repository_native.markdown_to_items(body)) == body
 
 
-def test_a_long_body_is_not_truncated_the_way_the_notion_call_would_be():
-    """**반례.** 공유 함수를 그대로 부르면 안 되는 이유다.
+def test_a_long_body_is_not_truncated():
+    """긴 본문이 **어느 구현에서도** 안 잘린다.
 
-    `markdown_to_blocks` 는 Notion API 의 상한 둘(한 번에 100 블록, 한 줄 1900 자)을 함께
-    들고 있다. 그것을 화면 렌더에 쓰면 저장된 글이 101 번째 줄부터 사라지고 긴 문단이
-    잘리는데, 편집기는 정본을 그대로 열어 전문을 보여 준다 - 사용자에게는 "읽기 화면에서만
-    글이 없어진다" 로 보인다.
+    예전에는 이 시험이 반례였다: `markdown_to_blocks` 가 Notion API 의 상한 둘(한 번에
+    100 블록, 한 줄 1900 자)을 들고 있어서 그것을 화면 렌더에 쓰면 저장된 글이 101 번째
+    줄부터 사라졌고, 그래서 이 저장소가 자기 구현을 따로 들었다.
+    🔴 **그 상한은 이제 없다** — 밀어 넣을 Notion 이 없어져 파서도 안 자른다. 그래서 두
+    구현이 같은 답을 낸다는 것이 지금의 계약이다.
     """
     body = "\n".join(f"{index} 번째 줄" for index in range(150))
     items = repository_native.markdown_to_items(body)
     assert len(items) == 150
-    assert len(markdown_to_blocks(body)) == 100  # 상한이 실재한다(검사가 헛돌지 않는다)
+    assert len(markdown_to_blocks(body)) == 150  # 공유 파서도 더 이상 안 자른다
 
     long_line = "가" * 2500
     assert repository_native.markdown_to_items(long_line)[0]["text"] == long_line

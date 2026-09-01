@@ -13,6 +13,7 @@ import { useTheme } from "@mui/material/styles";
 import { api } from "../lib/api.js";
 import { PageHeader, Card, Badge, Button, Callout, Skeleton, EmptyState, ErrorState, MetricStrip, DataTable, tableCellProps } from "../ui/kit.jsx";
 import { FilterActions, FilterRow, FilterSurface } from "../ui/FilterBar.jsx";
+import { HEADER_ALIGN } from "../ui/columnTypes.js";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
 import { Donut } from "../ui/charts/Donut.jsx";
 import { resolveChartColor } from "../ui/charts/base.jsx";
@@ -365,8 +366,17 @@ export function DevReport() {
                 <Table size="small">
                 <TableHead>
                   <TableRow>
+                    {/* 🔴 머리글은 **가운데**다 — 이 저장소에서 그렇지 않은 표가 여기 하나뿐이었다.
+                        `tableCellProps` 가 돌려주는 `align` 은 **몸통 칸**의 정렬이라(값의 의미가
+                        정한다), 그것을 머리에 그대로 쓰면 이름 줄이 왼쪽·가운데로 들쭉날쭉해진다.
+                        다른 표는 `TableHeaderCell` 을 지나며 이 값을 덮어쓰는데(그 부품이
+                        `HEADER_ALIGN` 을 박는다), 이 표는 손으로 만든 격자라 그 자리를 안 지났다. */}
                     {DEV_TICKET_COLUMNS.map((c) => (
-                      <TableCell key={c.key} scope="col" title={c.help || undefined} {...tableCellProps(c, { head: true })}>
+                      <TableCell
+                        key={c.key} scope="col" title={c.help || undefined}
+                        {...tableCellProps(c, { head: true })}
+                        align={HEADER_ALIGN}
+                      >
                         {c.label}
                       </TableCell>
                     ))}

@@ -406,7 +406,10 @@ def test_save_body_carries_no_push_state(catalog, db, native):
     assert hasattr(result, "sync_error") is False, result
     assert result.uid == "n-mine-1"
     row = db.get(TicketCache, "n-mine-1")
-    assert row.body_markdown == "# 제목\n- 하나"
+    # 정본은 **문서**다(`tickets.body_doc`). 마크다운은 거기서 파생되므로 블록 사이가
+    # 빈 줄 하나로 정규화된다 — 「보낸 글자 그대로」가 아니라 「같은 뜻의 정규형」이다.
+    assert row.body_doc is not None
+    assert row.body_markdown == "# 제목\n\n- 하나"
     assert row.body_synced_at == NOW
 
 

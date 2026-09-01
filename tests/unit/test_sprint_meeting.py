@@ -1,5 +1,7 @@
 """스프린트 회의 — **회차를 아는 화면** (지시 4).
 
+qa-contract-replaced-by: tests/unit/test_sprint_burndown.py
+
 ## 이 파일이 지키는 것
 
 예전 회의 화면은 회차를 몰랐다. 「이번 주 월요일부터 다음 주 월요일까지 마감인 티켓」을
@@ -21,7 +23,7 @@
 
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import date, datetime, time, timedelta
 
 import pytest
 
@@ -71,7 +73,12 @@ def world(db, make_user):
     late = ticket(1, title="늦은 일", due_date=TODAY - timedelta(days=2), est_wd=2)
     stuck = ticket(2, title="막힌 일", blocked_flag=True, blocked_reason="외부 응답 대기", est_wd=1)
     soon = ticket(3, title="곧 마감", due_date=TODAY + timedelta(days=1), est_wd=3)
-    done = ticket(4, title="끝난 일", status="완료", due_date=TODAY - timedelta(days=1), est_wd=1)
+    done = ticket(
+        4, title="끝난 일", status="완료", due_date=TODAY - timedelta(days=1), est_wd=1,
+        # 완료 시각. 실제 경로(`repository_native._stamp_completion`)가 상태를 쓸 때 찍는
+        # 값이고, 번다운의 「그날 끝난 일」이 이것을 읽는다.
+        completed_at=datetime.combine(TODAY - timedelta(days=1), time(9, 0)),
+    )
     for row in (late, stuck, soon, done):
         row.sprint_id = sprint.id
     # 회차 **밖**의 일. 후보로만 나와야 하고 요약에는 안 들어간다.
@@ -85,6 +92,61 @@ def world(db, make_user):
 
 def _meeting(db, world):
     return meeting.meeting(db, world["boss"], sprint_id=world["sprint"].id, today=TODAY)
+
+
+# ── 번다운 ──────────────────────────────────────────────────────────────────
+#
+# 🔴 이 묶음이 `tests/unit/test_sprint_burndown.py` 를 대신한다. 그 파일은 「그날 이후로
+# 마감이 남아 있는 업무량」의 분포를 쟀다 — 그것이 번다운이 아니라는 것을 그 모듈 스스로
+# 적고 있었고(「완료 시각이 어디에도 없다」), 그 전제가 사실이 아니게 됐다.
+# `tickets.completed_at` 이 상태를 쓰는 자리 한 곳에서 찍히므로 실제 소진을 **잰다.**
+
+
+def _burndown(db, world):
+    return _meeting(db, world)["burndown"]["points"]
+
+
+def test_the_burndown_draws_real_remaining_work_not_a_due_date_histogram(db, world):
+    """남은 일 선은 **그날 끝에 안 끝난 공수**다.
+
+    표본: 예상 WD 가 2·1·3·1 이고 그중 1(「끝난 일」)만 완료다. 취소는 없다.
+    첫날에는 넷 다 안 끝났으므로 7 이고, 완료가 찍힌 날부터 6 으로 내려간다.
+    """
+    points = _burndown(db, world)
+    assert points[0]["remaining"] == 7.0
+    # 마지막으로 그린 점(오늘)에서는 완료분 1 이 빠져 있다.
+    drawn = [p for p in points if p["remaining"] is not None]
+    assert drawn[-1]["remaining"] == 6.0
+    assert drawn[-1]["done"] == 1.0
+
+
+def test_the_burndown_does_not_draw_the_future(db, world):
+    """🔴 오늘 이후의 「남은 일」은 `None` 이다 — 내일 얼마가 남을지는 아무도 모른다.
+
+    이상선과 범위선은 끝까지 그린다(계획이니까). 실제만 오늘에서 멈춘다.
+    """
+    points = _burndown(db, world)
+    future = [p for p in points if p["date"] > TODAY.isoformat()]
+    assert future, "이 표본은 회차 종료일이 오늘 뒤라 미래 점이 있어야 한다"
+    assert all(p["remaining"] is None for p in future)
+    assert all(p["ideal"] is not None and p["scope"] is not None for p in future)
+
+
+def test_a_ticket_without_a_due_date_still_counts(db, world):
+    """마감일이 없는 티켓도 **총량에 든다**.
+
+    옛 그림은 마감일이 축이라 그런 티켓을 통째로 뺐다 — 그래서 같은 화면의 「남은 WD」와
+    그림의 총량이 서로 다른 값이었다. 「막힌 일」에는 마감이 없는데도 1인일이 세어진다.
+    """
+    body = _meeting(db, world)
+    assert body["burndown"]["total_est_wd"] == body["summary"]["planned_wd"]
+
+
+def test_the_ideal_line_falls_to_zero_on_the_last_day(db, world):
+    """계획선은 첫날의 범위에서 마지막 날 0 까지 곧게 내려간다."""
+    points = _burndown(db, world)
+    assert points[0]["ideal"] == 7.0
+    assert points[-1]["ideal"] == 0.0
 
 
 # ── 경계 ────────────────────────────────────────────────────────────────────
@@ -113,14 +175,23 @@ def test_the_candidates_are_real_backlog_tickets(db, world):
 
 
 def test_discussion_is_split_by_type(db, world):
-    """단순 목록 하나가 아니라 유형별이다 — 지연과 미할당은 회의에서 하는 말이 다르다."""
+    """단순 목록 하나가 아니라 유형별이다 — 지연과 미할당은 회의에서 하는 말이 다르다.
+
+    뒤의 셋(`issue`·`no_estimate`·`no_due`)은 **회의 준비**다. 예상 WD 나 마감이 비어 있으면
+    번다운도 담당자별 남은 WD 도 못 그리는데, 예전에는 그림이 안 나온 **뒤에야** 그 사실을
+    알 수 있었다 — 이제 고칠 목록으로 먼저 보인다.
+    """
     discuss = _meeting(db, world)["discuss"]
-    assert set(discuss) == {"overdue", "blocked", "unassigned", "due_soon", "scope_changes"}
+    assert set(discuss) == {
+        "overdue", "blocked", "issue", "unassigned", "due_soon",
+        "no_estimate", "no_due", "scope_changes",
+    }
     assert [r["title"] for r in discuss["overdue"]["items"]] == ["늦은 일"]
     assert [r["title"] for r in discuss["blocked"]["items"]] == ["막힌 일"]
     assert [r["title"] for r in discuss["due_soon"]["items"]] == ["곧 마감"]
-    # 담당자를 아무에게도 안 걸었으므로 넷 다 미할당이다.
-    assert discuss["unassigned"]["total"] == 4
+    # 담당자를 아무에게도 안 걸었으므로 **안 끝난 것**이 전부 미할당이다.
+    # (끝난 티켓은 안 센다 — 오늘 회의에서 담당자를 정할 일이 아니다.)
+    assert discuss["unassigned"]["total"] == 3
 
 
 def test_a_finished_ticket_is_not_overdue(db, world):
@@ -157,7 +228,9 @@ def test_scope_change_is_unknown_without_a_record(db, world):
     「범위가 안 바뀐 안정된 회차」라고 말하는데, 실은 아무것도 모르는 것이다.
     """
     scope = _meeting(db, world)["scope"]
-    assert scope == {"tracked": False, "added": 0, "removed": 0}
+    # 추이도 **빈 목록**이다 — 그릴 것이 없다는 사실과 「0 이다」는 다른 말이고,
+    # 화면은 `tracked` 로 그 둘을 가른다.
+    assert scope == {"tracked": False, "added": 0, "removed": 0, "trend": []}
 
 
 def test_a_mid_sprint_addition_is_counted(db, world):

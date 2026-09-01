@@ -106,37 +106,19 @@ export function SettingList({ title, action, children }) {
   );
 }
 
-/* 개수가 고정(5개)인 머리 지표 줄의 격자.
- *
- * 지표를 낱장 카드 격자(옛 `STAT_GRID`)로 까는 방식은 폐기했다 — 열 수가 개수를 나누지
- * 못하면 마지막 줄이 비고, 무엇보다 카드 N장은 무엇이 핵심 지표인지 말해 주지 않는다.
- * 지표는 이제 판 하나를 나눠 쓰는 판독 줄(kit.jsx::MetricStrip)이다.
- *
- * 이 격자는 지표가 아니라 **경보 타일**처럼 개수가 고정된 줄에만 남는다. 좁은 화면에서는
- * 2열로 접히고, 그때는 5개가 세 줄이 되는 게 맞다(가로 스크롤보다 낫다). */
-export const HEADLINE_GRID = {
-  xs: "1fr",
-  sm: "repeat(2, minmax(0,1fr))",
-  lg: "repeat(5, minmax(0,1fr))",
-};
+/* 🔴 여기 `HEADLINE_GRID` 가 있었다. 「경보 타일처럼 개수가 고정된 줄에만 남는다」고
+   적혀 있었는데 **소비처가 0** 이었다 — 지표가 판독 줄(`kit.jsx::MetricStrip`)로 옮겨
+   가면서 그 자리가 함께 없어졌고, 이름만 남았다. 소비처 없는 치수는 다음 사람에게
+   「여기에 정본이 있다」고 거짓말을 한다(`ui/density.js` 가 같은 이유로 여덟 개를 걷었다). */
 
-/* 대시보드·진단이 공유하는 섹션 껍데기(제목 + 오른쪽 보조 링크).
- * 예전엔 .dash-section/.dash-h2/.dash-h2-row 세 클래스를 두 화면이 각자 손으로 붙였고,
- * 한쪽에만 h2-row를 빠뜨려 같은 성격의 섹션이 화면마다 다른 간격으로 보였다. */
-export function DashSection({ title, action, children }) {
-  return (
-    /* 섹션 사이 간격의 정본은 `density.js::SECTION_GAP` 하나다(W4 에서 24 -> 32). 예전에는
-       이 자리에 `{ xs: 4, xxl: 5 }` 같은 화면별 숫자가 있었고, 한 화면에 섹션이 대여섯 개인
-       대시보드에서 화면 하나 분량의 빈 줄을 더 만들었다. */
-    <Box component="section" sx={{ mb: SECTION_GAP }}>
-      <Box sx={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 2, mb: 1.5 }}>
-        <Typography component="h2" variant="h6" sx={{ fontSize: FONT_SIZE.sectionTitle }}>{title}</Typography>
-        {action}
-      </Box>
-      {children}
-    </Box>
-  );
-}
+/* 🔴 여기 `DashSection` 이 있었다 — 대시보드·진단이 쓰던 **두 번째 구획 부품**이다.
+ *
+ * 사용자 화면은 `kit.jsx::Section` 을 쓰고 관리자 화면은 이것을 썼다. 간격은 둘 다
+ * `SECTION_GAP` 이라 같았지만 제목 단계(h2 vs h3)와 계약(`rule`·`help` 유무)이 달라서,
+ * 한쪽에 붙인 것이 다른 쪽에 영영 안 왔다. 갈라져 있던 이유는 `Section` 이 제목 단계를
+ * 못 받는 것 하나뿐이었다 — 그 prop(`titleAs`)을 주고 이 부품을 걷었다.
+ *
+ * 옮기는 법: `<DashSection title="x">` → `<Section title="x" titleAs="h2">`. */
 
 /* 서비스/연동 상태 타일(이름 + 배지). 대시보드와 진단이 같은 사실을 같은 모양으로 보여야 한다 —
  * 예전엔 두 화면이 각자 .dash-svc 마크업을 손으로 복사해 뒀고, 한쪽만 hover 표시를 붙여

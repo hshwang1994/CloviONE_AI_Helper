@@ -214,9 +214,10 @@ export function StorageProviders({ embedded = false }) {
     <Button variant="primary" disabled={busy} onClick={() => setCreating(true)}>저장소 추가</Button>
   );
 
+  /* `/storage` 라우트는 **없다** — 이 화면은 설정 껍데기의 탭으로만 열린다.
+     머리와 `.c-screen` 은 그 껍데기가 그린다. */
   return (
-    <Box className="c-screen">
-      {embedded ? null : <PageHeader area="설정" title="파일 저장소" help={HELP} actions={addButton} />}
+    <>
 
       {query.isLoading ? (
         <Skeleton kind="table" rows={3} cols={6} />
@@ -296,7 +297,7 @@ export function StorageProviders({ embedded = false }) {
           onClose={() => setEditing(null)}
         />
       ) : null}
-    </Box>
+    </>
   );
 }
 

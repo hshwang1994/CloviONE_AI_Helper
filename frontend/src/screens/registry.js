@@ -30,7 +30,8 @@
  *
  * 그래서 **여기에 새 화면을 직접 적지 않는다.** 도메인 파일에 적고 아래 조립에만 더한다.
  */
-import { INTEGRATION_SCREENS } from "./registry/integrations.js";
+/* 「외부 연동」 화면은 걷었다 — 0017 이 등록 행을 지웠고 시드 목록이 비어 있어 그 표가
+   다시 채워지지 않는다. 서버 API 는 그대로다(대시보드·진단이 헬스 결과를 읽는다). */
 import { AUTHORING_SCREENS } from "./registry/authoring.js";
 import { AUTOMATION_SCREENS } from "./registry/automation.js";
 import { ORG_SCREENS } from "./registry/org.js";
@@ -45,7 +46,6 @@ import { ADMIN_NOTIFICATIONS_SCREEN } from "./registry/notifications.js";
  * 새 화면을 더할 때 이름이 이미 있는지 아래 조립을 눈으로 확인한다(같은 키 두 개는
  * 조용히 한쪽을 지운다). */
 export const REGISTRY = {
-  ...INTEGRATION_SCREENS,
   ...AUTHORING_SCREENS,
   ...AUTOMATION_SCREENS,
   ...ORG_SCREENS,

@@ -53,26 +53,23 @@ def test_document_create_requires_type_and_field():
         DocumentCreate(title="제목", document_type=list(DOC_TYPES)[0])  # 업무 분야 누락
 
 
-def test_document_create_body_over_line_cap_is_rejected_not_truncated():
-    """본문 줄 수 상한은 **조용히 잘리는 것**을 막으려고 있다.
+def test_document_create_keeps_a_long_body_whole():
+    """받은 것을 **다 저장한다** — 줄 수 상한이 없다.
 
-    총 글자 수만 보고 통과시키면 짧은 줄 150개(1,300자 남짓, 글자 상한 밑)가 통과하고
-    뒤쪽이 소리 없이 사라진다. 거절하는 쪽이 옳다 — 사용자는 자기가 쓴 글이 어디까지
-    저장됐는지 화면에서 알 수 없다.
-
-    소스가 자체 DB 가 된 뒤에도 이 성질은 그대로다. 자르는 쪽(옛 Notion 블록 변환기)이
-    사라졌다고 「받은 것을 다 저장한다」는 약속이 없어지지는 않는다.
+    예전에는 이 자리가 「150줄이면 거절한다」였다. 그 거절은 자르는 쪽(옛 Notion 블록
+    변환기)이 뒤쪽을 소리 없이 버리기 때문에 있었다 — 조용히 잘리느니 거절이 낫다는
+    판단이었고, 그때는 맞았다.
+    🔴 **자르는 쪽이 없어졌다.** 밀어 넣을 Notion 이 사라져 파서도 검증기도 안 자른다.
+    지키던 약속(「받은 것을 다 저장한다」)은 그대로이고, 지금은 거절이 아니라 **보존**으로
+    그것을 지킨다.
     """
-    from pydantic import ValidationError
-
     from app.team_docs.schemas import DocumentCreate
 
     body = "\n".join(f"줄 {n}" for n in range(150))
-    assert len(body) < 20_000, "이 표본이 글자 상한에 걸리면 줄 수 상한을 시험하지 못한다"
-    with pytest.raises(ValidationError):
-        DocumentCreate(
-            title="제목",
-            document_type=list(DOC_TYPES)[0],
-            work_field=list(WORK_FIELDS)[0],
-            body=body,
-        )
+    payload = DocumentCreate(
+        title="제목",
+        document_type=list(DOC_TYPES)[0],
+        work_field=list(WORK_FIELDS)[0],
+        body=body,
+    )
+    assert payload.body == body

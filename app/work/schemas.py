@@ -43,6 +43,8 @@ class BoardMove(BaseModel):
     position_mine: bool = False
     position_priority: str | None = Field(default=None, max_length=64)
     position_difficulty: str | None = Field(default=None, max_length=64)
+    position_department_id: str | None = Field(default=None, max_length=36)
+    position_signal: str | None = Field(default=None, pattern="^(blocked|overdue|issue)$")
     base_version: int | None = Field(default=None, ge=1)
 
 

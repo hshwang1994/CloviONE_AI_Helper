@@ -43,14 +43,14 @@ export const AUTOMATION_SCREENS = {
     // target_type/target_ref도 목록 열로 노출 — 이 일정이 실제로 무엇을 실행하는지가 예전엔
     // 상세를 하나씩 열어야만 보였다.
     columns: [{ ...col("name", "이름"), identifier: true }, mapCol("schedule_type", "유형", SCHED_TYPE),
-      { key: "cron_expression", label: "실행 일정(Cron)", render: (r) => r.schedule_type === "once" ? "1회 실행(‘다음 실행’ 참고)" : (r.cron_expression == null || r.cron_expression === "" ? "-" : String(r.cron_expression)) },
+      { key: "cron_expression", label: "실행 일정(Cron)", type: "identifier", render: (r) => r.schedule_type === "once" ? "1회 실행(‘다음 실행’ 참고)" : (r.cron_expression == null || r.cron_expression === "" ? "-" : String(r.cron_expression)) },
       mapCol("target_type", "대상 유형", { system: "시스템" }),
-      { key: "target_ref", label: "대상", render: (r) => r.target_ref || "-" },
+      { key: "target_ref", label: "대상", type: "enum", render: (r) => r.target_ref || "-" },
       enabledCol("활성"),
       // 비활성화(disable_schedule)는 next_run_at을 지우지 않는다(백엔드가 enabled만 끈다) — 그대로
       // 보여주면 '이 시각에 다시 실행될 것'처럼 읽힌다. 비활성 행은 활성 배지로 알 수 있으니 이 열은
       // 무의미한 미래 시각 대신 '-'로 지워 이중 확인을 강제하지 않는다.
-      { key: "next_run_at", label: "다음 실행", render: (r) => r.enabled ? fmtDateTime(r.next_run_at) : "-" },
+      { key: "next_run_at", label: "다음 실행", type: "datetime", render: (r) => r.enabled ? fmtDateTime(r.next_run_at) : "-" },
       dateCol("last_run_at", "마지막 실행"),
       // 백엔드가 now > end_at이면 cron 일정을 자동 비활성화한다(scheduler.py advance_next_run) —
       // 상세를 하나씩 열지 않고도 곧 만료될 일정을 목록에서 바로 훑을 수 있게 노출한다.
@@ -134,18 +134,18 @@ export const AUTOMATION_SCREENS = {
         endpoint: (r, p) => "/api/admin/schedules/" + r.id + "/runs?page=" + ((p && p.page) || 1) + (p && p.filters && p.filters.status ? "&status=" + encodeURIComponent(p.filters.status) : ""),
         // _run_view가 request_payload(실제로 보낸 값)도 돌려주는데 목록엔 전혀 없었다 — 실패 원인
         // 진단의 핵심 두 값(보낸 것/받은 것) 중 하나가 아예 안 보였다. 둘 다 진단용 요약으로 노출한다.
-        columns: [dateCol("scheduled_at", "예정"), mapCol("status", "결과", SCHED_RUN), dateCol("started_at", "시작"), dateCol("finished_at", "종료"), col("retry_count", "재시도"),
-          { key: "request_payload", label: "보낸 페이로드", render: (r) => { const v = r.request_payload; if (v == null || v === "" || (typeof v === "object" && !Object.keys(v).length)) return "-"; const s = typeof v === "string" ? v : JSON.stringify(v); return s.length > 60 ? s.slice(0, 60) + "…" : s; } },
-          { key: "response_summary", label: "응답 요약", render: (r) => { const v = r.response_summary; if (v == null || v === "") return "-"; const s = typeof v === "string" ? v : JSON.stringify(v); return s.length > 60 ? s.slice(0, 60) + "…" : s; } },
+        columns: [dateCol("scheduled_at", "예정"), mapCol("status", "결과", SCHED_RUN), dateCol("started_at", "시작"), dateCol("finished_at", "종료"), col("retry_count", "재시도", "count"),
+          { key: "request_payload", label: "보낸 페이로드", type: "text", render: (r) => { const v = r.request_payload; if (v == null || v === "" || (typeof v === "object" && !Object.keys(v).length)) return "-"; const s = typeof v === "string" ? v : JSON.stringify(v); return s.length > 60 ? s.slice(0, 60) + "…" : s; } },
+          { key: "response_summary", label: "응답 요약", type: "text", render: (r) => { const v = r.response_summary; if (v == null || v === "") return "-"; const s = typeof v === "string" ? v : JSON.stringify(v); return s.length > 60 ? s.slice(0, 60) + "…" : s; } },
           // 건너뛴 실행(_record_skip, app/schedules/scheduler.py)은 error_message에 원문 영어 사유
           // 코드('misfire_skip'/'concurrent_run_active')를 그대로 담아 온다 — backupReasonText와 동일한
           // 패턴으로 한국어로 치환하고, 그 외(실제 예외 메시지)는 원문 그대로 보여준다.
-          { key: "error_message", label: "오류", render: (r) => schedSkipReasonText(r.error_message) },
+          { key: "error_message", label: "오류", type: "text", render: (r) => schedSkipReasonText(r.error_message) },
           // 이 실행 건을 실제로 처리한 작업(큐)으로 가는 링크(FN-13/IA-02 반대 방향) — 예전엔
           // 실패 원인을 더 깊이 보려면(시도 횟수·워커 last_error·소요 시간) 작업 큐에서 이
           // schedule_run_id를 손으로 찾는 것 말고는 길이 없었다. SubListDrawer의 rowActions는
           // navigate를 지원하지 않아(act()가 path()를 호출하는 mutation 전용) 컬럼 링크로 둔다.
-          { key: "job_link", label: "작업 큐", render: (r) => React.createElement(Link, { underline: "hover", href: "#/jobs?schedule_run_id=" + encodeURIComponent(r.id) }, "보기") }],
+          { key: "job_link", label: "작업 큐", type: "identifier", render: (r) => React.createElement(Link, { underline: "hover", href: "#/jobs?schedule_run_id=" + encodeURIComponent(r.id) }, "보기") }],
         emptyTitle: "실행 이력이 없습니다", emptyHelp: "아직 이 일정이 실행된 적이 없습니다(또는 이 필터에 해당하는 기록이 없습니다).",
         rowActions: [
           // 목록 열은 진단 핵심 두 값(보낸 페이로드/응답 요약)을 60자로 자른다 — 그 너머는 볼 방법이
@@ -235,7 +235,7 @@ export const AUTOMATION_SCREENS = {
       // 보여주면서도 클릭해도 아무 일이 없었다. 목록의 status 필터로 직접 좁혀 준다.
       cards: (s, ctx) => {
         const cards = [
-          { value: s.queued != null ? s.queued : 0, label: "대기", kind: s.queued > 0 ? "warn" : undefined, onClick: () => ctx.setFilter("status", "queued") },
+          { value: s.queued != null ? s.queued : 0, label: "대기", type: "count", kind: s.queued > 0 ? "warn" : undefined, onClick: () => ctx.setFilter("status", "queued") },
           { value: s.running != null ? s.running : 0, label: "실행 중", onClick: () => ctx.setFilter("status", "running") },
           // '실행 가능(ready)'은 status 값이 아니라 대기 중 행 중 available_at이 이미 지난 부분집합의
           // 계산값이다(백엔드에 그 자체의 status 필터가 없다) — '대기'와 동일하게 좁혀 준 뒤 목록의
@@ -304,7 +304,7 @@ export const AUTOMATION_SCREENS = {
     serverSort: { keys: ["created_at", "available_at", "started_at", "finished_at", "status", "job_type", "attempt_count"], default: { key: "created_at", dir: "desc" } },
     columns: [{ ...dateCol("created_at", "생성"), rowName: (r) => (JOB_TYPE[r.job_type] || r.job_type) + " / " + fmtDateTime(r.created_at) }, { ...mapCol("job_type", "유형", JOB_TYPE), sortable: true }, { ...badgeCol("status", "상태"), sortable: true },
       // 대기 중인데 실행 예정 시각이 이미 지났으면 지연(백로그) 신호 — 워커 정체를 이 화면에서 바로 감지.
-      { key: "available_at", label: "대기", render: (r) => {
+      { key: "available_at", label: "대기", type: "count", render: (r) => {
         if (r.status !== "queued" || !r.available_at) return "-";
         const s = String(r.available_at); const iso = /[zZ]$|[+-]\d\d:?\d\d$/.test(s) ? s : s + "Z";
         const t = new Date(iso).getTime(); if (Number.isNaN(t)) return "-";
@@ -313,7 +313,7 @@ export const AUTOMATION_SCREENS = {
         if (m < 1) return "지연 <1분"; if (m < 60) return "지연 " + m + "분";
         return "지연 " + Math.floor(m / 60) + "시간 " + (m % 60) + "분";
       } },
-      { key: "attempt_count", label: "시도", sortable: true, render: (r) => r.max_attempts != null ? r.attempt_count + " / " + r.max_attempts : String(r.attempt_count) },
+      { key: "attempt_count", label: "시도", type: "count", sortable: true, render: (r) => r.max_attempts != null ? r.attempt_count + " / " + r.max_attempts : String(r.attempt_count) },
       /* 실패 사유를 목록에서 바로 훑을 수 있게(예전엔 상세 드로어를 하나씩 열어야만 보였다).
        *
        * **여기서는 원문이 화면의 내용인 것이 맞다**(지시 36 판정, D-162): 작업 큐는 장애를
@@ -323,7 +323,7 @@ export const AUTOMATION_SCREENS = {
        * 다만 60자에서 글자 중간을 자르면 `TypeError: Cannot read prope…` 처럼 아무 정보도
        * 없는 조각이 남을 때가 있다 — 예외 원문은 첫 줄이 곧 요약이므로 **첫 줄**을 보여 주고,
        * 그보다 길면 그때 자른다. 전체는 행을 열면 상세에 그대로 있다. */
-      { key: "last_error", label: "오류", render: (r) => {
+      { key: "last_error", label: "오류", type: "text", render: (r) => {
         const v = r.last_error;
         if (!v) return "-";
         const first = String(v).split("\n")[0];

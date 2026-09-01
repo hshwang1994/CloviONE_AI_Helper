@@ -42,6 +42,7 @@ from sqlalchemy import (
     func,
     text,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.models_base import (  # noqa: F401 — join_names/split_names 재수출(동일 규약)
@@ -181,7 +182,16 @@ class Ticket(OrgScopedMixin, TimestampMixin, UUIDPrimaryKeyMixin, Base):
     project_names: Mapped[str] = mapped_column(Text, nullable=False, default="")
     assignee_notion_ids: Mapped[str] = mapped_column(Text, nullable=False, default="")
 
-    # 본문 정본(마크다운). 우리 화면에서 한 번이라도 저장하면 채워지고, 그 뒤로는 이 값이 정본이다
+    # 본문 **정본**(ProseMirror 문서). 문서 본문(`document_versions.body`)과 같은 스키마이고
+    # 같은 검증기를 지난다(`app/knowledge/blocks.py`) — 그래서 티켓 설명과 문서가 같은
+    # 편집기를 쓸 수 있다. `JsonText` 가 아니라 진짜 `JSONB` 인 이유도 문서와 같다:
+    # 이 값은 문자열로 왕복하는 설정이 아니라 **구조**다.
+    #
+    # 비어 있으면 옛 행이다 — 읽을 때 `app/tickets/body_doc.py::doc_from_markdown` 을
+    # 지나고, 한 번 저장하면 채워진다(0025 가 전량 백필을 안 하는 이유는 그 파일에 있다).
+    body_doc: Mapped[dict | None] = mapped_column(JSONB)
+    # 본문 **파생값**(마크다운). 예전에는 이 칸이 정본이었다. 지금은 `body_doc` 에서
+    # 파생되지만 없애지 않는다 — 검색·AI 문맥·목록 미리보기가 이미 이 칸을 읽는다.
     # (동기화는 이 컬럼을 건드리지 않는다 — sync.py::_upsert 에 없다).
     body_markdown: Mapped[str | None] = mapped_column(Text)
     # 본문을 Notion 까지 밀어 넣는 데 성공한 시각과, 실패했다면 그 이유.

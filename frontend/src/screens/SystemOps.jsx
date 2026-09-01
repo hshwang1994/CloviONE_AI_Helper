@@ -344,15 +344,15 @@ export function SystemOps({ embedded = false } = {}) {
 
   const unitNames = Object.keys(units);
 
+  /* 🔴 여기 `embedded ? null : <PageHeader area="운영" …>` 가 있었다. **도달할 수 없는
+     갈래**다 — 이 화면의 옛 주소 `/system` 은 `/settings?tab=os` 로 보내는 리다이렉트가
+     됐고(`app/AdminRoutes.jsx`), 그 뒤로 이 컴포넌트는 언제나 설정 껍데기 안에서
+     `embedded` 로만 그려진다. 게다가 그 머리는 `area="운영"` 이라고 적고 있었는데 지금
+     이 화면이 사는 사이드바 묶음은 **설정**이다 — 도달만 했으면 빵 부스러기가 틀린 자리를
+     가리켰을 것이다. 껍데기가 이미 머리를 그린다(`settings/SettingsShell.jsx`).
+     `.c-screen` 도 껍데기가 감싼다 — 여기서 또 감싸면 바깥 여백이 두 번 붙는다. */
   return (
-    <Box className="c-screen">
-      {embedded ? null : (
-        <PageHeader
-          area="운영" title="OS와 서비스"
-          description="시간대, DNS, 아웃바운드 프록시 같은 서버 설정을 지금 값과 함께 봅니다."
-          help={HELP}
-        />
-      )}
+    <>
 
       {!usable && (
         /* 도우미가 없는 것은 오류가 아니라 이 서버의 상태다 - 사람이 할 일이 있으므로 조용한
@@ -403,7 +403,7 @@ export function SystemOps({ embedded = false } = {}) {
           onClose={() => setOpenAction(null)}
         />
       )}
-    </Box>
+    </>
   );
 }
 

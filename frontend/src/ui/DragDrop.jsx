@@ -108,6 +108,13 @@ export function DragItem({ id, label, disabled, children }) {
  * 갖는다 — 이 칸의 `bodyMaxHeight` 스크롤 상자 **안에** 그것을 또 두면 스크롤 상자가
  * 둘 겹친다. 그래서 켜져 있으면 이 칸은 자기 스크롤·역할(role="list")·레이아웃을 접고
  * `children` 을 그대로 낸다 — 그 자리를 `VirtualRows` 가 통째로 맡는다. */
+/* 🔴 **판이 세 겹이 아니다** — 칸은 조용한 함몰면이고 카드가 그 위의 판이다.
+ *
+ * 예전에는 바깥에 한 겹(`WorkBoard` 의 `LANE_SURFACE` 래퍼), 칸마다 한 겹, 카드마다 한 겹
+ * 이라 흰 상자가 세 번 겹쳐 보였다. 사용자가 「칸반 카드 뒤에 다시 깔린 흰 배경은 없어도
+ * 될 것 같다」고 한 자리다. 바깥 겹은 화면이 지웠고, 칸은 **상시 테두리를 버린다** —
+ * 배경 하나로도 「여기가 한 칸이다」는 충분히 읽히고, 테두리는 카드에만 남아 무엇이
+ * 집을 수 있는 것인지 말한다. 끌어 놓는 동안에만 테두리가 살아나 목표를 가리킨다. */
 export function DropColumn({ id, title, count, hint, children, sx, bodyMaxHeight, action, footer, virtualized }) {
   const { setNodeRef, isOver } = useDroppable({ id });
   return (
@@ -115,21 +122,26 @@ export function DropColumn({ id, title, count, hint, children, sx, bodyMaxHeight
       ref={setNodeRef}
       component="section"
       aria-label={`${title} (${count}건)`}
+      /* 판독 줄에서 「진행 중 12」를 누르면 이 칸으로 데려가는 데 쓴다. 이름이 아니라
+         열쇠로 찾는다 — 이름은 어휘가 바뀌면 달라지지만 열쇠는 서버와 같은 값이다. */
+      data-col-key={id}
       sx={{
         display: "flex",
         flexDirection: "column",
         gap: 1,
         minWidth: 0,
-        minHeight: "12rem",
+        /* 바닥을 낮춘다. 12rem 은 **빈 칸이 큰 흰 상자로 보이던** 높이다 — 카드가 없어도
+           그만큼의 빈 면이 서 있었다. 놓을 자리는 유지해야 하므로 0 으로는 안 간다. */
+        minHeight: "7rem",
         p: TILE_PADDING,
         ...LANE_SURFACE,
+        border: 0,
         borderRadius: `${RADIUS.md}px`,
         bgcolor: isOver ? "action.hover" : LANE_SURFACE.bgcolor,
-        borderColor: isOver ? "brand.core" : "divider",
         outline: isOver ? "2px dashed" : "none",
         outlineColor: "primary.main",
         outlineOffset: -1,
-        transition: "background-color 120ms ease, border-color 120ms ease",
+        transition: "background-color 120ms ease, outline-color 120ms ease",
         ...sx,
       }}
     >
@@ -157,13 +169,26 @@ export function DropColumn({ id, title, count, hint, children, sx, bodyMaxHeight
         <Box
           role="list"
           sx={{
-            display: "flex", flexDirection: "column", gap: 1, minHeight: "4rem",
+            display: "flex", flexDirection: "column", gap: 1, minHeight: "2.5rem",
             ...(bodyMaxHeight ? { maxHeight: bodyMaxHeight, overflowY: "auto", pr: 0.5 } : null),
           }}
         >
           {children}
         </Box>
       )}
+      {/* 빈 칸은 **큰 빈 상자가 아니라 한 줄**이다. 놓을 수 있다는 사실만 말한다. */}
+      {count === 0 ? (
+        <Typography
+          variant="caption"
+          color="text.secondary"
+          sx={{
+            border: "1px dashed", borderColor: "divider", borderRadius: `${RADIUS.sm}px`,
+            px: 1, py: 0.75, textAlign: "center",
+          }}
+        >
+          여기로 카드를 옮길 수 있습니다.
+        </Typography>
+      ) : null}
       {footer ? <Box sx={{ mt: "auto" }}>{footer}</Box> : null}
     </Box>
   );

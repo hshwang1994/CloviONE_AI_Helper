@@ -25,7 +25,8 @@ from app.core.errors import (
     NotFoundError,
     ValidationAppError,
 )
-from app.core.models_base import split_names, utcnow
+from app.core.models_base import join_names, split_names, utcnow
+from app.knowledge.blocks import BlockError
 from app.core.notion_blocks import rendered_to_markdown
 from app.notion_mapping.models import STATUS_VERIFIED, UserNotionMapping
 from app.reports.service import STATUS_CANCELLED, STATUS_DONE, _load_name_map
@@ -699,15 +700,19 @@ def ticket_detail(
         can_edit = True
     except ForbiddenError:
         can_edit = False
-    blocks, blocks_error = None, None
+    blocks, body_doc, blocks_error = None, None, None
     try:
         blocks = r.body_blocks(db, page_id=page_id)
+        # 정본. 화면은 이것으로 본문을 그리고 편집기를 연다 — 보는 모양과 고치는 모양이
+        # 같아야 「저장했다가 다시 열었을 때 사라진 것」이 안 생긴다.
+        body_doc = r.body_doc(db, page_id=page_id)
     except Exception as exc:  # noqa: BLE001 — 본문만 격리 실패, 속성은 계속 보여준다
         blocks_error = "본문을 불러오지 못했습니다. 원본에서 확인해 주세요."
         _ = exc
     return {
         "ticket": ticket,
         "blocks": blocks,
+        "body": body_doc,
         "blocks_error": blocks_error,
         # 편집기를 여는 데 쓰는 마크다운. 우리 정본이 있으면 그것, 없으면 방금 읽은 소스 본문을
         # 같은 규칙으로 되읽은 값이다 — 이걸 안 주면 프런트가 마크다운 변환기를 한 벌 더 갖거나
@@ -1127,6 +1132,7 @@ def update_ticket(
 
     stamp = now or utcnow()
     updated = r.update(db, page_id=page_id, changes=repo_changes, now=stamp)
+    _record_edit_activity(db, user, before=current, after=updated, now=stamp)
     if "assignee_notion_ids" in repo_changes:
         # 담당자를 건드린 편집에서만 본다. 마감일만 고친 저장이 배정 알림을 만들면 안 된다.
         _notify_assignees_added(
@@ -1140,6 +1146,35 @@ def update_ticket(
         "before": snapshot(current),
         "after": snapshot(updated),
     }
+
+
+def _record_edit_activity(db: Session, user: User, *, before, after, now: datetime) -> None:
+    """상태·담당자 변경을 **티켓 활동**에 남긴다.
+
+    🔴 이 자리가 비어 있었다. `ACT_STATUS` 는 판에서 카드를 끌었을 때만
+    (`app/work/service.py::move`) 기록됐고, 목록·상세에서 상태를 바꾸는 이 경로는 아무것도
+    안 남겼다. 그래서 활동 타임라인이 사람마다 다른 이야기를 했고, 그 기록을 읽어야 하는
+    「언제 무엇이 끝났나」류의 집계가 절반만 참인 값을 봤다.
+
+    `ACT_ASSIGNEE` 는 상수만 있고 기록하는 자리가 **한 곳도 없었다** — 여기서 연다.
+
+    활동은 값이 실제로 바뀌었을 때만 남는다(`activity.record` 가 그것을 본다).
+    """
+    from app.work import activity
+    from app.work.models import ACT_ASSIGNEE, ACT_STATUS
+
+    ticket_id = getattr(after, "uid", None) or getattr(after, "id", None)
+    if not ticket_id:
+        return
+    activity.record(
+        db, ticket_id=ticket_id, kind=ACT_STATUS, actor_id=user.id, field="status",
+        from_value=before.status, to_value=after.status, now=now,
+    )
+    activity.record(
+        db, ticket_id=ticket_id, kind=ACT_ASSIGNEE, actor_id=user.id, field="assignee",
+        from_value=join_names(before.assignee_ids), to_value=join_names(after.assignee_ids),
+        now=now,
+    )
 
 
 # ── 활동 이력 ─────────────────────────────────────────────────────────────────
@@ -1493,6 +1528,7 @@ def create_ticket(
         due_date=payload.due_date,
         project_id=external_project_id,
         description_markdown=payload.description,
+        description_doc=payload.description_doc,
         assignee_ids=tuple(_resolve_assignee_ids(db, payload.assignee_user_ids or [])),
     )
     stamp = now or utcnow()
@@ -1625,7 +1661,8 @@ def _ensure_body_not_changed(db: Session, *, page_id: str, base_version: str | N
 
 
 def save_ticket_body(
-    db: Session, outbound, settings, user: User, *, page_id: str, body_markdown: str,
+    db: Session, outbound, settings, user: User, *, page_id: str,
+    doc: dict | None = None, body_markdown: str | None = None,
     now: datetime | None = None, repo=None, base_version: str | None = None,
 ) -> dict:
     """티켓 본문을 저장한다. 편집 권한은 속성 편집과 **같은 규칙**(범위 안이면 담당자가 아니어도).
@@ -1645,11 +1682,17 @@ def save_ticket_body(
     current = r.get_live(db, page_id=page_id)
     ensure_can_edit(current, user, assignee_token(db, user))
     _ensure_body_not_changed(db, page_id=page_id, base_version=base_version)
-    result = r.save_body(
-        db, page_id=page_id, body_markdown=body_markdown, now=now or utcnow()
-    )
+    try:
+        result = r.save_body(
+            db, page_id=page_id, doc=doc, body_markdown=body_markdown, now=now or utcnow()
+        )
+    except BlockError as exc:
+        # 스키마가 거절한 본문은 **422** 다. 그대로 새어 나가면 500 이 되고, 사용자는
+        # 자기 글의 어느 부분이 문제인지 못 듣는다.
+        raise ValidationAppError(str(exc)) from exc
     return {
         "body_markdown": result.body_markdown,
+        "body": result.body_doc,
         "body_version": body_version(result.body_markdown),
     }
 

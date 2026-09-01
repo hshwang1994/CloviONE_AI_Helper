@@ -26,7 +26,9 @@ import {
 } from "../ui/kit.jsx";
 import { FilterActions, FilterRow, FilterSurface, ToolbarRow } from "../ui/FilterBar.jsx";
 import { DragBoard, DragItem, SortableList } from "../ui/DragDrop.jsx";
-import { EntityCombobox, FilterSelect, SearchBox } from "../ui/filters.jsx";
+import { DepartmentFilter, EntityCombobox, FilterSelect, SearchBox } from "../ui/filters.jsx";
+import { SprintLifecycle, sprintStateLabel } from "./SprintLifecycle.jsx";
+import { useListMemory } from "../lib/listReturn.js";
 import { priorityKind, priorityKo } from "../lib/priority.js";
 import { KO_WORD_BREAK } from "../ui/theme.js";
 import { MODERATOR_ROLES, hasRole } from "../lib/roles.js";
@@ -39,7 +41,7 @@ import { useTicketSignals } from "../lib/ticketSignals.js";
 import { TicketSignals } from "../ui/TicketSignals.jsx";
 import { TicketFace, TicketPeople } from "../ui/TicketFace.jsx";
 import { StatusKpiStrip } from "../ui/StatusKpi.jsx";
-import { LANE_SURFACE, PANEL_SURFACE } from "../ui/density.js";
+import { LANE_SURFACE } from "../ui/density.js";
 import { useQueryState } from "../lib/useQueryState.js";
 import { pickOpenSprint } from "./sprint-charts.js";
 
@@ -86,7 +88,31 @@ import { pickOpenSprint } from "./sprint-charts.js";
 
 const TAB_BOARD = "board";
 const TAB_BACKLOG = "backlog";
-const BOARD_SPEC = { tab: TAB_BOARD, project: "", sprint: "" };
+
+/* 🔴 **조건은 전부 주소에 있다.**
+ *
+ * 예전에는 이 셋만 주소에 있었고 담당자·검색·우선순위·난이도·스위치 넷은 `useState` 였다.
+ * 탭을 옮길 때는 살아 있었지만(같은 컴포넌트의 리렌더라서) 새로고침·뒤로가기·링크 공유에서
+ * 전부 풀렸다 — `useQueryState` 의 첫 문단이 바로 그 증상을 없애려고 그 훅을 만들었다고
+ * 적고 있는데, 이 화면만 절반을 안 옮겨 두었다. */
+const BOARD_SPEC = {
+  tab: TAB_BOARD,
+  project: "",
+  sprint: "",
+  dept: "",
+  assignee: "",
+  mine: false,
+  q: "",
+  priority: "",
+  difficulty: "",
+  // 차단·지연·이슈 중 하나. 예전 「차단과 이슈만」 스위치 하나는 지연만 보는 길을 안 줬다.
+  signal: "",
+  hold: false,
+  all: false,
+};
+
+/** 신호 한 갈래의 이름. 서버 어휘(`app/work/service.py::SIGNALS`)와 같은 말이다. */
+const SIGNAL_LABEL = { blocked: "차단됨", overdue: "지연", issue: "이슈 있음" };
 
 /** 판이 어디까지 자랄 수 있는가. 칸 **안에서만** 굴러가고 페이지는 안 밀린다(지시 5).
  *
@@ -242,20 +268,27 @@ export function WorkBoard() {
   const auth = useAuth();
   const qc = useQueryClient();
   const toast = useToast();
+  useListMemory("/work-board");
   const [state, setState] = useQueryState(BOARD_SPEC);
   const tab = state.tab === TAB_BACKLOG ? TAB_BACKLOG : TAB_BOARD;
   const projectId = state.project;
   const sprintId = state.sprint;
-  const [assigneeId, setAssigneeId] = React.useState("");
-  const [mine, setMine] = React.useState(false);
-  const [troubleOnly, setTroubleOnly] = React.useState(false);
-  const [showHold, setShowHold] = React.useState(false);
-  // §8.1 — 회차 미선택일 때 완료·취소까지 보는 토글. 회차 안에서는 뜻이 없다(그 회차의
-  // 전체 이력이 이미 다 보인다) — 그래서 sprintId 가 있을 때는 안 보여 준다.
-  const [showAll, setShowAll] = React.useState(false);
-  const [query, setQuery] = React.useState("");
-  const [priority, setPriority] = React.useState("");
-  const [difficulty, setDifficulty] = React.useState("");
+  const deptId = state.dept;
+  const assigneeId = state.assignee;
+  const mine = state.mine;
+  const signal = state.signal;
+  const showHold = state.hold;
+  /* §8.1 — 완료·취소까지 보는 토글.
+   *
+   * 🔴 예전에는 **회차를 골랐을 때 이 토글이 사라졌다.** 「회차 안에서는 그 회차의 전체
+   * 이력이 이미 다 보인다」가 이유였는데, 그것이 바로 사용자가 「끝난 일이 보드에서 안
+   * 빠진다」고 말한 상태다 — 3주짜리 회차의 완료 열이 계속 자라고 그 옆에서 남은 일을
+   * 찾아야 했다. 이제 회차 안에서도 접을 수 있고, **회차 안의 기본값은 접힘**이다.
+   * 회의에서 보는 것은 남은 일이다. */
+  const showAll = state.all;
+  const query = state.q;
+  const priority = state.priority;
+  const difficulty = state.difficulty;
   const [sprintFormOpen, setSprintFormOpen] = React.useState(false);
   const [editing, setEditing] = React.useState(null);
   // 열 하나가 첫 쪽 위에 받아 온 다음 쪽들. `{ [statusKey]: { cards, nextCursor, loading } }`
@@ -287,23 +320,33 @@ export function WorkBoard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sprints.data]);
 
-  // §8.1 — scope. 회차를 골랐으면 그 회차 전체(완료·취소 포함)를 본다 — "실행분만"이라는
-  // 개념 자체가 회차 문맥에는 없다. 안 골랐으면 execution(기본)/all(토글) 이다.
-  const scope = sprintId ? undefined : (showAll ? "all" : "execution");
+  // §8.1 — scope. 「완료와 취소 보기」를 켜면 all, 아니면 execution 이다. 회차를 골랐든
+  // 안 골랐든 같은 규칙이다 — 규칙이 문맥마다 다르면 사용자가 그 차이를 배워야 한다.
+  const scope = showAll ? "all" : "execution";
 
-  // 판과 백로그가 **같은 조건 이름**을 쓴다. 탭을 옮겨도 방금 건 조건이 그대로 산다.
-  const boardKey = [projectId, sprintId, assigneeId, mine, troubleOnly, scope];
+  /* 판과 백로그가 **같은 축으로 좁힌다**. 예전에는 검색·우선순위·난이도가 백로그 탭에만
+     있었고 서버의 `/board` 는 그 이름을 받지도 않았다 — 백로그에서 검색어를 넣고 칸반으로
+     옮기면 조건이 조용히 사라졌다. 지금은 한 벌이고, 서버도 한 절을 공유한다. */
+  const shared = {
+    project_id: projectId,
+    department_id: deptId,
+    assignee_user_id: mine ? "" : assigneeId,
+    mine,
+    q: query,
+    priority,
+    difficulty,
+    signal,
+  };
+  const sharedKey = [projectId, deptId, assigneeId, mine, query, priority, difficulty, signal];
+  const boardKey = [...sharedKey, sprintId, scope];
   const board = useQuery({
     queryKey: ["work-board", ...boardKey],
     queryFn: () =>
       api(
         "/api/work/board?" +
           qs({
-            project_id: projectId,
+            ...shared,
             sprint_id: sprintId,
-            assignee_user_id: mine ? "" : assigneeId,
-            mine,
-            blocked_only: troubleOnly,
             scope,
             column_page_size: COLUMN_PAGE_SIZE,
           })
@@ -315,19 +358,14 @@ export function WorkBoard() {
   // 새 조건의 열 아래에 그대로 남는다.
   React.useEffect(() => { setColExtra({}); }, [JSON.stringify(boardKey)]);
 
-  const backlogKey = [projectId, query, assigneeId, mine, priority, difficulty];
+  const backlogKey = sharedKey;
   const backlog = useInfiniteQuery({
     queryKey: ["work-backlog", ...backlogKey],
     queryFn: ({ pageParam }) =>
       api(
         "/api/work/backlog?" +
           qs({
-            project_id: projectId,
-            q: query,
-            assignee_user_id: mine ? "" : assigneeId,
-            mine,
-            priority,
-            difficulty,
+            ...shared,
             cursor: pageParam || "",
             limit: BACKLOG_PAGE_SIZE,
           })
@@ -558,6 +596,8 @@ export function WorkBoard() {
         position_mine: mine,
         position_priority: priority || null,
         position_difficulty: difficulty || null,
+        position_department_id: deptId || null,
+        position_signal: signal || null,
       },
     });
   }
@@ -579,25 +619,39 @@ export function WorkBoard() {
   const projectRows = (projects.data && projects.data.projects) || [];
   const assigneeRows = (assignees.data && assignees.data.assignees) || [];
   const metaBody = meta.data || {};
+  // 부서 후보는 **서버가 동봉한다**(`departments: {selected, options}`). 화면이 스스로
+  // 조직도를 훑어 만들면 서버가 좁힌 범위와 갈라진다.
+  const departments =
+    (board.data && board.data.departments) || (backlogPages[0] && backlogPages[0].departments) || null;
+  const sprint = sprintRows.find((s) => s.id === sprintId) || null;
 
   /* 판독 줄 — **자르기 전에 센** 값이다(`app/work/service.py::board`). 열의 카드를 더해
      세면 잘린 열에서 조용히 틀린다. */
+  /* 상태 판독을 누르면 **그 열로 데려간다**. 열 이름이 아니라 열쇠로 찾는다 —
+     이름은 어휘가 바뀌면 달라지지만 열쇠는 서버가 준 값 그대로다. */
+  const scrollToColumn = React.useCallback((key) => {
+    const el = document.querySelector(`[data-col-key="${CSS.escape(String(key))}"]`);
+    if (el && el.scrollIntoView) el.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+  }, []);
+
   const statusTiles = summary
     ? (board.data.columns || []).map((c) => {
         const n = (summary.by_status || {})[c.key] ?? 0;
         return {
+          key: c.key,
           label: c.label,
           value: String(n),
           kind: statusKind(c.key) !== "neutral" ? statusKind(c.key) : statusKind(c.label),
           pct: summary.total ? Math.round((n / summary.total) * 100) : 0,
+          onClick: n ? () => scrollToColumn(c.key) : undefined,
         };
       })
     : [];
   const signalTiles = summary
     ? [
-        { label: "차단됨", value: String(summary.signals.blocked), kind: "danger" },
-        { label: "지연", value: String(summary.signals.overdue), kind: "danger" },
-        { label: "이슈 있음", value: String(summary.signals.issue), kind: "warn" },
+        { key: "blocked", label: SIGNAL_LABEL.blocked, value: String(summary.signals.blocked), kind: "danger" },
+        { key: "overdue", label: SIGNAL_LABEL.overdue, value: String(summary.signals.overdue), kind: "danger" },
+        { key: "issue", label: SIGNAL_LABEL.issue, value: String(summary.signals.issue), kind: "warn" },
       ]
     : [];
 
@@ -610,6 +664,41 @@ export function WorkBoard() {
   const newTicketPath = "/new-ticket" + (newTicketQuery ? `?${newTicketQuery}` : "");
 
   const boardEmpty = columns.every((c) => c.items.length === 0);
+
+  /* 판 위의 한 줄 — **지금 어디쯤인가와 다음에 할 일**.
+   *
+   * 흐름은 넷이다: 회차를 안 골랐다 · 아직 안 열었다 · 진행 중이다 · 끝났다.
+   * 각 자리에서 사람이 할 일이 다르고, 그것을 화면이 말하지 않으면 「이 화면을 어떻게
+   * 쓰는지 모르겠다」가 된다. */
+  const boardNotice = (() => {
+    if (!sprintId) {
+      return {
+        title: "회차를 고르지 않았습니다.",
+        body: showAll
+          ? "완료와 취소를 포함한 전체 티켓을 보여 줍니다. 회차를 고르면 그 회차의 일만 봅니다."
+          : "실행 중인 업무만 보여 줍니다. 회차를 고르면 그 회차의 일만 봅니다.",
+      };
+    }
+    const label = sprint ? sprint.name : "이 회차";
+    if (sprint && sprint.state === "planned") {
+      return {
+        title: `${label} (${sprintStateLabel(sprint)})`,
+        body: "아직 열지 않은 회차입니다. 백로그에서 할 일을 담고 「회차 열기」를 누르면 오늘부터 진행을 셉니다.",
+      };
+    }
+    if (sprint && sprint.state === "closed") {
+      return {
+        title: `${label} (${sprintStateLabel(sprint)})`,
+        body: "끝난 회차입니다. 안 끝났던 일은 닫을 때 옮긴 곳에 있습니다.",
+      };
+    }
+    return {
+      title: `${label} (${sprintStateLabel(sprint) || "진행 중"})`,
+      body: showAll
+        ? "완료와 취소까지 함께 보여 줍니다. 회의에서는 남은 일만 보는 편이 빠릅니다."
+        : "남은 일만 보여 줍니다. 끝난 일은 「완료와 취소 보기」로 펼칩니다.",
+    };
+  })();
 
   return (
     <>
@@ -628,6 +717,8 @@ export function WorkBoard() {
             <Button variant="secondary" onClick={() => navigate(newTicketPath)}>
               티켓 추가
             </Button>
+            {/* 회차의 한 바퀴 — 열고 닫는 자리. 회의 화면과 **같은 부품**을 쓴다. */}
+            <SprintLifecycle sprint={sprint} sprints={sprintRows} size="md" />
             {/* 서버가 `PROJECT_WRITE` 로 막는다(`app/work/router.py`). 여기서 감추는
                 것은 권한 보장이 아니라 **누를 수 없는 버튼을 안 보여 주는 것**이다 —
                 눌러서 403 을 보는 것은 안내가 아니다. */}
@@ -644,13 +735,13 @@ export function WorkBoard() {
         help="카드를 끌어 상태와 순서를 바꿉니다. 키보드로는 스페이스로 집고 화살표로 옮긴 뒤 스페이스로 놓습니다."
       />
 
-      {/* §8.2 — 회차 미선택일 때 판 위에 맥락을 말한다. 회차가 0건이면 「스프린트
-          만들기」를 강조 단추로 둔다(위 actions). */}
-      {tab === TAB_BOARD && !sprintId ? (
-        <Callout tone="info" variant="inline" sx={{ mb: 1.5 }}>
-          {showAll
-            ? "완료와 취소를 포함한 전체 티켓을 보여 줍니다."
-            : "회차를 고르지 않아 실행 중인 업무만 보여 줍니다."}
+      {/* §8.2 — 판 위에 **지금 어디쯤인가와 다음에 할 일**을 한 줄로 말한다.
+          예전에는 회차를 안 골랐을 때만 한 줄이 있었고, 회차를 골랐을 때는 그 회차가
+          아직 안 열렸는지 이미 끝났는지 화면이 아무 말도 안 했다 — 사용자가 「어떻게
+          쓰는지 모르겠다」고 한 자리가 여기다. */}
+      {tab === TAB_BOARD ? (
+        <Callout tone="info" sx={{ mb: 1.5 }} title={boardNotice.title}>
+          {boardNotice.body}
         </Callout>
       ) : null}
 
@@ -658,16 +749,17 @@ export function WorkBoard() {
           아래 줄이 「무엇으로 좁히는가」. 프로젝트와 스프린트가 맨 앞인 이유는 이 화면의
           질문이 언제나 「어느 프로젝트의 이번 회차」로 시작하기 때문이다. */}
       <FilterSurface>
-        {tab === TAB_BACKLOG ? (
-          <ToolbarRow>
-            <SearchBox
-              value={query}
-              onSearch={setQuery}
-              placeholder="티켓 제목, 이름 검색"
-              ariaLabel="백로그 검색"
-            />
-          </ToolbarRow>
-        ) : null}
+        {/* 🔴 검색은 **두 탭 모두**에 있다. 예전에는 백로그 탭에만 있었고 서버의
+            `/board` 는 `q` 를 받지도 않아서, 백로그에서 검색어를 넣고 칸반으로 옮기면
+            검색이 조용히 사라졌다. */}
+        <ToolbarRow>
+          <SearchBox
+            value={query}
+            onSearch={(v) => setState({ q: v || "" })}
+            placeholder="티켓 제목, 이름 검색"
+            ariaLabel="티켓 검색"
+          />
+        </ToolbarRow>
         <FilterRow>
           {/* 프로젝트는 **기수가 무한히 자라는 대상**이라 평범한 드롭다운으로 못 고른다
               (`plain_dropdown_for_entity`). 같은 이유로 담당자도 조합 상자다. */}
@@ -692,71 +784,76 @@ export function WorkBoard() {
             allLabel="전체"
             sx={{ minWidth: "12rem" }}
           />
+          {/* 팀(부서) 축. 티켓에는 부서 칸이 없고 티켓의 팀은 프로젝트가 정한다 —
+              서버가 그 한 단계를 대신 걷는다(`app/work/router.py::_dept`).
+              후보가 둘 미만이면 이 부품이 스스로 안 그린다. */}
+          <DepartmentFilter
+            departments={departments}
+            value={deptId}
+            onChange={(next) => setState({ dept: next || "" })}
+            sx={{ minWidth: "12rem" }}
+          />
           <EntityCombobox
             label="담당자"
             value={assigneeId}
-            onChange={(next) => setAssigneeId(next || "")}
+            onChange={(next) => setState({ assignee: next || "" })}
             loading={assignees.isLoading}
             options={assigneeRows.map((a) => ({ value: a.user_id, label: a.display_name }))}
             allLabel="전체"
             disabled={mine}
             sx={{ minWidth: "12rem" }}
           />
-          {tab === TAB_BACKLOG ? (
-            <>
-              <FilterSelect
-                label="우선순위"
-                value={priority}
-                onChange={setPriority}
-                options={metaBody.priorities || []}
-                allLabel="전체"
-              />
-              <FilterSelect
-                label="난이도"
-                value={difficulty}
-                onChange={setDifficulty}
-                options={metaBody.difficulties || []}
-                allLabel="전체"
-              />
-            </>
-          ) : null}
+          {/* 우선순위·난이도도 두 탭 공통이다 — 같은 티켓을 다른 질문으로 볼 뿐이라
+              좁히는 말이 탭마다 다를 이유가 없다. */}
+          <FilterSelect
+            label="우선순위"
+            value={priority}
+            onChange={(v) => setState({ priority: v || "" })}
+            options={metaBody.priorities || []}
+            allLabel="전체"
+          />
+          <FilterSelect
+            label="난이도"
+            value={difficulty}
+            onChange={(v) => setState({ difficulty: v || "" })}
+            options={metaBody.difficulties || []}
+            allLabel="전체"
+          />
+          {/* 신호는 셋 중 하나다. 예전에는 「차단과 이슈만」 스위치 하나였고, 서버에서도
+              그 깃발 하나가 차단 **또는** 이슈를 뜻해서 **지연만 보는 길이 없었다.** */}
+          <FilterSelect
+            label="신호"
+            value={signal}
+            onChange={(v) => setState({ signal: v || "" })}
+            options={Object.keys(SIGNAL_LABEL).map((k) => ({ value: k, label: SIGNAL_LABEL[k] }))}
+            allLabel="전체"
+          />
           <FormControlLabel
             sx={{ m: 0 }}
             control={
-              <Switch size="small" checked={mine} onChange={(e) => setMine(e.target.checked)} />
+              <Switch
+                size="small"
+                checked={mine}
+                onChange={(e) => setState({ mine: e.target.checked })}
+              />
             }
             label={<Typography variant="body2">내 티켓만</Typography>}
           />
-          {tab === TAB_BOARD ? (
-            <FormControlLabel
-              sx={{ m: 0 }}
-              control={
-                <Switch
-                  size="small"
-                  checked={troubleOnly}
-                  onChange={(e) => setTroubleOnly(e.target.checked)}
-                />
-              }
-              label={<Typography variant="body2">차단과 이슈만</Typography>}
-            />
-          ) : null}
-          {tab === TAB_BOARD ? (
-            <FilterActions>
-              {/* 보류는 기본 판에서 비켜 있다(D-349). 없애는 것이 아니라 **접는 것**이라,
-                  펴는 스위치가 늘 여기 있다 — 안 그러면 보류한 일이 어느 화면에도 없어서
-                  영영 잊힌다. */}
-              <Button variant="ghost" size="sm" onClick={() => setShowHold((v) => !v)}>
+          <FilterActions>
+            {tab === TAB_BOARD ? (
+              /* 보류는 기본 판에서 비켜 있다(D-349). 없애는 것이 아니라 **접는 것**이라,
+                 펴는 스위치가 늘 여기 있다 — 안 그러면 보류한 일이 어느 화면에도 없어서
+                 영영 잊힌다. */
+              <Button variant="ghost" size="sm" onClick={() => setState({ hold: !showHold })}>
                 {showHold ? "보류 접기" : "보류 펴기"}
               </Button>
-              {/* 완료·취소는 열이 아니라 이 토글로 본다(§8.1) — 회차를 이미 골랐으면
-                  그 회차 전체가 항상 다 보이므로 이 토글 자체가 뜻이 없다. */}
-              {!sprintId ? (
-                <Button variant="ghost" size="sm" onClick={() => setShowAll((v) => !v)}>
-                  {showAll ? "완료와 취소 감추기" : "완료와 취소 보기"}
-                </Button>
-              ) : null}
-            </FilterActions>
-          ) : null}
+            ) : null}
+            {/* 🔴 회차를 골랐을 때도 접을 수 있다. 예전에는 이 단추가 사라져서 3주짜리
+                회차의 완료 열이 계속 자랐다 — 「끝난 일이 보드에서 안 빠진다」가 그것이다. */}
+            <Button variant="ghost" size="sm" onClick={() => setState({ all: !showAll })}>
+              {showAll ? "완료와 취소 감추기" : "완료와 취소 보기"}
+            </Button>
+          </FilterActions>
         </FilterRow>
       </FilterSurface>
 
@@ -768,23 +865,29 @@ export function WorkBoard() {
       {active.isLoading ? <Skeleton kind="section" /> : null}
       {active.isError ? <ErrorState error={active.error} onRetry={active.refetch} /> : null}
 
+      {/* 🔴 판독 줄에 **판을 두르지 않는다.** 타일이 이미 `background.plate` 라서
+          바깥 판이 있으면 판 안에 판이 겹친다(사용자: 「카드 안에 또 카드」). */}
       {tab === TAB_BOARD && summary ? (
-        <Box sx={{ ...PANEL_SURFACE, mb: 2 }}>
-          <Stack spacing={1.5}>
+        <Stack spacing={1.5} sx={{ mb: 2 }}>
+          <StatusKpiStrip
+            ariaLabel="상태별 티켓 수"
+            revealKey="work-board:status-kpi"
+            items={[{ label: "전체", value: String(summary.total), primary: true }, ...statusTiles]}
+          />
+          {/* 신호 타일은 **필터 토글**이다. 숫자를 보고 「그래서 어떤 티켓인데」를
+              물을 수 있어야 그 숫자가 뜻이 있다. 같은 칸을 다시 누르면 풀린다.
+              셋이 다 0 이면 줄 자체를 안 그린다 — 「신호가 없다」는 상태 줄이 이미
+              말하고, 0 짜리 토글 셋은 누를 것이 없는 단추다(신호는 탐색 줄에도 있다). */}
+          {signalTiles.some((t) => t.value !== "0") ? (
             <StatusKpiStrip
-              ariaLabel="상태별 티켓 수"
-              revealKey="work-board:status-kpi"
-              items={[{ label: "전체", value: String(summary.total), primary: true }, ...statusTiles]}
+              ariaLabel="신호별 티켓 수"
+              revealKey="work-board:signal-kpi"
+              items={signalTiles}
+              value={signal}
+              onSelect={(key) => setState({ signal: signal === key ? "" : key })}
             />
-            {signalTiles.some((t) => t.value !== "0") ? (
-              <StatusKpiStrip
-                ariaLabel="신호별 티켓 수"
-                revealKey="work-board:signal-kpi"
-                items={signalTiles}
-              />
-            ) : null}
-          </Stack>
-        </Box>
+          ) : null}
+        </Stack>
       ) : null}
 
       {tab === TAB_BOARD && board.data ? (
@@ -799,7 +902,10 @@ export function WorkBoard() {
             }
           />
         ) : (
-          <Box sx={{ ...LANE_SURFACE, p: { xs: 1, md: 1.5 } }}>
+          /* 🔴 **바깥 판을 없앴다.** 예전에는 여기 함몰면이 한 겹 더 있었고, 그 안에 칸이
+             또 한 겹, 그 위에 카드가 한 겹이라 흰 상자가 세 번 겹쳐 보였다. 칸이 이미
+             자기 바탕을 갖고 있으므로 이 겹은 아무 말도 안 하고 여백만 먹었다. */
+          <Box>
           <DragBoard
             columns={columns}
             labelOf={labelOf}

@@ -8,9 +8,9 @@ import { api } from "../lib/api.js";
 import { fmtDateTime, actionKo, objKo } from "../lib/format.js";
 import { useAuth } from "../app/auth.jsx";
 import { canReach } from "../app/navConfig.js";
-import { PageHeader, Card, Badge, Skeleton, ErrorState, Button, Callout, SubGroup, Surface, useToast } from "../ui/kit.jsx";
+import { PageHeader, Card, Badge, Section, Skeleton, ErrorState, Button, Callout, SubGroup, Surface, useToast } from "../ui/kit.jsx";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
-import { DashSection, StatusList, StatusTile, Note } from "../ui/adminKit.jsx";
+import { StatusList, StatusTile, Note } from "../ui/adminKit.jsx";
 import {
   serviceLabel, daysSince, BACKUP_STALE_DAYS, fmtNum, fmtProcessingTime, fmtCertDays,
   failedOpenAgeLabel, componentState, integrationState, storageState, countStates,
@@ -184,7 +184,10 @@ export function buildAlerts(d, role) {
      비활성과 미점검은 여기 오지 않는다(`integrationState` 가 그 셋을 가른다). */
   Object.entries(d.integrations || {}).forEach(([name, v]) => {
     if (integrationState(v) !== "down") return;
-    alerts.push({ src: "integ:" + name, label: serviceLabel(name) + " 연동", value: "중단", kind: "warn", to: canGo("/integrations", role) ? "/integrations" : undefined });
+    /* 가는 곳이 **진단**이다. 「외부 연동」 관리 화면은 걷었다(0017 이 등록 행을 지웠고
+       시드 목록이 비어 있어 그 표가 다시 안 채워진다) — 그래도 헬스 스윕은 그대로 돌고,
+       그 결과를 읽는 자리는 진단 화면이다. 없는 화면으로 보내는 경보는 막다른 줄이다. */
+    alerts.push({ src: "integ:" + name, label: serviceLabel(name) + " 연동", value: "중단", kind: "warn", to: diagTo });
   });
 
   if (d.cert_days_remaining != null && d.cert_days_remaining <= 30)
@@ -295,7 +298,6 @@ const ACTION_LABEL = {
   [STORAGE_TO]: "파일 저장소 열기",
   "/jobs": "작업 큐 열기",
   "/diagnostics": "진단 열기",
-  "/integrations": "연동 상태 보기",
   "/backup": "백업 관리로 이동",
 };
 const SEV_COLOR = { danger: "error.main", warn: "warning.strong" };
@@ -656,10 +658,10 @@ function DashboardBody({ d, nav, role, stale }) {
       {/* aria-live 래퍼 자체는 항상 마운트된 채로 두고 안의 자식만 바꾼다 — 래퍼가 통째로
           언마운트되면 전환 자체를 스크린리더가 놓친다. */}
       <Box aria-live="polite">
-        <DashSection title="지금 상태">
+        <Section titleAs="h2" title="지금 상태">
           <StatusBand verdict={verdict} strip={stripItems} />
           <ActionQueue alerts={alerts} goto={goto} />
-        </DashSection>
+        </Section>
       </Box>
 
       {/* 같은 성격의 목록 둘을 넓은 화면에서 나란히 둔다. 남는 폭을 **줄 길이**로 쓰면
@@ -674,7 +676,7 @@ function DashboardBody({ d, nav, role, stale }) {
           있을 때는 양쪽 다 목록이라 원래 의도(나란히 두어 줄 길이를 줄인다)가
           그대로 맞는다. */}
       <Box sx={{ display: "grid", alignItems: "start", columnGap: 4, gridTemplateColumns: { xs: "minmax(0,1fr)", xl: integKeys.length ? "repeat(2, minmax(0,1fr))" : "minmax(0,1fr)" } }}>
-      <DashSection
+      <Section titleAs="h2"
         title="필수 서비스"
         action={<Typography variant="body2" color="text.secondary">정상 {compCounts.ok} / {compCounts.total}</Typography>}
       >
@@ -690,9 +692,9 @@ function DashboardBody({ d, nav, role, stale }) {
             ))}
           </StatusList>
         ) : <Note sx={{ mt: 0 }}>서비스 정보 없음</Note>}
-      </DashSection>
+      </Section>
 
-      <DashSection
+      <Section titleAs="h2"
         title="외부 연동"
         action={integKeys.length
           ? <Typography variant="body2" color="text.secondary">정상 {integCounts.ok} / {integCounts.total}</Typography>
@@ -705,7 +707,7 @@ function DashboardBody({ d, nav, role, stale }) {
         {integKeys.length ? (
           <StatusList ariaLabel="외부 연동">
             {integKeys.map((k) => (
-              <StatusTile key={k} name={serviceLabel(k)} onClick={goto("/integrations")} ariaLabel={serviceLabel(k) + " 연동 관리로 이동"}>
+              <StatusTile key={k} name={serviceLabel(k)} onClick={goto("/diagnostics")} ariaLabel={serviceLabel(k) + " 연동 상태를 진단에서 보기"}>
                 <Badge value={SERVICE_STATE_LABEL[integStates[k]]} kind={SERVICE_STATE_KIND[integStates[k]]} />
               </StatusTile>
             ))}
@@ -713,13 +715,13 @@ function DashboardBody({ d, nav, role, stale }) {
         ) : (
           <Note sx={{ mt: 0 }}>추가된 외부 연동이 없습니다. 이 설치는 바깥으로 나가는 호출을 쓰지 않습니다.</Note>
         )}
-      </DashSection>
+      </Section>
       </Box>
 
       <Box sx={BOTTOM_GRID}>
       {/* 운영 자료 셋 — 값이 몇 개뿐이라 각자 한 구역을 차지하지 않는다. 한 구역 안에서
           옅은 함몰면 셋으로 나눈다(위 `OpsGroup` 주석). */}
-      <DashSection title="운영">
+      <Section titleAs="h2" title="운영">
         <Box sx={OPS_GRID}>
           <OpsGroup title="파일 저장소">
             <Fact
@@ -776,7 +778,7 @@ function DashboardBody({ d, nav, role, stale }) {
             <OpsLink label="작업 큐" onClick={jobsTo ? goto(jobsTo) : undefined} />
           </OpsGroup>
         </Box>
-      </DashSection>
+      </Section>
 
       <RecentChanges
         rows={d.recent_critical_audit || []}
@@ -802,17 +804,17 @@ function RecentChanges({ rows, role, nav, revealedId, onCopyId }) {
   const canAudit = canGo("/audit", role);
   if (!rows.length) {
     return (
-      <DashSection title="최근 주요 변경">
+      <Section titleAs="h2" title="최근 주요 변경">
         {/* 비어 보이는 두 경우(실제로 없음 / 권한이 없어 서버가 아예 안 내려줌)를 구분한다 —
             안 그러면 감사 로그 열람 권한이 없는 역할은 '아무 변경도 없었다'로 오해한다. */}
         <Note sx={{ mt: 0 }}>
           {canAudit ? "최근 주요 변경 이력이 없습니다." : "감사 로그 열람 권한이 없어 숨겨졌습니다."}
         </Note>
-      </DashSection>
+      </Section>
     );
   }
   return (
-    <DashSection
+    <Section titleAs="h2"
       title="최근 주요 변경"
       action={canAudit
         ? <Link component="button" type="button" variant="body2" underline="hover" onClick={() => nav("/audit")}>전체 보기 →</Link>
@@ -886,6 +888,6 @@ function RecentChanges({ rows, role, nav, revealedId, onCopyId }) {
           ))}
         </Box>
       </Card>
-    </DashSection>
+    </Section>
   );
 }

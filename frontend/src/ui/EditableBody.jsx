@@ -5,9 +5,15 @@ import Stack from "@mui/material/Stack";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
-import { BodyEditor, BODY_MAX_LINES, editorContainerSx, editorSurfaceWidthSx } from "./BodyEditor.jsx";
-import { Button, Callout, useConfirm, useToast } from "./kit.jsx";
+import { editorContainerSx, editorSurfaceWidthSx } from "./BodyEditor.jsx";
+import { Button, Callout, Skeleton, useConfirm, useToast } from "./kit.jsx";
 import { FONT_SIZE } from "./theme.js";
+
+/* 편집기는 **지연 로드**한다. TipTap 과 그 확장 열두 개는 진입 번들에 넣을 것이 아니고,
+ * `ui/block-editor-lazy.test.jsx` 가 정적 import 를 소스 전체에서 금지한다. */
+const BlockEditor = React.lazy(() =>
+  import("./BlockEditor.jsx").then((m) => ({ default: m.BlockEditor })),
+);
 
 /* 편집 중인 표면(제목 행 + 안내문 + BodyEditor)의 컨테이너 질의 이름. 이 화면 전용 지역
  * 값이라 상수로 뽑는다 — editorSurfaceWidthSx 가 만드는 `@container` 규칙과
@@ -35,6 +41,8 @@ const EDIT_SURFACE_CONTAINER = "editable-body-edit";
  * 순환 import 가 된다. 폭은 담는 열이 정한다 — 여기에 72ch 를 다시 걸면 열은 넓은데
  * 글만 왼쪽에 붙는다. */
 
+/** 남은 소비처(시험)를 위한 헬퍼. 본문에는 이제 줄 상한이 없다 — 문서 본문과 같은 정본을
+ * 쓰고, 그쪽에는 애초에 상한이 없었다. */
 export function lineCount(text) {
   return (text || "").split("\n").length;
 }
@@ -54,9 +62,21 @@ export function hasNestedBlocks(blocks) {
   return (blocks || []).some((b) => b && b.has_children);
 }
 
+/** 두 문서가 **같은 내용인가**. 저장 안 하고 나갈 때 물어볼지 정하는 데만 쓴다.
+ *
+ * 문자열 비교로 충분하다 — 편집기가 내는 문서는 키 순서가 안정적이고, 여기서 틀려도
+ * 최악은 「안 바꿨는데 확인창이 뜬다」이지 글이 사라지는 것이 아니다. */
+function sameDoc(a, b) {
+  try {
+    return JSON.stringify(a || null) === JSON.stringify(b || null);
+  } catch {
+    return false;
+  }
+}
+
 export function EditableBody({
   editorId, endpoint, invalidateKeys = [], heading = "본문", placeholder,
-  blocks, bodyMarkdown, bodyVersion, sourceView, onSaved,
+  blocks, bodyDoc, bodyMarkdown, bodyVersion, sourceView, onSaved, onPickImage,
   // VIS-135: 화면에 이 버튼과 경쟁하는 다른 "수정" 입구가 따로 있을 때만(현재는 Ticket.jsx)
   // 그 차이를 밝히는 툴팁을 준다. TeamDoc.jsx처럼 경쟁하는 입구가 없는 소비처는 안 줘도
   // 되므로 기본값 없음 — 없는 문제를 있다고 말하면 안 된다.
@@ -66,7 +86,9 @@ export function EditableBody({
   const confirm = useConfirm();
   const qc = useQueryClient();
   const [editing, setEditing] = React.useState(false);
-  const [draft, setDraft] = React.useState(bodyMarkdown || "");
+  /* 초안은 **문서**다. 예전에는 마크다운 문자열이었고, 그래서 이 편집기에는 굵게·표·
+     이미지를 담을 자리가 없었다 — 문서 본문과 같은 정본을 쓰면서 그 벽이 없어졌다. */
+  const [draft, setDraft] = React.useState(bodyDoc || null);
   // 저장에 실어 보낼 지문(base_version)도 draft 처럼 "편집을 시작한 시점" 값으로 얼려 둔다.
   // bodyVersion 은 부모가 주는 prop이라, 편집 중(예: 같은 티켓의 첨부를 올려 상세가
   // 재조회되는 동안) 다른 사람이 먼저 저장해 값이 바뀌면 저장 시점의 mutationFn 클로저는
@@ -89,16 +111,13 @@ export function EditableBody({
     if (editorIdRef.current === editorId) return;
     editorIdRef.current = editorId;
     setEditing(false);
-    setDraft(bodyMarkdown || "");
+    setDraft(bodyDoc || null);
     setEditBaseVersion(bodyVersion);
-  }, [editorId, bodyMarkdown, bodyVersion]);
+  }, [editorId, bodyDoc, bodyVersion]);
 
-  // 본문을 읽지 못했으면(blocks 실패) bodyMarkdown 은 null 이다. 그 상태로 편집기를 열면
+  // 본문을 읽지 못했으면(blocks 실패) bodyDoc 은 null 이다. 그 상태로 편집기를 열면
   // 빈 칸이 뜨고, 저장이 곧 본문 삭제가 된다. 그래서 편집 자체를 막는다.
-  const canEdit = bodyMarkdown != null;
-  const tooManyLines = lineCount(draft) > BODY_MAX_LINES;
-  const lossy = hasUnsupportedBlocks(blocks);
-  const nested = hasNestedBlocks(blocks);
+  const canEdit = bodyDoc != null;
 
   const save = useMutation({
     mutationFn: ({ body, baseVersion }) => api(endpoint, {
@@ -107,7 +126,9 @@ export function EditableBody({
          양쪽 다 성공 토스트를 봤다.** 호출부가 넘기는 baseVersion 을 그대로 쓴다(위
          editBaseVersion 주석 참고) — 여기서 다시 prop(bodyVersion)을 읽으면 편집 중
          갱신된 최신값이 섞여 이 보호 장치가 무력화된다. */
-      method: "PUT", body: { body_markdown: body, base_version: baseVersion },
+      /* 정본을 보낸다. 서버가 이 문서에서 마크다운과 평문을 파생시켜 함께 저장하므로
+         (검색·AI 문맥이 그 값을 읽는다) 화면이 두 벌을 만들 필요가 없다. */
+      method: "PUT", body: { body, base_version: baseVersion },
     }),
     onSuccess: () => {
       setEditing(false);
@@ -120,9 +141,9 @@ export function EditableBody({
     onError: (e) => toast((e && e.message) || "본문을 저장하지 못했습니다. 다시 시도해 주세요.", "error"),
   });
 
-  const startEditing = () => { setDraft(bodyMarkdown || ""); setEditBaseVersion(bodyVersion); setEditing(true); };
+  const startEditing = () => { setDraft(bodyDoc || null); setEditBaseVersion(bodyVersion); setEditing(true); };
   const cancel = async () => {
-    if (draft !== (bodyMarkdown || "")) {
+    if (!sameDoc(draft, bodyDoc)) {
       const ok = await confirm("수정한 내용을 버립니다. 계속할까요?", { title: "수정 취소", confirmLabel: "버리기", danger: true });
       if (!ok) return;
     }
@@ -140,7 +161,7 @@ export function EditableBody({
           <Stack direction="row" gap={1} sx={{ alignItems: "center", mb: 1.5, flexWrap: "wrap" }}>
             <Typography component="h2" variant="h6" sx={{ fontSize: FONT_SIZE.sectionTitle, flex: 1 }}>{heading} 수정</Typography>
             <Button size="sm" onClick={cancel} disabled={save.isPending}>취소</Button>
-            <Button size="sm" variant="primary" disabled={save.isPending || tooManyLines}
+            <Button size="sm" variant="primary" disabled={save.isPending}
               onClick={() => save.mutate({ body: draft, baseVersion: editBaseVersion })}>
               {save.isPending ? "저장 중…" : "저장"}
             </Button>
@@ -149,41 +170,28 @@ export function EditableBody({
               수정하세요」 경고가 있었다. body_is_local 이 거짓일 때 떴는데, 이관해 온
               문서 110건이 전부 그 상태라 전 건에서 떴다. 밀어 넣을 원본이 없고 저장은
               무손실이므로 그 경고는 사실이 아니었고, 가리키던 그 버튼도 이제 없다. 서버도 응답에서 body_is_local 을 걷었다. */}
-          {lossy ? (
-            <Box sx={{ mb: 1.5 }}>
-              <Callout tone="info">
-                본문에 이 편집기가 다루지 않는 블록(이미지, 표 등)이 있습니다. 저장해도
-                그 블록은 지워지지 않습니다. 다만 위치는 글 앞쪽으로 모입니다.
-              </Callout>
-            </Box>
-          ) : null}
-          {nested ? (
-            <Box sx={{ mb: 1.5 }}>
-              <Callout tone="info">
-                본문에 접히거나 중첩된 내용(토글 속 글, 여러 단계 목록 등)을 담은 블록이
-                있습니다. 이 편집기에는 그 안쪽 내용까지는 실리지 않아, 저장해도 그 블록은
-                지우지 않고 그대로 둡니다. 다만 여기서 같은 줄을 고쳐 저장하면 고치기 전
-                블록과 고친 내용이 둘 다 남아 겹쳐 보일 수 있습니다.
-              </Callout>
-            </Box>
-          ) : null}
-          {tooManyLines ? (
-            <Box sx={{ mb: 1.5 }}>
-              <Callout tone="danger">
-                본문은 최대 {BODY_MAX_LINES}줄까지 저장할 수 있습니다(현재 {lineCount(draft)}줄).
-                줄 수를 줄여야 저장할 수 있습니다.
-              </Callout>
-            </Box>
-          ) : null}
+          {/* 🔴 여기 경고가 셋 있었다 — 「이 편집기가 다루지 않는 블록이 있다」,
+              「접힌 내용은 안 실린다」, 「N줄을 넘으면 저장할 수 없다」. 셋 다 **본문
+              정본이 마크다운이던 시절의 사실**이었다. 지금은 문서 본문과 같은 정본을
+              같은 편집기로 고치므로 표·이미지·중첩 목록이 그대로 실리고 줄 상한도 없다.
+              사실이 아닌 경고를 남겨 두면 사용자는 안 일어나는 손실을 매번 걱정한다. */}
           {/* 이름은 바로 위 heading 과 같은 말로 준다. 이 자리에는 화면에 보이는 <label> 이
               없어서, 주지 않으면 스크린리더가 "편집" 이라고만 읽는다 — 티켓 본문인지 문서
               본문인지 알 수 없다. heading 을 따라가므로 문구가 두 벌로 갈리지 않는다. */}
           {/* 미리보기를 **여기서만** 켠다 — 이미 있는 긴 본문을 고치는 자리라 무엇을 쳤는지와
               어떻게 보일지를 나란히 대조하는 것이 실제로 일이다. 새로 쓰는 자리(새 티켓 폼)는
               끄고 폼을 짧게 둔다(`ui/BodyEditor.jsx` 의 `preview`). */}
-          <BodyEditor preview id={editorId} value={draft} onChange={setDraft} rows={14}
-            label={heading + " 수정"}
-            placeholder={placeholder || "본문을 입력하세요. 제목, 글머리, 번호, 구분선을 쓸 수 있습니다."} />
+          <React.Suspense fallback={<Skeleton kind="section" lines={6} />}>
+            {/* 이름은 바로 위 제목과 같은 말로 준다 — 이 자리에는 화면에 보이는 `<label>`
+                이 없어서, 안 주면 스크린리더가 「편집」이라고만 읽는다. */}
+            <BlockEditor
+              value={draft}
+              onChange={setDraft}
+              onPickImage={onPickImage}
+              label={heading}
+              ariaLabel={heading + " 수정"}
+            />
+          </React.Suspense>
         </Box>
       </Box>
     );

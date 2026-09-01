@@ -65,7 +65,7 @@ export const AUTHORING_SCREENS = {
     // purpose는 최대 2000자에 create/edit 폼도 여러 줄 textarea라 자르지 않으면 표가 옆으로 밀린다
     // (list_field 상세는 여전히 truncateCol의 title 속성으로 전체 확인 가능 — 오류 열과 동일 패턴).
     columns: [{ ...col("name", "이름"), identifier: true }, truncateCol("purpose", "용도", 60),
-      col("version", "버전"), badgeCol("status", "상태"), dateCol("created_at", "생성 일자")],
+      col("version", "버전", "identifier"), badgeCol("status", "상태"), dateCol("created_at", "생성 일자")],
     // 상세에서 실제 지시문(발행본 포함)을 읽을 수 있게 — 편집은 초안만이라 그 외엔 읽기 전용으로 노출.
     // purpose는 이제 목록 열이라 상세에서 중복 제거(드로어는 열+detailFields 합집합을 그린다).
     detailFields: [field("id", "프롬프트 ID"),
@@ -150,7 +150,7 @@ export const AUTHORING_SCREENS = {
     // 마이그레이션 0058). 프롬프트와 동일하게 목록 열로 노출한다 — 여러 버전이 쌓인 목록에서
     // 각 정책이 '무엇을 강제하는지' 행마다 열어보지 않고는 알 수 없었다. purpose는 최대 2000자라
     // truncateCol로 자른다(프롬프트 registry.js:53-54와 동일 패턴, 전체는 title 속성으로 확인).
-    columns: [{ ...col("name", "이름"), identifier: true }, truncateCol("purpose", "용도", 60), col("version", "버전"), badgeCol("status", "상태"), dateCol("created_at", "생성 일자")],
+    columns: [{ ...col("name", "이름"), identifier: true }, truncateCol("purpose", "용도", 60), col("version", "버전", "identifier"), badgeCol("status", "상태"), dateCol("created_at", "생성 일자")],
     // id는 상세에서 확인할 수 있게 노출한다(라벨은 프롬프트의 '프롬프트 ID'와 맞춰
     // 어느 화면 상세를 보고 있는지 분명히 한다).
     // created_by는 _policy_view가 감사 로그의 actor_name과 동일한 패턴으로 created_by_name/
@@ -209,7 +209,7 @@ export const AUTHORING_SCREENS = {
     // 스크롤하므로 페이지에 가로 스크롤이 생기지도 않는다.
     columns: [
       { ...col("name", "이름"), identifier: true },
-      { key: "unused", label: "사용", render: (r) => React.createElement(Badge, { value: r.unused ? "쓰이지 않음" : "쓰이는 중", kind: r.unused ? "warn" : "ok" }) },
+      { key: "unused", label: "사용", type: "count", render: (r) => React.createElement(Badge, { value: r.unused ? "쓰이지 않음" : "쓰이는 중", kind: r.unused ? "warn" : "ok" }) },
       { key: "versions", label: "버전 수", type: "count" },
       { key: "published_version", label: "발행 버전", type: "count", render: (r) => r.published_version == null ? "없음" : String(r.published_version) },
       { key: "schedule_refs", label: "스케줄", type: "count" },
@@ -239,7 +239,7 @@ export const AUTHORING_SCREENS = {
     filters: [{ key: "unused", type: "select", label: "사용 여부", clientFilter: true, options: opt([["true", "쓰이지 않음"], ["false", "쓰이는 중"]]) }],
     columns: [
       { ...col("name", "이름"), identifier: true },
-      { key: "unused", label: "사용", render: (r) => React.createElement(Badge, { value: r.unused ? "쓰이지 않음" : "쓰이는 중", kind: r.unused ? "warn" : "ok" }) },
+      { key: "unused", label: "사용", type: "count", render: (r) => React.createElement(Badge, { value: r.unused ? "쓰이지 않음" : "쓰이는 중", kind: r.unused ? "warn" : "ok" }) },
       { key: "versions", label: "버전 수", type: "count" },
       { key: "published_version", label: "발행 버전", type: "count", render: (r) => r.published_version == null ? "없음" : String(r.published_version) },
       { key: "schedule_refs", label: "스케줄", type: "count" },

@@ -259,31 +259,17 @@ def _notify_idea_status_change(
 
 
 def _fit_for_ticket_description(text: str) -> str:
-    """게시글 본문을 티켓 설명(`TicketCreate._check_desc`)의 제약에 맞춘다 — **자르되
-    거절당하지 않는 형태로** 자른다.
+    """게시글 본문을 티켓 설명으로 그대로 옮긴다. **더 이상 자르지 않는다.**
 
-    예전엔 총 글자 수만 보고 `post.body[:3900]`로 잘랐다. 게시글(최대 20,000자, 줄 길이
-    제한 없음)은 흔히 줄바꿈 없는 긴 문단 하나로 써진다 — 그래서 3900자 밑으로 잘라도
-    **그 한 줄 자체**가 여전히 `TicketCreate`의 줄당 상한(`BODY_MAX_LINE_CHARS`, 1900자)을
-    넘어 티켓 생성이 **결정적으로** 거절됐다. `change_idea_status`의 "실패하면 같은 버튼을
-    다시 누르면 된다"는 안내는 이 경우엔 거짓이다 — 같은 본문이면 몇 번을 눌러도 같은
-    이유로 거절된다.
+    이 함수는 자르는 함수였다. 티켓 설명에 「4000자·최대 100줄·한 줄 1900자」 상한이
+    있었고, 그것을 안 지키면 티켓 생성이 **결정적으로** 거절됐기 때문이다(같은 본문이면
+    몇 번을 눌러도 같은 이유로 거절된다). 그 상한 셋은 Notion 으로 밀어 넣던 시절의
+    것이고 지금은 없다 — 그래서 자를 이유도 없어졌다.
 
-    긴 줄을 먼저 나눠(내용은 보존, `MAX_LINE_CHARS` 자마다 줄바꿈만 끼워 넣는다) 그 거절을
-    피하고, 그래도 남는 총 길이 초과(게시글 20,000자 vs 티켓 4000자)와 줄 수 초과만
-    자른다 — 그 둘은 게시글이 정말 클 때만 발생하고, 아주 긴 문서를 옮기면서 잘릴 수
-    있다는 것 자체는 기존에도 있던, 별개의 제약이다.
+    함수 자체는 남긴다. 「제안 글을 티켓 설명으로 옮긴다」는 뜻이 호출부에 이름으로
+    남아 있어야, 나중에 이 자리에 다른 변환이 필요해질 때 찾을 곳이 있다.
     """
-    from app.core.notion_blocks import MAX_BLOCKS, MAX_LINE_CHARS
-
-    wrapped_lines: list[str] = []
-    for line in (text or "").split("\n"):
-        while len(line) > MAX_LINE_CHARS:
-            wrapped_lines.append(line[:MAX_LINE_CHARS])
-            line = line[MAX_LINE_CHARS:]
-        wrapped_lines.append(line)
-    wrapped = "\n".join(wrapped_lines)[:3900]
-    return "\n".join(wrapped.split("\n")[:MAX_BLOCKS])
+    return text or ""
 
 
 def _create_linked_ticket(

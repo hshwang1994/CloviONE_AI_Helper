@@ -53,7 +53,7 @@ describe("본문 편집 — 저장 지문(base_version)은 편집 시작 시점 
               <EditableBody
                 editorId="ticket-body-1"
                 endpoint="/api/tickets/1/body"
-                bodyMarkdown="원본"
+                bodyDoc={{ type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "원본" }] }] }}
                 bodyVersion="v1"
                 bodyIsLocal
                 sourceView={<div>원본</div>}
@@ -76,7 +76,7 @@ describe("본문 편집 — 저장 지문(base_version)은 편집 시작 시점 
               <EditableBody
                 editorId="ticket-body-1"
                 endpoint="/api/tickets/1/body"
-                bodyMarkdown="다른 사람이 먼저 고친 본문"
+                bodyDoc={{ type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "다른 사람이 먼저 고친 본문" }] }] }}
                 bodyVersion="v2"
                 bodyIsLocal
                 sourceView={<div>원본</div>}

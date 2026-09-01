@@ -136,12 +136,12 @@ function TargetPicker({ q, setQ, query, onPick }) {
   const items = (query.data && query.data.items) || [];
   const total = query.data && query.data.total;
   const columns = [
-    { key: "display_name", label: "이름" },
+    { key: "display_name", label: "이름", type: "name" },
     // PA-RC-0029/0036: 사람을 고르는 화면인데 이메일이 식별자 대접을 못 받고 있었다.
     { key: "email", label: "이메일", identifier: true },
-    { key: "department", label: "부서" },
-    { key: "title", label: "직책" },
-    { key: "active", label: "상태", render: (r) => (
+    { key: "department", label: "부서", type: "enum" },
+    { key: "title", label: "직책", type: "enum" },
+    { key: "active", label: "상태", type: "status", render: (r) => (
       <Box sx={{ display: "inline-flex", gap: 0.75, flexWrap: "wrap" }}>
         <Badge value={r.active ? "active" : "disabled"} />
         {r.archived_at ? <Badge value="보관됨" kind="neutral" /> : null}
@@ -229,11 +229,11 @@ function OffboardPlan({ preview, onDone, toast }) {
   const chosen = ids.filter((id) => selection.selected.has(id));
   const columns = [
     selectionColumn(selection, ids),
-    { key: "tid", label: "티켓", render: (t) => t.key || "-" },
-    { key: "title", label: "제목" },
-    { key: "status", label: "상태", render: (t) => <Badge value={t.status} /> },
-    { key: "due", label: "마감", render: (t) => t.due || "-" },
-    { key: "assignee_names", label: "현재 담당자", render: (t) => (t.assignee_names || []).join(", ") || "-" },
+    { key: "tid", label: "티켓", type: "identifier", render: (t) => t.key || "-" },
+    { key: "title", label: "제목", type: "title" },
+    { key: "status", label: "상태", type: "status", render: (t) => <Badge value={t.status} /> },
+    { key: "due", label: "마감", type: "date", render: (t) => t.due || "-" },
+    { key: "assignee_names", label: "현재 담당자", type: "name", render: (t) => (t.assignee_names || []).join(", ") || "-" },
   ];
 
   async function run() {
@@ -387,8 +387,8 @@ function RunResult({ result }) {
 }
 
 const MOVE_COLUMNS = [
-  { key: "tid", label: "티켓", render: (m) => m.key || m.ticket_page_id },
-  { key: "title", label: "제목", render: (m) => m.title || "-" },
+  { key: "tid", label: "티켓", type: "identifier", render: (m) => m.key || m.ticket_page_id },
+  { key: "title", label: "제목", type: "title", render: (m) => m.title || "-" },
   { key: "status", label: "결과", render: (m) => <Badge value={MOVE_STATUS_KO[m.status] || m.status} kind={MOVE_STATUS_KIND[m.status]} /> },
   { key: "error", label: "사유", render: (m) => m.error || "-" },
 ];
@@ -448,16 +448,16 @@ function RunHistory() {
   const columns = [
     // SEM-01: 첫 열(실행 시각)이 render라 표식 없이는 이 실행 이력 전부가 "상세 보기"로
     // 동일했다 — 대상 + 실행 시각으로 실제로 구별되는 이름을 만든다.
-    { key: "created_at", label: "실행", nowrap: true, render: (r) => <DateCell value={r.created_at} />, rowName: (r) => (r.user_name || "알 수 없음") + " / " + fmtDateTime(r.created_at) },
+    { key: "created_at", label: "실행", type: "datetime", nowrap: true, render: (r) => <DateCell value={r.created_at} />, rowName: (r) => (r.user_name || "알 수 없음") + " / " + fmtDateTime(r.created_at) },
     // 서버가 이름을 못 주면(탈퇴 계정 등) raw UUID 대신 '알 수 없음'을 보여준다(E-4 UUID 노출).
-    { key: "user_name", label: "대상", render: (r) => r.user_name || "알 수 없음" },
-    { key: "successor_name", label: "후임", render: (r) => r.successor_name || "(없음)" },
-    { key: "status", label: "상태", render: (r) => (
+    { key: "user_name", label: "대상", type: "name", render: (r) => r.user_name || "알 수 없음" },
+    { key: "successor_name", label: "후임", type: "name", render: (r) => r.successor_name || "(없음)" },
+    { key: "status", label: "상태", type: "status", render: (r) => (
       <Badge value={RUN_STATUS_KO[r.status] || r.status}
         kind={r.status === "completed" ? "ok" : r.status === "undone" ? "neutral" : "warn"} />
     ) },
-    { key: "ticket_moved", label: "티켓", render: (r) => `${r.ticket_moved}/${r.ticket_total}` + (r.ticket_failed ? ` (실패 ${r.ticket_failed})` : "") },
-    { key: "actor_name", label: "실행자" },
+    { key: "ticket_moved", label: "티켓", type: "identifier", render: (r) => `${r.ticket_moved}/${r.ticket_total}` + (r.ticket_failed ? ` (실패 ${r.ticket_failed})` : "") },
+    { key: "actor_name", label: "실행자", type: "name" },
   ];
 
   const detail = (detailQ.data && detailQ.data.run) || sel;

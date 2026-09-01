@@ -225,11 +225,10 @@ export function LlmConsole({ embedded = false } = {}) {
   const busy = saving || startTest.isPending;
   const result = testJob.data && testJob.data.result;
 
+  /* 옛 주소 `/llm-console` 은 `/settings?tab=ai` 로 보내는 리다이렉트다 — 이 화면은
+     언제나 설정 껍데기 안이고, 머리와 `.c-screen` 은 그 껍데기가 그린다. */
   return (
-    <Box className="c-screen">
-      {/* 저장이 언제 반영되는지는 이 화면 전체에 대한 사실이라 도움말에 둔다. 상시 안내
-          상자로 두면 화면을 열 때마다 같은 문장을 다시 읽어야 한다(지시 44). */}
-      {embedded ? null : <PageHeader area="AI" title="AI 관리" help={data.apply_note} />}
+    <>
 
       {/* **판이 아니라 줄이다** (S18 · B10).
           여기 있던 `Card` 는 1606×211 짜리 흰 면이었고 그 안의 내용은 왼쪽 30% 만
@@ -421,7 +420,7 @@ export function LlmConsole({ embedded = false } = {}) {
         </Box>
         <Callout tone="warn">{data.login && data.login.note}</Callout>
       </Card>
-    </Box>
+    </>
   );
 }
 

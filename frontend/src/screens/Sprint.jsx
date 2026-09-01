@@ -10,7 +10,6 @@ import { api } from "../lib/api.js";
 import {
   Badge,
   Button,
-  Callout,
   Card,
   DataTable,
   EmptyState,
@@ -29,8 +28,10 @@ import { LineSeries } from "../ui/charts/LineSeries.jsx";
 import { Gauge } from "../ui/charts/Gauge.jsx";
 import { ProgressBar } from "../ui/charts/ProgressBar.jsx";
 import {
-  burndownSeries, datedLabel, healthBand, healthCuts, pickOpenSprint, workloadItems,
+  burndownSeries, datedLabel, healthBand, healthCuts, pickOpenSprint,
+  scopeTrendSeries, workloadItems,
 } from "./sprint-charts.js";
+import { SprintLifecycle, SprintStateBadge, sprintStateLabel } from "./SprintLifecycle.jsx";
 import { SPRINT_FIELDS } from "./sprint-fields.js";
 import { useQueryState } from "../lib/useQueryState.js";
 import { useTicketProjects } from "./ticket-options.js";
@@ -82,14 +83,32 @@ import { UserAvatar } from "../ui/UserAvatar.jsx";
 const KIND_DECISION = "decision";
 const KIND_ACTION = "action";
 
-/** 「오늘 논의할 항목」의 다섯 갈래. 순서는 회의에서 말하는 순서다 — 급한 것부터. */
+/** 「오늘 논의할 항목」의 갈래. 순서는 회의에서 말하는 순서다 — 급한 것부터.
+ *
+ * 🔴 이 줄이 **판독 줄이기도 하다.** 예전에는 위 KPI 줄이 지연·차단·이슈를 숫자로 한 번
+ * 말하고 이 줄이 같은 숫자를 다시 말했다. 같은 값을 두 번 그리면 둘 중 어느 것이 눌리는지
+ * 사용자가 배워야 하고, 그 답이 「아래것만」이라 위 숫자는 죽은 픽셀이었다. 지금 위 줄은
+ * **진행**만 말하고(전체·완료·진행 중·남은 WD) 문제는 전부 여기 모여 눌린다.
+ *
+ * 뒤의 둘은 **회의 준비**다. 예상 WD 나 마감이 비어 있으면 번다운도 담당자별 남은 WD 도
+ * 못 그리는데, 예전에는 그림이 안 나온 **뒤에야** 그 사실을 알 수 있었다.
+ */
 const DISCUSS_TABS = [
   { key: "overdue", label: "지연", empty: "지연된 티켓이 없습니다.", tone: "danger" },
   { key: "blocked", label: "차단", empty: "차단된 티켓이 없습니다.", tone: "danger" },
+  { key: "issue", label: "이슈", empty: "이슈가 걸린 티켓이 없습니다.", tone: "warn" },
   { key: "unassigned", label: "미할당", empty: "담당자가 비어 있는 티켓이 없습니다." },
   { key: "due_soon", label: "마감 임박", empty: "곧 마감인 티켓이 없습니다.", tone: "warn" },
+  { key: "no_estimate", label: "예상 WD 없음", empty: "예상 WD 가 비어 있는 티켓이 없습니다." },
+  { key: "no_due", label: "마감 없음", empty: "마감이 비어 있는 티켓이 없습니다." },
   { key: "scope_changes", label: "범위 변경", empty: "회차가 시작한 뒤 드나든 티켓이 없습니다." },
 ];
+
+const SPRINT_PHASE_NOTE = {
+  before: "아직 시작하지 않은 회차입니다. 「회차 열기」를 누르면 오늘부터 진행을 셉니다.",
+  during: "진행 중인 회차입니다. 남은 일과 막힌 일을 먼저 봅니다.",
+  after: "기간이 지난 회차입니다. 「회차 닫기」로 안 끝난 일을 다음 회차로 넘길 수 있습니다.",
+};
 
 const SPRINT_SPEC = { project: "", sprint: "" };
 
@@ -265,9 +284,14 @@ export function Sprint() {
   );
 
   /* 회차를 안 골랐으면 **열려 있는 회차**를 고른다. 회의를 여는 사람이 매번 목록에서
-     같은 것을 다시 고르게 하지 않는다. 열린 회차가 없으면 가장 최근 회차다. */
+     같은 것을 다시 고르게 하지 않는다. 열린 회차가 없으면 가장 최근 회차다.
+     🔴 **한 번만 한다.** 예전에는 가드가 없어서 사용자가 회차를 비우는 즉시 화면이 다시
+     채웠다 — 작업 보드는 같은 자리에 `autoSelectedRef` 를 두고 있었고, 두 화면이 같은
+     동작에서 다르게 굴면 사용자는 어느 쪽이 맞는지 배울 수가 없다. */
+  const autoSelectedRef = React.useRef(false);
   React.useEffect(() => {
-    if (state.sprint || !sprintRows.length) return;
+    if (autoSelectedRef.current || state.sprint || !sprintRows.length) return;
+    autoSelectedRef.current = true;
     const picked = pickOpenSprint(sprintRows);
     if (picked) setState({ sprint: picked.id }, { replace: true });
   }, [state.sprint, sprintRows, setState]);
@@ -347,7 +371,20 @@ export function Sprint() {
     [navigate]
   );
 
+  /** 이 회차를 작업 보드에서 연다 — 회의에서 「그래서 지금 뭐가 어디까지 왔나」로 넘어가는 길. */
+  const openBoard = React.useCallback(
+    (extra) => {
+      navigate("/work-board?" + new URLSearchParams({
+        project: state.project || "",
+        sprint: state.sprint || "",
+        ...(extra || {}),
+      }).toString());
+    },
+    [navigate, state.project, state.sprint]
+  );
+
   const burndown = body ? burndownSeries(body.burndown) : null;
+  const scopeTrend = body ? scopeTrendSeries(body.scope) : null;
   const workload = body ? workloadItems(body.workload) : null;
   const summary = body ? body.summary : null;
 
@@ -389,7 +426,8 @@ export function Sprint() {
   );
 
   const tab = DISCUSS_TABS.find((t) => t.key === discussTab) || DISCUSS_TABS[0];
-  const bucket = body ? body.discuss[tab.key] : null;
+  // 서버가 아직 새 갈래를 모르는 순간(배포 사이)에도 화면이 안 죽는다.
+  const bucket = body ? (body.discuss[tab.key] || { items: [], total: 0, truncated: false }) : null;
 
   return (
     <>
@@ -442,9 +480,12 @@ export function Sprint() {
             value={state.sprint}
             onChange={(next) => setState({ sprint: next || "" })}
             loading={sprints.isLoading}
+            /* 상태를 이름 옆에 적는다. 예정·진행 중·종료가 안 보이면 목록에서 어느 회차가
+               지금 것인지 고를 수가 없다 — 「진행 중」 배지가 한 번도 안 붙던 이유가
+               여는 동작 자체가 없어서였다(`SprintLifecycle.jsx`). */
             options={sprintRows.map((s) => ({
               value: s.id,
-              label: s.name,
+              label: `${s.name} (${sprintStateLabel(s)})`,
               secondary: `${s.starts_on} ~ ${s.ends_on}`,
             }))}
             allLabel="고르세요"
@@ -474,32 +515,66 @@ export function Sprint() {
 
       {body ? (
         <>
-          <Callout
-            tone="info"
-            title={`${body.sprint.name} (${datedLabel(body.sprint.starts_on)} ~ ${datedLabel(body.sprint.ends_on)})`}
-            detail={body.sprint.goal || undefined}
-            detailLabel="회차 목표"
-            sx={{ mb: 2 }}
-          >
-            {`${body.sprint.starts_on}부터 ${body.sprint.ends_on}까지의 회차를 봅니다. 오늘은 ${body.today}입니다.`}
-          </Callout>
-
-          {/* 1 — 정상 진행인가 */}
-          <Box sx={{ ...PANEL_SURFACE, mb: 2 }}>
-            <StatusKpiStrip
-              ariaLabel="이번 회차 요약"
-              revealKey="sprint-meeting:kpi"
-              items={[
-                { label: "전체", value: String(summary.total), primary: true },
-                { label: "완료", value: String(summary.done), kind: "ok", pct: summary.total ? Math.round((summary.done / summary.total) * 100) : 0 },
-                { label: "진행 중", value: String(summary.in_progress), kind: "info" },
-                { label: "지연", value: String(summary.overdue), kind: summary.overdue ? "danger" : undefined },
-                { label: "차단", value: String(summary.blocked), kind: summary.blocked ? "danger" : undefined },
-                { label: "이슈", value: String(summary.issue), kind: summary.issue ? "warn" : undefined },
-                { label: "남은 WD", value: String(summary.remaining_wd) },
-              ]}
-            />
+          {/* 회차 머리 — **안내가 아니라 화면 문맥**이다.
+              예전에는 이 자리가 `Callout` 이었고, 그 톤의 색(#1F5FBF)이 Brand(#4C58C8)와
+              가까워서 「안내 영역인데 본문과 시각적으로 구분되지 않는다」는 말을 들었다.
+              지금은 중립 함몰면 위에 회차 이름·기간·오늘·상태·목표와 **여는/닫는 단추**가
+              한 줄로 선다 — 이 화면에서 회차에 대해 할 수 있는 일이 전부 여기 있다. */}
+          <Box sx={{ ...LANE_SURFACE, p: PANEL_SURFACE.p, mb: 2 }}>
+            <Stack
+              direction="row" flexWrap="wrap" gap={1} alignItems="center"
+              justifyContent="space-between"
+            >
+              <Box sx={{ minWidth: 0 }}>
+                <Stack direction="row" spacing={1} alignItems="center" sx={{ minWidth: 0 }}>
+                  <Typography component="h2" variant="sectionTitle" sx={{ ...KO_WORD_BREAK }}>
+                    {body.sprint.name}
+                  </Typography>
+                  <SprintStateBadge sprint={body.sprint} />
+                </Stack>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25, ...KO_WORD_BREAK }}>
+                  {`${datedLabel(body.sprint.starts_on)} ~ ${datedLabel(body.sprint.ends_on)}, 오늘 ${body.today}`}
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25, ...KO_WORD_BREAK }}>
+                  {SPRINT_PHASE_NOTE[body.phase] || ""}
+                </Typography>
+                {body.sprint.goal ? (
+                  <Typography variant="body2" sx={{ mt: 0.75, ...KO_WORD_BREAK }}>
+                    {`회차 목표: ${body.sprint.goal}`}
+                  </Typography>
+                ) : null}
+              </Box>
+              <Stack direction="row" spacing={1} alignItems="center" sx={{ flexShrink: 0 }}>
+                <SprintLifecycle sprint={body.sprint} sprints={sprintRows} size="md" />
+                <Button
+                  variant="secondary"
+                  onClick={() => navigate("/work-board?" + new URLSearchParams({
+                    project: state.project || "", sprint: body.sprint.id,
+                  }).toString())}
+                >
+                  작업 보드에서 보기
+                </Button>
+              </Stack>
+            </Stack>
           </Box>
+
+          {/* 1 — 정상 진행인가. **판을 두르지 않는다** — 타일이 이미 판이다. */}
+          <StatusKpiStrip
+            ariaLabel="이번 회차 요약"
+            revealKey="sprint-meeting:kpi"
+            sx={{ mb: 2 }}
+            items={[
+              { label: "전체", value: String(summary.total), primary: true, onClick: () => openBoard() },
+              { label: "완료", value: String(summary.done), kind: "ok", pct: summary.total ? Math.round((summary.done / summary.total) * 100) : 0 },
+              { label: "진행 중", value: String(summary.in_progress), kind: "info" },
+              { label: "남은 WD", value: String(summary.remaining_wd) },
+              {
+                label: "진행률",
+                value: body.health ? `${body.health.progress_pct}%` : "-",
+                pct: body.health ? body.health.elapsed_pct : undefined,
+              },
+            ]}
+          />
 
           <Box
             sx={{
@@ -517,12 +592,12 @@ export function Sprint() {
                   labels={burndown.labels}
                   unit="인일"
                   summary={burndown.summary}
-                  question="이 회차가 계획대로 줄고 있는지 봅니다."
+                  question="이 회차가 계획대로 줄고 있는지 봅니다. 남은 일 선은 오늘까지만 그립니다."
                   revealKey={body.sprint.id}
                 />
               ) : (
                 <Typography variant="body2" color="text.secondary">
-                  마감일과 예상 WD 가 적힌 티켓이 있어야 번다운을 그릴 수 있습니다.
+                  예상 WD 가 적힌 티켓이 있어야 번다운을 그릴 수 있습니다. 위 「예상 WD 없음」에서 채울 수 있습니다.
                 </Typography>
               )}
               </Box>
@@ -553,15 +628,20 @@ export function Sprint() {
             </Section>
           </Box>
 
-          {/* 2 — 어떤 티켓이 문제인가 */}
-          <Section title="오늘 논의할 항목" rule>
+          {/* 2 — 어떤 티켓이 문제인가. 이 줄이 **판독이자 드릴다운**이다: 숫자를 누르면
+              바로 아래에 그 티켓이 선다. 위 요약 줄과 숫자가 겹치지 않는다. */}
+          <Section
+            title="오늘 논의할 항목"
+            help="숫자를 누르면 그 티켓이 아래에 나옵니다. 뒤의 둘은 회의 전에 채워 두면 좋은 값입니다."
+            rule
+          >
             <DiscussBucketRow
               value={tab.key}
               onChange={setDiscussTab}
               items={DISCUSS_TABS.map((t) => ({
                 key: t.key,
                 label: t.label,
-                count: body.discuss[t.key].total,
+                count: (body.discuss[t.key] || {}).total || 0,
                 tone: t.tone,
               }))}
             />
@@ -627,22 +707,25 @@ export function Sprint() {
                   <Typography variant="body2">
                     {`회차가 시작한 뒤 ${body.scope.added}건이 들어오고 ${body.scope.removed}건이 빠졌습니다.`}
                   </Typography>
-                  {/* REAUDIT §15.2 — 여섯 번째 ECharts 그림. 들어온 건수와 빠진 건수를 나란히
-                      비교한다. 새 API(일자별 시계열)를 만들지 않고 이미 있는 두 집계값을
-                      막대로 낸다 — 이미 마이그레이션한 BarSeries 를 그대로 재사용한다. */}
-                  {body.scope.added > 0 || body.scope.removed > 0 ? (
-                    <BarSeries
-                      question="이번 회차 동안 범위가 얼마나 드나들었는지 봅니다."
+                  {/* 막대 두 개가 아니라 **추이**다. 회의가 묻는 것은 「얼마나」보다
+                      「언제부터 불어났나」이고, 그 답은 이미 읽은 활동 기록의 날짜에 있다 —
+                      새 API 를 만들지 않고 같은 기록을 날짜로 접었다. */}
+                  {scopeTrend ? (
+                    <LineSeries
+                      series={scopeTrend.series}
+                      labels={scopeTrend.labels}
                       unit="건"
-                      items={[
-                        { label: "들어옴", value: body.scope.added },
-                        { label: "빠짐", value: body.scope.removed, color: body.scope.removed > 0 ? "warn" : undefined },
-                      ]}
+                      question="회차 중에 범위가 언제 드나들었는지 봅니다."
+                      revealKey={body.sprint.id}
                     />
                   ) : null}
-                  <Typography variant="caption" color="text.secondary">
-                    어떤 티켓이 드나들었는지는 위 논의 항목에서 볼 수 있습니다.
-                  </Typography>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setDiscussTab("scope_changes")}
+                  >
+                    드나든 티켓 보기
+                  </Button>
                 </Stack>
               ) : (
                 <Typography variant="body2" color="text.secondary">

@@ -10,13 +10,14 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 # 본문 상한은 마크다운 → 블록 변환기가 정한다. 여기서 숫자를 다시 적으면 편집기 미리보기와
 # 실제 저장 결과가 갈라진다(티켓 스키마도 같은 곳에서 가져온다).
-from app.core.notion_blocks import MAX_BLOCKS as BODY_MAX_LINES
-from app.core.notion_blocks import MAX_LINE_CHARS as BODY_MAX_LINE_CHARS
+
 from app.team_docs.classify import DOC_TYPES, TECH_TAGS, WORK_FIELDS
 
 MAX_TITLE = 200
 MAX_MEMO = 2000
 MAX_OWNER = 200
+#: 문서 본문의 총 글자 상한. 🔴 **없다** — 값은 남기되 아무도 안 본다는 뜻이 아니라,
+#: 실제로 검사하지 않는다는 뜻이다(`_body` 참고). 이름은 옛 응답 계약이 참조한다.
 MAX_BODY = 20000
 
 STATUS_OPTIONS = frozenset({"초안", "활성", "서명됨", "만료됨"})
@@ -126,23 +127,13 @@ class DocumentCreate(BaseModel):
     @field_validator("body")
     @classmethod
     def _body(cls, v: str) -> str:
-        if v and len(v) > MAX_BODY:
-            raise ValueError(f"본문은 {MAX_BODY}자 이하여야 합니다.")
-        if not v:
-            return ""
-        # 이 본문은 그대로 노션 블록으로 변환된다(notion_docs.body_children → markdown_to_blocks).
-        # 그 변환기는 100줄/줄당 1900자를 넘으면 **조용히 잘라낸다** — 총 글자 수(20000자)만
-        # 봐서는 이 함정을 못 막는다. 본문 수정(DocumentBodyUpdate._check_body)과 같은 규칙으로
-        # 여기서도 자르지 않고 거절한다.
-        lines = v.split("\n")
-        if len(lines) > BODY_MAX_LINES:
-            raise ValueError(
-                f"본문은 최대 {BODY_MAX_LINES}줄까지 저장할 수 있습니다"
-                f"(현재 {len(lines)}줄). 줄 수를 줄이거나 원본에서 편집해 주세요."
-            )
-        if any(len(ln) > BODY_MAX_LINE_CHARS for ln in lines):
-            raise ValueError(f"한 줄은 {BODY_MAX_LINE_CHARS}자 이하여야 합니다.")
-        return v
+        """**줄 수·줄 길이 상한이 없다.**
+
+        「최대 100줄」·「한 줄 1900자」가 여기 있었다. Notion 블록으로 변환해 밀어 넣던
+        시절의 상한이고(`app/core/notion_blocks.py`), 밀어 넣을 곳이 없어진 뒤로는 지킬
+        이유가 없다 — 그 파서도 더 이상 자르지 않는다. 문서는 길어질 수 있어야 한다.
+        """
+        return v or ""
 
 
 # 댓글 스키마는 여기 없다 (S14 · C2) — `app/knowledge/schemas.py` 가 든다.
@@ -170,13 +161,5 @@ class DocumentBodyUpdate(BaseModel):
     @field_validator("body_markdown")
     @classmethod
     def _check_body(cls, v: str) -> str:
-        v = (v or "").replace("\r\n", "\n").replace("\r", "\n")
-        lines = v.split("\n")
-        if len(lines) > BODY_MAX_LINES:
-            raise ValueError(
-                f"본문은 최대 {BODY_MAX_LINES}줄까지 저장할 수 있습니다"
-                f"(현재 {len(lines)}줄). 줄 수를 줄이거나 원본에서 편집해 주세요."
-            )
-        if any(len(ln) > BODY_MAX_LINE_CHARS for ln in lines):
-            raise ValueError(f"한 줄은 {BODY_MAX_LINE_CHARS}자 이하여야 합니다.")
-        return v
+        """줄끝만 고른다. 길이 상한은 없다(위 `_body` 와 같은 이유)."""
+        return (v or "").replace("\r\n", "\n").replace("\r", "\n")

@@ -1,35 +1,17 @@
-import React, { useRef, useState } from "react";
+import React from "react";
 import Box from "@mui/material/Box";
-import Divider from "@mui/material/Divider";
-import MuiButton from "@mui/material/Button";
-import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
-import { alpha } from "@mui/material/styles";
 import { FONT_SIZE, FONT_WEIGHT } from "./theme.js";
-import { EmojiPicker } from "./EmojiPicker.jsx";
-import { insertAtCursor, useCaretTracker } from "../lib/caret.js";
 
-/* 공용 본문 편집기 — 새 문서와 새 티켓 설명이 같은 서식(제목·글머리·번호·체크·인용·코드·구분선)과
- * 라이브 미리보기를 쓴다. 서식 규칙은 백엔드 app/core/notion_blocks.py(markdown_to_blocks)와
- * 같아야 미리보기와 실제 저장 결과가 어긋나지 않는다. 서식 도구는 커서가 있는 '줄 맨 앞'에 표식을 붙인다.
+/* 마크다운 본문의 **미리보기**와 편집 표면의 **폭 규칙**.
  *
- * 2026-08 재설계: 마크업을 MUI로 옮겼다. 예전에는 `k-input docs-body-text` 같은 legacy 클래스에
- * 기대고 있었는데, 이 편집기는 MUI 폼 필드들 사이에 끼어 있어 혼자만 옛 모양으로 남아 있었다.
- * 캐럿 조작·미리보기 규칙은 한 줄도 바꾸지 않았다 — 그건 백엔드 파서와 맞춰 둔 계약이다. */
+ * 예전에는 이 파일이 공용 본문 편집기이기도 했다. 그 편집기는 없어졌다 — 아래 주석 참고.
+ * 지금 남은 것은 마크다운 문자열을 그대로 그리는 자리(주간 보고)가 쓰는 미리보기와,
+ * 편집 표면을 감싸는 두 자리가 함께 쓰는 폭 헬퍼다. */
 
-/* 이모지 버튼이 **돌아왔다** (2026-08-27 지시 10).
- *
- * 한때 서식 도구 옆에 ✅📌⚠️🔹👉🎯🎉💡 여덟 개가 박혀 있었고, 지시 28 이 그것을 걷었다 —
- * 화면이 장식 문자를 **스스로 권하는** 자리였기 때문이다. 걷은 판단 자체는 그때 옳았다.
- *
- * 지금 들어오는 것은 그것과 다르다. 여덟 개를 툴바에 박아 권하는 것이 아니라, **눌러서
- * 여는 고르개**다(`ui/EmojiPicker.jsx`, 채팅 컴포저와 같은 부품). 툴바의 기본 얼굴에는
- * 글자 한 자도 안 늘고, 필요한 사람이 열어서 고른다. 그리고 이 편집기가 쓰이는 자리는
- * 회의록·요구사항 같은 실제 문서라 「완료 ✅」 한 자가 문장 열 개를 대신하는 일이 실제로 있다.
- */
-/* 백엔드 app/core/notion_blocks.py 의 MAX_BLOCKS 와 같은 값이다. 프런트에 두 번 적지 않으려고
- * 내보낸다 — 티켓 본문 편집(TicketBody.jsx)은 이 상한을 넘으면 저장 자체를 막는다. */
-export const BODY_MAX_LINES = 100;
+/* 🔴 `BODY_MAX_LINES = 100` 이 있었다. 백엔드 파서(`app/core/notion_blocks.py`)가 그만큼만
+ * 읽던 시절의 짝이고, 그 상한은 Notion API 의 것이었다 — 밀어 넣을 곳이 없어져 파서도
+ * 검증기도 더 이상 자르지 않는다. 본문은 길어질 수 있다. */
 
 /* 편집 표면(툴바+입력 상자+미리보기)의 폭 — 이 컴포넌트를 감싸는 두 자리(새 티켓 설명의
  * MyTickets.jsx, 티켓/문서 본문 편집의 EditableBody.jsx)가 예전에는 각자 손으로 고정
@@ -67,164 +49,30 @@ export function editorSurfaceWidthSx(containerName) {
   };
 }
 
-/* label: 입력 상자의 **접근 이름**이다.
+/* 🔴 **여기 마크다운 편집기가 있었다.**
  *
- * 왜 필요한가: 이 편집기가 곧 '본문 편집' 그 자체인 자리(티켓 본문·문서 본문)에서는 화면에
- * 딸린 <label> 이 없어, 스크린리더가 이름 없는 여러 줄 입력으로 읽었다 — "편집" 한 마디뿐이라
- * 무엇을 쓰는 칸인지 알 수 없다. 이 앱에서 가장 많이 쓰는 편집 표면이 그 상태였다.
+ * 글자 칩 열한 개(제목1·제목2·제목3·글머리·번호·체크·인용·코드·구분선·링크·이모지)로
+ * 줄 맨 앞에 표식을 붙이는 편집기였고, 티켓 설명과 티켓 본문이 그것을 썼다. 굵게·기울임·
+ * 밑줄·표·이미지가 없던 이유는 단추를 안 만들어서가 아니라 **저장할 자리가 없어서**였다 —
+ * 본문 정본이 마크다운 문자열이었다.
  *
- * 넘기지 않으면 아무 것도 붙이지 않는다. 새 티켓·새 문서 폼은 화면에 보이는 <label htmlFor>
- * 로 이미 이름을 주고 있어서, 여기서 제 이름을 우기면 **보이는 라벨과 낭독되는 이름이 갈린다**. */
-export function BodyEditor({ id, value, onChange, rows = 12, placeholder, label, preview = false }) {
-  const ref = useRef(null);
-  const [emojiAnchor, setEmojiAnchor] = useState(null);
-  /* 🔴 「커서를 모른다」와 「커서가 맨 앞이다」는 **다른 사실**이다.
-   *
-   * 예전에는 `ta.selectionStart != null ? ta.selectionStart : val.length` 였다. 그런데
-   * 포커스를 한 번도 안 준 `<textarea>` 의 `selectionStart` 는 `null` 이 아니라 **0** 이라,
-   * 저 삼항은 언제나 앞쪽을 골랐다 — 서식·이모지 단추 넷이 전부 글 맨 앞에 값을 꽂았다.
-   * 새 티켓 폼이 특히 그랬다: 「작성 도움」 레일이 상태만 바꿔 설명을 채우니 편집기는
-   * 포커스를 받은 적이 없고, 그 뒤 이모지를 고르면 `🎯## 배경` 이 되어 제목 파싱까지 깨진다.
-   *
-   * `useCaretTracker` 는 **사용자가 실제로 만졌을 때만** 자리를 적어 둔다. 안 만졌으면
-   * `null` 이고, 그러면 맨 뒤에 붙는다(`lib/caret.js` · 채팅 컴포저가 이미 쓰던 규칙). */
-  const tracker = useCaretTracker(value);
-  const caret = () => {
-    const val = value || "";
-    const sel = tracker.caret();
-    return { val, pos: sel ? sel.start : val.length, end: sel ? sel.end : val.length };
-  };
-  const apply = (next, cursor) => {
-    onChange(next);
-    /* 프로그램이 옮긴 커서는 `select` 이벤트를 안 내므로 직접 알려 준다 — 없으면 연달아
-       두 번 넣을 때 두 번째가 첫 번째 자리로 되돌아간다. */
-    tracker.set(cursor);
-    requestAnimationFrame(() => {
-      const ta = ref.current;
-      if (ta) { try { ta.focus(); ta.setSelectionRange(cursor, cursor); } catch (e) { /* noop */ } }
-    });
-  };
-  const prefixLine = (prefix) => {
-    const { val, pos } = caret();
-    const lineStart = pos <= 0 ? 0 : val.lastIndexOf("\n", pos - 1) + 1;
-    apply(val.slice(0, lineStart) + prefix + val.slice(lineStart), pos + prefix.length);
-  };
-  const insertDivider = () => {
-    const { val, pos } = caret();
-    const before = val.slice(0, pos);
-    const chunk = (before && !before.endsWith("\n") ? "\n" : "") + "---\n";
-    apply(before + chunk + val.slice(pos), pos + chunk.length);
-  };
-  /* 코드 구간은 **두 줄을 함께** 넣고 그 사이에 커서를 둔다. 한 줄만 넣으면 사용자가
-     닫는 울타리를 직접 쳐야 하고, 안 치면 그 아래 본문 전체가 코드가 된다. */
-  const insertFence = () => {
-    const { val, pos } = caret();
-    const before = val.slice(0, pos);
-    const lead = before && !before.endsWith("\n") ? "\n" : "";
-    const chunk = lead + "```\n\n```\n";
-    apply(before + chunk + val.slice(pos), pos + lead.length + 4);
-  };
-  const insertAtCaret = (text) => {
-    const { val, pos, end } = caret();
-    /* 고른 글자가 있으면 그것을 **바꾼다** — 채팅 컴포저와 같은 규칙 하나를 쓴다. */
-    const next = insertAtCursor(val, text, pos, end);
-    apply(next.text, next.caret);
-  };
-  /* 카드 배경(흰색)과 구별되는 옅은 표면 — theme.js 의 background.surface2 토큰을 그대로
-   * 쓴다(표 머리·칸반 열이 이미 쓰는 것과 같은 위계). 예전에는 `variant="outlined"
-   * color="inherit"` 라 배경이 투명이어서 흰 Card 위에서 버튼 경계가 잘 안 보였다. */
-  const fmtBtn = {
-    minWidth: 0, px: 1.5, minHeight: 32, fontSize: FONT_SIZE.bodySm,
-    bgcolor: "background.surface2",
-    borderColor: "divider",
-    "&:hover": { bgcolor: (theme) => alpha(theme.palette.text.primary, 0.08), borderColor: "divider" },
-  };
+ * 지금은 티켓 본문도 문서와 같은 정본(Block JSON)을 쓰고, 두 곳 다 같은 편집기
+ * (`ui/BlockEditor.jsx`, TipTap)로 고친다. 그래서 이 편집기는 소비처가 0 이 됐다.
+ * 남는 것은 **편집 표면의 폭 규칙**(위 두 헬퍼)과 아래 **마크다운 미리보기**뿐이다 —
+ * 미리보기는 주간 보고(`screens/ProjectWeekly.jsx`)가 마크다운 문자열을 그대로 그리는
+ * 자리에서 계속 쓴다. */
 
-  return (
-    <>
-      <Box
-        role="group"
-        aria-label={label ? label + " 서식 도구" : "본문 서식"}
-        sx={{ display: "flex", alignItems: "center", gap: 0.5, flexWrap: "wrap", mb: 1 }}
-      >
-        {/* 도구는 **렌더러가 실제로 그리는 것만** 있다 (지시 10). 열하나 다
-            `app/core/notion_blocks.py` 가 블록으로 만들고 `ui/DocBody.jsx` 가 그린다 —
-            숫자를 늘리려고 렌더러가 모르는 버튼을 넣지 않는다.
-
-            제목은 REAUDIT §15.4 에서 셋으로 늘었다(문서 편집기 `BlockEditor.jsx` 와
-            기능 집합을 맞춘다) — 예전에는 단추 하나가 `##`(제목2) 로 고정돼 있었지만,
-            `markdown_to_blocks` 는 처음부터 `#`·`##`·`###` 셋을 다 읽고 있었다. 렌더러가
-            이미 아는 것을 도구가 하나만 주고 있었을 뿐이다. */}
-        <MuiButton size="small" variant="outlined" color="inherit" sx={fmtBtn} onClick={() => prefixLine("# ")}>제목1</MuiButton>
-        <MuiButton size="small" variant="outlined" color="inherit" sx={fmtBtn} onClick={() => prefixLine("## ")}>제목2</MuiButton>
-        <MuiButton size="small" variant="outlined" color="inherit" sx={fmtBtn} onClick={() => prefixLine("### ")}>제목3</MuiButton>
-        <MuiButton size="small" variant="outlined" color="inherit" sx={fmtBtn} onClick={() => prefixLine("- ")}>글머리</MuiButton>
-        <MuiButton size="small" variant="outlined" color="inherit" sx={fmtBtn} onClick={() => prefixLine("1. ")}>번호</MuiButton>
-        <MuiButton size="small" variant="outlined" color="inherit" sx={fmtBtn} onClick={() => prefixLine("- [ ] ")}>체크</MuiButton>
-        <MuiButton size="small" variant="outlined" color="inherit" sx={fmtBtn} onClick={() => prefixLine("> ")}>인용</MuiButton>
-        <MuiButton size="small" variant="outlined" color="inherit" sx={fmtBtn} onClick={insertFence}>코드</MuiButton>
-        <MuiButton size="small" variant="outlined" color="inherit" sx={fmtBtn} onClick={insertDivider}>구분선</MuiButton>
-        {/* 주소는 **그대로 적으면 링크가 된다**(`ui/DocBody.jsx` 의 `linkifyText`).
-            `[글자](주소)` 문법을 흉내 내지 않는다 — 렌더러가 그것을 모르므로 넣는 순간
-            화면에 대괄호가 그대로 남는다. 이 버튼은 그 사실을 알려 주는 자리다. */}
-        <MuiButton size="small" variant="outlined" color="inherit" sx={fmtBtn} onClick={() => insertAtCaret("https://")}>링크</MuiButton>
-        <MuiButton
-          size="small" variant="outlined" color="inherit" sx={fmtBtn}
-          aria-haspopup="dialog" aria-expanded={!!emojiAnchor}
-          onClick={(e) => setEmojiAnchor(e.currentTarget)}
-        >
-          이모지
-        </MuiButton>
-      </Box>
-      <EmojiPicker
-        anchorEl={emojiAnchor}
-        onClose={() => setEmojiAnchor(null)}
-        onPick={(emoji) => { setEmojiAnchor(null); insertAtCaret(emoji); }}
-        ariaLabel="본문에 넣을 이모지 고르기"
-      />
-      <TextField
-        id={id}
-        inputRef={ref}
-        multiline
-        minRows={rows}
-        fullWidth
-        size="small"
-        value={value}
-        onChange={(e) => { onChange(e.target.value); tracker.handlers.onSelect(e); }}
-        placeholder={placeholder}
-        /* placeholder 는 이름이 아니다 — 글자를 치는 순간 사라지고, 브라우저·리더에 따라
-           아예 안 읽힌다. 이름은 label 로만 준다. */
-        slotProps={{ htmlInput: { ...(label ? { "aria-label": label } : {}), ...tracker.handlers } }}
-      />
-      {/* 미리보기는 **기본이 꺼짐**이다.
-       *
-       * 왜: 새로 쓰는 자리에서는 입력칸과 같은 높이의 판이 하나 더 늘 펼쳐져 있어 폼이 두 배로
-       * 길어진다. 아직 아무것도 안 쓴 사람에게 「지금 쓴 것이 이렇게 보인다」는 빈 상자다.
-       * 켜는 자리는 **이미 있는 긴 본문을 고치는 자리**뿐이다(`ui/EditableBody.jsx`) — 거기서는
-       * 무엇을 쳤는지와 어떻게 보일지를 나란히 대조하는 것이 실제로 일이다. */}
-      {preview ? (
-        <>
-          <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 2, mb: 0.5, fontWeight: FONT_WEIGHT.bold }}>
-            미리보기
-          </Typography>
-          <BodyPreview text={value} wide />
-        </>
-      ) : null}
-    </>
-  );
-}
-
-/* 본문 미리보기 — markdown_to_blocks와 같은 규칙으로 렌더(빈 줄=간격, 100줄 상한, 초과 경고).
- * 사용자 입력이므로 React가 기본 textContent 렌더(불변 §6 XSS 없음). */
 /* wide=true 는 **편집 중 미리보기**용이다.
  * 기본값(78ch)은 '읽는 본문'의 줄 길이 상한이라 티켓 상세처럼 완성된 글을 볼 때 맞다.
  * 그런데 편집기 안에서는 입력 상자가 full width 인데 미리보기만 78ch 라, 두 상자의 폭이
  * 달라 "정렬이 어긋나 보인다"(1920 캡처에서 960px vs 675px). 편집 화면에서는 무엇을 쳤는지와
  * 어떻게 보일지를 **나란히 대조**하는 것이 목적이라 폭이 같아야 한다. */
 export function BodyPreview({ text, wide = false }) {
-  const raw = (text || "").split("\n");
-  const lines = raw.slice(0, BODY_MAX_LINES);
-  const truncated = raw.length > BODY_MAX_LINES;
+  /* 🔴 여기 100줄에서 자르는 규칙과 「이후 N줄은 저장되지 않습니다」 경고가 있었다.
+     서버 파서가 그만큼만 읽어서 「미리보기가 저장 결과보다 길어지지 않게」 맞춰 둔
+     것이었는데, **그 파서가 더 이상 안 자른다** — 100줄·1900자는 Notion 으로 밀어 넣던
+     시절의 상한이고 밀어 넣을 곳이 없어졌다. 안 잘리는데 잘린다고 말하면 안 된다. */
+  const lines = (text || "").split("\n");
   const blocks = [];
   let list = null;
   const flush = () => { if (list) { blocks.push(list); list = null; } };
@@ -343,11 +191,6 @@ export function BodyPreview({ text, wide = false }) {
         }
         return <Typography key={i} variant="body2" sx={{ whiteSpace: "pre-wrap" }}>{b.text}</Typography>;
       })}
-      {truncated ? (
-        <Typography variant="caption" color="warning.main" sx={{ mt: 1 }}>
-          이후 {raw.length - BODY_MAX_LINES}줄은 저장되지 않습니다(최대 {BODY_MAX_LINES}줄).
-        </Typography>
-      ) : null}
     </Box>
   );
 }

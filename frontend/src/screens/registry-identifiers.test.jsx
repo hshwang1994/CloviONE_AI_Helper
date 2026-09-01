@@ -71,13 +71,9 @@ describe("사람 자리에 남은 원시 UUID", () => {
     expect(container.textContent).toContain("박승인");
   });
 
-  // 대조군 — 서버가 이름을 안 주는 화면은 raw id 그대로다(render 없음이 곧 그 뜻).
-  // 이름을 주던 유일한 화면(워크플로 버전 기록)은 S11 이 그 화면과 함께 걷어냈다.
-  it("연동 버전 기록의 변경자는 서버가 이름을 안 줘서 raw id 그대로다", () => {
-    const action = REGISTRY.integrations.actions.find((a) => a.label === "버전 기록");
-    const created = action.subList.columns.find((c) => c.key === "created_by");
-    expect(created.render).toBeUndefined();
-  });
+  /* 대조군이던 「연동 버전 기록」은 그 화면과 함께 걷어냈다 — 0017 이 등록 행을 지웠고
+     시드 목록이 비어 있어 그 표가 다시 안 채워진다. 규칙(서버가 이름을 안 주면 raw id
+     그대로)은 그대로이고, 그것을 지키는 자리는 아래 「일부러 남긴 식별자」다. */
 });
 
 describe("일부러 남긴 식별자", () => {

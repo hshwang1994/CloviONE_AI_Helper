@@ -7,7 +7,16 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import { ThemeProvider } from "@mui/material/styles";
 
-/* PA-RC-0035: 담당자 선택이 사람 수만큼 자라는 평면 체크박스 목록이었다(14명 기준 새 티켓
+/* qa-contract-replaced-by: frontend/src/ui/body-editor-no-emoji.test.jsx
+ * qa-contract-replaced-by: frontend/src/ui/body-editor-toolbar-contrast.test.jsx
+ *
+ * 그 둘은 티켓 설명이 **글자 칩 열한 개**(제목1·제목2·제목3·글머리·번호·체크·인용·코드·
+ * 구분선·링크·이모지)짜리 마크다운 편집기이던 시절의 계약이었다. 이름으로 그 열한 개가
+ * 있는지, 그 칩들이 흰 판 위에서 경계를 갖는지를 쟀다. 지금 티켓 설명은 문서와 **같은
+ * 편집기**(TipTap 아이콘 툴바)를 쓰므로 그 열한 개가 존재하지 않는다 — 아래
+ * 「설명은 문서와 같은 편집기다」가 그 자리를 대신해 아이콘 툴바와 접근 이름을 잰다.
+ *
+ * PA-RC-0035: 담당자 선택이 사람 수만큼 자라는 평면 체크박스 목록이었다(14명 기준 새 티켓
  * 폼 세로의 상당 부분) — 검색 가능한 자동완성 입력 + 선택 칩(MUI Autocomplete)으로 바꿨다.
  * 후보가 많아져도 입력 자리는 한 줄로 고정된다는 것이 이 RC의 핵심 주장이라, 큰 후보
  * 집합(50명)으로 시험한다.
@@ -176,7 +185,7 @@ describe("새 티켓 — 담당자는 검색 가능한 자동완성이다 (PA-RC
     await pickProject(user);
     await screen.findByText("나");
 
-    await user.type(screen.getByLabelText(/제목/), "담당자 배정 확인");
+    await user.type(screen.getByLabelText(/^제목\s*\*?$/), "담당자 배정 확인");
     /* 예상 WD 와 마감일도 필수다 (지시 10) — 이 시험이 재는 것은 담당자 축이지만,
        필수를 안 채우면 제출 자체가 막혀 아무것도 못 잰다. */
     await user.type(screen.getByLabelText(/예상 WD/), "1");
@@ -203,28 +212,23 @@ describe("새 티켓 — 담당자는 검색 가능한 자동완성이다 (PA-RC
   });
 });
 
-describe("새 티켓 — 설명 필드의 안내는 입력 중에도 남는다 (PA-RC-0035 acceptance 5,6)", () => {
-  it("placeholder는 예시 한 줄이고, 서식 안내는 항상 보이는 캡션에 있다", async () => {
+describe("새 티켓 — 설명은 문서와 같은 편집기다", () => {
+  it("편집기가 자기 이름을 들고, 서식 안내는 항상 보이는 캡션에 있다", async () => {
     renderNewTicket();
-    const editor = await waitFor(() => {
-      const el = document.getElementById("nt-desc");
-      expect(el).toBeTruthy();
-      return el;
-    });
-    expect(editor).toHaveAttribute("placeholder", expect.stringMatching(/^예:/));
-    expect(screen.getByText(/위 도구로 제목, 글머리, 번호, 구분선, 이모지를 커서 자리에 넣을 수 있습니다/)).toBeInTheDocument();
-    /* 미리보기 판은 **새로 쓰는 자리에 없다** — 입력칸과 같은 높이의 빈 상자가 폼을 두 배로
-       늘리기만 했다. 켜는 자리는 이미 있는 긴 본문을 고치는 자리뿐이다(`ui/EditableBody.jsx`). */
+    /* `contenteditable` 은 `<label htmlFor>` 의 대상이 될 수 없다 — 편집기가 `aria-label`
+       로 자기 이름을 든다. 이름으로 고를 수 있다는 것 자체가 스크린리더로 찾을 수 있다는 뜻이다. */
+    expect(await screen.findByRole("textbox", { name: "설명" })).toBeInTheDocument();
+    expect(screen.getByText(/문서와 같은 도구로 서식, 목록, 표, 링크, 이모지를 넣을 수 있습니다/)).toBeInTheDocument();
+    /* 미리보기 판은 **새로 쓰는 자리에 없다** — 편집기가 이미 결과를 그대로 보여 준다(WYSIWYG).
+       마크다운 편집기이던 시절에는 「무엇을 쳤나」와 「어떻게 보이나」가 달라서 필요했다. */
     expect(screen.queryByText("미리보기")).toBeNull();
   });
 
-  it("설명을 입력해도 안내 캡션이 사라지지 않는다(placeholder와 달리)", async () => {
-    const user = userEvent.setup();
+  it("서식 도구가 문서 편집기와 같은 묶음으로 선다", async () => {
     renderNewTicket();
-    await pickProject(user);
-    await screen.findByText("나");
-    const editor = document.getElementById("nt-desc");
-    await user.type(editor, "실제 내용을 입력합니다");
-    expect(screen.getByText(/위 도구로 제목, 글머리, 번호, 구분선, 이모지를 커서 자리에 넣을 수 있습니다/)).toBeInTheDocument();
+    // 아이콘 툴바다 — 글자 칩 열한 개가 아니다. 묶음 이름은 `ui/BlockEditor.jsx::TOOL_GROUPS`.
+    expect(await screen.findByRole("toolbar", { name: "설명 서식" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "굵게" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "표" })).toBeInTheDocument();
   });
 });

@@ -4,7 +4,7 @@ import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
 import {
-  Badge, Button, Callout, Card, DataTable, ErrorState, MetaBar, MetricStrip,
+  Badge, Button, Callout, Card, DataTable, ErrorState, ListCard, MetaBar, MetricStrip,
   PageHeader, SectionTitle, Skeleton, TechDetail, useConfirm, useToast,
 } from "../ui/kit.jsx";
 import { DateCell, NumberCell } from "../ui/cells.jsx";
@@ -197,13 +197,13 @@ export function MailStatus() {
         ]}
       />
 
-      <Card sx={{ mt: 2, p: 0, overflow: "hidden" }}>
+      <ListCard sx={{ mt: 2, p: 0 }}>
         <SectionTitle title="최근 실패" component="h2" sx={{ p: 2, pb: 1 }} />
         <DataTable
           columns={FAILURE_COLUMNS} rows={failures} rowKey={(r) => r.id}
           empty="최근 실패한 메일이 없습니다."
         />
-      </Card>
+      </ListCard>
     </Box>
   );
 }

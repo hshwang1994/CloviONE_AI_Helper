@@ -30,8 +30,18 @@ from __future__ import annotations
 
 import re
 
-MAX_BLOCKS = 100
-MAX_LINE_CHARS = 1900
+# 🔴 **상한을 걷었다.**
+#
+# 여기 `MAX_BLOCKS = 100` 과 `MAX_LINE_CHARS = 1900` 이 있었고, 아래 파서가 그 값으로 본문을
+# **조용히 잘랐다.** 두 숫자는 우리 것이 아니라 Notion API 의 한 번 호출 상한이었다 —
+# 그 API 로 밀어 넣던 시절에 넘치면 요청이 통째로 거절됐고, 그래서 애초에 자르고 보냈다.
+#
+# 밀어 넣을 Notion 이 없어졌다. 지금 본문이 가는 곳은 Postgres 의 `text`/`jsonb` 이고
+# 거기에는 100 줄도 1900 자도 뜻이 없다. 남겨 두면 두 가지가 조용히 일어난다: 긴 본문의
+# 뒤가 사라지고, 그 상한을 지키려고 만든 검증기가 「최대 100줄까지 저장할 수 있습니다」로
+# 저장을 막는다.
+#
+# 자르지 않는다. 파서는 준 만큼 다 읽는다.
 
 _NUM_LINE = re.compile(r"^(\d+)\.\s+(.*)$")
 #: `- [ ] 할 일` · `- [x] 한 일`. 대문자 X 도 받는다 — 사람이 손으로 치는 표식이다.
@@ -41,7 +51,7 @@ _FENCE = re.compile(r"^```")
 
 
 def _rt_block(btype: str, text: str) -> dict:
-    rt = [{"text": {"content": text[:MAX_LINE_CHARS]}}] if text.strip() else []
+    rt = [{"text": {"content": text}}] if text.strip() else []
     return {"object": "block", "type": btype, btype: {"rich_text": rt}}
 
 
@@ -52,7 +62,7 @@ def _todo_block(text: str, checked: bool) -> dict:
 
 
 def markdown_to_blocks(body: str) -> list[dict]:
-    lines = (body or "").split("\n")[:MAX_BLOCKS]
+    lines = (body or "").split("\n")
     out: list[dict] = []
     # 코드 구간 안에서는 서식을 **해석하지 않는다.** `# include` 로 시작하는 C 코드 한 줄이
     # 제목이 되면 붙여 넣은 코드가 문서에서 모양을 잃는다.
@@ -97,7 +107,7 @@ def markdown_to_blocks(body: str) -> list[dict]:
         if s.startswith("> "):
             out.append(_rt_block("quote", s[2:]))
             continue
-        rt = [{"text": {"content": ln[:MAX_LINE_CHARS]}}] if ln.strip() else []
+        rt = [{"text": {"content": ln}}] if ln.strip() else []
         out.append({"object": "block", "type": "paragraph", "paragraph": {"rich_text": rt}})
     # 닫히지 않은 울타리. 버리지 않는다 — 사용자가 친 글자는 어떤 경우에도 안 사라진다.
     if code is not None:

@@ -94,9 +94,10 @@ describe("짝을 이루는 화면은 형제 항목이 아니라 한 화면의 �
   // S11 이 n8n·러너 화면 넷을 걷어내 31 → 27 이 됐고, S20 이 Notion 사용자 연결을 걷어
   // 27 → 26 이 됐다. 이 숫자는 「합치기로 줄었다」와 「기능이 사라져 줄었다」를 구별하지
   // 못하므로, 사라진 다섯을 이름으로 함께 못 박는다.
-  it("합쳐서 36항목이 26항목이 됐다", () => {
+  // 「외부 연동」을 걷으면서 26 → 25 다(그 표가 다시 채워지지 않아 언제나 빈 화면이었다).
+  it("합쳐서 36항목이 25항목이 됐다", () => {
     const total = NAV.reduce((sum, g) => sum + g.items.length, 0);
-    expect(total).toBe(26);
+    expect(total).toBe(25);
     const all = NAV.flatMap((g) => g.items.map((i) => i.to));
     expect(all).not.toContain("/runners");
     expect(all).not.toContain("/workflows");
@@ -130,7 +131,7 @@ describe("옮긴 항목의 role·배지는 한 글자도 안 바뀌고, 글리�
     ["/announcements", "설정", ["operator", "admin", "system_admin", "auditor"], SettingsOutlinedIcon],
     ["/prompts", "AI", ["operator", "admin", "system_admin", "auditor"], SmartToyOutlinedIcon],
     ["/approvals", "사용자와 권한", ["operator", "admin", "system_admin", "auditor"], ManageAccountsOutlinedIcon],
-    ["/integrations", "자동화와 연동", ["operator", "admin", "system_admin", "auditor"], AutoAwesomeOutlinedIcon],
+
   ])("%s: %s 그룹, 역할 보존 · 글리프는 그룹의 것 하나", (to, expectedGroup, roles, GroupIcon) => {
     const item = findItem(NAV, to);
     expect(item.group).toBe(expectedGroup);

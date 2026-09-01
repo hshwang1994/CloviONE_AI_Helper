@@ -310,6 +310,10 @@ class BodySaveResult:
 
     uid: str | None
     body_markdown: str
+    # 정본. 티켓 본문이 문서와 같은 스키마(ProseMirror)가 되면서 생겼다 — 마크다운은
+    # 이제 이 값에서 파생된다(`app/tickets/body_doc.py`). 팀 문서 저장소는 아직 마크다운
+    # 정본이라 이 칸을 안 채운다.
+    body_doc: dict | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -324,6 +328,9 @@ class TicketDraft:
     due_date: str | None = None
     project_id: str | None = None
     description_markdown: str | None = None
+    # 새 티켓의 본문 정본(ProseMirror). 화면이 문서와 같은 편집기를 쓰므로 만들 때부터
+    # 이 모양으로 온다. 옛 클라이언트는 위 마크다운만 주고, 저장소가 그것을 옮긴다.
+    description_doc: dict | None = None
     assignee_ids: tuple[str, ...] = field(default_factory=tuple)
 
 
@@ -361,7 +368,19 @@ class TicketRepository(Protocol):
         ...
 
     def body_blocks(self, db, *, page_id: str) -> list[dict]:
-        """본문을 화면 렌더용 [{kind, text, checked?}] 로."""
+        """본문을 화면 렌더용 [{kind, text, checked?}] 로.
+
+        **정본이 아니다.** 정본은 아래 `body_doc` 이고 이 값은 그것을 납작하게 편 것이다 —
+        서식 마크·표·이미지는 여기 안 실린다. 옛 화면과 AI 문맥이 이 모양을 읽는다.
+        """
+        ...
+
+    def body_doc(self, db, *, page_id: str) -> dict:
+        """본문 **정본**(ProseMirror 문서). 문서 본문과 같은 스키마다.
+
+        옛 행은 `body_doc` 칸이 비어 있고, 그때는 마크다운을 같은 모양으로 옮겨 준다
+        (`app/tickets/body_doc.py::doc_from_markdown`). 화면은 그 차이를 몰라도 된다.
+        """
         ...
 
     def meta(self, db) -> TicketMeta: ...
@@ -379,8 +398,13 @@ class TicketRepository(Protocol):
         """소스 쪽 원본을 보관처리(휴지통 보관기간 만료 정리)."""
         ...
 
-    def save_body(self, db, *, page_id: str, body_markdown: str, now) -> BodySaveResult:
+    def save_body(
+        self, db, *, page_id: str, doc=None, body_markdown: str | None = None, now=None,
+    ) -> BodySaveResult:
         """본문을 저장한다. 쓸 곳은 이 서버의 티켓 표 하나다.
+
+        `doc` 이 정본이다. `body_markdown` 만 오면 옛 클라이언트라 여기서 doc 으로 옮겨
+        저장한다 — 두 입구가 있어도 **저장되는 것은 언제나 하나**다.
 
         예전에는 정본을 먼저 쓰고 그다음 소스(Notion)에 밀어 넣었고, 그 push 실패를
         예외 대신 `synced=False` 로 돌려주는 것이 계약이었다. 밀어 넣을 소스가

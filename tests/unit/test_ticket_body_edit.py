@@ -37,7 +37,12 @@ from app.tickets.models import PROJECT_LINK_OK, TicketCache
 pytestmark = pytest.mark.unit
 
 PAGE_ID = "page-1"
+#: 옛 입구(`body_markdown`)로 보내는 값. 서버가 이것을 정본 문서로 옮겨 저장한다.
 BODY = "## 배경\n한 줄 적는다.\n- 항목"
+#: 그 왕복의 결과. **정본은 이제 문서**이고(`tickets.body_doc`) 마크다운은 거기서 파생된다
+#: (`app/knowledge/blocks.py::to_markdown`) — 블록 사이가 빈 줄 하나로 정규화된다.
+#: 「보낸 글자 그대로」가 아니라 「같은 뜻의 정규형」이 계약이다. 문서 본문이 이미 그렇다.
+BODY_STORED = "## 배경\n\n한 줄 적는다.\n\n- 항목"
 
 
 @pytest.fixture()
@@ -110,9 +115,9 @@ def test_body_is_stored_as_the_record(db, settings, make_user, ticket):
     # 응답에 push 상태가 없다 - 밀어 넣을 원본이 없어 「못 밀어 넣었다」가 성립하지 않는다.
     assert "synced" not in out, out
     assert "body_sync_error" not in out, out
-    assert out["body_markdown"] == BODY
+    assert out["body_markdown"] == BODY_STORED
     row = _row(db)
-    assert row.body_markdown == BODY
+    assert row.body_markdown == BODY_STORED
     # 컬럼은 남는다(이관 흔적). 저장이 그것을 비우는지는 아래 시험이 본다.
     assert row.body_sync_error is None and row.body_synced_at is not None
 
@@ -143,8 +148,8 @@ def test_a_teammate_can_edit_someone_elses_ticket_body(db, settings, make_user, 
 
     out = _save(db, settings, me)
 
-    assert out["body_markdown"] == BODY
-    assert _row(db).body_markdown == BODY
+    assert out["body_markdown"] == BODY_STORED
+    assert _row(db).body_markdown == BODY_STORED
 
 
 def test_operator_can_edit_any_ticket_body(db, settings, make_user, ticket):
@@ -154,7 +159,7 @@ def test_operator_can_edit_any_ticket_body(db, settings, make_user, ticket):
     out = _save(db, settings, op)
 
     assert "synced" not in out, out
-    assert _row(db).body_markdown == BODY
+    assert _row(db).body_markdown == BODY_STORED
 
 
 def test_an_unassigned_ticket_body_can_be_edited_by_anyone_in_scope(
@@ -165,7 +170,7 @@ def test_an_unassigned_ticket_body_can_be_edited_by_anyone_in_scope(
     ticket(people=[])
 
     assert "synced" not in _save(db, settings, me)
-    assert _row(db).body_markdown == BODY
+    assert _row(db).body_markdown == BODY_STORED
 
 
 # ── 상세 응답 ────────────────────────────────────────────────────────────────
@@ -178,7 +183,7 @@ def test_detail_returns_the_stored_body_as_the_record(db, settings, make_user, t
 
     detail = service.ticket_detail(db, None, settings, me, page_id=PAGE_ID)
 
-    assert detail["body_markdown"] == BODY
+    assert detail["body_markdown"] == BODY_STORED
     # **언제나 정본이다.** 「소스에서 되읽은 근사치」라는 세 번째 상태가 사라졌으므로
     # 상세는 그 구분을 싣지 않고, 화면은 서식이 납작해진다는 경고를 띄울 수 없다.
     assert "body_is_local" not in detail, detail

@@ -27,7 +27,14 @@ import { DateField } from "../ui/DateField.jsx";
 import { PersonLine } from "../ui/UserAvatar.jsx";
 import { priorityKo, priorityKind } from "../lib/priority.js";
 import { useAuth } from "../app/auth.jsx";
-import { BodyEditor, editorContainerSx, editorSurfaceWidthSx } from "../ui/BodyEditor.jsx";
+import { editorContainerSx, editorSurfaceWidthSx } from "../ui/BodyEditor.jsx";
+import { appendSection, docHasHeading, docIsEmpty } from "../lib/docText.js";
+
+/* 편집기는 **지연 로드**한다 — TipTap 과 확장 열둘을 진입 번들에 넣지 않는다.
+ * `ui/block-editor-lazy.test.jsx` 가 소스 전체에서 정적 import 를 금지한다. */
+const BlockEditor = React.lazy(() =>
+  import("../ui/BlockEditor.jsx").then((m) => ({ default: m.BlockEditor })),
+);
 import { useRowSelection, selectionColumn, BulkActions } from "../ui/bulkSelect.jsx";
 import { rowNameOf } from "../ui/rowName.js";
 import { pathText } from "../ui/OrgPath.jsx";
@@ -455,7 +462,8 @@ export function GroupedTickets({ rows, columns, empty, emptyHelp, emptyState, gr
                   filterOptions={filterOptions && (filterOptions[(c.filter && c.filter.field) || c.key])}
                   entityOptions={entityOptions && (entityOptions[(c.filter && c.filter.field) || c.key])}
                   colRole={head["data-col-role"]}
-                  align={head.align}
+                  // 머리글 정렬은 `HEADER_ALIGN` 하나로 고정이다 — `TableHeaderCell` 은
+                  // `align` 을 안 받는다(넘기면 조용히 버려진다).
                   cellSx={head.sx}
                 />
               );
@@ -1194,7 +1202,7 @@ function WritingAidButton({ sec, already, onInsert }) {
   );
 }
 
-function WritingAid({ description, onInsert }) {
+function WritingAid({ doc, onInsert }) {
   const core = TICKET_SECTIONS.filter((sec) => !sec.optional);
   const optional = TICKET_SECTIONS.filter((sec) => sec.optional);
   return (
@@ -1205,7 +1213,7 @@ function WritingAid({ description, onInsert }) {
       </Typography>
       <Box sx={{ display: "grid", gap: 0.5 }}>
         {core.map((sec) => (
-          <WritingAidButton key={sec.title} sec={sec} already={description.includes(sec.heading)} onInsert={onInsert} />
+          <WritingAidButton key={sec.title} sec={sec} already={docHasHeading(doc, sec.title)} onInsert={onInsert} />
         ))}
       </Box>
       <Typography variant="caption" color="text.secondary" sx={{ fontWeight: FONT_WEIGHT.bold, pt: 1, borderTop: 1, borderColor: "divider" }}>
@@ -1213,7 +1221,7 @@ function WritingAid({ description, onInsert }) {
       </Typography>
       <Box sx={{ display: "grid", gap: 0.5 }}>
         {optional.map((sec) => (
-          <WritingAidButton key={sec.title} sec={sec} already={description.includes(sec.heading)} onInsert={onInsert} />
+          <WritingAidButton key={sec.title} sec={sec} already={docHasHeading(doc, sec.title)} onInsert={onInsert} />
         ))}
       </Box>
       <Typography variant="body2" color="text.secondary" sx={{ pt: 1, borderTop: 1, borderColor: "divider" }}>
@@ -1329,7 +1337,9 @@ export function NewTicket() {
     const sp = new URLSearchParams(q >= 0 ? raw.slice(q + 1) : "");
     return { project: sp.get("project") || "", sprint: sp.get("sprint") || "", status: sp.get("status") || "" };
   }, []);
-  const [form, setForm] = React.useState({ title: "", project_id: context.project, status: context.status, priority: "", difficulty: "", est_wd: "", due: "", assignees: [], description: "" });
+  /* 설명의 정본은 **문서**다(`description_doc`). 문서 화면과 같은 편집기를 쓰므로 만들 때부터
+     이 모양이고, 서버가 여기서 마크다운·평문을 파생시킨다 — 화면이 두 벌을 만들지 않는다. */
+  const [form, setForm] = React.useState({ title: "", project_id: context.project, status: context.status, priority: "", difficulty: "", est_wd: "", due: "", assignees: [], description_doc: null });
   // 담당자 후보는 **선택한 프로젝트에 닿을 수 있는 사람**만이다 (0060 §14).
   const assigneesQ = useAssigneeOptions(!!form.project_id, form.project_id);
   const metaQ = useTicketMeta(true);
@@ -1419,7 +1429,7 @@ export function NewTicket() {
     if (form.priority) body.priority = form.priority;
     if (form.difficulty) body.difficulty = form.difficulty;
     if (form.assignees.length) body.assignee_user_ids = form.assignees;
-    if (form.description.trim()) body.description = form.description.trim();
+    if (!docIsEmpty(form.description_doc)) body.description_doc = form.description_doc;
     // 회차 맥락에서 왔으면 그 회차로 간다. 안 왔으면 이 칸을 아예 안 보낸다 — 그게 백로그다.
     if (context.sprint) body.sprint_id = context.sprint;
     create.mutate(body);
@@ -1527,22 +1537,32 @@ export function NewTicket() {
                 안에 있으므로 사실상 부모 폭을 그대로 따라가고, 아주 넓어졌을 때만(80rem)
                 한 번 더 멈춘다. */}
             <Box sx={{ mb: 2.5, ...editorContainerSx("nt-desc-surface") }}>
-              <Box sx={editorSurfaceWidthSx("nt-desc-surface")}>
-                <Typography component="label" htmlFor="nt-desc" variant="body2" sx={{ fontWeight: FONT_WEIGHT.bold, display: "block", mb: 1 }}>설명</Typography>
+              {/* 폭 규칙을 시험이 짚는 자리. 예전에는 `label[for="nt-desc"]` 로 찾았는데
+                  `contenteditable` 은 `<label htmlFor>` 의 대상이 될 수 없어 그 라벨이
+                  없어졌다 — 표시가 아니라 **이름**으로 짚게 한다. */}
+              <Box data-nt-desc="surface" sx={editorSurfaceWidthSx("nt-desc-surface")}>
+                {/* `contenteditable` 은 `<label htmlFor>` 의 대상이 될 수 없다 — 편집기가
+                    자기 이름을 든다(`ariaLabel="설명"`). 화면에 보이는 이 말과 같은 말이다. */}
+                <Typography component="div" variant="body2" sx={{ fontWeight: FONT_WEIGHT.bold, display: "block", mb: 1 }}>설명</Typography>
                 {/* PA-RC-0035: placeholder는 예시 한 줄만(제목 필드와 같은 규칙) — 서식
                     도구·미리보기 안내처럼 입력하는 동안에도 필요한 안내는 placeholder가
                     아니라 지속적으로 남는 캡션으로 옮긴다(BodyEditor는 MUI TextField가
                     아니라 FormHelperText를 그대로 못 쓴다 — 바로 아래 '선택한 사람으로…'
                     캡션과 같은 자리·같은 스타일로 손수 둔다). */}
-                <BodyEditor
-                  id="nt-desc"
-                  value={form.description}
-                  onChange={(v) => set("description", v)}
-                  rows={12}
-                  placeholder="예: 재현 절차와 기대 결과"
-                />
+                {/* 🔴 **문서와 같은 편집기다.** 예전에는 이 자리만 글자 칩 열한 개짜리
+                    마크다운 편집기였고, 그래서 굵게·기울임·표·이미지를 쓸 수 없었다 —
+                    자료 모델이 달라서 단추를 둘 수도 없었다(눌러 쓴 것이 저장할 곳이
+                    없어 조용히 사라진다). 이제 티켓 본문도 문서와 같은 정본을 쓴다. */}
+                <React.Suspense fallback={<Skeleton kind="section" lines={6} />}>
+                  <BlockEditor
+                    value={form.description_doc}
+                    onChange={(v) => set("description_doc", v)}
+                    label="설명"
+                    ariaLabel="설명"
+                  />
+                </React.Suspense>
                 <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>
-                  선택 항목입니다. 위 도구로 제목, 글머리, 번호, 구분선, 이모지를 커서 자리에 넣을 수 있습니다.
+                  선택 항목입니다. 문서와 같은 도구로 서식, 목록, 표, 링크, 이모지를 넣을 수 있습니다.
                 </Typography>
               </Box>
             </Box>
@@ -1557,16 +1577,8 @@ export function NewTicket() {
           </Box>
         </Card>
         <WritingAid
-          description={form.description}
-          onInsert={(sec) => {
-            const block = `${sec.heading}
-- 
-`;
-            const prev = form.description.replace(/\s+$/, "");
-            set("description", prev ? `${prev}
-
-${block}` : block);
-          }}
+          doc={form.description_doc}
+          onInsert={(sec) => set("description_doc", appendSection(form.description_doc, sec.title))}
         />
         </Box>
       )}

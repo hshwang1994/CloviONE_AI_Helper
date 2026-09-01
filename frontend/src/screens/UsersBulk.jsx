@@ -183,14 +183,14 @@ export function ImportModal({ onClose, onImported }) {
   }
 
   const columns = [
-    { key: "line", label: "줄" },
-    { key: "email", label: "이메일" },
-    { key: "display_name", label: "이름" },
-    { key: "status", label: "결과", render: (r) => {
+    { key: "line", label: "줄", type: "count" },
+    { key: "email", label: "이메일", type: "identifier" },
+    { key: "display_name", label: "이름", type: "name" },
+    { key: "status", label: "결과", type: "status", render: (r) => {
       const s = IMPORT_STATUS[r.status] || { label: r.status, kind: "neutral" };
       return <Badge value={s.label} kind={s.kind} />;
     } },
-    { key: "message", label: "설명" },
+    { key: "message", label: "설명", type: "text" },
   ];
   const applied = preview && preview.dry_run === false;
   // 붙여넣은 CSV가 있으면(아직 반영 전) Esc·바깥 클릭·X·'취소' 전부에서 확인을 받는다

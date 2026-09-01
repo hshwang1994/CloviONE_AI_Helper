@@ -133,8 +133,11 @@ export const COLUMN_TYPES = {
   datetime: { align: "center", numeric: true, width: SHRINK, minWidth: "11rem", overflow: OVERFLOW.nowrap },
   /* 행 액션 묶음. 표의 마지막 열이고 칸 가운데에 선다. 머리글 「작업」·「결재」가 서는 폭. */
   actions: { align: "center", numeric: false, width: SHRINK, minWidth: "6.5rem", overflow: OVERFLOW.nowrap },
-  /* 선택 체크박스처럼 라벨이 낱말이 아닌 열. */
-  select: { align: "left", numeric: false, width: SHRINK, minWidth: "2.5rem", overflow: OVERFLOW.nowrap },
+  /* 선택 체크박스처럼 라벨이 낱말이 아닌 열.
+     🔴 `left` 였다. 그런데 이 타입을 만드는 **유일한 자리**(`ui/bulkSelect.jsx`)는
+     `align: "center"` 를 직접 박고 있었다 — 어휘와 그 어휘의 유일한 생산자가 서로 다른
+     말을 하면 어휘가 아니다. 체크박스는 글이 아니라 표식이라 가운데가 맞다. */
+  select: { align: "center", numeric: false, width: SHRINK, minWidth: "2.5rem", overflow: OVERFLOW.nowrap },
 };
 
 /** `type` 을 안 준 열이 받는 값 — **예전 동작 그대로**다(회귀 0). */

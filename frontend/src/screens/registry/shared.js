@@ -40,6 +40,8 @@ export const OBJTYPE_OPTS = [["user", "사용자"], ["integration", "외부 연�
   ["approval", "승인"], ["backup", "백업"], ["app_setting", "설정"], ["document_generation", "문서"],
   ["user_notion_mapping", "Notion 연결"], ["job", "작업"], ["department", "부서"], ["job_title", "직책"]]
   .map((p) => ({ value: p[0], label: p[1] }));
+/* 상세 패널의 평문 필드. **열이 아니다** — 정렬 규칙이 없으므로 `type` 을 안 받는다.
+   열을 만들 때는 아래 `col(key, label, type)` 을 쓴다. */
 export const field = (key, label) => ({ key, label });
 
 /* ── 식별자를 화면에 어떻게 낼 것인가 (E-4 "UUID 노출") ──────────────────────────
@@ -66,7 +68,9 @@ export const field = (key, label) => ({ key, label });
  *      먼저 깨야 한다. 그래서 여기서는 id 로 남기고, 라벨로 그 뜻을 밝힌다.
  */
 export const personField = (idKey, label, nameKey, emailKey) => ({
-  key: idKey, label,
+  // 사람 이름은 **읽는 것**이다 — 길이가 제각각이라 왼쪽 모서리가 맞아야 눈이 다음 줄로
+  // 내려간다(`ui/columnTypes.js`). 상세 필드로 쓰일 때는 이 값이 무시된다.
+  key: idKey, label, type: "name",
   render: (r) => {
     const name = r[nameKey];
     const email = emailKey ? r[emailKey] : null;
@@ -81,7 +85,7 @@ export const personField = (idKey, label, nameKey, emailKey) => ({
     );
   },
 });               // 상세 전용 평문 필드
-export const objField = (key, label) => ({ key, label, render: (r) => objKo(r[key]) });
+export const objField = (key, label) => ({ key, label, type: "enum", render: (r) => objKo(r[key]) });
 
 /* 목록 화면 설정 — 열/엔드포인트만 다르고 렌더는 DataScreen이 공통 처리한다.
  * 상태 열은 badgeCol(배지), enum 열은 mapCol/actionKo(한국어)로. 값은 서버 계약 그대로. */
@@ -98,13 +102,21 @@ export const SCHED_TYPE = { cron: "Cron 반복", once: "1회 실행" };
 export const JOB_TYPE = { chat_message: "채팅 메시지", schedule_run: "예약 실행", mail_send: "메일 발송" };
 
 // 감사/승인 enum 한국어화는 공용 lib/format.js(objKo·actionKo)에서 온다.
-export const objCol = (key, label) => ({ key, label, render: (r) => objKo(r[key]) });
+/* 감사 대상 종류. **닫힌 집합**이라 `enum` 이다 — 짧고 폭이 고정된 값이라 칸 가운데에
+   서면 열이 하나의 띠로 읽힌다(`ui/columnTypes.js` 의 그 규칙). */
+export const objCol = (key, label, type = "enum") => ({ key, label, type, render: (r) => objKo(r[key]) });
 // title 속성으로 원문 action 문자열을 마우스 오버 시 보여준다 — 감사 로그의 '작업' 필터는 이
 // 원문과 정확히 일치해야 하는데(정확 일치 필터), 열은 한국어 번역만 보여줘서 필터에 뭘 입력해야
 // 할지 목록만 보고는 알 방법이 없었다(truncateCol이 이미 쓰는 title 힌트 패턴과 동일).
-export const actionCol = (key, label) => ({ key, label, render: (r) => React.createElement("span", { title: r[key] }, actionKo(r[key])) });
+export const actionCol = (key, label, type = "enum") => ({ key, label, type, render: (r) => React.createElement("span", { title: r[key] }, actionKo(r[key])) });
 
-export const col = (key, label) => ({ key, label });
+/* 열 하나. **`type` 은 선택이 아니다.**
+ *
+ * 예전에는 `{key, label}` 만 만들었고, 그 열은 어휘의 `UNTYPED`(왼쪽 정렬 + 4.5rem 바닥)로
+ * 떨어졌다. 그래서 같은 표 안에서 날짜 하나는 가운데, 다른 날짜는 왼쪽에 서는 일이 실제로
+ * 있었다(`/users` 의 「생성 일자」와 「최근 로그인」). 기본값을 두면 그 실수가 조용히
+ * 지나가므로 기본값을 안 준다 — `scripts/check_column_types.py` 가 빠진 자리를 잡는다. */
+export const col = (key, label, type) => ({ key, label, type });
 export const opt = (pairs) => pairs.map((p) => ({ value: p[0], label: p[1] }));
 // 백엔드 허용값과 정확히 일치해야 한다(none/bearer/api_key_header) — 옛 header/basic은 422였다.
 export const AUTH_OPTS = opt([["none", "없음"], ["bearer", "Bearer 토큰"], ["api_key_header", "API 키(헤더)"]]);
@@ -136,7 +148,8 @@ export const writerEmptyHelp = (writerMsg, readerMsg) => (role) => (role === "ad
 // ?object_type=feature_flag 딥링크를 감사 화면으로 걸어 두고 있어(org.js organizations.actions,
 // platform.js feature-flags.actions) 한쪽 방향 링크만 있고 되돌아오는 버튼이 없었다.
 export const OBJ_ROUTE = {
-  integration: "#/integrations",
+  // `integration: "#/integrations"` 가 있었다 — 그 화면을 걷으면서 함께 지운다.
+  // 남은 감사 기록은 그대로 보이고, 「관련 목록 열기」 단추만 안 붙는다.
   prompts: "#/prompts", policies: "#/policies",
   schedule: "#/schedules", schedule_run: "#/schedules", approval: "#/approvals",
   backup: "#/backup",

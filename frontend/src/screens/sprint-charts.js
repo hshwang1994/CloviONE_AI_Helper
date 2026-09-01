@@ -72,32 +72,89 @@ export function loadBand(value, median) {
   return { label: "보통", kind: "warn" };
 }
 
-/* 번다운 두 선. 서버(app/sprints/burndown.py)가 준 points 를 그대로 옮기기만 한다.
+/* 번다운 세 선. 서버(`app/work/meeting.py::_burndown`)가 준 points 를 그대로 옮긴다.
  *
- * **이 그림이 주장하는 것은 마감일 배치뿐이다.** 완료 시각이 어디에도 없어서(원본은 생성·
- * 최종수정 시각만 준다) 날짜별 실제 이력은 만들 수 없고, 만드는 척하지도 않는다. 그래서
- * 선 이름이 '계획/미완료'이지 '이상/실제'가 아니다 — 이름이 데이터가 말할 수 있는 것보다
- * 많은 것을 주장하면 그림 전체가 거짓이 된다.
+ * **이 그림은 이제 실제 소진을 그린다.** 예전 그림은 「그날 이후로 마감이 남아 있는
+ * 업무량」의 분포였고, 그 이유는 완료 시각이 어디에도 없다는 것이었다. 그 전제가 더 이상
+ * 사실이 아니다 — `tickets.completed_at` 이 상태를 쓰는 자리 한 곳에서 찍힌다.
+ *
+ *   이상    첫날의 범위에서 마지막 날 0 까지 곧게 내려가는 계획선
+ *   남은 일 그날 끝에 아직 안 끝난 공수. **오늘까지만** 그린다
+ *   범위    그날 이 회차에 담겨 있던 총량. 올라가면 일이 불어난 것이다
+ *
+ * 「오늘 이후는 안 그린다」가 이 그림의 정직성이다 — 내일 얼마가 남을지는 아무도 모른다.
+ * `null` 점은 `LineSeries` 가 빈 자리로 둔다.
  */
 export function burndownSeries(burndown) {
   const points = (burndown && Array.isArray(burndown.points)) ? burndown.points : [];
   if (points.length < 2) return null;
-  const planned = points.map((p) => Number(p.planned) || 0);
-  const open = points.map((p) => Number(p.open) || 0);
-  // 전부 0이면(이 주에 잡힌 업무량이 없다) 바닥에 붙은 두 선만 남는다 — 그릴 게 없다고 말한다.
-  if (!planned.some((v) => v > 0) && !open.some((v) => v > 0)) return null;
+  const num = (v) => (typeof v === "number" && Number.isFinite(v) ? v : null);
+  const ideal = points.map((p) => num(p.ideal) ?? 0);
+  const remaining = points.map((p) => num(p.remaining));
+  const scope = points.map((p) => num(p.scope) ?? 0);
+  // 전부 0이면(이 회차에 잡힌 업무량이 없다) 바닥에 붙은 선만 남는다 — 그릴 게 없다고 말한다.
+  if (!scope.some((v) => v > 0) && !ideal.some((v) => v > 0)) return null;
+
+  const drawn = remaining.filter((v) => v != null);
+  const now = drawn.length ? drawn[drawn.length - 1] : null;
+  const at = drawn.length - 1;
+  const plan = at >= 0 ? ideal[at] : null;
+  const scopeGrew = scope[scope.length - 1] > scope[0];
+
+  const parts = [];
+  if (now != null && plan != null) {
+    const gap = Math.round((now - plan) * 10) / 10;
+    parts.push(
+      gap > 0
+        ? `계획보다 ${gap}인일 남아 있습니다.`
+        : gap < 0
+          ? `계획보다 ${Math.abs(gap)}인일 앞서 있습니다.`
+          : "계획과 같은 속도입니다.",
+    );
+  }
+  if (scopeGrew) {
+    parts.push(`회차 중에 범위가 ${Math.round((scope[scope.length - 1] - scope[0]) * 10) / 10}인일 늘었습니다.`);
+  }
+
+  /* 색을 지정하지 않는다 — `LineSeries` 가 Brand 고정 시리즈 슬롯(색 + 선 스타일)을 준다.
+     예전에는 계획선이 `primary`(사용자 Accent), 잔여선이 `warning` 이었다. 둘 다 틀렸다:
+     Accent 는 사용자가 바꾸면 제품 정체성이 따라 바뀌고, `warning` 은 **상태색**이라
+     바로 옆 담당자 막대에서 «과부하»를 뜻하는 같은 갈색이 여기서는 «아직 미완료»를 뜻했다.
+     한 화면 안에서 같은 색이 두 가지를 뜻하면 색은 아무것도 뜻하지 않는다. */
+  const series = [
+    { label: "이상", points: ideal },
+    { label: "남은 일", points: remaining },
+  ];
+  // 범위가 안 변했으면 이상선과 겹치는 선을 하나 더 그리지 않는다 — 장식이다.
+  if (scopeGrew || scope[scope.length - 1] < scope[0]) {
+    series.push({ label: "범위", points: scope });
+  }
   return {
     labels: points.map((p) => shortDate(p.date)),
-    /* 색을 지정하지 않는다 — `LineSeries` 가 Brand 고정 시리즈 슬롯(색 + 선 스타일)을 준다.
-       예전에는 계획선이 `primary`(사용자 Accent), 잔여선이 `warning` 이었다. 둘 다 틀렸다:
-       Accent 는 사용자가 바꾸면 제품 정체성이 따라 바뀌고, `warning` 은 **상태색**이라
-       바로 옆 담당자 막대에서 «과부하»를 뜻하는 같은 갈색이 여기서는 «아직 미완료»를 뜻했다.
-       한 화면 안에서 같은 색이 두 가지를 뜻하면 색은 아무것도 뜻하지 않는다. */
+    series,
+    summary: parts.join(" "),
+  };
+}
+
+/* 범위 변경 추이 — 일자별 **누적** 들어옴·빠짐.
+ *
+ * 서버가 이미 읽은 활동 기록(`ticket_activities`, `kind='sprint'`)을 날짜로 접은 값이다.
+ * 없는 자료를 만들지 않는다: 기록 자체가 없으면 서버가 `tracked:false` 로 말하고 이 함수는
+ * 불리지도 않는다. 둘 다 0 이면 그릴 것이 없다 — 바닥에 붙은 선 두 개는 그림이 아니다.
+ */
+export function scopeTrendSeries(scope) {
+  const points = (scope && Array.isArray(scope.trend)) ? scope.trend : [];
+  if (points.length < 2) return null;
+  const added = points.map((p) => Number(p.added) || 0);
+  const removed = points.map((p) => Number(p.removed) || 0);
+  if (!added.some((v) => v > 0) && !removed.some((v) => v > 0)) return null;
+  return {
+    labels: points.map((p) => shortDate(p.date)),
     series: [
-      { label: "계획(마감일 기준)", points: planned },
-      { label: "아직 미완료", points: open },
+      { label: "들어옴", points: added },
+      { label: "빠짐", points: removed },
     ],
-    summary: `이 주에 마감인 업무량 ${planned[0]}인일 중 ${open[0]}인일이 아직 완료되지 않았습니다.`,
+    summary: `회차가 시작한 뒤 ${added[added.length - 1]}건이 들어오고 ${removed[removed.length - 1]}건이 빠졌습니다.`,
   };
 }
 

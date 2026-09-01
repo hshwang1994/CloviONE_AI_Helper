@@ -46,9 +46,20 @@ const BLOCKS = [
   { kind: "paragraph", text: "본문 한 줄." },
 ];
 
+/* 본문의 **정본**. 티켓 본문이 문서와 같은 스키마가 되면서 상세 응답이 이 값을 함께 낸다 —
+   화면은 이것으로 편집기를 열고, `blocks` 는 읽기 렌더가 쓴다. */
+const BODY_DOC = {
+  type: "doc",
+  content: [
+    { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "배경" }] },
+    { type: "paragraph", content: [{ type: "text", text: "본문 한 줄." }] },
+  ],
+};
+
 function detailPayload(over = {}) {
   return {
     configured: true, ok: true, ticket: TICKET, blocks: BLOCKS, blocks_error: null,
+    body: BODY_DOC,
     body_markdown: "## 배경\n본문 한 줄.", body_is_local: true, body_sync_error: null, ...over,
   };
 }
@@ -163,7 +174,7 @@ describe("본문 편집", () => {
     apiMock.mockImplementation((path) => Promise.resolve(route(path, [
       ["/api/tickets/page-1/comments", { ok: true, comments: [] }],
       ["/api/tickets/page-1", detailPayload({
-        blocks: null, blocks_error: "본문을 불러오지 못했습니다.", body_markdown: null,
+        blocks: null, blocks_error: "본문을 불러오지 못했습니다.", body: null, body_markdown: null,
       })],
     ])));
 
@@ -173,7 +184,7 @@ describe("본문 편집", () => {
     expect(screen.getByText(/지금 저장하면 저장된 본문을 지우게/)).toBeInTheDocument();
   });
 
-  it("편집기는 서버가 준 마크다운으로 열린다 — 빈 칸으로 열면 저장이 곧 삭제다", async () => {
+  it("편집기는 서버가 준 **정본 문서**로 열린다 — 빈 칸으로 열면 저장이 곧 삭제다", async () => {
     const user = userEvent.setup();
     apiMock.mockImplementation((path) => Promise.resolve(route(path, [
       ["/api/tickets/page-1/comments", { ok: true, comments: [] }],
@@ -185,29 +196,19 @@ describe("본문 편집", () => {
 
     /* 예전에는 `{ name: "" }` 으로 골랐다 — 편집기에 접근 이름이 **없다는 사실**을 검사가
        거꾸로 고정하고 있었다(접근성 감사 2). 지금은 위 heading 과 같은 이름을 가지므로
-       그 이름으로 고른다. 이름으로 고를 수 있다는 것 자체가 스크린리더로 찾을 수 있다는 뜻이다. */
-    expect(screen.getByRole("textbox", { name: "본문 수정" }).value)
-      .toBe("## 배경\n본문 한 줄.");
+       그 이름으로 고른다. 이름으로 고를 수 있다는 것 자체가 스크린리더로 찾을 수 있다는 뜻이다.
+       값을 `.value` 로 읽지 않는다 — 이제 `textarea` 가 아니라 문서 편집기(contenteditable)라
+       서버가 준 문서가 실제로 **그려졌는지**를 본다. */
+    const box = await screen.findByRole("textbox", { name: "본문 수정" });
+    expect(box).toHaveTextContent("배경");
+    expect(box).toHaveTextContent("본문 한 줄.");
   });
 
-  /* 2026-08: 저장이 더 이상 이미지·표를 지우지 않는다(notion_write.replace_page_body 가
-     편집기로 표현 가능한 블록만 지운다). 그래서 이 테스트의 원래 단언("사라집니다")은 이제
-     **거짓을 고정하는 검사**가 됐다. 화면이 지키는 성질을 새 동작으로 바꿔 조준한다:
-     그런 블록이 있다는 사실을 알리되, 지워지지 않는다고 말한다. */
-  it("표현할 수 없는 블록이 있으면 '지워지지 않는다'고 알린다", async () => {
-    const user = userEvent.setup();
-    apiMock.mockImplementation((path) => Promise.resolve(route(path, [
-      ["/api/tickets/page-1/comments", { ok: true, comments: [] }],
-      ["/api/tickets/page-1", detailPayload({
-        blocks: [...BLOCKS, { kind: "unsupported", text: "[image] 원본에서 확인" }],
-      })],
-    ])));
-
-    wrap();
-    await user.click(await screen.findByRole("button", { name: "본문 수정" }));
-
-    expect(screen.getByText(/그 블록은 지워지지 않습니다/)).toBeInTheDocument();
-  });
+  /* 🔴 이 자리에 「표현할 수 없는 블록이 있으면 '지워지지 않는다'고 알린다」가 있었다.
+     그 경고는 **본문 정본이 마크다운이던 시절의 사실**이다 — 편집기가 이미지·표를 담을
+     수 없어서 저장할 때 그것들이 어떻게 되는지 미리 말해야 했다. 지금은 티켓 본문도
+     문서와 같은 정본을 같은 편집기로 고치므로 이미지도 표도 그대로 실린다. 사실이 아닌
+     경고를 검사가 붙잡고 있으면 그 경고를 지울 수 없다. */
 
   it("옛 body_is_local:false 가 되돌아와도 서식 손실을 경고하지 않는다", async () => {
     /* 예전에는 이 시험이 반대를 단언했다: 근사치를 고칠 때 「인라인 서식은 사라지고

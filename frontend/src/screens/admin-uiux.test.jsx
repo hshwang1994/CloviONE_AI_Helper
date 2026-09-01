@@ -296,9 +296,8 @@ describe("‘비우면’ 문구와 실제 동작", () => {
   };
 
 
-  it("나머지 다섯 문구는 실제 동작과 맞으므로 그대로 둔다", () => {
-    // health_url — run_health_check 가 `row.health_url or row.base_url` 로 대체한다.
-    expect(fieldHelp(REGISTRY.integrations, "create", "health_url")).toContain("비우면 Base URL");
+  it("나머지 네 문구는 실제 동작과 맞으므로 그대로 둔다", () => {
+    // (연동의 health_url 문구가 여기 있었다 — 그 화면을 걷으면서 함께 없어졌다.)
     // payload_template — 빈 JSON 은 null 로 오고 백엔드 validator 가 {} 로 받는다.
     expect(fieldHelp(REGISTRY.schedules, "create", "payload_template")).toContain("비우면 빈 값으로 실행됩니다");
     // 상위 부서 — select 는 빈 값을 null 로 보내고 validate_parent 가 None 을 '최상위'로 읽는다.

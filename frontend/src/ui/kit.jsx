@@ -703,7 +703,7 @@ const CALLOUT_ICON = {
 
 export function Callout({
   tone = "info", variant = "block", title, action,
-  detail, detailLabel = "기술 정보", children,
+  detail, detailLabel = "기술 정보", children, sx,
 }) {
   /* 안내 — **큰 외곽선 상자를 기본형으로 쓰지 않는다** (지시 35).
    *
@@ -731,6 +731,7 @@ export function Callout({
   const toneWord = kind === "danger" ? "오류" : kind === "warn" ? "주의" : kind === "success" ? "성공" : "안내";
   const label = title || toneWord;
   const paletteKey = kind === "danger" ? "error" : kind === "warn" ? "warning" : kind === "success" ? "success" : "info";
+  /* `info` 는 여전히 가장 조용하다 — 바탕이 상태색이 아니라 중립면이라는 뜻이다. */
   const quiet = kind === "info";
   const Icon = CALLOUT_ICON[kind] || InfoOutlinedIcon;
 
@@ -738,7 +739,7 @@ export function Callout({
     /* 문장 흐름 안에 놓이는 한 줄. 상자도 바탕도 아이콘도 없다 — 여기서는 라벨과 본문이
        한 줄에 이어지는 것이 맞다. 구조(아이콘·제목·본문·동작)는 아래 판형의 계약이다. */
     return (
-      <Typography className="k-callout" data-tone={kind} component="p" sx={{ fontSize: FONT_SIZE.bodySm, ...KO_WORD_BREAK }}>
+      <Typography className="k-callout" data-tone={kind} component="p" sx={{ fontSize: FONT_SIZE.bodySm, ...KO_WORD_BREAK, ...sx }}>
         <Box
           component="span"
           sx={{
@@ -771,6 +772,11 @@ export function Callout({
        *
        * 격자는 `auto 1fr` 이다. 아이콘 칸이 고정이라 본문이 여러 줄이어도 둘째 줄부터의
        * 왼쪽 모서리가 제목과 맞는다 — 아이콘 아래로 글자가 흘러 들어가지 않는다. */
+      /* 🔴 `info` 의 바탕이 **중립면**이다. 예전에는 투명이었는데, 그 톤의 앞머리 실선이
+         `info.main`(#1F5FBF)이고 그것이 Brand(#4C58C8)와 가까워서 안내가 본문 위의
+         Brand 강조처럼 읽혔다 — 사용자가 회차 머리를 보고 「안내 영역인데 본문과 구분이
+         안 된다」고 한 자리다. 색을 바꾸는 대신 **면을 준다**: 중립 함몰면 위에 실선과
+         아이콘만 톤을 말하면, 의미는 남고 Brand 와 겹치지 않는다. */
       sx={(t) => ({
         display: "grid", gridTemplateColumns: "auto 1fr", columnGap: 1, rowGap: 0.75,
         alignItems: "start",
@@ -778,9 +784,10 @@ export function Callout({
         borderInlineStartStyle: "solid",
         borderInlineStartWidth: "2px",
         borderInlineStartColor: t.palette[paletteKey].main,
-        bgcolor: quiet ? "transparent" : `${paletteKey}.bg`,
+        bgcolor: quiet ? "background.inset" : `${paletteKey}.bg`,
         fontSize: FONT_SIZE.body,
         ...KO_WORD_BREAK,
+        ...(typeof sx === "function" ? sx(t) : sx),
       })}
     >
       <Icon
@@ -2137,7 +2144,11 @@ export function DataTable({ columns, rows, rowKey, onRow, rowHref, empty, ellips
                 filterOptions={filterOptions && (filterOptions[(c.filter && c.filter.field) || c.key])}
                 entityOptions={entityOptions && (entityOptions[(c.filter && c.filter.field) || c.key])}
                 colRole={colRole(c)}
-                align={resolveColumn(c).align}
+                /* 🔴 여기 `align={resolveColumn(c).align}` 이 있었다. `TableHeaderCell` 은
+                   그 prop 을 **받지 않는다** — 머리글 정렬은 열마다 다르면 안 되는 값이라
+                   `HEADER_ALIGN` 하나로 고정돼 있다(`ui/columnTypes.js` 의 그 문단).
+                   조용히 버려지는 prop 이 남아 있으면 코드가 「머리 정렬은 열을 따른다」고
+                   거짓말을 하고, 다음 사람이 그 거짓말을 근거로 고친다. */
                 cellSx={{
                   ...colCellSx(c, { head: true }),
                   /* 🔴 고정 열 이름은 **상단바 아래**에 선다.
@@ -2979,7 +2990,14 @@ export function PageHeader({ area, title, tab, actions, overflow, crumbRoot, siz
  * `SectionTitle` 은 판 **안**의 소제목이라 자기 바깥 간격을 모른다. `Section` 은 그
  * 바깥 간격(`SECTION_GAP`)까지 소유한다 — 화면마다 `mb: 4` 같은 숫자를 손으로 적던
  * 자리가 여기 하나로 모인다. */
-export function Section({ title, action, help, rule = false, component = "section", children, sx }) {
+/* `titleAs` — 제목의 **단계**다(`h2`/`h3`). 기본은 `h3` 이고, 그 자리는 판 안의 소제목이다.
+ *
+ * 🔴 이 prop 이 없어서 구획 부품이 두 벌이었다. 관리자 화면은 페이지 제목(h1) 바로 아래에
+ * 구획이 오므로 `h2` 가 맞는데 이 부품이 `h3` 만 그려서, 그쪽은 `adminKit::DashSection`
+ * 이라는 **두 번째 구획 부품**을 따로 들고 있었다 — 같은 성질의 묶음이 콘솔마다 다른
+ * 부품으로 그려지면 한쪽에 붙인 것(괘선·도움말)이 다른 쪽에 영영 안 온다. 단계 하나를
+ * 받게 해서 부품을 하나로 합친다. */
+export function Section({ title, action, help, rule = false, component = "section", titleAs = "h3", children, sx }) {
   /* 호출부의 `sx` 가 함수일 수도 있다(테마를 읽는 자리). 객체로만 받아 펼치면 함수는
      **조용히 사라진다** — 이 저장소가 여러 번 밟은 "선언은 있는데 화면에는 없다" 의 한 형태다.
      `Surface` 가 두 형태를 모두 받으므로 여기서 형태를 유지한 채 넘긴다. */
@@ -2988,7 +3006,7 @@ export function Section({ title, action, help, rule = false, component = "sectio
     : { mb: SECTION_GAP, ...sx };
   return (
     <Surface tone="none" component={component} sx={merged}>
-      {title ? <SectionTitle title={title} action={action} help={help} sx={rule ? { mb: 1 } : undefined} /> : null}
+      {title ? <SectionTitle title={title} action={action} help={help} component={titleAs} sx={rule ? { mb: 1 } : undefined} /> : null}
       {rule ? <Box sx={{ borderTop: 1, borderColor: "divider", mb: 1.5 }} /> : null}
       {children}
     </Surface>

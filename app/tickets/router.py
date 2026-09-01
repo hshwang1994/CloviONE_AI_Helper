@@ -440,7 +440,7 @@ def save_body(
     """
     result = service.save_ticket_body(
         db, request.app.state.outbound_client, request.app.state.settings, user,
-        page_id=page_id, body_markdown=payload.body_markdown,
+        page_id=page_id, doc=payload.body, body_markdown=payload.body_markdown,
         now=request.app.state.clock.now(), repo=_repo(request),
         base_version=payload.base_version,   # 낙관적 잠금 (Z2)
     )

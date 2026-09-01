@@ -277,6 +277,7 @@ export function Ticket() {
               ticketId={id}
               blocks={data.blocks}
               blocksError={data.blocks_error}
+              body={data.body}
               bodyMarkdown={data.body_markdown}
               bodyVersion={data.body_version}
               onSaved={() => detail.refetch()}

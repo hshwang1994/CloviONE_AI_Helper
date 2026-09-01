@@ -79,10 +79,10 @@ export const PLATFORM_SCREENS = {
       const i = Math.max(s.lastIndexOf("/"), s.lastIndexOf("\\"));
       return i >= 0 ? s.slice(i + 1) : s;
     } }, badgeCol("status", "상태"), { key: "size_bytes", label: "크기", type: "number", render: (r) => fmtBytes(r.size_bytes) },
-      { key: "path", label: "파일", render: (r) => { const p = r.path; if (p == null || p === "") return "-"; const s = String(p); const i = Math.max(s.lastIndexOf("/"), s.lastIndexOf("\\")); return i >= 0 ? s.slice(i + 1) : s; } },
+      { key: "path", label: "파일", type: "text", render: (r) => { const p = r.path; if (p == null || p === "") return "-"; const s = String(p); const i = Math.max(s.lastIndexOf("/"), s.lastIndexOf("\\")); return i >= 0 ? s.slice(i + 1) : s; } },
       // 「성공한 백업」과 「지금 되돌릴 수 있는 백업」은 다르다. 내려받고 서버에서 지운
       // 백업은 전자이지 후자가 아니고, 그 차이가 목록에서 보여야 한다.
-      { key: "file_state", label: "서버 파일", render: (r) => React.createElement(Badge, { value: r.file_state === "removed" ? "삭제함" : "있음", kind: r.file_state === "removed" ? "warn" : "ok" }) }],
+      { key: "file_state", label: "서버 파일", type: "text", render: (r) => React.createElement(Badge, { value: r.file_state === "removed" ? "삭제함" : "있음", kind: r.file_state === "removed" ? "warn" : "ok" }) }],
     // 목록 열은 파일명만 보여주고(위 columns "파일") 상세는 전체 경로를 보여준다 — 둘 다 실제로는
     // r.path를 읽지만 표시가 다르므로(파일명 vs 전체 경로), 새 드로어 중복 제거(key 기준, DataScreen.jsx
     // mergeDetailFields)가 이 상세 전용 항목을 columns의 "파일"과 같은 것으로 오인해 지우지 않도록
@@ -181,10 +181,10 @@ export const PLATFORM_SCREENS = {
       },
     },
     columns: [
-      { key: "ok", label: "결과", render: (r) => React.createElement(Badge, { value: r.ok ? "통과" : "실패", kind: r.ok ? "ok" : "danger" }) },
+      { key: "ok", label: "결과", type: "status", render: (r) => React.createElement(Badge, { value: r.ok ? "통과" : "실패", kind: r.ok ? "ok" : "danger" }) },
       dateCol("started_at", "시작"), dateCol("finished_at", "종료"),
       { key: "_rows", label: "행 수", type: "count", render: (r) => (r.summary && r.summary.rows != null) ? String(r.summary.rows) : "-" },
-      { key: "_head", label: "스키마", render: (r) => (r.summary && r.summary.alembic_head) || "-" },
+      { key: "_head", label: "스키마", type: "enum", render: (r) => (r.summary && r.summary.alembic_head) || "-" },
       // SEM-01: 첫 열(결과 배지)이 render라 표식 없이는 전부 "상세 보기"였다 — 원본 백업
       // 이름(검색 대상과 동일한 필드) + 시작 시각으로 실제로 구별되는 이름을 만든다.
       { ...truncateCol("source_label", "원본", 50), rowName: (r) => (r.source_label || "리허설") + " / " + fmtDateTime(r.started_at) },
@@ -221,7 +221,7 @@ export const PLATFORM_SCREENS = {
     serverSort: { keys: ["created_at", "updated_at", "title", "starts_at", "ends_at", "active", "level"], default: { key: "created_at", dir: "desc" } },
     columns: [
       { ...col("title", "제목"), identifier: true, sortable: true },
-      { key: "level", label: "중요도", sortable: true, render: (r) => React.createElement(Badge, {
+      { key: "level", label: "중요도", type: "status", sortable: true, render: (r) => React.createElement(Badge, {
         value: ({ info: "안내", warning: "주의", critical: "긴급" })[r.level] || r.level,
         kind: r.level === "critical" ? "danger" : r.level === "warning" ? "warn" : "info",
       }) },
@@ -366,10 +366,10 @@ export const PLATFORM_SCREENS = {
     // 상태라는 점은 다른 warn 톤 사용처(activeCol 등)와 같은 이유다.
     columns: [
       { ...col("name", "플래그"), identifier: true },
-      { key: "value", label: "현재", render: (r) => React.createElement(Badge, { value: r.value ? "활성" : "비활성", kind: r.value === r.default ? (r.value ? "ok" : "neutral") : "warn" }) },
-      { key: "default", label: "기본값", render: (r) => React.createElement(Badge, { value: r.default ? "활성" : "비활성", kind: "neutral" }) },
+      { key: "value", label: "현재", type: "enum", render: (r) => React.createElement(Badge, { value: r.value ? "활성" : "비활성", kind: r.value === r.default ? (r.value ? "ok" : "neutral") : "warn" }) },
+      { key: "default", label: "기본값", type: "enum", render: (r) => React.createElement(Badge, { value: r.default ? "활성" : "비활성", kind: "neutral" }) },
       mapCol("owner", "값의 주인", { file: "파일", db: "설정 화면" }),
-      { key: "has_consumer", label: "실제 효과", render: (r) => r.has_consumer ? "있음" : "없음(읽는 코드 없음)" },
+      { key: "has_consumer", label: "실제 효과", type: "enum", render: (r) => r.has_consumer ? "있음" : "없음(읽는 코드 없음)" },
       truncateCol("description", "설명", 70),
     ],
     // description은 이미 목록 열이지만 그 열은 truncateCol(70자 말줄임, hover title로만 전체 확인)이다
@@ -378,7 +378,7 @@ export const PLATFORM_SCREENS = {
     // audit 화면의 object_id_full/backup 화면의 path_full과 동일한 패턴으로 별도 key를 쓴다.
     detailFields: [
       { key: "description_full", label: "설명", render: (r) => r.description || "-" }, field("edit_hint", "수정 안내"),
-      { key: "default", label: "기본값", render: (r) => r.default ? "활성" : "비활성" },
+      { key: "default", label: "기본값", type: "enum", render: (r) => r.default ? "활성" : "비활성" },
       { key: "_no_consumer", label: "주의", render: (r) => r.has_consumer ? "-" : "이 플래그를 읽는 코드가 아직 없습니다. 활성화하거나 비활성화해도 동작이 달라지지 않습니다." },
     ],
     actions: [

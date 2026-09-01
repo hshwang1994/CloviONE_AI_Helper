@@ -86,7 +86,7 @@ function notificationsScreen({ key, audience, area, title, help, emptyHelp }) {
     columns: [{ ...col("title", "제목"), identifier: true, sortable: true }, { ...mapCol("type", "유형", TYPE_KO), sortable: true }, { ...readCol("read_at", "읽음"), sortable: true }, dateCol("created_at", "시각"),
       // 이 파일은 .js라 JSX 대신 React.createElement를 직접 쓴다(integrations.js와 같은
       // 이유 — 빌드 설정이 .jsx/.tsx에만 JSX 변환을 적용한다).
-      { key: "muted", label: "뮤트 유형", render: (r) => r.muted
+      { key: "muted", label: "뮤트 유형", type: "enum", render: (r) => r.muted
         ? React.createElement(Badge, { value: "뮤트된 유형", kind: "neutral" }) : "-" }],
     // related_object_id는 원래 상세에서 원시 UUID로만 보여줬다 — 바로 옆 '관련 항목 보기'/'관련
     // 목록 열기' 액션 버튼이 이미 같은 id를 실제로 이동 가능한 링크로 해석해 주므로, 클릭도

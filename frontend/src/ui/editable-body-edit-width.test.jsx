@@ -74,7 +74,7 @@ async function openEditing() {
     <EditableBody
       editorId="ticket-body-1"
       endpoint="/api/tickets/1/body"
-      bodyMarkdown="원래 본문"
+      bodyDoc={{ type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "원래 본문" }] }] }}
       bodyVersion="v1"
       bodyIsLocal
       sourceView={<div>원래 본문</div>}

@@ -287,7 +287,7 @@ describe("새 티켓 — 폼과 레일은 그대로다(오탐 방지)", () => {
         expect(screen.getAllByLabelText(new RegExp(label)).length).toBeGreaterThan(0);
       });
     }
-    await user.type(screen.getByLabelText(/제목/), "서버 등록 IP 중복 방지");
+    await user.type(screen.getByLabelText(/^제목\s*\*?$/), "서버 등록 IP 중복 방지");
     // 프로젝트는 후보가 있으면 필수다 — 고르지 않으면 제출이 막힌다(그 검증도 함께 지킨다).
     await user.click(screen.getByRole("combobox", { name: /프로젝트/ }));
     await user.click(await screen.findByRole("option", { name: "인프라" }));
@@ -308,7 +308,7 @@ describe("새 티켓 — 폼과 레일은 그대로다(오탐 방지)", () => {
   it("🔴 예상 WD 나 마감일이 비면 **보내지 않는다** — 서버까지 다녀와 422 를 보이지 않는다", async () => {
     const user = userEvent.setup();
     renderNewTicket();
-    await user.type(await screen.findByLabelText(/제목/), "예상 WD 없는 티켓");
+    await user.type(await screen.findByLabelText(/^제목\s*\*?$/), "예상 WD 없는 티켓");
     await user.click(screen.getByRole("combobox", { name: /프로젝트/ }));
     await user.click(await screen.findByRole("option", { name: "인프라" }));
     /* 재는 것은 **안 보냈다**이다. 토스트 문구가 아니라 요청을 본다 — 이 하네스에는

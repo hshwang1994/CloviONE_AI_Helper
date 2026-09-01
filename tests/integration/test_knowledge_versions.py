@@ -19,9 +19,13 @@ from __future__ import annotations
 
 import pytest
 
-from app.core.notion_blocks import MAX_BLOCKS, MAX_LINE_CHARS
-
 pytestmark = pytest.mark.integration
+
+#: 옛 상한. `app/core/notion_blocks.py` 에서 가져오던 값인데 **그 상수 자체가 없어졌다** —
+#: 파서도 더 이상 자르지 않는다. 여기 숫자로 남기는 이유는 이 시험이 재는 것이 「지금 상한이
+#: 얼마인가」가 아니라 「**옛 상한을 넘겨도 통과하는가**」이기 때문이다.
+OLD_BLOCK_LIMIT = 100
+OLD_LINE_LIMIT = 1900
 
 AUTHOR = "knowledge-versions@goodmit.co.kr"
 
@@ -198,17 +202,15 @@ def test_restore_with_the_current_lock_value_succeeds(api, document):
 
 
 def test_a_body_longer_than_the_old_block_limit_is_accepted(api, document):
-    assert MAX_BLOCKS == 100, "옛 상한 값이 바뀌었다 — 이 시험의 전제를 다시 봐야 한다"
-    long_body = _doc(*[f"{i}번째 줄" for i in range(MAX_BLOCKS * 3)])
+    long_body = _doc(*[f"{i}번째 줄" for i in range(OLD_BLOCK_LIMIT * 3)])
     r = api.put(f"/api/knowledge/documents/{document['id']}", {"body": long_body})
     assert r.status_code == 200, r.text
     current = api.get(f"/api/knowledge/documents/{document['id']}").json()["current"]
-    assert len(current["body"]["content"]) == MAX_BLOCKS * 3
+    assert len(current["body"]["content"]) == OLD_BLOCK_LIMIT * 3
 
 
 def test_a_line_longer_than_the_old_line_limit_is_accepted(api, document):
-    assert MAX_LINE_CHARS == 1900, "옛 상한 값이 바뀌었다 — 전제를 다시 봐야 한다"
-    long_line = "가" * (MAX_LINE_CHARS * 2)
+    long_line = "가" * (OLD_LINE_LIMIT * 2)
     r = api.put(f"/api/knowledge/documents/{document['id']}", {"body": _doc(long_line)})
     assert r.status_code == 200, r.text
     current = api.get(f"/api/knowledge/documents/{document['id']}").json()["current"]

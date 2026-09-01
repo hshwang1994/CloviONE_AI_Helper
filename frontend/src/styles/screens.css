@@ -179,12 +179,11 @@
 @media (max-width: 760px) {
 }
 
-/* 설정형 화면(DataScreen) 세로 리듬 — 헤더(.k-page-head)·툴바(.c-toolbar-card)는 자체 margin-bottom이
-   있으나 설명 콜아웃(.k-callout)과 요약 카드줄(.dash-grid)은 없어, 요약이 있는 화면(예: 작업 큐)에서
-   설명·요약·툴바가 서로 붙어 보였다. 루트 직계 자식에만 적용해 폼/모달 안의 콜아웃이나 대시보드의
-   dash-grid(직계 자식 아님)에는 영향을 주지 않는다. */
+/* 설정형 화면(DataScreen) 세로 리듬 — 헤더(.k-page-head)·툴바(.c-toolbar-card)는 자체
+   margin-bottom 이 있으나 설명 콜아웃(.k-callout)은 없어, 설명·툴바가 서로 붙어 보였다.
+   루트 직계 자식에만 적용해 폼·모달 안의 콜아웃에는 영향을 주지 않는다.
+   (`.dash-grid` 규칙이 함께 있었다 — 그 클래스를 쓰는 JSX 가 한 곳도 없어 걷었다.) */
 .c-screen > .k-callout { margin-bottom: var(--space-lg, 16px); }
-.c-screen > .dash-grid { margin-bottom: var(--space-lg, 16px); }
 
 /* 개발자 월간 리포트 — 처음 제공한 HTML 리포트와 같은 시각 디자인을 앱 토큰으로 재현.
    막대는 SVG(색은 클래스로), 색·여백·굵기는 토큰만. 다크는 토큰이 알아서 처리한다. */
@@ -202,31 +201,20 @@
    지연(warn)은 값 색 + 옅은 틴트 배경 + 테두리로 좌측 바 없이 구분한다. */
 
 .devrep-sec { margin: 0 0 var(--space-xl, 24px); }
-/* 섹션 안의 요약 카드줄(.dash-grid)은 최상위(.c-screen>.dash-grid)와 달리 하단 여백 규칙이 닿지
- * 않아 바로 아래 표/카드에 딱 붙었다(스프린트 회의 '완료 현황'의 카드-표 붙음). 같은 여백을 준다. */
-.devrep-sec > .dash-grid { margin-bottom: var(--space-lg, 16px); }
 
 .devrep-tablewrap {
   overflow-x: auto; border: 1px solid var(--color-border);
   border-radius: var(--radius-md, 8px); background: var(--color-card); box-shadow: var(--shadow-subtle);
 }
-.devrep-table { border-collapse: collapse; width: 100%; min-width: 720px; font-size: var(--font-size-sm, 0.8125rem); }
-.devrep-table th {
   text-align: center; font-size: var(--font-size-xs, 0.75rem); font-weight: var(--fw-semibold, 600); letter-spacing: 0.03em;
   color: var(--color-muted); padding: 12px 10px; border-bottom: 1px solid var(--color-border);
   background: color-mix(in srgb, var(--color-primary) 6%, var(--color-card)); white-space: nowrap;
   cursor: help;
 }
-.devrep-table th.l { text-align: left; }
-.devrep-table td { padding: 11px 10px; border-bottom: 1px solid var(--color-line); text-align: center; white-space: nowrap; vertical-align: middle; }
-.devrep-table tr:last-child td { border-bottom: none; }
-.devrep-table td.l { text-align: left; font-weight: var(--fw-semibold, 600); color: var(--color-heading); }
-.devrep-table td.n { text-align: center; font-weight: var(--fw-normal, 400); color: var(--color-text); }
 .devrep-done { color: var(--color-success); font-weight: var(--fw-semibold, 600); }
 .devrep-z { color: var(--color-muted); }
 
 .devrep-bar { display: inline-block; vertical-align: middle; width: 170px; height: 18px; border-radius: var(--radius-sm, 6px); overflow: hidden; }
-.devrep-table td.bar { text-align: center; }
 /* 무지성 중앙정렬 금지 — 개발자 이름·상태구성 헤더(.l)는 좌측(td.l 523/th.l 상속),
    상태 막대(.bar)는 중앙, 나머지 숫자 열은 우측(tabular-nums 자릿수 정렬). */
 .devrep-hbar svg { border-radius: var(--radius-sm, 6px); overflow: hidden; }
@@ -238,9 +226,6 @@
   border-top: 1px solid var(--color-border);
 }
 .devrep-grouprow td .k-field-help { margin-left: var(--space-md, 12px); font-weight: var(--fw-normal, 400); }
-.devrep-table td.title { white-space: normal; min-width: 220px; text-align: left; }
-.devrep-table a.c-linkbtn { color: var(--color-primary); text-decoration: none; }
-.devrep-table a.c-linkbtn:hover { text-decoration: underline; }
 .devrep-bar .track, .devrep-hbar .track { fill: var(--color-line); }
 
 .devrep-hbars { display: flex; flex-direction: column; gap: var(--space-sm, 8px); margin: 0 0 var(--space-md, 12px); }

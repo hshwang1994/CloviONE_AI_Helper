@@ -2,8 +2,8 @@ import React from "react";
 import Box from "@mui/material/Box";
 import Link from "@mui/material/Link";
 import Typography from "@mui/material/Typography";
-import { Badge, MetricStrip, Callout, useToast } from "../../ui/kit.jsx";
-import { DashSection, StatusList, StatusTile } from "../../ui/adminKit.jsx";
+import { Badge, MetricStrip, Callout, Section, useToast } from "../../ui/kit.jsx";
+import { StatusList, StatusTile } from "../../ui/adminKit.jsx";
 import {
   fmtNum, serviceLabel, fmtCertDays, copyText,
   componentState, upSummaryText, SERVICE_STATE_LABEL, SERVICE_STATE_KIND,
@@ -35,7 +35,7 @@ export function ServiceStatusPanel({ disk, mem, certDaysRemaining, comps, nav })
       {/* 디스크, 메모리, 인증서가 모두 null이면(비-Linux 호스트, nginx TLS 종단 등) 섹션 자체를 숨긴다 -
           Dashboard.jsx의 규칙(§ '영구, 죽은 타일을 남기지 않는다')과 동일하게, 값이 없는 개별 타일도 숨긴다. */}
       {(disk.free_gb != null || disk.used_pct != null || mem.used_pct != null || certDaysRemaining != null) ? (
-        <DashSection title="시스템 리소스">
+        <Section titleAs="h2" title="시스템 리소스">
           {/* Dashboard.jsx가 같은 필드(disk.free_gb)를 fmtNum()+단위-on-값으로 보여주는데
               이 화면만 raw 숫자에 라벨 괄호 단위였다, 같은 표기 규칙으로 맞춘다. */}
           <MetricStrip
@@ -50,7 +50,7 @@ export function ServiceStatusPanel({ disk, mem, certDaysRemaining, comps, nav })
                 kind: certDaysRemaining <= 0 ? "danger" : certDaysRemaining <= 30 ? "warn" : undefined } : null,
             ].filter(Boolean)}
           />
-        </DashSection>
+        </Section>
       ) : null}
       {/* build_dashboard()(app/health/service.py)는 components/counts/jobs_24h를 항상 고정된
           채워진 dict로 돌려준다, 이 Object.keys(...).length 가드는 기능적으로 결코 false가 될
@@ -59,7 +59,7 @@ export function ServiceStatusPanel({ disk, mem, certDaysRemaining, comps, nav })
         /* 이름은 대시보드와 **같아야 한다** — 같은 데이터를 두 화면이 다른 이름으로 부르면
            운영자는 그것이 다른 것인지 확인해야 한다. 그쪽이 「필수 서비스」로 부르면서
            외부 연동과 분모를 갈랐고, 여기도 같은 말을 쓴다. */
-        <DashSection title="필수 서비스"
+        <Section titleAs="h2" title="필수 서비스"
           action={<Typography variant="body2" color="text.secondary">{upSummaryText(Object.values(comps).map(componentState))}</Typography>}>
           {/* 중단·응답 없음을 빨간 배지로만 두면 조치할 곳이 없는 막다른 화면이 된다 — 다음 행동을 한 줄로 안내한다.
               (스펙 §10: 임의 systemd 재시작 API는 제공하지 않으므로 로그 확인·담당자 재시작으로 안내한다.) */}
@@ -96,7 +96,7 @@ export function ServiceStatusPanel({ disk, mem, certDaysRemaining, comps, nav })
               );
             })}
           </StatusList>
-        </DashSection>
+        </Section>
       ) : null}
     </>
   );

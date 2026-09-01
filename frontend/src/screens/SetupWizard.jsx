@@ -61,7 +61,9 @@ export const SETUP_LINKS = {
   mail: { href: "#/settings", label: "설정 화면 열기" },
   organization: { href: "#/departments", label: "부서 화면 열기" },
   llm: { href: "#/settings?tab=ai", label: "AI 설정 열기" },
-  integrations: { href: "#/integrations", label: "외부 연동 화면 열기" },
+  // 「외부 연동」 관리 화면은 걷었다 — 0017 이 등록 행을 지웠고 시드 목록이 비어 있어
+  // 그 표가 다시 안 채워진다. 연동 상태를 읽는 자리는 진단이다.
+  integrations: { href: "#/diagnostics", label: "진단에서 연동 상태 보기" },
   tls: { href: "#/diagnostics", label: "진단에서 인증서 확인" },
 };
 

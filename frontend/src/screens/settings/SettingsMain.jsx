@@ -87,7 +87,7 @@ export function Settings({ embedded = false } = {}) {
     // PA-RC-0022: 백엔드 키는 기본 숨김이다 — showKey가 꺼져 있으면 이 열 자체를 안 만든다
     // (렌더는 하고 CSS로 숨기지 않는다, 스크린리더가 안 쓰는 열까지 훑지 않게).
     ...(showKey ? [{ key: "key", label: "키", render: (r) => <Typography component="span" variant="caption" color="text.secondary">{r.key}</Typography> }] : []),
-    { key: "value", label: "현재 값", render: (r) => summarizeSetting(r.key, r.value) || displayValue(r.value) },
+    { key: "value", label: "현재 값", type: "text", render: (r) => summarizeSetting(r.key, r.value) || displayValue(r.value) },
     /* 적용 상태 (지시 45). 두 가지를 말한다.
      *
      *  - **수정됨** — 기본값에서 벗어났다. 기본값 그대로면 배지가 아예 없다(PA-RC-0022:
@@ -96,7 +96,7 @@ export function Settings({ embedded = false } = {}) {
      *  - **재시작 필요** — 저장해도 워커가 다시 뜨기 전에는 그 값으로 동작하지 않는다.
      *    예전에는 이 사실이 저장 후 토스트에만 잠깐 떴다가 사라졌다 — 표를 다시 열면
      *    "저장됐는데 왜 안 바뀌지"를 알 방법이 없었다. */
-    { key: "is_default", label: "적용 상태", nowrap: true, render: (r) => (
+    { key: "is_default", label: "적용 상태", type: "status", nowrap: true, render: (r) => (
       <Box sx={{ display: "flex", gap: 0.75, alignItems: "center", flexWrap: "wrap" }}>
         {r.is_default ? null : <Badge value="수정됨" kind="info" />}
         {r.restart_required ? <Tag label="재시작 필요" tone="warn" /> : null}
@@ -127,9 +127,13 @@ export function Settings({ embedded = false } = {}) {
     ) },
   ];
 
+  /* 🔴 여기 `embedded ? null : <PageHeader area="운영" title="설정" />` 가 있었다.
+     이 화면은 **언제나 설정 껍데기 안**이라(`settings/SettingsShell.jsx` 가 `embedded` 로만
+     그린다) 도달할 수 없는 갈래였고, `area="운영"` 은 사이드바 묶음(**설정**)과도 어긋나
+     있었다. 껍데기가 머리와 `.c-screen` 을 이미 그린다 — 여기서 또 감싸면 바깥 여백이
+     두 번 붙는다. */
   return (
-    <div className="c-screen">
-      {embedded ? null : <PageHeader area="운영" title="설정" />}
+    <>
       {q.isLoading ? <Card>{/* 표가 들어올 자리에는 표 모양을 그린다 (지시 20) - 빈 목록과 아직 안 온 목록은 다른 사실이다. */}<DataTable columns={columns} rows={[]} loading /></Card>
         : q.isError ? <ErrorState error={q.error} onRetry={() => q.refetch()} />
         /* effective_settings()는 항상 REGISTRY의 모든 키를 반환하므로 정상 경로에선 도달하지 않는다.
@@ -161,6 +165,6 @@ export function Settings({ embedded = false } = {}) {
           if (res && res.restart_required) toast("설정을 저장했습니다. 적용하려면 서비스를 수동으로 재시작하세요.", "info");
           else toast("설정을 저장했습니다.", "success");
         }} />
-    </div>
+    </>
   );
 }

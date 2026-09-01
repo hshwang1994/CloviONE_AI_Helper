@@ -89,9 +89,22 @@ def test_unknown_route_returns_error_envelope(client):
 
 
 def test_oversized_body_rejected_with_413(client):
-    r = client.post("/healthz", content=b"x" * (300 * 1024))
+    # 상한은 4MB 다(`MAX_BODY_BYTES`). 256k 였는데, 본문 길이 상한을 걷으면서 긴 문서
+    # 하나가 이 층에서 413 으로 막히는 자리가 됐다 — 상한을 없앴다고 말해 놓고 다른
+    # 층에서 막으면 없앤 것이 아니다. 그래도 무제한은 아니라는 것이 이 시험이다.
+    r = client.post("/healthz", content=b"x" * (5 * 1024 * 1024))
     assert r.status_code == 413
     assert r.json()["error"]["code"] == "payload_too_large"
+
+
+def test_a_long_document_body_is_not_rejected_by_the_size_limit(client):
+    """반례 — 옛 상한(256k)을 넘는 본문이 미들웨어를 지난다.
+
+    이 단언이 없으면 위 시험은 「크면 막는다」까지만 말하고, 상한이 다시 256k 로 내려가도
+    초록이 뜬다. 사람이 쓰는 문서는 이 크기에 닿지 않아야 한다.
+    """
+    r = client.post("/healthz", content=b"x" * (512 * 1024))
+    assert r.status_code != 413
 
 
 # CORE-04: an unhandled exception is converted to a 500 by Starlette's

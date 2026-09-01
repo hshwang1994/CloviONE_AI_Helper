@@ -66,8 +66,19 @@ CSP_POLICY = (
     "form-action 'self'"
 )
 
-# Matches nginx client_max_body_size 256k (spec §27.2) — defense in depth.
-MAX_BODY_BYTES = 256 * 1024
+# nginx `client_max_body_size` 와 같은 값이어야 한다(spec §27.2) — 방어 이중화.
+#
+# 🔴 **256k 에서 4MB 로 올렸다.** 본문 길이 상한을 걷으면서(문서·티켓 설명의 「최대 100줄」·
+# 「4000자」가 Notion 시절의 상한이라 함께 없어졌다) 그 상한이 실제로 걸리는 자리가 여기로
+# 옮겨 왔다: 긴 문서 하나가 256k 를 넘으면 저장이 **413** 으로 거절되고, 화면에는 「본문을
+# 저장하지 못했습니다」만 뜬다. 상한을 없앴다고 말해 놓고 다른 층에서 막으면 그건 없앤 것이
+# 아니다.
+#
+# 무제한으로 두지는 않는다 — 이 값은 길이 규칙이 아니라 **한 요청이 서버 메모리에 올릴 수
+# 있는 크기**의 방어선이다. 4MB 는 한글 본문 200만 자 남짓이라 사람이 쓰는 문서로는 닿지
+# 않고, 업로드 라우트(12MB)보다 낮다. `deploy/nginx/clovirassist.conf` 의 같은 값을 함께
+# 올려야 한다 — 한쪽만 올리면 nginx 가 먼저 거절한다.
+MAX_BODY_BYTES = 4 * 1024 * 1024
 # Chat messages may carry image attachments (base64). nginx raises the limit for
 # this one route the same way; everything else stays at 256k.
 ATTACHMENT_BODY_BYTES = 8 * 1024 * 1024

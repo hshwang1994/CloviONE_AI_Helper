@@ -151,34 +151,106 @@ def _health(*, total: int, done: int, overdue: int, blocked: int, elapsed: float
     }
 
 
-def _scope_changes(db: Session, sprint: Sprint, *, ids: set[str]) -> tuple[dict, list[dict]]:
+def _sprint_activities(db: Session, sprint: Sprint) -> list[TicketActivity]:
+    """이 회차를 드나든 기록 — 시간순. 범위·추이·번다운이 **같은 목록**을 본다."""
+    return list(
+        db.execute(
+            select(TicketActivity)
+            .where(
+                TicketActivity.kind == ACT_SPRINT,
+                (TicketActivity.to_value == sprint.id)
+                | (TicketActivity.from_value == sprint.id),
+            )
+            .order_by(TicketActivity.seq)
+        ).scalars().all()
+    )
+
+
+def _spans(
+    sprint: Sprint, *, acts: list[TicketActivity], tickets: dict[str, Ticket], ids: set[str]
+) -> dict[str, dict]:
+    """티켓마다 **언제 이 회차에 있었는가**.
+
+    번다운의 「그날 남은 일」은 지금 담긴 목록만으로는 못 그린다 — 중간에 들어온 티켓은
+    첫날에도 있던 것처럼, 빠진 티켓은 처음부터 없던 것처럼 그려진다. 그 둘이 바로 회의가
+    묻는 「범위가 얼마나 바뀌었나」라서, 그것을 지우면 그림이 질문에 답하지 않는다.
+
+    기록이 없는 티켓은 **회차 시작부터 있던 것**으로 본다. 실제로 그렇다 — 회차를 만들 때
+    담은 티켓은 그 뒤로 움직인 적이 없다.
+    """
+    start, end = sprint.starts_on, sprint.ends_on
+    joined: dict[str, date] = {}
+    left: dict[str, date] = {}
+    for act in acts:
+        when = act.created_at.date() if act.created_at else None
+        if when is None:
+            continue
+        when = max(when, start)
+        if act.to_value == sprint.id:
+            joined[act.ticket_id] = when
+            left.pop(act.ticket_id, None)
+        else:
+            left[act.ticket_id] = when
+    out: dict[str, dict] = {}
+    for ticket_id, ticket in tickets.items():
+        here = ticket_id in ids
+        gone = None if here else left.get(ticket_id)
+        if not here and gone is None:
+            continue  # 이 회차와 상관없는 티켓
+        category = workflow.category_of(ticket.status)
+        done_at = None
+        if category == workflow.CAT_DONE:
+            # 완료 시각의 정본은 `tickets.completed_at` 이다 — 상태를 쓰는 자리 한 곳이
+            # 찍고 지운다(`repository_native._stamp_completion`). `updated_at` 은 제목만
+            # 고쳐도 움직여서 「그날 끝난 일」이 뒤로 밀린다.
+            #
+            # 🔴 그 칸이 생기기 **전에** 끝난 티켓은 시각이 없다. 그때는 회차 시작부터
+            # 끝나 있던 것으로 본다. 「모르니까 아직 남아 있다」로 세면 오늘의 잔여가
+            # 지금 사실(끝났다)과 어긋나고, 그 어긋남은 화면에서 「완료 1건인데 잔여는
+            # 안 줄었다」로 보인다 — 둘 중 하나를 골라야 한다면 **오늘이 맞는 쪽**이다.
+            done_at = ticket.completed_at.date() if ticket.completed_at else start
+        out[ticket_id] = {
+            "joined": min(joined.get(ticket_id, start), end),
+            "left": gone,
+            "est_wd": float(ticket.est_wd or 0),
+            "done_at": done_at,
+            "canceled": category == workflow.CAT_CANCELED,
+        }
+    return out
+
+
+def _scope_changes(
+    db: Session,
+    sprint: Sprint,
+    *,
+    ids: set[str],
+    acts: list[TicketActivity],
+    names: dict[str, dict],
+) -> tuple[dict, list[dict]]:
     """회차가 시작한 뒤 들어오고 나간 티켓.
 
     지금 상태만 봐서는 알 수 없는 값이라 **활동 기록**에서 읽는다. 기록이 없으면
     0 이 아니라 「모른다」다 — 그 구별을 `tracked` 로 적는다.
+
+    돌려주는 줄은 다른 네 갈래와 **같은 모양**(`_row()`)이다. 예전에는 이 갈래만
+    `{ticket_id, page_id, key, title, direction, at}` 이라, 같은 카드 부품으로 그리면
+    상태·우선순위·담당자·신호가 전부 빈 채로 나왔다.
     """
-    rows = db.execute(
-        select(TicketActivity)
-        .where(
-            TicketActivity.kind == ACT_SPRINT,
-            (TicketActivity.to_value == sprint.id) | (TicketActivity.from_value == sprint.id),
-        )
-        .order_by(TicketActivity.seq)
-    ).scalars().all()
     # 회차 시작 **전**의 이동은 계획이지 범위 변경이 아니다. 활동은 naive UTC 이고
     # 회차 경계는 달력일이라, 날짜로 비교한다(하루 경계의 몇 시간은 회의에서 무의미하다).
     start = sprint.starts_on
     added, removed = [], []
-    for act in rows:
+    for act in acts:
         when = act.created_at.date() if act.created_at else None
         if when is not None and when < start:
             continue
         (added if act.to_value == sprint.id else removed).append(act)
     scope = {
         # 기록이 하나도 없으면 「안 바뀌었다」가 아니라 「모른다」다.
-        "tracked": bool(rows),
+        "tracked": bool(acts),
         "added": len(added),
         "removed": len(removed),
+        "trend": _scope_trend(sprint, added=added, removed=removed) if acts else [],
     }
     if not added and not removed:
         return scope, []
@@ -191,19 +263,37 @@ def _scope_changes(db: Session, sprint: Sprint, *, ids: set[str]) -> tuple[dict,
         ticket = tickets.get(act.ticket_id)
         if ticket is None:
             continue
-        changes.append(
-            {
-                "ticket_id": ticket.id,
-                "page_id": api_page_id(ticket),
-                "key": display_key(ticket),
-                "title": ticket.title,
-                # 지금 이 회차에 있는가로 방향을 다시 확인한다 — 들어왔다 나간 티켓이
-                # 「추가」로도 「제외」로도 세어지면 회의가 같은 티켓을 두 번 본다.
-                "direction": "added" if ticket.id in ids else "removed",
-                "at": act.created_at.isoformat() if act.created_at else None,
-            }
-        )
+        row = _row(ticket, names=names)
+        # 지금 이 회차에 있는가로 방향을 다시 확인한다 — 들어왔다 나간 티켓이
+        # 「추가」로도 「제외」로도 세어지면 회의가 같은 티켓을 두 번 본다.
+        row["direction"] = "added" if ticket.id in ids else "removed"
+        row["at"] = act.created_at.isoformat() if act.created_at else None
+        changes.append(row)
     return scope, changes
+
+
+def _scope_trend(
+    sprint: Sprint, *, added: list[TicketActivity], removed: list[TicketActivity]
+) -> list[dict]:
+    """일자별 **누적** 들어옴·빠짐. 회의가 묻는 것은 「언제부터 불어났나」다.
+
+    새 API 를 만들지 않는다 — 위에서 이미 읽은 같은 기록을 날짜로 접을 뿐이다.
+    """
+    def _day(act):
+        return max(act.created_at.date(), sprint.starts_on) if act.created_at else sprint.starts_on
+
+    into: dict[date, int] = {}
+    out: dict[date, int] = {}
+    for act in added:
+        into[_day(act)] = into.get(_day(act), 0) + 1
+    for act in removed:
+        out[_day(act)] = out.get(_day(act), 0) + 1
+    trend, in_sum, out_sum = [], 0, 0
+    for day in _days(sprint):
+        in_sum += into.get(day, 0)
+        out_sum += out.get(day, 0)
+        trend.append({"date": day.isoformat(), "added": in_sum, "removed": out_sum})
+    return trend
 
 
 def _decision_view(row: SprintDecision, *, people: dict[str, dict], keys: dict[str, dict]) -> dict:
@@ -283,16 +373,24 @@ def meeting(db: Session, user: User, *, sprint_id: str, today: date) -> dict:
     in_progress = [
         t for t in tickets if workflow.category_of(t.status) == workflow.CAT_IN_PROGRESS
     ]
+    # 신호는 **아직 안 끝난 일**에만 붙는다. 끝난 티켓의 차단 깃발은 그때 있었던
+    # 사실이지 오늘 회의에서 말할 것이 아니다 — 예전에는 그것까지 세어서 「차단 3건」을
+    # 눌러 보면 이미 완료된 티켓이 섞여 나왔다.
+    live = [t for t in tickets if not workflow.is_terminal(t.status)]
     overdue = [t for t in tickets if workflow.is_overdue(t.due_date, t.status, today=today)]
-    blocked = [t for t in tickets if t.blocked_flag]
-    issues = [t for t in tickets if t.issue_flag]
-    unassigned = [t for t in tickets if not split_names(t.assignee_notion_ids)]
+    blocked = [t for t in live if t.blocked_flag]
+    issues = [t for t in live if t.issue_flag]
+    unassigned = [t for t in live if not split_names(t.assignee_notion_ids)]
     horizon = today + timedelta(days=DUE_SOON_DAYS)
     due_soon = [
         t for t in tickets
         if t.due_date and today <= t.due_date <= horizon
         and not workflow.is_terminal(t.status)
     ]
+    # 회의 준비 — 이 둘이 비어 있으면 번다운도 「담당자별 남은 WD」도 못 그린다.
+    # 그림이 안 나온 **뒤에** 그 사실을 알게 되는 대신, 고칠 목록으로 먼저 보여 준다.
+    no_estimate = [t for t in live if t.est_wd is None]
+    no_due = [t for t in live if t.due_date is None]
 
     # 담당자별 남은 공수. **한 티켓에 여럿이면 그 수만큼 센다** — 나누면 「반쯤 담당」이
     # 되어 어느 쪽에도 안 걸리고, 회의에서 「이 사람 일이 몇이냐」에 답이 안 나온다.
@@ -318,7 +416,20 @@ def meeting(db: Session, user: User, *, sprint_id: str, today: date) -> dict:
 
     span = (sprint.ends_on - sprint.starts_on).days or 1
     elapsed = (today - sprint.starts_on).days / span
-    scope, changes = _scope_changes(db, sprint, ids=ids)
+
+    # 드나든 기록은 **한 번만** 읽는다 — 범위 요약·추이·번다운이 같은 목록을 본다.
+    acts = _sprint_activities(db, sprint)
+    by_id = {t.id: t for t in tickets}
+    gone_ids = {a.ticket_id for a in acts} - set(by_id)
+    if gone_ids:
+        # 빠져나간 티켓도 **보이는 것만** 싣는다. 회차 문을 지났다고 그 안을 드나든
+        # 남의 프로젝트 티켓까지 열리면 안 된다(위 §문이 둘이다 와 같은 이유).
+        for row in db.execute(
+            work_service._visible_tickets_stmt(db, user).where(Ticket.id.in_(gone_ids))
+        ).scalars().all():
+            by_id[row.id] = row
+    spans = _spans(sprint, acts=acts, tickets=by_id, ids=ids)
+    scope, changes = _scope_changes(db, sprint, ids=ids, acts=acts, names=names)
 
     # 후보는 **실제 백로그 티켓**이다(지시 4). 같은 프로젝트의, 어느 회차에도 안 담긴,
     # 아직 안 끝난 일. 팀 전체 회차(`project_id IS NULL`)면 프로젝트로 안 좁힌다.
@@ -347,7 +458,13 @@ def meeting(db: Session, user: User, *, sprint_id: str, today: date) -> dict:
             total=len(tickets), done=len(done), overdue=len(overdue),
             blocked=len(blocked), elapsed=elapsed,
         ),
-        "burndown": _burndown(tickets, sprint=sprint),
+        "burndown": _burndown(sprint=sprint, spans=spans, today=today),
+        # 회차가 어디쯤인가 — 시작 전 · 진행 중 · 끝난 뒤. 화면이 날짜를 다시 비교하지
+        # 않는다(§불변 9: 「오늘」의 정본은 서버다).
+        "phase": (
+            "before" if today < sprint.starts_on
+            else ("after" if today > sprint.ends_on else "during")
+        ),
         "workload": workload,
         "scope": scope,
         # 「오늘 논의할 항목」. 단순 목록 하나가 아니라 **유형별**이다 — 지연과 미할당은
@@ -355,8 +472,11 @@ def meeting(db: Session, user: User, *, sprint_id: str, today: date) -> dict:
         "discuss": {
             "overdue": _bucket([_row(t, names=names) for t in overdue]),
             "blocked": _bucket([_row(t, names=names) for t in blocked]),
+            "issue": _bucket([_row(t, names=names) for t in issues]),
             "unassigned": _bucket([_row(t, names=names) for t in unassigned]),
             "due_soon": _bucket([_row(t, names=names) for t in due_soon]),
+            "no_estimate": _bucket([_row(t, names=names) for t in no_estimate]),
+            "no_due": _bucket([_row(t, names=names) for t in no_due]),
             "scope_changes": _bucket(changes),
         },
         "candidates": candidates,
@@ -384,34 +504,77 @@ def _neighbours(db: Session, user: User, sprint: Sprint) -> dict:
     }
 
 
-def _burndown(tickets, *, sprint: Sprint) -> dict:
-    """번다운 — **회차 기간** 위에 그린다.
+#: 번다운 점 개수 상한. 긴 회차에서 점이 수백 개가 되면 선이 뭉갠다.
+MAX_POINTS = 32
 
-    예전에는 「이번 주」 위에 그렸다. 3주짜리 회차의 번다운이 매주 처음부터 다시
-    시작하는 것으로 보였고, 그 그래프는 아무 것도 말하지 않았다.
+
+def _days(sprint: Sprint) -> list[date]:
+    """회차 기간의 날짜 — 양끝 포함. 길면 균등 간격으로 솎되 마지막 날은 항상 남긴다."""
+    span = (sprint.ends_on - sprint.starts_on).days
+    if span < 0:
+        return [sprint.starts_on]
+    step = 1 if span + 1 <= MAX_POINTS else span // (MAX_POINTS - 1) + 1
+    out = [sprint.starts_on + timedelta(days=i) for i in range(0, span + 1, step)]
+    if out[-1] != sprint.ends_on:
+        out.append(sprint.ends_on)
+    return out
+
+
+def _burndown(*, sprint: Sprint, spans: dict[str, dict], today: date) -> dict:
+    """번다운 — **회차 기간 위의 실제 소진**.
+
+    ## 예전 그림이 무엇이었나
+
+    `app/sprints/burndown.py` 는 「그날 이후로 마감이 남아 있는 업무량」의 분포였고,
+    그 파일은 그렇게 그리는 이유를 «완료 시각이 어디에도 없다» 로 적어 두었다.
+    **그 전제가 더 이상 사실이 아니다.** `tickets.completed_at` 이 상태를 쓰는 자리
+    한 곳에서 찍히고 지워진다(`repository_native._stamp_completion`). 그래서 이제는
+    「그날 끝에 아직 안 끝난 일이 얼마였나」를 지어내지 않고 **잴 수 있다.**
+
+    ## 선이 셋이다
+
+      ideal      계획선. 첫날의 범위에서 마지막 날 0 까지 곧게 내려간다
+      remaining  실제 잔여. **오늘까지만 그린다** — 내일 얼마가 남을지는 아무도 모른다
+      scope      그날 이 회차에 담겨 있던 총량. 이 선이 올라가면 범위가 불어난 것이다
+
+    취소한 티켓은 세 선 어디에도 없다 — 「안 하기로 한 일」은 남은 일도 끝낸 일도 아니다.
+    마감일이 없는 티켓도 **센다.** 예전 그림은 마감일이 축이라 그것들을 통째로 뺐고,
+    그래서 같은 화면의 「남은 WD」와 그림의 총량이 서로 다른 값이었다.
     """
-    from app.sprints.burndown import build_burndown
+    live = [s for s in spans.values() if not s["canceled"]]
+    days = _days(sprint)
 
-    class _Shim:
-        """`build_burndown` 이 기대하는 모양(DTO)으로 ORM 행을 감싼다.
+    def _in(span, day):
+        return span["joined"] <= day and (span["left"] is None or span["left"] > day)
 
-        그 함수는 저장소 seam 을 지난 DTO 를 받게 돼 있어서 `due` 가 ISO 문자열이다.
-        같은 산수를 두 번 쓰지 않으려고 여기서 모양만 맞춘다.
-        """
+    start_scope = round(sum(s["est_wd"] for s in live if _in(s, sprint.starts_on)), 1)
+    total = round(sum(s["est_wd"] for s in live), 1)
+    span_days = (sprint.ends_on - sprint.starts_on).days or 1
 
-        __slots__ = ("due", "est_wd", "status")
-
-        def __init__(self, t):
-            self.due = t.due_date.isoformat() if t.due_date else None
-            self.est_wd = t.est_wd
-            self.status = t.status
-
-    return build_burndown(
-        [_Shim(t) for t in tickets],
-        start=sprint.starts_on.isoformat(),
-        # 끝을 하루 밀어 배타적 경계로 만든다 — 마지막 날이 그래프에서 빠지지 않게.
-        end=(sprint.ends_on + timedelta(days=1)).isoformat(),
-    )
+    points = []
+    for day in days:
+        scope = sum(s["est_wd"] for s in live if _in(s, day))
+        elapsed = (day - sprint.starts_on).days / span_days
+        ideal = start_scope * max(0.0, 1.0 - elapsed)
+        point = {
+            "date": day.isoformat(),
+            "ideal": round(ideal, 1),
+            "scope": round(scope, 1),
+            "remaining": None,
+        }
+        if day <= today:
+            done = s = 0.0
+            for span in live:
+                if not _in(span, day):
+                    continue
+                if span["done_at"] is not None and span["done_at"] <= day:
+                    done += span["est_wd"]
+                else:
+                    s += span["est_wd"]
+            point["remaining"] = round(s, 1)
+            point["done"] = round(done, 1)
+        points.append(point)
+    return {"total_est_wd": total, "start_est_wd": start_scope, "points": points}
 
 
 # ── 회의록 쓰기 ──────────────────────────────────────────────────────────────

@@ -366,6 +366,18 @@ else
   echo "$QAHOST"; fail "QA 프로브가 대상 호스트를 직접 들고 있다"
 fi
 
+step "Every table column says what it is"
+# 몸통 칸의 정렬·폭·자릿수 고정은 열의 `type` 에서 파생한다(`ui/columnTypes.js`). 타입을
+# 안 적은 열은 `UNTYPED`(왼쪽 정렬)로 떨어지고, 그 기본값은 **조용히 틀린다** — `/users`
+# 한 표 안에서 「최근 로그인」은 왼쪽이고 「생성 일자」는 가운데였다(둘 다 날짜인데 한쪽만
+# 타입을 적어서다). 어휘 자체는 `column-types.test.jsx` 가 지키지만 그 어휘를 **쓰는가**는
+# 아무도 안 봤다 — 이 검사가 그 자리다.
+if COLTYPE="$("$PY" scripts/check_column_types.py 2>&1)"; then
+  ok "$(echo "$COLTYPE" | tail -1)"
+else
+  echo "$COLTYPE"; fail "열이 자기가 무엇인지 안 말한다 — 정렬·폭이 화면마다 갈린다"
+fi
+
 step "User-facing text avoids the banned glyphs"
 # 사용자 지시(§8): 화면 문구에서 가운뎃점(·)과 em 대시(—)를 쓰지 않는다.
 # 한 번 훑고 끝내면 다음 화면에서 다시 새어 나가므로 검사로 고정한다.

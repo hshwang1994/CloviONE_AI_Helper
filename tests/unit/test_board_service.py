@@ -1,4 +1,7 @@
-"""자유게시판 서비스·스키마·업로드 유닛 테스트 (팀 공간 §18, 보안 §22)."""
+"""자유게시판 서비스·스키마·업로드 유닛 테스트 (팀 공간 §18, 보안 §22).
+
+qa-contract-change: 제안 글을 티켓 설명으로 옮길 때 자르던 규칙이 없어졌다 — 자르던 이유였던 「4000자·최대 100줄·한 줄 1900자」가 Notion 시절의 상한이라 함께 걷혔고, 「자르되 거절당하지 않는가」를 재던 단정을 「한 글자도 안 잘리는가」가 대신한다.
+"""
 
 from __future__ import annotations
 
@@ -239,23 +242,16 @@ def test_soft_delete_hides_post(db, make_user):
     assert repository.get_post(db, post.id, include_deleted=True) is not None  # 행은 남음
 
 
-# ── _fit_for_ticket_description — 제안→티켓 본문이 TicketCreate 를 통과하는 형태로 잘리는가
-def test_fit_for_ticket_description_wraps_a_single_long_line():
-    """줄바꿈 없는 긴 문단(게시글의 흔한 형태) — 예전엔 [:3900] 로만 잘라 한 줄이 여전히
-    1900자를 넘어 TicketCreate._check_desc 가 결정적으로 거절했다."""
-    from app.core.notion_blocks import MAX_LINE_CHARS
-
+# ── _fit_for_ticket_description — 제안 글이 티켓 설명으로 **그대로** 옮겨지는가
+#
+# 🔴 이 묶음은 예전에 「자르되 거절당하지 않는 형태로 자르는가」를 쟀다. 티켓 설명에
+# 「4000자·최대 100줄·한 줄 1900자」 상한이 있었고, 안 지키면 티켓 생성이 결정적으로
+# 거절됐기 때문이다. 그 상한 셋은 Notion 으로 밀어 넣던 시절의 것이라 함께 없어졌다 —
+# 그래서 지금 재는 것은 **안 자르는가**다.
+def test_fit_for_ticket_description_keeps_a_single_long_line_whole():
+    """줄바꿈 없는 긴 문단(게시글의 흔한 형태)이 한 글자도 안 잘린다."""
     body = "가" * 2500  # 줄바꿈 없는 한 문단
-    fitted = service._fit_for_ticket_description(body)
-
-    lines = fitted.split("\n")
-    assert all(len(ln) <= MAX_LINE_CHARS for ln in lines), (
-        f"줄 길이가 여전히 상한을 넘는다: {[len(ln) for ln in lines]}"
-    )
-    assert len(fitted) <= 3900
-    # 내용은 보존된다(잘라 버리는 게 아니라 줄바꿈만 끼워 넣는다) — 총 길이가 4000자
-    # 미만이므로 원문이 그대로 다 들어가야 한다.
-    assert fitted.replace("\n", "") == body
+    assert service._fit_for_ticket_description(body) == body
 
 
 def test_fit_for_ticket_description_passes_ticket_create_validation():
@@ -291,14 +287,10 @@ def test_the_new_ticket_form_demands_an_estimate_and_a_due_date():
     TicketCreate(title="t", project_id="p1", est_wd=0, due_date="2026-12-31")
 
 
-def test_fit_for_ticket_description_caps_line_count():
-    """줄 수가 MAX_BLOCKS 를 넘으면(개행이 아주 많은 본문) 뒤는 잘라낸다 — 총 글자수·
-    줄 길이만 맞추고 줄 수는 안 맞추면 여전히 거절당한다."""
-    from app.core.notion_blocks import MAX_BLOCKS
-
-    body = "\n".join(f"줄{i}" for i in range(MAX_BLOCKS + 50))
-    fitted = service._fit_for_ticket_description(body)
-    assert len(fitted.split("\n")) <= MAX_BLOCKS
+def test_fit_for_ticket_description_keeps_every_line():
+    """줄이 아주 많아도 뒤가 안 잘린다 — 옛 100줄 상한은 없다."""
+    body = "\n".join(f"줄{i}" for i in range(150))
+    assert service._fit_for_ticket_description(body) == body
 
 
 def test_fit_for_ticket_description_empty_stays_empty():

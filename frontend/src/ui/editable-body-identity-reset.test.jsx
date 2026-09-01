@@ -56,7 +56,7 @@ describe("본문 편집 — 다른 문서로 자리가 바뀌면 남은 초안�
         <EditableBody
           editorId="ticket-body-1"
           endpoint="/api/tickets/1/body"
-          bodyMarkdown="티켓1 원본"
+          bodyDoc={{ type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "티켓1 원본" }] }] }}
           bodyVersion="v1"
           bodyIsLocal
           sourceView={<div>티켓1 원본</div>}
@@ -66,7 +66,7 @@ describe("본문 편집 — 다른 문서로 자리가 바뀌면 남은 초안�
     );
 
     await user.click(screen.getByRole("button", { name: "본문 수정" }));
-    const textbox = screen.getByRole("textbox", { name: "본문 수정" });
+    const textbox = await screen.findByRole("textbox", { name: "본문 수정" });
     await user.clear(textbox);
     await user.type(textbox, "저장 안 한 티켓1 초안");
 
@@ -76,7 +76,7 @@ describe("본문 편집 — 다른 문서로 자리가 바뀌면 남은 초안�
         <EditableBody
           editorId="ticket-body-2"
           endpoint="/api/tickets/2/body"
-          bodyMarkdown="티켓2 원본"
+          bodyDoc={{ type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "티켓2 원본" }] }] }}
           bodyVersion="v9"
           bodyIsLocal
           sourceView={<div>티켓2 원본</div>}

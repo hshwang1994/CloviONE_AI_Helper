@@ -6,8 +6,8 @@ import Link from "@mui/material/Link";
 import Typography from "@mui/material/Typography";
 import { api } from "../../lib/api.js";
 import { fmtDateTime } from "../../lib/format.js";
-import { DashSection, Note, StatusList, StatusTile } from "../../ui/adminKit.jsx";
-import { PageHeader, Card, Badge, Callout, MetricStrip, Skeleton, ErrorState, EmptyState, useToast } from "../../ui/kit.jsx";
+import { Note, StatusList, StatusTile } from "../../ui/adminKit.jsx";
+import { PageHeader, Card, Badge, Callout, MetricStrip, Section, Skeleton, ErrorState, EmptyState, useToast } from "../../ui/kit.jsx";
 import { FONT_SIZE, FONT_WEIGHT } from "../../ui/theme.js";
 import {
   serviceLabel, fmtNum, errorBuckets, healthVerdict, copyText, bundleStamp,
@@ -186,7 +186,7 @@ export function Diagnostics() {
               );
             })()}
             <ServiceStatusPanel disk={disk} mem={mem} certDaysRemaining={dash.cert_days_remaining} comps={comps} nav={nav} />
-            <DashSection title="외부 연동"
+            <Section titleAs="h2" title="외부 연동"
               action={Object.keys(integrations).length ? (
                 <Typography variant="body2" color="text.secondary">
                   {/* PA-RC-0028: 도넛 대신 제목 옆 'N / M' 한 줄로 — 옆 카드가 이미 개별 상태를
@@ -211,8 +211,11 @@ export function Diagnostics() {
                     // 다른 화면(Dashboard.jsx의 서비스 목록)과 같은 방식으로 누를 수 있는 줄로 만든다 -
                     // 이름, 상태 배지만 보여주고 조치할 곳이 없는 막다른 줄로 남기지 않는다.
                     return (
-                      <StatusTile key={k} name={serviceLabel(k)} onClick={() => nav("/integrations")}
-                        ariaLabel={serviceLabel(k) + " 연동 관리로 이동"}>
+                      /* 「외부 연동」 관리 화면은 걷었다 — 여기가 그 상태를 보는 자리다.
+                         갈 곳이 없어졌으므로 누를 수 없는 줄로 둔다: 이름과 상태만 말한다.
+                         조치가 필요하면 서버 쪽 연동 설정을 손봐야 하고, 그것은 이 콘솔에
+                         있던 적이 없다(등록·수정 API 는 그대로 있다). */
+                      <StatusTile key={k} name={serviceLabel(k)}>
                         <Badge value={SERVICE_STATE_LABEL[state]} kind={SERVICE_STATE_KIND[state]} />
                       </StatusTile>
                     );
@@ -225,17 +228,16 @@ export function Diagnostics() {
                 // 오류만 있는' 중간 분기는 절대 일어나지 않아 제거하고, 곧장 빈 상태로 간다.
                 <Card>
                   <EmptyState title="추가된 외부 연동이 없습니다"
-                    help="이 설치는 바깥으로 나가는 호출을 쓰지 않습니다. 연동을 추가하면 여기에 상태가 표시됩니다."
-                    art="search"
-                    relatedLink={{ href: "#/integrations", label: "외부 연동으로 이동" }} />
+                    help="이 설치는 바깥으로 나가는 호출을 쓰지 않습니다. 연동이 등록되면 여기에 상태가 표시됩니다."
+                    art="search" />
                 </Card>
               )}
-            </DashSection>
+            </Section>
             {/* 설치처 설정. '외부 연동' 바로 아래에 둔다 - 연동이 비어 보이는 이유가 대개 여기 있다.
                 값을 그리지 않고 **채웠는지 여부만** 그린다: DB id 는 설치처 식별자라 진단 화면에
                 띄울 이유가 없고, 필요한 정보는 "안 채운 것이 있는가" 하나뿐이다. */}
             {tenantItems.length ? (
-              <DashSection title="설치처 설정">
+              <Section titleAs="h2" title="설치처 설정">
                 <Card>
                   {tenant.configured ? (
                     <Note sx={{ mt: 0 }}>설치처 고유 설정을 모두 채웠습니다.</Note>
@@ -260,13 +262,13 @@ export function Diagnostics() {
                     ))}
                   </LogList>
                 </Card>
-              </DashSection>
+              </Section>
             ) : null}
             {/* '현재 리소스'는 '시스템 리소스', '서비스 상태'와 같은 '지금 이 순간' 스냅샷이라, 이전엔
                 오류, 감사 이력(시간을 두고 훑는 섹션들) 사이에 끼어 있어 위쪽 두 섹션과 한눈에 묶여
                 읽히지 않았다, 같은 성격의 섹션끼리 먼저 모아 두고, 이력성 섹션은 그 아래로 둔다. */}
             {Object.keys(counts).length ? (
-              <DashSection title="현재 리소스">
+              <Section titleAs="h2" title="현재 리소스">
                 {/* Dashboard.jsx의 동일한 인벤토리 판독과 똑같이 해당 레지스트리로 드릴다운한다 -
                     이 화면은 admin/system_admin 전용이라 항상 도달 가능하다(대시보드처럼
                     역할별 canGo 분기가 필요 없다). */}
@@ -276,7 +278,7 @@ export function Diagnostics() {
                     { key: "schedules", value: fmtNum(counts.active_schedules), label: "활성 스케줄", onClick: () => nav("/schedules") },
                   ]}
                 />
-              </DashSection>
+              </Section>
             ) : null}
             <JobQueuePanel jobs24={jobs24} jobErrors={jobErrors} errorDist={errorDist} nav={nav} />
             {/* PA-RC-0028: '백업'과 '최근 주요 변경'을 이 화면 본문에서 뺐다 — /dashboard가
@@ -295,7 +297,7 @@ export function Diagnostics() {
                 </Link>
               </Card>
             </Box>
-            <DashSection title="원본 자료">
+            <Section titleAs="h2" title="원본 자료">
               {/* 다른 모든 섹션과 같은 Card로 감싸 원시 브라우저 기본 <details> 외형(카드 없음, 테두리 없음)이
                   이 페이지에서만 미완성처럼 보이던 문제를 없앤다. */}
               <Card>
@@ -311,7 +313,7 @@ export function Diagnostics() {
                   </Box>
                 </details>
               </Card>
-            </DashSection>
+            </Section>
           </Box>
         ) : q.isFetched ? (
           // 자동 수집 전 첫 프레임에 이 안내가 번쩍이던 문제, 아직 fetch 전이면(아래 폴백) 스켈레톤을 보여

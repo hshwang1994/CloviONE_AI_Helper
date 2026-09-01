@@ -64,23 +64,35 @@ const MEETING = {
     overdue: 1, issue: 0, blocked: 1, remaining_wd: 6, planned_wd: 7,
   },
   health: { score: 62.5, progress_pct: 25, elapsed_pct: 50 },
+  phase: "during",
   burndown: {
     total_est_wd: 7,
+    start_est_wd: 7,
     points: [
-      { date: "2026-08-24", planned: 7, open: 6 },
-      { date: "2026-08-25", planned: 5, open: 4 },
-      { date: "2026-08-26", planned: 3, open: 3 },
+      { date: "2026-08-24", ideal: 7, remaining: 6, scope: 7, done: 1 },
+      { date: "2026-08-25", ideal: 5, remaining: 4, scope: 7, done: 3 },
+      { date: "2026-08-26", ideal: 3, remaining: 3, scope: 7, done: 4 },
     ],
   },
   workload: [
     { user_id: "u-2", display_name: "개발자", avatar_url: null, avatar_default_key: null, remaining_wd: 6, open: 3, unestimated: 1 },
   ],
-  scope: { tracked: true, added: 1, removed: 0 },
+  scope: {
+    tracked: true, added: 1, removed: 0,
+    trend: [
+      { date: "2026-08-24", added: 0, removed: 0 },
+      { date: "2026-08-25", added: 1, removed: 0 },
+      { date: "2026-08-26", added: 1, removed: 0 },
+    ],
+  },
   discuss: {
     overdue: { items: [row()], total: 1, truncated: false },
     blocked: { items: [row({ id: "t-stuck", page_id: "pg-stuck", key: "ABC-2", title: "막힌 일", blocked: true, due: null })], total: 1, truncated: false },
+    issue: { items: [], total: 0, truncated: false },
     unassigned: { items: [], total: 0, truncated: false },
     due_soon: { items: [], total: 0, truncated: false },
+    no_estimate: { items: [], total: 0, truncated: false },
+    no_due: { items: [], total: 0, truncated: false },
     scope_changes: { items: [], total: 0, truncated: false },
   },
   candidates: [
@@ -146,14 +158,16 @@ describe("스프린트 회의", () => {
     expect(apiMock.mock.calls.some(([p]) => p === "/api/work/sprints/sp-old/meeting")).toBe(false);
   });
 
-  it("회차 기간과 오늘을 화면이 말한다", async () => {
+  it("회차 머리가 기간·오늘·상태를 말한다", async () => {
     renderSprint();
     // 이 화면은 이제 ECharts 차트 여러 개(번다운·건강·Workload)를 함께 그린다(§15.2) —
     // 그 자체는 이 문장과 무관하지만, 전체 표적 검증처럼 차트가 많은 시험 파일 여럿이
     // 동시에 도는 동안에는 동적 import 의 시스템 부하가 늘어 기본 시간 제한(1000ms)을
     // 넘길 수 있다. 넉넉히 준다.
-    await waitFor(() => expect(screen.getByText(/2026-08-24부터/)).toBeTruthy(), { timeout: 5000 });
-    expect(screen.getByText(/오늘은 2026-08-27입니다/)).toBeTruthy();
+    await waitFor(() => expect(screen.getByText(/8\/24.*~.*8\/30/)).toBeTruthy(), { timeout: 5000 });
+    expect(screen.getByText(/오늘 2026-08-27/)).toBeTruthy();
+    // 회차가 어느 단계인가를 화면이 말한다 — 이 한 줄이 없어서 「어떻게 쓰는지 모르겠다」가 됐다.
+    expect(screen.getByText(/진행 중인 회차입니다/)).toBeTruthy();
   });
 
   it("🔴 논의 항목은 유형별이고 각 탭이 건수를 말한다", async () => {
@@ -161,7 +175,7 @@ describe("스프린트 회의", () => {
     // 위 시험과 같은 이유(§15.2 차트 여럿 + §15.5 `DateField` 지연 로드) — 전량 실행처럼
     // 동적 import 부하가 큰 상황에서 기본 1000ms 를 넘길 수 있어 넉넉히 준다.
     await waitFor(() => expect(screen.getByRole("tab", { name: "지연 1" })).toBeTruthy(), { timeout: 5000 });
-    for (const name of ["차단 1", "미할당 0", "마감 임박 0", "범위 변경 0"]) {
+    for (const name of ["차단 1", "이슈 0", "미할당 0", "마감 임박 0", "예상 WD 없음 0", "마감 없음 0", "범위 변경 0"]) {
       expect(screen.getByRole("tab", { name })).toBeTruthy();
     }
     // 기본 탭은 지연이다 — 회의에서 가장 먼저 말하는 것이다.

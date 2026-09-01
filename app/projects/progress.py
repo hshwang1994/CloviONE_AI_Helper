@@ -38,8 +38,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-# 상태 어휘는 app/reports/service.py, app/sprints/burndown.py 와 **같은 문자열**이다.
-# 여기서 새로 정의하면 Notion 의 상태 이름이 바뀔 때 고칠 자리가 세 곳이 된다.
+# 상태 어휘는 app/reports/service.py 와 **같은 문자열**이다. 여기서 새로 정의하면
+# 상태 이름이 바뀔 때 고칠 자리가 두 곳이 된다.
+# 🔴 정본은 `app/work/workflow.py::category_of` 다 — 문자열 비교는 그 어휘가 늘어난 날
+# 조용히 틀린다. 회차 번다운은 그래서 문자열 비교를 걷어냈다(`app/work/meeting.py`).
 STATUS_DONE = "완료"
 STATUS_CANCELLED = "취소"
 

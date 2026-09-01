@@ -53,11 +53,16 @@ import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "./theme.js";
  * 이 파일을 정적으로 import 하는 순간 그 결정이 조용히 무너지므로,
  * `frontend/src/ui/block-editor-lazy.test.jsx` 가 그것을 코드로 확인한다.
  *
- * ## 왜 `BodyEditor.jsx` 를 안 쓰는가
+ * ## 티켓 본문도 이 편집기를 쓴다
  *
- * 그쪽은 **마크다운 문자열**을 다룬다. 정본이 문자열이면 「이 문장의 출처 위치」를 가리킬
- * 수 없고(D-198), 버전 차이도 줄 단위로만 볼 수 있다. 둘은 서로 다른 자료를 다루는 서로
- * 다른 도구라 합치지 않는다 — 옛 문서(Notion 미러)는 그대로 `BodyEditor` 를 쓴다.
+ * 예전에는 티켓 설명·본문이 `BodyEditor.jsx`(마크다운 문자열 + 글자 칩 툴바)를 썼고, 이
+ * 자리에는 「둘은 서로 다른 자료를 다루는 서로 다른 도구라 합치지 않는다」고 적혀 있었다.
+ * 그 문장은 자료가 달랐기 때문에 맞았고, **자료를 같게 만들면서 함께 없어졌다** —
+ * `tickets.body_doc` 이 문서 본문과 같은 스키마이고 같은 검증기를 지난다
+ * (`app/tickets/body_doc.py`). 마크다운은 이제 정본이 아니라 서버가 만드는 파생값이다.
+ *
+ * 정본이 문자열이면 「이 문장의 출처 위치」를 가리킬 수 없고(D-198) 버전 차이도 줄
+ * 단위로만 볼 수 있다 — 티켓에서도 같은 이유로 정본을 문서로 옮겼다.
  *
  * ## 블록 id 를 돌려주는 것이 이 편집기의 계약이다
  *
@@ -287,9 +292,24 @@ function LinkPopover({ anchorEl, initialHref, onClose, onSubmit, onRemove }) {
  * `value` 는 서버가 준 Block JSON 이고 `onChange` 는 그것과 같은 모양을 돌려준다.
  * 부르는 쪽이 저장 시점을 정한다 — 여기서 저장을 부르지 않는 이유는 `DragDrop.jsx` 가
  * 낙관적 갱신을 안 하는 이유와 같다: 언제가 진실인지는 부르는 쪽이 알아야 한다. */
-export function BlockEditor({ value, onChange, readOnly = false, label = "본문", onPickImage }) {
+export function BlockEditor({ value, onChange, readOnly = false, label = "본문", ariaLabel, onPickImage }) {
+  const name = ariaLabel || label;
   const editor = useEditor({
     editable: !readOnly,
+    /* 🔴 편집 영역의 **접근 이름**은 contenteditable 자신이 들어야 한다.
+     *
+     * 예전에는 `<EditorContent aria-label>` 로 감싸는 `div` 에만 붙였는데, 스크린리더가
+     * 읽는 것은 그 안의 `contenteditable` 이라 편집기가 이름 없는 입력 상자였다. 그러면
+     * 「무엇을 고치는 자리인가」를 들을 방법이 없다 — 티켓 본문인지 문서 본문인지도.
+     * `role="textbox"` 도 함께 적는다: `contenteditable` 의 암묵 role 은 브라우저마다
+     * 다르고, 이름과 역할이 함께 있어야 시험도 화면도 같은 것을 짚는다. */
+    editorProps: {
+      attributes: {
+        role: "textbox",
+        "aria-label": name,
+        "aria-multiline": "true",
+      },
+    },
     extensions: [
       StarterKit.configure({
         // 링크는 StarterKit 밖이다(별도 확장) — 아래에서 따로 등록한다.
@@ -624,7 +644,7 @@ export function BlockEditor({ value, onChange, readOnly = false, label = "본문
           },
         })}
       >
-        <EditorContent editor={editor} aria-label={label} />
+        <EditorContent editor={editor} />
       </Box>
     </Box>
   );

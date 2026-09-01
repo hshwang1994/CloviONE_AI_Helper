@@ -50,9 +50,8 @@ describe("canGo — 정본 한 표에서 읽는다", () => {
   it("blocks a null role on a gated path", () => {
     expect(canGo("/diagnostics", null)).toBe(false);
   });
-  it("opens /backup and /integrations to read roles including auditor", () => {
+  it("opens /backup to read roles including auditor", () => {
     expect(canGo("/backup", "auditor")).toBe(true);
-    expect(canGo("/integrations", "auditor")).toBe(true);
   });
   it("쿼리가 붙은 주소도 같은 화면으로 본다 (/settings?tab=policy)", () => {
     // 유지보수 경보가 가리키는 곳이다 — 탭 단위 게이트는 그 화면이 따로 건다.
@@ -249,7 +248,8 @@ describe("buildAlerts — 조치 대기 목록의 값(원본 로직 그대로)",
      보이게 만들었다. */
   it("활성 연동이 down이면 위험이 아니라 주의로 올린다", () => {
     const a = buildAlerts({ integrations: { messenger: { enabled: true, last_health: "down" } } }, "admin");
-    expect(a.find((x) => x.src === "integ:messenger")).toMatchObject({ value: "중단", kind: "warn", to: "/integrations" });
+    // 가는 곳은 **진단**이다 — 「외부 연동」 관리 화면을 걷었고, 헬스 결과를 읽는 자리가 거기다.
+    expect(a.find((x) => x.src === "integ:messenger")).toMatchObject({ value: "중단", kind: "warn", to: "/diagnostics" });
   });
 
   /* 저장소는 디스크와 다른 결함을 잡는다 — 자리는 넉넉한데 못 쓰는 경우다. 그리고

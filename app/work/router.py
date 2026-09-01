@@ -22,6 +22,7 @@ from app.core.deps import get_current_user, get_db, require_csrf, require_permis
 from app.core.dates import parse_date
 from app.core.errors import NotFoundError, ValidationAppError
 from app.home.service import local_today
+from app.org import context as org_context
 from app.settings.gate import block_if_maintenance
 from app.tickets import service as tickets_service
 from app.users.models import User
@@ -104,6 +105,23 @@ def _resolve_assignee_token(
     return None
 
 
+def _dept(db: Session, user: User, department_id: str | None) -> dict:
+    """부서(팀) 필터 한 벌 — 좁힌 범위와 화면이 그릴 후보를 함께.
+
+    티켓에는 부서 칸이 없다(`app/tickets/models.py` 가 그 칸을 일부러 없앴다). 티켓의
+    팀은 `project.dept_id` 한 단계이므로, 판정 규칙을 새로 만들지 않고 `/api/tickets/team`
+    과 **같은 헬퍼**로 좁힌 Scope 를 구해 프로젝트 절에 넣는다. 응답에 후보를 동봉하는
+    규약도 그쪽과 같다 — 화면이 스스로 조직도를 훑어 만들면 서버가 좁힌 범위와 갈라진다.
+    """
+    return {
+        "scope": org_context.filter_scope(db, user, department_id),
+        "envelope": {
+            "selected": department_id or None,
+            "options": org_context.department_options(db, user),
+        },
+    }
+
+
 @router.get("/board")
 def get_board(
     request: Request,
@@ -116,6 +134,13 @@ def get_board(
     assignee_user_id: str | None = Query(default=None, max_length=36),
     mine: bool = Query(default=False),
     blocked_only: bool = Query(default=False),
+    # 판과 백로그가 **같은 축으로 좁힌다**. 예전에는 검색·우선순위·난이도가 백로그에만
+    # 있어서, 탭을 옮기면 방금 건 조건이 조용히 사라졌다.
+    department_id: str | None = Query(default=None, max_length=36),
+    q: str | None = Query(default=None, max_length=200),
+    priority: str | None = Query(default=None, max_length=64),
+    difficulty: str | None = Query(default=None, max_length=64),
+    signal: str | None = Query(default=None, pattern="^(blocked|overdue|issue)$"),
     # §8.1 — 회차 미선택 기본은 execution(종료 상태 제외). all 은 명시할 때만.
     scope: str | None = Query(default=None, pattern="^(sprint|execution|all)$"),
     # §8.5 — 열 하나가 첫 쪽에 싣는 카드 수. 나머지는 /board/columns/{status_key} 가 잇는다.
@@ -127,18 +152,24 @@ def get_board(
     KST 09:00 이전에 하루 밀린 건수를 요약 줄에 그린다.
     """
     token = _resolve_assignee_token(db, user, mine=mine, assignee_user_id=assignee_user_id)
-    return service.board(
+    dept = _dept(db, user, department_id)
+    body = service.board(
         db, user,
         project_id=project_id, sprint_id=sprint_id, scope=scope,
         assignee_token=token, blocked_only=blocked_only,
+        dept_scope=dept["scope"], q=q, priority=priority, difficulty=difficulty,
+        signal=signal,
         column_page_size=column_page_size,
         today=local_today(request.app.state.settings, request.app.state.clock.now()),
     )
+    body["departments"] = dept["envelope"]
+    return body
 
 
 @router.get("/board/columns/{status_key}")
 def get_board_column(
     status_key: str,
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
     project_id: str | None = Query(default=None, max_length=36),
@@ -146,6 +177,11 @@ def get_board_column(
     assignee_user_id: str | None = Query(default=None, max_length=36),
     mine: bool = Query(default=False),
     blocked_only: bool = Query(default=False),
+    department_id: str | None = Query(default=None, max_length=36),
+    q: str | None = Query(default=None, max_length=200),
+    priority: str | None = Query(default=None, max_length=64),
+    difficulty: str | None = Query(default=None, max_length=64),
+    signal: str | None = Query(default=None, pattern="^(blocked|overdue|issue)$"),
     scope: str | None = Query(default=None, pattern="^(sprint|execution|all)$"),
     cursor: str | None = Query(default=None, max_length=200),
     limit: int = Query(default=service.DEFAULT_COLUMN_PAGE_SIZE, ge=1, le=service.MAX_COLUMN_PAGE_SIZE),
@@ -162,12 +198,16 @@ def get_board_column(
         status_key=status_key,
         project_id=project_id, sprint_id=sprint_id, scope=scope,
         assignee_token=token, blocked_only=blocked_only,
+        dept_scope=org_context.filter_scope(db, user, department_id),
+        q=q, priority=priority, difficulty=difficulty, signal=signal,
+        today=local_today(request.app.state.settings, request.app.state.clock.now()),
         cursor=cursor, limit=limit,
     )
 
 
 @router.get("/backlog")
 def get_backlog(
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
     project_id: str | None = Query(default=None, max_length=36),
@@ -176,18 +216,26 @@ def get_backlog(
     mine: bool = Query(default=False),
     priority: str | None = Query(default=None, max_length=64),
     difficulty: str | None = Query(default=None, max_length=64),
+    department_id: str | None = Query(default=None, max_length=36),
+    blocked_only: bool = Query(default=False),
+    signal: str | None = Query(default=None, pattern="^(blocked|overdue|issue)$"),
     # §8.5 — 181행을 한 번에 받던 것을 커서로 잇는다.
     cursor: str | None = Query(default=None, max_length=200),
     limit: int = Query(default=service.DEFAULT_COLUMN_PAGE_SIZE, ge=1, le=service.MAX_COLUMN_PAGE_SIZE),
 ) -> dict:
     """백로그 — 아직 어느 회차에도 안 담긴 일. 조건은 판과 **같은 이름**을 쓴다."""
     token = _resolve_assignee_token(db, user, mine=mine, assignee_user_id=assignee_user_id)
-    return service.backlog(
+    dept = _dept(db, user, department_id)
+    body = service.backlog(
         db, user,
         project_id=project_id, q=q, assignee_token=token,
         priority=priority, difficulty=difficulty,
+        dept_scope=dept["scope"], signal=signal, blocked_only=blocked_only,
+        today=local_today(request.app.state.settings, request.app.state.clock.now()),
         cursor=cursor, limit=limit,
     )
+    body["departments"] = dept["envelope"]
+    return body
 
 
 @router.post("/board/{ticket_id}/move", dependencies=[Depends(require_csrf)])
@@ -222,6 +270,9 @@ def move_card(
         position_assignee_token=position_token,
         position_priority=payload.position_priority,
         position_difficulty=payload.position_difficulty,
+        position_dept_scope=org_context.filter_scope(db, user, payload.position_department_id),
+        position_signal=payload.position_signal,
+        position_today=local_today(request.app.state.settings, request.app.state.clock.now()),
         base_version=payload.base_version,
         repo=_repo(request),
         request=request,

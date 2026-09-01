@@ -1,47 +1,87 @@
 import { describe, it, expect } from "vitest";
 import {
-  burndownSeries, shortDate, weekdayKo, datedLabel, healthBand, healthCuts,
+  burndownSeries, scopeTrendSeries, shortDate, weekdayKo, datedLabel, healthBand, healthCuts,
   pickOpenSprint, loadBand, wdBalanceItems,
 } from "./sprint-charts.js";
 
-/* 스프린트 두 그림의 해석 규칙.
+/* 스프린트 그림들의 해석 규칙.
  *
  * 여기서 지키는 것: **숫자를 지어내지 않는다.** 그릴 게 없으면 null 이고(화면이 '데이터 없음'을
- * 그린다), 선 이름은 데이터가 실제로 말할 수 있는 것만 말한다('이상/실제'가 아니라 '계획/미완료').
+ * 그린다), 오늘 이후의 「남은 일」은 `null` 로 두어 선이 거기서 끊긴다 — 내일 얼마가 남을지는
+ * 아무도 모르고, 그 자리를 채우면 그것은 그림이 아니라 창작이다.
  */
 
 describe("burndownSeries", () => {
+  // 서버(`app/work/meeting.py::_burndown`)가 주는 모양. 마지막 날은 아직 안 왔다.
   const points = [
-    { date: "2026-08-03", planned: 5, open: 3 },
-    { date: "2026-08-04", planned: 3, open: 2 },
-    { date: "2026-08-05", planned: 0, open: 0 },
+    { date: "2026-08-03", ideal: 6, remaining: 6, scope: 6 },
+    { date: "2026-08-04", ideal: 3, remaining: 4, scope: 6 },
+    { date: "2026-08-05", ideal: 0, remaining: null, scope: 6 },
   ];
 
-  it("서버가 준 두 계열을 그대로 옮긴다", () => {
+  it("이상선과 남은 일 선을 그대로 옮긴다", () => {
     const out = burndownSeries({ points });
-    expect(out.series.map((s) => s.label)).toEqual(["계획(마감일 기준)", "아직 미완료"]);
-    expect(out.series[0].points).toEqual([5, 3, 0]);
-    expect(out.series[1].points).toEqual([3, 2, 0]);
+    expect(out.series.map((s) => s.label)).toEqual(["이상", "남은 일"]);
+    expect(out.series[0].points).toEqual([6, 3, 0]);
+    expect(out.series[1].points).toEqual([6, 4, null]);
     expect(out.labels).toEqual(["8/3", "8/4", "8/5"]);
   });
 
-  it("선 이름이 '이상/실제'가 아니다 — 완료 시각 이력이 없으므로 그렇게 부르면 거짓이다", () => {
-    const labels = burndownSeries({ points }).series.map((s) => s.label).join(" ");
-    expect(labels).not.toMatch(/이상|실제/);
+  it("🔴 오늘 이후의 남은 일은 null 이다 — 미래를 그리지 않는다", () => {
+    const out = burndownSeries({ points });
+    expect(out.series[1].points[2]).toBeNull();
   });
 
-  it("요약 한 줄이 두 숫자를 글자로도 말한다", () => {
-    expect(burndownSeries({ points }).summary).toContain("5인일");
-    expect(burndownSeries({ points }).summary).toContain("3인일");
+  it("범위가 안 바뀌면 범위선을 그리지 않는다 — 이상선과 겹치는 장식이다", () => {
+    expect(burndownSeries({ points }).series).toHaveLength(2);
+  });
+
+  it("범위가 불어나면 범위선이 붙고 요약이 그 사실을 말한다", () => {
+    const grew = [
+      { date: "2026-08-03", ideal: 6, remaining: 6, scope: 6 },
+      { date: "2026-08-04", ideal: 3, remaining: 4, scope: 9 },
+    ];
+    const out = burndownSeries({ points: grew });
+    expect(out.series.map((s) => s.label)).toContain("범위");
+    expect(out.summary).toContain("범위가");
+  });
+
+  it("요약이 계획과의 차이를 글자로 말한다", () => {
+    // 8/4 에 이상은 3, 남은 일은 4 — 1인일 뒤처져 있다.
+    expect(burndownSeries({ points }).summary).toContain("1인일");
   });
 
   it("점이 부족하거나 전부 0이면 null — 빈 차트로 '0이다'와 '모른다'를 섞지 않는다", () => {
     expect(burndownSeries(null)).toBeNull();
     expect(burndownSeries({ points: [] })).toBeNull();
-    expect(burndownSeries({ points: [{ date: "2026-08-03", planned: 5, open: 5 }] })).toBeNull();
+    expect(burndownSeries({ points: [{ date: "2026-08-03", ideal: 5, remaining: 5, scope: 5 }] })).toBeNull();
     expect(burndownSeries({ points: [
-      { date: "2026-08-03", planned: 0, open: 0 },
-      { date: "2026-08-04", planned: 0, open: 0 },
+      { date: "2026-08-03", ideal: 0, remaining: 0, scope: 0 },
+      { date: "2026-08-04", ideal: 0, remaining: 0, scope: 0 },
+    ] })).toBeNull();
+  });
+});
+
+describe("scopeTrendSeries", () => {
+  const trend = [
+    { date: "2026-08-03", added: 0, removed: 0 },
+    { date: "2026-08-04", added: 2, removed: 0 },
+    { date: "2026-08-05", added: 3, removed: 1 },
+  ];
+
+  it("일자별 누적 두 선을 낸다", () => {
+    const out = scopeTrendSeries({ trend });
+    expect(out.series.map((s) => s.label)).toEqual(["들어옴", "빠짐"]);
+    expect(out.series[0].points).toEqual([0, 2, 3]);
+    expect(out.series[1].points).toEqual([0, 0, 1]);
+  });
+
+  it("드나든 것이 없으면 null — 바닥에 붙은 선 둘은 그림이 아니다", () => {
+    expect(scopeTrendSeries(null)).toBeNull();
+    expect(scopeTrendSeries({ trend: [] })).toBeNull();
+    expect(scopeTrendSeries({ trend: [
+      { date: "2026-08-03", added: 0, removed: 0 },
+      { date: "2026-08-04", added: 0, removed: 0 },
     ] })).toBeNull();
   });
 });
@@ -88,10 +128,10 @@ describe("wdBalanceItems", () => {
      준다. 예전 값은 `primary`(사용자 Accent)와 `warning`(상태색)이었고, 그 갈색은 바로 옆
      담당자 막대에서 «과부하»를 뜻했다. 한 화면에서 같은 색이 두 가지를 뜻하면 색은
      아무것도 뜻하지 않는다. */
-  it("번다운 두 선은 색을 정하지 않는다 — Accent 도 상태색도 시리즈가 아니다", () => {
+  it("번다운 선들은 색을 정하지 않는다 — Accent 도 상태색도 시리즈가 아니다", () => {
     const series = burndownSeries({ points: [
-      { date: "2026-08-03", planned: 5, open: 3 },
-      { date: "2026-08-04", planned: 3, open: 2 },
+      { date: "2026-08-03", ideal: 5, remaining: 5, scope: 5 },
+      { date: "2026-08-04", ideal: 3, remaining: 2, scope: 5 },
     ] }).series;
     expect(series.map((s) => s.color)).toEqual([undefined, undefined]);
     expect(series.map((s) => s.color)).not.toContain("primary");
