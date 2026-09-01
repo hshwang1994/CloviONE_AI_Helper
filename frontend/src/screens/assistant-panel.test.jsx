@@ -196,8 +196,10 @@ describe("AI 도우미 패널", () => {
     expect(await screen.findByText("끝낸 일")).toBeInTheDocument();
     expect(screen.getByText("오늘 처리할 티켓")).toBeInTheDocument();
     expect(screen.getByText("지연된 일")).toBeInTheDocument();
-    // 막힌 일이 0건이면 빈 칸이 아니라 '없다'고 말한다.
-    expect(screen.getByText("상태가 이슈인 티켓이 없습니다.")).toBeInTheDocument();
+    // 막힌 일이 0건이면 빈 칸이 아니라 '없다'고 말한다. 그 말이 무엇이 없는지도 맞아야
+    // 한다 — 예전 문구는 「상태가 이슈인」이었는데 `이슈` 는 더 이상 상태가 아니라 상태와
+    // 직교하는 신호이고(D-349), 이 묶음은 **이슈 있음이거나 차단됨**을 센다.
+    expect(screen.getByText("이슈나 차단으로 표시한 티켓이 없습니다.")).toBeInTheDocument();
   });
 
   it("트리아지는 '제안'이라고 말하고 배정 버튼을 두지 않는다", async () => {

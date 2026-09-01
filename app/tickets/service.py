@@ -1202,7 +1202,13 @@ HISTORY_FIELDS: dict[str, str] = {
     "assignees": "담당자",
     "difficulty": "난이도",
     "est_wd": "예상 WD",
+    # 신호 둘. 사람이 켜는 값이므로 「누가 언제 켰나」가 이력에 남아야 한다 (D-349).
+    # 이름은 화면 어휘(`frontend/src/lib/ticketSignals.js`)와 같은 말이다.
+    "issue": "이슈 있음",
+    "blocked": "차단됨",
 }
+#: 켜짐/꺼짐으로 읽는 칸. `str(False)` 는 화면에 「False」로 나간다.
+HISTORY_BOOL_FIELDS: frozenset[str] = frozenset({"issue", "blocked"})
 # 이 티켓에 달리는 감사 동작 중 **사람이 한 일**만 이력에 싣는다.
 HISTORY_ACTIONS: dict[str, str] = {
     "ticket.create": "만들었습니다",
@@ -1223,6 +1229,10 @@ def _history_value(field: str, raw, names: dict[str, str]) -> str:
         if not ids:
             return "없음"
         return ", ".join(names.get(str(i), "알 수 없는 사용자") for i in ids)
+    # 깃발은 「없음」이 아니라 「꺼짐」이다 — 안 적힌 것과 꺼 둔 것은 다른 사실이고,
+    # 아래 일반 갈래로 내려보내면 화면에 「False」가 그대로 나간다.
+    if field in HISTORY_BOOL_FIELDS:
+        return "켜짐" if raw else "꺼짐"
     if raw in (None, "", []):
         return "없음"
     return str(raw)

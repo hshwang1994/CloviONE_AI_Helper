@@ -37,7 +37,7 @@ import { invalidateTicketViews } from "./ticket-views.js";
 import { SPRINT_FIELDS } from "./sprint-fields.js";
 import { TicketEditModal } from "./MyTickets.jsx";
 import { useAssigneeOptions, useTicketMeta, useTicketProjects } from "./ticket-options.js";
-import { useTicketSignals } from "../lib/ticketSignals.js";
+import { SIGNALS, SIGNAL_ORDER, useTicketSignals } from "../lib/ticketSignals.js";
 import { TicketSignals } from "../ui/TicketSignals.jsx";
 import { TicketFace, TicketPeople } from "../ui/TicketFace.jsx";
 import { StatusKpiStrip } from "../ui/StatusKpi.jsx";
@@ -111,8 +111,12 @@ const BOARD_SPEC = {
   all: false,
 };
 
-/** 신호 한 갈래의 이름. 서버 어휘(`app/work/service.py::SIGNALS`)와 같은 말이다. */
-const SIGNAL_LABEL = { blocked: "차단됨", overdue: "지연", issue: "이슈 있음" };
+/** 신호 어휘는 `lib/ticketSignals.js` 한 곳이다 — 이름도 색도.
+ *
+ * 🔴 예전에는 이 파일이 이름 표를 **다시 적었고**, 그래서 아래 KPI 타일이 지연을 빨강,
+ * 이슈를 주황으로 칠했다. 목록의 신호 표시는 같은 티켓을 각각 주황·보라로 칠하고 있었다 —
+ * 한 화면 안에서 같은 신호가 두 색이었다. 어휘가 두 벌이면 한쪽만 고쳐진다. */
+const SIGNAL_TILE_KEYS = SIGNAL_ORDER;
 
 /** 판이 어디까지 자랄 수 있는가. 칸 **안에서만** 굴러가고 페이지는 안 밀린다(지시 5).
  *
@@ -688,12 +692,16 @@ export function WorkBoard() {
         };
       })
     : [];
+  /* 이름도 색도 공용 표에서 온다 — 이 타일과 목록의 신호 표시가 **같은 티켓을 같은 색**으로
+     칠한다. 셋이 서로 다른 색인 이유는 어휘 표에 적혀 있다(빨강=지금 막힘, 주황=시간이 지남,
+     보라=알고 있어야 함). */
   const signalTiles = summary
-    ? [
-        { key: "blocked", label: SIGNAL_LABEL.blocked, value: String(summary.signals.blocked), kind: "danger" },
-        { key: "overdue", label: SIGNAL_LABEL.overdue, value: String(summary.signals.overdue), kind: "danger" },
-        { key: "issue", label: SIGNAL_LABEL.issue, value: String(summary.signals.issue), kind: "warn" },
-      ]
+    ? SIGNAL_TILE_KEYS.map((k) => ({
+      key: k,
+      label: SIGNALS[k].label,
+      value: String(summary.signals[k]),
+      kind: SIGNALS[k].tone,
+    }))
     : [];
 
   /* 「티켓 추가」가 데려가는 곳. 회차 맥락은 **판 탭에서만** 싣는다 — 백로그 탭에서 만든
@@ -866,7 +874,7 @@ export function WorkBoard() {
             label="신호"
             value={signal}
             onChange={(v) => setState({ signal: v || "" })}
-            options={Object.keys(SIGNAL_LABEL).map((k) => ({ value: k, label: SIGNAL_LABEL[k] }))}
+            options={SIGNAL_ORDER.map((k) => ({ value: k, label: SIGNALS[k].label }))}
             allLabel="전체"
           />
           <FormControlLabel

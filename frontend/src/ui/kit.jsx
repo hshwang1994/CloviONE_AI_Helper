@@ -476,10 +476,34 @@ export const SURFACE_TONES = {
 };
 
 /* 팔레트 경로("brand.core")를 실제 색으로. `borderInlineStartColor` 는 MUI 의 border 설정
-   목록에 없어 팔레트 경로를 해석해 주지 않는다 — 그래서 여기서 직접 푼다. */
+   목록에 없어 팔레트 경로를 해석해 주지 않는다 — 그래서 여기서 직접 푼다.
+
+   🔴 경로가 아닌 값은 **그대로 돌려준다.** 브랜드 밖 톤(보라·틸·인디고)의 색은 팔레트가
+   아니라 `--badge-*-fg` CSS 변수다(아래 `EXTRA_TONE_VARS` 와 같은 값이다). 예전에는 그것을
+   경로로 읽어 `theme.palette["var(--badge-purple-fg)"]` 를 찾았고, 없으니 `undefined` 가
+   나갔다. `border-color` 에 undefined 를 주면 속성이 아예 안 실리고 CSS 기본값
+   `currentColor` 로 떨어진다 — 보라 띠를 부탁한 자리에 **글자색 띠**가 그려지고 아무
+   오류도 안 난다. KPI 타일과 논의 갈래 카드의 위색 띠가 그 상태였다. */
 export function paletteAt(theme, path) {
-  return String(path).split(".").reduce((o, k) => (o == null ? o : o[k]), theme.palette);
+  const found = String(path).split(".").reduce((o, k) => (o == null ? o : o[k]), theme.palette);
+  return found == null ? String(path) : found;
 }
+
+/* 톤 이름 → 강조색. **같은 의미는 제품 전체에서 같은 색이다** — 신호 어휘
+   (`lib/ticketSignals.js`)가 고른 톤을 KPI 타일과 논의 갈래 카드가 같은 표로 푼다.
+   예전에는 두 부품이 각자 ternary 사슬을 갖고 있어서 한쪽만 톤을 알았다. */
+export const TONE_ACCENT = {
+  ok: "success.main",
+  danger: "error.main",
+  warn: "warning.main",
+  info: "info.main",
+  primary: "brand.core",
+  brand: "brand.core",
+  indigo: EXTRA_TONE_VARS.indigo.fg,
+  purple: EXTRA_TONE_VARS.purple.fg,
+  teal: EXTRA_TONE_VARS.teal.fg,
+  pink: EXTRA_TONE_VARS.pink.fg,
+};
 
 /* 지금 이 자리가 판 안인가. 0 = 캔버스 위. */
 const SurfaceDepthCtx = React.createContext(0);

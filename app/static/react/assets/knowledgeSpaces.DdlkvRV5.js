@@ -1,0 +1,1 @@
+import{c as r}from"./query.C7fhdGmx.js";import{a as t}from"./datascreen.gXc3UN8R.js";const o=["knowledge","spaces"];function u(){var s;const e=r({queryKey:o,queryFn:()=>t("/api/knowledge/spaces")}),a=Array.isArray((s=e.data)==null?void 0:s.items)?e.data.items:[];return{query:e,items:a}}export{o as S,u};

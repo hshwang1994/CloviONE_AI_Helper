@@ -645,6 +645,12 @@ class NativeTicketRepository:
         stamp = now or utcnow()
         row = self._require_row(db, page_id)
 
+        # 차단 사유는 **차단이 켜진 뒤의 상태**를 기준으로 저장한다. 아래 반복은 dict 순서를
+        # 그대로 따르므로, 사유가 깃발보다 먼저 오면 이 줄이 없을 때 「막혔다 + 이유」를 한 번에
+        # 저장한 요청에서 이유만 조용히 사라진다. 지금은 요청 스키마의 필드 순서가 우연히
+        # 지켜 주고 있을 뿐이라, 판정을 순서 밖으로 꺼낸다.
+        will_be_blocked = bool(changes.get("blocked_flag", row.blocked_flag))
+
         for key, value in changes.items():
             if key == "title":
                 if not (value or "").strip():
@@ -695,7 +701,7 @@ class NativeTicketRepository:
                 if not row.blocked_flag:
                     row.blocked_reason = None
             elif key == "blocked_reason":
-                row.blocked_reason = (value or None) if row.blocked_flag else None
+                row.blocked_reason = (value or None) if will_be_blocked else None
             # 그 밖의 키는 건너뛴다(위 docstring).
 
         row.updated_at = stamp

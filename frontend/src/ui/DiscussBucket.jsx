@@ -2,7 +2,7 @@ import React from "react";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 
-import { paletteAt } from "./kit.jsx";
+import { paletteAt, TONE_ACCENT } from "./kit.jsx";
 import { DISCUSS_TILE_TRACK, TILE_GRID_GAP, TILE_PADDING } from "./density.js";
 import { FONT_SIZE, FONT_WEIGHT, MOTION, NUMERIC, RADIUS } from "./theme.js";
 
@@ -13,10 +13,11 @@ import { FONT_SIZE, FONT_WEIGHT, MOTION, NUMERIC, RADIUS } from "./theme.js";
 
 export function DiscussBucket({ label, count, selected, tone, onClick }) {
   const name = `${label} ${count}`;
+  /* 톤 표는 `ui/kit.jsx` 한 곳이다(KPI 타일과 같은 표). 예전에는 여기 ternary 사슬이
+     danger·warn 둘만 알아서, 신호 어휘가 「이슈 있음은 보라」라고 말해도 이 카드만
+     그것을 못 듣고 회색 띠를 그렸다. */
   const accent =
-    tone === "danger" ? "error.main"
-      : tone === "warn" ? "warning.main"
-        : selected ? "brand.core" : "divider";
+    TONE_ACCENT[tone] || (selected ? "brand.core" : "divider");
   return (
     <Box
       component="button"

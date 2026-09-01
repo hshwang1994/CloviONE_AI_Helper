@@ -374,7 +374,10 @@ function standupParts(data) {
         <Box sx={SECTION_GRID}>
           <TicketLines label="최근 끝낸 일" block={data.recently_done} empty="이번 주에 완료한 티켓이 없습니다." />
           <TicketLines label="오늘 할 일" block={data.today_plan} empty="오늘 마감이거나 지연된 티켓이 없습니다." />
-          <TicketLines label="막힌 일" block={data.blocked} empty="상태가 이슈인 티켓이 없습니다." />
+          {/* 「상태가 이슈인」이었다. `이슈` 는 더 이상 상태가 아니라 상태와 직교하는
+              신호다(D-349) — 이 묶음은 **이슈 있음이거나 차단됨**인 티켓이다
+              (`app/home/aggregate.py::is_stuck`). */}
+          <TicketLines label="막힌 일" block={data.blocked} empty="이슈나 차단으로 표시한 티켓이 없습니다." />
         </Box>
       </SubGroup>
     ),

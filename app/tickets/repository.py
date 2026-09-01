@@ -430,7 +430,12 @@ class TicketRepository(Protocol):
 
 
 def snapshot(ticket: TicketDTO) -> dict:
-    """감사 before/after 스냅샷. 키 이름은 기존 감사 기록과 계속 같아야 한다(과거 기록 호환)."""
+    """감사 before/after 스냅샷. 키 이름은 기존 감사 기록과 계속 같아야 한다(과거 기록 호환).
+
+    🔴 신호 둘이 빠져 있었다. 사람이 켜는 값인데(D-349) 켠 기록이 어디에도 안 남아서
+    「누가 언제 이 티켓을 이슈로 표시했나」에 답할 자리가 없었다. **키를 더하는 것은**
+    과거 기록과 어긋나지 않는다 — 옛 행에는 양쪽 다 없고, 이력은 「바뀐 것만」 말한다.
+    """
     return {
         "status": ticket.status,
         "due": ticket.due,
@@ -438,4 +443,6 @@ def snapshot(ticket: TicketDTO) -> dict:
         "est_wd": ticket.est_wd,
         "difficulty": ticket.difficulty,
         "priority": ticket.priority,
+        "issue": bool(ticket.issue_flag),
+        "blocked": bool(ticket.blocked_flag),
     }

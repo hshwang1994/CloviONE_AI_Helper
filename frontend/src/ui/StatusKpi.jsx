@@ -2,7 +2,7 @@ import React from "react";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 
-import { paletteAt, statusKind } from "./kit.jsx";
+import { paletteAt, statusKind, TONE_ACCENT } from "./kit.jsx";
 import { fixedTileTrack, KPI_TILE_TRACK, TILE_GRID_GAP, TILE_PADDING } from "./density.js";
 import { useRevealOnce } from "./motion.js";
 import { FONT_SIZE, FONT_WEIGHT, MOTION, NUMERIC, RADIUS } from "./theme.js";
@@ -12,20 +12,10 @@ import { FONT_SIZE, FONT_WEIGHT, MOTION, NUMERIC, RADIUS } from "./theme.js";
  * 칸마다 위색 띠 · 숫자 · 라벨 · (있으면) 비율이 선다. 숫자는 처음부터 최종값이다 —
  * 세어 올라가는 연출은 값을 늦게 읽게 만든다. 등장만 짧게 한 번 한다. */
 
-const KIND_ACCENT = {
-  ok: "success.main",
-  danger: "error.main",
-  warn: "warning.main",
-  info: "info.main",
-  indigo: "var(--badge-indigo-fg)",
-  purple: "var(--badge-purple-fg)",
-  teal: "var(--badge-teal-fg)",
-  primary: "brand.core",
-  brand: "brand.core",
-};
-
+/* 톤 표는 `ui/kit.jsx` 한 곳이다 — 논의 갈래 카드(`DiscussBucket`)가 같은 표를 본다.
+   두 벌이면 신호 하나가 두 화면에서 다른 색으로 선다. */
 function accentOf(kind) {
-  return KIND_ACCENT[kind] || "brand.core";
+  return TONE_ACCENT[kind] || "brand.core";
 }
 
 /** 판독 하나가 **누를 수 있는가**. `onClick` 을 주면 단추가 된다.

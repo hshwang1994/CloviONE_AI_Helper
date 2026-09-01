@@ -36,6 +36,7 @@ vi.mock("../app/auth.jsx", () => ({
 import { Sprint } from "./Sprint.jsx";
 import { ConfirmProvider, ToastProvider } from "../ui/kit.jsx";
 import { ThemeModeProvider } from "../ui/ThemeModeProvider.jsx";
+import { SIGNALS } from "../lib/ticketSignals.js";
 
 const SPRINTS = {
   sprints: [
@@ -174,14 +175,19 @@ describe("스프린트 회의", () => {
     renderSprint();
     // 위 시험과 같은 이유(§15.2 차트 여럿 + §15.5 `DateField` 지연 로드) — 전량 실행처럼
     // 동적 import 부하가 큰 상황에서 기본 1000ms 를 넘길 수 있어 넉넉히 준다.
-    await waitFor(() => expect(screen.getByRole("tab", { name: "지연 1" })).toBeTruthy(), { timeout: 5000 });
-    for (const name of ["차단 1", "이슈 0", "미할당 0", "마감 임박 0", "예상 WD 없음 0", "마감 없음 0", "범위 변경 0"]) {
+    // 신호 셋의 이름은 공용 어휘에서 읽는다 — 여기 손으로 적으면 이 시험 자신이
+    // 어휘의 두 번째 사본이 되고, 화면과 시험이 함께 옛 이름으로 굳는다(실제로 그랬다:
+    // 목록은 「이슈 있음」인데 이 카드만 「이슈」였다).
+    const OVERDUE = `${SIGNALS.overdue.label} 1`;
+    await waitFor(() => expect(screen.getByRole("tab", { name: OVERDUE })).toBeTruthy(), { timeout: 5000 });
+    for (const name of [`${SIGNALS.blocked.label} 1`, `${SIGNALS.issue.label} 0`,
+      "미할당 0", "마감 임박 0", "예상 WD 없음 0", "마감 없음 0", "범위 변경 0"]) {
       expect(screen.getByRole("tab", { name })).toBeTruthy();
     }
     // 기본 탭은 지연이다 — 회의에서 가장 먼저 말하는 것이다.
     expect(screen.getByText("늦은 일")).toBeTruthy();
     expect(screen.queryByText("막힌 일")).toBeNull();
-    await userEvent.click(screen.getByRole("tab", { name: "차단 1" }));
+    await userEvent.click(screen.getByRole("tab", { name: `${SIGNALS.blocked.label} 1` }));
     await waitFor(() => expect(screen.getByText("막힌 일")).toBeTruthy());
   });
 

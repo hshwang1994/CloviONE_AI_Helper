@@ -3,7 +3,9 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import Autocomplete from "@mui/material/Autocomplete";
 import Box from "@mui/material/Box";
+import Checkbox from "@mui/material/Checkbox";
 import Chip from "@mui/material/Chip";
+import FormControlLabel from "@mui/material/FormControlLabel";
 import IconButton from "@mui/material/IconButton";
 import Link from "@mui/material/Link";
 import MenuItem from "@mui/material/MenuItem";
@@ -53,7 +55,11 @@ import { TicketEmptyState, TicketFilterBar, applyColumnFilter, clearTicketFilter
 import { openStatusKeys } from "../lib/openTicketStatuses.js";
 import { TicketSignals } from "../ui/TicketSignals.jsx";
 import { InlineEdit } from "../ui/InlineEdit.jsx";
-import { useTicketSignals } from "../lib/ticketSignals.js";
+import { SIGNALS, useTicketSignals } from "../lib/ticketSignals.js";
+
+/** 차단 사유 글자 한도. 서버 계약(`app/tickets/schemas.py::TicketUpdate`)과 같은 수다 —
+ *  여기서 막아야 사용자가 500자를 넘겨 적고 저장 버튼에서야 그 사실을 알지 않는다. */
+const BLOCKED_REASON_MAX = 500;
 import { useListMemory } from "../lib/listReturn.js";
 
 /* `EMPTYABLE_SELECT` 는 이제 ui/filters.jsx 가 정본이다(필터 select 와 편집 폼 select 가
@@ -668,6 +674,11 @@ export function TicketEditModal({ ticket, open, onClose }) {
       start: ticket.start || "",
       category: ticket.category || "",
       assignees: [...(ticket.assignee_user_ids || [])],
+      /* Signal — 상태와 직교하는 축 (D-349). 「지연」은 여기 없다: 마감일과 종료 여부에서
+         계산하는 값이라 사람이 켤 것이 아니다(`lib/ticketSignals.js`). */
+      issue: !!ticket.issue,
+      blocked: !!ticket.blocked,
+      blockedReason: ticket.blocked_reason || "",
     });
   }, [open, ticket]);
   const m = useMutation({
@@ -699,6 +710,17 @@ export function TicketEditModal({ ticket, open, onClose }) {
     if (form.start !== (ticket.start || "")) c.start_date = form.start;
     if (form.category.trim() !== (ticket.category || "")) c.category = form.category.trim();
     if (!sameSet(form.assignees, ticket.assignee_user_ids || [])) c.assignee_user_ids = form.assignees;
+    if (form.issue !== !!ticket.issue) c.issue_flag = form.issue;
+    /* `blocked_flag` 를 `blocked_reason` **앞에** 싣는다. 서버는 사유를 적용할 때 그 순간의
+       차단 여부를 보므로(`repository_native.update`), 순서가 뒤집히면 「막혔다 + 이유」를 한
+       번에 저장할 때 이유만 조용히 버려진다. */
+    if (form.blocked !== !!ticket.blocked) c.blocked_flag = form.blocked;
+    /* 사유는 차단이 켜져 있을 때만 뜻이 있다. 차단을 풀면 서버가 사유도 함께 지우므로
+       (지난 이유가 다음 차단에 그대로 붙어 나오면 그 말은 이미 틀렸다) 여기서 안 보낸다. */
+    const initReason = ticket.blocked_reason || "";
+    if (form.blocked && form.blockedReason.trim() !== initReason) {
+      c.blocked_reason = form.blockedReason.trim();
+    }
     return c;
   }
 
@@ -707,6 +729,9 @@ export function TicketEditModal({ ticket, open, onClose }) {
     if (!form.status) { toast("진행상태는 비울 수 없습니다.", "error"); return; }
     if (form.est_wd !== "" && Number.isNaN(Number(form.est_wd))) { toast("예상 WD에는 숫자를 입력하세요.", "error"); return; }
     if (form.act_wd !== "" && Number.isNaN(Number(form.act_wd))) { toast("실제 WD에는 숫자를 입력하세요.", "error"); return; }
+    if (form.blocked && form.blockedReason.trim().length > BLOCKED_REASON_MAX) {
+      toast(`차단 사유는 ${BLOCKED_REASON_MAX}자 이하로 입력하세요.`, "error"); return;
+    }
     const changes = buildChanges();
     if (Object.keys(changes).length === 0) { toast("수정한 내용이 없습니다.", "info"); return; }
     m.mutate(changes);
@@ -790,6 +815,38 @@ export function TicketEditModal({ ticket, open, onClose }) {
       InputLabelProps={{ shrink: true }} id="te-category" fullWidth size="small" label="대분류"
             value={form.category} onChange={(e) => set("category", e.target.value)}
             inputProps={{ maxLength: 200 }} />
+        </Box>
+        {/* 🔴 신호를 켜는 자리가 제품 어디에도 없었다. 서버는 이 세 칸을 받고
+            (`app/tickets/schemas.py::TicketUpdate`), 목록·상세·보드·회의·주간보고가 전부
+            그 값을 읽어 그리는데, **쓰는 화면이 하나도 없었다.** 그래서 「이슈 있음」 필터도
+            보드의 신호 타일도 이관 시점 데이터 말고는 영원히 0 이었다.
+
+            상태 격자 아래에 따로 세운 이유는 이것이 **다른 축**이기 때문이다 — 상태는 하나만
+            고르고 신호는 여럿이 함께 켜진다. 같은 격자에 섞으면 둘이 같은 종류로 읽힌다. */}
+        <Box sx={{ mt: 2.5 }}>
+          <Typography component="span" variant="body2" sx={{ fontWeight: FONT_WEIGHT.bold, display: "block", mb: 0.5 }}>신호</Typography>
+          <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1, ...KO_WORD_BREAK }}>
+            진행에 무슨 일이 있는지 표시합니다. 진행상태와 별개라서 함께 켤 수 있습니다. 지연은 마감일에서 자동으로 계산합니다.
+          </Typography>
+          <Box sx={{ display: "flex", flexWrap: "wrap", columnGap: 2 }}>
+            <FormControlLabel
+              control={<Checkbox id="te-issue" checked={form.issue} onChange={(e) => set("issue", e.target.checked)} />}
+              label={SIGNALS.issue.label}
+            />
+            <FormControlLabel
+              control={<Checkbox id="te-blocked" checked={form.blocked} onChange={(e) => set("blocked", e.target.checked)} />}
+              label={SIGNALS.blocked.label}
+            />
+          </Box>
+          {/* 사유 칸은 차단을 켰을 때만 선다. 항상 세워 두면 「사유는 적었는데 차단은 안 켜진」
+              저장이 생기고, 그 글은 아무 화면에도 안 나온다(서버가 버린다). */}
+          {form.blocked ? (
+            <TextField
+              InputLabelProps={{ shrink: true }} id="te-blocked-reason" fullWidth size="small" label="차단 사유" sx={{ mt: 1 }}
+              value={form.blockedReason} onChange={(e) => set("blockedReason", e.target.value)}
+              inputProps={{ maxLength: BLOCKED_REASON_MAX }}
+              helperText="무엇이 끝나야 이 일이 다시 움직이는지 적습니다. 목록에서 신호에 마우스를 올리면 보입니다." />
+          ) : null}
         </Box>
         <button type="submit" className="sr-only" tabIndex={-1} aria-hidden="true" />
       </form>

@@ -125,7 +125,10 @@ export function MyStats() {
               { key: "active", value: totals.active, label: "남은 일", primary: true },
               { key: "overdue", value: totals.overdue, label: "지연", kind: totals.overdue > 0 ? "danger" : undefined },
               { key: "due_today", value: totals.due_today, label: "오늘 마감", kind: totals.due_today > 0 ? "warn" : undefined },
-              { key: "blocked", value: totals.blocked, label: "막힘(이슈)", kind: totals.blocked > 0 ? "danger" : undefined },
+              // 「막힘(이슈)」였다. 괄호 안이 옛 티켓 **상태값**인데 `이슈` 는 더 이상 상태가
+              // 아니고(D-349), 이 숫자는 「이슈 있음이거나 차단됨」을 센다. 홈 화면이 같은
+              // 묶음을 이미 「막힌 일」로 부른다(`Home.jsx`) — 같은 수를 두 이름으로 부르지 않는다.
+              { key: "blocked", value: totals.blocked, label: "막힌 일", kind: totals.blocked > 0 ? "danger" : undefined },
               { key: "done", value: totals.done, label: "완료", kind: "ok" },
               { key: "rate", value: pct(totals.completion_rate), label: "완료율(취소 제외)" },
             ]}

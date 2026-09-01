@@ -35,7 +35,7 @@ import { SprintLifecycle, SprintStateBadge, sprintStateLabel } from "./SprintLif
 import { SPRINT_FIELDS } from "./sprint-fields.js";
 import { useQueryState } from "../lib/useQueryState.js";
 import { useTicketProjects } from "./ticket-options.js";
-import { useTicketSignals } from "../lib/ticketSignals.js";
+import { SIGNALS, useTicketSignals } from "../lib/ticketSignals.js";
 import { TicketFace, TicketPeople } from "../ui/TicketFace.jsx";
 import { StatusKpiStrip } from "../ui/StatusKpi.jsx";
 import { DiscussBucketRow } from "../ui/DiscussBucket.jsx";
@@ -93,10 +93,14 @@ const KIND_ACTION = "action";
  * 뒤의 둘은 **회의 준비**다. 예상 WD 나 마감이 비어 있으면 번다운도 담당자별 남은 WD 도
  * 못 그리는데, 예전에는 그림이 안 나온 **뒤에야** 그 사실을 알 수 있었다.
  */
+/* 앞의 셋은 **신호**다. 이름도 색도 `lib/ticketSignals.js` 의 공용 표에서 온다 — 예전에는
+   여기 손으로 적혀 있어서 같은 신호가 목록에서는 「이슈 있음·보라」, 이 카드에서는
+   「이슈·주황」이었고, 지연과 차단은 둘 다 빨강이라 서로 구분되지도 않았다.
+   뒤의 다섯은 신호가 아니라 **회의 준비 항목**이라 공용 표에 없다. */
 const DISCUSS_TABS = [
-  { key: "overdue", label: "지연", empty: "지연된 티켓이 없습니다.", tone: "danger" },
-  { key: "blocked", label: "차단", empty: "차단된 티켓이 없습니다.", tone: "danger" },
-  { key: "issue", label: "이슈", empty: "이슈가 걸린 티켓이 없습니다.", tone: "warn" },
+  { key: "overdue", label: SIGNALS.overdue.label, empty: "지연된 티켓이 없습니다.", tone: SIGNALS.overdue.tone },
+  { key: "blocked", label: SIGNALS.blocked.label, empty: "차단된 티켓이 없습니다.", tone: SIGNALS.blocked.tone },
+  { key: "issue", label: SIGNALS.issue.label, empty: "이슈로 표시한 티켓이 없습니다.", tone: SIGNALS.issue.tone },
   { key: "unassigned", label: "미할당", empty: "담당자가 비어 있는 티켓이 없습니다." },
   { key: "due_soon", label: "마감 임박", empty: "곧 마감인 티켓이 없습니다.", tone: "warn" },
   { key: "no_estimate", label: "예상 WD 없음", empty: "예상 WD 가 비어 있는 티켓이 없습니다." },
