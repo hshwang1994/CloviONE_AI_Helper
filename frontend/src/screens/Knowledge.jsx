@@ -1187,7 +1187,7 @@ export function Knowledge() {
           onSpace={(next) => setQuery({ space: next || null, folder: null })}
           onFolder={(next) => setQuery({ folder: next || null })}
           onToggleTag={(name) => setQuery({
-            tags: tags.includes(name) ? tags.filter((t) => t !== name) : [...tags, name],
+            tags: tags.includes(name) ? tags.filter((t) => t !== name) : [...tags, name],
           })}
           onNewFolder={() => setFolderForm(true)}
           onDeleteFolder={(folder) => removeFolder.mutate(folder.id)}
