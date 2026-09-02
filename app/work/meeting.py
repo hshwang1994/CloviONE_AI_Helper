@@ -501,21 +501,52 @@ def meeting(db: Session, user: User, *, sprint_id: str, today: date) -> dict:
 
 
 def _neighbours(db: Session, user: User, sprint: Sprint) -> dict:
-    """같은 프로젝트의 앞뒤 회차. 없으면 `null` 이다.
+    """같은 축의 앞뒤 회차. 없으면 `null` 이다.
 
-    범위 판정을 지난 목록에서 고른다 — 여기서 직접 질의하면 안 보이는 회차의 id 가
-    「다음 회차」 단추로 새 나간다.
+    범위 절은 목록(`list_sprints`)과 같은 것을 쓴다 — 여기서 절 없이 질의하면 안
+    보이는 회차의 id 가 「다음 회차」 단추로 새 나간다.
+
+    🔴 축은 **정확 일치**다: 프로젝트 회차의 이웃은 같은 프로젝트, 팀 전체 회차
+    (`project_id IS NULL`)의 이웃은 팀 전체 회차뿐이다. 예전에는 목록 전량을 매 요청
+    다시 읽어 파이썬에서 정렬했고, 팀 전체 회차에서는 `project_id=None` 이 「전체
+    목록」으로 읽혀 전 프로젝트의 회차가 이웃으로 섞였다 — 「다음 회차」를 누르면
+    남의 프로젝트 회차로 넘어갔다. 이제 키셋 LIMIT 1 두 번이다(전량 로드 제거).
     """
+    from app.authz.visibility import (
+        RESOURCE_PROJECT, context_for_user, effective_visibility_clause,
+    )
+    from app.projects.models import Project
     from app.work import service as work_service
 
-    rows = work_service.list_sprints(db, user, project_id=sprint.project_id)
-    ordered = sorted(rows, key=lambda s: (s["starts_on"], s["name"]))
-    at = next((i for i, s in enumerate(ordered) if s["id"] == sprint.id), None)
-    if at is None:
-        return {"prev": None, "next": None}
+    ctx = context_for_user(db, user)
+    clause = effective_visibility_clause(ctx, RESOURCE_PROJECT)
+    stmt = select(Sprint)
+    if clause is not None:
+        stmt = stmt.where(
+            Sprint.project_id.is_(None)
+            | Sprint.project_id.in_(select(Project.id).where(clause))
+        )
+    stmt = stmt.where(
+        Sprint.project_id == sprint.project_id
+        if sprint.project_id is not None
+        else Sprint.project_id.is_(None)
+    )
+    # 정렬 계약은 기존과 같다 — (starts_on, name).
+    prev_row = db.execute(
+        stmt.where(
+            (Sprint.starts_on < sprint.starts_on)
+            | ((Sprint.starts_on == sprint.starts_on) & (Sprint.name < sprint.name))
+        ).order_by(Sprint.starts_on.desc(), Sprint.name.desc()).limit(1)
+    ).scalars().first()
+    next_row = db.execute(
+        stmt.where(
+            (Sprint.starts_on > sprint.starts_on)
+            | ((Sprint.starts_on == sprint.starts_on) & (Sprint.name > sprint.name))
+        ).order_by(Sprint.starts_on.asc(), Sprint.name.asc()).limit(1)
+    ).scalars().first()
     return {
-        "prev": ordered[at - 1] if at > 0 else None,
-        "next": ordered[at + 1] if at + 1 < len(ordered) else None,
+        "prev": work_service._sprint_view(prev_row) if prev_row else None,
+        "next": work_service._sprint_view(next_row) if next_row else None,
     }
 
 

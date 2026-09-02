@@ -491,3 +491,42 @@ def test_a_decision_view_names_its_author(db, world):
     )
     body = _meeting(db, world)
     assert body["decisions"][0]["author_user_id"] == world["member"].id
+
+
+def test_team_sprint_neighbours_are_team_sprints_only(db, world):
+    """🔴 팀 전체 회차의 이웃은 팀 전체 회차뿐이다.
+
+    예전에는 `project_id=None` 이 「전체 목록」으로 읽혀 전 프로젝트의 회차가 이웃으로
+    섞였다 — 「다음 회차」를 누르면 남의 프로젝트 회차로 넘어갔다.
+    """
+    team_prev = Sprint(
+        name="지난 팀 회차", project_id=None, org_id=DEFAULT_ORG_ID,
+        starts_on=TODAY - timedelta(days=14), ends_on=TODAY - timedelta(days=8),
+        state="closed",
+    )
+    team_now = Sprint(
+        name="이번 팀 회차", project_id=None, org_id=DEFAULT_ORG_ID,
+        starts_on=TODAY - timedelta(days=1), ends_on=TODAY + timedelta(days=6),
+        state="planned",
+    )
+    db.add_all([team_prev, team_now])
+    db.commit()
+
+    body = meeting.meeting(db, world["boss"], sprint_id=team_now.id, today=TODAY)
+    # world["sprint"](프로젝트 회차, 나흘 전 시작)가 날짜상 사이에 있어도 이웃이 아니다.
+    assert body["neighbours"]["prev"]["name"] == "지난 팀 회차", body["neighbours"]
+    assert body["neighbours"]["next"] is None
+
+
+def test_project_sprint_neighbours_stay_in_the_project(db, world):
+    """반례 — 프로젝트 회차의 이웃은 같은 프로젝트에서 앞뒤로 선다."""
+    nxt = Sprint(
+        name="다음 회차", project_id=world["project"].id, org_id=DEFAULT_ORG_ID,
+        starts_on=TODAY + timedelta(days=4), ends_on=TODAY + timedelta(days=10),
+        state="planned",
+    )
+    db.add(nxt)
+    db.commit()
+    body = _meeting(db, world)
+    assert body["neighbours"]["next"]["name"] == "다음 회차"
+    assert body["neighbours"]["prev"] is None

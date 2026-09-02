@@ -391,6 +391,12 @@ export function Sprint() {
     placeholderData: keepPreviousData,
     // 부분 응답에도 안 죽는 모양으로 한 곳에서 정규화한다(sprint-charts.js).
     select: normalizeMeeting,
+    // 회의는 여럿이 **같이** 보는 화면인데 실시간 축이 없었다 — 남이 적은 회의록·
+    // 담은 티켓이 새로고침 전에는 안 보였다. 홈과 같은 판단·같은 간격(30초)이다.
+    // `refetchIntervalInBackground` 는 켜지 않는다 — 숨은 탭은 라이브러리 기본값이
+    // 알아서 멈춘다(polling-visibility.test.js 가 저장소 전체에서 금지를 지킨다).
+    staleTime: 30000,
+    refetchInterval: 30000,
   });
   // keepPreviousData 는 회차 선택을 **비운** 직후에도 옛 판을 들고 있다 — 선택이
   // 없으면 본문도 없어야 한다(잔상 차단).
@@ -458,14 +464,27 @@ export function Sprint() {
       toast((e && e.message) || "스프린트를 만들지 못했습니다. 다시 시도해 주세요.", "error"),
   });
 
+  /* 회의록만 캐시에서 수술한다 — 회의록은 응답의 다른 갈래(요약·번다운·버킷)에 파생값이
+     없어, 체크 한 번에 서버 12~14 쿼리짜리 `/meeting` 전체를 다시 읽을 이유가 없다.
+     캐시는 **원본 응답**을 들고(select 가 읽을 때 정규화한다) 원본 모양으로 고친다.
+     최종 정합은 30초 폴링이 보증한다. */
+  const patchDecisions = React.useCallback(
+    (updater) => {
+      qc.setQueryData(["sprint-meeting", state.sprint], (old) =>
+        old ? { ...old, decisions: updater(old.decisions || []) } : old
+      );
+    },
+    [qc, state.sprint]
+  );
+
   const addDecision = useMutation({
     mutationFn: (payload) =>
       api(`/api/work/sprints/${encodeURIComponent(state.sprint)}/decisions`, {
         method: "POST",
         body: payload,
       }),
-    onSuccess: () => {
-      refreshMeeting();
+    onSuccess: (row) => {
+      patchDecisions((list) => [...list, row]);
       toast("회의 기록을 남겼습니다.", "success");
     },
     onError: (e) => toast((e && e.message) || "적지 못했습니다. 다시 시도해 주세요.", "error"),
@@ -473,14 +492,30 @@ export function Sprint() {
   const editDecision = useMutation({
     mutationFn: ({ id, patch }) =>
       api(`/api/work/decisions/${encodeURIComponent(id)}`, { method: "PATCH", body: patch }),
-    onSuccess: refreshMeeting,
-    onError: (e) => toast((e && e.message) || "고치지 못했습니다. 다시 시도해 주세요.", "error"),
+    // done 토글은 회의에서 가장 잦은 조작이다 — 왕복을 기다리지 않고 먼저 반영하고,
+    // 실패하면 스냅샷으로 되돌린다. 나머지 수정은 성공 응답으로 그 줄만 갈아 끼운다.
+    onMutate: async ({ id, patch }) => {
+      if (!("done" in patch)) return undefined;
+      await qc.cancelQueries({ queryKey: ["sprint-meeting", state.sprint] });
+      const prev = qc.getQueryData(["sprint-meeting", state.sprint]);
+      patchDecisions((list) =>
+        list.map((d) => (d.id === id ? { ...d, done: patch.done } : d))
+      );
+      return { prev };
+    },
+    onError: (e, _vars, ctx) => {
+      if (ctx && ctx.prev) qc.setQueryData(["sprint-meeting", state.sprint], ctx.prev);
+      toast((e && e.message) || "고치지 못했습니다. 다시 시도해 주세요.", "error");
+    },
+    onSuccess: (row) => {
+      patchDecisions((list) => list.map((d) => (d.id === row.id ? row : d)));
+    },
   });
   const removeDecision = useMutation({
     mutationFn: (id) =>
       api(`/api/work/decisions/${encodeURIComponent(id)}`, { method: "DELETE" }),
-    onSuccess: () => {
-      refreshMeeting();
+    onSuccess: (_res, id) => {
+      patchDecisions((list) => list.filter((d) => d.id !== id));
       toast("회의 기록을 삭제했습니다.", "success");
     },
     onError: (e) => toast((e && e.message) || "삭제하지 못했습니다. 다시 시도해 주세요.", "error"),
@@ -492,10 +527,11 @@ export function Sprint() {
         body: { sprint_id: state.sprint, set_sprint: true, base_version: card.version },
       }),
     onSuccess: () => {
+      // 담기는 버킷·번다운·후보가 실제로 변한다 — 회의 전체를 다시 읽는 것이 맞다.
+      // 나머지 판은 접두사 표(ticket-views.js)가 안다. refetchType:"all" 은 삭제·복원급
+      // 전용 규약이라 쓰지 않는다.
       refreshMeeting();
-      qc.invalidateQueries({ queryKey: ["work-backlog"] });
-      qc.invalidateQueries({ queryKey: ["work-board"] });
-      invalidateTicketViews(qc, { refetchType: "all" });
+      invalidateTicketViews(qc);
       toast("이번 회차에 담았습니다.", "success");
     },
     onError: (e) => toast((e && e.message) || "담지 못했습니다. 다시 시도해 주세요.", "error"),
