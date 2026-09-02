@@ -1550,6 +1550,11 @@ export function EmptyState(props) {
   );
 }
 
+/* 429 의 두 부류를 가르는 경계(초). 앱 리미터의 retry_after 는 「토큰 하나 회복 시간」이라
+ * 구조적으로 12초 이내이고(login 6s · chat 2s · game_ai 12s · narrate 5s), AI 사용 상한은
+ * 자정·월초까지라 시간~월 단위다. 코드가 둘 다 rate_limited 여서 시간으로만 가를 수 있다. */
+const RATE_LIMIT_COUNTDOWN_MAX_S = 300;
+
 /* size="compact" — EmptyState와 같은 이유(DS-15): 팝오버·모달 하위목록처럼 폭이 좁은 맥락에서
  * 일러스트를 빼고 여백·글자를 줄인다. 예전엔 이 크기 차이를 소비 측 CSS(global.css 등)가
  * `.noti-pop-error .k-empty { padding:... }` 식으로 소유권 밖에서 되짚어 맞췄다 — 컴포넌트가
@@ -1568,17 +1573,42 @@ export function ErrorState({ error, onRetry, size }) {
   // password_change_required는 403이지만 '권한 부족'이 아니라 '본인이 비번을 안 바꿔서' 막힌
   // 것이다 — 일반 권한부족 문구로 뭉개면 정반대로 오해하게 만든다.
   const isPwChange = isForbidden && code === "password_change_required";
+  /* 429 — 「불러오지 못했습니다」+「다시 시도」는 정반대의 안내다: 그 버튼을 누를 때마다
+     제한이 유지된다(사용자가 스스로 rate limit 을 강화하는 루프). 서버가 준 대기 시간
+     (api.js 의 retryAfterSeconds)만큼 버튼을 잠그고, 그 시간이 아주 길면(AI 사용 상한 —
+     자정·월초까지 안 풀린다) 재시도 자체를 주지 않는다. 코드는 둘 다 rate_limited 라
+     코드로는 못 가르고 시간으로 가른다: 앱 리미터의 회복은 구조적으로 12초 이내다. */
+  const isRateLimited = status === 429;
+  const retryAfter =
+    isRateLimited && typeof (error && error.retryAfterSeconds) === "number" && error.retryAfterSeconds > 0
+      ? error.retryAfterSeconds : null;
+  const isQuota = retryAfter != null && retryAfter > RATE_LIMIT_COUNTDOWN_MAX_S;
+  const waitSeconds = isQuota ? null : retryAfter;
+  const [cooling, setCooling] = React.useState(Boolean(waitSeconds));
+  React.useEffect(() => {
+    if (!waitSeconds) { setCooling(false); return undefined; }
+    setCooling(true);
+    // 매초 카운트다운을 그리지 않는다 — 이 뿌리는 role="alert" 라 내부 텍스트가 바뀔
+    // 때마다 스크린리더가 전체를 재낭독한다. 정적 「약 N초」 + 만료 시 한 번만 푼다.
+    const t = setTimeout(() => setCooling(false), Math.ceil(waitSeconds) * 1000);
+    return () => clearTimeout(t);
+  }, [waitSeconds, error]);
   // 401/403/404는 재시도해도 같은 실패가 반복된다 — '다시 시도'는 일시적 오류에만 준다.
-  const noRetry = isAuth || isForbidden || isGone;
+  const noRetry = isAuth || isForbidden || isGone || isQuota;
   const title = isAuth ? "로그인이 필요합니다"
     : isPwChange ? "비밀번호 변경이 필요합니다"
     : isForbidden ? "권한이 없습니다"
     : isGone ? "찾을 수 없습니다"
     : isOffline ? "서버에 연결하지 못했습니다"
+    : isRateLimited ? "요청이 너무 잦습니다"
     : "불러오지 못했습니다";
   const help = isPwChange ? msg
     : isForbidden ? "이 항목에 접근할 권한이 없습니다. 관리자에게 문의하세요."
     : isGone ? "요청한 항목을 찾을 수 없습니다. 이미 삭제되었거나 이동했을 수 있습니다."
+    : isQuota ? msg
+    : isRateLimited && waitSeconds
+      ? `약 ${Math.ceil(waitSeconds)}초 뒤에 다시 시도할 수 있습니다.`
+    : isRateLimited ? "짧은 시간에 요청이 몰렸습니다. 잠시 기다렸다가 다시 시도해 주세요."
     : msg;
   // 상태마다 다른 그림을 준다 — 자산 12종이 있는데 한 곳도 연결돼 있지 않았다.
   const art = isAuth ? "sessionExpired"
@@ -1613,7 +1643,8 @@ export function ErrorState({ error, onRetry, size }) {
           : isPwChange ? <MuiButton variant="contained" size={compact ? "small" : "medium"} href="/change-password">비밀번호 변경하기</MuiButton>
           // 403/404는 재시도해도 소용없지만 아무 동작도 없으면 막다른 길이다.
           : (isForbidden || isGone) ? <MuiButton variant="contained" size={compact ? "small" : "medium"} href="#/">홈으로</MuiButton>
-          : (!noRetry && onRetry ? <Button variant="primary" onClick={onRetry}>다시 시도</Button> : null)}
+          // 429 대기 중에는 버튼을 잠근다 — 눌리는 「다시 시도」는 제한을 스스로 연장시킨다.
+          : (!noRetry && onRetry ? <Button variant="primary" onClick={onRetry} disabled={cooling}>다시 시도</Button> : null)}
       </Box>
       {/* 문의 번호 (Z8). 서버는 요청마다 id 를 만들어 오류 봉투와 `X-Request-ID` 에 실어
           보내고 감사 로그도 그 값을 저장하는데, 화면이 한 번도 보여 주지 않아 **사용자가

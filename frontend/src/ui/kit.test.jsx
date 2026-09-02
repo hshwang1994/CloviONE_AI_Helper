@@ -215,6 +215,47 @@ describe("빈 화면 / 오류 상태", () => {
     expect(onRetry).toHaveBeenCalled();
   });
 
+  /* 429 — 예전에는 「불러오지 못했습니다」+ 살아 있는 「다시 시도」였다. 그 버튼을 누를
+   * 때마다 제한이 유지된다(사용자가 스스로 rate limit 을 강화하는 루프) — 429 는 대기
+   * 시간을 말하고, 그 시간 동안 버튼을 잠가야 한다. */
+  it("🔴 429는 대기 시간을 말하고 그동안 재시도를 잠근다", () => {
+    vi.useFakeTimers();
+    try {
+      const onRetry = vi.fn();
+      ui(<ErrorState error={{ status: 429, message: "요청이 너무 잦습니다.", retryAfterSeconds: 8 }} onRetry={onRetry} />);
+      expect(screen.getByRole("heading", { name: "요청이 너무 잦습니다" })).toBeInTheDocument();
+      expect(screen.getByText("약 8초 뒤에 다시 시도할 수 있습니다.")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "다시 시도" })).toBeDisabled();
+      act(() => { vi.advanceTimersByTime(8000); });
+      expect(screen.getByRole("button", { name: "다시 시도" })).toBeEnabled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("대기 시간을 모르는 429(프록시 층)는 바로 다시 시도할 수 있다", async () => {
+    const onRetry = vi.fn();
+    ui(<ErrorState error={{ status: 429, message: "요청이 너무 잦습니다. 잠시 후 다시 시도해 주세요." }} onRetry={onRetry} />);
+    expect(screen.getByRole("heading", { name: "요청이 너무 잦습니다" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "다시 시도" }));
+    expect(onRetry).toHaveBeenCalled();
+  });
+
+  it("AI 사용 상한(긴 429)은 서버 문구를 그대로 보이고 재시도를 주지 않는다", () => {
+    ui(
+      <ErrorState
+        error={{
+          status: 429,
+          message: "하루 AI 사용 상한(5회)에 도달했습니다. 내일 0시 이후 다시 사용할 수 있습니다.",
+          retryAfterSeconds: 86400,
+        }}
+        onRetry={vi.fn()}
+      />
+    );
+    expect(screen.getByText(/하루 AI 사용 상한/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "다시 시도" })).toBeNull();
+  });
+
   // DS-14/15 — 팝오버·모달 하위목록처럼 폭이 좁은 맥락에서 전체 페이지 크기 일러스트가 남아
   // 옆의 손으로 맞춘 크기보다 크게 떴다(NotificationBell.jsx 등). size="compact"는 일러스트를
   // 빼고 텍스트/여백을 줄인다 — 내용(제목·안내)은 그대로 낭독돼야 한다.

@@ -86,6 +86,18 @@ export async function api(path, options = {}) {
     const err = new Error(msg);
     err.status = r.status;
     err.body = body;
+    if (r.status === 429) {
+      /* 429 의 본문은 「언제 다시 되는가」다. 앱 리미터는 봉투(retry_after_seconds)와
+         Retry-After 헤더에 그 초를 둘 다 싣고, nginx 층의 429 는 HTML 이라 둘 다 없다
+         (→ null). ErrorState 가 이 값으로 재시도 버튼을 잠그고 대기 시간을 말한다 —
+         이 값이 없으면 사용자가 「다시 시도」를 눌러 스스로 제한을 유지시킨다. */
+      const fromBody = body && body.error && body.error.retry_after_seconds;
+      const fromHeader = Number(r.headers.get("Retry-After"));
+      err.retryAfterSeconds =
+        typeof fromBody === "number" && fromBody > 0 ? fromBody
+          : Number.isFinite(fromHeader) && fromHeader > 0 ? fromHeader
+          : null;
+    }
     /* 상관 id 를 오류에 싣는다 (Z8).
      *
      * 서버는 이미 요청마다 id 를 만들어 **오류 봉투와 `X-Request-ID` 헤더에 둘 다** 실어

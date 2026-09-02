@@ -78,7 +78,11 @@ function useAssistant(tab, narrate) {
     queryKey: ["assistant", tab.path, narrate],
     queryFn: () => api(`/api/assistant/${tab.path}` + (narrate ? "?narrate=true" : "")),
     retry: false,
-    staleTime: 60000,
+    // narrate 응답만 오래 신선하게 둔다 — 그 요청만 서버 리미터의 토큰(사용자당 12회/분,
+    // 통 6개)을 소모해서, 60초짜리 신선도로는 narratable 탭 세 개를 오가는 것만으로
+    // 예산이 바닥나 「요약 생성을 너무 자주 요청했습니다」가 떴다. 요약의 원천(브리핑·
+    // 주간)은 일·주 단위로 움직이므로 5분 진부화는 관측 불가능한 비용이다.
+    staleTime: narrate ? 300000 : 60000,
   });
 }
 

@@ -146,3 +146,36 @@ describe("api() — 오류 문구에 회복 절이 있다 (PA-RC-0002)", () => {
     expect(err.message).toMatch(/다시 시도/);
   });
 });
+
+/* 429 의 본문은 「언제 다시 되는가」다 — api()가 그 값을 오류 객체(retryAfterSeconds)로
+ * 실어야 ErrorState 가 재시도 버튼을 잠글 수 있다. 출처는 셋: 앱 리미터의 봉투,
+ * Retry-After 헤더(봉투가 없을 때), 아무것도 없는 프록시 429(null). */
+describe("api() — 429 retryAfterSeconds", () => {
+  beforeEach(() => { vi.restoreAllMocks(); });
+
+  it("봉투의 retry_after_seconds 를 싣는다", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      jsonResponse(429, { error: { code: "rate_limited", message: "요청이 너무 많습니다.", retry_after_seconds: 6.2 } })
+    );
+    const err = await api("/api/x").catch((e) => e);
+    expect(err.retryAfterSeconds).toBe(6.2);
+  });
+
+  it("봉투가 없으면 Retry-After 헤더를 읽는다", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: false,
+      status: 429,
+      json: async () => ({}),
+      headers: { get: (name) => (name === "Retry-After" ? "12" : null) },
+    });
+    const err = await api("/api/x").catch((e) => e);
+    expect(err.retryAfterSeconds).toBe(12);
+  });
+
+  it("프록시 층의 429(HTML 본문·헤더 없음)는 null 이다", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(garbageResponse(429));
+    const err = await api("/api/x").catch((e) => e);
+    expect(err.status).toBe(429);
+    expect(err.retryAfterSeconds).toBeNull();
+  });
+});
