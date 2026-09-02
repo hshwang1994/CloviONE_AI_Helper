@@ -268,6 +268,7 @@ export function SortableList({ items, labelOf, onReorder, disabled, children, vi
       ariaLabel={virtualize.ariaLabel}
       overscan={virtualize.overscan}
       onEndReached={virtualize.onEndReached}
+      rowGap={virtualize.rowGap}
       itemRole={null}
       renderItem={(it) => children(it)}
       sx={virtualize.sx}
@@ -409,6 +410,7 @@ export function DragBoard({ columns, labelOf, onMove, disabled, children, sx, co
                   height={columnMaxHeight || virtualize.height}
                   ariaLabel={`${column.title} 카드 목록`}
                   overscan={virtualize.overscan}
+                  rowGap={virtualize.rowGap}
                   itemRole={null}
                   renderItem={(it) => children(it, column)}
                 />

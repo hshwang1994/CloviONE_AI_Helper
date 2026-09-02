@@ -310,25 +310,31 @@ function withCardVersion(list, fresh) {
 
 function patchBoardVersion(old, fresh) {
   if (!old) return old;
-  return {
-    ...old,
-    columns: (old.columns || []).map((col) => {
-      const cards = withCardVersion(col.cards, fresh);
-      return cards === col.cards ? col : { ...col, cards };
-    }),
-    unclassified: withCardVersion(old.unclassified, fresh),
-  };
+  let changed = false;
+  const columns = (old.columns || []).map((col) => {
+    const cards = withCardVersion(col.cards, fresh);
+    if (cards === col.cards) return col;
+    changed = true;
+    return { ...col, cards };
+  });
+  const unclassified = withCardVersion(old.unclassified, fresh);
+  if (unclassified !== old.unclassified) changed = true;
+  // 🔴 아무 카드도 안 바뀌면 `old` 를 그대로 돌려준다 — 안 그러면 바깥 스프레드가
+  // 매번 새 board.data 를 만들어 columns memo 를 무효화하고 판 전체를 재렌더한다
+  // (이동 1회당 재렌더 2배 → 위 가상화 재측정 캐스케이드가 두 번 돈다).
+  return changed ? { ...old, columns, unclassified } : old;
 }
 
 function patchBacklogVersion(old, fresh) {
   if (!old || !old.pages) return old;
-  return {
-    ...old,
-    pages: old.pages.map((page) => {
-      const items = withCardVersion(page.items, fresh);
-      return items === page.items ? page : { ...page, items };
-    }),
-  };
+  let changed = false;
+  const pages = old.pages.map((page) => {
+    const items = withCardVersion(page.items, fresh);
+    if (items === page.items) return page;
+    changed = true;
+    return { ...page, items };
+  });
+  return changed ? { ...old, pages } : old;
 }
 
 /** 값이 있는 조건만 질의 문자열에 넣는다. 빈 값을 실어 보내면 캐시 키가 갈라진다. */
@@ -1168,7 +1174,10 @@ export function WorkBoard() {
             // §15.1 재검수 — 서버가 이미 열마다 커서로 잘라 준 것(§8.5) 위에 렌더링만
             // 가상화한다. 카드 하나(TicketFace)는 배지·신호·담당자 이름까지 있어 백로그 행보다
             // 조금 크다 — 실측 없이 어림한 값이고 실제 높이는 measureElement가 다시 잰다.
-            virtualize={{ estimateSize: 156 }}
+            // 실측 카드 높이(≈152px) + 카드 간격 8px = 160. 추정과 어긋나면 모든 행이
+            // 재측정된다. overscan 은 열마다 곱해지므로(열 4~7개) 칸반에서는 낮게.
+            // 가상화 칸은 flex gap 을 못 써서 rowGap 으로 카드 사이를 띄운다.
+            virtualize={{ estimateSize: 160, overscan: 4, rowGap: 8 }}
           >
             {(card) => (
               <DragItem key={card.id} id={card.id} label={labelOf(card.id)}>
@@ -1209,7 +1218,7 @@ export function WorkBoard() {
                   // 가상화기가 알린다(onEndReached) — 창 밖 센티넬은 이 60vh 상자를 못
                   // 보고 뷰포트로 재서, 열자마자 전량을 연쇄로 끌어왔다.
                   virtualize={{
-                    estimateSize: 56, height: "60vh", ariaLabel: "백로그 목록",
+                    estimateSize: 56, rowGap: 6, height: "60vh", ariaLabel: "백로그 목록",
                     sx: { scrollbarGutter: "stable" },
                     onEndReached: () => {
                       if (backlog.hasNextPage && !backlog.isFetchingNextPage) backlog.fetchNextPage();

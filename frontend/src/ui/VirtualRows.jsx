@@ -68,7 +68,7 @@ const DEFAULT_OVERSCAN = 8;
  */
 export function VirtualRows({
   items, estimateSize, renderItem, getItemKey, height = "32rem", overscan = DEFAULT_OVERSCAN,
-  ariaLabel, footer, sx, itemRole = "listitem", onEndReached,
+  ariaLabel, footer, sx, itemRole = "listitem", onEndReached, rowGap = 0,
 }) {
   const parentRef = React.useRef(null);
   const list = Array.isArray(items) ? items : [];
@@ -77,6 +77,10 @@ export function VirtualRows({
     getScrollElement: () => parentRef.current,
     estimateSize: typeof estimateSize === "function" ? estimateSize : () => estimateSize || 56,
     overscan,
+    /* 🔴 크기 캐시를 **id 로** 잡는다. 안 넘기면 캐시 키가 index 라, 이동·재조회로 순서가
+       바뀌면 캐시된 높이가 엉뚱한 카드에 붙어 전 행이 다시 측정된다(그 재측정 하나가
+       아래 style 재배치를 연쇄로 부른다). React key(getItemKey)와 축을 맞춘다. */
+    getItemKey: getItemKey ? (index) => getItemKey(list[index], index) : undefined,
   });
   const virtualItems = virtualizer.getVirtualItems();
 
@@ -85,15 +89,18 @@ export function VirtualRows({
    * 이 창을 못 보고 뷰포트를 기준으로 잰다 — 그러면 목록을 열자마자 끝까지 자동으로
    * 끌어온다(백로그 전량 연쇄 로드 — 실제로 그랬다). overscan 이 섞여 조금 일찍
    * 울리는 것은 무한 목록의 정상 성질이다. */
-  const endNotifiedFor = React.useRef(-1);
+  const endNotifiedFor = React.useRef(0);
+  const lastVisibleIndex = virtualItems.length ? virtualItems[virtualItems.length - 1].index : -1;
   React.useEffect(() => {
     if (!onEndReached || list.length === 0) return;
-    const last = virtualItems[virtualItems.length - 1];
-    if (!last || last.index < list.length - 1) return;
-    if (endNotifiedFor.current === list.length) return;
+    if (lastVisibleIndex < list.length - 1) return;
+    // 이 길이에서 이미 알렸으면 다시 안 부른다. `>=` 로 잠가 **길이가 줄어도**(무효화로
+    // 무한 목록이 첫 쪽으로 되감겨도) 재무장되지 않는다 — 그때 다시 발화하면 서버가
+    // 안 움직이는 커서를 주는 순간 무한 연쇄 로드가 된다.
+    if (list.length <= endNotifiedFor.current) return;
     endNotifiedFor.current = list.length;
     onEndReached();
-  });
+  }, [onEndReached, list.length, lastVisibleIndex]);
 
   return (
     <Box
@@ -106,25 +113,33 @@ export function VirtualRows({
       data-virtual-total={list.length}
       sx={{ height, overflowY: "auto", overflowX: "hidden", position: "relative", minHeight: 0, ...sx }}
     >
-      <Box sx={{ height: virtualizer.getTotalSize(), width: "100%", position: "relative" }}>
+      {/* 🔴 전체 높이·행 위치는 **매 측정마다 값이 바뀌는** 동적 값이라 `sx` 로 그리면
+          안 된다 — emotion 이 값마다 새 클래스를 <style> 에 삽입하고, 그 삽입 하나가
+          문서 전체 스타일 재계산을 부른다. 165행짜리 열에서는 그것이 O(행수²) 로 불어
+          스크린샷·스크롤이 30초 넘게 멈췄다. `style`(인라인 DOM 속성)은 클래스를 안
+          만든다 — 정적인 것만 sx 에, transform/height 만 style 에 둔다. */}
+      <div style={{ height: virtualizer.getTotalSize(), width: "100%", position: "relative" }}>
         {virtualItems.map((row) => {
           const item = list[row.index];
           return (
-            <Box
+            <div
               key={getItemKey ? getItemKey(item, row.index) : row.key}
               data-index={row.index}
               ref={virtualizer.measureElement}
               role={itemRole || undefined}
-              sx={{
+              style={{
                 position: "absolute", top: 0, left: 0, width: "100%",
                 transform: `translateY(${row.start}px)`,
+                // 카드 사이 간격. 가상화 목록은 flex `gap` 을 쓸 수 없어(행이 absolute)
+                // 여백을 각 행에 담는다 — estimateSize 에 이 값을 포함해 소비처가 넘긴다.
+                paddingBottom: rowGap || undefined,
               }}
             >
               {renderItem(item, row.index)}
-            </Box>
+            </div>
           );
         })}
-      </Box>
+      </div>
       {footer ? <Box sx={{ position: "sticky", bottom: 0 }}>{footer}</Box> : null}
     </Box>
   );
@@ -169,7 +184,9 @@ function SpacerRows({ virtualizer, items, renderRow, getItemKey, colSpan, offset
     <>
       {topSpace > 0 ? (
         <TableRow aria-hidden="true" sx={{ "& > td": { border: 0, p: 0 } }}>
-          <TableCell colSpan={colSpan} sx={{ height: topSpace, p: "0 !important" }} />
+          {/* 여백 높이는 스크롤마다 바뀌는 동적 값 — sx 로 그리면 값마다 emotion 클래스가
+              쌓여 전체 스타일 재계산을 부른다(위 div 경로와 같은 이유). style 로 준다. */}
+          <TableCell colSpan={colSpan} style={{ height: topSpace, padding: 0 }} />
         </TableRow>
       ) : null}
       {virtualItems.map((row) => {
@@ -182,7 +199,7 @@ function SpacerRows({ virtualizer, items, renderRow, getItemKey, colSpan, offset
       })}
       {bottomSpace > 0 ? (
         <TableRow aria-hidden="true" sx={{ "& > td": { border: 0, p: 0 } }}>
-          <TableCell colSpan={colSpan} sx={{ height: bottomSpace, p: "0 !important" }} />
+          <TableCell colSpan={colSpan} style={{ height: bottomSpace, padding: 0 }} />
         </TableRow>
       ) : null}
     </>
@@ -198,6 +215,8 @@ export function VirtualTableBody({
     getScrollElement: () => scrollElement,
     estimateSize: typeof estimateSize === "function" ? estimateSize : () => estimateSize || 44,
     overscan,
+    // div 경로와 같은 이유 — 크기 캐시를 id 로 잡는다(순서 바뀜에 전 행 재측정 방지).
+    getItemKey: getItemKey ? (index) => getItemKey(list[index], index) : undefined,
   });
   return (
     <SpacerRows
