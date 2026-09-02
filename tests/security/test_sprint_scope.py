@@ -29,7 +29,7 @@
 
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import date, datetime, time, timedelta
 
 import pytest
 
@@ -180,6 +180,57 @@ def test_a_global_admin_sees_both(client, login_as, world):
         headers={"X-CSRF-Token": login_as("system_admin")},
     ).json()
     assert body["summary"]["total"] == 2, body["summary"]
+
+
+def _join_sprint_activity(db, ticket, sprint, *, hours=0):
+    """회차 시작 **뒤에** 이 티켓이 회차로 들어온 기록 한 줄.
+
+    픽스처에 넣지 않고 시험 안에서 심는다 — 픽스처에 넣으면 `scope.tracked` 가 파일
+    전체에서 참이 되어 다른 시험의 전제가 바뀐다.
+    """
+    from app.work import activity as work_activity
+    from app.work.models import ACT_SPRINT
+
+    stamp = datetime.combine(sprint.starts_on + timedelta(days=1), time(10 + hours, 0))
+    work_activity.record(
+        db, ticket_id=ticket.id, kind=ACT_SPRINT, field="sprint_id",
+        from_value=None, to_value=sprint.id, now=stamp,
+    )
+
+
+def test_scope_changes_hide_tickets_i_cannot_see(client, login_as, world, db):
+    """🔴 범위 변경 갈래도 **같은 문**을 지난다.
+
+    이 갈래는 활동 기록에서 티켓을 다시 읽는다 — 그 읽기가 가시성 절을 안 지나면
+    팀 전체 회차를 드나든 남의 팀 티켓의 제목·담당자·마감이 이 갈래로만 샌다. 위
+    `test_a_shared_sprint_still_hides_...` 는 픽스처에 sprint 활동이 없어 이 경로에
+    닿지 못했다(조기 반환) — 그래서 여기서 활동을 심어 경로를 연다.
+    """
+    _join_sprint_activity(db, world["ours_ticket"], world["open_sprint"])
+    _join_sprint_activity(db, world["theirs_ticket"], world["open_sprint"], hours=1)
+    db.commit()
+
+    body = _meeting(client, login_as, world["open_sprint"].id).json()
+    titles = {row["title"] for row in body["discuss"]["scope_changes"]["items"]}
+    assert "우리팀 일" in titles, f"우리 팀 변경이 안 보인다 — 검사가 헛돈다: {titles}"
+    assert "남의팀 일" not in titles, f"남의 팀 티켓이 범위 변경 갈래로 샜다: {titles}"
+    # 제목을 가려도 숫자는 유출이다 — 셈도 보이는 티켓만 센다.
+    assert body["scope"]["added"] == 1, body["scope"]
+
+
+def test_a_global_admin_sees_scope_changes_for_both(client, login_as, world, db):
+    """반례 — 좁히기가 **전부 숨기는 구현**이 아님을 확인한다."""
+    _join_sprint_activity(db, world["ours_ticket"], world["open_sprint"])
+    _join_sprint_activity(db, world["theirs_ticket"], world["open_sprint"], hours=1)
+    db.commit()
+
+    body = client.get(
+        f"/api/work/sprints/{world['open_sprint'].id}/meeting",
+        headers={"X-CSRF-Token": login_as("system_admin")},
+    ).json()
+    titles = {row["title"] for row in body["discuss"]["scope_changes"]["items"]}
+    assert {"우리팀 일", "남의팀 일"} <= titles, titles
+    assert body["scope"]["added"] == 2, body["scope"]
 
 
 def test_a_note_on_a_sprint_i_cannot_see_is_not_found(client, login_as, world):

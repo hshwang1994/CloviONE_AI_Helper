@@ -220,17 +220,28 @@ def _spans(
 
 
 def _scope_changes(
-    db: Session,
     sprint: Sprint,
     *,
     ids: set[str],
     acts: list[TicketActivity],
+    tickets: dict[str, Ticket],
     names: dict[str, dict],
 ) -> tuple[dict, list[dict]]:
-    """회차가 시작한 뒤 들어오고 나간 티켓.
+    """회차가 시작한 뒤 들어오고 나간 티켓 — **티켓 단위**로 센다.
 
     지금 상태만 봐서는 알 수 없는 값이라 **활동 기록**에서 읽는다. 기록이 없으면
     0 이 아니라 「모른다」다 — 그 구별을 `tracked` 로 적는다.
+
+    `tickets` 는 호출부가 **가시성 절로 읽어 둔 맵**(`by_id`)이다. 여기서 직접
+    질의하면 그 절이 빠진 문이 하나 더 생긴다 — 실제로 그랬고, 팀 전체 회차를 드나든
+    남의 팀 티켓의 제목·담당자·마감이 이 갈래로만 샜다(같은 파일의 「문이 둘이다」).
+    맵에 없는(안 보이는) 티켓은 행에서도 셈에서도 뺀다 — 숫자만 남겨도 유출이다.
+
+    같은 티켓이 들어왔다 나갔다 해도 **마지막 이동 하나**만 남긴다. 행이 활동 단위면
+    같은 티켓이 목록에 여러 번 서고(화면의 목록 key 도 충돌한다), 「N건이 들어오고
+    M건이 빠졌습니다」가 사실을 부풀린다 — 회의가 묻는 것은 「지금 범위가 어떻게
+    달라졌나」 하나다. 시작 전부터 있다가 나갔다 돌아온 티켓이 「추가」로 보이는 것은
+    이 접기의 알려진 한계다(마지막 이동만 보므로).
 
     돌려주는 줄은 다른 네 갈래와 **같은 모양**(`_row()`)이다. 예전에는 이 갈래만
     `{ticket_id, page_id, key, title, direction, at}` 이라, 같은 카드 부품으로 그리면
@@ -239,34 +250,31 @@ def _scope_changes(
     # 회차 시작 **전**의 이동은 계획이지 범위 변경이 아니다. 활동은 naive UTC 이고
     # 회차 경계는 달력일이라, 날짜로 비교한다(하루 경계의 몇 시간은 회의에서 무의미하다).
     start = sprint.starts_on
-    added, removed = [], []
+    last: dict[str, TicketActivity] = {}
     for act in acts:
         when = act.created_at.date() if act.created_at else None
         if when is not None and when < start:
             continue
-        (added if act.to_value == sprint.id else removed).append(act)
+        last[act.ticket_id] = act  # acts 는 seq 순 — 뒤가 최신이다
+    # 방향은 「지금 이 회차에 있는가」다 — 마지막 활동의 방향과 어긋나는 순서로 기록이
+    # 남아도 현재 상태가 정본이다.
+    visible = [(tid, act) for tid, act in last.items() if tid in tickets]
+    added = [act for tid, act in visible if tid in ids]
+    removed = [act for tid, act in visible if tid not in ids]
     scope = {
         # 기록이 하나도 없으면 「안 바뀌었다」가 아니라 「모른다」다.
         "tracked": bool(acts),
         "added": len(added),
         "removed": len(removed),
+        # 접은 뒤의 활동을 넘기므로 추이의 끝값이 위 두 수와 일치한다.
         "trend": _scope_trend(sprint, added=added, removed=removed) if acts else [],
     }
-    if not added and not removed:
+    if not visible:
         return scope, []
-    moved_ids = [a.ticket_id for a in added + removed]
-    tickets = {
-        t.id: t for t in db.execute(select(Ticket).where(Ticket.id.in_(moved_ids))).scalars().all()
-    }
     changes = []
-    for act in added + removed:
-        ticket = tickets.get(act.ticket_id)
-        if ticket is None:
-            continue
-        row = _row(ticket, names=names)
-        # 지금 이 회차에 있는가로 방향을 다시 확인한다 — 들어왔다 나간 티켓이
-        # 「추가」로도 「제외」로도 세어지면 회의가 같은 티켓을 두 번 본다.
-        row["direction"] = "added" if ticket.id in ids else "removed"
+    for tid, act in visible:
+        row = _row(tickets[tid], names=names)
+        row["direction"] = "added" if tid in ids else "removed"
         row["at"] = act.created_at.isoformat() if act.created_at else None
         changes.append(row)
     return scope, changes
@@ -429,7 +437,8 @@ def meeting(db: Session, user: User, *, sprint_id: str, today: date) -> dict:
         ).scalars().all():
             by_id[row.id] = row
     spans = _spans(sprint, acts=acts, tickets=by_id, ids=ids)
-    scope, changes = _scope_changes(db, sprint, ids=ids, acts=acts, names=names)
+    # `by_id` 는 위에서 가시성 절로 읽었다 — 범위 변경 갈래가 그 맵만 본다(문이 둘이다).
+    scope, changes = _scope_changes(sprint, ids=ids, acts=acts, tickets=by_id, names=names)
 
     # 후보는 **실제 백로그 티켓**이다(지시 4). 같은 프로젝트의, 어느 회차에도 안 담긴,
     # 아직 안 끝난 일. 팀 전체 회차(`project_id IS NULL`)면 프로젝트로 안 좁힌다.

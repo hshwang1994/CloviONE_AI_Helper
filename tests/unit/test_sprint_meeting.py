@@ -249,6 +249,37 @@ def test_a_mid_sprint_addition_is_counted(db, world):
     assert [c["title"] for c in body["discuss"]["scope_changes"]["items"]] == ["곧 마감"]
 
 
+def test_scope_changes_count_tickets_not_activities(db, world):
+    """🔴 같은 티켓이 들어왔다 나갔다 다시 들어와도 **한 건**이다.
+
+    활동은 석 줄이지만 회의가 묻는 것은 「지금 범위가 어떻게 달라졌나」 하나다 — 행과
+    셈이 활동 단위면 같은 티켓이 목록에 세 번 서고(React key 도 충돌한다), 「3건이
+    들어오고 1건이 빠졌습니다」라는 문구가 사실(1건 추가)을 세 배로 부풀린다.
+    """
+    when = world["sprint"].created_at.replace(year=2026, month=8, day=26)
+    for i, (frm, to) in enumerate([
+        (None, world["sprint"].id),
+        (world["sprint"].id, None),
+        (None, world["sprint"].id),
+    ]):
+        db.add(
+            TicketActivity(
+                id=f"act-dedupe-{i}", ticket_id=world["soon"].id, kind=ACT_SPRINT,
+                field="sprint_id", from_value=frm, to_value=to,
+                created_at=when + timedelta(hours=i),
+            )
+        )
+    db.commit()
+    body = _meeting(db, world)
+    bucket = body["discuss"]["scope_changes"]
+    assert [c["id"] for c in bucket["items"]] == [world["soon"].id], bucket["items"]
+    assert bucket["total"] == 1
+    assert (body["scope"]["added"], body["scope"]["removed"]) == (1, 0), body["scope"]
+    # 추이의 끝값도 같은 셈이다 — 여기가 갈리면 요약 문구와 그림이 서로 다른 수를 말한다.
+    assert body["scope"]["trend"][-1]["added"] == 1
+    assert body["scope"]["trend"][-1]["removed"] == 0
+
+
 # ── 건강 ────────────────────────────────────────────────────────────────────
 
 

@@ -938,9 +938,10 @@ def move(
     if set_sprint:
         before_sprint = ticket.sprint_id
         if sprint_id:
-            sprint = db.get(Sprint, sprint_id)
-            if sprint is None:
-                raise NotFoundError("스프린트를 찾을 수 없습니다.")
+            # 담는 쪽 문도 회차 게이트를 지난다(위 「문이 둘이다」와 같은 이유). 범위 밖
+            # 회차는 404 다 — 400 으로 거절하면 그 응답 자체가 「그 id 의 회차가 있다」를
+            # 알려 주는 오라클이 되어, id 를 찍어 남의 팀 회차를 열거할 수 있다.
+            sprint = get_scoped_sprint_or_404(db, sprint_id, user)
             if sprint.project_id and sprint.project_id != ticket.project_uid:
                 raise ValidationAppError("다른 프로젝트의 스프린트에는 넣을 수 없습니다.")
         ticket.sprint_id = sprint_id or None
@@ -1091,6 +1092,15 @@ def set_sprint_state(
     if state not in SPRINT_STATES:
         raise ValidationAppError(f"모르는 스프린트 상태입니다: {state}")
     sprint = get_scoped_sprint_or_404(db, sprint_id, user)
+    # closed 는 종착이다 — 번다운·이월 기록이 닫힌 시점 기준으로 서 있고, 다시 열면
+    # 그 기록이 전부 거짓이 된다. 같은 상태로의 재설정은 재실행 안전으로 남긴다.
+    if sprint.state == SPRINT_CLOSED and state != SPRINT_CLOSED:
+        raise ConflictError("이미 닫은 회차는 다시 열 수 없습니다. 새 회차를 만들어 주세요.")
+    # 닫기는 `/close` 한 곳이다 — 여기로 닫으면 이월 없이 닫혀 안 끝난 티켓이 붕 뜬다.
+    if state == SPRINT_CLOSED and sprint.state != SPRINT_CLOSED:
+        raise ValidationAppError(
+            "회차를 닫으려면 「회차 닫기」를 써 주세요. 안 끝난 티켓을 보낼 곳을 함께 정해야 합니다."
+        )
     if state == SPRINT_ACTIVE and sprint.state != SPRINT_ACTIVE:
         conflict = db.execute(
             select(Sprint).where(
@@ -1184,10 +1194,27 @@ def close_sprint_and_carry_over(
     손으로 다시 만들게 된다 — 그러면 몇 건은 반드시 빠진다.
     """
     sprint = get_scoped_sprint_or_404(db, sprint_id, user)
+    # 닫기는 되돌릴 수 없다(이월이 실제로 티켓을 옮긴다) — 전제부터 확인한다.
+    if sprint.state == SPRINT_CLOSED:
+        raise ConflictError("이미 닫은 회차입니다.")
+    if sprint.state == SPRINT_PLANNED:
+        raise ValidationAppError(
+            "아직 열지 않은 회차는 닫을 수 없습니다. 잘못 만든 회차라면 삭제할 수 있습니다."
+        )
     if target_sprint_id is not None:
+        if target_sprint_id == sprint_id:
+            raise ValidationAppError(
+                "지금 닫는 회차로는 이월할 수 없습니다. 다른 회차를 골라 주세요."
+            )
         # 옮길 곳도 범위 안이어야 한다. 한쪽만 보면 안 끝난 일을 남의 팀 회차로 밀어
         # 넣을 수 있고, 그 순간 그 티켓들은 **내 범위에서 사라진다**.
-        get_scoped_sprint_or_404(db, target_sprint_id, user)
+        target = get_scoped_sprint_or_404(db, target_sprint_id, user)
+        if target.state == SPRINT_CLOSED:
+            raise ValidationAppError("이미 닫힌 회차로는 이월할 수 없습니다.")
+        # 담기(`move`)·생성이 지키는 불변식과 같다 — 다른 프로젝트의 회차로는 못 보낸다.
+        # 팀 전체 회차(project_id NULL)는 모두의 것이라 언제나 받을 수 있다.
+        if target.project_id is not None and target.project_id != sprint.project_id:
+            raise ValidationAppError("다른 프로젝트의 회차로는 이월할 수 없습니다.")
 
     stamp = now or utcnow()
     carried = 0

@@ -243,3 +243,54 @@ def test_a_plain_user_cannot_assign_a_migration_exception(client, login_as, worl
         headers={"X-CSRF-Token": token},
     )
     assert r.status_code == 403, f"일반 사용자가 소속을 배정했다: {r.status_code}"
+
+
+def _sprint_on(db, project, *, name, state="planned"):
+    """시험 안에서만 쓰는 회차 한 줄. 픽스처에 넣지 않는 이유는 위 활동 기록과 같다 —
+    회차가 있으면 판 시험들의 「회차 없음」 전제가 바뀐다."""
+    from datetime import date, timedelta
+
+    from app.work.models import Sprint
+
+    row = Sprint(
+        name=name, project_id=project.id if project is not None else None,
+        org_id=DEFAULT_ORG_ID,
+        starts_on=date(2026, 8, 24), ends_on=date(2026, 8, 24) + timedelta(days=7),
+        state=state,
+    )
+    db.add(row)
+    db.flush()
+    return row
+
+
+def test_moving_into_an_invisible_sprint_is_404(client, login_as, world, db):
+    """🔴 담는 쪽 문도 회차 게이트를 지난다 — 404 다(400 이 아니다).
+
+    「다른 프로젝트의 스프린트에는 넣을 수 없습니다」(400)로 거절하면 그 응답 자체가
+    「그 id 의 회차가 존재한다」를 알려 주는 오라클이다 — id 를 찍어 남의 팀 회차를
+    열거할 수 있다. 안 보이는 회차는 **없는 것**이어야 한다.
+    """
+    theirs_sprint = _sprint_on(db, world["theirs"], name="남의팀 회차")
+    db.commit()
+
+    r = client.post(
+        f"/api/work/board/{world['ours_ticket'].id}/move",
+        json={"set_sprint": True, "sprint_id": theirs_sprint.id},
+        headers=_hdr(login_as),
+    )
+    assert r.status_code == 404, f"범위 밖 회차가 404 가 아니다: {r.status_code} {r.text}"
+
+
+def test_moving_into_a_visible_sprint_still_works(client, login_as, world, db):
+    """반례 — 게이트가 「전부 못 담는 구현」이 아님을 확인한다."""
+    ours_sprint = _sprint_on(db, world["ours"], name="우리팀 회차")
+    db.commit()
+
+    r = client.post(
+        f"/api/work/board/{world['ours_ticket'].id}/move",
+        json={"set_sprint": True, "sprint_id": ours_sprint.id},
+        headers=_hdr(login_as),
+    )
+    assert r.status_code == 200, r.text
+    db.expire_all()
+    assert db.get(Ticket, world["ours_ticket"].id).sprint_id == ours_sprint.id
