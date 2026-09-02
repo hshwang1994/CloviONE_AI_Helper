@@ -406,6 +406,11 @@ export function Sprint() {
   // PC, 자정을 넘겨 켜 둔 탭).
   const signalsOf = useTicketSignals(body ? body.today : undefined);
   const canPlan = useCanPlanSprint();
+  // 회차 머리의 축 표시용 — 회차의 project_id 를 이름으로 옮긴다(회의는 회차 단위라
+  // 화면 필터값이 아니라 회차 자신의 프로젝트를 본다).
+  const sprintProjectName = body && body.sprint.project_id
+    ? (projectOptions.find((p) => p.value === body.sprint.project_id) || {}).label || ""
+    : "";
 
   // 회의록의 담당자 후보 — 프로젝트를 골랐으면 그 프로젝트에 닿는 사람으로 좁힌다
   // (보드와 같은 서버 축).
@@ -631,6 +636,11 @@ export function Sprint() {
         title="스프린트 회의"
         crumbRoot={null}
         description="이번 회차가 계획대로 가고 있는지 함께 보고, 다음에 할 일을 정합니다."
+        // 한 바퀴 흐름을 물음표 도움말로 연다 — 「어떻게 쓰는지 모르겠다」의 답이
+        // 지금까지 코드 주석(SprintLifecycle.jsx)에만 있었다.
+        help={"회차를 만들어 백로그에서 할 일을 담고, 「회차 열기」로 시작합니다. "
+          + "진행은 작업 보드에서 하고, 이 화면에서 남은 일과 막힌 일을 봅니다. "
+          + "다 되면 「회차 닫기」로 안 끝난 일을 다음 회차로 넘깁니다."}
         actions={
           body ? (
             <Stack direction="row" spacing={1} alignItems="center">
@@ -665,6 +675,9 @@ export function Sprint() {
             loading={projects.isLoading}
             options={projectOptions}
             allLabel="전체"
+            // 이 필터는 아래 회차 목록만 좁힌다 — 회의 내용은 고른 회차 단위로 본다.
+            // (작업 보드의 프로젝트 필터는 판 티켓을 좁히지만, 회의는 회차가 경계다.)
+            helperText="회차 목록을 좁힙니다."
             sx={{ minWidth: "14rem" }}
           />
           <EntityCombobox
@@ -765,6 +778,13 @@ export function Sprint() {
                   </Typography>
                   <SprintStateBadge sprint={body.sprint} />
                 </Stack>
+                {/* 이 회차가 프로젝트 회차인지 팀 전체 회차인지 한 줄로 말한다 — 사용자가
+                    「프로젝트별로 스프린트가 만들어지나」를 화면 안에서 답할 수 있게. */}
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25, ...KO_WORD_BREAK }}>
+                  {body.sprint.project_id
+                    ? `프로젝트 회차 · ${sprintProjectName || "이 프로젝트"}`
+                    : "팀 전체 회차 — 모든 프로젝트의 티켓을 담을 수 있습니다."}
+                </Typography>
                 <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25, ...KO_WORD_BREAK }}>
                   {`${datedLabel(body.sprint.starts_on)} ~ ${datedLabel(body.sprint.ends_on)}, 오늘 ${body.today}`}
                 </Typography>
@@ -1001,7 +1021,11 @@ export function Sprint() {
           {/* 5 — 무엇을 더 넣을까 */}
           <Section
             title="이번 회차 후보"
-            help="어느 회차에도 담기지 않은 티켓입니다. 「추가」를 누르면 이번 회차로 들어옵니다."
+            help={
+              body.sprint.project_id
+                ? `${sprintProjectName || "이 프로젝트"}의 백로그에서 어느 회차에도 담기지 않은 티켓입니다. 「추가」를 누르면 이번 회차로 들어옵니다.`
+                : "모든 프로젝트의 백로그에서 어느 회차에도 담기지 않은 티켓입니다. 「추가」를 누르면 이번 회차로 들어옵니다."
+            }
             rule
           >
             <Box sx={{ ...LANE_SURFACE, overflow: "hidden" }}>

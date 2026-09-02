@@ -421,3 +421,42 @@ describe("회의록 확장 (UX3)", () => {
     });
   });
 });
+
+describe("회의 화면이 사용자 질문에 답한다 (IA)", () => {
+  beforeEach(() => {
+    apiMock.mockReset();
+    apiMock.mockImplementation(stub);
+  });
+
+  it("🔴 회차 머리가 프로젝트 회차인지 팀 전체 회차인지 말한다", async () => {
+    renderSprint();
+    // 픽스처 회차는 project_id="p-1"(포털) — 프로젝트 회차임을 화면이 말해야 한다.
+    // 「프로젝트별로 스프린트가 만들어지나」를 화면 안에서 답하는 한 줄.
+    expect(await screen.findByText(/프로젝트 회차 · 포털/)).toBeTruthy();
+  });
+
+  it("팀 전체 회차는 그렇게 표시된다", async () => {
+    apiMock.mockImplementation((path) => {
+      if (/\/api\/work\/sprints\/[^/]+\/meeting/.test(path)) {
+        return Promise.resolve({
+          ...MEETING,
+          sprint: { ...MEETING.sprint, project_id: null },
+        });
+      }
+      if (path.startsWith("/api/work/sprints?") || path === "/api/work/sprints") {
+        return Promise.resolve({
+          sprints: [{ ...SPRINTS.sprints[1], project_id: null }],
+        });
+      }
+      return stub(path);
+    });
+    renderSprint();
+    expect(await screen.findByText(/팀 전체 회차/)).toBeTruthy();
+  });
+
+  it("후보 도움말이 어느 프로젝트 백로그인지 말한다", async () => {
+    renderSprint();
+    await screen.findByText("이번 회차 후보");
+    expect(screen.getByText(/포털의 백로그에서 어느 회차에도 담기지 않은/)).toBeTruthy();
+  });
+});
