@@ -261,7 +261,7 @@ export function normalizeOptions(options) {
 export function EntityCombobox({
   label, value, onChange, options, loading, disabled, sx, kind = "entity", id,
   placeholder, allLabel, noOptionsText = "일치하는 항목이 없습니다", required, helperText,
-  ariaLabelledBy, hideLabel, multiple = false, renderOption,
+  ariaLabelledBy, hideLabel, multiple = false, renderOption, noAllOption = false,
 }) {
   const list = normalizeOptions(options);
   // 기본 렌더(라벨 + 보조줄)는 그대로 두고, 부르는 쪽이 다른 그림(아바타 등)이 필요하면
@@ -319,7 +319,9 @@ export function EntityCombobox({
     );
   }
   const all = { value: "", label: allLabel || `${label} 전체` };
-  const withAll = [all, ...list];
+  /* `noAllOption` — 생성 폼처럼 「전체」가 답이 될 수 없는 자리. 필터 어휘(「… 전체」)가
+     선택지로 서면 고르는 값의 뜻이 흐려진다 — 비우기는 여전히 된다(입력을 지우면 된다). */
+  const withAll = noAllOption ? list : [all, ...list];
   /* 값이 없으면 입력을 **비워 둔다** — 「… 전체」 는 자리표시자로 보이고 목록에도 남는다.
      값을 입력 **글자**로 넣으면(MUI Select 의 `displayEmpty` 관용) 사용자가 타이핑할 때
      그 글자 뒤에 덧붙어 후보가 0개가 된다. 실브라우저에서 확인했다: 「프로젝트 전체」 상태에서

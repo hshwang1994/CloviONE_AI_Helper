@@ -29,3 +29,28 @@ export const SORTS = [
 export function spaceDisplayName(space) {
   return space.owner_kind === "organization" ? "공통 문서" : space.name;
 }
+
+/* 프로젝트 축의 「공통 문서」 값 — 서버 `service.PROJECT_FILTER_NONE` 과의 값 계약이다.
+ * 주소(`?project=none`)·필터 파라미터·생성 선택지가 전부 이 한 값으로 왕복한다. */
+export const PROJECT_NONE = "none";
+
+/** 공간 하나를 프로젝트 축 값으로 옮긴다 — 프로젝트 공간이면 그 프로젝트 id, 아니면 공통. */
+export function axisValueOf(space) {
+  return space && space.owner_kind === "project" && space.owner_project_id
+    ? space.owner_project_id
+    : PROJECT_NONE;
+}
+
+/** 프로젝트 축 값이 가리키는 공간. 공간이 아직 없는 프로젝트(서버가 첫 문서에서 만든다 —
+ * §14.2)와, 공통이 유일하게 정해지지 않는 배치에서는 null 이다. */
+export function spaceForAxis(spaces, value) {
+  const list = spaces || [];
+  if (!value) return null;
+  if (value === PROJECT_NONE) {
+    const common = list.filter((s) => s.owner_kind !== "project");
+    return common.length === 1 ? common[0] : null;
+  }
+  return (
+    list.find((s) => s.owner_kind === "project" && s.owner_project_id === value) || null
+  );
+}

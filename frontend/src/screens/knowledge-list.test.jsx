@@ -111,6 +111,16 @@ function baseRoutes(path) {
     return { items: [{ id: "blank", name: "빈 문서", help: "빈 상태로 시작합니다.", empty: true }] };
   }
   if (text.startsWith("/api/knowledge/recent")) return { items: [] };
+  if (text.startsWith("/api/projects")) {
+    // ProjectPicker(새 문서 폼)의 후보 — 공간이 아직 없는 프로젝트가 섞여 있다.
+    return {
+      items: [
+        { id: "proj-1", name: "알파 프로젝트", code: "AAAAAA" },
+        { id: "proj-2", name: "베타 프로젝트", code: "BBBBBB" },
+      ],
+      total: 2,
+    };
+  }
   return null;
 }
 
@@ -338,7 +348,7 @@ describe("요약 넷", () => {
  * 만든 문서는 그 값을 채울 방법이 아예 없었고 상세 화면은 빈 줄을 보여 줬다.
  */
 describe("새 문서 만들기", () => {
-  it("적은 제목과 고른 공간, 틀이 그대로 생성 요청에 실린다", async () => {
+  it("공통 문서 자리에서 만들면 조직 공간 id 가 실린다 — 축 값의 매핑", async () => {
     renderList();
     await seeRows();
 
@@ -352,8 +362,35 @@ describe("새 문서 만들기", () => {
         ([p, opts]) => String(p) === "/api/knowledge/documents" && opts && opts.method === "POST");
       expect(post, "생성 요청이 안 나갔다").toBeTruthy();
       expect(post[1].body.title).toBe("인수인계 메모");
-      expect(post[1].body.space_id, "지금 보고 있는 공간이 안 실렸다").toBe(SPACE);
+      // 지금 보던 곳(조직 공간 = 공통 문서)이 기본값이고, 공통만 실제 공간 id 로 나간다.
+      expect(post[1].body.space_id, "공통 문서의 공간 매핑이 안 실렸다").toBe(SPACE);
+      expect(post[1].body.project_id).toBeUndefined();
       expect(post[1].body.template, "고른 틀이 안 실렸다").toBe("blank");
+    });
+  });
+
+  it("🔴 공간이 아직 없는 프로젝트도 고를 수 있다 — project_id 로 나가고 폴더 칸은 없다", async () => {
+    renderList();
+    await seeRows();
+
+    await userEvent.click(screen.getByRole("button", { name: "새 문서" }));
+    const dialog = await screen.findByRole("dialog");
+    await userEvent.type(within(dialog).getByLabelText(/문서 제목/), "알파 회의록");
+    // 예전 셀렉트는 「이미 공간이 있는 프로젝트」만 후보라 이 프로젝트를 고를 수 없었다 —
+    // 공간을 먼저 만들어야 문서를 만들 수 있던 구조의 물리적 원인.
+    await userEvent.click(within(dialog).getByRole("combobox", { name: /프로젝트/ }));
+    await userEvent.click(await screen.findByRole("option", { name: /알파 프로젝트/ }));
+    // 공간이 없으니 폴더도 없다 — 칸 자체가 서지 않는다(만든 뒤 옮길 수 있다).
+    expect(within(dialog).queryByLabelText(/폴더/)).toBeNull();
+    await userEvent.click(within(dialog).getByRole("button", { name: "만들기" }));
+
+    await waitFor(() => {
+      const post = apiMock.mock.calls.find(
+        ([p, opts]) => String(p) === "/api/knowledge/documents" && opts && opts.method === "POST");
+      expect(post, "생성 요청이 안 나갔다").toBeTruthy();
+      // 서버가 공간을 찾거나 만든다(resolve_or_create_project_space) — 화면은 프로젝트만 안다.
+      expect(post[1].body.project_id).toBe("proj-1");
+      expect(post[1].body.space_id).toBeUndefined();
     });
   });
 

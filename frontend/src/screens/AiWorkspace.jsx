@@ -21,6 +21,7 @@ import {
 } from "../ui/kit.jsx";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, PROSE_MAX_WIDTH } from "../ui/theme.js";
 import { useKnowledgeSpaces } from "../lib/knowledgeSpaces.js";
+import { spaceDisplayName } from "./knowledge/constants.js";
 
 /* AI 작업공간 — 묻고, 근거를 보고, 그 자리로 간다 (S10).
  *
@@ -290,11 +291,15 @@ export function AiWorkspace() {
           { name: "title", label: "문서 제목", type: "text", required: true, maxLength: 500 },
           {
             name: "space_id",
-            label: "공간",
+            // 「공간」 낱말을 일반 사용자 화면에 쓰지 않는다(§11.2) — 사용자에게 공간은
+            // 프로젝트(또는 공통 문서)다. 값 계약(space_id)은 그대로다. 아직 공간이 없는
+            // 프로젝트가 후보에 없는 한계는 이 폼의 서버 계약이 project_id 를 받는 날
+            // 풀린다(백로그로 적어 둔다).
+            label: "프로젝트",
             type: "select",
             required: true,
             options: spaces.map((space) => ({
-              value: space.id, label: space.name,
+              value: space.id, label: spaceDisplayName(space),
             })),
           },
         ]}

@@ -24,7 +24,7 @@ import { ListFooter } from "../ui/InfiniteScroll.jsx";
 import { useResetScrollOnKeyChange } from "../lib/useInfiniteList.js";
 import { useListMemory } from "../lib/listReturn.js";
 import { SPACES_KEY, useKnowledgeSpaces } from "../lib/knowledgeSpaces.js";
-import { LIST_KEY, VIEW } from "./knowledge/constants.js";
+import { LIST_KEY, PROJECT_NONE, VIEW, axisValueOf, spaceForAxis } from "./knowledge/constants.js";
 import {
   useCategories, useDocuments, useSummary, useTags, useTemplates, useTree,
 } from "./knowledge/queries.js";
@@ -371,10 +371,15 @@ export function Knowledge() {
             <Button onClick={() => setTaxonomyOpen(true)}>분류 관리</Button>
             <Button
               variant="primary"
-              onClick={() => setNewDoc({
-                title: "", space_id: spaceId || items[0].id, folder_id: folderId || "",
-                category_id: "", tags: [], template: "blank",
-              })}
+              onClick={() => {
+                // 지금 보던 곳(공간)을 프로젝트 축 값으로 옮겨 기본값으로 준다.
+                const current = items.find((s) => s.id === spaceId) || items[0];
+                setNewDoc({
+                  title: "", project_id: current ? axisValueOf(current) : "",
+                  folder_id: folderId || "",
+                  category_id: "", tags: [], template: "blank",
+                });
+              }}
             >
               새 문서
             </Button>
@@ -599,21 +604,28 @@ export function Knowledge() {
       <NewDocumentModal
         open={Boolean(newDoc)}
         initial={newDoc || {
-          title: "", space_id: "", folder_id: "", category_id: "", tags: [], template: "blank",
+          title: "", project_id: "", folder_id: "", category_id: "", tags: [], template: "blank",
         }}
         spaces={items}
         templates={templateRows}
         categories={categoryRows}
         busy={createDocument.isPending}
         onClose={() => setNewDoc(null)}
-        onSubmit={(values) => createDocument.mutate({
-          space_id: values.space_id,
-          title: values.title.trim(),
-          folder_id: values.folder_id || null,
-          category_id: values.category_id || null,
-          template: values.template || null,
-          tag_names: values.tags && values.tags.length ? values.tags : null,
-        })}
+        onSubmit={(values) => {
+          // 프로젝트면 project_id 로 — 공간은 서버가 찾거나 만든다(§14.2). 공통 문서만
+          // 실제 공간 id 로 나간다(조직 공간은 프로젝트로 표현할 수 없는 유일한 갈래다).
+          const commonSpace = spaceForAxis(items, PROJECT_NONE);
+          createDocument.mutate({
+            ...(values.project_id && values.project_id !== PROJECT_NONE
+              ? { project_id: values.project_id }
+              : { space_id: commonSpace ? commonSpace.id : "" }),
+            title: values.title.trim(),
+            folder_id: values.folder_id || null,
+            category_id: values.category_id || null,
+            template: values.template || null,
+            tag_names: values.tags && values.tags.length ? values.tags : null,
+          });
+        }}
       />
     </>
   );

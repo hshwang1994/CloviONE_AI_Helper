@@ -5,11 +5,12 @@ import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { Modal, ModalFooter } from "../../ui/kit.jsx";
+import { ProjectPicker } from "../../ui/ProjectPicker.jsx";
 import { TagPicker } from "../../ui/TagPicker.jsx";
 import { FONT_WEIGHT, KO_WORD_BREAK } from "../../ui/theme.js";
 import { useTree } from "./queries.js";
 import { flatten } from "./KnowledgeNav.jsx";
-import { spaceDisplayName } from "./constants.js";
+import { PROJECT_NONE, spaceForAxis } from "./constants.js";
 
 /* 새 문서 — 제목과 프로젝트가 필수이고 나머지는 선택이다 (지시 22.5).
  *
@@ -39,12 +40,18 @@ export function NewDocumentModal({
 
   const set = (patch) => setValues((prev) => ({ ...prev, ...patch }));
   const chosen = templates.find((t) => t.id === values.template) || templates[0];
-  const spaceRow = spaces.find((s) => s.id === values.space_id);
-  /* 고른 공간의 폴더만 보여 준다. 프로젝트 고정 모드에서는 공간 id 를 모르므로 폴더
-     칸 자체가 서지 않는다 — 만들고 나서 문서 화면에서 옮길 수 있다. */
-  const tree = useTree(open && !lockedProject ? values.space_id : "");
+  /* 🔴 후보는 **프로젝트 전체**다. 예전에는 라벨만 「프로젝트」고 옵션이 「이미 공간이
+     있는 프로젝트」뿐이라, 22개 중 11개 프로젝트는 이 화면에서 아예 고를 수가 없었다 —
+     「공간을 먼저 추가해야 문서를 만들 수 있는」 구조의 물리적 원인이 이 셀렉트였다.
+     이제 값은 프로젝트 id(또는 공통)이고, 공간은 서버가 찾거나 만든다(§14.2). */
+  const commonSpace = spaceForAxis(spaces, PROJECT_NONE);
+  /* 고른 프로젝트에 이미 공간이 있으면 그 폴더 트리를 보여 준다. 아직 공간이 없는
+     프로젝트(첫 문서)는 폴더도 없다 — 칸 자체가 서지 않고, 만들고 나서 옮길 수 있다
+     (프로젝트 고정 모드와 같은 근거). */
+  const targetSpace = lockedProject ? null : spaceForAxis(spaces, values.project_id);
+  const tree = useTree(open && targetSpace ? targetSpace.id : "");
   const folders = flatten(tree.data?.folders || []);
-  const canSubmit = Boolean((values.title || "").trim() && (values.space_id || lockedProject));
+  const canSubmit = Boolean((values.title || "").trim() && (values.project_id || lockedProject));
   /* 화살표 함수를 JSX 안에 안 둔다. `=>` 의 `>` 가 뒤따르는 라벨과 짝지어져 UX 동사표
      검사(`ux-writing-verb-table.test.js`)의 JSX 텍스트 추출을 오탐시킨다. */
   const submit = () => onSubmit(values);
@@ -91,26 +98,24 @@ export function NewDocumentModal({
               fullWidth
             />
           ) : (
-            <TextField
-              select
+            <ProjectPicker
               required
-              label="프로젝트"
-              value={values.space_id}
-              onChange={(e) => set({ space_id: e.target.value, folder_id: "" })}
-              InputLabelProps={{ shrink: true }}
+              noAllOption
+              value={values.project_id}
+              onChange={(next) => set({ project_id: next || "", folder_id: "" })}
+              placeholder="문서가 속할 프로젝트를 고릅니다"
+              extraOptions={commonSpace ? [{ value: PROJECT_NONE, label: "공통 문서" }] : []}
               helperText={
-                spaceRow
-                  ? "이 프로젝트를 볼 수 있는 사람이 이 문서를 볼 수 있습니다."
-                  : "문서가 속할 프로젝트를 고릅니다."
+                values.project_id === PROJECT_NONE
+                  ? "조직의 모든 사람이 이 문서를 볼 수 있습니다."
+                  : values.project_id
+                    ? "이 프로젝트를 볼 수 있는 사람이 이 문서를 볼 수 있습니다."
+                    : "문서가 속할 프로젝트를 고릅니다."
               }
-              fullWidth
-            >
-              {spaces.map((s) => (
-                <MenuItem key={s.id} value={s.id}>{spaceDisplayName(s)}</MenuItem>
-              ))}
-            </TextField>
+              sx={{ width: "100%", maxWidth: "none" }}
+            />
           )}
-          {!lockedProject && values.space_id ? (
+          {!lockedProject && targetSpace ? (
             <TextField
               select
               label="폴더"

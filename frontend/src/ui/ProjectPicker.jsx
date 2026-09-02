@@ -11,18 +11,23 @@ import { EntityCombobox } from "./filters.jsx";
  */
 export function ProjectPicker({
   label = "프로젝트", value, onChange, multiple = false, disabled, sx, allLabel,
-  helperText, required,
+  helperText, required, extraOptions, noAllOption, placeholder,
 }) {
   /* 고르개는 **한 묶음이 곧 전부**다 — 200건이면 이 조직의 프로젝트 전체다(실운영 22건).
      그래서 「더 보기」도 센티넬도 없다. 목록 훅을 함께 쓰는 이유는 캐시와 질의 키를 목록
      화면과 나누기 위해서다(`project-queries.js` 의 존재 이유 그대로). */
   const q = useProjectList("page_size=200");
   const projects = q.rows;
-  const options = projects.map((p) => ({
-    value: p.id,
-    label: p.name,
-    secondary: p.code || "",
-  }));
+  /* `extraOptions` 는 앞에 선다 — 「공통 문서」처럼 프로젝트가 아니지만 같은 축에서
+     고르는 구체 선택지다. 값이 실옵션이라 주소·서버 센티널과 무변환으로 왕복한다. */
+  const options = [
+    ...(extraOptions || []),
+    ...projects.map((p) => ({
+      value: p.id,
+      label: p.name,
+      secondary: p.code || "",
+    })),
+  ];
 
   return (
     <EntityCombobox
@@ -36,6 +41,8 @@ export function ProjectPicker({
       disabled={disabled}
       sx={sx}
       allLabel={allLabel}
+      noAllOption={noAllOption}
+      placeholder={placeholder}
       helperText={helperText}
       required={required}
       noOptionsText="일치하는 프로젝트가 없습니다"
