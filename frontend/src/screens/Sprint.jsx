@@ -32,7 +32,7 @@ import {
   scopeTrendSeries, workloadItems,
 } from "./sprint-charts.js";
 import { SprintLifecycle, SprintStateBadge, sprintStateLabel } from "./SprintLifecycle.jsx";
-import { SPRINT_FIELDS } from "./sprint-fields.js";
+import { sprintFields } from "./sprint-fields.js";
 import { useQueryState } from "../lib/useQueryState.js";
 import { useTicketProjects } from "./ticket-options.js";
 import { SIGNALS, useTicketSignals } from "../lib/ticketSignals.js";
@@ -286,19 +286,31 @@ export function Sprint() {
     () => (sprints.data && sprints.data.sprints) || [],
     [sprints.data]
   );
+  const projectOptions = React.useMemo(
+    () =>
+      ((projects.data && projects.data.projects) || []).map((p) => ({
+        value: p.id,
+        label: p.name,
+      })),
+    [projects.data]
+  );
 
   /* 회차를 안 골랐으면 **열려 있는 회차**를 고른다. 회의를 여는 사람이 매번 목록에서
-     같은 것을 다시 고르게 하지 않는다. 열린 회차가 없으면 가장 최근 회차다.
-     🔴 **한 번만 한다.** 예전에는 가드가 없어서 사용자가 회차를 비우는 즉시 화면이 다시
-     채웠다 — 작업 보드는 같은 자리에 `autoSelectedRef` 를 두고 있었고, 두 화면이 같은
-     동작에서 다르게 굴면 사용자는 어느 쪽이 맞는지 배울 수가 없다. */
-  const autoSelectedRef = React.useRef(false);
+     같은 것을 다시 고르게 하지 않는다. 열린 회차가 없으면 고르지 않고 아래 빈 상태가
+     안내한다(pickOpenSprint 의 qa-contract-change).
+
+     🔴 「한 번만」은 **프로젝트 단위**다. 예전에는 불리언 ref 라, 프로젝트를 바꾸면
+     (선택기가 sprint 를 비운다) 재자동선택이 영영 안 돌아 머리+필터만 남고 본문이
+     백지가 됐다 — 빈 상태 조건(회차 0건)도 안 맞아 아무 안내가 없었다. 같은
+     프로젝트에서 사용자가 손으로 비운 선택은 여전히 다시 덮지 않는다. */
+  const autoFor = React.useRef(null);
   React.useEffect(() => {
-    if (autoSelectedRef.current || state.sprint || !sprintRows.length) return;
-    autoSelectedRef.current = true;
+    if (state.sprint) { autoFor.current = state.project; return; }
+    if (sprints.isLoading || autoFor.current === state.project) return;
+    autoFor.current = state.project;
     const picked = pickOpenSprint(sprintRows);
     if (picked) setState({ sprint: picked.id }, { replace: true });
-  }, [state.sprint, sprintRows, setState]);
+  }, [state.sprint, state.project, sprintRows, sprints.isLoading, setState]);
 
   const meeting = useQuery({
     queryKey: ["sprint-meeting", state.sprint],
@@ -317,7 +329,8 @@ export function Sprint() {
       qc.invalidateQueries({ queryKey: ["work-sprints"] });
       setSprintFormOpen(false);
       // 만든 회차를 바로 연다 — 안 열면 「만들었는데 아무 일도 안 일어난」 것으로 보인다.
-      setState({ sprint: sprint.id });
+      // 프로젝트 필터도 그 회차의 것으로 옮긴다(폼에서 다른 프로젝트를 골랐을 수 있다).
+      setState({ project: sprint.project_id || "", sprint: sprint.id });
       toast("스프린트를 만들었습니다.", "success");
     },
     onError: (e) =>
@@ -472,10 +485,7 @@ export function Sprint() {
             value={state.project}
             onChange={(next) => setState({ project: next || "", sprint: "" })}
             loading={projects.isLoading}
-            options={((projects.data && projects.data.projects) || []).map((p) => ({
-              value: p.id,
-              label: p.name,
-            }))}
+            options={projectOptions}
             allLabel="전체"
             sx={{ minWidth: "14rem" }}
           />
@@ -498,9 +508,14 @@ export function Sprint() {
         </FilterRow>
       </FilterSurface>
 
-      {meeting.isLoading ? <Skeleton kind="section" /> : null}
+      {meeting.isLoading || (sprints.isLoading && !state.sprint) ? <Skeleton kind="section" /> : null}
       {meeting.isError ? <ErrorState error={meeting.error} onRetry={meeting.refetch} /> : null}
-      {!state.sprint && !sprints.isLoading && sprintRows.length === 0 ? (
+      {/* 회차 목록 자체가 실패하면 아래 빈 상태들이 「회차가 없다」는 다른 사실을 말하게
+          된다 — 실패는 실패로 그린다. */}
+      {sprints.isError && !state.sprint ? (
+        <ErrorState error={sprints.error} onRetry={sprints.refetch} />
+      ) : null}
+      {!state.sprint && !sprints.isLoading && !sprints.isError && sprintRows.length === 0 ? (
         // §8.3 — 회의 빈 상태는 화면 전체가 비었다(layout="page")로 그린다. 없는 prop
         // `hint` 를 넘기던 자리라 안내 문장 자체가 안 나왔다(A2) — `help` 로 옮기고,
         // 「스프린트 만들기」·「백로그 보기」 둘을 다음 행동으로 준다.
@@ -512,6 +527,23 @@ export function Sprint() {
             <>
               <Button variant="primary" onClick={() => setSprintFormOpen(true)}>스프린트 추가</Button>
               <Button variant="secondary" onClick={() => navigate("/work-board?tab=backlog")}>백로그 보기</Button>
+            </>
+          }
+        />
+      ) : null}
+      {!state.sprint && !sprints.isLoading && !sprints.isError && sprintRows.length > 0 ? (
+        /* 회차는 있는데 열린 것이 없어 자동 선택이 비켜 간 상태다. 예전에는 이 조합이
+           머리+필터만 남는 백지였다 — 화면이 다음 행동을 말한다. */
+        <EmptyState
+          layout="page"
+          title="회의할 회차를 고르세요."
+          help="위 스프린트 칸에서 회차를 고르면 번다운과 남은 일을 보며 회의를 시작할 수 있습니다. 열려 있는 회차가 있으면 자동으로 고릅니다."
+          action={
+            <>
+              <Button variant="primary" onClick={() => setState({ sprint: sprintRows[0].id })}>
+                가장 최근 회차 열기
+              </Button>
+              <Button variant="secondary" onClick={() => setSprintFormOpen(true)}>스프린트 추가</Button>
             </>
           }
         />
@@ -847,13 +879,15 @@ export function Sprint() {
         open={sprintFormOpen}
         title="새 스프린트"
         submitLabel="만들기"
-        fields={SPRINT_FIELDS}
+        // 프로젝트 칸이 폼에 보인다(sprint-fields.js 의 이유). 기본값은 현재 필터다.
+        fields={sprintFields(projectOptions)}
+        initial={{ project_id: state.project || "" }}
         onSubmit={(values) =>
           createSprint.mutateAsync({
             name: values.name,
             starts_on: values.starts_on,
             ends_on: values.ends_on,
-            project_id: state.project || null,
+            project_id: values.project_id || null,
             goal: values.goal || null,
           })
         }

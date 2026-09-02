@@ -34,7 +34,7 @@ import { KO_WORD_BREAK } from "../ui/theme.js";
 import { MODERATOR_ROLES, hasRole } from "../lib/roles.js";
 import { useAuth } from "../app/auth.jsx";
 import { invalidateTicketViews } from "./ticket-views.js";
-import { SPRINT_FIELDS } from "./sprint-fields.js";
+import { sprintFields } from "./sprint-fields.js";
 import { TicketEditModal } from "./MyTickets.jsx";
 import { useAssigneeOptions, useTicketMeta, useTicketProjects } from "./ticket-options.js";
 import { SIGNALS, SIGNAL_ORDER, useTicketSignals } from "../lib/ticketSignals.js";
@@ -356,14 +356,26 @@ export function WorkBoard() {
 
   // §8.3 — 진입 시 오늘에 걸린 활성 회차가 있으면 자동으로 고른다. 한 번만 한다 — 사용자가
   // 그 뒤 직접 회차를 비우면(「전체」로 되돌리면) 자동 선택이 다시 덮어쓰지 않는다.
-  const autoSelectedRef = React.useRef(false);
+  // 🔴 주소에 이미 회차가 실려 들어온 진입(딥링크)도 「이미 골랐다」다 — 여기서 ref 를
+  // 안 세우면, 나중에 사용자가 비운 선택이 회차 목록의 신원이 바뀌는 순간 되살아난다.
+  const autoSelectedRef = React.useRef(!!state.sprint);
+  // 판 질의는 회차 선택이 **정리된 뒤에** 연다. 예전에는 진입 즉시 회차 없는 질의(전
+  // 회차 최대 비용)를 한 번 쏘고, 자동 선택이 끝나면 같은 판을 두 번째로 읽었다.
+  const [sprintSettled, setSprintSettled] = React.useState(!!state.sprint);
   React.useEffect(() => {
-    if (autoSelectedRef.current || !sprints.data || sprintId) return;
-    autoSelectedRef.current = true;
-    const picked = pickOpenSprint(sprintRows);
-    if (picked) setState({ sprint: picked.id });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sprints.data]);
+    if (!sprints.isSuccess && !sprints.isError) return;
+    if (!autoSelectedRef.current && !sprintId && sprints.isSuccess) {
+      autoSelectedRef.current = true;
+      const picked = pickOpenSprint(sprintRows);
+      if (picked) {
+        // 주소가 바뀐 다음 렌더에서 이 이펙트가 다시 돌아 settled 를 켠다 — 그래야
+        // 판 질의가 처음부터 회차를 실은 채 정확히 한 번 나간다.
+        setState({ sprint: picked.id }, { replace: true });
+        return;
+      }
+    }
+    setSprintSettled(true);
+  }, [sprints.isSuccess, sprints.isError, sprintId, sprintRows, setState]);
 
   // §8.1 — scope. 「완료와 취소 보기」를 켜면 all, 아니면 execution 이다. 회차를 골랐든
   // 안 골랐든 같은 규칙이다 — 규칙이 문맥마다 다르면 사용자가 그 차이를 배워야 한다.
@@ -396,7 +408,7 @@ export function WorkBoard() {
             column_page_size: COLUMN_PAGE_SIZE,
           })
       ),
-    enabled: tab === TAB_BOARD,
+    enabled: tab === TAB_BOARD && sprintSettled,
   });
 
   // 필터가 바뀌면 다음 쪽으로 받아 둔 것도 함께 비운다 — 안 그러면 옛 조건의 카드가
@@ -427,8 +439,10 @@ export function WorkBoard() {
     onSuccess: (sprint) => {
       qc.invalidateQueries({ queryKey: ["work-sprints"] });
       setSprintFormOpen(false);
-      // 만든 회차를 바로 고른다. 안 고르면 「만들었는데 아무 일도 안 일어난」 것으로 보인다.
-      setState({ sprint: sprint.id });
+      // 만든 회차를 바로 고른다. 안 고르면 「만들었는데 아무 일도 안 일어난」 것으로
+      // 보인다. 프로젝트 필터도 그 회차의 것으로 함께 옮긴다 — 폼에서 다른 프로젝트를
+      // 골랐을 때 지금 판이 그 회차를 안 보여 주는 어긋남을 없앤다.
+      setState({ project: sprint.project_id || "", sprint: sprint.id });
       toast("스프린트를 만들었습니다.", "success");
     },
     onError: (e) =>
@@ -743,11 +757,24 @@ export function WorkBoard() {
    * 쓰는지 모르겠다」가 된다. */
   const boardNotice = (() => {
     if (!sprintId) {
+      const scopeLine = showAll
+        ? "완료와 취소를 포함한 전체 티켓을 보여 줍니다."
+        : "실행 중인 업무만 보여 줍니다.";
+      // 자동 선택이 비켜 간 이유를 말한다 — 회차가 있는데 열린 것이 없으면, 사람이
+      // 지난 회차를 고르거나 새 회차를 여는 것이 다음 행동이다.
+      const noneOpen =
+        sprintRows.length > 0 && !sprintRows.some((s) => s && (s.active || s.state === "active"));
+      if (noneOpen) {
+        return {
+          title: "진행 중인 회차가 없습니다.",
+          body: canPlanSprint
+            ? `${scopeLine} 위에서 지난 회차를 고르거나 「스프린트 추가」로 새 회차를 만들 수 있습니다.`
+            : `${scopeLine} 위 스프린트 칸에서 지난 회차를 골라 볼 수 있습니다.`,
+        };
+      }
       return {
         title: "회차를 고르지 않았습니다.",
-        body: showAll
-          ? "완료와 취소를 포함한 전체 티켓을 보여 줍니다. 회차를 고르면 그 회차의 일만 봅니다."
-          : "실행 중인 업무만 보여 줍니다. 회차를 고르면 그 회차의 일만 봅니다.",
+        body: `${scopeLine} 회차를 고르면 그 회차의 일만 봅니다.`,
       };
     }
     const label = sprint ? sprint.name : "이 회차";
@@ -1063,16 +1090,17 @@ export function WorkBoard() {
         open={sprintFormOpen}
         title="새 스프린트"
         submitLabel="만들기"
-        fields={SPRINT_FIELDS}
+        // 프로젝트 칸이 폼에 보인다(sprint-fields.js 의 이유). 기본값은 현재 필터이고,
+        // 다른 프로젝트를 골라 만들면 onSuccess 가 필터를 그 회차로 옮긴다 — 「만들었는데
+        // 판에 안 보인다」가 생기지 않는다.
+        fields={sprintFields(projectRows.map((p) => ({ value: p.id, label: p.name })))}
+        initial={{ project_id: projectId || "" }}
         onSubmit={(values) =>
           createSprint.mutateAsync({
             name: values.name,
             starts_on: values.starts_on,
             ends_on: values.ends_on,
-            // 위에서 고른 프로젝트에 만든다. 「전체」면 팀 전체 회차다 — 폼에 칸을
-            // 하나 더 두면 위 선택기와 다른 값을 고를 수 있고, 그러면 만든 회차가
-            // 지금 보고 있는 판에 안 나타난다.
-            project_id: projectId || null,
+            project_id: values.project_id || null,
             goal: values.goal || null,
           })
         }

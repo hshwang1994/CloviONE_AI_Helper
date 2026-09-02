@@ -186,6 +186,14 @@ describe("pickOpenSprint", () => {
     expect(pickOpenSprint(rows).id).toBe("now");
     expect(pickOpenSprint([{ id: "a", state: "closed" }, { id: "b", state: "active" }]).id).toBe("b");
   });
+
+  it("🔴 열린 회차가 없으면 고르지 않는다 — 첫 줄 폴백 없음 (qa-contract-change)", () => {
+    // 목록은 starts_on 내림차순이라 첫 줄은 「가장 미래의 회차」다 — 그 폴백이 보드·회의를
+    // 진입하자마자 안 연(또는 닫힌) 회차의 빈 판으로 데려갔다.
+    expect(pickOpenSprint([{ id: "p", state: "planned" }, { id: "c", state: "closed" }])).toBeNull();
+    expect(pickOpenSprint([])).toBeNull();
+    expect(pickOpenSprint(null)).toBeNull();
+  });
 });
 
 describe("loadBand", () => {

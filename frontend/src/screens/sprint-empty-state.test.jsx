@@ -1,6 +1,6 @@
 import React from "react";
 import { describe, it, expect, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import { vi } from "vitest";
@@ -72,5 +72,40 @@ describe("스프린트 회의 — 회차 0건", () => {
     btn.click();
     await waitFor(() => expect(screen.getByRole("dialog")).toBeTruthy());
     expect(screen.getByRole("heading", { name: "새 스프린트" })).toBeTruthy();
+  });
+
+  it("만들기 폼에 프로젝트 칸이 보인다 — 현재 필터값을 조용히 쓰지 않는다", async () => {
+    renderSprint();
+    (await screen.findByRole("button", { name: "스프린트 추가" })).click();
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeTruthy());
+    // 칸이 안 보이던 시절에는 필터가 「전체」인 채 만들면 모르는 사이 팀 전체 회차가
+    // 됐다 — 팀 전체 회차는 조직에 하나만 열 수 있어 동작이 완전히 다르다.
+    expect(within(screen.getByRole("dialog")).getByText("프로젝트")).toBeTruthy();
+  });
+});
+
+describe("스프린트 회의 — 회차는 있는데 열린 것이 없다", () => {
+  beforeEach(() => {
+    apiMock.mockReset();
+    apiMock.mockImplementation((path) => {
+      if (path.startsWith("/api/work/sprints")) {
+        return Promise.resolve({
+          sprints: [{
+            id: "sp-9", name: "지난 회차", project_id: "",
+            starts_on: "2026-08-01", ends_on: "2026-08-07", state: "closed",
+          }],
+        });
+      }
+      return stub(path);
+    });
+  });
+
+  it("🔴 자동 선택 대신 「회차를 고르세요」 안내가 선다 — 백지가 아니다", async () => {
+    renderSprint();
+    await screen.findByText("회의할 회차를 고르세요.");
+    // 예전에는 이 조합(회차 있음 + 미선택)이 머리+필터만 남는 백지였다 — 폴백 자동
+    // 선택은 닫힌 회차의 빈 번다운으로 데려갔고, 빈 상태 조건(회차 0건)도 안 맞았다.
+    expect(screen.getByRole("button", { name: "가장 최근 회차 열기" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "스프린트 추가" })).toBeTruthy();
   });
 });

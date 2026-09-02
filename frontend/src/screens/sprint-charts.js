@@ -30,12 +30,16 @@ export function datedLabel(iso) {
 }
 
 /** 목록에서 **오늘에 걸린 열린 회차**를 고른다. `active` 가 있으면 그걸 우선하고,
- * 없으면 `state === "active"` 로 물러난다. 둘 다 없으면 첫 줄. */
+ * 없으면 `state === "active"` 로 물러난다. 열린 회차가 없으면 **고르지 않는다**(null).
+ *
+ * qa-contract-change: `|| list[0]` 폴백을 걷었다 — 목록은 `starts_on` 내림차순이라
+ * 그 폴백은 「가장 미래의(대개 아직 안 연) 회차」였고, 보드·회의가 진입하자마자 그
+ * 회차를 자동으로 열어 첫 화면이 빈 판 + 「아직 열지 않은 회차입니다」가 됐다.
+ * 열린 회차가 없다는 사실은 자동 선택이 아니라 화면이 말한다. */
 export function pickOpenSprint(rows) {
   const list = Array.isArray(rows) ? rows : [];
   return list.find((s) => s && s.active)
     || list.find((s) => s && s.state === "active")
-    || list[0]
     || null;
 }
 
