@@ -123,15 +123,36 @@ function People({ row }) {
 }
 
 /** 논의 목록 한 줄. 누르면 그 티켓으로 간다 — 「관련 티켓으로 바로 이동」이 요구다. */
-function DiscussRow({ row, onOpen, signals, showProject }) {
+function DiscussRow({ row, onOpen, signals, showProject, onRemove, removing }) {
   return (
-    <Card sx={{ p: 1.25, cursor: "pointer" }} onClick={() => onOpen(row)}>
-      <TicketFace
-        card={row}
-        signals={signals}
-        showProject={showProject}
-        compact
-      />
+    <Card
+      sx={{ p: 1.25, cursor: "pointer", display: "flex", alignItems: "center", gap: 1 }}
+      onClick={() => onOpen(row)}
+    >
+      <Box sx={{ minWidth: 0, flex: 1 }}>
+        <TicketFace
+          card={row}
+          signals={signals}
+          showProject={showProject}
+          compact
+        />
+      </Box>
+      {/* 범위를 빼는 결정이 실제로 일어나는 자리가 회의다 — 후보 표의 「추가」와 이
+          단추가 한 화면에서 대칭이 된다. 서버는 set_sprint + sprint_id 없음으로 이미
+          지원하고 있었는데 부르는 화면이 없었다(D-376 의 남은 반쪽). */}
+      {onRemove ? (
+        <Button
+          variant="ghost"
+          size="sm"
+          disabled={removing}
+          onClick={(e) => {
+            e.stopPropagation();
+            onRemove(row);
+          }}
+        >
+          빼기
+        </Button>
+      ) : null}
     </Card>
   );
 }
@@ -391,6 +412,22 @@ export function Sprint() {
       toast("이번 회차에 담았습니다.", "success");
     },
     onError: (e) => toast((e && e.message) || "담지 못했습니다. 다시 시도해 주세요.", "error"),
+  });
+
+  const removeFromSprint = useMutation({
+    mutationFn: (card) =>
+      api(`/api/work/board/${encodeURIComponent(card.id)}/move`, {
+        method: "POST",
+        // 「스프린트에서 뺀다」와 「안 건드린다」는 다른 요청이다 — 의도(set_sprint)를
+        // 따로 싣는 서버 계약(schemas.py) 그대로다.
+        body: { sprint_id: null, set_sprint: true, base_version: card.version },
+      }),
+    onSuccess: () => {
+      refreshMeeting();
+      invalidateTicketViews(qc);
+      toast("회차에서 빼 백로그로 돌렸습니다.", "success");
+    },
+    onError: (e) => toast((e && e.message) || "빼지 못했습니다. 다시 시도해 주세요.", "error"),
   });
 
   const openTicket = React.useCallback(
@@ -754,6 +791,13 @@ export function Sprint() {
                     onOpen={openTicket}
                     signals={signalsOf(row)}
                     showProject={!state.project}
+                    /* 이미 빠진 티켓(범위 변경 갈래의 removed)에는 뺄 것이 없다. */
+                    onRemove={
+                      row.direction === "removed"
+                        ? undefined
+                        : (r) => removeFromSprint.mutate(r)
+                    }
+                    removing={removeFromSprint.isPending}
                   />
                 ))}
                 {bucket.truncated ? (

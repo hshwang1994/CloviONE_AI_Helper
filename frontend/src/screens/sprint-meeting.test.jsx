@@ -364,3 +364,23 @@ describe("논의 갈래의 tablist 계약", () => {
     expect(screen.getByRole("tab", { name: /차단/ }).getAttribute("aria-controls")).toBe("discuss-panel");
   });
 });
+
+describe("회차에서 빼기 (S9)", () => {
+  beforeEach(() => {
+    apiMock.mockReset();
+    apiMock.mockImplementation(stub);
+  });
+
+  it("🔴 논의 행의 「빼기」가 회차 해제를 부른다 — sprint_id 없이 set_sprint 만", async () => {
+    renderSprint();
+    const remove = (await screen.findAllByRole("button", { name: "빼기" }))[0];
+    await userEvent.click(remove);
+    await waitFor(() => {
+      const call = apiMock.mock.calls.find(
+        ([p, o]) => String(p).includes("/move") && o && o.method === "POST",
+      );
+      expect(call).toBeTruthy();
+      expect(call[1].body).toEqual({ sprint_id: null, set_sprint: true, base_version: 1 });
+    });
+  });
+});
