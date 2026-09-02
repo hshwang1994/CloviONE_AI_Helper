@@ -1188,6 +1188,86 @@ def set_sprint_state(
     return _sprint_view(sprint)
 
 
+def update_sprint(
+    db: Session, user: User, *, sprint_id: str, changes: dict, now: datetime | None = None
+) -> dict:
+    """이름·기간·목표를 고친다. **보낸 칸만** 바뀐다(라우터가 `exclude_unset` 으로 거른다).
+
+    닫은 회차는 기간을 못 고친다 — 번다운·이월 기록이 그 축 위에 서 있고, 지난 축을
+    다시 쓰면 기록이 거짓이 된다. 이름·목표는 기록을 안 바꾸므로 닫은 뒤에도 고칠 수
+    있다 — 오타는 기록이 아니라 실수다.
+    """
+    sprint = get_scoped_sprint_or_404(db, sprint_id, user)
+    if sprint.state == SPRINT_CLOSED and ("starts_on" in changes or "ends_on" in changes):
+        raise ValidationAppError("닫은 회차의 기간은 고칠 수 없습니다. 이름과 목표만 고칠 수 있습니다.")
+    if "name" in changes:
+        label = (changes.get("name") or "").strip()
+        if not label:
+            raise ValidationAppError("스프린트 이름을 입력해 주세요.")
+        if label != sprint.name:
+            conflict = db.execute(
+                select(Sprint).where(
+                    Sprint.org_id == sprint.org_id,
+                    (
+                        Sprint.project_id == sprint.project_id
+                        if sprint.project_id is not None
+                        else Sprint.project_id.is_(None)
+                    ),
+                    Sprint.name == label,
+                    Sprint.id != sprint.id,
+                )
+            ).scalars().first()
+            if conflict is not None:
+                # 제약 이름(`uq_sprints_name`)만 보고 무엇이 문제인지 아는 사람은 없다.
+                raise ConflictError("같은 이름의 회차가 이미 있습니다.")
+            sprint.name = label
+    if "starts_on" in changes or "ends_on" in changes:
+        first = parse_date(changes["starts_on"]) if "starts_on" in changes else sprint.starts_on
+        last = parse_date(changes["ends_on"]) if "ends_on" in changes else sprint.ends_on
+        # create 와 같은 규칙 — 반쪽만 보내도 합성해서 다시 검증한다.
+        if first is None or last is None or first >= last:
+            raise ValidationAppError("스프린트 기간은 시작일이 종료일보다 앞이어야 합니다.")
+        sprint.starts_on = first
+        sprint.ends_on = last
+    if "goal" in changes:
+        sprint.goal = changes.get("goal") or None
+    sprint.updated_at = now or utcnow()
+    db.flush()
+    return _sprint_view(sprint)
+
+
+def delete_sprint(
+    db: Session, user: User, *, sprint_id: str, now: datetime | None = None
+) -> dict:
+    """**planned 회차만** 지운다 — 잘못 만든 회차를 정리하는 길이다.
+
+    active 는 닫기(이월)로 정리하고, closed 는 기록이라 남긴다. 담긴 티켓은 삭제
+    금지 사유가 아니라 **명시적으로 백로그로 뺀다** — FK 의 `SET NULL` 에 맡기면
+    티켓 타임라인에 「왜 회차에서 빠졌는지」가 조용히 빈다(활동 한 줄을 남긴다).
+    회의록은 FK CASCADE 로 함께 사라진다 — 연 적 없는 회차의 회의록은 사실상 없다.
+    """
+    sprint = get_scoped_sprint_or_404(db, sprint_id, user)
+    if sprint.state == SPRINT_ACTIVE:
+        raise ValidationAppError("진행 중인 회차는 삭제할 수 없습니다. 먼저 「회차 닫기」로 닫아 주세요.")
+    if sprint.state == SPRINT_CLOSED:
+        raise ValidationAppError("닫은 회차는 기록으로 남습니다. 삭제할 수 없습니다.")
+    stamp = now or utcnow()
+    detached = 0
+    for ticket in db.execute(
+        select(Ticket).where(Ticket.sprint_id == sprint.id)
+    ).scalars().all():
+        ticket.sprint_id = None
+        activity.record(
+            db, ticket_id=ticket.id, kind=ACT_SPRINT, actor_id=user.id, field="sprint_id",
+            from_value=sprint.id, to_value=None, now=stamp,
+        )
+        detached += 1
+    name = sprint.name
+    db.delete(sprint)
+    db.flush()
+    return {"deleted": True, "name": name, "detached": detached}
+
+
 def sprint_scope(db: Session, sprint_id: str, user: User) -> dict:
     """이 회차에 담긴 일의 크기. 번다운의 입력이다.
 

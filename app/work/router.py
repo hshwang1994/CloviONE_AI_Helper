@@ -39,6 +39,7 @@ from app.work.schemas import (
     SprintClose,
     SprintCreate,
     SprintState,
+    SprintUpdate,
     WatchToggle,
 )
 
@@ -315,6 +316,45 @@ def create_sprint(
         object_id=sprint["id"], after=sprint,
     )
     return sprint
+
+
+@router.patch("/sprints/{sprint_id}", dependencies=[Depends(require_csrf)])
+def update_sprint(
+    sprint_id: str,
+    payload: SprintUpdate,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("PROJECT_WRITE")),
+) -> dict:
+    """이름·기간·목표를 고친다 — 이 세 칸이 없어서 오타 하나가 영구였다.
+
+    상태는 여기로 못 바꾼다(`/state`·`/close` 소유). 빈 patch 는 decisions 와 같은
+    규약으로 거절한다.
+    """
+    changes = payload.model_dump(exclude_unset=True)
+    if not changes:
+        raise ValidationAppError("변경할 내용이 없습니다.")
+    sprint = service.update_sprint(db, user, sprint_id=sprint_id, changes=changes)
+    record_audit_from_request(
+        request, db, action="sprint.update", object_type="sprint",
+        object_id=sprint_id, after={"changed": sorted(changes), **sprint},
+    )
+    return sprint
+
+
+@router.delete("/sprints/{sprint_id}", dependencies=[Depends(require_csrf)])
+def delete_sprint(
+    sprint_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("PROJECT_WRITE")),
+) -> dict:
+    result = service.delete_sprint(db, user, sprint_id=sprint_id)
+    record_audit_from_request(
+        request, db, action="sprint.delete", object_type="sprint",
+        object_id=sprint_id, after=result,
+    )
+    return result
 
 
 @router.post("/sprints/{sprint_id}/state", dependencies=[Depends(require_csrf)])

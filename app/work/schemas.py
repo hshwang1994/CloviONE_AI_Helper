@@ -56,6 +56,19 @@ class SprintCreate(BaseModel):
     goal: str | None = Field(default=None, max_length=2000)
 
 
+class SprintUpdate(BaseModel):
+    """고칠 수 있는 칸만. **보낸 칸만 바뀐다**(`exclude_unset`).
+
+    `project_id` 와 `state` 는 여기 없다 — 소속 이동은 담긴 티켓의 프로젝트 불변식을
+    깨고, 상태는 `/state`·`/close` 두 엔드포인트가 소유한다(전이 규칙이 그쪽에 있다).
+    """
+
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    starts_on: str | None = Field(default=None, pattern=_ISO_DATE)
+    ends_on: str | None = Field(default=None, pattern=_ISO_DATE)
+    goal: str | None = Field(default=None, max_length=2000)
+
+
 class SprintState(BaseModel):
     state: str = Field(pattern="^(" + "|".join(SPRINT_STATES) + ")$")
 

@@ -260,3 +260,35 @@ def test_a_note_on_a_visible_sprint_persists_across_requests(client, login_as, w
     again = _meeting(client, login_as, world["open_sprint"].id).json()
     assert [d["body"] for d in again["decisions"]] == ["다음 회의 전에 담당 팀을 정합니다."]
     assert again["decisions"][0]["kind"] == "action"
+
+
+def test_updating_or_deleting_an_invisible_sprint_is_not_found(client, login_as, world):
+    """수정·삭제도 같은 문을 지난다 — 범위 밖 회차는 404 다(403 이 아니다)."""
+    patched = client.patch(
+        f"/api/work/sprints/{world['theirs_sprint'].id}",
+        json={"name": "남의 회차 개명"},
+        headers=_hdr(login_as),
+    )
+    assert patched.status_code == 404, patched.text
+    deleted = client.delete(
+        f"/api/work/sprints/{world['theirs_sprint'].id}", headers=_hdr(login_as)
+    )
+    assert deleted.status_code == 404, deleted.text
+
+
+def test_a_plain_user_cannot_update_or_delete_a_sprint(client, login_as, world, make_user, db):
+    """RBAC 음성 — 회차 조작은 PROJECT_WRITE 다. 일반 사용자는 403 을 본다."""
+    make_user("sprint-scope-user@goodmit.co.kr", role="user", display_name="참여자")
+    db.commit()
+    token = login_as("user", email="sprint-scope-user@goodmit.co.kr")
+    patched = client.patch(
+        f"/api/work/sprints/{world['open_sprint'].id}",
+        json={"name": "이름 바꾸기"},
+        headers={"X-CSRF-Token": token},
+    )
+    assert patched.status_code == 403, patched.text
+    deleted = client.delete(
+        f"/api/work/sprints/{world['open_sprint'].id}",
+        headers={"X-CSRF-Token": token},
+    )
+    assert deleted.status_code == 403, deleted.text

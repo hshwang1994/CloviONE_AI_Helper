@@ -194,3 +194,79 @@ def test_a_second_active_sprint_in_the_same_project_still_conflicts(db, world):
         service.set_sprint_state(
             db, world["boss"], sprint_id=world["planned"].id, state="active"
         )
+
+
+# ── 수정(PATCH)·삭제 규칙 ───────────────────────────────────────────────────
+
+
+def test_updating_name_dates_and_goal_works(db, world):
+    """오타·기간 실수를 고칠 길이 생겼다 — 보낸 칸만 바뀐다."""
+    out = service.update_sprint(
+        db, world["boss"], sprint_id=world["active"].id,
+        changes={"name": "열린 회차 2기", "goal": "마감을 지킨다."},
+    )
+    assert (out["name"], out["goal"]) == ("열린 회차 2기", "마감을 지킨다.")
+    # 안 보낸 칸은 그대로다.
+    assert out["starts_on"] == (TODAY - timedelta(days=3)).isoformat()
+
+
+def test_a_closed_sprints_dates_are_frozen(db, world):
+    """닫은 회차의 기간은 못 고친다 — 번다운·이월 기록이 그 축 위에 서 있다."""
+    with pytest.raises(ValidationAppError):
+        service.update_sprint(
+            db, world["boss"], sprint_id=world["closed"].id,
+            changes={"ends_on": (TODAY + timedelta(days=30)).isoformat()},
+        )
+    # 이름·목표는 기록이 아니라 표기다 — 닫은 뒤에도 고친다.
+    out = service.update_sprint(
+        db, world["boss"], sprint_id=world["closed"].id, changes={"name": "닫은 회차(정정)"}
+    )
+    assert out["name"] == "닫은 회차(정정)"
+
+
+def test_an_inverted_period_is_rejected(db, world):
+    """반쪽만 보내도 합성해서 검증한다 — 시작일이 종료일을 넘으면 거절."""
+    with pytest.raises(ValidationAppError):
+        service.update_sprint(
+            db, world["boss"], sprint_id=world["active"].id,
+            changes={"starts_on": (TODAY + timedelta(days=30)).isoformat()},
+        )
+
+
+def test_a_duplicate_name_is_rejected_with_words(db, world):
+    """제약 이름이 아니라 사람의 말로 거절한다."""
+    with pytest.raises(ConflictError):
+        service.update_sprint(
+            db, world["boss"], sprint_id=world["planned"].id, changes={"name": "열린 회차"}
+        )
+
+
+def test_deleting_a_planned_sprint_detaches_tickets_with_a_trace(db, world):
+    """planned 삭제는 담긴 티켓을 **기록을 남기며** 백로그로 뺀다 — FK 에 맡기지 않는다."""
+    from app.work.models import TicketActivity
+
+    ticket = db.get(Ticket, world["open_ticket"].id)
+    ticket.sprint_id = world["planned"].id
+    db.commit()
+
+    out = service.delete_sprint(db, world["boss"], sprint_id=world["planned"].id)
+    assert out == {"deleted": True, "name": "계획 회차", "detached": 1}
+    db.expire_all()
+    assert db.get(Sprint, world["planned"].id) is None
+    assert db.get(Ticket, world["open_ticket"].id).sprint_id is None
+    from sqlalchemy import select as sa_select
+    acts = db.execute(
+        sa_select(TicketActivity).where(
+            TicketActivity.ticket_id == world["open_ticket"].id,
+            TicketActivity.kind == "sprint",
+        )
+    ).scalars().all()
+    assert any(a.from_value == world["planned"].id and a.to_value is None for a in acts)
+
+
+def test_active_and_closed_sprints_cannot_be_deleted(db, world):
+    """active 는 닫기로 정리하고, closed 는 기록이라 남긴다."""
+    with pytest.raises(ValidationAppError):
+        service.delete_sprint(db, world["boss"], sprint_id=world["active"].id)
+    with pytest.raises(ValidationAppError):
+        service.delete_sprint(db, world["boss"], sprint_id=world["closed"].id)
