@@ -33,6 +33,7 @@ from app.core.models_base import utcnow
 from app.core.ownership import OWNER_PROJECT
 from app.knowledge import (
     blocks,
+    categories,
     comments as doc_comments,
     favorites as doc_favorites,
     folders,
@@ -337,7 +338,8 @@ def _order_by(sort: str | None):
 def list_documents(
     db: Session, user: User, *, space_id: str | None = None, project_id: str | None = None,
     folder_id: str | None = None,
-    q: str | None = None, tags: list[str] | None = None, favorites: bool = False,
+    q: str | None = None, tags: list[str] | None = None, category_id: str | None = None,
+    favorites: bool = False,
     include_archived: bool = False, archived_only: bool = False,
     created_by: str | None = None, drafts: bool = False, sort: str | None = None,
     limit: int = 50, offset: int = 0,
@@ -388,6 +390,10 @@ def list_documents(
         stmt = stmt.where(Document.archived.is_(False))
     if created_by:
         stmt = stmt.where(Document.created_by == created_by)
+    if category_id:
+        # 권한은 이미 걸린 clause 가 맡는다 — 남의 조직 카테고리 id 를 넘기면 그 분류의
+        # 보이는 문서가 없어 0건이 될 뿐이다(`project_id` 필터와 같은 방식).
+        stmt = stmt.where(Document.category_id == category_id)
     if drafts:
         stmt = stmt.where(Document.version <= 1)
     if q and q.strip():
@@ -466,7 +472,8 @@ def create_document(
     title: str,
     folder_id: str | None = None, body: dict | None = None,
     doc_type: str | None = None, source_type: str = SOURCE_USER,
-    tag_names: list[str] | None = None, confidential: bool = False,
+    tag_names: list[str] | None = None, category_id: str | None = None,
+    confidential: bool = False,
     template: str | None = None,
 ) -> Document:
     """`space_id` 나 `project_id` 중 하나를 받는다 — 화면은 보통 후자만 안다(§14.4).
@@ -492,6 +499,10 @@ def create_document(
     if not clean_title:
         raise ValidationAppError("문서 제목을 입력해 주세요.")
 
+    # 카테고리는 문서의 조직(=공간의 조직) 것이어야 한다. 남의 조직 id 는 404 다.
+    if category_id:
+        categories.get_or_404(db, space.org_id, category_id)
+
     # 틀은 **본문이 없을 때만** 채운다. 본문을 들고 온 경로(제안을 문서로 옮기는 자리)가
     # 틀 때문에 그 내용을 잃으면, 사용자는 자기가 쓴 글이 사라진 것으로 본다.
     if body is None:
@@ -502,6 +513,7 @@ def create_document(
         folder_id=folder_id,
         title=clean_title,
         doc_type=(doc_type or "").strip() or None,
+        category_id=category_id or None,
         source_type=source_type,
         confidential=bool(confidential),
         created_by=user.id,
@@ -524,17 +536,25 @@ def create_document(
     return document
 
 
+#: `save_document` 의 「안 보냈다」 표식. `None` 은 「분류를 해제한다」라 다른 값이 필요하다.
+UNSET = object()
+
+
 def save_document(
     db: Session, user: User, document_id: str, *,
     body: dict | None = None, title: str | None = None,
     change_reason: str | None = None, ai_used: bool = False,
     tag_names: list[str] | None = None,
+    category_id=UNSET,
     expected_version: int | None = None,
 ) -> dict:
-    """제목 · 본문 · 태그를 **한 트랜잭션**에 저장한다.
+    """제목 · 본문 · 태그 · 카테고리를 **한 트랜잭션**에 저장한다.
 
     본문이 안 바뀌었으면 판을 안 만든다(`versions.snapshot` 이 `None` 을 낸다) — 그래도
     제목이나 태그는 저장된다. 「저장했는데 아무 일도 안 일어났다」가 되면 안 되기 때문이다.
+
+    `category_id` 는 기본값이 `UNSET` 이다 — `None` 은 「미분류로 되돌린다」는 실제 값이라,
+    카테고리를 모르는 호출자가 분류를 지우지 않으려면 「안 보냈다」가 따로 있어야 한다.
     """
     document = get_scoped_document_or_404(db, user, document_id)
     _check_lock(document, expected_version)
@@ -562,6 +582,14 @@ def save_document(
     if tag_names is not None:
         tags.set_for_document(db, document, tag_names)
         changed = True
+
+    if category_id is not UNSET:
+        next_id = category_id or None
+        if next_id:
+            categories.get_or_404(db, tags.document_org_id(db, document), next_id)
+        if next_id != document.category_id:
+            document.category_id = next_id
+            changed = True
 
     if changed:
         document.version += 1

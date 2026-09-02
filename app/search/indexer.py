@@ -52,6 +52,7 @@ from app.core.db import batched
 from app.board.models import Post
 from app.knowledge.models import (
     Document,
+    DocumentCategory,
     DocumentTag,
     DocumentVersion,
     KnowledgeSpace,
@@ -230,6 +231,20 @@ def _document_tag_names(db: Session, document_ids: list[str]) -> dict[str, list[
     return out
 
 
+def _document_category_names(db: Session, document_ids: list[str]) -> dict[str, str]:
+    """문서마다 붙은 카테고리 이름 — 태그와 같은 이유로 **질의 한 번**이다."""
+    out: dict[str, str] = {}
+    for batch in batched(document_ids):
+        rows = db.execute(
+            select(Document.id, DocumentCategory.name)
+            .join(DocumentCategory, DocumentCategory.id == Document.category_id)
+            .where(Document.id.in_(batch))
+        ).all()
+        for document_id, name in rows:
+            out[str(document_id)] = str(name or "")
+    return out
+
+
 def _document_rows(db: Session) -> tuple[list[dict], bool]:
     """문서 — **정본은 `documents` + `document_versions` 다** (S14 · D1).
 
@@ -289,9 +304,15 @@ def _document_rows(db: Session) -> tuple[list[dict], bool]:
         ]
 
     tag_names = _document_tag_names(db, [str(r[0].id) for r in rows])
+    category_names = _document_category_names(db, [str(r[0].id) for r in rows])
     out: list[dict] = []
     for document, version, space in rows:
         tags = tag_names.get(str(document.id), [])
+        # 카테고리는 doc_type **옆에** 선다 — doc_type 을 빼면 카테고리가 없는 이관
+        # 문서의 분류가 검색에서 사라진다(0026 이 시드했지만 미분류 문서가 남는다).
+        # 다만 시드 직후에는 둘이 같은 낱말이라, 같으면 한 번만 싣는다.
+        category = category_names.get(str(document.id))
+        legacy_type = document.doc_type if document.doc_type != category else None
         # 본문은 현재 판의 **파생 Plain Text** 를 읽기만 한다. 표 셀 글자가 거기 들어 있어
         # (`app/knowledge/blocks.py::_table_text`), 표로 적힌 내용도 검색에 걸린다.
         #
@@ -312,8 +333,8 @@ def _document_rows(db: Session) -> tuple[list[dict], bool]:
             # 하나뿐이라 이름 매칭을 할 이유가 없어졌다.
             "owner_user_ids": join_owner_ids([document.created_by]),
             "title": _clip(document.title, 500),
-            "body": _clip(_joined([plain_text, document.doc_type, space.name, *tags])),
-            "subtitle": _clip(_joined_sep([document.doc_type, space.name, *tags]), 300),
+            "body": _clip(_joined([plain_text, category, legacy_type, space.name, *tags])),
+            "subtitle": _clip(_joined_sep([category, legacy_type, space.name, *tags]), 300),
             "route": f"/knowledge/{document.id}",
             # 옛 미러는 Notion 원문 링크를 실었다. 자체 DB 가 정본이 된 뒤로는 밖에 있는
             # 원문이 없다 — 없는 링크를 만들어 붙이지 않는다.

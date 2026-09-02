@@ -286,6 +286,12 @@ class Document(TimestampMixin, UUIDPrimaryKeyMixin, Base):
     )
     title: Mapped[str] = mapped_column(String(500), nullable=False, default="")
     doc_type: Mapped[str | None] = mapped_column(String(32), index=True)
+    # 카테고리를 지워도 문서는 안 지운다 — 미분류로 돌아온다(폴더의 SET NULL 과 같은 규약).
+    # `doc_type` 은 이관 데이터의 정본으로 남고(0026 이 여기서 카테고리를 시드했다),
+    # 신규 분류는 이 컬럼 하나가 든다.
+    category_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("document_categories.id", ondelete="SET NULL"), index=True
+    )
     source_type: Mapped[str] = mapped_column(
         String(16), nullable=False, default=SOURCE_USER, server_default=SOURCE_USER,
         index=True,
@@ -480,6 +486,30 @@ class DocumentTag(Base):
         # 「이 태그가 붙은 문서」의 인덱스. 기본키는 `(document_id, tag_id)` 라
         # 반대 방향 조회를 못 탄다.
         Index("ix_dtag_by_tag", "tag_id", "document_id"),
+    )
+
+
+class DocumentCategory(OrgScopedMixin, TimestampMixin, UUIDPrimaryKeyMixin, Base):
+    """카테고리. 태그와 다른 점은 **문서 하나에 하나**라는 것뿐이다.
+
+    분류 어휘는 조직이 스스로 만든다(0026 이 이관 `doc_type` 값에서 시드했고, 그 뒤는
+    관리 화면이 늘리고 고친다). `slug` 유일 제약과 정규화 규칙은 태그와 같은 한 벌이다
+    (`app/knowledge/tags.py::slugify`) — 「회의록」과 「회의록 」이 다른 카테고리가 되면
+    필터가 언제나 일부만 보여 준다.
+    """
+
+    __tablename__ = "document_categories"
+
+    name: Mapped[str] = mapped_column(String(80), nullable=False)
+    slug: Mapped[str] = mapped_column(String(80), nullable=False)
+    # 화면 순서. 이름순이 아니라 사람이 정한 순서다 — 자주 쓰는 분류가 위에 선다.
+    sort_order: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
+
+    __table_args__ = (
+        CheckConstraint("length(btrim(name)) > 0", name="ck_dcat_name_nonempty"),
+        Index("uq_dcat_slug", "org_id", "slug", unique=True),
     )
 
 

@@ -34,12 +34,14 @@ from app.core.deps import (
 from app.knowledge import attachments as attachments_mod
 from app.knowledge import relations as relations_mod
 from app.knowledge import (
+    categories as categories_mod,
     service,
     tags as tags_mod,
     templates as doc_templates,
     versions as versions_mod,
 )
 from app.knowledge.schemas import (
+    CategoryCreate,
     CommentCreate,
     CommentUpdate,
     DocumentCreate,
@@ -97,7 +99,15 @@ def _folder_json(folder) -> dict:
     }
 
 
-def _document_json(document, *, tags=None, is_favorite: bool | None = None, extras=None) -> dict:
+#: `_document_json` 의 「카테고리를 안 구했다」 표식. `None` 은 「미분류」라는 실제 값이라,
+#: 카테고리를 조회하지 않은 응답이 `category: null` 로 「미분류」를 주장하면 안 된다.
+_CATEGORY_NOT_LOADED = object()
+
+
+def _document_json(
+    document, *, tags=None, category=_CATEGORY_NOT_LOADED,
+    is_favorite: bool | None = None, extras=None,
+) -> dict:
     out = {
         "id": document.id,
         "space_id": document.space_id,
@@ -117,6 +127,10 @@ def _document_json(document, *, tags=None, is_favorite: bool | None = None, extr
     }
     if tags is not None:
         out["tags"] = [{"id": t.id, "name": t.name, "slug": t.slug} for t in tags]
+    if category is not _CATEGORY_NOT_LOADED:
+        out["category"] = (
+            {"id": category.id, "name": category.name} if category is not None else None
+        )
     if is_favorite is not None:
         out["is_favorite"] = is_favorite
     if extras is not None:
@@ -294,6 +308,7 @@ def list_documents(
     folder_id: str | None = Query(default=None, max_length=36),
     q: str | None = Query(default=None, max_length=200),
     tags: list[str] = Query(default=[]),
+    category_id: str | None = Query(default=None, max_length=36),
     favorites: bool = Query(default=False),
     include_archived: bool = Query(default=False),
     archived_only: bool = Query(default=False),
@@ -313,20 +328,22 @@ def list_documents(
     달라지는 것은 다른 문제다."""
     rows, total = service.list_documents(
         db, user, space_id=space_id, project_id=project_id, folder_id=folder_id, q=q,
-        tags=tags,
+        tags=tags, category_id=category_id,
         favorites=favorites, include_archived=include_archived, archived_only=archived_only,
         created_by=(user.id if mine else created_by), drafts=drafts, sort=sort,
         limit=limit, offset=offset,
     )
-    # 즐겨찾기·태그는 **한 질의씩**으로 이 페이지치만 묻는다. 문서마다 묻게 두면 목록
-    # 한 화면이 문서 수만큼의 질의가 된다. 작성자·미리보기·개수도 같은 규칙이다.
+    # 즐겨찾기·태그·카테고리는 **한 질의씩**으로 이 페이지치만 묻는다. 문서마다 묻게 두면
+    # 목록 한 화면이 문서 수만큼의 질의가 된다. 작성자·미리보기·개수도 같은 규칙이다.
     starred = service.favorite_ids(db, user, [d.id for d in rows])
     doc_tags = tags_mod.of_documents(db, [d.id for d in rows])
+    doc_cats = categories_mod.of_documents(db, [d.id for d in rows])
     extras = service.list_page_extras(db, user, rows)
     return {
         "items": [
             _document_json(
-                d, tags=doc_tags.get(d.id, []), is_favorite=d.id in starred, extras=extras,
+                d, tags=doc_tags.get(d.id, []), category=doc_cats.get(d.id),
+                is_favorite=d.id in starred, extras=extras,
             )
             for d in rows
         ],
@@ -367,7 +384,16 @@ def recent_documents(
     """내가 최근에 연 문서. **지금 볼 수 있는 것만** 낸다."""
     rows = service.recent_documents(db, user, limit=limit)
     extras = service.list_page_extras(db, user, rows)
-    return {"items": [_document_json(d, extras=extras) for d in rows]}
+    doc_tags = tags_mod.of_documents(db, [d.id for d in rows])
+    doc_cats = categories_mod.of_documents(db, [d.id for d in rows])
+    return {
+        "items": [
+            _document_json(
+                d, tags=doc_tags.get(d.id, []), category=doc_cats.get(d.id), extras=extras
+            )
+            for d in rows
+        ]
+    }
 
 
 @router.post("/documents", dependencies=[Depends(require_csrf)])
@@ -381,10 +407,15 @@ def create_document(
         space_id=payload.space_id, project_id=payload.project_id,
         title=payload.title, folder_id=payload.folder_id,
         body=payload.body, doc_type=payload.doc_type, source_type=payload.source_type,
-        tag_names=payload.tag_names, confidential=payload.confidential,
+        tag_names=payload.tag_names, category_id=payload.category_id,
+        confidential=payload.confidential,
         template=payload.template,
     )
-    return _document_json(document, tags=tags_mod.of_document(db, document.id))
+    return _document_json(
+        document,
+        tags=tags_mod.of_document(db, document.id),
+        category=categories_mod.of_documents(db, [document.id]).get(document.id),
+    )
 
 
 @router.get("/documents/by-legacy/{legacy_page_id}")
@@ -435,6 +466,7 @@ def get_document(
     return {
         **_document_json(
             document, tags=detail["tags"],
+            category=categories_mod.of_documents(db, [document.id]).get(document.id),
             is_favorite=document.id in service.favorite_ids(db, user, [document.id]),
             extras=extras,
         ),
@@ -467,11 +499,22 @@ def save_document(
         db, user, document_id,
         body=payload.body, title=payload.title,
         change_reason=payload.change_reason, ai_used=payload.ai_used,
-        tag_names=payload.tag_names, expected_version=payload.base_version,
+        tag_names=payload.tag_names,
+        # 「안 보냈다」와 「해제한다(null)」를 가른다 — 스키마 주석이 근거를 든다.
+        **(
+            {"category_id": payload.category_id}
+            if "category_id" in payload.model_fields_set
+            else {}
+        ),
+        expected_version=payload.base_version,
     )
     document = result["document"]
     return {
-        **_document_json(document, tags=tags_mod.of_document(db, document.id)),
+        **_document_json(
+            document,
+            tags=tags_mod.of_document(db, document.id),
+            category=categories_mod.of_documents(db, [document.id]).get(document.id),
+        ),
         "created_version": result["created_version"],
         "current": _version_json(result["version"]),
     }
@@ -770,6 +813,94 @@ def delete_tag(
     record_audit_from_request(
         request, db, action="knowledge.tag_delete", object_type="tag", object_id=tag_id,
         before={"name": name, "documents": detached},
+    )
+    return {"ok": True, "name": name, "detached": detached}
+
+
+# ── 카테고리 ─────────────────────────────────────────────────────────────────
+#
+# 태그와 같은 관리 계약이다: 추가는 문서를 고칠 수 있는 사람 전부, 이름 고치기와 삭제는
+# 남의 문서 표기에 영향을 주므로 운영자군(`DOCUMENT_DELETE`). 어휘가 두 개라고 규칙이
+# 두 벌이 되면 안 된다 — 다른 것은 「문서 하나에 하나」라는 사실뿐이다.
+
+
+def _category_json(category, used: int | None = None) -> dict:
+    out = {
+        "id": category.id,
+        "name": category.name,
+        "slug": category.slug,
+        "sort_order": category.sort_order,
+    }
+    if used is not None:
+        out["document_count"] = used
+    return out
+
+
+@router.get("/categories")
+def list_categories(
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("DOCUMENT_READ")),
+) -> dict:
+    """이 조직의 카테고리. 필터 고르개와 관리 화면이 함께 쓴다.
+
+    문서 수는 **내가 볼 수 있는 문서 안에서만** 센다 — 태그 목록과 같은 이유다.
+    """
+    org_id = getattr(user, "org_id", None)
+    rows = categories_mod.list_for_org(db, org_id)
+    visible = service.visible_document_ids(db, user)
+    used = categories_mod.usage_counts(db, [c.id for c in rows], document_ids=visible)
+    return {"items": [_category_json(c, used.get(c.id, 0)) for c in rows]}
+
+
+@router.post("/categories", dependencies=[Depends(require_csrf)])
+def create_category(
+    payload: CategoryCreate,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("DOCUMENT_UPDATE")),
+) -> dict:
+    category = categories_mod.create(db, getattr(user, "org_id", None), payload.name)
+    return _category_json(category, 0)
+
+
+@router.patch("/categories/{category_id}", dependencies=[Depends(require_csrf)])
+def rename_category(
+    category_id: str,
+    payload: CategoryCreate,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("DOCUMENT_DELETE")),
+) -> dict:
+    org_id = getattr(user, "org_id", None)
+    category = categories_mod.get_or_404(db, org_id, category_id)
+    before = category.name
+    categories_mod.rename(db, category, payload.name)
+    record_audit_from_request(
+        request, db, action="knowledge.category_rename", object_type="document_category",
+        object_id=category_id, before={"name": before}, after={"name": category.name},
+    )
+    visible = service.visible_document_ids(db, user)
+    used = categories_mod.usage_counts(db, [category.id], document_ids=visible)
+    return _category_json(category, used.get(category.id, 0))
+
+
+@router.delete("/categories/{category_id}", dependencies=[Depends(require_csrf)])
+def delete_category(
+    category_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("DOCUMENT_DELETE")),
+) -> dict:
+    """카테고리를 지운다. **문서는 안 지운다** — 미분류로 돌아온다(FK 는 SET NULL).
+
+    몇 건이 미분류가 됐는지 돌려준다 — 태그 삭제와 같은 계약이다.
+    """
+    org_id = getattr(user, "org_id", None)
+    category = categories_mod.get_or_404(db, org_id, category_id)
+    name = category.name
+    detached = categories_mod.remove(db, category)
+    record_audit_from_request(
+        request, db, action="knowledge.category_delete", object_type="document_category",
+        object_id=category_id, before={"name": name, "documents": detached},
     )
     return {"ok": True, "name": name, "detached": detached}
 

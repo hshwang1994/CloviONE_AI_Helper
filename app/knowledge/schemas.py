@@ -89,6 +89,7 @@ class DocumentCreate(BaseModel):
         default="USER", pattern="^(" + "|".join(SOURCE_TYPES) + ")$"
     )
     tag_names: list[str] | None = Field(default=None, max_length=20)
+    category_id: str | None = Field(default=None, max_length=36)
     confidential: bool = False
     # 시작할 틀 (지시 22.5). 본문을 직접 보내면 그쪽이 이긴다 — 「제안을 문서로」처럼
     # 이미 내용을 들고 오는 경로가 틀 때문에 그 내용을 잃으면 안 된다.
@@ -104,6 +105,10 @@ class DocumentSave(BaseModel):
     change_reason: str | None = Field(default=None, max_length=500)
     ai_used: bool = False
     tag_names: list[str] | None = Field(default=None, max_length=20)
+    # `None` 이 두 뜻을 갖는 필드다 — 「안 보냈다」와 「분류를 해제한다」. 라우터가
+    # `model_fields_set` 으로 가른다(`FolderUpdate.reparent` 가 같은 문제를 푸는 자리).
+    # 안 가르면 카테고리를 모르는 호출자가 저장할 때마다 분류가 조용히 지워진다.
+    category_id: str | None = Field(default=None, max_length=36)
     base_version: int | None = Field(default=None, ge=1)
 
 
@@ -123,6 +128,15 @@ class TagCreate(BaseModel):
 
     상한은 `app/knowledge/tags.py::TAG_NAME_MAX` 와 같은 값이어야 한다. 여기서 숫자를 다시
     정하면 한쪽만 고치는 날 화면이 받아 주는 길이와 서버가 받아 주는 길이가 어긋난다.
+    """
+
+    name: str = Field(min_length=1, max_length=80)
+
+
+class CategoryCreate(BaseModel):
+    """카테고리 추가와 이름 고치기가 같은 모양을 쓴다 — `TagCreate` 와 같은 근거.
+
+    상한은 `app/knowledge/categories.py::CATEGORY_NAME_MAX` 와 같은 값이어야 한다.
     """
 
     name: str = Field(min_length=1, max_length=80)

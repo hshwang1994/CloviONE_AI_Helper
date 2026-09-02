@@ -307,3 +307,40 @@ def test_writing_without_a_csrf_token_is_rejected(client, login_as, world):
         json={"name": "토큰 없이", "slug": "no-token", "owner_kind": "organization"},
     )
     assert r.status_code == 403, r.text
+
+
+# ── 카테고리 (0026) ──────────────────────────────────────────────────────────
+#
+# 카테고리는 조직 어휘라 목록에는 다 보이지만, **수와 필터 결과는 범위를 지킨다** —
+# 태그와 같은 계약이다. 수 하나도 남의 공간에 무엇이 있는지 말해 준다.
+
+
+def _category_world(db, world):
+    from app.knowledge.models import DocumentCategory
+
+    category = DocumentCategory(org_id=DEFAULT_ORG_ID, name="범위분류", slug="범위분류")
+    db.add(category)
+    db.flush()
+    world["ours_doc"].category_id = category.id
+    world["theirs_doc"].category_id = category.id
+    db.commit()
+    return category
+
+
+def test_the_category_count_only_counts_documents_i_can_see(api, world, db):
+    category = _category_world(db, world)
+    r = api.get("/api/knowledge/categories")
+    assert r.status_code == 200, r.text
+    row = {c["id"]: c for c in r.json()["items"]}[category.id]
+    # 문서 둘에 붙어 있지만 부서 범위 관리자에게는 하나만 보인다.
+    assert row["document_count"] == 1
+
+
+def test_the_category_filter_does_not_leak_someone_elses_documents(api, world, db):
+    category = _category_world(db, world)
+    r = api.get(f"/api/knowledge/documents?category_id={category.id}")
+    assert r.status_code == 200, r.text
+    titles = [d["title"] for d in r.json()["items"]]
+    # 우리 것은 보인다 — 「전부 안 보이는 구현」도 잡는다.
+    assert titles == ["우리 문서"]
+    assert r.json()["total"] == 1

@@ -48,6 +48,24 @@ def _display_names(db: Session, user_ids) -> dict[str, str]:
     return out
 
 
+def _category_names(db: Session, document_ids) -> dict[str, str]:
+    """`document_id -> 카테고리 이름` — 질의 한 번(`_display_names` 와 같은 규칙)."""
+    from app.knowledge.models import Document, DocumentCategory
+
+    wanted = sorted({str(did) for did in document_ids if did})
+    if not wanted:
+        return {}
+    out: dict[str, str] = {}
+    for batch in batched(wanted):
+        rows = db.execute(
+            select(Document.id, DocumentCategory.name)
+            .join(DocumentCategory, DocumentCategory.id == Document.category_id)
+            .where(Document.id.in_(batch))
+        ).all()
+        out.update({str(did): (name or "") for did, name in rows})
+    return out
+
+
 def notifications_unread(db: Session, user_id: str) -> int:
     """안 읽은 알림 수 — 상단 알림 벨(/api/notifications/unread-count)과 같은 함수를 쓴다."""
     return unread_count(db, user_id)
@@ -137,12 +155,15 @@ def recent_documents(db: Session, *, limit: int = RECENT_LIMIT, viewer=None) -> 
     # 계정 참조(`created_by`)만 있으므로 이름은 여기서 **한 번에** 붙인다 — 행마다 물으면
     # 그대로 N+1 이다.
     owner_names = _display_names(db, [r.created_by for r in rows])
+    # 분류의 정본은 카테고리다(0026) — 없으면 이관 `doc_type` 이 그대로 보인다.
+    # 키 이름은 안 바꾼다: 화면(Home.jsx)이 `document_type` 을 읽는다.
+    category_names = _category_names(db, [r.id for r in rows])
     return [
         {
             # 화면 딥링크(/knowledge/:id)가 쓰는 키와 같아야 한다.
             "id": document.id,
             "title": document.title or "(제목 없음)",
-            "document_type": document.doc_type,
+            "document_type": category_names.get(str(document.id)) or document.doc_type,
             "owner": owner_names.get(document.created_by, ""),
             "last_edited": iso_dt(document.updated_at),
         }
@@ -253,11 +274,13 @@ def documents_changed_between(
         scoped.order_by(Document.updated_at.desc(), Document.title.asc()).limit(limit)
     ).scalars().all()
     owner_names = _display_names(db, [r.created_by for r in rows])
+    category_names = _category_names(db, [r.id for r in rows])
     return {
         "count": int(total),
         "items": [
             {"id": r.id, "title": r.title or "(제목 없음)",
-             "document_type": r.doc_type, "owner": owner_names.get(r.created_by, ""),
+             "document_type": category_names.get(str(r.id)) or r.doc_type,
+             "owner": owner_names.get(r.created_by, ""),
              "last_edited": iso_dt(r.updated_at)}
             for r in rows
         ],
