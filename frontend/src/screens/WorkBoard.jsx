@@ -400,8 +400,10 @@ export function WorkBoard() {
   });
 
   // 필터가 바뀌면 다음 쪽으로 받아 둔 것도 함께 비운다 — 안 그러면 옛 조건의 카드가
-  // 새 조건의 열 아래에 그대로 남는다.
-  React.useEffect(() => { setColExtra({}); }, [JSON.stringify(boardKey)]);
+  // 새 조건의 열 아래에 그대로 남는다. (직렬화는 원시값 배열의 join 이면 충분하다 —
+  // JSON.stringify 를 의존성 자리에서 매 렌더 부를 이유가 없다.)
+  const boardKeyStr = boardKey.join("\u001f");
+  React.useEffect(() => { setColExtra({}); }, [boardKeyStr]);
 
   const backlogKey = sharedKey;
   const backlog = useInfiniteQuery({
@@ -437,6 +439,9 @@ export function WorkBoard() {
     mutationFn: ({ id, body }) =>
       api(`/api/work/board/${encodeURIComponent(id)}/move`, { method: "POST", body }),
     onSuccess: () => {
+      // 「더 보기」로 받아 둔 확장분을 접는다 — 첫 쪽만 재조회되므로, 남겨 두면 옮긴
+      // 카드가 옛 열의 확장분과 새 열의 첫 쪽에 **동시에** 서고 dnd 등록 id 가 겹친다.
+      setColExtra({});
       qc.invalidateQueries({ queryKey: ["work-board"] });
       qc.invalidateQueries({ queryKey: ["work-backlog"] });
       // 상태가 바뀌면 티켓 목록·홈·스프린트가 함께 낡는다. 어떤 키가 티켓을 그리는지는
@@ -476,6 +481,44 @@ export function WorkBoard() {
     []
   );
 
+  /* 열 하나의 다음 쪽 — **첫 쪽과 같은 조건**으로(§8.5 · `app/work/router.py` 의 계약).
+     🔴 예전에는 이 함수가 검색·부서·우선순위·난이도·신호를 빼먹고(게다가 선언된 적 없는
+     변수를 참조해 누르는 즉시 ReferenceError 였다), 조건이 어긋나면 이 쪽에서 다른 카드가
+     새거나 겹쳤다. `shared` 를 그대로 실어 첫 쪽 질의와 한 벌을 유지한다. */
+  const loadMoreColumn = React.useCallback(
+    async (statusKey, cursor) => {
+      setColExtra((prev) => ({
+        ...prev, [statusKey]: { ...(prev[statusKey] || EMPTY_EXTRA), loading: true },
+      }));
+      try {
+        const body = await api(
+          `/api/work/board/columns/${encodeURIComponent(statusKey)}?` +
+            qs({ ...shared, sprint_id: sprintId, scope, cursor, limit: COLUMN_PAGE_SIZE })
+        );
+        setColExtra((prev) => {
+          const before = prev[statusKey] || EMPTY_EXTRA;
+          return {
+            ...prev,
+            [statusKey]: {
+              cards: [...before.cards, ...(body.cards || [])],
+              nextCursor: body.next_cursor || null,
+              loading: false,
+            },
+          };
+        });
+      } catch (e) {
+        setColExtra((prev) => ({
+          ...prev, [statusKey]: { ...(prev[statusKey] || EMPTY_EXTRA), loading: false },
+        }));
+        toast((e && e.message) || "더 받아오지 못했습니다. 다시 시도해 주세요.", "error");
+      }
+    },
+    // `shared` 객체는 렌더마다 새로 만들어지지만 내용은 이 원시값들이 정한다 — 값이 같으면
+    // 옛 클로저의 `shared` 도 같은 내용이라 재생성할 이유가 없다. 목록은 `shared` 의
+    // 전 축 + sprint_id + scope 다 — 축을 더하는 날 여기도 함께 는다.
+    [projectId, deptId, assigneeId, mine, query, priority, difficulty, signal, sprintId, scope, toast]
+  );
+
   /* 열은 서버가 정한 **자리**로 고른다(`placement`). 화면이 상태 이름을 적어 열을 고르면
      어휘가 바뀐 날 이 화면만 옛 목록으로 남고, 그 어긋남은 아무 오류도 안 낸다.
      첫 쪽(board.data) 위에 `colExtra` 로 받아 둔 다음 쪽들을 얹는다. */
@@ -485,11 +528,17 @@ export function WorkBoard() {
     const wanted = [PLACE_COLUMN];
     if (showHold) wanted.push(PLACE_COLLAPSED);
     if (showAll) wanted.push(PLACE_HIDDEN);
+    /* 첫 쪽과 확장분을 id 로 겹침 없이 합친다 — 이동·재조회 뒤 첫 쪽이 바뀌면 확장분과
+       같은 카드가 겹칠 수 있고, 겹친 카드는 dnd 등록 id 충돌로 드래그 출발지를 흐린다. */
+    const merge = (first, extra) => {
+      const seen = new Set((first || []).map((x) => x.id));
+      return [...(first || []), ...extra.cards.filter((x) => !seen.has(x.id))];
+    };
     const cols = (data.columns || [])
       .filter((c) => wanted.indexOf(c.placement || PLACE_COLUMN) >= 0)
       .map((c) => {
         const extra = colExtra[c.key] || EMPTY_EXTRA;
-        const items = [...(c.cards || []), ...extra.cards];
+        const items = merge(c.cards, extra);
         const nextCursor = extra.cards.length ? extra.nextCursor : c.next_cursor;
         return {
           id: c.key,
@@ -524,7 +573,7 @@ export function WorkBoard() {
       });
     if ((data.unclassified || []).length || data.unclassified_next_cursor) {
       const extra = colExtra[UNCLASSIFIED] || EMPTY_EXTRA;
-      const items = [...(data.unclassified || []), ...extra.cards];
+      const items = merge(data.unclassified, extra);
       const nextCursor = extra.cards.length ? extra.nextCursor : data.unclassified_next_cursor;
       // 어휘 밖 상태. **버리지 않는다** — 안 보이는 티켓은 아무도 못 고친다.
       cols.push({
@@ -544,45 +593,18 @@ export function WorkBoard() {
       });
     }
     return cols;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [board.data, showHold, showAll, colExtra, projectId, sprintId, tab, navigate]);
+  }, [board.data, showHold, showAll, colExtra, projectId, sprintId, tab, loadMoreColumn]);
 
-  /* 열 하나의 다음 쪽 — **같은 조건**으로(§8.5). 필터가 바뀌면 boardKey 도 바뀌어
-     colExtra 가 비워지므로, 여기서는 "지금 이 boardKey" 를 그대로 싣는다. */
-  async function loadMoreColumn(statusKey, cursor) {
-    setColExtra((prev) => ({
-      ...prev, [statusKey]: { ...(prev[statusKey] || EMPTY_EXTRA), loading: true },
-    }));
-    try {
-      const body = await api(
-        `/api/work/board/columns/${encodeURIComponent(statusKey)}?` +
-          qs({
-            project_id: projectId, sprint_id: sprintId,
-            assignee_user_id: mine ? "" : assigneeId, mine, blocked_only: troubleOnly,
-            scope, cursor, limit: COLUMN_PAGE_SIZE,
-          })
-      );
-      setColExtra((prev) => {
-        const before = prev[statusKey] || EMPTY_EXTRA;
-        return {
-          ...prev,
-          [statusKey]: {
-            cards: [...before.cards, ...(body.cards || [])],
-            nextCursor: body.next_cursor || null,
-            loading: false,
-          },
-        };
-      });
-    } catch (e) {
-      setColExtra((prev) => ({
-        ...prev, [statusKey]: { ...(prev[statusKey] || EMPTY_EXTRA), loading: false },
-      }));
-      toast((e && e.message) || "더 받아오지 못했습니다. 다시 시도해 주세요.", "error");
-    }
-  }
-
-  const backlogPages = (backlog.data && backlog.data.pages) || [];
-  const backlogRows = backlogPages.flatMap((p) => p.items || []);
+  // 매 렌더 새 배열을 만들면 아래 cardById → labelOf → DnD 안내문까지 memo 가 연쇄로
+  // 무효가 된다 — 응답이 그대로면 행 배열도 그대로여야 한다(`|| []` 도 매번 새 배열이다).
+  const backlogPages = React.useMemo(
+    () => (backlog.data && backlog.data.pages) || [],
+    [backlog.data]
+  );
+  const backlogRows = React.useMemo(
+    () => backlogPages.flatMap((p) => p.items || []),
+    [backlogPages]
+  );
   const backlogTotal = backlogPages.length ? backlogPages[0].total : 0;
 
   const cardById = React.useMemo(() => {
@@ -946,7 +968,7 @@ export function WorkBoard() {
             help={!sprintId && !showAll ? "완료와 취소를 포함해 보면 있을 수 있습니다." : undefined}
             action={
               !sprintId && !showAll
-                ? <Button variant="secondary" onClick={() => setShowAll(true)}>완료와 취소 보기</Button>
+                ? <Button variant="secondary" onClick={() => setState({ all: true })}>완료와 취소 보기</Button>
                 : undefined
             }
           />

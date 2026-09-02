@@ -22,6 +22,7 @@
  * 상태가 하나 늘거나 이름이 바뀌어도 이 파일은 안 고친다.
  */
 
+import React from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "./api.js";
 
@@ -96,7 +97,13 @@ export function useTicketSignals() {
     retry: false,
     staleTime: 300000,
   });
-  const terminal = terminalKeys(data);
-  const today = todayIso();
-  return (ticket) => ticketSignals(ticket, { today, terminal });
+  // 함수 신원을 어휘 응답에 묶는다 — 매 렌더 새 함수·새 Set 를 돌려주면 이 함수를
+  // prop 으로 받는 목록 화면들의 memo 가 전부 헛돈다(카드 수백 장이 매번 다시 계산).
+  // 「오늘」은 마운트 시점 기준으로 굳는다 — 자정을 넘겨 켜 둔 탭은 다음 재조회나
+  // 화면 진입에서 새 값을 받는다(기존과 같은 성질이고, 서버 신호 정본 계약은 그대로다).
+  return React.useMemo(() => {
+    const terminal = terminalKeys(data);
+    const today = todayIso();
+    return (ticket) => ticketSignals(ticket, { today, terminal });
+  }, [data]);
 }
