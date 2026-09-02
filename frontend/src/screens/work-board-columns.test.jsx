@@ -1,6 +1,6 @@
 import React from "react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
@@ -147,6 +147,19 @@ describe("작업 보드의 열", () => {
     expect(lanes().map((l) => l.replace(/ \(.*$/, ""))).toContain("보류");
     // 취소는 여전히 숨는다 — 스위치가 따로다.
     expect(screen.queryByText("접은 일")).toBeNull();
+  });
+
+  it("🔴 접힌 열의 상태 타일을 누르면 그 열이 서서 답한다 — 죽은 클릭이 아니다", async () => {
+    renderBoard();
+    await waitFor(() =>
+      expect(screen.getByRole("group", { name: "상태별 티켓 수" })).toBeTruthy(),
+    );
+    // 보류 열은 기본 판에서 접혀 있다 — 예전에는 타일이 눌리는데 찾아갈 DOM 이 없어
+    // 아무 일도 안 일어났다. 이제 먼저 열을 세우고 그 열로 데려간다.
+    const strip = screen.getByRole("group", { name: "상태별 티켓 수" });
+    await userEvent.click(within(strip).getByRole("button", { name: /보류/ }));
+    await waitFor(() => expect(screen.getByText("미룬 일")).toBeTruthy());
+    expect(lanes().map((l) => l.replace(/ \(.*$/, ""))).toContain("보류");
   });
 
   it("🔴 차단된 티켓은 「차단」 열로 옮겨 가지 않는다 — 진행 중에 있고 표식만 단다", async () => {

@@ -373,6 +373,14 @@ export function WorkBoard() {
   const difficulty = state.difficulty;
   const [sprintFormOpen, setSprintFormOpen] = React.useState(false);
   const [editing, setEditing] = React.useState(null);
+  /* 저빈도 축(부서·우선순위·난이도·신호)의 접이. 걸린 값이 있으면 펴진 채 시작하고
+     (공유된 주소의 조건이 숨지 않게), 나중에 값이 걸려도 자동으로 펴진다 — 걸린
+     조건이 안 보이면 목록이 왜 좁은지 아무도 모른다. */
+  const detailActive = Boolean(state.dept || state.priority || state.difficulty || state.signal);
+  const [detailOpen, setDetailOpen] = React.useState(detailActive);
+  React.useEffect(() => {
+    if (detailActive) setDetailOpen(true);
+  }, [detailActive]);
   // 열 하나가 첫 쪽 위에 받아 온 다음 쪽들. `{ [statusKey]: { cards, nextCursor, loading } }`
   const [colExtra, setColExtra] = React.useState({});
 
@@ -786,16 +794,45 @@ export function WorkBoard() {
     if (el && el.scrollIntoView) el.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
   }, []);
 
+  /* 접힌·숨은 열의 타일 클릭 — 먼저 그 열을 세우고, 열이 실제로 그려진 다음 렌더에서
+     스크롤한다. 예전에는 렌더 안 된 열의 타일이 눌리는데 아무 일도 안 일어났다(찾는
+     DOM 이 없어서 조용히 무시). */
+  const pendingScrollRef = React.useRef(null);
+  React.useEffect(() => {
+    const key = pendingScrollRef.current;
+    if (!key) return;
+    if (columns.some((c) => c.id === key)) {
+      pendingScrollRef.current = null;
+      scrollToColumn(key);
+    }
+  }, [columns, scrollToColumn]);
+
   const statusTiles = summary
     ? (board.data.columns || []).map((c) => {
         const n = (summary.by_status || {})[c.key] ?? 0;
+        const placement = c.placement || PLACE_COLUMN;
+        const onClick = !n
+          ? undefined
+          : () => {
+              if (placement === PLACE_COLLAPSED && !showHold) {
+                pendingScrollRef.current = c.key;
+                setState({ hold: true });
+                return;
+              }
+              if (placement === PLACE_HIDDEN && !showAll) {
+                pendingScrollRef.current = c.key;
+                setState({ all: true });
+                return;
+              }
+              scrollToColumn(c.key);
+            };
         return {
           key: c.key,
           label: c.label,
           value: String(n),
           kind: statusKind(c.key) !== "neutral" ? statusKind(c.key) : statusKind(c.label),
           pct: summary.total ? Math.round((n / summary.total) * 100) : 0,
-          onClick: n ? () => scrollToColumn(c.key) : undefined,
+          onClick,
         };
       })
     : [];
@@ -929,6 +966,11 @@ export function WorkBoard() {
             ariaLabel="티켓 검색"
           />
         </ToolbarRow>
+        {/* 축 여덟이 한 줄에 서던 자리다 — 「무엇을 조작하면 무엇이 바뀌는지」의 지도가
+            없었다. 이 화면의 1차 질문(어느 프로젝트의 이번 회차를 누가 하나)에 해당하는
+            축만 앞줄에 서고, 저빈도 축(부서·우선순위·난이도·신호)은 「상세 필터」 뒤로
+            접는다. 접힌 축에 값이 걸려 있으면(공유된 주소 등) 자동으로 펴진다 — 걸린
+            조건이 숨으면 목록이 왜 좁은지 아무도 모른다. */}
         <FilterRow>
           {/* 프로젝트는 **기수가 무한히 자라는 대상**이라 평범한 드롭다운으로 못 고른다
               (`plain_dropdown_for_entity`). 같은 이유로 담당자도 조합 상자다. */}
@@ -942,7 +984,9 @@ export function WorkBoard() {
             sx={{ minWidth: "14rem" }}
           />
           <EntityCombobox
-            label="스프린트"
+            /* 백로그 탭에서 이 축은 목록을 거르지 않는다(백로그는 회차 없는 일이다) —
+               「스프린트에 담기」의 대상 선택기다. 이름이 그 역할을 말하게 한다. */
+            label={tab === TAB_BACKLOG ? "담을 스프린트" : "스프린트"}
             value={sprintId}
             onChange={(next) => setState({ sprint: next || "" })}
             loading={sprints.isLoading}
@@ -951,15 +995,6 @@ export function WorkBoard() {
               label: s.active ? `${s.name} (진행 중)` : s.name,
             }))}
             allLabel="전체"
-            sx={{ minWidth: "12rem" }}
-          />
-          {/* 팀(부서) 축. 티켓에는 부서 칸이 없고 티켓의 팀은 프로젝트가 정한다 —
-              서버가 그 한 단계를 대신 걷는다(`app/work/router.py::_dept`).
-              후보가 둘 미만이면 이 부품이 스스로 안 그린다. */}
-          <DepartmentFilter
-            departments={departments}
-            value={deptId}
-            onChange={(next) => setState({ dept: next || "" })}
             sx={{ minWidth: "12rem" }}
           />
           <EntityCombobox
@@ -971,31 +1006,6 @@ export function WorkBoard() {
             allLabel="전체"
             disabled={mine}
             sx={{ minWidth: "12rem" }}
-          />
-          {/* 우선순위·난이도도 두 탭 공통이다 — 같은 티켓을 다른 질문으로 볼 뿐이라
-              좁히는 말이 탭마다 다를 이유가 없다. */}
-          <FilterSelect
-            label="우선순위"
-            value={priority}
-            onChange={(v) => setState({ priority: v || "" })}
-            options={metaBody.priorities || []}
-            allLabel="전체"
-          />
-          <FilterSelect
-            label="난이도"
-            value={difficulty}
-            onChange={(v) => setState({ difficulty: v || "" })}
-            options={metaBody.difficulties || []}
-            allLabel="전체"
-          />
-          {/* 신호는 셋 중 하나다. 예전에는 「차단과 이슈만」 스위치 하나였고, 서버에서도
-              그 깃발 하나가 차단 **또는** 이슈를 뜻해서 **지연만 보는 길이 없었다.** */}
-          <FilterSelect
-            label="신호"
-            value={signal}
-            onChange={(v) => setState({ signal: v || "" })}
-            options={SIGNAL_ORDER.map((k) => ({ value: k, label: SIGNALS[k].label }))}
-            allLabel="전체"
           />
           <FormControlLabel
             sx={{ m: 0 }}
@@ -1009,27 +1019,92 @@ export function WorkBoard() {
             label={<Typography variant="body2">내 티켓만</Typography>}
           />
           <FilterActions>
-            {tab === TAB_BOARD ? (
-              /* 보류는 기본 판에서 비켜 있다(D-349). 없애는 것이 아니라 **접는 것**이라,
-                 펴는 스위치가 늘 여기 있다 — 안 그러면 보류한 일이 어느 화면에도 없어서
-                 영영 잊힌다. */
-              <Button variant="ghost" size="sm" onClick={() => setState({ hold: !showHold })}>
-                {showHold ? "보류 접기" : "보류 펴기"}
-              </Button>
-            ) : null}
-            {/* 🔴 회차를 골랐을 때도 접을 수 있다. 예전에는 이 단추가 사라져서 3주짜리
-                회차의 완료 열이 계속 자랐다 — 「끝난 일이 보드에서 안 빠진다」가 그것이다. */}
-            <Button variant="ghost" size="sm" onClick={() => setState({ all: !showAll })}>
-              {showAll ? "완료와 취소 감추기" : "완료와 취소 보기"}
+            <Button
+              variant="ghost"
+              size="sm"
+              aria-expanded={detailOpen}
+              onClick={() => setDetailOpen((v) => !v)}
+            >
+              {detailOpen ? "상세 필터 접기" : "상세 필터"}
             </Button>
           </FilterActions>
         </FilterRow>
+        {detailOpen ? (
+          <FilterRow>
+            {/* 팀(부서) 축. 티켓에는 부서 칸이 없고 티켓의 팀은 프로젝트가 정한다 —
+                서버가 그 한 단계를 대신 걷는다(`app/work/router.py::_dept`).
+                후보가 둘 미만이면 이 부품이 스스로 안 그린다. */}
+            <DepartmentFilter
+              departments={departments}
+              value={deptId}
+              onChange={(next) => setState({ dept: next || "" })}
+              sx={{ minWidth: "12rem" }}
+            />
+            {/* 우선순위·난이도도 두 탭 공통이다 — 같은 티켓을 다른 질문으로 볼 뿐이라
+                좁히는 말이 탭마다 다를 이유가 없다. */}
+            <FilterSelect
+              label="우선순위"
+              value={priority}
+              onChange={(v) => setState({ priority: v || "" })}
+              options={metaBody.priorities || []}
+              allLabel="전체"
+            />
+            <FilterSelect
+              label="난이도"
+              value={difficulty}
+              onChange={(v) => setState({ difficulty: v || "" })}
+              options={metaBody.difficulties || []}
+              allLabel="전체"
+            />
+            {/* 신호는 셋 중 하나다(지연만 보는 길 포함). 판 탭의 1차 컨트롤은 아래 신호
+                타일이고, 이 셀렉트는 상세 축이다 — 백로그 탭에는 타일 줄이 없고, 신호가
+                전부 0 이면 타일 줄 자체가 사라지므로 해제 수단으로도 이 축이 남아야 한다. */}
+            <FilterSelect
+              label="신호"
+              value={signal}
+              onChange={(v) => setState({ signal: v || "" })}
+              options={SIGNAL_ORDER.map((k) => ({ value: k, label: SIGNALS[k].label }))}
+              allLabel="전체"
+            />
+          </FilterRow>
+        ) : null}
       </FilterSurface>
 
-      <Tabs value={tab} onChange={(_e, v) => setState({ tab: v })} aria-label="보기 선택" sx={{ mb: 2 }}>
-        <Tab value={TAB_BOARD} label="칸반" />
-        <Tab value={TAB_BACKLOG} label="백로그" />
-      </Tabs>
+      {/* 열 표시 토글 둘은 조건(무엇을 조회하나)이 아니라 **판의 보기**라 필터 면이 아니라
+          탭 줄에 산다 — 「보류 펴기」는 접힌 열을 세우고, 「완료와 취소 보기」는 숨은 열까지
+          범위를 넓힌다. 서로 다른 두 동작이 같은 모양으로 나란히 서던 자리다. */}
+      <Box
+        sx={{
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          flexWrap: "wrap", columnGap: 1, mb: 2,
+        }}
+      >
+        <Tabs value={tab} onChange={(_e, v) => setState({ tab: v })} aria-label="보기 선택">
+          <Tab value={TAB_BOARD} label="칸반" />
+          <Tab value={TAB_BACKLOG} label="백로그" />
+        </Tabs>
+        {tab === TAB_BOARD ? (
+          <Stack direction="row" spacing={1} alignItems="center">
+            {/* 보류는 기본 판에서 비켜 있다(D-349). 없애는 것이 아니라 **접는 것**이라,
+                펴는 스위치가 늘 여기 있다 — 안 그러면 보류한 일이 어느 화면에도 없어서
+                영영 잊힌다. */}
+            <Button
+              variant="ghost" size="sm" aria-pressed={showHold}
+              onClick={() => setState({ hold: !showHold })}
+            >
+              {showHold ? "보류 접기" : "보류 펴기"}
+            </Button>
+            {/* 🔴 회차를 골랐을 때도 접을 수 있다. 예전에는 이 단추가 사라져서 3주짜리
+                회차의 완료 열이 계속 자랐다 — 「끝난 일이 보드에서 안 빠진다」가 그것이다. */}
+            <Button
+              variant="ghost" size="sm" aria-pressed={showAll}
+              onClick={() => setState({ all: !showAll })}
+            >
+              {showAll ? "완료와 취소 감추기" : "완료와 취소 보기"}
+            </Button>
+          </Stack>
+        ) : null}
+      </Box>
 
       {/* 드래그 잠금 중의 진행 표시 — 가는 줄 하나면 충분하다. 카드 단위 표시는 수백 ms
           짜리 잠금에 과하다. 첫 로딩(스켈레톤이 있는 동안)에는 안 겹친다. */}
@@ -1146,7 +1221,13 @@ export function WorkBoard() {
                         onOpen={openTicket}
                         signals={signalsOf(card)}
                         onAddToSprint={addToSprint}
-                        canAdd={canPlanSprint}
+                        /* 프로젝트 회차를 골랐으면 다른 프로젝트 행에는 단추를 안 준다 —
+                           눌러서 422(「다른 프로젝트의 스프린트에는…」)를 보는 것은
+                           안내가 아니다. 서버 검증은 그대로 정본이다. */
+                        canAdd={
+                          canPlanSprint &&
+                          (!sprint || !sprint.project_id || card.project_uid === sprint.project_id)
+                        }
                         onQuickEdit={(c) => setEditing(asTicket(c))}
                         onMoveToTop={(c) => movePosition(c, "top")}
                         onMoveToBottom={(c) => movePosition(c, "bottom")}
