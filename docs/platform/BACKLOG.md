@@ -91,6 +91,13 @@
 | **P-61** | **「부서 없음」 사용자 필터 센티널이 없다** | 미배정 | — | TODO | 조직 콘솔의 「부서 미지정 N명」 타일(D-406)이 그 수를 정확히 말하지만, 사용자 화면으로 넘어가 **그 사람들만** 거를 방법이 없다 — `/api/admin/users` 의 `department_id` 는 등호 비교뿐이라 「부서 없음」 조건이 표현이 안 된다. 페이지네이션된 목록을 클라이언트에서 거르면 첫 쪽 밖 인원이 빠진 거짓 목록이 된다(그래서 이번 회차는 숫자와 링크만 뒀다). 완료의 정의: 서버가 「부서 없음」 센티널(예: `department_id=none`)을 받고, 조직 콘솔의 타일·링크가 그 조건으로 사용자 화면을 연다 |
 | **P-62** | **WBS 엑셀에 담당자 열이 없다** | 미배정 | — | TODO | `TicketCache` 에 이름이 없고(`assignee_notion_ids` 뿐) WBS 계약(`service.project_wbs`)도 담당자를 안 실어서, 내보내기(D-403)가 화면과 같은 표본 원칙을 지키느라 그 열을 뺐다. 완료의 정의: WBS 계약이 담당자 표시 이름을 배치 조회로 싣고, 화면과 엑셀이 같은 값을 보여 준다 |
 | **P-63** | **`pilot_b11` 하네스가 옛 조직 콘솔을 조준한다** | 미배정 | — | TODO | 조직 콘솔 재구성(D-406)으로 `scripts/ui_qa/pilot_b11.py` 가 짚던 DataScreen 흐름(정렬·상태 필터·`org-console-people` testid)이 사라졌다. §7.0 상 일반 개발의 Exit 조건이 아니고 기능 계약은 vitest 가 잇는다(org-console 20 · actions 6 · modals 4). 완료의 정의: 수용 회차가 하네스를 새 구조(상단 검색·상세 판·`/departments/:id` 선택)로 재작성한다 |
+| **P-64** | **`pilot_b7b8` 의 B7 구획이 은퇴한 `/api/sprint` 와 옛 회의 화면을 조준한다** | 미배정 | — | TODO | P-63 과 같은 성격·같은 소유다. B7 플로우들이 D-377 에서 걷힌 `GET /api/sprint`(주간 요약)와 옛 구조(주 이동 단추·`?status=` 축)를 부른다 — 현행 화면은 회차 기반(`/api/work/sprints/{id}/meeting`, D-376·D-407~D-410)이다. 기능 계약은 vitest 가 잇는다(sprint-meeting 15 · sprint-lifecycle 6 · sprint-empty-state 4 · sprint-charts). `pilot_b1` 의 FF-0008 선언은 현행 API 로 이미 고쳤다. 완료의 정의: 수용 회차가 B7 플로우를 새 구조(회차 선택·논의 tablist·회의록 레인·담기/빼기)로 재작성한다 |
+| **P-65** | **JS 의 정의되지 않은 이름을 잡는 검사가 없다** — 보드의 죽은 참조 둘이 빌드 번들까지 갔다 | 플랫폼 축 | — | TODO | P-09b(파이썬 F821)의 JS 판이다. `WorkBoard.jsx` 의 `troubleOnly`·`setShowAll`(URL 상태 이관 잔재)이 「더 보기」와 빈 상태 버튼을 누르는 즉시 ReferenceError 로 만들었는데, 문법·빌드·기존 시험 어느 것도 못 잡았다 — eslint 자체가 없다(config·의존성 0, `eslint-disable` 주석은 장식). 완료의 정의: 최소 구성(flat config, `no-undef` error + `react-hooks/rules-of-hooks` error)이 `scripts/static_checks.sh` 에 걸리고, 기존 위반 정리가 같은 회차에 끝난다 |
+| **P-66** | 회의 화면의 주간 비교(`compare=prev`) | 미배정 | — | TODO | PLAN.md 의 「주간 비교 없는 회의 화면은 회의 화면이 아니다」 잔여. 이번 회차는 세로 예산(목록 상한)·실시간(30s 폴링)·회의록 확장까지만 갔다 — 지난 회차와의 비교 축은 서버 계약 설계가 따로 필요하다 |
+| **P-67** | 작업 보드 카드·티켓 상세에서 「회차에서 빼기」 | 미배정 | — | TODO | 빼기 UI 는 회의 화면에 섰다(D-376 의 남은 반쪽 — 서버는 원래 지원). 보드 카드는 `TicketFace` 가 공유 부품이라 액션 슬롯 설계가, 티켓 상세는 회차 표시 자체의 신설이 필요해 이번 범위에서 미뤘다 |
+| **P-68** | AI 초안 폼이 `project_id` 를 받게 | 미배정 | — | TODO | `AiWorkspace` 초안 폼은 라벨을 「프로젝트」로 고쳤지만(§11.2) 값 계약이 space_id 라, 공간이 아직 없는 프로젝트가 후보에 없다. `/api/ai/documents` 가 문서 생성과 같은 `project_id` 갈래를 얻으면 §14.4 를 완전히 지킨다 |
+| **P-69** | 작업 보드 서버 성능 잔여 — `_people` 요청당 전조직 로드 · `board()` 상태 수만큼 쿼리 루프 | 미배정 | — | TODO | 실운영 26명·표 6상태 규모에서는 이득이 관측 불가라 미뤘다(전량 rank 로드는 이번에 MIN/MAX 집계로 닫았다). 규모가 자라면 페이지 담당자 토큰만 조회·윈도 쿼리 통합으로 |
+| **P-70** | nginx conf 의 낡은 산정 주석 정리 | 미배정 | — | TODO | 정본 문서(`docs/NGINX_AND_CAPACITY.md`)를 이번에 세웠다 — conf 주석(L20~34)의 낡은 표와 깨진 참조 정리는 배포 산출물 diff 를 만들므로 다음 배포 회차에 편승한다 |
 
 > **W9 는 독립 항목으로 남기지 않는다** — 화면이 새로 만들어지므로 S6·S7 에 흡수되고,
 > "수동 동기화 제거" 는 **동기화 개념 소멸로 자동 해소**된다 (D-207).
@@ -156,3 +163,4 @@ Wave → Session 매핑은 위 Phase E 표를 따른다.
 
 **이 목록을 여기서 개별 항목으로 다시 펼치지 않는다** — 원장은 `ROUTE_COVERAGE.json` 하나이고,
 두 곳에 적으면 갈라진다.
+| **P-71** | **본문 크기 상한 회귀 시험이 405 를 본다** — `test_chunked_request_without_content_length_is_capped` | 미배정 | — | TODO | 전량 회귀(2026-09-02)가 잡았고 **세션 시작 커밋(c9b0951e)에서도 같은 실패**다(워크트리 실측 — 이번 회차 소유가 아니다). POST /healthz 로 384KB chunked 를 보내면 413(크기 상한)이어야 하는데 405(Method Not Allowed)가 먼저 선다 — 시험이 죽은 것인지 `BodySizeLimitMiddleware` 가 chunked 를 실제로 못 막는 것인지부터 갈라야 한다(후자면 보안 결함이다). 완료의 정의: 실제 POST 라우트로 상한이 걸리는 것을 증명하거나, 미들웨어를 고치고 시험을 실 라우트로 옮긴다 |

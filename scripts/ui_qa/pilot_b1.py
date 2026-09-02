@@ -139,7 +139,7 @@ flow("FF-0006", "user_me", "navigation", "'내 티켓 전체' 링크로 /my-tick
      route="/me", api="/api/tickets/mine")
 
 flow("FF-0008", "user_me", "navigation", "레일의 '스프린트 회의'·'문서 전체' 링크",
-     click_then("link=스프린트 회의", expect="/sprint"), route="/me", api="/api/sprint")
+     click_then("link=스프린트 회의", expect="/sprint"), route="/me", api="/api/work/sprints")
 
 flow("FF-0009", "user_me", "navigation", "최근 문서 행을 누르면 문서 상세로 간다",
      click_then("link=문서 01", expect="문서 01"),
