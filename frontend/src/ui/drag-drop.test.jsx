@@ -67,12 +67,30 @@ describe("칸 사이로 옮기기", () => {
     });
   });
 
-  it("끄는 카드 자신은 이웃에서 뺀다", () => {
-    // 안 빼면 자기 자신이 자기 이웃이 되어 순위가 제자리에 머물고, 사용자는 카드를
-    // 끄는데 자리가 안 바뀌는 것을 본다.
+  /* qa-contract-change: 같은 칸 안의 이동이 방향을 본다. 예전 계약(항상 대상 앞)은
+   * 「b 를 c 위에 놓으면 a 와 c 사이」였는데, 그 자리는 b 의 **원래 자리**다 — 한 칸
+   * 아래로 끌기가 no-op 이었고, 이 시험이 그 결함을 계약으로 고정하고 있었다. */
+  it("🔴 같은 칸에서 아래로 끌면 대상의 **뒤**에 놓인다 — 제자리 no-op 이 아니다", () => {
     expect(neighboursForBoard(["a", "b", "c"], "b", "c")).toEqual({
-      beforeId: "a",
-      afterId: "c",
+      beforeId: "c",
+      afterId: null,
     });
+    expect(neighboursForBoard(["a", "b", "c", "d"], "a", "c")).toEqual({
+      beforeId: "c",
+      afterId: "d",
+    });
+  });
+
+  it("같은 칸에서 위로 끌면 대상의 **앞**에 놓인다", () => {
+    expect(neighboursForBoard(["a", "b", "c"], "c", "a")).toEqual({
+      beforeId: null,
+      afterId: "a",
+    });
+  });
+
+  it("같은 칸의 제자리에 놓으면 아무것도 안 보낸다", () => {
+    // 걸러내지 않으면 순위만 바뀌는 헛 요청이 서버로 가고, 그 요청도 version 을 올려
+    // 뒤이은 드래그가 자기 자신과 409 충돌한다.
+    expect(neighboursForBoard(["a", "b", "c"], "b", "b")).toBeNull();
   });
 });

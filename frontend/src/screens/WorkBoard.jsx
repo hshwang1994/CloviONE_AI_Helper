@@ -595,6 +595,9 @@ export function WorkBoard() {
         title: "분류되지 않음",
         count: data.unclassified_total,
         items,
+        // 이 칸으로는 못 옮긴다(어휘 밖 상태를 손으로 만들 수 없다) — 받지 않는 칸은
+        // 하이라이트도 안 켠다. 끌어내는 것은 된다: 그것이 이 칸의 존재 이유다.
+        droppable: false,
         hint: "상태 값이 목록에 없습니다.",
         action: nextCursor ? (
           <Button
@@ -634,6 +637,17 @@ export function WorkBoard() {
       return card ? `${cardKey(card)} ${card.title || ""}`.trim() : "";
     },
     [cardById]
+  );
+
+  // 끌리는 동안 따라다니는 얼굴 — 실제 카드다. 맨 텍스트가 떠다니면 깨진 것으로 읽힌다.
+  const dragOverlay = React.useCallback(
+    (id) => {
+      const card = cardById[id];
+      return card ? (
+        <TicketFace card={card} signals={signalsOf(card)} showProject={!projectId} />
+      ) : null;
+    },
+    [cardById, signalsOf, projectId]
   );
 
   function handleBoardMove({ id, fromColumn, toColumn, beforeId, afterId }) {
@@ -1007,6 +1021,7 @@ export function WorkBoard() {
           <DragBoard
             columns={columns}
             labelOf={labelOf}
+            overlay={dragOverlay}
             onMove={handleBoardMove}
             columnMaxHeight={COLUMN_BODY_MAX}
             // §15.1 재검수 — 서버가 이미 열마다 커서로 잘라 준 것(§8.5) 위에 렌더링만
@@ -1044,6 +1059,7 @@ export function WorkBoard() {
                 <SortableList
                   items={backlogRows}
                   labelOf={labelOf}
+                  overlay={dragOverlay}
                   onReorder={handleBacklogReorder}
                   // §15.1 재검수 — 서버 커서 페이징(§8.5, useInfiniteQuery) 위에 렌더링만
                   // 가상화한다. 181행을 한 번에 그리던 자리다. 판 열과 같은 높이(60vh)를

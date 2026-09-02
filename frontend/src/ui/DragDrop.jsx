@@ -115,8 +115,10 @@ export function DragItem({ id, label, disabled, children }) {
  * 될 것 같다」고 한 자리다. 바깥 겹은 화면이 지웠고, 칸은 **상시 테두리를 버린다** —
  * 배경 하나로도 「여기가 한 칸이다」는 충분히 읽히고, 테두리는 카드에만 남아 무엇이
  * 집을 수 있는 것인지 말한다. 끌어 놓는 동안에만 테두리가 살아나 목표를 가리킨다. */
-export function DropColumn({ id, title, count, hint, children, sx, bodyMaxHeight, action, footer, virtualized }) {
-  const { setNodeRef, isOver } = useDroppable({ id });
+export function DropColumn({ id, title, count, hint, children, sx, bodyMaxHeight, action, footer, virtualized, droppable }) {
+  // 받지 않는 칸은 드롭 대상 등록 자체를 끈다 — 하이라이트가 「놓을 수 있다」고
+  // 거짓말하지 않는다(분류되지 않음 칸이 그랬다). 칸 안의 카드는 여전히 끌어낼 수 있다.
+  const { setNodeRef, isOver } = useDroppable({ id, disabled: droppable === false });
   return (
     <Box
       ref={setNodeRef}
@@ -176,8 +178,9 @@ export function DropColumn({ id, title, count, hint, children, sx, bodyMaxHeight
           {children}
         </Box>
       )}
-      {/* 빈 칸은 **큰 빈 상자가 아니라 한 줄**이다. 놓을 수 있다는 사실만 말한다. */}
-      {count === 0 ? (
+      {/* 빈 칸은 **큰 빈 상자가 아니라 한 줄**이다. 놓을 수 있다는 사실만 말한다 —
+          받지 않는 칸에는 그 말을 하지 않는다. */}
+      {count === 0 && droppable !== false ? (
         <Typography
           variant="caption"
           color="text.secondary"
@@ -216,14 +219,23 @@ export function neighboursForList(ids, activeId, overId) {
   };
 }
 
-/* 칸 사이로 옮겼을 때의 두 이웃. 끄는 카드 자신을 목록에서 빼고 센다 — 안 빼면
- * 자기 자신이 자기 이웃이 되어 순위가 제자리에 머문다. */
+/* 칸 사이로(또는 칸 안에서) 옮겼을 때의 두 이웃.
+ *
+ * qa-contract-change: 같은 칸 안의 이동이 **방향을 본다.** 예전에는 방향을 무시하고
+ * 항상 대상 카드 앞에 넣어서, 한 칸 아래로 끌기가 제자리 no-op 이었다 — 요청은 나가고
+ * version 만 올랐으며, 사용자는 「끌어도 안 움직인다」며 같은 카드를 두 번 세 번 끌었다.
+ * 같은 칸이면 목록과 같은 계산(`neighboursForList`)을 쓴다 — 같은 동작이 화면(백로그)
+ * 마다 다르게 굴면 안 된다. 같은 자리에 놓으면 `null` 이다(호출부가 요청을 안 보낸다).
+ *
+ * 칸을 건너온 카드는 자기 자신이 대상 목록에 없으므로 방향이 없다 — 놓은 카드 앞에 선다. */
 export function neighboursForBoard(targetIds, activeId, overId) {
-  const ids = targetIds.filter((id) => id !== activeId);
-  const at = ids.indexOf(overId);
+  if (targetIds.indexOf(activeId) >= 0) {
+    return neighboursForList(targetIds, activeId, overId);
+  }
+  const at = targetIds.indexOf(overId);
   // 카드가 아니라 **빈 칸** 위에 놓았으면 맨 뒤로 간다.
-  if (at < 0) return { beforeId: ids[ids.length - 1] || null, afterId: null };
-  return { beforeId: ids[at - 1] || null, afterId: ids[at] };
+  if (at < 0) return { beforeId: targetIds[targetIds.length - 1] || null, afterId: null };
+  return { beforeId: targetIds[at - 1] || null, afterId: targetIds[at] };
 }
 
 /* `virtualize` — §15.1 재검수. opt-in 이다(안 주면 예전과 한 픽셀도 안 다르다,
@@ -233,7 +245,7 @@ export function neighboursForBoard(targetIds, activeId, overId) {
  * dnd-kit `PointerSensor` 의 기본 자동 스크롤이 창을 옮겨 그 카드를 보이게 한다
  * (§15.1 주의 1). `VirtualRows` 자신의 `role="listitem"` 은 끈다 — `children(it)` 이
  * 돌려주는 `DragItem` 이 이미 그 role 을 스스로 단다(이중 listitem 방지). */
-export function SortableList({ items, labelOf, onReorder, disabled, children, virtualize }) {
+export function SortableList({ items, labelOf, onReorder, disabled, children, virtualize, overlay }) {
   const sensors = useDragSensors();
   const [activeId, setActiveId] = React.useState(null);
   const ids = items.map((it) => it.id);
@@ -277,7 +289,14 @@ export function SortableList({ items, labelOf, onReorder, disabled, children, vi
       <SortableContext items={ids} strategy={verticalListSortingStrategy} disabled={disabled}>
         {list}
       </SortableContext>
-      <DragOverlay>{activeId ? <Box sx={{ opacity: 0.9 }}>{labelOf(activeId)}</Box> : null}</DragOverlay>
+      {/* 끌리는 것의 얼굴. `overlay` 를 주면 실제 카드 모양이 따라온다 — 맨 텍스트가
+          떠다니면 「깨진 것」으로 읽힌다. `DragItem` 으로 감싸지 않는다(useSortable id
+          이중 등록 방지). 안 주면 예전 라벨 그대로다(소비처 회귀 0). */}
+      <DragOverlay>
+        {activeId
+          ? (overlay && overlay(activeId)) || <Box sx={{ opacity: 0.9 }}>{labelOf(activeId)}</Box>
+          : null}
+      </DragOverlay>
     </DndContext>
   );
 }
@@ -291,7 +310,7 @@ export function SortableList({ items, labelOf, onReorder, disabled, children, vi
  * 의 `items` 는 항상 전체 배열 · dnd-kit 기본 자동 스크롤이 창 밖 이동을 처리한다).
  * 켜지면 `columnMaxHeight` 는 각 칸의 `VirtualRows` `height` 로 넘어간다 — 칸 자신의
  * `overflowY:auto` 상자는 접는다(스크롤 상자 이중화 방지, `DropColumn` 위 주석 참고). */
-export function DragBoard({ columns, labelOf, onMove, disabled, children, sx, columnMaxHeight, virtualize }) {
+export function DragBoard({ columns, labelOf, onMove, disabled, children, sx, columnMaxHeight, virtualize, overlay }) {
   const sensors = useDragSensors();
   const [activeId, setActiveId] = React.useState(null);
 
@@ -313,12 +332,17 @@ export function DragBoard({ columns, labelOf, onMove, disabled, children, sx, co
     const toColumn = columnOf(over.id) || (columns.some((c) => c.id === over.id) ? over.id : null);
     if (!toColumn) return;
     const target = columns.find((c) => c.id === toColumn);
+    // 받지 않는 칸(droppable: false)은 카드 위에 놓아도 무시한다 — 칸 자신은
+    // `useDroppable` 이 꺼져 하이라이트도 안 생기지만, 칸 안의 카드들은 여전히
+    // (끌어낼 수 있어야 하므로) 등록돼 있어 이 갈래가 필요하다.
+    if (target.droppable === false) return;
     const where = neighboursForBoard(
       target.items.map((it) => it.id),
       active.id,
       over.id
     );
-    if (fromColumn === toColumn && !where.beforeId && !where.afterId) return;
+    // 같은 자리 — 헛 요청(version 만 오르는 이동)을 만들지 않는다.
+    if (!where) return;
     onMove({ id: active.id, fromColumn, toColumn, ...where });
   }
 
@@ -367,6 +391,7 @@ export function DragBoard({ columns, labelOf, onMove, disabled, children, sx, co
             hint={column.hint}
             action={column.action}
             footer={column.footer}
+            droppable={column.droppable}
             bodyMaxHeight={virtualize ? undefined : columnMaxHeight}
             virtualized={!!virtualize}
           >
@@ -391,7 +416,12 @@ export function DragBoard({ columns, labelOf, onMove, disabled, children, sx, co
           </DropColumn>
         ))}
       </Box>
-      <DragOverlay>{activeId ? <Box sx={{ opacity: 0.9 }}>{labelOf(activeId)}</Box> : null}</DragOverlay>
+      {/* `SortableList` 의 overlay 와 같은 계약 — 실제 카드 얼굴, 없으면 라벨 폴백. */}
+      <DragOverlay>
+        {activeId
+          ? (overlay && overlay(activeId)) || <Box sx={{ opacity: 0.9 }}>{labelOf(activeId)}</Box>
+          : null}
+      </DragOverlay>
     </DndContext>
   );
 }
