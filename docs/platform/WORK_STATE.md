@@ -47,8 +47,14 @@
   `1603ee05`(프로젝트-우선 생성) · `64a75fe8`(축 전환) · `1721b65c`(listRail) ·
   그리고 마감 docs·위생·번들 커밋(아래 verification 뒤)
 - working_tree: 마감 커밋 전 — docs·pilot 위생·번들 스탬프가 스테이징 대상으로 남아 있다.
-- deployed: **`6d3b583e`** 그대로 (2026-09-02 11:42 배포분 — 이번 회차 커밋들은 아직 운영에
-  안 나갔다). 배포 절차는 관례대로 `scripts/deploy-upgrade.sh` + `--cacert`/`--resolve` 스모크.
+- deployed: **`392575cf`** 가 운영에 나갔다 (2026-09-02 17:23 · `scripts/deploy-upgrade.sh`).
+  Stage 0~18 전부 OK · `VERIFY_OK` · `UPGRADE_OK` · 스냅샷
+  `/var/backups/clovirassist/20260902-172343`. **스키마 불변** — alembic head 그대로
+  `0026_document_categories`(db=code 일치 확인). 스모크(`--cacert` + `--resolve`):
+  `/healthz` `{"status":"ok","ticket_source":"native"}` · 새 진입 번들 `index.CoM9K7ST.js` ·
+  `WorkBoard.Cv-R-vfi.js` · `Knowledge.Bg4WJvq_.js` · `UserRoutes.C4T30NAw.js`(회의 포함)
+  전부 **200**(`ssl_verify_result=0`) · 제품 유닛 6종 + postgresql + nginx 전부 active.
+  되돌리려면 `sudo /home/cloviradmin/clovirassist-upgrade/deploy/install.sh rollback --target /var/backups/clovirassist/20260902-172343`
 - verification: 각 단계 표적 verify(TARGETED_OK) + 보안·계약 시험은 빨간불→초록 순서
   준수(S2·S3·리셋·rank·이웃 축·pickOpenSprint — 옛 코드 반례 확인). **전량**:
   `static_checks --scope full` **`STATIC_CHECKS_OK`**(`BUNDLE_FRESH_OK` 포함 — 정적
