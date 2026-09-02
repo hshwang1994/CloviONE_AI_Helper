@@ -4,7 +4,7 @@ import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 
 import { api } from "../lib/api.js";
-import { Badge, Button, Modal, ModalFooter, useToast } from "../ui/kit.jsx";
+import { Badge, Button, FormModal, Modal, ModalFooter, OverflowMenu, useConfirm, useToast } from "../ui/kit.jsx";
 import { FilterSelect } from "../ui/filters.jsx";
 import { MODERATOR_ROLES, hasRole } from "../lib/roles.js";
 import { useAuth } from "../app/auth.jsx";
@@ -113,15 +113,24 @@ export function sprintPhaseNote({ state, phase, canPlan }) {
 function CloseDialog({ open, onClose, sprint, sprints, busy, onSubmit }) {
   const CARRY_BACKLOG = "__backlog__";
   const later = (sprints || []).filter(
-    (s) => s.id !== (sprint && sprint.id) && s.state !== "closed"
+    (s) =>
+      s.id !== (sprint && sprint.id)
+      && s.state !== "closed"
+      // 서버의 이월 규칙과 같은 축 — 팀 전체 회차(project_id 없음)는 언제나 받고,
+      // 프로젝트 회차는 같은 프로젝트만 받는다. 여기서 안 거르면 「전체」 필터로 연
+      // 화면에서 다른 프로젝트 회차가 후보로 떠서, 고르면 서버 거절만 본다.
+      && (s.project_id == null || s.project_id === ((sprint && sprint.project_id) ?? null))
   );
   const [target, setTarget] = React.useState("");
 
+  // 🔴 열리는 **순간에만** 기본값을 세운다. 예전에는 sprints 배열이 의존성이라, 대화상자가
+  // 열려 있는 동안 회차 목록이 재조회돼 배열 신원만 바뀌어도 사용자가 고른 이월 대상이
+  // 첫 항목으로 조용히 리셋됐다 — 닫기는 되돌릴 수 없는 동작이라 그 리셋의 값이 크다.
   React.useEffect(() => {
     if (!open) return;
     setTarget(later.length ? later[0].id : CARRY_BACKLOG);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, sprints]);
+  }, [open]);
 
   return (
     <Modal
@@ -160,19 +169,61 @@ function CloseDialog({ open, onClose, sprint, sprints, busy, onSubmit }) {
 }
 
 /** 회차를 열고 닫는 단추 묶음. 회차를 안 골랐으면 아무것도 안 그린다. */
-export function SprintLifecycle({ sprint, sprints, size = "sm" }) {
+/** 수정 폼의 칸. 닫은 회차의 기간은 서버가 거절한다 — 못 고치는 칸은 보여 주지 않는다. */
+function sprintEditFields(sprint) {
+  const base = [
+    { name: "name", label: "이름", required: true, maxLength: 120 },
+    { name: "starts_on", label: "시작일", type: "date", required: true },
+    { name: "ends_on", label: "종료일", type: "date", required: true },
+    { name: "goal", label: "목표", type: "textarea", maxLength: 2000 },
+  ];
+  return sprint && sprint.state === "closed" ? base.filter((f) => f.type !== "date") : base;
+}
+
+export function SprintLifecycle({ sprint, sprints, size = "sm", onDeleted }) {
   const qc = useQueryClient();
   const toast = useToast();
+  const confirm = useConfirm();
   const [closing, setClosing] = React.useState(false);
+  const [editing, setEditing] = React.useState(false);
   const canPlan = useCanPlanSprint();
 
   function refresh() {
+    // 나머지 판(work-board·work-backlog·sprint-meeting·티켓 목록·홈)은 전부
+    // `ticket-views.js` 접두사 표가 안다 — 개별 나열은 그 표의 존재 이유와 어긋난다.
+    // `refetchType:"all"` 은 삭제·복원급 전용 규약이라 쓰지 않는다: 활성 화면만 즉시
+    // 다시 읽고, 비활성 목록은 stale 로 남아 다음 마운트에서 새로 읽는다.
     qc.invalidateQueries({ queryKey: ["work-sprints"] });
-    qc.invalidateQueries({ queryKey: ["work-board"] });
-    qc.invalidateQueries({ queryKey: ["work-backlog"] });
-    qc.invalidateQueries({ queryKey: ["sprint-meeting"] });
-    invalidateTicketViews(qc, { refetchType: "all" });
+    invalidateTicketViews(qc);
   }
+
+  const update = useMutation({
+    mutationFn: (body) =>
+      api(`/api/work/sprints/${encodeURIComponent(sprint.id)}`, { method: "PATCH", body }),
+    onSuccess: () => {
+      refresh();
+      setEditing(false);
+      toast("회차를 고쳤습니다.", "success");
+    },
+    onError: (e) => toast((e && e.message) || "회차를 고치지 못했습니다.", "error"),
+  });
+
+  const remove = useMutation({
+    mutationFn: () =>
+      api(`/api/work/sprints/${encodeURIComponent(sprint.id)}`, { method: "DELETE" }),
+    onSuccess: (res) => {
+      refresh();
+      const detached = (res && res.detached) || 0;
+      toast(
+        detached
+          ? `회차를 삭제하고 담겨 있던 ${detached}건을 백로그로 돌렸습니다.`
+          : "회차를 삭제했습니다.",
+        "success",
+      );
+      if (onDeleted) onDeleted();
+    },
+    onError: (e) => toast((e && e.message) || "회차를 삭제하지 못했습니다.", "error"),
+  });
 
   const open = useMutation({
     mutationFn: (id) =>
@@ -230,6 +281,53 @@ export function SprintLifecycle({ sprint, sprints, size = "sm" }) {
           회차 닫기
         </Button>
       ) : null}
+      {/* 이름 오타·기간 실수·잘못 만든 회차를 고치는 자리 — 없어서 전부 영구였다.
+          삭제는 planned 만 준다(서버 규칙과 같다): active 는 닫기로 정리하고 closed 는
+          기록으로 남는다. */}
+      <OverflowMenu
+        size={size}
+        ariaLabel="회차 관리"
+        items={[
+          { label: "회차 수정", onClick: () => setEditing(true) },
+          sprint.state === "planned"
+            ? {
+                label: "회차 삭제",
+                onClick: async () => {
+                  const ok = await confirm(
+                    "삭제한 회차는 되살릴 수 없습니다. 담겨 있던 티켓은 백로그로 돌아갑니다. 이 회차를 삭제할까요?",
+                    { danger: true, confirmLabel: "삭제" },
+                  );
+                  if (ok) remove.mutate();
+                },
+              }
+            : null,
+        ]}
+      />
+      <FormModal
+        open={editing}
+        title="회차 수정"
+        submitLabel="저장"
+        fields={sprintEditFields(sprint)}
+        initial={{
+          name: sprint.name || "",
+          starts_on: sprint.starts_on || "",
+          ends_on: sprint.ends_on || "",
+          goal: sprint.goal || "",
+        }}
+        onSubmit={(values) =>
+          update.mutateAsync(
+            sprint.state === "closed"
+              ? { name: values.name, goal: values.goal || null }
+              : {
+                  name: values.name,
+                  starts_on: values.starts_on,
+                  ends_on: values.ends_on,
+                  goal: values.goal || null,
+                },
+          )
+        }
+        onClose={() => setEditing(false)}
+      />
       <CloseDialog
         open={closing}
         onClose={() => setClosing(false)}

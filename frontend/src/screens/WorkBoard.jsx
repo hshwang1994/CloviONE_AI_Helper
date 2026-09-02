@@ -921,7 +921,12 @@ export function WorkBoard() {
               티켓 추가
             </Button>
             {/* 회차의 한 바퀴 — 열고 닫는 자리. 회의 화면과 **같은 부품**을 쓴다. */}
-            <SprintLifecycle sprint={sprint} sprints={sprintRows} size="md" />
+            <SprintLifecycle
+              sprint={sprint}
+              sprints={sprintRows}
+              size="md"
+              onDeleted={() => setState({ sprint: "" })}
+            />
             {/* 서버가 `PROJECT_WRITE` 로 막는다(`app/work/router.py`). 여기서 감추는
                 것은 권한 보장이 아니라 **누를 수 없는 버튼을 안 보여 주는 것**이다 —
                 눌러서 403 을 보는 것은 안내가 아니다. */}

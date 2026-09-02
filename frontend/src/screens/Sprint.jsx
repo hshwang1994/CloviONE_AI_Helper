@@ -618,7 +618,12 @@ export function Sprint() {
                 ) : null}
               </Box>
               <Stack direction="row" spacing={1} alignItems="center" sx={{ flexShrink: 0 }}>
-                <SprintLifecycle sprint={body.sprint} sprints={sprintRows} size="md" />
+                <SprintLifecycle
+                  sprint={body.sprint}
+                  sprints={sprintRows}
+                  size="md"
+                  onDeleted={() => setState({ sprint: "" })}
+                />
                 <Button
                   variant="secondary"
                   onClick={() => navigate("/work-board?" + new URLSearchParams({
