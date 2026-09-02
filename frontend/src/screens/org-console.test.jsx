@@ -3,24 +3,20 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { render, screen, within, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 import "@testing-library/jest-dom/vitest";
 
-/* 조직 콘솔 — 조직 관리, 부서 관리, 조직도를 한 화면으로 묶은 뒤에도 **아무것도 잃지
- * 않았는가**.
+/* qa-contract-change: 오른쪽 판이 전체 표(DataScreen)에서 선택 반응형 상세 판으로 재설계됐고 검색·사용 필터는 페이지 상단 탐색 줄로 올라갔다 — 조작기 이름과 자리가 전부 바뀌어 단언을 새 구조로 옮겨 적었다.
  *
- * 사용자 지적: "조직관리랑 부서관리랑 조직도 페이지는 하나로 묶을 수 있는거아님?
- * 조직도가 왼쪽 트리로 보이고 오른쪽에서 조직이랑 부서 관리할 수 있도록 하면 되는거아님?
- * 조직도 트리는 1/3 관리는 2/3 크기로."
+ * 계획서 지적: «우측 pane 이 트리 선택에 상세로 반응하지 않는다». 선택은 주소가 든다
+ * (부서 = /departments/:id, 조직 = /organizations?org=). 지키는 성질은 그대로 옮긴다:
  *
- * 그래서 이 파일이 지키는 것은 네 가지다.
- *   1) 트리에서 고른 **종류**(조직/부서)에 따라 오른쪽 관리 화면이 실제로 바뀐다.
+ *   1) 트리에서 고른 것에 오른쪽이 **상세로** 반응하고, 선택이 주소에 남는다.
  *   2) 고른 항목이 눈에 보이게 강조된다(aria-selected).
- *   3) 합치면서 **기존 기능이 사라지지 않는다** — 조직의 상태 필터, 부서의 생성 폼과
- *      상위 부서 선택, 조직도의 사용 여부 필터와 이름 검색.
- *   4) 1/3, 2/3 비율이 말뿐이 아니라 실제 스타일로 적용된다.
- *
- * 트리가 '들여쓴 목록'이 아니라 진짜 트리인지도 여기서 못박는다(중첩 group + aria-level).
+ *   3) 합치면서 기존 기능이 사라지지 않는다 — 사용 여부 필터(서버), 이름 검색(조상 보존),
+ *      부서 생성 폼(상위 부서 포함), 추가 후 트리 재조회.
+ *   4) 진짜 트리다(중첩 group + aria-level + 연결선).
+ *   5) PageHeader 는 화면에 하나다. 소속 인원은 모든 폭에서 상세 판 안에 보인다.
  */
 
 const apiMock = vi.fn();
@@ -29,10 +25,9 @@ vi.mock("../lib/api.js", () => ({
   setCsrf: () => {},
 }));
 vi.mock("../app/auth.jsx", () => ({
-  useAuth: () => ({ data: { role: "system_admin", id: "actor-1" } }),
+  useAuth: () => ({ data: { role: "system_admin", id: "actor-1", management: { kind: "global" } } }),
 }));
 
-import AdminRoutes from "../app/AdminRoutes.jsx";
 import { OrgConsole } from "./OrgConsole.jsx";
 import { nestRows } from "./OrgTree.jsx";
 import { ConfirmProvider, ToastProvider } from "../ui/kit.jsx";
@@ -71,26 +66,51 @@ const DEPTS = [
   { id: "dep-sales-kr", name: "국내영업", org_name: "클로비원", org_id: "org-1", active: false, user_count: 2, created_at: AT },
 ];
 
+const DEPT_ITEMS = {
+  "dep-sales": { id: "dep-sales", name: "영업팀", active: true, parent_id: null,
+    org_id: "org-1", org_name: "클로비원", user_count: 4, child_department_count: 1, created_at: AT },
+  "dep-sales-kr": { id: "dep-sales-kr", name: "국내영업", active: false, parent_id: "dep-sales",
+    org_id: "org-1", org_name: "클로비원", user_count: 2, child_department_count: 0, created_at: AT },
+  "dep-dev": { id: "dep-dev", name: "개발팀", active: true, parent_id: null,
+    org_id: "org-1", org_name: "클로비원", user_count: 0, child_department_count: 0, created_at: AT },
+};
+
 function mockApi() {
-  apiMock.mockImplementation((url) => {
+  apiMock.mockImplementation((url, options) => {
     const u = String(url);
+    if (options && options.method === "POST" && u === "/api/admin/departments") {
+      return Promise.resolve({ id: "dep-new", name: "품질팀" });
+    }
     // /tree 를 먼저 본다 — /api/admin/departments 가 접두어라 순서가 뒤집히면 트리가 목록을 받는다.
     if (u.startsWith("/api/admin/departments/tree")) return Promise.resolve({ items: TREE });
     if (u.startsWith("/api/admin/organizations")) return Promise.resolve({ items: ORGS });
+    const single = u.match(/^\/api\/admin\/departments\/([a-z-]+)$/);
+    if (single) return Promise.resolve({ department: DEPT_ITEMS[single[1]] || null });
     if (u.startsWith("/api/admin/departments")) return Promise.resolve({ items: DEPTS });
+    if (u.startsWith("/api/admin/users")) {
+      return Promise.resolve({
+        items: [{ id: "u-1", display_name: "김영업", title: "과장", role: "user" }],
+        total: 4,
+      });
+    }
     return Promise.resolve({ items: [] });
   });
 }
 
-function renderConsole(props) {
+function renderConsole(path = "/org-tree") {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
       <ThemeModeProvider>
         <ToastProvider>
           <ConfirmProvider>
-            <MemoryRouter>
-              <OrgConsole {...props} />
+            <MemoryRouter initialEntries={[path]}>
+              <Routes>
+                <Route path="/org-tree" element={<OrgConsole />} />
+                <Route path="/organizations" element={<OrgConsole />} />
+                <Route path="/departments" element={<OrgConsole />} />
+                <Route path="/departments/:id" element={<OrgConsole />} />
+              </Routes>
             </MemoryRouter>
           </ConfirmProvider>
         </ToastProvider>
@@ -101,15 +121,9 @@ function renderConsole(props) {
 
 /* MUI 화면 하나를 jsdom 에서 그리는 데 1초 가까이 걸린다(admin-uiux.test.jsx 와 같은 이유). */
 const WAIT = { timeout: 8000 };
-/* 기본 테스트 제한(5초)이 위 대기 상한보다 짧으면, 실패가 항상 "Test timed out" 으로 뭉개져
- * **무엇이 어긋났는지**가 보고서에 안 남는다(고장을 심어 확인할 때 특히 곤란하다). */
 vi.setConfig({ testTimeout: 20000 });
 const tree = () => screen.getByTestId("org-console-tree");
 const panel = () => screen.getByTestId("org-console-panel");
-/* level:2 — 오른쪽 패널은 이제 PageHeader size="section"(h6/h2)을 쓴다. 페이지의 진짜 제목
- * ("조직도")과 같은 h1 무게를 쓰면 오른쪽이 또 다른 페이지처럼 보인다는 지적이 있었다
- * (OrgConsole.jsx의 panelConfig 주석 참고). 한 페이지에 h1은 하나만 남는다. */
-const panelTitle = () => within(panel()).getByRole("heading", { level: 2 }).textContent;
 const node = (name) => screen.findByRole("treeitem", { name }, WAIT);
 
 beforeEach(() => {
@@ -142,46 +156,71 @@ describe("트리 접기(nestRows)", () => {
   });
 });
 
-/* ── 2. 왼쪽 트리에서 고르면 오른쪽 관리 화면이 바뀐다 ──────────────────── */
+/* ── 2. 왼쪽 트리에서 고르면 오른쪽이 **상세로** 반응한다 ──────────────── */
 
-describe("트리 선택 → 오른쪽 관리 패널", () => {
-  it("첫 진입에는 조직 관리를 보여준다(트리의 뿌리가 조직이라 위에서 아래로 읽힌다)", async () => {
+describe("트리 선택 → 상세 판", () => {
+  it("첫 진입에는 첫 조직의 상세를 보여준다(빈 오른쪽 판은 화면 절반이 죽은 상태다)", async () => {
     mockApi();
     renderConsole();
     await node("클로비원");
-    await waitFor(() => expect(panelTitle()).toBe("조직 관리"), WAIT);
-    // 조직 목록이 실제로 그려진다(제목만 바뀐 게 아니다).
-    expect(await within(panel()).findByText("묵은회사", {}, WAIT)).toBeInTheDocument();
+    // 조직 상세 — 이름·식별자·부서 미지정이 실제로 그려진다(제목만이 아니다).
+    expect(await within(panel()).findByRole("heading", { name: "클로비원" }, WAIT)).toBeInTheDocument();
+    expect(within(panel()).getByText("clovirone")).toBeInTheDocument();
+    // 「부서 미지정」은 요약 타일과 정보 행 양쪽에 선다 — 한 번 이상이면 된다.
+    expect(within(panel()).getAllByText("부서 미지정").length).toBeGreaterThan(0);
   });
 
-  it("부서 노드를 누르면 부서 관리로, 다시 조직 노드를 누르면 조직 관리로 돌아온다", async () => {
+  it("부서 노드를 누르면 부서 상세가 서고, 주소가 /departments/:id 가 된다(D-104)", async () => {
     mockApi();
     renderConsole();
     await userEvent.click(await node("영업팀"));
-    await waitFor(() => expect(panelTitle()).toBe("부서 관리"), WAIT);
-    // 부서 목록 고유의 열('조직')이 실제로 그려진다.
-    expect(await within(panel()).findByText("소속 인원(보관 포함)", {}, WAIT)).toBeInTheDocument();
+    expect(await within(panel()).findByRole("heading", { name: "영업팀" }, WAIT)).toBeInTheDocument();
+    // 단건 GET 이 실제로 나갔다 — 트리 행 재활용이 아니라 상세 자료다.
+    expect(apiMock.mock.calls.some(([p]) => String(p) === "/api/admin/departments/dep-sales")).toBe(true);
+    // 소속 인원이 상세 판 **안**에 있다 — 옛 셋째 판은 1920 미만에서 통째로 사라졌다.
+    expect((await within(panel()).findAllByText(/소속 인원/, {}, WAIT)).length).toBeGreaterThan(0);
+    expect(await within(panel()).findByText("김영업", {}, WAIT)).toBeInTheDocument();
 
     await userEvent.click(await node("클로비원"));
-    await waitFor(() => expect(panelTitle()).toBe("조직 관리"), WAIT);
-    expect(await within(panel()).findByText("식별자", {}, WAIT)).toBeInTheDocument();
+    expect(await within(panel()).findByRole("heading", { name: "클로비원" }, WAIT)).toBeInTheDocument();
   });
 
   it("고른 항목만 강조된다(aria-selected)", async () => {
     mockApi();
     renderConsole();
     await userEvent.click(await node("국내영업"));
-    await waitFor(() => expect(panelTitle()).toBe("부서 관리"), WAIT);
-    expect(await node("국내영업")).toHaveAttribute("aria-selected", "true");
+    await waitFor(async () => {
+      expect(await node("국내영업")).toHaveAttribute("aria-selected", "true");
+    }, WAIT);
     expect(await node("영업팀")).toHaveAttribute("aria-selected", "false");
-    expect(await node("클로비원")).toHaveAttribute("aria-selected", "false");
   });
 
-  it("딥링크로 들어온 종류가 미리 골라진 채 열린다(/departments)", async () => {
+  it("딥링크 /departments/:id 로 들어오면 그 부서가 미리 골라진 채 열린다", async () => {
     mockApi();
-    renderConsole({ defaultKind: "departments" });
-    await node("클로비원");
-    await waitFor(() => expect(panelTitle()).toBe("부서 관리"), WAIT);
+    renderConsole("/departments/dep-sales-kr");
+    expect(await within(panel()).findByRole("heading", { name: "국내영업" }, WAIT)).toBeInTheDocument();
+    expect(await node("국내영업")).toHaveAttribute("aria-selected", "true");
+    // 미사용 부서라 활성화가 서고, 상태 배지가 사실을 말한다.
+    expect(within(panel()).getByText("미사용")).toBeInTheDocument();
+  });
+
+  it("없는 부서 id 딥링크는 판 안에서 말하고, 트리는 그대로 남는다(D-127)", async () => {
+    mockApi();
+    apiMock.mockImplementation((url) => {
+      const u = String(url);
+      if (u.startsWith("/api/admin/departments/tree")) return Promise.resolve({ items: TREE });
+      if (u.startsWith("/api/admin/organizations")) return Promise.resolve({ items: ORGS });
+      if (u === "/api/admin/departments/dep-ghost") {
+        const err = new Error("부서를 찾지 못했습니다.");
+        err.status = 404;
+        return Promise.reject(err);
+      }
+      if (u.startsWith("/api/admin/departments")) return Promise.resolve({ items: DEPTS });
+      return Promise.resolve({ items: [] });
+    });
+    renderConsole("/departments/dep-ghost");
+    expect((await within(panel()).findAllByText(/찾을 수 없습니다/, {}, WAIT)).length).toBeGreaterThan(0);
+    expect(await node("클로비원")).toBeInTheDocument();
   });
 });
 
@@ -204,9 +243,8 @@ describe("트리 구조", () => {
     expect(within(sales).getByRole("group")).toContainElement(kr);
   });
 
-  /* 사용자 지적은 "조직도가 이쁘지도않음" 이었고, 원인은 계층이 **왼쪽 여백과 '└ ' 글자**로만
-   * 표현된 표였다는 것이다(registry/org.js 의 org-tree columns). 연결선은 소스에 적혀 있는
-   * 것으로는 부족하다 — 실제 스타일로 나오는지 본다. */
+  /* 계층이 왼쪽 여백과 '└ ' 글자로만 표현되면 트리처럼 보일 뿐 트리가 아니다.
+   * 연결선은 소스에 적혀 있는 것으로는 부족하다 — 실제 스타일로 나오는지 본다. */
   it("연결선을 실제 스타일로 그린다", async () => {
     mockApi();
     renderConsole();
@@ -246,150 +284,103 @@ describe("트리 구조", () => {
 /* ── 4. 합치면서 잃은 것이 없는가(회귀) ─────────────────────────────────── */
 
 describe("기존 기능 회귀", () => {
-  it("조직의 상태 필터가 그대로 동작한다(미사용만 남는다)", async () => {
-    mockApi();
-    renderConsole();
-    expect(await within(panel()).findByText("묵은회사", {}, WAIT)).toBeInTheDocument();
-    await userEvent.click(within(panel()).getByRole("combobox", { name: /상태/ }));
-    await userEvent.click(await screen.findByRole("option", { name: "미사용" }, WAIT));
-    await waitFor(() => expect(within(panel()).queryByText("클로비원")).toBeNull(), WAIT);
-    expect(within(panel()).getByText("묵은회사")).toBeInTheDocument();
-  });
-
-  it("부서의 생성 폼이 그대로 있다(상위 부서 선택 포함)", async () => {
-    mockApi();
-    renderConsole({ defaultKind: "departments" });
-    await waitFor(() => expect(panelTitle()).toBe("부서 관리"), WAIT);
-    await userEvent.click(within(panel()).getByRole("button", { name: "부서 추가" }));
-    const dlg = await screen.findByRole("dialog", {}, WAIT);
-    expect(within(dlg).getByLabelText(/부서 이름/)).toBeInTheDocument();
-    expect(within(dlg).getByLabelText(/상위 부서/)).toBeInTheDocument();
-  });
-
-  it("조직도의 '사용' 필터는 그대로 서버로 간다", async () => {
+  it("'사용' 필터는 그대로 서버로 간다 — 상단 탐색 줄에서", async () => {
     mockApi();
     renderConsole();
     await node("클로비원");
-    await userEvent.click(within(tree()).getByRole("combobox", { name: /사용/ }));
+    await userEvent.click(screen.getByRole("combobox", { name: /사용/ }));
     await userEvent.click(await screen.findByRole("option", { name: "미사용" }, WAIT));
     await waitFor(() => expect(apiMock.mock.calls.some(([p]) =>
       String(p).startsWith("/api/admin/departments/tree") && String(p).includes("active=false"))).toBe(true), WAIT);
   });
 
-  it("오른쪽에서 부서를 추가하면 왼쪽 트리도 다시 읽는다", async () => {
+  it("이름 검색이 그대로 있다(맞지 않는 가지는 사라지고 조상은 남는다)", async () => {
     mockApi();
-    renderConsole({ defaultKind: "departments" });
-    await waitFor(() => expect(panelTitle()).toBe("부서 관리"), WAIT);
+    renderConsole();
+    await node("개발팀");
+    await userEvent.type(screen.getByRole("searchbox", { name: "조직도 검색" }), "개발");
+    await waitFor(() => expect(screen.queryByRole("treeitem", { name: "영업팀" })).toBeNull(), WAIT);
+    // 맞는 노드와 그 조상은 남는다 — 조상을 지우면 어디 소속인지 알 수 없게 된다.
+    expect(await node("개발팀")).toBeInTheDocument();
+    expect(await node("클로비원")).toBeInTheDocument();
+  });
+
+  it("부서 생성 폼이 그대로 있다(상위 부서 선택 포함) — 입구는 페이지 헤더다", async () => {
+    mockApi();
+    renderConsole();
+    await node("클로비원");
+    await userEvent.click(screen.getByRole("button", { name: "부서 추가" }));
+    const dlg = await screen.findByRole("dialog", {}, WAIT);
+    expect(within(dlg).getByLabelText(/부서 이름/)).toBeInTheDocument();
+    expect(within(dlg).getByLabelText(/상위 부서/)).toBeInTheDocument();
+  });
+
+  it("부서를 추가하면 왼쪽 트리도 다시 읽는다", async () => {
+    mockApi();
+    renderConsole();
+    await node("클로비원");
     const treeCalls = () => apiMock.mock.calls.filter(([p]) =>
       String(p).startsWith("/api/admin/departments/tree")).length;
     const before = treeCalls();
 
-    await userEvent.click(within(panel()).getByRole("button", { name: "부서 추가" }));
+    await userEvent.click(screen.getByRole("button", { name: "부서 추가" }));
     const dlg = await screen.findByRole("dialog", {}, WAIT);
     await userEvent.type(within(dlg).getByLabelText(/부서 이름/), "품질팀");
     await userEvent.click(within(dlg).getByRole("button", { name: "추가" }));
 
     // 트리와 목록은 캐시 주소가 다르다 — 목록만 갱신하면 방금 만든 부서가 왼쪽에 안 나타나고,
-    // 사용자는 "추가했는데 조직도에 없다"로 읽는다(한 화면에 둘을 나란히 놓아 더 잘 보인다).
+    // 사용자는 "추가했는데 조직도에 없다"로 읽는다.
     await waitFor(() => expect(treeCalls()).toBeGreaterThan(before), { timeout: 3000 });
-  });
-
-  it("조직도의 이름 검색이 그대로 있다(맞지 않는 가지는 사라진다)", async () => {
-    mockApi();
-    renderConsole();
-    await node("개발팀");
-    await userEvent.type(within(tree()).getByRole("searchbox"), "개발");
-    await waitFor(() => expect(screen.queryByRole("treeitem", { name: "영업팀" })).toBeNull(), WAIT);
-    // 맞는 노드와 그 조상은 남는다 — 조상을 지우면 어디 소속인지 알 수 없게 된다.
-    expect(await node("개발팀")).toBeInTheDocument();
-    expect(await node("클로비원")).toBeInTheDocument();
   });
 });
 
 /* ── 5. 세 주소가 모두 살아 있는가 ──────────────────────────────────────── */
 
 describe("라우팅", () => {
-  function renderRoute(path) {
-    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    return render(
-      <QueryClientProvider client={qc}>
-        <ThemeModeProvider>
-          <ToastProvider>
-            <ConfirmProvider>
-              <MemoryRouter initialEntries={[path]}>
-                <AdminRoutes />
-              </MemoryRouter>
-            </ConfirmProvider>
-          </ToastProvider>
-        </ThemeModeProvider>
-      </QueryClientProvider>,
-    );
-  }
-
-  /* 세 주소를 모두 남긴다. 하나라도 없애면 즐겨찾기와 다른 화면의 딥링크(registry/org.js 의
-   * '조직도에서 보기', '부서 관리에서 열기')가 대시보드로 튕긴다. 대신 들어온 주소에 맞는
-   * 관리 화면이 미리 골라진 채 열린다. */
-  it.each([
-    ["/org-tree", "조직 관리"],
-    ["/organizations", "조직 관리"],
-    ["/departments", "부서 관리"],
-  ])("%s 는 콘솔을 열고 오른쪽을 '%s'로 맞춘다", async (path, title) => {
-    mockApi();
-    const { unmount } = renderRoute(path);
-    expect(await screen.findByTestId("org-console-tree", {}, WAIT)).toBeInTheDocument();
-    await waitFor(() => expect(panelTitle()).toBe(title), WAIT);
-    unmount();
-  });
+  /* 세 주소를 모두 남긴다. 하나라도 없애면 즐겨찾기와 딥링크가 대시보드로 튕긴다.
+   * 미선택 기본은 어느 주소로 들어와도 **첫 조직의 상세**다 — 트리의 뿌리가 조직이라
+   * 방향(위→아래)이 맞고, 빈 오른쪽 판은 화면 절반이 죽은 상태다. */
+  it.each([["/org-tree"], ["/organizations"], ["/departments"]])(
+    "%s 는 콘솔을 열고 첫 조직의 상세를 보여준다",
+    async (path) => {
+      mockApi();
+      const { unmount } = renderConsole(path);
+      expect(await screen.findByTestId("org-console-tree", {}, WAIT)).toBeInTheDocument();
+      expect(await within(panel()).findByRole("heading", { name: "클로비원" }, WAIT)).toBeInTheDocument();
+      unmount();
+    },
+  );
 });
 
-/* ── 5.5. 안내 문구 중복 ─────────────────────────────────────────────────── */
+/* ── 6. 골격 — PageHeader 하나, 상단 탐색 줄, 요약 타일 ─────────────────── */
 
-/* 사용자 지적: 운영 화면에서 "조직이나 부서를 누르면 오른쪽에서 바로 관리할 수 있습니다."
- * 문구가 두 번 보인다 — 맨 위 콘솔 헤더(PageHeader+Callout, OrgConsole.jsx)와 왼쪽 트리
- * 카드 자체의 헤더(OrgTree.jsx)가 완전히 같은 문장을 각자 그리고 있었다. 트리 카드는
- * 콘솔 안에서만 쓰이므로(단독 사용처 없음) 자기 헤더를 다시 그릴 이유가 없다. */
-describe("안내 문구 중복", () => {
-  it("콘솔 헤더의 안내 문구가 화면에 한 번만 나온다(트리 카드가 같은 문장을 다시 그리지 않는다)", async () => {
+describe("화면 골격", () => {
+  it("PageHeader 가 화면에 하나다 — 오른쪽 판은 페이지가 아니라 상세다", async () => {
     mockApi();
     renderConsole();
     await node("클로비원");
-    expect(screen.getAllByText("조직이나 부서를 누르면 오른쪽에서 바로 관리할 수 있습니다.")).toHaveLength(1);
+    expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("조직 관리");
   });
 
-  it("콘솔 제목 '조직도'도 한 번만 나온다(h1과 트리 카드 제목이 겹치지 않는다)", async () => {
+  it("요약 타일이 부서 미지정 인원을 센다(무필터 트리의 조직 행 합)", async () => {
     mockApi();
     renderConsole();
     await node("클로비원");
-    expect(screen.getAllByText("조직도", { selector: "h1, h2" })).toHaveLength(1);
-  });
-});
-
-/* ── 6. 1/3, 2/3 비율 ───────────────────────────────────────────────────── */
-
-describe("가로 비율", () => {
-  it("왼쪽 1, 오른쪽 2 로 늘어나고 기준 폭도 1:2 다", async () => {
-    mockApi();
-    renderConsole();
-    await node("클로비원");
-    const l = window.getComputedStyle(tree());
-    const r = window.getComputedStyle(panel());
-    expect(l.flexGrow).toBe("1");
-    expect(r.flexGrow).toBe("2");
-    // flex-grow 만 1:2 로 두면 기준 폭(flex-basis)이 남아 실제 비율이 1:2 가 아니게 된다.
-    // 기준 폭까지 1:2 여야 어느 화면 폭에서도 정확히 1/3, 2/3 이 된다.
-    const rem = (v) => parseFloat(String(v).replace("rem", ""));
-    expect(rem(r.flexBasis)).toBe(rem(l.flexBasis) * 2);
-    expect(rem(l.flexBasis)).toBeGreaterThan(0);
+    const strip = screen.getByRole("group", { name: "조직 요약" });
+    expect(within(strip).getByText("부서 미지정")).toBeInTheDocument();
+    // TREE 의 조직 행 user_count 합 = 1(부서 미지정), 조직 수도 1 — "1" 이 두 타일에 선다.
+    // 구성원은 subtree_user_count 합 = 9.
+    expect(within(strip).getAllByText("1")).toHaveLength(2);
+    expect(within(strip).getByText("9")).toBeInTheDocument();
   });
 
-  it("좁은 화면에서는 위아래로 쌓인다(가로 3분할을 강요하지 않는다)", async () => {
+  it("본문은 [트리 | 상세] 2칸 격자다 — 셋째 판은 없다", async () => {
     mockApi();
     renderConsole();
     await node("클로비원");
-    // 두 칸의 기준 폭 합이 컨테이너보다 넓어지면 줄바꿈으로 쌓인다 — 미디어 쿼리가 아니라
-    // 실제로 남은 폭을 보고 접는 방식이라 좁은 컨테이너(사이드바가 넓은 경우)도 함께 산다.
     const box = window.getComputedStyle(tree().parentElement);
-    expect(box.display).toBe("flex");
-    expect(box.flexWrap).toBe("wrap");
+    expect(box.display).toBe("grid");
+    expect(screen.queryByTestId("org-console-people")).toBeNull();
   });
 });

@@ -1,3 +1,4 @@
+/* qa-contract-change: 조직 콘솔 재설계로 /departments/:id 가 DataScreen 공용 모달이 아니라 오른쪽 상세 판을 연다 — 부서 두 케이스의 단언을 모달에서 판(testid org-console-panel)으로 옮겨 적었다. */
 import React from "react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen, within, waitFor } from "@testing-library/react";
@@ -174,25 +175,25 @@ describe("관리자 상세 딥링크", () => {
     await waitFor(() => expect(currentPath()).toBe("/users"), WAIT);
   });
 
-  it("/departments/:id 로 직접 들어가면 단건 GET으로 그 부서 상세가 열린다(DataScreen 공용 배선)", async () => {
+  // qa-contract-change: 조직 콘솔 재설계로 /departments/:id 는 이제 모달이 아니라 **오른쪽
+  // 상세 판**이다(선택이 곧 주소 — D-104). 단건 GET 계약과 「트리는 그대로 남는다」는 성질은
+  // 그대로 지킨다.
+  it("/departments/:id 로 직접 들어가면 단건 GET으로 그 부서 상세가 열린다(상세 판)", async () => {
     apiMock.mockImplementation(commonApi());
     renderRoute("/departments/dep-1");
-    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument(), WAIT);
-    expect(apiMock).toHaveBeenCalledWith("/api/admin/departments/dep-1");
+    const panel = await screen.findByTestId("org-console-panel", {}, WAIT);
+    await waitFor(() => expect(apiMock).toHaveBeenCalledWith("/api/admin/departments/dep-1"), WAIT);
+    expect(await within(panel).findByRole("heading", { name: DEPT_ROW.name }, WAIT)).toBeInTheDocument();
   });
 
-  // PA-RC-0033 Handoff는 부서 상세를 "오른쪽 패널 자리"로 적었지만, 실측(위 found-case 시험)은
-  // /departments/:id도 /users·/audit과 같은 DataScreen 공용 Modal을 이미 쓰고 있다(OrgConsole은
-  // 트리 클릭 시의 자동 오픈만 피할 뿐, :id 딥링크는 다른 두 라우트와 동일한 배선이다) — 그래서
-  // not-found도 같은 Modal 자리에 같은 ErrorState로 통일한다(DECISIONS.md 기록).
-  it("없는 부서 id로 들어가면 ErrorState로 명시하고 트리·목록은 그대로 뒤에 남는다", async () => {
+  it("없는 부서 id로 들어가면 상세 판이 ErrorState로 명시하고 트리는 그대로 남는다", async () => {
     apiMock.mockImplementation(commonApi((u) => {
       if (u.startsWith("/api/admin/departments/does-not-exist")) return Promise.reject({ status: 404 });
       return undefined;
     }));
     renderRoute("/departments/does-not-exist");
-    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument(), WAIT);
-    expect(within(screen.getByRole("dialog")).getByText("찾을 수 없습니다")).toBeInTheDocument();
+    const panel = await screen.findByTestId("org-console-panel", {}, WAIT);
+    expect((await within(panel).findAllByText(/찾을 수 없습니다/, {}, WAIT)).length).toBeGreaterThan(0);
     expect(screen.getByTestId("org-console-tree")).toBeInTheDocument();
   });
 

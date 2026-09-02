@@ -1,16 +1,11 @@
 import React, { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
 import Box from "@mui/material/Box";
 import IconButton from "@mui/material/IconButton";
-import MenuItem from "@mui/material/MenuItem";
-import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import ChevronRightRoundedIcon from "@mui/icons-material/ChevronRightRounded";
 import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded";
-import { api } from "../lib/api.js";
-import { Badge, Card, EmptyState, ErrorState, ListEmptyState, Skeleton } from "../ui/kit.jsx";
-import { EMPTYABLE_SELECT, SearchBox } from "../ui/filters.jsx";
-import { ORG_SCREENS } from "./registry/org.js";
+import { Badge, Card, ErrorState, ListEmptyState, Skeleton } from "../ui/kit.jsx";
+import { useOrgTreeQuery } from "./org/orgQueries.js";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
 
 /* 조직도 트리 — 조직 콘솔(OrgConsole.jsx)의 왼쪽 1/3.
@@ -25,14 +20,17 @@ import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
  * 여기서는 실제 트리로 그린다. 중첩 `role="group"` + `aria-level` 로 계층을 알리고,
  * 세로 줄기와 가로 갈래(아래 CONNECTORS)로 눈에도 이어 준다.
  *
- * ## 자료는 새로 만들지 않는다
+ * ## 상태는 위에서 온다
  *
- * 엔드포인트, 사용 여부 필터, 검색 대상 필드, 빈 상태 문구까지 전부 기존 `org-tree` 화면
- * 설정(registry/org.js)에서 그대로 읽는다. 같은 값을 여기 한 벌 더 적으면 한쪽만 고쳐지는
- * 날이 오고, 그때 증상은 "조직도만 다르게 동작한다"라서 원인이 안 보인다.
+ * 검색어와 사용 여부는 화면 상단 탐색 줄(OrgConsole)이 들고, 이 판은 prop 으로 받아
+ * 그리기만 한다. 질의는 `org/orgQueries.js` 한 벌이다 — 옛 registry 조각(org-tree)은
+ * 걷혔고, 그 설정이 들던 사실 중 이 판이 쓰는 것(검색 축·빈 상태 문구)은 여기가 정본이다.
  */
 
-const TREE_CFG = ORG_SCREENS["org-tree"];
+/* 검색이 보는 축 — 이름과 경로에 더해 **식별자(slug)** 까지다. 옛 registry 설정이 이 축을
+ * 들고 있었고(S18: 오른쪽 판의 검색 상자를 내리면서 식별자 축을 트리 검색이 이어받았다),
+ * registry 조각을 걷어낸 지금은 이 파일이 그 사실의 정본이다. */
+const SEARCH_FIELDS = ["name", "path", "slug"];
 // 트리는 조직 행과 부서 행을 섞어 받는다. 조직 행이 없는 응답(초기화 전)에는 kind 자체가
 // 없으므로(app/org/tree.py 의 이른 반환), 없으면 부서로 읽는다.
 export const isOrgRow = (row) => (row && row.kind) === "organization";
@@ -63,7 +61,7 @@ export function nestRows(rows) {
 export function pruneTree(nodes, term) {
   const needle = String(term || "").trim().toLowerCase();
   if (!needle) return nodes;
-  const fields = TREE_CFG.searchFields || ["name"];
+  const fields = SEARCH_FIELDS;
   const walk = (list) => list.reduce((out, node) => {
     const kids = walk(node.children);
     const hay = fields.map((k) => (node.row[k] == null ? "" : String(node.row[k]))).join(" ").toLowerCase();
@@ -225,76 +223,43 @@ function TreeNode({ node, level, selectedId, onSelect, collapsed, onToggle, tabb
   );
 }
 
-export function OrgTree({ selectedId, onSelect }) {
-  const [q, setQ] = useState("");
-  const [active, setActive] = useState("");
+export function OrgTree({ selectedId, onSelect, search = "", active = "", onClearSearch }) {
+  /* 검색과 사용 여부는 이제 **화면 상단 탐색 줄**이 든다(OrgConsole) — 이 판은 그 상태를
+     prop 으로 받아 그리기만 한다. 검색 상자가 판 안에 있으면 다른 목록 화면과 자리가
+     달라지고, 같은 화면에 검색이 두 곳이던 옛 결함으로 돌아간다. */
   const [collapsed, setCollapsed] = useState({});
-  const commitSearch = React.useCallback((next) => setQ(next), []);
   const toggle = React.useCallback((id) => setCollapsed((s) => ({ ...s, [id]: !s[id] })), []);
 
   // 사용 여부는 예나 지금이나 **서버 필터**다(GET /api/admin/departments/tree 가 active 를 받는다).
   // 화면에서 거르면 걸러진 부모 아래 자식이 통째로 사라진다 — 백엔드는 그 경우 고아를 최상위로
   // 끌어올려 보여 준다(app/org/tree.py). 그 규칙을 여기서 두 번 구현하지 않는다.
-  const url = TREE_CFG.endpoint + (active ? "?active=" + active : "");
-  const query = useQuery({
-    queryKey: [TREE_CFG.key, active],
-    queryFn: () => api(url),
-    retry: false,
-  });
+  const query = useOrgTreeQuery(active);
 
   const rows = (query.data && query.data.items) || [];
-  const nodes = useMemo(() => pruneTree(nestRows(rows), q), [rows, q]);
-  const activeFilter = (TREE_CFG.filters || [])[0];
+  const nodes = useMemo(() => pruneTree(nestRows(rows), search), [rows, search]);
   // roving tabindex의 유일한 정지점 — 선택된 노드가 있으면 그 노드, 없으면(처음 진입) 첫
   // 루트 노드. nodes가 비어 있으면(로딩/빈 상태) undefined라 아무 노드와도 안 맞는다.
   const tabbableId = selectedId || (nodes[0] && nodes[0].row.id);
 
   return (
     <Card sx={{ position: "sticky", top: 0 }}>
-      {/* 조직 콘솔(OrgConsole.jsx)이 이미 같은 자리에 같은 문장으로 헤더를 그린다(PageHeader
-       * title="조직도" + Callout). 이 카드는 OrgConsole 안에서만 쓰이므로(단독 사용처 없음,
-       * grep -rn "OrgTree" frontend/src 로 확인) 여기서 제목·안내문을 다시 그리면 화면에
-       * 완전히 같은 문장이 두 번 나온다. 트리가 무엇을 보여주는지는 role="tree" aria-label과
-       * 아래 검색창 placeholder로 이미 드러나므로 별도 라벨 없이도 뜻이 통한다. */}
-      <Box sx={{ display: "grid", gap: 1.5, mb: 2 }}>
-        <SearchBox
-          value={q}
-          onSearch={commitSearch}
-          placeholder={TREE_CFG.searchPlaceholder}
-          ariaLabel={TREE_CFG.searchPlaceholder}
-          /* 기본값은 목록 화면 툴바용(2칸 차지)이다. 여기 격자는 한 칸뿐이라 비워 넘긴다
-             (undefined 를 넘기면 기본 인자가 되살아나 span 2 가 그대로 붙는다). */
-          sx={{}}
-        />
-        {activeFilter ? (
-          <TextField
-            select size="small" label={activeFilter.label}
-            value={active}
-            onChange={(e) => setActive(e.target.value)}
-            {...EMPTYABLE_SELECT}
-          >
-            <MenuItem value="">{activeFilter.label}: 전체</MenuItem>
-            {(activeFilter.options || []).map((o) => (
-              <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>
-            ))}
-          </TextField>
-        ) : null}
-      </Box>
+      {/* 검색 상자는 이 판에 없다 — 상단 탐색 줄(OrgConsole)이 든다. 다른 목록 화면과
+       * 같은 자리에 조건이 서고, 같은 화면에 검색이 두 곳이던 옛 결함으로 안 돌아간다. */}
       {query.isLoading ? (
         <Skeleton lines={5} />
       ) : query.isError ? (
         <ErrorState error={query.error} onRetry={() => query.refetch()} />
       ) : nodes.length === 0 ? (
-        /* 조건을 푸는 길을 함께 준다 (C1 · W5) — 예전에는 두 갈래로 갈라 놓고도
-           검색어를 지울 수단이 화면 위 검색창뿐이었다. */
+        /* 조건을 푸는 길을 함께 준다 (C1 · W5) — 조건은 위 탐색 줄이 들지만, 0건의 이유와
+           푸는 단추는 빈 자리 곁에 서야 한다. */
         <ListEmptyState
-          filtered={!!q}
-          onClear={() => setQ("")}
+          filtered={!!search}
+          onClear={onClearSearch}
           clearLabel="검색어 지우기"
           filteredTitle="검색 결과가 없습니다"
           filteredHelp="조직 또는 부서 이름의 일부로 다시 찾아보세요."
-          title={TREE_CFG.emptyTitle}
-          help={TREE_CFG.emptyHelp}
+          title="추가된 부서가 없습니다"
+          help="‘부서 추가’로 부서를 추가하고 상위 부서를 지정하면 여기에 계층으로 표시됩니다."
         />
       ) : (
         <Box

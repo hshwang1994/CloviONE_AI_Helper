@@ -177,7 +177,7 @@ function AdminRoutes() {
   const usersElement = <RequireRole roles={SCREEN_ROLES.users}><Users /></RequireRole>;
   const departmentsElement = (
     <RequireRole roles={SCREEN_ROLES.departments} help={SCREEN_ROLE_HELP.departments}>
-      <OrgConsole defaultKind="departments" />
+      <OrgConsole />
     </RequireRole>
   );
   return (
@@ -236,18 +236,11 @@ function AdminRoutes() {
         {/* 조직 콘솔(OrgConsole.jsx) — 조직 관리, 부서 관리, 조직도가 한 화면이다.
          *
          * **세 주소를 모두 남긴다.** 사라진 주소로 들어온 사람은 대시보드로 튕기고(아래
-         * catch-all 라우트), 즐겨찾기와 다른 화면의 딥링크(registry/org.js 의 '조직도에서 보기',
-         * '부서 관리에서 열기')가 조용히 끊긴다.
-         *
-         * 리다이렉트 대신 **그 자리에서 열되 오른쪽 패널을 그 종류로 맞춘다.** 리다이렉트는
-         * 해시 쿼리를 버린다 — `#/departments?active=false` 나 저장된 뷰 링크를 열면 필터가
-         * 사라진 다른 화면이 뜨고, 사용자는 링크가 고장 났다고 읽는다. 여기서는 주소가 그대로
-         * 남아 DataScreen 이 그 쿼리를 예전과 똑같이 읽는다(datascreen-view.js 의 parseView 는
-         * 그 화면이 아는 필터 키만 취한다).
-         *
-         * `/org-tree` 의 기본값이 조직인 이유는 OrgConsole.jsx 헤더 주석 참조. */}
+         * catch-all 라우트), 즐겨찾기와 다른 화면의 딥링크가 조용히 끊긴다. 리다이렉트
+         * 대신 그 자리에서 연다 — 리다이렉트는 해시 쿼리(`?active=false` 같은 조건)를
+         * 버린다. 선택은 주소가 든다: 부서 = `/departments/:id`, 조직 = `?org=<id>`. */}
         <Route path="/org-tree" element={<RequireRole roles={SCREEN_ROLES["org-tree"]} help={SCREEN_ROLE_HELP["org-tree"]}><OrgConsole /></RequireRole>} />
-        <Route path="/organizations" element={<RequireRole roles={SCREEN_ROLES.organizations} help={SCREEN_ROLE_HELP.organizations}><OrgConsole defaultKind="organizations" /></RequireRole>} />
+        <Route path="/organizations" element={<RequireRole roles={SCREEN_ROLES.organizations} help={SCREEN_ROLE_HELP.organizations}><OrgConsole /></RequireRole>} />
         <Route path="/departments" element={departmentsElement} />
         {/* PA-RC-0024: 부서 상세도 같은 원리(같은 element, 인스턴스 유지) — OrgConsole은
             트리+DataScreen을 같이 그리므로 :id가 있으면 DataScreen 쪽 상세만 자동으로
