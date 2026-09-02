@@ -4,6 +4,7 @@ import { ListFooter } from "../ui/InfiniteScroll.jsx";
 import { useNavigate, Link as RouterLink } from "react-router-dom";
 import Box from "@mui/material/Box";
 import FormControlLabel from "@mui/material/FormControlLabel";
+import LinearProgress from "@mui/material/LinearProgress";
 import Stack from "@mui/material/Stack";
 import Switch from "@mui/material/Switch";
 import Tab from "@mui/material/Tab";
@@ -296,6 +297,42 @@ function BacklogRow({ card, onOpen, signals, onAddToSprint, canAdd, onQuickEdit,
   );
 }
 
+/* 이동 응답의 새 version 을 받아 둔 목록에 심는다 — 위치는 안 옮긴다(재조회가 곧
+ * 정본을 준다). 이 패치가 없으면 재조회가 오기 전의 짧은 창에서 같은 카드를 다시
+ * 끌 때 옛 version 이 실려 혼자서도 409(「다른 사람이 먼저…」)를 봤다. */
+function withCardVersion(list, fresh) {
+  let changed = false;
+  const next = (list || []).map((card) => {
+    if (card.id !== fresh.id || card.version === fresh.version) return card;
+    changed = true;
+    return { ...card, version: fresh.version };
+  });
+  return changed ? next : list;
+}
+
+function patchBoardVersion(old, fresh) {
+  if (!old) return old;
+  return {
+    ...old,
+    columns: (old.columns || []).map((col) => {
+      const cards = withCardVersion(col.cards, fresh);
+      return cards === col.cards ? col : { ...col, cards };
+    }),
+    unclassified: withCardVersion(old.unclassified, fresh),
+  };
+}
+
+function patchBacklogVersion(old, fresh) {
+  if (!old || !old.pages) return old;
+  return {
+    ...old,
+    pages: old.pages.map((page) => {
+      const items = withCardVersion(page.items, fresh);
+      return items === page.items ? page : { ...page, items };
+    }),
+  };
+}
+
 /** 값이 있는 조건만 질의 문자열에 넣는다. 빈 값을 실어 보내면 캐시 키가 갈라진다. */
 function qs(pairs) {
   return new URLSearchParams(
@@ -452,18 +489,32 @@ export function WorkBoard() {
   const move = useMutation({
     mutationFn: ({ id, body }) =>
       api(`/api/work/board/${encodeURIComponent(id)}/move`, { method: "POST", body }),
-    onSuccess: () => {
+    onSuccess: (data) => {
       // 「더 보기」로 받아 둔 확장분을 접는다 — 첫 쪽만 재조회되므로, 남겨 두면 옮긴
       // 카드가 옛 열의 확장분과 새 열의 첫 쪽에 **동시에** 서고 dnd 등록 id 가 겹친다.
       setColExtra({});
-      qc.invalidateQueries({ queryKey: ["work-board"] });
-      qc.invalidateQueries({ queryKey: ["work-backlog"] });
+      // 재조회가 오기 전의 짧은 창에도 새 version 이 서 있게 심는다 — 자기 409 방지.
+      const fresh = data && data.ticket;
+      if (fresh) {
+        qc.setQueriesData({ queryKey: ["work-board"] }, (old) => patchBoardVersion(old, fresh));
+        qc.setQueriesData({ queryKey: ["work-backlog"] }, (old) => patchBacklogVersion(old, fresh));
+      }
       // 상태가 바뀌면 티켓 목록·홈·스프린트가 함께 낡는다. 어떤 키가 티켓을 그리는지는
-      // `ticket-views.js` 한 곳이 안다.
-      invalidateTicketViews(qc, { refetchType: "all" });
+      // `ticket-views.js` 한 곳이 안다(work-board·work-backlog 접두사 포함). 기본
+      // refetchType(활성만) 이다 — 드래그 한 번이 방문했던 화면 수만큼(20~30요청)
+      // 비활성 캐시까지 즉시 재요청하던 것을 걷었다. 비활성 목록은 stale 로 남아
+      // 다음 마운트에서 새로 읽는다.
+      invalidateTicketViews(qc);
     },
-    onError: (e) =>
-      toast((e && e.message) || "옮기지 못했습니다. 다시 시도해 주세요.", "error"),
+    onError: (e) => {
+      if (e && e.status === 409) {
+        // 충돌은 이 화면이 낡았다는 뜻이다 — 즉시 재동기화해 다음 드래그가 맞는
+        // version 에서 시작하게 한다(토스트의 「새로고침한 뒤」를 화면이 대신 한다).
+        qc.invalidateQueries({ queryKey: ["work-board"] });
+        qc.invalidateQueries({ queryKey: ["work-backlog"] });
+      }
+      toast((e && e.message) || "옮기지 못했습니다. 다시 시도해 주세요.", "error");
+    },
   });
 
   const openTicket = React.useCallback(
@@ -710,6 +761,12 @@ export function WorkBoard() {
 
   const canPlanSprint = hasRole(MODERATOR_ROLES, auth.data && auth.data.role);
   const active = tab === TAB_BOARD ? board : backlog;
+  /* 이동 요청과 그 직후의 재조회 동안 드래그를 잠근다. 낙관적 갱신을 안 하는 이 화면
+     (파일 머리 주석)에서 카드는 서버 답이 올 때까지 원위치에 서 있는데, 그 짧은 창의
+     재드래그가 옛 version 을 실어 혼자서도 409 를 봤다. 잠금 중에는 아래 가는 줄이
+     「처리 중」을 말한다 — 원위치 복귀가 「안 됐다」로 읽히지 않게. */
+  const moveBusy =
+    move.isPending || (tab === TAB_BOARD ? board.isFetching : backlog.isFetching);
   const summary = (board.data && board.data.summary) || null;
   const projectRows = (projects.data && projects.data.projects) || [];
   const assigneeRows = (assignees.data && assignees.data.assignees) || [];
@@ -974,6 +1031,12 @@ export function WorkBoard() {
         <Tab value={TAB_BACKLOG} label="백로그" />
       </Tabs>
 
+      {/* 드래그 잠금 중의 진행 표시 — 가는 줄 하나면 충분하다. 카드 단위 표시는 수백 ms
+          짜리 잠금에 과하다. 첫 로딩(스켈레톤이 있는 동안)에는 안 겹친다. */}
+      {moveBusy && !active.isLoading ? (
+        <LinearProgress aria-label="이동 반영 중" sx={{ mb: 1.5 }} />
+      ) : null}
+
       {active.isLoading ? <Skeleton kind="section" /> : null}
       {active.isError ? <ErrorState error={active.error} onRetry={active.refetch} /> : null}
 
@@ -1023,6 +1086,7 @@ export function WorkBoard() {
             labelOf={labelOf}
             overlay={dragOverlay}
             onMove={handleBoardMove}
+            disabled={moveBusy}
             columnMaxHeight={COLUMN_BODY_MAX}
             // §15.1 재검수 — 서버가 이미 열마다 커서로 잘라 준 것(§8.5) 위에 렌더링만
             // 가상화한다. 카드 하나(TicketFace)는 배지·신호·담당자 이름까지 있어 백로그 행보다
@@ -1061,12 +1125,18 @@ export function WorkBoard() {
                   labelOf={labelOf}
                   overlay={dragOverlay}
                   onReorder={handleBacklogReorder}
+                  disabled={moveBusy}
                   // §15.1 재검수 — 서버 커서 페이징(§8.5, useInfiniteQuery) 위에 렌더링만
                   // 가상화한다. 181행을 한 번에 그리던 자리다. 판 열과 같은 높이(60vh)를
-                  // 써서 두 탭이 같은 느낌으로 스크롤한다.
+                  // 써서 두 탭이 같은 느낌으로 스크롤한다. 자동 로딩은 창을 소유한
+                  // 가상화기가 알린다(onEndReached) — 창 밖 센티넬은 이 60vh 상자를 못
+                  // 보고 뷰포트로 재서, 열자마자 전량을 연쇄로 끌어왔다.
                   virtualize={{
                     estimateSize: 56, height: "60vh", ariaLabel: "백로그 목록",
                     sx: { scrollbarGutter: "stable" },
+                    onEndReached: () => {
+                      if (backlog.hasNextPage && !backlog.isFetchingNextPage) backlog.fetchNextPage();
+                    },
                   }}
                 >
                   {(card) => (
@@ -1095,7 +1165,11 @@ export function WorkBoard() {
               total={backlogTotal} loaded={backlogRows.length}
               hasNext={backlog.hasNextPage} isFetchingNext={backlog.isFetchingNextPage}
               onMore={() => backlog.fetchNextPage()}
-              root="auto"
+              // 자동 로딩은 위 가상화기(onEndReached)가 맡는다 — 이 줄의 교차 관찰
+              // 센티넬은 60vh 창 밖의 형제라 뷰포트를 기준으로 재고, 그러면 목록을
+              // 열자마자 끝까지 자동으로 끌려온다. 건수와 「더 보기」 단추(키보드·SR
+              // 경로)는 그대로 남는다.
+              autoMaxRows={0}
               moreLabel="백로그 더 보기"
             />
           </Box>

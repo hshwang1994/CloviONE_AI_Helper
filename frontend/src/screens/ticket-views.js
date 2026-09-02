@@ -51,6 +51,12 @@ export const TICKET_VIEW_KEYS = [
   ["work-backlog"],
 ];
 
+/* `["tickets", …]` 접두사 아래 있지만 **티켓 편집으로 값이 안 변하는** 후보 목록
+ * (`ticket-options.js`). 편집·이동마다 이것까지 다시 부르면, 드래그 한 번에 프로젝트
+ * 목록·메타·담당자 후보가 전부 재요청된다 — 바뀐 것이 없는데도. 둘째 마디로 가른다
+ * (목록 질의의 둘째 마디는 "/api/…" 경로라 겹치지 않는다). */
+export const TICKET_OPTION_KEYS = ["meta", "projects", "assignees"];
+
 /* 티켓을 고친 뒤 부른다.
  *
  * `refetchType` 을 그대로 넘길 수 있게 열어 둔다. 기본값(활성 질의만 다시 부르기)은 편집처럼
@@ -59,7 +65,15 @@ export const TICKET_VIEW_KEYS = [
  * (예전에 삭제 후 다른 목록이 stale 로만 남아 '자동 갱신 안 됨'처럼 보였다). */
 export function invalidateTicketViews(qc, options) {
   for (const queryKey of TICKET_VIEW_KEYS) {
-    qc.invalidateQueries({ queryKey, ...(options || {}) });
+    if (queryKey[0] === "tickets") {
+      qc.invalidateQueries({
+        predicate: (q) =>
+          q.queryKey[0] === "tickets" && !TICKET_OPTION_KEYS.includes(q.queryKey[1]),
+        ...(options || {}),
+      });
+    } else {
+      qc.invalidateQueries({ queryKey, ...(options || {}) });
+    }
   }
 }
 

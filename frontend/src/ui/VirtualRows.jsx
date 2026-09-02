@@ -68,7 +68,7 @@ const DEFAULT_OVERSCAN = 8;
  */
 export function VirtualRows({
   items, estimateSize, renderItem, getItemKey, height = "32rem", overscan = DEFAULT_OVERSCAN,
-  ariaLabel, footer, sx, itemRole = "listitem",
+  ariaLabel, footer, sx, itemRole = "listitem", onEndReached,
 }) {
   const parentRef = React.useRef(null);
   const list = Array.isArray(items) ? items : [];
@@ -79,6 +79,21 @@ export function VirtualRows({
     overscan,
   });
   const virtualItems = virtualizer.getVirtualItems();
+
+  /* `onEndReached` (opt-in) — 창 안의 마지막 행이 그려지면 **행 수당 한 번** 알린다.
+   * 이 창(60vh overflow)을 소유한 것은 이 부품뿐이라, 바깥에 둔 교차 관찰 센티넬은
+   * 이 창을 못 보고 뷰포트를 기준으로 잰다 — 그러면 목록을 열자마자 끝까지 자동으로
+   * 끌어온다(백로그 전량 연쇄 로드 — 실제로 그랬다). overscan 이 섞여 조금 일찍
+   * 울리는 것은 무한 목록의 정상 성질이다. */
+  const endNotifiedFor = React.useRef(-1);
+  React.useEffect(() => {
+    if (!onEndReached || list.length === 0) return;
+    const last = virtualItems[virtualItems.length - 1];
+    if (!last || last.index < list.length - 1) return;
+    if (endNotifiedFor.current === list.length) return;
+    endNotifiedFor.current = list.length;
+    onEndReached();
+  });
 
   return (
     <Box

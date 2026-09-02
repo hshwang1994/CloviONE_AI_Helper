@@ -267,6 +267,7 @@ export function SortableList({ items, labelOf, onReorder, disabled, children, vi
       height={virtualize.height}
       ariaLabel={virtualize.ariaLabel}
       overscan={virtualize.overscan}
+      onEndReached={virtualize.onEndReached}
       itemRole={null}
       renderItem={(it) => children(it)}
       sx={virtualize.sx}
