@@ -28,12 +28,10 @@ import {
 import { FilterActions, FilterRow, FilterSurface, ToolbarRow } from "../ui/FilterBar.jsx";
 import { DragBoard, DragItem, SortableList } from "../ui/DragDrop.jsx";
 import { DepartmentFilter, EntityCombobox, FilterSelect, SearchBox } from "../ui/filters.jsx";
-import { SprintLifecycle, sprintStateLabel } from "./SprintLifecycle.jsx";
+import { SprintLifecycle, sprintStateLabel, useCanPlanSprint } from "./SprintLifecycle.jsx";
 import { useListMemory } from "../lib/listReturn.js";
 import { priorityKind, priorityKo } from "../lib/priority.js";
 import { KO_WORD_BREAK } from "../ui/theme.js";
-import { MODERATOR_ROLES, hasRole } from "../lib/roles.js";
-import { useAuth } from "../app/auth.jsx";
 import { invalidateTicketViews } from "./ticket-views.js";
 import { sprintFields } from "./sprint-fields.js";
 import { TicketEditModal } from "./MyTickets.jsx";
@@ -346,8 +344,6 @@ const BACKLOG_PAGE_SIZE = 50;
 
 export function WorkBoard() {
   const navigate = useNavigate();
-  // `useAuth()` 는 react-query 결과 객체다 — `data` 안에 사용자가 있다.
-  const auth = useAuth();
   const qc = useQueryClient();
   const toast = useToast();
   useListMemory("/work-board");
@@ -767,7 +763,8 @@ export function WorkBoard() {
     });
   }
 
-  const canPlanSprint = hasRole(MODERATOR_ROLES, auth.data && auth.data.role);
+  // 서버 게이트(PROJECT_WRITE)의 화면 쪽 그림자 — 회의 화면과 같은 훅 하나다.
+  const canPlanSprint = useCanPlanSprint();
   const active = tab === TAB_BOARD ? board : backlog;
   /* 이동 요청과 그 직후의 재조회 동안 드래그를 잠근다. 낙관적 갱신을 안 하는 이 화면
      (파일 머리 주석)에서 카드는 서버 답이 올 때까지 원위치에 서 있는데, 그 짧은 창의

@@ -264,6 +264,9 @@ export function normalizeMeeting(raw) {
     scope: { tracked: false, added: 0, removed: 0, trend: [], ...(raw.scope || {}) },
     discuss: raw.discuss || {},
     candidates: Array.isArray(raw.candidates) ? raw.candidates : [],
+    candidates_total:
+      Number(raw.candidates_total)
+      || (Array.isArray(raw.candidates) ? raw.candidates.length : 0),
     decisions: Array.isArray(raw.decisions) ? raw.decisions : [],
   };
 }

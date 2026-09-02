@@ -31,7 +31,9 @@ import {
   burndownSeries, datedLabel, healthBand, healthCuts, normalizeMeeting, pickOpenSprint,
   scopeTrendSeries, workloadItems,
 } from "./sprint-charts.js";
-import { SprintLifecycle, SprintStateBadge, sprintStateLabel } from "./SprintLifecycle.jsx";
+import {
+  SprintLifecycle, SprintStateBadge, sprintPhaseNote, sprintStateLabel, useCanPlanSprint,
+} from "./SprintLifecycle.jsx";
 import { sprintFields } from "./sprint-fields.js";
 import { useQueryState } from "../lib/useQueryState.js";
 import { useTicketProjects } from "./ticket-options.js";
@@ -108,11 +110,10 @@ const DISCUSS_TABS = [
   { key: "scope_changes", label: "범위 변경", empty: "회차가 시작한 뒤 드나든 티켓이 없습니다." },
 ];
 
-const SPRINT_PHASE_NOTE = {
-  before: "아직 시작하지 않은 회차입니다. 「회차 열기」를 누르면 오늘부터 진행을 셉니다.",
-  during: "진행 중인 회차입니다. 남은 일과 막힌 일을 먼저 봅니다.",
-  after: "기간이 지난 회차입니다. 「회차 닫기」로 안 끝난 일을 다음 회차로 넘길 수 있습니다.",
-};
+/* 논의 목록·후보 표·회의록 레인의 세로 상한. 20행짜리 목록 둘이 화면 두 장을 먹던
+ * 자리다(1920 에서 페이지 8828px 실측) — 목록은 자기 상자 안에서 구른다.
+ * 값은 작업 보드 열 상한과 같은 감각(60vh)이고, 초광폭에서 무한히 크지 않게 rem 으로 막는다. */
+const MEETING_LIST_MAX = "min(60vh, 44rem)";
 
 const SPRINT_SPEC = { project: "", sprint: "" };
 
@@ -329,6 +330,7 @@ export function Sprint() {
   // 시계로 재면 지연 버킷 안의 티켓에 지연 표식이 안 붙는 모순이 났다(시계가 다른
   // PC, 자정을 넘겨 켜 둔 탭).
   const signalsOf = useTicketSignals(body ? body.today : undefined);
+  const canPlan = useCanPlanSprint();
 
   function refreshMeeting() {
     qc.invalidateQueries({ queryKey: ["sprint-meeting"] });
@@ -524,7 +526,18 @@ export function Sprint() {
         </FilterRow>
       </FilterSurface>
 
-      {meeting.isLoading || (sprints.isLoading && !state.sprint) ? <Skeleton kind="section" /> : null}
+      {meeting.isLoading || (sprints.isLoading && !state.sprint) ? (
+        /* 본문의 실제 구조(머리 절 + 차트 두 단 + 표)를 근사한다 — 절 하나짜리
+           스켈레톤은 로딩이 끝나는 순간 화면이 통째로 다른 모양으로 바뀌어 튄다. */
+        <Stack spacing={2}>
+          <Skeleton kind="section" />
+          <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: MEETING_PAIR_TRACKS }}>
+            <Skeleton kind="chart" />
+            <Skeleton kind="chart" />
+          </Box>
+          <Skeleton kind="section" />
+        </Stack>
+      ) : null}
       {meeting.isError ? <ErrorState error={meeting.error} onRetry={meeting.refetch} /> : null}
       {/* 회차 목록 자체가 실패하면 아래 빈 상태들이 「회차가 없다」는 다른 사실을 말하게
           된다 — 실패는 실패로 그린다. */}
@@ -596,7 +609,7 @@ export function Sprint() {
                   {`${datedLabel(body.sprint.starts_on)} ~ ${datedLabel(body.sprint.ends_on)}, 오늘 ${body.today}`}
                 </Typography>
                 <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25, ...KO_WORD_BREAK }}>
-                  {SPRINT_PHASE_NOTE[body.phase] || ""}
+                  {sprintPhaseNote({ state: body.sprint.state, phase: body.phase, canPlan })}
                 </Typography>
                 {body.sprint.goal ? (
                   <Typography variant="body2" sx={{ mt: 0.75, ...KO_WORD_BREAK }}>
@@ -624,9 +637,16 @@ export function Sprint() {
             revealKey="sprint-meeting:kpi"
             sx={{ mb: 2 }}
             items={[
+              /* 셈 타일 셋은 전부 눌린다 — 「전체」만 눌리면 똑같이 생긴 타일이 어떤
+                 것은 반응하고 어떤 것은 죽어 있어, 사용자가 규칙을 못 배운다. 측정
+                 타일 둘(남은 WD·진행률)은 데려갈 목록이 없어 그대로 둔다. */
               { label: "전체", value: String(summary.total), primary: true, onClick: () => openBoard() },
-              { label: "완료", value: String(summary.done), kind: "ok", pct: summary.total ? Math.round((summary.done / summary.total) * 100) : 0 },
-              { label: "진행 중", value: String(summary.in_progress), kind: "info" },
+              {
+                label: "완료", value: String(summary.done), kind: "ok",
+                pct: summary.total ? Math.round((summary.done / summary.total) * 100) : 0,
+                onClick: () => openBoard({ all: "1" }),
+              },
+              { label: "진행 중", value: String(summary.in_progress), kind: "info", onClick: () => openBoard() },
               { label: "남은 WD", value: String(summary.remaining_wd) },
               {
                 label: "진행률",
@@ -698,6 +718,7 @@ export function Sprint() {
             <DiscussBucketRow
               value={tab.key}
               onChange={setDiscussTab}
+              idBase="discuss"
               items={DISCUSS_TABS.map((t) => ({
                 key: t.key,
                 label: t.label,
@@ -705,7 +726,16 @@ export function Sprint() {
                 tone: t.tone,
               }))}
             />
-            <Box sx={{ ...LANE_SURFACE, p: PANEL_SURFACE.p, minHeight: "6rem" }}>
+            <Box
+              role="tabpanel"
+              id="discuss-panel"
+              aria-labelledby={`discuss-tab-${tab.key}`}
+              sx={{
+                ...LANE_SURFACE, p: PANEL_SURFACE.p, minHeight: "6rem",
+                // 목록은 자기 상자 안에서 구른다 — 20행이 화면 한 장을 통째로 먹지 않게.
+                maxHeight: MEETING_LIST_MAX, overflowY: "auto",
+              }}
+            >
             {bucket.items.length === 0 ? (
               <Typography variant="body2" color="text.secondary">
                 {tab.empty}
@@ -803,14 +833,28 @@ export function Sprint() {
             rule
           >
             <Box sx={{ ...LANE_SURFACE, overflow: "hidden" }}>
-              <DataTable
-                columns={candidateColumns}
-                rows={body.candidates}
-                rowKey={(r) => r.id}
-                onRow={openTicket}
-                empty="담을 수 있는 백로그 티켓이 없습니다."
-              />
+              <Box sx={{ maxHeight: MEETING_LIST_MAX, overflowY: "auto" }}>
+                <DataTable
+                  columns={candidateColumns}
+                  rows={body.candidates}
+                  rowKey={(r) => r.id}
+                  onRow={openTicket}
+                  empty="담을 수 있는 백로그 티켓이 없습니다."
+                />
+              </Box>
             </Box>
+            {/* 잘렸다는 사실을 말한다 — 논의 갈래는 truncated 를 말하는데 이 표만
+                조용히 잘려, 백로그 181건인 프로젝트에서 「후보가 20개뿐」으로 읽혔다. */}
+            {body.candidates_total > body.candidates.length ? (
+              <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 1 }}>
+                <Typography variant="caption" color="text.secondary">
+                  {`백로그 ${body.candidates_total}건 가운데 앞의 ${body.candidates.length}건만 보여 줍니다.`}
+                </Typography>
+                <Button variant="ghost" size="sm" onClick={() => openBoard({ tab: "backlog" })}>
+                  백로그 보기
+                </Button>
+              </Stack>
+            ) : null}
           </Section>
 
           {/* 6 — 무엇을 정했나 */}
@@ -856,6 +900,9 @@ export function Sprint() {
                       ...LANE_SURFACE,
                       p: TILE_PADDING,
                       minHeight: "10rem",
+                      // 회의록이 쌓여도 레인은 자기 상자 안에서 구른다(세로 예산).
+                      maxHeight: MEETING_LIST_MAX,
+                      overflowY: "auto",
                       display: "flex",
                       flexDirection: "column",
                     }}

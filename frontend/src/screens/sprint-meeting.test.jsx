@@ -343,3 +343,24 @@ describe("스프린트 회의 — 견고성", () => {
     releaseMove({ ticket: {} });
   });
 });
+
+describe("논의 갈래의 tablist 계약", () => {
+  beforeEach(() => {
+    apiMock.mockReset();
+    apiMock.mockImplementation(stub);
+  });
+
+  it("화살표로 갈래를 옮기고, 패널이 tabpanel 로 이어진다", async () => {
+    renderSprint();
+    const first = await screen.findByRole("tab", { name: /지연/ });
+    first.focus();
+    await userEvent.keyboard("{ArrowRight}");
+    await waitFor(() => {
+      const next = screen.getByRole("tab", { name: /차단/ });
+      expect(next.getAttribute("aria-selected")).toBe("true");
+    });
+    // 탭이 가리키는 패널이 실제로 있다 — role 만 달린 반쪽 tablist 가 아니다.
+    expect(screen.getByRole("tabpanel")).toBeTruthy();
+    expect(screen.getByRole("tab", { name: /차단/ }).getAttribute("aria-controls")).toBe("discuss-panel");
+  });
+});

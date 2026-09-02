@@ -442,9 +442,8 @@ def meeting(db: Session, user: User, *, sprint_id: str, today: date) -> dict:
 
     # 후보는 **실제 백로그 티켓**이다(지시 4). 같은 프로젝트의, 어느 회차에도 안 담긴,
     # 아직 안 끝난 일. 팀 전체 회차(`project_id IS NULL`)면 프로젝트로 안 좁힌다.
-    candidates = work_service.backlog(
-        db, user, project_id=sprint.project_id or None
-    )["items"][:DISCUSS_LIMIT]
+    backlog_page = work_service.backlog(db, user, project_id=sprint.project_id or None)
+    candidates = backlog_page["items"][:DISCUSS_LIMIT]
 
     return {
         "sprint": work_service._sprint_view(sprint),
@@ -489,6 +488,9 @@ def meeting(db: Session, user: User, *, sprint_id: str, today: date) -> dict:
             "scope_changes": _bucket(changes),
         },
         "candidates": candidates,
+        # 잘렸다는 사실을 함께 싣는다 — 논의 갈래(`_bucket.truncated`)와 같은 이유다.
+        # 이것이 없으면 백로그 181건인 프로젝트에서 「후보가 20개뿐」으로 읽힌다.
+        "candidates_total": backlog_page["total"],
         "decisions": list_decisions(db, sprint.id),
         "today": today.isoformat(),
     }

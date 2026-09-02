@@ -57,6 +57,53 @@ export function SprintStateBadge({ sprint }) {
   );
 }
 
+/** 회차 조작 권한 — 서버 게이트(`PROJECT_WRITE`)의 화면 쪽 그림자.
+ * 보드·회의가 각자 같은 판정을 손으로 적던 것을 한 곳으로 모은다. */
+export function useCanPlanSprint() {
+  const auth = useAuth();
+  return hasRole(MODERATOR_ROLES, auth.data && auth.data.role);
+}
+
+/** 회차 머리의 안내문 — state(사람이 누른 것) × phase(날짜) × 역할을 **함께** 본다.
+ *
+ * 🔴 예전 문구는 phase 만 봤다. 그래서 기간이 시작된 planned 회차가 「예정」 배지 옆에
+ * 「진행 중인 회차입니다」를 달았고, 기간이 지난 planned 회차는 존재하지 않는 단추를
+ * 가리켰다(「회차 닫기」는 active 에만 있다). 일반 참여자에게는 단추 자체가 없으므로
+ * (canPlan 게이트) 문구도 단추를 시키는 대신 누가 할 수 있는지를 말한다.
+ */
+export function sprintPhaseNote({ state, phase, canPlan }) {
+  if (state === "closed") {
+    return "이미 닫은 회차입니다. 안 끝났던 티켓은 닫을 때 옮긴 곳에 있고, 여기 기록은 그대로 남습니다.";
+  }
+  if (state === "planned") {
+    if (phase === "after") {
+      return canPlan
+        ? "기간이 지나도록 열지 않은 회차입니다. 기간을 고쳐서 열거나, 잘못 만든 회차라면 삭제할 수 있습니다."
+        : "기간이 지나도록 열지 않은 회차입니다. 회차 정리는 운영자가 할 수 있습니다.";
+    }
+    if (phase === "during") {
+      return canPlan
+        ? "기간이 시작됐지만 아직 열지 않은 회차입니다. 「회차 열기」를 누르면 지금부터 진행을 셉니다."
+        : "기간이 시작됐지만 아직 열지 않은 회차입니다. 회차 열기는 운영자가 할 수 있습니다.";
+    }
+    return canPlan
+      ? "아직 열지 않은 회차입니다. 「회차 열기」를 누르면 진행을 세기 시작합니다."
+      : "아직 열지 않은 회차입니다. 회차 열기는 운영자가 할 수 있습니다.";
+  }
+  if (state === "active") {
+    if (phase === "before") {
+      return "시작일보다 먼저 연 회차입니다. 진행은 오늘부터 셉니다.";
+    }
+    if (phase === "after") {
+      return canPlan
+        ? "기간이 지난 회차입니다. 「회차 닫기」를 누르면 안 끝난 일을 다음 회차로 넘길 수 있습니다."
+        : "기간이 지난 회차입니다. 안 끝난 일은 운영자가 회차를 닫을 때 다음 회차로 넘어갑니다.";
+    }
+    return "진행 중인 회차입니다. 남은 일과 막힌 일을 먼저 봅니다.";
+  }
+  return "";
+}
+
 /** 미완료를 어디로 보낼지 고르는 대화상자.
  *
  * 기본은 **다음 회차로 이월**이다. 안 옮기면 그 티켓들은 어느 회차에도 없는 상태가 되고,
@@ -116,9 +163,8 @@ function CloseDialog({ open, onClose, sprint, sprints, busy, onSubmit }) {
 export function SprintLifecycle({ sprint, sprints, size = "sm" }) {
   const qc = useQueryClient();
   const toast = useToast();
-  const auth = useAuth();
   const [closing, setClosing] = React.useState(false);
-  const canPlan = hasRole(MODERATOR_ROLES, auth.data && auth.data.role);
+  const canPlan = useCanPlanSprint();
 
   function refresh() {
     qc.invalidateQueries({ queryKey: ["work-sprints"] });

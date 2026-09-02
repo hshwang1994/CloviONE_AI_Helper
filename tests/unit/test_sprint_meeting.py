@@ -470,3 +470,13 @@ def test_a_sprint_from_another_project_is_refused(db, settings, world):
             db, settings, world["boss"],
             project_id=other.id, sprint_id=world["sprint"].id,
         )
+
+
+def test_the_candidate_list_carries_its_total(db, world):
+    """후보가 잘려도 **전체 수**를 함께 낸다 — 논의 갈래의 truncated 와 같은 계약.
+
+    이것이 없으면 백로그가 백여 건인 프로젝트에서 「후보가 20개뿐」으로 읽힌다.
+    이 픽스처의 백로그는 한 건이라 둘이 같다 — 칸이 실려 있는지가 계약이다.
+    """
+    body = _meeting(db, world)
+    assert body["candidates_total"] == len(body["candidates"]) == 1

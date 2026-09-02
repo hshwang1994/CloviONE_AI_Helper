@@ -11,7 +11,7 @@ import { FONT_SIZE, FONT_WEIGHT, MOTION, NUMERIC, RADIUS } from "./theme.js";
  * 접근 이름은 `"지연 1"` 처럼 라벨과 건수가 한 덩어리다. `role="tab"` 을 유지해서
  * 서로 하나만 고르는 자리라는 뜻이 시험과 스크린리더에 같이 남는다. */
 
-export function DiscussBucket({ label, count, selected, tone, onClick }) {
+export function DiscussBucket({ label, count, selected, tone, onClick, id, ariaControls, tabIndex, buttonRef }) {
   const name = `${label} ${count}`;
   /* 톤 표는 `ui/kit.jsx` 한 곳이다(KPI 타일과 같은 표). 예전에는 여기 ternary 사슬이
      danger·warn 둘만 알아서, 신호 어휘가 「이슈 있음은 보라」라고 말해도 이 카드만
@@ -22,9 +22,13 @@ export function DiscussBucket({ label, count, selected, tone, onClick }) {
     <Box
       component="button"
       type="button"
+      ref={buttonRef}
       role="tab"
+      id={id}
       aria-selected={selected}
+      aria-controls={ariaControls}
       aria-label={name}
+      tabIndex={tabIndex}
       onClick={onClick}
       sx={(t) => ({
         minWidth: 0,
@@ -68,11 +72,30 @@ export function DiscussBucket({ label, count, selected, tone, onClick }) {
   );
 }
 
-export function DiscussBucketRow({ items, value, onChange, ariaLabel = "논의 항목 선택" }) {
+export function DiscussBucketRow({ items, value, onChange, ariaLabel = "논의 항목 선택", idBase = "discuss" }) {
+  /* tablist 의 키보드 계약 — 화살표로 옮기고 Tab 은 한 번에 지나간다(roving tabindex).
+     role="tab" 만 달고 이 계약이 없으면 여덟 카드를 Tab 여덟 번으로 지나야 하고,
+     스크린리더는 「탭」이라고 말해 놓고 화살표가 안 듣는 화면을 만난다. */
+  const refs = React.useRef({});
+  function onKeyDown(e) {
+    const keys = items.map((it) => it.key);
+    const at = Math.max(0, keys.indexOf(value));
+    let next = null;
+    if (e.key === "ArrowRight") next = keys[(at + 1) % keys.length];
+    else if (e.key === "ArrowLeft") next = keys[(at - 1 + keys.length) % keys.length];
+    else if (e.key === "Home") next = keys[0];
+    else if (e.key === "End") next = keys[keys.length - 1];
+    if (!next) return;
+    e.preventDefault();
+    onChange(next);
+    const el = refs.current[next];
+    if (el && el.focus) el.focus();
+  }
   return (
     <Box
       role="tablist"
       aria-label={ariaLabel}
+      onKeyDown={onKeyDown}
       sx={{
         display: "grid",
         width: "100%",
@@ -87,6 +110,10 @@ export function DiscussBucketRow({ items, value, onChange, ariaLabel = "논의 �
       {items.map((it) => (
         <DiscussBucket
           key={it.key}
+          id={`${idBase}-tab-${it.key}`}
+          ariaControls={`${idBase}-panel`}
+          tabIndex={it.key === value ? 0 : -1}
+          buttonRef={(el) => { refs.current[it.key] = el; }}
           label={it.label}
           count={it.count}
           tone={it.tone}
