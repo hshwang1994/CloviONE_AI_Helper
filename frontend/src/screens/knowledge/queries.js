@@ -63,7 +63,7 @@ export function useRecent() {
  * 훅 둘을 언제나 부르고 `enabled` 로 끈다 — 갈래에 따라 훅 수가 달라지면 React 가
  * 상태를 잘못 짝짓는다. */
 export function useDocuments(params) {
-  const { view, spaceId, folderId, q, tags, category, author, sort, resume } = params;
+  const { view, project, folderId, q, tags, category, author, sort, resume } = params;
   const isRecent = view === VIEW.recent;
 
   const recentQ = useQuery({
@@ -74,7 +74,9 @@ export function useDocuments(params) {
 
   const tagKey = (tags || []).join("\u0000");
   const list = useInfiniteList({
-    key: ["knowledge", "documents", view, spaceId, folderId, q, tagKey, category, author, sort],
+    // 접두사 ["knowledge","documents",...] 는 불변이다(D-313) — 축 마디의 값만
+    // 공간 id 에서 프로젝트 축 값(프로젝트 id | "none")으로 바뀌었다.
+    key: ["knowledge", "documents", view, project, folderId, q, tagKey, category, author, sort],
     envelope: offsetEnvelope,
     size: PAGE_SIZE,
     /* offset 페이징은 그 사이 문서가 생기거나 지워지면 경계에서 같은 행을 두 번 준다.
@@ -84,7 +86,8 @@ export function useDocuments(params) {
     resume,
     fetch: ({ limit, offset }) => {
       const search = new URLSearchParams();
-      if (spaceId) search.set("space_id", spaceId);
+      // 축은 프로젝트다 — "none" 은 서버 센티널(공통 문서만)과 그대로 왕복한다.
+      if (project) search.set("project_id", project);
       if (folderId) search.set("folder_id", folderId);
       if (q) search.set("q", q);
       // 다중 태그는 AND 다(app/knowledge/service.py::list_documents) — 서버가 같은

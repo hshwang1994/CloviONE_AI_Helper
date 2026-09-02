@@ -74,38 +74,35 @@ export function NavRow({ label, count, selected, indent = 0, onClick, action }) 
 }
 
 export function KnowledgeNav({
-  spaces, spaceId, tree, folderId,
-  onSpace, onFolder, onNewFolder, onDeleteFolder, onReorderFolder, onNewSpace,
+  entries, value, hasSpace, tree, folderId,
+  onSelect, onFolder, onNewFolder, onDeleteFolder, onReorderFolder,
 }) {
   const folders = flatten(tree.data?.folders || []);
   const labelOf = (id) => (folders.find((f) => f.id === id) || {}).name || "";
 
   return (
     <Card sx={{ display: "grid", gap: 2.5, alignContent: "start" }}>
-      {/* 「공간」이라는 낱말은 관리 화면에서만 쓴다(§11.2) — 여기서는 「프로젝트」다.
-          조직 소유 공간(팀 문서)은 프로젝트가 아니므로 「공통 문서」로 부른다. */}
-      <Section
-        title="프로젝트"
-        action={onNewSpace ? (
-          <Button size="small" variant="ghost" onClick={onNewSpace}>공간 추가</Button>
-        ) : null}
-      >
+      {/* 「공간」이라는 낱말은 화면에서 쓰지 않는다(§11.2) — 여기는 프로젝트와 공통
+          문서다. 「공간 추가」 단추도 걷었다: 조직 공간은 이관이 만들었고 프로젝트
+          공간은 첫 문서를 만들 때 서버가 만든다(§14.2) — 사람이 추가할 공간이 없다. */}
+      <Section title="프로젝트">
         <Stack spacing={0.25}>
-          <NavRow label="전체" selected={!spaceId} onClick={() => onSpace("")} />
-          {spaces.map((space) => (
+          <NavRow label="전체" selected={!value} onClick={() => onSelect("")} />
+          {(entries || []).map((entry) => (
             <NavRow
-              key={space.id}
-              label={spaceDisplayName(space)}
-              selected={spaceId === space.id}
-              onClick={() => onSpace(space.id)}
+              key={entry.value}
+              label={entry.label}
+              selected={value === entry.value}
+              onClick={() => onSelect(entry.value)}
             />
           ))}
         </Stack>
       </Section>
 
-      {/* 폴더는 공간을 골랐을 때만 뜻이 있다. 안 골랐는데 빈 칸을 남겨 두면 「폴더가
-          없다」로 읽힌다 — 실제로는 아직 안 물어본 것이다(지시 22.4). */}
-      {spaceId ? (
+      {/* 폴더는 자리(프로젝트/공통)를 골랐고 그 자리에 실제 공간이 있을 때만 뜻이 있다.
+          안 골랐는데 빈 칸을 남겨 두면 「폴더가 없다」로 읽힌다 — 실제로는 아직 안
+          물어본 것이다(지시 22.4). */}
+      {hasSpace ? (
         <Section
           title="폴더"
           action={<Button size="small" variant="ghost" onClick={onNewFolder}>폴더 추가</Button>}
@@ -142,7 +139,9 @@ export function KnowledgeNav({
         </Section>
       ) : (
         <Typography variant="body2" color="text.secondary" sx={KO_WORD_BREAK}>
-          프로젝트를 고르면 그 안의 폴더가 여기에 나타납니다.
+          {value
+            ? "아직 문서가 없는 프로젝트입니다. 첫 문서를 만들면 폴더를 정리할 수 있습니다."
+            : "프로젝트를 고르면 그 안의 폴더가 여기에 나타납니다."}
         </Typography>
       )}
     </Card>

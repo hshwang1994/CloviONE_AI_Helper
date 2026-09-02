@@ -4,7 +4,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import Box from "@mui/material/Box";
 import { api } from "../lib/api.js";
 import { useAuth } from "../app/auth.jsx";
-import { CONSOLE_WRITE_ROLES, MODERATOR_ROLES, hasRole } from "../lib/roles.js";
+import { MODERATOR_ROLES, hasRole } from "../lib/roles.js";
 import {
   Button,
   DataTable,
@@ -24,7 +24,9 @@ import { ListFooter } from "../ui/InfiniteScroll.jsx";
 import { useResetScrollOnKeyChange } from "../lib/useInfiniteList.js";
 import { useListMemory } from "../lib/listReturn.js";
 import { SPACES_KEY, useKnowledgeSpaces } from "../lib/knowledgeSpaces.js";
-import { LIST_KEY, PROJECT_NONE, VIEW, axisValueOf, spaceForAxis } from "./knowledge/constants.js";
+import {
+  LIST_KEY, PROJECT_NONE, VIEW, axisValueOf, navEntriesFrom, spaceForAxis,
+} from "./knowledge/constants.js";
 import {
   useCategories, useDocuments, useSummary, useTags, useTemplates, useTree,
 } from "./knowledge/queries.js";
@@ -69,7 +71,10 @@ export function Knowledge() {
   const [params, setParams] = useSearchParams();
   useListMemory(LIST_KEY);
 
-  const spaceId = params.get("space") || "";
+  /* 🔴 자리 축은 **프로젝트**다(§11.2 — 「공간」 낱말을 일반 사용자 화면에 쓰지 않는다).
+     값은 프로젝트 id 또는 "none"(공통 문서 — 서버 센티널과 같은 값)이고, 공간은 그
+     값에서 유도된다(`spaceForAxis`) — 폴더 트리·폴더 만들기만 공간 id 를 쓴다. */
+  const project = params.get("project") || "";
   const folderId = params.get("folder") || "";
   const q = params.get("q") || "";
   const tags = params.getAll("tags");
@@ -85,7 +90,7 @@ export function Knowledge() {
      다룬다 — patch 에 `tags` 가 있으면 그 배열을 그대로 쓰고, 없으면 지금 값을 들고 간다. */
   const setQuery = (patch) => {
     const next = {};
-    if (spaceId) next.space = spaceId;
+    if (project) next.project = project;
     if (folderId) next.folder = folderId;
     if (q) next.q = q;
     if (category) next.category = category;
@@ -115,14 +120,31 @@ export function Knowledge() {
   );
 
   const { query: spaces, items } = useKnowledgeSpaces();
+  /* 축 값이 가리키는 공간 — 폴더 트리·폴더 만들기가 이것을 쓴다. 아직 공간이 없는
+     프로젝트(첫 문서 전)는 null 이고, 그때 폴더 절은 서지 않는다. */
+  const selectedSpace = spaceForAxis(items, project);
+  const spaceId = selectedSpace ? selectedSpace.id : "";
 
-  /* 공간이 **하나뿐이면** 그것을 연다. 폴더 트리는 공간을 고른 뒤에야 뜻이 있는데, 고를
+  /* 옛 주소(`?space=`)와 저장된 화면 기억을 프로젝트 축으로 옮긴다 — 북마크·되돌아오기
+     (listReturn 은 주소를 통째로 기억한다)가 조용히 죽지 않게. replace 라 히스토리에
+     옛 축이 안 남는다. */
+  React.useEffect(() => {
+    const legacy = params.get("space");
+    if (!legacy || !items.length) return;
+    const space = items.find((s) => s.id === legacy);
+    const next = new URLSearchParams(params);
+    next.delete("space");
+    if (space) next.set("project", axisValueOf(space));
+    setParams(next, { replace: true });
+  }, [params, items, setParams]);
+
+  /* 자리가 **하나뿐이면** 그것을 연다. 폴더 트리는 자리를 고른 뒤에야 뜻이 있는데, 고를
      것이 하나인 화면에서 「전체」에 머무르면 내비의 절반이 비어 보인다. */
   React.useEffect(() => {
-    if (!spaceId && items.length === 1) {
-      setParams({ space: items[0].id }, { replace: true });
+    if (!project && items.length === 1) {
+      setParams({ project: axisValueOf(items[0]) }, { replace: true });
     }
-  }, [spaceId, items, setParams]);
+  }, [project, items, setParams]);
 
   const tree = useTree(spaceId);
   const tagsQuery = useTags();
@@ -130,16 +152,15 @@ export function Knowledge() {
   const summary = useSummary();
   const templates = useTemplates();
   const documents = useDocuments({
-    view, spaceId, folderId, q, tags, category, author, sort, resume: resumeChunks,
+    view, project, folderId, q, tags, category, author, sort, resume: resumeChunks,
   });
   /* 조건이 바뀌면 목록 머리로 되돌린다. 첫 마운트에는 안 돈다(그 순간은 `listReturn` 이
      스크롤을 복원하는 자리다). */
   useResetScrollOnKeyChange(
-    JSON.stringify([view, spaceId, folderId, q, tags, category, author, sort]),
+    JSON.stringify([view, project, folderId, q, tags, category, author, sort]),
   );
 
   const [folderForm, setFolderForm] = React.useState(false);
-  const [spaceForm, setSpaceForm] = React.useState(false);
   const [newDoc, setNewDoc] = React.useState(null);
   const [taxonomyOpen, setTaxonomyOpen] = React.useState(false);
 
@@ -176,17 +197,6 @@ export function Knowledge() {
           ? `폴더를 지웠고 문서 ${moved}건이 정리 안 함 상태가 됐습니다.`
           : "폴더를 지웠습니다.",
       );
-    },
-    onError: (e) => toast(e.message, "error"),
-  });
-
-  const createSpace = useMutation({
-    mutationFn: (body) => api("/api/knowledge/spaces", { method: "POST", body }),
-    onSuccess: (space) => {
-      qc.invalidateQueries({ queryKey: SPACES_KEY });
-      setSpaceForm(false);
-      toast("공간을 만들었습니다.");
-      if (space?.id) setParams({ space: space.id });
     },
     onError: (e) => toast(e.message, "error"),
   });
@@ -300,7 +310,6 @@ export function Knowledge() {
   const total = documents.total ?? rows.length;
   const authors = documents.first?.authors || [];
   const role = (auth.data && auth.data.role) || "";
-  const canMakeSpace = hasRole(CONSOLE_WRITE_ROLES, role);
   /* 이름을 고치고 지우는 것은 그 어휘를 쓰는 **모든 문서**에 닿는다. 서버가 같은 기준으로
      막으므로(`DOCUMENT_DELETE` = 운영자군) 여기서 감추는 것은 방어가 아니라 안내다. */
   const canManageTaxonomy = hasRole(MODERATOR_ROLES, role);
@@ -371,15 +380,15 @@ export function Knowledge() {
             <Button onClick={() => setTaxonomyOpen(true)}>분류 관리</Button>
             <Button
               variant="primary"
-              onClick={() => {
-                // 지금 보던 곳(공간)을 프로젝트 축 값으로 옮겨 기본값으로 준다.
-                const current = items.find((s) => s.id === spaceId) || items[0];
+              onClick={() =>
                 setNewDoc({
-                  title: "", project_id: current ? axisValueOf(current) : "",
+                  // 지금 서 있는 자리가 기본값이다 — 「전체」면 첫 자리를 준다.
+                  title: "",
+                  project_id: project || (items[0] ? axisValueOf(items[0]) : ""),
                   folder_id: folderId || "",
                   category_id: "", tags: [], template: "blank",
-                });
-              }}
+                })
+              }
             >
               새 문서
             </Button>
@@ -421,14 +430,14 @@ export function Knowledge() {
       <KnowledgeFilterBar
         q={q}
         view={view}
-        spaceId={spaceId}
+        project={project}
         folderId={folderId}
         folderName={folderName}
         tags={tags}
         category={category}
         author={author}
         sort={sort}
-        spaces={items}
+        entries={navEntriesFrom(items)}
         categories={categoryRows}
         authors={authors}
         onCommitSearch={commitSearch}
@@ -451,17 +460,17 @@ export function Knowledge() {
         }}
       >
         <KnowledgeNav
-          spaces={items}
-          spaceId={spaceId}
+          entries={navEntriesFrom(items)}
+          value={project}
+          hasSpace={Boolean(spaceId)}
           tree={tree}
           folderId={folderId}
-          onSpace={(next) => setQuery({ space: next || null, folder: null })}
+          onSelect={(next) => setQuery({ project: next || null, folder: null })}
           onFolder={(next) => setQuery({ folder: next || null })}
           onNewFolder={() => setFolderForm(true)}
           onDeleteFolder={(folder) => removeFolder.mutate(folder.id)}
           onReorderFolder={({ id, beforeId, afterId }) =>
             moveFolder.mutate({ id, before_id: beforeId, after_id: afterId })}
-          onNewSpace={canMakeSpace ? () => setSpaceForm(true) : null}
         />
 
         <Box sx={{ minWidth: 0 }}>
@@ -534,32 +543,11 @@ export function Knowledge() {
           })}
       />
 
-      {/* 공간 만들기는 관리자만 본다 (`SPACE_ADMIN`). 서버가 같은 요청을 403 으로 막으므로
-          숨기는 것은 안내이지 방어가 아니다. */}
-      <FormModal
-        open={spaceForm}
-        title="문서 공간 추가"
-        fields={[
-          { name: "name", label: "공간 이름", required: true, maxLength: 200 },
-          {
-            name: "slug", label: "주소", required: true, maxLength: 64,
-            help: "영문 소문자와 숫자, 붙임표만 씁니다.",
-          },
-          {
-            name: "owner_kind", label: "누구의 공간인가", type: "select", required: true,
-            options: [
-              { value: "organization", label: "조직 전체" },
-              { value: "unset", label: "정하지 않음" },
-            ],
-            help: "부서와 프로젝트 공간은 관리 콘솔에서 대상을 골라 만듭니다.",
-          },
-        ]}
-        initial={{ name: "", slug: "", owner_kind: "organization" }}
-        submitLabel="만들기"
-        onClose={() => setSpaceForm(false)}
-        onSubmit={(values) => createSpace.mutateAsync(values)}
-      />
-
+      {/* 「공간 추가」 UI 는 걷었다 — 조직 공간(공통 문서)은 이관이 이미 만들었고,
+          프로젝트 공간은 첫 문서를 만들 때 서버가 만든다(§14.2). 사용자가 공간이라는
+          개념을 이해해야만 문서를 만들 수 있던 구조(§14.4 위반)의 마지막 조각이었다.
+          서버의 `POST /api/knowledge/spaces` 와 `SPACE_ADMIN` 은 그대로 있다 —
+          걷은 것은 화면의 진입점이지 방어가 아니다. */}
       <TaxonomyManager
         open={taxonomyOpen}
         onClose={() => setTaxonomyOpen(false)}

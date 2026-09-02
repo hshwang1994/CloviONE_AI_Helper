@@ -138,12 +138,12 @@ beforeEach(() => {
   });
 });
 
-function renderList() {
+function renderList(entry = "/knowledge?project=none") {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
       <ThemeModeProvider><ToastProvider><ConfirmProvider>
-        <MemoryRouter initialEntries={[`/knowledge?space=${SPACE}`]}>
+        <MemoryRouter initialEntries={[entry]}>
           <Knowledge />
         </MemoryRouter>
       </ConfirmProvider></ToastProvider></ThemeModeProvider>
@@ -619,5 +619,24 @@ describe("새 문서의 분류", () => {
       expect(post, "생성 요청이 안 나갔다").toBeTruthy();
       expect(post[1].body.category_id).toBe("cat-2");
     });
+  });
+});
+
+describe("프로젝트 축과 옛 주소", () => {
+  it("목록 요청이 프로젝트 축으로 나간다 — space_id 는 더 이상 안 쓴다", async () => {
+    renderList();
+    await seeRows();
+    expect(documentCalls()[0]).toContain("project_id=none");
+    expect(documentCalls()[0]).not.toContain("space_id=");
+  });
+
+  it("옛 ?space= 링크는 프로젝트 축으로 열린다 — 북마크가 조용히 죽지 않는다", async () => {
+    renderList(`/knowledge?space=${SPACE}`);
+    await seeRows();
+    // 변환이 자리 잡으면 마지막 목록 요청이 새 축이다(조직 공간 → 공통 문서).
+    await waitFor(() => {
+      expect(lastDocumentCall()).toContain("project_id=none");
+    });
+    expect(lastDocumentCall()).not.toContain("space_id=");
   });
 });

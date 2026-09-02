@@ -54,3 +54,15 @@ export function spaceForAxis(spaces, value) {
     list.find((s) => s.owner_kind === "project" && s.owner_project_id === value) || null
   );
 }
+
+/** 좌측 내비·필터의 프로젝트 축 선택지 — 공간 목록을 프로젝트 어휘로 옮긴다.
+ * 비프로젝트 공간은 몇 개든 「공통 문서」 한 줄로 접는다(조직 공간이 둘이어도 같은
+ * 라벨 두 줄이 서지 않는다) — 값은 `PROJECT_NONE` 하나다. */
+export function navEntriesFrom(spaces) {
+  const list = spaces || [];
+  const projects = list
+    .filter((s) => s.owner_kind === "project" && s.owner_project_id)
+    .map((s) => ({ value: s.owner_project_id, label: s.name }));
+  const hasCommon = list.some((s) => s.owner_kind !== "project");
+  return hasCommon ? [{ value: PROJECT_NONE, label: "공통 문서" }, ...projects] : projects;
+}

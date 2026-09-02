@@ -5,7 +5,7 @@ import {
 } from "../../ui/FilterBar.jsx";
 import { EntityCombobox, FilterSelect, SearchBox } from "../../ui/filters.jsx";
 import { TagPicker } from "../../ui/TagPicker.jsx";
-import { SORTS, VIEW, VIEW_OPTIONS, spaceDisplayName } from "./constants.js";
+import { SORTS, VIEW, VIEW_OPTIONS } from "./constants.js";
 
 /* 문서 목록의 탐색 줄 — **페이지 전폭**이다.
  *
@@ -17,11 +17,10 @@ import { SORTS, VIEW, VIEW_OPTIONS, spaceDisplayName } from "./constants.js";
  * 걸린 조건은 칩으로도 선다(티켓 목록과 같은 계약) — 폴더처럼 왼쪽 내비에서만 고를 수
  * 있는 축도 칩으로는 **여기서** 풀 수 있어야 한다. */
 export function KnowledgeFilterBar({
-  q, view, spaceId, folderId, folderName, tags, category, author, sort,
-  spaces, categories, authors,
+  q, view, project, folderId, folderName, tags, category, author, sort,
+  entries, categories, authors,
   onCommitSearch, onQuery, onClearAll, hasFilter,
 }) {
-  const spaceOptions = spaces.map((s) => ({ value: s.id, label: spaceDisplayName(s) }));
   const categoryOptions = categories.map((c) => ({ value: c.id, label: c.name }));
   const categoryName = (categories.find((c) => c.id === category) || {}).name || "";
   const authorName = ((authors || []).find((a) => a.value === author) || {}).label || "";
@@ -67,9 +66,11 @@ export function KnowledgeFilterBar({
           <EntityCombobox
             label="프로젝트"
             allLabel="전체"
-            value={spaceId}
-            onChange={(v) => onQuery({ space: v || null, folder: null })}
-            options={spaceOptions}
+            /* 값은 프로젝트 축이다(프로젝트 id | "none"=공통 문서) — 내비·주소·서버
+               파라미터와 한 값으로 왕복한다. */
+            value={project}
+            onChange={(v) => onQuery({ project: v || null, folder: null })}
+            options={entries}
           />
           <FilterSelect
             label="분류"
