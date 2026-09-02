@@ -780,6 +780,7 @@ def backlog_position_rank(
     좁힌다(단일 프로젝트 화면의 드래그를 겨눈 설계다). 이 화면은 프로젝트를 안 좁히면
     여러 프로젝트가 섞인 채로 `backlog_rank` 하나로 정렬되므로, "맨 위/맨 아래"는 그
     화면이 보는 전체 순서 기준이어야 한다 — 옮기는 카드의 프로젝트로 좁히면 안 된다.
+    드래그 경로도 이제 같은 원칙이다(`_place_by_neighbours` — 이웃을 가시성 범위로 읽는다).
     """
     if position not in ("top", "bottom"):
         raise ValidationAppError(f"모르는 위치입니다: {position}")
@@ -789,15 +790,77 @@ def backlog_position_rank(
         dept_scope=dept_scope, signal=signal, blocked_only=blocked_only, today=today,
     )
     sq = stmt.subquery()
-    ranked = db.execute(
-        select(sq.c.backlog_rank).order_by(sq.c.backlog_rank.nulls_last(), sq.c.id.asc())
-    ).scalars().all()
+    # 전체 순위를 파이썬으로 끌어오지 않는다 — 필요한 것은 양 끝 값 둘뿐이다.
+    # MIN/MAX 는 NULL 을 무시하므로, 순위 없는 행이 섞여 있어도 「맨 아래」가
+    # 값 있는 마지막 카드의 **뒤**로 간다(옛 전량 로드는 NULLS LAST 의 마지막 행이
+    # NULL 이라 이 경우 STEP 근처로 떨어졌다 — 자리 겹침 후보였다).
+    low, high = db.execute(
+        select(func.min(sq.c.backlog_rank), func.max(sq.c.backlog_rank))
+    ).one()
     if position == "top":
-        return rank_mod.between(None, ranked[0] if ranked else None)
-    return rank_mod.between(ranked[-1] if ranked else None, None)
+        return rank_mod.between(None, Decimal(low) if low is not None else None)
+    return rank_mod.between(Decimal(high) if high is not None else None, None)
 
 
 # ── Drop ─────────────────────────────────────────────────────────────────────
+
+
+def _neighbour_ranks(
+    db: Session, user: User, *, before_id: str | None, after_id: str | None, field: str,
+) -> tuple[Decimal | None, Decimal | None]:
+    """드롭 위치 두 이웃의 순위 — **요청자 가시성 범위**에서 읽는다.
+
+    rank 는 이미 전역 수직선이다(`_rank_keyset_page` 가 프로젝트 파티션 없이 값으로만
+    정렬한다). 두 이웃 사이의 중점은 숫자 순서가 부분집합에서 보존되므로 어떤 필터
+    투영(전체 판·프로젝트 판·백로그)에서도 정확히 그 사이에 선다.
+
+    🔴 옛 경로(`rank.neighbours`)는 이웃을 **옮기는 카드의 project_uid** 로 좁혔다 —
+    단일 프로젝트 화면의 드래그를 겨눈 설계라, 프로젝트를 안 좁힌 판·백로그에서 타
+    프로젝트 카드 옆에 놓으면 이웃이 (None, None) 이 되어 카드가 맨 뒤로 떨어졌다.
+    놓은 자리와 무관하게, 오류 한 줄 없이.
+
+    이웃 id 는 클라이언트 입력이다 — 가시성 절로 읽으므로 범위 밖 티켓의 순위를 탐침할
+    수 없고, 범위 밖·미존재 id 는 None(이웃 없음 → 맨 뒤 폴백)으로 떨어진다. 실패의
+    모양이 미존재와 같아 존재 여부도 새지 않는다.
+    """
+    def _rank_of(ticket_id: str | None) -> Decimal | None:
+        if not ticket_id:
+            return None
+        row = db.execute(
+            _visible_tickets_stmt(db, user).where(Ticket.id == ticket_id)
+        ).scalar_one_or_none()
+        if row is None:
+            return None
+        value = getattr(row, field)
+        return Decimal(value) if value is not None else None
+
+    return _rank_of(before_id), _rank_of(after_id)
+
+
+def _place_by_neighbours(
+    db: Session, user: User, *, ticket: Ticket,
+    before_id: str | None, after_id: str | None, field: str,
+) -> Decimal:
+    """드롭 위치의 순위 값 — `rank.place()` 와 같은 흐름, 이웃 조회만 가시성 범위다.
+
+    재조정(rebalance)은 여전히 **옮기는 카드의 프로젝트 단위**다. 이웃이 같은 프로젝트면
+    재조정 뒤 다시 읽은 값으로 정확히 앉고, 타 프로젝트 이웃이면 재조정이 그 값을 못
+    바꾸므로 깊은 자릿수를 그대로 수용한다 — `_PRECISION`(200자리) 아래에서 정확성은
+    유지되고, 같은 틈에 수십 번 연속 꽂는 병리적 경우에만 자릿수가 자란다.
+    """
+    low, high = _neighbour_ranks(db, user, before_id=before_id, after_id=after_id, field=field)
+    if low is None and high is None:
+        # 이웃이 하나도 없다 — 빈 칸에 놓았거나 이웃이 아직 순위를 못 받았다.
+        # `rank.place()` 의 같은 갈래와 같은 이유로 맨 뒤에 붙인다.
+        return rank_mod.append_rank(db, project_id=ticket.project_uid, field=field)
+    value = rank_mod.between(low, high)
+    if not rank_mod.needs_rebalance(value):
+        return value
+    rank_mod.rebalance(db, project_id=ticket.project_uid, field=field)
+    low, high = _neighbour_ranks(db, user, before_id=before_id, after_id=after_id, field=field)
+    if low is None and high is None:
+        return rank_mod.append_rank(db, project_id=ticket.project_uid, field=field)
+    return rank_mod.between(low, high)
 
 
 def load_ticket_in_scope_or_404(db: Session, ticket_id: str, user: User) -> Ticket:
@@ -966,8 +1029,10 @@ def move(
                 today=position_today,
             )
         else:
-            placed = rank_mod.place(
-                db, project_id=ticket.project_uid, before_id=before_id, after_id=after_id,
+            # 이웃은 가시성 범위 전역으로 읽는다 — 프로젝트가 섞인 판·백로그에서 놓은
+            # 자리가 그대로 순위가 된다(`_place_by_neighbours` 의 🔴 주석).
+            placed = _place_by_neighbours(
+                db, user, ticket=ticket, before_id=before_id, after_id=after_id,
                 field=field,
             )
         setattr(ticket, field, placed)

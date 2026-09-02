@@ -294,3 +294,35 @@ def test_moving_into_a_visible_sprint_still_works(client, login_as, world, db):
     assert r.status_code == 200, r.text
     db.expire_all()
     assert db.get(Ticket, world["ours_ticket"].id).sprint_id == ours_sprint.id
+
+
+def test_a_foreign_neighbour_id_probes_no_rank(client, login_as, world, db):
+    """🔴 이웃 id 는 클라이언트 입력이다 — 범위 밖 id 로 남의 순위를 탐침할 수 없다.
+
+    범위 밖 이웃과 **없는 이웃**이 같은 모양(맨 뒤 폴백)으로 떨어져야 한다. 모양이
+    다르면 그 차이 자체가 「그 id 가 존재한다」를 알려 주는 오라클이다.
+    """
+    from decimal import Decimal
+
+    theirs = db.get(Ticket, world["theirs_ticket"].id)
+    theirs.backlog_rank = Decimal(50)
+    ours = db.get(Ticket, world["ours_ticket"].id)
+    ours.backlog_rank = Decimal(100)
+    db.commit()
+
+    def move_with(before_id):
+        r = client.post(
+            f"/api/work/board/{world['ours_ticket'].id}/move",
+            json={"reorder": True, "before_id": before_id, "after_id": None},
+            headers=_hdr(login_as),
+        )
+        assert r.status_code == 200, r.text
+        db.commit()
+        db.expire_all()
+        return db.get(Ticket, world["ours_ticket"].id).backlog_rank
+
+    foreign = move_with(world["theirs_ticket"].id)
+    # 남의 순위(50) 근처가 아니라 자기 목록 맨 뒤 폴백이다.
+    assert foreign > Decimal(100), f"범위 밖 이웃의 순위가 계산에 쓰였다: {foreign}"
+    missing = move_with("00000000-0000-0000-0000-000000000000")
+    assert missing > foreign, f"없는 이웃과 다른 모양이다: {missing} vs {foreign}"
