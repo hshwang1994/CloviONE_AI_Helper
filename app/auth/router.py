@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import time
 from datetime import timedelta, timezone
 from urllib.parse import quote as _urlquote
@@ -42,6 +43,25 @@ from app.observability.service import EVENT_LOGIN, record_usage
 from app.users.service import get_user_by_email, normalize_email
 
 router = APIRouter(tags=["auth"])
+
+logger = logging.getLogger(__name__)
+
+
+def _reset_rate_limit(limiter, key: str) -> None:
+    """성공이 확인된 자리에서 예산을 되돌린다(`RateLimiter.reset` 의 문서화된 용도).
+
+    로그인 리미터의 키는 IP 단위다 — 사내 NAT 뒤에서는 사무실 전체가 한 예산을
+    쓰므로, 성공한 로그인까지 토큰을 소모하면 출근 시간대에 11번째 사람부터
+    전부 성공할 자격 증명으로도 429 를 본다. 실패 경로는 전부 이 지점 **앞에서**
+    raise 하므로 무차별 대입 예산은 그대로다.
+
+    리셋은 정리 작업이다 — 실패해도 이미 커밋된 성공(로그인·변경)을 500 으로
+    만들면 안 된다. 버킷은 리필로 스스로 회복된다.
+    """
+    try:
+        limiter.reset(key)
+    except Exception:  # noqa: BLE001 — 정리 실패가 성공한 요청을 막으면 안 된다
+        logger.warning("리미터 리셋에 실패했다 (key=%s)", key, exc_info=True)
 
 # login.js의 setLoginHint()는 mailto subject를 encodeURIComponent로 완전히 인코딩한다.
 # 서버 렌더 폴백(no-JS)은 예전에 "계정%20문의"처럼 공백만 손으로 %20 치환해, 같은 기능이
@@ -494,6 +514,10 @@ def login(
             time.sleep(write_conflict_backoff(_attempt))
             user = get_user_by_email(db, email)  # 롤백으로 만료됨 — 다시 확실히 가져온다
 
+    # 성공 로그인은 IP 예산을 되돌린다 — JSON/no-JS 두 응답 경로가 공통으로 지나는
+    # 유일한 성공 지점이 여기다(모든 실패는 위에서 raise 했다).
+    _reset_rate_limit(limiter, login_limit_key)
+
     if _is_json_request(request):
         # login.js does NOT read csrf_token/user from this body before navigating away
         # (window.location.href) — the destination page (React SPA's auth.jsx, or this
@@ -710,6 +734,10 @@ def change_password(
             # expire시키므로 user를 다시 가져와야 위 password_hash 대입이 새 스냅샷에 반영된다.
             time.sleep(write_conflict_backoff(_attempt))
             user = get_user_by_email(db, user.email)
+
+    # 성공한 사람은 이미 현재 비밀번호를 아는 본인이다 — 예산을 되돌려도 무차별
+    # 대입(현재 비밀번호 틀림 반복)은 성공에 못 닿으므로 이 리셋을 절대 못 탄다.
+    _reset_rate_limit(limiter, change_pw_limit_key)
 
     response = JSONResponse({"ok": True, "csrf_token": record.csrf_token})
     set_session_cookie(response, token, settings, max_age=session_service.absolute_ttl())

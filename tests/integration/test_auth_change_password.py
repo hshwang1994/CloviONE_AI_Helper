@@ -106,3 +106,37 @@ def test_change_password_same_as_current_rejected(client, make_user):
         headers={"X-CSRF-Token": csrf},
     )
     assert r.status_code == 422
+
+
+def test_change_password_rate_limit_resets_on_success(client, make_user):
+    """🔴 정책과 씨름하다 성공한 사람이 잔여 부채를 안고 가지 않는다.
+
+    틀린 현재 비밀번호로 예산(사용자당 분당 10회)을 9번 소모한 뒤 10번째에 성공하면,
+    리셋이 없을 때는 곧이은 다음 변경(11번째 allow)이 429 였다. 성공한 사람은 이미
+    현재 비밀번호를 아는 본인이라 예산을 되돌려도 무차별 대입(틀림 반복)은 이 리셋에
+    절대 닿지 못한다 — 보안 비용이 0 인 자리다.
+    """
+    make_user("budget@goodmit.co.kr")
+    csrf = _login(client, "budget@goodmit.co.kr")["csrf_token"]
+    for _ in range(9):
+        r = client.post(
+            "/change-password",
+            json={"current_password": "Not-The-Password-1", "new_password": NEW_PASSWORD},
+            headers={"X-CSRF-Token": csrf},
+        )
+        assert r.status_code == 401
+    changed = client.post(
+        "/change-password",
+        json={"current_password": DEFAULT_TEST_PASSWORD, "new_password": NEW_PASSWORD},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert changed.status_code == 200, changed.text
+    # 성공이 세션을 회전시켰다 — 응답의 새 CSRF 로 곧바로 한 번 더 바꾼다.
+    again = client.post(
+        "/change-password",
+        json={"current_password": NEW_PASSWORD, "new_password": "An0ther-Pass-2!"},
+        headers={"X-CSRF-Token": changed.json()["csrf_token"]},
+    )
+    assert again.status_code == 200, (
+        f"성공 직후의 변경이 잔여 부채로 막혔다: {again.status_code} {again.text}"
+    )

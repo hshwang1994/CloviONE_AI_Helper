@@ -158,6 +158,41 @@ def test_login_rate_limit_by_ip(client, fake_clock):
     assert responses[-1].json()["error"]["code"] == "rate_limited"
 
 
+def test_login_rate_limit_resets_on_success(client, make_user):
+    """🔴 성공 로그인은 IP 예산을 되돌린다.
+
+    키가 IP 단위라 사내 NAT 뒤에서는 사무실 전체가 한 예산(분당 10회)을 쓴다 —
+    성공까지 토큰을 소모하면 출근 시간대 11번째 사람부터 전부 맞는 자격 증명으로도
+    429 를 본다(「요청이 너무 많습니다」 지속 보고의 뿌리 하나).
+    """
+    make_user("crowd@goodmit.co.kr")
+    for i in range(12):
+        r = client.post(
+            "/login",
+            json={"email": "crowd@goodmit.co.kr", "password": DEFAULT_TEST_PASSWORD},
+        )
+        assert r.status_code == 200, (
+            f"{i + 1}번째 성공 로그인이 막혔다: {r.status_code} {r.text}"
+        )
+
+
+def test_failures_still_limited_after_a_success(client, make_user):
+    """반례 — 리셋은 성공에만 붙는다. 실패 스프레이 예산은 한 글자도 안 바뀐다."""
+    make_user("mixed@goodmit.co.kr")
+    ok = client.post(
+        "/login", json={"email": "mixed@goodmit.co.kr", "password": DEFAULT_TEST_PASSWORD}
+    )
+    assert ok.status_code == 200
+    responses = [
+        client.post(
+            "/login", json={"email": "nobody@goodmit.co.kr", "password": "x-Bad-Pass-1"}
+        )
+        for _ in range(12)
+    ]
+    assert responses[-1].status_code == 429
+    assert responses[-1].json()["error"]["code"] == "rate_limited"
+
+
 def test_missing_fields_rejected(client):
     r = client.post("/login", json={"email": "", "password": ""})
     assert r.status_code == 422
