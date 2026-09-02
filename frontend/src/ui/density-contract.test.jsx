@@ -3,8 +3,10 @@
 import { describe, it, expect } from "vitest";
 
 import {
+  BASELINE_TRACKS,
   CARD_PADDING,
   GRID_GAP,
+  LIST_RAIL_GRID,
   SECTION_GAP,
   TILE_GRID_GAP,
   TILE_PADDING,
@@ -143,5 +145,16 @@ describe("밀도 토큰이 무너지지 않는다", () => {
        `FONT_SIZE.readout` 하나가 됐다 — 검사도 그 정본을 본다. */
     expect(rem(FONT_SIZE.readout)).toBeGreaterThanOrEqual(rem(FONT_SIZE.body) * 1.8);
     expect(rem(FONT_SIZE.readout)).toBeGreaterThan(rem(FONT_SIZE.title));
+  });
+});
+
+describe("좌측 레일 목록 화면은 한 트랙을 쓴다", () => {
+  it("listRail 트랙의 모든 조합에 fr 이 있고, 간격은 GRID_GAP 이다", () => {
+    // 이 트랙이 없던 동안 문서 작업공간(18rem·gap16)과 조직 콘솔(20~26rem·gap20)이
+    // 서로 다른 값을 각자 하드코딩했다 — 정본은 이제 이 한 벌이다.
+    const stuck = trackEntries(LIST_RAIL_GRID).filter(([, track]) => !fills(track));
+    expect(stuck).toEqual([]);
+    expect(LIST_RAIL_GRID.gap).toBe(GRID_GAP);
+    expect(LIST_RAIL_GRID.gridTemplateColumns.lg).toBe(BASELINE_TRACKS.listRail);
   });
 });

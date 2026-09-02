@@ -63,6 +63,13 @@ export const BASELINE_TRACKS = {
   detail: "minmax(0, 1.5fr) minmax(300px, 0.65fr)",
   // 폼 + 보조 레일(새 티켓 등)
   two: "minmax(0, 1.45fr) minmax(280px, 0.8fr)",
+  // 좌측 구조 레일 + 목록(문서 작업공간·조직 콘솔). 이 트랙이 없던 동안 두 화면이
+  // 서로 다른 값(18rem·gap16 vs 20~26rem·gap20)을 각자 하드코딩했다 — density.js 가
+  // 세 번 겪은 「값이 화면마다 흩어진다」의 네 번째였다. fr 트랙의 최소가 0이라
+  // 공간이 있으면 레일은 항상 최대값으로 선다 — 22rem 은 문서 레일의 실측 하한
+  // (18rem — 그 아래에서 제목·「폴더 추가」 줄이 잘렸다)을 여유 있게 넘고, 조직
+  // 트리의 축소를 64px 로 한정하는 값이다.
+  listRail: "minmax(18rem, 22rem) minmax(0, 1fr)",
   // 지표 한 줄
   kpi: "repeat(4, minmax(0, 1fr))",
   three: "repeat(3, minmax(0, 1fr))",
@@ -231,6 +238,15 @@ export const TILE_PADDING = rem(DENSITY_PX.healthCardPadding);  // 16px
 export const GRID_GAP = rem(DENSITY_PX.gridGap);                // 24px
 export const TILE_GRID_GAP = rem(DENSITY_PX.healthGridGap);     // 16px
 export const SECTION_GAP = rem(DENSITY_PX.sectionGap);          // 32px
+
+/* 좌측 레일 목록 화면의 그리드 한 벌 — `BASELINE_TRACKS.listRail` 의 소비 형태.
+ * 값 조정은 여기(트랙)와 위(트랙 주석) 한 곳에서만 한다. */
+export const LIST_RAIL_GRID = {
+  display: "grid",
+  alignItems: "start",
+  gap: GRID_GAP,
+  gridTemplateColumns: { xs: "1fr", lg: BASELINE_TRACKS.listRail },
+};
 
 /** 칸반 레인·논의 목록 등 **캔버스 위의 함몰 구역**. 카드(plate)가 그 위에 선다. */
 export const LANE_SURFACE = {

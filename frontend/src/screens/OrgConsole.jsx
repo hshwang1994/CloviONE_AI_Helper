@@ -14,6 +14,7 @@ import { useOrgTreeQuery, useOrganizations } from "./org/orgQueries.js";
 import { OrgDetailPanel } from "./org/OrgDetailPanel.jsx";
 import { DeptDetailPanel } from "./org/DeptDetailPanel.jsx";
 import { DeptCreateModal, OrgCreateModal } from "./org/orgModals.jsx";
+import { LIST_RAIL_GRID } from "../ui/density.js";
 
 /* 조직 콘솔 — 조직 관리, 부서 관리, 조직도가 **한 화면**이다.
  *
@@ -193,14 +194,9 @@ export function OrgConsole() {
 
       <ResultLine total={visibleDeptCount} unit="개 부서" conditions={conditions} />
 
-      <Box
-        sx={{
-          display: "grid",
-          alignItems: "start",
-          gap: 2.5,
-          gridTemplateColumns: { xs: "1fr", lg: "minmax(20rem, 26rem) minmax(0, 1fr)" },
-        }}
-      >
+      {/* 좌측 레일 + 목록의 표준 트랙(density.js LIST_RAIL_GRID) — 문서 작업공간과 같은
+          한 벌이다. 손으로 짠 값(20~26rem·gap20px)이 화면마다 달랐던 자리다. */}
+      <Box sx={LIST_RAIL_GRID}>
         <Box data-testid="org-console-tree">
           <OrgTree
             selectedId={selectedTreeId}

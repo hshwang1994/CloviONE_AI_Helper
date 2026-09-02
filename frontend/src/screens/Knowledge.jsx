@@ -23,6 +23,7 @@ import { ResultLine } from "../ui/FilterBar.jsx";
 import { ListFooter } from "../ui/InfiniteScroll.jsx";
 import { useResetScrollOnKeyChange } from "../lib/useInfiniteList.js";
 import { useListMemory } from "../lib/listReturn.js";
+import { LIST_RAIL_GRID } from "../ui/density.js";
 import { SPACES_KEY, useKnowledgeSpaces } from "../lib/knowledgeSpaces.js";
 import {
   LIST_KEY, PROJECT_NONE, VIEW, axisValueOf, navEntriesFrom, spaceForAxis,
@@ -449,16 +450,9 @@ export function Knowledge() {
       {/* 「최근 열람」은 쪽을 안 나눈다 — 사람마다 다르고 길지 않다. */}
       <ResultLine total={total} conditions={activeConditions} />
 
-      <Box
-        sx={{
-          display: "grid",
-          alignItems: "start",
-          gap: 2,
-          /* 좌측 내비는 구조(프로젝트·폴더)만 든다. 17rem 은 옛 실측에서 줄이 45px
-             잘렸던 폭이다 — 제목과 「폴더 추가」가 한 줄에 서는 칸이라 18rem 을 준다. */
-          gridTemplateColumns: { xs: "1fr", lg: "18rem minmax(0, 1fr)" },
-        }}
-      >
+      {/* 좌측 레일 + 목록의 표준 트랙(density.js LIST_RAIL_GRID) — 조직 콘솔과 같은
+          한 벌이다. 손으로 짠 값(18rem·gap16px)이 화면마다 달랐던 자리다. */}
+      <Box sx={LIST_RAIL_GRID}>
         <KnowledgeNav
           entries={navEntriesFrom(items)}
           value={project}
