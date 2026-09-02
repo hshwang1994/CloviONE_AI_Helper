@@ -98,14 +98,6 @@ describe("SEM-01 — 등록 화면 목록의 행별 접근 이름", () => {
     expect(b).toBe("사용자B / 하루");
   });
 
-  it("조직도(org-tree): 조직/부서 구분 + 이름으로 구별된다", () => {
-    const cols = REGISTRY["org-tree"].columns;
-    const a = declaredRowName(cols, { kind: "organization", name: "조직A" });
-    const b = declaredRowName(cols, { kind: "department", name: "부서A" });
-    expect(a).toBe("조직 조직A");
-    expect(b).toBe("부서 부서A");
-  });
-
   it("작업 큐(jobs): 같은 유형끼리도(유형 필터로 좁혀 봐도) 생성 시각으로 구별된다", () => {
     const cols = REGISTRY.jobs.columns;
     const a = declaredRowName(cols, { job_type: "chat_message", created_at: "2026-08-01T00:00:00Z" });

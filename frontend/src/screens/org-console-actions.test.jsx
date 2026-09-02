@@ -169,6 +169,19 @@ describe("부서 액션", () => {
     expect(await screen.findByText(/참조하는 프로젝트 2건/, {}, WAIT)).toBeInTheDocument();
   });
 
+  /* PA-RC-0023 이관(옛 admin-uiux) — 화면/판당 채운(primary) 버튼은 정확히 하나여야 한다.
+     부서 상세 판에는 활성·비활성/삭제/수정이 함께 서는데 「수정」만 primary 다. */
+  it("상세 판의 채운 버튼은 '수정' 하나다(판당 primary 1개)", async () => {
+    mockApi();
+    renderAt("/departments/dep-sales");
+    const p2 = await screen.findByTestId("org-console-panel", {}, WAIT);
+    await within(p2).findByRole("heading", { name: "영업팀" }, WAIT);
+    const contained = Array.from(p2.querySelectorAll("button")).filter((el) =>
+      [...el.classList].some((c) => /^MuiButton-contained[A-Z]/.test(c)));
+    expect(contained).toHaveLength(1);
+    expect(contained[0]).toHaveTextContent("수정");
+  });
+
   it("감사 로그 딥링크가 그 부서를 가리킨다", async () => {
     mockApi();
     renderAt("/departments/dep-sales");

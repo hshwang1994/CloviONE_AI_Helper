@@ -1,9 +1,10 @@
+/* qa-contract-change: 부서 화면이 registry/DataScreen 을 떠나 조직 콘솔의 상세 판과 자체 모달(screens/org/)이 됐다 — /departments 세 케이스를 그 경로(OrgConsole 렌더 + 헤더 부서 추가·상세 판 수정·삭제)로 옮겨 같은 세 문장을 계속 못박는다. */
 import React from "react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen, within, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 import "@testing-library/jest-dom/vitest";
 
 /* 성공 토스트 기본 문구 — 실제 소비 화면 회귀 (PA-RC-0025).
@@ -34,6 +35,7 @@ vi.mock("../app/auth.jsx", () => ({
 import { DataScreen } from "./DataScreen.jsx";
 import { REGISTRY } from "./registry.js";
 import { Users } from "./Users.jsx";
+import { OrgConsole } from "./OrgConsole.jsx";
 import { ConfirmProvider, ToastProvider } from "../ui/kit.jsx";
 import { ThemeModeProvider } from "../ui/ThemeModeProvider.jsx";
 import { clickAction, hasAction } from "../test-helpers/actions.js";
@@ -53,48 +55,80 @@ function renderWith(children) {
   );
 }
 
+const WAIT_ORG = { timeout: 8000 };
+
+function renderOrgConsoleAt(path) {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(
+    <QueryClientProvider client={qc}>
+      <ThemeModeProvider>
+        <ToastProvider>
+          <ConfirmProvider>
+            <MemoryRouter initialEntries={[path]}>
+              <Routes>
+                <Route path="/departments/:id" element={<OrgConsole />} />
+              </Routes>
+            </MemoryRouter>
+          </ConfirmProvider>
+        </ToastProvider>
+      </ThemeModeProvider>
+    </QueryClientProvider>,
+  );
+}
+
 beforeEach(() => {
   apiMock.mockReset();
   window.location.hash = "";
 });
 
-describe("/departments — 추가·수정·삭제가 전부 문장형이다 (실측 버그: 삭제만 '삭제 완료'였다)", () => {
-  const DEPT = {
-    id: "d1", name: "기존부서", org_name: "조직A", org_id: "o1",
-    active: true, user_count: 0, child_department_count: 0,
-    created_at: "2026-08-01T00:00:00",
-  };
+describe("부서 — 추가·수정·삭제가 전부 문장형이다 (조직 콘솔 경로)", () => {
+  const AT2 = "2026-08-01T00:00:00";
+  const TREE2 = [
+    { id: "o1", kind: "organization", name: "조직A", depth: 0, path: "조직A",
+      active: true, user_count: 0, child_count: 1, subtree_user_count: 0, created_at: AT2 },
+    { id: "d1", kind: "department", name: "기존부서", depth: 1, path: "조직A › 기존부서",
+      org_id: "o1", active: true, user_count: 0, child_count: 0, subtree_user_count: 0, created_at: AT2 },
+  ];
 
   function mockDepartments() {
     apiMock.mockImplementation((path, opts) => {
       const method = (opts && opts.method) || "GET";
-      if (path === "/api/admin/departments" && method === "GET") {
-        return Promise.resolve({ items: [DEPT], total: 1 });
+      const u = String(path);
+      if (u === "/api/admin/departments" && method === "POST") {
+        return Promise.resolve({ id: "d-new", name: "새부서" });
       }
-      if (path === "/api/admin/departments" && method === "POST") {
-        return Promise.resolve({ id: "d-new", name: "새부서", org_name: null, active: true, user_count: 0, created_at: "2026-08-02T00:00:00" });
-      }
-      if (path === "/api/admin/departments/d1" && method === "DELETE") {
+      if (u === "/api/admin/departments/d1" && method === "DELETE") {
         return Promise.resolve({ ok: true });
       }
-      if (path === "/api/admin/departments/d1") {
-        // PATCH(수정)
-        return Promise.resolve({ ...DEPT, name: "고친이름" });
+      if (u === "/api/admin/departments/d1" && method === "PATCH") {
+        return Promise.resolve({ department: { id: "d1", name: "고친이름" } });
       }
-      return Promise.resolve({ items: [] }); // 저장된 뷰(/api/me/views) 등 그 외 호출.
+      if (u.startsWith("/api/admin/departments/tree")) return Promise.resolve({ items: TREE2 });
+      if (u === "/api/admin/departments/d1") {
+        return Promise.resolve({ department: {
+          id: "d1", name: "기존부서", active: true, parent_id: null, org_id: "o1",
+          org_name: "조직A", user_count: 0, child_department_count: 0, created_at: AT2,
+        } });
+      }
+      if (u.startsWith("/api/admin/organizations")) {
+        return Promise.resolve({ items: [{ id: "o1", name: "조직A", slug: "org-a",
+          status: "active", department_count: 1, user_count: 0, created_at: AT2 }] });
+      }
+      if (u.startsWith("/api/admin/departments")) {
+        return Promise.resolve({ items: [{ id: "d1", name: "기존부서", org_id: "o1",
+          active: true, user_count: 0, created_at: AT2 }] });
+      }
+      if (u.startsWith("/api/admin/users")) return Promise.resolve({ items: [], total: 0 });
+      return Promise.resolve({ items: [] });
     });
   }
 
   it("추가 — 이미 문장형이었다('추가했습니다.')", async () => {
     mockDepartments();
     const user = userEvent.setup();
-    renderWith(<DataScreen config={REGISTRY.departments} />);
-    await screen.findByText("기존부서");
-
-    await user.click((await screen.findAllByRole("button", { name: "부서 추가" }))[0]);
+    renderOrgConsoleAt("/departments/d1");
+    await user.click(await screen.findByRole("button", { name: "부서 추가" }, WAIT_ORG));
     const dialog = await screen.findByRole("dialog", { name: "부서 추가" });
-    // required 필드는 라벨에 "*"가 별도 span으로 붙어 접근성 텍스트가 "부서 이름 *"가 된다
-    // (datascreen.test.jsx의 기존 관용과 동일하게 정규식으로 매칭한다 — 정확한 문자열은 안 맞는다).
     await user.type(within(dialog).getByLabelText(/부서 이름/), "새부서");
     await user.click(within(dialog).getByRole("button", { name: "추가" }));
 
@@ -104,11 +138,9 @@ describe("/departments — 추가·수정·삭제가 전부 문장형이다 (실
   it("수정 — 이미 문장형이었다('저장했습니다.')", async () => {
     mockDepartments();
     const user = userEvent.setup();
-    renderWith(<DataScreen config={REGISTRY.departments} />);
-    const row = await screen.findByText("기존부서");
-    await user.click(row.closest("tr"));
-    const drawer = await screen.findByRole("dialog");
-    await user.click(within(drawer).getByRole("button", { name: "수정" }));
+    renderOrgConsoleAt("/departments/d1");
+    const panel = await screen.findByTestId("org-console-panel", {}, WAIT_ORG);
+    await user.click(await within(panel).findByRole("button", { name: "수정" }, WAIT_ORG));
 
     const editDialog = await screen.findByRole("dialog", { name: /수정/ });
     const nameInput = within(editDialog).getByLabelText(/부서 이름/);
@@ -122,14 +154,12 @@ describe("/departments — 추가·수정·삭제가 전부 문장형이다 (실
   it("삭제 — 실측 버그 재현/수정 확인: 예전엔 '삭제 완료'(명사형, 마침표 없음), 이제 '삭제했습니다.'", async () => {
     mockDepartments();
     const user = userEvent.setup();
-    renderWith(<DataScreen config={REGISTRY.departments} />);
-    const row = await screen.findByText("기존부서");
-    await user.click(row.closest("tr"));
-    const drawer = await screen.findByRole("dialog");
-    await clickAction(user, drawer, "삭제");
+    renderOrgConsoleAt("/departments/d1");
+    const panel = await screen.findByTestId("org-console-panel", {}, WAIT_ORG);
+    await user.click(await within(panel).findByRole("button", { name: "삭제" }, WAIT_ORG));
 
-    const confirmDialog = await screen.findByRole("dialog", { name: /지울까요|확인/ });
-    await user.click(within(confirmDialog).getByRole("button", { name: /확인|삭제|계속/ }));
+    const dialogs = await screen.findAllByRole("dialog", {}, WAIT_ORG);
+    await user.click(within(dialogs[dialogs.length - 1]).getByRole("button", { name: "삭제" }));
 
     expect(await screen.findByText("삭제했습니다.")).toBeInTheDocument();
     // revert-to-verify 근거: 옛 패턴("삭제 완료")은 더 이상 어디에도 없어야 한다.

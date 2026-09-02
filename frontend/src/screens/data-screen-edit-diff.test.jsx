@@ -1,3 +1,4 @@
+/* qa-contract-change: 부서 화면이 registry 를 떠나 조직 콘솔(screens/org/)로 갔다 — 이 파일은 DataScreen **공용 경로** 자체를 시험하므로, 옛 departments 설정과 같은 모양의 인라인 픽스처로 대상을 바꿔 시험 의도를 그대로 유지한다(cross-screen-invalidation 과 같은 방식). */
 import React from "react";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { render, screen, within, waitFor } from "@testing-library/react";
@@ -26,11 +27,25 @@ vi.mock("../app/auth.jsx", () => ({
 }));
 
 import { DataScreen } from "./DataScreen.jsx";
-import { REGISTRY } from "./registry.js";
 import { ConfirmProvider, ToastProvider } from "../ui/kit.jsx";
 import { ThemeModeProvider } from "../ui/ThemeModeProvider.jsx";
 
-function renderScreen(key) {
+
+/* 옛 departments 설정과 같은 모양의 인라인 픽스처 — 화면이 아니라 DataScreen 공용
+ * 경로가 시험 대상이라, 실재 registry 화면에 묶어 두면 그 화면의 이사에 시험이 끌려간다. */
+const TEST_CONFIG = {
+  key: "edit-diff-fixture", title: "부서 관리", area: null,
+  endpoint: "/api/admin/departments",
+  selectKey: "department",
+  columns: [{ key: "name", label: "부서 이름" }],
+  edit: { roles: ["admin", "system_admin"], fields: [
+    { name: "name", label: "부서 이름", type: "text", required: true },
+    { name: "parent_id", label: "상위 부서", type: "select", value: "",
+      options: [{ value: "", label: "(최상위)" }, { value: "dep-2", label: "다른팀" }] },
+  ] },
+};
+
+function renderScreen() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
@@ -38,7 +53,7 @@ function renderScreen(key) {
         <ToastProvider>
           <ConfirmProvider>
             <MemoryRouter>
-              <DataScreen config={REGISTRY[key]} />
+              <DataScreen config={TEST_CONFIG} />
             </MemoryRouter>
           </ConfirmProvider>
         </ToastProvider>
@@ -84,7 +99,7 @@ async function openEditForm(user) {
 describe("CONC-01 — DataScreen 공용 수정 폼이 바뀐 필드만 보낸다", () => {
   it("이름만 고치면 PATCH body에 이름만 실린다(건드리지 않은 상위 부서는 안 실린다)", async () => {
     const user = userEvent.setup();
-    renderScreen("departments");
+    renderScreen();
     const dialog = await openEditForm(user);
 
     const nameField = within(dialog).getByRole("textbox", { name: /부서 이름/ });
@@ -101,7 +116,7 @@ describe("CONC-01 — DataScreen 공용 수정 폼이 바뀐 필드만 보낸다
 
   it("아무것도 안 바꾸고 저장하면 PATCH 요청 자체가 안 나가고 안내만 뜬다", async () => {
     const user = userEvent.setup();
-    renderScreen("departments");
+    renderScreen();
     const dialog = await openEditForm(user);
 
     await user.click(within(dialog).getByRole("button", { name: "저장" }));

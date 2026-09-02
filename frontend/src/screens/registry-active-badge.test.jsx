@@ -1,4 +1,4 @@
-/* qa-contract-change: S11 이 templates·runners·workflows 화면을 걷어내 이 규칙(활성 배지는 필터와 같은 어휘를 쓰고 비활성은 주의 톤이다)의 소비자가 다섯에서 둘로 줄었다. 규칙 자체와 남은 둘(스케줄·연동)에 거는 단언은 한 글자도 안 약해졌다 — 사라진 것은 규칙이 아니라 그것을 지나던 화면이다. */
+/* qa-contract-change: bc55228c 가 연동(integrations) 화면을 걷어냈는데 이 파일의 목록이 안 따라와 REGISTRY["integrations"] 참조가 수집 단계에서 던져 파일째 빨갛게 죽어 있었다 — 남은 소비자는 스케줄 하나이고 규칙 단언은 그대로다. (앞서 S11 은 templates·runners·workflows 를 걷어 다섯이 둘이 됐었다.) */
 import React from "react";
 import { describe, it, expect } from "vitest";
 import { render } from "@testing-library/react";
@@ -20,7 +20,6 @@ function renderCol(spec, row) {
  */
 describe.each([
   ["schedules", "스케줄"],
-  ["integrations", "연동"],
 ])("%s(%s) 목록의 '활성' 배지", (registryKey) => {
   const col = REGISTRY[registryKey].columns.find((c) => c.key === "enabled");
 

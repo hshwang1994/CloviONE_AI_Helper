@@ -1,3 +1,4 @@
+/* qa-contract-change: 조직·부서·조직도가 registry 를 떠나 조직 콘솔(screens/org/)의 선택 반응형 상세 판으로 재구성됐다 — 조직 비활성화 confirm·부서 primary·조직 clientFilter·org-tree 필터 메타 단언을 org-console-actions.test.jsx 로 이관하거나 표와 함께 걷었다. */
 /* qa-contract-change: S11 이 n8n·러너 서브시스템을 걷어내면서 이 파일이 고정하던 화면 셋이 사라졌다 — 문서 발행 승인 액션(document.publish), 문서 생성 화면의 clientFilter 경고, 프롬프트의 러너 ID 필드. 단언이 줄어든 만큼이 정확히 그 셋이고, 남은 단언은 한 글자도 안 약해졌다(기대값·형태 그대로). «documents 만 예외» 였던 단언은 «예외가 하나도 없다» 로 **더 세졌다**. */
 /* 관리 콘솔 28화면 전수조사(9-1) — 확인·필터·문구가 실제 동작과 맞는가.
  *
@@ -143,29 +144,6 @@ describe("위험 액션 확인", () => {
   });
 
 
-  it("조직 '비활성화': 확인 문구가 로그인이 끊긴다는 사실과 인원수를 말한다", async () => {
-    apiMock.mockImplementation(() => Promise.resolve({
-      items: [{
-        id: "o1", slug: "goodmit", name: "굿밋", status: "active",
-        department_count: 4, user_count: 37,
-        created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-01T00:00:00Z",
-      }],
-      total: 1,
-    }));
-    renderScreen("organizations");
-    const drawer = await openRow("굿밋");
-    await clickAction(userEvent, drawer, "비활성화");
-
-    const dlg = await confirmDialog();
-    // 비활성화는 _revoke_org_sessions 로 전원을 즉시 내보내고 재로그인까지 막는다.
-    // '기존 사용자와 부서는 그대로 남습니다'만 말하면 아무 일도 없는 것처럼 읽힌다.
-    expect(dlg).toHaveTextContent("37");
-    expect(dlg).toHaveTextContent(/로그아웃/);
-    expect(dlg).toHaveTextContent(/다시 로그인할 수 없게/);
-    // 거절과 달리 이건 되돌릴 수 있다 — 되돌릴 수 있다는 사실도 함께 말해야 과잉 공포가 없다.
-    expect(dlg).toHaveTextContent(/되돌릴 수 있습니다/);
-  });
-
   it("이미 확인을 받고 있던 액션은 그대로 남아 있다(있던 것을 되돌리지 않는다)", () => {
     const confirmOf = (key, label) =>
       (REGISTRY[key].actions || []).find((a) => a.label === label && a.confirm);
@@ -174,47 +152,6 @@ describe("위험 액션 확인", () => {
     expect(confirmOf("feature-flags", "비활성화")).toBeTruthy();
   });
 
-  /* PA-RC-0023: 비활성 부서의 상세는 '수정'(DataScreen의 canEdit 분기, 항상 primary)과
-   * '활성화'(activeToggle)가 같은 footer에 함께 뜬다 — 둘 다 primary였던 것을 '활성화'만
-   * default로 내렸다(actions.js). 화면당 contained는 정확히 하나여야 한다는 규범을
-   * 값으로 고정한다 — 이 실측(색 클래스 대조)이 없으면 나중에 누가 실수로 primary를
-   * 되돌려도 아무 시험도 못 잡는다. */
-  it("비활성 부서 상세: '수정'만 primary고 '활성화'는 아니다(화면당 primary 1개)", async () => {
-    apiMock.mockImplementation(() => Promise.resolve({
-      items: [{
-        id: "d1", name: "휴면 부서", org_name: "굿밋", org_id: "o1",
-        active: false, user_count: 0, child_department_count: 0,
-        created_at: "2026-01-01T00:00:00Z",
-      }],
-      total: 1,
-    }));
-    renderScreen("departments");
-    const drawer = await openRow("휴면 부서");
-
-    const colorClass = (el) =>
-      [...el.classList].find((c) => /^MuiButton-(outlined|contained|text)[A-Z]/.test(c));
-
-    /* 이 시험의 주제는 표현이라 헬퍼를 쓰지 않고 직접 질의한다: 한 화면에 채운 버튼이
-       하나여야 한다. 액션 위계가 들어온 뒤 활성화는 버튼일 수도, 넘침 메뉴 항목일 수도
-       있다 - 어느 쪽이든 "채운 버튼은 수정 하나"는 그대로다. */
-    const edit = within(drawer).getByRole("button", { name: "수정" });
-    expect(colorClass(edit)).toMatch(/^MuiButton-contained/);
-    const activateBtn = within(drawer).queryByRole("button", { name: "활성화" });
-    if (activateBtn) expect(colorClass(activateBtn)).not.toMatch(/^MuiButton-contained/);
-    else expect(within(drawer).getByRole("button", { name: /더 보기$/ })).toBeTruthy();
-
-    // 서술이 아니라 실제 렌더에서 채운 버튼이 하나인지 직접 센다.
-    const filled = within(drawer).getAllByRole("button").filter((b) => colorClass(b) === "MuiButton-containedPrimary");
-    expect(filled).toHaveLength(1);
-  });
-});
-
-/* ── 2. 거르는 조건은 서버로 간다(못 가면 이름을 대고 밝힌다) ───────────── */
-
-describe("필터가 어디서 걸리는가", () => {
-  /* 이 자리에 「Notion 연결 '출처'」가 있었다. 그 화면을 S20 이 내려서 같은 계약을 **살아
-     있는 화면**에서 다시 잰다 — 공지 배너도 `paginated` 라, 조건이 서버에 안 닿으면 다른
-     쪽 페이지의 일치 항목이 조용히 사라지는 정확히 같은 함정을 갖는다. */
   it("공지 배너 '중요도'는 서버 요청에 실려 나간다(페이지 안에서만 거르지 않는다)", async () => {
     apiMock.mockImplementation(() => Promise.resolve({ items: [], total: 0, page: 1, page_size: 20 }));
     renderScreen("announcements");
@@ -240,10 +177,7 @@ describe("필터가 어디서 걸리는가", () => {
     // 스케줄: 백엔드가 파라미터를 안 받지만 페이지네이션도 없다 → 받아 온 것이 곧 전부다.
     expect(REGISTRY.schedules.paginated).toBeFalsy();
     expect((REGISTRY.schedules.filters || []).length).toBeGreaterThan(0);
-    // 조직도: '사용' 필터는 처음부터 서버 필터였다(GET /departments/tree 가 active 를 받는다).
-    const active = (REGISTRY["org-tree"].filters || []).find((f) => f.key === "active");
-    expect(active).toBeTruthy();
-    expect(active.clientFilter).toBeFalsy();
+    // (조직도의 '사용' 필터는 콘솔 재구성 후 org-console.test.jsx 가 서버 질의로 직접 확인한다.)
   });
 });
 
@@ -251,7 +185,7 @@ describe("필터가 어디서 걸리는가", () => {
 
 describe("좁혀 볼 수단", () => {
   it("전수조사가 지목한 화면에 좁힐 수단이 생겼다", () => {
-    ["organizations", "backup", "ai-quotas", "restore-drills"].forEach((key) => {
+    ["backup", "ai-quotas", "restore-drills"].forEach((key) => {
       expect((REGISTRY[key].filters || []).length, key + " 필터").toBeGreaterThan(0);
       // 필터를 붙였으면 검색도 대상 필드를 못박아야 한다 — 기본 검색은 JSON.stringify(row) 전체를
       // 훑어 화면에 보이지 않는 UUID·ISO 시각·불리언까지 매칭한다.
@@ -272,18 +206,6 @@ describe("좁혀 볼 수단", () => {
     expect(REGISTRY.rbac.searchFields).toBeTruthy();
   });
 
-  it("조직 '상태' 필터를 골라도 요청은 그대로다(서버가 안 받는 파라미터를 지어내지 않는다)", async () => {
-    apiMock.mockImplementation(() => Promise.resolve({ items: [], total: 0 }));
-    renderScreen("organizations");
-    await findText("추가된 조직이 없습니다");
-    const before = apiMock.mock.calls.length;
-    await userEvent.click(screen.getByRole("combobox", { name: /상태/ }));
-    await userEvent.click(await screen.findByRole("option", { name: "미사용" }, WAIT));
-    // clientFilter 는 같은 데이터를 다시 받지 않는다(queryKey 에 안 들어간다).
-    await waitFor(() => expect(screen.getByRole("combobox", { name: /상태/ })).toHaveTextContent("미사용"), WAIT);
-    expect(apiMock.mock.calls.length).toBe(before);
-    expect(apiMock.mock.calls.every(([p]) => !String(p).includes("status="))).toBe(true);
-  });
 });
 
 /* ── 4. '비우면 …' 문구가 실제 동작과 맞는가 ───────────────────────────── */
@@ -300,9 +222,8 @@ describe("‘비우면’ 문구와 실제 동작", () => {
     // (연동의 health_url 문구가 여기 있었다 — 그 화면을 걷으면서 함께 없어졌다.)
     // payload_template — 빈 JSON 은 null 로 오고 백엔드 validator 가 {} 로 받는다.
     expect(fieldHelp(REGISTRY.schedules, "create", "payload_template")).toContain("비우면 빈 값으로 실행됩니다");
-    // 상위 부서 — select 는 빈 값을 null 로 보내고 validate_parent 가 None 을 '최상위'로 읽는다.
-    const dept = REGISTRY.departments.create.fields.find((f) => f.name === "parent_id");
-    expect(dept.help).toContain("비우면 최상위 부서가 됩니다");
+    // (상위 부서의 '비우면 최상위' 문구는 조직 콘솔의 모달로 옮겨 갔다 — screens/org/orgModals.jsx,
+    //  동작 검증은 org-modals.test.jsx 의 「비우면 최상위(null)로 나간다」가 잇는다.)
     // 공지 노출 기간 — is_visible 이 starts_at/ends_at 이 None 이면 그 경계를 아예 보지 않는다.
     expect(fieldHelp(REGISTRY.announcements, "create", "starts_at")).toContain("비우면 즉시 노출됩니다");
     expect(fieldHelp(REGISTRY.announcements, "create", "ends_at")).toContain("비우면");

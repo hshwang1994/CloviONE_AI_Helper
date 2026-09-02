@@ -15,9 +15,9 @@ import { COLUMN_TYPES, resolveColumn } from "../ui/columnTypes.js";
  */
 
 describe("개수 열은 가운데 정렬 + 자릿수 고정이다 (numeric_alignment)", () => {
-  /* 부서·직책의 인원 열만 어휘를 안 쓰고 있었다 — 42페이지에서 실패했다. */
+  /* 부서·직책의 인원 열만 어휘를 안 쓰고 있었다 — 42페이지에서 실패했다.
+     (부서 표는 조직 콘솔 재구성으로 registry 를 떠났다 — 규칙은 남은 직책이 진다.) */
   it.each([
-    ["departments", "user_count"],
     ["job-titles", "user_count"],
   ])("%s 의 %s 열이 count 어휘를 쓴다", (key, colKey) => {
     const cfg = REGISTRY[key];

@@ -1,3 +1,4 @@
+/* qa-contract-change: 조직도(org-tree) 설정이 registry 를 떠나 조직 콘솔(screens/org/)로 재구성되면서 그 설정의 rowName 을 검사하던 케이스가 대상을 잃었다 — 남은 화면들(jobs·admin-notifications)이 같은 규칙을 계속 진다. */
 import { describe, it, expect } from "vitest";
 
 import { detailTitle } from "./detailFields.js";
@@ -27,11 +28,6 @@ describe("detailTitle — 선언된 rowName을 columns[0] 폴백보다 먼저 �
     const b = detailTitle({ job_type: "schedule_run", created_at: "2026-08-01T00:00:00Z" }, cols);
     expect(a).toContain("채팅 메시지");
     expect(a).not.toBe(b);
-  });
-
-  it("조직도: 부서 행 제목이 '부서 <이름>'이다(들여쓰기 트리 JSX가 아니라)", () => {
-    const cols = REGISTRY["org-tree"].columns;
-    expect(detailTitle({ kind: "department", name: "개발팀" }, cols)).toBe("부서 개발팀");
   });
 
   it("rowName 표식이 없는 화면(알림)은 이전과 동일하게 columns[0] 원시값으로 폴백한다", () => {

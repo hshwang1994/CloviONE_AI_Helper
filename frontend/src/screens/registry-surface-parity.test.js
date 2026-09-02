@@ -53,7 +53,9 @@ function reachable(key) {
 describe("ROUTE_COVERAGE ↔ JS 소스 대조", () => {
   it("REGISTRY 키가 전부 Surface 로 도달 가능하다", () => {
     const keys = Object.keys(REGISTRY);
-    expect(keys.length).toBeGreaterThan(20); // 파싱 사고 감지 — 빈 객체로 통과하지 않게
+    // 바닥값 20 → 16: 조직·부서·조직도 셋이 registry 를 떠나 조직 콘솔(screens/org/)로
+    // 갔다 — 조립 사고가 아니라 기록된 이사다.
+    expect(keys.length).toBeGreaterThan(16); // 파싱 사고 감지 — 빈 객체로 통과하지 않게
     const orphan = keys.filter((k) => !ORG_CONSOLE_KEYS.includes(k) && !reachable(k));
     expect(orphan, `커버리지에 없는 REGISTRY 키: ${orphan.join(", ")}`).toEqual([]);
   });

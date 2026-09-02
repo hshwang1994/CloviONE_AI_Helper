@@ -32,8 +32,10 @@ const entries = () => Object.entries(ALL);
 describe("서버가 묶음을 자르는 화면의 조건 축", () => {
   it("조립 사고 감지 — 화면이 실제로 여럿 있다", () => {
     /* 이 단언이 없으면 registry 조립이 깨져 `ALL` 이 비어도 아래 검사들이 전부 초록이다.
-       빈 집합을 보면서 통과하는 검사는 없는 것보다 나쁘다. */
-    expect(entries().length).toBeGreaterThan(20);
+       빈 집합을 보면서 통과하는 검사는 없는 것보다 나쁘다.
+       바닥값 20 → 17: 조직·부서·조직도 셋이 registry 를 떠나 조직 콘솔(screens/org/)의
+       자기 파일로 갔다 — 조립 사고가 아니라 기록된 이사다. */
+    expect(entries().length).toBeGreaterThan(17);
   });
 
   it("clientFilter 는 전량을 받는 화면에만 있다", () => {
