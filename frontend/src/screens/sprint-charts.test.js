@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   burndownSeries, scopeTrendSeries, shortDate, weekdayKo, datedLabel, healthBand, healthCuts,
-  pickOpenSprint, loadBand, wdBalanceItems,
+  normalizeMeeting, pickOpenSprint, loadBand, wdBalanceItems,
 } from "./sprint-charts.js";
 
 /* 스프린트 그림들의 해석 규칙.
@@ -201,5 +201,43 @@ describe("loadBand", () => {
     expect(loadBand(9, 4).kind).toBe("danger");
     expect(loadBand(1, 4).kind).toBe("ok");
     expect(loadBand(4, 4).label).toBe("보통");
+  });
+});
+
+describe("normalizeMeeting", () => {
+  it("부분 응답의 빈 갈래를 채운다 — 화면의 무방어 접근이 안 죽는다", () => {
+    const out = normalizeMeeting({ sprint: { id: "s" }, today: "2026-08-27" });
+    expect(out.discuss).toEqual({});
+    expect(out.neighbours).toEqual({ prev: null, next: null });
+    expect(out.summary.total).toBe(0);
+    expect(out.summary.remaining_wd).toBe(0);
+    expect(out.scope).toEqual({ tracked: false, added: 0, removed: 0, trend: [] });
+    expect(out.candidates).toEqual([]);
+    expect(out.decisions).toEqual([]);
+    expect(out.health).toBeNull();
+    expect(out.burndown).toEqual({ points: [] });
+  });
+
+  it("회차가 없으면 그릴 것이 없다 — null", () => {
+    expect(normalizeMeeting(null)).toBeNull();
+    expect(normalizeMeeting({ today: "2026-08-27" })).toBeNull();
+    expect(normalizeMeeting({ sprint: { id: "s" } })).toBeNull();
+  });
+
+  it("온전한 응답은 값이 그대로 지나간다", () => {
+    const raw = {
+      sprint: { id: "s" }, today: "2026-08-27", phase: "during",
+      summary: { total: 4, done: 1 }, health: { score: 62.5 },
+      neighbours: { prev: { id: "p" }, next: null },
+      discuss: { overdue: { items: [], total: 0, truncated: false } },
+      scope: { tracked: true, added: 2, removed: 1, trend: [] },
+      candidates: [{ id: "c" }], decisions: [{ id: "d" }],
+    };
+    const out = normalizeMeeting(raw);
+    expect(out.summary.total).toBe(4);
+    expect(out.summary.in_progress).toBe(0);
+    expect(out.health.score).toBe(62.5);
+    expect(out.scope.added).toBe(2);
+    expect(out.neighbours.prev.id).toBe("p");
   });
 });

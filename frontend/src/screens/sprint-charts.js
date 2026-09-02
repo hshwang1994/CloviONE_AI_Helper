@@ -239,3 +239,31 @@ export function workloadItems(workload) {
   if (peak > 0) parts.push(`가장 많은 사람 ${peak}인일`);
   return { items, max: peak, summary: parts.join(", ") };
 }
+
+/** 회의 응답을 화면이 그릴 수 있는 모양으로 정규화한다 — **부분 응답에도 안 죽는다.**
+ *
+ * 화면 곳곳이 `body.discuss[key]`·`body.neighbours.prev`·`summary.total` 을 무방어로
+ * 읽는다. 배포 사이(서버가 옛 모양을 주는 순간)나 응답 절단에서 갈래 하나만 빠져도
+ * TypeError 로 화면 전체가 죽었다 — 여기 한 곳에서 기본값을 채우면 그 접근 전부가
+ * 공짜로 안전해진다. 회차 자체가 없는 응답은 그릴 것이 없으므로 null 이다.
+ */
+export function normalizeMeeting(raw) {
+  if (!raw || !raw.sprint || !raw.today) return null;
+  return {
+    ...raw,
+    neighbours: raw.neighbours || { prev: null, next: null },
+    summary: {
+      total: 0, done: 0, in_progress: 0, canceled: 0, overdue: 0,
+      issue: 0, blocked: 0, remaining_wd: 0, planned_wd: 0,
+      ...(raw.summary || {}),
+    },
+    health: raw.health != null ? raw.health : null,
+    burndown: raw.burndown || { points: [] },
+    phase: raw.phase || "",
+    workload: Array.isArray(raw.workload) ? raw.workload : [],
+    scope: { tracked: false, added: 0, removed: 0, trend: [], ...(raw.scope || {}) },
+    discuss: raw.discuss || {},
+    candidates: Array.isArray(raw.candidates) ? raw.candidates : [],
+    decisions: Array.isArray(raw.decisions) ? raw.decisions : [],
+  };
+}

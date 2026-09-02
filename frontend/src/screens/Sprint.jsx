@@ -1,5 +1,5 @@
 import React from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import Box from "@mui/material/Box";
 import Checkbox from "@mui/material/Checkbox";
@@ -28,7 +28,7 @@ import { LineSeries } from "../ui/charts/LineSeries.jsx";
 import { Gauge } from "../ui/charts/Gauge.jsx";
 import { ProgressBar } from "../ui/charts/ProgressBar.jsx";
 import {
-  burndownSeries, datedLabel, healthBand, healthCuts, pickOpenSprint,
+  burndownSeries, datedLabel, healthBand, healthCuts, normalizeMeeting, pickOpenSprint,
   scopeTrendSeries, workloadItems,
 } from "./sprint-charts.js";
 import { SprintLifecycle, SprintStateBadge, sprintStateLabel } from "./SprintLifecycle.jsx";
@@ -267,7 +267,6 @@ export function Sprint() {
   const qc = useQueryClient();
   const toast = useToast();
   const confirm = useConfirm();
-  const signalsOf = useTicketSignals();
   const [state, setState] = useQueryState(SPRINT_SPEC);
   const [discussTab, setDiscussTab] = React.useState(DISCUSS_TABS[0].key);
   // §8.3 — 스프린트를 만드는 자리 셋 중 하나가 이 화면의 빈 상태다.
@@ -316,8 +315,20 @@ export function Sprint() {
     queryKey: ["sprint-meeting", state.sprint],
     queryFn: () => api(`/api/work/sprints/${encodeURIComponent(state.sprint)}/meeting`),
     enabled: !!state.sprint,
+    // 회차를 넘길 때 본문을 언마운트하지 않는다 — 예전에는 매 전환마다 전체가
+    // Skeleton 으로 무너졌다 차트 넷을 다시 세웠다(reveal 애니메이션까지 재생).
+    // 이전 회차의 판을 감광 상태로 붙잡아 두고 새 응답이 오면 갈아 끼운다.
+    placeholderData: keepPreviousData,
+    // 부분 응답에도 안 죽는 모양으로 한 곳에서 정규화한다(sprint-charts.js).
+    select: normalizeMeeting,
   });
-  const body = meeting.data;
+  // keepPreviousData 는 회차 선택을 **비운** 직후에도 옛 판을 들고 있다 — 선택이
+  // 없으면 본문도 없어야 한다(잔상 차단).
+  const body = state.sprint ? meeting.data : null;
+  // 지연 표식은 서버의 「오늘」로 판정한다(§불변 9 — 신호의 정본은 서버). 브라우저
+  // 시계로 재면 지연 버킷 안의 티켓에 지연 표식이 안 붙는 모순이 났다(시계가 다른
+  // PC, 자정을 넘겨 켜 둔 탭).
+  const signalsOf = useTicketSignals(body ? body.today : undefined);
 
   function refreshMeeting() {
     qc.invalidateQueries({ queryKey: ["sprint-meeting"] });
@@ -429,6 +440,9 @@ export function Sprint() {
           <Button
             variant="ghost"
             size="sm"
+            // 연타 방지 — 두 번째 요청이 자기 version 과 409(「다른 사람이 먼저…」)를
+            // 만든다. 같은 화면의 DecisionComposer 가 이미 지키는 규칙이다.
+            disabled={addToSprint.isPending}
             onClick={(e) => {
               e.stopPropagation();
               addToSprint.mutate(r);
@@ -439,7 +453,9 @@ export function Sprint() {
         ),
       },
     ],
-    [addToSprint]
+    // mutation 결과 객체는 렌더마다 새것이라 memo 를 헛돌게 한다 — 안정 참조(mutate)와
+    // 실제로 렌더를 바꾸는 값(isPending)만 의존한다.
+    [addToSprint.mutate, addToSprint.isPending]
   );
 
   const tab = DISCUSS_TABS.find((t) => t.key === discussTab) || DISCUSS_TABS[0];
@@ -550,7 +566,15 @@ export function Sprint() {
       ) : null}
 
       {body ? (
-        <>
+        /* 회차 전환 중(keepPreviousData 의 잔상 표시)에는 감광으로 「바뀌는 중」을
+           말한다 — 차트 넷을 언마운트하지 않으면서도 옛 값이 새 값 행세를 안 한다. */
+        <Box
+          aria-busy={meeting.isPlaceholderData || undefined}
+          sx={{
+            opacity: meeting.isPlaceholderData ? 0.55 : 1,
+            transition: "opacity 120ms ease",
+          }}
+        >
           {/* 회차 머리 — **안내가 아니라 화면 문맥**이다.
               예전에는 이 자리가 `Callout` 이었고, 그 톤의 색(#1F5FBF)이 Brand(#4C58C8)와
               가까워서 「안내 영역인데 본문과 시각적으로 구분되지 않는다」는 말을 들었다.
@@ -872,7 +896,7 @@ export function Sprint() {
               })}
             </Box>
           </Section>
-        </>
+        </Box>
       ) : null}
 
       <FormModal

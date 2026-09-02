@@ -284,3 +284,62 @@ describe("스프린트 회의", () => {
     expect(screen.queryByText("62.5")).toBeNull();
   });
 });
+
+describe("스프린트 회의 — 견고성", () => {
+  beforeEach(() => {
+    apiMock.mockReset();
+    apiMock.mockImplementation(stub);
+  });
+
+  it("🔴 부분 응답(sprint·today 만)에도 죽지 않는다 — 배포 사이의 옛 서버", async () => {
+    apiMock.mockImplementation((path) => {
+      if (/\/api\/work\/sprints\/[^/]+\/meeting/.test(path)) {
+        return Promise.resolve({ sprint: SPRINTS.sprints[1], today: "2026-08-27" });
+      }
+      return stub(path);
+    });
+    renderSprint();
+    // 회차 머리가 서고(오늘 줄) ErrorBoundary 로 떨어지지 않는다 — 예전에는
+    // body.discuss 무방어 접근이 TypeError 로 화면 전체를 죽였다.
+    expect(await screen.findByText(/오늘 2026-08-27/)).toBeTruthy();
+  });
+
+  it("🔴 지연 표식은 서버의 오늘로 판정한다 — 브라우저 시계가 아니라", async () => {
+    // 마감이 브라우저의 실제 오늘보다는 미래, 서버의 오늘보다는 과거인 행 —
+    // 브라우저 시계로 재면 표식이 안 붙고, 서버 오늘로 재면 붙는다.
+    const far = row({ id: "t-far", page_id: "pg-far", key: "ABC-7", title: "먼 마감", due: "2099-01-01" });
+    apiMock.mockImplementation((path) => {
+      if (/\/api\/work\/sprints\/[^/]+\/meeting/.test(path)) {
+        return Promise.resolve({
+          ...MEETING,
+          today: "2099-02-01",
+          discuss: { ...MEETING.discuss, overdue: { items: [far], total: 1, truncated: false } },
+        });
+      }
+      return stub(path);
+    });
+    renderSprint();
+    await screen.findByText("먼 마감");
+    await waitFor(() =>
+      expect(document.querySelector('[data-signal="overdue"]')).toBeTruthy(),
+    );
+  });
+
+  it("후보 「추가」는 연타를 막는다 — 처리 중에는 다시 안 보낸다", async () => {
+    let releaseMove;
+    apiMock.mockImplementation((path, opts) => {
+      if (String(path).includes("/move") && opts && opts.method === "POST") {
+        return new Promise((resolve) => { releaseMove = resolve; });
+      }
+      return stub(path);
+    });
+    renderSprint();
+    const btn = await screen.findByRole("button", { name: "추가" });
+    await userEvent.click(btn);
+    // 처리 중에는 잠긴다 — 두 번째 요청이 자기 version 과 409 를 만들던 자리다.
+    await waitFor(() => expect(screen.getByRole("button", { name: "추가" })).toBeDisabled());
+    const moves = apiMock.mock.calls.filter(([p]) => String(p).includes("/move"));
+    expect(moves).toHaveLength(1);
+    releaseMove({ ticket: {} });
+  });
+});

@@ -90,7 +90,7 @@ export function ticketSignals(ticket, { today, terminal }) {
  *
  * 돌려주는 것이 배열이 아니라 함수인 이유: 목록 한 화면에 티켓이 수백 건이고, 행마다
  * 훅을 부를 수는 없다. 화면이 이 함수를 한 번 받아 행마다 부른다. */
-export function useTicketSignals() {
+export function useTicketSignals(todayOverride) {
   const { data } = useQuery({
     queryKey: ["work", "statuses"],
     queryFn: () => api("/api/work/statuses"),
@@ -99,11 +99,12 @@ export function useTicketSignals() {
   });
   // 함수 신원을 어휘 응답에 묶는다 — 매 렌더 새 함수·새 Set 를 돌려주면 이 함수를
   // prop 으로 받는 목록 화면들의 memo 가 전부 헛돈다(카드 수백 장이 매번 다시 계산).
-  // 「오늘」은 마운트 시점 기준으로 굳는다 — 자정을 넘겨 켜 둔 탭은 다음 재조회나
-  // 화면 진입에서 새 값을 받는다(기존과 같은 성질이고, 서버 신호 정본 계약은 그대로다).
+  // 「오늘」은 기본으로 마운트 시점 기준이다 — 서버가 오늘을 함께 내려주는 화면
+  // (스프린트 회의)은 `todayOverride` 로 그 값을 쓴다: 같은 응답이 만든 「지연」
+  // 목록과 행의 지연 표식이 다른 시계를 보면 한 화면 안에서 서로 모순난다.
   return React.useMemo(() => {
     const terminal = terminalKeys(data);
-    const today = todayIso();
+    const today = todayOverride || todayIso();
     return (ticket) => ticketSignals(ticket, { today, terminal });
-  }, [data]);
+  }, [data, todayOverride]);
 }
