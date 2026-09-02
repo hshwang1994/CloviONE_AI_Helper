@@ -96,6 +96,14 @@ function baseRoutes(path) {
       ],
     };
   }
+  if (text === "/api/knowledge/categories") {
+    return {
+      items: [
+        { id: "cat-1", name: "회의 기록", slug: "회의 기록", sort_order: 1024, document_count: 2 },
+        { id: "cat-2", name: "기술 문서", slug: "기술 문서", sort_order: 2048, document_count: 0 },
+      ],
+    };
+  }
   if (text === "/api/knowledge/summary") {
     return { total: 110, recent: 4, favorites: 3, drafts: 2 };
   }
@@ -360,19 +368,28 @@ describe("새 문서 만들기", () => {
   });
 });
 
-/* 태그 어휘를 사람이 관리한다 (지시 22-5 개정).
+/* 어휘(카테고리·태그)를 사람이 관리한다 (지시 22-5 개정 · 0026).
  *
- * 태그는 지금까지 문서를 저장할 때 곁다리로 생겼다 — 오타를 고칠 방법도, 안 쓰는 것을
- * 치울 방법도 없었다. 여기서 보는 것은 그 세 동작이 **실제 요청으로** 나가는가와,
- * 지우기 전에 화면이 「몇 건에 붙어 있는가」를 말하는가다.
+ * 태그는 지금까지 문서를 저장할 때 곁다리로 생겼고 카테고리는 아예 관리 입구가 없었다.
+ * 여기서 보는 것은 두 어휘의 세 동작(추가·이름 고치기·지우기)이 **실제 요청으로**
+ * 나가는가와, 지우기 전에 화면이 「몇 건에 붙어 있는가」를 말하는가다.
+ * 입구는 「분류 관리」 하나이고, 창 안에서 카테고리 탭과 태그 탭으로 나뉜다.
  */
-describe("태그 관리", () => {
+async function openTaxonomy(tab) {
+  await userEvent.click(screen.getByRole("button", { name: "분류 관리" }));
+  const dialog = await screen.findByRole("dialog");
+  if (tab === "tags") {
+    await userEvent.click(within(dialog).getByRole("tab", { name: "태그" }));
+  }
+  return dialog;
+}
+
+describe("분류 관리 — 태그 탭", () => {
   it("목록이 태그마다 몇 건에 붙어 있는지 말한다", async () => {
     renderList();
     await seeRows();
 
-    await userEvent.click(screen.getByRole("button", { name: "태그 관리" }));
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await openTaxonomy("tags");
     expect(within(dialog).getByText("문서 3건")).toBeTruthy();
     expect(within(dialog).getByText("문서 0건")).toBeTruthy();
   });
@@ -381,8 +398,7 @@ describe("태그 관리", () => {
     renderList();
     await seeRows();
 
-    await userEvent.click(screen.getByRole("button", { name: "태그 관리" }));
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await openTaxonomy("tags");
     await userEvent.type(within(dialog).getByLabelText("새 태그"), "배포 관리");
     await userEvent.click(within(dialog).getByRole("button", { name: "추가" }));
 
@@ -399,8 +415,7 @@ describe("태그 관리", () => {
     renderList();
     await seeRows();
 
-    await userEvent.click(screen.getByRole("button", { name: "태그 관리" }));
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await openTaxonomy("tags");
     // 첫 줄이 「회의록」(문서 3건)이다. 태그 목록은 서버가 준 순서 그대로 선다.
     await userEvent.click(within(dialog).getAllByRole("button", { name: "삭제" })[0]);
 
@@ -414,27 +429,25 @@ describe("태그 관리", () => {
     renderList();
     await seeRows();
 
-    await userEvent.click(screen.getByRole("button", { name: "태그 관리" }));
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await openTaxonomy("tags");
     await userEvent.click(within(dialog).getAllByRole("button", { name: "수정" })[0]);
     const box = within(dialog).getByDisplayValue("회의록");
     await userEvent.clear(box);
-    await userEvent.type(box, "회의 기록");
+    await userEvent.type(box, "회의 자료");
     await userEvent.click(within(dialog).getByRole("button", { name: "저장" }));
 
     await waitFor(() => {
       const patch = apiMock.mock.calls.find(([, o]) => o && o.method === "PATCH");
       expect(patch, "이름 고치기 요청이 안 나갔다").toBeTruthy();
       expect(String(patch[0])).toBe("/api/knowledge/tags/tag-1");
-      expect(patch[1].body.name).toBe("회의 기록");
+      expect(patch[1].body.name).toBe("회의 자료");
     });
   });
 
   it("이름 고치기와 지우기는 운영자만 본다 — 서버가 같은 기준으로 막는다", async () => {
     renderList();
     await seeRows();
-    await userEvent.click(screen.getByRole("button", { name: "태그 관리" }));
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await openTaxonomy("tags");
     /* 이 시험의 로그인 사용자는 일반 사용자다(맨 위 `useAuth` 대역). 추가는 되고
        고치기·지우기는 안 보인다. */
     expect(within(dialog).getByRole("button", { name: "추가" })).toBeTruthy();
@@ -459,6 +472,115 @@ describe("태그 관리", () => {
       const post = apiMock.mock.calls.find(
         ([p, o]) => String(p) === "/api/knowledge/documents" && o && o.method === "POST");
       expect(post[1].body.tag_names).toEqual(["인프라"]);
+    });
+  });
+});
+
+describe("분류 관리 — 카테고리 탭 (0026)", () => {
+  it("카테고리 탭이 기본으로 열리고, 사용 건수를 말한다", async () => {
+    renderList();
+    await seeRows();
+
+    const dialog = await openTaxonomy();
+    expect(within(dialog).getByText("문서 2건")).toBeTruthy();
+    expect(within(dialog).getByText("기술 문서")).toBeTruthy();
+  });
+
+  it("새 카테고리를 추가한다 — 회사에 맞는 갈래를 화면에서 만든다", async () => {
+    renderList();
+    await seeRows();
+
+    const dialog = await openTaxonomy();
+    await userEvent.type(within(dialog).getByLabelText("새 카테고리"), "고객 지원");
+    await userEvent.click(within(dialog).getByRole("button", { name: "추가" }));
+
+    await waitFor(() => {
+      const post = apiMock.mock.calls.find(
+        ([p, o]) => String(p) === "/api/knowledge/categories" && o && o.method === "POST");
+      expect(post, "카테고리 추가 요청이 안 나갔다").toBeTruthy();
+      expect(post[1].body.name).toBe("고객 지원");
+    });
+  });
+
+  it("🔴 지우기 전에 몇 건이 미분류가 되는지 묻는다", async () => {
+    authState.role = "admin";
+    renderList();
+    await seeRows();
+
+    const dialog = await openTaxonomy();
+    await userEvent.click(within(dialog).getAllByRole("button", { name: "삭제" })[0]);
+
+    expect(await screen.findByText(/문서 2건이 미분류로 돌아갑니다/)).toBeTruthy();
+    expect(apiMock.mock.calls.some(([, o]) => o && o.method === "DELETE")).toBe(false);
+  });
+
+  it("운영자는 카테고리 이름을 고칠 수 있고, 그 요청이 서버로 나간다", async () => {
+    authState.role = "admin";
+    renderList();
+    await seeRows();
+
+    const dialog = await openTaxonomy();
+    await userEvent.click(within(dialog).getAllByRole("button", { name: "수정" })[0]);
+    const box = within(dialog).getByDisplayValue("회의 기록");
+    await userEvent.clear(box);
+    await userEvent.type(box, "회의");
+    await userEvent.click(within(dialog).getByRole("button", { name: "저장" }));
+
+    await waitFor(() => {
+      const patch = apiMock.mock.calls.find(([, o]) => o && o.method === "PATCH");
+      expect(patch, "이름 고치기 요청이 안 나갔다").toBeTruthy();
+      expect(String(patch[0])).toBe("/api/knowledge/categories/cat-1");
+      expect(patch[1].body.name).toBe("회의");
+    });
+  });
+});
+
+describe("카테고리 필터 (0026)", () => {
+  it("🔴 분류 조건이 서버 질의에 실려 나간다 — 화면에서 거르지 않는다", async () => {
+    renderList();
+    await seeRows();
+
+    await userEvent.click(screen.getByLabelText("분류"));
+    await userEvent.click(await screen.findByRole("option", { name: "회의 기록" }));
+    await waitFor(() =>
+      expect(documentCalls().some((p) => p.includes("category_id=cat-1"))).toBe(true));
+    expect(lastDocumentCall()).toContain("offset=0");
+  });
+
+  it("걸린 조건은 칩으로 서고, 칩을 지우면 조건이 풀린다", async () => {
+    renderList();
+    await seeRows();
+
+    await userEvent.click(screen.getByLabelText("분류"));
+    await userEvent.click(await screen.findByRole("option", { name: "회의 기록" }));
+    await waitFor(() =>
+      expect(documentCalls().some((p) => p.includes("category_id=cat-1"))).toBe(true));
+
+    // 칩 라벨은 「분류: 이름」이다. 지우면 조건 없는 질의가 다시 나간다.
+    const chip = await screen.findByText("분류: 회의 기록");
+    const del = chip.closest(".MuiChip-root").querySelector(".MuiChip-deleteIcon");
+    await userEvent.click(del);
+    await waitFor(() => expect(lastDocumentCall().includes("category_id=")).toBe(false));
+  });
+});
+
+describe("새 문서의 분류", () => {
+  it("고른 카테고리가 생성 요청에 실린다 — 안 고르면 null 이다", async () => {
+    renderList();
+    await seeRows();
+
+    await userEvent.click(screen.getByRole("button", { name: "새 문서" }));
+    const dialog = await screen.findByRole("dialog");
+    await userEvent.type(within(dialog).getByLabelText(/문서 제목/), "분류 있는 문서");
+    await userEvent.click(within(dialog).getByLabelText("카테고리"));
+    await userEvent.click(await screen.findByRole("option", { name: "기술 문서" }));
+    await userEvent.click(within(dialog).getByRole("button", { name: "만들기" }));
+
+    await waitFor(() => {
+      const post = apiMock.mock.calls.find(
+        ([p, o]) => String(p) === "/api/knowledge/documents" && o && o.method === "POST");
+      expect(post, "생성 요청이 안 나갔다").toBeTruthy();
+      expect(post[1].body.category_id).toBe("cat-2");
     });
   });
 });
