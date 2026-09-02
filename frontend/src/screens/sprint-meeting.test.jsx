@@ -1,6 +1,6 @@
 import React from "react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
@@ -381,6 +381,43 @@ describe("회차에서 빼기 (S9)", () => {
       );
       expect(call).toBeTruthy();
       expect(call[1].body).toEqual({ sprint_id: null, set_sprint: true, base_version: 1 });
+    });
+  });
+});
+
+describe("회의록 확장 (UX3)", () => {
+  beforeEach(() => {
+    apiMock.mockReset();
+    apiMock.mockImplementation(stub);
+  });
+
+  it("종류가 「할 일」일 때만 담당자·마감 칸이 선다 — 결정에 마감은 뜻이 없다", async () => {
+    renderSprint();
+    await screen.findByText(/오늘 2026-08-27/);
+    // 기본은 「결정」 — 담당자·마감 칸이 없다(관련 티켓은 두 종류 공통).
+    expect(screen.queryByRole("combobox", { name: /담당자/ })).toBeNull();
+    const kindCombo = screen.getByRole("combobox", { name: /종류/ });
+    await userEvent.click(kindCombo);
+    await userEvent.click(await screen.findByRole("option", { name: "할 일" }));
+    expect(screen.getByRole("combobox", { name: /담당자/ })).toBeTruthy();
+    expect(screen.getByRole("combobox", { name: /관련 티켓/ })).toBeTruthy();
+  });
+
+  it("🔴 적은 뒤에도 고칠 수 있다 — 「수정」이 PATCH 를 부른다", async () => {
+    renderSprint();
+    await userEvent.click(await screen.findByRole("button", { name: "수정" }));
+    const dialog = await screen.findByRole("dialog");
+    const bodyField = within(dialog).getByLabelText(/내용/);
+    await userEvent.clear(bodyField);
+    await userEvent.type(bodyField, "결제 모듈은 이번 회차에 붙입니다.");
+    await userEvent.click(within(dialog).getByRole("button", { name: "저장" }));
+    await waitFor(() => {
+      const call = apiMock.mock.calls.find(([p, o]) => o && o.method === "PATCH");
+      expect(call).toBeTruthy();
+      expect(String(call[0])).toBe("/api/work/decisions/d-1");
+      expect(call[1].body.body).toBe("결제 모듈은 이번 회차에 붙입니다.");
+      // 할 일이라 담당자·마감이 patch 에 실린다(비웠으면 null 로 — 해제도 저장이다).
+      expect(call[1].body).toHaveProperty("assignee_user_id");
     });
   });
 });

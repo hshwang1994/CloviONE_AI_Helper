@@ -480,3 +480,14 @@ def test_the_candidate_list_carries_its_total(db, world):
     """
     body = _meeting(db, world)
     assert body["candidates_total"] == len(body["candidates"]) == 1
+
+
+def test_a_decision_view_names_its_author(db, world):
+    """화면이 「내가 고칠 수 있는 줄인가」를 서버와 같은 규칙(저자·담당자·운영군)으로
+    판정하려면 저자가 응답에 실려야 한다 — 앱 user id 라 유출이 아니다."""
+    meeting.add_decision(
+        db, world["member"], sprint_id=world["sprint"].id,
+        kind="decision", body="이번 회차 범위를 확정합니다.",
+    )
+    body = _meeting(db, world)
+    assert body["decisions"][0]["author_user_id"] == world["member"].id

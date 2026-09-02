@@ -315,6 +315,10 @@ def _decision_view(row: SprintDecision, *, people: dict[str, dict], keys: dict[s
         "ticket_page_id": ticket.get("page_id"),
         "assignee_user_id": row.assignee_user_id,
         "assignee": people.get(row.assignee_user_id or ""),
+        # 화면이 「내가 고칠 수 있는 줄인가」를 서버와 같은 규칙(_editable_or_403 —
+        # 저자·담당자·운영군)으로 판정해 못 누를 단추를 안 보여 주기 위한 값이다.
+        # 앱 user id 라 유출이 아니다(소스 토큰은 안 나간다 — §12.3).
+        "author_user_id": row.author_user_id,
         "due_date": row.due_date.isoformat() if row.due_date else None,
         "done": bool(row.done),
         "created_at": row.created_at.isoformat() if row.created_at else None,

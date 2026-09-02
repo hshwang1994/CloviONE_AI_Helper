@@ -36,7 +36,8 @@ import {
 } from "./SprintLifecycle.jsx";
 import { sprintFields } from "./sprint-fields.js";
 import { useQueryState } from "../lib/useQueryState.js";
-import { useTicketProjects } from "./ticket-options.js";
+import { useAssigneeOptions, useTicketProjects } from "./ticket-options.js";
+import { useAuth } from "../app/auth.jsx";
 import { SIGNALS, useTicketSignals } from "../lib/ticketSignals.js";
 import { TicketFace, TicketPeople } from "../ui/TicketFace.jsx";
 import { StatusKpiStrip } from "../ui/StatusKpi.jsx";
@@ -158,7 +159,7 @@ function DiscussRow({ row, onOpen, signals, showProject, onRemove, removing }) {
 }
 
 /** 회의록 한 줄. 레인 안에서는 종류 뱃지를 숨기고, 할 일만 체크한다. */
-function DecisionRow({ row, onToggle, onDelete, onOpenTicket, inLane = false }) {
+function DecisionRow({ row, onToggle, onDelete, onEdit, onOpenTicket, inLane = false }) {
   const isAction = row.kind === KIND_ACTION;
   return (
     <Card sx={{ p: 1.25, display: "flex", alignItems: "flex-start", gap: 1 }}>
@@ -222,26 +223,51 @@ function DecisionRow({ row, onToggle, onDelete, onOpenTicket, inLane = false }) 
           </Typography>
         ) : null}
       </Box>
-      <Button variant="ghost" size="sm" onClick={() => onDelete(row)}>
-        삭제
-      </Button>
+      {/* 고칠 수 있는 사람(저자·담당자·운영군 — 서버 _editable_or_403 과 같은 판정)
+          에게만 단추를 준다. 예전에는 전원에게 삭제가 떠서 눌러야 403 을 알았고,
+          「수정」은 아예 없어서 오탈자·담당자 지정이 영구였다. */}
+      {onEdit ? (
+        <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); onEdit(row); }}>
+          수정
+        </Button>
+      ) : null}
+      {onDelete ? (
+        <Button variant="ghost" size="sm" onClick={() => onDelete(row)}>
+          삭제
+        </Button>
+      ) : null}
     </Card>
   );
 }
 
-/** 회의록을 적는 줄. 위 입력은 아래 결정·할 일 레인으로 나뉘어 쌓인다. */
-function DecisionComposer({ onAdd, busy }) {
+/** 회의록을 적는 줄. 위 입력은 아래 결정·할 일 레인으로 나뉘어 쌓인다.
+ *
+ * 칸 구성이 **종류를 따른다.** 예전에는 「결정」에도 마감 칸이 붙었고(결정에 마감이 무슨
+ * 뜻인지 화면이 설명하지 못했다), 담당자·티켓 연결은 서버(DecisionCreate)가 받는데 칸이
+ * 없어 모든 할 일이 「담당자와 마감은 아직 정하지 않았습니다」를 달고 그걸 채울 방법이
+ * 없었다. 셋 다 비울 수 있다 — 회의 중에 다 안 정해지는 것이 정상이다. */
+function DecisionComposer({ onAdd, busy, assigneeOptions, ticketOptions }) {
   const [kind, setKind] = React.useState(KIND_DECISION);
   const [body, setBody] = React.useState("");
   const [due, setDue] = React.useState("");
+  const [assignee, setAssignee] = React.useState("");
+  const [ticketId, setTicketId] = React.useState("");
+  const isAction = kind === KIND_ACTION;
 
   function submit(e) {
     e.preventDefault();
     const text = body.trim();
     if (!text) return;
-    onAdd({ kind, body: text, due_date: due || null }, () => {
+    const payload = { kind, body: text, ticket_id: ticketId || null };
+    if (isAction) {
+      payload.assignee_user_id = assignee || null;
+      payload.due_date = due || null;
+    }
+    onAdd(payload, () => {
       setBody("");
       setDue("");
+      setAssignee("");
+      setTicketId("");
     });
   }
 
@@ -269,13 +295,33 @@ function DecisionComposer({ onAdd, busy }) {
           InputLabelProps={{ shrink: true }}
           sx={{ flex: "1 1 18rem", minWidth: "14rem" }}
         />
-        <DateField
-          size="small"
-          label="마감"
-          value={due}
-          onChange={setDue}
-          sx={{ minWidth: "10rem" }}
+        <EntityCombobox
+          label="관련 티켓"
+          value={ticketId}
+          onChange={(next) => setTicketId(next || "")}
+          options={ticketOptions || []}
+          allLabel="연결 안 함"
+          sx={{ minWidth: "12rem" }}
         />
+        {isAction ? (
+          <>
+            <EntityCombobox
+              label="담당자"
+              value={assignee}
+              onChange={(next) => setAssignee(next || "")}
+              options={assigneeOptions || []}
+              allLabel="아직 미정"
+              sx={{ minWidth: "11rem" }}
+            />
+            <DateField
+              size="small"
+              label="마감"
+              value={due}
+              onChange={setDue}
+              sx={{ minWidth: "10rem" }}
+            />
+          </>
+        ) : null}
         <Button type="submit" disabled={busy || !body.trim()}>
           적기
         </Button>
@@ -293,6 +339,8 @@ export function Sprint() {
   const [discussTab, setDiscussTab] = React.useState(DISCUSS_TABS[0].key);
   // §8.3 — 스프린트를 만드는 자리 셋 중 하나가 이 화면의 빈 상태다.
   const [sprintFormOpen, setSprintFormOpen] = React.useState(false);
+  const [editingDecision, setEditingDecision] = React.useState(null);
+  const auth = useAuth();
 
   const projects = useTicketProjects(true);
   const sprints = useQuery({
@@ -352,6 +400,45 @@ export function Sprint() {
   // PC, 자정을 넘겨 켜 둔 탭).
   const signalsOf = useTicketSignals(body ? body.today : undefined);
   const canPlan = useCanPlanSprint();
+
+  // 회의록의 담당자 후보 — 프로젝트를 골랐으면 그 프로젝트에 닿는 사람으로 좁힌다
+  // (보드와 같은 서버 축).
+  const assignees = useAssigneeOptions(true, state.project);
+  const assigneeOptions = React.useMemo(
+    () =>
+      ((assignees.data && assignees.data.assignees) || []).map((a) => ({
+        value: a.user_id,
+        label: a.display_name,
+      })),
+    [assignees.data]
+  );
+  // 회의록에 걸 티켓 후보 — 이 회의가 이미 들고 있는 티켓(논의 갈래 ∪ 후보)이다.
+  // 새 API 없이, 회의에서 말이 나온 그 티켓들에 잇는다.
+  const ticketOptions = React.useMemo(() => {
+    if (!body) return [];
+    const seen = new Map();
+    for (const bucket of Object.values(body.discuss || {})) {
+      for (const row of (bucket && bucket.items) || []) {
+        if (row && row.id && !seen.has(row.id)) {
+          seen.set(row.id, { value: row.id, label: `${row.key || ""} ${row.title || ""}`.trim() });
+        }
+      }
+    }
+    for (const row of body.candidates || []) {
+      if (row && row.id && !seen.has(row.id)) {
+        seen.set(row.id, { value: row.id, label: `${row.key || ""} ${row.title || ""}`.trim() });
+      }
+    }
+    return [...seen.values()];
+  }, [body]);
+  // 서버 _editable_or_403 과 같은 판정 — 못 누를 단추를 안 보여 준다.
+  const canEditDecision = React.useCallback(
+    (row) => {
+      const myId = auth.data && auth.data.id;
+      return canPlan || (myId && (row.author_user_id === myId || row.assignee_user_id === myId));
+    },
+    [auth.data, canPlan]
+  );
 
   function refreshMeeting() {
     qc.invalidateQueries({ queryKey: ["sprint-meeting"] });
@@ -915,6 +1002,8 @@ export function Sprint() {
             <Box sx={{ ...PANEL_SURFACE, mb: 2 }}>
               <DecisionComposer
                 busy={addDecision.isPending}
+                assigneeOptions={assigneeOptions}
+                ticketOptions={ticketOptions}
                 onAdd={(payload, reset) =>
                   addDecision.mutate(payload, { onSuccess: reset })
                 }
@@ -976,13 +1065,18 @@ export function Sprint() {
                             inLane
                             onToggle={(r, done) => editDecision.mutate({ id: r.id, patch: { done } })}
                             onOpenTicket={openTicket}
-                            onDelete={async (r) => {
-                              const ok = await confirm(
-                                "삭제한 회의 기록은 되살릴 수 없습니다. 이 기록을 삭제할까요?",
-                                { danger: true, confirmLabel: "삭제" }
-                              );
-                              if (ok) removeDecision.mutate(r.id);
-                            }}
+                            onEdit={canEditDecision(row) ? (r) => setEditingDecision(r) : undefined}
+                            onDelete={
+                              canEditDecision(row)
+                                ? async (r) => {
+                                    const ok = await confirm(
+                                      "삭제한 회의 기록은 되살릴 수 없습니다. 이 기록을 삭제할까요?",
+                                      { danger: true, confirmLabel: "삭제" }
+                                    );
+                                    if (ok) removeDecision.mutate(r.id);
+                                  }
+                                : undefined
+                            }
                           />
                         ))}
                       </Stack>
@@ -995,6 +1089,48 @@ export function Sprint() {
         </Box>
       ) : null}
 
+      <FormModal
+        open={!!editingDecision}
+        title="회의 기록 수정"
+        submitLabel="저장"
+        // 종류는 못 바꾼다(서버 계약 — 「결정」을 「할 일」로 바꾸는 것은 고치기가 아니라
+        // 다른 줄을 쓰는 것이다). 할 일에만 담당자·마감 칸이 붙는다.
+        fields={
+          editingDecision && editingDecision.kind === KIND_ACTION
+            ? [
+                { name: "body", label: "내용", type: "textarea", required: true, maxLength: 2000 },
+                {
+                  name: "assignee_user_id", label: "담당자", type: "entity",
+                  options: assigneeOptions, emptyLabel: "아직 미정",
+                },
+                { name: "due_date", label: "마감", type: "date" },
+              ]
+            : [{ name: "body", label: "내용", type: "textarea", required: true, maxLength: 2000 }]
+        }
+        initial={
+          editingDecision
+            ? {
+                body: editingDecision.body || "",
+                assignee_user_id: editingDecision.assignee_user_id || "",
+                due_date: editingDecision.due_date || "",
+              }
+            : null
+        }
+        onSubmit={(values) => {
+          const patch =
+            editingDecision.kind === KIND_ACTION
+              ? {
+                  body: values.body,
+                  assignee_user_id: values.assignee_user_id || null,
+                  due_date: values.due_date || null,
+                }
+              : { body: values.body };
+          return editDecision
+            .mutateAsync({ id: editingDecision.id, patch })
+            .then(() => setEditingDecision(null));
+        }}
+        onClose={() => setEditingDecision(null)}
+      />
       <FormModal
         open={sprintFormOpen}
         title="새 스프린트"
