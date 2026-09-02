@@ -639,4 +639,26 @@ describe("프로젝트 축과 옛 주소", () => {
     });
     expect(lastDocumentCall()).not.toContain("space_id=");
   });
+
+  it("🔴 좌측 내비·필터가 전체 프로젝트를 보여준다 — 공간 없는 프로젝트도 (공간 목록이 아니라)", async () => {
+    // spaces 는 조직 공간(공통) 하나뿐이지만 projects 에는 알파·베타 둘이 있다.
+    // 예전에는 좌측·필터가 공간 목록을 읽어 공간 없는 이 둘이 통째로 안 보였다 —
+    // 새 문서 모달만 전체를 보여줘 「만들어진 프로젝트가 안 보인다」가 됐다.
+    renderList();
+    await seeRows();
+    // 좌측 내비에 프로젝트 이름이 실제로 뜬다(전체 프로젝트 목록에서).
+    expect(await screen.findByRole("button", { name: "알파 프로젝트" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "베타 프로젝트" })).toBeTruthy();
+    // 공통 문서 행도 여전히 있다(비프로젝트 공간이 있으므로).
+    expect(screen.getByRole("button", { name: "공통 문서" })).toBeTruthy();
+  });
+
+  it("공간 없는 프로젝트를 좌측에서 고르면 그 project_id 로 목록을 조회한다", async () => {
+    renderList();
+    await seeRows();
+    await userEvent.click(await screen.findByRole("button", { name: "알파 프로젝트" }));
+    await waitFor(() => {
+      expect(lastDocumentCall()).toContain("project_id=proj-1");
+    });
+  });
 });

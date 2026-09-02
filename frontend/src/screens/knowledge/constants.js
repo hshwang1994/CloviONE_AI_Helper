@@ -55,14 +55,17 @@ export function spaceForAxis(spaces, value) {
   );
 }
 
-/** 좌측 내비·필터의 프로젝트 축 선택지 — 공간 목록을 프로젝트 어휘로 옮긴다.
- * 비프로젝트 공간은 몇 개든 「공통 문서」 한 줄로 접는다(조직 공간이 둘이어도 같은
- * 라벨 두 줄이 서지 않는다) — 값은 `PROJECT_NONE` 하나다. */
-export function navEntriesFrom(spaces) {
-  const list = spaces || [];
-  const projects = list
-    .filter((s) => s.owner_kind === "project" && s.owner_project_id)
-    .map((s) => ({ value: s.owner_project_id, label: s.name }));
-  const hasCommon = list.some((s) => s.owner_kind !== "project");
-  return hasCommon ? [{ value: PROJECT_NONE, label: "공통 문서" }, ...projects] : projects;
+/** 좌측 내비·필터의 프로젝트 축 선택지.
+ *
+ * 🔴 소스가 **프로젝트 목록**이다(공간 목록이 아니다). 공간은 문서가 하나라도 붙는
+ * 프로젝트에만 생기므로(§14.2), 공간 목록으로 만들면 문서 0건 프로젝트가 좌측·필터에서
+ * 통째로 사라진다 — 새 문서 모달(전체 프로젝트를 읽는 ProjectPicker)과 어긋나
+ * 「만들어진 프로젝트가 안 보인다」가 됐다. 값은 프로젝트 id(축 값)라 주소·서버
+ * 파라미터와 무변환 왕복하고, 문서 0건 프로젝트를 골라도 서버가 빈 목록을 주며
+ * 화면이 「첫 문서 만들기」를 안내한다.
+ *
+ * 「공통 문서」(비프로젝트 공간)는 공간 쪽에서만 알 수 있으므로 `hasCommon` 으로 받는다. */
+export function navEntriesFrom(projects, { hasCommon = false } = {}) {
+  const rows = (projects || []).map((p) => ({ value: p.id, label: p.name }));
+  return hasCommon ? [{ value: PROJECT_NONE, label: "공통 문서" }, ...rows] : rows;
 }

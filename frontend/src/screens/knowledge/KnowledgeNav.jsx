@@ -79,6 +79,12 @@ export function KnowledgeNav({
 }) {
   const folders = flatten(tree.data?.folders || []);
   const labelOf = (id) => (folders.find((f) => f.id === id) || {}).name || "";
+  // 지금 고른 자리의 이름 — 폴더 절 부제로 붙여 「이 폴더는 이 프로젝트의 것」임을
+  // 말한다. 안 붙이면 프로젝트 행과 폴더 행이 같은 카드에 같은 모양으로 쌓여
+  // 「이 트리가 프로젝트인가」로 읽힌다.
+  const selectedLabel = !value
+    ? ""
+    : (entries || []).find((e) => e.value === value)?.label || "";
 
   return (
     <Card sx={{ display: "grid", gap: 2.5, alignContent: "start" }}>
@@ -105,6 +111,8 @@ export function KnowledgeNav({
       {hasSpace ? (
         <Section
           title="폴더"
+          rule
+          help={selectedLabel ? `${selectedLabel}의 폴더입니다.` : undefined}
           action={<Button size="small" variant="ghost" onClick={onNewFolder}>폴더 추가</Button>}
         >
           {tree.isLoading ? <Skeleton kind="section" lines={3} /> : null}

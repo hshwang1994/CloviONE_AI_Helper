@@ -31,6 +31,7 @@ import {
 import {
   useCategories, useDocuments, useSummary, useTags, useTemplates, useTree,
 } from "./knowledge/queries.js";
+import { useProjectList } from "./project-queries.js";
 import { KnowledgeNav, flatten } from "./knowledge/KnowledgeNav.jsx";
 import { KnowledgeFilterBar } from "./knowledge/KnowledgeFilterBar.jsx";
 import { buildDocumentColumns } from "./knowledge/documentColumns.jsx";
@@ -121,6 +122,15 @@ export function Knowledge() {
   );
 
   const { query: spaces, items } = useKnowledgeSpaces();
+  /* 🔴 좌측 내비·필터의 프로젝트 선택지는 **프로젝트 전체**에서 온다(공간 목록이 아니라).
+     새 문서 모달의 ProjectPicker 와 같은 소스(`/api/projects`)라 두 곳이 같은 프로젝트
+     집합을 본다 — 문서 0건 프로젝트가 좌측에서만 사라지던 어긋남을 없앤다. */
+  const projectsList = useProjectList("page_size=200");
+  const hasCommon = items.some((s) => s.owner_kind !== "project");
+  const navEntries = React.useMemo(
+    () => navEntriesFrom(projectsList.rows, { hasCommon }),
+    [projectsList.rows, hasCommon],
+  );
   /* 축 값이 가리키는 공간 — 폴더 트리·폴더 만들기가 이것을 쓴다. 아직 공간이 없는
      프로젝트(첫 문서 전)는 null 이고, 그때 폴더 절은 서지 않는다. */
   const selectedSpace = spaceForAxis(items, project);
@@ -438,7 +448,7 @@ export function Knowledge() {
         category={category}
         author={author}
         sort={sort}
-        entries={navEntriesFrom(items)}
+        entries={navEntries}
         categories={categoryRows}
         authors={authors}
         onCommitSearch={commitSearch}
@@ -454,7 +464,7 @@ export function Knowledge() {
           한 벌이다. 손으로 짠 값(18rem·gap16px)이 화면마다 달랐던 자리다. */}
       <Box sx={LIST_RAIL_GRID}>
         <KnowledgeNav
-          entries={navEntriesFrom(items)}
+          entries={navEntries}
           value={project}
           hasSpace={Boolean(spaceId)}
           tree={tree}
