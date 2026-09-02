@@ -212,15 +212,15 @@ def test_title_required_by_schema():
         TicketCreate(title="   ", project_id="p1", **REQUIRED)
 
 
-def test_description_over_line_cap_is_rejected_not_truncated():
-    """설명은 그대로 본문 블록으로 바뀐다(markdown_to_blocks, app/core/notion_blocks.py).
-    그 변환기는 100줄을 넘으면 조용히 잘라내므로, 총 글자 수(4000자)만 보고 통과시키면
-    짧은 줄 150개(1300자 남짓, 4000자 밑)도 뒤 50줄이 소리 없이 사라진다. 여기서 거절해야
-    한다(TicketBodyUpdate와 같은 규칙)."""
+def test_a_long_description_is_accepted_in_full():
+    """qa-contract-change: 옛 계약(100줄 초과 거절)은 Notion API 한 번 호출 상한의
+    그림자였다 — 변환기가 그 값으로 본문을 조용히 잘랐기 때문에 거절이 보호였다.
+    상한이 걷혔으므로(app/core/notion_blocks.py 머리 주석 — 「자르지 않는다. 파서는 준
+    만큼 다 읽는다」, 본문은 Postgres text/jsonb 다) 지금 지킬 성질은 반대다: 긴 설명이
+    거절도 절단도 없이 **그대로** 저장 계약에 실린다."""
     desc = "\n".join(f"line {i}" for i in range(150))
-    assert len(desc) < 4000  # 글자 수 상한은 통과하는 입력이어야 이 테스트의 의미가 있다
-    with pytest.raises(Exception):
-        TicketCreate(title="t", project_id="p1", description=desc, **REQUIRED)
+    tc = TicketCreate(title="t", project_id="p1", description=desc, **REQUIRED)
+    assert tc.description == desc
 
 
 def test_description_within_line_cap_is_accepted():

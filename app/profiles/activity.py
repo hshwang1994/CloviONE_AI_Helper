@@ -87,6 +87,8 @@ OBJECT_LABELS: dict[str, str] = {
     # 문서 태그 어휘(G 회차). 이름을 고치고 지우는 것이 감사 대상이 됐다 — 그 동작 하나가
     # 그 태그를 쓰는 **모든 문서**의 분류 표기를 바꾼다.
     "tag": "문서 태그",
+    # 문서 카테고리(D-404 · 0026) — 태그와 대칭인 어휘 CRUD 가 감사 대상이다.
+    "document_category": "문서 분류",
     "organization": "조직",
     "project": "프로젝트",
     "project_milestone": "마일스톤",
