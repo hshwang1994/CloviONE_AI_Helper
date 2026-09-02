@@ -432,7 +432,7 @@ describe("회의 화면이 사용자 질문에 답한다 (IA)", () => {
     renderSprint();
     // 픽스처 회차는 project_id="p-1"(포털) — 프로젝트 회차임을 화면이 말해야 한다.
     // 「프로젝트별로 스프린트가 만들어지나」를 화면 안에서 답하는 한 줄.
-    expect(await screen.findByText(/프로젝트 회차 · 포털/)).toBeTruthy();
+    expect(await screen.findByText(/포털의 회차입니다/)).toBeTruthy();
   });
 
   it("팀 전체 회차는 그렇게 표시된다", async () => {

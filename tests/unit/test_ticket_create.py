@@ -1,5 +1,7 @@
 """새 티켓 수동 생성(POST) + 프로젝트 발견 유닛 테스트.
 
+qa-contract-change: 설명 100줄 초과를 거절하던 계약을 걷었다. 그 상한은 Notion API 한 번 호출 상한의 그림자였고, 티켓 본문이 Block JSON 정본이 되면서 변환기가 자르지 않게 바뀌었다(notion_blocks.py). 지금 지킬 성질은 반대다: 긴 설명이 거절도 절단도 없이 그대로 저장 계약에 실린다(test_a_long_description_is_accepted_in_full).
+
 ## 판정 대상이 옮겨 갔다 (S14)
 
 예전에는 가짜 Notion 서버가 받은 **생성 페이로드**를 검사했다. 티켓의 정본이 이 서버의

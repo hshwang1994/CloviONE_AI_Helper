@@ -782,8 +782,8 @@ export function Sprint() {
                     「프로젝트별로 스프린트가 만들어지나」를 화면 안에서 답할 수 있게. */}
                 <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25, ...KO_WORD_BREAK }}>
                   {body.sprint.project_id
-                    ? `프로젝트 회차 · ${sprintProjectName || "이 프로젝트"}`
-                    : "팀 전체 회차 — 모든 프로젝트의 티켓을 담을 수 있습니다."}
+                    ? `${sprintProjectName || "이 프로젝트"}의 회차입니다.`
+                    : "팀 전체 회차라 모든 프로젝트의 티켓을 담을 수 있습니다."}
                 </Typography>
                 <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25, ...KO_WORD_BREAK }}>
                   {`${datedLabel(body.sprint.starts_on)} ~ ${datedLabel(body.sprint.ends_on)}, 오늘 ${body.today}`}
