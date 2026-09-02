@@ -94,6 +94,11 @@ __all__ = [
 # 목록 한 페이지의 최대 건수. 상한이 없으면 한 요청이 공간 전체를 실어 나른다.
 PAGE_MAX = 200
 
+# 프로젝트 축의 「없음」 센티널 — 「어느 프로젝트에도 속하지 않은(공통) 문서만」.
+# 값이 UUID 와 충돌할 수 없고, 화면의 주소 축(?project=none)과 무변환으로 왕복한다.
+# P-61 이 계획한 `department_id=none` 과 같은 관례다.
+PROJECT_FILTER_NONE = "none"
+
 
 # ── 공간 ─────────────────────────────────────────────────────────────────────
 
@@ -369,7 +374,17 @@ def list_documents(
     if space_id:
         space = get_scoped_space_or_404(db, user, space_id)
         stmt = stmt.where(Document.space_id == space.id)
-    if project_id:
+    if project_id == PROJECT_FILTER_NONE:
+        # 「어느 프로젝트에도 속하지 않은 문서」 — 프로젝트 소유가 아닌 공간 전부다.
+        # `!= OWNER_PROJECT` 인 이유는 분할 완전성이다: 각 프로젝트 + 공통 = 전체가
+        # 되어야 어느 필터로도 못 찾는 문서가 안 생긴다(P-61 의 `department_id` 센티널과
+        # 같은 관례). 가시성 절은 위에서 이미 걸렸다 — 이 필터는 좁히기만 한다.
+        stmt = stmt.where(
+            Document.space_id.in_(
+                select(KnowledgeSpace.id).where(KnowledgeSpace.owner_kind != OWNER_PROJECT)
+            )
+        )
+    elif project_id:
         stmt = stmt.where(
             Document.space_id.in_(
                 select(KnowledgeSpace.id).where(

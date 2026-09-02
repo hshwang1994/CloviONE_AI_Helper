@@ -162,3 +162,35 @@ def test_tags_filter_is_and_not_or(client, login_as, world):
     ids = {d["id"] for d in r.json()["items"]}
     assert ids == {both["id"]}, "AND 가 아니라 OR 로 좁혀졌다"
     assert a["id"] not in ids
+
+
+def test_project_none_lists_only_common_documents(client, login_as, world):
+    """🔴 `project_id=none` 은 「어느 프로젝트에도 속하지 않은 문서만」이다.
+
+    이 센티널이 없으면 분할이 안 닫힌다 — 각 프로젝트 필터로는 프로젝트 문서만 잡히고,
+    공통 문서는 「전체」에서 눈으로 골라내는 수밖에 없었다. 각 프로젝트 + 공통 = 전체.
+    """
+    made = client.post(
+        "/api/knowledge/documents",
+        json={"title": "알파 문서", "project_id": world["alpha"]},
+        headers=_hdr(login_as),
+    )
+    assert made.status_code == 200, made.text
+
+    body = client.get(
+        "/api/knowledge/documents?project_id=none", headers=_hdr(login_as)
+    ).json()
+    titles = {d["title"] for d in body["items"]}
+    assert "공통 문서" in titles, titles
+    assert "알파 문서" not in titles, titles
+
+    # 반례 — 기존 프로젝트 필터와 임의 uuid 는 그대로다.
+    scoped = client.get(
+        f"/api/knowledge/documents?project_id={world['alpha']}", headers=_hdr(login_as)
+    ).json()
+    assert {d["title"] for d in scoped["items"]} == {"알파 문서"}
+    ghost = client.get(
+        "/api/knowledge/documents?project_id=00000000-0000-0000-0000-000000000000",
+        headers=_hdr(login_as),
+    ).json()
+    assert ghost["items"] == []
