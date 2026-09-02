@@ -2,8 +2,10 @@ import React from "react";
 import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
+import ChevronRightRoundedIcon from "@mui/icons-material/ChevronRightRounded";
+import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded";
 import { Badge, Card, EmptyState } from "../ui/kit.jsx";
-import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
+import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, NUMERIC } from "../ui/theme.js";
 import { ProgressBasis } from "./ProjectMetrics.jsx";
 import { WBS_UNPLACED_KO, percentText } from "./project-format.js";
 import { Note } from "../ui/adminKit.jsx";
@@ -38,8 +40,15 @@ function NodeProgress({ progress }) {
   );
 }
 
-function WbsRow({ node }) {
+/** 하위 트리의 작업 수 — 접힌 가지가 「몇 건을 숨겼는지」 말하는 데 쓴다. */
+function subtreeCount(node) {
+  return (node.children || []).reduce((sum, child) => sum + 1 + subtreeCount(child), 0);
+}
+
+function WbsRow({ node, collapsed, onToggle }) {
   const steps = Math.min(node.depth || 0, MAX_INDENT_STEPS);
+  const hasKids = (node.children || []).length > 0;
+  const open = hasKids && !collapsed.has(node.key);
   return (
     <Box component="li" sx={{ listStyle: "none" }}>
       <Box
@@ -51,6 +60,27 @@ function WbsRow({ node }) {
           py: 1, pl: `${steps * INDENT_REM}rem`, borderBottom: 1, borderColor: "divider", minWidth: 0,
         }}
       >
+        {/* 접기/펼치기 — 실제 button 이라 키보드가 공짜다(MyTickets 의 토글과 같은 선례).
+            리프에는 같은 폭의 자리표시를 둬 제목의 세로 줄을 맞춘다(OrgTree 와 같은 규칙). */}
+        {hasKids ? (
+          <Box
+            component="button"
+            type="button"
+            aria-expanded={open}
+            aria-label={(open ? "하위 작업 접기: " : "하위 작업 펼치기: ") + (node.title || node.key)}
+            onClick={() => onToggle(node.key)}
+            sx={{
+              background: "none", border: "none", cursor: "pointer", p: 0, lineHeight: 0,
+              color: "text.secondary", alignSelf: "center", flexShrink: 0,
+            }}
+          >
+            {open
+              ? <ExpandMoreRoundedIcon fontSize="small" />
+              : <ChevronRightRoundedIcon fontSize="small" />}
+          </Box>
+        ) : (
+          <Box aria-hidden="true" sx={{ width: "1.25rem", flexShrink: 0 }} />
+        )}
         {node.ticket_key ? (
           <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: "nowrap" }}>
             {node.ticket_key}
@@ -60,8 +90,13 @@ function WbsRow({ node }) {
           {node.title || "제목 없음"}
         </Typography>
         {node.status ? <Badge value={node.status} /> : null}
+        {hasKids && !open ? (
+          <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: "nowrap" }}>
+            {"하위 " + subtreeCount(node) + "건"}
+          </Typography>
+        ) : null}
         {node.est_wd != null ? (
-          <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: "nowrap" }}>
+          <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: "nowrap", ...NUMERIC }}>
             {"예상 " + node.est_wd + " WD"}
           </Typography>
         ) : null}
@@ -70,9 +105,11 @@ function WbsRow({ node }) {
         {/* 여기 「원본」 링크가 있었다. 옛 Notion 주소라 정본이 이 서버로 넘어온 뒤로는
             낡은 사본을 열었다. 서버도 노드 응답에서 `url` 을 걷었다. */}
       </Box>
-      {(node.children || []).length ? (
+      {open ? (
         <Box component="ul" sx={{ m: 0, p: 0 }}>
-          {node.children.map((child) => <WbsRow key={child.key} node={child} />)}
+          {node.children.map((child) => (
+            <WbsRow key={child.key} node={child} collapsed={collapsed} onToggle={onToggle} />
+          ))}
         </Box>
       ) : null}
     </Box>
@@ -83,6 +120,18 @@ export function ProjectWbs({ data }) {
   const d = data || {};
   const roots = Array.isArray(d.roots) ? d.roots : [];
   const unplaced = Array.isArray(d.unplaced) ? d.unplaced : [];
+  /* 접힘은 **일시 탐색 상태**다 — 주소에 안 싣는다(공유 목적은 `?tab=wbs` 로 충분하고,
+     노드 키가 UUID 라 주소가 UUID 나열이 된다). 기본은 전부 펼침 — 처음 연 사람이
+     트리의 전체 모양을 먼저 본다. */
+  const [collapsed, setCollapsed] = React.useState(() => new Set());
+  const toggle = React.useCallback((key) => {
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }, []);
 
   if (!roots.length && !unplaced.length) {
     // 갈래가 둘이었다: 「걸린 작업이 없다」와 「노션 짝이 없어 작업을 가져올 수 없다」.
@@ -116,7 +165,9 @@ export function ProjectWbs({ data }) {
       {roots.length ? (
         <Card>
           <Box component="ul" sx={{ m: 0, p: 0 }}>
-            {roots.map((node) => <WbsRow key={node.key} node={node} />)}
+            {roots.map((node) => (
+              <WbsRow key={node.key} node={node} collapsed={collapsed} onToggle={toggle} />
+            ))}
           </Box>
         </Card>
       ) : null}

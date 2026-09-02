@@ -1266,3 +1266,61 @@ describe("프로젝트 상세 — 나갔다가 돌아올 자리", () => {
     await waitFor(() => expect(returnedFrom()).toBe("/projects/p-1?tab=weekly&week=2026-08-17"));
   });
 });
+
+describe("엑셀 내보내기 (D-403)", () => {
+  it("상세 헤더의 「엑셀 내보내기」가 fetch 가 아니라 링크다 — 파일 다운로드의 유일한 길", async () => {
+    renderAt("/projects/p-1");
+    await screen.findByText("63점");
+    const link = screen.getByRole("link", { name: "엑셀 내보내기" });
+    expect(link.getAttribute("href")).toBe("/api/projects/p-1/export.xlsx");
+  });
+});
+
+describe("마일스톤의 기한 넘김 강조", () => {
+  it("🔴 서버가 overdue 라고 한 것만 「n일 지남」이 붙는다 — 화면이 날짜를 다시 판정하지 않는다", async () => {
+    milestonesPayload = {
+      items: [
+        { id: "m-1", project_id: "p-1", name: "설계 완료", due_on: "2026-07-15", status: "done",
+          sort_order: 0, overdue: false, created_at: "2026-07-01T00:00:00", updated_at: "2026-07-15T00:00:00" },
+        { id: "m-9", project_id: "p-1", name: "지나간 오픈", due_on: "2026-07-10", status: "missed",
+          sort_order: 1, overdue: true, created_at: "2026-07-01T00:00:00", updated_at: "2026-07-01T00:00:00" },
+      ],
+      total: 2,
+      today: "2026-07-14",
+    };
+    const user = userEvent.setup();
+    renderAt("/projects/p-1");
+    await screen.findByText("63점");
+    await user.click(screen.getByRole("tab", { name: "마일스톤" }));
+    await screen.findByText("지나간 오픈");
+
+    expect(screen.getByText("(4일 지남)")).toBeInTheDocument();
+    // 완료된 과거 마일스톤에는 안 붙는다 — 끝난 것은 지켜진 것이다(D-390).
+    expect(screen.getAllByText(/일 지남/)).toHaveLength(1);
+  });
+
+  it("서버 응답에 overdue·today 가 없으면(옛 응답) 강조를 안 그린다 — 지어내지 않는다", async () => {
+    const user = userEvent.setup();
+    renderAt("/projects/p-1");
+    await screen.findByText("63점");
+    await user.click(screen.getByRole("tab", { name: "마일스톤" }));
+    await screen.findByText("설계 완료");
+    expect(screen.queryByText(/일 지남/)).toBeNull();
+  });
+});
+
+describe("목록의 상태 필터", () => {
+  it("상태 고르개가 요약 타일과 같은 축(status)으로 서버에 나간다", async () => {
+    const user = userEvent.setup();
+    renderAt("/projects");
+    await screen.findByText("배포 자동화");
+
+    await user.click(screen.getByRole("combobox", { name: /상태/ }));
+    await user.click(await screen.findByRole("option", { name: "보류" }));
+    await waitFor(() => {
+      const hit = apiMock.mock.calls.some(([p]) =>
+        String(p).startsWith("/api/projects?") && String(p).includes("status=on_hold"));
+      expect(hit, "상태 조건이 서버 질의에 안 실렸다").toBe(true);
+    });
+  });
+});

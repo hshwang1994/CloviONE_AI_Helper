@@ -21,8 +21,8 @@ import { ProjectTickets } from "./ProjectTickets.jsx";
 import { ProjectWbs } from "./ProjectWbs.jsx";
 import { ProjectWeekly } from "./ProjectWeekly.jsx";
 import {
-  MILESTONE_FORM_FIELDS, MILESTONE_STATUS_KO, PROJECT_FORM_FIELDS,
-  PROJECT_STATUS_KO, PROJECT_WRITE_ROLES, deptLabel, periodText,
+  MILESTONE_FORM_FIELDS, MILESTONE_STATUS_KIND, MILESTONE_STATUS_KO, PROJECT_FORM_FIELDS,
+  PROJECT_STATUS_KO, PROJECT_WRITE_ROLES, daysBetween, deptLabel, periodText,
 } from "./project-format.js";
 import {
   DEPT_ROLES, useArchiveProject, useCreateMilestone, useDeleteMilestone, useDeptNames,
@@ -89,6 +89,9 @@ function MilestoneTimeline({ projectId, query, canWrite }) {
   const remove = useDeleteMilestone(projectId);
 
   const items = (query.data && query.data.items) || [];
+  /* 「기한 넘김」 판정은 서버가 한다(D-390 — `milestone_unmet` 하나). 화면은 서버가 준
+     `overdue` 와 기준일로 「n일 지남」 산수만 한다 — 여섯 번째 판정 사본을 안 만든다. */
+  const today = (query.data && query.data.today) || null;
 
   async function submit(body) {
     if (editing && editing.id) await update.mutateAsync({ id: editing.id, body });
@@ -164,10 +167,17 @@ function MilestoneTimeline({ projectId, query, canWrite }) {
               <Typography variant="body2" color="text.secondary" sx={{ minWidth: "6.5rem", whiteSpace: "nowrap" }}>
                 {m.due_on || "기한 없음"}
               </Typography>
+              {m.overdue && m.due_on && today ? (
+                <Typography component="span" variant="body2"
+                            sx={{ color: "error.main", whiteSpace: "nowrap" }}>
+                  {"(" + daysBetween(m.due_on, today) + "일 지남)"}
+                </Typography>
+              ) : null}
               <Typography sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: FONT_SIZE.body, minWidth: 0, ...KO_WORD_BREAK }}>
                 {m.name}
               </Typography>
-              <Badge value={MILESTONE_STATUS_KO[m.status] || m.status} />
+              <Badge value={MILESTONE_STATUS_KO[m.status] || m.status}
+                     kind={MILESTONE_STATUS_KIND[m.status]} />
               {canWrite ? (
                 <Stack direction="row" gap={0.5} sx={{ ml: "auto" }}>
                   <Button
@@ -294,6 +304,13 @@ function Overview({
           )}
       </Card>
 
+      {/* 진행률과 Health 는 넓은 화면에서 **나란히** 선다 — 세로로 쌓으면 개요 탭이
+          한 화면을 넘겨 「계산」 절반이 스크롤 밑에 숨는다. `alignItems:"start"` 인
+          이유: stretch 는 짧은 판의 바닥을 비운다(D-346 이 경고한 그 모양). */}
+      <Box sx={{
+        display: "grid", gap: 2.5, alignItems: "start",
+        gridTemplateColumns: { xs: "1fr", lg: "repeat(2, minmax(0, 1fr))" },
+      }}>
       <Card>
         <Stack direction="row" gap={1} sx={{ flexWrap: "wrap", alignItems: "center", mb: 1.5 }}>
           <Typography component="h2" variant="h6" sx={{ fontSize: FONT_SIZE.sectionTitle, flex: 1 }}>진행률</Typography>
@@ -329,6 +346,7 @@ function Overview({
           : <HealthBlock score={health.score} reasons={health.reasons} unknown={health.unknown} />}
         <HealthHistory query={healthHistoryQuery} />
       </Card>
+      </Box>
     </Stack>
   );
 }
@@ -443,7 +461,26 @@ export function Project() {
 
   return (
     <div className="c-screen">
-      <PageHeader crumbRoot="팀 공간" area="프로젝트" title={project.name || "프로젝트"} actions={back} />
+      <PageHeader
+        crumbRoot="팀 공간"
+        area="프로젝트"
+        title={project.name || "프로젝트"}
+        actions={(
+          <>
+            {/* 내보내기는 실제 파일 다운로드라 fetch 가 아니라 **링크**다(UsersBulk 관례).
+                세션 쿠키는 same-origin 요청에 그대로 실린다. 개요·WBS·마일스톤 세 시트가
+                한 통으로 내려온다(D-403). */}
+            <Button
+              component="a"
+              type={undefined}
+              href={"/api/projects/" + encodeURIComponent(id) + "/export.xlsx"}
+            >
+              엑셀 내보내기
+            </Button>
+            {back}
+          </>
+        )}
+      />
 
       {/* 여기 있던 배너 둘(「노션에 반영하지 못했습니다」·「이번 동기화에서 안 보였습니다」)을
           걷었다. 두 값을 쓰는 코드가 없어졌으므로(S14 · D-284) 이관 시점에 딸려 온 값이

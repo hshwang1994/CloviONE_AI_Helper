@@ -182,3 +182,19 @@ export function deptLabel(project, names) {
   const table = names || {};
   return table[p.dept_id] || null;
 }
+
+/** 마일스톤 상태의 배지 톤. 놓침만 위험이다 — 예정은 정상 상태라 조용해야 한다. */
+export const MILESTONE_STATUS_KIND = {
+  planned: "neutral",
+  done: "ok",
+  missed: "danger",
+};
+
+/** 두 ISO 날짜 사이 일수. 못 읽으면 null — 지어내지 않는다.
+ * 목록의 「n일 지남」과 마일스톤 탭이 같은 산수를 쓴다(다섯 자리 규칙 D-390 의 화면 절반). */
+export function daysBetween(from, to) {
+  const a = Date.parse(String(from || "") + "T00:00:00Z");
+  const b = Date.parse(String(to || "") + "T00:00:00Z");
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return null;
+  return Math.round((b - a) / 86400000);
+}

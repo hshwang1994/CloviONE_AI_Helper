@@ -14,7 +14,7 @@ import { ListFooter } from "../ui/InfiniteScroll.jsx";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
 import { useAuth } from "../app/auth.jsx";
 import { useQueryState } from "../lib/useQueryState.js";
-import { DepartmentFilter } from "../ui/filters.jsx";
+import { DepartmentFilter, FilterSelect } from "../ui/filters.jsx";
 import { FilterActions, FilterRow, FilterSurface, ResultLine, ToolbarRow } from "../ui/FilterBar.jsx";
 import { SearchBox } from "../ui/filters.jsx";
 import { BarSeries } from "../ui/charts/BarSeries.jsx";
@@ -23,7 +23,7 @@ import { ProgressBar } from "../ui/charts/ProgressBar.jsx";
 import { useCreateProject, useDeptNames, useProjectDashboard, useProjectList } from "./project-queries.js";
 import {
   NO_HEALTH_CACHE, NO_PROGRESS_CACHE, PROJECT_FORM_FIELDS, PROJECT_STATUS_KO,
-  PROJECT_WRITE_ROLES, deptLabel, percentText, periodText,
+  PROJECT_STATUS_OPTIONS, PROJECT_WRITE_ROLES, daysBetween, deptLabel, percentText, periodText,
 } from "./project-format.js";
 import { DateCell } from "../ui/cells.jsx";
 import { toggleSort } from "../ui/TableHeaderCell.jsx";
@@ -193,12 +193,7 @@ function OverdueBars({ items, today }) {
 }
 
 /** 'YYYY-MM-DD' 두 개의 날짜 차이(일). 못 읽으면 `null` — 지어내지 않는다. */
-function daysBetween(from, to) {
-  const a = Date.parse(String(from || "") + "T00:00:00Z");
-  const b = Date.parse(String(to || "") + "T00:00:00Z");
-  if (!Number.isFinite(a) || !Number.isFinite(b)) return null;
-  return Math.round((b - a) / 86400000);
-}
+/* `daysBetween` 은 `project-format.js` 로 옮겼다 — 마일스톤 탭의 「n일 지남」과 같은 산수다. */
 
 /* 요약 줄. **숫자는 응답을 그대로 쓴다** - 여기서 더하거나 빼면 서버가 센 것과 갈라진다.
  *
@@ -520,6 +515,15 @@ export function Projects() {
             departments={data.departments}
             value={filters.dept}
             onChange={(v) => setFilters({ dept: v })}
+          />
+          {/* 요약 타일과 **같은 상태 축**(`filters.status`)이다 — 타일은 훑다가 누르는
+              입구이고, 이 고르개는 조건을 걸러고 온 사람의 입구다. 타일과 같은 배타
+              규칙을 따른다(상태를 걸면 주의·지연 조건은 푼다). */}
+          <FilterSelect
+            label="상태"
+            value={filters.status}
+            onChange={(v) => setFilters({ status: v, trouble: false, overdue: false })}
+            options={PROJECT_STATUS_OPTIONS}
           />
           <FormControlLabel
             sx={{ m: 0 }}
