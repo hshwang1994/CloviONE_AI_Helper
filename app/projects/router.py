@@ -31,9 +31,15 @@ from app.core.deps import get_current_user, get_db, get_principal, require_csrf,
 from app.core.pagination import PageParams
 from app.core.scope import Principal
 from app.org import context as org_context
+from app.projects import export as export_mod
 from app.projects import milestones as milestones_repo
 from app.projects import repository, service, weekly
-from app.projects.models import Project, ProjectHealthSnapshot, ProjectMilestone
+from app.projects.models import (
+    Project,
+    ProjectHealthSnapshot,
+    ProjectMilestone,
+    milestone_unmet,
+)
 from app.projects.schemas import (
     MilestoneCreate,
     MilestoneUpdate,
@@ -431,12 +437,31 @@ def _milestone_view(milestone: ProjectMilestone) -> dict:
 @router.get("/{project_id}/milestones")
 def list_milestones(
     project_id: str,
+    request: Request,
     db: Session = Depends(get_db),
     principal: Principal = Depends(get_principal),
 ):
     project = service.get_scoped_project_or_404(db, project_id, principal)
     rows = milestones_repo.list_for_project(db, project)
-    return {"items": [_milestone_view(m) for m in rows], "total": len(rows)}
+    today = _today(request)
+    # 「기한 넘김」 판정은 서버가 한다(D-390 · `milestone_unmet` 하나) — 화면이 날짜를
+    # 다시 계산하면 여섯 번째 사본이 된다. 기준일도 함께 실어 화면이 「n일 지남」을
+    # 산수만으로 말할 수 있게 한다.
+    return {
+        "items": [
+            {
+                **_milestone_view(m),
+                "overdue": bool(
+                    m.due_on is not None
+                    and iso_date(m.due_on) < today
+                    and milestone_unmet(m.status)
+                ),
+            }
+            for m in rows
+        ],
+        "total": len(rows),
+        "today": today,
+    }
 
 
 @router.post("/{project_id}/milestones")
@@ -641,3 +666,51 @@ def get_wbs(
     """
     project = service.get_scoped_project_or_404(db, project_id, principal)
     return {"project_id": project.id, **service.project_wbs(db, project).as_dict()}
+
+
+# ── 엑셀 내보내기 ────────────────────────────────────────────────────────────
+
+@router.get("/{project_id}/export.xlsx")
+def export_project_xlsx(
+    project_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    principal: Principal = Depends(get_principal),
+):
+    """개요·WBS·마일스톤을 엑셀 한 통으로 (D-403).
+
+    화면과 **같은 함수, 같은 표본**이다 — `project_wbs`·`project_health`·마일스톤 정렬을
+    그대로 쓴다. 내보내기가 화면과 다른 숫자를 말하면 그 파일로 회의를 한 사람들이
+    화면을 의심하게 된다(감사 CSV 가 목록과 같은 문장을 쓰는 이유와 같다).
+
+    읽기 요청이라 `require_write` 가 없다 — WBS 를 볼 수 있는 사람이 받을 수 있다.
+    다운로드는 fetch 가 아니라 **앵커 링크**로 온다(UsersBulk 관례 — 쿠키는 same-origin
+    요청에 그대로 실리고, GET 은 CSRF 검사를 안 지난다).
+    """
+    from fastapi import Response
+
+    project = service.get_scoped_project_or_404(db, project_id, principal)
+    today = _today(request)
+    wbs = service.project_wbs(db, project)
+    milestones = milestones_repo.list_for_project(db, project)
+    health = service.project_health(db, project, today=today)
+    body, meta = export_mod.build_project_workbook(
+        project, wbs, milestones, health, today=today
+    )
+    record_audit_from_request(
+        request, db, action="project.export_xlsx", object_type="project",
+        object_id=project.id, after=meta,
+    )
+    now = request.app.state.clock.now()
+    filename = export_mod.export_filename(project, now, truncated=meta["truncated"])
+    return Response(
+        content=body,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "X-Export-Rows": str(meta["wbs_rows"] + meta["milestones"]),
+            "X-Export-Truncated": "1" if meta["truncated"] else "0",
+            # 권한이 걸린 산출물이다 — 공유 캐시가 이 응답을 들고 있으면 안 된다.
+            "Cache-Control": "no-store",
+        },
+    )

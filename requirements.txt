@@ -29,3 +29,9 @@ pypdf==6.1.1
 #
 # 폐쇄망 설치는 wheelhouse 에 이 wheel 이 함께 있어야 한다(deploy/install.sh --offline).
 Pillow==12.3.0
+
+# 프로젝트의 WBS·마일스톤을 **엑셀(.xlsx)로 내보낸다**(app/core/xlsx.py · D-403).
+# 읽기는 여전히 표준 라이브러리다(`app/ai/parsing/ooxml.py` · D-258) — 뒤집은 것은 쓰기
+# 경로 하나이고, 근거는 사용자 지시(외부 라이브러리 허용, 2026-09-02)다. openpyxl 과
+# 전이 의존 et_xmlfile 은 둘 다 순수 파이썬 wheel 이라 폐쇄망 wheelhouse 에 그대로 들어간다.
+openpyxl==3.1.5

@@ -218,3 +218,19 @@ def test_a_regular_user_without_a_department_is_not_narrowed(
     assert {world["mine"], world["theirs"]} <= {row["id"] for row in rows}, (
         "부서 없는 사용자에게 프로젝트가 안 보인다 - 폴백 규칙과 어긋난다"
     )
+
+
+def test_the_export_of_another_teams_project_is_404(client, login_as, world):
+    """엑셀 내보내기(D-403)도 같은 게이트를 지난다 — 파일은 목표·일정·작업 전부를 든다.
+
+    양쪽을 함께 본다: 내 팀 것은 실제 xlsx 로 내려온다(「전부 안 되는 구현」도 잡는다).
+    """
+    theirs = client.get(f"/api/projects/{world['theirs']}/export.xlsx", headers=_hdr(login_as))
+    assert theirs.status_code == 404, f"남의 팀 프로젝트가 파일로 내려온다: {theirs.status_code}"
+    assert "남의 팀" not in theirs.text, "404 응답 본문에 내용이 새어 나갔다"
+
+    mine = client.get(f"/api/projects/{world['mine']}/export.xlsx", headers=_hdr(login_as))
+    assert mine.status_code == 200, mine.text[:200]
+    assert mine.headers["content-type"].startswith(
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )

@@ -279,3 +279,31 @@ def test_the_snapshot_caches_the_score_on_the_project_row(client, login_as, db, 
     db.commit()  # 스냅샷을 새로 뜬다 — expire_all()만으로는 이미 연 트랜잭션의 스냅샷이 안 바뀐다
     db.expire_all()
     assert db.get(Project, world["mine"]).health_score == result["score"]
+
+
+def test_the_list_carries_today_and_the_shared_overdue_verdict(client, login_as, db, world):
+    """「기한 넘김」 판정은 서버가 한다(D-390 · `milestone_unmet` 하나) — 화면이 날짜를
+    다시 계산하면 여섯 번째 사본이 된다. 기준일(`today`)도 함께 실린다."""
+    from datetime import date
+
+    from app.projects.models import ProjectMilestone
+
+    db.add_all([
+        ProjectMilestone(project_id=world["mine"], name="지난 놓침", due_on=date(2026, 7, 10),
+                         status="missed", sort_order=1),
+        ProjectMilestone(project_id=world["mine"], name="지난 완료", due_on=date(2026, 7, 5),
+                         status="done", sort_order=2),
+        ProjectMilestone(project_id=world["mine"], name="다가올 예정", due_on=date(2026, 8, 20),
+                         status="planned", sort_order=3),
+    ])
+    db.commit()
+
+    listed = client.get(
+        f"/api/projects/{world['mine']}/milestones", headers=_hdr(login_as)
+    ).json()
+    # FakeClock(2026-07-14 00:00 UTC) → Asia/Seoul 달력일.
+    assert listed["today"] == "2026-07-14"
+    verdicts = {m["name"]: m["overdue"] for m in listed["items"]}
+    assert verdicts["지난 놓침"] is True
+    assert verdicts["지난 완료"] is False, "끝난 것은 지켜진 것이다 — 넘김이 아니다"
+    assert verdicts["다가올 예정"] is False
