@@ -164,13 +164,20 @@ function TreeNode({ node, level, selectedId, onSelect, collapsed, onToggle, tabb
       }}
     >
       <Box
+        /* 선택을 나르는 것은 이 상자다(브랜드 테두리 + 워시) — `aria-selected` 는 바깥
+           li(treeitem)에 있어서, 선언이 없으면 브랜드 검사가 잉크 없는 li 를 집는다
+           (`scripts/ui_qa/brand.py` 의 selected_state 첫 선택자가 이 선언이다). */
+        data-brand-role={selected ? "selected-state" : undefined}
         sx={{
           display: "flex", alignItems: "flex-start", gap: 0.5, cursor: "pointer",
           px: 1, py: 0.75, borderRadius: 1.5, minWidth: 0,
           border: 1,
           borderColor: selected ? "primary.main" : "transparent",
-          bgcolor: selected ? "action.selected" : "transparent",
-          "&:hover": { bgcolor: selected ? "action.selected" : "action.hover" },
+          /* 선택은 **브랜드 워시**다(`background.brandTint` — 잉크 대비 AA 실측 토큰).
+             회색(action.selected)이면 이 화면의 selected_state 역할이 브랜드를 안 입는다 —
+             콘솔이 첫 조직을 자동 선택하면서 이 상태가 첫 화면부터 보이게 됐다. */
+          bgcolor: selected ? "background.brandTint" : "transparent",
+          "&:hover": { bgcolor: selected ? "background.brandTint" : "action.hover" },
         }}
       >
         {hasKids ? (

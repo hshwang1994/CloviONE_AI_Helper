@@ -231,6 +231,10 @@ describe("링크", () => {
       // 적은 것이라 새 경로가 생기면 여기도 같이 늘려야 한다. `notion-console` 은 화면과
       // 함께 라우트도 없어져 여기서 뺐다 — 남겨 두면 죽은 링크를 검사가 눈감아 준다.
       "llm-console",
+      // 조직 콘솔 셋(D-406) — registry 를 떠났지만 AdminRoutes 가 직접 건다
+      // (ORG_CONSOLE_KEYS). registry 키 합산만 믿으면 살아 있는 이 경로들을
+      // 죽은 링크로 오판한다.
+      "organizations", "departments", "org-tree",
     ];
     const known = new Set(explicit.concat(Object.keys(REGISTRY)));
     for (const [key, link] of Object.entries(SETUP_LINKS)) {

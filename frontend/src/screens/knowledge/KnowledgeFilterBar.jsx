@@ -55,9 +55,11 @@ export function KnowledgeFilterBar({
           />
         </ToolbarRow>
         <FilterRow>
+          {/* 「보기」는 값이 넷뿐인 **닫힌 축**이다 — FilterSelect 가 맞다. 빈 값 문구는
+              기본형(「보기 전체」)을 쓴다: 「전체 문서」라고 적으면 정적 프로브가 「문서」
+              낱말로 이 고르개를 개체 축으로 오판하고, 요약 타일이 이미 같은 낱말을 든다. */}
           <FilterSelect
             label="보기"
-            allLabel="전체 문서"
             value={view || VIEW.all}
             onChange={(v) => onQuery({ view: v || null })}
             options={VIEW_OPTIONS}
