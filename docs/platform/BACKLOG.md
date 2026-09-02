@@ -163,4 +163,4 @@ Wave → Session 매핑은 위 Phase E 표를 따른다.
 
 **이 목록을 여기서 개별 항목으로 다시 펼치지 않는다** — 원장은 `ROUTE_COVERAGE.json` 하나이고,
 두 곳에 적으면 갈라진다.
-| **P-71** | **본문 크기 상한 회귀 시험이 405 를 본다** — `test_chunked_request_without_content_length_is_capped` | 미배정 | — | TODO | 전량 회귀(2026-09-02)가 잡았고 **세션 시작 커밋(c9b0951e)에서도 같은 실패**다(워크트리 실측 — 이번 회차 소유가 아니다). POST /healthz 로 384KB chunked 를 보내면 413(크기 상한)이어야 하는데 405(Method Not Allowed)가 먼저 선다 — 시험이 죽은 것인지 `BodySizeLimitMiddleware` 가 chunked 를 실제로 못 막는 것인지부터 갈라야 한다(후자면 보안 결함이다). 완료의 정의: 실제 POST 라우트로 상한이 걸리는 것을 증명하거나, 미들웨어를 고치고 시험을 실 라우트로 옮긴다 |
+| **P-71** | **본문 크기 상한 회귀 시험이 낡았다** — `test_chunked_request_without_content_length_is_capped` | HC | — | **DONE** | 전량 회귀(2026-09-02)가 잡았고 세션 시작 커밋에서도 같은 실패였다(이번 회차 소유 아님). 갈라 보니 **미들웨어는 정상이고 시험이 낡았다**: 본문 길이 상한을 걷으면서(긴 문서·티켓이 256k 에서 413 나던 것) `MAX_BODY_BYTES` 가 256k→4MB 로 올랐는데(`app/core/middleware.py:81`), 시험은 384KB 를 「초과」로 전제했다 — 384KB<4MB 라 통과가 정답이다(405 는 그 뒤 healthz 가 GET 전용이라 나던 이차 증상). `BodySizeLimitMiddleware` 는 chunked 를 바이트 단위로 세어 4MB 초과 시 413 을 낸다(순수 ASGI, 실측 확인 — 보안 결함 아님). 시험을 `MAX_BODY_BYTES + 64k` 로 고쳐 상한이 또 바뀌어도 「초과」를 계속 표현하게 했다(qa-contract-change) |

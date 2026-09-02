@@ -450,11 +450,24 @@ def test_retention_expiry_also_purges_job_payloads(client, login_as, db, fake_cl
 
 
 def test_chunked_request_without_content_length_is_capped(client):
-    """Low: Content-Length가 없는 chunked 요청에는 본문 상한이 없던 결함."""
+    """Low: Content-Length가 없는 chunked 요청에도 본문 상한이 바이트 단위로 걸린다.
+
+    qa-contract-change: 상한이 256k 에서 4MB 로 올랐다(본문 길이 상한을 걷으면서 —
+    긴 문서·티켓이 256k 에서 413 으로 막히던 것을 풀었다, app/core/middleware.py 주석).
+    그래서 옛 표본(384KB)은 더 이상 초과가 아니다. 지키는 성질은 그대로다: chunked 는
+    길이 선언이 없어도 바이트를 세어 상한을 넘으면 413 이다. 상한 자체를 import 해
+    하드코딩을 피한다 — 상한이 또 바뀌어도 이 시험은 「초과」를 계속 표현한다.
+    """
+    from app.core.middleware import MAX_BODY_BYTES
+
+    over = MAX_BODY_BYTES + 64 * 1024
 
     def _chunks():
-        for _ in range(6):
-            yield b"x" * (64 * 1024)  # 총 384KB > 256KB 상한
+        sent = 0
+        while sent < over:
+            step = min(64 * 1024, over - sent)
+            sent += step
+            yield b"x" * step
 
     r = client.post("/healthz", content=_chunks())
     assert r.status_code == 413
