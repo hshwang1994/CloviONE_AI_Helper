@@ -493,7 +493,7 @@ export function Project() {
       ) : null}
 
       {tab === "documents" ? (
-        <ProjectDocuments projectId={id} />
+        <ProjectDocuments projectId={id} projectName={project?.name || ""} />
       ) : null}
 
       {tab === "weekly" ? (

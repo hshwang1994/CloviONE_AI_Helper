@@ -4,26 +4,30 @@ import { useNavigate } from "react-router-dom";
 import Box from "@mui/material/Box";
 import Chip from "@mui/material/Chip";
 import Stack from "@mui/material/Stack";
-import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
 import {
-  Button, Card, DataTable, EmptyState, ErrorState, Modal, ModalFooter, Skeleton, useToast,
+  Button, Card, DataTable, EmptyState, ErrorState, Skeleton, useToast,
 } from "../ui/kit.jsx";
-import { TagPicker } from "../ui/TagPicker.jsx";
 import { UserAvatar } from "../ui/UserAvatar.jsx";
 import { FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
 import { fmtDateTimeCompact } from "../lib/format.js";
+import { NewDocumentModal } from "./knowledge/NewDocumentModal.jsx";
+import { useCategories, useTemplates } from "./knowledge/queries.js";
 
 /* 프로젝트에 걸린 문서 — 프로젝트 상세의 「문서」 탭 (§14.3).
  *
  * 새 API 를 만들지 않는다. `GET /api/knowledge/documents?project_id=` 를 그대로 쓴다 —
  * 권한 계약(그 프로젝트를 볼 수 있는 사람 = 그 문서를 볼 수 있는 사람)을 한 벌로 유지한다
- * (§11.4). 문서 목록 화면(`Knowledge.jsx`)의 표 구성과 다른 이유는, 여기서는 "어느
- * 프로젝트인가"가 이미 정해져 있어 프로젝트 열이 정보가 아니라 잉크 무게이기 때문이다.
+ * (§11.4). 문서 목록 화면의 표 구성과 다른 이유는, 여기서는 "어느 프로젝트인가"가 이미
+ * 정해져 있어 프로젝트 열이 정보가 아니라 잉크 무게이기 때문이다.
+ *
+ * 새 문서 모달은 문서 화면과 **같은 부품**이다(`knowledge/NewDocumentModal.jsx`,
+ * `lockedProject`). 이 탭만의 얇은 모달을 따로 두면 카테고리·템플릿 같은 칸이 화면마다
+ * 다르게 생기고, 한쪽만 고치는 날이 온다.
  */
 /* 한 번에 받는 문서 수. 서버 상한은 이보다 크지만(`service.PAGE_MAX`), 이 탭은 쪽을
- * 넘기지 않으므로 **받은 만큼이 곧 보이는 전부**다. 그래서 그 사실을 숨기지 않는다 —
+ * 넘기지 않으므로 **받은 만큼이 곧 보이는 전부**다. 그 사실을 숨기지 않는다 —
  * 아래에서 `total` 과 견줘 「몇 건 중 몇 건」을 말한다. */
 const DOC_PAGE_SIZE = 100;
 
@@ -41,49 +45,17 @@ function backToDocsTab(projectId) {
   return "/projects/" + encodeURIComponent(projectId) + "?tab=documents";
 }
 
-function NewProjectDocumentModal({ open, onClose, onSubmit, busy, projectId }) {
-  const [title, setTitle] = React.useState("");
-  const [tags, setTags] = React.useState([]);
-  React.useEffect(() => { if (open) { setTitle(""); setTags([]); } }, [open]);
+const EMPTY_DOC = {
+  title: "", space_id: "", folder_id: "", category_id: "", tags: [], template: "blank",
+};
 
-  return (
-    <Modal
-      open={open}
-      onClose={onClose}
-      title="이 프로젝트에 문서 추가"
-      dirty={Boolean(title.trim())}
-      footer={(
-        <ModalFooter
-          onCancel={onClose}
-          onSubmit={() => onSubmit({ project_id: projectId, title: title.trim(), tag_names: tags })}
-          disabled={!title.trim()}
-          submitLabel="추가"
-          busy={busy}
-        />
-      )}
-    >
-      <Stack spacing={2}>
-        <TextField
-          label="문서 제목"
-          required
-          autoFocus
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          inputProps={{ maxLength: 500 }}
-          InputLabelProps={{ shrink: true }}
-          fullWidth
-        />
-        <TagPicker value={tags} onChange={setTags} />
-      </Stack>
-    </Modal>
-  );
-}
-
-export function ProjectDocuments({ projectId }) {
+export function ProjectDocuments({ projectId, projectName = "" }) {
   const navigate = useNavigate();
   const toast = useToast();
   const qc = useQueryClient();
   const documents = useProjectDocuments(projectId);
+  const templates = useTemplates();
+  const categoriesQuery = useCategories();
   const [newDoc, setNewDoc] = React.useState(false);
 
   const createDocument = useMutation({
@@ -106,6 +78,12 @@ export function ProjectDocuments({ projectId }) {
           <Typography sx={{ fontWeight: FONT_WEIGHT.semibold, ...KO_WORD_BREAK }}>
             {doc.title}
           </Typography>
+          {/* 분류는 보조 글자다(§11.3) — 카테고리가 없는 이관 문서만 옛 doc_type 이 보인다. */}
+          {doc.category?.name || doc.doc_type ? (
+            <Typography variant="caption" color="text.secondary" sx={KO_WORD_BREAK}>
+              {doc.category?.name || doc.doc_type}
+            </Typography>
+          ) : null}
           {(doc.tags || []).length > 0 ? (
             <Stack direction="row" spacing={0.5} sx={{ flexWrap: "wrap", rowGap: 0.5, mt: 0.25 }}>
               {(doc.tags || []).map((t) => <Chip key={t.id} size="small" label={t.name} />)}
@@ -124,7 +102,7 @@ export function ProjectDocuments({ projectId }) {
       ),
     },
     {
-      key: "updated_at", label: "최종 수정", type: "datetime", minWidth: "9rem",
+      key: "updated_at", label: "최종 수정", type: "datetime", minWidth: "9.5rem",
       render: (doc) => fmtDateTimeCompact(doc.updated_at),
     },
   ], []);
@@ -163,12 +141,23 @@ export function ProjectDocuments({ projectId }) {
           <DataTable columns={columns} rows={rows} rowKey={(d) => d.id} onRow={openDoc} />
         </Card>
       )}
-      <NewProjectDocumentModal
+      <NewDocumentModal
         open={newDoc}
-        projectId={projectId}
+        initial={EMPTY_DOC}
+        spaces={[]}
+        templates={templates.data?.items || []}
+        categories={categoriesQuery.data?.items || []}
+        lockedProject={projectId}
+        lockedProjectName={projectName}
         busy={createDocument.isPending}
         onClose={() => setNewDoc(false)}
-        onSubmit={(body) => createDocument.mutate(body)}
+        onSubmit={(values) => createDocument.mutate({
+          project_id: projectId,
+          title: values.title.trim(),
+          category_id: values.category_id || null,
+          template: values.template || null,
+          tag_names: values.tags && values.tags.length ? values.tags : null,
+        })}
       />
     </Stack>
   );

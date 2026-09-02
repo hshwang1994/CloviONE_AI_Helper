@@ -78,6 +78,7 @@ function stubDocument({ version = 3 } = {}) {
     author: { user_id: "u-1", display_name: "김동현" },
     current: { version_no: 2, body: { type: "doc", content: [] } },
     tags: [{ id: "tag-1", name: "회의록", slug: "meeting" }],
+    category: { id: "cat-1", name: "회의 기록" },
     relations: [{ document_id: "doc-2", kind: "relates_to", label: "관련 문서", title: "요구사항 정의서" }],
     backlinks: [],
     attachments: [
@@ -86,6 +87,13 @@ function stubDocument({ version = 3 } = {}) {
   });
   responses.set("GET /api/knowledge/spaces/space-1/tree", {
     folders: [{ id: "f-1", name: "01. 기획", depth: 0, children: [] }],
+  });
+  // 곁열의 「분류」 카드가 카테고리 어휘를 묻는다(0026).
+  responses.set("GET /api/knowledge/categories", {
+    items: [
+      { id: "cat-1", name: "회의 기록", slug: "회의 기록", sort_order: 1024, document_count: 2 },
+      { id: "cat-2", name: "기술 문서", slug: "기술 문서", sort_order: 2048, document_count: 0 },
+    ],
   });
   // 이동 대화상자의 ProjectPicker 가 쓴다(§14.4) — 지금 프로젝트(alpha)와 다른 프로젝트(beta)
   // 로 실제로 옮기는 시험에 필요하다.
@@ -290,5 +298,27 @@ describe("곁열이 문서에 대한 것을 든다", () => {
     await userEvent.click(screen.getByRole("button", { name: "저장" }));
     await waitFor(() => expect(seen).toHaveLength(1));
     expect(seen[0].tag_names).toEqual(["회의록"]);
+  });
+
+  it("분류(카테고리)도 저장 버튼 하나로 함께 저장된다 — 해제는 null 로 나간다(0026)", async () => {
+    const seen = [];
+    responses.set(`PUT /api/knowledge/documents/${DOC_ID}`, (options) => {
+      seen.push(options.body);
+      return { created_version: false, version: 4 };
+    });
+    await renderDoc();
+    /* 서버가 준 분류가 select 의 출발값이다. */
+    await userEvent.click(screen.getByRole("button", { name: "저장" }));
+    await waitFor(() => expect(seen).toHaveLength(1));
+    expect(seen[0].category_id).toBe("cat-1");
+
+    /* 「분류 없음」을 고르면 **null** 이 나간다 — 안 보내는 것과 다른 요청이다(서버의
+       model_fields_set 게이트가 그 차이를 읽는다). */
+    const select = screen.getByLabelText("카테고리");
+    await userEvent.click(select);
+    await userEvent.click(await screen.findByRole("option", { name: "분류 없음" }));
+    await userEvent.click(screen.getByRole("button", { name: "저장" }));
+    await waitFor(() => expect(seen).toHaveLength(2));
+    expect(seen[1].category_id).toBeNull();
   });
 });

@@ -61,8 +61,10 @@ describe("ProjectDocuments", () => {
     const action = await screen.findByRole("button", { name: "이 프로젝트 문서 추가" });
     await user.click(action);
     const dialog = await screen.findByRole("dialog");
+    /* 문서 화면과 **같은 모달**이다(`knowledge/NewDocumentModal.jsx` · lockedProject) —
+       프로젝트 칸은 고정 표기이고 제출 단추도 같은 낱말(「만들기」)을 쓴다. */
     await user.type(screen.getByLabelText(/문서 제목/), "킥오프 회의록");
-    await user.click(screen.getByRole("button", { name: "추가" }));
+    await user.click(screen.getByRole("button", { name: "만들기" }));
 
     await waitFor(() => {
       const post = apiMock.mock.calls.find(([p, o]) => p === "/api/knowledge/documents" && o?.method === "POST");

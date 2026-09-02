@@ -36,6 +36,7 @@ import { TagPicker } from "../ui/TagPicker.jsx";
 import { FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
 import { fmtDateTimeCompact } from "../lib/format.js";
 import { useListReturn } from "../lib/listReturn.js";
+import { useCategories } from "./knowledge/queries.js";
 
 /* 문서 한 건 — 본문 편집 · 문서 정보 · 관계 · 첨부 · 댓글 (지시 22.6).
  *
@@ -479,10 +480,12 @@ export function KnowledgeDoc() {
   const doc = useDocument(id);
   const versions = useVersions(id);
   const tree = useSpaceTree(doc.data?.space_id);
+  const categoriesQuery = useCategories();
 
   const [title, setTitle] = React.useState("");
   const [body, setBody] = React.useState(null);
   const [tags, setTags] = React.useState([]);
+  const [categoryId, setCategoryId] = React.useState("");
   const [compareTo, setCompareTo] = React.useState(null);
   const [history, setHistory] = React.useState(false);
   const [moving, setMoving] = React.useState(false);
@@ -496,6 +499,7 @@ export function KnowledgeDoc() {
     setTitle(doc.data.title);
     setBody(doc.data.current?.body || null);
     setTags((doc.data.tags || []).map((t) => t.name));
+    setCategoryId(doc.data.category?.id || "");
     setFolderId(doc.data.folder_id || "");
     setMoveProjectId(doc.data.project?.id || "");
     setCompareTo(null);
@@ -623,6 +627,10 @@ export function KnowledgeDoc() {
     title,
     body,
     tag_names: tags,
+    /* `null` 은 「미분류로 되돌린다」다 — 안 보내는 것과 다른 요청이고, 서버가
+       `model_fields_set` 으로 그 차이를 읽는다. 이 화면은 분류 칸을 들고 있으므로
+       언제나 보낸다. */
+    category_id: categoryId || null,
     base_version: data.version,
   });
 
@@ -653,14 +661,31 @@ export function KnowledgeDoc() {
       </Card>
 
       <Card>
-        <Section title="기술 태그">
-          <TagPicker
-            value={tags}
-            onChange={setTags}
-            /* 태그도 **저장 버튼 하나**로 함께 저장된다. 별도 저장을 두면 「태그만 저장했는데
-               본문이 안 저장됐다」가 생기고, 사용자는 어느 버튼이 무엇을 저장하는지 못 외운다. */
-            helperText="저장을 누르면 본문과 함께 저장됩니다."
-          />
+        {/* 분류(카테고리·태그)도 **저장 버튼 하나**로 함께 저장된다. 별도 저장을 두면
+            「태그만 저장했는데 본문이 안 저장됐다」가 생기고, 사용자는 어느 버튼이 무엇을
+            저장하는지 못 외운다. */}
+        <Section title="분류">
+          <Stack spacing={2}>
+            <TextField
+              select
+              size="small"
+              label="카테고리"
+              value={categoryId}
+              onChange={(e) => setCategoryId(e.target.value)}
+              InputLabelProps={{ shrink: true }}
+              fullWidth
+            >
+              <MenuItem value="">분류 없음</MenuItem>
+              {(categoriesQuery.data?.items || []).map((c) => (
+                <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>
+              ))}
+            </TextField>
+            <TagPicker
+              value={tags}
+              onChange={setTags}
+              helperText="저장을 누르면 본문과 함께 저장됩니다."
+            />
+          </Stack>
         </Section>
       </Card>
 
@@ -740,6 +765,7 @@ export function KnowledgeDoc() {
               : "공통 문서",
           },
           { key: "folder", label: "폴더", value: folderPath ? folderPath.name : "정리 안 함" },
+          { key: "category", label: "분류", value: data.category?.name || "분류 없음" },
           {
             key: "version", label: "현재 판",
             value: current.version_no != null ? `${current.version_no}판` : "-",
