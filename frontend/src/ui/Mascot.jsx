@@ -145,7 +145,22 @@ export function mascotBoxPx(place, src) {
   return out;
 }
 
-/* 상태 → 본체 애니메이션. */
+/* 상태 → 본체 애니메이션.
+ *
+ * 🔴 예전에는 기본 상태(idle·greeting·listening)가 `enter` **한 번**이었다. 280ms 뒤
+ * 클로비는 그 자리에 영구히 얼어붙었고, 사용자가 「클로비가 안 움직인다」고 한 것이
+ * 정확히 이 상태다(실측: 운영에서 마스코트의 유일한 애니메이션이 `0.28s` 1회였다).
+ *
+ * 자산으로 눈을 깜빡일 수는 없다 — `clovi-idle-blink` 는 `clovi-idle` 의 다음 프레임이
+ * 아니라 **별개의 렌더**이고(가시 bbox 748×816 vs 799×869, 눈 모양도 다르다), 둘 다
+ * 눈이 감긴 그림이라 애초에 열림/감김 짝이 아니다. 자산을 새로 뽑기 전까지는 못 한다.
+ *
+ * 대신 **숨을 쉬게** 한다. 이미 이 파일에 있는 `float` 를 아주 느리게(4.5초) 건다 —
+ * 3px 상하로, transform 만 움직이므로 레이아웃 비용이 0 이고, 동작 최소화를 켠 사람에게는
+ * theme.js 의 전역 규칙이 그대로 끈다.
+ *
+ * 등장(`enter`)은 **바깥 상자**로 옮겼다(`entranceAnimation`). 한 요소에 등장과 반복을
+ * 같이 걸면 목록 뒤엣것이 `transform` 을 통째로 이겨 등장이 아예 안 보인다. */
 function bodyAnimation(mode) {
   switch (mode) {
     case "responding":
@@ -161,8 +176,17 @@ function bodyAnimation(mode) {
     case "sleep":
       return `${breathe} 3.4s ease-in-out infinite`;
     default:
-      return `${enter} 280ms cubic-bezier(.2,.8,.2,1) both`;
+      return `${float} 4.5s ease-in-out infinite`;
   }
+}
+
+/* 등장은 자리(바깥 상자)가 든다 — 본체가 계속 움직이는 동안에도 처음 한 번은 떠오른다.
+ * 자기 등장을 이미 가진 상태(축하·오류)는 그쪽에 맡기고 여기서는 안 건다. */
+function entranceAnimation(mode) {
+  if (mode === "success" || mode === "welcome" || mode === "wave" || mode === "error") {
+    return "none";
+  }
+  return `${enter} 280ms cubic-bezier(.2,.8,.2,1) both`;
 }
 
 /* 상태 → 뒤쪽 후광 애니메이션(듣는 중은 파장, 생각/응답 중은 회전). */
@@ -208,6 +232,7 @@ export function MascotPose({ mode = "idle", place, size = 96, label, decorative 
         placeItems: "center",
         flexShrink: 0,
         isolation: "isolate",
+        animation: entranceAnimation(mode),
       }}
     >
       <Box
@@ -285,6 +310,7 @@ export function MascotMini({
       sx={{
         position: "relative", display: "inline-grid", placeItems: "center",
         width: box, height: box, flex: "0 0 auto", isolation: "isolate",
+        animation: entranceAnimation(mode),
       }}
     >
       <Box

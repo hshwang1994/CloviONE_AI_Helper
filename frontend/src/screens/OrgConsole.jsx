@@ -216,6 +216,10 @@ export function OrgConsole() {
               <OrgDetailPanel
                 org={selectedOrg}
                 treeRow={orgRows.find((r) => r.id === selectedOrgId) || null}
+                /* 이미 받아 둔 트리에서 이 조직의 부서만 걸러 넘긴다 — 상세 판이 스스로
+                   또 묻지 않는다(같은 자료를 두 번 받으면 한쪽만 최신인 자리가 생긴다). */
+                deptRows={fullRows.filter((r) => !isOrgRow(r) && r.org_id === selectedOrgId)}
+                onOpenDept={selectRow}
               />
             ) : (
               <Card>

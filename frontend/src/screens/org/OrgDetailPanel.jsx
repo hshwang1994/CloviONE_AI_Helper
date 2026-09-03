@@ -9,7 +9,7 @@ import {
   Badge, Button, Card, MetricStrip, Section, TechDetail, useConfirm, useToast,
 } from "../../ui/kit.jsx";
 import { handleApiError } from "../data-screen/apiError.js";
-import { KO_WORD_BREAK, PROSE_MAX_WIDTH } from "../../ui/theme.js";
+import { FONT_SIZE, KO_WORD_BREAK, PROSE_MAX_WIDTH } from "../../ui/theme.js";
 import { useInvalidateOrgCaches } from "./orgQueries.js";
 import { OrgEditModal } from "./orgModals.jsx";
 
@@ -52,7 +52,7 @@ const META_GRID = {
   gridTemplateColumns: { xs: "1fr", lg: "repeat(2, minmax(0, 1fr))" },
 };
 
-export function OrgDetailPanel({ org, treeRow }) {
+export function OrgDetailPanel({ org, treeRow, deptRows = [], onOpenDept }) {
   const toast = useToast();
   const confirm = useConfirm();
   const invalidate = useInvalidateOrgCaches();
@@ -124,7 +124,7 @@ export function OrgDetailPanel({ org, treeRow }) {
           이 조직에 하는 **일**이므로 위 동작 줄에 있다. */}
       {/* 카드의 마지막 절이라 아래 여백을 안 남긴다 — `Section` 기본 `mb` 가 카드 밑에
           빈 띠로 남는다. */}
-      <Section title="정보" sx={{ mb: 0 }}>
+      <Section title="정보">
         <Box sx={META_GRID}>
           <MetaRow label="식별자">{org.slug}</MetaRow>
           <MetaRow label="포함 관계">
@@ -145,6 +145,60 @@ export function OrgDetailPanel({ org, treeRow }) {
             끊깁니다. 대신 비활성화로 새 사용을 막으세요.
           </MetaRow>
         </Box>
+      </Section>
+
+      {/* 🔴 이 판은 사실 다섯 줄뿐이라 **비어 있는 것이 정상이 아니라 결함**이었다 —
+          1,080px 짜리 판에 500px 짜리 내용을 놓고 나머지를 빈칸으로 뒀다. 이 조직에서
+          가장 값진 내용은 **그 안에 뭐가 있는가**이고, 그 자료는 이미 받아 둔 트리에
+          들어 있다(부서 판이 소속 인원 목록을 드는 것과 같은 자리·같은 이유).
+          넓은 화면에서는 두 줄기로 세워 폭을 내용으로 채운다. */}
+      <Section title={`부서 ${deptRows.length}개`} sx={{ mb: 0 }}>
+        {deptRows.length === 0 ? (
+          <Typography variant="body2" color="text.secondary" sx={KO_WORD_BREAK}>
+            이 조직에는 아직 부서가 없습니다. 위의 ‘부서 추가’로 만들 수 있습니다.
+          </Typography>
+        ) : (
+          <Box
+            component="ul"
+            sx={{
+              listStyle: "none", m: 0, p: 0, display: "grid", columnGap: 3, rowGap: 0.5,
+              gridTemplateColumns: { xs: "1fr", lg: "repeat(2, minmax(0, 1fr))" },
+            }}
+          >
+            {deptRows.map((row) => (
+              <Box
+                component="li"
+                key={row.id}
+                sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0, py: 0.5 }}
+              >
+                {/* 계층은 들여쓰기가 말한다 — 트리와 같은 깊이를 쓴다. */}
+                <Box sx={{ width: `${Math.max(0, (row.depth || 1) - 1) * 1.1}rem`, flexShrink: 0 }} />
+                {/* 🔴 이름을 `flex:1` 로 늘리지 않는다. 늘리면 짧은 부서명과 인원수가 열
+                    양 끝으로 벌어져 가운데가 통째로 빈다 — 이 판이 원래 앓던 병이다.
+                    이름은 제 길이만큼만 쓰고 인원수가 바로 뒤에 붙는다. 긴 이름은
+                    말줄임으로 잘린다. */}
+                <Link
+                  component="button"
+                  type="button"
+                  underline="hover"
+                  onClick={() => (onOpenDept ? onOpenDept(row) : undefined)}
+                  sx={{
+                    minWidth: 0, textAlign: "left", font: "inherit", fontSize: FONT_SIZE.bodySm,
+                    overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                  }}
+                >
+                  {row.name}
+                </Link>
+                {row.active ? null : <Badge value="미사용" kind="warn" />}
+                <Typography variant="caption" color="text.secondary" sx={{ flexShrink: 0 }}>
+                  {`소속 ${row.user_count || 0}명`}
+                  {row.child_count ? `, 하위 ${row.child_count}개` : ""}
+                </Typography>
+                <Box sx={{ flex: 1 }} />
+              </Box>
+            ))}
+          </Box>
+        )}
       </Section>
 
       <OrgEditModal open={editing} org={org} onClose={() => setEditing(false)} />
