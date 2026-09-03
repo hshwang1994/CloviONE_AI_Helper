@@ -3,7 +3,7 @@ import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 
 import { paletteAt, TONE_ACCENT } from "./kit.jsx";
-import { DISCUSS_TILE_TRACK, TILE_GRID_GAP, TILE_PADDING } from "./density.js";
+import { balancedTileTracks, TILE_GRID_GAP, TILE_PADDING } from "./density.js";
 import { FONT_SIZE, FONT_WEIGHT, MOTION, NUMERIC, RADIUS } from "./theme.js";
 
 /* 회의 「오늘 논의할 항목」의 갈래 카드. 탭 막대 대신 **건수 카드**다.
@@ -99,10 +99,9 @@ export function DiscussBucketRow({ items, value, onChange, ariaLabel = "논의 �
       sx={{
         display: "grid",
         width: "100%",
-        gridTemplateColumns: {
-          xs: "repeat(auto-fill, minmax(8rem, 1fr))",
-          sm: DISCUSS_TILE_TRACK,
-        },
+        /* 트랙은 **지금 그리는 개수**에서 나온다 — 상수로 박아 두면 갈래가 늘어난 날
+           마지막 줄이 반만 찬다(실제로 다섯으로 박혀 있었고 갈래는 여덟이었다). */
+        gridTemplateColumns: balancedTileTracks(items.length),
         gap: TILE_GRID_GAP,
         mb: 1.5,
       }}

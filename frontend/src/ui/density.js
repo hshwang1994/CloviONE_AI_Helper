@@ -89,8 +89,34 @@ export function fixedTileTrack(count) {
 }
 
 export const KPI_TILE_TRACK = "repeat(auto-fill, minmax(7.5rem, 1fr))";
-export const DISCUSS_BUCKET_COUNT = 5;
-export const DISCUSS_TILE_TRACK = fixedTileTrack(DISCUSS_BUCKET_COUNT);
+
+/* ── 반만 찬 마지막 줄을 안 만든다 ──────────────────────────────────────────
+ *
+ * 🔴 회의의 「오늘 논의할 항목」은 카드가 **여덟** 인데 트랙은 `repeat(5, …)` 로 박혀
+ * 있었다. 다섯이 첫 줄에 서고 셋이 둘째 줄에 남아, 그 줄의 오른쪽 40% 가 통째로 빈
+ * 띠가 됐다 — 사용자가 「카드가 잘렸나」로 읽은 자리다.
+ *
+ * 칸 수를 **개수에서 유도**한다: 상한 이하이면서 개수를 나누어떨어지게 하는 가장 큰 값.
+ * 여덟이면 2·4·8 이 되어 어느 폭에서도 마지막 줄이 꽉 찬다. 나누어떨어지는 값이 없으면
+ * (일곱처럼) 상한을 그대로 쓴다 — 그때는 빈칸이 구조적으로 피할 수 없다. */
+function evenColumns(count, cap) {
+  const n = Math.max(1, Number(count) || 1);
+  const top = Math.min(cap, n);
+  for (let c = top; c >= 2; c -= 1) if (n % c === 0) return c;
+  return top;
+}
+
+/** 개수에 맞춰 균형 잡힌 타일 트랙(반만 찬 줄이 없게). */
+export function balancedTileTracks(count) {
+  return {
+    xs: `repeat(${evenColumns(count, 2)}, minmax(0, 1fr))`,
+    sm: `repeat(${evenColumns(count, 4)}, minmax(0, 1fr))`,
+    xl: `repeat(${evenColumns(count, 8)}, minmax(0, 1fr))`,
+  };
+}
+
+export const DISCUSS_BUCKET_COUNT = 8;
+export const DISCUSS_TILE_TRACK = balancedTileTracks(DISCUSS_BUCKET_COUNT);
 export const MEETING_PAIR_TRACKS = {
   xs: "1fr",
   lg: "minmax(0, 2fr) minmax(0, 1fr)",

@@ -166,7 +166,7 @@ describe("스프린트 회의", () => {
     // 동시에 도는 동안에는 동적 import 의 시스템 부하가 늘어 기본 시간 제한(1000ms)을
     // 넘길 수 있다. 넉넉히 준다.
     await waitFor(() => expect(screen.getByText(/8\/24.*~.*8\/30/)).toBeTruthy(), { timeout: 5000 });
-    expect(screen.getByText(/오늘 2026-08-27/)).toBeTruthy();
+    expect(screen.getByText(/오늘 8\/27/)).toBeTruthy();
     // 회차가 어느 단계인가를 화면이 말한다 — 이 한 줄이 없어서 「어떻게 쓰는지 모르겠다」가 됐다.
     expect(screen.getByText(/진행 중인 회차입니다/)).toBeTruthy();
   });
@@ -301,7 +301,7 @@ describe("스프린트 회의 — 견고성", () => {
     renderSprint();
     // 회차 머리가 서고(오늘 줄) ErrorBoundary 로 떨어지지 않는다 — 예전에는
     // body.discuss 무방어 접근이 TypeError 로 화면 전체를 죽였다.
-    expect(await screen.findByText(/오늘 2026-08-27/)).toBeTruthy();
+    expect(await screen.findByText(/오늘 8\/27/)).toBeTruthy();
   });
 
   it("🔴 지연 표식은 서버의 오늘로 판정한다 — 브라우저 시계가 아니라", async () => {
@@ -393,7 +393,7 @@ describe("회의록 확장 (UX3)", () => {
 
   it("종류가 「할 일」일 때만 담당자·마감 칸이 선다 — 결정에 마감은 뜻이 없다", async () => {
     renderSprint();
-    await screen.findByText(/오늘 2026-08-27/);
+    await screen.findByText(/오늘 8\/27/);
     // 기본은 「결정」 — 담당자·마감 칸이 없다(관련 티켓은 두 종류 공통).
     expect(screen.queryByRole("combobox", { name: /담당자/ })).toBeNull();
     const kindCombo = screen.getByRole("combobox", { name: /종류/ });

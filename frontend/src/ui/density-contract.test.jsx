@@ -12,6 +12,7 @@ import {
   TILE_PADDING,
   MEETING_PAIR_TRACKS,
   fixedTileTrack,
+  DISCUSS_BUCKET_COUNT,
   DISCUSS_TILE_TRACK,
 } from "./density.js";
 import { FONT_SIZE } from "./theme.js";
@@ -83,11 +84,22 @@ describe("회의 짝 판은 폭을 채운다", () => {
 });
 
 describe("개수가 고정된 카드 줄은 마지막 줄에 빈 칸을 남기지 않는다", () => {
-  it("KPI·논의 타일 트랙은 칸 수만큼만 fr 을 쓴다", () => {
+  it("KPI 타일 트랙은 칸 수만큼만 fr 을 쓴다", () => {
     expect(fills(fixedTileTrack(7))).toBe(true);
     expect(fixedTileTrack(7)).toBe("repeat(7, minmax(0, 1fr))");
-    expect(fills(DISCUSS_TILE_TRACK)).toBe(true);
-    expect(DISCUSS_TILE_TRACK).toBe("repeat(5, minmax(0, 1fr))");
+  });
+
+  /* 🔴 논의 타일 트랙은 예전에 `repeat(5, …)` 한 줄이었다. 그런데 갈래는 **여덟**이다 —
+     다섯이 첫 줄에 서고 셋이 둘째 줄에 남아 그 줄의 오른쪽 40% 가 통째로 빈 띠였다.
+     이제 트랙은 개수에서 파생하고(`balancedTileTracks`), 폭마다 개수를 나누어떨어지게
+     하는 칸 수를 고른다. 그래서 검사도 「고정 문자열이 맞는가」가 아니라 **「어느 폭에서도
+     마지막 줄이 꽉 차는가」**를 본다. */
+  it("논의 타일 트랙은 어느 폭에서도 마지막 줄을 꽉 채운다", () => {
+    for (const track of Object.values(DISCUSS_TILE_TRACK)) {
+      expect(fills(track)).toBe(true);
+      const columns = Number(/repeat\((\d+),/.exec(track)[1]);
+      expect(DISCUSS_BUCKET_COUNT % columns).toBe(0);
+    }
   });
 
   /* 홈 지표 줄(6장)을 여기서 검사하던 자리다. 그 줄은 이제 격자가 아니라 판독 줄

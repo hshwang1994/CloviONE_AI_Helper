@@ -9,7 +9,7 @@ import {
   Badge, Button, Card, MetricStrip, Section, TechDetail, useConfirm, useToast,
 } from "../../ui/kit.jsx";
 import { handleApiError } from "../data-screen/apiError.js";
-import { KO_WORD_BREAK } from "../../ui/theme.js";
+import { KO_WORD_BREAK, PROSE_MAX_WIDTH } from "../../ui/theme.js";
 import { useInvalidateOrgCaches } from "./orgQueries.js";
 import { OrgEditModal } from "./orgModals.jsx";
 
@@ -23,14 +23,34 @@ import { OrgEditModal } from "./orgModals.jsx";
  * 조직에 삭제가 없는 것은 서버 계약이다 — 사용자와 부서가 org_id 로 이 행을 가리키고
  * 있어 지우면 그 참조가 통째로 끊긴다. 대신 「비활성화」가 새 사용을 막는다. */
 
-function MetaRow({ label, children }) {
+/* 사실 한 줄. `span` 을 주면 두 칸을 다 쓴다(긴 산문 안내가 그렇다).
+ *
+ * 🔴 값 칸에 상한이 없었다. 이 판은 1920 에서 1,060px 인데 「default」 일곱 글자가 그중
+ * 950px 를 배정받아, 네 줄이 카드 왼쪽 위에만 붙고 나머지가 통째로 빈 띠였다. 값 칸은
+ * 읽을 수 있는 폭까지만 받는다. */
+function MetaRow({ label, children, span = false }) {
   return (
-    <Box sx={{ display: "grid", gridTemplateColumns: "7rem minmax(0,1fr)", gap: 1, py: 0.5 }}>
+    <Box
+      sx={{
+        display: "grid", gridTemplateColumns: "7rem minmax(0, 1fr)", gap: 1, py: 0.5,
+        ...(span ? { gridColumn: { lg: "1 / -1" } } : null),
+      }}
+    >
       <Typography variant="body2" color="text.secondary">{label}</Typography>
-      <Typography variant="body2" component="div" sx={KO_WORD_BREAK}>{children}</Typography>
+      <Typography variant="body2" component="div" sx={{ ...KO_WORD_BREAK, maxWidth: PROSE_MAX_WIDTH }}>
+        {children}
+      </Typography>
     </Box>
   );
 }
+
+/* 사실 목록. 넓은 판에서는 두 줄기로 나눠 **폭을 실제로 쓴다** — 한 줄기로 두면 값이 짧은
+   줄 넷이 카드 왼쪽에만 쌓이고 오른쪽 절반이 빈다. */
+const META_GRID = {
+  display: "grid",
+  columnGap: 3,
+  gridTemplateColumns: { xs: "1fr", lg: "repeat(2, minmax(0, 1fr))" },
+};
 
 export function OrgDetailPanel({ org, treeRow }) {
   const toast = useToast();
@@ -73,6 +93,10 @@ export function OrgDetailPanel({ org, treeRow }) {
         <Badge value="조직" kind="info" />
         <Badge value={active ? "사용 중" : "미사용"} kind={active ? "ok" : "warn"} />
         <Box sx={{ flex: 1 }} />
+        <Button size="sm" variant="ghost"
+                href={"#/audit?object_type=organization&object_id=" + org.id}>
+          감사 로그에서 보기
+        </Button>
         <Button size="sm" onClick={active ? suspend : () => setStatus.mutate("active")}
                 variant={active ? "danger" : "default"} loading={setStatus.isPending}>
           {active ? "비활성화" : "활성화"}
@@ -94,32 +118,34 @@ export function OrgDetailPanel({ org, treeRow }) {
         ]}
       />
 
-      <Section title="정보">
-        <MetaRow label="식별자">{org.slug}</MetaRow>
-        <MetaRow label="포함 관계">
-          {"부서 " + (org.department_count || 0) + "개, 사용자 " + (org.user_count || 0) + "명"}
-        </MetaRow>
-        {unassigned ? (
-          <MetaRow label="부서 미지정">
-            <Link href="#/users" underline="hover">
-              {"부서가 지정되지 않은 사용자 " + unassigned + "명을 사용자 화면에서 확인합니다."}
-            </Link>
+      {/* 🔴 예전에는 「조직 ID」가 카드 **오른쪽 아래 구석**에, 「감사 로그에서 보기」가
+          왼쪽 아래 구석에 떨어져 있었다(둘 사이를 `flex:1` 스페이서가 1,000px 벌렸다).
+          조직 ID 는 이 조직의 **사실**이므로 사실 목록 안에 있고, 감사 로그로 가는 것은
+          이 조직에 하는 **일**이므로 위 동작 줄에 있다. */}
+      {/* 카드의 마지막 절이라 아래 여백을 안 남긴다 — `Section` 기본 `mb` 가 카드 밑에
+          빈 띠로 남는다. */}
+      <Section title="정보" sx={{ mb: 0 }}>
+        <Box sx={META_GRID}>
+          <MetaRow label="식별자">{org.slug}</MetaRow>
+          <MetaRow label="포함 관계">
+            {"부서 " + (org.department_count || 0) + "개, 사용자 " + (org.user_count || 0) + "명"}
           </MetaRow>
-        ) : null}
-        <MetaRow label="삭제 안내">
-          조직은 지울 수 없습니다. 사용자와 부서가 이 조직을 가리키고 있어 지우면 그 연결이
-          끊깁니다. 대신 ‘비활성화’로 새 사용을 막으세요.
-        </MetaRow>
+          {unassigned ? (
+            <MetaRow label="부서 미지정">
+              <Link href="#/users" underline="hover">
+                {"부서가 지정되지 않은 사용자 " + unassigned + "명을 사용자 화면에서 확인합니다."}
+              </Link>
+            </MetaRow>
+          ) : null}
+          <MetaRow label="조직 ID">
+            <TechDetail label="식별자 보기">{org.id}</TechDetail>
+          </MetaRow>
+          <MetaRow label="삭제 안내" span>
+            조직은 지울 수 없습니다. 사용자와 부서가 이 조직을 가리키고 있어 지우면 그 연결이
+            끊깁니다. 대신 비활성화로 새 사용을 막으세요.
+          </MetaRow>
+        </Box>
       </Section>
-
-      <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", alignItems: "center" }}>
-        <Button size="sm" variant="ghost"
-                href={"#/audit?object_type=organization&object_id=" + org.id}>
-          감사 로그에서 보기
-        </Button>
-        <Box sx={{ flex: 1 }} />
-        <TechDetail label="조직 ID">{org.id}</TechDetail>
-      </Box>
 
       <OrgEditModal open={editing} org={org} onClose={() => setEditing(false)} />
     </Card>

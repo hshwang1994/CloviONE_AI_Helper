@@ -786,7 +786,10 @@ export function Sprint() {
                     : "팀 전체 회차라 모든 프로젝트의 티켓을 담을 수 있습니다."}
                 </Typography>
                 <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25, ...KO_WORD_BREAK }}>
-                  {`${datedLabel(body.sprint.starts_on)} ~ ${datedLabel(body.sprint.ends_on)}, 오늘 ${body.today}`}
+                  {/* 한 줄 안에서 날짜 표기가 갈리지 않는다 — 예전에는 「8/22 토 ~ 9/3 목,
+                      오늘 2026-09-03」처럼 짧은 표기와 ISO 가 섞여 있었고, 사용자는 마지막
+                      값을 다른 종류의 정보로 읽는다. */}
+                  {`${datedLabel(body.sprint.starts_on)} ~ ${datedLabel(body.sprint.ends_on)}, 오늘 ${datedLabel(body.today)}`}
                 </Typography>
                 <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25, ...KO_WORD_BREAK }}>
                   {sprintPhaseNote({ state: body.sprint.state, phase: body.phase, canPlan })}
@@ -833,10 +836,18 @@ export function Sprint() {
               },
               { label: "진행 중", value: String(summary.in_progress), kind: "info", onClick: () => openBoard() },
               { label: "남은 WD", value: String(summary.remaining_wd) },
+              /* 🔴 이 둘은 예전에 **타일 하나**였다: 값이 진도율이고 그 아래 작은 글자가
+                 기간 경과율이었다. 그런데 바로 왼쪽 「완료」 타일에서 같은 자리의 작은
+                 글자는 「전체 대비 비율」이다 — 같은 모양이 두 가지 뜻을 말하니 화면만
+                 보고는 「5%」와 「16.7%」가 무슨 사이인지 알 길이 없었다. 뜻이 둘이면
+                 타일도 둘이고, 각자 자기 이름을 든다. */
               {
-                label: "진행률",
+                label: "진도율",
                 value: body.health ? `${body.health.progress_pct}%` : "-",
-                pct: body.health ? body.health.elapsed_pct : undefined,
+              },
+              {
+                label: "기간 경과율",
+                value: body.health ? `${body.health.elapsed_pct}%` : "-",
               },
             ]}
           />
@@ -883,7 +894,9 @@ export function Sprint() {
                   <Box sx={{ width: "100%" }}>
                     <ProgressBar
                       percent={body.health.progress_pct}
-                      label={`진도 ${body.health.progress_pct}%, 기간 경과 ${body.health.elapsed_pct}%`}
+                      /* 위 타일과 **같은 낱말**을 쓴다 — 한 화면에서 같은 값이 두 이름을
+                         가지면 사용자는 둘을 다른 값으로 읽는다. */
+                      label={`진도율 ${body.health.progress_pct}%, 기간 경과율 ${body.health.elapsed_pct}%`}
                       revealKey={body.sprint.id}
                     />
                   </Box>
@@ -926,7 +939,16 @@ export function Sprint() {
                 {tab.empty}
               </Typography>
             ) : (
-              <Stack spacing={1}>
+              /* 🔴 카드 하나의 내용은 네 줄짜리 세로 묶음인데(공용 `TicketFace`), 줄을
+                 1,600px 통짜로 주면 그 넉 줄이 왼쪽 20% 에만 붙고 나머지가 빈다. 넓은
+                 화면에서는 두 벌씩 나란히 세워 폭을 **내용으로** 채운다 — 카드 자체는
+                 안 건드린다(같은 부품이 칸반의 좁은 칸에서도 선다). */
+              <Box
+                sx={{
+                  display: "grid", gap: 1,
+                  gridTemplateColumns: { xs: "1fr", xl: "repeat(2, minmax(0, 1fr))" },
+                }}
+              >
                 {bucket.items.map((row) => (
                   <DiscussRow
                     key={row.id || row.ticket_id}
@@ -944,11 +966,11 @@ export function Sprint() {
                   />
                 ))}
                 {bucket.truncated ? (
-                  <Typography variant="caption" color="text.secondary">
+                  <Typography variant="caption" color="text.secondary" sx={{ gridColumn: "1 / -1" }}>
                     {`${bucket.total}건 가운데 앞의 ${bucket.items.length}건만 보여 줍니다.`}
                   </Typography>
                 ) : null}
-              </Stack>
+              </Box>
             )}
             </Box>
           </Section>

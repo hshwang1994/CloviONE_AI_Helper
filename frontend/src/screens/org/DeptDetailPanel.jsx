@@ -10,7 +10,7 @@ import {
 } from "../../ui/kit.jsx";
 import { UserAvatar } from "../../ui/UserAvatar.jsx";
 import { handleApiError } from "../data-screen/apiError.js";
-import { KO_WORD_BREAK } from "../../ui/theme.js";
+import { KO_WORD_BREAK, PROSE_MAX_WIDTH } from "../../ui/theme.js";
 import { useDepartmentItem, useDepartmentPeople, useInvalidateOrgCaches } from "./orgQueries.js";
 import { DeptEditModal } from "./orgModals.jsx";
 
@@ -25,14 +25,30 @@ import { DeptEditModal } from "./orgModals.jsx";
 
 const PEOPLE_PREVIEW = 8;
 
-function MetaRow({ label, children }) {
+/* 조직 판(`OrgDetailPanel`)과 **같은 규칙**이다 — 두 판이 나란히 쓰이는 화면에서 한쪽만
+   다른 밀도를 가지면 그 차이가 정보의 차이로 읽힌다. 값 칸에 상한을 두고, 넓은 판에서는
+   사실 목록을 두 줄기로 나눈다. */
+function MetaRow({ label, children, span = false }) {
   return (
-    <Box sx={{ display: "grid", gridTemplateColumns: "7rem minmax(0,1fr)", gap: 1, py: 0.5 }}>
+    <Box
+      sx={{
+        display: "grid", gridTemplateColumns: "7rem minmax(0, 1fr)", gap: 1, py: 0.5,
+        ...(span ? { gridColumn: { lg: "1 / -1" } } : null),
+      }}
+    >
       <Typography variant="body2" color="text.secondary">{label}</Typography>
-      <Typography variant="body2" component="div" sx={KO_WORD_BREAK}>{children}</Typography>
+      <Typography variant="body2" component="div" sx={{ ...KO_WORD_BREAK, maxWidth: PROSE_MAX_WIDTH }}>
+        {children}
+      </Typography>
     </Box>
   );
 }
+
+const META_GRID = {
+  display: "grid",
+  columnGap: 3,
+  gridTemplateColumns: { xs: "1fr", lg: "repeat(2, minmax(0, 1fr))" },
+};
 
 function PeopleSection({ departmentId }) {
   const q = useDepartmentPeople(departmentId);
@@ -141,6 +157,16 @@ export function DeptDetailPanel({ deptId, treeRow }) {
         <Badge value={dept.active ? "사용 중" : "미사용"} kind={dept.active ? "ok" : "warn"} />
         {row.cycle ? <Badge value="상위 관계 오류" kind="danger" /> : null}
         <Box sx={{ flex: 1 }} />
+        {/* 이 부서로 가는 두 링크는 **동작 줄**에 있다 — 예전에는 카드 맨 아래에서
+            「부서 ID」와 좌우로 갈라져 있었다(조직 판과 같은 자리, 같은 이유). */}
+        <Button size="sm" variant="ghost"
+                href={"#/audit?object_type=department&object_id=" + deptId}>
+          감사 로그에서 보기
+        </Button>
+        <Button size="sm" variant="ghost"
+                href={"#/users?department_id=" + encodeURIComponent(deptId)}>
+          사용자 화면에서 보기
+        </Button>
         {dept.active
           ? <Button size="sm" variant="danger" onClick={deactivate} loading={setActive.isPending}>비활성화</Button>
           : <Button size="sm" onClick={() => setActive.mutate(true)} loading={setActive.isPending}>활성화</Button>}
@@ -166,39 +192,31 @@ export function DeptDetailPanel({ deptId, treeRow }) {
         ]}
       />
 
-      <Section title="정보">
-        <MetaRow label="조직">{dept.org_name || "-"}</MetaRow>
-        <MetaRow label="전체 경로">{row.path || dept.name}</MetaRow>
-        <MetaRow label="상위 부서">{row.parent_name || "(최상위)"}</MetaRow>
-        {row.cycle ? (
-          <MetaRow label="상위 관계 오류">
-            이 부서는 상위 관계가 고리를 이루고 있어 최상위로 끌어올려 표시했습니다.
-            ‘수정’에서 상위 부서를 다시 지정하세요.
+      <Section title="정보" sx={{ mb: 0 }}>
+        <Box sx={META_GRID}>
+          <MetaRow label="조직">{dept.org_name || "-"}</MetaRow>
+          <MetaRow label="전체 경로">{row.path || dept.name}</MetaRow>
+          <MetaRow label="상위 부서">{row.parent_name || "(최상위)"}</MetaRow>
+          <MetaRow label="부서 ID">
+            <TechDetail label="식별자 보기">{deptId}</TechDetail>
           </MetaRow>
-        ) : null}
-        <MetaRow label="삭제 안내">
-          {userCount
-            ? "사용 중인 부서(소속 인원 " + userCount + "명, 보관 계정 포함)는 삭제할 수 없습니다. 대신 ‘비활성화’를 이용하세요."
-            : childCount
-              ? "삭제하면 하위 부서 " + childCount + "개가 최상위 부서로 올라갑니다(하위 부서 자체는 지워지지 않습니다)."
-              : "이 부서는 지금 삭제할 수 있습니다."}
-        </MetaRow>
+          {row.cycle ? (
+            <MetaRow label="상위 관계 오류" span>
+              이 부서는 상위 관계가 고리를 이루고 있어 최상위로 끌어올려 표시했습니다.
+              ‘수정’에서 상위 부서를 다시 지정하세요.
+            </MetaRow>
+          ) : null}
+          <MetaRow label="삭제 안내" span>
+            {userCount
+              ? "사용 중인 부서(소속 인원 " + userCount + "명, 보관 계정 포함)는 삭제할 수 없습니다. 대신 비활성화를 이용하세요."
+              : childCount
+                ? "삭제하면 하위 부서 " + childCount + "개가 최상위 부서로 올라갑니다(하위 부서 자체는 지워지지 않습니다)."
+                : "이 부서는 지금 삭제할 수 있습니다."}
+          </MetaRow>
+        </Box>
       </Section>
 
       <PeopleSection departmentId={deptId} />
-
-      <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", alignItems: "center" }}>
-        <Button size="sm" variant="ghost"
-                href={"#/audit?object_type=department&object_id=" + deptId}>
-          감사 로그에서 보기
-        </Button>
-        <Button size="sm" variant="ghost"
-                href={"#/users?department_id=" + encodeURIComponent(deptId)}>
-          사용자 화면에서 보기
-        </Button>
-        <Box sx={{ flex: 1 }} />
-        <TechDetail label="부서 ID">{deptId}</TechDetail>
-      </Box>
 
       <DeptEditModal open={editing} dept={dept} onClose={() => setEditing(false)} />
     </Card>

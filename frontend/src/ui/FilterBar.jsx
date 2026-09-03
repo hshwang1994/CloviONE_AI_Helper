@@ -126,7 +126,13 @@ export function FilterRow({ children, sx, ...rest }) {
   return (
     <Box
       data-filter-row=""
-      sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 1.5, width: "100%", ...sx }}
+      /* 🔴 세로 정렬은 **위**다(가운데가 아니다). 이 줄의 컨트롤은 전부 같은 높이(36px)인데,
+         그중 하나가 `helperText` 를 달면 그 상자만 20px 더 커진다. 가운데 정렬이면 그
+         차이의 절반만큼 **입력칸 자체가 서로 어긋난다** — 회의 화면의 「프로젝트」와
+         「스프린트」가 11.4px 어긋나 있었고(QA `control_baseline_mismatch`), 사용자에게는
+         두 상자가 층이 진 것으로 보였다. 위로 맞추면 입력칸의 윗변이 한 줄로 서고 설명은
+         그 아래에 매달린다. */
+      sx={{ display: "flex", flexWrap: "wrap", alignItems: "flex-start", gap: 1.5, width: "100%", ...sx }}
       {...rest}
     >
       {children}
@@ -145,7 +151,13 @@ export function FilterActions({ children, sx }) {
   return (
     <Box
       data-filter-actions=""
-      sx={{ display: "flex", alignItems: "center", gap: 1, marginInlineStart: "auto", ...sx }}
+      /* 줄이 위로 맞춰졌으므로(FilterRow) 이 묶음은 **자기 안에서** 입력칸 높이만큼의
+         띠를 만들고 그 가운데에 선다 — 그래야 설명이 달린 줄에서도 단추가 입력칸과
+         같은 눈높이에 있다. */
+      sx={{
+        display: "flex", alignItems: "center", gap: 1, marginInlineStart: "auto",
+        alignSelf: "flex-start", minHeight: `${CONTROL.input}px`, ...sx,
+      }}
     >
       {children}
     </Box>
