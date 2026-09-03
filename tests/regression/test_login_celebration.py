@@ -49,14 +49,18 @@ def test_the_wait_is_capped():
     assert "Promise.race" in src, "상한과 경주시키지 않으면 상한이 무의미하다"
 
 
-def test_celebrate_is_exposed_and_respects_reduced_motion():
+def test_celebrate_is_exposed_and_never_disabled_by_os_setting():
+    """축포 연출은 OS·브라우저 설정과 무관하게 언제나 돈다 (2026-09-03 제품 결정).
+
+    예전에는 이 파일이 `prefers-reduced-motion` 이 **있는지**를 확인했다. 그 판정 하나가
+    시선 추적과 폭죽을 함께 끄고 있었고, 이 조직의 Windows 설정을 읽은 Firefox 에서
+    두 연출이 한꺼번에 사라졌다. 지금은 **없는지**를 확인한다.
+    """
     src = (STATIC / "clovi-login.js").read_text(encoding="utf-8")
 
     assert "celebrate: celebrate" in src, "login.js 가 부를 수 있게 노출돼 있어야 한다"
-    # 동작 줄이기를 켠 사용자에게는 기다리지 않는다 — 그 설정의 뜻은 "연출을 보고 싶지
-    # 않다" 이므로, 보여 주지도 않으면서 붙잡아 두면 그냥 느린 로그인이다.
-    assert "prefers-reduced-motion" in src, (
-        "동작 줄이기 설정을 무시하면 그 사용자는 이유 없이 더 오래 기다린다"
+    assert "prefersReducedMotion" not in src, (
+        "동작 줄이기 판정이 되살아났다 — 그 한 줄이 시선 추적과 축포를 함께 끈다"
     )
 
 

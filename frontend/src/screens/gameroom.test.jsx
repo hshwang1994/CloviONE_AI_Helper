@@ -1,6 +1,6 @@
 import React from "react";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import "@testing-library/jest-dom/vitest";
@@ -25,7 +25,7 @@ vi.mock("../lib/api.js", () => ({
 const confettiMock = vi.fn();
 vi.mock("canvas-confetti", () => ({ default: (...args) => confettiMock(...args) }));
 
-import { GameRoom, prefersReducedMotion } from "./GameRoom.jsx";
+import { GameRoom } from "./GameRoom.jsx";
 import { ConfirmProvider, ToastProvider } from "../ui/kit.jsx";
 import { ThemeModeProvider } from "../ui/ThemeModeProvider.jsx";
 
@@ -83,16 +83,20 @@ afterEach(() => {
   delete window.matchMedia;
 });
 
-describe("prefers-reduced-motion", () => {
-  it("동작 최소화를 켠 사용자에게는 축포를 쏘지 않는다", async () => {
+describe("축포는 OS 설정과 무관하게 터진다", () => {
+  /* 🔴 정책이 뒤집혔다 (2026-09-03 — `ui/motion.js` 머리말). 예전에는 이 자리가
+   * 「동작 최소화면 안 쏜다」를 못박았다. 지금은 **쏜다** — 이 조직의 Windows 설정을
+   * 읽은 Firefox 에서 축포가 통째로 사라진 것이 그 판정 때문이었다. */
+  it("동작 최소화를 켠 사용자에게도 축포를 쏜다", async () => {
     setMatchMedia(true);
     renderRoom();
 
-    // 결과는 그대로 보인다 — 연출만 끄는 것이지 정보를 끄는 게 아니다.
     // ('박개발'은 참여자 목록에도 있으므로 여러 번 나온다 — 당첨 무대에 나오는지가 요점이다.)
     expect(await screen.findByText("당첨")).toBeInTheDocument();
     expect(screen.getAllByText("박개발").length).toBeGreaterThan(1);
-    expect(confettiMock).not.toHaveBeenCalled();
+    await waitFor(() => expect(confettiMock).toHaveBeenCalled());
+    // 뒤 두 발은 예약된 타이머다 — 여기서 걷지 않으면 다음 시험 도중에 발사된다.
+    await new Promise((r) => setTimeout(r, 400));
   });
 
   it("기본 사용자에게는 축포를 쏘되 결과당 한 번만 쏜다", async () => {
@@ -111,9 +115,12 @@ describe("prefers-reduced-motion", () => {
     expect(confettiMock.mock.calls.length).toBe(burst);
   });
 
-  it("matchMedia가 없는 환경에서도 예외 없이 false를 돌려준다", () => {
+  it("matchMedia 가 아예 없는 환경에서도 축포는 터진다", async () => {
     delete window.matchMedia;
-    expect(prefersReducedMotion()).toBe(false);
+    renderRoom();
+    await screen.findByText("당첨");
+    await waitFor(() => expect(confettiMock).toHaveBeenCalled());
+    await new Promise((r) => setTimeout(r, 400));
   });
 });
 

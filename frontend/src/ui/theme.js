@@ -672,6 +672,17 @@ export function createClovirTheme(mode = "light", accent = DEFAULT_ACCENT) {
       },
     },
     components: {
+      /* 🔴 날짜 고르개는 **자기 힘으로** 동작 줄이기를 본다.
+       *
+       * `@mui/x-date-pickers` 의 `useReduceAnimations` 가 `prefers-reduced-motion` 을
+       * `useMediaQuery` 로 직접 읽어서, 우리가 CSS 블록을 걷어도 달력의 월 전환 슬라이드는
+       * 그대로 꺼진다. 그 훅은 `reduceAnimations` prop 이 `null`/`undefined` 가 **아닐
+       * 때만** 미디어쿼리를 건너뛰므로, 여기서 명시로 `false` 를 준다.
+       *
+       * 고르개 전체(DatePicker → DateCalendar)가 이 값을 아래로 넘기지만, 달력을 직접
+       * 쓰는 자리도 있어 둘 다 적는다 — 한쪽만 적으면 그 경로만 조용히 안 움직인다. */
+      MuiDateCalendar: { defaultProps: { reduceAnimations: false } },
+      MuiDatePicker: { defaultProps: { reduceAnimations: false } },
       MuiCssBaseline: {
         styleOverrides: {
           /* 포커스 링은 **CSS 커스텀 프로퍼티**로 캐스케이드시킨다.
@@ -702,14 +713,6 @@ export function createClovirTheme(mode = "light", accent = DEFAULT_ACCENT) {
            * overflow-wrap 은 body 에 두지 않는다 — anywhere/break-word 가 한글을 다시 자른다. */
           body: { minWidth: 320, letterSpacing: "-0.011em", wordBreak: "keep-all" },
           "*": { boxSizing: "border-box" },
-          "@media (prefers-reduced-motion: reduce)": {
-            "*, *::before, *::after": {
-              animationDuration: "0.01ms !important",
-              animationIterationCount: "1 !important",
-              transitionDuration: "0.01ms !important",
-              scrollBehavior: "auto !important",
-            },
-          },
           "input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:focus, input:-webkit-autofill:active, textarea:-webkit-autofill, select:-webkit-autofill":
             {
               WebkitBoxShadow: `0 0 0 1000px ${t.inset} inset`,

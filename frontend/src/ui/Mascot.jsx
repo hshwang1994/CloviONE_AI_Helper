@@ -7,7 +7,6 @@ import { keyframes } from "@mui/system";
 import { alpha } from "@mui/material/styles";
 import { MASCOT, MASCOT_LIVE } from "../lib/assets.js";
 import { hfracOf } from "./mascotBounds.js";
-import { prefersReducedMotion } from "./motion.js";
 import { CONTROL, FONT_SIZE, FONT_WEIGHT, RADIUS } from "./theme.js";
 
 /* 마스코트 '클로비'.
@@ -236,12 +235,10 @@ function clamp(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }
 /** 커서를 따라가는 시선. 값은 로그인 화면(`clovi-login.js::renderPointer`)과 같은 식이다 —
  * 두 자리가 다른 계산을 쓰면 같은 캐릭터가 화면마다 다른 성격이 된다.
  *
- * 동작 최소화를 켠 사람에게는 아예 안 붙는다(JS 로 켜는 연출에는 전역 CSS 규칙이 안 닿는다).
  * 탭이 안 보이면 시선을 가운데로 돌려 둔다 — 안 보이는 화면에서 rAF 를 돌릴 이유가 없다. */
 function useGaze(stageRef) {
   const [gaze, setGaze] = React.useState({ x: 0, y: 0 });
   React.useEffect(() => {
-    if (prefersReducedMotion()) return undefined;
     if (typeof window === "undefined" || typeof window.requestAnimationFrame !== "function") {
       return undefined;
     }

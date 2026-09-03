@@ -78,13 +78,17 @@ describe("useRevealOnce", () => {
     expect(frames).toHaveLength(0);
   });
 
-  it("동작 최소화를 켜면 처음부터 최종 상태다", () => {
+  /* 🔴 정책이 뒤집혔다 (2026-09-03 — `ui/motion.js` 머리말). 예전에는 여기서 처음부터
+   * 최종 상태로 그렸다. 지금은 OS 가 무엇을 말하든 똑같이 재생한다. */
+  it("동작 최소화를 켜도 연출은 그대로 재생된다", () => {
     vi.stubGlobal("matchMedia", (q) => ({
       matches: q.includes("prefers-reduced-motion"), media: q,
       addEventListener() {}, removeEventListener() {},
     }));
     render(<Probe revealKey="trend:9,9,9" />);
+    expect(state()).toBe("start");
+    expect(frames).toHaveLength(1);
+    act(() => frames.shift()());
     expect(state()).toBe("final");
-    expect(frames).toHaveLength(0);
   });
 });

@@ -5,7 +5,6 @@ import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { Badge, Button, Card, ErrorState, PageHeader, Skeleton } from "../ui/kit.jsx";
 import { FONT_WEIGHT } from "../ui/theme.js";
-import { prefersReducedMotion } from "../ui/motion.js";
 import { GAME_LABELS } from "./Games.jsx";
 import { STATUS_LABELS, STATUS_KIND } from "./game-room/constants.js";
 import { useGameRoomController } from "./game-room/useGameRoomController.js";
@@ -23,16 +22,8 @@ import { RoomSidebar } from "./game-room/RoomSidebar.jsx";
  *
  * 2026-08 MUI 재설계: screens.css의 .game-* 규칙 169줄을 화면 안 sx로 옮겼다. 이 화면은 업무
  * 위험이 가장 낮은 화면이라 연출을 조금 더 얹는다 — 승자 확정 순간에 축포 + 축하 일러스트 +
- * 마스코트(love/success)를 함께 띄운다. 다만 **동작 최소화(prefers-reduced-motion)** 를 켠
- * 사용자에게는 JS로 쏘는 축포를 아예 발사하지 않는다(CSS 애니메이션은 theme.js의 전역 규칙이 끈다). */
-
-/* 사용자가 OS에서 '동작 최소화'를 켰는지. matchMedia가 없는 환경(jsdom 등)에서는 false로 본다 —
- * 없다고 예외를 던지면 결과 화면 전체가 렌더되지 않는다.
- *
- * 구현은 ui/motion.js 로 옮겼다. 로그인 인계 연출(app/LoginHandoff.jsx)이 같은 판정을 쓰는데
- * 그 코드는 초기 로드에 들어간다 — 여기서 가져가면 게임방 화면 전체가 지연 청크에서 초기
- * 번들로 끌려 들어온다. 이 화면과 테스트의 호출부는 그대로 두려고 재수출한다. */
-export { prefersReducedMotion };
+ * 마스코트(love/success)를 함께 띄운다. 축포는 OS·브라우저 설정과 무관하게 언제나 터진다
+ * (제품 결정 — `ui/motion.js` 머리말). */
 
 export function GameRoom() {
   const { id } = useParams();

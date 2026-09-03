@@ -1,6 +1,5 @@
 import React from "react";
 import confetti from "canvas-confetti";
-import { prefersReducedMotion } from "./motion.js";
 
 /* 축포 — **일을 끝낸 순간**에만 터진다.
  *
@@ -24,14 +23,13 @@ import { prefersReducedMotion } from "./motion.js";
  * 매번 터지면 두 번째부터는 축하가 아니라 방해다. 그 판단은 부르는 쪽이 한다
  * (`celebrateIfCleared`).
  *
- * 동작 최소화는 두 겹으로 막는다: 여기서 아예 시작하지 않고(JS 로 켜는 연출에는 전역 CSS
- * 규칙이 안 닿는다), 그래도 라이브러리 옵션을 남겨 둔다.
+ * OS·브라우저의 동작 줄이기 설정은 보지 않는다 — 이 제품의 연출은 언제나 돈다
+ * (제품 결정, `ui/motion.js` 머리말).
  */
 export function celebrate() {
-  if (prefersReducedMotion()) return;
   const base = {
     spread: 74, startVelocity: 45, ticks: 200,
-    origin: { y: 0.55 }, disableForReducedMotion: true,
+    origin: { y: 0.55 },
   };
   confetti({ ...base, particleCount: 90 });
   window.setTimeout(() => confetti({ ...base, particleCount: 55, angle: 60, origin: { x: 0, y: 0.62 } }), 140);

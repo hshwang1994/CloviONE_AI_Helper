@@ -608,8 +608,8 @@ function Narrative({ narrative }) {
   );
 }
 
-/* 탭 내용이 바뀔 때의 짧은 등장. 6px 만 올라오고 끝나며, 동작 최소화를 켜면 전역 규칙이
-   길이를 0 으로 만든다(theme.js 의 prefers-reduced-motion 블록). */
+/* 탭 내용이 바뀔 때의 짧은 등장. 6px 만 올라오고 끝난다 — OS·브라우저 설정과 무관하게
+   언제나 재생된다(제품 결정, `ui/motion.js` 머리말). */
 const enterPanel = keyframes`
   from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: none; }

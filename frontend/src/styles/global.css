@@ -115,7 +115,6 @@ button { font-family: inherit; }
   font-size: 0.875rem; line-height: 1; color: var(--color-muted); pointer-events: none; transition: transform 0.15s ease;
 }
 .noti-item-main--static.is-expanded .noti-expand-caret { transform: translateY(-50%) rotate(180deg); }
-@media (prefers-reduced-motion: reduce) { .noti-expand-caret { transition: none; } }
 .noti-item-main--static.is-expanded .noti-item-title,
 .noti-item-main--static.is-expanded .noti-item-body {
   -webkit-line-clamp: unset; display: block; overflow: visible;

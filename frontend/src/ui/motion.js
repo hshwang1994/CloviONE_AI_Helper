@@ -1,39 +1,28 @@
 import React from "react";
 import { MOTION } from "./theme.js";
 
-/* 동작 줄이기(prefers-reduced-motion) 판정 한 곳.
+/* 🔴 **이 제품의 애니메이션은 OS·브라우저 설정과 무관하게 항상 돈다** (제품 결정,
+ * 2026-09-03).
  *
- * CSS 애니메이션은 theme.js 의 전역 규칙이 끈다. 그런데 **JS 가 켜는 연출**(축포처럼
- * 캔버스에 직접 그리는 것, 타이머로 좌표를 옮기는 것)에는 그 규칙이 닿지 않는다 —
- * 화면 코드가 직접 판단해서 시작하지 않아야 한다.
+ * 예전에는 여기 `prefersReducedMotion()` 이 있었고, 화면 아홉 곳과 CSS 여섯 블록이 그
+ * 하나를 보고 연출을 껐다. 실제로 벌어진 일: 이 조직의 Windows 가 「애니메이션 효과 끔」
+ * 이라 Firefox 가 `prefers-reduced-motion: reduce` 를 보고했고 — 같은 순간 Chrome 은
+ * false 였다 — 클로비의 시선 추적과 로그인 폭죽이 **한 스위치에 함께** 사라졌다.
+ * 사용자에게는 「크롬은 되는데 파이어폭스는 안 된다」로 보였다.
  *
- * 왜 별도 파일인가: 이 판정이 GameRoom.jsx 안에 있었다. 그 화면은 React.lazy 로 분리된
- * 지연 청크라, 초기 로드에 들어가는 코드가 그 함수를 쓰려고 import 하면 게임방 화면
- * 전체가 초기 번들로 끌려 들어온다(번들 예산 문제로 바로 돌아온다).
+ * 그래서 끄는 경로를 남기지 않는다. 판정 함수도, 호출부의 `if (reduced) return` 도,
+ * CSS 의 `@media (prefers-reduced-motion: reduce)` 블록도 전부 걷었다 — 함수만 false 로
+ * 바꿔 두면 죽은 가지가 아홉 군데 남아 다음 사람이 「여기서 꺼지나?」를 다시 뒤진다.
+ *
+ * 🔴 되돌릴 때 알아야 할 것: 이것은 **접근성 계약을 의도적으로 걷은 것**이다. 다시
+ * 세우려면 판정 한 곳(이 파일)과 CSS 전역 블록(`ui/theme.js` 의 MuiCssBaseline,
+ * `app/static/css/login.css`)부터 세우면 나머지가 그 아래로 붙는다.
  */
-
-/** 사용자가 OS 에서 '동작 최소화'를 켰는가.
- *
- * matchMedia 가 없는 환경(jsdom, 아주 오래된 브라우저)에서는 false 로 본다 —
- * 없다고 예외를 던지면 이 함수를 쓰는 화면이 통째로 렌더되지 않는다. */
-export function prefersReducedMotion() {
-  try {
-    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;
-    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
-    return !!(mq && mq.matches);
-  } catch (e) {
-    return false;
-  }
-}
 
 /* ── 짧은 연출 둘 ────────────────────────────────────────────────────────────
  *
- * 여기 있는 것은 **기다리게 하지 않는 연출**뿐이다. 사용자가 값을 읽기 전에 끝나야 하고
- * (`theme.js::MOTION` 이 그 예산이다), 동작 최소화를 켠 사람에게는 아예 시작하지 않는다.
- *
- * 전역 CSS 규칙이 이미 transition 을 0.01ms 로 만든다. 그래도 여기서 한 번 더 보는 이유는
- * **시작 상태** 때문이다 — 막대를 0 폭에서 켜는 연출은 전환이 없으면 「0 이었다가 갑자기
- * 최종값」이 되어 깜빡임으로 보인다. 동작 최소화면 처음부터 최종 상태로 그린다. */
+ * 여기 있는 것은 **기다리게 하지 않는 연출**뿐이다. 사용자가 값을 읽기 전에 끝나야 한다
+ * (`theme.js::MOTION` 이 그 예산이다). */
 
 /* 이미 재생한 지문. 컴포넌트가 언마운트돼도 남아야 **탭을 다시 볼 때 반복 재생되지
    않는다** — 그것이 이 Set 이 모듈 전역에 있는 유일한 이유다. 무한히 자라지 않게
@@ -67,15 +56,14 @@ export function resetRevealMemory() {
 export function useRevealOnce(key) {
   const off = key == null;
   const k = off ? "" : String(key);
-  const [shown, setShown] = React.useState(() => off || REVEALED.has(k) || prefersReducedMotion());
+  const [shown, setShown] = React.useState(() => off || REVEALED.has(k));
 
   React.useEffect(() => {
     if (off) {
       setShown(true);
       return undefined;
     }
-    const skip = REVEALED.has(k) || prefersReducedMotion()
-      || typeof requestAnimationFrame !== "function";
+    const skip = REVEALED.has(k) || typeof requestAnimationFrame !== "function";
     rememberReveal(k);
     if (skip) {
       setShown(true);
@@ -110,7 +98,6 @@ export function useAutoHeight() {
   const [moving, setMoving] = React.useState(false);
 
   React.useEffect(() => {
-    if (prefersReducedMotion()) return undefined;
     if (typeof ResizeObserver !== "function") return undefined;
     const node = ref.current;
     if (!node) return undefined;

@@ -28,7 +28,6 @@ import {
   useToast,
 } from "../ui/kit.jsx";
 import { DetailLayout } from "../ui/DetailLayout.jsx";
-import { prefersReducedMotion } from "../ui/motion.js";
 import { DocComments } from "./DocComments.jsx";
 import { UserAvatar } from "../ui/UserAvatar.jsx";
 import { ProjectPicker } from "../ui/ProjectPicker.jsx";
@@ -188,7 +187,7 @@ function useBlockAnchor(blockId, ready) {
       if (target) {
         target.scrollIntoView({
           block: "center",
-          behavior: prefersReducedMotion() ? "auto" : "smooth",
+          behavior: "smooth",
         });
         target.classList.add("k-cited");
         window.setTimeout(() => target.classList.remove("k-cited"), 2400);

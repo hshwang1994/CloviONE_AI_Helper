@@ -50,7 +50,6 @@ import { TableHeaderCell } from "./TableHeaderCell.jsx";
 import { DateField } from "./DateField.jsx";
 import { VirtualTableBody, WindowVirtualTableBody, useScrollMargin } from "./VirtualRows.jsx";
 import { loginUrl, redirectToLogin } from "../lib/sessionRedirect.js";
-import { prefersReducedMotion } from "./motion.js";
 
 /* ClovirONE 공통 UI 키트 — 카드/배지/버튼/상태/빈 화면/스켈레톤을 한 규칙으로 그린다.
  *
@@ -2730,7 +2729,7 @@ export function FormModal({ open, title, fields, initial, submitLabel, onSubmit,
   React.useEffect(() => {
     if (!errField) return;
     const el = document.getElementById("ff-" + errField);
-    if (el) { try { el.scrollIntoView({ block: "center", behavior: prefersReducedMotion() ? "auto" : "smooth" }); el.focus({ preventScroll: true }); } catch (e) { /* ignore */ } }
+    if (el) { try { el.scrollIntoView({ block: "center", behavior: "smooth" }); el.focus({ preventScroll: true }); } catch (e) { /* ignore */ } }
   }, [errField]);
   /* 조건부 필드 (사용자 지적 #15).
    *

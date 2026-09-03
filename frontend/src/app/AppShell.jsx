@@ -41,7 +41,6 @@ import { useDocumentTitle, brand, setBrand } from "./documentTitle.js";
 import { useRouteAnnounce } from "./routeAnnounce.js";
 import { recordNavVisit } from "../lib/recentNav.js";
 import { Card, CrumbRootProvider, ErrorState, Skeleton } from "../ui/kit.jsx";
-import { prefersReducedMotion } from "../ui/motion.js";
 import { Banners } from "./Banners.jsx";
 import { useStatusNotices } from "./StatusNotices.jsx";
 import { NOTI_UNREAD, invalidateNotifications, notiUnreadKey } from "./notification-keys.js";
@@ -390,7 +389,7 @@ function SidebarNav({ groups, activePath, onNavigate, userId, showFilter, groups
     const el = activeItemRef.current;
     if (!el) return;
     try {
-      el.scrollIntoView({ block: "nearest", behavior: prefersReducedMotion() ? "auto" : "smooth" });
+      el.scrollIntoView({ block: "nearest", behavior: "smooth" });
     } catch (e) { /* ignore */ }
   }, [activePath]);
 

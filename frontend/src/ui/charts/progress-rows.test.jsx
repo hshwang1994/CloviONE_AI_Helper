@@ -1,6 +1,6 @@
 import React from "react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 
 /* 기간별 달성 비율 묶음이 지키는 것 셋.
@@ -31,7 +31,8 @@ function widths() {
 
 beforeEach(() => {
   resetRevealMemory();
-  // 연출 없이 최종 상태로 그리게 한다 — 이 시험이 재는 것은 폭이지 전환이 아니다.
+  // matchMedia 를 세워 두는 것은 부품이 부를 수 있어서다. 이 값으로 연출이 꺼지지는
+  // 않는다 — 이 제품의 연출은 OS 설정과 무관하게 돈다(`ui/motion.js` 머리말).
   vi.stubGlobal("matchMedia", (q) => ({
     matches: q.includes("prefers-reduced-motion"), media: q,
     addEventListener() {}, removeEventListener() {},
@@ -52,11 +53,11 @@ describe("ProgressRows", () => {
     expect(widths()[0]).toBeNull();
   });
 
-  it("막대는 value/total 비율이고 100 을 넘지 않는다", () => {
+  it("막대는 value/total 비율이고 100 을 넘지 않는다", async () => {
     render(<ProgressRows items={ROWS} revealKey="t:1" />);
-    const w = widths();
-    expect(w[1]).toBe(25);   // 3 / 12
-    expect(w[2]).toBe(100);  // 2 / 2
+    // 지문을 주면 0 에서 자라는 연출이 붙는다 — 재는 것은 그 **끝값**이다.
+    await waitFor(() => expect(widths()[1]).toBe(25));   // 3 / 12
+    expect(widths()[2]).toBe(100);                        // 2 / 2
   });
 
   it("값이 숫자가 아닌 줄은 버린다 — 없는 값을 0 으로 그리지 않는다", () => {

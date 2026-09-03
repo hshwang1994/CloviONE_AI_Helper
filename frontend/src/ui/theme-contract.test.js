@@ -741,9 +741,21 @@ describe("모션은 상태 전달용이다", () => {
     }
   });
 
-  it("reduced-motion 을 전역에서 존중한다", () => {
+  /* 🔴 정책이 **뒤집혔다** (2026-09-03 제품 결정 — `ui/motion.js` 머리말).
+   * 이 자리에는 전역 `@media (prefers-reduced-motion: reduce)` 블록이 있었고, 그것이
+   * 이 조직의 Windows 설정(애니메이션 효과 끔)을 읽은 Firefox 에서 화면 전체의 전이를
+   * 0.01ms 로 만들고 있었다. 끄는 경로는 남기지 않는다. */
+  it("동작 줄이기 설정으로 애니메이션을 끄는 전역 블록이 없다", () => {
     const css = createClovirTheme("light").components.MuiCssBaseline.styleOverrides;
-    expect(css["@media (prefers-reduced-motion: reduce)"]).toBeTruthy();
+    expect(css["@media (prefers-reduced-motion: reduce)"]).toBeUndefined();
+  });
+
+  it("날짜 고르개가 스스로 애니메이션을 끄지 못하게 못박는다", () => {
+    // `@mui/x-date-pickers` 의 useReduceAnimations 는 prop 이 null 이 아닐 때만
+    // 미디어쿼리를 건너뛴다 — 명시 false 가 아니면 달력 슬라이드가 조용히 꺼진다.
+    const c = createClovirTheme("light").components;
+    expect(c.MuiDateCalendar.defaultProps.reduceAnimations).toBe(false);
+    expect(c.MuiDatePicker.defaultProps.reduceAnimations).toBe(false);
   });
 });
 

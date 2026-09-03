@@ -16,7 +16,7 @@ import { fileURLToPath } from "node:url";
  * (저장소 불변 규칙 6). 그래서 **실제로 사용자가 보는 코드**를 시험한다:
  *
  *   1층 로그인 페이지(바닐라 JS) — 누른 뒤의 진행 표시, 실패 시 축하하지 않기,
- *                                  동작 줄이기에서 시선 추적을 멈추기.
+ *                                  OS 설정과 무관하게 시선 추적이 도는 것.
  *   2층 SPA 인계(React)         — 로그인 페이지가 남긴 표식을 받아 첫 화면까지 이어지는
  *                                  환영 연출(폭죽 + 클로비). 이 층이 "뚝 끊긴다" 를 메운다.
  *
@@ -130,7 +130,15 @@ function respondWith(payload, ok = true) {
   return fetchMock;
 }
 
+/* 성공 경로는 연출을 **끝까지 기다린 뒤에야** 표식을 찍는다(clovi-login.js 900ms,
+   login.js 상한 1200ms). 그 타이머가 다음 시험 도중에 발사되면 찍히면 안 되는 자리에
+   표식이 생긴다 — 동작 줄이기 갈래가 있던 시절에는 그 갈래가 즉시 resolve 해서 안 보였다.
+   제출한 시험은 afterEach 에서 끝까지 흘려 보낸다. */
+let submitted = false;
+const FLOW_DRAIN_MS = 1400;
+
 async function submitLogin(ui, { email = "hong@example.com", password = "pw123456" } = {}) {
+  submitted = true;
   ui.email.value = email;
   ui.password.value = password;
   ui.form.dispatchEvent(new window.Event("submit", { bubbles: true, cancelable: true }));
@@ -147,6 +155,10 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
+  if (submitted) {
+    await tick(FLOW_DRAIN_MS);
+    submitted = false;
+  }
   // 축포는 가운데 → 왼쪽 → 오른쪽으로 나뉘어 130ms·240ms 뒤에 두 번 더 터진다(예약된 타이머).
   // 여기서 비우지 않으면 그 타이머가 **다음 테스트** 도중에 발사돼, 쏘지 않아야 하는 자리에서
   // 쏜 것으로 잡힌다. 실제로 이 파일에서 한 번 그렇게 깨졌다.
@@ -211,13 +223,17 @@ describe("진행 표시", () => {
 describe("첫 화면까지 이어지는 전환", () => {
   it("성공하면 이동 직전에 SPA 가 읽을 인계 표식을 남긴다", async () => {
     respondWith({ ok: true, next: "/#/me" });
-    const ui = bootLoginPage({ reduce: true }); // 동작 줄이기 = 연출 대기 없음 → 바로 이동
+    // 연출 대기(clovi-login.js 의 CELEBRATE_MS 900ms)는 이제 OS 설정과 무관하게 붙는다.
+    // 표식은 그 뒤에 찍히므로, 상한(CELEBRATE_CAP_MS 1200ms)까지 기다려 본다.
+    const ui = bootLoginPage({ reduce: true });
 
     await submitLogin(ui);
-    await tick(30);
+    await waitFor(
+      () => expect(window.sessionStorage.getItem(LOGIN_HANDOFF_KEY)).toBeTruthy(),
+      { timeout: 2500 },
+    );
 
     const raw = window.sessionStorage.getItem(LOGIN_HANDOFF_KEY);
-    expect(raw).toBeTruthy();
     expect(Number(raw)).toBeGreaterThan(0);
     expect(Date.now() - Number(raw)).toBeLessThan(HANDOFF_FRESH_MS);
   });
@@ -292,13 +308,16 @@ describe("동작 줄이기: 로그인 페이지", () => {
     expect(ui.stage.style.getPropertyValue("--eye-x")).not.toBe("0px");
   });
 
-  it("동작 줄이기를 켜면 눈이 움직이지 않는다", async () => {
+  /* 정책이 뒤집혔다 (2026-09-03 — `ui/motion.js` 머리말). 예전에는 여기서 눈이 굳는 것을
+   * 못박았다. 이 조직의 Windows 가 「애니메이션 효과 끔」이라 Firefox 가 reduce 를 보고했고,
+   * 사용자에게는 그것이 「크롬은 되는데 파이어폭스는 안 된다」로 보였다. 지금은 설정과
+   * 무관하게 따라간다. */
+  it("동작 줄이기를 켜도 눈은 포인터를 따라간다", async () => {
     const ui = bootLoginPage({ reduce: true });
 
     await movePointerAndSettle();
 
-    expect(ui.stage.style.getPropertyValue("--eye-x")).toBe("0px");
-    // 표정과 말풍선(정보)은 그대로다. 끄는 것은 움직임이지 정보가 아니다.
+    expect(ui.stage.style.getPropertyValue("--eye-x")).not.toBe("0px");
     expect(ui.stage.dataset.state).toBe("idle");
     expect(ui.message.textContent).toBe("오늘 업무를 준비했어요");
   });
@@ -401,15 +420,14 @@ describe("동작 줄이기: 로그인 페이지", () => {
     expect(ui.stage.style.getPropertyValue("--eye-x"), "비밀번호를 치는 동안 눈이 따라다닌다").toBe(looksAway);
   });
 
-  it("login.css 가 동작 줄이기에서 애니메이션을 중립화한다", () => {
-    // 이 화면에는 SPA 의 theme.js 전역 규칙이 닿지 않는다(Jinja 라 MUI 가 없다).
-    // 그래서 같은 규칙이 이 파일에 따로 있어야 한다.
-    const block = LOGIN_CSS.match(/@media\s*\(prefers-reduced-motion:\s*reduce\)\s*\{[\s\S]*?\n\}/);
-    expect(block, "login.css 에 동작 줄이기 블록이 없다").toBeTruthy();
-    const body = block[0];
-    expect(body).toMatch(/animation-duration:\s*[^;]*!important/);
-    expect(body).toMatch(/animation-iteration-count:\s*1\s*!important/);
-    expect(body).toMatch(/transition-duration:\s*[^;]*!important/);
+  /* 정책이 뒤집혔다: 이 블록은 **없어야** 한다. 로그인 화면은 Jinja 라 SPA 의 theme.js
+   * 전역 규칙이 안 닿으므로, 여기 한 줄이 남아 있으면 이 화면만 조용히 다시 굳는다. */
+  it("login.css 에 애니메이션을 끄는 동작 줄이기 블록이 없다", () => {
+    expect(LOGIN_CSS).not.toMatch(/@media\s*\(prefers-reduced-motion/);
+  });
+
+  it("clovi-login.js 에 동작 줄이기 판정이 없다 — 그 한 줄이 시선과 축포를 함께 끈다", () => {
+    expect(CLOVI_JS).not.toMatch(/prefersReducedMotion|prefers-reduced-motion/);
   });
 });
 
@@ -536,21 +554,21 @@ describe("SPA 인계 연출", () => {
   });
 });
 
-describe("동작 줄이기: SPA 인계 연출", () => {
-  it("폭죽은 쏘지 않지만 같은 정보는 그대로 전한다", async () => {
+describe("동작 줄이기 설정과 무관한 SPA 인계 연출", () => {
+  /* 정책이 뒤집혔다 (2026-09-03 — `ui/motion.js` 머리말): 동작 줄이기를 켠 화면에서도
+   * 폭죽과 진행 막대가 그대로 있다. 정보가 같은 것은 예전과 같다. */
+  it("폭죽도 진행 막대도 동작 줄이기와 무관하게 그대로 있다", async () => {
     setMatchMedia({ reduce: true });
     markHandoff();
 
     renderHandoff({ ready: false });
     await act(async () => { await tick(10); });
 
-    // 정보: 문구와 클로비는 기본 사용자와 똑같이 보인다.
     expect(screen.getByText("로그인되었습니다")).toBeInTheDocument();
     expect(screen.getByText("업무 공간을 준비하고 있습니다")).toBeInTheDocument();
     expect(screen.getByRole("img", { name: "클로비가 인사합니다" })).toBeInTheDocument();
-    // 연출: 폭죽과 진행 막대(둘 다 움직임)는 없다.
-    expect(confettiMock).not.toHaveBeenCalled();
-    expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
+    expect(screen.getByRole("progressbar")).toBeInTheDocument();
+    await waitFor(() => expect(confettiMock).toHaveBeenCalled());
   });
 
   it("기본 사용자에게는 진행 막대가 있다", async () => {

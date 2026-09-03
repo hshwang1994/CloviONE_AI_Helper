@@ -78,7 +78,8 @@ describe("사이드바 활성 항목 스크롤 (VIS-113)", () => {
     );
   });
 
-  it("동작 최소화 사용자에게는 behavior: auto로 스크롤한다", async () => {
+  /* 🔴 정책이 뒤집혔다 (2026-09-03 — `ui/motion.js` 머리말): 설정과 무관하게 같은 값이다. */
+  it("동작 최소화를 켠 사용자에게도 behavior: smooth 로 스크롤한다", async () => {
     setMatchMedia(true);
     const scrollSpy = vi.fn();
     Element.prototype.scrollIntoView = scrollSpy;
@@ -87,7 +88,7 @@ describe("사이드바 활성 항목 스크롤 (VIS-113)", () => {
     await waitFor(() => expect(screen.getByText("본문")).toBeInTheDocument());
 
     expect(scrollSpy).toHaveBeenCalledWith(
-      expect.objectContaining({ block: "nearest", behavior: "auto" }),
+      expect.objectContaining({ block: "nearest", behavior: "smooth" }),
     );
   });
 });

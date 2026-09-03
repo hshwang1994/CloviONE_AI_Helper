@@ -44,7 +44,6 @@
    같은 --shadow-dropdown을 쓰는데 여기만 14px이라 나란히 보면 어긋났다. */
 .noti-pop { position: absolute; top: 46px; right: 0; width: 340px; max-width: 92vw; background: var(--color-card); color: var(--color-text); border: 1px solid var(--color-border); border-radius: var(--radius-lg, 14px); box-shadow: var(--shadow-dropdown); z-index: 70; overflow: hidden; animation: noti-in 0.15s ease; }
 @keyframes noti-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
-@media (prefers-reduced-motion: reduce) { .noti-pop { animation: none; } }
 .noti-pop-head { display: flex; align-items: center; justify-content: space-between; padding: var(--space-md, 12px) var(--space-lg, 16px); border-bottom: 1px solid var(--color-border); font-weight: var(--fw-semibold, 600); font-size: 0.875rem; }
 .noti-pop-body { max-height: 60vh; overflow-y: auto; }
 .noti-loading { padding: var(--space-lg, 16px); }
@@ -358,6 +357,18 @@
   transition: box-shadow 240ms ease-out;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .k-cited { transition: none; }
+/* 라이트박스(yet-another-react-lightbox)는 **자기 CSS 로** 동작 줄이기에서 전이를 지운다.
+   이 제품의 연출은 OS·브라우저 설정과 무관하게 돈다(제품 결정 — ui/motion.js 머리말)이라
+   같은 미디어쿼리 안에서 원래 값으로 되돌린다.
+
+   `revert` 를 쓰지 않는다 — 그건 앞선 author 규칙이 아니라 UA 기본으로 돌아가므로 전이가
+   아예 사라진다. vendor 가 적어 둔 값을 그대로 다시 적는다(styles.css 의 .yarl__portal ·
+   .yarl__slide_loading). 번들에서 어느 쪽이 뒤에 오는지 보장할 수 없어 !important 다. */
+@media (prefers-reduced-motion) {
+  .yarl__portal {
+    transition: opacity var(--yarl__fade_animation_duration, .25s)
+      var(--yarl__fade_animation_timing_function, ease) !important;
+  }
+  .yarl__slide_loading { animation: yarl__delayed_fadein 1s linear !important; }
+  .yarl__slide_loading line { animation: yarl__stroke_opacity 1s linear infinite !important; }
 }

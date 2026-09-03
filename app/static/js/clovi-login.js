@@ -82,23 +82,6 @@
 
   const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 
-  /* 동작 줄이기 판정 한 곳. 매번 다시 묻는다 — OS 설정은 페이지를 열어 둔 채로도 바뀐다.
-   *
-   * CSS 애니메이션은 login.css 의 @media 블록이 끈다. 그런데 **JS 가 켜는 움직임**에는
-   * 그 규칙이 닿지 않는다: 포인터를 따라 눈이 계속 움직이는 것이 그것이다. 시선 추적은
-   * transform 값을 초당 수십 번 바꾸는 것이라, 지속 시간을 0으로 만들어도 눈은 여전히
-   * 화면 위를 돌아다닌다. 시작하지 않는 것 말고는 끄는 방법이 없다.
-   *
-   * matchMedia 가 없는 브라우저는 false 로 본다 — 여기서 예외가 나면 표현 계층 전체가
-   * 죽어 스피너도 표정도 멈춘다. */
-  const prefersReducedMotion = () => {
-    try {
-      return !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
-    } catch (e) {
-      return false;
-    }
-  };
-
   const clearCloviTimer = () => {
     if (cloviTimer) window.clearTimeout(cloviTimer);
     cloviTimer = 0;
@@ -167,9 +150,6 @@
   };
 
   const handlePointerMove = (event) => {
-    // 동작 줄이기를 켠 사용자에게는 시선을 아예 움직이지 않는다. 표정(data-state)과 말풍선은
-    // 그대로 바뀌므로 전해지는 정보는 같다 — 끄는 것은 움직임이지 정보가 아니다.
-    if (prefersReducedMotion()) return;
     // 터치는 제외한다 — 탭할 때마다 눈이 순간이동하고, 히어로는 좁은 화면에서 숨는다.
     if (event.pointerType && ["mouse", "pen"].indexOf(event.pointerType) === -1) return;
     latestPointer = { x: event.clientX, y: event.clientY };
@@ -324,12 +304,13 @@
    * 그래서 `login.js` 가 이동 **전에** 이걸 부르고 기다린다. 반환 promise 는 애니메이션
    * 길이(760ms)와 여유를 더한 뒤 resolve 한다.
    *
-   * 동작 줄이기(prefers-reduced-motion)를 켠 사용자에게는 기다리지 않는다 — 그 설정의 뜻은
-   * "연출을 보고 싶지 않다" 이므로, 보여 주지도 않으면서 붙잡아 두면 그냥 느린 로그인이다. */
+   * 예전에는 동작 줄이기를 켠 사용자에게 이 기다림을 건너뛰었다. 지금은 OS·브라우저 설정을
+   * 보지 않는다 — 이 제품의 연출은 언제나 돈다(제품 결정, `frontend/src/ui/motion.js`
+   * 머리말). 상한은 login.js 의 `CELEBRATE_CAP_MS` 가 따로 들고 있어서, 연출이 늦어도
+   * 로그인이 붙잡히지는 않는다. */
   const CELEBRATE_MS = 900;
   const celebrate = () => {
     markSuccess();
-    if (prefersReducedMotion()) return Promise.resolve();
     return new Promise((resolve) => window.setTimeout(resolve, CELEBRATE_MS));
   };
 

@@ -4,7 +4,6 @@ import LinearProgress from "@mui/material/LinearProgress";
 import Typography from "@mui/material/Typography";
 import { keyframes } from "@mui/system";
 import { MascotPose } from "../ui/Mascot.jsx";
-import { prefersReducedMotion } from "../ui/motion.js";
 
 /* 로그인 화면과 첫 화면을 잇는 인계 연출 (12단계).
  *
@@ -104,7 +103,7 @@ async function fireWelcomeConfetti() {
     return;
   }
   const base = {
-    spread: 70, startVelocity: 42, ticks: 160, disableForReducedMotion: true,
+    spread: 70, startVelocity: 42, ticks: 160,
     zIndex: CONFETTI_Z,
   };
   confetti({ ...base, particleCount: 70, origin: { y: 0.5 } });
@@ -118,17 +117,12 @@ async function fireWelcomeConfetti() {
 export function LoginHandoff({ ready = true }) {
   const [open, setOpen] = useState(hasFreshHandoff);
   const [minElapsed, setMinElapsed] = useState(false);
-  // 렌더 중에 읽는다. 마운트 이후에 이 값이 바뀌어도 이 연출은 1초 안에 끝나므로
-  // 구독할 이유가 없다(구독하면 화면마다 리스너가 하나씩 는다).
-  const reduced = prefersReducedMotion();
 
   useEffect(() => {
     if (!open) return undefined;
     // 한 번 쓰면 지운다. 새로고침마다 축하하면 그건 축하가 아니라 소음이다.
     clearHandoff();
-    // 움직임에 민감한 사람에게 폭죽은 고통이다. 여기서 아예 쏘지 않는다 —
-    // JS 로 그리는 캔버스에는 theme.js 의 전역 CSS 규칙이 닿지 않는다.
-    if (!reduced) fireWelcomeConfetti();
+    fireWelcomeConfetti();
 
     const minTimer = window.setTimeout(() => setMinElapsed(true), MIN_VISIBLE_MS);
     const maxTimer = window.setTimeout(() => setOpen(false), MAX_VISIBLE_MS);
@@ -136,8 +130,6 @@ export function LoginHandoff({ ready = true }) {
       window.clearTimeout(minTimer);
       window.clearTimeout(maxTimer);
     };
-    // reduced 는 마운트 시점 값 하나만 쓴다(위 주석).
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   useEffect(() => {
@@ -173,11 +165,7 @@ export function LoginHandoff({ ready = true }) {
         <Typography variant="body2" color="text.secondary">
           업무 공간을 준비하고 있습니다
         </Typography>
-        {/* 진행 막대는 움직임 그 자체라 동작 줄이기에서는 그리지 않는다. 없어지는 것이
-            아니라 위의 문구가 같은 정보를 대신 전한다(사라지는 게 아니라 대체다). */}
-        {reduced ? null : (
-          <LinearProgress aria-label="첫 화면을 준비하는 중" sx={{ width: 180, height: 4, borderRadius: 2, mt: 0.5 }} />
-        )}
+        <LinearProgress aria-label="첫 화면을 준비하는 중" sx={{ width: 180, height: 4, borderRadius: 2, mt: 0.5 }} />
       </Box>
     </Box>
   );
