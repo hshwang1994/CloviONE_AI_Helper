@@ -80,3 +80,37 @@ Object.defineProperty(HTMLElement.prototype, "offsetWidth", {
   configurable: true,
   get() { return this.hasAttribute("data-index") ? 800 : 800; },
 });
+
+/* jsdom 에는 **캔버스 2D 컨텍스트가 없다.** `getContext` 를 부르면 「Not implemented」를
+ * 콘솔에 뱉고 `null` 을 돌려준다. 축포(`ui/celebrate.js` → canvas-confetti)가 그 null 에
+ * `clearRect` 를 부르는 순간 **처리되지 않은 오류**가 나고, 그것이 rAF 타이머 안이라
+ * 어느 시험이 낸 것인지도 안 보인다(실제로 「98건 초록 + 오류 1」로 나타났다).
+ *
+ * 축포를 **재는** 시험은 각자 `vi.mock("canvas-confetti")` 로 모듈을 통째로 대신하므로 이
+ * stub 을 안 지난다. 여기서 채우는 것은 축하를 재지 않는 화면(문서 목록 등)이 축하를 부르는
+ * 코드를 그냥 지나가게 하려는 것이다 — `ResizeObserver` 를 여기서 대신 주는 것과 같은 이유다.
+ *
+ * 그림을 검사하는 시험이 없으므로 **아무것도 그리지 않는** no-op 이면 충분하다. 메서드를
+ * 하나씩 적지 않고 Proxy 로 받는다: 라이브러리가 부르는 목록이 판마다 다르고, 하나 빠지면
+ * 증상이 다시 「타이머 안의 정체불명 오류」이기 때문이다. 값을 쓰는 자리(fillStyle 등)는
+ * 그대로 저장된다. */
+if (typeof HTMLCanvasElement !== "undefined") {
+  HTMLCanvasElement.prototype.getContext = function getContext() {
+    const store = new Map();
+    return new Proxy(
+      { canvas: this },
+      {
+        get(target, key) {
+          if (key === "canvas") return target.canvas;
+          if (store.has(key)) return store.get(key);
+          // 모르는 이름은 전부 no-op 함수다 — 그리기 호출이 조용히 지나간다.
+          return () => undefined;
+        },
+        set(target, key, value) {
+          store.set(key, value);
+          return true;
+        },
+      }
+    );
+  };
+}

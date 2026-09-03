@@ -48,7 +48,10 @@ import { useQueryState } from "../lib/useQueryState.js";
 import { TICKET_AUTO_MAX_ROWS, useAssigneeOptions, useTicketList, useTicketMeta, useTicketProjects, useWorkStatuses, statusOptions, ticketProjectId, ticketRows } from "./ticket-options.js";
 import { ListFooter } from "../ui/InfiniteScroll.jsx";
 import { invalidateTicketViews } from "./ticket-views.js";
-import { useCelebrateOnCleared, celebrateIfCompleted, doneStatusKeys } from "../ui/celebrate.js";
+import {
+  useCelebrateOnCleared, celebrateIfCompleted, doneStatusKeys,
+  celebrateIfStarted, inProgressStatusKeys,
+} from "../ui/celebrate.js";
 import { bulkFailureNote, fmtDateTime } from "../lib/format.js";
 import { NumberCell, DateCell } from "../ui/cells.jsx";
 import { TableHeaderCell } from "../ui/TableHeaderCell.jsx";
@@ -662,6 +665,7 @@ export function TicketEditModal({ ticket, open, onClose }) {
      (`useWorkStatuses`, 5분 캐시·같은 키) 요청이 늘지 않는다. */
   const statusesQ = useWorkStatuses(open);
   const doneKeys = React.useMemo(() => doneStatusKeys(statusesQ.data), [statusesQ.data]);
+  const startedKeys = React.useMemo(() => inProgressStatusKeys(statusesQ.data), [statusesQ.data]);
   const [form, setForm] = React.useState(null);
   React.useEffect(() => {
     if (!open || !ticket) { setForm(null); return; }
@@ -699,7 +703,10 @@ export function TicketEditModal({ ticket, open, onClose }) {
       toast("티켓을 저장했습니다.", "success");
       invalidateTicketViews(qc);
       onClose();
-      celebrateIfCompleted(changes && changes.status, doneKeys);
+      // 끝냈으면 축포, 시작했으면 클로버 한 줌. 겹침 방지가 한 벌만 통과시키므로
+      // 둘을 나란히 불러도 두 번 터지지 않는다.
+      const moved = changes && changes.status;
+      if (!celebrateIfCompleted(moved, doneKeys)) celebrateIfStarted(moved, startedKeys);
     },
     onError: (e) => { toast((e && e.message) || "저장하지 못했습니다. 잠시 후 다시 시도해 주세요.", "error"); },
   });
@@ -1176,6 +1183,7 @@ export function useInlineStatusEdit() {
   const workQ = useWorkStatuses(true);
   // 편집 모달과 같은 규칙이다 — 목록에서 그 자리에서 완료로 바꾼 것도 끝낸 것이다.
   const doneKeys = React.useMemo(() => doneStatusKeys(workQ.data), [workQ.data]);
+  const startedKeys = React.useMemo(() => inProgressStatusKeys(workQ.data), [workQ.data]);
   const options = ((workQ.data && workQ.data.statuses) || []).map((st) => ({
     value: st.key,
     // 저장값과 표시값이 다른 것이 하나 있다(`진행` → `진행 중`). 서버가 준 라벨을 쓴다.
@@ -1193,10 +1201,12 @@ export function useInlineStatusEdit() {
       // 서버가 돌려준 값이 정본이다. 안 주면 넘긴 값을 쓴다(`InlineEdit` 의 §정직한 성공).
       const saved = (res && res.ticket && res.ticket.status) || next;
       // 원래 값과 같으면 옮긴 것이 아니다 — 같은 값을 다시 고른 저장에는 축하하지 않는다.
-      if (saved !== ticket.status) celebrateIfCompleted(saved, doneKeys);
+      if (saved !== ticket.status && !celebrateIfCompleted(saved, doneKeys)) {
+        celebrateIfStarted(saved, startedKeys);
+      }
       return saved;
     },
-  }), [JSON.stringify(options), qc, doneKeys]);   // eslint-disable-line react-hooks/exhaustive-deps
+  }), [JSON.stringify(options), qc, doneKeys, startedKeys]);   // eslint-disable-line react-hooks/exhaustive-deps
 }
 
 

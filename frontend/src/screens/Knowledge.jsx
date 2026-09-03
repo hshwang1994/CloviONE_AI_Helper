@@ -37,6 +37,7 @@ import { KnowledgeFilterBar } from "./knowledge/KnowledgeFilterBar.jsx";
 import { buildDocumentColumns } from "./knowledge/documentColumns.jsx";
 import { TaxonomyManager } from "./knowledge/TaxonomyManager.jsx";
 import { NewDocumentModal } from "./knowledge/NewDocumentModal.jsx";
+import { celebrateCreated } from "../ui/celebrate.js";
 
 /* 문서 작업공간 — 상단 탐색 줄 · 좌측 구조 내비 · 목록 (지시 22.4 개정).
  *
@@ -308,6 +309,10 @@ export function Knowledge() {
       invalidate();
       setNewDoc(null);
       navigate(`/knowledge/${doc.id}`, { state: { from: LIST_KEY } });
+      /* 새 문서 한 장은 **만든 것**이지 끝낸 것이 아니다 — 완료 축포보다 가벼운
+         네잎클로버 한 줌이 피어오른다(`ui/celebrate.js` 의 두 무게). 이동한 뒤에
+         부르는 이유: 종잇조각이 목록이 아니라 방금 만든 문서 위로 쏟아져야 한다. */
+      celebrateCreated();
     },
     onError: (e) => toast(e.message, "error"),
   });

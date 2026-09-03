@@ -14,6 +14,8 @@ vi.mock("canvas-confetti", () => ({ default: (...a) => confettiSpy(...a) }));
 import {
   celebrateIfCleared, useCelebrateOnCleared, resetBurstCooldown,
   celebrateIfCompleted, celebrateIfCompletedCategory, doneStatusKeys,
+  celebrateIfStarted, celebrateIfStartedCategory, inProgressStatusKeys,
+  celebrateCreated, celebrateMoved, celebrate, CLOVER_PATH, CLOVER_COLORS,
 } from "./celebrate.js";
 
 function Probe({ total, token }) {
@@ -148,5 +150,107 @@ describe("겹쳐 터지지 않는다", () => {
     // 같은 동작이 만든 두 번째 신호(목록이 비었다).
     celebrateIfCleared(0);
     expect(confettiSpy.mock.calls.length).toBe(first);
+  });
+});
+
+/* ── 자리마다 다른 무게 (사용자 요청) ────────────────────────────────────────
+ *
+ * "뭔가 진행 중으로 바꾸면 나오고 문서 새로 만들면 뭐가 나오고 그런거 있잖아. 문서
+ * 만들었을때 네잎클로버 폭죽 나오는건 좋음."
+ *
+ * 그래서 세 무게다: 끝냄(축포 세 발) · 만듦(클로버 한 줌) · 움직임(작은 클로버). */
+describe("자리마다 무게가 다르다", () => {
+  const STATUSES = {
+    statuses: [
+      { key: "계획", category: "OPEN" },
+      { key: "진행", category: "IN_PROGRESS" },
+      { key: "검증", category: "IN_PROGRESS" },
+      { key: "완료", category: "DONE" },
+      { key: "취소", category: "CANCELED" },
+    ],
+  };
+
+  it("하는 중 갈래는 둘이다 — 화면이 상태 이름을 적지 않는다", () => {
+    expect([...inProgressStatusKeys(STATUSES)].sort()).toEqual(["검증", "진행"]);
+    expect(inProgressStatusKeys(undefined).size).toBe(0);
+  });
+
+  it("진행으로 옮기면 터지고, 계획으로 되돌리면 안 터진다", () => {
+    expect(celebrateIfStarted("진행", inProgressStatusKeys(STATUSES))).toBe(true);
+    expect(confettiSpy).toHaveBeenCalled();
+    confettiSpy.mockClear();
+    resetBurstCooldown();
+    expect(celebrateIfStarted("계획", inProgressStatusKeys(STATUSES))).toBe(false);
+    expect(celebrateIfStarted(undefined, inProgressStatusKeys(STATUSES))).toBe(false);
+    expect(confettiSpy).not.toHaveBeenCalled();
+  });
+
+  it("판의 이동 응답도 같은 갈래를 본다", () => {
+    expect(celebrateIfStartedCategory({ status_category: "IN_PROGRESS" })).toBe(true);
+    confettiSpy.mockClear();
+    resetBurstCooldown();
+    expect(celebrateIfStartedCategory({ status_category: "DONE" })).toBe(false);
+    expect(celebrateIfStartedCategory(null)).toBe(false);
+    expect(confettiSpy).not.toHaveBeenCalled();
+  });
+
+  it("만듦은 한 발, 끝냄은 세 발 — 무게가 실제로 다르다", () => {
+    celebrateCreated();
+    const created = confettiSpy.mock.calls.length;
+    expect(created).toBe(1);
+    const createdOpts = confettiSpy.mock.calls[0][0];
+
+    confettiSpy.mockClear();
+    resetBurstCooldown();
+    celebrate();
+    // 세 발 중 첫 발은 즉시, 나머지 둘은 예약된 타이머다.
+    const finishedFirst = confettiSpy.mock.calls[0][0];
+    expect(finishedFirst.particleCount).toBeGreaterThan(createdOpts.particleCount);
+    expect(finishedFirst.spread).toBeGreaterThan(createdOpts.spread);
+  });
+
+  it("움직임은 만듦보다도 가볍다", () => {
+    celebrateCreated();
+    const created = confettiSpy.mock.calls[0][0];
+    confettiSpy.mockClear();
+    resetBurstCooldown();
+    celebrateMoved();
+    const moved = confettiSpy.mock.calls[0][0];
+    expect(moved.particleCount).toBeLessThan(created.particleCount);
+  });
+
+  it("클로버는 브랜드 색으로만 쏟아진다", () => {
+    celebrateCreated();
+    expect(confettiSpy.mock.calls[0][0].colors).toEqual(CLOVER_COLORS);
+    // 마크의 잎 색 — 무채색 종잇조각이 아니다.
+    expect(CLOVER_COLORS).toContain("#8E75E1");
+  });
+
+  it("모든 축하는 앱 크롬 위에 뜬다 — 모달 뒤에서 터지지 않는다", () => {
+    celebrateCreated();
+    expect(confettiSpy.mock.calls[0][0].zIndex).toBeGreaterThan(1300);
+  });
+
+  it("겹침 방지는 세 무게가 함께 쓴다 — 만들자마자 끝내도 한 벌이다", () => {
+    celebrateCreated();
+    const n = confettiSpy.mock.calls.length;
+    celebrate();
+    expect(confettiSpy.mock.calls.length).toBe(n);
+  });
+});
+
+/* 클로버 경로는 브랜드 마크에서 뽑은 것이다 — 그 파일이 바뀌면 이 문자열도 바꿔야 한다. */
+describe("클로버 모양", () => {
+  it("잎 넷이 한 경로에 있다", () => {
+    // 잎 하나가 M…Z 한 벌이므로 네 벌이다.
+    expect((CLOVER_PATH.match(/M64 64/g) || []).length).toBe(4);
+    expect((CLOVER_PATH.match(/Z/g) || []).length).toBe(4);
+  });
+
+  it("좌표가 마크의 뷰박스(128×128) 안에 있다", () => {
+    const nums = (CLOVER_PATH.match(/-?\d+(?:\.\d+)?/g) || []).map(Number);
+    expect(nums.length).toBeGreaterThan(0);
+    expect(Math.min(...nums)).toBeGreaterThanOrEqual(0);
+    expect(Math.max(...nums)).toBeLessThanOrEqual(128);
   });
 });

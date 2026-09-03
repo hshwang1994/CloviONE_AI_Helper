@@ -50,10 +50,24 @@ let lastBurstAt = 0;
    (`app/LoginHandoff.jsx` 의 CONFETTI_Z). */
 const CONFETTI_Z = 1320;
 
-export function celebrate() {
+/* 겹침 방지 관문 한 곳. 통과하면 지금 시각을 적는다 — 세 발짜리 축포도, 한 발짜리
+   클로버도 같은 관문을 지나므로 문서를 만들자마자 티켓을 끝내도 두 겹이 안 된다. */
+function takeBurstSlot() {
   const now = Date.now();
-  if (now - lastBurstAt < BURST_COOLDOWN_MS) return;
+  if (now - lastBurstAt < BURST_COOLDOWN_MS) return false;
   lastBurstAt = now;
+  return true;
+}
+
+/** 한 발만 쏜다. 층과 겹침 방지는 여기서 한 번에 챙긴다 — 부르는 쪽이 잊을 자리를
+ *  안 만든다(축포가 모달 뒤에서 터지던 일이 그렇게 생겼다). */
+function celebrateBurst(options) {
+  if (!takeBurstSlot()) return;
+  confetti({ zIndex: CONFETTI_Z, ...options });
+}
+
+export function celebrate() {
+  if (!takeBurstSlot()) return;
   const base = {
     spread: 74, startVelocity: 45, ticks: 200,
     origin: { y: 0.55 },
@@ -141,4 +155,108 @@ export function useCelebrateOnCleared(total, token) {
     if (prev.total == null) return;        // 처음 본 값
     if (prev.total > 0 && total === 0) celebrate();
   }, [total, token]);
+}
+
+/* ── 네잎클로버 ─────────────────────────────────────────────────────────────
+ *
+ * 이 제품의 마크가 네잎클로버다(Clovi = clover). 그래서 「만들었다」·「움직였다」의 축하는
+ * 무채색 종잇조각이 아니라 **브랜드 마크 그 자체**가 쏟아진다 — 다운로드도 새 자산도 없다.
+ *
+ * 🔴 `shapeFromPath` 는 경로를 **하나만** 받는다. 마크의 SVG 는 잎 하나를
+ * `transform="rotate(90 64 64)"` 로 네 번 그리는데 path 데이터에는 회전이 없으므로,
+ * 회전을 좌표에 구워 한 경로로 합쳤다. 90° 배수라 삼각함수 없이 정확하다:
+ * (x,y) → (128-y, x). 원본은 `app/static/brand/logo/clovirassist-mark.svg` 이고,
+ * 그 파일이 바뀌면 이 문자열도 다시 만들어야 한다(clover-shape.test.js 가 대조한다). */
+export const CLOVER_PATH =
+  "M64 64 C56 54 38 50 34 33 C30 17 42 7 54 11 C60 13 63 18 64 24 C65 18 68 13 74 11 C86 7 98 17 94 33 C90 50 72 54 64 64 ZM64 64 C74 56 78 38 95 34 C111 30 121 42 117 54 C115 60 110 63 104 64 C110 65 115 68 117 74 C121 86 111 98 95 94 C78 90 74 72 64 64 ZM64 64 C72 74 90 78 94 95 C98 111 86 121 74 117 C68 115 65 110 64 104 C63 110 60 115 54 117 C42 121 30 111 34 95 C38 78 56 74 64 64 ZM64 64 C54 72 50 90 33 94 C17 98 7 86 11 74 C13 68 18 65 24 64 C18 63 13 60 11 54 C7 42 17 30 33 34 C50 38 54 56 64 64 Z";
+
+/** 마크의 네 잎이 쓰는 색 그대로. 잎마다 그라디언트지만 종잇조각은 단색이라 각 잎의
+ *  대표색을 뽑았다 — 위(인디고)·오른쪽(보라)·아래(짙은 인디고)·왼쪽(청록). */
+export const CLOVER_COLORS = ["#536CD6", "#8E75E1", "#435CBE", "#62C7BD"];
+
+/* 모양은 **한 번만** 만든다. `shapeFromPath` 는 Path2D 로 경로를 재고 캔버스에 굽는 일이라
+ * 발사마다 부르면 그 값을 매번 다시 계산한다.
+ *
+ * 🔴 만들지 못하면 `null` 이고, 그때는 기본 모양으로 터진다. jsdom 에는 Path2D 가 없고
+ * (시험이 이 경로를 지난다) 아주 오래된 브라우저도 없다 — 축하가 안 뜨는 것보다 모양이
+ * 기본인 편이 낫다. */
+let cloverShape;
+function cloverShapes() {
+  if (cloverShape === undefined) {
+    try {
+      // 이름 있는 export 가 아니라 기본 export 의 속성이다(canvas-confetti 1.9).
+      // 시험의 대역은 맨 함수라 이 속성이 없다 — 그러면 아래 catch 가 받아 기본 모양이 된다.
+      cloverShape = confetti.shapeFromPath({ path: CLOVER_PATH });
+    } catch (e) {
+      cloverShape = null;
+    }
+  }
+  return cloverShape ? [cloverShape] : undefined;
+}
+
+/** 무언가를 **새로 만든 순간**. 끝낸 것이 아니라 시작한 것이라, 축포보다 가볍다.
+ *
+ * 값이 완료 축포와 다른 이유가 있다: 아래에서 위로 한 줌 피어오르고(startVelocity 낮음,
+ * 좁은 퍼짐) 곧 걷힌다. 「끝냈다」의 세 발짜리 축포와 같은 무게로 터지면 문서를 열 장 만든
+ * 사람에게는 그냥 소음이다. */
+export function celebrateCreated() {
+  celebrateBurst({
+    particleCount: 46,
+    spread: 52,
+    startVelocity: 34,
+    ticks: 140,
+    gravity: 0.9,
+    scalar: 1.1,
+    origin: { y: 0.72 },
+    colors: CLOVER_COLORS,
+    shapes: cloverShapes(),
+  });
+}
+
+/** 일이 **움직인 순간**(예: 진행 중으로 옮김). 만든 것보다도 가볍다 — 하루에 여러 번
+ *  일어나는 일이라, 눈에 띄되 손을 멈추게 하지 않아야 한다. */
+export function celebrateMoved() {
+  celebrateBurst({
+    particleCount: 18,
+    spread: 34,
+    startVelocity: 26,
+    ticks: 90,
+    gravity: 1.1,
+    scalar: 0.9,
+    origin: { y: 0.6 },
+    colors: CLOVER_COLORS,
+    shapes: cloverShapes(),
+  });
+}
+
+/** 상태 갈래 어휘의 「하는 중」. 서버의 `app/work/workflow.py::CAT_IN_PROGRESS` 와 같다. */
+export const IN_PROGRESS_CATEGORY = "IN_PROGRESS";
+
+/** `/api/work/statuses` 응답 → **하는 중으로 세는** 상태 key 집합.
+ *
+ * 이 제품의 어휘에서는 '진행' 과 '검증' 둘이다. 화면이 "진행" 이라고 적지 않는 이유는
+ * `doneStatusKeys` 와 같다 — 어휘가 바뀌면 이 파일만 옛 이름으로 남는다. */
+export function inProgressStatusKeys(statusesBody) {
+  const rows = statusesBody && Array.isArray(statusesBody.statuses) ? statusesBody.statuses : [];
+  return new Set(
+    rows.filter((s) => s && s.category === IN_PROGRESS_CATEGORY).map((s) => s.key)
+  );
+}
+
+/** 이번 쓰기가 티켓을 **하는 중으로 옮겼으면** 가벼운 클로버 한 줌.
+ *
+ * `celebrateIfCompleted` 와 같은 계약이다: `nextStatus` 는 「이번에 실제로 바뀐 상태」이고,
+ * 안 바뀌었으면 부르는 쪽이 빈 값을 넘긴다. 완료가 큰 축포인 것과 달리 여기는 작은 한 줌이다 —
+ * 시작은 끝이 아니고, 하루에 여러 번 일어난다. */
+export function celebrateIfStarted(nextStatus, inProgressKeys) {
+  if (!nextStatus || !inProgressKeys || !inProgressKeys.has(nextStatus)) return false;
+  celebrateMoved();
+  return true;
+}
+
+/** 판의 이동 응답처럼 서버가 갈래를 실어 줄 때. `celebrateIfCompletedCategory` 의 짝이다. */
+export function celebrateIfStartedCategory(ticket) {
+  if (!ticket || ticket.status_category !== IN_PROGRESS_CATEGORY) return false;
+  celebrateMoved();
+  return true;
 }
