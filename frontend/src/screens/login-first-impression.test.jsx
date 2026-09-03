@@ -333,6 +333,74 @@ describe("동작 줄이기: 로그인 페이지", () => {
     expect(atRight, `눈이 ${atLeft} 에 굳어 있다 — 포인터를 따라가지 않는다`).not.toBe(atLeft);
   });
 
+  /* 🔴 위 시험은 **버그가 있는 소스에서도 초록이었다.** 여기 하네스는 login.js 를 먼저
+   * 통째로 실행하고 clovi-login.js 를 그 다음에 올리는데, login.js 의 `.focus()` 는 동기라
+   * 초점 이벤트가 clovi-login.js 가 리스너를 걸기 **전에** 지나가 버린다. 실제 브라우저는
+   * 그 순서를 보장하지 않는다 — 창이 뒤에 있으면 초점 이벤트가 늦게 온다. 실브라우저에서
+   * 잰 값이 그것이다: 고친 뒤 idle·추적, 고치기 전 email·(3.8, 1.0) 고정.
+   *
+   * 그래서 타이밍을 흉내 내는 대신 **규칙**을 고정한다. 사람이 손대지 않았는데 온 초점은
+   * 표정을 바꾸지 않는다. 이 시험은 관문(`userActed`)을 지우면 빨개진다. */
+  it("스크립트가 준 초점은 표정을 바꾸지도, 시선을 멈추지도 않는다", async () => {
+    const ui = bootLoginPage({ reduce: false, wide: true });
+    await tick(900);
+    expect(ui.stage.dataset.state, "등장 인사가 끝나면 쉬는 상태다").toBe("idle");
+
+    // 브라우저가 늦게 흘려 준 초점(사람은 아무것도 안 했다).
+    ui.email.dispatchEvent(new window.FocusEvent("focus"));
+    await tick(20);
+
+    expect(ui.stage.dataset.state, "사람이 고르지 않은 초점이 표정을 끌어내렸다").toBe("idle");
+
+    window.dispatchEvent(new window.MouseEvent("pointermove", { clientX: 80, clientY: 40, bubbles: true }));
+    await tick(60);
+    const atLeft = ui.stage.style.getPropertyValue("--eye-x");
+    window.dispatchEvent(new window.MouseEvent("pointermove", { clientX: 900, clientY: 40, bubbles: true }));
+    await tick(60);
+    expect(ui.stage.style.getPropertyValue("--eye-x"), `눈이 ${atLeft} 에 굳었다`).not.toBe(atLeft);
+  });
+
+  /* 관문이 기능을 **없애 버리지는 않았다**는 반대쪽. 사람이 실제로 칸을 고르면 표정은
+   * 그대로 바뀐다 — 안 그러면 「고쳤다」가 아니라 「지웠다」이다. */
+  it("사람이 고른 초점은 표정을 바꾼다", async () => {
+    const ui = bootLoginPage({ reduce: false, wide: true });
+    await tick(900);
+
+    window.dispatchEvent(new window.MouseEvent("pointerdown", { bubbles: true }));
+    ui.email.dispatchEvent(new window.FocusEvent("focus"));
+    await tick(20);
+    expect(ui.stage.dataset.state).toBe("email");
+
+    window.dispatchEvent(new window.MouseEvent("pointerdown", { bubbles: true }));
+    ui.password.dispatchEvent(new window.FocusEvent("focus"));
+    await tick(20);
+    expect(ui.stage.dataset.state).toBe("privacy");
+  });
+
+  /* 이메일 칸을 고른 **뒤에도** 마우스는 계속 움직인다. 고정 시선(3.8, 1.0)은 그 칸을 한 번
+   * 쳐다보는 자세이지 눈을 굳히라는 뜻이 아니다. 반대로 privacy 는 「일부러 딴 곳을 본다」가
+   * 표현 그 자체라 포인터가 덮으면 안 된다 — 두 규칙이 서로 다르다는 것을 함께 고정한다. */
+  it("이메일 칸에서는 눈이 다시 포인터를 따라가고, 비밀번호 칸에서는 딴 곳을 본다", async () => {
+    const ui = bootLoginPage({ reduce: false, wide: true });
+    await tick(900);
+
+    window.cloviLogin.setState("email");
+    expect(ui.stage.style.getPropertyValue("--eye-x"), "들어갈 때는 그 칸을 본다").toBe("3.8px");
+    window.dispatchEvent(new window.MouseEvent("pointermove", { clientX: 80, clientY: 40, bubbles: true }));
+    await tick(60);
+    const atLeft = ui.stage.style.getPropertyValue("--eye-x");
+    window.dispatchEvent(new window.MouseEvent("pointermove", { clientX: 900, clientY: 40, bubbles: true }));
+    await tick(60);
+    expect(ui.stage.style.getPropertyValue("--eye-x"), `눈이 ${atLeft} 에 굳었다`).not.toBe(atLeft);
+
+    window.cloviLogin.setState("privacy");
+    const looksAway = ui.stage.style.getPropertyValue("--eye-x");
+    expect(looksAway).toBe("-3.6px");
+    window.dispatchEvent(new window.MouseEvent("pointermove", { clientX: 900, clientY: 40, bubbles: true }));
+    await tick(60);
+    expect(ui.stage.style.getPropertyValue("--eye-x"), "비밀번호를 치는 동안 눈이 따라다닌다").toBe(looksAway);
+  });
+
   it("login.css 가 동작 줄이기에서 애니메이션을 중립화한다", () => {
     // 이 화면에는 SPA 의 theme.js 전역 규칙이 닿지 않는다(Jinja 라 MUI 가 없다).
     // 그래서 같은 규칙이 이 파일에 따로 있어야 한다.
@@ -373,6 +441,36 @@ describe("SPA 인계 연출", () => {
     // 폭죽 라이브러리는 **쏘는 순간에** 받는다(초기 번들에서 뺐다) — 정적 import 였을 때처럼
     // 같은 틱에 불리지 않는다. 연출 자체는 그대로 있다.
     await waitFor(() => expect(confettiMock).toHaveBeenCalled());
+  });
+
+  /* 🔴 **터졌는가**와 **보였는가**는 다른 사실이다.
+   *
+   * 위 시험은 confetti() 가 불렸다는 것만 본다. 그런데 이 판은 `inset: 0` 인 **불투명** 면이고
+   * canvas-confetti 는 자기 캔버스를 `z-index: 100` 으로 만든다 — 판(modal+10 = 1310) 아래다.
+   * 그래서 폭죽은 판 **뒤에서** 터지고 있었고, 코드도 시험도 초록인데 사람 눈에는 아무것도
+   * 안 보였다. 사용자가 「로그인 이후 폭죽이 사라졌다」고 한 것이 그 상태다.
+   *
+   * 판이 걷힌 뒤에 보이지 않느냐 — 이 연출이 뜨는 자리는 언제나 차가운 첫 로드다. 인증
+   * 조회와 라우트 청크가 늦으면 판은 상한(2.6초)까지 서 있고 폭죽 수명(160틱 ≈ 2.7초)이
+   * 그 아래에서 다 지나간다. 그래서 층을 재는 이 시험이 필요하다. */
+  it("폭죽이 환영 판보다 위에서 터진다 — 판 뒤에서 터지면 없는 것과 같다", async () => {
+    setMatchMedia({ reduce: false });
+    markHandoff();
+
+    renderHandoff({ ready: false });
+    await waitFor(() => expect(confettiMock).toHaveBeenCalled());
+
+    // 판이 실제로 서는 층을 화면에서 읽는다 — 상수끼리 비교하면 판이 올라갈 때 같이
+    // 안 따라와도 초록이다.
+    const panelZ = Number(window.getComputedStyle(screen.getByRole("status")).zIndex);
+    expect(Number.isFinite(panelZ), "판의 층을 못 읽었다").toBe(true);
+
+    for (const [opts] of confettiMock.mock.calls) {
+      // 층을 아예 안 주면 라이브러리 기본값 100 이다 — 판(1310) 한참 아래다.
+      const z = typeof opts.zIndex === "number" ? opts.zIndex : 100;
+      expect(z, `폭죽이 판(z-index ${panelZ}) 뒤 ${z} 에서 터진다 — 사람 눈에 안 보인다`)
+        .toBeGreaterThan(panelZ);
+    }
   });
 
   it("표식을 한 번 쓰면 지운다 — 새로고침마다 축하하지 않는다", async () => {

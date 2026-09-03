@@ -40,6 +40,22 @@ export const HANDOFF_FRESH_MS = 15000;
 const MIN_VISIBLE_MS = 420;
 const MAX_VISIBLE_MS = 2600;
 
+/* 이 판이 서는 층. 폭죽도 같은 값에서 계산하므로 한 곳에만 적는다. */
+const HANDOFF_Z_OVER_MODAL = 10;
+
+/* 🔴 **폭죽은 이 판보다 위에 떠야 한다.**
+ *
+ * canvas-confetti 는 자기 캔버스를 `z-index: 100` 으로 만든다. 이 판은 `inset: 0` 인
+ * **불투명** 면이고 층이 modal+10 = 1310 이라, 폭죽이 판 **뒤에서** 터지고 있었다.
+ * 코드는 돌고 시험도 통과하는데 사람 눈에는 아무것도 안 보이는 상태다 — 사용자가
+ * 「로그인 이후 폭죽이 사라졌다」고 한 것이 이것이다.
+ *
+ * 판이 걷힌 뒤에는 보이지 않느냐: 첫 화면이 빨리 오면 그렇다. 그런데 폭죽이 뜨는 자리는
+ * 언제나 **차가운 첫 로드**다(방금 문서를 통째로 갈아 끼웠다). 인증 조회와 라우트 청크가
+ * 늦으면 판은 상한(2.6초)까지 서 있고, 폭죽 수명(160틱 ≈ 2.7초)이 그 아래에서 다 지나간다.
+ * 그래서 「빠르면 보이고 느리면 안 보이는」 연출이었다. 층을 올려 타이밍에서 떼어 낸다. */
+const CONFETTI_Z = 1300 + HANDOFF_Z_OVER_MODAL + 10;
+
 const rise = keyframes`
   from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: none; }
@@ -87,7 +103,10 @@ async function fireWelcomeConfetti() {
   } catch (e) {
     return;
   }
-  const base = { spread: 70, startVelocity: 42, ticks: 160, disableForReducedMotion: true };
+  const base = {
+    spread: 70, startVelocity: 42, ticks: 160, disableForReducedMotion: true,
+    zIndex: CONFETTI_Z,
+  };
   confetti({ ...base, particleCount: 70, origin: { y: 0.5 } });
   window.setTimeout(() => confetti({ ...base, particleCount: 40, angle: 62, origin: { x: 0.1, y: 0.62 } }), 130);
   window.setTimeout(() => confetti({ ...base, particleCount: 40, angle: 118, origin: { x: 0.9, y: 0.62 } }), 240);
@@ -134,7 +153,7 @@ export function LoginHandoff({ ready = true }) {
       sx={{
         position: "fixed",
         inset: 0,
-        zIndex: (t) => t.zIndex.modal + 10,
+        zIndex: (t) => t.zIndex.modal + HANDOFF_Z_OVER_MODAL,
         display: "grid",
         placeItems: "center",
         // 정보만 전하고 조작은 아래 화면이 받는다. 연출이 클릭을 먹으면 첫인상이 더 나빠진다.

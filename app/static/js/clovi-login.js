@@ -116,8 +116,14 @@
    * 그걸 덮으면 "비밀번호를 안 본다" 같은 표현이 마우스 위치에 따라 깨진다.
    *
    * welcome 이 여기 있는 이유: 등장 인사 780ms 동안에도 사람은 이미 마우스를 움직인다.
-   * 그 사이 눈이 굳어 있으면 첫인상이 "안 움직이는 그림"이 된다. */
-  const POINTER_TRACKED_STATES = ["idle", "welcome"];
+   * 그 사이 눈이 굳어 있으면 첫인상이 "안 움직이는 그림"이 된다.
+   *
+   * email 이 여기 있는 이유: 사람이 이메일 칸을 고르고 나서도 마우스는 계속 움직인다.
+   * 고정 시선(3.8, 1.0)은 그 칸을 **한 번 쳐다보는 자세**이지 눈을 굳히라는 뜻이 아니다 —
+   * 상태에 들어갈 때 applyFixedGaze 가 그 자세를 잡아 주고, 그 다음 포인터가 움직이면
+   * 눈이 다시 따라간다. privacy 는 여기 없다: 비밀번호를 치는 동안 딴 곳을 보는 것은
+   * 표현 그 자체라, 마우스가 그걸 덮으면 뜻이 사라진다. */
+  const POINTER_TRACKED_STATES = ["idle", "welcome", "email"];
   const tracksPointer = (state) => POINTER_TRACKED_STATES.indexOf(state) !== -1;
 
   const applyFixedGaze = (state) => {
@@ -200,13 +206,35 @@
   invalidObserver.observe(password, { attributes: true, attributeFilter: ["aria-invalid"] });
 
   // ── 포커스 → 표정 ─────────────────────────────────────────────────────────
+  /* 🔴 **스크립트가 준 초점은 표정을 바꾸지 않는다.**
+   *
+   * login.js 는 넓은 화면(≥1024px)에서 첫 칸에 초점을 준다. `.focus()` 가 쏘는 focus
+   * 이벤트는 사람이 칸을 고른 것과 구별되지 않아서, 페이지가 뜨자마자 표정이 `email` 로
+   * 내려앉았다. `email` 에는 고정 시선(3.8, 1.0)이 있고 고정 시선이 있는 상태는 포인터를
+   * 따라가지 않으므로, **시선 추적이 아예 시작되지 않았다** — 사용자가 「마우스를 움직여도
+   * 눈이 안 움직인다. 한 번 눌러야 움직인다」고 한 화면이 이것이다(그 클릭은 이메일 칸의
+   * 초점을 떼는 클릭이었다).
+   *
+   * 위쪽 등장 경로에서 activeElement 를 안 보는 것만으로는 못 막는다. 막을 자리는 여기다.
+   * 사람이 실제로 손을 댔는지를 기억해 두고, 그 전에 오는 초점은 무시한다. 탭으로 들어온
+   * 초점도 keydown 이 먼저 오므로 정상적으로 잡힌다. */
+  let userActed = false;
+  const markUserActed = function () { userActed = true; };
+  window.addEventListener("pointerdown", markUserActed, { capture: true, passive: true });
+  window.addEventListener("keydown", markUserActed, { capture: true });
+
   email.addEventListener("focus", function () {
+    if (!userActed) return;
     if (!submit.disabled && !successLocked) setCloviState("email");
   });
   email.addEventListener("blur", function () {
     if (!submit.disabled && cloviState === "email") setCloviState("idle");
   });
   password.addEventListener("focus", function () {
+    // 이메일이 이미 채워진 채로 들어오면(브라우저 자동완성) login.js 가 초점을 여기 준다 —
+    // 그때도 사람이 고른 것이 아니므로 같은 규칙이다. privacy 는 「일부러 딴 곳을 본다」라
+    // 포인터를 안 따라가고, 그래서 이 갈래를 안 막으면 눈이 그대로 굳는다.
+    if (!userActed) return;
     if (!submit.disabled && !successLocked) setCloviState("privacy");
   });
   password.addEventListener("blur", function () {
@@ -324,8 +352,9 @@
    * "접속한 이후에 그냥 마우스를 옮기면 움직이지 않음. 한번 눌러야 눈이 움직임"
    * (그 클릭은 이메일 칸의 초점을 떼는 클릭이었다).
    *
-   * 규칙의 출처는 초점 **이벤트**다. 스크립트가 대신 준 초점은 사용자가 그 칸을 고른 것이
-   * 아니므로 표정을 바꾸지 않는다. 사용자가 실제로 칸을 고르면 focus 리스너가 잡는다. */
+   * 그런데 여기서 activeElement 를 안 보는 것만으로는 못 막았다 — login.js 의 `.focus()`
+   * 가 쏘는 focus 이벤트를 focus 리스너가 그대로 받아서, 결국 같은 자리로 내려앉았다.
+   * 실제로 막는 자리는 위의 `userActed` 관문이다(「포커스 → 표정」 절). */
   setCloviState("welcome", { duration: 780, after: "idle" });
 
   window.addEventListener(
