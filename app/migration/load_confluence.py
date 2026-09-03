@@ -447,7 +447,7 @@ class ConfluenceLoader:
 
     # ── 대조 게이트 ──────────────────────────────────────────────────────────
 
-    def reconcile(self, enumerated: int) -> StageResult:
+    def reconcile(self, enumerated: int, *, report=None) -> StageResult:
         """🔴 「전부 가져왔다」를 **주장이 아니라 증명**으로 만든다 (14번).
 
         열거한 페이지 수와, 만들었거나 고쳤거나 **명시적으로 건너뛴** 수가 같아야 한다.
@@ -458,6 +458,14 @@ class ConfluenceLoader:
         stage.inserted = self.result.documents_created
         stage.updated = self.result.documents_updated
         stage.skipped = self.result.documents_skipped
+        # 🔴 이 대조를 **검사**로도 남긴다. Finding 만 남기면 보고서의 자기 판정이
+        # 「검사 0건」이 되고, 그때 보고서 마지막 줄은 아무 문제가 없는 회차에도 FAIL 을
+        # 찍는다 — 괜찮은데 FAIL 이라고 적힌 원장은 다음 사람이 안 믿는다.
+        (report or self.report).check(
+            "Confluence 페이지 전수", self.result.accounted == enumerated,
+            enumerated, self.result.accounted,
+            "열거한 페이지가 전부 설명됐는가. 만들었거나, 고쳤거나, 건너뛰었거나.",
+        )
         if self.result.accounted != enumerated:
             self.report.finding(
                 SEVERITY_BLOCKING, "confluence_page_count_mismatch", "documents",

@@ -41,11 +41,13 @@
   본문 동일 시 `None` 을 주어 신호를 안 보내고 `sweep_stale` 의 조건 넷에도 제목이 없는데,
   제목은 **첫 청크 본문에 들어간다.** 이름을 바꾼 문서가 옛 이름으로 영원히 검색됐다.
   신호 자리를 `versions.mark_stale` 하나로 모았다(`attachments.py` 의 사본을 접었다).
-  ⑧ **Notion 복구의 원인을 찾았다.** 컷오버(2026-08-23 03:52)가 돈 커밋 `3cdab1e0` 의
-  `transform.py` 는 catch-all `else` 로 `[원본에서 확인: table]` 을 적었고, 04:01 직후
-  커밋이 표·이미지 변환을 넣었다 — **고침은 이미 HEAD 에 있고 운영에 다시 적재된 적이
-  없다.** 캐시된 블록에 HEAD 를 돌린 실측: 110/110 정규화 통과, **표 93개·이미지 49개**가
-  되살아난다(감사 도구가 「잃었다」고 적은 바로 그 수다).
+  ⑧ 🔴 **Notion 본문은 이미 고쳐져 있었다 — 그리고 그것을 재 보고 계획을 바꿨다.**
+  컷오버가 돈 커밋의 `transform.py` 는 자리표시자를 적었고 직후 커밋이 표·이미지 변환을
+  넣었다. 그래서 「운영에 다시 적재된 적이 없다」고 판단하고 110건 재적재를 계획했는데,
+  **운영을 재 보니 아니었다**: 현재 판의 자리표시자 0, `tableRow` 558개, 그리고 살아
+  있는 Notion 원본과 글자 수를 문서마다 대조해 **비율 1.016**(원본 277,058 : 운영
+  281,420). 부족한 것은 **한 건뿐**이고 원인은 블록 깊이 상한이었다.
+  계획대로 돌렸으면 바꿀 이유가 없는 109건을 바꿨다. 아래 「운영 실측」 절에 수를 적었다.
   ⑨ **importer 가 지금 깨져 있었다.** `discover()` 는 제목으로 `/v1/search` 를 뒤지는데
   오늘 search 는 작업·프로젝트만 돌려준다 — 문서·문서 유형·카테고리는 안 나온다.
   `--database role=id` override 로 푼다(이미 있는 플래그다). 다섯 id 를 실측으로 확인했다.
@@ -65,57 +67,94 @@
   경로가 언젠가 생기고, 적용기가 바로 그런 경로였다. 제목이 같은 반례로 두 경로를 다 잰다.
 - branch: `ui/mui-migration`
 - last_stable_commit: **`eec4886c`** — 이번 회차도 안 옮긴다.
-- deployed: **`53590e29`** 그대로다. **이번 회차는 아직 배포 전이다.**
+- deployed: **`a3b05cd2`** 가 운영에 나갔다 (2026-09-04 07:31 · **전체 업그레이드 경로** —
+  마이그레이션이 낀 회차다). `VERIFY_OK` · `UPGRADE_OK` · 스냅샷
+  `/var/backups/clovirassist/20260904-073154` · alembic **0026 → 0027**(db=code) ·
+  제품 유닛 5종 active · `ssl_verify_result=0`.
 - verification: 로컬 전량.
   **프런트** vitest 380파일 2,913시험 — 2,911 초록, 실패 2건은 병렬 부하 타임아웃이고
   단독 실행은 초록(`editable-body-identity-reset` · `donut-empty-state-height`).
   **백엔드** 문서·지식·이관·AI 표적 299 초록 + 신규 4파일(템플릿 5 · 프로젝트 선택 12 ·
   Confluence 9 · 자체 문서 보호 8) 초록. **정적** dev 전량 초록.
-  **실데이터 실측**(쓰기 없음): Notion 110쪽·Confluence 524쪽 전량 변환.
+  **실데이터 실측**(쓰기 없음): Notion 110쪽·Confluence 524쪽 전량 변환, 그리고 배포
+  뒤 **운영 실측** — 문서 116건의 축과 본문을 살아 있는 원본과 대조했다(아래 절).
+  Confluence 는 운영에서 dry-run 이 `CONFLUENCE_DRY_RUN_OK` 로 통과했다(524 = 524).
 - capture: 전량 정본은 **`s22-final`** 그대로다(D-306).
 - ui_gate: 변화 없음.
 
-## 🔴 다음에 할 일 — 운영 데이터 반영은 아직 안 했다
+## 🔴 운영 실측이 계획을 고쳤다 — 무엇이 실제로 문제였나
 
-코드는 끝났고 검증도 끝났다. **남은 것은 운영에서 도는 세 걸음**이고, 순서가 계약이다.
+배포는 끝났다(`a3b05cd2` → alembic **0027**, 스냅샷
+`/var/backups/clovirassist/20260904-073154`). 그다음 **운영을 재 보고** 계획을 고쳤다.
 
-1. **배포** — `sudo deploy/install.sh upgrade` (alembic head 가 `0026` → **`0027`** 로
-   올라간다). 이 명령이 복원 지점도 만든다.
-2. **Notion 복구** — 먼저 `--dry-run`.
-   ```
-   python -m app.cli.migrate_cli reimport-bodies --cache var/migration-cache \
-     --scope documents --report var/recovery/notion --dry-run \
-     --database documents=262c5c5a-5684-8110-bdaf-de605ac15487 \
-     --database doc_types=262c5c5a-5684-811b-86f3-fd88af5a2c40 \
-     --database categories=262c5c5a-5684-812f-8bfb-dea96dcceb86 \
-     --database tasks=262c5c5a-5684-81fa-9697-ee5691cb558d \
-     --database projects=262c5c5a-5684-8108-a949-c4503dd5f9a7
-   ```
-   판정은 `REIMPORT_OK` 줄이 아니라 `scripts/audit_migration_fidelity.py` 의
-   **`FIDELITY_OK`** 다. 임계값: 자리표시자 0 · 표 93 · 이미지 49 · 빈 본문 ≤ 7.
-3. **Confluence 가져오기** — `python -m app.cli.migrate_cli import-confluence --dry-run`
-   으로 수를 먼저 보고, 그다음 실행. 원본 수 대조 게이트가 524 를 확인한다.
-4. **분류** — `classify --emit` → **사람이 검토** → `classify --apply`.
-5. **색인** — `python -m app.cli.ai_cli reindex` 로 대기 0 까지, 그리고
-   `POST /api/search/reindex`.
-   AI 색인(`document_chunks`)은 훑기의 「상태 행이 없다」 갈래가 가져온 문서를 알아서
-   집어 간다. ⌘K 색인(`search_documents`)은 다르다 — `owner_kind`·분류·태그를 **행에
-   복사**하므로 프로젝트를 옮기면 낡는다. 워커가 **300초마다** 전량 재구축하므로 결국
-   스스로 낫지만(`settings.search_index_interval_seconds`), 그 5분을 기다리지 않으려면
-   위 요청을 한 번 부른다.
+### 재 본 것과 나온 값
+
+| 잰 것 | 값 |
+|---|---|
+| 문서 | 116건 (이관 110 · 자체 작성 **6**) |
+| 다리 없는 이관 문서 | **0** — 110건 전부 `legacy_page_id` 가 있다 |
+| 소유 없는 공간 | **0** — `organization` 1 · `project` 11 |
+| 현재 판의 자리표시자 | **0** (옛 판 56개에는 있다 — 이력이지 지금이 아니다) |
+| 표 | `tableRow` **558개**가 이미 본문에 있다 |
+| 🔴 **살아 있는 Notion 원본과 대조** | 110건, 원본 277,058자 : 운영 281,420자 = **1.016** |
+| 원본의 90% 미만인 문서 | **1건**(`ClovirPackageRepo`, 78%) |
+| 폴더를 쓰는 문서 | 52건 (표는 그대로 남는다) |
+
+### 그래서 8번(본문 복구)은 **거의 다 돼 있었다**
+
+캐시가 아니라 **라이브 API 를 깊이 8 로 훑어** 문서마다 글자 수를 대조했다. 캐시로 재면
+순환 논증이다 — 캐시가 깊이 3 으로 잘려 있으면 그 캐시에서 나온 목표치도 잘려 있다.
+
+결과: 109건은 원본과 같거나 길고, **한 건만 78%** 다. 그 한 건의 원인도 찾았다 —
+블록 175개 중 85개가 깊이 3 이상이라 `_MAX_BLOCK_DEPTH = 3` 이 잘랐다. 상수를 6 으로
+올리고 `--page` 로 **그 문서만** 다시 넣는다. 110건을 통째로 다시 쓰면 바꿀 이유가
+없는 109건을 바꾸는 것이다.
+
+### 진짜 남은 것은 11·12번(프로젝트·분류·태그)이다
+
+| 축 | 지금 |
+|---|---|
+| 프로젝트 공간 | 58건 |
+| 프로젝트 미지정 | 52건 |
+| 분류 | 110/110 (0026 이 `doc_type` 에서 시드했다) |
+| 태그 | 80/110, 문서당 평균 2.3개 |
+
+Notion 원본에서 프로젝트 관계가 있던 것은 **34건뿐**인데 지금 58건이 프로젝트 공간에
+있다. 그 차이가 사용자가 말한 「프로젝트 연결이 많이 이상함」이다. 제목과 본문으로
+다시 판정해야 한다 — `classify --emit` 이 근거를 적은 파일을 만들고 사람이 검토한다.
+
+### Confluence 는 dry-run 이 통과했다
+
+`CONFLUENCE_DRY_RUN_OK` — 524쪽(current 519 · archived 5) 전부 설명됨, 블로그 0,
+첨부 1,458개, 댓글 15건, blocking 0. 원본 수 대조 게이트가 524 = 524 를 확인했다.
+
+## 다음 명령
+
+```
+bash scripts/recover-documents.sh notion 2a4c5c5a-5684-8092-9a03-d025a938fc4f  # 그 한 건만
+bash scripts/recover-documents.sh confluence        # 524쪽 실제 가져오기
+bash scripts/recover-documents.sh classify-emit     # 제안 → **사람이 검토**
+bash scripts/recover-documents.sh classify-apply
+bash scripts/recover-documents.sh reindex
+```
+
+AI 색인은 훑기의 「상태 행이 없다」 갈래가 새 문서를 알아서 집어 간다. ⌘K 색인
+(`search_documents`)은 `owner_kind`·분류·태그를 **행에 복사**하므로 프로젝트를 옮기면
+낡는다 — 워커가 300초마다 전량 재구축하지만(`search_index_interval_seconds`) 그 5분을
+기다리지 않으려면 `POST /api/search/reindex` 를 한 번 부른다.
 
 되돌리기는 `sudo /home/cloviradmin/clovirassist-upgrade/deploy/install.sh rollback
---target <스냅샷>` 하나다. DB 만 복원하면 첨부 교체가 지운 바이트 때문에 행이 없는 파일을
-가리킨다.
+--target /var/backups/clovirassist/20260904-073154` 하나다. DB 만 복원하면 첨부 교체가
+지운 바이트 때문에 행이 없는 파일을 가리킨다.
 
 ## 이번 회차가 **안 고친** 것 — 그리고 그 이유
 
 - 🔴 **티켓 본문 약 1,120건에 같은 자리표시자가 남아 있다.** 이번 요구는 문서라
   `--scope documents` 로 제외했고, 회차가 그 사실을 Finding 으로 적는다. 같은 회차에 함께
   고치면 되돌릴 수 없는 변경의 범위가 열 배가 된다 — **P-78** 로 남긴다(지시가 있으면 한다).
-- **Notion 블록 깊이 상한(`_MAX_BLOCK_DEPTH = 3`)은 안 올렸다.** 캐시가 그 한도로
-  만들어졌고 감사 목표치도 그 캐시에서 나오므로, 「원본보다 적다」를 재려면 한도를 올려
-  **별도 캐시**로 재추출해 대조해야 한다. 운영 복구 앞에 도는 읽기 전용 단계다 — **P-79**.
+- **~~Notion 블록 깊이 상한~~ 은 실측으로 반증하고 올렸다(P-79 종료).** 3 → 6.
+  `ClovirPackageRepo` 는 블록 175개 중 **85개가 깊이 3 이상**이고, 그래서 그 문서만
+  운영 본문이 원본의 78% 였다. 「그 아래는 구조다」는 추측이었다.
 - **`["doc-comments", id]` 질의 키가 `["knowledge", …]` 접두 규칙을 어긴다.** 이번 변경과
   무관한 기존 상태이고 `invalidateDocumentViews` 가 그 키에 못 닿는다 — **P-80**.
 - 🔴 **`test_login_visual_contract::test_pointer_tracking_is_limited_to_resting_states` 가

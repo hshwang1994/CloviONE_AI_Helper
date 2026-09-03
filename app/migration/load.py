@@ -975,6 +975,7 @@ class Loader:
         self, notion_rows: list[dict], bodies: dict[str, list[dict]],
         *, taxonomy: dict[str, str], projects: dict[str, str] | None = None,
         fetch=None, only_untouched: bool = False, dry_run: bool = False,
+        only_pages: set[str] | None = None,
     ) -> StageResult:
         """`document_cache` + Notion 본문 → `documents` + `document_versions`.
 
@@ -1010,6 +1011,10 @@ class Loader:
             parsed = transform.parse_document(raw)
             page_id = parsed["notion_page_id"]
             if not page_id:
+                continue
+            if only_pages is not None and page_id not in only_pages:
+                # 고른 페이지만 다시 넣는다. 「바꿀 이유가 없는 것은 안 바꾼다」 —
+                # 실측이 한 건만 짧다고 말하면 그 한 건만 고친다.
                 continue
             cached = mirror.get(page_id) or {}
             document = existing.get(page_id)

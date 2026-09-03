@@ -195,6 +195,12 @@ def test_every_page_including_archived_and_deep_children_becomes_a_document(db, 
     blocking = [f for f in report.findings if f.severity == "blocking"]
     assert blocking == [], [f.detail for f in blocking]
 
+    # 그리고 그 대조가 **검사로도** 남는다. Finding 만 남기면 보고서의 자기 판정이
+    # 「검사 0건」이 되어, 아무 문제가 없는 회차에도 마지막 줄이 FAIL 이 된다.
+    counted = [c for c in report.checks if c.name == "Confluence 페이지 전수"]
+    assert len(counted) == 1 and counted[0].ok
+    assert counted[0].expected == 3 and counted[0].actual == 3
+
 
 def test_the_page_tree_is_not_rebuilt_as_folders(db, actor):
     """인수 조건: 계층을 폴더로 만들지 않는다(14번·22번)."""

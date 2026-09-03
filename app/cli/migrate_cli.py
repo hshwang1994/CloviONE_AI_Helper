@@ -170,6 +170,7 @@ def cmd_reimport_bodies(args) -> int:
         database_overrides=_overrides(args),
         limit_pages=args.limit,
         scope=getattr(args, "scope", "all"),
+        only_pages=tuple(getattr(args, "pages", None) or ()),
     )
     engine = make_engine(settings.database_url)
     factory = make_session_factory(engine)
@@ -415,6 +416,10 @@ def build_parser() -> argparse.ArgumentParser:
     node.add_argument(
         "--scope", default="all", choices=["all", "documents"],
         help="documents 면 문서 본문만 고친다 (티켓 본문 약 1,120건은 그대로 둔다)",
+    )
+    node.add_argument(
+        "--page", action="append", default=None, dest="pages",
+        help="이 Notion 페이지만 다시 넣는다. 여러 번 줄 수 있다 (기본: 전부)",
     )
     node.set_defaults(func=cmd_reimport_bodies)
 

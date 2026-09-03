@@ -76,6 +76,9 @@ class MigrationOptions:
     with_comments: bool = True
     database_overrides: dict[str, str] | None = None
     limit_pages: int | None = None   # 시험·표본 회차용. None 이면 전부.
+    #: 특정 Notion 페이지만 다시 넣는다. 비어 있으면 전부다.
+    #: 실측이 「한 건만 짧다」고 말할 때 그 한 건만 고치기 위한 자리다.
+    only_pages: tuple[str, ...] = ()
     #: 「본문만 다시 넣기」가 **무엇의** 본문을 고칠 것인가.
     #:
     #: `all`(예전 동작)은 문서와 티켓 본문을 함께 고친다. `documents` 는 문서만이다.
@@ -213,6 +216,7 @@ def reimport_bodies(
         fetch=fetch,
         only_untouched=True,
         dry_run=dry_run,
+        only_pages=(set(options.only_pages) if options.only_pages else None),
     )
     # 속성 첨부(문서의 「첨부파일」, 티켓의 「파일과 미디어」). 본문 안 이미지와 달리
     # 이 둘은 `load_documents`/`reimport_ticket_bodies` 가 안 건드린다 — 페이지 속성이라
