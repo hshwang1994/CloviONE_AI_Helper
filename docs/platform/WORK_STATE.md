@@ -83,9 +83,26 @@
   티켓이 아니다. `project_id` 는 조용히 무시하지 않고 **422 로 거절**한다.
   `ticket_page_id` 열은 남긴다(옛 연결의 이력이고, 지우는 것은 마이그레이션이다).
   `bf1bb795`.
+  ⑫ **자리마다 다른 축하** (사용자 요청). 이 제품의 마크가 네잎클로버라(Clovi = clover)
+  남의 그림을 받지 않고 **마크 자체**를 쏟는다 — `shapeFromPath` 로, 새 의존성 0·새 자산 0.
+  마크 SVG 는 잎 하나를 90°씩 돌려 네 번 그리는데 `shapeFromPath` 는 경로를 하나만 받아
+  회전을 좌표에 구워 합쳤다((x,y) → (128-y, x)). 무게가 셋이다: 끝냈다(축포 세 발, 기존
+  그대로) · 만들었다(클로버 46알) · 움직였다(18알) — 하루에 여러 번 일어나는 일과 드문 일이
+  같은 무게면 두 번째부터 소음이다. 붙인 자리: 문서 생성 · 진행 중 전환 셋. 겹침 방지를
+  한 관문(`takeBurstSlot`)으로 모아 세 무게가 함께 쓴다. `4fc799af`.
+  🔴 함께 막은 것: `Knowledge.jsx` 가 축하를 부르게 되자 「98건 초록 + 처리되지 않은 오류
+  1」이 나왔다 — jsdom 에 캔버스 2D 컨텍스트가 없어 canvas-confetti 가 null 에
+  `clearRect` 를 부르고, rAF 타이머 안이라 어느 시험인지도 안 보인다. `test-setup.js` 에
+  no-op 컨텍스트를 채웠다(ResizeObserver·IntersectionObserver 와 같은 부류).
 - branch: `ui/mui-migration`
 - last_stable_commit: **`eec4886c`** — 이번 회차도 안 옮긴다.
-- deployed: **`bf1bb795`** 가 운영에 나갔다 (2026-09-03 20:36 · **전체 업그레이드 경로**
+- deployed: **`4ba76144`** 가 운영에 나갔다 (2026-09-03 21:1x · 정적 경로 · `APPLY_OK` ·
+  `STATIC_UPDATE_OK`). 배포 뒤 실측: 서버가 주는 `UserRoutes.CuLVwfR0.js` 에 클로버 경로 ·
+  브랜드 네 색 · `shapeFromPath` · `IN_PROGRESS` 갈래 · 겹침 방지가 전부 실려 있다.
+  🔴 `4fc799af` 는 `BUILD_STAMP.json` 을 **지운 채로** 나갔다(빌드가 출력 디렉터리를 비우는데
+  뒤이은 `--write` 가 경로 오류로 조용히 실패). `4ba76144` 가 되살렸다 — 기준 파일이 없으면
+  배포된 번들과 소스를 대조할 방법이 사라진다.
+  그 앞: **`bf1bb795`** (2026-09-03 20:36 · **전체 업그레이드 경로**
   — 서버 파이썬이 바뀌어 정적 경로로는 부족하다). `VERIFY_OK` · `UPGRADE_OK` · 스냅샷
   `/var/backups/clovirassist/20260903-203632` · alembic head 불변(0026) · 제품 유닛 전부
   active · `ssl_verify_result=0`. 배포 뒤 실화면: 제안 글을 눌러도 새로고침해도 사이드바가
