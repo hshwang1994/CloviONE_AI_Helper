@@ -57,6 +57,9 @@ OBJECT_LABELS: dict[str, str] = {
     # 소속**이라 `notion_document` 와 다른 이름을 쓴다.
     "document": "문서",
     "document_comment": "문서 댓글",
+    # 0027. 새 문서가 시작할 틀. 「문서」와 다른 이름인 이유는 감사 화면의 「관련 항목」
+    # 링크가 가리키는 표가 다르기 때문이다 — 한 이름으로 뭉치면 그 링크가 안 열린다.
+    "document_template": "문서 템플릿",
     "document_sync": "문서 동기화",
     # 강제 재동기화/재색인 트리거(C7). 운영자가 지금 당장 다시 동기화/색인하라고 누른 경로다.
     "ticket_sync": "티켓 동기화",

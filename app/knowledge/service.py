@@ -19,6 +19,7 @@
 from __future__ import annotations
 
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.authz.visibility import (
@@ -30,7 +31,7 @@ from app.authz.visibility import (
 )
 from app.core.errors import ConflictError, NotFoundError, ValidationAppError
 from app.core.models_base import utcnow
-from app.core.ownership import OWNER_PROJECT
+from app.core.ownership import OWNER_ORGANIZATION, OWNER_PROJECT
 from app.knowledge import (
     blocks,
     categories,
@@ -59,6 +60,7 @@ __all__ = [
     "list_spaces",
     "get_scoped_space_or_404",
     "create_space",
+    "resolve_or_create_common_space",
     "update_space",
     "space_tree",
     "create_folder",
@@ -98,6 +100,32 @@ PAGE_MAX = 200
 # 값이 UUID 와 충돌할 수 없고, 화면의 주소 축(?project=none)과 무변환으로 왕복한다.
 # P-61 이 계획한 `department_id=none` 과 같은 관례다.
 PROJECT_FILTER_NONE = "none"
+
+#: 프로젝트가 없는 문서가 들어갈 조직 공통 공간. **이 두 상수의 자리는 여기 하나다** —
+#: `app/migration/load.py` 가 여기서 가져다 쓴다. 두 벌로 두면 화면이 만드는 문서와
+#: 이관·Import 가 만드는 문서가 서로 다른 「공통 공간」에 들어가고, 그 사실은 둘 중 하나를
+#: 고르는 필터가 절반만 돌려줄 때에야 드러난다.
+COMMON_SPACE_SLUG = "team-docs"
+COMMON_SPACE_NAME = "팀 문서"
+
+#: 「최근 24시간」이 뜻하는 시간. 화면의 타일과 그 타일을 눌렀을 때의 목록이 **같은 수**를
+#: 말하게 하는 상수다.
+RECENT_WINDOW_HOURS = 24
+
+
+def recently_updated_since(now, hours: int = RECENT_WINDOW_HOURS):
+    """「최근 N시간 안에 고친 문서」 조건. **타일과 목록이 이 한 함수를 함께 쓴다.**
+
+    조건을 두 자리에 손으로 적으면 「최근 24시간 12」를 눌렀을 때 아홉 줄이 나오는 일이
+    생기고, 그 어긋남은 수를 세어 본 사람만 안다.
+
+    기준은 `documents.updated_at` 이다 — 이관 문서가 들고 있는 `legacy_updated_at`(원본을
+    고친 날)이 아니다. 사용자가 「최근 24시간」에서 찾는 것은 **이 제품에서** 최근에 바뀐
+    문서이고, 원본 날짜로 재면 2025년에 Notion 에서 고친 문서가 오늘 목록에 선다.
+    """
+    from datetime import timedelta
+
+    return Document.updated_at >= now - timedelta(hours=max(1, int(hours)))
 
 
 # ── 공간 ─────────────────────────────────────────────────────────────────────
@@ -215,6 +243,81 @@ def resolve_or_create_project_space(db: Session, user: User, project_id: str) ->
         name=project.name, slug=(project.code or project.id[:8]).lower(),
         owner_kind=OWNER_PROJECT, owner_project_id=project.id,
     )
+
+
+def resolve_or_create_common_space(db: Session, user: User) -> KnowledgeSpace:
+    """프로젝트를 안 고른 문서가 들어갈 조직 공통 공간을 찾거나 만든다.
+
+    프로젝트가 **선택**이 되면서 생긴 자리다. 예전에는 화면이 `/api/knowledge/spaces` 를
+    받아 「프로젝트가 아닌 공간」을 골라 `space_id` 를 보냈는데, 그 목록이 비었거나 둘
+    이상이면 골라내지 못해 「어느 프로젝트의 문서인지 골라 주세요」로 끝났다. 어느 쪽을
+    고를지는 서버가 아는 일이므로 서버가 한다 — 화면은 「공간」이라는 낱말을 몰라도 된다.
+
+    ## 찾는 순서가 계약이다
+
+    **slug 를 먼저 본다.** `create_space` 는 같은 `(org_id, slug)` 에 `ConflictError` 를
+    던지므로(유니크 `uq_kspace_slug`), 소유 갈래로만 찾고 없다고 판단해 만들려 들면 운영에
+    이미 서 있는 `team-docs` 와 부딪혀 **문서를 만들려던 사람이 409 를 본다.** 그 다음이
+    소유 갈래 조회이고, 만드는 것은 마지막이다.
+
+    ## 🔴 `owner_kind` 는 절대 `unset` 이면 안 된다
+
+    `app/authz/visibility.py::_stored_ownership_rules` 는 `organization`·`department`·
+    `project` 세 갈래에만 규칙을 낸다. `unset` 은 **어느 규칙에도 안 걸려** 전역 조회
+    권한자 말고는 아무도 못 본다 — 목록에서도, AI 검색에서도, 오류 한 줄 없이. 실측에서
+    문서 110건이 그렇게 사라진 적이 있다(`app/migration/load.py::_space_for` 의 붉은 주석).
+    그래서 여기서는 돌려주기 전에 **사후 조건을 단언한다.** 조용히 고쳐 주지도 않는다 —
+    남의 공간 소유를 이 경로가 바꾸면 그것은 문서를 만드는 일이 아니다.
+    """
+    org_id = getattr(user, "org_id", None)
+    if not org_id:
+        # 조직이 없는 사용자에게 조직 공간을 만들어 줄 수는 없다. 만들면 `org_id` 가 빈
+        # 공간이 생기고, 그 공간은 위의 `unset` 과 같은 이유로 아무에게도 안 보인다.
+        raise ValidationAppError("조직이 없는 계정은 공통 문서를 만들 수 없습니다.")
+
+    def _lookup() -> KnowledgeSpace | None:
+        by_slug = db.execute(
+            select(KnowledgeSpace).where(
+                KnowledgeSpace.org_id == org_id,
+                KnowledgeSpace.slug == COMMON_SPACE_SLUG,
+            )
+        ).scalars().first()
+        if by_slug is not None:
+            return by_slug
+        return db.execute(
+            select(KnowledgeSpace)
+            .where(
+                KnowledgeSpace.org_id == org_id,
+                KnowledgeSpace.owner_kind == OWNER_ORGANIZATION,
+                KnowledgeSpace.archived.is_(False),
+            )
+            .order_by(KnowledgeSpace.created_at, KnowledgeSpace.id)
+        ).scalars().first()
+
+    space = _lookup()
+    if space is None:
+        # 동시에 두 사람이 첫 문서를 만들면 둘 다 여기 온다. SAVEPOINT 로 감싸고 유니크에
+        # 부딪히면 다시 찾는다 — 진 쪽이 이긴 쪽의 공간을 쓰면 되고, 그것이 옳다.
+        try:
+            with db.begin_nested():
+                space = create_space(
+                    db, user,
+                    name=COMMON_SPACE_NAME,
+                    slug=COMMON_SPACE_SLUG,
+                    owner_kind=OWNER_ORGANIZATION,
+                )
+        except (ConflictError, IntegrityError):
+            space = _lookup()
+        if space is None:  # pragma: no cover - 유니크가 있으므로 여기 오지 않는다
+            raise ConflictError("공통 문서 공간을 찾지 못했습니다. 잠시 뒤 다시 시도해 주세요.")
+
+    if space.owner_kind != OWNER_ORGANIZATION or not space.org_id:
+        # 고쳐 주지 않고 **말한다.** 이 상태의 공간에 문서를 넣으면 그 문서는 만든 사람
+        # 눈에도 안 보인다. 관리자가 공간 소유를 고쳐야 하는 자리다.
+        raise ConflictError(
+            f"공통 문서 공간({space.slug})의 소유가 조직이 아닙니다. 관리자가 공간 소유를 고쳐야 합니다."
+        )
+    return space
 
 
 def update_space(
@@ -347,6 +450,7 @@ def list_documents(
     favorites: bool = False,
     include_archived: bool = False, archived_only: bool = False,
     created_by: str | None = None, drafts: bool = False, sort: str | None = None,
+    updated_within_hours: int | None = None, now=None,
     limit: int = 50, offset: int = 0,
 ) -> tuple[list[Document], int]:
     """문서 목록. **권한 조건이 상한 앞에 걸린다**(Z6 · D-202).
@@ -411,6 +515,11 @@ def list_documents(
         stmt = stmt.where(Document.category_id == category_id)
     if drafts:
         stmt = stmt.where(Document.version <= 1)
+    if updated_within_hours:
+        # 「최근 24시간」 타일이 쓰는 조건. 기준 시각은 **부르는 쪽이 준다** — 여기서
+        # `utcnow()` 를 부르면 타일과 목록이 서로 다른 순간을 재고, 경계에 걸친 문서
+        # 한 건이 수와 목록에서 갈린다.
+        stmt = stmt.where(recently_updated_since(now or utcnow(), updated_within_hours))
     if q and q.strip():
         needle = f"%{q.strip()}%"
         # 제목**과 본문**을 본다 (지시 22.4). 본문은 현재 판의 파생 텍스트에서 찾는다 —
@@ -497,12 +606,15 @@ def create_document(
     (`resolve_or_create_project_space`). 화면이 "공간" 개념을 몰라도 프로젝트 문서를
     만들 수 있는 것이 이 매개변수가 존재하는 이유다.
     """
-    if project_id:
+    if project_id and project_id != PROJECT_FILTER_NONE:
         space = resolve_or_create_project_space(db, user, project_id)
     elif space_id:
         space = get_scoped_space_or_404(db, user, space_id)
     else:
-        raise ValidationAppError("어느 프로젝트(또는 공간)의 문서인지 골라 주세요.")
+        # 프로젝트는 **선택**이다. 안 고르면 조직 공통 공간으로 간다 — 예전에는 여기서
+        # 「골라 주세요」로 거절했고, 그 때문에 화면이 공간 목록을 직접 뒤져 `space_id` 를
+        # 만들어 보내야 했다. 센티널 "none" 도 같은 자리로 온다(화면의 「프로젝트 미지정」).
+        space = resolve_or_create_common_space(db, user)
     if source_type not in SOURCE_TYPES:
         raise ValidationAppError(f"모르는 문서 출처입니다: {source_type}")
     if folder_id:
@@ -521,7 +633,9 @@ def create_document(
     # 틀은 **본문이 없을 때만** 채운다. 본문을 들고 온 경로(제안을 문서로 옮기는 자리)가
     # 틀 때문에 그 내용을 잃으면, 사용자는 자기가 쓴 글이 사라진 것으로 본다.
     if body is None:
-        body = doc_templates.body_for(template)
+        # 틀은 **문서가 앉을 공간의 조직** 것이어야 한다. 사용자의 조직으로 찾으면
+        # 남의 조직 공간에 문서를 만드는 경로(관리자)에서 틀만 자기 조직 것이 붙는다.
+        body = doc_templates.body_for(db, space.org_id, template)
 
     document = Document(
         space_id=space.id,
@@ -575,6 +689,7 @@ def save_document(
     _check_lock(document, expected_version)
 
     changed = False
+    title_changed = False
     if title is not None:
         clean = title.strip()
         if not clean:
@@ -582,6 +697,7 @@ def save_document(
         if clean != document.title:
             document.title = clean
             changed = True
+            title_changed = True
 
     version = None
     if body is not None:
@@ -609,6 +725,15 @@ def save_document(
     if changed:
         document.version += 1
         document.updated_at = utcnow()
+
+    # 🔴 제목만 바뀐 저장은 AI 색인에 안 잡힌다. `snapshot()` 은 본문이 같으면 `None` 을
+    # 돌려주어 자기 신호를 안 보내고, 훑기의 낡음 조건 넷에도 제목이 없다. 그런데 제목은
+    # 첫 청크 본문에 들어가므로(`app/ai/index/service.py::_document_units`) 신호가 없으면
+    # 그 문서는 **옛 이름으로 계속 검색된다.** 판이 새로 생긴 경우는 `snapshot` 이 이미
+    # 보냈으므로 여기서는 「제목은 바뀌었는데 판은 안 생긴」 자리만 메운다.
+    if title_changed and version is None:
+        versions.mark_stale(db, document.id)
+
     db.flush()
     return {
         "document": document,
@@ -638,7 +763,13 @@ def move_document(
 
     space_changed = False
     if project_id:
-        new_space = resolve_or_create_project_space(db, user, project_id)
+        # 센티널 "none" 은 「프로젝트에서 떼어 조직 공통 문서로 되돌린다」다. 화면의 이동
+        # 대화상자가 「프로젝트 미지정」으로 보내는 값이고, 목록 필터가 쓰는 값과 같다 —
+        # 한 낱말이 두 자리에서 같은 뜻이어야 사용자가 옮긴 문서를 그 필터로 다시 찾는다.
+        if project_id == PROJECT_FILTER_NONE:
+            new_space = resolve_or_create_common_space(db, user)
+        else:
+            new_space = resolve_or_create_project_space(db, user, project_id)
         if new_space.id != document.space_id:
             document.space_id = new_space.id
             document.folder_id = None
@@ -1111,7 +1242,7 @@ def workspace_summary(db: Session, user: User, *, now) -> dict:
         "total": _count(),
         # 「오늘」이 아니라 「최근 24시간」이다. 달력일로 자르면 자정 직후에 이 수가 0 이
         # 되는데, 그때 사람이 보고 싶은 것은 어젯밤에 고친 문서다.
-        "recent": _count(Document.updated_at >= now - timedelta(hours=24)),
+        "recent": _count(recently_updated_since(now)),
         "favorites": _count(
             Document.id.in_(
                 select(DocumentFavorite.document_id).where(DocumentFavorite.user_id == user.id)

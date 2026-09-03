@@ -95,17 +95,22 @@ def snapshot(
     document.current_version_id = version.id
     db.flush()
     if reindex:
-        _reindex(db, document.id)
+        mark_stale(db, document.id)
     return version
 
 
-def _reindex(db: Session, document_id: str) -> None:
-    """본문이 바뀌었으니 이 문서를 다시 색인해야 한다고 적는다 (S9 · D-203).
+def mark_stale(db: Session, document_id: str) -> None:
+    """이 문서의 AI 색인이 낡았다고 적는다 (S9 · D-203). **신호를 보내는 자리는 여기 하나다.**
 
-    이 자리에 두는 이유: `current_version_id` 를 옮기는 곳이 이 함수 하나다. 라우터마다
-    신호를 걸면 새 저장 경로가 하나 생길 때 그것만 신호를 빠뜨리고, 그 문서는 **영원히**
-    옛 내용으로 검색된다. 훑기(`sweep_stale`)가 결국 잡지만 그것은 안전망이지 설계가
-    아니다.
+    부르는 자리가 셋이다: 본문 판이 바뀔 때(`snapshot`), 첨부가 붙거나 떨어질 때
+    (`attachments`), 그리고 **제목만 바뀔 때**(`service.save_document`).
+
+    🔴 셋째가 오래 빠져 있었다. 제목만 고치면 `snapshot()` 이 「본문이 같다」며 `None` 을
+    돌려주어 이 신호를 안 보내고, 훑기(`sweep_stale`)의 낡음 조건 넷에도 제목이 없다.
+    그런데 제목은 **첫 청크 본문에 들어간다**(`app/ai/index/service.py::_document_units`).
+    그래서 이름을 바꾼 문서는 아무도 다시 색인하지 않는 한 **옛 이름으로 영원히** 검색됐다.
+
+    라우터마다 신호를 걸지 않는 이유도 같다 — 새 저장 경로가 하나 생기면 그것만 빠뜨린다.
 
     같은 트랜잭션이라 「저장은 됐는데 색인 신호는 안 갔다」가 안 생긴다. 그리고 색인이
     본문 저장을 막지도 않는다 — 여기서 실패해도 훑기가 같은 일을 한다.

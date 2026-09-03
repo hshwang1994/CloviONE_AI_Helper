@@ -17,7 +17,7 @@ import { SORTS, VIEW, VIEW_OPTIONS } from "./constants.js";
  * 걸린 조건은 칩으로도 선다(티켓 목록과 같은 계약) — 폴더처럼 왼쪽 내비에서만 고를 수
  * 있는 축도 칩으로는 **여기서** 풀 수 있어야 한다. */
 export function KnowledgeFilterBar({
-  q, view, project, folderId, folderName, tags, category, author, sort,
+  q, view, project, tags, category, author, sort,
   entries, categories, authors,
   onCommitSearch, onQuery, onClearAll, hasFilter,
 }) {
@@ -26,14 +26,12 @@ export function KnowledgeFilterBar({
   const authorName = ((authors || []).find((a) => a.value === author) || {}).label || "";
   const viewLabel = (VIEW_OPTIONS.find((o) => o.value === view) || {}).label || "";
 
-  /* 칩은 조건 축과 같은 목록이다(D-388) — 프로젝트(공간)는 조건이 아니라 자리라 칩이
-     없다(좌측 내비와 위의 고르개가 그 상태를 그린다). */
+  /* 칩은 조건 축과 같은 목록이다(D-388) — 프로젝트는 조건이 아니라 **자리**라 칩이
+     없다(바로 위 고르개가 그 상태를 그린다). 폴더 칩은 폴더 축이 화면에서 걷히면서
+     함께 없어졌다(문서 개편 1·5번). */
   const chips = [];
   const pushChip = (key, label, onDelete) => { chips.push({ key, label, onDelete }); };
   if (view && viewLabel) pushChip("view", `보기: ${viewLabel}`, () => onQuery({ view: null }));
-  if (folderId) {
-    pushChip("folder", `폴더: ${folderName || "고른 폴더"}`, () => onQuery({ folder: null }));
-  }
   if (category) pushChip("category", `분류: ${categoryName}`, () => onQuery({ category: null }));
   for (const name of tags) {
     pushChip(`tag:${name}`, `태그: ${name}`, () => onQuery({ tags: tags.filter((t) => t !== name) }));
@@ -63,18 +61,16 @@ export function KnowledgeFilterBar({
             onChange={(v) => onQuery({ view: v || null })}
             options={VIEW_OPTIONS}
           />
-          {/* 🔴 라벨이 「프로젝트」였다. 그런데 이 고르개의 후보에는 **공통 문서**도 들어
-              있어서 라벨이 내용을 정확히 말하지 못했다 — 좌측 내비가 「프로젝트」 제목
-              아래 공통 문서를 세워 두던 것과 같은 어긋남이다. 축의 이름은 좌측 내비와
-              **같은 낱말**을 쓴다: 문서 범위. 후보(`entries`)·값·주소·서버 파라미터는
-              내비와 한 벌이라 두 입구가 언제나 같은 것을 가리킨다. */}
+          {/* 축의 이름은 **프로젝트**다. 한때 「문서 범위」였는데, 그것은 후보에 프로젝트가
+              아닌 값(「공통 문서」)이 섞여 라벨이 내용에 대해 거짓말을 했기 때문이다
+              (D-415). 그 값을 「프로젝트 미지정」으로 부르는 지금은 프로젝트 축의 정직한
+              값이라 그 이름이 필요 없어졌다.
+              값·주소·서버 파라미터(`?project=`, `project_id`, `"none"`)는 안 바뀌었다. */}
           <EntityCombobox
-            label="문서 범위"
+            label="프로젝트"
             allLabel="전체"
-            /* 값은 프로젝트 축이다(프로젝트 id | "none"=공통 문서) — 내비·주소·서버
-               파라미터와 한 값으로 왕복한다. */
             value={project}
-            onChange={(v) => onQuery({ project: v || null, folder: null })}
+            onChange={(v) => onQuery({ project: v || null })}
             options={entries}
           />
           <FilterSelect
@@ -87,7 +83,6 @@ export function KnowledgeFilterBar({
           {/* 다중 선택은 AND 다 — 고른 태그를 전부 가진 문서로 좁힌다(§11.3).
               값은 이름 배열이라 문서 저장 계약과 같다. */}
           <TagPicker
-            label="기술 태그"
             value={tags}
             onChange={(next) => onQuery({ tags: next })}
           />

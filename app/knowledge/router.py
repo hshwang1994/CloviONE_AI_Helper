@@ -24,6 +24,7 @@ from sqlalchemy.orm import Session
 
 from app.core import uploads
 from app.core.audit import record_audit_from_request
+from app.core.errors import ValidationAppError
 from app.core.deps import (
     AuthContext,
     get_current_auth,
@@ -53,6 +54,8 @@ from app.knowledge.schemas import (
     SpaceCreate,
     SpaceUpdate,
     TagCreate,
+    TemplateCreate,
+    TemplateUpdate,
     VersionRestore,
 )
 from app.settings.gate import block_if_maintenance
@@ -301,6 +304,7 @@ def delete_folder(
 
 @router.get("/documents")
 def list_documents(
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("DOCUMENT_READ")),
     space_id: str | None = Query(default=None, max_length=36),
@@ -316,6 +320,7 @@ def list_documents(
     mine: bool = Query(default=False),
     drafts: bool = Query(default=False),
     sort: str | None = Query(default=None, max_length=16),
+    updated_within_hours: int | None = Query(default=None, ge=1, le=8760),
     limit: int = Query(default=50, ge=1, le=service.PAGE_MAX),
     offset: int = Query(default=0, ge=0),
 ) -> dict:
@@ -331,6 +336,10 @@ def list_documents(
         tags=tags, category_id=category_id,
         favorites=favorites, include_archived=include_archived, archived_only=archived_only,
         created_by=(user.id if mine else created_by), drafts=drafts, sort=sort,
+        updated_within_hours=updated_within_hours,
+        # 시각은 요약 타일과 **같은 시계**에서 온다. 둘이 다른 시계를 쓰면 경계에 걸친
+        # 문서 한 건이 「타일은 12, 목록은 11」로 갈린다.
+        now=request.app.state.clock.now(),
         limit=limit, offset=offset,
     )
     # 즐겨찾기·태그·카테고리는 **한 질의씩**으로 이 페이지치만 묻는다. 문서마다 묻게 두면
@@ -369,10 +378,90 @@ def workspace_summary(
 
 @router.get("/templates")
 def list_templates(
+    db: Session = Depends(get_db),
     user: User = Depends(require_permission("DOCUMENT_READ")),
 ) -> dict:
     """새 문서가 시작할 틀 (지시 22.5). 본문은 안 싣는다 — 고르는 자리에는 이름이면 된다."""
-    return {"items": doc_templates.catalog()}
+    return {"items": doc_templates.catalog(db, getattr(user, "org_id", None))}
+
+
+@router.post("/templates", dependencies=[Depends(require_csrf)])
+def create_template(
+    payload: TemplateCreate,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("DOCUMENT_UPDATE")),
+) -> dict:
+    """틀을 만든다. 권한 사다리는 분류·태그와 **같다** — 어휘를 늘리는 일은 같은 무게다."""
+    row = doc_templates.create(
+        db, org_id=getattr(user, "org_id", None), name=payload.name,
+        help_text=payload.help, body=payload.body, created_by=user.id,
+    )
+    record_audit_from_request(
+        request, db, action="knowledge.template_create",
+        object_type="document_template", object_id=row.id, after={"name": row.name},
+    )
+    db.commit()
+    return doc_templates.json_of(row, with_body=True)
+
+
+@router.get("/templates/{template_id}")
+def get_template(
+    template_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("DOCUMENT_READ")),
+) -> dict:
+    """틀 하나 — **본문까지** 낸다. 고치는 화면이 열어야 하는 자리다."""
+    if template_id == doc_templates.BLANK:
+        # 「빈 문서」는 표에 없다. 404 로 답하면 화면이 「고장」으로 읽으므로 422 다.
+        raise ValidationAppError("「빈 문서」는 고칠 수 없습니다.")
+    row = doc_templates.get_or_404(db, getattr(user, "org_id", None), template_id)
+    return doc_templates.json_of(row, with_body=True)
+
+
+@router.patch("/templates/{template_id}", dependencies=[Depends(require_csrf)])
+def update_template(
+    template_id: str,
+    payload: TemplateUpdate,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("DOCUMENT_DELETE")),
+) -> dict:
+    """틀을 고친다. **이 틀로 이미 만든 문서는 안 바뀐다** — 문서가 틀을 참조하지 않는다."""
+    org_id = getattr(user, "org_id", None)
+    row = doc_templates.get_or_404(db, org_id, template_id)
+    sent = payload.model_fields_set
+    doc_templates.update(
+        db, row,
+        name=payload.name,
+        help_text=(payload.help if "help" in sent else doc_templates.UNSET),
+        body=(payload.body if "body" in sent else doc_templates.UNSET),
+    )
+    record_audit_from_request(
+        request, db, action="knowledge.template_update",
+        object_type="document_template", object_id=row.id, after={"name": row.name},
+    )
+    db.commit()
+    return doc_templates.json_of(row, with_body=True)
+
+
+@router.delete("/templates/{template_id}", dependencies=[Depends(require_csrf)])
+def delete_template(
+    template_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("DOCUMENT_DELETE")),
+) -> dict:
+    """틀을 지운다. **이 틀로 만든 문서는 그대로 남는다.**"""
+    org_id = getattr(user, "org_id", None)
+    row = doc_templates.get_or_404(db, org_id, template_id)
+    name = doc_templates.remove(db, row)
+    record_audit_from_request(
+        request, db, action="knowledge.template_delete",
+        object_type="document_template", object_id=template_id, before={"name": name},
+    )
+    db.commit()
+    return {"ok": True, "name": name}
 
 
 @router.get("/recent")

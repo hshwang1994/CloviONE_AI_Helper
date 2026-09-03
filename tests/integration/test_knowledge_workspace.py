@@ -210,17 +210,24 @@ def test_the_template_list_does_not_ship_the_bodies(client, login_as):
     r = client.get("/api/knowledge/templates", headers=hdr)
     assert r.status_code == 200, r.text
     items = r.json()["items"]
-    assert {i["id"] for i in items} >= {"blank", "meeting", "requirements", "ops-guide"}
+    # 🔴 이름으로 잰다. 틀이 표가 된 뒤(0027) id 는 조직마다 다른 UUID 라 고정 문자열로
+    # 재면 시드가 도는 설치에서만 초록이다. 사용자가 보는 것도 이름이다.
+    assert {i["name"] for i in items} >= {"빈 문서", "회의록", "요구사항 정의서", "운영 가이드"}
     assert all("body" not in i for i in items)
-    assert next(i for i in items if i["id"] == "blank")["empty"] is True
+    blank = next(i for i in items if i["id"] == "blank")
+    assert blank["empty"] is True and blank["builtin"] is True
+    # 「빈 문서」 말고는 전부 표의 행이다 — 그래야 고치고 지울 수 있다.
+    assert all(i["builtin"] is False for i in items if i["id"] != "blank")
 
 
 def test_creating_with_a_template_fills_the_body(client, login_as, world):
     """틀은 **질문**을 채운다 — 예시 문장을 넣어 두면 그 문장이 지워지지 않은 채 저장된
     문서가 반드시 생긴다."""
     hdr = _hdr(login_as)
+    catalog = client.get("/api/knowledge/templates", headers=hdr).json()["items"]
+    meeting = next(t["id"] for t in catalog if t["name"] == "회의록")
     made = client.post("/api/knowledge/documents", headers=hdr, json={
-        "space_id": world["space"], "title": "8월 회의록", "template": "meeting",
+        "space_id": world["space"], "title": "8월 회의록", "template": meeting,
     })
     assert made.status_code == 200, made.text
     detail = client.get(f"/api/knowledge/documents/{made.json()['id']}", headers=hdr).json()

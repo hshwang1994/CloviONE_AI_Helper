@@ -65,7 +65,7 @@ function docsPage(offset, count, total) {
       author: { user_id: "u-1", display_name: "나" },
       counts: { attachments: 0, comments: 0, relations: 0 },
       // 첫 문서에만 종류·태그·프로젝트를 준다 — 목록 줄이 실제로 그리는지만 보면 된다.
-      // 나머지는 project: undefined 라 "공통 문서"로 보여야 한다(§11.2).
+      // 나머지는 project: undefined 라 "프로젝트 미지정"으로 보여야 한다(§11.2).
       ...(offset + i === 0
         ? {
           doc_type: "회의록", tags: [{ id: "tag-1", name: "인프라" }],
@@ -258,12 +258,12 @@ describe("문서 목록의 묶음 이어 받기", () => {
     expect(screen.getAllByText("회의록").length).toBeGreaterThan(0);
   });
 
-  it("🔴 프로젝트 열이 공간이 아니라 프로젝트를 낸다 — 없으면 「공통 문서」다(§11.2·§11.3)", async () => {
+  it("🔴 프로젝트 열이 공간이 아니라 프로젝트를 낸다 — 없으면 「프로젝트 미지정」이다(§11.2·§11.3)", async () => {
     renderList();
     await seeRows();
-    // doc-0 만 project 를 받았다(픽스처) — 그 줄은 프로젝트 이름, 나머지는 공통 문서.
+    // doc-0 만 project 를 받았다(픽스처) — 그 줄은 프로젝트 이름, 나머지는 미지정.
     expect((await screen.findAllByText("알파 프로젝트")).length).toBeGreaterThan(0);
-    expect(screen.getAllByText("공통 문서").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("프로젝트 미지정").length).toBeGreaterThan(0);
     // "공간"이라는 낱말 자체가 목록 화면에 안 남는다("공간 추가" 관리자 버튼은 예외).
     expect(screen.queryByText("우리 공간")).toBeNull();
   });
@@ -290,11 +290,11 @@ describe("문서 목록의 묶음 이어 받기", () => {
     await waitFor(() => expect(screen.getByRole("searchbox", { name: "문서 검색" }).value).toBe(""));
   });
 
-  it("태그 조건도 서버 질의에 실려 나간다 — 옛 화면의 문서 종류, 업무 분야, 기술 태그를 대신한다", async () => {
+  it("태그 조건도 서버 질의에 실려 나간다 — 옛 화면의 문서 종류, 업무 분야, 태그를 대신한다", async () => {
     renderList();
     await seeRows();
 
-    await userEvent.click(screen.getByLabelText("기술 태그"));
+    await userEvent.click(screen.getByLabelText("태그"));
     await userEvent.click(await screen.findByRole("option", { name: /^회의록/ }));
     await waitFor(() =>
       expect(documentCalls().some((p) => p.includes(`tags=${encodeURIComponent("회의록")}`))).toBe(true));
@@ -348,13 +348,23 @@ describe("요약 넷", () => {
  * 만든 문서는 그 값을 채울 방법이 아예 없었고 상세 화면은 빈 줄을 보여 줬다.
  */
 describe("새 문서 만들기", () => {
-  it("공통 문서 자리에서 만들면 조직 공간 id 가 실린다 — 축 값의 매핑", async () => {
+  /** 필수 셋을 채운다 — 제목·분류·태그. 프로젝트는 선택이라 안 건드린다. */
+  async function fillRequired(dialog, title) {
+    await userEvent.type(within(dialog).getByLabelText(/문서 제목/), title);
+    await userEvent.click(within(dialog).getByLabelText(/^분류/));
+    await userEvent.click(await screen.findByRole("option", { name: "회의 기록" }));
+    await userEvent.click(within(dialog).getByLabelText(/^태그/));
+    // MUI Autocomplete 의 옵션은 Portal 로 body 에 붙는다 — within(dialog) 밖이다.
+    await userEvent.click(await screen.findByRole("option", { name: /^인프라/ }));
+  }
+
+  it("🔴 프로젝트를 안 골라도 만들어진다 — 공간 id 를 화면이 짓지 않는다", async () => {
     renderList();
     await seeRows();
 
     await userEvent.click(screen.getByRole("button", { name: "새 문서" }));
     const dialog = await screen.findByRole("dialog");
-    await userEvent.type(within(dialog).getByLabelText(/문서 제목/), "인수인계 메모");
+    await fillRequired(dialog, "인수인계 메모");
     await userEvent.click(within(dialog).getByRole("button", { name: "만들기" }));
 
     await waitFor(() => {
@@ -362,10 +372,15 @@ describe("새 문서 만들기", () => {
         ([p, opts]) => String(p) === "/api/knowledge/documents" && opts && opts.method === "POST");
       expect(post, "생성 요청이 안 나갔다").toBeTruthy();
       expect(post[1].body.title).toBe("인수인계 메모");
-      // 지금 보던 곳(조직 공간 = 공통 문서)이 기본값이고, 공통만 실제 공간 id 로 나간다.
-      expect(post[1].body.space_id, "공통 문서의 공간 매핑이 안 실렸다").toBe(SPACE);
+      /* qa-contract-change: 예전에는 화면이 공간 목록을 뒤져 space_id 를 지어 보냈다.
+         이제 아무 자리 값도 안 보낸다 — 서버가 조직 공통 공간을 찾거나 만든다. */
+      expect(post[1].body.space_id).toBeUndefined();
       expect(post[1].body.project_id).toBeUndefined();
+      expect(post[1].body.category_id).toBeTruthy();
+      expect(post[1].body.tag_names.length).toBeGreaterThan(0);
       expect(post[1].body.template, "고른 틀이 안 실렸다").toBe("blank");
+      // 폴더 축은 화면에서 걷혔다 — 요청에도 안 실린다.
+      expect(post[1].body.folder_id).toBeUndefined();
     });
   });
 
@@ -375,12 +390,11 @@ describe("새 문서 만들기", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "새 문서" }));
     const dialog = await screen.findByRole("dialog");
-    await userEvent.type(within(dialog).getByLabelText(/문서 제목/), "알파 회의록");
-    // 예전 셀렉트는 「이미 공간이 있는 프로젝트」만 후보라 이 프로젝트를 고를 수 없었다 —
-    // 공간을 먼저 만들어야 문서를 만들 수 있던 구조의 물리적 원인.
-    await userEvent.click(within(dialog).getByRole("combobox", { name: /문서 범위/ }));
+    await fillRequired(dialog, "알파 회의록");
+    /* qa-contract-change: 이 고르개의 라벨이 「문서 범위」에서 「프로젝트」로 돌아왔다. */
+    await userEvent.click(within(dialog).getByRole("combobox", { name: /프로젝트/ }));
     await userEvent.click(await screen.findByRole("option", { name: /알파 프로젝트/ }));
-    // 공간이 없으니 폴더도 없다 — 칸 자체가 서지 않는다(만든 뒤 옮길 수 있다).
+    // 폴더 칸은 아예 없다 — 폴더 축이 화면에서 걷혔다.
     expect(within(dialog).queryByLabelText(/폴더/)).toBeNull();
     await userEvent.click(within(dialog).getByRole("button", { name: "만들기" }));
 
@@ -392,6 +406,28 @@ describe("새 문서 만들기", () => {
       expect(post[1].body.project_id).toBe("proj-1");
       expect(post[1].body.space_id).toBeUndefined();
     });
+  });
+
+  it("🔴 분류와 태그도 필수다 — 하나만 비어도 만들 수 없다", async () => {
+    /* 둘 다 나중에 찾는 길이다. 비워 두고 만든 문서는 어느 조건에도 안 걸려서, 제목을
+       정확히 기억하는 사람 말고는 다시 못 찾는다(문서 개편 3번). */
+    renderList();
+    await seeRows();
+
+    await userEvent.click(screen.getByRole("button", { name: "새 문서" }));
+    const dialog = await screen.findByRole("dialog");
+    const submit = () => within(dialog).getByRole("button", { name: "만들기" });
+
+    await userEvent.type(within(dialog).getByLabelText(/문서 제목/), "제목만 있는 문서");
+    expect(submit().hasAttribute("disabled"), "분류와 태그가 비었는데 만들 수 있다").toBe(true);
+
+    await userEvent.click(within(dialog).getByLabelText(/^분류/));
+    await userEvent.click(await screen.findByRole("option", { name: "회의 기록" }));
+    expect(submit().hasAttribute("disabled"), "태그가 비었는데 만들 수 있다").toBe(true);
+
+    await userEvent.click(within(dialog).getByLabelText(/^태그/));
+    await userEvent.click(await screen.findByRole("option", { name: /^인프라/ }));
+    expect(submit().hasAttribute("disabled")).toBe(false);
   });
 
   it("제목이 비면 만들 수 없다 — 이름 없는 문서는 목록에서 다시 못 찾는다", async () => {
@@ -499,7 +535,11 @@ describe("분류 관리 — 태그 탭", () => {
     await userEvent.click(screen.getByRole("button", { name: "새 문서" }));
     const dialog = await screen.findByRole("dialog");
     await userEvent.type(within(dialog).getByLabelText(/문서 제목/), "새 회의록");
-    await userEvent.click(within(dialog).getByLabelText("기술 태그"));
+    /* qa-contract-change: 분류도 필수가 됐으므로 함께 채운다 — 안 채우면 「만들기」가
+       비활성이라 클릭 자체가 안 된다(그 상태를 재는 시험은 따로 있다). */
+    await userEvent.click(within(dialog).getByLabelText(/^분류/));
+    await userEvent.click(await screen.findByRole("option", { name: "회의 기록" }));
+    await userEvent.click(within(dialog).getByLabelText(/^태그/));
     // MUI Autocomplete 의 옵션 목록은 Portal 로 document.body 에 붙는다 — dialog DOM
     // 서브트리 밖이라 within(dialog) 로는 못 찾는다.
     await userEvent.click(await screen.findByRole("option", { name: /^인프라/ }));
@@ -513,8 +553,8 @@ describe("분류 관리 — 태그 탭", () => {
   });
 });
 
-describe("분류 관리 — 카테고리 탭 (0026)", () => {
-  it("카테고리 탭이 기본으로 열리고, 사용 건수를 말한다", async () => {
+describe("분류 관리 — 분류 탭 (0026)", () => {
+  it("분류 탭이 기본으로 열리고, 사용 건수를 말한다", async () => {
     renderList();
     await seeRows();
 
@@ -523,12 +563,12 @@ describe("분류 관리 — 카테고리 탭 (0026)", () => {
     expect(within(dialog).getByText("기술 문서")).toBeTruthy();
   });
 
-  it("새 카테고리를 추가한다 — 회사에 맞는 갈래를 화면에서 만든다", async () => {
+  it("새 분류를 추가한다 — 회사에 맞는 갈래를 화면에서 만든다", async () => {
     renderList();
     await seeRows();
 
     const dialog = await openTaxonomy();
-    await userEvent.type(within(dialog).getByLabelText("새 카테고리"), "고객 지원");
+    await userEvent.type(within(dialog).getByLabelText("새 분류"), "고객 지원");
     await userEvent.click(within(dialog).getByRole("button", { name: "추가" }));
 
     await waitFor(() => {
@@ -551,7 +591,7 @@ describe("분류 관리 — 카테고리 탭 (0026)", () => {
     expect(apiMock.mock.calls.some(([, o]) => o && o.method === "DELETE")).toBe(false);
   });
 
-  it("운영자는 카테고리 이름을 고칠 수 있고, 그 요청이 서버로 나간다", async () => {
+  it("운영자는 분류 이름을 고칠 수 있고, 그 요청이 서버로 나간다", async () => {
     authState.role = "admin";
     renderList();
     await seeRows();
@@ -602,15 +642,18 @@ describe("카테고리 필터 (0026)", () => {
 });
 
 describe("새 문서의 분류", () => {
-  it("고른 카테고리가 생성 요청에 실린다 — 안 고르면 null 이다", async () => {
+  it("고른 분류가 생성 요청에 실린다", async () => {
     renderList();
     await seeRows();
 
     await userEvent.click(screen.getByRole("button", { name: "새 문서" }));
     const dialog = await screen.findByRole("dialog");
     await userEvent.type(within(dialog).getByLabelText(/문서 제목/), "분류 있는 문서");
-    await userEvent.click(within(dialog).getByLabelText("카테고리"));
+    await userEvent.click(within(dialog).getByLabelText(/^분류/));
     await userEvent.click(await screen.findByRole("option", { name: "기술 문서" }));
+    /* qa-contract-change: 태그도 필수가 됐다. */
+    await userEvent.click(within(dialog).getByLabelText(/^태그/));
+    await userEvent.click(await screen.findByRole("option", { name: /^인프라/ }));
     await userEvent.click(within(dialog).getByRole("button", { name: "만들기" }));
 
     await waitFor(() => {
@@ -640,23 +683,27 @@ describe("프로젝트 축과 옛 주소", () => {
     expect(lastDocumentCall()).not.toContain("space_id=");
   });
 
-  it("🔴 좌측 내비·필터가 전체 프로젝트를 보여준다 — 공간 없는 프로젝트도 (공간 목록이 아니라)", async () => {
+  /* qa-contract-change: 이 두 시험은 **좌측 내비**를 재고 있었다. 그 내비가 걷혔으므로
+     (문서 개편 5번) 같은 사실을 프로젝트 축의 유일한 입구 — 조건 줄의 고르개 — 에서
+     잰다. 재는 사실 자체는 그대로다: 후보는 공간 목록이 아니라 프로젝트 전체이고,
+     고르면 그 `project_id` 로 목록을 조회한다. */
+  it("🔴 프로젝트 고르개가 전체 프로젝트를 보여준다 — 공간 없는 프로젝트도 (공간 목록이 아니라)", async () => {
     // spaces 는 조직 공간(공통) 하나뿐이지만 projects 에는 알파·베타 둘이 있다.
-    // 예전에는 좌측·필터가 공간 목록을 읽어 공간 없는 이 둘이 통째로 안 보였다 —
-    // 새 문서 모달만 전체를 보여줘 「만들어진 프로젝트가 안 보인다」가 됐다.
+    // 예전에는 이 축이 공간 목록을 읽어 공간 없는 둘이 통째로 안 보였다.
     renderList();
     await seeRows();
-    // 좌측 내비에 프로젝트 이름이 실제로 뜬다(전체 프로젝트 목록에서).
-    expect(await screen.findByRole("button", { name: "알파 프로젝트" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "베타 프로젝트" })).toBeTruthy();
-    // 공통 문서 행도 여전히 있다(비프로젝트 공간이 있으므로).
-    expect(screen.getByRole("button", { name: "공통 문서" })).toBeTruthy();
+    await userEvent.click(screen.getByRole("combobox", { name: /프로젝트/ }));
+    expect(await screen.findByRole("option", { name: "알파 프로젝트" })).toBeTruthy();
+    expect(screen.getByRole("option", { name: "베타 프로젝트" })).toBeTruthy();
+    // 「프로젝트 미지정」은 조건 없이 늘 선다 — 공간 목록에 무엇이 있든.
+    expect(screen.getByRole("option", { name: "프로젝트 미지정" })).toBeTruthy();
   });
 
-  it("공간 없는 프로젝트를 좌측에서 고르면 그 project_id 로 목록을 조회한다", async () => {
+  it("공간 없는 프로젝트를 고르면 그 project_id 로 목록을 조회한다", async () => {
     renderList();
     await seeRows();
-    await userEvent.click(await screen.findByRole("button", { name: "알파 프로젝트" }));
+    await userEvent.click(screen.getByRole("combobox", { name: /프로젝트/ }));
+    await userEvent.click(await screen.findByRole("option", { name: "알파 프로젝트" }));
     await waitFor(() => {
       expect(lastDocumentCall()).toContain("project_id=proj-1");
     });

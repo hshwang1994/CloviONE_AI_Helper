@@ -7,13 +7,13 @@ import Typography from "@mui/material/Typography";
 import { Button, Modal, ModalFooter } from "../../ui/kit.jsx";
 import { KO_WORD_BREAK } from "../../ui/theme.js";
 
-/* 분류 관리 — 카테고리와 태그, 두 어휘를 한 창에서 고친다.
+/* 분류 관리 — 분류와 태그, 두 어휘를 한 창에서 고친다.
  *
  * ## 왜 한 창인가
  *
  * 두 어휘의 관리 규칙이 같다(추가는 누구나, 이름 고치기와 삭제는 운영자군, 사용 건수를
  * 먼저 보여 준다). 창을 둘로 나누면 같은 규칙이 두 벌의 화면을 갖고, 한쪽만 고치는 날이
- * 온다. 다른 것은 뜻 하나다 — 카테고리는 문서 하나에 하나(큰 갈래), 태그는 여럿(자유
+ * 온다. 다른 것은 뜻 하나다 — 분류는 문서 하나에 하나(큰 갈래), 태그는 여럿(자유
  * 분류). 그 차이는 각 탭의 안내 문장이 말한다.
  *
  * ## 「몇 건에 붙어 있는가」를 먼저 보여 준다
@@ -148,7 +148,7 @@ export function TaxonomyManager({
         aria-label="분류 관리 탭"
         sx={{ borderBottom: 1, borderColor: "divider", mb: 2 }}
       >
-        <Tab label="카테고리" />
+        <Tab label="분류" />
         <Tab label="태그" />
       </Tabs>
       {tab === 0 ? (
@@ -156,9 +156,9 @@ export function TaxonomyManager({
           rows={categories}
           canManage={canManage}
           busy={busy}
-          addLabel="새 카테고리"
-          helpText="카테고리는 문서의 큰 갈래입니다. 문서 하나가 카테고리 하나에 속합니다."
-          emptyText="아직 카테고리가 없습니다. 회사에 맞는 갈래를 여기서 만듭니다."
+          addLabel="새 분류"
+          helpText="분류는 문서의 큰 갈래입니다. 문서 하나가 분류 하나에 속합니다."
+          emptyText="아직 분류가 없습니다. 회사에 맞는 갈래를 여기서 만듭니다."
           onAdd={onAddCategory}
           onRename={onRenameCategory}
           onRemove={onRemoveCategory}

@@ -1,7 +1,9 @@
 {
   "_comment": "S13 Migration Tool 전용 SSRF allowlist. 런타임(allowed-services.json)과 일부러 분리했다 — 이관은 Notion 이 내주는 임시 파일 주소에서 첨부를 내려받아야 하는데, 그 호스트를 런타임 목록에 넣으면 한 번 쓰는 도구 때문에 매일 도는 요청의 허용 범위가 영구히 넓어진다. Cutover(S14) 이후 이 파일은 필요 없다.",
+  "_comment_confluence": "goodmit.atlassian.net 은 Confluence 한 번 가져오기(CMP·ClovirONE)를 위해 들어왔다. 첨부 바이트도 같은 호스트가 내준다 — Notion 과 달리 별도 S3 호스트로 넘기지 않고 /wiki/... 경로에서 그대로 내려온다. 그래서 호스트가 하나면 충분하다.",
   "hosts": [
     "api.notion.com:443",
-    "prod-files-secure.s3.us-west-2.amazonaws.com:443"
+    "prod-files-secure.s3.us-west-2.amazonaws.com:443",
+    "goodmit.atlassian.net:443"
   ]
 }

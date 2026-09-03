@@ -20,8 +20,8 @@ import {
   useToast,
 } from "../ui/kit.jsx";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, PROSE_MAX_WIDTH } from "../ui/theme.js";
-import { useKnowledgeSpaces } from "../lib/knowledgeSpaces.js";
-import { spaceDisplayName } from "./knowledge/constants.js";
+import { PROJECT_NONE, navEntriesFrom } from "./knowledge/constants.js";
+import { useAllProjects } from "./project-queries.js";
 
 /* AI 작업공간 — 묻고, 근거를 보고, 그 자리로 간다 (S10).
  *
@@ -134,7 +134,14 @@ export function AiWorkspace() {
   const navigate = useNavigate();
   const toast = useToast();
   const status = useAiStatus();
-  const { items: spaces } = useKnowledgeSpaces();
+  /* 초안이 앉을 자리는 **프로젝트**다 — 새 문서 대화상자와 같은 축·같은 후보다.
+     🔴 예전에는 「공간」 목록이었고 `space_id` 가 **필수**였다. 그래서 이 경로만
+     프로젝트 없이는 초안을 못 만들었고, 아직 공간이 없는 프로젝트는 후보에도 없었다. */
+  const projectsList = useAllProjects();
+  const draftTargets = React.useMemo(
+    () => navEntriesFrom(projectsList.rows),
+    [projectsList.rows],
+  );
   const [draft, setDraft] = React.useState(params.get("q") || "");
   const [result, setResult] = React.useState(null);
   const [drafting, setDrafting] = React.useState(false);
@@ -290,23 +297,25 @@ export function AiWorkspace() {
         fields={[
           { name: "title", label: "문서 제목", type: "text", required: true, maxLength: 500 },
           {
-            name: "space_id",
-            // 「공간」 낱말을 일반 사용자 화면에 쓰지 않는다(§11.2) — 사용자에게 공간은
-            // 프로젝트(또는 공통 문서)다. 값 계약(space_id)은 그대로다. 아직 공간이 없는
-            // 프로젝트가 후보에 없는 한계는 이 폼의 서버 계약이 project_id 를 받는 날
-            // 풀린다(백로그로 적어 둔다).
+            // 「공간」 낱말을 일반 사용자 화면에 쓰지 않는다(§11.2). 값도 이제 프로젝트다 —
+            // 서버가 그 프로젝트의 공간을 찾거나 만들고, 미지정이면 조직 공통 공간을 쓴다.
+            name: "project_id",
             label: "프로젝트",
             type: "select",
-            required: true,
-            options: spaces.map((space) => ({
-              value: space.id, label: spaceDisplayName(space),
-            })),
+            options: draftTargets.map((e) => ({ value: e.value, label: e.label })),
           },
         ]}
-        initial={{ title: draft.slice(0, 60), space_id: spaces[0]?.id || "" }}
+        initial={{ title: draft.slice(0, 60), project_id: PROJECT_NONE }}
         onClose={() => setDrafting(false)}
         onSubmit={(values) =>
-          makeDocument.mutateAsync({ ...values, instruction: draft.trim() })
+          makeDocument.mutateAsync({
+            title: values.title,
+            /* 「프로젝트 미지정」은 아무것도 안 보낸다 — 서버의 기본 자리가 그것이다. */
+            ...(values.project_id && values.project_id !== PROJECT_NONE
+              ? { project_id: values.project_id }
+              : {}),
+            instruction: draft.trim(),
+          })
         }
       />
     </Box>

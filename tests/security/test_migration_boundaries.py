@@ -41,11 +41,25 @@ def test_the_runtime_allowlist_did_not_grow_for_the_migration():
 
 
 def test_the_migration_allowlist_is_a_separate_narrow_list():
+    """이관 목록에 있는 호스트는 **하나하나 이름이 있어야 한다.**
+
+    수만 세면 「셋으로 늘렸다」를 고치는 가장 쉬운 방법이 숫자를 넷으로 바꾸는 것이 된다.
+    집합을 통째로 적으면 호스트를 더하는 사람이 **여기에 이유를 적게** 된다.
+
+    - `api.notion.com` · S3 — Notion 이관(S13). 본문과 속성은 API 에서, 첨부 바이트는
+      Notion 이 내주는 임시 S3 주소에서 온다.
+    - `goodmit.atlassian.net` — Confluence 한 번 가져오기(문서 개편 14~20번). 첨부도
+      같은 호스트가 내주므로 호스트가 하나면 충분하다.
+
+    셋 다 **런타임 목록에는 없다**(위 시험이 그것을 잰다). 한 번 쓰고 버리는 도구가
+    제품의 경계를 넓혀 놓고 사라지면, 넓어진 채로 남는 것은 제품이다.
+    """
     migration = _hosts("migration")
-    assert "prod-files-secure.s3.us-west-2.amazonaws.com:443" in migration
-    assert "api.notion.com:443" in migration
-    # 넓히지 않았는지도 본다 — 「필요할 것 같아서」 늘린 호스트가 없어야 한다.
-    assert len(migration) == 2, f"이관 목록이 두 곳보다 많다: {sorted(migration)}"
+    assert migration == {
+        "api.notion.com:443",
+        "prod-files-secure.s3.us-west-2.amazonaws.com:443",
+        "goodmit.atlassian.net:443",
+    }, f"이관 허용 목록이 바뀌었다: {sorted(migration)}"
 
 
 def test_a_host_outside_the_migration_list_is_refused():

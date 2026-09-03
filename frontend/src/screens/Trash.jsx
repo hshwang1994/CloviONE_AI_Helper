@@ -163,15 +163,10 @@ export function Trash() {
     {
       /* 「어느 프로젝트의 문서였나」 (지시 22.7). 옛 미러 항목은 이 값을 모른다 — 그 개념이
          없는 표에서 왔다. 없는 값을 「-」로 지어내지 않고 자리를 비운다. */
-      key: "place", label: "프로젝트, 폴더", type: "name", minWidth: "10rem",
-      render: (r) => (r.space ? (
-        <Box sx={{ display: "grid", gap: 0.25, minWidth: 0 }}>
-          <Typography variant="body2">{r.space}</Typography>
-          {r.folder ? (
-            <Typography variant="caption" color="text.secondary">{r.folder}</Typography>
-          ) : null}
-        </Box>
-      ) : ""),
+      key: "place", label: "프로젝트", type: "name", minWidth: "10rem",
+      /* 폴더 줄은 걷었다 — 폴더 축이 화면에서 사라져(문서 개편 1·5번) 복원한 뒤 그
+         폴더를 볼 자리가 없다. 응답의 `folder` 는 그대로 온다. */
+      render: (r) => (r.space ? <Typography variant="body2">{r.space}</Typography> : ""),
     },
     { key: "deleted_by", label: "삭제한 사람", type: "name", minWidth: "11rem" },
     { key: "deleted_at", label: "삭제일", type: "datetime", render: (r) => <DateCell value={r.deleted_at} /> },

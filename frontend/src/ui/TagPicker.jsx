@@ -9,7 +9,11 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "../lib/api.js";
 import { FILTER_LISTBOX_SX, kindSx } from "./filters.jsx";
 
-/* 기술 태그 고르개 — 검색 · 다중 선택 · 새 태그 생성 · 사용 문서 수 (§15.3).
+/* 태그 고르개 — 검색 · 다중 선택 · 새 태그 생성 · 사용 문서 수 (§15.3).
+ *
+ * 🔴 기본 라벨이 「기술 태그」였다. 라벨을 안 주는 자리 둘(새 문서 대화상자 · 문서 상세)이
+ * 그 말을 조용히 물려받아, 같은 축이 화면마다 「태그」와 「기술 태그」 둘로 보였다.
+ * 사용자에게 보이는 이름은 **태그** 하나다(문서 개편 2번).
  *
  * `EntityCombobox` 위에 세우지 않는다 — 그 부품은 **닫힌 후보 집합**을 전제한다(자유
  * 입력으로 없는 값을 만드는 것은 값 보존이지 생성이 아니다). 여기는 반대로 "목록에
@@ -24,7 +28,8 @@ export function useKnowledgeTags() {
 }
 
 export function TagPicker({
-  label = "기술 태그", value, onChange, sx, disabled, helperText, size = "small", layout,
+  label = "태그", value, onChange, sx, disabled, helperText, size = "small", layout,
+  required = false,
 }) {
   const tagsQ = useKnowledgeTags();
   const options = tagsQ.data?.items || [];
@@ -91,6 +96,9 @@ export function TagPicker({
         <TextField
           {...params}
           label={label}
+          /* 별표는 `TextField` 가 그린다 — 라벨에 손으로 적으면 다른 필수 칸과 모양이
+             달라지고, 스크린 리더가 읽는 `aria-required` 도 안 붙는다. */
+          required={required}
           helperText={helperText}
           InputLabelProps={{ ...params.InputLabelProps, shrink: true }}
           placeholder={selected.length ? undefined : "태그 검색 또는 입력"}

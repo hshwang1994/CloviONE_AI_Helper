@@ -8,6 +8,7 @@ authentication from secret references without exposing plaintext.
 
 from __future__ import annotations
 
+import base64
 import logging
 import math
 import time
@@ -23,8 +24,14 @@ logger = logging.getLogger("app.http")
 AUTH_NONE = "none"
 AUTH_BEARER = "bearer"
 AUTH_API_KEY_HEADER = "api_key_header"
+# Atlassian Cloud 는 `이메일:API토큰` Basic 만 받는다. Bearer 로 보내면 헤더가 **조용히 무시되고**
+# 익명과 똑같은 403 이 온다(실측: 익명·유효 토큰·아무 문자열 셋이 같은 응답이었다). 그래서
+# 「인증이 틀렸다」가 「권한이 없다」로 보이고, 그 둘을 구별하지 못하면 하루를 잃는다.
+# 시크릿 파일은 `이메일:토큰` 한 줄을 그대로 담는다 — 이메일은 비밀이 아니지만 둘을 갈라 두면
+# 짝이 안 맞는 조합이 생기고, 그 조합은 401 이 아니라 위의 403 으로 나타난다.
+AUTH_BASIC = "basic"
 
-AUTH_TYPES = frozenset({AUTH_NONE, AUTH_BEARER, AUTH_API_KEY_HEADER})
+AUTH_TYPES = frozenset({AUTH_NONE, AUTH_BEARER, AUTH_API_KEY_HEADER, AUTH_BASIC})
 
 DEFAULT_TIMEOUT_SECONDS = 10.0
 
@@ -120,6 +127,15 @@ class OutboundClient:
                 final_headers["Authorization"] = f"Bearer {secret.reveal()}"
             elif auth_type == AUTH_API_KEY_HEADER:
                 final_headers["X-API-Key"] = secret.reveal()
+            elif auth_type == AUTH_BASIC:
+                pair = secret.reveal().strip()
+                if ":" not in pair:
+                    # 값을 오류 메시지에 싣지 않는다. 모양만 말한다.
+                    raise ValidationAppError(
+                        "Basic 인증 시크릿은 «사용자:비밀» 한 줄이어야 합니다."
+                    )
+                encoded = base64.b64encode(pair.encode("utf-8")).decode("ascii")
+                final_headers["Authorization"] = f"Basic {encoded}"
 
         # 재시도는 **부르는 쪽이 켠다**(기본 0). 여기서 무조건 켜면 쓰기 웹훅처럼 두 번 보내면
         # 안 되는 경로까지 함께 재시도하게 되고, 그 판단은 이 파일이 할 수 없다.

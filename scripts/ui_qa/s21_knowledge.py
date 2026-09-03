@@ -35,28 +35,34 @@ def _goto_doc(r):
 # /knowledge
 # ═══════════════════════════════════════════════════════════════════════════
 def _knowledge_read(r, ctx):
-    """공간을 고르면 **그 공간의 문서가 화면에 도착하는가**.
+    """**서버가 준 문서가 화면 목록에 그대로 그려지는가.**
 
     「어떤 요청을 불렀는가」로 재지 않는다 — 화면을 여는 동안 오간 요청은 엔진이 따로
     담아 두므로 act 안에서 다시 세면 언제나 0 이다.
+
+    qa-contract-change: 예전에는 폴더 트리 마디 수를 함께 셌다. 폴더 축이 화면에서
+    걷히면서(문서 개편 1·5번) 트리가 없으므로, 그 자리를 **트리가 없다**는 사실로
+    바꿔 잰다 — 빈 채로 남겨 두면 「안 봤다」와 「없다」가 구별되지 않는다.
     """
     server = r.api_get("/api/knowledge/documents?page_size=50")
     titles = [d.get("title", "") for d in ((server or {}).get("items") or [])][:12]
     text = r.main_text(1200)
     shown = [t for t in titles if t and t in text]
     tree = r.page.locator('#main-content [role="tree"], #main-content [role="treeitem"]')
-    return {"ui_action": "/knowledge 를 연다 — 공간을 고르면 트리와 목록을 함께 받는다",
+    return {"ui_action": "/knowledge 를 연다 — 조건 줄과 목록이 함께 선다",
             "observed": {"server_titles": titles[:5], "shown": shown[:5],
                          "tree_nodes": tree.count()},
-            "rendered": "서버 %d건 중 화면에 %d건 · 트리 마디 %d개"
+            "rendered": "서버 %d건 중 화면에 %d건 · 트리 마디 %d개(0이어야 한다)"
                         % (len(titles), len(shown), tree.count()),
             "expected": {"source": "known-data",
-                         "rule": "서버가 준 문서가 화면 목록에 그대로 그려진다",
+                         "rule": "서버가 준 문서가 화면 목록에 그대로 그려지고, 좌측 트리는 없다",
                          "expect": len(titles), "got": len(shown)},
-            "failed": None if shown else "서버에는 문서가 있는데 화면에 한 건도 없다"}
+            "failed": ("서버에는 문서가 있는데 화면에 한 건도 없다" if not shown
+                       else ("좌측 트리가 아직 있다 (%d마디)" % tree.count()
+                             if tree.count() else None))}
 
 
-flow("FF-1301", "user_knowledge", "read", "공간을 고르면 그 공간의 폴더 트리와 문서 목록을 받는다",
+flow("FF-1301", "user_knowledge", "read", "문서 목록이 그대로 그려지고 좌측 트리는 없다",
      _knowledge_read, route="/knowledge", api="/api/knowledge/")
 
 
@@ -86,34 +92,49 @@ flow("FF-1304", "user_knowledge", "filter", "즐겨찾기만 보기로 좁힌다
 
 
 def _folder_scope(r, ctx):
+    """qa-contract-change: 「폴더를 고르면 그 아래 전부로 좁힌다」를 재던 자리다.
+
+    폴더 축이 화면에서 걷혔다(문서 개편 1·5번). 없는 것을 계속 재면 흐름이 매번
+    빨간불이고, 지워 버리면 **정말 없어졌는지**를 아무도 안 본다. 그래서 재는 사실을
+    뒤집는다: 폴더 입구가 하나도 없고 트리 질의도 안 나간다.
+
+    서버의 폴더 엔드포인트 넷과 표·트리거는 그대로다 — 이 흐름은 화면만 잰다.
+    """
     r.rec.reset()
+    r.settle(1200)
     add = r.in_main("button", "폴더 추가")
     tree_nodes = r.page.locator('#main-content [role="treeitem"]')
-    if tree_nodes.count():
-        tree_nodes.first.click()
-        r.settle(1600)
-        calls = [c for c in r.rec.calls if "/api/knowledge/documents" in c["path"]]
-        query = " ".join(sorted({c["query"] for c in calls if c["query"]}))
-        return {"ui_action": "폴더 하나를 골라 목록을 그 아래로 좁힌다",
-                "frontend_state": "folder_id 가 질의에 실린다",
-                "observed": {"query": query, "folders": tree_nodes.count()},
-                "rendered": "폴더 %d개 · 질의 «%s»" % (tree_nodes.count(), query[:70]),
-                "expected": {"source": "derived-check",
-                             "rule": "폴더를 고르면 folder_id 가 서버로 간다", "got": query},
-                "failed": None if "folder" in query
-                          else "폴더를 골랐는데 질의에 folder_id 가 없다"}
-    return {"ui_action": "폴더 트리를 본다 — 씨앗에 폴더가 없다",
-            "observed": {"treeitems": 0, "add_folder_button": add.count()},
-            "rendered": "폴더 0개 · «폴더 추가» %d개 · 본문 «%s»"
-                        % (add.count(), r.main_text(90)),
-            "expected": {"source": "known-data",
-                         "rule": "폴더가 없으면 만들 자리를 준다(좁힐 대상이 없는 것이 맞다)",
-                         "expect": ">=1 «폴더 추가»", "got": add.count()},
-            "failed": None if add.count() else "폴더도 없고 만들 자리도 없다"}
+    tree_calls = [c for c in r.rec.calls if "/tree" in c["path"]]
+    leftovers = add.count() + tree_nodes.count() + len(tree_calls)
+    return {"ui_action": "문서 화면에서 폴더 입구를 찾는다 — 있으면 안 된다",
+            "frontend_state": "폴더 축 없음",
+            "observed": {"add_folder_button": add.count(), "treeitems": tree_nodes.count(),
+                         "tree_requests": len(tree_calls)},
+            "rendered": "«폴더 추가» %d개 · 트리 마디 %d개 · 트리 질의 %d건"
+                        % (add.count(), tree_nodes.count(), len(tree_calls)),
+            "expected": {"source": "derived-check",
+                         "rule": "폴더를 만들거나 고를 자리가 없고, 트리를 묻지도 않는다",
+                         "expect": 0, "got": leftovers},
+            "failed": None if leftovers == 0
+                      else "폴더 축의 흔적이 %d개 남아 있다" % leftovers}
 
 
-flow("FF-1305", "user_knowledge", "filter", "폴더를 고르면 그 아래 전부로 좁힌다",
+flow("FF-1305", "user_knowledge", "filter", "폴더 축은 화면에 없다",
      _folder_scope, route="/knowledge", server=False)
+
+
+def _pick_first_option(r, dialog, label):
+    """라벨로 고르개를 열고 첫 후보를 고른다. MUI 의 옵션은 Portal 로 body 에 붙는다."""
+    field = dialog.get_by_label(label)
+    if not field.count():
+        stop("«%s» 칸이 없다 — 필수 칸이 사라지면 문서를 만들 수 없다" % label)
+    field.first.click()
+    r.settle(500)
+    option = r.page.locator('[role="option"]')
+    if not option.count():
+        stop("«%s» 후보가 하나도 없다" % label)
+    option.first.click()
+    r.settle(400)
 
 
 def _create_doc(r, ctx):
@@ -126,11 +147,22 @@ def _create_doc(r, ctx):
     if not open_dialogs(r):
         stop("«새 문서» 를 눌렀는데 모달이 안 떴다")
     dialog = open_dialog(r)
-    box = dialog.locator("input[type=text]").first
+    # 🔴 제목 칸을 **라벨로** 찾는다. 예전에는 `input[type=text]` 의 첫 번째였는데,
+    # 태그 고르개(Autocomplete)도 같은 종류의 입력이라 칸 순서가 바뀌면 제목 대신
+    # 태그 칸에 글자를 넣고도 흐름이 초록으로 지나간다.
+    box = dialog.get_by_label("문서 제목")
+    if not box.count():
+        box = dialog.locator("input[type=text]").first
     if not box.count():
         stop("문서 제목 칸이 없다")
-    box.fill(title)
+    box.first.fill(title)
     r.settle(400)
+
+    # 분류와 태그는 **필수**다(문서 개편 3번) — 안 채우면 「만들기」가 비활성이라
+    # 아래 클릭이 조용히 아무 일도 안 한다.
+    _pick_first_option(r, dialog, "분류")
+    _pick_first_option(r, dialog, "태그")
+
     for label in ("추가", "만들기", "저장"):
         submit = dialog.get_by_role("button", name=label, exact=True)
         if submit.count():

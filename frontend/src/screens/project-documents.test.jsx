@@ -6,7 +6,7 @@
  */
 import React from "react";
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
@@ -53,6 +53,16 @@ describe("ProjectDocuments", () => {
         expect(options.body.title).toBe("킥오프 회의록");
         return Promise.resolve({ id: "d-new" });
       }
+      /* qa-contract-change: 분류와 태그가 필수가 됐으므로(문서 개편 3번) 대역이 그 둘의
+         후보를 실제로 줘야 한다. 빈 목록을 주면 고를 것이 없어 「만들기」가 영원히
+         비활성이고, 그 상태는 「기능이 깨졌다」와 구별되지 않는다. */
+      const text = String(path);
+      if (text.startsWith("/api/knowledge/categories")) {
+        return Promise.resolve({ items: [{ id: "cat-1", name: "회의 기록", document_count: 0 }] });
+      }
+      if (text.startsWith("/api/knowledge/tags")) {
+        return Promise.resolve({ items: [{ id: "tag-1", name: "인프라", document_count: 0 }] });
+      }
       return Promise.resolve({ items: [] });
     });
     const user = userEvent.setup();
@@ -64,6 +74,10 @@ describe("ProjectDocuments", () => {
     /* 문서 화면과 **같은 모달**이다(`knowledge/NewDocumentModal.jsx` · lockedProject) —
        프로젝트 칸은 고정 표기이고 제출 단추도 같은 낱말(「만들기」)을 쓴다. */
     await user.type(screen.getByLabelText(/문서 제목/), "킥오프 회의록");
+    await user.click(within(dialog).getByLabelText(/^분류/));
+    await user.click(await screen.findByRole("option", { name: "회의 기록" }));
+    await user.click(within(dialog).getByLabelText(/^태그/));
+    await user.click(await screen.findByRole("option", { name: /^인프라/ }));
     await user.click(screen.getByRole("button", { name: "만들기" }));
 
     await waitFor(() => {

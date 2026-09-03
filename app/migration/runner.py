@@ -76,6 +76,13 @@ class MigrationOptions:
     with_comments: bool = True
     database_overrides: dict[str, str] | None = None
     limit_pages: int | None = None   # 시험·표본 회차용. None 이면 전부.
+    #: 「본문만 다시 넣기」가 **무엇의** 본문을 고칠 것인가.
+    #:
+    #: `all`(예전 동작)은 문서와 티켓 본문을 함께 고친다. `documents` 는 문서만이다.
+    #: 이 갈래가 생긴 이유: 이번 회차의 요구는 **문서**이고, 티켓 본문 약 1,120건을 같은
+    #: 회차에 함께 다시 쓰면 되돌릴 수 없는 변경의 범위가 열 배가 된다. 티켓에도 같은
+    #: 자리표시자가 남아 있다는 사실은 보고서가 말하고, 고칠지는 사람이 정한다.
+    scope: str = "all"
 
 
 def _now() -> str:
@@ -182,13 +189,23 @@ def reimport_bodies(
         notion.download
         if (options.with_files and notion is not None and not dry_run) else None
     )
-    loader.reimport_ticket_bodies(
-        notion_rows["tasks"], notion_rows["ticket_blocks"],
-        fetch=fetch, dry_run=dry_run,
-    )
-    # 댓글도 이 길로 온다 (D11). 안전한 이유는 **더하기만 하기** 때문이다: 이미 옮긴
-    # 댓글은 `legacy_mapping` 이 걸러 내고, 사람이 포털에서 쓴 댓글은 아예 안 본다.
-    loader.load_ticket_comments(notion_rows["comments"], dry_run=dry_run)
+    documents_only = options.scope == "documents"
+    if documents_only:
+        # 티켓 본문에도 같은 자리표시자가 남아 있다 — 안 고친다는 사실을 **수와 함께**
+        # 남긴다. 조용히 건너뛰면 다음 사람이 「이미 고쳤나」를 다시 세어야 한다.
+        report.finding(
+            SEVERITY_NOTE, "ticket_bodies_out_of_scope", "tickets",
+            f"이번 회차는 문서만 고칩니다. 티켓 {len(notion_rows['tasks'])}건의 본문은 "
+            "그대로 두었습니다.",
+        )
+    else:
+        loader.reimport_ticket_bodies(
+            notion_rows["tasks"], notion_rows["ticket_blocks"],
+            fetch=fetch, dry_run=dry_run,
+        )
+        # 댓글도 이 길로 온다 (D11). 안전한 이유는 **더하기만 하기** 때문이다: 이미 옮긴
+        # 댓글은 `legacy_mapping` 이 걸러 내고, 사람이 포털에서 쓴 댓글은 아예 안 본다.
+        loader.load_ticket_comments(notion_rows["comments"], dry_run=dry_run)
     loader.load_documents(
         notion_rows["documents"], notion_rows["document_bodies"],
         taxonomy=notion_rows["taxonomy"],
@@ -468,3 +485,93 @@ def database_label(db: Session) -> str:
         return f"{url.host or 'local'}:{url.port or ''}/{url.database}"
     except Exception:  # noqa: BLE001
         return "?"
+
+
+# ── Confluence 한 번 가져오기 (문서 개편 14~20번) ────────────────────────────
+
+
+def import_confluence(
+    db: Session,
+    *,
+    source,
+    actor,
+    space_keys: list[str],
+    settings=None,
+    report: MigrationReport | None = None,
+    with_files: bool = True,
+    with_comments: bool = True,
+    limit_pages: int | None = None,
+    dry_run: bool = False,
+) -> MigrationReport:
+    """CMP · ClovirONE 두 Space 의 **모든** 페이지를 문서로 가져온다.
+
+    ## 실패의 단위가 페이지 하나다
+
+    페이지마다 SAVEPOINT 를 연다. 한 페이지가 죽어도 앞의 것들이 안 되감긴다 — 524건
+    회차에서 한 건 때문에 처음부터 다시 도는 도구는 아무도 두 번 안 돌린다.
+
+    ## 판정은 마지막 줄의 초록이 아니다
+
+    `reconcile()` 이 「열거한 수 == 설명된 수」를 본다. 안 맞으면 Blocking Finding 이
+    남고, 그것이 「전부 가져왔다」를 주장이 아니라 증명으로 만든다.
+    """
+    from app.migration.load_confluence import ConfluenceLoader
+
+    report = report or MigrationReport()
+    report.mode = "import-confluence" + ("(dry-run)" if dry_run else "")
+    report.started_at = _now()
+    report.target_database = database_label(db)
+
+    spaces = source.find_spaces(space_keys)
+    pages: list[dict] = []
+    for key, space_id in spaces.items():
+        pages.extend(source.list_pages(space_id, space_key=key))
+        # 블로그 글은 실측 0건이지만 **세어서 보고한다** — 「0이었다」와 「안 봤다」는
+        # 다른 사실이고, 그 둘을 못 가르면 다음 사람이 다시 센다.
+        blogs = source.list_blogposts(space_id, space_key=key)
+        if blogs:
+            report.finding(
+                SEVERITY_NOTE, "confluence_blogposts_seen", "documents",
+                f"{key}: 블로그 글 {len(blogs)}건은 이번 범위가 아닙니다.",
+            )
+    if limit_pages:
+        pages = pages[:limit_pages]
+
+    loader = ConfluenceLoader(db, report=report, actor=actor, settings=settings)
+    fetch = source.download if (with_files and not dry_run) else None
+
+    for page in pages:
+        page_id = str(page.get("id") or "")
+        try:
+            with db.begin_nested():
+                body = source.page_body(
+                    page_id, version=(page.get("version") or {}).get("number")
+                )
+                attachments = source.page_attachments(page_id) if with_files else []
+                comments = source.page_comments(page_id) if with_comments else []
+                loader.load_page(
+                    page, body,
+                    attachments=attachments, comments=comments,
+                    fetch=fetch, dry_run=dry_run,
+                )
+        except Exception as exc:  # noqa: BLE001 - 한 페이지가 회차를 멈추지 않는다
+            # 🔴 `account` 가 참일 때만 센다. 로더가 이미 결과를 적은 페이지를 여기서
+            # 또 세면 3건이 4건으로 보고된다 — 대조 게이트가 실제로 잡은 결함이다.
+            if loader.result.account(page_id):
+                loader.result.documents_skipped += 1
+                loader.result.skipped_page_ids.append(page_id)
+            report.finding(
+                SEVERITY_BLOCKING, "confluence_page_failed", "documents",
+                f"{page.get('title', '')}: {type(exc).__name__}: {exc}", ref=page_id,
+            )
+
+    report.stages.append(loader.reconcile(len(pages)))
+    # `notion` 칸을 「외부 소스 통계」로 함께 쓴다 — 보고서가 이미 그 칸을 찍는다.
+    report.notion = {"confluence": source.stats.as_dict(), "load": loader.result.as_dict()}
+    if dry_run:
+        # 세기만 한 회차는 아무것도 안 남긴다.
+        db.rollback()
+    else:
+        db.commit()
+    report.finished_at = _now()
+    return report

@@ -7,17 +7,13 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../../lib/api.js";
 import { offsetEnvelope, useInfiniteList } from "../../lib/useInfiniteList.js";
-import { PAGE_SIZE, VIEW } from "./constants.js";
+import { PAGE_SIZE, RECENT_WINDOW_HOURS, VIEW } from "./constants.js";
 
-export function useTree(spaceId) {
-  return useQuery({
-    queryKey: ["knowledge", "tree", spaceId],
-    queryFn: () => api(`/api/knowledge/spaces/${spaceId}/tree`),
-    enabled: Boolean(spaceId),
-  });
-}
+/* 🔴 `useTree` 는 걷었다. 폴더 축이 화면에서 사라져(문서 개편 1·5번) 트리를 그리는
+ * 자리가 없다. 서버의 `GET /spaces/{id}/tree` 와 폴더 표·트리거는 그대로 있다 —
+ * 걷은 것은 화면의 입구이지 데이터가 아니다. */
 
-/* 옛 문서 화면의 「문서 종류·업무 분야·기술 태그」 세 필터는 대신하지 않는다 — 그 셋은
+/* 옛 문서 화면의 「문서 종류·업무 분야·태그」 세 필터는 대신하지 않는다 — 그 셋은
  * `document_cache` 의 고정 상수 축이고 이관에서 태그로 손실 없이 들어왔다(S14 결정 D6). */
 export function useTags() {
   return useQuery({ queryKey: ["knowledge", "tags"], queryFn: () => api("/api/knowledge/tags") });
@@ -46,6 +42,16 @@ export function useTemplates() {
   });
 }
 
+/* 템플릿 하나 — **본문까지**. 고치는 화면이 여는 자리다. 목록(`useTemplates`)은
+ * 본문을 안 싣는다. */
+export function useTemplate(templateId) {
+  return useQuery({
+    queryKey: ["knowledge", "template", templateId],
+    queryFn: () => api(`/api/knowledge/templates/${templateId}`),
+    enabled: Boolean(templateId) && templateId !== "blank",
+  });
+}
+
 export function useRecent() {
   return useQuery({
     queryKey: ["knowledge", "recent"],
@@ -63,7 +69,7 @@ export function useRecent() {
  * 훅 둘을 언제나 부르고 `enabled` 로 끈다 — 갈래에 따라 훅 수가 달라지면 React 가
  * 상태를 잘못 짝짓는다. */
 export function useDocuments(params) {
-  const { view, project, folderId, q, tags, category, author, sort, resume } = params;
+  const { view, project, q, tags, category, author, sort, resume } = params;
   const isRecent = view === VIEW.recent;
 
   const recentQ = useQuery({
@@ -76,7 +82,7 @@ export function useDocuments(params) {
   const list = useInfiniteList({
     // 접두사 ["knowledge","documents",...] 는 불변이다(D-313) — 축 마디의 값만
     // 공간 id 에서 프로젝트 축 값(프로젝트 id | "none")으로 바뀌었다.
-    key: ["knowledge", "documents", view, project, folderId, q, tagKey, category, author, sort],
+    key: ["knowledge", "documents", view, project, q, tagKey, category, author, sort],
     envelope: offsetEnvelope,
     size: PAGE_SIZE,
     /* offset 페이징은 그 사이 문서가 생기거나 지워지면 경계에서 같은 행을 두 번 준다.
@@ -88,7 +94,6 @@ export function useDocuments(params) {
       const search = new URLSearchParams();
       // 축은 프로젝트다 — "none" 은 서버 센티널(공통 문서만)과 그대로 왕복한다.
       if (project) search.set("project_id", project);
-      if (folderId) search.set("folder_id", folderId);
       if (q) search.set("q", q);
       // 다중 태그는 AND 다(app/knowledge/service.py::list_documents) — 서버가 같은
       // 이름의 반복 파라미터를 배열로 받는다.
@@ -98,6 +103,12 @@ export function useDocuments(params) {
       if (sort) search.set("sort", sort);
       if (view === VIEW.favorites) search.set("favorites", "true");
       if (view === VIEW.drafts) { search.set("mine", "true"); search.set("drafts", "true"); }
+      /* 「최근 24시간」은 **서버가 창을 자른다.** 예전 타일은 `sort=recent` 만 걸어
+         전체를 정렬만 했다 — 이름은 24시간을 말하는데 목록에는 작년 문서가 있었다.
+         시간 수는 `constants.RECENT_WINDOW_HOURS` 하나에서 온다. */
+      if (view === VIEW.updated24) {
+        search.set("updated_within_hours", String(RECENT_WINDOW_HOURS));
+      }
       search.set("limit", String(limit));
       search.set("offset", String(offset));
       return api(`/api/knowledge/documents?${search.toString()}`);

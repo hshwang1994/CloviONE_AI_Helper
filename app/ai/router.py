@@ -182,6 +182,7 @@ def ai_draft_document(
         document = knowledge_service.create_document(
             db, user,
             space_id=payload.space_id,
+            project_id=payload.project_id,
             folder_id=payload.folder_id,
             title=payload.title,
             body=blocks.from_plain_text(result.text or ""),

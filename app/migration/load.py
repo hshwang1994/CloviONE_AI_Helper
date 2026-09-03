@@ -90,10 +90,29 @@ logger = logging.getLogger("app.migration.load")
 # 사람이 지정했다는 뜻이라 여기 쓰면 거짓말이 된다 — 이관이 만든 행은 그렇게 말한다.
 MAP_SOURCE_MIGRATION = "migration"
 
-# 이관이 만든 문서가 들어갈 공간. 실측상 문서 110건이 전부 `owner_kind='unset'` 이라
-# 하나면 된다. 소유가 붙은 문서가 생기면 `_space_for` 가 그 축으로 공간을 더 만든다.
-DEFAULT_SPACE_SLUG = "team-docs"
-DEFAULT_SPACE_NAME = "팀 문서"
+# 이관이 만든 문서가 들어갈 공간. 소유가 붙은 문서가 생기면 `_space_for` 가 그 축으로
+# 공간을 더 만든다.
+#
+# 🔴 값을 여기서 정하지 않는다. 제품이 「프로젝트 미지정」 문서를 넣는 자리
+# (`service.resolve_or_create_common_space`)와 **같은 공간이어야 한다.** 두 벌로 적어 두면
+# 화면이 만든 공통 문서와 이관이 만든 공통 문서가 다른 공간에 앉고, 그 사실은 「프로젝트
+# 미지정」 필터가 절반만 돌려줄 때에야 드러난다.
+from app.knowledge.service import COMMON_SPACE_NAME, COMMON_SPACE_SLUG
+
+DEFAULT_SPACE_SLUG = COMMON_SPACE_SLUG
+DEFAULT_SPACE_NAME = COMMON_SPACE_NAME
+
+#: 한 번 가져오기가 옮기는 첨부 하나의 상한 (문서 개편 18번).
+#:
+#: 제품 업로드 상한(`app/core/uploads.py::MAX_UPLOAD_BYTES`, 10MB)과 **다른 값이고 다른
+#: 뜻이다** — 저것은 「사람이 올릴 수 있는 크기」이고 이것은 「한 번 가져오기가 옮길
+#: 크기」다. 같은 상수로 묶으면 한쪽을 고칠 때 다른 쪽이 조용히 따라 바뀐다.
+#:
+#: 🔴 상한에 걸린 파일 하나가 **문서 전체를 실패시키지 않는다.** 건너뛴 사실은 분류된
+#: 예외로 남고 본문에는 사람이 읽는 한 줄이 남는다. Confluence 쪽은 목록 응답에
+#: `fileSize` 가 있어 받기 전에 거르고(`source_confluence.MAX_ATTACHMENT_BYTES`),
+#: Notion 쪽은 크기를 미리 못 보므로 받은 뒤 여기서 거른다 — 같은 규칙, 다른 시점이다.
+MIGRATION_MAX_ATTACHMENT_BYTES = 3 * 1024 * 1024
 
 # 본문 이미지의 `src`. 라우트의 정본은 `app/knowledge/router.py::serve_attachment` 이고
 # 여기서는 그 주소를 만들기만 한다. 상대 주소라 호스트가 바뀌어도 안 깨진다 —
@@ -1232,6 +1251,14 @@ class Loader:
                 f"{item.name}: {exc}", ref=item.legacy_id,
             )
             return None
+        if content is not None and len(content) >= MIGRATION_MAX_ATTACHMENT_BYTES:
+            # 문서 전체를 실패시키지 않는다 — 이 파일만 건너뛰고 사실을 남긴다.
+            self.report.finding(
+                SEVERITY_CLASSIFIED, "attachment_too_large", "files",
+                f"{item.name}: {len(content) // 1024}KB 라 3MB 상한을 넘어 안 옮겼습니다.",
+                ref=item.legacy_id,
+            )
+            return None
         if owner_kind == MEDIA_OWNER_TICKET:
             return self._store_ticket_media(owner_id, item, content)
         file_id = self._store_media(item, content)
@@ -1639,6 +1666,15 @@ class Loader:
                 self.report.finding(
                     SEVERITY_BLOCKING, "attachment_download_failed", "files",
                     f"{item.name}: {exc}", ref=item.legacy_id,
+                )
+                stage.skipped += 1
+                continue
+            if content is not None and len(content) >= MIGRATION_MAX_ATTACHMENT_BYTES:
+                # 속성 첨부도 같은 규칙이다 — 이 파일만 건너뛰고 문서는 그대로 만든다.
+                self.report.finding(
+                    SEVERITY_CLASSIFIED, "attachment_too_large", "files",
+                    f"{item.name}: {len(content) // 1024}KB 라 3MB 상한을 넘어 안 옮겼습니다.",
+                    ref=item.legacy_id,
                 )
                 stage.skipped += 1
                 continue

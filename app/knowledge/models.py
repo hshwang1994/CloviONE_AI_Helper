@@ -513,6 +513,49 @@ class DocumentCategory(OrgScopedMixin, TimestampMixin, UUIDPrimaryKeyMixin, Base
     )
 
 
+class DocumentTemplate(OrgScopedMixin, TimestampMixin, UUIDPrimaryKeyMixin, Base):
+    """새 문서가 시작할 틀. 조직이 스스로 만들고 고친다.
+
+    ## `documents` 에 `template_id` 를 안 붙인다 — 그것이 이 표의 계약이다
+
+    요구는 「나중에 틀을 고치거나 지워도 이미 만든 문서가 같이 바뀌면 안 된다」였다.
+    외래 키를 놓고 「참조는 하되 따라가지 않는다」로 지키면, 그 규칙은 **코드에만** 있고
+    언젠가 그것을 모르는 조인 하나가 규칙을 깬다. 연결 자체를 안 만들면 규칙이 스키마가
+    된다 — 틀의 본문은 문서를 만드는 **그 순간에 복사**되고, 그 뒤 둘은 남남이다.
+
+    ## 「빈 문서」는 이 표에 없다
+
+    그것은 상수다(`templates.BLANK`). 표에 넣으면 지울 수 있게 되고, 지워진 날 새 문서
+    대화상자의 기본값이 없는 틀을 가리킨다. 아무것도 안 채우는 선택지는 어휘가 아니라
+    화면의 바탕이다.
+
+    ## 본문은 저장할 때 정규화한다
+
+    `body` 는 사용자가 만든 Block JSON 이고 편집기가 그대로 그린다. 검사하는 자리는
+    `app/knowledge/blocks.py::normalize` 하나이고(문서 본문과 같은 함수다), 그것을 안
+    지나면 이 표가 저장 XSS 의 입구가 된다.
+    """
+
+    __tablename__ = "document_templates"
+
+    name: Mapped[str] = mapped_column(String(80), nullable=False)
+    # 고르는 자리에 한 줄로 서는 설명. 열 이름이 `help` 인 것은 이미 나가 있는
+    # `GET /api/knowledge/templates` 의 칸 이름과 같아야 하기 때문이다.
+    help: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
+    body: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    sort_order: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
+    created_by: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("users.id", ondelete="SET NULL")
+    )
+
+    __table_args__ = (
+        CheckConstraint("length(btrim(name)) > 0", name="ck_dtpl_name_nonempty"),
+        Index("uq_dtpl_name", "org_id", "name", unique=True),
+    )
+
+
 class DocumentAttachment(UUIDPrimaryKeyMixin, Base):
     """문서 ↔ 파일. **S7 이 이 표를 일부러 안 만들었다** (S8 이 만든다).
 

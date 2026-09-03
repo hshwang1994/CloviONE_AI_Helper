@@ -56,7 +56,7 @@ export function buildDocumentColumns({ onToggleFavorite, onOpen, onArchive, conf
               {doc.excerpt}
             </Typography>
           ) : null}
-          {/* 제목 칸의 칩은 기술 태그만이다(§11.3) — 분류는 프로젝트 열의 보조 글자다. */}
+          {/* 제목 칸의 칩은 태그만이다(§11.3) — 분류는 프로젝트 열의 보조 글자다. */}
           {(doc.tags || []).length > 0 ? (
             <Stack direction="row" spacing={0.5} sx={{ flexWrap: "wrap", rowGap: 0.5, mt: 0.25 }}>
               {(doc.tags || []).map((t) => <Chip key={t.id} size="small" label={t.name} />)}
@@ -75,21 +75,16 @@ export function buildDocumentColumns({ onToggleFavorite, onOpen, onArchive, conf
       key: "place", label: "프로젝트", type: "name", minWidth: "10rem",
       render: (doc) => (
         <Typography variant="body2" sx={KO_WORD_BREAK}>
-          {doc.project ? doc.project.name : "공통 문서"}
+          {doc.project ? doc.project.name : "프로젝트 미지정"}
         </Typography>
       ),
     },
+    /* 🔴 「폴더」 열이 여기 있었다. 폴더 축이 화면에서 걷히면서(문서 개편 1·5번) 값을
+       넣거나 뺄 자리가 없어졌고, 남겨 두면 모든 줄이 「정리 안 함」인 열이 된다.
+       서버 응답의 `folder_path` 는 그대로 온다 — 걷은 것은 그리는 자리뿐이다. */
     {
-      key: "folder", label: "폴더", type: "name", minWidth: "8rem", hideNarrow: true,
-      render: (doc) => (
-        <Typography variant="body2" color="text.secondary" sx={KO_WORD_BREAK}>
-          {doc.folder_path || "정리 안 함"}
-        </Typography>
-      ),
-    },
-    {
-      /* 분류는 칩이 아니라 글자다(§11.3) — 기술 태그와 섞이면 "이 문서가 다루는 기술"과
-         "이 문서의 종류"가 같은 모양으로 보인다. 정본은 카테고리(0026)이고, 카테고리가
+      /* 분류는 칩이 아니라 글자다(§11.3) — 태그와 섞이면 "이 문서가 다루는 기술"과
+         "이 문서의 종류"가 같은 모양으로 보인다. 정본은 분류(0026)이고, 분류가
          없는 이관 문서만 옛 doc_type 이 그대로 보인다. */
       key: "category", label: "분류", type: "name", minWidth: "7rem", hideNarrow: true,
       render: (doc) => (

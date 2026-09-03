@@ -250,7 +250,11 @@ describe("곁열이 문서에 대한 것을 든다", () => {
     expect(screen.getByText("회의자료.pdf")).toBeInTheDocument();
   });
 
-  it("🔴 이동이 폴더와 잠금 값을 함께 보낸다 — 옮기는 사이 남이 저장했으면 서버가 막아야 한다", async () => {
+  /* qa-contract-change: 「이동이 폴더와 잠금 값을 함께 보낸다」가 여기 있었다. 폴더 축이
+     화면에서 걷히면서(문서 개편 1·5번) 이동 대화상자에 폴더 칸이 없다. 잠금 값
+     (`base_version`)은 아래 프로젝트 이동 시험이 계속 잰다 — 그 계약은 그대로다. */
+
+  it("🔴 이동이 새 프로젝트 id 와 잠금 값을 함께 보낸다 — 옮기는 사이 남이 저장했으면 서버가 막아야 한다", async () => {
     const seen = [];
     responses.set(`POST /api/knowledge/documents/${DOC_ID}/move`, (options) => {
       seen.push(options.body);
@@ -260,38 +264,38 @@ describe("곁열이 문서에 대한 것을 든다", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "이동" }));
     const dialog = await screen.findByRole("dialog");
-    await userEvent.click(within(dialog).getByLabelText("폴더"));
-    await userEvent.click(await screen.findByRole("option", { name: "01. 기획" }));
-    await userEvent.click(within(dialog).getByRole("button", { name: "옮기기" }));
-
-    await waitFor(() => expect(seen).toHaveLength(1));
-    expect(seen[0].folder_id).toBe("f-1");
-    expect(seen[0].base_version).toBe(3);
-  });
-
-  it("🔴 프로젝트를 바꾸면 폴더 칸이 잠기고, 새 프로젝트 id 가 그대로 나간다(§14.4)", async () => {
-    const seen = [];
-    responses.set(`POST /api/knowledge/documents/${DOC_ID}/move`, (options) => {
-      seen.push(options.body);
-      return { id: DOC_ID, version: 4 };
-    });
-    await renderDoc();
-
-    await userEvent.click(screen.getByRole("button", { name: "이동" }));
-    const dialog = await screen.findByRole("dialog");
-    /* qa-contract-change: 이 축의 라벨이 「프로젝트」에서 「문서 범위」로 바뀌었다 —
-       후보에 「공통 문서」가 함께 서므로 예전 이름이 내용을 정확히 말하지 못했다. */
-    await userEvent.click(within(dialog).getByLabelText("문서 범위"));
+    /* qa-contract-change: 라벨이 「문서 범위」에서 **「프로젝트」**로 돌아왔다. 후보의
+       비프로젝트 값을 「프로젝트 미지정」이라 부르게 되면서 축 이름이 내용에 대해
+       거짓말하지 않게 됐다(D-415 를 잇는 결정). */
+    await userEvent.click(within(dialog).getByLabelText("프로젝트"));
     await userEvent.click(await screen.findByRole("option", { name: /베타 프로젝트/ }));
-
-    // 프로젝트를 바꾸면 폴더는 새 프로젝트 쪽에서 뜻이 없어 칸이 잠긴다.
-    // MUI Select 의 내부 combobox 는 진짜 <select disabled> 가 아니라 aria-disabled 로
-    // 신호하므로 toBeDisabled() 가 아니라 이 속성으로 확인한다.
-    expect(within(dialog).getByLabelText("폴더")).toHaveAttribute("aria-disabled", "true");
 
     await userEvent.click(within(dialog).getByRole("button", { name: "옮기기" }));
     await waitFor(() => expect(seen).toHaveLength(1));
     expect(seen[0].project_id).toBe("proj-2");
+    expect(seen[0].base_version).toBe(3);
+    // 폴더는 이제 이 요청의 축이 아니다.
+    expect(seen[0].folder_id).toBeUndefined();
+  });
+
+  it("🔴 「프로젝트 미지정」이 센티널로 실제로 나간다 — 조용한 no-op 이 아니다", async () => {
+    /* `allLabel` 로 그리면 **빈 값**의 이름만 바뀌어 서버에 아무것도 안 간다. 후보에
+       넣어야 값이 돈다 — 그 차이를 여기서 잰다. */
+    const seen = [];
+    responses.set(`POST /api/knowledge/documents/${DOC_ID}/move`, (options) => {
+      seen.push(options.body);
+      return { id: DOC_ID, version: 4 };
+    });
+    await renderDoc();
+
+    await userEvent.click(screen.getByRole("button", { name: "이동" }));
+    const dialog = await screen.findByRole("dialog");
+    await userEvent.click(within(dialog).getByLabelText("프로젝트"));
+    await userEvent.click(await screen.findByRole("option", { name: "프로젝트 미지정" }));
+    await userEvent.click(within(dialog).getByRole("button", { name: "옮기기" }));
+
+    await waitFor(() => expect(seen).toHaveLength(1));
+    expect(seen[0].project_id).toBe("none");
   });
 
   it("태그도 저장 버튼 하나로 함께 저장된다 — 버튼마다 다른 것이 저장되면 아무도 못 외운다", async () => {
@@ -306,7 +310,7 @@ describe("곁열이 문서에 대한 것을 든다", () => {
     expect(seen[0].tag_names).toEqual(["회의록"]);
   });
 
-  it("분류(카테고리)도 저장 버튼 하나로 함께 저장된다 — 해제는 null 로 나간다(0026)", async () => {
+  it("분류도 저장 버튼 하나로 함께 저장된다 — 해제는 null 로 나간다(0026)", async () => {
     const seen = [];
     responses.set(`PUT /api/knowledge/documents/${DOC_ID}`, (options) => {
       seen.push(options.body);
@@ -320,7 +324,7 @@ describe("곁열이 문서에 대한 것을 든다", () => {
 
     /* 「분류 없음」을 고르면 **null** 이 나간다 — 안 보내는 것과 다른 요청이다(서버의
        model_fields_set 게이트가 그 차이를 읽는다). */
-    const select = screen.getByLabelText("카테고리");
+    const select = screen.getByLabelText("분류");
     await userEvent.click(select);
     await userEvent.click(await screen.findByRole("option", { name: "분류 없음" }));
     await userEvent.click(screen.getByRole("button", { name: "저장" }));

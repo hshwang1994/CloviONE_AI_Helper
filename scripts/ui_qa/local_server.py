@@ -158,12 +158,15 @@ def seed(database_url: str, email: str, password: str, settings) -> None:
     engine = create_engine(normalize_database_url(database_url), future=True)
     with Session(engine) as db:
         from app.board.models import Post
-        from app.knowledge.models import Document, DocumentTag, KnowledgeSpace, Tag
+        from app.knowledge.models import (
+            Document, DocumentCategory, DocumentTag, KnowledgeSpace, Tag,
+        )
         from app.notifications.models import Notification
         from app.org.constants import DEFAULT_ORG_ID
         from app.projects.models import Project
         from app.tickets.models import PROJECT_LINK_OK, SOURCE_NATIVE, TicketCache
         from app.users.service import create_user
+        from app.knowledge import service as knowledge_service
         from app.work import codes as work_codes
 
         me = create_user(db, email=email, password=password, display_name="UI QA",
@@ -210,16 +213,32 @@ def seed(database_url: str, email: str, password: str, settings) -> None:
                 org_id=DEFAULT_ORG_ID,
             ))
 
-        space = KnowledgeSpace(name="팀 문서", slug="team", owner_kind="organization",
-                               org_id=DEFAULT_ORG_ID)
+        # 🔴 slug 는 제품이 「프로젝트 미지정」 문서를 넣는 자리와 **같아야** 한다
+        # (`app/knowledge/service.py::COMMON_SPACE_SLUG`). 다르면 캡처 화면에서 새 문서를
+        # 만들 때 공간이 하나 더 생기고, 「프로젝트 미지정」 목록이 둘로 갈린다.
+        space = KnowledgeSpace(name=knowledge_service.COMMON_SPACE_NAME,
+                               slug=knowledge_service.COMMON_SPACE_SLUG,
+                               owner_kind="organization", org_id=DEFAULT_ORG_ID)
         db.add(space)
         db.flush()
-        tag = Tag(name="회의록", slug="meeting")
+        tag = Tag(name="회의록", slug="meeting", org_id=DEFAULT_ORG_ID)
         db.add(tag)
+        # 분류는 **새 문서 대화상자의 필수 칸**이다(문서 개편 3번). 후보가 없으면 캡처
+        # 화면에서 문서를 만들 수 없고, 그 상태는 「기능이 깨졌다」와 구별되지 않는다.
+        categories = []
+        for order, name in enumerate(("회의 기록", "운영 가이드", "기술 문서"), start=1):
+            row = DocumentCategory(name=name, slug=name.replace(" ", "-"),
+                                   sort_order=order * 1024, org_id=DEFAULT_ORG_ID)
+            db.add(row)
+            categories.append(row)
         db.flush()
         for i in range(12):
+            # 🔴 앞의 둘은 **24시간 안**에 둔다. 전부 하루 간격이면 「최근 24시간」 타일이
+            # 1 로 보이고, 그 수가 필터가 도는 증거인지 씨앗이 그런 것인지 구별이 안 된다.
+            touched = now - (timedelta(hours=2 * i) if i < 2 else timedelta(days=i))
             doc = Document(space_id=space.id, title=f"문서 {i + 1:02d} — 회의록",
-                           created_at=now - timedelta(days=i), updated_at=now - timedelta(days=i))
+                           category_id=categories[i % len(categories)].id,
+                           created_at=now - timedelta(days=i), updated_at=touched)
             db.add(doc)
             db.flush()
             if i % 2 == 0:

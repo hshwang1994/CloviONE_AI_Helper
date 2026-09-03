@@ -84,7 +84,7 @@ describe("TagPicker", () => {
     apiMock.mockResolvedValue(TAGS);
     const user = userEvent.setup();
     withProviders(<TagPicker value={[]} onChange={() => {}} />);
-    await user.click(screen.getByLabelText("기술 태그"));
+    await user.click(screen.getByLabelText("태그"));
     const option = await screen.findByRole("option", { name: /Docker/ });
     expect(option.textContent).toMatch(/14건/);
   });
@@ -94,7 +94,7 @@ describe("TagPicker", () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
     withProviders(<TagPicker value={[]} onChange={onChange} />);
-    const input = screen.getByLabelText("기술 태그");
+    const input = screen.getByLabelText("태그");
     await user.click(input);
     await user.type(input, "Ansible");
     const created = await screen.findByRole("option", { name: /"Ansible" 추가/ });
@@ -106,7 +106,7 @@ describe("TagPicker", () => {
     apiMock.mockResolvedValue(TAGS);
     const user = userEvent.setup();
     withProviders(<TagPicker value={[]} onChange={() => {}} />);
-    const input = screen.getByLabelText("기술 태그");
+    const input = screen.getByLabelText("태그");
     await user.click(input);
     await user.type(input, "Docker");
     await waitFor(() => expect(screen.getByRole("option", { name: /^Docker/ })).toBeTruthy());

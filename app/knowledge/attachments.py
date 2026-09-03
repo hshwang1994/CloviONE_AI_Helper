@@ -54,6 +54,18 @@ def counts_for(db: Session, document_ids: list[str]) -> dict[str, int]:
     return {str(doc_id): int(n) for doc_id, n in rows}
 
 
+def _mark_stale(db, document_id: str) -> None:
+    """첨부가 바뀌었으니 색인이 낡았다고 적는다.
+
+    신호의 정본은 `versions.mark_stale` 하나다 — 예전에는 이 파일이 SAVEPOINT 처리까지
+    똑같이 베낀 사본을 들고 있었고, 사본이 둘이면 한쪽만 고쳐지는 날이 온다.
+    import 를 함수 안에서 하는 이유는 순환이다(색인 쪽이 이 패키지를 읽는다).
+    """
+    from app.knowledge import versions
+
+    versions.mark_stale(db, document_id)
+
+
 def attach(
     db: Session,
     document: Document,
@@ -84,7 +96,7 @@ def attach(
     )
     db.add(link)
     db.flush()
-    _reindex(db, document.id)
+    _mark_stale(db, document.id)
     return link, record
 
 
@@ -110,7 +122,7 @@ def detach(db: Session, link: DocumentAttachment) -> None:
     document_id = link.document_id
     db.delete(link)
     db.flush()
-    _reindex(db, document_id)
+    _mark_stale(db, document_id)
     still_used = db.execute(
         select(func.count())
         .select_from(DocumentAttachment)
@@ -121,27 +133,6 @@ def detach(db: Session, link: DocumentAttachment) -> None:
     record = db.get(File, file_id)
     if record is not None:
         storage_service.delete_file(db, record)
-
-
-def _reindex(db: Session, document_id: str) -> None:
-    """첨부가 바뀌었으니 이 문서를 다시 색인해야 한다고 적는다 (S9 · D-203).
-
-    본문이 그대로여도 첨부가 붙거나 떨어지면 색인은 낡는다. 훑기(`sweep_stale`)가
-    첨부 지문으로 그것을 결국 잡지만, 신호를 여기서 함께 보내면 다음 tick 에 바로 돈다.
-
-    import 를 함수 안에서 하는 이유는 순환이다 — 색인 쪽이 `app/knowledge/models.py` 를
-    읽는다. 그리고 색인이 지식 도메인의 저장을 막으면 안 된다: 여기서 실패해도 훑기가
-    같은 일을 한다.
-    """
-    from app.ai.index import service as index_service
-
-    try:
-        # SAVEPOINT 로 감싸는 것이 요점이다. 그냥 잡기만 하면 실패한 flush 가 바깥
-        # 트랜잭션을 이미 망가뜨린 뒤라, 「저장을 안 막는다」가 말뿐이 된다.
-        with db.begin_nested():
-            index_service.enqueue(db, document_id)
-    except Exception:  # noqa: BLE001 - 색인 신호 하나 때문에 첨부 저장이 실패하지 않는다
-        logger.exception("색인 신호를 남기지 못했다 document_id=%s", document_id)
 
 
 def json_of(link: DocumentAttachment, record: File) -> dict:

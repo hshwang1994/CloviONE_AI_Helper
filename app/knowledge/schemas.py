@@ -96,7 +96,11 @@ class DocumentCreate(BaseModel):
     #
     # 값 목록을 여기 문자열로 다시 적지 않는다. 틀 하나를 없앤 날 스키마만 옛 이름을
     # 받아 주면, 서버는 200 을 내면서 빈 문서를 만든다.
-    template: str | None = Field(default=None, max_length=32)
+    #
+    # 🔴 상한이 32 였다. 틀이 표가 되면서 id 가 **36자 UUID** 가 됐고, 그대로 두면 화면이
+    # 고른 틀이 전부 422 로 거절된다 — 그런데 거절되는 것은 문서 생성 자체라 사용자는
+    # 자기가 쓴 제목까지 잃는다. 「빈 문서」(`blank`)만 상수라 짧다.
+    template: str | None = Field(default=None, max_length=64)
 
 
 class DocumentSave(BaseModel):
@@ -131,6 +135,34 @@ class TagCreate(BaseModel):
     """
 
     name: str = Field(min_length=1, max_length=80)
+
+
+class TemplateCreate(BaseModel):
+    """새 문서가 시작할 틀.
+
+    `body` 는 검사하지 않고 받는다 — 모양 판정은 `app/knowledge/blocks.py::normalize`
+    한 곳이다(문서 본문과 같은 함수). pydantic 에 두 번째 판정을 두면 두 벌이 되고,
+    갈라지는 날 「저장은 됐는데 열면 빈 화면」이 된다(`DocumentCreate.body` 와 같은 근거).
+
+    상한은 `app/knowledge/templates.py` 의 `TEMPLATE_NAME_MAX`·`TEMPLATE_HELP_MAX` 와
+    같은 값이어야 한다.
+    """
+
+    name: str = Field(min_length=1, max_length=80)
+    help: str = Field(default="", max_length=500)
+    body: dict[str, Any] | None = None
+
+
+class TemplateUpdate(BaseModel):
+    """부분 수정. **안 보낸 칸은 안 건드린다** — `model_fields_set` 으로 가른다.
+
+    `help` 의 `None` 과 「안 보냈다」가 다른 뜻이라(전자는 「설명을 지운다」) 라우터가
+    보낸 칸 목록을 본다. `DocumentSave.category_id` 가 쓰는 규약과 같다.
+    """
+
+    name: str | None = Field(default=None, min_length=1, max_length=80)
+    help: str = Field(default="", max_length=500)
+    body: dict[str, Any] | None = None
 
 
 class CategoryCreate(BaseModel):

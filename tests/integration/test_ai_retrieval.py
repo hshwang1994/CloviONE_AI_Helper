@@ -365,3 +365,73 @@ def test_the_context_is_numbered_so_the_answer_can_point_back(db, reader, world)
     result = answer_mod.answer(db, reader, raw_query="연차", gateway=gateway)
     _system, user_message = generator.calls[0]
     assert "[1]" in user_message
+
+
+# ── 프로젝트가 없는 문서 (문서 개편 4·21번) ──────────────────────────────────
+#
+# 🔴 프로젝트가 **선택**이 된 뒤로, 어느 프로젝트에도 안 속한 문서가 평범하게 생긴다.
+# 그 문서가 AI 검색에서 빠지면 사용자는 「분명 썼는데 AI 가 모른다」를 만나고, 그 사실은
+# 아무 오류도 안 낸다 — 실측에서 문서 110건이 정확히 그렇게 사라진 적이 있다.
+
+
+def test_a_project_less_document_is_retrievable_by_ai(db, reader, make_user):
+    """인수 조건 18. 화면이 만드는 그 자리(공통 공간)에 실제로 넣고 찾아 본다."""
+    from app.knowledge import service as knowledge_service
+
+    gateway = _gateway()
+    # 제품이 쓰는 **바로 그 함수**로 공간을 얻는다 — 시험이 자기 공간을 손으로 만들면
+    # 제품이 다른 자리에 넣기 시작해도 이 시험은 계속 초록이다.
+    common = knowledge_service.resolve_or_create_common_space(db, reader)
+    assert common.owner_kind == "organization"
+
+    _make_doc(db, common, "미지정 문서", "고유낱말자바스크립트런타임 를 다룹니다. " * 3)
+    _index(db, gateway)
+
+    result = retrieval.retrieve(
+        db, reader, raw_query="고유낱말자바스크립트런타임", gateway=gateway
+    )
+    titles = {c.document_title for c in result.citations}
+    assert "미지정 문서" in titles, "프로젝트 없는 문서가 AI 검색에서 빠졌다"
+
+
+def test_a_document_in_an_unowned_space_is_invisible_to_an_ordinary_member(
+    db, reader, make_user
+):
+    """🔴 반례. `owner_kind='unset'` 이면 평범한 구성원에게 **정말로** 안 보인다.
+
+    이 시험이 있는 이유: 위 시험이 초록인 것만으로는 「공간 소유를 단언할 필요가 있나」에
+    답하지 못한다. 소유가 없으면 실제로 사라진다는 것을 보여야 그 단언이 장식이 아니다.
+
+    🔴 그리고 이 시험은 **일반 사용자**로 재야 한다. 전역 조회 권한자(`admin`)에게는
+    가시성 절 자체가 안 걸려(`effective_visibility_clause` 가 `None` 을 준다) 소유가
+    없는 공간도 보인다 — 그 한 사람만 보이고 나머지 전부에게 안 보이는 상태가 바로
+    이 결함이 위험한 이유다. 관리자로 재면 반례가 성립하지 않는다.
+    """
+    gateway = _gateway()
+    member = make_user(email="member@goodmit.co.kr", role="user", display_name="구성원")
+    member.org_id = DEFAULT_ORG_ID
+    db.flush()
+
+    stray = KnowledgeSpace(
+        org_id=DEFAULT_ORG_ID, name="소유 없는 공간", slug="stray", owner_kind="unset"
+    )
+    db.add(stray)
+    db.flush()
+    _make_doc(db, stray, "사라지는 문서", "또다른고유낱말파이썬런타임 를 다룹니다. " * 3)
+
+    # 그리고 같은 낱말을 **제대로 소유된** 공간에도 심는다. 둘을 나란히 두어야
+    # 「검색이 아무것도 못 찾았다」와 「그 문서만 안 보인다」를 가를 수 있다.
+    from app.knowledge import service as knowledge_service
+
+    common = knowledge_service.resolve_or_create_common_space(db, member)
+    _make_doc(db, common, "보이는 문서", "또다른고유낱말파이썬런타임 를 다룹니다. " * 3)
+    _index(db, gateway)
+
+    result = retrieval.retrieve(
+        db, member, raw_query="또다른고유낱말파이썬런타임", gateway=gateway
+    )
+    titles = {c.document_title for c in result.citations}
+    assert "보이는 문서" in titles, "검색 자체가 아무것도 못 찾았다 — 반례가 성립 안 한다"
+    assert "사라지는 문서" not in titles, (
+        "소유 없는 공간의 문서가 보인다 — 이 반례가 성립해야 위 단언이 뜻을 갖는다"
+    )

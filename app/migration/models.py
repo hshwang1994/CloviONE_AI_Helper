@@ -34,7 +34,12 @@ from app.core.models_base import Base, UUIDPrimaryKeyMixin, utcnow
 # ── 옛 소스 ──────────────────────────────────────────────────────────────────
 SRC_SQLITE = "sqlite"
 SRC_NOTION = "notion"
-LEGACY_SOURCES: tuple[str, ...] = (SRC_SQLITE, SRC_NOTION)
+# Confluence 한 번 가져오기(문서 개편 14~20번). `documents.legacy_page_id` 를 재사용하지
+# 않는 이유: 그 열은 **Notion page id 의 별칭**이고 전역 부분 유니크다 — 옛 주소
+# `/team-docs/<page id>` 가 계속 열리라고 있는 것이라 다른 소스의 id 를 넣으면 그 다리의
+# 뜻이 둘이 된다. 이 표는 유일성이 `legacy_source` 로 나뉘므로 소스가 늘어도 안 부딪힌다.
+SRC_CONFLUENCE = "confluence"
+LEGACY_SOURCES: tuple[str, ...] = (SRC_SQLITE, SRC_NOTION, SRC_CONFLUENCE)
 
 # ── 대상 종류 ────────────────────────────────────────────────────────────────
 #

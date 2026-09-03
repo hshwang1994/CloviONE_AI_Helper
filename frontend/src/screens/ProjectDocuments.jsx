@@ -23,7 +23,7 @@ import { useCategories, useTemplates } from "./knowledge/queries.js";
  * 정해져 있어 프로젝트 열이 정보가 아니라 잉크 무게이기 때문이다.
  *
  * 새 문서 모달은 문서 화면과 **같은 부품**이다(`knowledge/NewDocumentModal.jsx`,
- * `lockedProject`). 이 탭만의 얇은 모달을 따로 두면 카테고리·템플릿 같은 칸이 화면마다
+ * `lockedProject`). 이 탭만의 얇은 모달을 따로 두면 분류·템플릿 같은 칸이 화면마다
  * 다르게 생기고, 한쪽만 고치는 날이 온다.
  */
 /* 한 번에 받는 문서 수. 서버 상한은 이보다 크지만(`service.PAGE_MAX`), 이 탭은 쪽을
@@ -46,7 +46,7 @@ function backToDocsTab(projectId) {
 }
 
 const EMPTY_DOC = {
-  title: "", space_id: "", folder_id: "", category_id: "", tags: [], template: "blank",
+  title: "", category_id: "", tags: [], template: "blank",
 };
 
 export function ProjectDocuments({ projectId, projectName = "" }) {
@@ -78,7 +78,7 @@ export function ProjectDocuments({ projectId, projectName = "" }) {
           <Typography sx={{ fontWeight: FONT_WEIGHT.semibold, ...KO_WORD_BREAK }}>
             {doc.title}
           </Typography>
-          {/* 분류는 보조 글자다(§11.3) — 카테고리가 없는 이관 문서만 옛 doc_type 이 보인다. */}
+          {/* 분류는 보조 글자다(§11.3) — 분류가 없는 이관 문서만 옛 doc_type 이 보인다. */}
           {doc.category?.name || doc.doc_type ? (
             <Typography variant="caption" color="text.secondary" sx={KO_WORD_BREAK}>
               {doc.category?.name || doc.doc_type}
@@ -144,7 +144,6 @@ export function ProjectDocuments({ projectId, projectName = "" }) {
       <NewDocumentModal
         open={newDoc}
         initial={EMPTY_DOC}
-        spaces={[]}
         templates={templates.data?.items || []}
         categories={categoriesQuery.data?.items || []}
         lockedProject={projectId}

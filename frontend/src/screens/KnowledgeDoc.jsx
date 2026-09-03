@@ -36,6 +36,7 @@ import { FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
 import { fmtDateTimeCompact } from "../lib/format.js";
 import { useListReturn } from "../lib/listReturn.js";
 import { useCategories } from "./knowledge/queries.js";
+import { PROJECT_NONE, PROJECT_UNASSIGNED_LABEL } from "./knowledge/constants.js";
 import { celebrateCreated } from "../ui/celebrate.js";
 
 /* 문서 한 건 — 본문 편집 · 문서 정보 · 관계 · 첨부 · 댓글 (지시 22.6).
@@ -94,22 +95,6 @@ function useVersions(id) {
     queryFn: () => api(`/api/knowledge/documents/${id}/versions`),
     enabled: Boolean(id),
   });
-}
-
-function useSpaceTree(spaceId) {
-  return useQuery({
-    queryKey: ["knowledge", "tree", spaceId],
-    queryFn: () => api(`/api/knowledge/spaces/${spaceId}/tree`),
-    enabled: Boolean(spaceId),
-  });
-}
-
-function flatten(nodes, out = []) {
-  for (const node of nodes || []) {
-    out.push(node);
-    flatten(node.children, out);
-  }
-  return out;
 }
 
 function humanSize(bytes) {
@@ -479,7 +464,6 @@ export function KnowledgeDoc() {
 
   const doc = useDocument(id);
   const versions = useVersions(id);
-  const tree = useSpaceTree(doc.data?.space_id);
   const categoriesQuery = useCategories();
 
   const [title, setTitle] = React.useState("");
@@ -489,7 +473,6 @@ export function KnowledgeDoc() {
   const [compareTo, setCompareTo] = React.useState(null);
   const [history, setHistory] = React.useState(false);
   const [moving, setMoving] = React.useState(false);
-  const [folderId, setFolderId] = React.useState("");
   const [moveProjectId, setMoveProjectId] = React.useState("");
 
   /* 서버가 준 값을 편집 상태의 출발점으로 삼는다. 문서 id 가 바뀔 때만 다시 잡는다 —
@@ -500,7 +483,6 @@ export function KnowledgeDoc() {
     setBody(doc.data.current?.body || null);
     setTags((doc.data.tags || []).map((t) => t.name));
     setCategoryId(doc.data.category?.id || "");
-    setFolderId(doc.data.folder_id || "");
     setMoveProjectId(doc.data.project?.id || "");
     setCompareTo(null);
   }, [doc.data?.id]);
@@ -549,11 +531,10 @@ export function KnowledgeDoc() {
   });
 
   const move = useMutation({
-    mutationFn: ({ folder_id, project_id }) =>
+    mutationFn: ({ project_id }) =>
       api(`/api/knowledge/documents/${id}/move`, {
         method: "POST",
-        body: { folder_id: folder_id || null, project_id: project_id || null,
-                base_version: doc.data?.version },
+        body: { project_id: project_id || null, base_version: doc.data?.version },
       }),
     onSuccess: (_result, variables) => {
       refresh();
@@ -627,8 +608,6 @@ export function KnowledgeDoc() {
   const data = doc.data;
   const current = data.current || {};
   const versionRows = versions.data?.items || [];
-  const folders = flatten(tree.data?.folders || []);
-  const folderPath = folders.find((f) => f.id === data.folder_id);
   const attachments = data.attachments || [];
 
   const submit = () => save.mutate({
@@ -659,7 +638,6 @@ export function KnowledgeDoc() {
               <Link href={`#/projects/${data.project.id}`}>{data.project.name}</Link>
             ) : "공통 문서"}
           </InfoRow>
-          <InfoRow label="폴더">{folderPath ? folderPath.name : "정리 안 함"}</InfoRow>
           <InfoRow label="현재 판">
             {current.version_no != null ? `${current.version_no}판` : "아직 없습니다"}
           </InfoRow>
@@ -677,7 +655,7 @@ export function KnowledgeDoc() {
             <TextField
               select
               size="small"
-              label="카테고리"
+              label="분류"
               value={categoryId}
               onChange={(e) => setCategoryId(e.target.value)}
               InputLabelProps={{ shrink: true }}
@@ -773,7 +751,6 @@ export function KnowledgeDoc() {
               ? <Link href={`#/projects/${data.project.id}`}>{data.project.name}</Link>
               : "공통 문서",
           },
-          { key: "folder", label: "폴더", value: folderPath ? folderPath.name : "정리 안 함" },
           { key: "category", label: "분류", value: data.category?.name || "분류 없음" },
           {
             key: "version", label: "현재 판",
@@ -901,10 +878,9 @@ export function KnowledgeDoc() {
         </Stack>
       </DetailLayout>
 
-      {/* 프로젝트 바꾸기 = 소속(공간) 이동, 폴더 바꾸기 = 정리 이동을 한 화면에서 한다
-          (§14.4). 폴더 정리는 볼 수 있는 사람을 안 바꾸지만, 프로젝트를 바꾸는 것은
-          바꾼다(§5.3) — 그래서 프로젝트를 실제로 바꾸면 옛 폴더 자리는 새 프로젝트
-          쪽에서 뜻이 없어 서버가 정리를 초기화한다(그 사실을 아래 도움말로 미리 말한다). */}
+      {/* 옮기는 축은 **프로젝트** 하나다. 폴더 칸은 폴더 축이 화면에서 걷히면서 함께
+          없어졌다(문서 개편 1·5번). 프로젝트를 바꾸는 것은 볼 수 있는 사람을 바꾸는
+          일이라(§5.3) 그 사실을 도움말이 말한다. */}
       <Modal
         open={moving}
         onClose={() => setMoving(false)}
@@ -912,40 +888,30 @@ export function KnowledgeDoc() {
         footer={(
           <ModalFooter
             onCancel={() => setMoving(false)}
-            onSubmit={() => move.mutate({ folder_id: folderId, project_id: moveProjectId })}
+            onSubmit={() => move.mutate({ project_id: moveProjectId })}
             submitLabel="옮기기"
             busy={move.isPending}
           />
         )}
       >
         <Stack spacing={2}>
+          {/* 🔴 「프로젝트 미지정」을 `allLabel` 로 그리지 않는다. 그 prop 은 **빈 값**의
+              이름만 바꾸므로 센티널 "none" 이 서버에 안 가고, 이동이 아무 오류 없이
+              아무것도 안 한다. 값을 실제로 보내려면 후보에 넣어야 한다 —
+              새 문서 대화상자가 쓰는 것과 같은 방법이다. */}
           <ProjectPicker
             layout="form"
-            label="문서 범위"
-            allLabel="바꾸지 않음"
+            label="프로젝트"
+            noAllOption
             value={moveProjectId}
             onChange={setMoveProjectId}
-            helperText="이 문서를 볼 수 있는 사람이 그 프로젝트를 볼 수 있는 사람으로 바뀝니다."
-          />
-          <TextField
-            select
-            label="폴더"
-            value={folderId}
-            onChange={(e) => setFolderId(e.target.value)}
-            disabled={moveProjectId !== (data.project?.id || "")}
-            InputLabelProps={{ shrink: true }}
+            extraOptions={[{ value: PROJECT_NONE, label: PROJECT_UNASSIGNED_LABEL }]}
             helperText={
-              moveProjectId !== (data.project?.id || "")
-                ? "프로젝트를 바꾸면 폴더는 새 프로젝트의 첫 화면으로 초기화됩니다."
-                : "폴더는 정리 자리입니다. 문서를 볼 수 있는 사람은 바뀌지 않습니다."
+              moveProjectId === PROJECT_NONE
+                ? "조직의 모든 사람이 이 문서를 볼 수 있게 됩니다."
+                : "이 문서를 볼 수 있는 사람이 그 프로젝트를 볼 수 있는 사람으로 바뀝니다."
             }
-            fullWidth
-          >
-            <MenuItem value="">정리 안 함</MenuItem>
-            {folders.map((f) => (
-              <MenuItem key={f.id} value={f.id}>{"　".repeat(f.depth) + f.name}</MenuItem>
-            ))}
-          </TextField>
+          />
         </Stack>
       </Modal>
     </>

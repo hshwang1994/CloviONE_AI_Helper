@@ -8,7 +8,6 @@ import { MODERATOR_ROLES, hasRole } from "../lib/roles.js";
 import {
   Button,
   DataTable,
-  EmptyState,
   ErrorState,
   FormModal,
   ListCard,
@@ -23,16 +22,14 @@ import { ResultLine } from "../ui/FilterBar.jsx";
 import { ListFooter } from "../ui/InfiniteScroll.jsx";
 import { useResetScrollOnKeyChange } from "../lib/useInfiniteList.js";
 import { useListMemory } from "../lib/listReturn.js";
-import { LIST_RAIL_GRID } from "../ui/density.js";
 import { SPACES_KEY, useKnowledgeSpaces } from "../lib/knowledgeSpaces.js";
 import {
-  LIST_KEY, PROJECT_NONE, VIEW, axisValueOf, navEntriesFrom, spaceForAxis,
+  LIST_KEY, PROJECT_NONE, VIEW, axisValueOf, navEntriesFrom,
 } from "./knowledge/constants.js";
 import {
-  useCategories, useDocuments, useSummary, useTags, useTemplates, useTree,
+  useCategories, useDocuments, useSummary, useTags, useTemplates,
 } from "./knowledge/queries.js";
 import { useAllProjects } from "./project-queries.js";
-import { KnowledgeNav, flatten } from "./knowledge/KnowledgeNav.jsx";
 import { KnowledgeFilterBar } from "./knowledge/KnowledgeFilterBar.jsx";
 import { buildDocumentColumns } from "./knowledge/documentColumns.jsx";
 import { TaxonomyManager } from "./knowledge/TaxonomyManager.jsx";
@@ -73,11 +70,10 @@ export function Knowledge() {
   const [params, setParams] = useSearchParams();
   useListMemory(LIST_KEY);
 
-  /* 🔴 자리 축은 **프로젝트**다(§11.2 — 「공간」 낱말을 일반 사용자 화면에 쓰지 않는다).
-     값은 프로젝트 id 또는 "none"(공통 문서 — 서버 센티널과 같은 값)이고, 공간은 그
-     값에서 유도된다(`spaceForAxis`) — 폴더 트리·폴더 만들기만 공간 id 를 쓴다. */
+  /* 축은 **프로젝트** 하나다(§11.2 — 「공간」 낱말을 일반 사용자 화면에 쓰지 않는다).
+     값은 프로젝트 id 또는 "none"(프로젝트 미지정 — 서버 센티널과 같은 값)이다.
+     공간 id 는 이제 화면 어디에서도 안 만든다 — 서버가 정한다. */
   const project = params.get("project") || "";
-  const folderId = params.get("folder") || "";
   const q = params.get("q") || "";
   const tags = params.getAll("tags");
   const category = params.get("category") || "";
@@ -93,7 +89,6 @@ export function Knowledge() {
   const setQuery = (patch) => {
     const next = {};
     if (project) next.project = project;
-    if (folderId) next.folder = folderId;
     if (q) next.q = q;
     if (category) next.category = category;
     if (author) next.author = author;
@@ -126,15 +121,11 @@ export function Knowledge() {
      새 문서 모달의 ProjectPicker 와 같은 소스(`/api/projects`)라 두 곳이 같은 프로젝트
      집합을 본다 — 문서 0건 프로젝트가 좌측에서만 사라지던 어긋남을 없앤다. */
   const projectsList = useAllProjects();
-  const hasCommon = items.some((s) => s.owner_kind !== "project");
+  /* 「프로젝트 미지정」은 조건 없이 늘 선다 — `navEntriesFrom` 머리말의 이유다. */
   const navEntries = React.useMemo(
-    () => navEntriesFrom(projectsList.rows, { hasCommon }),
-    [projectsList.rows, hasCommon],
+    () => navEntriesFrom(projectsList.rows),
+    [projectsList.rows],
   );
-  /* 축 값이 가리키는 공간 — 폴더 트리·폴더 만들기가 이것을 쓴다. 아직 공간이 없는
-     프로젝트(첫 문서 전)는 null 이고, 그때 폴더 절은 서지 않는다. */
-  const selectedSpace = spaceForAxis(items, project);
-  const spaceId = selectedSpace ? selectedSpace.id : "";
 
   /* 옛 주소(`?space=`)와 저장된 화면 기억을 프로젝트 축으로 옮긴다 — 북마크·되돌아오기
      (listReturn 은 주소를 통째로 기억한다)가 조용히 죽지 않게. replace 라 히스토리에
@@ -151,89 +142,42 @@ export function Knowledge() {
 
   /* 자리가 **하나뿐이면** 그것을 연다. 폴더 트리는 자리를 고른 뒤에야 뜻이 있는데, 고를
      것이 하나인 화면에서 「전체」에 머무르면 내비의 절반이 비어 보인다.
-     🔴 세는 것은 **내비가 실제로 보여 주는 선택지**(`navEntries`)다. 예전에는 공간 목록
-     (`items`)을 셌는데, 공간은 문서가 붙은 자리에만 생기므로 「공통 문서 + 프로젝트 셋」인
-     화면에서도 공간이 하나면 자동으로 「공통 문서」가 켜졌다 — 사용자는 프로젝트 문서가
-     통째로 사라진 목록을 첫 화면으로 받았다. */
+     세는 것은 **프로젝트 선택지**다. 공간 목록을 세면 공간이 문서가 붙은 자리에만
+     생기므로 프로젝트가 여럿인 화면에서도 하나로 세어 엉뚱한 자리가 켜진다. */
   /* 🔴 **둘 다 도착한 뒤에** 센다. 공간 질의가 프로젝트 질의보다 먼저 끝나는 찰나에는
      선택지가 「공통 문서」 하나뿐이라, 세는 시점을 안 막으면 그 찰나에 자동 선택이 걸려
      진입할 때마다 공통 문서로 접힌다(실브라우저에서 실제로 그랬다). */
+  /* 🔴 세는 것은 **프로젝트 항목**뿐이다. 「프로젝트 미지정」이 늘 서게 된 뒤로
+     `navEntries.length` 로 재면 프로젝트가 하나도 없는 조직에서 길이가 1 이 되어
+     들어갈 때마다 미지정으로 접힌다 — 그 조직에는 자동으로 열 「자리」가 없다. */
   const axisReady = !spaces.isPending && !projectsList.isLoading;
+  const projectEntries = navEntries.filter((e) => e.value !== PROJECT_NONE);
   React.useEffect(() => {
     if (!axisReady) return;
-    if (!project && navEntries.length === 1) {
-      setParams({ project: navEntries[0].value }, { replace: true });
+    if (!project && projectEntries.length === 1) {
+      setParams({ project: projectEntries[0].value }, { replace: true });
     }
-  }, [axisReady, project, navEntries, setParams]);
+  }, [axisReady, project, projectEntries, setParams]);
 
-  const tree = useTree(spaceId);
   const tagsQuery = useTags();
   const categoriesQuery = useCategories();
   const summary = useSummary();
   const templates = useTemplates();
   const documents = useDocuments({
-    view, project, folderId, q, tags, category, author, sort, resume: resumeChunks,
+    view, project, q, tags, category, author, sort, resume: resumeChunks,
   });
   /* 조건이 바뀌면 목록 머리로 되돌린다. 첫 마운트에는 안 돈다(그 순간은 `listReturn` 이
      스크롤을 복원하는 자리다). */
   useResetScrollOnKeyChange(
-    JSON.stringify([view, project, folderId, q, tags, category, author, sort]),
+    JSON.stringify([view, project, q, tags, category, author, sort]),
   );
 
-  const [folderForm, setFolderForm] = React.useState(false);
   const [newDoc, setNewDoc] = React.useState(null);
   const [taxonomyOpen, setTaxonomyOpen] = React.useState(false);
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["knowledge", "documents"] });
     qc.invalidateQueries({ queryKey: ["knowledge", "summary"] });
-  };
-
-  const createFolder = useMutation({
-    mutationFn: (body) => api("/api/knowledge/folders", { method: "POST", body }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["knowledge", "tree", spaceId] });
-      setFolderForm(false);
-      toast("폴더를 만들었습니다.");
-    },
-    onError: (e) => toast(e.message, "error"),
-  });
-
-  const moveFolder = useMutation({
-    mutationFn: ({ id, before_id, after_id }) =>
-      api(`/api/knowledge/folders/${id}`, { method: "PATCH", body: { before_id, after_id } }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["knowledge", "tree", spaceId] }),
-    onError: (e) => toast(e.message, "error"),
-  });
-
-  const removeFolder = useMutation({
-    mutationFn: (id) => api(`/api/knowledge/folders/${id}`, { method: "DELETE" }),
-    onSuccess: (data) => {
-      qc.invalidateQueries({ queryKey: ["knowledge", "tree", spaceId] });
-      invalidate();
-      const moved = data?.documents_moved_to_root || 0;
-      toast(
-        moved
-          ? `폴더를 지웠고 문서 ${moved}건이 정리 안 함 상태가 됐습니다.`
-          : "폴더를 지웠습니다.",
-      );
-    },
-    onError: (e) => toast(e.message, "error"),
-  });
-
-  /* 🔴 폴더 삭제는 **묻고 지운다.** 예전에는 좌측 줄의 「삭제」가 곧바로 지웠다 — 고르는
-     단추 바로 옆의 단추 하나로 되돌릴 수 없는 일이 일어났다. 어느 범위의 어느 폴더인지,
-     그리고 **안의 문서는 안 지워진다**는 사실까지 확인 문구가 말한다(그 오해가 이 단추를
-     무섭게 만든다). */
-  const confirmDeleteFolder = async (folder) => {
-    const where = navEntries.find((e) => e.value === project);
-    const scope = where ? where.label : "전체";
-    const ok = await confirm(
-      `${scope}의 「${folder.name}」 폴더를 지웁니다. 하위 폴더도 함께 지워집니다. `
-      + "안에 있던 문서는 지워지지 않고 정리 안 함 상태가 됩니다.",
-      { title: `${folder.name} 폴더 삭제`, confirmLabel: "폴더 삭제", danger: true },
-    );
-    if (ok) removeFolder.mutate(folder.id);
   };
 
   /* 어휘(태그·카테고리)를 고치면 **목록의 줄과 조건 후보가 함께** 달라진다 — 함께
@@ -336,7 +280,6 @@ export function Knowledge() {
     [navigate],
   );
 
-  const folders = flatten(tree.data?.folders || []);
   const tagRows = tagsQuery.data?.items || [];
   const categoryRows = categoriesQuery.data?.items || [];
   const templateRows = templates.data?.items || [];
@@ -368,19 +311,11 @@ export function Knowledge() {
     return <ErrorState error={spaces.error} onRetry={() => spaces.refetch()} />;
   }
 
-  if (!items.length) {
-    return (
-      <>
-        <PageHeader crumbRoot="팀 업무" area="문서" title="문서" />
-        <EmptyState
-          layout="page"
-          art="docs"
-          title="볼 수 있는 프로젝트 문서가 없습니다."
-          help="관리자가 프로젝트를 만들면 여기에 나타납니다."
-        />
-      </>
-    );
-  }
+  /* 🔴 「공간이 하나도 없으면 빈 화면」 이라는 조기 반환이 여기 있었다. 이제 틀렸다 —
+     프로젝트가 선택이 된 뒤로 **공간이 하나도 없는 조직에서도 문서를 만들 수 있고**
+     (서버가 첫 문서에서 공통 공간을 만든다), 그 화면에서 「관리자가 프로젝트를 만들면
+     나타납니다」를 보여 주면 할 수 있는 일을 없다고 말하는 것이 된다. 목록이 비었을 때의
+     안내는 아래 `ListEmptyState` 하나가 맡는다. */
 
   /* 「필터 지우기」가 지우는 축 = 조건을 세는 축 (D-388). 한 목록에서 관리한다.
      프로젝트(공간)는 여기 없다 — 그것은 조건이 아니라 **지금 서 있는 자리**다(좌측
@@ -389,16 +324,14 @@ export function Knowledge() {
   const activeConditions = [
     q ? "검색어" : "",
     view ? "보기" : "",
-    folderId ? "폴더" : "",
     category ? "분류" : "",
     tags.length ? "태그" : "",
     author ? "작성자" : "",
   ].filter(Boolean);
   const hasFilter = activeConditions.length > 0;
   const clearFilters = () => setQuery({
-    q: null, view: null, folder: null, category: null, tags: [], author: null,
+    q: null, view: null, category: null, tags: [], author: null,
   });
-  const folderName = (folders.find((f) => f.id === folderId) || {}).name || "";
 
   return (
     <>
@@ -417,10 +350,10 @@ export function Knowledge() {
               variant="primary"
               onClick={() =>
                 setNewDoc({
-                  // 지금 서 있는 자리가 기본값이다 — 「전체」면 첫 자리를 준다.
+                  /* 지금 서 있는 프로젝트가 기본값이다. 「전체」면 비워 둔다 —
+                     프로젝트는 **선택**이라 아무거나 골라 주면 안 된다. */
                   title: "",
-                  project_id: project || (items[0] ? axisValueOf(items[0]) : ""),
-                  folder_id: folderId || "",
+                  project_id: project === PROJECT_NONE ? "" : project,
                   category_id: "", tags: [], template: "blank",
                 })
               }
@@ -438,14 +371,16 @@ export function Knowledge() {
           items={[
             {
               key: "total", label: "전체 문서", value: summaryRow.total, primary: true,
-              active: view === VIEW.all && !folderId,
-              onClick: () => setQuery({ view: null, folder: null }),
+              active: view === VIEW.all,
+              onClick: () => setQuery({ view: null }),
             },
+            /* 🔴 「최근 수정」이 아니라 「최근 24시간」이다. 예전 타일은 `sort=recent` 만
+               걸어 전체를 정렬만 했다 — 이름은 24시간을 말하는데 목록에는 작년 문서가
+               계속 있었다. 이제 서버가 창을 자른다. */
             {
-              key: "recent", label: "최근 수정", value: summaryRow.recent,
-              note: "최근 24시간",
-              active: sort === "recent" && view === VIEW.all,
-              onClick: () => setQuery({ view: null, sort: "recent" }),
+              key: "recent", label: "최근 24시간", value: summaryRow.recent,
+              active: view === VIEW.updated24,
+              onClick: () => setQuery({ view: VIEW.updated24 }),
             },
             {
               key: "favorites", label: "즐겨찾기", value: summaryRow.favorites,
@@ -454,7 +389,6 @@ export function Knowledge() {
             },
             {
               key: "drafts", label: "내 초안", value: summaryRow.drafts,
-              note: "아직 고치지 않은 내 문서",
               active: view === VIEW.drafts,
               onClick: () => setQuery({ view: VIEW.drafts }),
             },
@@ -466,8 +400,6 @@ export function Knowledge() {
         q={q}
         view={view}
         project={project}
-        folderId={folderId}
-        folderName={folderName}
         tags={tags}
         category={category}
         author={author}
@@ -484,24 +416,12 @@ export function Knowledge() {
       {/* 「최근 열람」은 쪽을 안 나눈다 — 사람마다 다르고 길지 않다. */}
       <ResultLine total={total} conditions={activeConditions} />
 
-      {/* 좌측 레일 + 목록의 표준 트랙(density.js LIST_RAIL_GRID) — 조직 콘솔과 같은
-          한 벌이다. 손으로 짠 값(18rem·gap16px)이 화면마다 달랐던 자리다. */}
-      <Box sx={LIST_RAIL_GRID}>
-        <KnowledgeNav
-          entries={navEntries}
-          value={project}
-          hasSpace={Boolean(spaceId)}
-          tree={tree}
-          folderId={folderId}
-          onSelect={(next) => setQuery({ project: next || null, folder: null })}
-          onFolder={(next) => setQuery({ folder: next || null })}
-          onNewFolder={() => setFolderForm(true)}
-          onDeleteFolder={confirmDeleteFolder}
-          onReorderFolder={({ id, beforeId, afterId }) =>
-            moveFolder.mutate({ id, before_id: beforeId, after_id: afterId })}
-        />
-
-        <Box sx={{ minWidth: 0 }}>
+      {/* 🔴 좌측 레일이 없다. 폴더 축이 화면에서 걷히면서(문서 개편 5번) 레일에 남는
+          것은 프로젝트 목록뿐이었는데, 그것은 이미 위 조건 줄의 고르개가 그린다 —
+          같은 축을 두 자리에서 그리면 둘이 어긋나는 날이 온다. 목록은 `Projects.jsx` 와
+          같은 전폭 골격으로 선다(그 화면 다섯이 이미 쓰는 한 벌이다).
+          `LIST_RAIL_GRID` 는 조직 콘솔이 계속 쓰므로 `ui/density.js` 에 그대로 둔다. */}
+      <Box sx={{ minWidth: 0 }}>
           {documents.isError ? (
             <ErrorState error={documents.error} onRetry={() => documents.refetch()} />
           ) : (
@@ -541,35 +461,9 @@ export function Knowledge() {
                   moreLabel="문서 더 보기"
                 />
               ) : null}
-            </ListCard>
-          )}
-        </Box>
+          </ListCard>
+        )}
       </Box>
-
-      <FormModal
-        open={folderForm}
-        title="폴더 추가"
-        fields={[
-          { name: "name", label: "폴더 이름", required: true, maxLength: 200 },
-          {
-            name: "parent_id",
-            label: "상위 폴더",
-            type: "select",
-            options: [{ value: "", label: "없음" }].concat(
-              folders.map((f) => ({ value: f.id, label: f.name })),
-            ),
-          },
-        ]}
-        initial={{ name: "", parent_id: folderId || "" }}
-        submitLabel="만들기"
-        onClose={() => setFolderForm(false)}
-        onSubmit={(values) =>
-          createFolder.mutateAsync({
-            space_id: spaceId,
-            name: values.name,
-            parent_id: values.parent_id || null,
-          })}
-      />
 
       {/* 「공간 추가」 UI 는 걷었다 — 조직 공간(공통 문서)은 이관이 이미 만들었고,
           프로젝트 공간은 첫 문서를 만들 때 서버가 만든다(§14.2). 사용자가 공간이라는
@@ -620,23 +514,22 @@ export function Knowledge() {
       <NewDocumentModal
         open={Boolean(newDoc)}
         initial={newDoc || {
-          title: "", project_id: "", folder_id: "", category_id: "", tags: [], template: "blank",
+          title: "", project_id: "", category_id: "", tags: [], template: "blank",
         }}
-        spaces={items}
         templates={templateRows}
         categories={categoryRows}
         busy={createDocument.isPending}
         onClose={() => setNewDoc(null)}
         onSubmit={(values) => {
-          // 프로젝트면 project_id 로 — 공간은 서버가 찾거나 만든다(§14.2). 공통 문서만
-          // 실제 공간 id 로 나간다(조직 공간은 프로젝트로 표현할 수 없는 유일한 갈래다).
-          const commonSpace = spaceForAxis(items, PROJECT_NONE);
+          /* 🔴 공간 id 를 **화면이 만들지 않는다.** 프로젝트를 고르면 그 프로젝트로,
+             안 고르면 아무것도 안 보낸다 — 서버가 조직 공통 공간을 찾거나 만든다
+             (`service.resolve_or_create_common_space`). 예전에는 여기서 공간 목록을
+             뒤져 `space_id` 를 지었고, 목록이 비었거나 둘 이상이면 빈 문자열이 나가
+             「어느 프로젝트의 문서인지 골라 주세요」로 끝났다. */
+          const chosen = values.project_id;
           createDocument.mutate({
-            ...(values.project_id && values.project_id !== PROJECT_NONE
-              ? { project_id: values.project_id }
-              : { space_id: commonSpace ? commonSpace.id : "" }),
+            ...(chosen && chosen !== PROJECT_NONE ? { project_id: chosen } : {}),
             title: values.title.trim(),
-            folder_id: values.folder_id || null,
             category_id: values.category_id || null,
             template: values.template || null,
             tag_names: values.tags && values.tags.length ? values.tags : null,
