@@ -32,8 +32,14 @@
   ⑥ **애니메이션 회귀는 없었다**(아래 «안 고친 것» 참고).
 - branch: `ui/mui-migration`
 - last_stable_commit: **`eec4886c`** — 이번 회차도 안 옮긴다.
-- deployed: **`c88297d3`** 그대로다. **이번 회차는 아직 배포하지 않았다** — 사용자가
-  결과를 먼저 확인한 뒤 배포 여부를 정한다.
+- deployed: **`c3c2e195`** 가 운영에 나갔다 (2026-09-03 12:57 · `scripts/deploy-upgrade.sh`).
+  Stage 0~18 전부 OK · `VERIFY_OK` · `UPGRADE_OK` · `DEPLOY_VERIFY_OK`. 스냅샷
+  `/var/backups/clovirassist/20260903-125742`. 스키마 불변(alembic 0026, db=code) ·
+  마이그레이션 0 · 제품 유닛 5종 + postgresql + nginx active · `ssl_verify_result=0`.
+  배포 뒤 실측: 운영이 서비스하는 53개 자산 전부 새 번들이고, 받아 본 5개 청크가 커밋
+  파일과 **바이트 동일**하며, `Knowledge`·`UserRoutes` 청크에 `page_size` 리터럴이
+  **하나도 없다**(422 를 만들던 그 자리다).
+  되돌리려면 `sudo /home/cloviradmin/clovirassist-upgrade/deploy/install.sh rollback --target /var/backups/clovirassist/20260903-125742`
 - verification: 로컬 실서버(`scripts/ui_qa/local_server`, 커밋된 번들 그대로 — 운영이
   서비스하는 파일과 sha256 동일함을 확인)에서 **사용자 22 · 관리자 30 라우트 전수**
   실브라우저 훑기(UUID 노출·부풀어 오른 컨트롤·API 4xx·JS 오류·가로 넘침 자동 판정) ·
@@ -87,7 +93,7 @@
 - **화면 고도화 · 대시보드 · 무한 스크롤 · 서버 필터/정렬 · 티켓 만들기 · 신호 축 ·
   3영역 재설계 · 카테고리 · 엑셀** ✅ — D-335~D-406.
 - **작업 보드·스프린트 회의·문서 결함 전수 수정 + 429 근본 해소 ✅** — D-407~D-412.
-- **3라운드 운영 실화면 재검수 ✅**(배포 전) — 이번 회차, 결정 **D-413~D-415**.
+- **3라운드 운영 실화면 재검수 ✅** — 이번 회차, 결정 **D-413~D-415**. 배포 `c3c2e195`.
 
 ## NEXT — 다음 기능 개발은 §7.0 일반 개발 흐름을 탄다
 
