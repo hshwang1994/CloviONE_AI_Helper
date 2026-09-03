@@ -42,6 +42,7 @@ import { TicketFace, TicketPeople } from "../ui/TicketFace.jsx";
 import { StatusKpiStrip } from "../ui/StatusKpi.jsx";
 import { LANE_SURFACE } from "../ui/density.js";
 import { useQueryState } from "../lib/useQueryState.js";
+import { celebrateIfCompletedCategory } from "../ui/celebrate.js";
 import { pickOpenSprint } from "./sprint-charts.js";
 
 /* 작업 보드 — 칸반과 백로그 (S6 · 지시 5 · REAUDIT §8).
@@ -502,7 +503,7 @@ export function WorkBoard() {
   const move = useMutation({
     mutationFn: ({ id, body }) =>
       api(`/api/work/board/${encodeURIComponent(id)}/move`, { method: "POST", body }),
-    onSuccess: (data) => {
+    onSuccess: (data, variables) => {
       // 「더 보기」로 받아 둔 확장분을 접는다 — 첫 쪽만 재조회되므로, 남겨 두면 옮긴
       // 카드가 옛 열의 확장분과 새 열의 첫 쪽에 **동시에** 서고 dnd 등록 id 가 겹친다.
       setColExtra({});
@@ -518,6 +519,13 @@ export function WorkBoard() {
       // 비활성 캐시까지 즉시 재요청하던 것을 걷었다. 비활성 목록은 stale 로 남아
       // 다음 마운트에서 새로 읽는다.
       invalidateTicketViews(qc);
+      /* 끌어서 완료 열에 놓은 것도 **티켓을 끝낸 것**이다(사용자 지적 — 편집 폼만이
+         아니다). `to_status` 는 열이 실제로 바뀐 이동에만 실리므로, 완료 열 안에서
+         순서만 바꾼 것에는 축하하지 않는다. 갈래 판정은 서버가 응답에 실어 준
+         `status_category` 를 그대로 쓴다 — 화면이 상태 이름을 적지 않는다. */
+      if (variables && variables.body && variables.body.to_status) {
+        celebrateIfCompletedCategory(fresh);
+      }
     },
     onError: (e) => {
       if (e && e.status === 409) {

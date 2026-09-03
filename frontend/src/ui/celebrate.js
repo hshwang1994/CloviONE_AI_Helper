@@ -19,21 +19,97 @@ import confetti from "canvas-confetti";
  * 그려질 때마다 부르면 종잇조각이 화면을 덮는다. 부르는 자리는 언제나 **뮤테이션의
  * `onSuccess`** 이거나, 값이 실제로 바뀐 것을 확인한 effect 다.
  *
- * 🔴 그리고 **일이 끝났을 때만**이다. 「한 건 처리했다」가 아니라 「할 게 없어졌다」다 —
- * 매번 터지면 두 번째부터는 축하가 아니라 방해다. 그 판단은 부르는 쪽이 한다
- * (`celebrateIfCleared`).
+ * 🔴 **터질 자리는 둘이다.**
+ *
+ *   1. 「할 게 없어졌다」 — 목록이 비는 순간(`celebrateIfCleared` · `useCelebrateOnCleared`).
+ *   2. 「이 티켓을 끝냈다」 — 티켓이 완료로 옮겨 가는 순간(`celebrateIfCompleted`).
+ *
+ * 2 는 사용자가 못박은 것이다(2026-09-03): "티켓이 완료됐을 때 폭죽이 터지기로 했는데
+ * 수정을 눌러서 완료 누르고 저장했을 때는 안 터진다." 그전까지 이 파일이 붙어 있던 자리는
+ * 놀이·승인함 비움·내 티켓 비움·회차 닫기 넷뿐이라, **티켓 한 건을 끝낸 자리에는 아무도
+ * 연결하지 않았다.**
  *
  * OS·브라우저의 동작 줄이기 설정은 보지 않는다 — 이 제품의 연출은 언제나 돈다
  * (제품 결정, `ui/motion.js` 머리말).
  */
+
+/* 🔴 **겹쳐 터지지 않는다.**
+ *
+ * 두 자리가 한 동작에서 같이 열린다: 내 마지막 열린 티켓을 완료로 옮기면 「이 티켓을
+ * 끝냈다」와 「할 게 없어졌다」가 동시에 참이 된다. 그러면 종잇조각이 두 겹으로 쏟아지고,
+ * 그건 축하가 두 배가 아니라 그냥 화면이 시끄러운 것이다.
+ *
+ * 한 번의 축포는 세 발(가운데 → 좌 → 우)이 140·260ms 뒤에 이어지는 한 벌이라, 그 한 벌이
+ * 끝나기 전에 들어온 두 번째 요청만 접는다. 5초 뒤에 다음 티켓을 끝내면 그건 새 축하다. */
+const BURST_COOLDOWN_MS = 1500;
+let lastBurstAt = 0;
+
+/* 축포는 앱 크롬 위에 떠야 한다. canvas-confetti 의 기본 캔버스는 `z-index: 100` 이라
+   MUI 모달(1300)·상단바(1100) 뒤에서 터진다 — 편집 모달에서 완료로 저장하면 정확히 그
+   자리다. 로그인 인계 판에서 같은 이유로 폭죽이 통째로 안 보이던 것을 이미 겪었다
+   (`app/LoginHandoff.jsx` 의 CONFETTI_Z). */
+const CONFETTI_Z = 1320;
+
 export function celebrate() {
+  const now = Date.now();
+  if (now - lastBurstAt < BURST_COOLDOWN_MS) return;
+  lastBurstAt = now;
   const base = {
     spread: 74, startVelocity: 45, ticks: 200,
     origin: { y: 0.55 },
+    zIndex: CONFETTI_Z,
   };
   confetti({ ...base, particleCount: 90 });
   window.setTimeout(() => confetti({ ...base, particleCount: 55, angle: 60, origin: { x: 0, y: 0.62 } }), 140);
   window.setTimeout(() => confetti({ ...base, particleCount: 55, angle: 120, origin: { x: 1, y: 0.62 } }), 260);
+}
+
+/** 시험 전용 — 겹침 방지 기억을 비운다. 제품 코드에서는 부르지 않는다. */
+export function resetBurstCooldown() {
+  lastBurstAt = 0;
+}
+
+/** `/api/work/statuses` 응답 → **완료로 세는** 상태 key 집합.
+ *
+ * 🔴 `terminal` 이 아니라 `category === "DONE"` 이다. 취소도 종료 상태지만 축하할 일이
+ * 아니다 — `terminal` 로 재면 티켓을 취소한 사람에게 종잇조각이 쏟아진다.
+ *
+ * 어휘가 아직 없으면 **빈 집합**이다(= 안 터진다). 여기에 "완료" 라고 적어 두면 어휘가
+ * 바뀐 날 이 파일만 옛 이름으로 남고, 그 어긋남은 아무 오류도 안 낸다 —
+ * `lib/ticketSignals.js::terminalKeys` 와 같은 규칙이다. */
+export function doneStatusKeys(statusesBody) {
+  const rows = statusesBody && Array.isArray(statusesBody.statuses) ? statusesBody.statuses : [];
+  return new Set(rows.filter((s) => s && s.category === "DONE").map((s) => s.key));
+}
+
+/** 이번 쓰기가 티켓을 **완료로 옮겼으면** 터뜨린다.
+ *
+ * `nextStatus` 는 「이번에 실제로 바뀐 상태」다. 안 바뀌었으면 부르는 쪽이 빈 값을 넘긴다 —
+ * 이미 완료인 티켓의 제목만 고쳐 저장한 것은 끝낸 것이 아니므로 축하하지 않는다. 그
+ * 판단은 부르는 쪽에 이미 있다(편집 폼의 `buildChanges`, 판의 `fromColumn === toColumn`).
+ *
+ * 뮤테이션의 `onSuccess` 에서 부른다 — 서버가 받아 준 뒤에만 축하한다. */
+export function celebrateIfCompleted(nextStatus, doneKeys) {
+  if (!nextStatus || !doneKeys || !doneKeys.has(nextStatus)) return false;
+  celebrate();
+  return true;
+}
+
+/** 상태 갈래 어휘의 「끝났다」. 서버의 `app/work/workflow.py::CAT_DONE` 과 같은 값이다. */
+export const DONE_CATEGORY = "DONE";
+
+/** 서버가 돌려준 티켓이 **완료 갈래**면 터뜨린다.
+ *
+ * 판의 이동 응답(`/api/work/board/{id}/move`)은 티켓에 `status_category` 를 함께 싣는다
+ * (`app/work/service.py::_card`). 그 자리에서는 상태 어휘를 따로 받아 올 이유가 없다 —
+ * 서버가 이미 갈래를 말해 주는데 화면이 같은 판정을 두 번 하면 언젠가 둘이 갈린다.
+ *
+ * 「옮겼는가」는 여기서 못 본다. 같은 열 안에서 순서만 바꾼 것도 완료 티켓이면 참이 되므로,
+ * **부르는 쪽이 열이 실제로 바뀐 경우에만** 부른다(판은 그때만 `to_status` 를 싣는다). */
+export function celebrateIfCompletedCategory(ticket) {
+  if (!ticket || ticket.status_category !== DONE_CATEGORY) return false;
+  celebrate();
+  return true;
 }
 
 /** 「남은 게 0 이 됐을 때만」 터뜨린다.

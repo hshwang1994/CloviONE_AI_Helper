@@ -26,6 +26,7 @@ const confettiMock = vi.fn();
 vi.mock("canvas-confetti", () => ({ default: (...args) => confettiMock(...args) }));
 
 import { GameRoom } from "./GameRoom.jsx";
+import { resetBurstCooldown } from "../ui/celebrate.js";
 import { ConfirmProvider, ToastProvider } from "../ui/kit.jsx";
 import { ThemeModeProvider } from "../ui/ThemeModeProvider.jsx";
 
@@ -74,6 +75,9 @@ const FINISHED_DRAW = {
 };
 
 beforeEach(() => {
+  // 축포는 한 벌이 끝나기 전 두 번째 요청을 접는다(ui/celebrate.js 의 겹침 방지).
+  // 그 기억은 모듈 전역이라 시험 사이에 새므로 여기서 비운다.
+  resetBurstCooldown();
   apiMock.mockReset();
   confettiMock.mockReset();
   apiMock.mockResolvedValue(FINISHED_DRAW);

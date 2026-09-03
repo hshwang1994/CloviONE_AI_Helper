@@ -48,7 +48,7 @@ import { useQueryState } from "../lib/useQueryState.js";
 import { TICKET_AUTO_MAX_ROWS, useAssigneeOptions, useTicketList, useTicketMeta, useTicketProjects, useWorkStatuses, statusOptions, ticketProjectId, ticketRows } from "./ticket-options.js";
 import { ListFooter } from "../ui/InfiniteScroll.jsx";
 import { invalidateTicketViews } from "./ticket-views.js";
-import { useCelebrateOnCleared } from "../ui/celebrate.js";
+import { useCelebrateOnCleared, celebrateIfCompleted, doneStatusKeys } from "../ui/celebrate.js";
 import { bulkFailureNote, fmtDateTime } from "../lib/format.js";
 import { NumberCell, DateCell } from "../ui/cells.jsx";
 import { TableHeaderCell } from "../ui/TableHeaderCell.jsx";
@@ -658,6 +658,10 @@ export function TicketEditModal({ ticket, open, onClose }) {
   const assigneesQ = useAssigneeOptions(open);
   const metaQ = useTicketMeta(open);
   const projectsQ = useTicketProjects(open);
+  /* 「완료로 옮겼는가」는 상태 **어휘**가 답한다 — 이 폼은 이미 같은 질의를 쓰고 있고
+     (`useWorkStatuses`, 5분 캐시·같은 키) 요청이 늘지 않는다. */
+  const statusesQ = useWorkStatuses(open);
+  const doneKeys = React.useMemo(() => doneStatusKeys(statusesQ.data), [statusesQ.data]);
   const [form, setForm] = React.useState(null);
   React.useEffect(() => {
     if (!open || !ticket) { setForm(null); return; }
@@ -687,7 +691,16 @@ export function TicketEditModal({ ticket, open, onClose }) {
     /* 이 모달은 홈·스프린트·프로젝트 티켓 등 **여러 화면에 얹혀 있다.** 그래서 무효화 대상을
      * 여기서 정하면 안 된다 — 얹히는 화면이 늘 때마다 빠뜨린다(실제로 홈·스프린트가 빠져 있었다).
      * 티켓을 그리는 질의 키는 ticket-views.js 가 한 곳에서 안다. */
-    onSuccess: () => { toast("티켓을 저장했습니다.", "success"); invalidateTicketViews(qc); onClose(); },
+    /* 두 번째 인자는 이 뮤테이션에 넘긴 `changes` 다. `buildChanges` 가 **바뀐 값만**
+       담으므로, 여기 `status` 가 있다는 것이 곧 「이번에 상태를 옮겼다」이다 — 이미
+       완료인 티켓의 제목만 고친 저장에는 이 칸이 없어서 축하하지 않는다.
+       모달을 먼저 닫는다: 종잇조각이 폼 위가 아니라 끝낸 티켓 위로 쏟아져야 한다. */
+    onSuccess: (_res, changes) => {
+      toast("티켓을 저장했습니다.", "success");
+      invalidateTicketViews(qc);
+      onClose();
+      celebrateIfCompleted(changes && changes.status, doneKeys);
+    },
     onError: (e) => { toast((e && e.message) || "저장하지 못했습니다. 잠시 후 다시 시도해 주세요.", "error"); },
   });
   if (!open || !ticket || !form) return null;
@@ -1161,6 +1174,8 @@ export function Unassigned() {
 export function useInlineStatusEdit() {
   const qc = useQueryClient();
   const workQ = useWorkStatuses(true);
+  // 편집 모달과 같은 규칙이다 — 목록에서 그 자리에서 완료로 바꾼 것도 끝낸 것이다.
+  const doneKeys = React.useMemo(() => doneStatusKeys(workQ.data), [workQ.data]);
   const options = ((workQ.data && workQ.data.statuses) || []).map((st) => ({
     value: st.key,
     // 저장값과 표시값이 다른 것이 하나 있다(`진행` → `진행 중`). 서버가 준 라벨을 쓴다.
@@ -1176,9 +1191,12 @@ export function useInlineStatusEdit() {
          같은 티켓을 세고 있으므로 여기만 고치면 그쪽 숫자가 남는다. */
       invalidateTicketViews(qc);
       // 서버가 돌려준 값이 정본이다. 안 주면 넘긴 값을 쓴다(`InlineEdit` 의 §정직한 성공).
-      return (res && res.ticket && res.ticket.status) || next;
+      const saved = (res && res.ticket && res.ticket.status) || next;
+      // 원래 값과 같으면 옮긴 것이 아니다 — 같은 값을 다시 고른 저장에는 축하하지 않는다.
+      if (saved !== ticket.status) celebrateIfCompleted(saved, doneKeys);
+      return saved;
     },
-  }), [JSON.stringify(options), qc]);   // eslint-disable-line react-hooks/exhaustive-deps
+  }), [JSON.stringify(options), qc, doneKeys]);   // eslint-disable-line react-hooks/exhaustive-deps
 }
 
 
