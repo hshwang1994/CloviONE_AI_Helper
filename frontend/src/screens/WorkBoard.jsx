@@ -42,7 +42,7 @@ import { TicketFace, TicketPeople } from "../ui/TicketFace.jsx";
 import { StatusKpiStrip } from "../ui/StatusKpi.jsx";
 import { LANE_SURFACE } from "../ui/density.js";
 import { useQueryState } from "../lib/useQueryState.js";
-import { celebrateIfCompletedCategory, celebrateIfStartedCategory } from "../ui/celebrate.js";
+import { celebrateIfCompletedCategory } from "../ui/celebrate.js";
 import { pickOpenSprint } from "./sprint-charts.js";
 
 /* 작업 보드 — 칸반과 백로그 (S6 · 지시 5 · REAUDIT §8).
@@ -524,7 +524,7 @@ export function WorkBoard() {
          순서만 바꾼 것에는 축하하지 않는다. 갈래 판정은 서버가 응답에 실어 준
          `status_category` 를 그대로 쓴다 — 화면이 상태 이름을 적지 않는다. */
       if (variables && variables.body && variables.body.to_status) {
-        if (!celebrateIfCompletedCategory(fresh)) celebrateIfStartedCategory(fresh);
+        celebrateIfCompletedCategory(fresh);
       }
     },
     onError: (e) => {

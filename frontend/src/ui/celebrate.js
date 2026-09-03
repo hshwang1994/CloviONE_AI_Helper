@@ -194,69 +194,23 @@ function cloverShapes() {
   return cloverShape ? [cloverShape] : undefined;
 }
 
-/** 무언가를 **새로 만든 순간**. 끝낸 것이 아니라 시작한 것이라, 축포보다 가볍다.
+/** 문서를 **저장한 순간**. 끝낸 것이 아니라 남긴 것이라, 완료 축포보다 가볍다.
  *
- * 값이 완료 축포와 다른 이유가 있다: 아래에서 위로 한 줌 피어오르고(startVelocity 낮음,
- * 좁은 퍼짐) 곧 걷힌다. 「끝냈다」의 세 발짜리 축포와 같은 무게로 터지면 문서를 열 장 만든
- * 사람에게는 그냥 소음이다. */
+ * 🔴 **`scalar` 가 이 연출의 존재 이유다.** 처음에 1.1 로 뒀더니 조각이 13px 이었고,
+ * 그 크기의 네잎클로버는 그냥 **점**이다 — 사용자가 "클로버가 아닌데?" 라고 한 것이
+ * 그것이다(실측: 13px 은 점, 27px 부터 잎 넷이 보이고, 34px 은 확실하다).
+ * 조각을 키운 만큼 개수를 줄인다. 큰 조각 스물몇 개가 작은 점 마흔여섯보다 조용하고,
+ * 무엇보다 **무엇이 쏟아지는지 보인다.** */
 export function celebrateCreated() {
   celebrateBurst({
-    particleCount: 46,
-    spread: 52,
-    startVelocity: 34,
-    ticks: 140,
-    gravity: 0.9,
-    scalar: 1.1,
+    particleCount: 26,
+    spread: 58,
+    startVelocity: 32,
+    ticks: 160,
+    gravity: 0.85,
+    scalar: 2.6,
     origin: { y: 0.72 },
     colors: CLOVER_COLORS,
     shapes: cloverShapes(),
   });
-}
-
-/** 일이 **움직인 순간**(예: 진행 중으로 옮김). 만든 것보다도 가볍다 — 하루에 여러 번
- *  일어나는 일이라, 눈에 띄되 손을 멈추게 하지 않아야 한다. */
-export function celebrateMoved() {
-  celebrateBurst({
-    particleCount: 18,
-    spread: 34,
-    startVelocity: 26,
-    ticks: 90,
-    gravity: 1.1,
-    scalar: 0.9,
-    origin: { y: 0.6 },
-    colors: CLOVER_COLORS,
-    shapes: cloverShapes(),
-  });
-}
-
-/** 상태 갈래 어휘의 「하는 중」. 서버의 `app/work/workflow.py::CAT_IN_PROGRESS` 와 같다. */
-export const IN_PROGRESS_CATEGORY = "IN_PROGRESS";
-
-/** `/api/work/statuses` 응답 → **하는 중으로 세는** 상태 key 집합.
- *
- * 이 제품의 어휘에서는 '진행' 과 '검증' 둘이다. 화면이 "진행" 이라고 적지 않는 이유는
- * `doneStatusKeys` 와 같다 — 어휘가 바뀌면 이 파일만 옛 이름으로 남는다. */
-export function inProgressStatusKeys(statusesBody) {
-  const rows = statusesBody && Array.isArray(statusesBody.statuses) ? statusesBody.statuses : [];
-  return new Set(
-    rows.filter((s) => s && s.category === IN_PROGRESS_CATEGORY).map((s) => s.key)
-  );
-}
-
-/** 이번 쓰기가 티켓을 **하는 중으로 옮겼으면** 가벼운 클로버 한 줌.
- *
- * `celebrateIfCompleted` 와 같은 계약이다: `nextStatus` 는 「이번에 실제로 바뀐 상태」이고,
- * 안 바뀌었으면 부르는 쪽이 빈 값을 넘긴다. 완료가 큰 축포인 것과 달리 여기는 작은 한 줌이다 —
- * 시작은 끝이 아니고, 하루에 여러 번 일어난다. */
-export function celebrateIfStarted(nextStatus, inProgressKeys) {
-  if (!nextStatus || !inProgressKeys || !inProgressKeys.has(nextStatus)) return false;
-  celebrateMoved();
-  return true;
-}
-
-/** 판의 이동 응답처럼 서버가 갈래를 실어 줄 때. `celebrateIfCompletedCategory` 의 짝이다. */
-export function celebrateIfStartedCategory(ticket) {
-  if (!ticket || ticket.status_category !== IN_PROGRESS_CATEGORY) return false;
-  celebrateMoved();
-  return true;
 }

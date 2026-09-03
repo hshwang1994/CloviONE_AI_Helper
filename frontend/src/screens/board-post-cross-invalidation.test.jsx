@@ -171,9 +171,10 @@ describe("게시글 상세 — 댓글/반응/상태 변경이 목록·홈·내 �
     wrap(qc);
 
     expect(await screen.findByText("제안 글")).toBeInTheDocument();
-    await user.click(screen.getByRole("combobox", { name: "다음 상태" }));
+    // 티켓의 상태 열과 같은 손짓이다 — 배지를 눌러 그 자리에서 고르면 바로 저장된다
+    // (`ui/InlineEdit.jsx`). 옛 「다음 상태 드롭다운 + 적용」은 걷었다.
+    await user.click(screen.getByRole("button", { name: /제안 상태 바꾸기/ }));
     await user.click(await screen.findByRole("option", { name: "반려" }));
-    await user.click(screen.getByRole("button", { name: "적용" }));
 
     await waitFor(() => {
       expect(qc.getQueryState(["board"]).isInvalidated, "board").toBe(true);

@@ -14,8 +14,7 @@ vi.mock("canvas-confetti", () => ({ default: (...a) => confettiSpy(...a) }));
 import {
   celebrateIfCleared, useCelebrateOnCleared, resetBurstCooldown,
   celebrateIfCompleted, celebrateIfCompletedCategory, doneStatusKeys,
-  celebrateIfStarted, celebrateIfStartedCategory, inProgressStatusKeys,
-  celebrateCreated, celebrateMoved, celebrate, CLOVER_PATH, CLOVER_COLORS,
+  celebrateCreated, celebrate, CLOVER_PATH, CLOVER_COLORS,
 } from "./celebrate.js";
 
 function Probe({ total, token }) {
@@ -153,76 +152,37 @@ describe("겹쳐 터지지 않는다", () => {
   });
 });
 
-/* ── 자리마다 다른 무게 (사용자 요청) ────────────────────────────────────────
+/* ── 만든 자리와 끝낸 자리는 무게가 다르다 ─────────────────────────────────
  *
- * "뭔가 진행 중으로 바꾸면 나오고 문서 새로 만들면 뭐가 나오고 그런거 있잖아. 문서
- * 만들었을때 네잎클로버 폭죽 나오는건 좋음."
- *
- * 그래서 세 무게다: 끝냄(축포 세 발) · 만듦(클로버 한 줌) · 움직임(작은 클로버). */
+ * qa-contract-change: 「움직였다(진행 중 전환)」 무게를 통째로 걷었다(2026-09-03 사용자
+ * 결정: "티켓을 검증으로 바꿔도 축포가 터지고 … 일단 이건 절대 아님"). 하루에 여러 번
+ * 일어나는 상태 이동마다 축하하면 그건 축하가 아니라 소음이라는 판단이다. 그 무게를 재던
+ * 시험 넷은 잴 대상이 사라졌다. 남은 둘(끝냄·만듦)의 대소와 층·겹침 방지는 그대로 잰다. */
 describe("자리마다 무게가 다르다", () => {
-  const STATUSES = {
-    statuses: [
-      { key: "계획", category: "OPEN" },
-      { key: "진행", category: "IN_PROGRESS" },
-      { key: "검증", category: "IN_PROGRESS" },
-      { key: "완료", category: "DONE" },
-      { key: "취소", category: "CANCELED" },
-    ],
-  };
-
-  it("하는 중 갈래는 둘이다 — 화면이 상태 이름을 적지 않는다", () => {
-    expect([...inProgressStatusKeys(STATUSES)].sort()).toEqual(["검증", "진행"]);
-    expect(inProgressStatusKeys(undefined).size).toBe(0);
-  });
-
-  it("진행으로 옮기면 터지고, 계획으로 되돌리면 안 터진다", () => {
-    expect(celebrateIfStarted("진행", inProgressStatusKeys(STATUSES))).toBe(true);
-    expect(confettiSpy).toHaveBeenCalled();
-    confettiSpy.mockClear();
-    resetBurstCooldown();
-    expect(celebrateIfStarted("계획", inProgressStatusKeys(STATUSES))).toBe(false);
-    expect(celebrateIfStarted(undefined, inProgressStatusKeys(STATUSES))).toBe(false);
-    expect(confettiSpy).not.toHaveBeenCalled();
-  });
-
-  it("판의 이동 응답도 같은 갈래를 본다", () => {
-    expect(celebrateIfStartedCategory({ status_category: "IN_PROGRESS" })).toBe(true);
-    confettiSpy.mockClear();
-    resetBurstCooldown();
-    expect(celebrateIfStartedCategory({ status_category: "DONE" })).toBe(false);
-    expect(celebrateIfStartedCategory(null)).toBe(false);
-    expect(confettiSpy).not.toHaveBeenCalled();
-  });
-
   it("만듦은 한 발, 끝냄은 세 발 — 무게가 실제로 다르다", () => {
     celebrateCreated();
-    const created = confettiSpy.mock.calls.length;
-    expect(created).toBe(1);
-    const createdOpts = confettiSpy.mock.calls[0][0];
+    expect(confettiSpy.mock.calls.length).toBe(1);
+    const created = confettiSpy.mock.calls[0][0];
 
     confettiSpy.mockClear();
     resetBurstCooldown();
     celebrate();
-    // 세 발 중 첫 발은 즉시, 나머지 둘은 예약된 타이머다.
-    const finishedFirst = confettiSpy.mock.calls[0][0];
-    expect(finishedFirst.particleCount).toBeGreaterThan(createdOpts.particleCount);
-    expect(finishedFirst.spread).toBeGreaterThan(createdOpts.spread);
+    const finished = confettiSpy.mock.calls[0][0];
+    expect(finished.particleCount).toBeGreaterThan(created.particleCount);
+    expect(finished.spread).toBeGreaterThan(created.spread);
   });
 
-  it("움직임은 만듦보다도 가볍다", () => {
+  /* 🔴 조각이 작으면 클로버가 **점**으로 보인다 — 사용자가 "클로버가 아닌데?" 라고 한 것이
+   * 그것이다(실측: scalar 1.1 = 13px 은 점, 27px 부터 잎 넷이 보인다). 크기는 이 연출의
+   * 존재 이유라 숫자로 못박는다. */
+  it("클로버 조각은 알아볼 만큼 크다", () => {
     celebrateCreated();
-    const created = confettiSpy.mock.calls[0][0];
-    confettiSpy.mockClear();
-    resetBurstCooldown();
-    celebrateMoved();
-    const moved = confettiSpy.mock.calls[0][0];
-    expect(moved.particleCount).toBeLessThan(created.particleCount);
+    expect(confettiSpy.mock.calls[0][0].scalar).toBeGreaterThanOrEqual(2.2);
   });
 
   it("클로버는 브랜드 색으로만 쏟아진다", () => {
     celebrateCreated();
     expect(confettiSpy.mock.calls[0][0].colors).toEqual(CLOVER_COLORS);
-    // 마크의 잎 색 — 무채색 종잇조각이 아니다.
     expect(CLOVER_COLORS).toContain("#8E75E1");
   });
 
@@ -231,7 +191,7 @@ describe("자리마다 무게가 다르다", () => {
     expect(confettiSpy.mock.calls[0][0].zIndex).toBeGreaterThan(1300);
   });
 
-  it("겹침 방지는 세 무게가 함께 쓴다 — 만들자마자 끝내도 한 벌이다", () => {
+  it("겹침 방지는 두 무게가 함께 쓴다 — 저장하자마자 끝내도 한 벌이다", () => {
     celebrateCreated();
     const n = confettiSpy.mock.calls.length;
     celebrate();
@@ -239,7 +199,7 @@ describe("자리마다 무게가 다르다", () => {
   });
 });
 
-/* 클로버 경로는 브랜드 마크에서 뽑은 것이다 — 그 파일이 바뀌면 이 문자열도 바꿔야 한다. */
+
 describe("클로버 모양", () => {
   it("잎 넷이 한 경로에 있다", () => {
     // 잎 하나가 M…Z 한 벌이므로 네 벌이다.

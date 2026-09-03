@@ -36,6 +36,7 @@ import { FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
 import { fmtDateTimeCompact } from "../lib/format.js";
 import { useListReturn } from "../lib/listReturn.js";
 import { useCategories } from "./knowledge/queries.js";
+import { celebrateCreated } from "../ui/celebrate.js";
 
 /* 문서 한 건 — 본문 편집 · 문서 정보 · 관계 · 첨부 · 댓글 (지시 22.6).
  *
@@ -522,6 +523,14 @@ export function KnowledgeDoc() {
           ? "저장했고 새 판을 이력에 남겼습니다."
           : "저장했습니다. 본문이 그대로라 새 판은 만들지 않았습니다.",
       );
+      /* 🔴 **만든 순간이 아니라 저장한 순간이다** (사용자 지적). 「새 문서」는 빈 장을
+         하나 세우고 편집기로 들여보내는 것뿐이라, 거기서 축하하면 아직 아무것도 안 쓴
+         사람에게 종잇조각이 쏟아진다.
+
+         그리고 **새 판이 실제로 남았을 때만**이다 — 서버가 본문이 그대로면
+         `created_version` 을 안 준다(바로 위 문구가 그 사실을 말한다). 안 바뀐 저장을
+         축하하면 저장 단추를 두 번 누른 사람이 두 번 축하받는다. */
+      if (result.created_version) celebrateCreated();
     },
     onError: (e) => toast(e.message, "error"),
   });

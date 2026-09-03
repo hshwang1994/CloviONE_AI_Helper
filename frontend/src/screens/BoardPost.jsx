@@ -12,7 +12,6 @@ import { api } from "../lib/api.js";
 import {
   Badge,
   Button,
-  Callout,
   Card,
   ErrorState,
   PageHeader,
@@ -28,8 +27,8 @@ import { ideaStatusKind } from "../lib/badges.js";
 import { AuthorLine, COPY, PostFormModal, Reactions } from "./Board.jsx";
 import { splitComments } from "./board-helpers.js";
 import { ImageLightbox, useLightbox } from "../ui/ImageLightbox.jsx";
-import { EMPTYABLE_SELECT } from "../ui/filters.jsx";
 import { setItemTitle } from "../app/documentTitle.js";
+import { InlineEdit } from "../ui/InlineEdit.jsx";
 import { useListReturn } from "../lib/listReturn.js";
 import { DetailPage } from "../ui/DetailLayout.jsx";
 
@@ -299,74 +298,49 @@ function CommentItem({ comment, postId, palette, isReply, person, onChanged }) {
 }
 
 
-/* 제안 상태 줄 (7단계 #1) — **아이디어 글에만** 그린다.
+/* 제안 상태 — **티켓과 같은 손짓** (사용자 지적, 2026-09-03).
  *
- * 다음 상태로 넘기는 것은 운영자만이고(`can_change_status`), 감추는 것은 편의일 뿐 통제는
- * 서버가 한다.
+ * 예전에는 본문 위에 안내 상자가 한 겹 서고, 그 안에 「다음 상태」 드롭다운과 「적용」
+ * 단추가 있었다. 사용자: "상단 안내에서 진행률을 바꾸는게 정말 마음에 안든다 UI에도 안좋고
+ * 진행중에서 완료로 바꾸는 것도 UX가 매우 이상하다 — 그냥 상태를 티켓처럼 하면 되잖아."
  *
- * 🔴 **여기는 업무 티켓을 만드는 자리가 아니다** (사용자 결정, 2026-09-03).
- * 예전에는 '진행' 으로 넘기면 프로젝트를 고르게 하고 서버가 그 프로젝트에 티켓을 만들어
- * 연결했다. 그런데 이 게시판은 **ClovirAssist 제품 자체에 대한 기능 제안**이다 —
- * 고객 프로젝트의 업무 티켓과 섞이면 프로젝트 보드에 제품 요청이 쌓이고, 그 둘은 담당자도
- * 우선순위 기준도 다르다. 그래서 티켓 연결·생성을 통째로 걷었다(서버도 함께).
- * 남는 것은 제안 자신의 진행 상태뿐이다: 제안 → 검토중 → 진행 → 완료 · 보류.
- */
-function IdeaStatusBar({ post, onChanged }) {
-  const statuses = post.next_statuses || [];
+ * 맞는 지적이다. 이 앱에서 상태를 바꾸는 방식은 이미 하나 있다: 배지를 눌러 그 자리에서
+ * 고른다(`ui/InlineEdit.jsx`, 내 티켓의 상태 열). 게시판만 다른 손짓을 쓸 이유가 없었고,
+ * 상자 한 겹은 글 읽는 자리를 밀어내기만 했다.
+ *
+ * 고를 수 있는 값도 전부 준다 — 전이 사슬은 서버에서 걷었다(`service.next_statuses` 의
+ * 머리말). 「진행중에서 완료로만」 같은 제한이 UX 를 이상하게 만들던 쪽이다. */
+function IdeaStatusBadge({ post, onChanged }) {
   const toast = useToast();
   const qc = useQueryClient();
-  /* 앱은 해시 라우터다(app/App.jsx) — `window.open("/tickets/…")` 로 보내면 해시가 빠진
-     주소로 나가 티켓이 아니라 앱 바깥으로 떨어진다. 이동은 라우터에게 시킨다. */
-  const nav = useNavigate();
-  const [target, setTarget] = useState("");
+  const options = (post.next_statuses || []).map((s) => ({ value: s, label: s }));
 
-  const move = useMutation({
-    mutationFn: () =>
-      api("/api/board/posts/" + post.id + "/status", {
-        method: "POST",
-        body: { status: target },
-      }),
-    onSuccess: () => {
-      setTarget("");
-      toast("제안 상태를 바꿨습니다.", "success");
-      onChanged && onChanged();
-      // 상태 배지는 Board.jsx 목록에도 나온다(idea_status 열) — onChanged는 이 상세
-      // 화면만 다시 부르므로(L축 재감사, 댓글·반응과 같은 결함) 목록도 무효화한다.
-      qc.invalidateQueries({ queryKey: ["board"] });
-    },
-    onError: (e) => toast((e && e.message) || "상태를 바꾸지 못했습니다. 다시 시도해 주세요.", "error"),
-  });
+  async function save(next) {
+    await api("/api/board/posts/" + post.id + "/status", {
+      method: "POST",
+      body: { status: next },
+    });
+    onChanged && onChanged();
+    /* 상태 배지는 목록(Board.jsx)에도 나온다(idea_status 열) — onChanged 는 이 상세만
+       다시 부르므로 목록도 무효화한다. */
+    qc.invalidateQueries({ queryKey: ["board"] });
+    toast("제안 상태를 바꿨습니다.", "success");
+    return next;
+  }
 
-  const canMove = !!target && !move.isPending;
   return (
-    <Callout tone="info">
-      <Stack direction="row" gap={1.5} alignItems="center" flexWrap="wrap">
-        <Typography variant="body2" component="span">진행 상태</Typography>
-        <Badge value={post.idea_status || "제안"} kind={ideaStatusKind(post.idea_status)} />
-        {post.can_change_status ? (
-          <>
-            {/* {...EMPTYABLE_SELECT} 가 없으면 MUI Select는 value=""를 "아직 안 골랐다"로 보고
-                MenuItem의 라벨("상태 바꾸기")을 그리지 않는다 — 상자가 통째로 빈 채로 보여
-                여기 무슨 선택지가 있는지조차 알 수 없었다(ui/filters.jsx의 EMPTYABLE_SELECT
-                주석과 같은 함정, 다른 select들은 이미 이걸 쓴다). */}
-            <TextField
-              select size="small" value={target} sx={{ minWidth: "10rem" }}
-              onChange={(e) => setTarget(e.target.value)}
-              inputProps={{ "aria-label": "다음 상태" }}
-              {...EMPTYABLE_SELECT}
-            >
-              <MenuItem value="">상태 바꾸기</MenuItem>
-              {statuses.map((s) => <MenuItem key={s} value={s}>{s}</MenuItem>)}
-            </TextField>
-            <Button variant="primary" size="sm" disabled={!canMove} onClick={() => move.mutate()}>
-              적용
-            </Button>
-          </>
-        ) : null}
-      </Stack>
-    </Callout>
+    <InlineEdit
+      value={post.idea_status || "제안"}
+      options={options}
+      canEdit={!!post.can_change_status}
+      label="제안 상태"
+      rowName={post.title || ""}
+      render={(v) => <Badge value={v} kind={ideaStatusKind(v)} />}
+      onSave={save}
+    />
   );
 }
+
 
 export function BoardPost() {
   const { id } = useParams();
@@ -528,8 +502,10 @@ export function BoardPost() {
             <Tag label={post.category} />
             {/* 🔴 상태 배지는 **종류로** 가른다(값이 아니라). 값으로 가르면 서버가 실수로
                 실어 보낸 `idea_status` 가 자유게시글에 그대로 그려진다. */}
+            {/* 티켓의 상태 열과 같다 — 누르면 그 자리에서 고른다(`ui/InlineEdit.jsx`).
+                바꿀 수 없는 사람에게는 InlineEdit 이 스스로 잠긴 배지로 그린다. */}
             {isIdea && post.idea_status ? (
-              <Badge value={post.idea_status} kind={ideaStatusKind(post.idea_status)} />
+              <IdeaStatusBadge key={post.id} post={post} onChanged={refetch} />
             ) : null}
           </Stack>
           {/* SEM-03 재확인 — 제목은 이제 위 PageHeader가 h1로 보여준다. 카드 안에서 같은
@@ -542,21 +518,6 @@ export function BoardPost() {
             <Typography variant="body2" color="text.secondary">{fmtDateTime(post.created_at)}</Typography>
             <Typography variant="body2" color="text.secondary">조회 {post.view_count}</Typography>
           </Stack>
-
-          {/* 제안이면 상태 줄이 본문 **위에** 온다 - 이 글을 열어 가장 먼저 알고 싶은 것이
-              "이 제안은 어떻게 됐나"이기 때문이다. 자유게시글에는 아예 없다. */}
-          {isIdea ? (
-            <Box sx={{ mt: 2 }}>
-              {/* key={post.id} — "/board/:id"는 다른 제안으로 이동해도(알림 딥링크 등 인앱
-                  이동) BoardPost 인스턴스가 재사용된다. key가 없으면 IdeaStatusBar 안의
-                  target(useState)이 리마운트되지 않고 그대로 남아, A 글에서 고른
-                  "다음 상태"가 B 글 드롭다운에도 이미 선택된 채로 뜬다 — 두 제안이 같은 상태
-                  어휘("진행" 등)를 쓰므로 그대로 "적용"을 누르면 B 글이 사용자가 고르지 않은
-                  상태로 바뀐다(board-post-idea-status-stale.test.jsx, CommentComposer의
-                  key={post.id}와 같은 이유). */}
-              <IdeaStatusBar key={post.id} post={post} onChanged={refetch} />
-            </Box>
-          ) : null}
 
           {post.body && String(post.body).trim() ? (
             <Typography component="div" sx={{ ...PROSE_SX, mt: 3 }}>{post.body}</Typography>

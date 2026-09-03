@@ -170,26 +170,35 @@ describe("게시글 상세의 빵부스러기는 글의 종류를 따른다", ()
    * 만들어 연결했으며, 연결된 뒤에는 「연결된 티켓 보기」가 떴다. 이 게시판은 ClovirAssist
    * 제품 자체에 대한 기능 제안이라 고객 프로젝트의 업무 티켓과 섞이면 안 된다. */
   it("제안 글에 「연결된 티켓 보기」가 없다 — 옛 연결이 남아 있어도", async () => {
-    mockPost("idea", { ticket_page_id: "t-1", can_change_status: true, next_statuses: ["진행"] });
+    mockPost("idea", { idea_status: "제안", ticket_page_id: "t-1", can_change_status: true, next_statuses: ["진행"] });
     wrap(["/board/p1"]);
     expect(await screen.findByText("본문")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "연결된 티켓 보기" })).toBeNull();
   });
 
-  it("「진행」을 골라도 프로젝트를 고르라고 하지 않는다 — 티켓을 안 만들기 때문이다", async () => {
-    /* 🔴 고르기 **전에** 재면 아무것도 못 잡는다 — 프로젝트 칸은 원래 '진행' 을 고른
-       뒤에만 떴다. 실제로 그 상태를 만들어 놓고 봐야 한다. */
-    mockPost("idea", { can_change_status: true, next_statuses: ["진행"] });
+  /* 상태를 바꾸는 손짓이 **티켓과 같다** (사용자 지적: "상단 안내에서 진행률을 바꾸는게
+   * 정말 마음에 안든다 … 그냥 상태를 티켓처럼 하면 되잖아"). 배지를 눌러 그 자리에서
+   * 고르면 바로 저장된다 — 안내 상자도, 「적용」 단추도, 티켓 프로젝트 칸도 없다. */
+  it("상태는 배지를 눌러 그 자리에서 고른다 — 안내 상자도 적용 단추도 없다", async () => {
+    mockPost("idea", {
+      idea_status: "제안",
+      can_change_status: true,
+      next_statuses: ["제안", "검토중", "진행", "완료", "보류"],
+    });
     const user = userEvent.setup();
     wrap(["/board/p1"]);
     expect(await screen.findByText("본문")).toBeInTheDocument();
 
-    await user.click(screen.getByLabelText("다음 상태"));
-    await user.click(await screen.findByRole("option", { name: "진행" }));
+    // 옛 두 단계 손짓은 사라졌다.
+    expect(screen.queryByRole("button", { name: "적용" })).toBeNull();
+    expect(screen.queryByLabelText("다음 상태")).toBeNull();
 
-    // 제안 자신의 상태는 그대로 바꿀 수 있고,
-    expect(screen.getByRole("button", { name: "적용" })).toBeEnabled();
-    // 티켓 프로젝트 칸은 뜨지 않는다.
+    await user.click(screen.getByRole("button", { name: /제안 상태 바꾸기/ }));
+    // 전이 사슬을 걷었으므로 어휘 전부가 보인다 — 「진행중에서 완료로만」 같은 제한이 없다.
+    for (const s of ["제안", "검토중", "진행", "완료", "보류"]) {
+      expect(await screen.findByRole("option", { name: s })).toBeInTheDocument();
+    }
+    // 티켓 프로젝트 칸은 어디에도 없다.
     expect(screen.queryByLabelText("티켓 프로젝트")).toBeNull();
     expect(screen.queryByText("프로젝트 선택")).toBeNull();
   });

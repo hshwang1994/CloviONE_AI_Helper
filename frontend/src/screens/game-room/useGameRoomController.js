@@ -147,11 +147,25 @@ export function useGameRoomController(id) {
     onError: (e) => toast((e && e.message) || "메시지를 보내지 못했습니다. 다시 시도해 주세요.", "error"),
   });
 
-  // 승자가 확정되면(폴링으로 결과가 처음 도착하는 순간) 축포를 한 번 터뜨린다. celebrateKey는
-  // 결과 내용이 바뀔 때만 값이 달라지므로 폴링마다 재발화하지 않는다. 훅 순서 유지를 위해
-  // 조기 return 위에 둔다(무승부·팀나누기·사다리처럼 '승자'가 없는 결과는 제외).
+  /* 승자가 **확정되는 순간** 축포를 한 번 터뜨린다. celebrateKey 는 결과 내용이 바뀔 때만
+   * 값이 달라지므로 폴링마다 재발화하지 않는다. 훅 순서 유지를 위해 조기 return 위에
+   * 둔다(무승부·팀나누기·사다리처럼 '승자'가 없는 결과는 제외).
+   *
+   * 🔴 **처음 본 값에는 안 터뜨린다** (사용자 지적: "아무것도 안 바꿨는데 페이지만
+   * 옮겨도 갑자기 축포가 터짐"). 이미 끝난 방을 **열기만 해도** 이 조건이 참이라
+   * 마운트 즉시 발사됐다 — 그건 「승자가 확정된 순간」이 아니라 「지난 결과를 다시
+   * 열어 본 순간」이다. 방을 오갈 때마다, 알림에서 딥링크로 들어올 때마다 터졌다.
+   *
+   * 그래서 마운트 뒤 **값이 실제로 달라진 때만** 축하한다 — `useCelebrateOnCleared` 가
+   * 「처음 본 값에는 안 터뜨린다」로 같은 함정을 피하는 것과 같은 규칙이다. */
   const celebrateKey = deriveCelebrateKey(state.data);
-  useEffect(() => { if (celebrateKey) celebrate(); }, [celebrateKey]);
+  const seenCelebrateKey = useRef(undefined);
+  useEffect(() => {
+    const first = seenCelebrateKey.current === undefined;
+    const changed = seenCelebrateKey.current !== celebrateKey;
+    seenCelebrateKey.current = celebrateKey;
+    if (!first && changed && celebrateKey) celebrate();
+  }, [celebrateKey]);
 
   // 방이 사라지면(방장이 파함 → 404, 또는 closed 표시) 목록으로 돌려보낸다. 한 번만.
   const notFound = state.isError && state.error && state.error.status === 404;

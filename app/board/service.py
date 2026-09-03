@@ -158,26 +158,31 @@ def ensure_can_change_status(user: User) -> None:
 
 
 def next_statuses(post: Post) -> list[str]:
-    """지금 상태에서 갈 수 있는 곳. 자유게시글은 빈 목록이다.
+    """고를 수 있는 상태. 자유게시글은 빈 목록이다.
 
-    화면이 이 목록만 그리면 "고를 수는 있는데 누르면 거절당하는" 선택지가 생기지 않는다.
-    노출 순서는 `IDEA_STATUSES`(일이 흘러가는 순서)를 따른다 — frozenset 을 그대로 내보내면
-    순서가 실행마다 달라져 드롭다운이 매번 다르게 보인다.
+    🔴 **전이 사슬을 걷었다** (사용자 결정, 2026-09-03). 예전에는 제안→검토중→진행처럼
+    정해진 길로만 갈 수 있었고, 그 근거는 "'진행' 은 티켓을 만든다 — 되돌릴 수 없는
+    쪽이라 더 그렇다" 였다. **그 티켓 생성이 없어졌으므로 근거도 없어졌다.**
+
+    남은 것은 라벨 하나를 고르는 일이고, 사용자는 그것을 티켓처럼 다루기를 원한다 —
+    티켓의 상태도 계획에서 곧장 완료로 갈 수 있다. 두 단계를 거쳐야 완료로 갈 수 있는
+    제안 게시판이 오히려 예외였다.
+
+    노출 순서는 `IDEA_STATUSES`(일이 흘러가는 순서)를 따른다.
     """
     if (post.kind or KIND_FREE) != KIND_IDEA:
         return []
-    allowed = IDEA_TRANSITIONS.get(post.idea_status or IDEA_PROPOSED, frozenset())
-    return [s for s in IDEA_STATUSES if s in allowed]
+    return list(IDEA_STATUSES)
 
 
 def ensure_transition_allowed(current: str | None, target: str) -> None:
-    current = current or IDEA_PROPOSED
-    if current == target:
-        return
-    if target not in IDEA_TRANSITIONS.get(current, frozenset()):
-        raise ValidationAppError(
-            f"'{current}' 에서 '{target}' 으로는 바로 넘어갈 수 없습니다."
-        )
+    """어휘 안의 값이면 어디로든 갈 수 있다(위 `next_statuses` 의 이유).
+
+    값 자체의 검증은 여기가 아니라 스키마가 한다(`IdeaStatusUpdate._status`) — 어휘 밖
+    문자열은 요청이 몸통을 읽는 자리에서 이미 막힌다. 이 함수는 호출부의 이름을 남겨
+    두려고 둔다: 나중에 다시 제한이 필요해지면 붙일 자리가 한 곳이다.
+    """
+    return None
 
 
 def change_idea_status(
