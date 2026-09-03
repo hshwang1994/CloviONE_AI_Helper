@@ -55,9 +55,25 @@
   판이 가로로 넘칠 때만 움직인다 — 넓은 화면에서는 칸 넷이 다 보이므로 아무 데도 안 간다.
   지난 회차가 고친 것은 접힌·숨은 칸의 **드문** 갈래였고 평범한 갈래가 남아 있었다.
   이제 스크롤에 더해 그 칸을 가리킨다: 실선 테두리 + 초점 이동, 1.4초 뒤 걷힘. `d273bf43`.
+  ⑨ **애니메이션이 OS·브라우저 설정과 무관하게 항상 돈다** (사용자 요청 · 제품 결정).
+  Firefox 판정(아래 「안 고친 것」에 있던 것)을 사용자가 **고치라고** 지시했다. 판정 함수와
+  호출부 아홉, CSS 블록 여섯, canvas-confetti 옵션 둘을 **경로째** 걷었다 — 함수만 false 로
+  바꾸면 죽은 가지가 아홉 군데 남는다. 라이브러리 둘도 스스로 끄고 있었다: 날짜 고르개는
+  테마 `defaultProps` 로, 라이트박스 CSS 는 같은 미디어쿼리 안에서 vendor 값을 다시 적어
+  되돌렸다. **남은 하나**: 라이트박스의 JS `useMotionPreference()`(확대/이동 flip)는 내부
+  훅이고 prop 이 없어 그대로다 — vendor 파일을 덧칠하지 않았다. 🔴 이것은 접근성 계약을
+  의도적으로 걷은 것이다. 되돌리는 법은 `frontend/src/ui/motion.js` 머리말에 적혀 있다.
+  `bc258b59`.
 - branch: `ui/mui-migration`
 - last_stable_commit: **`eec4886c`** — 이번 회차도 안 옮긴다.
-- deployed: **`d273bf43`** 가 운영에 나갔다 (2026-09-03 17:56 · 정적 경로 · `APPLY_OK` ·
+- deployed: **`bc258b59`** 가 운영에 나갔다 (2026-09-03 18:46 · 정적 경로 · `APPLY_OK` ·
+  `STATIC_UPDATE_OK`). 배포 뒤 실측 — 서버가 서브하는 바이트에 끄는 경로가 없다:
+  `clovi-login.js?v=748367ab` 에 `prefersReducedMotion` 0건(`userActed` 관문은 있다) ·
+  `login.css?v=2efb5b33` 에 동작줄이기 블록 0건 · `index.DNVgDf49.js` 0건 ·
+  `style.CwD0wCfc.css` 에 전역 끄기 블록 0건이고 라이트박스 복구 규칙은 있다.
+  **Firefox 153 실측**(reduce=true 인 그 브라우저에서 배포본 그대로): 눈 레이어
+  `transition-duration = 0.095s, 0.15s, 0.15s` — 예전에는 이 자리가 0.01ms 였다.
+  그 앞: **`d273bf43`** (2026-09-03 17:56 · 정적 경로 · `APPLY_OK` ·
   `STATIC_UPDATE_OK`). 배포 뒤 실브라우저 실측: 「132 계획」 타일을 누르면 그 칸의
   `data-col-highlight="true"` 와 `outline: rgb(90,79,207) solid 2px` 가 켜지고 초점이
   「계획 (132건)」으로 가며, 1.4초 뒤 저절로 걷힌다(다른 칸은 안 켜진다).
@@ -120,17 +136,6 @@
   화면의 기본 경로(`WindowVirtualTableBody`)에도 넣어 봤더니 무거운 jsdom 시험 셋이 5초
   상한을 넘겼다 — pristine HEAD 와 나란히 돌려 대조했다(HEAD 초록 → 한 줄 추가 시 빨강 →
   되돌리면 초록). 렌더 비용을 실제로 바꾸는 한 줄이라 **실측 없이 넣지 않는다**. **P-75**.
-- **Firefox 에서 눈·폭죽이 안 보이는 것은 제품 결함이 아니다 — OS 가 「동작 줄이기」다.**
-  이 작업 PC 에서 실측: `SPI_GETCLIENTAREAANIMATION = False`(Windows 설정 › 접근성 ›
-  시각 효과 › 애니메이션 효과 = 끔). Firefox 153 은 그 값을 그대로
-  `prefers-reduced-motion: reduce` 로 보고하고, **같은 순간 이 Chrome 은 false 로 보고한다**
-  (크롬이 시작 시점 값을 물고 있는 것으로 보인다). 그래서 「크롬은 되는데 파이어폭스는
-  안 된다」가 된다. 배포된 로그인 페이지를 Firefox 로 띄워 잰 값: `reduce=true` ·
-  `pointermove=15`(이벤트는 정상 도착) · `state=idle`(관문 수정 적용됨) · `eyeX=0px`.
-  즉 **이벤트도 오고 상태도 맞는데 `handlePointerMove` 가 첫 줄에서 돌아선다.**
-  `LoginHandoff` 의 `if (!reduced) fireWelcomeConfetti()` 도 같은 스위치다 — 하나가 둘을
-  끈다. **고치지 않는다**: 이건 접근성 계약이고 `MOTION`·시험이 명시로 붙잡고 있다.
-  사용자에게는 Windows 스위치를 알린다.
 - **pilot_b7b8 의 B7 구획**(P-64) · **JS no-undef 정적 검사**(P-65) · **주간 비교**
   (P-66) · **빼기 확장**(P-67) · **AI 초안 폼 project_id**(P-68) · **보드 서버 성능**
   (P-69) · **nginx conf 주석**(P-70) · **chunked 413 시험의 405**(P-71) — 그대로다.
