@@ -4,8 +4,8 @@ import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { Button, Card, Section, Skeleton } from "../../ui/kit.jsx";
 import { DragItem, SortableList } from "../../ui/DragDrop.jsx";
-import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../../ui/theme.js";
-import { spaceDisplayName } from "./constants.js";
+import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, MOTION } from "../../ui/theme.js";
+import { PROJECT_NONE } from "./constants.js";
 
 /* 좌측 내비 — 「어느 묶음을 볼까」.
  *
@@ -29,10 +29,29 @@ export function flatten(nodes, out = []) {
   return out;
 }
 
-/** 내비 한 줄. 고른 줄은 색과 `aria-current` 둘 다로 말한다. */
-export function NavRow({ label, count, selected, indent = 0, onClick, action }) {
+/** 내비 한 줄. 고른 줄은 색과 `aria-current` 둘 다로 말한다.
+ *
+ * `action` 은 **평소에 숨는다**(`revealAction`). 폴더 줄의 「삭제」가 늘 떠 있으면 고르는
+ * 단추 바로 옆 3px 자리에 지우는 단추가 상시로 서 있고, 그 둘은 같은 크기의 같은 회색
+ * 글자다 — 열두 줄이면 「삭제」가 열두 번 보인다. 마우스를 얹거나 키보드 포커스가 이 줄
+ * 안에 들어올 때만 나타난다(`:focus-within` 이라 키보드로도 반드시 닿는다). */
+export function NavRow({ label, count, selected, indent = 0, onClick, action, revealAction = false }) {
   return (
-    <Stack direction="row" alignItems="center" spacing={0.5} sx={{ width: "100%" }}>
+    <Stack
+      direction="row"
+      alignItems="center"
+      spacing={0.5}
+      sx={{
+        width: "100%",
+        ...(revealAction ? {
+          "& .nav-row-action": {
+            opacity: 0,
+            transition: `opacity ${MOTION.fast} ${MOTION.ease}`,
+          },
+          "&:hover .nav-row-action, &:focus-within .nav-row-action": { opacity: 1 },
+        } : null),
+      }}
+    >
       <Box
         component="button"
         type="button"
@@ -68,8 +87,23 @@ export function NavRow({ label, count, selected, indent = 0, onClick, action }) 
           </Box>
         )}
       </Box>
-      {action}
+      {action ? <Box className="nav-row-action" sx={{ flexShrink: 0 }}>{action}</Box> : null}
     </Stack>
+  );
+}
+
+/** 절 안의 작은 갈래 이름. `Section` 제목보다 한 단계 아래다 — 「문서 범위」 안에서
+ * 프로젝트 줄들이 어디부터인지 말한다. */
+function GroupLabel({ children }) {
+  return (
+    <Typography
+      component="p"
+      variant="caption"
+      color="text.secondary"
+      sx={{ px: 1, pt: 0.75, fontWeight: FONT_WEIGHT.semibold }}
+    >
+      {children}
+    </Typography>
   );
 }
 
@@ -85,16 +119,22 @@ export function KnowledgeNav({
   const selectedLabel = !value
     ? ""
     : (entries || []).find((e) => e.value === value)?.label || "";
+  /* 🔴 「공통 문서」는 프로젝트가 아니다. 예전에는 둘이 「프로젝트」 제목 아래 같은
+     모양으로 나란히 서서, 이 판이 무엇의 목록인지 제목이 거짓말을 했다. 문서가 앉는
+     자리의 축은 **범위**이고 그 값이 「공통 문서」이거나 프로젝트 하나다 — 갈래를 나눠
+     그대로 그린다. */
+  const common = (entries || []).filter((e) => e.value === PROJECT_NONE);
+  const projects = (entries || []).filter((e) => e.value !== PROJECT_NONE);
 
   return (
     <Card sx={{ display: "grid", gap: 2.5, alignContent: "start" }}>
       {/* 「공간」이라는 낱말은 화면에서 쓰지 않는다(§11.2) — 여기는 프로젝트와 공통
           문서다. 「공간 추가」 단추도 걷었다: 조직 공간은 이관이 만들었고 프로젝트
           공간은 첫 문서를 만들 때 서버가 만든다(§14.2) — 사람이 추가할 공간이 없다. */}
-      <Section title="프로젝트">
+      <Section title="문서 범위" help="문서가 어느 업무 범위에 속하는지 고릅니다.">
         <Stack spacing={0.25}>
           <NavRow label="전체" selected={!value} onClick={() => onSelect("")} />
-          {(entries || []).map((entry) => (
+          {common.map((entry) => (
             <NavRow
               key={entry.value}
               label={entry.label}
@@ -103,6 +143,25 @@ export function KnowledgeNav({
             />
           ))}
         </Stack>
+        {projects.length > 0 ? (
+          <>
+            <GroupLabel>프로젝트</GroupLabel>
+            {/* 프로젝트가 스물이 넘으면 이 판이 페이지를 통째로 밀어 내린다 — 폴더 트리와
+                같은 규칙으로 **이 칸 안에서만** 굴린다. */}
+            <Box sx={{ maxHeight: "20rem", overflowY: "auto" }}>
+              <Stack spacing={0.25}>
+                {projects.map((entry) => (
+                  <NavRow
+                    key={entry.value}
+                    label={entry.label}
+                    selected={value === entry.value}
+                    onClick={() => onSelect(entry.value)}
+                  />
+                ))}
+              </Stack>
+            </Box>
+          </>
+        ) : null}
       </Section>
 
       {/* 폴더는 자리(프로젝트/공통)를 골랐고 그 자리에 실제 공간이 있을 때만 뜻이 있다.
@@ -112,7 +171,9 @@ export function KnowledgeNav({
         <Section
           title="폴더"
           rule
-          help={selectedLabel ? `${selectedLabel}의 폴더입니다.` : undefined}
+          help={selectedLabel
+            ? `${selectedLabel} 안에서 문서를 정리하는 폴더입니다.`
+            : "고른 범위 안에서 문서를 정리하는 폴더입니다."}
           action={<Button size="small" variant="ghost" onClick={onNewFolder}>폴더 추가</Button>}
         >
           {tree.isLoading ? <Skeleton kind="section" lines={3} /> : null}
@@ -133,8 +194,14 @@ export function KnowledgeNav({
                       indent={folder.depth}
                       selected={folderId === folder.id}
                       onClick={() => onFolder(folder.id)}
+                      revealAction
                       action={(
-                        <Button size="small" variant="ghost" onClick={() => onDeleteFolder(folder)}>
+                        <Button
+                          size="small"
+                          variant="ghost"
+                          aria-label={`${folder.name} 폴더 삭제`}
+                          onClick={() => onDeleteFolder(folder)}
+                        >
                           삭제
                         </Button>
                       )}

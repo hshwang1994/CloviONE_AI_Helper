@@ -17,8 +17,8 @@ import { fmtDateTimeCompact } from "../../lib/format.js";
  * 제목 열은 `type:"title"` 이라 **남는 폭**을 받는다. 옛 3칸 배치에서는 목록 칸이 582px
  * 까지 좁아져 고정폭 열의 합(712px)이 남는 폭을 0 으로 만들었다 — 문서 이름이 한 글자도
  * 안 보였다. 지금은 배치가 넓어졌고, 그래도 칸이 좁아지면 `hideNarrow` 열이 **뒤에서부터**
- * 접힌다(counts → 최종 수정 → 작성자). 접힌 열은 표가 한 줄로 알린다(`HiddenColumnsNote`).
- * 별·제목·프로젝트는 이 목록의 뼈대라 접지 않는다. */
+ * 접힌다(counts → 최종 수정 → 작성자 → 분류 → 폴더). 접힌 열은 표가 한 줄로 알린다
+ * (`HiddenColumnsNote`). 별·제목·프로젝트는 이 목록의 뼈대라 접지 않는다. */
 export function buildDocumentColumns({ onToggleFavorite, onOpen, onArchive, confirm }) {
   return [
     {
@@ -65,27 +65,37 @@ export function buildDocumentColumns({ onToggleFavorite, onOpen, onArchive, conf
         </Box>
       ),
     },
+    /* 🔴 한 칸에 프로젝트·폴더·분류 셋이 겹쳐 쌓여 있었고 열 이름은 「프로젝트」 하나였다.
+       화면에는 「SK하이닉스 [용인 클러스터]」 아래에 「회의록」이 붙어 서는데, 그 「회의록」이
+       폴더인지 분류인지 열 이름이 말해 주지 않았다 — 라벨이 내용에 대해 거짓말을 하는 자리다.
+       셋은 뜻이 다르므로 열도 셋이다: 어디에 속하는가(프로젝트) · 어디에 정리했는가(폴더) ·
+       무슨 종류인가(분류). 뒤 둘은 칸이 좁아지면 접힌다(`hideNarrow`) — 접힌 사실은 표가
+       한 줄로 알린다. */
     {
       key: "place", label: "프로젝트", type: "name", minWidth: "10rem",
       render: (doc) => (
-        <Box sx={{ display: "grid", gap: 0.25, minWidth: 0 }}>
-          <Typography variant="body2" sx={KO_WORD_BREAK}>
-            {doc.project ? doc.project.name : "공통 문서"}
-          </Typography>
-          {doc.folder_path ? (
-            <Typography variant="caption" color="text.secondary" sx={KO_WORD_BREAK}>
-              {doc.folder_path}
-            </Typography>
-          ) : null}
-          {/* 분류는 칩이 아니라 보조 글자다(§11.3) — 기술 태그와 섞이면 "이 문서가 다루는
-              기술"과 "이 문서의 종류"가 같은 모양으로 보인다. 정본은 카테고리(0026)이고,
-              카테고리가 없는 이관 문서만 옛 doc_type 이 그대로 보인다. */}
-          {doc.category?.name || doc.doc_type ? (
-            <Typography variant="caption" color="text.secondary" sx={KO_WORD_BREAK}>
-              {doc.category?.name || doc.doc_type}
-            </Typography>
-          ) : null}
-        </Box>
+        <Typography variant="body2" sx={KO_WORD_BREAK}>
+          {doc.project ? doc.project.name : "공통 문서"}
+        </Typography>
+      ),
+    },
+    {
+      key: "folder", label: "폴더", type: "name", minWidth: "8rem", hideNarrow: true,
+      render: (doc) => (
+        <Typography variant="body2" color="text.secondary" sx={KO_WORD_BREAK}>
+          {doc.folder_path || "정리 안 함"}
+        </Typography>
+      ),
+    },
+    {
+      /* 분류는 칩이 아니라 글자다(§11.3) — 기술 태그와 섞이면 "이 문서가 다루는 기술"과
+         "이 문서의 종류"가 같은 모양으로 보인다. 정본은 카테고리(0026)이고, 카테고리가
+         없는 이관 문서만 옛 doc_type 이 그대로 보인다. */
+      key: "category", label: "분류", type: "name", minWidth: "7rem", hideNarrow: true,
+      render: (doc) => (
+        <Typography variant="body2" color="text.secondary" sx={KO_WORD_BREAK}>
+          {doc.category?.name || doc.doc_type || "-"}
+        </Typography>
       ),
     },
     {

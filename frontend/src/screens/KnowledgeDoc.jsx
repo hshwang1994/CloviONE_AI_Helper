@@ -681,6 +681,7 @@ export function KnowledgeDoc() {
               ))}
             </TextField>
             <TagPicker
+              layout="form"
               value={tags}
               onChange={setTags}
               helperText="저장을 누르면 본문과 함께 저장됩니다."
@@ -911,7 +912,8 @@ export function KnowledgeDoc() {
       >
         <Stack spacing={2}>
           <ProjectPicker
-            label="프로젝트"
+            layout="form"
+            label="문서 범위"
             allLabel="바꾸지 않음"
             value={moveProjectId}
             onChange={setMoveProjectId}

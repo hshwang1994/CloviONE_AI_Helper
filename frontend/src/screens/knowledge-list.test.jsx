@@ -378,7 +378,7 @@ describe("새 문서 만들기", () => {
     await userEvent.type(within(dialog).getByLabelText(/문서 제목/), "알파 회의록");
     // 예전 셀렉트는 「이미 공간이 있는 프로젝트」만 후보라 이 프로젝트를 고를 수 없었다 —
     // 공간을 먼저 만들어야 문서를 만들 수 있던 구조의 물리적 원인.
-    await userEvent.click(within(dialog).getByRole("combobox", { name: /프로젝트/ }));
+    await userEvent.click(within(dialog).getByRole("combobox", { name: /문서 범위/ }));
     await userEvent.click(await screen.findByRole("option", { name: /알파 프로젝트/ }));
     // 공간이 없으니 폴더도 없다 — 칸 자체가 서지 않는다(만든 뒤 옮길 수 있다).
     expect(within(dialog).queryByLabelText(/폴더/)).toBeNull();

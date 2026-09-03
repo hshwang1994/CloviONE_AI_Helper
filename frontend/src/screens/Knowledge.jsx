@@ -31,7 +31,7 @@ import {
 import {
   useCategories, useDocuments, useSummary, useTags, useTemplates, useTree,
 } from "./knowledge/queries.js";
-import { useProjectList } from "./project-queries.js";
+import { useAllProjects } from "./project-queries.js";
 import { KnowledgeNav, flatten } from "./knowledge/KnowledgeNav.jsx";
 import { KnowledgeFilterBar } from "./knowledge/KnowledgeFilterBar.jsx";
 import { buildDocumentColumns } from "./knowledge/documentColumns.jsx";
@@ -125,7 +125,7 @@ export function Knowledge() {
   /* 🔴 좌측 내비·필터의 프로젝트 선택지는 **프로젝트 전체**에서 온다(공간 목록이 아니라).
      새 문서 모달의 ProjectPicker 와 같은 소스(`/api/projects`)라 두 곳이 같은 프로젝트
      집합을 본다 — 문서 0건 프로젝트가 좌측에서만 사라지던 어긋남을 없앤다. */
-  const projectsList = useProjectList("page_size=200");
+  const projectsList = useAllProjects();
   const hasCommon = items.some((s) => s.owner_kind !== "project");
   const navEntries = React.useMemo(
     () => navEntriesFrom(projectsList.rows, { hasCommon }),
@@ -150,12 +150,21 @@ export function Knowledge() {
   }, [params, items, setParams]);
 
   /* 자리가 **하나뿐이면** 그것을 연다. 폴더 트리는 자리를 고른 뒤에야 뜻이 있는데, 고를
-     것이 하나인 화면에서 「전체」에 머무르면 내비의 절반이 비어 보인다. */
+     것이 하나인 화면에서 「전체」에 머무르면 내비의 절반이 비어 보인다.
+     🔴 세는 것은 **내비가 실제로 보여 주는 선택지**(`navEntries`)다. 예전에는 공간 목록
+     (`items`)을 셌는데, 공간은 문서가 붙은 자리에만 생기므로 「공통 문서 + 프로젝트 셋」인
+     화면에서도 공간이 하나면 자동으로 「공통 문서」가 켜졌다 — 사용자는 프로젝트 문서가
+     통째로 사라진 목록을 첫 화면으로 받았다. */
+  /* 🔴 **둘 다 도착한 뒤에** 센다. 공간 질의가 프로젝트 질의보다 먼저 끝나는 찰나에는
+     선택지가 「공통 문서」 하나뿐이라, 세는 시점을 안 막으면 그 찰나에 자동 선택이 걸려
+     진입할 때마다 공통 문서로 접힌다(실브라우저에서 실제로 그랬다). */
+  const axisReady = !spaces.isPending && !projectsList.isLoading;
   React.useEffect(() => {
-    if (!project && items.length === 1) {
-      setParams({ project: axisValueOf(items[0]) }, { replace: true });
+    if (!axisReady) return;
+    if (!project && navEntries.length === 1) {
+      setParams({ project: navEntries[0].value }, { replace: true });
     }
-  }, [project, items, setParams]);
+  }, [axisReady, project, navEntries, setParams]);
 
   const tree = useTree(spaceId);
   const tagsQuery = useTags();
@@ -211,6 +220,21 @@ export function Knowledge() {
     },
     onError: (e) => toast(e.message, "error"),
   });
+
+  /* 🔴 폴더 삭제는 **묻고 지운다.** 예전에는 좌측 줄의 「삭제」가 곧바로 지웠다 — 고르는
+     단추 바로 옆의 단추 하나로 되돌릴 수 없는 일이 일어났다. 어느 범위의 어느 폴더인지,
+     그리고 **안의 문서는 안 지워진다**는 사실까지 확인 문구가 말한다(그 오해가 이 단추를
+     무섭게 만든다). */
+  const confirmDeleteFolder = async (folder) => {
+    const where = navEntries.find((e) => e.value === project);
+    const scope = where ? where.label : "전체";
+    const ok = await confirm(
+      `${scope}의 「${folder.name}」 폴더를 지웁니다. 하위 폴더도 함께 지워집니다. `
+      + "안에 있던 문서는 지워지지 않고 정리 안 함 상태가 됩니다.",
+      { title: `${folder.name} 폴더 삭제`, confirmLabel: "폴더 삭제", danger: true },
+    );
+    if (ok) removeFolder.mutate(folder.id);
+  };
 
   /* 어휘(태그·카테고리)를 고치면 **목록의 줄과 조건 후보가 함께** 달라진다 — 함께
      무효화한다. 하나만 무효화하면 이름을 고친 어휘가 필터에서는 새 이름, 줄에서는 옛
@@ -472,7 +496,7 @@ export function Knowledge() {
           onSelect={(next) => setQuery({ project: next || null, folder: null })}
           onFolder={(next) => setQuery({ folder: next || null })}
           onNewFolder={() => setFolderForm(true)}
-          onDeleteFolder={(folder) => removeFolder.mutate(folder.id)}
+          onDeleteFolder={confirmDeleteFolder}
           onReorderFolder={({ id, beforeId, afterId }) =>
             moveFolder.mutate({ id, before_id: beforeId, after_id: afterId })}
         />

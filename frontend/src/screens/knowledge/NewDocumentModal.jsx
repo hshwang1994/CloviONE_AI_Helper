@@ -76,7 +76,12 @@ export function NewDocumentModal({
         />
       )}
     >
-      <Box sx={{ display: "grid", gap: 3, gridTemplateColumns: { xs: "1fr", md: "1fr 16rem" } }}>
+      {/* 두 칸이 서로의 높이를 끌어올리지 않는다 — `alignItems: start` 가 없으면 템플릿
+          칸이 길 때 왼쪽 폼이 함께 늘어나 칸 사이에 빈 띠가 생긴다. */}
+      <Box sx={{
+        display: "grid", gap: 3, alignItems: "start",
+        gridTemplateColumns: { xs: "1fr", md: "1fr 16rem" },
+      }}>
         <Stack spacing={2}>
           <TextField
             label="문서 제목"
@@ -88,9 +93,11 @@ export function NewDocumentModal({
             InputLabelProps={{ shrink: true }}
             fullWidth
           />
+          {/* 라벨은 좌측 내비·필터 줄과 **같은 낱말**이다 — 같은 축을 세 자리가 세
+              이름으로 부르면 사용자는 그것을 세 가지 설정으로 읽는다. */}
           {lockedProject ? (
             <TextField
-              label="프로젝트"
+              label="문서 범위"
               value={lockedProjectName || "이 프로젝트"}
               disabled
               InputLabelProps={{ shrink: true }}
@@ -99,18 +106,20 @@ export function NewDocumentModal({
             />
           ) : (
             <ProjectPicker
+              label="문서 범위"
               required
               noAllOption
+              layout="form"
               value={values.project_id}
               onChange={(next) => set({ project_id: next || "", folder_id: "" })}
-              placeholder="문서가 속할 프로젝트를 고릅니다"
+              placeholder="문서가 속할 범위를 고릅니다"
               extraOptions={commonSpace ? [{ value: PROJECT_NONE, label: "공통 문서" }] : []}
               helperText={
                 values.project_id === PROJECT_NONE
                   ? "조직의 모든 사람이 이 문서를 볼 수 있습니다."
                   : values.project_id
                     ? "이 프로젝트를 볼 수 있는 사람이 이 문서를 볼 수 있습니다."
-                    : "문서가 속할 프로젝트를 고릅니다."
+                    : "공통 문서로 두거나 프로젝트 하나를 고릅니다."
               }
               sx={{ width: "100%", maxWidth: "none" }}
             />
@@ -146,6 +155,7 @@ export function NewDocumentModal({
             ))}
           </TextField>
           <TagPicker
+            layout="form"
             value={values.tags}
             onChange={(next) => set({ tags: next })}
             helperText="검색하거나 없는 이름을 적어 새로 만듭니다."

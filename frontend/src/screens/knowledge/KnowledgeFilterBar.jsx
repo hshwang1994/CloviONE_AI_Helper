@@ -63,8 +63,13 @@ export function KnowledgeFilterBar({
             onChange={(v) => onQuery({ view: v || null })}
             options={VIEW_OPTIONS}
           />
+          {/* 🔴 라벨이 「프로젝트」였다. 그런데 이 고르개의 후보에는 **공통 문서**도 들어
+              있어서 라벨이 내용을 정확히 말하지 못했다 — 좌측 내비가 「프로젝트」 제목
+              아래 공통 문서를 세워 두던 것과 같은 어긋남이다. 축의 이름은 좌측 내비와
+              **같은 낱말**을 쓴다: 문서 범위. 후보(`entries`)·값·주소·서버 파라미터는
+              내비와 한 벌이라 두 입구가 언제나 같은 것을 가리킨다. */}
           <EntityCombobox
-            label="프로젝트"
+            label="문서 범위"
             allLabel="전체"
             /* 값은 프로젝트 축이다(프로젝트 id | "none"=공통 문서) — 내비·주소·서버
                파라미터와 한 값으로 왕복한다. */

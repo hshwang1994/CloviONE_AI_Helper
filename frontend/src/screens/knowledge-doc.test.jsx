@@ -97,7 +97,11 @@ function stubDocument({ version = 3 } = {}) {
   });
   // 이동 대화상자의 ProjectPicker 가 쓴다(§14.4) — 지금 프로젝트(alpha)와 다른 프로젝트(beta)
   // 로 실제로 옮기는 시험에 필요하다.
-  responses.set("GET /api/projects?page_size=200", {
+  /* qa-contract-change: 후보 질의가 `?page=1&page_size=100` 이 됐다. 예전 주소는
+     `page_size=200` 이었는데 **서버가 그것을 422 로 거절한다**(상한 100) — 대역이 옛
+     주소를 그대로 받아 주는 바람에 시험은 초록인데 운영은 빈 목록이었다. 대역의 주소가
+     실제 계약과 같아야 이 시험이 그 사실을 본다. */
+  responses.set("GET /api/projects?page=1&page_size=100", {
     items: [
       { id: "proj-1", code: "AAAAAA", name: "알파 프로젝트" },
       { id: "proj-2", code: "BBBBBB", name: "베타 프로젝트" },
@@ -275,7 +279,9 @@ describe("곁열이 문서에 대한 것을 든다", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "이동" }));
     const dialog = await screen.findByRole("dialog");
-    await userEvent.click(within(dialog).getByLabelText("프로젝트"));
+    /* qa-contract-change: 이 축의 라벨이 「프로젝트」에서 「문서 범위」로 바뀌었다 —
+       후보에 「공통 문서」가 함께 서므로 예전 이름이 내용을 정확히 말하지 못했다. */
+    await userEvent.click(within(dialog).getByLabelText("문서 범위"));
     await userEvent.click(await screen.findByRole("option", { name: /베타 프로젝트/ }));
 
     // 프로젝트를 바꾸면 폴더는 새 프로젝트 쪽에서 뜻이 없어 칸이 잠긴다.
