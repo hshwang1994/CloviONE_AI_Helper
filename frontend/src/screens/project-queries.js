@@ -16,6 +16,15 @@ import { useAuth } from "../app/auth.jsx";
 
 const LONG = 5 * 60 * 1000;
 
+/** 서버가 받아 주는 한 쪽 최대 건수. 정본은 `app/core/pagination.py::MAX_PAGE_SIZE` 다.
+ *
+ * 🔴 이 상수가 없어서 화면 둘이 `page_size=200` 을 보냈다. 서버는 그것을 **422 로 거절**
+ * 하고(`page_size` 는 `le=100`), 거절된 질의의 결과는 빈 배열이다. 그래서 문서 화면의
+ * 좌측 프로젝트 목록이 통째로 비었고, 고르개는 고른 값의 이름을 못 찾아 **UUID 를 그대로
+ * 사용자에게 보여 줬다**. 오류는 아무 데도 안 떴다 — 화면은 「프로젝트가 없다」로 보였다.
+ * 숫자를 손으로 적지 말고 이 상수를 쓴다. */
+export const MAX_PAGE_SIZE = 100;
+
 /** 목록 한 페이지. `qs` 는 화면이 조립한 질의 문자열이다(조건이 늘어도 키를 안 고쳐도 된다). */
 export function useProjectList(qs) {
   return useInfiniteList({
@@ -27,6 +36,30 @@ export function useProjectList(qs) {
       const query = p.toString();
       return api(query ? "/api/projects?" + query : "/api/projects");
     },
+  });
+}
+
+/** 고르개·좌측 내비가 쓰는 «이 조직의 프로젝트 전부».
+ *
+ * 한 묶음이 곧 전부인 자리다 — 「더 보기」도 센티넬도 없다. 그래서 **서버 상한 안에서**
+ * 최대한 크게 받고, 그래도 남으면 `resume` 이 다음 묶음을 이어 받는다(100 × 5 = 500).
+ * 조건을 안 싣는다: 고르개의 후보는 「지금 목록에 보이는 것」이 아니라 「고를 수 있는 것」
+ * 전부다.
+ *
+ * 질의 키가 목록 화면(`useProjectList`)과 다른 것은 의도다 — 목록은 필터가 바뀔 때마다
+ * 다시 받지만 이 후보 목록은 그럴 이유가 없다. */
+export function useAllProjects() {
+  return useInfiniteList({
+    key: ["projects", "all"],
+    rowId: (p) => (p && p.id) || undefined,
+    size: MAX_PAGE_SIZE,
+    resume: 5,
+    staleTime: LONG,
+    fetch: ({ page, page_size: pageSize }) => api(
+      "/api/projects?" + new URLSearchParams({
+        page: String(page), page_size: String(pageSize),
+      }).toString(),
+    ),
   });
 }
 

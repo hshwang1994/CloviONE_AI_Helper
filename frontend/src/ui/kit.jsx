@@ -2615,6 +2615,7 @@ export function FormField({ field: f, value, onChange, invalid, maxLength, error
           options={f.options || []}
           allLabel={f.emptyLabel || "선택 안 함"}
           helperText={helpText}
+          layout="form"
           sx={{ width: "100%", maxWidth: "none" }}
         />
       </Box>

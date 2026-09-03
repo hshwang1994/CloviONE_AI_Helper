@@ -24,7 +24,7 @@ export function useKnowledgeTags() {
 }
 
 export function TagPicker({
-  label = "기술 태그", value, onChange, sx, disabled, helperText, size = "small",
+  label = "기술 태그", value, onChange, sx, disabled, helperText, size = "small", layout,
 }) {
   const tagsQ = useKnowledgeTags();
   const options = tagsQ.data?.items || [];
@@ -66,7 +66,7 @@ export function TagPicker({
       noOptionsText="일치하는 태그가 없습니다"
       loadingText="불러오는 중…"
       data-filter-kind="entity"
-      sx={kindSx("entity", sx)}
+      sx={kindSx("entity", sx, layout)}
       ListboxProps={{ sx: FILTER_LISTBOX_SX }}
       renderOption={(props, o) => {
         const { key, ...rest } = props;

@@ -27,18 +27,20 @@ export function ColumnFilterPopover({
         <Stack gap={1.25}>
           {kind === "enum" ? (
             <FilterSelect
+              layout="form"
               multiple label={label} value={Array.isArray(value) ? value : []}
               onChange={set} options={options || []}
             />
           ) : null}
           {kind === "entity" ? (
             <EntityCombobox
+              layout="form"
               multiple label={label} value={Array.isArray(value) ? value : []}
               onChange={set} options={entityOptions || []}
             />
           ) : null}
           {kind === "text" ? (
-            <DebouncedTextField label={label} value={value || ""} onCommit={set} />
+            <DebouncedTextField layout="form" label={label} value={value || ""} onCommit={set} />
           ) : null}
           {kind === "number" ? (
             <Stack direction="row" gap={1}>

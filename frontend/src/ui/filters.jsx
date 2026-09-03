@@ -56,9 +56,22 @@ export const CONTROL_KIND = {
   toggle: { flex: "0 0 auto" },
 };
 
-/** 종류별 기본 폭에 호출부 `sx` 를 얹는다. 호출부가 이기되, 안 주면 의미가 정한다. */
-export function kindSx(kind, sx) {
-  const base = CONTROL_KIND[kind] || null;
+/** 폼 칸으로 설 때의 치수 — **줄 치수를 통째로 무효로 만든다.**
+ *
+ * 🔴 위 `CONTROL_KIND` 는 **가로로 흐르는 조건 줄**의 치수다. `flex: 1 1 18rem` 의
+ * 18rem 은 그 줄에서 «폭»이지만, 같은 컨트롤을 세로 `Stack`(flex-direction: column)
+ * 안에 놓으면 그 값이 **높이**가 된다 — 한 칸이 324px 로 부풀어 새 문서 모달의 폼이
+ * 「프로젝트」와 「폴더」 사이에 손바닥만 한 빈칸을 만들었다. 실제로 그랬다.
+ *
+ * 그래서 폼 자리는 치수를 물려받지 않는다고 **선언**한다. 부모의 방향을 CSS 로 물어볼
+ * 수는 없으므로, 아는 쪽(호출부)이 말한다. */
+export const FORM_FIELD_SX = { flex: "0 0 auto", width: "100%", minWidth: 0, maxWidth: "none" };
+
+/** 종류별 기본 폭에 호출부 `sx` 를 얹는다. 호출부가 이기되, 안 주면 의미가 정한다.
+ *
+ * `layout="form"` 이면 줄 치수 대신 폼 치수를 깐다(위 `FORM_FIELD_SX` 참고). */
+export function kindSx(kind, sx, layout) {
+  const base = layout === "form" ? FORM_FIELD_SX : (CONTROL_KIND[kind] || null);
   if (!base) return sx;
   if (typeof sx === "function") return (theme) => ({ ...base, ...sx(theme) });
   return { ...base, ...sx };
@@ -69,6 +82,32 @@ export function kindSx(kind, sx) {
  * 입력 자리에 그대로 둔다 — 그러면 고른 값(전체·없음)이 화면에서 사라지고 상자가 빈 것처럼
  * 보인다. displayEmpty 로 빈 값의 항목 라벨을 그리게 하고, 라벨은 항상 노치로 올린다. */
 export const EMPTYABLE_SELECT = { SelectProps: { displayEmpty: true }, InputLabelProps: { shrink: true } };
+
+/* ── 후보에 없는 값 ──────────────────────────────────────────────────────────
+ *
+ * 🔴 고르개는 값이 후보에 없으면 **값 자체를 라벨로** 썼다. 그 값이 UUID 이면 화면에
+ * `62134ac8-831e-4071-bb07-d7c3144d85eb` 가 그대로 뜬다 — 실제로 운영의 새 문서 모달과
+ * 문서 필터 줄이 그랬다(후보 질의가 422 라 목록이 비어 있었고, 아무 오류도 안 떴다).
+ *
+ * 그렇다고 「모르는 값」을 전부 가리지는 않는다. 상태 이름·태그처럼 **값이 곧 이름**인
+ * 축이 있고, 그 자리에서 값을 감추면 고른 것이 사라진다. 그래서 가리는 것은 **식별자
+ * 모양**뿐이다: 사람에게 아무 뜻이 없다는 것이 모양만으로 확실한 값.
+ *
+ * 값이 아직 오는 중인지(`loading`)까지 구분한다 — 「없는 항목」과 「아직 못 받았다」는
+ * 다른 사실이고, 둘을 같은 문구로 말하면 새로 고치면 될 것을 지워야 하는 것으로 읽는다. */
+const OPAQUE_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$|^[0-9a-f]{32}$/i;
+
+/** 값이 사람에게 뜻이 없는 식별자(UUID 계열)인가. */
+export function isOpaqueId(value) {
+  return OPAQUE_ID.test(String(value == null ? "" : value).trim());
+}
+
+/** 후보에서 못 찾은 값의 라벨. 식별자면 사람이 읽을 문장으로 바꾼다. */
+export function unmatchedLabel(value, loading) {
+  const text = String(value == null ? "" : value);
+  if (!isOpaqueId(text)) return text;
+  return loading ? "불러오는 중" : "이름을 확인할 수 없는 항목";
+}
 
 /** 후보가 많아져도 화면 높이가 같이 늘어나지 않게 한다. 넘는 분은 안에서 스크롤한다. */
 export const FILTER_LISTBOX_SX = { maxHeight: "16rem", overflow: "auto" };
@@ -116,7 +155,7 @@ export function useDebouncedCommit(value, onCommit, delay = FILTER_DEBOUNCE_MS) 
  * 한 호출부가 우회로 알고 있는 기본값은 기본값이 아니라 결함이다. 폭은 이제 종류가 정한다.
  */
 export const SearchBox = React.memo(function SearchBox({
-  value, placeholder, ariaLabel, onSearch, sx,
+  value, placeholder, ariaLabel, onSearch, sx, layout,
 }) {
   const [draft, setDraft] = useDebouncedCommit(value, onSearch);
   return (
@@ -129,7 +168,7 @@ export const SearchBox = React.memo(function SearchBox({
       inputProps={{ "aria-label": ariaLabel }}
       InputProps={{ startAdornment: <InputAdornment position="start"><SearchRoundedIcon fontSize="small" /></InputAdornment> }}
       data-filter-kind="search"
-      sx={kindSx("search", sx)}
+      sx={kindSx("search", sx, layout)}
     />
   );
 });
@@ -150,7 +189,7 @@ export const SearchBox = React.memo(function SearchBox({
  * 선택기가 될 수 없다(고를 후보가 세상에 없다)» 는 **종류 선언**이다. 값이 boolean 이 아니라
  * 문장인 이유도 같다: 읽는 사람이 DOM 에서 바로 그 이유를 본다. */
 export const DebouncedTextField = React.memo(function DebouncedTextField({
-  value, onCommit, label, placeholder, sx, kind = "text", inputProps, freeTextReason,
+  value, onCommit, label, placeholder, sx, kind = "text", inputProps, freeTextReason, layout,
 }) {
   const [draft, setDraft] = useDebouncedCommit(value, onCommit);
   return (
@@ -168,7 +207,7 @@ export const DebouncedTextField = React.memo(function DebouncedTextField({
       inputProps={{ maxLength: 200, ...inputProps }}
       data-filter-kind={kind}
       data-free-text={freeTextReason || undefined}
-      sx={kindSx(kind, sx)}
+      sx={kindSx(kind, sx, layout)}
     />
   );
 });
@@ -183,19 +222,22 @@ export const DebouncedTextField = React.memo(function DebouncedTextField({
  * (담당자는 앱 user_id 로 나가고 화면에는 이름이 보인다)가 있어서 둘 다 받는다. */
 export function FilterSelect({
   label, value, onChange, options, allLabel, disabled, sx, kind = "enum", multiple = false,
+  layout,
 }) {
   const list = normalizeOptions(options);
   if (multiple) {
     const selected = Array.isArray(value) ? value.map(String) : (value ? [String(value)] : []);
     for (const item of selected) {
-      if (item && !list.some((o) => o.value === item)) list.unshift({ value: item, label: item });
+      if (item && !list.some((o) => o.value === item)) {
+        list.unshift({ value: item, label: unmatchedLabel(item, false) });
+      }
     }
     const labelOf = (v) => (list.find((o) => o.value === v) || { label: v }).label;
     return (
       <TextField
         select size="small" label={label} value={selected} disabled={disabled}
         data-filter-kind={kind}
-        sx={kindSx(kind, sx)}
+        sx={kindSx(kind, sx, layout)}
         onChange={(e) => onChange(Array.isArray(e.target.value) ? e.target.value : [])}
         InputLabelProps={{ shrink: true }}
         SelectProps={{
@@ -217,12 +259,14 @@ export function FilterSelect({
       </TextField>
     );
   }
-  if (value && !list.some((o) => o.value === value)) list.unshift({ value, label: value });
+  if (value && !list.some((o) => o.value === value)) {
+    list.unshift({ value, label: unmatchedLabel(value, false) });
+  }
   return (
     <TextField
       select size="small" label={label} value={value} disabled={disabled}
       data-filter-kind={kind}
-      sx={kindSx(kind, sx)}
+      sx={kindSx(kind, sx, layout)}
       onChange={(e) => onChange(e.target.value)}
       {...EMPTYABLE_SELECT}
       SelectProps={{ ...EMPTYABLE_SELECT.SelectProps, ...SELECT_MENU }}
@@ -261,7 +305,7 @@ export function normalizeOptions(options) {
 export function EntityCombobox({
   label, value, onChange, options, loading, disabled, sx, kind = "entity", id,
   placeholder, allLabel, noOptionsText = "일치하는 항목이 없습니다", required, helperText,
-  ariaLabelledBy, hideLabel, multiple = false, renderOption, noAllOption = false,
+  ariaLabelledBy, hideLabel, multiple = false, renderOption, noAllOption = false, layout,
 }) {
   const list = normalizeOptions(options);
   // 기본 렌더(라벨 + 보조줄)는 그대로 두고, 부르는 쪽이 다른 그림(아바타 등)이 필요하면
@@ -282,7 +326,8 @@ export function EntityCombobox({
   if (multiple) {
     const selected = Array.isArray(value) ? value : (value ? [value] : []);
     const current = selected.map((v) => (
-      list.find((o) => String(o.value) === String(v)) || { value: v, label: String(v) }
+      list.find((o) => String(o.value) === String(v))
+        || { value: v, label: unmatchedLabel(v, loading) }
     ));
     return (
       <Autocomplete
@@ -302,7 +347,7 @@ export function EntityCombobox({
         noOptionsText={noOptionsText}
         loadingText="불러오는 중…"
         data-filter-kind={kind}
-        sx={kindSx(kind, sx)}
+        sx={kindSx(kind, sx, layout)}
         ListboxProps={{ sx: FILTER_LISTBOX_SX }}
         renderOption={renderRow}
         renderInput={(params) => (
@@ -328,7 +373,8 @@ export function EntityCombobox({
      ArrowDown 으로 열고 「D.」를 치면 입력이 「프로젝트 전체D.」가 되어 23개가 0개가 됐다.
      보이는 결과는 자리표시자 쪽이 오히려 정확하다 — «아직 안 골랐다» 가 잉크 무게로도 드러난다. */
   const current = value
-    ? (list.find((o) => String(o.value) === String(value)) || { value, label: String(value) })
+    ? (list.find((o) => String(o.value) === String(value))
+      || { value, label: unmatchedLabel(value, loading) })
     : null;
   return (
     <Autocomplete
@@ -354,7 +400,7 @@ export function EntityCombobox({
       noOptionsText={noOptionsText}
       loadingText="불러오는 중…"
       data-filter-kind={kind}
-      sx={kindSx(kind, sx)}
+      sx={kindSx(kind, sx, layout)}
       ListboxProps={{ sx: FILTER_LISTBOX_SX }}
       renderOption={renderRow}
       renderInput={(params) => {

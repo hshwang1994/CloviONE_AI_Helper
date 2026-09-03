@@ -1,6 +1,6 @@
 import React from "react";
 
-import { useProjectList } from "../screens/project-queries.js";
+import { useAllProjects } from "../screens/project-queries.js";
 import { EntityCombobox } from "./filters.jsx";
 
 /* 프로젝트 고르개 — 검색(이름·코드) · 단일 선택 · 코드 보조 표시 (§15.3).
@@ -11,12 +11,13 @@ import { EntityCombobox } from "./filters.jsx";
  */
 export function ProjectPicker({
   label = "프로젝트", value, onChange, multiple = false, disabled, sx, allLabel,
-  helperText, required, extraOptions, noAllOption, placeholder,
+  helperText, required, extraOptions, noAllOption, placeholder, layout,
 }) {
-  /* 고르개는 **한 묶음이 곧 전부**다 — 200건이면 이 조직의 프로젝트 전체다(실운영 22건).
-     그래서 「더 보기」도 센티넬도 없다. 목록 훅을 함께 쓰는 이유는 캐시와 질의 키를 목록
-     화면과 나누기 위해서다(`project-queries.js` 의 존재 이유 그대로). */
-  const q = useProjectList("page_size=200");
+  /* 후보는 **이 조직의 프로젝트 전부**다(`useAllProjects`). 예전에는 여기서 직접
+     `page_size=200` 을 적었는데 서버 상한은 100 이라 그 질의가 **매번 422** 였다 —
+     후보가 0개가 되고, 고른 값의 이름을 못 찾은 고르개가 UUID 를 그대로 그렸다.
+     쪽 수는 훅이 서버 상한 안에서 정한다(`project-queries.js`). */
+  const q = useAllProjects();
   const projects = q.rows;
   /* `extraOptions` 는 앞에 선다 — 「공통 문서」처럼 프로젝트가 아니지만 같은 축에서
      고르는 구체 선택지다. 값이 실옵션이라 주소·서버 센티널과 무변환으로 왕복한다. */
@@ -39,6 +40,7 @@ export function ProjectPicker({
       multiple={multiple}
       loading={q.isLoading}
       disabled={disabled}
+      layout={layout}
       sx={sx}
       allLabel={allLabel}
       noAllOption={noAllOption}

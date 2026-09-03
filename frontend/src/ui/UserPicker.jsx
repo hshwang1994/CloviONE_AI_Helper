@@ -19,7 +19,7 @@ import { PersonLine } from "./UserAvatar.jsx";
  */
 export function UserPicker({
   label = "담당자", candidates, value, onChange, multiple = false, loading, disabled,
-  myId, kind = "entity", sx, helperText, required,
+  myId, kind = "entity", sx, helperText, required, layout,
 }) {
   const list = candidates || [];
   const withOrg = needsOrg(list);
@@ -40,6 +40,7 @@ export function UserPicker({
       multiple={multiple}
       loading={loading}
       disabled={disabled}
+      layout={layout}
       sx={sx}
       helperText={helperText}
       required={required}
