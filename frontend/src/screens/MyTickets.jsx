@@ -48,6 +48,7 @@ import { useQueryState } from "../lib/useQueryState.js";
 import { TICKET_AUTO_MAX_ROWS, useAssigneeOptions, useTicketList, useTicketMeta, useTicketProjects, useWorkStatuses, statusOptions, ticketProjectId, ticketRows } from "./ticket-options.js";
 import { ListFooter } from "../ui/InfiniteScroll.jsx";
 import { invalidateTicketViews } from "./ticket-views.js";
+import { useCelebrateOnCleared } from "../ui/celebrate.js";
 import { bulkFailureNote, fmtDateTime } from "../lib/format.js";
 import { NumberCell, DateCell } from "../ui/cells.jsx";
 import { TableHeaderCell } from "../ui/TableHeaderCell.jsx";
@@ -968,6 +969,10 @@ export function MyTickets() {
     openKeys,
   ).toString();
   const q = useTicketList("/api/tickets/mine", qs);
+  /* 내 열린 티켓을 **다 끝낸 순간** 한 번 축하한다. 이 화면의 기본 조건이 「열린 상태」라
+     (`appendDefaultStatuses`) 그 건수가 0 이 되는 것은 곧 「내 일이 없다」이다. 조건을
+     바꿔서 0 이 된 경우와 구별하려고 질의 지문(`qs`)을 함께 넘긴다. */
+  useCelebrateOnCleared(q.total, qs);
   const colOpts = useTicketColumnOptions(false);
   const [editing, setEditing] = React.useState(null);
   const toast = useToast();

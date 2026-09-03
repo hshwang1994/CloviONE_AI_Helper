@@ -9,6 +9,7 @@ import { FilterSelect } from "../ui/filters.jsx";
 import { MODERATOR_ROLES, hasRole } from "../lib/roles.js";
 import { useAuth } from "../app/auth.jsx";
 import { invalidateTicketViews } from "./ticket-views.js";
+import { celebrate } from "../ui/celebrate.js";
 
 /* 회차의 한 바퀴 — **열고 닫는 자리**.
  *
@@ -248,6 +249,9 @@ export function SprintLifecycle({ sprint, sprints, size = "sm", onDeleted }) {
     onSuccess: (res) => {
       refresh();
       setClosing(false);
+      /* 한 회차를 끝낸 순간이다 — 팀이 함께 보는 화면에서 가장 분명한 완료 지점이라
+         여기서 축하한다(동작 최소화면 `celebrate` 가 스스로 안 터진다). */
+      celebrate();
       const carried = (res && res.carried_over) || 0;
       toast(
         carried

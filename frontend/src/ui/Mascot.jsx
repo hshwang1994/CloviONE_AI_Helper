@@ -5,8 +5,9 @@ import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import { keyframes } from "@mui/system";
 import { alpha } from "@mui/material/styles";
-import { MASCOT } from "../lib/assets.js";
+import { MASCOT, MASCOT_LIVE } from "../lib/assets.js";
 import { hfracOf } from "./mascotBounds.js";
+import { prefersReducedMotion } from "./motion.js";
 import { CONTROL, FONT_SIZE, FONT_WEIGHT, RADIUS } from "./theme.js";
 
 /* 마스코트 '클로비'.
@@ -100,9 +101,11 @@ export const MASCOT_PLACE = {
      2200 이상에서 PLAN 의 40px 에 닿는다. */
   topbar:        { visible: { xs: 34, xxl: 40, uhd: 46 }, context: "topbar" },
   assistantHead: { visible: 40,  context: "inline" },
-  assistantHero: { visible: 144, context: "hero" },
+  /* `live` — 얼굴과 눈이 나뉜 한 벌로 그린다(시선 추적 + 깜빡임). 큰 자리에만 붙인다:
+     34px 상단바에서는 눈이 1px 도 안 움직여 보여서 자산 두 장을 더 받을 값어치가 없다. */
+  assistantHero: { visible: 144, context: "hero", live: true },
   chatStatus:    { visible: 40,  context: "inline" },
-  chatWelcome:   { visible: 132, context: "inline" },
+  chatWelcome:   { visible: 132, context: "inline", live: true },
   loginHandoff:  { visible: 144, context: "hero" },
   gameCelebrate: { visible: 96,  context: "inline" },
   /* 빈 화면·오류 화면의 그림. 마스코트 포즈가 아니라 `ART` 일러스트가 앉는 자리지만
@@ -211,13 +214,138 @@ const LABEL = {
   greeting: "클로비",
 };
 
+/* ── 살아 있는 눈 ───────────────────────────────────────────────────────────
+ *
+ * 🔴 앱의 마스코트는 눈이 그려 박힌 **한 장짜리 PNG** 라 눈만 따로 움직일 수가 없었다.
+ * 로그인 화면은 처음부터 얼굴과 눈을 나눠 그려서 시선이 커서를 따라가고 눈을 깜빡인다 —
+ * 사용자가 「로그인 화면에서는 눈이 움직이는데 앱 안에서는 안 움직인다」고 한 것이 그 차이다.
+ * 여기서는 그 화면이 쓰는 자산 한 벌(`MASCOT_LIVE`)과 **같은 계산**을 쓴다.
+ *
+ * 큰 자리에만 쓴다. 상단바의 34px 클로비에서는 눈이 1px 도 안 움직여 보이므로 자산 두 장을
+ * 더 받는 값어치가 없다(그 자리는 느린 상하 호흡으로 살아 있음을 말한다). */
+
+/** 눈 깜빡임 — 로그인 화면의 `eye-welcome` 과 같은 방식(눈 레이어의 불투명도만 떨군다).
+ * 주기 대부분은 뜬 눈이고 끝의 짧은 구간만 감는다. */
+const eyeBlink = keyframes`
+  0%, 92%, 100% { opacity: 1; }
+  95%, 97% { opacity: .18; }
+`;
+
+function clamp(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }
+
+/** 커서를 따라가는 시선. 값은 로그인 화면(`clovi-login.js::renderPointer`)과 같은 식이다 —
+ * 두 자리가 다른 계산을 쓰면 같은 캐릭터가 화면마다 다른 성격이 된다.
+ *
+ * 동작 최소화를 켠 사람에게는 아예 안 붙는다(JS 로 켜는 연출에는 전역 CSS 규칙이 안 닿는다).
+ * 탭이 안 보이면 시선을 가운데로 돌려 둔다 — 안 보이는 화면에서 rAF 를 돌릴 이유가 없다. */
+function useGaze(stageRef) {
+  const [gaze, setGaze] = React.useState({ x: 0, y: 0 });
+  React.useEffect(() => {
+    if (prefersReducedMotion()) return undefined;
+    if (typeof window === "undefined" || typeof window.requestAnimationFrame !== "function") {
+      return undefined;
+    }
+    let frame = 0;
+    let latest = null;
+    const render = () => {
+      frame = 0;
+      const node = stageRef.current;
+      if (!latest || !node) return;
+      const rect = node.getBoundingClientRect();
+      if (!rect.width) return;
+      const centerX = rect.left + rect.width / 2;
+      const centerY = rect.top + rect.height * 0.27;
+      const nx = clamp((latest.x - centerX) / Math.max(window.innerWidth * 0.44, 1), -1, 1);
+      const ny = clamp((latest.y - centerY) / Math.max(window.innerHeight * 0.48, 1), -1, 1);
+      setGaze({ x: Number((nx * 4).toFixed(2)), y: Number((ny * 2.5).toFixed(2)) });
+    };
+    const onMove = (e) => {
+      // 터치는 제외한다 — 탭할 때마다 눈이 순간이동한다(로그인 화면과 같은 규칙).
+      if (e.pointerType && e.pointerType !== "mouse" && e.pointerType !== "pen") return;
+      latest = { x: e.clientX, y: e.clientY };
+      if (!frame) frame = window.requestAnimationFrame(render);
+    };
+    const reset = () => { latest = null; setGaze({ x: 0, y: 0 }); };
+    const onVisibility = () => { if (document.hidden) reset(); };
+    window.addEventListener("pointermove", onMove, { passive: true });
+    document.addEventListener("mouseleave", reset);
+    window.addEventListener("blur", reset);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.removeEventListener("pointermove", onMove);
+      document.removeEventListener("mouseleave", reset);
+      window.removeEventListener("blur", reset);
+      document.removeEventListener("visibilitychange", onVisibility);
+      if (frame) window.cancelAnimationFrame(frame);
+    };
+  }, [stageRef]);
+  return gaze;
+}
+
+/* 자산은 **로그인 히어로 장면 전체**다(로봇 + 노트북 + 화분, 1024² 안에서 캐릭터가
+ * 76..878). 그것을 132~144px 자리에 통째로 넣으면 책상 위 물건까지 줄어들어 지저분하다 —
+ * 실제로 그렇게 보였다. 그래서 **머리만 잘라 쓴다.**
+ *
+ * 자르는 좌표는 짐작이 아니라 측정값이다: `mascot-bounds.json` 의 눈 레이어 가시 영역이
+ * (524,211)-(688,266) 이고 그 중심이 (606,238) = 59.2%, 23.3% — 로그인 CSS 가 적어 둔
+ * `transform-origin: 59.2% 23.3%` 와 같은 점이다. 그 점 언저리를 480² 로 잘라 낸다
+ * (1024/480 = 213%). 두 겹에 **같은 자르기**를 걸므로 눈과 얼굴은 어긋나지 않는다.
+ *
+ * 시선 이동은 px 이 아니라 **자기 폭의 비율**이다 — 로그인 화면의 4px/2.5px 는 700px 짜리
+ * 무대 기준이라 그대로 쓰면 작은 자리에서 눈이 튀어나온다. */
+const LIVE_ZOOM = "213%";
+const LIVE_ORIGIN = "translate(-59.2%, -24.4%)";
+const LIVE_GAZE_X = 0.57;   // 700px 무대의 4px 을 자기 폭 비율로 옮긴 값
+const LIVE_GAZE_Y = 0.36;   // 같은 방식의 2.5px
+
+/** 얼굴 한 장 + 눈 한 장. 눈만 시선을 따라 움직이고 스스로 깜빡인다. */
+function LiveFace() {
+  const stage = React.useRef(null);
+  const gaze = useGaze(stage);
+  const layer = {
+    position: "absolute", left: "50%", top: "50%",
+    width: LIVE_ZOOM, height: LIVE_ZOOM,
+    objectFit: "contain", pointerEvents: "none",
+  };
+  return (
+    <Box
+      ref={stage}
+      aria-hidden="true"
+      sx={{ position: "relative", width: "100%", height: "100%", overflow: "hidden", zIndex: 1 }}
+    >
+      <Box component="img" src={MASCOT_LIVE.base} alt="" loading="lazy" decoding="async"
+           sx={{ ...layer, zIndex: 1, transform: LIVE_ORIGIN }} />
+      <Box
+        component="img" src={MASCOT_LIVE.eyes} alt="" loading="lazy" decoding="async"
+        sx={{
+          ...layer, zIndex: 2,
+          transform: `${LIVE_ORIGIN} translate(${(gaze.x * LIVE_GAZE_X).toFixed(3)}%, ${(gaze.y * LIVE_GAZE_Y).toFixed(3)}%)`,
+          transition: "transform 95ms linear",
+          willChange: "transform",
+          animation: `${eyeBlink} 7s ease-in-out infinite`,
+        }}
+      />
+    </Box>
+  );
+}
+
+/** 이 자리·이 상태에서 살아 있는 눈을 그리는가. 큰 자리의 **가만히 있는** 클로비만이다 —
+ * 손을 흔들거나 놀라는 포즈는 그 포즈 그림이 표정을 이미 들고 있다. */
+function wantsLiveFace(place, mode) {
+  const spec = place ? MASCOT_PLACE[place] : null;
+  if (!spec || !spec.live) return false;
+  return mode === "idle" || mode === "listening" || mode === "greeting";
+}
+
 /* `place` 를 주면 박스는 그 자리의 «보이는 크기» 에서 파생한다 — 호출부는 숫자를 안 적는다.
  * `size` 는 자리 이름이 없는 호출부(시험 등)를 위해 남긴다. 둘 다 주면 `place` 가 이긴다. */
 export function MascotPose({ mode = "idle", place, size = 96, label, decorative = false }) {
+  const live = wantsLiveFace(place, mode);
   const src = POSE[mode] || POSE.idle;
   const name = label || LABEL[mode] || LABEL.idle;
   const spec = place ? MASCOT_PLACE[place] : null;
-  const box = spec ? mascotBoxPx(place, src) : size;
+  /* 눈 레이어 한 벌은 얼굴 자산과 여백이 달라 자기 지문으로 박스를 잰다. */
+  const box = spec ? mascotBoxPx(place, live ? MASCOT_LIVE.base : src) : size;
   return (
     <Box
       role={decorative ? undefined : "img"}
@@ -252,6 +380,7 @@ export function MascotPose({ mode = "idle", place, size = 96, label, decorative 
           animation: haloAnimation(mode),
         }}
       />
+      {live ? <LiveFace /> : (
       <Box
         component="img"
         src={src}
@@ -268,6 +397,7 @@ export function MascotPose({ mode = "idle", place, size = 96, label, decorative 
           animation: bodyAnimation(mode),
         }}
       />
+      )}
     </Box>
   );
 }

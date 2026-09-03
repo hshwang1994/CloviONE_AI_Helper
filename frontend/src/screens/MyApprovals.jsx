@@ -14,6 +14,7 @@ import { DateCell } from "../ui/cells.jsx";
 import { ListFooter } from "../ui/InfiniteScroll.jsx";
 import { useInfiniteList } from "../lib/useInfiniteList.js";
 import { useQueryState } from "../lib/useQueryState.js";
+import { celebrateIfCleared } from "../ui/celebrate.js";
 
 /* 개인 결재함 — **승인은 개인 업무이기도 하다** (0060 §22).
  *
@@ -87,6 +88,10 @@ export function MyApprovals() {
       }),
     onSuccess: (_res, vars) => {
       toast(vars.approve ? "승인했습니다." : "거절했습니다.");
+      /* 🔴 「한 건 처리했다」가 아니라 **「처리할 게 없어졌다」**에만 축하한다. 방금 것을
+         빼고도 남아 있으면 축포는 방해다. 세는 값은 지금 칸이 「처리할 승인」일 때의
+         남은 건수이고, 못 세면(총계가 없는 응답) 아무것도 안 한다. */
+      if (box === "todo" && typeof q.total === "number") celebrateIfCleared(q.total - 1);
       // 세 칸이 같은 자원을 다르게 자른 것이라 한 번에 무효화한다 — 하나만 갱신하면
       // '처리할 승인'에서 사라진 건이 '내가 처리한 건'에는 안 나타난다.
       qc.invalidateQueries({ queryKey: ["my-approvals"] });

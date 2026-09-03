@@ -36,6 +36,22 @@ export const MASCOT = {
   button: `${BRAND}/mascot/clovi-button.png`,
 };
 
+/* 살아 있는 눈 — **얼굴과 눈이 나뉜 한 벌**.
+ *
+ * 로그인 화면(`app/static/css/login.css` 의 `.clovi-eyes-layer`)이 이미 이 두 장으로
+ * 시선 추적과 깜빡임을 그린다. 사용자가 「로그인 화면에서는 눈이 움직이는데 앱 안에서는
+ * 안 움직인다」고 지적한 것이 정확히 이 차이다 — 앱의 마스코트는 눈이 그려 박힌 한 장짜리
+ * PNG 라 눈만 따로 움직일 수가 없었다.
+ *
+ * 마스코트 프레임·레이어 묶음의 런타임 합성 금지(§5, static_checks 가 경로로 검사한다)와는
+ * 다른 자산이다 — 그쪽은 팔·다리를 조립하다 손목이 분리되던 묶음이고, 이쪽은 **얼굴 한 장
+ * + 눈 한 장**이라 어긋날 부위가 없다. 로그인 화면이 그 사실을 이미 증명하고 있다.
+ * (그 검사는 경로 문자열을 통째로 찾으므로 이 주석에도 그 경로를 적지 않는다.) */
+export const MASCOT_LIVE = {
+  base: `${BRAND}/login/clovi-canonical-eye-base.png`,
+  eyes: `${BRAND}/login/clovi-canonical-eyes-layer.png`,
+};
+
 /* 빈 화면·오류 상태 일러스트.
  * 자산은 처음부터 12종이 다 있었는데 어디에도 연결돼 있지 않았다 — "파일이 있다"와
  * "화면에 나온다"는 다른 일이다. EmptyState/ErrorState가 art 키로 골라 쓴다. */
