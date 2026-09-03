@@ -44,6 +44,35 @@ describe("사이드바 선택 유지", () => {
     expect(activeNavPath("/tickets/abc", PATHS, "/sprint")).toBe("/sprint");
   });
 
+  /* 🔴 **목록 둘이 나눠 쓰는 상세** (사용자 지적: "기능 개선 제안 게시물을 누르면
+   * 자유게시판으로 넘어간다").
+   *
+   * 자유게시판과 기능 개선 제안은 목록만 갈라져 있고 상세는 `/board/:id` 한 라우트다.
+   * 그래서 제안 글을 열면 접두 매칭이 **자유게시판**을 켜고, 빵부스러기는 「기능 개선
+   * 제안」이라 해 같은 화면에서 두 신호가 어긋났다. 접두 매칭이 이기기 때문에 `from` 은
+   * 한 번도 안 읽혔다 — ROUTE_OWNER 주석이 「목록에서 온 경우 from 이 이긴다」고 적어 둔
+   * 것과 코드가 달랐다. */
+  it("제안 목록에서 연 글은 제안 메뉴가 켜진 채로 있다", () => {
+    expect(bestNavMatch("/board/abc", PATHS), "접두 매칭은 자유게시판을 준다").toBe("/board");
+    expect(activeNavPath("/board/abc", PATHS, "/ideas")).toBe("/ideas");
+  });
+
+  it("자유게시판에서 연 글은 그대로 자유게시판이다", () => {
+    expect(activeNavPath("/board/abc", PATHS, "/board")).toBe("/board");
+    // 출처를 모르면(딥링크) 접두사 그대로 — 화면이 뜬 뒤 스스로 출처를 적는다
+    // (BoardPost.jsx, board-post-kind-crumb.test.jsx).
+    expect(activeNavPath("/board/abc", PATHS)).toBe("/board");
+  });
+
+  it("나눠 쓰지 않는 하위 화면에서는 출처가 접두 매칭을 못 이긴다", () => {
+    /* `from` 을 무조건 이기게 고치면 이 줄이 빨개진다 — 홈에서 연 문서가 **홈**을 켠다.
+       `/knowledge/<id>` 는 목록 둘이 나눠 쓰는 상세가 아니라 문서 하나의 하위 경로다.
+       (`/team-docs/trash` 는 반례가 못 된다: 접두 매칭이 애초에 null 이라 그 자리에서
+       `from` 이 이기는 것이 원래 계약이다 — 위 「어디서 왔는지가 있으면」 시험.) */
+    expect(bestNavMatch("/knowledge/abc", PATHS), "접두 매칭이 있는 경로여야 반례가 된다").toBe("/knowledge");
+    expect(activeNavPath("/knowledge/abc", PATHS, "/me")).toBe("/knowledge");
+  });
+
   it("출처가 실제 메뉴가 아니면 무시한다", () => {
     /* 신뢰하지 않는 값이 그대로 켜지면 없는 메뉴가 활성으로 표시된다. */
     expect(activeNavPath("/tickets/abc", PATHS, "/nope")).toBe("/my-tickets");

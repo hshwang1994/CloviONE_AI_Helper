@@ -17,7 +17,6 @@ from sqlalchemy.orm import Session
 from app.board import repository
 from app.board.models import (
     CATEGORIES_BY_KIND,
-    IDEA_IN_PROGRESS,
     IDEA_PROPOSED,
     IDEA_STATUSES,
     IDEA_TRANSITIONS,
@@ -190,36 +189,25 @@ def change_idea_status(
     now: datetime,
     outbound=None,
     settings=None,
-    project_id: str | None = None,
     repo=None,
 ) -> Post:
-    """제안 상태를 바꾼다. '진행' 으로 넘어갈 때 **티켓을 만들어 연결한다.**
+    """제안 상태를 바꾼다.
 
-    ## 왜 티켓 실패가 상태 변경을 막는가 (이 저장소의 알림 규칙과 반대다)
+    🔴 **여기서 업무 티켓을 만들지 않는다** (사용자 결정, 2026-09-03).
 
-    `_notify_post_comment` 는 알림이 실패해도 댓글을 남긴다. 알림은 본 작업에 **딸린**
-    통지라, 그 반대로 만들면 알림 표 하나가 협업을 멈추기 때문이다.
+    예전에는 '진행' 으로 넘어갈 때 프로젝트를 받아 티켓을 만들어 연결했고, 티켓 생성이
+    실패하면 상태 변경까지 함께 되돌렸다. 그 설계 자체는 일관됐지만 전제가 틀렸다 —
+    이 게시판은 **ClovirAssist 제품 자체에 대한 기능 제안**이다. 고객 프로젝트의 업무
+    티켓과 섞이면 프로젝트 보드에 제품 요청이 쌓이고, 그 둘은 담당자도 우선순위 기준도
+    다르다. 그래서 티켓 축을 통째로 걷었다(화면·스키마·여기).
 
-    여기서는 반대다. 티켓은 '진행' 이라는 말의 **내용 그 자체**다. 티켓 없이 진행으로
-    적히면 게시판은 "이 일은 시작됐다"고 말하는데 아무도 그 일을 찾을 수 없다. 그리고
-    되돌릴 자리도, 다시 시도할 자리도 없다 — 고치려면 '티켓 없는 진행'을 위한 두 번째
-    버튼을 만들어야 하고, 그 순간 경로가 두 벌이 된다(이 작업이 피하려던 바로 그것).
-    그래서 티켓 생성이 실패하면 예외를 그대로 올려 요청 트랜잭션과 함께 되돌린다.
-    운영자는 오류를 보고 **같은 버튼을 다시 누르면 된다.** 아무 상태도 지어내지 않는다.
-
-    순서도 그 판단을 따른다: **티켓을 먼저 만들고**, 성공했을 때만 상태를 쓴다. 반대로
-    하면 티켓이 실패한 뒤 롤백까지의 사이에 '진행' 이 잠깐 존재하고, 더 나쁘게는 티켓만
-    만들어지고 연결이 사라지는 고아 티켓이 남는다.
+    `ticket_page_id` 열은 **남긴다.** 이미 연결된 옛 제안이 있고, 열을 지우는 것은
+    마이그레이션이며 되돌릴 수 없는 이력 삭제다. 새로 쓰지 않을 뿐이다.
     """
     ensure_idea(post)
     ensure_can_change_status(actor)
     ensure_transition_allowed(post.idea_status, status)
 
-    if status == IDEA_IN_PROGRESS and not post.ticket_page_id:
-        post.ticket_page_id = _create_linked_ticket(
-            db, post, actor=actor, outbound=outbound, settings=settings,
-            project_id=project_id, now=now, repo=repo,
-        )
     post.idea_status = status
     post.updated_at = now
     db.flush()
@@ -256,55 +244,6 @@ def _notify_idea_status_change(
         )
     except Exception:  # noqa: BLE001 — 알림이 상태 전환을 막으면 안 된다
         logger.exception("제안 상태 알림에 실패했다 (post_id=%s)", post.id)
-
-
-def _fit_for_ticket_description(text: str) -> str:
-    """게시글 본문을 티켓 설명으로 그대로 옮긴다. **더 이상 자르지 않는다.**
-
-    이 함수는 자르는 함수였다. 티켓 설명에 「4000자·최대 100줄·한 줄 1900자」 상한이
-    있었고, 그것을 안 지키면 티켓 생성이 **결정적으로** 거절됐기 때문이다(같은 본문이면
-    몇 번을 눌러도 같은 이유로 거절된다). 그 상한 셋은 Notion 으로 밀어 넣던 시절의
-    것이고 지금은 없다 — 그래서 자를 이유도 없어졌다.
-
-    함수 자체는 남긴다. 「제안 글을 티켓 설명으로 옮긴다」는 뜻이 호출부에 이름으로
-    남아 있어야, 나중에 이 자리에 다른 변환이 필요해질 때 찾을 곳이 있다.
-    """
-    return text or ""
-
-
-def _create_linked_ticket(
-    db: Session, post: Post, *, actor: User, outbound, settings,
-    project_id: str | None, now: datetime, repo=None,
-) -> str | None:
-    """티켓을 만든다 — **`app/tickets` 의 생성 경로를 그대로 지난다.**
-
-    여기서 Notion 을 직접 부르지 않는 이유는 취향이 아니다. 티켓 생성에는 스키마 검증,
-    담당자 id 해석, 프로젝트 필수 판정, 설명 마크다운의 블록 변환, 미러 캐시 기록이 붙어
-    있다(`app/tickets/service.py::create_ticket`). 게시판이 두 번째 생성 경로를 만들면
-    그중 무엇이 빠졌는지 아무도 모르는 티켓이 생기고, 티켓 쪽 규칙이 바뀔 때 이쪽은
-    안 따라간다. 저장소의 Notion import 경계 검사(scripts/static_checks.sh)도 같은 뜻이다.
-
-    지연 import 인 이유: 게시판은 순수 내부 기능이라 모듈 최상위에서 티켓(그리고 그 뒤의
-    Notion 배선)을 끌어오면 게시판만 쓰는 경로까지 그 무게를 지게 된다. 알림에서 쓰는
-    방식과 같다.
-    """
-    from app.tickets.schemas import TicketDraft
-    from app.tickets.service import create_ticket
-
-    # **`TicketCreate` 가 아니라 `TicketDraft` 다.** 「새 티켓」 화면은 예상 WD 와 마감일을
-    # 요구하지만(지시 10) 제안을 전환하는 사람은 대개 공수를 모른다 — 그 자리에서 아무 수나
-    # 적게 만드는 것은 없는 값을 있는 척하는 것이다. 생성 경로는 여전히 하나다.
-    payload = TicketDraft(
-        title=post.title,
-        project_id=project_id,
-        # 제안 본문을 그대로 옮긴다 — 티켓만 보는 사람이 원문을 찾아 헤매지 않게.
-        description=_fit_for_ticket_description(post.body or "") or None,
-        assignee_user_ids=[],
-    )
-    result = create_ticket(
-        db, outbound, settings, actor, payload=payload, now=now, repo=repo
-    )
-    return (result.get("ticket") or {}).get("id")
 
 
 def increment_view(db: Session, post: Post) -> None:

@@ -28,7 +28,6 @@ import { ideaStatusKind } from "../lib/badges.js";
 import { AuthorLine, COPY, PostFormModal, Reactions } from "./Board.jsx";
 import { splitComments } from "./board-helpers.js";
 import { ImageLightbox, useLightbox } from "../ui/ImageLightbox.jsx";
-import { useTicketProjects } from "./ticket-options.js";
 import { EMPTYABLE_SELECT } from "../ui/filters.jsx";
 import { setItemTitle } from "../app/documentTitle.js";
 import { useListReturn } from "../lib/listReturn.js";
@@ -303,11 +302,14 @@ function CommentItem({ comment, postId, palette, isReply, person, onChanged }) {
 /* 제안 상태 줄 (7단계 #1) — **아이디어 글에만** 그린다.
  *
  * 다음 상태로 넘기는 것은 운영자만이고(`can_change_status`), 감추는 것은 편의일 뿐 통제는
- * 서버가 한다. '진행' 은 티켓을 만드는 자리라 프로젝트를 함께 고르게 한다 — 티켓 스키마가
- * 프로젝트를 요구하므로, 안 고르고 누르면 서버가 거절하고 상태는 그대로 남는다.
+ * 서버가 한다.
  *
- * 티켓 생성이 실패하면 상태도 안 바뀐다(app/board/service.py 에 이유를 적어 두었다).
- * 그래서 여기서는 실패를 토스트로만 알리고 화면 상태를 손대지 않는다 — 다시 누르면 된다.
+ * 🔴 **여기는 업무 티켓을 만드는 자리가 아니다** (사용자 결정, 2026-09-03).
+ * 예전에는 '진행' 으로 넘기면 프로젝트를 고르게 하고 서버가 그 프로젝트에 티켓을 만들어
+ * 연결했다. 그런데 이 게시판은 **ClovirAssist 제품 자체에 대한 기능 제안**이다 —
+ * 고객 프로젝트의 업무 티켓과 섞이면 프로젝트 보드에 제품 요청이 쌓이고, 그 둘은 담당자도
+ * 우선순위 기준도 다르다. 그래서 티켓 연결·생성을 통째로 걷었다(서버도 함께).
+ * 남는 것은 제안 자신의 진행 상태뿐이다: 제안 → 검토중 → 진행 → 완료 · 보류.
  */
 function IdeaStatusBar({ post, onChanged }) {
   const statuses = post.next_statuses || [];
@@ -317,22 +319,15 @@ function IdeaStatusBar({ post, onChanged }) {
      주소로 나가 티켓이 아니라 앱 바깥으로 떨어진다. 이동은 라우터에게 시킨다. */
   const nav = useNavigate();
   const [target, setTarget] = useState("");
-  const [projectId, setProjectId] = useState("");
-  const goingToProgress = target === "진행";
-  /* 프로젝트 후보는 **진행으로 넘길 때만** 부른다. 상세를 열 때마다 Notion 왕복을 하나
-     더 붙일 이유가 없다(ticket-options.js 의 `enabled` 규약). */
-  const projects = useTicketProjects(goingToProgress);
-  const projectRows = (projects.data && projects.data.projects) || [];
 
   const move = useMutation({
     mutationFn: () =>
       api("/api/board/posts/" + post.id + "/status", {
         method: "POST",
-        body: { status: target, project_id: goingToProgress ? projectId || null : null },
+        body: { status: target },
       }),
     onSuccess: () => {
       setTarget("");
-      setProjectId("");
       toast("제안 상태를 바꿨습니다.", "success");
       onChanged && onChanged();
       // 상태 배지는 Board.jsx 목록에도 나온다(idea_status 열) — onChanged는 이 상세
@@ -342,18 +337,12 @@ function IdeaStatusBar({ post, onChanged }) {
     onError: (e) => toast((e && e.message) || "상태를 바꾸지 못했습니다. 다시 시도해 주세요.", "error"),
   });
 
-  const canMove = !!target && !move.isPending && (!goingToProgress || !!projectId);
+  const canMove = !!target && !move.isPending;
   return (
     <Callout tone="info">
       <Stack direction="row" gap={1.5} alignItems="center" flexWrap="wrap">
         <Typography variant="body2" component="span">진행 상태</Typography>
         <Badge value={post.idea_status || "제안"} kind={ideaStatusKind(post.idea_status)} />
-        {/* 만들어진 티켓으로 바로 건너간다 - 이 연결이 없으면 '진행' 은 그냥 글자다. */}
-        {post.ticket_page_id ? (
-          <Button variant="ghost" size="sm" onClick={() => nav("/tickets/" + post.ticket_page_id)}>
-            연결된 티켓 보기
-          </Button>
-        ) : null}
         {post.can_change_status ? (
           <>
             {/* {...EMPTYABLE_SELECT} 가 없으면 MUI Select는 value=""를 "아직 안 골랐다"로 보고
@@ -369,18 +358,6 @@ function IdeaStatusBar({ post, onChanged }) {
               <MenuItem value="">상태 바꾸기</MenuItem>
               {statuses.map((s) => <MenuItem key={s} value={s}>{s}</MenuItem>)}
             </TextField>
-            {goingToProgress ? (
-              <TextField
-                select size="small" value={projectId} sx={{ minWidth: "12rem" }}
-                onChange={(e) => setProjectId(e.target.value)}
-                inputProps={{ "aria-label": "티켓 프로젝트" }}
-                helperText={projects.isError ? "프로젝트 목록을 불러오지 못했습니다. 다시 시도해 주세요." : "티켓이 들어갈 프로젝트"}
-                {...EMPTYABLE_SELECT}
-              >
-                <MenuItem value="">프로젝트 선택</MenuItem>
-                {projectRows.map((p) => <MenuItem key={p.id} value={p.id}>{p.name}</MenuItem>)}
-              </TextField>
-            ) : null}
             <Button variant="primary" size="sm" disabled={!canMove} onClick={() => move.mutate()}>
               적용
             </Button>
@@ -408,6 +385,27 @@ export function BoardPost() {
     queryKey: ["board-post", id],
     queryFn: () => api("/api/board/posts/" + id),
   });
+
+  /* 🔴 **새로고침하면 이 글이 어느 목록의 것인지 잊는다.**
+   *
+   * 출처(`loc.state.from`)는 목록에서 눌러 왔을 때만 있고 새로고침·딥링크·북마크에는
+   * 없다. 그러면 주소 `/board/<id>` 의 접두사만 남아 사이드바도 「목록」 버튼도
+   * **자유게시판**을 가리킨다 — 제안 글을 열어 두고 새로고침하면 그 글이 남의 게시판
+   * 것이 되는 셈이다.
+   *
+   * 글을 받아 오면 화면은 자기 종류를 안다(`post.kind`). 그때 출처를 스스로 적어
+   * 둔다 — `replace` 라 뒤로 가기 이력이 늘지 않고, 한 번 적히면 조건이 거짓이 되어
+   * 다시 돌지 않는다. */
+  const postKind = detail.data && detail.data.post ? detail.data.post.kind : null;
+  useEffect(() => {
+    if (!postKind) return;
+    const owner = postKind === "idea" ? "/ideas" : "/board";
+    const known = loc.state && loc.state.from;
+    if (known === owner) return;
+    // 목록에서 눌러 온 출처는 덮지 않는다 — 그 값이 더 구체적이다(질의·스크롤 포함).
+    if (known) return;
+    nav(loc.pathname, { replace: true, state: { ...(loc.state || {}), from: owner } });
+  }, [postKind, loc.pathname, loc.state, nav]);
 
   // VIS-133: 탭 제목을 실제 글 제목으로(Ticket.jsx·TeamDoc.jsx와 같은 이유·같은 패턴).
   const postTitle = detail.data && detail.data.post ? detail.data.post.title : "";
@@ -551,7 +549,7 @@ export function BoardPost() {
             <Box sx={{ mt: 2 }}>
               {/* key={post.id} — "/board/:id"는 다른 제안으로 이동해도(알림 딥링크 등 인앱
                   이동) BoardPost 인스턴스가 재사용된다. key가 없으면 IdeaStatusBar 안의
-                  target/projectId(useState)가 리마운트되지 않고 그대로 남아, A 글에서 고른
+                  target(useState)이 리마운트되지 않고 그대로 남아, A 글에서 고른
                   "다음 상태"가 B 글 드롭다운에도 이미 선택된 채로 뜬다 — 두 제안이 같은 상태
                   어휘("진행" 등)를 쓰므로 그대로 "적용"을 누르면 B 글이 사용자가 고르지 않은
                   상태로 바뀐다(board-post-idea-status-stale.test.jsx, CommentComposer의

@@ -1,5 +1,7 @@
 """자유게시판 서비스·스키마·업로드 유닛 테스트 (팀 공간 §18, 보안 §22).
 
+qa-contract-change: 제안 글을 '진행' 으로 넘길 때 업무 티켓을 만들어 연결하던 경로를 사용자 결정으로 걷었다(2026-09-03) — 기능 개선 제안은 ClovirAssist 제품 자체에 대한 것이라 고객 프로젝트의 업무 티켓과 섞이면 담당자도 우선순위 기준도 다른 둘이 한 보드에 쌓인다. `_fit_for_ticket_description` 과 그 시험 넷은 잴 대상이 사라졌다. 티켓 폼 자신의 계약을 재던 시험은 남겼고, 게시판의 다른 단정(권한·알림·집계)은 한 줄도 줄이지 않았다.
+
 qa-contract-change: 제안 글을 티켓 설명으로 옮길 때 자르던 규칙이 없어졌다 — 자르던 이유였던 「4000자·최대 100줄·한 줄 1900자」가 Notion 시절의 상한이라 함께 걷혔고, 「자르되 거절당하지 않는가」를 재던 단정을 「한 글자도 안 잘리는가」가 대신한다.
 """
 
@@ -242,39 +244,20 @@ def test_soft_delete_hides_post(db, make_user):
     assert repository.get_post(db, post.id, include_deleted=True) is not None  # 행은 남음
 
 
-# ── _fit_for_ticket_description — 제안 글이 티켓 설명으로 **그대로** 옮겨지는가
+# ── 제안 → 티켓 전환은 없어졌다 (사용자 결정, 2026-09-03)
 #
-# 🔴 이 묶음은 예전에 「자르되 거절당하지 않는 형태로 자르는가」를 쟀다. 티켓 설명에
-# 「4000자·최대 100줄·한 줄 1900자」 상한이 있었고, 안 지키면 티켓 생성이 결정적으로
-# 거절됐기 때문이다. 그 상한 셋은 Notion 으로 밀어 넣던 시절의 것이라 함께 없어졌다 —
-# 그래서 지금 재는 것은 **안 자르는가**다.
-def test_fit_for_ticket_description_keeps_a_single_long_line_whole():
-    """줄바꿈 없는 긴 문단(게시글의 흔한 형태)이 한 글자도 안 잘린다."""
-    body = "가" * 2500  # 줄바꿈 없는 한 문단
-    assert service._fit_for_ticket_description(body) == body
-
-
-def test_fit_for_ticket_description_passes_ticket_create_validation():
-    """실제 관문(`TicketDraft._check_desc`)을 통과하는지 — 문자열 모양만 보지 않는다.
-
-    **`TicketCreate` 가 아니라 `TicketDraft` 다.** 제안을 티켓으로 만드는 경로가 쓰는 것이
-    그쪽이기 때문이다(`app/board/service.py`) — 「새 티켓」 화면은 예상 WD 와 마감일을
-    요구하지만(지시 10) 전환하는 사람은 대개 공수를 모른다. 여기서 `TicketCreate` 를 쓰면
-    이 함수의 소비처가 아닌 계약을 재게 된다.
-    """
-    from app.tickets.schemas import TicketDraft
-
-    body = "긴 문단입니다. " * 400  # 공백 섞인 긴 문단, 줄바꿈 없음
-    fitted = service._fit_for_ticket_description(body)
-    payload = TicketDraft(title="t", project_id="p1", description=fitted)  # 안 터지면 통과
-    assert payload.description == fitted.strip()
-
-
+# 여기 있던 `_fit_for_ticket_description` 시험 넷은 「제안 본문을 티켓 설명으로 옮길 때
+# 안 자르는가」를 쟀다. 그 함수도, 그것을 부르던 전환 경로도 없어졌으므로 잴 대상이 없다
+# — 기능 제안 게시판은 ClovirAssist 제품 자체에 대한 것이라 고객 프로젝트의 업무 티켓과
+# 섞이면 안 된다(app/board/service.py::change_idea_status 의 머리말).
+#
+# 아래 한 시험은 남긴다. 그것이 재는 것은 게시판이 아니라 **티켓 폼 자신의 계약**이고,
+# 그 계약은 그대로다.
 def test_the_new_ticket_form_demands_an_estimate_and_a_due_date():
-    """반례 — 같은 본문이라도 **사람이 만드는 티켓**의 계약은 더 엄하다 (지시 10).
+    """**사람이 만드는 티켓**의 계약은 더 엄하다 (지시 10).
 
-    이 단언이 없으면 위 시험은 「검증을 통과했다」까지만 말하고, 두 계약이 실은 같은
-    것이었어도 초록이 뜬다.
+    `TicketDraft` 는 예상 WD·마감일 없이도 서지만 `TicketCreate` 는 둘을 요구한다.
+    두 계약이 조용히 같아지면 「새 티켓」 화면이 빈 값을 받아 넘기게 된다.
     """
     import pytest as _pytest
     from pydantic import ValidationError
@@ -286,13 +269,3 @@ def test_the_new_ticket_form_demands_an_estimate_and_a_due_date():
     # 둘을 채우면 통과한다 — 막는 것은 「안 적은 것」이지 값 자체가 아니다.
     TicketCreate(title="t", project_id="p1", est_wd=0, due_date="2026-12-31")
 
-
-def test_fit_for_ticket_description_keeps_every_line():
-    """줄이 아주 많아도 뒤가 안 잘린다 — 옛 100줄 상한은 없다."""
-    body = "\n".join(f"줄{i}" for i in range(150))
-    assert service._fit_for_ticket_description(body) == body
-
-
-def test_fit_for_ticket_description_empty_stays_empty():
-    assert service._fit_for_ticket_description("") == ""
-    assert service._fit_for_ticket_description(None) == ""

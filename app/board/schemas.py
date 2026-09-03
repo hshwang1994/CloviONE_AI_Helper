@@ -24,7 +24,6 @@ MAX_BODY = 20000
 MAX_COMMENT = 5000
 # 'likes' 는 공감(👍) 많은 순 — 제안 게시판의 기본 정렬이다.
 SORT_VALUES = frozenset({"recent", "views", "likes"})
-MAX_PROJECT_ID = 64
 
 
 def _stripped(value: str) -> str:
@@ -191,17 +190,19 @@ class ReactionInput(BaseModel):
 
 
 class IdeaStatusUpdate(BaseModel):
-    """제안 상태 변경. `project_id` 는 '진행' 으로 넘어갈 때 만들 티켓이 붙을 프로젝트다.
+    """제안 상태 변경.
 
-    티켓 스키마가 프로젝트를 요구하므로(app/tickets/notion_write.py) 운영자가 어느 일감
-    묶음에 넣을지 골라야 한다. 여기서 받지 않으면 게시판이 프로젝트를 임의로 정하게 되고,
-    그건 화면에 안 보이는 결정이라 나중에 아무도 이유를 설명하지 못한다.
+    예전에는 `project_id` 를 함께 받아 '진행' 으로 넘어갈 때 그 프로젝트에 티켓을 만들어
+    연결했다. 이 게시판은 **ClovirAssist 제품 자체에 대한 기능 제안**이라 고객 프로젝트의
+    업무 티켓과 섞이면 안 된다는 결정으로 그 축을 통째로 걷었다(2026-09-03).
+
+    `extra="forbid"` 라 옛 화면이 `project_id` 를 그대로 보내면 **422 로 거절된다.** 조용히
+    무시하지 않는 쪽을 고른 것이다 — 무시하면 보내는 쪽은 자기가 연결을 만들었다고 믿는다.
     """
 
     model_config = ConfigDict(extra="forbid")
 
     status: str
-    project_id: str | None = None
 
     @field_validator("status")
     @classmethod
@@ -211,12 +212,3 @@ class IdeaStatusUpdate(BaseModel):
             raise ValueError("허용되지 않은 진행 상태입니다.")
         return v
 
-    @field_validator("project_id")
-    @classmethod
-    def _project(cls, v: str | None) -> str | None:
-        if v is None:
-            return None
-        v = _stripped(v)
-        if len(v) > MAX_PROJECT_ID:
-            raise ValueError("프로젝트 식별자가 너무 깁니다.")
-        return v or None

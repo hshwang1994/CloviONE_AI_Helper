@@ -426,7 +426,30 @@ export const ROUTE_OWNER = {
  * `from` 은 목록 화면이 상세로 넘길 때 실어 주는 출처(`location.state.from`)다. 그것이
  * 실제 메뉴 항목이면 그대로 쓴다 — 그게 사용자가 방금 누른 그 메뉴이기 때문이다.
  */
+/* 🔴 **목록 둘이 나눠 쓰는 상세 경로.**
+ *
+ * `/board/:id` 가 그것이다 — 자유게시판과 기능 개선 제안은 목록만 갈라져 있고(`/board`·
+ * `/ideas`) 상세는 한 라우트다(UserRoutes.jsx 가 그렇게 적어 두었다). 그래서 제안 글을
+ * 열면 주소가 `/board/<id>` 가 되고, 접두 매칭이 **자유게시판**을 켠다. 빵부스러기는
+ * 「기능 개선 제안」이라 하는데 사이드바는 「자유게시판」이 켜져 있는 화면이 된다 —
+ * 사용자가 「제안 글을 누르면 자유게시판으로 넘어간다」고 한 것이 이 상태다.
+ *
+ * `from`(어디서 눌러 왔는가)이 답을 아는데, 아래 순서에서는 접두 매칭이 먼저 이겨서
+ * 그 값을 **한 번도 안 본다.** ROUTE_OWNER 주석이 「목록에서 들어온 경우에는 from 이
+ * 이긴다」고 적어 둔 것과 코드가 어긋나 있었다.
+ *
+ * 그렇다고 `from` 을 늘 이기게 하면 안 된다: `/team-docs/trash` 를 홈에서 열면 접두
+ * 매칭(`/team-docs`)이 맞는 답인데 `from`(`/me`)이 홈을 켜 버린다. 그래서 **경로를 콕
+ * 집어** 적는다 — 여기 적힌 접두사 아래에서만 `from` 이 접두 매칭을 이긴다. */
+const SHARED_DETAIL_PREFIXES = ["/board"];
+
+function isSharedDetail(pathname) {
+  return SHARED_DETAIL_PREFIXES.some((p) => pathname.startsWith(p + "/"));
+}
+
 export function activeNavPath(pathname, paths, from) {
+  // 나눠 쓰는 상세에서는 **누르고 온 목록**이 정답이다(위 주석).
+  if (isSharedDetail(pathname) && from && paths.includes(from)) return from;
   const direct = bestNavMatch(pathname, paths);
   if (direct) return direct;
   if (from && paths.includes(from)) return from;

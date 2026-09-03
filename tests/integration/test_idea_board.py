@@ -1,5 +1,7 @@
 """기능 개선 제안 게시판 (7단계 사용자 지적 #1).
 
+qa-contract-change: 「진행으로 넘기면 업무 티켓을 만들어 연결한다」는 계약을 사용자 결정으로 걷었다(2026-09-03) — 이 게시판은 ClovirAssist 제품 자체에 대한 기능 제안이라 고객 프로젝트의 업무 티켓과 섞이면 담당자도 우선순위 기준도 다른 두 가지가 한 보드에 쌓인다. 그 계약을 재던 네 시험(생성·실패 되감기·긴 본문·중복 발주)은 지킬 대상이 사라졌으므로 반대 성질을 재는 넷으로 바꿨다: 티켓이 안 생긴다 · project_id 는 422 로 거절한다 · 긴 글도 넘어간다 · 두 번 밀어도 0 이다. 상태 전이 권한·조직 범위·알림 단정은 한 줄도 줄이지 않았다.
+
 새 모듈이 아니라 **기존 게시판의 종류 하나**다(`post.kind = "idea"`). 첨부·댓글·알림·검색·
 조직 범위가 이미 지나는 길을 그대로 쓰기 위해서다. 그래서 이 파일이 지키는 것도 "새 기능이
 동작하는가" 뿐 아니라 **"원래 있던 게시판이 그대로인가"** 다.
@@ -260,90 +262,52 @@ def test_a_free_post_has_no_status_at_all(client, login_as):
     assert client.get(f"/api/board/posts/{free['id']}").json()["post"]["idea_status"] is None
 
 
-# ── 4. 진행 전환이 티켓을 만들고 연결한다 ───────────────────────────────────
-def test_moving_to_progress_creates_a_ticket_and_links_it(
-    client, login_as, notion, portal_project, db
-):
-    """제안이 실제 일이 되는 지점. **티켓 행이 실제로 생겼는지**를 저장소에서 확인한다."""
+def test_moving_to_progress_no_longer_creates_a_ticket(client, login_as, db):
+    """🔴 계약이 **뒤집혔다** (사용자 결정, 2026-09-03).
+
+    예전에는 '진행' 으로 넘기면 프로젝트를 받아 티켓을 만들어 연결했고, 이 파일이 그것을
+    네 갈래로 못박고 있었다(생성·실패 되감기·긴 본문·중복 발주). 전제가 틀렸다 — 이
+    게시판은 **ClovirAssist 제품 자체에 대한 기능 제안**이라 고객 프로젝트의 업무 티켓과
+    섞이면 안 된다. 지금 지킬 성질은 반대다: 상태만 바뀌고 **티켓은 생기지 않는다.**
+    """
     author = login_as("user", email="member@goodmit.co.kr")
     idea = _write_idea(
-        client, author, title="티켓 자동 생성", body="진행으로 넘길 때 티켓을 만든다"
+        client, author, title="티켓 안 만든다", body="제안은 제품 요청이지 업무 티켓이 아니다"
     )
     op = login_as("operator", email="op@goodmit.co.kr")
     assert _set_status(client, op, idea["id"], "검토중").status_code == 200
 
-    r = _set_status(client, op, idea["id"], "진행", project_id=portal_project.id)
+    r = _set_status(client, op, idea["id"], "진행")
     assert r.status_code == 200, r.text
     post = r.json()["post"]
     assert post["idea_status"] == "진행"
-    assert post["ticket_page_id"], "티켓을 만들었다면서 연결을 남기지 않았다"
-
-    # 응답 200 만 보면 '만들었다고 말만 하는' 구현이 통과한다 - 표에 행이 있는지 본다.
-    row = _ticket_row(db, post["ticket_page_id"])
-    assert row is not None, (
-        f"티켓을 만들었다는데 표에 행이 없다: ticket_page_id={post['ticket_page_id']}"
-    )
-    assert "티켓 자동 생성" in (row.title or ""), f"제안 제목이 티켓에 안 실렸다: {row.title}"
-    assert "진행으로 넘길 때 티켓을 만든다" in (row.body_markdown or ""), (
-        "제안 본문이 티켓 설명으로 안 옮겨졌다"
-    )
-    # 그리고 그 티켓은 **밖으로 나가지 않았다**(S14) - 자체 DB 가 정본이므로 왕복이 0 이다.
-    # 이 반례가 있어야 위 검사가 "표에 있다"와 "노션에도 만들었다"를 구별한다.
-    assert notion.created == [], "자체 DB 경로인데 밖으로 생성 요청이 나갔다"
+    # 연결도 안 남고,
+    assert not post["ticket_page_id"], "티켓 연결을 걷었는데 값이 남았다"
+    # 표에 행도 안 생긴다 — 응답만 보면 '조용히 만들어 두는' 구현이 통과한다.
+    assert _tickets_titled(db, "티켓 안 만든다") == [], "제안에서 업무 티켓이 만들어졌다"
 
 
-def test_a_failed_ticket_leaves_the_status_untouched(
-    client, login_as, db, monkeypatch, portal_project
-):
-    """티켓을 못 만들면 '진행' 도 남기지 않는다.
+def test_project_id_is_rejected_rather_than_ignored(client, login_as):
+    """옛 화면이 `project_id` 를 그대로 보내면 **422 로 거절한다.**
 
-    이 저장소에는 "알림 실패가 본 작업을 막지 않는다" 는 규칙이 있지만 여기는 **반대**다.
-    알림은 본 작업에 딸린 통지지만, 여기서는 티켓이 곧 '진행' 이라는 말의 내용이다.
-    티켓 없이 진행으로 적히면 게시판은 "이 일은 시작됐다"고 말하는데 아무도 그 일을 찾을
-    수 없다 - 되돌릴 방법도, 다시 시도할 자리도 없는 거짓말이 영구히 남는다.
+    조용히 무시하면 보내는 쪽은 자기가 연결을 만들었다고 믿는다 — 그 믿음은 아무 오류도
+    안 내고 몇 주 뒤에 「티켓이 어디 갔지」로 돌아온다(`extra="forbid"`).
     """
-    # 🔴 '설정이 안 돼서' 실패하는 것과 '저장소가 쓰다가 죽는' 것은 다른 사건이다. 앞엣것은
-    # 티켓 생성에 닿기도 전에 막혀서, 되감기가 정말 도는지를 하나도 검사하지 못한다.
-    # 그래서 저장소가 **행을 다 만든 다음에** 죽게 한다(S14 · 자체 DB 경로).
-    from app.tickets.repository_native import NativeTicketRepository
-
-    real_create = NativeTicketRepository.create
-
-    def _write_then_die(self, session, *, draft, now=None):
-        real_create(self, session, draft=draft, now=now)
-        raise RuntimeError("저장소가 티켓 쓰기를 끝내지 못했다")
-
-    monkeypatch.setattr(NativeTicketRepository, "create", _write_then_die)
-
     author = login_as("user", email="member@goodmit.co.kr")
-    idea = _write_idea(client, author, title="티켓이 실패하는 제안")
+    idea = _write_idea(client, author, title="옛 화면이 보내는 값")
     op = login_as("operator", email="op@goodmit.co.kr")
-
-    # 🔴 검토중까지는 **성공해야 한다.** 곧장 진행으로 밀면 전이 규칙(제안에서 진행으로
-    # 바로 못 간다)에 먼저 걸려 422 가 나고, 그러면 아래 단정은 '티켓 실패' 가 아니라
-    # 전혀 다른 이유로 초록불이 된다 - 실제로 처음 쓸 때 그렇게 통과했다.
     assert _set_status(client, op, idea["id"], "검토중").status_code == 200
 
-    r = _set_status(client, op, idea["id"], "진행", project_id=portal_project.id)
-    assert r.status_code >= 400, f"티켓을 못 만들었는데 성공이라고 답한다({r.status_code})"
-
-    after = client.get(f"/api/board/posts/{idea['id']}").json()["post"]
-    assert after["idea_status"] == "검토중", (
-        f"티켓 없이 상태만 진행으로 남았다: {after['idea_status']}"
-    )
-    assert not after["ticket_page_id"]
-    # 반대쪽도 남으면 안 된다 - 제안이 안 가리키는 **고아 티켓**이 표에 남으면 아무도
-    # 그 일을 자기 일로 여기지 않는다. 요청이 통째로 되감겼는지를 여기서 본다.
-    assert _tickets_titled(db, "티켓이 실패하는 제안") == [], "되감기지 않은 고아 티켓이 남았다"
+    r = _set_status(client, op, idea["id"], "진행", project_id="p-1")
+    assert r.status_code == 422, f"걷어낸 칸을 조용히 받아 줬다({r.status_code})"
 
 
-def test_a_long_single_paragraph_idea_still_becomes_a_ticket(
-    client, login_as, notion, portal_project
-):
-    """게시글은 줄바꿈 없는 긴 문단 하나로 쓰이는 일이 흔하다 - 예전엔 본문을
-    `[:3900]`로만 잘라 그 한 줄이 여전히 티켓 설명의 줄당 상한(1900자)을 넘었고,
-    티켓 생성이 **결정적으로** 거절돼 이 제안은 영원히 '진행'으로 못 넘어갔다
-    (같은 버튼을 다시 눌러도 같은 본문이라 같은 이유로 또 거절된다).
+def test_a_long_idea_moves_to_progress_all_the_same(client, login_as):
+    """긴 본문이 상태 전환을 막지 않는다.
+
+    이 시험의 원래 걱정은 티켓 설명의 줄당 상한이었다 — 줄바꿈 없는 긴 문단 하나가 그
+    상한을 넘겨 제안이 영원히 '진행' 으로 못 넘어갔다. 티켓을 안 만드니 그 걱정은 사라졌지만
+    「긴 글도 넘어간다」는 성질은 남는다.
     """
     author = login_as("user", email="member@goodmit.co.kr")
     long_body = "이 제안은 아주 길게 설명해야 합니다. " * 100  # 줄바꿈 없이 2000자 이상
@@ -351,32 +315,27 @@ def test_a_long_single_paragraph_idea_still_becomes_a_ticket(
     op = login_as("operator", email="op@goodmit.co.kr")
 
     assert _set_status(client, op, idea["id"], "검토중").status_code == 200
-    r = _set_status(client, op, idea["id"], "진행", project_id=portal_project.id)
+    r = _set_status(client, op, idea["id"], "진행")
     assert r.status_code == 200, r.text
-    assert r.json()["post"]["ticket_page_id"], "긴 본문 때문에 티켓 연결이 비었다"
+    assert r.json()["post"]["idea_status"] == "진행"
 
 
-def test_moving_to_progress_twice_does_not_make_a_second_ticket(
-    client, login_as, notion, portal_project, db
-):
-    """이미 티켓이 붙은 제안을 다시 진행으로 밀어도 티켓은 하나다(중복 발주 방지).
+def test_progress_again_after_done_is_still_just_a_status(client, login_as, db):
+    """완료로 닫았다 되살리는 실제 경로. 두 번 밀어도 업무 티켓은 여전히 0 이다.
 
-    완료로 닫았다가 되살리는 것이 실제로 일어나는 경로다 - 그때 티켓이 하나 더 생기면
-    같은 일이 두 장으로 발주된다.
-
-    세는 자리가 **표**여야 한다(S14). 밖으로 나간 요청을 세면 자체 DB 경로에서는 처음부터
-    0 이라, 두 번 만들어도 `0 == 0` 으로 통과한다 - 이 검사가 아무것도 안 보게 된다.
+    예전에는 여기서 '중복 발주' 를 막는 것이 요점이었다. 발주 자체가 없어졌으므로 이제
+    재는 것은 **아무것도 안 생긴다**는 쪽이다.
     """
     author = login_as("user", email="member@goodmit.co.kr")
-    idea = _write_idea(client, author, title="중복 발주 방지")
+    idea = _write_idea(client, author, title="두 번 밀어도")
     op = login_as("operator", email="op@goodmit.co.kr")
 
     assert _set_status(client, op, idea["id"], "검토중").status_code == 200
-    assert _set_status(client, op, idea["id"], "진행", project_id=portal_project.id).status_code == 200
-    assert len(_tickets_titled(db, "중복 발주 방지")) == 1, "첫 진행에서 티켓이 안 생겼다"
+    assert _set_status(client, op, idea["id"], "진행").status_code == 200
     assert _set_status(client, op, idea["id"], "완료").status_code == 200
-    assert _set_status(client, op, idea["id"], "진행", project_id=portal_project.id).status_code == 200
-    assert len(_tickets_titled(db, "중복 발주 방지")) == 1, "같은 제안으로 티켓이 두 번 만들어졌다"
+    assert _set_status(client, op, idea["id"], "진행").status_code == 200
+    assert _tickets_titled(db, "두 번 밀어도") == [], "제안에서 업무 티켓이 만들어졌다"
+
 
 
 # ── 5. 조직 범위 ────────────────────────────────────────────────────────────

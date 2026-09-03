@@ -558,7 +558,6 @@ def set_idea_status(
         now=request.app.state.clock.now(),
         outbound=request.app.state.outbound_client,
         settings=request.app.state.settings,
-        project_id=payload.project_id,
         repo=getattr(request.app.state, "repositories", None)
         and request.app.state.repositories.tickets,
     )

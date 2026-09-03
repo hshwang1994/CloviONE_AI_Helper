@@ -1,8 +1,9 @@
 import React from "react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import "@testing-library/jest-dom/vitest";
 
 /* 게시글 상세의 빵부스러기(area)는 그 글의 **종류**를 따라야 한다.
@@ -45,7 +46,36 @@ function wrap(entries) {
   );
 }
 
-function mockPost(kind) {
+/* 화면이 `state.from` 을 스스로 적었는지 본다. 라우터 안에 관찰자를 세워 두면 replace
+   내비게이션의 결과를 그대로 읽을 수 있다 — 컴포넌트 내부를 훔쳐보지 않는다. */
+function wrapWithLocationProbe(entries) {
+  const seen = { current: undefined };
+  function Probe() {
+    const loc = useLocation();
+    seen.current = loc.state && loc.state.from;
+    return null;
+  }
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
+  render(
+    <QueryClientProvider client={qc}>
+      <ThemeModeProvider>
+        <ToastProvider>
+          <ConfirmProvider>
+            <MemoryRouter initialEntries={entries}>
+              <Probe />
+              <Routes>
+                <Route path="/board/:id" element={<BoardPost />} />
+              </Routes>
+            </MemoryRouter>
+          </ConfirmProvider>
+        </ToastProvider>
+      </ThemeModeProvider>
+    </QueryClientProvider>
+  );
+  return seen;
+}
+
+function mockPost(kind, extra) {
   apiMock.mockImplementation((url) => {
     const u = String(url);
     if (u === "/api/board/meta") return Promise.resolve({ categories: [], reaction_emojis: [] });
@@ -57,6 +87,7 @@ function mockPost(kind) {
           can_edit: false, can_moderate: false, reactions: [], attachments: [],
           comments: [], people: {},
           created_at: "2026-08-01T01:00:00", updated_at: "2026-08-01T01:00:00",
+          ...(extra || {}),
         },
       });
     }
@@ -132,5 +163,62 @@ describe("게시글 상세의 빵부스러기는 글의 종류를 따른다", ()
     wrap(["/board/p1"]);
     expect(await screen.findByText("찾을 수 없습니다.")).toBeInTheDocument();
     expect(screen.queryByText(/자유게시판/)).toBeNull();
+  });
+  /* 🔴 **제안 글에는 업무 티켓 자리가 없다** (사용자 결정, 2026-09-03).
+   *
+   * 예전에는 '진행' 으로 넘길 때 프로젝트를 고르게 하고 서버가 그 프로젝트에 티켓을
+   * 만들어 연결했으며, 연결된 뒤에는 「연결된 티켓 보기」가 떴다. 이 게시판은 ClovirAssist
+   * 제품 자체에 대한 기능 제안이라 고객 프로젝트의 업무 티켓과 섞이면 안 된다. */
+  it("제안 글에 「연결된 티켓 보기」가 없다 — 옛 연결이 남아 있어도", async () => {
+    mockPost("idea", { ticket_page_id: "t-1", can_change_status: true, next_statuses: ["진행"] });
+    wrap(["/board/p1"]);
+    expect(await screen.findByText("본문")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "연결된 티켓 보기" })).toBeNull();
+  });
+
+  it("「진행」을 골라도 프로젝트를 고르라고 하지 않는다 — 티켓을 안 만들기 때문이다", async () => {
+    /* 🔴 고르기 **전에** 재면 아무것도 못 잡는다 — 프로젝트 칸은 원래 '진행' 을 고른
+       뒤에만 떴다. 실제로 그 상태를 만들어 놓고 봐야 한다. */
+    mockPost("idea", { can_change_status: true, next_statuses: ["진행"] });
+    const user = userEvent.setup();
+    wrap(["/board/p1"]);
+    expect(await screen.findByText("본문")).toBeInTheDocument();
+
+    await user.click(screen.getByLabelText("다음 상태"));
+    await user.click(await screen.findByRole("option", { name: "진행" }));
+
+    // 제안 자신의 상태는 그대로 바꿀 수 있고,
+    expect(screen.getByRole("button", { name: "적용" })).toBeEnabled();
+    // 티켓 프로젝트 칸은 뜨지 않는다.
+    expect(screen.queryByLabelText("티켓 프로젝트")).toBeNull();
+    expect(screen.queryByText("프로젝트 선택")).toBeNull();
+  });
+});
+
+/* 🔴 **새로고침하면 이 글이 어느 목록의 것인지 잊는다** (사용자 지적: "기능 개선 제안
+ * 게시물을 누르면 자유게시판으로 넘어간다").
+ *
+ * 주소가 `/board/<id>` 라 출처(`state.from`)가 없으면 사이드바도 「목록」도 자유게시판을
+ * 가리킨다. 글을 받아 오면 화면은 자기 종류를 아니까 그때 출처를 스스로 적어 둔다. */
+describe("제안 글은 자기가 어느 목록의 것인지 적어 둔다", () => {
+  it("출처 없이 열어도(새로고침·딥링크) 제안 목록을 자기 출처로 남긴다", async () => {
+    mockPost("idea");
+    const seen = wrapWithLocationProbe(["/board/p1"]);
+    expect(await screen.findByText("본문")).toBeInTheDocument();
+    await waitFor(() => expect(seen.current).toBe("/ideas"));
+  });
+
+  it("자유게시글은 자유게시판을 남긴다", async () => {
+    mockPost("free");
+    const seen = wrapWithLocationProbe(["/board/p1"]);
+    expect(await screen.findByText("본문")).toBeInTheDocument();
+    await waitFor(() => expect(seen.current).toBe("/board"));
+  });
+
+  it("목록에서 눌러 온 출처는 덮지 않는다 — 그 값이 더 구체적이다", async () => {
+    mockPost("idea");
+    const seen = wrapWithLocationProbe([{ pathname: "/board/p1", state: { from: "/ideas?page=3" } }]);
+    expect(await screen.findByText("본문")).toBeInTheDocument();
+    expect(seen.current).toBe("/ideas?page=3");
   });
 });
