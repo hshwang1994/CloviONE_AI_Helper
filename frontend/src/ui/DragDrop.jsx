@@ -115,7 +115,7 @@ export function DragItem({ id, label, disabled, children }) {
  * 될 것 같다」고 한 자리다. 바깥 겹은 화면이 지웠고, 칸은 **상시 테두리를 버린다** —
  * 배경 하나로도 「여기가 한 칸이다」는 충분히 읽히고, 테두리는 카드에만 남아 무엇이
  * 집을 수 있는 것인지 말한다. 끌어 놓는 동안에만 테두리가 살아나 목표를 가리킨다. */
-export function DropColumn({ id, title, count, hint, children, sx, bodyMaxHeight, action, footer, virtualized, droppable }) {
+export function DropColumn({ id, title, count, hint, children, sx, bodyMaxHeight, action, footer, virtualized, droppable, highlight }) {
   // 받지 않는 칸은 드롭 대상 등록 자체를 끈다 — 하이라이트가 「놓을 수 있다」고
   // 거짓말하지 않는다(분류되지 않음 칸이 그랬다). 칸 안의 카드는 여전히 끌어낼 수 있다.
   const { setNodeRef, isOver } = useDroppable({ id, disabled: droppable === false });
@@ -127,6 +127,14 @@ export function DropColumn({ id, title, count, hint, children, sx, bodyMaxHeight
       /* 판독 줄에서 「진행 중 12」를 누르면 이 칸으로 데려가는 데 쓴다. 이름이 아니라
          열쇠로 찾는다 — 이름은 어휘가 바뀌면 달라지지만 열쇠는 서버와 같은 값이다. */
       data-col-key={id}
+      /* 가리켜진 상태를 DOM 에 적어 둔다. 시험이 계산 CSS 를 훔쳐보지 않게 하려는 것이다 —
+         jsdom 은 `outline` 단축을 안 풀어서 「보이는가」를 그쪽으로는 못 잰다. 여기 적힌
+         것과 아래 `outline` 은 같은 하나(`highlight`)에서 나오므로 갈라지지 않는다. */
+      data-col-highlight={highlight ? "true" : undefined}
+      /* 판독 줄이 이 칸을 「여기다」라고 가리킬 때 초점도 함께 온다(`highlight` 참고).
+         -1 이라 Tab 순서에는 안 들어가고, 프로그램 초점만 받는다 — 낭독기는 위
+         `aria-label`("계획 (132건)")을 읽어 주므로 눈에 보이는 테두리와 같은 것을 듣는다. */
+      tabIndex={-1}
       sx={{
         display: "flex",
         flexDirection: "column",
@@ -140,7 +148,10 @@ export function DropColumn({ id, title, count, hint, children, sx, bodyMaxHeight
         border: 0,
         borderRadius: `${RADIUS.md}px`,
         bgcolor: isOver ? "action.hover" : LANE_SURFACE.bgcolor,
-        outline: isOver ? "2px dashed" : "none",
+        /* 점선은 「놓을 수 있다」, 실선은 「네가 찾던 칸이 이거다」다. 두 표시가 같은 자리를
+           쓰지만 뜻이 다르므로 모양을 다르게 둔다. 실선은 움직이지 않는다 — 동작 줄이기를
+           켠 사람에게도 그대로 보여야 하는 신호라 깜빡임이 아니라 켜짐이다. */
+        outline: isOver ? "2px dashed" : highlight ? "2px solid" : "none",
         outlineColor: "primary.main",
         outlineOffset: -1,
         transition: "background-color 120ms ease, outline-color 120ms ease",
@@ -312,7 +323,10 @@ export function SortableList({ items, labelOf, onReorder, disabled, children, vi
  * 의 `items` 는 항상 전체 배열 · dnd-kit 기본 자동 스크롤이 창 밖 이동을 처리한다).
  * 켜지면 `columnMaxHeight` 는 각 칸의 `VirtualRows` `height` 로 넘어간다 — 칸 자신의
  * `overflowY:auto` 상자는 접는다(스크롤 상자 이중화 방지, `DropColumn` 위 주석 참고). */
-export function DragBoard({ columns, labelOf, onMove, disabled, children, sx, columnMaxHeight, virtualize, overlay }) {
+/* `highlightId` — 판독 타일이 가리킨 칸. `columns` 안에 넣지 않는 이유가 있다: 그 배열은
+ * memo 로 만들고 카드가 안 바뀌면 같은 객체를 되돌려 주는 계약인데(가상화 재측정 방지),
+ * 표시 하나 때문에 매번 새 배열이 나오면 그 계약이 깨진다. */
+export function DragBoard({ columns, labelOf, onMove, disabled, children, sx, columnMaxHeight, virtualize, overlay, highlightId }) {
   const sensors = useDragSensors();
   const [activeId, setActiveId] = React.useState(null);
 
@@ -394,6 +408,7 @@ export function DragBoard({ columns, labelOf, onMove, disabled, children, sx, co
             action={column.action}
             footer={column.footer}
             droppable={column.droppable}
+            highlight={highlightId != null && highlightId === column.id}
             bodyMaxHeight={virtualize ? undefined : columnMaxHeight}
             virtualized={!!virtualize}
           >

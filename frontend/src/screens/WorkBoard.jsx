@@ -347,6 +347,9 @@ function qs(pairs) {
 
 const COLUMN_PAGE_SIZE = 50;
 const BACKLOG_PAGE_SIZE = 50;
+/** 판독 타일이 가리킨 칸을 표시해 두는 시간. 눈이 따라올 만큼은 되고, 남아서 「선택된
+ *  상태」로 오해될 만큼은 아니다 — 이것은 선택이 아니라 가리킴이다. */
+const COLUMN_FLASH_MS = 1400;
 
 export function WorkBoard() {
   const navigate = useNavigate();
@@ -792,9 +795,30 @@ export function WorkBoard() {
      세면 잘린 열에서 조용히 틀린다. */
   /* 상태 판독을 누르면 **그 열로 데려간다**. 열 이름이 아니라 열쇠로 찾는다 —
      이름은 어휘가 바뀌면 달라지지만 열쇠는 서버가 준 값 그대로다. */
+  /* 🔴 **스크롤만으로는 아무 일도 안 일어난다.**
+   *
+   * 「132 계획」을 누르면 그 칸으로 데려가는 것이 이 타일의 뜻인데, 넓은 화면에서는 칸 넷이
+   * 전부 이미 보인다 — `scrollIntoView({block:"nearest", inline:"center"})` 는 그때 정확히
+   * 아무 데도 안 간다(칸이 6개를 넘어 판이 가로로 넘칠 때만 움직인다). 그래서 사용자에게는
+   * 「누를 수 있게 생겼는데 눌러도 아무 것도 안 바뀌는」 단추 셋이었다(실측: scrollY·주소·
+   * 카드 수 전부 그대로).
+   *
+   * 지난 회차가 접힌·숨은 칸의 갈래는 고쳤지만(아래 pendingScroll), 평범한 갈래는 그대로
+   * 무반응이었다 — 「대부분의 경우」가 안 고쳐진 쪽이다.
+   *
+   * 그래서 스크롤에 더해 그 칸을 **표시하고 초점을 준다.** 스크롤이 갈 곳이 있든 없든
+   * 누른 결과가 눈에 보이고, 낭독기는 칸 이름과 건수를 읽는다. */
+  const [flashCol, setFlashCol] = React.useState(null);
+  const flashTimer = React.useRef(0);
+  React.useEffect(() => () => window.clearTimeout(flashTimer.current), []);
   const scrollToColumn = React.useCallback((key) => {
     const el = document.querySelector(`[data-col-key="${CSS.escape(String(key))}"]`);
     if (el && el.scrollIntoView) el.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+    // 초점은 스크롤을 다시 일으키지 않는다 — 위 한 줄이 이미 정한 자리를 흔들면 안 된다.
+    if (el && el.focus) el.focus({ preventScroll: true });
+    window.clearTimeout(flashTimer.current);
+    setFlashCol(key);
+    flashTimer.current = window.setTimeout(() => setFlashCol(null), COLUMN_FLASH_MS);
   }, []);
 
   /* 접힌·숨은 열의 타일 클릭 — 먼저 그 열을 세우고, 열이 실제로 그려진 다음 렌더에서
@@ -1169,6 +1193,7 @@ export function WorkBoard() {
             labelOf={labelOf}
             overlay={dragOverlay}
             onMove={handleBoardMove}
+            highlightId={flashCol}
             disabled={moveBusy}
             columnMaxHeight={COLUMN_BODY_MAX}
             // §15.1 재검수 — 서버가 이미 열마다 커서로 잘라 준 것(§8.5) 위에 렌더링만

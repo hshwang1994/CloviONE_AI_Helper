@@ -162,6 +162,28 @@ describe("작업 보드의 열", () => {
     expect(lanes().map((l) => l.replace(/ \(.*$/, ""))).toContain("보류");
   });
 
+  /* 🔴 위 시험은 **접힌** 열만 본다. 사용자가 실제로 누른 것은 **이미 서 있는** 열의
+   * 타일이었고, 그 갈래는 아무 일도 안 일어났다 — `scrollIntoView` 는 칸이 이미 다 보이면
+   * 정확히 아무 데도 안 간다(실측: scrollY·주소·카드 수 전부 그대로). jsdom 에는 스크롤이
+   * 아예 없으므로 스크롤로는 이 계약을 못 잰다. 「눌린 결과가 화면에 남는가」로 잰다. */
+  it("🔴 이미 서 있는 열의 상태 타일도 답한다 — 스크롤이 갈 곳 없어도 그 열을 가리킨다", async () => {
+    renderBoard();
+    await waitFor(() => expect(screen.getByRole("group", { name: "상태별 티켓 수" })).toBeTruthy());
+    const lane = screen.getByRole("region", { name: /^계획/ });
+    const strip = screen.getByRole("group", { name: "상태별 티켓 수" });
+
+    await userEvent.click(within(strip).getByRole("button", { name: /계획/ }));
+
+    // 눌린 결과 둘: 그 칸에 초점이 오고(낭독기가 「계획 (N건)」을 읽는다),
+    await waitFor(() => expect(document.activeElement).toBe(lane));
+    // 그리고 그 칸이 「가리켜졌다」고 표시된다(이 표식과 실선 테두리는 같은 하나에서 나온다).
+    await waitFor(() => expect(lane.getAttribute("data-col-highlight")).toBe("true"));
+    // 다른 칸은 안 가리킨다 — 전부 켜지면 아무것도 안 가리킨 것과 같다.
+    expect(screen.getByRole("region", { name: /^검증/ }).getAttribute("data-col-highlight")).toBeNull();
+    // 그리고 남지 않는다: 이것은 선택이 아니라 가리킴이다.
+    await waitFor(() => expect(lane.getAttribute("data-col-highlight")).toBeNull(), { timeout: 4000 });
+  });
+
   it("🔴 차단된 티켓은 「차단」 열로 옮겨 가지 않는다 — 진행 중에 있고 표식만 단다", async () => {
     renderBoard();
     await waitFor(() => expect(screen.getByText("차단된 일")).toBeTruthy());

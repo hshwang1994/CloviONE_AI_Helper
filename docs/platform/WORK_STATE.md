@@ -109,6 +109,17 @@
   화면의 기본 경로(`WindowVirtualTableBody`)에도 넣어 봤더니 무거운 jsdom 시험 셋이 5초
   상한을 넘겼다 — pristine HEAD 와 나란히 돌려 대조했다(HEAD 초록 → 한 줄 추가 시 빨강 →
   되돌리면 초록). 렌더 비용을 실제로 바꾸는 한 줄이라 **실측 없이 넣지 않는다**. **P-75**.
+- **Firefox 에서 눈·폭죽이 안 보이는 것은 제품 결함이 아니다 — OS 가 「동작 줄이기」다.**
+  이 작업 PC 에서 실측: `SPI_GETCLIENTAREAANIMATION = False`(Windows 설정 › 접근성 ›
+  시각 효과 › 애니메이션 효과 = 끔). Firefox 153 은 그 값을 그대로
+  `prefers-reduced-motion: reduce` 로 보고하고, **같은 순간 이 Chrome 은 false 로 보고한다**
+  (크롬이 시작 시점 값을 물고 있는 것으로 보인다). 그래서 「크롬은 되는데 파이어폭스는
+  안 된다」가 된다. 배포된 로그인 페이지를 Firefox 로 띄워 잰 값: `reduce=true` ·
+  `pointermove=15`(이벤트는 정상 도착) · `state=idle`(관문 수정 적용됨) · `eyeX=0px`.
+  즉 **이벤트도 오고 상태도 맞는데 `handlePointerMove` 가 첫 줄에서 돌아선다.**
+  `LoginHandoff` 의 `if (!reduced) fireWelcomeConfetti()` 도 같은 스위치다 — 하나가 둘을
+  끈다. **고치지 않는다**: 이건 접근성 계약이고 `MOTION`·시험이 명시로 붙잡고 있다.
+  사용자에게는 Windows 스위치를 알린다.
 - **작업 보드 「칸반 누르면 아무것도 안 바뀌고, 그 뒤엔 다른 걸 못 누른다」 — 재현 못 했다.
   P-78.** 운영 실화면에서 확인한 것: 칸반↔백로그 탭 전환 정상(주소·내용 함께 바뀜),
   카드 클릭 → 티켓 상세 정상, 끌기 시작·취소 정상(오버레이 안 끼임 · `body` 의
