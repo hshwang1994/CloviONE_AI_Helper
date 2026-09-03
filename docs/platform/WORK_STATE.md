@@ -29,17 +29,28 @@
   조건 줄의 11.4px 어긋남(설명 달린 칸만 밀림)을 `FilterRow` 위 정렬로 고쳤다.
   ⑤ **조직 상세**: 사실 목록 2열 · 값 칸 상한 · 조직 ID 를 사실 절 안으로 · 감사 로그를
   동작 줄로 — 1,060px 판에 500px 내용이 왼쪽 위에만 몰려 있던 자리.
-  ⑥ **애니메이션 회귀는 없었다**(아래 «안 고친 것» 참고).
+  ⑥ **애니메이션**: 「회귀는 없었다」는 사실 판정은 맞았지만 **결론이 틀렸다.** 없던 것은
+  여전히 없는 것이고, 쓰는 사람에게는 회귀냐 아니냐가 아니라 「지금 안 보인다」가 사실이다.
+  사용자가 「로그인 이후에 폭죽이 터졌고 로그인 화면에서 눈이 움직였다」고 짚어 준 뒤에야
+  내가 엉뚱한 층을 뒤지고 있었다는 것이 드러났다 — 그 연출은 React 가 아니라 서버 렌더
+  (`app/static/js/clovi-login.js`)에 있다. 이력이 말하는 사실: 앱의 마스코트는 도입
+  (2026-08-03) 이래 **모든 커밋에서** idle 이 `enter 280ms` 한 줄이었고, React 가 눈
+  레이어를 그린 적은 0회, `celebrate()` 를 부른 파일은 `game-room/` 뿐이었다. 그래서
+  「되던 것이 망가진 것」이 아니라 **「로그인 화면에만 있던 것」**이다. 로그인 화면과 같은
+  자산·같은 계산으로 앱에 만들었다 — 큰 클로비의 시선 추적·깜빡임, 작은 클로비의 호흡,
+  그리고 축포를 회차 닫기·내 티켓 비움·승인 비움 세 자리에.
 - branch: `ui/mui-migration`
 - last_stable_commit: **`eec4886c`** — 이번 회차도 안 옮긴다.
-- deployed: **`c3c2e195`** 가 운영에 나갔다 (2026-09-03 12:57 · `scripts/deploy-upgrade.sh`).
+- deployed: **`decd9a59`** 가 운영에 나갔다 (2026-09-03 15:42 · `scripts/deploy-upgrade.sh`).
+  같은 날 세 번 나갔다 — `c3c2e195`(12:57 · 문서 축·폼 치수·회의 판독·조직 배치),
+  `0aea5891`(마스코트 호흡·조직 판 내용), `decd9a59`(15:42 · 살아 있는 눈·축포 세 자리).
   Stage 0~18 전부 OK · `VERIFY_OK` · `UPGRADE_OK` · `DEPLOY_VERIFY_OK`. 스냅샷
-  `/var/backups/clovirassist/20260903-125742`. 스키마 불변(alembic 0026, db=code) ·
+  `/var/backups/clovirassist/20260903-154010`. 스키마 불변(alembic 0026, db=code) ·
   마이그레이션 0 · 제품 유닛 5종 + postgresql + nginx active · `ssl_verify_result=0`.
-  배포 뒤 실측: 운영이 서비스하는 53개 자산 전부 새 번들이고, 받아 본 5개 청크가 커밋
-  파일과 **바이트 동일**하며, `Knowledge`·`UserRoutes` 청크에 `page_size` 리터럴이
-  **하나도 없다**(422 를 만들던 그 자리다).
-  되돌리려면 `sudo /home/cloviradmin/clovirassist-upgrade/deploy/install.sh rollback --target /var/backups/clovirassist/20260903-125742`
+  배포 뒤 실측: 53개 자산 전부 새 번들, 받아 본 청크가 커밋 파일과 바이트 동일,
+  `kit` 청크에 눈 레이어 참조가 들어 있고, 운영 상단바 클로비가 `4.5s running` 으로
+  `translateY(-2.998px)` 를 그리고 있다(정지가 아니다).
+  되돌리려면 `sudo /home/cloviradmin/clovirassist-upgrade/deploy/install.sh rollback --target /var/backups/clovirassist/20260903-154010`
 - verification: 로컬 실서버(`scripts/ui_qa/local_server`, 커밋된 번들 그대로 — 운영이
   서비스하는 파일과 sha256 동일함을 확인)에서 **사용자 22 · 관리자 30 라우트 전수**
   실브라우저 훑기(UUID 노출·부풀어 오른 컨트롤·API 4xx·JS 오류·가로 넘침 자동 판정) ·
@@ -54,7 +65,13 @@
 
 ## 이번 회차가 **안 고친** 것 — 그리고 그 이유
 
-- **「애니메이션이 전반적으로 사라졌다」 — 회귀가 아니다.** 392575cf..c88297d3 프런트
+- **눈 깜빡임 자산(P-72)은 그대로 남는다** — 앱의 큰 클로비는 로그인 화면의 눈 레이어
+  한 벌로 눈을 얻었지만, 포즈 PNG(`clovi-idle` 계열)에는 여전히 깜빡일 프레임이 없다.
+  `clovi-idle-blink` 는 `clovi-idle` 의 다음 프레임이 아니라 별개의 렌더다(가시 bbox
+  748×816 vs 799×869, 둘 다 눈이 감긴 그림).
+- **눈 레이어 자산이 무겁다** — 두 장 합 3.3MB. 로그인 화면이 이미 쓰는 파일이라 캐시가
+  겹치지만 큰 클로비가 처음 뜰 때 1~2초 늦다. 리사이즈·webp 는 **P-77**.
+- **「애니메이션이 전반적으로 사라졌다」 — 이 저장소 기준으로 회귀는 아니었다.** 392575cf..c88297d3 프런트
   diff 에서 animation·transition·keyframes·reveal·MOTION 을 **지운 줄이 0개**이고, 끈
   줄도 0개다. 운영이 서비스하는 `style.gmqSWgwf.css` 는 저장소 파일과 sha256 이 같고,
   그 번들을 그대로 띄운 실브라우저에서 화면당 전이 90~160개가 살아 있으며 KPI 등장
