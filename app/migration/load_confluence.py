@@ -159,12 +159,18 @@ class ConfluenceLoadResult:
 class ConfluenceLoader:
     """Confluence 한 번 가져오기. 대상에만 쓴다 — 원본은 조회뿐이다."""
 
-    def __init__(self, db: Session, *, report, actor: User, settings=None) -> None:
+    def __init__(
+        self, db: Session, *, report, actor: User, settings=None,
+        fallback_author: User | None = None,
+    ) -> None:
         self.db = db
         self.report = report
-        # 「가져온 사람」. 작성자를 못 푼 문서·댓글이 이 계정으로 앉는다 — 남의 이름을
-        # 지어내는 것보다 낫고, 원래 이름은 보고서와 댓글 첫 줄에 남는다.
+        # 「가져온 사람」. 회차를 돌린 계정이고, 감사 기록과 판의 작성자가 이 사람이다.
         self.actor = actor
+        # 🔴 작성자를 이메일로도 이름으로도 못 푼 문서가 앉을 계정 (사용자 지시).
+        # 안 주면 회차를 돌린 사람이다. **원본 이름은 그래도 남는다**
+        # (`legacy_author_name`) — 「원본에 누구라고 적혀 있었나」를 잃지 않는다.
+        self.fallback_author = fallback_author or actor
         self.settings = settings
         self.result = ConfluenceLoadResult()
         self._space: KnowledgeSpace | None = None
@@ -250,6 +256,40 @@ class ConfluenceLoader:
         ))
 
     # ── 사람 ─────────────────────────────────────────────────────────────────
+
+    def _user_by_name(self, name: str) -> User | None:
+        """이름으로 우리 사용자를 찾는다 (사용자 지시 2026-09-04).
+
+        Confluence 는 이메일을 안 주지만 **이름은 준다.** 그 이름으로 지금 계정을 찾아
+        이어 준다. 두 갈래로 본다:
+
+          1. 표시 이름이 같다 — 「서윤경」 → `syk@goodmit.co.kr`.
+          2. 이메일 앞부분이 같다 — 원본의 표시 이름이 계정 아이디인 경우가 있다
+             (실측: 「ujmoon」 39건 → `ujmoon@goodmit.co.kr` 문의진).
+
+        🔴 「(Unlicensed)」 꼬리표를 뗀다. Atlassian 이 좌석 없는 계정에 붙이는 말이라
+        사람 이름의 일부가 아니다 — 안 떼면 23명 중 15명이 영영 안 맞는다.
+
+        같은 이름이 둘 이상이면 **아무도 안 고른다.** 동명이인 중 하나를 찍는 것은
+        추정이 아니라 동전 던지기이고, 그 문서는 아래 기본 계정으로 간다.
+        """
+        clean = _strip_seat_label(name)
+        if not clean:
+            return None
+        rows = list(self.db.execute(
+            sa.select(User).where(sa.func.lower(User.display_name) == clean.lower())
+        ).scalars().all())
+        if len(rows) == 1:
+            return rows[0]
+        if rows:
+            return None
+        local = clean.lower()
+        rows = list(self.db.execute(
+            sa.select(User).where(
+                sa.func.lower(sa.func.split_part(User.email, "@", 1)) == local
+            )
+        ).scalars().all())
+        return rows[0] if len(rows) == 1 else None
 
     def _user_for(self, email: str | None) -> User | None:
         """이메일로 우리 사용자를 찾는다. 못 찾으면 `None` — **지어내지 않는다.**
@@ -410,14 +450,23 @@ class ConfluenceLoader:
         return document
 
     def _page_author(self, body: dict) -> str | None:
-        """페이지를 만든 사람이 **우리 계정이면** 그 id. 아니면 `None`.
+        """이 문서를 누구 앞으로 앉힐 것인가 — **세 걸음**이다 (사용자 지시 2026-09-04).
 
-        Atlassian id 는 우리 계정이 아니므로 이메일이 있을 때만 푼다 — v2 의 페이지 응답은
-        이메일을 안 준다. 🔴 못 풀었을 때 **실행 계정으로 떨어지지 않는다.** 그러면 화면이
-        「이 관리자가 524건을 썼다」고 거짓말한다. 이름은 `legacy_author_name` 이 든다.
+          1. 이메일로 우리 계정을 찾는다 (가장 확실하다).
+          2. 없으면 **이름**으로 찾는다 — Confluence 가 이름은 준다.
+          3. 그래도 없으면 **기본 계정**으로 앉힌다.
+
+        🔴 3번이 정보를 잃는 것처럼 보이지만 안 잃는다. 원본에 적힌 이름은 언제나
+        `legacy_author_name` 에 그대로 남고 화면이 그것을 함께 보여 준다 — 「누가 썼다고
+        원본에 적혀 있었나」와 「지금 이 문서를 누가 맡는가」는 다른 질문이고, 이 함수는
+        뒤엣것에 답한다. 앞엣것의 답은 지워지지 않는다.
         """
         user = self._user_for((body.get("_author_email") or ""))
-        return user.id if user else None
+        if user is None:
+            user = self._user_by_name(self._legacy_author(body))
+        if user is None:
+            user = self.fallback_author
+        return user.id if user is not None else None
 
     @staticmethod
     def _legacy_author(body: dict) -> str:
@@ -637,6 +686,19 @@ class ConfluenceLoader:
 
 
 # ── 값 하나씩 ────────────────────────────────────────────────────────────────
+
+
+def _strip_seat_label(name: str | None) -> str:
+    """Atlassian 이 좌석 없는 계정에 붙이는 꼬리표를 뗀다.
+
+    「김동균 (Unlicensed)」의 「(Unlicensed)」는 사람 이름의 일부가 아니라 라이선스 상태다.
+    안 떼면 실측 23명 중 15명이 우리 계정과 영영 안 맞는다.
+    """
+    clean = (name or "").strip()
+    for tail in ("(Unlicensed)", "(unlicensed)", "(비활성)"):
+        if clean.endswith(tail):
+            clean = clean[: -len(tail)].strip()
+    return clean
 
 
 def _ts(value):

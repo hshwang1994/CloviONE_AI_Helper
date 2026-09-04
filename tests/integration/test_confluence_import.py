@@ -703,14 +703,19 @@ def _doc_by_title(db, title):
     return None
 
 
-def test_an_unmatched_author_is_not_replaced_by_the_importing_admin(db, actor):
-    """가져온 문서의 작성자가 실행 계정이 되면 안 된다."""
+def test_the_original_author_name_survives_the_fallback(db, actor):
+    """qa-contract-change: 「못 풀면 비운다」에서 「기본 계정으로 앉힌다」로 바뀌었다
+    (사용자 지시 2026-09-04). 문서에는 맡는 사람이 있어야 한다는 판단이다.
+
+    🔴 바뀌지 않은 것을 여기서 지킨다: **원본 이름은 절대 안 지워진다.** 계정을 정하는
+    일과 원본이 무엇이라 적었는가는 다른 사실이고, 앞엣것 때문에 뒤엣것을 잃으면 안 된다.
+    """
     _run(db, actor, FakeConfluence())
 
     doc = _doc_by_title(db, "설치 가이드")
     assert doc is not None
-    assert doc.created_by != actor.id, "가져오기를 돌린 관리자가 작성자로 적혔다"
-    assert doc.created_by is None, "우리 계정으로 못 잇는데 누군가를 적었다"
+    assert doc.created_by is not None, "문서에 맡는 사람이 없다"
+    assert doc.legacy_author_name == "김동균", "계정을 정하며 원본 이름을 잃었다"
 
 
 def test_the_original_author_name_is_kept(db, actor):
@@ -721,14 +726,19 @@ def test_the_original_author_name_is_kept(db, actor):
     assert doc.legacy_author_name == "김동균", doc.legacy_author_name
 
 
-def test_an_author_we_cannot_name_stays_empty(db, actor):
-    """🔴 반례. 이름을 못 받으면 지어내지 않는다 — 「모른다」가 세 번째 사실이다."""
+def test_an_author_we_cannot_name_is_not_invented(db, actor):
+    """🔴 반례. 이름을 못 받으면 **이름은** 지어내지 않는다.
+
+    계정은 기본 계정으로 앉지만(맡을 사람이 있어야 한다), 원본이 안 준 이름을 만들어
+    적지는 않는다. 그 둘을 함께 재는 이유는, 「기본 계정으로 보낸다」를 「기본 계정의
+    이름을 적는다」로 잘못 고쳐도 한쪽만 재면 초록이기 때문이다.
+    """
     _run(db, actor, FakeConfluence())
 
     doc = _doc_by_title(db, "옛 규약")
     assert doc is not None
     assert not doc.legacy_author_name, doc.legacy_author_name
-    assert doc.created_by is None
+    assert doc.created_by == actor.id, "기본 계정으로 안 갔다"
 
 
 def test_the_api_carries_the_original_author_name(client, login_as, db, actor):
@@ -742,7 +752,8 @@ def test_the_api_carries_the_original_author_name(client, login_as, db, actor):
     assert got.status_code == 200, got.text
     payload = got.json()
     assert payload["legacy_author_name"] == "김동균", payload.get("legacy_author_name")
-    assert payload["author"] is None, payload["author"]
+    # 계정도 함께 실린다 — 화면은 둘을 나란히 그린다(다르면 둘 다 보인다).
+    assert payload["author"] is not None, payload["author"]
 
 
 # ── 빈 페이지는 문서로 안 만든다 ─────────────────────────────────────────────
@@ -829,7 +840,8 @@ def test_the_author_is_corrected_on_a_later_round_too(db, actor):
     _run(db, actor, FakeConfluence())
     db.expire_all()
     again = db.get(Document, doc.id)
-    assert again.created_by is None, "다음 회차가 옛 작성자를 안 고쳤다"
+    # 이 대역에는 「김동균」 계정이 없으므로 기본 계정(회차를 돌린 사람)으로 앉는다.
+    assert again.created_by == actor.id, "다음 회차가 작성자를 안 다시 정했다"
     assert again.legacy_author_name == "김동균", again.legacy_author_name
 
 
@@ -863,3 +875,86 @@ def test_a_bridge_pointing_at_a_deleted_document_is_repointed(db, actor):
     assert len(bridges) == 1, f"다리가 {len(bridges)}개다 — 하나여야 한다"
     assert bridges[0].target_id == again.id, "다리가 아직 죽은 문서를 가리킨다"
     assert db.get(Document, bridges[0].target_id) is not None
+
+
+# ── 이름으로 이어 주고, 못 이으면 기본 계정으로 (사용자 지시 2026-09-04) ──────
+#
+# Confluence 는 이메일을 안 주지만 이름은 준다. 그 이름으로 지금 계정을 찾아 잇고, 못
+# 찾으면 정해 둔 계정으로 앉힌다. 🔴 원본 이름은 **그래도 남는다** — 「원본에 누가 썼다고
+# 적혀 있었나」와 「지금 이 문서를 누가 맡는가」는 다른 질문이다.
+
+
+def test_an_author_is_matched_by_display_name(db, actor, make_user):
+    """이메일이 없어도 **이름이 같으면** 그 사람에게 이어 준다."""
+    writer = make_user("kdg@goodmit.co.kr", role="user", display_name="김동균")
+    db.commit()
+
+    _run(db, actor, FakeConfluence())
+    doc = _doc_by_title(db, "설치 가이드")
+    assert doc.created_by == writer.id, "이름이 같은 계정에 안 이어졌다"
+    assert doc.legacy_author_name == "김동균", "원본 이름을 잃었다"
+
+
+def test_a_seat_label_does_not_block_the_match(db, actor, make_user):
+    """🔴 「(Unlicensed)」는 라이선스 상태지 이름의 일부가 아니다.
+
+    안 떼면 실측 23명 중 15명이 영영 안 맞는다.
+    """
+    from app.migration.load_confluence import _strip_seat_label
+
+    assert _strip_seat_label("김동균 (Unlicensed)") == "김동균"
+    assert _strip_seat_label("서윤경") == "서윤경"
+    assert _strip_seat_label(None) == ""
+
+    writer = make_user("kdg2@goodmit.co.kr", role="user", display_name="김동균")
+    db.commit()
+
+    class SeatLabelled(FakeConfluence):
+        def author_name(self, account_id):
+            return "김동균 (Unlicensed)" if account_id == "acct-1" else ""
+
+    _run(db, actor, SeatLabelled())
+    assert _doc_by_title(db, "설치 가이드").created_by == writer.id
+
+
+def test_an_author_is_matched_by_the_email_local_part(db, actor, make_user):
+    """원본의 표시 이름이 **계정 아이디**인 경우가 있다 (실측: ujmoon 39건)."""
+    writer = make_user("ujmoon@goodmit.co.kr", role="user", display_name="문의진")
+    db.commit()
+
+    class IdAsName(FakeConfluence):
+        def author_name(self, account_id):
+            return "ujmoon" if account_id == "acct-1" else ""
+
+    _run(db, actor, IdAsName())
+    doc = _doc_by_title(db, "설치 가이드")
+    assert doc.created_by == writer.id, "계정 아이디로 못 이었다"
+    assert doc.legacy_author_name == "ujmoon", "원본이 적은 그대로를 안 남겼다"
+
+
+def test_an_unknown_author_lands_on_the_fallback_account(db, actor, make_user):
+    """모르는 사람은 정해 둔 계정으로 앉는다 — 그래도 원본 이름은 남는다."""
+    keeper = make_user("keeper@goodmit.co.kr", role="admin", display_name="맡는 사람")
+    db.commit()
+
+    from app.migration import runner
+
+    runner.import_confluence(
+        db, source=FakeConfluence(), actor=actor, space_keys=["CMP"],
+        fallback_author=keeper,
+    )
+    doc = _doc_by_title(db, "설치 가이드")
+    assert doc.created_by == keeper.id, "모르는 작성자가 기본 계정으로 안 갔다"
+    assert doc.legacy_author_name == "김동균", "기본 계정으로 보내며 원본 이름을 지웠다"
+
+
+def test_two_people_with_the_same_name_are_not_guessed(db, actor, make_user):
+    """🔴 동명이인 중 하나를 찍는 것은 추정이 아니라 동전 던지기다."""
+    make_user("kdg-a@goodmit.co.kr", role="user", display_name="김동균")
+    make_user("kdg-b@goodmit.co.kr", role="user", display_name="김동균")
+    db.commit()
+
+    _run(db, actor, FakeConfluence())
+    doc = _doc_by_title(db, "설치 가이드")
+    assert doc.created_by == actor.id, "동명이인 중 하나를 찍었다"
+    assert doc.legacy_author_name == "김동균"

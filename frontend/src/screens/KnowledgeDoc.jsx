@@ -711,19 +711,24 @@ export function KnowledgeDoc() {
       <Card>
         <Section title="문서 정보">
           <InfoRow label="작성자">
-            {/* 🔴 셋을 구별한다: 우리 사용자가 썼다 · 원본에 이렇게 적혀 있었다 · 모른다.
-                가운데를 지어내지 않는다 — 원본 이름 옆에 출처를 밝혀, 눌러도 프로필이
-                없는 이름이 우리 계정처럼 읽히지 않게 한다. */}
-            <Stack direction="row" spacing={0.75} alignItems="center">
+            {/* 🔴 두 가지 **다른 사실**을 함께 보여 준다.
+                  · 계정 — 지금 이 문서를 누가 맡는가 (이메일이나 이름으로 이었고,
+                    못 이으면 기본 계정이다)
+                  · 원본 기록 — 원본에 누가 썼다고 적혀 있었나
+                둘이 같으면 한 번만 쓴다. 다르면 둘 다 쓴다 — 앞엣것만 보이면 「이 사람이
+                썼다」는 거짓말이 되고, 뒤엣것만 보이면 눌러도 프로필이 없는 이름이
+                우리 계정처럼 읽힌다. */}
+            <Stack direction="row" spacing={0.75} alignItems="center" flexWrap="wrap">
               {data.author ? <UserAvatar person={data.author} size="sm" /> : null}
               <Typography variant="body2">
                 {data.author?.display_name || data.legacy_author_name || "-"}
               </Typography>
-              {!data.author && data.legacy_author_name ? (
-                <Typography variant="caption" color="text.secondary">
-                  원본 기록
-                </Typography>
-              ) : null}
+              {data.legacy_author_name
+                && data.legacy_author_name !== data.author?.display_name ? (
+                  <Typography variant="caption" color="text.secondary">
+                    원본 기록 {data.legacy_author_name}
+                  </Typography>
+                ) : null}
             </Stack>
           </InfoRow>
           <InfoRow label="프로젝트">

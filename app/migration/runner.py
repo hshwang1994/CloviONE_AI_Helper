@@ -506,6 +506,7 @@ def import_confluence(
     with_comments: bool = True,
     limit_pages: int | None = None,
     dry_run: bool = False,
+    fallback_author=None,
 ) -> MigrationReport:
     """CMP · ClovirONE 두 Space 의 **모든** 페이지를 문서로 가져온다.
 
@@ -541,7 +542,10 @@ def import_confluence(
     if limit_pages:
         pages = pages[:limit_pages]
 
-    loader = ConfluenceLoader(db, report=report, actor=actor, settings=settings)
+    loader = ConfluenceLoader(
+        db, report=report, actor=actor, settings=settings,
+        fallback_author=fallback_author,
+    )
     fetch = source.download if (with_files and not dry_run) else None
     #: 원본이 가진 첨부 수. 대조 게이트가 「하나도 못 옮겼다」를 잡는 근거다.
     attachments_seen = 0

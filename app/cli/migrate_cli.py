@@ -212,10 +212,14 @@ def cmd_import_confluence(args) -> int:
     factory = make_session_factory(engine)
     with factory() as db:
         actor = _actor(db, args.actor)
+        # 작성자를 이메일로도 이름으로도 못 푼 문서가 앉을 계정. 안 주면 회차를 돌린
+        # 사람이다. 원본 이름은 그래도 `legacy_author_name` 에 남는다.
+        fallback = _actor(db, args.fallback_author) if args.fallback_author else actor
         report = runner.import_confluence(
             db,
             source=source,
             actor=actor,
+            fallback_author=fallback,
             space_keys=(args.space or ["CMP", "ClovirONE"]),
             settings=settings,
             with_files=not args.no_files,
@@ -472,6 +476,10 @@ def build_parser() -> argparse.ArgumentParser:
         help="Space key. 여러 번 줄 수 있다 (기본: CMP 와 ClovirONE)",
     )
     node.add_argument("--actor", default="", help="가져온 사람으로 적을 계정 이메일")
+    node.add_argument(
+        "--fallback-author", default="", dest="fallback_author",
+        help="작성자를 못 푼 문서가 앉을 계정 이메일 (기본: 가져온 사람)",
+    )
     node.add_argument("--report", default="", help="보고서를 쓸 디렉터리")
     node.add_argument("--no-files", action="store_true")
     node.add_argument("--no-comments", action="store_true")
