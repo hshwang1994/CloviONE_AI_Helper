@@ -183,23 +183,33 @@ def _project_index(db: Session) -> list[tuple[Project, set[str], set[str]]]:
 
 
 def _score(
-    identity: set[str], support: set[str], haystack: list[str]
+    identity: set[str], support: set[str],
+    title_tokens: list[str], body_tokens: list[str],
 ) -> tuple[int, list[str], bool]:
-    """점수와 근거 낱말과 **식별 낱말이 걸렸는가**.
+    """점수와 근거 낱말과 **제목이 이 프로젝트를 불렀는가**.
 
     긴 말에 가중치를 준다 — 「현대모비스」가 「관리」보다 그 프로젝트를 훨씬 강하게
-    가리킨다. 그리고 식별 낱말은 보조 낱말의 세 배로 센다.
+    가리킨다. 식별 낱말은 보조 낱말의 세 배로 센다.
+
+    🔴 세 번째 값이 「제목에 식별 낱말이 있는가」다. 본문이 아니다.
+    제품 이름은 온갖 문서의 본문에 나온다(실측: `clovircm` 이 본문 46건). 그것을 근거로
+    삼으면 「그 제품을 다룬다」가 「그 프로젝트의 문서다」가 되고, 국립암센터 문서가
+    ClovirCM 프로젝트에 붙는다.
     """
     counts: dict[str, int] = {}
-    for token in haystack:
+    for token in title_tokens + body_tokens:
         if token in identity or token in support:
             counts[token] = counts.get(token, 0) + 1
     total = 0
     for token, n in counts.items():
         weight = 3 if token in identity else 1
         total += min(3, n) * weight * (2 if len(token) >= 4 else 1)
-    hit_identity = any(t in identity for t in counts)
-    return total, sorted(counts, key=lambda t: (t not in identity, -counts[t]))[:5], hit_identity
+    title_identity = any(t in identity for t in title_tokens)
+    return (
+        total,
+        sorted(counts, key=lambda t: (t not in identity, -counts[t]))[:5],
+        title_identity,
+    )
 
 
 def _body_text(db: Session, document: Document) -> str:
@@ -228,15 +238,20 @@ def propose(db: Session, *, documents: list[Document], source: str) -> list[Prop
     for document in documents:
         title = document.title or ""
         body = _body_text(db, document)
-        # 제목은 본문보다 강한 신호다 — 세 번 센다.
-        haystack = _tokens(title) * 3 + _tokens(body)
+        title_tokens = _tokens(title) * 3   # 제목은 본문보다 강한 신호다
+        body_tokens = _tokens(body)
 
         scored = []
         for project, identity, support in projects:
-            total, hits, hit_identity = _score(identity, support, haystack)
-            # 🔴 식별 낱말이 없으면 후보가 아니다. 「변경」 하나로 KB국민카드에 붙던
-            # 자리이고, 그것이 사용자가 신고한 「프로젝트 연결이 많이 이상함」의 모양이다.
-            if hit_identity and total >= _MIN_SCORE:
+            total, hits, title_identity = _score(
+                identity, support, title_tokens, body_tokens
+            )
+            # 🔴 두 관문을 **함께** 지나야 후보다.
+            #   1. 그 프로젝트 하나만 쓰는 낱말이 있을 것 (「변경」으로 KB국민카드에 붙던 자리)
+            #   2. 그 낱말이 **제목에** 있을 것 (본문의 «clovircm» 으로 국립암센터가
+            #      ClovirCM 에 붙던 자리)
+            # 둘 다 실측이 만든 규칙이다.
+            if title_identity and total >= _MIN_SCORE:
                 scored.append((total, project, hits))
         scored.sort(key=lambda r: -r[0])
 
@@ -249,7 +264,7 @@ def propose(db: Session, *, documents: list[Document], source: str) -> list[Prop
         )
         if not scored:
             proposal.decision = DECISION_NONE
-            proposal.evidence = "제목과 본문에 그 프로젝트만 쓰는 낱말이 안 나온다."
+            proposal.evidence = "제목에 그 프로젝트만 쓰는 낱말이 안 나온다."
         elif len(scored) > 1 and (scored[0][0] - scored[1][0]) < _MIN_MARGIN:
             # 🔴 억지로 안 고른다. 거의 같은 후보 둘 중 하나를 고르는 것은 동전 던지기다.
             proposal.decision = DECISION_AMBIGUOUS
@@ -272,11 +287,11 @@ def propose(db: Session, *, documents: list[Document], source: str) -> list[Prop
 
 def _guess_category(title: str, body: str, names: list[str]) -> str:
     """분류 하나. 못 정하면 **빈 값** — 적용기가 건너뛴다(기존 값을 안 지운다)."""
-    haystack = _tokens(title) * 3 + _tokens(body)
+    title_tokens, body_tokens = _tokens(title) * 3, _tokens(body)
     best, best_score = "", 0
     for name in names:
         words = set(_tokens(name))
-        score, _, _ = _score(words, set(), haystack)
+        score, _, _ = _score(words, set(), title_tokens, body_tokens)
         if score > best_score:
             best, best_score = name, score
     return best if best_score >= _MIN_SCORE else ""
@@ -284,10 +299,12 @@ def _guess_category(title: str, body: str, names: list[str]) -> str:
 
 def _guess_tags(title: str, body: str, names: list[str], *, limit: int = 6) -> list[str]:
     """태그 **여럿**. 하나만 고를 이유가 없다 — 한 문서가 여러 기술을 다룬다(12·16번)."""
-    haystack = _tokens(title) * 2 + _tokens(body)
+    title_tokens, body_tokens = _tokens(title) * 2, _tokens(body)
     scored = []
     for name in names:
-        score, _, _ = _score(set(_tokens(name)), set(), haystack)
+        # 태그는 **본문에 나오면 된다** — 「이 문서가 무엇을 다루는가」이지 「어느
+        # 프로젝트의 것인가」가 아니라, 제목을 요구할 이유가 없다.
+        score, _, _ = _score(set(_tokens(name)), set(), title_tokens, body_tokens)
         if score >= 4:
             scored.append((score, name))
     scored.sort(key=lambda r: (-r[0], r[1]))

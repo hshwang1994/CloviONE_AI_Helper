@@ -237,3 +237,91 @@ def test_a_proposal_carries_its_evidence(db, world, make_project):
     assert proposal.evidence, "근거가 비어 있다"
     if proposal.decision == classify_mod.DECISION_MATCHED:
         assert "인천" in proposal.evidence
+
+
+# ── 제안이 틀린 프로젝트에 붙이지 않는가 (11·15번) ───────────────────────────
+#
+# 규칙 둘을 실측이 만들었고, 둘 다 반례로 잰다.
+#
+# 1. **그 프로젝트 하나만 쓰는 낱말**이 있어야 한다. 「변경」 하나로 KB국민카드에 붙던 자리.
+# 2. 그 낱말이 **제목에** 있어야 한다. 본문의 «clovircm» 으로 국립암센터 문서가
+#    ClovirCM 프로젝트에 붙던 자리 — 제품 이름은 온갖 문서의 본문에 나온다.
+
+
+@pytest.fixture()
+def projects(db, make_project):
+    return {
+        "mobis": make_project(name="현대모비스 [MDIP 시스템 운영/개선]"),
+        "cm": make_project(name="굿모닝아이텍 [ClovirCM 제품 개발]"),
+        "cancer": make_project(name="암센터 [NCDC 데이터 분석 포털 구축]"),
+        "kb": make_project(name="KB국민카드 [빅데이터 포털 내부시스템 EOS 변경]"),
+    }
+
+
+def _propose_one(db, world, projects, title, body_text):
+    """문서 하나를 그 제목·본문으로 세우고 제안 한 줄을 받는다."""
+    from app.knowledge import versions
+    from app.knowledge.models import Document
+    from app.migration import classify as classify_mod
+
+    document = db.get(Document, world["migrated"])
+    document.title = title
+    versions.snapshot(
+        db, document,
+        {"type": "doc", "content": [
+            {"type": "paragraph", "content": [{"type": "text", "text": body_text}]},
+        ]},
+        author_id=None, change_reason="시험", source="MIGRATION",
+    )
+    db.flush()
+    return classify_mod.propose(db, documents=[document], source="notion")[0]
+
+
+def test_a_generic_word_never_makes_a_match(db, world, projects):
+    """🔴 「변경」은 여러 프로젝트 이름에 있으므로 아무것도 안 가리킨다."""
+    from app.migration import classify as classify_mod
+
+    proposal = _propose_one(
+        db, world, projects,
+        "MariaDB-Oracle DDL 전환 가이드",
+        "스키마를 변경하는 절차입니다. 변경 전에 백업합니다. 변경 후 검증합니다.",
+    )
+    assert proposal.decision == classify_mod.DECISION_NONE, (
+        f"흔한 낱말로 {proposal.project_name} 에 붙였다: {proposal.evidence}"
+    )
+    assert proposal.project_id is None
+
+
+def test_a_product_name_in_the_body_never_makes_a_match(db, world, projects):
+    """🔴 제목이 다른 곳을 부르는데 본문의 제품 이름이 이기면 안 된다."""
+    from app.migration import classify as classify_mod
+
+    proposal = _propose_one(
+        db, world, projects,
+        "국립암센터 EOS 작업 지원",
+        "ClovirCM 으로 배포한다. ClovirCM 설정을 본다. ClovirCM 로그를 확인한다.",
+    )
+    # 제목이 부르는 것은 암센터다 — 본문이 ClovirCM 을 몇 번 말하든.
+    assert proposal.project_id != projects["cm"].id, (
+        f"본문의 제품 이름이 이겼다: {proposal.evidence}"
+    )
+    if proposal.decision == classify_mod.DECISION_MATCHED:
+        assert proposal.project_id == projects["cancer"].id
+
+
+def test_a_title_that_names_the_project_does_match(db, world, projects):
+    """반대편 — 제목이 그 프로젝트를 부르면 실제로 붙는다.
+
+    위 둘만 있으면 「아무것도 안 붙이는 도구」도 통과한다. 붙어야 할 때 붙는 것을
+    함께 재야 그 둘이 뜻을 갖는다.
+    """
+    from app.migration import classify as classify_mod
+
+    proposal = _propose_one(
+        db, world, projects,
+        "현대모비스 MDIP 컨테이너 데이터 변경작업",
+        "MDIP 운영 서버의 컨테이너를 바꿉니다.",
+    )
+    assert proposal.decision == classify_mod.DECISION_MATCHED, proposal.evidence
+    assert proposal.project_id == projects["mobis"].id
+    assert "mdip" in proposal.evidence or "현대모비스" in proposal.evidence
