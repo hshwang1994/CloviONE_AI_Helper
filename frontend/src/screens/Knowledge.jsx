@@ -27,7 +27,7 @@ import {
   LIST_KEY, PROJECT_NONE, VIEW, axisValueOf, navEntriesFrom,
 } from "./knowledge/constants.js";
 import {
-  useCategories, useDocuments, useSummary, useTags, useTemplates,
+  useCategories, useDocuments, useSummary, useTags, useTemplate, useTemplates,
 } from "./knowledge/queries.js";
 import { useAllProjects } from "./project-queries.js";
 import { KnowledgeFilterBar } from "./knowledge/KnowledgeFilterBar.jsx";
@@ -174,6 +174,10 @@ export function Knowledge() {
 
   const [newDoc, setNewDoc] = React.useState(null);
   const [taxonomyOpen, setTaxonomyOpen] = React.useState(false);
+  /* 고치는 중인 틀. 목록 응답에는 본문이 없어서 **id 만 들고** 있다가 서버가 본문을
+     실어 주면 그때 편집 판을 채운다(`useTemplate`). `"new"` 는 아직 없는 틀이다. */
+  const [templateId, setTemplateId] = React.useState(null);
+  const openTemplate = useTemplate(templateId === "new" ? null : templateId);
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["knowledge", "documents"] });
@@ -190,6 +194,13 @@ export function Knowledge() {
   const invalidateCategories = () => {
     qc.invalidateQueries({ queryKey: ["knowledge", "categories"] });
     qc.invalidateQueries({ queryKey: ["knowledge", "documents"] });
+  };
+  /* 🔴 틀을 고쳐도 **문서 목록은 안 건드린다.** 문서는 틀을 참조하지 않고 본문은 만들
+     때 복사되므로, 목록을 함께 무효화하면 「틀을 고치면 문서도 바뀐다」는 그림을 화면이
+     스스로 그리게 된다(0027 이 구조로 막은 그 일이다). */
+  const invalidateTemplates = () => {
+    qc.invalidateQueries({ queryKey: ["knowledge", "templates"] });
+    qc.invalidateQueries({ queryKey: ["knowledge", "template"] });
   };
 
   const addTag = useMutation({
@@ -242,6 +253,33 @@ export function Knowledge() {
       );
       /* 지운 분류가 지금 조건이면 조건도 푼다 — 남겨 두면 영원히 0건인 화면이 된다. */
       if (category && category === deletedId) setQuery({ category: null });
+    },
+    onError: (e) => toast(e.message, "error"),
+  });
+
+  const createTemplate = useMutation({
+    mutationFn: (body) => api("/api/knowledge/templates", { method: "POST", body }),
+    onSuccess: () => { invalidateTemplates(); setTemplateId(null); toast("틀을 만들었습니다."); },
+    onError: (e) => toast(e.message, "error"),
+  });
+
+  const saveTemplate = useMutation({
+    mutationFn: ({ id, body }) =>
+      api(`/api/knowledge/templates/${id}`, { method: "PATCH", body }),
+    onSuccess: () => {
+      invalidateTemplates();
+      setTemplateId(null);
+      toast("틀을 고쳤습니다. 이 틀로 이미 만든 문서는 그대로입니다.");
+    },
+    onError: (e) => toast(e.message, "error"),
+  });
+
+  const removeTemplate = useMutation({
+    mutationFn: (id) => api(`/api/knowledge/templates/${id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      invalidateTemplates();
+      setTemplateId(null);
+      toast("틀을 지웠습니다. 이 틀로 만든 문서는 그대로 남습니다.");
     },
     onError: (e) => toast(e.message, "error"),
   });
@@ -472,14 +510,32 @@ export function Knowledge() {
           걷은 것은 화면의 진입점이지 방어가 아니다. */}
       <TaxonomyManager
         open={taxonomyOpen}
-        onClose={() => setTaxonomyOpen(false)}
+        onClose={() => { setTaxonomyOpen(false); setTemplateId(null); }}
         canManage={canManageTaxonomy}
         busy={
           addTag.isPending || renameTag.isPending || removeTag.isPending
           || addCategory.isPending || renameCategory.isPending || removeCategory.isPending
+          || createTemplate.isPending || saveTemplate.isPending || removeTemplate.isPending
         }
         categories={categoryRows}
         tags={tagRows}
+        templates={templateRows}
+        /* 새 틀은 서버에 없으니 그대로 넘기고, 있는 틀은 **본문이 온 뒤에** 넘긴다 —
+           본문 없이 편집 판을 열면 사람이 빈 칸을 보고 저장해 본문을 지운다. */
+        editingTemplate={
+          templateId === "new" ? { id: "new" } : (openTemplate.data || null)
+        }
+        onOpenTemplate={(row) => setTemplateId(row.id)}
+        onCancelTemplate={() => setTemplateId(null)}
+        onCreateTemplate={(body) => createTemplate.mutate(body)}
+        onSaveTemplate={(id, body) => saveTemplate.mutate({ id, body })}
+        onRemoveTemplate={async (row) => {
+          const ok = await confirm(
+            "이 틀로 이미 만든 문서는 그대로 남습니다. 앞으로 새 문서에서 고를 수 없습니다.",
+            { title: `${row.name} 틀을 삭제할까요?`, confirmLabel: "삭제", danger: true },
+          );
+          if (ok) removeTemplate.mutate(row.id);
+        }}
         onAddCategory={(name, done) => addCategory.mutate(name, { onSuccess: done })}
         onRenameCategory={(row, name, done) =>
           renameCategory.mutate({ id: row.id, name }, { onSuccess: done })}

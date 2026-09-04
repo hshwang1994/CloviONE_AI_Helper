@@ -6,6 +6,7 @@ import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { Button, Modal, ModalFooter } from "../../ui/kit.jsx";
 import { KO_WORD_BREAK } from "../../ui/theme.js";
+import { bodyToText, textToBody } from "./templateText.js";
 
 /* 분류 관리 — 분류와 태그, 두 어휘를 한 창에서 고친다.
  *
@@ -15,6 +16,15 @@ import { KO_WORD_BREAK } from "../../ui/theme.js";
  * 먼저 보여 준다). 창을 둘로 나누면 같은 규칙이 두 벌의 화면을 갖고, 한쪽만 고치는 날이
  * 온다. 다른 것은 뜻 하나다 — 분류는 문서 하나에 하나(큰 갈래), 태그는 여럿(자유
  * 분류). 그 차이는 각 탭의 안내 문장이 말한다.
+ *
+ * ## 틀도 여기다
+ *
+ * 세 번째 탭이 문서 틀이다. 새 화면을 만들지 않는 이유는 위와 같다 — 셋 다 「문서가 쓰는
+ * 어휘를 조직이 스스로 정한다」는 한 가지 일이고, 입구가 셋이면 사람은 그중 둘을 못 찾는다.
+ *
+ * 🔴 **틀을 고치거나 지워도 그 틀로 이미 만든 문서는 안 바뀐다.** 그것이 규칙이라서가
+ * 아니라 구조라서다 — `documents` 는 틀을 참조하지 않고, 본문은 문서를 만드는 순간
+ * 복사된다(0027). 그 사실을 탭의 안내 문장이 사람에게 먼저 말한다.
  *
  * ## 「몇 건에 붙어 있는가」를 먼저 보여 준다
  *
@@ -125,11 +135,143 @@ function VocabularyPanel({
   );
 }
 
+/* 틀 탭 — 목록과, 하나를 여는 편집 판.
+ *
+ * 「빈 문서」는 표의 행이 아니라 화면의 바탕이다(`templates.BLANK`). 목록에는 서지만
+ * 고치기·지우기 단추를 안 준다 — 지워지면 새 문서 대화상자의 기본값이 없는 틀을 가리킨다. */
+function TemplatePanel({
+  rows, canManage, busy, editing, onOpen, onCancel, onCreate, onSave, onRemove,
+}) {
+  const [name, setName] = React.useState("");
+  const [help, setHelp] = React.useState("");
+  const [text, setText] = React.useState("");
+
+  /* 서버가 본문을 실어 주면 그때 판을 채운다 — 목록 응답에는 본문이 없다. */
+  React.useEffect(() => {
+    if (!editing) { setName(""); setHelp(""); setText(""); return; }
+    setName(editing.name || "");
+    setHelp(editing.help || "");
+    setText(editing.body ? bodyToText(editing.body) : "");
+  }, [editing]);
+
+  const isNew = Boolean(editing) && editing.id === "new";
+  const clean = name.trim();
+
+  if (editing) {
+    return (
+      <Stack spacing={2}>
+        <TextField
+          label="틀 이름"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          InputLabelProps={{ shrink: true }}
+          inputProps={{ maxLength: 80 }}
+          size="small"
+          fullWidth
+          required
+        />
+        <TextField
+          label="설명"
+          value={help}
+          onChange={(e) => setHelp(e.target.value)}
+          InputLabelProps={{ shrink: true }}
+          inputProps={{ maxLength: 500 }}
+          size="small"
+          fullWidth
+          helperText="새 문서 대화상자에서 이 틀 아래에 보이는 한 줄입니다."
+        />
+        <TextField
+          label="본문"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          multiline
+          minRows={8}
+          maxRows={16}
+          InputLabelProps={{ shrink: true }}
+          size="small"
+          fullWidth
+          helperText="## 은 제목, - 는 글머리, 1. 은 번호입니다. 나머지 줄은 문단이 됩니다."
+        />
+        <Stack direction="row" spacing={1} justifyContent="flex-end">
+          <Button variant="ghost" onClick={onCancel}>취소</Button>
+          <Button
+            variant="primary"
+            disabled={!clean || busy}
+            onClick={() => {
+              const payload = { name: clean, help: help.trim(), body: textToBody(text) };
+              if (isNew) onCreate(payload); else onSave(editing.id, payload);
+            }}
+          >
+            {/* 표준 동사표(PA-RC-0002 §3)가 「새로 만든다」를 「추가」로 정했다. 옆의
+                분류·태그 탭 단추와도 같은 낱말이다 — 한 창 안에서 같은 일을 두 이름으로
+                부르지 않는다. */}
+            {isNew ? "추가" : "저장"}
+          </Button>
+        </Stack>
+      </Stack>
+    );
+  }
+
+  return (
+    <Stack spacing={2}>
+      <Typography variant="body2" color="text.secondary" sx={KO_WORD_BREAK}>
+        틀은 새 문서가 시작할 뼈대입니다. 틀을 고치거나 지워도 그 틀로 이미 만든 문서는
+        그대로 남습니다.
+      </Typography>
+      {canManage ? (
+        <Stack direction="row" justifyContent="flex-end">
+          <Button variant="primary" onClick={() => onOpen({ id: "new" })}>새 틀</Button>
+        </Stack>
+      ) : null}
+
+      <Stack spacing={0.5} sx={{ maxHeight: "20rem", overflowY: "auto" }}>
+        {rows.map((row) => (
+          <Stack
+            key={row.id}
+            direction="row"
+            spacing={1}
+            alignItems="center"
+            sx={(theme) => ({ py: 0.75, borderBottom: `1px solid ${theme.palette.divider}` })}
+          >
+            <Stack sx={{ flex: 1, minWidth: 0 }}>
+              <Typography sx={KO_WORD_BREAK}>{row.name}</Typography>
+              {row.help ? (
+                <Typography variant="caption" color="text.secondary" sx={KO_WORD_BREAK}>
+                  {row.help}
+                </Typography>
+              ) : null}
+            </Stack>
+            {row.builtin ? (
+              <Typography variant="caption" color="text.secondary" sx={{ flexShrink: 0 }}>
+                기본 제공
+              </Typography>
+            ) : null}
+            {canManage && !row.builtin ? (
+              <>
+                <Button size="small" variant="ghost" onClick={() => onOpen(row)}>수정</Button>
+                <Button size="small" variant="ghost" onClick={() => onRemove(row)}>삭제</Button>
+              </>
+            ) : null}
+          </Stack>
+        ))}
+      </Stack>
+
+      {canManage ? null : (
+        <Typography variant="body2" color="text.secondary" sx={KO_WORD_BREAK}>
+          틀을 만들거나 고치는 것은 운영자만 할 수 있습니다.
+        </Typography>
+      )}
+    </Stack>
+  );
+}
+
 export function TaxonomyManager({
   open, onClose, canManage, busy,
-  categories, tags,
+  categories, tags, templates,
   onAddCategory, onRenameCategory, onRemoveCategory,
   onAddTag, onRenameTag, onRemoveTag,
+  editingTemplate, onOpenTemplate, onCancelTemplate,
+  onCreateTemplate, onSaveTemplate, onRemoveTemplate,
 }) {
   const [tab, setTab] = React.useState(0);
   React.useEffect(() => { if (!open) setTab(0); }, [open]);
@@ -150,6 +292,7 @@ export function TaxonomyManager({
       >
         <Tab label="분류" />
         <Tab label="태그" />
+        <Tab label="틀" />
       </Tabs>
       {tab === 0 ? (
         <VocabularyPanel
@@ -163,7 +306,7 @@ export function TaxonomyManager({
           onRename={onRenameCategory}
           onRemove={onRemoveCategory}
         />
-      ) : (
+      ) : tab === 1 ? (
         <VocabularyPanel
           rows={tags}
           canManage={canManage}
@@ -174,6 +317,18 @@ export function TaxonomyManager({
           onAdd={onAddTag}
           onRename={onRenameTag}
           onRemove={onRemoveTag}
+        />
+      ) : (
+        <TemplatePanel
+          rows={templates || []}
+          canManage={canManage}
+          busy={busy}
+          editing={editingTemplate}
+          onOpen={onOpenTemplate}
+          onCancel={onCancelTemplate}
+          onCreate={onCreateTemplate}
+          onSave={onSaveTemplate}
+          onRemove={onRemoveTemplate}
         />
       )}
     </Modal>
