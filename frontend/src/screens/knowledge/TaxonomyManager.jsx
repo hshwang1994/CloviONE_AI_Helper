@@ -218,11 +218,13 @@ function TemplatePanel({
         틀은 새 문서가 시작할 뼈대입니다. 틀을 고치거나 지워도 그 틀로 이미 만든 문서는
         그대로 남습니다.
       </Typography>
-      {canManage ? (
-        <Stack direction="row" justifyContent="flex-end">
-          <Button variant="primary" onClick={() => onOpen({ id: "new" })}>새 틀</Button>
-        </Stack>
-      ) : null}
+      {/* 🔴 만들기는 **누구나**다. 서버가 그렇게 정해 뒀다 — 만들기는 `DOCUMENT_UPDATE`,
+          고치기·지우기는 `DOCUMENT_DELETE`. 옆의 분류·태그 탭도 같은 사다리다(어휘를
+          늘리는 일은 같은 무게라는 결정). 화면만 더 좁히면 서버가 허락한 일을 사람이
+          못 하게 되고, 그 차이는 아무 데도 안 적혀 있다. */}
+      <Stack direction="row" justifyContent="flex-end">
+        <Button variant="primary" onClick={() => onOpen({ id: "new" })}>새 틀</Button>
+      </Stack>
 
       <Stack spacing={0.5} sx={{ maxHeight: "20rem", overflowY: "auto" }}>
         {rows.map((row) => (
@@ -258,7 +260,7 @@ function TemplatePanel({
 
       {canManage ? null : (
         <Typography variant="body2" color="text.secondary" sx={KO_WORD_BREAK}>
-          틀을 만들거나 고치는 것은 운영자만 할 수 있습니다.
+          틀을 고치거나 지우는 것은 운영자만 할 수 있습니다. 새로 만드는 것은 누구나 할 수 있습니다.
         </Typography>
       )}
     </Stack>

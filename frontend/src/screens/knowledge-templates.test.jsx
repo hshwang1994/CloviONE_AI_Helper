@@ -191,12 +191,15 @@ describe("분류 관리 — 틀 탭", () => {
     expect(screen.getByRole("button", { name: "추가" }).disabled).toBe(true);
   });
 
-  it("운영자가 아니면 만들기·고치기·지우기가 아예 안 보인다", async () => {
+  it("🔴 운영자가 아니면 고치기·지우기가 안 보인다 — 그러나 **만들기는 보인다**", async () => {
     const user = userEvent.setup();
     renderManager({ canManage: false });
     await openTemplateTab(user);
 
-    expect(screen.queryByRole("button", { name: "새 틀" })).toBeNull();
+    /* 서버가 정한 사다리와 같아야 한다: 만들기는 `DOCUMENT_UPDATE`(누구나), 고치기·지우기는
+       `DOCUMENT_DELETE`(운영자). 화면만 더 좁히면 서버가 허락한 일을 사람이 못 하게 되고
+       그 차이는 아무 데도 안 적혀 있다. */
+    expect(screen.getByRole("button", { name: "새 틀" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: "수정" })).toBeNull();
     expect(screen.queryByRole("button", { name: "삭제" })).toBeNull();
     expect(screen.getByText(/운영자만 할 수 있습니다/)).toBeTruthy();
