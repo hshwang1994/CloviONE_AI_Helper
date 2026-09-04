@@ -35,6 +35,7 @@ import sqlalchemy as sa
 from sqlalchemy.orm import Session
 
 from app.core.errors import AppError
+from app.core.models_base import utcnow
 from app.knowledge import attachments as doc_attachments
 from app.knowledge import blocks
 from app.knowledge import service as knowledge_service
@@ -67,6 +68,17 @@ __all__ = ["ConfluenceLoadResult", "ConfluenceLoader"]
 #: 본문 이미지의 주소. 라우트의 정본은 `app/knowledge/router.py::serve_attachment` 다.
 #: 상대 주소라 호스트가 바뀌어도 안 깨진다.
 _ATTACHMENT_URL = "/api/knowledge/attachments/%s/content"
+
+#: 이 글자 수 **이하**면 문서로 안 만든다.
+#:
+#: 🔴 이 규칙이 **가져오기 안에** 있어야 하는 이유가 있다. 처음에는 가져온 뒤에 치우는
+#: 도구(`prune-empty`)로 만들었는데, 그 뒤 회차를 한 번 더 돌리니 치운 문서가 **그대로
+#: 되살아났다** — 원본 페이지는 여전히 있고 적재기는 그것을 「아직 안 가져온 페이지」로
+#: 읽기 때문이다. 청소가 회차마다 무효가 되는 것은 청소가 아니다.
+#:
+#: 그래서 규칙을 여기로 옮긴다. 첨부도 안 받는다 — 안 만들 문서의 바이트를 받아 오면
+#: 그것이 고아가 된다. 사용자가 「첨부가 붙은 빈 문서도 지운다」를 이미 정했다.
+EMPTY_BODY_MAX_CHARS = 20
 
 #: 건너뛴 첨부를 본문에 남기는 말. 내부 사유 이름을 사용자에게 보여 주지 않는다.
 _SKIPPED_LINE = "원본에만 있는 첨부 파일입니다: %s"
@@ -101,6 +113,9 @@ class ConfluenceLoadResult:
     #: 게이트가 그것을 「하나도 못 옮겼다」로 읽는다. 회차를 다시 돌리는 것은 이 도구의
     #: 정상 사용법이다(멱등이 설계다).
     attachments_reused: int = 0
+    #: 본문이 비어 문서로 안 만든 페이지. **건너뛴 것과 다른 사실**이라 따로 센다 —
+    #: 「오류로 못 가져왔다」와 「가져올 내용이 없었다」를 같은 칸에 넣으면 구별이 사라진다.
+    documents_empty: int = 0
     comments_created: int = 0
     comments_without_author: int = 0
     skipped_page_ids: list[str] = field(default_factory=list)
@@ -133,6 +148,7 @@ class ConfluenceLoadResult:
             "attachments_too_large": self.attachments_too_large,
             "attachments_rejected": self.attachments_rejected,
             "attachments_reused": self.attachments_reused,
+            "documents_empty": self.documents_empty,
             "comments_created": self.comments_created,
             "comments_without_author": self.comments_without_author,
             "accounted": self.accounted,
@@ -258,6 +274,25 @@ class ConfluenceLoader:
         existing_id = self._mapped(page_id, T_DOCUMENT)
         document = self.db.get(Document, existing_id) if existing_id else None
 
+        # 🔴 빈 페이지는 문서로 안 만든다. 제목만 있는 목차 페이지가 흔한데, 우리 쪽에서는
+        # 목록과 검색에서 자리를 차지하고 열어 보면 아무것도 없다. 세는 것은 **본문**이다.
+        if len(adf_plain_text(body.get("adf")).strip()) <= EMPTY_BODY_MAX_CHARS:
+            if not dry_run and document is not None and not document.archived:
+                # 이미 있던 문서가 비었으면 **치운다** — 원본이 비워진 것도 사실이다.
+                document.archived = True
+                document.archived_at = utcnow()
+                document.archived_by = self.actor.id
+                document.version += 1
+                self.db.flush()
+            self.result.documents_empty += 1
+            self.result.account(page_id)
+            self.report.finding(
+                SEVERITY_CLASSIFIED, "confluence_page_empty", "documents",
+                f"본문이 {EMPTY_BODY_MAX_CHARS}자 이하라 문서로 안 만들었습니다: {title}",
+                ref=page_id,
+            )
+            return None
+
         if dry_run:
             self.result.account(page_id)
             if document is None:
@@ -289,8 +324,12 @@ class ConfluenceLoader:
         # 「최근 24시간」이 가져오기 직후 524를 말한다.
         document.legacy_created_at = _ts(page.get("createdAt") or body.get("createdAt"))
         document.legacy_updated_at = _ts((body.get("version") or {}).get("createdAt"))
-        # 원본에 적힌 작성자 이름. 우리 계정으로 못 잇는 사람이라(이메일을 안 준다) 이름만
-        # 남긴다 — 「모른다」와 「이 사람이다」 사이의 세 번째 사실이다(0028).
+        # 작성자는 **원본이 정본**이다. 만들 때만 정하면 이미 있는 문서는 옛 값(가져오기를
+        # 돌린 관리자)을 영영 들고 있는다 — 실측에서 524건 중 418건이 그 상태였다.
+        # 못 풀면 비운다: 실행 계정을 적으면 화면이 「이 사람이 썼다」고 거짓말한다.
+        document.created_by = self._page_author(body)
+        # 그리고 원본에 적힌 이름을 남긴다 — 「모른다」와 「이 사람이다」 사이의
+        # 세 번째 사실이다(0028).
         legacy_author = self._legacy_author(body)
         if legacy_author:
             document.legacy_author_name = legacy_author

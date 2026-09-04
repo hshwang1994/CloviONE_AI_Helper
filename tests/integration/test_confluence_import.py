@@ -92,6 +92,9 @@ class FakeConfluence:
             adf = _adf(
                 {"type": "heading", "attrs": {"level": 2},
                  "content": [{"type": "text", "text": "준비물"}]},
+                # 🔴 이 문단이 없으면 이 페이지의 글자가 18자라 빈 페이지 규칙에 걸린다.
+                # 표와 그림이 아무리 많아도 **세는 것은 글자**다.
+                _para("이 페이지는 표와 그림을 함께 담고 있어서 변환기의 여러 갈래를 한 번에 지납니다."),
                 {"type": "bulletList", "content": [
                     {"type": "listItem", "content": [_para("Docker 24 이상")]},
                 ]},
@@ -112,7 +115,11 @@ class FakeConfluence:
                 ]},
             )
         else:
-            adf = _adf(_para(f"{page['title']} 의 본문입니다."))
+            # 🔴 20자를 넘겨야 한다. 빈 페이지 규칙(`EMPTY_BODY_MAX_CHARS`)이 그 아래를
+            # 문서로 안 만들기 때문이다 — 짧게 두면 이 대역의 페이지가 조용히 사라진다.
+            adf = _adf(_para(
+                f"{page['title']} 의 본문입니다. 이 문단은 빈 페이지 규칙에 안 걸리게 충분히 깁니다."
+            ))
         return {
             "_version": (page.get("version") or {}).get("number"),
             "authorId": page.get("authorId"),
@@ -736,3 +743,91 @@ def test_the_api_carries_the_original_author_name(client, login_as, db, actor):
     payload = got.json()
     assert payload["legacy_author_name"] == "김동균", payload.get("legacy_author_name")
     assert payload["author"] is None, payload["author"]
+
+
+# ── 빈 페이지는 문서로 안 만든다 ─────────────────────────────────────────────
+#
+# 🔴 이 규칙이 **가져오기 안에** 있어야 하는 이유를 실측이 가르쳤다. 처음에는 가져온 뒤에
+# 치우는 도구로 만들었는데, 회차를 한 번 더 돌리니 치운 문서 106건이 **그대로 되살아났다**.
+# 원본 페이지는 여전히 있고 적재기는 그것을 「아직 안 가져온 페이지」로 읽기 때문이다.
+# 회차마다 무효가 되는 청소는 청소가 아니다.
+
+
+class EmptyPageConfluence(FakeConfluence):
+    """본문이 제목뿐인 페이지. 목차 페이지의 모양이다."""
+
+    def page_body(self, page_id, *, version=None):
+        body = super().page_body(page_id, version=version)
+        if page_id == "2":
+            body["adf"] = _adf(_para("짧다"))
+        return body
+
+
+def test_an_empty_page_never_becomes_a_document(db, actor):
+    """본문이 20자 이하면 문서를 안 만든다. 첨부가 있어도 마찬가지다(사용자가 정했다)."""
+    report = _run(db, actor, EmptyPageConfluence())
+
+    assert _doc_by_title(db, "설치 가이드") is None, "빈 페이지가 문서가 됐다"
+    kinds = {f.kind for f in report.findings}
+    assert "confluence_page_empty" in kinds, kinds
+    # 그리고 대조 게이트는 그것을 **설명된 페이지**로 센다 — 조용히 사라진 것이 아니다.
+    assert [c for c in report.checks if "전수" in c.name][0].ok
+
+
+def test_an_existing_document_that_became_empty_is_archived(db, actor):
+    """원본이 비워진 것도 사실이다 — 이미 있던 문서는 치운다."""
+    from app.knowledge.models import Document
+
+    _run(db, actor, FakeConfluence())
+    doc = _doc_by_title(db, "설치 가이드")
+    assert doc is not None and not doc.archived
+
+    _run(db, actor, EmptyPageConfluence())
+    db.expire_all()
+    again = db.get(Document, doc.id)
+    assert again.archived is True, "빈 페이지가 된 문서가 그대로 남았다"
+    assert again.archived_by == actor.id
+
+
+def test_a_page_with_real_content_is_not_touched_by_the_empty_rule(db, actor):
+    """🔴 반례. 규칙이 문턱이 아니면 「전부 지운다」도 초록이다."""
+    _run(db, actor, EmptyPageConfluence())
+
+    # 다른 페이지들은 본문이 충분히 길다 — 그대로 들어온다.
+    assert _doc_by_title(db, "CMP 홈") is not None
+    assert _doc_by_title(db, "옛 규약") is not None
+
+
+def test_the_empty_page_count_is_its_own_number(db, actor):
+    """「오류로 못 가져왔다」와 「가져올 내용이 없었다」를 같은 칸에 넣지 않는다."""
+    _run(db, actor, EmptyPageConfluence())
+
+    # 보고서의 수를 직접 본다 — 건너뜀(skipped)과 섞이면 원장이 거짓말한다.
+    from app.migration.load_confluence import ConfluenceLoader  # noqa: F401
+
+    report = _run(db, actor, EmptyPageConfluence())
+    stats = report.notion["load"]
+    assert stats["documents_empty"] == 1, stats
+    assert stats["documents_skipped"] == 0, stats
+
+
+def test_the_author_is_corrected_on_a_later_round_too(db, actor):
+    """🔴 작성자는 **원본이 정본**이다 — 만들 때만 정하면 옛 값이 영영 남는다.
+
+    실측이 그것을 잡았다: 작성자 수정을 넣고 회차를 돌렸는데 524건 중 **418건**이 여전히
+    가져오기를 돌린 관리자였다. 새로 만든 106건만 고쳐졌기 때문이다.
+    """
+    from app.knowledge.models import Document
+
+    _run(db, actor, FakeConfluence())
+    doc = _doc_by_title(db, "설치 가이드")
+    # 옛 회차가 남긴 상태를 손으로 만든다 — 실행 계정이 작성자로 적힌 문서.
+    doc.created_by = actor.id
+    doc.legacy_author_name = None
+    db.commit()
+
+    _run(db, actor, FakeConfluence())
+    db.expire_all()
+    again = db.get(Document, doc.id)
+    assert again.created_by is None, "다음 회차가 옛 작성자를 안 고쳤다"
+    assert again.legacy_author_name == "김동균", again.legacy_author_name
