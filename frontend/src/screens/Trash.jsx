@@ -5,6 +5,7 @@ import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
+import Link from "@mui/material/Link";
 import { Badge, Button, Card, DataTable, EmptyState, ErrorState, ListCard, MetricStrip, PageHeader, useConfirm, useToast } from "../ui/kit.jsx";
 import { ListFooter } from "../ui/InfiniteScroll.jsx";
 import { FilterRow, FilterSurface } from "../ui/FilterBar.jsx";
@@ -48,6 +49,19 @@ const KINDS = [
   { value: "ticket", label: "티켓" },
   { value: "document", label: "문서" },
 ];
+
+/** 휴지통 줄이 **우리 문서**를 가리키면 그 id. 아니면 `null`.
+ *
+ * 서버가 `doc:<uuid>` 로 접두를 붙인다(`app/trash/router.py::DOC_PREFIX`). 옛 미러
+ * 항목은 `source: "legacy"` 라 우리 쪽에 열 문서가 없다 — 접두만 보고 이으면 없는 화면으로
+ * 보낸다. */
+const DOC_PREFIX = "doc:";
+
+function docIdOf(row) {
+  if (!row || row.item_type !== "document" || row.source !== "knowledge") return null;
+  const id = String(row.id || "");
+  return id.startsWith(DOC_PREFIX) ? id.slice(DOC_PREFIX.length) : null;
+}
 
 export function Trash() {
   const toast = useToast();
@@ -155,10 +169,30 @@ export function Trash() {
       // rowName: 휴지통에서 행을 구별하는 값은 제목이다(ui/rowName.js). 여기가 영구 삭제를
       // 고르는 표라, 어느 줄을 고르는지 낭독되지 않으면 되돌릴 수 없는 실수가 난다.
       rowName: (r) => r.title || "제목 없음",
-      // 제목은 평문이다. 예전에는 옛 Notion 주소로 나가는 링크였는데, 정본이 이 서버로
-      // 넘어온 뒤로 그 주소가 여는 것은 우리가 더 이상 쓰지 않는 낡은 사본이다. 서버도
-      // 응답에서 `url` 을 걷었다.
-      render: (r) => <span>{r.title || "제목 없음"}</span>,
+      /* 🔴 제목이 **우리 문서**로 가는 링크다.
+       *
+       * 예전에는 옛 Notion 주소로 나가는 링크였고, 정본이 이 서버로 넘어오면서 그 주소가
+       * 여는 것이 낡은 사본이 되어 걷어냈다(서버도 응답에서 `url` 을 뺐다). 그런데
+       * **대체를 안 놓았다.** 그래서 이 표에서 지우려는 것이 무엇인지 제목 말고는 볼
+       * 방법이 없었다 — 영구 삭제는 되돌릴 수 없는데도 그렇다. 사용자가 물어서 드러났다.
+       *
+       * 서버는 이미 열어 준다: `get_scoped_document_or_404` 는 권한만 보고 `archived` 를
+       * 안 막는다(운영의 휴지통 문서로 확인 — 본문 1,442자를 그대로 돌려준다). 막고 있던
+       * 것은 화면뿐이었다.
+       *
+       * 새 탭으로 연다. 이 표는 고른 줄과 일괄 선택을 들고 있어서, 같은 탭에서 나갔다
+       * 오면 그 선택이 사라진다.
+       *
+       * 옛 미러 항목(`source: "legacy"`)과 티켓은 그대로 평문이다 — 전자는 우리 쪽에
+       * 열 문서가 없고, 후자는 이 회차의 물음이 아니다. 없는 링크를 만들지 않는다. */
+      render: (r) => {
+        const id = docIdOf(r);
+        return id ? (
+          <Link href={`#/knowledge/${id}`} target="_blank" rel="noreferrer">
+            {r.title || "제목 없음"}
+          </Link>
+        ) : <span>{r.title || "제목 없음"}</span>;
+      },
     },
     {
       /* 「어느 프로젝트의 문서였나」 (지시 22.7). 옛 미러 항목은 이 값을 모른다 — 그 개념이

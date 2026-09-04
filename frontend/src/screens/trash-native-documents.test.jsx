@@ -113,6 +113,40 @@ describe("휴지통의 Native 문서", () => {
     expect(screen.getByText("이성진")).toBeTruthy();
   });
 
+  /* 🔴 되돌릴 수 없는 결정 앞에서 무엇을 지우는지 볼 수 있어야 한다.
+   *
+   * 옛 Notion 링크를 걷으면서 **대체를 안 놓았고**, 그래서 이 표에서 지우려는 것이
+   * 무엇인지 제목 말고는 볼 방법이 없었다. 영구 삭제는 되돌릴 수 없다. 서버는 이미
+   * 열어 준다(`get_scoped_document_or_404` 는 `archived` 를 안 막는다) — 막고 있던 것은
+   * 화면뿐이었다. */
+  it("🔴 제목이 그 문서로 가는 링크다 — 지우기 전에 본문을 볼 수 있다", async () => {
+    renderScreen();
+    const link = await screen.findByRole("link", { name: "서버 인프라 리소스 현황" });
+    expect(link.getAttribute("href")).toBe(`#/knowledge/${DOC_UUID}`);
+    // 같은 탭에서 나갔다 오면 고른 줄과 일괄 선택이 사라진다.
+    expect(link.getAttribute("target")).toBe("_blank");
+  });
+
+  it("🔴 옛 미러 문서와 티켓은 링크가 아니다 — 없는 화면으로 보내지 않는다", async () => {
+    /* 접두(`doc:`)만 보고 이으면 옛 미러 문서까지 링크가 된다. 그것들은 우리 쪽에 열
+       문서가 없어서(`source: "legacy"`) 누르면 빈 화면이 나온다. 반례가 없으면
+       「접두만 본다」로 고쳐도 위 시험이 초록이다. */
+    const MIRROR = {
+      ...DOC_ROW,
+      id: "doc:99999999-8888-7777-6666-555555555555",
+      source: "legacy",
+      title: "옛 미러 문서",
+    };
+    stub([DOC_ROW, TICKET_ROW, MIRROR]);
+    renderScreen();
+
+    await screen.findByText("옛 미러 문서");
+    expect(screen.queryByRole("link", { name: "옛 미러 문서" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "로그인 오류" })).toBeNull();
+    // 우리 문서는 그대로 링크다 — 셋을 함께 재야 「전부 평문」으로 고쳐도 안 걸린다.
+    expect(screen.getByRole("link", { name: "서버 인프라 리소스 현황" })).toBeTruthy();
+  });
+
   it("종류 조건은 서버 질의에 실려 나간다", async () => {
     renderScreen();
     await screen.findByText("서버 인프라 리소스 현황");
