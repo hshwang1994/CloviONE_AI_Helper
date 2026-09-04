@@ -77,16 +77,26 @@ DECISIONS = (DECISION_MATCHED, DECISION_AMBIGUOUS, DECISION_NONE, DECISION_MANUA
 #: 프로젝트로 인정할 최소 점수, 그리고 1등과 2등의 최소 차이.
 #: 차이가 이보다 작으면 `ambiguous` 다 — 「거의 같은 후보 둘」에서 하나를 고르는 것은
 #: 추정이 아니라 동전 던지기다.
-_MIN_SCORE = 3
-_MIN_MARGIN = 2
+#:
+#: 🔴 점수만으로는 부족하다는 것을 실측이 보여 줬다. 아래 `_identity_tokens` 를 보라 —
+#: **식별 낱말이 없으면 점수가 아무리 높아도 매칭하지 않는다.**
+_MIN_SCORE = 4
+_MIN_MARGIN = 3
 
 #: 본문에서 볼 글자 수. 전문을 세면 긴 문서일수록 아무 프로젝트나 한 번씩 나온다.
 _BODY_WINDOW = 4000
 
 #: 이름에서 뽑을 수 없는 흔한 말. 이것들이 점수를 만들면 모든 문서가 같은 곳에 붙는다.
+#:
+#: 🔴 목록은 **실측으로 자랐다.** 첫 회차에서 `matched` 를 만든 낱말 상위 25개를 세어
+#: 보니 `cloud`·`변경`·`데이터`·`클러스터`·`클라우드`·`기능`·`분석`·`인프라` 처럼 어느
+#: 프로젝트도 안 가리키는 말이 대부분이었다. 다만 목록에 기대지 않는다 — 진짜 방어는
+#: 아래 「식별 낱말」이고, 이 목록은 그 앞의 거친 체다.
 _STOPWORDS = frozenset({
     "구축", "개발", "운영", "유지보수", "시스템", "포털", "포탈", "프로젝트", "고도화",
     "관리", "제품", "지원", "서비스", "플랫폼", "사업", "주식회사", "㈜",
+    "cloud", "클라우드", "변경", "데이터", "클러스터", "기능", "분석", "인프라", "사내",
+    "대비", "value", "pack", "개선", "정비", "환경", "설정", "정보", "작업", "가이드",
 })
 
 _TOKEN = re.compile(r"[0-9A-Za-z가-힣]+")
@@ -133,30 +143,63 @@ class Proposal:
 # ── 후보 ─────────────────────────────────────────────────────────────────────
 
 
-def _project_index(db: Session) -> list[tuple[Project, set[str]]]:
-    """프로젝트마다 「이 이름을 가리키는 말」 집합.
+#: 프로젝트 이름의 「고객사」 쪽. 이름이 `<고객사> [<일감>]` 꼴이라 대괄호가 경계다.
+_OWNER_PART = re.compile(r"^([^\[]+)")
 
-    실제 이름이 「인천국제공항공사 [클라우드 인프라 고도화]」 꼴이라 대괄호 안팎을 함께
-    쪼갠다 — 문서 제목은 보통 「인천공항공사 서버정보」처럼 앞부분만 쓴다.
+
+def _project_index(db: Session) -> list[tuple[Project, set[str], set[str]]]:
+    """프로젝트마다 (**식별 낱말**, 보조 낱말).
+
+    이름이 「인천국제공항공사 [클라우드 인프라 고도화]」 꼴이라 가리키는 힘은 대괄호
+    **앞**에 있다. 뒤쪽(일감)은 프로젝트마다 겹친다 — 「구축」·「고도화」·「클라우드」가
+    여러 이름에 동시에 나온다.
+
+    🔴 **식별 낱말은 「그 낱말을 쓰는 프로젝트가 하나뿐」인 것만이다.** 두 프로젝트가
+    같이 쓰는 말은 어느 쪽도 안 가리키므로 판정을 만들 수 없고, 점수를 보태기만 한다.
     """
-    out: list[tuple[Project, set[str]]] = []
-    for project in db.execute(sa.select(Project)).scalars().all():
-        words = set(_tokens(project.name))
+    rows = list(db.execute(sa.select(Project)).scalars().all())
+    owned: list[tuple[Project, set[str], set[str]]] = []
+    freq: dict[str, int] = {}
+    for project in rows:
+        owner = _tokens(_OWNER_PART.match(project.name or "").group(1)
+                        if _OWNER_PART.match(project.name or "") else project.name)
+        whole = set(_tokens(project.name))
         if project.code:
-            words.add(_norm(project.code))
-        out.append((project, words))
+            whole.add(_norm(project.code))
+        for token in whole:
+            freq[token] = freq.get(token, 0) + 1
+        owned.append((project, set(owner), whole))
+
+    out: list[tuple[Project, set[str], set[str]]] = []
+    for project, owner, whole in owned:
+        # 그 낱말을 쓰는 프로젝트가 하나뿐일 때만 식별 낱말이다.
+        identity = {t for t in whole if freq.get(t, 0) == 1}
+        # 고객사 쪽이 먼저다. 일감 쪽에만 있는 유일 낱말도 식별에 넣되(예: 「NEXTHub」),
+        # 고객사 쪽 낱말이 있으면 그쪽이 판정을 이끈다.
+        if owner & identity:
+            identity = (owner & identity) | {t for t in identity if len(t) >= 4}
+        out.append((project, identity, whole - identity))
     return out
 
 
-def _score(words: set[str], haystack: list[str]) -> tuple[int, list[str]]:
-    """겹치는 말의 수와 그 말들. **긴 말에 가중치를 준다** — 「하이닉스」가 「관리」보다
-    그 프로젝트를 훨씬 강하게 가리킨다."""
+def _score(
+    identity: set[str], support: set[str], haystack: list[str]
+) -> tuple[int, list[str], bool]:
+    """점수와 근거 낱말과 **식별 낱말이 걸렸는가**.
+
+    긴 말에 가중치를 준다 — 「현대모비스」가 「관리」보다 그 프로젝트를 훨씬 강하게
+    가리킨다. 그리고 식별 낱말은 보조 낱말의 세 배로 센다.
+    """
     counts: dict[str, int] = {}
     for token in haystack:
-        if token in words:
+        if token in identity or token in support:
             counts[token] = counts.get(token, 0) + 1
-    total = sum(min(3, n) * (2 if len(t) >= 4 else 1) for t, n in counts.items())
-    return total, sorted(counts, key=lambda t: -counts[t])[:5]
+    total = 0
+    for token, n in counts.items():
+        weight = 3 if token in identity else 1
+        total += min(3, n) * weight * (2 if len(token) >= 4 else 1)
+    hit_identity = any(t in identity for t in counts)
+    return total, sorted(counts, key=lambda t: (t not in identity, -counts[t]))[:5], hit_identity
 
 
 def _body_text(db: Session, document: Document) -> str:
@@ -189,9 +232,11 @@ def propose(db: Session, *, documents: list[Document], source: str) -> list[Prop
         haystack = _tokens(title) * 3 + _tokens(body)
 
         scored = []
-        for project, words in projects:
-            total, hits = _score(words, haystack)
-            if total >= _MIN_SCORE:
+        for project, identity, support in projects:
+            total, hits, hit_identity = _score(identity, support, haystack)
+            # 🔴 식별 낱말이 없으면 후보가 아니다. 「변경」 하나로 KB국민카드에 붙던
+            # 자리이고, 그것이 사용자가 신고한 「프로젝트 연결이 많이 이상함」의 모양이다.
+            if hit_identity and total >= _MIN_SCORE:
                 scored.append((total, project, hits))
         scored.sort(key=lambda r: -r[0])
 
@@ -204,7 +249,7 @@ def propose(db: Session, *, documents: list[Document], source: str) -> list[Prop
         )
         if not scored:
             proposal.decision = DECISION_NONE
-            proposal.evidence = "제목과 본문에 어느 프로젝트도 안 나온다."
+            proposal.evidence = "제목과 본문에 그 프로젝트만 쓰는 낱말이 안 나온다."
         elif len(scored) > 1 and (scored[0][0] - scored[1][0]) < _MIN_MARGIN:
             # 🔴 억지로 안 고른다. 거의 같은 후보 둘 중 하나를 고르는 것은 동전 던지기다.
             proposal.decision = DECISION_AMBIGUOUS
@@ -230,7 +275,8 @@ def _guess_category(title: str, body: str, names: list[str]) -> str:
     haystack = _tokens(title) * 3 + _tokens(body)
     best, best_score = "", 0
     for name in names:
-        score, _ = _score(set(_tokens(name)), haystack)
+        words = set(_tokens(name))
+        score, _, _ = _score(words, set(), haystack)
         if score > best_score:
             best, best_score = name, score
     return best if best_score >= _MIN_SCORE else ""
@@ -241,8 +287,8 @@ def _guess_tags(title: str, body: str, names: list[str], *, limit: int = 6) -> l
     haystack = _tokens(title) * 2 + _tokens(body)
     scored = []
     for name in names:
-        score, _ = _score(set(_tokens(name)), haystack)
-        if score >= 2:
+        score, _, _ = _score(set(_tokens(name)), set(), haystack)
+        if score >= 4:
             scored.append((score, name))
     scored.sort(key=lambda r: (-r[0], r[1]))
     return [name for _, name in scored[:limit]]
