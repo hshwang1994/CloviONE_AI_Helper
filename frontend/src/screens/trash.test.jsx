@@ -135,8 +135,10 @@ describe("권한과 빈 상태", () => {
     mockList([]);
     renderTrash();
     expect(await screen.findByRole("heading", { name: "휴지통이 비어 있습니다" })).toBeInTheDocument();
-    // 요약 카드도 표도 그리지 않는다(0만 늘어놓는 카드 줄은 정보가 아니다).
-    expect(screen.queryByText("보관 중")).toBeNull();
+    // 표도 조작기도 그리지 않는다 — 「전체 0 / 티켓 0 / 문서 0」은 정보가 아니라 소음이다.
+    // (조건이 걸려 0건인 경우는 **다른 사실**이라 탭 줄이 남는다 — trash-tabs.test.jsx.)
+    expect(screen.queryByRole("tab")).toBeNull();
+    expect(screen.queryByRole("table")).toBeNull();
   });
 
   /* WF1 R5 — 빈 상태 안내가 바로 위 상시 안내문("삭제한 티켓과 문서를 7일 동안 보관합니다...")

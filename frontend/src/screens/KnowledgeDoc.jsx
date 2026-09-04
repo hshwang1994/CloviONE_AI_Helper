@@ -14,6 +14,7 @@ import { api } from "../lib/api.js";
 import {
   Badge,
   Button,
+  Callout,
   Card,
   EmptyState,
   ErrorState,
@@ -210,7 +211,7 @@ function InfoRow({ label, children }) {
  * 그림인지는 응답의 `mime_type` 으로 안다. 서버에 새 칸을 만들지 않는다. */
 const IMAGE_MIME = /^image\//;
 
-function Attachments({ documentId, items, onChanged }) {
+function Attachments({ documentId, items, onChanged, readOnly = false }) {
   const toast = useToast();
   const confirm = useConfirm();
   const inputRef = React.useRef(null);
@@ -258,7 +259,9 @@ function Attachments({ documentId, items, onChanged }) {
   return (
     <Section
       title={`첨부 ${items.length}`}
-      action={(
+      /* 휴지통 문서에는 올릴 자리를 안 만든다 — 서버가 404 로 막으므로 단추는 언제나
+         실패하고, 사용자는 파일을 고르고 나서야 그것을 안다. */
+      action={readOnly ? null : (
         <Button size="small" variant="ghost" onClick={() => inputRef.current?.click()}>
           파일 올리기
         </Button>
@@ -335,6 +338,10 @@ function Attachments({ documentId, items, onChanged }) {
               <Typography variant="caption" color="text.secondary" sx={{ flexShrink: 0 }}>
                 {humanSize(file.size_bytes)}
               </Typography>
+              {/* 🔴 `readOnly` 가 「파일 올리기」만 걷고 이 「삭제」는 놔뒀었다. 서버는
+                  휴지통 문서의 첨부 떼기도 404 로 막으므로(`delete_attachment`), 남겨 두면
+                  확인 창까지 지나고 나서야 「문서를 찾지 못했습니다」가 뜬다. */}
+              {readOnly ? null : (
               <Button
                 size="small"
                 variant="ghost"
@@ -348,6 +355,7 @@ function Attachments({ documentId, items, onChanged }) {
               >
                 삭제
               </Button>
+              )}
             </Stack>
           ))}
           {/* 그림도 뗄 수 있어야 한다. 격자에는 단추를 겹치지 않고 이름 줄로 함께 센다 —
@@ -365,6 +373,10 @@ function Attachments({ documentId, items, onChanged }) {
               <Typography variant="caption" color="text.secondary" sx={{ flexShrink: 0 }}>
                 {humanSize(file.size_bytes)}
               </Typography>
+              {/* 🔴 `readOnly` 가 「파일 올리기」만 걷고 이 「삭제」는 놔뒀었다. 서버는
+                  휴지통 문서의 첨부 떼기도 404 로 막으므로(`delete_attachment`), 남겨 두면
+                  확인 창까지 지나고 나서야 「문서를 찾지 못했습니다」가 뜬다. */}
+              {readOnly ? null : (
               <Button
                 size="small"
                 variant="ghost"
@@ -378,6 +390,7 @@ function Attachments({ documentId, items, onChanged }) {
               >
                 삭제
               </Button>
+              )}
             </Stack>
           ))}
         </Stack>
@@ -391,7 +404,7 @@ function Attachments({ documentId, items, onChanged }) {
  *
  * **양쪽이 다 보여야 잇는다**(서버가 그렇게 판정한다). 그래서 후보는 내가 볼 수 있는
  * 문서 목록에서 고르고, 목록에 없는 문서는 이을 수 없다 — 그것이 맞다. */
-function Relations({ documentId, relations, backlinks, tickets, onChanged }) {
+function Relations({ documentId, relations, backlinks, tickets, onChanged, readOnly = false }) {
   const toast = useToast();
   const [open, setOpen] = React.useState(false);
   const [target, setTarget] = React.useState("");
@@ -423,7 +436,7 @@ function Relations({ documentId, relations, backlinks, tickets, onChanged }) {
   return (
     <Section
       title={`관련 문서 ${relations.length}`}
-      action={<Button size="small" variant="ghost" onClick={() => setOpen(true)}>문서 잇기</Button>}
+      action={readOnly ? null : <Button size="small" variant="ghost" onClick={() => setOpen(true)}>문서 잇기</Button>}
     >
       <Stack spacing={1}>
         {relations.length === 0 ? (
@@ -657,6 +670,21 @@ export function KnowledgeDoc() {
     onError: (e) => toast(e.message, "error"),
   });
 
+  /* 🔴 **휴지통에서 온 사람이 여기서 되살릴 수 있어야 한다.**
+   *
+   * 서버는 이 경로를 진작에 갖고 있었는데(`POST .../restore`) 화면에 입구가 없었다. 문서
+   * 목록에서는 보관된 문서가 안 보이므로, 휴지통에서 제목을 눌러 여기까지 온 사람에게는
+   * 되살리기가 **이 화면 말고 갈 곳이 없다.** */
+  const unarchive = useMutation({
+    mutationFn: () => api(`/api/knowledge/documents/${id}/restore`, { method: "POST" }),
+    onSuccess: () => {
+      refresh();
+      qc.invalidateQueries({ queryKey: ["trash"] });
+      toast("복원했습니다. 문서 목록에서 다시 볼 수 있습니다.", "success");
+    },
+    onError: (e) => toast(e.message, "error"),
+  });
+
   /* 본문에 그림을 넣는 길 — **첨부로 올리고 주소만 본문에 남긴다** (D4 · 지시 22.6).
    *
    * 바이트를 본문에 넣지 않는다: `data:` 이미지는 판마다 통째로 복사되고, 서버가 그 스킴을
@@ -691,6 +719,23 @@ export function KnowledgeDoc() {
   if (doc.isError) return <ErrorState error={doc.error} onRetry={() => doc.refetch()} />;
 
   const data = doc.data;
+  /* 🔴 **이 화면은 `archived` 를 한 번도 안 읽고 있었다.**
+   *
+   * 서버는 진작부터 `archived`·`archived_at`·`archiver` 를 다 실어 보냈는데
+   * (`app/knowledge/router.py::_document_json`) 이 파일에는 그 낱말이 없었다. 그래서
+   * 휴지통에서 제목을 눌러 온 사람에게 **평범한 살아 있는 문서**가 그대로 열렸다 —
+   * 편집기, 저장 단추, 즐겨찾기, 그리고 이미 들어 있는 휴지통으로 「휴지통으로 보내기」까지.
+   *
+   * 그 화면에서 오타를 고치고 저장하면 「저장했습니다」가 떴다(서버 쪽 구멍은 이번에 함께
+   * 막았다 — `get_writable_document_or_404`). 그리고 그 글은 보관기간이 끝나면 판째로
+   * 사라진다. 사람은 저장됐다고 들었는데 그 글은 곧 없어진다. */
+  const trashed = !!data.archived;
+  /* 🔴 되살리기는 **아무나 못 한다** — 운영자군이거나 자기가 버린 것이어야 한다
+   * (`app/knowledge/service.py::can_manage_trashed`, 서버가 403 을 낸다). 서버가 그 판정을
+   * 응답에 실어 주므로(`can_manage`) 화면이 못 하는 단추를 안 그린다. 휴지통 표가 같은
+   * 값으로 「권한 없음」을 적는 것과 같은 규칙이다. 값이 없는 옛 응답에서는 그리고 —
+   * 서버가 어차피 다시 검사한다. */
+  const canRestore = trashed && data.can_manage !== false;
   const current = data.current || {};
   const versionRows = versions.data?.items || [];
   const attachments = data.attachments || [];
@@ -751,8 +796,20 @@ export function KnowledgeDoc() {
       <Card>
         {/* 분류(카테고리·태그)도 **저장 버튼 하나**로 함께 저장된다. 별도 저장을 두면
             「태그만 저장했는데 본문이 안 저장됐다」가 생기고, 사용자는 어느 버튼이 무엇을
-            저장하는지 못 외운다. */}
-        <Section title="분류">
+            저장하는지 못 외운다.
+            🔴 그래서 **저장 단추가 없는 화면에서는 이 칸이 아무 데도 안 간다.** 휴지통
+            문서에서 고르개를 그대로 두면 사용자가 분류를 바꾸고 화면을 떠났다가 「안
+            바뀌었다」를 나중에 발견한다 — 오류조차 안 난다. 값만 글자로 보여 준다. */}
+        {/* 읽기 전용일 때 제목이 「태그」인 이유: 분류 값은 **바로 위 맥락 줄이 이미
+            말한다.** 같은 사실을 한 화면에 두 번 적으면 읽는 사람이 둘을 다른 것으로 읽는다. */}
+        <Section title={trashed ? "태그" : "분류"}>
+          {trashed ? (
+            <Typography variant="body2" color={(data.tags || []).length ? "text.primary" : "text.secondary"}>
+              {(data.tags || []).length
+                ? (data.tags || []).map((t) => t.name).join(", ")
+                : "태그 없음"}
+            </Typography>
+          ) : (
           <Stack spacing={2}>
             <TextField
               select
@@ -775,6 +832,7 @@ export function KnowledgeDoc() {
               helperText="저장을 누르면 본문과 함께 저장됩니다."
             />
           </Stack>
+          )}
         </Section>
       </Card>
 
@@ -785,16 +843,17 @@ export function KnowledgeDoc() {
           backlinks={data.backlinks || []}
           tickets={data.ticket_mentions || []}
           onChanged={refresh}
+          readOnly={trashed}
         />
       </Card>
 
       <Card>
-        <Attachments documentId={id} items={attachments} onChanged={refresh} />
+        <Attachments documentId={id} items={attachments} onChanged={refresh} readOnly={trashed} />
       </Card>
 
       {/* 판을 씌우지 않는다. `CommentThread` 가 이미 자기 판과 제목(「댓글 N」)을 든다 —
           감싸면 제목이 두 번 서고 판이 판 안에 든다. 실브라우저 캡처에서 그대로 보였다. */}
-      <DocComments documentId={id} />
+      <DocComments documentId={id} readOnly={trashed} />
     </Stack>
   );
 
@@ -804,7 +863,22 @@ export function KnowledgeDoc() {
         crumbRoot="팀 업무"
         area="문서"
         title={data.title}
-        actions={(
+        actions={trashed ? (
+          /* 휴지통에 있는 문서의 단추는 둘이다 — **되살리기**와 나가기. 나머지는 전부
+             할 수 없는 일이라(서버가 404 로 막는다) 그려 두면 눌러 보고서야 알게 된다.
+             특히 「휴지통으로 보내기」는 **이미 그 안에 있는 문서**에 대한 제안이었다. */
+          <>
+            {canRestore ? (
+              <Button variant="primary" loading={unarchive.isPending} onClick={() => unarchive.mutate()}>
+                복원
+              </Button>
+            ) : null}
+            <Button onClick={() => setHistory((v) => !v)}>
+              {history ? "이력 닫기" : `이력 ${versionRows.length}`}
+            </Button>
+            <Button onClick={() => navigate(backTo)}>목록으로</Button>
+          </>
+        ) : (
           <>
             <Button
               aria-pressed={Boolean(data.is_favorite)}
@@ -841,6 +915,26 @@ export function KnowledgeDoc() {
         )}
       />
 
+      {/* 🔴 **이 문서가 휴지통에 있다는 사실을 화면이 말한다.**
+          누가 언제 버렸는지까지 적는다 — 그 둘이 「내가 되살릴 수 있는가」의 근거이기도 하다
+          (`can_manage_trashed` 가 `archived_by` 를 본다). */}
+      {trashed ? (
+        <Callout
+          tone="warn"
+          title="이 문서는 휴지통에 있습니다"
+          sx={{ mb: 2 }}
+          action={canRestore ? (
+            <Button size="sm" variant="primary" loading={unarchive.isPending}
+              onClick={() => unarchive.mutate()}>복원</Button>
+          ) : null}
+        >
+          {data.archiver?.display_name
+            ? `${data.archiver.display_name}님이 ${fmtDateTimeCompact(data.archived_at)}에 버렸습니다. 보관기간이 지나면 판 이력과 댓글까지 함께 영구 삭제됩니다.`
+            : "보관기간이 지나면 판 이력과 댓글까지 함께 영구 삭제됩니다. 계속 쓰려면 먼저 복원하세요."}
+          {canRestore ? "" : " 되살리려면 이 문서를 버린 사람이나 운영자에게 요청하세요."}
+        </Callout>
+      ) : null}
+
       {/* 상단 맥락 — 「이 문서가 어디에 있고 지금 몇 판인가」 (지시 22.6). 본문을 읽다가
           확인하려고 곁열 끝까지 갔다 오지 않게 한 줄로 눕힌다. */}
       <MetaBar
@@ -866,17 +960,30 @@ export function KnowledgeDoc() {
         <Stack spacing={2} sx={{ minWidth: 0 }}>
           <Card>
             <Stack spacing={2}>
-              <TextField
-                label="문서 제목"
-                InputLabelProps={{ shrink: true }}
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                inputProps={{ maxLength: 500 }}
-                fullWidth
-              />
-              <React.Suspense fallback={<Skeleton kind="section" lines={6} />}>
-                <BlockEditor value={body} onChange={setBody} onPickImage={pickImage} />
-              </React.Suspense>
+              {/* 휴지통 문서는 **읽기 전용**이다. 편집기를 그대로 두면 사람이 고칠 수 있는
+                  것처럼 보이고, 서버가 404 로 막으면 그제서야 알게 된다 — 그 순간까지 친
+                  글은 아무 데도 안 남는다. 고칠 수 있게 하는 길은 「복원」 하나다. */}
+              {trashed ? (
+                /* 제목은 다시 안 적는다 — 페이지 머리가 이미 그 이름을 든다. 편집 칸을
+                   읽기 전용 글자로 바꾸면 같은 제목이 화면에 두 번 선다. */
+                <React.Suspense fallback={<Skeleton kind="section" lines={6} />}>
+                  <BlockEditor value={body} onChange={undefined} readOnly />
+                </React.Suspense>
+              ) : (
+                <>
+                  <TextField
+                    label="문서 제목"
+                    InputLabelProps={{ shrink: true }}
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    inputProps={{ maxLength: 500 }}
+                    fullWidth
+                  />
+                  <React.Suspense fallback={<Skeleton kind="section" lines={6} />}>
+                    <BlockEditor value={body} onChange={setBody} onPickImage={pickImage} />
+                  </React.Suspense>
+                </>
+              )}
             </Stack>
           </Card>
 
@@ -935,6 +1042,10 @@ export function KnowledgeDoc() {
                             >
                               지금 판과 비교
                             </Button>
+                            {/* 🔴 휴지통 문서에는 안 그린다. 이력 **보기**는 남긴다 —
+                                무엇을 잃는지가 되살릴지의 근거이고 읽기는 열려 있다.
+                                되돌리기만 서버가 404 로 막는다(`restore_document_version`). */}
+                            {trashed ? null : (
                             <Button
                               size="small"
                               disabled={isCurrent}
@@ -953,6 +1064,7 @@ export function KnowledgeDoc() {
                             >
                               되돌리기
                             </Button>
+                            )}
                           </Stack>
                         </Stack>
                       </Box>

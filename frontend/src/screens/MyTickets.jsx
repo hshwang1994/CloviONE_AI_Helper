@@ -473,7 +473,7 @@ export function GroupedTickets({ rows, columns, empty, emptyHelp, emptyState, gr
 
   return (
     <>
-    <HiddenColumnsNote columns={fit.hidden} />
+    <HiddenColumnsNote columns={fit.hidden} openable />
     <TableContainer ref={setBoxEl}>
       <Table size="small" sx={tableLayoutSx(wideCols)}>
         <TableColGroup columns={wideCols} />

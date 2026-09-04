@@ -31,6 +31,21 @@ export function initialLandingPath(pathname, _role) {
   return pathname === "/admin" ? "/dashboard" : "/me";
 }
 
+/** 이 해시가 **갈 곳을 말하고 있나**. 아니면 착지 규칙이 대신 정한다.
+ *
+ * 🔴 `"/"` 도 갈 곳이 아니다. `#/` 는 `hash.replace("#","")` 를 지나면 truthy 한 `"/"` 가
+ * 되어 예전 조건(`!h`)을 그냥 통과했는데, **두 라우트 표 어디에도 `path="/"` 가 없다** —
+ * 그래서 `href="#/"` 로 보내던 세 자리(`kit.jsx` 의 ErrorState, 관리 콘솔·설정의 권한 벽)가
+ * 전부 「찾을 수 없습니다」로 갔다. 막다른 길에서 막다른 길로 보낸 것이다.
+ *
+ * 라우트 표에 `path="/"` 를 넣는 쪽으로는 안 고친다 — 그 자리는 **역할을 모른다.** 인증
+ * 조회가 끝나기 전에 그 리다이렉트가 먼저 돌면 일반 사용자가 관리자 대시보드 주소로
+ * 밀려가고, 그 뒤에는 해시가 비어 있지 않아 이 규칙이 다시 안 돈다. */
+export function hasDestination(hash) {
+  const h = String(hash || "").replace("#", "");
+  return !!h && h !== "/";
+}
+
 /* 첫 페인트 전에 테마를 적용해 다크 사용자의 화이트 플래시(FOUC)를 없앤다.
  * CSP가 인라인 <script>를 막으므로 부팅 인라인 스크립트 대신 모듈 스코프에서 동기 적용한다
  * (이 모듈은 createRoot보다 먼저 평가된다). */
@@ -68,9 +83,13 @@ function Layout() {
   // (누를 것이 없다) 안전하게 기다린다.
   useEffect(() => {
     if (auth.isLoading) return;
-    const h = window.location.hash.replace("#", "");
-    if (!h) nav(initialLandingPath(window.location.pathname, role), { replace: true });
-  }, [auth.isLoading]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (!hasDestination(window.location.hash)) {
+      nav(initialLandingPath(window.location.pathname, role), { replace: true });
+    }
+    // 🔴 `loc.pathname` 이 의존성에 **있어야 한다**. 없으면 이 규칙이 부팅 때 한 번만 돌아,
+    // SPA 안에서 `#/` 로 이동하는 경우(`hasDestination` 주석의 세 단추)를 못 받는다.
+    // 여기는 `auth.isLoading` 을 기다리므로 역할을 알고 나서 정한다.
+  }, [auth.isLoading, loc.pathname]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // must_change_password가 켜진 계정은 /api/me 이외 거의 모든 API가 403으로 막힌다 —
   // 그대로 두면 화면마다 막다른 403만 보인다. login.js가 로그인 직후 하는 것과 같은

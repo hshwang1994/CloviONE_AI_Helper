@@ -63,10 +63,13 @@ function CommentRow({ comment, person, busy, onEdit, onDelete }) {
           <Typography component="span" variant="caption" color="text.secondary">(수정됨)</Typography>
         ) : null}
         <Box sx={{ flex: 1 }} />
-        {comment.can_edit ? (
+        {/* 두 조건을 **함께** 본다. 서버가 「이 사람은 고칠 수 있다」고 말해도, 이 화면이
+            읽기 전용이면(핸들러를 안 준다) 자리를 만들지 않는다 — 예전에는 앞 조건만 봐서
+            핸들러가 없는 단추가 그려졌고, 누르면 아무 일도 안 났다. */}
+        {comment.can_edit && onEdit ? (
           <Button size="sm" variant="ghost" disabled={busy} onClick={onEdit}>수정</Button>
         ) : null}
-        {comment.can_delete ? (
+        {comment.can_delete && onDelete ? (
           <Button size="sm" variant="ghost" disabled={busy} onClick={onDelete}>삭제</Button>
         ) : null}
       </Stack>
@@ -80,7 +83,13 @@ function CommentRow({ comment, person, busy, onEdit, onDelete }) {
 /* `listUrl` 은 목록(GET)과 작성(POST)을 함께 쓰는 주소이고, `itemUrl(id)` 는 수정(PATCH)과
  * 삭제(DELETE) 주소를 만든다. 두 자원의 URL 모양이 같아서(`…/{id}/comments`,
  * `…/comments/{comment_id}`) 이 두 개면 충분하다. */
-export function CommentThread({ queryKey, listUrl, itemUrl, emptyHint }) {
+/** @param {boolean} [readOnly] 읽기만 — 쓰는 자리를 **그리지 않는다.**
+ *
+ * 휴지통에 있는 문서가 이 갈래를 쓴다. 서버가 그 문서의 쓰기를 404 로 막으므로
+ * (`get_writable_document_or_404`) 작성 칸을 그대로 두면 사람은 글을 다 쓰고 나서야
+ * 「문서를 찾지 못했습니다」를 본다 — 그 글은 아무 데도 안 남는다. 못 하는 일은
+ * 실패하게 두는 것보다 **자리를 안 만드는 것**이 낫다. */
+export function CommentThread({ queryKey, listUrl, itemUrl, emptyHint, readOnly = false }) {
   const qc = useQueryClient();
   const toast = useToast();
   const confirm = useConfirm();
@@ -173,13 +182,18 @@ export function CommentThread({ queryKey, listUrl, itemUrl, emptyHint }) {
               comment={c}
               person={people[c.author_user_id]}
               busy={busy}
-              onEdit={() => { setEditingId(c.id); setEditDraft(c.body || ""); }}
-              onDelete={() => askDelete(c.id)}
+              /* 읽기 전용이면 수정·삭제 자리도 안 만든다 — `CommentRow` 는 핸들러가
+                 없으면 그 단추를 안 그린다. */
+              onEdit={readOnly ? null : () => { setEditingId(c.id); setEditDraft(c.body || ""); }}
+              onDelete={readOnly ? null : () => askDelete(c.id)}
             />
           )
         ))}
       </Box>
 
+      {/* 못 쓰는 자리에는 쓰는 칸을 안 만든다. 서버가 404 로 막는 문서(휴지통)에서
+          칸을 그대로 두면 사람은 글을 다 쓰고 나서야 그것을 안다. */}
+      {readOnly ? null : (
       <Box sx={{ mt: 2 }}>
         <TextField
           multiline minRows={3} fullWidth size="small"
@@ -197,6 +211,7 @@ export function CommentThread({ queryKey, listUrl, itemUrl, emptyHint }) {
           </Button>
         </Stack>
       </Box>
+      )}
     </Card>
   );
 }

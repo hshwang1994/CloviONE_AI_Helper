@@ -106,4 +106,17 @@ describe("권한이 그릇과 안쪽 탭에서 같다", () => {
     renderAt("/audit");
     expect(await screen.findByText("권한이 없습니다", {}, { timeout: 5000 })).toBeInTheDocument();
   });
+
+  /* 🔴 **막다른 길에서 막다른 길로 보내지 않는다.**
+   *
+   * 이 안내의 단추는 `href="#/"` 였는데 두 라우트 표 어디에도 `path="/"` 가 없어서,
+   * 권한 벽에서 유일한 단추를 누르면 「찾을 수 없습니다」로 갔다. 라벨이 「대시보드로
+   * 이동」이면 대시보드로 가야 한다. */
+  it("🔴 그 안내의 단추가 실제로 대시보드를 가리킨다", async () => {
+    mockRole = "user";
+    renderAt("/audit");
+    await screen.findByText("권한이 없습니다", {}, { timeout: 5000 });
+    const go = screen.getByRole("link", { name: "대시보드로 이동" });
+    expect(go.getAttribute("href")).toBe("#/dashboard");
+  });
 });

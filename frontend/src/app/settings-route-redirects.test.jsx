@@ -81,6 +81,10 @@ describe("옛 설정류 주소 → /settings 탭 리다이렉트", () => {
     expect(await screen.findByText("권한이 없습니다", {}, WAIT)).toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: "시스템 정책" })).not.toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: "OS와 서비스 동작" })).not.toBeInTheDocument();
+    // 🔴 그 안내의 단추도 실제로 대시보드를 가리켜야 한다 — `#/` 는 어느 라우트 표에도
+    // 없어서 「찾을 수 없습니다」로 갔다(관리 콘솔의 같은 자리와 한 벌이다).
+    expect(screen.getByRole("link", { name: "대시보드로 이동" }).getAttribute("href"))
+      .toBe("#/dashboard");
   });
 
   // 옛 '연동' 탭 주소. 즐겨찾기에 남아 있을 수 있으니 조용히 어딘가로 떨어뜨리지 않고,

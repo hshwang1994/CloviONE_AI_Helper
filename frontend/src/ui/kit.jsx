@@ -1870,20 +1870,37 @@ export function useFittedColumns(columns, boxEl) {
 }
 
 /* 열이 조용히 사라지면 사용자는 그 값을 못 봤다는 사실조차 모른다 (PA-RC-0037).
- * 무엇이 왜 없는지를 표가 직접 말한다 — 두 표가 **같은 문장**을 쓴다. */
-export function HiddenColumnsNote({ columns }) {
+ * 무엇이 왜 없는지를 표가 직접 말한다 — 두 표가 **같은 문장**을 쓴다.
+ *
+ * 🔴 「행을 열면」은 **행을 열 수 있는 표에서만** 사실이다. 그 문장을 무조건 적으면,
+ * 행이 안 열리는 표(`onRow` 를 안 주는 화면 — 휴지통이 그렇다)에서 사용자는 열 방법을
+ * 찾다가 못 찾는다. 안내가 없는 것보다 **없는 길을 가리키는 안내**가 더 나쁘다.
+ * 열 수 없으면 그 자리에는 창을 넓히라고 말한다 — 그것이 그 표에서 실제로 되는 일이다. */
+export function HiddenColumnsNote({ columns, openable = false }) {
   const names = (columns || []).map((c) => c.label).filter(Boolean);
   if (!names.length) return null;
   return (
     <Typography variant="caption" color="text.secondary" sx={{ display: "block", px: 2, pt: 1.5 }}>
-      칸이 좁아 {names.join(", ")} 열을 숨겼습니다. 행을 열면 전체 정보를 볼 수 있습니다.
+      칸이 좁아 {names.join(", ")} 열을 숨겼습니다.{" "}
+      {openable ? "행을 열면 전체 정보를 볼 수 있습니다." : "창을 넓히면 다시 보입니다."}
     </Typography>
   );
 }
 
-/** 말줄임 대상 열인가 — DataTable·GroupedTickets 가 같은 규칙을 쓴다. */
+/** 말줄임 대상 열인가 — DataTable·GroupedTickets 가 같은 규칙을 쓴다.
+ *
+ * 🔴 **행 동작·선택 열은 어떤 경우에도 아니다.** 바로 위 `colCellSx` 의 `nowrap` 갈래가
+ * 그 둘을 이미 제외해 두었는데(「그 안은 글이 아니라 누를 것이라 잘리면 닿을 수 없게
+ * 된다」), 호출부가 `ellipsis` 를 넘기면 이 함수가 참을 내면서 **그 가드를 통째로
+ * 우회했다** — `truncate` 갈래는 `maxWidth: 0; overflow: hidden` 을 무조건 건다.
+ * 그래서 휴지통처럼 표 전체에 `ellipsis` 를 건 화면에서 「복원 / 영구 삭제」 단추와
+ * 체크박스가 칸이 좁아지는 순간 잘렸다.
+ *
+ * 가드를 **호출부가 아니라 여기**에 둔다. 호출부에서 `ellipsis` 를 빼는 것으로 고치면
+ * 같은 실수를 하는 다음 화면에서 다시 난다. */
 export function columnShouldTruncate(col, ellipsis) {
   const c = col || {};
+  if (c.type === "actions" || c.type === "select") return false;
   return !!(ellipsis || !c.render || c.type === "title" || c.type === "name" || c.type === "text" || c.type === "enum");
 }
 
@@ -2053,7 +2070,22 @@ export function DataTable({ columns, rows, rowKey, onRow, rowHref, empty, ellips
   /* 열을 접는 판단은 **이 표가 받은 칸**이 한다 (D-380). 뷰포트가 아니다 — 문서 목록의
      표는 1920 에서도 자기 칸이 902px 이라 넘쳤고, 옛 규칙(900~1200)은 그때 아무 열도
      안 뺐다. 카드 뷰는 안 건드린다: 폭 제약이 없는 카드에서 열을 빼면 정보만 준다. */
-  const fit = useFittedColumns(baseCols, narrow ? null : scrollEl);
+  /* 🔴 **지금 정렬 중인 열은 숨기지 않는다.**
+   *
+   * `planNarrowColumns` 는 칸이 좁으면 `hideNarrow` 열을 뒤에서부터 뺀다. 그런데 그 열이
+   * 지금 목록을 세우고 있는 축이면, 머리행이 `wideCols` 로만 그려지므로 **정렬 화살표와
+   * 정렬 단추와 `aria-sort` 가 통째로 사라진다** — 목록은 그 축으로 서 있는데 화면에는
+   * 그렇게 말하는 자리가 없고, 방향을 되돌릴 방법도 없다. 휴지통에서 기본 축(삭제일)이
+   * 정확히 그렇게 가장 먼저 빠졌다.
+   *
+   * 접히는 후보에서만 뺀다 — 그 열이 자리를 차지하므로 다른 `hideNarrow` 열이 대신 접힌다. */
+  const sortKey = sort && sort.key;
+  const fitCols = React.useMemo(
+    () => (sortKey ? baseCols.map((c) => (c.key === sortKey && c.hideNarrow ? { ...c, hideNarrow: false } : c)) : baseCols),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [baseCols, sortKey],
+  );
+  const fit = useFittedColumns(fitCols, narrow ? null : scrollEl);
   const wideCols = fit.shown;
   // 값 자체는 행을 열면(onRow) 상세에서 그대로 보인다 — 여기서는 "더 있다"는 사실만 알린다.
   const hiddenCols = fit.hidden;
@@ -2197,7 +2229,7 @@ export function DataTable({ columns, rows, rowKey, onRow, rowHref, empty, ellips
 
   return (
     <>
-      <HiddenColumnsNote columns={hiddenCols} />
+      <HiddenColumnsNote columns={hiddenCols} openable={!!onRow || !!rowHref} />
       {/* 뺀 열은 **한 번 적는다** (R-91). 열이 조용히 사라지면 사용자는 그 값을 못 봤다는
           사실조차 모른다 — 무엇이 왜 없는지를 표가 직접 말한다. */}
       {collapse.caption ? (

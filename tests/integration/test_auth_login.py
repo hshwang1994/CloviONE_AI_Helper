@@ -22,7 +22,13 @@ def test_login_success_sets_cookie_and_returns_user(client, make_user):
     set_cookie = r.headers["set-cookie"]
     assert f"{SESSION_COOKIE_NAME}=" in set_cookie
     assert "HttpOnly" in set_cookie
-    assert "SameSite=strict" in set_cookie.lower() or "samesite=strict" in set_cookie.lower()
+    # 🔴 `strict` 가 아니라 **`lax`** 다. `strict` 는 다른 사이트에서 시작된 이동에 쿠키를
+    # 아예 안 실어서, 채팅앱·메일로 받은 티켓·문서 링크를 누른 사람이 **이미 로그인돼 있어도**
+    # 매번 로그인 화면을 봤다. `lax` 는 top-level 이동 + 안전한 메서드 한 갈래만 열고,
+    # cross-site 하위 요청과 cross-site POST 에는 그대로 안 싣는다.
+    # CSRF 는 헤더 토큰이 막는다 — `tests/security/test_csrf_coverage.py` 가 그것을 라우트
+    # 전량으로 검사한다. 이 단언을 `strict` 로 되돌리면 그 링크 증상이 그대로 돌아온다.
+    assert "samesite=lax" in set_cookie.lower()
     # S3: 세션 쿠키는 **host-only** 다 — `Domain` 을 붙이지 않는다.
     # 호스트명을 바꾸면서 «옛 이름으로 로그인한 사람이 새 이름에서 다시 로그인해야 한다» 를
     # 없애려고 `Domain=.gooddi.lab` 을 붙이고 싶어지는 자리다. 그러면 그 도메인의 **모든**

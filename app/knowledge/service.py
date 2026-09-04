@@ -67,7 +67,9 @@ __all__ = [
     "update_folder",
     "delete_folder",
     "list_documents",
+    "count_archived_due_before",
     "get_scoped_document_or_404",
+    "get_writable_document_or_404",
     "create_document",
     "save_document",
     "move_document",
@@ -427,7 +429,19 @@ def _document_scope(db: Session, user: User):
 #: 화면이 컬럼 이름을 문자열로 보내고 서버가 그대로 `order_by` 에 넣으면 그것은 SQL 에
 #: 임의의 이름을 실어 보내는 길이다(같은 이유로 `app/work/rank.py` 가 허용 목록을 둔다).
 #: 모르는 값은 기본값으로 떨어진다 — 거절하면 옛 주소를 들고 온 사람의 목록이 통째로 깨진다.
-SORTS: tuple[str, ...] = ("recent", "created", "title", "archived")
+#:
+#: 🔴 제목 축은 `func.lower()` 를 지난다. 그냥 `Document.title.asc()` 면 순서를 **DB
+#: 콜레이션**이 정하는데, 휴지통은 이 원천의 앞 N 줄과 옛 미러 표의 앞 N 줄을 각각 잘라
+#: 합친 뒤 **파이썬 문자열 비교**로 다시 세운다. 두 비교가 다르면(`C` 콜레이션에서는
+#: 'Zebra' < 'apple' 인데 파이썬 소문자 비교는 반대다) 합친 앞 N 줄이 전역 순서가 아니고,
+#: 첫 화면에서 빠진 줄이 「더 보기」에서 목록 한가운데로 들어온다. 문서 목록의 제목 정렬도
+#: 이 값으로 대소문자를 안 가리게 되는데, 그쪽은 사람이 기대하는 순서에 더 가깝다.
+#:
+#: 뒤의 둘(`archived_asc` · `title_desc`)은 **휴지통이 쓴다.** 휴지통은 옛 미러 항목과
+#: 문서 두 원천을 각각 상한까지 받아 합치므로, 두 원천이 **같은 축·같은 방향**으로 정렬돼
+#: 있어야 합친 앞 `limit` 줄이 전역으로 옳다. 화면이 「삭제일 오름차순」을 고르면 이쪽도
+#: 오름차순이어야 한다 — 한쪽만 내림차순이면 합친 목록 한가운데가 빈다.
+SORTS: tuple[str, ...] = ("recent", "created", "title", "archived", "archived_asc", "title_desc")
 
 
 def _order_by(sort: str | None):
@@ -435,11 +449,17 @@ def _order_by(sort: str | None):
     if sort == "created":
         return (Document.created_at.desc(), Document.id.asc())
     if sort == "title":
-        return (Document.title.asc(), Document.id.asc())
+        return (func.lower(Document.title).asc(), Document.id.asc())
+    if sort == "title_desc":
+        return (func.lower(Document.title).desc(), Document.id.asc())
     if sort == "archived":
         # 휴지통이 쓰는 축. 0021 이전에 보관된 문서는 이 값이 NULL 이라 뒤로 보낸다 —
         # 앞에 세우면 「가장 최근에 버린 것」 자리에 시각을 모르는 행이 선다.
         return (Document.archived_at.desc().nullslast(), Document.id.asc())
+    if sort == "archived_asc":
+        # 오래 버려둔 것부터. NULL 은 여기서도 **뒤**다 — 시각을 모르는 행이 「가장 오래된
+        # 것」 자리에 서면 그것도 거짓말이다. 양쪽 방향에서 같은 자리에 둔다.
+        return (Document.archived_at.asc().nullslast(), Document.id.asc())
     return (Document.updated_at.desc(), Document.id.asc())
 
 
@@ -581,12 +601,67 @@ def list_documents(
     return rows, int(total)
 
 
+def count_archived_due_before(db: Session, user: User, cutoff) -> int:
+    """보관된 문서 중 `archived_at` 이 `cutoff` 이전인 것의 개수 — **상한과 무관하게** 센다.
+
+    휴지통 화면의 「24시간 내 영구 삭제」가 이 값을 쓴다. 예전에는 화면이 **받아 온 목록**을
+    세서, 조건이 걸려 있거나 항목이 상한을 넘으면 그 수가 조용히 줄었다 — 급한 건수를
+    실제보다 적게 말하는 경고는 경고가 아니다.
+
+    가시성 절은 `list_documents` 와 **같은 문**을 지난다(`_document_scope`). 개수와 목록이
+    다른 규칙으로 세면 「2건 급하다」고 해 놓고 눌렀을 때 아무것도 안 나온다.
+    """
+    ctx, clause = _document_scope(db, user)
+    stmt = select(Document).where(
+        Document.archived.is_(True),
+        Document.archived_at.isnot(None),
+        Document.archived_at <= cutoff,
+    )
+    if clause is not None:
+        stmt = stmt.where(clause)
+    return int(
+        db.execute(select(func.count()).select_from(stmt.order_by(None).subquery())).scalar_one()
+    )
+
+
 def get_scoped_document_or_404(db: Session, user: User, document_id: str) -> Document:
     document = db.get(Document, document_id)
     if document is None:
         raise NotFoundError("문서를 찾지 못했습니다.")
     ctx = context_for_user(db, user)
     if not is_visible(db, ctx, RESOURCE_KNOWLEDGE_DOC, document):
+        raise NotFoundError("문서를 찾지 못했습니다.")
+    return document
+
+
+def get_writable_document_or_404(db: Session, user: User, document_id: str) -> Document:
+    """쓰기 전에 지나는 문. 범위를 보고, **휴지통에 있으면 없는 것으로 본다.**
+
+    ## 무엇이 뚫려 있었나
+
+    문서 삭제는 `documents.archived` 를 세우는 일인데 **어떤 쓰기 경로도 그 값을 안 봤다.**
+    그래서 휴지통에서 제목을 눌러 문서를 연 사람이 오타를 고치고 「저장」을 누르면
+    「저장했고 새 판을 이력에 남겼습니다」라는 성공 안내를 받았다. 그런데 그 문서는 여전히
+    목록에 없고(`list_documents` 가 `archived` 를 거른다), 보관기간이 지나면
+    `purge_expired_documents` 가 **판까지 통째로 하드 삭제한다.** 사람은 「저장됐다」고
+    들었는데 그 글은 곧 사라진다.
+
+    티켓은 이 구멍을 이미 막았다 — `app/tickets/service.py::ensure_not_trashed` 의 머리말이
+    같은 증상을 적고 「게시판은 제대로 하는데 티켓·문서만 빠져 있었다」고 쓴 그 문서가
+    이쪽이다. 티켓만 고치고 문서는 안 고쳤다.
+
+    ## 읽기는 막지 않는다 — 그것이 티켓과 다른 점이다
+
+    티켓은 상세 조회까지 404 로 막았다. 문서는 **그러면 안 된다**: 휴지통 화면이
+    「되돌릴 수 없는 영구 삭제 앞에서 무엇을 지우는지 본다」를 이 읽기 위에 세우고 있고
+    (`app/trash/router.py`), 그래서 `get_scoped_document_or_404` 는 `archived` 를 안 본다.
+    막는 것은 **쓰기**다.
+
+    **403 이 아니라 404** 다 — 티켓과 같은 이유다(403 은 「있지만 당신은 안 된다」라서
+    존재를 알려 준다).
+    """
+    document = get_scoped_document_or_404(db, user, document_id)
+    if document.archived:
         raise NotFoundError("문서를 찾지 못했습니다.")
     return document
 
@@ -685,7 +760,7 @@ def save_document(
     `category_id` 는 기본값이 `UNSET` 이다 — `None` 은 「미분류로 되돌린다」는 실제 값이라,
     카테고리를 모르는 호출자가 분류를 지우지 않으려면 「안 보냈다」가 따로 있어야 한다.
     """
-    document = get_scoped_document_or_404(db, user, document_id)
+    document = get_writable_document_or_404(db, user, document_id)
     _check_lock(document, expected_version)
 
     changed = False
@@ -768,7 +843,7 @@ def move_document(
     두 번째 반환값은 "소속(공간)이 실제로 바뀌었는가" — 라우터가 감사 로그 여부를
     그것으로 정한다.
     """
-    document = get_scoped_document_or_404(db, user, document_id)
+    document = get_writable_document_or_404(db, user, document_id)
     _check_lock(document, expected_version)
 
     space_changed = False
@@ -814,8 +889,20 @@ def delete_document(db: Session, user: User, document_id: str, *, now=None) -> D
 
     **누가 언제 버렸는지를 함께 적는다** (0021). 그 둘이 없으면 휴지통이 「삭제한 사람」도
     「삭제 예정」도 말할 수 없고, 되살릴 권한을 누구에게 줄지도 판정할 수 없다.
+
+    🔴 **이미 버려진 것을 또 버리면 아무 일도 안 한다** — `restore_document` 와 같은 멱등이다.
+    다시 찍으면 그 두 값이 갈리고, 그 둘은 장식이 아니라 계약이다:
+      * `archived_at` 은 **삭제 예정일의 기준**이다(`app/trash/router.py::_document_view`).
+        다시 찍으면 그 줄의 보관기간이 통째로 한 주기 뒤로 밀린다 — 아무도 안 눌렀는데
+        「9월 2일에 사라짐」이 「9월 9일」이 된다.
+      * `archived_by` 는 **누가 되살릴 수 있는가**다(`can_manage_trashed`). 다시 찍으면
+        원래 버린 사람이 자기 항목의 복원·영구삭제 권한을 잃는다.
+    닿는 길은 한 걸음이었다: 휴지통에서 문서를 열면 그 화면이 「휴지통으로 보내기」를
+    그대로 내놓고 있었다(그 메뉴는 W4 에서 함께 걷었다).
     """
     document = get_scoped_document_or_404(db, user, document_id)
+    if document.archived:
+        return document
     document.archived = True
     document.archived_at = now or utcnow()
     document.archived_by = user.id
@@ -1034,7 +1121,7 @@ def restore_document_version(
     db: Session, user: User, document_id: str, version_no: int,
     *, expected_version: int | None = None,
 ) -> dict:
-    document = get_scoped_document_or_404(db, user, document_id)
+    document = get_writable_document_or_404(db, user, document_id)
     version = versions.restore(
         db, document, version_no, author_id=user.id, expected_version=expected_version
     )
@@ -1329,7 +1416,7 @@ def get_scoped_document_by_legacy_page_id(db: Session, user: User, legacy_page_i
 
 
 def toggle_favorite(db: Session, user: User, document_id: str, *, on: bool, now) -> bool:
-    document = get_scoped_document_or_404(db, user, document_id)
+    document = get_writable_document_or_404(db, user, document_id)
     return doc_favorites.toggle(
         db, user_id=user.id, document_id=document.id, on=on, now=now
     )
@@ -1357,7 +1444,7 @@ def list_comments(db: Session, user: User, document_id: str) -> dict:
 
 
 def add_comment(db: Session, user: User, document_id: str, *, body: str, now) -> dict:
-    document = get_scoped_document_or_404(db, user, document_id)
+    document = get_writable_document_or_404(db, user, document_id)
     created = doc_comments.create_comment(
         db, document_id=document.id, author=user, body=body, now=now
     )
@@ -1372,7 +1459,7 @@ def edit_comment(db: Session, user: User, comment_id: str, *, body: str, now) ->
     # 범위 판정이 권한 판정보다 **먼저**다. 순서가 뒤집히면 범위 밖 댓글에 403 이 나가고,
     # 403 은 「그 id 는 존재한다」를 알려 준다.
     comment = doc_comments.get_or_404(db, comment_id)
-    get_scoped_document_or_404(db, user, comment.document_id)
+    get_writable_document_or_404(db, user, comment.document_id)
     doc_comments.ensure_can_edit(comment, user)
     doc_comments.update_comment(db, comment, body=body, now=now)
     return doc_comments.list_comments(db, document_id=comment.document_id, me=user)
@@ -1381,7 +1468,7 @@ def edit_comment(db: Session, user: User, comment_id: str, *, body: str, now) ->
 def delete_comment(db: Session, user: User, comment_id: str, *, now) -> dict:
     # 범위 밖은 404 — 모더레이션 권한(운영자군)은 **자기 범위 안에서만** 있다.
     comment = doc_comments.get_or_404(db, comment_id)
-    get_scoped_document_or_404(db, user, comment.document_id)
+    get_writable_document_or_404(db, user, comment.document_id)
     doc_comments.ensure_can_delete(comment, user)
     doc_comments.soft_delete_comment(db, comment, now=now)
     return doc_comments.list_comments(db, document_id=comment.document_id, me=user)

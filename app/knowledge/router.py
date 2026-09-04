@@ -109,7 +109,7 @@ _CATEGORY_NOT_LOADED = object()
 
 def _document_json(
     document, *, tags=None, category=_CATEGORY_NOT_LOADED,
-    is_favorite: bool | None = None, extras=None,
+    is_favorite: bool | None = None, extras=None, can_manage: bool | None = None,
 ) -> dict:
     out = {
         "id": document.id,
@@ -151,6 +151,11 @@ def _document_json(
         # 우리 사용자가 썼다 · 원본에 이렇게 적혀 있었다 · 모른다.
         out["legacy_author_name"] = document.legacy_author_name or ""
         out["archiver"] = (extras["people"] or {}).get(document.archived_by)
+        # 🔴 **이 사람이 되살릴 수 있는가.** 없으면 화면은 「복원」 단추를 가릴 근거가 없어
+        # 아무에게나 그리고, 못 하는 사람은 눌러 보고서야 403 을 본다. 휴지통 표는 같은
+        # 규칙을 `can_manage` 로 이미 받아 「권한 없음」이라고 적는다(`app/trash/router.py`).
+        if can_manage is not None:
+            out["can_manage"] = can_manage
         counts = extras["counts"] or {}
         out["counts"] = {
             key: (counts.get(key) or {}).get(document.id, 0)
@@ -561,6 +566,7 @@ def get_document(
             category=categories_mod.of_documents(db, [document.id]).get(document.id),
             is_favorite=document.id in service.favorite_ids(db, user, [document.id]),
             extras=extras,
+            can_manage=service.can_manage_trashed(user, document),
         ),
         "current": _version_json(detail["version"], body=True),
         "relations": [{**r, "title": titles.get(r["document_id"], "")} for r in detail["relations"]],
@@ -803,9 +809,15 @@ def add_relation(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("DOCUMENT_UPDATE")),
 ) -> dict:
-    """**양쪽이 다 보여야 잇는다.** 한쪽만 보이면 안 보이는 문서의 존재가 새어 나간다."""
-    service.get_scoped_document_or_404(db, user, document_id)
-    service.get_scoped_document_or_404(db, user, payload.to_document_id)
+    """**양쪽이 다 보여야 잇는다.** 한쪽만 보이면 안 보이는 문서의 존재가 새어 나간다.
+
+    그리고 **양쪽 다 휴지통 밖**이어야 한다 — 곧 영구 삭제될 문서로 관계를 새로 만들면
+    그 관계는 만들자마자 CASCADE 로 사라진다. 지우는 쪽(`drop_relation`)은 반대로 열어
+    둔다: 정리는 언제나 되어야 하고, 짝이 버려졌다는 이유로 살아 있는 문서가 그 링크를
+    떼지 못하면 그 문서에 죽은 링크가 영원히 남는다.
+    """
+    service.get_writable_document_or_404(db, user, document_id)
+    service.get_writable_document_or_404(db, user, payload.to_document_id)
     relations_mod.add(
         db, from_document_id=document_id, to_document_id=payload.to_document_id,
         kind=payload.kind, actor_id=user.id,
@@ -1044,10 +1056,11 @@ def upload_attachment(
     같은 답이 나오지만, 「올리기만 되는 역할」이 생기는 날 하나만 걸어 두면 그 역할이
     남의 문서를 고칠 수 있게 된다.
 
-    범위는 권한이 안 답한다. `get_scoped_document_or_404` 가 답한다 — 권한만 보고
-    범위를 안 보면 올릴 수 있는 사람이 남의 부서 문서에 파일을 붙인다.
+    범위는 권한이 안 답한다. `get_writable_document_or_404` 가 답한다 — 권한만 보고
+    범위를 안 보면 올릴 수 있는 사람이 남의 부서 문서에 파일을 붙인다. 그 함수는 휴지통에
+    있는 문서도 함께 막는다(곧 사라질 문서에 올린 파일은 함께 사라진다).
     """
-    document = service.get_scoped_document_or_404(db, user, document_id)
+    document = service.get_writable_document_or_404(db, user, document_id)
     # sync 핸들러에서는 UploadFile 의 내부 파일 객체를 직접 읽는다(불변 §1).
     # 상한보다 한 바이트 더 읽는다 — 정확히 상한인 파일과 넘는 파일을 구별해야 한다.
     content = file.file.read(uploads.MAX_UPLOAD_BYTES + 1)
@@ -1103,7 +1116,7 @@ def delete_attachment(
     user: User = Depends(require_permission("DOCUMENT_UPDATE")),
 ) -> dict:
     link, record = attachments_mod.get_or_404(db, attachment_id)
-    document = service.get_scoped_document_or_404(db, user, link.document_id)
+    document = service.get_writable_document_or_404(db, user, link.document_id)
     attachments_mod.detach(db, link)
     record_audit_from_request(
         request, db, action="knowledge.attachment.remove", object_type="knowledge_document",

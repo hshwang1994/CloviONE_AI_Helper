@@ -47,7 +47,11 @@ export function selectionColumn(selection, ids, { eligible } = {}) {
     // 폭을 여기서 못 박는다. 폭이 없으면 체크박스 칸이 남은 공간을 제목 칸과 똑같이 나눠
     // 가져, 체크박스 하나가 표의 10% 넘게 차지했다(게시판·문서·휴지통에서 실제로 그랬다).
     // 호출부마다 따로 지정하면 새로 쓰는 화면에서 또 빠진다.
-    key: "_sel", align: "center", className: "k-col-check", width: "3.5rem",
+    /* 🔴 `type` 이 없었다. 그래서 이 열은 어휘(`COLUMN_TYPES.select`)를 한 번도 못 받았고,
+       무엇보다 「행 동작·선택 열은 자르지 않는다」는 가드(`kit.jsx::columnShouldTruncate`)가
+       이 열을 못 알아봤다 — 표에 `ellipsis` 를 건 화면에서 체크박스 칸이 `maxWidth: 0` 짜리
+       자르기 갈래로 갔다. 폭·정렬은 아래 명시값이 그대로 이긴다(호출부 우선, columnTypes.js). */
+    key: "_sel", type: "select", align: "center", className: "k-col-check", width: "3.5rem",
     // 이 열은 행을 구별하는 값의 출처가 아니다. 선택 열은 거의 항상 columns[0] 이라, 걸러
     // 내지 않으면 '첫 열' 폴백이 체크박스 열을 집어 이름이 통째로 비어 버린다.
     rowName: false,

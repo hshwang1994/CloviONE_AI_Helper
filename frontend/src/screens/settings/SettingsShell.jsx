@@ -136,7 +136,10 @@ export function SettingsShell() {
           title="권한이 없습니다"
           help={SYSTEM_ADMIN_TAB_HELP}
           art="noPermission"
-          action={<Button variant="contained" href="#/">대시보드로 이동</Button>}
+          /* 라벨이 「대시보드」인데 `#/` 로 보내고 있었다 — 그 주소는 어느 라우트 표에도
+             없어서 「찾을 수 없습니다」로 갔다(App.jsx 의 착지 규칙이 지금은 받아 주지만,
+             단추는 자기가 말한 곳으로 곧장 가는 것이 맞다). */
+          action={<Button variant="contained" href="#/dashboard">대시보드로 이동</Button>}
         />
       ) : (
         <Box role="tabpanel" id={panelId(tab)} aria-labelledby={tabId(tab)} tabIndex={0}>

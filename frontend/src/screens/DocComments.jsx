@@ -14,14 +14,17 @@ import { CommentThread } from "./CommentThread.jsx";
  * 같은 자리의 같은 엘리먼트를 재사용) — DocComments도 prop만 새로 받고 그대로 남는다.
  * key가 없으면 안의 CommentThread가 쓰던 댓글 초안(입력 중이던 문장)이 새 문서로 그대로
  * 넘어가, "등록"을 누르면 엉뚱한 문서에 댓글이 달린다. */
-export function DocComments({ documentId }) {
+export function DocComments({ documentId, readOnly = false }) {
   return (
     <CommentThread
       key={documentId}
       queryKey={["doc-comments", documentId]}
       listUrl={"/api/knowledge/documents/" + documentId + "/comments"}
       itemUrl={(id) => "/api/knowledge/comments/" + id}
-      emptyHint="아직 댓글이 없습니다. 이 문서에 대한 논의를 여기에 남기세요."
+      readOnly={readOnly}
+      emptyHint={readOnly
+        ? "댓글이 없습니다."
+        : "아직 댓글이 없습니다. 이 문서에 대한 논의를 여기에 남기세요."}
     />
   );
 }

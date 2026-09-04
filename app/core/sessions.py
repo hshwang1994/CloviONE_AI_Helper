@@ -1,7 +1,9 @@
 """Session lifecycle: create, validate (idle + absolute timeout), rotate, revoke.
 
-Spec §11.3, §25.1: Secure/HttpOnly/SameSite=Strict cookie, rotation on login
+Spec §11.3, §25.1: Secure/HttpOnly/SameSite cookie, rotation on login
 and password change, idle timeout 30m, absolute timeout 8h.
+
+SameSite 은 `Strict` 였다가 `Lax` 로 내렸다 — 근거는 `set_session_cookie` 에 적었다.
 """
 
 from __future__ import annotations
@@ -179,12 +181,32 @@ class SessionService:
 def set_session_cookie(
     response: Response, token: str, settings: Settings, *, max_age: int | None = None
 ) -> None:
+    """세션 쿠키를 굽는다.
+
+    🔴 `samesite` 는 **`lax`** 다. `strict` 였고, 그것이 제품에서 실제로 낸 증상은 이것이다:
+
+        사람이 주소창의 `https://…/#/tickets/T-123` 을 복사해 카카오톡·메일·Teams 로 보낸다.
+        받는 사람은 **같은 브라우저에 이미 로그인돼 있는데도** 로그인 화면을 본다. 다시
+        로그인하고 링크를 또 눌러도 또 본다.
+
+    `Strict` 는 **다른 사이트에서 시작된 이동에는 쿠키를 아예 안 싣기** 때문이다. 채팅앱에서
+    누른 링크가 정확히 그 이동이라, 서버는 매번 익명 요청을 보고 `/login` 으로 돌려보냈다.
+    `Lax` 는 **top-level 이동 + 안전한 메서드**에만 쿠키를 싣는다 — 그 한 갈래만 열고,
+    cross-site 하위 요청(img·script·fetch·XHR·iframe)과 cross-site POST 에는 그대로 안 싣는다.
+
+    CSRF 는 이 쿠키가 아니라 **헤더 토큰**이 막는다(`app/core/deps.py::require_csrf`). 그것이
+    선언이 아니라 사실인지를 `tests/security/test_csrf_coverage.py` 가 FastAPI 의 의존성
+    그래프로 실제로 검사한다 — 상태를 바꾸는 라우트가 하나라도 그 검사를 안 지나면 빨간불이다.
+    그 시험은 바로 이 날을 대비해 쓰였다(머리말에 그렇게 적혀 있다).
+
+    바꾸지 않은 것: `HttpOnly`·`Secure`·`Path=/`, 그리고 **`Domain` 을 안 붙이는 것**(host-only).
+    """
     response.set_cookie(
         SESSION_COOKIE_NAME,
         token,
         max_age=max_age if max_age is not None else settings.session_ttl_seconds,
         httponly=True,
-        samesite="strict",
+        samesite="lax",
         secure=settings.cookie_secure,
         path="/",
     )

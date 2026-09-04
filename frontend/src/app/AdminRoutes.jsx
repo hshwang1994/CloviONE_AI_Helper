@@ -63,7 +63,10 @@ function RequireRole({ roles, children, help }) {
         title="권한이 없습니다"
         help={help || "이 화면은 관리자, 시스템 관리자만 사용할 수 있습니다."}
         art="noPermission"
-        action={<Button variant="contained" href="#/">대시보드로 이동</Button>}
+        /* 🔴 `#/` 였다. 두 라우트 표 어디에도 `path="/"` 가 없어서(AdminRoutes 는 아래
+           catch-all, UserRoutes 는 `path="*"`), 권한 벽에서 유일한 단추를 누르면
+           「찾을 수 없습니다」로 갔다 — 막다른 길에서 막다른 길로 보냈다. */
+        action={<Button variant="contained" href="#/dashboard">대시보드로 이동</Button>}
       />
     );
   }

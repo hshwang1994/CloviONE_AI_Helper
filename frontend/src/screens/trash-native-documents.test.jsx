@@ -19,6 +19,7 @@ import React from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import "@testing-library/jest-dom/vitest";
 import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
@@ -74,6 +75,13 @@ function stub(rows, policy) {
       return Promise.resolve({
         items, total: items.length, retention_days: 7,
         document_autopurge: true, document_retention_days: 7,
+        // 개수는 **조건과 무관**하다 — 서버가 좁히기 전에 센다(app/trash/router.py).
+        counts: {
+          ticket: rows.filter((r) => r.item_type === "ticket").length,
+          document: rows.filter((r) => r.item_type === "document").length,
+          all: rows.length,
+          urgent: 0,
+        },
         ...(policy || {}),
       });
     }
@@ -147,15 +155,36 @@ describe("휴지통의 Native 문서", () => {
     expect(screen.getByRole("link", { name: "서버 인프라 리소스 현황" })).toBeTruthy();
   });
 
+  /* 🔴 조작기가 **탭**이다. 예전에는 같은 축(`?kind=`)을 둘이 나눠 쥐고 있었다 — 큰 숫자
+     판독 줄이 필터 구실을 겸하고 그 위에 「종류」 드롭다운이 또 있었다. 사용자가 「탭도
+     이상하고」라고 부른 것이 그 줄이다. 재는 것(서버 질의에 조건이 실린다)은 그대로다. */
   it("종류 조건은 서버 질의에 실려 나간다", async () => {
     renderScreen();
     await screen.findByText("서버 인프라 리소스 현황");
 
-    await userEvent.click(screen.getByLabelText("종류"));
-    await userEvent.click(await screen.findByRole("option", { name: "문서" }));
+    await userEvent.click(screen.getByRole("tab", { name: /문서/ }));
 
     await waitFor(() => expect(calls.some((p) => p.includes("kind=document"))).toBe(true));
     await waitFor(() => expect(screen.queryByText("로그인 오류")).toBeNull());
+  });
+
+  it("탭이 진짜 탭이다 — 고른 것이 aria-selected 로 낭독된다", async () => {
+    renderScreen("/team-docs/trash?kind=document");
+    await screen.findByText("서버 인프라 리소스 현황");
+    const tabs = screen.getAllByRole("tab");
+    expect(tabs.map((t) => t.textContent.replace(/\s*\d+$/, ""))).toEqual(["전체", "티켓", "문서"]);
+    expect(screen.getByRole("tab", { name: /문서/ })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: /전체/ })).toHaveAttribute("aria-selected", "false");
+  });
+
+  it("탭 라벨의 숫자는 **서버가 준 조건-무관 개수**다 — 문서 탭에서 「티켓 0」이 아니다", async () => {
+    /* 예전에는 화면이 받아 온(이미 걸러진) 목록에서 셌다. 문서 화면의 「휴지통」 단추가
+       `?kind=document` 로 열기 때문에 첫 화면부터 「티켓 0」이 떴다 — 티켓이 들어 있어도. */
+    renderScreen("/team-docs/trash?kind=document");
+    await screen.findByText("서버 인프라 리소스 현황");
+    expect(screen.getByRole("tab", { name: "티켓 1" })).toBeTruthy();
+    expect(screen.getByRole("tab", { name: "문서 1" })).toBeTruthy();
+    expect(screen.getByRole("tab", { name: "전체 2" })).toBeTruthy();
   });
 
   it("문서 화면에서 넘어오면 그 조건이 걸린 채로 열린다", async () => {

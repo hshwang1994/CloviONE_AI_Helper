@@ -248,6 +248,37 @@ const SUBMIT_TIMEOUT_MS = 15000;
     }
   }
 
+  /* 🔴 **로그인 뒤 갈 곳의 나머지 절반은 주소창에 있다.**
+   *
+   * 이 앱은 해시 라우터라 «어느 티켓·어느 문서» 가 통째로 **조각(fragment)** 에 산다 —
+   * `https://host/#/tickets/T-123`. 조각은 **서버로 전송되지 않으므로**
+   * `app/main.py` 의 `PageAuthRequired` 핸들러는 그것을 볼 방법이 없고, 그래서 `next` 는
+   * 언제나 `/` 다.
+   *
+   * 그런데 브라우저는 그 조각을 **버리지 않는다.** `Location` 에 조각이 없는 3xx 를 따라갈
+   * 때 원래 조각을 물려준다(RFC 7231 §7.1.2). 즉 로그인 화면의 실제 주소는
+   * `…/login?next=%2F#/tickets/T-123` 이고, 값은 이미 이 페이지 손에 있다.
+   *
+   * 그것을 버린 것은 마지막 한 줄이었다: `window.location.href = "/"` 는 조각 없는 주소를
+   * **명시적으로 대입**하므로 물려받은 조각이 그 순간 사라진다. 링크를 받은 사람은
+   * 로그인까지 마치고도 자기 홈(`/me`)에 착지했다.
+   *
+   * 서버가 준 `next` 에 이미 조각이 있으면(SPA 안에서 세션이 끊긴 경로 —
+   * `frontend/src/lib/sessionRedirect.js` 가 `pathname + search + hash` 를 싣는다) 그쪽이
+   * 옳으므로 건드리지 않는다. */
+  function withCurrentHash(target) {
+    if (!target || target.indexOf("#") >= 0) return target;
+    var hash = "";
+    try {
+      hash = window.location.hash || "";
+    } catch (e) {
+      return target;
+    }
+    // "#" 하나뿐이거나 "#/" 는 갈 곳이 아니다 — SPA 가 기본 화면을 스스로 정한다.
+    if (!hash || hash === "#" || hash === "#/") return target;
+    return target + hash;
+  }
+
   // 429(rate_limited) 직후 버튼을 즉시 다시 눌러 한도를 재차 건드리지 않도록 짧은 쿨다운.
   let cooldownTimer = null;
   function startCooldown(seconds) {
@@ -317,7 +348,9 @@ const SUBMIT_TIMEOUT_MS = 15000;
         // 넘어가서, 클로비의 성공 표정과 배지가 뜨자마자 화면이 갈렸다.
         // clovi-login.js 가 없거나(스크립트 차단) 오래 걸려도 로그인이 막히면 안 되므로
         // 최대 대기 시간을 두고 경주시킨다 — 연출은 있으면 좋은 것이지 필수가 아니다.
-        const target = data.must_change_password ? "/change-password" : (data.next || "/");
+        const target = data.must_change_password
+          ? "/change-password"
+          : withCurrentHash(data.next || "/");
         const celebrate = window.cloviLogin && window.cloviLogin.celebrate
           ? window.cloviLogin.celebrate()
           : Promise.resolve();
