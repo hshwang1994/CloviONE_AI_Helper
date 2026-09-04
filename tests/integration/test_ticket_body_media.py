@@ -354,14 +354,23 @@ def test_the_old_not_moved_exception_is_gone(migrate):
 
 
 def test_a_file_over_the_limit_stays_an_exception_and_the_body_says_so(migrate):
-    """10MB 상한은 제품이 정한 것이라 이관 때문에 넓히지 않는다.
+    """상한을 넘은 파일은 **건너뛰되 사실을 남긴다.**
 
     대신 **두 가지를 남긴다**: 분류된 예외 한 줄과, 본문에 사람이 읽는 문장 하나.
     조용히 사라지면 「그 자리에 그림이 있었다」는 사실까지 없어진다.
+
+    qa-contract-change: 예외 이름이 `body_media_rejected`(제품 10MB)에서
+    `attachment_too_large`(이관 3MB)로 바뀌었다. 문서 개편 회차가 이관 전용 상한
+    `MIGRATION_MAX_ATTACHMENT_BYTES`(3MB, 사용자 지시 19번)를 넣었고 그것이 제품 상한보다
+    **먼저** 걸린다 — 즉 이 경로에서 크기 때문에 10MB 판정까지 가는 파일은 이제 없다.
+    지키는 성질은 그대로다: 분류된 예외 하나 · 본문의 사람 문장 · 첨부 행 없음.
+    상한 이름을 글자로 못박지 않고 **둘 중 어느 것이든 하나**로 받는다 — 다음에 상한이
+    또 바뀌어도 이 시험이 재는 것(「건너뛰되 남긴다」)은 안 바뀐다.
     """
     run, _reimport, factory, _notion, _settings = migrate
     report = run()
-    rejected = [f for f in report.findings if f.kind == "body_media_rejected"]
+    rejected = [f for f in report.findings
+                if f.kind in ("body_media_rejected", "attachment_too_large")]
     assert len(rejected) == 1, [f.line() for f in report.findings]
     assert rejected[0].severity == "classified"
     with factory() as db:

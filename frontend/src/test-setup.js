@@ -103,6 +103,21 @@ if (typeof HTMLCanvasElement !== "undefined") {
         get(target, key) {
           if (key === "canvas") return target.canvas;
           if (store.has(key)) return store.get(key);
+          /* 🔴 `measureText` 만은 no-op 이면 안 된다. ECharts 의 zrender 가 돌려받은
+             값에서 곧바로 `.width` 를 읽어(`ensureFontMeasureInfo`) `undefined` 면
+             처리되지 않은 거부가 난다 — 전량 실행에서 25건이 그것이었고, 시험은 하나도
+             안 깨진 채 vitest 만 exit 1 이 됐다. 이 Proxy 를 둔 이유가 바로 그
+             「하나 빠지면 타이머 안의 정체불명 오류」다(위 머리말).
+
+             jsdom 에는 글꼴이 없어 진짜 폭을 잴 수 없다. 글자 수에 비례한 값을 준다 —
+             그림을 검사하는 시험이 없으므로 「0 이 아니고 글자가 길수록 크다」면 충분하다. */
+          if (key === "measureText") {
+            return (text) => ({
+              width: String(text ?? "").length * 8,
+              actualBoundingBoxAscent: 8,
+              actualBoundingBoxDescent: 2,
+            });
+          }
           // 모르는 이름은 전부 no-op 함수다 — 그리기 호출이 조용히 지나간다.
           return () => undefined;
         },
@@ -113,4 +128,38 @@ if (typeof HTMLCanvasElement !== "undefined") {
       }
     );
   };
+}
+
+/* jsdom 에는 **`Range` 의 레이아웃 API 가 없다** — `Range.prototype.getClientRects` 와
+ * `getBoundingClientRect` 둘 다 `undefined` 다(Element 쪽에는 있다). 그런데 ProseMirror 가
+ * 커서 위치를 재려고 그것을 부른다:
+ *
+ *   singleRect(target) → target.getClientRects()   ← prosemirror-view/dist/index.js
+ *   coordsAtPos → scrollToSelection → updateStateInner → Editor.dispatchTransaction
+ *
+ * 그래서 본문 편집기를 그리는 시험이 **처리되지 않은 오류**를 남긴다. 전량 실행에서 38건이
+ * 났고 시험은 하나도 안 깨졌다 — 오류가 편집기 트랜잭션 뒤 타이머에서 나기 때문에 어느
+ * 시험의 것인지도 안 보인다(파일 단독 실행에서는 그 타이머가 정리 전에 끝나 안 난다).
+ * 그 38건이 vitest 를 exit 1 로 만들어 **전량 게이트가 실패 0 인데도 빨갛다.**
+ *
+ * 🔴 이 stub 이 무엇을 숨기지 않는 이유: jsdom 에는 레이아웃 엔진이 자체가 없어서
+ * Element 쪽 `getBoundingClientRect` 도 이미 전부 0 을 돌려준다. 여기서 0 을 돌려주는 것은
+ * 거짓말이 아니라 **같은 사실을 같은 모양으로** 말하는 것이다. 커서 좌표를 재는 시험은
+ * 없다(있다면 jsdom 이 아니라 실브라우저에서 재야 한다).
+ *
+ * `elementFromPoint` 도 같은 이유로 없다 — ProseMirror 의 `posAtCoords` 가 부른다. */
+if (typeof Range !== "undefined" && !Range.prototype.getClientRects) {
+  const emptyRect = () => ({
+    x: 0, y: 0, top: 0, left: 0, right: 0, bottom: 0, width: 0, height: 0,
+    toJSON() { return this; },
+  });
+  Range.prototype.getClientRects = function getClientRects() {
+    const list = [];
+    list.item = (i) => list[i] ?? null;
+    return list;
+  };
+  Range.prototype.getBoundingClientRect = emptyRect;
+}
+if (typeof document !== "undefined" && !document.elementFromPoint) {
+  document.elementFromPoint = () => null;
 }
