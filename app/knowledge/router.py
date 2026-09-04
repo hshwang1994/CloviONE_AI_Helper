@@ -147,6 +147,9 @@ def _document_json(
         # 문서 목록·상세는 "공간"이 아니라 "프로젝트"라는 말을 쓴다.
         out["project"] = (extras["projects"] or {}).get(document.space_id)
         out["author"] = (extras["people"] or {}).get(document.created_by)
+        # 🔴 우리 계정으로 못 잇는 작성자의 **이름**(0028). 화면은 셋을 구별해야 한다:
+        # 우리 사용자가 썼다 · 원본에 이렇게 적혀 있었다 · 모른다.
+        out["legacy_author_name"] = document.legacy_author_name or ""
         out["archiver"] = (extras["people"] or {}).get(document.archived_by)
         counts = extras["counts"] or {}
         out["counts"] = {

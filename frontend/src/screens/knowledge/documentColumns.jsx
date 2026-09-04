@@ -95,12 +95,17 @@ export function buildDocumentColumns({ onToggleFavorite, onOpen, onArchive, conf
       ),
     },
     {
+      /* 🔴 작성자는 **세 가지 사실**이다. 우리 사용자가 썼거나, 원본에 이름만 적혀
+         있거나, 모른다. 예전에는 가운데가 없어서 가져오기를 돌린 관리자가 작성자로
+         섰고 — 화면이 「이 사람이 524건을 썼다」고 거짓말했다. Confluence 는 작성자의
+         이메일을 안 주므로(실측: 8명 중 1명, 그마저 우리 계정에 없다) 우리 계정으로
+         이을 수 없다. 이름만 남기고, 그것이 우리 사용자가 아니라는 것도 함께 보인다. */
       key: "author", label: "작성자", type: "name", minWidth: "8rem", hideNarrow: true,
       render: (doc) => (
         <Stack direction="row" spacing={0.75} alignItems="center" sx={{ minWidth: 0 }}>
-          <UserAvatar person={doc.author} size="sm" />
+          {doc.author ? <UserAvatar person={doc.author} size="sm" /> : null}
           <Typography variant="body2" sx={KO_WORD_BREAK}>
-            {doc.author?.display_name || "-"}
+            {doc.author?.display_name || doc.legacy_author_name || "-"}
           </Typography>
         </Stack>
       ),

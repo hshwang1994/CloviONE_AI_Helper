@@ -711,9 +711,19 @@ export function KnowledgeDoc() {
       <Card>
         <Section title="문서 정보">
           <InfoRow label="작성자">
+            {/* 🔴 셋을 구별한다: 우리 사용자가 썼다 · 원본에 이렇게 적혀 있었다 · 모른다.
+                가운데를 지어내지 않는다 — 원본 이름 옆에 출처를 밝혀, 눌러도 프로필이
+                없는 이름이 우리 계정처럼 읽히지 않게 한다. */}
             <Stack direction="row" spacing={0.75} alignItems="center">
-              <UserAvatar person={data.author} size="sm" />
-              <Typography variant="body2">{data.author?.display_name || "-"}</Typography>
+              {data.author ? <UserAvatar person={data.author} size="sm" /> : null}
+              <Typography variant="body2">
+                {data.author?.display_name || data.legacy_author_name || "-"}
+              </Typography>
+              {!data.author && data.legacy_author_name ? (
+                <Typography variant="caption" color="text.secondary">
+                  원본 기록
+                </Typography>
+              ) : null}
             </Stack>
           </InfoRow>
           <InfoRow label="프로젝트">

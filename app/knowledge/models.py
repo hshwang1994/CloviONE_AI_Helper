@@ -337,6 +337,14 @@ class Document(TimestampMixin, UUIDPrimaryKeyMixin, Base):
     # 우리 시각을 옛 값으로 덮지 않고 칸을 따로 둔다. UTC 저장 규약은 그대로다.
     legacy_created_at: Mapped[datetime | None] = mapped_column(DateTime)
     legacy_updated_at: Mapped[datetime | None] = mapped_column(DateTime, index=True)
+    #: 원본에서 이 문서를 쓴 사람의 **이름**. 우리 계정이 아니다(0028).
+    #:
+    #: 🔴 이 칸이 필요한 이유는 이을 방법이 없기 때문이다. Confluence 는 작성자의 계정
+    #: id 만 주고 이메일은 프로필 설정이 막는다(실측: 8명 중 1명, 그마저 우리 계정에 없다).
+    #: 그렇다고 가져오기를 돌린 관리자를 `created_by` 에 적으면 화면이 「이 사람이 524건을
+    #: 썼다」고 거짓말한다. 그래서 `created_by` 는 비우고 원래 이름을 여기 남긴다 —
+    #: 「모른다」와 「이 사람이다」 사이에 있는 세 번째 사실이다: **원본은 이렇게 적혀 있었다.**
+    legacy_author_name: Mapped[str | None] = mapped_column(String(120))
 
     __table_args__ = (
         CheckConstraint(_in_list("source_type", SOURCE_TYPES), name="ck_document_source_type"),

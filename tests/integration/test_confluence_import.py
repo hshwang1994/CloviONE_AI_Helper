@@ -59,12 +59,15 @@ class FakeConfluence:
             "2": {
                 # 🔴 깊은 하위 페이지. 「상위만 가져왔다」를 잡는 자리다.
                 "id": "2", "title": "설치 가이드", "status": "current", "parentId": "1",
+                "authorId": "acct-1",
                 "version": {"number": 3, "createdAt": "2026-05-02T00:00:00.000Z"},
                 "createdAt": "2025-02-02T00:00:00.000Z",
             },
             "3": {
                 # 🔴 보관된 페이지. 기본 필터가 조용히 빼던 갈래다.
                 "id": "3", "title": "옛 규약", "status": "archived", "parentId": "2",
+                # 🔴 우리가 이름을 모르는 계정. 그때는 이름을 지어내지 않는다.
+                "authorId": "acct-unknown",
                 "version": {"number": 1, "createdAt": "2024-01-01T00:00:00.000Z"},
                 "createdAt": "2024-01-01T00:00:00.000Z",
             },
@@ -112,10 +115,19 @@ class FakeConfluence:
             adf = _adf(_para(f"{page['title']} 의 본문입니다."))
         return {
             "_version": (page.get("version") or {}).get("number"),
+            "authorId": page.get("authorId"),
             "id": page_id, "title": page["title"], "status": page["status"],
             "parentId": page.get("parentId"), "version": page.get("version") or {},
             "createdAt": page.get("createdAt"), "adf": adf,
         }
+
+    def author_name(self, account_id):
+        """원본 작성자의 **이름**. 진짜 소스와 같이 이메일은 안 준다.
+
+        🔴 실측이 그렇다: 작성자 8명 중 이메일을 주는 것은 1명뿐이고 그마저 우리 계정에
+        없다. 그래서 대역도 이름만 준다 — 대역이 진짜보다 친절하면 시험이 못 잡는다.
+        """
+        return {"acct-1": "김동균", "acct-2": "민지원"}.get(account_id or "", "")
 
     def page_attachments(self, page_id):
         if page_id != "2":
@@ -660,3 +672,67 @@ def test_the_attachment_gate_does_not_fail_the_second_round(db, actor):
     assert gate and gate[0].ok, [(c.name, c.ok, c.actual) for c in second.checks]
     kinds = {f.kind for f in second.findings}
     assert "confluence_no_attachment_landed" not in kinds, kinds
+
+
+# ── 작성자를 지어내지 않는다 ─────────────────────────────────────────────────
+#
+# 🔴 예전에는 못 푼 작성자를 **가져오기를 돌린 관리자**로 적었다. 그러면 화면이 「이 관리자가
+# 524건을 썼다」고 말한다 — 없는 정보가 아니라 **틀린 정보**다. Confluence 는 작성자의
+# 이메일을 안 주므로(실측: 8명 중 1명, 그마저 우리 계정에 없다) 우리 계정으로 이을 수 없다.
+# 그래서 셋을 나눈다: 우리 사용자가 썼다 · 원본에 이렇게 적혀 있었다 · 모른다.
+
+
+def _doc_by_title(db, title):
+    from app.knowledge.models import Document
+    from app.migration.models import SRC_CONFLUENCE, T_DOCUMENT, LegacyMapping
+
+    for m in db.query(LegacyMapping).filter(
+        LegacyMapping.legacy_source == SRC_CONFLUENCE,
+        LegacyMapping.target_type == T_DOCUMENT,
+    ).all():
+        doc = db.get(Document, m.target_id)
+        if doc is not None and doc.title == title:
+            return doc
+    return None
+
+
+def test_an_unmatched_author_is_not_replaced_by_the_importing_admin(db, actor):
+    """가져온 문서의 작성자가 실행 계정이 되면 안 된다."""
+    _run(db, actor, FakeConfluence())
+
+    doc = _doc_by_title(db, "설치 가이드")
+    assert doc is not None
+    assert doc.created_by != actor.id, "가져오기를 돌린 관리자가 작성자로 적혔다"
+    assert doc.created_by is None, "우리 계정으로 못 잇는데 누군가를 적었다"
+
+
+def test_the_original_author_name_is_kept(db, actor):
+    """이을 수는 없어도 **이름은 있다.** 그것까지 버리면 원본보다 아는 것이 적어진다."""
+    _run(db, actor, FakeConfluence())
+
+    doc = _doc_by_title(db, "설치 가이드")
+    assert doc.legacy_author_name == "김동균", doc.legacy_author_name
+
+
+def test_an_author_we_cannot_name_stays_empty(db, actor):
+    """🔴 반례. 이름을 못 받으면 지어내지 않는다 — 「모른다」가 세 번째 사실이다."""
+    _run(db, actor, FakeConfluence())
+
+    doc = _doc_by_title(db, "옛 규약")
+    assert doc is not None
+    assert not doc.legacy_author_name, doc.legacy_author_name
+    assert doc.created_by is None
+
+
+def test_the_api_carries_the_original_author_name(client, login_as, db, actor):
+    """서버가 이름을 안 실으면 화면이 그것을 그릴 수 없다 — 배선까지 잰다."""
+    _run(db, actor, FakeConfluence())
+    db.commit()
+
+    doc = _doc_by_title(db, "설치 가이드")
+    hdr = {"X-CSRF-Token": login_as("system_admin", email=ME)}
+    got = client.get(f"/api/knowledge/documents/{doc.id}", headers=hdr)
+    assert got.status_code == 200, got.text
+    payload = got.json()
+    assert payload["legacy_author_name"] == "김동균", payload.get("legacy_author_name")
+    assert payload["author"] is None, payload["author"]

@@ -263,6 +263,36 @@ class ConfluenceSource:
         self.stats.blogposts_listed += len(rows)
         return rows
 
+    def author_name(self, account_id: str | None) -> str:
+        """Atlassian 계정 id → **표시 이름.** 못 받으면 빈 문자열이다.
+
+        🔴 이메일이 아니라 이름만 받는다. 실측: 작성자 8명 중 이메일을 주는 것은 1명뿐이고
+        (나머지는 프로필 공개 설정이 막는다) 그 하나도 우리 계정에 없다. 즉 Confluence
+        작성자를 우리 계정으로 **이을 수 없다.** 그렇다고 실행 계정을 작성자로 적으면
+        화면이 「이 관리자가 524건을 썼다」고 거짓말한다 — 이름이라도 남기는 것이 답이다.
+
+        서로 다른 작성자는 23명뿐이라(실측) 한 회차에 스물 몇 번 부르고 캐시에 남는다.
+        """
+        key = (account_id or "").strip()
+        if not key:
+            return ""
+        cached = self._read_cache("users", key)
+        if cached is not None:
+            return str(cached.get("name") or "")
+        name = ""
+        for path in (f"/wiki/rest/api/user?accountId={key}",
+                     f"/rest/api/3/user?accountId={key}"):
+            try:
+                data = self._call(path)
+            except ConfluenceSourceError:
+                continue
+            name = str(data.get("publicName") or data.get("displayName") or "").strip()
+            if name:
+                break
+        # 못 받아도 캐시에 적는다 — 다음 회차가 같은 실패를 다시 사지 않게.
+        self._write_cache("users", key, {"name": name})
+        return name
+
     def page_body(self, page_id: str, *, version: int | None = None) -> dict:
         """한 페이지의 ADF 본문과 판 정보. 판 번호가 같으면 캐시를 쓴다."""
         cached = self._read_cache("bodies", str(page_id))

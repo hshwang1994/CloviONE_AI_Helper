@@ -271,7 +271,7 @@ class ConfluenceLoader:
                 space_id=self.space().id,
                 title=title[:500],
                 source_type=SOURCE_MIGRATION,
-                created_by=self._page_author(body) or self.actor.id,
+                created_by=self._page_author(body),
             )
             self.db.add(document)
             self.db.flush()
@@ -289,6 +289,11 @@ class ConfluenceLoader:
         # 「최근 24시간」이 가져오기 직후 524를 말한다.
         document.legacy_created_at = _ts(page.get("createdAt") or body.get("createdAt"))
         document.legacy_updated_at = _ts((body.get("version") or {}).get("createdAt"))
+        # 원본에 적힌 작성자 이름. 우리 계정으로 못 잇는 사람이라(이메일을 안 준다) 이름만
+        # 남긴다 — 「모른다」와 「이 사람이다」 사이의 세 번째 사실이다(0028).
+        legacy_author = self._legacy_author(body)
+        if legacy_author:
+            document.legacy_author_name = legacy_author
         # 보관된 페이지는 보관된 문서로 온다 — 상태를 바꾸지 않는다.
         document.archived = str(page.get("status") or "").lower() == "archived"
 
@@ -342,10 +347,23 @@ class ConfluenceLoader:
         return document
 
     def _page_author(self, body: dict) -> str | None:
-        """페이지를 만든 사람. Atlassian id 는 우리 계정이 아니므로 이메일이 있을 때만
-        푼다 — v2 의 페이지 응답은 이메일을 안 주므로 보통 `None` 이다."""
+        """페이지를 만든 사람이 **우리 계정이면** 그 id. 아니면 `None`.
+
+        Atlassian id 는 우리 계정이 아니므로 이메일이 있을 때만 푼다 — v2 의 페이지 응답은
+        이메일을 안 준다. 🔴 못 풀었을 때 **실행 계정으로 떨어지지 않는다.** 그러면 화면이
+        「이 관리자가 524건을 썼다」고 거짓말한다. 이름은 `legacy_author_name` 이 든다.
+        """
         user = self._user_for((body.get("_author_email") or ""))
         return user.id if user else None
+
+    @staticmethod
+    def _legacy_author(body: dict) -> str:
+        """원본에 적힌 작성자 이름. 봉투에 없으면 빈 문자열이다.
+
+        값은 **부르는 쪽(runner)이 채운다** — `_author_email` 과 같은 규약이다. 적재기가
+        소스를 직접 들면 시험이 소스를 흉내 내야 하고, 그 흉내는 진짜와 갈라진다.
+        """
+        return str(body.get("_author_name") or "").strip()[:120]
 
     # ── 첨부 ─────────────────────────────────────────────────────────────────
 

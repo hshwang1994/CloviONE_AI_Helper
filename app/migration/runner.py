@@ -553,6 +553,10 @@ def import_confluence(
                 body = source.page_body(
                     page_id, version=(page.get("version") or {}).get("number")
                 )
+                # 원본 작성자의 **이름**을 봉투에 실어 준다(`_author_email` 과 같은 규약).
+                # 우리 계정으로는 못 잇는다 — Confluence 가 이메일을 안 주기 때문이다.
+                # 서로 다른 작성자가 스물몇 명이라 소스가 캐시로 받는다.
+                body["_author_name"] = source.author_name(body.get("authorId"))
                 attachments = source.page_attachments(page_id) if with_files else []
                 attachments_seen += len(attachments)
                 comments = source.page_comments(page_id) if with_comments else []
