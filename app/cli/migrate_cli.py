@@ -260,6 +260,46 @@ def _actor(db, email: str):
     return row
 
 
+def cmd_prune_empty(args) -> int:
+    """본문이 없거나 아주 짧은 문서를 치운다.
+
+    Confluence 와 Notion 에는 제목만 있는 페이지가 흔하다 — 하위를 묶는 목차이거나 만들다
+    만 자리다. 우리 쪽에서는 목록과 검색에서 자리를 차지하는데 열어 보면 아무것도 없다.
+
+    지우는 방식은 **제품의 삭제**다: 보관 처리라 휴지통에 뜨고 되돌릴 수 있다.
+    """
+    from app.migration import prune as prune_mod
+    from app.migration.report import MigrationReport
+
+    settings = Settings()
+    factory = make_session_factory(make_engine(settings.database_url))
+    report = MigrationReport(mode="prune-empty")
+    with factory() as db:
+        actor = _actor(db, args.actor)
+        result = prune_mod.prune_empty(
+            db, actor=actor, max_chars=args.max_chars,
+            dry_run=args.dry_run, report=report,
+        )
+        if args.dry_run:
+            db.rollback()
+        else:
+            db.commit()
+        print(json.dumps(result.as_dict(), ensure_ascii=False, indent=2))
+        for title in result.titles[:40]:
+            print(f"  - {title}")
+        if len(result.titles) > 40:
+            print(f"  ... 그리고 {len(result.titles) - 40}건 더")
+        for finding in report.findings:
+            print(f"[{finding.severity}] {finding.kind}: {finding.detail}")
+    if args.report:
+        report.write(args.report)
+    ok = result.refused_native == 0
+    print()
+    print("PRUNE_DRY_RUN_OK" if args.dry_run
+          else ("PRUNE_OK" if ok else "PRUNE_FAILED"))
+    return 0 if (args.dry_run or ok) else 1
+
+
 def cmd_classify(args) -> int:
     """가져온 문서의 프로젝트·분류·태그를 다시 정한다 (문서 개편 11·12·15·16번).
 
@@ -459,6 +499,16 @@ def build_parser() -> argparse.ArgumentParser:
     node.add_argument("--report", default="")
     node.add_argument("--dry-run", action="store_true")
     node.set_defaults(func=cmd_classify)
+
+    node = sub.add_parser("prune-empty")
+    node.add_argument(
+        "--max-chars", type=int, default=20,
+        help="본문이 이 글자 수 이하면 빈 문서로 본다 (기본 20)",
+    )
+    node.add_argument("--actor", default="", help="지운 사람으로 적을 계정 이메일")
+    node.add_argument("--report", default="")
+    node.add_argument("--dry-run", action="store_true")
+    node.set_defaults(func=cmd_prune_empty)
 
     node = sub.add_parser("verify")
     common(node)

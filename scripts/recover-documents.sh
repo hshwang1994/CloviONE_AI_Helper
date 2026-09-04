@@ -29,6 +29,8 @@
 #   bash scripts/recover-documents.sh classify-emit
 #   bash scripts/recover-documents.sh classify-upload var/classify_manual.jsonl
 #   bash scripts/recover-documents.sh classify-apply
+#   bash scripts/recover-documents.sh prune-dry
+#   bash scripts/recover-documents.sh prune
 #   bash scripts/recover-documents.sh reindex
 set -uo pipefail
 export LC_ALL=C.UTF-8
@@ -44,7 +46,7 @@ set -a; . "$ENV_FILE"; set +a
 : "${SUDO_PW:?SUDO_PW 가 $ENV_FILE 에 없다}"
 
 STEP="${1:-}"
-[ -n "$STEP" ] || { echo "FAIL: 단계를 주세요 (measure|notion-dry|notion|audit|confluence-dry|confluence|classify-emit|classify-upload|classify-apply-dry|classify-apply|reindex|status)"; exit 2; }
+[ -n "$STEP" ] || { echo "FAIL: 단계를 주세요 (measure|notion-dry|notion|audit|confluence-dry|confluence|classify-emit|classify-upload|classify-apply-dry|classify-apply|prune-dry|prune|reindex|status)"; exit 2; }
 
 APP_DIR="/opt/clovirassist"
 # 🔴 데이터베이스 이름을 손으로 적지 않는다. 실측에서 `clovir` 로 적었다가 「그런
@@ -175,6 +177,18 @@ classify-apply-dry|classify-apply)
   [ "$STEP" = "classify-apply-dry" ] && DRY="--dry-run"
   echo "== 검토한 제안을 적용한다 $DRY =="
   app_cmd "$VENV -m app.cli.migrate_cli classify --apply $OUT/documents.jsonl $DRY"
+  ;;
+
+prune-dry|prune)
+  # 본문이 없거나 20자 이하인 문서를 치운다.
+  #
+  # 지우는 방식은 **제품의 삭제**다 — 보관 처리라 휴지통에 뜨고 되돌릴 수 있으며, 보관
+  # 기간이 지나면 제품 규칙대로 영구 삭제된다. 이관 도구가 삭제 의미를 새로 만들지 않는다.
+  # 자체 작성 문서는 후보에 안 든다: 사람이 방금 만든 빈 문서는 쓰려던 자리다.
+  DRY=""
+  [ "$STEP" = "prune-dry" ] && DRY="--dry-run"
+  echo "== 빈 문서를 치운다 $DRY =="
+  app_cmd "$VENV -m app.cli.migrate_cli prune-empty --report $OUT/prune $DRY"
   ;;
 
 status)
