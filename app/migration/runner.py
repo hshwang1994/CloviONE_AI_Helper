@@ -543,6 +543,8 @@ def import_confluence(
 
     loader = ConfluenceLoader(db, report=report, actor=actor, settings=settings)
     fetch = source.download if (with_files and not dry_run) else None
+    #: 원본이 가진 첨부 수. 대조 게이트가 「하나도 못 옮겼다」를 잡는 근거다.
+    attachments_seen = 0
 
     for page in pages:
         page_id = str(page.get("id") or "")
@@ -552,6 +554,7 @@ def import_confluence(
                     page_id, version=(page.get("version") or {}).get("number")
                 )
                 attachments = source.page_attachments(page_id) if with_files else []
+                attachments_seen += len(attachments)
                 comments = source.page_comments(page_id) if with_comments else []
                 loader.load_page(
                     page, body,
@@ -569,7 +572,12 @@ def import_confluence(
                 f"{page.get('title', '')}: {type(exc).__name__}: {exc}", ref=page_id,
             )
 
-    report.stages.append(loader.reconcile(len(pages)))
+    report.stages.append(loader.reconcile(
+        len(pages),
+        # 세기만 하는 회차와 파일을 안 받는 회차는 첨부 대조에서 뺀다 — 「안 받기로 했다」와
+        # 「못 받았다」는 다른 사실이다.
+        attachments_seen=(attachments_seen if fetch is not None else None),
+    ))
     # `notion` 칸을 「외부 소스 통계」로 함께 쓴다 — 보고서가 이미 그 칸을 찍는다.
     report.notion = {"confluence": source.stats.as_dict(), "load": loader.result.as_dict()}
     if dry_run:

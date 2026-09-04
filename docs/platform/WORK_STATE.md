@@ -185,19 +185,17 @@ AWS · Xray · Semaphore · Guacamole · MSA · ClovirCM), 한두 문서만 부�
 
 ## 이번 회차가 **안 고친** 것 — 그리고 그 이유
 
-- 🔴 **티켓 본문 약 1,120건에 같은 자리표시자가 남아 있다.** 이번 요구는 문서라
-  `--scope documents` 로 제외했고, 회차가 그 사실을 Finding 으로 적는다. 같은 회차에 함께
-  고치면 되돌릴 수 없는 변경의 범위가 열 배가 된다 — **P-78** 로 남긴다(지시가 있으면 한다).
-- **~~Notion 블록 깊이 상한~~ 은 실측으로 반증하고 올렸다(P-79 종료).** 3 → 6.
-  `ClovirPackageRepo` 는 블록 175개 중 **85개가 깊이 3 이상**이고, 그래서 그 문서만
-  운영 본문이 원본의 78% 였다. 「그 아래는 구조다」는 추측이었다.
-- **`["doc-comments", id]` 질의 키가 `["knowledge", …]` 접두 규칙을 어긴다.** 이번 변경과
-  무관한 기존 상태이고 `invalidateDocumentViews` 가 그 키에 못 닿는다 — **P-80**.
-- 🔴 **`test_login_visual_contract::test_pointer_tracking_is_limited_to_resting_states` 가
-  HEAD 에서 이미 빨간불이다.** 직전 회차(⑦)가 시선 버그를 고치며 `clovi-login.js` 의
-  `POINTER_TRACKED_STATES` 에 `email` 을 더했는데 시험은 아직 `["idle","welcome"]` 을
-  요구한다. 이번 변경은 `app/static/js` 를 한 줄도 안 건드렸다(`git diff HEAD` 로 확인).
-  둘 중 어느 쪽이 옳은지는 그 회차의 결정이라 여기서 정하지 않는다 — **P-81**.
+이월 항목의 **정본은 [`BACKLOG.md`](BACKLOG.md)** 다. 이 파일은 덮어쓰므로 여기 적어 두면
+다음 회차에 사라진다 — 실제로 이번 회차가 P-78·P-80·P-81 을 여기에만 적어 두고 있었고,
+BACKLOG 로 옮겼다(그러면서 P-71~P-77 이 머리줄 없는 표라 글자로 그려지던 것도 세웠다).
+
+- **P-78** — 티켓 본문 약 1,120건의 이관 자리표시자. 이번 지시가 「문서」라 `--scope documents`
+  로 제외했고, 회차가 그 사실을 Finding 으로 적는다.
+- **P-80** — `["doc-comments", id]` 질의 키의 접두 규칙 위반(기존 상태).
+- **P-81** — `test_login_visual_contract` 의 시선 추적 시험이 HEAD 에서 빨갛다(직전 회차 소유).
+- **~~P-79~~ 종료.** Notion 블록 깊이 상한을 실측으로 반증하고 3 → 6 으로 올렸다.
+  `ClovirPackageRepo` 는 블록 175개 중 **85개가 깊이 3 이상**이라 그 문서만 운영 본문이
+  원본의 78% 였다. 「그 아래는 구조다」는 추측이었다.
 - **P-44 · P-54~P-56 · P-59 · P-61~P-77** — 그대로다.
 
 ## 🔴 운영이 PostgreSQL 위에서 돈다

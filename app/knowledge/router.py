@@ -622,9 +622,15 @@ def move_document(
     폴더 이동은 권한을 안 바꾼다(§5.3). 프로젝트 이동은 바꾼다 — 그래서 그 경우에만
     감사 로그를 남긴다(`space_changed`).
     """
+    # 🔴 `folder_id` 는 **보냈을 때만** 넘긴다. 안 보낸 칸을 `None` 으로 넘기면 서버가
+    # 그것을 「비우라」로 읽어 폴더 배정이 조용히 지워진다 — 화면에서 걷은 축의 데이터는
+    # 남기기로 한 결정(22번)이 화면 조작 하나로 무너지던 자리다.
+    sent = payload.model_fields_set
     document, space_changed = service.move_document(
-        db, user, document_id, folder_id=payload.folder_id, project_id=payload.project_id,
+        db, user, document_id,
+        project_id=payload.project_id,
         expected_version=payload.base_version,
+        **({"folder_id": payload.folder_id} if "folder_id" in sent else {}),
     )
     if space_changed:
         record_audit_from_request(

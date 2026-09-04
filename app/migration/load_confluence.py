@@ -71,6 +71,19 @@ _ATTACHMENT_URL = "/api/knowledge/attachments/%s/content"
 #: 건너뛴 첨부를 본문에 남기는 말. 내부 사유 이름을 사용자에게 보여 주지 않는다.
 _SKIPPED_LINE = "원본에만 있는 첨부 파일입니다: %s"
 
+#: 🔴 못 옮긴 **본문 그림**에는 사유를 그대로 적는다.
+#:
+#: 예전에는 셋 다 「원본에만 있는 이미지입니다」 한 문장이었다. 그런데 셋은 서로 다른
+#: 사실이고, 그중 하나에는 그 문장이 **거짓말**이다 — 운영 실측에서 자리표시자 22개 중
+#: 18개가 원본에서 이미 지워진 그림이었고(지금 눌러도 Atlassian 이 404 를 준다), 읽는
+#: 사람은 그 문장을 보고 원본을 보러 갔다가 거기서도 깨진 그림을 본다.
+#:
+#: 파일 이름을 함께 적는 이유도 같다. 이름이 없으면 「무엇이 없어졌는지」를 물어볼
+#: 방법조차 없다.
+_GONE_LINE = "원본에서 이미 지워진 그림입니다: %s"
+_TOO_LARGE_LINE = "3MB 를 넘어 옮기지 않은 그림입니다: %s"
+_REJECTED_LINE = "옮길 수 없는 형식이라 넘긴 파일입니다: %s"
+
 
 @dataclass
 class ConfluenceLoadResult:
@@ -83,6 +96,11 @@ class ConfluenceLoadResult:
     attachments_attached: int = 0
     attachments_too_large: int = 0
     attachments_rejected: int = 0
+    #: 지난 회차가 이미 옮겨 둔 첨부. 🔴 이 칸이 없으면 **두 번째 회차가 실패한다** —
+    #: 이미 옮긴 것은 다시 안 붙이므로 `attachments_attached` 가 0 이 되고, 첨부 대조
+    #: 게이트가 그것을 「하나도 못 옮겼다」로 읽는다. 회차를 다시 돌리는 것은 이 도구의
+    #: 정상 사용법이다(멱등이 설계다).
+    attachments_reused: int = 0
     comments_created: int = 0
     comments_without_author: int = 0
     skipped_page_ids: list[str] = field(default_factory=list)
@@ -114,6 +132,7 @@ class ConfluenceLoadResult:
             "attachments_attached": self.attachments_attached,
             "attachments_too_large": self.attachments_too_large,
             "attachments_rejected": self.attachments_rejected,
+            "attachments_reused": self.attachments_reused,
             "comments_created": self.comments_created,
             "comments_without_author": self.comments_without_author,
             "accounted": self.accounted,
@@ -273,10 +292,12 @@ class ConfluenceLoader:
         # 보관된 페이지는 보관된 문서로 온다 — 상태를 바꾸지 않는다.
         document.archived = str(page.get("status") or "").lower() == "archived"
 
-        media_urls, skipped = self._load_attachments(
+        media_urls, skipped, media_notes = self._load_attachments(
             document, page_id, attachments, body, fetch=fetch
         )
-        doc_body = adf_to_doc(body.get("adf"), media_urls=media_urls)
+        doc_body = adf_to_doc(
+            body.get("adf"), media_urls=media_urls, media_notes=media_notes
+        )
         for name in skipped:
             doc_body["content"].append({
                 "type": "paragraph",
@@ -330,17 +351,32 @@ class ConfluenceLoader:
 
     def _load_attachments(
         self, document: Document, page_id: str, rows: list[dict], body: dict, *, fetch
-    ) -> tuple[dict[str, str], list[str]]:
-        """첨부를 옮기고 **본문의 media id → 우리 주소**를 돌려준다.
+    ) -> tuple[dict[str, str], list[str], dict[str, str]]:
+        """첨부를 옮기고 셋을 돌려준다.
 
-        두 번째 값은 「건너뛴 파일 이름」이다. 본문 끝에 한 줄로 적어 「여기 무언가
-        있었다」를 남긴다 — 조용히 사라지면 원본보다 짧아진 것을 아무도 모른다.
+        1. **본문의 media id → 우리 주소.**
+        2. **본문이 안 부른** 첨부 중 건너뛴 것의 이름. 본문 끝에 한 줄로 적어 「여기
+           무언가 있었다」를 남긴다 — 조용히 사라지면 원본보다 짧아진 것을 아무도 모른다.
+        3. **본문이 부른** 그림 중 못 옮긴 것의 media id → 사유 문장. 그 자리에 그대로
+           선다. 🔴 본문이 부른 그림을 끝줄로 보내면 그림이 있던 자리를 잃는다 —
+           읽는 사람은 「어디에 있던 그림인지」를 알아야 한다.
         """
         wanted = set(adf_media_ids(body.get("adf")))
         urls: dict[str, str] = {}
         skipped: list[str] = []
+        notes: dict[str, str] = {}
         if not rows:
-            return urls, skipped
+            return urls, skipped, notes
+
+        def lost(keys: set[str], name: str, line: str) -> None:
+            """못 옮긴 사실을 **본문이 부른 자리**나 **끝줄** 중 한 곳에만 적는다."""
+            marked = False
+            for key in keys:
+                if key and key in wanted:
+                    notes[key] = line % name
+                    marked = True
+            if not marked:
+                skipped.append(name)
         self.ensure_storage()
         for row in rows:
             name = str(row.get("title") or "첨부")
@@ -351,6 +387,7 @@ class ConfluenceLoader:
 
             already = self._mapped(legacy_id, T_FILE)
             if already:
+                self.result.attachments_reused += 1
                 for key in keys or {att_id}:
                     if key:
                         urls[key] = _ATTACHMENT_URL % already
@@ -369,7 +406,7 @@ class ConfluenceLoader:
                         SEVERITY_CLASSIFIED, "confluence_attachment_download_failed",
                         "files", f"{name}: {exc}", ref=legacy_id,
                     )
-                    skipped.append(name)
+                    lost(keys or {att_id}, name, _GONE_LINE)
                     continue
             if content is None:
                 # 상한을 넘었거나 안 받기로 한 회차다. **문서를 실패시키지 않는다.**
@@ -378,7 +415,7 @@ class ConfluenceLoader:
                     SEVERITY_CLASSIFIED, "confluence_attachment_too_large", "files",
                     f"{name}: 3MB 상한을 넘어 안 옮겼습니다.", ref=legacy_id,
                 )
-                skipped.append(name)
+                lost(keys or {att_id}, name, _TOO_LARGE_LINE)
                 continue
             try:
                 with self.db.begin_nested():
@@ -394,14 +431,14 @@ class ConfluenceLoader:
                     SEVERITY_CLASSIFIED, "confluence_attachment_rejected", "files",
                     f"{name}: {exc}", ref=legacy_id,
                 )
-                skipped.append(name)
+                lost(keys or {att_id}, name, _REJECTED_LINE)
                 continue
             self._map(legacy_id, T_FILE, record.id)
             self.result.attachments_attached += 1
             for key in keys or {att_id}:
                 if key:
                     urls[key] = _ATTACHMENT_URL % link.id
-        return urls, skipped
+        return urls, skipped, notes
 
     # ── 댓글 ─────────────────────────────────────────────────────────────────
 
@@ -447,12 +484,24 @@ class ConfluenceLoader:
 
     # ── 대조 게이트 ──────────────────────────────────────────────────────────
 
-    def reconcile(self, enumerated: int, *, report=None) -> StageResult:
+    def reconcile(
+        self, enumerated: int, *, report=None, attachments_seen: int | None = None
+    ) -> StageResult:
         """🔴 「전부 가져왔다」를 **주장이 아니라 증명**으로 만든다 (14번).
 
         열거한 페이지 수와, 만들었거나 고쳤거나 **명시적으로 건너뛴** 수가 같아야 한다.
         안 맞으면 어딘가에서 페이지가 조용히 사라진 것이고, 그 침묵이 이 회차가 고치는
         결함의 모양이다.
+
+        ## 첨부도 같은 대조를 받는다
+
+        🔴 이 회차에 실제로 일어난 일이다: 524쪽이 전부 들어오고 첨부는 **1,458개 중 0개**가
+        들어왔는데 회차는 `CONFLUENCE_IMPORT_OK` 로 끝났다. 페이지 대조만 있었고, 첨부
+        실패는 전부 「분류된 예외」라 판정을 안 건드렸기 때문이다.
+
+        원인 둘(리다이렉트·0바이트)은 각각 막았다. 하지만 **그 사고를 잡아 줄 검사**는
+        안 생겼었다 — 다음에 다른 이유로 첨부가 통째로 실패하면 운영자는 다시 초록을 본다.
+        그래서 여기서 센다: 원본에 첨부가 있었는데 **하나도 못 옮겼으면 실패**다.
         """
         stage = StageResult(name="confluence_reconcile")
         stage.inserted = self.result.documents_created
@@ -478,6 +527,31 @@ class ConfluenceLoader:
                 f"페이지 {self.result.documents_skipped}건을 건너뛰었습니다: "
                 + ", ".join(self.result.skipped_page_ids[:20]),
             )
+
+        if attachments_seen:
+            # 이번에 옮긴 것 + 지난 회차가 이미 옮겨 둔 것. 둘 다 「지금 문서에 붙어 있다」다.
+            got = self.result.attachments_attached + self.result.attachments_reused
+            # 「하나도 못 옮겼다」가 판정 기준이다. 몇 개를 건너뛰는 것은 정상이고(3MB·형식),
+            # 전부를 건너뛰는 것은 규칙이 아니라 고장이다.
+            (report or self.report).check(
+                "Confluence 첨부가 들어왔는가", got > 0, "1건 이상", f"{got}건",
+                f"원본이 가진 첨부 {attachments_seen}건 중 하나라도 옮겼는가. "
+                "전부 못 옮긴 회차가 초록으로 끝난 적이 있다.",
+            )
+            if got == 0:
+                self.report.finding(
+                    SEVERITY_BLOCKING, "confluence_no_attachment_landed", "files",
+                    f"원본에 첨부가 {attachments_seen}건 있는데 문서에 붙은 것이 없습니다. "
+                    "본문의 그림이 전부 자리표시자가 됩니다.",
+                )
+            elif got * 2 < attachments_seen:
+                # 절반 넘게 못 옮겼으면 규칙 때문일 수도, 고장일 수도 있다. 판정을 막지는
+                # 않되 **사람이 반드시 보게** 남긴다.
+                self.report.finding(
+                    SEVERITY_BLOCKING, "confluence_most_attachments_missing", "files",
+                    f"첨부 {attachments_seen}건 중 {got}건만 들어왔습니다. "
+                    "건너뛴 사유를 확인해 주세요.",
+                )
         return stage
 
 

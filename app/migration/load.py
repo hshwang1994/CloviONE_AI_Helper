@@ -1018,6 +1018,17 @@ class Loader:
                 continue
             cached = mirror.get(page_id) or {}
             document = existing.get(page_id)
+            if document is not None:
+                # 🔴 본문을 안 고치기로 해도 **이 페이지는 이 문서다.** `load_files` 가
+                # 속성 첨부를 붙이려면 이 사전이 채워져 있어야 하는데, 예전에는 아래
+                # `continue` 들 **뒤에서만** 채웠다. 그래서 사용자가 고친 문서나
+                # `--page` 로 안 고른 문서의 첨부는 바이트가 저장소에 들어가고 다리는
+                # 「옮겼다」로 굳는데 문서에는 안 붙는 고아가 됐고, 다시 돌려도 그 다리
+                # 때문에 건너뛰어 영영 안 붙었다.
+                #
+                # 티켓 쪽은 이 수정이 이미 있다(`load_ticket_bodies`) — 본문 스킵과
+                # 첨부 스킵은 서로 다른 판정이다.
+                self.document_by_page[page_id] = document.id
             if document is None:
                 if only_untouched or dry_run:
                     # 「본문만 다시 넣기」는 새 문서를 만들지 않는다. 본문을 다시 넣는
@@ -1044,12 +1055,18 @@ class Loader:
                 continue
             else:
                 stage.updated += 1
-            self.document_by_page[page_id] = document.id
+            self.document_by_page[page_id] = document.id   # 새로 만든 문서
             if dry_run:
                 # 무엇이 바뀔지 세기만 한다. 아래 어느 줄도 실행하지 않는다 — 「세기만
                 # 한다」가 절반만 지켜지면 그것은 세는 것이 아니라 쓰는 것이다.
                 continue
-            document.space_id = self._space_for(spaces, cached).id
+            # 🔴 **공간을 다시 쓰지 않는다.** 여기서 `_space_for` 를 부르면 컷오버 시각의
+            # 미러(`cached`)가 정본이 되어, 그 뒤에 정해진 프로젝트 배정이 통째로 조직 공통
+            # 공간으로 되돌아간다 — 문서의 공간이 곧 프로젝트이자 권한 경계다(11번이
+            # 「제목과 내용으로 다시 연결한다」고 정한 바로 그 값이다).
+            #
+            # 새로 만드는 문서는 위 insert 갈래가 이미 공간을 정했다. 이미 있는 문서의
+            # 공간은 **제품과 분류 적용기의 것**이고 이관은 본문을 고치러 온 것이다.
             document.title = parsed["title"] or cached.get("title") or document.title
             document.doc_type = _doc_type(parsed, taxonomy, cached)
             document.confidential = bool(cached.get("restricted"))

@@ -742,8 +742,12 @@ def save_document(
     }
 
 
+#: 「이 칸을 안 보냈다」. `None`(비우라)과 **다른 사실**이다.
+FOLDER_UNSET = object()
+
+
 def move_document(
-    db: Session, user: User, document_id: str, *, folder_id: str | None = None,
+    db: Session, user: User, document_id: str, *, folder_id=FOLDER_UNSET,
     project_id: str | None = None, expected_version: int | None = None,
 ) -> tuple[Document, bool]:
     """정리(폴더)와 소속(프로젝트)을 한 호출로 옮긴다 (§14.4 이동 대화상자).
@@ -754,6 +758,12 @@ def move_document(
     0023 마이그레이션이 프로젝트 재배치에서 하는 것과 같은 처리). 이 함수를 부르는
     라우터는 소속이 실제로 바뀐 경우에만 감사 로그를 남긴다 — **폴더 정리는 권한을 안
     바꾸지만 소속 이동은 바꾼다**(§5.3), 그 차이가 로그에도 드러나야 한다.
+
+    🔴 `folder_id` 를 **안 보내면 폴더를 안 건드린다.** 예전에는 기본값이 `None` 이라
+    「안 보냈다」와 「비우라」가 같은 값이었고, 그래서 프로젝트를 안 고른 채 이동 대화상자를
+    그대로 보내면 그 문서의 폴더 배정이 조용히 지워졌다. 폴더 축은 화면에서만 걷었고
+    데이터는 남기기로 한 결정(22번)이라, 화면에 없는 값이 화면 조작으로 사라지면 안 된다.
+    비우려면 `folder_id=None` 을 **명시적으로** 보낸다.
 
     두 번째 반환값은 "소속(공간)이 실제로 바뀌었는가" — 라우터가 감사 로그 여부를
     그것으로 정한다.
@@ -771,25 +781,29 @@ def move_document(
         else:
             new_space = resolve_or_create_project_space(db, user, project_id)
         if new_space.id != document.space_id:
+            # 공간이 바뀌면 옛 폴더 참조는 버린다 — 다른 공간의 폴더를 가리키게 둘 수 없다.
             document.space_id = new_space.id
             document.folder_id = None
             space_changed = True
-        elif folder_id:
-            folder = get_scoped_folder_or_404(db, user, folder_id)
-            if folder.space_id != document.space_id:
-                raise ValidationAppError("다른 공간의 폴더로는 옮길 수 없습니다.")
-            document.folder_id = folder_id
-    elif folder_id:
-        folder = get_scoped_folder_or_404(db, user, folder_id)
-        if folder.space_id != document.space_id:
-            raise ValidationAppError("다른 공간의 폴더로는 옮길 수 없습니다.")
-        document.folder_id = folder_id
-    else:
-        document.folder_id = None
+        elif folder_id is not FOLDER_UNSET:
+            _set_folder(db, user, document, folder_id)
+    elif folder_id is not FOLDER_UNSET:
+        _set_folder(db, user, document, folder_id)
 
     document.version += 1
     db.flush()
     return document, space_changed
+
+
+def _set_folder(db: Session, user: User, document: Document, folder_id: str | None) -> None:
+    """폴더를 정하거나(`id`) 비운다(`None`). **같은 공간 안에서만** 옮긴다."""
+    if not folder_id:
+        document.folder_id = None
+        return
+    folder = get_scoped_folder_or_404(db, user, folder_id)
+    if folder.space_id != document.space_id:
+        raise ValidationAppError("다른 공간의 폴더로는 옮길 수 없습니다.")
+    document.folder_id = folder_id
 
 
 def delete_document(db: Session, user: User, document_id: str, *, now=None) -> Document:

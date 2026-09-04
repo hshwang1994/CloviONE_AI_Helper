@@ -38,6 +38,7 @@ import { useListReturn } from "../lib/listReturn.js";
 import { useCategories } from "./knowledge/queries.js";
 import { PROJECT_NONE, PROJECT_UNASSIGNED_LABEL } from "./knowledge/constants.js";
 import { celebrateCreated } from "../ui/celebrate.js";
+import { ImageLightbox, useLightbox } from "../ui/ImageLightbox.jsx";
 
 /* 문서 한 건 — 본문 편집 · 문서 정보 · 관계 · 첨부 · 댓글 (지시 22.6).
  *
@@ -199,11 +200,27 @@ function InfoRow({ label, children }) {
 /* 첨부 — 서버에 있는데 화면이 없던 기능 (지시 22.6).
  *
  * 파일은 우리 저장소에 있고 우리 라우트로 나간다. 인증이 걸린 같은 출처라 링크 하나면
- * 쿠키가 함께 간다. */
+ * 쿠키가 함께 간다.
+ *
+ * ## 그림은 보여 준다
+ *
+ * 예전에는 그림도 파일 이름 한 줄이었다. 문서를 열어 놓고 붙은 그림을 훑을 방법이 없고,
+ * 하나 보려면 새 탭을 열어야 했다 — 티켓 화면은 같은 첨부를 이미 썸네일과 라이트박스로
+ * 그리고 있었으므로 같은 첨부가 화면마다 다르게 다뤄지고 있었던 것이다.
+ * 그림인지는 응답의 `mime_type` 으로 안다. 서버에 새 칸을 만들지 않는다. */
+const IMAGE_MIME = /^image\//;
+
 function Attachments({ documentId, items, onChanged }) {
   const toast = useToast();
   const confirm = useConfirm();
   const inputRef = React.useRef(null);
+  const lb = useLightbox();
+
+  const images = items.filter((f) => IMAGE_MIME.test(f.mime_type || ""));
+  const others = items.filter((f) => !IMAGE_MIME.test(f.mime_type || ""));
+  const slides = images.map((f) => ({
+    src: `/api/knowledge/attachments/${f.id}/content`, title: f.filename,
+  }));
 
   const upload = useMutation({
     mutationFn: async (picked) => {
@@ -267,8 +284,75 @@ function Attachments({ documentId, items, onChanged }) {
           이 문서에 붙은 파일이 없습니다.
         </Typography>
       ) : (
-        <Stack spacing={0.75}>
-          {items.map((file) => (
+        <Stack spacing={1.5}>
+          {images.length ? (
+            <Box sx={{
+              display: "grid", gap: 1,
+              gridTemplateColumns: "repeat(auto-fill, minmax(7rem, 1fr))",
+            }}>
+              {images.map((file, i) => (
+                <Box
+                  key={file.id}
+                  component="button"
+                  type="button"
+                  onClick={() => lb.open(slides, i)}
+                  aria-label={`${file.filename} 크게 보기`}
+                  sx={{
+                    p: 0, border: 0, background: "none", cursor: "zoom-in",
+                    display: "block", width: "100%", minWidth: 0,
+                    "&:focus-visible": {
+                      outline: "3px solid", outlineColor: "primary.main", outlineOffset: 2,
+                    },
+                  }}
+                >
+                  {/* contain 이다 — 올린 그림을 잘라 보여 주지 않는다(§5). */}
+                  <Box
+                    component="img"
+                    src={`/api/knowledge/attachments/${file.id}/content`}
+                    alt={file.filename}
+                    loading="lazy"
+                    decoding="async"
+                    sx={{
+                      width: "100%", aspectRatio: "4 / 3", objectFit: "contain",
+                      borderRadius: 2, border: 1, borderColor: "divider",
+                      bgcolor: "action.hover", display: "block",
+                    }}
+                  />
+                </Box>
+              ))}
+            </Box>
+          ) : null}
+          {others.map((file) => (
+            <Stack key={file.id} direction="row" alignItems="center" spacing={1}>
+              <Link
+                href={`/api/knowledge/attachments/${file.id}/content`}
+                target="_blank"
+                rel="noreferrer"
+                sx={{ ...KO_WORD_BREAK, flex: 1, minWidth: 0 }}
+              >
+                {file.filename}
+              </Link>
+              <Typography variant="caption" color="text.secondary" sx={{ flexShrink: 0 }}>
+                {humanSize(file.size_bytes)}
+              </Typography>
+              <Button
+                size="small"
+                variant="ghost"
+                onClick={async () => {
+                  const ok = await confirm(
+                    "이 문서에서 파일을 뗍니다. 파일 자체는 저장소에 남습니다.",
+                    { title: `${file.filename}을(를) 뗄까요?`, confirmLabel: "떼기" },
+                  );
+                  if (ok) remove.mutate(file.id);
+                }}
+              >
+                삭제
+              </Button>
+            </Stack>
+          ))}
+          {/* 그림도 뗄 수 있어야 한다. 격자에는 단추를 겹치지 않고 이름 줄로 함께 센다 —
+              작은 썸네일 위의 겹친 단추는 좁은 화면에서 그림을 가린다. */}
+          {images.map((file) => (
             <Stack key={file.id} direction="row" alignItems="center" spacing={1}>
               <Link
                 href={`/api/knowledge/attachments/${file.id}/content`}
@@ -298,6 +382,7 @@ function Attachments({ documentId, items, onChanged }) {
           ))}
         </Stack>
       )}
+      <ImageLightbox {...lb.props} />
     </Section>
   );
 }

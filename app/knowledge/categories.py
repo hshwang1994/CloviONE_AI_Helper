@@ -1,4 +1,15 @@
-"""카테고리 — 조직이 스스로 만드는 문서 분류 어휘.
+"""문서 분류 — 조직이 스스로 만드는 어휘.
+
+## 이름이 둘이다 — 그리고 그것이 의도다
+
+화면에 보이는 낱말은 **분류**다(문서 개편 2번). 모듈·표·필드 이름은 `category` 로 남는다 —
+주소(`?category_id=`)와 서버 계약과 저장된 행이 그 이름을 이미 쓰고 있어서, 축 이름을
+통일하자고 스키마까지 건드리면 이번 변경의 범위가 열 배가 된다.
+
+🔴 그래서 **이 파일의 오류 문장은 화면 문구다.** `lib/api.js` 가 봉투의 `error.message` 를
+그대로 Error 로 만들고 화면이 그것을 띄운다 — 이름을 비우거나 중복 이름을 넣는 가장 흔한
+실패 경로가 전부 여기다. 여기에 「카테고리」를 적으면 「분류」 탭에서 그 낱말이 튀어나온다.
+
 
 ## 태그와 무엇이 다른가
 
@@ -44,12 +55,12 @@ def _org_clause(org_id: str | None):
 def _clean_name(name: str) -> tuple[str, str]:
     clean = (name or "").strip()
     if not clean:
-        raise ValidationAppError("카테고리 이름을 입력해 주세요.")
+        raise ValidationAppError("분류 이름을 입력해 주세요.")
     if len(clean) > CATEGORY_NAME_MAX:
-        raise ValidationAppError(f"카테고리 이름은 {CATEGORY_NAME_MAX}자 이하여야 합니다.")
+        raise ValidationAppError(f"분류 이름은 {CATEGORY_NAME_MAX}자 이하여야 합니다.")
     slug = slugify(clean)
     if not slug:
-        raise ValidationAppError("카테고리 이름을 입력해 주세요.")
+        raise ValidationAppError("분류 이름을 입력해 주세요.")
     return clean, slug
 
 
@@ -88,7 +99,7 @@ def get_or_404(db: Session, org_id: str | None, category_id: str) -> DocumentCat
     """이 조직의 카테고리 하나. 다른 조직 것이면 **없는 것**이다(404) — 태그와 같은 계약."""
     category = db.get(DocumentCategory, category_id)
     if category is None or category.org_id != org_id:
-        raise NotFoundError("카테고리를 찾지 못했습니다.")
+        raise NotFoundError("분류를 찾지 못했습니다.")
     return category
 
 
@@ -99,7 +110,7 @@ def create(db: Session, org_id: str | None, name: str) -> DocumentCategory:
         select(DocumentCategory).where(DocumentCategory.slug == slug, _org_clause(org_id))
     ).scalars().first()
     if found is not None:
-        raise ConflictError(f"같은 이름의 카테고리가 이미 있습니다: {found.name}")
+        raise ConflictError(f"같은 이름의 분류가 이미 있습니다: {found.name}")
     top = db.execute(
         select(func.max(DocumentCategory.sort_order)).where(_org_clause(org_id))
     ).scalar()
@@ -123,7 +134,7 @@ def rename(db: Session, category: DocumentCategory, name: str) -> DocumentCatego
             )
         ).scalars().first()
         if clash is not None:
-            raise ConflictError(f"같은 이름의 카테고리가 이미 있습니다: {clash.name}")
+            raise ConflictError(f"같은 이름의 분류가 이미 있습니다: {clash.name}")
     category.name = clean
     category.slug = slug
     db.flush()

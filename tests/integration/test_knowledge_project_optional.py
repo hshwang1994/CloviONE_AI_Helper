@@ -316,3 +316,41 @@ def test_the_trash_calls_a_project_less_document_unassigned_not_by_its_space_nam
     assert by_title["버릴 프로젝트 문서"]["space"] == \
         "인천국제공항공사 [클라우드 인프라 고도화]", \
         "프로젝트 문서까지 미지정으로 적으면 열이 아무것도 안 말한다"
+
+
+def test_moving_without_naming_a_folder_does_not_erase_the_folder(client, login_as, world, db):
+    """🔴 화면에서 걷은 축의 데이터가 화면 조작으로 사라지면 안 된다 (22번).
+
+    폴더 축은 화면에서만 걷었고 표·열·엔드포인트는 남기기로 했다. 그런데 이동 대화상자는
+    폴더 칸이 없어져 `folder_id` 를 안 보내는데, 서버가 「안 보냈다」와 「비우라」를 같은
+    값(`None`)으로 읽고 있었다 — 프로젝트를 안 고른 채 「옮기기」를 누르면 그 문서의 폴더
+    배정이 조용히 지워졌다. 오류도 안 나고 화면에 폴더가 없으니 아무도 못 본다.
+
+    비우는 능력은 그대로 둔다 — `folder_id: null` 을 **명시적으로** 보내면 비워진다.
+    """
+    from app.knowledge.models import Document, Folder
+
+    hdr = _hdr(login_as)
+    made = client.post("/api/knowledge/documents", headers=hdr, json={"title": "정리된 문서"})
+    assert made.status_code == 200, made.text
+    doc_id = made.json()["id"]
+    document = db.get(Document, doc_id)
+
+    folder = Folder(space_id=document.space_id, name="01. 기획", sort_order=1024)
+    db.add(folder)
+    db.flush()
+    document.folder_id = folder.id
+    db.commit()
+
+    # 폴더를 안 말한 이동 — 폴더는 그대로여야 한다.
+    moved = client.post(f"/api/knowledge/documents/{doc_id}/move", headers=hdr, json={})
+    assert moved.status_code == 200, moved.text
+    db.expire_all()
+    assert db.get(Document, doc_id).folder_id == folder.id, "폴더 배정이 조용히 지워졌다"
+
+    # 그리고 명시적으로 비우면 비워진다 — 능력을 잃지 않았다.
+    cleared = client.post(f"/api/knowledge/documents/{doc_id}/move", headers=hdr,
+                          json={"folder_id": None})
+    assert cleared.status_code == 200, cleared.text
+    db.expire_all()
+    assert db.get(Document, doc_id).folder_id is None, "명시적으로 비웠는데 안 비워졌다"

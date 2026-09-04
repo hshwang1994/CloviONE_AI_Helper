@@ -184,7 +184,7 @@ export function Knowledge() {
     qc.invalidateQueries({ queryKey: ["knowledge", "summary"] });
   };
 
-  /* 어휘(태그·카테고리)를 고치면 **목록의 줄과 조건 후보가 함께** 달라진다 — 함께
+  /* 어휘(태그·분류)를 고치면 **목록의 줄과 조건 후보가 함께** 달라진다 — 함께
      무효화한다. 하나만 무효화하면 이름을 고친 어휘가 필터에서는 새 이름, 줄에서는 옛
      이름이 된다. */
   const invalidateTags = () => {
@@ -231,14 +231,14 @@ export function Knowledge() {
 
   const addCategory = useMutation({
     mutationFn: (name) => api("/api/knowledge/categories", { method: "POST", body: { name } }),
-    onSuccess: () => { invalidateCategories(); toast("카테고리를 추가했습니다."); },
+    onSuccess: () => { invalidateCategories(); toast("분류를 추가했습니다."); },
     onError: (e) => toast(e.message, "error"),
   });
 
   const renameCategory = useMutation({
     mutationFn: ({ id, name }) =>
       api(`/api/knowledge/categories/${id}`, { method: "PATCH", body: { name } }),
-    onSuccess: () => { invalidateCategories(); toast("카테고리 이름을 고쳤습니다."); },
+    onSuccess: () => { invalidateCategories(); toast("분류 이름을 고쳤습니다."); },
     onError: (e) => toast(e.message, "error"),
   });
 
@@ -248,8 +248,8 @@ export function Knowledge() {
       invalidateCategories();
       toast(
         result.detached
-          ? `카테고리를 지웠고 문서 ${result.detached}건이 미분류가 됐습니다.`
-          : "카테고리를 지웠습니다.",
+          ? `분류를 지웠고 문서 ${result.detached}건이 미분류가 됐습니다.`
+          : "분류를 지웠습니다.",
       );
       /* 지운 분류가 지금 조건이면 조건도 푼다 — 남겨 두면 영원히 0건인 화면이 된다. */
       if (category && category === deletedId) setQuery({ category: null });
@@ -545,8 +545,8 @@ export function Knowledge() {
           const ok = await confirm(
             used
               ? `문서 ${used}건이 미분류로 돌아갑니다. 문서 자체는 그대로 남습니다.`
-              : "이 카테고리를 쓰는 문서가 없습니다.",
-            { title: `${row.name} 카테고리를 삭제할까요?`, confirmLabel: "삭제", danger: used > 0 },
+              : "이 분류를 쓰는 문서가 없습니다.",
+            { title: `${row.name} 분류를 삭제할까요?`, confirmLabel: "삭제", danger: used > 0 },
           );
           if (ok) removeCategory.mutate(row.id);
         }}

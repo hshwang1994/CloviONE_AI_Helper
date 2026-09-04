@@ -466,3 +466,197 @@ def test_the_size_limit_still_short_circuits_before_any_request(tmp_path):
     assert _source(outbound, tmp_path).download(
         "/download/big", declared_size=9 * 1024 * 1024) is None
     assert outbound.calls == [], "상한을 넘은 첨부인데 바이트를 받으러 갔다"
+
+
+# ── 못 옮긴 그림에 **왜 없는지**가 적히는가 ──────────────────────────────────
+#
+# 운영에서 본문 12곳에 「원본에만 있는 이미지입니다」가 남았고 사용자가 그것이 무엇이냐고
+# 물었다. 갈라 보니 사유가 셋이었다: 원본에서 이미 지워진 그림 18 · 3MB 초과 · 형식 거절.
+# 🔴 그중 첫째에는 그 문장이 **거짓말**이다 — 같은 주소를 지금 눌러도 Atlassian 이 404 를
+# 준다. 원본에도 없는 그림을 「원본에만 있다」고 적으면 읽는 사람은 원본을 보러 갔다가
+# 거기서도 깨진 그림을 본다.
+
+
+#: zip 파일의 머리 네 바이트. 소스에 제어문자를 그대로 박지 않는다.
+_ZIP_HEAD = b"PK" + bytes([3, 4])
+
+
+class GoneImageConfluence(FakeConfluence):
+    """그림 셋이 서로 **다른 이유로** 못 들어오는 페이지."""
+
+    def page_body(self, page_id, *, version=None):
+        body = super().page_body(page_id, version=version)
+        if page_id != "2":
+            return body
+        body["adf"] = _adf(
+            _para("앞 문단입니다."),
+            {"type": "mediaSingle", "content": [
+                {"type": "media", "attrs": {"id": "att-gone", "type": "file"}}]},
+            _para("가운데 문단입니다."),
+            {"type": "mediaSingle", "content": [
+                {"type": "media", "attrs": {"id": "att-huge", "type": "file"}}]},
+            _para("뒤 문단입니다."),
+            {"type": "mediaSingle", "content": [
+                {"type": "media", "attrs": {"id": "att-nowhere", "type": "file"}}]},
+        )
+        return body
+
+    def page_attachments(self, page_id):
+        if page_id != "2":
+            return []
+        return [
+            {"id": "att-gone", "title": "화면-1.png", "fileSize": 2048,
+             "mediaType": "image/png", "downloadLink": "/download/gone"},
+            {"id": "att-huge", "title": "매뉴얼.pdf", "fileSize": 9 * 1024 * 1024,
+             "mediaType": "application/pdf", "downloadLink": "/download/huge"},
+            # 본문이 **안 부르는** 첨부. 형식이 막혀 건너뛴다.
+            {"id": "att-orphan", "title": "소스.zip", "fileSize": 2048,
+             "mediaType": "application/zip", "downloadLink": "/download/orphan"},
+        ]
+
+    def download(self, link, *, declared_size=None):
+        from app.core.errors import AppError
+
+        if link == "/download/gone":
+            raise AppError("첨부 응답 오류: HTTP 404")
+        if link == "/download/orphan":
+            # 🔴 이름이 아니라 **내용**으로 형식을 가른다(`storage.store_bytes` 는
+            # `sniff_media_type` 을 쓴다). PNG 바이트를 「소스.zip」이라 부르면 통과한다 —
+            # 처음에 그렇게 적어서 이 시험이 스스로를 속였다. 진짜 zip 머리를 준다.
+            return _ZIP_HEAD + bytes(64)
+        return super().download(link, declared_size=declared_size)
+
+
+def _page2_text(db):
+    from app.knowledge.models import Document, DocumentVersion
+    from app.migration.models import SRC_CONFLUENCE, T_DOCUMENT, LegacyMapping
+
+    doc_id = next(
+        m.target_id for m in db.query(LegacyMapping).filter(
+            LegacyMapping.legacy_source == SRC_CONFLUENCE,
+            LegacyMapping.target_type == T_DOCUMENT).all()
+        if db.get(Document, m.target_id).title == "설치 가이드"
+    )
+    document = db.get(Document, doc_id)
+    return db.get(DocumentVersion, document.current_version_id).body_text
+
+
+def test_a_lost_image_says_why_it_is_missing_and_names_the_file(db, actor):
+    """🔴 사유 셋이 서로 다른 문장으로 선다 — 한 문장으로 뭉치면 하나가 거짓말이 된다."""
+    _run(db, actor, GoneImageConfluence())
+    text = _page2_text(db)
+
+    assert "원본에서 이미 지워진 그림입니다: 화면-1.png" in text, text
+    assert "3MB 를 넘어 옮기지 않은 그림입니다: 매뉴얼.pdf" in text, text
+    # 사유를 아는 자리에서는 옛 뭉뚱그린 문장을 안 쓴다. 한 번은 남는다 —
+    # `att-nowhere` 는 첨부 목록에 아예 없어 우리가 사유를 모른다(아래 시험).
+    assert text.count("원본에만 있는 이미지입니다") == 1, text
+
+
+def test_a_lost_image_stays_where_the_image_was(db, actor):
+    """자리를 잃으면 「어디에 있던 그림인지」를 못 알아본다 — 끝줄로 보내지 않는다."""
+    _run(db, actor, GoneImageConfluence())
+    text = _page2_text(db)
+
+    before = text.index("앞 문단입니다.")
+    gone = text.index("원본에서 이미 지워진 그림입니다")
+    middle = text.index("가운데 문단입니다.")
+    huge = text.index("3MB 를 넘어 옮기지 않은 그림입니다")
+    after = text.index("뒤 문단입니다.")
+    assert before < gone < middle < huge < after, (
+        "못 옮긴 그림이 본문 흐름에서 밀려났다\n" + text
+    )
+
+
+def test_a_skipped_attachment_the_body_never_referenced_still_gets_a_trailing_line(
+    db, actor
+):
+    """본문이 안 부르는 첨부는 적을 자리가 없다 — 그때만 끝줄이다.
+
+    양쪽을 함께 재는 이유는 「전부 끝줄로 보낸다」로 고쳐도 위 시험이 초록이기 때문이다.
+    """
+    _run(db, actor, GoneImageConfluence())
+    text = _page2_text(db)
+
+    assert "원본에만 있는 첨부 파일입니다: 소스.zip" in text, text
+    assert text.index("뒤 문단입니다.") < text.index("소스.zip"), (
+        "본문이 안 부르는 첨부는 끝에 서야 한다\n" + text
+    )
+
+
+def test_an_image_with_no_attachment_row_at_all_keeps_the_last_resort_wording(db, actor):
+    """사유를 **모르는** 자리에는 마지막 수단이 남는다 — 아는 척하지 않는다.
+
+    `att-nowhere` 는 첨부 목록에 아예 없다. 지워졌는지, 다른 페이지 것인지, 외부
+    이미지인지 우리가 알 방법이 없으므로 셋 중 하나를 골라 적으면 그것이 추측이다.
+    """
+    _run(db, actor, GoneImageConfluence())
+    text = _page2_text(db)
+
+    assert "원본에만 있는 이미지입니다" in text, text
+    # 그리고 그 자리는 마지막 그림 자리다 — 사유를 몰라도 위치는 안다.
+    assert text.index("뒤 문단입니다.") < text.index("원본에만 있는 이미지입니다"), text
+
+
+# ── 「못 가져왔다」가 초록으로 끝나지 않는가 ─────────────────────────────────
+#
+# 🔴 이 회차에 실제로 일어났다: 524쪽이 전부 들어오고 첨부는 1,458개 중 **0개**가 들어왔는데
+# 회차는 `CONFLUENCE_IMPORT_OK` 로 끝났다. 원인 둘(리다이렉트·0바이트)은 각각 막았지만
+# **그 사고를 잡아 줄 검사**는 없었다 — 다음에 다른 이유로 같은 일이 나면 또 초록이다.
+
+
+class NoAttachmentLandsConfluence(FakeConfluence):
+    """첨부가 하나도 안 들어오는 회차. 사유는 무엇이든 좋다 — 결과가 같다."""
+
+    def download(self, link, *, declared_size=None):
+        from app.core.errors import AppError
+
+        raise AppError("첨부 응답 오류: HTTP 500")
+
+
+def test_a_round_where_no_attachment_landed_is_a_failure_not_a_pass(db, actor):
+    """원본에 첨부가 있는데 하나도 못 옮겼으면 **회차가 실패한다.**"""
+    report = _run(db, actor, NoAttachmentLandsConfluence())
+
+    gate = [c for c in report.checks if "첨부" in c.name]
+    assert gate, "첨부 대조 검사가 아예 안 돌았다"
+    assert not gate[0].ok, "첨부가 0건인데 검사가 통과했다"
+    kinds = {f.kind for f in report.findings}
+    assert "confluence_no_attachment_landed" in kinds, kinds
+    # 그리고 페이지는 정상으로 들어왔다 — 첨부 실패가 문서를 죽이지 않는다(19번).
+    assert report.stages[-1].inserted + report.stages[-1].updated > 0
+
+
+def test_the_attachment_gate_passes_when_attachments_actually_land(db, actor):
+    """반례. 정상 회차에서 이 검사가 초록이 아니면 그것은 게이트가 아니라 소음이다."""
+    report = _run(db, actor, FakeConfluence())
+
+    gate = [c for c in report.checks if "첨부" in c.name]
+    assert gate and gate[0].ok, [(c.name, c.ok) for c in report.checks]
+    kinds = {f.kind for f in report.findings}
+    assert "confluence_no_attachment_landed" not in kinds, kinds
+
+
+def test_the_gate_stays_quiet_when_we_chose_not_to_fetch_files(db, actor):
+    """「안 받기로 했다」와 「못 받았다」는 다른 사실이다 — `--no-files` 를 실패로 안 읽는다."""
+    report = _run(db, actor, FakeConfluence(), with_files=False)
+
+    assert not [c for c in report.checks if "첨부" in c.name], (
+        "파일을 안 받기로 한 회차에 첨부 대조가 돌았다"
+    )
+
+
+def test_the_attachment_gate_does_not_fail_the_second_round(db, actor):
+    """🔴 반례 중에서도 가장 중요한 것 — **재실행이 정상이다.**
+
+    이미 옮긴 첨부는 다시 안 붙인다(멱등이 설계다). 그때 「이번에 붙인 수」만 세면 두 번째
+    회차의 그 수가 0 이라, 게이트가 정상 회차를 「첨부를 하나도 못 옮겼다」로 읽는다.
+    게이트를 넣으면서 실제로 그렇게 적었다가 여기서 잡았다.
+    """
+    _run(db, actor, FakeConfluence())
+    second = _run(db, actor, FakeConfluence())
+
+    gate = [c for c in second.checks if "첨부" in c.name]
+    assert gate and gate[0].ok, [(c.name, c.ok, c.actual) for c in second.checks]
+    kinds = {f.kind for f in second.findings}
+    assert "confluence_no_attachment_landed" not in kinds, kinds

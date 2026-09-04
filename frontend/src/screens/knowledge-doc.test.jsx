@@ -332,3 +332,46 @@ describe("곁열이 문서에 대한 것을 든다", () => {
     expect(seen[1].category_id).toBeNull();
   });
 });
+
+/* 붙은 그림을 문서 화면에서 볼 수 있는가 (사용자 지시 「미리보기까지 다 들고와야 한다」).
+ *
+ * 예전에는 그림도 파일 이름 한 줄이었다 — 문서를 열어 놓고 붙은 그림을 훑을 방법이 없고
+ * 하나 보려면 새 탭을 열어야 했다. 티켓 화면은 같은 첨부를 이미 썸네일과 라이트박스로
+ * 그리고 있었으므로, 같은 첨부가 화면마다 다르게 다뤄지고 있었던 것이다. */
+describe("문서 첨부의 그림 미리보기", () => {
+  const IMAGE = {
+    id: "att-img", filename: "구성도.png", mime_type: "image/png", size_bytes: 2048,
+  };
+  const FILE = {
+    id: "att-pdf", filename: "매뉴얼.pdf", mime_type: "application/pdf", size_bytes: 4096,
+  };
+
+  function withAttachments(list) {
+    const doc = responses.get(`GET /api/knowledge/documents/${DOC_ID}`);
+    responses.set(`GET /api/knowledge/documents/${DOC_ID}`, { ...doc, attachments: list });
+  }
+
+  it("🔴 그림은 실제 <img> 로 선다 — 이름 링크만 있으면 미리보기가 아니다", async () => {
+    withAttachments([IMAGE, FILE]);
+    await renderDoc();
+
+    const shot = await screen.findByAltText("구성도.png");
+    expect(shot.tagName).toBe("IMG");
+    expect(shot.getAttribute("src")).toBe("/api/knowledge/attachments/att-img/content");
+    // 그림이 아닌 첨부는 그림으로 그리지 않는다 — 반례가 없으면 「전부 그린다」도 초록이다.
+    expect(screen.queryByAltText("매뉴얼.pdf")).toBeNull();
+  });
+
+  it("크게 보기 단추가 그림마다 선다", async () => {
+    withAttachments([IMAGE, FILE]);
+    await renderDoc();
+    expect(await screen.findByRole("button", { name: "구성도.png 크게 보기" })).toBeTruthy();
+  });
+
+  it("그림도 이름과 삭제 단추를 그대로 갖는다 — 뗄 방법을 잃지 않는다", async () => {
+    withAttachments([IMAGE]);
+    await renderDoc();
+    expect(await screen.findByText("구성도.png")).toBeTruthy();
+    expect(screen.getAllByRole("button", { name: "삭제" }).length).toBeGreaterThan(0);
+  });
+});
