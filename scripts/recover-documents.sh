@@ -27,6 +27,7 @@
 #   bash scripts/recover-documents.sh confluence-dry
 #   bash scripts/recover-documents.sh confluence
 #   bash scripts/recover-documents.sh classify-emit
+#   bash scripts/recover-documents.sh classify-upload var/classify_manual.jsonl
 #   bash scripts/recover-documents.sh classify-apply
 #   bash scripts/recover-documents.sh reindex
 set -uo pipefail
@@ -43,7 +44,7 @@ set -a; . "$ENV_FILE"; set +a
 : "${SUDO_PW:?SUDO_PW 가 $ENV_FILE 에 없다}"
 
 STEP="${1:-}"
-[ -n "$STEP" ] || { echo "FAIL: 단계를 주세요 (measure|notion-dry|notion|audit|confluence-dry|confluence|classify-emit|classify-apply|reindex)"; exit 2; }
+[ -n "$STEP" ] || { echo "FAIL: 단계를 주세요 (measure|notion-dry|notion|audit|confluence-dry|confluence|classify-emit|classify-upload|classify-apply|reindex)"; exit 2; }
 
 APP_DIR="/opt/clovirassist"
 # 🔴 데이터베이스 이름을 손으로 적지 않는다. 실측에서 `clovir` 로 적었다가 「그런
@@ -148,6 +149,25 @@ classify-emit)
   echo "🔴 다음은 **사람이 검토하는 단계다.** 위 파일을 받아서 읽고, 틀린 줄을 고친 뒤"
   echo "   classify-apply 를 돌린다. decision 은 matched|ambiguous|none|manual 이고,"
   echo "   손으로 고친 줄은 manual 로 적는다."
+  ;;
+
+classify-upload)
+  # 검토를 끝낸 제안 파일을 서버로 올린다.
+  #
+  # 🔴 emit 이 만든 파일을 **서버에서 직접 고치지 않는다.** 검토는 여기(작업 PC)에서
+  # 하고, 그 결과를 통째로 올린 다음 apply 가 그 파일만 읽는다. 줄마다 근거(`evidence`)가
+  # 함께 적혀 있어서 「왜 이 문서가 저 프로젝트에 있나」에 나중에 답할 수 있고, 적용한
+  # 그 파일이 서버의 $OUT 에 그대로 남는다. 파일에는 문서 id·제목·근거만 있고 비밀은 없다.
+  LOCAL="${2:-var/classify_manual.jsonl}"
+  [ -f "$LOCAL" ] || { echo "FAIL: $LOCAL 가 없다"; exit 2; }
+  LINES=$(wc -l < "$LOCAL")
+  echo "== 검토본 $LOCAL ($LINES 줄) 을 서버로 올린다 =="
+  ssh -o BatchMode=yes "$SERVER" "cat > /tmp/classify-review.jsonl" < "$LOCAL" || exit 1
+  remote_sudo "install -d -o clovirassist -g clovirassist -m 0750 $OUT"
+  remote_sudo "install -o clovirassist -g clovirassist -m 0640 /tmp/classify-review.jsonl $OUT/documents.jsonl"
+  remote_sudo "rm -f /tmp/classify-review.jsonl"
+  echo "-- 서버가 받은 줄 수:"
+  remote_sudo "wc -l $OUT/documents.jsonl"
   ;;
 
 classify-apply)

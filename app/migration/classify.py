@@ -410,10 +410,16 @@ def apply(
             result.projects_left_unassigned += 1
 
         category = (row.get("category") or "").strip()
-        if category and not document.category_id:
-            if not dry_run:
-                document.category_id = _category_id(db, org_id, category)
-            result.categories_set += 1
+        # 🔴 갈래가 둘이다. 추정은 사람의 선택을 안 덮고, 사람이 정한 줄은 고친다 —
+        # 위 머리말의 이유. 이관 문서의 분류는 0026 이 옛 `doc_type` 에서 기계로 시드한
+        # 값이라 사람이 고른 적이 없고, 그것을 고치는 것이 이번 요구다.
+        may_replace = decision == DECISION_MANUAL
+        if category and (may_replace or not document.category_id):
+            next_id = _category_id(db, org_id, category)
+            if next_id != document.category_id:
+                if not dry_run:
+                    document.category_id = next_id
+                result.categories_set += 1
 
         wanted = [t for t in (row.get("tags") or []) if t and t.strip()]
         if wanted:

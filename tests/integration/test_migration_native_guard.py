@@ -325,3 +325,38 @@ def test_a_title_that_names_the_project_does_match(db, world, projects):
     assert proposal.decision == classify_mod.DECISION_MATCHED, proposal.evidence
     assert proposal.project_id == projects["mobis"].id
     assert "mdip" in proposal.evidence or "현대모비스" in proposal.evidence
+
+
+def test_a_manual_row_may_correct_a_category_but_an_estimate_may_not(db, world):
+    """사람이 정한 줄과 추정한 줄은 **다른 권한**을 갖는다.
+
+    추정이 사람의 선택을 덮으면 안 되는 것과, 사람이 「이 분류가 틀렸다」를 고칠 수
+    있어야 하는 것은 둘 다 참이다. 그래서 `decision` 으로 가른다.
+    """
+    from app.knowledge import categories as doc_categories
+    from app.knowledge.models import Document
+    from app.migration import classify as classify_mod
+
+    chosen = doc_categories.create(db, world["actor"].org_id, "원래 분류")
+    document = db.get(Document, world["migrated"])
+    document.category_id = chosen.id
+    db.flush()
+
+    # 추정은 못 덮는다.
+    classify_mod.apply(db, [{
+        "document_id": world["migrated"], "decision": "matched",
+        "project_id": None, "category": "추정한 분류", "tags": [],
+    }], actor=world["actor"])
+    assert db.get(Document, world["migrated"]).category_id == chosen.id
+
+    # 사람이 정한 줄은 고친다.
+    classify_mod.apply(db, [{
+        "document_id": world["migrated"], "decision": "manual",
+        "project_id": None, "category": "사람이 고친 분류", "tags": [],
+    }], actor=world["actor"])
+    after = db.get(Document, world["migrated"])
+    assert after.category_id != chosen.id
+    assert db.get(
+        __import__("app.knowledge.models", fromlist=["DocumentCategory"]).DocumentCategory,
+        after.category_id,
+    ).name == "사람이 고친 분류"
