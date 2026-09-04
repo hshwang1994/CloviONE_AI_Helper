@@ -17,6 +17,7 @@ from app.core.authz import MODERATOR_ROLES
 from app.core.deps import get_current_user, get_db, require_csrf
 from app.core.etag import etag_json_response
 from app.core.errors import NotFoundError
+from app.core.ownership import OWNER_ORGANIZATION
 from app.trash import repository, service
 from app.trash.schemas import TrashBulkIds
 from app.users.models import User
@@ -63,8 +64,19 @@ def _document_view(document, extras, *, retention_days: int | None, me: User) ->
     folder = (extras.get("folders") or {}).get(document.folder_id) if document.folder_id else None
     # 프로젝트 소유 공간은 "프로젝트"로 보인다(§11.2) — 부서 공간은 이 화면의 범위 밖이라
     # (§11.2 는 조직·프로젝트 두 경우만 정한다) 그 공간의 실제 이름을 그대로 쓴다.
+    # 🔴 **조직 공통 공간의 이름**을 이 칸에 적지 않는다. 이 값은 화면에서 「프로젝트」
+    # 열에 서는데, 거기에 「팀 문서」가 서면 그것이 프로젝트 이름처럼 읽힌다 — 목록과
+    # 문서 상세는 같은 문서를 「프로젝트 미지정」이라고 부른다(문서 개편 1·5번).
+    # 부서 공간은 그대로 둔다: §11.2 는 조직·프로젝트 두 경우만 정하고, 부서 공간은
+    # 이 화면의 범위 밖이라 그 공간의 실제 이름이 사용자에게 더 정확하다.
+    # 빈 문자열은 또 다른 뜻이다 — 「옛 미러 항목이라 모른다」.
     project = (extras.get("projects") or {}).get(document.space_id)
-    space = project["name"] if project else (extras.get("spaces") or {}).get(document.space_id, "")
+    if project:
+        space = project["name"]
+    elif (extras.get("space_kinds") or {}).get(document.space_id) == OWNER_ORGANIZATION:
+        space = "프로젝트 미지정"
+    else:
+        space = (extras.get("spaces") or {}).get(document.space_id, "")
     return {
         "id": DOC_PREFIX + document.id,
         "item_type": "document",

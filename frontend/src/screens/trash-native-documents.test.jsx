@@ -37,7 +37,9 @@ const DOC_ROW = {
   source: "knowledge",
   title: "서버 인프라 리소스 현황",
   notion_page_id: null,
-  space: "공통 문서",
+  // 서버는 프로젝트 소유 공간이면 그 프로젝트 이름을, 아니면 「프로젝트 미지정」을
+  // 보낸다. 「공통 문서」 같은 공간 이름은 프로젝트 열에 서지 않는다.
+  space: "프로젝트 미지정",
   folder: "02. 운영 문서",
   deleted_by: "이성진",
   deleted_at: "2026-08-26T02:00:00",
@@ -99,12 +101,15 @@ beforeEach(() => {
 });
 
 describe("휴지통의 Native 문서", () => {
-  it("🔴 문서가 티켓과 한 목록에 서고 어느 공간이었는지 말한다", async () => {
+  it("🔴 문서가 티켓과 한 목록에 서고 어느 프로젝트였는지 말한다", async () => {
     renderScreen();
     expect(await screen.findByText("서버 인프라 리소스 현황")).toBeTruthy();
     expect(screen.getByText("로그인 오류")).toBeTruthy();
-    expect(screen.getByText("공통 문서")).toBeTruthy();
-    expect(screen.getByText("02. 운영 문서")).toBeTruthy();
+    expect(screen.getByText("프로젝트 미지정")).toBeTruthy();
+    // 🔴 폴더 줄은 안 본다. 폴더 축이 화면에서 걷히면서(문서 개편 1·5번) 복원한 뒤 그
+    // 폴더를 볼 자리가 없어졌고, 열도 함께 걷었다. 응답의 `folder` 는 그대로 온다 —
+    // 없어진 것은 그리는 자리뿐이므로 여기서 그 자리를 찾으면 안 된다.
+    expect(screen.queryByText("02. 운영 문서")).toBeNull();
     expect(screen.getByText("이성진")).toBeTruthy();
   });
 

@@ -9,6 +9,7 @@ import { OverflowMenu } from "../../ui/kit.jsx";
 import { UserAvatar } from "../../ui/UserAvatar.jsx";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../../ui/theme.js";
 import { fmtDateTimeCompact } from "../../lib/format.js";
+import { PROJECT_UNASSIGNED_LABEL } from "./constants.js";
 
 /* 문서 목록의 열 — 열이 이름을 갖는다.
  *
@@ -75,7 +76,7 @@ export function buildDocumentColumns({ onToggleFavorite, onOpen, onArchive, conf
       key: "place", label: "프로젝트", type: "name", minWidth: "10rem",
       render: (doc) => (
         <Typography variant="body2" sx={KO_WORD_BREAK}>
-          {doc.project ? doc.project.name : "프로젝트 미지정"}
+          {doc.project ? doc.project.name : PROJECT_UNASSIGNED_LABEL}
         </Typography>
       ),
     },

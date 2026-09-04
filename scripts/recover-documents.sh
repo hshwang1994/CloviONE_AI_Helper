@@ -44,7 +44,7 @@ set -a; . "$ENV_FILE"; set +a
 : "${SUDO_PW:?SUDO_PW 가 $ENV_FILE 에 없다}"
 
 STEP="${1:-}"
-[ -n "$STEP" ] || { echo "FAIL: 단계를 주세요 (measure|notion-dry|notion|audit|confluence-dry|confluence|classify-emit|classify-upload|classify-apply|reindex)"; exit 2; }
+[ -n "$STEP" ] || { echo "FAIL: 단계를 주세요 (measure|notion-dry|notion|audit|confluence-dry|confluence|classify-emit|classify-upload|classify-apply-dry|classify-apply|reindex|status)"; exit 2; }
 
 APP_DIR="/opt/clovirassist"
 # 🔴 데이터베이스 이름을 손으로 적지 않는다. 실측에서 `clovir` 로 적었다가 「그런
@@ -170,9 +170,17 @@ classify-upload)
   remote_sudo "wc -l $OUT/documents.jsonl"
   ;;
 
-classify-apply)
-  echo "== 검토한 제안을 적용한다 =="
-  app_cmd "$VENV -m app.cli.migrate_cli classify --apply $OUT/documents.jsonl"
+classify-apply-dry|classify-apply)
+  DRY=""
+  [ "$STEP" = "classify-apply-dry" ] && DRY="--dry-run"
+  echo "== 검토한 제안을 적용한다 $DRY =="
+  app_cmd "$VENV -m app.cli.migrate_cli classify --apply $OUT/documents.jsonl $DRY"
+  ;;
+
+status)
+  # 색인 워커가 대기를 비웠는지 본다. `reindex` 는 큐에 넣기만 하므로, 「다 됐다」는
+  # 이 단계가 pending 0 을 보여 줄 때 하는 말이다.
+  app_cmd "$VENV -m app.cli.ai_cli status"
   ;;
 
 reindex)

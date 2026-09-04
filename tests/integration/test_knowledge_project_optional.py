@@ -281,3 +281,38 @@ def test_renaming_a_document_marks_the_ai_index_stale(client, login_as, world, d
     state = db.query(AiIndexState).filter(AiIndexState.document_id == document_id).one_or_none()
     assert state is not None, "제목만 바꾼 저장이 색인 신호를 아예 안 남겼다"
     assert state.status == "pending", f"색인이 여전히 {state.status} 다 — 옛 이름으로 검색된다"
+
+
+def test_the_trash_calls_a_project_less_document_unassigned_not_by_its_space_name(
+    client, login_as, world
+):
+    """🔴 휴지통의 「프로젝트」 열도 같은 낱말을 쓴다.
+
+    목록과 문서 상세는 프로젝트 없는 문서를 「프로젝트 미지정」이라고 부르는데, 휴지통만
+    조직 공통 공간의 **이름**(「팀 문서」)을 그 칸에 넣고 있었다. 그러면 같은 문서가
+    화면마다 다른 프로젝트에 있는 것처럼 읽힌다 — 라벨이 내용에 대해 거짓말을 하는 자리다.
+
+    프로젝트 문서 쪽도 함께 잰다. 한쪽만 재면 「전부 미지정으로 적는다」로 고쳐도 초록이다.
+    """
+    hdr = _hdr(login_as)
+    made = client.post("/api/knowledge/documents", headers=hdr,
+                       json={"title": "버릴 미지정 문서"})
+    assert made.status_code == 200, made.text
+    mine = made.json()["id"]
+    owned = client.post("/api/knowledge/documents", headers=hdr,
+                        json={"title": "버릴 프로젝트 문서", "project_id": world["project"]})
+    assert owned.status_code == 200, owned.text
+
+    for doc_id in (mine, owned.json()["id"]):
+        assert client.delete(f"/api/knowledge/documents/{doc_id}",
+                             headers=hdr).status_code == 200
+
+    rows = client.get("/api/trash", headers=hdr)
+    assert rows.status_code == 200, rows.text
+    by_title = {r["title"]: r for r in rows.json()["items"]}
+
+    assert by_title["버릴 미지정 문서"]["space"] == "프로젝트 미지정", \
+        "휴지통이 공통 공간의 이름을 프로젝트인 것처럼 적었다"
+    assert by_title["버릴 프로젝트 문서"]["space"] == \
+        "인천국제공항공사 [클라우드 인프라 고도화]", \
+        "프로젝트 문서까지 미지정으로 적으면 열이 아무것도 안 말한다"

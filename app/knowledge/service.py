@@ -1093,7 +1093,7 @@ def list_page_extras(db: Session, user: User, documents: list[Document]) -> dict
     if not ids:
         return {
             "people": {}, "excerpts": {}, "counts": {}, "folders": {}, "spaces": {},
-            "projects": {},
+            "space_kinds": {}, "projects": {},
         }
 
     version_ids = [d.current_version_id for d in documents if d.current_version_id]
@@ -1139,6 +1139,10 @@ def list_page_extras(db: Session, user: User, documents: list[Document]) -> dict
         select(KnowledgeSpace).where(KnowledgeSpace.id.in_(tuple(sorted(set(space_ids)))))
     ).scalars().all())
     spaces = {row.id: row.name for row in space_rows}
+    # 이름만으로는 「조직 공통」과 「부서 공간」을 구별할 수 없다. 휴지통의
+    # 프로젝트 열이 그 둘을 다르게 불러야 해서(조직 공통 = 프로젝트 미지정,
+    # 부서 공간 = 그 공간 이름) 소유 갈래를 함께 싣는다.
+    space_kinds = {row.id: row.owner_kind for row in space_rows}
 
     # 프로젝트 소유 공간만 프로젝트를 낸다 — 공통(조직) 공간의 문서는 `project: null`.
     from app.projects.models import Project
@@ -1169,6 +1173,7 @@ def list_page_extras(db: Session, user: User, documents: list[Document]) -> dict
         "counts": counts,
         "folders": _folder_paths(db, space_ids),
         "spaces": spaces,
+        "space_kinds": space_kinds,
         "projects": projects,
     }
 

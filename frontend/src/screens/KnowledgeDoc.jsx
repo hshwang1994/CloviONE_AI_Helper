@@ -632,11 +632,13 @@ export function KnowledgeDoc() {
             </Stack>
           </InfoRow>
           <InfoRow label="프로젝트">
-            {/* §14.3 — 문서 상세의 프로젝트 이름은 그 프로젝트 상세로 가는 링크다. 공통
-                문서(조직 소유 공간)는 이을 프로젝트가 없어 글자만 보인다. */}
+            {/* §14.3 — 문서 상세의 프로젝트 이름은 그 프로젝트 상세로 가는 링크다.
+                프로젝트가 없는 문서는 이을 곳이 없어 글자만 보인다. 그 글자는 목록의
+                프로젝트 열과 **같은 상수**다 — 한쪽만 「공통 문서」라고 부르면 같은 문서가
+                화면마다 다른 프로젝트에 있는 것처럼 읽힌다. */}
             {data.project ? (
               <Link href={`#/projects/${data.project.id}`}>{data.project.name}</Link>
-            ) : "공통 문서"}
+            ) : PROJECT_UNASSIGNED_LABEL}
           </InfoRow>
           <InfoRow label="현재 판">
             {current.version_no != null ? `${current.version_no}판` : "아직 없습니다"}
@@ -749,7 +751,7 @@ export function KnowledgeDoc() {
             key: "project", label: "프로젝트", rank: "primary",
             value: data.project
               ? <Link href={`#/projects/${data.project.id}`}>{data.project.name}</Link>
-              : "공통 문서",
+              : PROJECT_UNASSIGNED_LABEL,
           },
           { key: "category", label: "분류", value: data.category?.name || "분류 없음" },
           {

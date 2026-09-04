@@ -232,10 +232,18 @@ def seed(database_url: str, email: str, password: str, settings) -> None:
             db.add(row)
             categories.append(row)
         db.flush()
+        # 🔴 앞의 둘은 **24시간 안**에 둔다. 전부 하루 간격이면 「최근 24시간」 타일이
+        # 1 로 보이고, 그 수가 필터가 도는 증거인지 씨앗이 그런 것인지 구별이 안 된다.
+        #
+        # 그리고 그 둘만 **실제 시계**로 찍는다. 이 씨앗의 `now` 는 캡처를 재현 가능하게
+        # 하려고 2026-08-24 에 고정돼 있는데, 24시간 창은 서버의 진짜 시계와 비교한다
+        # (`recently_updated_since(utcnow(), 24)`). 고정 시계로 찍으면 캡처하는 날이 하루만
+        # 지나도 타일이 0 이 되고, 그 0 은 「필터가 도는데 대상이 없다」와 「필터가
+        # 안 돈다」를 구별해 주지 않는다 — 실측에서 실제로 0 이 나왔다.
+        real_now = datetime.utcnow()
         for i in range(12):
-            # 🔴 앞의 둘은 **24시간 안**에 둔다. 전부 하루 간격이면 「최근 24시간」 타일이
-            # 1 로 보이고, 그 수가 필터가 도는 증거인지 씨앗이 그런 것인지 구별이 안 된다.
-            touched = now - (timedelta(hours=2 * i) if i < 2 else timedelta(days=i))
+            touched = ((real_now - timedelta(hours=2 * i + 1)) if i < 2
+                       else (now - timedelta(days=i)))
             doc = Document(space_id=space.id, title=f"문서 {i + 1:02d} — 회의록",
                            category_id=categories[i % len(categories)].id,
                            created_at=now - timedelta(days=i), updated_at=touched)
