@@ -57,6 +57,10 @@ MAX_ATTACHMENT_BYTES = 3 * 1024 * 1024
 #: 메모리 보호. 상한 검사를 지난 뒤에도 서버가 더 큰 바이트를 줄 수 있다.
 _HARD_BYTE_CEILING = 32 * 1024 * 1024
 
+#: 첨부 주소가 미디어 CDN 으로 넘어갈 때 따라갈 홉 수. 위 머리말의 이유로 **자동 추적이
+#: 아니라 새 요청**이고, 그래서 홉마다 allowlist 검사를 다시 지난다.
+_MAX_REDIRECT_HOPS = 3
+
 
 class ConfluenceSourceError(AppError):
     status_code = 502
@@ -332,32 +336,57 @@ class ConfluenceSource:
             return None
         url = download_link
         if not url.startswith("http"):
-            # v2 의 `downloadLink` 는 `/download/attachments/...` 같은 상대 주소다.
+            # v2 의 `downloadLink` 는 `/rest/api/content/.../download` 같은 상대 주소다.
             url = f"{self._api_base}/wiki{url}" if not url.startswith("/wiki") \
                 else f"{self._api_base}{url}"
-        if self.stats.api_calls and self._throttle:
-            self._sleep(self._throttle)
-        self.stats.api_calls += 1
-        try:
-            response = self._outbound.request(
-                "GET", url,
-                allowlist="migration",
-                timeout=120.0,
-                auth_type="basic",
-                secret_ref=self._secret_ref,
-                rate_limit_retries=3,
-            )
-        except AppError:
-            raise
-        except Exception as exc:
+        response = None
+        for hop in range(_MAX_REDIRECT_HOPS + 1):
+            if self.stats.api_calls and self._throttle:
+                self._sleep(self._throttle)
+            self.stats.api_calls += 1
+            try:
+                response = self._outbound.request(
+                    "GET", url,
+                    allowlist="migration",
+                    timeout=120.0,
+                    # 🔴 미디어 CDN 의 주소는 **서명 토큰을 자기 안에 들고** 있다. 거기에
+                    # Basic 헤더를 다시 붙이면 Atlassian 이 그 조합을 거절한다. 그래서
+                    # 첫 홉만 인증을 붙이고 뒤는 안 붙인다.
+                    auth_type=("basic" if hop == 0 else "none"),
+                    secret_ref=(self._secret_ref if hop == 0 else None),
+                    rate_limit_retries=3,
+                )
+            except AppError:
+                raise
+            except Exception as exc:
+                raise ConfluenceSourceError(
+                    f"첨부를 받지 못했습니다: {type(exc).__name__}"
+                ) from exc
+            if response.status_code not in (301, 302, 303, 307, 308):
+                break
+            location = response.headers.get("Location") or ""
+            if not location:
+                raise ConfluenceSourceError(
+                    f"첨부가 {response.status_code} 로 넘어가는데 Location 이 없습니다."
+                )
+            # 새 요청이라 allowlist 를 **다시** 지난다 — 자동 추적을 켜면 그 검사가 사라진다.
+            url = location
+        else:
             raise ConfluenceSourceError(
-                f"첨부를 받지 못했습니다: {type(exc).__name__}"
-            ) from exc
+                f"첨부 주소가 {_MAX_REDIRECT_HOPS}번 넘게 넘어갑니다."
+            )
         if response.status_code >= 400:
             raise ConfluenceSourceError(
                 f"첨부 응답 오류: HTTP {response.status_code}"
             )
         payload = response.content
+        # 🔴 목록이 크기를 말했는데 0바이트를 받았으면 그것은 「빈 파일」이 아니라
+        # **실패**다. 조용히 넘기면 「못 가져왔다」가 「원래 없었다」와 같은 모양이 된다 —
+        # 실측에서 첨부 1,458개가 정확히 그렇게 사라졌다.
+        if declared_size and not payload:
+            raise ConfluenceSourceError(
+                f"첨부가 {declared_size}바이트라는데 0바이트를 받았습니다."
+            )
         if len(payload) >= MAX_ATTACHMENT_BYTES:
             # 선언한 크기가 거짓이었다. 받고 나서라도 버린다 — 상한의 뜻은 「저장하지
             # 않는다」이지 「묻지 않는다」가 아니다.

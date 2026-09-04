@@ -380,3 +380,89 @@ def test_a_page_count_mismatch_is_a_blocking_finding(db, actor):
     assert "confluence_page_failed" in kinds, kinds
     # 실패한 한 건도 **설명된** 것이므로 수는 맞는다 — 사라진 것이 아니다.
     assert "confluence_page_count_mismatch" not in kinds
+
+
+# ── 🔴 첨부 바이트가 조용히 0이 되던 자리 ────────────────────────────────────
+#
+# 실측에서 첨부 1,458개가 전부 「빈 파일」로 거절됐는데 회차는 `CONFLUENCE_IMPORT_OK`
+# 로 끝났다. 원인은 리다이렉트다: Confluence 의 download 주소는 302 로 미디어 CDN 을
+# 가리키는데 `OutboundClient` 는 자동 추적을 안 한다(SSRF 방어라 그렇게 두는 것이 맞다).
+# 그래서 우리가 받은 것은 **빈 몸통을 가진 302** 였고, 400 미만이라 오류로도 안 걸렸다.
+#
+# 「못 가져왔다」가 「원래 없었다」와 같은 모양으로 보고되던 자리다.
+
+
+class _Resp:
+    def __init__(self, status, content=b"", location=None):
+        self.status_code = status
+        self.content = content
+        self.headers = {"Location": location} if location else {}
+
+    def json(self):
+        raise ValueError("본문이 아니다")
+
+
+class _RecordingOutbound:
+    """홉마다 어떤 인증으로 어디에 갔는지 적는 대역."""
+
+    def __init__(self, script):
+        self.script = list(script)
+        self.calls = []
+
+    def request(self, method, url, **kw):
+        self.calls.append({"url": url, "auth": kw.get("auth_type"),
+                           "allowlist": kw.get("allowlist")})
+        return self.script.pop(0)
+
+
+def _source(outbound, tmp_path):
+    from app.migration.source_confluence import ConfluenceSource
+
+    return ConfluenceSource(outbound, secret_ref="confluence_token",
+                            cache_dir=str(tmp_path), throttle_seconds=0, sleep=lambda _s: None)
+
+
+def test_a_redirected_attachment_is_actually_downloaded(tmp_path):
+    """302 를 따라가서 **바이트를 실제로 받는다.**"""
+    outbound = _RecordingOutbound([
+        _Resp(302, b"", "https://api.media.atlassian.com/file/abc/binary?token=t"),
+        _Resp(200, _PNG),
+    ])
+    got = _source(outbound, tmp_path).download("/download/x", declared_size=len(_PNG))
+    assert got == _PNG, "리다이렉트를 따라가지 않아 빈 바이트를 받았다"
+
+    # 🔴 홉이 **새 요청**이라 allowlist 를 다시 지난다. 자동 추적을 켜면 그 검사가 사라진다.
+    assert [c["allowlist"] for c in outbound.calls] == ["migration", "migration"]
+    # 그리고 CDN 홉에는 인증을 안 붙인다 — 그 주소는 서명 토큰을 자기 안에 들고 있고,
+    # Basic 을 겹쳐 보내면 Atlassian 이 그 조합을 거절한다.
+    assert [c["auth"] for c in outbound.calls] == ["basic", "none"]
+
+
+def test_an_empty_body_for_a_sized_attachment_is_a_failure_not_an_empty_file(tmp_path):
+    """🔴 목록이 크기를 말했는데 0바이트를 받으면 그것은 **실패**다.
+
+    조용히 빈 바이트를 돌려주면 로더가 「빈 파일은 올릴 수 없습니다」로 거절하고, 그
+    거절은 분류된 예외라 회차가 초록으로 끝난다 — 첨부 1,458개가 그렇게 사라졌다.
+    """
+    from app.migration.source_confluence import ConfluenceSourceError
+
+    outbound = _RecordingOutbound([_Resp(200, b"")])
+    with pytest.raises(ConfluenceSourceError, match="0바이트"):
+        _source(outbound, tmp_path).download("/download/x", declared_size=158101)
+
+
+def test_a_redirect_loop_stops_instead_of_spinning(tmp_path):
+    """홉이 끝없이 이어지면 회차가 안 끝난다. 상한에서 말하고 멈춘다."""
+    from app.migration.source_confluence import ConfluenceSourceError
+
+    loop = [_Resp(302, b"", "https://api.media.atlassian.com/a") for _ in range(6)]
+    with pytest.raises(ConfluenceSourceError, match="넘게 넘어갑니다"):
+        _source(_RecordingOutbound(loop), tmp_path).download("/download/x", declared_size=10)
+
+
+def test_the_size_limit_still_short_circuits_before_any_request(tmp_path):
+    """3MB 이상은 **요청 자체를 안 한다** — 크기를 목록에서 먼저 보기 때문이다."""
+    outbound = _RecordingOutbound([])
+    assert _source(outbound, tmp_path).download(
+        "/download/big", declared_size=9 * 1024 * 1024) is None
+    assert outbound.calls == [], "상한을 넘은 첨부인데 바이트를 받으러 갔다"
