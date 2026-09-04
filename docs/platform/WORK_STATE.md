@@ -67,11 +67,11 @@
   경로가 언젠가 생기고, 적용기가 바로 그런 경로였다. 제목이 같은 반례로 두 경로를 다 잰다.
 - branch: `ui/mui-migration`
 - last_stable_commit: **`eec4886c`** — 이번 회차도 안 옮긴다.
-- deployed: **`4b63f1e0`** 가 운영에 나갔다 (2026-09-04 09:41). 이 회차에 배포가 넷이다 —
+- deployed: **`ec9b8aca`** 가 운영에 나갔다 (2026-09-04 09:41). 이 회차에 배포가 넷이다 —
   `a3b05cd2`(alembic 0026 → **0027**) · `2e826d87`(깊이 상한과 `--page`) ·
-  `fec4e79f`(첨부 리다이렉트) · `4b63f1e0`(분류 규칙). 넷 다 `VERIFY_OK` · `UPGRADE_OK`.
+  `fec4e79f`(첨부 리다이렉트) · `ec9b8aca`(분류 규칙 둘). 넷 다 `VERIFY_OK` · `UPGRADE_OK`.
   마지막 스냅샷 `/var/backups/clovirassist/20260904-094145` · 제품 유닛 5종 active ·
-  `ssl_verify_result=0`.
+  `ssl_verify_result=0`. 그 뒤 커밋은 문서뿐이라 안 나갔다.
 - verification: 로컬 전량.
   **프런트** vitest 380파일 2,913시험 — 2,911 초록, 실패 2건은 병렬 부하 타임아웃이고
   단독 실행은 초록(`editable-body-identity-reset` · `donut-empty-state-height`).
