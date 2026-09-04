@@ -54,6 +54,7 @@ from app.migration.models import (
     T_FILE,
     LegacyMapping,
 )
+from app.migration import people
 from app.migration.report import (
     SEVERITY_BLOCKING,
     SEVERITY_CLASSIFIED,
@@ -257,40 +258,6 @@ class ConfluenceLoader:
 
     # ── 사람 ─────────────────────────────────────────────────────────────────
 
-    def _user_by_name(self, name: str) -> User | None:
-        """이름으로 우리 사용자를 찾는다 (사용자 지시 2026-09-04).
-
-        Confluence 는 이메일을 안 주지만 **이름은 준다.** 그 이름으로 지금 계정을 찾아
-        이어 준다. 두 갈래로 본다:
-
-          1. 표시 이름이 같다 — 「서윤경」 → `syk@goodmit.co.kr`.
-          2. 이메일 앞부분이 같다 — 원본의 표시 이름이 계정 아이디인 경우가 있다
-             (실측: 「ujmoon」 39건 → `ujmoon@goodmit.co.kr` 문의진).
-
-        🔴 「(Unlicensed)」 꼬리표를 뗀다. Atlassian 이 좌석 없는 계정에 붙이는 말이라
-        사람 이름의 일부가 아니다 — 안 떼면 23명 중 15명이 영영 안 맞는다.
-
-        같은 이름이 둘 이상이면 **아무도 안 고른다.** 동명이인 중 하나를 찍는 것은
-        추정이 아니라 동전 던지기이고, 그 문서는 아래 기본 계정으로 간다.
-        """
-        clean = _strip_seat_label(name)
-        if not clean:
-            return None
-        rows = list(self.db.execute(
-            sa.select(User).where(sa.func.lower(User.display_name) == clean.lower())
-        ).scalars().all())
-        if len(rows) == 1:
-            return rows[0]
-        if rows:
-            return None
-        local = clean.lower()
-        rows = list(self.db.execute(
-            sa.select(User).where(
-                sa.func.lower(sa.func.split_part(User.email, "@", 1)) == local
-            )
-        ).scalars().all())
-        return rows[0] if len(rows) == 1 else None
-
     def _user_for(self, email: str | None) -> User | None:
         """이메일로 우리 사용자를 찾는다. 못 찾으면 `None` — **지어내지 않는다.**
 
@@ -463,7 +430,7 @@ class ConfluenceLoader:
         """
         user = self._user_for((body.get("_author_email") or ""))
         if user is None:
-            user = self._user_by_name(self._legacy_author(body))
+            user = people.user_by_name(self.db, self._legacy_author(body))
         if user is None:
             user = self.fallback_author
         return user.id if user is not None else None
@@ -686,19 +653,6 @@ class ConfluenceLoader:
 
 
 # ── 값 하나씩 ────────────────────────────────────────────────────────────────
-
-
-def _strip_seat_label(name: str | None) -> str:
-    """Atlassian 이 좌석 없는 계정에 붙이는 꼬리표를 뗀다.
-
-    「김동균 (Unlicensed)」의 「(Unlicensed)」는 사람 이름의 일부가 아니라 라이선스 상태다.
-    안 떼면 실측 23명 중 15명이 우리 계정과 영영 안 맞는다.
-    """
-    clean = (name or "").strip()
-    for tail in ("(Unlicensed)", "(unlicensed)", "(비활성)"):
-        if clean.endswith(tail):
-            clean = clean[: -len(tail)].strip()
-    return clean
 
 
 def _ts(value):

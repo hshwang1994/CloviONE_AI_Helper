@@ -175,8 +175,15 @@ def cmd_reimport_bodies(args) -> int:
     engine = make_engine(settings.database_url)
     factory = make_session_factory(engine)
     with factory() as db:
+        # 작성자를 이메일로도 이름으로도 못 푼 문서가 앉을 계정. Confluence 쪽과 같은
+        # 규칙이다 — 두 소스가 같은 문제를 갖는다(D-440).
+        fallback = (
+            _actor(db, args.fallback_author)
+            if getattr(args, "fallback_author", "") else None
+        )
         report = runner.reimport_bodies(
-            db, options, notion=notion, settings=settings, dry_run=args.dry_run
+            db, options, notion=notion, settings=settings, dry_run=args.dry_run,
+            fallback_author=fallback,
         )
     print(report.to_text())
     if args.report:
@@ -451,6 +458,10 @@ def build_parser() -> argparse.ArgumentParser:
     node.add_argument("--no-files", action="store_true")
     # 댓글은 **기본으로 함께 온다** (D11). 더하기만 하는 경로라 본문 재이관과 같은
     # 회차에서 안전하고, 따로 돌리면 사람이 두 명령을 기억해야 한다.
+    node.add_argument(
+        "--fallback-author", default="", dest="fallback_author",
+        help="작성자를 못 푼 문서가 앉을 계정 이메일 (안 주면 안 앉힌다)",
+    )
     node.add_argument("--no-comments", action="store_true", help="댓글을 안 옮긴다")
     node.add_argument("--limit", type=int, default=0, help="표본 회차용 페이지 상한")
     node.add_argument(

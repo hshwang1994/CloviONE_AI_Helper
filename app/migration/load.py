@@ -67,6 +67,7 @@ from app.migration.models import (
     T_TICKET_FILE,
     LegacyMapping,
 )
+from app.migration import people
 from app.migration.report import (
     SEVERITY_BLOCKING,
     SEVERITY_CLASSIFIED,
@@ -158,10 +159,15 @@ class Loader:
         *,
         report: MigrationReport,
         settings=None,
+        fallback_author=None,
     ) -> None:
         self.db = db
         self.report = report
         self.settings = settings
+        # 🔴 작성자를 이메일로도 이름으로도 못 푼 문서가 앉을 계정 (사용자 지시).
+        # Confluence 적재기와 **같은 규칙**이다 — 두 소스가 같은 문제를 갖는다:
+        # 원본은 이름을 주는데 우리 계정과 잇는 다리(이메일)는 안 준다.
+        self.fallback_author = fallback_author
         # 「Notion 이 준 page id → 우리 행 id」. 단계 사이에서 재조회를 없앤다.
         self.ticket_by_page: dict[str, str] = {}
         self.project_by_page: dict[str, str] = {}
@@ -1075,10 +1081,25 @@ class Loader:
             # 안 옮기면 문서 110건이 전부 같은 날이 된다(0013).
             document.legacy_created_at = parsed["notion_created_time"]
             document.legacy_updated_at = parsed["notion_last_edited"]
-            # 작성자. **이메일로 이어진 사람만** 붙는다 — 이름으로 잇지 않는다(U11).
+            # 작성자 — 세 걸음이다(D-440): 이메일 → 이름 → 기본 계정.
+            #
+            # 예전에는 첫 걸음뿐이었고 그래서 문서 82건이 작성자 없이 남았다. 이름은
+            # 원본이 주는데(`author_names`) 안 쓰고 있었다. 동명이인은 안 찍는다.
             author = self._user_for_notion(parsed["author_notion_ids"])
+            if not author:
+                for name in parsed.get("author_names") or []:
+                    found = people.user_by_name(self.db, name)
+                    if found is not None:
+                        author = found.id
+                        break
+            if not author and self.fallback_author is not None:
+                author = self.fallback_author.id
             if author:
                 document.created_by = author
+            # 원본이 적은 이름은 계정을 무엇으로 정하든 남긴다(0028).
+            names = [n for n in (parsed.get("author_names") or []) if n]
+            if names:
+                document.legacy_author_name = ", ".join(names)[:120]
             self._tag_document(document, parsed, taxonomy, projects or {})
             self._map(SRC_NOTION, page_id, T_DOCUMENT, document.id)
             if cached.get("id"):

@@ -164,6 +164,7 @@ def reimport_bodies(
     settings=None,
     report: MigrationReport | None = None,
     dry_run: bool = False,
+    fallback_author=None,
 ) -> MigrationReport:
     """**본문·첨부·공간 소유·티켓 댓글만** 다시 넣는다 (D5 · D11).
 
@@ -186,7 +187,8 @@ def reimport_bodies(
     report.target_database = database_label(db)
 
     notion_rows = _extract_notion(report, options, notion)
-    loader = Loader(db, report=report, settings=settings)
+    loader = Loader(db, report=report, settings=settings,
+                    fallback_author=fallback_author)
     # 세기만 하는 회차에는 손을 안 준다. 바이트를 받아 첨부를 만드는 것은 이미 쓰기다.
     fetch = (
         notion.download

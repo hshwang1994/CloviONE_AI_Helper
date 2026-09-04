@@ -900,7 +900,7 @@ def test_a_seat_label_does_not_block_the_match(db, actor, make_user):
 
     안 떼면 실측 23명 중 15명이 영영 안 맞는다.
     """
-    from app.migration.load_confluence import _strip_seat_label
+    from app.migration.people import strip_seat_label as _strip_seat_label
 
     assert _strip_seat_label("김동균 (Unlicensed)") == "김동균"
     assert _strip_seat_label("서윤경") == "서윤경"

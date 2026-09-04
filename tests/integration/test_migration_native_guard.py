@@ -360,3 +360,38 @@ def test_a_manual_row_may_correct_a_category_but_an_estimate_may_not(db, world):
         __import__("app.knowledge.models", fromlist=["DocumentCategory"]).DocumentCategory,
         after.category_id,
     ).name == "사람이 고친 분류"
+
+
+def test_a_notion_document_author_is_matched_by_name_then_falls_back(db, make_user):
+    """Notion 쪽도 **같은 세 걸음**이다 (D-440): 이메일 → 이름 → 기본 계정.
+
+    예전에는 첫 걸음뿐이었고 그래서 운영 문서 **82건**이 작성자 없이 남았다. 이름은 원본이
+    주는데(`author_names`) 안 쓰고 있었다 — 두 적재기가 같은 문제를 갖고 있었으므로 규칙을
+    공용 모듈(`app.migration.people`)로 뺐다.
+    """
+    from app.migration import people
+
+    writer = make_user("nkim@goodmit.co.kr", role="user", display_name="김동균")
+    keeper = make_user("nkeep@goodmit.co.kr", role="admin", display_name="맡는 사람")
+    db.commit()
+
+    # 이름이 같으면 그 사람이다.
+    assert people.user_by_name(db, "김동균").id == writer.id
+    # 좌석 꼬리표는 이름의 일부가 아니다.
+    assert people.user_by_name(db, "김동균 (Unlicensed)").id == writer.id
+    # 이메일 앞부분으로도 잇는다 — 원본이 계정 아이디를 이름으로 적는 경우가 있다.
+    assert people.user_by_name(db, "nkeep").id == keeper.id
+    # 모르는 사람은 `None` 이다. 여기서 기본 계정을 고르는 것은 **부르는 쪽**의 일이다.
+    assert people.user_by_name(db, "없는사람") is None
+    assert people.user_by_name(db, "") is None
+
+
+def test_two_people_with_the_same_name_are_never_guessed(db, make_user):
+    """🔴 반례. 동명이인 중 하나를 찍으면 그 문서는 남의 것이 된다."""
+    from app.migration import people
+
+    make_user("dup-a@goodmit.co.kr", role="user", display_name="같은이름")
+    make_user("dup-b@goodmit.co.kr", role="user", display_name="같은이름")
+    db.commit()
+
+    assert people.user_by_name(db, "같은이름") is None
