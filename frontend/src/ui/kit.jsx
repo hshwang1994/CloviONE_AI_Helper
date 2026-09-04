@@ -2923,12 +2923,30 @@ const ToastCtx = React.createContext(() => {});
 export function ToastProvider({ children }) {
   const [toasts, setToasts] = React.useState([]);
   const dismiss = React.useCallback((id) => setToasts((t) => t.filter((x) => x.id !== id)), []);
+  /* 🔴 사라지는 타이머를 **언마운트에서 걷는다.**
+   *
+   * 오류 토스트는 8초를 산다. 그 사이에 이 Provider 가 사라지면(라우트 이동·시험 종료)
+   * 타이머는 그대로 살아 있다가 없어진 컴포넌트의 `setToasts` 를 부른다. 브라우저에서는
+   * React 가 조용히 무시하지만, 그 무시가 공짜인 것은 아니다 — 시험 환경에서는 창이
+   * 이미 걷혀서 `ReferenceError: window is not defined` 가 **어느 시험의 것인지도 모르는
+   * 채로** 났다(전량 실행이 그것을 잡았다).
+   *
+   * 브라우저 동작은 안 바뀐다. 살아 있는 동안에는 지금까지와 똑같이 시간이 지나면 사라진다. */
+  const timers = React.useRef(new Set());
+  React.useEffect(() => () => {
+    for (const t of timers.current) clearTimeout(t);
+    timers.current.clear();
+  }, []);
   const push = React.useCallback((message, kind) => {
     const id = ++_toastSeq;
     const k = kind || "info";
     setToasts((t) => [...t, { id, message, kind: k }]);
     const ttl = k === "error" ? 8000 : 3500;
-    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), ttl);
+    const timer = setTimeout(() => {
+      timers.current.delete(timer);
+      setToasts((t) => t.filter((x) => x.id !== id));
+    }, ttl);
+    timers.current.add(timer);
   }, []);
   const urgent = toasts.some((t) => t.kind === "error");
   return (

@@ -1,5 +1,19 @@
 // @testing-library/jest-dom — toBeInTheDocument 등 DOM 매처를 expect에 등록한다.
 import "@testing-library/jest-dom";
+import { configure } from "@testing-library/react";
+
+/* 🔴 `waitFor` 의 기본 한도는 **1초**다. 이 저장소의 무거운 화면 시험은 jsdom 여덟 개가
+ * 동시에 도는 전량 실행에서 그 1초를 넘긴다 — 값이 틀린 것이 아니라 DOM 이 못 따라온
+ * 것이고, 그래서 같은 시험이 단독으로는 초록이고 전량에서만 빨갛다(실측: `projects` ·
+ * `sprint-meeting` 각 1건, 단독 79건 전부 초록).
+ *
+ * 그것을 「병렬 부하」로 넘기면 **게이트가 기계 속도로 판정한다.** 그 handwave 뒤에
+ * 진짜 결함이 숨어 있던 것을 이 회차가 이미 한 번 봤다(처리되지 않은 오류 38건).
+ *
+ * 한도를 올리는 것은 단언을 약하게 하지 않는다 — 무엇을 재는지는 그대로이고, 정말로 안
+ * 되는 시험은 여전히 실패한다(조금 늦게 실패할 뿐이다). BACKLOG P-75 가 같은 증상을
+ * 적어 두었다. */
+configure({ asyncUtilTimeout: 5000 });
 
 // jsdom에는 `ResizeObserver`가 없다 — `@tanstack/react-virtual`(VirtualRows)과
 // ECharts 감싸개(useEChart.js)가 둘 다 이 생성자를 부른다. 없으면 그 두 부품을 쓰는

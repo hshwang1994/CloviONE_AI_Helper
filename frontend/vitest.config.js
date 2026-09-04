@@ -10,6 +10,9 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     setupFiles: ["./src/test-setup.js"],
+    /* `waitFor` 한도(5초, test-setup.js)보다 커야 한다 — 안 그러면 대기가 끝나기 전에
+       시험이 먼저 죽어서 무엇을 기다리다 실패했는지가 안 보인다. */
+    testTimeout: 20000,
     include: ["src/**/*.test.{js,jsx}"],
     css: false,
   },
