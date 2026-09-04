@@ -226,16 +226,41 @@ def test_state_durations_are_preserved():
     assert 'duration: 850, after: "idle"' in js
 
 
-def test_pointer_tracking_is_limited_to_resting_states():
-    """고정 시선이 있는 상태에서는 포인터가 눈을 덮지 않는다.
+def test_pointer_tracking_never_covers_a_meaningful_gaze():
+    """qa-contract-change: 목록을 `["idle","welcome"]` 으로 못박던 단언을 걷고, 이 시험이
+    지키려던 **성질**을 직접 잰다.
 
-    목록은 기준선(폐기한 목업(지시 64))이 정한 idle·welcome 둘뿐이다. 여기에
-    email이나 privacy가 들어가면 "비밀번호를 안 본다"는 표현이 마우스 위치에 따라 깨진다.
+    옛 단언은 기준선(폐기한 목업(지시 64))의 목록을 글자 그대로 요구했다. 그런데 그 뒤
+    사용자가 신고했다: "로그인 페이지에서 마우스에 따라서 클로비눈이 움직이는게 사라졌다."
+    원인은 페이지가 뜨자마자 표정이 `email` 로 내려앉는 것이었고, `email` 에 고정 시선이
+    있어 시선 추적이 **시작조차 안 했다.** `9c4bf3d3` 이 `email` 을 목록에 넣어 고쳤다 —
+    제품이 옳고 이 시험이 옛 기준선을 지키고 있었다.
+
+    그래서 목록을 글자로 못박는 대신 뜻을 잰다: **뜻이 있는 고정 시선은 포인터가 못
+    덮는다.** `privacy` 의 [-3.6, 0]("비밀번호를 치는 동안 일부러 딴 데를 본다")이 마우스
+    위치에 따라 깨지면 안 되고, 그것이 이 시험의 존재 이유였다. `email` 의 고정 시선은
+    「칸을 고른 순간의 첫 표정」이지 계속 유지해야 하는 표현이 아니다.
     """
     js = CLOVI_JS.read_text(encoding="utf-8")
-    assert 'const POINTER_TRACKED_STATES = ["idle", "welcome"];' in js, (
-        "시선 추적 상태 목록이 기준선과 다르다"
+    line = next(
+        (l for l in js.splitlines() if "const POINTER_TRACKED_STATES" in l), ""
     )
+    assert line, "시선 추적 상태 목록이 없다"
+
+    # 🔴 지키는 것: 뜻이 있는 표현은 포인터가 못 덮는다.
+    for state, why in (
+        ("privacy", "비밀번호를 치는 동안 딴 데를 본다"),
+        ("error", "실패를 바라본다"),
+        ("loading", "정면을 본다"),
+    ):
+        assert f'"{state}"' not in line, (
+            f"{state} 가 포인터를 따라가면 «{why}» 가 마우스 위치에 따라 깨진다"
+        )
+
+    # 쉬는 상태는 따라간다 — 안 따라가면 화면이 죽은 것처럼 보인다(사용자 신고 이력).
+    for state in ("idle", "welcome"):
+        assert f'"{state}"' in line, f"{state} 에서 눈이 사람을 안 따라간다"
+
     assert "if (!latestPointer || !tracksPointer(cloviState)) return;" in js, (
         "renderPointer가 상태 목록을 보지 않는다"
     )
