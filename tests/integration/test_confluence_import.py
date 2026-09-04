@@ -958,3 +958,44 @@ def test_two_people_with_the_same_name_are_not_guessed(db, actor, make_user):
     doc = _doc_by_title(db, "설치 가이드")
     assert doc.created_by == actor.id, "동명이인 중 하나를 찍었다"
     assert doc.legacy_author_name == "김동균"
+
+
+def test_a_page_whose_whole_body_is_a_link_is_not_treated_as_empty(db, actor):
+    """🔴 규칙이 재는 글자와 **문서가 실제로 갖게 될 글자**가 같아야 한다.
+
+    `inlineCard` 의 주소는 `attrs.url` 에 있고 `text` 마디가 아니다. 그런데 변환기는
+    그것을 보이는 링크 글자로 그린다 — 안 세면 「본문이 링크 하나뿐인 페이지」가 규칙에게는
+    0자이고 사용자에게는 130자다. 운영에서 그 틈에 셋이 빠졌고(SharePoint·Google 문서로
+    가는 포인터 페이지) 빈 페이지 규칙이 그것들을 껍데기로 보고 치웠다.
+    """
+    from app.migration.transform_confluence import adf_plain_text
+
+    link = ("https://goodmorningit-my.sharepoint.com/:p:/g/personal/"
+            "kimdk_goodmit_co_kr/EZzRT0Wq4KVPtFfy4TREk7sBYF4v1wTS7S5NtKrwOexzbg")
+    adf = _adf({"type": "paragraph", "content": [
+        {"type": "inlineCard", "attrs": {"url": link}}]})
+    assert len(adf_plain_text(adf).strip()) > 20, "링크 주소를 글자로 안 센다"
+
+    class LinkOnly(FakeConfluence):
+        def page_body(self, page_id, *, version=None):
+            body = super().page_body(page_id, version=version)
+            if page_id == "2":
+                body["adf"] = adf
+            return body
+
+    _run(db, actor, LinkOnly())
+    doc = _doc_by_title(db, "설치 가이드")
+    assert doc is not None and not doc.archived, "링크뿐인 페이지를 빈 페이지로 치웠다"
+
+
+def test_an_image_only_page_is_still_empty(db, actor):
+    """🔴 반례. 그림은 안 센다 — 그림만 있는 페이지를 어떻게 할지는 사용자가 이미 정했다.
+
+    이 반례가 없으면 「전부 센다」로 고쳐도 위 시험이 초록이고, 그러면 치우기로 한 107쪽이
+    다시 살아난다.
+    """
+    from app.migration.transform_confluence import adf_plain_text
+
+    adf = _adf({"type": "mediaSingle", "content": [
+        {"type": "media", "attrs": {"id": "att-small", "type": "file"}}]})
+    assert len(adf_plain_text(adf).strip()) == 0, "그림을 글자로 셌다"

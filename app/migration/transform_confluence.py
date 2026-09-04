@@ -381,16 +381,39 @@ def adf_media_ids(adf: dict | None) -> list[str]:
     return found
 
 
+#: 글자를 `text` 마디가 아니라 **속성**에 들고 있는 마디.
+#:
+#: 🔴 링크 카드가 그렇다. `inlineCard` 의 주소는 `attrs.url` 에 있고 `text` 마디가 아니다.
+#: 그런데 변환기는 그것을 **보이는 링크 글자**로 그린다 — 즉 「본문이 링크 하나뿐인
+#: 페이지」는 이 함수에게 0자이고 사용자에게는 130자다. 그 틈에 빠진 페이지가 실측 셋
+#: 있었고(「Agile Software Development」 등 SharePoint·Google 문서로 가는 포인터 페이지),
+#: 빈 페이지 규칙이 그것들을 내용 없는 껍데기로 보고 치웠다.
+#:
+#: 세는 것은 **문서가 실제로 갖게 될 글자**여야 한다. 그래야 규칙과 화면이 안 갈라진다.
+_URL_NODES = frozenset({"inlineCard", "blockCard", "embedCard"})
+
+
 def adf_plain_text(adf: dict | None) -> str:
-    """본문의 글자만. 대조(원본보다 짧아졌는가)를 재는 자리가 쓴다."""
+    """본문의 글자만. 대조(원본보다 짧아졌는가)와 빈 페이지 판정이 쓴다.
+
+    `text` 마디뿐 아니라 **링크 카드의 주소**도 센다 — 변환기가 그것을 링크 글자로
+    그리므로, 안 세면 이 함수와 실제 본문이 서로 다른 말을 한다. 위 `_URL_NODES` 주석.
+
+    그림은 안 센다. 그림만 있는 페이지를 어떻게 할지는 사용자가 이미 정했다(치운다).
+    """
     parts: list[str] = []
 
     def walk(nodes) -> None:
         for node in nodes or []:
             if not isinstance(node, dict):
                 continue
-            if node.get("type") == "text" and isinstance(node.get("text"), str):
+            kind = node.get("type")
+            if kind == "text" and isinstance(node.get("text"), str):
                 parts.append(node["text"])
+            elif kind in _URL_NODES:
+                href = ((node.get("attrs") or {}).get("url") or "").strip()
+                if href:
+                    parts.append(href)
             walk(node.get("content"))
 
     walk((adf or {}).get("content"))
