@@ -43,9 +43,18 @@
   모았다(사용자가 그 모양을 골랐다).
 - branch: `ui/mui-migration`
 - last_stable_commit: **`eec4886c`** — 이번 회차도 안 옮긴다.
-- deployed: **`ec9b8aca`** (2026-09-04 09:41). 🔴 그 뒤로 **미배포 커밋이 쌓여 있고 이번
-  회차 것도 전부 그 안에 있다.** 사용자가 「본문이 안 보인다」고 한 것은 제목 링크를 넣은
-  `e8a14664` 가 아직 운영에 없어서이기도 하다 — 이 회차 결과가 나가야 확인할 수 있다.
+- deployed: **`e6df9272`** — 이 회차를 운영에 올렸다(2026-09-05). `ec9b8aca` 이후 쌓여 있던
+  **미배포 25개**가 함께 나갔다(제목 링크를 넣은 `e8a14664` 포함 — 사용자가 「본문이 안
+  보인다」고 한 것은 그것이 아직 운영에 없어서이기도 했다).
+  `UPGRADE_OK` · `VERIFY_OK` · 스냅샷 `/var/backups/clovirassist/20260905-072916` ·
+  제품 유닛 6종 active · `ssl_verify_result=0` · alembic head `0028_document_legacy_author`
+  (이 회차에 마이그레이션 없음).
+  🔴 **운영에서 실제로 확인한 것과 못 한 것을 갈라 적는다.** 확인한 것: 배포된 소스에
+  `samesite="lax"`·`withCurrentHash`·휴지통 라우터·쓰기 가드가 들어 있다 · 서빙되는 셸이
+  가리키는 번들 해시가 커밋한 것과 **같다**(`index.B3ocJ64p.js`) · 미인증 `GET /` 이
+  `303 /login?next=%2F` · `GET /api/trash` 가 401. **못 한 것**: 로그인이 필요한 관찰
+  (실제 `Set-Cookie` 의 SameSite, `counts`·`sort`·`excerpt` 응답, 보관 문서 쓰기 404)은
+  운영 계정이 없어 안 쟀다 — 그 셋은 실 DB 를 쓰는 시험이 로컬에서 잰다.
 - verification: 아래 「이번 회차가 잰 것」 절.
 - capture: 전량 정본은 **`s22-final`** 그대로다(D-306).
 - ui_gate: 변화 없음.
