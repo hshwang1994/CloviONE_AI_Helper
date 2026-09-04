@@ -79,14 +79,23 @@ def prune_empty(
 ) -> PruneResult:
     """빈 문서를 보관 처리한다. **자체 작성 문서는 세기만 하고 안 건드린다.**"""
     from app.knowledge.models import DocumentAttachment, DocumentComment
-    from app.migration.classify import is_rewritable
+    from app.knowledge.models import SOURCE_MIGRATION
     from app.migration.report import SEVERITY_NOTE
 
     result = PruneResult()
     for document in find_empty(db, max_chars=max_chars):
         result.scanned += 1
-        if not is_rewritable(db, document):
+        if document.source_type != SOURCE_MIGRATION:
             # 사람이 만든 빈 문서다. 쓰려던 자리일 수 있다.
+            #
+            # 🔴 여기서 보는 것은 `source_type` **하나**다. 적재기·분류 적용기가 쓰는
+            # 두 조건 술어(`is_rewritable`)는 「본문을 덮어써도 되는가」를 묻고, 그 둘째
+            # 조건(다리가 있을 것)은 **다리가 끊긴 문서를 자체 작성으로 읽는다.** 운영에서
+            # 실제로 그런 문서 101건이 생겼다 — 사람이 휴지통을 비운 뒤 적재기가 다시 만든
+            # 고아들이다. 그것들을 「사람이 만들었다」고 부르면 영영 못 치운다.
+            #
+            # `source_type='MIGRATION'` 은 **적재기만 쓴다.** 사람이 그 값을 고르는 화면이
+            # 없으므로 이 한 조건으로 자체 작성 문서를 충분히 가른다.
             result.refused_native += 1
             continue
         result.attachments_taken += db.execute(

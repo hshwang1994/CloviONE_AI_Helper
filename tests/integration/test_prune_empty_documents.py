@@ -144,3 +144,28 @@ def test_the_limit_is_a_parameter_not_a_constant(db, world):
     """문턱을 바꾸면 결과가 바뀐다 — 20 이 코드에 박혀 있지 않다."""
     _prune(db, world, max_chars=25)
     assert _archived(db, world["ids"]["twentyone"]), "문턱을 올렸는데 21자가 남았다"
+
+
+def test_a_migrated_document_whose_bridge_is_gone_can_still_be_pruned(db, world):
+    """🔴 다리가 끊긴 이관 문서를 「사람이 만들었다」고 읽으면 영영 못 치운다.
+
+    운영에서 실제로 생겼다: 사람이 휴지통을 비워 문서 행이 사라지자 다리가 없는 문서를
+    가리킨 채 남았고, 다음 회차가 그 페이지를 「아직 안 가져왔다」로 읽어 새 문서를 만든 뒤
+    다리를 못 붙였다 — 아무도 못 찾는 고아 101건이다.
+
+    두 조건 술어(`is_rewritable`)는 「본문을 덮어써도 되는가」를 묻는 것이라 여기 안 맞는다.
+    `source_type='MIGRATION'` 은 적재기만 쓰는 값이고, 그 한 조건으로 충분히 가른다.
+    """
+    from app.migration.models import T_DOCUMENT, LegacyMapping
+
+    orphan = world["ids"]["empty"]
+    db.query(LegacyMapping).filter(
+        LegacyMapping.target_type == T_DOCUMENT, LegacyMapping.target_id == orphan
+    ).delete(synchronize_session=False)
+    db.commit()
+
+    result = _prune(db, world)
+    assert _archived(db, orphan), "다리가 끊겼다고 고아를 안 치웠다"
+    assert result.refused_native == 1, (
+        "자체 작성 문서 하나(사람이 만든 빈 문서)만 거절해야 한다: " + str(result.as_dict())
+    )

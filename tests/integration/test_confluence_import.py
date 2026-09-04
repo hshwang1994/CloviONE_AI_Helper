@@ -831,3 +831,35 @@ def test_the_author_is_corrected_on_a_later_round_too(db, actor):
     again = db.get(Document, doc.id)
     assert again.created_by is None, "다음 회차가 옛 작성자를 안 고쳤다"
     assert again.legacy_author_name == "김동균", again.legacy_author_name
+
+
+def test_a_bridge_pointing_at_a_deleted_document_is_repointed(db, actor):
+    """🔴 죽은 다리를 그대로 두면 다음 회차가 **아무도 못 찾는 고아**를 만든다.
+
+    운영에서 실제로 101건이 그렇게 생겼다: 사람이 휴지통을 비워 행이 사라지자 다리는
+    없는 문서를 가리킨 채 남았고, 회차는 그 페이지를 「아직 안 가져왔다」로 읽어 새 문서를
+    만든 뒤 「다리가 이미 있다」며 안 붙였다. 그 문서는 다리가 없어 다음 회차도 못 찾는다.
+    """
+    from app.knowledge.models import Document
+    from app.migration.models import SRC_CONFLUENCE, T_DOCUMENT, LegacyMapping
+
+    _run(db, actor, FakeConfluence())
+    doc = _doc_by_title(db, "설치 가이드")
+    dead_id = doc.id
+    db.delete(doc)          # 사람이 휴지통에서 영구 삭제한 것과 같은 상태
+    db.commit()
+
+    _run(db, actor, FakeConfluence())
+    db.expire_all()
+
+    again = _doc_by_title(db, "설치 가이드")
+    assert again is not None, "다시 만들어지지 않았다"
+    assert again.id != dead_id
+    bridges = db.query(LegacyMapping).filter(
+        LegacyMapping.legacy_source == SRC_CONFLUENCE,
+        LegacyMapping.target_type == T_DOCUMENT,
+        LegacyMapping.legacy_source_id == "2",
+    ).all()
+    assert len(bridges) == 1, f"다리가 {len(bridges)}개다 — 하나여야 한다"
+    assert bridges[0].target_id == again.id, "다리가 아직 죽은 문서를 가리킨다"
+    assert db.get(Document, bridges[0].target_id) is not None

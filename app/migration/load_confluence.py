@@ -216,8 +216,32 @@ class ConfluenceLoader:
         ).scalar_one_or_none()
 
     def _map(self, legacy_id: str, target_type: str, target_id: str) -> None:
-        if self._mapped(legacy_id, target_type) is not None:
-            return
+        """이 페이지가 어느 행이 됐는지 적는다. 이미 있으면 **살아 있는지 확인한다.**
+
+        🔴 예전에는 「있으면 그냥 둔다」였다. 그런데 그 행이 지워지면(사람이 휴지통을
+        비우면 지워진다) 다리는 **없는 문서**를 가리킨 채 남고, 다음 회차는 그 페이지를
+        「아직 안 가져왔다」로 읽어 새 문서를 만든 뒤 다리를 못 붙인다 — 아무도 못 찾는
+        고아가 된다. 운영에서 실제로 101건이 그렇게 생겼다.
+
+        그래서 죽은 다리는 새 행으로 다시 잇는다.
+        """
+        existing = self._mapped(legacy_id, target_type)
+        if existing is not None:
+            model = Document if target_type == T_DOCUMENT else None
+            alive = self.db.get(model, existing) is not None if model else True
+            if alive:
+                return
+            row = self.db.execute(
+                sa.select(LegacyMapping).where(
+                    LegacyMapping.legacy_source == SRC_CONFLUENCE,
+                    LegacyMapping.legacy_source_id == legacy_id[:128],
+                    LegacyMapping.target_type == target_type,
+                )
+            ).scalars().first()
+            if row is not None:
+                row.target_id = target_id
+                self.db.flush()
+                return
         self.db.add(LegacyMapping(
             legacy_source=SRC_CONFLUENCE,
             legacy_source_id=legacy_id[:128],
