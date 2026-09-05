@@ -8,7 +8,7 @@ import { api } from "../lib/api.js";
 import { fmtDateTime, actionKo, objKo } from "../lib/format.js";
 import { useAuth } from "../app/auth.jsx";
 import { canReach } from "../app/navConfig.js";
-import { PageHeader, Card, Badge, Section, Skeleton, ErrorState, Button, Callout, SubGroup, Surface, useToast } from "../ui/kit.jsx";
+import { PageHeader, Card, ListCard, DataTable, Badge, Section, Skeleton, ErrorState, Button, Callout, SubGroup, Surface, useToast } from "../ui/kit.jsx";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
 import { StatusList, StatusTile, Note } from "../ui/adminKit.jsx";
 import {
@@ -851,40 +851,21 @@ function RecentChanges({ rows, role, nav, revealedId, onCopyId }) {
         ? <Link component="button" type="button" variant="body2" underline="hover" onClick={() => nav("/audit")}>전체 보기 →</Link>
         : null}
     >
-      <Card>
-        {/* 머리글 줄. 넓은 화면에서만 그린다 — 좁으면 칸이 세로로 쌓이므로 머리글이 뜻을
-            잃는다(그때는 각 값이 자기 자리로 읽힌다). */}
-        <Box
-          sx={{
-            display: { xs: "none", md: "grid" },
-            gridTemplateColumns: "12rem minmax(0,1.2fr) minmax(0,1fr) 8rem",
-            gap: 1.5, pb: 1, mb: 0.5, borderBottom: 1, borderColor: "divider",
-          }}
-        >
-          {["시각", "동작", "대상", "실행자"].map((h) => (
-            <Typography key={h} variant="caption" color="text.secondary" sx={{ fontWeight: FONT_WEIGHT.bold }}>{h}</Typography>
-          ))}
-        </Box>
-        <Box component="ul" sx={{ listStyle: "none", m: 0, p: 0 }}>
-          {rows.map((a) => (
-            // 안정 key — 30초 폴링마다 새 항목이 앞에 붙으므로 index key는 행을 위치로
-            // 재사용해 어긋난다.
-            <Box
-              component="li"
-              key={a.created_at + "|" + (a.object_id || "") + "|" + a.action}
-              sx={{
-                display: "grid", alignItems: "baseline",
-                gap: { xs: 0.25, md: 1.5 },
-                gridTemplateColumns: { xs: "minmax(0,1fr)", md: "12rem minmax(0,1.2fr) minmax(0,1fr) 8rem" },
-                py: 1, borderBottom: 1, borderColor: "divider", "&:last-of-type": { borderBottom: 0 },
-              }}
-            >
-              <Typography variant="body2" color="text.secondary" sx={{ fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
-                {fmtDateTime(a.created_at)}
-              </Typography>
-              <Typography variant="body2" sx={{ minWidth: 0, fontWeight: FONT_WEIGHT.semibold, ...KO_WORD_BREAK }}>
-                {actionOnly(a.action, a.object_type)}
-              </Typography>
+      {/* 공용 표다 — 예전에는 머리글 줄과 격자 행을 손으로 그린 표였고, 그래서 열 폭·정렬·
+          자릿수 규칙이 다른 표와 따로 살았다. 열 정의만 남기고 그리기는 `DataTable` 이 한다.
+          행 key 는 안정 키다 — 30초 폴링마다 새 항목이 앞에 붙으므로 index 는 행을 위치로
+          재사용해 어긋난다. 대상 ID 의 복사·펼침(`c-id-selectable`)은 대상 칸 안에 그대로다. */}
+      <ListCard>
+        <DataTable
+          rows={rows}
+          rowKey={(a) => a.created_at + "|" + (a.object_id || "") + "|" + a.action}
+          columns={[
+            { key: "created_at", label: "시각", type: "datetime", render: (a) => fmtDateTime(a.created_at) },
+            {
+              key: "action", label: "동작", type: "text", rowName: (a) => actionOnly(a.action, a.object_type),
+              render: (a) => <Box component="span" sx={{ fontWeight: FONT_WEIGHT.semibold }}>{actionOnly(a.action, a.object_type)}</Box>,
+            },
+            { key: "object", label: "대상", type: "name", render: (a) => (
               <Box sx={{ minWidth: 0, display: "flex", alignItems: "baseline", gap: 0.75, flexWrap: "wrap" }}>
                 <Typography variant="body2" sx={{ minWidth: 0, ...KO_WORD_BREAK }}>{objKo(a.object_type)}</Typography>
                 {/* 이름이 있으면(현재는 object_type "user") 그 이름을 보여준다 — 예전엔 이
@@ -905,20 +886,18 @@ function RecentChanges({ rows, role, nav, revealedId, onCopyId }) {
                     {a.object_label || targetId(a.object_id)}
                   </Link>
                 ) : null}
+                {revealedId && revealedId === a.object_id ? (
+                  <Typography className="c-id-selectable" variant="caption" color="text.secondary" tabIndex={0}
+                    sx={{ flexBasis: "100%", wordBreak: "break-all", userSelect: "all" }}>
+                    {a.object_id}
+                  </Typography>
+                ) : null}
               </Box>
-              <Typography variant="body2" color="text.secondary" sx={{ minWidth: 0, ...KO_WORD_BREAK }}>
-                {a.actor || "시스템"}
-              </Typography>
-              {revealedId && revealedId === a.object_id ? (
-                <Typography className="c-id-selectable" variant="caption" color="text.secondary" tabIndex={0}
-                  sx={{ gridColumn: "1 / -1", wordBreak: "break-all", userSelect: "all" }}>
-                  {a.object_id}
-                </Typography>
-              ) : null}
-            </Box>
-          ))}
-        </Box>
-      </Card>
+            ) },
+            { key: "actor", label: "실행자", type: "name", render: (a) => a.actor || "시스템" },
+          ]}
+        />
+      </ListCard>
     </Section>
   );
 }

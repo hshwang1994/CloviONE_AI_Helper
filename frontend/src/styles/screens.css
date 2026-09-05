@@ -166,7 +166,10 @@
 /* 개발자 월간 리포트 — 표·지표·구획은 전부 kit 부품(`DataTable`·`MetricStrip`·`Section`)이
    그린다. 예전 손으로 만든 표의 규칙(kpi·bar·legend·grouprow …)은 소비처가 없어 걷었다.
    남는 것은 인쇄 규칙 하나다 — 사이드바·상단바를 숨기고 리포트만 깔끔히 출력한다. */
-@media print { .devrep-noprint { display: none !important; } .c-body{ display: block !important; margin: 0 !important; padding: 0 !important; } }
+/* 인쇄: 본문 껍데기의 여백을 걷는다(개발자 월간 리포트가 「인쇄하거나 PDF로 저장」으로 여기 온다).
+   화면별 인쇄 규칙(조건 줄 감추기 등)은 그 화면의 sx 에 있다 — 클래스 이름으로 CSS 와 화면이
+   서로를 가리키던 `.devrep-*` 는 걷었다. */
+@media print { .c-body{ display: block !important; margin: 0 !important; padding: 0 !important; } }
 
 /* ── 자유게시판(팀 공간 §18) ─────────────────────────────────────────────
  * 색은 모두 토큰 var()로만(테마 자동 대응). AI 기호(—·)는 UI 텍스트에 쓰지 않는다.

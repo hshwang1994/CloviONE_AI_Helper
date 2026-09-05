@@ -4,8 +4,8 @@ import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
 import {
-  Badge, Button, Callout, Card, DataTable, ErrorState, ListCard, MetaBar, MetricStrip,
-  PageHeader, SectionTitle, Skeleton, TechDetail, useConfirm, useToast,
+  Badge, Button, Callout, DataTable, EmptyState, ErrorState, ListCard, MetaBar, MetricStrip,
+  PageHeader, Section, Skeleton, TechDetail, useConfirm, useToast,
 } from "../ui/kit.jsx";
 import { DateCell, NumberCell } from "../ui/cells.jsx";
 import { FONT_WEIGHT } from "../ui/theme.js";
@@ -197,13 +197,17 @@ export function MailStatus() {
         ]}
       />
 
-      <ListCard sx={{ mt: 2, p: 0 }}>
-        <SectionTitle title="최근 실패" component="h2" sx={{ p: 2, pb: 1 }} />
-        <DataTable
-          columns={FAILURE_COLUMNS} rows={failures} rowKey={(r) => r.id}
-          empty="최근 실패한 메일이 없습니다."
-        />
-      </ListCard>
+      {/* 구획 제목 + 목록 판 — 다른 목록 화면과 같은 배치. 0건은 표 안의 평문 한 줄이 아니라
+          빈 상태다(성공 그림) — 실패가 없다는 것은 이 화면의 좋은 소식이다. */}
+      <Section titleAs="h2" title="최근 실패" sx={{ mt: 3, mb: 0 }}>
+        {failures.length ? (
+          <ListCard>
+            <DataTable columns={FAILURE_COLUMNS} rows={failures} rowKey={(r) => r.id} />
+          </ListCard>
+        ) : (
+          <EmptyState art="success" title="최근 실패한 메일이 없습니다" />
+        )}
+      </Section>
     </Box>
   );
 }

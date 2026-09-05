@@ -268,7 +268,7 @@ function TempPasswordModal({ data, onClose }) {
         sx={{
           mt: 1.5, p: 1.5, border: 1, borderColor: "divider", borderRadius: 2,
           bgcolor: "action.hover", fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
-          fontSize: "1rem", fontWeight: FONT_WEIGHT.bold, letterSpacing: "0.03em",
+          fontSize: FONT_SIZE.title, fontWeight: FONT_WEIGHT.bold, letterSpacing: "0.03em",
           userSelect: "all", overflowWrap: "anywhere", textAlign: "center",
         }}
       >

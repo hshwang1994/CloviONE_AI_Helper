@@ -11,13 +11,15 @@ import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { useTheme } from "@mui/material/styles";
 import { api } from "../lib/api.js";
-import { PageHeader, Card, Badge, Button, Callout, Skeleton, EmptyState, ErrorState, MetricStrip, DataTable, tableCellProps } from "../ui/kit.jsx";
+import {
+  PageHeader, Card, ListCard, Badge, Button, Callout, Skeleton, EmptyState, ErrorState, MetricStrip, DataTable,
+  Section, SectionTitle, tableCellProps,
+} from "../ui/kit.jsx";
 import { FilterActions, FilterRow, FilterSurface } from "../ui/FilterBar.jsx";
 import { HEADER_ALIGN } from "../ui/columnTypes.js";
-import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
+import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, PROSE_MAX_WIDTH } from "../ui/theme.js";
 import { Donut } from "../ui/charts/Donut.jsx";
 import { resolveChartColor } from "../ui/charts/base.jsx";
-import { Note } from "../ui/adminKit.jsx";
 
 // 이번 달을 'YYYY-MM'으로. 리포트는 마감일 기준이라 월만 쓴다.
 function thisMonth() {
@@ -82,24 +84,20 @@ function Zed({ children }) {
 }
 function zed(v) { return v ? String(v) : <Zed>0</Zed>; }
 
-/* 표 껍데기 — 가로 스크롤은 표 자신의 상자 안에서만 일어난다(페이지 전체가 가로로 밀리면
- * 4K QA의 horizontal_overflow에 걸린다). min-width는 rem이라 4K에서 함께 커진다.
- * devrep-tablewrap 클래스는 그대로 둔다 — screens.css의 인쇄 규칙이 이 이름을 본다.
+/* 표 판 — 다른 목록 화면과 같은 `ListCard` 다. 가로 스크롤은 표 자신의 상자 안에서만
+ * 일어난다(페이지 전체가 가로로 밀리면 4K QA의 horizontal_overflow에 걸린다). min-width는
+ * rem이라 4K에서 함께 커진다. 예전에는 이 화면만 테두리·모서리를 손으로 적은 자기 상자였다.
  *
- * **이 상자는 이제 표를 직접 그리지 않는다.** 예전에는 여기서 `<Table>` 을 열고 화면이
+ * **이 상자는 표를 직접 그리지 않는다.** 예전에는 여기서 `<Table>` 을 열고 화면이
  * `<Th>`·`<TableCell>` 을 손으로 적었다 — 그래서 이 화면의 열 폭·정렬·자릿수 규칙이
  * `DataTable` 의 것과 **따로** 살았고, 공용 계약을 고쳐도 여기는 안 따라왔다(C3 이 이
- * 파일을 이름으로 지목한 이유다). 지금은 안에 `DataTable` 이 들어온다. */
+ * 파일을 이름으로 지목한 이유다). 지금은 안에 `DataTable` 이 들어온다(담당자별 상세 티켓만
+ * 구분 행 때문에 맨 `<Table>` 이라 여기서 가로 스크롤 상자를 준다). */
 function TableWrap({ minWidth = "45rem", children }) {
   return (
-    <Box className="devrep-tablewrap"
-      sx={{
-        overflowX: "auto", border: 1, borderColor: "divider", borderRadius: 2, bgcolor: "background.paper",
-        "& table": { minWidth },
-        "@media print": { border: 0, overflow: "visible" },
-      }}>
-      {children}
-    </Box>
+    <ListCard sx={{ "& table": { minWidth }, "@media print": { boxShadow: "none" } }}>
+      <Box sx={{ overflowX: "auto", "@media print": { overflow: "visible" } }}>{children}</Box>
+    </ListCard>
   );
 }
 
@@ -215,7 +213,7 @@ export function DevReport() {
   })() : [];
 
   return (
-    <Box className="devrep c-screen"
+    <Box className="c-screen"
       sx={{
         /* 자릿수 고정을 예전에는 **화면 전체**에 걸었다 — 산문과 라벨까지 고정폭 숫자를 쓰면
            «2026년 8월» 의 숫자 사이가 벌어진다. 이제 열이 자기 타입으로 말하고 그 열만
@@ -226,22 +224,19 @@ export function DevReport() {
       {/* 사이드바가 이 화면을 「감사」 묶음에 두는데(navConfig.js) 빵부스러기는 「자동화」
           라고 말하고 있었다 — 그 이름의 묶음은 이제 「자동화와 연동」이고 이 화면은 거기
           없다. 같은 화면이 두 자리에 있다고 읽히던 자리다(S20). */}
+      {/* 긴 설명은 제목 옆 `?` 다(D-453) — 예전에는 머리 아래 상시 문단이었다. 새로고침은 이 화면의
+          주 행동이 아니라(리포트는 스스로 뜬다) 기본 강도다. */}
       <PageHeader area="감사" title="개발자 월간 리포트"
         description="마감일이 이번 달인 티켓을 담당자별로 모아 업무량과 위험을 봅니다."
-        actions={<Button variant="primary" onClick={() => query.refetch()}>새로고침</Button>} />
-
-      <Box sx={{ mb: 3 }}>
-        <Note sx={{ mt: 0 }}>
-          마감일이 선택한 달인 티켓을 담당자별로 집계합니다. 각자 얼마나 일했는지는 완료 건수와 예상 WD로 보고, 지금 안고 있는 부담과 위험은 진행 중 업무와 지연으로 함께 봅니다. 예상 WD와 난이도는 티켓 내용을 바탕으로 추정한 값이고, 실제 WD는 완료한 담당자가 입력합니다.
-        </Note>
-      </Box>
+        help="마감일이 선택한 달인 티켓을 담당자별로 집계합니다. 각자 얼마나 일했는지는 완료 건수와 예상 WD로 보고, 지금 안고 있는 부담과 위험은 진행 중 업무와 지연으로 함께 봅니다. 예상 WD와 난이도는 티켓 내용을 바탕으로 추정한 값이고, 실제 WD는 완료한 담당자가 입력합니다."
+        actions={<Button onClick={() => query.refetch()}>새로고침</Button>} />
 
       {/* 🔴 이 줄은 테두리 있는 판이었고, 그 판이 1606×68 에 잉크 18% 로 서 있었다(P-42 ②).
           작은 컨트롤 셋을 화면 폭짜리 상자에 담으면 그 상자는 자기 폭을 설명하지 못한다.
           조건 줄은 이 저장소에 이미 계약이 있다 — `FilterSurface` 는 테두리 없는 격자에
           아래 구분선 하나이고(`ui/FilterBar.jsx`), 되돌리는 일이 아니라 **동작**인 인쇄는
           `FilterActions` 로 줄 끝에 붙는다. 화면마다 다른 조건 줄을 만들지 않는다. */}
-      <FilterSurface className="devrep-noprint">
+      <FilterSurface sx={{ "@media print": { display: "none" } }}>
         <FilterRow>
           <TextField
             InputLabelProps={{ shrink: true }}
@@ -301,14 +296,12 @@ export function DevReport() {
             ]}
           />
 
-          <Box component="section" sx={{ mb: 4 }}>
-            <Typography component="h2" variant="h6" sx={{ fontSize: FONT_SIZE.sectionTitle, mb: 1.5 }}>개발자별 상세 ({data.period})</Typography>
+          {/* 구획은 공용 `Section`(제목 + 괘선)이다 — 예전에는 h2 셋을 손으로 그렸다. */}
+          <Section titleAs="h2" title={`개발자별 상세 (${data.period})`} rule>
             {devs.length === 0 ? (
-              <Card>
-                <EmptyState art="tickets" title="이 달에 집계할 담당자가 없습니다"
-                  help="선택한 달에 마감일이 있는 티켓이 없거나, 앱에 활성 사용자가 추가되어 있지 않습니다."
-                  situation="기간을 바꾸거나, 사용자 화면에서 담당자 계정이 활성 상태인지 확인하세요." />
-              </Card>
+              <EmptyState art="tickets" title="이 달에 집계할 담당자가 없습니다"
+                help="선택한 달에 마감일이 있는 티켓이 없거나, 앱에 활성 사용자가 추가되어 있지 않습니다."
+                situation="기간을 바꾸거나, 사용자 화면에서 담당자 계정이 활성 상태인지 확인하세요." />
             ) : (
               /* 폭이 아주 넓을 때(xxl 이상)만 도넛을 표 옆에 세운다 — 1366·1920에서 옆에 두면
                  열 열 개짜리 표가 눌려 가로 스크롤이 생긴다. 도넛의 범례가 곧 아래 스택 막대의
@@ -321,8 +314,8 @@ export function DevReport() {
                 <TableWrap minWidth="52rem">
                   <DataTable columns={DEV_SUMMARY_COLUMNS} rows={devs} rowKey={(d) => d.name} />
                 </TableWrap>
-                <Card sx={{ p: 2.5, justifySelf: "start", width: { xs: "min(100%, 30rem)", xxl: "100%" } }}>
-                  <Typography variant="body2" sx={{ fontWeight: FONT_WEIGHT.bold, mb: 1.5 }}>팀 상태 구성</Typography>
+                <Card sx={{ justifySelf: "start", width: { xs: "min(100%, 30rem)", xxl: "100%" } }}>
+                  <SectionTitle component="h3" title="팀 상태 구성" />
                   <Donut question="이 달 팀의 티켓이 어느 상태에 몰려 있는지 봅니다." segments={teamSegs} unit="건" centerLabel="티켓" emptyLabel="이 달에 집계된 티켓이 없습니다" />
                   <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1.5 }}>
                     팀 합계는 티켓 단위로 셉니다. 담당자별 합계는 담당자가 둘인 티켓을 양쪽에 각각 세므로 이 합과 다를 수 있습니다.
@@ -330,10 +323,17 @@ export function DevReport() {
                 </Card>
               </Box>
             )}
-          </Box>
+          </Section>
 
-          <Box component="section" sx={{ mb: 4 }}>
-            <Typography component="h2" variant="h6" sx={{ fontSize: FONT_SIZE.sectionTitle, mb: 1.5 }}>업무량 분석 (완료 업무량 기준)</Typography>
+          {/* 열의 뜻을 푸는 문단은 제목 아래 도움말이다 — 예전에는 표 아래 떠 있는 문단이라 어느
+              표를 설명하는지 다시 찾아야 했다. */}
+          <Section titleAs="h2" title="업무량 분석 (완료 업무량 기준)" rule
+            help={(
+              /* 네 문장짜리 산문이라 `PROSE_MAX_WIDTH` 를 건다 — 1920 에서 한 줄이 1,600px 를 달리면 읽히지 않는다. */
+              <Box component="span" sx={{ display: "block", maxWidth: PROSE_MAX_WIDTH, ...KO_WORD_BREAK }}>
+                완료 건수와 완료 예상 WD는 그 사람이 이번 달에 실제로 마무리한 일의 양을 나타냅니다. 진행과 검증 건수가 많으면 지금 손에 쥔 일이 많다는 뜻이고, 지연 건수는 마감이 지났는데 아직 끝나지 않은 티켓입니다. 완료율은 담당한 일 가운데 끝낸 비율이며 취소는 제외합니다. 담당 건수가 적으면 완료율이 쉽게 높아지므로 담당 건수와 함께 보아야 공정합니다.
+              </Box>
+            )}>
             {/* 🔴 여기 「담당자별 완료 업무량」 막대가 있었다. **바로 아래 표의 «완료 업무량»
                 열이 같은 사람들의 같은 숫자**를 말한다 — 한 화면이 같은 것을 두 번 말하면
                 읽는 사람은 둘이 다른 것이라고 읽는다(WorkSummary 가 「개수」와 「그 개수의
@@ -344,21 +344,12 @@ export function DevReport() {
             <TableWrap minWidth="52rem">
               <DataTable columns={DEV_WORKLOAD_COLUMNS} rows={devs} rowKey={(d) => d.name} />
             </TableWrap>
-          </Box>
+          </Section>
 
-          <Box sx={{ mb: 4 }}>
-            <Note sx={{ mt: 0 }}>
-              완료 건수와 완료 예상 WD는 그 사람이 이번 달에 실제로 마무리한 일의 양을 나타냅니다. 진행과 검증 건수가 많으면 지금 손에 쥔 일이 많다는 뜻이고, 지연 건수는 마감이 지났는데 아직 끝나지 않은 티켓입니다. 완료율은 담당한 일 가운데 끝낸 비율이며 취소는 제외합니다. 담당 건수가 적으면 완료율이 쉽게 높아지므로 담당 건수와 함께 보아야 공정합니다.
-            </Note>
-          </Box>
-
-          <Box component="section" sx={{ mb: 4 }}>
-            <Typography component="h2" variant="h6" sx={{ fontSize: FONT_SIZE.sectionTitle, mb: 1.5 }}>담당자별 상세 티켓</Typography>
+          <Section titleAs="h2" title="담당자별 상세 티켓" rule>
             {withTickets.length === 0 ? (
-              <Card>
-                <EmptyState art="tickets" title="이 달에 담당한 티켓이 있는 사람이 없습니다"
-                  help="선택한 달에 마감일이 있는 티켓이 배정되면 여기에 담당자별로 묶여 표시됩니다." />
-              </Card>
+              <EmptyState art="tickets" title="이 달에 담당한 티켓이 있는 사람이 없습니다"
+                help="선택한 달에 마감일이 있는 티켓이 배정되면 여기에 담당자별로 묶여 표시됩니다." />
             ) : (
               /* 담당자별 상세 티켓은 담당자마다 구분 행을 둔 '하나의 표'로 그린다 — 표가 여러 개면
                  열 너비가 제각각이라 위치가 어긋난다. 한 표로 묶으면 모든 담당자의 열이 자동 정렬된다. */
@@ -413,7 +404,7 @@ export function DevReport() {
                 </Table>
               </TableWrap>
             )}
-          </Box>
+          </Section>
         </>
       ) : null}
     </Box>

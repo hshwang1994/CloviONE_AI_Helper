@@ -13,7 +13,10 @@ import {
  * 서비스가 중단·응답 없음이면 재시작 안내(journalctl 명령 + 복사)까지 이 패널이 책임진다 — 상태를
  * 보여주기만 하고 다음 행동이 없는 막다른 카드로 남기지 않는다(스펙 §10: 웹에서 재시작하는 수단은
  * 제공하지 않으므로 로그 확인·담당자 재시작으로 안내한다). */
-export function ServiceStatusPanel({ disk, mem, certDaysRemaining, comps, nav }) {
+/* `aside` 는 「필수 서비스」 옆에 설 구획(진단의 「외부 연동」)이고, `pair` 가 참일 때만 xl 부터
+   2열이다 — 대시보드와 같은 규칙(D-343): 양쪽 다 목록일 때만 나란히 둔다. 오른쪽이 문장 한 줄뿐이면
+   균등 분할이 그 옆을 빈 칸으로 남긴다. */
+export function ServiceStatusPanel({ disk, mem, certDaysRemaining, comps, nav, aside = null, pair = false }) {
   const toast = useToast();
   // 실제로 중단·응답 없음 상태인 컴포넌트의 systemd 유닛만 안내한다 — web과 worker/scheduler는
   // 서로 다른 유닛이라, 웹만 죽었을 때 워커 로그를 보라고 하면 실제 장애 순간에 엉뚱한 곳을
@@ -56,9 +59,10 @@ export function ServiceStatusPanel({ disk, mem, certDaysRemaining, comps, nav })
           채워진 dict로 돌려준다, 이 Object.keys(...).length 가드는 기능적으로 결코 false가 될
           수 없다(사전 방어일 뿐). 실제 통제는 bundle 자체의 존재 여부다(부모의 !bundle 가드). */}
       {Object.keys(comps).length ? (
-        /* 이름은 대시보드와 **같아야 한다** — 같은 데이터를 두 화면이 다른 이름으로 부르면
+        <Box sx={{ display: "grid", alignItems: "start", columnGap: 4, gridTemplateColumns: { xs: "minmax(0,1fr)", xl: pair ? "repeat(2, minmax(0,1fr))" : "minmax(0,1fr)" } }}>
+        {/* 이름은 대시보드와 **같아야 한다** — 같은 데이터를 두 화면이 다른 이름으로 부르면
            운영자는 그것이 다른 것인지 확인해야 한다. 그쪽이 「필수 서비스」로 부르면서
-           외부 연동과 분모를 갈랐고, 여기도 같은 말을 쓴다. */
+           외부 연동과 분모를 갈랐고, 여기도 같은 말을 쓴다. */}
         <Section titleAs="h2" title="필수 서비스"
           action={<Typography variant="body2" color="text.secondary">{upSummaryText(Object.values(comps).map(componentState))}</Typography>}>
           {/* 중단·응답 없음을 빨간 배지로만 두면 조치할 곳이 없는 막다른 화면이 된다 — 다음 행동을 한 줄로 안내한다.
@@ -97,7 +101,9 @@ export function ServiceStatusPanel({ disk, mem, certDaysRemaining, comps, nav })
             })}
           </StatusList>
         </Section>
-      ) : null}
+        {aside}
+        </Box>
+      ) : aside}
     </>
   );
 }

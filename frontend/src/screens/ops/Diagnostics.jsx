@@ -7,7 +7,9 @@ import Typography from "@mui/material/Typography";
 import { api } from "../../lib/api.js";
 import { fmtDateTime } from "../../lib/format.js";
 import { Note, StatusList, StatusTile } from "../../ui/adminKit.jsx";
-import { PageHeader, Card, Badge, Callout, MetricStrip, Section, Skeleton, ErrorState, EmptyState, useToast } from "../../ui/kit.jsx";
+import {
+  PageHeader, Badge, Callout, MetricStrip, Section, Skeleton, ErrorState, EmptyState, Surface, TechDetail, useToast,
+} from "../../ui/kit.jsx";
 import { FONT_SIZE, FONT_WEIGHT } from "../../ui/theme.js";
 import {
   serviceLabel, fmtNum, errorBuckets, healthVerdict, copyText, bundleStamp,
@@ -138,20 +140,29 @@ export function Diagnostics() {
 
   return (
     <Box className="c-screen">
+      {/* 수집 시각은 머리의 캡션(대시보드의 「N 기준」과 같은 자리)이고, 「민감정보가 가려져 있다」는
+          제목 옆 `?` 다 — 예전에는 둘이 본문 첫 줄의 문장 하나였다(D-453). */}
       <PageHeader area="운영" title="진단"
+        help="이 번들은 민감정보가 가려져 있어 지원팀에 그대로 전달해도 안전합니다."
         actions={
-          <DiagnosticActions manualCollecting={manualCollecting} onCollect={() => collect(true)}
-            hasText={!!text} copied={copied} onCopy={doCopy} onDownload={doDownload} />
+          <>
+            {bundle ? (
+              <Typography variant="caption" color="text.secondary" sx={{ alignSelf: "center", fontVariantNumeric: "tabular-nums" }}>
+                수집 시각: {fmtDateTime(bundle.generated_at)}
+              </Typography>
+            ) : null}
+            <DiagnosticActions manualCollecting={manualCollecting} onCollect={() => collect(true)}
+              hasText={!!text} copied={copied} onCopy={doCopy} onDownload={doDownload} />
+          </>
         } />
       {/* 스켈레톤은 최초 수집 때만, 재수집(refetch) 중에는 이전 번들을 그대로 두어 읽던 맥락이 사라지지 않게 한다.
           (재수집 진행은 헤더의 '수집 중…' 버튼 상태가 알려 준다.) */}
-      {(q.isFetching && !bundle) ? <Card><Skeleton lines={4} /></Card>
+      {(q.isFetching && !bundle) ? <Skeleton kind="page" lines={4} />
         : (q.isError && !bundle) ? <ErrorState error={q.error} onRetry={() => collect(true)} />
         : bundle ? (
           <Box>
             {/* 재수집이 실패해도 이전 번들이 그대로 남으므로, 낡은 값을 최신처럼 보여주지 않도록 경고 배너를 띄운다. */}
             {q.isError ? <Box sx={{ mb: 3 }}><Callout tone="warn">진단 갱신에 실패했습니다. 아래 값은 {fmtDateTime(bundle.generated_at)}에 수집한 이전 자료입니다.</Callout></Box> : null}
-            <Note sx={{ mt: 0, mb: 3 }}>수집 시각: {fmtDateTime(bundle.generated_at)}, 이 번들은 민감정보가 가려져 있어 지원팀에 그대로 전달해도 안전합니다.</Note>
             {/* 상태 요약(정상/주의)은 수집마다 바뀌므로 낭독되도록 라이브 영역으로 감싼다. */}
             {(() => {
               // 저장소도 함께 넘긴다 — 대시보드의 조치 목록이 「운영 저장소에 못 씀」을
@@ -185,7 +196,9 @@ export function Diagnostics() {
                 </Box>
               );
             })()}
-            <ServiceStatusPanel disk={disk} mem={mem} certDaysRemaining={dash.cert_days_remaining} comps={comps} nav={nav} />
+            <ServiceStatusPanel disk={disk} mem={mem} certDaysRemaining={dash.cert_days_remaining} comps={comps} nav={nav}
+              pair={Object.keys(integrations).length > 0}
+              aside={
             <Section titleAs="h2" title="외부 연동"
               action={Object.keys(integrations).length ? (
                 <Typography variant="body2" color="text.secondary">
@@ -226,19 +239,15 @@ export function Diagnostics() {
                 // service.py build_dashboard), integration_errors는 그중 down/degraded만 거른 부분집합이다 -
                 // 그래서 integrations가 비어 있으면 그 부분집합도 항상 비어 있다. '등록된 연동은 없지만
                 // 오류만 있는' 중간 분기는 절대 일어나지 않아 제거하고, 곧장 빈 상태로 간다.
-                <Card>
-                  <EmptyState title="추가된 외부 연동이 없습니다"
-                    help="이 설치는 바깥으로 나가는 호출을 쓰지 않습니다. 연동이 등록되면 여기에 상태가 표시됩니다."
-                    art="search" />
-                </Card>
+                <Note sx={{ mt: 0 }}>추가된 외부 연동이 없습니다. 이 설치는 바깥으로 나가는 호출을 쓰지 않습니다. 연동이 추가되면 여기에 상태가 표시됩니다.</Note>
               )}
             </Section>
+              } />
             {/* 설치처 설정. '외부 연동' 바로 아래에 둔다 - 연동이 비어 보이는 이유가 대개 여기 있다.
                 값을 그리지 않고 **채웠는지 여부만** 그린다: DB id 는 설치처 식별자라 진단 화면에
                 띄울 이유가 없고, 필요한 정보는 "안 채운 것이 있는가" 하나뿐이다. */}
             {tenantItems.length ? (
-              <Section titleAs="h2" title="설치처 설정">
-                <Card>
+              <Section titleAs="h2" title="설치처 설정" rule>
                   {tenant.configured ? (
                     <Note sx={{ mt: 0 }}>설치처 고유 설정을 모두 채웠습니다.</Note>
                   ) : (
@@ -261,7 +270,6 @@ export function Diagnostics() {
                       </LogRow>
                     ))}
                   </LogList>
-                </Card>
               </Section>
             ) : null}
             {/* '현재 리소스'는 '시스템 리소스', '서비스 상태'와 같은 '지금 이 순간' 스냅샷이라, 이전엔
@@ -287,39 +295,34 @@ export function Diagnostics() {
                 다운로드도 불변) 본문 79줄 중 54줄이 두 화면에서 문자 그대로 겹쳤다. 대시보드로
                 가는 링크 한 줄만 남긴다 — 진단의 나머지(시스템 리소스·설치처 설정·최근 작업
                 오류·원본 JSON)는 대시보드가 안 답하는 것들이라 그대로 둔다. */}
-            <Box sx={{ mb: 3 }}>
-              <Card sx={{ p: 2.5 }}>
-                <Typography variant="body2" color="text.secondary">
-                  백업 상태와 최근 주요 변경은 대시보드에서 항상 확인할 수 있습니다.
-                </Typography>
-                <Link component="button" type="button" variant="body2" underline="hover" onClick={() => nav("/dashboard")} sx={{ display: "inline-block", mt: 1 }}>
-                  대시보드에서 보기 →
-                </Link>
-              </Card>
-            </Box>
+            {/* 문장 하나와 링크 하나는 판이 아니라 줄이다 — 예전에는 이것이 전폭 흰 판이었다. */}
+            <Note sx={{ mt: 0, mb: 3 }}>
+              백업 상태와 최근 주요 변경은 대시보드에서 항상 확인할 수 있습니다.{" "}
+              <Link component="button" type="button" variant="body2" underline="hover" onClick={() => nav("/dashboard")}>
+                대시보드에서 보기 →
+              </Link>
+            </Note>
             <Section titleAs="h2" title="원본 자료">
-              {/* 다른 모든 섹션과 같은 Card로 감싸 원시 브라우저 기본 <details> 외형(카드 없음, 테두리 없음)이
-                  이 페이지에서만 미완성처럼 보이던 문제를 없앤다. */}
-              <Card>
-                <details>
-                  <Box component="summary" sx={{ cursor: "pointer", fontWeight: FONT_WEIGHT.bold, fontSize: FONT_SIZE.body }}>원본(JSON) 보기</Box>
-                  <Box component="pre" aria-label="진단 번들 원본 JSON"
-                    sx={{
-                      m: 0, mt: 2, p: 2, whiteSpace: "pre-wrap", wordBreak: "break-word",
-                      fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: FONT_SIZE.caption, lineHeight: 1.5,
-                      maxHeight: "60vh", overflow: "auto", bgcolor: "background.default", borderRadius: 2,
-                    }}>
-                    {text}
-                  </Box>
-                </details>
-              </Card>
+              {/* 기술 정보는 공용 `TechDetail`(메일 발송의 오류 원문과 같은 접기)이고 원문은 함몰면
+                  위에 선다 — 예전에는 맨 `<details>` 를 판으로 감싸 이 화면만 다른 접기를 가졌다. */}
+              <TechDetail label="원본(JSON) 보기">
+                <Surface tone="sunken" component="pre" aria-label="진단 번들 원본 JSON"
+                  sx={{
+                    m: 0, mt: 1, p: 2, whiteSpace: "pre-wrap", wordBreak: "break-word",
+                    fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: FONT_SIZE.caption, lineHeight: 1.5,
+                    maxHeight: "60vh", overflow: "auto",
+                  }}>
+                  {text}
+                </Surface>
+              </TechDetail>
             </Section>
           </Box>
         ) : q.isFetched ? (
           // 자동 수집 전 첫 프레임에 이 안내가 번쩍이던 문제, 아직 fetch 전이면(아래 폴백) 스켈레톤을 보여
           // '수집을 눌러라'는 안내가 앱이 이미 자동으로 하는 일을 지시하지 않게 한다.
-          <Card><Note sx={{ mt: 0 }}>‘진단 수집’을 눌러 현재 시스템 상태(서비스 상태, 디스크, 메모리, 인증서, 작업 오류)를 확인하세요.</Note></Card>
-        ) : <Card><Skeleton lines={4} /></Card>}
+          <EmptyState layout="page" art="settings" title="아직 수집한 진단이 없습니다"
+            help="‘진단 수집’을 눌러 현재 시스템 상태(서비스 상태, 디스크, 메모리, 인증서, 작업 오류)를 확인하세요." />
+        ) : <Skeleton kind="page" lines={4} />}
     </Box>
   );
 }

@@ -3,7 +3,7 @@ import Link from "@mui/material/Link";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import { fmtDateTime, jobTypeKo } from "../../lib/format.js";
-import { Card, MetricStrip, Section } from "../../ui/kit.jsx";
+import { MetricStrip, Section } from "../../ui/kit.jsx";
 import { Sparkline } from "../../ui/charts/Sparkline.jsx";
 import { Note } from "../../ui/adminKit.jsx";
 import { fmtNum, fmtProcessingTime } from "./opsHelpers.js";
@@ -40,9 +40,10 @@ export function JobQueuePanel({ jobs24, jobErrors, errorDist, nav }) {
           />
         </Section>
       ) : null}
-      <Section titleAs="h2" title="최근 작업 오류"
+      {/* 이력 목록은 판 없이 괘선 구획이다 — 대시보드의 「최근 주요 변경」·진단의 「설치처 설정」과
+          같은 어휘. 예전에는 이 목록만 흰 판 안에 있어 같은 화면에서 표면이 하나 더 있었다. */}
+      <Section titleAs="h2" title="최근 작업 오류" rule
         action={<Link component="button" type="button" variant="body2" underline="hover" onClick={() => nav("/jobs")}>작업 큐에서 보기 →</Link>}>
-        <Card>
           {jobErrors.length ? (
             <>
               {/* 20건이 한 시간에 몰렸는지 두 달에 흩어져 있는지는 목록만 훑어서는 안 보인다.
@@ -71,7 +72,6 @@ export function JobQueuePanel({ jobs24, jobErrors, errorDist, nav }) {
               </LogList>
             </>
           ) : <Note sx={{ mt: 0 }}>최근 실패한 작업이 없습니다.</Note>}
-        </Card>
       </Section>
     </>
   );

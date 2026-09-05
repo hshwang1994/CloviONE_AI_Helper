@@ -14,8 +14,9 @@ import { FONT_SIZE, FONT_WEIGHT } from "../ui/theme.js";
 import { useAuth } from "../app/auth.jsx";
 import { OPS_ROLES } from "./registry/shared.js";
 import { EntityCombobox } from "../ui/filters.jsx";
+import { FilterSurface, ToolbarEnd, ToolbarRow } from "../ui/FilterBar.jsx";
 import {
-  PageHeader, Card, Callout, Badge, Button, Skeleton,
+  Card, Callout, Button, MetricStrip, Skeleton,
   EmptyState, ErrorState, Modal, DataTable, useConfirm, useToast,
 } from "../ui/kit.jsx";
 
@@ -253,38 +254,42 @@ export function SchedulerCalendar({ embedded = false } = {}) {
   return (
     <>
       {/* 화면 설명은 탭 그릇의 `?` 도움말이 든다(`AdminRoutes.jsx` 의 달력 탭, D-453). */}
-      <Card sx={{ mt: 2, display: "flex", flexWrap: "wrap", alignItems: "center", gap: 1.5 }}>
-        <IconButton onClick={() => move(-1)} aria-label="이전 달"><ChevronLeftRoundedIcon /></IconButton>
-        {/* PA-RC-0001: sectionTitle(17px)·pageTitle(20px) 사이 18px — 이 h2가 페이지 제목인지
-            섹션 제목에 더 가까운 역할인지 실측 없이 임의로 정하지 않는다(의도된 예외). */}
-        <Typography component="h2" sx={{ fontWeight: FONT_WEIGHT.extrabold, fontSize: "1.125rem", minWidth: "8ch" }}>
-          {monthLabel}
-        </Typography>
-        <IconButton onClick={() => move(1)} aria-label="다음 달"><ChevronRightRoundedIcon /></IconButton>
-        <Button
-          variant="ghost"
-          onClick={() => setCursor({ year: Number(todayKey.slice(0, 4)), month: Number(todayKey.slice(5, 7)) - 1 })}
-        >
-          이번 달
-        </Button>
-        <Box sx={{ flex: 1 }} />
-        {/* 일정은 **Entity** 다 — 운영이 쌓이는 만큼 후보가 자란다. 검색 없는 드롭다운으로
-            두면 스무 개가 넘는 순간 이름을 알면서도 목록을 눈으로 훑어야 한다(R-5).
-            비활성 여부는 라벨 꼬리가 아니라 보조줄로 낸다 — 이름과 상태가 한 줄에 섞이면
-            이름이 길 때 상태가 먼저 잘린다. */}
-        <EntityCombobox
-          label="일정"
-          value={scheduleId}
-          onChange={setScheduleId}
-          allLabel="일정: 전체"
-          sx={{ minWidth: "16ch", maxWidth: "22rem", flex: "0 1 auto" }}
-          options={schedules.map((sc) => ({
-            value: sc.id,
-            label: sc.name,
-            secondary: sc.enabled ? "" : "비활성",
-          }))}
-        />
-      </Card>
+      {/* 탐색 줄은 판이 아니다 — 목록 화면의 도구 줄과 같은 `FilterSurface`. 달 이동이 「무엇을
+          볼지」이고 일정 고르기는 오른쪽 끝의 「어떻게 볼지」 묶음이다. 제목은 구획 제목 단계다
+          (예전의 18px 는 어느 단계에도 없는 값이었다). */}
+      <FilterSurface sx={{ mt: 2, mb: 0 }}>
+        <ToolbarRow sx={{ gap: 1 }}>
+          <IconButton onClick={() => move(-1)} aria-label="이전 달"><ChevronLeftRoundedIcon /></IconButton>
+          <Typography component="h2" variant="sectionTitle" sx={{ minWidth: "8ch", textAlign: "center" }}>
+            {monthLabel}
+          </Typography>
+          <IconButton onClick={() => move(1)} aria-label="다음 달"><ChevronRightRoundedIcon /></IconButton>
+          <Button
+            variant="ghost"
+            onClick={() => setCursor({ year: Number(todayKey.slice(0, 4)), month: Number(todayKey.slice(5, 7)) - 1 })}
+          >
+            이번 달
+          </Button>
+          <ToolbarEnd>
+            {/* 일정은 **Entity** 다 — 운영이 쌓이는 만큼 후보가 자란다. 검색 없는 드롭다운으로
+                두면 스무 개가 넘는 순간 이름을 알면서도 목록을 눈으로 훑어야 한다(R-5).
+                비활성 여부는 라벨 꼬리가 아니라 보조줄로 낸다 — 이름과 상태가 한 줄에 섞이면
+                이름이 길 때 상태가 먼저 잘린다. */}
+            <EntityCombobox
+              label="일정"
+              value={scheduleId}
+              onChange={setScheduleId}
+              allLabel="일정: 전체"
+              sx={{ minWidth: "16ch", maxWidth: "22rem", flex: "0 1 auto" }}
+              options={schedules.map((sc) => ({
+                value: sc.id,
+                label: sc.name,
+                secondary: sc.enabled ? "" : "비활성",
+              }))}
+            />
+          </ToolbarEnd>
+        </ToolbarRow>
+      </FilterSurface>
 
       {query.data && query.data.truncated ? (
         <Box sx={{ mt: 2 }}>
@@ -325,12 +330,17 @@ export function SchedulerCalendar({ embedded = false } = {}) {
         </Box>
       ) : (
         <>
-          <Card sx={{ mt: 2, display: "flex", gap: 2, flexWrap: "wrap", alignItems: "center" }}>
-            <Typography sx={{ fontSize: FONT_SIZE.body }}>
-              이 구간 실행 <strong>{counts.run}</strong>건, 예정 <strong>{counts.planned}</strong>건
-            </Typography>
-            {counts.failed ? <Badge value={`실패 ${counts.failed}건`} kind="danger" /> : null}
-          </Card>
+          {/* 요약은 판독 줄이다 — 숫자 셋을 문장 하나와 판 하나에 담을 이유가 없다. 실패는
+              0 이 아닐 때만 위험 톤을 받는다(색만이 아니라 판독 줄이 글자 표지를 함께 단다). */}
+          <MetricStrip
+            ariaLabel="이 구간 실행"
+            sx={{ mt: 2 }}
+            items={[
+              { key: "run", label: "실행", value: counts.run },
+              { key: "planned", label: "예정", value: counts.planned },
+              { key: "failed", label: "실패", value: counts.failed, kind: counts.failed ? "danger" : undefined },
+            ]}
+          />
 
           <Card sx={{ mt: 2, p: { xs: 1, sm: 2 }, overflowX: "auto" }}>
             <Box

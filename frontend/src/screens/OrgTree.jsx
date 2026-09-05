@@ -160,7 +160,7 @@ function TreeNode({ node, level, selectedId, onSelect, collapsed, onToggle, tabb
       sx={{
         listStyle: "none",
         ...(level > 1 ? CONNECTORS : { position: "relative" }),
-        "&:focus-visible": { outline: "2px solid", outlineColor: "primary.main", outlineOffset: 2, borderRadius: 1 },
+        "&:focus-visible": (t) => ({ outline: `2px solid ${t.palette.focusRing}`, outlineOffset: 2, borderRadius: 1 }),
       }}
     >
       <Box
@@ -197,7 +197,7 @@ function TreeNode({ node, level, selectedId, onSelect, collapsed, onToggle, tabb
           <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, flexWrap: "wrap" }}>
             <Typography
               component="span"
-              sx={{ fontWeight: isOrg ? FONT_WEIGHT.extrabold : FONT_WEIGHT.semibold, fontSize: isOrg ? "0.9375rem" : FONT_SIZE.body, ...KO_WORD_BREAK }}
+              sx={{ fontWeight: isOrg ? FONT_WEIGHT.extrabold : FONT_WEIGHT.semibold, fontSize: FONT_SIZE.body, ...KO_WORD_BREAK }}
             >
               {row.name}
             </Typography>
