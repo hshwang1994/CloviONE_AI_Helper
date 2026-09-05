@@ -14,6 +14,8 @@ import {
   fixedTileTrack,
   DISCUSS_BUCKET_COUNT,
   DISCUSS_TILE_TRACK,
+  FORM_FIELD_GRID,
+  pairTracks,
 } from "./density.js";
 import { FONT_SIZE } from "./theme.js";
 import { DETAIL_GRID } from "../screens/Ticket.jsx";
@@ -168,5 +170,27 @@ describe("좌측 레일 목록 화면은 한 트랙을 쓴다", () => {
     expect(stuck).toEqual([]);
     expect(LIST_RAIL_GRID.gap).toBe(GRID_GAP);
     expect(LIST_RAIL_GRID.gridTemplateColumns.lg).toBe(BASELINE_TRACKS.listRail);
+  });
+});
+
+describe("설정성 화면의 판 짝은 한 부품에서 나온다 (D-457)", () => {
+  it("pairTracks 는 좁은 폭에서 한 줄, lg 부터 넘긴 가중치를 그대로 쓴다", () => {
+    const g = pairTracks("minmax(0, 1.15fr) minmax(0, 0.85fr)");
+    expect(g.gridTemplateColumns.xs).toBe("minmax(0, 1fr)");
+    expect(g.gridTemplateColumns.lg).toBe("minmax(0, 1.15fr) minmax(0, 0.85fr)");
+    expect(g.gap).toBe(GRID_GAP);
+    expect(g.alignItems).toBe("stretch");
+    const stuck = trackEntries(g).filter(([, track]) => !fills(track));
+    expect(stuck).toEqual([]);
+  });
+
+  it("폼 필드 격자는 컨테이너 폭에 따라 1·2·3열로 서고 어느 단에서도 fr 로 채운다", () => {
+    const keys = Object.keys(FORM_FIELD_GRID).filter((k) => k.startsWith("@container"));
+    expect(keys.length).toBe(2);
+    expect(FORM_FIELD_GRID.gridTemplateColumns).toBe("minmax(0, 1fr)");
+    for (const k of keys) expect(fills(FORM_FIELD_GRID[k].gridTemplateColumns)).toBe(true);
+    // 반례: 2열 질의가 3열 질의보다 좁은 폭에서 켜진다 — 순서가 뒤집히면 3열이 먼저 잡혀 2열이 죽는다.
+    const widths = keys.map((k) => Number(k.match(/min-width: ([\d.]+)rem/)[1]));
+    expect(widths[0]).toBeLessThan(widths[1]);
   });
 });

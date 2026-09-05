@@ -4,10 +4,11 @@ import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
 import {
-  Badge, Button, Callout, ErrorState, FormModal, OverflowMenu, PageHeader,
+  Badge, Button, Callout, Card, EmptyState, ErrorState, FormModal, OverflowMenu,
   Skeleton, useConfirm, useToast,
 } from "../ui/kit.jsx";
 import { SettingList, SettingRow } from "../ui/adminKit.jsx";
+import { pairTracks } from "../ui/density.js";
 
 /* 운영 콘솔 - OS와 서비스 (§S, 9-6/9-7/9-8 · 지시 33 · 34 · 43).
  *
@@ -372,27 +373,37 @@ export function SystemOps({ embedded = false } = {}) {
         </Callout>
       )}
 
-      <SettingList title="시스템 설정">
-        {rows.map((r, i) => (
-          <SettingRow
-            key={r.key} label={r.label} value={r.value} description={r.description}
-            tone={r.tone} action={r.action} last={i === rows.length - 1}
-          />
-        ))}
-      </SettingList>
-
-      <SettingList title="서비스">
-        {usable && unitNames.length > 0 ? (
-          unitNames.map((unit, i) => (
-            <ServiceRow key={unit} unit={unit} state={units[unit]} onControl={control}
-                        disabled={run.isPending} last={i === unitNames.length - 1} />
-          ))
-        ) : (
-          <Typography color="text.secondary" sx={{ py: 2 }}>
-            {usable ? "서비스 상태를 읽지 못했습니다. 새로고침한 뒤 다시 시도해 주세요." : "도우미가 없어 읽지 못했습니다."}
-          </Typography>
-        )}
-      </SettingList>
+      {/* 🔴 두 묶음이 전폭 괘선 목록이었다 — 라벨과 「수정」 단추가 1500px 떨어져 한 줄로 읽히지
+          않았다. 설정성 화면은 `/profile` 처럼 **판 2열 격자**다(D-457): 설정 묶음이 왼쪽 판,
+          서비스 묶음이 오른쪽 판. 왼쪽이 설명이 길어 폭을 더 받는다(가중치 선언, D-333). */}
+      <Box sx={pairTracks("minmax(0, 1.15fr) minmax(0, 0.85fr)")}>
+        <Card>
+          <SettingList title="시스템 설정" sx={{ mt: 0 }}>
+            {rows.map((r, i) => (
+              <SettingRow
+                key={r.key} label={r.label} value={r.value} description={r.description}
+                tone={r.tone} action={r.action} last={i === rows.length - 1}
+              />
+            ))}
+          </SettingList>
+        </Card>
+        <Card>
+          <SettingList title="서비스" sx={{ mt: 0 }}>
+            {usable && unitNames.length > 0 ? (
+              unitNames.map((unit, i) => (
+                <ServiceRow key={unit} unit={unit} state={units[unit]} onControl={control}
+                            disabled={run.isPending} last={i === unitNames.length - 1} />
+              ))
+            ) : (
+              <EmptyState
+                size="compact"
+                title={usable ? "서비스 상태를 읽지 못했습니다" : "도우미가 없어 읽지 못했습니다"}
+                help={usable ? "새로고침한 뒤 다시 시도해 주세요." : undefined}
+              />
+            )}
+          </SettingList>
+        </Card>
+      </Box>
 
       {openAction && (
         <FormModal

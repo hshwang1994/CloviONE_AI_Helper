@@ -1,7 +1,7 @@
 import React from "react";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
-import { Badge } from "./kit.jsx";
+import { Badge, SectionTitle } from "./kit.jsx";
 import { SECTION_GAP } from "./density.js";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, MOTION } from "./theme.js";
 
@@ -46,6 +46,9 @@ const SETTING_STATE_KIND = {
   failed: "error",
 };
 
+/* 한 행의 리듬은 하나다 (D-457) — `py: 1`, 설명은 caption. 예전에는 이 줄이 `py: 1.75` 였고
+   `/profile` 의 알림 행은 `py: 0.75`, 계정 행은 `py: 1.25` 라 같은 종류의 줄이 셋 다 달랐다.
+   `/profile` 도 이 부품을 쓴다. */
 export function SettingRow({ label, value, description, tone, action, state, last, children }) {
   return (
     <Box
@@ -53,11 +56,11 @@ export function SettingRow({ label, value, description, tone, action, state, las
          올라가는 식으로 찾으면 안쪽 배치를 조금만 바꿔도 시험이 깨진다. */
       className="k-settingrow"
       sx={{
-        display: "flex", alignItems: "flex-start", gap: 2, flexWrap: "wrap",
-        py: 1.75, borderBottom: last ? 0 : 1, borderColor: "divider",
+        display: "flex", alignItems: "center", gap: 2, flexWrap: "wrap",
+        py: 1, borderBottom: last ? 0 : 1, borderColor: "divider",
       }}
     >
-      <Box sx={{ flex: "1 1 22rem", minWidth: 0, display: "grid", gap: 0.25 }}>
+      <Box sx={{ flex: "1 1 18rem", minWidth: 0, display: "grid", gap: 0.125 }}>
         <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap", minWidth: 0 }}>
           <Typography component="div" sx={{ fontWeight: FONT_WEIGHT.semibold, ...KO_WORD_BREAK }}>
             {label}
@@ -74,13 +77,13 @@ export function SettingRow({ label, value, description, tone, action, state, las
           </Typography>
         )}
         {description ? (
-          <Typography component="div" color="text.secondary" sx={{ fontSize: FONT_SIZE.bodySm, ...KO_WORD_BREAK }}>
+          <Typography component="div" color="text.secondary" sx={{ fontSize: FONT_SIZE.caption, ...KO_WORD_BREAK }}>
             {description}
           </Typography>
         ) : null}
         {children}
       </Box>
-      {action ? <Box sx={{ flexShrink: 0, pt: 0.25 }}>{action}</Box> : null}
+      {action ? <Box sx={{ flexShrink: 0 }}>{action}</Box> : null}
     </Box>
   );
 }
@@ -94,13 +97,12 @@ export function SettingRow({ label, value, description, tone, action, state, las
  *
  * 줄 사이 괘선은 `SettingRow` 가 이미 자기 아래 선으로 그린다 — 판이 없어져도 묶음은
  * 그 선들과 제목으로 읽힌다. */
-export function SettingList({ title, action, children }) {
+/* 판 안에 놓일 때는 `sx={{ mt: 0 }}` 로 바깥 간격을 끈다 — 설정성 화면은 이제 `/profile`
+   처럼 판 2열 격자에 묶음을 담는다(D-457). 제목은 `SectionTitle` 이라 판 제목과 같은 단계다. */
+export function SettingList({ title, action, children, sx }) {
   return (
-    <Box component="section" sx={{ mt: SECTION_GAP }}>
-      <Box sx={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 2, mb: 1, flexWrap: "wrap" }}>
-        <Typography component="h2" variant="h6" sx={{ fontSize: FONT_SIZE.sectionTitle }}>{title}</Typography>
-        {action}
-      </Box>
+    <Box component="section" sx={{ mt: SECTION_GAP, ...sx }}>
+      <SectionTitle component="h2" title={title} action={action} />
       {children}
     </Box>
   );

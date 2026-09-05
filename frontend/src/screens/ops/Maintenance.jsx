@@ -9,8 +9,8 @@ import { fmtDateTime } from "../../lib/format.js";
 import { useAuth } from "../../app/auth.jsx";
 import { Note } from "../../ui/adminKit.jsx";
 import { SettingVersions } from "../settings/SettingVersions.jsx";
-import { Section, SectionTitle, Card, Badge, Button, Callout, Skeleton, ErrorState, useConfirm, useToast } from "../../ui/kit.jsx";
-import { FONT_WEIGHT } from "../../ui/theme.js";
+import { Section, SectionTitle, Card, Badge, Button, Callout, DetailRow, Skeleton, ErrorState, useConfirm, useToast } from "../../ui/kit.jsx";
+import { pairTracks } from "../../ui/density.js";
 import { isWriteRole, NO_WRITE_REASON } from "./opsHelpers.js";
 
 /* 유지보수 — 유지보수 모드(maintenance_mode 설정)를 켜고 끈다. 켜면 일반 사용자의 내용 쓰기가 차단된다.
@@ -132,132 +132,130 @@ export function Maintenance({ embedded = false } = {}) {
   // 보조기기는 '비활성 버튼'까지만 읽고 이유는 영영 읽지 않는다.
   const lockedDescribedBy = canWrite ? undefined : "maint-locked-reason";
 
+  /* 옛 주소 `/maintenance` 는 `/settings?tab=policy` 로 보내는 리다이렉트다 — 이 화면은 언제나
+     껍데기 안이라 페이지 머리(h1)도 `.c-screen` 도 스스로 그리지 않는다(둘 다 껍데기가 그린다.
+     예전에는 `.c-screen` 을 한 번 더 감싸 바깥 여백이 두 번 붙었다).
+
+     🔴 여기 1줄짜리 판이 있었다 — 「현재 상태」와 전환 단추가 1580px 흰 상자의 양끝에 서고,
+     「점검 공지」 입력창이 전폭이었다. 설정성 화면은 `/profile` 처럼 **판 2열 격자**다(D-457):
+     왼쪽 판이 모드(상태·전환), 오른쪽 판이 공지(입력·검증·저장). 입력창은 자기 판 폭만 쓴다. */
+  // `SectionTitle` 은 제목과 동작을 양끝으로 벌리는 flex 다 — 캡션과 단추가 각각 자식이면
+  // 캡션이 줄 한가운데로 떠서 어느 쪽에도 안 붙는다(실측). 하나로 묶어 오른쪽에 세운다.
+  const refreshActions = (
+    <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap" }}>
+      {updated ? (
+        <Typography variant="caption" color="text.secondary" sx={{ alignSelf: "center", fontVariantNumeric: "tabular-nums" }}>
+          {updated} 기준
+        </Typography>
+      ) : null}
+      <Button size="sm" onClick={() => q.refetch()} disabled={q.isFetching}>{q.isFetching ? "새로고침 중…" : "새로고침"}</Button>
+    </Box>
+  );
   return (
-    <Box className="c-screen">
-      {/* 유지보수 모드는 다른 admin이 지금 이 순간 켜고/끌 수 있는 상태다, Diagnostics처럼 자동
-          폴링을 걸진 않되(쓰기가 잦은 화면은 아니다), 최소한 수동 새로고침은 준다. QueryClient가
-          refetchOnWindowFocus:false, staleTime 30s라 아무 조작도 없이 놔두면 30초 넘게 낡은 값이
-          '지금 상태'처럼 보일 수 있었다(main.jsx). */}
-      {(() => {
-        const refreshActions = (
-          <>
-            {updated ? (
-              <Typography variant="caption" color="text.secondary" sx={{ alignSelf: "center", fontVariantNumeric: "tabular-nums" }}>
-                {updated} 기준
-              </Typography>
-            ) : null}
-            <Button size="sm" onClick={() => q.refetch()} disabled={q.isFetching}>{q.isFetching ? "새로고침 중…" : "새로고침"}</Button>
-          </>
-        );
-        /* 옛 주소 `/maintenance` 는 `/settings?tab=policy` 로 보내는 리다이렉트다 —
-           이 화면은 언제나 껍데기 안이라 페이지 머리를 스스로 그릴 자리가 없다. */
-        return <SectionTitle title="유지보수" action={refreshActions} />;
-      })()}
+    <Section titleAs="h2" title="유지보수" action={refreshActions}>
       {/* TanStack Query v5에서 isLoading은 '최초' 로딩만 true다, 캐시된 데이터가 이미 있는 상태에서
           (예: 이 화면의 '새로고침' 버튼을 눌렀다가) 재조회가 실패하면 isLoading은 false, isError만
           true가 된다. 그걸 그대로 ErrorState로 바꿔치기하면 방금까지 보이던 켜짐/꺼짐 토글과 공지
           textarea가 통째로 사라진다, 캐시된 데이터가 하나도 없을 때만 전체화면 ErrorState를 쓴다. */}
       {(q.isLoading || (q.isError && !q.data)) ? (
         q.isLoading ? <Card><Skeleton lines={2} /></Card> : <ErrorState error={q.error} onRetry={() => q.refetch()} />
-      )
-        : (
-          <Box>
-            {/* 새로고침이 실패했지만 이전 값이 남아 있는 경우, 화면을 지우지 않고 낡았다는 사실만 알린다. */}
-            {q.isError ? (
-              <Box sx={{ mb: 3 }} role="status">
-                <Callout tone="warn">
-                  최신 상태를 불러오지 못했습니다. 아래 값은 이전에 불러온 자료입니다.{" "}
-                  <Link component="button" type="button" variant="body2" underline="hover" onClick={() => q.refetch()}>다시 시도</Link>
-                </Callout>
-              </Box>
-            ) : null}
-            {/* 유지보수 모드가 켜져 있으면 사용자 쓰기가 차단되는 위험 상태다, 페이지 상단에 눈에 띄는 배너로 분명히 한다
-                (현재 상태 배지만으론 이 화면에 돌아온 관리자가 한눈에 알기 어려웠다). */}
-            {on ? <Box sx={{ mb: 3 }} role="status"><Callout tone="warn">현재 유지보수 모드가 활성화되어 있습니다. 일반 사용자의 쓰기(티켓, 게시판, 문서, 팀 채팅, 놀이, AI 대화, 휴지통)가 차단되고 있습니다. 읽기와 운영자 이상의 쓰기는 그대로 됩니다. 점검이 끝나면 아래에서 비활성화해 주세요.</Callout></Box> : null}
-            <Card sx={{ p: 3, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 3, flexWrap: "wrap", mb: 4 }}>
-              <Box sx={{ minWidth: 0, flex: "1 1 20rem" }}>
-                <Typography component="div" sx={{ display: "flex", alignItems: "center", gap: 1, fontWeight: FONT_WEIGHT.bold, mb: 1 }}>
-                  현재 상태 <Badge value={on ? "maintenance" : "up"} />
+      ) : (
+        <>
+          {/* 새로고침이 실패했지만 이전 값이 남아 있는 경우, 화면을 지우지 않고 낡았다는 사실만 알린다. */}
+          {q.isError ? (
+            <Box sx={{ mb: 3 }} role="status">
+              <Callout tone="warn">
+                최신 상태를 불러오지 못했습니다. 아래 값은 이전에 불러온 자료입니다.{" "}
+                <Link component="button" type="button" variant="body2" underline="hover" onClick={() => q.refetch()}>다시 시도</Link>
+              </Callout>
+            </Box>
+          ) : null}
+          {/* 유지보수 모드가 켜져 있으면 사용자 쓰기가 차단되는 위험 상태다, 페이지 상단에 눈에 띄는 배너로 분명히 한다
+              (현재 상태 배지만으론 이 화면에 돌아온 관리자가 한눈에 알기 어려웠다). */}
+          {on ? <Box sx={{ mb: 3 }} role="status"><Callout tone="warn">현재 유지보수 모드가 활성화되어 있습니다. 일반 사용자의 쓰기(티켓, 게시판, 문서, 팀 채팅, 놀이, AI 대화, 휴지통)가 차단되고 있습니다. 읽기와 운영자 이상의 쓰기는 그대로 됩니다. 점검이 끝나면 아래에서 비활성화해 주세요.</Callout></Box> : null}
+          <Box sx={pairTracks("minmax(0, 0.8fr) minmax(0, 1.2fr)")}>
+            <Card>
+              <SectionTitle
+                component="h3" title="유지보수 모드"
+                help="유지보수 모드를 활성화하면 일반 사용자의 쓰기(티켓, 게시판, 문서, 팀 채팅, 놀이, AI 대화, 휴지통)가 일시 차단됩니다. 읽기는 막지 않고, 운영자 이상은 계속 쓸 수 있습니다. 점검이 끝나면 다시 비활성화하세요."
+              />
+              <DetailRow label="현재 상태"><Badge value={on ? "maintenance" : "up"} /></DetailRow>
+              {/* 쓰기 권한이 없어 비활성인 이유 — 이 한 줄이 아래 두 버튼(모드 전환·공지 저장 계열)의
+                  aria-describedby 대상이다. 버튼을 숨기는 대신 이유를 보여 준다. */}
+              {!canWrite ? (
+                <Typography id="maint-locked-reason" variant="caption" color="text.secondary" sx={{ display: "block", mt: 1 }}>
+                  유지보수 모드 전환은 {NO_WRITE_REASON}
                 </Typography>
-                <Note sx={{ mt: 0 }}>유지보수 모드를 활성화하면 일반 사용자의 쓰기(티켓, 게시판, 문서, 팀 채팅, 놀이, AI 대화, 휴지통)가 일시 차단됩니다. 읽기는 막지 않고, 운영자 이상은 계속 쓸 수 있습니다. 점검이 끝나면 다시 비활성화하세요.</Note>
-                {/* 쓰기 권한이 없어 비활성인 이유 — 이 한 줄이 아래 두 버튼(모드 전환·공지 저장 계열)의
-                    aria-describedby 대상이다. 버튼을 숨기는 대신 이유를 보여 준다. */}
-                {!canWrite ? (
-                  <Typography id="maint-locked-reason" variant="caption" color="text.secondary" sx={{ display: "block", mt: 1 }}>
-                    유지보수 모드 전환은 {NO_WRITE_REASON}
-                  </Typography>
-                ) : null}
-                {/* 점검 공지에는 '버전 기록'이 있는데 정작 더 위험한(앱 전체 쓰기를 막는) 유지보수 모드
-                    토글 자체는 누가 언제 켜고 껐는지 볼 곳이 없었다, 백엔드가 config_versions에 이미
-                    기록하므로 같은 SettingVersions UI를 maintenance_mode에도 붙인다. */}
-                <Box sx={{ mt: 1 }}>
-                  <Button variant="ghost" size="sm" onClick={() => setShowModeVersions(true)}>변경 기록(켜고 끈 이력)</Button>
-                </Box>
+              ) : null}
+              {/* 점검 공지에는 '버전 기록'이 있는데 정작 더 위험한(앱 전체 쓰기를 막는) 유지보수 모드
+                  토글 자체는 누가 언제 켜고 껐는지 볼 곳이 없었다, 백엔드가 config_versions에 이미
+                  기록하므로 같은 SettingVersions UI를 maintenance_mode에도 붙인다. */}
+              <Box sx={{ mt: 2, display: "flex", gap: 1, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                <Button variant="ghost" size="sm" onClick={() => setShowModeVersions(true)}>변경 기록(켜고 끈 이력)</Button>
+                <Button variant={on ? "primary" : "danger"} disabled={!canWrite || toggle.isPending} onClick={onToggle}
+                  aria-describedby={lockedDescribedBy}>
+                  {toggle.isPending ? "전환 중…" : on ? "유지보수 모드 비활성화" : "유지보수 모드 활성화"}
+                </Button>
               </Box>
-              <Button variant={on ? "primary" : "danger"} disabled={!canWrite || toggle.isPending} onClick={onToggle}
-                aria-describedby={lockedDescribedBy}>
-                {toggle.isPending ? "전환 중…" : on ? "유지보수 모드 비활성화" : "유지보수 모드 활성화"}
-              </Button>
             </Card>
-
-            <Section titleAs="h2" title="점검 공지 (사용자에게 표시되는 안내)">
-              <Card>
-                <Note sx={{ mt: 0 }} id="maint-msg-desc">유지보수 모드가 활성화되어 있을 때 사용자가 보게 되는 안내 문구입니다.</Note>
-                {/* 위쪽 유지보수 모드 토글 카드에만 '관리자, 시스템 관리자만' 안내가 붙어 있어, 이 섹션만
-                    보는(특히 스크린리더) 사용자는 입력이 왜 잠겨 있는지 알 방법이 없었다, 여기도 남긴다. */}
-                {!canWrite ? (
-                  <Typography id="maint-msg-locked" variant="caption" color="text.secondary" sx={{ display: "block", mb: 1 }}>
-                    점검 공지 수정은 {NO_WRITE_REASON}
-                  </Typography>
-                ) : null}
-                {/* 공지는 사용자에게 보이는 산문이라 JSON 편집기용 monospace를 쓰지 않는다.
-                    설명·유효성 힌트를 aria-describedby로 입력에 프로그래매틱하게 연결한다(이전엔 시각적으로만
-                    인접해 있고 연결은 안 돼 있었다 — 이 필드가 켜지면 앱 전체 쓰기를 막는 공지라
-                    스크린리더 사용자에게 특히 중요하다).
-                    /maintenance는 operator, auditor(읽기 전용 역할)도 볼 수 있게 열려 있다(App.jsx
-                    RequireRole), disabled는 그 방문자에게서 선택, 복사는 물론 탭/스크린리더 접근까지
-                    막는다(네이티브 disabled 필드는 포커스 순서에서 빠진다). readOnly는 편집만 막고
-                    선택, 복사, 포커스 이동은 그대로 허용한다. */}
-                <TextField
-                  multiline minRows={4} fullWidth value={msg}
-                  error={canWrite && !msg.trim()}
-                  onChange={(e) => { if (canWrite) changeMsg(e.target.value); }}
-                  InputProps={{ readOnly: !canWrite }}
-                  inputProps={{
-                    "aria-label": "점검 공지",
-                    "aria-describedby": "maint-msg-desc"
-                      + (canWrite && !msg.trim() ? " maint-msg-help" : "")
-                      + (!canWrite ? " maint-msg-locked" : ""),
-                  }}
-                />
-                {canWrite && !msg.trim() ? (
-                  <Typography id="maint-msg-help" variant="caption" color="error.main" sx={{ display: "block", mt: 0.5 }}>
-                    공지 내용을 입력하세요. 빈 공지는 저장할 수 없습니다.
-                  </Typography>
-                ) : null}
-                {msgChecked ? <Box sx={{ mt: 2 }} role="status"><Callout tone="success">{msgChecked}</Callout></Box> : null}
-                {msgCheckErr ? (
-                  <Typography role="alert" variant="body2" color="error.main" sx={{ mt: 2 }}>{msgCheckErr}</Typography>
-                ) : null}
-                {/* 폼 작업줄 — 앱 공통 우측 정렬. 쓰기 권한이 없어도 버튼을 지우지 않는다:
-                    비활성 + 위의 이유 문구(aria-describedby)로 '있지만 지금은 못 누른다'를 그대로 보여 준다.
-                    (예전엔 '미리 검증'만 canWrite일 때 렌더돼, 읽기 전용 역할에겐 그 기능의 존재 자체가 사라졌다.) */}
-                <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 1, flexWrap: "wrap", mt: 2 }}>
-                  <Button disabled={!canWrite || dryRunMsg.isPending} onClick={onCheckMsg} aria-describedby={lockedDescribedBy}>
-                    {dryRunMsg.isPending ? "검증 중…" : "미리 검증"}
-                  </Button>
-                  <Button variant="primary" disabled={!canWrite || !dirty || !msg.trim() || saveMsg.isPending} onClick={() => saveMsg.mutate(msg)}
-                    aria-describedby={lockedDescribedBy}>
-                    {saveMsg.isPending ? "저장 중…" : "공지 저장"}
-                  </Button>
-                  {dirty ? <Button disabled={saveMsg.isPending} onClick={() => changeMsg(serverMsg)}>되돌리기</Button> : null}
-                  {/* 다른 설정과 달리 점검 공지는 설정 표에서 제외돼 버전 기록, 롤백이 닿지 않았다, 여기서 같은 UI를 재사용해 제공한다. */}
-                  <Button variant="ghost" onClick={() => setShowVersions(true)}>버전 기록</Button>
-                </Box>
-              </Card>
-            </Section>
+            <Card>
+              <SectionTitle component="h3" title="점검 공지 (사용자에게 표시되는 안내)" />
+              <Note sx={{ mt: 0, mb: 1.5 }} id="maint-msg-desc">유지보수 모드가 활성화되어 있을 때 사용자가 보게 되는 안내 문구입니다.</Note>
+              {/* 위쪽 유지보수 모드 토글 판에만 '관리자, 시스템 관리자만' 안내가 붙어 있어, 이 판만
+                  보는(특히 스크린리더) 사용자는 입력이 왜 잠겨 있는지 알 방법이 없었다, 여기도 남긴다. */}
+              {!canWrite ? (
+                <Typography id="maint-msg-locked" variant="caption" color="text.secondary" sx={{ display: "block", mb: 1 }}>
+                  점검 공지 수정은 {NO_WRITE_REASON}
+                </Typography>
+              ) : null}
+              {/* 공지는 사용자에게 보이는 산문이라 JSON 편집기용 monospace를 쓰지 않는다.
+                  설명·유효성 힌트를 aria-describedby로 입력에 프로그래매틱하게 연결한다(이전엔 시각적으로만
+                  인접해 있고 연결은 안 돼 있었다 — 이 필드가 켜지면 앱 전체 쓰기를 막는 공지라
+                  스크린리더 사용자에게 특히 중요하다).
+                  /maintenance는 operator, auditor(읽기 전용 역할)도 볼 수 있게 열려 있다(App.jsx
+                  RequireRole), disabled는 그 방문자에게서 선택, 복사는 물론 탭/스크린리더 접근까지
+                  막는다(네이티브 disabled 필드는 포커스 순서에서 빠진다). readOnly는 편집만 막고
+                  선택, 복사, 포커스 이동은 그대로 허용한다. */}
+              <TextField
+                multiline minRows={4} fullWidth value={msg}
+                error={canWrite && !msg.trim()}
+                onChange={(e) => { if (canWrite) changeMsg(e.target.value); }}
+                InputProps={{ readOnly: !canWrite }}
+                inputProps={{
+                  "aria-label": "점검 공지",
+                  "aria-describedby": "maint-msg-desc"
+                    + (canWrite && !msg.trim() ? " maint-msg-help" : "")
+                    + (!canWrite ? " maint-msg-locked" : ""),
+                }}
+              />
+              {canWrite && !msg.trim() ? (
+                <Typography id="maint-msg-help" variant="caption" color="error.main" sx={{ display: "block", mt: 0.5 }}>
+                  공지 내용을 입력하세요. 빈 공지는 저장할 수 없습니다.
+                </Typography>
+              ) : null}
+              {msgChecked ? <Box sx={{ mt: 2 }} role="status"><Callout tone="success">{msgChecked}</Callout></Box> : null}
+              {msgCheckErr ? (
+                <Typography role="alert" variant="body2" color="error.main" sx={{ mt: 2 }}>{msgCheckErr}</Typography>
+              ) : null}
+              {/* 폼 작업줄 — 앱 공통 우측 정렬. 쓰기 권한이 없어도 버튼을 지우지 않는다:
+                  비활성 + 위의 이유 문구(aria-describedby)로 '있지만 지금은 못 누른다'를 그대로 보여 준다.
+                  (예전엔 '미리 검증'만 canWrite일 때 렌더돼, 읽기 전용 역할에겐 그 기능의 존재 자체가 사라졌다.) */}
+              <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 1, flexWrap: "wrap", mt: 2 }}>
+                <Button disabled={!canWrite || dryRunMsg.isPending} onClick={onCheckMsg} aria-describedby={lockedDescribedBy}>
+                  {dryRunMsg.isPending ? "검증 중…" : "미리 검증"}
+                </Button>
+                <Button variant="primary" disabled={!canWrite || !dirty || !msg.trim() || saveMsg.isPending} onClick={() => saveMsg.mutate(msg)}
+                  aria-describedby={lockedDescribedBy}>
+                  {saveMsg.isPending ? "저장 중…" : "공지 저장"}
+                </Button>
+                {dirty ? <Button disabled={saveMsg.isPending} onClick={() => changeMsg(serverMsg)}>되돌리기</Button> : null}
+                {/* 다른 설정과 달리 점검 공지는 설정 표에서 제외돼 버전 기록, 롤백이 닿지 않았다, 여기서 같은 UI를 재사용해 제공한다. */}
+                <Button variant="ghost" onClick={() => setShowVersions(true)}>버전 기록</Button>
+              </Box>
+            </Card>
           </Box>
-        )}
+        </>
+      )}
       {showVersions ? (
         <SettingVersions settingKey="maintenance_message" label="점검 공지" canWrite={canWrite}
           onClose={() => setShowVersions(false)} onRolledBack={() => setShowVersions(false)} />
@@ -266,6 +264,6 @@ export function Maintenance({ embedded = false } = {}) {
         <SettingVersions settingKey="maintenance_mode" label="유지보수 모드" canWrite={canWrite}
           onClose={() => setShowModeVersions(false)} onRolledBack={() => setShowModeVersions(false)} />
       ) : null}
-    </Box>
+    </Section>
   );
 }

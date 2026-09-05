@@ -290,3 +290,33 @@ export const PANEL_SURFACE = {
   borderRadius: rem(8),
   p: TILE_PADDING,
 };
+
+/* ── 설정성 화면의 판 2열 (D-457) ─────────────────────────────────────────
+ *
+ * `/profile` 이 먼저 만든 `twoCol(weight)` 를 여기로 올린다 — 관리자 설정 4탭이 같은 격자를
+ * 쓴다. 가중치는 줄마다 선언한다(`1fr 1fr` 금지 — D-333: 폭을 요구하는 쪽이 더 받는다).
+ * `lg` 미만에서는 한 열이다. 바닥 정렬(`stretch`)이 같은 줄의 판 높이를 맞춘다. */
+export function pairTracks(weight) {
+  return {
+    display: "grid", gap: GRID_GAP, alignItems: "stretch",
+    gridTemplateColumns: { xs: "minmax(0, 1fr)", lg: weight },
+  };
+}
+
+/* ── 폼 필드 격자 (D-458) — `/new-ticket` 의 것과 같은 값 ──────────────────
+ *
+ * 칸이 16rem 보다 좁아지면 값이 잘리기 시작한다. 컨테이너 질의라 폼 판이 레일 옆에서 좁아지면
+ * 열 수도 따라 준다(뷰포트가 아니라 칸이 정한다). 소비처는 `FORM_FIELD_CONTAINER` 상자 안에
+ * 이 격자를 둔다. 3열에서 멈춘다 — 짧은 입력 여섯이 한 줄에 몰리면 라벨을 훑기 어렵다. */
+const FORM_FIELD_MIN_REM = 16;
+const FORM_FIELD_GAP_REM = 1.25;
+const formFieldsFit = (n) =>
+  `@container form-fields (min-width: ${n * FORM_FIELD_MIN_REM + (n - 1) * FORM_FIELD_GAP_REM}rem)`;
+export const FORM_FIELD_CONTAINER = { containerType: "inline-size", containerName: "form-fields" };
+export const FORM_FIELD_GRID = {
+  display: "grid",
+  gap: `${FORM_FIELD_GAP_REM}rem`,
+  gridTemplateColumns: "minmax(0, 1fr)",
+  [formFieldsFit(2)]: { gridTemplateColumns: "repeat(2, minmax(0, 1fr))" },
+  [formFieldsFit(3)]: { gridTemplateColumns: "repeat(3, minmax(0, 1fr))" },
+};

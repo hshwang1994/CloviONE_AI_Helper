@@ -1,7 +1,6 @@
 import React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Box from "@mui/material/Box";
-import FormControlLabel from "@mui/material/FormControlLabel";
 import Switch from "@mui/material/Switch";
 import TextField from "@mui/material/TextField";
 import Tooltip from "@mui/material/Tooltip";
@@ -17,11 +16,12 @@ import { ROLE_KO } from "../app/navConfig.js";
 import { invalidateNotifications } from "../app/notification-keys.js";
 import { invalidatePersonFaces } from "./ticket-views.js";
 import {
-  Badge, Button, Callout, Card, EmptyState, ErrorState, PageHeader, SectionTitle, Skeleton,
+  Badge, Button, Callout, Card, DetailRow, EmptyState, ErrorState, PageHeader, SectionTitle, Skeleton, SubGroup,
   useConfirm, useToast,
 } from "../ui/kit.jsx";
 import { FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
-import { Note } from "../ui/adminKit.jsx";
+import { Note, SettingRow } from "../ui/adminKit.jsx";
+import { pairTracks } from "../ui/density.js";
 /* 화면 강조색은 예전에 자기 라우트(`/my-display`)를 갖고 있었다 — 설정 하나뿐인 화면이
  * 사이드바 항목도 없이 계정 메뉴에서만 열렸고, 그래서 그 화면에서는 사이드바 선택 표시가
  * 통째로 사라졌다. 개인 설정은 이미 이 화면이 전부 갖고 있으므로(알림·방해금지·둘러보기)
@@ -59,18 +59,11 @@ import { AccentPicker } from "./settings/AccentPicker.jsx";
  *
  * 그래서 줄마다 **어느 쪽이 폭을 요구하는지**를 적는다. `weight` 는 그 선언이다 — 1.35:1 로
  * 기울이되 반으로 접히는 지점(`lg` 미만)에서는 예전처럼 한 열이다. 바닥 정렬은 그대로다. */
-const twoCol = (weight = "1fr 1fr") => ({
-  display: "grid", gap: 2.5, alignItems: "stretch",
-  gridTemplateColumns: {
-    xs: "minmax(0, 1fr)",
-    lg: weight,
-    xxl: weight,
-  },
-});
+/* 격자의 정본은 `ui/density.js::pairTracks` 다 — 관리자 설정 4탭이 같은 격자를 쓴다(D-457). */
 /** 계정(라벨·값 짝) | 내 기기(설명문·기기 문자열) — 오른쪽이 폭을 요구한다. */
-const TWO_COL_WIDE_RIGHT = twoCol("minmax(0, 0.85fr) minmax(0, 1.15fr)");
+const TWO_COL_WIDE_RIGHT = pairTracks("minmax(0, 0.85fr) minmax(0, 1.15fr)");
 /** 알림 설정(유형 스물한 줄) | 방해금지·강조색 — 왼쪽이 폭을 요구한다. */
-const TWO_COL_WIDE_LEFT = twoCol("minmax(0, 1.15fr) minmax(0, 0.85fr)");
+const TWO_COL_WIDE_LEFT = pairTracks("minmax(0, 1.15fr) minmax(0, 0.85fr)");
 
 // 방해금지 빠른 시간. '무한'을 기본으로 두지 않는다 — 실수로 켜 두고 잊는 것이 이 기능의
 // 가장 흔한 실패다.
@@ -84,21 +77,11 @@ const DND_PRESETS = [
 /* SectionTitle(ui/kit.jsx)로 옮겨졌다(DS-07) — 이 화면은 h2 태그 + mb:2를 그대로 쓰려고
  * component/sx로 넘긴다(다른 화면들의 기본값 h3/mb:1.5보다 한 단계 무게가 있다). */
 
-function Row({ label, children }) {
-  return (
-    <Box sx={{
-      display: "grid", gap: 1, py: 1.25, borderBottom: 1, borderColor: "divider",
-      gridTemplateColumns: { xs: "minmax(0,1fr)", sm: "10rem minmax(0,1fr)" },
-    }}>
-      <Typography variant="body2" color="text.secondary">{label}</Typography>
-      <Box sx={{ minWidth: 0 }}>{children}</Box>
-    </Box>
-  );
-}
+/* 라벨/값 줄은 `kit.jsx::DetailRow` 다 — 관리자 상세와 같은 줄, 같은 리듬(D-457). */
 
 /* 아바타 + 계정 요약. 업로드는 기존 네임스페이스 업로드 경로를 그대로 쓴다(서버가 매직바이트로
  * 형식을 판정한다) — 화면은 확장자를 믿지 않고 서버 판정 결과만 받는다. */
-function AccountCard({ profile, prefs, onChanged }) {
+function AccountCard({ profile, prefs, onChanged, children }) {
   const auth = useAuth();
   const toast = useToast();
   const confirm = useConfirm();
@@ -176,7 +159,7 @@ function AccountCard({ profile, prefs, onChanged }) {
 
   return (
     <Card>
-      <SectionTitle component="h2" sx={{ mb: 2 }} help="사진은 이 조직 안에서만 보입니다. PNG, JPEG, GIF, WebP, 10MB까지.">
+      <SectionTitle component="h2" help="사진은 이 조직 안에서만 보입니다. PNG, JPEG, GIF, WebP, 10MB까지.">
         계정
       </SectionTitle>
       <Box sx={{ display: "flex", gap: 3, alignItems: "center", flexWrap: "wrap", mb: 2 }}>
@@ -226,15 +209,16 @@ function AccountCard({ profile, prefs, onChanged }) {
         onClose={() => { setCropping(null); if (fileRef.current) fileRef.current.value = ""; }}
         onSave={upload}
       />
-      <Row label="이름">{name || "-"}</Row>
-      <Row label="이메일">{profile.email || "-"}</Row>
-      <Row label="역할">{profile.role ? (ROLE_KO[profile.role] || profile.role) : "-"}</Row>
-      <Row label="부서">{profile.department || "-"}</Row>
-      <Row label="직책">{profile.title || "-"}</Row>
-      <Row label="마지막 로그인">{profile.last_login_at ? fmtDateTime(profile.last_login_at) : "-"}</Row>
+      <DetailRow label="이름">{name || "-"}</DetailRow>
+      <DetailRow label="이메일">{profile.email || "-"}</DetailRow>
+      <DetailRow label="역할">{profile.role ? (ROLE_KO[profile.role] || profile.role) : "-"}</DetailRow>
+      <DetailRow label="부서">{profile.department || "-"}</DetailRow>
+      <DetailRow label="직책">{profile.title || "-"}</DetailRow>
+      <DetailRow label="마지막 로그인">{profile.last_login_at ? fmtDateTime(profile.last_login_at) : "-"}</DetailRow>
       <Box sx={{ mt: 2, display: "flex", gap: 1, flexWrap: "wrap" }}>
         <Button component="a" href="/change-password">비밀번호 변경</Button>
       </Box>
+      {children}
     </Card>
   );
 }
@@ -250,24 +234,27 @@ function NotificationCard({ prefs, save, saving }) {
   };
   return (
     <Card>
-      <SectionTitle component="h2" sx={{ mb: 2 }} help="끈 유형도 알림 목록에는 그대로 남습니다. 배지 숫자(빨간 점)에서만 빠집니다. 알림을 없애는 것이 아니라 조용히 하는 것입니다.">
+      <SectionTitle component="h2" help="끈 유형도 알림 목록에는 그대로 남습니다. 배지 숫자(빨간 점)에서만 빠집니다. 알림을 없애는 것이 아니라 조용히 하는 것입니다.">
         알림 설정
       </SectionTitle>
-      <Box component="ul" sx={{ listStyle: "none", m: 0, p: 0, display: "grid", gap: 0.5 }}>
-        {prefs.notifications.catalog.map((row) => (
-          <Box component="li" key={row.key} sx={{ display: "flex", alignItems: "center", gap: 2, py: 0.75, borderBottom: 1, borderColor: "divider" }}>
-            <Box sx={{ flex: 1, minWidth: 0 }}>
-              <Typography sx={{ fontWeight: FONT_WEIGHT.semibold }}>{row.label}</Typography>
-              <Typography variant="body2" color="text.secondary">{row.help}</Typography>
-            </Box>
-            {/* MUI 7 의 Switch 는 `inputProps` 를 **조용히 버린다** — 그렇게 쓰면 스위치에
-                접근 가능한 이름이 아예 없어 스크린리더가 이름 없는 컨트롤로 읽는다(테스트에서
-                실제로 잡았다). slotProps.input 이 <input> 에 닿는 유일한 통로다. */}
-            <Switch
-              checked={!muted.has(row.key)}
-              disabled={saving}
-              onChange={() => toggle(row.key)}
-              slotProps={{ input: { "aria-label": `${row.label} 배지 알림` } }}
+      {/* 한 줄은 `SettingRow` 다 — 관리자 설정의 줄과 같은 리듬(D-457). 예전에는 이 화면만
+          `py: 0.75` 에 굵은 라벨로 따로 그렸다. */}
+      <Box component="ul" sx={{ listStyle: "none", m: 0, p: 0 }}>
+        {prefs.notifications.catalog.map((row, i, all) => (
+          <Box component="li" key={row.key}>
+            <SettingRow
+              label={row.label} description={row.help} last={i === all.length - 1}
+              /* MUI 7 의 Switch 는 `inputProps` 를 **조용히 버린다** — 그렇게 쓰면 스위치에
+                 접근 가능한 이름이 아예 없어 스크린리더가 이름 없는 컨트롤로 읽는다(테스트에서
+                 실제로 잡았다). slotProps.input 이 <input> 에 닿는 유일한 통로다. */
+              action={(
+                <Switch
+                  checked={!muted.has(row.key)}
+                  disabled={saving}
+                  onChange={() => toggle(row.key)}
+                  slotProps={{ input: { "aria-label": `${row.label} 배지 알림` } }}
+                />
+              )}
             />
           </Box>
         ))}
@@ -288,7 +275,7 @@ function DndCard({ prefs, save, saving }) {
 
   return (
     <Card>
-      <SectionTitle component="h2" sx={{ mb: 2 }} help="방해금지 중에도 알림은 평소대로 쌓입니다. 사이드바 배지만 조용해지고, 비활성화하면 그동안 쌓인 것이 한꺼번에 다시 보입니다.">
+      <SectionTitle component="h2" help="방해금지 중에도 알림은 평소대로 쌓입니다. 사이드바 배지만 조용해지고, 비활성화하면 그동안 쌓인 것이 한꺼번에 다시 보입니다.">
         방해금지
       </SectionTitle>
 
@@ -300,49 +287,45 @@ function DndCard({ prefs, save, saving }) {
         </Callout>
       ) : null}
 
-      <Box sx={{ display: "flex", alignItems: "center", gap: 2, flexWrap: "wrap", mb: 1.5 }}>
-        <FormControlLabel
-          control={
-            <Switch
-              checked={!!dnd.enabled}
-              disabled={saving}
-              onChange={(e) => save({ dnd_enabled: e.target.checked, dnd_minutes: e.target.checked ? 60 : 0 })}
-              slotProps={{ input: { "aria-label": "방해금지" } }}
-            />
-          }
-          label="지금 조용히 하기"
-        />
+      {/* 두 줄이 `SettingRow` 다 — 알림 설정·관리자 설정과 같은 리듬(D-457). 스위치의 접근 가능한
+          이름(「방해금지」·「조용시간」)은 그대로다. */}
+      <SettingRow
+        label="지금 조용히 하기"
+        description={dnd.enabled ? (dnd.until ? `${fmtRelative(dnd.until)} 자동 해제` : "직접 끌 때까지") : undefined}
+        action={(
+          <Switch
+            checked={!!dnd.enabled}
+            disabled={saving}
+            onChange={(e) => save({ dnd_enabled: e.target.checked, dnd_minutes: e.target.checked ? 60 : 0 })}
+            slotProps={{ input: { "aria-label": "방해금지" } }}
+          />
+        )}
+      >
         {dnd.enabled ? (
-          <Typography variant="body2" color="text.secondary">
-            {dnd.until ? `${fmtRelative(dnd.until)} 자동 해제` : "직접 끌 때까지"}
-          </Typography>
+          <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", mt: 1 }}>
+            {DND_PRESETS.map((p) => (
+              <Button key={p.label} size="sm" disabled={saving}
+                onClick={() => save({ dnd_enabled: true, dnd_minutes: p.minutes })}>
+                {p.label}
+              </Button>
+            ))}
+          </Box>
         ) : null}
-      </Box>
-
-      {dnd.enabled ? (
-        <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", mb: 2 }}>
-          {DND_PRESETS.map((p) => (
-            <Button key={p.label} size="sm" disabled={saving}
-              onClick={() => save({ dnd_enabled: true, dnd_minutes: p.minutes })}>
-              {p.label}
-            </Button>
-          ))}
-        </Box>
-      ) : null}
-
-      <Box sx={{ mt: 2, pt: 2, borderTop: 1, borderColor: "divider" }}>
-        <FormControlLabel
-          control={
-            <Switch
-              checked={!!dnd.quiet_hours_enabled}
-              disabled={saving}
-              onChange={(e) => save({ quiet_hours_enabled: e.target.checked })}
-              slotProps={{ input: { "aria-label": "조용시간" } }}
-            />
-          }
-          label="매일 같은 시간대에 조용히 하기"
-        />
-        <Box sx={{ display: "flex", gap: 1.5, alignItems: "center", flexWrap: "wrap", mt: 1.5 }}>
+      </SettingRow>
+      <SettingRow
+        label="매일 같은 시간대에 조용히 하기"
+        description="한국 시간 기준입니다. 자정을 넘겨도 됩니다(예: 22:00 → 08:00)."
+        last
+        action={(
+          <Switch
+            checked={!!dnd.quiet_hours_enabled}
+            disabled={saving}
+            onChange={(e) => save({ quiet_hours_enabled: e.target.checked })}
+            slotProps={{ input: { "aria-label": "조용시간" } }}
+          />
+        )}
+      >
+        <Box sx={{ display: "flex", gap: 1.5, alignItems: "center", flexWrap: "wrap", mt: 1 }}>
           <TextField
             type="time" size="small" label="시작" value={start}
             onChange={(e) => setStart(e.target.value)}
@@ -363,10 +346,7 @@ function DndCard({ prefs, save, saving }) {
             시간 저장
           </Button>
         </Box>
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-          한국 시간 기준입니다. 자정을 넘겨도 됩니다(예: 22:00 → 08:00).
-        </Typography>
-      </Box>
+      </SettingRow>
     </Card>
   );
 }
@@ -408,7 +388,7 @@ function SessionsCard() {
 
   return (
     <Card>
-      <SectionTitle component="h2" sx={{ mb: 2 }} help="공용 PC에 로그인해 둔 채로 왔거나, 모르는 기기가 보이면 여기서 끊으세요. 지금 보고 있는 이 창은 유지됩니다.">
+      <SectionTitle component="h2" help="공용 PC에 로그인해 둔 채로 왔거나, 모르는 기기가 보이면 여기서 끊으세요. 지금 보고 있는 이 창은 유지됩니다.">
         내 기기(로그인 세션)
       </SectionTitle>
       {q.isLoading ? <Skeleton lines={3} /> : q.isError ? (
@@ -536,26 +516,25 @@ export function Profile() {
                 // 상단바는 /api/me, 티켓·보드·채팅은 각자 캐시에 얼굴을 들고 있다.
                 invalidatePersonFaces(qc);
               }}
-            />
+            >
+              {/* 🔴 **둘러보기가 개인 UI 설정보다 위다** (지시 18) — 그래서 계정 판 안, 강조색보다
+                  앞에 선다. 예전에는 한 줄과 단추 하나가 전폭 판 하나를 차지했다(「3줄 미만의
+                  내용은 판이 아니라 줄이다」). */}
+              <SubGroup title="둘러보기" help="처음 들어왔을 때 나오는 안내입니다. 언제든 다시 볼 수 있습니다.">
+                <Box sx={{ display: "flex", alignItems: "center", gap: 2, flexWrap: "wrap" }}>
+                  <Typography variant="body2" color="text.secondary" sx={{ flex: "1 1 12rem", minWidth: 0, ...KO_WORD_BREAK }}>
+                    {prefsQuery.data.tour.show
+                      ? "아직 보지 않았습니다. 홈으로 가면 자동으로 시작됩니다."
+                      : prefsQuery.data.tour.skipped ? "건너뛰었습니다." : "완료했습니다."}
+                  </Typography>
+                  <Button size="sm" disabled={prefsQuery.data.tour.show || resetTour.isPending} onClick={() => resetTour.mutate()}>
+                    둘러보기 다시 보기
+                  </Button>
+                </Box>
+              </SubGroup>
+            </AccountCard>
             <SessionsCard />
           </Box>
-          {/* 🔴 **둘러보기가 개인 UI 설정보다 위다** (지시 18).
-              예전에는 이 화면 맨 아래, 강조색 다음이었다. 둘러보기는 「제품을 어떻게 쓰는가」를
-              알려 주는 자리이고 강조색은 취향인데, 순서가 반대면 처음 온 사람이 취향부터
-              고르고 사용법은 스크롤 끝에서 만난다. */}
-          <Card>
-            <SectionTitle component="h2" sx={{ mb: 2 }} help="처음 들어왔을 때 나오는 안내입니다. 언제든 다시 볼 수 있습니다.">
-              둘러보기
-            </SectionTitle>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              {prefsQuery.data.tour.show
-                ? "아직 보지 않았습니다. 홈으로 가면 자동으로 시작됩니다."
-                : prefsQuery.data.tour.skipped ? "건너뛰었습니다." : "완료했습니다."}
-            </Typography>
-            <Button disabled={prefsQuery.data.tour.show || resetTour.isPending} onClick={() => resetTour.mutate()}>
-              둘러보기 다시 보기
-            </Button>
-          </Card>
           <Box sx={TWO_COL_WIDE_LEFT}>
             <NotificationCard prefs={prefsQuery.data} save={savePrefs.mutate} saving={savePrefs.isPending} />
             {/* 알림 설정 카드는 유형이 스물한 개라 세로로 길고, 그 옆 칸은 방해금지

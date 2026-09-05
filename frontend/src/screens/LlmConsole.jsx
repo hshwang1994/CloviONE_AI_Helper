@@ -5,9 +5,10 @@ import MenuItem from "@mui/material/MenuItem";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
-import { Badge, Button, Callout, Card, ErrorState, PageHeader, Skeleton, Tag, TechDetail, useToast } from "../ui/kit.jsx";
+import { Badge, Button, Callout, Card, ErrorState, FieldLabel, Section, SectionTitle, Skeleton, Tag, TechDetail, useToast } from "../ui/kit.jsx";
 import { kindSx } from "../ui/filters.jsx";
-import { FONT_WEIGHT } from "../ui/theme.js";
+import { KO_WORD_BREAK } from "../ui/theme.js";
+import { BASELINE_TRACKS, FORM_FIELD_CONTAINER, FORM_FIELD_GRID, pairTracks } from "../ui/density.js";
 
 /* AI(LLM) 관리 (9-5).
  *
@@ -85,17 +86,8 @@ export function testKind(status) {
  * 트랙을 **내용이 요구하는 폭**으로 바꾸고(auto-fill · 17~26rem), 남는 폭은 열 수로 간다.
  * 컨트롤 자체의 폭은 종류가 정한다(`CONTROL_KIND` — 탐색 줄과 같은 어휘다). 마지막 줄에
  * 남는 자리는 칠하지 않은 캔버스다(PLAN «남는 폭» ③). */
-const SETTINGS_GRID = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fill, minmax(17rem, 26rem))",
-  justifyContent: "start",
-  columnGap: 3,
-};
-
-/* 「지금 적용 중인 값」 넷은 **읽는 줄**이다 — 한 칸에 «라벨: 값» 하나가 들어가고,
-   폭이 넓어지면 아래로 쌓이는 대신 옆으로 편다. 세로로만 쌓던 예전 격자는 1606px 짜리
-   구획에서 왼쪽 30% 만 쓰고 나머지를 흰 면으로 남겼다(S18 실측). 남는 폭을 «더 많은
-   행» 으로 쓰는 것이 넓은 화면 규칙의 ② 다. */
+/* 「지금 적용 중인 값」의 격자 — 값 넷이 세로로 쌓이지 않고 폭에 맞춰 펴진다(넓은 화면 규칙 ②:
+   남는 폭은 «더 많은 행» 으로 쓴다). */
 const EFFECTIVE_GRID = {
   mt: 1,
   display: "grid",
@@ -104,24 +96,22 @@ const EFFECTIVE_GRID = {
   rowGap: 0.25,
 };
 
+/* 필드 하나 — 라벨은 **위**이고 kit 의 `FieldLabel` 이다(D-458). 예전에는 굵은 `Typography` 로
+   손수 그린 네 번째 라벨 패턴이었다. 컨트롤 폭은 종류(`kindSx`)가 정하고 도움말은 칸 폭을 쓴다. */
 function Field({ label, help, children, kind }) {
   return (
-    <Box sx={{ mt: 2, minWidth: 0 }}>
-      <Typography sx={{ fontWeight: FONT_WEIGHT.bold }}>{label}</Typography>
-      {/* 컨트롤 폭은 **종류**가 정한다. 도움말은 그 위 트랙 폭을 그대로 쓴다 — 도움말까지
-          컨트롤 폭으로 좁히면 두 줄짜리 설명이 여섯 줄이 된다. */}
-      <Box sx={{ mt: 0.5, ...(kind ? kindSx(kind) : null) }}>{children}</Box>
-      {help && (
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+    <Box sx={{ minWidth: 0 }}>
+      <FieldLabel>{label}</FieldLabel>
+      <Box sx={kind ? kindSx(kind) : null}>{children}</Box>
+      {help ? (
+        <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5, ...KO_WORD_BREAK }}>
           {help}
         </Typography>
-      )}
+      ) : null}
     </Box>
   );
 }
 
-// PA-RC-0017: embedded(SettingsShell.jsx의 'AI' 탭)일 땐 자체 PageHeader를 그리지 않는다 —
-// SystemOps.jsx와 같은 이유.
 export function LlmConsole({ embedded = false } = {}) {
   const qc = useQueryClient();
   const toast = useToast();
@@ -229,47 +219,33 @@ export function LlmConsole({ embedded = false } = {}) {
      언제나 설정 껍데기 안이고, 머리와 `.c-screen` 은 그 껍데기가 그린다. */
   return (
     <>
-
-      {/* **판이 아니라 줄이다** (S18 · B10).
-          여기 있던 `Card` 는 1606×211 짜리 흰 면이었고 그 안의 내용은 왼쪽 30% 만
-          썼다(잉크 20%). 설정 원형의 계약은 «라벨/현재값/출처를 행과 괘선으로, 카드
-          아님» 이다 — 지금 값은 **읽는 줄**이지 자기 생명주기를 가진 경계 객체가 아니다.
-          값 네 개도 세로로 쌓지 않고 폭에 맞춰 펴진다(아래 `EFFECTIVE_GRID`). */}
-      <Box component="section" sx={{ mt: 2, pb: 2, borderBottom: 1, borderColor: "divider" }}>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
-          <Typography variant="h6" component="h2">지금 적용 중인 값</Typography>
-          <Badge value={config.enabled ? "활성" : "비활성"} kind={config.enabled ? "ok" : "muted"} />
-          {/* 예전에는 조건 없이 `"확인 안 함" kind="warn"` 이 박혀 있었다 — 백엔드가
-              내려 주는 `verified` 를 읽지 않아서, 그 값이 참이 되는 날 화면이 거짓말을
-              한다. 그리고 "아직 테스트 안 했다"는 **참고 사실**이라 경고 톤이 아니다
-              (지시 35: 참고와 조치 필요를 같은 강도로 표현하지 않는다). */}
-          {data.verified
-            ? <Badge value="연결 확인됨" kind="ok" />
-            : <Tag label="연결 미확인" tone="neutral" />}
-        </Box>
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-          {data.verified_note}
-        </Typography>
-        {/* UA-28: 백엔드 값이 cli/api 둘 다 아니면 서버가 안전하게 사용 여부를 강제로
-            끈다 — 위 배지만 보면 "사용 여부를 껐다"로 읽히지만 실제 원인은 아래 백엔드
-            값이다. 켬/끔을 오가며 헛수고하지 않도록 진짜 원인을 바로 옆에서 말한다. */}
+      {/* **판이 아니라 줄이다** (S18 · B10) — 지금 값은 읽는 줄이지 자기 생명주기를 가진 경계
+          객체가 아니다. 제목 줄에 활성/확인 배지가 서고 설명은 제목 아래 한 줄이다. */}
+      <Section
+        titleAs="h2" title="지금 적용 중인 값" help={data.verified_note}
+        action={
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
+            <Badge value={config.enabled ? "활성" : "비활성"} kind={config.enabled ? "ok" : "muted"} />
+            {/* "아직 테스트 안 했다"는 **참고 사실**이라 경고 톤이 아니다(지시 35). */}
+            {data.verified
+              ? <Badge value="연결 확인됨" kind="ok" />
+              : <Tag label="연결 미확인" tone="neutral" />}
+          </Box>
+        }
+      >
+        {/* UA-28: 백엔드 값이 cli/api 둘 다 아니면 서버가 안전하게 사용 여부를 강제로 끈다 —
+            배지만 보면 "사용 여부를 껐다"로 읽히지만 실제 원인은 아래 백엔드 값이다. */}
         {data.backend_invalid ? (
-          <Box sx={{ mt: 1 }}>
+          <Box sx={{ mb: 1.5 }}>
             <Callout tone="warn">
               백엔드 값("{config.backend}")이 올바르지 않아 사용 여부와 무관하게 비활성
               상태입니다. 아래 백엔드를 cli 또는 api 중 하나로 바로잡으세요.
             </Callout>
           </Box>
         ) : null}
-        {/* 값 옆에 **어디서 온 값인지**를 붙인다. 이게 없으면 "저장했는데 왜 안 바뀌지" 의
-            답이 화면에 없다 - 아직 저장한 적이 없어 서버 환경변수 값이 쓰이는 중일 수 있다. */}
-        {/* 실행 파일은 서버의 경로다 - AI 를 쓰는 사람이 판단할 값이 아니라 이 서버를 만든
-            사람이 아는 값이다(지시 38). 지우지는 않는다: 백엔드가 명령줄 도구일 때 장애를
-            보는 사람에게는 그것이 첫 단서다. 기술 정보로 내린다. */}
+        {/* 값 옆에 **어디서 온 값인지**를 붙인다. 실행 파일은 서버의 경로라 기술 정보로 내린다(지시 38). */}
         <Box data-testid="llm-effective" sx={EFFECTIVE_GRID}>
           {[
-            // `cli`·`api` 는 설정 파일의 어휘다. 고르는 자리(아래 select)가 이름으로
-            // 말하는데 보는 자리만 원문이면 한 값이 두 이름을 갖는다(지시 36).
             ["백엔드", BACKEND_LABELS[config.backend] || config.backend, "llm_backend"],
             ["모델", config.model, "llm_model"],
             ["제한 시간", config.timeout_seconds + "초", "llm_timeout_seconds"],
@@ -285,141 +261,136 @@ export function LlmConsole({ embedded = false } = {}) {
             {(data.sources || {}).llm_executable === "env" ? " (서버 환경변수 또는 기본값)" : ""}
           </TechDetail>
         </Box>
-      </Box>
+      </Section>
 
-      <Card sx={{ mt: 2, p: 2 }}>
-        <Typography variant="h6" component="h2">설정</Typography>
-
-        <Box data-testid="llm-settings-grid" sx={SETTINGS_GRID}>
-        {/* SYS-07: value=""는 MUI Select가 "아직 아무것도 안 고름"으로 보고, 그 값의
-            MenuItem이 있어도 라벨을 안 그린다(닫힌 상자가 빈 채로 보인다) — DataScreen.jsx
-            필터 select와 같은 이유·같은 고침(SelectProps displayEmpty:true). 안 그러면
-            "서버 값을 따름"(정상 상태)과 "아직 안 불러옴"·"불러오기 실패"가 전부 똑같이
-            빈 상자로 보인다. */}
-        <Field kind="enum" label="사용 여부" help="비워 두면 서버에 설정된 기본값을 따릅니다.">
-          <TextField
-            select size="small" fullWidth
-            SelectProps={{ displayEmpty: true }}
-            value={value("llm_enabled", "")}
-            onChange={(e) => setValue("llm_enabled", e.target.value)}
-            inputProps={{ "aria-label": "사용 여부" }}
-          >
-            {ENABLED_CHOICES.map((c) => (
-              <MenuItem key={c.value || "inherit"} value={c.value}>{c.label}</MenuItem>
-            ))}
-          </TextField>
-        </Field>
-
-        <Field kind="enum" label="백엔드" help="구독 명령줄 도구는 서버에 로그인이 필요하고, API 는 키가 필요합니다.">
-          <TextField
-            select size="small" fullWidth
-            SelectProps={{ displayEmpty: true }}
-            value={value("llm_backend", "")}
-            onChange={(e) => setValue("llm_backend", e.target.value)}
-            inputProps={{ "aria-label": "백엔드" }}
-          >
-            {BACKEND_CHOICES.map((c) => (
-              <MenuItem key={c.value || "inherit"} value={c.value}>{c.label}</MenuItem>
-            ))}
-          </TextField>
-        </Field>
-
-        <Field kind="text" label="모델" help="비워 두면 기본 모델을 씁니다.">
-          <TextField
-            size="small" fullWidth
-            value={value("llm_model", "")}
-            onChange={(e) => setValue("llm_model", e.target.value)}
-            inputProps={{ "aria-label": "모델" }}
-          />
-        </Field>
-
-        <Field
-          kind="number"
-          label="제한 시간(초)"
-          help={"0이면 기본값을 씁니다. " + (limits.min_timeout_seconds || 5) + "부터 "
-                + (limits.max_timeout_seconds || 600) + "까지 넣을 수 있습니다."}
-        >
-          <TextField
-            size="small" type="number" fullWidth
-            value={value("llm_timeout_seconds", 0)}
-            onChange={(e) => setValue("llm_timeout_seconds", Number(e.target.value))}
-            inputProps={{ "aria-label": "제한 시간(초)" }}
-          />
-        </Field>
-
-        <Field
-          kind="number"
-          label="동시 실행 수"
-          help={"최대 " + (limits.max_concurrency || 4)
-                + "입니다. 구독 한도를 이 서버에서 명령줄 도구를 쓰는 사람과 나눠 쓰므로 작게 잡습니다."}
-        >
-          <TextField
-            size="small" type="number" fullWidth
-            value={value("llm_max_concurrency", 1)}
-            onChange={(e) => setValue("llm_max_concurrency", Number(e.target.value))}
-            inputProps={{ "aria-label": "동시 실행 수" }}
-          />
-        </Field>
-        </Box>
-
-        {/* 실행 파일은 서버 경로라 평소 화면의 내용이 아니다(지시 38). 바꿀 수 있는 자리는
-            남기되 접어 둔다 - 명령줄 도구 백엔드에서 장애를 볼 때만 여는 값이다. */}
-        <TechDetail label="고급 설정" sx={{ mt: 2 }}>
-          <Field label="실행 파일" help="이름만 적으면 서버의 PATH 에서 찾습니다. 절대 경로도 됩니다.">
-            <TextField
-              size="small" fullWidth sx={{ mt: 0.5, maxWidth: "28rem" }}
-              value={value("llm_executable", "")}
-              onChange={(e) => setValue("llm_executable", e.target.value)}
-              inputProps={{ "aria-label": "실행 파일" }}
-            />
-          </Field>
-        </TechDetail>
-
-        {/* 연결 테스트를 별도 큰 카드로 두지 않는다(지시 38) - 설정을 바꾸고 나서 확인하는
-            것이 하나의 흐름이라, 저장 버튼과 같은 줄에 둔다. */}
-        <Box sx={{ mt: 2, display: "flex", gap: 1, flexWrap: "wrap", alignItems: "center" }}>
-          <Button
-            variant="primary"
-            disabled={busy || !draft}
-            onClick={saveDraft}
-          >
-            {saving ? "저장 중…" : "저장"}
-          </Button>
-          <Button disabled={busy || !draft} onClick={() => setDraft(null)}>되돌리기</Button>
-          <Box sx={{ flex: 1 }} />
-          <Button disabled={busy} onClick={() => startTest.mutate()}>연결 테스트</Button>
-        </Box>
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>{data.test_mode_note}</Typography>
-        {jobId && (
-          <Box data-testid="llm-test-result" sx={{ mt: 1.5 }}>
-            <Badge
-              value={jobLabel(testJob.data && testJob.data.status)}
-              kind={result ? testKind(result.status) : "muted"}
-            />
-            {result ? (
-              <Typography variant="body2" sx={{ mt: 1 }}>{result.message}</Typography>
-            ) : (
-              <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                아직 결과가 없습니다. 작업 큐가 이 확인을 처리하면 여기에 나옵니다.
-              </Typography>
-            )}
+      {/* 폼은 `/new-ticket` 의 모양이다(D-458): 왼쪽 폼 판 + 오른쪽 안내 레일 판. 예전에는 로그인
+          절차가 화면 폭 판 하나를 통째로 차지했고 필드 격자는 사설 상수였다. */}
+      <Box sx={pairTracks(BASELINE_TRACKS.two)}>
+        <Card>
+          <SectionTitle component="h2" title="설정" />
+          <Box sx={FORM_FIELD_CONTAINER}>
+            <Box data-testid="llm-settings-grid" sx={FORM_FIELD_GRID}>
+              {/* SYS-07: value=""는 MUI Select가 "아직 아무것도 안 고름"으로 보고 라벨을 안 그린다 —
+                  DataScreen 필터 select와 같은 고침(SelectProps displayEmpty:true). */}
+              <Field kind="enum" label="사용 여부" help="비워 두면 서버에 설정된 기본값을 따릅니다.">
+                <TextField
+                  select size="small" fullWidth
+                  SelectProps={{ displayEmpty: true }}
+                  value={value("llm_enabled", "")}
+                  onChange={(e) => setValue("llm_enabled", e.target.value)}
+                  inputProps={{ "aria-label": "사용 여부" }}
+                >
+                  {ENABLED_CHOICES.map((c) => (
+                    <MenuItem key={c.value || "inherit"} value={c.value}>{c.label}</MenuItem>
+                  ))}
+                </TextField>
+              </Field>
+              <Field kind="enum" label="백엔드" help="구독 명령줄 도구는 서버에 로그인이 필요하고, API 는 키가 필요합니다.">
+                <TextField
+                  select size="small" fullWidth
+                  SelectProps={{ displayEmpty: true }}
+                  value={value("llm_backend", "")}
+                  onChange={(e) => setValue("llm_backend", e.target.value)}
+                  inputProps={{ "aria-label": "백엔드" }}
+                >
+                  {BACKEND_CHOICES.map((c) => (
+                    <MenuItem key={c.value || "inherit"} value={c.value}>{c.label}</MenuItem>
+                  ))}
+                </TextField>
+              </Field>
+              <Field kind="text" label="모델" help="비워 두면 기본 모델을 씁니다.">
+                <TextField
+                  size="small" fullWidth
+                  value={value("llm_model", "")}
+                  onChange={(e) => setValue("llm_model", e.target.value)}
+                  inputProps={{ "aria-label": "모델" }}
+                />
+              </Field>
+              <Field
+                kind="number"
+                label="제한 시간(초)"
+                help={"0이면 기본값을 씁니다. " + (limits.min_timeout_seconds || 5) + "부터 "
+                      + (limits.max_timeout_seconds || 600) + "까지 넣을 수 있습니다."}
+              >
+                <TextField
+                  size="small" type="number" fullWidth
+                  value={value("llm_timeout_seconds", 0)}
+                  onChange={(e) => setValue("llm_timeout_seconds", Number(e.target.value))}
+                  inputProps={{ "aria-label": "제한 시간(초)" }}
+                />
+              </Field>
+              <Field
+                kind="number"
+                label="동시 실행 수"
+                help={"최대 " + (limits.max_concurrency || 4)
+                      + "입니다. 구독 한도를 이 서버에서 명령줄 도구를 쓰는 사람과 나눠 쓰므로 작게 잡습니다."}
+              >
+                <TextField
+                  size="small" type="number" fullWidth
+                  value={value("llm_max_concurrency", 1)}
+                  onChange={(e) => setValue("llm_max_concurrency", Number(e.target.value))}
+                  inputProps={{ "aria-label": "동시 실행 수" }}
+                />
+              </Field>
+            </Box>
           </Box>
-        )}
-      </Card>
 
-      <Card sx={{ mt: 2, p: 2 }}>
-        <Typography variant="h6" component="h2" sx={{ mb: 1 }}>
-          {data.login && data.login.title}
-        </Typography>
-        <Box component="ol" sx={{ pl: 3, m: 0 }}>
-          {((data.login && data.login.steps) || []).map((step) => (
-            <Typography component="li" variant="body2" key={step} sx={{ mb: 0.5 }}>
-              {step}
-            </Typography>
-          ))}
-        </Box>
-        <Callout tone="warn">{data.login && data.login.note}</Callout>
-      </Card>
+          {/* 실행 파일은 서버 경로라 평소 화면의 내용이 아니다(지시 38). 바꿀 수 있는 자리는
+              남기되 접어 둔다 - 명령줄 도구 백엔드에서 장애를 볼 때만 여는 값이다. */}
+          <TechDetail label="고급 설정" sx={{ mt: 2 }}>
+            <Field kind="text" label="실행 파일" help="이름만 적으면 서버의 PATH 에서 찾습니다. 절대 경로도 됩니다.">
+              <TextField
+                size="small" fullWidth
+                value={value("llm_executable", "")}
+                onChange={(e) => setValue("llm_executable", e.target.value)}
+                inputProps={{ "aria-label": "실행 파일" }}
+              />
+            </Field>
+          </TechDetail>
+
+          {/* 연결 테스트를 별도 큰 카드로 두지 않는다(지시 38) - 설정을 바꾸고 나서 확인하는
+              것이 하나의 흐름이라 저장 줄에 함께 둔다. 주 동작(저장)은 폼 판의 오른쪽 끝이다. */}
+          <Box sx={{ mt: 2.5, display: "flex", gap: 1, flexWrap: "wrap", alignItems: "center" }}>
+            <Button disabled={busy} onClick={() => startTest.mutate()}>연결 테스트</Button>
+            <Box sx={{ flex: 1 }} />
+            <Button disabled={busy || !draft} onClick={() => setDraft(null)}>되돌리기</Button>
+            <Button variant="primary" disabled={busy || !draft} onClick={saveDraft}>
+              {saving ? "저장 중…" : "저장"}
+            </Button>
+          </Box>
+          <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1, ...KO_WORD_BREAK }}>{data.test_mode_note}</Typography>
+          {jobId && (
+            <Box data-testid="llm-test-result" sx={{ mt: 1.5 }}>
+              <Badge
+                value={jobLabel(testJob.data && testJob.data.status)}
+                kind={result ? testKind(result.status) : "muted"}
+              />
+              {result ? (
+                <Typography variant="body2" sx={{ mt: 1 }}>{result.message}</Typography>
+              ) : (
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                  아직 결과가 없습니다. 작업 큐가 이 확인을 처리하면 여기에 나옵니다.
+                </Typography>
+              )}
+            </Box>
+          )}
+        </Card>
+
+        {/* 안내 레일 — 서버 절차는 폼이 아니라 곁에 선다(`/new-ticket` 의 작성 도움과 같은 자리). */}
+        <Card>
+          <SectionTitle component="h2" title={data.login && data.login.title} />
+          <Box component="ol" sx={{ pl: 3, m: 0 }}>
+            {((data.login && data.login.steps) || []).map((step) => (
+              <Typography component="li" variant="body2" key={step} sx={{ mb: 0.5, ...KO_WORD_BREAK }}>
+                {step}
+              </Typography>
+            ))}
+          </Box>
+          <Box sx={{ mt: 1.5 }}>
+            <Callout tone="warn">{data.login && data.login.note}</Callout>
+          </Box>
+        </Card>
+      </Box>
     </>
   );
 }

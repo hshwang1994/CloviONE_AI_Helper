@@ -1,8 +1,8 @@
 import React from "react";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
-import { Card } from "../../ui/kit.jsx";
-import { ACCENT_PRESETS, FONT_SIZE, FONT_WEIGHT, normalizeAccent } from "../../ui/theme.js";
+import { Card, SectionTitle } from "../../ui/kit.jsx";
+import { ACCENT_PRESETS, CONTROL, FONT_SIZE, FONT_WEIGHT, RADIUS, normalizeAccent, remPx } from "../../ui/theme.js";
 import { useThemeMode } from "../../ui/ThemeModeProvider.jsx";
 import { ACCENT_NAMES } from "./settingsRegistry.js";
 
@@ -16,10 +16,11 @@ export function AccentPicker() {
   const current = normalizeAccent(accent);
   return (
     <Card>
-      <Typography component="h2" variant="h6" sx={{ fontSize: FONT_SIZE.sectionTitle }}>화면 강조색</Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, mb: 2 }}>
-        버튼과 링크, 선택 표시에 쓰는 색입니다. <strong>이 브라우저에만</strong> 저장되며 다른 사람 화면은 바뀌지 않습니다.
-      </Typography>
+      {/* 판 제목은 다른 판과 같은 부품(`SectionTitle`)이다 — 예전에는 여기만 h6 에 글자 크기를 손으로 얹었다. */}
+      <SectionTitle
+        component="h2" title="화면 강조색"
+        help={<>버튼과 링크, 선택 표시에 쓰는 색입니다. <strong>이 브라우저에만</strong> 저장되며 다른 사람 화면은 바뀌지 않습니다.</>}
+      />
       <Box role="group" aria-label="화면 강조색" sx={{ display: "flex", gap: 1.5, flexWrap: "wrap" }}>
         {ACCENT_PRESETS.map((hex) => {
           const value = normalizeAccent(hex);
@@ -32,11 +33,12 @@ export function AccentPicker() {
               type="button"
               aria-pressed={selected}
               onClick={() => setAccent(value)}
+              /* 높이·모서리는 토큰이다 — `minHeight: 44`·`borderRadius: "10px"` 리터럴이 4K 레버를 안 탔다. */
               sx={{
-                display: "flex", alignItems: "center", gap: 1, px: 2, py: 1, minHeight: 44,
+                display: "flex", alignItems: "center", gap: 1, px: 2, py: 1, minHeight: remPx(CONTROL.buttonLg),
                 cursor: "pointer", font: "inherit", color: "inherit", bgcolor: "transparent",
                 border: 2, borderStyle: "solid", borderColor: selected ? "primary.main" : "divider",
-                borderRadius: "10px",
+                borderRadius: `${RADIUS.md}px`,
                 "&:hover": { borderColor: "primary.main" },
               }}
             >
@@ -46,7 +48,7 @@ export function AccentPicker() {
                    (색 견본이 사라지면 이 선택기는 글자만 남아 의미의 절반을 잃는다). */
                 sx={{ width: "1.25rem", minWidth: "1.25rem", height: "1.25rem", borderRadius: "50%", bgcolor: value, border: 1, borderColor: "divider", flex: "none" }}
               />
-              <Box component="span" sx={{ fontSize: FONT_SIZE.body, fontWeight: selected ? 780 : 550 }}>{name}</Box>
+              <Box component="span" sx={{ fontSize: FONT_SIZE.body, fontWeight: selected ? FONT_WEIGHT.semibold : FONT_WEIGHT.regular }}>{name}</Box>
               {/* QAH-07 — dark 모드 대비 미달(최저 2.81) 실측, primary.dark로 교체. */}
               {selected ? <Box component="span" aria-hidden="true" sx={{ fontWeight: FONT_WEIGHT.extrabold, color: "primary.dark" }}>✓</Box> : null}
               {selected ? <span className="sr-only">(현재 색)</span> : null}

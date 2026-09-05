@@ -4,8 +4,7 @@ import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
 import {
-  Badge, Button, Callout, DataTable, EmptyState, ErrorState, FormModal,
-  OverflowMenu, Skeleton, useConfirm, useToast,
+  Badge, Button, Callout, DataTable, EmptyState, ErrorState, FormModal, ListCard, OverflowMenu, Skeleton, useConfirm, useToast,
 } from "../ui/kit.jsx";
 import { HeaderActions } from "../ui/HeaderSlot.jsx";
 import { fmtBytes } from "./registry/shared.js";
@@ -232,7 +231,10 @@ export function StorageProviders({ embedded = false }) {
           {data.warning ? <Callout tone="warn">{data.warning}</Callout> : null}
 
           {rows.length === 0 ? (
+            /* 탭 전체가 빈 상태다 — 화면 가운데 구성(C1 · `EmptyState layout`). 예전에는 왼쪽 위에
+               붙는 `region` 이라 큰 흰 면 구석에 두 줄만 놓였다. */
             <EmptyState
+              layout="page"
               art="settings"
               title="등록된 파일 저장소가 없습니다"
               help="파일 저장소를 추가하면 업로드한 파일과 백업이 쌓이는 자리를 여기서 관리할 수 있습니다."
@@ -257,9 +259,9 @@ export function StorageProviders({ embedded = false }) {
                 </HeaderActions>
               ) : null}
 
-              <Box sx={{ mt: 2 }}>
+              <ListCard sx={{ mt: 2 }}>
                 <DataTable columns={columns} rows={rows} rowKey={(r) => r.id} />
-              </Box>
+              </ListCard>
 
               {probed ? (
                 <Callout tone={probed.writable ? "success" : "warn"}>
@@ -271,10 +273,8 @@ export function StorageProviders({ embedded = false }) {
                     : ""}
                 </Callout>
               ) : null}
-
-              <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 2 }}>
-                마운트는 서버의 유닛이 합니다. 이 화면에서는 설정을 고치고 지금 상태를 확인할 수 있습니다.
-              </Typography>
+              {/* 「마운트는 서버가 한다」는 문장은 탭 `?` 도움말(HELP)이 이미 말한다 — 표 아래에 한 번 더
+                  적지 않는다(같은 사실을 두 번 말하는 자리를 걷었다). */}
             </>
           )}
         </>
