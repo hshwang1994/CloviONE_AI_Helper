@@ -3,22 +3,23 @@ import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-quer
 import Box from "@mui/material/Box";
 import Checkbox from "@mui/material/Checkbox";
 import FormControlLabel from "@mui/material/FormControlLabel";
-import InputAdornment from "@mui/material/InputAdornment";
 import MenuItem from "@mui/material/MenuItem";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
-import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import { api } from "../lib/api.js";
 import { redirectToLogin } from "../lib/sessionRedirect.js";
 import { fmtDateTime } from "../lib/format.js";
 import { maxLengthFor } from "../lib/fieldLimits.js";
 import {
   ListEmptyState,
-  PageHeader, Card, Badge, Button, DataTable, Modal, Skeleton,
-  EmptyState, ErrorState, Callout, useConfirm, useToast,
+  PageHeader, Card, ListCard, Badge, Button, DataTable, DetailGrid, DetailRow, Modal, Skeleton,
+  Section, SectionTitle, EmptyState, ErrorState, Callout, useConfirm, useToast,
 } from "../ui/kit.jsx";
 import { KO_WORD_BREAK } from "../ui/theme.js";
 import { useRowSelection, selectionColumn } from "../ui/bulkSelect.jsx";
+import { FilterSurface, ToolbarRow, ResultLine } from "../ui/FilterBar.jsx";
+import { SearchBox } from "../ui/filters.jsx";
+import { BASELINE_TRACKS, pairTracks } from "../ui/density.js";
 import { invalidateTicketViews } from "./ticket-views.js";
 import { DateCell } from "../ui/cells.jsx";
 import { ListFooter } from "../ui/InfiniteScroll.jsx";
@@ -150,14 +151,14 @@ function TargetPicker({ q, setQ, query, onPick }) {
   ];
   return (
     <>
-      <Card sx={{ p: 2, mb: 2.5 }}>
-        <TextField
-          type="search" size="small" fullWidth value={q} onChange={(e) => setQ(e.target.value)}
-          placeholder="이메일 또는 이름으로 검색"
-          inputProps={{ "aria-label": "오프보딩 대상 검색" }}
-          InputProps={{ startAdornment: <InputAdornment position="start"><SearchRoundedIcon fontSize="small" /></InputAdornment> }}
-        />
-      </Card>
+      {/* 탐색 줄은 판이 아니다 — 사용자 목록·티켓 목록과 같은 `FilterSurface` 위 `SearchBox` 다.
+          예전에는 검색창 하나가 전폭 흰 판을 차지했고(글자마다 질의가 나가는 맨 TextField),
+          아래 목록 판과 표면이 둘이었다. */}
+      <FilterSurface>
+        <ToolbarRow>
+          <SearchBox value={q} onSearch={setQ} placeholder="이메일 또는 이름으로 검색" ariaLabel="오프보딩 대상 검색" />
+        </ToolbarRow>
+      </FilterSurface>
       {query.isLoading ? (
         <Card><Skeleton lines={5} /></Card>
       ) : query.isError ? (
@@ -177,18 +178,21 @@ function TargetPicker({ q, setQ, query, onPick }) {
           help="퇴사 처리 대상이 될 계정이 아직 없습니다."
         />
       ) : (
-        <Card>
-          <DataTable columns={columns} rows={items} rowKey={(r) => r.id} onRow={(r) => onPick(r.id)} />
-          {/* UB-40: 이 화면은 "그 사람을 찾아 실행"이 목적인데, 목록이 사용자 21명(현재는
-              더 늘었을 수 있다)부터 page_size=20으로 조용히 잘렸다 — 총건수도 잘림 경고도
-              없어 찾는 사람이 20번째 밖에 있으면 검색창을 쓰라는 단서조차 없었다.
-              Search.jsx의 ResultGroup과 같은 관용을 재사용한다. */}
-          {total != null && total > items.length ? (
-            <Typography variant="caption" color="text.secondary" sx={{ display: "block", p: 2, pt: 0 }}>
-              {total}명 중 {items.length}명을 보여 줍니다. 검색어로 좁혀 보세요.
-            </Typography>
-          ) : null}
-        </Card>
+        <>
+          <ResultLine total={total != null ? total : items.length} unit="명" conditions={[q].filter(Boolean)} />
+          <ListCard>
+            <DataTable columns={columns} rows={items} rowKey={(r) => r.id} onRow={(r) => onPick(r.id)} />
+            {/* UB-40: 이 화면은 "그 사람을 찾아 실행"이 목적인데, 목록이 사용자 21명(현재는
+                더 늘었을 수 있다)부터 page_size=20으로 조용히 잘렸다 — 총건수도 잘림 경고도
+                없어 찾는 사람이 20번째 밖에 있으면 검색창을 쓰라는 단서조차 없었다.
+                Search.jsx의 ResultGroup과 같은 관용을 재사용한다. */}
+            {total != null && total > items.length ? (
+              <Typography variant="caption" color="text.secondary" sx={{ display: "block", p: 2, pt: 0 }}>
+                {total}명 중 {items.length}명을 보여 줍니다. 검색어로 좁혀 보세요.
+              </Typography>
+            ) : null}
+          </ListCard>
+        </>
       )}
     </>
   );
@@ -236,19 +240,23 @@ function OffboardPlan({ preview, onDone, toast }) {
     { key: "assignee_names", label: "현재 담당자", type: "name", render: (t) => (t.assignee_names || []).join(", ") || "-" },
   ];
 
+  /* «실행하면 무슨 일이 일어나는가» — 확인 대화와 폼 옆 레일이 **같은 문장**을 쓴다. 레일은
+     고르는 동안 미리 보여 주고, 대화는 누르기 직전에 한 번 더 보여 준다. */
+  const who = successor
+    ? (preview.successor_candidates.find((c) => c.user_id === successor) || {}).display_name
+    : null;
+  const planLines = [
+    `${user.display_name}(${user.email}) 오프보딩을 실행합니다.`,
+    chosen.length
+      ? `티켓 ${chosen.length}건을 ${who ? who + "에게 옮깁니다" : "미할당으로 되돌립니다"}.`
+      : "옮길 티켓은 없습니다.",
+    deactivate ? "계정을 비활성화합니다(로그인 불가)." : "",
+    archive ? "계정을 보관합니다(목록에서 감춤)." : "",
+    "실행 후 아래 ‘실행 이력’에서 되돌릴 수 있습니다.",
+  ].filter(Boolean);
+
   async function run() {
-    const who = successor
-      ? (preview.successor_candidates.find((c) => c.user_id === successor) || {}).display_name
-      : null;
-    const message = [
-      `${user.display_name}(${user.email}) 오프보딩을 실행합니다.`,
-      chosen.length
-        ? `티켓 ${chosen.length}건을 ${who ? who + "에게 옮깁니다" : "미할당으로 되돌립니다"}.`
-        : "옮길 티켓은 없습니다.",
-      deactivate ? "계정을 비활성화합니다(로그인 불가)." : "",
-      archive ? "계정을 보관합니다(목록에서 감춤)." : "",
-      "실행 후 아래 ‘실행 이력’에서 되돌릴 수 있습니다.",
-    ].filter(Boolean).join("\n");
+    const message = planLines.join("\n");
     if (!(await confirm(message, { danger: true, title: "오프보딩 실행", confirmLabel: "실행" }))) return;
 
     setBusy(true); setNoteError("");
@@ -282,8 +290,8 @@ function OffboardPlan({ preview, onDone, toast }) {
 
   return (
     <>
-      <Card sx={{ p: 2.5, mb: 2.5 }}>
-        <Typography variant="h6" component="h2" sx={{ mb: 1.5 }}>{user.display_name}, {user.email}</Typography>
+      {/* 대상 요약은 판이 아니라 구획이다 — 제목(사람) 아래 속성 넷이 캔버스 위에 선다. */}
+      <Section titleAs="h2" title={`${user.display_name}, ${user.email}`} rule>
         <Box sx={{ display: "grid", gap: 1.5, gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0,1fr))", xxl: "repeat(4, minmax(0,1fr))" } }}>
           {(preview.onboarding || []).map((check) => (
             <Box key={check.key} sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0 }}>
@@ -295,7 +303,7 @@ function OffboardPlan({ preview, onDone, toast }) {
             </Box>
           ))}
         </Box>
-      </Card>
+      </Section>
 
       {preview.open_run ? (
         <Box sx={{ mb: 2.5 }}>
@@ -308,23 +316,23 @@ function OffboardPlan({ preview, onDone, toast }) {
         </Box>
       ) : null}
 
-      <Card sx={{ mb: 2.5 }}>
-        <Box sx={{ p: 2, pb: 0 }}>
-          <Typography variant="subtitle1" component="h2">보유 티켓 {tickets.length}건, 선택 {chosen.length}건</Typography>
-        </Box>
+      <Section titleAs="h2" title={`보유 티켓 ${tickets.length}건, 선택 ${chosen.length}건`}>
         {tickets.length ? (
-          <DataTable columns={columns} rows={tickets} rowKey={(t) => t.id} />
+          <ListCard>
+            <DataTable columns={columns} rows={tickets} rowKey={(t) => t.id} />
+          </ListCard>
         ) : (
-          <Box sx={{ p: 2 }}>
-            <Typography variant="body2" color="text.secondary">옮길 티켓이 없습니다. 계정 처리만 진행합니다.</Typography>
-          </Box>
+          <EmptyState size="compact" title="옮길 티켓이 없습니다" help="계정 처리만 진행합니다." />
         )}
-      </Card>
+      </Section>
 
-      <Card sx={{ p: 2.5 }}>
-        <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", lg: "repeat(2, minmax(0,1fr))" } }}>
+      {/* 폼 판 + 보조 레일 — `/new-ticket` 과 같은 모양(D-458). 레일은 «실행하면 무슨 일이
+          일어나는가» 를 고르는 동안 보여 준다(확인 대화와 같은 문장). */}
+      <Box sx={pairTracks(BASELINE_TRACKS.two)}>
+      <Card>
+        <Box sx={{ display: "grid", gap: 2.5 }}>
           <TextField
-            select size="small" label="후임(티켓을 받을 사람)" value={successor}
+            select size="small" fullWidth label="후임(티켓을 받을 사람)" value={successor}
             SelectProps={{ displayEmpty: true }} InputLabelProps={{ shrink: true }}
             onChange={(e) => setSuccessor(e.target.value)}
             helperText="비워 두면 선택한 티켓이 미할당으로 돌아갑니다(미할당 트리아지에서 다시 배정)."
@@ -338,7 +346,7 @@ function OffboardPlan({ preview, onDone, toast }) {
           </TextField>
           <TextField
             InputLabelProps={{ shrink: true }}
-            size="small" label="메모(선택)" value={note}
+            size="small" fullWidth label="메모(선택)" value={note}
             onChange={(e) => { setNote(e.target.value); if (noteError) setNoteError(""); }}
             error={!!noteError}
             helperText={noteError || "왜 오프보딩하는지 남겨 두면 이력에서 바로 읽힙니다."}
@@ -357,6 +365,15 @@ function OffboardPlan({ preview, onDone, toast }) {
           </Button>
         </Box>
       </Card>
+      <Card component="aside">
+        <SectionTitle component="h2" title="실행하면" />
+        <Box component="ol" sx={{ m: 0, pl: 2.5, display: "grid", gap: 0.75 }}>
+          {planLines.map((line) => (
+            <Typography key={line} component="li" variant="body2" sx={KO_WORD_BREAK}>{line}</Typography>
+          ))}
+        </Box>
+      </Card>
+      </Box>
     </>
   );
 }
@@ -366,8 +383,7 @@ function RunResult({ result }) {
   const run = result.run;
   const moves = result.moves || [];
   return (
-    <Card sx={{ p: 2.5, mb: 2.5 }}>
-      <Typography variant="h6" component="h2" sx={{ mb: 1 }}>실행 결과</Typography>
+    <Section titleAs="h2" title="실행 결과">
       {/* 실패한 티켓이 남았다는 것은 주의가 아니라 오류다 - 그 티켓은 아직 그 사람 앞에
           있다. 실패가 없으면 이 줄은 실행 결과 요약일 뿐이므로 조용한 안내다. */}
       <Callout tone={run.ticket_failed ? "danger" : "info"}>
@@ -378,11 +394,11 @@ function RunResult({ result }) {
         {" "}아래 ‘실행 이력’에서 되돌릴 수 있습니다.
       </Callout>
       {moves.length ? (
-        <Box sx={{ mt: 2 }}>
+        <ListCard sx={{ mt: 2 }}>
           <DataTable columns={MOVE_COLUMNS} rows={moves} rowKey={(m) => m.id} />
-        </Box>
+        </ListCard>
       ) : null}
-    </Card>
+    </Section>
   );
 }
 
@@ -463,8 +479,7 @@ function RunHistory() {
   const detail = (detailQ.data && detailQ.data.run) || sel;
 
   return (
-    <Box sx={{ mt: 3 }}>
-      <Typography variant="h6" component="h2" sx={{ mb: 1.5 }}>실행 이력</Typography>
+    <Section titleAs="h2" title="실행 이력" sx={{ mt: 3 }}>
       {query.isLoading ? (
         <Card><Skeleton lines={3} /></Card>
       ) : query.isError ? (
@@ -473,7 +488,7 @@ function RunHistory() {
         <EmptyState title="아직 실행한 오프보딩이 없습니다"
           help="위에서 대상을 고르고 실행하면 여기에 기록이 남고, 그 자리에서 되돌릴 수 있습니다." />
       ) : (
-        <Card>
+        <ListCard>
           <DataTable columns={columns} rows={items} rowKey={(r) => r.id} onRow={setSel} total={total} />
           {/* 감사 이력은 지워지지 않고 계속 쌓인다 — 굴리면 이어 받는다(손으로 그린 페이저가
               여기 있었다, 이제 목록 끝 줄 하나를 다른 화면과 함께 쓴다). */}
@@ -482,7 +497,7 @@ function RunHistory() {
             hasNext={query.hasNext} isFetchingNext={query.isFetchingNext} onMore={query.fetchNext}
             moreLabel="실행 이력 더 보기"
           />
-        </Card>
+        </ListCard>
       )}
 
       <Modal open={!!sel} onClose={() => setSel(null)} size="lg"
@@ -507,17 +522,17 @@ function RunHistory() {
         ) : null}>
         {detail ? (
           <>
-            <Box sx={{ display: "grid", columnGap: 4, gridTemplateColumns: { xs: "1fr", xxl: "repeat(2, minmax(0,1fr))" } }}>
+            <DetailGrid>
               {/* 이름이 없으면(탈퇴 계정 등) raw UUID 대신 '알 수 없음'을 보여준다(E-4 UUID 노출) */}
-              <Row label="대상">{detail.user_name || "알 수 없음"}</Row>
-              <Row label="후임">{detail.successor_name || "(없음. 미할당으로 되돌림)"}</Row>
-              <Row label="실행자">{detail.actor_name || "알 수 없음"}</Row>
-              <Row label="상태">{RUN_STATUS_KO[detail.status] || detail.status}</Row>
-              <Row label="티켓">{`${detail.ticket_moved}/${detail.ticket_total}건 이동, 실패 ${detail.ticket_failed}건`}</Row>
-              <Row label="계정 변경">{[detail.deactivated ? "비활성화" : null, detail.archived ? "보관" : null].filter(Boolean).join(", ") || "없음"}</Row>
-              <Row label="메모">{detail.note || "-"}</Row>
-              <Row label="되돌린 시각">{detail.undone_at ? fmtDateTime(detail.undone_at) : "-"}</Row>
-            </Box>
+              <DetailRow label="대상">{detail.user_name || "알 수 없음"}</DetailRow>
+              <DetailRow label="후임">{detail.successor_name || "(없음. 미할당으로 되돌림)"}</DetailRow>
+              <DetailRow label="실행자">{detail.actor_name || "알 수 없음"}</DetailRow>
+              <DetailRow label="상태">{RUN_STATUS_KO[detail.status] || detail.status}</DetailRow>
+              <DetailRow label="티켓">{`${detail.ticket_moved}/${detail.ticket_total}건 이동, 실패 ${detail.ticket_failed}건`}</DetailRow>
+              <DetailRow label="계정 변경">{[detail.deactivated ? "비활성화" : null, detail.archived ? "보관" : null].filter(Boolean).join(", ") || "없음"}</DetailRow>
+              <DetailRow label="메모">{detail.note || "-"}</DetailRow>
+              <DetailRow label="되돌린 시각">{detail.undone_at ? fmtDateTime(detail.undone_at) : "-"}</DetailRow>
+            </DetailGrid>
             {detail.undo_error ? <Box sx={{ mt: 2 }}><Callout tone="danger">{detail.undo_error}</Callout></Box> : null}
             {(detail.moves || []).length ? (
               <Box sx={{ mt: 2 }}>
@@ -527,17 +542,7 @@ function RunHistory() {
           </>
         ) : null}
       </Modal>
-    </Box>
-  );
-}
-
-function Row({ label, children }) {
-  return (
-    <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "10rem minmax(0,1fr)" }, gap: 1,
-               py: 1.25, borderBottom: 1, borderColor: "divider", minWidth: 0 }}>
-      <Typography variant="body2" color="text.secondary">{label}</Typography>
-      <Box sx={{ minWidth: 0, ...KO_WORD_BREAK }}>{children}</Box>
-    </Box>
+    </Section>
   );
 }
 

@@ -5,9 +5,16 @@ import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
 import { redirectToLogin } from "../lib/sessionRedirect.js";
-import { Badge, Button, Card, DataTable, Modal, Callout, useConfirm, useToast } from "../ui/kit.jsx";
+import { Badge, Button, DataTable, Modal, Callout, useConfirm, useToast } from "../ui/kit.jsx";
 import { FONT_WEIGHT } from "../ui/theme.js";
 import { Note } from "../ui/adminKit.jsx";
+import { ToolbarRow } from "../ui/FilterBar.jsx";
+import { FilterSelect } from "../ui/filters.jsx";
+
+const ASSIGN_OPTIONS = [
+  { value: "set_department", label: "부서" },
+  { value: "set_title", label: "직책" },
+];
 
 /* 사용자 대량 작업 + CSV 가져오기/내보내기 (PLAN Phase 6)
  *
@@ -88,13 +95,13 @@ export function BulkBar({ selection, deptOptions, titleOptions, onDone }) {
     ? `선택한 계정의 부서를 "${chosenLabel ? chosenLabel.label : ""}"(으)로 일괄 변경할까요?`
     : `선택한 계정의 직책을 "${chosenLabel ? chosenLabel.label : ""}"(으)로 일괄 변경할까요?`;
   return (
-    <Card sx={{ p: 2, mb: 2.5 }}>
-      {/* SEM-02(PA-F-031): 필터·목록 사이의 이 카드는 그 둘과 달리 선택이 있을 때만 나타나는
-          독립된 블록이라(위 두 곳처럼 항상 있는 구역이 아니다) MyTickets/TeamDocs의 헤더
-          내장형 BulkActions(role=toolbar)와는 다르게 실제 카드 하나를 통째로 차지한다 -
-          h2로 구획한다. 시각은 그대로(.sr-only). */}
+    /* 판이 아니다 — 탐색 줄(`FilterSurface`)과 같은 규칙으로 캔버스 위에 두 줄로 선다.
+       예전에는 이 줄이 흰 판 하나를 통째로 차지해 필터(판 없음)와 목록(판) 사이에 세 번째
+       표면이 끼었다. 선택이 있을 때만 나타나는 독립 블록이라 h2 로 구획한다(SEM-02 · PA-F-031,
+       시각은 그대로 .sr-only). */
+    <Box sx={{ display: "grid", gap: 1.5, mb: 2.5 }}>
       <Typography component="h2" className="sr-only">일괄 작업</Typography>
-      <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
+      <ToolbarRow sx={{ gap: 1 }}>
         <Typography variant="body2" sx={{ fontWeight: FONT_WEIGHT.semibold }}>{ids.length}명 선택</Typography>
         {BULK_ACTIONS.map((a) => (
           <Button key={a.value} size="sm" variant={a.danger ? "danger" : "default"} disabled={!!busy}
@@ -103,16 +110,15 @@ export function BulkBar({ selection, deptOptions, titleOptions, onDone }) {
           </Button>
         ))}
         <Button size="sm" variant="ghost" onClick={selection.clear}>선택 해제</Button>
-      </Box>
-      <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap", mt: 1.5 }}>
-        <TextField select size="small" label="일괄 지정" value={assign.action}
-          SelectProps={{ displayEmpty: true }} InputLabelProps={{ shrink: true }}
-          sx={{ minWidth: "10rem" }}
-          onChange={(e) => setAssign({ action: e.target.value, value: UNASSIGNED_VALUE })}>
-          <MenuItem value="">지정 안 함</MenuItem>
-          <MenuItem value="set_department">부서</MenuItem>
-          <MenuItem value="set_title">직책</MenuItem>
-        </TextField>
+      </ToolbarRow>
+      <ToolbarRow sx={{ gap: 1 }}>
+        <FilterSelect
+          label="일괄 지정" value={assign.action} options={ASSIGN_OPTIONS} allLabel="지정 안 함"
+          onChange={(v) => setAssign({ action: v, value: UNASSIGNED_VALUE })}
+        />
+        {/* 「값」은 `FilterSelect` 가 아니다 — 그 부품의 빈 항목(`""`)은 «전체» 인데 여기서 `""`
+            는 실제 옵션(없음 = 지운다)이고, 자리표시자는 그와 다른 `UNASSIGNED_VALUE` 다.
+            같은 부품으로 그리면 두 뜻이 한 값에 겹친다(위 상수 주석). */}
         {assign.action ? (
           <TextField select size="small" label="값" value={assign.value}
             SelectProps={{ displayEmpty: true }} InputLabelProps={{ shrink: true }}
@@ -130,8 +136,8 @@ export function BulkBar({ selection, deptOptions, titleOptions, onDone }) {
             적용
           </Button>
         ) : null}
-      </Box>
-    </Card>
+      </ToolbarRow>
+    </Box>
   );
 }
 

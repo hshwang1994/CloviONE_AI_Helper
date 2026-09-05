@@ -1,16 +1,21 @@
 import React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Box from "@mui/material/Box";
-import MenuItem from "@mui/material/MenuItem";
-import { EntityCombobox } from "../ui/filters.jsx";
 import Typography from "@mui/material/Typography";
+import { EntityCombobox } from "../ui/filters.jsx";
 import { api } from "../lib/api.js";
 import {
-  Badge, Button, Callout, Card, DataTable, EmptyState, ErrorState, PageHeader,
-  MetricStrip, SectionTitle, Skeleton, useToast,
+  Badge, Button, Callout, Card, DataTable, ErrorState, ListCard, PageHeader,
+  MetricStrip, Section, SectionTitle, Skeleton, useToast,
 } from "../ui/kit.jsx";
+import { SettingRow } from "../ui/adminKit.jsx";
+import { selectionColumn, useRowSelection } from "../ui/bulkSelect.jsx";
 import { OrgPath } from "../ui/OrgPath.jsx";
 import { FONT_WEIGHT } from "../ui/theme.js";
+import { pairTracks } from "../ui/density.js";
+
+/* 정리할 항목 : 관리자 범위 — 회의 화면의 2:1 보다 오른쪽을 조금 넓게 둔다(세 열 표가 든다). */
+const ADMIN_SCOPE_PAIR = "minmax(0, 1.6fr) minmax(0, 1fr)";
 
 /* 조직 정합성 진단 — **닫아 버린 것을 사람에게 보여 주는 화면** (0060 §41).
  *
@@ -21,87 +26,77 @@ import { FONT_WEIGHT } from "../ui/theme.js";
  * 화면이 하는 일은 둘뿐이다: **세고**, **일괄로 지정한다**. 추측해서 자동으로 고치지 않는다 —
  * "부서를 모르니 조직 직속으로 하자" 같은 추측은 언제나 넓히는 쪽으로 틀리고, 넓게 틀린
  * 것은 화면이 잘 보이기 때문에 아무도 신고하지 않는다.
+ *
+ * ## 판은 정리할 것이 있는 항목에만 준다
+ *
+ * 예전에는 항목 여섯이 건수와 무관하게 각각 판이었다 — 0건인 항목도 제목·설명·안내 상자·
+ * 클로비 그림을 갖춘 250px 판을 차지해, 정상인 설치에서 이 화면이 1,500px 를 넘겼다. 이제
+ * 건수가 있는 항목만 판(제목 + 건수 + 표 + 지정 줄)이고, 0건은 이름과 「0건」 표지의 줄 하나다.
  */
 
 const SCOPE_KO = { global: "전체 관리자", org: "조직관리자", dept: "부서관리자" };
 
+/* 행을 구별하는 이름 — 화면의 「대상」 열과 선택 체크박스의 접근 이름이 같은 값을 쓴다. */
+const targetName = (r) => r.display_name || r.title || r.name || r.id;
+
+/* 건수가 있는 항목 하나 — 판이다. 선택 열은 공용 `selectionColumn` 이라 다른 목록 화면과
+   같은 체크박스(전체 선택 머리 칸 포함)를 쓴다. */
 function Findings({ finding, onFix }) {
-  const [selected, setSelected] = React.useState(() => new Set());
-  const toggle = (id) =>
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
+  const selection = useRowSelection();
   const allIds = finding.items.map((i) => i.id);
-  const allChosen = allIds.length > 0 && allIds.every((id) => selected.has(id));
 
   const columns = [
-    finding.fixable_here
-      ? {
-          key: "_pick", label: "", nowrap: true, width: "3rem",
-          render: (r) => (
-            <input
-              type="checkbox"
-              checked={selected.has(r.id)}
-              onChange={() => toggle(r.id)}
-              aria-label={`${r.display_name || r.title || r.name || r.id} 선택`}
-            />
-          ),
-        }
-      : null,
-    {
-      key: "name", label: "대상", identifier: true,
-      render: (r) => r.display_name || r.title || r.name || r.id,
-    },
+    finding.fixable_here ? selectionColumn(selection, allIds) : null,
+    { key: "name", label: "대상", identifier: true, rowName: targetName, render: targetName },
     { key: "detail", label: "메모", type: "text", render: (r) => r.email || r.reason || r.code || (r.projects || []).join(", ") || "-" },
   ].filter(Boolean);
 
   return (
-    <Card sx={{ mb: 2.5 }}>
+    <Card>
       <SectionTitle
-        component="h2"
+        component="h3"
         title={finding.title}
-        action={
-          <Badge value={`${finding.count}건`} kind={finding.count ? "warn" : "ok"} />
-        }
+        help={finding.why}
+        action={<Badge value={`${finding.count}건`} kind="warn" />}
       />
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>{finding.why}</Typography>
-      <Callout tone="info">{finding.remedy}</Callout>
-
-      {/* `art` 는 예전에 `"done"` 이었다 — `lib/assets.js::ART` 에 없는 키라 일러스트가
-          조용히 안 그려졌다(오류도 안 난다). 실제 키는 `success` 다. */}
-      {finding.count === 0 ? (
-        <EmptyState title="해당 없음" help="이 항목에서 정리할 것이 없습니다." art="success" />
-      ) : (
-        <>
-          {finding.count > finding.items.length ? (
-            <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1 }}>
-              전체 {finding.count}건 중 {finding.items.length}건만 표에 보입니다. 나머지는 정리한
-              뒤 다시 열면 이어서 나타납니다.
-            </Typography>
-          ) : null}
-          <Box sx={{ mt: 1.5 }}>
-            <DataTable columns={columns} rows={finding.items} rowKey={(r) => r.id} />
-          </Box>
-          {finding.fixable_here ? (
-            <Box sx={{ mt: 1.5, display: "flex", gap: 1, alignItems: "center", flexWrap: "wrap" }}>
-              <Button
-                size="sm" variant="ghost"
-                onClick={() => setSelected(allChosen ? new Set() : new Set(allIds))}
-              >
-                {allChosen ? "선택 해제" : "이 표 전체 선택"}
-              </Button>
-              <Typography variant="body2" color="text.secondary">
-                {selected.size}건 선택됨
-              </Typography>
-              <Box sx={{ flex: 1 }} />
-              {onFix ? onFix([...selected], () => setSelected(new Set())) : null}
-            </Box>
-          ) : null}
-        </>
-      )}
+      <Callout tone="info" variant="inline">{finding.remedy}</Callout>
+      {finding.count > finding.items.length ? (
+        <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1 }}>
+          전체 {finding.count}건 중 {finding.items.length}건만 표에 보입니다. 나머지는 정리한
+          뒤 다시 열면 이어서 나타납니다.
+        </Typography>
+      ) : null}
+      <Box sx={{ mt: 1.5 }}>
+        <DataTable columns={columns} rows={finding.items} rowKey={(r) => r.id} />
+      </Box>
+      {finding.fixable_here ? (
+        <Box sx={{ mt: 1.5, display: "flex", gap: 1, alignItems: "center", flexWrap: "wrap" }}>
+          <Typography variant="body2" color="text.secondary">
+            {selection.selected.size}건 선택됨
+          </Typography>
+          <Box sx={{ flex: 1 }} />
+          {onFix ? onFix([...selection.selected], selection.clear) : null}
+        </Box>
+      ) : null}
     </Card>
+  );
+}
+
+/* 0건 항목들 — 판 없이 줄 하나씩. 이름과 «왜 문제인가» 는 남기고 안내(remedy)는 뺀다 —
+   정리할 것이 없는 항목에 정리하는 법을 적어 두면 읽을 사람이 없다. */
+function ClearFindings({ findings }) {
+  return (
+    <Box>
+      {findings.map((f, i) => (
+        <SettingRow
+          key={f.key}
+          label={f.title}
+          description={f.why}
+          last={i === findings.length - 1}
+          action={<Badge value="0건" kind="ok" />}
+        />
+      ))}
+    </Box>
   );
 }
 
@@ -167,6 +162,9 @@ export function Integrity() {
     id: d.id, name: d.name,
   }));
   const admins = data.admins || { by_scope: {}, items: [], total: 0 };
+  const findings = data.findings || [];
+  const open = findings.filter((f) => f.count > 0);
+  const clear = findings.filter((f) => !(f.count > 0));
 
   return (
     <Box className="c-screen">
@@ -185,59 +183,72 @@ export function Integrity() {
         </Callout>
       )}
 
-      <Box sx={{ mt: 2.5 }}>
-        {data.findings.map((f) => (
-          <Findings
-            key={f.key}
-            finding={f}
-            onFix={
-              f.key === "users_without_membership"
-                ? (ids, reset) => (
-                    <MembershipFixer ids={ids} onDone={reset} departments={departments} />
-                  )
-                : null
-            }
-          />
-        ))}
-      </Box>
+      {/* 왼쪽이 정리할 항목, 오른쪽이 관리자 범위 — 예전에는 둘이 세로로 이어져 관리자 범위
+          표를 보려면 판 여섯을 지나야 했다. 짝은 **xl 부터**다: 1366 에서 세 열짜리 표를 3분의 1
+          폭에 넣으면 「관리 범위」 열이 잘린다(실측). 그 아래에서는 한 열로 선다. */}
+      <Box sx={{ mt: 2.5, ...pairTracks(ADMIN_SCOPE_PAIR), gridTemplateColumns: { xs: "minmax(0, 1fr)", xl: ADMIN_SCOPE_PAIR } }}>
+        <Section titleAs="h2" title="정리할 항목" rule sx={{ mb: 0 }}>
+          {open.length ? (
+            <Box sx={{ display: "grid", gap: 2.5, mb: clear.length ? 2.5 : 0 }}>
+              {open.map((f) => (
+                <Findings
+                  key={f.key}
+                  finding={f}
+                  onFix={
+                    f.key === "users_without_membership"
+                      ? (ids, reset) => (
+                          <MembershipFixer ids={ids} onDone={reset} departments={departments} />
+                        )
+                      : null
+                  }
+                />
+              ))}
+            </Box>
+          ) : null}
+          {clear.length ? <ClearFindings findings={clear} /> : null}
+        </Section>
 
-      <Card>
-        <SectionTitle
-          component="h2"
+        <Section
+          titleAs="h2"
           title="관리자 범위 현황"
           help="조직이나 부서 관리자는 admin과 범위의 조합입니다. 전부 ‘전체’면 범위 기능은 쓰이지 않는 것입니다."
-        />
-        <MetricStrip
-          ariaLabel="관리자 범위 현황"
-          items={["global", "org", "dept"].map((k) => ({
-            key: k,
-            value: admins.by_scope[k] || 0,
-            label: SCOPE_KO[k],
-            kind: k === "global" && (admins.by_scope[k] || 0) === admins.total ? "warn" : undefined,
-          }))}
-          sx={{ mb: 2 }}
-        />
-        <DataTable
-          columns={[
-            { key: "display_name", label: "이름", identifier: true },
-            { key: "role", label: "역할", nowrap: true },
-            {
-              key: "admin_scope", label: "관리 범위", nowrap: true,
-              render: (r) => (
-                <Box sx={{ minWidth: 0 }}>
-                  <Typography variant="body2" sx={{ fontWeight: FONT_WEIGHT.semibold }}>
-                    {SCOPE_KO[r.admin_scope] || r.admin_scope}
-                  </Typography>
-                  <OrgPath path={r.scope_path} />
-                </Box>
-              ),
-            },
-          ]}
-          rows={admins.items}
-          rowKey={(r) => r.id}
-          empty="관리자 계정이 없습니다."
-        />
-      </Card>
+          rule
+          sx={{ mb: 0 }}
+        >
+          <MetricStrip
+            ariaLabel="관리자 범위 현황"
+            items={["global", "org", "dept"].map((k) => ({
+              key: k,
+              value: admins.by_scope[k] || 0,
+              label: SCOPE_KO[k],
+              kind: k === "global" && (admins.by_scope[k] || 0) === admins.total ? "warn" : undefined,
+            }))}
+            sx={{ mb: 2 }}
+          />
+          <ListCard>
+            <DataTable
+              columns={[
+                { key: "display_name", label: "이름", identifier: true },
+                { key: "role", label: "역할", nowrap: true },
+                {
+                  key: "admin_scope", label: "관리 범위", nowrap: true,
+                  render: (r) => (
+                    <Box sx={{ minWidth: 0 }}>
+                      <Typography variant="body2" sx={{ fontWeight: FONT_WEIGHT.semibold }}>
+                        {SCOPE_KO[r.admin_scope] || r.admin_scope}
+                      </Typography>
+                      <OrgPath path={r.scope_path} />
+                    </Box>
+                  ),
+                },
+              ]}
+              rows={admins.items}
+              rowKey={(r) => r.id}
+              empty="관리자 계정이 없습니다."
+            />
+          </ListCard>
+        </Section>
+      </Box>
     </Box>
   );
 }

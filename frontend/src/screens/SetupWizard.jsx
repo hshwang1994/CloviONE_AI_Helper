@@ -5,8 +5,11 @@ import Link from "@mui/material/Link";
 import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
 import { useAuth } from "../app/auth.jsx";
-import { PageHeader, Card, Button, Callout, Skeleton, ErrorState, EmptyState } from "../ui/kit.jsx";
-import { FONT_SIZE, FONT_WEIGHT, RADIUS } from "../ui/theme.js";
+import {
+  PageHeader, Card, Badge, Button, Callout, MetricStrip, Skeleton, ErrorState, EmptyState,
+} from "../ui/kit.jsx";
+import { FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
+import { BASELINE_TRACKS, pairTracks } from "../ui/density.js";
 
 /* 최초 실행 셋업 마법사 (9-3, P3).
  *
@@ -32,8 +35,13 @@ import { FONT_SIZE, FONT_WEIGHT, RADIUS } from "../ui/theme.js";
 
 // 상태를 색으로만 말하지 않는다(WCAG 1.4.1, 이 앱의 Badge, Callout 과 같은 규칙).
 const STATE_LABEL = { done: "됨", todo: "안 됨", unknown: "확인 불가" };
-const STATE_TONE = { done: "success", todo: "warn", unknown: "info" };
-const TONE_COLOR = { success: "success.main", warn: "warning.main", info: "info.main" };
+/* 상태는 `Badge` 다(분류라면 `Tag`). 예전에는 여기서 알약을 손으로 그렸는데(테두리 + 색 글자 +
+   `RADIUS.full`), 그 알약은 제품의 다른 어떤 상태 표시와도 모양이 달랐다 — 같은 뜻(됨·안 됨)이
+   사용자 화면의 표지+글자와 다르게 보이면 관리자 화면이 다른 제품으로 읽힌다. */
+const STATE_KIND = { done: "ok", todo: "warn", unknown: "info" };
+
+/* 한 문장을 네 자리(권한 없음·로딩·오류·본문)가 각자 복사해 들고 있었다. */
+const DESCRIPTION = "처음 설치할 때 필요한 설정 중 아직 안 끝난 항목을 순서대로 안내합니다.";
 
 /* 항목마다 "그래서 어디로 가면 되는가".
  *
@@ -67,22 +75,6 @@ export const SETUP_LINKS = {
   tls: { href: "#/diagnostics", label: "진단에서 인증서 확인" },
 };
 
-function StateTag({ state }) {
-  const label = STATE_LABEL[state] || state;
-  return (
-    <Box
-      component="span"
-      sx={{
-        px: 1, py: 0.25, borderRadius: RADIUS.full, fontSize: FONT_SIZE.caption, fontWeight: FONT_WEIGHT.extrabold,
-        border: "1px solid", borderColor: TONE_COLOR[STATE_TONE[state]] || "divider",
-        color: TONE_COLOR[STATE_TONE[state]] || "text.secondary", whiteSpace: "nowrap",
-      }}
-    >
-      {label}
-    </Box>
-  );
-}
-
 function SetupItem({ item, isNext }) {
   const link = SETUP_LINKS[item.key];
   const blocked = item.blocked_by != null;
@@ -92,49 +84,41 @@ function SetupItem({ item, isNext }) {
       data-testid={"setup-item-" + item.key}
       component="li"
       sx={{
-        listStyle: "none", display: "grid", gap: 0.75, py: 2,
-        borderTop: "1px solid", borderColor: "divider",
+        listStyle: "none", display: "grid", gap: 0.5, py: 2,
+        borderTop: 1, borderColor: "divider",
         opacity: blocked ? 0.75 : 1,
       }}
     >
       <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
-        <Typography component="h2" sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: FONT_SIZE.sectionTitle }}>
+        {/* 항목 제목은 h2 그대로다(h1 바로 아래, 판에 따로 제목이 없다). 크기만 본문 단계로
+            내렸다 — 여섯 항목이 각각 구획 제목 크기로 서면 한 화면에 제목이 일곱이다. */}
+        <Typography component="h2" variant="body1" sx={{ fontWeight: FONT_WEIGHT.semibold, ...KO_WORD_BREAK }}>
           {item.label}
         </Typography>
-        <StateTag state={item.state} />
-        {isNext ? (
-          <Box
-            component="span"
-            sx={{
-              px: 1, py: 0.25, borderRadius: RADIUS.full, fontSize: FONT_SIZE.caption,
-              fontWeight: FONT_WEIGHT.extrabold, bgcolor: "primary.main", color: "primary.contrastText",
-            }}
-          >
-            지금 할 차례
-          </Box>
-        ) : null}
+        <Badge value={STATE_LABEL[item.state] || item.state} kind={STATE_KIND[item.state]} />
+        {isNext ? <Badge value="지금 할 차례" kind="info" emphasis="strong" /> : null}
       </Box>
-      <Typography variant="body2" color="text.secondary">{item.detail}</Typography>
+      <Typography variant="body2" color="text.secondary" sx={KO_WORD_BREAK}>{item.detail}</Typography>
       {blocked ? (
-        <Typography variant="body2" sx={{ fontWeight: FONT_WEIGHT.bold }}>
+        <Typography variant="body2" sx={{ fontWeight: FONT_WEIGHT.semibold, ...KO_WORD_BREAK }}>
           {item.blocked_by_label}를 먼저 끝내야 이 항목을 진행할 수 있습니다.
           {item.requires_why ? " " + item.requires_why : ""}
         </Typography>
       ) : item.action ? (
-        <Typography variant="body2">
-          <Box component="span" sx={{ fontWeight: FONT_WEIGHT.extrabold, mr: 1 }}>할 일</Box>
+        <Typography variant="body2" sx={KO_WORD_BREAK}>
+          <Box component="span" sx={{ fontWeight: FONT_WEIGHT.semibold, mr: 1 }}>할 일</Box>
           {item.action}
         </Typography>
       ) : item.question ? (
-        <Typography variant="body2">
-          <Box component="span" sx={{ fontWeight: FONT_WEIGHT.extrabold, mr: 1 }}>확인할 것</Box>
+        <Typography variant="body2" sx={KO_WORD_BREAK}>
+          <Box component="span" sx={{ fontWeight: FONT_WEIGHT.semibold, mr: 1 }}>확인할 것</Box>
           {item.question}
         </Typography>
       ) : null}
-      <Typography variant="caption" color="text.secondary">{item.why}</Typography>
+      <Typography variant="caption" color="text.secondary" sx={KO_WORD_BREAK}>{item.why}</Typography>
       {link ? (
         <Box>
-          <Link href={link.href} underline="hover" sx={{ fontSize: FONT_SIZE.body, fontWeight: FONT_WEIGHT.bold }}>
+          <Link href={link.href} underline="hover" variant="body2" sx={{ fontWeight: FONT_WEIGHT.semibold }}>
             {link.label}
           </Link>
         </Box>
@@ -143,25 +127,32 @@ function SetupItem({ item, isNext }) {
   );
 }
 
+/* 요약 — 목록 옆 보조 레일에 선다(`/new-ticket` 의 폼 + 레일 모양, D-458). 문장이 뜻을 말하고
+   판독 줄이 숫자를 보인다. 목록을 접어도 이 레일은 남는다. */
 function Summary({ data }) {
   const remaining = (data.remaining || []).length;
   const todo = (data.todo || []).length;
   const unknown = (data.unknown || []).length;
-  if (data.complete) {
-    return (
-      <Box data-testid="setup-summary">
-        <Callout tone="success">
-          초기 설정 항목이 모두 끝났습니다. 아래 목록은 그대로 두어 언제든 다시 확인할 수 있습니다.
-        </Callout>
-      </Box>
-    );
-  }
   return (
-    <Box data-testid="setup-summary">
-      <Callout tone="warn">
-        {`남은 항목 ${remaining}개입니다. 사람이 해야 할 일 ${todo}개, 확인이 필요한 것 ${unknown}개.`}
-        {" 확인이 필요한 것은 이 서버에서는 판단할 수 없어 사람에게 묻는 항목입니다."}
-      </Callout>
+    <Box data-testid="setup-summary" sx={{ display: "grid", gap: 2 }}>
+      {data.complete ? (
+        <Callout tone="success">
+          초기 설정 항목이 모두 끝났습니다. 목록은 그대로 두어 언제든 다시 확인할 수 있습니다.
+        </Callout>
+      ) : (
+        <Callout tone="warn">
+          {`남은 항목 ${remaining}개입니다. 사람이 해야 할 일 ${todo}개, 확인이 필요한 것 ${unknown}개.`}
+          {" 확인이 필요한 것은 이 서버에서는 판단할 수 없어 사람에게 묻는 항목입니다."}
+        </Callout>
+      )}
+      <MetricStrip
+        ariaLabel="초기 설정 진행"
+        items={[
+          { key: "remaining", label: "남은 항목", value: remaining, primary: true },
+          { key: "todo", label: "할 일", value: todo },
+          { key: "unknown", label: "확인 필요", value: unknown },
+        ]}
+      />
     </Box>
   );
 }
@@ -184,8 +175,9 @@ export function SetupWizard() {
   if (!allowed) {
     return (
       <Box className="c-screen">
-        <PageHeader area="설정" title="초기 설정" description="처음 설치할 때 필요한 설정 중 아직 안 끝난 항목을 순서대로 안내합니다." />
+        <PageHeader area="설정" title="초기 설정" description={DESCRIPTION} />
         <EmptyState
+          layout="page"
           title="권한이 없습니다"
           help="이 화면은 시스템 관리자만 사용할 수 있습니다. 여기 담긴 것은 조직 단위가 아니라 서버 한 대 전체의 상태입니다."
           art="noPermission"
@@ -197,7 +189,7 @@ export function SetupWizard() {
   if (query.isLoading) {
     return (
       <Box className="c-screen">
-        <PageHeader area="설정" title="초기 설정" description="처음 설치할 때 필요한 설정 중 아직 안 끝난 항목을 순서대로 안내합니다." />
+        <PageHeader area="설정" title="초기 설정" description={DESCRIPTION} />
         <Card><Skeleton lines={7} /></Card>
       </Box>
     );
@@ -205,7 +197,7 @@ export function SetupWizard() {
   if (query.isError) {
     return (
       <Box className="c-screen">
-        <PageHeader area="설정" title="초기 설정" description="처음 설치할 때 필요한 설정 중 아직 안 끝난 항목을 순서대로 안내합니다." />
+        <PageHeader area="설정" title="초기 설정" description={DESCRIPTION} />
         <ErrorState error={query.error} onRetry={() => query.refetch()} />
       </Box>
     );
@@ -218,26 +210,32 @@ export function SetupWizard() {
       <PageHeader
         area="설정"
         title="초기 설정"
-        description="처음 설치할 때 필요한 설정 중 아직 안 끝난 항목을 순서대로 안내합니다."
+        description={DESCRIPTION}
         actions={
           <Button onClick={() => setOpen((v) => !v)}>
             {open ? "목록 접기" : "목록 펼치기"}
           </Button>
         }
       />
-      <Summary data={data} />
-      {open ? (
-        <Card sx={{ mt: 2 }}>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-            아래 순서는 의존 순서입니다. 앞 항목이 끝나야 뒤 항목이 실제로 동작합니다.
-          </Typography>
-          <Box component="ul" sx={{ m: 0, p: 0 }}>
-            {items.map((item) => (
-              <SetupItem key={item.key} item={item} isNext={item.key === data.next_key} />
-            ))}
-          </Box>
+      {/* 목록 판 + 요약 레일. 예전에는 요약이 전폭 안내 상자, 목록이 전폭 판이라 1920 에서
+          항목 설명 한 줄이 1,500px 를 달렸다. 접으면 레일만 전폭으로 남는다. */}
+      <Box sx={open ? pairTracks(BASELINE_TRACKS.two) : undefined}>
+        {open ? (
+          <Card>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1, ...KO_WORD_BREAK }}>
+              아래 순서는 의존 순서입니다. 앞 항목이 끝나야 뒤 항목이 실제로 동작합니다.
+            </Typography>
+            <Box component="ul" sx={{ m: 0, p: 0 }}>
+              {items.map((item) => (
+                <SetupItem key={item.key} item={item} isNext={item.key === data.next_key} />
+              ))}
+            </Box>
+          </Card>
+        ) : null}
+        <Card component="aside">
+          <Summary data={data} />
         </Card>
-      ) : null}
+      </Box>
     </Box>
   );
 }
