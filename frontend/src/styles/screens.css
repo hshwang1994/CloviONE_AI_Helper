@@ -1,22 +1,14 @@
-
-
-/* 목록 화면 툴바·검색·상세 키·값. .c-toolbar-card 자체의 padding/margin-bottom은 5개 호출부
-   전부 sx={{p:2, mb:2.5}}로 이미 다른 값을 직접 주고 있어 여기 다시 선언하면 이중 선언
-   충돌이었다(DS-19) — 클래스명은 §293 주석 대상 선택자(`.c-screen > ...`)용으로 남기고
-   자체 규칙은 뺐다. */
-.c-toolbar-row { display: flex; align-items: center; gap: var(--space-lg, 16px); flex-wrap: wrap; }
+/* 화면별 정적 CSS — 색·치수는 토큰(tokens.css)만 참조한다.
+   툴바 판(.c-toolbar-card/.c-toolbar-row/.c-toolbar-toggle)과 키/값 줄(.c-kv*)은 걷었다 —
+   탐색 줄은 `ui/FilterBar.jsx`, 키/값 줄은 `kit.jsx::DetailRow` 가 그린다(D-455 · D-457). */
 
 /* 다중선택 — 좁은 체크박스 열, 헤더에 두는 깔끔한 일괄 동작, 제목 링크 버튼 */
 .k-selbox { width: 16px; height: 16px; cursor: pointer; accent-color: var(--color-primary); margin: 0; vertical-align: middle; }
 .k-bulkactions { display: inline-flex; align-items: center; gap: var(--space-sm, 8px); margin-right: var(--space-sm, 8px); }
 .k-bulkactions-count { font-size: var(--font-size-sm, 13px); color: var(--color-muted); font-variant-numeric: tabular-nums; }
-.c-toolbar-toggle { font-size: 0.8125rem; color: var(--color-muted); white-space: nowrap; }
 .c-list-card { padding: 6px 8px; }
-.c-kv { display: grid; grid-template-columns: 120px 1fr; gap: var(--space-sm, 10px); padding: var(--space-sm, 8px) 0; border-bottom: 1px solid var(--color-line); font-size: 0.875rem; }
-.c-kv:last-child { border-bottom: 0; }
-.c-kv-k { color: var(--color-muted); }
-.c-kv-v { color: var(--color-text); word-break: keep-all; overflow-wrap: break-word; }
-.c-detail-json { margin: 0; white-space: pre-wrap; word-break: break-word; font-size: 0.75rem; line-height: 1.5; background: var(--color-bg); padding: var(--space-sm, 10px) var(--space-md, 12px); border-radius: var(--radius-sm, 6px); max-height: 320px; overflow: auto; }
+/* 원문 블록 — `data-screen/JsonBlock.jsx` 와 같은 값(글자 bodySm, 줄간격 1.6). */
+.c-detail-json { margin: 0; white-space: pre-wrap; word-break: break-word; font-size: var(--font-size-sm, 0.875rem); line-height: 1.6; background: var(--color-bg); padding: var(--space-sm, 10px) var(--space-md, 12px); border-radius: var(--radius-sm, 6px); max-height: 320px; overflow: auto; }
 /* '복사를 지원하지 않는 환경' 폴백은 이 값을 직접 선택해 복사하라고 안내한다 — UUID는 하이픈이
    섞여 있어 더블클릭만으로는 한 토막만 선택된다. 클릭 한 번으로 전체가 선택되게 한다(.c-temp-pw와 동일 취지). */
 .c-id-selectable { user-select: all; }
@@ -110,20 +102,7 @@
 /* 도우미 말풍선 — 카드 표면 + 얇은 테두리에 은은한 그림자(다크모드 대응 토큰)로 배경에서 살짝 뜬다. */
 /* 어시스턴트 답의 구조화 렌더(리치 텍스트) — 머리글/목록/키-값. 사용자 말풍선(파란 배경)에는
    쓰지 않는다(어두운 잉크 색이 얹혀 안 읽힌다). */
-/* 16px — 이 헤더가 소개하는 본문(.msg-p/.msg-li-text/.msg-kv-v)의 15px보다 커야 '머리글'로 읽힌다.
-   14px이던 예전 값은 자기 본문보다 작아 구조화 서식이 의도한 시각 위계를 오히려 뒤집었다. */
-.msg-h { margin: var(--space-sm, 10px) 0 var(--space-xs, 4px); font-size: var(--font-size-lg, 1.1875rem); font-weight: var(--fw-semibold, 600); color: var(--color-heading); }
-.msg-h:first-child { margin-top: 0; }
-.msg-p { margin: var(--space-sm, 6px) 0 0; white-space: pre-wrap; word-break: keep-all; overflow-wrap: break-word; }
-.msg-p:first-child { margin-top: 0; }
-.msg-list { list-style: none; margin: var(--space-sm, 6px) 0 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-xs, 4px); }
-.msg-list:first-child { margin-top: 0; }
-.msg-li { display: grid; grid-template-columns: auto 1fr; column-gap: 6px; align-items: baseline; }
-.msg-li.dash { grid-template-columns: 1fr; }
-/* 마커 없는(-) 항목은 앞에 옅은 불릿을 그려 목록임을 보인다. */
- /* clovi-allow-glyph: 목록 글머리표 */
-.msg-kv { margin: var(--space-sm, 6px) 0 0; display: flex; flex-direction: column; gap: 3px; }
-.msg-kv:first-child { margin-top: 0; }
+/* 어시스턴트 답의 구조화 서식(.msg-*)은 어느 화면도 더 이상 그리지 않는다 — 규칙을 걷었다. */
 /* 결과 카드 — 상태는 배경 틴트+전체 테두리+배지로 표현(좌측 색막대 없음). */
 /* 프로젝트 색 점 — 같은 프로젝트가 어디서나 같은 색으로 읽히도록 결정적 색조(projectTone 0~7). */
 .project-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 5px; flex-shrink: 0; background: var(--color-muted); }
@@ -178,76 +157,16 @@
 @media (max-width: 760px) {
 }
 
-/* 설정형 화면(DataScreen) 세로 리듬 — 헤더(.k-page-head)·툴바(.c-toolbar-card)는 자체
+/* 설정형 화면(DataScreen) 세로 리듬 — 헤더(.k-page-head)·탐색 줄(FilterSurface)은 자체
    margin-bottom 이 있으나 설명 콜아웃(.k-callout)은 없어, 설명·툴바가 서로 붙어 보였다.
    루트 직계 자식에만 적용해 폼·모달 안의 콜아웃에는 영향을 주지 않는다.
    (`.dash-grid` 규칙이 함께 있었다 — 그 클래스를 쓰는 JSX 가 한 곳도 없어 걷었다.) */
 .c-screen > .k-callout { margin-bottom: var(--space-lg, 16px); }
 
-/* 개발자 월간 리포트 — 처음 제공한 HTML 리포트와 같은 시각 디자인을 앱 토큰으로 재현.
-   막대는 SVG(색은 클래스로), 색·여백·굵기는 토큰만. 다크는 토큰이 알아서 처리한다. */
-.devrep { font-variant-numeric: tabular-nums; }
-.devrep-kpis {
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: var(--space-md, 12px); margin: 0 0 var(--space-xl, 24px);
-}
-.devrep-kpi {
-  position: relative; overflow: hidden; background: var(--color-card);
-  border: 1px solid var(--color-border); border-radius: var(--radius-md, 8px);
-  box-shadow: var(--shadow-subtle); padding: var(--space-lg, 16px) var(--space-lg, 16px) var(--space-md, 12px);
-}
-/* 좌측 색막대(레일)는 쓰지 않는다(디자인 결정) — 완료(accent)는 값 색 + 옅은 테두리 강조,
-   지연(warn)은 값 색 + 옅은 틴트 배경 + 테두리로 좌측 바 없이 구분한다. */
-
-.devrep-sec { margin: 0 0 var(--space-xl, 24px); }
-
-.devrep-tablewrap {
-  overflow-x: auto; border: 1px solid var(--color-border);
-  border-radius: var(--radius-md, 8px); background: var(--color-card); box-shadow: var(--shadow-subtle);
-}
-  text-align: center; font-size: var(--font-size-xs, 0.75rem); font-weight: var(--fw-semibold, 600); letter-spacing: 0.03em;
-  color: var(--color-muted); padding: 12px 10px; border-bottom: 1px solid var(--color-border);
-  background: color-mix(in srgb, var(--color-primary) 6%, var(--color-card)); white-space: nowrap;
-  cursor: help;
-}
-.devrep-done { color: var(--color-success); font-weight: var(--fw-semibold, 600); }
-.devrep-z { color: var(--color-muted); }
-
-.devrep-bar { display: inline-block; vertical-align: middle; width: 170px; height: 18px; border-radius: var(--radius-sm, 6px); overflow: hidden; }
-/* 무지성 중앙정렬 금지 — 개발자 이름·상태구성 헤더(.l)는 좌측(td.l 523/th.l 상속),
-   상태 막대(.bar)는 중앙, 나머지 숫자 열은 우측(tabular-nums 자릿수 정렬). */
-.devrep-hbar svg { border-radius: var(--radius-sm, 6px); overflow: hidden; }
-/* 담당자별 상세 티켓은 담당자마다 구분 행을 둔 하나의 표로 그린다 — 표가 여러 개면 열 너비가
-   제각각이라 위치가 어긋난다. 한 표로 묶으면 모든 담당자의 열이 자동으로 정렬된다. */
-.devrep-grouprow td {
-  background: color-mix(in srgb, var(--color-primary) 8%, var(--color-card));
-  font-weight: var(--fw-semibold, 600); color: var(--color-heading);
-  border-top: 1px solid var(--color-border);
-}
-.devrep-grouprow td .k-field-help { margin-left: var(--space-md, 12px); font-weight: var(--fw-normal, 400); }
-.devrep-bar .track, .devrep-hbar .track { fill: var(--color-line); }
-
-.devrep-hbars { display: flex; flex-direction: column; gap: var(--space-sm, 8px); margin: 0 0 var(--space-md, 12px); }
-.devrep-hbar { display: grid; grid-template-columns: 72px 1fr 46px; align-items: center; gap: var(--space-md, 12px); }
-.devrep-hbar svg { display: block; width: 100%; height: 18px; }
-.devrep-hbar .fill { fill: var(--color-primary); }
-
-.devrep-chip { display: inline-block; padding: 2px 9px; border-radius: var(--radius-pill, 999px); font-size: var(--font-size-xs, 0.75rem); font-weight: var(--fw-semibold, 600); line-height: 1.5; }
-
-.devrep-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: var(--space-md, 12px) 2px 0; font-size: var(--font-size-xs, 0.75rem); color: var(--color-muted); }
-.devrep-legend i { display: inline-block; width: 11px; height: 11px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
-.devrep-legend i.done { background: var(--color-success); }
-.devrep-legend i.prog { background: var(--color-primary); }
-.devrep-legend i.verify { background: var(--color-warning); }
-.devrep-legend i.plan { background: color-mix(in srgb, var(--color-muted) 60%, var(--color-card)); }
-.devrep-legend i.cancel { background: color-mix(in srgb, var(--color-error) 50%, var(--color-muted)); }
-
-.devrep-devname { font-size: 0.9375rem; font-weight: var(--fw-semibold, 600); color: var(--color-heading); margin: 0 0 var(--space-sm, 8px); display: flex; align-items: baseline; gap: var(--space-md, 12px); flex-wrap: wrap; }
-
-/* 인쇄: 사이드바·상단바를 숨기고 리포트만 깔끔히 출력한다. */
-@media print { .devrep-noprint { display: none !important; } .c-body{ display: block !important; margin: 0 !important; padding: 0 !important; }
-  .devrep-kpi, .devrep-tablewrap { box-shadow: none !important; }
-}
+/* 개발자 월간 리포트 — 표·지표·구획은 전부 kit 부품(`DataTable`·`MetricStrip`·`Section`)이
+   그린다. 예전 손으로 만든 표의 규칙(kpi·bar·legend·grouprow …)은 소비처가 없어 걷었다.
+   남는 것은 인쇄 규칙 하나다 — 사이드바·상단바를 숨기고 리포트만 깔끔히 출력한다. */
+@media print { .devrep-noprint { display: none !important; } .c-body{ display: block !important; margin: 0 !important; padding: 0 !important; } }
 
 /* ── 자유게시판(팀 공간 §18) ─────────────────────────────────────────────
  * 색은 모두 토큰 var()로만(테마 자동 대응). AI 기호(—·)는 UI 텍스트에 쓰지 않는다.
@@ -265,32 +184,8 @@
 
 /* 입력창(댓글·답글) */
 
-/* ── 팀 공간 > 문서(§17) ──────────────────────────────────────────────────
- * 색은 토큰 var()만. 본문 블록은 textContent로만 렌더한다(문서 안 텍스트는 데이터일 뿐). */
-.docs-sync { display: flex; align-items: center; gap: var(--space-md, 12px); margin-bottom: var(--space-md, 12px); flex-wrap: wrap; }
-.docs-sync .k-callout { flex: 1 1 auto; margin: 0; }
-.docs-filters { display: flex; gap: var(--space-sm, 8px); flex-wrap: wrap; align-items: center; margin-bottom: var(--space-md, 12px); }
-.docs-search { min-width: 220px; flex: 1 1 220px; }
-.docs-filter { width: auto; }
-.docs-star { color: var(--color-warning); }
-.docs-preview { border: 1px solid var(--color-border); border-radius: var(--radius-md, 8px); background: var(--color-bg); padding: var(--space-md, 12px); display: flex; flex-direction: column; gap: var(--space-xs, 4px); max-height: 220px; overflow-y: auto; }
-
-.docs-pager { display: flex; align-items: center; justify-content: center; gap: var(--space-md, 12px); margin-top: var(--space-md, 12px); }
-
-/* 문서 목록 표: 칼럼 너비를 고정한다. 없으면 페이지/내용이 바뀔 때마다 열 너비가 자동
- * 재계산돼 "왔다갔다" 흔들린다(검수·사용자 피드백). 데스크톱(표)에서만 적용하고 모바일
- * 카드 모드(≤760px)는 kit 기본에 맡긴다. 셀은 넘치면 …로 자른다. */
-/* 문서 목록 표의 열 폭 고정 블록을 지웠다 (W4).
-   `.k-table`·`.docs-table` 은 어느 화면도 더 이상 렌더하지 않는다(`DataTable` 이 MUI 로
-   이관되며 열 폭이 열 정의의 `width` 로 옮겨 갔다). 남아 있던 `th:nth-child(1..8)` 규칙은
-   **열 순서가 바뀌면 조용히 어긋나는** 바로 그 방식이었고, 이미 한 번 체크박스 열이 생기며
-   한 칸씩 밀려 제목 폭을 먹은 적이 있다 — 이제 매치되지도 않는다.
-   열 폭·정렬의 정본은 `kit.jsx::DataTable` 의 컬럼 계약이다. */
-
-@media (max-width: 640px) {
-  .docs-filters { flex-direction: column; align-items: stretch; }
-  .docs-search { min-width: 0; }
-}
+/* 옛 문서 화면의 규칙은 없어졌다(S14 · C2) — 문서 목록은 `Knowledge.jsx` 가 kit 부품으로
+   그린다. */
 
 /* ===== 내 업무 홈 — 게시판 활동 위젯 ===== */
 

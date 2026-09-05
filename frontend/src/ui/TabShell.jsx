@@ -5,6 +5,7 @@ import Tab from "@mui/material/Tab";
 import { useAuth } from "../app/auth.jsx";
 import { Button, Card, EmptyState, ErrorState, PageHeader, Skeleton } from "./kit.jsx";
 import { useQueryState } from "../lib/useQueryState.js";
+import { HeaderActionsHost, HeaderActionsProvider, useHeaderActionsSlot } from "./HeaderSlot.jsx";
 
 /* 탭 그릇 — 성격이 같은 화면 둘 이상을 한 주소 아래 모을 때 쓴다 (지시 30 · 46 · 51).
  *
@@ -28,14 +29,20 @@ import { useQueryState } from "../lib/useQueryState.js";
  * 4. **프런트의 역할 판정은 표시일 뿐이다.** 권한의 정본은 서버다(불변규칙 §5). 각 탭
  *    내용이 스스로 게이트를 갖고 있다면 그것도 그대로 둔다 — 여기서 한 겹을 더 얹는 것이지
  *    대신하는 것이 아니다.
+ * 5. **제목은 고정이고 탭은 그 아래다** (D-452). 예전에는 `PageHeader tab=` 으로 탭 라벨을
+ *    h1 로 올렸고, 그래서 `/schedules` 의 h1 이 「목록」이었다. 사용자 탭 화면(승인·휴지통·
+ *    프로젝트 상세)과 같은 모양으로 둔다.
+ * 6. **도움말과 머리 동작은 그릇이 그린다** (D-453 · D-454). 탭 정의의 `help`(문자열·노드·
+ *    `(role) => 노드`)가 제목 옆 `?` 가 되고, 탭 본문이 `HeaderActions` 로 넘긴 단추는
+ *    `PageHeader` 의 오른쪽에 선다 — 단독 화면과 같은 자리다.
  *
  * ## 쓰는 법
  *
  *   <TabShell
  *     area="운영" title="백업"
  *     tabs={[
- *       { key: "backup", label: "백업", render: () => <DataScreen config={cfg.backup} /> },
- *       { key: "drills", label: "복구 리허설", render: () => <DataScreen config={cfg.drills} /> },
+ *       { key: "backup", label: "백업", help: (role) => …, render: () => <DataScreen config={cfg.backup} embedded /> },
+ *       { key: "drills", label: "복구 리허설", render: () => <DataScreen config={cfg.drills} embedded /> },
  *     ]}
  *   />
  *
@@ -43,7 +50,15 @@ import { useQueryState } from "../lib/useQueryState.js";
  * `datascreen-view.js::withHashQuery` 가 **자기 키만** 갈아치우도록 고쳐 둬서 `?tab=` 이
  * 살아남는다. 그 보증이 없으면 필터를 한 칸 건드리는 순간 첫 탭으로 튕긴다.
  */
-export function TabShell({
+export function TabShell(props) {
+  return (
+    <HeaderActionsProvider>
+      <TabShellBody {...props} />
+    </HeaderActionsProvider>
+  );
+}
+
+function TabShellBody({
   area, title, crumbRoot, tabs, ariaLabel, deniedHelp, idPrefix = "tabshell", children,
 }) {
   const defs = (tabs || []).filter(Boolean);
@@ -74,13 +89,25 @@ export function TabShell({
   const tabId = (key) => `${idPrefix}-tab-${key}`;
   const panelId = (key) => `${idPrefix}-tabpanel-${key}`;
 
+  /* 본문이 머리 동작을 붙였을 때만 자리를 낸다(HeaderSlot.jsx 머리말). */
+  const slot = useHeaderActionsSlot();
+  const hasActions = !!(slot && slot.count > 0);
+
   if (auth.isLoading) return <Card><Skeleton /></Card>;
   if (auth.isError) return <ErrorState error={auth.error} onRetry={() => auth.refetch()} />;
   if (!activeDef) return null;
 
+  /* 권한이 없는 탭의 도움말은 안 그린다 — 안내판이 그 자리를 대신한다. */
+  const rawHelp = roleDenied ? null : activeDef.help;
+  const help = typeof rawHelp === "function" ? rawHelp(role) : (rawHelp || null);
+
   return (
     <Box className="c-screen">
-      <PageHeader area={area} title={title} tab={activeDef.label} crumbRoot={crumbRoot} />
+      <PageHeader
+        area={area} title={title} crumbRoot={crumbRoot}
+        help={help} helpTone={activeDef.helpTone || "info"}
+        actions={hasActions ? <HeaderActionsHost /> : null}
+      />
       {children}
       {/* 전환할 곳이 없는 탭 줄은 장식이다. */}
       {visible.length > 1 ? (

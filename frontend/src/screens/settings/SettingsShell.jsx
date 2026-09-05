@@ -6,10 +6,11 @@ import { useAuth } from "../../app/auth.jsx";
 import { Button, Card, EmptyState, ErrorState, PageHeader, Skeleton } from "../../ui/kit.jsx";
 import { useQueryState } from "../../lib/useQueryState.js";
 import { Settings } from "./SettingsMain.jsx";
-import { SystemOps } from "../SystemOps.jsx";
+import { SystemOps, HELP as SYSTEM_OPS_HELP } from "../SystemOps.jsx";
 import { LlmConsole } from "../LlmConsole.jsx";
-import { StorageProviders } from "../StorageProviders.jsx";
+import { StorageProviders, HELP as STORAGE_HELP } from "../StorageProviders.jsx";
 import { Maintenance } from "../ops/Maintenance.jsx";
+import { HeaderActionsHost, HeaderActionsProvider, useHeaderActionsSlot } from "../../ui/HeaderSlot.jsx";
 
 /* 설정 — 6화면 IA 정리(PA-RC-0017)의 탭 그릇.
  *
@@ -56,16 +57,18 @@ import { Maintenance } from "../ops/Maintenance.jsx";
  */
 const TAB_SPEC = { tab: "policy" };
 
+/* `help` 는 그릇이 제목 옆 `?` 로 그린다(D-453) — 탭 본문이 자기 첫 줄에 설명 문단을 두지
+   않는다. 문장이 없는 탭은 `?` 도 없다. */
 export const TAB_DEFS = [
   { key: "policy", label: "시스템 정책", roles: null },
-  { key: "os", label: "OS와 서비스 동작", roles: ["system_admin"] },
+  { key: "os", label: "OS와 서비스 동작", roles: ["system_admin"], help: SYSTEM_OPS_HELP },
   /* 파일 저장소 (S20). S8 이 만든 `/api/storage/*` 는 **부르는 화면이 없었다** — 관리자는
      업로드가 어디로 가는지, 그 자리가 지금 붙어 있는지, 운영과 백업이 같은 장치에 있는지를
      서버에 들어가야만 알 수 있었다. 여기 두는 이유는 목표 IA(`MASTER_PLAN.md` §14.1)가
      「일반 설정 · File Storage · AI 설정」을 한 묶음으로 적었기 때문이고, 권한도 그 이웃들과
      같다: `STORAGE_CONFIGURE` 는 `SYSTEM_ADMIN_ONLY`(app/authz/permissions.py)라 os·ai 탭과
      정확히 같은 집합이다 — 탭마다 role 이 균일해야 한다는 이 그릇의 제약을 그대로 만족한다. */
-  { key: "storage", label: "파일 저장소", roles: ["system_admin"] },
+  { key: "storage", label: "파일 저장소", roles: ["system_admin"], help: STORAGE_HELP },
   { key: "ai", label: "AI", roles: ["system_admin"] },
 ];
 /** 탭 키만 뽑은 목록 — 커버리지 대조용(`registry-surface-parity.test.js`). */
@@ -74,6 +77,14 @@ export const SETTINGS_TAB_KEYS = TAB_DEFS.map((t) => t.key);
 const SYSTEM_ADMIN_TAB_HELP = "이 화면은 시스템 관리자만 사용할 수 있습니다.";
 
 export function SettingsShell() {
+  return (
+    <HeaderActionsProvider>
+      <SettingsShellBody />
+    </HeaderActionsProvider>
+  );
+}
+
+function SettingsShellBody() {
   const auth = useAuth();
   const role = auth.data && auth.data.role;
   const visibleTabs = TAB_DEFS.filter((t) => !t.roles || t.roles.includes(role));
@@ -104,6 +115,11 @@ export function SettingsShell() {
   const tabId = (key) => `settings-tab-${key}`;
   const panelId = (key) => `settings-tabpanel-${key}`;
 
+  /* 탭 본문이 머리 동작을 붙였을 때만 자리를 낸다(`ui/HeaderSlot.jsx`, D-454) — 파일
+     저장소의 「저장소 추가」가 여기 선다. */
+  const slot = useHeaderActionsSlot();
+  const hasActions = !!(slot && slot.count > 0);
+
   if (auth.isLoading) return <Card><Skeleton /></Card>;
   // 세션 만료(401)는 role 이 아직 안 왔을 뿐인데 roleDenied 로 오판해 "권한이 없습니다"를
   // 잘못 보여줄 수 있다 — RequireRole 과 같은 이유로 재로그인 경로가 있는 ErrorState 를 먼저 본다.
@@ -112,8 +128,13 @@ export function SettingsShell() {
   return (
     <Box className="c-screen">
       {/* 사이드바가 이 화면을 「설정」 묶음에 두는데(navConfig.js) 빵부스러기만 「운영」
-          이라고 말하고 있었다 — 같은 화면이 두 자리에 있다고 읽힌다(S20). */}
-      <PageHeader area="설정" title="설정" tab={activeTabDef.label} />
+          이라고 말하고 있었다 — 같은 화면이 두 자리에 있다고 읽힌다(S20).
+          제목은 고정이고 탭은 아래다(D-452) — 예전에는 탭 라벨이 h1 이라 「AI」가 제목이었다. */}
+      <PageHeader
+        area="설정" title="설정"
+        help={roleDenied ? null : (activeTabDef.help || null)}
+        actions={hasActions ? <HeaderActionsHost /> : null}
+      />
       {/* 전환할 곳이 없는 탭 스트립은 장식이다 — role 이 system_admin 이 아니면 항상 1개뿐이다. */}
       {visibleTabs.length > 1 ? (
         <Box sx={{ borderBottom: 1, borderColor: "divider", mb: 2.5 }}>

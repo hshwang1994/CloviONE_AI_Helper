@@ -5,9 +5,9 @@ import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
 import {
   Badge, Button, Callout, DataTable, EmptyState, ErrorState, FormModal,
-  OverflowMenu, PageHeader, Skeleton, useConfirm, useToast,
+  OverflowMenu, Skeleton, useConfirm, useToast,
 } from "../ui/kit.jsx";
-import { Note } from "../ui/adminKit.jsx";
+import { HeaderActions } from "../ui/HeaderSlot.jsx";
 import { fmtBytes } from "./registry/shared.js";
 
 /* 파일 저장소 (S8 · S20).
@@ -54,7 +54,9 @@ const MOUNT_KO = {
   unreadable: "읽지 못함",
 };
 
-const HELP = "업로드한 파일과 백업이 실제로 어디에 쌓이는지, 그 자리가 지금 쓸 수 있는 상태인지 보여 줍니다. 마운트는 서버가 하고 이 화면은 설정과 지금 상태만 다룹니다.";
+/* 이 탭의 `?` 도움말 — 그릇(`settings/SettingsShell.jsx`)이 제목 옆에 그린다(D-453).
+   예전에는 본문 첫 줄에 `Note` 문단으로 그렸다. */
+export const HELP = "업로드한 파일과 백업이 실제로 어디에 쌓이는지, 그 자리가 지금 쓸 수 있는 상태인지 보여 줍니다. 마운트는 서버가 하고 이 화면은 설정과 지금 상태만 다룹니다.";
 
 // 절대 경로만 받는다(app/storage/schemas.py 와 DB CHECK 가 같은 규칙을 건다) — 화면에서
 // 먼저 말해 주지 않으면 사람은 422 를 보고서야 안다.
@@ -225,8 +227,6 @@ export function StorageProviders({ embedded = false }) {
         <ErrorState error={query.error} onRetry={() => query.refetch()} />
       ) : (
         <>
-          {embedded ? <Note sx={{ mt: 0 }}>{HELP}</Note> : null}
-
           {/* 「운영과 백업이 같은 장치」는 이 화면에서 가장 값진 한 문장이다 — 장치가
               고장 나면 백업도 함께 잃는다는 뜻이고, 목록만 보고는 알 수 없다. */}
           {data.warning ? <Callout tone="warn">{data.warning}</Callout> : null}
@@ -249,8 +249,12 @@ export function StorageProviders({ embedded = false }) {
                 {data.file_count != null ? ` 저장된 파일은 ${data.file_count}건입니다.` : ""}
               </Callout>
 
+              {/* 「저장소 추가」는 그릇 머리의 오른쪽에 선다 — 다른 목록 화면의 「추가」와 같은
+                  자리다(D-454). 그릇이 없으면 예전 자리(오른쪽 정렬 줄)에 남는다. */}
               {embedded ? (
-                <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 2 }}>{addButton}</Box>
+                <HeaderActions fallback={<Box sx={{ display: "flex", justifyContent: "flex-end", mt: 2 }}>{addButton}</Box>}>
+                  {addButton}
+                </HeaderActions>
               ) : null}
 
               <Box sx={{ mt: 2 }}>

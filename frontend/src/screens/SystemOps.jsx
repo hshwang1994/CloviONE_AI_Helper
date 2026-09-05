@@ -78,7 +78,9 @@ const UNIT_ROLES = {
   "systemd-resolved.service": "도메인 이름을 주소로 바꿉니다.",
 };
 
-const HELP = "이 서버의 운영체제 설정과 서비스 상태를 봅니다. 실제 변경은 서버에 설치된 시스템 설정 도우미가 정해진 동작만 수행합니다.";
+/* 이 탭의 `?` 도움말 — 그릇(`settings/SettingsShell.jsx`)이 제목 옆에 그린다(D-453).
+   예전에는 어디에도 안 쓰이는 상수였다. */
+export const HELP = "이 서버의 운영체제 설정과 서비스 상태를 봅니다. 실제 변경은 서버에 설치된 시스템 설정 도우미가 정해진 동작만 수행합니다.";
 
 // 이 화면에서 다루는 동작. 헬퍼의 표가 정본이고 여기서는 **그리는 순서와 폼**만 정한다.
 // 헬퍼가 모르는 동작은 서버가 404 로 거절하므로, 여기 목록이 낡아도 조용히 통하지 않는다.
@@ -212,8 +214,8 @@ function ServiceRow({ unit, state, onControl, disabled, last }) {
 }
 
 // PA-RC-0017: embedded(SettingsShell.jsx의 'OS와 서비스 동작' 탭)일 땐 자체 PageHeader를
-// 그리지 않는다 — 이 화면은 탭 하나를 통째로 차지해 SettingsShell의 바깥 PageHeader(tab=
-// "OS와 서비스 동작")가 이미 제목을 보여준다, 안에서 또 그리면 h1이 두 개가 된다.
+// 그리지 않는다 — 이 화면은 탭 하나를 통째로 차지해 SettingsShell의 바깥 PageHeader(제목
+// 「설정」, 그 아래 탭 줄)가 이미 제목을 보여준다, 안에서 또 그리면 h1이 두 개가 된다.
 export function SystemOps({ embedded = false } = {}) {
   const qc = useQueryClient();
   const toast = useToast();

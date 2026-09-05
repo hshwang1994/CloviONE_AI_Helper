@@ -1364,6 +1364,49 @@ export function ListEmptyState({
   );
 }
 
+/* 준비물·절차·기대 결과 — 「이 화면을 쓰려면 무엇이 먼저인가」를 말하는 세 줄.
+ *
+ * 예전에는 `EmptyState` 안에만 있었다. 그래서 목록 화면의 절차 산문이 **빈 상태에서만**
+ * 보였고(대리 보기 화면의 여섯 줄 절차), 사용자 화면의 빈 상태(제목 + 한 문장 + 동작)와
+ * 모양이 달랐다. 이제 같은 부품을 제목 옆 `?` 도움말이 쓴다(D-456) — 빈 상태는 짧아지고,
+ * 절차는 목록이 차 있어도 읽을 수 있다. 셋 다 비면 아무것도 그리지 않는다.
+ *
+ *   rule  위에 실선 하나를 긋는다(문장형 도움말 아래에 붙을 때). 상자는 만들지 않는다. */
+export function GuidanceBlock({ prerequisite, steps, expected, rule = true, sx }) {
+  const stepList = Array.isArray(steps) ? steps.filter((s) => s != null && s !== "") : null;
+  if (![prerequisite, stepList && stepList.length, expected].some(Boolean)) return null;
+  const bodySx = { maxWidth: `${EMPTY_STATE_MAX_CH}ch`, fontSize: FONT_SIZE.bodySm, ...KO_WORD_BREAK };
+  return (
+    <Box
+      data-guidance=""
+      sx={{
+        display: "grid", gap: 0.5, textAlign: "left",
+        ...(rule ? { mt: 0.5, pt: 1, borderTop: 1, borderColor: "divider" } : null),
+        ...sx,
+      }}
+    >
+      {prerequisite ? (
+        <Typography color="text.secondary" sx={bodySx}>
+          <Box component="span" sx={{ fontWeight: FONT_WEIGHT.semibold, mr: 1 }}>필요한 것</Box>{prerequisite}
+        </Typography>
+      ) : null}
+      {stepList && stepList.length ? (
+        <Box
+          component="ol"
+          sx={{ m: 0, pl: 2.5, color: "text.secondary", fontSize: FONT_SIZE.bodySm, display: "grid", gap: 0.25, maxWidth: `${EMPTY_STATE_MAX_CH}ch`, ...KO_WORD_BREAK }}
+        >
+          {stepList.map((s, i) => <li key={i}>{s}</li>)}
+        </Box>
+      ) : null}
+      {expected ? (
+        <Typography color="text.secondary" sx={bodySx}>
+          <Box component="span" sx={{ fontWeight: FONT_WEIGHT.semibold, mr: 1 }}>기대 결과</Box>{expected}
+        </Typography>
+      ) : null}
+    </Box>
+  );
+}
+
 /** `EmptyState` 가 실제로 받는 prop 전체 — 아래 개발 모드 검사의 정본이다. */
 const EMPTY_STATE_PROPS = [
   "icon", "title", "help", "situation", "prerequisite", "steps", "expected",
@@ -1424,7 +1467,6 @@ export function EmptyState(props) {
      스스로 만들지 않는다(만들면 판의 높이 계약을 빈 상태가 덮어쓴다). */
   const card = layout === "card";
   const centered = page || card;
-  const stepList = Array.isArray(steps) ? steps.filter((s) => s != null && s !== "") : null;
   /* compact 는 여전히 그림을 안 그린다(DS-15). 팝오버·모달 하위목록은 폭도 높이도 좁아서
      그림이 «다음에 무엇을 하면 되는지» 를 밀어낸다. 그 자리에 캐릭터가 필요한 화면은
      `icon` 으로 직접 넘긴다 — `ResultsRail` 이 그렇게 하고 그 포즈는 `emptyCompact` 밴드다. */
@@ -1435,7 +1477,6 @@ export function EmptyState(props) {
      그림이 두 크기로 나오는 것이고, 박스를 재는 검사로는 안 보인다. */
   const artPlace = page ? "emptyPage" : card ? "emptyCard" : "emptyRegion";
   const artBox = artSrc ? mascotBoxPx(artPlace, artSrc) : null;
-  const detail = [prerequisite, stepList && stepList.length ? stepList : null, expected].some(Boolean);
   /* 칸 폭은 EMPTY_STATE_MAX_CH. 문구 한도는 COPY_LIMIT.emptyHelp — 폭을 바꾸면 한도가 따라간다. */
   const bodySx = {
     maxWidth: `${EMPTY_STATE_MAX_CH}ch`,
@@ -1521,29 +1562,12 @@ export function EmptyState(props) {
           </Box>
         ) : null}
 
-        {/* 준비물·절차·기대 결과는 보조다. 실선 하나로 아래에 붙인다(상자를 만들지 않는다). */}
-        {detail ? (
-          <Box sx={{ mt: 0.5, pt: 1, borderTop: 1, borderColor: "divider", display: "grid", gap: 0.5, textAlign: "left", justifySelf: centered ? "center" : "stretch" }}>
-            {prerequisite ? (
-              <Typography color="text.secondary" sx={{ ...bodySx, fontSize: FONT_SIZE.bodySm }}>
-                <Box component="span" sx={{ fontWeight: FONT_WEIGHT.semibold, mr: 1 }}>필요한 것</Box>{prerequisite}
-              </Typography>
-            ) : null}
-            {stepList && stepList.length ? (
-              <Box
-                component="ol"
-                sx={{ m: 0, pl: 2.5, color: "text.secondary", fontSize: FONT_SIZE.bodySm, display: "grid", gap: 0.25, maxWidth: `${EMPTY_STATE_MAX_CH}ch`, ...KO_WORD_BREAK }}
-              >
-                {stepList.map((s, i) => <li key={i}>{s}</li>)}
-              </Box>
-            ) : null}
-            {expected ? (
-              <Typography color="text.secondary" sx={{ ...bodySx, fontSize: FONT_SIZE.bodySm }}>
-                <Box component="span" sx={{ fontWeight: FONT_WEIGHT.semibold, mr: 1 }}>기대 결과</Box>{expected}
-              </Typography>
-            ) : null}
-          </Box>
-        ) : null}
+        {/* 준비물·절차·기대 결과는 보조다. 실선 하나로 아래에 붙인다(상자를 만들지 않는다).
+            같은 부품을 제목 옆 `?` 도움말이 쓴다(D-456) — 목록 화면의 절차는 그쪽으로 갔다. */}
+        <GuidanceBlock
+          prerequisite={prerequisite} steps={steps} expected={expected}
+          sx={{ justifySelf: centered ? "center" : "stretch", ...(centered ? { mx: "auto" } : null) }}
+        />
       </Box>
     </Box>
   );
@@ -3039,7 +3063,7 @@ export function CrumbRootProvider({ value, children }) {
  * 알려 주는 기능» 이다. prop 과 호출부 열일곱을 함께 지웠다(지시 71 «Clovi 금지 구역»:
  * 데이터 표·설정 화면·상세 본문·Page Header 장식). 클로비는 히어로·빈 상태·드로어·상단바
  * 처럼 **의미가 있는 자리**에만 둔다. */
-export function PageHeader({ area, title, tab, actions, overflow, crumbRoot, size = "page", description, help, helpTone }) {
+export function PageHeader({ area, title, actions, overflow, crumbRoot, size = "page", description, help, helpTone }) {
   const ctxCrumbRoot = React.useContext(CrumbRootCtx);
   const resolvedCrumbRoot = crumbRoot !== undefined ? crumbRoot : (ctxCrumbRoot !== undefined ? ctxCrumbRoot : "관리자");
   /* size="section" — 다른 화면 안에 곁들여지는 하위 패널(예: OrgConsole 오른쪽의 DataScreen)이
@@ -3048,10 +3072,13 @@ export function PageHeader({ area, title, tab, actions, overflow, crumbRoot, siz
    * 페이지처럼 보임). 글자만 작게(h6/h2) 줄이는 하위 무게 — breadcrumb(area)는 상위
    * 페이지가 이미 보여 주므로 호출부는 보통 area=null 을 같이 넘긴다. */
   const isSection = size === "section";
-  // PA-RC-0017: tab 이 있으면 3단(영역 › 화면 › 탭) — title 이 캡션 줄로 올라가고 tab 이 큰
-  // 제목이 된다. 안 주는 61개 기존 호출부는 그대로 2단(관리자 › 영역 / 제목)이라 하위 호환된다.
-  const crumb = [resolvedCrumbRoot, area, tab ? title : null].filter(Boolean).join(" › ");
-  const heading = tab || title;
+  /* 🔴 여기 `tab` prop 이 있었다(PA-RC-0017) — 탭 라벨이 h1 이 되고 제목은 빵부스러기로
+     올라갔다. 그래서 `/schedules` 의 h1 은 「목록」이었고 `/settings?tab=ai` 의 h1 은 「AI」
+     였다. 사용자 탭 화면(승인·휴지통·프로젝트 상세)은 제목을 고정하고 탭을 그 아래 둔다 —
+     관리자 그릇도 같은 모양이다(D-452). 호출부가 둘(TabShell·SettingsShell)뿐이라 prop
+     자체를 걷었다. */
+  const crumb = [resolvedCrumbRoot, area].filter(Boolean).join(" › ");
+  const heading = title;
   // PA-RC-0022: 상시 안내 패널(8+ 화면, 실제로는 registry 28개 화면 전부가 DataScreen.jsx를
   // 통해 이 자리를 썼다)을 "제목 옆 도움말 토글"로 옮긴다 — 내용은 그대로, 기본 접힘만 바뀐다.
   // `SectionTitle`(아래, 카드 안 소제목)에도 `help` prop이 있지만 그건 상시 노출되는 평문
@@ -3059,7 +3086,9 @@ export function PageHeader({ area, title, tab, actions, overflow, crumbRoot, siz
   // 매번 `useState`를 새로 선언하게 하지 않으려고(호출부 28곳을 전부 고치는 대신) 접힘
   // 상태를 이 컴포넌트가 직접 들고, 호출부는 `help` 내용만 넘긴다.
   const [helpOpen, setHelpOpen] = React.useState(false);
-  const helpId = help ? "page-help-" + Math.random().toString(36).slice(2, 8) : undefined;
+  /* `Math.random()` 이었다 — 렌더마다 id 가 바뀌어 `aria-controls` 가 매번 다른 노드를 가리켰다. */
+  const autoId = React.useId();
+  const helpId = help ? "page-help-" + autoId : undefined;
   return (
     <>
       <Box
@@ -3242,6 +3271,47 @@ export function SubGroup({ title, help, component = "h3", first = false, childre
         <Typography variant="body2" color="text.secondary" sx={{ mb: 1.25, ...KO_WORD_BREAK }}>{help}</Typography>
       ) : null}
       {children}
+    </Box>
+  );
+}
+
+/* 상세의 키/값 줄 — **한 벌**이다 (D-457).
+ *
+ * 네 벌이 있었다: `DataScreen` 상세 모달(`c-kv` 클래스 + sx 10rem), `Users.jsx` 의 상세
+ * (같은 sx 사본), `registry/governance.js` 의 승인 payload(`.c-kv` CSS — 120px 라벨),
+ * `data-screen/JsonBlock.jsx::KeyValueRow`(10rem, 라벨에 `break-all`). CSS 와 sx 가 같은
+ * 특이도로 다퉈 어느 쪽이 이기는지가 주입 순서에 달려 있었다. 값의 정본은 이 부품이고,
+ * 사용자 화면(`/profile`)도 같은 줄을 쓴다.
+ *
+ *   dense  JSON·UUID 같은 기계 문자열이 라벨/값에 오는 자리 — 글자 단위로 꺾는다. 기본은
+ *          한국어라 낱말 단위(`keep-all`)다.
+ *
+ * 넓은 화면에서는 `DetailGrid` 가 줄을 두세 열로 접는다 — 4K 에서 한 열로 길게 늘어놓으면
+ * 오른쪽이 통째로 비고 눈은 위아래로만 움직인다. */
+export const DETAIL_GRID_SX = {
+  display: "grid", columnGap: 4, rowGap: 0,
+  gridTemplateColumns: { xs: "1fr", xxl: "repeat(2, minmax(0,1fr))", uhd: "repeat(3, minmax(0,1fr))" },
+};
+
+export function DetailGrid({ children, sx }) {
+  return <Box data-detail-grid="" sx={{ ...DETAIL_GRID_SX, ...sx }}>{children}</Box>;
+}
+
+export function DetailRow({ label, dense = false, children, sx }) {
+  const breakSx = dense ? ANYWHERE_BREAK : KO_WORD_BREAK;
+  return (
+    <Box
+      data-detail-row=""
+      sx={{
+        display: "grid", gridTemplateColumns: { xs: "1fr", sm: "10rem minmax(0,1fr)" },
+        gap: dense ? { xs: 0.25, sm: 1.5 } : 1, py: dense ? 0.75 : 1,
+        borderBottom: 1, borderColor: "divider", minWidth: 0,
+        "&:last-child": { borderBottom: 0 },
+        ...sx,
+      }}
+    >
+      <Typography variant="body2" color="text.secondary" sx={{ minWidth: 0, ...breakSx }}>{label}</Typography>
+      <Box sx={{ minWidth: 0, ...breakSx }}>{children}</Box>
     </Box>
   );
 }

@@ -1,9 +1,9 @@
 import React from "react";
 import Box from "@mui/material/Box";
 import Link from "@mui/material/Link";
-import { Badge } from "../../ui/kit.jsx";
+import { Badge, DetailRow } from "../../ui/kit.jsx";
 import { DateCell } from "../../ui/cells.jsx";
-import { JsonBlock, KeyValueRow } from "./JsonBlock.jsx";
+import { JsonBlock } from "./JsonBlock.jsx";
 
 // 열/필드 렌더 헬퍼 — registry에서 사용.
 export const badgeCol = (key, label) => ({ key, label, type: "status", render: (r) => <Badge value={r[key]} /> });
@@ -85,11 +85,12 @@ export const objectField = (key, label) => ({ key, label, render: (r) => {
   return (
     <div>
       {entries.map(([k, val], i) => (
-        <KeyValueRow label={k} key={i}>
+        /* 키는 기계 문자열(JSON 키)이라 글자 단위로 꺾는다 — `dense`. */
+        <DetailRow label={k} key={i} dense>
           <Box component="span">{val != null && typeof val === "object"
             ? <JsonBlock>{JSON.stringify(val, null, 2)}</JsonBlock>
             : (val == null || val === "" ? "-" : String(val))}</Box>
-        </KeyValueRow>
+        </DetailRow>
       ))}
     </div>
   );

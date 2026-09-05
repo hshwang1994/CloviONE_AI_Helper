@@ -14,7 +14,7 @@ import { redirectToLogin } from "../lib/sessionRedirect.js";
 import { diffFields } from "../lib/diffFields.js";
 import { fmtDateTime, shortUA } from "../lib/format.js";
 import { useAuth } from "../app/auth.jsx";
-import { PageHeader, Card, ListCard, Badge, Button, DataTable, FormModal, Modal, OverflowMenu, Skeleton, EmptyState, ErrorState, Callout, useConfirm, useToast } from "../ui/kit.jsx";
+import { PageHeader, Card, ListCard, Badge, Button, DataTable, DetailGrid, DetailRow, FormModal, Modal, OverflowMenu, Skeleton, EmptyState, ErrorState, Callout, useConfirm, useToast } from "../ui/kit.jsx";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
 import { useRowSelection, selectionColumn } from "../ui/bulkSelect.jsx";
 import { FilterActions, FilterRow, FilterSurface, ResultLine, ToolbarRow } from "../ui/FilterBar.jsx";
@@ -859,23 +859,8 @@ export function Users() {
   );
 }
 
-/* 상세의 라벨/값 한 줄. 넓은 화면에서는 이 줄들이 2~3열로 접힌다(아래 DETAIL_GRID) — 4K에서
- * 한 열로 길게 늘어놓으면 오른쪽이 통째로 비고 눈은 위아래로만 움직인다(DataScreen 상세와 같은 규칙). */
-function Row({ label, children }) {
-  return (
-    <Box sx={{
-      display: "grid", gridTemplateColumns: { xs: "1fr", sm: "10rem minmax(0,1fr)" }, gap: 1,
-      py: 1.25, borderBottom: 1, borderColor: "divider", minWidth: 0,
-    }}>
-      <Typography variant="body2" color="text.secondary">{label}</Typography>
-      <Box sx={{ minWidth: 0, ...KO_WORD_BREAK }}>{children}</Box>
-    </Box>
-  );
-}
-const DETAIL_GRID = {
-  display: "grid", columnGap: 4, rowGap: 0,
-  gridTemplateColumns: { xs: "1fr", xxl: "repeat(2, minmax(0,1fr))", uhd: "repeat(3, minmax(0,1fr))" },
-};
+/* 상세의 라벨/값 줄과 격자는 `kit.jsx::DetailRow`·`DetailGrid` 다 — 예전에는 이 파일이
+ * DataScreen 상세와 같은 sx 를 손으로 복사해 들고 있었다(네 벌 중 하나, D-457). */
 
 const SESSION_COLUMNS = [
   { key: "client_ip", label: "IP", render: (s) => s.client_ip || "-" },
@@ -1096,19 +1081,19 @@ function UserDetail({ user, notFound, onClose, onEdit, onChanged, onTempPw, pwHe
           </Callout>
         </Box>
       ) : null}
-      <Box sx={DETAIL_GRID}>
-        <Row label="이메일">{d.email}</Row>
-        <Row label="ID">
+      <DetailGrid>
+        <DetailRow label="이메일">{d.email}</DetailRow>
+        <DetailRow label="ID">
           {/* user-select:all — id는 하이픈이 섞인 UUID라 더블클릭만으로는 한 토막만 선택된다. */}
           <Box component="span" tabIndex={0} sx={{ userSelect: "all", fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace", fontSize: FONT_SIZE.bodySm, overflowWrap: "anywhere" }}>{d.id}</Box>
           {" "}
           <LinkButton onClick={copyId}>{copiedId || "복사"}</LinkButton>
-        </Row>
-        <Row label="역할">{ROLE_KO[d.role] || d.role}{isSelf ? " (본인)" : ""}</Row>
+        </DetailRow>
+        <DetailRow label="역할">{ROLE_KO[d.role] || d.role}{isSelf ? " (본인)" : ""}</DetailRow>
         {/* 목록과 **같은 판정**을 쓴다(X14) — 한쪽만 고치면 같은 계정이 목록에서는 '보관됨'
             인데 상세에서는 '사용 중'으로 보인다. 보관된 계정은 `active` 가 참인 채로 남아
             있으므로(복구 때 되돌리려고), 복구하면 어느 상태로 돌아오는지도 함께 말한다. */}
-        <Row label="상태">
+        <DetailRow label="상태">
           <Badge value={lifecycleBadge(d).label} kind={lifecycleBadge(d).kind} />
           {d.archived_at ? (
             <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>
@@ -1119,30 +1104,30 @@ function UserDetail({ user, notFound, onClose, onEdit, onChanged, onTempPw, pwHe
               로그인할 수 없습니다. 목록에는 그대로 남아 있고 ‘활성화’로 되돌립니다.
             </Typography>
           ) : null}
-        </Row>
-        <Row label="부서">{d.department ? d.department + inactiveSuffix(dept, d.department_id) : "-"}</Row>
+        </DetailRow>
+        <DetailRow label="부서">{d.department ? d.department + inactiveSuffix(dept, d.department_id) : "-"}</DetailRow>
         {/* 지금 이 사람이 **어디까지 보는지**. 관리자에게만 의미가 있으므로 일반 사용자에는
             안 그린다(전체 범위가 기본값이라 모든 계정에 '전체 포털'이 붙으면 소음이 된다). */}
         {d.role && d.role !== "user" ? (
-          <Row label="관리 범위">
+          <DetailRow label="관리 범위">
             {/* role=admin + admin_scope 조합의 이름(조직관리자/부서관리자/전체 관리자)을
                 범위 설명 앞에 배지로 붙인다 — scopeLabel() 자체는 F2 계약(예: "소속 부서
                 (하위 포함): ClovirONE팀")을 그대로 유지한다(users-scope.test.js). */}
             {adminConcept(d) ? <Badge value={adminConcept(d).label} kind={adminConcept(d).kind} /> : null}
             {" " + scopeLabel(d, dept)}
-          </Row>
+          </DetailRow>
         ) : null}
-        <Row label="직책">{d.title ? d.title + inactiveSuffix(title, d.title_id) : "-"}</Row>
+        <DetailRow label="직책">{d.title ? d.title + inactiveSuffix(title, d.title_id) : "-"}</DetailRow>
         {/* 목록 컬럼과 같은 어휘('잠김')를 쓴다, 여기서만 원시 불리언을 Badge에 그대로 넘기면
             '잠금: 예/아니오'로 읽혀, 같은 화면 안에서 같은 상태를 다른 말로 부르게 된다. */}
-        <Row label="잠금"><Badge value={d.locked ? "잠김" : "정상"} kind={d.locked ? "danger" : "neutral"} /></Row>
-        <Row label="다음 로그인 시 비밀번호 변경"><Badge value={!!d.must_change_password} /></Row>
-        <Row label="최근 로그인">{fmtDateTime(d.last_login_at)}</Row>
-        <Row label="추가일">{fmtDateTime(d.created_at)}</Row>
-        {d.archived_at ? <Row label="보관 시각">{fmtDateTime(d.archived_at)}</Row> : null}
+        <DetailRow label="잠금"><Badge value={d.locked ? "잠김" : "정상"} kind={d.locked ? "danger" : "neutral"} /></DetailRow>
+        <DetailRow label="다음 로그인 시 비밀번호 변경"><Badge value={!!d.must_change_password} /></DetailRow>
+        <DetailRow label="최근 로그인">{fmtDateTime(d.last_login_at)}</DetailRow>
+        <DetailRow label="추가일">{fmtDateTime(d.created_at)}</DetailRow>
+        {d.archived_at ? <DetailRow label="보관 시각">{fmtDateTime(d.archived_at)}</DetailRow> : null}
         {/* 로딩 중(em-dash)과 권한 없음(em-dash)이 예전엔 같은 표시라 구분이 안 됐다, 각각 다른 문구로 밝힌다. */}
-        <Row label="활성 세션">{sessionCount != null ? sessionCount + "개" : !canManagePrelim ? "권한 없음" : "불러오는 중…"}</Row>
-      </Box>
+        <DetailRow label="활성 세션">{sessionCount != null ? sessionCount + "개" : !canManagePrelim ? "권한 없음" : "불러오는 중…"}</DetailRow>
+      </DetailGrid>
       {/* 관리 권한이 없으면 세션 조회를 아예 안 하므로(위 sessionsQ) 실패/목록 블록도 감춘다 -
           '관리 권한 없음'과 '세션 로드 실패'가 동시에 뜨는 모순을 없앤다. */}
       <Box sx={{ mt: 3 }}>

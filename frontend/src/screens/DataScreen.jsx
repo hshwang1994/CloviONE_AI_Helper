@@ -10,7 +10,7 @@ import MenuItem from "@mui/material/MenuItem";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
-import { PageHeader, Card, Button, DataTable, FormDrawer, ListCard, Modal, OverflowMenu, Skeleton, EmptyState, ErrorState, MetricStrip, Callout, useConfirm, useToast } from "../ui/kit.jsx";
+import { PageHeader, Card, Button, DataTable, DetailGrid, DetailRow, FormDrawer, ListCard, Modal, OverflowMenu, Skeleton, EmptyState, ErrorState, MetricStrip, Callout, useConfirm, useToast } from "../ui/kit.jsx";
 /* 검색 입력은 `ui/filters.jsx` 의 `SearchBox` 다 — **자기 상태를 자기가 든다**(PF4).
  *
  * 예전에는 그 부품이 이 파일 안에 있었다. 사용자 콘솔의 티켓·문서 목록도 같은 것이 필요해
@@ -24,9 +24,12 @@ import { FILTER_GROUP_ORDER, FilterActions, FilterRow, FilterSurface, ResultLine
 import { ListFooter } from "../ui/InfiniteScroll.jsx";
 import { CHUNK, useInfiniteList, useResetScrollOnKeyChange } from "../lib/useInfiniteList.js";
 import { SavedViews } from "../ui/SavedViews.jsx";
+/* 탭 그릇 안에서 머리 동작을 그릇의 머리로 보낸다(D-454). 그릇이 없으면 제자리에 그린다. */
+import { HeaderActions } from "../ui/HeaderSlot.jsx";
+/* `?` 도움말과 절차 안내의 정본 — 단독 화면과 탭 그릇이 같은 함수를 부른다(D-453 · D-456). */
+import { buildScreenHelp, canOnboardFor } from "./data-screen/screenHelp.jsx";
 import { SHELL_QUERY_KEYS, buildViewQuery, describeView, hashQuery, keepQueryKeys, ownedQueryKeys, parseView, withHashQuery, withQuery } from "./datascreen-view.js";
 import { loginUrl } from "../lib/sessionRedirect.js";
-import { KO_WORD_BREAK } from "../ui/theme.js";
 // 아래 네 갈래는 원래 이 파일 안에 있던 것을 data-screen/ 로 옮긴 것이다(800줄 규칙, §23).
 // 이 파일이 그 뜻(설정 주도 목록 화면의 본체)을 그대로 갖고, 조각들은 여기서만 조립한다.
 import { JsonBlock } from "./data-screen/JsonBlock.jsx";
@@ -781,6 +784,17 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
      C2 는 그런 화면을 «검색만 있는 Toolbar» 로 규정한다. 판단은 화면마다 다르므로
      숫자를 기계 적용하지 않고 registry 가 `smallSet` 한 줄로 선언한다(R-88). */
   const showSavedViews = !config.smallSet && !inSplitView;
+  /* 검색창이 있으면 도구 줄 끝(「어떻게 볼지」 묶음), 없으면 조건 줄 끝에 선다 — 도구 줄에
+     저장된 뷰 하나만 남기면 그것이 곧 고아 줄이다(D-455). */
+  const savedViewsInFilterRow = showSavedViews && !showSearch && orderedFilters.length > 0;
+  const savedViewsControl = showSavedViews ? (
+    <SavedViews
+      screenKey={config.key}
+      query={viewQuery}
+      describe={(saved) => describeView(saved, config)}
+      onApply={applyView}
+    />
+  ) : null;
 
   /* 결과 건수 — 서버가 total 을 주면 그것이 정본이고, 안 주는 화면은 지금 그려지는 행 수다.
      Pager 안의 «총 N건» 과 같은 값이지만 자리가 다르다: Pager 는 «어디쯤인가» 를 말하고
@@ -876,7 +890,9 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
   // 웹 버튼이 아니라 **서버 CLI 단계**를 설명하는 화면(복구 리허설)은 create도 primary
   // headerAction도 없어 canOnboard가 항상 거짓이었다 — 화면 접근 자체가 이미 역할로 걸려 있으니
   // (App.jsx SCREEN_ROLES) 그런 화면은 config.forceOnboarding으로 이 게이트를 우회한다.
-  const canOnboard = config.forceOnboarding || canCreate || !!primaryHeaderAction;
+  // 정본은 `screenHelp.jsx::canOnboardFor` 하나다 — `?` 도움말의 절차 안내와 빈 상태의 CTA 가
+  // 같은 게이트를 봐야 한쪽에만 나오는 일이 없다.
+  const canOnboard = canOnboardFor(config, role);
   /* 목록 끝 줄 — 받은 건수와 「더 보기」. 두 자리에서 쓴다: 목록 카드 안, 그리고
      clientFilter 로 지금 받아 둔 것이 통째로 걸러진 빈 상태(더 받으면 일치 항목이 나올 수 있다).
      🔴 「몇 건을 받았는가」는 **서버가 준 원본**(`items`)으로 센다 — clientFilter 로 걸러진
@@ -907,25 +923,31 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
        * PageHeader 바로 아래 상시 Callout으로 그렸는데, 그러면 화면을 열 때마다 매번 문단을
        * 지나쳐야 했다(8+ 화면 실측). PageHeader의 `help`/`helpTone` prop으로 옮겨 제목 옆
        * 도움말 토글 + 기본 접힘으로 바꾼다 — 문구는 한 글자도 안 바꾼다, 보이는 방식만 바뀐다. */}
-      {/* 탭 그릇 안에서는 제목을 그리지 않는다 — 그릇이 이미 "영역 › 화면 › 탭"을 보여 준다.
+      {/* 탭 그릇 안에서는 제목을 그리지 않는다 — 그릇이 제목·`?`·머리 동작 자리를 그린다.
           제목을 두 번 그리면 한 탭에 페이지가 둘 겹쳐 있는 것처럼 읽힌다(SettingsShell 이
-          `embedded` 로 같은 문제를 먼저 풀었다). 헤더 액션과 도움말은 잃으면 안 되므로 그릇
-          안쪽 줄로 내려 그대로 남긴다. */}
+          `embedded` 로 같은 문제를 먼저 풀었다).
+
+          🔴 여기 오른쪽 정렬 줄에 `Callout variant="inline"` 로 도움말을 그렸다 — 탭 그릇
+          안의 목록 화면만 도움말이 제목 옆 `?` 가 아니라 **오른쪽 끝의 안내 상자**였다.
+          도움말은 그릇이 `?` 로 그리고(`AdminRoutes` 가 `buildScreenHelp` 를 탭 정의에
+          싣는다, D-453), 머리 동작은 그릇 머리의 오른쪽 자리에 그린다(D-454). 그릇이 없으면
+          (시험·단독 임베드) 예전 자리에 동작 줄만 남긴다. */}
       {embedded ? (
-        (hasHeaderActions || config.help) ? (
-          <Box sx={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 1, flexWrap: "wrap", mb: 2 }}>
-            {config.help ? (
-              <Callout tone={config.helpTone || "info"} variant="inline">
-                {typeof config.help === "function" ? config.help(role) : config.help}
-              </Callout>
-            ) : null}
-            {hasHeaderActions ? headerActions : null}
-          </Box>
+        hasHeaderActions ? (
+          <HeaderActions
+            fallback={
+              <Box sx={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 1, flexWrap: "wrap", mb: 2 }}>
+                {headerActions}
+              </Box>
+            }
+          >
+            {headerActions}
+          </HeaderActions>
         ) : null
       ) : (
         <PageHeader area={config.area} title={config.title} size={config.compact ? "section" : "page"}
           actions={hasHeaderActions ? headerActions : null}
-          help={config.help ? (typeof config.help === "function" ? config.help(role) : config.help) : null}
+          help={buildScreenHelp(config, role)}
           helpTone={config.helpTone || "info"} />
       )}
       {/* 서버가 개수 제한(예: 500건)만 걸고 total/페이지네이션을 주지 않는 목록에서, 항목 수가 그
@@ -1008,7 +1030,7 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
          * 자리에선 한 단계 낮춰 h3을 쓴다(같은 화면에 h2가 둘 나란히 있는 것처럼 안 보이게). */
         <FilterSurface>
           <Typography component={config.compact ? "h3" : "h2"} className="sr-only">필터</Typography>
-          {(showSearch || showSavedViews) ? (
+          {showSearch ? (
             <ToolbarRow>
               {showSearch ? (
                 <SearchBox
@@ -1021,16 +1043,7 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
               {/* 저장된 뷰는 «어떻게 볼지» 쪽이다 — 조건 칸이 아니라 도구 줄 끝에 붙는다.
                   후보가 몇 줄 안 되는 화면에는 아예 그리지 않는다(C2: 유한집합 화면은
                   검색만 있는 Toolbar). 판단 근거는 registry 의 `smallSet` 한 줄이다. */}
-              {showSavedViews ? (
-                <ToolbarEnd>
-                  <SavedViews
-                    screenKey={config.key}
-                    query={viewQuery}
-                    describe={(saved) => describeView(saved, config)}
-                    onApply={applyView}
-                  />
-                </ToolbarEnd>
-              ) : null}
+              {showSavedViews ? <ToolbarEnd>{savedViewsControl}</ToolbarEnd> : null}
             </ToolbarRow>
           ) : null}
           {orderedFilters.length ? (
@@ -1117,9 +1130,14 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
               {/* 필터가 여러 개 걸려 있을 때 하나씩 지우지 않고 한 번에 지운다. 예전엔 이 초기화가
                * 결과 0건일 때만 있어, 0건은 아니지만 기대와 다른 결과일 때 되돌릴 방법이 없었다.
                * **격자 칸이 아니다** — 되돌리기는 조건이 아니라 동작이다(지시 76). */}
-              {(q || hasFilter) ? (
+              {(q || hasFilter || savedViewsInFilterRow) ? (
                 <FilterActions>
-                  <Button variant="ghost" size="sm" onClick={() => { setQ(""); setFilters({}); }}>필터 지우기</Button>
+                  {(q || hasFilter) ? (
+                    <Button variant="ghost" size="sm" onClick={() => { setQ(""); setFilters({}); }}>필터 지우기</Button>
+                  ) : null}
+                  {/* 검색창이 없는 화면에서는 「저장된 뷰」가 이 줄 끝에 선다 — 예전에는 도구
+                      줄에 혼자 남아 오른쪽에 고아 줄을 만들었다(D-455). */}
+                  {savedViewsInFilterRow ? savedViewsControl : null}
                 </FilterActions>
               ) : null}
             </FilterRow>
@@ -1152,12 +1170,10 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
         ) : (
           <EmptyState layout="page" title={config.emptyTitle || "표시할 항목이 없습니다"}
             help={typeof config.emptyHelp === "function" ? config.emptyHelp(role, createBtn) : config.emptyHelp}
-            // situation/prerequisite/steps/expected는 대부분 '추가'·'활성화' 같은 쓰기 전용 버튼을
-            // 클릭하라고 안내한다(help는 이미 canCreate로 role-branch되지만 이 네 필드는 예전엔
-            // 무조건 그대로 노출돼, 그 버튼이 안 보이는 읽기 전용 역할(operator/auditor)에게도
-            // '이 버튼을 누르세요' 안내가 나갔다) — 실제로 그 CTA를 볼 수 있는 role(canOnboard)에만 보여준다.
-            situation={canOnboard ? config.emptySituation : undefined} prerequisite={canOnboard ? config.emptyPrerequisite : undefined}
-            steps={canOnboard ? config.emptySteps : undefined} expected={canOnboard ? config.emptyExpected : undefined}
+            // situation 은 '추가'·'활성화' 같은 쓰기 전용 버튼을 가리킨다 — 그 CTA 를 볼 수 있는
+            // role(canOnboard)에만 보여준다. 준비물·절차·기대 결과는 빈 상태가 아니라 제목 옆
+            // `?` 도움말이 든다(D-456, `screenHelp.jsx`) — 빈 상태는 제목 + 한 문장 + 동작이다.
+            situation={canOnboard ? config.emptySituation : undefined}
             relatedLink={config.emptyRelatedLink}
             action={createBtn} />
         )}
@@ -1256,21 +1272,13 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
             화면은 두세 열로 접어 스크롤을 줄인다 — 4K에서 한 열로 길게 늘어놓으면 오른쪽이
             통째로 비고 눈은 위아래로만 움직인다. */}
         {sel ? (
-          <Box sx={{
-            display: "grid", columnGap: 4, rowGap: 0,
-            gridTemplateColumns: { xs: "1fr", xxl: "repeat(2, minmax(0,1fr))", uhd: "repeat(3, minmax(0,1fr))" },
-          }}>
+          <DetailGrid>
             {mergeDetailFields(config, columns).map((c, i) => (
-              <Box key={c.key || "d" + i} className="c-kv"
-                sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "10rem minmax(0,1fr)" }, gap: 1,
-                      py: 1.25, borderBottom: 1, borderColor: "divider", minWidth: 0 }}>
-                <Typography variant="body2" color="text.secondary">{c.label}</Typography>
-                <Box sx={{ minWidth: 0, ...KO_WORD_BREAK }}>
-                  {c.render ? c.render(sel) : (sel[c.key] == null || sel[c.key] === "" ? "-" : String(sel[c.key]))}
-                </Box>
-              </Box>
+              <DetailRow key={c.key || "d" + i} label={c.label}>
+                {c.render ? c.render(sel) : (sel[c.key] == null || sel[c.key] === "" ? "-" : String(sel[c.key]))}
+              </DetailRow>
             ))}
-          </Box>
+          </DetailGrid>
         ) : routeIdNotFound ? (
           <ErrorState error={{ status: 404 }} />
         ) : null}

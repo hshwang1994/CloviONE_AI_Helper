@@ -7,11 +7,7 @@
    적용, kit.jsx의 Badge) 전부 죽은 CSS였다 — 삭제함(DS-33 조사 중 발견). */
 /* 여러 배지를 한 셀에 묶는 그룹 — 좁은 화면 카드뷰(td flex space-between)에서 배지들이 흩어지지
    않고 붙어 오른쪽에 모이게 한다(라벨↔그룹만 양끝 정렬). */
-/* 공용 텍스트 링크(사용자 콘솔 등) — 좌측 색막대·이모지 없이 브랜드색 텍스트. */
-.k-link { color: var(--color-primary); text-decoration: none; }
-.k-link:hover { text-decoration: underline; }
-.k-link:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
-/* 인라인 라벨 + 컨트롤(필터 등) */
+/* `.k-link` 는 걷었다 — 어느 JSX 도 붙이지 않는 클래스였다(링크는 MUI `Link` 가 그린다). */
 
 /* 콜아웃(안내)의 **모양은 kit.jsx 의 Callout 이 소유한다** — 이 파일에 두면 안 되는 규칙이
    여기 있었다(W4 에서 삭제).
@@ -57,8 +53,8 @@
    `& .k-page-head` 중첩 선택자로 개별 화면(OrgConsole 등)이 margin만 덮어쓰는 자리는 그대로
    유효하다(그쪽은 이 클래스명을 targeting하는 더 높은 명시도 규칙이라 영향 없음). */
 /* 제목은 600까지만 — 700을 쓰지 않는다(전부 굵게 금지). */
-/* .k-page-desc(설명 문단)는 kit.jsx의 PageHeader description prop과 함께 지웠다 — 어떤
-   화면도 실제로 그 prop을 넘긴 적이 없는 죽은 표면이었다(product-quality-audit AREA=D). */
+/* .k-page-desc(설명 문단)의 CSS 규칙은 없다 — 모양은 kit.jsx의 PageHeader가 `description`
+   prop 을 받아 sx 로 그린다(스무 화면이 쓴다). 클래스명은 프로브·시험이 짚는 자리다. */
 /* shrink:0인 액션(대시보드의 긴 KST 타임스탬프 + 새로고침 버튼 등)이 줄바꿈·줄임 없이 제목을
    짓누르던 문제 — 좁은 화면에서는 액션 줄을 제목 아래로 떨어뜨려(줄바꿈) 제목이 먼저 온전히
    보이게 한다. */

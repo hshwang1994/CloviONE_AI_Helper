@@ -223,3 +223,25 @@ describe("저장된 뷰", () => {
     expect(await screen.findByText(/저장된 뷰가 없습니다/)).toBeInTheDocument();
   });
 });
+
+/* 「저장된 뷰」는 「어떻게 볼지」 묶음이다(D-455). 검색창이 있으면 도구 줄 끝, 없으면 조건 줄
+   끝 — 예전에는 검색창이 없는 화면에서 도구 줄에 혼자 남아 오른쪽에 고아 줄을 만들었다. */
+describe("저장된 뷰의 자리 (D-455)", () => {
+  it("검색창이 없는 화면에서는 조건 줄 끝에 선다 — 도구 줄에 혼자 남지 않는다", async () => {
+    apiMock.mockImplementation(routeApi());
+    renderScreen({ ...CONFIG, paginated: true });
+    const btn = await screen.findByRole("button", { name: /저장된 뷰/ });
+    expect(screen.queryByRole("searchbox")).toBeNull();
+    expect(btn.closest("[data-filter-actions]")).not.toBeNull();
+    expect(btn.closest("[data-filter-row]")).not.toBeNull();
+  });
+
+  it("검색창이 있으면 도구 줄 끝에 그대로 선다 — 반례", async () => {
+    apiMock.mockImplementation(routeApi());
+    renderScreen(CONFIG);
+    const btn = await screen.findByRole("button", { name: /저장된 뷰/ });
+    expect(screen.getByRole("searchbox")).toBeInTheDocument();
+    expect(btn.closest("[data-filter-actions]")).toBeNull();
+    expect(btn.closest("[data-filter-row]")).toBeNull();
+  });
+});

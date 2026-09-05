@@ -459,3 +459,44 @@ describe("REAUDIT §15.1 — 행이 많으면 가상화가 자동으로 켜진�
     expect(container.querySelectorAll("tbody tr").length).toBe(10);
   });
 });
+
+/* 빈 상태는 제목 + 한 문장 + 동작이다(D-456). 준비물·절차·기대 결과는 제목 옆 `?` 도움말이
+   든다 — 예전에는 빈 상태 안에만 있어서 목록이 차면 읽을 수 없었고, 사용자 화면의 빈 상태와
+   모양이 달랐다(대리 보기 화면의 여섯 줄 절차). */
+describe("절차 안내는 빈 상태가 아니라 제목 옆 도움말에 있다 (D-456)", () => {
+  const GUIDED = {
+    ...BASE_CONFIG,
+    help: "감사 로그를 봅니다.",
+    create: { fields: [{ name: "action", label: "동작" }] },
+    emptyTitle: "감사 로그가 없습니다",
+    emptySituation: "아직 기록이 없습니다.",
+    emptyPrerequisite: "기록할 동작이 있어야 합니다.",
+    emptySteps: ["첫째 단계를 합니다.", "둘째 단계를 합니다."],
+    emptyExpected: "기록이 목록에 나타납니다.",
+  };
+
+  it("빈 상태에는 제목·상황·동작만 남고 절차는 도움말 패널에 있다", async () => {
+    apiMock.mockResolvedValue({ items: [], total: 0 });
+    renderScreen(GUIDED);
+    const title = await screen.findByRole("heading", { name: "감사 로그가 없습니다" });
+    const empty = title.closest(".k-empty");
+    expect(within(empty).getByText("아직 기록이 없습니다.")).toBeInTheDocument();
+    expect(within(empty).queryByText("필요한 것")).toBeNull();
+    expect(within(empty).queryByText("첫째 단계를 합니다.")).toBeNull();
+    const toggle = screen.getByRole("button", { name: "도움말 보기" });
+    expect(toggle.closest(".k-page-head")).not.toBeNull();
+    const panel = document.getElementById(toggle.getAttribute("aria-controls"));
+    expect(within(panel).getByText("감사 로그를 봅니다.")).toBeInTheDocument();
+    expect(within(panel).getByText("필요한 것")).toBeInTheDocument();
+    expect(within(panel).getByText("첫째 단계를 합니다.")).toBeInTheDocument();
+    expect(within(panel).getByText("기대 결과")).toBeInTheDocument();
+  });
+
+  it("그 동작을 볼 수 없는 역할에게는 절차도 안 보인다 — 반례", async () => {
+    apiMock.mockResolvedValue({ items: [], total: 0 });
+    renderScreen({ ...GUIDED, help: undefined, create: { roles: ["nobody"], fields: [] } });
+    await screen.findByRole("heading", { name: "감사 로그가 없습니다" });
+    expect(screen.queryByRole("button", { name: "도움말 보기" })).toBeNull();
+    expect(screen.queryByText("첫째 단계를 합니다.")).toBeNull();
+  });
+});

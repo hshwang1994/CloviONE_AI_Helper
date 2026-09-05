@@ -120,3 +120,40 @@ describe("권한이 그릇과 안쪽 탭에서 같다", () => {
     expect(go.getAttribute("href")).toBe("#/dashboard");
   });
 });
+
+/* 그릇의 머리 — 제목은 고정이고(D-452), 도움말은 제목 옆 `?` 이며(D-453), 탭 본문의 머리
+   동작은 그릇 머리의 오른쪽에 선다(D-454). 예전에는 탭 라벨이 h1 이 됐고(「복구 리허설」),
+   도움말은 탭 아래 오른쪽 정렬 줄의 안내 상자였고, 동작은 그 상자 옆에 붙어 있었다. */
+import { REGISTRY } from "../screens/registry.js";
+
+describe("그릇의 머리 — 제목·도움말·동작 (D-452 · D-453 · D-454)", () => {
+  it("옛 주소 /restore-drills 로 들어와도 h1 은 그릇 제목 「백업」이다 — 탭 라벨이 아니다", async () => {
+    renderAt("/restore-drills");
+    await screen.findByRole("tab", { name: "복구 리허설" }, { timeout: 5000 });
+    const h1s = screen.getAllByRole("heading", { level: 1 });
+    expect(h1s).toHaveLength(1);
+    expect(h1s[0]).toHaveTextContent("백업");
+    expect(h1s[0]).not.toHaveTextContent("복구 리허설");
+  });
+
+  it("탭 본문의 머리 동작이 그릇 머리(.k-page-head) 안에 선다 — 탭 아래 별도 줄이 아니다", async () => {
+    renderAt("/backup");
+    // 목록이 비어 있으면 빈 상태도 같은 이름의 CTA 를 그린다 — 머리에 선 것을 골라 본다.
+    const btns = await screen.findAllByRole("button", { name: "백업 실행" }, { timeout: 5000 });
+    const inHead = btns.filter((b) => b.closest(".k-page-head"));
+    expect(inHead).toHaveLength(1);
+    expect(inHead[0].closest('[role="tabpanel"]')).toBeNull();
+  });
+
+  it("도움말은 제목 옆 `?` 토글이다 — 누르면 registry 의 문장이 펼쳐진다", async () => {
+    const user = userEvent.setup();
+    renderAt("/backup");
+    const toggle = await screen.findByRole("button", { name: "도움말 보기" }, { timeout: 5000 });
+    expect(toggle.closest(".k-page-head")).not.toBeNull();
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    await user.click(toggle);
+    expect(screen.getByRole("button", { name: "도움말 닫기" })).toHaveAttribute("aria-expanded", "true");
+    const text = typeof REGISTRY.backup.help === "function" ? REGISTRY.backup.help("system_admin") : REGISTRY.backup.help;
+    expect(screen.getByText(text)).toBeInTheDocument();
+  });
+});

@@ -11,6 +11,7 @@
  */
 import React from "react";
 import Tooltip from "@mui/material/Tooltip";
+import { DetailRow } from "../../ui/kit.jsx";
 import { APPROVAL_PAYLOAD_KEY_KO, Badge, OBJTYPE_OPTS, OBJ_ID_PARAM, OBJ_ROUTE, OPS_ROLES, ROLE_KO, WRITE_ROLES, actionCol, actionKo, badgeCol, canReachObjRoute, col, dateCol, field, fmtDateTime, mapCol, objCol, objRouteHref, objectField, opt, personField, truncateCol, writerEmptyHelp } from "./shared.js";
 import { APPROVAL_DONE } from "./actions.js";
 
@@ -127,9 +128,10 @@ export const GOVERNANCE_SCREENS = {
           if (v != null && typeof v === "object") return React.createElement("pre", { className: "c-detail-json" }, JSON.stringify(v, null, 2));
           return (v == null || v === "") ? "-" : String(v);
         };
-        return React.createElement("div", null, entries.map(([k, v], i) => React.createElement("div", { className: "c-kv", key: i },
-          React.createElement("span", { className: "c-kv-k" }, APPROVAL_PAYLOAD_KEY_KO[k] || k),
-          React.createElement("span", { className: "c-kv-v" }, fmtVal(k, v)))));
+        /* 키/값 줄은 `kit.jsx::DetailRow` 다 — 예전에는 `.c-kv` CSS(120px 라벨)가 다른 세 벌과
+           다른 값으로 여기만 따로 그렸다(D-457). */
+        return React.createElement("div", null, entries.map(([k, v], i) =>
+          React.createElement(DetailRow, { key: i, dense: true, label: APPROVAL_PAYLOAD_KEY_KO[k] || k }, fmtVal(k, v))));
       } },
       dateCol("decided_at", "결정 시각"),
       { key: "approver_name", label: "결정자", render: (r) => r.approver_name || r.approver_email || r.approver_id || "-" },

@@ -5,6 +5,9 @@ import { useAuth } from "./auth.jsx";
 import { Card, Skeleton, ErrorState, EmptyState } from "../ui/kit.jsx";
 import { SCREEN_ROLES, SCREEN_ROLE_HELP } from "./navConfig.js";
 import { TabShell } from "../ui/TabShell.jsx";
+/* 탭 그릇의 `?` 도움말 — 단독 DataScreen 이 쓰는 것과 같은 함수(D-453). 가벼운 모듈이다
+   (kit 하나만 물어 온다) — registry 처럼 늦게 싣지 않아도 첫 번들에 얹히는 무게가 없다. */
+import { buildScreenHelp } from "../screens/data-screen/screenHelp.jsx";
 
 /* 관리자 콘솔 라우트
  *
@@ -104,6 +107,16 @@ function RouteNotFound() {
  */
 /* W0: `registry-surface-parity.test.js` 가 이 표를 import 해 ROUTE_COVERAGE 와 대조한다.
    Python 정규식으로는 계산된 경로를 못 읽어 28개 중 1개를 조용히 놓쳤다 — JS 진실은 JS 가 증명한다. */
+/* 달력 탭의 도움말 — 예전에는 `SchedulerCalendar.jsx` 가 본문 첫 줄에 `Note` 문단으로 그렸다.
+   화면 설명은 제목 옆 `?` 가 든다(D-453). 문구는 그대로다. */
+const CALENDAR_HELP = (
+  <>
+    예약된 실행을 달력으로 봅니다. <strong>채워진 점</strong>은 실제로 돈 실행,{" "}
+    <strong>점선 테두리</strong>는 아직 오지 않은 예정입니다. 시각은 모두 한국 시간입니다.
+    예정은 Cron 식을 펼쳐 계산한 값이라, 일정을 비활성화했다 활성화하면 다시 계산됩니다.
+  </>
+);
+
 export const TAB_GROUPS = [
   {
     path: "/backup", area: "운영", title: "백업",
@@ -141,7 +154,7 @@ export const TAB_GROUPS = [
     path: "/schedules", area: "자동화와 연동", title: "실행 일정",
     tabs: [
       { key: "schedules", label: "목록" },
-      { key: "scheduler-calendar", label: "달력", render: () => <SchedulerCalendar embedded /> },
+      { key: "scheduler-calendar", label: "달력", help: CALENDAR_HELP, render: () => <SchedulerCalendar embedded /> },
     ],
   },
 ];
@@ -268,6 +281,11 @@ function AdminRoutes() {
                   tabs={ordered.map((t) => ({
                     key: t.key,
                     label: t.label,
+                    /* 도움말은 그릇이 `?` 로 그린다(D-453) — 목록 탭은 registry 의 문장 + 절차
+                       안내를 단독 화면과 **같은 함수**로 만들고, 자기 화면을 가진 탭은 자기
+                       도움말을 준다. */
+                    help: t.help || ((r) => buildScreenHelp(registry[t.key], r)),
+                    helpTone: t.helpTone || (registry[t.key] && registry[t.key].helpTone) || "info",
                     // 대부분은 설정 주도 목록이지만, 표로 답이 안 되는 탭은 자기 화면을 준다.
                     render: t.render || (() => <DataScreen config={registry[t.key]} embedded />),
                   }))}

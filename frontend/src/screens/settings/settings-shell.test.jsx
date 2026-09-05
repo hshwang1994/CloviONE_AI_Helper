@@ -184,3 +184,32 @@ describe("설정 탭 — 옛 안내 4문단은 삭제됐다 (Handoff acceptance_
     expect(screen.queryByText(/유지보수 모드, 점검 공지는/)).not.toBeInTheDocument();
   });
 });
+
+/* 그릇의 머리 — 제목은 고정이고(D-452) 탭별 설명은 제목 옆 `?` 다(D-453). 예전에는 탭
+   라벨이 h1 이라 「AI」가 화면 제목이었고, 설명은 탭 본문 첫 줄의 문단이었다. */
+describe("그릇의 머리 — 제목 고정·탭별 도움말 (D-452 · D-453)", () => {
+  it("AI 탭을 열어도 h1 은 「설정」이다 — 탭 라벨 「AI」가 제목이 되지 않는다", async () => {
+    currentRole = "system_admin";
+    renderShell("/settings?tab=ai");
+    await screen.findByRole("tab", { name: "AI" });
+    const h1s = screen.getAllByRole("heading", { level: 1 });
+    expect(h1s).toHaveLength(1);
+    expect(h1s[0]).toHaveTextContent("설정");
+    expect(h1s[0]).not.toHaveTextContent("AI");
+  });
+
+  it("OS 탭의 설명은 제목 옆 `?` 도움말이다 — 본문 첫 줄 문단이 아니다", async () => {
+    currentRole = "system_admin";
+    renderShell("/settings?tab=os");
+    const toggle = await screen.findByRole("button", { name: "도움말 보기" });
+    expect(toggle.closest(".k-page-head")).not.toBeNull();
+    expect(screen.getByText(/시스템 설정 도우미가 정해진 동작만 수행합니다/)).toBeInTheDocument();
+  });
+
+  it("시스템 정책 탭에는 도움말 문장이 없으므로 `?` 도 없다 — 반례", async () => {
+    currentRole = "system_admin";
+    renderShell("/settings?tab=policy");
+    await screen.findByRole("tab", { name: "시스템 정책" });
+    expect(screen.queryByRole("button", { name: "도움말 보기" })).toBeNull();
+  });
+});

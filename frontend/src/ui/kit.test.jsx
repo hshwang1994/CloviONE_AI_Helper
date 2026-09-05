@@ -894,3 +894,43 @@ describe("sx 는 객체든 함수든 살아남는다", () => {
     unmount();
   });
 });
+
+/* D-452 · D-456 · D-457 — 머리 제목, 절차 안내 부품, 상세 키/값 줄. */
+import { DetailGrid, DetailRow, GuidanceBlock } from "./kit.jsx";
+
+describe("PageHeader — 제목은 언제나 title 이다 (D-452)", () => {
+  it("옛 tab prop 을 넘겨도 h1 은 title 이고 탭 라벨은 제목에 안 들어간다", () => {
+    ui(<PageHeader area="자동화와 연동" title="실행 일정" tab="목록" />);
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("실행 일정");
+    expect(screen.queryByText(/목록/)).toBeNull();
+  });
+});
+
+describe("GuidanceBlock — 준비물·절차·기대 결과 (D-456)", () => {
+  it("셋을 라벨과 함께 그린다", () => {
+    ui(<GuidanceBlock prerequisite="계정이 있어야 합니다." steps={["하나", "둘"]} expected="목록에 나타납니다." />);
+    expect(screen.getByText("필요한 것")).toBeInTheDocument();
+    expect(screen.getAllByRole("listitem")).toHaveLength(2);
+    expect(screen.getByText("기대 결과")).toBeInTheDocument();
+  });
+
+  it("셋 다 비면 아무것도 그리지 않는다 — 반례", () => {
+    const { container } = ui(<GuidanceBlock steps={[]} />);
+    expect(container.querySelector("[data-guidance]")).toBeNull();
+  });
+});
+
+describe("DetailRow — 상세의 키/값 줄 (D-457)", () => {
+  it("라벨과 값을 한 줄로 그리고 격자가 줄을 담는다", () => {
+    const { container } = ui(
+      <DetailGrid>
+        <DetailRow label="이메일">a@b.c</DetailRow>
+        <DetailRow label="역할" dense>admin</DetailRow>
+      </DetailGrid>,
+    );
+    expect(container.querySelector("[data-detail-grid]")).not.toBeNull();
+    expect(container.querySelectorAll("[data-detail-row]")).toHaveLength(2);
+    expect(screen.getByText("이메일")).toBeInTheDocument();
+    expect(screen.getByText("a@b.c")).toBeInTheDocument();
+  });
+});
