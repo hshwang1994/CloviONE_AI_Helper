@@ -7,7 +7,7 @@
 > 상태 값: `TODO` · `IN_PROGRESS` · `DONE` · `BLOCKED`(외부 원인만).
 > **한 항목을 "일부 했다" 로 닫지 않는다** — 남은 것은 사유와 Owner Session 을 적어 이관한다 (E9).
 
-**기록 시점**: 2026-08-21 (S0) · **갱신**: 2026-09-05 (휴지통·공유 링크 회차 — P-83·P-84 신규)
+**기록 시점**: 2026-08-21 (S0) · **갱신**: 2026-09-05 (관리자 UI 정리 회차 — P-85~P-88 신규)
 
 ---
 
@@ -190,3 +190,7 @@ Wave → Session 매핑은 위 Phase E 표를 따른다.
 | **P-82** | **`reimport-bodies` 가 아무 문제 없이 끝나도 원장에 「판정: FAIL」이라고 적는다** | 미배정 | — | TODO | 그 회차의 보고서에 **검사가 0건**이라 자기 판정이 실패로 떨어진다(`검사 0건 중 실패 0 · blocking 0` 인데 FAIL). `REIMPORT_OK` 는 정상으로 나오므로 종료 코드는 옳고, 틀린 것은 사람이 읽는 줄이다. Confluence 쪽은 전수 대조를 **검사**로도 남겨 이 문제를 이미 피했고(`load_confluence.reconcile` 의 주석이 그 이유를 적는다), 같은 처방이 이쪽에도 필요하다. 완료의 정의: 아무 문제 없는 회차의 마지막 줄이 PASS 다. 🔴 「검사를 0건으로 두고 FAIL 을 안 찍는다」로 닫지 않는다 — 그러면 진짜 실패도 안 보인다 |
 | **P-83** | **`#` 없는 딥링크가 SPA 대신 날 JSON 404 를 낸다** | 미배정 | — | TODO | 서버에 SPA catch-all 이 없어서 `https://host/tickets/abc`(손으로 만들었거나 채팅앱이 조각을 떨어뜨린 주소)가 `{"error":{"code":"not_found",…}}` 를 브라우저에 그대로 뿌린다(`app/core/errors.py` 의 `StarletteHTTPException` 핸들러). 공유 링크 회차(D-444·D-445)가 발견했지만 **사용자가 실제로 겪은 경로가 아니라서**(주소창 복사는 조각을 들고 간다) 그 회차 범위 밖으로 뒀다. 완료의 정의: GET + `/api`·`/static`·헬스·인증 페이지가 아니고 `Accept: text/html` 인 요청만 `303 /#<path><query>` 로 보내고, 기존 API 404 는 한 건도 안 가려진다(반례 시험으로 확인) |
 | **P-84** | **`team_docs_enabled` 가 메뉴만 걷고 `/api/knowledge` 는 안 막는다** | 미배정 | — | TODO | `navConfig.js::NAV_FEATURE_FLAG` 가 `/knowledge`·`/team-docs/trash` 를 그 깃발에 걸어 사이드바와 Ctrl+K 에서 지우는데, 라우트는 무조건 등록돼 있고 서버의 `require_team_docs_enabled` 는 **옛 라우터에만** 걸려 있다(`app/team_docs/router.py`). 즉 깃발을 끈 테넌트에서 공유받은 `#/knowledge/<id>` 는 정상적으로 열리고, 그 사람은 돌아갈 메뉴만 없다 — 운영자는 「문서를 껐다」고 믿는다. 두 층이 다른 말을 한다. 완료의 정의: 서버에 같은 깃발을 걸거나 목록에서 빼거나 — **한쪽으로** 정하고 시험이 그 하나를 잰다 |
+| **P-85** | **`AdminRoutes.jsx::ORG_CONSOLE_KEYS` 는 무용 상수다** | 미배정 | — | TODO | registry 에 없는 키(조직 콘솔 셋)를 registry 순회에서 거르는데, 그 키는 애초에 registry 에 없어 걸러질 것이 없다(D-406 뒤에 남은 흔적). 관리자 UI 정리 회차가 발견했다. 완료의 정의: 상수와 그 필터를 걷고 `setup-wizard.test.jsx` 의 명시 경로 목록이 여전히 초록이다 |
+| **P-86** | **`/audit` 의 h1 「감사 로그」와 첫 탭 라벨 「감사 로그」가 겹친다** | 미배정 | — | TODO | 탭 그릇의 h1 이 그릇 제목으로 고정되면서(D-452) 같은 낱말이 위아래로 두 번 보인다. 문구 결정이라 UI 정리 회차 범위 밖에 뒀다(문구 신설·변경 금지). 완료의 정의: 탭 라벨 하나를 다른 이름으로 정하고(예: 「기록」) `admin-tab-groups.test.jsx` 가 그 이름을 잰다 |
+| **P-87** | **`adminKit.jsx::Note` 를 사용자 화면 셋이 쓴다 · `MyTickets.jsx` 의 필드 격자 상수는 `density.js::FORM_FIELD_GRID` 와 같은 값이다** | 미배정 | — | TODO | 이름이 「관리자 kit」인 부품을 사용자 화면이 쓰고, 새 티켓 폼의 컨테이너 질의 격자(`NT_FIELD_GRID`)가 이 회차가 `density.js` 에 올린 `FORM_FIELD_GRID` 와 값이 같다 — 사용자 화면 무변경 원칙 때문에 안 건드렸다. 완료의 정의: `Note` 를 `kit.jsx` 로 올리고 `MyTickets` 가 `FORM_FIELD_GRID` 를 쓰며 `density-contract.test.jsx` 가 둘이 한 값임을 잰다 |
+| **P-88** | **`canOnboardFor` 가 `headerActions[].when(ctx)` 를 무시한다** | 미배정 | — | TODO | `screenHelp.jsx::canOnboardFor` 는 primary 머리 동작의 `roles` 만 보고 `when` 조건을 안 본다 — 지금 registry 에 `primary` + `when` 조합이 없어 결과가 같다(주석으로 남겼다). 그 조합이 생기면 만들 수 없는 상황의 역할에게 절차 도움말이 보인다. 완료의 정의: `when` 을 평가하거나 그 조합을 정적 검사로 막고, 반례 시험이 있다 |

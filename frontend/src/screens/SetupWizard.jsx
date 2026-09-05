@@ -218,8 +218,9 @@ export function SetupWizard() {
         }
       />
       {/* 목록 판 + 요약 레일. 예전에는 요약이 전폭 안내 상자, 목록이 전폭 판이라 1920 에서
-          항목 설명 한 줄이 1,500px 를 달렸다. 접으면 레일만 전폭으로 남는다. */}
-      <Box sx={open ? pairTracks(BASELINE_TRACKS.two) : undefined}>
+          항목 설명 한 줄이 1,500px 를 달렸다. 접으면 레일만 전폭으로 남는다. 레일은 제 내용만큼만
+          선다(`start`) — 목록 높이로 늘리면 잉크 14% 짜리 빈 판이 된다(실측). */}
+      <Box sx={open ? { ...pairTracks(BASELINE_TRACKS.two), alignItems: "start" } : undefined}>
         {open ? (
           <Card>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 1, ...KO_WORD_BREAK }}>

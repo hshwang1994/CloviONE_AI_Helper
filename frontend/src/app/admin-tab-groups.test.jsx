@@ -139,8 +139,12 @@ describe("그릇의 머리 — 제목·도움말·동작 (D-452 · D-453 · D-45
   it("탭 본문의 머리 동작이 그릇 머리(.k-page-head) 안에 선다 — 탭 아래 별도 줄이 아니다", async () => {
     renderAt("/backup");
     // 목록이 비어 있으면 빈 상태도 같은 이름의 CTA 를 그린다 — 머리에 선 것을 골라 본다.
-    const btns = await screen.findAllByRole("button", { name: "백업 실행" }, { timeout: 5000 });
-    const inHead = btns.filter((b) => b.closest(".k-page-head"));
+    // 머리 슬롯은 portal 이라 호스트가 붙기 전 한 틱은 본문 자리(fallback)에 그려진다 — 첫
+    // 매치를 잡으면 그 틱을 재게 되므로(기계가 느릴 때 실제로 빨갛다) 머리에 설 때까지 기다린다.
+    const inHeadNow = () =>
+      screen.getAllByRole("button", { name: "백업 실행" }).filter((b) => b.closest(".k-page-head"));
+    await waitFor(() => expect(inHeadNow()).toHaveLength(1), { timeout: 5000 });
+    const inHead = inHeadNow();
     expect(inHead).toHaveLength(1);
     expect(inHead[0].closest('[role="tabpanel"]')).toBeNull();
   });

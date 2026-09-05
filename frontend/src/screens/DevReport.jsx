@@ -95,7 +95,9 @@ function zed(v) { return v ? String(v) : <Zed>0</Zed>; }
  * 구분 행 때문에 맨 `<Table>` 이라 여기서 가로 스크롤 상자를 준다). */
 function TableWrap({ minWidth = "45rem", children }) {
   return (
-    <ListCard sx={{ "& table": { minWidth }, "@media print": { boxShadow: "none" } }}>
+    /* `minWidth: 0` — 격자 칸(1fr = minmax(auto, 1fr)) 안에서 판이 표의 고유 폭까지 늘어나 1366 에서
+       페이지가 가로로 밀렸다(실측: 판 오른쪽 끝 1466px). 판이 줄어들 수 있어야 안쪽 상자가 굴린다. */
+    <ListCard sx={{ minWidth: 0, "& table": { minWidth }, "@media print": { boxShadow: "none" } }}>
       <Box sx={{ overflowX: "auto", "@media print": { overflow: "visible" } }}>{children}</Box>
     </ListCard>
   );
@@ -224,12 +226,13 @@ export function DevReport() {
       {/* 사이드바가 이 화면을 「감사」 묶음에 두는데(navConfig.js) 빵부스러기는 「자동화」
           라고 말하고 있었다 — 그 이름의 묶음은 이제 「자동화와 연동」이고 이 화면은 거기
           없다. 같은 화면이 두 자리에 있다고 읽히던 자리다(S20). */}
-      {/* 긴 설명은 제목 옆 `?` 다(D-453) — 예전에는 머리 아래 상시 문단이었다. 새로고침은 이 화면의
-          주 행동이 아니라(리포트는 스스로 뜬다) 기본 강도다. */}
+      {/* 긴 설명은 제목 옆 `?` 다(D-453) — 예전에는 머리 아래 상시 문단이었다. 새로고침이 이 화면의
+          유일한 주 행동이라 브랜드 면을 그대로 둔다(기본 강도로 내리면 화면에 브랜드 색이 없어진다 —
+          `brand_presence` 실측). */}
       <PageHeader area="감사" title="개발자 월간 리포트"
         description="마감일이 이번 달인 티켓을 담당자별로 모아 업무량과 위험을 봅니다."
         help="마감일이 선택한 달인 티켓을 담당자별로 집계합니다. 각자 얼마나 일했는지는 완료 건수와 예상 WD로 보고, 지금 안고 있는 부담과 위험은 진행 중 업무와 지연으로 함께 봅니다. 예상 WD와 난이도는 티켓 내용을 바탕으로 추정한 값이고, 실제 WD는 완료한 담당자가 입력합니다."
-        actions={<Button onClick={() => query.refetch()}>새로고침</Button>} />
+        actions={<Button variant="primary" onClick={() => query.refetch()}>새로고침</Button>} />
 
       {/* 🔴 이 줄은 테두리 있는 판이었고, 그 판이 1606×68 에 잉크 18% 로 서 있었다(P-42 ②).
           작은 컨트롤 셋을 화면 폭짜리 상자에 담으면 그 상자는 자기 폭을 설명하지 못한다.

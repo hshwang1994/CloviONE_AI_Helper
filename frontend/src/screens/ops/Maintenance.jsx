@@ -173,7 +173,7 @@ export function Maintenance({ embedded = false } = {}) {
           {/* 유지보수 모드가 켜져 있으면 사용자 쓰기가 차단되는 위험 상태다, 페이지 상단에 눈에 띄는 배너로 분명히 한다
               (현재 상태 배지만으론 이 화면에 돌아온 관리자가 한눈에 알기 어려웠다). */}
           {on ? <Box sx={{ mb: 3 }} role="status"><Callout tone="warn">현재 유지보수 모드가 활성화되어 있습니다. 일반 사용자의 쓰기(티켓, 게시판, 문서, 팀 채팅, 놀이, AI 대화, 휴지통)가 차단되고 있습니다. 읽기와 운영자 이상의 쓰기는 그대로 됩니다. 점검이 끝나면 아래에서 비활성화해 주세요.</Callout></Box> : null}
-          <Box sx={pairTracks("minmax(0, 0.8fr) minmax(0, 1.2fr)")}>
+          <Box sx={pairTracks("minmax(0, 1.2fr) minmax(0, 0.8fr)")}>
             <Card>
               <SectionTitle
                 component="h3" title="유지보수 모드"

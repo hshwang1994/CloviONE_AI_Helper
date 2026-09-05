@@ -1133,7 +1133,9 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
               {(q || hasFilter || savedViewsInFilterRow) ? (
                 <FilterActions>
                   {(q || hasFilter) ? (
-                    <Button variant="ghost" size="sm" onClick={() => { setQ(""); setFilters({}); }}>필터 지우기</Button>
+                    /* 이웃(「저장된 뷰」)이 기본 크기라 이 단추도 기본 크기다 — 한 줄에 높이는 하나(C2).
+                       `size="sm"` 이던 동안 2560 에서 4.5px 갈렸다(실측 `control_baseline_mismatch`). */
+                    <Button variant="ghost" onClick={() => { setQ(""); setFilters({}); }}>필터 지우기</Button>
                   ) : null}
                   {/* 검색창이 없는 화면에서는 「저장된 뷰」가 이 줄 끝에 선다 — 예전에는 도구
                       줄에 혼자 남아 오른쪽에 고아 줄을 만들었다(D-455). */}

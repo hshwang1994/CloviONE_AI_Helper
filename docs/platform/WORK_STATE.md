@@ -9,154 +9,122 @@
 
 ## CHECKPOINT
 
-- checkpoint_at: **2026-09-05** (휴지통 화면 정상화 + 공유 링크가 로그인으로 튕기는 버그 —
-  D-444~D-451)
+- checkpoint_at: **2026-09-05** (관리자 화면 전수 UI/UX 정리 + 내 프로필 밀도 정돈 —
+  D-452~D-458)
 - phase: **F — Acceptance 완료(S22) 뒤의 일반 개발**(CLAUDE.md §7.0)
-- session: 사용자가 둘을 지적했다. ①「휴지통 페이지가 이상하다 — 탭도 이상하고 뒤로가기도
-  안 되고 본문도 안 보이고 그리드도 이상하고 정렬 안 돼 있고」 ②「다른 사람들에게 티켓이나
-  문서 링크를 보내주면 로그인 페이지로 간다. 자꾸 로그인 페이지로 감」.
+- session: 사용자가 「관리자 페이지 전체를 사용자 페이지 디자인 기준으로 정리하라 — 머리·
+  도움말·검색/필터/동작 줄·표·모달·폼·타이포·탭·배지·빈 상태·정렬·간격·저정보 전폭 화면·
+  밀도·스크롤·옛 UI 잔재」를 지시했다. **버그 수정·API·백엔드·데이터·권한·업무 로직·검증
+  로직·동작 변경·새 기능·사용자 화면 디자인 변경은 금지**였고, 예외 하나를 사용자가 직접
+  열었다: 「내 프로필 디자인도 같이」. 탭 화면은 「제목 고정, 탭은 아래」, 설정성 화면은
+  「판 격자 유지, 밀도만 정돈」을 골랐다.
 
-  일곱 축으로 갈라 조사하고 각 발견을 **반박 검증**에 걸었다 — 54건 중 40건이 살아남고
-  14건이 반박됐다. 반박된 것 중 둘은 고치려다 만 것이다: 조작기 중복(형제 화면
-  `Knowledge.jsx` 도 같은 축을 판독 줄과 필터 줄에 둘 다 둔다)과 제목 링크의
-  `target="_blank"`(근거 주석과 고정 시험이 있는 의도된 계약).
-
-  ① **공유 링크는 쿠키 한 줄이었다** — D-444. `SameSite=Strict` 는 다른 사이트에서 시작된
-  이동에 쿠키를 아예 안 싣는다. 카톡·메일에서 누른 링크가 정확히 그 이동이라, 받는 사람이
-  **같은 브라우저에 이미 로그인돼 있어도** 매번 로그인 화면을 봤다. `Lax` 로 내렸다 —
-  여는 갈래는 top-level 이동 + 안전한 메서드 하나뿐이고, CSRF 는 헤더 토큰이 막는다
-  (`test_csrf_coverage.py` 가 그 날을 대비해 쓰여 있었다).
-  ② **그것만으로는 로그아웃 상태가 안 풀린다** — D-445. 해시 라우터라 목적지가 통째로
-  조각에 사는데 조각은 서버에 안 온다. 그런데 브라우저는 3xx 를 따라갈 때 그 조각을
-  물려준다(RFC 7231) — 값은 이미 로그인 페이지 손에 있었고 `window.location.href = "/"`
-  가 버리고 있었다. 곁들여 `#/` 를 두 라우트 표가 실제로 받게 했다(그 주소로 보내는 자리가
-  셋인데 **어느 표에도 `path="/"` 가 없었다**).
-  ③ 🔴 **휴지통에서 연 문서를 편집하고 저장할 수 있었다** — D-446. 「저장했습니다」를 받지만
-  그 문서는 목록에 없고 보관기간이 지나면 판째로 사라진다. 티켓은 이 구멍을 이미 막아 뒀고
-  (H2) 그 머리말이 「티켓·문서만 빠져 있었다」고 적었는데 문서는 안 고쳤었다. **읽기는
-  안 막는다** — 휴지통의 「무엇을 지우는지 본다」가 그 위에 선다.
-  ④ **두 원천을 합치는 목록은 합친 뒤에 자른다** — D-447. `limit=100` 인데 200줄이 왔고,
-  두 잘린 앞토막의 합집합이라 앞 100자리만 전역 순서였다. 문서 200건을 넘으면 「더 보기」가
-  수렴하지 않고 열 번쯤 누르면 **422 로 화면이 통째로 죽었다.**
-  ⑤ **조작기의 숫자는 조건을 적용하기 전에 센다** — D-448. 문서 화면의 「휴지통」이
-  `?kind=document` 로 열어서 첫 화면부터 「티켓 0」이 떴다. 그리고 조작기를 **진짜 탭**으로
-  모았다(사용자가 그 모양을 골랐다).
+  기준은 사용자 화면이 실제로 쓰는 공통 구현이다(`PageHeader` 의 `?` · `FilterSurface` ·
+  `ListCard`+`DataTable` · `EmptyState` · `Section`/`SubGroup` · `/new-ticket` 의 폼 판+레일 ·
+  `/sprint` 의 `MetricStrip` · 폭은 셸이 소유). 다섯 패킷으로 나눠 각각 검증·커밋했다:
+  ① 공유 층 — 탭 그릇 h1 고정 · 도움말은 `?` · 머리 동작 슬롯(`HeaderSlot.jsx`) · 「저장된
+  뷰」 고아 줄 · 빈 상태의 절차 산문 → `?` · 키/값 줄 네 벌 → `DetailRow` · 죽은 CSS.
+  ② 설정성 화면 — `/profile` + 설정 4탭이 `pairTracks`·`DetailRow`·`SettingRow` 한 어휘.
+  ③ 마법사·목록성 손글 화면 — 초기 설정·오프보딩·일괄 작업 줄·조직 정합성.
+  ④ 운영·보고서 — 진단·대시보드 「최근 주요 변경」·메일 발송·개발자 월간 리포트·달력·
+  조직도/사용자의 리터럴.
 - branch: `ui/mui-migration`
 - last_stable_commit: **`eec4886c`** — 이번 회차도 안 옮긴다.
-- deployed: **`e6df9272`** — 이 회차를 운영에 올렸다(2026-09-05). `ec9b8aca` 이후 쌓여 있던
-  **미배포 25개**가 함께 나갔다(제목 링크를 넣은 `e8a14664` 포함 — 사용자가 「본문이 안
-  보인다」고 한 것은 그것이 아직 운영에 없어서이기도 했다).
-  `UPGRADE_OK` · `VERIFY_OK` · 스냅샷 `/var/backups/clovirassist/20260905-072916` ·
-  제품 유닛 6종 active · `ssl_verify_result=0` · alembic head `0028_document_legacy_author`
-  (이 회차에 마이그레이션 없음).
-  🔴 **운영에서 실제로 확인한 것과 못 한 것을 갈라 적는다.** 확인한 것: 배포된 소스에
-  `samesite="lax"`·`withCurrentHash`·휴지통 라우터·쓰기 가드가 들어 있다 · 서빙되는 셸이
-  가리키는 번들 해시가 커밋한 것과 **같다**(`index.B3ocJ64p.js`) · 미인증 `GET /` 이
-  `303 /login?next=%2F` · `GET /api/trash` 가 401. **못 한 것**: 로그인이 필요한 관찰
-  (실제 `Set-Cookie` 의 SameSite, `counts`·`sort`·`excerpt` 응답, 보관 문서 쓰기 404)은
-  운영 계정이 없어 안 쟀다 — 그 셋은 실 DB 를 쓰는 시험이 로컬에서 잰다.
+- deployed: **`e6df9272`** 그대로 — **이 회차는 배포하지 않았다**(범위 밖. 별도 지시 때
+  `git archive` 로 보낸다 — 기억 파일 `deploy-needs-git-archive-over-ssh`).
 - verification: 아래 「이번 회차가 잰 것」 절.
-- capture: 전량 정본은 **`s22-final`** 그대로다(D-306).
+- capture: 전량 정본은 **`s22-final`** 그대로다(D-306). 이 회차의 부분 캡처는
+  `dist/ui-qa/admin-uiux-before/`(변경 전 · 49 라우트 × 3 뷰포트 × 2 테마) 와
+  `dist/ui-qa/admin-uiux-after/`(변경 후 · 같은 라우트 × 4 뷰포트 × 2 테마) 이며 정본을
+  안 옮긴다.
 - ui_gate: 변화 없음.
 
 ## 무엇을 고쳤나
 
-### 공유 링크 (D-444 · D-445)
+### 공유 층 (D-452 ~ D-456)
 
 | 자리 | 무엇 |
 |---|---|
-| `app/core/sessions.py` | 세션 쿠키 `samesite` → `lax`. `HttpOnly`·`Secure`·`Path=/`·host-only 는 그대로 |
-| `app/static/js/login.js` | 성공 후 이동에 주소창의 조각을 이어 붙인다(`withCurrentHash`) |
-| `frontend/src/app/UserRoutes.jsx` · `AdminRoutes.jsx` | `path="/"` 를 실제로 받는다 |
-| `frontend/src/app/App.jsx` | 빈 해시(`#/`)도 「갈 곳 없음」으로 본다 |
-| `tests/security/test_csrf_coverage.py` | 머리말: 두 번째 방어선 → **첫 번째 방어선** |
-| `deploy/nginx/clovirassist.conf` | BREACH 근거 문장(결론 같고 근거가 달라진다) |
+| `ui/kit.jsx` | `PageHeader` 의 `tab` prop 삭제(h1 = 그릇 제목) · `helpId` 는 `useId` · `GuidanceBlock`(준비물/절차/기대 결과) · `DetailGrid`/`DetailRow`(키/값 줄의 정본) |
+| `ui/HeaderSlot.jsx` (신설) | `HeaderActionsProvider`/`HeaderActionsHost`/`HeaderActions` — 탭 본문의 머리 동작이 그릇 머리로 간다(portal, 없으면 fallback) |
+| `screens/data-screen/screenHelp.jsx` (신설) | `canOnboardFor`·`buildScreenHelp` — 단독·탭 양쪽의 도움말 정본 |
+| `ui/TabShell.jsx` · `settings/SettingsShell.jsx` · `app/AdminRoutes.jsx` | 탭 정의에 `help`/`helpTone` · 그릇이 `?` 와 머리 동작을 그린다 · 달력 탭 도움말은 `SchedulerCalendar` 의 `Note` 에서 이관 |
+| `screens/DataScreen.jsx` | embedded 안내 상자 제거 → `HeaderActions` · 「저장된 뷰」는 검색 있으면 `ToolbarEnd`, 없으면 `FilterActions` · 빈 상태는 `situation`/`action`/`relatedLink` 만 · 상세 모달은 `DetailRow` |
+| `Users.jsx` · `columnHelpers.jsx` · `JsonBlock.jsx` · `registry/governance.js` | 자기 키/값 줄 → `DetailRow`(`KeyValueRow`·`.c-kv` 삭제) |
+| `styles/screens.css` · `ui/kit.css` | 죽은 규칙 삭제(`.c-toolbar-*`·`.c-kv*`·`.msg-*`·`.docs-*`·`.devrep-*`·`.k-link`) · 인쇄 규칙은 `.c-body` 만 남긴다 |
 
-### 휴지통 (D-446 · D-447 · D-448)
+### 설정성 화면 (D-457 · D-458)
 
-**서버** — `app/trash/router.py` · `repository.py` · `app/knowledge/service.py`
+| 자리 | 무엇 |
+|---|---|
+| `ui/density.js` | `pairTracks(가중치)` · `FORM_FIELD_CONTAINER`/`FORM_FIELD_GRID`(컨테이너 질의 1·2·3열) |
+| `ui/adminKit.jsx` | `SettingRow` 한 행 리듬(py 1 · 설명 caption) · `SettingList` 가 `sx` 를 받는다 |
+| `Profile.jsx` · `settings/AccentPicker.jsx` | 계정 `DetailRow` · 알림/방해금지 `SettingRow` · 둘러보기는 계정 판 안 `SubGroup` · 강조색은 `SectionTitle`+토큰 |
+| `settings/SettingsMain.jsx` · `ops/Maintenance.jsx` | 표는 `ListCard` · 유지보수는 `Section` 안 1.2:0.8 짝(모드 판 + 공지 판) |
+| `SystemOps.jsx` · `StorageProviders.jsx` · `LlmConsole.jsx` | 1.15:0.85 짝 판 · 0건은 `EmptyState layout="page"` + 머리 동작 슬롯 · 폼 판 + 로그인 절차 레일(`FORM_FIELD_GRID`) |
 
-- 정렬 축(`sort`·`dir`)을 연다. 두 원천에 **같은 축·같은 방향**으로 건다.
-- 합친 뒤 `limit` 으로 자른다. 두 원천 다 `id` 로 전순서를 만든다.
-- 문서 몫을 offset 으로 이어 받아 `PAGE_MAX`(200) 너머도 도달한다.
-- `counts: {all, ticket, document, urgent}` — 조건·상한 적용 **전** 기준.
-- `excerpt` 를 싣는다(`list_page_extras` 가 계산해 놓고 버리던 값).
-- `GET /api/trash/{id}/preview` — 티켓·옛 미러 문서의 본문을 지우기 전에 본다. 세 문을 다
-  지난다(휴지통 행의 범위 · 자원 자신의 범위 · 읽기 전용).
-- `get_writable_document_or_404` — 보관된 문서의 쓰기 경로 전부(저장·이동·판 되돌리기·
-  즐겨찾기·댓글 셋·관계 잇기·첨부 둘)가 404 를 낸다. **읽기는 그대로 200.**
-- `delete_document` 를 멱등으로. 다시 버려도 `archived_at`·`archived_by` 가 안 바뀐다.
+### 마법사·목록성 손글 화면 (D-457 · D-458)
 
-**화면** — `frontend/src/screens/Trash.jsx` · `KnowledgeDoc.jsx` · `ui/kit.jsx`
+| 자리 | 무엇 |
+|---|---|
+| `SetupWizard.jsx` | 목록 판 + 요약 레일(문장 + `MetricStrip`) · 상태는 `Badge` · 설명 상수 하나 |
+| `Offboarding.jsx` | `FilterSurface`/`SearchBox` + `ResultLine` + `ListCard` · 요약은 `Section` · 폼 판 + 「실행하면」 레일(`planLines` 를 확인 대화와 공유) · 상세는 `DetailRow` |
+| `UsersBulk.jsx` | 일괄 작업 줄이 판을 벗고 `ToolbarRow` 둘 · 「일괄 지정」은 `FilterSelect` |
+| `Integrity.jsx` (+ `integrity.test.jsx` 신설) | 0건 항목은 `SettingRow` 줄 · 건수 있는 항목만 판(`selectionColumn`) · 관리자 범위는 xl 부터 1.6:1 옆 |
 
-- 조작기를 **진짜 탭**으로(`role="tab"`·`aria-selected`). 숫자는 서버 counts. 조건 결과가
-  0건이어도 탭 줄이 남고 「전체 보기」가 있다. 정말 0건이면 탭도 안 그린다.
-- 상태를 `useQueryState` 로 옮겼다 — 기본 `replace`(뒤로가기 한 번으로 벗어난다), 모르는
-  키 보존, 조건이 바뀌면 「더 보기」 깊이가 되돌아간다.
-- 조건이 바뀌면 선택을 비우고, 일괄 동작은 **보이는 줄과의 교집합**만 보낸다. 확인 창이
-  무엇이 죽는지 **이름으로** 말한다.
-- 머리글 정렬(삭제일·삭제 예정·제목)을 서버 축에 잇는다.
-- 그리드: 부가 열 셋에 `hideNarrow`(바닥 폭 1336px 였다) · 열 key `place` → `space` ·
-  행 동작 열의 정렬을 한 축으로 + 이름을 「작업」으로 · 값 없음 표기 통일 ·
-  「더 보기」가 15초 폴링에 회색이 되지 않게.
-- `kit.jsx::columnShouldTruncate` — `ellipsis` prop 이 「행 동작·선택 열은 안 자른다」는
-  가드를 우회하던 것을 **부품에서** 막는다(다음 화면에서 같은 실수가 안 나게).
-- `KnowledgeDoc` 이 `archived` 를 **처음으로** 읽는다: 휴지통 안내판(누가 언제) · 읽기
-  전용 본문 · 복원 단추 · 이미 들어 있는 휴지통으로 「휴지통으로 보내기」 제거.
+### 운영·보고서
 
-## 🔴 자기 변경을 다시 반박 검증에 걸었다 — 21건이 살아남았다
-
-고치고 나서 **그 diff 를** 다섯 축으로 다시 감사했다(보안 회귀 · 서버 정합 · 화면 정합 ·
-문서 화면과 공용 부품 · 시험이 진짜인가). 33건 중 21건이 반박을 견뎠고 전부 고쳤다.
-그중 셋은 **이 회차가 만든 것**이다:
-
-  * **서버가 막은 자리에 언제나 실패하는 단추가 남았다** — D-449. 판 이력의 「되돌리기」,
-    첨부의 「삭제」, 그리고 저장 단추가 없어져 **아무 데도 안 가게 된** 분류 고르개.
-  * **기본 정렬 축이 좁은 화면에서 가장 먼저 사라졌다** — D-450. 화살표도 정렬 조작기도
-    함께 사라져 방향을 되돌릴 방법이 없었다.
-  * **「같은 축·같은 방향」으로는 모자랐다** — D-451. 비교 함수(콜레이션 대 파이썬)와
-    「값을 모르는 줄」의 순서까지 맞아야 합친 앞 N 줄이 전역으로 옳다.
-
-그리고 「시험이 진짜인가」 축이 다섯을 잡았다. 가장 뼈아픈 것: **선택 열의 자르기 가드를
-재는 시험이 앱이 한 번도 만들지 않는 모양을 재고 있었다**(`selectionColumn` 에 `type` 이
-없었다 — 가드의 그쪽 갈래가 죽은 코드였다). 합성 객체로 재면 이런 것이 안 보인다.
+| 자리 | 무엇 |
+|---|---|
+| `ops/Diagnostics.jsx` · `ServiceStatusPanel.jsx` · `JobQueuePanel.jsx` | 수집 시각은 머리 캡션, 민감정보 안내는 `?` · 필수 서비스\|외부 연동 조건부 2열(`aside`·`pair`) · 안내 판 → `Note` + 링크 · 설치처 설정/최근 작업 오류는 괘선 구획 · 원본은 `TechDetail` + 함몰면 · 수집 전은 `EmptyState layout="page"` |
+| `Dashboard.jsx` | 「최근 주요 변경」 손글 표 → `ListCard` + `DataTable`(복사 링크·`c-id-selectable` 유지) |
+| `MailStatus.jsx` | 「최근 실패」 0건은 `EmptyState`(성공 그림), 있으면 `ListCard` |
+| `DevReport.jsx` | 루트 `devrep` 클래스 제거 · 긴 문단 → 머리 `?` 와 구획 `help`(`PROSE_MAX_WIDTH`) · h2 셋 → `Section rule` · 표 상자 → `ListCard`(`minWidth: 0` — 격자 칸이 표 폭까지 늘어 1366 에서 가로로 밀리던 것) |
+| `SchedulerCalendar.jsx` | 도구 줄 판 → `FilterSurface`/`ToolbarRow`/`ToolbarEnd` · 요약 판 → `MetricStrip` · 18px 제목 → `sectionTitle` |
+| `OrgTree.jsx` · `Users.jsx` | 리터럴 폰트/포커스 링 → 토큰(`FONT_SIZE`·`palette.focusRing`) |
 
 ## 이번 회차가 잰 것
 
-- **새 시험 7파일 66건**(전부 반례 동반):
-  `tests/integration/test_trash_list_contract.py`(12) ·
-  `test_trashed_document_is_read_only.py`(8) · `test_trash_preview.py`(6) ·
-  `frontend/src/screens/login-deeplink-handoff.test.jsx`(5) ·
-  `trash-tabs.test.jsx`(19) · `knowledge-doc-trashed.test.jsx`(10) ·
-  `frontend/src/ui/hidden-columns-note.test.jsx`(6).
-- 🔴 **반례를 말로만 적지 않고 실제로 돌렸다** — 고친 코드를 되돌려 빨간불을 확인하고
-  되살렸다: 조각 이어 붙이기(1건 빨강) · 합친 뒤 자르기(6건) · 조건-무관 개수(2건) ·
-  조건이 바뀔 때 선택 비우기(1건). 첫 판의 선택 시험은 되돌려도 초록이었다 — 교집합
-  가드가 대신 잡고 있었다. 「탭을 다시 눌러 돌아왔을 때」를 재도록 고쳐서 두 겹을 갈랐다.
-- 갱신한 기존 시험: `test_auth_login.py`(SameSite) · `trash.test.jsx`(빈 상태) ·
-  `trash-native-documents.test.jsx`(드롭다운 → 탭) · `app-landing-path.test.js`(`#/`) ·
-  `admin-tab-groups.test.jsx` · `settings-route-redirects.test.jsx`(탈출 단추가 가는 곳).
-- 자체 검수 뒤 더 넣은 것: `frontend/src/ui/datatable-narrow-columns.test.jsx`(4 — 접힘
-  안내 문구와 「정렬 축은 안 숨긴다」를 **DataTable 을 실제로 그려서** 잰다) ·
-  보관 문서 쓰기 가드 표를 다섯 경로로 넓히고 **반례(버리기 전에는 404 가 아니다)** 를
-  붙였다 · 미리보기의 **두 번째 문**(자원 자신의 범위) · 문서 상한 너머 이어 받기 ·
-  보관기간이 다를 때의 「삭제 예정」 축 · 「더 보기」 상한.
-- 반례를 더 돌렸다: 미리보기 두 번째 문(제거 → 빨강) · 이어 받기 루프(제거 → 빨강) ·
-  접힘 안내와 정렬 축 배선(둘 다 되돌림 → 빨강) · 「더 보기」 상한(제거 → 3건 빨강).
+- **시험** — 단언은 지우지 않고 **더했다**(`check_test_strength.py`). 새 파일 하나
+  (`screens/integrity.test.jsx` 4건, 반례 동반)와 덧붙인 시험: `app/admin-tab-groups.test.jsx`
+  (h1 고정 · 머리 동작 슬롯 · `?` 도움말) · `settings/settings-shell.test.jsx` · `screens/
+  datascreen.test.jsx`(절차가 `?` 에만, 역할 반례) · `screens/saved-views.test.jsx`(조건 줄 안/밖) ·
+  `ui/kit.test.jsx`(`PageHeader`·`GuidanceBlock`·`DetailRow`) · `ui/density-contract.test.jsx`
+  (`pairTracks`·`FORM_FIELD_GRID`). 패킷마다 영향 화면의 기존 시험 전부를 돌렸다(설정·프로필·
+  마법사·오프보딩·일괄 작업·사용자 13파일·진단·대시보드·메일·리포트·달력·조직도) — 문구·aria·
+  testid·data-* 를 그대로 둔 것이 회귀 방지의 전부였다.
+- **정적 검사** `--scope dev` — 패킷마다. 잡힌 것 하나: 진단의 「연동이 등록되면」이 `Note`
+  의 JSX 자식이 되면서 동사표 시험에 걸렸다(`등록` → `추가`). 나머지는 초록.
+- **캡처** — `admin-uiux-before`(변경 전, 294장) / `admin-uiux-after`(변경 후, 4 뷰포트 × 2
+  테마) + 패킷별 부분 캡처(`wp1-check`~`wp5-check`). 프로브 판정은 치명 0. PNG 를 직접
+  열어 §20 목록(머리·도움말·검색·필터·동작·표·폼·모달·탭·배지·빈 상태·타이포·정렬·간격·
+  폭·밀도·스크롤·불필요 UI)을 화면마다 봤다 — 발견해서 고친 것: 유지보수 새로고침 캡션이
+  줄 가운데로 떠 있던 것 · 조직 정합성의 관리자 표가 1366 에서 잘리던 것(짝을 xl 부터로).
+  변경 전후 프로브를 라우트별로 대조해 **새로 생긴** 판정만 골라 고쳤다: 리포트 표 판이 1366 에서
+  가로로 밀림(`minWidth: 0`) · 「저장된 뷰」와 「필터 지우기」가 2560 에서 4.5px 갈림(같은 크기로) ·
+  초기 설정 레일이 잉크 14% 빈 판(레일은 제 높이만) · 유지보수 짝의 본문/곁열 비 · 리포트의
+  브랜드 색 부재(「새로고침」은 그대로 주 행동). 남긴 판정은 짧은 화면의 하단 공백
+  (`dead_blank_region`)과 한쪽이 짧은 짝(`detail_side_imbalance` — 설정 OS 탭은 이 환경에
+  도우미가 없어 서비스 목록이 비고, 초기 설정 레일은 본디 짧다)이며, 빈 판으로 채우지 않는다.
+- **사용자 화면 무변경** — 변경 전 커밋(`99829347`)을 worktree 로 받아 같은 시드로 사용자
+  라우트 32장을 찍고 픽셀 대조했다. 아바타·무작위 식별자·시각 말고는 **한 곳**만 다르다:
+  `/notifications`(공용 `DataScreen`)의 「저장된 뷰」가 D-455 대로 조건 줄에 붙으면서 고아 줄
+  하나가 사라졌다. 공유 층의 규칙이라 갈라 두지 않았다 — 사용자에게 그렇게 보고한다.
+  `/profile` 은 지시대로 바뀐 화면이다.
 
 ## 이번 회차가 **안 고친** 것 — 그리고 그 이유
 
-이월 항목의 **정본은 [`BACKLOG.md`](BACKLOG.md)** 다. 이 파일은 덮어쓰므로 여기 적어 두면
-다음 회차에 사라진다.
+이월 항목의 **정본은 [`BACKLOG.md`](BACKLOG.md)** 다.
 
-- **P-83**(신규) — `#` 없는 딥링크가 SPA 대신 날 JSON 404 를 낸다. 사용자가 실제로 겪은
-  경로가 아니라(주소창 복사는 조각을 들고 간다) 이번 범위 밖으로 뒀다.
-- **P-84**(신규) — `team_docs_enabled` 가 메뉴만 걷고 `/api/knowledge` 는 안 막는다.
-- 반박돼서 **안 고친** 것: 조건 컨트롤 중복(형제 화면의 관용과 같다) · 제목 링크의
-  `target="_blank"`(근거 주석과 고정 시험이 있다) · 30분 유휴 만료(조정 가능한 정책) ·
-  `next` 의 쿼리스트링 누락(페이지 라우트가 셋뿐이라 증상이 없다) · `expired=1` 게이팅
-  (첫 방문자에게 거짓말이 된다).
-- **P-44 · P-54~P-56 · P-59 · P-61~P-82** — 그대로다.
+- **P-85**(신규) — `AdminRoutes.jsx::ORG_CONSOLE_KEYS` 는 무용 상수다.
+- **P-86**(신규) — `/audit` 의 h1 「감사 로그」와 첫 탭 라벨이 겹친다(문구 결정이라 범위 밖).
+- **P-87**(신규) — `adminKit::Note` 를 사용자 화면이 쓰고, `MyTickets` 의 필드 격자가
+  `FORM_FIELD_GRID` 와 같은 값이다(사용자 화면 무변경 원칙으로 안 건드렸다).
+- **P-88**(신규) — `canOnboardFor` 가 `headerActions[].when` 을 무시한다(지금은 결과가 같다).
+- 지시대로 **안 한 것**: 버그 수정 · 동작/문구 신설(도움말 이관은 문구 그대로. 유일한 예외는
+  레일 제목 「실행하면」·「정리할 항목」·빈 상태 제목 셋과 초기 설정 요약의 「아래」 한 낱말) ·
+  배포.
+- **P-44 · P-54~P-56 · P-59 · P-61~P-84** — 그대로다.
 
 ## 🔴 운영이 PostgreSQL 위에서 돈다
 
@@ -173,7 +141,8 @@
 - **작업 보드·스프린트 회의·문서 결함 전수 수정 + 429 근본 해소 ✅** — D-407~D-412.
 - **3라운드 운영 실화면 재검수 ✅** — D-413~D-415. 배포 `c3c2e195`.
 - **문서 기능 개편 + 외부 문서 정상화 ✅** — D-416~D-443. 배포 `ec9b8aca`.
-- **휴지통 정상화 + 공유 링크 — 코드 ✅ / 배포 ⬜** — 이번 회차, D-444~D-451.
+- **휴지통 정상화 + 공유 링크 ✅** — D-444~D-451. 배포 `e6df9272`.
+- **관리자 화면 전수 UI/UX 정리 + 내 프로필 — 코드 ✅ / 배포 ⬜** — 이번 회차, D-452~D-458.
 
 ## BLOCKERS
 
