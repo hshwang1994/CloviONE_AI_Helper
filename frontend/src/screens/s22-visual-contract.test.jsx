@@ -6,6 +6,7 @@ import "@testing-library/jest-dom/vitest";
 import { REGISTRY } from "./registry.js";
 import { CONTROL, remPx } from "../ui/theme.js";
 import { COLUMN_TYPES, resolveColumn } from "../ui/columnTypes.js";
+import { pairTracks } from "../ui/density.js";
 
 /* S22 Final UI Audit 이 실브라우저에서 잡은 시각 결함 넷을 **뿌리에서** 못 박는다.
  *
@@ -74,16 +75,36 @@ describe("게시글 반응 칩은 px 가 아니라 토큰으로 선다 (4K 레�
   });
 });
 
-describe("내 프로필의 두 칸은 똑같이 나누지 않는다 (equal_column_split)", () => {
-  it("두 줄이 서로 다른 쪽으로 기울어 있다", async () => {
+/* qa-contract-change: 내 프로필의 두 줄은 이제 같은 값으로 나눈다 — 예전 계약은 「줄마다 반대로 기울인다」였고 그 근거였던 2.88배는 폭이 아니라 줄당 글자 수였다(assertions.py demandOf, P-73 이 위양성으로 기록). 게다가 1.35 로 기울이면 그 검사는 assertions.py:955 에서 건너뛰므로 이 화면은 검사를 받은 적이 없다. 단언은 늘었다 — 죽어 있던 줄 하나를 살리고 「두 줄이 같은 이음매를 쓴다」를 새로 잰다. */
+describe("내 프로필의 두 줄은 같은 자리에서 나눠진다 (equal_column_split)", () => {
+  it("두 줄이 한 값을 함께 쓴다 — 열 사이 이음매가 세로로 한 줄이다", async () => {
     const src = await import("./Profile.jsx");
     expect(src).toBeTruthy();
-    // 값 자체는 모듈 밖으로 안 나간다(내부 상수). 계약은 «두 줄의 가중치가 서로 다르고
-    // 어느 쪽도 1:1 이 아니다» 이고, 그것을 소스에서 직접 확인한다.
+    // 값 자체는 모듈 밖으로 안 나간다(내부 상수) — 소스에서 직접 확인한다.
     const text = PROFILE_SOURCE;
-    expect(text).toContain("minmax(0, 0.85fr) minmax(0, 1.15fr)");
-    expect(text).toContain("minmax(0, 1.15fr) minmax(0, 0.85fr)");
-    expect(text).not.toContain('lg: "minmax(0, 1fr) minmax(0, 1fr)"');
+    expect(text).toContain('const TWO_COL_EVEN = pairTracks("minmax(0, 1fr) minmax(0, 1fr)")');
+    // 쓰는 자리가 **둘**이어야 두 줄이 같은 값을 쓴다. 하나만 재면 한 줄만 고친 것과
+    // 구별되지 않는다.
+    expect(text.match(/sx=\{TWO_COL_EVEN\}/g) || []).toHaveLength(2);
+    // 반례 — 줄마다 다른 가중치로 되돌아가면 이음매가 다시 어긋난다.
+    expect(text).not.toContain("minmax(0, 0.85fr) minmax(0, 1.15fr)");
+    expect(text).not.toContain("minmax(0, 1.15fr) minmax(0, 0.85fr)");
+  });
+
+  it("높이를 맞추는 결정은 그대로다 — 폭을 같게 했다고 바닥 정렬을 놓지 않는다", () => {
+    /* 예전 주석이 적어 둔 것처럼 「줄 바닥을 맞추는 것」과 「폭을 반씩 주는 것」은 다른
+       결정이다. 이번에 둘째를 바꿨으니 첫째가 따라 넘어가지 않았는지를 같은 자리에서 잰다. */
+    expect(pairTracks("minmax(0, 1fr) minmax(0, 1fr)").alignItems).toBe("stretch");
+  });
+
+  it("반례 — 이 묶음이 실제로 깨질 수 있는 문자열을 본다", () => {
+    /* 예전 세 번째 단언은 `lg: "minmax(0, 1fr) minmax(0, 1fr)"` 를 금했는데, `lg:` 는
+       `pairTracks` 가 붙이는 것이고 Profile.jsx 에는 한 번도 안 나온다 — 어떤 소스에서도
+       안 깨지는 죽은 줄이었다. 같은 실수를 반복하지 않게, 이 묶음이 읽는 소스가 실제로
+       그 화면의 것이고 검사 대상 문자열을 담고 있는지 먼저 확인한다. */
+    expect(PROFILE_SOURCE).not.toContain("lg:");
+    expect(PROFILE_SOURCE).toContain("pairTracks(");
+    expect(PROFILE_SOURCE).toContain("내 프로필");
   });
 });
 
