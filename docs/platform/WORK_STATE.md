@@ -26,8 +26,9 @@
 
 - branch: `ui/mui-migration`
 - last_stable_commit: **`eec4886c`** — 이번 회차도 안 옮긴다.
-- deployed: **`535b5024`** — 두 번 배포했다. `6d99144b` 로 올린 뒤 실환경에서 눌러 세 건을
-  더 찾아 고치고(`535b5024`) 다시 올렸다. 두 번 모두 `UPGRADE_OK` · `DEPLOY_VERIFY_OK`.
+- deployed: **`15e2335e`** — 세 번 배포했다. `6d99144b` 로 올린 뒤 실환경에서 눌러 세 건을
+  더 찾아 고쳐 `535b5024` 로 다시 올렸고, 사용자가 지적한 내 프로필 판 정렬을 고쳐
+  `15e2335e` 로 한 번 더 올렸다. 세 번 모두 `UPGRADE_OK` · `DEPLOY_VERIFY_OK`.
 - verification: 아래 「이번 회차가 잰 것」.
 - capture: 전량 정본은 **`s22-final`** 그대로다(D-306). 이 회차는 기능 회차라 캡처를 안 옮긴다.
 - ui_gate: 변화 없음.
