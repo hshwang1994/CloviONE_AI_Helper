@@ -17,7 +17,15 @@ from sqlalchemy.orm import Session
 
 from app.core.audit import record_audit_from_request
 from app.core.authz import CONSOLE_READ_ROLES, CONSOLE_WRITE_ROLES
-from app.core.deps import get_db, require_csrf, require_roles
+from app.core.deps import (
+    audit_forbidden_write,
+    get_db,
+    get_principal,
+    require_csrf,
+    require_roles,
+)
+from app.core.errors import ForbiddenError
+from app.core.scope import Principal, require_global_management
 from app.mail.config import config_from_cache, mail_status
 from app.mail.renderers import KIND_TEST
 from app.mail.service import (
@@ -52,8 +60,28 @@ def status(request: Request, db: Session = Depends(get_db)):
 
 
 @router.post("/test", dependencies=[Depends(require_roles(*CONSOLE_WRITE_ROLES))])
-def send_test(request: Request, db: Session = Depends(get_db)):
-    """자기 자신에게 시험 메일. 보내지 못하면 그 사실이 응답과 아웃박스에 남는다."""
+def send_test(
+    request: Request,
+    db: Session = Depends(get_db),
+    principal: Principal = Depends(get_principal),
+):
+    """자기 자신에게 시험 메일. 보내지 못하면 그 사실이 응답과 아웃박스에 남는다.
+
+    범위 게이트를 여기 두는 이유: 이 시험은 **설치 한 벌의 SMTP 계정**으로 나간다. 그
+    설정(`smtp` 키)을 바꿀 수 있는 사람과 그것을 실제로 써 보는 사람이 다르면, 부서 범위
+    관리자가 자기가 못 고치는 계정으로 발송을 일으키고 그 계정의 평판과 발송 한도를
+    쓰게 된다. 그래서 설정 표와 같은 판정을 쓴다(`app/settings/router.py::_guard_scope`).
+
+    막은 시도는 역할 게이트와 같은 자리에 남긴다 — 범위 게이트는 핸들러 안에서 판정하므로
+    `require_roles` 의 감사 기록을 지나지 않는다.
+    """
+    try:
+        # 거절되는 것은 **발송**이다 — 「메일 발송 설정은 … 바꿀 수 있습니다」로 답하면
+        # 건드린 적도 없는 설정 화면을 찾아가게 만든다. 화면의 단추 이름 그대로 말한다.
+        require_global_management(principal, "시험 메일", verb="보낼")
+    except ForbiddenError:
+        audit_forbidden_write(request, db, request.state.user)
+        raise
     me = request.state.user
     now = request.app.state.clock.now()
     row = queue_mail(

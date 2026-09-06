@@ -10,6 +10,8 @@ from __future__ import annotations
 
 """qa-contract-change: S11 이 문서 자동 생성을 걷어내 그 엔드포인트로 쿼터 상한을 재던 시험과, document_generations 행으로 「쓰이는 중」을 만들던 프롬프트 표본 시험이 재현 불가능해졌다. 쿼터 계약은 채팅 경로가 새로 진다(test_chat_answers_from_retrieval.py::test_quota_counts_only_a_real_answer) — 같은 것을 다른 소비자로 지킨다."""
 
+"""qa-contract-change: 겹침 409 문구가 저장된 naive UTC 를 그대로 찍어 관리자가 실제와 9시간 다른 창을 보고 있었다(perm-04). 서버가 만드는 완성된 문장은 KST 로 말한다(§불변 9) — 이 시험의 기대값도 같은 축으로 옮기고, 옛 UTC 표기가 다시 새지 않는지까지 함께 못박는다."""
+
 import json
 from datetime import datetime, timedelta, timezone
 
@@ -344,6 +346,154 @@ def test_delegation_rejects_self_and_non_approver(client, login_as, make_user, d
         headers=_h(csrf),
     )
     assert not_an_approver.status_code == 422
+
+
+# ── 같은 짝의 위임은 창이 겹치면 409 ─────────────────────────────────────────
+#
+# 같은 위임자→대리자 짝의 창이 두 장 겹치면 회수가 거짓말을 한다 — 한 장을 거둬도 다른
+# 한 장이 권한을 그대로 준다. 화면은 「회수됨」인데 그 사람은 계속 결재한다.
+
+
+def _delegation_body(delegator_id: str, delegate_id: str, starts_at, ends_at) -> dict:
+    return {
+        "delegator_user_id": delegator_id,
+        "delegate_user_id": delegate_id,
+        "starts_at": starts_at.isoformat(),
+        "ends_at": ends_at.isoformat(),
+    }
+
+
+def _delegation_rows(db, delegator_id: str, delegate_id: str) -> int:
+    from sqlalchemy import func, select
+
+    from app.approvals.models import ApprovalDelegation
+
+    db.commit()
+    db.expire_all()
+    return db.execute(
+        select(func.count()).select_from(ApprovalDelegation).where(
+            ApprovalDelegation.delegator_user_id == delegator_id,
+            ApprovalDelegation.delegate_user_id == delegate_id,
+        )
+    ).scalar_one()
+
+
+def test_overlapping_delegation_for_the_same_pair_is_refused(
+    client, login_as, make_user, db, fake_clock
+):
+    from sqlalchemy import select
+
+    from app.users.models import User
+
+    csrf = login_as("system_admin")
+    admin_id = db.execute(select(User).where(User.role == "system_admin")).scalars().first().id
+    stand_in = make_user(email="overlap-stand-in@goodmit.co.kr", role="operator", display_name="대리인")
+    stand_in_id = stand_in.id
+    now = fake_clock.now()
+
+    first = client.post(
+        "/api/admin/approval-delegations",
+        json=_delegation_body(admin_id, stand_in_id, now + timedelta(hours=1), now + timedelta(days=3)),
+        headers=_h(csrf),
+    )
+    assert first.status_code == 201, first.text
+
+    # 둘째 창이 첫 창 한가운데서 시작한다 — 겹친다.
+    second = client.post(
+        "/api/admin/approval-delegations",
+        json=_delegation_body(admin_id, stand_in_id, now + timedelta(days=1), now + timedelta(days=5)),
+        headers=_h(csrf),
+    )
+    assert second.status_code == 409, f"겹치는 위임이 만들어졌다: {second.status_code} {second.text}"
+    message = second.json()["error"]["message"]
+    assert message.endswith("."), f"완결된 문장이 아니다: {message!r}"
+    # 겹치는 **기존** 창을 이름으로 말한다 — 만들려던 창이 아니라. 그리고 그 시각은 사람이
+    # 읽는 KST 다(perm-04): 저장은 naive UTC 라, 그대로 찍으면 관리자가 9시간 어긋난 창을
+    # 피해 다시 고르고도 또 409 를 받는다.
+    kst = timezone(timedelta(hours=9))
+
+    def _kst(value):
+        return value.replace(tzinfo=timezone.utc).astimezone(kst)
+
+    assert f"{_kst(now + timedelta(hours=1)):%m월 %d일 %H시}" in message, message
+    assert f"{_kst(now + timedelta(days=3)):%m월 %d일 %H시}" in message, message
+    assert f"{now + timedelta(hours=1):%m월 %d일 %H시}" not in message, (
+        f"저장된 UTC 시각이 문구에 그대로 있다: {message}"
+    )
+    assert _delegation_rows(db, admin_id, stand_in_id) == 1, "409 를 돌려주고도 행이 늘었다"
+
+
+def test_non_overlapping_windows_for_the_same_pair_are_still_allowed(
+    client, login_as, make_user, db, fake_clock
+):
+    """반례 — 위 시험이 «같은 짝은 한 번만» 으로 통과하지 못하게 한다.
+
+    창은 반열림 `[starts_at, ends_at)` 이라 첫 창이 끝나는 시각에 둘째 창이 시작하는 것은
+    겹침이 아니다. 회수된 창은 비운 자리라 그 위에 다시 만들 수 있다.
+    """
+    from sqlalchemy import select
+
+    from app.users.models import User
+
+    csrf = login_as("system_admin")
+    admin_id = db.execute(select(User).where(User.role == "system_admin")).scalars().first().id
+    stand_in_id = make_user(email="adjacent-stand-in@goodmit.co.kr", role="operator").id
+    now = fake_clock.now()
+
+    first = client.post(
+        "/api/admin/approval-delegations",
+        json=_delegation_body(admin_id, stand_in_id, now + timedelta(hours=1), now + timedelta(days=3)),
+        headers=_h(csrf),
+    )
+    assert first.status_code == 201, first.text
+
+    # 첫 창이 끝나는 그 시각에 시작 — 경계는 겹침이 아니다.
+    adjacent = client.post(
+        "/api/admin/approval-delegations",
+        json=_delegation_body(admin_id, stand_in_id, now + timedelta(days=3), now + timedelta(days=5)),
+        headers=_h(csrf),
+    )
+    assert adjacent.status_code == 201, f"이어 붙인 창이 거절됐다: {adjacent.status_code} {adjacent.text}"
+
+    # 첫 창을 회수하면 그 자리에 다시 만들 수 있다.
+    revoked = client.post(
+        f"/api/admin/approval-delegations/{first.json()['id']}/revoke", headers=_h(csrf)
+    )
+    assert revoked.status_code == 200 and revoked.json()["state"] == "revoked"
+    refill = client.post(
+        "/api/admin/approval-delegations",
+        json=_delegation_body(admin_id, stand_in_id, now + timedelta(hours=1), now + timedelta(days=2)),
+        headers=_h(csrf),
+    )
+    assert refill.status_code == 201, f"회수한 자리를 다시 못 채운다: {refill.status_code} {refill.text}"
+    assert _delegation_rows(db, admin_id, stand_in_id) == 3
+
+
+def test_an_overlapping_window_for_a_different_delegate_is_unaffected(
+    client, login_as, make_user, db, fake_clock
+):
+    """겹침 판정은 **짝** 단위다 — 같은 위임자가 두 사람에게 같은 기간을 맡기는 것은 정상이다."""
+    from sqlalchemy import select
+
+    from app.users.models import User
+
+    csrf = login_as("system_admin")
+    admin_id = db.execute(select(User).where(User.role == "system_admin")).scalars().first().id
+    one_id = make_user(email="pair-one@goodmit.co.kr", role="operator").id
+    other_id = make_user(email="pair-other@goodmit.co.kr", role="operator").id
+    now = fake_clock.now()
+    window = (now + timedelta(hours=1), now + timedelta(days=3))
+
+    first = client.post(
+        "/api/admin/approval-delegations",
+        json=_delegation_body(admin_id, one_id, *window), headers=_h(csrf),
+    )
+    assert first.status_code == 201, first.text
+    other = client.post(
+        "/api/admin/approval-delegations",
+        json=_delegation_body(admin_id, other_id, *window), headers=_h(csrf),
+    )
+    assert other.status_code == 201, f"다른 대리자의 같은 기간이 거절됐다: {other.status_code} {other.text}"
 
 
 def test_sla_sweep_notifies_once(client, login_as, db, fake_clock):

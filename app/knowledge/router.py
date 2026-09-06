@@ -58,14 +58,39 @@ from app.knowledge.schemas import (
     TemplateUpdate,
     VersionRestore,
 )
+from app.core.feature_gate import require_team_docs_enabled
 from app.settings.gate import block_if_maintenance
 from app.storage import service as storage_service
 from app.users.models import User
 
+# 문서 깃발(`team_docs_enabled`)은 **이 라우터 전체**에 건다 (P-84). 예전에는 옛 미러
+# 라우터(`/api/team-docs`)만 막고 여기는 열려 있어서, 깃발을 끈 테넌트에서 메뉴는 사라지는데
+# 공유받은 문서 링크는 그대로 열렸다. 라우트마다 손으로 붙이지 않는 이유는
+# `block_if_maintenance` 와 같다 — 새 라우트에서 빠뜨리게 되고, 빠진 것은 아무도 못 본다.
+# 어떤 라우트가 지나는지는 `tests/security/test_feature_flag_gate_coverage.py` 가 잰다.
+#
+# ## 문서 화면 말고도 이 문을 지나는 소비자가 둘 있다 — 그리고 그것이 맞다
+#
+# `app/core/feature_gate.py` 머리말은 `/api/trash` 를 왜 안 막는지만 적어 두었다. 이 아래
+# 라우트를 부르는 곳은 문서 화면(`#/knowledge`)만이 아니므로 나머지도 여기 적는다:
+#
+# * **프로젝트 상세의 「문서」 탭** — `ProjectDocuments.jsx` 가 `GET /documents?project_id=`
+#   와 `POST /documents` 를 부른다. `/projects` 자체는 이 깃발과 무관하지만 그 탭은 문서를
+#   세고 만드는 자리다.
+# * **AI 답변의 근거 링크** — `citation.route` 가 `/knowledge/<id>` 를 가리킨다.
+#
+# 둘 다 **문서 기능의 일부라 함께 닫히는 것이 맞다.** 이 접두사 아래에는 문서 아닌 자원이
+# 하나도 없다(공간·폴더·문서·판·틀·태그·분류·첨부·댓글이 전부다) — 그래서 게이트를 좁힐
+# 자리가 없고, 좁히면 「문서를 껐는데 프로젝트 탭으로는 계속 만들어진다」가 된다.
+#
+# 남는 일은 서버가 아니라 **화면** 몫이다: 꺼진 기능의 탭과 링크를 그려 놓고 404 를 받게
+# 하면 안 된다(`navConfig.js::NAV_FEATURE_FLAG` 가 메뉴에 대해 하는 일과 같다). 화면이 쓸
+# 근거는 이미 나간다 — `/api/me` 의 `features.team_docs_enabled`
+# (`app/profiles/router.py::_MENU_FLAGS`). 여기에 새 필드를 더 만들지 않는다.
 router = APIRouter(
     prefix="/api/knowledge",
     tags=["knowledge"],
-    dependencies=[Depends(block_if_maintenance)],
+    dependencies=[Depends(require_team_docs_enabled), Depends(block_if_maintenance)],
 )
 
 

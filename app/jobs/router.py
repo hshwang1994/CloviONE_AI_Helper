@@ -1,4 +1,21 @@
-"""Job queue admin API (spec §14.1 queue status, §10.2 operator retry, §23.7)."""
+"""Job queue admin API (spec §14.1 queue status, §10.2 operator retry, §23.7).
+
+## 역할 게이트는 경로마다 다르다
+
+읽기(목록·요약·상세)는 `CONSOLE_READ_ROLES`, 운영 동작(재시도·취소)은 `CONSOLE_OPS_ROLES`
+다. 예전에는 라우터 전체가 `CONSOLE_OPS_ROLES` 였고, 그래서 **감사자가 큐를 읽지 못했다** —
+제품이 스스로 공표하는 능력 표(`app/core/authz.py::CAPABILITIES` 의 `console.read`)는
+감사자를 포함하는데 이 라우터만 그 표보다 좁았다. 진단 묶음(`app/health/router.py`)이
+같은 이유로 넓혀진 것과 같은 정리다.
+
+큐 목록이 감사자에게 열려도 새는 것은 없다 — `_job_view` 는 처음부터 참조값만 싣고
+요청자의 원문(payload)은 싣지 않는다(아래 docstring). 재시도·취소는 부수효과가 있으니
+그대로 운영 역할만이다. 감사자는 «읽기 전용 가지» 라는 설계(`ROLE_CHARACTER`)가 여기서도
+그대로다.
+
+CSRF 는 라우터 한 곳에 건다 — 경로마다 걸면 새 POST 를 더할 때 빠뜨린다
+(`tests/security/test_csrf_coverage.py`).
+"""
 
 from __future__ import annotations
 
@@ -7,7 +24,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.audit import record_audit_from_request
-from app.core.authz import CONSOLE_OPS_ROLES
+from app.core.authz import CONSOLE_OPS_ROLES, CONSOLE_READ_ROLES
 from app.core.scope import Principal, visible_user_ids
 from app.core.deps import get_db, get_principal, require_csrf, require_roles
 from app.core.errors import ConflictError, NotFoundError, ValidationAppError
@@ -26,11 +43,13 @@ from app.jobs.repository import (
 router = APIRouter(
     prefix="/api/admin/jobs",
     tags=["admin-jobs"],
-    dependencies=[
-        Depends(require_roles(*CONSOLE_OPS_ROLES)),
-        Depends(require_csrf),
-    ],
+    dependencies=[Depends(require_csrf)],
 )
+
+# 경로별 역할 게이트. 이름을 붙여 두는 이유는 각 데코레이터에서 「이 경로는 읽기인가
+# 운영인가」가 한 단어로 읽히게 하기 위해서다 — 역할 목록 자체는 `app/core/authz.py` 만 안다.
+require_read = Depends(require_roles(*CONSOLE_READ_ROLES))
+require_ops = Depends(require_roles(*CONSOLE_OPS_ROLES))
 
 
 def _duration_ms(job: Job) -> int | None:
@@ -111,7 +130,7 @@ def _scoped_job_or_404(db: Session, job_id: str, principal: Principal) -> Job:
     return job
 
 
-@router.get("")
+@router.get("", dependencies=[require_read])
 def list_jobs(
     db: Session = Depends(get_db),
     page: PageParams = Depends(),
@@ -122,7 +141,7 @@ def list_jobs(
     principal: Principal = Depends(get_principal),
     sort: SortParams = Depends(),
 ):
-    """작업 큐 목록.
+    """작업 큐 목록 — 읽기라 감사자도 본다(`CONSOLE_READ_ROLES`).
 
     절 순서가 계약이다: **① 조건 → ② 범위 → ③ 정렬 → ④ 상한.** 범위가 상한보다 앞이어야
     하는 이유는 D-202 그대로이고, 정렬이 상한보다 앞이어야 하는 이유도 같다 — 뒤로 옮기면
@@ -176,32 +195,35 @@ def list_jobs(
     }
 
 
-@router.get("/stats")
+@router.get("/stats", dependencies=[require_read])
 def stats(
     request: Request,
     db: Session = Depends(get_db),
     principal: Principal = Depends(get_principal),
 ):
+    """큐 요약 — 읽기라 감사자도 본다. 범위는 목록과 같은 `visible` 로 좁힌다."""
     return queue_stats(db, now=request.app.state.clock.now(), visible=visible_user_ids(db, principal.management))
 
 
-@router.get("/{job_id}")
+@router.get("/{job_id}", dependencies=[require_read])
 def get_job(
     job_id: str,
     db: Session = Depends(get_db),
     principal: Principal = Depends(get_principal),
 ):
+    """단건 — 읽기라 감사자도 본다. 범위 밖은 목록과 같은 문(`_scoped_job_or_404`)이 404 로 막는다."""
     job = _scoped_job_or_404(db, job_id, principal)
     return {"job": _job_view(job)}
 
 
-@router.post("/{job_id}/retry")
+@router.post("/{job_id}/retry", dependencies=[require_ops])
 def retry(
     request: Request,
     job_id: str,
     db: Session = Depends(get_db),
     principal: Principal = Depends(get_principal),
 ):
+    """재시도 — 워커가 쓰기를 다시 실행하는 운영 동작이라 `CONSOLE_OPS_ROLES` 만이다."""
     job = _scoped_job_or_404(db, job_id, principal)
     if job.status != STATUS_FAILED:
         raise ConflictError("실패 상태의 Job만 재시도할 수 있습니다.")
@@ -212,13 +234,14 @@ def retry(
     return {"ok": True, "job": _job_view(job)}
 
 
-@router.post("/{job_id}/cancel")
+@router.post("/{job_id}/cancel", dependencies=[require_ops])
 def cancel(
     request: Request,
     job_id: str,
     db: Session = Depends(get_db),
     principal: Principal = Depends(get_principal),
 ):
+    """취소 — 대기 중인 자동 처리를 죽이는 운영 동작이라 `CONSOLE_OPS_ROLES` 만이다."""
     job = _scoped_job_or_404(db, job_id, principal)
     if job.status != STATUS_QUEUED:
         raise ConflictError("대기 상태의 Job만 취소할 수 있습니다.")

@@ -26,7 +26,9 @@ import { DataScreen } from "./DataScreen.jsx";
 import { REGISTRY } from "./registry.js";
 import { ConfirmProvider, ToastProvider } from "../ui/kit.jsx";
 import { ThemeModeProvider } from "../ui/ThemeModeProvider.jsx";
-import { fmtDateTime } from "../lib/format.js";
+// 표의 시각은 압축 표기다(DateCell 과 같은 형식기) — ops-14 로 registry 의 손글 render 도
+// 그 한 벌로 모았다. 검사할 사실(거둔 위임은 revoked_at 을 보여 준다)은 그대로다.
+import { fmtDateTimeCompact } from "../lib/format.js";
 import { clickAction, hasAction } from "../test-helpers/actions.js";
 
 function renderScreen(key) {
@@ -192,12 +194,12 @@ describe("새 관리자 화면 — 레지스트리 계약", () => {
 
     // 거둔 행 — 8/20(원래 예정)이 아니라 8/3(실제로 거둔 날)이 표에 보여야 한다.
     const revokedRow = screen.getByText("김부장").closest("tr");
-    expect(within(revokedRow).queryByText(fmtDateTime("2026-08-20T00:00:00"))).toBeNull();
-    expect(within(revokedRow).getByText(fmtDateTime("2026-08-03T00:00:00"))).toBeInTheDocument();
+    expect(within(revokedRow).queryByText(fmtDateTimeCompact("2026-08-20T00:00:00"))).toBeNull();
+    expect(within(revokedRow).getByText(fmtDateTimeCompact("2026-08-03T00:00:00"))).toBeInTheDocument();
 
     // 진행 중인 행은 그대로 원래 종료 예정일을 보여준다(오탐 방지).
     const activeRow = screen.getByText("박과장").closest("tr");
-    expect(within(activeRow).getByText(fmtDateTime("2026-08-10T00:00:00"))).toBeInTheDocument();
+    expect(within(activeRow).getByText(fmtDateTimeCompact("2026-08-10T00:00:00"))).toBeInTheDocument();
   });
 
   it("감사 이상 징후: 근거와 임계값을 상세에 그대로 보여 준다", async () => {
@@ -245,7 +247,9 @@ describe("새 관리자 화면 — 레지스트리 계약", () => {
     let sent = null;
     apiMock.mockImplementation((path, opts) => {
       if (opts && opts.method === "POST") { sent = { path, body: opts.body }; return Promise.resolve({ ok: true }); }
-      if (String(path).startsWith("/api/admin/users")) {
+      // 사람 후보는 `/api/admin/people` 이다 — 운영자·감사자도 여는 화면이라 사용자 관리
+      // 권한(admin 이상)이 필요한 `/api/admin/users` 를 부르지 않는다(D-459).
+      if (String(path).startsWith("/api/admin/people")) {
         return Promise.resolve({ items: [{ id: "u-42", display_name: "김담당", email: "kim@example.com" }] });
       }
       return Promise.resolve({ items: [], total: 0, page_size: 20 });

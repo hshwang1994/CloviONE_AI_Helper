@@ -6,7 +6,12 @@ import "@testing-library/jest-dom/vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 
-/* 🔴 **내려받기는 행을 바꾼다** (2026-09-01).
+/* qa-contract-change: 내려받기가 최상위 이동(window.location.href)에서 fetch+Blob 저장으로
+ * 바뀌었다(xe-07·ops-03 — 404 응답이 관리 콘솔을 날 JSON 으로 덮던 결함). 그래서 「1.2초
+ * 어림 타이머 뒤에 다시 읽는다」는 이 시험의 계약이 「받는 요청이 끝난 것을 알고 다시 읽는다」
+ * 로 옮겨졌다. 재는 불변식(내려받은 뒤 목록을 다시 읽는가)은 그대로이고 단언은 늘어난다.
+ *
+ * 🔴 **내려받기는 행을 바꾼다** (2026-09-01).
  *
  * 백업 내려받기는 서버에 `downloaded_at` 을 남기고(`app/backups/service.py::mark_downloaded`),
  * 그 값이 **다음 행동의 조건**이다: 「서버에서 삭제」는 내려받은 적이 있는 행에만 뜬다
@@ -34,16 +39,29 @@ const CONFIG = {
   ],
 };
 
-let hrefBefore;
+let fetchMock;
+let clickSpy;
+let releaseFile;
 
 beforeEach(() => {
   apiMock.mockReset();
-  vi.useFakeTimers({ shouldAdvanceTime: true });
-  hrefBefore = window.location.href;
+  clickSpy = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+  globalThis.URL.createObjectURL = vi.fn(() => "blob:mock/1");
+  globalThis.URL.revokeObjectURL = vi.fn();
+  // 파일 응답을 **시험이 쥐고 있다** — 「받는 중에는 아직 다시 안 읽는다」를 재려면
+  // 그 순간을 붙잡을 수 있어야 한다.
+  fetchMock = vi.fn(() => new Promise((resolve) => {
+    releaseFile = () => resolve({
+      ok: true, status: 200,
+      headers: { get: () => 'attachment; filename="db.dump"' },
+      blob: () => Promise.resolve(new Blob(["dump"])),
+    });
+  }));
+  globalThis.fetch = fetchMock;
 });
 
 afterEach(() => {
-  vi.useRealTimers();
+  clickSpy.mockRestore();
 });
 
 function renderScreen() {
@@ -68,7 +86,7 @@ describe("행의 내려받기", () => {
     apiMock.mockImplementation(() => Promise.resolve({
       items: [{ id: "b1", path: "/var/backups/backup-1" }], total: 1,
     }));
-    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    const user = userEvent.setup();
     renderScreen();
     await screen.findByText("/var/backups/backup-1");
     const listCallsBefore = apiMock.mock.calls.length;
@@ -76,10 +94,13 @@ describe("행의 내려받기", () => {
     await user.click(screen.getByText("/var/backups/backup-1"));
     await user.click(await screen.findByRole("button", { name: "내려받기" }));
 
-    // 곧장 다시 읽지 않는다 — 받는 GET 보다 목록 질의가 먼저 닿으면 여전히 옛 값을 받는다.
+    // 받는 요청이 실제로 나갔다.
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/admin/backups/b1/download");
+    // 아직 안 끝났으면 다시 읽지 않는다 — 그 GET 보다 목록 질의가 먼저 닿으면 여전히 옛 값을 받는다.
     expect(apiMock.mock.calls.length).toBe(listCallsBefore);
 
-    vi.advanceTimersByTime(2000);
+    releaseFile();
     await waitFor(() => expect(apiMock.mock.calls.length).toBeGreaterThan(listCallsBefore));
   });
 });

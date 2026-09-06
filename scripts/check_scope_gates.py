@@ -191,6 +191,93 @@ EXEMPT: dict[str, str] = {
     "app/backups/router.py::discard":
         "백업은 조직 범위가 없다(`backups` 에 `org_id` 없음) — 좁힐 범위가 없다. "
         "`BACKUP_EXECUTE`(system_admin) 가 지킨다.",
+    # ── 실행 일정의 «실행» 경로 (2026-09 관리자 기능 회차) ──────────────────────
+    #
+    # 🔴 **정의는 전역, 실행은 운영이다.** 실행 일정은 포탈 전체의 정의라 만들고 고치고
+    # 켜고 끄는 것은 `require_global_management` 를 지난다(D-467). 그런데 그 정의를 **지금
+    # 한 번 돌리거나, 이미 돌아간 실행을 다시 시도하거나 취소하는 것**은 운영 동작이고
+    # `CONSOLE_OPS_ROLES` 다 — 그 역할에는 운영자가 들어 있는데, `app/core/scope.py` 는
+    # 운영자의 관리 범위를 전역으로 읽지 않는다(「애매하면 좁게」). 그래서 이 세 경로에
+    # 범위 게이트를 걸면 **운영자가 자기 일을 못 하게 된다** — 능력 표가 `console.ops` 로
+    # 공표한 바로 그 일이다(실측: 게이트를 걸면 운영자가 403).
+    #
+    # 좁힐 범위도 없다: `schedules` 표에 `org_id` 축이 없고 목록도 사람에 따라 달라지지
+    # 않는다. 실행은 **이미 정의 게이트와 승인을 통과한** 일정만 부를 수 있다.
+    #
+    # **이 면제가 언제 무효가 되는가**: 일정이 조직·부서 축을 갖는 날. 그날 이 세 줄을
+    # 지우고 목록과 같은 판정을 걸어야 한다.
+    # 음성 시험: tests/integration/test_schedules_api.py 의 부서 범위 관리자 403(정의) 와
+    # 운영자 200(실행) 두 축이 이 경계를 함께 고정한다.
+    "app/schedules/router.py::run_now":
+        "실행은 운영 동작이다(`CONSOLE_OPS_ROLES`) — 운영자의 관리 범위는 전역이 아니라 "
+        "범위 게이트를 걸면 능력 표가 공표한 일을 못 하게 된다. 일정에는 조직 축이 없다.",
+    "app/schedules/router.py::retry_run":
+        "실행은 운영 동작이다(`CONSOLE_OPS_ROLES`) — 운영자의 관리 범위는 전역이 아니라 "
+        "범위 게이트를 걸면 능력 표가 공표한 일을 못 하게 된다. 일정에는 조직 축이 없다.",
+    "app/schedules/router.py::cancel_run":
+        "실행은 운영 동작이다(`CONSOLE_OPS_ROLES`) — 운영자의 관리 범위는 전역이 아니라 "
+        "범위 게이트를 걸면 능력 표가 공표한 일을 못 하게 된다. 일정에는 조직 축이 없다.",
+    # ── 일정·연동의 나머지 id 경로 (같은 회차) ────────────────────────────────
+    #
+    # 두 모듈은 이번 회차에 `require_global_management(principal, ...)` 를 얻으면서 처음으로
+    # 이 검사의 「범위 있는 모듈」로 읽혔다 — `LOOSE_SIGNALS` 가 `principal` 을 보기 때문이다.
+    # 그런데 그 판정은 **범위를 좁히는 게이트가 아니라 가장 넓은 범위를 요구하는 게이트**다.
+    # 두 표 어디에도 조직 축이 없다(모델에 `org_id` 도 `OrgScopedMixin` 도 없다).
+    #
+    # **이 면제가 언제 무효가 되는가**: 두 표 중 하나가 `org_id` 를 갖는 날. 그날 이 줄들을
+    # 지우고 목록과 같은 판정을 걸어야 한다.
+    "app/schedules/router.py::get_schedule":
+        "일정에는 조직 축이 없다(`Schedule` 이 `OrgScopedMixin` 을 안 타고 `org_id` 도 없다) — "
+        "좁힐 범위가 존재하지 않는다. 정의를 바꾸는 경로는 `require_global_management` 가, "
+        "읽기는 `CONSOLE_READ_ROLES` 가 지킨다.",
+    "app/schedules/router.py::update_schedule":
+        "일정에는 조직 축이 없다(`Schedule` 이 `OrgScopedMixin` 을 안 타고 `org_id` 도 없다) — "
+        "좁힐 범위가 존재하지 않는다. 정의를 바꾸는 경로는 `require_global_management` 가, "
+        "읽기는 `CONSOLE_READ_ROLES` 가 지킨다.",
+    "app/schedules/router.py::enable_schedule":
+        "일정에는 조직 축이 없다(`Schedule` 이 `OrgScopedMixin` 을 안 타고 `org_id` 도 없다) — "
+        "좁힐 범위가 존재하지 않는다. 정의를 바꾸는 경로는 `require_global_management` 가, "
+        "읽기는 `CONSOLE_READ_ROLES` 가 지킨다.",
+    "app/schedules/router.py::disable_schedule":
+        "일정에는 조직 축이 없다(`Schedule` 이 `OrgScopedMixin` 을 안 타고 `org_id` 도 없다) — "
+        "좁힐 범위가 존재하지 않는다. 정의를 바꾸는 경로는 `require_global_management` 가, "
+        "읽기는 `CONSOLE_READ_ROLES` 가 지킨다.",
+    "app/schedules/router.py::dry_run":
+        "일정에는 조직 축이 없다(`Schedule` 이 `OrgScopedMixin` 을 안 타고 `org_id` 도 없다) — "
+        "좁힐 범위가 존재하지 않는다. 정의를 바꾸는 경로는 `require_global_management` 가, "
+        "읽기는 `CONSOLE_READ_ROLES` 가 지킨다.",
+    "app/schedules/router.py::run_history":
+        "일정에는 조직 축이 없다(`Schedule` 이 `OrgScopedMixin` 을 안 타고 `org_id` 도 없다) — "
+        "좁힐 범위가 존재하지 않는다. 정의를 바꾸는 경로는 `require_global_management` 가, "
+        "읽기는 `CONSOLE_READ_ROLES` 가 지킨다.",
+    "app/integrations/router.py::get_integration":
+        "외부 연동에는 조직 축이 없다(`Integration` 이 `OrgScopedMixin` 을 안 타고 `org_id` 도 "
+        "없다) — 좁힐 범위가 존재하지 않는다. 쓰기는 `require_global_management` 가, 읽기는 "
+        "`CONSOLE_READ_ROLES` 가 지킨다.",
+    "app/integrations/router.py::update_integration":
+        "외부 연동에는 조직 축이 없다(`Integration` 이 `OrgScopedMixin` 을 안 타고 `org_id` 도 "
+        "없다) — 좁힐 범위가 존재하지 않는다. 쓰기는 `require_global_management` 가, 읽기는 "
+        "`CONSOLE_READ_ROLES` 가 지킨다.",
+    "app/integrations/router.py::enable_integration":
+        "외부 연동에는 조직 축이 없다(`Integration` 이 `OrgScopedMixin` 을 안 타고 `org_id` 도 "
+        "없다) — 좁힐 범위가 존재하지 않는다. 쓰기는 `require_global_management` 가, 읽기는 "
+        "`CONSOLE_READ_ROLES` 가 지킨다.",
+    "app/integrations/router.py::disable_integration":
+        "외부 연동에는 조직 축이 없다(`Integration` 이 `OrgScopedMixin` 을 안 타고 `org_id` 도 "
+        "없다) — 좁힐 범위가 존재하지 않는다. 쓰기는 `require_global_management` 가, 읽기는 "
+        "`CONSOLE_READ_ROLES` 가 지킨다.",
+    "app/integrations/router.py::health_check":
+        "외부 연동에는 조직 축이 없다(`Integration` 이 `OrgScopedMixin` 을 안 타고 `org_id` 도 "
+        "없다) — 좁힐 범위가 존재하지 않는다. 쓰기는 `require_global_management` 가, 읽기는 "
+        "`CONSOLE_READ_ROLES` 가 지킨다.",
+    "app/integrations/router.py::get_versions":
+        "외부 연동에는 조직 축이 없다(`Integration` 이 `OrgScopedMixin` 을 안 타고 `org_id` 도 "
+        "없다) — 좁힐 범위가 존재하지 않는다. 쓰기는 `require_global_management` 가, 읽기는 "
+        "`CONSOLE_READ_ROLES` 가 지킨다.",
+    "app/integrations/router.py::rollback":
+        "외부 연동에는 조직 축이 없다(`Integration` 이 `OrgScopedMixin` 을 안 타고 `org_id` 도 "
+        "없다) — 좁힐 범위가 존재하지 않는다. 쓰기는 `require_global_management` 가, 읽기는 "
+        "`CONSOLE_READ_ROLES` 가 지킨다.",
 }
 
 # ── 알려진 미해결 gap ────────────────────────────────────────────────────────

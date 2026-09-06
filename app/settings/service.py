@@ -21,11 +21,13 @@ from datetime import datetime
 from typing import Any
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
+from app.core.db import is_insert_race
 from app.core.versioning import snapshot_config
 from app.settings.models import AppSetting
-from app.settings.registry import REGISTRY, get_spec, validate_value
+from app.settings.registry import REGISTRY, SettingSpec, get_spec, validate_value
 
 OBJECT_TYPE = "app_setting"
 
@@ -161,6 +163,94 @@ def dry_run(key: str, value: Any) -> dict:
     return {"key": key, "value": value, "restart_required": spec.restart_required, "ok": True}
 
 
+def _locked_row(db: Session, key: str) -> AppSetting | None:
+    """이 키의 행을 **잠근 채로** 읽는다. 없으면 None.
+
+    `populate_existing=True` 를 붙이는 이유: 이 세션이 앞서 같은 행을 읽어 뒀으면
+    SQLAlchemy 는 신원 지도(identity map)의 값을 그대로 주고 새로 읽은 값을 버린다 —
+    잠금은 걸리는데 손에 든 값은 낡은 채가 되어, 「잠그고 읽었다」가 거짓이 된다.
+    """
+    return db.execute(
+        select(AppSetting)
+        .where(AppSetting.key == key)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    ).scalar_one_or_none()
+
+
+def _lock_or_insert(
+    db: Session,
+    *,
+    key: str,
+    spec: SettingSpec,
+    updated_by: str | None,
+    now: datetime,
+) -> tuple[AppSetting, Any]:
+    """이 키의 행을 이 트랜잭션에 묶고 `(잠긴 행, 이 요청이 시작할 때의 값)` 을 돌려준다.
+
+    ## 같은 키의 동시 저장이 두 군데서 터졌다
+
+    1. **행이 아직 없을 때.** 설정 대부분은 첫 저장 전까지 `app_settings` 에 행이 없다
+       (응답의 `is_default=true`). 그러니 **처음 저장하는 순간이 곧 기본키 INSERT 경합**이고,
+       진 쪽은 `duplicate key value violates unique constraint "app_settings_pkey"` 로
+       500 이 됐다(실측: 4-way 동시 저장에서 200 하나 + 500 셋).
+    2. **판 번호.** `snapshot_config` 은 `max(version)+1` 을 읽어 넣는데, 같은 키를 동시에
+       저장하면 여럿이 같은 번호를 계산한다. 그쪽 재시도 예산이 1회라 4-way 에서는 다시
+       부딪혀 `uq_config_versions_object_version` 위반으로 또 500 이었다(실측).
+
+    둘 다 뿌리가 하나다 — **같은 설정 키를 두 요청이 나란히 고친다**. 그래서 재시도를 겹겹이
+    쌓는 대신 행 하나를 잠가 줄을 세운다. 줄을 서면 판 번호 경합도 같이 사라진다: 잠금을
+    쥔 요청만 스냅샷을 뜨고, 다음 요청은 앞사람이 커밋한 뒤에 최신 번호를 읽는다
+    (READ COMMITTED 에서 `FOR UPDATE` 는 잠금이 풀린 뒤 **최신 판**을 다시 읽는다).
+
+    행이 없으면 잠글 것이 없으므로 넣어야 잠긴다. 그 INSERT 가 지면 승자 행을 잠그고 읽는다
+    (`app/core/db.py::is_insert_race` 의 「넣어 보고 지면 남의 행을 읽는다」). SAVEPOINT 안에서
+    넣기 때문에 실패해도 바깥 트랜잭션은 그대로 살아 있다.
+
+    두 번 도는 이유: 승자가 자기 트랜잭션을 되감으면 다시 읽을 때 행이 없다. 그때는 한 번 더
+    넣어 본다. 그 다음에도 없으면 경합이 아니라 다른 문제이므로 예외를 올린다.
+
+    ## 이 자리에 **새 값**을 넣지 않는다
+
+    잠그려고 넣는 행은 「이 요청이 시작할 때의 값」(= 레지스트리 기본값)을 든 자리표다.
+    새 값은 스냅샷을 뜬 **뒤에** `apply_setting` 이 대입한다. 여기서 새 값을 미리 넣으면
+    바로 다음 줄의 `snapshot_config` 이 경합 재시도에서 `db.commit()` 을 하는 순간
+    (`app/core/versioning.py`) 그 새 값이 **되돌릴 근거 없이 굳는다** — 이어지는 시도가
+    실패하면 설치는 `maintenance_mode=true` 인데 config_versions 행도 `setting.update`
+    감사 행도 없고 캐시도 안 바뀐 채 관리자는 500 을 보고 「아무것도 안 바뀌었다」고 믿는다.
+    """
+    row = _locked_row(db, key)
+    if row is not None:
+        return row, json.loads(row.value_json)
+
+    placeholder_json = json.dumps(spec.default, ensure_ascii=False)
+    for _attempt in range(2):
+        candidate = AppSetting(
+            key=key,
+            value_json=placeholder_json,
+            value_type=spec.value_type,
+            restart_required=spec.restart_required,
+            updated_by=updated_by,
+            updated_at=now,
+        )
+        try:
+            with db.begin_nested():
+                db.add(candidate)
+                db.flush()
+            # 우리가 넣었다 — 직전 값은 「아직 저장된 적 없음」, 곧 레지스트리 기본값이다.
+            return candidate, spec.default
+        except (IntegrityError, OperationalError) as exc:
+            # 제약 이름을 대서 **이 경합만** 삼킨다. 이름을 안 대면 같은 표의 다른 유니크
+            # 위반까지 조용히 넘어가고, 그 버그는 영영 안 보인다(D-191).
+            if not is_insert_race(exc, constraint="app_settings_pkey"):
+                raise
+            winner = _locked_row(db, key)
+            if winner is None:
+                continue
+            return winner, json.loads(winner.value_json)
+    raise RuntimeError(f"설정 행을 넣지도 읽지도 못했습니다: {key}")
+
+
 def apply_setting(
     db: Session,
     cache: SettingsCache,
@@ -181,8 +271,17 @@ def apply_setting(
         value = value.strip()
     validate_value(key, value)
 
-    row = db.get(AppSetting, key)
-    before = json.loads(row.value_json) if row is not None else spec.default
+    value_json = json.dumps(value, ensure_ascii=False)
+    # 행을 먼저 잠근다. 스냅샷을 그 뒤로 미루는 이유는 정확성이다 — 잠그기 전에 읽은
+    # 「직전 값」은 그 사이 남이 이미 갈아치웠을 수 있고, 그런 값으로 뜬 되돌리기 판은
+    # 이 요청이 실제로 시작한 지점이 아니다.
+    #
+    # **순서가 계약이다**: 잠근다 → 직전 값을 읽는다 → 스냅샷을 뜬다 → **그 다음에** 새 값을
+    # 대입한다. `snapshot_config` 은 경합 재시도에서 커밋하므로, 그 앞에 새 값이 세션에 올라와
+    # 있으면 그 커밋에 함께 실려 굳는다(`_lock_or_insert` 의 자리표 문단).
+    row, before = _lock_or_insert(
+        db, key=key, spec=spec, updated_by=updated_by, now=now
+    )
 
     # Before-snapshot for rollback (spec §14.4 step 4).
     snapshot_config(
@@ -190,18 +289,8 @@ def apply_setting(
         snapshot={"key": key, "value": before}, created_by=updated_by,
     )
 
-    if row is None:
-        row = AppSetting(
-            key=key,
-            value_json=json.dumps(value, ensure_ascii=False),
-            value_type=spec.value_type,
-            restart_required=spec.restart_required,
-            updated_by=updated_by,
-        )
-        db.add(row)
-    else:
-        row.value_json = json.dumps(value, ensure_ascii=False)
-        row.updated_by = updated_by
+    row.value_json = value_json
+    row.updated_by = updated_by
     row.updated_at = now
     db.flush()
     # Reload (not just invalidate) so current() reflects the new value without a

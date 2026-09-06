@@ -45,7 +45,8 @@ describe("사이드바 5그룹 재편 (PA-RC-0017)", () => {
   it("남은 항목의 라우트·역할·배지는 그대로다 — 어느 그룹에 속하는지만 바뀌었다", () => {
     const all = NAV.flatMap((g) => g.items || []);
     const byPath = Object.fromEntries(all.map((i) => [i.to, i]));
-    expect(byPath["/jobs"].roles).toEqual(["operator", "admin", "system_admin"]);
+    // 작업 큐 읽기는 능력 표의 console.read 그대로다 — 감사자도 본다(재시도·취소만 OPS).
+    expect(byPath["/jobs"].roles).toEqual(["operator", "admin", "system_admin", "auditor"]);
     expect(byPath["/jobs"].badge).toBe("jobFailed");
     expect(byPath["/audit"].roles).toEqual(["admin", "system_admin", "auditor"]);
     expect(byPath["/setup"].roles).toEqual(["system_admin"]);

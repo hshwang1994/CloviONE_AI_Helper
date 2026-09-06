@@ -8,6 +8,8 @@ app/org/schemas.py, app/templates/router.py) — 스키마가 바뀌면 이 테�
 
 from __future__ import annotations
 
+"""qa-contract-change: 일정 스키마에 낙관적 잠금 토큰(base_version, 64자)이 생겨 이 표에 한 칸이 늘었다. 계약이 약해진 것이 아니라 스키마가 실제로 거절하는 값이 하나 더 생긴 것이고, 그 사실을 이 시험이 계속 못박는다 — 토큰이 사라지면 다시 실패한다."""
+
 """qa-contract-change: 폼 필드 상한을 스키마에서 그대로 읽는다는 계약의 화면이 셋 줄었다(runners·workflows·templates). 남은 연동 쪽 단언은 그대로이고, 그 자리에 **반대 방향 단언**을 넣었다 — 사라진 세 화면이 결과에 되살아나면 실패한다. 화면 없는 상한이 생기는 것을 그것이 막는다."""
 
 import pytest
@@ -57,9 +59,18 @@ def test_runner_id_has_no_pydantic_limit_and_is_correctly_absent():
 
 
 def test_schedules_limits_match_the_schema_declaration():
-    """create/edit이 같은 스키마(ScheduleRequest)를 쓴다 — templates와 동일 패턴."""
+    """create/edit이 같은 스키마(ScheduleRequest)를 쓴다 — templates와 동일 패턴.
+
+    `base_version` 은 사람이 적는 칸이 아니라 **편집을 시작한 판**을 되돌려 보내는 토큰이다
+    (`app/schedules/router.py::_ensure_not_changed`). 그래도 여기 나타나는 것이 맞다 — 이
+    표는 「스키마가 길이로 거절하는 값」의 목록이고, 그 토큰도 64자를 넘으면 거절된다.
+    화면이 그 칸을 그리지 않는 것은 폼 정의(`registry/automation.js`)가 정할 일이다.
+    """
     limits = all_field_limits()
-    expected = {"name": 120, "description": 2000, "cron_expression": 120, "target_ref": 64}
+    expected = {
+        "name": 120, "description": 2000, "cron_expression": 120, "target_ref": 64,
+        "base_version": 64,
+    }
     assert limits["schedules"]["create"] == expected
     assert limits["schedules"]["edit"] == expected
 

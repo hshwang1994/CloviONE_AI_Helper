@@ -128,3 +128,53 @@ def test_audit_export_csv_respects_exclude_actions_too(client, login_as):
     # login/logout 행 자체가 CSV에 없어야 한다(액션 원문 문자열로 확인).
     assert "user.login" not in body
     assert "user.logout" not in body
+
+
+# ── 감사 CSV 의 셀은 수식이 되지 않는다 ──────────────────────────────────────
+#
+# 표시 이름은 신뢰 경계 밖의 자유 입력인데 감사 CSV 는 그 값을 원문 그대로 썼다. 감사
+# 파일을 여는 도구는 엑셀이고(BOM 을 붙이는 이유가 그것이다), 엑셀은 `=`·`+`·`-`·`@` 로
+# 시작하는 셀을 수식으로 실행한다. 같은 저장소의 사용자 CSV 는 이미 `csv_safe` 로 막고
+# 있었으므로, 한 제품 안에서 같은 위험에 두 가지 답이 있었다.
+
+
+def _actor_cell(line: str) -> str:
+    """CSV 한 줄의 「행위자」 칸(두 번째)."""
+    import csv
+    import io
+
+    return next(csv.reader(io.StringIO(line)))[1]
+
+
+def test_audit_csv_neutralises_a_formula_in_the_actor_name(client, login_as, make_user, db):
+    from app.core.audit import record_audit
+
+    actor = make_user("csv-formula@goodmit.co.kr", role="user", display_name="=1+1")
+    record_audit(
+        db, actor_id=actor.id, action="zzz.formula", object_type="user", object_id=actor.id,
+    )
+    db.commit()
+    login_as("admin", email="csv-formula-reader@goodmit.co.kr")
+
+    response = client.get("/api/admin/audit/export.csv", params={"action": "zzz.formula"})
+    assert response.status_code == 200, response.text
+    lines = [line for line in response.content.decode("utf-8-sig").splitlines() if line.strip()]
+    assert len(lines) == 2, lines
+    assert _actor_cell(lines[1]) == "'=1+1", "행위자 칸이 엑셀에서 수식으로 실행된다"
+
+
+def test_audit_csv_leaves_an_ordinary_name_untouched(client, login_as, make_user, db):
+    """반례 — 위험하지 않은 이름에는 따옴표를 붙이지 않는다. 안 그러면 모든 이름이
+    작은따옴표로 시작하는 파일이 되고, 감사 담당자가 그것을 이름의 일부로 읽는다."""
+    from app.core.audit import record_audit
+
+    actor = make_user("csv-plain@goodmit.co.kr", role="user", display_name="김감사")
+    record_audit(
+        db, actor_id=actor.id, action="zzz.plain", object_type="user", object_id=actor.id,
+    )
+    db.commit()
+    login_as("admin", email="csv-plain-reader@goodmit.co.kr")
+
+    response = client.get("/api/admin/audit/export.csv", params={"action": "zzz.plain"})
+    lines = [line for line in response.content.decode("utf-8-sig").splitlines() if line.strip()]
+    assert _actor_cell(lines[1]) == "김감사"

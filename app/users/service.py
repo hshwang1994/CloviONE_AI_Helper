@@ -5,10 +5,12 @@ from __future__ import annotations
 from datetime import datetime
 
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
-from app.core.authz import CONSOLE_WRITE_ROLES
+from app.core.authz import CONSOLE_WRITE_ROLES, SCOPE_LABELS
 from app.core.config import Settings
+from app.core.db import is_insert_race
 from app.core.errors import (
     ConflictError,
     ForbiddenError,
@@ -110,6 +112,19 @@ def ensure_can_grant_role(actor_role: str, role: str) -> None:
         raise ForbiddenError("admin 이상 권한 계정 생성은 system_admin만 가능합니다.")
 
 
+def ensure_known_membership_kind(membership_kind: str | None) -> None:
+    """모르는 소속 종류는 **거절한다** — 생성도 수정과 같은 문구로 막는다.
+
+    소속 종류는 그 계정이 조직 데이터를 어디까지 보는지를 정한다(0060). 생성 경로만
+    모르는 값을 조용히 '미지정' 으로 바꾸면, 보내는 쪽은 자기가 보낸 값이 저장됐다고 믿고
+    화면은 전혀 다른 상태를 그린다. 오타 하나가 그렇게 두 화면을 갈라놓는다.
+    """
+    if membership_kind is None:
+        return
+    if membership_kind not in ALL_MEMBERSHIP_KINDS:
+        raise ValidationAppError(f"알 수 없는 소속 종류입니다: {membership_kind}")
+
+
 def _resolved_membership(department_id: str | None, membership_kind: str | None) -> str:
     """새 계정의 소속 종류. **추측하지 않는다** (0060).
 
@@ -118,9 +133,10 @@ def _resolved_membership(department_id: str | None, membership_kind: str | None)
     그 계정을 목록으로 보여 준다. 예전에는 이 자리에서 전역으로 폴백했고, 그 편의가
     실측 25명 중 21명을 전 포털 가시성으로 만들었다.
     """
+    ensure_known_membership_kind(membership_kind)
     if department_id:
         return MEMBERSHIP_DEPARTMENT
-    if membership_kind in ALL_MEMBERSHIP_KINDS:
+    if membership_kind is not None:
         if membership_kind == MEMBERSHIP_DEPARTMENT:
             raise ValidationAppError("부서 소속으로 두려면 부서를 함께 지정해야 합니다.")
         return membership_kind
@@ -195,8 +211,29 @@ def create_user(
         membership_kind=_resolved_membership(department_id, membership_kind),
         created_by=created_by,
     )
-    db.add(user)
-    db.flush()
+    # 위의 `get_user_by_email` 은 **검사 시점의 사실**이다. 같은 이메일로 두 요청이 겹치면
+    # 둘 다 그 검사를 통과하고, 진 쪽의 INSERT 가 `ix_users_email` 유니크 제약에 걸린다.
+    # SAVEPOINT 로 감싸 두면 그 실패가 바깥 트랜잭션을 망가뜨리지 않고 여기서 잡히므로,
+    # **사전 검사가 냈을 바로 그 오류**로 통일해 답할 수 있다 — 조금 늦게 도착한 요청과
+    # 동시에 도착한 요청이 같은 응답을 받아야 한다(부서·직책·조직 생성이 쓰는 같은 관용구,
+    # app/org/service.py::create_item).
+    try:
+        with db.begin_nested():
+            db.add(user)
+            db.flush()
+    except (IntegrityError, OperationalError) as exc:
+        if not is_insert_race(exc, constraint="ix_users_email"):
+            # 이메일 유니크가 아닌 위반(FK·NOT NULL 등)은 경합이 아니라 데이터 버그다 —
+            # 삼키면 그 버그가 "가끔 409" 로 위장한다(D-191).
+            raise
+        # 진 쪽은 이긴 행을 읽어 안내를 고른다. 보관된 계정이 그 주소를 쥐고 있으면
+        # 다음 행동(복구)까지 알려 줄 수 있다(ArchivedEmailConflictError docstring).
+        winner = get_user_by_email(db, email)
+        if winner is not None and winner.archived_at is not None:
+            raise ArchivedEmailConflictError(
+                details={"archived_user_id": winner.id, "email": winner.email}
+            ) from None
+        raise ConflictError("이미 등록된 이메일입니다.") from None
     return user
 
 
@@ -222,6 +259,32 @@ def get_scoped_user_or_404(db: Session, user_id: str, scope) -> User:
     user = get_user_or_404(db, user_id)
     if not scope_allows_user(scope, user):
         raise NotFoundError("사용자를 찾을 수 없습니다.")
+    return user
+
+
+def ensure_not_archived(user: User) -> None:
+    """보관된 계정은 **쓰기 경로에서 없는 것과 같다**.
+
+    보관은 「되돌릴 수 있는 퇴사 처리」다(archive_user). 목록·검색·로그인에서 뺐는데 이름
+    수정·비활성화·부서 지정이 그대로 먹으면, 관리자는 자기 화면 어디에도 없는 계정을 계속
+    고치고 있는 셈이고 그 변경은 아무 데도 안 보인다. 범위 밖 행과 **같은 답**(404)을 준다 —
+    가린 것을 단건 경로가 열지 않는다는 이 저장소의 규칙 그대로다(get_scoped_user_or_404).
+
+    복구(unarchive)는 당연히 그 행을 찾아야 하므로 이 문을 지나지 않는다. 보관 자체도
+    지나지 않는다 — 이미 보관된 계정을 또 보관하는 것은 아무것도 바꾸지 않는 멱등 요청이다.
+    """
+    if user.archived_at is not None:
+        raise NotFoundError("사용자를 찾을 수 없습니다.")
+
+
+def get_writable_user_or_404(db: Session, user_id: str, scope) -> User:
+    """범위와 보관 여부를 함께 보는 단건 조회 — 계정을 **바꾸는** 경로가 쓴다.
+
+    읽기 경로(상세·세션 목록)는 `get_scoped_user_or_404` 를 그대로 쓴다: 보관함에서 복구할
+    계정을 열어 보는 것은 정상 업무다.
+    """
+    user = get_scoped_user_or_404(db, user_id, scope)
+    ensure_not_archived(user)
     return user
 
 
@@ -322,15 +385,23 @@ def update_user(
         # 아직 미정인지 코드가 알 수 없으므로 미지정으로 되돌린다 — 그 상태는 관리자 진단에
         # 목록으로 뜨고, 사람이 조직 직속을 명시하면 그때 열린다. 같은 요청이 membership_kind 를
         # 함께 보냈으면 아래에서 그 값이 이긴다(사람의 명시가 추측보다 우선).
+        #
+        # 판정을 `user.department_id`(FK 컬럼)가 아니라 **관계**로 하는 이유: 관계에 대입한
+        # 값은 flush 전까지 FK 컬럼에 반영되지 않는다. 여기서 컬럼을 읽으면 방금 지운 부서의
+        # 옛 id 가 그대로 읽혀, 부서를 비웠는데 소속 종류만 'department' 로 남는다 — 그러면
+        # 그 사람 화면의 「소속 미지정」 안내가 뜨지 않아, 조직 데이터가 전부 비어 있는데
+        # 이유를 알려 주는 줄이 어디에도 없는 상태가 된다(감사 스냅숏도 사실과 달라진다).
         user.membership_kind = (
-            MEMBERSHIP_DEPARTMENT if user.department_id else MEMBERSHIP_UNASSIGNED
+            MEMBERSHIP_DEPARTMENT if user.department_ref is not None else MEMBERSHIP_UNASSIGNED
         )
+    # 아래 검사도 같은 이유로 관계를 본다 — 같은 요청이 부서와 소속 종류를 함께 보내면
+    # FK 컬럼은 아직 옛 값이라 "부서를 비우면서 조직 직속으로 바꾼다" 가 거절당했다.
+    has_department = user.department_ref is not None
     if membership_kind is not None:
-        if membership_kind not in ALL_MEMBERSHIP_KINDS:
-            raise ValidationAppError(f"알 수 없는 소속 종류입니다: {membership_kind}")
-        if membership_kind == MEMBERSHIP_DEPARTMENT and not user.department_id:
+        ensure_known_membership_kind(membership_kind)
+        if membership_kind == MEMBERSHIP_DEPARTMENT and not has_department:
             raise ValidationAppError("부서 소속으로 두려면 부서를 함께 지정해야 합니다.")
-        if membership_kind != MEMBERSHIP_DEPARTMENT and user.department_id:
+        if membership_kind != MEMBERSHIP_DEPARTMENT and has_department:
             raise ValidationAppError(
                 "부서가 배정된 계정은 부서 소속입니다. 먼저 부서를 비우세요."
             )
@@ -357,6 +428,17 @@ def update_user(
     return user
 
 
+def _scope_label(value: str | None) -> str:
+    """관리 범위를 **사람이 읽는 이름**으로. 정본은 권한 매트릭스가 쓰는 표 하나다.
+
+    거절 문구에 `global`·`dept` 를 그대로 실으면, 화면에서 「전체」·「부서」라고 적힌 것을
+    고른 사람이 자기가 고른 적 없는 영문 토큰을 읽게 된다(`app/core/authz.py::SCOPE_LABELS`
+    가 그 이름의 정본이고, 사용자 화면의 선택지도 같은 어휘다).
+    """
+    label = SCOPE_LABELS.get(value or "")
+    return label[0] if label else "알 수 없음"
+
+
 def _apply_admin_scope(
     db: Session, user: User, *, admin_scope, scope_org_id, scope_dept_id, session_service
 ) -> None:
@@ -371,7 +453,15 @@ def _apply_admin_scope(
       * 모르는 값 → 거부
       * `dept` 인데 대상 부서가 없음 → 거부 (아무것도 못 보는 계정이 만들어진다)
       * `org` 인데 대상 조직이 없음 → 거부
+      * 이 범위가 **쓰지 않는** 대상 id 를 함께 보냄 → 거부 (무엇을 무시했는지 말한다)
+      * `dept` 인데 대상 부서가 비활성 → 거부 (사람에게 배정할 수 없는 부서다)
       * `global` → 대상 두 개를 **비운다** (남겨 두면 나중에 좁힐 때 옛 값이 되살아난다)
+
+    ## 무시하지 않고 거절하는 이유
+
+    전역 범위는 대상 id 를 안 쓰므로 예전에는 조용히 None 으로 덮었다. 그러면 없는 조직 id
+    를 보낸 요청이 200 을 받고, 보낸 쪽은 그 값이 저장됐다고 믿는다 — 「저장했는데 안 바뀐다」
+    는 신고가 그렇게 만들어진다. 안 쓸 값이면 안 쓴다고 답한다.
 
     ## 세션을 끊는 이유
 
@@ -383,13 +473,26 @@ def _apply_admin_scope(
 
     target_scope = admin_scope or user.admin_scope
     if target_scope not in ALL_ADMIN_SCOPES:
+        choices = ", ".join(
+            _scope_label(value) for value in sorted(ALL_ADMIN_SCOPES)
+        )
         raise ValidationAppError(
-            f"알 수 없는 관리 범위입니다: {target_scope}. "
-            f"가능한 값: {', '.join(sorted(ALL_ADMIN_SCOPES))}"
+            f"알 수 없는 관리 범위입니다. {choices} 중에서 고르세요."
         )
 
     org_id = user.scope_org_id if scope_org_id is UNSET else scope_org_id
     dept_id = user.scope_dept_id if scope_dept_id is UNSET else scope_dept_id
+
+    # 이 범위가 안 쓰는 대상을 **명시적으로** 보냈으면 거절한다. 안 보낸 것(UNSET)과 비우라고
+    # 보낸 것(None)은 거절할 것이 없다 — 무시되는 값은 사람이 방금 고른 값뿐이다.
+    if target_scope != ADMIN_SCOPE_ORG and scope_org_id is not UNSET and scope_org_id:
+        raise ValidationAppError(
+            f"관리 범위가 {_scope_label(target_scope)}이면 대상 조직을 지정할 수 없습니다."
+        )
+    if target_scope != ADMIN_SCOPE_DEPT and scope_dept_id is not UNSET and scope_dept_id:
+        raise ValidationAppError(
+            f"관리 범위가 {_scope_label(target_scope)}이면 대상 부서를 지정할 수 없습니다."
+        )
 
     if target_scope == ADMIN_SCOPE_GLOBAL:
         org_id = None
@@ -397,8 +500,16 @@ def _apply_admin_scope(
     elif target_scope == ADMIN_SCOPE_DEPT:
         if not dept_id:
             raise ValidationAppError("부서 범위에는 대상 부서를 지정해야 합니다.")
-        if db.get(Department, dept_id) is None:
+        department = db.get(Department, dept_id)
+        if department is None:
             raise ValidationAppError("대상 부서를 찾을 수 없습니다.")
+        # 비활성 부서는 사람에게 배정할 수 없다(resolve_assignable) — 관리 범위도 같다.
+        # 이미 이 관리자에게 걸려 있던 부서면 그대로 둔다: 그 사이 부서가 비활성이 됐다고
+        # 해서 이름 하나 고치는 저장이 통째로 막히면 안 된다(같은 함수의 allow_current 관용).
+        if not department.active and dept_id != user.scope_dept_id:
+            raise ValidationAppError(
+                f"비활성 부서는 관리 범위로 지정할 수 없습니다: {department.name}"
+            )
     elif target_scope == ADMIN_SCOPE_ORG:
         if not org_id:
             raise ValidationAppError("조직 범위에는 대상 조직을 지정해야 합니다.")
@@ -473,6 +584,7 @@ def archive_user(
     session_service.revoke_all_for_user(db, user.id)
     _disable_owned_schedules(db, user.id)
     _transfer_owned_chat_rooms(db, user)
+    _revoke_approval_delegations(db, user, now=user.archived_at, actor_id=actor_id)
     db.flush()
     return user
 
@@ -482,11 +594,29 @@ def unarchive_user(
     user: User,
     *,
     actor_role: str,
+    actor_id: str | None = None,
+    now: datetime | None = None,
 ) -> User:
     """보관을 되돌린다. active는 보관 때 건드리지 않았으므로 그대로 돌아온다 —
-    보관 전에 비활성이던 계정은 비활성인 채로 복구된다(없던 권한을 주지 않는다)."""
+    보관 전에 비활성이던 계정은 비활성인 채로 복구된다(없던 권한을 주지 않는다).
+
+    **보관이 거둔 승인 위임도 함께 돌아온다.** 오프보딩을 잘못 눌러 1분 안에 되돌리는
+    일은 실제로 있고(`app/offboarding/service.py::undo`), 그때 계정과 티켓과 채팅방은
+    돌아오는데 위임만 안 돌아오면 대리 결재자는 **아무 말 없이** 권한을 잃는다 — 잃은
+    사람도 되돌린 사람도 그 사실을 화면 어디에서도 볼 수 없다.
+
+    되살리는 것은 **그 보관이 거둔 것**뿐이다. 판정은 `revoked_at == user.archived_at`
+    으로 한다 — 사람이 손으로 거둔 위임(`POST /approval-delegations/{id}/revoke`)은 다른
+    시각에 찍히므로 여기서 되살아나지 않는다. 이미 기간이 끝난 위임도 그대로 둔다(되살려
+    봐야 「끝남」이고, 그 표는 감사 근거라 없던 상태를 만들면 안 된다).
+    """
     ensure_can_manage_target(actor_role, user)
+    archived_at = user.archived_at
     user.archived_at = None
+    if archived_at is not None:
+        _restore_approval_delegations(
+            db, user, revoked_at=archived_at, now=now or utcnow(), actor_id=actor_id
+        )
     db.flush()
     return user
 
@@ -523,6 +653,114 @@ def _transfer_owned_chat_rooms(db: Session, user: User) -> int:
     from app.team_chat.service import transfer_owned_rooms
 
     return transfer_owned_rooms(db, target=user, successor=None)
+
+
+def _revoke_approval_delegations(
+    db: Session, user: User, *, now: datetime, actor_id: str | None = None
+) -> int:
+    """보관한 계정에 걸린 살아 있는 승인 위임을 회수한다(`_transfer_owned_chat_rooms` 와 같은 자리).
+
+    위임은 **권한을 빌려주는 표**다(app/approvals/models.py). 만들 때는 비활성·보관 계정을
+    대리자로 지정할 수 없는데, 만든 뒤에 그 계정을 보관하면 그 검사를 지나간 위임이 그대로
+    「진행 중」으로 남았다 — 위임 화면은 아무도 결재할 수 없는 위임을 살아 있다고 보여 주고,
+    관리자는 결재가 왜 안 도는지 그 화면에서 알 수 없다.
+
+    **양쪽 다** 회수한다. 대리자가 보관되면 그 사람은 로그인 자체를 못 하므로 빌린 권한을
+    쓸 수 없고, 위임자가 보관되면 이미 사라진 계정의 결재 권한을 남이 계속 대신 쓰게 된다 —
+    보관은 그 계정의 권한을 거두는 일이라 빌려준 권한도 함께 거둬야 앞뒤가 맞는다.
+
+    **회수한 사실은 감사 로그에 남긴다.** 위임 표 자체가 감사 근거인데(그 모델 docstring),
+    `revoked_at` 만 찍고 지나가면 화면에는 「거둔 위임」이 행위자 없이 남는다 — 「누가 이
+    위임을 거뒀나」에 아무도 답할 수 없다. 사람이 손으로 거두는 경로
+    (`POST /approval-delegations/{id}/revoke`)는 이미 같은 이름의 감사 행을 쓴다.
+    """
+    from sqlalchemy import or_
+
+    from app.approvals.delegation import revoke, view
+    from app.approvals.models import ApprovalDelegation
+    from app.core.audit import record_audit
+
+    # 「살아 있다」의 정의는 겹침 검사(`_overlapping_live_delegation`)와 같다: 회수되지
+    # 않았고 아직 끝나지 않은 것. 아직 시작 전인 예약 위임도 포함한다 — 그대로 두면 보관된
+    # 계정에 며칠 뒤 권한이 저절로 열린다.
+    rows = list(
+        db.execute(
+            select(ApprovalDelegation).where(
+                or_(
+                    ApprovalDelegation.delegate_user_id == user.id,
+                    ApprovalDelegation.delegator_user_id == user.id,
+                ),
+                ApprovalDelegation.revoked_at.is_(None),
+                ApprovalDelegation.ends_at > now,
+            )
+        )
+        .scalars()
+        .all()
+    )
+    for row in rows:
+        before = view(row, now)
+        revoke(db, row, now=now)
+        record_audit(
+            db,
+            actor_id=actor_id,
+            action="approval_delegation.revoke",
+            object_type="approval_delegation",
+            object_id=row.id,
+            before=before,
+            # 무엇 때문에 거뒀는지까지 적는다 — 사람이 위임 화면에서 누른 것과 계정 보관이
+            # 데려온 것은 같은 행으로 남으면 안 된다.
+            after={**view(row, now), "cause": "user.archive", "archived_user_id": user.id},
+        )
+    return len(rows)
+
+
+def _restore_approval_delegations(
+    db: Session, user: User, *, revoked_at: datetime, now: datetime, actor_id: str | None
+) -> int:
+    """그 보관이 거둔 위임을 되돌린다 — `_revoke_approval_delegations` 의 역방향.
+
+    되살릴 것은 **그 보관이 거둔 것**뿐이라 `revoked_at` 을 시각으로 짚는다(보관 시각과
+    같은 값을 그때 찍었다). 사람이 손으로 거둔 위임은 다른 시각이라 그대로 남는다. 그
+    시각 하나로 집합이 정확히 정해지므로 기간 조건을 다시 걸지 않는다 — 거둔 것과
+    되살리는 것이 같은 집합이어야 「보관했다 되돌리면 제자리」가 참이 된다.
+
+    되돌리는 사이에 기간이 끝난 위임도 함께 풀린다. `state()` 는 `revoked_at` 다음에
+    `ends_at` 을 보므로 그런 행은 「거둠」이 아니라 「끝남」으로 표시되고, 권한은 어차피
+    열리지 않는다 — 사실을 정확히 적는 쪽이다.
+    """
+    from sqlalchemy import or_
+
+    from app.approvals.delegation import view
+    from app.approvals.models import ApprovalDelegation
+    from app.core.audit import record_audit
+
+    rows = list(
+        db.execute(
+            select(ApprovalDelegation).where(
+                or_(
+                    ApprovalDelegation.delegate_user_id == user.id,
+                    ApprovalDelegation.delegator_user_id == user.id,
+                ),
+                ApprovalDelegation.revoked_at == revoked_at,
+            )
+        )
+        .scalars()
+        .all()
+    )
+    for row in rows:
+        before = view(row, now)
+        row.revoked_at = None
+        db.flush()
+        record_audit(
+            db,
+            actor_id=actor_id,
+            action="approval_delegation.restore",
+            object_type="approval_delegation",
+            object_id=row.id,
+            before=before,
+            after={**view(row, now), "cause": "user.unarchive", "restored_user_id": user.id},
+        )
+    return len(rows)
 
 
 def admin_reset_password(

@@ -100,6 +100,70 @@ def test_list_is_scoped(client, people, actor, sees_sales):
     assert (people["target_sales"][0] in ids) is sees_sales
 
 
+# ── 사람 찾기(FP-D)는 사용자 목록과 **같은 범위 규칙**을 타야 한다 ──────────────
+#
+# 운영자·감사자용 읽기 전용 문이라고 범위를 안 걸면, 사용자 목록에서 가린 사람이 이
+# 문으로 통째로 새어 나온다. 목록과 단건이 갈라지면 안 되는 것과 같은 이유다.
+
+
+def _people_ids(client) -> set[str]:
+    response = client.get("/api/admin/people")
+    assert response.status_code == 200, response.text
+    return {row["id"] for row in response.json()["items"]}
+
+
+@pytest.mark.parametrize(
+    "actor, sees_sales",
+    [
+        ("global_admin", True),
+        ("org_admin", True),
+        ("dept_admin", False),    # 부서: 영업팀은 사람 찾기에서도 안 보인다
+    ],
+)
+def test_people_lookup_is_scoped_like_the_user_list(client, people, actor, sees_sales):
+    _login(client, people[actor][1])
+    ids = _people_ids(client)
+
+    assert people["target_dev"][0] in ids, "자기 부서 사용자는 항상 보여야 한다"
+    assert people["target_fe"][0] in ids, "하위 부서 사용자도 보여야 한다(서브트리 전개)"
+    assert (people["target_sales"][0] in ids) is sees_sales
+
+
+@pytest.mark.parametrize(
+    "actor, sees_org_b",
+    [
+        ("global_admin", True),   # 전역: 두 조직을 다 본다
+        ("dept_admin_a", False),  # A 조직 A팀 관리자: 남의 조직 사람은 없다
+        ("operator_a", False),    # 운영자: admin_scope 기본값이 global 이어도 자기 조직에 닫힌다
+        ("auditor_a", False),     # 감사자도 같은 규칙이다
+    ],
+)
+def test_people_lookup_never_crosses_the_org_boundary(
+    client, db, make_user, two_orgs, actor, sees_org_b
+):
+    """조직이 둘인 세계에서 본다 — 조직이 하나뿐이면 org 필터는 아무것도 못 증명한다."""
+    actors = {
+        "global_admin": make_user("g-admin@goodmit.co.kr", role="admin"),
+        "dept_admin_a": make_user("d-admin@goodmit.co.kr", role="admin"),
+        "operator_a": make_user("op-a@goodmit.co.kr", role="operator"),
+        "auditor_a": make_user("au-a@goodmit.co.kr", role="auditor"),
+    }
+    dept_admin = actors["dept_admin_a"]
+    dept_admin.department_id = two_orgs.dept_a.id
+    dept_admin.admin_scope = "dept"
+    dept_admin.scope_org_id = two_orgs.org_a_id
+    dept_admin.scope_dept_id = two_orgs.dept_a.id
+    for key in ("operator_a", "auditor_a"):
+        actors[key].org_id = two_orgs.org_a_id
+    db.commit()
+
+    _login(client, actors[actor].email)
+    ids = _people_ids(client)
+
+    assert two_orgs.user_a.id in ids, "자기 조직 사람은 항상 보여야 한다"
+    assert (two_orgs.user_b.id in ids) is sees_org_b
+
+
 def test_plain_user_cannot_reach_the_admin_list_at_all(client, people):
     """역할 게이트가 먼저 막는다 — 범위 이전의 방어선."""
     _login(client, people["plain"][1])
@@ -348,3 +412,56 @@ def test_dev_monthly_is_unchanged_for_a_global_admin(client, people, seeded_tick
 
     assert people["target_sales"][0] in _developer_ids(body)
     assert _ticket_numbers(body) == set(seeded_tickets.values())
+
+
+# ── 목록 필터의 «모르는 값» 도 같은 규칙을 탄다 (xa-11) ──────────────────────
+#
+# 모르는 부서 id 를 빈 목록으로 삼키면 「그 부서에 사람이 없다」와 구별되지 않는다(그래서
+# 422 로 바꿨다). 그런데 «있다/없다» 를 그대로 답하면 이번에는 부서 관리자가 남의 부서 id 를
+# 이 필터에 넣어 보며 조직도를 셀 수 있다 — 범위 밖은 **없는 것과 같은 답**이어야 한다.
+
+
+def test_an_unknown_department_filter_is_refused(client, people, org_tree):
+    csrf = _login(client, people["global_admin"][1])
+    response = client.get(
+        "/api/admin/users", params={"department_id": "no-such-dept"},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert response.status_code == 422, response.text
+
+
+def test_an_out_of_scope_department_filter_answers_like_an_unknown_one(
+    client, people, org_tree
+):
+    """부서 관리자에게 영업팀은 **없는 부서**다 — 존재를 알려 주는 다른 답을 주면 안 된다."""
+    csrf = _login(client, people["dept_admin"][1])
+    out_of_scope = client.get(
+        "/api/admin/users", params={"department_id": org_tree["sales"]},
+        headers={"X-CSRF-Token": csrf},
+    )
+    unknown = client.get(
+        "/api/admin/users", params={"department_id": "no-such-dept"},
+        headers={"X-CSRF-Token": csrf},
+    )
+
+    assert out_of_scope.status_code == unknown.status_code == 422
+
+    def _without_request_id(body: dict) -> dict:
+        error = {k: v for k, v in body["error"].items() if k != "request_id"}
+        return {**body, "error": error}
+
+    # 문구까지 같아야 한다 — id 만 다르면 그 id 가 실재하는지 여전히 알 수 있다.
+    assert _without_request_id(out_of_scope.json())["error"]["message"].replace(
+        org_tree["sales"], "X"
+    ) == _without_request_id(unknown.json())["error"]["message"].replace("no-such-dept", "X")
+
+
+def test_an_in_scope_department_filter_still_works(client, people, org_tree):
+    """오탐 방지 — 자기 범위 안 부서로 거르는 것은 그대로 200 이다."""
+    csrf = _login(client, people["dept_admin"][1])
+    response = client.get(
+        "/api/admin/users", params={"department_id": org_tree["fe"]},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert response.status_code == 200, response.text
+    assert [row["email"] for row in response.json()["items"]] == ["t-fe@goodmit.co.kr"]

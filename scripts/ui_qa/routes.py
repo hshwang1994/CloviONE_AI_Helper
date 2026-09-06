@@ -302,7 +302,8 @@ ADMIN_ROUTES: tuple[Route, ...] = (
     # 경로(`path={"/" + key}`)를 못 읽어 조용히 놓친 바로 그 한 개다
     # (`frontend/src/screens/registry-surface-parity.test.js` 가 JS 로 잡았다).
     _a("admin_admin-notifications", "/admin-notifications", "관리 알림"),
-    _a("admin_jobs", "/jobs", "작업 큐", "operator", ("operator", "admin", "system_admin")),
+    _a("admin_jobs", "/jobs", "작업 큐", "operator",
+       ("operator", "admin", "system_admin", "auditor")),
     _a("admin_audit", "/audit", "감사 로그", "auditor", ("admin", "system_admin", "auditor")),
     _a("admin_backup", "/backup", "백업", "operator",
        ("operator", "admin", "system_admin", "auditor")),
@@ -313,7 +314,7 @@ ADMIN_ROUTES: tuple[Route, ...] = (
     _a("admin_integration-detail", "/integrations", "외부 연동 상세",
        hash_template="/integrations?id={id}", discover=("/api/admin/integrations",)),
     _a("admin_job-detail", "/jobs", "작업 상세", "operator",
-       ("operator", "admin", "system_admin"),
+       ("operator", "admin", "system_admin", "auditor"),
        hash_template="/jobs?job_id={id}", discover=("/api/admin/jobs",)),
     # ── 관리자 백로그 잔여(PLAN Phase 6, 마이그레이션 0033) ────────────────────
     # 여덟 개는 REGISTRY 키라 "/" + key 로 라우팅되고, 실행 달력만 AdminRoutes.jsx 의

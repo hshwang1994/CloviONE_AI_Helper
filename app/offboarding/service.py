@@ -39,7 +39,13 @@ from sqlalchemy.orm import Session
 
 from app.core.db import is_insert_race
 from app.core.sort import SortSpec, order_by
-from app.core.errors import AppError, ConflictError, ValidationAppError
+from app.core.errors import (
+    AppError,
+    ConflictError,
+    NotFoundError,
+    TicketNotFoundError,
+    ValidationAppError,
+)
 from app.core.models_base import join_names, split_names, utcnow
 from app.core.scope import apply_user_scope
 from app.offboarding.models import (
@@ -203,6 +209,15 @@ def run_offboarding(
         raise ConflictError("자기 자신을 오프보딩할 수 없습니다. 다른 관리자에게 요청하세요.")
     if successor is not None and successor.id == target.id:
         raise ValidationAppError("후임은 퇴사자 본인일 수 없습니다.")
+    # 후임이 닫힌 계정이면 **티켓 이동이 100% 실패할 것이 이미 정해져 있다.** 담당자 해석
+    # (`app/tickets/service.py::_assignee_id_to_user`)이 활성·미보관 계정만 보기 때문이다.
+    # 그런데도 여기까지 지나가면 장부와 알림이 먼저 남고 계정만 비활성화된 채 티켓은 퇴사자
+    # 손에 그대로 남는다 — 응답은 성공한 실행과 같은 200 이라 스크립트 호출자는 그 사실을
+    # 모른다. 미리보기의 후보 규칙(`_successor_candidates`)과 같은 술어를 실행 전에 건다.
+    if successor is not None and not (successor.active and successor.archived_at is None):
+        raise ValidationAppError(
+            "후임은 활성 계정이어야 합니다. 비활성이거나 보관된 계정은 티켓을 넘겨받을 수 없습니다."
+        )
     if len(page_ids) > MAX_TICKETS_PER_RUN:
         raise ValidationAppError(
             f"한 번에 옮길 수 있는 티켓은 {MAX_TICKETS_PER_RUN}건까지입니다. 나눠서 실행하세요."
@@ -400,6 +415,21 @@ def _move_tickets(
 
 # ── 되돌리기 ──────────────────────────────────────────────────────────────────
 
+def _ticket_is_gone(db: Session, outbound, settings, *, page_id: str, repo=None) -> bool:
+    """그 티켓 행이 **아예 없어졌는가**(영구 삭제).
+
+    티켓은 저장소 seam 으로만 묻는다(`app/offboarding/router.py::_repo`). `local_uid` 는
+    소스를 부르지 않고 우리 행의 유무만 답하므로 되돌리기 중간에 왕복이 하나 더 늘지 않는다.
+
+    휴지통에 든 티켓은 여기서 **없는 것이 아니다** — 행은 그대로 있고, 사람이 복원하면
+    되돌릴 수 있다. 「지금 못 쓴다」와 「영영 없다」를 여기서 가른다.
+    """
+    from app.core.source_registry import build_ticket_repository
+
+    r = repo if repo is not None else build_ticket_repository(settings, outbound)
+    return r.local_uid(db, page_id=page_id) is None
+
+
 def undo(
     db: Session, outbound, settings, *, actor: User, run: OffboardingRun,
     session_service, now: datetime | None = None, repo=None,
@@ -436,6 +466,26 @@ def undo(
                 # 조작이라, 그 결과로 알림이 쏟아지면 사람들은 '또 뭘 배정받았나' 하고 본다.
                 notify=False,
             )
+        except (NotFoundError, TicketNotFoundError) as exc:
+            # 「그 티켓이 없다」는 두 예외로 온다: 휴지통은 `NotFoundError`(H2), 행 자체가
+            # 사라졌으면 저장소가 `TicketNotFoundError` 다. 둘 다 여기서 받아 **왜 없는지**를
+            # 아래에서 가른다 — 한쪽만 잡으면 나머지 절반이 조용히 예전 동작으로 돌아간다.
+            #
+            # 티켓이 **영구 삭제**됐으면 되돌릴 자리가 없다. 재시도해도 영원히 같은 실패라,
+            # 이것을 `revert_failed` 로 두면 REVERTIBLE_MOVES 가 매번 다시 집어 들고
+            # `undone_at` 이 영원히 비어 있어 그 사람을 다시 오프보딩할 수 없다(409).
+            # 「되돌릴 대상이 없어졌다」와 「아직 못 되돌렸다」는 다른 사실이므로 다르게 적는다.
+            #
+            # 휴지통에 든 티켓은 여기 해당하지 않는다 — 행이 그대로 있고 복원하면 되돌릴 수
+            # 있으므로 아래 재시도 대상으로 남긴다(UA-14 가 고정한 흐름이다).
+            if _ticket_is_gone(db, outbound, settings, page_id=move.ticket_page_id, repo=repo):
+                move.status = MOVE_REVERTED
+                move.error = "티켓이 영구 삭제되어 되돌릴 담당자 자리가 없습니다."
+                move.reverted_at = stamp
+            else:
+                move.status = MOVE_REVERT_FAILED
+                move.error = exc.message
+                failed += 1
         except AppError as exc:
             move.status = MOVE_REVERT_FAILED
             move.error = exc.message

@@ -101,7 +101,10 @@ function notificationsScreen({ key, audience, area, title, help, emptyHelp }) {
       // 전체를 지워, 「내 업무 > 알림」에서 누른 한 번이 백업 실패·계정 잠금 같은 관리
       // 알림까지 읽음으로 바꾼다(app/notifications/router.py::read_all_notifications).
       // 확인 문구도 그 범위대로 말한다 — "모든 알림"은 두 콘솔 전부로 읽힌다.
-      { label: "모두 읽음", variant: "primary", when: (ctx) => ctx.unreadCount > 0, path: () => `/api/notifications/read-all?audience=${audience}`, confirm: audience === "admin" ? "관리 알림을 모두 읽음 처리할까요?" : "내 업무 알림을 모두 읽음 처리할까요?",
+      // `primary: true` 다 — 이 화면의 주 동작이라 확인 문구가 있어도 «...» 넘침 메뉴에
+      // 숨지 않는다(DataScreen 의 `isRiskyHeader` 는 `primary` 를 예외로 둔다). 예전에는
+      // `variant: "primary"` 만 있어 읽을 것이 쌓여도 단추가 메뉴 안 빨간 글씨였다.
+      { label: "모두 읽음", variant: "primary", primary: true, when: (ctx) => ctx.unreadCount > 0, path: () => `/api/notifications/read-all?audience=${audience}`, confirm: audience === "admin" ? "관리 알림을 모두 읽음 처리할까요?" : "내 업무 알림을 모두 읽음 처리할까요?",
         result: (res) => ({ ok: true, msg: (res && res.read_count != null ? res.read_count : 0) + "건을 읽음 처리했습니다." }) },
     ],
     actions: [

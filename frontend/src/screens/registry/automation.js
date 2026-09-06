@@ -11,7 +11,7 @@
  */
 import React from "react";
 import Link from "@mui/material/Link";
-import { CONCURRENCY_OPTS, JOB_TYPE, MISFIRE_OPTS, OPS_ROLES, SCHEDT_OPTS, SCHED_PRESET_OPTS, SCHED_RUN, SCHED_TARGET_OPTS, SCHED_TYPE, WRITE_ROLES, badgeCol, col, dateCol, enabledCol, field, fmtDateTime, jsonField, mapCol, opt, personField, schedSkipReasonText } from "./shared.js";
+import { CONCURRENCY_OPTS, JOB_TYPE, MISFIRE_OPTS, OPS_ROLES, SCHEDT_OPTS, SCHED_PRESET_OPTS, SCHED_RUN, SCHED_TARGET_OPTS, SCHED_TYPE, WRITE_ROLES, badgeCol, col, dateCol, enabledCol, field, fmtDateTimeCompact, jsonField, mapCol, opt, personField, schedSkipReasonText } from "./shared.js";
 import { onoff } from "./actions.js";
 
 export const AUTOMATION_SCREENS = {
@@ -42,6 +42,13 @@ export const AUTOMATION_SCREENS = {
     // 1회(once) 일정은 Cron 식이 없다 → 빈 칸 대신 유형 라벨을 보여준다(실제 실행 시각은 '다음 실행' 열).
     // target_type/target_ref도 목록 열로 노출 — 이 일정이 실제로 무엇을 실행하는지가 예전엔
     // 상세를 하나씩 열어야만 보였다.
+    /* 🔴 이 파일의 표·상세는 **한 형식기**만 쓴다 (ops-14).
+     *
+     * `dateCol` 은 `DateCell` → `fmtDateTimeCompact` 라 「2026-09-06 01:53」을 내고, 손으로
+     * 적은 `render` 는 `fmtDateTime` 이라 「2026. 9. 7. 오전 9:00」을 냈다. 한 행 안에서
+     * 이웃한 두 칸이 그렇게 갈라져 있어(「다음 실행」과 「마지막 실행」) 두 시각을 눈으로
+     * 대조할 수 없었다 — 표의 존재 이유가 비교인데 그것이 안 됐다. 백업 화면이 같은 이유로
+     * 이미 요약 카드를 바꿨다(platform.js 의 「마지막 백업」). */
     columns: [{ ...col("name", "이름"), identifier: true }, mapCol("schedule_type", "유형", SCHED_TYPE),
       { key: "cron_expression", label: "실행 일정(Cron)", type: "identifier", render: (r) => r.schedule_type === "once" ? "1회 실행(‘다음 실행’ 참고)" : (r.cron_expression == null || r.cron_expression === "" ? "-" : String(r.cron_expression)) },
       mapCol("target_type", "대상 유형", { system: "시스템" }),
@@ -50,7 +57,7 @@ export const AUTOMATION_SCREENS = {
       // 비활성화(disable_schedule)는 next_run_at을 지우지 않는다(백엔드가 enabled만 끈다) — 그대로
       // 보여주면 '이 시각에 다시 실행될 것'처럼 읽힌다. 비활성 행은 활성 배지로 알 수 있으니 이 열은
       // 무의미한 미래 시각 대신 '-'로 지워 이중 확인을 강제하지 않는다.
-      { key: "next_run_at", label: "다음 실행", type: "datetime", render: (r) => r.enabled ? fmtDateTime(r.next_run_at) : "-" },
+      { key: "next_run_at", label: "다음 실행", type: "datetime", render: (r) => r.enabled ? fmtDateTimeCompact(r.next_run_at) : "-" },
       dateCol("last_run_at", "마지막 실행"),
       // 백엔드가 now > end_at이면 cron 일정을 자동 비활성화한다(scheduler.py advance_next_run) —
       // 상세를 하나씩 열지 않고도 곧 만료될 일정을 목록에서 바로 훑을 수 있게 노출한다.
@@ -64,7 +71,14 @@ export const AUTOMATION_SCREENS = {
       }
       return false;
     },
-    create: { roles: WRITE_ROLES, fields: [
+    /* 실행 일정은 부서로 나눌 수 있는 자원이 아니다 — 전사 야간 배치 하나를 남의 부서
+       관리자가 끄면 범위를 좁힌 의미가 사라진다. 그래서 서버가 생성·수정·활성화·비활성화
+       넷을 전역 범위 관리자로 한정하고 거절까지 감사에 남긴다
+       (`app/schedules/router.py::_require_global_schedule_write`). 화면도 같은 축을 본다.
+       「지금 실행」·「미리보기」·「재시도」는 여기 없다 — 서버가 그 셋을 운영 역할
+       (`CONSOLE_OPS_ROLES`)에 열어 두었고, 화면이 서버보다 좁게 가리면 할 수 있는 일을
+       못 하게 막는 것이 된다. */
+    create: { roles: WRITE_ROLES, requiresGlobalScope: true, fields: [
       { name: "name", label: "이름", type: "text", required: true },
       { name: "description", label: "설명", type: "text" },
       { name: "schedule_type", label: "유형", type: "select", value: "cron", options: SCHEDT_OPTS },
@@ -97,20 +111,22 @@ export const AUTOMATION_SCREENS = {
     // 스케줄 ID 는 남긴다 — 감사 로그 필터(object_type=schedule)에 붙여 넣는 값이다.
     // 소유자는 서버가 이름을 함께 준다(app/schedules/router.py `_view`) — UUID 대신 그 이름을 쓴다.
     detailFields: [field("id", "스케줄 ID"), personField("owner_user_id", "소유자", "owner_name", "owner_email"),
-      { key: "_next_run_scheduled", label: "다음 실행(예정)", render: (r) => r.next_run_at ? fmtDateTime(r.next_run_at) + (r.enabled ? "" : " (현재 비활성)") : "-" },
+      { key: "_next_run_scheduled", label: "다음 실행(예정)", render: (r) => r.next_run_at ? fmtDateTimeCompact(r.next_run_at) + (r.enabled ? "" : " (현재 비활성)") : "-" },
       field("description", "설명"), field("timezone", "시간대"), mapCol("misfire_policy", "누락 처리 정책", { skip: "건너뛰기", run_once: "한 번만 실행" }), mapCol("concurrency_policy", "동시 실행 정책", { skip: "건너뛰기", allow: "동시 실행 허용" }), field("timeout_seconds", "제한 시간(초)"), dateCol("start_at", "시작 시각"), dateCol("created_at", "생성 일자"), jsonField("payload_template", "실행 입력값"), jsonField("retry_policy", "재시도 정책")],
     actions: [
       // once형은 백엔드 enable이 실행 시각이 이미 지났으면 항상 409('실행 시각이 이미 지났습니다')로
       // 거절한다 — 눌러도 항상 실패하는 '활성화'를 숨긴다. next_run_at이 아예 없거나(이미 실행됨),
       // 있어도 그 시각이 이미 과거면(비활성인 채 run_at이 지나감) 둘 다 숨긴다('수정'으로 새 run_at
       // 지정 후에만 다시 노출). cron형은 그대로 노출한다.
+      // 활성화·비활성화도 생성·수정과 같은 문을 지난다(위 create 주석) — 공용 `onoff` 는
+      // 여러 화면이 쓰므로 그 안에 범위를 박지 않고, 이 화면에서만 한 줄을 덧붙인다.
       ...onoff("/api/admin/schedules", undefined, (r) => {
         if (r.schedule_type !== "once") return true;
         if (!r.next_run_at) return false;
         const s = String(r.next_run_at); const iso = /[zZ]$|[+-]\d\d:?\d\d$/.test(s) ? s : s + "Z";
         const t = new Date(iso).getTime();
         return Number.isNaN(t) ? true : t > Date.now();
-      }),
+      }).map((a) => ({ ...a, requiresGlobalScope: true })),
       // run-now는 비동기로 큐잉될 뿐이라 이 토스트 이후 결과를 알 방법이 없었다(목록엔 자동 갱신도
       // 상태 열도 없다) — 최소한 어디서 결과를 확인할지 명확히 안내한다.
       { label: "지금 실행", roles: OPS_ROLES, when: (r) => r.enabled, path: (r) => "/api/admin/schedules/" + r.id + "/run-now", confirm: "이 일정을 지금 한 번 실행할까요?",
@@ -119,9 +135,11 @@ export const AUTOMATION_SCREENS = {
       { label: "미리보기", roles: OPS_ROLES, path: (r) => "/api/admin/schedules/" + r.id + "/dry-run",
         info: (res) => {
           const r0 = res || {};   // 빈/비-JSON 2xx면 api()가 null을 준다 — res.x 직접 접근은 throw
-          const t = (r0.next_fire_times_utc || []).slice(0, 5).map(fmtDateTime);
+          const t = (r0.next_fire_times_utc || []).slice(0, 5).map(fmtDateTimeCompact);
           const lines = [];
-          lines.push("다음 실행 예정:\n" + (t.length ? t.map((x) => ", " + x).join("\n") : "  (예정된 실행 시각 없음)"));
+          // 🔴 줄 사이 구분자로 쓰려던 쉼표가 줄마다 **앞에** 붙어 있었다(ops-15) —
+          //    「, 2026. 9. 7. 오전 9:00」. 목록 표식은 글머리표이지 문장 부호가 아니다.
+          lines.push("다음 실행 예정:\n" + (t.length ? t.map((x) => "- " + x).join("\n") : "  (예정된 실행 시각 없음)"));
           if (r0.target_type || r0.target_ref) lines.push("\n대상: " + (r0.target_type || "?") + " / " + (r0.target_ref || "?"));
           const pp = r0.payload_preview;
           lines.push("\n보낼 페이로드:\n" + (pp == null ? "  (없음)" : (typeof pp === "string" ? pp : JSON.stringify(pp, null, 2))));
@@ -176,7 +194,18 @@ export const AUTOMATION_SCREENS = {
     // PUT 전체 교체 → 필수(target_type/target_ref)와 핵심 필드를 모두 함께 보낸다(누락 시 422).
     // 고급 필드(payload_template/retry_policy/misfire/concurrency/timeout/start_at/end_at)도
     // 함께 돌려보내야 한다 — 빠지면 PUT이 이 값들을 기본값으로 되돌린다(라운드트립). _view가 다 준다.
-    editMethod: "PUT", edit: { roles: WRITE_ROLES, fields: [
+    /* 🔴 「대상」 후보는 **지금 편집 중인 행**에 따라 달라진다 (ops-11).
+     *
+     * 새로 고를 수 있는 대상은 `noop` 하나뿐인데(S11 이 워크플로 대상을 걷었다), 그 전에
+     * 만들어진 행은 `ai.summarize` 같은 값을 그대로 들고 있다. 폼이 그 값을 후보에 안 넣으면
+     * 「대상」 칸이 빈 채로 열리고, 설명 한 줄만 고쳐 저장하려 해도 그 칸이 비어 저장이
+     * 막혔다 — 폼이 주는 유일한 대안이 「이 일정이 하는 일을 바꾸기」였다. 서버는 이미 그
+     * 사정을 받아들인다: 저장된 값을 **그대로** 다시 보내는 수정만 통과시킨다
+     * (`app/schedules/router.py::_validate_and_normalize`).
+     *
+     * `edit.fields` 를 함수로 주면 `DataScreen` 이 `(role, row)` 로 부른다 — 그 갈래가
+     * 정확히 이 경우를 위해 있다(「신규로는 못 고르지만 기존 값은 유지할 수 있어야 한다」). */
+    editMethod: "PUT", edit: { roles: WRITE_ROLES, requiresGlobalScope: true, fields: (role, row) => [
       { name: "name", label: "이름", type: "text", required: true },
       { name: "description", label: "설명", type: "text" },
       { name: "schedule_type", label: "유형", type: "select", options: SCHEDT_OPTS },
@@ -189,8 +218,12 @@ export const AUTOMATION_SCREENS = {
       { name: "timezone", label: "시간대", type: "text" },
       { name: "target_type", label: "대상 유형", type: "select", options: SCHED_TARGET_OPTS },
       { name: "target_ref", label: "대상", type: "select", required: true,
-        options: opt([["noop", "시스템 (noop)"]]),
-        help: "지금 예약할 수 있는 대상은 시스템 작업 하나입니다." },
+        options: (row && row.target_ref && row.target_ref !== "noop")
+          ? opt([[row.target_ref, row.target_ref + " (지금 값)"], ["noop", "시스템 (noop)"]])
+          : opt([["noop", "시스템 (noop)"]]),
+        help: (row && row.target_ref && row.target_ref !== "noop")
+          ? "이 일정은 지금 새로 고를 수 없는 대상을 가리킵니다. 지금 값을 그대로 두면 나머지를 고쳐 저장할 수 있고, 시스템 작업으로 바꾸면 되돌릴 수 없습니다."
+          : "지금 예약할 수 있는 대상은 시스템 작업 하나입니다." },
       { name: "payload_template", label: "실행 페이로드(JSON)", type: "json" },
       { name: "retry_policy", label: "재시도 정책(JSON)", type: "json", help: '예: {"max_attempts": 3}, 일시 오류 시 최대 재시도 횟수(1~10, 기본 3).' },
       { name: "misfire_policy", label: "누락 처리 정책", type: "select", options: MISFIRE_OPTS },
@@ -302,7 +335,7 @@ export const AUTOMATION_SCREENS = {
        (`app/jobs/repository.py::LIST_SORT`) — 하나는 계산값이라 미완료 잡이 늘 뒤로 밀리고,
        하나는 이 화면이 일부러 안 싣는 값이다. */
     serverSort: { keys: ["created_at", "available_at", "started_at", "finished_at", "status", "job_type", "attempt_count"], default: { key: "created_at", dir: "desc" } },
-    columns: [{ ...dateCol("created_at", "생성"), rowName: (r) => (JOB_TYPE[r.job_type] || r.job_type) + " / " + fmtDateTime(r.created_at) }, { ...mapCol("job_type", "유형", JOB_TYPE), sortable: true }, { ...badgeCol("status", "상태"), sortable: true },
+    columns: [{ ...dateCol("created_at", "생성"), rowName: (r) => (JOB_TYPE[r.job_type] || r.job_type) + " / " + fmtDateTimeCompact(r.created_at) }, { ...mapCol("job_type", "유형", JOB_TYPE), sortable: true }, { ...badgeCol("status", "상태"), sortable: true },
       // 대기 중인데 실행 예정 시각이 이미 지났으면 지연(백로그) 신호 — 워커 정체를 이 화면에서 바로 감지.
       { key: "available_at", label: "대기", type: "count", render: (r) => {
         if (r.status !== "queued" || !r.available_at) return "-";
@@ -349,7 +382,7 @@ export const AUTOMATION_SCREENS = {
       { key: "schedule_id", label: "연결된 스케줄", render: (r) => r.schedule_id
         ? React.createElement(Link, { underline: "hover", href: "#/schedules?id=" + encodeURIComponent(r.schedule_id) }, r.schedule_id) : "-" },
       { key: "schedule_run_id", label: "실행 건 ID", render: (r) => r.schedule_run_id || "-" },
-      { key: "available_at_full", label: "실행 예정", render: (r) => fmtDateTime(r.available_at) },
+      { key: "available_at_full", label: "실행 예정", render: (r) => fmtDateTimeCompact(r.available_at) },
       dateCol("started_at", "시작"), dateCol("finished_at", "종료"),
       { key: "duration_ms", label: "소요 시간", render: (r) => r.duration_ms != null ? (Math.round(r.duration_ms / 100) / 10) + "초" : "-" }, // 백엔드 오류 문자열(f"{type(exc).__name__}: {exc}", worker.py)은 pydantic ValidationError 등에서
       // 흔히 여러 줄이다, jsonField와 동일한 <pre>로 렌더해 줄바꿈이 살아 있게 한다(plain span은
@@ -357,7 +390,12 @@ export const AUTOMATION_SCREENS = {
       { key: "last_error_full", label: "마지막 오류", render: (r) => (r.last_error == null || r.last_error === "" ? "-" : React.createElement("pre", { className: "c-detail-json" }, String(r.last_error))) }],
     actions: [
       { label: "재시도", variant: "primary", roles: OPS_ROLES, when: (r) => r.status === "failed", path: (r) => "/api/admin/jobs/" + r.id + "/retry", confirm: "이 작업을 다시 시도할까요?" },
-      { label: "취소", variant: "danger", roles: OPS_ROLES, when: (r) => r.status === "queued", path: (r) => "/api/admin/jobs/" + r.id + "/cancel", confirm: "대기 중인 이 작업을 취소할까요? 연결된 티켓, 문서, 스케줄도 정리됩니다." },
+      { label: "취소", variant: "danger", roles: OPS_ROLES, when: (r) => r.status === "queued", path: (r) => "/api/admin/jobs/" + r.id + "/cancel", 
+        // 🔴 「연결된 티켓, 문서, 스케줄도 정리됩니다」였다(ops-16). 서버가 실제로 정리하는
+        //    것은 둘뿐이다: `schedule_run` 이면 그 예약 실행을 건너뜀으로, `chat_message` 면
+        //    그 메시지를 실패로 끝낸다(`app/jobs/router.py::_terminalize_linked_record`).
+        //    티켓·문서 갈래는 없고, 이 제품의 잡 유형도 셋뿐이다(shared.js `JOB_TYPE`).
+        confirm: "대기 중인 이 작업을 취소할까요? 연결된 예약 실행이나 채팅 요청도 함께 종료됩니다." },
       // 재시도/취소는 모두 object_type='job'으로 감사 로그에 기록된다(app/jobs/router.py) — 다른
       // 화면과 동일한 딥링크. operator는 이 화면(OPS_ROLES)엔 들어오지만 /audit 화면엔 못 들어간다
       // (App.jsx SCREEN_ROLES.audit=admin/system_admin/auditor) — admin/system_admin에만 노출한다.

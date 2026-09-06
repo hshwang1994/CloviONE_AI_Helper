@@ -246,3 +246,67 @@ def test_feature_flag_off_hides_team_docs(db_url, tmp_path, fake_clock, fake_htt
     with TestClient(app, raise_server_exceptions=False) as c:
         c.post("/login", json={"email": "ff@goodmit.co.kr", "password": DEFAULT_TEST_PASSWORD})
         assert c.get("/api/team-docs").status_code == 404
+
+
+def test_feature_flag_off_hides_the_canonical_knowledge_api_too(db_url, tmp_path, fake_clock, fake_http):
+    """🔴 깃발을 끄면 정본 문서 API(`/api/knowledge/*`)도 닫힌다 (P-84).
+
+    예전에는 옛 미러 라우터(`/api/team-docs`)만 막혔다. 메뉴는 사라지고 `/api/me` 는
+    `team_docs_enabled: false` 라고 답하는데, 공유받은 `#/knowledge/<id>` 는 그대로 열렸다 —
+    운영자는 「문서를 껐다」고 믿고 서버는 문서를 전부 내줬다.
+
+    반례를 같은 앱에서 잰다: 깃발을 다시 켜면 **같은 요청**이 200 이 된다. 그래야 404 가
+    깃발 때문이지 권한·자료 부재 때문이 아니라는 사실이 증명된다.
+    """
+    import shutil
+
+    from app.core.config import Settings
+    from app.core.feature_flags import reset_cache
+    from app.main import create_app
+    from app.users.service import create_user
+
+    cfg = tmp_path / "config"
+    shutil.copytree(PROJECT_ROOT / "config", cfg)
+    flags_file = cfg / "feature-flags.json"
+
+    def set_flag(enabled: bool) -> None:
+        flags_file.write_text(json.dumps({"team_docs_enabled": enabled}), encoding="utf-8")
+        # 파일을 만든 직후에는 mtime 해상도 때문에 캐시 키가 같을 수 있다 — 시험이 재는 것은
+        # 게이트이지 캐시 무효화가 아니므로 여기서는 확실히 비운다.
+        reset_cache()
+
+    set_flag(False)
+    secrets_dir = tmp_path / "secrets"
+    secrets_dir.mkdir()
+    settings = Settings(
+        _env_file=None, app_env="test", database_url=db_url,
+        session_secret="test-session-secret", cookie_secure=False,
+        config_dir=cfg, secrets_dir=secrets_dir, data_dir=tmp_path,
+    )
+    app = create_app(settings, clock=fake_clock, outbound_transport=fake_http.transport())
+    with app.state.session_factory() as s:
+        create_user(s, email="ff2@goodmit.co.kr", display_name="FF2", password=DEFAULT_TEST_PASSWORD,
+                    settings=settings, actor_role="system_admin", role="user", active=True,
+                    must_change_password=False)
+        s.commit()
+
+    probes = ("/api/knowledge/documents", "/api/knowledge/categories", "/api/team-docs")
+    with TestClient(app, raise_server_exceptions=False) as c:
+        assert c.post("/login", json={"email": "ff2@goodmit.co.kr", "password": DEFAULT_TEST_PASSWORD}).status_code == 200
+
+        for path in probes:
+            r = c.get(path)
+            assert r.status_code == 404, f"{path} 가 깃발이 꺼졌는데 열려 있다: {r.status_code} {r.text[:200]}"
+            body = r.json()
+            assert body["error"]["code"] == "not_found", body
+            assert body["error"]["message"] == "문서 기능이 비활성화되어 있습니다.", body
+        me = c.get("/api/me")
+        assert me.status_code == 200
+        assert me.json()["features"]["team_docs_enabled"] is False
+
+        # 반례 — 깃발을 켜면 같은 요청이 열린다.
+        set_flag(True)
+        for path in probes:
+            r = c.get(path)
+            assert r.status_code == 200, f"{path} 가 깃발을 켰는데도 닫혀 있다: {r.status_code} {r.text[:200]}"
+        assert c.get("/api/me").json()["features"]["team_docs_enabled"] is True

@@ -139,4 +139,15 @@ describe("/users 목록 상태 ← URL (읽기 방향/새로고침 복원, PA-RC
     const params = new URL("http://x" + call[0]).searchParams;
     expect(params.get("department_id")).toBe("d-1");
   });
+
+  it("「부서 없음」 센티널(?department_id=none)은 서버로 그대로 가고 배너가 그 뜻을 말한다 (P-61)", async () => {
+    /* 조직 콘솔의 「부서 미지정 N명」 링크가 이 주소로 온다. 서버가 `none` 을 IS NULL 로
+       읽으므로 화면은 값을 바꾸지 않고 넘기고, 부서 이름 대신 뜻을 적는다. */
+    renderAt("/users?department_id=none");
+    await screen.findByText("alice@example.com");
+    const call = apiMock.mock.calls.find((c) => String(c[0]).startsWith("/api/admin/users?"));
+    expect(new URL("http://x" + call[0]).searchParams.get("department_id")).toBe("none");
+    expect(screen.getByText(/부서가 지정되지 않은 사용자만 보고 있습니다/)).toBeInTheDocument();
+    expect(screen.queryByText(/부서 ‘none’/)).toBeNull();
+  });
 });

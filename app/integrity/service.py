@@ -29,7 +29,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.core import ownership
-from app.core.errors import NotFoundError, ValidationAppError
+from app.core.errors import ValidationAppError
 from app.core.models_base import split_names
 from app.core.org_tree import DeptTree
 from app.org.models import Department
@@ -80,15 +80,26 @@ def _sample(rows) -> list[dict]:
     return list(rows)[:SAMPLE_LIMIT]
 
 
+def _unassigned_membership_filter():
+    """「소속이 지정되지 않은 사용자」의 정의 — **세는 쪽과 고치는 쪽이 같은 문장을 쓴다.**
+
+    정의가 두 벌이면 화면이 세어 준 목록과 버튼이 고치는 목록이 갈라진다. 실제로
+    갈라져 있었다: 진단은 활성·미보관 계정만 셌는데 일괄 지정(`assign_membership`)은
+    보관 계정도, 이미 소속이 있는 사람도 그대로 받아 멀쩡한 소속을 덮어썼다. 정합성을
+    고치라고 만든 동작이 정합성을 깨는 자리였다.
+    """
+    return (
+        User.active.is_(True),
+        User.archived_at.is_(None),
+        or_(User.department_id.is_(None), User.department_id == ""),
+        User.membership_kind != MEMBERSHIP_ORGANIZATION,
+    )
+
+
 def _users_without_membership(db: Session) -> Finding:
     stmt = (
         select(User)
-        .where(
-            User.active.is_(True),
-            User.archived_at.is_(None),
-            or_(User.department_id.is_(None), User.department_id == ""),
-            User.membership_kind != MEMBERSHIP_ORGANIZATION,
-        )
+        .where(*_unassigned_membership_filter())
         .order_by(User.display_name)
     )
     rows = list(db.execute(stmt).scalars())
@@ -204,6 +215,121 @@ def _tickets_with_unmapped_assignees(db: Session) -> Finding:
         items=_sample(
             {"id": api_page_id(t), "number": t.notion_ticket_number, "title": t.title}
             for t in rows
+        ),
+    )
+
+
+def _closed_account_tokens(db: Session) -> dict[str, dict[str, str]]:
+    """담당자 토큰 → 그 토큰이 가리키는 **닫힌 계정**(보관·비활성)의 이름과 상태.
+
+    두 축을 모두 담는 이유는 `app/tickets/service.py::_assignee_id_to_user` 와 같다:
+    담당자를 가리키는 값은 옛 짝이 있으면 그것이고 없으면 자기 user id 다(D-285).
+    한 축만 담으면 이관 이전 계정이나 컷오버 이후 계정 중 한쪽을 통째로 놓친다.
+    """
+    from app.notion_mapping.models import STATUS_VERIFIED, UserNotionMapping
+
+    rows = db.execute(
+        select(User.id, User.display_name, User.archived_at, UserNotionMapping.notion_user_id)
+        .outerjoin(
+            UserNotionMapping,
+            (UserNotionMapping.user_id == User.id)
+            & (UserNotionMapping.status == STATUS_VERIFIED),
+        )
+        .where(or_(User.active.is_(False), User.archived_at.is_not(None)))
+    ).all()
+    out: dict[str, dict[str, str]] = {}
+    for uid, name, archived_at, nid in rows:
+        who = {"name": name, "state": "보관" if archived_at is not None else "비활성"}
+        out.setdefault(uid, who)
+        if nid:
+            out.setdefault(nid, who)
+    return out
+
+
+def _tickets_assigned_to_closed_accounts(db: Session) -> Finding:
+    """보관·비활성 계정이 담당으로 남아 있는 티켓.
+
+    ## 왜 이 항목이 필요한가
+
+    계정을 비활성화하거나 보관하면 그 사람이 들고 있던 티켓이 **모든 대기열에서
+    사라진다.** 티켓 화면의 담당자 해석은 활성·미보관 계정만 풀어서(같은 파일의
+    `_assignee_id_to_user`) 담당자 칸이 빈 것처럼 보이고, 미할당 대기열은 담당자가
+    정말 없는 티켓만 담으므로 거기에도 안 들어간다. 일은 그대로 남아 있는데 그 일을
+    보여 주는 화면이 하나도 없는 상태다 — 퇴사·휴직 처리는 매달 있는 일이라
+    인수인계 누락으로 곧장 이어진다.
+
+    바로 위 `_tickets_with_unmapped_assignees` 와 겹치지 않는다. 그쪽은 **어느 계정으로도
+    풀리지 않는** 담당자고, 여기는 누구인지 아는데 **그 사람이 이미 나갔다**는 뜻이다.
+
+    ## 끝난 일은 안 센다
+
+    이 숫자가 뜻하는 것은 **아직 남은 일**이다. 퇴사자 한 명이 몇 년 치 완료 티켓을 달고
+    나가는데(오프보딩은 진행 중인 것만 옮기고 `list_my_tickets` 는 마감 무관이라 완료
+    이력은 그 사람에게 그대로 붙어 있다), 그것까지 세면 이 소견은 **어떤 조치로도 0 이
+    되지 않는다.** 표본 50건도 완료 티켓으로 차서 정작 멈춰 있는 진행 중인 일이 묻힌다.
+    끝난 티켓에는 `remedy`(담당자를 다시 지정하세요)도 맞지 않는다 — 넘길 일이 없다.
+
+    「끝났다」의 정의는 미할당 대기열이 쓰는 것과 같다(`app/tickets/service.py::_TERMINAL`).
+    두 벌로 적으면 한쪽만 자라고, 그때 두 화면이 다른 일을 「남은 일」이라고 부른다.
+
+    ## 여기서 고치지 않는다
+
+    누구에게 넘길지는 사람이 정한다. 그 자리는 이미 둘 있다 — 티켓 상세의 담당자 칸과
+    오프보딩 화면이다. 세 번째 쓰기 경로를 만들면 감사·알림이 갈라진다.
+    """
+    from app.tickets.service import _TERMINAL
+
+    closed = _closed_account_tokens(db)
+    hits: list[tuple[TicketCache, list[str]]] = []
+    if closed:
+        for t in db.execute(
+            select(TicketCache)
+            .where(
+                TicketCache.assignee_notion_ids.is_not(None),
+                TicketCache.assignee_notion_ids != "",
+                # 완료 시각이 찍혔거나 상태가 완료·취소면 남은 일이 아니다. 상태가 비어
+                # 있는 행(옛 이관 데이터)은 **남은 일 쪽으로** 읽는다 — 모르는 것을 끝난
+                # 것으로 치면 진짜 멈춰 있는 일이 조용히 사라진다.
+                TicketCache.completed_at.is_(None),
+                or_(
+                    TicketCache.status.is_(None),
+                    TicketCache.status.not_in(tuple(sorted(_TERMINAL))),
+                ),
+            )
+            .order_by(TicketCache.notion_ticket_number.desc().nullslast())
+        ).scalars():
+            labels: list[str] = []
+            for token in split_names(t.assignee_notion_ids):
+                who = closed.get(token)
+                if who is None:
+                    continue
+                label = f"{who['name']}({who['state']})"
+                if label not in labels:
+                    labels.append(label)
+            if labels:
+                hits.append((t, labels))
+    return Finding(
+        key="tickets_assigned_to_closed_accounts",
+        title="보관하거나 비활성으로 바꾼 계정이 담당인 티켓",
+        why=(
+            "담당자가 보관되었거나 비활성인 계정입니다. 티켓 화면은 닫힌 계정을 담당자로 "
+            "풀지 않아 담당자 칸이 비어 보이고, 담당자가 정말 없는 티켓만 담는 미할당 "
+            "대기열에도 들어가지 않습니다. 그래서 이 일은 어느 목록에서도 눈에 띄지 않습니다. "
+            "완료되었거나 취소된 티켓은 넘길 일이 없으므로 여기서 세지 않습니다."
+        ),
+        remedy=(
+            "티켓 상세에서 담당자를 지금 일하는 계정으로 다시 지정하세요. 퇴사자가 들고 "
+            "있던 일을 한 번에 넘기려면 오프보딩 화면에서 후임을 지정할 수 있습니다."
+        ),
+        count=len(hits),
+        items=_sample(
+            {
+                "id": api_page_id(t),
+                "number": t.notion_ticket_number,
+                "title": t.title,
+                "reason": f"담당자 {', '.join(labels)} 님의 계정이 닫혀 있습니다.",
+            }
+            for t, labels in hits
         ),
     )
 
@@ -369,6 +495,7 @@ _CHECKS = (
     _users_without_membership,
     _tickets_without_one_project,
     _tickets_with_unmapped_assignees,
+    _tickets_assigned_to_closed_accounts,
     _spaces_without_ownership,
     _projects_without_scope,
     _resources_on_inactive_departments,
@@ -394,25 +521,74 @@ def report(db: Session) -> dict:
 
 # ── 일괄 지정 ────────────────────────────────────────────────────────────────
 
+def _skip_reason(user: User | None) -> str:
+    """왜 이 id 는 못 고쳤는가. **건너뛴 사실을 말하지 않으면 아무도 모른다.**
+
+    예전에는 없는 id 도 보관 계정도 그냥 지나갔고 응답은 바뀐 건수만 말했다 — 스크립트가
+    잘못된 목록을 보내도 「200, changed 0」이라 성공으로 읽혔다.
+    """
+    if user is None:
+        return "이 계정을 찾을 수 없습니다."
+    if user.archived_at is not None:
+        return "보관된 계정입니다. 보관을 해제한 뒤에 소속을 지정할 수 있습니다."
+    if not user.active:
+        return "비활성 계정입니다. 계정을 다시 활성화한 뒤에 소속을 지정할 수 있습니다."
+    return "이미 소속이 지정된 계정입니다. 소속을 바꾸려면 사용자 화면에서 편집하세요."
+
+
 def assign_membership(
     db: Session, *, user_ids: list[str], department_id: str | None, organization_direct: bool,
-) -> int:
-    """소속 미지정 사용자에게 소속을 지정한다. 바뀐 건수를 돌려준다.
+) -> dict:
+    """소속 미지정 사용자에게 소속을 지정한다. `{"changed": n, "skipped": [...]}` 를 돌려준다.
 
     부서와 조직 직속 중 **하나만** 받는다. 둘 다 주면 무엇을 의도했는지 알 수 없고, 둘 다
     안 주면 아무 것도 안 바뀐다 — 어느 쪽도 조용히 넘기지 않는다.
+
+    ## 대상과 부서를 모두 확인한다
+
+    이 동작은 **진단 화면이 세어 준 사람들**을 고치는 자리다(`_users_without_membership`).
+    그런데 대상 확인이 「그 id 의 행이 있는가」뿐이라, id 목록만 손대면 이미 소속이 있는
+    사람의 부서를 덮어쓰고 보관된 계정에도 소속이 붙었다. 부서 쪽도 존재만 봐서 **비활성
+    부서**를 새로 지정할 수 있었는데, 같은 제품의 사용자 편집(`resolve_assignable`)은 그것을
+    422 로 막는다 — 한 규칙이 경로마다 다르면 좁은 쪽이 우회로가 된다.
+
+    그래서 대상은 세는 쪽과 같은 정의(`_unassigned_membership_filter`)로 좁히고, 못 고친
+    id 는 사유와 함께 돌려준다.
     """
+    # 순환 참조를 피해 함수 안에서 부른다(이 모듈은 org 를 읽고, org 는 사용자 편집이 쓴다).
+    from app.org.service import resolve_assignable
+
     if bool(department_id) == bool(organization_direct):
         raise ValidationAppError("부서 지정과 조직 직속 중 하나만 고르세요.")
     if not user_ids:
-        return 0
-    dept = db.get(Department, department_id) if department_id else None
-    if department_id and dept is None:
-        raise NotFoundError("부서를 찾을 수 없습니다.")
+        return {"changed": 0, "skipped": []}
+    # 없는 부서는 422 「알 수 없는 부서입니다」, 비활성 부서는 422 「새로 지정할 수 없습니다」 —
+    # 사용자 편집과 같은 함수, 같은 문구다.
+    dept = resolve_assignable(db, Department, department_id) if department_id else None
 
-    rows = list(db.execute(select(User).where(User.id.in_(user_ids))).scalars())
+    # 같은 id 를 두 번 보내도 한 번만 센다(입력 순서는 그대로 유지한다).
+    wanted = list(dict.fromkeys(user_ids))
+    known = {
+        u.id: u for u in db.execute(select(User).where(User.id.in_(wanted))).scalars()
+    }
+    eligible = {
+        u.id: u
+        for u in db.execute(
+            select(User).where(User.id.in_(wanted), *_unassigned_membership_filter())
+        ).scalars()
+    }
     changed = 0
-    for user in rows:
+    skipped: list[dict] = []
+    for user_id in wanted:
+        user = eligible.get(user_id)
+        if user is None:
+            other = known.get(user_id)
+            skipped.append({
+                "user_id": user_id,
+                "display_name": other.display_name if other is not None else None,
+                "reason": _skip_reason(other),
+            })
+            continue
         if dept is not None:
             user.department_ref = dept
             user.membership_kind = "department"
@@ -420,7 +596,7 @@ def assign_membership(
             user.department_ref = None
             user.membership_kind = MEMBERSHIP_ORGANIZATION
         changed += 1
-    return changed
+    return {"changed": changed, "skipped": skipped}
 
 
 __all__ = [

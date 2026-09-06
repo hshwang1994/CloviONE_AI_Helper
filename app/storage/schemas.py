@@ -6,12 +6,17 @@
 **경로는 절대 경로만 받는다.** 상대 경로는 프로세스의 작업 디렉터리에 따라 다른 곳을
 가리키고, 웹과 워커는 작업 디렉터리가 같다는 보장이 없다. 같은 검사가 DB CHECK 에도
 있다 — 여기서 막는 것은 사용자에게 422 로 말해 주기 위해서다.
+
+경로에만 있던 NUL 배제(`_ABS_PATH` 의 `[^\\x00]`)는 이제 `app/core/text.py::NulFreeModel`
+이 이 모델의 **모든 문자열 필드**에 건다. 이름·마운트 소스·옵션에 NUL 이 들어오면
+psycopg 가 `DataError` 를 던져 관리자가 500 을 보던 자리다(XB-04).
 """
 
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
+from app.core.text import NulFreeModel
 from app.storage.adapters import KINDS, ROLES
 
 # 절대 경로. 널바이트를 명시적으로 뺀다 — 경로 문자열의 널바이트는 C 계층에서 뒤를
@@ -22,7 +27,7 @@ _KIND = "^(" + "|".join(KINDS) + ")$"
 _ROLE = "^(" + "|".join(ROLES) + ")$"
 
 
-class ProviderCreate(BaseModel):
+class ProviderCreate(NulFreeModel):
     name: str = Field(min_length=1, max_length=120)
     kind: str = Field(pattern=_KIND)
     role: str = Field(pattern=_ROLE)
@@ -37,7 +42,7 @@ class ProviderCreate(BaseModel):
     enabled: bool = True
 
 
-class ProviderUpdate(BaseModel):
+class ProviderUpdate(NulFreeModel):
     name: str | None = Field(default=None, min_length=1, max_length=120)
     base_path: str | None = Field(default=None, pattern=_ABS_PATH, max_length=1000)
     mount_point: str | None = Field(default=None, pattern=_ABS_PATH, max_length=1000)
@@ -49,5 +54,5 @@ class ProviderUpdate(BaseModel):
     base_version: int | None = Field(default=None, ge=1)
 
 
-class AttachmentUpdate(BaseModel):
+class AttachmentUpdate(NulFreeModel):
     caption: str | None = Field(default=None, max_length=500)

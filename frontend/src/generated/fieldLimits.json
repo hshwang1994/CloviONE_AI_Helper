@@ -110,12 +110,14 @@
   },
   "schedules": {
     "create": {
+      "base_version": 64,
       "cron_expression": 120,
       "description": 2000,
       "name": 120,
       "target_ref": 64
     },
     "edit": {
+      "base_version": 64,
       "cron_expression": 120,
       "description": 2000,
       "name": 120,

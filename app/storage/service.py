@@ -31,15 +31,18 @@ import logging
 from pathlib import Path
 
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings
+from app.core.db import is_unique_violation
 from app.core.errors import (
     ConflictError,
     NotFoundError,
     StorageUnavailableError,
     ValidationAppError,
 )
+from app.core.text import clean_required_text
 from app.core.uploads import (
     DOCUMENT_MEDIA_TYPES,
     MAX_UPLOAD_BYTES,
@@ -154,13 +157,56 @@ def _assert_role_free(db: Session, *, role: str, exclude_id: str | None = None) 
 
     자동으로 옛것을 끄지 않는다. 업로드가 어디로 가는지 바뀌는 변경이라, 두 단계로
     나눠야 「끄는 것」을 사람이 실제로 결정한다. 부분 유니크 인덱스가 마지막에 한 번 더
-    막지만, 거기까지 가면 사용자가 보는 것은 500 이다.
+    막지만, 거기까지 가면 사용자가 보는 것은 500 이다 — 그 마지막 자리는 이제
+    `_flush_or_conflict` 가 같은 409 로 접는다.
     """
     current = active_provider(db, role=role)
     if current is not None and current.id != exclude_id:
         raise ConflictError(
             f"이미 켜져 있는 저장소가 있습니다({current.name}). 먼저 그 저장소를 끄십시오."
         )
+
+
+def _assert_name_free(db: Session, name: str, *, exclude_id: str | None = None) -> None:
+    """같은 이름의 저장소가 이미 있으면 거절한다.
+
+    **대소문자는 무시한다.** 'nas' 와 'NAS' 는 사람 눈에 같은 저장소이고, 목록에서 둘을
+    구별할 방법이 없다 — 부서·직책이 같은 이유로 같은 판정을 쓴다
+    (`app/org/service.py::find_by_name`). 이 검사가 없던 동안 이름 중복은 `uq_sprov_name`
+    에 부딪혀 500 으로 나갔고, 관리자는 자기 입력이 틀린 것인지 서버가 깨진 것인지
+    구별할 수 없었다(XB-01 · XD-03).
+    """
+    stmt = select(StorageProvider).where(func.lower(StorageProvider.name) == name.lower())
+    if exclude_id is not None:
+        stmt = stmt.where(StorageProvider.id != exclude_id)
+    if db.execute(stmt).scalars().first() is not None:
+        raise ConflictError(f"이미 있는 저장소 이름입니다: {name}")
+
+
+def _flush_or_conflict(db: Session, *, name: str) -> None:
+    """SAVEPOINT 안에서 밀어 넣고, 유니크 위반을 사전 검사와 **같은 409** 로 접는다.
+
+    사전 검사(SELECT)와 INSERT 사이에는 잠금이 없다. 같은 이름 또는 같은 역할을 동시에
+    두 번 보내면 둘 다 「비어 있다」를 보고 둘 다 넣으려 하며, 지는 쪽은 유니크 인덱스에
+    걸린다. 그 `IntegrityError` 를 그대로 두면 사용자가 보는 것은 500 이다 — 순서만 조금
+    달랐을 뿐인데 답이 「이미 있습니다」에서 「서버 오류」로 바뀐다(S-02 · XD-03).
+    `app/announcements/service.py::dismiss` 가 같은 예외를 같은 이유로 접는다.
+
+    **이름을 아는 두 제약만 접는다.** CHECK·NOT NULL·FK 위반은 그대로 올려보낸다 —
+    그것들은 「다시 하면 된다」가 아니라 코드가 틀렸다는 뜻이고, 삼키면 그 결함은 영영
+    안 보인다(D-191).
+    """
+    try:
+        with db.begin_nested():
+            db.flush()
+    except IntegrityError as exc:
+        if is_unique_violation(exc, constraint="uq_sprov_role_enabled"):
+            raise ConflictError(
+                "이미 켜져 있는 저장소가 있습니다. 목록을 새로 고친 뒤 그 저장소를 먼저 끄십시오."
+            ) from None
+        if is_unique_violation(exc, constraint="uq_sprov_name"):
+            raise ConflictError(f"이미 있는 저장소 이름입니다: {name}") from None
+        raise
 
 
 def create_provider(
@@ -176,11 +222,16 @@ def create_provider(
     credentials_ref: str | None = None,
     enabled: bool = True,
 ) -> StorageProvider:
+    # 이름은 **검증한 형태 그대로** 저장한다. 예전에는 `Field(min_length=1)` 이 「   」를
+    # 통과시키고 여기서 `strip()` 이 그것을 빈 문자열로 만들어, DB CHECK
+    # (`ck_sprov_name_nonempty`)가 처음 막았다 — 사용자가 본 것은 500 이다(S-01).
+    name = clean_required_text(name, subject="저장소 이름")
     _validate_shape(kind=kind, base_path=base_path, mount_point=mount_point)
+    _assert_name_free(db, name)
     if enabled:
         _assert_role_free(db, role=role)
     provider = StorageProvider(
-        name=name.strip(),
+        name=name,
         kind=kind,
         role=role,
         base_path=Path(base_path).as_posix().rstrip("/") or "/",
@@ -192,7 +243,7 @@ def create_provider(
         enabled=enabled,
     )
     db.add(provider)
-    db.flush()
+    _flush_or_conflict(db, name=name)
     return provider
 
 
@@ -220,7 +271,13 @@ def update_provider(
         _assert_role_free(db, role=provider.role, exclude_id=provider.id)
 
     if changes.get("name"):
-        provider.name = changes["name"].strip()
+        # 생성 경로와 같은 규칙이다 — 공백뿐인 이름은 422, 이미 쓰는 이름은 409.
+        # **대입보다 검사가 먼저다.** 먼저 대입하면 `_assert_name_free` 의 SELECT 가
+        # autoflush 를 일으켜 그 UPDATE 가 SAVEPOINT 밖에서 유니크 인덱스에 걸린다 —
+        # 고치려던 500 이 검사 자리에서 그대로 다시 난다.
+        new_name = clean_required_text(changes["name"], subject="저장소 이름")
+        _assert_name_free(db, new_name, exclude_id=provider.id)
+        provider.name = new_name
     provider.base_path = Path(base_path).as_posix().rstrip("/") or "/"
     provider.mount_point = (
         Path(mount_point).as_posix().rstrip("/") if mount_point else None
@@ -237,7 +294,7 @@ def update_provider(
     if enabled is not None:
         provider.enabled = enabled
     provider.version += 1
-    db.flush()
+    _flush_or_conflict(db, name=provider.name)
     return provider
 
 
@@ -430,7 +487,13 @@ def verify_files(db: Session, *, provider: StorageProvider | None = None) -> dic
 
 
 def provider_status(provider: StorageProvider) -> dict:
-    """저장소 하나의 지금 상태. 화면·health probe·증거 로그가 같은 값을 본다."""
+    """저장소 하나의 지금 상태. 화면·health probe·증거 로그가 같은 값을 본다.
+
+    `version` 을 함께 낸다. 낙관적 잠금(D-240)은 `PATCH` 가 `base_version` 을 받아 낡은
+    쓰기를 409 로 막는 계약인데, **읽기 응답에 그 값이 없어서** 어떤 클라이언트도 보낼
+    값을 얻지 못했다 — 잠금이 있는데 아무도 못 쓰는 상태였고, 그래서 두 관리자가 같은
+    저장소를 손보면 나중 저장이 앞 저장을 말없이 덮었다(S-07).
+    """
     ref = ref_of(provider)
     state = adapters.state_of(ref)
     out = {
@@ -439,6 +502,7 @@ def provider_status(provider: StorageProvider) -> dict:
         "kind": provider.kind,
         "role": provider.role,
         "enabled": provider.enabled,
+        "version": provider.version,
         "base_path": provider.base_path,
         "mount_point": provider.mount_point,
         "writable": state.ok,

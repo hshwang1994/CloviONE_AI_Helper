@@ -61,7 +61,7 @@ def assign_membership(
     몇 시간짜리 일이 된다.
     """
     _require_global(principal)
-    changed = service.assign_membership(
+    result = service.assign_membership(
         db,
         user_ids=payload.user_ids,
         department_id=payload.department_id,
@@ -71,9 +71,13 @@ def assign_membership(
         request, db, action="integrity.assign_membership", object_type="user",
         object_id=None,
         after={
-            "count": changed,
+            "count": result["changed"],
+            # 건너뛴 건수도 남긴다 — 「50명을 보냈는데 2명만 바뀌었다」를 나중에 설명할 수
+            # 있어야 한다(감사 로그는 무슨 일이 있었나의 기록이다).
+            "skipped": len(result["skipped"]),
             "department_id": payload.department_id,
             "organization_direct": payload.organization_direct,
         },
     )
-    return {"ok": True, "changed": changed}
+    # `skipped` 를 응답에 싣는다 — 화면이 「몇 명은 왜 안 바뀌었는가」를 그대로 말할 수 있다.
+    return {"ok": True, "changed": result["changed"], "skipped": result["skipped"]}

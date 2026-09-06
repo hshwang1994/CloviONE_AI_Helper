@@ -168,8 +168,6 @@ function sameRoles(tabs) {
   return sets.every((x) => x === sets[0]);
 }
 
-export const ORG_CONSOLE_KEYS = ["organizations", "departments", "org-tree"];
-
 /* registry.js 를 정적으로 물어 오지 않는다(PF7) — 대신 이 파일이 마운트된 뒤 한 번
  * `import()` 로 받는다. `REGISTRY` 는 컴포넌트가 아니라 설정 객체라 `React.lazy()` 로는
  * 못 감싸지만, 같은 효과(별도 청크·지연 로드)는 이 `useState`+`useEffect` 로 낸다.
@@ -305,7 +303,9 @@ function AdminRoutes() {
           });
           return routes;
         })}
-        {registry && Object.keys(registry).filter((key) => !ORG_CONSOLE_KEYS.includes(key) && !TAB_GROUP_KEYS.includes(key)).flatMap((key) => {
+        {/* 조직·부서·조직도는 registry 에 없다 — 조직 콘솔(위의 명시 라우트)이 그린다(D-406).
+            예전에는 여기서 그 셋을 거르는 상수가 있었는데 거를 키가 애초에 없었다(P-85). */}
+        {registry && Object.keys(registry).filter((key) => !TAB_GROUP_KEYS.includes(key)).flatMap((key) => {
           const cfg = registry[key];
           const roles = cfg.roles || SCREEN_ROLES[key];
           const screen = <DataScreen config={cfg} />;

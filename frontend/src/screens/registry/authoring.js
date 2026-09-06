@@ -76,28 +76,31 @@ export const AUTHORING_SCREENS = {
       dateCol("published_at", "발행 시각"), jsonField("content", "프롬프트 내용")],
     // purpose는 서버에서 최대 2000자까지 허용한다(app/prompts/router.py) — 한 줄 text 입력은 좁아서
     // textarea로(워크플로의 purpose 필드와 동일한 대우).
-    create: { roles: WRITE_ROLES, fields: [
+    /* 프롬프트는 부서로 나뉘는 자원이 아니다 — 같은 이름의 발행본 하나를 전 부서가 참조하고
+       스케줄이 그 이름을 가리킨다. 서버가 생성·수정·상태 전이·새 버전·롤백 전부를 전역 범위
+       관리자로 한정한다(`app/prompts/router.py::_require_global`). 읽기는 좁히지 않는다. */
+    create: { roles: WRITE_ROLES, requiresGlobalScope: true, fields: [
       { name: "name", label: "이름", type: "text", required: true },
       { name: "purpose", label: "용도", type: "textarea" },
       { name: "content", label: "프롬프트 내용", type: "textarea", required: true, help: "AI에게 주는 지시문입니다. 무엇을, 어떤 형식으로 만들지 구체적으로 적으세요. 예: ‘아래 티켓 목록을 프로젝트별로 묶어 주간 보고서를 마크다운 표로 요약해줘. 완료, 지연 건수를 강조할 것.’ 발행하면 이 이름의 발행본이 그 시점부터 쓰입니다." },
     ] },
     // 수정은 ContentUpdateRequest(PATCH) 계약: 내용·용도만(이름은 새 버전으로만 바뀜). 초안일 때만 편집 가능(그 외 409).
-    editMethod: "PATCH", editWhen: (r) => r.status === "draft", edit: { roles: WRITE_ROLES, fields: [
+    editMethod: "PATCH", editWhen: (r) => r.status === "draft", edit: { roles: WRITE_ROLES, requiresGlobalScope: true, fields: [
       { name: "content", label: "프롬프트 내용", type: "textarea", required: true, help: "AI에게 주는 지시문입니다. 무엇을, 어떤 형식으로 만들지 구체적으로 적으세요. 예: ‘아래 티켓 목록을 프로젝트별로 묶어 주간 보고서를 마크다운 표로 요약해줘. 완료, 지연 건수를 강조할 것.’ 발행하면 이 이름의 발행본이 그 시점부터 쓰입니다." },
       { name: "purpose", label: "용도", type: "textarea" },
     ] },
     actions: [
-      { label: "테스트로", roles: WRITE_ROLES, when: (r) => r.status === "draft", path: (r) => "/api/admin/prompts/" + r.id + "/transition", body: { status: "test" }, confirm: "이 버전을 테스트 단계로 옮길까요? 상태만 바뀔 뿐, 러너로 실제 실행되거나 내용이 검증되지는 않습니다." },
-      { label: "검토로", roles: WRITE_ROLES, when: (r) => r.status === "test", path: (r) => "/api/admin/prompts/" + r.id + "/transition", body: { status: "review" }, confirm: "이 버전을 검토 단계로 옮길까요? 상태만 바뀔 뿐 내용이 검증되지는 않습니다." },
-      { label: "초안으로 되돌리기", roles: WRITE_ROLES, when: (r) => r.status === "test" || r.status === "review", path: (r) => "/api/admin/prompts/" + r.id + "/transition", body: { status: "draft" }, confirm: "이 버전을 초안으로 되돌려 다시 수정할까요?" },
-      { label: "발행", variant: "primary", roles: WRITE_ROLES, when: (r) => r.status === "review", path: (r) => "/api/admin/prompts/" + r.id + "/transition", body: { status: "published" }, confirm: "이 버전을 발행할까요? 발행되면 실제 사용되며, 현재 발행 중인 같은 이름의 버전은 자동으로 보관(archive)됩니다." },
+      { label: "테스트로", roles: WRITE_ROLES, requiresGlobalScope: true, when: (r) => r.status === "draft", path: (r) => "/api/admin/prompts/" + r.id + "/transition", body: { status: "test" }, confirm: "이 버전을 테스트 단계로 옮길까요? 상태만 바뀔 뿐, 러너로 실제 실행되거나 내용이 검증되지는 않습니다." },
+      { label: "검토로", roles: WRITE_ROLES, requiresGlobalScope: true, when: (r) => r.status === "test", path: (r) => "/api/admin/prompts/" + r.id + "/transition", body: { status: "review" }, confirm: "이 버전을 검토 단계로 옮길까요? 상태만 바뀔 뿐 내용이 검증되지는 않습니다." },
+      { label: "초안으로 되돌리기", roles: WRITE_ROLES, requiresGlobalScope: true, when: (r) => r.status === "test" || r.status === "review", path: (r) => "/api/admin/prompts/" + r.id + "/transition", body: { status: "draft" }, confirm: "이 버전을 초안으로 되돌려 다시 수정할까요?" },
+      { label: "발행", variant: "primary", roles: WRITE_ROLES, requiresGlobalScope: true, when: (r) => r.status === "review", path: (r) => "/api/admin/prompts/" + r.id + "/transition", body: { status: "published" }, confirm: "이 버전을 발행할까요? 발행되면 실제 사용되며, 현재 발행 중인 같은 이름의 버전은 자동으로 보관(archive)됩니다." },
       // 새 버전은 백엔드가 어떤 상태에서든 새 초안으로 분기한다(발행본에만 국한하지 않음).
       // keepSelection — 새 버전을 만드는 목적이 '바로 이어서 편집'이므로, 드로어를 닫고 목록으로
       // 튕겨 내지 않고 응답이 돌려준 새 초안(item)으로 드로어를 갱신해 이어서 '수정'을 누를 수 있게 한다.
-      { label: "새 버전", roles: WRITE_ROLES, when: (r) => r.status !== "draft", path: (r) => "/api/admin/prompts/" + r.id + "/new-version", keepSelection: true },
+      { label: "새 버전", roles: WRITE_ROLES, requiresGlobalScope: true, when: (r) => r.status !== "draft", path: (r) => "/api/admin/prompts/" + r.id + "/new-version", keepSelection: true },
       // 버전 목록 + 행에서 롤백·비교(diff). 상태와 무관하게 노출(발행본이 없어도 이력·복원 가능).
       nameVersionsAction("/api/admin/prompts", "프롬프트 버전 기록"),
-      { label: "보관", variant: "danger", roles: WRITE_ROLES, when: (r) => r.status !== "archived", path: (r) => "/api/admin/prompts/" + r.id + "/transition", body: { status: "archived" }, confirm: "이 버전을 보관할까요? 보관하면 더 이상 발행, 사용되지 않지만 이력으로는 목록에 남습니다." },
+      { label: "보관", variant: "danger", roles: WRITE_ROLES, requiresGlobalScope: true, when: (r) => r.status !== "archived", path: (r) => "/api/admin/prompts/" + r.id + "/transition", body: { status: "archived" }, confirm: "이 버전을 보관할까요? 보관하면 더 이상 발행, 사용되지 않지만 이력으로는 목록에 남습니다." },
       // prompts는 감사 로그의 유효한 object_type이고(router.py: action=f"{kind}.create" 등, kind="prompts")
       // 모든 쓰기가 이 타입으로 기록된다 — 구조적으로 동일한 policies에 이미 있는 딥링크와 맞춘다.
       // operator는 프롬프트 화면(READ_ROLES)엔 들어오지만 /audit 화면엔 못 들어간다(App.jsx
@@ -162,7 +165,9 @@ export const AUTHORING_SCREENS = {
       // 처음 보는 관리자는 왜 버튼이 없는지 알 방법이 없다. '새 버전'이 실제 대안이라고 안내한다.
       { key: "_edit_note", label: "수정 안내", render: (r) => r.status !== "draft" ? "이 버전은 초안이 아니라 수정할 수 없습니다. 아래 ‘새 버전’으로 수정 가능한 초안을 추가하세요." : "-" },
       dateCol("published_at", "발행 시각"), jsonField("content", "규칙(JSON)")],
-    create: { roles: WRITE_ROLES, fields: [
+    /* 정책도 프롬프트와 같은 문을 지난다(위 프롬프트 create 주석) —
+       한 번의 롤백으로 전사 규칙이 바뀌는 자원이라 서버가 쓰기를 전역 범위로 한정한다. */
+    create: { roles: WRITE_ROLES, requiresGlobalScope: true, fields: [
       { name: "name", label: "이름", type: "text", required: true },
       // purpose는 서버에서 최대 2000자까지 허용한다(app/prompts/router.py) — 한 줄 text 입력은
       // 좁아서 textarea로(프롬프트 registry.js:70-71과 동일 대우).
@@ -171,21 +176,21 @@ export const AUTHORING_SCREENS = {
       // 다른 registry create 필드처럼 즉시 제출 가능해야 한다(예전엔 최소 "{}"라도 직접 타이핑해야 했다).
       { name: "content", label: "규칙(JSON)", type: "json", required: true, value: '{\n  "required_fields": ["title"]\n}', help: '업무 규칙을 JSON 객체로 적습니다. 위 기본값은 "제목은 필수"라는 뜻의 예시입니다. 필요에 맞게 바꾸세요(예: {"required_fields":["title","owner"],"min_length":10}).' },
     ] },
-    editMethod: "PATCH", editWhen: (r) => r.status === "draft", edit: { roles: WRITE_ROLES, fields: [
+    editMethod: "PATCH", editWhen: (r) => r.status === "draft", edit: { roles: WRITE_ROLES, requiresGlobalScope: true, fields: [
       { name: "content", label: "규칙(JSON)", type: "json", required: true, help: '예: {"required_fields":["title"]}' },
       { name: "purpose", label: "용도", type: "textarea" },
     ] },
     actions: [
-      { label: "테스트로", roles: WRITE_ROLES, when: (r) => r.status === "draft", path: (r) => "/api/admin/policies/" + r.id + "/transition", body: { status: "test" }, confirm: "이 버전을 테스트 단계로 옮길까요? 상태만 바뀔 뿐, 러너로 실제 실행되거나 내용(JSON)이 검증되지는 않습니다." },
-      { label: "검토로", roles: WRITE_ROLES, when: (r) => r.status === "test", path: (r) => "/api/admin/policies/" + r.id + "/transition", body: { status: "review" }, confirm: "이 버전을 검토 단계로 옮길까요? 상태만 바뀔 뿐 내용(JSON)은 검증되지 않습니다." },
-      { label: "초안으로 되돌리기", roles: WRITE_ROLES, when: (r) => r.status === "test" || r.status === "review", path: (r) => "/api/admin/policies/" + r.id + "/transition", body: { status: "draft" }, confirm: "이 버전을 초안으로 되돌려 다시 수정할까요?" },
-      { label: "발행", variant: "primary", roles: WRITE_ROLES, when: (r) => r.status === "review", path: (r) => "/api/admin/policies/" + r.id + "/transition", body: { status: "published" }, confirm: "이 버전을 발행할까요? 발행되면 실제 사용되며, 현재 발행 중인 같은 이름의 버전은 자동으로 보관(archive)됩니다." },
+      { label: "테스트로", roles: WRITE_ROLES, requiresGlobalScope: true, when: (r) => r.status === "draft", path: (r) => "/api/admin/policies/" + r.id + "/transition", body: { status: "test" }, confirm: "이 버전을 테스트 단계로 옮길까요? 상태만 바뀔 뿐, 러너로 실제 실행되거나 내용(JSON)이 검증되지는 않습니다." },
+      { label: "검토로", roles: WRITE_ROLES, requiresGlobalScope: true, when: (r) => r.status === "test", path: (r) => "/api/admin/policies/" + r.id + "/transition", body: { status: "review" }, confirm: "이 버전을 검토 단계로 옮길까요? 상태만 바뀔 뿐 내용(JSON)은 검증되지 않습니다." },
+      { label: "초안으로 되돌리기", roles: WRITE_ROLES, requiresGlobalScope: true, when: (r) => r.status === "test" || r.status === "review", path: (r) => "/api/admin/policies/" + r.id + "/transition", body: { status: "draft" }, confirm: "이 버전을 초안으로 되돌려 다시 수정할까요?" },
+      { label: "발행", variant: "primary", roles: WRITE_ROLES, requiresGlobalScope: true, when: (r) => r.status === "review", path: (r) => "/api/admin/policies/" + r.id + "/transition", body: { status: "published" }, confirm: "이 버전을 발행할까요? 발행되면 실제 사용되며, 현재 발행 중인 같은 이름의 버전은 자동으로 보관(archive)됩니다." },
       // keepSelection — 새 버전을 만드는 목적이 '바로 이어서 편집'이므로(내용은 초안일 때만 편집
       // 가능), 프롬프트의 '새 버전'과 동일하게 드로어를 닫지 않고 새 초안으로 갱신한다.
-      { label: "새 버전", roles: WRITE_ROLES, when: (r) => r.status !== "draft", path: (r) => "/api/admin/policies/" + r.id + "/new-version", keepSelection: true },
+      { label: "새 버전", roles: WRITE_ROLES, requiresGlobalScope: true, when: (r) => r.status !== "draft", path: (r) => "/api/admin/policies/" + r.id + "/new-version", keepSelection: true },
       // 정책도 프롬프트와 동일하게 버전 기록 + 롤백 + 비교(diff)를 노출한다(잘못 발행된 규칙 복원 경로).
       nameVersionsAction("/api/admin/policies", "정책 버전 기록"),
-      { label: "보관", variant: "danger", roles: WRITE_ROLES, when: (r) => r.status !== "archived", path: (r) => "/api/admin/policies/" + r.id + "/transition", body: { status: "archived" }, confirm: "이 버전을 보관할까요? 보관하면 더 이상 발행, 사용되지 않지만 이력으로는 목록에 남습니다." },
+      { label: "보관", variant: "danger", roles: WRITE_ROLES, requiresGlobalScope: true, when: (r) => r.status !== "archived", path: (r) => "/api/admin/policies/" + r.id + "/transition", body: { status: "archived" }, confirm: "이 버전을 보관할까요? 보관하면 더 이상 발행, 사용되지 않지만 이력으로는 목록에 남습니다." },
       // policies는 감사 로그의 유효한 object_type이고(OBJTYPE_OPTS) 모든 쓰기 액션이 이 타입으로
       // 기록된다 — 부서·직책과 동일한 딥링크를 추가한다.
       // operator는 정책 화면(READ_ROLES)엔 들어오지만 /audit 화면엔 못 들어간다(App.jsx SCREEN_ROLES)

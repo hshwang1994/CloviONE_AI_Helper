@@ -137,3 +137,45 @@ def test_filtering_by_a_parent_includes_its_descendants(client, people, resource
     _login(client, people, "a")
     names, _ = _names(client, "/api/projects", department_id=resources["projects"]["a"].dept_id)
     assert names == {"a 프로젝트", "a1 프로젝트", "a2 프로젝트"}, names
+
+
+# ── 관리 화면의 「부서 없음」 센티널도 범위 안에서만 (P-61) ───────────────────
+#
+# `/api/admin/users?department_id=none` 은 부서가 빈 사람을 고르는 조건이다. 이 조건이
+# 관리 범위와 AND 로 겹치지 않으면 부서 관리자가 **전사 미배정 인원**을 보게 된다 — 필터가
+# 범위를 넓히는 첫 번째 실패 방향 그대로다.
+
+def test_the_no_department_sentinel_stays_inside_my_management_scope(client, people):
+    """A-1 관리자에게 「부서 없음」은 빈 목록이다 — 미배정 인원은 그 부서 관리자의 대상이 아니다."""
+    _login(client, people, "a1_admin")
+
+    r = client.get("/api/admin/users", params={"department_id": "none", "page_size": 100})
+    assert r.status_code == 200, r.text
+    assert r.json()["total"] == 0
+    assert r.json()["items"] == []
+
+    # 내보내기도 같은 문장을 쓴다 — 목록은 비는데 파일에는 담기면 그쪽으로 샌다.
+    r = client.get("/api/admin/users/export/csv", params={"department_id": "none"})
+    assert r.status_code == 200, r.text
+    assert "@goodmit.co.kr" not in r.text, f"내보내기가 범위 밖 미배정 인원을 담았다: {r.text}"
+
+    # 오탐 방지 — 같은 관리자가 자기 부서 id 로 걸면 그 부서 사람은 나온다.
+    r = client.get("/api/admin/users", params={"department_id": D_A1, "page_size": 100})
+    assert r.status_code == 200, r.text
+    assert {u["email"] for u in r.json()["items"]} == {
+        people["a1"].email, people["a1_admin"].email,
+    }
+
+
+def test_the_no_department_sentinel_gives_an_org_admin_that_orgs_unassigned_people(
+    client, people
+):
+    """조직 관리자는 자기 조직의 미배정 인원을 **정확히** 본다 — 부서가 있는 사람은 하나도 섞이지 않는다."""
+    _login(client, people, "org_admin")
+
+    r = client.get("/api/admin/users", params={"department_id": "none", "page_size": 100})
+    assert r.status_code == 200, r.text
+    expected = {u.email for u in people.values() if u.department_id is None}
+    assert expected, "표본이 없다 — 이 시험은 아무것도 검사하지 않는다"
+    assert {u["email"] for u in r.json()["items"]} == expected
+    assert [u["department_id"] for u in r.json()["items"]] == [None] * len(expected)

@@ -95,6 +95,37 @@ describe("config.refLists — 다른 화면의 리소스를 이름 붙은 select
     // 배열에 들어갔다면(그냥 무시되지 않았다면) 닫힌 select에 그 라벨이 보인다.
     await waitFor(() => expect(screen.getByText("시스템 (noop)")).toBeInTheDocument());
   });
+
+  it("목록 하나가 403 이어도 나머지 목록은 산다 — 실패한 목록만 후보가 없다", async () => {
+    /* 예전에는 `Promise.all` 이라 한 목록의 실패가 그 화면의 모든 후보를 비웠다 — 운영자가
+       여는 화면의 사람 후보가 관리자 전용 경로를 부르던 동안 다른 후보까지 함께 사라졌다. */
+    apiMock.mockImplementation((url) => {
+      if (String(url).startsWith("/api/admin/workflows")) {
+        return Promise.resolve({ items: [{ id: "wf-1", name: "매주 보고서", enabled: true }] });
+      }
+      if (String(url).startsWith("/api/admin/people")) {
+        const err = new Error("이 작업을 수행할 권한이 없습니다.");
+        err.status = 403;
+        return Promise.reject(err);
+      }
+      return Promise.resolve({ items: [], page: 1, page_size: 20, total: 0 });
+    });
+    const cfg = { ...CONFIG, key: "x-refs-partial",
+      refLists: [{ key: "people", endpoint: "/api/admin/people" }, { key: "workflows", endpoint: "/api/admin/workflows" }] };
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const user = userEvent.setup();
+    render(
+      <QueryClientProvider client={qc}>
+        <ThemeModeProvider><ToastProvider><ConfirmProvider>
+          <MemoryRouter><DataScreen config={cfg} /></MemoryRouter>
+        </ConfirmProvider></ToastProvider></ThemeModeProvider>
+      </QueryClientProvider>,
+    );
+    await user.click(await screen.findByRole("button", { name: "추가" }));
+    await waitFor(() => expect(apiMock).toHaveBeenCalledWith("/api/admin/people"));
+    await waitFor(() => expect(screen.getByText("매주 보고서")).toBeInTheDocument());
+    expect(screen.queryByText("wf-1")).toBeNull();
+  });
 });
 
 describe("USE-04 계약 — 실제 화면 설정에 실제로 걸려 있다", () => {
@@ -112,8 +143,13 @@ describe("USE-04 계약 — 실제 화면 설정에 실제로 걸려 있다", ()
   it("스케줄 생성/수정 폼의 대상은 시스템(noop) 하나뿐이다", () => {
     // 워크플로 대상이 사라져 후보 목록 자체가 필요 없다 — refList 를 안 물어본다.
     expect(REGISTRY.schedules.refLists).toBeUndefined();
+    /* 수정 폼의 `fields` 는 이제 함수다(ops-11) — 이미 저장된 대상을 들고 있는 행은 그 값을
+       후보에 남겨야 「설명 한 줄 고치기」가 「대상 바꾸기」가 되지 않는다. 그 갈래를 안 타는
+       행(대상이 이미 noop)에서는 예전과 똑같이 후보가 하나다. */
     for (const formKey of ["create", "edit"]) {
-      const field = REGISTRY.schedules[formKey].fields.find((f) => f.name === "target_ref");
+      const decl = REGISTRY.schedules[formKey].fields;
+      const fields = typeof decl === "function" ? decl("system_admin", { target_ref: "noop" }) : decl;
+      const field = fields.find((f) => f.name === "target_ref");
       expect(field.type, formKey + ".target_ref").toBe("select");
       expect(field.options, formKey + ".target_ref").toEqual([{ value: "noop", label: "시스템 (noop)" }]);
     }

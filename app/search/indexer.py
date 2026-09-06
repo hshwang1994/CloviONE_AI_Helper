@@ -44,7 +44,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from urllib.parse import quote
 
-from sqlalchemy import select
+from sqlalchemy import String, select
 from sqlalchemy.orm import Session
 
 from app.core.dates import iso_dt
@@ -88,6 +88,26 @@ BODY_CHARS = 2000
 # 워커 틱 하나가 조용히 수십 초를 먹는다.
 MAX_ROWS_PER_KIND = 5000
 
+# 폭이 정해진 칸들. 제목·본문은 Text 라 얼마든지 들어가지만 나머지는 아니다 — 넘치는 값
+# 하나가 그 행만 버려지는 것이 아니라 **INSERT 배치 전체**를 `StringDataRightTruncation`
+# 으로 죽인다. 그래서 폭 맞추기는 `_column_value` 한 곳을 지나고, 빌더가 무엇을 만들어
+# 오든 그 문을 통과한 값만 DB 로 간다.
+#
+# 표를 손으로 적지 않고 **매퍼에서 뽑는다**. 손으로 적었을 때는 네 칸(route·url·subtitle·
+# sort_key)만 적혀 있었고 `kind`·`ref_id`·`owner_*` 다섯은 문을 그냥 지나갔다 — 지금 그
+# 칸들에 들어가는 값이 id 뿐이라 사고가 안 났을 뿐이고, 「여기가 마지막 문」이라는 말을
+# 믿고 새 값을 넣는 사람이 그 다섯 중 하나를 골랐다면 재구축 전체가 죽었다. 모델이 폭을
+# 바꾸면 이 표도 같이 바뀐다.
+_COLUMN_LIMITS = {
+    column.name: column.type.length
+    for column in SearchDocument.__table__.columns
+    if isinstance(column.type, String) and column.type.length
+}
+ROUTE_CHARS = _COLUMN_LIMITS["route"]
+URL_CHARS = _COLUMN_LIMITS["url"]
+SUBTITLE_CHARS = _COLUMN_LIMITS["subtitle"]
+SORT_KEY_CHARS = _COLUMN_LIMITS["sort_key"]
+
 # 수동 재색인(C7, POST /api/search/reindex)은 **한 번에 하나만** 돈다. 잠금은
 # `app/core/advisory_lock.py::NS_SEARCH_REINDEX` 가 들고 있고 거는 자리는
 # `reindex_router.py` 다 — 기다리지 않는 논블로킹 잠금이라 이미 진행 중이면 바로 409 다.
@@ -128,6 +148,60 @@ def _clip(text: str | None, limit: int = BODY_CHARS) -> str:
     import unicodedata
 
     return unicodedata.normalize("NFC", str(text or ""))[:limit]
+
+
+def _query_route(prefix: str, value: str | None, *, limit: int = ROUTE_CHARS) -> str:
+    """`/users?q=<이름>` 처럼 **사람이 쓴 값이 그대로 들어가는** 경로 한 줄.
+
+    percent-encoding 은 한글 한 글자를 아홉 자로 부풀린다(NFC 3바이트 × `%XX`). 표시
+    이름 상한이 120자이므로 경로가 최대 1089자가 되는데 `route` 컬럼은 300자다 — 한글
+    34자만 넘겨도 상한을 넘고, 그러면 그 한 행이 아니라 재색인 전체가 죽었다. 이름을
+    길게 쓴 계정 하나가 검색을 되살릴 유일한 버튼을 영원히 막고 있었다.
+
+    자르는 것은 **인코딩 전의 값**이다. 인코딩된 문자열을 자르면 `%E1%84` 같은 조각이
+    끝에 남아 링크가 깨진다. 이름이 잘려도 검색 결과는 그 사람을 찾아 준다 — 조금 넓은
+    검색어가 색인이 통째로 없는 것보다 낫다.
+    """
+    text = _clip(value, limit)
+    encoded = quote(text)
+    while text and len(prefix) + len(encoded) > limit:
+        text = text[:-1]
+        encoded = quote(text)
+    return prefix + encoded
+
+
+def _fit_column(field: str, value):
+    """폭이 정해진 칸을 컬럼 안에 넣는다 — 색인 쓰기가 지나는 **마지막 문**.
+
+    「마지막 문」은 `search_documents` 의 폭 있는 칸 **전부**를 뜻한다(`_COLUMN_LIMITS` 가
+    매퍼에서 뽑는다). 신원 두 칸(`kind`·`ref_id`)은 `_FIELDS` 가 아니라 `_apply` 가 직접
+    이 문을 지나게 한다.
+
+    빌더 하나가 폭을 잊으면 그 행만 나빠지는 것이 아니라 재구축 전체가 죽으므로, 빌더를
+    고치는 것과 별개로 문을 하나 둔다. 잘라 넣는 쪽을 고른 이유는 그 반대(행을 버린다)가
+    「검색에 안 잡히는 항목」을 조용히 만들기 때문이다.
+
+    percent-encoding 이 든 칸은 끝에 남은 escape 조각(`%E1`)까지 함께 뗀다 — 반쪽 escape 는
+    브라우저가 경로로 못 읽는다.
+    """
+    limit = _COLUMN_LIMITS.get(field)
+    if limit is None or not isinstance(value, str) or len(value) <= limit:
+        return value
+    cut = value[:limit]
+    tail = cut.rfind("%", max(0, len(cut) - 3))
+    if tail >= 0:
+        cut = cut[:tail]
+    return cut
+
+
+def _column_value(item: dict, field: str):
+    """색인 행 한 칸의 최종 값. **삽입과 갱신이 같은 계산을 쓴다.**
+
+    두 곳이 갈라지면 「새 행은 잘려 들어가는데 갱신은 원본 그대로」 같은 상태가 되고,
+    그때 실패하는 것은 갱신을 시도한 재구축 전체다.
+    """
+    raw = item.get(field) if field in ("url", "sort_key", "org_id") else (item.get(field) or "")
+    return _fit_column(field, raw)
 
 
 def _joined(parts) -> str:
@@ -419,7 +493,9 @@ def _user_rows(db: Session, dept_names: dict[str, str]) -> tuple[list[dict], boo
             # 사용자 화면은 id 딥링크를 받지 않고 검색어(`?q=`)만 받는다. id 를 넘기면
             # 화면이 그 값을 무시하고 **필터 없는 전체 목록**을 그린다 — 눌렀는데 아무 일도
             # 안 한 것처럼 보인다. 화면이 실제로 이해하는 파라미터로 보낸다.
-            "route": "/users?q=" + quote(u.display_name or ""),
+            # 폭은 `_query_route` 가 지킨다 — 이름이 길면 percent-encoding 이 컬럼 폭을
+            # 넘어 재색인 전체가 죽었다(그 계정이 있는 한 영원히).
+            "route": _query_route("/users?q=", u.display_name),
             "url": None,
             "sort_key": None,
         })
@@ -445,20 +521,22 @@ def _apply(db: Session, desired: list[dict], now: datetime) -> int:
     }
     seen: set[tuple[str, str]] = set()
     for item in desired:
-        key = (item["kind"], item["ref_id"])
+        # 신원 두 칸도 폭이 정해져 있다 — `_FIELDS` 에는 없지만 같은 문을 지난다.
+        # **자른 값으로 짝을 맞춘다**: 이미 들어가 있는 행은 잘린 값을 들고 있으므로,
+        # 자르기 전 값으로 찾으면 같은 항목이 매 틱마다 새 행이 된다.
+        key = (_fit_column("kind", item["kind"]), _fit_column("ref_id", item["ref_id"]))
         if not key[1] or key in seen:
             continue
         seen.add(key)
         row = existing.get(key)
         if row is None:
             db.add(SearchDocument(kind=key[0], ref_id=key[1], indexed_at=now, **{
-                f: item.get(f) if f in ("url", "sort_key", "org_id") else (item.get(f) or "")
-                for f in _FIELDS
+                f: _column_value(item, f) for f in _FIELDS
             }))
             continue
         changed = False
         for field in _FIELDS:
-            new_value = item.get(field) if field in ("url", "sort_key", "org_id") else (item.get(field) or "")
+            new_value = _column_value(item, field)
             if getattr(row, field) != new_value:
                 setattr(row, field, new_value)
                 changed = True
@@ -523,6 +601,11 @@ def reindex_all(db: Session, *, tickets, now: datetime) -> IndexResult:
         count = _apply(db, desired, now)
     except Exception as exc:  # noqa: BLE001 — 워커 틱 밖으로 아무것도 던지지 않는다
         logger.exception("검색 인덱스 재구축 실패")
+        # 실패한 flush 는 세션을 **쓸 수 없는 상태로** 남긴다. 그대로 두면 `status="error"`
+        # 를 돌려받은 호출부가 다음 쓰기에서 `PendingRollbackError` 로 터진다 — 재색인
+        # 실패가 「실패했다고 기록하는 일」까지 데려가 화면에는 500 만 남았다. 예외를
+        # 밖으로 안 던진다는 이 함수의 약속은 세션도 함께 돌려줘야 지켜진다.
+        db.rollback()
         return IndexResult(status="error", error=f"{type(exc).__name__}: {exc}")
     return IndexResult(
         status="error" if errors else "ok",

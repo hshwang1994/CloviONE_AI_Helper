@@ -108,6 +108,9 @@ describe("부서 — 추가·수정·삭제가 전부 문장형이다 (조직 �
         return Promise.resolve({ department: {
           id: "d1", name: "기존부서", active: true, parent_id: null, org_id: "o1",
           org_name: "조직A", user_count: 0, child_department_count: 0, created_at: AT2,
+          // 삭제 가능 여부는 이제 **서버가 판정해서 준다**(org-01) — 화면이 자기 계산으로
+          // 「지금 삭제할 수 있습니다」라고 말한 뒤 409 를 받던 것을 그렇게 막았다.
+          delete_precheck: { deletable: true, reason: null, dependents: [], detachables: [] },
         } });
       }
       if (u.startsWith("/api/admin/organizations")) {

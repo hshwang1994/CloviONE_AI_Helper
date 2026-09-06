@@ -32,9 +32,12 @@ describe("fmtCertDays", () => {
  * 🔴 아래 `/diagnostics` 단언은 **뒤집혔다**. 예전 검사가 그 불일치를 그대로 못박고 있었다 —
  * 검사가 옳고 구현이 틀린 경우가 아니라, 검사가 틀린 값을 지키고 있던 경우다. */
 describe("canGo — 정본 한 표에서 읽는다", () => {
-  it("allows operator into /jobs but blocks auditor", () => {
+  it("작업 큐는 읽기 역할 전부에게 열린다 — 운영자도 감사자도, 일반 사용자는 아니다", () => {
+    // 감사자는 큐를 **읽는다**(app/jobs/router.py 의 GET 이 CONSOLE_READ). 재시도·취소는 그
+    // 화면의 액션이 OPS 로 따로 막는다. 예전 단언은 라우터 전체가 OPS 이던 시절의 값이었다.
     expect(canGo("/jobs", "operator")).toBe(true);
-    expect(canGo("/jobs", "auditor")).toBe(false);
+    expect(canGo("/jobs", "auditor")).toBe(true);
+    expect(canGo("/jobs", "user")).toBe(false);
   });
   it("allows auditor into /audit", () => {
     expect(canGo("/audit", "auditor")).toBe(true);
@@ -183,12 +186,15 @@ describe("dashboardNav — 역할별 이동 대상", () => {
     expect(n.diagNote).toBe("");
     expect(n.jobsNote).toBe("");
   });
-  it("auditor는 진단·작업 큐 둘 다 못 가 procTo도 undefined다", () => {
+  it("auditor는 진단은 못 가지만 작업 큐는 읽는다 — 프로세스 경보도 큐로 간다", () => {
+    // 작업 큐 읽기가 console.read 로 열렸다(app/jobs/router.py). 진단은 여전히 OPS 라
+    // diagTo 만 없고, 워커·스케줄러 경보는 진단 대신 큐로 보낸다(procTo 의 대체 규칙).
     const n = dashboardNav("auditor");
     expect(n.diagTo).toBeUndefined();
-    expect(n.procTo).toBeUndefined();
-    expect(n.jobsTo).toBeUndefined();
-    expect(n.jobsNote).toBe(", 관리자 문의");
+    expect(n.diagNote).toBe(", 관리자 문의");
+    expect(n.procTo).toBe("/jobs");
+    expect(n.jobsTo).toBe("/jobs");
+    expect(n.jobsNote).toBe("");
   });
 });
 

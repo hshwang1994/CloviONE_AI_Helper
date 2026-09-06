@@ -12,7 +12,7 @@
 import React from "react";
 import Tooltip from "@mui/material/Tooltip";
 import { DetailRow } from "../../ui/kit.jsx";
-import { APPROVAL_PAYLOAD_KEY_KO, Badge, OBJTYPE_OPTS, OBJ_ID_PARAM, OBJ_ROUTE, OPS_ROLES, ROLE_KO, WRITE_ROLES, actionCol, actionKo, badgeCol, canReachObjRoute, col, dateCol, field, fmtDateTime, mapCol, objCol, objRouteHref, objectField, opt, personField, truncateCol, writerEmptyHelp } from "./shared.js";
+import { APPROVAL_PAYLOAD_KEY_KO, Badge, OBJTYPE_OPTS, OBJ_ID_PARAM, OBJ_ROUTE, OPS_ROLES, PEOPLE_ACTIVE_REF_LIST, PEOPLE_REF_LIST, ROLE_KO, WRITE_ROLES, actionCol, actionKo, badgeCol, canReachObjRoute, col, dateCol, field, fmtDateTimeCompact, mapCol, objCol, objRouteHref, objectField, opt, personField, truncateCol, writerEmptyHelp } from "./shared.js";
 import { APPROVAL_DONE } from "./actions.js";
 
 // RG-05: 서버(app/approvals/router.py)가 request_type/requested_by 서버 필터를 지원하는데
@@ -60,7 +60,7 @@ export const GOVERNANCE_SCREENS = {
     pollWhile: (r) => r.status === "pending",
     /* 사람 후보 목록 — 요청자 필터가 이름으로 고를 수 있으려면 후보가 있어야 한다.
        `/api/admin/users` 는 이 화면들이 이미 쓰는 관리자 목록 엔드포인트다. */
-    refLists: [{ key: "people", endpoint: "/api/admin/users", labelKey: "display_name", secondaryKey: "email" }],
+    refLists: [PEOPLE_REF_LIST],
     // 상태 기본값을 'pending'으로 스코프한다(여전히 '전체'로 바꿀 수 있다) — 승인 대장은 append-only라
     // 기본값 없이는 매 방문마다 실제 처리 가능한 대기 건이 승인/거절/만료/취소 이력에 묻혀 보였다.
     filters: [
@@ -92,12 +92,12 @@ export const GOVERNANCE_SCREENS = {
       // 브라우저 시계가 틀린 PC 에서 목록과 상세가 서로 다른 답을 낸다.
       { key: "due_at", label: "기한", type: "datetime", render: (r) => {
         if (APPROVAL_DONE.includes(r.status) || !r.due_at) return "-";
-        const text = fmtDateTime(r.due_at);
+        const text = fmtDateTimeCompact(r.due_at);
         return r.overdue
           ? React.createElement(Badge, { value: "기한 초과, " + text, kind: "danger" })
           : text;
       } },
-      { key: "expires_at", label: "만료", type: "datetime", render: (r) => APPROVAL_DONE.includes(r.status) ? "-" : fmtDateTime(r.expires_at) }],
+      { key: "expires_at", label: "만료", type: "datetime", render: (r) => APPROVAL_DONE.includes(r.status) ? "-" : fmtDateTimeCompact(r.expires_at) }],
     // 승인 전에 '무엇을 적용하는지'를 반드시 보여준다(내용 없이 승인 금지). request_payload가 핵심.
     // 요청자는 위 columns에서 이름/이메일로 이미 보여주므로 여기선 원시 ID만(대조용). 결정자는
     // approval_view가 requester_name과 마찬가지로 approver_name/approver_email을 함께 돌려준다
@@ -195,22 +195,39 @@ export const GOVERNANCE_SCREENS = {
       // 진행 중"으로 오해하게 만든다(실제로는 revoked_at에 이미 끝났다). 승인 화면의 만료
       // 열이 같은 이유로 종료된 행엔 원래 시각을 안 보여주는 것(위 expires_at 열 주석)과
       // 같은 판단 — 여기는 대체할 실제 종료 시각(revoked_at)이 있으므로 그걸 보여준다.
-      { key: "ends_at", label: "종료", type: "datetime", render: (r) => fmtDateTime(r.state === "revoked" ? r.revoked_at : r.ends_at) },
+      { key: "ends_at", label: "종료", type: "datetime", render: (r) => fmtDateTimeCompact(r.state === "revoked" ? r.revoked_at : r.ends_at) },
       truncateCol("reason", "사유", 40),
     ],
     detailFields: [field("id", "위임 ID"), field("delegator_email", "위임한 사람 이메일"),
       field("delegate_email", "대리 승인자 이메일"), dateCol("revoked_at", "거둔 시각"), dateCol("created_at", "생성 일자")],
-    /* 사람 후보 — 아래 두 필드가 이름으로 고를 수 있으려면 후보가 있어야 한다(W5 · R-5). */
-    refLists: [{ key: "people", endpoint: "/api/admin/users", labelKey: "display_name", secondaryKey: "email" }],
+    /* 사람 후보 — 아래 두 필드가 이름으로 고를 수 있으려면 후보가 있어야 한다(W5 · R-5).
+       **보관된 계정은 후보가 아니다**(xb-10) — 이 화면의 후보는 폼에서만 쓰이고, 보관된
+       사람을 대리 승인자로 고르면 서버가 422 로 거절한다. 고를 수 없는 것을 권하지 않는다.
+
+       🟡 **역할로는 아직 못 거른다.** 서버는 감사자를 대리 승인자로 두는 것을 422 로 막고
+       (`app/approvals/delegation.py::create`), 위임하는 쪽도 결재 권한이 있는 계정이어야
+       한다. 그런데 이 후보 목록(`/api/admin/people`)은 **역할을 일부러 안 싣는다** —
+       운영자가 그 경로로 상위 권한 계정을 정찰하지 못하게 한 설계다
+       (`app/users/people_router.py` 의 「신원 조각만 싣는다」). 그래서 화면이 자기 힘으로
+       거를 값이 없다. 지금은 두 칸의 도움말이 규칙을 먼저 말하고, 후보를 실제로 좁히는
+       것은 그 경로에 「결재할 수 있는 사람만」 축을 더하는 일이라 people 라우터 담당에게
+       넘긴다(여기서 역할 없는 값을 추측해 거르면 멀쩡한 후보가 사라진다). */
+    refLists: [PEOPLE_ACTIVE_REF_LIST],
     create: { roles: WRITE_ROLES, fields: [
       /* W5: 「‘사용자’ 화면에서 ID를 복사하세요」 는 기능이 아니라 결함이다 — 사람이 UUID 를
          화면 사이로 나르게 만든다(R-5 · 지시 0-2.17). 후보는 위 `refLists.people` 이 준다. */
       { name: "delegator_user_id", label: "위임하는 사람", type: "select", kind: "entity", optionsFromRefList: "people", required: true, help: "승인 권한이 있는 계정이어야 합니다(관리자, 시스템 관리자)." },
-      { name: "delegate_user_id", label: "대리 승인자", type: "select", kind: "entity", optionsFromRefList: "people", required: true, help: "이 사람은 위임 기간에만 승인하거나 거절할 수 있습니다." },
+      { name: "delegate_user_id", label: "대리 승인자", type: "select", kind: "entity", optionsFromRefList: "people", required: true, help: "이 사람은 위임 기간에만 승인하거나 거절할 수 있습니다. 감사자는 읽기 전용 역할이라 대리 승인자가 될 수 없습니다." },
       { name: "starts_at", label: "시작", type: "datetime-local", required: true },
-      { name: "ends_at", label: "종료", type: "datetime-local", required: true, help: "최대 90일. 기간이 지나면 권한이 저절로 닫힙니다." },
+      { name: "ends_at", label: "종료", type: "datetime-local", required: true, help: "종료 시각은 지금보다 뒤여야 하고, 시작 시각에서 최대 90일까지 정할 수 있습니다. 기간이 지나면 권한이 저절로 닫힙니다." },
       { name: "reason", label: "사유", type: "text", help: "예: 7/20~7/25 휴가" },
     ] },
+    /* 🔴 위임에는 **수정이 없다.** 백엔드 라우터는 목록·생성·거두기 셋뿐이고
+       (`app/approvals/router.py::delegations_router`), `PATCH`·`PUT` 은 둘 다 404 다.
+       그런데 `DataScreen` 은 `edit` 선언이 없으면 `create.fields` 로 수정 폼을 대신 그린다 —
+       그래서 모든 위임 상세에 「수정」이 떴고, 눌러 열린 빈 폼을 저장하면 영문 「Not Found」
+       토스트로 끝났다(perm-05). 위임을 고치는 길은 거두고 새로 만드는 것 하나다. */
+    editWhen: () => false,
     actions: [
       { label: "위임 거두기", variant: "danger", roles: WRITE_ROLES, when: (r) => r.state === "active" || r.state === "scheduled",
         path: (r) => "/api/admin/approval-delegations/" + r.id + "/revoke",
@@ -225,16 +242,20 @@ export const GOVERNANCE_SCREENS = {
   audit: {
     key: "audit", area: "감사", title: "감사 로그", endpoint: "/api/admin/audit",
     /* 행위자 필터가 이름으로 고를 수 있으려면 후보가 있어야 한다(W5). */
-    refLists: [{ key: "people", endpoint: "/api/admin/users", labelKey: "display_name", secondaryKey: "email" }],
+    refLists: [PEOPLE_REF_LIST],
     // PA-RC-0024: /audit/:id 라우트가 AdminRoutes.jsx에 등록돼 있다 — DataScreen이 이
     // 플래그를 보고 sel(상세 선택)을 그 경로와 동기화한다(직접 진입·새로고침·뒤로가기).
     // 이 플래그가 없는 다른 registry 화면은 :id 라우트 자체가 없으므로 절대 켜면 안 된다
     // (없는 경로로 navigate하면 방금 연 상세가 "찾을 수 없음"으로 잘못 보인다).
     hasIdRoute: true,
     help: "누가 무엇을 언제 바꿨는지 기록을 봅니다. 자주 쓰는 필터 조합은 ‘저장된 뷰’로 이름을 붙여 두면 다시 부를 수 있고, ‘CSV 내보내기’는 지금 화면에 걸린 필터를 그대로 적용해 내려받습니다.",
-    // 내보내기·이상 징후 (0033, PLAN Phase 6). 내보내기는 브라우저가 직접 그 주소로 가야
-    // Content-Disposition 이 먹으므로 download 액션이다(DataScreen.runAction 주석 참조) —
-    // 지금 화면의 서버 필터가 그대로 붙어, 화면에서 본 것과 파일 내용이 어긋나지 않는다.
+    /* 내보내기·이상 징후 (0033, PLAN Phase 6). 내보내기는 `download` 액션이라
+       `DataScreen.runDownload` 가 처리한다 — fetch 로 받아 상태를 확인하고 Blob 으로
+       저장하며, 파일 이름은 응답의 `Content-Disposition` 에서 읽는다. 실패하면 화면은
+       그대로 있고 토스트가 이유를 말한다(옛 주석은 「브라우저가 직접 그 주소로 가야
+       Content-Disposition 이 먹는다」였는데, 그렇게 하면 403·504 가 관리자 콘솔을 통째로
+       날 오류 페이지로 바꿨다). 지금 화면의 서버 필터가 그대로 붙어, 화면에서 본 것과
+       파일 내용이 어긋나지 않는다. */
     headerActions: [
       // page/page_size 는 빼고 보낸다 — 내보내기는 '지금 보고 있는 한 페이지'가 아니라
       // '이 필터에 걸리는 전부'다(서버가 무시하긴 하지만 주소에 남으면 뜻이 헷갈린다).
@@ -270,23 +291,12 @@ export const GOVERNANCE_SCREENS = {
     // stickyHeader(kit.jsx, MUI Table stickyHeader 위임)로 스크롤 중에도 열 제목이 고정되게 한다.
     stickyHeader: true,
     filters: [
-      // OBJTYPE_OPTS(shared.js)에는 organization·feature_flag가 빠져 있었다 — 둘 다 백엔드가
-      // 실제로 기록하는 object_type이고(app/org/router.py, app/admin/feature_flags.py), 이
-      // 화면과 같은 파일(governance.js)의 organizations·feature-flags가 아니라 org.js/platform.js가
-      // "감사 로그에서 보기"로 각각 ?object_type=organization / ?object_type=feature_flag 딥링크를
-      // 이미 건다(org.js:76, platform.js:288) — 그런데 이 드롭다운엔 그 값을 고를 옵션이 없어서
-      // 딥링크로 들어오면 필터는 서버에 그대로 실려 정상 작동하지만(값 자체는 select 컴포넌트가
-      // 검증하지 않는다) 드롭다운은 어떤 옵션과도 맞지 않아 빈 채로 보이고, 사용자가 직접 '조직'
-      // 이나 '기능 플래그' 대상만 골라 보려 해도 목록에 없어 고를 수 없었다(F15와 동일한 부류 —
-      // 감사 대상 옵션 누락). shared.js의 OBJTYPE_OPTS 자체는 이 작업의 편집 범위 밖이라(governance.js
-      // 만 손볼 수 있다) 이 화면이 실제로 쓰는 옵션 목록에서 두 값을 보강한다.
-      // ai_quota/approval_delegation/announcement/offboarding_run도 organization/feature_flag와
-      // 같은 이유(F15 부류)로 여기 보강한다 — shared.js의 OBJ_ROUTE에는 이제 있지만 OBJTYPE_OPTS
-      // 자체는 여전히 이 작업의 편집 범위 밖이다(MEGA CYCLE G).
-      { key: "object_type", type: "select", label: "대상", options: [...OBJTYPE_OPTS,
-        { value: "organization", label: "조직" }, { value: "feature_flag", label: "기능 플래그" },
-        { value: "ai_quota", label: "AI 사용 상한" }, { value: "approval_delegation", label: "승인 위임" },
-        { value: "announcement", label: "공지 배너" }, { value: "offboarding_run", label: "오프보딩" }] },
+      /* 선택지의 정본은 `shared.js` 의 `OBJTYPE_OPTS` 한 벌이다.
+         예전에는 이 자리에서 여섯 값을 손으로 덧붙였다 — 그때는 그 파일이 편집 범위 밖이라
+         어쩔 수 없었지만, 두 벌로 갈라진 목록은 한쪽만 자라면서 계속 어긋났다(조직·기능
+         플래그가 그렇게 늦게 붙었고, `document_generation` 의 「문서」 이름표는 끝까지
+         안 고쳐졌다). 이제 그 파일이 백엔드가 기록하는 값 전량과 맞춰져 있다. */
+      { key: "object_type", type: "select", label: "대상", options: OBJTYPE_OPTS },
       // 특정 엔티티에 일어난 모든 사건을 추적한다(상세의 '대상 ID'·부서/직책 상세 id를 붙여넣는다).
       { key: "object_id", type: "text", label: "대상 ID",
         freeTextReason: "감사 대상은 모든 object_type 을 가로지른다. 하나의 후보 목록이 존재할 수 없다." },
@@ -344,7 +354,7 @@ export const GOVERNANCE_SCREENS = {
        두 벌이 갈라지면 화살표는 그려지는데 눌러도 순서가 그대로다.
        「행위자」가 없는 이유도 서버 쪽에 적혀 있다(열은 이름을 그리는데 컬럼은 UUID 다). */
     serverSort: { keys: ["created_at", "action", "object_type", "result"], default: { key: "created_at", dir: "desc" } },
-    columns: [{ ...dateCol("created_at", "시각"), rowName: (r) => actionKo(r.action) + " / " + (r.actor_name || r.actor_email || (r.user_id ? r.user_id : "시스템")) + " / " + fmtDateTime(r.created_at) }, { ...actionCol("action", "작업"), sortable: true }, { ...objCol("object_type", "대상"), sortable: true },
+    columns: [{ ...dateCol("created_at", "시각"), rowName: (r) => actionKo(r.action) + " / " + (r.actor_name || r.actor_email || (r.user_id ? r.user_id : "시스템")) + " / " + fmtDateTimeCompact(r.created_at) }, { ...actionCol("action", "작업"), sortable: true }, { ...objCol("object_type", "대상"), sortable: true },
       // object_type/action/actor로만 필터해도(대상 ID로 좁히지 않으면) 같은 유형·같은 작업·같은
       // 행위자의 여러 행이 목록에서 서로 구별되지 않았다 — 대상 ID를 목록에 바로 노출한다.
       truncateCol("object_id", "대상 ID", 24),
@@ -520,7 +530,7 @@ export const GOVERNANCE_SCREENS = {
     ],
     emptyExpected: "시작, 종료가 이 목록과 감사 로그에 남고, 그동안의 쓰기 시도는 전부 차단되며 횟수가 기록됩니다.",
     paginated: true,
-    refLists: [{ key: "people", endpoint: "/api/admin/users", labelKey: "display_name", secondaryKey: "email" }],
+    refLists: [PEOPLE_REF_LIST],
     // actor_user_id/target_user_id는 백엔드가 이미 받는 서버 필터다(app/impersonation/router.py
     // list_sessions) — 그런데 이 배열에 없으면 DataScreen.buildUrl()이 config.filters에 있는 키만
     // 서버로 보내므로(serverFilterDefs), 아래 '이 관리자의 기록만' 액션과 onQuery 딥링크가 filters

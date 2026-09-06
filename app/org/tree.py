@@ -20,7 +20,7 @@ from __future__ import annotations
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.core.errors import ValidationAppError
+from app.core.errors import ForbiddenError, ValidationAppError
 from app.core.org_tree import MAX_DEPARTMENT_DEPTH, DeptTree
 from app.org.constants import ORG_ACTIVE
 from app.org.models import Department, Organization
@@ -250,10 +250,20 @@ def validate_parent(
 
     `scope` 를 주면 **범위 밖 부서는 없는 것과 똑같이** 답한다(생성 경로와 같은 판정,
     같은 문구). 여기만 다른 오류를 내면 남의 부서 id 를 찍어 보며 존재를 셀 수 있다.
+
+    「최상위로 올린다」(빈 값)도 판정을 지나야 한다. 예전에는 이 갈래가 아무것도 안 보고
+    곧바로 `None` 을 돌려줘서, 부서 범위 관리자가 저장 한 번으로 자기 부서를 조직 최상위로
+    밀어냈다 — 최상위 부서는 어느 서브트리에도 안 들어가므로 그 순간 자기 관리 범위 밖이
+    되고, 자기 화면에서 그 부서가 사라진다(되돌리려면 전역 관리자가 필요하다).
     """
-    from app.org.service import scope_allows_item
+    from app.org.service import ensure_parent_is_active, scope_allows_item
 
     if parent_id is None or parent_id == "":
+        # **실제로 옮길 때만** 막는다. 이미 최상위인 부서의 수정 폼은 상위 칸이 빈 채로
+        # 다시 저장되는데, 그것까지 막으면 그 부서는 이름조차 못 고친다 — 바로 아래
+        # `ensure_parent_is_active` 가 「부모가 실제로 바뀔 때만 본다」로 이미 세운 규칙이다.
+        if getattr(scope, "is_dept", False) and row.parent_id is not None:
+            raise ForbiddenError("관리 범위 밖으로 부서를 옮길 수 없습니다.")
         return None
     if parent_id == row.id:
         raise ValidationAppError("부서를 자기 자신의 하위로 둘 수 없습니다.")
@@ -264,6 +274,10 @@ def validate_parent(
     # 조용히 넓어진다. 부모는 반드시 이 행(row)과 같은 조직이어야 한다.
     if parent is None or not scope_allows_item(scope, parent) or parent.org_id != row.org_id:
         raise ValidationAppError("알 수 없는 상위 부서입니다.")
+    # 부모가 **실제로 바뀔 때만** 비활성을 본다 — 지금 부모를 그대로 다시 보내는 수정 폼이
+    # 막히면 그 부서는 이름조차 못 고친다(`resolve_assignable` 의 `allow_current` 와 같은 이유).
+    if parent_id != row.parent_id:
+        ensure_parent_is_active(parent)
     # 자기 자손을 부모로 삼으면 트리가 고리가 되고, 그 순간 그 덩어리 전체가 조직도의 루트에서
     # 사라진다(위 build_rows 가 `cycle` 로 드러내지만, 애초에 들어오게 두지 않는다).
     if parent_id in DeptTree.load(db).descendants(row.id):

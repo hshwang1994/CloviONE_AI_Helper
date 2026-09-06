@@ -5,6 +5,7 @@ import Link from "@mui/material/Link";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { api } from "../../lib/api.js";
+import { useAuth } from "../../app/auth.jsx";
 import {
   Badge, Button, Card, MetricStrip, Section, TechDetail, useConfirm, useToast,
 } from "../../ui/kit.jsx";
@@ -56,6 +57,7 @@ export function OrgDetailPanel({ org, treeRow, deptRows = [], onOpenDept }) {
   const toast = useToast();
   const confirm = useConfirm();
   const invalidate = useInvalidateOrgCaches();
+  const auth = useAuth();
   const [editing, setEditing] = React.useState(false);
 
   const setStatus = useMutation({
@@ -70,6 +72,19 @@ export function OrgDetailPanel({ org, treeRow, deptRows = [], onOpenDept }) {
 
   const active = org.status === "active";
   const unassigned = treeRow ? treeRow.user_count || 0 : null;
+
+  /* 🔴 **자기 조직 정지는 시스템 관리자만 할 수 있다**(org-09).
+   *
+   * 서버 판정은 `app/org/service.py::ensure_may_suspend_org` 다 — 역할과 조직 id 둘만 보는
+   * 조건이라 화면이 그대로 재현할 수 있다. 재현하지 않던 동안에는 「소속 사용자 20명이 지금
+   * 즉시 로그아웃됩니다」라는 **되돌릴 수 없는 예고**를 읽고 확인까지 누른 관리자가 그
+   * 뒤에야 403 토스트를 받았다. 최악의 경우 정말 끊긴 줄 알고 대응을 시작한다.
+   * 같은 콘솔이 「조직 추가」에 대해서는 이미 이 규칙을 쓴다(OrgConsole.jsx).
+   *
+   * 남의 조직 정지는 그대로 둔다 — 자기 세션이 안 끊기므로 서버도 막지 않는다. 활성화도
+   * 그대로다(정지를 푸는 것은 이 함수의 대상이 아니다). */
+  const actor = auth.data || {};
+  const canSuspend = actor.role === "system_admin" || actor.org_id !== org.id;
 
   const suspend = async () => {
     /* 이 버튼 하나가 그 조직 전원을 즉시 밖으로 내보낸다 — 서버가 살아 있는 세션을 전부
@@ -97,10 +112,12 @@ export function OrgDetailPanel({ org, treeRow, deptRows = [], onOpenDept }) {
                 href={"#/audit?object_type=organization&object_id=" + org.id}>
           감사 로그에서 보기
         </Button>
-        <Button size="sm" onClick={active ? suspend : () => setStatus.mutate("active")}
-                variant={active ? "danger" : "default"} loading={setStatus.isPending}>
-          {active ? "비활성화" : "활성화"}
-        </Button>
+        {active && !canSuspend ? null : (
+          <Button size="sm" onClick={active ? suspend : () => setStatus.mutate("active")}
+                  variant={active ? "danger" : "default"} loading={setStatus.isPending}>
+            {active ? "비활성화" : "활성화"}
+          </Button>
+        )}
         <Button size="sm" variant="primary" onClick={() => setEditing(true)}>수정</Button>
       </Box>
 
@@ -132,7 +149,9 @@ export function OrgDetailPanel({ org, treeRow, deptRows = [], onOpenDept }) {
           </MetaRow>
           {unassigned ? (
             <MetaRow label="부서 미지정">
-              <Link href="#/users" underline="hover">
+              {/* `department_id=none` 은 서버 센티널이다(P-61) — 사용자 화면이 그 사람들만
+                  거른 목록을 연다. 예전에는 필터 없는 전체 목록으로 보내 숫자만 말했다. */}
+              <Link href="#/users?department_id=none" underline="hover">
                 {"부서가 지정되지 않은 사용자 " + unassigned + "명을 사용자 화면에서 확인합니다."}
               </Link>
             </MetaRow>
@@ -144,6 +163,14 @@ export function OrgDetailPanel({ org, treeRow, deptRows = [], onOpenDept }) {
             조직은 지울 수 없습니다. 사용자와 부서가 이 조직을 가리키고 있어 지우면 그 연결이
             끊깁니다. 대신 비활성화로 새 사용을 막으세요.
           </MetaRow>
+          {/* 버튼이 사라진 자리 대신 이 줄이 이유를 말한다 — 부서 판이 삭제에 대해 이미
+              쓰는 규칙과 같다. */}
+          {active && !canSuspend ? (
+            <MetaRow label="비활성화 안내" span>
+              자기 조직 비활성화는 시스템 관리자만 할 수 있습니다. 비활성화하면 소속 사용자가
+              모두 즉시 로그아웃되어, 되돌릴 사람이 이 조직 안에 남지 않기 때문입니다.
+            </MetaRow>
+          ) : null}
         </Box>
       </Section>
 

@@ -17,6 +17,9 @@ import "@testing-library/jest-dom/vitest";
 
 const apiMock = vi.fn();
 vi.mock("../lib/api.js", () => ({ api: (...args) => apiMock(...args), setCsrf: () => {} }));
+/* 역할은 시험마다 바꾼다 — 지정 폼과 부서 후보 요청은 전역 관리자에게만 있다(아래 describe). */
+let authUser = { role: "system_admin", admin_scope: "global" };
+vi.mock("../app/auth.jsx", () => ({ useAuth: () => ({ data: authUser }) }));
 
 import { Integrity } from "./Integrity.jsx";
 import { ConfirmProvider, ToastProvider } from "../ui/kit.jsx";
@@ -51,6 +54,7 @@ function payload(findings) {
 let data;
 beforeEach(() => {
   data = payload([OPEN, CLEAR_A, CLEAR_B]);
+  authUser = { role: "system_admin", admin_scope: "global" };
   apiMock.mockReset();
   apiMock.mockImplementation((path) => {
     if (path === "/api/admin/integrity") return Promise.resolve(data);
@@ -124,5 +128,37 @@ describe("판은 정리할 것이 있는 항목에만 준다", () => {
     expect(screen.getByRole("heading", { level: 2, name: "관리자 범위 현황" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 2, name: "정리할 항목" })).toBeInTheDocument();
     expect(screen.getByText("박민준")).toBeInTheDocument();
+  });
+});
+
+/* 지정은 전역 관리자만 한다 — 서버(`POST /api/admin/integrity/membership`)가 CONSOLE_WRITE +
+ * 전역 범위로 막는다. 예전에는 운영자·감사자에게도 지정 폼이 그려졌고(누르면 403), 부서
+ * 후보 요청(`/api/admin/departments` 는 admin 이상)이 화면을 열 때마다 403 으로 실패했다. */
+describe("지정 폼과 부서 후보는 지정할 수 있는 사람에게만 있다", () => {
+  const deptCalls = () => apiMock.mock.calls.map((c) => String(c[0])).filter((u) => u.startsWith("/api/admin/departments"));
+
+  it("전역 관리자는 부서 후보를 받는다 — 페이지 인자 없이 정확히 그 주소로(P-76)", async () => {
+    renderScreen();
+    await screen.findByRole("checkbox", { name: "홍길동 선택" });
+    await screen.findByRole("button", { name: "선택한 0명에 적용" });
+    expect(deptCalls()).toEqual(["/api/admin/departments?active=true"]);
+  });
+
+  it("운영자는 진단은 보지만 지정 폼도 부서 후보 요청도 없다", async () => {
+    authUser = { role: "operator", admin_scope: "global" };
+    renderScreen();
+    expect(await screen.findByRole("heading", { level: 3, name: OPEN.title })).toBeInTheDocument();
+    expect(screen.getByText("홍길동")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /명에 적용/ })).toBeNull();
+    expect(screen.queryByRole("combobox", { name: "지정할 소속" })).toBeNull();
+    expect(deptCalls()).toEqual([]);
+  });
+
+  it("부서 범위 관리자도 지정하지 못한다 — 서버가 전역 범위만 받는다", async () => {
+    authUser = { role: "admin", admin_scope: "dept" };
+    renderScreen();
+    await screen.findByRole("heading", { level: 3, name: OPEN.title });
+    expect(screen.queryByRole("button", { name: /명에 적용/ })).toBeNull();
+    expect(deptCalls()).toEqual([]);
   });
 });

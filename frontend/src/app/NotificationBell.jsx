@@ -59,10 +59,10 @@ function serverRoute(n) {
 // API가 더 좁게 막으면(app/core/authz.py CONSOLE_READ_ROLES 등) 눌러도 그 자리에서 403이
 // 뜬다 — 이 표는 "실제로 읽을 수 있는가"를 백엔드 라우터 기준으로 맞춘다.
 // /approvals·/schedules는 CONSOLE_READ_ROLES(operator/admin/system_admin/auditor)를,
-// /jobs는 그보다 좁은 별도 게이트(auditor 제외, app/jobs/router.py)를 쓴다.
+// /jobs 의 읽기도 같은 집합이다 — 재시도·취소만 OPS 로 좁다(app/jobs/router.py 경로별 게이트).
 const ROUTE_ROLES = {
   "/users": ["admin", "system_admin"],
-  "/jobs": ["operator", "admin", "system_admin"],
+  "/jobs": ["operator", "admin", "system_admin", "auditor"],
   "/approvals": ["operator", "admin", "system_admin", "auditor"],
   "/schedules": ["operator", "admin", "system_admin", "auditor"],
 };
@@ -71,12 +71,29 @@ const FOCUSABLE = 'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1
 /* 관리 알림 / 내 업무 알림 구분(0051) — 서버가 저장한 audience("user"|"admin",
  * app/notifications/models.py)를 사람이 읽는 섹션 이름으로 바꾼다. 값이 없는(캐시된 옛
  * 응답, audience 컬럼이 생기기 전 데이터) 항목은 "user"로 안전하게 취급한다 — notify_admins
- * 만 "admin"을 명시적으로 채우므로 모르면 개인 알림 쪽이 맞다. */
+ * 만 "admin"을 명시적으로 채우므로 모르면 개인 알림 쪽이 맞다.
+ * `_bellAudience` 는 **어느 질의로 받아 온 것인가**다 — 그 값이 있으면 응답 필드보다 먼저다.
+ * 옛 캐시에 audience 가 비어 있어도 묶음이 뒤섞이지 않는다. */
 function itemAudience(n) {
-  return (n && n.audience) || "user";
+  return (n && (n._bellAudience || n.audience)) || "user";
 }
 function audienceLabel(aud) {
   return aud === "admin" ? "관리" : "내 업무";
+}
+
+/** 한 audience 의 「안 읽음」 총계. 팝오버가 열려 목록을 받았으면 그 스냅샷을 먼저 믿는다 —
+ *  두 질의의 60초 타이머가 어긋나 헤더 숫자와 보이는 항목이 다른 말을 하지 않게. 목록이
+ *  오류면 그 스냅샷은 옛 성공 응답이라 믿지 않는다. */
+function unreadOf(countQuery, listQuery, open) {
+  const fromList = (!listQuery.isError && listQuery.data && typeof listQuery.data.unread === "number")
+    ? listQuery.data.unread : null;
+  const fromCount = (countQuery.data && typeof countQuery.data.unread === "number")
+    ? countQuery.data.unread : null;
+  const value = (open && fromList != null) ? fromList
+    : (fromCount != null ? fromCount : (fromList != null ? fromList : 0));
+  const badge = (countQuery.data && typeof countQuery.data.badge === "number")
+    ? countQuery.data.badge : value;
+  return { value, badge, fromList };
 }
 
 /* 정적(딥링크 없는) 알림 행 — 내용이 2줄 클램프를 실제로 넘칠 때만 '펼치기' 토글로 만든다.
@@ -111,7 +128,7 @@ function StaticNotiRow({ n, content, label, expanded, onToggle }) {
   );
 }
 
-export function NotificationBell({ isUser, notices }) {
+export function NotificationBell({ isUser, consoleUser, notices }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
   const bellRef = useRef(null);
@@ -141,10 +158,25 @@ export function NotificationBell({ isUser, notices }) {
     return next;
   };
 
-  // 이 벨이 보는 알림의 종류(0060). 사용자 콘솔은 개인 알림만, 관리자 콘솔은 관리 조치가
-  // 필요한 알림만 본다 — 예전에는 한 벨이 둘을 받아 정렬만 바꿔 섞어 보여 줬고, 그래서
-  // "관리자이자 사용자인 사람"의 벨에 내 일과 관리 업무가 뒤엉켰다.
-  const audience = isUser ? "user" : "admin";
+  /* 이 벨이 보는 알림의 종류.
+   *
+   * 축이 **둘**이다 — 0060 은 그것을 하나로 뭉쳤고, 그래서 관리 역할 계정은 어느 콘솔에
+   * 서 있든 관리 알림만 받았다. 실측: 승격을 요청한 관리자에게 `approval_decided` 가 29건
+   * 쌓여 있는데 종은 「승인 요청」만 8건 보여 줬고, 같은 화면 사이드바의 「알림」 배지는 34
+   * 였다 — 한 화면이 두 숫자를 말했다(perm-09).
+   *
+   *   1. **지금 서 있는 콘솔**(`consoleUser`)이 앞에 오는 묶음을 정한다. 역할(`isUser`)로
+   *      정하면 관리자가 사용자 콘솔에 들어가도 관리 알림이 먼저 선다 — 사이드바가 같은
+   *      혼동을 이미 한 번 겪었다(AppShell 의 `homeUser` 주석 · F-W2E-01).
+   *   2. **관리 역할 계정은 두 묶음을 다 받는다.** 승인 결과·위임받음은 그 사람 개인에게
+   *      온 알림이라 관리 알림 목록에는 영원히 안 나온다. 어느 쪽 알림인지는 묶음 머리가
+   *      말한다(`audienceLabel`).
+   *
+   * 「모두 읽음」은 그대로 **앞에 선 묶음 하나만** 처리한다 — 화면에 뜬 적 없는 상대 콘솔의
+   * 알림까지 지우는 것이 D-386 이 없앤 사고다. 그래서 단추 문구도 범위를 밝힌다. */
+  const audience = (consoleUser == null ? isUser : consoleUser) ? "user" : "admin";
+  // role=user 에게는 상대 묶음이 아예 없다(notify_admins 는 관리 역할에게만 보낸다).
+  const otherAudience = isUser ? null : (audience === "user" ? "admin" : "user");
   const unread = useQuery({
     queryKey: notiUnreadKey(audience),
     queryFn: () => api(`/api/notifications/unread-count?audience=${audience}`),
@@ -177,6 +209,31 @@ export function NotificationBell({ isUser, notices }) {
     // body로 튕겨 나갔다. keepPreviousData로 새 응답이 올 때까지 이전 항목을 계속 보여준다.
     placeholderData: keepPreviousData,
   });
+  /* 상대 묶음(개인 알림 ↔ 관리 알림). 관리 역할 계정에만 켠다.
+     키가 `notiUnreadKey(otherAudience)` 라 셸의 사이드바 배지 질의와 **같은 한 벌**이 된다 —
+     react-query 가 합치므로 종이 하나 늘었다고 요청이 늘지 않는다(AppShell::useNavBadges). */
+  const unreadOther = useQuery({
+    queryKey: notiUnreadKey(otherAudience || "user"),
+    queryFn: () => api(`/api/notifications/unread-count?audience=${otherAudience}`),
+    retry: false,
+    enabled: isAuthed && !!otherAudience,
+    refetchInterval: (q) => (isAuthed && !!otherAudience && q.state.error?.status !== 401 ? 60 * 1000 : false),
+    refetchOnWindowFocus: true,
+    refetchOnMount: "always",
+  });
+  const hasUnreadOther = typeof unreadOther.data?.unread === "number" ? unreadOther.data.unread > 0 : true;
+  const listOther = useQuery({
+    queryKey: notiListKey(hasUnreadOther ? "unread" : "recent", otherAudience || "user"),
+    queryFn: () =>
+      api(
+        `/api/notifications?page_size=8&audience=${otherAudience}`
+        + (hasUnreadOther ? "&unread_only=true" : "")
+      ),
+    retry: false,
+    enabled: open && isAuthed && !!otherAudience,
+    refetchInterval: (q) => (open && isAuthed && !!otherAudience && !q.state.error ? 60 * 1000 : false),
+    placeholderData: keepPreviousData,
+  });
   /* 벨·팝오버 목록·전체 알림 화면이 **한 뿌리(`["noti"]`)를 공유한다** (PF9). 그래서 여기서
      세 줄을 적을 필요가 없다 — 예전에는 적었고, 한 줄이 빠질 때마다 "읽었는데 숫자가 그대로"가
      됐다. 키의 정본은 notification-keys.js 다. */
@@ -184,8 +241,11 @@ export function NotificationBell({ isUser, notices }) {
   // 낙관적 업데이트 — 누른 항목만 즉시 읽음으로 바꿔(체크 버튼 사라짐) 공용 mutation의 isPending이
   // 모든 미읽음 버튼을 함께 잠그거나 이중 발사되던 문제를 없앤다. 실패하면 스냅샷으로 되돌린다.
   const readOne = useMutation({
-    mutationFn: (id) => api("/api/notifications/" + id + "/read", { method: "POST", body: {} }),
-    onMutate: async (id) => {
+    // `{id, aud}` 를 받는다 — 이 벨이 두 묶음을 함께 그리므로(perm-09) 「어느 배지를
+    // 내릴 것인가」를 항목이 알려 줘야 한다. 예전에는 언제나 이 콘솔의 audience 를 깎아,
+    // 개인 알림 하나를 읽으면 관리 알림 배지가 대신 줄었다.
+    mutationFn: ({ id }) => api("/api/notifications/" + id + "/read", { method: "POST", body: {} }),
+    onMutate: async ({ id, aud }) => {
       await qc.cancelQueries({ queryKey: NOTI_LIST });
       await qc.cancelQueries({ queryKey: NOTI_UNREAD });
       // NOTI_LIST는 실제로 캐시된 키가 아니다 — 실제 쿼리는 notiListKey("unread"|"recent")로
@@ -215,18 +275,18 @@ export function NotificationBell({ isUser, notices }) {
       // 언제나 undefined 를 읽고 아무 캐시에도 안 쓴다 — 바로 위 목록(NOTI_LIST)에서 고쳐 둔
       // 것과 똑같은 결함이 배지 쪽에만 남아, 위 주석이 없앴다고 적은 '얼어붙는 배지'가 그대로
       // 살아 있었다. 이 벨은 자기 audience 의 알림만 읽음 처리하므로 그 한 벌만 건드린다.
-      const prevUnread = qc.getQueryData(notiUnreadKey(audience));
+      const prevUnread = qc.getQueryData(notiUnreadKey(aud));
       if (wasUnread && prevUnread && typeof prevUnread.unread === "number") {
-        qc.setQueryData(notiUnreadKey(audience), shiftUnread(prevUnread, -1));
+        qc.setQueryData(notiUnreadKey(aud), shiftUnread(prevUnread, -1));
       }
       // 실패 시 되돌릴 컨텍스트로 "이 mutation이 바꾼 것"만 넘긴다(id/wasUnread) — 전체 캐시
       // 스냅샷을 onMutate 시점으로 통째 복원하지 않는다. 두 개의 읽음 처리가 동시에 날아가고
       // 이후 mutation이 먼저 실패하면, 그 onError가 먼저 mutation의 스냅샷(=아직 아무것도 안
       // 읽음 처리되기 전)으로 캐시를 되돌려 나중 mutation이 이미 성공시킨 결과까지 함께
       // 지워버렸다(product-quality-audit AREA=D).
-      return { id, wasUnread };
+      return { id, aud, wasUnread };
     },
-    onError: (e, _id, ctx) => {
+    onError: (e, _vars, ctx) => {
       if (ctx && ctx.wasUnread) {
         qc.setQueriesData({ queryKey: NOTI_LIST }, (prevList) => {
           if (!prevList || !Array.isArray(prevList.items)) return prevList;
@@ -237,8 +297,8 @@ export function NotificationBell({ isUser, notices }) {
             unread: typeof prevList.unread === "number" ? prevList.unread + 1 : prevList.unread,
           };
         });
-        const cur = qc.getQueryData(notiUnreadKey(audience));
-        if (cur && typeof cur.unread === "number") qc.setQueryData(notiUnreadKey(audience), shiftUnread(cur, 1));
+        const cur = qc.getQueryData(notiUnreadKey(ctx.aud));
+        if (cur && typeof cur.unread === "number") qc.setQueryData(notiUnreadKey(ctx.aud), shiftUnread(cur, 1));
       }
       toast(e.message || "읽음 처리하지 못했습니다. 다시 시도해 주세요.", "error");
     },
@@ -336,35 +396,65 @@ export function NotificationBell({ isUser, notices }) {
     setOpen(false);
   };
 
-  const items = (list.data && list.data.items) || [];
+  /* 두 묶음을 **지금 콘솔 것 먼저** 이어 붙인다(perm-09).
+   *
+   * 시간순으로 섞지 않는다 — 섞으면 그룹 머리가 항목마다 번갈아 붙어 8줄짜리 팝오버가
+   * 머리로 반쯤 찬다. 0051 이 이미 같은 판단을 했다: 지금 콘솔의 묶음이 앞에 모이고,
+   * 섞였을 때만 머리를 붙인다.
+   *
+   * `_bellAudience` 를 박아 두는 이유는 `itemAudience` 주석에 있다 — 응답의 `audience`
+   * 필드가 비어 있어도(옛 캐시) 어느 질의가 가져온 것인지는 확실하다. */
+  const ownItems = (list.data && list.data.items) || [];
+  const otherItems = otherAudience ? ((listOther.data && listOther.data.items) || []) : [];
+  const groupedItems = useMemo(
+    () => [
+      ...ownItems.map((n) => ({ ...n, _bellAudience: audience })),
+      ...otherItems.map((n) => ({ ...n, _bellAudience: otherAudience })),
+    ],
+    [ownItems, otherItems, audience, otherAudience],
+  );
+  // 한 묶음뿐이면 머리는 소음이다 — 두 묶음을 합쳐 보여 줄 때만 어느 쪽인지 밝힌다.
+  const showAudienceGroups = !!otherAudience && groupedItems.length > 0;
   /* 시스템 상태·공지 (지시 1). 예전에는 헤더 상태 칩과 본문 위 띠가 따로 보여 줬다.
      사용자에게 보일 자격이 있는 것만 고르는 규칙은 StatusNotices 가 갖는다 — 정상 동기화
      같은 내부 처리 정보는 여기 오지 않는다. */
   const sysNotices = userFacingNotices(notices);
-  /* 0051 은 두 종류를 한 벨에서 **정렬로** 구분했다(지금 콘솔의 audience 를 앞에 모으고
-   * 섞였을 때만 그룹 헤더를 붙였다). 0060 에서 아예 **서버가 갈라서** 준다 — 이 벨은 한
-   * 종류만 받으므로 정렬도 그룹 헤더도 필요 없다. 섞어 놓고 잘 정렬하는 것보다 안 섞는
-   * 편이 낫다: 숫자(배지)까지 갈라져야 "관리 알림 3건" 이 정확해진다. */
-  const groupedItems = items;
-  const showAudienceGroups = false;
-  const rawCount = unread.data && unread.data.unread;
-  // 목록 응답에도 전체 미읽음 수(unread)가 들어온다. 팝오버가 열려 목록을 받았으면 그 스냅샷을
-  // 헤더 수로 신뢰해 헤더-목록 불일치(두 쿼리의 60s 타이머가 어긋나던 문제)를 없애고,
-  // unread-count 조회가 실패하면 목록의 unread로 폴백한다.
-  // list.isError면 list.data는 마지막으로 성공했던 응답(react-query 기본 동작)일 수 있다 — 헤더
-  // 숫자·힌트가 몸통(ErrorState로 전환)과 다른 이야기를 하지 않도록, 에러 상태에선 이 스냅샷을
-  // 신뢰하지 않고 unread-count 조회(rawCount)로만 폴백한다(product-quality-audit AREA=D).
-  const listUnread = (!list.isError && list.data && typeof list.data.unread === "number") ? list.data.unread : null;
-  const count = (open && listUnread != null) ? listUnread
-    : (typeof rawCount === "number" ? rawCount : (listUnread != null ? listUnread : 0));
-  // 카운트를 정말 알 수 없을 때만(둘 다 실패) 경고 표식. 목록 폴백이 있으면 0으로 뭉개지 않는다.
-  const countError = unread.isError && listUnread == null;
+  /* 목록 응답에도 전체 미읽음 수(unread)가 들어온다. 팝오버가 열려 목록을 받았으면 그 스냅샷을
+     헤더 수로 신뢰해 헤더-목록 불일치(두 쿼리의 60s 타이머가 어긋나던 문제)를 없애고,
+     unread-count 조회가 실패하면 목록의 unread로 폴백한다(`unreadOf`).
+     헤더 숫자는 **보여 주는 것 전부**를 센다 — 목록에 두 묶음이 서면 숫자도 둘을 합친다. */
+  const ownUnread = unreadOf(unread, list, open);
+  const otherUnread = otherAudience
+    ? unreadOf(unreadOther, listOther, open)
+    : { value: 0, badge: 0, fromList: null };
+  const count = ownUnread.value + otherUnread.value;
+  /* 🔴 **실패는 그 묶음에만 머문다.**
+   *
+   * 두 묶음을 함께 그리게 되면서 오류 판정이 둘을 `||` 로 묶었다 — 그래서 상대 콘솔의
+   * 질의 하나가 5xx 를 받으면, 멀쩡히 받아 캐시에 들어 있는 **이 콘솔의 알림까지** 통째로
+   * 「불러오지 못했습니다」한 장으로 덮였고 머리의 숫자와 「모두 읽음」도 함께 사라졌다.
+   * 한쪽이 실패했다는 사실은 그 묶음 자리에서 말하면 된다. 그래서 판정을 넷으로 가른다.
+   */
+  const ownCountError = unread.isError && ownUnread.fromList == null;
+  const otherCountError = !!otherAudience && unreadOther.isError && otherUnread.fromList == null;
+  // 내 묶음의 개수를 못 읽으면 숫자를 말할 수 없다 — 그때만 숫자를 감추고 다시 부를 길을 준다.
+  const countError = ownCountError;
+  // 상대 묶음만 실패했으면 내 숫자는 정확하다. 다만 **합계**는 모자랄 수 있으므로 표식은 남긴다
+  // (숫자를 지우면 정확히 아는 것까지 잃고, 아무 표식도 안 남기면 모자란 수를 전부라고 말한다).
+  const countPartial = !ownCountError && otherCountError;
+  const countWarn = countError || countPartial;
   // 팝오버 몸통이 오류 상태면 헤더가 "안 읽음 N"이나 '모두 읽음'을 자신 있게 말하는 것은
   // 몸통의 '불러오지 못했습니다'와 모순된다 — 그때는 헤더 숫자·일괄 액션을 감춘다(product-quality-audit AREA=D).
+  // 「모두 읽음」이 처리하는 것은 앞에 선 묶음 하나뿐이므로(D-386) 이 판정도 그 묶음만 본다.
   const listError = open && list.isError;
+  // 상대 묶음의 실패는 목록 위 한 줄로 말하고, 다시 부르는 것도 그 질의 하나만 부른다.
+  const otherListError = open && !!otherAudience && listOther.isError;
   // 최초 로드가 아직 안 끝났으면(느린 네트워크) 배지가 "확실히 0"과 똑같이 보였다 — 로딩 중인지
   // 정말 0인지 구분할 길이 없었다. unread 쿼리가 한 번이라도 응답(성공/실패)하기 전까지만 표시.
   const countPending = !unread.isFetched && !countError && count === 0;
+  // 두 묶음을 함께 받으므로 「아직 안 온 것」도 둘을 함께 본다 — 한쪽만 보면 나머지 묶음이
+  // 도착하기 전에 목록이 「새 알림이 없습니다」로 한 번 깜빡인다.
+  const listPending = list.isPending || (!!otherAudience && listOther.isPending);
   /* 방해금지·뮤트 — **알림은 그대로 쌓이고 배지만 조용해진다**(app/profiles/prefs.py).
    *
    * 그래서 이 컴포넌트는 두 숫자를 다르게 쓴다:
@@ -373,7 +463,7 @@ export function NotificationBell({ isUser, notices }) {
    * 조용한데 안 읽음이 있으면 빨간 숫자 대신 **조용한 점**을 띄운다 — 배지를 통째로
    * 없애면 사용자가 "조용히 해 둔 것"과 "아무것도 안 온 것"을 구분할 수 없다.
    * badge 를 안 주는 옛 응답(캐시)에서는 count 로 폴백해 예전과 똑같이 동작한다. */
-  const rawBadge = unread.data && typeof unread.data.badge === "number" ? unread.data.badge : count;
+  const rawBadge = ownUnread.badge + otherUnread.badge;
   /* 지시 1 로 종이 **사용자 알림의 단일 진입점**이 됐다. 예전에는 장애가 나면 본문 위 빨간
      띠가 대신 소리쳤는데 그것을 걷어냈으므로, 시스템 알림이 있으면 종이 반드시 신호해야
      한다 — 안 그러면 조치가 필요한 상황이 조용히 묻힌다. 방해금지도 이것까지 잠재우지
@@ -385,9 +475,18 @@ export function NotificationBell({ isUser, notices }) {
     ? `방해금지, 알림 끔 설정 때문에 조용합니다 (안 읽음 ${count}건)`
     : "방해금지 중입니다";
 
+  /* 「모두 읽음」은 **앞에 선 묶음 하나만** 처리한다(D-386). 두 묶음이 함께 서 있으면
+     단추와 확인 문구가 그 범위를 밝힌다 — 화면에 뜬 적 없는 알림까지 지웠다고 읽히면
+     그 순간 D-386 이 없앤 사고가 그대로 돌아온다. */
+  const markAllLabel = otherAudience ? audienceLabel(audience) + " 알림 모두 읽음" : "모두 읽음";
   async function markAll() {
     // 전체 페이지의 '모두 읽음'과 동작을 맞춘다(되돌릴 수 없는 일괄 처리라 확인을 받는다).
-    const ok = await confirm("모든 알림을 읽음 처리할까요?", { confirmLabel: "모두 읽음" });
+    const ok = await confirm(
+      otherAudience
+        ? audienceLabel(audience) + " 알림만 읽음 처리합니다. 계속할까요?"
+        : "모든 알림을 읽음 처리할까요?",
+      { confirmLabel: "모두 읽음" },
+    );
     if (ok) readAll.mutate();
   }
   // readOne은 항목 전체가 공유하는 단일 mutation이라 isPending/variables로는 '지금 어느 버튼이
@@ -399,18 +498,18 @@ export function NotificationBell({ isUser, notices }) {
   // 진행 중 id를 pendingIds에 넣고 mutate하고 정리까지 한곳에서 — markOne과 openItem이 같은
   // 가드를 공유하게 한다. 예전엔 openItem이 pendingIds에 넣지 않아, 항목 본문을 빠르게 더블
   // 클릭하면 같은 id로 POST /{id}/read가 두 번 나갔다(product-quality-audit AREA=D).
-  function runReadOne(id) {
+  function runReadOne(id, aud) {
     setPendingIds((s) => { if (s.has(id)) return s; const n = new Set(s); n.add(id); return n; });
-    readOne.mutate(id, {
+    readOne.mutate({ id, aud }, {
       onSettled: () => setPendingIds((s) => { if (!s.has(id)) return s; const n = new Set(s); n.delete(id); return n; }), });
   }
-  function markOne(e, id) {
+  function markOne(e, n) {
     e.stopPropagation();
-    if (pendingIds.has(id)) return;
-    runReadOne(id);
+    if (pendingIds.has(n.id)) return;
+    runReadOne(n.id, itemAudience(n));
   }
   function openItem(n) {
-    if (!n.read_at && !pendingIds.has(n.id)) runReadOne(n.id);
+    if (!n.read_at && !pendingIds.has(n.id)) runReadOne(n.id, itemAudience(n));
     // related_object_id가 있고 대상 화면이 id 딥링크를 지원하면(OBJ_ID_PARAM) 목록 전체가 아니라
     // 그 행 하나를 바로 연다, 전체 알림 화면(registry.js)이 이미 하는 것과 같은 동작
     // (product-quality-audit AREA=D). 서버가 목적지를 계산해 준 유형은 그 값이 먼저다.
@@ -426,18 +525,19 @@ export function NotificationBell({ isUser, notices }) {
           .noti-quiet / .noti-err / .noti-pending)를 IconButton + Badge 하나로 모았다.
           상태가 넷이라는 사실과 각 상태의 의미(아래 주석)는 그대로 남긴다 — 바뀐 것은
           '어떻게 그리는가'뿐이고, 무엇을 말하는지는 하나도 줄이지 않았다. */}
-      <Tooltip title={badge ? (countError ? "표시된 숫자가 최신이 아닐 수 있습니다" : "알림")
+      <Tooltip title={badge ? (countWarn ? "표시된 숫자가 최신이 아닐 수 있습니다" : "알림")
         : quiet ? quietTitle
         : countError ? "알림 개수를 불러오지 못했습니다"
+        : countPartial ? audienceLabel(otherAudience) + " 알림 개수를 불러오지 못해 합계가 모자랄 수 있습니다"
         : countPending ? "알림 개수를 불러오는 중" : "알림"}>
         <Badge
           // 숫자 배지 / 조용(중립 점) / 오류(경고 점) / 로딩(정보 점). 넷 다 아무 표시도 없는
           // 상태와 구분돼야 한다 — "안 온 것"과 "안 불러온 것"은 다른 사실이다.
           badgeContent={badge ? (badge > 99 ? "99+" : badge) : undefined}
           variant={badge ? "standard" : "dot"}
-          invisible={!badge && !quiet && !countError && !countPending}
-          color={badge ? (countError ? "warning" : "error")
-            : countError ? "warning" : countPending ? "info" : "default"}
+          invisible={!badge && !quiet && !countWarn && !countPending}
+          color={badge ? (countWarn ? "warning" : "error")
+            : countWarn ? "warning" : countPending ? "info" : "default"}
           overlap="circular"
           /* 배지를 **글리프 쪽으로** 당긴다. MUI 는 배지를 감싼 요소(여기서는 40px IconButton
              hit area)의 모서리에 붙이는데, 그 안의 종 글리프는 16px 남짓이라 기본값이면 배지가
@@ -450,7 +550,7 @@ export function NotificationBell({ isUser, notices }) {
           <IconButton
             ref={bellRef}
             color="inherit"
-            aria-label={"알림" + (count ? " (읽지 않음 " + count + ")" : "") + (quiet ? " (방해금지 중: 배지만 조용함)" : "") + (countError ? " (개수를 불러오지 못함)" : "")}
+            aria-label={"알림" + (count ? " (읽지 않음 " + count + ")" : "") + (quiet ? " (방해금지 중: 배지만 조용함)" : "") + (countError ? " (개수를 불러오지 못함)" : countPartial ? " (" + audienceLabel(otherAudience) + " 알림 개수를 불러오지 못함)" : "")}
             aria-haspopup="dialog" aria-expanded={open} aria-controls="noti-pop"
             onClick={() => { if (!open && unread.isError) unread.refetch(); setOpen((v) => !v); }}
           >
@@ -491,7 +591,7 @@ export function NotificationBell({ isUser, notices }) {
                 개수 조회만 실패한 경우엔(countError) 수동 재시도 진입로를 준다. */}
             {listError ? null
               : countError ? <MuiButton size="small" onClick={() => unread.refetch()}>개수 다시 불러오기</MuiButton>
-              : count > 0 ? <MuiButton size="small" onClick={markAll} disabled={readAll.isPending}>모두 읽음</MuiButton>
+              : ownUnread.value > 0 ? <MuiButton size="small" onClick={markAll} disabled={readAll.isPending}>{markAllLabel}</MuiButton>
               : null}
           </Box>
           {sysNotices.length ? (
@@ -514,23 +614,41 @@ export function NotificationBell({ isUser, notices }) {
           ) : null}
           {/* 안 읽음이 page_size(8건)보다 많으면 헤더 숫자와 실제 보이는 행 수가 어긋난다 —
               무엇이 더 있는지 명시적으로 알려준다(product-quality-audit AREA=D). */}
-          {!list.isPending && !list.isError && items.length > 0 && items.length < count ? (
+          {!listPending && !listError && groupedItems.length > 0 && groupedItems.length < count ? (
             <Typography className="noti-pop-hint" sx={{
               px: 2, py: 0.75, fontSize: FONT_SIZE.caption, color: "text.secondary",
               bgcolor: "action.hover", flexShrink: 0,
-            }}>{items.length}건 표시 중, 전체 보기에서 나머지 확인</Typography>
+            }}>{groupedItems.length}건 표시 중, 전체 보기에서 나머지 확인</Typography>
+          ) : null}
+          {/* 상대 묶음만 실패했을 때의 자리. 이 한 줄이 없으면 그 묶음이 **조용히 빠진 채**
+              나머지가 전부인 것처럼 보인다 — 「실패인데 없다고 말하는 것」이 그것이다.
+              다시 부르는 것도 실패한 질의 하나뿐이다(멀쩡한 목록을 다시 받을 이유가 없다). */}
+          {otherListError && !listPending && !listError ? (
+            <Box className="noti-pop-partial" role="status" sx={{
+              display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1,
+              px: 2, py: 0.75, bgcolor: "action.hover", flexShrink: 0,
+            }}>
+              <Typography sx={{ fontSize: FONT_SIZE.caption, color: "text.secondary" }}>
+                {audienceLabel(otherAudience)} 알림을 불러오지 못했습니다.
+              </Typography>
+              <MuiButton size="small" onClick={() => listOther.refetch()}>다시 불러오기</MuiButton>
+            </Box>
           ) : null}
           <Box className="noti-pop-body" sx={{ overflowY: "auto", flex: 1, minHeight: 0 }}>
             {/* v5에서 isLoading은 isPending && isFetching이다, enabled:open이라 팝오버가 막
                 열려 fetch가 아직 이펙트로 발사되기 전 프레임엔 isPending=true인데 isFetching이
                 아직 false라 isLoading이 false로 잡혀, '로딩 중'도 '빈 목록'도 아닌 순간이 있었다. */}
-            {list.isPending ? <div className="noti-loading"><Skeleton lines={3} /></div>
+            {listPending ? <div className="noti-loading"><Skeleton lines={3} /></div>
               // 앱 전역의 401/403 오류 패턴을 그대로 쓴다(kit.jsx의 ErrorState), 세션 만료 시
               // '로그인이 필요합니다' + 로그인 링크를 보이고, 소용없는 재시도 버튼을 숨긴다.
               // 자체 오류 UI를 만들지 않는다. size="compact"(DS-15) — 340px 팝오버 폭에 맞춘다,
               // 예전엔 이 크기를 global.css의 특이도 전쟁 CSS로 되짚어 맞췄다.
-              : list.isError ? <ErrorState size="compact" error={list.error} onRetry={() => list.refetch()} />
-              : items.length === 0 ? (
+              : listError ? <ErrorState size="compact" error={list.error}
+                  onRetry={() => list.refetch()} />
+              // 상대 묶음이 실패했으면 「새 알림이 없습니다」라고 말하지 않는다 — 그것은
+              // 못 받아 온 것을 안 온 것이라고 말하는 문장이다. 위 한 줄이 그 사실을 맡는다.
+              : groupedItems.length === 0 && otherListError ? null
+              : groupedItems.length === 0 ? (
                 // kit `EmptyState`로 통일(DS-14) — 예전엔 이 팝오버만 지역 구현(hand-rolled div+svg)
                 // 이었다. 트리거 버튼과 같은 종 아이콘을 흐리게만 재사용하면 '장식이 흐려진 벨'로
                 // 보여 플레이스홀더처럼 읽힌다, '다 확인함'을 뜻하는 별개의 체크 아이콘을 그대로 쓴다.
@@ -551,7 +669,8 @@ export function NotificationBell({ isUser, notices }) {
               : groupedItems.map((n, idx) => {
                 // 그룹 헤더 — 바로 앞 항목과 audience가 다를 때만 그린다(showAudienceGroups가
                 // false면, 즉 한 종류뿐이면 아예 안 그린다. 항목이 8건뿐인 팝오버에서 매번
-                // 헤더가 뜨면 그게 오히려 소음이다).
+                // 헤더가 뜨면 그게 오히려 소음이다). 두 묶음은 콘솔 것이 앞에 모여 있어
+                // 머리가 최대 둘이다 — 시간순으로 섞으면 여기가 머리로 반쯤 찬다.
                 const aud = itemAudience(n);
                 const prevAud = idx > 0 ? itemAudience(groupedItems[idx - 1]) : null;
                 const groupHeader = showAudienceGroups && aud !== prevAud ? audienceLabel(aud) : null;
@@ -633,7 +752,7 @@ export function NotificationBell({ isUser, notices }) {
                         })} />}
                   {!n.read_at ? (
                     <button type="button" className="noti-item-read" aria-label="읽음 표시" title="읽음 표시"
-                      disabled={pendingIds.has(n.id)} onClick={(e) => markOne(e, n.id)}>
+                      disabled={pendingIds.has(n.id)} onClick={(e) => markOne(e, n)}>
                       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"
                         strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5" /></svg>
                     </button>

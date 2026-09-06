@@ -19,7 +19,7 @@ from sqlalchemy.orm import Session
 
 from app.core.audit import record_audit_from_request
 from app.core.db import DEFAULT_WRITE_CONFLICT_RETRIES, is_insert_race, write_conflict_backoff
-from app.core.errors import ForbiddenError, NotFoundError, ValidationAppError
+from app.core.errors import ConflictError, ForbiddenError, NotFoundError, ValidationAppError
 from app.core.scope import Principal
 from app.authz.permissions import ORG_MANAGE
 from app.core.deps import get_db, get_principal, require_csrf, require_permission
@@ -33,14 +33,19 @@ from app.org.schemas import (
     OrgItemCreateRequest,
     OrgItemUpdateRequest,
 )
+from app.core.scope import require_global_management
 from app.org.service import (
     bulk_child_department_count,
     bulk_usage_count,
     create_item,
     delete_item,
+    delete_precheck,
+    detached_message,
+    ensure_may_suspend_org,
     get_or_404,
     item_view,
     list_items,
+    scope_clause,
     update_item,
     normalize_name,
     usage_count,
@@ -48,6 +53,28 @@ from app.org.service import (
 from app.org.tree import tree_rows
 from app.users.models import User
 
+
+
+def _audit_if_changed(
+    request: Request, db: Session, *, action: str, object_type: str, object_id: str,
+    before: dict, after: dict,
+) -> bool:
+    """**바뀐 것이 있을 때만** 감사 행을 남긴다. 남겼으면 True.
+
+    감사 로그는 「무엇이 언제 바뀌었나」를 읽는 곳이다. 값이 하나도 안 바뀐 '수정' 행이
+    섞이면 조사자는 그 시각에 무언가 일어난 줄 알고 시간을 쓴다. 빈 본문 PATCH 도, 같은
+    값을 다시 보낸 PATCH 도 200 은 그대로 돌려준다 — 응답이 아니라 기록의 문제다.
+
+    화면은 이미 바뀐 것이 없으면 요청 자체를 안 보내지만(`orgModals.jsx::diffFields`),
+    API·가져오기·연동은 그대로 보낸다. 그래서 판정은 서버에 있어야 한다.
+    """
+    if before == after:
+        return False
+    record_audit_from_request(
+        request, db, action=action, object_type=object_type, object_id=object_id,
+        before=before, after=after,
+    )
+    return True
 
 
 def _org_names(db: Session, rows) -> dict[str, str]:
@@ -144,12 +171,19 @@ def _make_org_router(
             bulk_child_department_count(db, [row.id]).get(row.id, 0)
             if model is Department else None
         )
-        return {body_key: item_view(
+        body = item_view(
             row,
             user_count=usage_count(db, model, row.id),
             org_name=names.get(getattr(row, "org_id", None)),
             child_department_count=child_count,
-        )}
+        )
+        if model is Department:
+            # **삭제 판정은 서버가 한 번만 내린다** (org-01). 상세 판이 자기 계산으로
+            # 「지금 삭제할 수 있습니다」라고 말하던 시절에는 인원과 하위 부서 둘만 세어,
+            # 프로젝트·지식 공간·팀 채팅방이 매달린 부서에서 눌러 보면 409 였다. 갈래·건수·
+            # 라벨·이유 문장을 여기서 실어 화면이 그리기만 하게 한다.
+            body["delete_precheck"] = delete_precheck(db, row.id)
+        return {body_key: body}
 
     @router.post("", status_code=201)
     def create_org_item(
@@ -186,7 +220,7 @@ def _make_org_router(
         fields = payload.model_dump(exclude_unset=True)
         # 상위 부서도 범위를 지난다 — 생성만 막으면 수정으로 같은 일을 한다.
         update_item(db, row, scope=principal.management, **fields)
-        record_audit_from_request(
+        _audit_if_changed(
             request, db, action=f"{audit_type}.update", object_type=audit_type,
             object_id=row.id, before=before, after=item_view(row),
         )
@@ -197,12 +231,21 @@ def _make_org_router(
                         principal: Principal = Depends(get_principal)):
         row = get_or_404(db, model, item_id, principal.management)
         before = item_view(row)
-        delete_item(db, row)  # 쓰는 사람이 있으면 여기서 409로 막힌다
+        # 쓰는 사람이 있으면 여기서 409로 막힌다. 막지 않는 갈래(팀 채팅방·옛 문서 기록)는
+        # 같은 트랜잭션에서 연결만 끊고 무엇을 끊었는지 돌려준다.
+        detached = delete_item(db, row)
         record_audit_from_request(
             request, db, action=f"{audit_type}.delete", object_type=audit_type,
             object_id=item_id, before=before,
+            # 끊은 것을 기록에 남긴다 — 나중에 「이 방이 왜 부서를 잃었나」를 물을 사람에게
+            # 답이 있어야 한다.
+            after={"detached": detached} if detached else None,
         )
-        return {"ok": True}
+        body = {"ok": True}
+        if detached:
+            body["detached"] = detached
+            body["message"] = detached_message(detached)
+        return body
 
     return router
 
@@ -258,18 +301,42 @@ organizations_router = APIRouter(
 )
 
 
-def _bulk_org_counts(db: Session, org_ids: list[str]) -> tuple[dict[str, int], dict[str, int]]:
+def _scope_departments(stmt, scope):
+    """조직 안 부서를 세는 질의에 **관리 범위를 건다** (org-12).
+
+    범위 관리자에게 보이는 숫자는 그가 볼 수 있는 것과 같은 모집단이어야 한다. 트리는
+    범위를 지나는데(`app/org/tree.py`) 이 숫자는 안 지나서, 한 화면에서 요약 타일은
+    「1 부서」, 조직 상세 판은 「3 부서」라고 말했다 — 관리자는 어느 쪽을 믿을지 알 수 없고
+    「내가 못 보는 부서가 둘 더 있다」는 사실 자체가 범위 밖 정보다.
+
+    판정은 목록·트리가 쓰는 `scope_clause` 그대로다 — 여기서 두 번째 규칙을 만들지 않는다.
+    """
+    clause = scope_clause(scope, Department)
+    return stmt if clause is None else stmt.where(clause)
+
+
+def _scope_users(stmt, scope):
+    """인원을 세는 질의에 범위를 건다. 사람을 세는 규칙은 사용자 목록과 같아야 한다 —
+    그래서 `app/org/tree.py::_org_user_count` 와 **같은 함수**(`apply_user_scope`)를 쓴다."""
+    from app.core.scope import apply_user_scope
+
+    return stmt if scope is None else apply_user_scope(stmt, scope)
+
+
+def _bulk_org_counts(
+    db: Session, org_ids: list[str], scope=None
+) -> tuple[dict[str, int], dict[str, int]]:
     """(부서 수, 인원 수) 그룹 질의 — UA-16: 목록에서 `_org_view`를 행마다 부르면 조직 하나당
     COUNT 두 번, 목록 N건에 질의 2N번이었다. 안 쓰는 id는 딕셔너리에 없다(호출부가 `.get`)."""
     ids = {i for i in org_ids if i}
     if not ids:
         return {}, {}
     dept_rows = db.execute(
-        select(Department.org_id, func.count())
+        _scope_departments(select(Department.org_id, func.count()), scope)
         .where(Department.org_id.in_(ids)).group_by(Department.org_id)
     ).all()
     user_rows = db.execute(
-        select(User.org_id, func.count())
+        _scope_users(select(User.org_id, func.count()), scope)
         .where(User.org_id.in_(ids)).group_by(User.org_id)
     ).all()
     return {r[0]: r[1] for r in dept_rows}, {r[0]: r[1] for r in user_rows}
@@ -278,22 +345,41 @@ def _bulk_org_counts(db: Session, org_ids: list[str]) -> tuple[dict[str, int], d
 def _org_view(
     db: Session, row: Organization, *,
     dept_counts: dict[str, int] | None = None, user_counts: dict[str, int] | None = None,
+    scope=None,
 ) -> dict:
     """조직 한 곳 + **그 안에 무엇이 들어 있는지**. 숫자가 곧 포함 관계의 요약이다.
 
     `dept_counts`/`user_counts`를 주면(목록에서 `_bulk_org_counts`로 미리 구한 것) 그
     딕셔너리를 쓴다 — 단건 조회(get/create/update)는 안 주므로 그때만 개별 COUNT를 한다.
+
+    `scope` 는 목록·단건이 **같은 모집단**을 세게 한다(org-12). 안 주면 전체를 센다 —
+    범위를 안 건 것이 코드에 드러나야 하므로 기본값으로 조용히 넓히지 않는다.
+
+    ## `can_edit` 은 화면이 다시 계산하지 않게 하려고 싣는다
+
+    조직 이름·상태를 바꾸는 PATCH 는 `require_global_management` 를 지난다(org-07). 그런데
+    이 응답은 범위를 좁힌 관리자에게도 자기 조직 행을 준다 — 그 사람의 상세 판은 「수정」
+    버튼을 그려 놓고, 저장할 때가 되어서야 403 을 받는다. 같은 판이 「비활성화」에 대해서는
+    이미 판정을 재현하고 안내까지 붙이므로(`OrgDetailPanel.jsx`), 판정의 정본인 서버가
+    (D-194) 답을 함께 실어 준다. 화면이 같은 규칙을 다시 적으면 반드시 갈라진다 —
+    부서 삭제(`delete_precheck`)가 같은 이유로 이미 그렇게 한다.
+
+    `scope` 를 안 받았으면 `False` 다. **모르면 좁게 답한다** — 넓게 틀리면 버튼이 서고,
+    그 버튼은 눌러 봐야 403 이다.
     """
     dept_count = (
         dept_counts.get(row.id, 0) if dept_counts is not None
         else db.execute(
-            select(func.count()).select_from(Department).where(Department.org_id == row.id)
+            _scope_departments(
+                select(func.count()).select_from(Department), scope
+            ).where(Department.org_id == row.id)
         ).scalar_one()
     )
     user_count = (
         user_counts.get(row.id, 0) if user_counts is not None
         else db.execute(
-            select(func.count()).select_from(User).where(User.org_id == row.id)
+            _scope_users(select(func.count()).select_from(User), scope)
+            .where(User.org_id == row.id)
         ).scalar_one()
     )
     return {
@@ -303,6 +389,9 @@ def _org_view(
         "status": row.status,
         "department_count": dept_count,
         "user_count": user_count,
+        # `update_organization` 의 `require_global_management` 와 **같은 술어**다
+        # (`Principal.manages_everything` 이 곧 `management.is_global` 이다).
+        "can_edit": bool(scope is not None and scope.is_global),
         "created_at": row.created_at.isoformat(),
         "updated_at": row.updated_at.isoformat(),
     }
@@ -313,6 +402,24 @@ def _get_org_or_404(db: Session, org_id: str) -> Organization:
     if row is None:
         raise NotFoundError("조직을 찾을 수 없습니다.")
     return row
+
+
+def _ensure_org_name_is_free(db: Session, name: str, *, keep_id: str | None = None) -> None:
+    """조직 이름 중복을 막는다 (org-11). 대소문자만 다른 이름도 같은 이름으로 본다.
+
+    조직은 이 제품의 **테넌트 경계**다. 이름이 완전히 같은 조직이 둘이면 트리에 같은 줄이
+    두 개 서고, 「부서 추가」의 조직 선택기도 라벨이 같아 어느 회사에 부서를 만드는지 화면만
+    봐서는 끝내 알 수 없다. 같은 콘솔의 부서·직책 명부가 이미 이름 중복을 409 로 막는다
+    (`service.create_item`) — 조직만 뚫려 있었다.
+
+    유니크 제약은 `slug` 에만 있어 이 검사는 사전 검사다. 동시에 같은 이름 둘이 들어오면
+    둘 다 통과할 수 있지만, 이 검사가 막으려는 것은 경합이 아니라 **사람의 실수**다.
+    """
+    stmt = select(Organization).where(func.lower(Organization.name) == name.lower())
+    if keep_id is not None:
+        stmt = stmt.where(Organization.id != keep_id)
+    if db.execute(stmt).scalars().first() is not None:
+        raise ConflictError(f"이미 있는 조직입니다: {name}")
 
 
 def _visible_org_or_404(db: Session, org_id: str, principal) -> Organization:
@@ -348,10 +455,11 @@ def list_organizations(
     if not scope.is_global:
         stmt = stmt.where(Organization.id == scope.org_id)
     rows = list(db.execute(stmt).scalars())
-    dept_counts, user_counts = _bulk_org_counts(db, [r.id for r in rows])
+    dept_counts, user_counts = _bulk_org_counts(db, [r.id for r in rows], scope)
     return {
         "items": [
-            _org_view(db, r, dept_counts=dept_counts, user_counts=user_counts) for r in rows
+            _org_view(db, r, dept_counts=dept_counts, user_counts=user_counts, scope=scope)
+            for r in rows
         ],
         "total": len(rows),
     }
@@ -363,7 +471,9 @@ def get_organization(
     db: Session = Depends(get_db),
     principal: Principal = Depends(get_principal),
 ):
-    return {"organization": _org_view(db, _visible_org_or_404(db, org_id, principal))}
+    return {"organization": _org_view(
+        db, _visible_org_or_404(db, org_id, principal), scope=principal.management
+    )}
 
 
 # 후속 재감사(2026-08-15)에서 발견: 아래 slug 중복 사전 검사와 db.add/flush 사이에
@@ -395,7 +505,11 @@ def create_organization(
         select(Organization).where(Organization.slug == slug)
     ).scalar_one_or_none()
     if exists is not None:
-        raise ValidationAppError(f"이미 있는 식별자입니다: {slug}")
+        # 이미 있는 자원과의 충돌은 409 다 (org-10). 같은 콘솔의 부서·직책 명부가 같은
+        # 사건에 `ConflictError` 를 던지는데(`service.create_item`) 조직만 422 였다 —
+        # 화면 문구는 같아 보여도 API 를 쓰는 쪽은 코드로 분기하므로 그 분기가 틀렸다.
+        raise ConflictError(f"이미 있는 식별자입니다: {slug}")
+    _ensure_org_name_is_free(db, name)
     row = Organization(slug=slug, name=name, status=ORG_ACTIVE)
     for attempt in range(_CREATE_ORG_RETRIES):
         try:
@@ -407,8 +521,8 @@ def create_organization(
             if not is_insert_race(exc):
                 raise
             if attempt == _CREATE_ORG_RETRIES - 1:
-                # 예산 소진 — 사전 검사가 잡았을 때와 같은 오류로 통일한다.
-                raise ValidationAppError(f"이미 있는 식별자입니다: {slug}") from None
+                # 예산 소진 — 사전 검사가 잡았을 때와 같은 오류로 통일한다(둘 다 409).
+                raise ConflictError(f"이미 있는 식별자입니다: {slug}") from None
             try:
                 # app/org/service.py::create_item과 같은 이유 — 스냅샷을 새로 뜨는 이
                 # commit 자체도 심한 경합에서 거부될 수 있다.
@@ -422,7 +536,7 @@ def create_organization(
         request, db, action="organization.create", object_type="organization",
         object_id=row.id, after={"slug": slug, "name": name},
     )
-    return {"organization": _org_view(db, row)}
+    return {"organization": _org_view(db, row, scope=principal.management)}
 
 
 @organizations_router.patch("/{org_id}")
@@ -435,10 +549,17 @@ def update_organization(
 ):
     # 목록·단건과 **같은 문**을 지난다 — 목록만 가려서는 id 로 뚫린다.
     row = _visible_org_or_404(db, org_id, principal)
+    # 그리고 생성·정지와도 **같은 문**을 지난다 (org-07). 조직 이름은 테넌트의 정체라
+    # 로그인 화면·머리·프로필·감사 로그에 그대로 나간다 — 부서 하나를 맡은 관리자가 회사
+    # 이름을 바꿀 업무상 이유가 없고, 같은 라우터의 다른 두 동작은 이미 범위를 판정한다.
+    # 범위 밖 단일 자원은 404 지만 이 행의 존재는 이미 화면에 있으므로 403 이다.
+    require_global_management(principal, "조직 정보")
     changes = payload.model_dump(exclude_unset=True)
     before = {"name": row.name, "status": row.status}
     if "name" in changes:
-        row.name = normalize_name(changes["name"] or "")
+        name = normalize_name(changes["name"] or "")
+        _ensure_org_name_is_free(db, name, keep_id=row.id)
+        row.name = name
     if "status" in changes:
         status = (changes["status"] or "").strip()
         if status not in (ORG_ACTIVE, ORG_SUSPENDED):
@@ -446,6 +567,11 @@ def update_organization(
                 f"상태는 {ORG_ACTIVE} 또는 {ORG_SUSPENDED} 여야 합니다."
             )
         was = before["status"]
+        if status == ORG_SUSPENDED:
+            # 자기 조직 정지는 포탈 운영자만 — 아래 `_revoke_org_sessions` 가 요청한 사람의
+            # 세션까지 끊어 정지를 풀 사람이 조직 안에 남지 않기 때문이다. 상태를 바꾸기
+            # **전에** 판정해야 403 이 아무것도 바꾸지 않은 채로 돌아간다.
+            ensure_may_suspend_org(request.state.user, row.id)
         row.status = status
         if status == ORG_SUSPENDED and was != ORG_SUSPENDED:
             # **즉시** 끊는다. 안 그러면 이미 로그인해 있는 사람은 세션이 만료될 때까지
@@ -454,8 +580,10 @@ def update_organization(
             revoked = _revoke_org_sessions(request, db, row.id)
             before["revoked_sessions"] = revoked
     db.flush()
-    record_audit_from_request(
+    # 바뀐 것이 없으면 감사 행도 없다 (org-13) — 부서·직책과 같은 판정을 함께 쓴다.
+    # `revoked_sessions` 는 정지가 실제로 일어났을 때만 붙으므로 비교를 흐리지 않는다.
+    _audit_if_changed(
         request, db, action="organization.update", object_type="organization",
         object_id=row.id, before=before, after={"name": row.name, "status": row.status},
     )
-    return {"organization": _org_view(db, row)}
+    return {"organization": _org_view(db, row, scope=principal.management)}

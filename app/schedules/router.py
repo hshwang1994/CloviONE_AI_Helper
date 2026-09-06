@@ -6,16 +6,19 @@ import json
 from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, Query, Request
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
 from app.core import people
-from app.core.audit import record_audit_from_request
+from app.core.audit import audit_failure_on_exception, record_audit_from_request
 from app.core.authz import CONSOLE_OPS_ROLES, CONSOLE_READ_ROLES, CONSOLE_WRITE_ROLES
-from app.core.deps import get_db, require_csrf, require_roles
+from app.core.db import is_insert_race
+from app.core.deps import get_db, get_principal, require_csrf, require_roles
 from app.core.errors import ConflictError, NotFoundError, ValidationAppError
 from app.core.pagination import PageParams
+from app.core.scope import Principal, require_global_management
 from app.core.sort import SortParams, SortSpec, order_by
 from app.jobs import repository as jobs_repo
 from app.jobs.models import STATUS_QUEUED, STATUS_RUNNING, Job
@@ -32,10 +35,19 @@ from app.schedules.models import (
     ScheduleRun,
 )
 from app.schedules.scheduler import (
+    MAX_ATTEMPTS_CEILING,
+    MAX_ATTEMPTS_FLOOR,
+    UNREADABLE_RETRY_POLICY_MESSAGE,
+    InvalidRetryPolicy,
     _has_active_run,
     _max_attempts,
     advance_next_run,
     create_run_and_enqueue,
+)
+from app.schedules.service import (
+    definition_snapshot,
+    definition_version,
+    ensure_enablable,
 )
 
 router = APIRouter(
@@ -49,6 +61,11 @@ SYSTEM_TARGETS = frozenset({"noop"})
 
 
 class ScheduleRequest(BaseModel):
+    # 모르는 필드를 조용히 버리지 않는다. 이 스키마의 이름 대부분이 컬럼 이름과 같아서
+    # (`enabled`·`owner_user_id`·`next_run_at`·`last_run_at`) 그 이름을 실어 보낸 쪽은
+    # 값이 반영됐다고 믿는다 — 200 만 받고는 아무 일도 없었다는 것을 알 방법이 없다.
+    model_config = ConfigDict(extra="forbid")
+
     name: str = Field(min_length=1, max_length=120)
     description: str | None = Field(default=None, max_length=2000)
     schedule_type: str = TYPE_CRON
@@ -65,6 +82,23 @@ class ScheduleRequest(BaseModel):
     timeout_seconds: int = Field(default=180, ge=1, le=3600)
     start_at: str | None = None
     end_at: str | None = None
+    #: 편집을 시작한 시점의 판(`_view` 의 `base_version` 을 그대로 돌려보낸다). 보내면 그
+    #: 사이 다른 사람이 먼저 저장했을 때 409 로 막는다. 안 보내면 예전대로 동작한다 —
+    #: 새 계약을 강제해 기존 클라이언트를 깨뜨리지 않는다(app/projects/service.py
+    #: ::ensure_not_changed 와 같은 규약).
+    base_version: str | None = Field(default=None, max_length=64)
+
+    @field_validator("name", mode="before")
+    @classmethod
+    def _name_not_blank(cls, v):
+        # `min_length=1` 은 공백 문자도 한 자로 센다 — 이름이 공백뿐인 행은 목록에서도
+        # 검색에서도 감사 로그에서도 지목할 수 없고, 이름이 유니크 키라 이름 공간까지
+        # 차지한다. 부서·직책·사용자 이름이 이미 지키는 규칙과 같은 규칙이다.
+        if isinstance(v, str):
+            v = v.strip()
+            if not v:
+                raise ValueError("이름을 입력해야 합니다.")
+        return v
 
     @field_validator("schedule_type")
     @classmethod
@@ -131,6 +165,32 @@ class ScheduleRequest(BaseModel):
             json.dumps(v)
         return v
 
+    @field_validator("retry_policy")
+    @classmethod
+    def _retry_policy_runnable(cls, v):
+        """재시도 횟수는 **저장 시점에** 본다 — 실행 시점에 보면 이미 늦다.
+
+        `scheduler._max_attempts` 가 이 값을 정수로 읽어 잡의 최대 시도 횟수로 싣는다.
+        문자열·목록·소수가 들어오면 그 일정은 저장되고 활성화까지 되지만 실행은 매번
+        터졌다(수동 실행은 500, 자동 실행은 로그 한 줄).
+
+        여기서 보는 것은 **형**뿐이다. 정수가 아닌 값은 어느 경로로도 실행될 수 없어서
+        (`_max_attempts` 가 `InvalidRetryPolicy` 로 올린다) 그 값을 그대로 다시 저장하게
+        둘 이유가 없다. 반면 **범위**를 벗어난 정수는 이미 저장돼 멀쩡히 돌고 있다
+        (`_max_attempts` 가 예전부터 1~10 으로 잘라 왔다). 그 값을 여기서 거절하면 그 행은
+        설명 한 줄도 못 고치게 되므로, 범위는 `current` 를 볼 수 있는
+        `_validate_and_normalize` 에서 본다 (target_ref·end_at 과 같은 처리다).
+        """
+        if not isinstance(v, dict) or "max_attempts" not in v:
+            return v
+        raw = v["max_attempts"]
+        # bool 은 int 의 하위형이다 — True 를 1 로 받으면 잘못 적은 값을 삼키게 된다.
+        if isinstance(raw, bool) or not isinstance(raw, int):
+            raise ValueError(
+                f"재시도 횟수는 {MAX_ATTEMPTS_FLOOR}~{MAX_ATTEMPTS_CEILING} 사이 정수여야 합니다."
+            )
+        return v
+
 
 def _parse_iso(value: str | None, field: str) -> datetime | None:
     if value is None:
@@ -192,6 +252,8 @@ def _view(row: Schedule, names: dict | None = None) -> dict:
         ),
         "last_run_at": row.last_run_at.isoformat() if row.last_run_at else None,
         "created_at": row.created_at.isoformat(),
+        # 편집 폼이 그대로 돌려보내면 낙관적 잠금이 된다(_ensure_not_changed).
+        "base_version": _version_of(row),
     }
 
 
@@ -209,6 +271,77 @@ def _run_view(run: ScheduleRun) -> dict:
         "retry_count": run.retry_count,
         "created_at": run.created_at.isoformat(),
     }
+
+
+def _version_of(row: Schedule) -> str:
+    """이 행의 판 — **정의**에서만 만든다(`app/schedules/service.py::definition_version`).
+
+    정수 판 컬럼을 새로 만들지 않는 이유는 그것이 마이그레이션이기 때문이고, `updated_at`
+    을 쓰지 않는 이유는 그 값이 사람의 저장 말고 스케줄러의 실행에도 올라가기 때문이다
+    (자세한 근거는 `definition_version` 의 설명에 있다).
+    """
+    return definition_version(row)
+
+
+def _ensure_not_changed(row: Schedule, base_version: str | None) -> None:
+    """편집을 시작한 뒤 다른 사람이 먼저 저장했으면 막는다.
+
+    일정 정의는 주기·페이로드·재시도 정책이 함께 든 한 벌이고 PUT 은 전체 교체다. 두
+    관리자가 각자 다른 칸을 고치면 나중 저장이 앞 저장을 통째로 덮는데, 덮인 쪽은 저장
+    성공 토스트를 봤기 때문에 사라진 사실을 알아챌 수 없다.
+
+    `base_version` 을 안 보내면 예전대로 동작한다 — 새 계약을 강제해 기존 클라이언트·CLI 를
+    깨뜨리지 않는다(`app/projects/service.py::ensure_not_changed` 와 같은 규약).
+    """
+    if base_version is None:
+        return
+    if base_version != _version_of(row):
+        raise ConflictError(
+            "다른 사람이 먼저 저장했습니다. 새로 고쳐 최신 내용을 확인한 뒤 다시 저장해 주세요."
+        )
+
+
+def _require_global_schedule_write(
+    request: Request,
+    db: Session,
+    principal: Principal,
+    *,
+    action: str,
+    object_id: str | None = None,
+) -> None:
+    """실행 일정을 바꾸려면 관리 범위가 **전역**이어야 한다.
+
+    역할 게이트(`CONSOLE_WRITE_ROLES`)만으로는 부서 범위 관리자가 그대로 지난다. 전사
+    야간 배치는 부서로 나눌 수 있는 자원이 아니라서, 그 사람이 남의 부서 일정을 끄면
+    범위를 좁힌 의미가 통째로 사라진다. 판정은 공용 헬퍼가 한다
+    (`app/core/scope.py::require_global_management` — 공지·정합성·쿼터가 쓰는 그 판정).
+
+    거절도 감사에 남긴다. **거절된 쓰기 시도**는 흔적 없이 사라지면 안 된다(읽기 거절은
+    남기지 않는다 — 화면을 열어 본 것까지 원장에 쌓으면 정작 쓰기 시도가 묻힌다).
+
+    ## 어디에 걸고 어디에 안 거는가 — 정의는 전역, 실행은 운영
+
+    이 문은 **정의를 바꾸는 넷**(생성·수정·활성화·비활성화)에만 건다. 실행을 움직이는
+    셋(`지금 실행`·`재시도`·`실행 취소`)에는 일부러 걸지 않는다. 이유는 둘이다.
+
+    1. 그 셋은 `console.ops` 다(`app/core/authz.py`). 그 능력의 정의가 "설정을 바꾸지는
+       않지만 부수효과가 있는 것"이고 운영자가 거기 들어 있다 — 운영자는 조직 관리자가
+       아니라서 `management_scope` 가 `admin_scope` 값과 무관하게 전역을 주지 않는다
+       (`app/core/scope.py`, "운영자·감사자는 관리 콘솔 사용자이지 조직 관리자가 아니다").
+       그러니 이 문을 그 셋에 걸면 **모든 운영자**가 실행·재시도·취소를 잃는다. 화면이
+       그리는 RBAC 매트릭스가 약속한 것과 서버가 하는 일이 정면으로 갈린다.
+    2. 실행은 되돌릴 수 있는 한 번이고, 정의는 지금부터 계속이다. 게다가 실행되는 정의는
+       이미 이 문을 지나 승인까지 받은 것이다 — `지금 실행`은 승인받은 일을 한 번 앞당길
+       뿐, 승인받지 않은 일을 하지 못한다(`_require_execution_gate`).
+
+    그래서 부서 범위 관리자는 전사 일정을 **끄지는 못해도 한 번 돌릴 수는 있다.** 그 사람은
+    운영 축에서 최소한 운영자이고, 아래 있는 운영자에게 허용된 것을 위에서 막을 수 없다.
+    (`tests/integration/test_schedules_api.py` 가 이 경계를 그대로 못 박는다.)
+    """
+    with audit_failure_on_exception(
+        request, db, action=action, object_type="schedule", object_id=object_id
+    ):
+        require_global_management(principal, "실행 일정")
 
 
 def _get_or_404(db: Session, schedule_id: str) -> Schedule:
@@ -231,7 +364,30 @@ def _require_execution_gate(row: Schedule) -> None:
         )
 
 
-def _validate_and_normalize(db: Session, payload: ScheduleRequest, now: datetime) -> dict:
+def _stored_max_attempts(current: Schedule):
+    """이 행에 **이미 저장돼 있는** 재시도 횟수. 읽을 수 없으면 None(비교 대상이 없다)."""
+    try:
+        policy = json.loads(current.retry_policy_json or "{}")
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(policy, dict):
+        return None
+    return policy.get("max_attempts")
+
+
+def _validate_and_normalize(
+    db: Session,
+    payload: ScheduleRequest,
+    now: datetime,
+    current: Schedule | None = None,
+) -> dict:
+    """정의를 검증하고 저장할 모양으로 되돌린다.
+
+    `current` 는 **수정 중인 행**이다(생성이면 None). 오늘의 규칙으로 어제 저장된 값을
+    다시 검사하면, 그 값을 그대로 실어 보내는 수정이 영원히 거절된다 — 관리자가 설명
+    한 줄을 고치려면 그 일정이 하는 일을 바꿔야 하는 상태가 된다. 그래서 **값이 바뀌지
+    않은 항목은 그대로 통과시키고, 새 값에만 오늘의 규칙을 건다.**
+    """
     cron.validate_timezone(payload.timezone)
     cron_expression = payload.cron_expression
     run_at = _parse_iso(payload.run_at, "run_at")
@@ -260,15 +416,46 @@ def _validate_and_normalize(db: Session, payload: ScheduleRequest, now: datetime
         # once 스케줄에는 안 쓰는 값이므로 여기서 비운다.
         cron_expression = None
 
-    if payload.target_ref not in SYSTEM_TARGETS:
+    # 대상 어휘는 S11 이 좁혔다(D-267, `system`/`noop` 하나). 그 전에 만들어진 행은 이
+    # 검사 때문에 저장 자체가 불가능했다 — 화면이 고를 수 있는 대상에 그 값이 없으므로
+    # 「설명 오타 수정」이 「이 일정이 하는 일 바꾸기」가 됐다. 이미 저장된 값을 그대로
+    # 다시 보내는 것만 통과시킨다. 새로 고를 수 있는 대상은 여전히 SYSTEM_TARGETS 뿐이다.
+    if payload.target_ref not in SYSTEM_TARGETS and (
+        current is None or payload.target_ref != current.target_ref
+    ):
         raise ValidationAppError(
-            f"system target은 {sorted(SYSTEM_TARGETS)} 중 하나여야 합니다."
+            "대상은 " + ", ".join(sorted(SYSTEM_TARGETS)) + " 중 하나여야 합니다."
+        )
+
+    # 재시도 횟수의 **범위**도 저장된 값을 봐준다. 스키마 층에는 `current` 가 없어서 거기
+    # 두면 예외를 둘 수가 없는데, `_max_attempts` 는 범위 밖 정수를 예전부터 잘라 왔다
+    # (999 → 10, 0 → 1). 그 행을 지금 거절하면 관리자가 「설명 오타 수정」을 하려고 그
+    # 일정의 재시도 정책부터 바꿔야 한다 — 위 target_ref·아래 end_at 과 같은 예외다.
+    attempts = payload.retry_policy.get("max_attempts")
+    if (
+        isinstance(attempts, int)
+        and not isinstance(attempts, bool)
+        and not MAX_ATTEMPTS_FLOOR <= attempts <= MAX_ATTEMPTS_CEILING
+        and (current is None or attempts != _stored_max_attempts(current))
+    ):
+        raise ValidationAppError(
+            f"재시도 횟수는 {MAX_ATTEMPTS_FLOOR}~{MAX_ATTEMPTS_CEILING} 사이 정수여야 합니다."
         )
 
     start_at = _parse_iso(payload.start_at, "start_at")
     end_at = _parse_iso(payload.end_at, "end_at")
     if start_at and end_at and end_at <= start_at:
         raise ValidationAppError("end_at은 start_at 이후여야 합니다.")
+    # 유효 기간이 이미 끝난 일정은 만들 수 없다. 예전에는 201 로 저장되고 활성화까지 돼
+    # 목록이 영영 오지 않을 '다음 실행'을 약속했다(once 형이 지난 run_at 을 거절하는 것과
+    # 같은 규칙이다). 이미 그런 값을 들고 있는 행의 수정은 막지 않는다 — 그 행을 고치는
+    # 유일한 길이 이 요청이기 때문이다.
+    if (
+        end_at is not None
+        and end_at <= now
+        and (current is None or end_at != current.end_at)
+    ):
+        raise ValidationAppError("종료 시각은 현재 시각 이후여야 합니다.")
     # run_at이 start_at보다 빠르면 once 스케줄이 활성화된 뒤 매 tick마다 start_at 게이트에
     # 막혀 재평가만 반복하다 결국 misfire로 흘러간다. 정의 시점에 막는다(once/ start_at 둘 다
     # 있을 때만 — cron은 run_at이 없다).
@@ -294,7 +481,16 @@ def list_schedules(db: Session = Depends(get_db)):
 
 
 @router.post("", status_code=201, dependencies=[Depends(require_roles(*CONSOLE_WRITE_ROLES))])
-def create_schedule(request: Request, payload: ScheduleRequest, db: Session = Depends(get_db)):
+def create_schedule(
+    request: Request,
+    payload: ScheduleRequest,
+    db: Session = Depends(get_db),
+    principal: Principal = Depends(get_principal),
+):
+    _require_global_schedule_write(request, db, principal, action="schedule.create")
+    if payload.base_version is not None:
+        # 만들 것에는 앞 판이 없다. 조용히 버리면 보낸 쪽은 잠금이 걸렸다고 믿는다.
+        raise ValidationAppError("base_version은 일정을 수정할 때만 보낼 수 있습니다.")
     now = request.app.state.clock.now()
     normalized = _validate_and_normalize(db, payload, now)
     if db.execute(
@@ -321,8 +517,20 @@ def create_schedule(request: Request, payload: ScheduleRequest, db: Session = De
         end_at=normalized["end_at"],
         next_run_at=normalized["run_at"],  # once형은 여기 저장; cron형은 enable 시 계산
     )
-    db.add(row)
-    db.flush()
+    # 위 사전 검사와 이 INSERT 사이는 비어 있지 않다 — 같은 이름으로 두 요청이 동시에 오면
+    # 뒤진 쪽의 flush 가 `schedules.name` 유니크를 때리고, 흡수하는 곳이 없어 500 이 됐다.
+    # 직렬 경로가 이미 그 답(409)을 갖고 있으므로 경합에서도 같은 답을 준다
+    # (`app/org/service.py::create_item`·`app/prompts/service.py` 와 같은 관용구).
+    # 재시도 루프를 두지 않는 이유: 이 표의 유니크는 이름 하나뿐이라 같은 이름으로 다시
+    # 넣어 봐야 결과가 같다 — 기다렸다 같은 409 를 주는 것은 늦게 주는 것일 뿐이다.
+    try:
+        with db.begin_nested():
+            db.add(row)
+            db.flush()
+    except (IntegrityError, OperationalError) as exc:
+        if not is_insert_race(exc):
+            raise
+        raise ConflictError(f"이미 존재하는 Schedule 이름입니다: {payload.name}") from None
     record_audit_from_request(
         request, db, action="schedule.create", object_type="schedule",
         object_id=row.id, after=_view(row),
@@ -468,13 +676,17 @@ def update_schedule(
     schedule_id: str,
     payload: ScheduleRequest,
     db: Session = Depends(get_db),
+    principal: Principal = Depends(get_principal),
 ):
     from app.approvals.service import needs_approval
-    from app.schedules.service import definition_snapshot
 
     row = _get_or_404(db, schedule_id)
+    _require_global_schedule_write(
+        request, db, principal, action="schedule.update", object_id=row.id
+    )
+    _ensure_not_changed(row, payload.base_version)
     now = request.app.state.clock.now()
-    normalized = _validate_and_normalize(db, payload, now)
+    normalized = _validate_and_normalize(db, payload, now, current=row)
     if payload.name != row.name:
         clash = db.execute(
             select(Schedule).where(Schedule.name == payload.name, Schedule.id != row.id)
@@ -515,7 +727,15 @@ def update_schedule(
             row.next_run_at = normalized["run_at"]
         else:
             row.next_run_at = cron.next_after(row.cron_expression, row.timezone, now)
-    db.flush()
+    # 이름 바꾸기도 생성과 같은 모양이다 — 위 중복 검사와 이 flush 사이에 다른 요청이
+    # 같은 이름을 차지하면 유니크 위반이 500 으로 샌다. 같은 답(409)으로 흡수한다.
+    try:
+        with db.begin_nested():
+            db.flush()
+    except (IntegrityError, OperationalError) as exc:
+        if not is_insert_race(exc):
+            raise
+        raise ConflictError(f"이미 존재하는 Schedule 이름입니다: {payload.name}") from None
     record_audit_from_request(
         request, db, action="schedule.update", object_type="schedule",
         object_id=row.id, before=before, after=_view(row),
@@ -524,16 +744,27 @@ def update_schedule(
 
 
 @router.post("/{schedule_id}/enable", dependencies=[Depends(require_roles(*CONSOLE_WRITE_ROLES))])
-def enable_schedule(request: Request, schedule_id: str, db: Session = Depends(get_db)):
+def enable_schedule(
+    request: Request,
+    schedule_id: str,
+    db: Session = Depends(get_db),
+    principal: Principal = Depends(get_principal),
+):
     row = _get_or_404(db, schedule_id)
+    _require_global_schedule_write(
+        request, db, principal, action="schedule.enable", object_id=row.id
+    )
     now = request.app.state.clock.now()
+
+    # 활성화가 성립하는지는 **승인 분기 앞에서** 본다. 뒤에 두면 그 검사를 지나는 사람이
+    # system_admin 하나뿐이 된다 — 나머지 관리자는 전부 승인 경로로 빠지고, 승인 실행기는
+    # 같은 검사를 갖고 있지 않아 결국 켜진다(`app/schedules/service.py::ensure_enablable`).
+    next_run_at = ensure_enablable(row, now)
 
     # Spec §20: Schedule 활성화는 승인 대상 — system_admin만 즉시 적용.
     from app.approvals.service import approval_view, create_approval, needs_approval
 
     if needs_approval(request.state.user):
-        from app.schedules.service import definition_snapshot
-
         approval = create_approval(
             db,
             request_type="schedule.enable",
@@ -556,18 +787,7 @@ def enable_schedule(request: Request, schedule_id: str, db: Session = Depends(ge
             content={"status": "approval_pending", "approval": approval_view(approval)},
         )
 
-    if row.schedule_type == TYPE_ONCE:
-        if row.next_run_at is None or row.next_run_at <= now:
-            raise ConflictError("once 스케줄의 실행 시각이 이미 지났습니다.")
-        # 활성화 시점에도 run_at < start_at을 거부한다 — 정의는 create/update에서 막지만,
-        # start_at만 나중에 바뀌는 등으로 어긋난 상태가 게이트를 통과하지 못하게 한다.
-        if row.start_at is not None and row.next_run_at < row.start_at:
-            raise ValidationAppError(
-                "run_at은 start_at 이후여야 합니다 (once 스케줄의 실행 시각이 시작 시각보다 빠릅니다)."
-            )
-    else:
-        anchor = max(now, row.start_at) if row.start_at else now
-        row.next_run_at = cron.next_after(row.cron_expression, row.timezone, anchor)
+    row.next_run_at = next_run_at
     row.enabled = True
     db.flush()
     record_audit_from_request(
@@ -578,8 +798,16 @@ def enable_schedule(request: Request, schedule_id: str, db: Session = Depends(ge
 
 
 @router.post("/{schedule_id}/disable", dependencies=[Depends(require_roles(*CONSOLE_WRITE_ROLES))])
-def disable_schedule(request: Request, schedule_id: str, db: Session = Depends(get_db)):
+def disable_schedule(
+    request: Request,
+    schedule_id: str,
+    db: Session = Depends(get_db),
+    principal: Principal = Depends(get_principal),
+):
     row = _get_or_404(db, schedule_id)
+    _require_global_schedule_write(
+        request, db, principal, action="schedule.disable", object_id=row.id
+    )
     row.enabled = False
     # next_run_at은 '이 시각에 실행될 예정'이라는 뜻이다 — enabled만 내리고 이 값을
     # 남겨 두면 '다음 실행' 열이 여전히 (때로는 미래의) 실제 시각을 보여줘, 활성 배지를
@@ -667,18 +895,23 @@ def run_now(
     run = create_run_and_enqueue(
         db, row, scheduled_at=now, now=now, key=key, manual=True
     )
-    # The scheduler's automatic tick (scheduler.py:_process) sets
-    # schedule.last_run_at, but this manual '지금 실행' path never did — a
-    # schedule run only ever via run-now (e.g. every 'once' schedule started
-    # manually, or an admin always clicking run-now instead of waiting) shows
-    # '마지막 실행' as permanently blank even though it has, in fact, run.
-    if run is not None:
+    # 시작도 못 한 실행은 '마지막 실행'이 아니다. `create_run_and_enqueue` 는 재시도 정책을
+    # 읽을 수 없으면 예외 대신 **실패 행**을 남기는데(그래야 실행 이력이 침묵하지 않는다),
+    # 그 행까지 마지막 실행으로 찍으면 목록의 '마지막 실행' 칸이 "이 시각에 돌았다"고
+    # 거짓말을 한다. 스케줄러 tick 이 세는 기준과 같은 기준으로 본다(scheduler.py 의
+    # "시작도 못 한 실행을 세지 않는다"). run 이 None 인 것은 같은 초의 쌍둥이 요청이 그
+    # 발생을 이미 가져갔다는 뜻이라 실패가 아니다 — 그쪽이 찍는다.
+    started = run is None or run.status == RUN_QUEUED
+    if run is not None and started:
         row.last_run_at = now
     record_audit_from_request(
         request, db, action="schedule.run_now", object_type="schedule",
-        object_id=row.id, after={"run_id": run.id if run else None},
+        object_id=row.id, after={"run_id": run.id if run else None, "started": started},
     )
-    return {"ok": True, "run": _run_view(run) if run else None}
+    # `ok` 는 "실행을 시작했는가"다. 실패 행을 돌려주면서 ok 라고 답하면 부르는 쪽에는
+    # 시작하지 못했다는 사실을 알 방법이 없다 — 자세한 이유는 `run.status` 와
+    # `run.error_message` 에 그대로 실려 있다.
+    return {"ok": started, "run": _run_view(run) if run else None}
 
 
 #: 실행 이력의 정렬 계약. 부모 스케줄 하나에 종속된 목록이라 축이 시간과 결과뿐이다.
@@ -736,6 +969,13 @@ def retry_run(request: Request, run_id: str, db: Session = Depends(get_db)):
         raise ConflictError("실패한 실행만 재시도할 수 있습니다.")
     schedule = _get_or_404(db, run.schedule_id)
     _require_execution_gate(schedule)
+    # 잡에 실을 최대 시도 횟수를 **먼저** 읽는다. 아래 상태를 다 바꾼 뒤에 읽다 터지면
+    # 그 예외가 500 이 되고 운영자는 무엇을 고쳐야 하는지 알 수 없다(사람이 누른 경로에는
+    # 실행 이력의 실패 행이 아니라 지금 읽을 수 있는 답을 준다).
+    try:
+        attempts = _max_attempts(schedule)
+    except InvalidRetryPolicy as exc:
+        raise ValidationAppError(UNREADABLE_RETRY_POLICY_MESSAGE) from exc
     now = request.app.state.clock.now()
 
     run.status = "queued"
@@ -760,7 +1000,7 @@ def retry_run(request: Request, run_id: str, db: Session = Depends(get_db)):
         # 잡의 max_attempts로 싣는다. 여기서 빠뜨리면 jobs_repo.enqueue 기본값(3)이
         # 조용히 대신 쓰여, "재시도 안 함"(max_attempts=1)으로 설정한 스케줄도 운영자가
         # '재시도'를 누르는 순간부터 최대 3회까지 자동 재시도하게 된다.
-        max_attempts=_max_attempts(schedule),
+        max_attempts=attempts,
     )
     record_audit_from_request(
         request, db, action="schedule.retry_run", object_type="schedule_run",

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React from "react";
 import { useQuery } from "@tanstack/react-query";
 import Box from "@mui/material/Box";
 import MenuItem from "@mui/material/MenuItem";
@@ -11,6 +11,7 @@ import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { useTheme } from "@mui/material/styles";
 import { api } from "../lib/api.js";
+import { useQueryState } from "../lib/useQueryState.js";
 import {
   PageHeader, Card, ListCard, Badge, Button, Callout, Skeleton, EmptyState, ErrorState, MetricStrip, DataTable,
   Section, SectionTitle, tableCellProps,
@@ -25,6 +26,24 @@ import { resolveChartColor } from "../ui/charts/base.jsx";
 function thisMonth() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+/* 고른 달은 **주소에** 둔다 (S15 · `lib/useQueryState.js`).
+ *
+ * 예전에는 이 값이 컴포넌트 지역 상태에만 있었다 — 3월로 바꾸면 표는 3월을 보여 주는데
+ * 주소는 `#/dev-report` 그대로였고, 새로고침하면 다시 이번 달이 됐다. 「3월 리포트 좀
+ * 봐 달라」고 링크를 건네는 일이 아예 안 됐다(audit-10).
+ *
+ * 기본값을 빈 문자열로 두는 이유: 「이번 달」은 **여는 날짜에 따라 달라지는 값**이라
+ * 스펙에 못 박을 수 없다. 비어 있으면 오늘 기준 이번 달이고, 달을 고르면 그때부터
+ * 주소에 실린다. 이 저장소의 조건 상태는 `replace` 다 — 고르는 동안 히스토리가 쌓이면
+ * 뒤로가기 한 번으로 이 화면을 벗어날 수 없다. */
+const DEV_REPORT_SPEC = { period: "" };
+
+/** 'YYYY-MM' → 「2026년 3월」. 화면 설명이 지금 보고 있는 달을 그대로 말하게 한다. */
+export function periodLabel(period) {
+  const m = /^(\d{4})-(\d{2})$/.exec(String(period || ""));
+  return m ? `${m[1]}년 ${parseInt(m[2], 10)}월` : String(period || "");
 }
 
 // 연도 선택지 — 올해부터 과거 count년까지 내림차순.
@@ -188,7 +207,11 @@ const DEV_TICKET_COLUMNS = [
  * 그림이 아니라 표가 말한다 — 그림과 표가 같은 숫자를 두 번 말하던 자리를 W6 이 정리했다.
  * 그림은 전부 ui/charts의 의존성 없는 SVG다(차트 라이브러리를 들이지 않는다 — 번들 예산). */
 export function DevReport() {
-  const [period, setPeriod] = useState(thisMonth());
+  const [view, setView] = useQueryState(DEV_REPORT_SPEC);
+  // 주소에 아무것도 없으면 「이번 달」이다 — 그 값은 여는 날짜에 달렸으므로 스펙이 아니라
+  // 여기서 정한다(위 DEV_REPORT_SPEC 주석).
+  const period = view.period || thisMonth();
+  const setPeriod = (next) => setView({ period: next });
   const query = useQuery({
     queryKey: ["dev-report", period],
     queryFn: () => api("/api/admin/reports/dev-monthly?period=" + encodeURIComponent(period)),
@@ -230,7 +253,7 @@ export function DevReport() {
           유일한 주 행동이라 브랜드 면을 그대로 둔다(기본 강도로 내리면 화면에 브랜드 색이 없어진다 —
           `brand_presence` 실측). */}
       <PageHeader area="감사" title="개발자 월간 리포트"
-        description="마감일이 이번 달인 티켓을 담당자별로 모아 업무량과 위험을 봅니다."
+        description={"마감일이 " + periodLabel(period) + "인 티켓을 담당자별로 모아 업무량과 위험을 봅니다."}
         help="마감일이 선택한 달인 티켓을 담당자별로 집계합니다. 각자 얼마나 일했는지는 완료 건수와 예상 WD로 보고, 지금 안고 있는 부담과 위험은 진행 중 업무와 지연으로 함께 봅니다. 예상 WD와 난이도는 티켓 내용을 바탕으로 추정한 값이고, 실제 WD는 완료한 담당자가 입력합니다."
         actions={<Button variant="primary" onClick={() => query.refetch()}>새로고침</Button>} />
 

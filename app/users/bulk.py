@@ -34,11 +34,13 @@ from app.core.scope import Scope
 from app.org.models import Department, JobTitle
 from app.org.service import find_by_name
 from app.users.models import ALL_ROLES, User
+from app.users.schemas import display_name_problem, email_problem
 from app.users.service import (
     archive_user,
     create_user,
     ensure_can_grant_role,
     ensure_can_manage_target,
+    ensure_not_archived,
     get_scoped_user_or_404,
     set_user_active,
     unarchive_user,
@@ -129,6 +131,43 @@ def export_csv(rows: list[User], *, now: datetime) -> str:
 
 # ── 가져오기 ──────────────────────────────────────────────────────────────────
 
+def _csv_format_error(exc: csv.Error) -> ValidationAppError:
+    """`csv` 모듈의 형식 오류를 이 API 의 검증 오류로 옮긴다.
+
+    `csv` 는 한 칸이 `csv.field_size_limit()`(기본 131072자)를 넘으면 `_csv.Error` 를 던진다.
+    그 예외를 그대로 두면 500 「Internal server error」 가 나가고, 붙여 넣은 사람은 자기
+    파일의 어디가 문제인지 알 방법이 없다 — 이 함수의 약속은 「형식 오류는 여기서 전부
+    잡는다」이므로 사유를 담아 422 로 돌려준다. 한도를 올리지 않는 이유: 한 칸이 128KB 를
+    넘는 CSV 는 사람이 만든 명부가 아니라 잘못 붙여 넣은 파일이다.
+
+    사유를 나눠 적는 이유: `csv` 는 칸 크기 말고도 따옴표가 안 닫힌 줄·NUL 문자에도 같은
+    예외를 던진다. 어느 경우든 「칸이 너무 큽니다」라고 답하면 그 안내를 따라가는 사람은
+    엉뚱한 곳을 고치게 된다.
+    """
+    if "field limit" in str(exc):
+        return ValidationAppError(
+            f"CSV 한 칸에 담긴 값이 너무 깁니다. 한 칸은 {csv.field_size_limit()}자까지 담을 수 있습니다."
+        )
+    return ValidationAppError(
+        "CSV 형식이 올바르지 않아 읽을 수 없습니다. 따옴표와 줄바꿈이 짝을 이루는지 확인해 주세요."
+    )
+
+
+def _rows_of(reader: csv.DictReader):
+    """행을 하나씩 내주되 `csv` 형식 오류는 422 로 바꾼다(`_csv_format_error`).
+
+    데이터 행에서 터지는 오류라 헤더를 읽을 때와 자리가 다르다 — 둘 다 막아야 「형식 오류는
+    여기서 전부 잡는다」가 사실이 된다.
+    """
+    while True:
+        try:
+            yield next(reader)
+        except StopIteration:
+            return
+        except csv.Error as exc:
+            raise _csv_format_error(exc) from exc
+
+
 def parse_import_csv(text: str) -> list[dict]:
     """CSV 문자열 → 정규화된 행 목록. 형식 오류는 여기서 **전부** 잡는다.
 
@@ -139,7 +178,11 @@ def parse_import_csv(text: str) -> list[dict]:
         raise ValidationAppError("CSV 내용이 비어 있습니다.")
     stripped = text.lstrip("﻿")
     reader = csv.DictReader(io.StringIO(stripped))
-    if not reader.fieldnames:
+    try:
+        fieldnames = reader.fieldnames
+    except csv.Error as exc:
+        raise _csv_format_error(exc) from exc
+    if not fieldnames:
         raise ValidationAppError("CSV 헤더 행을 찾지 못했습니다.")
     mapping = {}
     for raw in reader.fieldnames:
@@ -153,7 +196,8 @@ def parse_import_csv(text: str) -> list[dict]:
         )
 
     rows: list[dict] = []
-    for index, raw_row in enumerate(reader, start=2):  # 2 = 헤더 다음 줄(사람이 세는 줄 번호)
+    row_source = _rows_of(reader)
+    for index, raw_row in enumerate(row_source, start=2):  # 2 = 헤더 다음 줄(사람이 세는 줄 번호)
         if len(rows) >= MAX_IMPORT_ROWS:
             raise ValidationAppError(
                 f"한 번에 가져올 수 있는 행은 {MAX_IMPORT_ROWS}개까지입니다. 파일을 나눠 주세요."
@@ -170,9 +214,18 @@ def parse_import_csv(text: str) -> list[dict]:
         elif not row.get("display_name"):
             row["error"] = "이름이 비어 있습니다."
         else:
+            # 단건 생성이 스키마에서 거르는 것과 **같은 규칙**을 여기서도 건다
+            # (app/users/schemas.py). 예전에는 이 검사가 pydantic 스키마에만 있어서 CSV 는
+            # 그대로 지나갔고, 두 가지가 동시에 깨졌다: 단건이 422 로 막는 주소
+            # ("a@b@회사.com" · @ 없는 값)로 계정이 만들어졌고, 컬럼 길이를 넘는 값은
+            # 미리보기에서 「추가 예정」이라고 말해 놓고 적용에서 DB 가 거절해 **파일 전체가
+            # 롤백**됐다. 여기서 줄마다 잡으면 나쁜 줄만 실패로 남고 나머지는 만들어진다.
+            row["error"] = email_problem(row["email"]) or display_name_problem(
+                row["display_name"]
+            )
             role = (row.get("role") or "").strip() or "user"
             if role not in ALL_ROLES:
-                row["error"] = f"알 수 없는 역할입니다: {role}"
+                row["error"] = row["error"] or f"알 수 없는 역할입니다: {role}"
             row["role"] = role
         active_raw = (row.get("active") or "").strip().lower()
         if active_raw and active_raw not in _TRUE and active_raw not in _FALSE:
@@ -334,6 +387,10 @@ _ACTION_LABELS = {
     "set_department": "부서 지정", "set_title": "직책 지정",
 }
 
+# 보관된 행을 **찾아야 하는** 작업. 복구는 당연히 그 행이 대상이고, 보관은 이미 보관된
+# 계정에 대해 아무것도 바꾸지 않는 멱등 요청이라 없는 것처럼 답할 이유가 없다.
+ARCHIVE_SAFE_ACTIONS = ("archive", "unarchive")
+
 
 def bulk_apply(
     db: Session, *, user_ids: list[str], action: str, value: str | None,
@@ -356,8 +413,14 @@ def bulk_apply(
     applied: list[dict] = []
     failed: list[dict] = []
     for user_id in dict.fromkeys(user_ids):  # 중복 제거(순서 보존)
+        user = None
         try:
             user = get_scoped_user_or_404(db, user_id, scope)
+            if action not in ARCHIVE_SAFE_ACTIONS:
+                # 보관된 계정은 쓰기 경로에서 없는 것과 같다(users/service.py
+                # ensure_not_archived) — 단건 경로와 같은 판정을 여기서도 한다. 안 그러면
+                # 화면이 편집 동작을 숨긴 보관 행이 일괄 작업으로는 그대로 바뀐다.
+                ensure_not_archived(user)
             before = user_snapshot(user)
             changed = _apply_one(
                 db, user, action=action, value=value, actor=actor,
@@ -368,7 +431,15 @@ def bulk_apply(
                 "changed": changed, "before": before, "after": user_snapshot(user),
             })
         except AppError as exc:
-            failed.append({"id": user_id, "error": exc.message})
+            # 실패 건도 **누구인지** 함께 돌려준다. id 와 사유만 주면 화면은 「2명 실패」까지만
+            # 말할 수 있고, 관리자는 40명 중 어느 둘이 왜 남았는지 알 방법이 없다.
+            # 범위 밖·보관 계정(404)은 존재 자체를 숨기는 자리라 id 만 남긴다 — 이름을 실으면
+            # 404 로 가린 것이 그 줄에서 다시 새 나간다.
+            entry = {"id": user_id, "error": exc.message}
+            if user is not None and user.archived_at is None:
+                entry["email"] = user.email
+                entry["display_name"] = user.display_name
+            failed.append(entry)
     return {
         "action": action,
         "action_label": _ACTION_LABELS[action],

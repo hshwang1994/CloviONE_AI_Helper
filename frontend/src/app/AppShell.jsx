@@ -993,7 +993,12 @@ export function AppShell({
               {/* 지시 1: 사용자 알림의 단일 진입점은 이 종 하나다. 예전에는 헤더 상태 칩과
                   본문 위 CRITICAL 띠가 따로 있었다. 지시 67 에 따라 정보를 없앤 것이 아니라
                   옮긴 것이다 — 운영자용 서비스 Health 는 관리자 대시보드·진단이 계속 보여 준다. */}
-              <NotificationBell isUser={isUser} notices={statusNotices} />
+              {/* 두 축을 함께 넘긴다 — 사이드바가 이미 그렇게 한다(위 `homeUser` 주석).
+                  `isUser` 는 **역할**이라 「상대 묶음이 존재하는가」를 정하고, `consoleUser` 는
+                  **지금 어느 콘솔인가**라 「어느 묶음이 앞에 서는가」를 정한다. 예전에는 역할
+                  하나로 둘을 다 정해서, 관리자가 사용자 콘솔의 홈에 서 있어도 종은 관리
+                  알림만 물었다 — 자기 승인 결과가 종에 영영 안 떴다(perm-09). */}
+              <NotificationBell isUser={isUser} consoleUser={homeUser} notices={statusNotices} />
               <UserMenu
                 name={name} userId={userId} avatarUrl={avatarUrl}
                 // 내 소속·관리 범위(0060 §5) — 셸이 이미 들고 있는 값을 넘긴다.

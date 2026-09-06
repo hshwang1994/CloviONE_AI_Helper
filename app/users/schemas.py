@@ -16,10 +16,44 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 # — 정확히 하나의 '@'만 요구하는 이 형태 검사가 그 틈을 막는다.
 _EMAIL_SHAPE_RE = re.compile(r"^[^\s@]+@[^\s@]+$")
 
+# 길이 상한을 상수로 두는 이유: 같은 값을 **스키마와 CSV 가져오기가 함께** 쓴다.
+# 숫자를 두 벌로 적으면 한쪽만 바뀌는 날이 오고, 그때 CSV 는 "미리보기는 초록인데 적용은
+# DB 가 거절" 이 된다(app/users/bulk.py 의 행 검증이 이 상수를 그대로 읽는다).
+# 값은 아래 Field 선언과 `users` 테이블 컬럼 길이(String(255)/String(120))에서 왔다.
+EMAIL_MAX_LENGTH = 255
+DISPLAY_NAME_MAX_LENGTH = 120
+
+
+def email_problem(value: str) -> str | None:
+    """이메일이 못 쓰는 값이면 **사유**를, 쓸 수 있으면 None 을 돌려준다.
+
+    예외가 아니라 사유 문자열을 돌려주는 이유: CSV 가져오기는 한 줄이 나빠도 나머지 줄을
+    만들어야 해서(모듈 docstring) 줄마다 사유를 담아 두었다가 결과표에 그대로 싣는다.
+    단건 생성은 아래 `_validate_email_shape` 가 이 사유를 그대로 422 로 올린다 — 두 경로가
+    **같은 규칙, 같은 문구**를 쓴다.
+    """
+    text = (value or "").strip()
+    if len(text) > EMAIL_MAX_LENGTH:
+        return f"이메일은 {EMAIL_MAX_LENGTH}자까지 쓸 수 있습니다."
+    if not _EMAIL_SHAPE_RE.match(text):
+        return "이메일 형식이 올바르지 않습니다."
+    return None
+
+
+def display_name_problem(value: str) -> str | None:
+    """이름이 못 쓰는 값이면 사유를, 쓸 수 있으면 None 을 돌려준다(`email_problem` 과 같은 이유)."""
+    text = (value or "").strip()
+    if not text:
+        return "이름을 입력해야 합니다."
+    if len(text) > DISPLAY_NAME_MAX_LENGTH:
+        return f"이름은 {DISPLAY_NAME_MAX_LENGTH}자까지 쓸 수 있습니다."
+    return None
+
 
 def _validate_email_shape(value: str) -> str:
-    if not _EMAIL_SHAPE_RE.match(value.strip()):
-        raise ValueError("이메일 형식이 올바르지 않습니다.")
+    problem = email_problem(value)
+    if problem is not None:
+        raise ValueError(problem)
     return value
 
 
@@ -35,8 +69,8 @@ class _StrictRequest(BaseModel):
 
 
 class UserCreateRequest(_StrictRequest):
-    email: str = Field(min_length=3, max_length=255)
-    display_name: str = Field(min_length=1, max_length=120)
+    email: str = Field(min_length=3, max_length=EMAIL_MAX_LENGTH)
+    display_name: str = Field(min_length=1, max_length=DISPLAY_NAME_MAX_LENGTH)
     role: str = "user"
     active: bool = True
     must_change_password: bool = True
@@ -57,7 +91,7 @@ class UserCreateRequest(_StrictRequest):
 
 
 class UserUpdateRequest(_StrictRequest):
-    display_name: str | None = Field(default=None, max_length=120)
+    display_name: str | None = Field(default=None, max_length=DISPLAY_NAME_MAX_LENGTH)
     department_id: str | None = Field(default=None, max_length=36)
     title_id: str | None = Field(default=None, max_length=36)
     # 소속 종류(0060) — 부서가 없을 때만 뜻이 있다. `organization`(조직 직속) 또는

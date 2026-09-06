@@ -258,3 +258,171 @@ def test_deactivated_user_owned_chat_rooms_are_transferred(client, admin_csrf, m
     db.expire_all()
     assert _role_of(db, room, mate) == "owner", "방장직이 안 넘어갔다"
     assert _role_of(db, room, target) == "member", "비활성화된 계정이 아직 방장이다"
+
+
+# ── 보관된 계정은 쓰기 경로에서 «없는 것» 이다 (xb-14) ────────────────────────
+#
+# 목록·검색·로그인에서 뺐는데 이름 수정·비활성화·잠금 해제가 그대로 먹었다. 화면은 보관 행에서
+# 편집 동작을 숨기므로 API 로만 나던 결함이고, 그렇게 바꾼 값은 관리자 화면 어디에도 안 보인다.
+# 범위 밖 행과 **같은 답**(404)을 준다 — 가린 것을 단건 경로가 열지 않는다.
+
+
+@pytest.fixture()
+def archived_user(client, admin_csrf, make_user):
+    target = make_user("write-me@goodmit.co.kr", display_name="보관된 사람")
+    assert client.post(
+        f"/api/admin/users/{target.id}/archive", headers=_headers(admin_csrf)
+    ).status_code == 200
+    return target
+
+
+def test_patching_an_archived_user_is_not_found(client, admin_csrf, archived_user, db):
+    r = client.patch(
+        f"/api/admin/users/{archived_user.id}",
+        json={"display_name": "몰래 수정"},
+        headers=_headers(admin_csrf),
+    )
+    assert r.status_code == 404, r.text
+
+    # 404 를 냈지만 이미 썼을 수도 있다 — DB 로 되짚는다.
+    db.commit()
+    db.expire_all()
+    from app.users.models import User
+
+    assert db.get(User, archived_user.id).display_name == "보관된 사람"
+
+
+@pytest.mark.parametrize(
+    "suffix", ["/enable", "/disable", "/unlock", "/reset-password", "/revoke-sessions"],
+)
+def test_every_single_write_route_refuses_an_archived_user(
+    client, admin_csrf, archived_user, suffix
+):
+    r = client.post(
+        f"/api/admin/users/{archived_user.id}{suffix}", headers=_headers(admin_csrf)
+    )
+    assert r.status_code == 404, f"{suffix} → {r.status_code}: {r.text}"
+
+
+def test_reading_an_archived_user_still_works(client, admin_csrf, archived_user):
+    """오탐 방지 — 복구하려면 그 계정을 열어 볼 수 있어야 한다. 막는 것은 **쓰기**뿐이다."""
+    r = client.get(f"/api/admin/users/{archived_user.id}", headers=_headers(admin_csrf))
+    assert r.status_code == 200, r.text
+    assert r.json()["archived_at"] is not None
+
+    r = client.get(
+        f"/api/admin/users/{archived_user.id}/sessions", headers=_headers(admin_csrf)
+    )
+    assert r.status_code == 200, r.text
+
+
+def test_unarchive_still_finds_the_archived_row(client, admin_csrf, archived_user):
+    """복구 경로는 당연히 그 행을 찾아야 한다 — 여기까지 404 면 보관은 되돌릴 수 없는 삭제가 된다."""
+    r = client.post(
+        f"/api/admin/users/{archived_user.id}/unarchive", headers=_headers(admin_csrf)
+    )
+    assert r.status_code == 200, r.text
+
+    # 복구한 뒤에는 쓰기도 다시 열린다.
+    r = client.patch(
+        f"/api/admin/users/{archived_user.id}",
+        json={"display_name": "돌아온 사람"},
+        headers=_headers(admin_csrf),
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["user"]["display_name"] == "돌아온 사람"
+
+
+def test_a_live_user_is_still_writable(client, admin_csrf, make_user):
+    """오탐 방지 — 보관하지 않은 계정의 쓰기는 그대로 200 이다."""
+    target = make_user("still-here@goodmit.co.kr")
+    r = client.post(f"/api/admin/users/{target.id}/disable", headers=_headers(admin_csrf))
+    assert r.status_code == 200, r.text
+
+
+# ── 보관은 빌려준 결재 권한도 거둔다 (xc-13) ─────────────────────────────────
+#
+# 위임은 권한을 빌려주는 표다. 만들 때는 비활성·보관 계정을 대리자로 지정할 수 없는데, 만든
+# 뒤에 그 계정을 보관하면 그 위임이 그대로 「진행 중」으로 남았다 — 아무도 결재할 수 없는
+# 위임을 화면이 살아 있다고 보여 준다.
+
+def _delegate_to(client, csrf, *, delegator_id, delegate_id, now):
+    from datetime import timedelta
+
+    r = client.post(
+        "/api/admin/approval-delegations",
+        json={
+            "delegator_user_id": delegator_id,
+            "delegate_user_id": delegate_id,
+            "starts_at": (now - timedelta(hours=1)).isoformat(),
+            "ends_at": (now + timedelta(days=3)).isoformat(),
+            "reason": "휴가",
+        },
+        headers=_headers(csrf),
+    )
+    assert r.status_code == 201, r.text
+    assert r.json()["state"] == "active"
+    return r.json()["id"]
+
+
+def _delegation_state(client, csrf, delegation_id):
+    body = client.get(
+        "/api/admin/approval-delegations", params={"page_size": 50}, headers=_headers(csrf)
+    ).json()
+    rows = {row["id"]: row for row in body["items"]}
+    return rows[delegation_id]["state"]
+
+
+def test_archiving_the_delegate_revokes_the_delegation(
+    client, login_as, make_user, fake_clock
+):
+    csrf = login_as("system_admin")
+    me = client.get("/api/me").json()["user"]
+    stand_in = make_user("stand-in@goodmit.co.kr", role="operator")
+    delegation_id = _delegate_to(
+        client, csrf, delegator_id=me["id"], delegate_id=stand_in.id, now=fake_clock.now()
+    )
+
+    assert client.post(
+        f"/api/admin/users/{stand_in.id}/archive", headers=_headers(csrf)
+    ).status_code == 200
+
+    assert _delegation_state(client, csrf, delegation_id) == "revoked"
+
+
+def test_archiving_the_delegator_revokes_the_delegation(
+    client, login_as, make_user, fake_clock
+):
+    """위임자가 사라지면 남이 그 계정의 결재 권한을 계속 대신 쓰게 된다 — 보관은 그 계정의
+    권한을 거두는 일이라 빌려준 권한도 함께 거둬야 앞뒤가 맞는다."""
+    csrf = login_as("system_admin")
+    boss = make_user("leaving-boss@goodmit.co.kr", role="admin")
+    stand_in = make_user("stand-in2@goodmit.co.kr", role="operator")
+    delegation_id = _delegate_to(
+        client, csrf, delegator_id=boss.id, delegate_id=stand_in.id, now=fake_clock.now()
+    )
+
+    assert client.post(
+        f"/api/admin/users/{boss.id}/archive", headers=_headers(csrf)
+    ).status_code == 200
+
+    assert _delegation_state(client, csrf, delegation_id) == "revoked"
+
+
+def test_archiving_someone_else_leaves_other_delegations_alone(
+    client, login_as, make_user, fake_clock
+):
+    """오탐 방지 — 무관한 계정을 보관했다고 남의 위임까지 거두면 안 된다."""
+    csrf = login_as("system_admin")
+    me = client.get("/api/me").json()["user"]
+    stand_in = make_user("stand-in3@goodmit.co.kr", role="operator")
+    bystander = make_user("bystander@goodmit.co.kr", role="user")
+    delegation_id = _delegate_to(
+        client, csrf, delegator_id=me["id"], delegate_id=stand_in.id, now=fake_clock.now()
+    )
+
+    assert client.post(
+        f"/api/admin/users/{bystander.id}/archive", headers=_headers(csrf)
+    ).status_code == 200
+
+    assert _delegation_state(client, csrf, delegation_id) == "active"

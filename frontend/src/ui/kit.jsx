@@ -2270,14 +2270,25 @@ export function DataTable({ columns, rows, rowKey, onRow, rowHref, empty, ellips
           위로 사라졌다. 속성만 재는 검사로는 안 보인다 — `getComputedStyle(th).position`
           은 그때도 `sticky` 였다.
           그래서 이 경우에만 넘침을 바깥에 넘긴다. **다만 표가 칸 안에 들어갈 때만이다** —
-          넓은 표까지 넘기면 판 밖으로 삐져나온다(`xOverflow` 주석). */}
+          넓은 표까지 넘기면 판 밖으로 삐져나온다(`xOverflow` 주석).
+
+          🔴 넘김을 못 고른 갈래에서는 **이 상자가 스크롤 창이라고 안쪽에 알린다**
+          (`SCROLL_BOX_STICKY_TOP`). 안 알리면 열 이름이 `stickyTopSx()` 의 대체값인 상단바
+          높이(52px)를 그대로 받는데, 그 52px 는 «윈도가 굴러갈 때 fixed AppBar 를 피하라»는
+          뜻이라 이 상자 안에서는 피할 대상이 없다 — 열 이름 줄이 상자 위쪽에서 52px 내려온
+          자리에 붙박이고 그 아래 첫 행을 통째로 덮는다. 실측(2026-09-06 · 1600x900
+          `#/schedules`): th rect 451-496, 첫 행 rect 444-479, 행 가로폭의 93%가 머리행에
+          가려 `elementFromPoint` 가 THEAD 를 돌려줬다(클릭도 그 줄이 먼저 받는다). 1280 에서는
+          승인 목록이 90% 로 같아졌다. 값을 아는 쪽이 스크롤 창을 만드는 쪽이라는 계약을
+          (`theme.js::STICKY_TOP_VAR`) 표 컨테이너에도 그대로 적용한다 — `ScrollArea` 가 이미
+          같은 선언을 쓴다. */}
       <TableContainer
         ref={setScrollEl}
         sx={virtualBox
-          ? { maxHeight: virtualize.height || "32rem", overflowY: "auto" }
+          ? { maxHeight: virtualize.height || "32rem", overflowY: "auto", ...SCROLL_BOX_STICKY_TOP }
           : ((stickyHeader || virtualWindow) && !xOverflow
             ? { overflowX: "visible", overflowY: "visible" }
-            : null)}
+            : SCROLL_BOX_STICKY_TOP)}
       >
       {/* 표 리듬 (지시 10) — 세로 괘선이 없고, 행 사이는 실선 하나로만 나눈다. 마지막 행의
           아래 선은 지운다(판의 테두리와 겹쳐 두 줄로 보인다). 행 추적은 괘선이 아니라
@@ -2801,8 +2812,18 @@ export function FormModal({ open, title, fields, initial, submitLabel, onSubmit,
    * 훅 개수가 11개→12개로 늘어 리액트가 "Rendered more hooks than during the previous
    * render." 로 트리를 통째로 버린다 — 관리자 화면의 '추가'·'수정'을 누르는 순간 화면이
    * 사라졌다. 조건부 반환 위로 올리면 규칙(훅은 항상 같은 순서)이 지켜진다. */
+  /* 후보가 **다른 칸의 값**에 달린 칸도 있다(`options` 를 함수로 준다). 부서 추가의
+     「상위 부서」가 그렇다 — 상위 부서는 반드시 같은 조직이어야 해서(app/org/tree.py::
+     validate_parent), 조직 칸에서 고른 조직의 부서만 후보다. 후보를 안 좁히면 폼이
+     **반드시 422 로 실패하는 선택지**를 권한다(org-03).
+     `showIf` 와 같은 자리에서 같은 값(`values`)으로 푼다 — 조건부 필드와 조건부 후보는
+     같은 질문("지금 값이 무엇인가")의 두 답이다. */
   const shownFields = React.useMemo(
-    () => (fields || []).filter((f) => (typeof f.showIf === "function" ? f.showIf(values) : true)),
+    () => (fields || [])
+      .filter((f) => (typeof f.showIf === "function" ? f.showIf(values) : true))
+      .map((f) => (typeof f.options === "function"
+        ? { ...f, options: f.options(values), dynamicOptions: true }
+        : f)),
     [fields, values],
   );
   /* 크기를 **열릴 때 한 번** 정하기 위한 기억. 위 경고와 같은 이유로 조기 반환 위에 둔다 —
@@ -2814,6 +2835,16 @@ export function FormModal({ open, title, fields, initial, submitLabel, onSubmit,
   }
   const set = (name, val) => setValues((s) => ({ ...s, [name]: val }));
 
+  /* 후보가 값에 따라 바뀌는 칸은, **지금 후보에 없는 값을 「고른 것」으로 치지 않는다.**
+     조직을 바꾸면 먼저 고른 상위 부서가 후보에서 빠지는데, 화면은 그때 이미 「선택 안 함」을
+     보여 준다(위 `selNeedEmpty`). 보내는 값이 그것과 다르면 사용자가 화면에서 안 고른 값이
+     그대로 나가고, 서버는 그 조합을 422 로 거절한다 — 화면과 요청이 같은 말을 하게 한다. */
+  const chosen = (f) => {
+    const val = values[f.name];
+    if (!f.dynamicOptions || val == null || val === "") return val;
+    return (f.options || []).some((o) => String(o.value) === String(val)) ? val : "";
+  };
+
   const fail = (name, message) => { setErrField(name); setErr(message); };
 
   async function submit() {
@@ -2822,7 +2853,7 @@ export function FormModal({ open, title, fields, initial, submitLabel, onSubmit,
     for (const f of shownFields) {
       // 수정 화면에서 원래 값이 있던 항목을 비우면 키를 생략하지 않고 null로 보내 실제로 지운다.
       const hadValue = initial && initial[f.name] != null && String(initial[f.name]).trim() !== "";
-      let val = values[f.name];
+      let val = chosen(f);
       if (f.type === "number") {
         if (val === "" || val == null) { if (f.required) { fail(f.name, f.label + "을(를) 입력하세요."); return; } if (hadValue) body[f.name] = null; continue; }
         val = Number(val); if (Number.isNaN(val)) { fail(f.name, f.label + ": 숫자를 입력하세요."); return; }
@@ -2914,7 +2945,7 @@ export function FormModal({ open, title, fields, initial, submitLabel, onSubmit,
             전폭 상자는 필드를 지목하지 못한 오류(서버 거절·네트워크)에만 남는다 — 그때는
             인라인으로 붙일 자리가 없어서 상자가 유일한 자리다. */}
         {err && !errField ? <MuiAlert severity="error" className="k-form-err" sx={{ mb: 2.5 }} role="alert">{err}</MuiAlert> : null}
-        {shownFields.map((f) => <FormField key={f.name} field={f} value={values[f.name]} invalid={errField === f.name}
+        {shownFields.map((f) => <FormField key={f.name} field={f} value={chosen(f)} invalid={errField === f.name}
           onChange={(val) => set(f.name, val)}
           errorMessage={errField === f.name ? err : undefined}
           maxLength={screenKey ? maxLengthFor(screenKey, formKind, f.name) : null} />)}

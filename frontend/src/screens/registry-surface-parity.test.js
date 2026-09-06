@@ -27,8 +27,14 @@ import { fileURLToPath } from "node:url";
 
 import { REGISTRY } from "./registry.js";
 import { NOTIFICATIONS_SCREEN } from "./registry/notifications.js";
-import { TAB_GROUPS, ORG_CONSOLE_KEYS } from "../app/AdminRoutes.jsx";
+import * as AdminRoutesModule from "../app/AdminRoutes.jsx";
 import { SETTINGS_TAB_KEYS } from "./settings/SettingsShell.jsx";
+
+const { TAB_GROUPS } = AdminRoutesModule;
+/* 조직 콘솔이 그리는 경로 셋 — registry 키가 **아니다**(D-406 이후 registry 를 떠났다).
+ * 예전에는 AdminRoutes 가 같은 목록을 상수로 들고 registry 순회에서 걸렀는데, 거를 키가
+ * 애초에 없었다(P-85). 상수는 걷었고, 여기서는 그 경로 셋이 커버리지에 있는지만 본다. */
+const ORG_CONSOLE_KEYS = ["organizations", "departments", "org-tree"];
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const COVERAGE = path.resolve(HERE, "../../../docs/ui-renewal/ROUTE_COVERAGE.json");
@@ -63,6 +69,9 @@ describe("ROUTE_COVERAGE ↔ JS 소스 대조", () => {
   it("OrgConsole 이 그리는 키도 Surface 가 있다", () => {
     const orphan = ORG_CONSOLE_KEYS.filter((k) => !routes.has("/" + k));
     expect(orphan, `조직 콘솔 키가 커버리지에 없다: ${orphan.join(", ")}`).toEqual([]);
+    // 그 셋은 registry 키가 아니다 — AdminRoutes 의 무용 상수(P-85)가 다시 생기지 않게 못박는다.
+    expect(ORG_CONSOLE_KEYS.filter((k) => k in REGISTRY)).toEqual([]);
+    expect(AdminRoutesModule.ORG_CONSOLE_KEYS).toBeUndefined();
   });
 
   it("TAB_GROUPS 의 그릇과 탭이 전부 Surface 다", () => {

@@ -111,6 +111,19 @@ export function StorageProviders({ embedded = false }) {
   const confirm = useConfirm();
   const [creating, setCreating] = React.useState(false);
   const [editing, setEditing] = React.useState(null);
+  /* 이 편집 창이 409 를 한 번 받았는가.
+   *
+   * 🔴 예전에는 409 뒤에 목록만 다시 받고 창은 그대로 뒀다. 그런데 `editing` 은 「수정」을
+   * 누른 순간의 스냅샷이라 `version` 이 낡은 채로 얼어 있었고, 사람이 적은 값을 지키려고
+   * 「저장」을 다시 누르면 **같은 낡은 판을 다시 보내** 영원히 409 였다. 서버 문구는
+   * 「새로 고친 뒤 다시 시도해 주세요」인데 화면에는 새로 고치는 길이 창을 닫는 것뿐이었다.
+   * 이제 그 새로 고침을 화면이 대신 한다: 409 를 받으면 목록을 다시 받고, 다음 저장은
+   * **방금 받은 판**을 싣는다. 사람이 적은 값은 그대로 남는다(FormModal 은 `open` 이
+   * 바뀔 때만 초기값을 다시 읽는다).
+   *
+   * 처음 저장에는 여전히 편집을 시작한 시점의 판을 보낸다 — 매번 최신 판을 실어 보내면
+   * 낙관적 잠금이 아무것도 막지 못한다(D-240 이 없애려던 그 상태로 돌아간다). */
+  const [conflicted, setConflicted] = React.useState(false);
   // 「지금 확인」의 결과는 목록 값과 다른 것을 하나 더 준다(마운트 유닛 이름). 그 한 번의
   // 답을 화면에 남겨 두지 않으면 관리자는 토스트가 사라지는 순간 유닛 이름을 잃는다.
   const [probed, setProbed] = React.useState(null);
@@ -141,17 +154,36 @@ export function StorageProviders({ embedded = false }) {
     onError: (e) => toast((e && e.message) || "확인하지 못했습니다.", "error"),
   });
 
+  /* 수정은 **편집을 시작한 시점의 판**을 함께 보낸다 (D-240 · settings-07).
+   *
+   * 서버에는 낙관적 잠금이 처음부터 있었다(`ProviderUpdate.base_version` → 낡으면 409
+   * 「다른 사람이 먼저 저장했습니다」). 그런데 화면이 그 값을 안 보내서 잠금이 한 번도
+   * 걸리지 않았다 — 두 관리자가 같은 저장소를 손보면 나중 저장이 앞 저장을 말없이 덮었고,
+   * 토스트는 양쪽 다 「저장했습니다」였다. 실측으로 다른 탭의 마운트 옵션이 그렇게 사라졌다.
+   *
+   * 값은 목록 응답의 `version` 이다(`app/storage/service.py::provider_status`). 서버가 그
+   * 값을 안 싣는 판에서는 안 보낸다 — 스키마가 `int | None` 이라 예전과 똑같이 동작한다
+   * (없는 값을 0 이나 1 로 지어내면 멀쩡한 저장이 409 로 막힌다). */
   const save = useMutation({
-    mutationFn: ({ id, body }) => (
+    mutationFn: ({ id, body, baseVersion }) => (
       id
-        ? api("/api/storage/providers/" + id, { method: "PATCH", body })
+        ? api("/api/storage/providers/" + id, {
+            method: "PATCH",
+            body: typeof baseVersion === "number" ? { ...body, base_version: baseVersion } : body,
+          })
         : api("/api/storage/providers", { method: "POST", body })
     ),
     onSuccess: (_res, vars) => {
-      setCreating(false); setEditing(null);
+      setCreating(false); setEditing(null); setConflicted(false);
       toast(vars.id ? "저장했습니다." : "저장소를 추가했습니다.", "success");
       refresh();
     },
+    /* 409 면 내가 들고 있던 판이 이미 낡았다 — 목록을 새로 받는다. 폼은 열어 둔 채 서버가
+       준 이유를 그대로 보여 준다(`FormModal` 이 오류 문구를 폼 위에 그린다) — 사람이 방금
+       적은 값을 잃지 않는다. 그리고 **다음 저장이 실제로 통하도록** 이 창을 「충돌을 한 번
+       본 창」으로 표시한다(아래 `baseVersion` 계산) — 표시하지 않으면 사람은 같은 낡은 판을
+       계속 다시 보내고, 창을 닫는 것 말고는 빠져나갈 길이 없다. */
+    onError: (e) => { if (e && e.status === 409) { setConflicted(true); refresh(); } },
   });
 
   const toggle = useMutation({
@@ -166,6 +198,15 @@ export function StorageProviders({ embedded = false }) {
   const data = query.data || {};
   const rows = data.providers || [];
   const busy = probe.isPending || save.isPending || toggle.isPending;
+
+  /* 다음 저장이 실을 판. 평소에는 편집을 시작한 시점의 값이고(그래야 잠금이 실제로 잠근다),
+     409 를 한 번 받은 뒤에는 방금 다시 받은 목록의 값이다 — 그 한 번의 거절이 「지금 판을
+     보고 다시 결정하라」는 뜻이고, 사람은 이미 그 문구를 읽었다. 그 행이 목록에서 사라졌으면
+     원래 값을 그대로 쓴다(없는 값을 지어내지 않는다). */
+  const editingRow = editing ? rows.find((r) => r.id === editing.id) : null;
+  const nextBaseVersion = (conflicted && editingRow && typeof editingRow.version === "number")
+    ? editingRow.version
+    : (editing ? editing.version : undefined);
 
   /* 열은 폭이 아니라 **의미**를 말한다(D-288 · `ui/columnTypes.js`). 남는 폭을 갖는 열은
      하나뿐이어야 하고(D-308) 여기서는 경로다 — 값이 가장 길고 잘리면 가장 아쉽다. */
@@ -186,7 +227,7 @@ export function StorageProviders({ embedded = false }) {
         ariaLabel={r.name + " 작업"}
         items={[
           { key: "probe", label: "지금 확인", disabled: busy, onClick: () => probe.mutate(r.id) },
-          { key: "edit", label: "수정", disabled: busy, onClick: () => setEditing(r) },
+          { key: "edit", label: "수정", disabled: busy, onClick: () => { setConflicted(false); setEditing(r); } },
           {
             key: "toggle",
             label: r.enabled ? "사용 안 함으로" : "사용으로",
@@ -297,8 +338,10 @@ export function StorageProviders({ embedded = false }) {
           title={"‘" + editing.name + "’ 수정"}
           fields={EDIT_FIELDS}
           initial={editing}
-          onSubmit={(values) => save.mutateAsync({ id: editing.id, body: values })}
-          onClose={() => setEditing(null)}
+          onSubmit={(values) => save.mutateAsync({
+            id: editing.id, body: values, baseVersion: nextBaseVersion,
+          })}
+          onClose={() => { setConflicted(false); setEditing(null); }}
         />
       ) : null}
     </>

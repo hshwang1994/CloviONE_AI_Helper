@@ -21,9 +21,12 @@ system_admin) 이면 누구나 결재한다. 그래서 '위임'을 "내 큐를 �
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
+from sqlalchemy import text as sa_text
+from sqlalchemy.exc import DBAPIError, OperationalError
 from sqlalchemy.orm import Session
 
 from app.approvals.models import (
@@ -32,12 +35,24 @@ from app.approvals.models import (
     Approval,
     ApprovalDelegation,
 )
-from app.core.authz import CONSOLE_WRITE_ROLES
-from app.core.errors import ForbiddenError, NotFoundError, ValidationAppError
+from app.core.authz import CONSOLE_WRITE_ROLES, ROLE_AUDITOR
+from app.core.db import is_serialization_conflict
+from app.core.errors import ConflictError, ForbiddenError, NotFoundError, ValidationAppError
 from app.users.models import User
 
 # 한 번의 위임이 가질 수 있는 최대 길이. 무기한 위임은 위임이 아니라 승격이다.
 MAX_DELEGATION_DAYS = 90
+
+# 저장은 naive UTC 이고(저장소 전역 규약) 사람이 읽는 시각은 Asia/Seoul 이다(§불변 9).
+# 서버가 **완성된 문장**을 만드는 자리(알림 본문·겹침 409·권한 없음 403)에서는 그 변환을
+# 화면에 미룰 수 없다 — 미뤄 두었더니 대리인이 자기 권한 기간을 하루 어긋나게 알았고,
+# 겹침 409 는 실제와 9시간 다른 창을 알려 줘 관리자가 그 값을 믿고 다시 시도해도 또 409 였다.
+_KST = ZoneInfo("Asia/Seoul")
+
+
+def _kst(value: datetime) -> datetime:
+    """저장된 naive UTC 시각 → 사람이 읽는 KST(app/quotas/service.py 와 같은 관용)."""
+    return value.replace(tzinfo=timezone.utc).astimezone(_KST)
 
 
 def due_at_for(requested_at: datetime, hours: int = DEFAULT_SLA_HOURS) -> datetime:
@@ -93,8 +108,15 @@ def require_decider(db: Session, actor: User, now: datetime) -> str | None:
         # 시스템이 고장났다고 신고한다 — 실제로는 위임 기간이 끝난 것뿐이다.
         expired = _most_recent_expired_delegation(db, actor.id, now)
         if expired is not None:
+            # 「스스로 끝났다」와 「관리자가 거뒀다」는 다른 사건이라 다른 문장을 준다. 회수된
+            # 위임에 `ends_at` 을 말하면 아직 오지 않은 시각을 「끝난 시각」으로 알려 주게 된다.
+            if expired.revoked_at is not None:
+                raise ForbiddenError(
+                    f"관리자가 {_kst(expired.revoked_at):%m월 %d일 %H시}에 위임을 거두었습니다. "
+                    "계속 결재하려면 위임을 다시 받아야 합니다."
+                )
             raise ForbiddenError(
-                f"위임 기간이 {expired.ends_at:%m월 %d일 %H시}에 끝났습니다. "
+                f"위임 기간이 {_kst(expired.ends_at):%m월 %d일 %H시}에 끝났습니다. "
                 "계속 결재하려면 위임을 다시 받아야 합니다."
             )
         raise ForbiddenError("승인 권한이 없습니다. 위임을 받으면 대리 결재할 수 있습니다.")
@@ -104,11 +126,18 @@ def require_decider(db: Session, actor: User, now: datetime) -> str | None:
 def _most_recent_expired_delegation(
     db: Session, user_id: str, now: datetime
 ) -> ApprovalDelegation | None:
-    """이 사람에게 **끝난** 위임이 있었나 (가장 최근 것).
+    """이 사람에게 **끝난** 위임이 있었나 (실제로 가장 최근에 끝난 것).
 
     회수(`revoked_at`)된 것도 포함한다 — 당사자 입장에서는 '더 이상 못 한다' 로 같고,
     회수 사실을 숨길 이유가 없다.
+
+    정렬 키가 「실제로 끝난 시각」(`coalesce(revoked_at, ends_at)`)인 이유: `ends_at` 으로
+    정렬하면 **아직 오지 않은 종료 시각을 가진 회수된 위임**이 언제나 1등이 된다. 그래서
+    방금 거둔 위임을 두고 몇 달 뒤 날짜를 「끝난 시각」이라고 말하는 문구가 나갔다.
     """
+    ended_at = func.coalesce(
+        ApprovalDelegation.revoked_at, ApprovalDelegation.ends_at
+    )
     return (
         db.execute(
             select(ApprovalDelegation)
@@ -119,7 +148,7 @@ def _most_recent_expired_delegation(
                     ApprovalDelegation.revoked_at.is_not(None),
                 ),
             )
-            .order_by(ApprovalDelegation.ends_at.desc())
+            .order_by(ended_at.desc(), ApprovalDelegation.id.desc())
             .limit(1)
         )
         .scalars()
@@ -127,11 +156,18 @@ def _most_recent_expired_delegation(
     )
 
 
-def validate_window(starts_at: datetime, ends_at: datetime) -> None:
+def validate_window(starts_at: datetime, ends_at: datetime, now: datetime) -> None:
     if ends_at <= starts_at:
         raise ValidationAppError("종료 시각은 시작 시각보다 뒤여야 합니다.")
     if (ends_at - starts_at) > timedelta(days=MAX_DELEGATION_DAYS):
         raise ValidationAppError(f"위임 기간은 최대 {MAX_DELEGATION_DAYS}일입니다.")
+    # 이미 끝난 창으로 만든 위임은 만들어지는 순간 「종료」다 — 아무에게도 권한을 주지 않으면서
+    # 대리인에게는 「승인할 수 있습니다」 통보가 나가고 관리자는 성공 토스트를 본다. 연도 오타
+    # 하나가 「위임했는데 왜 결재가 안 되나」로 조용히 끝나던 자리라 여기서 막는다.
+    if ends_at <= now:
+        raise ValidationAppError(
+            "이미 지난 기간으로는 위임할 수 없습니다. 종료 시각을 지금보다 뒤로 정해야 합니다."
+        )
 
 
 def create(
@@ -146,7 +182,7 @@ def create(
     now: datetime,
     visible: frozenset[str] | None,
 ) -> ApprovalDelegation:
-    validate_window(starts_at, ends_at)
+    validate_window(starts_at, ends_at, now)
     if visible is not None and not {delegator.id, delegate.id} <= visible:
         # 범위 밖 계정은 **없는 것과 똑같다** — 「그 사람은 있지만 당신 부서가 아닙니다」로
         # 답하면 남의 부서 명부를 id 로 열거할 수 있다(위 `get_scoped_or_404` 와 같은 이유).
@@ -158,6 +194,25 @@ def create(
         raise ValidationAppError("승인 권한이 있는 계정만 위임할 수 있습니다.")
     if not delegate.active or delegate.archived_at is not None:
         raise ValidationAppError("비활성 또는 보관된 계정에는 위임할 수 없습니다.")
+    # 감사자는 이 저장소가 「읽기 전용 가지」로 정의한 역할이라 쓰기 역할 묶음에 절대 들어가지
+    # 않는다(app/core/authz.py). 위임은 결재 **권한**을 빌려주는 것이므로, 감사자를 대리인으로
+    # 두면 자기가 감사할 결정을 스스로 내리게 되고 권한 매트릭스가 화면에서 말하는 것과 실제가
+    # 달라진다 — 위임이 그 경계를 도는 유일한 문이 되면 안 된다.
+    if delegate.role == ROLE_AUDITOR:
+        raise ValidationAppError(
+            "감사자에게는 결재를 위임할 수 없습니다. 감사자는 읽기 전용 역할입니다."
+        )
+    _lock_delegator(db, delegator.id)
+    overlapping = _overlapping_live_delegation(
+        db, delegator.id, delegate.id, starts_at=starts_at, ends_at=ends_at, now=now
+    )
+    if overlapping is not None:
+        raise ConflictError(
+            f"{delegate.display_name}님에게는 이미 "
+            f"{_kst(overlapping.starts_at):%m월 %d일 %H시}부터 "
+            f"{_kst(overlapping.ends_at):%m월 %d일 %H시}까지 "
+            "위임한 기간이 있습니다. 겹치지 않는 기간으로 다시 정해야 합니다."
+        )
     row = ApprovalDelegation(
         delegator_user_id=delegator.id,
         delegate_user_id=delegate.id,
@@ -179,7 +234,7 @@ def create(
         title="승인 권한을 위임받았습니다",
         body=(
             f"{delegator.display_name}님을 대신해 "
-            f"{starts_at:%m월 %d일}부터 {ends_at:%m월 %d일}까지 승인할 수 있습니다."
+            f"{_kst(starts_at):%m월 %d일}부터 {_kst(ends_at):%m월 %d일}까지 승인할 수 있습니다."
         ),
         related=("approval_delegation", row.id),
         now=now,
@@ -187,10 +242,104 @@ def create(
     return row
 
 
+# 겹침 검사와 삽입 사이가 열려 있으면(커밋은 요청 끝에 한 번뿐이다) 동시에 들어온 두 요청이
+# 각자 「겹치는 것 없음」을 보고 둘 다 넣는다 — 실측으로 4발 전부 201 이었다. 그러면 관리자가
+# 목록에서 한 장을 거두고 「권한을 회수했다」고 믿는 순간 쌍둥이 한 장이 그대로 결재 권한을
+# 준다. 회수가 거짓말을 하지 않게 하는 것이 겹침 금지의 목적이므로, 그 목적이 경합 한 번에
+# 무너지면 안 된다.
+_DELEGATOR_LOCK_TIMEOUT_MS = 5000
+
+
+def _lock_delegator(db: Session, delegator_id: str) -> None:
+    """이 위임자의 계정 행을 잠근다 — 같은 위임자에 대한 생성은 한 번에 하나만 지난다.
+
+    겹침 규칙은 (위임자, 대리자) 짝에 걸리므로 **위임자 행**을 문으로 삼으면 충분하다.
+    아직 없는 행은 잠글 수 없어(팬텀) 위임 표 자체를 잠글 수는 없다 — 부모 행을 잠그는 것이
+    이 상황의 정석이다.
+
+    **이것은 응용 계층의 문이다.** 진짜 승자 판정은 DB 가 해야 한다 —
+    `EXCLUDE USING gist (delegator_user_id WITH =, delegate_user_id WITH =,
+    tsrange(starts_at, ends_at) WITH &&) WHERE (revoked_at IS NULL)` 배제 제약이 그 답이고,
+    그것은 마이그레이션이 필요해 이 수정의 범위 밖이다(승인 생성 경로가 부분 유일 인덱스로
+    이미 그 형태를 쓴다). 제약이 생기면 이 잠금은 그대로 두어도 되고 걷어도 된다.
+    """
+    db.execute(sa_text(f"SET LOCAL lock_timeout = '{_DELEGATOR_LOCK_TIMEOUT_MS}ms'"))
+    try:
+        db.execute(
+            select(User.id).where(User.id == delegator_id).with_for_update()
+        ).scalar_one_or_none()
+    except (OperationalError, DBAPIError) as exc:
+        # `55P03 lock_not_available` — 다른 생성이 아직 커밋 전이다. 문구가 아니라 SQLSTATE 로
+        # 가른다(`app/approvals/service.py::lock_for_decision` 과 같은 이유): PG 는 오류 문구를
+        # 서버 로캘로 쓰므로 영어 "lock" 대조는 한국어 로캘에서 통째로 뒤집힌다.
+        if not is_serialization_conflict(exc):
+            raise
+        raise ConflictError(
+            "같은 사람의 위임이 동시에 등록되고 있습니다. 잠시 뒤 다시 시도해 주세요."
+        ) from exc
+
+
+def _overlapping_live_delegation(
+    db: Session,
+    delegator_id: str,
+    delegate_id: str,
+    *,
+    starts_at: datetime,
+    ends_at: datetime,
+    now: datetime,
+) -> ApprovalDelegation | None:
+    """같은 위임자→대리자 짝에 이미 살아 있고 창이 겹치는 위임 (가장 이른 것).
+
+    ## 왜 겹침을 막는가
+
+    같은 짝의 위임이 두 장 겹쳐 있으면 회수가 거짓말을 한다 — 관리자가 한 장을 거둬도
+    다른 한 장이 그대로 권한을 준다. 화면은 「회수됨」을 보여 주는데 그 사람은 계속
+    결재한다. 위임은 감사 근거(`decided_on_behalf_of`)라, 같은 권한이 두 근거로 남는 것도
+    되짚을 때 혼란만 만든다.
+
+    ## 무엇을 «살아 있다» 로 보는가
+
+    회수되지 않았고(`revoked_at IS NULL`) 아직 끝나지 않은 것(`ends_at > now`)이다.
+    예약된(아직 시작 전) 위임도 포함한다 — 곧 살아날 창이므로 겹치면 같은 문제가 된다.
+    끝난 위임과 회수된 위임은 비운 자리라 다시 채울 수 있다.
+
+    창은 반열림 `[starts_at, ends_at)` 이다 — 한 창이 끝나는 시각에 다음 창이 시작하는
+    것은 겹침이 아니다(`state()` 가 `now >= ends_at` 을 «끝남» 으로 보는 것과 같은 경계).
+    """
+    return (
+        db.execute(
+            select(ApprovalDelegation)
+            .where(
+                ApprovalDelegation.delegator_user_id == delegator_id,
+                ApprovalDelegation.delegate_user_id == delegate_id,
+                ApprovalDelegation.revoked_at.is_(None),
+                ApprovalDelegation.ends_at > now,
+                ApprovalDelegation.starts_at < ends_at,
+                ApprovalDelegation.ends_at > starts_at,
+            )
+            .order_by(ApprovalDelegation.starts_at.asc())
+            .limit(1)
+        )
+        .scalars()
+        .first()
+    )
+
+
 def revoke(db: Session, row: ApprovalDelegation, *, now: datetime) -> ApprovalDelegation:
-    if row.revoked_at is None:
-        row.revoked_at = now
-        db.flush()
+    """거둘 수 있는 위임은 **진행 중이거나 예약된 것**뿐이다 — 화면 액션의 조건과 같다.
+
+    예전에는 `revoked_at` 이 비어 있기만 하면 지금 시각을 찍었다. 그래서 스스로 끝난 위임에
+    회수 API 를 한 번 부르면 기록의 뜻이 「저절로 닫혔다」에서 「관리자가 거뒀다」로 바뀌고,
+    목록의 종료 열도 원래 종료 시각 대신 오늘로 바뀐다(`state()` 가 `revoked_at` 을 먼저 본다).
+    위임은 감사 근거라 그 두 사실을 뒤바꾸면 안 된다.
+    """
+    current = state(row, now)
+    if current == "revoked":
+        raise ConflictError("이미 거둔 위임입니다.")
+    if current == "ended":
+        raise ConflictError("이미 끝난 위임입니다. 진행 중이거나 예약된 위임만 거둘 수 있습니다.")
+    row.revoked_at = now
+    db.flush()
     return row
 
 
@@ -271,8 +420,13 @@ def view(
 
 
 def notify_overdue(db: Session, *, now: datetime) -> int:
-    """기한을 넘긴 대기 승인에 대해 관리자에게 **한 번만** 알린다. 알린 건수를 돌려준다."""
-    from app.notifications.service import notify_approvers
+    """기한을 넘긴 대기 승인에 대해 **그 건을 결재할 수 있는 사람에게만** 한 번 알린다.
+
+    수신자는 요청 알림과 같은 규칙이다(`service.deciders_for`) — 결재함에 뜨지도 않는 줄을
+    「기한이 지났다」고 재촉받는 사람이 없어야 한다. 제목의 요청 유형도 요청·결정 알림과
+    같은 한국어 라벨을 쓴다(APPR-02): 벨에 `user.role_change` 같은 내부 코드를 띄우지 않는다.
+    """
+    from app.approvals.service import _request_type_ko, notify_deciders
 
     rows = (
         db.execute(
@@ -290,12 +444,12 @@ def notify_overdue(db: Session, *, now: datetime) -> int:
     )
     for row in rows:
         row.sla_notified_at = now
-        notify_approvers(
+        notify_deciders(
             db,
+            row,
             type_="approval_overdue",
-            title=f"승인 기한 초과: {row.request_type}",
+            title=f"승인 기한 초과: {_request_type_ko(row.request_type)}",
             body="기한이 지난 승인 요청이 아직 처리되지 않았습니다.",
-            related=("approval", row.id),
             now=now,
         )
     db.flush()

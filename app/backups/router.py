@@ -60,6 +60,60 @@ BACKUP_LIST_LIMIT = 50
 REHEARSAL_LIST_LIMIT = 20
 
 
+def _download_block(row: Backup) -> str | None:
+    """이 백업을 **지금 정말 받을 수 있는가**. 못 받으면 그 이유 코드, 받을 수 있으면 None.
+
+    화면은 「내려받기」를 `file_state == "present"` 로만 세웠다. 그런데 그 값은 「사람이
+    서버 파일을 지웠는가」만 기록한다(D-204) — 실패한 백업에도, 디스크에서 사라진 파일에도
+    `present` 가 그대로 남는다. 그래서 받을 것이 없는 행에 단추가 서고, 누르면 받을 것이
+    없다는 오류만 돌아왔다. 사고가 난 날 여는 화면에서 일어나는 일이다.
+
+    판정은 서버가 한다 — 파일이 디스크에 있는지는 브라우저가 알 수 없고, 두 곳에서 각자
+    판단하면 화면의 단추와 서버의 답이 갈라진다.
+
+    **판정이 하나라는 말은 함수가 하나라는 뜻이다.** 예전에는 이 함수와 `download` 가 각각
+    규칙을 적었고, 그래서 `status == "failed"` 한 경우에 둘의 답이 정반대였다 — 목록은
+    「못 받는다」, 라우터는 파일을 그대로 내줬다. 지금은 `download` 가 이 함수를 부르고
+    이유 코드를 문장으로 옮기기만 한다(`_DOWNLOAD_REFUSALS`).
+    """
+    if row.status == STATUS_RUNNING:
+        return "running"
+    if row.status == STATUS_FAILED:
+        # 실패한 백업에는 받을 덤프가 없다. 있어도 그것은 반쪽 파일이거나 검증을 통과하지
+        # 못한 파일이라 복원에 쓸 수 없다(`verify_existing` 이 손상된 세트를 여기로 낮춘다).
+        return "failed"
+    if row.file_state == FILE_REMOVED:
+        return "removed"
+    if not dump_path(row.path).is_file():
+        return "missing"
+    return None
+
+
+#: 이유 코드 → (예외, 사람이 읽을 문장). 코드 자체는 상태 코드고(`file_state`, 검증 응답의
+#: `reason` 과 같은 규약) 화면이 자기 문구를 정한다 — 이 표는 **API 를 직접 부른 쪽**이
+#: 받는 답이다.
+_DOWNLOAD_REFUSALS: dict[str, tuple[type, str]] = {
+    "running": (ConflictError, "아직 진행 중인 백업입니다. 완료된 뒤 다시 시도하세요."),
+    "failed": (
+        NotFoundError,
+        "실패로 표시된 백업입니다. 이 세트에는 복원에 쓸 수 있는 덤프가 없습니다.",
+    ),
+    "removed": (ConflictError, "이 백업 파일은 서버에서 이미 삭제했습니다."),
+    "missing": (NotFoundError, "백업 파일이 서버에 없습니다."),
+}
+
+
+def _downloadable(row: Backup) -> dict:
+    """응답에 싣는 판정 두 칸. 화면의 단추는 `downloadable` 하나만 보면 된다."""
+    blocked = _download_block(row)
+    return {"downloadable": blocked is None, "download_blocked_reason": blocked}
+
+
+def _row_view(row: Backup, names: dict | None = None) -> dict:
+    """목록·단건이 함께 쓰는 조립 지점. 받을 수 있는가는 **모든 응답에서** 같은 답이어야 한다."""
+    return {**backup_view(row, names), **_downloadable(row)}
+
+
 @router.get("", dependencies=[Depends(require_permission(BACKUP_READ))])
 def list_backups(
     request: Request,
@@ -95,7 +149,7 @@ def list_backups(
     )
     # 실행자 이름은 **한 번의 질의로** — 행마다 조회하면 이 목록이 N+1 이 된다.
     names = people.name_map(db, [r.created_by for r in rows])
-    return {"items": [backup_view(r, names) for r in rows]}
+    return {"items": [_row_view(r, names) for r in rows]}
 
 
 @router.post("", status_code=201, dependencies=[Depends(require_permission(BACKUP_EXECUTE))])
@@ -123,7 +177,7 @@ def create_backup(request: Request, db: Session = Depends(get_db)):
         request, db, action="backup.create", object_type="backup", object_id=row.id,
         after={"status": row.status, "path": row.path},
     )
-    return {"backup": backup_view(row)}
+    return {"backup": _row_view(row)}
 
 
 # 정적 경로는 `/{backup_id}/...` **앞에** 둔다 — 아래 verify 라우트가 먼저 등록돼 있으면
@@ -182,7 +236,7 @@ def get_backup_schedule(request: Request, db: Session = Depends(get_db)):
         # 설정 화면이 정본이다 — 여기서 고치는 API 를 따로 만들면 값이 두 곳에서 바뀐다.
         # 문구에 내부 키 이름을 적지 않는다(지시 36) — 화면의 버튼 이름 그대로 말한다.
         "edit_hint": "일정은 백업 화면의 '백업 일정 설정'에서 바꿉니다.",
-        "last_backup": backup_view(last) if last is not None else None,
+        "last_backup": _row_view(last) if last is not None else None,
         "last_rehearsal": rehearsal_view(rehearsal) if rehearsal is not None else None,
         # 무엇이 담기고 무엇이 안 담기는가. 백업을 만들기 **전에** 읽을 수 있어야 한다 —
         # 복원한 뒤 「검색이 비어 있는데 정상인가」를 묻게 되는 것이 그 다음으로 나쁘다.
@@ -212,7 +266,7 @@ def verify(request: Request, backup_id: str, db: Session = Depends(get_db)):
         request, db, action="backup.verify", object_type="backup", object_id=row.id,
         after=result,
     )
-    return {"backup": backup_view(row), "verify": result}
+    return {"backup": _row_view(row), "verify": result}
 
 
 @router.get(
@@ -227,17 +281,18 @@ def download(request: Request, backup_id: str, db: Session = Depends(get_db)):
 
     세트에서는 **덤프 하나만** 내보낸다. 매니페스트는 `GET /api/admin/backups` 가 이미
     행에 실어 보내므로, 받는 쪽이 tar 를 풀 이유를 만들지 않는다.
+
+    거절 판정은 목록이 싣는 `downloadable` 과 **같은 함수**(`_download_block`)다. 두 곳이
+    각자 판단하던 동안 목록은 「못 받는다」고 하고 이 라우터는 파일을 내주는 상태가 있었다.
     """
     row = db.get(Backup, backup_id)
     if row is None:
         raise NotFoundError("백업을 찾을 수 없습니다.")
-    if row.status == STATUS_RUNNING:
-        raise ConflictError("아직 진행 중인 백업입니다. 완료된 뒤 다시 시도하세요.")
-    if row.file_state == FILE_REMOVED:
-        raise ConflictError("이 백업 파일은 서버에서 이미 삭제했습니다.")
+    blocked = _download_block(row)
+    if blocked is not None:
+        error, message = _DOWNLOAD_REFUSALS[blocked]
+        raise error(message)
     target = dump_path(row.path)
-    if not target.is_file():
-        raise NotFoundError("백업 파일이 서버에 없습니다.")
     now = request.app.state.clock.now()
     # 받아 간 사실만 적는다. **이 값 때문에 서버가 파일을 지우지 않는다**(D-204).
     mark_downloaded(db, row, now=now)
@@ -282,7 +337,7 @@ def discard(request: Request, backup_id: str, db: Session = Depends(get_db)):
         request, db, action="backup.discard_file", object_type="backup", object_id=row.id,
         after={"path": row.path, **result},
     )
-    return {"backup": backup_view(row), "removed": result}
+    return {"backup": _row_view(row), "removed": result}
 
 
 @router.get("/restore-instructions", dependencies=[Depends(require_permission(BACKUP_EXECUTE))])

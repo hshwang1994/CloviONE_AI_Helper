@@ -2,6 +2,8 @@
 same name never crashes with a raw 500 — whole-product re-audit finding
 (2026-08-15, alongside PA-RC-0008).
 
+qa-contract-change: 조직 생성의 중복 응답이 422(ValidationAppError)에서 409(ConflictError)로 바뀌었다. 같은 라우터가 부서와 직책의 같은 사건에는 이미 409 를 돌려주고 있었고, 조직만 422 라 화면과 API 소비자가 같은 뜻을 서로 다른 코드로 분기했다(org-10). 이 파일이 지키는 성질은 그대로다 — 사전 검사와 재시도 소진이 **같은 오류**로 끝나는 것이고, 이제 그 하나가 409 다.
+
 `app/org/service.py::create_item` (departments, job titles) and
 `app/org/router.py::create_organization` were check-then-insert with no
 SAVEPOINT/retry: `Department.(org_id, name)`, `JobTitle.name` (global), and
@@ -15,7 +17,7 @@ other call sites (e.g. app/projects/service.py's PROJ-01).
 Both are now wrapped in the shared `db.begin_nested()` + `is_write_conflict`
 retry (app/core/db.py), and raise the *same* clean error on exhaustion that
 the synchronous pre-check already used for that call site (ConflictError
-for create_item, ValidationAppError for create_organization) — a client
+for both create_item and create_organization) — a client
 that loses the race gets the same response as one that arrived slightly
 later and hit the ordinary duplicate check.
 
@@ -177,9 +179,9 @@ def test_create_item_gives_up_cleanly_after_exhausting_retries(db, monkeypatch):
 
 def test_create_organization_gives_up_cleanly_after_exhausting_retries(db, monkeypatch):
     """create_organization(라우터 레벨)도 같은 계약 — 예산 소진 시 사전 검사와 같은
-    ValidationAppError(422, "이미 있는 식별자입니다")여야 한다."""
+    ConflictError(409, "이미 있는 식별자입니다")여야 한다."""
     import app.org.router as router_mod
-    from app.core.errors import ValidationAppError
+    from app.core.errors import ConflictError
 
     attempts = []
 
@@ -211,7 +213,7 @@ def test_create_organization_gives_up_cleanly_after_exhausting_retries(db, monke
         tree=DeptTree.load(db),
     )
 
-    with pytest.raises(ValidationAppError):
+    with pytest.raises(ConflictError):
         create_organization(
             _FakeRequest(),
             OrganizationCreateRequest(slug="race-org", name="경합 조직"),

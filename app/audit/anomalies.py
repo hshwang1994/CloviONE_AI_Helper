@@ -41,6 +41,13 @@ MAX_WINDOW_HOURS = 24 * 30
 FAILURE_BURST_THRESHOLD = 5
 VOLUME_SPIKE_THRESHOLD = 200
 
+# 「처음 하는 동작」 규칙의 비교 구간 길이(일). 왼쪽 끝은 조회 창이 아니라 `now` 에 매어
+# 두므로, 창을 넓혀도 비교 구간이 데이터가 없는 과거로 밀려나지 않는다. 최대 창(30일)의
+# 두 배라 어떤 창에서도 비교 구간이 남는다.
+BASELINE_DAYS = 60
+
+RULE_NEW_ACTOR_ACTION = "new_actor_action"
+
 # 심야로 보는 KST 시각(시작 포함, 끝 미포함으로 두 구간).
 OFF_HOURS_START = 22
 OFF_HOURS_END = 7
@@ -71,7 +78,23 @@ def _is_off_hours(created_at: datetime) -> bool:
     return local.hour >= OFF_HOURS_START or local.hour < OFF_HOURS_END
 
 
+# 인증 그 자체는 「설정, 권한을 바꾼 동작」이 아니다.
+#
+# `SENSITIVE_ACTION_PREFIXES` 의 첫 항목이 `user.` 라 로그인·로그아웃까지 함께 걸렸고, 그
+# 결과 밤에 평범하게 로그인한 사람마다 이름과 함께 「심야에 설정, 권한을 바꿨습니다」가
+# 떴다 — 있지도 않은 사실을 중요도 「보통」으로 보고한 것이다. 야근이 흔한 조직이면 매일
+# 사람 수만큼 그 소견이 쌓여, 진짜 소견이 그 사이에 묻힌다.
+#
+# 로그인 **실패**를 여기서 빼도 탐지는 그대로다 — `failure_burst` 는 action 이 아니라
+# `result` 로만 판정하므로 실패가 몰리면 여전히 잡힌다. 비밀번호 변경
+# (`user.password_change_self`)은 뺀 목록에 넣지 않는다: 그것은 인증이 아니라 자격 증명을
+# **바꾸는** 동작이라 심야에 일어나면 실제로 봐야 한다.
+AUTH_ACTIONS = frozenset({"user.login", "user.logout", "user.login_failed"})
+
+
 def _is_sensitive(action: str) -> bool:
+    if action in AUTH_ACTIONS:
+        return False
     return any(action.startswith(prefix) for prefix in SENSITIVE_ACTION_PREFIXES)
 
 
@@ -191,13 +214,19 @@ def detect(
                 first_at=critical[0].created_at, last_at=critical[-1].created_at,
             ))
 
-    # 5) 처음 하는 동작 유형 — 창 이전 30일을 비교 구간으로 쓴다.
+    # 5) 처음 하는 동작 유형 — 비교 구간은 **지금**에 매어 둔다(창에 매지 않는다).
+    #
+    # 예전에는 `since - 30일 ~ since` 였다. 그러면 창을 넓힐수록 비교 구간이 통째로 과거로
+    # 밀려나고, 그 구간에 행이 없으면 규칙 자체가 조용히 사라졌다 — 기간을 30일로 넓힌
+    # 관리자가 소견이 18건에서 9건으로 **줄어드는** 것을 보고 「괜찮아졌다」로 읽었다.
+    # 빈 상태 안내가 「기간을 늘려 다시 보세요」라고 시키기까지 하는 화면에서 그렇다.
+    # 왼쪽 끝을 `now` 에 고정하면 창을 넓혀도 비교 구간이 데이터 밖으로 미끄러지지 않는다.
     #
     # 비교 구간에도 **같은 범위**를 건다. 소견은 어차피 범위 안 행위자에 대해서만 나오므로
     # 안 걸어도 새지는 않지만, 이 함수가 읽는 행이 한 종류라도 범위를 벗어나면 다음 규칙을
     # 추가하는 사람이 그 행을 그대로 소견에 실어 버린다 — '이 함수는 볼 수 있는 것만 읽는다'
     # 가 규칙이어야 그런 실수가 생길 자리가 없다.
-    baseline_since = since - timedelta(days=30)
+    baseline_since = now - timedelta(days=BASELINE_DAYS)
     baseline = {
         (r[0], r[1])
         for r in db.execute(
@@ -209,16 +238,29 @@ def detect(
             )
         ).all()
     }
-    if baseline:  # 비교 구간이 비어 있으면 '전부 처음'이 되어 소음만 만든다
+    # 비교 구간이 비어 있으면 '전부 처음'이 되어 소음만 만든다 — 그래서 규칙을 건너뛴다.
+    # 다만 **조용히** 건너뛰지 않는다. 소견 수가 줄어든 것이 「그 기간에는 이상이 없었다」로
+    # 읽히면 그 침묵이 곧 거짓말이 되므로, 무엇을 왜 적용하지 않았는지 응답에 싣는다.
+    skipped_rules: list[dict] = []
+    if not baseline:
+        skipped_rules.append({
+            "kind": RULE_NEW_ACTOR_ACTION,
+            "title": "이 계정이 처음 하는 동작입니다",
+            "reason": (
+                "이 기간보다 앞선 감사 기록이 없어서 「처음 하는 동작」 규칙은 "
+                "이번 조회에 적용하지 않았습니다."
+            ),
+        })
+    else:
         for actor_id, entries in by_actor.items():
             fresh = sorted({e.action for e in entries if (actor_id, e.action) not in baseline})
             sensitive_fresh = [a for a in fresh if _is_sensitive(a)]
             if sensitive_fresh:
                 matching = [e for e in entries if e.action in set(sensitive_fresh)]
                 findings.append(_finding(
-                    "new_actor_action", SEVERITY_LOW, actor_id,
+                    RULE_NEW_ACTOR_ACTION, SEVERITY_LOW, actor_id,
                     "이 계정이 처음 하는 동작입니다",
-                    "최근 30일 동안 이 계정이 한 적 없던 설정, 권한 관련 동작입니다.",
+                    f"최근 {BASELINE_DAYS}일 동안 이 계정이 한 적 없던 설정, 권한 관련 동작입니다.",
                     # UA-27: sensitive_fresh는 **동작 종류**(집합, 중복 제거)라 count에 그 길이를
                     # 쓰면 실제 발생 건수가 아니라 종류 수가 된다 — 같은 새 동작을 5번 해도
                     # 화면의 "건수" 열엔 1이 뜬다. 형제 소견 4종은 전부 원시 이벤트 목록의
@@ -236,6 +278,10 @@ def detect(
     findings.sort(key=lambda f: (order.get(f["severity"], 9), f["kind"], f["actor_id"] or ""))
     return {
         "findings": findings,
+        # 적용하지 못한 규칙. 비어 있는 것이 정상이고, 비어 있지 않으면 화면이 그 이유를
+        # 사람에게 그대로 말해야 한다 — 「소견이 줄었다」와 「규칙 하나를 못 돌렸다」는
+        # 서로 다른 사실이다.
+        "skipped_rules": skipped_rules,
         "window_hours": window_hours,
         "since": since.isoformat(),
         "until": now.isoformat(),

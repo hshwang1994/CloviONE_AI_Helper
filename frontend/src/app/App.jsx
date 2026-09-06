@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from "./auth.jsx";
 import { Skeleton } from "../ui/kit.jsx";
 import { AppShell, ShellErrorFallback } from "./AppShell.jsx";
 import { LoginHandoff } from "./LoginHandoff.jsx";
+import { useImpersonation } from "./Banners.jsx";
 
 /* 두 콘솔은 각각 별도 청크다. 사용자 콘솔만 쓰는 사람은 관리자 화면 20여 개를 받지 않는다. */
 const AdminRoutes = React.lazy(() => import("./AdminRoutes.jsx"));
@@ -44,6 +45,22 @@ export function initialLandingPath(pathname, _role) {
 export function hasDestination(hash) {
   const h = String(hash || "").replace("#", "");
   return !!h && h !== "/";
+}
+
+/** 지금 이 브라우저를 SPA 밖 `/change-password` 로 밀어야 하는가 (users-07).
+ *
+ * 세 값이 다 필요하다:
+ *   * `mustChange` — `/api/me` 가 말한 값. 대리 보기 중이면 **대상의** 값이다.
+ *   * `impersonationKnown` — 대리 보기 여부를 아직 물어보는 중이면 밀지 않고 기다린다.
+ *     먼저 밀면 그 답이 도착할 자리가 없어진다. 조회가 실패해도 «안다» 로 친다(그때는
+ *     대리 보기가 아닌 것으로 보고 예전과 똑같이 민다).
+ *   * `impersonating` — 대리 보기 중이면 안 민다. 갓 만든 계정은 전부
+ *     `must_change_password` 라(기본값), 그 사람을 대리 보기로 열면 관리자가 SPA 밖
+ *     비밀번호 변경 화면에 갇혔다 — 그 페이지에는 대리 보기 띠도 「대리 보기 종료」도
+ *     없어서 화면 안에서 되돌아올 길이 로그아웃뿐이었다.
+ */
+export function shouldForcePasswordChange({ mustChange, impersonationKnown, impersonating }) {
+  return !!mustChange && !!impersonationKnown && !impersonating;
 }
 
 /* 첫 페인트 전에 테마를 적용해 다크 사용자의 화이트 플래시(FOUC)를 없앤다.
@@ -91,12 +108,27 @@ function Layout() {
     // 여기는 `auth.isLoading` 을 기다리므로 역할을 알고 나서 정한다.
   }, [auth.isLoading, loc.pathname]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // must_change_password가 켜진 계정은 /api/me 이외 거의 모든 API가 403으로 막힌다 —
-  // 그대로 두면 화면마다 막다른 403만 보인다. login.js가 로그인 직후 하는 것과 같은
-  // 리다이렉트를 SPA 진입 시점에도 한다(/change-password는 이 SPA 밖의 별도 페이지).
+  /* must_change_password가 켜진 계정은 /api/me 이외 거의 모든 API가 403으로 막힌다 —
+   * 그대로 두면 화면마다 막다른 403만 보인다. login.js가 로그인 직후 하는 것과 같은
+   * 리다이렉트를 SPA 진입 시점에도 한다(/change-password는 이 SPA 밖의 별도 페이지).
+   *
+   * 🔴 **대리 보기 중에는 안 민다.** 그 세션의 `must_change_password` 는 지금 보고 있는
+   * 대상의 것이지 이 브라우저 주인의 것이 아니다. 갓 만든 계정은 전부 그 상태라(기본값),
+   * 그 사람을 대리 보기로 열면 관리자가 SPA 밖 비밀번호 변경 화면에 갇혔다 — 그 페이지에는
+   * 대리 보기 띠도 「대리 보기 종료」도 없어서 되돌아오는 길이 로그아웃뿐이었다(users-07).
+   * 서버는 이미 그렇게 판단해 뒀다(`app/core/deps.py::get_current_user` — 대리 보기 세션은
+   * 읽기만 되므로 그 게이트를 안 건다). 그리고 대리 보기 세션은 비밀번호를 바꿀 수도 없다.
+   *
+   * 판단 자체는 위 `shouldForcePasswordChange` 에 있다 — 세 값의 조합을 화면 없이 시험한다. */
+  const impersonation = useImpersonation();
+  const impersonating = !!(impersonation.data && impersonation.data.impersonating);
+  const impersonationKnown = impersonation.isFetched;
+  const mustChange = !!(auth.data && auth.data.must_change_password);
   useEffect(() => {
-    if (auth.data && auth.data.must_change_password) window.location.href = "/change-password";
-  }, [auth.data]);
+    if (shouldForcePasswordChange({ mustChange, impersonationKnown, impersonating })) {
+      window.location.href = "/change-password";
+    }
+  }, [mustChange, impersonationKnown, impersonating]);
 
   // 사용자 세그먼트 여부(관리자군이 상단 '사용자' 탭에 있는지). role=user 는 항상 사용자 콘솔.
   const userSeg = inUserSegment(loc.pathname);

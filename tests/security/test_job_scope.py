@@ -1,5 +1,7 @@
 """잡 큐의 **단건·재시도·취소**도 범위를 지킨다 (§0-A 2순위).
 
+qa-contract-change: 감사자 축을 더한다 — 읽기(목록·요약·상세)는 200, 재시도·취소는 403 이다. 라우터 전체가 CONSOLE_OPS_ROLES 이던 동안 감사자는 큐를 읽지도 못했고, 그것은 제품이 공표하는 능력 표(console.read 는 감사자를 포함한다)와 어긋났다. 기존 부서 범위 단언은 한 줄도 바뀌지 않는다.
+
 목록(`GET /api/admin/jobs`)은 이미 범위를 걸었는데 `GET /{id}` · `POST /{id}/retry` ·
 `POST /{id}/cancel` 은 `db.get(Job, job_id)` 하나로 끝났다. 목록만 가려서는 아무 의미가
 없다 — 세 경로 모두 **id 를 직접 받는다.**
@@ -170,6 +172,33 @@ def test_a_global_admin_still_sees_and_operates_everything(client, login_as, db,
     r = client.post(f"/api/admin/jobs/{world['theirs_failed']}/retry", headers=hdr)
     assert r.status_code == 200, f"전역 관리자가 재시도를 못 한다: {r.status_code} {r.text}"
     assert _status(db, world["theirs_failed"]) == "queued"
+
+
+def test_an_auditor_reads_the_queue_but_cannot_operate_it(client, login_as, db, world):
+    """감사자는 «읽기 전용 가지» 다 — 큐는 읽되(console.read) 재시도·취소는 못 한다.
+
+    전역 감사자라 범위 제한이 없다 — 남의 팀 잡도 읽힌다. 읽기가 새는 것이 아닌 이유는
+    `_job_view` 가 참조값만 싣고 요청자의 원문은 싣지 않기 때문이다.
+    """
+    hdr = {"X-CSRF-Token": login_as("auditor")}
+
+    listing = client.get("/api/admin/jobs", headers=hdr)
+    assert listing.status_code == 200, f"감사자가 큐 목록을 못 본다: {listing.status_code} {listing.text}"
+    assert set(world.values()) <= {row["id"] for row in listing.json()["items"]}
+    stats = client.get("/api/admin/jobs/stats", headers=hdr)
+    assert stats.status_code == 200, f"감사자가 큐 요약을 못 본다: {stats.status_code} {stats.text}"
+    assert stats.json()["failed"] == 3
+    detail = client.get(f"/api/admin/jobs/{world['theirs_failed']}", headers=hdr)
+    assert detail.status_code == 200, f"감사자가 잡 상세를 못 본다: {detail.status_code} {detail.text}"
+    assert detail.json()["job"]["last_error"] == "notion 401"
+
+    r = client.post(f"/api/admin/jobs/{world['theirs_failed']}/retry", headers=hdr)
+    assert r.status_code == 403, f"감사자가 재시도를 했다: {r.status_code} {r.text}"
+    assert _status(db, world["theirs_failed"]) == "failed", "403 을 돌려주고도 잡이 재큐잉됐다"
+
+    r = client.post(f"/api/admin/jobs/{world['theirs_queued']}/cancel", headers=hdr)
+    assert r.status_code == 403, f"감사자가 취소를 했다: {r.status_code} {r.text}"
+    assert _status(db, world["theirs_queued"]) == "queued", "403 을 돌려주고도 잡이 취소됐다"
 
 
 def test_an_out_of_scope_job_is_404_before_409(client, login_as, world):

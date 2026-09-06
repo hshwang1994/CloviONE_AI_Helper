@@ -6,14 +6,16 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import "@testing-library/jest-dom/vitest";
 
-/* 조직 콘솔의 **행동** — 확인 문구와 게이트 (admin-uiux 에서 이관 · 재설계 후 정본).
+/* qa-contract-change: 부서 삭제 가능 여부의 판정 근거가 화면의 자체 계산(user_count)에서 서버 응답의 delete_precheck 로 옮겨졌다(org-02·xc-01) — 표본에 그 필드를 실어 같은 성질을 새 계약으로 다시 잰다. 단언은 하나도 걷지 않았다.
+ *
+ * 조직 콘솔의 **행동** — 확인 문구와 게이트 (admin-uiux 에서 이관 · 재설계 후 정본).
  *
  * 1) 조직 비활성화 확인 문구는 이 버튼이 실제로 하는 일을 말한다: 몇 명이 **지금 즉시
  *    로그아웃**되고 다시 로그인할 수 없게 되는지, 그리고 되돌릴 수 있다는 사실.
  *    "기존 데이터는 그대로"라고만 적으면 아무 일도 안 일어나는 것처럼 읽힌다.
  * 2) 부서 비활성화도 인원수를 말한다 — 0명과 200명이 같은 경고를 받지 않는다.
- * 3) 사용 중(소속 인원>0)인 부서에는 삭제 버튼 자체가 없다 — 눌러도 항상 409 인 버튼을
- *    그리지 않는다.
+ * 3) 서버가 막는 부서에는 삭제 버튼 자체가 없다 — 눌러도 항상 409 인 버튼을 그리지 않는다.
+ *    그 판정은 상세 응답의 `delete_precheck` 다(app/org/service.py::delete_precheck).
  * 4) 상세 판의 primary 는 「수정」 하나다(화면/판당 primary 하나 원칙).
  */
 
@@ -38,11 +40,22 @@ const TREE = [
 ];
 const ORGS = [{ id: "org-1", name: "클로비원", slug: "clovirone", status: "active",
   department_count: 2, user_count: 9, created_at: AT }];
+/* 삭제 판정은 서버가 낸다 — 표본도 서버가 실제로 싣는 모양 그대로다
+   (app/org/service.py::delete_precheck: deletable · blockers[] · detachables[] · reason). */
 const DEPT_ITEMS = {
   "dep-sales": { id: "dep-sales", name: "영업팀", active: true, parent_id: null,
-    org_id: "org-1", org_name: "클로비원", user_count: 4, child_department_count: 0, created_at: AT },
+    org_id: "org-1", org_name: "클로비원", user_count: 4, child_department_count: 0, created_at: AT,
+    delete_precheck: {
+      deletable: false,
+      blockers: [{ kind: "users", label: "소속 사용자", count: 4, archived_count: 0 }],
+      detachables: [],
+      reason: "이 부서에 소속 사용자 4건이 연결되어 있어 삭제할 수 없습니다."
+        + " 먼저 다른 부서로 옮기거나, '비활성'으로 두면 새로 고를 수는 없지만 기존 연결은"
+        + " 그대로 유지됩니다.",
+    } },
   "dep-empty": { id: "dep-empty", name: "빈부서", active: true, parent_id: null,
-    org_id: "org-1", org_name: "클로비원", user_count: 0, child_department_count: 0, created_at: AT },
+    org_id: "org-1", org_name: "클로비원", user_count: 0, child_department_count: 0, created_at: AT,
+    delete_precheck: { deletable: true, blockers: [], detachables: [], reason: null } },
 };
 
 function mockApi(overrides) {

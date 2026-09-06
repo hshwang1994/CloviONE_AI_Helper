@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, Path, Query, Request
 from pydantic import BaseModel, Field
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session
@@ -41,6 +42,11 @@ from app.core.errors import ValidationAppError
 _KNOWN_STATUSES = frozenset(
     {APPROVAL_PENDING, APPROVAL_APPROVED, APPROVAL_REJECTED, APPROVAL_EXPIRED, APPROVAL_CANCELLED}
 )
+
+# 위임 목록의 `state` 도 같은 이유로 검사한다 — 형제 목록(위 `_KNOWN_STATUSES`)은 이미 알 수
+# 없는 값을 422 로 거절하는데, 위임 목록만 조회 뒤 파이썬에서 걸러 「모르는 값 = 0건」이었다.
+# 값은 `delegation.state()` 가 돌려주는 네 가지가 전부다.
+_KNOWN_DELEGATION_STATES = frozenset({"active", "scheduled", "ended", "revoked"})
 from app.core.errors import NotFoundError
 from app.core.feature_flags import load_feature_flags
 from app.core.pagination import PageParams
@@ -71,12 +77,50 @@ def _view(
     expired인데 상세에서는 pending으로 보인다. 라우터의 모든 응답이 이 헬퍼를
     거치게 해서 한쪽 화면만 판정을 빠뜨리는 일을 막는다.
 
-    요청자/결정자 이름은 여기서 해석해 붙인다(단건은 그 행의 id만, 목록은 호출부가
+    요청자/결정자/**위임자** 이름은 여기서 해석해 붙인다(단건은 그 행의 id만, 목록은 호출부가
     한 번에 해석해 names로 넘긴다 — N+1 회피).
+
+    `decided_on_behalf_of` 를 빠뜨리면 그 줄이 「174b73d4-…님의 위임으로 결재」가 된다 —
+    「운영자가 왜 승인할 수 있었지?」에 답하려고 만든 줄인데 정작 그 답이 UUID 였다.
     """
     if names is None:
-        names = resolve_names(db, {row.requested_by, row.approver_id})
+        names = resolve_names(
+            db, {row.requested_by, row.approver_id, row.decided_on_behalf_of}
+        )
     return approval_view(row, request.app.state.clock.now(), names=names, can_decide=can_decide)
+
+
+def _name_ids(rows) -> set[str | None]:
+    """목록 한 페이지에서 이름으로 해석해야 할 user id 전부 (요청자·결정자·위임자)."""
+    return {
+        i
+        for r in rows
+        for i in (r.requested_by, r.approver_id, r.decided_on_behalf_of)
+    }
+
+
+def decision_visible_user_ids(
+    db: Session, *, principal: Principal, on_behalf_of: str | None
+) -> frozenset[str] | None:
+    """이 결재자가 결재할 수 있는 요청자 집합. 전역이면 ``None``(= 제한 없음).
+
+    **범위를 누구 기준으로 재는가는 위임 여부가 정한다**(D-385): 위임으로 결재하면 빌려준
+    사람이 닿던 곳까지가 한계이고, 역할로 결재하면 본인의 관리 범위다.
+
+    이 계산이 `_decide` 안에만 있었을 때 개인 결재함(`my_approvals`)은 아예 범위를 안 걸었다.
+    그래서 부서 범위 관리자의 결재함에 다른 부서의 역할 변경 요청이 요청자 이름·조직 경로·
+    바뀌는 역할까지 그대로 실려 보였고(관리 큐에서는 가려 둔 인사 정보다), 그 줄의 승인을
+    누르면 결재 경로가 같은 범위를 다시 재서 404 였다 — 「목록에 있으면 결재된다」가 깨진다.
+    목록 축과 결재 축이 이 함수 하나를 함께 쓴다.
+    """
+    if on_behalf_of:
+        delegator = db.get(User, on_behalf_of)
+        return (
+            visible_user_ids(db, management_scope(db, delegator, principal.tree))
+            if delegator is not None
+            else frozenset()
+        )
+    return visible_user_ids(db, principal.management)
 
 
 # ── 개인 결재함 (0060) ────────────────────────────────────────────────────────
@@ -105,6 +149,7 @@ def my_approvals(
     page: PageParams = Depends(),
     box: str = Query(default="todo", pattern="^(todo|requested|done)$"),
     user: User = Depends(get_current_user),
+    principal: Principal = Depends(get_principal),
     sort: SortParams = Depends(),
 ):
     """내 결재함. 역할 게이트가 없다 — **위임받은 일반 사용자도 여기로 들어온다.**
@@ -115,12 +160,17 @@ def my_approvals(
         requested  내가 올린 건(상태 무관)
         done       내가 결재한 건
 
-    범위(`visible_user_ids`)를 걸지 않는다. 이 목록은 조직 데이터를 훑는 곳이 아니라
-    **나에게 배정된 개인 업무**라, 판정 축이 부서가 아니라 '나' 다. 위임받은 사람은
-    정의상 남의 범위 건을 결재하므로, 여기에 범위를 걸면 위임 자체가 동작하지 않는다.
+    「내가 올린 것」·「내가 결재한 것」 두 칸은 판정 축이 부서가 아니라 '나' 라 범위를 걸지
+    않는다. **할 일 칸은 다르다** — 그 칸의 모든 줄에는 승인 버튼이 붙으므로, 실제로 결재할 수
+    있는 것만 담아야 한다. 그래서 결재 경로(`_decide`)와 **같은 두 조건**을 건다:
+
+      * 유효한 대기 건인가 (`service.pending_clause` — 만료 시각이 지난 pending 은 뺀다)
+      * 내가 닿을 수 있는 요청자인가 (`decision_visible_user_ids` — 위임이면 위임자의 범위)
+
+    위임받은 사람의 범위를 **위임자 기준**으로 재기 때문에 위임은 그대로 산다(D-385).
     """
     now = request.app.state.clock.now()
-    can_decide, _on_behalf_of = delegation_service.resolve_authority(db, user, now)
+    can_decide, on_behalf_of = delegation_service.resolve_authority(db, user, now)
 
     stmt = select(Approval)
     if box == "requested":
@@ -135,7 +185,10 @@ def my_approvals(
                 "items": [], "total": 0, "page": page.page, "page_size": page.page_size,
                 "can_decide": False,
             }
-        stmt = stmt.where(Approval.status == APPROVAL_PENDING)
+        stmt = apply_scope(
+            stmt.where(approval_service.pending_clause(now)),
+            decision_visible_user_ids(db, principal=principal, on_behalf_of=on_behalf_of),
+        )
         # 자기 요청은 자기가 결재하지 않는다(서버 설정으로만 조정되는 기본값) — 할 일 칸에
         # 띄워 두면 눌러 봐야 거절당하는 줄이 된다.
         if not load_feature_flags(request.app.state.settings.config_dir).get("self_approval_allowed"):
@@ -151,7 +204,7 @@ def my_approvals(
             .offset(page.offset).limit(page.page_size)
         ).scalars()
     )
-    names = resolve_names(db, {i for r in rows for i in (r.requested_by, r.approver_id)})
+    names = resolve_names(db, _name_ids(rows))
     return {
         "items": [_view(request, db, r, names, can_decide=can_decide) for r in rows],
         "total": total,
@@ -217,12 +270,9 @@ def list_approvals(
                 )
             )
         elif status == APPROVAL_PENDING:
-            stmt = stmt.where(
-                and_(
-                    Approval.status == APPROVAL_PENDING,
-                    or_(Approval.expires_at.is_(None), Approval.expires_at > now),
-                )
-            )
+            # 조건은 `service.pending_clause` 한 곳에만 있다 — 개인 결재함의 할 일 칸이 같은
+            # 함수를 부른다(두 곳에 적었을 때 두 화면이 다른 답을 냈다).
+            stmt = stmt.where(approval_service.pending_clause(now))
         else:
             stmt = stmt.where(Approval.status == status)
     total = db.execute(select(func.count()).select_from(stmt.subquery())).scalar_one()
@@ -238,10 +288,8 @@ def list_approvals(
         .scalars()
         .all()
     )
-    # 페이지의 요청자/결정자 id를 한 번에 이름으로 해석해 각 행에 나눠준다(N+1 회피).
-    names = resolve_names(
-        db, {i for r in rows for i in (r.requested_by, r.approver_id)}
-    )
+    # 페이지의 요청자/결정자/위임자 id를 한 번에 이름으로 해석해 각 행에 나눠준다(N+1 회피).
+    names = resolve_names(db, _name_ids(rows))
     # can_decide(FN-11)는 행이 아니라 **보는 사람**에게 달린 값이라(role 또는 활성 위임)
     # 페이지당 한 번만 계산한다 — 행마다 다시 물으면 N+1이고, 어차피 같은 사람이 보는
     # 한 페이지 안에서는 전부 같은 답이다.
@@ -268,6 +316,32 @@ def get_approval(
     now = request.app.state.clock.now()
     can_decide, _ = delegation_service.resolve_authority(db, request.state.user, now)
     return {"approval": _view(request, db, row, can_decide=can_decide)}
+
+
+@contextmanager
+def _audit_refused_write(request: Request, db: Session, *, action: str, approval_id: str):
+    """거부된 **결재 시도**를 감사에 남긴다 — 응답 코드도 문구도 바꾸지 않는다.
+
+    승인은 권한 부여 실행이라 「누가 결재하려다 막혔는가」는 남아야 하는 사실이다. 그런데
+    감사 기록이 `decide()`/`cancel()` **뒤**에만 있어서, 자기 승인(403)·권한 없음(403)·범위 밖
+    (404)·만료(409)가 전부 흔적 없이 사라졌다. 부서 범위 관리자가 남의 큐를 id 로 눌러 봐도
+    로그가 한 줄도 안 남는다. 읽기 거부는 남기지 않는다 — 남길 것은 쓰기 시도다.
+
+    `app/core/audit.py::audit_failure_on_exception` 과 같은 모양이되 **먼저 롤백한다**: 결재는
+    실패해도 그 전에 세션에 대입이 남는다(`approver_id`·`decided_at`, 실행기가 중간에 바꾼 값).
+    그대로 커밋하면 감사 행이 반쯤 적용된 결정을 함께 저장해 원장이 「거절인데 승격됨」이 된다.
+    롤백 뒤 실패 행만 쓰고 명시적으로 커밋한다 — `get_db` 의 자동 커밋은 예외 경로에서 안 돈다.
+    """
+    try:
+        yield
+    except Exception:
+        db.rollback()
+        record_audit_from_request(
+            request, db, action=action, object_type="approval",
+            object_id=approval_id, result="failure",
+        )
+        db.commit()
+        raise
 
 
 def _decide(
@@ -307,42 +381,44 @@ def _decide(
     # 위임자를 절대 넘지 못하고(부서 범위 관리자의 위임은 그 부서까지만), 위쪽 IDOR
     # 방어도 그대로다 — 좁히는 축이 '누구의 범위인가' 로 바뀔 뿐이다.
     # (tests/security/test_approval_scope.py 가 양쪽을 다 못 박아 둔다.)
-    on_behalf_of = delegation_service.require_decider(db, actor, now)
-    if on_behalf_of:
-        delegator = db.get(User, on_behalf_of)
-        visible = (
-            visible_user_ids(db, management_scope(db, delegator, principal.tree))
-            if delegator is not None
-            else frozenset()
+    action = "approval.approve" if approve else "approval.reject"
+    with _audit_refused_write(request, db, action=action, approval_id=approval_id):
+        on_behalf_of = delegation_service.require_decider(db, actor, now)
+        visible = decision_visible_user_ids(
+            db, principal=principal, on_behalf_of=on_behalf_of
         )
-    else:
-        visible = visible_user_ids(db, principal.management)
-    row = get_scoped_approval_or_404(db, approval_id, visible)
-    flags = load_feature_flags(request.app.state.settings.config_dir)
-    decide(
-        db,
-        row,
-        actor,
-        approve=approve,
-        comment=comment,
-        now=now,
-        self_approval_allowed=bool(flags.get("self_approval_allowed", False)),
-        app_state=request.app.state,
-        on_behalf_of=on_behalf_of,
-    )
+        row = get_scoped_approval_or_404(db, approval_id, visible)
+        flags = load_feature_flags(request.app.state.settings.config_dir)
+        decide(
+            db,
+            row,
+            actor,
+            approve=approve,
+            comment=comment,
+            now=now,
+            self_approval_allowed=bool(flags.get("self_approval_allowed", False)),
+            app_state=request.app.state,
+            on_behalf_of=on_behalf_of,
+        )
     record_audit_from_request(
         request, db,
-        action="approval.approve" if approve else "approval.reject",
+        action=action,
         object_type="approval", object_id=row.id,
         after={"request_type": row.request_type, "status": row.status},
     )
     return {"approval": _view(request, db, row)}
 
 
+# 결재 경로의 승인 id 는 실패해도 감사 행의 `object_id`(String(64))에 그대로 실린다 —
+# 그 계약보다 긴 값은 라우터에서 422 로 끊는다. 끊지 않으면 거부를 기록하려다 컬럼 길이로
+# 실패해, 깨끗한 404 여야 할 응답이 500 이 된다.
+APPROVAL_ID_PATH = Path(min_length=1, max_length=64)
+
+
 @router.post("/{approval_id}/approve")
 def approve(
     request: Request,
-    approval_id: str,
+    approval_id: str = APPROVAL_ID_PATH,
     payload: DecisionRequest | None = None,
     db: Session = Depends(get_db),
     actor: User = Depends(get_current_user),
@@ -355,7 +431,7 @@ def approve(
 @router.post("/{approval_id}/reject")
 def reject(
     request: Request,
-    approval_id: str,
+    approval_id: str = APPROVAL_ID_PATH,
     payload: DecisionRequest | None = None,
     db: Session = Depends(get_db),
     actor: User = Depends(get_current_user),
@@ -371,14 +447,17 @@ def reject(
 )
 def cancel_approval(
     request: Request,
-    approval_id: str,
+    approval_id: str = APPROVAL_ID_PATH,
     db: Session = Depends(get_db),
     principal: Principal = Depends(get_principal),
 ):
     # 취소도 결재다 — 남의 팀 인사 결정을 대신 죽일 수 있으면 안 된다. 네 경로(GET·approve·
     # reject·cancel) 중 하나라도 빠지면 그 경로로 그대로 새 나간다.
-    row = get_scoped_approval_or_404(db, approval_id, visible_user_ids(db, principal.management))
-    cancel(db, row, request.state.user, now=request.app.state.clock.now())
+    with _audit_refused_write(request, db, action="approval.cancel", approval_id=approval_id):
+        row = get_scoped_approval_or_404(
+            db, approval_id, visible_user_ids(db, principal.management)
+        )
+        cancel(db, row, request.state.user, now=request.app.state.clock.now())
     record_audit_from_request(
         request, db, action="approval.cancel", object_type="approval", object_id=row.id,
     )
@@ -432,6 +511,14 @@ def list_delegations(
     # (`users.admin_scope`) 그 상태로는 남의 부서 결재 대리를 만들고 취소할 수 있었다.
     #
     # 조건은 `delegation.apply_scope` 한 곳에만 있다 — 단건 회수가 같은 함수를 지난다.
+    #
+    # 알 수 없는 `state` 는 **조회 전에** 거절한다. 조용히 0건을 돌려주면 스크립트·저장된 뷰가
+    # 「위임이 하나도 없다」로 오해한다 — 형제 목록(`list_approvals`)이 APPR-03 에서 같은 이유로
+    # 이미 422 를 낸다.
+    if state and state not in _KNOWN_DELEGATION_STATES:
+        raise ValidationAppError(
+            "state는 " + ", ".join(sorted(_KNOWN_DELEGATION_STATES)) + " 중 하나여야 합니다."
+        )
     now = request.app.state.clock.now()
     visible = visible_user_ids(db, principal.management)
     rows = (

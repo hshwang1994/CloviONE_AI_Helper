@@ -29,17 +29,56 @@ export const fmtBytes = (n) => {
 };
 
 export const SCHED_RUN = { queued: "대기", running: "실행 중", succeeded: "성공", failed: "실패", skipped: "건너뜀" };
-// 감사 로그 대상 필터 옵션 — 값은 백엔드가 실제로 저장하는 object_type 문자열과 정확히 일치해야 한다
-// (백엔드가 == 정확 일치로 필터하므로 어긋나면 항상 0건). prompt/policy/setting/document는 복수형·접미
-// 형태로 저장되고('prompts'/'policies'/'app_setting'/'document_generation'), 'role'은 저장되지 않는다.
-// runner/workflow/template/document_generation 은 S11 이, user_notion_mapping 은 S20 이 그
-// 화면들을 걷어냈지만 **옛 감사 기록은 남아 있다** — 목록에서 빼면 그 기록을 걸러 볼 방법이
-// 사라진다. 필터는 역사도 봐야 한다.
-export const OBJTYPE_OPTS = [["user", "사용자"], ["integration", "외부 연동"], ["runner", "러너"], ["workflow", "워크플로"],
-  ["prompts", "프롬프트"], ["policies", "정책"], ["template", "템플릿"], ["schedule", "스케줄"], ["schedule_run", "예약 실행"],
-  ["approval", "승인"], ["backup", "백업"], ["app_setting", "설정"], ["document_generation", "문서"],
-  ["user_notion_mapping", "Notion 연결"], ["job", "작업"], ["department", "부서"], ["job_title", "직책"]]
-  .map((p) => ({ value: p[0], label: p[1] }));
+/* 감사 로그 「대상」 필터의 선택지.
+ *
+ * **값은 백엔드가 실제로 저장하는 `object_type` 문자열과 정확히 같아야 한다** — 백엔드가
+ * `==` 정확 일치로 거르므로 한 글자만 어긋나도 그 선택지는 언제나 0건이다. 그리고 닫힌
+ * 선택지라면 「고를 수 있는 것」과 「기록되는 것」이 같아야 한다.
+ *
+ * 예전에는 둘 다 틀렸다(xe-03 실측):
+ *   * 「문서」라는 이름표가 `document_generation` 에 붙어 있었다 — 그 값을 쓰는 코드는
+ *     저장소에 하나도 없고, 실제 문서 기록은 `document` 다. 「문서」를 고른 관리자는
+ *     문서 감사 기록 3건을 눈앞에 두고 「검색 결과가 없습니다」를 봤다.
+ *   * 반대로 이 설치가 실제로 기록 중인 `board_post`·`document`·`llm_config`·`notion_task`
+ *     는 목록에 아예 없어서, 주소창에 손으로 `?object_type=…` 을 적어야만 볼 수 있었다.
+ *
+ * 아래 목록은 `app/` 의 `record_audit*(object_type=…)` 호출 전량과 맞춘다(관측 이벤트
+ * `record_usage` 는 감사 로그가 아니라 뺀다 — `object_type="ai"` 가 그것이다).
+ * 마지막 묶음은 **없어진 기능의 옛 기록**이다: 새로 만들 수는 없지만 지난 기록이 남아 있어
+ * 고를 수는 있어야 한다(필터는 역사도 봐야 한다). 그 사실을 이름표에 적어 둔다 — 안 적으면
+ * 「골랐는데 늘 0건」이 결함으로 보인다. */
+export const OBJTYPE_OPTS = [
+  // 사람·권한·조직
+  ["user", "사용자"], ["department", "부서"], ["job_title", "직책"], ["organization", "조직"],
+  ["session", "로그인 세션"], ["approval", "승인"], ["approval_delegation", "승인 위임"],
+  ["offboarding_run", "오프보딩"],
+  // 업무
+  ["notion_task", "티켓"], ["ticket", "티켓 연결과 보드"], ["ticket_comment", "티켓 댓글"],
+  ["ticket_attachment", "티켓 첨부"], ["project", "프로젝트"], ["project_milestone", "프로젝트 마일스톤"],
+  ["sprint", "스프린트"], ["sprint_decision", "스프린트 결정"],
+  // 문서·지식
+  ["document", "문서"], ["knowledge_document", "문서 첨부"], ["knowledge_space", "지식 공간"],
+  ["document_template", "문서 서식"], ["document_comment", "문서 댓글"],
+  ["document_category", "문서 분류"], ["tag", "태그"], ["notion_document", "팀 문서"],
+  // 게시판·대화
+  ["board_post", "게시글"], ["board_comment", "게시글 댓글"], ["board_attachment", "게시글 첨부"],
+  ["chat_room", "채팅방"],
+  // 시스템·운영
+  ["app_setting", "설정"], ["system_setting", "서버 설정"], ["feature_flag", "기능 플래그"],
+  ["llm_config", "AI 모델 설정"], ["ai_quota", "AI 사용 상한"], ["announcement", "공지 배너"],
+  ["prompts", "프롬프트"], ["policies", "정책"],
+  ["schedule", "스케줄"], ["schedule_run", "예약 실행"], ["job", "작업"],
+  ["backup", "백업"], ["storage_provider", "파일 저장소"], ["mail_delivery", "메일 발송"],
+  ["search_index", "검색 색인"], ["integration", "외부 연동"],
+  // 없어진 기능의 옛 기록 — 새로 쌓이지 않는다.
+  ["runner", "러너(옛 기능)"], ["workflow", "워크플로(옛 기능)"], ["template", "템플릿(옛 기능)"],
+  ["document_generation", "문서 생성(옛 기능)"], ["user_notion_mapping", "Notion 연결(옛 기능)"],
+].map((p) => ({ value: p[0], label: p[1] }));
+
+/** 감사 대상 종류의 한국어 이름표 — 위 선택지와 **같은 한 벌**이다.
+ *  필터에서 고를 수 있는 이름과 표에 찍히는 이름이 갈라지면, 고른 것과 보이는 것이 다른
+ *  낱말이 된다. `lib/format.js` 의 공용 사전이 먼저이고, 그 사전이 모르는 값만 여기서 받는다. */
+export const OBJTYPE_KO = Object.fromEntries(OBJTYPE_OPTS.map((o) => [o.value, o.label]));
 /* 상세 패널의 평문 필드. **열이 아니다** — 정렬 규칙이 없으므로 `type` 을 안 받는다.
    열을 만들 때는 아래 `col(key, label, type)` 을 쓴다. */
 export const field = (key, label) => ({ key, label });
@@ -85,7 +124,21 @@ export const personField = (idKey, label, nameKey, emailKey) => ({
     );
   },
 });               // 상세 전용 평문 필드
-export const objField = (key, label) => ({ key, label, type: "enum", render: (r) => objKo(r[key]) });
+/** 감사 대상 종류를 한국어로. **필터가 쓰는 말이 먼저다** — 위 `OBJTYPE_KO` 가 아는 값은
+ *  그 이름표를 쓰고, 모르는 값만 `lib/format.js` 의 공용 사전(`objKo`)으로 받는다. 둘 다
+ *  모르면 원문을 그대로 둔다(정보 손실 방지). 예전에는 감사 로그의 절반 넘는 대상이
+ *  `board_post` 처럼 영문 슬러그로 남았다 — 온통 한국어인 표에서 그 칸만 못 읽혔다.
+ *
+ *  🔴 순서가 반대였다. 공용 사전을 먼저 보면 그 사전이 아는 값에서는 **필터의 이름표가
+ *  절대 이기지 못한다** — 그래서 「대상」 드롭다운과 표의 「대상」 칸이 일곱 값에서 서로
+ *  다른 낱말을 말했다. 가장 나쁜 것이 `document_generation` 이다: 드롭다운은 「문서
+ *  생성(옛 기능)」이라고 적어 두고 표는 「문서」라고 찍어, 진짜 `document` 행과 눈으로
+ *  가를 수 없었다. 고른 이름과 보이는 이름은 같은 낱말이어야 한다. */
+export const objTypeKo = (v) => {
+  if (v == null || v === "") return "-";
+  return OBJTYPE_KO[v] || objKo(v);
+};
+export const objField = (key, label) => ({ key, label, type: "enum", render: (r) => objTypeKo(r[key]) });
 
 /* 목록 화면 설정 — 열/엔드포인트만 다르고 렌더는 DataScreen이 공통 처리한다.
  * 상태 열은 badgeCol(배지), enum 열은 mapCol/actionKo(한국어)로. 값은 서버 계약 그대로. */
@@ -104,7 +157,7 @@ export const JOB_TYPE = { chat_message: "채팅 메시지", schedule_run: "예�
 // 감사/승인 enum 한국어화는 공용 lib/format.js(objKo·actionKo)에서 온다.
 /* 감사 대상 종류. **닫힌 집합**이라 `enum` 이다 — 짧고 폭이 고정된 값이라 칸 가운데에
    서면 열이 하나의 띠로 읽힌다(`ui/columnTypes.js` 의 그 규칙). */
-export const objCol = (key, label, type = "enum") => ({ key, label, type, render: (r) => objKo(r[key]) });
+export const objCol = (key, label, type = "enum") => ({ key, label, type, render: (r) => objTypeKo(r[key]) });
 // title 속성으로 원문 action 문자열을 마우스 오버 시 보여준다 — 감사 로그의 '작업' 필터는 이
 // 원문과 정확히 일치해야 하는데(정확 일치 필터), 열은 한국어 번역만 보여줘서 필터에 뭘 입력해야
 // 할지 목록만 보고는 알 방법이 없었다(truncateCol이 이미 쓰는 title 힌트 패턴과 동일).
@@ -163,6 +216,17 @@ export const OBJ_ROUTE = {
   // 없어 목록으로만 보낸다(schedule_run과 같은 패턴 — OBJ_ID_PARAM에 없음).
   ai_quota: "#/ai-quotas", approval_delegation: "#/approval-delegations",
   announcement: "#/announcements", offboarding_run: "#/offboarding",
+  /* 감사 기록은 남는데 돌아갈 화면이 없던 셋(xe-10). 셋 다 관리 콘솔에 실재하는 주소다 —
+     설정은 탭이 `?tab=` 이고(AdminRoutes 의 옛 주소 리다이렉트가 같은 값을 쓴다), 메일은
+     자기 화면이 있다. 단건 딥링크는 없으므로 `OBJ_ID_PARAM` 에는 안 넣는다(목록까지만
+     보낸다 — `schedule_run` 과 같은 대접).
+     🔴 「화면 역할이 `CONSOLE_READ` 라 게이트가 필요 없다」고 적혀 있었는데 그것은 `#/mail`
+     에만 맞다. 설정 화면은 `CONSOLE_READ` 지만 **탭이 더 좁다** — `SettingsShell.jsx` 의
+     `storage`·`ai` 탭은 `system_admin` 전용이라, 감사자·운영자·일반 관리자가 그 주소로
+     가면 「대시보드로 이동」만 있는 거부 화면을 본다. 좁은 것은 화면이 아니라 탭이므로
+     아래 `OBJ_ROUTE_ROLES` 에 그 둘을 적는다. */
+  storage_provider: "#/settings?tab=storage", llm_config: "#/settings?tab=ai",
+  mail_delivery: "#/mail",
 };
 // OBJ_ROUTE 대상 화면 중 일부는 App.jsx의 SCREEN_ROLES로 더 좁게 제한된다(예: 사용자·부서·직책은
 // admin/system_admin만, 작업 큐는 operator/admin/system_admin만 — auditor 제외). '관련 항목 보기'가
@@ -176,7 +240,34 @@ export const OBJ_ROUTE = {
 // offboarding_run — navConfig.js SCREEN_ROLES.offboarding은 admin/system_admin만 허용한다
 // (auditor 제외) — audit 화면(admin/system_admin/auditor)에 들어온 auditor에게도 이 게이트 없이는
 // '관련 목록 열기'가 보여 늘 403인 막다른 링크가 된다(department/job_title과 동일한 이유).
-export const OBJ_ROUTE_ROLES = { user: WRITE_ROLES, department: WRITE_ROLES, job_title: WRITE_ROLES, job: OPS_ROLES, organization: WRITE_ROLES, offboarding_run: WRITE_ROLES };
+// job 은 읽기(`GET /api/admin/jobs*`)가 `CONSOLE_READ_ROLES` 라 감사자도 딥링크가 산다 —
+// 재시도·취소 단추는 그 화면의 액션이 따로 `OPS_ROLES` 로 막는다(automation.js).
+// storage_provider·llm_config — 좁은 것이 **화면이 아니라 탭**이다. 설정 화면 자체는
+// `CONSOLE_READ` 지만 `SettingsShell.jsx` 의 `storage`·`ai` 탭은 `system_admin` 전용이라,
+// 그 밖의 역할이 이 딥링크를 누르면 탭 대신 거부 안내를 본다(department/job_title 과
+// 같은 막다른 링크다). 서버도 같은 자리에서 좁힌다 — `STORAGE_CONFIGURE` 는
+// `SYSTEM_ADMIN_ONLY` 다(app/authz/permissions.py).
+export const OBJ_ROUTE_ROLES = { user: WRITE_ROLES, department: WRITE_ROLES, job_title: WRITE_ROLES, job: ADMIN_VIEW_ROLES, organization: WRITE_ROLES, offboarding_run: WRITE_ROLES,
+  storage_provider: ["system_admin"], llm_config: ["system_admin"] };
+/* 관리 콘솔의 사람 후보 목록 — 승인·위임·감사·대리 보기·AI 상한이 같은 것을 쓴다.
+ *
+ * 경로가 `/api/admin/people` 인 이유: 그 다섯 화면은 운영자·감사자도 여는데 `/api/admin/users`
+ * 는 사용자 관리 권한(admin 이상)이라, 그 역할은 화면을 열 때마다 403 을 맞고 사람 필터가
+ * 비어 있었다. `people` 은 신원 조각(id·이름·이메일·활성·보관·부서명)만 싣는 읽기 전용
+ * 경로다(`app/users/people_router.py`). 보관된 사람도 실려 온다 — 감사 로그와 승인 이력은
+ * 퇴사한 사람을 계속 가리키므로 후보에서 빼면 옛 기록을 고를 수 없다. */
+export const PEOPLE_REF_LIST = { key: "people", endpoint: "/api/admin/people", labelKey: "display_name", secondaryKey: "email" };
+/* **만드는 폼**의 사람 후보 — 보관된 계정은 뺀다 (xb-10).
+ *
+ * 위 `PEOPLE_REF_LIST` 가 보관된 사람까지 싣는 이유는 옛 기록을 **거르기** 위해서다(감사
+ * 로그의 행위자, 대리 보기 이력). 앞으로 일어날 일을 **만드는** 자리는 반대다: 퇴사해서
+ * 보관한 계정에 AI 사용 상한을 걸거나 그 사람에게 결재를 위임하는 것은 아무 뜻이 없고,
+ * 위임은 서버가 422 로 거절하기까지 한다 — 폼이 반드시 실패하는 선택지를 권한 셈이다.
+ * 서버가 그 축을 이미 받는다(`app/users/people_router.py` 의 `include_archived`).
+ *
+ * 필터와 폼이 한 화면에서 서로 다른 후보를 봐야 하는 화면(대리 보기)은 아직 이 목록을
+ * 안 쓴다 — `refLists` 는 화면당 한 벌이고, 그 화면은 필터가 옛 기록을 가리키기 때문이다. */
+export const PEOPLE_ACTIVE_REF_LIST = { key: "people", endpoint: "/api/admin/people?include_archived=false", labelKey: "display_name", secondaryKey: "email" };
 export const canReachObjRoute = (objType, role) => !OBJ_ROUTE_ROLES[objType] || (role != null && OBJ_ROUTE_ROLES[objType].includes(role));
 // 대상 화면 중 일부는 이제 id 기반 딥링크(onQuery: p.<param> → 상세 드로어를 곧바로 연다)를 지원한다
 // (jobs: ?job_id= — object_id가 곧 그 파라미터 값).

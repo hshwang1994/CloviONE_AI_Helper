@@ -69,10 +69,45 @@ def get_published(
     ).scalar_one_or_none()
 
 
-def update_content(db: Session, row: VersionedModel, content: str) -> VersionedModel:
+class _Unset:
+    """「안 보냈다」와 「빈 값을 보냈다」는 서로 다른 사실이라 값 하나로는 담을 수 없다.
+
+    `app/users/service.py::UNSET` 과 `app/knowledge/schemas.py` 의 `model_fields_set` 규약이
+    같은 문제를 같은 모양으로 푼다 — 안 보낸 칸을 기본값으로 채우면 그 기본값이 저장된 값을
+    덮어쓴다.
+    """
+
+    def __repr__(self) -> str:  # pragma: no cover - 디버깅 표시용
+        return "UNSET"
+
+
+UNSET = _Unset()
+
+
+def update_draft(
+    db: Session,
+    row: VersionedModel,
+    *,
+    content: str | _Unset = UNSET,
+    purpose: str | None | _Unset = UNSET,
+) -> VersionedModel:
+    """초안에서 **보낸 칸만** 고친다.
+
+    왜 「보낸 칸만」인가: 관리자 콘솔(DataScreen)은 바뀐 필드만 PATCH 로 보낸다. 예전에는 이
+    자리에서 `content` 를 무조건 덮어썼는데, 정책 요청 스키마의 `content` 기본값이 `"{}"` 라
+    「용도」 한 줄만 고쳐도 그 정책의 규칙 전체가 빈 객체로 지워지고 응답은 200 이었다.
+    같은 요청을 프롬프트에 보내면 `content` 가 필수라 422 로 막혀, 쌍둥이 화면의 답이 서로
+    달랐다. PATCH 는 보낸 것만 바꾼다 — 안 보낸 칸은 저장된 값을 그대로 둔다.
+
+    상태 게이트는 예전 `update_content` 와 같다. 발행 이력이 남는 자원이라 **초안에서만**
+    고친다. 그래야 이미 발행된 버전의 내용과 용도가 버전 기록 없이 바뀌는 일이 없다.
+    """
     if row.status != STATUS_DRAFT:
         raise ConflictError("draft 상태에서만 내용을 수정할 수 있습니다.")
-    _set_content(row, content)
+    if not isinstance(content, _Unset):
+        _set_content(row, content)
+    if not isinstance(purpose, _Unset):
+        row.purpose = purpose
     db.flush()
     return row
 

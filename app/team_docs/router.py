@@ -18,7 +18,10 @@ from app.authz.visibility import context_for_user
 from app.core.authz import MODERATOR_ROLES
 from app.core.deps import get_current_user, get_db, require_csrf
 from app.core.errors import AppError, NotFoundError
-from app.core.feature_flags import load_feature_flags
+# 문서 깃발 게이트는 정본 API(`app/knowledge/router.py`)와 **같은 함수**를 건다 (P-84).
+# 이 이름을 여기서 다시 내보내는 것은 옛 import 경로를 살려 두기 위해서다 — 정의는
+# `app/core/feature_gate.py` 하나뿐이다.
+from app.core.feature_gate import require_team_docs_enabled
 from app.core.pagination import PageParams
 from app.team_docs import service
 from app.team_docs.models import split_names
@@ -27,11 +30,7 @@ from app.tickets.schemas import BulkPageIds  # 티켓·문서 공용 일괄 삭�
 from app.users.models import User
 from app.settings.gate import block_if_maintenance
 
-
-def require_team_docs_enabled(request: Request) -> None:
-    flags = load_feature_flags(request.app.state.settings.config_dir)
-    if not flags.get("team_docs_enabled", True):
-        raise NotFoundError("문서 기능이 비활성화되어 있습니다.")
+__all__ = ["router", "require_team_docs_enabled"]
 
 
 router = APIRouter(

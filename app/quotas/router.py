@@ -61,6 +61,53 @@ def _ensure_target_in_scope(db: Session, user_id: str, principal: Principal) -> 
     get_scoped_user_or_404(db, user_id, principal.management)
 
 
+def _target_states(db: Session, user_ids) -> dict[str, str]:
+    """대상 계정 id → 상태(`active` · `inactive` · `archived` · `missing`).
+
+    화면이 「이 상한은 이미 나간 사람에게 걸려 있다」를 말할 수 있게 하는 값이다. 상태를
+    한글 문구가 아니라 코드로 내는 것은 목록 응답의 다른 상태 칸과 같은 규약이다
+    (`file_state`, 검증 응답의 `reason`) — 문구는 화면이 정한다.
+    """
+    wanted = {uid for uid in user_ids if uid and uid != GLOBAL_USER_ID}
+    if not wanted:
+        return {}
+    rows = db.execute(
+        select(User.id, User.active, User.archived_at).where(User.id.in_(tuple(wanted)))
+    ).all()
+    found = {
+        uid: "archived" if archived_at is not None else ("active" if active else "inactive")
+        for uid, active, archived_at in rows
+    }
+    # 행이 없는 id 는 「모른다」가 아니라 「없다」다 — 사용자를 지운 흔적이 상한에 남는다.
+    return {uid: found.get(uid, "missing") for uid in wanted}
+
+
+def _ensure_target_accepts_a_new_quota(db: Session, user_id: str, principal: Principal) -> None:
+    """이 사람에게 상한을 **새로 걸 수 있는가** — 범위와 계정 상태를 함께 본다.
+
+    범위(IDOR)만 보던 자리다. 그래서 보관·비활성 계정에도 상한이 만들어졌는데, 그 행은
+    **절대 소비되지 않는다** — 로그인할 수 없는 사람은 AI 를 부르지 않는다. 목록에는
+    살아 있는 계정과 똑같은 모양으로 남아, 관리자는 그것을 유지·수정하며 시간을 쓴다.
+    같은 제품의 티켓 담당자 지정과 승인 위임은 이미 같은 계정을 422 로 거절한다.
+
+    **이미 있는 행에는 걸지 않는다.** 수정·삭제 경로(`_get_or_404`)는 범위만 본다 —
+    닫힌 계정에 남은 죽은 행을 관리자가 치울 수 있어야 하고, 새로 지정하는 것과 이미
+    지정된 것은 다른 일이다.
+    """
+    from app.users.service import get_scoped_user_or_404
+
+    # 범위 밖은 여기서 404 로 끝난다 — 상태를 말하기 전에 존재부터 숨긴다.
+    user = get_scoped_user_or_404(db, user_id, principal.management)
+    if user.archived_at is not None:
+        raise ValidationAppError(
+            "보관된 계정에는 AI 사용 상한을 걸 수 없습니다. 계정을 복구한 뒤에 지정하세요."
+        )
+    if not user.active:
+        raise ValidationAppError(
+            "비활성 계정에는 AI 사용 상한을 걸 수 없습니다. 계정을 활성화한 뒤에 지정하세요."
+        )
+
+
 def _ensure_may_touch_global(principal: Principal) -> None:
     """전역 쿼터는 **포탈 전체**에 걸린다 — 자기 범위를 넘는 일이다.
 
@@ -106,6 +153,10 @@ def list_quotas(
     from app.impersonation.service import resolve_names
 
     names = resolve_names(db, [r.user_id for r in rows if r.user_id])
+    # 대상 계정의 상태도 함께 싣는다. 이름만 실으면 **보관된 계정의 상한이 살아 있는 계정의
+    # 상한과 똑같이 보인다** — 그 행은 아무도 소비하지 않는데 화면은 그 사실을 말할 방법이
+    # 없다. 이름과 같은 한 번의 질의로 묻는다(행마다 조회하면 N+1 이다).
+    states = _target_states(db, [r.user_id for r in rows if r.user_id])
     # UB-10: 행마다 used()를 따로 부르면 N+1이다 — 사용자 전용 행의 (user_id, period)
     # 쌍을 모아 한 번에 묻는다(전역 행은 max_user_used가 이미 기간별로만 도니 그대로 둠).
     used_pairs = {
@@ -129,6 +180,10 @@ def list_quotas(
         else:
             item["used"] = used_by_pair.get((row.user_id, row.period), 0)
         item["resets_at"] = service.period_end(row.period, now).isoformat()
+        # 전역 행에는 대상 계정이 없다 — 모르는 것을 지어내지 않고 None 으로 둔다.
+        item["user_state"] = (
+            states.get(row.user_id) if row.scope_type == SCOPE_USER and row.user_id else None
+        )
         items.append(item)
     return {
         "items": items,
@@ -188,7 +243,7 @@ def create_quota(
     if payload.scope_type == SCOPE_USER:
         if not user_id:
             raise ValidationAppError("사용자 쿼터에는 user_id 가 필요합니다.")
-        _ensure_target_in_scope(db, user_id, principal)
+        _ensure_target_accepts_a_new_quota(db, user_id, principal)
     else:
         _ensure_may_touch_global(principal)
         user_id = GLOBAL_USER_ID

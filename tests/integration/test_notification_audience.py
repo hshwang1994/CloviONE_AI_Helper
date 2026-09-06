@@ -15,6 +15,11 @@ from __future__ import annotations
 
 import pytest
 
+from tests.fixtures.org_tree import (  # noqa: F401 — fixture 재수출
+    org_tree,
+    people,
+)
+
 pytestmark = pytest.mark.integration
 
 
@@ -143,3 +148,205 @@ def test_read_all_without_audience_still_clears_everything(client, login_as, db,
     r = client.post("/api/notifications/read-all", headers={"X-CSRF-Token": csrf})
     assert r.status_code == 200 and r.json()["read_count"] == 3
     assert client.get("/api/notifications/unread-count").json()["unread"] == 0
+
+
+# ── 모르는 audience 는 «전체» 가 아니라 «거절» 이다 ──────────────────────────
+#
+# 읽기 경로는 모르는 값을 전체로 폴백한다(목록이 비어 「알림이 없다」로 오독되는 것보다
+# 낫다). '모두 읽음' 이 같은 관용을 쓰던 동안 오타 하나(`admn`)가 두 콘솔의 알림을 전부
+# 읽음으로 바꿨다 — 위 문단이 막으려던 사고가 오타 한 글자로 되살아났다.
+
+
+def test_read_all_with_an_unknown_audience_is_refused_and_touches_nothing(
+    client, login_as, db, fake_clock
+):
+    csrf = login_as("admin", email="noti-readall-typo@goodmit.co.kr")
+    _seed_both_audiences(client, db, fake_clock)
+
+    r = client.post("/api/notifications/read-all?audience=admn", headers={"X-CSRF-Token": csrf})
+    assert r.status_code == 422, f"오타 audience 가 거절되지 않았다: {r.status_code} {r.text}"
+    message = r.json()["error"]["message"]
+    assert message.endswith("."), f"완결된 문장이 아니다: {message!r}"
+    assert "admn" in message
+
+    # 아무것도 읽음이 되지 않았다 — 두 콘솔 모두.
+    assert client.get("/api/notifications/unread-count?audience=user").json()["unread"] == 1
+    assert client.get("/api/notifications/unread-count?audience=admin").json()["unread"] == 2
+    assert client.get("/api/notifications/unread-count").json()["unread"] == 3
+
+
+def test_read_all_with_admin_audience_leaves_user_notifications_unread(
+    client, login_as, db, fake_clock
+):
+    """반례 — 아는 값(`admin`)은 그 콘솔만 지운다. 위 시험이 «전부 막는 문» 으로 통과하지 못하게 한다."""
+    csrf = login_as("admin", email="noti-readall-admin@goodmit.co.kr")
+    _seed_both_audiences(client, db, fake_clock)
+
+    r = client.post("/api/notifications/read-all?audience=admin", headers={"X-CSRF-Token": csrf})
+    assert r.status_code == 200, r.text
+    assert r.json()["read_count"] == 2, f"관리 '모두 읽음'이 내 업무 알림까지 지웠다: {r.json()}"
+
+    assert client.get("/api/notifications/unread-count?audience=admin").json()["unread"] == 0
+    assert client.get("/api/notifications/unread-count?audience=user").json()["unread"] == 1, (
+        "관리 콘솔의 '모두 읽음'이 내 업무 알림을 삼켰다"
+    )
+
+
+# ── 사람이 대상인 관리 알림은 **그 사람을 관리하는 관리자에게만** 간다 ────────
+#
+# 부서 범위 관리자에게 범위 밖 계정의 잠금 알림이 그대로 갔다. 제목에 그 사람의 이메일이
+# 실려 있고, 이어지는 「관련 항목 보기」는 그 관리자에게 존재하지 않는 대상이라 404 다 —
+# 알고도 할 수 있는 일이 없다. 같은 사건을 감사 로그 쪽은 이미 같은 범위로 가리고 있었으므로
+# (목록·단건·CSV·이상 징후 전부), 한 사건에 두 화면이 서로 다른 범위 규칙을 쓰고 있었다.
+
+def _lock_notice(db, target, fake_clock) -> None:
+    from app.notifications.service import notify_admins
+
+    notify_admins(
+        db, type_="account_locked",
+        title=f"계정 잠금 발생: {target.email}",
+        related=("user", target.id), now=fake_clock.now(),
+    )
+    db.commit()
+
+
+def _titles(db, user) -> list[str]:
+    from app.notifications.models import Notification
+
+    return [
+        row.title
+        for row in db.query(Notification).filter(Notification.user_id == user.id).all()
+    ]
+
+
+def test_account_locked_notice_skips_an_admin_who_cannot_manage_that_user(
+    db, people, fake_clock
+):
+    """A-1 관리자는 B-1 사람의 잠금을 알 수 없다 — 그 계정은 그 관리자에게 아예 안 보인다."""
+    _lock_notice(db, people["b1"], fake_clock)
+
+    assert _titles(db, people["a1_admin"]) == [], (
+        "부서 범위 관리자에게 범위 밖 계정의 이메일이 알림으로 새어 나갔다"
+    )
+
+
+def test_a_global_admin_still_gets_every_account_locked_notice(db, people, fake_clock):
+    """반례 — 전역 관리자에게는 예전과 똑같이 전부 간다."""
+    _lock_notice(db, people["b1"], fake_clock)
+
+    titles = _titles(db, people["global_admin"])
+    assert any(people["b1"].email in t for t in titles), (
+        f"전역 관리자가 잠금 알림을 못 받았다: {titles}"
+    )
+
+
+def test_a_dept_admin_still_gets_a_lock_inside_the_managed_branch(db, people, fake_clock):
+    """반례 — 자기 범위 안의 잠금은 그대로 받는다. 위 시험이 「부서 관리자에게는 아무것도
+    안 보낸다」로 통과하면 관리자가 자기 팀 사고를 못 본다."""
+    _lock_notice(db, people["a1"], fake_clock)
+
+    titles = _titles(db, people["a1_admin"])
+    assert any(people["a1"].email in t for t in titles), (
+        f"관리 범위 안 계정의 잠금이 안 갔다: {titles}"
+    )
+
+
+def test_a_notice_that_is_not_about_a_person_still_fans_out_to_everyone(
+    db, people, fake_clock
+):
+    """반례 — 백업 실패처럼 사람이 대상이 아닌 사건은 범위를 따질 수 없다. 예전 그대로
+    관리자 전원에게 간다."""
+    from app.notifications.service import notify_admins
+
+    sent = notify_admins(
+        db, type_="backup_failed", title="예약 백업이 실패했습니다",
+        related=("backup", None), now=fake_clock.now(),
+    )
+    db.commit()
+
+    assert sent >= 2
+    assert any("백업" in t for t in _titles(db, people["a1_admin"]))
+    assert any("백업" in t for t in _titles(db, people["global_admin"]))
+
+
+# ── 승인 요청 알림도 **결재할 수 있는 사람에게만** 간다 ──────────────────────
+#
+# 개인 결재함의 '할 일' 칸과 관리 큐는 둘 다 요청자의 범위로 잘린다
+# (`app/approvals/router.py::decision_visible_user_ids`). 그런데 요청 알림 팬아웃만 그 조건
+# 없이 관리자 전원에게 갔다 — 부서 범위 관리자는 「승인 요청: 역할 변경」 벨을 받고 들어간
+# 결재함에서 「처리할 것이 없습니다」를 봤고, 관리 큐에도 그 줄이 없었다. 알림이 가리키는
+# 목적지가 어느 화면에도 없는 상태다. 수신자 규칙과 결재함 규칙은 한 개여야 한다.
+
+
+@pytest.fixture()
+def approval_type():
+    """이 파일에서만 쓰는 요청 유형. 실행기가 등록돼 있어야 `create_approval` 이 받는다."""
+    from app.approvals.service import APPROVAL_EXECUTORS
+
+    APPROVAL_EXECUTORS["test.audience"] = lambda *a, **k: None
+    yield "test.audience"
+    APPROVAL_EXECUTORS.pop("test.audience", None)
+
+
+def _request_approval(db, requester, approval_type, fake_clock):
+    from app.approvals.service import create_approval
+
+    row = create_approval(
+        db, request_type=approval_type, object_type="user", object_id=requester.id,
+        requested_by=requester, payload={"role": "operator"}, now=fake_clock.now(),
+    )
+    db.commit()
+    return row
+
+
+def test_approval_request_notice_skips_an_admin_who_cannot_decide_it(
+    db, people, approval_type, fake_clock
+):
+    """B-1 사람이 올린 요청은 A-1 부서 관리자의 결재함에 안 뜬다 — 벨도 뜨면 안 된다."""
+    _request_approval(db, people["b1"], approval_type, fake_clock)
+
+    assert _titles(db, people["a1_admin"]) == [], (
+        "결재함에 뜨지도 않는 승인 요청이 부서 범위 관리자에게 알림으로 갔다"
+    )
+
+
+def test_a_global_admin_still_gets_every_approval_request_notice(
+    db, people, approval_type, fake_clock
+):
+    """반례 — 전역 관리자는 예전과 똑같이 전부 받는다(그 사람의 결재함에는 실제로 뜬다)."""
+    _request_approval(db, people["b1"], approval_type, fake_clock)
+
+    assert any("승인 요청" in t for t in _titles(db, people["global_admin"])), (
+        f"전역 관리자가 승인 요청 알림을 못 받았다: {_titles(db, people['global_admin'])}"
+    )
+
+
+def test_a_dept_admin_still_gets_a_request_from_inside_the_managed_branch(
+    db, people, approval_type, fake_clock
+):
+    """반례 — 자기 범위 안에서 올라온 요청은 그대로 받는다. 이것이 없으면 위 시험은
+    「부서 관리자에게는 아무 승인 알림도 안 보낸다」로도 초록불이다."""
+    _request_approval(db, people["a1"], approval_type, fake_clock)
+
+    assert any("승인 요청" in t for t in _titles(db, people["a1_admin"])), (
+        f"관리 범위 안에서 올라온 승인 요청이 안 갔다: {_titles(db, people['a1_admin'])}"
+    )
+
+
+def test_an_overdue_notice_goes_to_the_same_people_as_the_request(
+    db, people, approval_type, fake_clock
+):
+    """기한 초과 재촉도 같은 규칙이다 — 결재할 수 없는 사람을 재촉하지 않는다."""
+    from datetime import timedelta
+
+    from app.approvals.delegation import notify_overdue
+
+    _request_approval(db, people["b1"], approval_type, fake_clock)
+    sent = notify_overdue(db, now=fake_clock.now() + timedelta(hours=25))
+    db.commit()
+
+    assert sent >= 1, "기한 초과 알림이 아무에게도 안 갔다"
+    assert not [t for t in _titles(db, people["a1_admin"]) if "기한 초과" in t], (
+        "결재할 수 없는 관리자에게 기한 초과 재촉이 갔다"
+    )
+    assert any("기한 초과" in t for t in _titles(db, people["global_admin"]))

@@ -12,7 +12,15 @@ from sqlalchemy.orm import Session
 
 from app.core.audit import record_audit_from_request
 from app.core.authz import CONSOLE_OPS_ROLES, CONSOLE_READ_ROLES, CONSOLE_WRITE_ROLES
-from app.core.deps import get_db, require_csrf, require_roles
+from app.core.deps import (
+    audit_forbidden_write,
+    get_db,
+    get_principal,
+    require_csrf,
+    require_roles,
+)
+from app.core.errors import ForbiddenError
+from app.core.scope import Principal, require_global_management
 from app.core.versioning import list_versions, load_snapshot
 from app.integrations.models import Integration
 from app.integrations.schemas import IntegrationConfig, IntegrationUpdateRequest
@@ -33,6 +41,45 @@ router = APIRouter(
     dependencies=[Depends(require_csrf)],
 )
 
+
+
+def _guard_scope(request: Request, db: Session, principal: Principal) -> None:
+    """연동 목록은 **이 서버가 밖으로 나가는 경로**다 — 부서로 나뉘지 않는다.
+
+    행에 부서도 조직도 없고 목록도 범위를 걸지 않는다(전 관리자가 같은 목록을 본다).
+    그런데 쓰기는 역할만 봤기 때문에, 부서 범위 관리자가 새 외부 대상을 만들고 켜고
+    주소를 바꿀 수 있었다(실측: 생성 201, PATCH·enable·disable·rollback 200). 아웃바운드
+    경로를 여는 일은 좁은 쪽이 맞다.
+
+    `_guard_secret_binding_create` 와 겹치지 않는다 — 그쪽은 **secret 을 대상에 묶는**
+    특정 동작을 시스템 관리자로 좁히고, 이쪽은 연동 쓰기 전체의 관리 범위를 본다.
+
+    ## 건강 검사(`/health`)는 일부러 여기 안 건다
+
+    「값을 바꾸지 않아서」가 아니다 — 그건 사실이 아니다. `run_health_check` 는
+    `last_health_status`·`last_health_at` 을 쓰고(`app/integrations/service.py`), 저장된
+    `auth_type`·`secret_ref` 를 실어 실제로 밖으로 요청을 보낸다. 그런데도 운영자
+    (`CONSOLE_OPS_ROLES`)에게 열어 두는 이유는 셋이다:
+
+      * 그 요청이 가는 **주소를 이 문 밖의 사람이 정할 수 없다.** `base_url`·`health_url`·
+        `secret_ref` 를 바꾸는 경로는 전부 여기(또는 승인 게이트)를 지난다. 운영자는 이미
+        관리자가 정해 둔 대상에 그대로 한 번 더 두드릴 수 있을 뿐이다.
+      * 쓰는 두 칸은 **설정이 아니라 진단 결과**다. 워커의 주기 스윕
+        (`run_all_integration_health_checks`)이 아무도 안 눌러도 같은 값을 계속 덮어쓴다.
+      * 「연동이 지금 붙는가」는 장애 대응의 첫 질문이다. 그걸 전역 관리자만 볼 수 있게
+        하면 야간 당직이 확인할 방법이 없어진다.
+
+    이 결정은 `tests/security/test_global_scope_gate.py` 가 고정한다 — 주석만 남기면 다음
+    사람이 「쓰기인데 왜 열려 있지」로 되돌린다.
+
+    막은 시도는 역할 게이트와 같은 자리에 남긴다(`app/core/deps.py::audit_forbidden_write`)
+    — 범위 게이트는 핸들러 안에서 판정하므로 `require_roles` 의 감사 기록을 지나지 않는다.
+    """
+    try:
+        require_global_management(principal, "외부 연동")
+    except ForbiddenError:
+        audit_forbidden_write(request, db, request.state.user)
+        raise
 
 
 def _guard_secret_binding_create(request: Request, config: IntegrationConfig) -> None:
@@ -56,7 +103,10 @@ def list_integrations(request: Request, db: Session = Depends(get_db)):
 
 @router.post("", status_code=201, dependencies=[Depends(require_roles(*CONSOLE_WRITE_ROLES))])
 def create_integration_endpoint(
-    request: Request, config: IntegrationConfig, db: Session = Depends(get_db)
+    request: Request,
+    config: IntegrationConfig,
+    db: Session = Depends(get_db),
+    principal: Principal = Depends(get_principal),
 ):
     # Spec §20: secret을 대상에 묶는 것(auth_type != none 이면 OutboundClient가 secret_ref를
     # 실어 보낸다)은 승인 대상이다. PATCH가 막는 '기존 대상의 목적지 바꾸기'를 '새로 만들기'로
@@ -64,6 +114,7 @@ def create_integration_endpoint(
     # 서비스끼리 secret을 옮기는 것은 막지 못한다. 그래서 secret 바인딩
     # 생성은 PATCH와 같은 권한(system_admin)을 요구한다. (승인 실행기는 '기존 객체 수정'만
     # 재생하므로, 생성은 승인-대기 대신 즉시 거절로 게이트한다.)
+    _guard_scope(request, db, principal)
     _guard_secret_binding_create(request, config)
     row = create_integration(
         db,
@@ -90,7 +141,9 @@ def update_integration(
     integration_id: str,
     payload: IntegrationUpdateRequest,
     db: Session = Depends(get_db),
+    principal: Principal = Depends(get_principal),
 ):
+    _guard_scope(request, db, principal)
     row = get_integration_or_404(db, integration_id)
     before = integration_snapshot(row)
     merged = {**before, **payload.model_dump(exclude_unset=True)}
@@ -171,12 +224,20 @@ def _set_enabled(request: Request, db: Session, integration_id: str, enabled: bo
 
 
 @router.post("/{integration_id}/enable", dependencies=[Depends(require_roles(*CONSOLE_WRITE_ROLES))])
-def enable_integration(request: Request, integration_id: str, db: Session = Depends(get_db)):
+def enable_integration(
+    request: Request, integration_id: str, db: Session = Depends(get_db),
+    principal: Principal = Depends(get_principal),
+):
+    _guard_scope(request, db, principal)
     return _set_enabled(request, db, integration_id, True)
 
 
 @router.post("/{integration_id}/disable", dependencies=[Depends(require_roles(*CONSOLE_WRITE_ROLES))])
-def disable_integration(request: Request, integration_id: str, db: Session = Depends(get_db)):
+def disable_integration(
+    request: Request, integration_id: str, db: Session = Depends(get_db),
+    principal: Principal = Depends(get_principal),
+):
+    _guard_scope(request, db, principal)
     return _set_enabled(request, db, integration_id, False)
 
 
@@ -226,9 +287,11 @@ class _RollbackBody(BaseModel):
 def rollback(
     request: Request, integration_id: str, payload: _RollbackBody,
     db: Session = Depends(get_db),
+    principal: Principal = Depends(get_principal),
 ):
     from app.core.versioning import get_version, load_snapshot
 
+    _guard_scope(request, db, principal)
     version = payload.version
     row = get_integration_or_404(db, integration_id)
     before = integration_snapshot(row)

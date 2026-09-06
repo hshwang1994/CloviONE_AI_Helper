@@ -24,7 +24,7 @@ import { CONSOLE_WRITE_ROLES } from "../lib/roles.js";
  * 그려지고 API가 raw 403을 뱉는다. config.roles가 있으면 그걸 쓰고, 없으면 이 표로 감싼다.
  * 백엔드 라우터 레벨 권한과 정확히 맞춘다:
  *  - users: GET까지 admin+ (users/router.py)
- *  - jobs: operator/admin/system_admin (jobs/router.py, auditor 제외)
+ *  - jobs: GET 은 CONSOLE_READ(감사자 포함), 재시도·취소만 OPS (jobs/router.py)
  *  - departments/job-titles: GET까지 admin+
  *  - backup: GET은 READ_ROLES 허용 — 쓰기만 registry에서 system_admin으로 막는다
  *  - audit: GET은 admin/system_admin/auditor만(operator 제외) */
@@ -52,7 +52,9 @@ export const SCREEN_ROLES = {
   "dev-report": SENSITIVE_READ,
   setup: ["system_admin"],
   users: CONSOLE_WRITE,
-  jobs: ["operator", "admin", "system_admin"],
+  // 작업 큐 읽기는 능력 표의 console.read 그대로다(감사자 포함). 재시도·취소 단추는 registry
+  // 액션이 OPS_ROLES 로 따로 막는다(app/jobs/router.py 의 경로별 게이트와 같은 모양).
+  jobs: CONSOLE_READ,
   organizations: ["admin", "system_admin"],
   departments: ["admin", "system_admin"],
   "job-titles": ["admin", "system_admin"],
@@ -84,7 +86,7 @@ export const SCREEN_ROLES = {
 /* 화면별 403 안내 — 기본 문구("관리자, 시스템 관리자만")는 실제 허용 역할이 더 넓은 화면에서
  * 누가 접근 가능한지를 실제보다 좁게 말해 헷갈리게 한다. */
 export const SCREEN_ROLE_HELP = {
-  jobs: "이 화면은 운영자, 관리자, 시스템 관리자만 사용할 수 있습니다.",
+  jobs: "이 화면은 운영자, 관리자, 시스템 관리자, 감사자만 사용할 수 있습니다. 재시도와 취소는 운영자, 관리자, 시스템 관리자만 할 수 있습니다.",
   audit: "이 화면은 관리자, 시스템 관리자, 감사자만 사용할 수 있습니다.",
   backup: "이 화면은 운영자, 관리자, 시스템 관리자, 감사자만 사용할 수 있습니다.",
   rbac: "이 화면은 운영자, 관리자, 시스템 관리자, 감사자만 사용할 수 있습니다.",

@@ -14,6 +14,7 @@ from app.core.errors import ForbiddenError, ValidationAppError
 from app.core.pagination import PageParams
 from app.core.scope import Principal, apply_user_scope, scope_allows_user
 from app.mail.models import MAIL_QUEUED
+from app.org.models import Department, JobTitle
 from app.users import bulk
 from app.users.models import ALL_ROLES, User
 from app.users.schemas import (
@@ -29,6 +30,7 @@ from app.users.service import (
     create_user,
     ensure_can_manage_target,
     get_scoped_user_or_404,
+    get_writable_user_or_404,
     set_user_active,
     unarchive_user,
     unlock_user,
@@ -40,6 +42,19 @@ router = APIRouter(
     prefix="/api/admin/users",
     tags=["admin-users"],
     dependencies=[Depends(require_permission(USER_MANAGE)), Depends(require_csrf)],
+)
+
+
+# 「부서 없음」 필터 센티널 (P-61). 부서 id 는 UUID 라 이 문자열과 겹칠 수 없다.
+#
+# **서버가 받는 이유**: 목록은 페이지로 나뉜다. 화면이 받은 쪽에서 「부서가 빈 사람」을
+# 골라내면 첫 쪽 밖의 미배정 인원이 조용히 빠진 **거짓 목록**이 되고, 조직 콘솔의
+# 「부서 미지정 N명」 타일(D-406)이 말하는 숫자와 어긋난다. 등호 비교(`department_id = :id`)
+# 로는 `IS NULL` 을 표현할 수 없으므로 따로 어휘가 필요하다.
+NO_DEPARTMENT = "none"
+
+_DEPARTMENT_FILTER_DOC = (
+    "부서 id 로 거른다. `none` 이면 부서가 지정되지 않은 사용자만 돌려준다."
 )
 
 
@@ -72,13 +87,31 @@ def _user_row(user: User, now) -> dict:
     }
 
 
+def _ensure_known_filter(db, scope, model, item_id: str, label: str) -> None:
+    """이 필터 값이 **이 관리자에게** 실재하는 항목인가.
+
+    범위 밖 항목도 「알 수 없다」로 답하는 이유: 있는 것과 없는 것을 다른 코드로 답하면,
+    부서 관리자가 남의 부서 id 를 이 필터에 넣어 보며 존재 여부를 셀 수 있다. 목록·단건이
+    범위 밖을 404 로 접는 것과 같은 규칙이다(app/users/service.py::get_scoped_user_or_404).
+    """
+    from app.org.service import scope_allows_item
+
+    row = db.get(model, item_id)
+    if row is None or not scope_allows_item(scope, row):
+        raise ValidationAppError(f"알 수 없는 {label}입니다: {item_id}")
+
+
 def _filtered_users_stmt(
-    scope, *, q, role, active, department_id, title_id, archived, locked=None, now=None,
+    db, scope, *, q, role, active, department_id, title_id, archived, locked=None, now=None,
 ):
     """목록과 CSV 내보내기가 **같은 문장**을 쓴다.
 
     두 벌로 적으면 화면에서 필터를 걸고 내보낸 파일에 필터가 안 걸린 전 직원이 담기는 식으로
     갈라진다 — 그리고 그것은 파일을 열어 보기 전까지 아무도 모른다.
+
+    모르는 필터 값은 **전부 422 로 답한다**(역할·부서·직책). 빈 목록으로 삼키면 화면은
+    「일치하는 항목이 없습니다」를 그리는데, 그것은 「그 부서에 사람이 없다」와 구별되지
+    않는다 — 지워진 부서를 가리키는 저장된 뷰·오래된 링크가 그렇게 조용히 거짓말을 한다.
     """
     # 보관된 계정은 기본으로 감춘다 — 검색도 목록의 다른 문일 뿐이라 같은 조건을 탄다.
     # archived=true는 '보관함'을 여는 것이다: 복구하려면 볼 수 있어야 하므로 그때만
@@ -106,9 +139,16 @@ def _filtered_users_stmt(
         stmt = stmt.where(User.active.is_(active))
     # 부서/직책 화면의 '소속 인원 N명' 카운트를 실제 사용자 목록으로 드릴다운할 수 있게
     # 서버측 필터를 둔다(#/users?department_id=… / ?title_id=… 딥링크, round30 감사 E).
-    if department_id:
+    if department_id == NO_DEPARTMENT:
+        # 위 범위 절과 AND 로 겹친다. 부서 범위 관리자는 `department_id IN (서브트리)` 와
+        # `IS NULL` 이 동시에 참인 행이 없으므로 빈 목록을 받는다 — 미배정 인원은 그 부서
+        # 관리자의 대상이 아니고, 전사 미배정은 조직·전역 관리자가 본다(apply_user_scope).
+        stmt = stmt.where(User.department_id.is_(None))
+    elif department_id:
+        _ensure_known_filter(db, scope, Department, department_id, "부서")
         stmt = stmt.where(User.department_id == department_id)
     if title_id:
+        _ensure_known_filter(db, scope, JobTitle, title_id, "직책")
         stmt = stmt.where(User.title_id == title_id)
     # ADM-06R: 화면·배지·잠금 해제 버튼은 이미 다 있는데 "지금 잠긴 사람만 보기"가 안 됐다
     # — `_user_row`가 이미 같은 식(`locked_until and locked_until > now`)으로 `locked`를
@@ -129,7 +169,9 @@ def list_users(
     q: str | None = Query(default=None, max_length=255),
     role: str | None = Query(default=None),
     active: bool | None = Query(default=None),
-    department_id: str | None = Query(default=None, max_length=36),
+    department_id: str | None = Query(
+        default=None, max_length=36, description=_DEPARTMENT_FILTER_DOC,
+    ),
     title_id: str | None = Query(default=None, max_length=36),
     archived: bool = Query(
         default=False,
@@ -144,7 +186,7 @@ def list_users(
 ):
     now = request.app.state.clock.now()
     stmt = _filtered_users_stmt(
-        principal.management, q=q, role=role, active=active,
+        db, principal.management, q=q, role=role, active=active,
         department_id=department_id, title_id=title_id, archived=archived,
         locked=locked, now=now,
     )
@@ -217,7 +259,9 @@ def export_users_csv(
     q: str | None = Query(default=None, max_length=255),
     role: str | None = Query(default=None),
     active: bool | None = Query(default=None),
-    department_id: str | None = Query(default=None, max_length=36),
+    department_id: str | None = Query(
+        default=None, max_length=36, description=_DEPARTMENT_FILTER_DOC,
+    ),
     title_id: str | None = Query(default=None, max_length=36),
     archived: bool = Query(default=False),
     locked: bool | None = Query(default=None),
@@ -229,7 +273,7 @@ def export_users_csv(
     """
     now = request.app.state.clock.now()
     stmt = _filtered_users_stmt(
-        principal.management, q=q, role=role, active=active,
+        db, principal.management, q=q, role=role, active=active,
         department_id=department_id, title_id=title_id, archived=archived,
         locked=locked, now=now,
     )
@@ -417,7 +461,7 @@ def patch_user(
     db: Session = Depends(get_db),
     principal: Principal = Depends(get_principal),
 ):
-    user = get_scoped_user_or_404(db, user_id, principal.management)
+    user = get_writable_user_or_404(db, user_id, principal.management)
     before = user_snapshot(user)
     fields = payload.model_dump(exclude_unset=True)
 
@@ -527,7 +571,7 @@ def enable_user(
     db: Session = Depends(get_db),
     principal: Principal = Depends(get_principal),
 ):
-    user = get_scoped_user_or_404(db, user_id, principal.management)
+    user = get_writable_user_or_404(db, user_id, principal.management)
     before = user_snapshot(user)
     set_user_active(db, user, True, session_service=request.app.state.session_service,
                     actor_role=request.state.user.role)
@@ -545,7 +589,7 @@ def disable_user(
     db: Session = Depends(get_db),
     principal: Principal = Depends(get_principal),
 ):
-    user = get_scoped_user_or_404(db, user_id, principal.management)
+    user = get_writable_user_or_404(db, user_id, principal.management)
     before = user_snapshot(user)
     set_user_active(db, user, False, session_service=request.app.state.session_service,
                     actor_role=request.state.user.role)
@@ -607,7 +651,7 @@ def reset_password(
     principal: Principal = Depends(get_principal),
     payload: ResetPasswordRequest | None = None,
 ):
-    user = get_scoped_user_or_404(db, user_id, principal.management)
+    user = get_writable_user_or_404(db, user_id, principal.management)
     provided = payload.password if payload is not None else None
     password = admin_reset_password(
         db,
@@ -635,7 +679,7 @@ def unlock(
     db: Session = Depends(get_db),
     principal: Principal = Depends(get_principal),
 ):
-    user = get_scoped_user_or_404(db, user_id, principal.management)
+    user = get_writable_user_or_404(db, user_id, principal.management)
     unlock_user(db, user, actor_role=request.state.user.role)
     record_audit_from_request(
         request, db, action="user.unlock", object_type="user", object_id=user.id,
@@ -689,7 +733,7 @@ def revoke_sessions(
     db: Session = Depends(get_db),
     principal: Principal = Depends(get_principal),
 ):
-    user = get_scoped_user_or_404(db, user_id, principal.management)
+    user = get_writable_user_or_404(db, user_id, principal.management)
     ensure_can_manage_target(request.state.user.role, user)  # authority boundary
     count = request.app.state.session_service.revoke_all_for_user(db, user.id)
     record_audit_from_request(

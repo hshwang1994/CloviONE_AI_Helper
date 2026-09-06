@@ -1,18 +1,32 @@
 """저장소 설정 API — 「업로드가 어디로 가는가」에 답이 하나여야 한다 (S8 · D-199).
 
-## 이 파일이 지키는 것 셋
+qa-contract-change: 생성 응답의 계약을 200 에서 201 로 바꿨다(S-10) — 같은 콘솔의 다른
+생성 라우트(공지·사용자)가 이미 201 을 내는데 저장소만 기본값 200 이라, 상태 코드로
+「만들어졌다」를 구별하는 클라이언트에게 이 라우트만 예외였다. 기존 단언을 지우지 않고
+기대값만 새 계약으로 옮기고, 아래에 그 계약을 직접 세우는 시험을 함께 둔다.
+
+## 이 파일이 지키는 것 넷
 
 1. **역할마다 켜진 저장소는 하나다.** 둘이면 어제 올린 파일과 오늘 올린 파일이 다른
    장치에 있고, 그 사실은 백업을 복원할 때 처음 드러난다.
 2. **마운트가 안 붙었으면 그렇다고 말한다.** 「설정이 있다」와 「지금 쓸 수 있다」는
    다른 사실이고, 화면이 그 둘을 같은 것으로 보여 주면 아무도 안 붙은 것을 모른다.
 3. **운영과 백업이 같은 장치면 경고한다.** 그 백업은 장치가 죽는 순간 함께 죽는다.
+4. **거절은 정직한 4xx 다.** 이름 중복·공백뿐인 이름·경합은 관리자의 실수이거나 순서
+   문제이지 서버 고장이 아니다. 500 으로 답하면 관리자는 자기 입력이 틀린 것인지
+   제품이 깨진 것인지 구별할 수 없다(XB-01 · XD-03 · S-01 · S-02).
 """
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
+
 import pytest
 
+from tests.fakes.pgerrors import foreign_key_violation, unique_violation
+
+from app.core.db import make_engine, make_session_factory
+from app.core.errors import ConflictError, ValidationAppError
 from app.storage import service
 from app.storage.models import StorageProvider
 
@@ -182,7 +196,7 @@ def test_a_backup_provider_can_stand_next_to_the_operational_one(
         },
         headers={"X-CSRF-Token": csrf},
     )
-    assert response.status_code == 200, response.text
+    assert response.status_code == 201, response.text
     assert response.json()["role"] == "BACKUP"
 
 
@@ -263,3 +277,324 @@ def test_with_no_backup_provider_there_is_no_warning(client, login_as, local_pro
     """경고를 늘 켜 두면 사람이 안 읽는다."""
     login_as("system_admin")
     assert client.get("/api/storage/providers").json()["warning"] is None
+
+
+# ── 거절은 정직한 4xx 다 (XB-01 · XD-03 · S-01 · S-02 · S-10) ────────────────
+
+
+def _create(client, csrf, **overrides) -> "object":
+    body = {
+        "name": "이름 하나", "kind": "LOCAL", "role": "BACKUP",
+        "base_path": "/srv/clovir/backup", "enabled": False,
+    }
+    body.update(overrides)
+    return client.post(
+        "/api/storage/providers", json=body, headers={"X-CSRF-Token": csrf}
+    )
+
+
+def test_creating_a_provider_answers_201(client, login_as, local_provider):
+    """S-10: 만들었으면 201 이라고 말한다 — 공지·사용자 생성과 같은 계약이다."""
+    csrf = login_as("system_admin")
+    response = _create(client, csrf, name="201 저장소", base_path="/srv/clovir/two-oh-one")
+    assert response.status_code == 201, response.text
+    assert response.json()["name"] == "201 저장소"
+
+
+def test_a_duplicate_provider_name_is_a_conflict_not_a_500(client, login_as, local_provider):
+    """🔴 XB-01 · XD-03: 이미 쓰는 이름은 관리자의 흔한 실수다. 그 답이 500 이면
+    관리자는 자기 입력이 틀린 것인지 서버가 깨진 것인지 알 수 없다."""
+    csrf = login_as("system_admin")
+    assert _create(client, csrf, name="사내 NAS", base_path="/srv/nas/a").status_code == 201
+
+    again = _create(client, csrf, name="사내 NAS", base_path="/srv/nas/b")
+    assert again.status_code == 409, again.text
+    assert "이미 있는 저장소 이름입니다" in again.json()["error"]["message"]
+
+
+def test_a_name_that_differs_only_in_case_is_the_same_name(client, login_as, local_provider):
+    """'nas' 와 'NAS' 는 사람 눈에 같은 저장소다 — 목록에서 둘을 구별할 방법이 없다.
+    부서·직책이 쓰는 판정과 같다(app/org/service.py::find_by_name)."""
+    csrf = login_as("system_admin")
+    assert _create(client, csrf, name="nas-one", base_path="/srv/nas/one").status_code == 201
+
+    upper = _create(client, csrf, name="NAS-ONE", base_path="/srv/nas/two")
+    assert upper.status_code == 409, upper.text
+
+
+def test_a_different_name_still_goes_through(client, login_as, local_provider):
+    """반례 — 위 둘이 409 인 이유가 «생성이 막혔다» 가 아님을 같은 자리에서 보인다."""
+    csrf = login_as("system_admin")
+    assert _create(client, csrf, name="이름 A", base_path="/srv/nas/a").status_code == 201
+    assert _create(client, csrf, name="이름 B", base_path="/srv/nas/b").status_code == 201
+
+
+def test_renaming_onto_an_existing_name_is_a_conflict_not_a_500(
+    client, login_as, local_provider
+):
+    """이름 바꾸기도 같은 유니크 인덱스를 지난다 — 생성만 고치면 절반이 남는다."""
+    csrf = login_as("system_admin")
+    created = _create(client, csrf, name="바꿀 저장소", base_path="/srv/nas/rename")
+    assert created.status_code == 201, created.text
+
+    clash = client.patch(
+        f"/api/storage/providers/{created.json()['id']}",
+        json={"name": local_provider.name},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert clash.status_code == 409, clash.text
+    assert "이미 있는 저장소 이름입니다" in clash.json()["error"]["message"]
+
+
+def test_renaming_to_its_own_name_is_not_a_conflict(client, login_as, local_provider):
+    """반례 — 자기 이름은 「이미 있는 이름」이 아니다. 이 반례가 없으면 위 시험은
+    «모든 이름 변경을 막는» 구현으로도 통과한다."""
+    csrf = login_as("system_admin")
+    response = client.patch(
+        f"/api/storage/providers/{local_provider.id}",
+        json={"name": local_provider.name},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["name"] == local_provider.name
+
+
+@pytest.mark.parametrize("blank", ["   ", "\t", "\n\n"])
+def test_a_whitespace_only_name_is_422_not_a_db_check_500(
+    client, login_as, local_provider, blank
+):
+    """🔴 S-01: `Field(min_length=1)` 은 strip 하기 전 길이를 본다. 그래서 공백뿐인
+    이름이 검사를 지나 DB CHECK(`ck_sprov_name_nonempty`)에서 처음 막혔고, 사용자가
+    본 것은 500 이었다."""
+    csrf = login_as("system_admin")
+    response = _create(client, csrf, name=blank, base_path="/srv/nas/blank")
+    assert response.status_code == 422, response.text
+    assert "저장소 이름" in response.json()["error"]["message"]
+
+
+def test_a_whitespace_only_rename_is_also_422(client, login_as, local_provider):
+    csrf = login_as("system_admin")
+    response = client.patch(
+        f"/api/storage/providers/{local_provider.id}",
+        json={"name": "   "},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert response.status_code == 422, response.text
+
+
+def test_a_name_with_surrounding_spaces_is_stored_trimmed(client, login_as, local_provider):
+    """반례 — 공백을 가진 정상 이름은 거절이 아니라 정규화다. 검증한 형태와 저장한
+    형태가 같아야 목록·감사 로그가 같은 문자열을 말한다."""
+    csrf = login_as("system_admin")
+    response = _create(client, csrf, name="  공백 낀 이름  ", base_path="/srv/nas/trim")
+    assert response.status_code == 201, response.text
+    assert response.json()["name"] == "공백 낀 이름"
+
+
+# ── 낙관적 잠금은 값을 얻을 수 있어야 쓸 수 있다 (S-07) ──────────────────────
+
+
+def test_the_read_response_carries_the_version_the_lock_needs(
+    client, login_as, local_provider
+):
+    """🔴 S-07: 서버는 `base_version` 을 받아 낡은 쓰기를 409 로 막는데, 읽기 응답에
+    `version` 이 없어서 클라이언트가 보낼 값을 얻을 방법이 없었다 — 잠금이 있는데
+    아무도 못 쓰는 상태였고, 결과는 나중 저장이 앞 저장을 말없이 덮는 것이었다."""
+    login_as("system_admin")
+    row = client.get("/api/storage/providers").json()["items"][0]
+    assert row["version"] == local_provider.version
+
+
+def test_the_version_from_the_list_actually_locks(client, login_as, local_provider):
+    """읽은 값을 그대로 돌려보내면 저장되고, 그 사이 남이 저장했으면 409 다."""
+    csrf = login_as("system_admin")
+    row = client.get("/api/storage/providers").json()["items"][0]
+
+    first = client.patch(
+        f"/api/storage/providers/{row['id']}",
+        json={"options": "rw", "base_version": row["version"]},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert first.status_code == 200, first.text
+    assert first.json()["version"] == row["version"] + 1
+
+    stale = client.patch(
+        f"/api/storage/providers/{row['id']}",
+        json={"options": "ro", "base_version": row["version"]},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert stale.status_code == 409, stale.text
+
+
+# ── 경합도 같은 답이어야 한다 (S-02 · XD-03) ─────────────────────────────────
+
+
+def test_a_lost_name_race_gets_the_same_409_as_a_late_request(db, local_provider, monkeypatch):
+    """사전 검사와 INSERT 사이에는 잠금이 없다. 진 쪽이 유니크 인덱스에 걸렸을 때
+    답이 「이미 있습니다」에서 「서버 오류」로 바뀌면 안 된다 — 순서만 조금 달랐을 뿐이다."""
+    def _flush_that_loses(*_args, **_kwargs):
+        raise unique_violation("INSERT INTO storage_providers", constraint="uq_sprov_name")
+
+    monkeypatch.setattr(db, "flush", _flush_that_loses)
+    with pytest.raises(ConflictError) as caught:
+        service.create_provider(
+            db, name="경합 이름", kind="LOCAL", role="BACKUP",
+            base_path="/srv/nas/race", enabled=False,
+        )
+    assert "이미 있는 저장소 이름입니다" in str(caught.value)
+
+
+def test_a_lost_role_race_gets_the_same_409_as_a_late_request(db, local_provider, monkeypatch):
+    """역할 점유도 같다 — 「저장」 더블클릭 한 번이 이 경로다."""
+    def _flush_that_loses(*_args, **_kwargs):
+        raise unique_violation(
+            "INSERT INTO storage_providers", constraint="uq_sprov_role_enabled"
+        )
+
+    monkeypatch.setattr(db, "flush", _flush_that_loses)
+    with pytest.raises(ConflictError) as caught:
+        service.create_provider(
+            db, name="경합 역할", kind="LOCAL", role="BACKUP",
+            base_path="/srv/nas/role-race", enabled=True,
+        )
+    assert "이미 켜져 있는 저장소가 있습니다" in str(caught.value)
+
+
+def test_a_lost_rename_race_gets_the_same_409_as_a_late_request(db, local_provider, monkeypatch):
+    """수정 경로도 같은 인덱스를 지난다 — 생성만 감싸면 이름 바꾸기가 그대로 500 이다."""
+    def _flush_that_loses(*_args, **_kwargs):
+        raise unique_violation("UPDATE storage_providers", constraint="uq_sprov_name")
+
+    monkeypatch.setattr(db, "flush", _flush_that_loses)
+    with pytest.raises(ConflictError) as caught:
+        service.update_provider(db, local_provider, name="경합 이름")
+    assert "이미 있는 저장소 이름입니다" in str(caught.value)
+
+
+def test_a_foreign_key_violation_is_not_swallowed_as_a_conflict(db, local_provider, monkeypatch):
+    """반례 — 이름을 아는 두 유니크 제약만 접는다. FK·CHECK·NOT NULL 위반은 「다시
+    하면 된다」가 아니라 코드가 틀렸다는 뜻이라 그대로 올려보낸다(D-191)."""
+    from sqlalchemy.exc import IntegrityError
+
+    def _flush_that_breaks(*_args, **_kwargs):
+        raise foreign_key_violation("INSERT INTO storage_providers")
+
+    monkeypatch.setattr(db, "flush", _flush_that_breaks)
+    with pytest.raises(IntegrityError):
+        service.create_provider(
+            db, name="깨진 참조", kind="LOCAL", role="BACKUP",
+            base_path="/srv/nas/fk", enabled=False,
+        )
+
+
+def test_a_blank_name_never_reaches_the_database(db, local_provider):
+    """서비스가 경계다 — CLI(`app/cli/storage_cli.py`)도 이 함수를 그대로 부른다."""
+    with pytest.raises(ValidationAppError):
+        service.create_provider(
+            db, name="   ", kind="LOCAL", role="BACKUP",
+            base_path="/srv/nas/blank", enabled=False,
+        )
+
+
+@pytest.mark.real_db
+def test_eight_concurrent_creates_leave_exactly_one_enabled_provider(db_url, settings):
+    """🔴 S-02: 실제 커넥션 여덟 개로 같은 역할을 동시에 켠다. 예전에는 하나가 200,
+    나머지가 500 이었다 — 지금은 하나만 성공하고 나머지는 ConflictError 다."""
+    engine = make_engine(db_url)
+    factory = make_session_factory(engine)
+    try:
+        with factory() as db:
+            service.ensure_default_provider(db, settings)
+            db.commit()
+    finally:
+        engine.dispose()
+
+    def attempt(index: int):
+        engine = make_engine(db_url)
+        factory = make_session_factory(engine)
+        try:
+            with factory() as db:
+                try:
+                    row = service.create_provider(
+                        db, name=f"동시 백업 {index}", kind="LOCAL", role="BACKUP",
+                        base_path=f"/srv/nas/concurrent-{index}", enabled=True,
+                    )
+                    db.commit()
+                    return ("ok", row.id)
+                except ConflictError:
+                    db.rollback()
+                    return ("conflict", None)
+                except Exception as exc:  # noqa: BLE001 — 무엇이 샜는지 이름으로 남긴다
+                    db.rollback()
+                    return ("leaked", type(exc).__name__)
+        finally:
+            engine.dispose()
+
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        results = list(pool.map(attempt, range(8)))
+
+    leaked = [r for r in results if r[0] == "leaked"]
+    assert leaked == [], f"경합에서 처리 안 된 예외가 샜다: {leaked}"
+    assert len([r for r in results if r[0] == "ok"]) == 1, results
+
+    engine = make_engine(db_url)
+    factory = make_session_factory(engine)
+    try:
+        with factory() as db:
+            from sqlalchemy import func, select
+
+            enabled = db.execute(
+                select(func.count()).select_from(StorageProvider).where(
+                    StorageProvider.role == "BACKUP", StorageProvider.enabled.is_(True)
+                )
+            ).scalar_one()
+            assert enabled == 1, f"경합 뒤 켜진 백업 저장소가 {enabled}개다"
+    finally:
+        engine.dispose()
+
+
+@pytest.mark.real_db
+def test_eight_concurrent_creates_with_the_same_name_leave_one_row(db_url, settings):
+    """이름 경합도 같다 — 직렬이면 409 인데 동시에는 500 이던 자리다(XD-03)."""
+    def attempt(_index: int):
+        engine = make_engine(db_url)
+        factory = make_session_factory(engine)
+        try:
+            with factory() as db:
+                try:
+                    row = service.create_provider(
+                        db, name="같은 이름", kind="LOCAL", role="BACKUP",
+                        base_path=f"/srv/nas/same-{_index}", enabled=False,
+                    )
+                    db.commit()
+                    return ("ok", row.id)
+                except ConflictError:
+                    db.rollback()
+                    return ("conflict", None)
+                except Exception as exc:  # noqa: BLE001
+                    db.rollback()
+                    return ("leaked", type(exc).__name__)
+        finally:
+            engine.dispose()
+
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        results = list(pool.map(attempt, range(8)))
+
+    leaked = [r for r in results if r[0] == "leaked"]
+    assert leaked == [], f"경합에서 처리 안 된 예외가 샜다: {leaked}"
+    assert len([r for r in results if r[0] == "ok"]) == 1, results
+
+    engine = make_engine(db_url)
+    factory = make_session_factory(engine)
+    try:
+        with factory() as db:
+            from sqlalchemy import func, select
+
+            count = db.execute(
+                select(func.count()).select_from(StorageProvider).where(
+                    StorageProvider.name == "같은 이름"
+                )
+            ).scalar_one()
+            assert count == 1, f"경합 뒤 같은 이름의 저장소가 {count}개 남았다"
+    finally:
+        engine.dispose()

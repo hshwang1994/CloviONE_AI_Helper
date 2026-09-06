@@ -383,4 +383,14 @@ describe("화면 골격", () => {
     expect(box.display).toBe("grid");
     expect(screen.queryByTestId("org-console-people")).toBeNull();
   });
+
+  it("「부서 미지정」 링크는 그 사람들만 거른 사용자 화면으로 간다 (P-61)", async () => {
+    /* 조직 마디의 `user_count` 가 곧 부서 없는 인원이다(클로비원: 1). 링크가 필터 없는
+       `#/users` 로 가면 숫자만 말하고 그 사람들을 못 찾는다 — 서버 센티널 `none` 을 싣는다. */
+    mockApi();
+    renderConsole("/organizations");
+    await node("클로비원");
+    const link = await screen.findByRole("link", { name: /부서가 지정되지 않은 사용자 1명/ }, WAIT);
+    expect(link.getAttribute("href")).toBe("#/users?department_id=none");
+  });
 });

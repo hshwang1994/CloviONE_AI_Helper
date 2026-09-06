@@ -9,7 +9,16 @@
  * 화면 설정만 있고 그리는 코드는 없다. 그리는 것은 DataScreen.jsx 하나다.
  */
 import React from "react";
-import { Badge, WRITE_ROLES, activeCol, backupReasonText, badgeCol, col, dateCol, field, fmtBytes, fmtDateTime, fmtDateTimeCompact, mapCol, opt, personField, truncateCol, writerEmptyHelp } from "./shared.js";
+import { Badge, PEOPLE_ACTIVE_REF_LIST, WRITE_ROLES, activeCol, backupReasonText, badgeCol, col, dateCol, field, fmtBytes, fmtDateTimeCompact, mapCol, opt, personField, truncateCol, writerEmptyHelp } from "./shared.js";
+
+/* AI 상한이 걸린 계정의 상태 꼬리표. 서버는 코드만 주고(`app/quotas/router.py::_target_states`)
+   낱말은 화면이 정한다. `active` 는 정상이라 아무것도 안 붙인다 — 모든 행에 「정상」이 붙으면
+   그 열은 아무것도 구별하지 않는다. */
+const QUOTA_TARGET_STATE = {
+  inactive: " (비활성 계정)",
+  archived: " (보관된 계정)",
+  missing: " (없는 계정)",
+};
 
 export const PLATFORM_SCREENS = {
   backup: {
@@ -104,7 +113,7 @@ export const PLATFORM_SCREENS = {
     // 파일명(아래 "파일" 열과 동일한 추출 로직)으로 실제로 구별되는 이름을 만든다.
     columns: [{ ...dateCol("created_at", "생성"), rowName: (r) => {
       const p = r.path;
-      if (!p) return "백업 / " + fmtDateTime(r.created_at);
+      if (!p) return "백업 / " + fmtDateTimeCompact(r.created_at);
       const s = String(p);
       const i = Math.max(s.lastIndexOf("/"), s.lastIndexOf("\\"));
       return i >= 0 ? s.slice(i + 1) : s;
@@ -115,7 +124,16 @@ export const PLATFORM_SCREENS = {
       // 🔴 `type:"text"` 였다. 이 칸에 들어가는 것은 산문이 아니라 **배지**인데, `text` 는
       // 왼쪽 정렬 + 12rem 바닥 + 수축 후보라 머리글(언제나 가운데)과 값이 서로 다른 자리에
       // 섰다 — 1920 실측에서 「서버 파일」머리는 1677, 그 아래 배지는 1527 이었다.
-      { key: "file_state", label: "서버 파일", type: "status", render: (r) => React.createElement(Badge, { value: r.file_state === "removed" ? "삭제함" : "있음", kind: r.file_state === "removed" ? "warn" : "ok" }) }],
+      // 🔴 이 칸이 「있음」이라고 말하는 근거는 `file_state` 하나였는데, 그 값은 **사람이
+      // 서버 파일을 지웠는가**만 기록한다(D-204) — 운영이 밖에서 덤프를 치워도 `present` 다.
+      // 그래서 서버에 없는 파일을 「있음」이라고 적었다. 서버가 실제로 디스크를 보고 내는
+      // 판정(`download_blocked_reason === "missing"`)이 있으면 그것을 말한다. 그 필드를
+      // 안 싣는 옛 응답에서는 예전과 똑같이 두 값만 그린다.
+      { key: "file_state", label: "서버 파일", type: "status", render: (r) => {
+        if (r.file_state === "removed") return React.createElement(Badge, { value: "삭제함", kind: "warn" });
+        if (r.download_blocked_reason === "missing") return React.createElement(Badge, { value: "서버에 없음", kind: "danger" });
+        return React.createElement(Badge, { value: "있음", kind: "ok" });
+      } }],
     // 목록 열은 파일명만 보여주고(위 columns "파일") 상세는 전체 경로를 보여준다 — 둘 다 실제로는
     // r.path를 읽지만 표시가 다르므로(파일명 vs 전체 경로), 새 드로어 중복 제거(key 기준, DataScreen.jsx
     // mergeDetailFields)가 이 상세 전용 항목을 columns의 "파일"과 같은 것으로 오인해 지우지 않도록
@@ -146,11 +164,29 @@ export const PLATFORM_SCREENS = {
       // 서버에서 이미 삭제했습니다」로 끝난다(`verify_existing` 의 `file_removed` 조기 반환).
       // 그 사실은 「서버 파일」열이 이미 말하고 있으므로, 실패밖에 못 내는 단추를 남기지
       // 않는다. 실패한 백업은 그대로 재검증할 수 있다(파일이 남아 있으면).
+      // 여기는 아래 「내려받기」와 달리 `downloadable` 을 보지 **않는다**. 그 판정은 실패한
+      // 백업(`status === "failed"`)도 막는데, 검증은 실패한 세트를 다시 확인하는 것이 바로
+      // 그 목적이다. 디스크에서 사라진 파일도 검증은 `file_missing` 이라는 답을 돌려주므로
+      // (`verify_existing`) 누른 사람이 사실을 얻는다 — 받을 것이 없는 것과는 다르다.
       { label: "검증", roles: ["system_admin"], when: (r) => r.status !== "running" && r.file_state !== "removed", path: (r) => "/api/admin/backups/" + r.id + "/verify",
         result: (res) => ({ ok: !!(res.verify && res.verify.ok), msg: (res.verify && res.verify.ok) ? "검증 완료: 정상" : "검증 실패: " + backupReasonText((res.verify && res.verify.reason) || "손상 가능성") }) },
-      // 내려받기 — 브라우저가 직접 그 주소로 가야 Content-Disposition 이 먹는다
-      // (DataScreen.runAction 주석 참조). 진행 중이면 반쪽 덤프를 받게 되므로 감춘다.
-      { label: "내려받기", roles: ["system_admin"], when: (r) => r.status !== "running" && r.file_state !== "removed",
+      /* 내려받기 — `DataScreen.runDownload` 가 처리한다. 작은 산출물은 화면을 떠나지 않고
+         fetch 로 받아 상태를 확인하고 Blob 으로 저장하며, 실패는 토스트로 말한다(파일 이름은
+         응답의 `Content-Disposition` 을 직접 읽어서 붙인다). 큰 덤프는 `size_bytes` 를 보고
+         브라우저의 내려받기 관리자에게 넘긴다 — 몇 GB 를 탭 메모리에 담지 않는다.
+         옛 주석은 「브라우저가 직접 그 주소로 가야 Content-Disposition 이 먹는다」였는데,
+         그 규칙은 이제 성립하지 않는다(그리고 그 갈래에서는 403·504 가 관리자 콘솔을
+         통째로 날 JSON 오류 페이지로 바꿨다).
+
+         🔴 **받을 수 있는가는 서버가 판정한다**(`app/backups/router.py::_downloadable`).
+         예전 조건 `file_state === "present"` 는 아무것도 거르지 못했다 — 그 칸에 들어가는
+         값은 `present`/`removed` 둘뿐이라(`app/backups/models.py`) 「지운 것이 아니다」를
+         길게 적은 것과 같았다. 실패한 백업에도, 디스크에서 사라진 덤프에도 `present` 가
+         그대로 남아 단추가 섰고, 누르면 「백업 파일이 서버에 없습니다」로 끝났다.
+         `!== false` 로 보는 이유: 그 필드를 안 싣는 옛 응답에서는 예전 조건 그대로 동작해야
+         한다(그때는 아래 두 조건이 판정을 맡는다). */
+      { label: "내려받기", roles: ["system_admin"],
+        when: (r) => r.downloadable !== false && r.status !== "running" && r.file_state !== "removed",
         download: (_qs, r) => "/api/admin/backups/" + r.id + "/download" },
       // 🔴 **자동으로 지우지 않는다**(D-204). 브라우저가 받다 만 것과 다 받은 것을 서버는
       // 구별하지 못하므로, 지우는 것은 받은 사람이 답한 뒤여야 한다. 그래서 이 작업은
@@ -225,7 +261,7 @@ export const PLATFORM_SCREENS = {
       { key: "_head", label: "스키마", type: "enum", render: (r) => (r.summary && r.summary.alembic_head) || "-" },
       // SEM-01: 첫 열(결과 배지)이 render라 표식 없이는 전부 "상세 보기"였다 — 원본 백업
       // 이름(검색 대상과 동일한 필드) + 시작 시각으로 실제로 구별되는 이름을 만든다.
-      { ...truncateCol("source_label", "원본", 50), rowName: (r) => (r.source_label || "리허설") + " / " + fmtDateTime(r.started_at) },
+      { ...truncateCol("source_label", "원본", 50), rowName: (r) => (r.source_label || "리허설") + " / " + fmtDateTimeCompact(r.started_at) },
     ],
     detailFields: [
       field("id", "기록 ID"),
@@ -271,7 +307,12 @@ export const PLATFORM_SCREENS = {
     detailFields: [field("id", "공지 ID"), field("body", "내용"),
       { key: "dismissible", label: "닫기 허용", render: (r) => r.dismissible ? "닫을 수 있음" : "닫을 수 없음(기간이 끝나야 사라짐)" },
       field("link_url", "링크 주소"), field("link_label", "링크 문구"), dateCol("created_at", "생성 일자")],
-    create: { roles: WRITE_ROLES, fields: [
+    /* 공지는 **포탈 전체**에 뜬다 — 부서로 나눠 보여 줄 방법 자체가 없어서 서버가 쓰기 전부를
+       전역 범위 관리자로 한정한다(`app/announcements/router.py::_ensure_may_touch_announcements`
+       → 403 「공지는 전체 범위 관리자만 만들고 바꿀 수 있습니다」). 역할 게이트만으로는 부서
+       범위 `admin` 이 그대로 지나므로, 그 사람에게 「추가」·「수정」·「사용」·「삭제」가 그려지고
+       눌러 403 을 받고 나서야 못 한다는 것을 알았다. `requiresGlobalScope` 가 그 축을 말한다. */
+    create: { roles: WRITE_ROLES, requiresGlobalScope: true, fields: [
       { name: "title", label: "제목", type: "text", required: true },
       { name: "body", label: "내용", type: "textarea" },
       { name: "level", label: "중요도", type: "select", value: "info", options: opt([["info", "안내"], ["warning", "주의"], ["critical", "긴급"]]) },
@@ -284,7 +325,7 @@ export const PLATFORM_SCREENS = {
       { name: "active", label: "사용", type: "checkbox", value: true, checkLabel: "지금 사용" },
     ] },
     editMethod: "PATCH",
-    edit: { roles: WRITE_ROLES, fields: [
+    edit: { roles: WRITE_ROLES, requiresGlobalScope: true, fields: [
       { name: "title", label: "제목", type: "text", required: true },
       { name: "body", label: "내용", type: "textarea" },
       { name: "level", label: "중요도", type: "select", options: opt([["info", "안내"], ["warning", "주의"], ["critical", "긴급"]]) },
@@ -297,9 +338,10 @@ export const PLATFORM_SCREENS = {
       { name: "active", label: "사용", type: "checkbox", checkLabel: "지금 사용" },
     ] },
     actions: [
-      { label: "사용", roles: WRITE_ROLES, when: (r) => !r.active, method: "PATCH", path: (r) => "/api/admin/announcements/" + r.id, body: { active: true } },
-      { label: "사용 안 함", roles: WRITE_ROLES, when: (r) => r.active, method: "PATCH", path: (r) => "/api/admin/announcements/" + r.id, body: { active: false }, confirm: "이 공지를 내릴까요? 모든 화면에서 즉시 사라집니다." },
-      { label: "삭제", variant: "danger", roles: WRITE_ROLES, method: "DELETE", path: (r) => "/api/admin/announcements/" + r.id, confirm: "이 공지를 지울까요? 되돌릴 수 없습니다(닫음 기록도 함께 의미를 잃습니다)." },
+      // 셋 다 위 create/edit 와 같은 서버 게이트를 지난다(`_ensure_may_touch_announcements`).
+      { label: "사용", roles: WRITE_ROLES, requiresGlobalScope: true, when: (r) => !r.active, method: "PATCH", path: (r) => "/api/admin/announcements/" + r.id, body: { active: true } },
+      { label: "사용 안 함", roles: WRITE_ROLES, requiresGlobalScope: true, when: (r) => r.active, method: "PATCH", path: (r) => "/api/admin/announcements/" + r.id, body: { active: false }, confirm: "이 공지를 내릴까요? 모든 화면에서 즉시 사라집니다." },
+      { label: "삭제", variant: "danger", roles: WRITE_ROLES, requiresGlobalScope: true, method: "DELETE", path: (r) => "/api/admin/announcements/" + r.id, confirm: "이 공지를 지울까요? 되돌릴 수 없습니다(닫음 기록도 함께 의미를 잃습니다)." },
       // announcement은 감사 로그의 유효한 object_type이고(app/announcements/router.py) 이제
       // OBJ_ROUTE에도 있다 — 조직·기능 플래그와 동일한 딥링크를 추가한다(MEGA CYCLE G).
       { label: "감사 로그에서 보기", roles: ["admin", "system_admin", "auditor"], navigate: (r) => "#/audit?object_type=announcement&object_id=" + r.id },
@@ -308,8 +350,10 @@ export const PLATFORM_SCREENS = {
   "ai-quotas": {
     key: "ai-quotas", area: "AI", title: "AI 사용 상한",
     endpoint: "/api/admin/ai-quotas",
-    /* 범위가 «사용자» 일 때 그 사람을 고르기 위한 후보(W5) — 예전에는 ID 를 복사해 왔다. */
-    refLists: [{ key: "people", endpoint: "/api/admin/users", labelKey: "display_name", secondaryKey: "email" }],
+    /* 범위가 «사용자» 일 때 그 사람을 고르기 위한 후보(W5) — 예전에는 ID 를 복사해 왔다.
+       **보관된 계정은 후보가 아니다**(xb-10). 퇴사해서 보관한 사람에게 AI 사용 상한을 거는
+       일에는 뜻이 없는데, 목록에 이름만 있고 상태 표시가 없어 실제로 그 행이 만들어졌다. */
+    refLists: [PEOPLE_ACTIVE_REF_LIST],
     // WF1 R4 — "상한이 걸리는 곳은 아래 표 위의 '상한이 걸리는 곳' 목록에 서버가 직접
     // 알려 줍니다"라는 문장이 있었다. 그런 이름의 목록을 그리는 코드는 저장소에 없다 — 위
     // 요약 카드(FN-05, summary 참고)는 "오늘/이번 달 전체 AI 호출" 합계일 뿐 어느 대상이
@@ -354,7 +398,16 @@ export const PLATFORM_SCREENS = {
       mapCol("scope_type", "범위", { global: "전체", user: "사용자" }),
       // SEM-01: 첫 열(범위)이 mapCol(render 있음)이라 표식 없이는 같은 범위(대부분 "사용자")끼리
       // 전부 "상세 보기"로 동일했다 — 대상 + 기간을 합쳐 실제로 구별되는 이름을 만든다.
-      { key: "user_name", label: "대상", identifier: true, render: (r) => r.scope_type === "global" ? "(전체)" : (r.user_name || r.user_id || "-"), rowName: (r) => (r.scope_type === "global" ? "전체" : (r.user_name || r.user_id || "-")) + " / " + ({ day: "하루", month: "한 달" }[r.period] || r.period) },
+      /* 대상 이름 옆에 **그 계정의 상태**를 적는다(R5-01). 서버가 `user_state` 를 함께 주는데
+         (`app/quotas/router.py::_target_states` — active·inactive·archived·missing) 화면이
+         읽지 않아, 이미 나간 사람에게 걸린 상한이 살아 있는 사람의 상한과 똑같이 보였다.
+         그 행은 아무도 소비하지 않으므로 「현재 사용 0」이 정상처럼 읽힌다. 상태 낱말은
+         화면이 정한다 — 서버는 코드만 준다(`file_state` 와 같은 규약). */
+      { key: "user_name", label: "대상", identifier: true,
+        render: (r) => r.scope_type === "global"
+          ? "(전체)"
+          : (r.user_name || r.user_id || "-") + (QUOTA_TARGET_STATE[r.user_state] || ""),
+        rowName: (r) => (r.scope_type === "global" ? "전체" : (r.user_name || r.user_id || "-")) + " / " + ({ day: "하루", month: "한 달" }[r.period] || r.period) },
       mapCol("period", "기간", { day: "하루", month: "한 달" }),
       { key: "max_calls", label: "상한", type: "count" },
       { key: "used", label: "현재 사용", type: "count", render: (r) => (r.used == null ? "-" : r.used + " / " + r.max_calls + (r.scope_type === "global" ? " (최다 사용자 기준)" : "")) },
@@ -377,7 +430,14 @@ export const PLATFORM_SCREENS = {
       { name: "note", label: "메모", type: "text" },
     ] },
     actions: [
-      { label: "삭제", variant: "danger", roles: WRITE_ROLES, method: "DELETE", path: (r) => "/api/admin/ai-quotas/" + r.id, confirm: "이 상한을 지울까요? 지우면 이 범위, 기간에는 제한이 없어집니다." },
+      /* 🔴 **행마다 다르다.** 서버는 사용자 범위 행이면 「그 사람이 내 범위 안인가」를 보고,
+         전역 행이면 관리 범위가 전역인지를 본다(`app/quotas/router.py::_get_or_404` →
+         `_ensure_may_touch_global`) — 전역 상한 하나가 0 이 되면 전 사용자의 AI 가 멈추기
+         때문이다. 그래서 선언 한 줄(`requiresGlobalScope`)로는 못 말한다: 그것을 걸면 부서
+         범위 관리자가 자기 사람들의 상한까지 못 지운다. 행의 범위와 내 범위를 함께 본다. */
+      { label: "삭제", variant: "danger", roles: WRITE_ROLES,
+        when: (r, ctx) => r.scope_type !== "global" || !ctx || ctx.isGlobalAdmin !== false,
+        method: "DELETE", path: (r) => "/api/admin/ai-quotas/" + r.id, confirm: "이 상한을 지울까요? 지우면 이 범위, 기간에는 제한이 없어집니다." },
       // ai_quota는 감사 로그의 유효한 object_type이고(app/quotas/router.py) 이제 OBJ_ROUTE에도
       // 있다 — 조직·기능 플래그와 동일한 딥링크를 추가한다(MEGA CYCLE G).
       { label: "감사 로그에서 보기", roles: ["admin", "system_admin", "auditor"], navigate: (r) => "#/audit?object_type=ai_quota&object_id=" + r.id },

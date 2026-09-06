@@ -126,6 +126,28 @@ export function DeptDetailPanel({ deptId, treeRow }) {
   const userCount = dept.user_count || 0;
   const childCount = dept.child_department_count || 0;
 
+  /* 🔴 **삭제 판정은 서버가 한 번 내리고 이 판은 그것을 그린다**(org-02 · xc-01).
+   *
+   * 예전에는 이 판이 스스로 셌다 — 소속 인원과 하위 부서 둘만 보고 「이 부서는 지금 삭제할
+   * 수 있습니다」라고 단정했다. 서버의 `dependents` 는 여덟 갈래를 세므로 프로젝트·지식
+   * 공간·그 안의 문서·관리 범위가 매달린 부서에서는 눌러 보면 409 였다. 하위 부서에
+   * 대해서는 한술 더 떠 「최상위 부서로 올라갑니다」라고 서버와 **정반대**를 약속했다 —
+   * 그 승격은 FK 가 `SET NULL` 이던 시절의 사실이고, 지금 서버는 하위 부서를 차단 사유로
+   * 센다. 「되돌릴 수 없습니다」가 붙은 확인 창이 실제와 다른 말을 하는 것이 가장 위험한
+   * 거짓말이라 그 문구는 지웠다.
+   *
+   * 그래서 이제 갈래·건수·라벨·이유 문장은 전부 상세 응답의 `delete_precheck` 에서 온다
+   * (app/org/service.py::delete_precheck). 같은 규칙을 두 곳에 두면 반드시 어긋난다.
+   * 막힌 이유 문장은 409 의 문장과 **같은 함수**가 만든 것이라, 눌러 보기 전과 눌러 본
+   * 뒤가 같은 말을 한다(보관되어 목록에 안 보이는 건수도 그 문장이 말한다 — xc-04). */
+  const precheck = dept.delete_precheck || null;
+  const deletable = Boolean(precheck && precheck.deletable);
+  /* 막지 않고 **연결만 끊는** 갈래(팀 채팅방·옛 문서 기록). 지워지지는 않지만 부서 표시를
+     잃으므로, 누르기 전에 그 사실을 말한다. 라벨은 서버가 준 것을 그대로 쓴다. */
+  const detachSummary = ((precheck && precheck.detachables) || [])
+    .map((d) => d.label + " " + d.count + "건")
+    .join(", ");
+
   const deactivate = async () => {
     const ok = await confirm(
       userCount
@@ -139,9 +161,9 @@ export function DeptDetailPanel({ deptId, treeRow }) {
 
   const removeConfirm = async () => {
     const ok = await confirm(
-      childCount
-        ? "이 부서를 지우면 하위 부서 " + childCount + "개가 최상위 부서로 올라갑니다"
-          + "(하위 부서와 그 소속 인원은 지워지지 않습니다). 되돌릴 수 없습니다. 계속할까요?"
+      detachSummary
+        ? "이 부서를 지우면 " + detachSummary + "은 부서 연결만 끊고 그대로 남습니다."
+          + " 되돌릴 수 없습니다. 계속할까요?"
         : "이 부서를 지울까요? 되돌릴 수 없습니다.",
       { title: dept.name + " 삭제", confirmLabel: "삭제", danger: true },
     );
@@ -170,9 +192,9 @@ export function DeptDetailPanel({ deptId, treeRow }) {
         {dept.active
           ? <Button size="sm" variant="danger" onClick={deactivate} loading={setActive.isPending}>비활성화</Button>
           : <Button size="sm" onClick={() => setActive.mutate(true)} loading={setActive.isPending}>활성화</Button>}
-        {/* 사용 중(소속 인원>0)인 부서는 삭제가 항상 409 다 — 눌러도 실패하는 단추를
-            애초에 안 그린다(대신 삭제 안내가 이유를 말한다). */}
-        {!userCount ? (
+        {/* 서버가 막는 부서는 삭제가 항상 409 다 — 눌러도 실패하는 단추를 애초에 안
+            그린다(대신 삭제 안내가 서버의 이유를 그대로 말한다). */}
+        {deletable ? (
           <Button size="sm" variant="danger" onClick={removeConfirm} loading={removeDept.isPending}>
             삭제
           </Button>
@@ -206,13 +228,18 @@ export function DeptDetailPanel({ deptId, treeRow }) {
               ‘수정’에서 상위 부서를 다시 지정하세요.
             </MetaRow>
           ) : null}
-          <MetaRow label="삭제 안내" span>
-            {userCount
-              ? "사용 중인 부서(소속 인원 " + userCount + "명, 보관 계정 포함)는 삭제할 수 없습니다. 대신 비활성화를 이용하세요."
-              : childCount
-                ? "삭제하면 하위 부서 " + childCount + "개가 최상위 부서로 올라갑니다(하위 부서 자체는 지워지지 않습니다)."
-                : "이 부서는 지금 삭제할 수 있습니다."}
-          </MetaRow>
+          {/* 판정을 못 받았으면(아직 그 필드를 안 싣는 서버) 아무 말도 하지 않는다 —
+              모르는 상태에서 「지금 삭제할 수 있습니다」라고 적는 것이 이 결함이었다. */}
+          {precheck ? (
+            <MetaRow label="삭제 안내" span>
+              {deletable
+                ? (detachSummary
+                  ? "이 부서는 지금 삭제할 수 있습니다. 삭제하면 " + detachSummary
+                    + "은 부서 연결만 끊고 그대로 남습니다."
+                  : "이 부서는 지금 삭제할 수 있습니다.")
+                : precheck.reason}
+            </MetaRow>
+          ) : null}
         </Box>
       </Section>
 

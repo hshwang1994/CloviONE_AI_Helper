@@ -10,12 +10,14 @@ self_approval_allowed feature flag is on.
 from __future__ import annotations
 
 import json
+import logging
 import time
 from datetime import datetime, timedelta
 from typing import Callable
 
-from sqlalchemy import Select, and_, case, select
-from sqlalchemy.exc import IntegrityError, OperationalError
+from sqlalchemy import Select, and_, case, or_, select
+from sqlalchemy import text as sa_text
+from sqlalchemy.exc import DBAPIError, IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
 from app.core.sort import SortSpec
@@ -30,9 +32,9 @@ from app.approvals.models import (
     Approval,
 )
 from app.core.authz import CONSOLE_WRITE_ROLES
-from app.core.db import is_insert_race, write_conflict_backoff
+from app.core.db import is_insert_race, is_serialization_conflict, write_conflict_backoff
 from app.core.errors import ConflictError, ForbiddenError, NotFoundError
-from app.notifications.service import notify_approvers, notify_user
+from app.notifications.service import notify_user
 from app.users.models import ROLE_SYSTEM_ADMIN, User
 
 # request_type → executor(db, approval, app_state). Registered by modules below.
@@ -54,6 +56,29 @@ def _request_type_ko(request_type: str) -> str:
     # 모르는 값을 지어내지 않는다 — 매핑에 없으면(새 요청 유형이 아직 안 올라온 경우)
     # 원문 코드를 그대로 보여준다. 지금까지의 완전 노출보다 나빠지지 않는다.
     return _REQUEST_TYPE_KO.get(request_type, request_type)
+
+
+# APPR-02 와 같은 이유로 **대상 유형**도 한국어로 적는다. 알림 제목만 번역하고 본문에는
+# `object_type` 원문(`user`·`schedule`·`integration`)을 그대로 넣고 있었다 — 한 알림 안에서
+# 제목은 한국어, 본문은 영문 코드였다. 값은 화면의 `OBJTYPE_OPTS`(registry/shared.js)와 같다.
+_OBJECT_TYPE_KO = {
+    "user": "사용자",
+    "schedule": "스케줄",
+    "integration": "외부 연동",
+}
+
+#: 결정된 승인을 다시 결재하려 할 때 쓰는 상태 이름. 화면의 상태 배지와 같은 낱말이라
+#: 관리자가 토스트 문구와 목록을 대조할 수 있다.
+_STATUS_KO = {
+    APPROVAL_APPROVED: "승인된",
+    APPROVAL_REJECTED: "거절된",
+    APPROVAL_EXPIRED: "만료된",
+    APPROVAL_CANCELLED: "취소된",
+}
+
+
+def _object_type_ko(object_type: str) -> str:
+    return _OBJECT_TYPE_KO.get(object_type, object_type)
 
 
 def approval_view(
@@ -170,6 +195,92 @@ def needs_approval(actor: User) -> bool:
 _CREATE_RETRIES = 12
 
 
+def deciders_for(db: Session, row: Approval, *, now: datetime) -> list[str]:
+    """이 승인 **한 건**을 실제로 결재할 수 있는 사람의 id.
+
+    `notifications.approver_user_ids` 는 "누가 결재할 역할·위임을 갖고 있는가" 만 답한다.
+    승인 한 건에는 조건이 하나 더 있다 — 결재 경로와 개인 결재함이 함께 쓰는 **범위** 판정
+    (`app/approvals/router.py::decision_visible_user_ids`)이다. 그 조건이 목록에만 있고
+    알림에는 없던 동안, 부서 범위 관리자는 다른 부서의 「승인 요청: 역할 변경」 벨을 받고
+    들어간 결재함에서 「처리할 것이 없습니다」를 봤다 — 알림이 가리키는 줄이 관리 큐에도
+    개인 결재함에도 없었다. 그 알림은 누를 곳이 없는 알림이다.
+
+    **누구 기준으로 재는가는 결재 경로와 똑같이 위임이 정한다**(D-385): 위임으로 결재하는
+    사람은 빌려준 사람이 닿는 곳까지가 한계다. 그래서 `resolve_authority` 를 그대로 쓴다 —
+    여기서 규칙을 다시 적으면 「알림은 갔는데 결재는 404」가 반대 방향으로 되살아난다.
+
+    범위 판정 대상은 **요청자**다(`service.scope_clause` 가 `Approval.requested_by` 에
+    거는 것과 같은 축).
+    """
+    from app.approvals.delegation import resolve_authority
+    from app.core.org_tree import DeptTree
+    from app.core.scope import management_scope, scope_allows_user
+    from app.notifications.service import approver_user_ids
+
+    candidates = approver_user_ids(db, now=now)
+    if not candidates:
+        return []
+    requester = db.get(User, row.requested_by)
+    if requester is None:
+        # 요청자가 사라졌으면 범위를 잴 근거가 없다 — 근거가 없으면 닫는다(fail-closed).
+        return []
+    by_id = {
+        u.id: u
+        for u in db.execute(select(User).where(User.id.in_(candidates))).scalars().all()
+    }
+    # 부서 트리는 **한 번만** 읽는다(`notify_admins` 와 같은 이유).
+    tree = DeptTree.load(db)
+    allowed: list[str] = []
+    for uid in candidates:
+        decider = by_id.get(uid)
+        if decider is None:
+            continue
+        _can, on_behalf_of = resolve_authority(db, decider, now)
+        owner = db.get(User, on_behalf_of) if on_behalf_of else decider
+        if owner is None:
+            continue
+        if scope_allows_user(management_scope(db, owner, tree), requester):
+            allowed.append(uid)
+    if candidates and not allowed:
+        # 아무도 못 받는 것 자체는 결함이 아니다(그 요청은 아무도 결재할 수 없다는 뜻이다).
+        # 다만 조용히 사라지면 운영자가 「알림이 안 왔다」의 원인을 찾을 수 없다.
+        logging.getLogger("app.approvals").warning(
+            "승인 %s 의 알림을 받을 결재자가 없다. 요청자(%s)가 모든 결재자의 관리 범위 밖이다",
+            row.id, row.requested_by,
+        )
+    return allowed
+
+
+def notify_deciders(
+    db: Session,
+    row: Approval,
+    *,
+    type_: str,
+    title: str,
+    body: str | None = None,
+    now: datetime,
+) -> int:
+    """`deciders_for` 에게만 화면 알림. audience 판정은 `notify_user` 한 곳에 그대로 맡긴다.
+
+    `notifications.notify_approvers` 를 부르지 않는 이유는 하나다 — 그쪽은 승인 한 건을
+    모르므로(요청자가 없으므로) 범위를 잴 수 없다. 「누가 결재할 수 있는가」의 정의는 여전히
+    `approver_user_ids` 한 곳이고, 이 함수는 거기에 이 저장소가 이미 쓰는 범위 조건을
+    곱할 뿐이다.
+    """
+    recipients = deciders_for(db, row, now=now)
+    if not recipients:
+        return 0
+    roles = dict(
+        db.execute(select(User.id, User.role).where(User.id.in_(recipients))).all()
+    )
+    for uid in recipients:
+        notify_user(
+            db, uid, type_=type_, title=title, body=body,
+            related=("approval", row.id), now=now, recipient_role=roles.get(uid),
+        )
+    return len(recipients)
+
+
 def create_approval(
     db: Session,
     *,
@@ -284,12 +395,15 @@ def create_approval(
             time.sleep(write_conflict_backoff(_attempt))
     else:
         raise AssertionError("unreachable")  # pragma: no cover
-    notify_approvers(
+    notify_deciders(
         db,
+        row,
         type_="approval_requested",
         title=f"승인 요청: {_request_type_ko(request_type)}",
-        body=f"{requested_by.display_name}님이 {object_type} 변경 승인을 요청했습니다.",
-        related=("approval", row.id),
+        body=(
+            f"{requested_by.display_name}님이 "
+            f"{_object_type_ko(object_type)} 변경 승인을 요청했습니다."
+        ),
         now=now,
     )
     _mail_approvers(db, row, requested_by, now=now)
@@ -302,9 +416,10 @@ def _mail_approvers(db: Session, row: Approval, requested_by: User, *, now: date
     화면 안 알림만으로는 부족하다: 결재자가 포털을 안 열고 있으면 요청은 만료될 때까지
     아무도 모른다(`expire_pending` 이 조용히 죽인다). 승인 큐가 밀리는 이유 중 하나였다.
 
-    **수신자 목록을 여기서 다시 정하지 않는다.** 바로 위 `notify_approvers` 와 똑같이
-    `approver_user_ids` 를 쓴다 - 관리자만 골랐다가는 "결재하라고 권한을 준 피위임자가
-    영원히 못 받는다" 는 예전 결함(X7)을 메일 쪽에서 그대로 되풀이한다.
+    **수신자 목록을 여기서 다시 정하지 않는다.** 바로 위 화면 알림과 똑같이 `deciders_for`
+    를 쓴다 - 관리자만 골랐다가는 "결재하라고 권한을 준 피위임자가 영원히 못 받는다" 는
+    예전 결함(X7)을 메일 쪽에서 그대로 되풀이하고, 범위를 빼먹으면 이번에는 결재함에 없는
+    줄을 메일로 재촉하게 된다.
 
     **메일 실패가 승인 생성을 막지 않는다** - 이 저장소의 기존 규칙이다(알림 실패와 같다).
     다만 조용히 사라지지도 않는다: 못 보낸 사실은 `mail_deliveries` 에 남는다.
@@ -312,11 +427,10 @@ def _mail_approvers(db: Session, row: Approval, requested_by: User, *, now: date
     try:
         from app.mail.renderers import KIND_APPROVAL_REQUESTED
         from app.mail.service import queue_mail_to_users
-        from app.notifications.service import approver_user_ids
 
         queue_mail_to_users(
             db,
-            approver_user_ids(db, now=now),
+            deciders_for(db, row, now=now),
             kind=KIND_APPROVAL_REQUESTED,
             subject=f"[ClovirAssist] 승인 요청: {_request_type_ko(row.request_type)}",
             params={
@@ -367,6 +481,23 @@ def scope_clause(visible: frozenset[str] | None):
     if visible is None:
         return None
     return Approval.requested_by.in_(tuple(sorted(visible)))
+
+
+def pending_clause(now):
+    """지금 **실제로 결재할 수 있는** 대기 건의 조건.
+
+    저장된 `status` 가 `pending` 이기만 하면 만료 시각이 지난 행까지 걸린다. 그런 행은
+    화면에서 「만료」 배지로 그려지고(`approval_view`) 결재를 누르면 409 다 — 목록에 있는데
+    결재할 수 없는 줄이다.
+
+    관리 큐(`list_approvals` 의 `status=pending`)와 개인 결재함(`my_approvals` 의 todo 칸)이
+    **같은 이 함수**를 부른다. 두 곳에 손으로 적으면 한쪽만 고쳐지고, 그때 증상은 「두 화면이
+    같은 질문에 다른 답을 낸다」로 나타난다(개인 결재함이 7건, 관리 큐가 2건이었다).
+    """
+    return and_(
+        Approval.status == APPROVAL_PENDING,
+        or_(Approval.expires_at.is_(None), Approval.expires_at > now),
+    )
 
 
 def effective_status_expr(now):
@@ -456,9 +587,60 @@ def get_scoped_approval_or_404(
     return row
 
 
+# 결정 트랜잭션이 승인 행을 잡고 있는 동안 다른 결정은 기다린다. 무한히 기다리면 한 요청이
+# 멈출 때 그 승인의 결재가 통째로 멈추므로, 기다릴 만큼만 기다리고 아니면 깨끗한 409 로
+# 돌려보낸다 — `app/work/numbering.py::allocate` 와 같은 관용이다.
+DECISION_LOCK_TIMEOUT_MS = 5000
+
+
+def lock_for_decision(db: Session, row: Approval) -> Approval:
+    """결정 직전에 그 승인 행을 **잠그고** 저장된 상태를 다시 읽는다.
+
+    ## 왜 필요한가
+
+    `_ensure_decidable` 은 세션이 이미 들고 있는 스냅샷의 `status` 를 볼 뿐이었다. 두 관리자가
+    같은 큐를 동시에 처리하면(화면 둘을 열어 두면 실제로 일어난다) 두 트랜잭션이 각자 「아직
+    대기」를 보고 각자 실행기를 돌린 뒤 서로의 status 를 덮어썼다 — 원장은 「거절」인데 대상
+    계정은 admin 이 되고, 요청자는 「승인 완료」와 「승인 거절」을 둘 다 받았다. 승인은 권한
+    부여 **실행**이라 사후에 되돌릴 방법이 없다.
+
+    생성 경로는 부분 유일 인덱스(`ux_approvals_pending_dedup`)가 승자를 정해 준다. 결정 경로에는
+    걸 유일 제약이 없으므로(같은 행을 두 번 고치는 것이라 «중복»이 아니다) 행 잠금을 쓴다.
+    잠금을 잡은 뒤 `populate_existing` 으로 그 행을 다시 읽어야 판정이 최신 상태 위에서
+    이뤄진다 — 잠그기만 하고 세션의 옛 값을 그대로 보면 잠근 의미가 없다.
+    """
+    db.execute(sa_text(f"SET LOCAL lock_timeout = '{DECISION_LOCK_TIMEOUT_MS}ms'"))
+    try:
+        locked = db.execute(
+            select(Approval)
+            .where(Approval.id == row.id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        ).scalar_one_or_none()
+    except (OperationalError, DBAPIError) as exc:
+        # `55P03 lock_not_available` — 다른 결정이 아직 커밋 전이다.
+        #
+        # **판정은 SQLSTATE 로 한다.** 예전에는 예외 문구에 영어 "lock" 이 들어 있는지 봤는데,
+        # PostgreSQL 은 오류 문구를 서버 로캘(`lc_messages`)로 렌더링한다 — 한국어 로캘에서는
+        # 그 문자열이 없어 잠금 대기 초과가 그대로 500 이 됐다. 반대로 "block"·"unlock" 처럼
+        # 우연히 그 네 글자를 품은 다른 오류는 결재 경합으로 둔갑했다. 두 방향 다 틀린다.
+        # `app/core/db.py` 가 이 분류의 정본이고 `app/core/advisory_lock.py` 가 같은 관용을 쓴다.
+        if not is_serialization_conflict(exc):
+            raise
+        raise ConflictError(
+            "다른 관리자가 이 요청을 결재하고 있습니다. 잠시 뒤 다시 확인해 주세요."
+        ) from exc
+    if locked is None:
+        # 잠그려는 사이에 행이 사라졌다(정리 작업). 조회 경로와 같은 문구를 쓴다.
+        raise NotFoundError("승인 요청을 찾을 수 없습니다.")
+    return locked
+
+
 def _ensure_decidable(row: Approval, now: datetime) -> None:
     if row.status != APPROVAL_PENDING:
-        raise ConflictError(f"이미 처리된 승인 요청입니다 (status={row.status}).")
+        # 상태 코드(`rejected`)를 그대로 노출하면 관리자가 화면 어휘(「거절됨」)와 대조해야
+        # 한다 — 같은 파일이 요청 유형을 이미 한국어로 옮기는 것과 같은 이유다(APPR-02).
+        raise ConflictError(f"이미 {_STATUS_KO.get(row.status, '처리된')} 요청입니다.")
     if row.expires_at is not None and row.expires_at <= now:
         # 여기서 row.status를 EXPIRED로 대입하지 않는다 — 대입해도 절대 저장되지 않는다.
         # 이 함수는 `decide()`/`cancel()`을 거쳐 라우터에서 곧장 호출되고, 아래 줄에서 던지는
@@ -481,6 +663,9 @@ def decide(
     app_state,
     on_behalf_of: str | None = None,
 ) -> Approval:
+    # 잠그고 → 다시 읽고 → 판정한다. 이 순서라야 「목록에서는 대기였는데 그 사이 결정된」
+    # 건이 두 번째 실행기를 돌리지 않는다.
+    row = lock_for_decision(db, row)
     _ensure_decidable(row, now)
     if row.requested_by == approver.id and not self_approval_allowed:
         raise ForbiddenError("자기 승인을 허용하지 않습니다.")
@@ -515,6 +700,8 @@ def decide(
 
 
 def cancel(db: Session, row: Approval, actor: User, *, now: datetime) -> Approval:
+    # 취소도 상태를 한 번만 바꿀 수 있는 결정이다 — 결재와 같은 잠금을 지난다.
+    row = lock_for_decision(db, row)
     _ensure_decidable(row, now)
     if row.requested_by != actor.id and actor.role not in CONSOLE_WRITE_ROLES:
         raise ForbiddenError("본인의 승인 요청만 취소할 수 있습니다.")
@@ -556,7 +743,7 @@ def expire_pending(db: Session, *, now: datetime) -> int:
             db,
             row.requested_by,
             type_="approval_expired",
-            title=f"승인 요청 만료: {row.request_type}",
+            title=f"승인 요청 만료: {_request_type_ko(row.request_type)}",
             related=("approval", row.id),
             now=now,
         )
@@ -619,6 +806,15 @@ def _execute_user_role_change(db: Session, approval: Approval, app_state) -> Non
     if user.role == ROLE_SYSTEM_ADMIN or payload.get("role") == ROLE_SYSTEM_ADMIN:
         raise ConflictError(
             "대상 계정 상태가 변경되어 이 승인은 더 이상 적용할 수 없습니다 (stale)."
+        )
+    # 요청과 결정 사이에 계정이 **닫혔으면** 그 승인도 낡은 것이다. 보관·비활성은 「이 사람의
+    # 접근을 끊는다」는 관리 행위인데, 큐에 남아 있던 승격이 그 뒤에 적용되면 관리자가 끊었다고
+    # 믿은 계정이 더 높은 권한을 들고 잠들어 있고 복구 단추 한 번에 그 권한으로 되살아난다 —
+    # 복구 경로가 승인 절차를 통째로 우회하는 셈이다. 위 system_admin 가드와 같은 자리에서 막는다.
+    if user.archived_at is not None or not user.active:
+        raise ConflictError(
+            "대상 계정이 보관되었거나 비활성이라 이 승인은 더 이상 적용할 수 없습니다 (stale). "
+            "계정을 되살린 뒤 다시 요청해야 합니다."
         )
     previous_role = user.role
     update_user(

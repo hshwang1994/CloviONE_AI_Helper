@@ -55,7 +55,10 @@ def list_providers(
     }
 
 
-@router.post("/providers", dependencies=[Depends(require_csrf)])
+# 생성은 201 이다. 이 콘솔의 다른 생성 라우트(`app/announcements/router.py`,
+# `app/users/router.py`)가 이미 그렇게 답하는데 저장소만 기본값 200 이었다 — 상태 코드로
+# 「만들어졌다」를 구별하는 클라이언트에게 이 라우트만 예외가 됐다(S-10).
+@router.post("/providers", status_code=201, dependencies=[Depends(require_csrf)])
 def create_provider(
     payload: ProviderCreate,
     request: Request,

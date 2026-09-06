@@ -63,6 +63,9 @@ function useDebounced(value, delay) {
 
 const ROLE_KO ={ user: "일반 사용자", operator: "운영자", admin: "관리자", auditor: "감사자", system_admin: "시스템 관리자" };
 const ROLE_OPTS = Object.keys(ROLE_KO).map((v) => ({ value: v, label: ROLE_KO[v] }));
+/* 서버의 「부서 없음」 센티널 (P-61, `app/users/router.py::NO_DEPARTMENT`). 부서 id 는 UUID 라
+   이 글자와 겹치지 않는다. 목록·CSV 가 같은 필터 문자열을 쓰므로 여기서도 값 하나다. */
+const NO_DEPARTMENT = "none";
 
 /** 역할 다섯의 실제 차이 — **서버 권한 표에서 온다** (지시 19).
  *
@@ -734,7 +737,11 @@ export function Users() {
       {deptFilter ? (
         <Box sx={{ mb: 2.5 }}>
           <Callout tone="info">
-            {"부서 ‘" + (deptFilterName || deptFilter) + "’ 소속만 보고 있습니다. "}
+            {/* `none` 은 서버의 「부서 없음」 센티널이다(P-61) — 조직 콘솔의 「부서 미지정
+                N명」 링크가 이 조건으로 온다. 부서 이름 대신 그 뜻을 그대로 말한다. */}
+            {deptFilter === NO_DEPARTMENT
+              ? "부서가 지정되지 않은 사용자만 보고 있습니다. "
+              : "부서 ‘" + (deptFilterName || deptFilter) + "’ 소속만 보고 있습니다. "}
             <LinkButton onClick={() => setDeptFilter("")}>부서 필터 해제</LinkButton>
           </Callout>
         </Box>

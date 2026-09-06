@@ -6,6 +6,7 @@ fanned out alongside (spec §13.5 마지막 문단).
 
 from __future__ import annotations
 
+import logging
 import time
 from datetime import datetime
 
@@ -17,6 +18,8 @@ from app.core.db import DEFAULT_WRITE_CONFLICT_RETRIES, is_serialization_conflic
 from app.core.errors import WriteUnavailableError
 from app.notifications.models import AUDIENCE_ADMIN, AUDIENCE_USER, Notification
 from app.users.models import ROLE_ADMIN, ROLE_SYSTEM_ADMIN, ROLE_USER, User
+
+logger = logging.getLogger("app.notifications")
 
 # 유형 자체가 명백히 관리자 전용인 이벤트 (0051). notify_admins가 이미 이 유형들만 보내
 # audience="admin"을 넘기지만, 그건 "이 함수를 거쳐 갔다"는 사실에 기대는 것이다. 나중에
@@ -92,6 +95,17 @@ def notify_user(
     return row
 
 
+def _related_user(db: Session, related: tuple[str, str] | None) -> User | None:
+    """알림이 가리키는 대상이 **사람**이면 그 사람. 아니면 None.
+
+    사람이 대상인 사건(계정 잠금 등)만 범위 판정이 가능하다 — 백업·잡처럼 사람이 아닌
+    대상은 어느 부서의 것인지 자체가 정해져 있지 않으므로 예전처럼 관리자 전원에게 간다.
+    """
+    if not related or related[0] != "user" or not related[1]:
+        return None
+    return db.get(User, related[1])
+
+
 def notify_admins(
     db: Session,
     *,
@@ -101,6 +115,36 @@ def notify_admins(
     related: tuple[str, str] | None = None,
     now: datetime,
 ) -> int:
+    """관리자에게 팬아웃. **사람이 대상인 사건은 그 사람을 관리하는 관리자에게만 간다.**
+
+    ## 왜 역할만으로는 안 되는가
+
+    부서 범위 관리자(`admin_scope=dept`)에게 범위 밖 계정의 잠금 알림이 그대로 갔다. 제목에
+    그 사람의 이메일이 실려 있고, 「관련 항목 보기」를 누르면 그 관리자에게는 존재하지 않는
+    대상이라 404 다 — 알고도 할 수 있는 일이 없다. 같은 사건을 감사 로그 쪽은 이미
+    `app/core/scope.py` 의 범위로 가리고 있었으므로(범위 밖 행위자는 목록에도 단건에도 안
+    나온다), 한 사건에 대해 두 화면이 서로 다른 범위 규칙을 쓰고 있었다.
+
+    판정은 그 두 화면과 **같은 함수**(`management_scope` + `scope_allows_user`)로 한다.
+    여기서 규칙을 다시 쓰면 셋이 갈라지고, 갈라지는 방향 하나는 유출이다. 전역 관리자는
+    `scope_allows_user` 가 언제나 참이라 예전과 똑같이 전부 받는다.
+
+    ## 아무에게도 안 가는 경우는 없다
+
+    범위로 거르면 **0 명**이 남을 수 있다. 부서가 없는 계정(`department_id IS NULL` 은
+    실제 상태다, `app/users/models.py`)은 부서 범위 관리자의 판정에서 언제나 거짓이고,
+    조직이 다르거나 관리 서브트리가 빈 관리자도 마찬가지다. 활성 관리자가 전부 그런
+    사람들이면 계정 잠금 한 건이 **아무 데도 안 남고 조용히 사라진다** — 두 호출부
+    (`app/auth/router.py`, `app/backups/service.py`)는 반환값을 안 보고 로그도 없었다.
+
+    그래서 한 사람도 안 남으면 관리자 전원에게 보낸다. 「이 계정은 아무의 범위도 아니다」는
+    곧 「아무도 책임지지 않는다」는 뜻이고, 그때는 모두의 일이 되는 편이 맞다. 범위를 좁힌
+    의미는 그대로다 — 범위 안 관리자가 한 명이라도 있으면 폴백은 돌지 않는다. 대신 그
+    사실을 경고로 남긴다(제목은 안 적는다 — 대상의 이메일이 들어 있다).
+    """
+    from app.core.org_tree import DeptTree
+    from app.core.scope import management_scope, scope_allows_user
+
     admins = (
         db.execute(
             select(User).where(
@@ -110,13 +154,36 @@ def notify_admins(
         .scalars()
         .all()
     )
-    for admin in admins:
+    target = _related_user(db, related)
+    # 부서 트리는 **한 번만** 읽는다 — 관리자 수만큼 다시 읽으면 잠금 한 건이 트리 질의
+    # 여러 번이 된다.
+    tree = DeptTree.load(db) if target is not None else None
+    recipients = [
+        admin
+        for admin in admins
+        if target is None
+        or scope_allows_user(management_scope(db, admin, tree), target)
+    ]
+    if not admins:
+        logger.error(
+            "관리 알림을 받을 활성 관리자가 없다: type=%s related=%s", type_, related
+        )
+    elif not recipients:
+        logger.warning(
+            "관리 범위 안 관리자가 없어 관리자 전원에게 보낸다: "
+            "type=%s related=%s admins=%d",
+            type_, related, len(admins),
+        )
+        recipients = list(admins)
+    sent = 0
+    for admin in recipients:
         notify_user(
             db, admin.id, type_=type_, title=title, body=body, related=related, now=now,
             # 관리자 전용 발송 — 개인 알림과 섞이면 안 된다(0051).
             audience=AUDIENCE_ADMIN, recipient_role=admin.role,
         )
-    return len(admins)
+        sent += 1
+    return sent
 
 
 def approver_user_ids(db: Session, *, now: datetime) -> list[str]:

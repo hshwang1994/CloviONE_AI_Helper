@@ -544,3 +544,109 @@ def test_an_interrupted_run_can_still_be_undone(
     r = client.post(f"/api/admin/offboarding/{run_id}/undo", headers={"X-CSRF-Token": admin})
     assert r.status_code == 200, r.text
     assert _assignee_ids(db, "page-1") == [LEAVER_NID], "되돌리기가 원상복구하지 못했다"
+
+
+# ── 후임 계정의 상태 (xb-09) ──────────────────────────────────────────────────
+
+def test_an_archived_successor_is_refused_before_anything_is_recorded(
+    client, admin, people, tickets, db
+):
+    """후임이 보관된 계정이면 **실행 자체를 시작하지 않는다.**
+
+    담당자 해석은 활성·미보관 계정만 푼다(모듈 docstring). 그래서 이 실행은 티켓 이동이
+    100% 실패할 것이 이미 정해져 있는데, 예전에는 그대로 지나가 장부·알림을 남기고 계정만
+    비활성화했다 — 응답은 성공한 실행과 같은 200 이라 스크립트 호출자는 티켓이 퇴사자에게
+    그대로 남은 것을 몰랐다.
+    """
+    from app.core.models_base import utcnow
+
+    successor = db.get(User, people["successor"])
+    successor.archived_at = utcnow()
+    db.commit()
+
+    response = _run(
+        client, admin, people["leaver"], ticket_page_ids=["page-1"],
+        successor_user_id=people["successor"], deactivate=True,
+    )
+
+    assert response.status_code == 422, response.text
+    assert "활성 계정" in response.json()["error"]["message"]
+    # 장부도 티켓도 계정도 건드리지 않았어야 한다 — 「미리 막는다」의 뜻이 그것이다.
+    db.expire_all()
+    assert db.query(OffboardingRun).count() == 0, "거절했는데 실행 기록이 남았다"
+    assert _assignee_ids(db, "page-1") == [LEAVER_NID]
+    assert db.get(User, people["leaver"]).active is True
+
+
+def test_a_deactivated_successor_is_refused_too(client, admin, people, tickets, db):
+    """비활성도 같은 사건이다(보관만 막으면 반쪽이다)."""
+    successor = db.get(User, people["successor"])
+    successor.active = False
+    db.commit()
+
+    response = _run(
+        client, admin, people["leaver"], ticket_page_ids=["page-1"],
+        successor_user_id=people["successor"], deactivate=False,
+    )
+
+    assert response.status_code == 422, response.text
+
+
+def test_an_active_successor_is_still_accepted(client, admin, people, tickets, db):
+    """반례 — 멀쩡한 후임은 그대로 지나간다."""
+    response = _run(
+        client, admin, people["leaver"], ticket_page_ids=["page-1"],
+        successor_user_id=people["successor"], deactivate=False,
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["run"]["ticket_moved"] == 1
+
+
+# ── 되돌릴 대상이 사라진 경우 (xc-11) ─────────────────────────────────────────
+
+def test_undo_closes_a_move_whose_ticket_was_permanently_deleted(
+    client, admin, people, tickets, db
+):
+    """영구 삭제된 티켓은 **되돌릴 자리가 없다** — 재시도 대상으로 남기면 실행이 영원히 열린다.
+
+    예전에는 그 건이 `revert_failed` 로 남았고, `REVERTIBLE_MOVES` 가 매번 다시 집어 들어
+    같은 실패를 반복했다. `undone_at` 이 영영 비어 있으니 그 사람은 다시 오프보딩할 수도
+    없었다(새 실행이 409). 퇴사 처리 뒤 티켓을 정리하는 것은 흔한 순서라 실제로 걸린다.
+    """
+    run_id = _run(
+        client, admin, people["leaver"], ticket_page_ids=["page-1", "page-2"],
+        successor_user_id=people["successor"], deactivate=False,
+    ).json()["run"]["id"]
+
+    trashed = client.post("/api/tickets/page-1/trash", headers={"X-CSRF-Token": admin})
+    assert trashed.status_code == 200, trashed.text
+    trash_id = next(
+        i["id"] for i in client.get("/api/trash").json()["items"]
+        if i["notion_page_id"] == "page-1"
+    )
+    purged = client.post(f"/api/trash/{trash_id}/purge", headers={"X-CSRF-Token": admin})
+    assert purged.status_code == 200, purged.text
+
+    undo = client.post(
+        f"/api/admin/offboarding/{run_id}/undo", headers={"X-CSRF-Token": admin}
+    )
+    assert undo.status_code == 200, undo.text
+    body = undo.json()
+    assert body["revert_failed"] == 0, "없어진 티켓을 되돌리기 실패로 세고 있다"
+    assert body["run"]["status"] == "undone"
+    assert body["run"]["undone_at"] is not None, "실행이 영원히 열린 채로 남는다"
+    gone = next(m for m in body["moves"] if m["ticket_page_id"] == "page-1")
+    assert gone["status"] == "reverted"
+    assert gone["error"] == "티켓이 영구 삭제되어 되돌릴 담당자 자리가 없습니다.", (
+        "왜 되돌릴 것이 없었는지 화면이 말할 수 있어야 한다"
+    )
+    # 남아 있는 티켓은 정상적으로 원래 담당자에게 돌아간다(부분 실패가 성공을 덮지 않는다).
+    assert _assignee_ids(db, "page-2") == [LEAVER_NID]
+
+    # 그리고 그 사람을 다시 오프보딩할 수 있다 — 이것이 실제로 막혀 있던 것이다.
+    again = _run(
+        client, admin, people["leaver"], ticket_page_ids=["page-2"],
+        successor_user_id=people["successor"], deactivate=False,
+    )
+    assert again.status_code == 200, again.text

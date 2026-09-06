@@ -311,11 +311,136 @@ def get_page_auth(request: Request, db: Session = Depends(get_db)) -> AuthContex
     return auth
 
 
+# 권한 거부를 감사에 남길 때 쓰는 이름. 대상 유형은 `auth` 라 화면이 「인증」으로 읽고,
+# 동작은 「막았다」는 사실 하나를 말한다. 값은 `app/audit/anomalies.py` 의 실패 급증 규칙이
+# 그대로 세므로(result 로만 판정한다) 새 규칙을 더할 필요가 없다.
+FORBIDDEN_AUDIT_ACTION = "auth.denied"
+FORBIDDEN_AUDIT_OBJECT_TYPE = "auth"
+
+# ── 거부 감사의 상한 ─────────────────────────────────────────────────────────
+#
+# 이 기록은 403 마다 **커밋된 쓰기 한 번**이다. 관리 라우트에는 리미터가 없다
+# (`app/main.py` 의 넷은 로그인·채팅·퀴즈·도우미다) — 로그인만 한 일반 계정이
+# `POST /api/admin/job-titles` 를 반복하면 초당 수백 행이 쌓인다. 그러면 이 기능이 만들려던
+# 신호가 스스로 묻힌다: 감사 화면과 `failure_burst` 소견이 그 잡음으로 덮이고, 표는 보존
+# 작업이 돌 때까지 계속 큰다. 인증된 저권한 계정이 혼자 할 수 있는 일이라 실제 증폭 경로다.
+#
+# 숫자의 근거: `failure_burst` 임계값은 창 하나에 5건이다(`app/audit/anomalies.py`).
+# 버스트 10 + 분당 10 이면 탐지 임계를 한참 웃돌아 **신호는 그대로 남고**, 「초당 수백」이
+# 「분당 열」로 묶인다. 경로가 아니라 **계정**으로 묶는 이유는 경로를 조금씩 바꿔 가며 같은
+# 증폭을 하는 것을 경로별 상한이 못 막기 때문이다.
+DENIED_WRITE_AUDIT_BURST = 10
+DENIED_WRITE_AUDIT_PER_MINUTE = 10
+
+
+def _denied_write_audit_allowed(request: Request, user: User) -> bool:
+    """이번 거부를 감사에 남길 차례인가.
+
+    저장소는 `app/main.py` 의 네 리미터와 같은 DB 표다(D-192) — 워커가 넷이어도 상한이
+    한 벌이다. 여기서 만드는 이유는 이 상한이 어느 라우트의 성질이 아니라 이 함수 하나의
+    성질이기 때문이다. 리미터를 만들지도 묻지도 못하면 **남기는 쪽으로** 실패한다:
+    상한 장치가 고장 났다는 이유로 권한 상승 시도의 흔적을 지우지는 않는다.
+    """
+    state = request.app.state
+    try:
+        limiter = getattr(state, "denied_write_ratelimiter", None)
+        if limiter is None:
+            from app.core.ratelimit import RateLimiter
+
+            limiter = RateLimiter(
+                capacity=DENIED_WRITE_AUDIT_BURST,
+                refill_per_second=DENIED_WRITE_AUDIT_PER_MINUTE / 60,
+                clock=state.clock,
+                session_factory=state.session_factory,
+            )
+            state.denied_write_ratelimiter = limiter
+        if limiter.allow(f"denied_write:{user.id}"):
+            return True
+    except Exception:  # noqa: BLE001 — 상한 장치의 고장이 기록을 끊으면 안 된다
+        logger.warning("거부 감사 상한을 확인하지 못했다. 이번 건은 그대로 남긴다", exc_info=True)
+        return True
+    # 묻힌 것이 아니라 **묶은 것**이라는 사실은 남긴다. 원장에는 이미 같은 계정의 거부가
+    # 상한만큼 들어 있으므로 조사에 필요한 신호는 그대로 있다.
+    logger.warning(
+        "권한 거부가 몰려 감사 기록을 상한으로 묶었다 user=%s method=%s path=%s",
+        user.id, request.method, request.url.path,
+    )
+    return False
+
+
+def audit_forbidden_write(request: Request, db: Session, user: User) -> None:
+    """권한 게이트가 막은 **쓰기 시도**를 감사에 남긴다.
+
+    ## 읽기 거부는 남기지 않는다
+
+    권한 없는 화면을 열어 본 것은 흔한 일이고(메뉴를 잘못 눌렀거나 북마크가 낡았다), 그것을
+    전부 남기면 감사 목록이 그 잡음으로 덮여 정작 봐야 할 사건이 묻힌다. 반대로 **상태를
+    바꾸려다 막힌 시도**는 사고 조사에서 가장 먼저 찾는 신호다 — 그 둘을 가르는 선이
+    `SAFE_METHODS` 다.
+
+    ## 왜 라우터가 아니라 여기인가
+
+    실패를 남기는 장치는 지금까지 `app/core/audit.py::audit_failure_on_exception` 하나였고
+    그것을 쓰는 라우터는 셋뿐이었다. 그래서 권한 거부는 저장소 어디에도 한 줄이 없었고,
+    이상 징후의 「실패가 몰려 있습니다」 소견은 스스로 「권한 부족을 반복해 시도했거나」라고
+    적어 두고도 그 사건을 볼 수 없었다. 관리 API 의 모든 권한 판정이 이 파일의 두 의존성을
+    지나므로, 여기 한 곳에 두면 새 라우터가 생겨도 빠지는 자리가 없다.
+
+    ## 몰아치면 묶는다
+
+    한 계정이 창 하나에 남길 수 있는 행 수에는 상한이 있다 — 근거는
+    `DENIED_WRITE_AUDIT_BURST` 위에 적어 뒀다. 상한에 걸린 요청도 **차단은 그대로**이고,
+    묶었다는 사실은 경고 로그에 남는다.
+
+    ## 기록에 실패해도 차단은 그대로다
+
+    감사 행을 못 썼다는 이유로 403 이 500 이 되면, 로그가 안 남는 상황이 곧 「막지 못한
+    상황」처럼 보인다. 원인은 경고 로그에 남기고 거부는 그대로 진행한다.
+
+    `db.commit()` 을 여기서 부르는 이유는 `audit_failure_on_exception` 과 같다 —
+    바로 뒤에서 예외를 던지므로 `get_db` 가 요청 세션을 롤백한다. 커밋해 두지 않으면
+    방금 쓴 감사 행이 그 롤백에 함께 쓸려 나간다.
+    """
+    if request.method in SAFE_METHODS:
+        return
+    if not _denied_write_audit_allowed(request, user):
+        return
+    from app.core.audit import record_audit_from_request
+
+    try:
+        record_audit_from_request(
+            request,
+            db,
+            action=FORBIDDEN_AUDIT_ACTION,
+            object_type=FORBIDDEN_AUDIT_OBJECT_TYPE,
+            # 경로는 `object_id`(String(64)) 에 넣지 않는다 — id 가 든 경로는 그 폭을
+            # 넘고, 넘치면 감사 기록이 요청 자체를 죽인다.
+            after={
+                "method": request.method,
+                "path": request.url.path,
+                "role": user.role,
+            },
+            result="failure",
+        )
+        db.commit()
+    except Exception:  # noqa: BLE001 — 기록 실패가 차단을 무르게 하면 안 된다
+        logger.warning(
+            "권한 거부를 감사에 남기지 못했다 method=%s path=%s",
+            request.method, request.url.path, exc_info=True,
+        )
+        db.rollback()
+
+
 def require_roles(*roles: str):
     allowed = frozenset(roles)
 
-    def dependency(user: User = Depends(get_current_user)) -> User:
+    def dependency(
+        request: Request,
+        db: Session = Depends(get_db),
+        user: User = Depends(get_current_user),
+    ) -> User:
         if user.role not in allowed:
+            audit_forbidden_write(request, db, user)
             raise ForbiddenError()
         return user
 
@@ -338,11 +463,16 @@ def require_permission(*permissions: str):
     wanted = frozenset(permissions)
 
     def dependency(
-        db: Session = Depends(get_db), user: User = Depends(get_current_user)
+        request: Request,
+        db: Session = Depends(get_db),
+        user: User = Depends(get_current_user),
     ) -> User:
         from app.authz.service import effective_permissions
 
         if not (wanted & effective_permissions(db, user)):
+            # 역할 게이트와 **같은 자리**에서 남긴다 — 두 게이트가 서로 다른 답을 내면
+            # 「어떤 라우터에서 막혔는가」에 따라 감사에 남는지가 갈린다.
+            audit_forbidden_write(request, db, user)
             raise ForbiddenError()
         return user
 

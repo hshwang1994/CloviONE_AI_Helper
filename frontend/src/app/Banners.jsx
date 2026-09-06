@@ -35,7 +35,17 @@ import { api } from "../lib/api.js";
  * 빨간 오류가 뜨면, 정작 아래 본문은 멀쩡한데 사용자는 앱이 고장 났다고 읽는다.
  */
 
-function useImpersonation() {
+/* 대리 보기 상태 — **띠 말고도 이것을 봐야 하는 자리가 있다.**
+ *
+ * `App.jsx` 의 비밀번호 변경 강제 이동이 그렇다. 대상 계정이 첫 로그인 전(임시 비밀번호)이면
+ * `/api/me` 의 `must_change_password` 가 대리 보기 중에도 참이라, 그 규칙이 관리자 브라우저를
+ * SPA 밖 `/change-password` 로 통째로 밀어냈다 — 그 페이지에는 이 띠도 「대리 보기 종료」도
+ * 없어서 화면 안에서 되돌아올 길이 로그아웃뿐이었다(users-07).
+ *
+ * 질의 키가 같아 react-query 가 한 벌로 합친다 — 이것을 부르는 자리가 늘어도 요청은 안 는다.
+ * 서버는 이미 같은 판단을 해 뒀다: `app/core/deps.py::get_current_user` 는 대리 보기 중에는
+ * 대상의 `must_change_password` 로 막지 않는다(읽기만 되므로 위험이 없다). */
+export function useImpersonation() {
   return useQuery({
     queryKey: ["impersonation-state"],
     queryFn: () => api("/api/admin/impersonation/state"),

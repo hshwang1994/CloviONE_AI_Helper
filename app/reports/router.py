@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.core.authz import SENSITIVE_READ_ROLES
 from app.core.deps import get_db, get_principal, require_roles
-from app.core.errors import NotionNotConfiguredError, NotionQueryError
+from app.core.errors import NotionNotConfiguredError, NotionQueryError, ValidationAppError
 from app.core.scope import Principal, visible_user_ids
 from app.home.service import local_today
 from app.reports.service import build_dev_monthly_report
@@ -48,7 +48,13 @@ def dev_monthly(
     if period is None:
         period = f"{today.year:04d}-{today.month:02d}"
     if not _PERIOD_RE.match(period):
-        return {"configured": True, "ok": False, "error": "기간 형식이 올바르지 않습니다(YYYY-MM)."}
+        # 형식 위반은 **422 하나로** 답한다. 예전에는 여기서 200 본문(`ok: false`)을
+        # 돌려줬는데, 같은 파라미터의 같은 오류인 `period=2026-09-01` 은 길이 상한
+        # (`max_length=7`)에 먼저 걸려 422 였다 — 경계가 뜻이 아니라 글자 수였다.
+        # `ok: false` 는 「기능은 살아 있는데 답을 못 준다」(Notion 미설정·조회 실패)를
+        # 위한 모양이고, 잘못 보낸 값은 그것과 다른 사건이다. 이 저장소의 다른 필터도
+        # 형식 위반에 422 를 준다(`app/audit/router.py::_parse_boundary`).
+        raise ValidationAppError("기간 형식이 올바르지 않습니다(YYYY-MM).")
 
     outbound = request.app.state.outbound_client
     try:

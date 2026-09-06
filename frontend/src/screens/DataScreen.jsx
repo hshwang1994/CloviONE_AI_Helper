@@ -28,7 +28,7 @@ import { SavedViews } from "../ui/SavedViews.jsx";
 import { HeaderActions } from "../ui/HeaderSlot.jsx";
 /* `?` 도움말과 절차 안내의 정본 — 단독 화면과 탭 그릇이 같은 함수를 부른다(D-453 · D-456). */
 import { buildScreenHelp, canOnboardFor } from "./data-screen/screenHelp.jsx";
-import { SHELL_QUERY_KEYS, buildViewQuery, describeView, hashQuery, keepQueryKeys, ownedQueryKeys, parseView, withHashQuery, withQuery } from "./datascreen-view.js";
+import { SHELL_QUERY_KEYS, buildViewQuery, describeView, hashPath, hashQuery, keepQueryKeys, ownedQueryKeys, parseView, withHashQuery, withQuery } from "./datascreen-view.js";
 import { loginUrl } from "../lib/sessionRedirect.js";
 // 아래 네 갈래는 원래 이 파일 안에 있던 것을 data-screen/ 로 옮긴 것이다(800줄 규칙, §23).
 // 이 파일이 그 뜻(설정 주도 목록 화면의 본체)을 그대로 갖고, 조각들은 여기서만 조립한다.
@@ -135,13 +135,49 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
   const { id: routeId } = useParams();
   const role = (auth && auth.data && auth.data.role) || null;
   const userId = (auth && auth.data && auth.data.id) || null;   // 본인 요청 자기승인 차단 등 행 게이트에 쓴다.
+  /* 관리 **범위**는 역할과 다른 축이다 (xa-07).
+   *
+   * `role` 은 「무엇을 할 수 있는가」이고 관리 범위는 「누구에게 할 수 있는가」다. 서버는
+   * 공지·전체 AI 상한·조직 정지 같은 **포털 전체가 주인인 자원**을 이미 범위로 거절하는데
+   * (`app.core.scope.require_global_management`) 이 셸은 역할 축만 봤다 — 그래서 부서 범위
+   * 관리자에게도 전역 자원의 '추가'·'수정'이 그려지고, 눌러 403 을 받고 나서야 못 한다는
+   * 것을 알았다.
+   *
+   * 🔴 **`admin_scope` 열을 그대로 읽지 않는다.**
+   *
+   * 서버는 그 열을 그대로 쓰지 않는다. `app/core/scope.py::management_scope` 가 두 번
+   * 깎아 낸다 — 운영자·감사자의 'global'(0024 마이그레이션이 그 열을 전부 'global' 로
+   * 채워 놨다)은 조직 범위로 내려가고, 관리할 부서가 하나도 없는 'dept' 는 아무것도
+   * 관리하지 못하는 범위가 된다. 열을 그대로 읽으면 그 둘이 전부 「전역」으로 읽혀서,
+   * 단추를 보여 준 다음 403 을 받는 **이 게이트가 없애려던 바로 그 증상**이 남는다.
+   *
+   * 서버는 자기 판정을 이미 실어 보낸다 — `/api/me` 의 `user.management.kind`
+   * (`app/profiles/router.py::_identity_context`, 판정에 쓰는 함수가 같다). ScopeBar·
+   * UserMenu·OrgConsole 이 읽는 축이 그것이고, 여기서도 그 축을 읽는다.
+   *
+   * 값이 아예 없을 때만 전역으로 본다(OrgConsole 과 같은 판정). 두 방향의 대가가 다르기
+   * 때문이다: 잘못된 「예」는 눌러서 403 을 받는 단추 하나이고, 잘못된 「아니오」는 할 수
+   * 있는 사람에게서 단추를 통째로 뺏는다. 이 필드는 `/api/me` 가 언제나 싣고, 못 실었다면
+   * 그것은 배선 사고이지 「이 사람이 부서 범위다」라는 사실이 아니다 — 어느 쪽이든 서버가
+   * 마지막 문지기로 남는다.
+   *
+   * 범위는 두 갈래로 쓴다 — 선언이 `requiresGlobalScope: true` 한 줄로 말하면 이 셸이 직접
+   * 가리고, 그보다 세밀한 조건(예: 행의 범위가 '전체'인 것만)은 registry 가 `when(row, ctx)`·
+   * `when(ctx)` 에서 `ctx.managementScope` 를 읽어 스스로 판단한다. 이름을 `adminScope` 라
+   * 하지 않는 이유가 위 그대로다 — 그 이름은 서버가 깎기 **전** 열의 이름이다. */
+  const managementScope = (auth && auth.data && auth.data.management && auth.data.management.kind) || null;
+  const isGlobalAdmin = !managementScope || managementScope === "global";
+  const inScope = (decl) => !decl || !decl.requiresGlobalScope || isGlobalAdmin;
   // 액션 role 게이트 — a.roles가 지정된 액션은 현재 역할이 포함될 때만 노출(백엔드 RBAC와 일치시켜 403 사전 차단).
-  const canDo = (a) => !a.roles || (role != null && a.roles.includes(role));
+  const canDo = (a) => (!a.roles || (role != null && a.roles.includes(role))) && inScope(a);
   // 생성/수정 버튼도 액션과 같은 방식으로 role 게이트한다(create.roles / edit.roles) — 읽기 전용
   // 역할(operator/auditor)이 항상 403이 되는 '추가'·'수정' 버튼을 애초에 숨긴다.
-  const canCreate = config.create ? (!config.create.roles || (role != null && config.create.roles.includes(role))) : false;
+  const canCreate = config.create
+    ? ((!config.create.roles || (role != null && config.create.roles.includes(role))) && inScope(config.create))
+    : false;
   const editRoles = (config.edit && config.edit.roles) || (config.create && config.create.roles) || null;
-  const canEditRole = !editRoles || (role != null && editRoles.includes(role));
+  const editScopeDecl = (config.edit && config.edit.requiresGlobalScope != null) ? config.edit : config.create;
+  const canEditRole = (!editRoles || (role != null && editRoles.includes(role))) && inScope(editScopeDecl);
   // create/edit의 fields는 정적 배열이거나, role에 따라 달라지는 함수일 수 있다(예: 연동 생성 폼의
   // 인증 옵션을 admin에겐 '없음'만, system_admin에겐 전체로 좁힌다 — 어차피 백엔드가 403 낼 조합은
   // 애초에 고를 수 없게 한다).
@@ -176,7 +212,10 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
   const withOptionsFrom = (fields, row) => (fields || []).map((f) => {
     if (f.optionsFromRefList) {
       const base = refListOptions[f.optionsFromRefList] || [];
-      return { ...f, type: entityType(f), options: [...base, ...(f.extraOptions || [])] };
+      /* 폼 칸도 조건 축과 같은 규칙이다 (R7-05) — 후보를 못 받았으면 그 이유를 칸 아래에
+         적는다. 빈 select 만 남기면 「고를 것이 없다」로 읽히고, 그건 사실이 아니다. */
+      const help = refListFailedKeys.has(f.optionsFromRefList) ? REF_LIST_FAILED_TEXT : f.help;
+      return { ...f, type: entityType(f), options: [...base, ...(f.extraOptions || [])], help };
     }
     return f;
   });
@@ -283,19 +322,39 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
   // 이름표 붙은 select로 바꾼다(DGEN-01/USE-04/SCHD-02). 선언한 화면만 켠다 — 대부분의 registry
   // 화면은 필요 없다. 각 목록은 그 화면의 own 페이지네이션 없이 전체를 한 번에 받는다(워크플로/
   // 템플릿 둘 다 list_workflows/list_templates가 이미 그렇게 준다 — 페이지네이션 없음).
+  /* 🔴 목록 하나가 실패해도 나머지는 산다. 예전에는 `Promise.all` 이라 한 목록의 403 이
+   * 이 화면의 **모든** 후보 목록을 비웠다 — 운영자·감사자가 여는 화면의 사람 후보가
+   * 관리자 전용 경로를 부르던 동안 그 화면의 다른 후보까지 함께 사라졌다.
+   *
+   * 🔴 그런데 실패를 **빈 배열로만** 접어 두면 두 번째 거짓말이 남는다 (R7-05).
+   * 이 질의는 언제나 이행되므로 `isError` 로 흐를 길이 없고, 후보가 0개인 축은 화면에서
+   * 「고를 것이 없다」와 똑같이 보인다 — 「실패인데 '데이터가 없다'고 말하는 것보다 나쁜
+   * 게 없다」(`lib/api.js` FAIL-01)가 그대로 재현된다. 실패한 키를 함께 들고 나와서, 그
+   * 축만 왜 비었는지 말하게 한다. 나머지 축은 아무 영향이 없다. */
   const refListsQuery = useQuery({
     queryKey: [...cacheRoot, "refLists", (config.refLists || []).map((r) => r.key).join(",")],
     queryFn: async () => {
-      const pairs = await Promise.all(
-        (config.refLists || []).map(async (rl) => [rl.key, (await api(rl.endpoint))[rl.itemsKey || "items"] || []])
+      const lists = config.refLists || [];
+      const settled = await Promise.allSettled(
+        lists.map(async (rl) => (await api(rl.endpoint))[rl.itemsKey || "items"] || [])
       );
-      return Object.fromEntries(pairs);
+      return {
+        items: Object.fromEntries(lists.map((rl, i) => [rl.key, settled[i].status === "fulfilled" ? settled[i].value : []])),
+        failed: lists.filter((rl, i) => settled[i].status === "rejected").map((rl) => rl.key),
+      };
     },
     enabled: !!(config.refLists && config.refLists.length),
     retry: false,
   });
+  /* 후보를 못 받은 축 — 위 질의가 남긴 키 집합. `has()` 하나로 묻는다. */
+  const refListFailedKeys = React.useMemo(
+    () => new Set((refListsQuery.data && refListsQuery.data.failed) || []),
+    [refListsQuery.data],
+  );
+  /* 후보를 못 받은 축이 하는 말. **왜 비었는지**를 말하지 않으면 「없다」로 읽힌다. */
+  const REF_LIST_FAILED_TEXT = "후보 목록을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.";
   const refListOptions = React.useMemo(() => {
-    const data = refListsQuery.data || {};
+    const data = (refListsQuery.data && refListsQuery.data.items) || {};
     const out = {};
     (config.refLists || []).forEach((rl) => {
       out[rl.key] = (data[rl.key] || []).map((row) => ({
@@ -396,29 +455,164 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
     // 섞인 화면을 만든다. 토스트가 보일 만큼만 두고 통째로 다시 읽는다.
     if (a.reloadAfter) window.setTimeout(() => window.location.reload(), 900);
   }
-  async function runAction(a, row, key) {
-    if (a.navigate) { setSel(null); window.location.hash = a.navigate(row); return; }  // 다른 화면으로 이동(HashRouter)
-    // 파일 내려받기 — `api()`(fetch)로는 브라우저 저장 대화상자가 뜨지 않는다. 브라우저가
-    // 직접 그 주소로 가야 Content-Disposition 이 먹는다. **지금 화면의 서버 필터를 그대로
-    // 넘긴다**(buildUrl 이 만든 질의 문자열) — 화면에서 좁혀 놓고 눌렀는데 전체가 내려오면
-    // 받은 파일은 화면에서 본 것과 다른 데이터이고, 그 차이는 열어 보기 전까지 아무도 모른다.
-    if (a.download) {
-      const listUrl = buildUrl();
-      const qs = listUrl.includes("?") ? listUrl.slice(listUrl.indexOf("?") + 1) : "";
-      window.location.href = a.download(qs, row);
+  /* 내려받기는 **화면을 떠나지 않는다** (xe-07 · ops-03).
+   *
+   * 예전에는 `window.location.href = a.download(...)` 로 그 주소에 최상위 이동을 했다.
+   * 성공 응답은 `Content-Disposition: attachment` 가 붙어 있어 문서가 유지되지만, 404·403·409
+   * 는 브라우저가 그대로 그려서 **관리 콘솔이 통째로 사라지고** 날 JSON 한 줄이 화면을
+   * 대체했다 — 돌아갈 단추도 없다(백업 파일이 디스크에서 사라진 흔한 운영 사건에서 실측).
+   *
+   * 그래서 먼저 응답을 받아 상태를 본다. 실패면 다른 액션과 같은 길(`handleApiError`)로
+   * 서버 문구를 토스트에 내고 화면은 그대로 남는다. 성공이면 받은 내용을 Blob 으로 저장한다
+   * — 파일 이름은 서버가 `Content-Disposition` 에 실어 준 것을 그대로 쓴다.
+   *
+   * `api()` 를 쓰지 않는 이유: 그 공용 클라이언트는 본문을 JSON 으로 읽어 CSV·덤프를
+   * "해석하지 못했습니다"로 만든다. 오류 봉투 해석만 그쪽과 같은 규칙으로 맞춘다 —
+   * 상관 id(`err.requestId`)까지 같은 자리에서 같은 규칙으로 싣는다(Z8).
+   *
+   * ## 그런데 **데이터베이스 덤프는 CSV 가 아니다** (R7-03)
+   *
+   * 받은 것을 Blob 으로 만들려면 본문이 **전부 도착할 때까지** 탭이 들고 있어야 한다.
+   * 감사 CSV(내보내기 상한이 걸린 한 응답)에는 아무 대가가 아니지만, 백업 덤프는
+   * 데이터베이스 전체다 — GB 단위 전송이 탭 메모리를 지나고, 그동안 단추는 「처리 중…」
+   * 하나뿐이라 몇 %인지 알 길이 없고, 탭을 닫거나 다른 화면으로 가면 받던 것이 통째로
+   * 버려진다. 브라우저의 내려받기 관리자는 그 셋을 전부 제자리에서 해 준다.
+   *
+   * 그래서 **행이 자기 크기를 말하면 그 값으로 갈래를 정한다**(`row.size_bytes` —
+   * 백업 목록이 이미 「크기」 열에 그리는 그 값이다). 임계 위는 브라우저에게 넘기고,
+   * 임계 아래(그리고 크기를 말하지 않는 모든 산출물 — 감사 CSV 같은 머리 동작)는
+   * 지금처럼 받아서 확인하고 저장한다.
+   *
+   * 넘기는 쪽도 **최상위 이동이 아니다.** `<a download>` 클릭이라 실패해도 문서는 그대로
+   * 남는다 — xe-07 이 없앤 「콘솔이 날 JSON 페이지로 바뀐다」는 어느 갈래에서도 안 돌아온다.
+   * 대신 그 갈래는 오류를 토스트로 말하지 못한다(응답 코드를 볼 자리가 없다). 그것이
+   * 이 거래의 값이다: 임계 위의 파일에서는 「받는 중인 것을 잃지 않는다」가 더 크다.
+   *
+   * 선언(`registry`)에 깃발을 새로 두지 않은 이유: 선언을 아무도 안 붙이면 그 장치는
+   * 화면에서 아무 일도 하지 않는 채로 남는다(같은 회차에서 `requiresGlobalScope` 가 정확히
+   * 그렇게 됐다). 크기는 이미 응답에 실려 오므로 아무도 무엇을 선언하지 않아도 맞게 돈다. */
+  //: 이 위로는 브라우저 내려받기 관리자에게 넘긴다. 감사 CSV 내보내기(상한 20만 행 남짓)와
+  //: 어떤 소형 산출물도 여기 닿지 않고, 실제 pg 덤프는 이 아래인 적이 드물다.
+  const NATIVE_DOWNLOAD_MIN_BYTES = 32 * 1024 * 1024;
+  function filenameFromDisposition(header, url) {
+    const raw = String(header || "");
+    /* RFC 5987 형식(`filename*=UTF-8''…`)이 있으면 그쪽이 정본이다. 한글 파일명이 여기 온다.
+       작은따옴표를 \x27 이스케이프로 적는 이유는 뜻이 아니라 도구다 — 사용자 문구 검사기
+       (`scripts/check_user_text.py`)는 정규식 리터럴을 추적하지 않는다고 스스로 적어 두었고,
+       날 따옴표가 들어가면 그 뒤 파일 전체가 「문자열 안」으로 읽혀 주석이 사용자 문구로
+       오인된다. 정규식의 뜻은 그대로다. */
+    const star = /filename\*\s*=\s*[^\x27]*\x27\x27([^;]+)/i.exec(raw);
+    if (star) { try { return decodeURIComponent(star[1].trim()); } catch (e) { /* 깨진 인코딩은 아래로 */ } }
+    const plain = /filename\s*=\s*\x22?([^\x22;]+)\x22?/i.exec(raw);
+    if (plain) return plain[1].trim();
+    // 헤더가 없으면 주소의 마지막 조각 — 그것도 이름 같지 않으면 사람이 알아볼 기본 이름을 준다.
+    const path = String(url || "").split("?")[0];
+    const last = path.slice(path.lastIndexOf("/") + 1);
+    return last && last.includes(".") ? last : "download";
+  }
+  /** 임시 `<a>` 하나를 눌러 저장을 시작한다. `href` 는 Blob 주소일 수도, 그 API 주소
+   *  자체일 수도 있다 — 어느 쪽이든 **문서는 그 자리에 남는다**. */
+  function clickDownloadLink(href, filename) {
+    const link = document.createElement("a");
+    link.href = href;
+    link.download = filename;
+    // 문서에 붙였다 떼는 것이 Firefox 에서 클릭이 먹는 유일한 형태다.
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  }
+  function saveBlob(blob, filename) {
+    const objectUrl = URL.createObjectURL(blob);
+    clickDownloadLink(objectUrl, filename);
+    // 저장이 시작된 뒤에 풀어 준다 — 곧바로 revoke 하면 브라우저가 빈 파일을 저장한다.
+    window.setTimeout(() => { try { URL.revokeObjectURL(objectUrl); } catch (e) { /* ignore */ } }, 60000);
+  }
+  /** 큰 산출물 — 브라우저 내려받기 관리자가 받는다(위 주석 「데이터베이스 덤프는 CSV 가
+   *  아니다」). 이름은 서버의 `Content-Disposition` 이 이긴다: `download` 에 준 이름은
+   *  그 헤더가 없을 때만 쓰인다(HTML 명세). 그래서 여기서는 주소에서 뽑은 이름을 준다. */
+  function nativeDownload(url) {
+    clickDownloadLink(url, filenameFromDisposition(null, url));
+  }
+  async function fetchDownload(url) {
+    let res;
+    try {
+      res = await fetch(url, { credentials: "same-origin" });
+    } catch (e) {
+      /* 연결 자체가 안 됐다. 브라우저가 주는 문구는 영어 기술 문자열("Failed to fetch")이라
+         그대로 토스트에 올리면 안 된다 — `lib/api.js` 가 같은 자리에서 쓰는 문장을 쓴다. */
+      const err = new Error("서버에 연결할 수 없습니다. 네트워크 연결을 확인한 뒤 다시 시도해 주세요.");
+      err.kind = "network";
+      throw err;
+    }
+    if (!res.ok) {
+      let body = null;
+      try { body = await res.json(); } catch (e) { /* 봉투가 아닌 실패(프록시·게이트웨이)도 있다 */ }
+      const err = new Error((body && body.error && body.error.message)
+        || "파일을 내려받지 못했습니다. 잠시 후 다시 시도해 주세요.");
+      err.status = res.status;
+      /* 상관 id 도 **같은 규칙으로** 싣는다 (Z8 · R7-04). `lib/api.js` 를 지나는 오류는
+         전부 이 값을 들고 다니는데 이 갈래만 안 들었다 — 그러면 「이 화면의 오류는 문의
+         번호가 있고 내려받기 오류만 없다」가 되고, 그 차이는 사고 난 날에야 드러난다.
+         봉투가 없는 실패(nginx 의 HTML 403·504)는 헤더 쪽에 값이 있다. */
+      err.requestId = (body && body.error && body.error.request_id)
+        || res.headers.get("X-Request-ID") || null;
+      throw err;
+    }
+    saveBlob(await res.blob(), filenameFromDisposition(res.headers.get("Content-Disposition"), url));
+  }
+  async function runDownload(a, row, key) {
+    /* **지금 화면의 서버 필터를 그대로 넘긴다**(buildUrl 이 만든 질의 문자열) — 화면에서
+       좁혀 놓고 눌렀는데 전체가 내려오면 받은 파일은 화면에서 본 것과 다른 데이터이고,
+       그 차이는 열어 보기 전까지 아무도 모른다. */
+    const listUrl = buildUrl();
+    const qs = listUrl.includes("?") ? listUrl.slice(listUrl.indexOf("?") + 1) : "";
+    const url = a.download(qs, row);
+    /* 큰 산출물은 브라우저에게 넘긴다 (R7-03 — 위 `NATIVE_DOWNLOAD_MIN_BYTES` 주석).
+       크기를 말하지 않는 행과 머리 동작(`row` 자체가 없다)은 지금까지와 같은 갈래다. */
+    const sizeBytes = Number(row && row.size_bytes);
+    if (Number.isFinite(sizeBytes) && sizeBytes >= NATIVE_DOWNLOAD_MIN_BYTES) {
+      nativeDownload(url);
+      /* 이 갈래는 **언제 다 받았는지 모른다.** 그래도 다시 읽어야 하는 이유는 그대로다 —
+         서버는 요청을 **받는 순간** `downloaded_at` 을 남기므로(`mark_downloaded` 는 본문을
+         흘려보내기 전에 돈다), 요청이 서버에 닿을 만큼만 두고 한 번 읽으면 「서버에서
+         삭제」 단추가 제자리에 선다. 「다 받았는지」를 재는 타이머가 아니다. */
+      window.setTimeout(refresh, 2000);
+      return;
+    }
+    setBusyKey(key);
+    try {
+      await fetchDownload(url);
       /* 🔴 **내려받기는 행을 바꾼다** (2026-09-01). 백업 내려받기는 서버에서
          `downloaded_at` 을 남기고(`mark_downloaded`), 그 값이 다음 행동의 조건이다 —
          「서버에서 삭제」는 **내려받은 적이 있는 행에만** 뜬다(D-204: 다 받았다고 답할 수
-         있는 것은 사람뿐이다). 그런데 이 갈래는 목록을 다시 받지 않고 그대로 빠져나가서,
-         받은 직후의 화면에는 그 단추가 여전히 없었다. 사람이 새로고침을 떠올리기 전까지
-         D-204 의 두 번째 절반이 화면에서 존재하지 않았다.
+         있는 것은 사람뿐이다). 그런데 예전 갈래는 목록을 다시 받지 않고 그대로 빠져나가서,
+         받은 직후의 화면에는 그 단추가 여전히 없었다.
 
-         받는 요청이 서버에 닿는 것을 기다렸다가 다시 읽는다 — 곧장 무효화하면 그 GET 보다
-         목록 질의가 먼저 도착해 여전히 옛 값을 받는다. 브라우저가 파일 저장 대화상자를
-         띄우는 동안 이 페이지는 그대로 살아 있으므로 타이머는 계속 돈다. */
-      window.setTimeout(refresh, 1200);
-      return;
-    }
+         이제는 그 GET 이 **끝난 것을 알고** 다시 읽는다 — 어림 타이머가 필요 없다. */
+      refresh();
+    } catch (e) {
+      handleApiError(e, toast);
+    } finally { setBusyKey(null); }
+  }
+  /* 이동과 내려받기는 **행 액션과 머리 액션이 같은 계약**이다 (audit-01 · S21).
+   *
+   * 예전에는 두 함수가 각자 앞머리에 자기 가지를 뒀다 — `runAction` 에는 navigate·download 이
+   * 있고 `runHeaderAction` 에는 navigate 만 있었다. 그래서 registry 가 머리에 선언한 download
+   * (감사 로그 「CSV 내보내기」)는 맨 아래 쓰기 가지까지 떨어져 `a.path()` 를 불렀고, 내려받기
+   * 액션에는 `path` 가 없으므로 그 자리에서 TypeError 가 났다. 잡히는 곳이 `handleApiError` 라
+   * 화면에는 원시 예외 문구(«s.path is not a function»)가 토스트로 떴고 요청은 한 건도 나가지
+   * 않았다 — 감사 로그 내보내기가 화면에서 통째로 죽어 있었다.
+   *
+   * 두 경로가 이 함수 하나를 같은 순서로 읽는다. 다음에 새 액션 종류가 생겨도 한쪽만 아는
+   * 일이 없다. 머리 액션에는 행이 없으므로 `row` 는 undefined 이고, registry 의 머리 선언도
+   * 인자를 받지 않는다(`navigate: () => "#/backup"`, `download: (qs) => …`). */
+  function runNavigateOrDownload(a, row, key) {
+    if (a.navigate) { setSel(null); window.location.hash = a.navigate(row); return true; }  // 다른 화면으로 이동(HashRouter)
+    if (a.download) { runDownload(a, row, key); return true; }
+    return false;
+  }
+  async function runAction(a, row, key) {
+    if (runNavigateOrDownload(a, row, key)) return;
     if (a.subList) { setSubView({ a, row }); return; }        // 하위 리소스 드로어
     // confirm은 고정 문자열 또는 (row)=>문자열 함수 둘 다 지원한다(행 데이터에 따라 경고 문구를 바꿔야
     // 하는 액션용 — 예: 수동 지정된 연결을 자동 검증으로 덮어쓸 때만 추가 경고).
@@ -457,19 +651,13 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
     finally { setBusyKey(null); }
   }
   async function runHeaderAction(a, key) {
-    /* 🔴 머리의 이동 버튼도 **이동한다** (S21).
+    /* 🔴 머리의 이동·내려받기 버튼도 **행 액션과 같은 것을 한다** (S21 · audit-01).
      *
-     * 행 액션(runAction)은 맨 앞에서 `a.navigate` 를 처리하는데 여기에는 그 가지가 없었다.
-     * 그래서 registry 가 `{ label: "백업 목록", navigate: () => "#/backup" }` 로 선언한
-     * 머리 버튼은 아래 쓰기 분기로 떨어져 `a.path()` 를 불렀고 — 이동 액션에는 `path` 가
-     * 없으므로 — 그 자리에서 예외가 났다. 잡히는 곳이 `handleApiError` 라, 화면에는 아무
-     * 일도 안 일어난 것처럼 보였다. **눌러도 아무 데도 안 가는 버튼이 일곱 개 있었다**:
-     * 백업 목록 · 백업 일정 설정 · 정책 사용 통계 · 프롬프트 사용 통계 · 이상 징후 보기 ·
-     * 감사 로그 전체 · 감사 로그에서 보기.
-     *
-     * 행 액션과 같은 순서로 맨 앞에 둔다 — 확인 문구도 폼도 필요 없는 동작이다. 머리
-     * 액션에는 행이 없으므로 `navigate()` 를 인자 없이 부른다(registry 의 선언도 그렇다). */
-    if (a.navigate) { setSel(null); window.location.hash = a.navigate(); return; }
+     * 예전에는 이 함수가 자기 앞머리에 `navigate` 가지 하나만 갖고 있었다. registry 가 머리에
+     * 선언한 이동은 그것으로 살았지만 내려받기는 여전히 쓰기 분기로 떨어져 죽었다 — 갈래를
+     * 두 곳에 손으로 적으면 늘 한쪽이 늦는다. 이제 위 `runNavigateOrDownload` 하나가 둘 다
+     * 판정한다. 확인 문구도 폼도 필요 없는 동작이라 자리는 그대로 맨 앞이다. */
+    if (runNavigateOrDownload(a, undefined, key)) return;
     if (a.info) {
       // 조회형 헤더 작업(예: 복원 안내) — 결과를 안내 모달로 보여준다. busy를 걸어 완료 전 중복 클릭을 막는다
       // (그 아래 쓰기 액션 분기와 동일한 패턴 — 예전엔 이 분기만 setBusy가 빠져 있었다).
@@ -503,27 +691,76 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
   const columns = config.columnsFrom
     ? (query.data ? config.columnsFrom(query.data) : (config.columns || []))
     : config.columns;
-  // sel.id가 이번 드로어 세션에서 한 번이라도 items 안에서 실제로 확인됐는지 — 액션이 res.item으로
-  // (예: 프롬프트 '새 버전') 아직 목록에 반영되지 않은 새 행을 곧바로 sel에 넣는 경우, 그 행이
-  // 아직 items에 없다고 곧장 드로어를 닫아 버리면 안 되므로 '한 번이라도 봤던 적 있는지'로 구분한다.
-  const sawFreshRef = useRef(false);
+  /* 「목록에서 실제로 본 적 있는 행」을 **id 로** 기억한다 (ai-03).
+   *
+   * 아래 효과는 «지금 조건의 결과에 없는 sel» 을 닫는다. 그 규칙 자체는 옳다 — 다른 관리자가
+   * 지운 행을 계속 붙들고 있으면 안 된다. 문제는 그 판정이 **방금 내가 만든 행**과 **남이
+   * 지운 행**을 구별하지 못했다는 것이다: 표식이 참/거짓 하나뿐이라, 발행본을 보다가 「새
+   * 버전」을 눌러 `keepSelection` 이 새 초안을 드로어에 넣으면 앞 행에서 세워 둔 참이 그대로
+   * 남아 «사라진 행» 으로 읽혔다. 기본 상태 필터가 '발행됨'인 화면에서 초안은 구조적으로
+   * 목록에 없으므로, 초안→테스트→검토→발행 흐름이 첫 걸음에서 끊겼다(드로어가 닫히고 방금
+   * 만든 초안은 목록 어디에도 없다).
+   *
+   * id 로 기억하면 두 사실이 갈린다: 표식이 지금 sel 의 id 와 같을 때만 「봤던 행이 사라졌다」
+   * 이고, 아직 본 적 없는 새 행은 닫지 않는다. */
+  const sawFreshIdRef = useRef(null);
   // 열린 상세 드로어를 백그라운드 refetch(pollWhile)와 동기화 — 캡처된 stale sel이 아니라 최신 행을 보여준다.
   // fetching 도중(예: 필터가 막 바뀌어 아직 새 페이지가 안 온 순간)엔 items가 일시적으로 비거나 옛
   // 페이지일 수 있어 판단을 보류한다 — 완료된 refetch에서 이미 한 번 확인됐던 sel.id가 더 이상 없으면
   // (다른 관리자가 지웠거나, 페이지네이션/필터에 걸려 빠졌거나) 그 낡은 항목을 계속 보여주는 대신 드로어를 닫는다.
   useEffect(() => {
-    if (!sel || sel.id == null) { sawFreshRef.current = false; return; }
+    if (!sel || sel.id == null) { sawFreshIdRef.current = null; return; }
     if (query.isFetching) return;
     const fresh = items.find((r) => r.id === sel.id);
     if (fresh) {
-      sawFreshRef.current = true;
+      sawFreshIdRef.current = sel.id;
       if (fresh !== sel) setSel(fresh);
-    } else if (sawFreshRef.current) {
-      sawFreshRef.current = false;
+    } else if (sawFreshIdRef.current === sel.id) {
+      sawFreshIdRef.current = null;
       setSel(null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [items, query.isFetching]);
+  /* 지금 보고 있는 뷰의 쿼리 문자열. **아래 두 효과가 같은 값을 본다** — 하나는 이 값을
+     주소에 되쓰고(아래 '뷰를 주소에 되쓴다'), 하나는 주소가 이 값과 달라졌는지 본다(바로
+     다음). 되쓰기 효과는 `onQuery` 청소보다 뒤에 있어야 하지만(그쪽 주석), 이 값 자체는
+     순수 계산이라 여기서 한 번 만든다. */
+  const viewQuery = buildViewQuery({ q, filters }, config);
+
+  /* 주소가 바뀌면 화면도 따라 바뀐다 — **주소가 이 화면 뷰의 정본이다** (audit-03).
+   *
+   * 지금까지 읽기는 마운트 한 번(`initialView`)뿐이고 그 뒤로는 화면 → 주소 한 방향으로만
+   * 되썼다. 그래서 **같은 라우트로 다시 들어오는 길** — 사이드바 메뉴를 다시 누르기, 뒤로
+   * 가기 — 에서는 주소만 비고 화면은 앞 조건을 그대로 들고 있었다(react-router 가 같은
+   * 라우트를 리마운트하지 않으므로 `initialView` 도 다시 안 읽는다). 그 상태의 화면은
+   * 「조건 1개, 결과 22건」인데 주소는 조건이 없다고 말한다: 주소를 복사해 주면 상대는 다른
+   * 화면을 보고, 새로고침 한 번이면 조사 중이던 조건이 사라진다.
+   *
+   * 무엇을 볼 것인가 — **react-router 의 location 이 바뀔 때만** 본다. 아래 되쓰기 효과는
+   * raw `replaceState` 라 location 을 건드리지 않으므로 이 둘은 서로를 깨우지 않는다.
+   * 마운트 첫 회는 건너뛴다(그 자리는 `initialView` 가 이미 읽었다).
+   *
+   * 무엇으로 비교하는가 — 양쪽 다 `buildViewQuery` 가 만든 **정규형**이다. 주소의 키 순서나
+   * 남의 규약 키(`?id=` 같은 딥링크 의도)에 흔들리지 않는다.
+   *
+   * 어디에 두는가 — `onQuery` 효과보다 **앞**이다. 딥링크가 `open:"filter"` 의도로 얹는 값은
+   * 그쪽이 마지막에 합쳐야 이긴다(그 값들은 전부 이 화면의 필터 키라 실제로는 같은 결과가
+   * 되지만, 순서를 뒤집으면 그 합치기가 조용히 지워진다). */
+  const urlSyncMountedRef = useRef(false);
+  useEffect(() => {
+    if (!urlSyncMountedRef.current) { urlSyncMountedRef.current = true; return; }
+    const view = parseView(hashQuery(window.location.hash), config);
+    // 쪽 번호는 조건이 아니다(위 `resumeChunks` 주석) — 비교에서도 뺀다.
+    if (buildViewQuery({ q: view.q, filters: view.filters }, config) === viewQuery) return;
+    /* 마운트와 **같은 규칙**으로 세운다: 주소가 조건을 하나라도 실었으면 그 의도가 화면
+       기본값을 이기고(UB-13/RG-08), 아무것도 안 실렸으면 첫 방문과 같은 기본값으로 돌아간다. */
+    const defaults = {};
+    (config.filters || []).forEach((f) => { if (f.value != null && f.value !== "") defaults[f.key] = f.value; });
+    setFilters(Object.keys(view.filters).length > 0 ? { ...view.filters } : defaults);
+    setQ(view.q);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.key, location.search]);
+
   // 다른 화면에서 넘어온 해시 쿼리(예: 템플릿 → 문서 생성 프리필)를 소비한다. config.onQuery(params)가
   // 의도({open:'header'|'create', label?, initial})를 돌려주면 해당 폼을 프리필로 연다. 소비 후 해시에서
   // 쿼리를 지워(프래그먼트 경로는 유지) 재렌더 때 다시 열리지 않게 한다. HashRouter 경로는 그대로다.
@@ -617,6 +854,35 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
    * window.location.hash를 직접 읽는다(그 효과도 raw replaceState라 값이 거기 있다). */
   useEffect(() => {
     if (!config.hasIdRoute || !routeIdSettledRef.current) return;
+    /* 🔴 **이 화면을 이미 떠났으면 주소를 되쓰지 않는다** (audit-02).
+     *
+     * 상세의 이동 액션(「관련 항목 보기」)은 `setSel(null)` 을 하고 해시를 목적지로 바꾼다.
+     * 해시 대입은 그 자리에서 주소를 바꾸지만 `hashchange` 는 다음 차례에 온다 — 그 사이
+     * React 가 sel 변화를 흘리면서 이 효과를 깨웠고, 효과는 «지금 주소의 질의»(이미 목적지의
+     * 것)를 들고 경로만 이 화면으로 되돌려 놨다. 그래서 이동은 늘 `#/audit` 으로 튕겼고,
+     * 이어서 `onQuery` 청소가 남의 키를 지워 걸어 둔 필터까지 잃었다.
+     *
+     * 규칙은 하나다: 주소가 아직 이 화면의 것일 때만 이 화면이 주소를 쓴다. 주소가 이미
+     * 다른 화면을 가리키면 이동이 이긴다 — 이 컴포넌트는 곧 언마운트된다.
+     *
+     * 해시가 비어 있는 경우(HashRouter 가 없는 시험·임베드)는 겨루는 상대가 없으므로 그대로
+     * 쓴다 — 그때는 react-router 가 주소의 정본이다. */
+    /* 🔴 「이 화면의 것」은 **지금 올라와 있는 라우트**이지 `config.key` 가 아니다 (R7-06).
+     *
+     * 화면 키와 경로가 늘 같지는 않다. 감사 로그는 탭 그릇 안에 있고, 그릇은 탭마다 옛
+     * 경로를 하나씩 더 등록한다(`AdminRoutes.jsx` 의 `old = "/" + t.key`) — `#/audit-anomalies`
+     * 에서 「감사 로그」 탭을 누르면 `?tab=audit` 만 바뀌고 경로는 그 별칭 그대로다. 키로
+     * 비교하면 그 순간 `here`("#/audit-anomalies") 와 `mine`("#/audit") 이 갈라져서, 열 때도
+     * 닫을 때도 이 효과가 통째로 빠져나갔다 — 행을 눌러도 주소가 `/audit/:id` 가 되지 않아
+     * 상세를 링크로 줄 수도, F5 로 되찾을 수도 없었다.
+     *
+     * `location.pathname` 은 react-router 가 **이 컴포넌트를 그리고 있는** 경로다. 그래서
+     * 위 audit-02 의 겨룸에서도 여전히 옳다: 해시 대입은 그 자리에서 `window.location` 을
+     * 바꾸지만 react-router 의 location 은 다음 차례에 따라오므로, 이동이 시작된 순간
+     * `here`(목적지) 와 `mine`(아직 이 화면) 이 갈라지고 이 효과는 물러난다. */
+    const here = hashPath(window.location.hash);
+    const mine = "#" + location.pathname;
+    if (here && here !== mine && here.indexOf(mine + "/") !== 0) return;
     const nextId = sel ? String(sel.id) : null;
     if (nextId === (routeId || null)) return;
     const qs = hashQuery(window.location.hash);
@@ -632,8 +898,9 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
    * 주소가 매번 빈 상태로 되돌아간다. 뒤에서 다시 쓰면 그 순서 문제가 사라진다.
    *
    * pushState 가 아니라 replaceState 다 — 필터를 한 칸 고칠 때마다 히스토리가 쌓이면
-   * '뒤로 가기'가 화면을 벗어나기까지 열 번을 눌러야 한다. */
-  const viewQuery = buildViewQuery({ q, filters }, config);
+   * '뒤로 가기'가 화면을 벗어나기까지 열 번을 눌러야 한다.
+   *
+   * (`viewQuery` 자체는 위에서 만든다 — 주소를 읽는 효과와 같은 값을 봐야 한다.) */
   /* 자기 키만 갈아치운다 — 이 화면이 탭 그릇 안에 있으면 그릇이 쓴 `?tab=…` 이 여기 함께
      실려 있고, 예전처럼 쿼리 전체를 덮으면 필터를 한 칸 건드리는 순간 첫 탭으로 튕긴다. */
   const ownedKeys = React.useMemo(() => ownedQueryKeys(config), [config]);
@@ -771,13 +1038,21 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
     const resolved = (config.filters || []).map((f) => {
       if (!f.optionsFromRefList) return f;
       const base = refListOptions[f.optionsFromRefList] || [];
-      return { ...f, kind: "entity", options: [...base, ...(f.extraOptions || [])], loading: refListsQuery.isLoading };
+      /* 후보 목록을 못 받은 축은 **왜 비었는지** 말한다 (R7-05) — 그 말이 없으면
+         「권한이 없어 못 받았다」와 「후보가 정말 없다」가 화면에서 같은 그림이다. */
+      const failed = refListFailedKeys.has(f.optionsFromRefList);
+      return {
+        ...f, kind: "entity", options: [...base, ...(f.extraOptions || [])],
+        loading: refListsQuery.isLoading,
+        helperText: failed ? REF_LIST_FAILED_TEXT : f.helperText,
+      };
     });
     return resolved
       .map((f, i) => ({ f, i }))
       .sort((a, b) => (rank(a.f) - rank(b.f)) || (a.i - b.i))
       .map((x) => x.f);
-  }, [config.filters, refListOptions, refListsQuery.isLoading]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [config.filters, refListOptions, refListsQuery.isLoading, refListFailedKeys]);
 
   /* 저장된 뷰는 **조건 조합을 재사용할 가치가 있을 때만** 뜻이 있다. 후보가 두어 줄뿐인
      화면(정책 2건·통합 4건·기능 플래그 11건)에 붙으면 그것은 기능이 아니라 소음이고,
@@ -811,7 +1086,14 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
   // 헤더 작업의 when(ctx)은 목록 응답에서 뽑은 약간의 맥락(현재는 unreadCountKey 값)을 받는다 —
   // 알림의 '모두 읽음'처럼 '할 일이 없을 때는 굳이 보여줄 필요 없는' 헤더 버튼을 위한 것이다
   // (예전엔 unread===0이어도 버튼이 항상 떠 있어 눌러도 매번 '0건 처리' 무의미 토스트만 났다).
-  const headerActionCtx = { unreadCount: (config.unreadCountKey && query.data) ? query.data[config.unreadCountKey] : null };
+  // managementScope/isGlobalAdmin — 머리 액션도 범위를 안다(xa-07). 전역 자원의 머리 버튼은
+  // `requiresGlobalScope` 로 걸리고, 그보다 세밀한 조건은 이 맥락을 읽어 when 이 판단한다.
+  // 실리는 값은 서버가 깎아 낸 관리 범위다(`/api/me` 의 management.kind — 위 주석) —
+  // `admin_scope` 열이 아니다.
+  const headerActionCtx = {
+    unreadCount: (config.unreadCountKey && query.data) ? query.data[config.unreadCountKey] : null,
+    managementScope, isGlobalAdmin,
+  };
   const visibleHeaderActions = (config.headerActions || []).filter((a) => canDo(a) && (!a.when || a.when(headerActionCtx)));
   const primaryHeaderAction = visibleHeaderActions.find((a) => a.primary);
   const showCreate = config.create && canCreate;   // '추가'는 create.roles를 통과한 역할에만.
@@ -863,7 +1145,9 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
   // 수정 버튼도 edit.roles/create.roles로 게이트한다(쓰기 권한 없는 역할에겐 숨긴다).
   const canEdit = !!(sel && editFields && canEditRole && (!config.editWhen || config.editWhen(sel)));
   // when(row, ctx) — ctx에 role·userId를 넘겨 본인 요청 자기결정 차단 등 행 단위 게이트를 지원한다.
-  const actionCtx = { role, userId };
+  // managementScope/isGlobalAdmin 도 함께 넘긴다(xa-07) — 「범위가 '전체'인 행은 부서 범위
+  // 관리자가 못 고친다」처럼 **행의 값과 내 범위를 같이 봐야** 정해지는 게이트가 있다.
+  const actionCtx = { role, userId, managementScope, isGlobalAdmin };
   const visibleActions = sel ? (config.actions || []).filter((a) => (!a.when || a.when(sel, actionCtx)) && canDo(a)) : [];
   /* 액션 위계 (지시 8 · 11 · 12 · 43).
    *
@@ -891,8 +1175,9 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
   // headerAction도 없어 canOnboard가 항상 거짓이었다 — 화면 접근 자체가 이미 역할로 걸려 있으니
   // (App.jsx SCREEN_ROLES) 그런 화면은 config.forceOnboarding으로 이 게이트를 우회한다.
   // 정본은 `screenHelp.jsx::canOnboardFor` 하나다 — `?` 도움말의 절차 안내와 빈 상태의 CTA 가
-  // 같은 게이트를 봐야 한쪽에만 나오는 일이 없다.
-  const canOnboard = canOnboardFor(config, role);
+  // 같은 게이트를 봐야 한쪽에만 나오는 일이 없다. 주 머리 동작의 `when(ctx)` 도 같은 맥락
+  // (`headerActionCtx`)으로 본다 — 머리에 없는 단추를 안내가 가리키지 않게 (P-88).
+  const canOnboard = canOnboardFor(config, role, headerActionCtx);
   /* 목록 끝 줄 — 받은 건수와 「더 보기」. 두 자리에서 쓴다: 목록 카드 안, 그리고
      clientFilter 로 지금 받아 둔 것이 통째로 걸러진 빈 상태(더 받으면 일치 항목이 나올 수 있다).
      🔴 「몇 건을 받았는가」는 **서버가 준 원본**(`items`)으로 센다 — clientFilter 로 걸러진
@@ -947,7 +1232,7 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
       ) : (
         <PageHeader area={config.area} title={config.title} size={config.compact ? "section" : "page"}
           actions={hasHeaderActions ? headerActions : null}
-          help={buildScreenHelp(config, role)}
+          help={buildScreenHelp(config, role, headerActionCtx)}
           helpTone={config.helpTone || "info"} />
       )}
       {/* 서버가 개수 제한(예: 500건)만 걸고 total/페이지네이션을 주지 않는 목록에서, 항목 수가 그
@@ -1049,8 +1334,10 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
           {orderedFilters.length ? (
             <FilterRow>
               {orderedFilters.map((f) => {
+                // `key` 는 spread 에 섞지 않는다 — React 가 spread 안의 key 를 경고하고
+                // (「A props object containing a "key" prop is being spread」) 개발 콘솔이 매
+                // 필터 줄마다 그 경고를 냈다. 키는 요소에 직접 준다.
                 const common = {
-                  key: f.key,
                   label: f.label,
                   value: filters[f.key] || "",
                   onChange: (v) => setFilter(f.key, v),
@@ -1061,15 +1348,19 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
                 if (f.kind === "entity") {
                   return (
                     <EntityCombobox
+                      key={f.key}
                       {...common}
                       loading={f.loading}
                       options={f.options || []}
+                      /* 후보를 못 받은 축은 빈 상자가 아니라 이유를 단다 (R7-05). */
+                      helperText={f.helperText}
                     />
                   );
                 }
                 if (f.type === "select") {
                   return (
                     <FilterSelect
+                      key={f.key}
                       {...common}
                       options={f.options || []}
                       /* 어법은 **한 벌**이다 — 같은 줄에 「연결된 스케줄 전체」와 「유형: 전체」가
@@ -1083,6 +1374,7 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
                   // 하나만 받는 계약이라(이벤트가 아니다) `DateField` 와 그대로 맞는다.
                   return (
                     <DateField
+                      key={f.key}
                       {...common} id={f.key} size="small"
                       data-filter-kind="date"
                       sx={kindSx("date")}

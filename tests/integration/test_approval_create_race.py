@@ -126,6 +126,242 @@ def test_concurrent_create_approval_same_payload_never_duplicates(db_url):
         engine.dispose()
 
 
+# ── 결정 경합 (perm-06) ──────────────────────────────────────────────────────
+#
+# 생성만 막혀 있었다. 두 관리자가 같은 큐를 동시에 처리하면(화면 둘을 열어 두면 실제로
+# 일어난다) 두 트랜잭션이 각자 「아직 대기」를 보고 **각자 실행기를 돌린 뒤** 서로의 status 를
+# 덮어썼다 — 원장은 「거절」인데 대상 계정은 admin 이 되고, 요청자는 상반된 통보 둘을 받았다.
+# 승인은 권한 부여 실행이라 사후에 되돌릴 방법이 없다.
+
+DECIDERS = 4
+
+#: 이 시험만 쓰는 요청 유형. 실제 실행기(역할 변경 등)를 쓰면 사용자·스케줄 세계를 통째로
+#: 세워야 하고, 정작 세려는 것은 「실행기가 몇 번 돌았나」 하나다.
+RACE_REQUEST_TYPE = "test.decide_race"
+
+
+def _seed_pair(url: str) -> tuple[str, str]:
+    """요청자(admin) 와 결재자(system_admin) 각각 하나. id 를 돌려준다."""
+    from app.users.models import ROLE_ADMIN, ROLE_SYSTEM_ADMIN, User
+
+    engine = make_engine(url)
+    factory = make_session_factory(engine)
+    try:
+        with factory() as db:
+            asker = User(
+                email="decide-asker@goodmit.co.kr", display_name="요청자",
+                password_hash="not-a-real-hash", role=ROLE_ADMIN, active=True,
+            )
+            decider = User(
+                email="decide-boss@goodmit.co.kr", display_name="결재자",
+                password_hash="not-a-real-hash", role=ROLE_SYSTEM_ADMIN, active=True,
+            )
+            db.add_all([asker, decider])
+            db.commit()
+            return asker.id, decider.id
+    finally:
+        engine.dispose()
+
+
+def test_concurrent_decisions_on_one_approval_pick_exactly_one_winner(db_url):
+    import app.approvals.service as svc
+    from app.approvals.models import Approval
+    from app.core.errors import ConflictError
+    from app.users.models import User
+
+    now = datetime(2026, 7, 14, 0, 0, 0)
+    asker_id, decider_id = _seed_pair(db_url)
+    executed: list[str] = []
+
+    def _count_only(_db, approval, _app_state):
+        executed.append(approval.id)
+
+    svc.APPROVAL_EXECUTORS[RACE_REQUEST_TYPE] = _count_only
+    try:
+        engine = make_engine(db_url)
+        factory = make_session_factory(engine)
+        try:
+            with factory() as db:
+                approval = svc.create_approval(
+                    db,
+                    request_type=RACE_REQUEST_TYPE,
+                    object_type="user",
+                    object_id="decide-race-target",
+                    requested_by=db.get(User, asker_id),
+                    payload={"role": "admin"},
+                    now=now,
+                )
+                db.commit()
+                approval_id = approval.id
+        finally:
+            engine.dispose()
+
+        def attempt(_i: int) -> str:
+            thread_engine = make_engine(db_url)
+            thread_factory = make_session_factory(thread_engine)
+            try:
+                with thread_factory() as db:
+                    try:
+                        svc.decide(
+                            db,
+                            db.get(Approval, approval_id),
+                            db.get(User, decider_id),
+                            approve=True,
+                            comment=None,
+                            now=now,
+                            self_approval_allowed=False,
+                            app_state=None,
+                        )
+                        db.commit()
+                        return "decided"
+                    except ConflictError as exc:
+                        db.rollback()
+                        return f"conflict: {exc.message}"
+            finally:
+                thread_engine.dispose()
+
+        with ThreadPoolExecutor(max_workers=DECIDERS) as pool:
+            outcomes = list(pool.map(attempt, range(DECIDERS)))
+    finally:
+        del svc.APPROVAL_EXECUTORS[RACE_REQUEST_TYPE]
+
+    assert outcomes.count("decided") == 1, f"한 승인이 여러 번 결정됐다: {outcomes}"
+    assert len(executed) == 1, f"실행기가 {len(executed)}번 돌았다 — 정확히 한 번이어야 한다"
+    assert all("이미" in o for o in outcomes if o != "decided"), outcomes
+
+    engine = make_engine(db_url)
+    factory = make_session_factory(engine)
+    try:
+        with factory() as db:
+            row = db.get(Approval, approval_id)
+            assert row.status == "approved"
+            assert row.decided_at is not None
+    finally:
+        engine.dispose()
+
+
+# ── 위임 겹침 경합 (xd-02 · perm-07) ─────────────────────────────────────────
+#
+# 겹침 금지의 목적은 「회수가 거짓말을 하지 않는 것」이다 — 같은 짝의 위임이 두 장 살아 있으면
+# 관리자가 한 장을 거두고 권한을 회수했다고 믿는 순간 다른 한 장이 그대로 결재를 허용한다.
+# 사전 검사와 INSERT 사이가 열려 있어 동시 4발이 전부 201 이었다.
+
+
+def _seed_delegation_pair(url: str) -> tuple[str, str]:
+    from app.users.models import ROLE_ADMIN, ROLE_OPERATOR, User
+
+    engine = make_engine(url)
+    factory = make_session_factory(engine)
+    try:
+        with factory() as db:
+            boss = User(
+                email="deleg-race-boss@goodmit.co.kr", display_name="위임자",
+                password_hash="not-a-real-hash", role=ROLE_ADMIN, active=True,
+            )
+            stand_in = User(
+                email="deleg-race-standin@goodmit.co.kr", display_name="대리인",
+                password_hash="not-a-real-hash", role=ROLE_OPERATOR, active=True,
+            )
+            db.add_all([boss, stand_in])
+            db.commit()
+            return boss.id, stand_in.id
+    finally:
+        engine.dispose()
+
+
+def test_concurrent_overlapping_delegations_leave_exactly_one_live_row(db_url):
+    from datetime import timedelta
+
+    from app.approvals import delegation
+    from app.approvals.models import ApprovalDelegation
+    from app.core.errors import ConflictError
+    from app.users.models import User
+
+    now = datetime(2026, 7, 14, 0, 0, 0)
+    starts_at = now + timedelta(days=20)
+    ends_at = now + timedelta(days=23)
+    boss_id, stand_in_id = _seed_delegation_pair(db_url)
+
+    def attempt(_i: int) -> str:
+        engine = make_engine(db_url)
+        factory = make_session_factory(engine)
+        try:
+            with factory() as db:
+                try:
+                    delegation.create(
+                        db,
+                        delegator=db.get(User, boss_id),
+                        delegate=db.get(User, stand_in_id),
+                        starts_at=starts_at,
+                        ends_at=ends_at,
+                        reason="경합",
+                        created_by=boss_id,
+                        now=now,
+                        visible=None,
+                    )
+                    db.commit()
+                    return "created"
+                except ConflictError:
+                    db.rollback()
+                    return "conflict"
+        finally:
+            engine.dispose()
+
+    with ThreadPoolExecutor(max_workers=THREADS) as pool:
+        outcomes = list(pool.map(attempt, range(THREADS)))
+
+    assert outcomes.count("created") == 1, f"겹치는 위임이 여러 장 만들어졌다: {outcomes}"
+
+    engine = make_engine(db_url)
+    factory = make_session_factory(engine)
+    try:
+        with factory() as db:
+            from sqlalchemy import func, select
+
+            live = db.execute(
+                select(func.count()).select_from(ApprovalDelegation).where(
+                    ApprovalDelegation.delegator_user_id == boss_id,
+                    ApprovalDelegation.delegate_user_id == stand_in_id,
+                    ApprovalDelegation.revoked_at.is_(None),
+                )
+            ).scalar_one()
+            assert live == 1, (
+                f"한 장을 거둬도 권한이 남는 상태다 — 살아 있는 위임이 {live}장이다"
+            )
+    finally:
+        engine.dispose()
+
+
+def test_a_second_non_overlapping_delegation_is_still_allowed(db_url):
+    """오탐 방지 — 겹치지 않는 창은 여러 장 만들 수 있어야 한다(부재가 여러 번 있다)."""
+    from datetime import timedelta
+
+    from app.approvals import delegation
+    from app.users.models import User
+
+    now = datetime(2026, 7, 14, 0, 0, 0)
+    boss_id, stand_in_id = _seed_delegation_pair(db_url)
+
+    engine = make_engine(db_url)
+    factory = make_session_factory(engine)
+    try:
+        with factory() as db:
+            first = delegation.create(
+                db, delegator=db.get(User, boss_id), delegate=db.get(User, stand_in_id),
+                starts_at=now + timedelta(days=1), ends_at=now + timedelta(days=2),
+                reason=None, created_by=boss_id, now=now, visible=None,
+            )
+            second = delegation.create(
+                db, delegator=db.get(User, boss_id), delegate=db.get(User, stand_in_id),
+                starts_at=now + timedelta(days=3), ends_at=now + timedelta(days=4),
+                reason=None, created_by=boss_id, now=now, visible=None,
+            )
+            db.commit()
+            assert first.id != second.id
+    finally:
+        engine.dispose()
+
+
 def test_create_approval_gives_up_cleanly_after_exhausting_retries(db, monkeypatch):
     """PA-RC-0008 — 예산을 다 쓰고도 승자를 못 찾으면 raw 500(처리 안 된
     IntegrityError)이 아니라 깨끗한 409여야 한다. 실 스레드 경합 대신 `db.add()`가

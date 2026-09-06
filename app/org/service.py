@@ -252,6 +252,25 @@ def bulk_child_department_count(db: Session, department_ids) -> dict[str, int]:
     return {row[0]: row[1] for row in rows}
 
 
+def ensure_parent_is_active(parent: Department) -> None:
+    """비활성 부서는 **새로** 상위 부서로 고를 수 없다 (xb-08).
+
+    「비활성」은 새로 고를 수 없다는 뜻이다 — 사용자·직책 배정에는 그 규칙이 있는데
+    (`resolve_assignable`) 트리 편집에만 없어서, 정리한 부서 아래에 새 부서가 생겼다.
+    그렇게 생긴 부서는 정합성 보고서의 어느 갈래에도 안 걸린다(그 진단은 사용자·프로젝트·
+    지식 공간만 본다).
+
+    **이미 그 부모 밑에 있는 부서는 건드리지 않는다** — 수정 폼은 이름만 고칠 때에도 지금
+    부모를 그대로 다시 보내므로, 여기서 막으면 그 부서는 이름조차 못 고친다
+    (`resolve_assignable` 의 `allow_current` 와 같은 이유다). 호출부가 「부모가 실제로
+    바뀌는 경우」에만 부른다.
+    """
+    if not parent.active:
+        raise ValidationAppError(
+            f"비활성 부서는 상위 부서로 지정할 수 없습니다: {parent.name}"
+        )
+
+
 def create_item(
     db: Session,
     model: type[OrgModel],
@@ -310,6 +329,7 @@ def create_item(
             # 범위 밖 상위 부서는 **없는 것과 똑같이** 답한다. 여기만 다른 오류를 주면
             # 남의 부서 id 를 찍어 보며 존재를 셀 수 있다(저장소 규칙: 범위 밖은 404).
             raise ValidationAppError("알 수 없는 상위 부서입니다.")
+        ensure_parent_is_active(parent)
         row.parent_id = parent_id
     for attempt in range(_CREATE_ITEM_RETRIES):
         try:
@@ -384,21 +404,44 @@ def update_item(
 
         # 생성만 막으면 수정으로 같은 일을 한다 — 상위 부서 판정은 두 경로가 함께 쓴다.
         row.parent_id = validate_parent(db, row, parent_id, scope=scope)
+        # 옮긴 **뒤에도** 범위 안이어야 한다 (`create_item` 끝의 같은 문). 생성은 막혀
+        # 있었는데 수정은 안 막혀서, 부서 범위 관리자가 자기 부서를 최상위로 밀어내고
+        # 그 순간 자기도 그 부서를 못 보게 됐다(되돌리려면 전역 관리자가 필요하다).
+        # 판정을 행에 대고 하는 이유도 생성과 같다 — 값이 아니라 결과를 본다.
+        # 이 갈래는 부서뿐이다(바로 위에서 직책을 거절한다) — 그래서 조사를 짜 맞추지 않고
+        # 「부서」라고 그대로 쓴다. 「을(를)」 같은 괄호 표기는 화면 문구가 아니다(§10).
+        if not scope_allows_item(scope, row):
+            raise ForbiddenError("관리 범위 밖으로 부서를 옮길 수 없습니다.")
     db.flush()
     return row
+
+
+def _count_where(db: Session, *clauses) -> int:
+    """조건에 맞는 행 수. `dependents` 와 `archived_dependents` 가 같은 식으로 센다."""
+    return int(db.execute(select(func.count()).where(*clauses)).scalar_one())
 
 
 def dependents(db: Session, dept_id: str) -> dict[str, int]:
     """이 부서를 **가리키고 있는 것**들의 건수 (0060 §33). 0 이 아닌 항목만 담는다.
 
-    부서를 지우면 이것들이 어떻게 되는지가 문제다. 사용자·프로젝트 쪽 FK 는 `SET NULL`
-    이라 **오류가 나지 않는다** — 자식 부서는 조용히 최상위로 올라오고, 프로젝트는 소속이
-    빈칸이 되며, 소속이 빈 프로젝트는 그 순간부터 아무에게도 안 보인다(fail-closed).
-    삭제한 사람에게는 성공으로 보인다.
+    부서를 지우면 이것들이 어떻게 되는지가 문제인데, 참조마다 걸린 FK 가 다르다:
 
-    지식 공간(`knowledge_spaces.owner_dept_id`)만 다르게 걸려 있다. 그 FK 는 `SET NULL`
-    이 아니라서 DB 가 삭제 자체를 거절하는데, 사용자가 보는 것은 원인이 안 적힌 500 이다.
-    여기서 미리 세어 `delete_item` 이 무엇이 몇 건 매달려 있는지 말해 주게 한다.
+    * `SET NULL` — 사용자(`users.department_id`·`scope_dept_id`)와 하위 부서(`parent_id`).
+      **오류가 나지 않는다.** 자식 부서는 조용히 최상위로 올라오고 사람은 소속이 빈칸이
+      되며, 삭제한 사람에게는 성공으로 보인다.
+    * `ondelete` 없음 — 프로젝트(`projects.dept_id`)·지식 공간(`knowledge_spaces.owner_dept_id`)·
+      옛 문서 미러(`document_cache.owner_dept_id`). DB 가 삭제 자체를 거절하는데, 사용자가
+      보는 것은 원인이 안 적힌 500 이다.
+    * FK 없음 — 팀 채팅방(`chat_rooms.department_id`). DB 는 아무것도 막지 않고, 방은 없는
+      부서를 가리킨 채 남는다.
+
+    셋 다 여기서 미리 센다. 한 갈래라도 빠지면 그 갈래는 500 이거나 조용한 유령 참조다 —
+    옛 문서와 채팅방이 실제로 그렇게 빠져 있었다.
+
+    센 뒤에 `delete_item` 이 갈래를 **둘로 나눈다**: 지우면 조용히 깨지는 것은 막고
+    (`BLOCKING_DEPENDENTS`), 부서를 잃어도 그대로 살아 있는 것은 삭제와 같은 트랜잭션에서
+    떼어 낸다(`DETACHABLE_DEPENDENTS`). 세는 자리를 나누지 않는 이유는 화면이 「무엇이
+    매달려 있나」를 한 번에 물어보기 때문이다.
 
     사용자 수(`usage_count`)만 세던 예전 판정은 사람이 한 명도 없는 부서를 "안 쓰는
     부서" 로 읽었다. 실제로는 프로젝트 수십 개와 그 아래 티켓 전부가 거기 매달려 있을 수
@@ -406,10 +449,12 @@ def dependents(db: Session, dept_id: str) -> dict[str, int]:
     """
     from app.knowledge.models import Document, KnowledgeSpace
     from app.projects.models import Project
+    from app.team_chat.models import ChatRoom
+    from app.team_docs.models import DocumentCache
     from app.users.models import User
 
     def _count(clause) -> int:
-        return int(db.execute(select(func.count()).where(clause)).scalar_one())
+        return _count_where(db, clause)
 
     # 문서는 **공간을 거쳐** 이 부서에 매달린다 (D-245). `documents` 에는 소속 컬럼이
     # 아예 없다 — 권한을 공간이 정하기 때문이고, 그래서 부서를 지웠을 때 실제로 닫히는
@@ -433,6 +478,15 @@ def dependents(db: Session, dept_id: str) -> dict[str, int]:
         "projects": _count(Project.dept_id == dept_id),
         "knowledge_spaces": _count(KnowledgeSpace.owner_dept_id == dept_id),
         "documents": documents_in_dept_spaces,
+        # 옛 문서 미러(S14 · D1). 사용자에게 보이는 경로는 이 표를 읽지 않지만 FK 는 살아
+        # 있다 — 지식 공간과 같은 모양으로 DB 가 삭제를 거절해 원인 없는 500 이 됐다.
+        # **떼어 내는 갈래다**: 화면에 존재하지도 않는 행이 부서를 영원히 잠갔다.
+        "legacy_documents": _count(DocumentCache.owner_dept_id == dept_id),
+        # 부서 방(`ensure_team_room` 이 게으르게 만든다). FK 가 없어 DB 는 막지 않는다 —
+        # 지우면 방이 없는 부서를 가리킨 채 남는다. `deleted_at` 이 찍힌 방도 센다: 행은
+        # 남아 있고 이 부서 id 를 쥐고 있다(보관된 사용자를 세는 이유와 같다).
+        # 이것도 **떼어 내는 갈래다** — 방에 든 대화는 부서가 없어져도 사람들의 기록이다.
+        "chat_rooms": _count(ChatRoom.department_id == dept_id),
         # 이 부서를 **관리 범위로 배정받은** 관리자. 지우면 그 계정은 관리 대상이 없는
         # 상태가 되는데, 화면에는 "관리 범위: 지정된 부서 없음" 으로만 보인다.
         "scoped_admins": _count(User.scope_dept_id == dept_id),
@@ -446,32 +500,209 @@ _DEPENDENT_LABELS = {
     "projects": "프로젝트",
     "knowledge_spaces": "지식 공간",
     "documents": "그 공간에 든 문서",
+    "legacy_documents": "옛 문서 기록",
+    "chat_rooms": "팀 채팅방",
     "scoped_admins": "이 부서를 관리 범위로 가진 관리자",
 }
 
+#: 갈래마다 **세는 단위**. 사람은 「명」, 나머지는 「건」이다.
+#:
+#: 🔴 한 문장이 같은 사람을 두 단위로 셌다. 「소속 사용자 1건이 연결되어 있어 …
+#: 그중 보관된 계정 1명은 …」 — 읽는 사람은 1건과 1명이 같은 행인지 다른 행인지 끝내 알 수
+#: 없다. 아래 `_ARCHIVED_LABELS` 가 이미 사람을 「명」으로 세고 있었으므로, 갈라진 쪽은
+#: 여기다. 「이 부서를 관리 범위로 가진 관리자」도 사람이라 같은 단위를 쓴다.
+_DEPENDENT_UNITS = {"users": "명", "scoped_admins": "명"}
 
-def delete_item(db: Session, row: OrgModel) -> None:
-    """**가리키는 것이 하나라도 있으면** 거부한다.
 
-    조용히 지우면 참조가 소리 없이 빈칸이 된다(FK 가 전부 SET NULL 이라 오류도 나지
-    않는다). 무엇이 몇 건 매달려 있는지와 대안(비활성)을 함께 알려 준다 — 막기만 하면
-    사용자는 다음에 무엇을 해야 할지 알 수 없다.
+def _counted(kind: str, count: int) -> str:
+    """「소속 사용자 2명」·「프로젝트 3건」. 라벨과 단위를 한 자리에서 붙인다."""
+    return f"{_DEPENDENT_LABELS[kind]} {count}{_DEPENDENT_UNITS.get(kind, '건')}"
+
+
+#: 보관된 갈래를 사람이 읽는 이름과 세는 단위. 「보관된 소속 사용자 1건」이 아니라
+#: 「보관된 계정 1명」이라고 말해야 관리자가 어디를 찾아야 하는지 안다.
+_ARCHIVED_LABELS = {
+    "users": ("보관된 계정", "명"),
+    "projects": ("보관된 프로젝트", "건"),
+    "knowledge_spaces": ("보관된 지식 공간", "건"),
+}
+
+#: 지우면 **조용히 깨지거나 사라지는** 갈래. 부서 삭제를 막는다.
+BLOCKING_DEPENDENTS = (
+    "users", "child_departments", "projects", "knowledge_spaces", "documents", "scoped_admins",
+)
+
+#: 부서를 잃어도 **그 자체로 살아 있는** 갈래. 막지 않고 삭제와 같은 트랜잭션에서 떼어 낸다.
+#:
+#: 막아 두면 빠져나갈 길이 없다는 것이 실측으로 드러났다. 부서 팀 방은 그 부서 사람이
+#: 채팅 목록을 한 번만 열어도 `app/team_chat/service.py::ensure_team_room` 이 만드는데,
+#: 그 방은 방장이 없어 아무도 파할 수 없고 방의 부서를 바꾸는 경로도 제품에 없다. 옛 문서
+#: 기록은 화면에 존재조차 하지 않는다. 그래서 「사람이 한 번이라도 있었던 부서」가 영영
+#: 안 지워졌다 — 막는 대신 연결만 끊는다. 방의 대화도, 옛 기록도 지우지 않는다.
+DETACHABLE_DEPENDENTS = ("chat_rooms", "legacy_documents")
+
+
+def archived_dependents(db: Session, dept_id: str) -> dict[str, int]:
+    """막는 갈래 중 **보관되어 화면에서 안 보이는** 것의 건수. 0 이 아닌 항목만 담는다.
+
+    보관된 프로젝트·지식 공간·계정도 부서를 쥐고 있어 삭제를 막는데, 관리자가 보는 목록에는
+    그것이 없다 — 「프로젝트 1건」이라고만 답하면 그 1건을 끝내 못 찾는다(xc-04). 사람도
+    같다: 부서에 남은 마지막 한 명이 퇴사자(보관 계정)이면 인원 목록은 0명이라고 말하면서
+    삭제는 막힌다(org-08).
+    """
+    from app.knowledge.models import KnowledgeSpace
+    from app.projects.models import Project
+    from app.users.models import User
+
+    found = {
+        "users": _count_where(
+            db, User.department_id == dept_id, User.archived_at.is_not(None)
+        ),
+        "projects": _count_where(
+            db, Project.dept_id == dept_id, Project.archived_at.is_not(None)
+        ),
+        "knowledge_spaces": _count_where(
+            db, KnowledgeSpace.owner_dept_id == dept_id, KnowledgeSpace.archived.is_(True)
+        ),
+    }
+    return {k: v for k, v in found.items() if v}
+
+
+def _blocked_message(blocking: dict[str, int], archived: dict[str, int]) -> str:
+    """삭제가 막힌 이유 한 문장. **409 와 화면의 삭제 안내가 이 문장을 함께 쓴다.**
+
+    화면이 자기 계산으로 같은 말을 다시 만들면 둘이 갈라진다 — 실제로 화면은 인원과 하위
+    부서만 세어 「지금 삭제할 수 있습니다」라고 말했고 실행하면 409 였다(org-01).
+    """
+    parts = ", ".join(_counted(k, v) for k, v in blocking.items())
+    hidden = ""
+    if archived:
+        names = ", ".join(
+            f"{_ARCHIVED_LABELS[k][0]} {v}{_ARCHIVED_LABELS[k][1]}" for k, v in archived.items()
+        )
+        hidden = f" 그중 {names}은 목록에 보이지 않으니 보관함을 함께 확인해 주세요."
+    return (
+        # 앞 조각이 언제나 「N건」이나 「N명」으로 끝나고 둘 다 받침이 있으므로 조사는 '이'
+        # 하나다(「이(가)」 같은 괄호 표기를 쓰지 않는다 — 화면 문구는 완전한 한 문장이어야
+        # 한다, CLAUDE.md §10).
+        f"이 부서에 {parts}이 연결되어 있어 삭제할 수 없습니다.{hidden}"
+        " 먼저 다른 부서로 옮기거나, '비활성'으로 두면 새로 고를 수는 없지만 기존 연결은"
+        " 그대로 유지됩니다."
+    )
+
+
+def detached_message(detached: dict[str, int]) -> str:
+    """떼어 낸 것을 말하는 한 문장. 조용히 끊으면 나중에 「왜 이 방이 부서를 잃었나」를
+    아무도 설명할 수 없다."""
+    names = ", ".join(_counted(k, v) for k, v in detached.items())
+    return f"{names}은 부서 연결만 끊고 그대로 두었습니다."
+
+
+def detach_dependents(db: Session, dept_id: str) -> dict[str, int]:
+    """부서를 잃어도 살아 있는 참조를 **삭제와 같은 트랜잭션에서** 끊는다.
+
+    끊는 것이지 지우는 것이 아니다. 팀 방에는 사람들이 쓴 대화가 들어 있고, 옛 문서 기록은
+    이관 이력이다 — 부서 하나를 정리한다고 없앨 것이 아니다. 그러니 그 행들은 남고,
+    「이 부서 것」이라는 표시만 사라진다.
+
+    옛 문서 기록은 `owner_kind` 도 함께 미지정으로 되돌린다. 「부서 소유인데 부서가 없다」는
+    행은 어느 갈래에도 안 걸려, 나중에 그 기록을 찾는 사람이 원인을 알 수 없다.
+    """
+    from sqlalchemy import update
+
+    from app.core.ownership import OWNER_UNSET
+    from app.team_chat.models import ChatRoom
+    from app.team_docs.models import DocumentCache
+
+    rooms = db.execute(
+        update(ChatRoom)
+        .where(ChatRoom.department_id == dept_id)
+        .values(department_id=None)
+        .execution_options(synchronize_session=False)
+    ).rowcount
+    legacy = db.execute(
+        update(DocumentCache)
+        .where(DocumentCache.owner_dept_id == dept_id)
+        .values(owner_dept_id=None, owner_kind=OWNER_UNSET)
+        .execution_options(synchronize_session=False)
+    ).rowcount
+    db.flush()
+    detached = {"chat_rooms": int(rooms or 0), "legacy_documents": int(legacy or 0)}
+    return {k: v for k, v in detached.items() if v}
+
+
+def delete_precheck(db: Session, dept_id: str) -> dict:
+    """지금 이 부서를 지울 수 있는가. **서버가 한 번 판정하고 화면은 그것을 그린다.**
+
+    화면이 자기 계산으로 판정하면 서버가 막는 것과 달라진다 — 상세 판은 인원과 하위 부서
+    둘만 세어 「지금 삭제할 수 있습니다」라고 말했고, 눌러 보면 409 였다(org-01). 그래서
+    갈래·건수·라벨·이유 문장까지 여기서 만들어 응답에 싣는다.
+    """
+    found = dependents(db, dept_id)
+    archived = archived_dependents(db, dept_id)
+    blocking = {k: v for k, v in found.items() if k in BLOCKING_DEPENDENTS}
+    detachable = {k: v for k, v in found.items() if k in DETACHABLE_DEPENDENTS}
+    hidden = {k: v for k, v in archived.items() if k in blocking}
+    return {
+        "deletable": not blocking,
+        "blockers": [
+            {
+                "kind": kind,
+                "label": _DEPENDENT_LABELS[kind],
+                "count": count,
+                "archived_count": hidden.get(kind, 0),
+            }
+            for kind, count in blocking.items()
+        ],
+        "detachables": [
+            {"kind": kind, "label": _DEPENDENT_LABELS[kind], "count": count}
+            for kind, count in detachable.items()
+        ],
+        "reason": (
+            _blocked_message(blocking, hidden) if blocking
+            else detached_message(detachable) if detachable
+            else None
+        ),
+    }
+
+
+def delete_item(db: Session, row: OrgModel) -> dict[str, int]:
+    """**조용히 깨지는 것이 하나라도 있으면** 거부한다. 떼어 낸 것을 돌려준다.
+
+    조용히 지우면 `SET NULL` 참조는 소리 없이 빈칸이 되고, 나머지는 DB 가 원인 없는
+    500 으로 거절한다(갈래별 FK 는 `dependents` 참조). 무엇이 몇 건 매달려 있는지와
+    대안(비활성)을 함께 알려 준다 — 막기만 하면 사용자는 다음에 무엇을 해야 할지 알 수 없다.
+
+    막지 않는 갈래는 `DETACHABLE_DEPENDENTS` 다. 그 둘까지 막았더니 부서 하나를 지우는 데
+    제품 안에 길이 없었다 — 409 가 안내하는 「다른 부서로 옮기기」가 팀 방에는 존재하지
+    않는 경로였기 때문이다. 이제 그 둘은 같은 트랜잭션에서 연결만 끊고, 남은 갈래에 대해서만
+    409 를 낸다. 그래서 409 의 안내가 실제로 밟을 수 있는 길이 된다.
 
     부서는 사람 말고도 프로젝트·문서·하위 부서·관리 범위가 매달린다(0060 §33). 직책에는
     사용자만 매달리므로 예전 판정을 그대로 쓴다.
     """
     model = type(row)
     label = label_for(model)
+    detached: dict[str, int] = {}
     if model is Department:
         found = dependents(db, row.id)
-        if found:
-            parts = [f"{_DEPENDENT_LABELS[k]} {v}건" for k, v in found.items()]
+        blocking = {k: v for k, v in found.items() if k in BLOCKING_DEPENDENTS}
+        if blocking:
+            archived = {
+                k: v for k, v in archived_dependents(db, row.id).items() if k in blocking
+            }
             raise ConflictError(
-                f"이 {label}에 " + ", ".join(parts) + "이(가) 연결되어 있어 삭제할 수 "
-                "없습니다. 먼저 다른 부서로 옮기거나, '비활성'으로 두면 새로 고를 수는 "
-                "없지만 기존 연결은 그대로 유지됩니다.",
-                details={"name": row.name, "user_count": found.get("users", 0), **found},
+                _blocked_message(blocking, archived),
+                details={
+                    "name": row.name,
+                    "user_count": blocking.get("users", 0),
+                    **blocking,
+                    "archived": archived,
+                },
             )
+        # 지우기 **전에** 끊는다 — 옛 문서 기록의 FK 에는 ondelete 가 없어서 순서가 바뀌면
+        # DB 가 삭제를 거절하고 사용자는 원인이 안 적힌 500 을 본다.
+        detached = detach_dependents(db, row.id)
     else:
         count = usage_count(db, model, row.id)
         if count:
@@ -482,6 +713,7 @@ def delete_item(db: Session, row: OrgModel) -> None:
             )
     db.delete(row)
     db.flush()
+    return detached
 
 
 def item_view(
@@ -590,3 +822,31 @@ def is_blocked_by_org_suspension(db: Session, user) -> bool:
         return False
     org = db.get(Organization, org_id)
     return org is not None and org.status == ORG_SUSPENDED
+
+
+def ensure_may_suspend_org(actor, org_id: str) -> None:
+    """자기 조직 비활성화는 포탈 운영자(`system_admin`)만 할 수 있다.
+
+    ## 화면이 쓰는 낱말로 말한다
+
+    이 동작을 사용자에게 부르는 이름은 **「비활성화」** 하나다 — 버튼도, 확인 창도, 판의
+    안내도 그렇게 쓴다(`OrgDetailPanel.jsx`). 서버만 「정지」라고 답하면 거절 문구를 읽은
+    관리자가 자기가 누른 것과 거절당한 것이 같은 동작인지 다시 생각해야 한다. 저장 값
+    (`status = "suspended"`)은 그대로 두고 사람에게 보이는 말만 맞춘다.
+
+    정지는 그 조직 구성원의 세션을 **즉시** 전부 끊는다(`app/org/router.py::_revoke_org_sessions`).
+    일반 관리자가 자기 조직을 정지시키면 그 요청을 낸 세션까지 끊겨, 정지를 건 사람도
+    풀 사람도 조직 안에 없는 상태가 된다 — 클릭 한 번에 테넌트 하나가 잠기고 되살릴 수
+    있는 것은 포탈 운영자뿐이다. 그래서 끊기지 않는 유일한 역할(`is_blocked_by_org_suspension`
+    이 예외로 두는 같은 `_PORTAL_ROLE`)에게만 허용한다.
+
+    다른 조직을 정지시키는 것은 이 함수의 대상이 아니다 — 자기 세션이 끊기지 않으므로
+    범위 판정(`_visible_org_or_404`)만 지나면 예전 계약 그대로다.
+
+    404 가 아니라 **403** 이다: 자기 조직은 이미 화면에 보이는 행이라 숨길 존재가 없고,
+    문제는 존재가 아니라 권한이다.
+    """
+    if getattr(actor, "role", None) == _PORTAL_ROLE:
+        return
+    if getattr(actor, "org_id", None) == org_id:
+        raise ForbiddenError("자기 조직은 시스템 관리자만 비활성화할 수 있습니다.")

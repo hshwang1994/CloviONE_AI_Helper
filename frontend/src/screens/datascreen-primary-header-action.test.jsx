@@ -81,3 +81,34 @@ describe("머리의 주 동작", () => {
     expect(screen.getByRole("button", { name: "백업 화면 작업 더 보기" })).toBeInTheDocument();
   });
 });
+
+/* 주 동작에 `when(ctx)` 가 걸린 화면 — 관리 알림의 「모두 읽음」 모양이다. 읽을 것이 있으면
+ * 머리에 버튼으로 서고(넘침 메뉴가 아니다), 없으면 아예 없다. 예전에는 `primary` 선언이
+ * 빠져 있어 확인 문구 때문에 «...» 메뉴 안 위험 항목으로 들어가 있었다. */
+const NOTIF_CONFIG = {
+  key: "admin-notifications", area: "운영", title: "관리 알림", endpoint: "/api/notifications",
+  unreadCountKey: "unread",
+  columns: [{ key: "title", label: "제목", identifier: true }],
+  headerActions: [
+    { label: "모두 읽음", variant: "primary", primary: true, when: (ctx) => ctx.unreadCount > 0,
+      path: () => "/api/notifications/read-all", confirm: "관리 알림을 모두 읽음 처리할까요?" },
+  ],
+};
+
+describe("when 이 걸린 주 동작", () => {
+  it("읽을 것이 있으면 머리에 버튼으로 선다 — 넘침 메뉴가 아니다", async () => {
+    apiMock.mockImplementation(() => Promise.resolve({ items: [{ id: "n1", title: "알림 하나" }], total: 1, unread: 3 }));
+    renderScreen(NOTIF_CONFIG);
+    await screen.findByText("알림 하나");
+    expect(screen.getByRole("button", { name: "모두 읽음" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "관리 알림 화면 작업 더 보기" })).toBeNull();
+  });
+
+  it("읽을 것이 없으면 버튼이 없다(반례)", async () => {
+    apiMock.mockImplementation(() => Promise.resolve({ items: [{ id: "n1", title: "알림 하나" }], total: 1, unread: 0 }));
+    renderScreen(NOTIF_CONFIG);
+    await screen.findByText("알림 하나");
+    expect(screen.queryByRole("button", { name: "모두 읽음" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "관리 알림 화면 작업 더 보기" })).toBeNull();
+  });
+});

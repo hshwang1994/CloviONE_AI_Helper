@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 
 import { REGISTRY } from "./registry.js";
+import { canOnboardFor } from "./data-screen/screenHelp.jsx";
 
 /* RG-06: DataScreen.jsx의 canOnboard 게이트("이 온보딩이 가리키는 버튼을 이 역할이 볼 수
  * 있는가")는 create/primary headerAction이 있는 화면을 전제로 짜여 있다. 온보딩 안내
@@ -33,5 +34,29 @@ describe("RG-06 — emptySituation을 쓴 화면은 실제로 렌더될 경로�
     expect(REGISTRY["restore-drills"].forceOnboarding).toBe(true);
     expect(REGISTRY["restore-drills"].create).toBeFalsy();
     expect((REGISTRY["restore-drills"].headerActions || []).some((a) => a.primary)).toBe(false);
+  });
+});
+
+/* P-88 — 주 머리 동작에 `when(ctx)` 가 걸려 있으면 게이트도 그 조건을 본다. 관리 알림의
+ * 「모두 읽음」이 그 조합이다: 읽을 것이 없으면 단추가 없고, 그때 절차 안내도 없어야 한다. */
+describe("canOnboardFor — primary + when 은 지금 보이는 단추만 센다", () => {
+  const cfg = REGISTRY["admin-notifications"];
+  const readAll = (cfg.headerActions || []).find((a) => a.label === "모두 읽음");
+
+  it("관리 알림의 「모두 읽음」은 primary 이고 when 을 갖는다(이 시험의 전제)", () => {
+    expect(readAll.primary).toBe(true);
+    expect(typeof readAll.when).toBe("function");
+    expect(cfg.create).toBeFalsy();
+  });
+
+  it("읽을 것이 있으면 참, 없으면 거짓 — 맥락을 모르면 거짓", () => {
+    expect(canOnboardFor(cfg, "admin", { unreadCount: 3 })).toBe(true);
+    expect(canOnboardFor(cfg, "admin", { unreadCount: 0 })).toBe(false);
+    expect(canOnboardFor(cfg, "admin")).toBe(false);
+  });
+
+  it("반례: when 이 없는 primary(백업 실행)는 맥락 없이도 역할만으로 참이다", () => {
+    expect(canOnboardFor(REGISTRY.backup, "system_admin")).toBe(true);
+    expect(canOnboardFor(REGISTRY.backup, "operator")).toBe(false);
   });
 });

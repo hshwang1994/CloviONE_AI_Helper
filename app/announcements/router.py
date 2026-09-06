@@ -13,7 +13,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, Query, Request
-from pydantic import BaseModel, Field
+from pydantic import Field
 from sqlalchemy import case, func, or_, select
 from sqlalchemy.orm import Session
 
@@ -32,6 +32,7 @@ from app.core.errors import ForbiddenError, NotFoundError, ValidationAppError
 from app.core.pagination import PageParams
 from app.core.safe_url import normalize_external_url
 from app.core.scope import Principal
+from app.core.text import NulFreeModel, clean_required_text
 from app.users.models import ROLE_USER, User
 
 admin_router = APIRouter(
@@ -47,7 +48,10 @@ user_router = APIRouter(
 )
 
 
-class AnnouncementRequest(BaseModel):
+#: 두 요청 모델 다 `NulFreeModel` 을 바탕으로 쓴다. 공지는 전 사용자에게 뜨는 배너라
+#: 연동·스크립트가 만드는 경우가 많고, 그 경로로 들어온 NUL 은 psycopg 가 던지는
+#: `DataError` 까지 내려가 500 이 됐다(XB-04). 한글·이모지는 그대로 저장된다.
+class AnnouncementRequest(NulFreeModel):
     title: str = Field(min_length=1, max_length=200)
     body: str = Field(default="", max_length=4000)
     level: str = Field(default=LEVEL_INFO, max_length=16)
@@ -60,7 +64,7 @@ class AnnouncementRequest(BaseModel):
     link_label: str | None = Field(default=None, max_length=80)
 
 
-class AnnouncementPatch(BaseModel):
+class AnnouncementPatch(NulFreeModel):
     title: str | None = Field(default=None, min_length=1, max_length=200)
     body: str | None = Field(default=None, max_length=4000)
     level: str | None = Field(default=None, max_length=16)
@@ -215,7 +219,10 @@ def create_announcement(
     service.validate_window(starts_at, ends_at)
     now = request.app.state.clock.now()
     row = Announcement(
-        title=payload.title.strip(),
+        # 제목은 공지를 가리키는 유일한 문자열이다. `Field(min_length=1)` 은 strip 하기
+        # 전 길이를 보므로 「   」가 검증을 지나고 `strip()` 이 그것을 빈 제목으로 만들어,
+        # 관리자 목록에도 사용자 배너에도 정체를 알 수 없는 행이 남았다(S-08 · XB-16).
+        title=clean_required_text(payload.title, subject="제목"),
         body=payload.body or "",
         level=payload.level,
         audience=payload.audience,
@@ -261,11 +268,23 @@ def update_announcement(
     # `payload.body or ""`(:152)로 이미 방어하고 있었다 - PATCH 는 넷 다 빠져 있었다.
     # body 는 POST 와 같은 규칙(빈 문자열이 유효한 값)으로 채우고, 나머지 셋은 빈 값이
     # 의미가 없으므로(제목 없는 공지·중요도 없는 공지는 말이 안 된다) 명확한 오류로 막는다.
+    #
+    # XB-05: 그 수정이 `active`·`dismissible` 두 칸을 빼놓았다. 둘도 `bool | None` 이고
+    # 컬럼은 `nullable=False` 라 `{"active": null}` 하나로 같은 500 이 그대로 남아 있었다
+    # — 보내지 않는 것(그대로 둔다)과 null 로 보내는 것(값을 지운다)은 다른 요청이고,
+    # 뒤쪽은 이 공지의 상태를 「없음」으로 만들자는 말이라 성립하지 않는다.
     if "body" in data and data["body"] is None:
         data["body"] = ""
-    for key, label in (("title", "제목"), ("level", "중요도"), ("audience", "대상")):
+    for key, label in (
+        ("title", "제목"), ("level", "중요도"), ("audience", "대상"),
+        ("active", "사용 여부"), ("dismissible", "닫기 허용 여부"),
+    ):
         if key in data and data[key] is None:
             raise ValidationAppError(f"{label}은(는) 비울 수 없습니다.")
+    if "title" in data:
+        # 생성 경로와 같은 규칙이다 — 공백뿐인 제목은 422 이고, 저장하는 값은 검증한
+        # 형태 그대로다. 예전에는 PATCH 가 strip 조차 안 해서 「   」가 그대로 남았다.
+        data["title"] = clean_required_text(data["title"], subject="제목")
     service.validate(
         data.get("level", row.level),
         data.get("audience", row.audience),

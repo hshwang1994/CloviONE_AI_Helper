@@ -4,6 +4,8 @@ import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import { EntityCombobox } from "../ui/filters.jsx";
 import { api } from "../lib/api.js";
+import { CONSOLE_WRITE_ROLES } from "../lib/roles.js";
+import { useAuth } from "../app/auth.jsx";
 import {
   Badge, Button, Callout, Card, DataTable, ErrorState, ListCard, PageHeader,
   MetricStrip, Section, SectionTitle, Skeleton, useToast,
@@ -113,7 +115,24 @@ function MembershipFixer({ ids, onDone, departments }) {
           : { user_ids: ids, department_id: target },
       }),
     onSuccess: (res) => {
-      toast(`${res.changed}명의 소속을 지정했습니다.`);
+      /* 🔴 **건너뛴 사람을 말하지 않으면 아무도 모른다**(R5-04). 서버는 행마다 사유를 함께
+         주는데(`app/integrity/service.py::_skip_reason` — 없는 계정·보관·비활성·이미 소속
+         있음) 화면은 바뀐 건수만 읽고 있었다. 50명을 골랐는데 48명만 바뀐 회차가 「48명의
+         소속을 지정했습니다」로 끝나면, 남은 둘은 다음에 이 화면을 다시 열 때까지 없는
+         사람이 된다. 사유는 종류가 몇 개뿐이라 첫 사유 하나로 요약한다 — 전부 나열하면
+         토스트가 화면을 덮는다. */
+      const skipped = Array.isArray(res.skipped) ? res.skipped : [];
+      if (skipped.length) {
+        const first = skipped[0] || {};
+        const who = first.display_name || first.user_id || "";
+        toast(
+          `${res.changed}명의 소속을 지정했습니다. ${skipped.length}명은 지정하지 못했습니다.`
+            + (who ? ` ${who}: ${first.reason || ""}` : ` ${first.reason || ""}`),
+          "warn",
+        );
+      } else {
+        toast(`${res.changed}명의 소속을 지정했습니다.`);
+      }
       onDone();
       qc.invalidateQueries({ queryKey: ["integrity"] });
     },
@@ -146,12 +165,23 @@ function MembershipFixer({ ids, onDone, departments }) {
 }
 
 export function Integrity() {
+  const auth = useAuth();
+  const role = auth.data ? auth.data.role : null;
+  /* 일괄 지정은 **전역 관리자**만 할 수 있다 — 서버가 그렇게 막는다(`app/integrity/router.py`
+     `POST /membership` = CONSOLE_WRITE + `_require_global`). 이 화면 자체는 운영자·감사자도
+     여는데(진단은 읽기다), 그 역할에게 지정 폼을 그리면 누르는 순간 403 이고, 부서 후보를
+     받는 요청(`/api/admin/departments` 는 admin 이상)도 화면을 열 때마다 403 으로 실패했다.
+     그래서 폼도 후보 요청도 지정할 수 있는 사람에게만 있다. */
+  const canAssign = role != null && CONSOLE_WRITE_ROLES.includes(role)
+    && (!auth.data || !auth.data.admin_scope || auth.data.admin_scope === "global");
   const q = useQuery({ queryKey: ["integrity"], queryFn: () => api("/api/admin/integrity") });
   // 부서 목록은 일괄 지정 드롭다운에만 쓴다 — 진단 응답에 끼워 넣으면 그 응답이 두 가지
-  // 일을 하게 되고, 부서가 바뀔 때 진단 캐시까지 함께 무효화해야 한다.
+  // 일을 하게 되고, 부서가 바뀔 때 진단 캐시까지 함께 무효화해야 한다. `page_size` 는
+  // 없다 — 그 API 에 페이지가 없어서 전건이 온다(P-76: 있는 척하는 인자를 지웠다).
   const depts = useQuery({
     queryKey: ["integrity", "departments"],
-    queryFn: () => api("/api/admin/departments?active=true&page_size=200"),
+    queryFn: () => api("/api/admin/departments?active=true"),
+    enabled: canAssign,
   });
 
   if (q.isError) return <ErrorState error={q.error} onRetry={() => q.refetch()} />;
@@ -195,7 +225,7 @@ export function Integrity() {
                   key={f.key}
                   finding={f}
                   onFix={
-                    f.key === "users_without_membership"
+                    f.key === "users_without_membership" && canAssign
                       ? (ids, reset) => (
                           <MembershipFixer ids={ids} onDone={reset} departments={departments} />
                         )

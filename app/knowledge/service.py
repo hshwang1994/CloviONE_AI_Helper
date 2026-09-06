@@ -31,7 +31,12 @@ from app.authz.visibility import (
 )
 from app.core.errors import ConflictError, NotFoundError, ValidationAppError
 from app.core.models_base import utcnow
-from app.core.ownership import OWNER_ORGANIZATION, OWNER_PROJECT
+from app.core.ownership import (
+    OWNER_DEPARTMENT,
+    OWNER_ORGANIZATION,
+    OWNER_PROJECT,
+    STORED_OWNER_KINDS,
+)
 from app.knowledge import (
     blocks,
     categories,
@@ -199,6 +204,10 @@ def create_space(
         confidential=bool(confidential),
         created_by=user.id,
     )
+    # 수정과 **같은 문**을 지난다 (CLAUDE.md §5). 짝 맞추기를 수정에만 걸어 두면, 같은
+    # 짝 제약(`ck_kspace_dept_pair`·`ck_kspace_project_pair`)을 같은 모양으로 어기는 생성이
+    # 그대로 원인 없는 500 을 낸다 — `{"owner_kind": "department"}` 만 보내는 요청이 그것이다.
+    _settle_owner_pair(db, space)
     db.add(space)
     db.flush()
     return space
@@ -322,20 +331,103 @@ def resolve_or_create_common_space(db: Session, user: User) -> KnowledgeSpace:
     return space
 
 
+#: 값을 비울 수 없는 칸. 여기에 명시적 `null` 이 오면 거절한다 — 조용히 버리면 화면은
+#: 「저장했습니다」를 띄우고 값은 그대로다.
+_REQUIRED_SPACE_FIELDS = {
+    # 조사를 라벨에 붙여 둔다 — 받침이 제각각이라 「은(는)」 같은 괄호 표기로는
+    # 완전한 문장이 되지 않는다(CLAUDE.md §10).
+    "name": "공간 이름은", "description": "공간 설명은",
+    "confidential": "열람 제한은", "archived": "보관 여부는",
+    # 🔴 `owner_kind` 는 **비울 수 있는 칸이 아니다.** 컬럼이 NOT NULL 이라 명시적 null 을
+    # 그대로 실어 보내면 flush 에서 원인이 안 적힌 500 이 나는데, 그것은 아래 docstring 이
+    # 없애려던 바로 그 500 이다. 「소유가 없다」는 뜻은 `unset` 이라는 값으로 말한다
+    # (`app/core/ownership.py::OWNER_UNSET` — 스키마의 허용 값에 이미 들어 있다).
+    "owner_kind": "공간 소유는",
+}
+
+#: 소유 종류마다 **짝이 되는 칸**. 종류를 바꾸면 짝도 함께 정리해야 DB 의 짝 제약
+#: (`ck_kspace_dept_pair` · `ck_kspace_project_pair`)을 만족한다.
+_OWNER_PARTNER = {OWNER_DEPARTMENT: "owner_dept_id", OWNER_PROJECT: "owner_project_id"}
+
+
 def update_space(
     db: Session, user: User, space_id: str, *, expected_version: int | None = None, **fields
 ) -> KnowledgeSpace:
+    """공간 수정. **보낸 것은 값이 `null` 이어도 반영한다.**
+
+    예전에는 `fields[key] is not None` 인 것만 반영해서, 「소유를 조직으로 되돌린다」는 뜻인
+    `{"owner_kind": "organization", "owner_dept_id": null}` 이 앞의 절반만 저장됐다. 그러면
+    부서 소유가 아닌데 부서 id 는 남아 DB 의 짝 제약이 깨지고, 사용자가 보는 것은 원인이
+    안 적힌 500 이다(org-05). 라우터가 `exclude_unset` 으로 「안 보냄」과 「null 을 보냄」을
+    이미 갈라 두었는데 그 정보를 여기서 다시 뭉갠 것이다 —
+    `app/org/service.py::update_item` 이 `_UNSET` 표식으로 푼 것과 같은 함정이다.
+
+    부서 삭제가 409 로 안내하는 유일한 정리 경로가 이 PATCH 라, 여기가 막히면 부서 소유
+    공간이 있는 부서는 제품 안에서 영영 못 지운다.
+
+    ## 「보낸 것은 반영한다」가 「무엇이든 저장한다」는 아니다
+
+    비울 수 없는 칸(`_REQUIRED_SPACE_FIELDS`)에 명시적 `null` 이 오면 **422 로 거절한다.**
+    조용히 버리면 화면은 「저장했습니다」를 띄우고 값은 그대로이고, 그대로 실어 보내면
+    NOT NULL 컬럼에서 원인이 안 적힌 500 이 난다 — 이 함수가 없애려던 그 500 이다.
+    `owner_kind` 도 그 칸이다: 소유를 없앤다는 뜻은 null 이 아니라 `unset` 이라는 값이다.
+    """
     space = get_scoped_space_or_404(db, user, space_id)
     _check_lock(space, expected_version)
 
+    for key, label in _REQUIRED_SPACE_FIELDS.items():
+        if key in fields and fields[key] is None:
+            raise ValidationAppError(f"{label} 비워둘 수 없습니다.")
+
     for key in ("name", "description", "owner_kind", "owner_dept_id",
                 "owner_project_id", "confidential", "archived"):
-        if key in fields and fields[key] is not None:
+        if key in fields:
             value = fields[key]
             setattr(space, key, value.strip() if isinstance(value, str) else value)
+    _settle_owner_pair(db, space)
     space.version += 1
     db.flush()
     return space
+
+
+def _settle_owner_pair(db: Session, space: KnowledgeSpace) -> None:
+    """소유 종류와 그 대상을 **한 벌로** 맞춘다. 어긋난 채 저장되면 500 이다.
+
+    * 부서·프로젝트 소유인데 대상이 없다 → 422. 무엇을 빠뜨렸는지 말해 준다.
+    * 조직 공통·미지정으로 바꿨다 → 남아 있던 부서·프로젝트 id 를 서비스가 지운다.
+      사용자가 「소유를 조직으로」라고 말한 뜻이 그것이고, 그 정리를 화면에 시키면
+      화면마다 다르게 한다.
+    * 대상이 실재하는지도 본다 — 없는 id 는 FK 에서 500 이 되고, 그 500 에는 원인이 없다.
+
+    **생성과 수정이 함께 지나는 문이다.** 한쪽에만 걸면 같은 제약이 다른 쪽에서 그대로
+    깨진다. 그래서 판정은 요청 본문이 아니라 **행**에 대고 한다 — 어느 경로로 왔든 flush
+    직전의 행 하나만 보면 된다.
+    """
+    if space.owner_kind not in STORED_OWNER_KINDS:
+        # 여기까지 온 값이 저장 가능한 갈래가 아니면 `ck_kspace_owner_kind` 가 거절한다.
+        # 스키마가 이미 거르지만 이 함수는 flush 직전의 마지막 문이라 스스로 판정한다 —
+        # 내부 호출자(`resolve_or_create_*`·이관)는 스키마를 지나지 않는다.
+        raise ValidationAppError("공간 소유 종류를 알 수 없습니다.")
+    partner = _OWNER_PARTNER.get(space.owner_kind)
+    for kind, column in _OWNER_PARTNER.items():
+        if kind != space.owner_kind:
+            setattr(space, column, None)
+    if partner is None:
+        return
+    value = getattr(space, partner)
+    if not value:
+        label = "부서" if space.owner_kind == OWNER_DEPARTMENT else "프로젝트"
+        raise ValidationAppError(f"{label} 소유로 두려면 {label}를 지정해야 합니다.")
+    if space.owner_kind == OWNER_DEPARTMENT:
+        from app.org.models import Department
+
+        if db.get(Department, value) is None:
+            raise ValidationAppError("알 수 없는 부서입니다.")
+    else:
+        from app.projects.models import Project
+
+        if db.get(Project, value) is None:
+            raise ValidationAppError("알 수 없는 프로젝트입니다.")
 
 
 def _check_lock(row, expected_version: int | None) -> None:

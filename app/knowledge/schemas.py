@@ -40,8 +40,21 @@ class SpaceCreate(BaseModel):
 
 
 class SpaceUpdate(BaseModel):
+    """부분 수정. `None` 은 「안 보냈다」가 아니라 **「null 을 보냈다」일 수도 있다.**
+
+    라우터가 `model_dump(exclude_unset=True)` 로 그 둘을 가르고, 「비울 수 없는 칸에 온
+    null」은 서비스가 422 로 거절한다(`service._REQUIRED_SPACE_FIELDS`). 여기서 타입을
+    `str`(필수)로 좁히지 못하는 이유가 그것이다 — 그러면 「안 보냈다」를 표현할 길이 없다.
+
+    그래서 **비울 수 있는 칸과 없는 칸이 이 스키마의 모양으로는 구별되지 않는다.** 갈라
+    적어 둔다: `owner_dept_id`·`owner_project_id` 는 null 이 「소유 대상을 뗀다」는 뜻이고,
+    `name`·`description`·`confidential`·`archived`·`owner_kind` 는 null 이 거절이다.
+    소유를 없앤다는 뜻은 `owner_kind: "unset"` 이라는 값으로 말한다.
+    """
+
     name: str | None = Field(default=None, min_length=1, max_length=200)
     description: str | None = Field(default=None, max_length=2000)
+    # 값 목록에 `unset` 이 들어 있다 — 「소유 없음」은 null 이 아니라 이 값이다.
     owner_kind: str | None = Field(
         default=None, pattern="^(" + "|".join(_OWNER_KINDS) + ")$"
     )

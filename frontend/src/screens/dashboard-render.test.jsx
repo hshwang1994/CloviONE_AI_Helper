@@ -244,17 +244,20 @@ describe("대시보드 — 유지보수 모드", () => {
 });
 
 describe("대시보드 — 조치 버튼의 권한 노출(PA-RC-0018 acceptance criteria 12)", () => {
-  it("작업 큐에 갈 수 없는 역할(auditor)에게는 실패 작업 경보 버튼이 비활성이다", async () => {
+  it("진단에 갈 수 없는 역할(auditor)에게는 진단 경보 버튼이 비활성이고, 큐 경보는 활성이다", async () => {
     mockRole = "auditor";
-    apiMock.mockResolvedValue({ jobs_24h: { failed_open: 3 } });
+    apiMock.mockResolvedValue({ jobs_24h: { failed_open: 3 }, cert_days_remaining: 3 });
     renderDashboard();
 
     expect(await screen.findByText("지금 상태")).toBeInTheDocument();
-    // auditor는 /jobs 권한이 없다(NAV_ROLES) — 라벨에 "관리자 문의"가 붙고, 갈 곳이 없으니
-    // 버튼도 "작업 큐 열기"라고 거짓 약속하지 않고 "이동 불가"로 비활성 표시한다.
-    expect(screen.getByText(/실패 작업.*관리자 문의/)).toBeInTheDocument();
+    // auditor는 /diagnostics 권한이 없다(SCREEN_ROLES) — 라벨에 "관리자 문의"가 붙고, 갈 곳이
+    // 없으니 버튼도 "진단 열기"라고 거짓 약속하지 않고 "이동 불가"로 비활성 표시한다.
+    expect(screen.getByText(/인증서 만료.*관리자 문의/)).toBeInTheDocument();
     const btn = screen.getByRole("button", { name: "이동 불가" });
     expect(btn).toBeDisabled();
+    // 작업 큐 읽기는 감사자에게 열렸다(app/jobs/router.py) — 실패 작업 경보는 큐로 간다.
+    expect(screen.queryByText(/실패 작업.*관리자 문의/)).toBeNull();
+    expect(screen.getByRole("button", { name: "작업 큐 열기" })).not.toBeDisabled();
   });
 
   it("작업 큐에 갈 수 있는 역할(operator)에게는 같은 경보 버튼이 활성이다", async () => {

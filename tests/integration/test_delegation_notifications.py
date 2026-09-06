@@ -138,6 +138,162 @@ def test_an_expired_delegation_says_so_instead_of_permission_denied(db, pair):
     )
 
 
+# ── 사람이 읽는 시각은 KST 다 (perm-04) ──────────────────────────────────────
+#
+# 저장은 naive UTC 이고 화면은 KST 로 그린다. 그런데 **서버가 완성된 문장을 만드는 세 자리**
+# (위임 알림 본문 · 겹침 409 · 권한 없음 403)는 화면이 고칠 수 없어서, 대리인이 자기 권한
+# 기간을 하루 어긋나게 알고 관리자는 9시간 어긋난 창을 피해 다시 시도하다 또 409 를 받았다.
+
+# UTC 17:00 은 KST 로 **다음 날** 02:00 이다 — 이 경계가 어긋남을 눈에 보이게 한다.
+_UTC_EVENING = datetime(2026, 8, 1, 17, 0)
+
+
+def test_the_delegation_notice_speaks_in_kst(db, pair):
+    a, b = pair
+    from app.approvals import delegation
+
+    delegation.create(
+        db, delegator=a, delegate=b,
+        starts_at=_UTC_EVENING, ends_at=_UTC_EVENING + timedelta(days=3),
+        reason=None, created_by=a.id, now=_UTC_EVENING - timedelta(hours=1), visible=None,
+    )
+    db.commit()
+
+    body = [n for n in _notifications_for(db, b.id) if n.type == "approval_delegated"][0].body
+    assert "08월 02일부터 08월 05일까지" in body, (
+        f"저장된 UTC 를 그대로 찍는다 — 대리인이 하루 어긋난 기간을 안다: {body}"
+    )
+
+
+def test_the_overlap_message_speaks_in_kst(db, pair):
+    from app.approvals import delegation
+    from app.core.errors import ConflictError
+
+    a, b = pair
+    now = _UTC_EVENING - timedelta(hours=1)
+    delegation.create(
+        db, delegator=a, delegate=b,
+        starts_at=_UTC_EVENING, ends_at=_UTC_EVENING + timedelta(days=3),
+        reason=None, created_by=a.id, now=now, visible=None,
+    )
+    db.commit()
+
+    with pytest.raises(ConflictError) as exc:
+        delegation.create(
+            db, delegator=a, delegate=b,
+            starts_at=_UTC_EVENING + timedelta(days=1),
+            ends_at=_UTC_EVENING + timedelta(days=2),
+            reason=None, created_by=a.id, now=now, visible=None,
+        )
+    assert "08월 02일 02시부터 08월 05일 02시까지" in exc.value.message, (
+        f"겹침 안내가 실제와 9시간 다른 창을 알려 준다: {exc.value.message}"
+    )
+
+
+def test_a_revoked_delegation_says_it_was_revoked_not_that_it_ended(db, pair):
+    """회수된 위임에 `ends_at` 을 말하면 **아직 오지 않은 시각**을 「끝난 시각」이라고 한다.
+    「스스로 끝났다」와 「관리자가 거뒀다」는 다른 사건이라 다른 문장을 준다."""
+    from app.approvals import delegation
+    from app.core.errors import ForbiddenError
+
+    a, b = pair
+    start = datetime(2026, 8, 1, 9, 0)
+    row = delegation.create(
+        db, delegator=a, delegate=b,
+        starts_at=start, ends_at=start + timedelta(days=30),
+        reason=None, created_by=a.id, now=start, visible=None,
+    )
+    db.commit()
+
+    revoked_at = start + timedelta(days=1)
+    delegation.revoke(db, row, now=revoked_at)
+    db.commit()
+
+    with pytest.raises(ForbiddenError) as exc:
+        delegation.require_decider(db, b, revoked_at + timedelta(hours=1))
+    message = exc.value.message
+    assert "거두었습니다" in message, f"거둔 위임을 「끝났다」고 말한다: {message}"
+    assert "08월 31일" not in message, f"아직 오지 않은 종료 시각을 말한다: {message}"
+
+
+# ── 지난 기간 · 끝난 위임 (perm-19 · perm-18) ────────────────────────────────
+
+
+def test_a_delegation_that_is_already_over_cannot_be_created(db, pair):
+    """만들자마자 「종료」인 위임은 아무 권한도 주지 않는데 대리인에게는 「승인할 수
+    있습니다」 통보가 나가고 관리자는 성공 토스트를 본다 — 연도 오타가 조용히 통과한다."""
+    from app.approvals import delegation
+    from app.core.errors import ValidationAppError
+
+    a, b = pair
+    now = datetime(2026, 8, 10, 9, 0)
+    with pytest.raises(ValidationAppError) as exc:
+        delegation.create(
+            db, delegator=a, delegate=b,
+            starts_at=now - timedelta(days=40), ends_at=now - timedelta(days=35),
+            reason=None, created_by=a.id, now=now, visible=None,
+        )
+    assert "지난 기간" in exc.value.message, exc.value.message
+    assert not _notifications_for(db, b.id), "만들지 않은 위임의 통보가 나갔다"
+
+
+def test_a_future_window_is_still_accepted(db, pair):
+    """오탐 방지 — 예약 위임(아직 시작 전)까지 막히면 부재 대비가 불가능하다."""
+    from app.approvals import delegation
+
+    a, b = pair
+    now = datetime(2026, 8, 10, 9, 0)
+    row = delegation.create(
+        db, delegator=a, delegate=b,
+        starts_at=now + timedelta(days=5), ends_at=now + timedelta(days=8),
+        reason=None, created_by=a.id, now=now, visible=None,
+    )
+    db.commit()
+    assert delegation.state(row, now) == "scheduled"
+
+
+def test_an_already_ended_delegation_cannot_be_revoked(db, pair):
+    """「저절로 닫혔다」와 「관리자가 거뒀다」는 다른 사실인데 호출 한 번으로 뒤바뀌었다 —
+    상태가 「거둠」이 되고 목록의 종료 시각도 오늘로 바뀐다."""
+    from app.approvals import delegation
+    from app.core.errors import ConflictError
+
+    a, b = pair
+    start = datetime(2026, 8, 1, 9, 0)
+    row = delegation.create(
+        db, delegator=a, delegate=b,
+        starts_at=start, ends_at=start + timedelta(days=1),
+        reason=None, created_by=a.id, now=start, visible=None,
+    )
+    db.commit()
+
+    after_end = start + timedelta(days=5)
+    with pytest.raises(ConflictError):
+        delegation.revoke(db, row, now=after_end)
+    db.refresh(row)
+    assert row.revoked_at is None, "거둘 수 없다고 했는데 회수 시각이 찍혔다"
+    assert delegation.state(row, after_end) == "ended"
+
+
+def test_a_live_delegation_can_still_be_revoked(db, pair):
+    """오탐 방지 — 진행 중·예약 위임의 회수는 그대로 된다."""
+    from app.approvals import delegation
+
+    a, b = pair
+    start = datetime(2026, 8, 1, 9, 0)
+    row = delegation.create(
+        db, delegator=a, delegate=b,
+        starts_at=start, ends_at=start + timedelta(days=3),
+        reason=None, created_by=a.id, now=start, visible=None,
+    )
+    db.commit()
+
+    delegation.revoke(db, row, now=start + timedelta(hours=2))
+    db.commit()
+    assert row.revoked_at == start + timedelta(hours=2)
+    assert delegation.state(row, start + timedelta(hours=3)) == "revoked"
+
+
 def test_someone_who_never_had_a_delegation_gets_the_plain_message(db, make_user):
     """오탐 방지 — 위임을 받은 적 없는 사람에게 "끝났습니다" 는 거짓말이다."""
     from app.approvals import delegation

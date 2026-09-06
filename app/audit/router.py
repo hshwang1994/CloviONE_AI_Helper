@@ -22,6 +22,9 @@ from app.core.deps import get_db, get_principal, require_permission
 from app.core.scope import Principal, visible_user_ids
 from app.core.errors import NotFoundError, ValidationAppError
 from app.core.pagination import PageParams
+# 수식 주입 방어는 **한 벌만 둔다**. 사용자 CSV 가 이미 쓰는 그 함수를 그대로 가져다 쓴다 —
+# 여기에 두 번째 구현을 만들면 두 파일의 위험한 문자 목록이 언젠가 갈라진다.
+from app.users.bulk import csv_safe
 from app.users.models import User
 
 router = APIRouter(
@@ -337,13 +340,16 @@ def export_audit_logs(
     for row in rows:
         info = actor_names.get(row.user_id or "", {})
         local = row.created_at.replace(tzinfo=timezone.utc).astimezone(_KST)
+        # 사람이 쓴 값이 든 칸은 전부 `csv_safe` 를 지난다 — 표시 이름은 자유 입력이라
+        # `=`·`+`·`-`·`@` 로 시작할 수 있고, 그 파일을 여는 도구는 엑셀이다(BOM 을 붙이는
+        # 이유가 그것이다). 그러면 감사 파일을 여는 순간 그 칸이 수식으로 실행된다.
         writer.writerow([
             local.strftime("%Y-%m-%d %H:%M:%S"),
-            info.get("display_name") or ("시스템" if not row.user_id else row.user_id),
-            info.get("email") or "",
-            row.action, row.object_type, row.object_id or "",
-            row.result, row.client_ip or "", row.request_id or "",
-            row.before_json or "", row.after_json or "",
+            csv_safe(info.get("display_name") or ("시스템" if not row.user_id else row.user_id)),
+            csv_safe(info.get("email") or ""),
+            csv_safe(row.action), csv_safe(row.object_type), csv_safe(row.object_id or ""),
+            csv_safe(row.result), csv_safe(row.client_ip or ""), csv_safe(row.request_id or ""),
+            csv_safe(row.before_json or ""), csv_safe(row.after_json or ""),
         ])
     if truncated:
         writer.writerow(_truncation_notice(limit))

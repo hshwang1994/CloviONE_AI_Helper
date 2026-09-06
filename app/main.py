@@ -79,6 +79,7 @@ from app.knowledge.router import router as knowledge_router
 from app.storage.router import router as storage_router
 from app.work.router import router as work_router
 from app.team_chat.router import router as team_chat_router
+from app.users.people_router import router as people_router
 from app.users.router import router as users_admin_router
 
 APP_DIR = Path(__file__).resolve().parent
@@ -217,6 +218,10 @@ def create_app(
     app.include_router(profiles_router)
     app.include_router(chat_router)
     app.include_router(users_admin_router)
+    # 사람 찾기(FP-D) — 사용자 관리 옆에 둔다. 같은 표를 읽되 게이트가 다르다:
+    # 운영자·감사자가 승인·감사·대리 접속·쿼터 화면의 사람 필터를 채울 수 있어야 하는데,
+    # 사용자 관리(USER_MANAGE)를 열어 주지 않고 그것만 되게 하는 읽기 전용 경로다.
+    app.include_router(people_router)
     app.include_router(offboarding_router)
     app.include_router(rbac_matrix_router)
     app.include_router(impersonation_router)

@@ -149,6 +149,56 @@ def test_a_department_admin_cannot_revoke_another_departments_delegation(
     assert row.revoked_at is None, "요청은 404 였는데 실제로는 취소됐다"
 
 
+# ── 대리인이 될 수 있는 역할 (perm-22) ──────────────────────────────────────
+#
+# 범위와 역할은 직교한다. 위쪽 시험들이 **범위**를 보는 것과 달리, 아래 둘은 위임이 역할
+# 경계를 도는 문이 되지 않는지를 본다.
+
+
+def test_a_delegation_cannot_hand_decisions_to_an_auditor(client, login_as, db, make_user):
+    """감사자는 이 저장소가 「읽기 전용 가지」로 정의한 역할이라 쓰기 역할 묶음에 절대 들어가지
+    않는다(app/core/authz.py). 위임으로 결재 권한이 붙으면 감사자가 자기가 감사할 결정을
+    스스로 내리고, 권한 매트릭스 화면이 말하는 것과 실제가 달라진다."""
+    boss = make_user("deleg-role-boss@goodmit.co.kr", role="admin", display_name="관리자")
+    auditor = make_user("deleg-role-auditor@goodmit.co.kr", role="auditor", display_name="감사자")
+    db.commit()
+
+    csrf = login_as("system_admin", email="deleg-role-root@goodmit.co.kr")
+    r = client.post(
+        "/api/admin/approval-delegations",
+        json={
+            "delegator_user_id": boss.id,
+            "delegate_user_id": auditor.id,
+            "starts_at": "2026-08-22T00:00:00",
+            "ends_at": "2026-08-23T00:00:00",
+        },
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert r.status_code == 422, f"감사자에게 결재 권한이 위임됐다: {r.status_code} {r.text}"
+    assert "감사자" in r.json()["error"]["message"]
+
+
+def test_a_delegation_to_an_operator_is_still_allowed(client, login_as, db, make_user):
+    """오탐 방지 — 위임의 목적이 「평소 결재할 수 없는 운영자가 부재 기간에 결재한다」이므로
+    그 길까지 막으면 기능 자체가 사라진다(app/approvals/delegation.py 머리말)."""
+    boss = make_user("deleg-role-boss2@goodmit.co.kr", role="admin", display_name="관리자2")
+    operator = make_user("deleg-role-op@goodmit.co.kr", role="operator", display_name="운영자")
+    db.commit()
+
+    csrf = login_as("system_admin", email="deleg-role-root2@goodmit.co.kr")
+    r = client.post(
+        "/api/admin/approval-delegations",
+        json={
+            "delegator_user_id": boss.id,
+            "delegate_user_id": operator.id,
+            "starts_at": "2026-08-22T00:00:00",
+            "ends_at": "2026-08-23T00:00:00",
+        },
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert r.status_code == 201, f"운영자에게 위임할 수 없다: {r.status_code} {r.text}"
+
+
 def test_a_global_admin_still_sees_and_revokes_everything(
     client, login_as, db, two_departments, fake_clock
 ):

@@ -35,6 +35,31 @@ from app.schedules.models import (
 
 logger = logging.getLogger("app.scheduler")
 
+#: 재시도 횟수의 허용 범위. 스키마 경계(app/schedules/router.py::ScheduleRequest)와
+#: 실행 경계(_max_attempts)가 **같은 값**을 본다 — 두 곳이 갈라지면 저장은 되는데 실행은
+#: 안 되는 값이 다시 생긴다.
+MAX_ATTEMPTS_FLOOR = 1
+MAX_ATTEMPTS_CEILING = 10
+MAX_ATTEMPTS_DEFAULT = 3
+
+#: 저장된 재시도 정책을 읽을 수 없을 때 실행 이력에 남기는 문장. 운영자가 실행 이력의
+#: '오류' 칸에서 바로 읽고 무엇을 고치면 되는지 알 수 있어야 한다.
+UNREADABLE_RETRY_POLICY_MESSAGE = (
+    "재시도 정책을 읽을 수 없어 이 실행을 시작하지 못했습니다. "
+    "일정을 수정해 재시도 횟수를 1~10 사이 정수로 고치면 다시 실행할 수 있습니다."
+)
+
+
+class InvalidRetryPolicy(ValueError):
+    """저장된 `retry_policy` 를 실행 계획으로 읽을 수 없다.
+
+    `int(policy["max_attempts"])` 가 그대로 터지면 수동 실행은 500 이 되고 자동 실행은
+    tick 의 포괄 except 에 삼켜져 **아무 흔적도 남지 않는다**. 전용 예외로 올려 두면
+    부르는 쪽이 "실행을 실패로 남긴다"(자동)와 "무엇을 고치라고 답한다"(수동)를 갈라
+    처리할 수 있다.
+    """
+
+
 DEFAULT_MISFIRE_GRACE_SECONDS = 300
 # once 스케줄은 다음 발생이 없어 skip이 곧 영구 소실이다. grace를 넘겨 misfire로 판정돼도
 # 이 창 안이면 지금이라도 한 번 따라잡아 실행한다. 창을 넘기면 진짜 버리되 소유자에게 알린다.
@@ -71,6 +96,42 @@ def _has_active_run(db: Session, schedule_id: str) -> bool:
     )
 
 
+def _insert_run(
+    db: Session,
+    schedule: Schedule,
+    *,
+    scheduled_at: datetime,
+    now: datetime,
+    key: str,
+    status: str,
+    error_message: str | None = None,
+) -> ScheduleRun | None:
+    """실행 행 하나를 넣는다 — 멱등 키가 이미 있으면 `None`(남이 먼저 가져갔다).
+
+    큐에 넣을 실행과 시작도 못 한 실행이 **같은 자리**를 쓴다. 두 경로가 각자 INSERT 를
+    쓰면 한쪽만 멱등 키를 지키게 되고, 그 순간 같은 발생에 행이 둘 생긴다.
+    """
+    run = ScheduleRun(
+        schedule_id=schedule.id,
+        scheduled_at=scheduled_at,
+        idempotency_key=key,
+        status=status,
+        request_payload_json=schedule.payload_template_json,
+        created_at=now,
+        error_message=error_message,
+        started_at=now if status == RUN_FAILED else None,
+        finished_at=now if status == RUN_FAILED else None,
+    )
+    try:
+        with db.begin_nested():
+            db.add(run)
+            db.flush()
+    except IntegrityError:
+        logger.info("run %s already claimed by another instance", key)
+        return None
+    return run
+
+
 def create_run_and_enqueue(
     db: Session,
     schedule: Schedule,
@@ -81,22 +142,29 @@ def create_run_and_enqueue(
     manual: bool = False,
 ) -> ScheduleRun | None:
     """Insert the run row (idempotency gate) and enqueue its job.
-    Returns None if another instance already owns this occurrence."""
+    Returns None if another instance already owns this occurrence.
+
+    재시도 정책을 읽을 수 없으면 **예외로 빠져나가지 않고 그 실행을 실패로 남긴다.**
+    예전에는 여기서 터진 예외가 자동 실행(tick)에서는 로그 한 줄로 삼켜지고 수동
+    실행에서는 500 이 됐다 — 둘 다 실행 이력에 아무 행도 남기지 않아서, 관리자에게는
+    "아직 시간이 안 됐다" 와 "이 일정은 영원히 못 돈다" 가 똑같이 보였다.
+    """
     key = key or run_key(schedule.id, scheduled_at)
-    run = ScheduleRun(
-        schedule_id=schedule.id,
-        scheduled_at=scheduled_at,
-        idempotency_key=key,
-        status=RUN_QUEUED,
-        request_payload_json=schedule.payload_template_json,
-        created_at=now,
-    )
     try:
-        with db.begin_nested():
-            db.add(run)
-            db.flush()
-    except IntegrityError:
-        logger.info("run %s already claimed by another instance", key)
+        attempts = _max_attempts(schedule)
+    except InvalidRetryPolicy:
+        logger.warning(
+            "schedule %s: 재시도 정책을 읽을 수 없어 실행을 실패로 남긴다", schedule.id
+        )
+        return _insert_run(
+            db, schedule, scheduled_at=scheduled_at, now=now, key=key,
+            status=RUN_FAILED, error_message=UNREADABLE_RETRY_POLICY_MESSAGE,
+        )
+
+    run = _insert_run(
+        db, schedule, scheduled_at=scheduled_at, now=now, key=key, status=RUN_QUEUED
+    )
+    if run is None:
         return None
 
     jobs_repo.enqueue(
@@ -105,7 +173,7 @@ def create_run_and_enqueue(
         payload={"schedule_run_id": run.id, "schedule_id": schedule.id, "manual": manual},
         now=now,
         idempotency_key=f"schedrun:{key}",
-        max_attempts=_max_attempts(schedule),
+        max_attempts=attempts,
     )
     return run
 
@@ -181,11 +249,29 @@ def sweep_zombie_runs(db: Session, *, now: datetime, grace_seconds: float = ZOMB
 
 
 def _max_attempts(schedule: Schedule) -> int:
+    """이 스케줄의 잡에 실을 최대 시도 횟수.
+
+    **정수가 아닌 값은 기본값으로 눙치지 않는다.** 예전에는 `int(...)` 가 그 자리에서
+    ValueError 로 터졌고, 그 예외가 수동 실행에서는 500 으로, 자동 실행에서는 로그 한
+    줄로 끝났다 — 어느 쪽도 관리자가 "이 일정은 못 돈다" 를 알 수 있는 신호가 아니다.
+    기본값 3 으로 조용히 떨어뜨리는 것도 답이 아니다: 관리자가 적어 넣은 값과 다른
+    횟수로 도는 것이라 화면이 말하는 정책과 실제 동작이 갈린다.
+
+    범위를 벗어난 **정수**는 예전처럼 자른다(1~10). 그 값들은 이미 저장돼 돌고 있고,
+    자르기는 예전부터 정의돼 있던 동작이라 지금 실패로 바꾸면 멀쩡히 돌던 일정이 멈춘다.
+    새로 들어오는 값은 스키마가 이미 범위 안으로 막는다.
+    """
     try:
-        policy = json.loads(schedule.retry_policy_json)
-    except json.JSONDecodeError:
-        policy = {}
-    return max(1, min(int(policy.get("max_attempts", 3)), 10))
+        policy = json.loads(schedule.retry_policy_json or "{}")
+    except json.JSONDecodeError as exc:
+        raise InvalidRetryPolicy("retry_policy가 JSON이 아닙니다.") from exc
+    if not isinstance(policy, dict):
+        raise InvalidRetryPolicy("retry_policy는 객체여야 합니다.")
+    raw = policy.get("max_attempts", MAX_ATTEMPTS_DEFAULT)
+    # bool 은 int 의 하위형이다 — True 를 1 로 읽으면 잘못 저장된 값을 삼키게 된다.
+    if isinstance(raw, bool) or not isinstance(raw, int):
+        raise InvalidRetryPolicy("max_attempts는 정수여야 합니다.")
+    return max(MAX_ATTEMPTS_FLOOR, min(raw, MAX_ATTEMPTS_CEILING))
 
 
 class SchedulerService:
@@ -232,6 +318,15 @@ class SchedulerService:
         if schedule.start_at is not None and now < schedule.start_at:
             return False
 
+        # 유효 기간의 끝은 **실행 직전에도** 본다. 지금까지 `end_at` 은 다음 실행 시각을
+        # 계산한 **뒤**에만 읽혔다(advance_next_run) — 그래서 기간이 이미 끝난 일정을
+        # 활성화하면 그 일정은 창 밖에서 한 번은 실제로 돌고 그 다음에야 내려갔다.
+        # 관리자가 목록의 '종료' 열을 읽는 뜻은 "그 시각 뒤에는 안 돈다"이다.
+        if schedule.end_at is not None and scheduled_at > schedule.end_at:
+            schedule.enabled = False
+            schedule.next_run_at = None
+            return False
+
         # Misfire (spec §18.4): the occurrence is long past (server downtime).
         if now - scheduled_at > self._grace:
             if schedule.misfire_policy == MISFIRE_SKIP:
@@ -264,7 +359,9 @@ class SchedulerService:
         run = create_run_and_enqueue(db, schedule, scheduled_at=scheduled_at, now=now)
         schedule.last_run_at = now
         advance_next_run(schedule, after=max(scheduled_at, now))
-        return run is not None
+        # tick 의 반환값은 "몇 건을 큐에 넣었나"다. 시작도 못 하고 실패로 남은 실행을
+        # 여기서 세면 그 수가 거짓말이 된다(실행 이력에는 그 실패가 남아 있다).
+        return run is not None and run.status == RUN_QUEUED
 
     def _record_skip(
         self,

@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.core.deps import get_db, get_current_user, require_csrf
 from app.core.etag import etag_json_response
-from app.core.errors import NotFoundError
+from app.core.errors import NotFoundError, ValidationAppError
 from app.core.pagination import PageParams
 from app.core.sort import SortParams, SortSpec, order_by
 from app.notifications.destinations import destination_for
@@ -255,14 +255,36 @@ def read_all_notifications(
     한 번이 백업 실패·계정 잠금 같은 **그 화면에 나온 적 없는 관리 알림까지** 읽음으로
     바꿔 버린다. 관리자 콘솔 벨은 그 뒤로 0 을 띄우고, 조치가 필요한 사건은 아무도 못 본 채
     조용히 묻힌다. 두 콘솔을 경로부터 갈라 놓은 이유(0060)가 여기서도 그대로 적용된다.
+
+    모르는 값은 **422 로 거절한다** — 목록·배지처럼 전체로 폴백하지 않는다. 읽기에서 폴백은
+    「전체가 보인다」로 끝나지만, 여기서는 오타 하나(`admn`)가 곧 위 문단의 사고 그 자체가
+    된다: 화면은 자기 콘솔만 지웠다고 믿는데 두 콘솔이 다 읽음이 된다.
     """
     count = mark_all_read(
         db,
         user.id,
         now=request.app.state.clock.now(),
-        audience=audience if audience in AUDIENCES else None,
+        audience=_audience_for_write(audience),
     )
     return {"ok": True, "read_count": count}
+
+
+def _audience_for_write(audience: str | None) -> str | None:
+    """쓰기 경로의 `audience` 해석 — 없으면 전체(None), 모르는 값이면 422.
+
+    읽기 경로(`list_notifications`·`get_unread_count`)는 모르는 값을 전체로 폴백한다. 그쪽은
+    잘못 보여 주는 것이 최악이고 그마저 「더 많이 보인다」에 그친다. 쓰기는 다르다 — 폴백이
+    곧 「화면에 없던 알림까지 지운다」라, 같은 관용을 쓰면 안 된다. 그래서 헬퍼를 따로 두고
+    쓰기 경로만 이것을 지나게 한다.
+    """
+    if not audience:
+        return None
+    if audience not in AUDIENCES:
+        raise ValidationAppError(
+            f"알 수 없는 알림 대상 '{audience}' 입니다. "
+            "대상은 'user'(내 업무) 또는 'admin'(관리) 중 하나여야 합니다."
+        )
+    return audience
 
 
 @router.post("/{notification_id}/read", dependencies=[Depends(require_csrf)])

@@ -360,3 +360,71 @@ def any_assignee_visible(
     if visible is None:
         return True
     return any(uid in visible for uid in assignee_user_ids if uid)
+
+
+def require_global_management(principal: Principal, what: str, *, verb: str = "바꿀") -> None:
+    """포탈 **전체**에 걸리는 것을 바꾸려면 관리 범위가 전역이어야 한다.
+
+    ## 왜 역할만으로는 모자란가
+
+    역할(`CONSOLE_WRITE_ROLES`)과 관리 범위(`admin_scope`)는 **다른 축**이다(D-233). 부서
+    범위 관리자도 `admin` 이라 역할 게이트를 그대로 지나는데, 그 사람이 고치는 대상이
+    자기 부서 밖으로 나가는 순간 범위를 좁힌 의미가 사라진다. 점검 모드 하나로 전 사원의
+    쓰기가 멈추고, 비밀번호 정책 하나로 전원의 로그인 규칙이 바뀐다 — 부서 단위로 나눌 수
+    있는 값이 아니다.
+
+    이 규칙은 이미 두 자리에 손으로 적혀 있었다(`app/integrity/router.py::_require_global`,
+    `app/quotas/router.py::_ensure_may_touch_global`). 세 번째부터는 베끼는 대신 여기서
+    부른다 — 베끼면 문구와 판정이 갈라지고, 새 전역 자원이 생길 때 빠뜨린다.
+
+    ## 404 가 아니라 403 이다
+
+    범위 밖 **단일 자원**은 404 다(존재를 숨긴다). 전역 자원은 그 반대다 — 그 설정과 그
+    깃발은 이미 화면에 보이고(읽기는 `CONSOLE_READ_ROLES`), 문제는 존재가 아니라 권한이다.
+
+    ## 시스템 관리자는 이 문을 언제나 지난다
+
+    `admin_scope` 는 **역할과 무관하게** 아무 계정에나 걸린다(`app/users/service.py::
+    _apply_admin_scope` 는 값의 유효성만 본다). 그래서 `PATCH /api/admin/users/{id}
+    {"admin_scope":"dept"}` 한 번으로 system_admin 도 좁혀지고, 그 순간 이 문 뒤의 모든 것이
+    닫힌다 — 설정·기능 깃발·연동·메일·조직·프롬프트·스케줄이 한꺼번에. 시스템 관리자가 하나
+    뿐인 설치(랩 서버가 그렇다)에서는 그 상태를 API 로 되돌릴 방법이 없다: 되돌릴 사람이
+    바로 잠긴 그 사람이기 때문이다. 남는 수단은 DB 직접 수정뿐인데, 그건 제품이 자기 자신을
+    복구하지 못한다는 뜻이다.
+
+    그래서 **`ROLE_SYSTEM_ADMIN` 은 범위와 무관하게 통과시킨다.** 이 역할은 부서의 관리자가
+    아니라 **설치 한 벌의 운영자**이고(RBAC 표의 `scoped_role` 은 `admin` 이다), 이 문이 지키려는
+    것이 바로 그 「설치 한 벌」이다. 좁혀진 system_admin 은 설정 실수이지 권한 설계가 아니다 —
+    실수 하나로 포털 전체가 잠기는 쪽이 훨씬 나쁘다. 다른 역할은 그대로 관리 범위를 본다.
+
+    `what` 은 사용자에게 그대로 보이는 주어다 — 조사는 받침을 보고 여기서 붙인다.
+    예: `require_global_management(principal, "시스템 설정")` → "시스템 설정은 전체 범위
+    관리자만 바꿀 수 있습니다."
+
+    `verb` 는 **거절당한 동작**이다. 기본값은 「바꿀」이지만 모든 전역 자원이 설정 변경인 것은
+    아니다 — 시험 메일 발송은 값을 바꾸는 일이 아니라 보내는 일이라, 「바꿀 수 있습니다」로
+    답하면 건드린 적 없는 설정 화면을 찾아가게 만든다. 거절 문구는 방금 누른 단추를 그대로
+    불러야 한다.
+    """
+    from app.core.errors import ForbiddenError
+
+    if principal.manages_everything or principal.role == ROLE_SYSTEM_ADMIN:
+        return
+    raise ForbiddenError(
+        f"{what}{_topic_particle(what)} 전체 범위 관리자만 {verb} 수 있습니다."
+    )
+
+
+def _topic_particle(word: str) -> str:
+    """한글 받침에 맞는 주제 조사(은/는). 「설정은」·「기능 깃발은」·「실행 일정은」.
+
+    「은(는)」 같은 괄호 표기를 쓰지 않는다 — 화면 문구는 완전한 한 문장이어야 하고
+    (CLAUDE.md §10), 그 규칙은 오류 메시지에도 그대로 적용된다.
+    """
+    last = (word or "").strip()[-1:]
+    if not last:
+        return "은"
+    code = ord(last)
+    if 0xAC00 <= code <= 0xD7A3:            # 한글 음절 — 종성 인덱스가 0 이면 받침이 없다
+        return "는" if (code - 0xAC00) % 28 == 0 else "은"
+    return "은"                              # 한글이 아니면(영문·숫자) 보수적으로 「은」
