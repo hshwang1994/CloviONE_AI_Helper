@@ -4,7 +4,6 @@ import Divider from "@mui/material/Divider";
 import Typography from "@mui/material/Typography";
 import { Callout } from "./kit.jsx";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "./theme.js";
-import { BASELINE_TRACKS, GRID_GAP } from "./density.js";
 import { ClickableImage, ImageLightbox, useLightbox } from "./ImageLightbox.jsx";
 import { linkifyText } from "../screens/chat/links.jsx";
 
@@ -19,13 +18,10 @@ import { linkifyText } from "../screens/chat/links.jsx";
  * 문장도 그저 텍스트다.
  */
 
-/* 문서 상세의 두 열(본문 + 메타 레일). 기준선 `.ticket-layout` 과 같은 자리라 티켓 상세와
- * **같은 값**을 쓴다 — 성격이 같은 두 화면이 서로 다른 폭이면 같은 앱으로 안 보인다.
- * 왜 트랙에 `fr` 이 필요한지는 `Ticket.jsx` 의 DETAIL_GRID 주석에 적어 뒀다(같은 증상이었다). */
-export const DOC_DETAIL_GRID = {
-  display: "grid", alignItems: "start", gap: GRID_GAP,
-  gridTemplateColumns: { xs: "1fr", lg: BASELINE_TRACKS.detail },
-};
+/* 🔴 `DOC_DETAIL_GRID` 를 걷었다 — **제품 소비처가 0** 이었다(시험 하나만 그것을 읽었다).
+ * 문서 상세는 이 상수가 아니라 `ui/DetailLayout.jsx` 로 두 열을 그리고, 티켓 상세와 같은
+ * 값을 쓰는 것도 그쪽이 보장한다. 이름만 남은 격자는 「여기가 정본」으로 읽히는데 실제로는
+ * 아무 화면도 안 지난다 — 그 사이 진짜 정본이 바뀌면 둘이 조용히 갈린다. */
 
 function DocBlock({ block, index, onImage }) {
   const t = block.text || "";

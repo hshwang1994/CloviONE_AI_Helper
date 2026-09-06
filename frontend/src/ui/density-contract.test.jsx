@@ -19,9 +19,18 @@ import {
 } from "./density.js";
 import { FONT_SIZE } from "./theme.js";
 import { DETAIL_GRID } from "../screens/Ticket.jsx";
-import { DOC_DETAIL_GRID } from "./DocBody.jsx";
 import { NEW_TICKET_GRID } from "../screens/MyTickets.jsx";
 import { workloadItems } from "../screens/sprint-charts.js";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+/* 소스를 글자로 읽는다 — 격자 값은 sx 객체라 jsdom 이 계산하지 않는다. */
+function readSrc(rel) {
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  return fs.readFileSync(path.resolve(here, "..", rel), "utf8");
+}
+
 
 /* 밀도·격자 계약 — 목업이 아니라 **레이아웃이 지켜야 하는 성질**을 본다.
  *
@@ -57,9 +66,12 @@ function trackEntries(sx) {
 }
 
 describe("왼쪽 쏠림 방지 — 상세·폼 격자는 본문 폭을 채운다 (지시 6)", () => {
+  /* 「문서 상세」 줄을 걷었다 — 그것이 읽던 `DOC_DETAIL_GRID` 는 제품 소비처가 0 이었고
+     실제 문서 상세는 `ui/DetailLayout.jsx` 로 두 열을 그린다. 즉 여기 「티켓 상세」로 적힌
+     `DETAIL_GRID` 가 **문서 상세의 격자이기도 하다**(둘이 같은 부품을 쓴다). 없는 것을
+     재는 줄을 남기면 「문서 상세도 확인했다」로 읽힌다. */
   const grids = [
-    ["티켓 상세", DETAIL_GRID],
-    ["문서 상세", DOC_DETAIL_GRID],
+    ["티켓 상세(문서 상세도 같은 격자다)", DETAIL_GRID],
     ["새 티켓", NEW_TICKET_GRID],
   ];
 
@@ -192,5 +204,38 @@ describe("설정성 화면의 판 짝은 한 부품에서 나온다 (D-457)", ()
     // 반례: 2열 질의가 3열 질의보다 좁은 폭에서 켜진다 — 순서가 뒤집히면 3열이 먼저 잡혀 2열이 죽는다.
     const widths = keys.map((k) => Number(k.match(/min-width: ([\d.]+)rem/)[1]));
     expect(widths[0]).toBeLessThan(widths[1]);
+  });
+});
+
+/* 판을 세로로 쌓는 자리는 **가로 이음매와 같은 값**을 쓴다 (2026-09-07 지시).
+ *
+ * `pairTracks` 와 `DetailLayout` 이 가로 이음매를 `GRID_GAP`(24px)로 그리는데 세로 스택만
+ * MUI `gap: 2.5`(20px)나 `spacing={2}`(16px)이면 한 화면에서 두 값이 나란히 보인다. 좁은
+ * 화면에서 두 열이 한 열로 접히면 24 → 20 → 24 로 교대하기까지 한다.
+ *
+ * 소스를 훑어 재는 이유: jsdom 은 격자를 계산하지 않아 픽셀로 잴 길이 없고, 이 계약이
+ * 지키려는 것은 「이 화면들이 정본 토큰을 쓴다」는 사실 자체다. 폼 칸 묶음은 20px 이
+ * 따로 정본이라(`FORM_FIELD_GAP_REM`) 반례로 함께 잰다.
+ */
+describe("판을 쌓는 화면은 정본 간격을 쓴다", () => {
+  const PANEL_STACK_SCREENS = [
+    "screens/Profile.jsx", "screens/Ticket.jsx", "screens/Integrity.jsx",
+    "screens/MyStats.jsx", "screens/Project.jsx", "screens/KnowledgeDoc.jsx",
+  ];
+
+  it.each(PANEL_STACK_SCREENS)("%s 는 GRID_GAP 을 가져다 쓴다", (rel) => {
+    const src = readSrc(rel);
+    expect(src).toMatch(/import \{[^}]*GRID_GAP[^}]*\} from "\.\.\/ui\/density\.js"/);
+    expect(src).toContain("gap: GRID_GAP");
+  });
+
+  it("반례 — 폼 칸 묶음은 20px 그대로다. 모든 화면을 24px 로 민 것이 아니다", () => {
+    // 게시글 추가 모달의 카테고리·제목 두 칸. 판이 아니라 입력 칸이라 폼 리듬을 지킨다.
+    expect(readSrc("screens/Board.jsx")).toContain("gap: 2.5");
+  });
+
+  it("반례 — 이 검사가 실제로 소스를 읽는다", () => {
+    expect(readSrc("screens/Profile.jsx").length).toBeGreaterThan(1000);
+    expect(() => readSrc("screens/NoSuchScreen.jsx")).toThrow();
   });
 });

@@ -29,6 +29,7 @@ import {
   useToast,
 } from "../ui/kit.jsx";
 import { DetailLayout } from "../ui/DetailLayout.jsx";
+import { GRID_GAP } from "../ui/density.js";
 import { DocComments } from "./DocComments.jsx";
 import { UserAvatar } from "../ui/UserAvatar.jsx";
 import { ProjectPicker } from "../ui/ProjectPicker.jsx";
@@ -752,7 +753,10 @@ export function KnowledgeDoc() {
   });
 
   const aside = (
-    <Stack spacing={2} sx={{ minWidth: 0 }}>
+    /* 판끼리의 간격은 `GRID_GAP`(24px) 하나다. 문서 상세는 티켓 상세와 성격이 같은
+       화면이라(`DetailLayout` 을 함께 쓴다) 세로 리듬도 같아야 한다 — 예전에는 여기가
+       16px, 티켓 곁열이 20px, 두 열 사이가 24px 로 셋이 갈렸다. */
+    <Stack sx={{ minWidth: 0, gap: GRID_GAP }}>
       <Card>
         <Section title="문서 정보">
           <InfoRow label="작성자">
@@ -957,7 +961,7 @@ export function KnowledgeDoc() {
       />
 
       <DetailLayout aside={aside}>
-        <Stack spacing={2} sx={{ minWidth: 0 }}>
+        <Stack sx={{ minWidth: 0, gap: GRID_GAP }}>
           <Card>
             <Stack spacing={2}>
               {/* 휴지통 문서는 **읽기 전용**이다. 편집기를 그대로 두면 사람이 고칠 수 있는

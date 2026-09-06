@@ -9,6 +9,7 @@ import {
   Callout, Card, DataTable, EmptyState, ErrorState, MetricStrip, PageHeader, SectionTitle, Skeleton,
 } from "../ui/kit.jsx";
 import { FONT_WEIGHT } from "../ui/theme.js";
+import { GRID_GAP } from "../ui/density.js";
 import { BarSeries } from "../ui/charts/BarSeries.jsx";
 import { Donut } from "../ui/charts/Donut.jsx";
 import { LineSeries } from "../ui/charts/LineSeries.jsx";
@@ -27,8 +28,10 @@ import { LineSeries } from "../ui/charts/LineSeries.jsx";
  */
 
 
+/* 판끼리의 간격은 `GRID_GAP`(24px) 하나다 — 가로 이음매를 그것으로 그리면서
+   세로만 20px 로 두면 한 화면에서 두 값이 나란히 보인다. */
 const BODY_GRID = {
-  display: "grid", gap: 2.5, alignItems: "start",
+  display: "grid", gap: GRID_GAP, alignItems: "start",
   gridTemplateColumns: {
     xs: "minmax(0, 1fr)",
     lg: "minmax(0, 2fr) minmax(0, 1fr)",
@@ -152,7 +155,7 @@ export function MyStats() {
             </Card>
           ) : (
             <Box sx={BODY_GRID}>
-              <Box sx={{ display: "grid", gap: 2.5, minWidth: 0 }}>
+              <Box sx={{ display: "grid", gap: GRID_GAP, minWidth: 0 }}>
                 <Card>
                   {/* SEM-02: MyStats는 단독 라우트(/my-stats)라 PageHeader가 h1이고, 이 화면의
                       SectionTitle 5개가 전부 그 h1 바로 아래다 — h2를 명시한다. */}
@@ -224,7 +227,7 @@ export function MyStats() {
                 </Card>
               </Box>
 
-              <Box sx={{ display: "grid", gap: 2.5, minWidth: 0 }}>
+              <Box sx={{ display: "grid", gap: GRID_GAP, minWidth: 0 }}>
                 <Card>
                   <SectionTitle component="h2" title="상태 구성" />
                   <Donut

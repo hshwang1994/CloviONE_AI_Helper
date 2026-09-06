@@ -8,6 +8,7 @@ import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
 import { Badge, Button, Callout, Card, EmptyState, ErrorState, MetaBar, OverflowMenu, PageHeader, Skeleton, useConfirm, useToast } from "../ui/kit.jsx";
 import { DETAIL_GRID, DetailLayout } from "../ui/DetailLayout.jsx";
+import { GRID_GAP } from "../ui/density.js";
 import { TicketEditModal } from "./MyTickets.jsx";
 import { invalidateTicketViews } from "./ticket-views.js";
 import { TicketBody } from "./TicketBody.jsx";
@@ -232,7 +233,7 @@ export function Ticket() {
      그래도 화면 안에 있어야 한다 — 예전에는 이 기록을 보려면 일반 사용자가 못 여는 감사
      화면으로 가야 했고, 그 자리는 그냥 비어 있었다(S18). */
   const rail = (
-    <Box data-testid="ticket-detail-rail" sx={{ minWidth: 0, display: "grid", gap: 2.5, alignContent: "start" }}>
+    <Box data-testid="ticket-detail-rail" sx={{ minWidth: 0, display: "grid", gap: GRID_GAP, alignContent: "start" }}>
       <TicketAttachments
         ticketId={id}
         attachments={data.attachments}
@@ -267,7 +268,7 @@ export function Ticket() {
           개선 제안)과 같은 부품을 쓴다. lg+ 에서는 본문이 1열, `aside` 가 2열에 놓이고
           좁은 화면에서는 DOM 순서 그대로 한 열로 흐른다. */}
       <DetailLayout aside={rail}>
-        <Box data-testid="ticket-detail-main" sx={{ minWidth: 0, display: "grid", gap: 2.5, alignContent: "start" }}>
+        <Box data-testid="ticket-detail-main" sx={{ minWidth: 0, display: "grid", gap: GRID_GAP, alignContent: "start" }}>
           <Card component="article" sx={{ minWidth: 0 }}>
             {/* SEM-03 재확인 — 제목은 이제 위 PageHeader가 h1로 보여준다. 여기서 같은 글자를
                 또 반복하지 않는다. 상태/우선순위 배지는 VIS-134로 오른쪽 '속성' 카드로

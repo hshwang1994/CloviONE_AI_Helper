@@ -14,7 +14,7 @@ import { SettingRow } from "../ui/adminKit.jsx";
 import { selectionColumn, useRowSelection } from "../ui/bulkSelect.jsx";
 import { OrgPath } from "../ui/OrgPath.jsx";
 import { FONT_WEIGHT } from "../ui/theme.js";
-import { pairTracks } from "../ui/density.js";
+import { GRID_GAP, pairTracks } from "../ui/density.js";
 
 /* 정리할 항목 : 관리자 범위 — 회의 화면의 2:1 보다 오른쪽을 조금 넓게 둔다(세 열 표가 든다). */
 const ADMIN_SCOPE_PAIR = "minmax(0, 1.6fr) minmax(0, 1fr)";
@@ -219,7 +219,7 @@ export function Integrity() {
       <Box sx={{ mt: 2.5, ...pairTracks(ADMIN_SCOPE_PAIR), gridTemplateColumns: { xs: "minmax(0, 1fr)", xl: ADMIN_SCOPE_PAIR } }}>
         <Section titleAs="h2" title="정리할 항목" rule sx={{ mb: 0 }}>
           {open.length ? (
-            <Box sx={{ display: "grid", gap: 2.5, mb: clear.length ? 2.5 : 0 }}>
+            <Box sx={{ display: "grid", gap: GRID_GAP, mb: clear.length ? GRID_GAP : 0 }}>
               {open.map((f) => (
                 <Findings
                   key={f.key}

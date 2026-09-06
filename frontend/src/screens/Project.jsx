@@ -18,6 +18,7 @@ import { HealthBlock, HealthHistory, ProgressBlock } from "./ProjectMetrics.jsx"
 import { DateHistogram } from "../ui/charts/DateHistogram.jsx";
 import { ProjectDocuments } from "./ProjectDocuments.jsx";
 import { ProjectTickets } from "./ProjectTickets.jsx";
+import { GRID_GAP } from "../ui/density.js";
 import { ProjectWbs } from "./ProjectWbs.jsx";
 import { ProjectWeekly } from "./ProjectWeekly.jsx";
 import {
@@ -308,7 +309,7 @@ function Overview({
           한 화면을 넘겨 「계산」 절반이 스크롤 밑에 숨는다. `alignItems:"start"` 인
           이유: stretch 는 짧은 판의 바닥을 비운다(D-346 이 경고한 그 모양). */}
       <Box sx={{
-        display: "grid", gap: 2.5, alignItems: "start",
+        display: "grid", gap: GRID_GAP, alignItems: "start",
         gridTemplateColumns: { xs: "1fr", lg: "repeat(2, minmax(0, 1fr))" },
       }}>
       <Card>

@@ -21,7 +21,7 @@ import {
 } from "../ui/kit.jsx";
 import { FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
 import { Note, SettingRow } from "../ui/adminKit.jsx";
-import { pairTracks } from "../ui/density.js";
+import { GRID_GAP, pairTracks } from "../ui/density.js";
 /* 화면 강조색은 예전에 자기 라우트(`/my-display`)를 갖고 있었다 — 설정 하나뿐인 화면이
  * 사이드바 항목도 없이 계정 메뉴에서만 열렸고, 그래서 그 화면에서는 사이드바 선택 표시가
  * 통째로 사라졌다. 개인 설정은 이미 이 화면이 전부 갖고 있으므로(알림·방해금지·둘러보기)
@@ -83,6 +83,10 @@ import { AccentPicker } from "./settings/AccentPicker.jsx";
  *
  * 그래서 한 값이다. 반으로 접히는 지점(`lg` 미만)에서 한 열이 되는 것과 줄 바닥을 맞추는
  * 것(`stretch`)은 그대로다 — 높이를 맞추는 결정과 폭을 나누는 결정은 여전히 별개다.
+ *
+ * 세로 간격도 같은 값이다. 판끼리의 간격은 `GRID_GAP`(24px) 하나이고, 가로 이음매를
+ * 그것으로 그리면서 세로만 20px 로 두면 한 화면에서 두 값이 나란히 보인다 — 좁은 화면에서
+ * 두 줄이 한 열로 접히면 24 → 20 → 24 로 교대하기까지 한다.
  *
  * 이 근거는 문구를 고치면 함께 움직인다. 설명문 한 줄을 크게 늘리면 그 열의 요구 폭이
  * 200px 단위로 움직이므로, 그때는 다시 재고 이 주석을 고친다. */
@@ -532,7 +536,7 @@ export function Profile() {
       ) : error ? (
         <ErrorState error={error} onRetry={() => { profileQuery.refetch(); prefsQuery.refetch(); }} />
       ) : (
-        <Box sx={{ display: "grid", gap: 2.5 }}>
+        <Box sx={{ display: "grid", gap: GRID_GAP }}>
           <Box sx={TWO_COL_EVEN}>
             <AccountCard
               profile={profileQuery.data}
@@ -569,7 +573,7 @@ export function Profile() {
                 세운다 — 빈 자리를 메우려고 아무거나 옮기는 것이 아니라, 원래 여기
                 있었어야 할 것이다. 비는 것은 세로였고, 가로를 기울여 메울 일이 아니다
                 (위 `TWO_COL_EVEN` 주석). */}
-            <Box sx={{ display: "grid", gap: 2.5, alignContent: "start", minWidth: 0 }}>
+            <Box sx={{ display: "grid", gap: GRID_GAP, alignContent: "start", minWidth: 0 }}>
               <DndCard prefs={prefsQuery.data} save={savePrefs.mutate} saving={savePrefs.isPending} />
               <AccentPicker />
             </Box>
