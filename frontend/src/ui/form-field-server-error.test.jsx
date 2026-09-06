@@ -1,3 +1,4 @@
+/* qa-contract-change: 필수 칸 오류 문구가 「이메일을(를) 입력하세요.」에서 「이메일을 입력하세요.」로 바뀌었다 — 조사를 칸 이름의 받침으로 고르게 했고(2026-09-06 배포 환경 실측), 이 시험은 그 괄호 표기를 정규식으로 고정하고 있었다. 단언은 늘었다: 새 문구가 있고 옛 표기가 없다를 함께 잰다. */
 import React from "react";
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
@@ -94,7 +95,9 @@ describe("한 오류에 표현 하나 (C5)", () => {
     ));
     await user.click(screen.getByRole("button", { name: "저장" }));
     // 인라인은 있다.
-    expect(await screen.findByText(/이메일을\(를\) 입력하세요\./)).toBeInTheDocument();
+    // 조사는 칸 이름의 받침으로 고른다. 「이메일」은 받침이 있으니 「을」이다.
+    expect(await screen.findByText("이메일을 입력하세요.")).toBeInTheDocument();
+    expect(screen.queryByText(/이메일을\(를\)/)).toBeNull();
     // 전폭 상자는 없다.
     expect(document.querySelector(".k-form-err")).toBeNull();
   });

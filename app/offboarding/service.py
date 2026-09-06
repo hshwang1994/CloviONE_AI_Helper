@@ -48,6 +48,7 @@ from app.core.errors import (
 )
 from app.core.models_base import join_names, split_names, utcnow
 from app.core.scope import apply_user_scope
+from app.core.text import subject_particle
 from app.offboarding.models import (
     MOVE_FAILED,
     MOVE_MOVED,
@@ -355,10 +356,14 @@ def _notify_handover(
             parts.append(f"티켓 {moved}건")
         if rooms:
             parts.append(f"채팅방 {rooms}개")
+        handed = ", ".join(parts)
         notify_user(
             db, successor.id, type_="offboarding_handover",
             title=f"{target.display_name} 님의 업무를 넘겨받았습니다",
-            body=f"{', '.join(parts)}이(가) 내 담당으로 바뀌었습니다. 내 티켓 화면에서 확인하세요.",
+            body=(
+                f"{handed}{subject_particle(handed)} 내 담당으로 바뀌었습니다."
+                " 내 티켓 화면에서 확인하세요."
+            ),
             now=now,
         )
     except Exception:  # noqa: BLE001 — 알림이 오프보딩 기록을 되돌리면 안 된다

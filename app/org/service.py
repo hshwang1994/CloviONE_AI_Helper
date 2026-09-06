@@ -14,6 +14,7 @@ from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
 from app.core.db import DEFAULT_WRITE_CONFLICT_RETRIES, is_insert_race, write_conflict_backoff
+from app.core.text import object_particle, topic_particle
 from app.org.constants import DEFAULT_ORG_ID, ORG_SUSPENDED
 from app.core.errors import (
     ConflictError,
@@ -72,9 +73,11 @@ def get_or_404(db: Session, model: type[OrgModel], item_id: str, scope=None) -> 
     """
     row = db.get(model, item_id)
     if row is None:
-        raise NotFoundError(f"{label_for(model)}을(를) 찾을 수 없습니다.")
+        label = label_for(model)
+        raise NotFoundError(f"{label}{object_particle(label)} 찾을 수 없습니다.")
     if not scope_allows_item(scope, row):
-        raise NotFoundError(f"{label_for(model)}을(를) 찾을 수 없습니다.")
+        label = label_for(model)
+        raise NotFoundError(f"{label}{object_particle(label)} 찾을 수 없습니다.")
     return row
 
 
@@ -361,7 +364,10 @@ def create_item(
     # 바뀌어도 세 경로가 갈라지지 않는다. 여기서 예외가 나면 `get_db` 가 롤백하므로 행은
     # 남지 않는다. 목록이 아니라 '생성 시도'라 숨길 존재가 없으므로 404 가 아니라 403 이다.
     if not scope_allows_item(scope, row):
-        raise ForbiddenError(f"관리 범위 밖에는 {label_for(model)}을(를) 만들 수 없습니다.")
+        label = label_for(model)
+        raise ForbiddenError(
+            f"관리 범위 밖에는 {label}{object_particle(label)} 만들 수 없습니다."
+        )
     return row
 
 
@@ -707,7 +713,7 @@ def delete_item(db: Session, row: OrgModel) -> dict[str, int]:
         count = usage_count(db, model, row.id)
         if count:
             raise ConflictError(
-                f"이 {label}을(를) 쓰는 사용자가 {count}명 있어 삭제할 수 없습니다. "
+                f"이 {label}{object_particle(label)} 쓰는 사용자가 {count}명 있어 삭제할 수 없습니다. "
                 f"'비활성'으로 두면 새로 고를 수는 없지만 기존 사용자는 그대로 유지됩니다.",
                 details={"user_count": count, "name": row.name},
             )
@@ -776,7 +782,9 @@ def resolve_assignable(
     if row is None:
         raise ValidationAppError(f"알 수 없는 {label}입니다.")
     if not row.active and item_id != allow_current:
-        raise ValidationAppError(f"비활성 {label}은(는) 새로 지정할 수 없습니다: {row.name}")
+        raise ValidationAppError(
+            f"비활성 {label}{topic_particle(label)} 새로 지정할 수 없습니다: {row.name}"
+        )
     return row
 
 
@@ -793,7 +801,9 @@ def resolve_by_name_or_error(db: Session, model: type[OrgModel], name: str | Non
         hint = ", ".join(available) if available else "(등록된 항목 없음)"
         raise ValidationAppError(f"알 수 없는 {label}입니다: {clean}: 등록된 {label}: {hint}")
     if not row.active:
-        raise ValidationAppError(f"비활성 {label}은(는) 새로 지정할 수 없습니다: {clean}")
+        raise ValidationAppError(
+            f"비활성 {label}{topic_particle(label)} 새로 지정할 수 없습니다: {clean}"
+        )
     return row.id
 
 

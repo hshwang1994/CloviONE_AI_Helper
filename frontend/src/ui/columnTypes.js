@@ -344,13 +344,12 @@ export function duplicateSingletonTypes(columns) {
 
 /* 「은/는」을 받침으로 고른다. 열 이름은 데이터라 문장을 손으로 적어 둘 수 없다 —
  * 「상태은」·「제목는」 같은 조사 오류는 화면에서 바로 읽힌다. 한글 음절 영역에서 종성이
- * 있는지만 보면 되고(0xAC00 부터 28음절 주기), 한글이 아니면 「는」이 무난하다. */
-export function topicParticle(word) {
-  const s = String(word || "");
-  const last = s.charCodeAt(s.length - 1);
-  if (!(last >= 0xac00 && last <= 0xd7a3)) return "는";
-  return (last - 0xac00) % 28 === 0 ? "는" : "은";
-}
+ * 있는지만 보면 되고(0xAC00 부터 28음절 주기), 한글이 아니면 「는」이 무난하다.
+ *
+ * 구현은 `lib/format.js` 에 하나만 둔다 — 폼의 필수 칸 문구도 같은 규칙이 필요하고,
+ * 두 번째로 베낀 순간 둘이 갈라진다. 이 이름으로 가져다 쓰던 호출자를 위해 다시 내보낸다. */
+import { topicParticle } from "../lib/format.js";
+export { topicParticle };
 
 /** 이 열의 렌더된 값이 전부 같은가. 값이 없으면(행 0) 판단하지 않는다. */
 function sameEverywhere(col, rows) {

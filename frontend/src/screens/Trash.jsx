@@ -16,7 +16,7 @@ import {
 import { ListFooter } from "../ui/InfiniteScroll.jsx";
 import { DocBody } from "../ui/DocBody.jsx";
 import { toggleSort } from "../ui/TableHeaderCell.jsx";
-import { bulkFailureNote, toUTCDate } from "../lib/format.js";
+import { bulkFailureNote, objectParticle, toUTCDate } from "../lib/format.js";
 import { useQueryState } from "../lib/useQueryState.js";
 import { useRowSelection, selectionColumn, BulkActions } from "../ui/bulkSelect.jsx";
 import { invalidateTicketViews } from "./ticket-views.js";
@@ -372,8 +372,9 @@ export function Trash() {
           <Button size="sm" variant="primary" disabled={restore.isPending} onClick={() => restore.mutate(r)}>복원</Button>
           <Button size="sm" variant="danger" disabled={purge.isPending}
             onClick={async () => {
+              const trashName = r.title || "제목 없음";
               const ok = await confirm(
-                `‘${r.title || "제목 없음"}’을(를) 지금 영구 삭제하면 댓글과 첨부까지 함께 지워지고 되돌릴 수 없습니다. 계속할까요?`,
+                `‘${trashName}’${objectParticle(trashName)} 지금 영구 삭제하면 댓글과 첨부까지 함께 지워지고 되돌릴 수 없습니다. 계속할까요?`,
                 { title: "영구 삭제", confirmLabel: "영구 삭제", danger: true });
               if (ok) purge.mutate(r);
             }}>영구 삭제</Button>

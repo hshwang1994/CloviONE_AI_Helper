@@ -1,3 +1,4 @@
+/* qa-contract-change: 감사 이상 징후가 이 목록에서 빠졌다 — 그 화면의 기간 필터는 이제 화면 기본값(`value: "24"`)을 안 심고 빈 값을 서버 기본값의 이름(「최근 24시간」)으로 부른다. 「기간 전체」가 실제로는 24시간이던 것을 배포 환경에서 확인해 고친 결과다. 단언은 줄지 않았다: 이 화면이 목록에서 빠졌다는 사실을 아래 시험이 이유와 함께 따로 잰다. */
 import { describe, it, expect } from "vitest";
 
 import { REGISTRY } from "./registry.js";
@@ -31,10 +32,21 @@ describe("REGISTRY — 기본값이 있는 필터를 가진 화면 (PA-RC-0038 a
     // `key: "[a-z_]+", type: "[a-z]+", label: "[^"]*", value: "[^"]*"` in registry/*.js
     expect(found).toEqual([
       "approvals.status=pending",
-      "audit-anomalies.window_hours=24",
       "policies.status=published",
       "prompts.status=published",
     ]);
+  });
+
+  it("감사 이상 징후는 화면 기본값을 안 심는다 — 빈 값이 곧 서버 기본값이다", () => {
+    /* 이 화면만 목록에서 빠진 이유를 여기 적어 둔다. 서버는 언제나 창을 두고 세고
+       (`app/audit/anomalies.py::DEFAULT_WINDOW_HOURS = 24`) 값을 안 보내면 24시간으로
+       답한다. 그래서 화면이 기본값을 따로 심을 필요가 없고, 심으면 빈 값과 「24」가 같은
+       일을 하는 두 항목이 되어 관리자가 둘을 다르게 읽는다. 빈 값의 이름을 서버 기본값
+       그대로 부르는 것이 이 축의 계약이다(`allLabel`). */
+    const f = REGISTRY["audit-anomalies"].filters.find((x) => x.key === "window_hours");
+    expect(f.value).toBeUndefined();
+    expect(f.allLabel).toBe("최근 24시간");
+    expect(f.options.map((o) => o.value)).not.toContain("24");
   });
 
   it("기본 필터를 가진 화면은 전부 emptyTitle을 갖는다(빈 상태가 진짜 빈 것이면 이 문구로 떨어진다)", () => {

@@ -8,7 +8,7 @@ import StarOutlineRoundedIcon from "@mui/icons-material/StarOutlineRounded";
 import { OverflowMenu } from "../../ui/kit.jsx";
 import { UserAvatar } from "../../ui/UserAvatar.jsx";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../../ui/theme.js";
-import { fmtDateTimeCompact } from "../../lib/format.js";
+import { fmtDateTimeCompact, objectParticle } from "../../lib/format.js";
 import { PROJECT_UNASSIGNED_LABEL } from "./constants.js";
 
 /* 문서 목록의 열 — 열이 이름을 갖는다.
@@ -142,7 +142,7 @@ export function buildDocumentColumns({ onToggleFavorite, onOpen, onArchive, conf
               onClick: async () => {
                 const ok = await confirm(
                   "휴지통에서 되살릴 수 있습니다. 판 이력과 댓글은 그대로 남습니다.",
-                  { title: `${doc.title}을(를) 휴지통으로 보낼까요?`, confirmLabel: "보내기" },
+                  { title: `${doc.title}${objectParticle(doc.title)} 휴지통으로 보낼까요?`, confirmLabel: "보내기" },
                 );
                 if (ok) onArchive(doc);
               },

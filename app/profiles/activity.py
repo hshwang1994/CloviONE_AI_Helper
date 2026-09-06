@@ -28,6 +28,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.audit.models import AuditLog
+from app.core.text import object_particle as _object_particle
 from app.notifications.destinations import destination_for
 from app.notifications.models import Notification
 
@@ -190,21 +191,10 @@ ACTION_SENTENCES: dict[str, str] = {
 }
 
 
-def object_particle(word: str) -> str:
-    """받침 유무에 따른 한국어 목적격 조사(을/를).
-
-    "티켓을(를) 고침" 처럼 두 조사를 나란히 쓰면 기계가 쓴 문장처럼 읽힌다. 완성형 한글로
-    끝나는 이름만 정확히 판정하고, 그 밖(영문·숫자로 끝나는 이름)은 '를' 로 둔다.
-    (app/auth/router.py 의 `_subject_particle` 과 같은 계산 — 그쪽은 주격 이/가다.)
-    """
-    word = (word or "").strip()
-    if not word:
-        return "를"
-    code = ord(word[-1])
-    if 0xAC00 <= code <= 0xD7A3:
-        # 완성형 한글 = (초성*21 + 중성)*28 + 종성 + 0xAC00. 종성이 0이면 받침 없음.
-        return "를" if (code - 0xAC00) % 28 == 0 else "을"
-    return "를"
+# 조사 계산은 `app/core/text.py` 에 하나만 둔다 — 이 파일이 처음 판정했고 폼 검증·조직
+# 오류 문구가 뒤따라 같은 규칙이 필요해졌다. 세 번째로 베끼면 「job를」과 「job을」이
+# 같은 제품 안에서 동시에 나온다. 이 이름으로 가져다 쓰던 호출자를 위해 다시 내보낸다.
+object_particle = _object_particle
 
 
 def describe_action(action: str, object_type: str | None) -> str:

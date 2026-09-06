@@ -36,24 +36,40 @@ NUL = "\x00"
 
 
 def has_final_consonant(word: str) -> bool:
-    """마지막 글자에 받침이 있는가. 조사를 고르는 유일한 기준이다."""
+    """마지막 글자에 받침이 있는가. 조사를 고르는 유일한 기준이다.
+
+    한글이 아닌 끝(영문·숫자·기호)은 **받침이 없는 쪽**으로 읽는다. 「job을」·「Cron은」이
+    아니라 「job를」·「Cron는」이다 — 어느 쪽도 완벽하지 않지만 이 제품은 이미 그 답을
+    골라 두었고(`app/profiles/activity.py` 의 「job → 를」, `app/auth/router.py` 의
+    「받침 없는 쪽이 안전 기본값」), 같은 낱말에 두 답이 나오는 것이 둘 중 어느 답보다
+    나쁘다. 그 두 자리도 이 함수를 쓴다.
+    """
     last = (word or "").strip()[-1:]
     if not last:
         return False
     code = ord(last)
     if 0xAC00 <= code <= 0xD7A3:  # 한글 음절 — 종성 인덱스가 0 이면 받침이 없다
         return (code - 0xAC00) % 28 != 0
-    return True  # 한글이 아니면(영문·숫자·기호) 보수적으로 받침이 있는 쪽으로 읽는다
+    return False
 
 
 def object_particle(word: str) -> str:
     """받침에 맞는 목적격 조사(을/를). 「제목을」·「저장소 이름을」·「메모를」.
 
     「을(를)」 같은 괄호 표기를 쓰지 않는다 — 화면 문구는 완전한 한 문장이어야 한다
-    (CLAUDE.md §10). 같은 규칙을 `app/core/scope.py::_topic_particle` 이 은/는에 쓰고
-    있고, 받침을 보는 계산은 그 둘이 같다(`has_final_consonant`).
+    (CLAUDE.md §10). 받침을 보는 계산은 세 조사가 같다(`has_final_consonant`).
     """
     return "을" if has_final_consonant(word) else "를"
+
+
+def topic_particle(word: str) -> str:
+    """받침에 맞는 주제 조사(은/는). 「부서는」·「직책은」."""
+    return "은" if has_final_consonant(word) else "는"
+
+
+def subject_particle(word: str) -> str:
+    """받침에 맞는 주격 조사(이/가). 「티켓이」·「담당자가」."""
+    return "이" if has_final_consonant(word) else "가"
 
 
 #: 화면이 그 칸을 부르는 이름. 사용자에게 가는 문장에는 **이 이름**을 쓴다.

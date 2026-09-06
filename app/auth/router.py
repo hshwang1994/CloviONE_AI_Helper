@@ -38,6 +38,7 @@ from app.core.security import (
     verify_password,
 )
 from app.core.sessions import clear_session_cookie, set_session_cookie
+from app.core.text import subject_particle
 from app.core.urls import safe_next_path
 from app.observability.service import EVENT_LOGIN, record_usage
 from app.users.service import get_user_by_email, normalize_email
@@ -255,25 +256,10 @@ class ChangePasswordRequest(BaseModel):
     new_password: str = Field(default="")
 
 
-def _subject_particle(word: str) -> str:
-    """받침 유무에 따른 한국어 주격 조사(이/가)를 계산한다.
-
-    login.html의 히어로 문구는 {{ app_name }}에 조사 '가'를 하드코딩해 붙였다(
-    "{{ app_name }}가 Notion과 연결된..."). app_name(product_name)은 브랜딩 설정
-    (app/settings/registry.py ui_branding)에서 관리자가 자유롭게 바꿀 수 있는 문자열이라,
-    받침 있는 이름(예: '사내 업무봇')으로 바꾸면 '사내 업무봇가'처럼 문법이 깨진다.
-    완전한 한글 음절로 끝나는 이름만 정확히 판정하고, 그 외(영문/숫자 등으로 끝나는
-    이름)는 기존 하드코딩과 동일한 안전 기본값 '가'를 그대로 낸다.
-    """
-    word = (word or "").strip()
-    if not word:
-        return "가"
-    code = ord(word[-1])
-    if 0xAC00 <= code <= 0xD7A3:
-        # 완성형 한글 음절 = (초성*21 + 중성)*28 + 종성 + 0xAC00. 종성(받침) 인덱스가
-        # 0이면 받침이 없다 → '가', 그 외(받침 있음) → '이'.
-        return "가" if (code - 0xAC00) % 28 == 0 else "이"
-    return "가"
+# 조사 계산은 `app/core/text.py` 에 하나만 둔다. 로그인 화면의 히어로 문구가 브랜딩
+# 설정(관리자가 바꾸는 이름)을 주어로 쓰기 때문에 이 판정이 필요했고, 지금은 폼 검증과
+# 조직 오류 문구도 같은 규칙을 쓴다 — 답이 갈리면 같은 이름이 화면마다 다른 조사를 받는다.
+_subject_particle = subject_particle
 
 
 def _display_year(request: Request) -> int:

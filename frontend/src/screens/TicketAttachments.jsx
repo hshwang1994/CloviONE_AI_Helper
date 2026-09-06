@@ -8,6 +8,7 @@ import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import { api } from "../lib/api.js";
+import { objectParticle, topicParticle } from "../lib/format.js";
 import { Button, Card, useConfirm, useToast } from "../ui/kit.jsx";
 import { FONT_SIZE, KO_WORD_BREAK } from "../ui/theme.js";
 import { ImageLightbox, useLightbox } from "../ui/ImageLightbox.jsx";
@@ -65,7 +66,7 @@ export function TicketAttachments({ ticketId, attachments, canEdit, onChanged })
     mutationFn: async (picked) => {
       for (const f of picked) {
         if (f.size > MAX_BYTES) {
-          throw new Error(`${f.name} 은(는) 10MB를 넘습니다.`);
+          throw new Error(`${f.name}${topicParticle(f.name)} 10MB를 넘습니다.`);
         }
       }
       // ATT-01: 파일별로 실패를 감싼다 — 안 그러면 N번째 업로드가 실패했을 때 이미 서버에
@@ -125,7 +126,7 @@ export function TicketAttachments({ ticketId, attachments, canEdit, onChanged })
   const openPicker = () => { if (inputRef.current) inputRef.current.click(); };
 
   const askRemove = async (att) => {
-    const ok = await confirm(`${att.filename} 을(를) 이 티켓에서 뗍니다. 계속할까요?`,
+    const ok = await confirm(`${att.filename}${objectParticle(att.filename)} 이 티켓에서 뗍니다. 계속할까요?`,
       { title: "첨부 삭제", confirmLabel: "떼기", danger: true });
     if (ok) remove.mutate(att.id);
   };

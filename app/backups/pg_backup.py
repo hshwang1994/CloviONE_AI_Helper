@@ -70,11 +70,11 @@ def resolve_tool(name: str, bin_dir: str | None = None) -> str:
         for path in (candidate, candidate.with_suffix(".exe")):
             if path.exists():
                 return str(path)
-        raise PgToolMissing(f"{name} 을(를) {bin_dir} 에서 찾지 못했습니다.")
+        raise PgToolMissing(f"{name} 명령을 {bin_dir} 에서 찾지 못했습니다.")
     found = shutil.which(name)
     if not found:
         raise PgToolMissing(
-            f"{name} 을(를) 찾지 못했습니다. PostgreSQL 클라이언트 도구를 설치하거나 "
+            f"{name} 명령을 찾지 못했습니다. PostgreSQL 클라이언트 도구를 설치하거나 "
             "pg_bin_dir 설정에 경로를 지정해 주세요."
         )
     return found

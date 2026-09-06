@@ -22,6 +22,7 @@ from sqlalchemy.orm import Session
 
 from app.core.errors import ForbiddenError, ValidationAppError
 from app.core.org_tree import MAX_DEPARTMENT_DEPTH, DeptTree
+from app.core.text import topic_particle
 from app.org.constants import ORG_ACTIVE
 from app.org.models import Department, Organization
 from app.users.models import User
@@ -282,6 +283,7 @@ def validate_parent(
     # 사라진다(위 build_rows 가 `cycle` 로 드러내지만, 애초에 들어오게 두지 않는다).
     if parent_id in DeptTree.load(db).descendants(row.id):
         raise ValidationAppError(
-            f"‘{parent.name}’은(는) 이 부서의 하위 부서입니다. 하위 부서를 상위로 지정할 수 없습니다."
+            f"‘{parent.name}’{topic_particle(parent.name)} 이 부서의 하위 부서입니다."
+            " 하위 부서를 상위로 지정할 수 없습니다."
         )
     return parent_id

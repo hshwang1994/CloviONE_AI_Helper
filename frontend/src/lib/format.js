@@ -352,3 +352,30 @@ export function bulkFailureNote(failed) {
 
 /* 보관된(퇴사한) 계정임을 화면이 말한다 (N3). */
 export const ARCHIVED_SUFFIX = "(보관됨)";
+
+/* 조사를 받침으로 고른다.
+ *
+ * 화면 문구의 주어가 **데이터**일 때가 있다 — 폼의 칸 이름, 문서 제목, 첨부 파일 이름.
+ * 그런 자리에 문장을 손으로 적어 둘 수 없으니 지금까지는 「제목을(를) 입력하세요」처럼
+ * 두 조사를 나란히 적어 왔는데, 그것은 한국어 문장이 아니라 **미결정 상태를 그대로 화면에
+ * 내보낸 것**이다(2026-09-06 배포 환경에서 관리자 폼 전수에 나타나는 것을 실측했다).
+ * 받침 유무는 코드가 안다: 한글 음절 영역은 0xAC00 부터 28음절 주기로 종성이 돌고,
+ * 나머지(영문·숫자·기호)는 받침이 없는 쪽으로 읽는 것이 무난하다.
+ */
+export function hasFinalConsonant(word) {
+  const s = String(word || "");
+  if (!s) return false;
+  const last = s.charCodeAt(s.length - 1);
+  if (!(last >= 0xac00 && last <= 0xd7a3)) return false;
+  return (last - 0xac00) % 28 !== 0;
+}
+
+/** 주제 조사(은/는). 「제목은」·「대상자는」. */
+export function topicParticle(word) {
+  return hasFinalConsonant(word) ? "은" : "는";
+}
+
+/** 목적격 조사(을/를). 「제목을」·「대상자를」. */
+export function objectParticle(word) {
+  return hasFinalConsonant(word) ? "을" : "를";
+}

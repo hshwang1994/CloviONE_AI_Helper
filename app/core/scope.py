@@ -68,6 +68,7 @@ from sqlalchemy import Select, false, select
 from sqlalchemy.orm import Session
 
 from app.core.org_tree import DeptTree
+from app.core.text import topic_particle
 from app.users.models import (
     ADMIN_SCOPE_DEPT,
     ADMIN_SCOPE_GLOBAL,
@@ -415,16 +416,6 @@ def require_global_management(principal: Principal, what: str, *, verb: str = "�
     )
 
 
-def _topic_particle(word: str) -> str:
-    """한글 받침에 맞는 주제 조사(은/는). 「설정은」·「기능 깃발은」·「실행 일정은」.
-
-    「은(는)」 같은 괄호 표기를 쓰지 않는다 — 화면 문구는 완전한 한 문장이어야 하고
-    (CLAUDE.md §10), 그 규칙은 오류 메시지에도 그대로 적용된다.
-    """
-    last = (word or "").strip()[-1:]
-    if not last:
-        return "은"
-    code = ord(last)
-    if 0xAC00 <= code <= 0xD7A3:            # 한글 음절 — 종성 인덱스가 0 이면 받침이 없다
-        return "는" if (code - 0xAC00) % 28 == 0 else "은"
-    return "은"                              # 한글이 아니면(영문·숫자) 보수적으로 「은」
+# 조사는 `app/core/text.py` 가 고른다 — 폼 검증 문구와 이 거절 문구가 같은 규칙을
+# 써야 하고, 두 번째로 베낀 순간 둘이 갈라진다.
+_topic_particle = topic_particle

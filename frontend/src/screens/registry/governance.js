@@ -412,7 +412,10 @@ export const GOVERNANCE_SCREENS = {
     help: "감사 로그에서 눈여겨볼 만한 것을 규칙으로 골라냅니다. 통계 모델이나 AI가 아니라 셀 수 있는 사실만 봅니다. 그래서 같은 데이터면 언제 열어도 같은 결과가 나오고, 각 항목에 왜 걸렸는지(근거, 임계값)가 함께 표시됩니다. 여기 걸렸다고 곧바로 문제인 것은 아니며, 확인할 대상을 좁혀 주는 목록입니다.",
     emptyTitle: "눈여겨볼 징후가 없습니다",
     emptyHelp: "이 기간의 감사 로그에서 규칙에 걸린 항목이 없습니다. 기간을 늘려 다시 보세요.",
-    filters: [{ key: "window_hours", type: "select", label: "기간", value: "24", options: opt([["6", "최근 6시간"], ["24", "최근 24시간"], ["168", "최근 7일"], ["720", "최근 30일"]]) }],
+    /* 기간에 「전체」는 없다. 서버는 언제나 창을 두고 세고 값을 안 보내면 24시간으로 답하므로,
+       빈 값의 이름이 곧 「최근 24시간」이다(그래서 목록에 24시간을 다시 적지 않는다 — 같은 일을
+       하는 항목이 둘이면 관리자는 둘이 다른 줄 안다). 최대는 서버가 30일로 자른다. */
+    filters: [{ key: "window_hours", type: "select", label: "기간", allLabel: "최근 24시간", options: opt([["6", "최근 6시간"], ["168", "최근 7일"], ["720", "최근 30일"]]) }],
     columns: [
       { key: "severity", label: "중요도", type: "status", render: (r) => React.createElement(Badge, {
         value: ({ high: "높음", medium: "보통", low: "낮음" })[r.severity] || r.severity,

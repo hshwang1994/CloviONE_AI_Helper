@@ -40,7 +40,7 @@ import Collapse from "@mui/material/Collapse";
 import { ART } from "../lib/assets.js";
 import { MASCOT_PLACE, mascotBoxPx } from "./Mascot.jsx";
 import { maxLengthFor } from "../lib/fieldLimits.js";
-import { apiToKstLocal, kstLocalToApi } from "../lib/format.js";
+import { apiToKstLocal, kstLocalToApi, objectParticle, topicParticle } from "../lib/format.js";
 import { declaredRowName, rowNameOf } from "./rowName.js";
 import { ANYWHERE_BREAK, OVERFLOW, SHRINK, columnLayoutWidth, planColumnCollapse, planNarrowColumns, resolveColumn, rootFontPx, tableMinWidth } from "./columnTypes.js";
 import { EMPTY_STATE_MAX_CH, ERROR_STATE_MAX_CH, FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, MOTION, NUMERIC, RADIUS, SCROLL_BOX_STICKY_TOP, TABLE_CARD_QUERY, stickyTopSx } from "./theme.js";
@@ -2855,18 +2855,18 @@ export function FormModal({ open, title, fields, initial, submitLabel, onSubmit,
       const hadValue = initial && initial[f.name] != null && String(initial[f.name]).trim() !== "";
       let val = chosen(f);
       if (f.type === "number") {
-        if (val === "" || val == null) { if (f.required) { fail(f.name, f.label + "을(를) 입력하세요."); return; } if (hadValue) body[f.name] = null; continue; }
+        if (val === "" || val == null) { if (f.required) { fail(f.name, f.label + objectParticle(f.label) + " 입력하세요."); return; } if (hadValue) body[f.name] = null; continue; }
         val = Number(val); if (Number.isNaN(val)) { fail(f.name, f.label + ": 숫자를 입력하세요."); return; }
         body[f.name] = val; continue;
       }
-      else if (f.type === "checkbox") { if (f.required && !val) { fail(f.name, (f.checkLabel || f.label) + "을(를) 선택해야 합니다."); return; } body[f.name] = !!val; continue; }
+      else if (f.type === "checkbox") { const checkName = f.checkLabel || f.label; if (f.required && !val) { fail(f.name, checkName + objectParticle(checkName) + " 선택해야 합니다."); return; } body[f.name] = !!val; continue; }
       else if (f.type === "json") {
-        if (!val || !String(val).trim()) { if (f.required) { fail(f.name, f.label + "을(를) 입력하세요."); return; } if (hadValue) body[f.name] = null; continue; }
+        if (!val || !String(val).trim()) { if (f.required) { fail(f.name, f.label + objectParticle(f.label) + " 입력하세요."); return; } if (hadValue) body[f.name] = null; continue; }
         let parsed;
         try { parsed = JSON.parse(val); } catch (e) { fail(f.name, f.label + ": JSON 형식이 올바르지 않습니다."); return; }
         // 일부 필드(예: 정책 content)는 백엔드가 JSON 객체만 허용한다 — 서버와 같은 문구로 먼저 막는다.
         if (f.jsonObject && (parsed === null || typeof parsed !== "object" || Array.isArray(parsed))) {
-          fail(f.name, f.label + "은(는) JSON 객체여야 합니다."); return;
+          fail(f.name, f.label + topicParticle(f.label) + " JSON 객체여야 합니다."); return;
         }
         body[f.name] = parsed;
         continue;
@@ -2876,13 +2876,13 @@ export function FormModal({ open, title, fields, initial, submitLabel, onSubmit,
         if (f.required && !val.trim()) {
           // 옵션 자체가 없으면 '선택하세요'는 헛도는 무한 루프다 — 원인이 다른 문구를 준다.
           if (!(f.options || []).length) { fail(f.name, f.label + ": 선택할 수 있는 항목이 없습니다. 다시 시도하거나 취소하세요."); return; }
-          fail(f.name, f.label + "을(를) 선택하세요."); return;
+          fail(f.name, f.label + objectParticle(f.label) + " 선택하세요."); return;
         }
         body[f.name] = val === "" ? null : val; continue;
       }  // 빈 선택("없음")은 null로 보내 기존 값을 지운다.
       else {
         val = val == null ? "" : String(val);
-        if (f.required && !val.trim()) { fail(f.name, f.label + "을(를) 입력하세요."); return; }
+        if (f.required && !val.trim()) { fail(f.name, f.label + objectParticle(f.label) + " 입력하세요."); return; }
         // 사람이 적은 것은 KST 벽시계다 — 오프셋을 붙여 보내야 서버가 같은 순간으로 저장한다(F14).
         // 붙이지 않으면 서버가 규약대로 naive 를 UTC 로 읽어 9시간 밀린 채 저장된다.
         if (val !== "") body[f.name] = f.type === "datetime-local" ? kstLocalToApi(val) : val;

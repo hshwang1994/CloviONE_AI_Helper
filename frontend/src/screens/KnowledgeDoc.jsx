@@ -34,7 +34,7 @@ import { UserAvatar } from "../ui/UserAvatar.jsx";
 import { ProjectPicker } from "../ui/ProjectPicker.jsx";
 import { TagPicker } from "../ui/TagPicker.jsx";
 import { FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
-import { fmtDateTimeCompact } from "../lib/format.js";
+import { fmtDateTimeCompact, objectParticle } from "../lib/format.js";
 import { useListReturn } from "../lib/listReturn.js";
 import { useCategories } from "./knowledge/queries.js";
 import { PROJECT_NONE, PROJECT_UNASSIGNED_LABEL } from "./knowledge/constants.js";
@@ -348,7 +348,7 @@ function Attachments({ documentId, items, onChanged, readOnly = false }) {
                 onClick={async () => {
                   const ok = await confirm(
                     "이 문서에서 파일을 뗍니다. 파일 자체는 저장소에 남습니다.",
-                    { title: `${file.filename}을(를) 뗄까요?`, confirmLabel: "떼기" },
+                    { title: `${file.filename}${objectParticle(file.filename)} 뗄까요?`, confirmLabel: "떼기" },
                   );
                   if (ok) remove.mutate(file.id);
                 }}
@@ -383,7 +383,7 @@ function Attachments({ documentId, items, onChanged, readOnly = false }) {
                 onClick={async () => {
                   const ok = await confirm(
                     "이 문서에서 파일을 뗍니다. 파일 자체는 저장소에 남습니다.",
-                    { title: `${file.filename}을(를) 뗄까요?`, confirmLabel: "떼기" },
+                    { title: `${file.filename}${objectParticle(file.filename)} 뗄까요?`, confirmLabel: "떼기" },
                   );
                   if (ok) remove.mutate(file.id);
                 }}

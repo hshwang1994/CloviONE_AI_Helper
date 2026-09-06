@@ -32,7 +32,7 @@ from app.core.errors import ForbiddenError, NotFoundError, ValidationAppError
 from app.core.pagination import PageParams
 from app.core.safe_url import normalize_external_url
 from app.core.scope import Principal
-from app.core.text import NulFreeModel, clean_required_text
+from app.core.text import NulFreeModel, clean_required_text, topic_particle
 from app.users.models import ROLE_USER, User
 
 admin_router = APIRouter(
@@ -280,7 +280,7 @@ def update_announcement(
         ("active", "사용 여부"), ("dismissible", "닫기 허용 여부"),
     ):
         if key in data and data[key] is None:
-            raise ValidationAppError(f"{label}은(는) 비울 수 없습니다.")
+            raise ValidationAppError(f"{label}{topic_particle(label)} 비울 수 없습니다.")
     if "title" in data:
         # 생성 경로와 같은 규칙이다 — 공백뿐인 제목은 422 이고, 저장하는 값은 검증한
         # 형태 그대로다. 예전에는 PATCH 가 strip 조차 안 해서 「   」가 그대로 남았다.
