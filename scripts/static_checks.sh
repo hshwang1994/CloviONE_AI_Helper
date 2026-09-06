@@ -368,10 +368,10 @@ fi
 
 step "Every table column says what it is"
 # 몸통 칸의 정렬·폭·자릿수 고정은 열의 `type` 에서 파생한다(`ui/columnTypes.js`). 타입을
-# 안 적은 열은 `UNTYPED`(왼쪽 정렬)로 떨어지고, 그 기본값은 **조용히 틀린다** — `/users`
-# 한 표 안에서 「최근 로그인」은 왼쪽이고 「생성 일자」는 가운데였다(둘 다 날짜인데 한쪽만
-# 타입을 적어서다). 어휘 자체는 `column-types.test.jsx` 가 지키지만 그 어휘를 **쓰는가**는
-# 아무도 안 봤다 — 이 검사가 그 자리다.
+# 안 적은 열은 `UNTYPED`(가운데 정렬)로 떨어지고, 그 기본값은 **조용히 틀린다** — 정렬이
+# 아니라 폭과 줄바꿈이 틀린다(말줄임이 안 걸려 산문이 여러 줄로 접힌다). 어휘 자체는
+# `column-types.test.jsx` 가 지키지만 그 어휘를 **쓰는가**는 아무도 안 봤다 — 이 검사가
+# 그 자리다.
 if COLTYPE="$("$PY" scripts/check_column_types.py 2>&1)"; then
   ok "$(echo "$COLTYPE" | tail -1)"
 else

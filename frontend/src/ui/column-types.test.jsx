@@ -90,11 +90,20 @@ describe("열 어휘 — 폭·정렬·자릿수는 의미에서 나온다", () =
     }
   });
 
-  it("읽는 열만 왼쪽에 붙는다 — 제목·이름·설명", () => {
-    // 길이가 제각각인 값이라 왼쪽 모서리가 맞아야 눈이 다음 줄로 내려간다.
-    for (const t of ["title", "name", "text"]) {
-      expect(COLUMN_TYPES[t].align, t).toBe("left");
+  it("왼쪽은 제목 하나뿐이다 (2026-09-06 지시)", () => {
+    /* 제목은 표당 하나이고(`SINGLETON_TYPES`) 남는 폭을 전부 가져 값이 실제로 칸을
+       채운다 — 가운데에 두면 행마다 시작점이 크게 흔들린다. 그래서 이 열만 왼쪽이다. */
+    expect(COLUMN_TYPES.title.align).toBe("left");
+
+    // 반례 — 예전에 함께 왼쪽이던 둘은 이제 가운데다. 한쪽만 재면 「전부 왼쪽」도 통과한다.
+    for (const t of ["name", "text"]) {
+      expect(COLUMN_TYPES[t].align, t).toBe("center");
     }
+
+    // 그리고 어휘 전체에서 왼쪽인 것이 정확히 하나다 — 새 타입이 조용히 왼쪽으로 들어오면
+    // 표에 축이 둘 생긴다(머리글은 언제나 가운데다).
+    const left = Object.keys(COLUMN_TYPES).filter((t) => COLUMN_TYPES[t].align === "left");
+    expect(left).toEqual(["title"]);
   });
 
   it("보는 열은 가운데에 선다 — 티켓 ID·상태·짧은 닫힌 집합·날짜·행 동작", () => {
@@ -111,12 +120,19 @@ describe("열 어휘 — 폭·정렬·자릿수는 의미에서 나온다", () =
     expect(got.identifier).toBe(true);
   });
 
-  it("`type` 을 안 준 열은 예전과 같은 값을 받는다 (회귀 0)", () => {
+  it("`type` 을 안 준 열도 가운데다 — 타입이 없다고 축이 달라지지 않는다", () => {
+    /* 타입을 안 준 열만 왼쪽이면 같은 표 안에서 이유 없이 그 열 하나만 삐져 나온다.
+       값이 산문이라 왼쪽이 필요하면 정렬이 아니라 타입을 준다(`type: "text"`). */
     const got = resolveColumn({ key: "x", label: "무엇" });
-    expect(got.align).toBe("left");
+    expect(got.align).toBe("center");
     expect(got.numeric).toBe(false);
     expect(got.minWidth).toBe("4.5rem");
     expect(got.width).toBeUndefined();
+  });
+
+  it("반례 — 호출부가 왼쪽을 적으면 그것이 이긴다", () => {
+    // 어휘를 가운데로 모았다고 화면이 자기 사정을 못 적게 되는 것은 아니다.
+    expect(resolveColumn({ key: "x", label: "무엇", align: "left" }).align).toBe("left");
   });
 
   it("호출부가 적은 값이 어휘표를 이긴다", () => {

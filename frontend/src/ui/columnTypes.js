@@ -212,17 +212,28 @@ export const HEADER_ALIGN = "center";
 
 /* ── 몸통 칸의 정렬 ────────────────────────────────────────────────────────
  *
- * **왼쪽은 「읽는 것」이다** — 티켓 제목 · 프로젝트 이름 · 문서 이름 · 사람 이름 ·
- * 설명. 이 값들은 길이가 제각각이라 왼쪽 모서리가 맞아야 눈이 다음 줄로 내려간다.
+ * **제목만 왼쪽이고 나머지는 전부 가운데다** (2026-09-06 지시). 머리글이 언제나
+ * 가운데이므로(`HEADER_ALIGN`), 이 규칙에서 머리와 몸이 같은 축에 선다.
  *
- * **가운데는 「보는 것」이다** — 티켓 ID · 상태 · 우선순위 · 난이도 · WD · 날짜 ·
- * 건수 · 퍼센트 · 점수 · 짧은 코드 · 행 동작. 폭이 고정된 짧은 값이고, 칸 안에서
- * 가운데에 서면 열이 하나의 띠로 읽힌다.
+ * 예전에는 「읽는 것은 왼쪽, 보는 것은 가운데」였다 — 제목·이름·설명이 왼쪽,
+ * 나머지가 가운데. 그 구분이 화면에서 만든 것은 **머리글과 값이 어긋난 열**이었다:
+ * `/users` 의 「이름」은 자기 머리글보다 76px 왼쪽에 서 있었고,
+ * `registry/platform.js` 는 같은 증상을 1920 에서 「머리 1677 / 값 1527」로 이미
+ * 결함으로 적어 두었다. 열마다 축이 둘이면 눈이 표를 한 덩어리로 못 읽는다.
  *
- * ⚠️ **수치 열의 우정렬을 가운데로 바꿨다** (2026-08-27 지시 6·13). 우정렬은 자릿수가
+ * 제목만 남긴 이유는 그 열이 다른 열과 성질이 다르기 때문이다. 표당 하나뿐이고
+ * (`SINGLETON_TYPES`), 남는 폭을 전부 갖고, 값이 길어 실제로 칸을 채운다 — 가운데에
+ * 두면 행마다 시작점이 크게 흔들린다. 나머지 열은 값이 짧아 그 흔들림이 작다
+ * (기본 폭 9rem 이름 열 실측 16px).
+ *
+ * ⚠️ **수치 열의 우정렬도 가운데다** (2026-08-27 지시 6·13). 우정렬은 자릿수가
  * 다른 값을 세로로 비교하기에 낫고, 그것이 예전 계약이었다. 대신 `tabular-nums` 는
  * 그대로 둔다 — 자릿수가 같은 값끼리는 가운데에서도 세로로 맞는다. 자릿수가 크게
  * 다른 열(1 과 1,240)에서는 비교가 예전만 못하다는 것을 알고 고른 값이다.
+ *
+ * **아는 대가.** 앞이 같고 뒤가 갈리는 값(경로·페이로드)은 왼쪽 모서리가 비교
+ * 수단이었다. 가운데로 가면 그 수단을 잃는다. 그 열들은 값이 길어 대개 말줄임이
+ * 걸리므로(`columnShouldTruncate`) 전체를 볼 길은 `title` 속성과 상세로 남는다.
  */
 export const COLUMN_TYPES = {
   /* 표당 **하나**다. 그 행이 무엇인지 말하는 열이고, 폭 경쟁에서 가장 세다. */
@@ -232,11 +243,11 @@ export const COLUMN_TYPES = {
      `title` 과 함께 남는 폭을 나눠 가지면 둘이 반씩 갖는다 — 게시판에서 「작성자」가
      740px 로 서고 제목이 같은 폭에서 잘렸다(S19 실측). 폭이 더 필요하면 그 화면이
      `minWidth` 로 바닥을 올린다. 남는 폭을 갖는 열은 표당 하나(`title`)다. */
-  name: { align: "left", numeric: false, width: SHRINK, minWidth: "9rem", overflow: OVERFLOW.ellipsis, identifying: true },
+  name: { align: "center", numeric: false, width: SHRINK, minWidth: "9rem", overflow: OVERFLOW.ellipsis, identifying: true },
   /* 이메일·코드·UUID·티켓번호. 글자 단위로 끊어도 되는 유일한 부류다. */
   identifier: { align: "center", numeric: true, minWidth: IDENTIFIER_COL_MIN_WIDTH, overflow: OVERFLOW.anywhere, identifying: true },
   /* 설명·오류 원문. 폭 경쟁에서 가장 약하고, 전 행이 비면 수축 후보다(§collapse). */
-  text: { align: "left", numeric: false, minWidth: "12rem", overflow: OVERFLOW.ellipsis, collapsible: true },
+  text: { align: "center", numeric: false, minWidth: "12rem", overflow: OVERFLOW.ellipsis, collapsible: true },
   /* 상태 배지. 머리글이 「우선순위」처럼 네 글자면 5rem 으로는 정렬 화살표와 겹친다. */
   status: { align: "center", numeric: false, width: SHRINK, minWidth: "7.5rem", overflow: OVERFLOW.nowrap },
   /* 짧은 닫힌 집합(종류·범위·대상). 머리글 「난이도」+정렬이 한 줄로 서는 폭. */
@@ -263,17 +274,31 @@ export const COLUMN_TYPES = {
   select: { align: "center", numeric: false, width: SHRINK, minWidth: "2.5rem", overflow: OVERFLOW.nowrap },
 };
 
-/** `type` 을 안 준 열이 받는 값 — **예전 동작 그대로**다(회귀 0). */
-const UNTYPED = { align: "left", numeric: false, minWidth: DEFAULT_COL_MIN_WIDTH, overflow: null };
+/** `type` 을 안 준 열이 받는 값.
+ *
+ * 가운데다 — 타입을 안 줬다고 축이 달라지면 같은 표 안에서 이유 없이 열 하나만 삐져
+ * 나온다. 폭만 기본값(`DEFAULT_COL_MIN_WIDTH`)을 받는다. 값이 산문이면 타입을 주는
+ * 것이 답이지 정렬로 때울 일이 아니다(`type: "text"`). */
+const UNTYPED = { align: "center", numeric: false, minWidth: DEFAULT_COL_MIN_WIDTH, overflow: null };
 
-/** 자릿수를 세로로 맞춰야 하는 타입. 시험과 `DataTable` 이 같은 목록을 본다. */
+/** 자릿수를 세로로 맞춰야 하는 타입.
+ *
+ * 🔴 **지금 이것을 읽는 곳이 없다.** 예전 주석은 「시험과 `DataTable` 이 같은 목록을
+ * 본다」고 했는데 둘 다 안 읽는다 — `DataTable` 은 열마다 `resolveColumn` 의 결과를
+ * 그대로 쓰고, 시험은 타입 이름을 손으로 적는다. 파생 상수라 어휘를 고치면 자동으로
+ * 따라오지만, 소비처가 생기기 전까지 이 목록은 아무것도 강제하지 않는다. 사실을
+ * 적어 두는 이유는 다음 사람이 「이걸 고치면 저기가 따라 움직이겠지」로 읽지 않게
+ * 하기 위해서다. */
 export const NUMERIC_TYPES = Object.freeze(
   Object.keys(COLUMN_TYPES).filter((k) => COLUMN_TYPES[k].numeric));
 
-/** 가운데 정렬이 계약인 타입. `numeric_alignment` 가 재는 것과 같은 집합이다.
+/** 가운데 정렬인 타입 — 지금은 `title` 을 뺀 전부다.
  *
- * 이름을 `END_ALIGNED_TYPES` 에서 바꿨다 — 「끝에 붙인다」가 더 이상 사실이 아니다.
- * 이름과 뜻이 갈린 상수는 다음 사람이 읽고 반대로 고친다. */
+ * 🔴 **이것도 읽는 곳이 없다.** 예전 주석은 「`numeric_alignment` 가 재는 것과 같은
+ * 집합이다」라고 했는데, 그 프로브(`scripts/ui_qa/assertions.py`)는 타입 이름을 아예
+ * 모른다 — DOM 의 셀 글자와 계산된 스타일만 본다. 이름을 `END_ALIGNED_TYPES` 에서
+ * 바꾼 것은 그대로 옳다(「끝에 붙인다」가 사실이 아니었다). 이름과 뜻이 갈린 상수는
+ * 다음 사람이 읽고 반대로 고친다 — 주석과 사실이 갈린 상수도 같다. */
 export const CENTER_ALIGNED_TYPES = Object.freeze(
   Object.keys(COLUMN_TYPES).filter((k) => COLUMN_TYPES[k].align === "center"));
 

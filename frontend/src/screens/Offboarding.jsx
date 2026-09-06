@@ -406,7 +406,8 @@ const MOVE_COLUMNS = [
   { key: "tid", label: "티켓", type: "identifier", render: (m) => m.key || m.ticket_page_id },
   { key: "title", label: "제목", type: "title", render: (m) => m.title || "-" },
   { key: "status", label: "결과", render: (m) => <Badge value={MOVE_STATUS_KO[m.status] || m.status} kind={MOVE_STATUS_KIND[m.status]} /> },
-  { key: "error", label: "사유", render: (m) => m.error || "-" },
+  /* 오류 원문이라 `text` 다 — 타입이 없으면 말줄임이 안 걸려 여러 줄로 접힌다. */
+  { key: "error", label: "사유", type: "text", render: (m) => m.error || "-" },
 ];
 
 const RUN_PAGE_SIZE = 20;

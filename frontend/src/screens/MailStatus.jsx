@@ -98,7 +98,9 @@ const FAILURE_COLUMNS = [
     render: (r) => <Badge value={r.status_label} kind={r.status === "unconfigured" ? "warn" : "danger"} />,
   },
   { key: "attempt_count", label: "시도", hideNarrow: true, render: (r) => <NumberCell value={r.attempt_count} unit="회" /> },
-  { key: "reason", label: "원인", render: (r) => <FailureReason row={r} /> },
+  /* 산문이라 `text` 다. 타입이 없으면 말줄임이 안 걸려 실패 사유가 여러 줄로 접히고,
+     가운데 정렬에서 접힌 줄은 양쪽 모서리가 다 들쭉날쭉해진다(`columnShouldTruncate`). */
+  { key: "reason", label: "원인", type: "text", render: (r) => <FailureReason row={r} /> },
   { key: "created_at", label: "발생", type: "datetime", render: (r) => <DateCell value={r.created_at} /> },
 ];
 

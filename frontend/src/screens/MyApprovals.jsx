@@ -183,8 +183,11 @@ export function MyApprovals() {
       key: "requested_by", label: "요청자", type: "name", minWidth: "13rem",
       // 사람이 나오는 자리에는 **조직 경로를 함께** 보여 준다(0060 §5) — 동명이인을 구별할
       // 방법이 화면에 없으면 잘못된 요청을 승인하게 된다.
+      /* 이 칸은 두 줄로 쌓인다(이름 + 조직 경로). 칸의 정렬은 `text-align` 하나뿐이라
+         안쪽 블록이 자기 폭을 가지면 두 줄의 시작점이 서로 어긋난다 — 두 줄을 같은
+         축에 세우려면 안쪽도 함께 가운데로 맞춰야 한다. */
       render: (r) => (
-        <Box sx={{ minWidth: 0 }}>
+        <Box sx={{ minWidth: 0, display: "flex", flexDirection: "column", alignItems: "center" }}>
           <Typography variant="body2" sx={{ minWidth: 0 }}>
             {r.requester_name || r.requested_by}
           </Typography>
