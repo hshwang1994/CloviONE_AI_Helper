@@ -44,3 +44,7 @@ skills-lock.json
 # credentials.json(이메일 + 비밀번호)이 떨어진다. 실제로 한 번 커밋에 딸려 들어갔다.
 # 이 저장소는 비밀번호를 git 에 남기지 않는다(CLAUDE.md 불변 4) — 안전망으로 무시한다.
 user/
+
+# 외부 디자인 핸드오프(시안 HTML 7개 + support.js, 약 380KB). 제품 코드가 아니라
+# 「의도한 모양」을 보여 주는 레퍼런스라 작업 중에는 리포 안에 두고 읽되 커밋하지 않는다.
+design_handoff_clovirassist_ui/

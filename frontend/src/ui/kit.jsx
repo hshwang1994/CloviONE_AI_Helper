@@ -14,6 +14,7 @@ import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
+import TableFooter from "@mui/material/TableFooter";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import useMediaQuery from "@mui/material/useMediaQuery";
@@ -43,7 +44,7 @@ import { maxLengthFor } from "../lib/fieldLimits.js";
 import { apiToKstLocal, kstLocalToApi, objectParticle, topicParticle } from "../lib/format.js";
 import { declaredRowName, rowNameOf } from "./rowName.js";
 import { ANYWHERE_BREAK, OVERFLOW, SHRINK, columnLayoutWidth, planColumnCollapse, planNarrowColumns, resolveColumn, rootFontPx, tableMinWidth } from "./columnTypes.js";
-import { EMPTY_STATE_MAX_CH, ERROR_STATE_MAX_CH, FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, MOTION, NUMERIC, RADIUS, SCROLL_BOX_STICKY_TOP, TABLE_CARD_QUERY, stickyTopSx } from "./theme.js";
+import { CONTROL, EMPTY_STATE_MAX_CH, ERROR_STATE_MAX_CH, FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, MOTION, NUMERIC, RADIUS, SCROLL_BOX_STICKY_TOP, TABLE_CARD_QUERY, remPx, stickyTopSx } from "./theme.js";
 import { CARD_PADDING, SECTION_GAP } from "./density.js";
 import { EntityCombobox } from "./filters.jsx";
 import { TableHeaderCell } from "./TableHeaderCell.jsx";
@@ -2013,7 +2014,100 @@ function rowAnchorProps(href, onActivate) {
  * 안 돈다. 전량을 받는 목록은 표본을 쓰지 않는다 — 거기서는 51번째 행의 값이 진짜 반례다. */
 const COLLAPSE_SAMPLE = 50;
 
-export function DataTable({ columns, rows, rowKey, onRow, rowHref, empty, ellipsis, stickyHeader, loading, sort, onSort, resultScope, filters, onFilter, filterOptions, entityOptions, virtualize, total }) {
+/* 묶음 머리행이 받는 값 — 문자열 하나만 줘도 된다.
+ * `{ key, label, count }` 에서 `key` 는 «묶음이 바뀌었는가» 판정에만 쓰고 화면에는 `label`
+ * 만 나온다. `count` 를 안 주면 표가 직접 센다(같은 key 를 가진 행 수). */
+function normalizeGroup(g) {
+  if (g == null || g === false) return null;
+  if (typeof g === "string" || typeof g === "number") return { key: String(g), label: String(g) };
+  if (g.key == null && g.label == null) return null;
+  const key = String(g.key != null ? g.key : g.label);
+  return { key, label: g.label != null ? g.label : key, count: g.count };
+}
+
+/* 묶음 머리행 — 프로젝트·담당자처럼 **행 여럿을 한 이름 아래 묶는** 줄.
+ *
+ * 예전에는 이 줄이 필요한 표(`MyTickets` 의 묶음 목록, `DevReport` 의 담당자별 상세)가
+ * `DataTable` 을 못 쓰고 자기 `<Table>` 을 따로 그렸다 — 그래서 정렬·말줄임·열 접기 규칙이
+ * 두 벌이 됐고 한쪽만 고쳐지는 일이 실제로 여러 번 있었다(`tableCellProps` 주석의 그 이력).
+ * 줄 하나가 없어서 표 구현이 갈라지느니 표가 그 줄을 갖는 편이 낫다.
+ *
+ * `<th scope="colgroup">` 이다 — 스크린 리더가 아래 행들이 이 이름에 속한다고 읽는다. */
+function GroupHeaderRow({ group, colSpan }) {
+  return (
+    <TableRow data-group-row={group.key}>
+      <TableCell
+        component="th"
+        scope="colgroup"
+        colSpan={colSpan}
+        sx={{
+          height: remPx(CONTROL.tableGroupRow),
+          py: 0,
+          textAlign: "start",
+          background: "background.inset",
+          borderBottom: (t) => `1px solid ${t.palette.rule}`,
+        }}
+      >
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0 }}>
+          <Box
+            component="span"
+            sx={{ fontSize: FONT_SIZE.caption, fontWeight: FONT_WEIGHT.bold, color: "text.primary", ...KO_WORD_BREAK }}
+          >
+            {group.label}
+          </Box>
+          {group.count != null ? (
+            <Box
+              component="span"
+              sx={{
+                flexShrink: 0, px: 0.75, py: 0.125, borderRadius: `${RADIUS.sm}px`,
+                bgcolor: "primary.soft", color: "primary.dark",
+                fontSize: FONT_SIZE.micro, fontWeight: FONT_WEIGHT.bold, ...NUMERIC,
+              }}
+            >
+              {group.count}건
+            </Box>
+          ) : null}
+        </Box>
+      </TableCell>
+    </TableRow>
+  );
+}
+
+/* 발 줄 — 왼쪽은 「몇 건 중 몇 건을 받았나」, 오른쪽은 지금 고른 것에 할 수 있는 일.
+ *
+ * 이 문장을 표가 직접 만든다. 예전에는 화면마다 목록 아래에 자기 문장을 따로 뒀고, 그래서
+ * 같은 뜻을 「50건 표시 중」·「총 520건」·아무 말 없음 세 가지로 말했다. 표는 자기가 몇 행을
+ * 그렸는지와 `total` 을 이미 알고 있으므로 그 둘을 아는 자리가 문장도 갖는다.
+ * `total` 을 모르면 왼쪽을 비운다 — 모르는 숫자를 지어내지 않는다. */
+function TableFooterRow({ note, actions, shown, total, colSpan }) {
+  const text = note !== undefined
+    ? note
+    : (total != null ? `${total}건 중 ${shown}건을 받았습니다.` : null);
+  return (
+    <TableRow>
+      <TableCell
+        colSpan={colSpan}
+        sx={{
+          height: remPx(CONTROL.tableFooter),
+          py: 0,
+          borderTop: (t) => `1px solid ${t.palette.divider}`,
+          borderBottom: 0,
+          background: "background.inset",
+        }}
+      >
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, minWidth: 0 }}>
+          {text != null ? (
+            <Box component="span" sx={{ fontSize: FONT_SIZE.caption, color: "text.secondary", ...NUMERIC }}>{text}</Box>
+          ) : null}
+          <Box sx={{ flex: 1 }} />
+          {actions}
+        </Box>
+      </TableCell>
+    </TableRow>
+  );
+}
+
+export function DataTable({ columns, rows, rowKey, onRow, rowHref, rowSelected, groupOf, footer, empty, ellipsis, stickyHeader, loading, sort, onSort, resultScope, filters, onFilter, filterOptions, entityOptions, virtualize, total }) {
   // §15.1 재검수 — `VirtualTableBody` 는 스크롤 창을 스스로 안 만든다(문서 전체가 표
   // 흐름을 지키게, `VirtualRows`와 다른 이유는 그 부품 docblock 참고). 이 상자가 그 창
   // 이다 — `virtualize` 를 안 쓰면 아무도 안 읽는다(회귀 0).
@@ -2200,6 +2294,10 @@ export function DataTable({ columns, rows, rowKey, onRow, rowHref, empty, ellips
       <TableRow
         key={keyOf(row, i)}
         hover={!!onRow}
+        /* 고른 행은 **hover 와 같은 한 단계**로만 말한다(아래 `Mui-selected` 규칙).
+           MUI 기본값은 primary 를 옅게 깐 면이라 hover 와 색이 갈리는데, 표에서 그 둘이
+           다른 색이면 「고른 것」과 「지금 마우스가 있는 것」이 같은 세기로 경쟁한다. */
+        selected={rowSelected ? !!rowSelected(row) : undefined}
         onClick={onRow ? (e) => { if (e.target.closest("a,button")) return; onRow(row); } : undefined}
         onKeyDown={onRow ? (e) => { if (e.target.closest("a,button")) return; if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onRow(row); } } : undefined}
         tabIndex={onRow ? 0 : undefined}
@@ -2249,6 +2347,37 @@ export function DataTable({ columns, rows, rowKey, onRow, rowHref, empty, ellips
         })}
       </TableRow>
     );
+  }
+
+  /* 묶음 머리행을 끼운 본문.
+   *
+   * 🔴 **가상화와 함께 쓸 수 없다.** 가상화는 행 하나를 인덱스로 세어 높이를 추정하는데,
+   * 중간에 다른 높이의 줄이 끼면 그 추정이 틀어져 스크롤이 튄다. 지금 묶음이 필요한 표
+   * 둘(내 티켓 묶음 목록·개발 리포트 담당자별)은 가상화를 안 쓰고, 가상화를 쓰는 표
+   * (문서·작업 보드)는 묶음이 없다 — 두 요구가 실제로 겹치지 않는다. 겹치는 날이 오면
+   * 그때는 「묶음을 아는 가상화」를 만들어야 하지, 여기서 조용히 한쪽을 버리면 안 된다.
+   * 그래서 가상화 갈래에서는 `groupOf` 를 아예 안 읽는다(무시가 아니라 도달 불가다). */
+  function renderBodyRows() {
+    if (!groupOf) return safeRows.map((row, i) => renderDataRow(row, i));
+    const groups = safeRows.map((row) => normalizeGroup(groupOf(row)));
+    const counts = new Map();
+    groups.forEach((g) => { if (g) counts.set(g.key, (counts.get(g.key) || 0) + 1); });
+    const out = [];
+    let open = null;
+    groups.forEach((g, i) => {
+      if (g && g.key !== open) {
+        open = g.key;
+        out.push(
+          <GroupHeaderRow
+            key={`clv-group:${g.key}`}
+            group={{ ...g, count: g.count != null ? g.count : counts.get(g.key) }}
+            colSpan={wideCols.length}
+          />,
+        );
+      }
+      out.push(renderDataRow(safeRows[i], i));
+    });
+    return out;
   }
 
   return (
@@ -2311,6 +2440,9 @@ export function DataTable({ columns, rows, rowKey, onRow, rowHref, empty, ellips
           "& tbody tr:last-of-type td": { borderBottom: 0 },
           "& tbody tr": { transition: `background-color ${MOTION.instant} ${MOTION.ease}` },
           "& tbody tr.MuiTableRow-hover:hover": { bgcolor: "background.inset" },
+          /* hover 와 선택이 **같은 한 단계**다. 색 테두리로 고른 행을 두르지 않는다 —
+             표 안에서 색 테두리는 열 경계와 싸운다. */
+          "& tbody tr.Mui-selected, & tbody tr.Mui-selected:hover": { bgcolor: "background.inset" },
         }}
       >
         <TableColGroup columns={wideCols} />
@@ -2367,8 +2499,19 @@ export function DataTable({ columns, rows, rowKey, onRow, rowHref, empty, ellips
               getItemKey={(row, i) => keyOf(row, i)}
               renderRow={renderDataRow}
             />
-          ) : safeRows.map((row, i) => renderDataRow(row, i))}
+          ) : renderBodyRows()}
         </TableBody>
+        {footer ? (
+          <TableFooter>
+            <TableFooterRow
+              note={footer === true ? undefined : footer.note}
+              actions={footer === true ? null : footer.actions}
+              shown={safeRows.length}
+              total={total}
+              colSpan={wideCols.length}
+            />
+          </TableFooter>
+        ) : null}
       </Table>
       </TableContainer>
     </>

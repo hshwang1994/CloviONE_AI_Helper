@@ -296,6 +296,76 @@ describe("DataTable", () => {
     expect(screen.getByText("항목 없음")).toBeInTheDocument();
   });
 
+  /* 묶음 머리행·발 줄·선택 — 이 셋이 없어서 표 구현이 갈라져 있었다.
+   * 내 티켓의 묶음 목록과 개발 리포트의 담당자별 상세가 각자 `<Table>` 을 그렸고, 그래서
+   * 정렬·말줄임·열 접기 규칙이 두 벌이 됐다. 줄 하나가 없어서 표가 갈라지느니 표가 그
+   * 줄을 갖는다. */
+  describe("묶음 머리행 · 발 줄 · 선택", () => {
+    const gcols = [
+      { key: "name", label: "이름", type: "title" },
+      { key: "proj", label: "프로젝트", type: "text" },
+    ];
+    const grows = [
+      { id: 1, name: "가", proj: "클로비" },
+      { id: 2, name: "나", proj: "클로비" },
+      { id: 3, name: "다", proj: "게이트" },
+    ];
+
+    it("묶음이 바뀌는 자리에만 머리행이 서고 건수를 스스로 센다", () => {
+      const { container } = ui(
+        <DataTable columns={gcols} rows={grows} rowKey={(r) => r.id} groupOf={(r) => r.proj} />,
+      );
+      const heads = container.querySelectorAll("[data-group-row]");
+      expect(heads).toHaveLength(2);
+      expect(heads[0].getAttribute("data-group-row")).toBe("클로비");
+      expect(heads[1].getAttribute("data-group-row")).toBe("게이트");
+      // 건수는 호출부가 안 줘도 표가 센다.
+      expect(within(heads[0]).getByText("2건")).toBeInTheDocument();
+      expect(within(heads[1]).getByText("1건")).toBeInTheDocument();
+      // 스크린 리더가 «아래 행들이 이 이름에 속한다» 로 읽는다.
+      const th = heads[0].querySelector("th");
+      expect(th.getAttribute("scope")).toBe("colgroup");
+      expect(Number(th.getAttribute("colspan"))).toBe(gcols.length);
+    });
+
+    it("groupOf 를 안 주면 묶음 머리행이 하나도 없다", () => {
+      const { container } = ui(<DataTable columns={gcols} rows={grows} rowKey={(r) => r.id} />);
+      expect(container.querySelectorAll("[data-group-row]")).toHaveLength(0);
+      expect(container.querySelectorAll("tbody tr")).toHaveLength(3);
+    });
+
+    it("발 줄은 몇 건 중 몇 건인지 말하고 일괄 동작을 오른쪽에 둔다", () => {
+      ui(
+        <DataTable
+          columns={gcols} rows={grows} rowKey={(r) => r.id} total={520}
+          footer={{ actions: <button type="button">내보내기</button> }}
+        />,
+      );
+      expect(screen.getByText("520건 중 3건을 받았습니다.")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "내보내기" })).toBeInTheDocument();
+    });
+
+    it("total 을 모르면 발 줄이 숫자를 지어내지 않는다", () => {
+      const { container } = ui(<DataTable columns={gcols} rows={grows} rowKey={(r) => r.id} footer />);
+      expect(container.querySelector("tfoot")).toBeTruthy();
+      expect(container.querySelector("tfoot").textContent).toBe("");
+    });
+
+    it("고른 행만 선택 표시를 갖는다", () => {
+      const { container } = ui(
+        <DataTable columns={gcols} rows={grows} rowKey={(r) => r.id} rowSelected={(r) => r.id === 2} />,
+      );
+      const sel = container.querySelectorAll("tbody tr.Mui-selected");
+      expect(sel).toHaveLength(1);
+      expect(sel[0].textContent).toContain("나");
+    });
+
+    it("rowSelected 를 안 주면 어떤 행도 선택 표시를 갖지 않는다", () => {
+      const { container } = ui(<DataTable columns={gcols} rows={grows} rowKey={(r) => r.id} />);
+      expect(container.querySelectorAll("tbody tr.Mui-selected")).toHaveLength(0);
+    });
+  });
+
   /* VIS-58: 100행짜리 표가 6,014px까지 늘어나면 스크롤 중 열 제목을 잃는다. stickyHeader는
    * MUI Table에 그대로 위임하고(position:sticky), 이 표는 항상 Card(불투명 배경) 안에
    * 있으므로 스크롤되는 본문 셀이 비쳐 보이지 않게 배경색도 명시로 준다. */

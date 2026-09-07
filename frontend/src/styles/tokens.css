@@ -1,6 +1,6 @@
 /* 생성 파일이다. 손으로 고치지 마라.
  *
- * 정본: frontend/src/ui/theme.js  (source-hash c83ead519f99b066)
+ * 정본: frontend/src/ui/theme.js  (source-hash 2883ecf57cf89b80)
  * 생성: node scripts/generate_design_tokens.mjs
  * 검사: node scripts/generate_design_tokens.mjs --check   (static_checks.sh 가 부른다)
  *
@@ -60,6 +60,7 @@
   --color-border: #DCDFEC;
   --color-border-strong: #BCC2D9;
   --color-line: #DCDFEC;
+  --color-rule: #E5E8F3;
   --color-primary: #5A4FCF;
   --color-primary-strong: #4742AB;
   --color-primary-tint: #EFEDFA;
@@ -172,6 +173,7 @@
   --color-border: #242A46;
   --color-border-strong: #333B5E;
   --color-line: #242A46;
+  --color-rule: #242A46;
   --color-primary: #5A4FCF;
   --color-primary-strong: #9992E1;
   --color-primary-tint: #1F2144;

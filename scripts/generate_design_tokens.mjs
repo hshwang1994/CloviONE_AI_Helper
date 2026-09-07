@@ -90,6 +90,8 @@ function tokensFor(mode) {
     "--color-border": p.divider,
     "--color-border-strong": p.dividerStrong,
     "--color-line": p.divider,
+    /* 판 안쪽을 나누는 실선(표의 행 사이). 판을 두르는 `--color-border` 보다 한 단 여리다. */
+    "--color-rule": p.rule,
 
     /* 강조 — 세 자리에만 쓴다(주요 행동·현재 선택·포커스). */
     "--color-primary": p.primary.main,

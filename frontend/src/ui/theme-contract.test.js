@@ -27,6 +27,7 @@ import {
   MOTION,
   NUMERIC,
   RADIUS,
+  remPx,
 } from "./theme.js";
 
 const MODES = ["light", "dark"];
@@ -764,7 +765,37 @@ describe("컴포넌트 계약 — 옛 목업 대조 시험이 지키던 목적�
     const t = createClovirTheme(mode);
     const head = t.components.MuiTableCell.styleOverrides.head({ theme: t });
     expect(head.background).toBe(t.palette.background.inset);
-    expect(head.borderBottom).toBe(`1px solid ${t.palette.dividerStrong}`);
+    /* 머리와 몸을 가르는 선은 판을 두르는 선과 **같은 굵기**다(`divider`). 예전에는
+       `dividerStrong` 이라 머리 줄이 별도의 판처럼 떠 보였다. */
+    expect(head.borderBottom).toBe(`1px solid ${t.palette.divider}`);
+    expect(head.height).toBe(remPx(CONTROL.tableHead));
+  });
+
+  it.each(MODES)("%s — 표의 네 높이는 토큰에서 나오고 실제로 배선돼 있다", (mode) => {
+    const t = createClovirTheme(mode);
+    /* 이 시험이 있는 이유: `CONTROL.tableRow` 는 오래 «정의만 있고 소비처 0» 이었다.
+       값이 적혀 있다는 것과 그 값으로 그려진다는 것은 다른 사실이다. */
+    const head = t.components.MuiTableCell.styleOverrides.head({ theme: t });
+    const body = t.components.MuiTableCell.styleOverrides.body({ theme: t });
+    expect(head.height).toBe(remPx(CONTROL.tableHead));
+    expect(body.height).toBe(remPx(CONTROL.tableRow));
+    expect(CONTROL.tableHead).toBe(40);
+    expect(CONTROL.tableRow).toBe(48);
+    expect(CONTROL.tableGroupRow).toBe(36);
+    expect(CONTROL.tableFooter).toBe(44);
+    // 머리 안의 조작기는 머리 줄보다 낮아야 칸을 안 밀어낸다.
+    expect(CONTROL.tableCellDense).toBeLessThan(CONTROL.tableHead);
+  });
+
+  it.each(MODES)("%s — 판 안쪽 실선은 판을 두르는 선과 다른 역할이다", (mode) => {
+    const t = createClovirTheme(mode);
+    const body = t.components.MuiTableCell.styleOverrides.body({ theme: t });
+    expect(t.palette.rule).toMatch(/^#[0-9A-Fa-f]{6}$/);
+    expect(body.borderBottomColor).toBe(t.palette.rule);
+    /* light 에서는 판 테두리보다 여리고, dark 에서는 같은 값이다 — dark 의 `sunken` 은
+       카드보다 어두워 판 안쪽 실선으로 쓰면 홈이 파인 것처럼 보인다. */
+    if (mode === "light") expect(t.palette.rule).not.toBe(t.palette.divider);
+    else expect(t.palette.rule).toBe(t.palette.divider);
   });
 
   it.each(MODES)("%s — 표 칸은 세로 가운데다", (mode) => {

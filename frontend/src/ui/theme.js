@@ -131,9 +131,17 @@ export const CONTROL = {
   iconButtonHit: 40,
   tab: 40,
   navItem: 38,
-  tableRow: 44,
-  tableRowCompact: 36,
-  /* 표 **안**의 컨트롤(인라인 편집 select·아이콘 버튼)은 44px 행 안에 들어가야 하므로
+  /* 표의 네 높이 — 머리 40 / 행 48 / 묶음 머리 36 / 발 44.
+     `tableRow` 는 오래 **정의만 있고 소비처가 0** 이었다. 값이 44 라고 적혀 있었지만 어떤
+     표도 그 높이로 서지 않았고, 실제 행 높이는 `size="small"` 패딩과 글자 줄상자에서 파생
+     됐다 — 즉 이 표는 「행 높이 계약」을 가진 적이 없다. 지금 `MuiTableCell` 에 배선하면서
+     48 로 옮긴다. 같은 이유로 `tableRowCompact`(36)는 걷었다: 이름만 남은 값은 다음 사람이
+     「여기 정본이 있으니 이걸 쓰면 되겠다」로 읽는데 어느 화면에서도 검증된 적이 없다. */
+  tableHead: 40,
+  tableRow: 48,
+  tableGroupRow: 36,
+  tableFooter: 44,
+  /* 표 **안**의 컨트롤(인라인 편집 select·아이콘 버튼)은 행 안에 들어가야 하므로
      일반 컨트롤(34/36)보다 작다. 배선은 W6 이 한다 — 값을 여기 두는 이유는 그때 새 리터럴이
      생기지 않게 하기 위해서다. */
   tableCellDense: 32,
@@ -435,6 +443,13 @@ const TOKENS = {
     disabledInk: "#5C6480",
     line: "#DCDFEC",
     lineStrong: "#BCC2D9",
+    /* 판 **안쪽**을 나누는 실선 — 표의 행 사이, 카드 안 목록의 줄 사이.
+       판의 테두리(`line`)보다 한 단 여려야 「판이 하나」로 읽힌다. 두 모드가 서로 다른
+       기존 값을 가리키므로 별칭이 아니라 역할 이름을 준다: light 는 `sunken` 과 같은 값
+       이지만 dark 는 `line` 과 같다(dark 의 `sunken` #0F1322 은 카드보다 어두워 판 안쪽
+       실선으로 쓰면 홈이 파인 것처럼 보인다). 두 모드가 갈리는 자리가 역할 토큰이 이름을
+       버는 자리다. */
+    rule: "#E5E8F3",
     accent: "#5B54B8",
     cyan: "#1F6F8B",
     success: "#0F7B4F",
@@ -469,6 +484,8 @@ const TOKENS = {
     disabledInk: "#8C96B8",
     line: "#242A46",
     lineStrong: "#333B5E",
+    /* 판 안쪽 실선 — dark 에서는 `line` 과 같은 값이다(위 light 주석이 정본). */
+    rule: "#242A46",
     accent: "#A99CF5",
     cyan: "#6FB6CE",
     success: "#4ADE9B",
@@ -608,6 +625,8 @@ export function createClovirTheme(mode = "light", accent = DEFAULT_ACCENT) {
       text: { primary: t.text, secondary: t.muted, disabled: t.disabledInk, faint: t.faint },
       divider: t.line,
       dividerStrong: t.lineStrong,
+      /* 판 안쪽 실선. `divider` 는 판을 **두르는** 선이고 이것은 판 **안을 나누는** 선이다. */
+      rule: t.rule,
       /* Chrome — Top bar + Sidebar. **Brand 고정이고 사용자 Accent 를 따르지 않는다.** */
       chrome: {
         ...chrome,
@@ -961,14 +980,27 @@ export function createClovirTheme(mode = "light", accent = DEFAULT_ACCENT) {
       MuiDrawer: { styleOverrides: { paper: { backgroundImage: "none" } } },
       MuiTableCell: {
         styleOverrides: {
+          /* 머리 줄은 **40px 한 값**이다. 예전에는 높이를 아무도 안 정해서 안쪽 조작기
+             (`tableCellDense` 32)와 글자 줄상자가 그때그때 만들어 냈다 — 같은 앱의 표들이
+             서로 다른 높이로 섰다.
+             아래 선은 `dividerStrong`(#BCC2D9)에서 `divider`(#DCDFEC)로 한 단 여려진다.
+             머리와 몸을 가르는 선이 판을 두르는 선보다 굵을 이유가 없다 — 그 굵기 차이가
+             머리 줄을 별도의 판처럼 보이게 했다. */
           head: ({ theme }) => ({
+            height: remPx(CONTROL.tableHead),
             color: theme.palette.text.secondary,
             fontSize: FONT_SIZE.micro,
             fontWeight: FONT_WEIGHT.semibold,
             letterSpacing: "0.03em",
             textTransform: "none",
             background: theme.palette.background.inset,
-            borderBottom: `1px solid ${theme.palette.dividerStrong}`,
+            borderBottom: `1px solid ${theme.palette.divider}`,
+          }),
+          /* 행은 **최소 48px**. 표 칸의 `height` 는 CSS 에서 최솟값으로 계산되므로, 두 줄짜리
+             셀(문서 목록의 제목+요약)은 그대로 더 자란다 — 바닥만 고른다. */
+          body: ({ theme }) => ({
+            height: remPx(CONTROL.tableRow),
+            borderBottomColor: theme.palette.rule,
           }),
           root: {
             fontSize: FONT_SIZE.bodySm,
