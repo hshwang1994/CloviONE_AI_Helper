@@ -51,6 +51,10 @@ const KnowledgeDoc = React.lazy(() => import("../screens/KnowledgeDoc.jsx").then
 /* AI 작업공간(S10). 늦게 싣는 이유는 다른 화면들과 같다 — 이 화면을 안 여는 사람의
  * 첫 로딩에 그 무게를 얹지 않는다. */
 const AiWorkspace = React.lazy(() => import("../screens/AiWorkspace.jsx").then((m) => ({ default: m.AiWorkspace })));
+/* 부품 갤러리(`/kit`) — **개발용 대조표**다. 사이드바 항목이 없고 주소를 직접 쳐야 열린다.
+ * 늦게 싣는 이유가 다른 화면보다 강하다: 이 화면을 여는 사람은 이 제품을 만드는 사람뿐이라,
+ * 쓰는 사람의 첫 로딩에 그 무게가 한 바이트도 얹히면 안 된다. */
+const KitGallery = React.lazy(() => import("../screens/dev/KitGallery.jsx").then((m) => ({ default: m.KitGallery })));
 
 /* 라우트 청크가 통째로 아직 없다 — 회색 줄 여섯 개는 "무언가 온다"까지만 말하고, 실제
  * 화면이 도착하면 제목·지표·본문이 한꺼번에 튀어 들어온다. 들어올 배치를 미리 잡는다
@@ -159,6 +163,9 @@ function UserRoutes() {
           개인 설정과 같은 자리(`/profile`)로 옮겼다. 주소는 살려 둔다 — 계정 메뉴에
           있던 항목이라 북마크가 남아 있을 수 있다. */}
       <Route path="/my-display" element={<Navigate to="/profile" replace />} />
+      {/* 공통 부품 갤러리 — 확정 규약과 실제 부품을 나란히 놓고 보는 자리. 제품 화면이
+          아니므로 사이드바에 없고, 역할 게이트도 없다(아무 데이터도 안 읽는다). */}
+      <Route path="/kit" element={<Lazy><KitGallery /></Lazy>} />
       <Route path="*" element={<UserConsoleFallback />} />
     </Routes>
   );

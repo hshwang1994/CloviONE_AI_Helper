@@ -317,6 +317,10 @@ export const USER_SEG_PATHS = [
   "/notifications",
   // 개인 결재함 — 승인은 위임받은 일반 사용자에게도 오는 개인 업무다.
   "/my-approvals",
+  // 부품 갤러리(개발용 대조표). 사이드바 항목이 없는 화면이 이 목록에서 빠지면 셸이
+  // 관리자로 넘어가 `AdminRoutes` 의 404 가 뜬다 — `/ai`·`/search`·`/projects` 가 전부
+  // 겪은 그 결함이다(실측: 첫 캡처가 관리자 셸의 「찾을 수 없습니다」였다).
+  "/kit",
 ];
 
 export function inUserSegment(pathname) {
