@@ -178,6 +178,25 @@ export function fmtDayKo(v) {
   return `${Number(m[2])}월 ${Number(m[3])}일`;
 }
 
+/* 「2026년 9월 7일 월요일」 — **오늘이 언제인가**를 이름으로 말하는 자리에만 쓴다.
+ *
+ * 위 `fmtDayKo` 와 다른 부품인 이유: 그쪽은 목록·표에서 날짜를 짧게 적는 자리라 해와 요일을
+ * 일부러 뺐다(한 화면에 같은 해가 여러 번 나오면 폭만 먹는다). 여기는 그 반대다 — 화면
+ * 머리에 하루가 한 번 서고, 그때 사람이 알고 싶은 것이 **무슨 요일인가**다.
+ *
+ * 요일은 `Date.UTC` 로 만든 뒤 `getUTCDay()` 로 읽는다. 지역 시간으로 만들면 브라우저
+ * 시간대에 따라 하루가 밀려 서버가 「오늘」이라고 준 날의 요일이 달라진다. */
+const WEEKDAY_KO = ["일", "월", "화", "수", "목", "금", "토"];
+
+export function fmtDayLongKo(v) {
+  if (v == null || v === "") return "";
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(v).slice(0, 10));
+  if (!m) return String(v);
+  const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  const w = WEEKDAY_KO[new Date(Date.UTC(y, mo - 1, d)).getUTCDay()];
+  return `${y}년 ${mo}월 ${d}일 ${w}요일`;
+}
+
 // 짧은 기기/브라우저 표기 — user-agent 원문은 너무 길어 표·카드를 망가뜨린다. Users.jsx(관리자의
 // 다른 사용자 세션 목록)에만 있었다가 Profile.jsx(내 기기 목록)로도 쓰이며 공용으로 옮겼다 —
 // 후자는 원문을 자르지도, 전체 문구를 Tooltip으로 보존하지도 않아 긴 UA가 카드 레이아웃을 밀어냈다.

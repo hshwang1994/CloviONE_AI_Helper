@@ -5,7 +5,7 @@ import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 import {
   Badge, Button, Callout, ConfirmProvider, DataTable, EmptyState, ErrorState,
-  Card, FormField, MetricStrip, Modal, OverflowMenu, PageHeader, SURFACE_EDGE_WIDTH, SURFACE_TONES, Section, Surface,
+  Card, FormField, MetricStrip, Modal, OverflowMenu, PageHeader, SURFACE_EDGE_WIDTH, SURFACE_TONES, Section, Segmented, Surface,
   ToastProvider, statusKind, statusText, useConfirm,
 } from "./kit.jsx";
 import { ThemeModeProvider } from "./ThemeModeProvider.jsx";
@@ -1062,5 +1062,95 @@ describe("DetailRow — 상세의 키/값 줄 (D-457)", () => {
     expect(container.querySelectorAll("[data-detail-row]")).toHaveLength(2);
     expect(screen.getByText("이메일")).toBeInTheDocument();
     expect(screen.getByText("a@b.c")).toBeInTheDocument();
+  });
+});
+
+/* 세그먼티드 — 밑줄 탭이 하던 일을 **면**으로 한다.
+ *
+ * 밑줄 탭은 칸이 넷쯤 되면 어디까지가 이 묶음인지 경계가 사라진다. 세그먼티드는 묶음
+ * 자체가 면이라 경계가 언제나 보이고 고른 칸만 그 면 위로 한 겹 올라온다. 이 시험이 재는
+ * 것은 그 두 겹이 실제로 다른 면인가, 그리고 **탭이었던 것이 여전히 탭인가**다. */
+/* 표와 목록 안에서는 배지 대신 **점 + 낱말**이다 (확정 규약 §9).
+ *
+ * danger 가 자동으로 옅은 면을 얻는 규칙은 목록 **밖**(카드 머리·상세)에서 조치를 눈에
+ * 띄게 하려는 것이다. 그것이 목록 안으로 들어오면 같은 줄에서 어휘가 둘로 갈린다 —
+ * 「지연 18일」만 붉은 칩이고 옆의 「검증」·「계획」은 점 + 낱말이었다. */
+describe("배지 — 목록 안에서는 면을 갖지 않는다", () => {
+  const faceOf = (el) => getComputedStyle(el.closest(".k-badge")).backgroundColor;
+
+  it("danger 는 목록 밖에서 옅은 면을 갖는다(그 규칙은 그대로다)", () => {
+    const { container } = ui(<Badge value="지연" kind="danger" />);
+    expect(faceOf(container.querySelector(".k-badge"))).not.toBe("rgba(0, 0, 0, 0)");
+  });
+
+  it("plain 을 주면 그 면이 사라진다 — 같은 줄의 다른 상태와 같은 모양이 된다", () => {
+    const { container } = ui(
+      <>
+        <Badge value="지연" kind="danger" emphasis="plain" />
+        <Badge value="검증" />
+      </>,
+    );
+    const [lead, status] = Array.from(container.querySelectorAll(".k-badge"));
+    expect(faceOf(lead)).toBe(faceOf(status));
+    // 색은 잃지 않는다 — 면 대신 점과 글자가 나른다.
+    expect(getComputedStyle(lead).color).not.toBe(getComputedStyle(status).color);
+    expect(lead.querySelector("span[aria-hidden]")).toBeInTheDocument();
+  });
+
+  it("plain 이어도 낱말은 남는다 — 색만으로 심각도를 말하지 않는다", () => {
+    ui(<Badge value="지연" kind="danger" emphasis="plain" />);
+    expect(screen.getByText("지연")).toBeInTheDocument();
+  });
+});
+
+describe("세그먼티드", () => {
+  const OPTS = [
+    { value: "a", label: "오늘 요약" },
+    { value: "b", label: "이번 주 요약" },
+    { value: "c", label: "담당자 지정 필요", count: 3 },
+  ];
+
+  it("탭 역할과 aria-selected 를 그대로 갖는다 — 바뀐 것은 겉모습뿐이다", () => {
+    ui(<Segmented ariaLabel="보기" value="b" onChange={() => {}} options={OPTS} />);
+    expect(screen.getByRole("tablist", { name: "보기" })).toBeInTheDocument();
+    expect(screen.getAllByRole("tab")).toHaveLength(3);
+    expect(screen.getByRole("tab", { name: "이번 주 요약" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: "오늘 요약" })).toHaveAttribute("aria-selected", "false");
+  });
+
+  it("고른 칸만 판면으로 올라온다 — 나머지는 컨테이너 면 그대로다", () => {
+    const { container } = ui(<Segmented ariaLabel="보기" value="a" onChange={() => {}} options={OPTS} />);
+    const box = container.querySelector(".k-segmented");
+    const [on, off] = screen.getAllByRole("tab");
+    const bg = (el) => getComputedStyle(el).backgroundColor;
+    // 컨테이너와 고른 칸이 **다른 면**이라야 한 겹 올라온 것으로 읽힌다.
+    expect(bg(on)).not.toBe(bg(box));
+    expect(["transparent", "rgba(0, 0, 0, 0)"]).toContain(bg(off));
+    // 그림자도 고른 칸에만 있다.
+    expect(getComputedStyle(on).boxShadow).not.toBe("none");
+    expect(getComputedStyle(off).boxShadow).toBe("none");
+  });
+
+  it("안쪽 버튼 높이는 컨테이너에서 여백 둘을 뺀 값이다 — 새 숫자를 만들지 않는다", () => {
+    ui(<Segmented ariaLabel="보기" value="a" onChange={() => {}} options={OPTS} />);
+    // CONTROL.button(34) − 3px × 2 = 28px = 1.75rem
+    expect(getComputedStyle(screen.getAllByRole("tab")[0]).height).toBe("1.75rem");
+  });
+
+  it("누르면 그 값을 돌려준다", async () => {
+    const onChange = vi.fn();
+    ui(<Segmented ariaLabel="보기" value="a" onChange={onChange} options={OPTS} />);
+    await userEvent.click(screen.getByRole("tab", { name: /담당자 지정 필요/ }));
+    expect(onChange).toHaveBeenCalledWith("c");
+  });
+
+  it("건수를 주면 라벨 옆에 함께 선다", () => {
+    ui(<Segmented ariaLabel="보기" value="a" onChange={() => {}} options={OPTS} />);
+    expect(screen.getByRole("tab", { name: "담당자 지정 필요 3" })).toBeInTheDocument();
+  });
+
+  it("보기가 없으면 빈 그릇을 안 그린다", () => {
+    const { container } = ui(<Segmented ariaLabel="보기" value="a" onChange={() => {}} options={[]} />);
+    expect(container.querySelector(".k-segmented")).toBeNull();
   });
 });

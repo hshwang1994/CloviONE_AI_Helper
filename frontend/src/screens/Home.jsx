@@ -7,7 +7,7 @@ import Link from "@mui/material/Link";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
-import { fmtDayKo, fmtRelative } from "../lib/format.js";
+import { fmtDayKo, fmtDayLongKo, fmtRelative } from "../lib/format.js";
 import {
   Badge, Button, Callout, Card, DataTable, EmptyState, ErrorState, PageHeader,
   ScrollArea, SectionTitle, Skeleton, SubGroup,
@@ -333,8 +333,13 @@ export function Home() {
       {/* 머리 오른쪽의 34px 동작 셋 — 이 화면에서 나가는 세 길이다. 「내 티켓 전체」는
           업무 판 안에도 링크로 있었는데, 판을 굴리면 그 링크가 시야에서 사라진다.
           나가는 길은 화면 머리에 서는 것이 규약이다. */}
+      {/* 빵부스러기 줄이 **어디이고 언제인가**를 함께 말한다. 날짜는 서버가 준 값이다
+          (`q.data.today`) — 화면에서 `new Date()` 로 다시 판정하면 브라우저 시간대에 따라
+          서버와 다른 날을 「오늘」이라고 부르게 된다. 데이터가 오기 전에는 자리 이름만 서고
+          날짜가 뒤에 붙는다: 줄 자체는 처음부터 있으므로 세로로 튀지 않는다. */}
       <PageHeader
-        crumbRoot=""
+        crumbRoot="내 업무"
+        area={q.data && q.data.today ? fmtDayLongKo(q.data.today) : undefined}
         title="오늘"
         actions={
           <>

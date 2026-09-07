@@ -369,11 +369,15 @@ export const CHART_DASH = ["", "4 3", "1 3", "6 3 1 3", "10 4", "2 2"];
 const SHADOW = {
   light: {
     none: "none",
+    /* 면 하나만큼 **들린** 것. 세그먼티드에서 지금 고른 칸이 컨테이너 위로 한 겹 올라온다 —
+       띄우는 그림자(`overlay`)가 아니라 두께 하나를 말하는 그림자다. */
+    raised: "0 1px 2px rgba(16,20,40,.10)",
     overlay: "0 6px 18px rgba(16,20,40,.12), 0 1px 3px rgba(16,20,40,.07)",
     modal: "0 24px 56px rgba(14,18,38,.22)",
   },
   dark: {
     none: "none",
+    raised: "0 1px 2px rgba(0,0,0,.45)",
     overlay: "0 6px 18px rgba(0,0,0,.50), 0 1px 3px rgba(0,0,0,.40)",
     modal: "0 24px 56px rgba(0,0,0,.62)",
   },

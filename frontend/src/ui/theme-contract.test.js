@@ -119,9 +119,14 @@ describe("enclosure 는 기본값이 아니다 (D-141 RAISE, cracktro)", () => {
     expect(card.border).toBe(`1px solid ${t.palette.divider}`);
   });
 
-  it.each(MODES)("%s — 그림자는 떠 있는 것만 갖는다(none/overlay/modal 셋뿐)", (mode) => {
+  it.each(MODES)("%s — 그림자는 뜻이 있는 것만 갖는다(none/raised/overlay/modal 넷뿐)", (mode) => {
     const s = createClovirTheme(mode).shadowTokens;
-    expect(Object.keys(s).sort()).toEqual(["modal", "none", "overlay"]);
+    /* `raised` 는 **띄우는** 그림자가 아니라 두께 하나를 말하는 그림자다 — 세그먼티드에서
+       지금 고른 칸이 컨테이너 위로 한 겹 올라온 것. 목록을 열어 두는 이유는 그대로다:
+       그림자가 장식으로 늘어나는 것을 막는다. */
+    expect(Object.keys(s).sort()).toEqual(["modal", "none", "overlay", "raised"]);
+    expect(s.raised).not.toBe(s.overlay);
+    expect(s.raised).not.toBe("none");
     expect(s.none).toBe("none");
     expect(s.overlay).not.toBe("none");
     expect(s.modal).not.toBe("none");

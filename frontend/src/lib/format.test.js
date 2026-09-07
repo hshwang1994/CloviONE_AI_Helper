@@ -8,7 +8,7 @@
  * 몇 시간 밀린 시각이 보이는 결함이었다(불변규칙 §3-7: 표시는 항상 Asia/Seoul).
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { fmtTimeShort } from "./format.js";
+import { fmtDayLongKo, fmtTimeShort } from "./format.js";
 
 describe("fmtTimeShort — 항상 KST(UTC+9)로 표시한다", () => {
   afterEach(() => { vi.unstubAllEnvs(); });
@@ -37,5 +37,25 @@ describe("fmtTimeShort — 항상 KST(UTC+9)로 표시한다", () => {
   it("이미 오프셋이 붙은 값도 같은 순간이면 같은 KST 시각을 낸다", () => {
     // +09:00 14:30 == UTC 05:30 — toUTCDate가 오프셋을 존중하므로 위 시험과 같은 순간이어야 한다.
     expect(fmtTimeShort("2026-07-29T14:30:00+09:00")).toBe(fmtTimeShort("2026-07-29T05:30:00Z"));
+  });
+});
+
+/* 화면 머리의 하루 이름. **요일이 밀리지 않는가**가 이 함수의 전부다 — 지역 시간으로
+   만들면 브라우저 시간대에 따라 서버가 「오늘」이라고 준 날의 요일이 달라진다. */
+describe("fmtDayLongKo", () => {
+  it("해와 달과 날과 요일을 함께 말한다", () => {
+    expect(fmtDayLongKo("2026-09-07")).toBe("2026년 9월 7일 월요일");
+    expect(fmtDayLongKo("2026-01-01")).toBe("2026년 1월 1일 목요일");
+    expect(fmtDayLongKo("2026-09-06")).toBe("2026년 9월 6일 일요일");
+  });
+
+  it("시각이 붙어 와도 날짜만 읽는다", () => {
+    expect(fmtDayLongKo("2026-09-07T23:59:59Z")).toBe("2026년 9월 7일 월요일");
+  });
+
+  it("모르는 값은 지어내지 않는다", () => {
+    expect(fmtDayLongKo(null)).toBe("");
+    expect(fmtDayLongKo("")).toBe("");
+    expect(fmtDayLongKo("어제")).toBe("어제");
   });
 });

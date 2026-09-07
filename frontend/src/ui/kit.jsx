@@ -180,7 +180,14 @@ export function Badge({ value, kind, emphasis }) {
   const k = kind || STATUS_KIND[raw] || "neutral";
   const extra = EXTRA_TONE_VARS[k];
   const palette = { ok: "success", danger: "error", warn: "warning", info: "info" }[k];
-  const strong = emphasis === "strong" || k === "danger";
+  /* `plain` — **면을 갖지 않는다.**
+   *
+   * 표와 목록 안에서는 배지 대신 «점 + 낱말» 이다(확정 규약 §9). danger 가 자동으로 옅은
+   * 면을 갖는 규칙은 카드 머리나 상세처럼 **목록 밖**에서 조치를 눈에 띄게 하려는 것인데,
+   * 그것이 목록 안으로 들어오면 같은 줄에서 어휘가 둘로 갈린다 — AI 도우미의 「지금 볼 것」
+   * 에서 「지연 18일」만 붉은 면이고 바로 옆 「검증」·「계획」은 점 + 낱말이었다. 줄 하나가
+   * 두 어휘로 말하면 읽는 사람은 그 둘이 다른 종류의 사실이라고 읽는다. */
+  const strong = emphasis === "plain" ? false : (emphasis === "strong" || k === "danger");
 
   /* 표지 모양이 톤마다 다르다 — 흑백으로 인쇄하거나 색을 못 봐도 구분된다. */
   const marker = { ok: "50%", danger: "2px", warn: "2px", info: "50%" }[k] || "1px";
@@ -464,6 +471,92 @@ export function OverflowMenu({ items, ariaLabel = "더 보기", size }) {
  * 카드는 판 안의 판이 아니다. React Context 는 Portal 을 통과하므로 이 초기화가 없으면
  * 모달 안의 모든 판이 조용히 사라진다(그것이 바로 이 파일이 겪을 뻔한 함정이다).
  */
+/* 세그먼티드 — **같은 자리를 여러 보기가 나눠 쓸 때**의 전환기 (확정 규약 §2).
+ *
+ * 밑줄 탭과 무엇이 다른가: 밑줄 탭은 «지금 어디에 있는가» 를 선 하나로 말하고 나머지 칸은
+ * 배경 없이 떠 있다. 그래서 칸이 넷쯤 되면 어디까지가 이 묶음인지 경계가 사라지고, 좁은
+ * 폭에서는 밑줄이 글자보다 먼저 잘린다. 세그먼티드는 **묶음 자체가 면**이라 경계가 언제나
+ * 보이고, 고른 칸만 그 면 위로 한 겹 올라온다.
+ *
+ * 치수는 규약이 정한 값 그대로다 — 컨테이너 안쪽 여백 3px, 안쪽 버튼은 컨테이너 높이
+ * (`CONTROL.button` 34)에서 그 여백 둘을 뺀 28px, 모서리는 컨테이너 6px / 버튼 4px.
+ * 새 숫자를 만들지 않고 있는 토큰에서 뺀다.
+ *
+ * 면은 두 단계다: 컨테이너가 함몰면(light #F5F6FB / dark #1C2136), 고른 칸이 판면
+ * (#FFFFFF / #141829) + `raised` 그림자. 다크에서도 같은 두 토큰이 그대로 성립한다.
+ *
+ * 역할은 `tablist`/`tab` 이다 — 이 부품이 대신하는 것이 탭이고, 바꾸는 것은 **보기**이지
+ * 상태가 아니다. `aria-selected` 가 지금 고른 칸을 말한다.
+ *
+ * options: `[{ value, label, count? }]`
+ */
+export function Segmented({ value, onChange, options, ariaLabel, sx }) {
+  const list = (options || []).filter(Boolean);
+  if (!list.length) return null;
+  return (
+    <Box
+      role="tablist"
+      aria-label={ariaLabel}
+      className="k-segmented"
+      sx={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: "2px",
+        p: "3px",
+        maxWidth: "100%",
+        overflowX: "auto",
+        bgcolor: "background.inset",
+        border: 1,
+        borderColor: "divider",
+        borderRadius: `${RADIUS.sm}px`,
+        ...sx,
+      }}
+    >
+      {list.map((o) => {
+        const on = o.value === value;
+        return (
+          <Box
+            key={o.value}
+            component="button"
+            type="button"
+            role="tab"
+            aria-selected={on}
+            onClick={() => onChange(o.value)}
+            sx={{
+              flexShrink: 0,
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 0.75,
+              height: remPx(CONTROL.button - 6),
+              px: 1.5,
+              border: 0,
+              borderRadius: `${RADIUS.sm - 2}px`,
+              font: "inherit",
+              fontSize: FONT_SIZE.bodySm,
+              fontWeight: FONT_WEIGHT.semibold,
+              whiteSpace: "nowrap",
+              cursor: "pointer",
+              color: on ? "text.primary" : "text.secondary",
+              bgcolor: on ? "background.plate" : "transparent",
+              boxShadow: (t) => (on ? t.shadowTokens.raised : "none"),
+              transition: `background-color ${MOTION.fast} ${MOTION.ease}, color ${MOTION.fast} ${MOTION.ease}`,
+              "&:hover": on ? null : { color: "text.primary" },
+              "&:focus-visible": (t) => ({ outline: `2px solid ${t.palette.focusRing}`, outlineOffset: 2 }),
+            }}
+          >
+            {o.label}
+            {o.count != null ? (
+              /* 건수는 언제나 보조 잉크다 — `faint` 는 AA-large 자리 전용이라 이 크기에
+                 못 쓴다(`scripts/check_ink_scale.py`). 라벨과의 위계는 굵기가 만든다. */
+              <Box component="span" sx={{ color: "text.secondary", fontWeight: FONT_WEIGHT.regular, ...NUMERIC }}>{o.count}</Box>
+            ) : null}
+          </Box>
+        );
+      })}
+    </Box>
+  );
+}
+
 export const SURFACE_EDGE_WIDTH = 3;
 
 export const SURFACE_TONES = {

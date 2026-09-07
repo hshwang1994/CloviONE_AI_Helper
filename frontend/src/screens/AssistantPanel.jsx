@@ -3,12 +3,10 @@ import { useQuery } from "@tanstack/react-query";
 import Box from "@mui/material/Box";
 import Link from "@mui/material/Link";
 import Stack from "@mui/material/Stack";
-import Tab from "@mui/material/Tab";
-import Tabs from "@mui/material/Tabs";
 import Typography from "@mui/material/Typography";
 import { keyframes } from "@mui/system";
 import { api } from "../lib/api.js";
-import { Badge, Button, Card, EmptyState, ErrorState, ScrollArea, SectionTitle, Skeleton, SubGroup, useToast } from "../ui/kit.jsx";
+import { Badge, Button, Card, EmptyState, ErrorState, ScrollArea, SectionTitle, Segmented, Skeleton, SubGroup, useToast } from "../ui/kit.jsx";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, MOTION } from "../ui/theme.js";
 import { AI_DETAIL_MAX } from "../ui/density.js";
 import { useAutoHeight } from "../ui/motion.js";
@@ -218,7 +216,11 @@ function Actions({ children }) {
 function TicketRow({ ticket, lead, leadKind }) {
   return (
     <Box component="li" sx={{ display: "flex", gap: 1, alignItems: "baseline", minWidth: 0, py: 0.25 }}>
-      {lead ? <Badge value={lead} kind={leadKind} /> : null}
+      {/* 목록 안이라 **면을 갖지 않는다**(`emphasis="plain"`, 확정 규약 §9). 예전에는
+          danger 가 자동으로 옅은 면을 얻어 「지연 18일」만 붉은 칩이고 같은 줄 오른쪽의
+          「검증」·「계획」은 점 + 낱말이었다 — 한 줄이 두 어휘로 말했다. 상태 배지의 면은
+          카드 머리나 상세처럼 목록 밖에서만 쓴다. */}
+      {lead ? <Badge value={lead} kind={leadKind} emphasis="plain" /> : null}
       <Link
         href={"#/tickets/" + ticket.id}
         underline="hover"
@@ -227,7 +229,7 @@ function TicketRow({ ticket, lead, leadKind }) {
       >
         {ticket.title || "제목 없음"}
       </Link>
-      {ticket.status ? <Badge value={ticket.status} /> : null}
+      {ticket.status ? <Badge value={ticket.status} emphasis="plain" /> : null}
       <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: "nowrap", flexShrink: 0 }}>
         {ticket.due || "마감 없음"}
       </Typography>
@@ -691,22 +693,17 @@ export function AssistantPanel() {
         help="지금 급한 일과 다음에 할 일을 정리합니다."
         sx={{ mb: 1 }}
       />
-      <Tabs
-        value={index}
-        onChange={(_e, v) => select(v)}
-        variant="scrollable"
-        scrollButtons="auto"
-        allowScrollButtonsMobile
-        aria-label="AI 도우미 보기 선택"
-        sx={{
-          mb: 2, minHeight: 0,
-          "& .MuiTab-root": { minHeight: 0, py: 1.25 },
-          /* 밑줄이 다음 탭으로 미끄러진다. MUI 기본 전환을 이 제품의 길이와 곡선으로 맞춘다. */
-          "& .MuiTabs-indicator": { transition: `left ${MOTION.base} ${MOTION.ease}, width ${MOTION.base} ${MOTION.ease}` },
-        }}
-      >
-        {TABS.map((t) => <Tab key={t.key} label={t.label} />)}
-      </Tabs>
+      {/* 밑줄 탭에서 **세그먼티드**로 바뀌었다(확정 규약 §2). 넷이 밑줄만으로 서 있으면
+          어디까지가 이 묶음인지 경계가 사라지고, 좁은 폭에서는 밑줄이 글자보다 먼저
+          잘렸다. 묶음 자체가 면이 되면 경계가 언제나 보이고 고른 칸만 그 위로 올라온다.
+          역할(`tablist`/`tab`)과 고르는 동작은 그대로다 — 바뀐 것은 겉모습뿐이다. */}
+      <Segmented
+        ariaLabel="AI 도우미 보기 선택"
+        value={TABS[index].key}
+        onChange={(key) => select(TABS.findIndex((t) => t.key === key))}
+        options={TABS.map((t) => ({ value: t.key, label: t.label }))}
+        sx={{ mb: 2 }}
+      />
       {/* 바깥 상자가 높이를 잇고, 안쪽 상자가 실제 높이를 잰다. 탭이 바뀌면 key 가 바뀌어
           내용이 짧게 올라오며 나타난다. */}
       <Box sx={auto.sx}>
