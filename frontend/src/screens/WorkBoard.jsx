@@ -31,7 +31,8 @@ import { DepartmentFilter, EntityCombobox, FilterSelect, SearchBox } from "../ui
 import { SprintLifecycle, sprintStateLabel, useCanPlanSprint } from "./SprintLifecycle.jsx";
 import { useListMemory } from "../lib/listReturn.js";
 import { priorityKind, priorityKo } from "../lib/priority.js";
-import { KO_WORD_BREAK } from "../ui/theme.js";
+import { CONTROL, KO_WORD_BREAK, remPx } from "../ui/theme.js";
+import { HEADER_ALIGN } from "../ui/columnTypes.js";
 import { invalidateTicketViews } from "./ticket-views.js";
 import { sprintFields } from "./sprint-fields.js";
 import { TicketEditModal } from "./MyTickets.jsx";
@@ -145,6 +146,14 @@ function cardKey(card) {
  * 공용 `DataTable` 은 행을 끌 수 없다. 순서가 이 목록의 **본질**이라(다음에 무엇을 하는가)
  * 그것을 포기하고 표를 얻는 거래는 안 한다. 대신 열 이름을 머리줄에 적어 표처럼 읽힌다.
  *
+ * 디자인 핸드오프가 「자체 표를 `DataTable` 로 흡수하라」고 지목했지만 이 목록은 **그
+ * 대상이 아니다**(D-473). 막는 것은 행 마크업이 아니라 **가상화의 주인**이다: 여기서는
+ * `SortableList` 가 60vh 창과 `onEndReached` 를 함께 들고 있고 `DataTable` 은 자기 것을
+ * 따로 든다. 둘을 한 표 안에 넣으면 끌기와 무한 스크롤 중 하나가 반드시 진다. 그래서
+ * 흡수하지 않고 **열 어휘와 치수만 맞춘다** — 머리 40 · 줄 48 · 머리글은 언제나 가운데 ·
+ * 몸통은 제목만 왼쪽 · 숫자는 tabular-nums · hover 한 단계. 옆에 선 표와 같은 격자로
+ * 읽히는 것이 목적이고, 그것은 마크업을 바꾸지 않고도 된다.
+ *
  * 열 폭은 **머리와 줄이 같은 트랙**이다. 어느 트랙도 `auto` 가 아니다 — 마지막을 `auto` 로
  * 두면 머리의 빈 칸은 0 이고 줄의 단추 네 개는 14rem 을 먹어, 우선순위·난이도·예상·마감·
  * 담당자가 한 칸씩 밀린다. 늘어나는 트랙은 제목 하나뿐이다(아래 `BACKLOG_COLUMNS`). */
@@ -209,6 +218,9 @@ function BacklogHead() {
         ...BACKLOG_GRID,
         px: 1.25,
         py: 0.5,
+        /* 머리 줄은 표와 **같은 높이**다(`CONTROL.tableHead`). 예전에는 패딩과 글자
+           줄상자가 그때그때 만들어 내서, 나란히 선 표와 이 목록의 머리가 서로 달랐다. */
+        minHeight: remPx(CONTROL.tableHead),
         display: { xs: "none", md: "grid" },
         /* 목록 스크롤바와 같은 자리를 비워 머리·줄 열이 같은 선에 선다. */
         scrollbarGutter: "stable",
@@ -219,8 +231,10 @@ function BacklogHead() {
           key={c || `spacer-${i}`}
           variant="caption"
           color="text.secondary"
-          /* 머리는 가운데다(지시 8). 제목만 왼쪽이다 — 글이기 때문이다. */
-          sx={{ textAlign: i === 0 ? "start" : "center" }}
+          /* 머리글은 **언제나 가운데**다 — 표와 같은 어휘(`HEADER_ALIGN`, D-471). 몸통에서
+             제목만 왼쪽인 것은 그대로다. 예전에는 이 목록만 머리의 제목 칸을 왼쪽에 뒀는데,
+             그 예외가 옆에 선 표와 이 목록을 서로 다른 격자로 읽히게 했다. */
+          sx={{ textAlign: HEADER_ALIGN }}
         >
           {c}
         </Typography>
@@ -231,7 +245,20 @@ function BacklogHead() {
 
 function BacklogRow({ card, onOpen, signals, onAddToSprint, canAdd, onQuickEdit, onMoveToTop, onMoveToBottom }) {
   return (
-    <Card sx={{ ...BACKLOG_GRID, p: 1.25, cursor: "pointer" }} onClick={() => onOpen(card)}>
+    <Card
+      sx={{
+        ...BACKLOG_GRID,
+        p: 1.25,
+        /* 줄 높이도 표와 같다(`CONTROL.tableRow`). 최솟값이라 제목이 두 줄이면 그대로 자란다. */
+        minHeight: remPx(CONTROL.tableRow),
+        cursor: "pointer",
+        transition: (t) => t.transitions.create("background-color", { duration: 90 }),
+        /* hover 는 **한 단계**다 — 표의 행과 같은 면(`background.inset`). 색 테두리를 쓰지
+           않는다: 끌 수 있다는 것은 손잡이가 말하지, 테두리 색이 말하지 않는다. */
+        "&:hover": { bgcolor: "background.inset" },
+      }}
+      onClick={() => onOpen(card)}
+    >
       <Box sx={{ minWidth: 0 }}>
         <Stack direction="row" spacing={0.75} alignItems="center" sx={{ minWidth: 0 }}>
           <Typography variant="caption" color="text.secondary" sx={{ flexShrink: 0 }}>

@@ -2,11 +2,6 @@ import React from "react";
 import { useQuery } from "@tanstack/react-query";
 import Box from "@mui/material/Box";
 import MenuItem from "@mui/material/MenuItem";
-import Table from "@mui/material/Table";
-import TableBody from "@mui/material/TableBody";
-import TableCell from "@mui/material/TableCell";
-import TableHead from "@mui/material/TableHead";
-import TableRow from "@mui/material/TableRow";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { useTheme } from "@mui/material/styles";
@@ -14,11 +9,10 @@ import { api } from "../lib/api.js";
 import { useQueryState } from "../lib/useQueryState.js";
 import {
   PageHeader, Card, ListCard, Badge, Button, Callout, Skeleton, EmptyState, ErrorState, MetricStrip, DataTable,
-  Section, SectionTitle, tableCellProps,
+  Section, SectionTitle,
 } from "../ui/kit.jsx";
 import { FilterActions, FilterRow, FilterSurface } from "../ui/FilterBar.jsx";
-import { HEADER_ALIGN } from "../ui/columnTypes.js";
-import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, PROSE_MAX_WIDTH } from "../ui/theme.js";
+import { FONT_WEIGHT, KO_WORD_BREAK, PROSE_MAX_WIDTH } from "../ui/theme.js";
 import { Donut } from "../ui/charts/Donut.jsx";
 import { resolveChartColor } from "../ui/charts/base.jsx";
 
@@ -110,8 +104,9 @@ function zed(v) { return v ? String(v) : <Zed>0</Zed>; }
  * **이 상자는 표를 직접 그리지 않는다.** 예전에는 여기서 `<Table>` 을 열고 화면이
  * `<Th>`·`<TableCell>` 을 손으로 적었다 — 그래서 이 화면의 열 폭·정렬·자릿수 규칙이
  * `DataTable` 의 것과 **따로** 살았고, 공용 계약을 고쳐도 여기는 안 따라왔다(C3 이 이
- * 파일을 이름으로 지목한 이유다). 지금은 안에 `DataTable` 이 들어온다(담당자별 상세 티켓만
- * 구분 행 때문에 맨 `<Table>` 이라 여기서 가로 스크롤 상자를 준다). */
+ * 파일을 이름으로 지목한 이유다). 지금은 표 셋 전부가 `DataTable` 이다 — 담당자별 상세
+ * 티켓이 마지막까지 맨 `<Table>` 로 남아 있었는데, 그것을 붙잡고 있던 담당자 구분 행을
+ * 이제 표가 `groupOf` 로 직접 그린다. */
 function TableWrap({ minWidth = "45rem", children }) {
   return (
     /* `minWidth: 0` — 격자 칸(1fr = minmax(auto, 1fr)) 안에서 판이 표의 고유 폭까지 늘어나 1366 에서
@@ -179,9 +174,9 @@ const DEV_WORKLOAD_COLUMNS = [
     render: (d) => (d.difficulty_avg == null ? <Zed>-</Zed> : d.difficulty_avg) },
 ];
 
-/* 담당자별 상세 티켓 — 담당자 구분 행이 있어서 `DataTable` 로 접을 수 없다. 그렇다고 폭·정렬
- * 규칙을 여기 다시 적지는 않는다: 열 정의를 만들고 `tableCellProps` 가 **공용 규칙**을 읽는다
- * (`MyTickets` 의 묶음 목록과 같은 처리). */
+/* 담당자별 상세 티켓 — 담당자 구분 행 하나 때문에 오래 `DataTable` 밖에 있었다. 지금은
+ * 표가 그 줄을 갖는다(`groupOf`)이라 위 두 표와 같은 부품이고, 폭·정렬·자릿수도 같은
+ * 어휘표(`columnTypes.js`)에서 나온다. */
 const DEV_TICKET_COLUMNS = [
   { key: "key", label: "번호", type: "identifier", help: "티켓 이름입니다(프로젝트 코드와 순번).",
     render: (t) => t.key || "-" },
@@ -221,6 +216,14 @@ export function DevReport() {
   const ok = data && data.ok;
   const devs = ok ? data.developers : [];
   const withTickets = ok ? devs.filter((d) => d.has_tickets) : [];
+  /* 담당자별 상세는 **한 표 안에서** 담당자로 묶인다 — 그래서 행을 평평하게 편 뒤 각 행이
+     자기 담당자를 들고 다닌다. 묶음 머리행에 붙는 요약(`_devNote`)은 그 사람의 값이라 행이
+     아니라 담당자에 속하지만, 표가 보는 것은 행 하나뿐이므로 여기서 함께 실어 준다. */
+  const detailRows = withTickets.flatMap((d) => (d.tickets || []).map((t) => ({
+    ...t,
+    _dev: d.name,
+    _devNote: `완료 ${d.done}건, 진행 중 ${d.prog + d.verify}건, 완료 예상 WD ${d.est_done}인일`,
+  })));
   // 팀 상태 구성 — 백엔드가 티켓 단위(중복 없이)로 센 값이다. 다섯 상태에 속하지 않는 티켓이
   // 있으면(작업 DB에 새 상태가 생기는 경우) 조각 합이 total보다 작아진다, 그 차이를 '기타'로
   // 드러낸다 — 조용히 사라지면 도넛이 전체를 설명한다고 착각하게 된다.
@@ -378,56 +381,18 @@ export function DevReport() {
                 help="선택한 달에 마감일이 있는 티켓이 배정되면 여기에 담당자별로 묶여 표시됩니다." />
             ) : (
               /* 담당자별 상세 티켓은 담당자마다 구분 행을 둔 '하나의 표'로 그린다 — 표가 여러 개면
-                 열 너비가 제각각이라 위치가 어긋난다. 한 표로 묶으면 모든 담당자의 열이 자동 정렬된다. */
+                 열 너비가 제각각이라 위치가 어긋난다. 한 표로 묶으면 모든 담당자의 열이 자동 정렬된다.
+                 그 구분 행 하나 때문에 이 표만 `DataTable` 을 못 쓰고 자기 `<Table>` 을 그렸다.
+                 지금은 표가 묶음 머리행을 갖는다(`groupOf`) — 위 두 표와 **같은 부품**이다.
+                 제목은 평문이다: 예전에는 옛 Notion 주소로 나가는 링크였는데, 정본이 이 서버로
+                 넘어온 뒤로 그 주소가 여는 것은 우리가 더 이상 쓰지 않는 낡은 사본이다. */
               <TableWrap minWidth="56rem">
-                <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    {/* 🔴 머리글은 **가운데**다 — 이 저장소에서 그렇지 않은 표가 여기 하나뿐이었다.
-                        `tableCellProps` 가 돌려주는 `align` 은 **몸통 칸**의 정렬이라(값의 의미가
-                        정한다), 그것을 머리에 그대로 쓰면 이름 줄이 왼쪽·가운데로 들쭉날쭉해진다.
-                        다른 표는 `TableHeaderCell` 을 지나며 이 값을 덮어쓰는데(그 부품이
-                        `HEADER_ALIGN` 을 박는다), 이 표는 손으로 만든 격자라 그 자리를 안 지났다. */}
-                    {DEV_TICKET_COLUMNS.map((c) => (
-                      <TableCell
-                        key={c.key} scope="col" title={c.help || undefined}
-                        {...tableCellProps(c, { head: true })}
-                        align={HEADER_ALIGN}
-                      >
-                        {c.label}
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {withTickets.flatMap((d) => [
-                    <TableRow key={d.name + "::group"}>
-                      <TableCell colSpan={DEV_TICKET_COLUMNS.length}
-                        sx={{
-                          bgcolor: (t) => t.palette.action.hover, fontWeight: FONT_WEIGHT.bold,
-                          borderTop: 1, borderColor: "divider",
-                        }}>
-                        {d.name}
-                        <Box component="span" sx={{ ml: 1.5, fontWeight: FONT_WEIGHT.regular, color: "text.secondary", fontSize: FONT_SIZE.bodySm }}>
-                          완료 {d.done}건, 진행 중 {d.prog + d.verify}건, 완료 예상 WD {d.est_done}인일
-                        </Box>
-                      </TableCell>
-                    </TableRow>,
-                    /* 제목은 평문이다. 예전에는 옛 Notion 주소로 나가는 링크였는데, 정본이 이
-                       서버로 넘어온 뒤로 그 주소가 여는 것은 우리가 더 이상 쓰지 않는 낡은
-                       사본이다. 서버도 응답에서 `url` 을 걷었다. */
-                    ...d.tickets.map((t) => (
-                      <TableRow key={d.name + ":" + (t.tid || t.title) + ":" + t.status}>
-                        {DEV_TICKET_COLUMNS.map((c) => (
-                          <TableCell key={c.key} {...tableCellProps(c)}>
-                            {c.render ? c.render(t) : (t[c.key] == null || t[c.key] === "" ? "-" : String(t[c.key]))}
-                          </TableCell>
-                        ))}
-                      </TableRow>
-                    )),
-                  ])}
-                </TableBody>
-                </Table>
+                <DataTable
+                  columns={DEV_TICKET_COLUMNS}
+                  rows={detailRows}
+                  rowKey={(t) => t._dev + ":" + (t.tid || t.title) + ":" + t.status}
+                  groupOf={(t) => ({ key: t._dev, label: t._dev, note: t._devNote })}
+                />
               </TableWrap>
             )}
           </Section>

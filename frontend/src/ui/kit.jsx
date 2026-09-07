@@ -31,6 +31,7 @@ import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import ChevronRightRoundedIcon from "@mui/icons-material/ChevronRightRounded";
+import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded";
 import MoreHorizRoundedIcon from "@mui/icons-material/MoreHorizRounded";
 import HelpOutlineRoundedIcon from "@mui/icons-material/HelpOutlineRounded";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
@@ -2015,14 +2016,15 @@ function rowAnchorProps(href, onActivate) {
 const COLLAPSE_SAMPLE = 50;
 
 /* 묶음 머리행이 받는 값 — 문자열 하나만 줘도 된다.
- * `{ key, label, count }` 에서 `key` 는 «묶음이 바뀌었는가» 판정에만 쓰고 화면에는 `label`
- * 만 나온다. `count` 를 안 주면 표가 직접 센다(같은 key 를 가진 행 수). */
+ * `{ key, label, count, note }` 에서 `key` 는 «묶음이 바뀌었는가» 판정에만 쓰고 화면에는
+ * `label` 이 나온다. `count` 를 안 주면 표가 직접 센다(같은 key 를 가진 행 수).
+ * `note` 는 그 묶음의 한 줄 요약이다 — 이름 옆에 여린 글씨로 붙는다. */
 function normalizeGroup(g) {
   if (g == null || g === false) return null;
   if (typeof g === "string" || typeof g === "number") return { key: String(g), label: String(g) };
   if (g.key == null && g.label == null) return null;
   const key = String(g.key != null ? g.key : g.label);
-  return { key, label: g.label != null ? g.label : key, count: g.count };
+  return { key, label: g.label != null ? g.label : key, count: g.count, note: g.note };
 }
 
 /* 묶음 머리행 — 프로젝트·담당자처럼 **행 여럿을 한 이름 아래 묶는** 줄.
@@ -2033,7 +2035,24 @@ function normalizeGroup(g) {
  * 줄 하나가 없어서 표 구현이 갈라지느니 표가 그 줄을 갖는 편이 낫다.
  *
  * `<th scope="colgroup">` 이다 — 스크린 리더가 아래 행들이 이 이름에 속한다고 읽는다. */
-function GroupHeaderRow({ group, colSpan }) {
+function GroupHeaderRow({ group, colSpan, collapsible, open, onToggle }) {
+  const inner = (
+    <Box sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0 }}>
+      {collapsible ? (
+        <ExpandMoreRoundedIcon
+          fontSize="small" aria-hidden="true"
+          sx={{ flexShrink: 0, transform: open ? "none" : "rotate(-90deg)", transition: `transform ${MOTION.fast} ${MOTION.ease}` }}
+        />
+      ) : null}
+      <Box
+        component="span"
+        sx={{ fontSize: FONT_SIZE.caption, fontWeight: FONT_WEIGHT.bold, color: "text.primary", ...KO_WORD_BREAK }}
+      >
+        {group.label}
+      </Box>
+      <GroupHeaderMeta group={group} />
+    </Box>
+  );
   return (
     <TableRow data-group-row={group.key}>
       <TableCell
@@ -2043,33 +2062,61 @@ function GroupHeaderRow({ group, colSpan }) {
         sx={{
           height: remPx(CONTROL.tableGroupRow),
           py: 0,
+          ...(collapsible ? { px: 0 } : null),
           textAlign: "start",
           background: "background.inset",
-          borderBottom: (t) => `1px solid ${t.palette.rule}`,
+          borderBottom: (t) => `1px solid ${t.palette.rule || t.palette.divider}`,
         }}
       >
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0 }}>
+        {/* 접을 수 있으면 **진짜 `<button>`** 으로 감싼다 — `<th scope="colgroup">` 의 뜻은
+            그대로 두고(스크린 리더의 표 탐색용) 그 안에 버튼을 얹는다. 기본 버튼 크롬은
+            지워 원래 글자처럼 보이게 한다. */}
+        {collapsible ? (
           <Box
-            component="span"
-            sx={{ fontSize: FONT_SIZE.caption, fontWeight: FONT_WEIGHT.bold, color: "text.primary", ...KO_WORD_BREAK }}
+            component="button" type="button" aria-expanded={!!open} onClick={onToggle}
+            sx={{
+              all: "unset", display: "block", width: "100%", cursor: "pointer",
+              px: 2, boxSizing: "border-box",
+              "&:focus-visible": (t) => ({ outline: `2px solid ${t.palette.focusRing}`, outlineOffset: -2 }),
+            }}
           >
-            {group.label}
+            {inner}
           </Box>
-          {group.count != null ? (
-            <Box
-              component="span"
-              sx={{
-                flexShrink: 0, px: 0.75, py: 0.125, borderRadius: `${RADIUS.sm}px`,
-                bgcolor: "primary.soft", color: "primary.dark",
-                fontSize: FONT_SIZE.micro, fontWeight: FONT_WEIGHT.bold, ...NUMERIC,
-              }}
-            >
-              {group.count}건
-            </Box>
-          ) : null}
-        </Box>
+        ) : inner}
       </TableCell>
     </TableRow>
+  );
+}
+
+/* 묶음 이름 뒤에 붙는 것 둘 — 건수 칩과 한 줄 요약. 표 머리행과 카드 머리가 **같은 것**을
+ * 그린다(좁은 화면에서만 다른 말을 하지 않게). */
+function GroupHeaderMeta({ group }) {
+  return (
+    <>
+      {group.count != null ? (
+        <Box
+          component="span"
+          sx={{
+            flexShrink: 0, px: 0.75, py: 0.125, borderRadius: `${RADIUS.sm}px`,
+            bgcolor: "primary.soft", color: "primary.dark",
+            fontSize: FONT_SIZE.micro, fontWeight: FONT_WEIGHT.bold, ...NUMERIC,
+          }}
+        >
+          {group.count}건
+        </Box>
+      ) : null}
+      {group.note != null ? (
+        <Box
+          component="span"
+          sx={{
+            minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+            fontSize: FONT_SIZE.caption, fontWeight: FONT_WEIGHT.regular, color: "text.secondary",
+          }}
+        >
+          {group.note}
+        </Box>
+      ) : null}
+    </>
   );
 }
 
@@ -2107,7 +2154,7 @@ function TableFooterRow({ note, actions, shown, total, colSpan }) {
   );
 }
 
-export function DataTable({ columns, rows, rowKey, onRow, rowHref, rowSelected, groupOf, footer, empty, ellipsis, stickyHeader, loading, sort, onSort, resultScope, filters, onFilter, filterOptions, entityOptions, virtualize, total }) {
+export function DataTable({ columns, rows, rowKey, onRow, rowHref, rowSelected, groupOf, groupCollapsible, footer, empty, emptyState, ellipsis, stickyHeader, loading, sort, onSort, resultScope, filters, filterValueOf, onFilter, filterOptions, entityOptions, virtualize, total }) {
   // §15.1 재검수 — `VirtualTableBody` 는 스크롤 창을 스스로 안 만든다(문서 전체가 표
   // 흐름을 지키게, `VirtualRows`와 다른 이유는 그 부품 docblock 참고). 이 상자가 그 창
   // 이다 — `virtualize` 를 안 쓰면 아무도 안 읽는다(회귀 0).
@@ -2121,6 +2168,17 @@ export function DataTable({ columns, rows, rowKey, onRow, rowHref, rowSelected, 
   // 그렸다). 콜백 ref 로 노드를 state 에 담으면, 그 노드가 실제로 붙는 순간 **state
   // 갱신 → 리렌더**가 일어나 `VirtualTableBody` 가 이번에는 값이 있는 채로 다시 돈다. */
   const [scrollEl, setScrollEl] = React.useState(null);
+  /* 접을 수 있는 묶음은 **닫힌 채 시작한다**(`groupCollapsible`). 스프린트 회의처럼 담당자가
+     많으면 표 하나가 11,000px 를 넘어 한 화면에 다 들어가던 자리다 — 한 사람씩 펼쳐 가는
+     흐름을 준다. 「열린 묶음」만 추적하는 이유: 묶음 이름 전체를 state 초기화 시점에 몰라도
+     되고, 행이 바뀌어 새 묶음이 생겨도 자동으로 닫힌 채 시작한다. */
+  const [openGroups, setOpenGroups] = React.useState(() => new Set());
+  const isGroupOpen = (key) => !groupCollapsible || openGroups.has(key);
+  const toggleGroup = (key) => setOpenGroups((s) => {
+    const next = new Set(s);
+    if (next.has(key)) next.delete(key); else next.add(key);
+    return next;
+  });
   /* 스크롤 창이 어디인가 — 이 표의 두 모드.
    *
    *   window(기본) 문서가 굴러간다. 이 앱의 셸이 그렇다(`AppShell` 은 `main` 에 overflow 를
@@ -2214,12 +2272,32 @@ export function DataTable({ columns, rows, rowKey, onRow, rowHref, rowSelected, 
   if (loading) return <Skeleton kind="table" cols={wideCols.length || baseCols.length} />;
 
   if (safeRows.length === 0) {
+    /* 「정말 없다」와 「필터 때문에 없다」는 다른 사실이고, 그 판정은 필터를 든 화면이
+       안다 — `emptyState` 를 주면 그것을 그대로 그린다. 안 주면 예전의 한 줄이다. */
+    if (emptyState) return emptyState;
     return (
       <Typography color="text.secondary" sx={{ py: 5, textAlign: "center" }}>
         {empty || "표시할 항목이 없습니다."}
       </Typography>
     );
   }
+
+  /* 행을 묶음 순서로 훑어 «머리행이 설 자리»를 찾는다 — 표와 카드가 **같은 계산**을 본다.
+     좁은 화면에서만 다른 묶음이 보이거나 건수가 달라지면 그 자체가 결함이다. */
+  const groupPlan = groupOf
+    ? (() => {
+      const items = safeRows.map((row, i) => normalizeGroup(groupOf(row, i)));
+      const counts = new Map();
+      items.forEach((g) => { if (g) counts.set(g.key, (counts.get(g.key) || 0) + 1); });
+      return { items, counts };
+    })()
+    : null;
+  /** 이 행 앞에 묶음 머리행이 서야 하는가 — 서야 하면 그 묶음을 돌려준다. */
+  const groupOpeningAt = (i, prevKey) => {
+    const g = groupPlan && groupPlan.items[i];
+    if (!g || g.key === prevKey) return null;
+    return { ...g, count: g.count != null ? g.count : groupPlan.counts.get(g.key) };
+  };
 
   /* 좁은 화면에서는 표를 카드 목록으로 바꾼다. 가로 스크롤되는 표는 손가락으로 훑기 어렵고,
    * 열 이름이 화면 밖으로 나가면 어떤 값인지 알 수 없다. 카드에서는 라벨을 값 옆에 붙인다. */
@@ -2229,6 +2307,7 @@ export function DataTable({ columns, rows, rowKey, onRow, rowHref, rowSelected, 
        늘어난다 — 「전체 선택」이 카드마다 하나씩 생겨 아무거나 누르면 전부가 선택됐다.
        열이 스스로 `cardHeader` 로 «이건 목록 전체의 조작기다» 라고 말하게 한다. */
     const cardHeads = cardHeaderControls(cols);
+    let seenGroup = null;
     return (
       <Stack gap={1.5}>
         {cardHeads.length ? (
@@ -2238,7 +2317,41 @@ export function DataTable({ columns, rows, rowKey, onRow, rowHref, rowSelected, 
         ) : null}
         {safeRows.map((row, i) => {
           const ctx = { rowName: rowNameOf(baseCols, row) };
-          return (
+          /* 카드에서도 묶음은 묶음이다 — 표에서만 묶고 좁은 화면에서는 한 줄로 쏟아 놓으면
+             같은 목록이 두 개의 이야기를 한다. 머리는 `<h3>` 이라 개요 탐색에도 남는다. */
+          const opening = groupOpeningAt(i, seenGroup);
+          if (opening) seenGroup = opening.key;
+          const g = groupPlan && groupPlan.items[i];
+          const heading = opening ? (
+            <Typography component="h3" key={`clv-group:${opening.key}`} sx={{ fontSize: FONT_SIZE.body, mt: i ? 1 : 0 }}>
+              {groupCollapsible ? (
+                <Box
+                  component="button" type="button" aria-expanded={isGroupOpen(opening.key)}
+                  onClick={() => toggleGroup(opening.key)}
+                  sx={{
+                    all: "unset", display: "block", width: "100%", cursor: "pointer",
+                    "&:focus-visible": (t) => ({ outline: `2px solid ${t.palette.focusRing}`, outlineOffset: 2 }),
+                  }}
+                >
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0 }}>
+                    <ExpandMoreRoundedIcon
+                      fontSize="small" aria-hidden="true"
+                      sx={{ flexShrink: 0, transform: isGroupOpen(opening.key) ? "none" : "rotate(-90deg)", transition: `transform ${MOTION.fast} ${MOTION.ease}` }}
+                    />
+                    <Box component="span" sx={{ fontWeight: FONT_WEIGHT.bold, ...KO_WORD_BREAK }}>{opening.label}</Box>
+                    <GroupHeaderMeta group={opening} />
+                  </Box>
+                </Box>
+              ) : (
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0 }}>
+                  <Box component="span" sx={{ fontWeight: FONT_WEIGHT.bold, ...KO_WORD_BREAK }}>{opening.label}</Box>
+                  <GroupHeaderMeta group={opening} />
+                </Box>
+              )}
+            </Typography>
+          ) : null;
+          if (g && !isGroupOpen(g.key)) return heading;
+          const card = (
             <Paper
               key={keyOf(row, i)}
               variant="outlined"
@@ -2248,29 +2361,37 @@ export function DataTable({ columns, rows, rowKey, onRow, rowHref, rowSelected, 
               aria-label={onRow ? rowOpenLabel(baseCols, row) : undefined}
               sx={{ p: 2, display: "grid", gap: 0.75, cursor: onRow ? "pointer" : "default" }}
             >
-              {cols.map((c) => (
-                <Box key={c.key} sx={{ display: "grid", gridTemplateColumns: "7rem minmax(0,1fr)", gap: 1, alignItems: "start" }}>
-                  {/* 이름 자리에는 **낱말**만 온다. 열이 `cardLabel` 로 말해 주면 그것을 쓴다
-                      — `label` 이 조작기인 열(선택 열)이 이 자리에 오면 카드마다 그 조작기가
-                      복제된다(위 `cardHeads` 주석). */}
-                  <Typography variant="caption" color="text.secondary">{cardFieldLabel(c)}</Typography>
-                  {/* `overflowWrap:anywhere` 만 걸면 한글이 음절 단위로 끊긴다 - 영문에서는
-                      안 생기는 일이라 눈에 잘 안 띈다. 단어는 지키고 긴 토큰만 끊는다. */}
-                  {rowHref && onRow && c.type === "title" ? (
-                    <Box
-                      component="a"
-                      {...rowAnchorProps(rowHref(row), () => onRow(row))}
-                      sx={{ minWidth: 0, fontSize: FONT_SIZE.body, ...KO_WORD_BREAK, display: "block", color: "inherit", textDecoration: "none" }}
-                    >
-                      {cellValue(c, row, ctx)}
-                    </Box>
-                  ) : (
-                    <Box sx={{ minWidth: 0, fontSize: FONT_SIZE.body, ...KO_WORD_BREAK }}>{cellValue(c, row, ctx)}</Box>
-                  )}
-                </Box>
-              ))}
+              {cols.map((c) => {
+                /* `overflowWrap:anywhere` 만 걸면 한글이 음절 단위로 끊긴다 - 영문에서는
+                   안 생기는 일이라 눈에 잘 안 띈다. 단어는 지키고 긴 토큰만 끊는다. */
+                const value = rowHref && onRow && c.type === "title" ? (
+                  <Box
+                    component="a"
+                    {...rowAnchorProps(rowHref(row), () => onRow(row))}
+                    sx={{ minWidth: 0, fontSize: FONT_SIZE.body, ...KO_WORD_BREAK, display: "block", color: "inherit", textDecoration: "none" }}
+                  >
+                    {cellValue(c, row, ctx)}
+                  </Box>
+                ) : (
+                  <Box sx={{ minWidth: 0, fontSize: FONT_SIZE.body, ...KO_WORD_BREAK }}>{cellValue(c, row, ctx)}</Box>
+                );
+                /* 이름이 없는 열(선택 체크박스·행 작업)은 **이름 자리를 비우지 않고 없앤다** —
+                   빈 7rem 트랙을 남기면 값이 카드 한가운데에서 시작해 다른 줄과 안 맞는다. */
+                if (!c.label) return <Box key={c.key} sx={{ minWidth: 0 }}>{value}</Box>;
+                return (
+                  <Box key={c.key} sx={{ display: "grid", gridTemplateColumns: "7rem minmax(0,1fr)", gap: 1, alignItems: "start" }}>
+                    {/* 이름 자리에는 **낱말**만 온다. 열이 `cardLabel` 로 말해 주면 그것을 쓴다
+                        — `label` 이 조작기인 열(선택 열)이 이 자리에 오면 카드마다 그 조작기가
+                        복제된다(위 `cardHeads` 주석). */}
+                    <Typography variant="caption" color="text.secondary">{cardFieldLabel(c)}</Typography>
+                    {value}
+                  </Box>
+                );
+              })}
             </Paper>
           );
+          if (!heading) return card;
+          return <React.Fragment key={`clv-grouped:${opening.key}`}>{heading}{card}</React.Fragment>;
         })}
       </Stack>
     );
@@ -2358,24 +2479,26 @@ export function DataTable({ columns, rows, rowKey, onRow, rowHref, rowSelected, 
    * 그때는 「묶음을 아는 가상화」를 만들어야 하지, 여기서 조용히 한쪽을 버리면 안 된다.
    * 그래서 가상화 갈래에서는 `groupOf` 를 아예 안 읽는다(무시가 아니라 도달 불가다). */
   function renderBodyRows() {
-    if (!groupOf) return safeRows.map((row, i) => renderDataRow(row, i));
-    const groups = safeRows.map((row) => normalizeGroup(groupOf(row)));
-    const counts = new Map();
-    groups.forEach((g) => { if (g) counts.set(g.key, (counts.get(g.key) || 0) + 1); });
+    if (!groupPlan) return safeRows.map((row, i) => renderDataRow(row, i));
     const out = [];
-    let open = null;
-    groups.forEach((g, i) => {
-      if (g && g.key !== open) {
-        open = g.key;
+    let seen = null;
+    safeRows.forEach((row, i) => {
+      const opening = groupOpeningAt(i, seen);
+      if (opening) {
+        seen = opening.key;
         out.push(
           <GroupHeaderRow
-            key={`clv-group:${g.key}`}
-            group={{ ...g, count: g.count != null ? g.count : counts.get(g.key) }}
+            key={`clv-group:${opening.key}`}
+            group={opening}
             colSpan={wideCols.length}
+            collapsible={!!groupCollapsible}
+            open={isGroupOpen(opening.key)}
+            onToggle={() => toggleGroup(opening.key)}
           />,
         );
       }
-      out.push(renderDataRow(safeRows[i], i));
+      const g = groupPlan.items[i];
+      if (!g || isGroupOpen(g.key)) out.push(renderDataRow(row, i));
     });
     return out;
   }
@@ -2454,7 +2577,16 @@ export function DataTable({ columns, rows, rowKey, onRow, rowHref, rowSelected, 
                 column={c}
                 sort={sort}
                 onSort={onSort}
-                filterValue={filters ? filters[(c.filter && c.filter.field) || c.key] : undefined}
+                /* 조건 값을 어디서 읽는가는 **도메인이 안다** — 기간·범위 조건은 한 필드가
+                   아니라 `created_from`/`created_to` 두 칸에 흩어져 사는 화면이 있다.
+                   기본은 같은 이름의 칸 하나이고, 다르면 화면이 `filterValueOf` 로 말한다.
+                   예전에는 이 조회가 표마다 따로였고, 그래서 같은 열이 한 화면에서는 조건이
+                   걸린 것으로 다른 화면에서는 안 걸린 것으로 보였다. */
+                filterValue={filters
+                  ? (filterValueOf
+                    ? filterValueOf(filters, (c.filter && c.filter.field) || c.key)
+                    : filters[(c.filter && c.filter.field) || c.key])
+                  : undefined}
                 onFilter={onFilter}
                 filterOptions={filterOptions && (filterOptions[(c.filter && c.filter.field) || c.key])}
                 entityOptions={entityOptions && (entityOptions[(c.filter && c.filter.field) || c.key])}

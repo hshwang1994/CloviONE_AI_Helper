@@ -11,20 +11,11 @@ import Link from "@mui/material/Link";
 import MenuItem from "@mui/material/MenuItem";
 import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
-import Table from "@mui/material/Table";
-import TableBody from "@mui/material/TableBody";
-import TableCell from "@mui/material/TableCell";
-import TableContainer from "@mui/material/TableContainer";
-import TableHead from "@mui/material/TableHead";
-import TableRow from "@mui/material/TableRow";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
-import useMediaQuery from "@mui/material/useMediaQuery";
-import { alpha } from "@mui/material/styles";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
-import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded";
 import { api } from "../lib/api.js";
-import { Card, Badge, EmptyState, ErrorState, Skeleton, Callout, PageHeader, Modal, ModalFooter, Button, useToast, useConfirm, cardFieldLabel, cardHeaderControls, tableCellProps, tableLayoutSx, useFittedColumns, HiddenColumnsNote, TableColGroup, columnShouldTruncate, columnCellHint } from "../ui/kit.jsx";
+import { Card, Badge, DataTable, EmptyState, ErrorState, Skeleton, Callout, PageHeader, Modal, ModalFooter, Button, useToast, useConfirm } from "../ui/kit.jsx";
 import { DateField } from "../ui/DateField.jsx";
 import { PersonLine } from "../ui/UserAvatar.jsx";
 import { priorityKo, priorityKind } from "../lib/priority.js";
@@ -38,9 +29,8 @@ const BlockEditor = React.lazy(() =>
   import("../ui/BlockEditor.jsx").then((m) => ({ default: m.BlockEditor })),
 );
 import { useRowSelection, selectionColumn, BulkActions } from "../ui/bulkSelect.jsx";
-import { rowNameOf } from "../ui/rowName.js";
 import { pathText } from "../ui/OrgPath.jsx";
-import { FAB_CLEARANCE, FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, TABLE_CARD_QUERY } from "../ui/theme.js";
+import { FAB_CLEARANCE, FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
 import { BASELINE_TRACKS, GRID_GAP } from "../ui/density.js";
 import { affiliation, needsOrg, personLabel } from "../lib/people.js";
 import { EMPTYABLE_SELECT, EntityCombobox } from "../ui/filters.jsx";
@@ -51,7 +41,6 @@ import { invalidateTicketViews } from "./ticket-views.js";
 import { useCelebrateOnCleared, celebrateIfCompleted, doneStatusKeys } from "../ui/celebrate.js";
 import { bulkFailureNote, fmtDateTime } from "../lib/format.js";
 import { NumberCell, DateCell } from "../ui/cells.jsx";
-import { TableHeaderCell } from "../ui/TableHeaderCell.jsx";
 import { TicketEmptyState, TicketFilterBar, applyColumnFilter, clearTicketFilters, columnFilterValue, hasTicketFilter, nextTicketSort, ticketFilterSpec, ticketQueryParams, ticketSortOf, TICKET_LIST_EXTRA } from "./TicketFilterBar.jsx";
 import { openStatusKeys } from "../lib/openTicketStatuses.js";
 import { TicketSignals } from "../ui/TicketSignals.jsx";
@@ -347,217 +336,47 @@ function groupedRowKey(t, i) {
 /* 그룹 기준으로 묶어 '하나의 표'로 그린다(그룹마다 별도 table을 쓰면 열 너비가 어긋남). 기본은
  * 프로젝트별, groupBy 를 주면 담당자별 등 다른 기준으로. 행 전체는 클릭 대상이 아니다 — 제목만 상세로.
  *
- * MUI Table로 옮겼지만 그룹 머리행은 <tbody>를 그룹마다 하나씩 두는 기존 구조를 그대로 유지한다 —
- * colgroup 스코프 헤더라 스크린리더가 "이 아래 행들은 이 그룹" 이라고 읽을 수 있고, 열 폭은 하나의
- * <table>이 공유하므로 그룹 간에 어긋나지 않는다. */
+ * **이 부품은 이제 표를 직접 그리지 않는다.** 오래 `DataTable` 과 나란히 자기 `<Table>` 을
+ * 그렸고, 그것을 붙잡고 있던 것은 묶음 머리행 하나였다. 그 대가는 이 파일이 여러 번 적어 둔
+ * 그대로다 — 열 폭·정렬·말줄임·카드 접기 규칙이 두 벌이 되어 「팀 티켓은 접히는데 내 티켓은
+ * 안 접히는」 상태가 실제로 두 번 났다. 지금은 표가 묶음을 안다(`groupOf`·`groupCollapsible`)
+ * 이라 규칙이 한 벌이다.
+ *
+ * 남는 일은 셋뿐이다: 어떤 기준으로 묶을지 정하고, 행을 그 순서로 펴고, 티켓 도메인의 조건
+ * 조회(`columnFilterValue` — 기간·범위는 한 필드가 아니라 두 칸에 흩어져 산다)를 표에 건넨다. */
 export function GroupedTickets({ rows, columns, empty, emptyHelp, emptyState, groupBy, collapsible, sort, onSort, filters, onFilter, filterOptions, entityOptions }) {
-  const cols = Array.isArray(columns) ? columns : [];
   const safeRows = Array.isArray(rows) ? rows : [];
   const grouper = groupBy || groupByProject;
-  const narrow = useMediaQuery(TABLE_CARD_QUERY);
-  /* 좁은 칸에서 부가 열을 접는 규칙은 **kit 이 든다** — `DataTable` 과 같은 함수다
-     (D-380). 예전에는 그 규칙이 `DataTable` 에만 있어서 내 티켓·팀 티켓·미할당은
-     열 열셋을 그대로 이고 가로로 밀렸다. `TableContainer` 의 DOM 노드를 자손이 아니라
-     이 컴포넌트가 읽으므로 평범한 ref 로 충분하다(콜백 ref 가 필요한 이유는 kit 의
-     `DataTable` 주석 참고 — 거기서는 자손이 읽는다). */
-  const [boxEl, setBoxEl] = React.useState(null);
-  const fit = useFittedColumns(cols, narrow ? null : boxEl);
 
-  /* VIS-64: 담당자가 많으면(스프린트 회의) 이 표 하나가 11,000px를 넘어 페이지네이션도
-   * 없이 한 화면에 다 들어간다. `collapsible`이면 그룹을 접어서 시작해, 회의에서 한 사람씩
-   * 펼쳐 가는 흐름(Sprint.jsx의 담당자 카드 클릭→필터와 같은 정신)과 맞춘다. 기본값은
-   * false — 나머지 세 소비처(내 티켓·미할당·팀 티켓)는 그룹이 몇 개 안 돼 접을 이유가
-   * 없고 기존 동작을 그대로 지킨다. "열린 그룹"만 추적하는 이유: 그룹 이름 전체 목록을
-   * state 초기화 시점에 몰라도 되고(로딩 뒤 rows가 바뀌어도 새 그룹은 자동으로 닫힌
-   * 상태로 시작한다), collapsible=false일 때 `isOpen`이 항상 참이라 분기가 단순하다. */
-  const [openGroups, setOpenGroups] = React.useState(() => new Set());
-  const isGroupOpen = (name) => !collapsible || openGroups.has(name);
-  const toggleGroup = (name) => setOpenGroups((s) => {
-    const next = new Set(s);
-    if (next.has(name)) next.delete(name); else next.add(name);
-    return next;
-  });
-
-  /* 빈 상태는 맨 글자가 아니라 kit `EmptyState` 로 그린다. 회색 한 줄은 **로딩 중인지,
-   * 필터가 걸린 건지, 정말 없는 건지** 구분해 주지 않는다 — 같은 저장소의 다른 화면들은
-   * 이미 `EmptyState` 를 쓴다(집안 표준). 이 부품은 세 화면(내 티켓·미할당·팀 티켓·스프린트)이
-   * 함께 쓰므로 여기 한 번이 그 전부를 고친다.
+  /* 묶음 순서대로 편 행과, 그 행이 어느 묶음인지의 **나란한 목록**.
    *
-   * `role="status"` + `.k-empty` 가 따라오는 것도 이득이다 — 스크린리더가 전환을 낭독하고,
-   * 기준 대조 도구가 "데이터가 없어 카드가 0" 인 화면을 **디자인 불일치로 세지 않게** 된다.
-   *
-   * `emptyState` 를 주면 그것을 대신 그린다 — 필터가 걸린 화면은 "정말 없음"과 "필터 때문에
-   * 없음"을 다르게 말해야 하고, 그 판정은 필터를 든 화면이 안다(`TicketEmptyState`). */
-  if (!safeRows.length) {
-    if (emptyState) return emptyState;
-    return <EmptyState title={empty || "표시할 항목이 없습니다"} help={emptyHelp} />;
-  }
-
+   * 행에 묶음 이름을 실어 보내지 않는 이유: 같은 티켓이 여러 묶음에 들어갈 수 있고(담당자
+   * 다중 배정) 그때 행 객체를 복제하면 `render(t)` 가 받는 것이 원본이 아니게 된다. 표는
+   * `groupOf(row, i)` 로 자리를 물어보므로 나란한 배열이면 충분하다. */
   const groups = grouper(safeRows);
-  const groupHeading = (name, count, open) => (
-    <>
-      {collapsible ? (
-        <ExpandMoreRoundedIcon
-          fontSize="small" aria-hidden="true"
-          sx={{ verticalAlign: "middle", mr: 0.5, transform: open ? "none" : "rotate(-90deg)", transition: "transform .15s" }}
-        />
-      ) : null}
-      <Box component="span" sx={{ fontWeight: FONT_WEIGHT.bold }}>{name}</Box>
-      <Box component="span" sx={{ ml: 1, color: "text.secondary", fontWeight: FONT_WEIGHT.medium, fontSize: FONT_SIZE.bodySm }}>{count}건</Box>
-    </>
-  );
-  // collapsible일 때만 진짜 <button>으로 감싼다 — <h3>/<th scope=colgroup> 의미는 그대로 두고
-  // (스크린리더 개요·표 탐색용) 그 안에 버튼을 얹는다(SidebarNav 그룹 토글과 같은 원칙).
-  // sx로 기본 버튼 크롬(테두리·배경·글꼴)을 지워 원래 텍스트처럼 보이게 한다.
-  const groupToggleSx = {
-    all: "unset", display: "block", width: "100%", textAlign: "left", cursor: "pointer",
-    "&:focus-visible": { outline: "2px solid", outlineColor: "primary.main", outlineOffset: 2 },
-  };
-
-  /* 좁은 화면에서는 가로 스크롤 표 대신 카드 목록으로 바꾼다 — 열 이름이 화면 밖으로 나가면
-   * 어떤 값인지 알 수 없다. 카드에서는 라벨을 값 옆에 붙인다(kit DataTable과 같은 규칙). */
-  if (narrow) {
-    /* 카드 뷰의 두 규칙은 kit 이 든다 — 여기서 다시 적으면 한쪽만 고쳐진다(W5 실측:
-       `DataTable` 만 고쳤더니 이 목록은 그대로 결함이 남았다). 목록 전체의 조작기
-       (「전체 선택」)는 묶음마다가 아니라 **목록 위에 한 번**이다. */
-    const cardHeads = cardHeaderControls(cols);
-    return (
-      <Stack gap={2.5}>
-        {cardHeads.length ? (
-          <Box sx={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 1.5, px: 0.5 }}>
-            {cardHeads.map((c) => <React.Fragment key={c.key}>{c.cardHeader}</React.Fragment>)}
-          </Box>
-        ) : null}
-        {groups.map(([groupName, items]) => {
-          const open = isGroupOpen(groupName);
-          return (
-            <Box key={groupName}>
-              <Typography component="h3" sx={{ fontSize: FONT_SIZE.body, mb: 1 }}>
-                {collapsible ? (
-                  <Box component="button" type="button" aria-expanded={open} onClick={() => toggleGroup(groupName)} sx={groupToggleSx}>
-                    {groupHeading(groupName, items.length, open)}
-                  </Box>
-                ) : groupHeading(groupName, items.length, open)}
-              </Typography>
-              {open ? (
-                <Stack gap={1.5}>
-                  {items.map((t, i) => {
-                    // 행마다 한 번만 구한다 — kit.jsx DataTable과 같은 규칙.
-                    const ctx = { rowName: rowNameOf(cols, t) };
-                    return (
-                      <Paper key={groupedRowKey(t, i)} variant="outlined" sx={{ p: 2, display: "grid", gap: 0.75 }}>
-                        {cols.map((c) => c.label ? (
-                          <Box key={c.key} sx={{ display: "grid", gridTemplateColumns: "7rem minmax(0,1fr)", gap: 1, alignItems: "start" }}>
-                            <Typography variant="caption" color="text.secondary">{cardFieldLabel(c)}</Typography>
-                            <Box sx={{ minWidth: 0, fontSize: FONT_SIZE.body, ...KO_WORD_BREAK }}>{groupedCell(c, t, ctx)}</Box>
-                          </Box>
-                        ) : (
-                          // 라벨이 없는 열(선택 체크박스·행 작업)은 라벨 자리를 비우고 값만 보여준다.
-                          <Box key={c.key} sx={{ minWidth: 0 }}>{groupedCell(c, t, ctx)}</Box>
-                        ))}
-                      </Paper>
-                    );
-                  })}
-                </Stack>
-              ) : null}
-            </Box>
-          );
-        })}
-      </Stack>
-    );
+  const flatRows = [];
+  const rowGroup = [];
+  for (const [name, items] of groups) {
+    for (const t of items) { flatRows.push(t); rowGroup.push(name); }
   }
-
-  /* 그린 열은 `wideCols` 다. `cols` 는 **선언 전체**라 행 이름(`rowNameOf`)과 카드 뷰가
-     그것을 본다 — 열이 접혔다고 낭독되는 이름이 바뀌면 안 된다. */
-  const wideCols = fit.shown;
 
   return (
-    <>
-    <HiddenColumnsNote columns={fit.hidden} openable />
-    <TableContainer ref={setBoxEl}>
-      <Table size="small" sx={tableLayoutSx(wideCols)}>
-        <TableColGroup columns={wideCols} />
-        <TableHead>
-          <TableRow>
-            {wideCols.map((c) => {
-              const head = tableCellProps(c, { head: true });
-              return (
-                <TableHeaderCell
-                  key={c.key}
-                  column={c}
-                  sort={sort}
-                  onSort={onSort}
-                  filterValue={filters ? columnFilterValue(filters, (c.filter && c.filter.field) || c.key) : undefined}
-                  onFilter={onFilter}
-                  filterOptions={filterOptions && (filterOptions[(c.filter && c.filter.field) || c.key])}
-                  entityOptions={entityOptions && (entityOptions[(c.filter && c.filter.field) || c.key])}
-                  colRole={head["data-col-role"]}
-                  // 머리글 정렬은 `HEADER_ALIGN` 하나로 고정이다 — `TableHeaderCell` 은
-                  // `align` 을 안 받는다(넘기면 조용히 버려진다).
-                  cellSx={head.sx}
-                />
-              );
-            })}
-          </TableRow>
-        </TableHead>
-        {groups.map(([groupName, items]) => {
-          const open = isGroupOpen(groupName);
-          return (
-            <TableBody key={groupName}>
-              <TableRow>
-                <TableCell
-                  component="th"
-                  scope="colgroup"
-                  colSpan={wideCols.length}
-                  sx={{
-                    bgcolor: (theme) => alpha(theme.palette.primary.main, 0.07),
-                    fontSize: FONT_SIZE.bodySm,
-                    color: "text.primary",
-                    borderTop: 1, borderColor: "divider",
-                    ...(collapsible ? { p: 0 } : null),
-                  }}
-                >
-                  {collapsible ? (
-                    <Box component="button" type="button" aria-expanded={open} onClick={() => toggleGroup(groupName)}
-                      sx={{ ...groupToggleSx, px: 2, py: "6px" }}>
-                      {groupHeading(groupName, items.length, open)}
-                    </Box>
-                  ) : groupHeading(groupName, items.length, open)}
-                </TableCell>
-              </TableRow>
-              {open ? items.map((t, i) => {
-                // 행마다 한 번만 구한다 — kit.jsx DataTable과 같은 규칙(셀마다 다시 구하면 열 수만큼 반복한다).
-                const ctx = { rowName: rowNameOf(cols, t) };
-                return (
-                  <TableRow key={groupedRowKey(t, i)} hover>
-                    {wideCols.map((c) => {
-                      const truncate = columnShouldTruncate(c, false);
-                      const content = groupedCell(c, t, ctx);
-                      const plain = c.render && (typeof t[c.key] === "string" || typeof t[c.key] === "number")
-                        ? String(t[c.key])
-                        : null;
-                      const raw = !c.render && typeof content === "string" ? content : null;
-                      const hint = columnCellHint(c, t, ctx, { truncate, raw, plain });
-                      const cellProps = tableCellProps(c, { truncate });
-                      return (
-                        <TableCell key={c.key} {...cellProps} title={hint || undefined}>
-                          {truncate && hint ? (
-                            <Box component="span" title={hint} sx={{ display: "block", minWidth: 0, maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "inherit" }}>
-                              {content}
-                            </Box>
-                          ) : content}
-                        </TableCell>
-                      );
-                    })}
-                  </TableRow>
-                );
-              }) : null}
-            </TableBody>
-          );
-        })}
-      </Table>
-    </TableContainer>
-    </>
+    <DataTable
+      columns={columns}
+      rows={flatRows}
+      /* 키는 **묶음까지 포함해야** 유일하다 — 같은 티켓이 두 묶음에 서면 id 만으로는 겹친다. */
+      rowKey={(t, i) => rowGroup[i] + "::" + groupedRowKey(t, i)}
+      groupOf={(t, i) => rowGroup[i]}
+      groupCollapsible={collapsible}
+      emptyState={emptyState || <EmptyState title={empty || "표시할 항목이 없습니다"} help={emptyHelp} />}
+      sort={sort}
+      onSort={onSort}
+      filters={filters}
+      filterValueOf={columnFilterValue}
+      onFilter={onFilter}
+      filterOptions={filterOptions}
+      entityOptions={entityOptions}
+    />
   );
 }
 

@@ -1,6 +1,6 @@
 import React from "react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 
@@ -113,5 +113,30 @@ describe("개발자 월간 리포트 — 데이터가 있는 달", () => {
     expect(screen.getAllByText("3건").length).toBeGreaterThan(1);
     // 지연 1건은 붉은 배지로 눈에 띄게 남는다.
     expect(screen.getByText("담당자별 상세 티켓")).toBeInTheDocument();
+  });
+
+  /* 담당자별 상세 티켓이 **공용 표**로 흡수됐다. 이 화면만 자기 `<Table>` 을 그리던
+     마지막 자리였고, 그것을 붙잡고 있던 것이 담당자 구분 행 하나였다. 흡수가 실제로
+     일어났는지는 「그 줄이 여전히 있는가」와 「그 줄이 표의 묶음 머리행인가」 둘 다
+     봐야 안다 — 줄만 있고 표가 갈라져 있으면 고친 것이 없다. */
+  it("담당자 구분 줄이 표의 묶음 머리행으로 남는다", async () => {
+    apiMock.mockResolvedValue({
+      configured: true, ok: true, period: "2026-08",
+      team: { ...EMPTY_TEAM, total: 6, done: 3, in_progress: 1, plan: 2, overdue: 1, est_done_total: 4.5 },
+      developers: [DEV], unassigned: { total: 0 },
+    });
+    const { container } = renderReport();
+
+    await screen.findByText("담당자별 상세 티켓");
+    const groups = container.querySelectorAll("[data-group-row]");
+    expect(groups).toHaveLength(1);
+    expect(groups[0].getAttribute("data-group-row")).toBe("서윤경");
+    // 요약 문장은 그대로다 — 흡수는 문구를 바꾸는 일이 아니다.
+    expect(groups[0].textContent).toContain("완료 3건, 진행 중 1건, 완료 예상 WD 4.5인일");
+    // 스크린 리더가 아래 행들이 이 이름에 속한다고 읽는다.
+    expect(groups[0].querySelector("th").getAttribute("scope")).toBe("colgroup");
+    // 그 줄이 붙어 있는 표는 상세 티켓 표다(제목 열이 그 표에만 있다).
+    const table = groups[0].closest("table");
+    expect(within(table).getByText("로그인 화면 정리")).toBeInTheDocument();
   });
 });
