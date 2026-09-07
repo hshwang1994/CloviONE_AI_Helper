@@ -66,6 +66,36 @@ describe("ColumnSeries", () => {
     expect(container).toBeTruthy();
   });
 
+  /* 한 칸에 막대가 둘일 수 있다. 값 글자는 **그중 한 막대**의 값이고 자기 막대 바로 위에
+     선다 — 칸 가운데는 두 막대 사이의 빈 자리라, 그 위의 숫자가 어느 막대의 값인지 눈이
+     못 정한다. */
+  describe("한 칸에 막대 둘", () => {
+    const GROUPED = [
+      { key: "a", label: "26-07", bars: [{ key: "assigned", value: 4 }, { key: "done", value: 2 }] },
+      { key: "b", label: "26-08", bars: [{ key: "assigned", value: 6 }, { key: "done", value: 6 }] },
+    ];
+
+    it("막대는 칸마다 둘이고 값 글자는 하나다", () => {
+      const { container } = withTheme(<ColumnSeries items={GROUPED} unit="건" />);
+      expect(container.querySelectorAll("[data-column-bar]")).toHaveLength(4);
+      // 기본은 마지막 막대(완료)의 값이다 — 배정 4 는 글자로 안 나온다.
+      expect(screen.getByText("2건")).toBeInTheDocument();
+      expect(screen.queryByText("4건")).toBeNull();
+    });
+
+    it("labelBar 로 어느 막대의 값을 적을지 정한다", () => {
+      withTheme(<ColumnSeries items={GROUPED} unit="건" labelBar={0} />);
+      expect(screen.getByText("4건")).toBeInTheDocument();
+      expect(screen.queryByText("2건")).toBeNull();
+    });
+
+    it("기준을 안 주면 두 막대를 통틀어 가장 큰 값이 꼭대기다", () => {
+      withTheme(<ColumnSeries items={GROUPED} unit="건" />);
+      // 배정 6 이 최대라 y축 꼭대기가 6 이다.
+      expect(screen.getAllByText("6").length).toBeGreaterThan(0);
+    });
+  });
+
   it("항목이 없으면 빈 상자를 남기지 않는다", () => {
     withTheme(<ColumnSeries items={[]} emptyLabel="집계할 달이 없습니다" />);
     expect(screen.getByText("집계할 달이 없습니다")).toBeInTheDocument();

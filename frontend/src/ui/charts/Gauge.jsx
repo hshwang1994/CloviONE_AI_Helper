@@ -114,14 +114,19 @@ export function Gauge({
     <Box sx={{ display: "grid", gap: 0.5, justifyItems: "center", minWidth: 0 }}>
       <Box data-chart-frame="gauge" sx={{ position: "relative", width: size, height: size }}>
         <Box ref={containerRef} aria-hidden="true" sx={{ width: "100%", height: "100%" }} />
-        <Box sx={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", textAlign: "center" }}>
-          <Typography
-            component="span"
-            sx={{ fontSize: FONT_SIZE.sectionTitle, fontWeight: FONT_WEIGHT.extrabold, lineHeight: 1.1 }}
-          >
-            {centerText == null ? value : centerText}
-          </Typography>
-        </Box>
+        {/* `centerText={false}` — 가운데를 **비운다**. 값을 링 옆에 두는 배치가 있어서다:
+            작은 링(46~72px)에서 안쪽 지름은 두께를 뺀 만큼이라 두 자리 백분율이 안 들어가고,
+            억지로 넣으면 글자가 링에 닿는다. 그때는 숫자와 이름을 링 옆에 세로로 묶는다. */}
+        {centerText === false ? null : (
+          <Box sx={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", textAlign: "center" }}>
+            <Typography
+              component="span"
+              sx={{ fontSize: FONT_SIZE.sectionTitle, fontWeight: FONT_WEIGHT.extrabold, lineHeight: 1.1 }}
+            >
+              {centerText == null ? value : centerText}
+            </Typography>
+          </Box>
+        )}
       </Box>
       {label ? <Typography variant="body2" color="text.secondary">{label}</Typography> : null}
     </Box>

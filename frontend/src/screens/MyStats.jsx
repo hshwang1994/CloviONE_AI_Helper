@@ -247,10 +247,14 @@ export function MyStats() {
             sx={{ mb: 2.5 }}
             total={totals.all}
             totalLabel={`최근 ${months}개월 내 티켓`}
+            /* 🔴 비율 바에서 **색은 완료 하나만** 쓴다. 초록과 파랑이 같은 채도로 붙어
+               있으면 어느 쪽이 주인지 안 읽힌다 — 이 카드가 답하는 질문은 「얼마나 끝냈나」
+               이고 나머지는 그 답의 배경이다. 남은 일과 취소는 중립 선색으로 두고 자기
+               몫을 **길이로만** 말한다. */
             items={[
               { key: "done", value: totals.done, label: "완료", kind: "ok" },
-              { key: "active", value: totals.active, label: "남은 일" },
-              { key: "cancelled", value: totals.cancelled, label: "취소" },
+              { key: "active", value: totals.active, label: "남은 일", accent: "dividerStrong" },
+              { key: "cancelled", value: totals.cancelled, label: "취소", accent: "dividerStrong" },
             ]}
             risks={[
               { key: "overdue", value: totals.overdue, label: "지연", kind: "danger" },
@@ -263,16 +267,27 @@ export function MyStats() {
             action={
               /* 완료율은 **취소를 뺀** 분모라 위 스택 바의 비율과 다른 수다. 그래서 바 옆이
                  아니라 자기 그림을 갖는다 — 같은 자리에 두면 98% 와 92% 가 왜 다른지 물을
-                 자리가 없다. 이름을 링 아래에 그대로 붙여 그 차이를 말한다. */
-              <Gauge
-                value={totals.completion_rate == null ? null : Math.round(totals.completion_rate * 100)}
-                size="4.5rem"
-                thickness={12}
-                color="ok"
-                centerText={pct(totals.completion_rate)}
-                label="완료율(취소 제외)"
-                emptyLabel="아직 잴 수 없습니다"
-              />
+                 자리가 없다. 이름이 링 옆에 붙어 그 차이를 말한다.
+                 숫자와 이름을 **링 옆에 세로로** 묶는 이유: 링 아래로 흘리면 이 덩어리가
+                 링 높이보다 24px 더 커지고, 그만큼 카드 전체가 자란다(실측 197 → 170). */
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1.25, minWidth: 0 }}>
+                <Gauge
+                  value={totals.completion_rate == null ? null : Math.round(totals.completion_rate * 100)}
+                  size="4.5rem"
+                  thickness={12}
+                  color="ok"
+                  centerText={false}
+                  emptyLabel="아직 잴 수 없습니다"
+                />
+                <Box sx={{ display: "grid", rowGap: 0.25, minWidth: 0 }}>
+                  <Typography sx={{ fontSize: FONT_SIZE.title, fontWeight: FONT_WEIGHT.bold, lineHeight: 1, ...NUMERIC }}>
+                    {pct(totals.completion_rate)}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary" sx={{ ...KO_WORD_BREAK }}>
+                    완료율(취소 제외)
+                  </Typography>
+                </Box>
+              </Box>
             }
           />
 
@@ -300,8 +315,8 @@ export function MyStats() {
                       SectionTitle 5개가 전부 그 h1 바로 아래다 — h2를 명시한다. */}
                   <SectionTitle
                     component="h2"
-                    title="달별 완료 추이"
-                    help="마감일이 그 달인 티켓 기준입니다. 완료율의 분모에서 취소는 뺍니다."
+                    title="달별 배정과 완료"
+                    help="마감일이 그 달인 티켓 기준입니다."
                   />
                   {/* 🔴 선이 아니라 **막대**다.
                       선은 점과 점 사이를 이어 「그 사이에도 값이 있었다」고 말한다. 그런데
@@ -311,13 +326,26 @@ export function MyStats() {
                       서므로 그 달 하나만 「배정 없음」이라고 말하고 옆 달에 선을 긋지 않는다.
                       기준을 100 으로 못박아 「가장 큰 값이 꽉 찬 막대」가 되지 않게 한다 —
                       완료율은 서로 비교할 값이 아니라 그 자체가 절대값이다. */}
+                  {/* 🔴 완료율이 아니라 **배정과 완료 건수**다. 완료율은 아래 표에 열이
+                      하나 있고 위 요약 카드의 링이 또 말한다 — 그림이 그것을 세 번째로
+                      말하면 정보가 안 늘어난다. 달마다 「얼마나 맡았고 얼마나 끝냈나」는
+                      표를 세로로 훑어야 보이던 사실이고, 그 자리를 그림이 채운다.
+                      색은 완료 하나만 쓴다. 배정은 중립 선색이라 완료 막대의 **배경**으로
+                      읽히고, 둘의 차이가 곧 남은 몫이다. */}
                   <ColumnSeries
-                    question="달마다 완료율이 어떠했는지 봅니다. 배정이 없던 달은 값이 «-» 이고, 그 달의 정확한 건수는 아래 표가 답합니다."
-                    items={data.months.map((m) => (m.completion_rate == null
-                      ? { key: m.month, label: m.month.slice(2), value: 0, valueText: "-", hint: m.month }
-                      : { key: m.month, label: m.month.slice(2), value: Math.round(m.completion_rate * 100), hint: m.month }))}
-                    max={100}
-                    unit="%"
+                    question="달마다 얼마나 맡았고 얼마나 끝냈는지 봅니다. 배정이 없던 달은 값이 «-» 이고, 완료율은 아래 표가 답합니다."
+                    items={data.months.map((m) => (m.assigned
+                      ? {
+                        key: m.month, label: m.month.slice(2), hint: m.month,
+                        bars: [
+                          { key: "assigned", value: m.assigned, color: "dividerStrong" },
+                          { key: "done", value: m.done, color: "ok" },
+                        ],
+                      }
+                      : { key: m.month, label: m.month.slice(2), hint: m.month, value: 0, valueText: "-" }))}
+                    barWidth="0.875rem"
+                    barGap="0.25rem"
+                    unit="건"
                     emptyLabel="집계할 달이 없습니다"
                   />
                   <Box sx={{ mt: 2, minWidth: 0 }}>

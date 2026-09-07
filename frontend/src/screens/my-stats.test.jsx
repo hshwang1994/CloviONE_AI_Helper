@@ -101,7 +101,7 @@ describe("내 업무량 · 완료 통계", () => {
 
     expect(screen.getByRole("heading", { level: 1, name: "내 업무량, 완료 통계" })).toBeInTheDocument();
     const level2Names = screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
-    for (const title of ["달별 완료 추이", "앞으로의 부하(주별)", "상태 구성", "남은 일의 우선순위", "공수(WD)"]) {
+    for (const title of ["달별 배정과 완료", "앞으로의 부하(주별)", "상태 구성", "남은 일의 우선순위", "공수(WD)"]) {
       expect(level2Names).toContain(title);
     }
     expect(level2Names).toHaveLength(5);
@@ -110,7 +110,7 @@ describe("내 업무량 · 완료 통계", () => {
   it("배정이 0건인 달의 완료율은 '-' 다 — 0% 가 아니다", async () => {
     apiMock.mockResolvedValue(stats());
     renderStats();
-    await screen.findByText("달별 완료 추이");
+    await screen.findByText("달별 배정과 완료");
     const row = screen.getByText("2026-06").closest("tr");
     expect(row).not.toBeNull();
     expect(row.textContent).toContain("-");
@@ -220,11 +220,14 @@ describe("내 업무량 · 완료 통계", () => {
       ],
     }));
     renderStats();
-    await screen.findByText("달별 완료 추이");
-    /* 값이 있는 달은 그 값을 그대로 말한다 — 그림과 표 **둘 다**에서 같은 수다.
-       (같은 사실을 두 자리가 다르게 말하지 않는 것이 이 화면의 규칙이다.) */
-    expect(screen.getAllByText("50%").length).toBe(2);
-    /* 배정이 없던 달은 «-» 다. 0% 로 적으면 막대 길이와 글자가 함께 「하나도 못 끝냈다」로
+    await screen.findByText("달별 배정과 완료");
+    /* 그림이 말하는 것은 **건수**다 — 완료율은 아래 표에 열이 하나 있고 요약 카드의 링이
+       또 말한다. 셋째로 말하면 정보가 안 늘어난다(D-478). */
+    const card = screen.getByText("달별 배정과 완료").closest('[data-surface="plate"]');
+    expect(within(card).getByText("2건")).toBeInTheDocument();
+    // 완료율은 여전히 그 카드의 표에 있다.
+    expect(within(card).getByText("50%")).toBeInTheDocument();
+    /* 배정이 없던 달은 «-» 다. 0 으로 적으면 막대 길이와 글자가 함께 「하나도 못 끝냈다」로
        읽히는데 사실은 「할 것이 없었다」다 — 막대로는 그 둘을 못 가르니 글자가 가른다.
        그림과 표가 같은 낱말을 쓴다: 화면 어디에도 「0%」가 없다. */
     expect(screen.queryByText("0%")).toBeNull();

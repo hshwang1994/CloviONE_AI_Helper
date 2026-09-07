@@ -298,16 +298,16 @@ export function StatusSummaryCard({
   value, onSelect, riskValue, onRiskSelect, ariaLabel, revealKey, action, sx,
 }) {
   const shown = useRevealOnce(revealKey == null ? null : String(revealKey));
-  const list = (items || []).filter(Boolean).map((it) => ({
+  /* 색은 톤에서 오지만 **항목이 직접 말할 수도 있다**(`accent`).
+     비율 바에서 색을 여럿 쓰면 어느 조각이 주인지가 사라진다 — 뜻이 있는 조각 하나만
+     색을 갖고 나머지는 중립으로 두는 화면이 있다. 그때 필요한 것이 이 통로다. */
+  const withAccent = (it) => ({
     ...it,
     n: Number(it.value) || 0,
-    accent: accentOf(it.kind || statusKind(it.label)),
-  }));
-  const riskList = (risks || []).filter(Boolean).map((it) => ({
-    ...it,
-    n: Number(it.value) || 0,
-    accent: accentOf(it.kind || statusKind(it.label)),
-  }));
+    accent: it.accent || accentOf(it.kind || statusKind(it.label)),
+  });
+  const list = (items || []).filter(Boolean).map(withAccent);
+  const riskList = (risks || []).filter(Boolean).map(withAccent);
   if (!list.length && !riskList.length) return null;
 
   /* **전체를 준 카드와 안 준 카드는 다른 것을 말한다.**
@@ -342,7 +342,9 @@ export function StatusSummaryCard({
       role="group"
       aria-label={ariaLabel}
       sx={{
-        p: TILE_PADDING,
+        /* 판의 여백은 규약값 하나다 — 세로 18px, 가로 20px. 안쪽 줄 사이도 12px 하나라
+           숫자 줄 · 비율 바 · 칩 줄이 같은 간격으로 선다. */
+        py: 2.25, px: 2.5,
         borderRadius: `${RADIUS.md}px`,
         bgcolor: "background.plate",
         border: 1,

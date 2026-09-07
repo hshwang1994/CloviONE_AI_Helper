@@ -29,7 +29,13 @@ import { FONT_SIZE, FONT_WEIGHT, MOTION, NUMERIC } from "../theme.js";
  * 없는 달)은 **막대를 안 그리고** 값 글자를 `valueText` 로 적는다 — 그림으로 못 가르는 것을
  * 글자가 가른다(`BarSeries` 의 같은 prop 과 한 뜻이다).
  *
- * items: `[{ key, label, value, valueText?, color?, hint? }]`
+ * ## 한 칸에 막대가 여럿일 수 있다
+ *
+ * `bars: [{ key, value, color }]` 를 주면 그 수만큼 나란히 선다. 값 글자는 **그중 한
+ * 막대**의 값이다(`labelBar`) — 둘을 다 적으면 어느 것이 어느 막대의 값인지 다시 찾아야
+ * 하고, 그 답은 아래 표가 이미 갖고 있다. 막대 하나짜리는 `value` 만 줘도 된다.
+ *
+ * items: `[{ key, label, hint?, valueText?, value?, color?, bars? }]`
  */
 const AXIS_TRACK = "2.5rem";   // 40px — y축 라벨 자리
 const PLOT_HEIGHT = "9.25rem"; // 148px — 격자 높이
@@ -39,18 +45,19 @@ const BAR_MAX = "7.5rem";      // 120px
 
 export function ColumnSeries({
   items, max, unit = "", question, color, revealKey,
-  emptyLabel = "데이터 없음", barWidth = "1.75rem",
+  emptyLabel = "데이터 없음", barWidth = "1.75rem", barGap = "0.25rem", labelBar = -1,
 }) {
   const theme = useTheme();
   const grown = useRevealOnce(revealKey);
-  const rows = (Array.isArray(items) ? items : []).filter(
-    (it) => it && typeof it.value === "number" && Number.isFinite(it.value)
-  );
+  /** 한 칸의 막대 목록 — `bars` 를 안 주면 `value` 하나짜리로 본다. */
+  const barsOf = (it) => (Array.isArray(it.bars) ? it.bars : [{ key: "v", value: it.value, color: it.color }])
+    .filter((b) => b && typeof b.value === "number" && Number.isFinite(b.value));
+  const rows = (Array.isArray(items) ? items : []).filter((it) => it && barsOf(it).length);
   if (!rows.length) return <ChartNoData label={emptyLabel} />;
 
   const peak = typeof max === "number" && max > 0
     ? max
-    : Math.max(1, ...rows.map((r) => Math.max(0, r.value)));
+    : Math.max(1, ...rows.flatMap((r) => barsOf(r).map((b) => Math.max(0, b.value))));
   /* 눈금 셋(꼭대기·가운데·0)이면 격자선이 둘이다. 값 축이 무엇을 세는지는 라벨이 말하고,
      격자는 눈이 높이를 견주는 자리만 만든다 — 촘촘하면 막대보다 격자가 먼저 읽힌다. */
   const ticks = [peak, Math.round(peak / 2), 0];
@@ -80,7 +87,9 @@ export function ColumnSeries({
         >
           {rows.map((r) => {
             const known = r.valueText == null;
-            const pct = known ? Math.max(0, Math.min(100, (r.value / peak) * 100)) : 0;
+            const bars = barsOf(r);
+            const at = labelBar < 0 ? bars.length + labelBar : labelBar;
+            const group = `repeat(${bars.length}, ${barWidth})`;
             return (
               /* 🔴 칸은 **자기 높이를 갖는다**(`height: 100%` + 두 행 트랙).
                  막대 높이가 `%` 라서 그렇다 — 백분율 높이는 부모의 높이가 확정일 때만 풀리고,
@@ -93,29 +102,52 @@ export function ColumnSeries({
                   rowGap: 1, justifyItems: "center", minWidth: 0,
                 }}
               >
-                <Typography
-                  component="span"
-                  sx={{ fontSize: FONT_SIZE.caption, fontWeight: FONT_WEIGHT.bold, ...NUMERIC }}
+                {/* 값 글자는 **자기 막대 바로 위**에 선다 — 칸 가운데가 아니다. 막대가
+                    둘이면 가운데는 두 막대 사이의 빈 자리라, 그 위의 숫자가 어느 막대의
+                    값인지 눈이 못 정한다. 값이 없는 칸은 칸 전체에 걸쳐 가운데다. */}
+                <Box
+                  sx={known
+                    ? { display: "grid", gridTemplateColumns: group, columnGap: barGap, justifyItems: "center" }
+                    : { display: "grid", justifyItems: "center" }}
                 >
-                  {known ? `${r.value}${unit}` : r.valueText}
-                </Typography>
+                  {known ? bars.map((b, i) => (
+                    <Typography
+                      key={b.key || i}
+                      component="span"
+                      sx={{ fontSize: FONT_SIZE.caption, fontWeight: FONT_WEIGHT.bold, ...NUMERIC }}
+                    >
+                      {i === at ? `${b.value}${unit}` : "\u00a0"}
+                    </Typography>
+                  )) : (
+                    <Typography component="span" sx={{ fontSize: FONT_SIZE.caption, fontWeight: FONT_WEIGHT.bold, ...NUMERIC }}>
+                      {r.valueText}
+                    </Typography>
+                  )}
+                </Box>
                 {/* 값이 없는 칸은 막대 자체를 안 만든다 — 0px 막대는 「0」으로 읽힌다. */}
                 {known ? (
-                  <Box
-                    aria-hidden="true"
-                    data-column-bar=""
-                    sx={{
-                      width: barWidth, maxWidth: "100%",
-                      /* 높이를 **확정 단위로** 센다. 백분율 높이는 부모 높이가 확정일 때만
-                         풀리는데, 값 글자가 막대 위에 붙으려면 두 줄이 다 `auto` 여야 하고
-                         그러면 부모가 확정이 아니게 된다. 두 요구를 같이 만족시키는 길은
-                         막대가 쓸 최대 높이를 알고 거기서 비율을 재는 것이다. */
-                      height: grown ? `calc(${BAR_MAX} * ${pct} / 100)` : 0,
-                      borderRadius: "4px 4px 0 0",
-                      bgcolor: resolveChartColor(theme, r.color || color, 0),
-                      transition: `height ${MOTION.base} ${MOTION.ease}`,
-                    }}
-                  />
+                  <Box sx={{ alignSelf: "end", display: "grid", gridTemplateColumns: group, columnGap: barGap, alignItems: "end" }}>
+                    {bars.map((b, i) => (
+                      <Box
+                        key={b.key || i}
+                        aria-hidden="true"
+                        data-column-bar=""
+                        sx={{
+                          width: barWidth, maxWidth: "100%",
+                          /* 높이를 **확정 단위로** 센다. 백분율 높이는 부모 높이가 확정일 때만
+                             풀리는데, 값 글자가 막대 위에 붙으려면 두 줄이 다 `auto` 여야 하고
+                             그러면 부모가 확정이 아니게 된다. 두 요구를 같이 만족시키는 길은
+                             막대가 쓸 최대 높이를 알고 거기서 비율을 재는 것이다. */
+                          height: grown
+                            ? `calc(${BAR_MAX} * ${Math.max(0, Math.min(100, (b.value / peak) * 100))} / 100)`
+                            : 0,
+                          borderRadius: "4px 4px 0 0",
+                          bgcolor: resolveChartColor(theme, b.color || color, i),
+                          transition: `height ${MOTION.base} ${MOTION.ease}`,
+                        }}
+                      />
+                    ))}
+                  </Box>
                 ) : null}
               </Box>
             );
