@@ -10,7 +10,7 @@ import InboxRoundedIcon from "@mui/icons-material/InboxRounded";
 import { api } from "../lib/api.js";
 import { fmtDateTime, fmtRelative } from "../lib/format.js";
 import {
-  Badge, Button, Card, EmptyState, ErrorState, ListCard, PageHeader, Skeleton,
+  Badge, Button, Card, EmptyState, ErrorState, ListCard, PageHeader, Skeleton, FlatBadgeSurface,
 } from "../ui/kit.jsx";
 import { ListFooter } from "../ui/InfiniteScroll.jsx";
 import { useInfiniteList } from "../lib/useInfiniteList.js";
@@ -188,11 +188,14 @@ export function Activity() {
               >
                 {g.day}
               </Typography>
-              <Box component="ul" sx={{ listStyle: "none", m: 0, p: 0 }}>
-                {g.items.map((item) => (
-                  <ActivityRow key={item.id} item={item} onOpen={(route) => nav(route)} />
-                ))}
-              </Box>
+              {/* 목록 안이라 배지가 면을 갖지 않는다 (확정 규약 §9). */}
+              <FlatBadgeSurface>
+                <Box component="ul" sx={{ listStyle: "none", m: 0, p: 0 }}>
+                  {g.items.map((item) => (
+                    <ActivityRow key={item.id} item={item} onOpen={(route) => nav(route)} />
+                  ))}
+                </Box>
+              </FlatBadgeSurface>
             </Box>
           ))}
           {/* 이 응답은 `total` 을 준다. 안 주는 응답이었다면 「마지막 묶음이 가득 찼는가」로

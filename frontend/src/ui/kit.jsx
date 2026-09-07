@@ -161,6 +161,24 @@ const EXTRA_TONE_VARS = {
   pink: { bg: "var(--badge-pink-bg)", fg: "var(--badge-pink-fg)" },
 };
 
+/* 배지가 **어디에 서 있는가** — 표와 목록 안인가, 그 밖인가 (확정 규약 §9).
+ *
+ * 규칙 자체는 오래 있었다: 「표 안에서는 배지 대신 점 + 낱말」. 그런데 그것을 지키는 일이
+ * **호출부 106곳**의 기억에 맡겨져 있었고, 그래서 새지 않을 수가 없었다 — AI 도우미의
+ * 「지연 N일」이 그렇게 샜고, 개발 리포트의 「지연」 열도 같은 자리였다. 규칙을 기억에서
+ * 그릇으로 옮긴다: 표와 목록이 스스로 「여기는 면을 쓰지 않는 자리다」라고 말하고, 그 안의
+ * 배지는 아무 prop 없이 그 말을 따른다.
+ *
+ * 호출부가 이길 수 있다 — 목록 안에서도 `emphasis="strong"` 을 적으면 면을 갖는다. 문맥이
+ * 기본을 정하는 것이지 금지하는 것이 아니다. 반대로 목록 밖에서 면을 끄고 싶으면
+ * `emphasis="plain"` 이다. */
+const BadgeSurfaceCtx = React.createContext(null);
+
+/** 이 안의 배지는 면을 갖지 않는다 — 표(`DataTable`)와 손으로 만든 목록이 감싼다. */
+export function FlatBadgeSurface({ children }) {
+  return <BadgeSurfaceCtx.Provider value="flat">{children}</BadgeSurfaceCtx.Provider>;
+}
+
 export function Badge({ value, kind, emphasis }) {
   /* 상태 표시 — **알약을 기본형으로 쓰지 않는다** (지시 11).
    *
@@ -180,14 +198,18 @@ export function Badge({ value, kind, emphasis }) {
   const k = kind || STATUS_KIND[raw] || "neutral";
   const extra = EXTRA_TONE_VARS[k];
   const palette = { ok: "success", danger: "error", warn: "warning", info: "info" }[k];
-  /* `plain` — **면을 갖지 않는다.**
+  /* 면을 갖는가 — **호출부 → 자리 → 톤** 순서로 정해진다.
    *
-   * 표와 목록 안에서는 배지 대신 «점 + 낱말» 이다(확정 규약 §9). danger 가 자동으로 옅은
-   * 면을 갖는 규칙은 카드 머리나 상세처럼 **목록 밖**에서 조치를 눈에 띄게 하려는 것인데,
-   * 그것이 목록 안으로 들어오면 같은 줄에서 어휘가 둘로 갈린다 — AI 도우미의 「지금 볼 것」
-   * 에서 「지연 18일」만 붉은 면이고 바로 옆 「검증」·「계획」은 점 + 낱말이었다. 줄 하나가
-   * 두 어휘로 말하면 읽는 사람은 그 둘이 다른 종류의 사실이라고 읽는다. */
-  const strong = emphasis === "plain" ? false : (emphasis === "strong" || k === "danger");
+   * ① 호출부가 `plain`/`strong` 을 적으면 그것이 이긴다.
+   * ② 안 적었으면 **자리**가 정한다: 표·목록 안이면 면이 없다(위 `BadgeSurfaceCtx`).
+   * ③ 그 밖에서는 danger 만 옅은 면을 갖는다 — 조치가 필요한 것이 눈에 띄어야 하는 자리다.
+   *
+   * 한 줄에서 어휘가 갈리면 읽는 사람은 그 둘이 다른 종류의 사실이라고 읽는다. AI 도우미의
+   * 「지연 18일」만 붉은 면이고 바로 옆 「검증」·「계획」은 점 + 낱말이던 것이 그 예다. */
+  const flat = React.useContext(BadgeSurfaceCtx) === "flat";
+  const strong = emphasis === "plain" ? false
+    : emphasis === "strong" ? true
+      : (k === "danger" && !flat);
 
   /* 표지 모양이 톤마다 다르다 — 흑백으로 인쇄하거나 색을 못 봐도 구분된다. */
   const marker = { ok: "50%", danger: "2px", warn: "2px", info: "50%" }[k] || "1px";
@@ -2402,6 +2424,7 @@ export function DataTable({ columns, rows, rowKey, onRow, rowHref, rowSelected, 
     const cardHeads = cardHeaderControls(cols);
     let seenGroup = null;
     return (
+      <FlatBadgeSurface>
       <Stack gap={1.5}>
         {cardHeads.length ? (
           <Box sx={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 1.5, px: 0.5 }}>
@@ -2487,6 +2510,7 @@ export function DataTable({ columns, rows, rowKey, onRow, rowHref, rowSelected, 
           return <React.Fragment key={`clv-grouped:${opening.key}`}>{heading}{card}</React.Fragment>;
         })}
       </Stack>
+      </FlatBadgeSurface>
     );
   }
 
@@ -2597,7 +2621,9 @@ export function DataTable({ columns, rows, rowKey, onRow, rowHref, rowSelected, 
   }
 
   return (
-    <>
+    /* 🔴 표 안에서는 배지가 면을 갖지 않는다 (확정 규약 §9). 규칙을 호출부 106곳의 기억에
+       맡기지 않고 **그릇이 선언한다** — 새 열을 더하는 사람이 이 규칙을 몰라도 지켜진다. */
+    <FlatBadgeSurface>
       <HiddenColumnsNote columns={hiddenCols} openable={!!onRow || !!rowHref} />
       {/* 뺀 열은 **한 번 적는다** (R-91). 열이 조용히 사라지면 사용자는 그 값을 못 봤다는
           사실조차 모른다 — 무엇이 왜 없는지를 표가 직접 말한다. */}
@@ -2739,7 +2765,7 @@ export function DataTable({ columns, rows, rowKey, onRow, rowHref, rowSelected, 
         ) : null}
       </Table>
       </TableContainer>
-    </>
+    </FlatBadgeSurface>
   );
 }
 

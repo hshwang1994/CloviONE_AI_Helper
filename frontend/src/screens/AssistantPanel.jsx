@@ -6,7 +6,7 @@ import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { keyframes } from "@mui/system";
 import { api } from "../lib/api.js";
-import { Badge, Button, Card, EmptyState, ErrorState, ScrollArea, SectionTitle, Segmented, Skeleton, SubGroup, useToast } from "../ui/kit.jsx";
+import { Badge, Button, Card, EmptyState, ErrorState, FlatBadgeSurface, ScrollArea, SectionTitle, Segmented, Skeleton, SubGroup, useToast } from "../ui/kit.jsx";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, MOTION } from "../ui/theme.js";
 import { AI_DETAIL_MAX } from "../ui/density.js";
 import { useAutoHeight } from "../ui/motion.js";
@@ -216,11 +216,10 @@ function Actions({ children }) {
 function TicketRow({ ticket, lead, leadKind }) {
   return (
     <Box component="li" sx={{ display: "flex", gap: 1, alignItems: "baseline", minWidth: 0, py: 0.25 }}>
-      {/* 목록 안이라 **면을 갖지 않는다**(`emphasis="plain"`, 확정 규약 §9). 예전에는
-          danger 가 자동으로 옅은 면을 얻어 「지연 18일」만 붉은 칩이고 같은 줄 오른쪽의
-          「검증」·「계획」은 점 + 낱말이었다 — 한 줄이 두 어휘로 말했다. 상태 배지의 면은
-          카드 머리나 상세처럼 목록 밖에서만 쓴다. */}
-      {lead ? <Badge value={lead} kind={leadKind} emphasis="plain" /> : null}
+      {/* 면을 갖지 않는 것은 **자리**가 정한다(위 `TicketList` 의 `FlatBadgeSurface`).
+          예전에는 danger 가 자동으로 옅은 면을 얻어 「지연 18일」만 붉은 칩이고 같은 줄
+          오른쪽의 「검증」·「계획」은 점 + 낱말이었다 — 한 줄이 두 어휘로 말했다. */}
+      {lead ? <Badge value={lead} kind={leadKind} /> : null}
       <Link
         href={"#/tickets/" + ticket.id}
         underline="hover"
@@ -229,7 +228,7 @@ function TicketRow({ ticket, lead, leadKind }) {
       >
         {ticket.title || "제목 없음"}
       </Link>
-      {ticket.status ? <Badge value={ticket.status} emphasis="plain" /> : null}
+      {ticket.status ? <Badge value={ticket.status} /> : null}
       <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: "nowrap", flexShrink: 0 }}>
         {ticket.due || "마감 없음"}
       </Typography>
@@ -245,9 +244,13 @@ function TicketRow({ ticket, lead, leadKind }) {
  * 한 자리(세부 칸)에서만 걸린다. */
 function TicketList({ children }) {
   return (
-    <Stack component="ul" gap={0.25} sx={{ listStyle: "none", m: 0, p: 0, minWidth: 0 }}>
-      {React.Children.toArray(children).filter(Boolean)}
-    </Stack>
+    /* 목록 안이라 배지가 면을 갖지 않는다 (확정 규약 §9). 규칙을 줄마다 적지 않고
+       **그릇이 한 번** 선언한다 — 표(`DataTable`)가 하는 것과 같다. */
+    <FlatBadgeSurface>
+      <Stack component="ul" gap={0.25} sx={{ listStyle: "none", m: 0, p: 0, minWidth: 0 }}>
+        {React.Children.toArray(children).filter(Boolean)}
+      </Stack>
+    </FlatBadgeSurface>
   );
 }
 

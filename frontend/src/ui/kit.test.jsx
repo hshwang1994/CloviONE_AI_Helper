@@ -5,7 +5,7 @@ import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 import {
   Badge, Button, Callout, ConfirmProvider, DataTable, EmptyState, ErrorState,
-  Card, FormField, MetricStrip, Modal, OverflowMenu, PageHeader, SURFACE_EDGE_WIDTH, SURFACE_TONES, Section, Segmented, Surface,
+  Card, FlatBadgeSurface, FormField, MetricStrip, Modal, OverflowMenu, PageHeader, SURFACE_EDGE_WIDTH, SURFACE_TONES, Section, Segmented, Surface,
   ToastProvider, statusKind, statusText, useConfirm,
 } from "./kit.jsx";
 import { ThemeModeProvider } from "./ThemeModeProvider.jsx";
@@ -1075,20 +1075,46 @@ describe("DetailRow — 상세의 키/값 줄 (D-457)", () => {
  * danger 가 자동으로 옅은 면을 얻는 규칙은 목록 **밖**(카드 머리·상세)에서 조치를 눈에
  * 띄게 하려는 것이다. 그것이 목록 안으로 들어오면 같은 줄에서 어휘가 둘로 갈린다 —
  * 「지연 18일」만 붉은 칩이고 옆의 「검증」·「계획」은 점 + 낱말이었다. */
-describe("배지 — 목록 안에서는 면을 갖지 않는다", () => {
+describe("배지 — 면을 갖는가는 «자리» 가 정한다", () => {
   const faceOf = (el) => getComputedStyle(el.closest(".k-badge")).backgroundColor;
+  const NO_FACE = ["transparent", "rgba(0, 0, 0, 0)"];
+  const hasFace = (el) => !NO_FACE.includes(faceOf(el));
 
-  it("danger 는 목록 밖에서 옅은 면을 갖는다(그 규칙은 그대로다)", () => {
+  it("danger 는 목록 밖에서 옅은 면을 갖는다 — 조치가 눈에 띄어야 하는 자리다", () => {
     const { container } = ui(<Badge value="지연" kind="danger" />);
-    expect(faceOf(container.querySelector(".k-badge"))).not.toBe("rgba(0, 0, 0, 0)");
+    expect(hasFace(container.querySelector(".k-badge"))).toBe(true);
   });
 
-  it("plain 을 주면 그 면이 사라진다 — 같은 줄의 다른 상태와 같은 모양이 된다", () => {
+  /* 🔴 이 규칙이 새던 자리가 여기다. 「표 안에서는 배지 대신 점 + 낱말」은 오래 있던
+     규약인데, 그것을 지키는 일이 **호출부 106곳의 기억**에 맡겨져 있었다. AI 도우미의
+     「지연 N일」이 그렇게 샜고 개발 리포트의 「지연」 열도 같은 자리였다. 지금은 그릇이
+     선언하므로, 새 열이나 새 줄을 더하는 사람이 이 규약을 몰라도 지켜진다. */
+  it("표 안에서는 아무 prop 없이도 면이 없다 — 그릇이 선언한다", () => {
     const { container } = ui(
-      <>
-        <Badge value="지연" kind="danger" emphasis="plain" />
+      <DataTable
+        columns={[{ key: "s", label: "상태", type: "status", render: (r) => <Badge value={r.s} kind="danger" /> }]}
+        rows={[{ id: 1, s: "지연" }]}
+        rowKey={(r) => r.id}
+      />,
+    );
+    const badge = container.querySelector("tbody .k-badge");
+    expect(badge).toBeInTheDocument();
+    expect(hasFace(badge)).toBe(false);
+  });
+
+  it("목록도 같다 — 손으로 만든 목록은 FlatBadgeSurface 로 그 자리를 말한다", () => {
+    const { container } = ui(
+      <FlatBadgeSurface><Badge value="지연" kind="danger" /></FlatBadgeSurface>,
+    );
+    expect(hasFace(container.querySelector(".k-badge"))).toBe(false);
+  });
+
+  it("같은 줄의 danger 와 그 밖의 상태가 **같은 모양**이 된다", () => {
+    const { container } = ui(
+      <FlatBadgeSurface>
+        <Badge value="지연" kind="danger" />
         <Badge value="검증" />
-      </>,
+      </FlatBadgeSurface>,
     );
     const [lead, status] = Array.from(container.querySelectorAll(".k-badge"));
     expect(faceOf(lead)).toBe(faceOf(status));
@@ -1097,8 +1123,20 @@ describe("배지 — 목록 안에서는 면을 갖지 않는다", () => {
     expect(lead.querySelector("span[aria-hidden]")).toBeInTheDocument();
   });
 
-  it("plain 이어도 낱말은 남는다 — 색만으로 심각도를 말하지 않는다", () => {
-    ui(<Badge value="지연" kind="danger" emphasis="plain" />);
+  it("호출부가 자리를 이긴다 — 목록 안에서도 strong 을 적으면 면을 갖는다", () => {
+    const { container } = ui(
+      <FlatBadgeSurface><Badge value="검증" emphasis="strong" /></FlatBadgeSurface>,
+    );
+    expect(hasFace(container.querySelector(".k-badge"))).toBe(true);
+  });
+
+  it("반대 방향도 된다 — 목록 밖에서 plain 을 적으면 면이 사라진다", () => {
+    const { container } = ui(<Badge value="지연" kind="danger" emphasis="plain" />);
+    expect(hasFace(container.querySelector(".k-badge"))).toBe(false);
+  });
+
+  it("면이 없어도 낱말은 남는다 — 색만으로 심각도를 말하지 않는다", () => {
+    ui(<FlatBadgeSurface><Badge value="지연" kind="danger" /></FlatBadgeSurface>);
     expect(screen.getByText("지연")).toBeInTheDocument();
   });
 });

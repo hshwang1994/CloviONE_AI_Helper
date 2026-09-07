@@ -9,7 +9,7 @@ import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
 import { fmtDayKo, fmtDayLongKo, fmtRelative } from "../lib/format.js";
 import {
-  Badge, Button, Callout, Card, DataTable, EmptyState, ErrorState, PageHeader,
+  Badge, Button, Callout, Card, DataTable, EmptyState, ErrorState, PageHeader, FlatBadgeSurface,
   ScrollArea, SectionTitle, Skeleton, SubGroup,
 } from "../ui/kit.jsx";
 import { StatusSummaryCard } from "../ui/StatusKpi.jsx";
@@ -246,6 +246,8 @@ function RecentDocuments({ items }) {
        짧으면 스크롤바가 안 생기고, 그때는 초점도 안 받는다(`ScrollArea`). 제목과
        「문서 전체」는 이 칸 밖에 있어 언제나 보인다. */
     <ScrollArea sx={BUDGET_SCROLL} ariaLabel="최근 문서 목록">
+      {/* 목록 안이라 배지가 면을 갖지 않는다 (확정 규약 §9) — 그릇이 한 번 선언한다. */}
+      <FlatBadgeSurface>
       <Stack component="ul" gap={1} sx={{ listStyle: "none", m: 0, p: 0 }}>
         {items.map((d) => (
           <RowLink
@@ -259,6 +261,7 @@ function RecentDocuments({ items }) {
           />
         ))}
       </Stack>
+      </FlatBadgeSurface>
     </ScrollArea>
   );
 }

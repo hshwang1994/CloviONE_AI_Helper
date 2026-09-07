@@ -5,7 +5,7 @@ import Link from "@mui/material/Link";
 import Typography from "@mui/material/Typography";
 import { api } from "../../lib/api.js";
 import {
-  Badge, Button, Card, ErrorState, MetricStrip, Section, Skeleton, TechDetail,
+  Badge, Button, Card, ErrorState, MetricStrip, Section, Skeleton, TechDetail, FlatBadgeSurface,
   useConfirm, useToast,
 } from "../../ui/kit.jsx";
 import { UserAvatar } from "../../ui/UserAvatar.jsx";
@@ -65,6 +65,7 @@ function PeopleSection({ departmentId }) {
         </Typography>
       ) : null}
       {items.length ? (
+        <FlatBadgeSurface>
         <Box component="ul" sx={{ listStyle: "none", m: 0, p: 0, display: "grid", gap: 1 }}>
           {items.slice(0, PEOPLE_PREVIEW).map((u) => (
             <Box component="li" key={u.id}
@@ -78,6 +79,7 @@ function PeopleSection({ departmentId }) {
             </Box>
           ))}
         </Box>
+        </FlatBadgeSurface>
       ) : null}
       {total > PEOPLE_PREVIEW ? (
         <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5 }}>

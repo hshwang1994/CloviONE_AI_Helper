@@ -4,7 +4,7 @@ import IconButton from "@mui/material/IconButton";
 import Typography from "@mui/material/Typography";
 import ChevronRightRoundedIcon from "@mui/icons-material/ChevronRightRounded";
 import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded";
-import { Badge, Card, ErrorState, ListEmptyState, Skeleton } from "../ui/kit.jsx";
+import { Badge, Card, ErrorState, FlatBadgeSurface, ListEmptyState, Skeleton } from "../ui/kit.jsx";
 import { useOrgTreeQuery } from "./org/orgQueries.js";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
 
@@ -269,6 +269,7 @@ export function OrgTree({ selectedId, onSelect, search = "", active = "", onClea
           help="‘부서 추가’로 부서를 추가하고 상위 부서를 지정하면 여기에 계층으로 표시됩니다."
         />
       ) : (
+        <FlatBadgeSurface>
         <Box
           component="ul"
           role="tree"
@@ -288,6 +289,7 @@ export function OrgTree({ selectedId, onSelect, search = "", active = "", onClea
             />
           ))}
         </Box>
+        </FlatBadgeSurface>
       )}
     </Card>
   );
