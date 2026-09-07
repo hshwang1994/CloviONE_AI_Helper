@@ -15,6 +15,11 @@ import { SIGNALS, SIGNAL_ORDER } from "../lib/ticketSignals.js";
  * 이름과 색을 **다시 적어** 뒀다. 결과로 한 화면 안에서 같은 티켓의 「이슈 있음」이 목록에서는
  * 보라, 위 KPI 타일에서는 주황이었고, 지연과 차단은 타일에서 둘 다 빨강이라 서로 구분되지도
  * 않았다. 어휘가 두 벌이면 한쪽만 고쳐지고, 그 어긋남은 아무 오류도 안 낸다.
+ *
+ * qa-contract-change: KPI 타일이 톤을 나르는 자리가 3px 위색 띠에서 라벨 앞의 7px 점으로 옮겨졌다(D-474). 재는 곳만 바꾸고 재는 것은 그대로다 — 같은 신호가 제품 전체에서 같은 색인가.
+ * 띠를 걷은 이유는 칸마다 다른 색 띠 일곱 개가 나란히 서면 무엇이 중요한지가 사라지기
+ * 때문이고, 그 판단은 색 어휘가 한 곳이라는 이 시험의 목적과 무관하다. 논의 갈래
+ * 카드(`DiscussBucket`)는 띠를 그대로 쓰므로 그쪽 단언은 안 옮긴다.
  */
 
 function withTheme(node) {
@@ -45,7 +50,11 @@ describe("신호 어휘는 한 곳이다", () => {
     const { container } = withTheme(
       <StatusKpiTile label={SIGNALS.issue.label} value="3" kind={SIGNALS.issue.tone} />,
     );
-    expect(topBandColor(container.firstChild)).toContain("--badge-purple-fg");
+    const dot = container.querySelector("[data-status-dot]");
+    expect(dot).toBeInTheDocument();
+    expect(getComputedStyle(dot).backgroundColor).toContain("--badge-purple-fg");
+    // 색은 점이 나르고 **띠는 없다** — 걷은 것이 실제로 걷혔는지 반대편에서도 확인한다.
+    expect(topBandColor(container.firstChild)).not.toContain("--badge-purple-fg");
   });
 
   it("논의 갈래 카드가 같은 톤 표를 본다", () => {

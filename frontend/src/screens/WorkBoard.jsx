@@ -40,7 +40,7 @@ import { useAssigneeOptions, useTicketMeta, useTicketProjects } from "./ticket-o
 import { SIGNALS, SIGNAL_ORDER, useTicketSignals } from "../lib/ticketSignals.js";
 import { TicketSignals } from "../ui/TicketSignals.jsx";
 import { TicketFace, TicketPeople } from "../ui/TicketFace.jsx";
-import { StatusKpiStrip } from "../ui/StatusKpi.jsx";
+import { StatusSummaryCard } from "../ui/StatusKpi.jsx";
 import { LANE_SURFACE } from "../ui/density.js";
 import { useQueryState } from "../lib/useQueryState.js";
 import { celebrateIfCompletedCategory } from "../ui/celebrate.js";
@@ -1182,29 +1182,24 @@ export function WorkBoard() {
       {active.isLoading ? <Skeleton kind="section" /> : null}
       {active.isError ? <ErrorState error={active.error} onRetry={active.refetch} /> : null}
 
-      {/* 🔴 판독 줄에 **판을 두르지 않는다.** 타일이 이미 `background.plate` 라서
-          바깥 판이 있으면 판 안에 판이 겹친다(사용자: 「카드 안에 또 카드」). */}
+      {/* 상태와 신호가 **카드 하나**로 합쳐졌다 (D-474).
+          예전에는 줄 두 벌이었고 상태 줄만 일곱 칸이었는데 그중 다섯이 0건이었다 — 빈
+          카드 다섯이 폭을 먹고 무엇이 중요한지를 지웠다. 지금은 전체 숫자 하나 + 스택 바 +
+          상태 칩이고, 0건인 상태는 한 칸으로 접힌다.
+          신호는 카드 머리 오른쪽의 **위험 요약**으로 붙는다. 여전히 필터 토글이다 —
+          숫자를 보고 「그래서 어떤 티켓인데」를 물을 수 있어야 그 숫자가 뜻이 있다. 값이
+          0 인 신호는 안 세운다(누를 것이 없는 단추다). */}
       {tab === TAB_BOARD && summary ? (
-        <Stack spacing={1.5} sx={{ mb: 2 }}>
-          <StatusKpiStrip
-            ariaLabel="상태별 티켓 수"
-            revealKey="work-board:status-kpi"
-            items={[{ label: "전체", value: String(summary.total), primary: true }, ...statusTiles]}
-          />
-          {/* 신호 타일은 **필터 토글**이다. 숫자를 보고 「그래서 어떤 티켓인데」를
-              물을 수 있어야 그 숫자가 뜻이 있다. 같은 칸을 다시 누르면 풀린다.
-              셋이 다 0 이면 줄 자체를 안 그린다 — 「신호가 없다」는 상태 줄이 이미
-              말하고, 0 짜리 토글 셋은 누를 것이 없는 단추다(신호는 탐색 줄에도 있다). */}
-          {signalTiles.some((t) => t.value !== "0") ? (
-            <StatusKpiStrip
-              ariaLabel="신호별 티켓 수"
-              revealKey="work-board:signal-kpi"
-              items={signalTiles}
-              value={signal}
-              onSelect={(key) => setState({ signal: signal === key ? "" : key })}
-            />
-          ) : null}
-        </Stack>
+        <StatusSummaryCard
+          ariaLabel="상태별 티켓 수"
+          revealKey="work-board:status-kpi"
+          sx={{ mb: 2 }}
+          total={String(summary.total)}
+          items={statusTiles}
+          risks={signalTiles}
+          riskValue={signal}
+          onRiskSelect={(key) => setState({ signal: signal === key ? "" : key })}
+        />
       ) : null}
 
       {tab === TAB_BOARD && board.data ? (

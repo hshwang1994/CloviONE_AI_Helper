@@ -5,7 +5,7 @@ import Typography from "@mui/material/Typography";
 import { paletteAt, statusKind, TONE_ACCENT } from "./kit.jsx";
 import { fixedTileTrack, KPI_TILE_TRACK, TILE_GRID_GAP, TILE_PADDING } from "./density.js";
 import { useRevealOnce } from "./motion.js";
-import { FONT_SIZE, FONT_WEIGHT, MOTION, NUMERIC, RADIUS } from "./theme.js";
+import { CONTROL, FONT_SIZE, FONT_WEIGHT, MOTION, NUMERIC, RADIUS, remPx } from "./theme.js";
 
 /* 보드·회의의 상태 숫자. 홈의 세로선 `MetricStrip` 과 **다른 부품**이다.
  *
@@ -16,6 +16,22 @@ import { FONT_SIZE, FONT_WEIGHT, MOTION, NUMERIC, RADIUS } from "./theme.js";
    두 벌이면 신호 하나가 두 화면에서 다른 색으로 선다. */
 function accentOf(kind) {
   return TONE_ACCENT[kind] || "brand.core";
+}
+
+/* 상태의 색을 나르는 **유일한** 자리 — 7px 점. 라벨 글자 옆에 서고 글자를 대신하지 않는다
+ * (WCAG 1.4.1: 색만으로 뜻을 전하지 않는다). `aria-hidden` 인 이유가 그것이다. */
+function StatusDot({ accent }) {
+  return (
+    <Box
+      aria-hidden="true"
+      component="span"
+      data-status-dot=""
+      sx={{
+        flexShrink: 0, width: 7, height: 7, borderRadius: "999px",
+        bgcolor: (theme) => paletteAt(theme, accent),
+      }}
+    />
+  );
 }
 
 /** 판독 하나가 **누를 수 있는가**. `onClick` 을 주면 단추가 된다.
@@ -56,12 +72,10 @@ export function StatusKpiTile({
         color: "inherit",
         textAlign: "start",
         cursor: pressable ? "pointer" : "default",
-        /* 논리 이름에는 MUI 가 팔레트 경로를 안 풀어 주고, `border-style` 이 없으면
-           CSS 기본값 `none` 이라 **폭 3px 짜리 보이지 않는 머리 띠**가 된다
-           (`CommandPalette.jsx` 가 같은 함정을 이미 한 번 적었다). 셋을 다 쓴다. */
-        borderBlockStartStyle: "solid",
-        borderBlockStartWidth: 3,
-        borderBlockStartColor: (theme) => paletteAt(theme, accent),
+        /* 🔴 여기 **3px 위색 띠**가 있었다. 칸마다 다른 색 띠를 이고 있으면 무엇이 중요한지가
+           사라진다 — 작업 보드는 일곱 칸이 각자 다른 색으로 서 있었다. 색은 이제 라벨 앞의
+           점(7px) 하나가 맡고, 숫자는 잉크색이다. 상태를 색으로만 말하지 않는 것은 그대로다:
+           라벨 글자가 언제나 함께 있고 점은 그 글자를 대신하지 않고 거든다. */
         display: "grid",
         gridTemplateRows: reservePct ? "auto auto 1.25rem" : "auto auto",
         gap: 0.25,
@@ -79,13 +93,16 @@ export function StatusKpiTile({
           fontSize: FONT_SIZE.title,
           fontWeight: FONT_WEIGHT.extrabold,
           lineHeight: 1.1,
-          color: accent,
+          /* 숫자는 **잉크색**이다. 상태색 숫자가 일곱 개 나란히 서면 어느 것이 큰 값인지가
+             색에 묻힌다 — 크기와 굵기가 이미 위계를 말한다. */
+          color: "text.primary",
           ...NUMERIC,
         }}
       >
         {value}
       </Typography>
-      <Typography variant="caption" color="text.secondary" sx={{ ...KO_KEEP }}>
+      <Typography variant="caption" color="text.secondary" sx={{ ...KO_KEEP, display: "flex", alignItems: "center", gap: 0.75 }}>
+        <StatusDot accent={accent} />
         {label}
       </Typography>
       {reservePct ? (
@@ -165,6 +182,206 @@ export function StatusKpiStrip({ items, ariaLabel, revealKey, sx, value, onSelec
           />
         </Box>
       ))}
+    </Box>
+  );
+}
+
+/** 상태 하나를 말하는 칩 — 점 · 이름 · 건수 · (있으면) 비율.
+ *
+ * 누를 수 있으면 진짜 `<button>` 이고 `aria-pressed` 로 지금 고른 것을 말한다 —
+ * `StatusKpiTile` 과 **같은 계약**이다(그릇만 다르다). */
+function StatusChip({ label, value, accent, pct, onClick, selected, ariaLabel }) {
+  const pressable = typeof onClick === "function";
+  return (
+    <Box
+      component={pressable ? "button" : "span"}
+      type={pressable ? "button" : undefined}
+      onClick={onClick}
+      aria-pressed={pressable && selected != null ? !!selected : undefined}
+      aria-label={pressable ? (ariaLabel || `${label} ${value}`) : undefined}
+      sx={{
+        display: "inline-flex", alignItems: "center", gap: 0.875,
+        height: remPx(CONTROL.buttonSm),
+        px: 1.375,
+        borderRadius: `${RADIUS.sm}px`,
+        border: 1,
+        borderColor: selected ? "dividerStrong" : "divider",
+        bgcolor: selected ? "background.inset" : "background.plate",
+        font: "inherit",
+        fontSize: FONT_SIZE.caption,
+        color: "text.secondary",
+        cursor: pressable ? "pointer" : "default",
+        transition: `border-color ${MOTION.fast} ${MOTION.ease}, background-color ${MOTION.fast} ${MOTION.ease}`,
+        ...(pressable ? {
+          "&:hover": { bgcolor: "background.inset" },
+          "&:focus-visible": (t) => ({ outline: `2px solid ${t.palette.focusRing}`, outlineOffset: 2 }),
+        } : null),
+      }}
+    >
+      <StatusDot accent={accent} />
+      <Box component="span" sx={{ ...KO_KEEP }}>{label}</Box>
+      <Box component="span" sx={{ fontWeight: FONT_WEIGHT.bold, color: "text.primary", ...NUMERIC }}>{value}</Box>
+      {pct != null ? <Box component="span" sx={{ ...NUMERIC }}>{pct}%</Box> : null}
+    </Box>
+  );
+}
+
+/** 0건인 상태들을 **한 칸으로 접은** 칩. 점선이라 「여기 값이 없다」를 모양으로 말한다. */
+function ZeroChip({ labels }) {
+  return (
+    <Box
+      component="span"
+      sx={{
+        display: "inline-flex", alignItems: "center",
+        height: remPx(CONTROL.buttonSm), px: 1.375,
+        borderRadius: `${RADIUS.sm}px`,
+        border: "1px dashed",
+        borderColor: "divider",
+        fontSize: FONT_SIZE.caption,
+        color: "text.secondary",
+        ...KO_KEEP,
+      }}
+    >
+      {`${labels.join(", ")} 0건`}
+    </Box>
+  );
+}
+
+/** 상태 구성의 **스택 비율 바** — 전체를 한 줄로 나눠 보여 준다. 값이 0 인 상태는 조각을
+ *  안 만든다(0px 조각은 색만 남기고 뜻을 못 만든다). 아래 칩이 같은 숫자를 글자로 말하므로
+ *  이 바는 `aria-hidden` 이다 — 낭독기가 같은 사실을 두 번 읽지 않는다. */
+function RatioBar({ parts, total }) {
+  if (!total) return null;
+  return (
+    <Box
+      aria-hidden="true"
+      sx={{
+        display: "flex", height: 8, borderRadius: "999px", overflow: "hidden",
+        bgcolor: "background.sunken",
+      }}
+    >
+      {parts.map((p) => (
+        <Box
+          key={p.key}
+          component="span"
+          sx={{ width: `${(100 * p.value) / total}%`, bgcolor: (t) => paletteAt(t, p.accent) }}
+        />
+      ))}
+    </Box>
+  );
+}
+
+/** 상태 요약 — **카드 하나**다. `StatusKpiStrip` 과 같은 숫자를 다른 그릇에 담는다.
+ *
+ * 예전에는 상태마다 카드 하나였다. 작업 보드는 일곱 칸이 각자 다른 색 띠를 이고 나란히
+ * 섰는데, 그중 **다섯이 0건**이었다 — 빈 카드 다섯이 화면 폭을 먹고 무엇이 중요한지를
+ * 지웠다. 담는 그릇을 바꾼다:
+ *
+ *   ① 전체 숫자 하나만 크게 세운다(잉크색).
+ *   ② 비율은 칸마다 적던 세 번째 줄 대신 **스택 바 하나**로 보여 준다.
+ *   ③ 상태는 그 아래 칩이 「이름 · 건수 · 비율」로 말하고, 0건인 것들은 한 칸으로 접힌다.
+ *   ④ 신호(차단·지연·이슈)는 폭을 억지로 늘린 별도 카드 셋이 아니라 **머리 오른쪽**에
+ *      붙는다. 그 자리에서 목록으로 넘어간다.
+ *
+ * 계약은 `StatusKpiTile` 과 같다 — 누를 수 있는 칩은 진짜 `<button>` 이고 `aria-pressed`
+ * 로 지금 고른 것을 말한다. `value`/`onSelect` 로 상태를, `riskValue`/`onRiskSelect` 로
+ * 신호를 고른다. 안 주면 칩은 그냥 읽는 것이다(호출부의 기존 동작이 그대로 남는다).
+ *
+ * `items`/`risks` 항목: `{ key, label, value, kind, onClick, ariaLabel }`. `value` 는
+ * 문자열이어도 된다(화면들이 `String(n)` 으로 넘긴다) — 숫자로 읽어 비율을 낸다.
+ */
+export function StatusSummaryCard({
+  title, help, total, totalLabel = "전체", items, risks,
+  value, onSelect, riskValue, onRiskSelect, ariaLabel, revealKey, action, sx,
+}) {
+  const shown = useRevealOnce(revealKey == null ? null : String(revealKey));
+  const list = (items || []).filter(Boolean).map((it) => ({
+    ...it,
+    n: Number(it.value) || 0,
+    accent: accentOf(it.kind || statusKind(it.label)),
+  }));
+  const riskList = (risks || []).filter(Boolean).map((it) => ({
+    ...it,
+    n: Number(it.value) || 0,
+    accent: accentOf(it.kind || statusKind(it.label)),
+  }));
+  if (!list.length && !riskList.length) return null;
+
+  const sum = Number(total);
+  const whole = Number.isFinite(sum) && sum > 0 ? sum : list.reduce((a, it) => a + it.n, 0);
+  const filled = list.filter((it) => it.n > 0);
+  const empty = list.filter((it) => it.n === 0);
+  const selectable = typeof onSelect === "function";
+  const riskSelectable = typeof onRiskSelect === "function";
+
+  return (
+    <Box
+      role="group"
+      aria-label={ariaLabel}
+      sx={{
+        p: TILE_PADDING,
+        borderRadius: `${RADIUS.md}px`,
+        bgcolor: "background.plate",
+        border: 1,
+        borderColor: "divider",
+        display: "grid",
+        rowGap: 1.5,
+        opacity: shown ? 1 : 0,
+        transform: shown ? "none" : "translateY(8px)",
+        transition: `opacity ${MOTION.base} ${MOTION.ease}, transform ${MOTION.base} ${MOTION.ease}`,
+        ...sx,
+      }}
+    >
+      <Box sx={{ display: "flex", alignItems: "baseline", flexWrap: "wrap", gap: 1.25 }}>
+        {title ? (
+          <Typography component="span" sx={{ fontSize: FONT_SIZE.body, fontWeight: FONT_WEIGHT.bold, ...KO_KEEP }}>
+            {title}
+          </Typography>
+        ) : null}
+        {Number.isFinite(sum) ? (
+          <>
+            <Typography component="span" sx={{ fontSize: FONT_SIZE.title, fontWeight: FONT_WEIGHT.extrabold, lineHeight: 1.1, ...NUMERIC }}>
+              {total}
+            </Typography>
+            <Typography component="span" sx={{ fontSize: FONT_SIZE.bodySm, fontWeight: FONT_WEIGHT.semibold }}>
+              {totalLabel}
+            </Typography>
+          </>
+        ) : null}
+        {help ? (
+          <Typography component="span" variant="caption" color="text.secondary" sx={{ ...KO_KEEP }}>{help}</Typography>
+        ) : null}
+        <Box sx={{ flex: 1 }} />
+        {/* 위험 요약 — 머리 오른쪽. 값이 0 인 신호는 안 세운다(누를 것이 없는 단추다). */}
+        {riskList.filter((it) => it.n > 0).map((it) => (
+          <StatusChip
+            key={it.key || it.label}
+            label={it.label}
+            value={it.value}
+            accent={it.accent}
+            onClick={it.onClick || (riskSelectable && it.key ? () => onRiskSelect(it.key) : undefined)}
+            selected={it.key != null && riskValue != null ? it.key === riskValue : undefined}
+            ariaLabel={it.ariaLabel}
+          />
+        ))}
+        {action}
+      </Box>
+      <RatioBar parts={filled} total={whole} />
+      <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
+        {filled.map((it) => (
+          <StatusChip
+            key={it.key || it.label}
+            label={it.label}
+            value={it.value}
+            accent={it.accent}
+            pct={whole ? Math.round((100 * it.n) / whole) : null}
+            onClick={it.onClick || (selectable && it.key ? () => onSelect(it.key) : undefined)}
+            selected={it.key != null && value != null ? it.key === value : undefined}
+            ariaLabel={it.ariaLabel}
+          />
+        ))}
+        {empty.length ? <ZeroChip labels={empty.map((it) => it.label)} /> : null}
+      </Box>
     </Box>
   );
 }
