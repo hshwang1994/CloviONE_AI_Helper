@@ -43,6 +43,14 @@ describe("상태 요약 카드", () => {
     expect(screen.queryByRole("button", { name: /^완료/ })).toBeNull();
   });
 
+  /* 접기의 값어치는 자리를 아끼는 것이지 **작동하던 조작기를 없애는 것**이 아니다. */
+  it("0건이어도 누를 수 있으면 접지 않는다", () => {
+    withTheme(<StatusSummaryCard ariaLabel="상태" total="172" items={ITEMS} onSelect={() => {}} />);
+    // 다섯 다 눌러서 목록을 거를 수 있으므로 하나도 안 접힌다.
+    expect(screen.queryByText(/0건$/)).toBeNull();
+    expect(screen.getByRole("button", { name: "완료 0" })).toBeInTheDocument();
+  });
+
   it("누를 수 있는 칩은 진짜 버튼이고 aria-pressed 로 고른 것을 말한다", async () => {
     const onSelect = vi.fn();
     withTheme(
@@ -101,19 +109,40 @@ describe("상태 요약 카드", () => {
     );
     // 값이 있는 상태 둘 + 스택 바가 아니라, 칩마다 점 하나.
     expect(container.querySelectorAll("[data-status-dot]")).toHaveLength(2);
-    // 스택 바는 낭독기에게 같은 사실을 두 번 읽히지 않는다.
-    const bar = container.querySelector('[aria-hidden="true"][class*="MuiBox"]');
+    // 스택 바는 낭독기에게 같은 사실을 두 번 읽히지 않는다 — 아래 칩이 같은 숫자를 글자로 말한다.
+    const bar = container.querySelector("[data-ratio-bar]");
     expect(bar).toBeInTheDocument();
+    expect(bar).toHaveAttribute("aria-hidden", "true");
   });
 
-  it("총계를 안 주면 칩들의 합을 전체로 본다 — 비율이 사라지지 않는다", () => {
-    withTheme(
+  /* 전체를 준 카드와 안 준 카드는 **다른 것을 말한다.** 홈의 「오늘 마감」과 「지연」은
+     한 티켓이 둘 다일 수 있어 합이 전체가 아니다 — 그 합으로 낸 비율은 거짓이다. */
+  it("총계를 안 주면 비율도 스택 바도 안 그린다 — 겹칠 수 있는 축이기 때문이다", () => {
+    const { container } = withTheme(
       <StatusSummaryCard
         ariaLabel="상태"
         items={[{ key: "a", label: "가", value: "3" }, { key: "b", label: "나", value: "1" }]}
       />,
     );
-    expect(screen.getByText("75%")).toBeInTheDocument();
-    expect(screen.getByText("25%")).toBeInTheDocument();
+    expect(screen.getByText("3")).toBeInTheDocument();
+    expect(screen.queryByText("75%")).toBeNull();
+    expect(container.querySelector("[data-ratio-bar]")).toBeNull();
+  });
+
+  it("값이 null 인 항목은 0 이 아니라 「모른다」다 — 0건으로 접지 않는다", () => {
+    withTheme(
+      <StatusSummaryCard
+        ariaLabel="상태"
+        items={[
+          { key: "a", label: "오늘 마감", value: null },
+          { key: "b", label: "지연", value: null },
+          { key: "c", label: "진행 중", value: "0" },
+        ]}
+      />,
+    );
+    // 끊겨서 모르는 둘은 `-` 로 서고,
+    expect(screen.getAllByText("-")).toHaveLength(2);
+    // 진짜 0 인 하나만 접힌다 — 「모른다」와 「없다」를 한 칸에 섞지 않는다.
+    expect(screen.getByText("진행 중 0건")).toBeInTheDocument();
   });
 });

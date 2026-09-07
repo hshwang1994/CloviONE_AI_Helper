@@ -252,6 +252,12 @@ describe("높이 예산 — 값", () => {
   });
 });
 
+/** 판 **안**의 「내 티켓 전체」. 같은 주소가 화면 머리에도 있어 이름만으로는 둘이 잡힌다. */
+function inCardAllLink() {
+  return Array.from(document.querySelectorAll('a[href="#/my-tickets"]'))
+    .find((el) => el.closest('[data-surface="plate"]'));
+}
+
 describe("높이 예산 — 무엇이 굴러가고 무엇이 안 굴러가는가", () => {
   it("「오늘 마감」 — 표만 굴리고 제목·「내 티켓 전체」·「잘랐다」는 밖에 남는다", async () => {
     routeApi();
@@ -266,8 +272,9 @@ describe("높이 예산 — 무엇이 굴러가고 무엇이 안 굴러가는가
     expect(insideArea(card.querySelector("table"))).toBe(true);
     // 제목과 전체 보기 링크, 그리고 잘랐다는 안내는 밖에 있다.
     expect(insideArea(screen.getByRole("heading", { level: 2, name: /오늘 마감 30건/ }))).toBe(false);
-    const all = screen.getByRole("link", { name: "내 티켓 전체" });
-    expect(insideArea(all)).toBe(false);
+    // 「내 티켓 전체」는 판 안(구역 제목 옆)과 화면 머리 양쪽에 있다 — 여기서 재는 것은
+    // 판 안의 그것이 굴러가는 칸 **밖**에 남는가다.
+    expect(insideArea(inCardAllLink())).toBe(false);
     const note = screen.getByText(/12건만 표시했습니다/);
     expect(insideArea(note)).toBe(false);
   });
@@ -364,14 +371,14 @@ describe("높이 예산 — 무엇이 굴러가고 무엇이 안 굴러가는가
     expect(contract.min).toBe(contract.height);
     expect(contract.max).toBe(contract.height);
 
-    const cells = Array.from(document.querySelectorAll("button.k-readout"));
+    const cells = Array.from(document.querySelectorAll("button.k-status-chip"));
     expect(cells).toHaveLength(5);
 
     for (const cell of cells) {
       const label = cell.textContent;
       await userEvent.click(cell);
       // 판을 제목이 아니라 **안에 있는 것으로** 다시 잡는다 — 제목은 칸마다 바뀐다.
-      const after = screen.getByRole("link", { name: "내 티켓 전체" }).closest('[data-surface="plate"]');
+      const after = inCardAllLink().closest('[data-surface="plate"]');
       expect(after, `${label}: 판이 다시 만들어졌다`).toBe(card);
       expect(heightsOf(lgRule(after)), `${label}: 판의 높이 계약이 달라졌다`).toEqual(contract);
     }

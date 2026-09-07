@@ -12,6 +12,12 @@ import { MemoryRouter } from "react-router-dom";
  *      (데이터 없음)는 서로 다른 그림·다른 문장·다른 복구 행동을 준다. 예전 앱에는 이 구분이
  *      아예 없어서, 필터를 걸어 0건이 된 사용자가 데이터가 사라졌다고 생각했다.
  *   2) **장애 격리.** 티켓 소스가 죽어도 알림·최근 변경은 그대로 보인다(서버 계약과 같은 약속).
+ *
+ * qa-contract-change: 판독 줄(MetricStrip)이 상태 칩 카드(StatusSummaryCard)로 바뀌었다(D-475). 재는 것은 그대로다 — 다섯 칸이 있는가, 값이 맞는가, 누르면 아래가 바뀌는가, 못 읽으면 0 이 아니라 «-» 인가.
+ * 바뀐 것은 값이 칸 안의 **몇 번째 자리**에 있는가뿐이다: 예전에는 첫 자식이 숫자였고
+ * 지금은 첫 자식이 색을 나르는 점이라, 숫자를 이름으로 찾는다. 「지표가 카드 여섯 장이
+ * 아니라 판 하나에 담긴다」도 재는 자리를 `.k-metrics` 에서 카드 자신으로 옮겼다 — 지금은
+ * 문자 그대로 카드 하나다.
  */
 
 const apiMock = vi.fn();
@@ -100,10 +106,14 @@ function renderHome() {
 function statCard(label) {
   return screen.getAllByRole("button").find((el) => el.textContent.includes(label));
 }
-/* 카드가 보여주는 값(첫 줄의 큰 숫자). 같은 숫자가 화면 다른 곳에 있어도 이 카드 것만 본다. */
+/* 칸이 보여주는 값. 같은 숫자가 화면 다른 곳(요약 문장 등)에 있어도 이 칸 것만 본다.
+   칸의 접근 이름이 「라벨 값」 한 덩어리라(`지연 1`) 거기서 값만 떼어낸다 — 자식 순서에
+   기대지 않는다. */
 function cardValue(label) {
   const card = statCard(label);
-  return card ? card.firstChild.textContent.trim() : null;
+  if (!card) return null;
+  const name = card.getAttribute("aria-label") || card.textContent;
+  return name.slice(label.length).trim().split(/\s+/)[0] || null;
 }
 
 beforeEach(() => {
@@ -194,6 +204,48 @@ describe("홈 '오늘' — 커맨드 센터", () => {
     expect(screen.queryByText("담당한 티켓이 없습니다")).toBeNull();
   });
 
+  /* 머리 오른쪽의 나가는 길 셋. 예전에는 「내 티켓 전체」가 업무 판 **안**에만 있어서
+     판을 굴리면 시야에서 사라졌다 — 나가는 길은 화면 머리에 선다. */
+  it("머리 오른쪽에 나가는 길 셋이 선다", async () => {
+    routeApi();
+    renderHome();
+    await screen.findByText("오늘 마감");
+
+    for (const [name, href] of [["내 업무량", "#/my-stats"], ["내 티켓 전체", "#/my-tickets"], ["새 티켓", "#/new-ticket"]]) {
+      const links = screen.getAllByRole("link", { name });
+      expect(links.some((el) => el.getAttribute("href") === href), name).toBe(true);
+    }
+  });
+
+  /* 하루 요약 — 숫자를 읽기 전에 오늘이 어떤 날인지 한 줄로 말한다. 쓰는 낱말은 판독
+     다섯 그대로다(요약이 화면과 다른 말을 쓰면 둘을 다른 것으로 읽는다). */
+  it("급한 축이 다 비면 그 사실을 말하고 다음에 무엇을 하면 되는지로 잇는다", async () => {
+    routeApi({
+      today: {
+        tickets: {
+          configured: true, ok: true,
+          due_today: { count: 0, items: [] },
+          overdue: { count: 0, items: [] },
+          blocked: { count: 0, items: [] },
+          in_progress: { count: 2, items: [] },
+          due_soon: { count: 0, items: [] },
+        },
+        sprint: null,
+      },
+    });
+    renderHome();
+
+    expect(await screen.findByText("급한 일은 없습니다.")).toBeInTheDocument();
+    expect(screen.getByText("진행 중인 2건을 이어서 하면 됩니다.")).toBeInTheDocument();
+  });
+
+  it("급한 축에 값이 있으면 그 이름과 건수를 그대로 옮긴다", async () => {
+    routeApi();
+    renderHome();
+    // 기본 픽스처는 지연 1건이다 — 요약이 판독 칸과 같은 낱말로 같은 수를 말한다.
+    expect(await screen.findByText(/지금 급한 일은/)).toHaveTextContent("지연 1건");
+  });
+
   it("SEM-02: 최상위 구역이 h1 바로 아래 h2다(예전엔 h3로 건너뛰어 h2가 아예 없었다)", async () => {
     routeApi();
     renderHome();
@@ -269,15 +321,15 @@ describe("홈 '오늘' — 커맨드 센터", () => {
     renderHome();
     await screen.findByText("오늘 마감");
 
-    const plates = document.querySelectorAll(".k-metrics");
-    expect(plates).toHaveLength(1);
-
     const ticketPlate = document.querySelector('[aria-label="내 티켓"]');
+    expect(ticketPlate).toBeInTheDocument();
     for (const label of ["오늘 마감", "지연", "진행 중", "7일 내 마감", "막힌 일"]) {
       expect(within(ticketPlate).getByText(label), label).toBeInTheDocument();
     }
-    // 판독 칸은 자기 판(카드)을 갖지 않는다 — 판은 줄 하나당 하나뿐이다.
-    expect(document.querySelectorAll(".k-readout").length).toBeGreaterThan(plates.length);
+    // 다섯이 **한 판 안에** 있다 — 칸마다 판을 두르지 않는다.
+    expect(document.querySelectorAll('[aria-label="내 티켓"]')).toHaveLength(1);
+    // 그리고 다섯 다 그 판 안에서 눌린다(누르면 아래 목록이 그 칸으로 바뀐다).
+    expect(within(ticketPlate).getAllByRole("button")).toHaveLength(5);
   });
 
   it("티켓 소스가 죽어도 알림·최근 변경은 그대로 보인다", async () => {

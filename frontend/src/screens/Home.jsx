@@ -9,9 +9,10 @@ import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
 import { fmtDayKo, fmtRelative } from "../lib/format.js";
 import {
-  Badge, Button, Callout, Card, DataTable, EmptyState, ErrorState, MetricStrip, PageHeader,
+  Badge, Button, Callout, Card, DataTable, EmptyState, ErrorState, PageHeader,
   ScrollArea, SectionTitle, Skeleton, SubGroup,
 } from "../ui/kit.jsx";
+import { StatusSummaryCard } from "../ui/StatusKpi.jsx";
 import { Donut } from "../ui/charts/Donut.jsx";
 import { BUDGET_BODY, BUDGET_SCROLL, GRID_GAP, plateBudget } from "../ui/density.js";
 import { KO_WORD_BREAK } from "../ui/theme.js";
@@ -329,7 +330,20 @@ export function Home() {
 
   return (
     <div className="c-screen">
-      <PageHeader crumbRoot="" title="오늘" />
+      {/* 머리 오른쪽의 34px 동작 셋 — 이 화면에서 나가는 세 길이다. 「내 티켓 전체」는
+          업무 판 안에도 링크로 있었는데, 판을 굴리면 그 링크가 시야에서 사라진다.
+          나가는 길은 화면 머리에 서는 것이 규약이다. */}
+      <PageHeader
+        crumbRoot=""
+        title="오늘"
+        actions={
+          <>
+            <Button variant="secondary" href="#/my-stats">내 업무량</Button>
+            <Button variant="secondary" href="#/my-tickets">내 티켓 전체</Button>
+            <Button variant="primary" href="#/new-ticket">새 티켓</Button>
+          </>
+        }
+      />
       {staleAfterError ? (
         <Box sx={{ mb: 2.5 }} role="status" aria-live="polite">
           <Callout tone="warn">실시간 갱신이 실패했습니다. 표시된 값이 최신이 아닐 수 있습니다. 새로고침해 주세요.</Callout>
@@ -374,6 +388,43 @@ export function Home() {
   );
 }
 
+/* 하루 요약 한 줄 — **새 지표를 만들지 않는다.** 위 `VIEWS` 다섯의 값만 읽어 오늘이 어떤
+ * 날인지 말한다. 쓰는 낱말도 그 다섯 그대로다: 요약이 화면과 다른 말을 쓰면 사용자가 둘을
+ * 다른 것으로 읽는다.
+ *
+ * 급한 축은 셋이다 — 오늘 마감 · 지연 · 막힌 일. 셋이 다 비면 그 사실을 그대로 말하고,
+ * 다음에 무엇을 하면 되는지로 이어 준다. 아래 칩과 목록이 같은 사실을 숫자로 다시 말하므로
+ * 여기서는 판단만 준다(같은 수를 두 자리에서 다르게 세지 않는다). */
+const URGENT_KEYS = ["due_today", "overdue", "blocked"];
+
+function bucketCount(tickets, key) {
+  const b = tickets && tickets[key];
+  return b && Number.isFinite(b.count) ? b.count : null;
+}
+
+function daySummary(tickets) {
+  const labelOf = (key) => (VIEWS.find((v) => v.key === key) || {}).label;
+  const urgent = URGENT_KEYS
+    .map((key) => ({ label: labelOf(key), n: bucketCount(tickets, key) }))
+    .filter((x) => x.n);
+  const progress = bucketCount(tickets, "in_progress");
+  const soon = bucketCount(tickets, "due_soon");
+  if (urgent.length) {
+    return {
+      title: `지금 급한 일은 ${urgent.map((x) => `${x.label} ${x.n}건`).join(", ")}입니다.`,
+      body: progress
+        ? `진행 중인 ${progress}건도 함께 열려 있습니다.`
+        : "아래에서 그 상태만 골라 볼 수 있습니다.",
+    };
+  }
+  return {
+    title: "급한 일은 없습니다.",
+    body: progress
+      ? `진행 중인 ${progress}건을 이어서 하면 됩니다.`
+      : (soon ? `7일 내 마감인 ${soon}건이 다음 차례입니다.` : "지금 열려 있는 내 티켓이 없습니다."),
+  };
+}
+
 /* 본문 — 로딩·오류가 아닌 정상 상태만 그린다(위 컴포넌트가 분기를 이미 끝냈다). */
 function HomeBody({ data, focus, onFocus, onEdit, onOpen }) {
   const signalsOf = useTicketSignals();
@@ -386,26 +437,38 @@ function HomeBody({ data, focus, onFocus, onEdit, onOpen }) {
   const rows = (tickets[view.key] && tickets[view.key].items) || [];
   const total = (tickets[view.key] && tickets[view.key].count) || 0;
   const anyTicket = VIEWS.some((v) => tickets[v.key] && tickets[v.key].count > 0);
+  const summary = daySummary(tickets);
 
   return (
     <>
-      {/* 판독 줄 — 이 화면에서 **티켓 수를 말하는 유일한 자리**이고, 동시에 아래 목록을
+      {/* 하루 요약 — 숫자를 읽기 전에 **오늘이 어떤 날인지** 한 줄로 말한다. 아래 칩과
+          목록이 같은 사실을 숫자로 다시 말하므로 여기서는 판단만 준다. */}
+      <Box sx={{ mb: 2.5 }}>
+        <Callout tone="info" title={summary.title}>{summary.body}</Callout>
+      </Box>
+
+      {/* 상태 칩 카드 — 이 화면에서 **티켓 수를 말하는 유일한 자리**이고, 동시에 아래 목록을
         * 거르는 필터다. 칸마다 같은 일이 일어난다(누르면 아래가 바뀐다) — 예전에 여기 있던
         * '안 읽은 알림'·'안 읽은 채팅' 두 칸만 다른 화면으로 나가는 링크라 칸마다 결과가
-        * 달랐고, 그 두 수는 상단 종과 사이드바 배지가 이미 말하고 있었다. */}
+        * 달랐고, 그 두 수는 상단 종과 사이드바 배지가 이미 말하고 있었다.
+        *
+        * 🔴 **전체를 안 넘긴다.** 다섯은 한 전체의 부분이 아니다 — 한 티켓이 「지연」이면서
+        * 「막힌 일」일 수 있어 합이 티켓 수보다 크다. 그 합으로 비율을 내면 거짓이므로
+        * 카드가 스택 바도 비율도 안 그린다(`StatusSummaryCard` 의 그 문단). */}
       <Box sx={{ mb: 2.5 }}>
-        <MetricStrip
+        <StatusSummaryCard
           ariaLabel="내 티켓"
+          title="상태로 좁혀 보기"
+          help="누른 상태만 아래 목록에 남습니다."
           items={VIEWS.map((v) => ({
             key: v.key,
-            value: tickets[v.key] ? tickets[v.key].count : null,
+            value: tickets[v.key] ? String(tickets[v.key].count) : null,
             label: v.label,
             // 색은 셀 값이 있을 때만 — 0건인 '지연'을 빨갛게 칠하면 없는 문제를 만든다.
             kind: v.kind && tickets[v.key] && tickets[v.key].count ? v.kind : undefined,
-            primary: v.key === "due_today",
-            active: view.key === v.key,
-            onClick: () => onFocus(v.key),
           }))}
+          value={view.key}
+          onSelect={onFocus}
         />
       </Box>
 

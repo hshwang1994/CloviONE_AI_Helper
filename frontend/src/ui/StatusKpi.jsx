@@ -196,6 +196,8 @@ function StatusChip({ label, value, accent, pct, onClick, selected, ariaLabel })
     <Box
       component={pressable ? "button" : "span"}
       type={pressable ? "button" : undefined}
+      /* 시험과 QA 프로브가 이 칸을 잡는 손잡이 — 판독 타일의 `.k-readout` 과 같은 자리다. */
+      className="k-status-chip"
       onClick={onClick}
       aria-pressed={pressable && selected != null ? !!selected : undefined}
       aria-label={pressable ? (ariaLabel || `${label} ${value}`) : undefined}
@@ -255,6 +257,7 @@ function RatioBar({ parts, total }) {
   return (
     <Box
       aria-hidden="true"
+      data-ratio-bar=""
       sx={{
         display: "flex", height: 8, borderRadius: "999px", overflow: "hidden",
         bgcolor: "background.sunken",
@@ -307,11 +310,31 @@ export function StatusSummaryCard({
   }));
   if (!list.length && !riskList.length) return null;
 
+  /* **전체를 준 카드와 안 준 카드는 다른 것을 말한다.**
+   *
+   * `total` 을 주면 「이 칩들은 한 전체의 부분이다」라는 선언이다 — 그때만 스택 바와 비율을
+   * 그린다. 안 주면 칩들은 서로 겹칠 수 있는 축이라(홈의 「오늘 마감」과 「지연」은 한
+   * 티켓이 둘 다일 수 있다) 합이 전체가 아니고, 그 합으로 낸 비율은 거짓이다. 그 경우
+   * 칩은 건수만 말한다.
+   *
+   * 값이 `null` 인 항목은 **0 이 아니라 「모른다」** 다(티켓 원본과 끊겼을 때). 0건으로
+   * 접으면 없는 사실을 만든다 — 따로 세우고 `-` 로 표시한다. */
   const sum = Number(total);
-  const whole = Number.isFinite(sum) && sum > 0 ? sum : list.reduce((a, it) => a + it.n, 0);
-  const filled = list.filter((it) => it.n > 0);
-  const empty = list.filter((it) => it.n === 0);
+  const whole = Number.isFinite(sum) && sum > 0 ? sum : 0;
+  const unknown = list.filter((it) => it.value == null);
+  const known = list.filter((it) => it.value != null);
   const selectable = typeof onSelect === "function";
+  /* 🔴 **누를 수 있는 칸은 접지 않는다.**
+   *
+   * 0건 접기의 값어치는 자리를 아끼는 것이다. 그런데 그 칸이 눌러서 목록을 거르는
+   * 단추이면, 접는 순간 **작동하던 조작기가 사라진다** — 홈에서 「7일 내 마감 0건」을
+   * 눌러 「그 조건으로는 없다」를 확인하는 길이 그렇게 막힌다(「필터 때문에 없다」와
+   * 「원래 없다」는 이 화면이 일부러 구분하는 두 사실이다).
+   * 작업 보드는 0건 상태에 `onClick` 을 안 주므로(갈 곳이 없다) 거기서는 그대로 접힌다.
+   * 접히는 조건을 「값이 0」이 아니라 「값이 0이고 할 수 있는 일이 없다」로 둔다. */
+  const pressableAt = (it) => typeof it.onClick === "function" || (selectable && it.key != null);
+  const filled = known.filter((it) => it.n > 0 || pressableAt(it));
+  const empty = known.filter((it) => it.n === 0 && !pressableAt(it));
   const riskSelectable = typeof onRiskSelect === "function";
 
   return (
@@ -366,8 +389,19 @@ export function StatusSummaryCard({
         ))}
         {action}
       </Box>
-      <RatioBar parts={filled} total={whole} />
+      <RatioBar parts={filled.filter((it) => it.n > 0)} total={whole} />
       <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
+        {unknown.map((it) => (
+          <StatusChip
+            key={it.key || it.label}
+            label={it.label}
+            value="-"
+            accent={it.accent}
+            onClick={it.onClick || (selectable && it.key ? () => onSelect(it.key) : undefined)}
+            selected={it.key != null && value != null ? it.key === value : undefined}
+            ariaLabel={it.ariaLabel}
+          />
+        ))}
         {filled.map((it) => (
           <StatusChip
             key={it.key || it.label}
