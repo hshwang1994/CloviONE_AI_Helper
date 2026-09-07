@@ -16,10 +16,10 @@ import { ROLE_KO } from "../app/navConfig.js";
 import { invalidateNotifications } from "../app/notification-keys.js";
 import { invalidatePersonFaces } from "./ticket-views.js";
 import {
-  Badge, Button, Callout, Card, DetailRow, EmptyState, ErrorState, PageHeader, SectionTitle, Skeleton, SubGroup,
+  Badge, Button, Callout, Card, EmptyState, ErrorState, FieldLabel, PageHeader, SectionTitle, Skeleton,
   useConfirm, useToast,
 } from "../ui/kit.jsx";
-import { FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
+import { CONTROL, FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, NUMERIC, RADIUS, remPx } from "../ui/theme.js";
 import { Note, SettingRow } from "../ui/adminKit.jsx";
 import { GRID_GAP, pairTracks } from "../ui/density.js";
 /* 화면 강조색은 예전에 자기 라우트(`/my-display`)를 갖고 있었다 — 설정 하나뿐인 화면이
@@ -28,7 +28,7 @@ import { GRID_GAP, pairTracks } from "../ui/density.js";
  * 여기로 합친다(S19). 옛 주소는 이 화면으로 넘긴다. */
 import { AccentPicker } from "./settings/AccentPicker.jsx";
 
-/* 내 프로필 — 아바타 · 알림 설정 · 방해금지 · 내 기기(세션) (계획서 Phase 6 사용자).
+/* 내 프로필 — 신원 머리 · 알림 설정 · 내 기기 · 방해금지 · 강조색 · 둘러보기.
  *
  * 예전에는 상단바 메뉴의 작은 모달 하나가 역할·부서·마지막 로그인만 읽어 주고 끝이었다.
  * "활성 세션 3개"라고 알려 주면서 정작 끊을 방법은 없어서, 그 숫자를 본 사람이 할 수 있는
@@ -44,57 +44,26 @@ import { AccentPicker } from "./settings/AccentPicker.jsx";
  * (MUI 7 에서 xs={12} 가 조용히 무시된다) — Box + display:grid 다.
  */
 
-/* 같은 줄 카드는 **높이를 맞춘다** — 사용자 지적 Q5("카드 크기가 제각각").
- *
- * 예전에는 `alignItems: "start"` 라 각 카드가 제 내용 높이를 가졌다. 실측: 사진/세션 줄이
- * 563 vs 358(편차 205px), 알림/방해금지 줄이 690 vs 322(편차 368px) — 아래 모서리가
- * 들쭉날쭉해서 "정리가 안 된 화면" 으로 읽힌다. 기준 목업은 같은 줄 편차가 0 이다.
- *
- * 짧은 카드에 여백이 생기는 것은 감수한다. 카드 안 여백은 흔하고(스탯 카드가 이미 그렇다),
- * 줄 바닥이 어긋나는 것보다 훨씬 덜 눈에 띈다. */
-/* 두 줄이 **같은 자리에서 나뉜다** — 사용자 지적("네모 칸 4개가 따로 노는 것 같다").
- *
- * 예전에는 줄마다 가중치를 뒤집었다(1줄 0.85:1.15, 2줄 1.15:0.85). 줄 하나만 보면 각각
- * 그럴듯한데 두 줄을 겹쳐 보면 열 사이 이음매가 **324px 어긋난다**(실측 2560, 격자 2193:
- * 1줄은 x=1237, 2줄은 x=1561). 판 넷의 폭이 921/1245/1245/921 로 두 종류인데 좌우가
- * 뒤바뀌어, 세로로 흐르는 선이 하나도 없다. 그것이 "따로 논다" 로 읽힌다.
- *
- * 기울일 이유가 있었다면 감수할 값이다. 그런데 그 이유가 지금은 없다.
- *
- * **하나.** 기울임의 근거였던 「요구 폭 2.88배」는 폭이 아니다. 그 숫자를 낸
- * `scripts/ui_qa/assertions.py::demandOf` 는 여러 줄일 때 `글자수 / 줄수` 를 돌려준다 —
- * 줄당 평균 글자 수다. 라틴 UA 문자열이 많은 칸과 한글 짧은 줄이 많은 칸을 그 지표로 재면
- * 폭 요구와 무관하게 벌어진다. `BACKLOG.md` P-73 이 이미 그 프로브를 위양성으로 적었고,
- * `EVIDENCE/S22/capture_summary.txt` 는 이 검사만 억제가 실패보다 많다고 표시한다.
- *
- * **둘.** 기울임은 그 검사를 통과한 것이 아니라 **건너뛰게** 만들었다. 규칙은
- * `assertions.py:955` 에서 `wMax / wMin > 1.02` 면 요구 폭을 재지 않고 통과로 센다.
- * 1.35 는 언제나 그 문을 지난다. 그래서 이 화면은 그 검사를 한 번도 실제로 받은 적이 없다.
- *
- * **셋.** 폭을 다시 재면 두 열의 요구가 거의 같다. 판을 복제해 `width:max-content` 로 펴서
- * 잰 값(2560)은 계정 544 / 내 기기 726 / 알림 설정 824 / 방해금지 833 / 강조색 793 이고,
- * 열 위치별 최대는 1열 824, 2열 833 이다 — 비 1.01. 그 값을 정하는 것은 개수가 아니라
- * 판마다 하나씩 있는 설명문 한 줄이라, 알림 유형이 스물이든 마흔이든 폭은 그대로다.
- *
- * **넷.** 좁은 쪽에서도 1:1 이 낫다. 2열의 진짜 하한은 뷰포트 1200(격자 약 889px)인데,
- * 거기서 지금 값은 계정 칸에 좁은 쪽을 준다 — 계정은 `DetailRow` 의 10rem 고정 라벨 트랙을
- * 쓰는 유일한 판이라 값 칸이 149px 까지 줄고 두 줄이 접힌다. 1:1 은 214px 를 줘서 접힘이
- * 0 이 된다.
- *
- * 그래서 한 값이다. 반으로 접히는 지점(`lg` 미만)에서 한 열이 되는 것과 줄 바닥을 맞추는
- * 것(`stretch`)은 그대로다 — 높이를 맞추는 결정과 폭을 나누는 결정은 여전히 별개다.
- *
- * 세로 간격도 같은 값이다. 판끼리의 간격은 `GRID_GAP`(24px) 하나이고, 가로 이음매를
- * 그것으로 그리면서 세로만 20px 로 두면 한 화면에서 두 값이 나란히 보인다 — 좁은 화면에서
- * 두 줄이 한 열로 접히면 24 → 20 → 24 로 교대하기까지 한다.
- *
- * 이 근거는 문구를 고치면 함께 움직인다. 설명문 한 줄을 크게 늘리면 그 열의 요구 폭이
- * 200px 단위로 움직이므로, 그때는 다시 재고 이 주석을 고친다. */
 /* 격자의 정본은 `ui/density.js::pairTracks` 다 — 관리자 설정 4탭이 같은 격자를 쓴다(D-457).
  * 여기서 `pairTracks` 자체는 안 건드린다: 소비처 여덟 곳이 서로 다른 값을 넘기고 있고,
- * 이 화면의 사정을 공용 층 기본값으로 만들면 나머지 일곱이 함께 움직인다(CLAUDE.md §5). */
-/** 계정 | 내 기기, 그리고 알림 설정 | 방해금지·강조색. **두 줄이 같은 값을 쓴다.** */
+ * 이 화면의 사정을 공용 층 기본값으로 만들면 나머지 일곱이 함께 움직인다(CLAUDE.md §5).
+ *
+ * **반반이다**(D-470). 폭을 실제로 재면 두 열의 요구가 거의 같다 — 판을 복제해
+ * `width:max-content` 로 펴서 잰 값(2560)이 열 위치별 최대 824 대 833, 비 1.01 이었다.
+ * 그 값을 정하는 것은 항목 개수가 아니라 판마다 하나씩 있는 설명문 한 줄이라, 알림 유형이
+ * 스물이든 마흔이든 폭은 그대로다. 기울이면 열 사이 이음매가 어긋나고("네모 칸 4개가 따로
+ * 노는 것 같다"), 좁은 쪽(뷰포트 1200)에서는 좁은 열의 값 칸이 접힌다.
+ *
+ * 세로 간격도 같은 값이다. 판끼리의 간격은 `GRID_GAP`(24px) 하나이고, 가로 이음매를
+ * 그것으로 그리면서 세로만 20px 로 두면 한 화면에서 두 값이 나란히 보인다. */
+/** 알림 설정 | 내 기기·방해금지·강조색·둘러보기. **한 줄이고 반반이다.** */
 const TWO_COL_EVEN = pairTracks("minmax(0, 1fr) minmax(0, 1fr)");
+
+/* 신원 머리와 설정 판의 여백 리듬 — 판 안쪽 줄 사이는 12px 하나다. */
+const CARD_ROWS = { display: "grid", rowGap: 1.5, minWidth: 0 };
+
+/* 한 줄로 서는 글 — 넘치면 말줄임이고 전체 문구는 `title` 이 갖는다. */
+const ONE_LINE = { minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
 
 // 방해금지 빠른 시간. '무한'을 기본으로 두지 않는다 — 실수로 켜 두고 잊는 것이 이 기능의
 // 가장 흔한 실패다.
@@ -105,14 +74,48 @@ const DND_PRESETS = [
   { minutes: 0, label: "직접 끌 때까지" },
 ];
 
-/* SectionTitle(ui/kit.jsx)로 옮겨졌다(DS-07) — 이 화면은 h2 태그 + mb:2를 그대로 쓰려고
- * component/sx로 넘긴다(다른 화면들의 기본값 h3/mb:1.5보다 한 단계 무게가 있다). */
+/* 폼 한 칸의 **고정 세로 트랙** — 라벨 20 · 필드 36 · 도움말 auto.
+ *
+ * 트랙을 고정하는 이유는 도움말이 있는 칸과 없는 칸이 한 줄에 섞이기 때문이다. 트랙이
+ * 없으면 도움말 한 줄이 그 칸만 아래로 늘려 옆 칸의 입력 상자와 바닥선이 어긋난다.
+ * 필드 높이의 정본은 `CONTROL.input` 이다 — 이 제품의 모든 입력이 그 값으로 선다. */
+const FIELD_ROWS = `${remPx(20)} ${remPx(CONTROL.input)} auto`;
 
-/* 라벨/값 줄은 `kit.jsx::DetailRow` 다 — 관리자 상세와 같은 줄, 같은 리듬(D-457). */
+/* 신원 사실 하나 — 이름표 위, 값 아래. **라벨 열을 만들지 않는다.**
+ *
+ * 예전에는 `DetailRow` 여섯 줄이었다(이름·이메일·역할·부서·직책·마지막 로그인). 라벨이
+ * 10rem 고정 열을 갖고 값이 그 오른쪽에 서므로, 값이 두 글자든 마흔 글자든 여섯 줄이 세로로
+ * 늘어졌다 — 「내가 누구인가」를 읽는 데 판 하나가 통째로 들었다. 사실 넷은 이름 옆에 두
+ * 줄이면 다 들어간다. 라벨은 값 **위**에 붙어 자기 값만큼만 폭을 쓴다. */
+function Fact({ label, children, numeric }) {
+  return (
+    <Box sx={{ display: "grid", rowGap: 0.125, minWidth: 0 }}>
+      <Typography
+        component="span"
+        color="text.secondary"
+        sx={{ fontSize: FONT_SIZE.micro, fontWeight: FONT_WEIGHT.semibold, ...KO_WORD_BREAK }}
+      >
+        {label}
+      </Typography>
+      <Typography
+        component="span"
+        title={typeof children === "string" ? children : undefined}
+        sx={{
+          fontSize: FONT_SIZE.bodySm, fontWeight: FONT_WEIGHT.semibold,
+          ...ONE_LINE, ...(numeric ? NUMERIC : null),
+        }}
+      >
+        {children}
+      </Typography>
+    </Box>
+  );
+}
 
-/* 아바타 + 계정 요약. 업로드는 기존 네임스페이스 업로드 경로를 그대로 쓴다(서버가 매직바이트로
- * 형식을 판정한다) — 화면은 확장자를 믿지 않고 서버 판정 결과만 받는다. */
-function AccountCard({ profile, prefs, onChanged, children }) {
+/* 신원 머리 — **전폭 판 하나**. 아바타 · 이름과 역할 · 사실 넷 · 동작 셋이 한 줄이다.
+ *
+ * 업로드는 기존 네임스페이스 업로드 경로를 그대로 쓴다(서버가 매직바이트로 형식을 판정한다)
+ * — 화면은 확장자를 믿지 않고 서버 판정 결과만 받는다. */
+function IdentityHeader({ profile, prefs, onChanged }) {
   const auth = useAuth();
   const toast = useToast();
   const confirm = useConfirm();
@@ -190,14 +193,58 @@ function AccountCard({ profile, prefs, onChanged, children }) {
 
   return (
     <Card>
-      <SectionTitle component="h2" help="사진은 이 조직 안에서만 보입니다. PNG, JPEG, GIF, WebP, 10MB까지.">
-        계정
-      </SectionTitle>
-      <Box sx={{ display: "flex", gap: 3, alignItems: "center", flexWrap: "wrap", mb: 2 }}>
+      <Box
+        sx={{
+          display: "grid",
+          /* 좁으면 동작 묶음이 아래 줄로 내려간다 — 셋을 눌러 아바타 옆에 끼우면 버튼
+             글자가 두 줄이 된다. 아바타와 글은 어느 폭에서나 같은 줄이다. */
+          gridTemplateColumns: { xs: "auto minmax(0, 1fr)", md: "auto minmax(0, 1fr) auto" },
+          columnGap: 2.25, rowGap: 2, alignItems: "center",
+        }}
+      >
         {/* 사진이 없어도 빈 원이 아니다 — 이 사람의 기본 아바타가 선다. 제품 전체가
             같은 부품을 쓰므로 여기서 보는 그림이 채팅과 목록에서 보는 그것이다. */}
         <UserAvatar person={person} name={name} size="xl" userId={userId} />
-        <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
+
+        <Box sx={{ minWidth: 0, display: "grid", rowGap: 0.75 }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1.25, flexWrap: "wrap", minWidth: 0 }}>
+            {/* 이 판의 제목은 **사람 이름**이다 — 「계정」이라는 이름표가 따로 설 자리가 없다.
+                단독 라우트라 `PageHeader` 가 h1 이고 판 제목들이 h2 다(SEM-02). */}
+            <Typography
+              component="h2"
+              sx={{ fontSize: FONT_SIZE.title, fontWeight: FONT_WEIGHT.bold, lineHeight: 1.25, ...KO_WORD_BREAK }}
+            >
+              {name || "이름 없음"}
+            </Typography>
+            {/* 역할은 **면을 갖는다.** 면을 쓰는 자리는 목록 밖 — 카드 머리와 상세다(D-476).
+                여기가 그 카드 머리이고, 이 배지는 이름 옆에서 「이 사람이 무엇인가」를
+                말하는 유일한 표지라 점 하나로는 이름의 무게를 못 받는다. */}
+            <Badge
+              value={profile.role ? (ROLE_KO[profile.role] || profile.role) : "역할 미상"}
+              kind="indigo" emphasis="strong"
+            />
+          </Box>
+          <Box sx={{ display: "flex", flexWrap: "wrap", columnGap: 3, rowGap: 1, minWidth: 0 }}>
+            <Fact label="부서">{profile.department || "-"}</Fact>
+            <Fact label="직책">{profile.title || "-"}</Fact>
+            <Fact label="이메일">{profile.email || "-"}</Fact>
+          </Box>
+          <Box sx={{ display: "flex", flexWrap: "wrap", columnGap: 3, rowGap: 1, minWidth: 0 }}>
+            <Fact label="마지막 로그인" numeric>
+              {profile.last_login_at ? fmtDateTime(profile.last_login_at) : "-"}
+            </Fact>
+          </Box>
+        </Box>
+
+        {/* 동작 셋은 **무게가 같다.** 사진을 바꾸는 일이 비밀번호를 바꾸는 일보다 중요하지
+            않다 — 하나를 채운 버튼으로 세우면 그 하나가 이 판의 목적처럼 보인다. */}
+        <Box
+          sx={{
+            display: "flex", gap: 1, flexWrap: "wrap",
+            gridColumn: { xs: "1 / -1", md: "auto" },
+            justifyContent: { xs: "flex-start", md: "flex-end" },
+          }}
+        >
           {/* 파일 입력은 숨기고 버튼으로 연다 — 기본 파일 입력은 브라우저마다 생김새가 달라
               4K에서 혼자 작게 남는다. 라벨은 버튼이 갖는다(스크린리더도 버튼을 읽는다). */}
           <input
@@ -209,29 +256,29 @@ function AccountCard({ profile, prefs, onChanged, children }) {
             aria-hidden="true"
             tabIndex={-1}
           />
-          <Button variant="primary" disabled={busy} onClick={() => fileRef.current && fileRef.current.click()}>
-            {busy ? "처리 중…" : "사진 바꾸기"}
+          <Button disabled={busy} loading={busy} onClick={() => fileRef.current && fileRef.current.click()}>
+            사진 바꾸기
           </Button>
+          {/* 사진이 있을 때만 선다 — 지울 것이 없으면 누를 것도 없다. */}
           {avatarUrl ? <Button disabled={busy} onClick={remove}>사진 삭제</Button> : null}
+          {/* 기본 아바타 고르기 — **사진과 다른 축이다.** 사진이 있으면 사진이 보이고, 사진을
+              지운 뒤에 여기서 고른 그림이 살아난다. 아무것도 안 고르면 사용자 id 로 안정
+              배정된 그림이 그대로 쓰인다. 부품이 자기 버튼과 대화상자를 함께 갖는다. */}
+          <DefaultAvatarPicker
+            seed={userId}
+            value={defaultKey}
+            busy={busy}
+            onPick={pickDefault}
+          />
+          <Button component="a" href="/change-password">비밀번호 변경</Button>
         </Box>
       </Box>
 
-      {/* 기본 아바타 고르기 — **사진과 다른 축이다.** 사진이 있으면 사진이 보이고, 사진을
-          지운 뒤에 여기서 고른 그림이 살아난다. 아무것도 안 고르면 사용자 id 로 안정
-          배정된 그림이 그대로 쓰인다. */}
       {avatarUrl ? (
-        <Box sx={{ mb: 1.5 }}>
-          <Callout tone="info">
-            지금은 올린 사진이 보입니다. 아래에서 고른 기본 아바타는 사진을 지운 뒤에 쓰입니다.
-          </Callout>
-        </Box>
+        <Callout tone="info" compact sx={{ mt: 2 }}>
+          지금은 올린 사진이 보입니다. 기본 아바타에서 고른 그림은 사진을 지운 뒤에 쓰입니다.
+        </Callout>
       ) : null}
-      <DefaultAvatarPicker
-        seed={userId}
-        value={defaultKey}
-        busy={busy}
-        onPick={pickDefault}
-      />
 
       <AvatarCropDialog
         open={!!cropping}
@@ -240,16 +287,6 @@ function AccountCard({ profile, prefs, onChanged, children }) {
         onClose={() => { setCropping(null); if (fileRef.current) fileRef.current.value = ""; }}
         onSave={upload}
       />
-      <DetailRow label="이름">{name || "-"}</DetailRow>
-      <DetailRow label="이메일">{profile.email || "-"}</DetailRow>
-      <DetailRow label="역할">{profile.role ? (ROLE_KO[profile.role] || profile.role) : "-"}</DetailRow>
-      <DetailRow label="부서">{profile.department || "-"}</DetailRow>
-      <DetailRow label="직책">{profile.title || "-"}</DetailRow>
-      <DetailRow label="마지막 로그인">{profile.last_login_at ? fmtDateTime(profile.last_login_at) : "-"}</DetailRow>
-      <Box sx={{ mt: 2, display: "flex", gap: 1, flexWrap: "wrap" }}>
-        <Button component="a" href="/change-password">비밀번호 변경</Button>
-      </Box>
-      {children}
     </Card>
   );
 }
@@ -264,17 +301,21 @@ function NotificationCard({ prefs, save, saving }) {
     save({ muted_types: Array.from(next) });
   };
   return (
-    <Card>
-      <SectionTitle component="h2" help="끈 유형도 알림 목록에는 그대로 남습니다. 배지 숫자(빨간 점)에서만 빠집니다. 알림을 없애는 것이 아니라 조용히 하는 것입니다.">
-        알림 설정
-      </SectionTitle>
-      {/* 한 줄은 `SettingRow` 다 — 관리자 설정의 줄과 같은 리듬(D-457). 예전에는 이 화면만
-          `py: 0.75` 에 굵은 라벨로 따로 그렸다. */}
+    <Card sx={CARD_ROWS}>
+      <SectionTitle
+        component="h2" sx={{ mb: 0 }}
+        title="알림 설정"
+        help="끈 유형도 알림 목록에는 그대로 남습니다. 배지 숫자(빨간 점)에서만 빠집니다. 알림을 없애는 것이 아니라 조용히 하는 것입니다."
+      />
+      {/* 🔴 **평면 목록**이다 — 묶음 머리를 만들지 않는다.
+          유형이 스물이라 「채팅」·「승인」·「시스템」으로 묶고 싶어지는데, 묶는 순간 줄을 찾는
+          일이 두 단계가 된다(어느 묶음인지 먼저 정하고 그 안에서 찾는다). 사람이 여기서 하는
+          일은 「거슬리는 그것」 하나를 끄는 것이고, 그 이름은 이미 알고 있다. */}
       <Box component="ul" sx={{ listStyle: "none", m: 0, p: 0 }}>
-        {prefs.notifications.catalog.map((row, i, all) => (
+        {prefs.notifications.catalog.map((row) => (
           <Box component="li" key={row.key}>
             <SettingRow
-              label={row.label} description={row.help} last={i === all.length - 1}
+              compact label={row.label} description={row.help}
               /* MUI 7 의 Switch 는 `inputProps` 를 **조용히 버린다** — 그렇게 쓰면 스위치에
                  접근 가능한 이름이 아예 없어 스크린리더가 이름 없는 컨트롤로 읽는다(테스트에서
                  실제로 잡았다). slotProps.input 이 <input> 에 닿는 유일한 통로다. */
@@ -303,37 +344,45 @@ function DndCard({ prefs, save, saving }) {
   const [start, setStart] = React.useState(dnd.quiet_start);
   const [end, setEnd] = React.useState(dnd.quiet_end);
   React.useEffect(() => { setStart(dnd.quiet_start); setEnd(dnd.quiet_end); }, [dnd.quiet_start, dnd.quiet_end]);
+  const fieldsOff = !dnd.quiet_hours_enabled || saving;
 
   return (
-    <Card>
-      <SectionTitle component="h2" help="방해금지 중에도 알림은 평소대로 쌓입니다. 사이드바 배지만 조용해지고, 비활성화하면 그동안 쌓인 것이 한꺼번에 다시 보입니다.">
-        방해금지
-      </SectionTitle>
+    <Card sx={CARD_ROWS}>
+      <SectionTitle
+        component="h2" sx={{ mb: 0 }}
+        title="방해금지"
+        help="방해금지 중에도 알림은 평소대로 쌓입니다. 사이드바 배지만 조용해지고, 비활성화하면 그동안 쌓인 것이 한꺼번에 다시 보입니다."
+      />
 
       {dnd.quiet_now ? (
-        <Callout tone="info">
+        <Callout tone="info" compact>
           지금 조용한 상태입니다({dnd.reason === "manual" ? "직접 켬" : "조용시간"}).
           {dnd.until ? ` ${fmtDateTime(dnd.until)}에 자동으로 풀립니다.` : ""}
           {" "}알림은 계속 쌓이고 있습니다.
         </Callout>
       ) : null}
 
-      {/* 두 줄이 `SettingRow` 다 — 알림 설정·관리자 설정과 같은 리듬(D-457). 스위치의 접근 가능한
+      {/* 두 줄이 `SettingRow` 다 — 알림 설정과 같은 리듬. 스위치의 접근 가능한
           이름(「방해금지」·「조용시간」)은 그대로다. */}
-      <SettingRow
-        label="지금 조용히 하기"
-        description={dnd.enabled ? (dnd.until ? `${fmtRelative(dnd.until)} 자동 해제` : "직접 끌 때까지") : undefined}
-        action={(
-          <Switch
-            checked={!!dnd.enabled}
-            disabled={saving}
-            onChange={(e) => save({ dnd_enabled: e.target.checked, dnd_minutes: e.target.checked ? 60 : 0 })}
-            slotProps={{ input: { "aria-label": "방해금지" } }}
-          />
-        )}
-      >
+      <Box>
+        <SettingRow
+          compact
+          label="지금 조용히 하기"
+          description={dnd.enabled ? (dnd.until ? `${fmtRelative(dnd.until)} 자동 해제` : "직접 끌 때까지") : undefined}
+          action={(
+            <Switch
+              checked={!!dnd.enabled}
+              disabled={saving}
+              onChange={(e) => save({ dnd_enabled: e.target.checked, dnd_minutes: e.target.checked ? 60 : 0 })}
+              slotProps={{ input: { "aria-label": "방해금지" } }}
+            />
+          )}
+        />
+        {/* 켠 뒤에만 선다 — 끄고 있을 때는 고를 시간이 없다. 시안에 이 줄이 없는 이유도
+            같다(꺼진 상태를 그린 그림이다). '무한'을 기본으로 두지 않는 것이 이 목록의 요점이라
+            켠 순간 얼마나 조용할지 고를 자리가 반드시 있어야 한다. */}
         {dnd.enabled ? (
-          <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", mt: 1 }}>
+          <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", pt: 1.25 }}>
             {DND_PRESETS.map((p) => (
               <Button key={p.label} size="sm" disabled={saving}
                 onClick={() => save({ dnd_enabled: true, dnd_minutes: p.minutes })}>
@@ -342,43 +391,108 @@ function DndCard({ prefs, save, saving }) {
             ))}
           </Box>
         ) : null}
-      </SettingRow>
-      <SettingRow
-        label="매일 같은 시간대에 조용히 하기"
-        description="한국 시간 기준입니다. 자정을 넘겨도 됩니다(예: 22:00 → 08:00)."
-        last
-        action={(
-          <Switch
-            checked={!!dnd.quiet_hours_enabled}
-            disabled={saving}
-            onChange={(e) => save({ quiet_hours_enabled: e.target.checked })}
-            slotProps={{ input: { "aria-label": "조용시간" } }}
-          />
-        )}
-      >
-        <Box sx={{ display: "flex", gap: 1.5, alignItems: "center", flexWrap: "wrap", mt: 1 }}>
+
+        <SettingRow
+          compact
+          label="매일 같은 시간대에 조용히 하기"
+          description="한국 시간 기준입니다. 자정을 넘겨도 됩니다(예: 22:00 에서 08:00)."
+          action={(
+            <Switch
+              checked={!!dnd.quiet_hours_enabled}
+              disabled={saving}
+              onChange={(e) => save({ quiet_hours_enabled: e.target.checked })}
+              slotProps={{ input: { "aria-label": "조용시간" } }}
+            />
+          )}
+        />
+        {/* 🔴 시각 두 칸과 저장 단추가 **한 격자**다. 예전에는 flex 한 줄이라 라벨이 붙은 칸과
+            안 붙은 단추의 세로 기준이 서로 달랐고, 단추가 입력칸 아래로 1px 씩 흘렀다. 고정
+            트랙에서는 셋이 같은 행에 서므로 입력칸과 단추의 **윗선**이 정확히 같다. */}
+        <Box
+          sx={{
+            display: "grid",
+            /* 칸 폭은 **값이 정한다.** 시각 입력은 「오후 10:00」을 오전·오후 글자까지 넣어
+               그리므로 7.5rem 에서는 분 자리가 잘렸다(실측: 「오후 10:0」). 그리고 트랙에
+               `fr` 이 하나도 없으면 남는 폭이 `auto` 칸으로 몰려 저장 단추가 판 끝까지
+               늘어난다 — `justifyContent` 로 격자 전체를 왼쪽에 붙여 남는 폭을 안 나눈다. */
+            gridTemplateColumns: "minmax(0, 9.5rem) minmax(0, 9.5rem) auto",
+            gridTemplateRows: FIELD_ROWS,
+            justifyContent: "start",
+            columnGap: 1.25, pt: 1.5,
+          }}
+        >
+          <FieldLabel htmlFor="dnd-quiet-start" sx={{ mb: 0, lineHeight: 1.25 }}>시작</FieldLabel>
+          <FieldLabel htmlFor="dnd-quiet-end" sx={{ mb: 0, lineHeight: 1.25 }}>종료</FieldLabel>
+          {/* 단추에는 라벨이 없다 — 빈 칸을 두어 아래 행이 밀리지 않게 한다. */}
+          <Box component="span" aria-hidden="true" />
           <TextField
-            type="time" size="small" label="시작" value={start}
+            id="dnd-quiet-start" type="time" size="small" value={start}
             onChange={(e) => setStart(e.target.value)}
-            InputLabelProps={{ shrink: true }}
-            disabled={!dnd.quiet_hours_enabled || saving}
+            disabled={fieldsOff}
           />
           <TextField
-            type="time" size="small" label="종료" value={end}
+            id="dnd-quiet-end" type="time" size="small" value={end}
             onChange={(e) => setEnd(e.target.value)}
-            InputLabelProps={{ shrink: true }}
-            disabled={!dnd.quiet_hours_enabled || saving}
+            disabled={fieldsOff}
           />
           <Button
-            size="sm"
-            disabled={!dnd.quiet_hours_enabled || saving || (start === dnd.quiet_start && end === dnd.quiet_end)}
+            sx={{ alignSelf: "stretch" }}
+            disabled={fieldsOff || (start === dnd.quiet_start && end === dnd.quiet_end)}
             onClick={() => save({ quiet_start: start, quiet_end: end })}
           >
             시간 저장
           </Button>
         </Box>
-      </SettingRow>
+      </Box>
     </Card>
+  );
+}
+
+/* 기기 한 줄 — 아이콘 · 이름과 지금 표시 · 주소와 활동 · 브라우저, 그리고 오른쪽에 그 줄로
+ * 할 수 있는 일. 어느 줄도 두 줄이 되지 않는다: 길면 말줄임이고 원문은 `title` 이 갖는다. */
+function DeviceRow({ session, onRevoke, busy }) {
+  const s = session;
+  return (
+    <Box
+      component="li"
+      sx={{
+        display: "grid", gridTemplateColumns: "auto minmax(0, 1fr) auto", columnGap: 1.5,
+        alignItems: "center", px: 1.75, py: 1.5,
+        border: 1, borderColor: "divider", borderRadius: `${RADIUS.sm}px`,
+      }}
+    >
+      <DevicesOtherRoundedIcon fontSize="small" aria-hidden="true" color={s.current ? "primary" : "disabled"} />
+      <Box sx={{ minWidth: 0, display: "grid", rowGap: 0.25 }}>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0 }}>
+          <Typography sx={{ fontSize: FONT_SIZE.bodySm, fontWeight: FONT_WEIGHT.bold, ...ONE_LINE }}>
+            {s.current ? "지금 이 창" : "다른 기기"}
+          </Typography>
+          {/* 「현재」는 **점 + 낱말**이다. 목록 안이라 면을 갖지 않는다 — 한 줄에서 어휘가
+              갈리면 읽는 사람은 그 둘이 다른 종류의 사실이라고 읽는다. */}
+          {s.current ? <Badge value="현재" kind="ok" /> : null}
+        </Box>
+        <Typography color="text.secondary" sx={{ fontSize: FONT_SIZE.micro, ...ONE_LINE }}>
+          {`${s.client_ip || "IP 미상"}, 최근 활동 ${fmtRelative(s.last_seen_at)}`}
+        </Typography>
+        {s.user_agent ? (
+          // Users.jsx(관리자의 다른 사용자 세션 목록)와 같은 이유로 원문 대신 60자로
+          // 자른 표기 + Tooltip으로 전체 문구를 보존한다 — 원문 그대로 두면 긴 UA
+          // 문자열이 이 카드의 폭을 밀어냈다.
+          <Tooltip title={s.user_agent}>
+            <Typography color="text.secondary" sx={{ fontSize: FONT_SIZE.micro, ...ONE_LINE }}>
+              {shortUA(s.user_agent)}
+            </Typography>
+          </Tooltip>
+        ) : null}
+      </Box>
+      {s.current ? (
+        <Typography color="text.secondary" sx={{ fontSize: FONT_SIZE.micro, whiteSpace: "nowrap" }}>
+          유지됩니다
+        </Typography>
+      ) : (
+        <Button size="sm" disabled={busy} onClick={() => onRevoke(s.id)}>이 기기 로그아웃</Button>
+      )}
+    </Box>
   );
 }
 
@@ -418,82 +532,88 @@ function SessionsCard() {
   }
 
   return (
-    <Card>
-      <SectionTitle component="h2" help="공용 PC에 로그인해 둔 채로 왔거나, 모르는 기기가 보이면 여기서 끊으세요. 지금 보고 있는 이 창은 유지됩니다.">
-        내 기기(로그인 세션)
-      </SectionTitle>
+    <Card sx={CARD_ROWS}>
+      {/* 🔴 「다른 기기 모두 로그아웃」이 판 머리로 올라왔다. 예전에는 목록 아래 실선 밑에
+          있어서, 세션이 많으면 그 단추가 화면 밖에 있었다 — 이 판이 존재하는 이유가 그
+          단추인데 그것을 보려고 스크롤해야 했다. 끊을 대상이 없으면 비활성이고, 몇 개를
+          끊는지는 라벨이 말한다. 되돌릴 수 없는 보안 동작이라 확인 단계는 그대로다. */}
+      <SectionTitle
+        component="h2"
+        /* 단추는 **머리 오른쪽에 붙박이다.** 기본값(`wrap`)이면 설명문이 길어 첫 줄을 다 먹고
+           단추가 아래 줄 왼쪽으로 떨어진다 — 그 자리에서는 판 제목의 동작이 아니라 목록의
+           첫 항목처럼 보인다. 줄을 안 접고 글 칸을 줄인다(글은 안에서 접힌다). */
+        sx={{ mb: 0, flexWrap: "nowrap", alignItems: "flex-start" }}
+        title="내 기기(로그인 세션)"
+        help="공용 PC에 로그인해 둔 채로 왔거나, 모르는 기기가 보이면 여기서 끊으세요. 지금 보고 있는 이 창은 유지됩니다."
+        action={(
+          <Button
+            variant="danger" size="sm"
+            /* 라벨은 한 줄이다 — 접히면 30px 단추가 두 줄이 되어 머리 줄의 높이를 혼자
+               정한다. 좁아지는 것은 옆의 설명문이고, 그쪽은 접혀도 읽힌다. */
+            sx={{ whiteSpace: "nowrap" }}
+            disabled={others.length === 0 || revokeOthers.isPending}
+            loading={revokeOthers.isPending}
+            onClick={askRevokeOthers}
+          >
+            {`다른 기기 모두 로그아웃${others.length ? ` (${others.length})` : ""}`}
+          </Button>
+        )}
+      />
       {q.isLoading ? <Skeleton lines={3} /> : q.isError ? (
         <ErrorState error={q.error} onRetry={() => q.refetch()} />
       ) : items.length === 0 ? (
         <EmptyState title="표시할 세션이 없습니다" />
       ) : (
-      <>
-        {/* 총계를 먼저 말한다 — 아래 목록은 높이가 묶여 있어 일부만 보인다. 숫자를 안 쓰면
-            "몇 개인지"를 스크롤해서 세어야 하고, 잘린 마지막 줄이 오류처럼 보인다. */}
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-          총 {items.length}개, 다른 기기 {others.length}개{items.length > 6 ? " (목록은 스크롤됩니다)" : ""}
-        </Typography>
-        {/* 목록 높이를 묶고 안에서 스크롤한다 — 오래 쓴 계정은 세션이 수십 개까지 쌓여
-            카드 하나가 화면 스무 개 길이가 된다(QA 캡처에서 실제로 22개였다). 그러면 옆
-            칸(계정 카드) 아래가 통째로 비고, 아래에 있는 '알림 설정'까지 스크롤이 멀어진다. */}
-        <Box
-          component="ul"
-          sx={{
-            listStyle: "none", m: 0, p: 0, display: "grid", gap: 0.5,
-            maxHeight: { md: "26rem" }, overflowY: { md: "auto" }, pr: { md: 1 },
-          }}
-        >
-          {items.map((s) => (
-            <Box component="li" key={s.id} sx={{ display: "flex", gap: 2, alignItems: "flex-start", py: 1, borderBottom: 1, borderColor: "divider" }}>
-              <DevicesOtherRoundedIcon fontSize="small" aria-hidden="true" color={s.current ? "primary" : "disabled"} sx={{ mt: 0.5 }} />
-              <Box sx={{ flex: 1, minWidth: 0 }}>
-                <Box sx={{ display: "flex", gap: 1, alignItems: "center", flexWrap: "wrap" }}>
-                  <Typography sx={{ fontWeight: FONT_WEIGHT.semibold }}>
-                    {s.current ? "지금 이 창" : "다른 기기"}
-                  </Typography>
-                  {s.current ? <Badge value="현재" kind="ok" /> : null}
-                </Box>
-                <Typography variant="body2" color="text.secondary" sx={KO_WORD_BREAK}>
-                  {s.client_ip || "IP 미상"}, 최근 활동 {fmtRelative(s.last_seen_at)}
-                </Typography>
-                {s.user_agent ? (
-                  // Users.jsx(관리자의 다른 사용자 세션 목록)와 같은 이유로 원문 대신 60자로
-                  // 자른 표기 + Tooltip으로 전체 문구를 보존한다 — 원문 그대로 두면 긴 UA
-                  // 문자열이 이 카드의 폭을 밀어냈다.
-                  <Tooltip title={s.user_agent}>
-                    <Typography variant="caption" color="text.secondary" sx={{ display: "block", ...KO_WORD_BREAK }}>
-                      {shortUA(s.user_agent)}
-                    </Typography>
-                  </Tooltip>
-                ) : null}
-                {/* 버튼을 행의 **왼쪽 글 블록 안**에 둔다. 오른쪽 끝에 두면 우하단에 고정된
-                    마스코트 버튼(94×94)이 그 자리에 겹쳐 눌리지 않는다 — 긴 목록이라 어느
-                    행이든 그 높이에 올 수 있고, 실제로 QA 의 fab_overlap 검사가 잡았다
-                    (놀이방 '보내기'가 같은 이유로 죽었던 적이 있다). */}
-                {!s.current ? (
-                  <Button size="sm" sx={{ mt: 1 }} disabled={revokeOne.isPending} onClick={() => revokeOne.mutate(s.id)}>
-                    이 기기 로그아웃
-                  </Button>
-                ) : null}
-              </Box>
-            </Box>
-          ))}
-        </Box>
-      </>
-      )}
-      <Box sx={{ mt: 2, pt: 2, borderTop: 1, borderColor: "divider" }}>
-        <Button
-          variant="danger"
-          disabled={others.length === 0 || revokeOthers.isPending}
-          onClick={askRevokeOthers}
-        >
-          {revokeOthers.isPending ? "처리 중…" : `다른 기기 모두 로그아웃${others.length ? ` (${others.length})` : ""}`}
-        </Button>
-        {others.length === 0 ? (
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-            지금은 이 창에서만 로그인되어 있습니다.
+        <>
+          {/* 총계를 먼저 말한다 — 아래 목록은 높이가 묶여 있어 일부만 보인다. 숫자를 안 쓰면
+              "몇 개인지"를 스크롤해서 세어야 하고, 잘린 마지막 줄이 오류처럼 보인다. */}
+          <Typography color="text.secondary" sx={{ fontSize: FONT_SIZE.micro }}>
+            총 {items.length}개, 다른 기기 {others.length}개{items.length > 6 ? " (목록은 스크롤됩니다)" : ""}
           </Typography>
-        ) : null}
+          {/* 목록 높이를 묶고 안에서 스크롤한다 — 오래 쓴 계정은 세션이 수십 개까지 쌓여
+              카드 하나가 화면 스무 개 길이가 된다(QA 캡처에서 실제로 22개였다). */}
+          <Box
+            component="ul"
+            sx={{
+              listStyle: "none", m: 0, p: 0, display: "grid", gap: 1,
+              maxHeight: { md: "22rem" }, overflowY: { md: "auto" },
+            }}
+          >
+            {items.map((s) => (
+              <DeviceRow key={s.id} session={s} busy={revokeOne.isPending} onRevoke={(id) => revokeOne.mutate(id)} />
+            ))}
+          </Box>
+          {others.length === 0 ? (
+            <Typography color="text.secondary" sx={{ fontSize: FONT_SIZE.micro }}>
+              지금은 이 창에서만 로그인되어 있습니다.
+            </Typography>
+          ) : null}
+        </>
+      )}
+    </Card>
+  );
+}
+
+/* 둘러보기 — **판 하나에 한 줄**이다. 처음 들어왔을 때 나오는 안내를 다시 볼 자리. */
+function TourCard({ tour, onReset, busy }) {
+  return (
+    <Card>
+      <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap" }}>
+        <Box sx={{ minWidth: 0, display: "grid", rowGap: 0.375, flex: "1 1 12rem" }}>
+          <Typography component="h2" sx={{ fontSize: FONT_SIZE.body, fontWeight: FONT_WEIGHT.bold, ...KO_WORD_BREAK }}>
+            둘러보기
+          </Typography>
+          <Typography color="text.secondary" sx={{ fontSize: FONT_SIZE.caption, ...KO_WORD_BREAK }}>
+            {tour.show
+              ? "처음 들어왔을 때 나오는 안내입니다. 아직 보지 않았고, 홈으로 가면 자동으로 시작됩니다."
+              : tour.skipped
+                ? "처음 들어왔을 때 나오는 안내입니다. 건너뛰었습니다."
+                : "처음 들어왔을 때 나오는 안내입니다. 완료했습니다."}
+          </Typography>
+        </Box>
+        <Button size="sm" disabled={tour.show || busy} onClick={onReset}>
+          둘러보기 다시 보기
+        </Button>
       </Box>
     </Card>
   );
@@ -537,45 +657,32 @@ export function Profile() {
         <ErrorState error={error} onRetry={() => { profileQuery.refetch(); prefsQuery.refetch(); }} />
       ) : (
         <Box sx={{ display: "grid", gap: GRID_GAP }}>
+          {/* 신원 머리는 **전폭**이다. 「내가 누구인가」는 두 열 중 한 열에 들어갈 사실이
+              아니라 이 화면 전체의 머리다 — 아래 판들은 전부 그 사람의 설정이다. */}
+          <IdentityHeader
+            profile={profileQuery.data}
+            prefs={prefsQuery.data}
+            onChanged={() => {
+              prefsQuery.refetch();
+              profileQuery.refetch();
+              // 상단바는 /api/me, 티켓·보드·채팅은 각자 캐시에 얼굴을 들고 있다.
+              invalidatePersonFaces(qc);
+            }}
+          />
           <Box sx={TWO_COL_EVEN}>
-            <AccountCard
-              profile={profileQuery.data}
-              prefs={prefsQuery.data}
-              onChanged={() => {
-                prefsQuery.refetch();
-                profileQuery.refetch();
-                // 상단바는 /api/me, 티켓·보드·채팅은 각자 캐시에 얼굴을 들고 있다.
-                invalidatePersonFaces(qc);
-              }}
-            >
-              {/* 🔴 **둘러보기가 개인 UI 설정보다 위다** (지시 18) — 그래서 계정 판 안, 강조색보다
-                  앞에 선다. 예전에는 한 줄과 단추 하나가 전폭 판 하나를 차지했다(「3줄 미만의
-                  내용은 판이 아니라 줄이다」). */}
-              <SubGroup title="둘러보기" help="처음 들어왔을 때 나오는 안내입니다. 언제든 다시 볼 수 있습니다.">
-                <Box sx={{ display: "flex", alignItems: "center", gap: 2, flexWrap: "wrap" }}>
-                  <Typography variant="body2" color="text.secondary" sx={{ flex: "1 1 12rem", minWidth: 0, ...KO_WORD_BREAK }}>
-                    {prefsQuery.data.tour.show
-                      ? "아직 보지 않았습니다. 홈으로 가면 자동으로 시작됩니다."
-                      : prefsQuery.data.tour.skipped ? "건너뛰었습니다." : "완료했습니다."}
-                  </Typography>
-                  <Button size="sm" disabled={prefsQuery.data.tour.show || resetTour.isPending} onClick={() => resetTour.mutate()}>
-                    둘러보기 다시 보기
-                  </Button>
-                </Box>
-              </SubGroup>
-            </AccountCard>
-            <SessionsCard />
-          </Box>
-          <Box sx={TWO_COL_EVEN}>
+            {/* 왼쪽은 판 하나다. 유형이 스물이라 이 판 하나가 오른쪽 넷과 키가 맞는다. */}
             <NotificationCard prefs={prefsQuery.data} save={savePrefs.mutate} saving={savePrefs.isPending} />
-            {/* 알림 설정 판은 유형이 스무 개라 세로로 길고, 그 옆 칸은 방해금지 하나로
-                끝나 아래쪽이 통째로 비어 있었다. 같은 「내 설정」인 강조색을 그 자리에
-                세운다 — 빈 자리를 메우려고 아무거나 옮기는 것이 아니라, 원래 여기
-                있었어야 할 것이다. 비는 것은 세로였고, 가로를 기울여 메울 일이 아니다
-                (위 `TWO_COL_EVEN` 주석). */}
+            {/* 오른쪽은 **내 기기 → 방해금지 → 강조색 → 둘러보기**다. 앞의 둘은 계정과
+                알림에 관한 것이고 뒤의 둘은 이 브라우저의 취향과 안내다 — 급한 것이 위다. */}
             <Box sx={{ display: "grid", gap: GRID_GAP, alignContent: "start", minWidth: 0 }}>
+              <SessionsCard />
               <DndCard prefs={prefsQuery.data} save={savePrefs.mutate} saving={savePrefs.isPending} />
               <AccentPicker />
+              <TourCard
+                tour={prefsQuery.data.tour}
+                busy={resetTour.isPending}
+                onReset={() => resetTour.mutate()}
+              />
             </Box>
           </Box>
         </Box>

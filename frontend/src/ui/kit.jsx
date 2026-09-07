@@ -2934,7 +2934,7 @@ export function Modal({ open, onClose, title, size = "md", children, footer, dir
    쓰는데 kit 밖 화면들이 각자 `Typography component="label"` 을 손으로 그렸고, 필수 표시도
    빨간 글자·MUI `*`·손으로 붙인 `*`·표시 없음 네 가지가 공존했다. 계약을 **부품으로**
    내보내야 그 화면들이 같은 것을 쓸 수 있다. */
-export function FieldLabel({ htmlFor, id, children, required }) {
+export function FieldLabel({ htmlFor, id, children, required, sx }) {
   /* `select` 는 MUI 가 `id` 를 `<div>` 에 건다 — `<label htmlFor>` 은 라벨을 붙일 수 없는
      요소를 가리키게 되어 접근성 트리에서 끊긴다. 그때는 라벨에 `id` 를 주고 입력 쪽에서
      `aria-labelledby` 로 가리킨다(HTML 명세가 정한 그 대안). */
@@ -2947,6 +2947,10 @@ export function FieldLabel({ htmlFor, id, children, required }) {
         display: "flex", alignItems: "center", gap: 0.75, mb: 0.5,
         fontSize: FONT_SIZE.bodySm, fontWeight: FONT_WEIGHT.medium, color: "text.primary",
         ...KO_WORD_BREAK,
+        /* 여백은 배치가 정할 수도 있다. 라벨 줄이 **고정 트랙**인 폼(라벨 20 · 필드 36 ·
+           도움말 auto)에서는 아래 여백을 격자가 갖는다 — 부품이 든 `mb` 가 그 위에 더해지면
+           트랙이 20 을 넘어 옆 필드와 윗선이 어긋난다. 글자 계약은 그대로 두고 여백만 연다. */
+        ...sx,
       }}
     >
       {children}

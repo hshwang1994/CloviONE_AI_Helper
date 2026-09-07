@@ -49,20 +49,48 @@ const SETTING_STATE_KIND = {
 /* 한 행의 리듬은 하나다 (D-457) — `py: 1`, 설명은 caption. 예전에는 이 줄이 `py: 1.75` 였고
    `/profile` 의 알림 행은 `py: 0.75`, 계정 행은 `py: 1.25` 라 같은 종류의 줄이 셋 다 달랐다.
    `/profile` 도 이 부품을 쓴다. */
-export function SettingRow({ label, value, description, tone, action, state, last, children }) {
+/* 🔴 `compact` 는 **개인 설정의 켜고 끄는 목록**을 위한 밀도다(내 프로필).
+ *
+ * 관리자 줄과 무엇이 다른가. 관리자 줄은 「지금 값」과 상태 배지를 나르고 설명이 두세 줄로
+ * 이어지는 자리다 — 읽는 줄이다. 개인 설정의 유형 목록은 스무 줄이 한 판에 서고, 하는 일은
+ * 「내가 끄고 싶은 것을 찾는」 훑기다. 훑는 목록에서 줄 높이가 들쭉날쭉하면 눈이 스위치의
+ * 세로선을 못 따라간다.
+ *
+ * 그래서 셋이 다르다: 글자가 한 단 작고(이름 0.875 / 설명 0.75), 줄이 **절대 두 줄이 되지
+ * 않으며**(넘치면 말줄임 + `title`), 실선이 줄 **위**에 온다. 위에 두는 이유는 첫 줄과
+ * 제목 사이에도 선이 필요해서다 — 아래에 두면 마지막 줄 밑에 선이 하나 남아 판 테두리와
+ * 겹쳐 두 줄로 보인다(표가 같은 이유로 마지막 행의 아래 선을 지운다).
+ *
+ * 관리자 줄을 이 밀도로 함께 옮기지 않는다. 두 목록은 같은 모양이지만 **같은 일이 아니다**
+ * — 값과 배지를 나르는 줄에 말줄임을 걸면 읽어야 할 사실이 사라진다(CLAUDE.md §5). */
+export function SettingRow({ label, value, description, tone, action, state, last, compact, children }) {
+  const oneLine = { minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
   return (
     <Box
       /* 줄 하나가 한 항목이라는 사실을 시험이 붙잡을 자리. 라벨에서 부모를 몇 번 거슬러
          올라가는 식으로 찾으면 안쪽 배치를 조금만 바꿔도 시험이 깨진다. */
-      className="k-settingrow"
-      sx={{
+      className={compact ? "k-settingrow k-settingrow--compact" : "k-settingrow"}
+      sx={compact ? {
+        display: "flex", alignItems: "center", gap: 1.5,
+        py: 1.25, borderTop: 1, borderColor: (t) => t.palette.rule,
+      } : {
         display: "flex", alignItems: "center", gap: 2, flexWrap: "wrap",
         py: 1, borderBottom: last ? 0 : 1, borderColor: "divider",
       }}
     >
-      <Box sx={{ flex: "1 1 18rem", minWidth: 0, display: "grid", gap: 0.125 }}>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap", minWidth: 0 }}>
-          <Typography component="div" sx={{ fontWeight: FONT_WEIGHT.semibold, ...KO_WORD_BREAK }}>
+      <Box
+        sx={compact
+          ? { flex: "1 1 auto", minWidth: 0, display: "grid", gap: 0.25 }
+          : { flex: "1 1 18rem", minWidth: 0, display: "grid", gap: 0.125 }}
+      >
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: compact ? "nowrap" : "wrap", minWidth: 0 }}>
+          <Typography
+            component="div"
+            title={compact && typeof label === "string" ? label : undefined}
+            sx={compact
+              ? { fontSize: FONT_SIZE.bodySm, fontWeight: FONT_WEIGHT.semibold, ...oneLine }
+              : { fontWeight: FONT_WEIGHT.semibold, ...KO_WORD_BREAK }}
+          >
             {label}
           </Typography>
           {state ? <Badge value={SETTING_STATE_LABELS[state] || state} kind={SETTING_STATE_KIND[state] || "neutral"} /> : null}
@@ -77,7 +105,16 @@ export function SettingRow({ label, value, description, tone, action, state, las
           </Typography>
         )}
         {description ? (
-          <Typography component="div" color="text.secondary" sx={{ fontSize: FONT_SIZE.caption, ...KO_WORD_BREAK }}>
+          <Typography
+            component="div"
+            color="text.secondary"
+            /* 잘렸을 때 전체 문구가 사라지지 않게 `title` 로 남긴다 — 긴 UA 를 60자로 자르고
+               툴팁에 원문을 두는 것과 같은 규칙이다. */
+            title={compact && typeof description === "string" ? description : undefined}
+            sx={compact
+              ? { fontSize: FONT_SIZE.micro, ...oneLine }
+              : { fontSize: FONT_SIZE.caption, ...KO_WORD_BREAK }}
+          >
             {description}
           </Typography>
         ) : null}

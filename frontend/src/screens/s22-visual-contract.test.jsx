@@ -77,18 +77,27 @@ describe("게시글 반응 칩은 px 가 아니라 토큰으로 선다 (4K 레�
 
 /* qa-contract-change: 내 프로필의 두 줄은 이제 같은 값으로 나눈다 — 예전 계약은 「줄마다 반대로 기울인다」였고 그 근거였던 2.88배는 폭이 아니라 줄당 글자 수였다(assertions.py demandOf, P-73 이 위양성으로 기록). 게다가 1.35 로 기울이면 그 검사는 assertions.py:955 에서 건너뛰므로 이 화면은 검사를 받은 적이 없다. 단언은 늘었다 — 죽어 있던 줄 하나를 살리고 「두 줄이 같은 이음매를 쓴다」를 새로 잰다. */
 describe("내 프로필의 두 줄은 같은 자리에서 나눠진다 (equal_column_split)", () => {
-  it("두 줄이 한 값을 함께 쓴다 — 열 사이 이음매가 세로로 한 줄이다", async () => {
+  /* qa-contract-change: 설정 줄이 둘에서 **하나**가 됐다(5-3 시안 #5c — 신원 머리가 전폭으로
+     빠지면서 계정 판이 두 열 밖으로 나갔다). 「두 자리가 같은 값을 쓴다」는 잴 대상이 하나뿐이라
+     성립하지 않으므로, 지우지 않고 그 자리에 남은 성질을 잰다: 값은 여전히 반반이고, 기울인
+     값으로 되돌아가지 않으며, 손으로 그린 격자가 그 자리를 대신하지 않는다. */
+  it("설정 줄이 공용 반반 값을 쓴다 — 손으로 그린 격자가 그 자리를 대신하지 않는다", async () => {
     const src = await import("./Profile.jsx");
     expect(src).toBeTruthy();
     // 값 자체는 모듈 밖으로 안 나간다(내부 상수) — 소스에서 직접 확인한다.
     const text = PROFILE_SOURCE;
     expect(text).toContain('const TWO_COL_EVEN = pairTracks("minmax(0, 1fr) minmax(0, 1fr)")');
-    // 쓰는 자리가 **둘**이어야 두 줄이 같은 값을 쓴다. 하나만 재면 한 줄만 고친 것과
-    // 구별되지 않는다.
-    expect(text.match(/sx=\{TWO_COL_EVEN\}/g) || []).toHaveLength(2);
+    // 두 열로 나누는 자리는 **하나**이고, 그 하나가 공용 값을 쓴다.
+    expect(text.match(/sx=\{TWO_COL_EVEN\}/g) || []).toHaveLength(1);
+    /* 🔴 반례 — 「두 열」을 손으로 다시 그리면 이 상수를 안 거치고 값이 갈린다. 두 칸짜리
+       트랙 문자열이 소스에 직접 나타나면 안 된다(공용 값은 `pairTracks` 인자로만 나온다). */
+    expect(text.match(/gridTemplateColumns:\s*"minmax\(0, 1fr\) minmax\(0, 1fr\)"/g) || []).toHaveLength(0);
     // 반례 — 줄마다 다른 가중치로 되돌아가면 이음매가 다시 어긋난다.
     expect(text).not.toContain("minmax(0, 0.85fr) minmax(0, 1.15fr)");
     expect(text).not.toContain("minmax(0, 1.15fr) minmax(0, 0.85fr)");
+    // 신원 머리는 그 줄 **밖**이다 — 안으로 들어가면 한 열 폭으로 접힌다.
+    expect(text).toContain("<IdentityHeader");
+    expect(text.indexOf("<IdentityHeader")).toBeLessThan(text.indexOf("sx={TWO_COL_EVEN}"));
   });
 
   it("높이를 맞추는 결정은 그대로다 — 폭을 같게 했다고 바닥 정렬을 놓지 않는다", () => {

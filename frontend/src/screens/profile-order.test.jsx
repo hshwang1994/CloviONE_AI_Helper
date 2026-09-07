@@ -4,13 +4,20 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 
-/* 내 프로필의 **순서**와 아바타 자리 (지시 18).
+/* qa-contract-change: 소유자가 5-3 에서 오른쪽 열의 순서를 「내 기기 → 방해금지 → 강조색 → 둘러보기」로 직접 지정했다 — 지시 18 의 「둘러보기가 강조색보다 위」를 뒤집는다. 그 지시의 근거는 「둘러보기가 스크롤 끝에 있다」였는데, 신원 머리가 전폭으로 나가고 설정이 한 줄이 되면서 오른쪽 열은 판 넷짜리 짧은 레일이 됐다. 단언은 늘었다 — 방향만 뒤집는 대신 레일 전체의 순서를 잰다.
+ *
+ * 내 프로필의 **순서**와 아바타 자리.
  *
  * ## 순서가 왜 계약인가
  *
- * 둘러보기는 「제품을 어떻게 쓰는가」를 알려 주는 자리이고 강조색은 취향이다. 예전에는
- * 둘러보기가 이 화면 맨 아래, 강조색 **다음**이었다 — 처음 온 사람이 취향부터 고르고
- * 사용법은 스크롤 끝에서 만난다.
+ * 오른쪽 레일 넷은 급한 순서다: **계정 안전(내 기기) → 알림이 언제 조용한가(방해금지) →
+ * 이 브라우저의 취향(강조색) → 안내(둘러보기)**. 앞의 둘은 남이 내 계정으로 들어와 있는지,
+ * 내가 알림을 놓치고 있는지를 답하고 뒤의 둘은 급하지 않다.
+ *
+ * 예전 계약은 「둘러보기가 강조색보다 위」였고(지시 18), 그 근거는 처음 온 사람이 취향부터
+ * 고르고 사용법은 **스크롤 끝에서** 만난다는 것이었다. 그 근거가 지금은 약하다 — 판이 전폭
+ * 머리 하나와 두 열 한 줄이라 이 레일은 화면 안에 다 들어오고, 둘러보기는 스크롤 끝이 아니라
+ * 오른쪽 레일의 마지막이다(왼쪽 알림 목록이 스무 줄이라 페이지의 바닥은 그쪽이 정한다).
  *
  * 순서는 눈으로만 확인되는 종류라 조용히 되돌아간다(카드 하나를 옮기면 끝이다). 그래서
  * DOM 순서를 직접 본다.
@@ -78,18 +85,41 @@ function order(a, b) {
 beforeEach(() => { apiMock.mockReset(); });
 
 describe("내 프로필 — 순서", () => {
-  it("🔴 둘러보기가 개인 UI 설정(강조색)보다 위에 있다", async () => {
+  /* 🔴 오른쪽 레일은 **급한 순서**다. 계정에 남이 들어와 있는지가 먼저이고, 취향과 안내가
+     마지막이다. 하나만 재면 그 하나만 지켜지므로 넷을 이어서 잰다. */
+  it("오른쪽 레일이 내 기기 → 방해금지 → 강조색 → 둘러보기 순이다", async () => {
     mount();
-    const tour = await screen.findByRole("heading", { name: "둘러보기" });
+    const devices = await screen.findByRole("heading", { name: /내 기기/ });
+    const dnd = await screen.findByRole("heading", { name: "방해금지" });
     const accent = await screen.findByRole("heading", { name: /강조색/ });
-    expect(order(tour, accent)).toBe(-1);
+    const tour = await screen.findByRole("heading", { name: "둘러보기" });
+    expect(order(devices, dnd)).toBe(-1);
+    expect(order(dnd, accent)).toBe(-1);
+    expect(order(accent, tour)).toBe(-1);
   });
 
-  it("계정 카드는 둘러보기보다 위에 있다 — 내가 누구인가가 먼저다", async () => {
+  it("신원 머리는 설정 전부보다 위에 있다 — 내가 누구인가가 먼저다", async () => {
     mount();
+    /* 이 판의 제목은 사람 이름이다 — 「계정」이라는 이름표가 따로 설 자리가 없다. */
+    const identity = await screen.findByRole("heading", { level: 2, name: "나" });
+    const notifications = await screen.findByRole("heading", { name: "알림 설정" });
+    const devices = await screen.findByRole("heading", { name: /내 기기/ });
     const tour = await screen.findByRole("heading", { name: "둘러보기" });
-    const account = await screen.findByRole("heading", { name: /프로필 사진|계정/ });
-    expect(order(account, tour)).toBe(-1);
+    expect(order(identity, notifications)).toBe(-1);
+    expect(order(identity, devices)).toBe(-1);
+    expect(order(identity, tour)).toBe(-1);
+  });
+
+  /* 신원 머리가 **전폭**이라는 것은 「알림 설정과 같은 줄에 서지 않는다」는 뜻이다. 한 열
+     안으로 들어가면 아바타·이름·사실 넷·동작 셋이 세로로 접힌다(옆 시험이 구조로 잰다). */
+  it("신원 머리는 알림 설정과 다른 판이다", async () => {
+    const { container } = mount();
+    const identity = await screen.findByRole("heading", { level: 2, name: "나" });
+    const notifications = await screen.findByRole("heading", { name: "알림 설정" });
+    const headCard = identity.closest(".MuiCard-root");
+    expect(headCard).toBeTruthy();
+    expect(headCard.contains(notifications)).toBe(false);
+    expect(container.querySelectorAll(".MuiCard-root").length).toBeGreaterThanOrEqual(5);
   });
 });
 

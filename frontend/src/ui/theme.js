@@ -844,9 +844,28 @@ export function createClovirTheme(mode = "light", accent = DEFAULT_ACCENT) {
       MuiSwitch: {
         styleOverrides: {
           root: {
-            /* 트랙(14px)은 그대로 두고 상자만 줄인다: 38 - 2*12 = 14 = 34 - 2*10. */
+            /* 트랙은 **34 x 20** 이다 — 확정 규약의 스위치 치수.
+             *
+             * 예전에는 38 x 14 였다(상자 34 - 2*10). 폭은 맞고 높이만 낮았는데, 그 4px 이
+             * 손잡이를 트랙보다 크게 만들어 알약 위에 구슬이 얹힌 모양이 됐다. 트랙 안에
+             * 손잡이가 **들어가야** 켜짐과 꺼짐이 위치로 읽힌다.
+             *
+             * 폭과 높이를 따로 잰다. 트랙은 「상자 - 2*패딩」이고 상자는 MUI 기본값
+             * 58 x 34(높이는 위 한 줄이 정한다)이라, 한 패딩 값으로는 둘을 같이 못 맞춘다:
+             *   폭  58 - 2*12 = 34
+             *   높이 34 - 2*7  = 20
+             * 손잡이는 16 이고 트랙 안쪽으로 2px 씩 들어간다(가로 14 = 12 + 2, 세로 9).
+             * 켜짐 이동거리도 그래서 14 다 — 트랙 오른쪽 끝에서 2px 앞에 선다. */
             height: remPx(CONTROL.button),
-            padding: remPx(10),
+            paddingBlock: remPx(7),
+            paddingInline: remPx(12),
+            /* 작은 스위치는 자기 블록이 따로 있다(아래) — 여기 치수를 물려받으면 그쪽
+               계산이 두 곳으로 갈린다. 크기 이름으로 잘라 둔다. */
+            "&:not(.MuiSwitch-sizeSmall)": {
+              "& .MuiSwitch-thumb": { width: remPx(16), height: remPx(16) },
+              "& .MuiSwitch-switchBase": { paddingBlock: remPx(9), paddingInline: remPx(14) },
+              "& .MuiSwitch-switchBase.Mui-checked": { transform: `translateX(${remPx(14)})` },
+            },
           },
           /* `size="small"` 은 손잡이가 16px, switchBase 패딩이 4px 이다. root 만 34/10 으로
              키우면 손잡이가 상자 천장에 붙어 라벨보다 위로 뜬다(프로젝트 필터 실측).

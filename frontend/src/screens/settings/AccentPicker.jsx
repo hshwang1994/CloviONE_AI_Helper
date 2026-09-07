@@ -21,7 +21,11 @@ export function AccentPicker() {
         component="h2" title="화면 강조색"
         help={<>버튼과 링크, 선택 표시에 쓰는 색입니다. <strong>이 브라우저에만</strong> 저장되며 다른 사람 화면은 바뀌지 않습니다.</>}
       />
-      <Box role="group" aria-label="화면 강조색" sx={{ display: "flex", gap: 1.5, flexWrap: "wrap" }}>
+      {/* 칩은 **컨트롤 높이 하나**다(34). 예전에는 40 에 2px 테두리라 이 판만 다른 리듬으로
+          서 있었다 — 같은 판에 있는 「시간 저장」이나 「다시 보기」와 키가 달랐다.
+          고른 것만 **면**을 갖는다: 테두리 두께로 고름을 말하면 칩들이 서로 1px 씩 어긋나
+          한 줄이 물결친다. 면과 체크와 굵기 셋이 함께 말하므로 색만으로 나르지 않는다. */}
+      <Box role="group" aria-label="화면 강조색" sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
         {ACCENT_PRESETS.map((hex) => {
           const value = normalizeAccent(hex);
           const selected = value === current;
@@ -35,10 +39,13 @@ export function AccentPicker() {
               onClick={() => setAccent(value)}
               /* 높이·모서리는 토큰이다 — `minHeight: 44`·`borderRadius: "10px"` 리터럴이 4K 레버를 안 탔다. */
               sx={{
-                display: "flex", alignItems: "center", gap: 1, px: 2, py: 1, minHeight: remPx(CONTROL.buttonLg),
-                cursor: "pointer", font: "inherit", color: "inherit", bgcolor: "transparent",
-                border: 2, borderStyle: "solid", borderColor: selected ? "primary.main" : "divider",
-                borderRadius: `${RADIUS.md}px`,
+                display: "inline-flex", alignItems: "center", gap: 1, px: 1.5,
+                height: remPx(CONTROL.button),
+                cursor: "pointer", font: "inherit",
+                color: selected ? "text.primary" : "text.secondary",
+                bgcolor: selected ? "background.inset" : "background.plate",
+                border: 1, borderStyle: "solid", borderColor: selected ? "primary.main" : "divider",
+                borderRadius: `${RADIUS.sm}px`,
                 "&:hover": { borderColor: "primary.main" },
               }}
             >
@@ -46,9 +53,9 @@ export function AccentPicker() {
                 aria-hidden="true"
                 /* minWidth를 함께 준다 — 폭이 빠지면 원이 테두리만 남은 2px 세로선으로 찌부러진다
                    (색 견본이 사라지면 이 선택기는 글자만 남아 의미의 절반을 잃는다). */
-                sx={{ width: "1.25rem", minWidth: "1.25rem", height: "1.25rem", borderRadius: "50%", bgcolor: value, border: 1, borderColor: "divider", flex: "none" }}
+                sx={{ width: "0.875rem", minWidth: "0.875rem", height: "0.875rem", borderRadius: "50%", bgcolor: value, border: 1, borderColor: "divider", flex: "none" }}
               />
-              <Box component="span" sx={{ fontSize: FONT_SIZE.body, fontWeight: selected ? FONT_WEIGHT.semibold : FONT_WEIGHT.regular }}>{name}</Box>
+              <Box component="span" sx={{ fontSize: FONT_SIZE.caption, fontWeight: selected ? FONT_WEIGHT.semibold : FONT_WEIGHT.regular }}>{name}</Box>
               {/* QAH-07 — dark 모드 대비 미달(최저 2.81) 실측, primary.dark로 교체. */}
               {selected ? <Box component="span" aria-hidden="true" sx={{ fontWeight: FONT_WEIGHT.extrabold, color: "primary.dark" }}>✓</Box> : null}
               {selected ? <span className="sr-only">(현재 색)</span> : null}

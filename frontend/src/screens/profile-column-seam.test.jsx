@@ -4,25 +4,30 @@ import { render, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 
-/* 내 프로필의 판 넷이 **같은 세로선**에서 나뉜다.
+/* qa-contract-change: 이 화면이 「두 열 두 줄」에서 「전폭 신원 머리 + 두 열 한 줄」로 바뀌었다(5-3 시안 #5c). 줄이 하나면 「두 줄이 같은 이음매를 쓰는가」는 잴 대상이 없어진다 — 지우지 않고 방향을 바꿔 다시 적는다: 신원 머리가 정말 두 열 **밖**의 전폭인가, 그 한 줄이 여전히 공용 `pairTracks` 선언을 받는가. 단언은 늘었다.
+ *
+ * 내 프로필의 **신원 머리는 전폭이고, 설정 판은 한 줄에서 반반이다.**
+ *
+ * ## 왜 계약인가
  *
  * 사용자 지적: 「네모 칸 4개가 크기가 각각 다른데 가로는 맞춰 줄 수 없나, 따로 노는 것 같다.」
  * 실측(뷰포트 2560, 격자 2193)으로 확인한 원인은 두 줄이 서로 반대로 기울어 있던 것이다 —
  * 1줄은 0.85:1.15, 2줄은 1.15:0.85 라 열 사이 이음매가 x=1237 과 x=1561 로 324px 어긋났다.
- * 판 넷의 폭은 921/1245/1245/921 로 두 종류뿐인데 좌우가 뒤바뀌어, 세로로 흐르는 선이 하나도
- * 없었다.
+ * 지금은 설정 줄이 하나라 그 어긋남이 생길 자리가 없다. 대신 새 실패 갈래가 생겼다:
+ * **신원 머리가 두 열 안으로 들어가는 것**이다. 들어가는 순간 「내가 누구인가」가 판 하나의
+ * 폭으로 줄고 아바타·이름·사실 넷·동작 셋이 세로로 접힌다 — 이 화면이 고친 바로 그 모양이다.
  *
  * ## 이 시험과 옆 시험의 분업
  *
  * **값**(반반인가)은 `s22-visual-contract.test.jsx` 가 소스에서 고정한다.
- * **여기**서는 소스가 아니라 그려진 화면에서만 보이는 것을 잰다 — 두 줄이 정말 같은 격자
- * 선언을 받았는가. `pairTracks` 는 `{ xs, lg }` 반응형 sx 를 돌려주고 MUI(emotion)는 그것을
- * 미디어 질의가 든 **클래스**로 컴파일하므로, 같은 sx 를 받은 두 줄은 같은 클래스를 받는다.
- * 클래스가 같다는 것이 곧 이음매가 한 줄이라는 뜻이다. jsdom 은 폭을 계산하지 않으니(전부 0)
- * 픽셀로 재는 길은 없고, 이것이 계약에 가장 가깝다.
+ * **여기**서는 소스가 아니라 그려진 화면에서만 보이는 것을 잰다 — 머리가 두 열 밖에 있는가,
+ * 설정 줄이 정말 공용 격자 선언을 받았는가. `pairTracks` 는 `{ xs, lg }` 반응형 sx 를
+ * 돌려주고 MUI(emotion)는 그것을 미디어 질의가 든 **클래스**로 컴파일하므로, 그 선언을 받은
+ * 줄은 빈 클래스가 아니다. jsdom 은 폭을 계산하지 않으니(전부 0) 픽셀로 재는 길은 없고,
+ * 이것이 계약에 가장 가깝다.
  *
- * 반례를 함께 잰다. 그리고 화면이 실제로 그려졌는지(판 넷이 있는지)를 먼저 확인한다 —
- * 빈 화면에서는 「두 줄이 같다」가 공짜로 통과한다.
+ * 반례를 함께 잰다. 그리고 화면이 실제로 그려졌는지(판 다섯이 있는지)를 먼저 확인한다 —
+ * 빈 화면에서는 이 단언들이 공짜로 통과한다.
  */
 
 const apiMock = vi.fn();
@@ -74,7 +79,7 @@ beforeEach(() => {
   });
 });
 
-/** 판을 담는 바깥 격자의 직계 자식 둘 — 그 둘이 화면의 두 줄이다. */
+/** 판을 담는 바깥 격자의 직계 자식 — [신원 머리, 설정 두 열] 이다. */
 function cardRows(container) {
   const screen = container.querySelector(".c-screen");
   const outer = [...(screen ? screen.children : [])].reverse()
@@ -97,26 +102,55 @@ function renderProfile() {
   );
 }
 
-describe("내 프로필 — 판 넷이 같은 세로선에서 나뉜다", () => {
-  it("두 줄이 같은 격자 클래스를 받는다", async () => {
+describe("내 프로필 — 신원 머리는 전폭이고 설정은 한 줄에서 반반이다", () => {
+  it("바깥 격자는 [신원 머리, 설정 두 열] 둘이고 머리가 먼저다", async () => {
     const { container } = renderProfile();
     // 판이 다 그려질 때까지 기다린다 — 불러오는 동안에는 뼈대 판 하나뿐이라 그때 재면
-    // 「두 줄이 같다」가 공짜로 통과한다(실제로 그렇게 한 번 통과했다).
-    await waitFor(() => expect(container.querySelectorAll(".MuiCard-root").length).toBeGreaterThanOrEqual(4));
-    expect(cardRows(container)).toHaveLength(2);
+    // 이 단언들이 공짜로 통과한다(실제로 그렇게 한 번 통과했다).
+    await waitFor(() => expect(container.querySelectorAll(".MuiCard-root").length).toBeGreaterThanOrEqual(5));
+    const rows = cardRows(container);
+    expect(rows).toHaveLength(2);
 
-    const [a, b] = cardRows(container);
-    expect(a.className).not.toBe("");
-    expect(a.className).toBe(b.className);
+    const [head, settings] = rows;
+    /* 🔴 머리는 **판 그 자체**다 — 두 열을 담는 상자가 아니다. 여기 격자가 끼면 「내가
+       누구인가」가 한 열 폭으로 줄고 아바타·이름·사실 넷·동작 셋이 세로로 접힌다. */
+    expect(head.className).toContain("MuiCard-root");
+    expect(settings.className).not.toContain("MuiCard-root");
+    // 설정 줄은 공용 격자 선언을 받았다 — 손으로 그린 격자면 클래스가 안 붙는다.
+    expect(settings.className).not.toBe("");
   });
 
-  it("반례 — 한 줄만 다른 클래스를 받으면 그 시험이 깨진다", async () => {
+  it("신원 머리는 두 열 **밖**이다 — 이름과 아바타가 설정 판 안으로 들어가지 않는다", async () => {
     const { container } = renderProfile();
-    await waitFor(() => expect(container.querySelectorAll(".MuiCard-root").length).toBeGreaterThanOrEqual(4));
+    await waitFor(() => expect(container.querySelectorAll(".MuiCard-root").length).toBeGreaterThanOrEqual(5));
+    const [head, settings] = cardRows(container);
 
-    const rows = cardRows(container);
-    rows[1].className = `${rows[1].className} css-tilted`;
-    expect(rows[0].className).not.toBe(rows[1].className);
+    const avatar = container.querySelector(".k-avatar");
+    expect(avatar).toBeTruthy();
+    expect(head.contains(avatar)).toBe(true);
+    expect(settings.contains(avatar)).toBe(false);
+  });
+
+  it("설정 줄은 판 넷을 담는다 — 왼쪽 하나, 오른쪽 셋 이상", async () => {
+    const { container } = renderProfile();
+    await waitFor(() => expect(container.querySelectorAll(".MuiCard-root").length).toBeGreaterThanOrEqual(5));
+    const [, settings] = cardRows(container);
+    expect(settings.children).toHaveLength(2);
+    // 왼쪽은 판 하나(알림 설정), 오른쪽은 판들을 담는 세로 격자다.
+    expect(settings.children[0].className).toContain("MuiCard-root");
+    expect(settings.children[1].querySelectorAll(":scope > .MuiCard-root").length).toBeGreaterThanOrEqual(3);
+  });
+
+  it("반례 — 머리가 설정 줄 안으로 들어가면 그 시험이 깨진다", async () => {
+    const { container } = renderProfile();
+    await waitFor(() => expect(container.querySelectorAll(".MuiCard-root").length).toBeGreaterThanOrEqual(5));
+
+    const [head, settings] = cardRows(container);
+    settings.appendChild(head);
+    // 바깥 격자가 더는 [머리, 설정] 둘이 아니다 — 첫 시험이 여기서 걸린다.
+    expect(cardRows(container)).not.toHaveLength(2);
+    // 그리고 아바타가 설정 줄 안으로 들어갔다 — 둘째 시험이 여기서 걸린다.
+    expect(settings.contains(container.querySelector(".k-avatar"))).toBe(true);
   });
 
   it("반례 — 판을 못 찾으면 첫 시험의 관문에 걸린다", () => {

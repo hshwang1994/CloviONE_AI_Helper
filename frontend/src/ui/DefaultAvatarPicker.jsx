@@ -59,7 +59,9 @@ export function DefaultAvatarPicker({ seed, value, busy, onPick }) {
   const [open, setOpen] = React.useState(false);
   return (
     <>
-      <Button size="sm" disabled={busy} onClick={() => setOpen(true)}>
+      {/* 크기는 **이웃이 정한다.** 이 단추는 신원 머리의 동작 묶음에서 「사진 바꾸기」·
+          「비밀번호 변경」과 한 줄에 서므로 기본 높이(34)다 — 30 이면 셋 중 하나만 낮다. */}
+      <Button disabled={busy} onClick={() => setOpen(true)}>
         기본 아바타 고르기
       </Button>
       <DefaultAvatarDialog

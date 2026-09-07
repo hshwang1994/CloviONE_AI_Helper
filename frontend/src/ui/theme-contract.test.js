@@ -508,6 +508,28 @@ describe("컨트롤 높이는 한 곳에서 나온다", () => {
     expect(remValue(sw.sizeSmall["& .MuiSwitch-switchBase"].padding)).toBe(pad);
   });
 
+  /* 스위치 트랙은 **34 x 20** 이다(확정 규약). 폭과 높이가 「상자 - 2*패딩」이고 상자는
+     58 x 34 라 한 패딩 값으로는 둘을 못 맞춘다 — 가로 12, 세로 7 로 따로 잰다. 손잡이 16 이
+     트랙 안으로 2px 씩 들어가고, 켜짐 이동거리도 그래서 14 다(트랙 오른쪽 끝에서 2px 앞). */
+  it("스위치 트랙이 34 x 20 이고 손잡이가 그 안에 들어간다", () => {
+    const sw = createClovirTheme("light").components.MuiSwitch.styleOverrides;
+    const MUI_ROOT_WIDTH = 58;   // MUI 기본 medium 상자 폭
+    const notSmall = sw.root["&:not(.MuiSwitch-sizeSmall)"];
+    expect(MUI_ROOT_WIDTH - 2 * remValue(sw.root.paddingInline)).toBe(34);
+    expect(remValue(sw.root.height) - 2 * remValue(sw.root.paddingBlock)).toBe(20);
+    // 손잡이는 트랙보다 작다 — 알약 위에 구슬이 얹힌 모양이 되지 않는다.
+    expect(remValue(notSmall["& .MuiSwitch-thumb"].height)).toBe(16);
+    expect(remValue(notSmall["& .MuiSwitch-thumb"].height)).toBeLessThan(20);
+    // 트랙 안쪽 2px: 손잡이 왼쪽 = 트랙 왼쪽 + 2.
+    const thumbInset = remValue(notSmall["& .MuiSwitch-switchBase"].paddingInline) - remValue(sw.root.paddingInline);
+    expect(thumbInset).toBe(2);
+    // 켜짐 이동거리 = 트랙 폭 - 양쪽 여백 - 손잡이 = 34 - 4 - 16.
+    const moved = /translateX\(([^)]+)\)/.exec(notSmall["& .MuiSwitch-switchBase.Mui-checked"].transform);
+    expect(moved).not.toBeNull();
+    const travel = remValue(moved[1]);
+    expect(travel).toBe(34 - 2 * thumbInset - 16);
+  });
+
   it("작은 아이콘 버튼도 포인터 목표는 40 이다 — 시각 크기만 줄인다", () => {
     const ib = createClovirTheme("light").components.MuiIconButton.styleOverrides;
     // `::after` 의 음수 inset 이 상자 밖으로 목표를 넓힌다.
