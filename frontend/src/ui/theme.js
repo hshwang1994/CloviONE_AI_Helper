@@ -67,7 +67,9 @@ export function normalizeAccent(value) {
  *   full 아바타처럼 완전한 원   999
  * 계측 전면은 여전히 둥글지 않다. 다만 4/6/10 은 34~36px 컨트롤 옆에서 **모서리가 없는
  * 것처럼** 보였다 — 형태가 형태로 읽히는 최소치로 한 단계씩 올린다. */
-export const RADIUS = { sm: 6, md: 8, lg: 14, full: 999 };
+/* `xs`(4)는 **배지와 세그먼티드 안쪽 칸**의 모서리다 — 22px 짜리 작은 알약에 6px 를 주면
+   모서리가 높이의 1/4 을 먹어 알약이 아니라 둥근 사각형으로 보인다(확정 규약 §9). */
+export const RADIUS = { xs: 4, sm: 6, md: 8, lg: 14, full: 999 };
 
 /* 굵기 — 5단계. extrabold 는 워드마크 전용 예외다(본문 위계에 쓰지 않는다). */
 export const FONT_WEIGHT = { regular: 400, medium: 500, semibold: 600, bold: 700, extrabold: 800 };
@@ -96,6 +98,9 @@ export const FONT_SIZE = {
   caption: "0.8125rem",
   bodySm: "0.875rem",
   body: "0.9375rem",
+  /* **판 제목**(확정 규약: 1.0625rem/700). `title` 보다 한 단 작다 — 판이 여럿 깔린 화면에서
+     19px 제목 넷은 저마다 자기 화면의 h1 처럼 서서 페이지 제목(1.75rem)과 다툰다. */
+  cardTitle: "1.0625rem",
   title: "1.1875rem",
   pageTitle: "1.75rem",
   readout: "2.5rem",
@@ -686,7 +691,10 @@ export function createClovirTheme(mode = "light", accent = DEFAULT_ACCENT) {
       caption: { fontSize: FONT_SIZE.caption, lineHeight: LINE_HEIGHT.caption, letterSpacing: "-0.006em" },
       button: { textTransform: "none", fontWeight: FONT_WEIGHT.semibold, letterSpacing: "-0.011em" },
       /* 구획 제목과 판독값. MUI 에 대응 variant 가 없어 새로 만든 두 단계다. */
-      sectionTitle: { fontSize: FONT_SIZE.title, fontWeight: FONT_WEIGHT.semibold, letterSpacing: "-0.012em", lineHeight: LINE_HEIGHT.title },
+      /* 판 제목은 `cardTitle`(1.0625rem/700)이다. 토큰 별칭 `FONT_SIZE.sectionTitle` 은
+         **다른 것**이다 — 채팅방 제목·놀이 무대 문구처럼 판 제목이 아닌 큰 표제가 그것을
+         쓴다. 이름이 겹쳐 보이지만 쓰임이 다르므로 값을 함께 옮기지 않는다. */
+      sectionTitle: { fontSize: FONT_SIZE.cardTitle, fontWeight: FONT_WEIGHT.bold, letterSpacing: "-0.012em", lineHeight: LINE_HEIGHT.title },
       statValue: {
         fontSize: FONT_SIZE.readout,
         fontWeight: FONT_WEIGHT.semibold,
@@ -843,6 +851,27 @@ export function createClovirTheme(mode = "light", accent = DEFAULT_ACCENT) {
        * `::after` 가 상자 밖으로 목표를 넓힌다 — 시각 크기를 키우면 표 행이 함께 자란다. */
       MuiSwitch: {
         styleOverrides: {
+          /* 🔴 트랙 색을 **직접 정한다.** MUI 기본은 켠 트랙을 강조색의 반투명(0.5)으로,
+             끈 트랙을 검정 반투명으로 그린다 — 두 색 다 뒤에 깔린 면에 따라 값이 달라지고,
+             켠 트랙은 규약색보다 눈에 띄게 연했다. 확정 규약은 켜짐 `primary`, 꺼짐
+             `dividerStrong`, 손잡이 흰색이다. `opacity: 1` 이 없으면 MUI 가 다시 반투명으로
+             덮는다(비활성일 때만 흐려진다). */
+          track: ({ theme }) => ({
+            backgroundColor: theme.palette.dividerStrong,
+            opacity: 1,
+          }),
+          thumb: ({ theme }) => ({
+            backgroundColor: theme.palette.common.white,
+            boxShadow: theme.shadowTokens ? theme.shadowTokens.raised : undefined,
+          }),
+          switchBase: ({ theme }) => ({
+            "&.Mui-checked + .MuiSwitch-track": {
+              backgroundColor: theme.palette.primary.main,
+              opacity: 1,
+            },
+            "&.Mui-checked .MuiSwitch-thumb": { backgroundColor: theme.palette.common.white },
+            "&.Mui-disabled + .MuiSwitch-track": { opacity: 0.45 },
+          }),
           root: {
             /* 트랙은 **34 x 20** 이다 — 확정 규약의 스위치 치수.
              *

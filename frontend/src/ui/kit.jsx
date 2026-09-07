@@ -45,7 +45,7 @@ import { maxLengthFor } from "../lib/fieldLimits.js";
 import { apiToKstLocal, kstLocalToApi, objectParticle, topicParticle } from "../lib/format.js";
 import { declaredRowName, rowNameOf } from "./rowName.js";
 import { ANYWHERE_BREAK, OVERFLOW, SHRINK, columnLayoutWidth, planColumnCollapse, planNarrowColumns, resolveColumn, rootFontPx, tableMinWidth } from "./columnTypes.js";
-import { CONTROL, EMPTY_STATE_MAX_CH, ERROR_STATE_MAX_CH, FONT_SIZE, FONT_WEIGHT, ICON, KO_WORD_BREAK, MOTION, NUMERIC, RADIUS, SCROLL_BOX_STICKY_TOP, TABLE_CARD_QUERY, remPx, stickyTopSx } from "./theme.js";
+import { CONTROL, EMPTY_STATE_MAX_CH, ERROR_STATE_MAX_CH, FONT_SIZE, FONT_WEIGHT, ICON, KO_WORD_BREAK, LINE_HEIGHT, MOTION, NUMERIC, RADIUS, SCROLL_BOX_STICKY_TOP, TABLE_CARD_QUERY, remPx, stickyTopSx } from "./theme.js";
 import { CARD_PADDING, SECTION_GAP } from "./density.js";
 import { EntityCombobox } from "./filters.jsx";
 import { TableHeaderCell } from "./TableHeaderCell.jsx";
@@ -231,21 +231,27 @@ export function Badge({ value, kind, emphasis }) {
         fontSize: FONT_SIZE.bodySm, fontWeight: FONT_WEIGHT.medium, lineHeight: 1.4,
         whiteSpace: "nowrap",
         color: extra ? extra.fg : palette ? `${palette}.strong` : "text.secondary",
+        /* 면을 가진 배지는 **알약 하나의 규약**이다(확정 규약 §9): 높이 22, 좌우 8,
+           Radius 4, 0.75rem/600, 옅은 면 + 진한 글자. 그 안에서는 표지 점을 안 그린다 —
+           면 자체가 이미 「여기가 한 덩어리다」를 말하고, 6px 점이 22px 알약 안에 또 들어가면
+           낱말이 밀려 알약이 길어지기만 한다. 점은 면이 없는 자리(표·목록)의 어휘다. */
         ...(strong && {
-          px: 0.75, py: 0.125, borderRadius: `${RADIUS.sm}px`,
+          height: 22, px: 1, py: 0, borderRadius: `${RADIUS.xs}px`,
           bgcolor: extra ? extra.bg : palette ? `${palette}.bg` : "background.inset",
-          fontWeight: FONT_WEIGHT.semibold,
+          fontSize: FONT_SIZE.micro, fontWeight: FONT_WEIGHT.semibold, lineHeight: 1,
         }),
       }}
     >
-      <Box
-        aria-hidden="true"
-        component="span"
-        sx={{
-          flexShrink: 0, width: 6, height: 6, borderRadius: marker,
-          bgcolor: extra ? extra.fg : palette ? `${palette}.main` : "text.faint",
-        }}
-      />
+      {strong ? null : (
+        <Box
+          aria-hidden="true"
+          component="span"
+          sx={{
+            flexShrink: 0, width: 6, height: 6, borderRadius: marker,
+            bgcolor: extra ? extra.fg : palette ? `${palette}.main` : "text.faint",
+          }}
+        />
+      )}
       <Box component="span" sx={{ overflow: "hidden", textOverflow: "ellipsis" }}>{statusText(value)}</Box>
     </Box>
   );
@@ -3653,8 +3659,11 @@ export function SectionTitle({ title, children, action, help, component = "h3", 
     <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 2, flexWrap: "wrap", mb: 1.5, ...sx }}>
       <Box sx={{ minWidth: 0 }}>
         <Typography component={component} variant="sectionTitle">{label}</Typography>
+        {/* 설명은 제목보다 두 단 작다(0.8125rem) — 확정 규약의 카드 머리 한 쌍이다.
+            0.875rem 이면 제목(1.0625rem)과 두 줄이 거의 같은 무게라 어느 쪽이 이름인지
+            멀리서 안 갈린다. */}
         {help ? (
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+          <Typography color="text.secondary" sx={{ mt: 0.5, fontSize: FONT_SIZE.caption, lineHeight: LINE_HEIGHT.caption }}>
             {help}
           </Typography>
         ) : null}

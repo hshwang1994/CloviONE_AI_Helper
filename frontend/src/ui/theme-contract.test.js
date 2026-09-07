@@ -551,13 +551,30 @@ describe("컨트롤 높이는 한 곳에서 나온다", () => {
 });
 
 describe("재양자화 단계 수 (PA-RC-0001 — 이 계약은 목업이 아니라 우리가 정한 것이다)", () => {
-  it("FONT_SIZE 는 역할 이름 7단계다 (별칭 2개는 옛 소비처용)", () => {
-    const roles = ["micro", "caption", "bodySm", "body", "title", "pageTitle", "readout"];
+  /* qa-contract-change: 확정 규약이 **판 제목**(1.0625rem/700)을 본문과 제목 사이의 자기 단계로
+     못박아 `cardTitle` 이 여덟째 슬롯으로 들어왔고, 배지 알약(22px)의 모서리 4px 이 `RADIUS.xs`
+     로 다섯째가 됐다. 이 묶음이 막던 것은 슬롯 수가 아니라 **간격 몰림**이므로, 수를 늘리면서
+     간격 단언에 두 단계를 함께 넣는다 — 새 단계도 1.06배 관문을 지난다(body→cardTitle 1.13,
+     cardTitle→title 1.12). 단언은 늘었다. */
+  it("FONT_SIZE 는 역할 이름 8단계다 (별칭 2개는 옛 소비처용)", () => {
+    const roles = ["micro", "caption", "bodySm", "body", "cardTitle", "title", "pageTitle", "readout"];
     for (const r of roles) expect(FONT_SIZE[r], r).toMatch(/rem$/);
     // 별칭은 실제 슬롯을 가리키기만 하고 새 단계를 만들지 않는다.
     expect(FONT_SIZE.sectionTitle).toBe(FONT_SIZE.title);
     expect(FONT_SIZE.statValue).toBe(FONT_SIZE.readout);
     expect(new Set(Object.values(FONT_SIZE)).size).toBe(roles.length);
+    /* 🔴 판 제목은 본문과 제목 **사이**다. 그 바깥으로 나가면 새 단계가 아니라 기존 단계의
+       사본이 되고, 그것이 이 묶음이 막는 몰림이다. */
+    expect(parseFloat(FONT_SIZE.cardTitle)).toBeGreaterThan(parseFloat(FONT_SIZE.body));
+    expect(parseFloat(FONT_SIZE.cardTitle)).toBeLessThan(parseFloat(FONT_SIZE.title));
+  });
+
+  /* 판 제목을 쓰는 자리는 `SectionTitle` 하나다 — variant 가 그 값을 실제로 받는지 잰다.
+     토큰만 신설하고 부품이 옛 값에 남아 있으면 화면은 하나도 안 바뀐다. */
+  it("판 제목 variant 가 cardTitle 을 700 으로 쓴다", () => {
+    const ty = createClovirTheme("light").typography.sectionTitle;
+    expect(ty.fontSize).toBe(FONT_SIZE.cardTitle);
+    expect(ty.fontWeight).toBe(FONT_WEIGHT.bold);
   });
 
   /* 옛 스케일의 실제 결함은 슬롯 **수**가 아니라 **간격**이었다 — 7단계 중 4단계가 3px
@@ -565,13 +582,21 @@ describe("재양자화 단계 수 (PA-RC-0001 — 이 계약은 목업이 아니
      통과시켰다. 그래서 간격을 단언한다: 인접 단계는 최소 1.06배, 머리쪽(title 이후)은 최소
      1.2배. 그리고 최소 크기는 12px(0.75rem) — 11px 은 한글에서 실제로 너무 작다. */
   it("스케일이 실제로 위계를 만든다 (밴드 몰림 재발 방지)", () => {
-    const order = ["micro", "caption", "bodySm", "body", "title", "pageTitle", "readout"];
+    const order = ["micro", "caption", "bodySm", "body", "cardTitle", "title", "pageTitle", "readout"];
     const rem = order.map((k) => parseFloat(FONT_SIZE[k]));
     expect(rem[0]).toBeGreaterThanOrEqual(0.75);
     for (let i = 1; i < rem.length; i += 1) {
       expect(rem[i] / rem[i - 1], `${order[i - 1]}->${order[i]}`).toBeGreaterThanOrEqual(1.06);
     }
-    for (let i = 4; i < rem.length; i += 1) {
+    /* 🔴 본문 → 판 제목 → 표제 셋은 **한 칸이 두 칸으로 나뉘었다.** 예전에는 body→title 이
+       1.27 한 칸이었는데 그 사이에 판 제목(1.0625)이 들어오면서 1.13·1.12 가 됐다 — 새
+       단계를 넣으면 반드시 그렇게 된다. 셋은 15/17/19px 로 눈에 구분되고 쓰는 자리가 서로
+       다르다(본문 / 판 제목 / 표제·판독값). 그 아래 1.06 관문은 그대로 지난다. */
+    const at = (k) => rem[order.indexOf(k)];
+    expect(at("cardTitle") / at("body"), "body->cardTitle").toBeGreaterThanOrEqual(1.1);
+    expect(at("title") / at("cardTitle"), "cardTitle->title").toBeGreaterThanOrEqual(1.1);
+    // 표제 위(19 → 28 → 40)는 예전 문턱 그대로다.
+    for (let i = order.indexOf("pageTitle"); i < rem.length; i += 1) {
       expect(rem[i] / rem[i - 1], `머리쪽 ${order[i - 1]}->${order[i]}`).toBeGreaterThanOrEqual(1.2);
     }
   });
@@ -587,12 +612,16 @@ describe("재양자화 단계 수 (PA-RC-0001 — 이 계약은 목업이 아니
     expect(Object.keys(FONT_WEIGHT)).toHaveLength(5);
   });
 
-  it("RADIUS 는 4개 의미 슬롯이고 계측 전면 배율이다", () => {
-    expect(Object.keys(RADIUS).sort()).toEqual(["full", "lg", "md", "sm"]);
+  it("RADIUS 는 5개 의미 슬롯이고 계측 전면 배율이다", () => {
+    expect(Object.keys(RADIUS).sort()).toEqual(["full", "lg", "md", "sm", "xs"]);
     // 18px 카드 모서리는 이 방향이 아니다. 판은 8px 다.
     expect(RADIUS.md).toBeLessThanOrEqual(8);
     expect(RADIUS.sm).toBeLessThan(RADIUS.md);
     expect(RADIUS.lg).toBeGreaterThan(RADIUS.md);
+    /* `xs`(4)는 22px 알약의 모서리다 — 6px 를 주면 높이의 1/4 을 모서리가 먹는다.
+       판(8)보다 두 단 작고, 그보다 더 내려가면 각진 사각형과 구별이 안 된다. */
+    expect(RADIUS.xs).toBeLessThan(RADIUS.sm);
+    expect(RADIUS.xs).toBeGreaterThanOrEqual(3);
   });
 
   it("MUI 기본 모서리는 판의 모서리(md)다", () => {

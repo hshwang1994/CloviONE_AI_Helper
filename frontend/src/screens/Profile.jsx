@@ -19,7 +19,7 @@ import {
   Badge, Button, Callout, Card, EmptyState, ErrorState, FieldLabel, PageHeader, SectionTitle, Skeleton,
   useConfirm, useToast,
 } from "../ui/kit.jsx";
-import { CONTROL, FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, NUMERIC, RADIUS, remPx } from "../ui/theme.js";
+import { CONTROL, FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, RADIUS, remPx } from "../ui/theme.js";
 import { Note, SettingRow } from "../ui/adminKit.jsx";
 import { GRID_GAP, pairTracks } from "../ui/density.js";
 /* 화면 강조색은 예전에 자기 라우트(`/my-display`)를 갖고 있었다 — 설정 하나뿐인 화면이
@@ -81,32 +81,47 @@ const DND_PRESETS = [
  * 필드 높이의 정본은 `CONTROL.input` 이다 — 이 제품의 모든 입력이 그 값으로 선다. */
 const FIELD_ROWS = `${remPx(20)} ${remPx(CONTROL.input)} auto`;
 
-/* 신원 사실 하나 — 이름표 위, 값 아래. **라벨 열을 만들지 않는다.**
+/* 값과 값 사이의 **점**. 글자가 아니라 도형이다.
  *
- * 예전에는 `DetailRow` 여섯 줄이었다(이름·이메일·역할·부서·직책·마지막 로그인). 라벨이
- * 10rem 고정 열을 갖고 값이 그 오른쪽에 서므로, 값이 두 글자든 마흔 글자든 여섯 줄이 세로로
- * 늘어졌다 — 「내가 누구인가」를 읽는 데 판 하나가 통째로 들었다. 사실 넷은 이름 옆에 두
- * 줄이면 다 들어간다. 라벨은 값 **위**에 붙어 자기 값만큼만 폭을 쓴다. */
-function Fact({ label, children, numeric }) {
+ * 이유가 둘이다. 하나, 이 저장소는 화면 문구에서 가운뎃점을 안 쓴다(`check_user_text.py`).
+ * 둘, 구분 기호는 읽을 것이 아니라 볼 것이다 — 낭독기가 「플랫폼개발팀 가운뎃점 팀장」이라고
+ * 읽으면 사실 사이에 없던 낱말이 하나 생긴다. `aria-hidden` 인 도형이 그 둘을 다 푼다. */
+function Dot() {
   return (
-    <Box sx={{ display: "grid", rowGap: 0.125, minWidth: 0 }}>
-      <Typography
-        component="span"
-        color="text.secondary"
-        sx={{ fontSize: FONT_SIZE.micro, fontWeight: FONT_WEIGHT.semibold, ...KO_WORD_BREAK }}
-      >
-        {label}
-      </Typography>
-      <Typography
-        component="span"
-        title={typeof children === "string" ? children : undefined}
-        sx={{
-          fontSize: FONT_SIZE.bodySm, fontWeight: FONT_WEIGHT.semibold,
-          ...ONE_LINE, ...(numeric ? NUMERIC : null),
-        }}
-      >
-        {children}
-      </Typography>
+    <Box
+      aria-hidden="true"
+      component="span"
+      data-fact-dot=""
+      sx={{ width: 3, height: 3, borderRadius: "999px", bgcolor: "text.faint", flexShrink: 0 }}
+    />
+  );
+}
+
+/* 신원의 사실들 — **라벨 없이 값만 한 줄**이다.
+ *
+ * 예전에는 `DetailRow` 여섯 줄이었고(이름·이메일·역할·부서·직책·마지막 로그인) 라벨이 10rem
+ * 고정 열을 가졌다. 그것을 「라벨 위, 값 아래」 쌍 셋으로 바꿨더니 라벨 열이 세 개 나란히
+ * 서서 여전히 **표로 읽혔다** — 열이 가로로 누웠을 뿐 라벨과 값이 격자를 이루는 것은 같다.
+ *
+ * 신원 정보는 이름표가 필요 없다. 팀 이름이 부서라는 것, 골뱅이가 든 문자열이 메일이라는
+ * 것은 값 자체가 말한다. 이름표가 필요한 유일한 값은 마지막 로그인이다 — 날짜 하나만 놓으면
+ * 그것이 무엇의 날짜인지 알 길이 없다. */
+function FactLine({ values }) {
+  const shown = values.filter(Boolean);
+  if (!shown.length) return null;
+  return (
+    <Box sx={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 1, minWidth: 0 }}>
+      {shown.map((v, i) => (
+        <React.Fragment key={v}>
+          {i ? <Dot /> : null}
+          <Typography
+            component="span" color="text.secondary" title={v}
+            sx={{ fontSize: FONT_SIZE.bodySm, ...ONE_LINE }}
+          >
+            {v}
+          </Typography>
+        </React.Fragment>
+      ))}
     </Box>
   );
 }
@@ -224,16 +239,14 @@ function IdentityHeader({ profile, prefs, onChanged }) {
               kind="indigo" emphasis="strong"
             />
           </Box>
-          <Box sx={{ display: "flex", flexWrap: "wrap", columnGap: 3, rowGap: 1, minWidth: 0 }}>
-            <Fact label="부서">{profile.department || "-"}</Fact>
-            <Fact label="직책">{profile.title || "-"}</Fact>
-            <Fact label="이메일">{profile.email || "-"}</Fact>
-          </Box>
-          <Box sx={{ display: "flex", flexWrap: "wrap", columnGap: 3, rowGap: 1, minWidth: 0 }}>
-            <Fact label="마지막 로그인" numeric>
-              {profile.last_login_at ? fmtDateTime(profile.last_login_at) : "-"}
-            </Fact>
-          </Box>
+          <FactLine values={[profile.department, profile.title, profile.email]} />
+          {/* 마지막 로그인만 이름표를 갖는다 — 날짜 하나만 놓으면 무엇의 날짜인지 모른다. */}
+          <Typography
+            component="span" color="text.secondary"
+            sx={{ fontSize: FONT_SIZE.micro, ...ONE_LINE }}
+          >
+            {`마지막 로그인 ${profile.last_login_at ? fmtDateTime(profile.last_login_at) : "-"}`}
+          </Typography>
         </Box>
 
         {/* 동작 셋은 **무게가 같다.** 사진을 바꾸는 일이 비밀번호를 바꾸는 일보다 중요하지
@@ -310,10 +323,25 @@ function NotificationCard({ prefs, save, saving }) {
       {/* 🔴 **평면 목록**이다 — 묶음 머리를 만들지 않는다.
           유형이 스물이라 「채팅」·「승인」·「시스템」으로 묶고 싶어지는데, 묶는 순간 줄을 찾는
           일이 두 단계가 된다(어느 묶음인지 먼저 정하고 그 안에서 찾는다). 사람이 여기서 하는
-          일은 「거슬리는 그것」 하나를 끄는 것이고, 그 이름은 이미 알고 있다. */}
-      <Box component="ul" sx={{ listStyle: "none", m: 0, p: 0 }}>
+          일은 「거슬리는 그것」 하나를 끄는 것이고, 그 이름은 이미 알고 있다.
+
+          🔴 대신 **판 안에서 두 열로 흐른다.** 스무 줄이 한 열로 서면 이 판 혼자 화면
+          높이의 두 배가 되고, 옆 레일은 절반에서 끝나 페이지 아래 절반이 통째로 빈다.
+
+          격자가 아니라 **다단(multi-column)** 인 이유: 격자의 자동 배치는 줄 단위라
+          `repeat(auto-fit, ...)` 로 두면 1·2번이 첫 줄, 3·4번이 둘째 줄로 **가로로** 채워진다.
+          그러면 왼쪽 열을 위에서 아래로 읽는 사람에게 순서가 1, 3, 5… 로 보인다. 다단은
+          첫 열을 끝까지 채운 뒤 다음 열로 넘어가므로 목록의 순서가 그대로 보존된다.
+          한 줄이 두 열에 걸쳐 쪼개지지 않게 `breakInside` 를 막는다. */}
+      <Box
+        component="ul"
+        sx={{
+          listStyle: "none", m: 0, p: 0,
+          columnWidth: "20rem", columnGap: GRID_GAP,
+        }}
+      >
         {prefs.notifications.catalog.map((row) => (
-          <Box component="li" key={row.key}>
+          <Box component="li" key={row.key} sx={{ breakInside: "avoid" }}>
             <SettingRow
               compact label={row.label} description={row.help}
               /* MUI 7 의 Switch 는 `inputProps` 를 **조용히 버린다** — 그렇게 쓰면 스위치에
@@ -543,8 +571,11 @@ function SessionsCard() {
            단추가 아래 줄 왼쪽으로 떨어진다 — 그 자리에서는 판 제목의 동작이 아니라 목록의
            첫 항목처럼 보인다. 줄을 안 접고 글 칸을 줄인다(글은 안에서 접힌다). */
         sx={{ mb: 0, flexWrap: "nowrap", alignItems: "flex-start" }}
-        title="내 기기(로그인 세션)"
-        help="공용 PC에 로그인해 둔 채로 왔거나, 모르는 기기가 보이면 여기서 끊으세요. 지금 보고 있는 이 창은 유지됩니다."
+        title="내 기기"
+        /* 「지금 보고 있는 이 창은 유지됩니다」가 여기 붙어 있었다. 그 사실은 이제 목록에서
+           이 창의 줄이 오른쪽에 「유지됩니다」로 직접 말하고, 확인 대화상자가 한 번 더
+           말한다 — 같은 사실을 세 곳에서 말하느라 설명이 두 줄로 감겼다. */
+        help="공용 PC에 로그인해 둔 채로 왔거나, 모르는 기기가 보이면 여기서 끊으세요."
         action={(
           <Button
             variant="danger" size="sm"
