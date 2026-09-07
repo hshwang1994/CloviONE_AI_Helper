@@ -121,7 +121,11 @@ export function BarSeries({
               variant="body2"
               sx={{ fontWeight: FONT_WEIGHT.extrabold, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap", textAlign: "right" }}
             >
-              {fmt(r.value)}{unit}
+              {/* 값 글자를 줄이 직접 정할 수 있다(`valueText`) — **0 과 「모른다」가 다른**
+                  자료를 위해서다. 완료율이 `null` 인 달을 0 으로 눕히면 막대는 「하나도 못
+                  끝냈다」로 읽히는데 사실은 「할 것이 없었다」다. 막대 길이로는 그 둘을
+                  가를 수 없으니 글자가 가른다. */}
+              {r.valueText != null ? r.valueText : `${fmt(r.value)}${unit}`}
             </Typography>
             <BarRow pct={pct} fill={fill} track={track} grown={grown} />
             {r.note ? (

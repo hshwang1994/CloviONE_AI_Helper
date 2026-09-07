@@ -1,6 +1,7 @@
 import React from "react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 
@@ -148,9 +149,14 @@ describe("내 업무량 · 완료 통계", () => {
     renderStats();
     expect(await screen.findByText("티켓을 읽지 못했습니다.")).toBeInTheDocument();
     expect(screen.getByText("아직 집계할 티켓이 없습니다")).toBeInTheDocument();
-    const remaining = screen.getAllByText("남은 일")[0].closest(".k-readout");
+    /* 판독 칸이 상태 칩으로 바뀌었다 — 재는 것은 그대로다: **0 이 아니라 「모른다」**를
+       그리는가. 티켓을 못 읽으면 0건이 아니라 값 자체를 모르는 것이고, 그것을 0으로
+       그리면 없는 사실을 만든다. */
+    const remaining = screen.getAllByText("남은 일")[0].closest(".k-status-chip");
     expect(remaining).not.toBeNull();
     expect(remaining.textContent).toContain("-");
+    // 「0건」으로 접히지 않는다 — 접기는 진짜 0 에게만 쓴다.
+    expect(screen.queryByText(/0건$/)).toBeNull();
   });
 
   it("소스가 미설정이면 그 사실을 말한다", async () => {
@@ -172,6 +178,57 @@ describe("내 업무량 · 완료 통계", () => {
     renderStats();
     await screen.findByText("남은 일");
     await waitFor(() => expect(apiMock).toHaveBeenCalledWith("/api/me/stats?months=6&weeks=4"));
+
+    /* 이 시험은 오래 기본값만 봤다 — 「바꾸면」이라고 적혀 있는데 아무것도 안 눌렀다.
+       기간이 세그먼티드가 되면서 세 값이 다 화면에 서므로, 실제로 눌러서 잰다. */
+    const period = screen.getByRole("tablist", { name: "기간" });
+    expect(within(period).getAllByRole("tab")).toHaveLength(3);
+    expect(within(period).getByRole("tab", { name: "최근 6개월" })).toHaveAttribute("aria-selected", "true");
+
+    await userEvent.click(within(period).getByRole("tab", { name: "최근 12개월" }));
+    await waitFor(() => expect(apiMock).toHaveBeenCalledWith("/api/me/stats?months=12&weeks=4"));
+    expect(within(period).getByRole("tab", { name: "최근 12개월" })).toHaveAttribute("aria-selected", "true");
+    // 카드 머리의 이름도 그 기간을 따라온다 — 숫자만 바뀌고 이름이 6개월로 남으면 거짓이다.
+    expect(await screen.findByText("최근 12개월 내 티켓")).toBeInTheDocument();
+  });
+
+  /* 요약 카드가 **부분과 신호를 가른다.**
+   *
+   * 완료·남은 일·취소는 전체를 남김없이 나눈 부분이라 비율이 참이다. 지연·오늘 마감·
+   * 막힌 일은 남은 일의 부분집합이면서 서로 겹치므로(한 티켓이 지연이면서 막힌 일일 수
+   * 있다) 같은 바에 넣으면 합이 전체를 넘는다. */
+  it("전체를 나누는 셋만 비율을 갖고, 겹치는 신호는 위험 요약으로 선다", async () => {
+    apiMock.mockResolvedValue(stats());
+    renderStats();
+    const card = await screen.findByRole("group", { name: "내 업무량" });
+
+    // 부분 셋은 스택 바와 비율을 갖는다.
+    expect(within(card).getByText("완료")).toBeInTheDocument();
+    expect(card.querySelector("[data-ratio-bar]")).toBeInTheDocument();
+    // 신호 셋은 같은 카드 안에 있되 비율을 안 갖는다(합이 전체를 넘기 때문이다).
+    for (const name of ["지연", "오늘 마감", "막힌 일"]) {
+      expect(within(card).queryAllByText(name).length, name).toBeGreaterThan(0);
+    }
+  });
+
+  /* 선이 아니라 막대다 — 선은 점과 점 사이를 이어 「그 사이에도 값이 있었다」고 말한다. */
+  it("배정이 없던 달은 0% 가 아니라 그 사실을 말한다", async () => {
+    apiMock.mockResolvedValue(stats({
+      months: [
+        { month: "2026-06", assigned: 0, done: 0, cancelled: 0, open: 0, overdue: 0, est_wd: 0, act_wd: 0, completion_rate: null },
+        { month: "2026-07", assigned: 4, done: 2, cancelled: 0, open: 2, overdue: 0, est_wd: 3, act_wd: 2, completion_rate: 0.5 },
+      ],
+    }));
+    renderStats();
+    await screen.findByText("달별 완료 추이");
+    /* 값이 있는 달은 그 값을 그대로 말한다 — 그림과 표 **둘 다**에서 같은 수다.
+       (같은 사실을 두 자리가 다르게 말하지 않는 것이 이 화면의 규칙이다.) */
+    expect(screen.getAllByText("50%").length).toBe(2);
+    /* 배정이 없던 달은 «-» 다. 0% 로 적으면 막대 길이와 글자가 함께 「하나도 못 끝냈다」로
+       읽히는데 사실은 「할 것이 없었다」다 — 막대로는 그 둘을 못 가르니 글자가 가른다.
+       그림과 표가 같은 낱말을 쓴다: 화면 어디에도 「0%」가 없다. */
+    expect(screen.queryByText("0%")).toBeNull();
+    expect(screen.getAllByText("-").length).toBeGreaterThanOrEqual(2);
   });
 
   it("옛 sync 블록이 error 로 되돌아와도 미러 안내를 안 그린다", async () => {
