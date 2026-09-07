@@ -5,12 +5,15 @@ import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
 import { priorityKo } from "../lib/priority.js";
 import {
-  Callout, Card, DataTable, EmptyState, ErrorState, PageHeader, SectionTitle, Segmented, Skeleton,
+  Button, Callout, Card, DataTable, EmptyState, ErrorState, PageHeader, SectionTitle, Segmented, Skeleton,
 } from "../ui/kit.jsx";
+import { ART } from "../lib/assets.js";
+import { mascotBoxPx } from "../ui/Mascot.jsx";
 import { StatusSummaryCard } from "../ui/StatusKpi.jsx";
-import { FONT_WEIGHT, NUMERIC } from "../ui/theme.js";
+import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, NUMERIC, RADIUS } from "../ui/theme.js";
 import { GRID_GAP } from "../ui/density.js";
 import { BarSeries } from "../ui/charts/BarSeries.jsx";
+import { ColumnSeries } from "../ui/charts/ColumnSeries.jsx";
 import { Donut } from "../ui/charts/Donut.jsx";
 import { Gauge } from "../ui/charts/Gauge.jsx";
 
@@ -71,6 +74,119 @@ function SourceNotice({ source }) {
      그 상태는 없어졌다 — 사람마다 담당자로 가리킬 값이 언제나 있다(D-285). 그리고 그
      안내가 시키던 절차(관리자에게 연결 요청)는 아무도 수행할 수 없다. */
   return null;
+}
+
+/* 앞으로의 부하 — **요약 한 줄이 먼저, 주별 목록은 접기 안**.
+ *
+ * 예전에는 여덟 줄이 그대로 서 있었고 그중 넷이 「이번 주 · 다음 주 · 2주 뒤 · 3주 뒤」,
+ * 나머지 넷이 「그 이후 · 지난 마감 · 마감 없음」이었다. 문제가 둘이었다.
+ *
+ * 하나. **여덟 줄이 전부 0건이어도 여덟 줄이었다.** 이 카드가 답하는 질문은 「어느 주에
+ * 몰려 있나」인데, 몰린 곳이 없으면 그 답은 한 줄이면 된다. 그림은 답이 있을 때만 필요하다.
+ *
+ * 둘. **주가 아닌 것이 주와 같은 줄에 섞여 있었다.** 「지난 마감」은 이미 지난 일이고
+ * 「마감 없음」은 축 위에 자리가 없다 — 앞의 넷과 나란히 두면 시간축이 있는 목록처럼
+ * 읽히는데 사실은 아니다. 구분선 아래로 내린다.
+ *
+ * 줄은 **라벨 · 값 · 막대 세 칸 고정 트랙**이고 어느 줄도 두 줄이 되지 않는다. 주의 시작
+ * 날짜는 예전에 라벨 아래 자기 줄을 만들었는데, 그 한 줄 때문에 넷 중 둘만 키가 커져
+ * 세로 리듬이 깨졌다 — 툴팁으로 옮긴다. */
+const WEEK_TRACKS = "7rem 3rem minmax(0,1fr)";
+
+function LoadRow({ label, hint, count, peak, tone }) {
+  const pct = peak > 0 ? Math.max(0, Math.min(100, (count / peak) * 100)) : 0;
+  return (
+    <Box sx={{ display: "grid", gridTemplateColumns: WEEK_TRACKS, columnGap: 1.5, alignItems: "center" }}>
+      <Typography
+        variant="caption"
+        title={hint || undefined}
+        sx={{
+          fontWeight: count ? FONT_WEIGHT.semibold : FONT_WEIGHT.regular,
+          color: count ? "text.primary" : "text.secondary",
+          minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+        }}
+      >
+        {label}
+      </Typography>
+      <Typography
+        variant="caption"
+        color={count ? "text.primary" : "text.secondary"}
+        sx={{ textAlign: "center", ...NUMERIC }}
+      >
+        {count}건
+      </Typography>
+      <Box aria-hidden="true" sx={{ height: 8, borderRadius: "999px", bgcolor: "background.sunken", overflow: "hidden" }}>
+        {pct > 0 ? (
+          <Box sx={{ height: "100%", width: `${pct}%`, borderRadius: "999px", bgcolor: tone === "error" ? "error.main" : "primary.main" }} />
+        ) : null}
+      </Box>
+    </Box>
+  );
+}
+
+function WeeklyLoad({ load }) {
+  const [open, setOpen] = React.useState(false);
+  const weeks = load.by_week || [];
+  const extra = load.by_week_extra || {};
+  const later = (extra.later && extra.later.count) || 0;
+  const overdue = (extra.overdue && extra.overdue.count) || 0;
+  const noDue = (extra.no_due && extra.no_due.count) || 0;
+  const soon = weeks.reduce((a, w) => a + (w.count || 0), 0);
+  const peak = Math.max(1, ...weeks.map((w) => w.count || 0), later, overdue, noDue);
+  const span = weeks.length ? `${weeks[0].label}부터 ${weeks[weeks.length - 1].label}까지` : "앞으로";
+
+  return (
+    <Box sx={{ display: "grid", rowGap: 1.75, minWidth: 0 }}>
+      {/* 요약 — 마스코트는 크기를 손으로 적지 않고 `mascotBoxPx` 를 지난다(자산마다 잉크
+          비율이 달라, 같은 px 로 그리면 어떤 자산은 작아 보인다). */}
+      <Box
+        sx={{
+          display: "grid", gridTemplateColumns: "auto minmax(0,1fr) auto", columnGap: 1.75,
+          alignItems: "center", p: 1.75, borderRadius: `${RADIUS.sm}px`,
+          bgcolor: "background.inset", border: 1, borderColor: "divider",
+        }}
+      >
+        <Box
+          component="img" src={ART.board} alt=""
+          sx={{ width: mascotBoxPx("emptyRegion", ART.board), height: "auto", objectFit: "contain", flexShrink: 0 }}
+        />
+        <Box sx={{ minWidth: 0, display: "grid", rowGap: 0.375 }}>
+          <Typography sx={{ fontSize: FONT_SIZE.body, fontWeight: FONT_WEIGHT.bold, ...KO_WORD_BREAK }}>
+            {`${span} 마감인 티켓이 ${soon}건입니다`}
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ ...KO_WORD_BREAK }}>
+            {later ? `남은 ${later}건은 그 뒤에 마감입니다.` : "그 뒤에 마감인 티켓은 없습니다."}
+          </Typography>
+        </Box>
+        <Button variant="secondary" size="sm" href="#/my-tickets">남은 일 보기</Button>
+      </Box>
+
+      <Box>
+        <Button
+          variant="ghost" size="sm"
+          aria-expanded={open}
+          onClick={() => setOpen((v) => !v)}
+        >
+          {open ? "주별로 접기" : "주별로 펴기"}
+        </Button>
+      </Box>
+
+      {open ? (
+        <Box sx={{ display: "grid", rowGap: 1.25, minWidth: 0 }}>
+          {weeks.map((w) => (
+            <LoadRow key={w.label} label={w.label} hint={`${w.start} 시작`} count={w.count || 0} peak={peak} />
+          ))}
+          <LoadRow label="그 이후" count={later} peak={peak} />
+          {/* 🔴 아래 둘은 **주가 아니다.** 지난 마감은 이미 지난 일이고 마감 없음은 축 위에
+              자리가 없다 — 위 넷과 나란히 두면 시간축 위의 값처럼 읽힌다. */}
+          <Box sx={{ mt: 0.75, pt: 1.75, borderTop: 1, borderColor: (t) => t.palette.rule, display: "grid", rowGap: 1.25 }}>
+            <LoadRow label="지난 마감" count={overdue} peak={peak} tone="error" />
+            <LoadRow label="마감 없음" count={noDue} peak={peak} />
+          </Box>
+        </Box>
+      ) : null}
+    </Box>
+  );
 }
 
 export function MyStats() {
@@ -195,11 +311,11 @@ export function MyStats() {
                       서므로 그 달 하나만 「배정 없음」이라고 말하고 옆 달에 선을 긋지 않는다.
                       기준을 100 으로 못박아 「가장 큰 값이 꽉 찬 막대」가 되지 않게 한다 —
                       완료율은 서로 비교할 값이 아니라 그 자체가 절대값이다. */}
-                  <BarSeries
+                  <ColumnSeries
                     question="달마다 완료율이 어떠했는지 봅니다. 배정이 없던 달은 값이 «-» 이고, 그 달의 정확한 건수는 아래 표가 답합니다."
                     items={data.months.map((m) => (m.completion_rate == null
-                      ? { label: m.month.slice(2), value: 0, color: "neutral", valueText: "-" }
-                      : { label: m.month.slice(2), value: Math.round(m.completion_rate * 100) }))}
+                      ? { key: m.month, label: m.month.slice(2), value: 0, valueText: "-", hint: m.month }
+                      : { key: m.month, label: m.month.slice(2), value: Math.round(m.completion_rate * 100), hint: m.month }))}
                     max={100}
                     unit="%"
                     emptyLabel="집계할 달이 없습니다"
@@ -237,19 +353,7 @@ export function MyStats() {
                     title="앞으로의 부하(주별)"
                     help="아직 끝나지 않은 티켓만 셉니다. 끝난 일은 부하가 아닙니다."
                   />
-                  <BarSeries
-                    question="다음 몇 주 가운데 어느 주에 일이 몰려 있는지 봅니다."
-                    items={[
-                      ...load.by_week.map((w) => ({
-                        label: w.label, value: w.count, note: `${w.start}~`,
-                      })),
-                      { label: "그 이후", value: load.by_week_extra.later.count, color: "neutral" },
-                      { label: "지난 마감", value: load.by_week_extra.overdue.count, color: "error" },
-                      { label: "마감 없음", value: load.by_week_extra.no_due.count, color: "neutral" },
-                    ]}
-                    unit="건"
-                    emptyLabel="남은 일이 없습니다"
-                  />
+                  <WeeklyLoad load={load} />
                 </Card>
               </Box>
 
@@ -276,13 +380,16 @@ export function MyStats() {
                        이라 그대로 그리면 이 화면만 영문이 된다 — 티켓 목록과 상세는 이미
                        `priorityKo` 를 지난다. 같은 값이 화면마다 다른 낱말로 보이면 안 된다. */
                     items={load.by_priority.map((p) => ({ label: priorityKo(p.name), value: p.count }))}
+                    /* 라벨 칸을 못박는다 — 오른쪽 레일에 목록이 셋 나란히 서므로, 칸이
+                       목록마다 다른 폭이면 값과 막대의 시작선이 세로로 어긋난다. */
+                    tracks="4.5rem 2.5rem minmax(0,1fr)"
                     unit="건"
                     emptyLabel="남은 일이 없습니다"
                   />
                 </Card>
                 <Card>
                   <SectionTitle component="h2" title="공수(WD)" help="예상 공수는 남은 일 기준, 실제 공수는 완료한 일 기준입니다." />
-                  <Box sx={{ display: "grid", gap: 1 }}>
+                  <Box sx={{ display: "grid" }}>
                     {[
                       ["남은 예상 공수", load.est_wd_active],
                       ["그중 지연분", load.est_wd_overdue],
@@ -290,18 +397,22 @@ export function MyStats() {
                       ["완료한 일의 실제 공수", load.act_wd_done],
                     ].map(([label, value]) => (
                       /* 판 **안쪽**을 나누는 실선은 판을 두르는 선보다 한 단 여리다(`rule`).
-                         값은 자릿수를 고정해 네 줄이 세로로 맞선다. */
+                         선을 각 줄 **위**에 둔다 — 아래에 두면 마지막 줄 밑에 선이 하나 남아
+                         판의 테두리와 겹쳐 두 줄로 보인다(표가 같은 이유로 마지막 행의 아래
+                         선을 지운다). 값은 자릿수를 고정해 네 줄이 세로로 맞선다. */
                       <Box
                         key={label}
                         sx={{
-                          display: "flex", justifyContent: "space-between", gap: 2, py: 0.75,
-                          borderBottom: 1,
+                          display: "flex", alignItems: "center", gap: 1.25, py: 1.25,
+                          borderTop: 1,
                           borderColor: (t) => t.palette.rule,
-                          "&:last-of-type": { borderBottom: 0 },
                         }}
                       >
-                        <Typography variant="body2" color="text.secondary">{label}</Typography>
-                        <Typography sx={{ fontWeight: FONT_WEIGHT.bold, ...NUMERIC }}>{value} WD</Typography>
+                        <Typography variant="body2" sx={{ minWidth: 0, ...KO_WORD_BREAK }}>{label}</Typography>
+                        <Box sx={{ flex: 1 }} />
+                        <Typography sx={{ fontSize: FONT_SIZE.body, fontWeight: FONT_WEIGHT.bold, whiteSpace: "nowrap", ...NUMERIC }}>
+                          {value} WD
+                        </Typography>
                       </Box>
                     ))}
                   </Box>

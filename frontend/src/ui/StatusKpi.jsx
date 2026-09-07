@@ -355,39 +355,49 @@ export function StatusSummaryCard({
         ...sx,
       }}
     >
-      <Box sx={{ display: "flex", alignItems: "baseline", flexWrap: "wrap", gap: 1.25 }}>
-        {title ? (
-          <Typography component="span" sx={{ fontSize: FONT_SIZE.body, fontWeight: FONT_WEIGHT.bold, ...KO_KEEP }}>
-            {title}
-          </Typography>
-        ) : null}
-        {Number.isFinite(sum) ? (
-          <>
-            <Typography component="span" sx={{ fontSize: FONT_SIZE.title, fontWeight: FONT_WEIGHT.extrabold, lineHeight: 1.1, ...NUMERIC }}>
-              {total}
+      {/* 머리 줄은 **두 덩어리**다 — 왼쪽은 이 카드가 무엇을 세는가, 오른쪽은 그 안에서
+          지금 위험한 것과 한 장으로 요약한 그림. 예전에는 위험 칩과 `action` 이 왼쪽 글과
+          같은 flex 줄의 형제라, 좁아지면 그림이 칩 사이로 끼어들어 서로 겹쳐 읽혔다.
+          오른쪽을 한 덩어리로 묶으면 접힐 때도 그 둘이 함께 내려간다.
+          세로 정렬이 `center` 인 이유: 오른쪽 덩어리는 글이 아니라 그림이라 글자 기준선
+          (`baseline`)에 걸 것이 없다 — 걸면 링이 위로 떠서 아래 칩 줄과 겹친다. */}
+      <Box sx={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 1.5 }}>
+        <Box sx={{ display: "flex", alignItems: "baseline", flexWrap: "wrap", gap: 1, minWidth: 0 }}>
+          {title ? (
+            <Typography component="span" sx={{ fontSize: FONT_SIZE.body, fontWeight: FONT_WEIGHT.bold, ...KO_KEEP }}>
+              {title}
             </Typography>
-            <Typography component="span" sx={{ fontSize: FONT_SIZE.bodySm, fontWeight: FONT_WEIGHT.semibold }}>
-              {totalLabel}
-            </Typography>
-          </>
-        ) : null}
-        {help ? (
-          <Typography component="span" variant="caption" color="text.secondary" sx={{ ...KO_KEEP }}>{help}</Typography>
-        ) : null}
+          ) : null}
+          {Number.isFinite(sum) ? (
+            <>
+              <Typography component="span" sx={{ fontSize: FONT_SIZE.pageTitle, fontWeight: FONT_WEIGHT.bold, lineHeight: 1, ...NUMERIC }}>
+                {total}
+              </Typography>
+              <Typography component="span" sx={{ fontSize: FONT_SIZE.bodySm, fontWeight: FONT_WEIGHT.semibold }}>
+                {totalLabel}
+              </Typography>
+            </>
+          ) : null}
+          {help ? (
+            <Typography component="span" variant="caption" color="text.secondary" sx={{ ...KO_KEEP }}>{help}</Typography>
+          ) : null}
+        </Box>
         <Box sx={{ flex: 1 }} />
-        {/* 위험 요약 — 머리 오른쪽. 값이 0 인 신호는 안 세운다(누를 것이 없는 단추다). */}
-        {riskList.filter((it) => it.n > 0).map((it) => (
-          <StatusChip
-            key={it.key || it.label}
-            label={it.label}
-            value={it.value}
-            accent={it.accent}
-            onClick={it.onClick || (riskSelectable && it.key ? () => onRiskSelect(it.key) : undefined)}
-            selected={it.key != null && riskValue != null ? it.key === riskValue : undefined}
-            ariaLabel={it.ariaLabel}
-          />
-        ))}
-        {action}
+        <Box sx={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 1.25, minWidth: 0 }}>
+          {/* 위험 요약. 값이 0 인 신호는 안 세운다(누를 것이 없는 단추다). */}
+          {riskList.filter((it) => it.n > 0).map((it) => (
+            <StatusChip
+              key={it.key || it.label}
+              label={it.label}
+              value={it.value}
+              accent={it.accent}
+              onClick={it.onClick || (riskSelectable && it.key ? () => onRiskSelect(it.key) : undefined)}
+              selected={it.key != null && riskValue != null ? it.key === riskValue : undefined}
+              ariaLabel={it.ariaLabel}
+            />
+          ))}
+          {action}
+        </Box>
       </Box>
       <RatioBar parts={filled.filter((it) => it.n > 0)} total={whole} />
       <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>

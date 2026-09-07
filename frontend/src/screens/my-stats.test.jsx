@@ -231,6 +231,50 @@ describe("내 업무량 · 완료 통계", () => {
     expect(screen.getAllByText("-").length).toBeGreaterThanOrEqual(2);
   });
 
+  /* 앞으로의 부하 — **요약 한 줄이 먼저, 주별 목록은 접기 안**.
+   *
+   * 예전에는 여덟 줄이 그대로 서 있었고 전부 0건이어도 여덟 줄이었다. 이 카드가 답하는
+   * 질문은 「어느 주에 몰려 있나」인데, 몰린 곳이 없으면 그 답은 한 줄이면 된다. */
+  it("주별 목록은 접혀 있고 요약 한 줄이 먼저 답한다", async () => {
+    apiMock.mockResolvedValue(stats());
+    renderStats();
+    expect(await screen.findByText(/마감인 티켓이 .*건입니다/)).toBeInTheDocument();
+    // 접혀 있으니 주 이름이 아직 없다.
+    expect(screen.queryByText("이번 주")).toBeNull();
+    expect(screen.getByRole("button", { name: "주별로 펴기" })).toBeInTheDocument();
+  });
+
+  it("펴면 주별 줄이 서고, 주가 아닌 둘은 구분선 아래로 내려간다", async () => {
+    apiMock.mockResolvedValue(stats());
+    renderStats();
+    await screen.findByText(/마감인 티켓이 .*건입니다/);
+    await userEvent.click(screen.getByRole("button", { name: "주별로 펴기" }));
+
+    expect(screen.getByText("이번 주")).toBeInTheDocument();
+    /* 🔴 「지난 마감」은 이미 지난 일이고 「마감 없음」은 축 위에 자리가 없다 — 주와 나란히
+       두면 시간축 위의 값처럼 읽힌다. 둘이 실선 아래의 다른 묶음에 있는지를 잰다. */
+    const past = screen.getByText("지난 마감").closest("div").parentElement;
+    expect(past).toContainElement(screen.getByText("마감 없음"));
+    expect(past).not.toContainElement(screen.getByText("이번 주"));
+    // 다시 누르면 접힌다.
+    await userEvent.click(screen.getByRole("button", { name: "주별로 접기" }));
+    expect(screen.queryByText("이번 주")).toBeNull();
+  });
+
+  /* 라벨은 **한 줄 고정 트랙**이다. 예전에는 주의 시작 날짜가 라벨 아래 자기 줄을 만들어
+     넷 중 둘만 키가 커졌고, 그래서 막대들의 세로 리듬이 깨졌다. */
+  it("주의 시작 날짜는 줄을 만들지 않고 툴팁으로 남는다", async () => {
+    apiMock.mockResolvedValue(stats());
+    renderStats();
+    await screen.findByText(/마감인 티켓이 .*건입니다/);
+    await userEvent.click(screen.getByRole("button", { name: "주별로 펴기" }));
+
+    const label = screen.getByText("이번 주");
+    expect(label).toHaveAttribute("title");
+    expect(label.getAttribute("title")).toMatch(/시작$/);
+    expect(getComputedStyle(label).whiteSpace).toBe("nowrap");
+  });
+
   it("옛 sync 블록이 error 로 되돌아와도 미러 안내를 안 그린다", async () => {
     /* 예전에는 이 시험이 반대를 단언했다: 실패하면 "마지막 정상 데이터를 보고 있습니다"
        를 보여 준다. 서버가 sync 블록을 더 이상 안 싣는다 — 티켓 표가 이 서버의 정본이라

@@ -67,7 +67,7 @@ function BarRow({ pct, fill, track, grown }) {
 
 export function BarSeries({
   items, color, max, unit = "", emptyLabel = "데이터 없음", formatValue, relativeNote,
-  question, revealKey,
+  question, revealKey, tracks,
 }) {
   const theme = useTheme();
   const track = useTrackColor();
@@ -93,7 +93,10 @@ export function BarSeries({
   const grid = (
     <Box sx={{
       display: "grid", alignItems: "center", columnGap: 1.5, rowGap: 1.25,
-      gridTemplateColumns: {
+      /* 호출부가 트랙을 못박을 수 있다(`tracks`). 좁은 레일에 여러 목록이 나란히 설 때
+         라벨 칸이 목록마다 다른 폭이면 값과 막대의 시작선이 어긋난다 — 그때는 화면이
+         「이 화면의 라벨 칸은 이만큼이다」를 한 번 정하는 편이 낫다. 안 주면 예전과 같다. */
+      gridTemplateColumns: tracks || {
         xs: "minmax(0, 6rem) auto minmax(0, 1fr)",
         sm: "minmax(0, 9rem) auto minmax(0, 1fr)",
         xxl: "minmax(0, 12rem) auto minmax(0, 1fr)",
@@ -110,7 +113,7 @@ export function BarSeries({
                 전체 이름은 title로 남긴다. */}
             <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, minWidth: 0 }}>
               <Typography
-                variant="body2" title={r.label}
+                variant="body2" title={r.hint || r.label}
                 sx={{ fontWeight: FONT_WEIGHT.bold, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
               >
                 {r.label}

@@ -5,7 +5,7 @@ import { useTheme } from "@mui/material/styles";
 import { ChartNoData, ChartQuestion, capSeries, CHART_MOTION, resolveChartColor, useTrackColor } from "./base.jsx";
 import { baseOption, useEChart } from "./useEChart.js";
 import { useRevealOnce } from "../motion.js";
-import { FONT_WEIGHT, KO_WORD_BREAK } from "../theme.js";
+import { FONT_WEIGHT, NUMERIC } from "../theme.js";
 
 /* 도넛 — 전체가 무엇으로 이루어져 있는지(구성비)를 보여준다 (REAUDIT §15.2 — ECharts 재구현).
  * 크기 비교는 BarSeries가 낫다.
@@ -58,6 +58,20 @@ export function donutOption({ arcs, missing, thickness, size, trackColor, drawn,
     ],
   };
 }
+
+/* 범례 한 줄 — **점 · 낱말 · 건수 · 비율** 네 칸 고정 격자.
+ *
+ * 예전에는 넷이 한 문장으로 흘렀다(「검증 5건 (26%)」). 그러면 낱말 길이에 따라 건수와
+ * 비율의 시작점이 줄마다 달라져, 세로로 훑으며 크기를 견주는 일이 안 된다 — 범례가
+ * 존재하는 이유가 그 비교인데. 낱말 칸만 늘어나고 나머지 셋은 자기 자리를 지킨다. */
+const LEGEND_ROW = {
+  display: "grid", gridTemplateColumns: "auto minmax(0,1fr) auto auto",
+  columnGap: 1, alignItems: "center", minWidth: 0,
+};
+const LEGEND_DOT = { width: 7, height: 7, borderRadius: "999px", flex: "0 0 auto" };
+const LEGEND_LABEL = { minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
+const LEGEND_VALUE = { fontWeight: FONT_WEIGHT.bold, whiteSpace: "nowrap", ...NUMERIC };
+const LEGEND_PCT = { width: "2.75rem", textAlign: "end", whiteSpace: "nowrap", ...NUMERIC };
 
 export function Donut({
   segments, size = "9rem", unit = "", centerLabel, emptyLabel = "데이터 없음", thickness = 5,
@@ -122,29 +136,27 @@ export function Donut({
       </Box>
       <Box component="ul" sx={{ listStyle: "none", m: 0, p: 0, display: "grid", gap: 0.5, minWidth: 0 }}>
         {rows.map((s, i) => (
-          <Box component="li" key={s.label} sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0 }}>
-            {/* 색 조각은 장식이다(aria-hidden). 옆의 글자만으로도 뜻이 완전해야 한다(WCAG 1.4.1). */}
-            <Box
-              aria-hidden="true"
-              sx={{ width: "0.75rem", height: "0.75rem", borderRadius: 0.5, flex: "0 0 auto", bgcolor: arcs[i].color }}
-            />
-            <Typography variant="body2" sx={{ minWidth: 0, ...KO_WORD_BREAK }}>
-              {s.label} <Box component="span" sx={{ fontWeight: FONT_WEIGHT.extrabold, fontVariantNumeric: "tabular-nums" }}>{s.value}{unit}</Box>
-              <Box component="span" sx={{ color: "text.secondary" }}> ({Math.round((s.value / total) * 100)}%)</Box>
+          <Box component="li" key={s.label} sx={LEGEND_ROW}>
+            {/* 색 조각은 장식이다(aria-hidden). 옆의 글자만으로도 뜻이 완전해야 한다(WCAG 1.4.1).
+                모양은 **7px 점**이다 — 이 제품에서 색을 나르는 자리는 전부 그 점이다(배지·
+                상태 칩·KPI). 범례만 네모면 같은 색이 두 모양으로 나온다. */}
+            <Box aria-hidden="true" sx={{ ...LEGEND_DOT, bgcolor: arcs[i].color }} />
+            <Typography variant="body2" color="text.secondary" sx={LEGEND_LABEL}>{s.label}</Typography>
+            <Typography variant="body2" sx={LEGEND_VALUE}>{s.value}{unit}</Typography>
+            <Typography variant="body2" color="text.secondary" sx={LEGEND_PCT}>
+              ({Math.round((s.value / total) * 100)}%)
             </Typography>
           </Box>
         ))}
         {/* 모수와 조각 합이 다르면 그 차이를 **말한다**. 링의 빈 호는 트랙 색으로 이미 보이지만,
             그것을 글자로 말하지 않으면 도넛을 못 보는 사람에게는 없는 사실이 된다. */}
         {missing > 0 ? (
-          <Box component="li" sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0 }}>
-            <Box
-              aria-hidden="true"
-              sx={{ width: "0.75rem", height: "0.75rem", borderRadius: 0.5, flex: "0 0 auto", bgcolor: track }}
-            />
-            <Typography variant="body2" color="text.secondary" sx={{ minWidth: 0, ...KO_WORD_BREAK }}>
-              분류 없음 <Box component="span" sx={{ fontWeight: FONT_WEIGHT.extrabold, fontVariantNumeric: "tabular-nums" }}>{missing}{unit}</Box>
-              <Box component="span"> ({Math.round((missing / total) * 100)}%)</Box>
+          <Box component="li" sx={LEGEND_ROW}>
+            <Box aria-hidden="true" sx={{ ...LEGEND_DOT, bgcolor: track }} />
+            <Typography variant="body2" color="text.secondary" sx={LEGEND_LABEL}>분류 없음</Typography>
+            <Typography variant="body2" color="text.secondary" sx={LEGEND_VALUE}>{missing}{unit}</Typography>
+            <Typography variant="body2" color="text.secondary" sx={LEGEND_PCT}>
+              ({Math.round((missing / total) * 100)}%)
             </Typography>
           </Box>
         ) : null}
