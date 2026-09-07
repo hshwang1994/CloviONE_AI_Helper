@@ -136,6 +136,66 @@ describe("심각도를 색만으로 전하지 않는다 (WCAG 1.4.1)", () => {
     expect(screen.getByText("연결이 끊어졌습니다")).toBeInTheDocument();
   });
 
+  /* 하나의 박스, 아이콘만 다르다 — 확정된 메시지 박스 규약.
+   *
+   * 예전에는 톤마다 앞머리 실선(2px)과 바탕(`*.bg`)이 달라 같은 목적의 상자가 화면마다
+   * 네 가지 무게로 나타났다. 「무게가 같아졌다」는 눈으로만 확인할 수 있는 사실이 아니다 —
+   * 네 톤의 계산된 면과 테두리가 실제로 한 값인지 잰다. */
+  describe("메시지 박스 — 넷이 같은 상자다", () => {
+    const TONES = ["info", "success", "warn", "danger"];
+
+    it("네 톤의 면·테두리·모서리가 한 값이다", () => {
+      const seen = TONES.map((tone) => {
+        const { container, unmount } = ui(<Callout tone={tone}>본문</Callout>);
+        const box = container.querySelector(".k-callout");
+        const s = getComputedStyle(box);
+        const got = {
+          bg: s.backgroundColor,
+          border: `${s.borderTopWidth} ${s.borderTopStyle} ${s.borderTopColor}`,
+          radius: s.borderTopLeftRadius,
+          // 앞머리 컬러 바가 남아 있으면 이 값이 톤마다 갈린다.
+          rail: `${s.borderInlineStartWidth} ${s.borderInlineStartColor}`,
+        };
+        unmount();
+        return got;
+      });
+      for (const key of ["bg", "border", "radius", "rail"]) {
+        expect(new Set(seen.map((v) => v[key])).size, key).toBe(1);
+      }
+      // 그리고 그 테두리는 실제로 그려진다(0px 이 넷 다 같은 것으로 통과하지 않게).
+      expect(seen[0].border).toMatch(/^1px solid /);
+    });
+
+    it("오류만 alert 이고 나머지는 status 다", () => {
+      const { unmount } = ui(<Callout tone="danger">끊겼습니다</Callout>);
+      expect(screen.getByRole("alert")).toBeInTheDocument();
+      unmount();
+      for (const tone of ["info", "success", "warn"]) {
+        const r = ui(<Callout tone={tone}>알립니다</Callout>);
+        expect(screen.getByRole("status"), tone).toBeInTheDocument();
+        r.unmount();
+      }
+    });
+
+    it("목록 안에 놓이면 호출부가 role 을 정한다 — 그래야 목록이 안 깨진다", () => {
+      ui(<Callout tone="warn" role="listitem">알림 하나</Callout>);
+      expect(screen.getByRole("listitem")).toBeInTheDocument();
+      expect(screen.queryByRole("status")).toBeNull();
+    });
+
+    it("동작은 글의 오른쪽 칸에 선다 — 상자가 대개 한 줄이기 때문이다", () => {
+      const { container } = ui(
+        <Callout tone="warn" action={<button type="button">닫기</button>}>알림 하나</Callout>,
+      );
+      const box = container.querySelector(".k-callout");
+      expect(getComputedStyle(box).gridTemplateColumns).toBe("auto minmax(0,1fr) auto");
+      // 동작이 없으면 그 칸 자체가 없다 — 빈 트랙이 글 폭을 먹지 않는다.
+      const plain = ui(<Callout tone="warn">알림 하나</Callout>);
+      expect(getComputedStyle(plain.container.querySelector(".k-callout")).gridTemplateColumns)
+        .toBe("auto minmax(0,1fr)");
+    });
+  });
+
   /* 아래 둘은 StatCard(카드 한 장 = 지표 하나)가 지키던 계약이다. 그 컴포넌트는
      MetricStrip 으로 대체됐고, 계약은 그대로 옮겨 왔다. */
   it("판독 칸은 위험/주의를 글자로도 표시한다", () => {

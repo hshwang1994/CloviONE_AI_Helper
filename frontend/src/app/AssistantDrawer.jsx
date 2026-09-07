@@ -1,5 +1,4 @@
 import React from "react";
-import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Chip from "@mui/material/Chip";
 import Drawer from "@mui/material/Drawer";
@@ -14,7 +13,7 @@ import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import OpenInFullRoundedIcon from "@mui/icons-material/OpenInFullRounded";
 import SendRoundedIcon from "@mui/icons-material/SendRounded";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Button, Skeleton } from "../ui/kit.jsx";
+import { Button, Callout, Skeleton } from "../ui/kit.jsx";
 import { FONT_SIZE, FONT_WEIGHT, RADIUS } from "../ui/theme.js";
 import { MascotPose } from "../ui/Mascot.jsx";
 import { useChat } from "../screens/useChat.js";
@@ -271,16 +270,16 @@ export function AssistantDrawer({ open, onClose }) {
             공유하는 게 아니라 각자 별도 인스턴스라 서로 안 풀린다) 새로고침 말고는 풀 방법이
             없었다. 같은 배너 + 해제 버튼을 드로어에도 그대로 둔다. */}
         {chat.maintenanceNotice ? (
-          <Alert severity="warning" role="status" sx={{ fontSize: FONT_SIZE.caption, py: 0 }}
+          <Callout tone="warn" compact
             action={<Button size="sm" variant="ghost" onClick={() => chat.setMaintenanceNotice(null)}>다시 시도</Button>}>
             {chat.maintenanceNotice}
-          </Alert>
+          </Callout>
         ) : null}
         {chat.rateLimitNotice ? (
-          <Alert severity="warning" role="status" sx={{ fontSize: FONT_SIZE.caption, py: 0 }}
+          <Callout tone="warn" compact
             action={<Button size="sm" variant="ghost" onClick={() => chat.setRateLimitNotice(null)}>닫기</Button>}>
             {chat.rateLimitNotice}
-          </Alert>
+          </Callout>
         ) : null}
         <Box
           component="form"

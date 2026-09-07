@@ -9,7 +9,7 @@ import Typography from "@mui/material/Typography";
 import ReportProblemRoundedIcon from "@mui/icons-material/ReportProblemRounded";
 import { api } from "../lib/api.js";
 import { fmtDateTime } from "../lib/format.js";
-import { EmptyState } from "../ui/kit.jsx";
+import { Button as KitButton, Callout, EmptyState } from "../ui/kit.jsx";
 import { FONT_SIZE, FONT_WEIGHT } from "../ui/theme.js";
 import { safeExternal } from "../lib/safeUrl.js";
 
@@ -224,41 +224,44 @@ export function useStatusNotices({ enabled = true } = {}) {
   };
 }
 
+/* 알림함의 심각도 셋을 메시지 박스의 톤으로 옮긴다. 낱말은 그대로다 — `LEVEL_LABEL` 이
+   「안내·주의·장애」를 계속 말한다(메시지 박스 기본 낱말의 「오류」로 갈아타지 않는다:
+   서버가 쓰는 말과 화면이 쓰는 말이 갈리면 같은 사실을 다르게 부르게 된다). */
+const NOTICE_TONE = { info: "info", warning: "warn", critical: "danger" };
+
 export function NoticeRow({ notice, onDismiss }) {
+  const dismissible = notice.kind === "sync" || notice.dismissible;
   return (
-    <Box
+    /* 공용 메시지 박스로 그린다 — 이 줄은 오래 자기 마크업이었고, 그래서 같은 목적의
+       상자가 화면마다 다른 무게로 나타나던 자리의 하나였다. 목록 안이라 `listitem` 을
+       그대로 두고(그래야 목록이 안 깨진다) 모서리와 좌우 선을 없애 줄들이 한 기둥으로
+       이어지게 한다. 닫기는 상자의 오른쪽 동작 칸에 선다 — 심각도와 별개로 이 알림이
+       닫을 수 있는 것인지는 서버가 정한다. */
+    <Callout
       role="listitem"
-      sx={{
-        display: "grid", gap: 0.5, px: 2, py: 1.25,
-        borderBottom: 1, borderColor: "divider",
-      }}
+      tone={NOTICE_TONE[notice.level] || "info"}
+      title={`${LEVEL_LABEL[notice.level] || "안내"}: ${notice.message}`}
+      action={dismissible ? (
+        <KitButton size="sm" variant="ghost" onClick={() => onDismiss(notice)}>닫기</KitButton>
+      ) : null}
+      sx={{ borderRadius: 0, borderInline: 0, borderBlockStart: 0 }}
     >
-      <Box sx={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 1 }}>
-        <Typography sx={{ fontSize: FONT_SIZE.bodySm, fontWeight: FONT_WEIGHT.bold }}>
-          {LEVEL_LABEL[notice.level] || "안내"}: {notice.message}
-        </Typography>
-        {notice.kind === "sync" || notice.dismissible ? (
-          <Button size="small" onClick={() => onDismiss(notice)} sx={{ minWidth: "auto", px: 1, flexShrink: 0 }}>
-            닫기
-          </Button>
+      <Box sx={{ display: "grid", gap: 0.5 }}>
+        {notice.body ? <Box component="span">{notice.body}</Box> : null}
+        {notice.since ? (
+          <Box component="span" sx={{ fontSize: FONT_SIZE.caption }}>
+            마지막 정상: {fmtDateTime(notice.since)}
+          </Box>
+        ) : null}
+        {notice.href ? (
+          <Box>
+            <Button size="small" href={notice.href} sx={{ px: 0, fontWeight: FONT_WEIGHT.bold }}>
+              {notice.hrefLabel || "자세히 보기"}
+            </Button>
+          </Box>
         ) : null}
       </Box>
-      {notice.body ? (
-        <Typography sx={{ fontSize: FONT_SIZE.bodySm, color: "text.secondary" }}>{notice.body}</Typography>
-      ) : null}
-      {notice.since ? (
-        <Typography sx={{ fontSize: FONT_SIZE.caption, color: "text.secondary" }}>
-          마지막 정상: {fmtDateTime(notice.since)}
-        </Typography>
-      ) : null}
-      {notice.href ? (
-        <Box>
-          <Button size="small" href={notice.href} sx={{ px: 0, fontWeight: FONT_WEIGHT.bold }}>
-            {notice.hrefLabel || "자세히 보기"}
-          </Button>
-        </Box>
-      ) : null}
-    </Box>
+    </Callout>
   );
 }
 

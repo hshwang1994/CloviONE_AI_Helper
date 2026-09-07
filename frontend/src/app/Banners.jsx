@@ -1,11 +1,6 @@
 import React from "react";
-import Box from "@mui/material/Box";
-import Alert from "@mui/material/Alert";
-import AlertTitle from "@mui/material/AlertTitle";
-import Button from "@mui/material/Button";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useToast } from "../ui/kit.jsx";
-import { FONT_SIZE, FONT_WEIGHT } from "../ui/theme.js";
+import { Button, Callout, useToast } from "../ui/kit.jsx";
 import { api } from "../lib/api.js";
 
 /* 화면 위쪽 띠 — **임퍼소네이션 하나만 남는다** (지시 1·55·67).
@@ -77,26 +72,24 @@ function ImpersonationBanner({ data }) {
     }
   };
 
+  /* 공용 메시지 박스로 그린다 — 이 자리만 MUI `Alert` 를 직접 쓰던 마지막 화면이었다.
+     **자리와 무게는 그대로 둔다**: 카드 밖 전폭이라 모서리를 없애고 아래 실선으로 본문과
+     가른다. 이것은 알림이 아니라 보안 상태 표시라 닫기를 주지 않는다 — `action` 자리에
+     들어가는 것은 「종료」 하나뿐이고, 그것을 눌러야 상태가 실제로 끝난다. */
   return (
-    <Alert
-      severity="warning"
-      variant="filled"
-      role="status"
-      sx={{ borderRadius: 0, alignItems: "center" }}
+    <Callout
+      tone="warn"
+      title={`${data.target_name || data.target_email}님의 화면을 보는 중입니다 (읽기 전용)`}
       action={
-        <Button color="inherit" size="small" onClick={stop} disabled={busy} sx={{ fontWeight: FONT_WEIGHT.extrabold }}>
+        <Button variant="secondary" size="sm" onClick={stop} disabled={busy}>
           {busy ? "종료 중…" : "대리 보기 종료"}
         </Button>
       }
+      sx={{ borderRadius: 0, borderInline: 0, borderBlockStart: 0 }}
     >
-      <AlertTitle sx={{ fontWeight: FONT_WEIGHT.extrabold, mb: 0 }}>
-        {data.target_name || data.target_email}님의 화면을 보는 중입니다 (읽기 전용)
-      </AlertTitle>
-      <Box component="span" sx={{ fontSize: FONT_SIZE.bodySm }}>
-        {data.actor_name}(으)로 로그인한 상태이며, 이 화면에서는 어떤 변경도 저장되지 않습니다.
-        {data.blocked_write_count ? ` 지금까지 차단된 변경 시도 ${data.blocked_write_count}건.` : ""}
-      </Box>
-    </Alert>
+      {data.actor_name}(으)로 로그인한 상태이며, 이 화면에서는 어떤 변경도 저장되지 않습니다.
+      {data.blocked_write_count ? ` 지금까지 차단된 변경 시도 ${data.blocked_write_count}건.` : ""}
+    </Callout>
   );
 }
 

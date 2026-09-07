@@ -147,8 +147,9 @@ export const CONTROL = {
   tableCellDense: 32,
 };
 
-/* 아이콘 크기 — 4개 **역할 이름** 슬롯 (지시 79). 크기가 아니라 쓰임으로 부른다.
+/* 아이콘 크기 — 5개 **역할 이름** 슬롯 (지시 79). 크기가 아니라 쓰임으로 부른다.
  *
+ *   mark    16  글 옆에서 종류를 말하는 표지(메시지 박스의 상태 아이콘)
  *   nav     20  사이드바 글리프 · 팔레트 결과 유형
  *   inline  18  글자 줄 안에 끼는 표지(펼침 화살표 같은 것)
  *   action  20  버튼 안의 글리프
@@ -163,7 +164,7 @@ export const CONTROL = {
  * MUI `SvgIcon` 에는 `size` prop 이 **없다**(`fontSize` 다). `size={18} strokeWidth={1.8}` 는
  * 조용히 무시되는 죽은 prop 이었고 자식 아이콘 24px 가 부모 그룹 20px 보다 크게 나오도록
  * 구현을 오도했다(F-W1R-05). `scripts/check_icon_props.py` 가 그 형태 자체를 금지한다. */
-export const ICON = { nav: 20, inline: 18, action: 20, hero: 24 };
+export const ICON = { mark: 16, inline: 18, nav: 20, action: 20, hero: 24 };
 
 /** px 계약값을 4K 레버가 따라오는 rem 문자열로. 값의 정본은 위 표 하나다. */
 export function remPx(px) { return `${px / 16}rem`; }

@@ -45,7 +45,7 @@ import { maxLengthFor } from "../lib/fieldLimits.js";
 import { apiToKstLocal, kstLocalToApi, objectParticle, topicParticle } from "../lib/format.js";
 import { declaredRowName, rowNameOf } from "./rowName.js";
 import { ANYWHERE_BREAK, OVERFLOW, SHRINK, columnLayoutWidth, planColumnCollapse, planNarrowColumns, resolveColumn, rootFontPx, tableMinWidth } from "./columnTypes.js";
-import { CONTROL, EMPTY_STATE_MAX_CH, ERROR_STATE_MAX_CH, FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, MOTION, NUMERIC, RADIUS, SCROLL_BOX_STICKY_TOP, TABLE_CARD_QUERY, remPx, stickyTopSx } from "./theme.js";
+import { CONTROL, EMPTY_STATE_MAX_CH, ERROR_STATE_MAX_CH, FONT_SIZE, FONT_WEIGHT, ICON, KO_WORD_BREAK, MOTION, NUMERIC, RADIUS, SCROLL_BOX_STICKY_TOP, TABLE_CARD_QUERY, remPx, stickyTopSx } from "./theme.js";
 import { CARD_PADDING, SECTION_GAP } from "./density.js";
 import { EntityCombobox } from "./filters.jsx";
 import { TableHeaderCell } from "./TableHeaderCell.jsx";
@@ -732,8 +732,8 @@ const CALLOUT_ICON = {
 };
 
 export function Callout({
-  tone = "info", variant = "block", title, action,
-  detail, detailLabel = "기술 정보", children, sx,
+  tone = "info", variant = "block", compact = false, title, action,
+  detail, detailLabel = "기술 정보", children, role, sx,
 }) {
   /* 안내 — **큰 외곽선 상자를 기본형으로 쓰지 않는다** (지시 35).
    *
@@ -761,8 +761,6 @@ export function Callout({
   const toneWord = kind === "danger" ? "오류" : kind === "warn" ? "주의" : kind === "success" ? "성공" : "안내";
   const label = title || toneWord;
   const paletteKey = kind === "danger" ? "error" : kind === "warn" ? "warning" : kind === "success" ? "success" : "info";
-  /* `info` 는 여전히 가장 조용하다 — 바탕이 상태색이 아니라 중립면이라는 뜻이다. */
-  const quiet = kind === "info";
   const Icon = CALLOUT_ICON[kind] || InfoOutlinedIcon;
 
   if (variant === "inline") {
@@ -788,61 +786,63 @@ export function Callout({
     <Box
       className="k-callout"
       data-tone={kind}
-      role={kind === "danger" ? "alert" : "note"}
-      /* 앞머리 실선이 이 부품의 **유일한 형태 신호**다. 그런데 `borderInlineStart: 2` 로는
-         한 픽셀도 그려지지 않았다 — MUI 의 border 스타일 함수가 논리 속성을 펴 주지 않아
-         `border-inline-start: 2px` 가 나가고 `border-style` 초기값이 `none` 이기 때문이다.
-         배포본 실측으로 확인한 결함이다(F-W2R-01). style·width·color 를 따로 적는다. */
-      /* 구조는 넷이다 — **아이콘 · 제목 · 본문 · 동작** (지시 20).
+      /* 오류는 지금 끼어들어야 하는 사실이고(`alert`), 나머지는 알리되 흐름을 끊지 않는다
+         (`status` — 암묵적으로 `aria-live="polite"`). 예전에는 오류 아닌 것이 `note` 라
+         낭독기가 새로 나타난 안내를 아예 말하지 않았다.
+         호출부가 덮을 수 있다: **목록 안에 놓이면 `listitem` 이라야** 그 목록이 깨지지 않고,
+         사용자가 스스로 열어 본 목록은 낭독을 따로 할 이유가 없다(알림함이 그렇다). */
+      role={role || (kind === "danger" ? "alert" : "status")}
+      /* **하나의 박스, 아이콘만 다르다.**
        *
-       * 예전에는 라벨과 본문이 한 줄에 붙어 있었고, 그래서 「주의」와 첫 글자 사이가
-       * 문장 안의 낱말 간격도 아니고 줄바꿈도 아닌 어정쩡한 틈으로 보였다. 지금은
-       * 제목이 자기 줄에 서고 본문이 그 **바로 아래**에 붙는다(간격 0.25) — 제목과
-       * 본문은 한 덩어리이므로 그 사이가 아이콘과 글자 사이보다 넓으면 안 된다.
+       * 예전에는 톤마다 앞머리 실선(2px)과 바탕(`*.bg`)이 달랐다. 그래서 같은 목적의
+       * 상자가 화면마다 네 가지 무게로 나타났고, 카드 안에 놓이면 판이 겹쳐 보였다.
+       * 지금은 면·테두리·모서리·여백·글자가 **넷 다 같고** 상태는 아이콘의 모양과 색만
+       * 말한다. 색을 못 봐도 아이콘 모양이 넷을 가르고, 그 위에 짧은 텍스트 라벨이
+       * 언제나 함께 있다(WCAG 1.4.1).
        *
-       * 격자는 `auto 1fr` 이다. 아이콘 칸이 고정이라 본문이 여러 줄이어도 둘째 줄부터의
-       * 왼쪽 모서리가 제목과 맞는다 — 아이콘 아래로 글자가 흘러 들어가지 않는다. */
-      /* 🔴 `info` 의 바탕이 **중립면**이다. 예전에는 투명이었는데, 그 톤의 앞머리 실선이
-         `info.main`(#1F5FBF)이고 그것이 Brand(#4C58C8)와 가까워서 안내가 본문 위의
-         Brand 강조처럼 읽혔다 — 사용자가 회차 머리를 보고 「안내 영역인데 본문과 구분이
-         안 된다」고 한 자리다. 색을 바꾸는 대신 **면을 준다**: 중립 함몰면 위에 실선과
-         아이콘만 톤을 말하면, 의미는 남고 Brand 와 겹치지 않는다. */
+       * 격자는 `auto minmax(0,1fr) auto` 다 — 아이콘 · 글 · 오른쪽 동작. 동작이 오른쪽
+       * 칸에 서는 것은 이 상자가 대개 한 줄이기 때문이다(닫기·다시 시도·자세히 보기).
+       * 글이 여러 줄이면 동작은 첫 줄 옆에 붙는다(`align-items: start`).
+       * `minmax(0,1fr)` 이 글 칸의 바닥을 0 으로 열어 두므로 동작이 넓어도 글이 안 밀린다. */
       sx={(t) => ({
-        display: "grid", gridTemplateColumns: "auto 1fr", columnGap: 1, rowGap: 0.75,
+        display: "grid",
+        gridTemplateColumns: action ? "auto minmax(0,1fr) auto" : "auto minmax(0,1fr)",
+        columnGap: compact ? 1 : 1.25,
         alignItems: "start",
-        px: 1.5, py: 1.25, borderRadius: `${RADIUS.sm}px`,
-        borderInlineStartStyle: "solid",
-        borderInlineStartWidth: "2px",
-        borderInlineStartColor: t.palette[paletteKey].main,
-        bgcolor: quiet ? "background.inset" : `${paletteKey}.bg`,
-        fontSize: FONT_SIZE.body,
+        px: compact ? 1.25 : 1.75,
+        py: compact ? 0.875 : 1.5,
+        borderRadius: `${RADIUS.sm}px`,
+        border: `1px solid ${t.palette.divider}`,
+        bgcolor: "background.inset",
+        fontSize: compact ? FONT_SIZE.caption : FONT_SIZE.body,
         ...KO_WORD_BREAK,
         ...(typeof sx === "function" ? sx(t) : sx),
       })}
     >
+      {/* 아이콘은 크기와 `margin-top` 을 고정한다 — 첫 줄과의 광학 정렬 값을 상자마다
+          새로 만들지 않는다. 색만 상태를 말하는 **유일한** 자리다. */}
       <Icon
         aria-hidden="true"
-        fontSize="small"
-        sx={{ color: `${paletteKey}.main`, mt: "0.125rem" }}
+        sx={{ flexShrink: 0, fontSize: remPx(ICON.mark), color: `${paletteKey}.main`, mt: "0.1875rem" }}
       />
       <Box sx={{ minWidth: 0, display: "grid", rowGap: 0.25 }}>
         <Box
           component="span"
           sx={{
-            fontWeight: FONT_WEIGHT.semibold, color: `${paletteKey}.strong`,
-            fontSize: FONT_SIZE.bodySm,
+            fontWeight: FONT_WEIGHT.semibold, color: "text.primary",
+            fontSize: compact ? FONT_SIZE.caption : FONT_SIZE.body,
           }}
         >
           {label}
         </Box>
-        <Box component="span" className="k-callout-body" sx={{ minWidth: 0 }}>{children}</Box>
+        {/* 본문은 보조 잉크다 — 제목과 본문의 색이 갈려야 둘이 한 덩어리로 안 뭉친다.
+            상태별 색 변화는 없다(그것은 아이콘의 일이다). */}
+        <Box component="span" className="k-callout-body" sx={{ minWidth: 0, color: "text.secondary" }}>{children}</Box>
         <TechDetail label={detailLabel}>{detail}</TechDetail>
-        {action ? (
-          /* 동작은 본문 아래 한 줄이다. 오른쪽 끝으로 밀지 않는다 — 읽은 자리에서 바로
-             누르는 것이 이 부품의 뜻이고, 넓은 화면에서 오른쪽 끝에 두면 글에서 멀어진다. */
-          <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", mt: 0.5 }}>{action}</Box>
-        ) : null}
       </Box>
+      {action ? (
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexShrink: 0 }}>{action}</Box>
+      ) : null}
     </Box>
   );
 }
