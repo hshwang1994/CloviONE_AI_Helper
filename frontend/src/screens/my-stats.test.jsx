@@ -42,7 +42,10 @@ function stats(over = {}) {
     workload: {
       est_wd_active: 6.5, est_wd_overdue: 2, act_wd_done: 2, est_wd_done: 1.5,
       by_status: [{ name: "진행", count: 3, est_wd: 3 }, { name: "완료", count: 1, est_wd: 1.5 }],
-      by_priority: [{ name: "높음", count: 2, est_wd: 2 }],
+      by_priority: [
+        { name: "높음", count: 2, est_wd: 2, overdue: 1 },
+        { name: "보통", count: 2, est_wd: 1, overdue: 0 },
+      ],
       by_week: [
         { start: "2026-08-03", end_exclusive: "2026-08-10", label: "이번 주", count: 1, est_wd: 1 },
         { start: "2026-08-10", end_exclusive: "2026-08-17", label: "다음 주", count: 1, est_wd: 3 },
@@ -211,6 +214,25 @@ describe("내 업무량 · 완료 통계", () => {
     }
   });
 
+  /* 🔴 완료율은 **해낸 것**을 세고 지연은 **위태로운 것**을 센다. 링 옆에 나란히 서 있던
+     동안 그 둘이 한 덩어리로 읽혔다 — 위험 칩은 아래 칩 줄로 내리고, 부분 셋과는 구분
+     간격을 사이에 둔다. 머리 오른쪽에는 링과 그 이름만 남는다. */
+  it("완료율 링 옆에 위험 칩이 서지 않는다 — 성과와 위험은 다른 축이다", async () => {
+    apiMock.mockResolvedValue(stats());
+    renderStats();
+    const card = await screen.findByRole("group", { name: "내 업무량" });
+
+    const parts = card.querySelector('[data-chip-group="parts"]');
+    const risks = card.querySelector('[data-chip-group="risks"]');
+    expect(risks).not.toBeNull();
+    // 지연은 칩 줄에 있고, 부분 묶음 밖이다.
+    const overdue = within(risks).getByText("지연");
+    expect(parts).not.toContainElement(overdue);
+    // 링과 그 이름은 칩 줄이 아니라 머리에 남는다.
+    const rate = within(card).getByText("완료율(취소 제외)");
+    expect(card.querySelector("[data-chip-row]")).not.toContainElement(rate);
+  });
+
   /* 선이 아니라 막대다 — 선은 점과 점 사이를 이어 「그 사이에도 값이 있었다」고 말한다. */
   it("배정이 없던 달은 0% 가 아니라 그 사실을 말한다", async () => {
     apiMock.mockResolvedValue(stats({
@@ -245,6 +267,58 @@ describe("내 업무량 · 완료 통계", () => {
     // 접혀 있으니 주 이름이 아직 없다.
     expect(screen.queryByText("이번 주")).toBeNull();
     expect(screen.getByRole("button", { name: "주별로 펴기" })).toBeInTheDocument();
+  });
+
+  /* 손잡이가 요약에서 떨어져 카드 맨 아래 왼쪽에 글자만 남으면 무엇을 펴는 단추인지가
+     사라진다 — 그 자리에서는 카드 전체를 접는 것처럼도 읽힌다. 삼각 표시가 「여기가
+     펴진다」를 모양으로 말하고, 방향이 지금 상태를 말한다. */
+  it("접기 손잡이는 삼각 표시를 달고 방향으로 지금 상태를 말한다", async () => {
+    apiMock.mockResolvedValue(stats());
+    renderStats();
+    await screen.findByText(/마감인 티켓이 .*건입니다/);
+
+    const closed = screen.getByRole("button", { name: "주별로 펴기" });
+    const mark = closed.querySelector("[data-fold-mark]");
+    expect(mark).not.toBeNull();
+    // 같은 사실을 낭독기가 두 번 듣지 않는다 — `aria-expanded` 가 이미 말한다.
+    expect(mark).toHaveAttribute("aria-hidden", "true");
+    expect(closed).toHaveAttribute("aria-expanded", "false");
+    expect(getComputedStyle(mark).transform).toBe("none");
+
+    await userEvent.click(closed);
+    const open = screen.getByRole("button", { name: "주별로 접기" });
+    expect(open).toHaveAttribute("aria-expanded", "true");
+    expect(getComputedStyle(open.querySelector("[data-fold-mark]")).transform).toBe("rotate(90deg)");
+  });
+
+  /* 🔴 셋이 5건·5건·4건이면 상대 비교라 막대가 거의 다 찬다. 거기에 색까지 셋이면 그림이
+     「전부 중요하다」고 말하는데 그것은 아무 말도 안 한 것과 같다. 길이는 얼마나 쌓였는지를
+     말하고, 색은 그중 어디에 지연이 걸렸는지만 말한다. 색만으로 뜻을 나르지 않도록 그
+     줄에는 문장이 함께 선다(WCAG 1.4.1). */
+  it("우선순위 막대는 지연이 걸린 칸만 색과 문장을 갖는다", async () => {
+    apiMock.mockResolvedValue(stats());
+    renderStats();
+    await screen.findByText("남은 일의 우선순위");
+
+    expect(screen.getByText("이 가운데 1건이 지연입니다.")).toBeInTheDocument();
+    // 지연이 없는 칸은 문장도 없다 — 뜻이 없으면 색도 없다.
+    expect(screen.queryByText(/0건이 지연입니다/)).toBeNull();
+    expect(screen.getAllByText(/지연입니다\.$/)).toHaveLength(1);
+  });
+
+  /* 전부 지연인 칸에 「이 가운데 5건이 지연입니다」라고 적으면 값이 5건인 줄 아래에서
+     5 중 5 를 세는 문장이 된다 — 같은 사실을 세지 않고 그대로 말한다. */
+  it("한 칸이 전부 지연이면 그렇게 말한다 — 같은 수를 두 번 세지 않는다", async () => {
+    apiMock.mockResolvedValue(stats({
+      workload: {
+        ...stats().workload,
+        by_priority: [{ name: "높음", count: 3, est_wd: 2, overdue: 3 }],
+      },
+    }));
+    renderStats();
+    await screen.findByText("남은 일의 우선순위");
+    expect(screen.getByText("3건이 모두 지연입니다.")).toBeInTheDocument();
+    expect(screen.queryByText(/이 가운데/)).toBeNull();
   });
 
   it("펴면 주별 줄이 서고, 주가 아닌 둘은 구분선 아래로 내려간다", async () => {

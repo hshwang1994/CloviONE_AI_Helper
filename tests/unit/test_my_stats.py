@@ -132,6 +132,36 @@ def test_missing_or_broken_workday_values_do_not_crash():
     assert body["workload"]["est_wd_active"] == 0.0
 
 
+def test_priority_buckets_carry_their_own_overdue_count():
+    """우선순위 칸마다 지연 건수를 함께 센다.
+
+    그림이 「어느 칸이 위험한가」를 색으로 말하려면 칸마다 그 수가 있어야 한다. 화면이
+    다시 세지 않는 이유는 이 모듈의 다른 숫자와 같다 — 두 곳에서 세면 언젠가 서로 다른
+    말을 한다. 지연 판정은 `is_overdue` 하나이므로 totals 의 수와 반드시 맞는다.
+    """
+    tickets = [
+        t(1, "진행", "2026-07-01", priority="높음"),   # 지연
+        t(2, "진행", "2026-08-20", priority="높음"),   # 아직 아니다
+        t(3, "진행", "2026-08-20", priority="보통"),
+        t(4, "완료", "2026-07-01", priority="높음"),   # 활성이 아니라 안 센다
+    ]
+    body = stats.build_stats(tickets, today=TODAY)
+    by_priority = {b["name"]: b for b in body["workload"]["by_priority"]}
+    assert by_priority["높음"]["count"] == 2
+    assert by_priority["높음"]["overdue"] == 1
+    # 지연이 없는 칸도 키를 갖는다 — 없는 것과 0 은 화면에서 같은 뜻이지만,
+    # 키가 빠지면 「모른다」로 읽힐 자리가 생긴다.
+    assert by_priority["보통"]["overdue"] == 0
+    # 칸별 합은 전체 지연 수와 같다.
+    assert sum(b["overdue"] for b in body["workload"]["by_priority"]) == body["totals"]["overdue"]
+
+
+def test_status_buckets_do_not_carry_an_overdue_count():
+    """상태 분포는 지연을 안 센다 — 완료·취소에 지연이라는 말이 성립하지 않는다."""
+    body = stats.build_stats([t(1, "진행", "2026-07-01")], today=TODAY)
+    assert "overdue" not in body["workload"]["by_status"][0]
+
+
 def test_unset_status_and_priority_get_a_readable_label():
     body = stats.build_stats([t(1, "", "2026-08-10", priority="")], today=TODAY)
     assert body["workload"]["by_status"][0]["name"] == stats.UNSET_LABEL

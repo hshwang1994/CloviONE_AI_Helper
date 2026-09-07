@@ -10,7 +10,7 @@ import {
 import { ART } from "../lib/assets.js";
 import { mascotBoxPx } from "../ui/Mascot.jsx";
 import { StatusSummaryCard } from "../ui/StatusKpi.jsx";
-import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, NUMERIC, RADIUS } from "../ui/theme.js";
+import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, MOTION, NUMERIC, RADIUS } from "../ui/theme.js";
 import { GRID_GAP } from "../ui/density.js";
 import { BarSeries } from "../ui/charts/BarSeries.jsx";
 import { ColumnSeries } from "../ui/charts/ColumnSeries.jsx";
@@ -124,6 +124,29 @@ function LoadRow({ label, hint, count, peak, tone }) {
   );
 }
 
+/* 접힘 표시 — **12px 삼각**. 닫히면 오른쪽을, 펴지면 아래를 가리킨다(제자리에서 90도).
+ *
+ * 글꼴 아이콘이 아니라 도형이다. 크기를 `fontSize` 로 정하면 이 표시가 글자 크기 규약과
+ * 다투는데(12px 는 본문 등급에 없는 값이다), 여기서 필요한 것은 글자가 아니라 손잡이의
+ * 모양이다. `aria-hidden` 인 이유는 같은 사실을 단추의 `aria-expanded` 가 이미 말하기
+ * 때문이다 — 낭독기가 「펴짐」을 두 번 듣지 않는다. */
+function FoldMark({ open }) {
+  return (
+    <Box
+      aria-hidden="true"
+      component="span"
+      data-fold-mark=""
+      sx={{
+        width: 12, height: 12, flexShrink: 0,
+        bgcolor: "currentColor",
+        clipPath: "polygon(22% 4%, 22% 96%, 86% 50%)",
+        transform: open ? "rotate(90deg)" : "none",
+        transition: `transform ${MOTION.fast} ${MOTION.ease}`,
+      }}
+    />
+  );
+}
+
 function WeeklyLoad({ load }) {
   const [open, setOpen] = React.useState(false);
   const weeks = load.by_week || [];
@@ -136,39 +159,51 @@ function WeeklyLoad({ load }) {
   const span = weeks.length ? `${weeks[0].label}부터 ${weeks[weeks.length - 1].label}까지` : "앞으로";
 
   return (
-    <Box sx={{ display: "grid", rowGap: 1.75, minWidth: 0 }}>
-      {/* 요약 — 마스코트는 크기를 손으로 적지 않고 `mascotBoxPx` 를 지난다(자산마다 잉크
-          비율이 달라, 같은 px 로 그리면 어떤 자산은 작아 보인다). */}
-      <Box
-        sx={{
-          display: "grid", gridTemplateColumns: "auto minmax(0,1fr) auto", columnGap: 1.75,
-          alignItems: "center", p: 1.75, borderRadius: `${RADIUS.sm}px`,
-          bgcolor: "background.inset", border: 1, borderColor: "divider",
-        }}
-      >
+    <Box sx={{ display: "grid", rowGap: 1.5, minWidth: 0 }}>
+      {/* 요약과 접기 손잡이는 **한 덩어리**다. 손잡이를 요약에서 떼어 놓으면 카드 맨 아래
+          왼쪽에 글자만 남아 무엇을 펴는 단추인지가 사라진다 — 그 자리에서 보면 카드 전체를
+          접는 것처럼도 읽힌다. 요약이 「어느 주에 몰렸나」에 한 줄로 답하고, 손잡이는 그
+          답의 근거를 더 볼 것인지를 묻는다. 6px 은 그 종속을 말하는 간격이다. */}
+      <Box sx={{ display: "grid", rowGap: 0.75, minWidth: 0 }}>
+        {/* 요약 — 마스코트는 크기를 손으로 적지 않고 `mascotBoxPx` 를 지난다(자산마다 잉크
+            비율이 달라, 같은 px 로 그리면 어떤 자산은 작아 보인다). */}
         <Box
-          component="img" src={ART.board} alt=""
-          sx={{ width: mascotBoxPx("emptyRegion", ART.board), height: "auto", objectFit: "contain", flexShrink: 0 }}
-        />
-        <Box sx={{ minWidth: 0, display: "grid", rowGap: 0.375 }}>
-          <Typography sx={{ fontSize: FONT_SIZE.body, fontWeight: FONT_WEIGHT.bold, ...KO_WORD_BREAK }}>
-            {`${span} 마감인 티켓이 ${soon}건입니다`}
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ ...KO_WORD_BREAK }}>
-            {later ? `남은 ${later}건은 그 뒤에 마감입니다.` : "그 뒤에 마감인 티켓은 없습니다."}
-          </Typography>
-        </Box>
-        <Button variant="secondary" size="sm" href="#/my-tickets">남은 일 보기</Button>
-      </Box>
-
-      <Box>
-        <Button
-          variant="ghost" size="sm"
-          aria-expanded={open}
-          onClick={() => setOpen((v) => !v)}
+          sx={{
+            display: "grid", gridTemplateColumns: "auto minmax(0,1fr) auto", columnGap: 1.75,
+            alignItems: "center", p: 1.75, borderRadius: `${RADIUS.sm}px`,
+            bgcolor: "background.inset", border: 1, borderColor: "divider",
+          }}
         >
-          {open ? "주별로 접기" : "주별로 펴기"}
-        </Button>
+          <Box
+            component="img" src={ART.board} alt=""
+            sx={{ width: mascotBoxPx("emptyRegion", ART.board), height: "auto", objectFit: "contain", flexShrink: 0 }}
+          />
+          <Box sx={{ minWidth: 0, display: "grid", rowGap: 0.375 }}>
+            <Typography sx={{ fontSize: FONT_SIZE.body, fontWeight: FONT_WEIGHT.bold, ...KO_WORD_BREAK }}>
+              {`${span} 마감인 티켓이 ${soon}건입니다`}
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ ...KO_WORD_BREAK }}>
+              {later ? `남은 ${later}건은 그 뒤에 마감입니다.` : "그 뒤에 마감인 티켓은 없습니다."}
+            </Typography>
+          </Box>
+          <Button variant="secondary" size="sm" href="#/my-tickets">남은 일 보기</Button>
+        </Box>
+
+        <Box sx={{ display: "flex" }}>
+          {/* 유령 단추는 자기 좌우 여백(11px)을 갖는다. 그 여백째로 두면 삼각 표시가 카드
+              안의 다른 모든 것보다 11px 오른쪽에 서서, 구역 제목·설명·요약 상자가 이루는
+              세로선에서 이 한 줄만 빠져나온다(실측 305 대 316). 여백을 지우는 대신 **밖으로
+              당긴다** — 눌리는 자리와 hover 면은 그대로 두고 글자만 그 선에 세운다. */}
+          <Button
+            variant="ghost" size="sm"
+            aria-expanded={open}
+            onClick={() => setOpen((v) => !v)}
+            startIcon={<FoldMark open={open} />}
+            sx={{ ml: "-11px" }}
+          >
+            {open ? "주별로 접기" : "주별로 펴기"}
+          </Button>
+        </Box>
       </Box>
 
       {open ? (
@@ -240,8 +275,8 @@ export function MyStats() {
               🔴 **무엇이 부분이고 무엇이 신호인가를 가른다.** 완료·남은 일·취소 셋은 전체
               티켓을 남김없이 나눈 부분이라 스택 바와 비율이 참이다. 지연·오늘 마감·막힌
               일은 그렇지 않다 — 남은 일의 **부분집합이면서 서로 겹친다**(한 티켓이 지연이면서
-              막힌 일일 수 있다). 그 셋을 같은 바에 넣으면 합이 전체를 넘는다. 그래서 위험
-              요약으로 카드 머리 오른쪽에 선다. */}
+              막힌 일일 수 있다). 그 셋을 같은 바에 넣으면 합이 전체를 넘는다. 그래서 비율을
+              안 갖고, 칩 줄에서도 부분 셋과 **구분 간격**을 사이에 두고 선다. */}
           <StatusSummaryCard
             ariaLabel="내 업무량"
             sx={{ mb: 2.5 }}
@@ -269,7 +304,9 @@ export function MyStats() {
                  아니라 자기 그림을 갖는다 — 같은 자리에 두면 98% 와 92% 가 왜 다른지 물을
                  자리가 없다. 이름이 링 옆에 붙어 그 차이를 말한다.
                  숫자와 이름을 **링 옆에 세로로** 묶는 이유: 링 아래로 흘리면 이 덩어리가
-                 링 높이보다 24px 더 커지고, 그만큼 카드 전체가 자란다(실측 197 → 170). */
+                 링 높이보다 24px 더 커지고, 그만큼 카드 전체가 자란다(실측 197 → 170).
+                 이 자리에 위험 칩이 함께 서 있었다. 완료율은 해낸 것을 세고 지연은 위태로운
+                 것을 세는데, 나란히 두니 둘이 한 묶음으로 읽혔다 — 칩은 아래 줄로 내렸다. */
               <Box sx={{ display: "flex", alignItems: "center", gap: 1.25, minWidth: 0 }}>
                 <Gauge
                   value={totals.completion_rate == null ? null : Math.round(totals.completion_rate * 100)}
@@ -406,8 +443,25 @@ export function MyStats() {
                     question="먼저 손대야 할 일이 얼마나 쌓였는지 봅니다."
                     /* 이름을 **한국어로** 옮긴다. 서버가 주는 값은 원시 등급명(High·Normal)
                        이라 그대로 그리면 이 화면만 영문이 된다 — 티켓 목록과 상세는 이미
-                       `priorityKo` 를 지난다. 같은 값이 화면마다 다른 낱말로 보이면 안 된다. */
-                    items={load.by_priority.map((p) => ({ label: priorityKo(p.name), value: p.count }))}
+                       `priorityKo` 를 지난다. 같은 값이 화면마다 다른 낱말로 보이면 안 된다.
+
+                       🔴 색은 **위험이 있는 칸에만** 준다. 셋이 5건·5건·4건이면 상대 비교라
+                       막대가 거의 다 차는데, 거기에 색까지 셋이면 그림이 「전부 중요하다」고
+                       말한다 — 그것은 아무 말도 안 한 것과 같다. 길이는 얼마나 쌓였는지를
+                       말하고, 색은 그중 어디에 지연이 걸렸는지만 말한다. 지연이 없으면 색도
+                       없다. 색만으로 뜻을 나르지 않도록 그 줄에는 문장이 함께 선다. */
+                    items={load.by_priority.map((p) => ({
+                      label: priorityKo(p.name),
+                      value: p.count,
+                      color: p.overdue ? "danger" : "dividerStrong",
+                      /* 전부 지연인 칸에 「이 가운데 5건이 지연입니다」라고 적으면 값이 5건인
+                         줄 아래에서 5 중 5 를 세는 문장이 되어, 읽는 사람이 두 수가 왜 같은지
+                         잠깐 멈춘다. 같은 사실을 세지 않고 그대로 말한다. */
+                      note: !p.overdue ? undefined
+                        : p.overdue === p.count
+                          ? `${p.count}건이 모두 지연입니다.`
+                          : `이 가운데 ${p.overdue}건이 지연입니다.`,
+                    }))}
                     /* 라벨 칸을 못박는다 — 오른쪽 레일에 목록이 셋 나란히 서므로, 칸이
                        목록마다 다른 폭이면 값과 막대의 시작선이 세로로 어긋난다. */
                     tracks="4.5rem 2.5rem minmax(0,1fr)"

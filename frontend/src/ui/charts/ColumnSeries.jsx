@@ -4,7 +4,7 @@ import Typography from "@mui/material/Typography";
 import { useTheme } from "@mui/material/styles";
 import { ChartNoData, ChartQuestion, resolveChartColor } from "./base.jsx";
 import { useRevealOnce } from "../motion.js";
-import { FONT_SIZE, FONT_WEIGHT, MOTION, NUMERIC } from "../theme.js";
+import { FONT_SIZE, FONT_WEIGHT, MOTION, NUMERIC, remPx } from "../theme.js";
 
 /* 세로 막대 — **시간축이 있는 값**을 위한 그림.
  *
@@ -38,10 +38,19 @@ import { FONT_SIZE, FONT_WEIGHT, MOTION, NUMERIC } from "../theme.js";
  * items: `[{ key, label, hint?, valueText?, value?, color?, bars? }]`
  */
 const AXIS_TRACK = "2.5rem";   // 40px — y축 라벨 자리
-const PLOT_HEIGHT = "9.25rem"; // 148px — 격자 높이
+
+/* 격자 높이는 **칸 수가 아니라 값의 수**를 따라간다.
+ *
+ * 148px 였다. 달이 여섯인데 값이 한 칸에만 있으면 나머지 다섯 칸의 148px 이 통째로 빈
+ * 판으로 남는다 — 그림이 차지한 자리의 대부분이 아무 말도 안 하는 상태다. 높이를 줄여도
+ * 잃는 것이 없는 이유는 y축 기준이 데이터 최대값이라서다: 가장 큰 막대는 어느 높이에서든
+ * 꼭대기에 닿고, 눈이 견주는 것은 절대 길이가 아니라 막대끼리의 **비**다. */
+const VALUE_ROW = 28;          // 값 글자 줄 + 그 아래 간격
+const PLOT_PX = 120;
+export const PLOT_HEIGHT = remPx(PLOT_PX);
 /* 막대가 쓸 수 있는 최대 높이. 격자 높이에서 **값 글자 줄과 그 간격**을 뺀 값이다 —
    값은 막대 위에 붙으므로 꽉 찬 막대도 그 글자가 설 자리를 남겨야 격자를 안 넘는다. */
-const BAR_MAX = "7.5rem";      // 120px
+export const BAR_MAX = remPx(PLOT_PX - VALUE_ROW);  // 92px
 
 export function ColumnSeries({
   items, max, unit = "", question, color, revealKey,
@@ -77,6 +86,7 @@ export function ColumnSeries({
           {ticks.map((t) => <Box component="span" key={t}>{t}</Box>)}
         </Box>
         <Box
+          data-column-plot=""
           sx={{
             display: "grid", gridTemplateColumns: track, columnGap: 2, alignItems: "end",
             height: PLOT_HEIGHT,

@@ -337,6 +337,32 @@ export function StatusSummaryCard({
   const empty = known.filter((it) => it.n === 0 && !pressableAt(it));
   const riskSelectable = typeof onRiskSelect === "function";
 
+  /* 위험 요약. 값이 0 인 신호는 안 세운다(누를 것이 없는 단추다). */
+  const shownRisks = riskList.filter((it) => it.n > 0);
+  const riskChip = (it) => (
+    <StatusChip
+      key={it.key || it.label}
+      label={it.label}
+      value={it.value}
+      accent={it.accent}
+      onClick={it.onClick || (riskSelectable && it.key ? () => onRiskSelect(it.key) : undefined)}
+      selected={it.key != null && riskValue != null ? it.key === riskValue : undefined}
+      ariaLabel={it.ariaLabel}
+    />
+  );
+
+  /* 🔴 위험 칩이 **어디에 서는가**는 머리 오른쪽에 그림(`action`)이 있는가로 갈린다.
+   *
+   * 머리 오른쪽은 슬롯 하나다. 거기에 위험 칩과 그림이 함께 서면 둘이 한 덩어리로 읽힌다 —
+   * 내 업무량에서 완료율 링 옆에 「지연 14」가 붙자 그렇게 됐다. 그 둘은 서로 다른 축이다:
+   * 완료율은 **해낸 것**을 세고 지연은 **위태로운 것**을 센다. 한 묶음으로 보이면 어느
+   * 쪽이 이 카드의 답인지가 흐려진다.
+   *
+   * 그림이 있으면 그림이 그 자리를 갖고 위험 칩은 아래 상태 칩 줄로 내려간다. 거기서도
+   * 섞이지 않는 이유는 **구분 간격**이다 — 부분 셋과 위험 사이가 칩 사이 간격보다 넓어서
+   * 같은 줄에 있어도 두 묶음으로 읽힌다. */
+  const risksInHeader = !action;
+
   return (
     <Box
       role="group"
@@ -386,47 +412,45 @@ export function StatusSummaryCard({
         </Box>
         <Box sx={{ flex: 1 }} />
         <Box sx={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 1.25, minWidth: 0 }}>
-          {/* 위험 요약. 값이 0 인 신호는 안 세운다(누를 것이 없는 단추다). */}
-          {riskList.filter((it) => it.n > 0).map((it) => (
+          {risksInHeader ? shownRisks.map(riskChip) : null}
+          {action}
+        </Box>
+      </Box>
+      <RatioBar parts={filled.filter((it) => it.n > 0)} total={whole} />
+      {/* 칩 줄은 **두 묶음**이다. 묶음 안은 8px, 묶음 사이는 12px — 그 한 단 차이가
+          「전체를 나눈 부분」과 「그중 위태로운 것」의 경계다. */}
+      <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 1.5 }} data-chip-row="">
+        <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 1 }} data-chip-group="parts">
+          {unknown.map((it) => (
+            <StatusChip
+              key={it.key || it.label}
+              label={it.label}
+              value="-"
+              accent={it.accent}
+              onClick={it.onClick || (selectable && it.key ? () => onSelect(it.key) : undefined)}
+              selected={it.key != null && value != null ? it.key === value : undefined}
+              ariaLabel={it.ariaLabel}
+            />
+          ))}
+          {filled.map((it) => (
             <StatusChip
               key={it.key || it.label}
               label={it.label}
               value={it.value}
               accent={it.accent}
-              onClick={it.onClick || (riskSelectable && it.key ? () => onRiskSelect(it.key) : undefined)}
-              selected={it.key != null && riskValue != null ? it.key === riskValue : undefined}
+              pct={whole ? Math.round((100 * it.n) / whole) : null}
+              onClick={it.onClick || (selectable && it.key ? () => onSelect(it.key) : undefined)}
+              selected={it.key != null && value != null ? it.key === value : undefined}
               ariaLabel={it.ariaLabel}
             />
           ))}
-          {action}
+          {empty.length ? <ZeroChip labels={empty.map((it) => it.label)} /> : null}
         </Box>
-      </Box>
-      <RatioBar parts={filled.filter((it) => it.n > 0)} total={whole} />
-      <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
-        {unknown.map((it) => (
-          <StatusChip
-            key={it.key || it.label}
-            label={it.label}
-            value="-"
-            accent={it.accent}
-            onClick={it.onClick || (selectable && it.key ? () => onSelect(it.key) : undefined)}
-            selected={it.key != null && value != null ? it.key === value : undefined}
-            ariaLabel={it.ariaLabel}
-          />
-        ))}
-        {filled.map((it) => (
-          <StatusChip
-            key={it.key || it.label}
-            label={it.label}
-            value={it.value}
-            accent={it.accent}
-            pct={whole ? Math.round((100 * it.n) / whole) : null}
-            onClick={it.onClick || (selectable && it.key ? () => onSelect(it.key) : undefined)}
-            selected={it.key != null && value != null ? it.key === value : undefined}
-            ariaLabel={it.ariaLabel}
-          />
-        ))}
-        {empty.length ? <ZeroChip labels={empty.map((it) => it.label)} /> : null}
+        {!risksInHeader && shownRisks.length ? (
+          <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 1 }} data-chip-group="risks">
+            {shownRisks.map(riskChip)}
+          </Box>
+        ) : null}
       </Box>
     </Box>
   );

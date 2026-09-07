@@ -84,7 +84,7 @@ describe("상태 요약 카드", () => {
 
   it("신호는 머리 오른쪽에 서고 0건인 것은 안 선다", async () => {
     const onRiskSelect = vi.fn();
-    withTheme(
+    const { container } = withTheme(
       <StatusSummaryCard
         ariaLabel="상태" total="172" items={ITEMS}
         risks={[
@@ -99,8 +99,37 @@ describe("상태 요약 카드", () => {
     expect(risk).toHaveAttribute("aria-pressed", "true");
     // 0 짜리 신호는 누를 것이 없는 단추다 — 아예 안 그린다.
     expect(screen.queryByText("차단됨")).toBeNull();
+    // 머리에 그림이 없으면 그 자리는 신호의 것이다 — 아래 칩 줄로 안 내려간다.
+    expect(container.querySelector('[data-chip-group="risks"]')).toBeNull();
     await userEvent.click(risk);
     expect(onRiskSelect).toHaveBeenCalledWith("overdue");
+  });
+
+  /* 🔴 머리 오른쪽은 **슬롯 하나**다. 위험 칩과 그림이 함께 서면 둘이 한 덩어리로 읽힌다 —
+     완료율은 해낸 것을 세고 지연은 위태로운 것을 센다. 서로 다른 축이 한 묶음으로 보이면
+     어느 쪽이 이 카드의 답인지가 흐려진다. */
+  it("머리에 그림이 있으면 위험 칩은 아래 칩 줄로 내려가되 부분과 한 묶음이 되지 않는다", () => {
+    const { container } = withTheme(
+      <StatusSummaryCard
+        ariaLabel="상태" total="172" items={ITEMS}
+        risks={[{ key: "overdue", label: "지연", value: "16" }]}
+        action={<span data-testid="ring">링</span>}
+      />,
+    );
+    const parts = container.querySelector('[data-chip-group="parts"]');
+    const risks = container.querySelector('[data-chip-group="risks"]');
+    expect(parts).not.toBeNull();
+    expect(risks).not.toBeNull();
+    // 위험은 부분 묶음 **밖**이다 — 같은 줄에 있어도 같은 묶음이 아니다.
+    const chip = screen.getByText("지연");
+    expect(risks).toContainElement(chip);
+    expect(parts).not.toContainElement(chip);
+    // 묶음 사이(12px)가 묶음 안(8px)보다 넓다 — 그 한 단이 경계를 만든다.
+    expect(getComputedStyle(container.querySelector("[data-chip-row]")).gap).toBe("0.75rem");
+    expect(getComputedStyle(parts).gap).toBe("0.5rem");
+    expect(getComputedStyle(risks).gap).toBe("0.5rem");
+    // 머리 오른쪽에는 그림만 남는다.
+    expect(screen.getByTestId("ring")).toBeInTheDocument();
   });
 
   it("색은 점이 나르고 숫자는 잉크색이다", () => {

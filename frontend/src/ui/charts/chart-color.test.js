@@ -31,6 +31,19 @@ describe("resolveChartColor", () => {
     expect(resolveChartColor(theme, "warn")).toBe(theme.palette.warning.main);
   });
 
+  /* 중립 막대(뜻 없는 몫)가 지목하는 이름이 **실제로 팔레트에 있는가**. 없으면
+     `resolveChartColor` 는 마지막 폴백으로 인자 문자열("dividerStrong")을 그대로 내보내고,
+     CSS 는 그것을 모르는 색으로 보고 무시한다 — 막대가 통째로 사라지는데 아무도 안 죽는다.
+     내 업무량의 배정 막대와 우선순위 막대가 이 이름을 쓴다. */
+  it("중립 막대 이름(dividerStrong)이 팔레트 값으로 풀린다", () => {
+    for (const mode of ["light", "dark"]) {
+      const theme = createClovirTheme(mode);
+      const resolved = resolveChartColor(theme, "dividerStrong");
+      expect(resolved, mode).toBe(theme.palette.dividerStrong);
+      expect(resolved, mode).toMatch(/^#[0-9A-Fa-f]{6}$/);
+    }
+  });
+
   it("팔레트에 없는 값(hex 리터럴)은 그대로 통과시킨다", () => {
     const theme = createClovirTheme("light");
     expect(resolveChartColor(theme, "#4058BD")).toBe("#4058BD");

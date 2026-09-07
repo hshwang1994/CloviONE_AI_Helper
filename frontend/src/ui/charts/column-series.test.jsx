@@ -4,7 +4,7 @@ import { render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 
 import { ThemeModeProvider } from "../ThemeModeProvider.jsx";
-import { ColumnSeries } from "./ColumnSeries.jsx";
+import { BAR_MAX, ColumnSeries, PLOT_HEIGHT } from "./ColumnSeries.jsx";
 
 /* 세로 막대 — 시간축이 있는 값을 위한 그림.
  *
@@ -94,6 +94,25 @@ describe("ColumnSeries", () => {
       // 배정 6 이 최대라 y축 꼭대기가 6 이다.
       expect(screen.getAllByText("6").length).toBeGreaterThan(0);
     });
+  });
+
+  /* 격자 높이는 **값이 없는 칸까지 데리고 자란다** — 달이 여섯인데 값이 한 칸에만 있으면
+     나머지 다섯의 높이가 통째로 빈 판이다. 148px 이던 것을 120px 로 줄인 이유가 그것이고,
+     줄여도 잃는 것이 없는 이유는 y축 기준이 데이터 최대값이라서다(가장 큰 막대는 어느
+     높이에서든 꼭대기에 닿는다).
+     막대가 쓸 최대 높이는 그 안에서 **값 글자 줄을 뺀** 만큼이다. 뺄셈이 틀리면 꽉 찬
+     막대의 값 글자가 격자 밖으로 나간다. */
+  it("격자는 120px 이고 막대 최대 높이는 거기서 값 글자 줄을 뺀 만큼이다", () => {
+    const px = (rem) => Number(String(rem).replace("rem", "")) * 16;
+    expect(px(PLOT_HEIGHT)).toBe(120);
+    expect(px(PLOT_HEIGHT) - px(BAR_MAX)).toBe(28);
+  });
+
+  it("그 높이가 실제로 격자에 걸린다 — 상수만 고치고 화면이 안 받는 일이 없게", () => {
+    const { container } = withTheme(<ColumnSeries items={MONTHS} max={100} unit="%" />);
+    const plot = container.querySelector("[data-column-plot]");
+    expect(plot).not.toBeNull();
+    expect(getComputedStyle(plot).height).toBe(PLOT_HEIGHT);
   });
 
   it("항목이 없으면 빈 상자를 남기지 않는다", () => {

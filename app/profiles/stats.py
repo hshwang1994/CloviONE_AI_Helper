@@ -52,14 +52,22 @@ def _round1(value: float) -> float:
     return round(value + 0.0, 1)
 
 
-def _counts(rows: list[dict], key: str) -> list[dict]:
-    """값별 건수 + 예상 공수 합. 건수 많은 순, 같으면 이름순(안정적 순서)."""
+def _counts(rows: list[dict], key: str, *, flagged=None) -> list[dict]:
+    """값별 건수 + 예상 공수 합. 건수 많은 순, 같으면 이름순(안정적 순서).
+
+    `flagged` 를 주면 그 조건에 맞는 건수를 칸마다 `overdue` 로 함께 센다. 그림이
+    「어느 칸이 위험한가」를 색으로 말하려면 칸마다 그 수가 있어야 한다. 그 수를 화면이
+    다시 세지 않는 이유는 이 모듈의 다른 숫자와 같다 — 두 곳에서 세면 언젠가 서로 다른
+    말을 한다.
+    """
     buckets: dict[str, dict] = {}
     for row in rows:
         name = (row.get(key) or "").strip() or UNSET_LABEL
         bucket = buckets.setdefault(name, {"name": name, "count": 0, "est_wd": 0.0})
         bucket["count"] += 1
         bucket["est_wd"] += _num(row.get("est_wd"))
+        if flagged is not None:
+            bucket["overdue"] = bucket.get("overdue", 0) + int(bool(flagged(row)))
     out = sorted(buckets.values(), key=lambda b: (-b["count"], b["name"]))
     for bucket in out:
         bucket["est_wd"] = _round1(bucket["est_wd"])
@@ -229,7 +237,7 @@ def build_stats(
             "act_wd_done": _round1(sum(_num(t.get("act_wd")) for t in done)),
             "est_wd_done": _round1(sum(_num(t.get("est_wd")) for t in done)),
             "by_status": _counts(tickets, "status"),
-            "by_priority": _counts(active, "priority"),
+            "by_priority": _counts(active, "priority", flagged=lambda row: is_overdue(row, today)),
             "by_week": week_buckets,
             "by_week_extra": week_extra,
         },
