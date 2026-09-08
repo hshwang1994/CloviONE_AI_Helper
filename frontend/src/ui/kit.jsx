@@ -236,7 +236,7 @@ export function Badge({ value, kind, emphasis }) {
            면 자체가 이미 「여기가 한 덩어리다」를 말하고, 6px 점이 22px 알약 안에 또 들어가면
            낱말이 밀려 알약이 길어지기만 한다. 점은 면이 없는 자리(표·목록)의 어휘다. */
         ...(strong && {
-          height: 22, px: 1, py: 0, borderRadius: `${RADIUS.xs}px`,
+          height: remPx(CONTROL.pill), px: 1, py: 0, borderRadius: `${RADIUS.xs}px`,
           bgcolor: extra ? extra.bg : palette ? `${palette}.bg` : "background.inset",
           fontSize: FONT_SIZE.micro, fontWeight: FONT_WEIGHT.semibold, lineHeight: 1,
         }),
@@ -260,7 +260,18 @@ export function Badge({ value, kind, emphasis }) {
 /** 분류 표시 — 상태가 아니다 (지시 11: Status / Category / Tag / Editable Value 를 구분한다).
  *
  * 문서 종류(매뉴얼·참고자료·회의록)·업무 분야(인프라·개발·운영) 같은 것. 좋고 나쁨이 없으므로
- * 상태색을 쓰지 않는다 — 중립 램프 위 옅은 면 하나다. */
+ * 상태색을 쓰지 않는다.
+ *
+ * 🔴 **배지와 태그는 면으로 갈린다** (확정 규약 §9 · 갤러리 대조 D-2/D-3).
+ *
+ * 규약은 처음부터 둘을 갈라 놓았다 — 배지는 **옅은 면에 테두리 없음**, 태그는 **흰 면에
+ * 1px 테두리**. 그런데 이 부품이 배지 쪽 면(`background.inset`)을 쓰고 있었고 높이도 20 대
+ * 22 로 어긋나 있었다. 그 결과 문서 목록 한 줄에서 「계획」 배지와 「Docker」 태그가 같은
+ * 부품으로 보였다 — 어휘가 둘이라는 사실 자체가 화면에서 사라진 것이다.
+ *
+ * 톤이 있는 태그(문서 종류)도 **면은 흰색 하나**다. 색은 글자만 받는다 — 면을 톤마다 주면
+ * 그 순간 태그가 다시 배지가 되고, DS-09 가 고친 「분류에 의미색을 매기지 않는다」도 함께
+ * 흔들린다. */
 export function Tag({ label, tone }) {
   const extra = EXTRA_TONE_VARS[tone];
   return (
@@ -270,10 +281,11 @@ export function Tag({ label, tone }) {
       data-tone={tone || "neutral"}
       sx={{
         display: "inline-flex", alignItems: "center", maxWidth: "100%", minWidth: 0,
-        px: 0.75, py: 0.125, borderRadius: `${RADIUS.sm}px`,
-        fontSize: FONT_SIZE.micro, fontWeight: FONT_WEIGHT.medium, lineHeight: 1.5,
+        height: remPx(CONTROL.pill), px: 1, py: 0, borderRadius: `${RADIUS.sm}px`,
+        border: 1, borderColor: "divider",
+        fontSize: FONT_SIZE.micro, fontWeight: FONT_WEIGHT.medium, lineHeight: 1,
         whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-        bgcolor: extra ? extra.bg : "background.inset",
+        bgcolor: "background.paper",
         color: extra ? extra.fg : "text.secondary",
       }}
     >
@@ -408,6 +420,42 @@ export const Button = React.forwardRef(function Button({ variant = "default", si
  * 4.5px). 기본은 이웃이 기본 버튼인 자리(화면 머리)라 **medium(34)** 이고, 작은 버튼과
  * 나란히 서는 자리(행 동작 줄)는 호출부가 `size="small"` 또는 `size="sm"` 이라고 말한다.
  * 둘 다 MUI IconButton 의 `small`(30)이다 — `sm` 을 그대로 넘기면 MUI 가 무시해 34 가 된다. */
+/** 팝오버 **안의 항목 목록**. 머리도 발도 없이 이것만으로 선다 (확정 규약: 팝오버 = 항목 목록).
+ *
+ * 컴포넌트가 아니라 **배열을 돌려주는 함수**인 이유: MUI `Menu` 는 자식을 `MenuList` 에
+ * 그대로 넘기고, `MenuList` 는 그 자식들을 훑어 키보드 이동을 붙인다. 목록을 컴포넌트 하나로
+ * 감싸면 `MenuList` 눈에는 항목이 **하나**로 보여 화살표 키 이동이 죽는다.
+ *
+ * 내보내는 이유: 「메뉴 항목 한 줄은 어떻게 생겼나」를 확인하려면 메뉴를 여는 화면을 하나씩
+ * 열어야 했다. 대조표(`/kit`)가 같은 함수를 불러 열린 상태를 붙박이로 세운다 — 값을 베끼지
+ * 않고 실제 항목을 그린다. */
+export function overflowMenuItems(items, onPick) {
+  const list = (items || []).filter(Boolean);
+  return list.map((it, i) => {
+    const danger = it.tone === "danger";
+    /* 파괴적 항목은 앞의 항목들과 실선으로 가른다 — 마우스가 미끄러져 바로 위 항목을
+       누르려다 삭제를 누르는 일을 막는 물리적 간격이다. */
+    const firstDanger = danger && !(list[i - 1] && list[i - 1].tone === "danger");
+    return (
+      <MenuItem
+        key={it.key || it.label || i}
+        disabled={it.disabled}
+        onClick={() => { if (onPick) onPick(); if (it.onClick) it.onClick(); }}
+        sx={{
+          fontSize: FONT_SIZE.bodySm,
+          color: danger ? "error.strong" : "text.primary",
+          borderTop: firstDanger && i > 0 ? 1 : 0,
+          borderColor: "divider",
+          mt: firstDanger && i > 0 ? 0.5 : 0,
+          pt: firstDanger && i > 0 ? 1 : undefined,
+        }}
+      >
+        {it.label}
+      </MenuItem>
+    );
+  });
+}
+
 export function OverflowMenu({ items, ariaLabel = "더 보기", size }) {
   const list = (items || []).filter(Boolean);
   const [anchorEl, setAnchorEl] = React.useState(null);
@@ -435,29 +483,7 @@ export function OverflowMenu({ items, ariaLabel = "더 보기", size }) {
         transformOrigin={{ vertical: "top", horizontal: "right" }}
         slotProps={{ paper: { sx: { minWidth: "12rem" } } }}
       >
-        {list.map((it, i) => {
-          const danger = it.tone === "danger";
-          /* 파괴적 항목은 앞의 항목들과 실선으로 가른다 — 마우스가 미끄러져 바로 위 항목을
-             누르려다 삭제를 누르는 일을 막는 물리적 간격이다. */
-          const firstDanger = danger && !(list[i - 1] && list[i - 1].tone === "danger");
-          return (
-            <MenuItem
-              key={it.key || it.label || i}
-              disabled={it.disabled}
-              onClick={() => { close(); if (it.onClick) it.onClick(); }}
-              sx={{
-                fontSize: FONT_SIZE.bodySm,
-                color: danger ? "error.strong" : "text.primary",
-                borderTop: firstDanger && i > 0 ? 1 : 0,
-                borderColor: "divider",
-                mt: firstDanger && i > 0 ? 0.5 : 0,
-                pt: firstDanger && i > 0 ? 1 : undefined,
-              }}
-            >
-              {it.label}
-            </MenuItem>
-          );
-        })}
+        {overflowMenuItems(list, close)}
       </Menu>
     </>
   );
@@ -868,19 +894,25 @@ export function Callout({
    *   warn    옅은 바탕 + 앞머리 실선(색이 다르다).
    *   danger  옅은 바탕 + 앞머리 실선 + 라벨 굵게. 페이지 전폭 빨간 테두리는 쓰지 않는다.
    *
-   * 심각도를 색만으로 구분하지 않는다(WCAG 1.4.1) — 짧은 **텍스트 라벨**을 항상 붙인다.
-   * 아이콘은 그 글자를 대신하지 않고 거든다: 넷의 모양이 서로 다르고(정보·확인·경고·오류)
-   * 글자를 못 읽는 상황에서도 종류가 구별된다.
+   * 심각도를 색만으로 구분하지 않는다(WCAG 1.4.1) — 아이콘 **모양**이 넷 다 다르고
+   * (동그라미 i · 체크 · 삼각형 · 동그라미 느낌표) 그 아이콘이 **접근 이름**(안내 · 성공 ·
+   * 주의 · 오류)을 갖는다. 낭독기는 그 이름을 읽고, 색을 못 보는 사람은 모양으로 가른다.
    *
-   * 구조는 넷이다 — **아이콘 · 제목 · 본문 · 동작**(지시 20). `title` 을 안 주면 톤의 이름
-   * (안내 · 주의 · 성공 · 오류)이 제목이 된다. `action` 은 본문 아래 한 줄이다.
+   * 구조는 넷이다 — **아이콘 · 제목 · 본문 · 동작**(지시 20). `action` 은 본문 아래 한 줄이다.
    *
    * `detail` 은 긴 기술 설명을 접어 둔다(지시 35: "긴 기술 설명을 하나의 Alert 안에 모두
    * 넣지 않는다"). 표현은 `TechDetail` 이 맡는다 - 표·카드도 같은 접기를 쓴다.
    */
   const kind = tone === "ok" ? "success" : tone;
+  /* 톤의 이름은 **아이콘의 접근 이름**으로만 남는다 — 화면에는 안 적는다.
+   *
+   * 예전에는 `title` 이 없으면 이 낱말이 제목 줄로 올라왔다. 그 한 줄이 두 가지를 망쳤다:
+   * 한 줄짜리 안내 상자의 높이가 **두 배**(49 → 98px)가 됐고, 더 나쁘게는 **제목 자리를
+   * 일반 낱말이 차지해** 진짜 제목을 넣을 곳이 없어졌다 — 「안내 / 진행 중인 회차가
+   * 없습니다」처럼 아무 정보도 없는 머리 아래 정작 할 말이 앉았다.
+   * 색만으로 나르지 않는다는 요구(WCAG 1.4.1)는 아이콘의 **모양 넷**과 이 접근 이름이
+   * 이미 만족한다. 낭독기는 「경고 아이콘, 주의」를 읽고 화면에는 낱말이 겹치지 않는다. */
   const toneWord = kind === "danger" ? "오류" : kind === "warn" ? "주의" : kind === "success" ? "성공" : "안내";
-  const label = title || toneWord;
   const paletteKey = kind === "danger" ? "error" : kind === "warn" ? "warning" : kind === "success" ? "success" : "info";
   const Icon = CALLOUT_ICON[kind] || InfoOutlinedIcon;
 
@@ -896,7 +928,7 @@ export function Callout({
             color: `${paletteKey}.strong`, fontSize: FONT_SIZE.bodySm,
           }}
         >
-          {label}
+          {title || toneWord}
         </Box>
         <Box component="span" className="k-callout-body">{children}</Box>
       </Typography>
@@ -941,24 +973,36 @@ export function Callout({
       })}
     >
       {/* 아이콘은 크기와 `margin-top` 을 고정한다 — 첫 줄과의 광학 정렬 값을 상자마다
-          새로 만들지 않는다. 색만 상태를 말하는 **유일한** 자리다. */}
+          새로 만들지 않는다. 색만 상태를 말하는 **유일한** 자리이고, 그래서 이것만은
+          `aria-hidden` 이 아니다: 모양이 나르는 뜻을 낭독기에도 같은 낱말로 준다. */}
       <Icon
-        aria-hidden="true"
+        role="img"
+        aria-label={toneWord}
         sx={{ flexShrink: 0, fontSize: remPx(ICON.mark), color: `${paletteKey}.main`, mt: "0.1875rem" }}
       />
       <Box sx={{ minWidth: 0, display: "grid", rowGap: 0.25 }}>
+        {/* 제목은 **호출부가 줄 때만** 선다. 안 주면 본문이 곧 그 상자의 말이다. */}
+        {title ? (
+          <Box
+            component="span"
+            sx={{
+              fontWeight: FONT_WEIGHT.semibold, color: "text.primary",
+              fontSize: compact ? FONT_SIZE.caption : FONT_SIZE.body,
+            }}
+          >
+            {title}
+          </Box>
+        ) : null}
+        {/* 제목이 있으면 본문은 보조 잉크다 — 둘의 색이 갈려야 한 덩어리로 안 뭉친다.
+            제목이 없으면 본문이 그 상자의 유일한 말이므로 본문 잉크로 선다.
+            상태별 색 변화는 없다(그것은 아이콘의 일이다). */}
         <Box
           component="span"
-          sx={{
-            fontWeight: FONT_WEIGHT.semibold, color: "text.primary",
-            fontSize: compact ? FONT_SIZE.caption : FONT_SIZE.body,
-          }}
+          className="k-callout-body"
+          sx={{ minWidth: 0, color: title ? "text.secondary" : "text.primary" }}
         >
-          {label}
+          {children}
         </Box>
-        {/* 본문은 보조 잉크다 — 제목과 본문의 색이 갈려야 둘이 한 덩어리로 안 뭉친다.
-            상태별 색 변화는 없다(그것은 아이콘의 일이다). */}
-        <Box component="span" className="k-callout-body" sx={{ minWidth: 0, color: "text.secondary" }}>{children}</Box>
         <TechDetail label={detailLabel}>{detail}</TechDetail>
       </Box>
       {action ? (
@@ -1705,8 +1749,17 @@ const RATE_LIMIT_COUNTDOWN_MAX_S = 300;
  * 일러스트를 빼고 여백·글자를 줄인다. 예전엔 이 크기 차이를 소비 측 CSS(global.css 등)가
  * `.noti-pop-error .k-empty { padding:... }` 식으로 소유권 밖에서 되짚어 맞췄다 — 컴포넌트가
  * 직접 size를 받으면 그 특이도 전쟁 CSS가 필요 없어진다. */
-export function ErrorState({ error, onRetry, size }) {
-  const compact = size === "compact";
+/* `layout` — **이 오류가 무엇을 대신하는가**. `EmptyState` 와 같은 어휘를 쓴다.
+ *
+ * 🔴 기본값이 `page` 인 이유. 이 부품의 호출부 87곳은 대부분 **라우트 전체**가 실패한
+ * 자리다(`if (q.isError) return <ErrorState …/>`). 거기서는 가운데가 맞다. 그런데
+ * `EmptyState` 와 달리 이 부품에는 자리를 말할 축이 **아예 없어서**, 판 하나가 실패한
+ * 자리(문서 목록·댓글·채팅방 목록)까지 전면 오류의 크기와 정렬로 그려졌다 — 카드 안에서
+ * 홀로 가운데 정렬된 채 위아래로 96px 씩 벌어진다. 축을 만들고 기본값은 지금 동작으로 둔다:
+ * 87곳을 한 번에 뒤집는 것은 이 회차의 일이 아니다. 판 안의 호출부는 `layout="region"` 을
+ * 적는다. */
+export function ErrorState({ error, onRetry, size, layout = "page" }) {
+  const compact = size === "compact" || layout === "inline";
   const msg = (error && error.message) || "문제가 발생했습니다.";
   const status = error && error.status;
   const code = error && error.body && error.body.error && error.body.error.code;
@@ -1764,47 +1817,84 @@ export function ErrorState({ error, onRetry, size }) {
     : "serverError";
   const artSrc = ART[art];
   const errorArtBox = mascotBoxPx("errorState", artSrc);
+  /* 화면 전체가 실패했을 때만 가운데다. 판 하나가 실패한 자리는 그 판의 다른 내용과 같은
+     축을 쓴다 — 왼쪽 정렬 · 위 정렬(위 `layout` 주석이 정본이다). */
+  const centered = layout === "page" || layout === "card";
+  /* 기술 정보는 접어 둔다. 화면에 보이는 `help` 는 **사람에게 할 말**이고 서버가 준 원문은
+     그것과 다르다 — 「NetworkError: Failed to fetch」 를 제목 아래 그대로 올리면 안내가 아니고,
+     지우면 문제를 옮겨 적을 수가 없다. 메시지 박스의 `detail` 과 **같은 부품**을 쓴다. */
+  const tech = [
+    status ? `HTTP ${status}` : null,
+    code ? `code ${code}` : null,
+    msg && msg !== help ? msg : null,
+  ].filter(Boolean).join("   ");
+  const action = isAuth
+    /* 되돌아올 곳을 실어 보낸다 — 재로그인 뒤 보던 화면으로 돌아온다(지시 19). */
+    ? <MuiButton variant="contained" size={compact ? "small" : "medium"} href={loginUrl()}>로그인 화면으로</MuiButton>
+    // "홈으로"(#/)는 이 SPA 안이라 다시 같은 403을 부른다 — 실제 페이지 이동이 필요하다.
+    : isPwChange ? <MuiButton variant="contained" size={compact ? "small" : "medium"} href="/change-password">비밀번호 변경하기</MuiButton>
+    // 403/404는 재시도해도 소용없지만 아무 동작도 없으면 막다른 길이다.
+    : (isForbidden || isGone) ? <MuiButton variant="contained" size={compact ? "small" : "medium"} href="#/">홈으로</MuiButton>
+    // 429 대기 중에는 버튼을 잠근다 — 눌리는 「다시 시도」는 제한을 스스로 연장시킨다.
+    : (!noRetry && onRetry ? <Button variant="primary" onClick={onRetry} disabled={cooling}>다시 시도</Button> : null);
+
   // role="alert"로 오류 전환을 즉시 낭독한다. 제목은 heading으로.
   return (
     // VIS-50/VIS-52와 같은 이유(EmptyState 주석 참고) — ErrorState도 같은 삽화 자산과
     // 여백 규칙을 공유하므로 같은 값으로 맞춘다.
-    <Box className="k-empty" role="alert" sx={{ display: "grid", justifyItems: "center", textAlign: "center", gap: compact ? 0.75 : 1.5, py: compact ? 2 : { xs: 6, uhd: 14 }, px: compact ? 1.5 : 3 }}>
+    <Box
+      className="k-empty"
+      role="alert"
+      data-error-layout={layout}
+      sx={
+        centered
+          ? { display: "grid", justifyItems: "center", textAlign: "center", gap: compact ? 0.75 : 1.5, py: compact ? 2 : { xs: 6, uhd: 14 }, px: compact ? 1.5 : 3 }
+          : { display: "flex", alignItems: "flex-start", gap: compact ? 1.5 : 2.5, py: compact ? 2 : 3.5, px: compact ? 1.5 : 2 }
+      }
+    >
       {!compact ? (
         <Box
           component="img" src={artSrc} alt="" aria-hidden="true" loading="lazy" decoding="async"
           data-mascot-context={MASCOT_PLACE.errorState.context}
           /* 4K 에서 320px 짜리 상자였다 — 그리고 그 상자 안의 그림은 자산마다 65~78% 만
              채웠다. 이제 «보이는 캐릭터 112px»(PLAN «Clovi 계약») 하나가 세 단계를 대신한다. */
-          sx={{ display: { xs: "none", sm: "block" }, width: errorArtBox, height: errorArtBox, objectFit: "contain" }}
+          sx={{ display: { xs: "none", sm: "block" }, flexShrink: 0, width: errorArtBox, height: errorArtBox, objectFit: "contain" }}
         />
       ) : null}
-      <Typography role="heading" aria-level={2} sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: compact ? FONT_SIZE.body : FONT_SIZE.sectionTitle }}>{title}</Typography>
-      {/* 칸 폭은 ERROR_STATE_MAX_CH. 문구 한도는 COPY_LIMIT.errorHelp. */}
-      <Typography variant="body2" color="text.secondary" sx={{ maxWidth: `${ERROR_STATE_MAX_CH}ch`, fontSize: compact ? FONT_SIZE.bodySm : undefined }}>{help}</Typography>
-      <Box sx={{ mt: compact ? 0.5 : 1 }}>
-        {isAuth
-          /* 되돌아올 곳을 실어 보낸다 — 재로그인 뒤 보던 화면으로 돌아온다(지시 19). */
-          ? <MuiButton variant="contained" size={compact ? "small" : "medium"} href={loginUrl()}>로그인 화면으로</MuiButton>
-          // "홈으로"(#/)는 이 SPA 안이라 다시 같은 403을 부른다 — 실제 페이지 이동이 필요하다.
-          : isPwChange ? <MuiButton variant="contained" size={compact ? "small" : "medium"} href="/change-password">비밀번호 변경하기</MuiButton>
-          // 403/404는 재시도해도 소용없지만 아무 동작도 없으면 막다른 길이다.
-          : (isForbidden || isGone) ? <MuiButton variant="contained" size={compact ? "small" : "medium"} href="#/">홈으로</MuiButton>
-          // 429 대기 중에는 버튼을 잠근다 — 눌리는 「다시 시도」는 제한을 스스로 연장시킨다.
-          : (!noRetry && onRetry ? <Button variant="primary" onClick={onRetry} disabled={cooling}>다시 시도</Button> : null)}
+      <Box sx={{ display: "grid", gap: compact ? 0.75 : 1.5, minWidth: 0, ...(centered ? { justifyItems: "center" } : null) }}>
+        {/* 🔴 제목 왼쪽의 오류 표지. 이 부품에는 상태 아이콘이 **하나도 없었다** — 마스코트는
+            어느 오류인지(404·403·연결 끊김)를 말하지 그 상자가 오류라는 것을 말하지 않는다.
+            메시지 박스와 같은 아이콘·같은 색·같은 접근 이름을 쓴다. */}
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0 }}>
+          <ErrorOutlineRoundedIcon
+            role="img"
+            aria-label="오류"
+            sx={{ flexShrink: 0, fontSize: remPx(ICON.mark), color: "error.main" }}
+          />
+          <Typography role="heading" aria-level={2} sx={{ minWidth: 0, fontWeight: FONT_WEIGHT.bold, fontSize: compact ? FONT_SIZE.body : FONT_SIZE.sectionTitle, ...KO_WORD_BREAK }}>{title}</Typography>
+        </Box>
+        {/* 칸 폭은 ERROR_STATE_MAX_CH. 문구 한도는 COPY_LIMIT.errorHelp. */}
+        <Typography variant="body2" color="text.secondary" sx={{ maxWidth: `${ERROR_STATE_MAX_CH}ch`, fontSize: compact ? FONT_SIZE.bodySm : undefined }}>{help}</Typography>
+        {action || tech ? (
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap", justifyContent: centered ? "center" : "flex-start", mt: compact ? 0 : 0.25 }}>
+            {action}
+            <TechDetail>{tech || null}</TechDetail>
+          </Box>
+        ) : null}
+        {/* 문의 번호 (Z8). 서버는 요청마다 id 를 만들어 오류 봉투와 `X-Request-ID` 에 실어
+            보내고 감사 로그도 그 값을 저장하는데, 화면이 한 번도 보여 주지 않아 **사용자가
+            불러 줄 수가 없었다.** 새벽 3시에 "화면이 안 나와요" 를 받으면 경로와 상태 코드밖에
+            단서가 없었다. 접기 안에 넣지 않는다 — 접힌 번호는 불러 줄 수 없다.
+            로그인·권한 문제처럼 원인이 뻔한 것에는 붙이지 않는다. compact에선 더 뺀다. */}
+        {requestId && !isAuth && !isForbidden && !isGone && !compact ? (
+          <Typography
+            variant="body2" color="text.disabled"
+            sx={{ fontSize: FONT_SIZE.caption, userSelect: "all" }}
+          >
+            문의 번호 {requestId}
+          </Typography>
+        ) : null}
       </Box>
-      {/* 문의 번호 (Z8). 서버는 요청마다 id 를 만들어 오류 봉투와 `X-Request-ID` 에 실어
-          보내고 감사 로그도 그 값을 저장하는데, 화면이 한 번도 보여 주지 않아 **사용자가
-          불러 줄 수가 없었다.** 새벽 3시에 "화면이 안 나와요" 를 받으면 경로와 상태 코드밖에
-          단서가 없었다. 로그인·권한 문제처럼 원인이 뻔한 것에는 붙이지 않는다 — 번호를
-          아무 데나 붙이면 아무도 안 읽는다. compact에선 이미 좁은 공간이라 더 뺀다. */}
-      {requestId && !isAuth && !isForbidden && !isGone && !compact ? (
-        <Typography
-          variant="body2" color="text.disabled"
-          sx={{ fontSize: FONT_SIZE.caption, userSelect: "all", mt: 0.5 }}
-        >
-          문의 번호 {requestId}
-        </Typography>
-      ) : null}
     </Box>
   );
 }

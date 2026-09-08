@@ -130,10 +130,36 @@ describe("Button", () => {
 });
 
 describe("심각도를 색만으로 전하지 않는다 (WCAG 1.4.1)", () => {
-  it("Callout은 아이콘이 아니라 텍스트 라벨로 톤을 알린다", () => {
-    ui(<Callout tone="danger">연결이 끊어졌습니다</Callout>);
-    expect(screen.getByText("오류")).toBeInTheDocument();
+  /* 🔴 이 계약이 **옮겨 갔다**(값이 약해진 것이 아니다).
+   *
+   * 예전에는 톤의 이름(안내 · 성공 · 주의 · 오류)이 상자의 **제목 줄**로 섰다. 그 한 줄이
+   * 두 가지를 망쳤다: 한 줄짜리 안내의 높이가 두 배가 됐고, 제목 자리를 일반 낱말이
+   * 차지해 진짜 제목을 넣을 곳이 사라졌다. 색 외 단서는 그대로 있어야 하므로 그것을
+   * **아이콘의 접근 이름**으로 옮긴다 — 모양 넷이 이미 서로 다르고(동그라미 i · 체크 ·
+   * 삼각형 · 동그라미 느낌표), 낭독기는 그 이름을 읽는다. 아래 셋을 함께 잰다:
+   * 접근 이름이 있는가 · 화면 글자로는 안 서는가 · `title` 을 주면 그 자리가 열리는가. */
+  it("Callout은 아이콘의 접근 이름으로 톤을 알리고 화면에는 그 낱말을 안 적는다", () => {
+    const { unmount } = ui(<Callout tone="danger">연결이 끊어졌습니다</Callout>);
+    expect(screen.getByLabelText("오류")).toBeInTheDocument();
     expect(screen.getByText("연결이 끊어졌습니다")).toBeInTheDocument();
+    expect(screen.queryByText("오류")).toBeNull();
+    unmount();
+
+    ui(<Callout tone="warn">저장하지 못했습니다</Callout>);
+    expect(screen.getByLabelText("주의")).toBeInTheDocument();
+    expect(screen.queryByText("주의")).toBeNull();
+  });
+
+  it("Callout의 제목 자리는 호출부가 줄 때만 선다", () => {
+    const { container, unmount } = ui(<Callout tone="warn">본문</Callout>);
+    // 제목이 없으면 글 칸의 자식은 본문 하나뿐이다(톤 낱말이 위에 앉지 않는다).
+    const bodyOnly = container.querySelector(".k-callout > div");
+    expect(bodyOnly.children).toHaveLength(1);
+    unmount();
+
+    ui(<Callout tone="warn" title="이 회차는 닫혔습니다">본문</Callout>);
+    expect(screen.getByText("이 회차는 닫혔습니다")).toBeInTheDocument();
+    expect(screen.getByText("본문")).toBeInTheDocument();
   });
 
   /* 하나의 박스, 아이콘만 다르다 — 확정된 메시지 박스 규약.
@@ -791,12 +817,15 @@ describe("PageHeader", () => {
       expect(screen.getByText("둘째 줄")).toBeInTheDocument();
     });
 
-    it("helpTone이 주어지면 Callout의 톤 라벨이 그걸 따른다(기본은 '안내')", () => {
+    it("helpTone이 주어지면 Callout 아이콘의 접근 이름이 그걸 따른다(기본은 '안내')", () => {
       const { unmount } = ui(<PageHeader title="테스트" help="일반 안내" />);
-      expect(screen.getByText("안내")).toBeInTheDocument();
+      expect(screen.getByLabelText("안내")).toBeInTheDocument();
+      // 톤 이름이 **화면 글자로는** 서지 않는다 — 제목 자리는 화면이 쓸 자리다.
+      expect(screen.queryByText("안내")).toBeNull();
       unmount();
       ui(<PageHeader title="테스트" help="위험한 안내" helpTone="warn" />);
-      expect(screen.getByText("주의")).toBeInTheDocument();
+      expect(screen.getByLabelText("주의")).toBeInTheDocument();
+      expect(screen.queryByText("주의")).toBeNull();
     });
   });
 });

@@ -2,7 +2,7 @@ import React from "react";
 import Box from "@mui/material/Box";
 import Chip from "@mui/material/Chip";
 import Typography from "@mui/material/Typography";
-import { CONTROL, remPx } from "./theme.js";
+import { CONTROL, FONT_SIZE, FONT_WEIGHT, RADIUS, remPx } from "./theme.js";
 
 /* 탐색 줄 — 목록 화면의 «어떻게 볼지»(도구)와 «무엇을 볼지»(필터)를 담는 자리.
  *
@@ -214,6 +214,39 @@ export const CHIP_ROW_CONTROL = {
   display: "inline-flex", alignItems: "center", minHeight: remPx(CONTROL.buttonSm),
 };
 
+/* 조건 칩의 얼굴 — **알약이고 옅은 브랜드 면이다** (확정 규약 · 갤러리 대조 D-4).
+ *
+ * MUI `Chip` 기본은 중립 회색 필이다. 그 얼굴로는 이 줄의 칩이 바로 위 태그(`Tag`)와
+ * 구분되지 않았고, 「지울 수 있는 조건」이라는 뜻이 모양에서 사라졌다 — 실제로 갤러리에
+ * 나란히 세우고서야 보였다. 셋을 바꾼다: 모서리를 알약(`RADIUS.full`)으로, 면을 강조색에서
+ * 유도한 옅은 면(`primary.light`)으로, 높이를 `CONTROL.chip` 26 으로.
+ *
+ * 면과 글자를 **강조색 파생**으로 두는 것이 중요하다. `primary.light` 는 강조색을 판면에
+ * 10% 섞은 값이고 `primary.dark` 는 그 강조색의 진한 잉크다 — 사용자가 강조색을 바꾸면
+ * 둘이 함께 따라간다. 고정 hex 를 쓰면 보라 이외의 강조색에서 칩만 보라로 남는다.
+ *
+ * 높이는 옆의 「필터 초기화」(30, `CHIP_ROW_CONTROL`)와 **일부러 다르다.** 칩은 지금 걸린
+ * 조건을 말하는 표지이고 그 옆은 누르는 단추다 — 한 높이로 세우면 셋이 한 종류로 읽힌다.
+ * 줄이 `align-items: center` 라 두 높이가 한 축에 선다. */
+const CONDITION_CHIP_SX = {
+  height: remPx(CONTROL.chip),
+  /* `px` 를 붙인다 — MUI 의 `borderRadius` 시스템 prop 은 **맨 숫자에 `shape.borderRadius`
+     를 곱한다.** `RADIUS.full`(999)을 그대로 주면 `7992px` 가 나간다. 브라우저가 알아서
+     높이의 절반으로 잘라 주니 화면은 맞지만, 선언된 값이 계약과 달라진다. */
+  borderRadius: `${RADIUS.full}px`,
+  bgcolor: "primary.light",
+  color: "primary.dark",
+  border: 1,
+  borderColor: "divider",
+  fontSize: FONT_SIZE.caption,
+  fontWeight: FONT_WEIGHT.semibold,
+  "& .MuiChip-deleteIcon": {
+    color: "inherit",
+    opacity: 0.7,
+    "&:hover": { color: "inherit", opacity: 1 },
+  },
+};
+
 export function FilterChips({ items, onClearAll, clearLabel = "필터 초기화", extraAction }) {
   const chips = Array.isArray(items) ? items.filter((c) => c && c.label) : [];
   if (!chips.length && !extraAction) return null;
@@ -225,6 +258,7 @@ export function FilterChips({ items, onClearAll, clearLabel = "필터 초기화"
           size="small"
           label={chip.label}
           onDelete={chip.onDelete}
+          sx={CONDITION_CHIP_SX}
         />
       ))}
       {onClearAll ? (

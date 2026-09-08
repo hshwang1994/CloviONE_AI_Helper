@@ -47,6 +47,37 @@ describe("Badge 와 Tag 는 다른 것을 말한다", () => {
     const { container } = render(<Tag label="기획서" />);
     expect(container.querySelector(".k-tag").dataset.tone).toBe("neutral");
   });
+
+  /* 🔴 **면으로 갈린다** (확정 규약 §9 · 갤러리 대조 D-2/D-3).
+   *
+   * 규약은 처음부터 둘을 갈라 놓았는데 구현이 안 따라갔다: `Tag` 가 배지 쪽 옅은 면
+   * (`background.inset`)을 쓰고 테두리가 없어서, 문서 목록 한 줄의 「계획」 배지와
+   * 「Docker」 태그가 같은 부품으로 보였다. 눈으로만 확인할 수 있는 사실이 아니므로
+   * 계산된 면과 테두리를 직접 잰다 — 태그는 **테두리를 갖고** 배지는 **안 갖는다**,
+   * 그리고 둘의 면은 서로 **다르다**. */
+  it("면을 가진 배지와 태그는 면과 테두리가 서로 다르다", () => {
+    const { container: b } = render(<Badge value="계획" emphasis="strong" />);
+    const { container: t } = render(<Tag label="Docker" />);
+    const badge = getComputedStyle(b.querySelector(".k-badge"));
+    const tag = getComputedStyle(t.querySelector(".k-tag"));
+
+    // 태그만 테두리를 갖는다.
+    expect(tag.borderTopWidth).toBe("1px");
+    expect(badge.borderTopWidth === "" || badge.borderTopWidth === "0px").toBe(true);
+    // 면이 같으면 둘을 구별할 수 없다.
+    expect(tag.backgroundColor).not.toBe(badge.backgroundColor);
+    // 높이는 같은 토큰(CONTROL.pill)에서 나온다 — 한 줄에 섞여도 리듬이 안 깨진다.
+    expect(tag.height).toBe(badge.height);
+  });
+
+  it("톤이 있는 태그도 면은 흰색 하나이고 색은 글자만 받는다", () => {
+    const { container: plain } = render(<Tag label="회의록" />);
+    const { container: toned } = render(<Tag label="회의록" tone="teal" />);
+    const a = getComputedStyle(plain.querySelector(".k-tag"));
+    const b = getComputedStyle(toned.querySelector(".k-tag"));
+    expect(b.backgroundColor).toBe(a.backgroundColor);
+    expect(b.color).not.toBe(a.color);
+  });
 });
 
 describe("분류값에 의미색을 매기는 표가 남아 있지 않다", () => {

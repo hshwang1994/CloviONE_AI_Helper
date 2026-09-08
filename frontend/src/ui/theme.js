@@ -150,6 +150,17 @@ export const CONTROL = {
      일반 컨트롤(34/36)보다 작다. 배선은 W6 이 한다 — 값을 여기 두는 이유는 그때 새 리터럴이
      생기지 않게 하기 위해서다. */
   tableCellDense: 32,
+  /* 알약 하나의 높이 — **배지의 면 갈래와 태그가 같은 값으로 선다**(확정 규약 §9).
+     둘은 면으로만 갈린다: 배지는 옅은 면에 테두리가 없고, 태그는 흰 면에 1px 테두리다.
+     높이까지 갈리면 한 줄에 섞여 설 때 두 어휘가 아니라 **두 부품**으로 읽힌다 —
+     실제로 그랬다(배지 22 · 태그 20, 그리고 태그가 배지의 옅은 면을 쓰고 있었다). */
+  pill: 22,
+  /* 조건 칩 — 필터 바의 「지울 수 있는 조건」. 같은 줄의 글자 단추(30)보다 한 단 작다.
+     칩은 지금 걸린 조건을 **말하는 표지**이지 누를 것이 아니다. 같은 높이로 세우면
+     조건 둘과 단추 하나가 한 종류의 조작기로 읽힌다. */
+  chip: 26,
+  /* 팝오버 항목 한 줄. MUI 기본은 48(dense 36)이라 항목 여섯이면 메뉴가 화면을 덮었다. */
+  menuItem: 32,
 };
 
 /* 아이콘 크기 — 5개 **역할 이름** 슬롯 (지시 79). 크기가 아니라 쓰임으로 부른다.
@@ -1142,6 +1153,23 @@ export function createClovirTheme(mode = "light", accent = DEFAULT_ACCENT) {
             borderRadius: RADIUS.lg,
             border: `1px solid ${theme.palette.divider}`,
             boxShadow: theme.shadowTokens.overlay,
+          }),
+        },
+      },
+      /* 팝오버 항목의 높이도 토큰이다. MUI 기본은 `minHeight: 48`(dense 36)인데 그 값은
+         터치 목록의 값이고, 이 제품의 메뉴는 마우스로 여는 짧은 동작 목록이다 — 항목 여섯이면
+         메뉴 하나가 화면 높이의 3분의 1 을 먹었다. 여백은 `CONTROL.menuItem` 안에서 만든다. */
+      MuiMenuItem: {
+        styleOverrides: {
+          /* 🔴 `sm` 이상에서 **다시 한 번** 적는다. MUI 의 기본 스타일은 `minHeight: 48` 에
+             더해 `[breakpoints.up('sm')]: { minHeight: 'auto' }` 를 갖는데, 미디어 블록이
+             평범한 선언보다 뒤에 실려서 여기서 `minHeight` 를 한 번만 적으면 **조용히
+             무시된다**(실측: 선언 32px, 계산값 0px — padding 만 먹혔다). 같은 미디어 안에서
+             한 번 더 말해야 이긴다. */
+          root: ({ theme }) => ({
+            minHeight: remPx(CONTROL.menuItem),
+            paddingBlock: remPx(4),
+            [theme.breakpoints.up("sm")]: { minHeight: remPx(CONTROL.menuItem) },
           }),
         },
       },
