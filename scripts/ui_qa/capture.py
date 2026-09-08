@@ -374,6 +374,21 @@ def expand_for_full_capture(page, viewport: Viewport) -> int | None:
         return None
     page.set_viewport_size({"width": viewport.width, "height": target})
     page.wait_for_timeout(200)
+    """확장 직후에는 `loading="lazy"` 이미지가 **막 뷰포트에 들어온 참**이다.
+
+    200ms 는 그것이 실려 그려지기에 모자라고, 그래서 접힘 아래의 클로비가 캡처에서만
+    사라졌다 — 갤러리의 오류 상태 마스코트가 그랬다(DOM 에는 145x145 로 있고 `complete`
+    도 true 인데 PNG 의 그 자리는 순백이었다). 빠진 그림은 읽는 사람에게 «부품이 그림을
+    안 그린다» 로 보이고, 마스코트 검사도 없는 것을 재게 된다.
+
+    최선 노력이다 — 폴링 화면이나 안 실리는 이미지 하나 때문에 캡처를 실패시키지 않는다."""
+    try:
+        page.wait_for_function(
+            "() => Array.from(document.images).every((i) => i.complete)",
+            timeout=3_000,
+        )
+    except Exception:
+        pass
     return target
 
 

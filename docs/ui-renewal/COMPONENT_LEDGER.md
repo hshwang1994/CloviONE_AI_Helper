@@ -3,7 +3,7 @@
 **정본**: `frontend/src/ui/**` · `frontend/src/screens/**` Source
 **대조표**: `/kit` (`frontend/src/screens/dev/KitGallery.jsx`) — 실제 부품을 불러 쓴다
 **측정**: 2026-09-08, 1920x1080 light. 치수는 브라우저의 `getComputedStyle` 실측이고
-캡처는 `dist/ui-qa/kit-gallery-r6/` 다.
+캡처는 `dist/ui-qa/kit-gallery-r8/` 다.
 
 이 문서가 답하는 것 하나: **「이 모양을 어디서 고치나」**. 부품마다 이름 · 파일 · 무엇을
 대체했는지 · 어느 화면이 쓰는지 · 규약값 네 가지를 적는다. `03_COMPONENT.md` 는 전환 계획의
