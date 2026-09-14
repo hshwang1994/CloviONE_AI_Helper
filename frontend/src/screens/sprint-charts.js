@@ -263,10 +263,15 @@ export function normalizeMeeting(raw) {
     workload: Array.isArray(raw.workload) ? raw.workload : [],
     scope: { tracked: false, added: 0, removed: 0, trend: [], ...(raw.scope || {}) },
     discuss: raw.discuss || {},
-    candidates: Array.isArray(raw.candidates) ? raw.candidates : [],
-    candidates_total:
-      Number(raw.candidates_total)
-      || (Array.isArray(raw.candidates) ? raw.candidates.length : 0),
+    // 논의 목록에 걸린 프로젝트 필터(서버가 되돌려 준다 — 지표는 회차 전체다, D-484).
+    discuss_project_id: raw.discuss_project_id || null,
+    // 회차에 담긴 티켓 전체(회의록의 「관련 티켓」 후보). 후보(`candidates`)는 이제 없다.
+    tickets: Array.isArray(raw.tickets) ? raw.tickets : [],
+    tickets_total:
+      Number(raw.tickets_total)
+      || (Array.isArray(raw.tickets) ? raw.tickets.length : 0),
+    // 회차의 팀(D-482). 팀 미정이면 `null` 이고 화면이 그렇게 말한다.
+    team: raw.team || null,
     decisions: Array.isArray(raw.decisions) ? raw.decisions : [],
   };
 }

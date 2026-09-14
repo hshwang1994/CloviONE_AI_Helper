@@ -102,6 +102,29 @@ export function DragItem({ id, label, disabled, children }) {
   );
 }
 
+/* 끌 수 있는 카드 **안의** 단추 자리 (D-483).
+ *
+ * `DragItem` 은 손잡이 속성을 카드 전체에 붙인다 — 포인터 누름은 끌기의 시작이고, 스페이스
+ * 키는 「집기」다. 카드 안에 단추(빠른 수정 · 현재 회차에서 빼기)가 있으면 그 단추를 누르는
+ * 손짓·스페이스가 그대로 카드로 올라가 끌기가 시작되고, 단추의 클릭은 카드의 클릭(미리
+ * 열기)으로도 번진다. 포인터 끌기는 dnd-kit 이 6px 문턱으로 이미 가르지만 **키보드는 그
+ * 문턱이 없다** — 이 감싸개가 세 사건을 카드까지 안 보내는 것으로 단추를 단추로 남긴다. */
+export function DragItemActions({ children, sx }) {
+  const stop = (e) => e.stopPropagation();
+  return (
+    <Box
+      onPointerDown={stop}
+      onMouseDown={stop}
+      onTouchStart={stop}
+      onKeyDown={stop}
+      onClick={stop}
+      sx={{ display: "inline-flex", alignItems: "center", ...sx }}
+    >
+      {children}
+    </Box>
+  );
+}
+
 /* 카드를 받는 칸. 비어 있어도 **높이를 유지한다** — 빈 칸이 사라지면 그 칸으로 옮길
  * 방법이 없어진다(칸반에서 마지막 카드를 뺀 순간 정확히 그 상태가 된다). */
 /* `virtualized` — §15.1. `VirtualRows` 는 자기 자신의 스크롤 창(`height`+`overflowY:auto`)을
@@ -280,6 +303,7 @@ export function SortableList({ items, labelOf, onReorder, disabled, children, vi
       overscan={virtualize.overscan}
       onEndReached={virtualize.onEndReached}
       rowGap={virtualize.rowGap}
+      scrollKey={virtualize.scrollKey}
       itemRole={null}
       renderItem={(it) => children(it)}
       sx={virtualize.sx}
@@ -426,6 +450,9 @@ export function DragBoard({ columns, labelOf, onMove, disabled, children, sx, co
                   ariaLabel={`${column.title} 카드 목록`}
                   overscan={virtualize.overscan}
                   rowGap={virtualize.rowGap}
+                  // 열마다 자기 스크롤 자리를 기억한다 — 상세에서 돌아왔을 때 열이 맨 위로
+                  // 되감기지 않게(`VirtualRows` 의 scrollKey).
+                  scrollKey={virtualize.scrollKeyPrefix ? `${virtualize.scrollKeyPrefix}:${column.id}` : undefined}
                   itemRole={null}
                   renderItem={(it) => children(it, column)}
                 />

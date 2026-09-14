@@ -1,4 +1,5 @@
 /* qa-contract-change: 스프린트 회의의 담당자 타일 격자 PEOPLE_GRID 가 없어져 그 열 수를 세던 단정이 사라졌다. 그 자리는 이제 담당자별 남은 WD 막대이고, 「나란히 놓고 비교된다」는 성질은 격자 열 수가 아니라 하나의 축을 공유하는가로 지켜진다 — 아래에서 그 성질을 직접 단정한다(지시 4).
+ * qa-contract-change: 논의 갈래 타일 트랙(DISCUSS_TILE_TRACK)이 사라졌다 — 갈래는 이제 격자 타일이 아니라 칩 한 줄이라(D-484) 「마지막 줄이 꽉 차는가」라는 결함 자체가 없다. 대신 회의 짝 판의 오른쪽 트랙에 바닥(rem)이 생긴 계약을 단정한다 — 그것이 게이지가 손톱만 해지던 결함을 막는 값이다.
  */
 import { describe, it, expect } from "vitest";
 
@@ -11,9 +12,8 @@ import {
   TILE_GRID_GAP,
   TILE_PADDING,
   MEETING_PAIR_TRACKS,
+  PAIR_CHART_MIN_HEIGHT,
   fixedTileTrack,
-  DISCUSS_BUCKET_COUNT,
-  DISCUSS_TILE_TRACK,
   FORM_FIELD_GRID,
   pairTracks,
 } from "./density.js";
@@ -103,17 +103,15 @@ describe("개수가 고정된 카드 줄은 마지막 줄에 빈 칸을 남기�
     expect(fixedTileTrack(7)).toBe("repeat(7, minmax(0, 1fr))");
   });
 
-  /* 🔴 논의 타일 트랙은 예전에 `repeat(5, …)` 한 줄이었다. 그런데 갈래는 **여덟**이다 —
-     다섯이 첫 줄에 서고 셋이 둘째 줄에 남아 그 줄의 오른쪽 40% 가 통째로 빈 띠였다.
-     이제 트랙은 개수에서 파생하고(`balancedTileTracks`), 폭마다 개수를 나누어떨어지게
-     하는 칸 수를 고른다. 그래서 검사도 「고정 문자열이 맞는가」가 아니라 **「어느 폭에서도
-     마지막 줄이 꽉 차는가」**를 본다. */
-  it("논의 타일 트랙은 어느 폭에서도 마지막 줄을 꽉 채운다", () => {
-    for (const track of Object.values(DISCUSS_TILE_TRACK)) {
-      expect(fills(track)).toBe(true);
-      const columns = Number(/repeat\((\d+),/.exec(track)[1]);
-      expect(DISCUSS_BUCKET_COUNT % columns).toBe(0);
-    }
+  /* 🔴 회의 짝 판의 오른쪽(건강 게이지)이 1366 폭에서 300px 남짓으로 눌려 게이지가
+     손톱만 했다 — `2fr 1fr` 은 바닥이 없다. 게이지는 원이라 폭이 곧 크기다. 오른쪽 트랙에
+     rem 바닥이 있고, 높이도 큰 게이지와 진도 막대가 설 만큼이어야 한다(D-484). */
+  it("회의 짝 판의 오른쪽 트랙은 rem 바닥을 갖고, 높이는 큰 게이지가 설 만큼이다", () => {
+    const right = MEETING_PAIR_TRACKS.lg.split(") ")[1];
+    expect(right).toMatch(/^minmax\(\d+rem,/);
+    expect(Number.parseFloat(/minmax\((\d+)rem/.exec(right)[1])).toBeGreaterThanOrEqual(18);
+    // 11rem 게이지 + 캡션 + 진도 막대 둘 — 12rem 으로는 잘렸다.
+    expect(Number.parseFloat(PAIR_CHART_MIN_HEIGHT.lg)).toBeGreaterThanOrEqual(16);
   });
 
   /* 홈 지표 줄(6장)을 여기서 검사하던 자리다. 그 줄은 이제 격자가 아니라 판독 줄

@@ -61,10 +61,16 @@ const BOARD = {
 
 const SPRINTS = [
   {
-    id: "sp-1", name: "8월 넷째 주", project_id: "",
+    id: "sp-1", name: "8월 넷째 주", department_id: "d-1",
     starts_on: "2026-08-24", ends_on: "2026-08-30", state: "active",
   },
 ];
+// 회차는 팀의 것이다(D-482) — 회차 목록 응답이 팀 봉투를 함께 싣는다.
+const TEAM = {
+  selected: "d-1",
+  options: [{ id: "d-1", name: "A팀", path: [{ id: "d-1", name: "A팀" }], manageable: true }],
+  manageable: true,
+};
 
 function stubApi({ board = BOARD, sprints = SPRINTS, column } = {}) {
   apiMock.mockImplementation((path) => {
@@ -72,7 +78,7 @@ function stubApi({ board = BOARD, sprints = SPRINTS, column } = {}) {
     if (path.startsWith("/api/tickets/assignees")) return Promise.resolve({ assignees: [] });
     if (path.startsWith("/api/tickets/meta")) return Promise.resolve({ priorities: [], difficulties: [] });
     if (path.startsWith("/api/work/statuses")) return Promise.resolve(STATUSES);
-    if (path.startsWith("/api/work/sprints")) return Promise.resolve({ sprints });
+    if (path.startsWith("/api/work/sprints")) return Promise.resolve({ sprints, team: TEAM });
     if (path.startsWith("/api/work/board/columns/")) {
       return Promise.resolve(column || { cards: [], next_cursor: null });
     }
@@ -110,11 +116,11 @@ function columnCalls() {
 describe("열의 「더 보기」", () => {
   beforeEach(() => { apiMock.mockReset(); });
 
-  it("🔴 첫 쪽과 같은 조건을 전부 싣는다 — 검색·부서·우선순위·난이도·신호 포함", async () => {
+  it("🔴 첫 쪽과 같은 조건을 전부 싣는다 — 검색·팀·우선순위·난이도·신호 포함", async () => {
     stubApi({ column: { cards: [card({ id: "t-2", key: "ABC-2", title: "다음 쪽의 일" })], next_cursor: null } });
-    // 조건을 걸어 둔 채 진입한다 — 회차도 주소에 있어 자동 선택이 끼어들지 않는다.
+    // 조건을 걸어 둔 채 진입한다 — 팀·회차도 주소에 있어 자동 선택이 끼어들지 않는다.
     renderBoard(
-      "/work-board?sprint=sp-1&q=%EC%9D%B8%EC%A6%9D&dept=d-1&priority=%EB%86%92%EC%9D%8C&difficulty=%EC%83%81&signal=blocked"
+      "/work-board?team=d-1&sprint=sp-1&q=%EC%9D%B8%EC%A6%9D&priority=%EB%86%92%EC%9D%8C&difficulty=%EC%83%81&signal=blocked"
     );
     await userEvent.click(await screen.findByRole("button", { name: "더 보기" }));
     await waitFor(() => expect(columnCalls().length).toBe(1));
@@ -146,7 +152,7 @@ describe("열의 「더 보기」", () => {
         next_cursor: null,
       },
     });
-    renderBoard("/work-board?sprint=sp-1");
+    renderBoard("/work-board?team=d-1&sprint=sp-1");
     await userEvent.click(await screen.findByRole("button", { name: "더 보기" }));
     await screen.findByText("다음 쪽의 일");
     expect(screen.getAllByText("첫 쪽의 일")).toHaveLength(1);

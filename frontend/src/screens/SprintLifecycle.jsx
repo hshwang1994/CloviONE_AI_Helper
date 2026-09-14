@@ -117,10 +117,11 @@ function CloseDialog({ open, onClose, sprint, sprints, busy, onSubmit }) {
     (s) =>
       s.id !== (sprint && sprint.id)
       && s.state !== "closed"
-      // 서버의 이월 규칙과 같은 축 — 팀 전체 회차(project_id 없음)는 언제나 받고,
-      // 프로젝트 회차는 같은 프로젝트만 받는다. 여기서 안 거르면 「전체」 필터로 연
-      // 화면에서 다른 프로젝트 회차가 후보로 떠서, 고르면 서버 거절만 본다.
-      && (s.project_id == null || s.project_id === ((sprint && sprint.project_id) ?? null))
+      // 서버의 이월 규칙과 같은 축(D-482) — **같은 팀의 열린 회차**만 받는다. 여기서 안
+      // 거르면 상위 권한자가 여러 팀을 오가며 연 화면에서 다른 팀 회차가 후보로 떠서,
+      // 고르면 서버 거절만 본다. 후보가 없으면 백로그가 기본값이다 — 다음 회차가 없어도
+      // 닫을 수 있다.
+      && (s.department_id ?? null) === ((sprint && sprint.department_id) ?? null)
   );
   const [target, setTarget] = React.useState("");
 
@@ -143,7 +144,8 @@ function CloseDialog({ open, onClose, sprint, sprints, busy, onSubmit }) {
         <ModalFooter
           onCancel={onClose}
           onSubmit={() => onSubmit(target === CARRY_BACKLOG ? null : target)}
-          submitLabel="닫기"
+          // 창의 X 도 「닫기」라 같은 이름이 둘이 된다 — 되돌릴 수 없는 단추는 자기 동작을 부른다.
+          submitLabel="회차 닫기"
           busy={busy}
         />
       }
@@ -169,25 +171,42 @@ function CloseDialog({ open, onClose, sprint, sprints, busy, onSubmit }) {
   );
 }
 
-/** 회차를 열고 닫는 단추 묶음. 회차를 안 골랐으면 아무것도 안 그린다. */
-/** 수정 폼의 칸. 닫은 회차의 기간은 서버가 거절한다 — 못 고치는 칸은 보여 주지 않는다. */
-function sprintEditFields(sprint) {
+/** 수정 폼의 칸. 닫은 회차는 **이름만** 고친다(D-482 — 기간·목표는 그 회차의 기록이다).
+ * 서버가 거절하는 칸은 보여 주지 않는다. 팀 미정(레거시) 회차에는 팀을 정해 주는 칸이
+ * 하나 더 선다 — 그 칸이 이 회차를 보통 회차로 만든다. */
+export function sprintEditFields(sprint, teamOptions) {
+  const closed = !!sprint && sprint.state === "closed";
   const base = [
     { name: "name", label: "이름", required: true, maxLength: 120 },
-    { name: "starts_on", label: "시작일", type: "date", required: true },
-    { name: "ends_on", label: "종료일", type: "date", required: true },
-    { name: "goal", label: "목표", type: "textarea", maxLength: 2000 },
+    ...(closed ? [] : [
+      { name: "starts_on", label: "시작일", type: "date", required: true },
+      { name: "ends_on", label: "종료일", type: "date", required: true },
+      { name: "goal", label: "목표", type: "textarea", maxLength: 2000 },
+    ]),
   ];
-  return sprint && sprint.state === "closed" ? base.filter((f) => f.type !== "date") : base;
+  if (sprint && !closed && !sprint.department_id && Array.isArray(teamOptions) && teamOptions.length) {
+    base.splice(1, 0, {
+      name: "department_id", label: "팀", type: "entity", required: true,
+      options: teamOptions, emptyLabel: "팀을 고르세요",
+      help: "팀이 정해지지 않은 회차입니다. 팀을 정하면 티켓을 담고 회차를 열 수 있습니다.",
+    });
+  }
+  return base;
 }
 
-export function SprintLifecycle({ sprint, sprints, size = "sm", onDeleted }) {
+/** 회차를 열고 닫는 단추 묶음. 회차를 안 골랐으면 아무것도 안 그린다.
+ *
+ * `canPlan` — 부르는 화면이 **팀 관리 범위**까지 판정한 값(`team.manageable` ∧ 역할).
+ * 안 주면 역할만 본다(옛 호출부 호환). 서버가 관리 범위(403)와 역할을 둘 다 다시 본다.
+ * `teams` — 팀 미정 회차에 팀을 정해 줄 후보 `[{ value, label }]`. */
+export function SprintLifecycle({ sprint, sprints, size = "sm", onDeleted, canPlan: canPlanProp, teams }) {
   const qc = useQueryClient();
   const toast = useToast();
   const confirm = useConfirm();
   const [closing, setClosing] = React.useState(false);
   const [editing, setEditing] = React.useState(false);
-  const canPlan = useCanPlanSprint();
+  const roleCanPlan = useCanPlanSprint();
+  const canPlan = canPlanProp != null ? canPlanProp : roleCanPlan;
 
   function refresh() {
     // 나머지 판(work-board·work-backlog·sprint-meeting·티켓 목록·홈)은 전부
@@ -236,7 +255,8 @@ export function SprintLifecycle({ sprint, sprints, size = "sm", onDeleted }) {
       refresh();
       toast("회차를 열었습니다. 오늘부터 진행을 셉니다.", "success");
     },
-    // 같은 프로젝트에 이미 열린 회차가 있으면 서버가 그 이름을 담아 409 로 거절한다.
+    // 같은 팀에 이미 열린 회차가 있으면 서버가 그 이름을 담아 409 로 거절한다. 팀 미정
+    // 회차는 422 다 — 먼저 「회차 수정」에서 팀을 정해야 한다.
     onError: (e) => toast((e && e.message) || "회차를 열지 못했습니다.", "error"),
   });
 
@@ -311,25 +331,26 @@ export function SprintLifecycle({ sprint, sprints, size = "sm", onDeleted }) {
         open={editing}
         title="회차 수정"
         submitLabel="저장"
-        fields={sprintEditFields(sprint)}
+        fields={sprintEditFields(sprint, teams)}
         initial={{
           name: sprint.name || "",
+          department_id: sprint.department_id || "",
           starts_on: sprint.starts_on || "",
           ends_on: sprint.ends_on || "",
           goal: sprint.goal || "",
         }}
-        onSubmit={(values) =>
-          update.mutateAsync(
-            sprint.state === "closed"
-              ? { name: values.name, goal: values.goal || null }
-              : {
-                  name: values.name,
-                  starts_on: values.starts_on,
-                  ends_on: values.ends_on,
-                  goal: values.goal || null,
-                },
-          )
-        }
+        onSubmit={(values) => {
+          if (sprint.state === "closed") return update.mutateAsync({ name: values.name });
+          const body = {
+            name: values.name,
+            starts_on: values.starts_on,
+            ends_on: values.ends_on,
+            goal: values.goal || null,
+          };
+          // 팀은 미정 회차에 **정해 줄 때만** 보낸다 — 이미 팀이 있는 회차의 팀은 서버가 거절한다.
+          if (!sprint.department_id && values.department_id) body.department_id = values.department_id;
+          return update.mutateAsync(body);
+        }}
         onClose={() => setEditing(false)}
       />
       <CloseDialog

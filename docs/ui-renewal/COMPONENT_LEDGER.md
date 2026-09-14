@@ -42,7 +42,40 @@
 ### `StatusSummaryCard` · `StatusChip` · `ZeroChip` · `RatioBar` · `StatusDot`
 - **파일**: `frontend/src/ui/StatusKpi.jsx`
 - **대체**: 작업 보드·회의의 `StatusKpiStrip` 카드 7~10장, 홈의 `MetricStrip` 판독 줄
-- **소비 화면**: 홈 · 내 업무량 · 작업 보드 · 부품 갤러리 (`StatusKpiStrip` 은 회의가 계속 쓴다)
+- **소비 화면**: 홈 · 내 업무량 · 부품 갤러리 (`StatusKpiStrip` 은 회의가 `note` 캡션과 함께 쓴다.
+  작업 보드는 2026-09-14 부터 요약 카드를 안 그린다 — D-484)
+
+### `TicketPeek` · `useTicketPeek` (2026-09-14, D-483)
+- **파일**: `frontend/src/screens/TicketPeek.jsx` · 속성 표 `screens/ticket-meta.jsx`
+- **대체**: 카드 클릭 → 상세 이동. 작업 보드·스프린트 회의가 같은 창을 연다
+- **소비 화면**: 작업 보드 · 스프린트 회의
+- **규약값**: `Modal size="md"`. 속성 줄은 상세와 같은 `MetaBar`. 설명 앞 600자. 발 줄은
+  회차 작업(secondary sm) · 빠른 수정 · 「티켓 상세 보기」(primary). 닫기는 창의 X 와 Esc 뿐이다.
+  주소 `peek` 은 push, 닫기는 `-1`, 상세는 replace
+
+### `DragItemActions` (2026-09-14, D-483)
+- **파일**: `frontend/src/ui/DragDrop.jsx`
+- **대체**: 끌 수 있는 카드 안에 단추를 두던 자리(없었다 — 카드 안 단추가 끌기·클릭으로 번졌다)
+- **소비 화면**: 작업 보드(카드의 `OverflowMenu` · 백로그 줄의 「회차에 담기」)
+- **규약값**: `inline-flex` · 포인터/마우스/터치/키/클릭 전파 차단
+
+### `TeamSelect` (2026-09-14, D-482)
+- **파일**: `frontend/src/ui/filters.jsx`
+- **대체**: 작업 보드의 부서 필터(`DepartmentFilter`) 자리 — 필터가 아니라 **문맥**이다
+- **소비 화면**: 작업 보드 · 스프린트 회의
+- **규약값**: `EntityCombobox` · 라벨 「팀」 · 「전체」 없음 · 후보 < 2 면 안 그린다 · 라벨은 경로
+
+### `DiscussBucket` 칩 (2026-09-14, D-484)
+- **파일**: `frontend/src/ui/DiscussBucket.jsx`
+- **대체**: 같은 이름의 큰 타일 여덟(격자 `DISCUSS_TILE_TRACK` 은 걷었다)
+- **소비 화면**: 스프린트 회의
+- **규약값**: `role="tab"` + roving tabindex 그대로. 알약 `RADIUS.pill` · px 10 · py 5 ·
+  `bodySm`. 톤 점은 KPI 와 같은 `StatusDot` 7px(신호 셋만). 고른 칩은 `primary.soft` 면 + `brand.core` 선
+
+### `Gauge` `centerSize="readout"` · `centerCaption` (2026-09-14, D-484)
+- **파일**: `frontend/src/ui/charts/Gauge.jsx`
+- **소비 화면**: 스프린트 회의(회차 건강 11rem · 두께 8)
+- **규약값**: 덮개 `1fr auto 1fr` 격자. 판독값 `FONT_SIZE.pageTitle`, 캡션 `caption`
 - **규약값**: 판 py 18 / px 20, 안쪽 줄 사이 12. 칩 `CONTROL.buttonSm` 30 · px 11 · gap 7 ·
   `RADIUS.sm`. 점 7px. 비율 바 8px `RADIUS.full`, 트랙 `background.sunken`.
   0건 칩은 점선. **실측**: 칩 30px, 전체 숫자 `FONT_SIZE.pageTitle` 28px.
@@ -201,7 +234,7 @@
 | 폼 고정 트랙 `FIELD_ROWS` | `screens/Profile.jsx` | 폼 규약(라벨 20 · 필드 `CONTROL.input` · 도움말 auto)의 첫 소비처다. **5-4 새 티켓**이 같은 트랙을 쓰므로 그때 공용으로 올린다 | 5-4에서 승격 |
 | `Chat.jsx` 의 MUI `Alert` | `screens/Chat.jsx` | 메시지 박스 흡수 회차의 범위 밖이었다(채팅은 5-6) | 5-6에서 `Callout` 으로 |
 | `kit.jsx` 안의 `MuiAlert` 둘 | `ui/kit.jsx:3351` · `:3458` | 폼 오류 줄과 토스트 알맹이다. 메시지 박스와 **다른 부품**이고 각자 자기 계약이 있다 | 흡수 대상 아님 |
-| `StatusKpiStrip` | `ui/StatusKpi.jsx` | 회의 화면이 아직 쓴다. `StatusSummaryCard` 가 그 자리를 대체할 수 있는지는 회의 화면을 볼 때 판단한다 | 미정 |
+| `StatusKpiStrip` | `ui/StatusKpi.jsx` | 회의 화면이 쓴다 — 세 칸(전체·완료·진행 중)에 「회차 전체의 숫자입니다」 캡션(`note`)을 단 **읽는 줄**이다. `StatusSummaryCard` 는 부분·위험을 함께 말하는 카드라 그 자리에 맞지 않는다(2026-09-14 판단, D-484) | 유지 |
 | `ErrorState` 의 판 안 호출부 | 전 화면(87곳) | 자리 축(`layout`)은 생겼지만 기본값은 `page` 다 — 87곳을 한 회차에 뒤집지 않는다. 삼항 형태(`? <ErrorState`)가 31곳이고 그 대부분이 판·패널 안이다 | 화면 회차마다 그 화면 것을 `region` 으로 옮긴다 |
 | 모달 머리와 발 | `ui/kit.jsx::ModalHeader` · `ModalFooter` | 제목이 `FONT_SIZE.sectionTitle` 19px / 800 이라 판 제목 규약(1.0625rem / 700)과 두 단 어긋난다. 발 줄은 면도 위 실선도 없다 | 아래 §4 D-11 · D-12 |
 | 칸반 카드의 신호 어휘 | `ui/TicketFace.jsx` | 신호를 `variant="mark"`(아이콘만)로 그리고, 우선순위 `긴급` 만 면 있는 배지가 된다 — 한 카드 안에서 어휘가 갈린다 | 아래 §4 D-14 · D-15 |

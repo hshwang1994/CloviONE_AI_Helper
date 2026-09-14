@@ -49,7 +49,11 @@ export function TicketPeople({ card, size = "inline" }) {
   );
 }
 
-export function TicketFace({ card, signals, showProject = true, compact = false, onClick, sx }) {
+/* `actions` — 머리줄 오른쪽 끝의 **카드 작업** 자리(빠른 수정 · 현재 회차에서 빼기).
+ * 카드 전체가 누르면 미리보기이고 끌면 이동이라, 작업 단추는 그 둘을 방해하지 않는
+ * 감싸개(`ui/DragDrop.jsx::DragItemActions`)에 넣어서 넘긴다 — 여기서 그 감싸개를 직접
+ * 그리지 않는 이유는 이 부품이 끌기 부품을 모르게 두려는 것이다(회의 줄에서도 쓴다). */
+export function TicketFace({ card, signals, showProject = true, compact = false, onClick, sx, actions }) {
   const dueLine = [
     card.due ? `마감 ${card.due}` : null,
     card.est_wd != null ? `예상 ${card.est_wd}WD` : null,
@@ -66,6 +70,7 @@ export function TicketFace({ card, signals, showProject = true, compact = false,
           <Badge value={priorityKo(card.priority)} kind={priorityKind(card.priority)} />
         ) : null}
         <TicketSignals signals={signals} variant="mark" sx={{ marginInlineStart: "auto" }} />
+        {actions ? <Box sx={{ flexShrink: 0, ml: 0.5 }}>{actions}</Box> : null}
       </Stack>
       <Typography
         variant="body2"

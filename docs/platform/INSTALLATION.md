@@ -146,6 +146,24 @@ sudo /opt/clovirassist/deploy/install.sh <subcommand> [options]
 > `deploy/install.sh` 는 그 검사를 전부 Stage 0 으로 끌어올렸고, `tests/unit/test_deploy_wiring.py`
 > 가 「가드가 Preflight 안에 있다」를 계약으로 지킨다.
 
+### 5.1 회차 팀 이관 `0029_sprint_team_owner` — preflight 중단과 되돌리기 (D-482)
+
+Stage 9 가 `0029` 를 지날 때 **데이터가 스스로 정하지 못하는 것은 사람에게 돌려보낸다.**
+
+- **중단하는 조건 셋**: 팀 축으로 옮겼을 때 같은 팀에 `active` 회차가 둘 · 같은 팀에 같은
+  이름이 둘 · 팀의 조직과 회차의 조직이 다름. `alembic upgrade` 가 `RuntimeError("0029 중단 — …")`
+  로 멈추고 충돌 행(id·이름·상태·팀)을 나열한다. 트랜잭션이 되돌아가므로 **아무것도 바뀌지
+  않는다.** 자동으로 닫거나 합치거나 이름을 바꾸지 않는다 — 나열된 회차를 옛 앱에서 닫거나
+  이름을 고친 뒤 `deploy-upgrade.sh` 를 다시 돌린다.
+- **채우지 못한 회차**는 팀 미정(`department_id NULL`)으로 남고 `RAISE NOTICE '0029 sprints:
+  assigned[…] unassigned=N mixed_team=M'` 이 개수를 말한다. 배포 뒤 `/api/admin/integrity` 의
+  `sprints_without_team` 이 그 목록이다 — 관리자가 작업 보드의 「회차 수정」에서 팀을 정하거나,
+  닫힌 회차는 기록이라 그대로 둔다. 열린 회차의 팀 어긋난 티켓은 `open_sprint_tickets_off_team` 이 센다.
+- **되돌리기**: `alembic downgrade 0028_document_legacy_author`. `project_id` 칼럼·FK·인덱스는
+  0029 가 지우지 않고 값도 그대로라, 옛 인덱스 둘을 복원하고 `department_id` 를 지우면 이전
+  앱이 그대로 돈다. `project_id` 는 다음 릴리스의 `0030` 이 걷는다(BACKLOG P-94) — 그 전까지는
+  롤백이 데이터 손실 없이 된다.
+
 **설치 Version 확인**: `deploy/install.sh version` → VERSION · git ref/commit · alembic head ·
 PG 버전 · extension 버전 · 각 서비스 상태.
 

@@ -6,7 +6,7 @@ import Stack from "@mui/material/Stack";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
-import { Badge, Button, Callout, Card, EmptyState, ErrorState, MetaBar, OverflowMenu, PageHeader, Skeleton, useConfirm, useToast } from "../ui/kit.jsx";
+import { Button, Callout, Card, EmptyState, ErrorState, MetaBar, OverflowMenu, PageHeader, Skeleton, useConfirm, useToast } from "../ui/kit.jsx";
 import { DETAIL_GRID, DetailLayout } from "../ui/DetailLayout.jsx";
 import { GRID_GAP } from "../ui/density.js";
 import { TicketEditModal } from "./MyTickets.jsx";
@@ -15,13 +15,10 @@ import { TicketBody } from "./TicketBody.jsx";
 import { TicketComments } from "./TicketComments.jsx";
 import { TicketAttachments } from "./TicketAttachments.jsx";
 import { TicketHistory } from "./TicketHistory.jsx";
-import { priorityKo, priorityKind } from "../lib/priority.js";
+import { ticketId, ticketMetaItems } from "./ticket-meta.jsx";
 import { setItemTitle } from "../app/documentTitle.js";
 import { useListReturn } from "../lib/listReturn.js";
 import { useTicketSignals } from "../lib/ticketSignals.js";
-import { TicketSignals } from "../ui/TicketSignals.jsx";
-import { PersonLine } from "../ui/UserAvatar.jsx";
-import { DateCell } from "../ui/cells.jsx";
 
 /* 티켓 상세 — 문서처럼 우리 화면에서 내용을 읽고, '원본 열기'로 노션에 간다. 속성은 메타 레일에,
  * 본문은 TicketBody(읽기·편집·동기화 상태), 논의는 TicketComments 가 맡는다. 편집·삭제(휴지통)도 여기서.
@@ -35,12 +32,9 @@ import { DateCell } from "../ui/cells.jsx";
  * 좁은 화면에서는 레일이 본문 '위'로 온다(order) — 아래로 밀면 담당자·마감을 보려고 본문 전체를
  * 스크롤해 지나가야 한다. */
 
-/* 서버가 준 이름을 그대로 쓴다. 접두사를 붙여 만들지 않는 이유는 MyTickets.jsx 와 같다. */
-/* 번호가 없으면 **없다고 말한다.** 예전 폴백은 문자열 `"티켓"` 이었는데, 그 값이 「티켓 번호」
-   라벨 아래 들어가면 화면이 「티켓 번호: 티켓」이라고 적는다 — 값을 모른다는 사실이 값처럼
-   읽힌다. `null` 을 주면 `MetaBar` 가 `-` 를 그린다(빈 값의 공통 표현). 아래 PageHeader 의
-   제목 폴백은 그대로 두는 것이 맞다 — 거기서는 「제목이 없는 티켓」의 이름이 필요하다. */
-function ticketId(t) { return (t && t.key) || null; }
+/* 속성 줄의 정본은 `ticket-meta.jsx` 다 — 미리보기(`TicketPeek`)와 같은 표를 본다(D-483).
+   번호 폴백도 그쪽에 있다(`ticketId`). 아래 PageHeader 의 제목 폴백은 그대로 두는 것이
+   맞다 — 거기서는 「제목이 없는 티켓」의 이름이 필요하다. */
 
 /* 두 열 그리드의 정본은 **`ui/DetailLayout.jsx`** 다 (지시 8 · 14 · 16).
  *
@@ -176,53 +170,8 @@ export function Ticket() {
     </Stack>
   );
 
-  const meta = [
-    // VIS-134: 예전엔 상태/우선순위가 라벨 없이 본문 카드 맨 위에 칩 두 개로만 있었다 —
-    // "높음" 칩만 보고 그게 우선순위인지 난이도인지 알 수 없었다. 편집 폼(TicketEditModal)도
-    // 이 둘을 project/assignee/due/difficulty와 같은 한 폼에서 다뤄, 화면만 임의로 갈라 둘
-    // 이유가 없었다 — 라벨과 함께 한 속성 줄로 합친다. 가장 먼저 훑는 두 값이라 맨 앞이다.
-    /* 칸마다 `type` 이 붙는다 (C3) — 폭을 여기서 숫자로 적지 않는다. 이름·제목형만 남는
-       폭을 가져가고 상태·수치·날짜는 자기 내용 폭만 쓴다. 예전에는 전부 균등이라 「높음」
-       두 글자가 프로젝트 이름과 같은 폭을 받았고, 화면이 넓어질수록 속성 사이만 벌어졌다.
-
-       `rank` 는 폭이 아니라 **무게**다 (R-90). 티켓을 열었을 때 먼저 판단하는 값은
-       「지금 어떤 상태이고 · 누가 · 언제까지 · 얼마나 급한가」다 — 그 다섯이 위 줄에 선다.
-       티켓 번호·난이도·예상/실제 WD 는 **찾을 때만 읽는** 값이라 아래 압축 띠로 내린다.
-       예전에는 아홉이 같은 무게로 한 줄이었고, 4K 에서 그 줄은 2,880px 였다. */
-    t.status ? { key: "status", label: "상태", type: "status", rank: "primary", value: <Badge value={t.status} /> } : null,
-    /* 신호는 상태와 **다른 칸**이다 (D-349). 같은 칸에 넣으면 「진행 중」과 「차단됨」이
-       한 낱말처럼 읽히고, 「지금 어떤 상태인가」에 답이 둘이 된다. 켜진 신호가 하나도
-       없으면 이 칸 자체를 안 만든다 — 목록의 대부분이 그 상태다. */
-    signals.length
-      ? { key: "signals", label: "신호", type: "status", rank: "primary", value: <TicketSignals signals={signals} /> }
-      : null,
-    t.priority ? { key: "priority", label: "우선순위", type: "status", rank: "primary", value: <Badge value={priorityKo(t.priority)} kind={priorityKind(t.priority)} /> } : null,
-    t.project ? { key: "project", label: "프로젝트", type: "name", rank: "primary", value: t.project } : null,
-    /* A7 — 담당자를 이름 텍스트로만 나열했다(아바타 없음). `assignee_people` 은
-       `assignee_ids` 한 번만 훑어 만든, 이름·user_id 가 어긋나지 않는 목록이다
-       (`app/tickets/service.py::ticket_view` 주석) — 인덱스로 두 배열을 다시 짝짓지
-       않는다. 목록·보드는 이미 `UserAvatar` 를 쓰므로 여기도 같은 부품으로 맞춘다. */
-    (t.assignee_people || []).length ? {
-      key: "assignee", label: "담당자", type: "name", rank: "primary",
-      value: (
-        <Stack direction="row" gap={1.25} sx={{ flexWrap: "wrap", alignItems: "center" }}>
-          {t.assignee_people.map((p) => (
-            <PersonLine key={p.user_id || p.name} person={p} name={p.name || p.display_name} size="sm" />
-          ))}
-        </Stack>
-      ),
-    } : null,
-    t.due ? { key: "due", label: "마감", type: "date", rank: "primary", value: t.due } : null,
-    // SEM-03 재확인 — PageHeader의 h1이 이제 원시 ID(GIT-57 등) 대신 실제 제목을 보여준다
-    // (VIS-133과 같은 원인). 그 ID는 지원 문의 등에서 여전히 참조되는 값이라 사라지면 안
-    // 되므로 메타로 옮긴다 — 다만 «먼저 판단할 값» 은 아니라 아래 줄이다.
-    { key: "tid", label: "티켓 번호", type: "identifier", value: ticketId(t) },
-    t.difficulty ? { key: "difficulty", label: "난이도", type: "enum", value: t.difficulty } : null,
-    t.est_wd != null ? { key: "est", label: "예상 WD", type: "number", value: t.est_wd } : null,
-    t.act_wd != null ? { key: "act", label: "실제 WD", type: "number", value: t.act_wd } : null,
-    // C11 — 우선순위·난이도·예상 WD·마감은 이미 있었는데 생성일만 없었다.
-    t.created_at ? { key: "created_at", label: "생성일", type: "date", value: <DateCell value={t.created_at} /> } : null,
-  ].filter(Boolean);
+  // 속성 줄 — 미리보기와 **같은 표**(`ticket-meta.jsx`). 무게(rank)·칸 종류(type)의 이유도 그쪽에 있다.
+  const meta = ticketMetaItems(t, signals);
 
   /* 부속 레일 — 본문에 딸린 것들이다. 첨부가 먼저고(무엇에 대한 파일인지 본문을 보면서
      확인한다) 그다음이 논의, 마지막이 이력이다. 좁은 화면에서 한 열로 접히면 본문 → 첨부

@@ -56,7 +56,12 @@ describe("작업 보드", () => {
     apiMock.mockReset();
     apiMock.mockImplementation((path) => {
       if (path.startsWith("/api/tickets/projects")) return Promise.resolve(PROJECTS);
-      if (path.startsWith("/api/work/sprints")) return Promise.resolve({ sprints: [] });
+      if (path.startsWith("/api/work/sprints")) {
+        return Promise.resolve({
+          sprints: [],
+          team: { selected: "d-a", options: [{ id: "d-a", name: "A팀", path: [], manageable: true }], manageable: true },
+        });
+      }
       if (path.startsWith("/api/work/board")) return Promise.resolve({ columns: [] });
       if (path.startsWith("/api/work/backlog")) return Promise.resolve({ items: [] });
       return Promise.resolve({});

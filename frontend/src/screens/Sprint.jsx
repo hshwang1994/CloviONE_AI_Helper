@@ -11,7 +11,6 @@ import {
   Badge,
   Button,
   Card,
-  DataTable,
   EmptyState,
   ErrorState,
   FormModal,
@@ -22,7 +21,7 @@ import {
   useToast,
 } from "../ui/kit.jsx";
 import { FilterRow, FilterSurface } from "../ui/FilterBar.jsx";
-import { EntityCombobox, FilterSelect } from "../ui/filters.jsx";
+import { EntityCombobox, FilterSelect, TeamSelect } from "../ui/filters.jsx";
 import { BarSeries } from "../ui/charts/BarSeries.jsx";
 import { LineSeries } from "../ui/charts/LineSeries.jsx";
 import { Gauge } from "../ui/charts/Gauge.jsx";
@@ -34,72 +33,59 @@ import {
 import {
   SprintLifecycle, SprintStateBadge, sprintPhaseNote, sprintStateLabel, useCanPlanSprint,
 } from "./SprintLifecycle.jsx";
-import { sprintFields } from "./sprint-fields.js";
+import { sprintFields, teamLabelOf } from "./sprint-fields.js";
 import { useQueryState } from "../lib/useQueryState.js";
-import { useAssigneeOptions, useTicketProjects } from "./ticket-options.js";
+import { useListMemory } from "../lib/listReturn.js";
+import { useSessionDraft } from "../lib/useSessionDraft.js";
+import { eligibleProjects, useAssigneeOptions, useTicketProjects } from "./ticket-options.js";
 import { useAuth } from "../app/auth.jsx";
 import { SIGNALS, useTicketSignals } from "../lib/ticketSignals.js";
-import { TicketFace, TicketPeople } from "../ui/TicketFace.jsx";
+import { TicketFace } from "../ui/TicketFace.jsx";
 import { StatusKpiStrip } from "../ui/StatusKpi.jsx";
 import { DiscussBucketRow } from "../ui/DiscussBucket.jsx";
 import { DateField } from "../ui/DateField.jsx";
-import { invalidateTicketViews } from "./ticket-views.js";
-import { priorityKind, priorityKo } from "../lib/priority.js";
+import { TicketPeek, useTicketPeek } from "./TicketPeek.jsx";
 import { MEETING_PAIR_TRACKS, PAIR_CHART_MIN_HEIGHT, PANEL_SURFACE, LANE_SURFACE, TILE_PADDING } from "../ui/density.js";
 import { KO_WORD_BREAK } from "../ui/theme.js";
 import { UserAvatar } from "../ui/UserAvatar.jsx";
 
-/* 스프린트 회의 (지시 4).
+/* 스프린트 회의 (지시 4 · D-482 · D-483 · D-484).
  *
- * ## 무엇이 달라졌나
+ * ## 이 화면은 **이미 구성된 팀 회차 전체를 리뷰하고 결정하는 곳**이다
  *
- * 예전 이 화면은 **회차를 몰랐다.** 「이번 주 월요일부터 다음 주 월요일까지 마감인 티켓」을
- * 모아 놓고 그것을 스프린트라고 불렀고, 화면 스스로 「날짜 범위 기준입니다」라고 사과하는
- * 문구를 달고 있었다. 그래서 회의에서 「이번 회차에 뭐 넣기로 했지」를 물으면 답이 없었다.
+ * 회차는 팀의 것이다(D-482). 문맥은 **팀 → 회차**이고, 프로젝트는 「오늘 논의할 항목」만
+ * 좁히는 필터다 — 요약·건강·번다운·업무량·범위 변경은 언제나 회차 전체다. 필터가 지표까지
+ * 바꾸면 같은 회의에서 두 사람이 다른 번다운을 본다.
  *
- * 지금은 회차가 실체다(`sprints` 표). 이 화면은 **그 회차에 담긴 티켓**만 본다 —
- * `sprint_id` 한 칸이 그 정의다.
+ * 회차를 **구성**하는 일(담기·빼기·후보)은 여기 없다(D-484). 작업 보드가 그 일을 하고, 이
+ * 화면은 「작업 보드에서 회차 관리」로 그리 보낸다 — 두 화면이 같은 편성을 서로 다른 규칙으로
+ * 하지 않는다.
  *
- * ## 여섯 질문의 순서로 놓는다
+ * ## 다섯 절의 순서
  *
- * 지시가 적은 여섯 질문이 이 화면의 세로 순서다. 회의에서 실제로 말하는 순서이기도 하다.
+ *   1 회차 개요          어느 팀의 어느 회차인가 · 기간 · 단계 · 목표 · 이전/다음 · 열고 닫기
+ *   2 현재 진행 상황      요약 세 칸 · 번다운 · 건강
+ *   3 오늘 논의할 항목    유형별 목록(프로젝트 필터는 여기만)
+ *   4 업무량과 범위 변경  담당자별 남은 WD · 드나든 기록
+ *   5 회의 결정과 다음 할 일  회의록(작성 중인 글은 회차별로 남는다)
  *
- *   1 정상 진행인가        → 요약 줄 · 번다운 · 건강
- *   2 어떤 티켓이 문제인가  → 오늘 논의할 항목
- *   3 Workload 가 고른가    → 담당자별 남은 WD
- *   4 Scope 가 얼마나 바뀌었나 → 범위 변경
- *   5 무엇을 더 넣을까      → 이번 회차 후보
- *   6 무엇을 정했나        → 회의 결정과 다음 할 일
+ * ## 티켓 하나를 확인해도 회의를 잃지 않는다 (D-483)
+ *
+ * 논의 줄·회의록의 티켓 단추는 상세로 가지 않고 **미리보기**를 연다. 팀·회차·필터·논의
+ * 갈래·작성 중인 회의록이 전부 제자리다. 작성 중인 글은 세션 저장소(`useSessionDraft`)에
+ * 회차별로 남아, 상세를 다녀오거나 회차를 오가도 사라지지 않는다.
  *
  * ## 그림은 셋이다
  *
  * 번다운 · 건강 · 담당자별 남은 WD. 넷째를 더하고 싶어질 때마다, 그 그림을 보고 **회의에서
- * 무엇을 결정할 수 있는가**를 먼저 묻는다. 답이 없으면 그것은 장식이고, 장식은 진짜 신호를
- * 묻는다. 상태 분포는 요약 줄이 이미 숫자로 말하므로 그리지 않는다.
- *
- * ## 회의록은 저장된다
- *
- * 이 화면의 유일한 쓰기다. 예전에는 조회 전용이라 회의에서 정한 것이 화면을 닫으면
- * 사라졌고, 다음 주에 같은 이야기가 다시 나왔다.
- */
+ * 무엇을 결정할 수 있는가**를 먼저 묻는다. 상태 분포는 요약 줄이 이미 숫자로 말한다. */
 
 const KIND_DECISION = "decision";
 const KIND_ACTION = "action";
 
-/** 「오늘 논의할 항목」의 갈래. 순서는 회의에서 말하는 순서다 — 급한 것부터.
- *
- * 🔴 이 줄이 **판독 줄이기도 하다.** 예전에는 위 KPI 줄이 지연·차단·이슈를 숫자로 한 번
- * 말하고 이 줄이 같은 숫자를 다시 말했다. 같은 값을 두 번 그리면 둘 중 어느 것이 눌리는지
- * 사용자가 배워야 하고, 그 답이 「아래것만」이라 위 숫자는 죽은 픽셀이었다. 지금 위 줄은
- * **진행**만 말하고(전체·완료·진행 중·남은 WD) 문제는 전부 여기 모여 눌린다.
- *
- * 뒤의 둘은 **회의 준비**다. 예상 WD 나 마감이 비어 있으면 번다운도 담당자별 남은 WD 도
- * 못 그리는데, 예전에는 그림이 안 나온 **뒤에야** 그 사실을 알 수 있었다.
- */
-/* 앞의 셋은 **신호**다. 이름도 색도 `lib/ticketSignals.js` 의 공용 표에서 온다 — 예전에는
-   여기 손으로 적혀 있어서 같은 신호가 목록에서는 「이슈 있음·보라」, 이 카드에서는
-   「이슈·주황」이었고, 지연과 차단은 둘 다 빨강이라 서로 구분되지도 않았다.
-   뒤의 다섯은 신호가 아니라 **회의 준비 항목**이라 공용 표에 없다. */
+/** 「오늘 논의할 항목」의 갈래. 순서는 회의에서 말하는 순서다 — 급한 것부터. 앞의 셋은
+ * **신호**라 이름도 색도 `lib/ticketSignals.js` 의 공용 표에서 온다. 뒤의 다섯은 회의 준비
+ * 항목이라 공용 표에 없다. */
 const DISCUSS_TABS = [
   { key: "overdue", label: SIGNALS.overdue.label, empty: "지연된 티켓이 없습니다.", tone: SIGNALS.overdue.tone },
   { key: "blocked", label: SIGNALS.blocked.label, empty: "차단된 티켓이 없습니다.", tone: SIGNALS.blocked.tone },
@@ -111,20 +97,25 @@ const DISCUSS_TABS = [
   { key: "scope_changes", label: "범위 변경", empty: "회차가 시작한 뒤 드나든 티켓이 없습니다." },
 ];
 
-/* 논의 목록·후보 표·회의록 레인의 세로 상한. 20행짜리 목록 둘이 화면 두 장을 먹던
- * 자리다(1920 에서 페이지 8828px 실측) — 목록은 자기 상자 안에서 구른다.
- * 값은 작업 보드 열 상한과 같은 감각(60vh)이고, 초광폭에서 무한히 크지 않게 rem 으로 막는다. */
+/* 논의 목록·회의록 레인의 세로 상한. 목록은 자기 상자 안에서 구른다. */
 const MEETING_LIST_MAX = "min(60vh, 44rem)";
 
-const SPRINT_SPEC = { project: "", sprint: "" };
+/* 🔴 **조건은 전부 주소에 있다.** 팀·회차·(논의용) 프로젝트·논의 갈래·미리보기. */
+const SPRINT_SPEC = { team: "", sprint: "", project: "", discuss: "", peek: "" };
 
-/** 담당자 얼굴 줄. 판의 카드와 **같은 부품**을 쓴다 (지시 6). */
-function People({ row }) {
-  return <TicketPeople card={row} />;
+/** 작성 중인 회의록의 빈 값 — 초안의 기준이다(전부 비면 저장소에서 지운다). */
+const EMPTY_DRAFT = { kind: KIND_DECISION, body: "", due: "", assignee: "", ticketId: "" };
+
+/** 값이 있는 조건만 질의 문자열에 넣는다. */
+function qs(pairs) {
+  return new URLSearchParams(
+    Object.entries(pairs).filter(([, v]) => v !== "" && v != null && v !== false)
+      .map(([k, v]) => [k, String(v)])
+  ).toString();
 }
 
-/** 논의 목록 한 줄. 누르면 그 티켓으로 간다 — 「관련 티켓으로 바로 이동」이 요구다. */
-function DiscussRow({ row, onOpen, signals, showProject, onRemove, removing }) {
+/** 논의 목록 한 줄. 누르면 그 티켓의 **미리보기**가 열린다 — 회의를 떠나지 않는다. */
+function DiscussRow({ row, onOpen, signals, showProject }) {
   return (
     <Card
       sx={{ p: 1.25, cursor: "pointer", display: "flex", alignItems: "center", gap: 1 }}
@@ -138,22 +129,6 @@ function DiscussRow({ row, onOpen, signals, showProject, onRemove, removing }) {
           compact
         />
       </Box>
-      {/* 범위를 빼는 결정이 실제로 일어나는 자리가 회의다 — 후보 표의 「추가」와 이
-          단추가 한 화면에서 대칭이 된다. 서버는 set_sprint + sprint_id 없음으로 이미
-          지원하고 있었는데 부르는 화면이 없었다(D-376 의 남은 반쪽). */}
-      {onRemove ? (
-        <Button
-          variant="ghost"
-          size="sm"
-          disabled={removing}
-          onClick={(e) => {
-            e.stopPropagation();
-            onRemove(row);
-          }}
-        >
-          빼기
-        </Button>
-      ) : null}
     </Card>
   );
 }
@@ -223,9 +198,6 @@ function DecisionRow({ row, onToggle, onDelete, onEdit, onOpenTicket, inLane = f
           </Typography>
         ) : null}
       </Box>
-      {/* 고칠 수 있는 사람(저자·담당자·운영군 — 서버 _editable_or_403 과 같은 판정)
-          에게만 단추를 준다. 예전에는 전원에게 삭제가 떠서 눌러야 403 을 알았고,
-          「수정」은 아예 없어서 오탈자·담당자 지정이 영구였다. */}
       {onEdit ? (
         <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); onEdit(row); }}>
           수정
@@ -242,45 +214,36 @@ function DecisionRow({ row, onToggle, onDelete, onEdit, onOpenTicket, inLane = f
 
 /** 회의록을 적는 줄. 위 입력은 아래 결정·할 일 레인으로 나뉘어 쌓인다.
  *
- * 칸 구성이 **종류를 따른다.** 예전에는 「결정」에도 마감 칸이 붙었고(결정에 마감이 무슨
- * 뜻인지 화면이 설명하지 못했다), 담당자·티켓 연결은 서버(DecisionCreate)가 받는데 칸이
- * 없어 모든 할 일이 「담당자와 마감은 아직 정하지 않았습니다」를 달고 그걸 채울 방법이
- * 없었다. 셋 다 비울 수 있다 — 회의 중에 다 안 정해지는 것이 정상이다. */
-function DecisionComposer({ onAdd, busy, assigneeOptions, ticketOptions }) {
-  const [kind, setKind] = React.useState(KIND_DECISION);
-  const [body, setBody] = React.useState("");
-  const [due, setDue] = React.useState("");
-  const [assignee, setAssignee] = React.useState("");
-  const [ticketId, setTicketId] = React.useState("");
-  const isAction = kind === KIND_ACTION;
+ * 입력은 **초안**(`draft`)이다 — 부르는 화면이 회차별 세션 저장소에 들고 있어서 티켓을
+ * 확인하러 나갔다 와도, 회차를 오가도 그대로다(D-483). 칸 구성은 종류를 따른다: 할 일에만
+ * 담당자·마감이 붙는다. 셋 다 비울 수 있다 — 회의 중에 다 안 정해지는 것이 정상이다. */
+function DecisionComposer({ draft, onDraftChange, onAdd, busy, assigneeOptions, ticketOptions }) {
+  const d = draft || EMPTY_DRAFT;
+  const isAction = d.kind === KIND_ACTION;
+  const set = (patch) => onDraftChange((prev) => ({ ...(prev || EMPTY_DRAFT), ...patch }));
 
   function submit(e) {
     e.preventDefault();
-    const text = body.trim();
+    const text = (d.body || "").trim();
     if (!text) return;
-    const payload = { kind, body: text, ticket_id: ticketId || null };
+    const payload = { kind: d.kind, body: text, ticket_id: d.ticketId || null };
     if (isAction) {
-      payload.assignee_user_id = assignee || null;
-      payload.due_date = due || null;
+      payload.assignee_user_id = d.assignee || null;
+      payload.due_date = d.due || null;
     }
-    onAdd(payload, () => {
-      setBody("");
-      setDue("");
-      setAssignee("");
-      setTicketId("");
-    });
+    onAdd(payload);
   }
 
   return (
     <Box component="form" onSubmit={submit} sx={{ display: "grid", gap: 1.5 }}>
       <Typography variant="body2" color="text.secondary">
-        위에서 적은 내용은 아래 칸에 나뉘어 쌓입니다. 결정은 사실 기록이고, 할 일은 끝나면 체크합니다.
+        위에서 적은 내용은 아래 칸에 나뉘어 쌓입니다. 결정은 사실 기록이고, 할 일은 끝나면 체크합니다. 적다 만 글은 이 회차에 남습니다.
       </Typography>
       <Stack direction="row" flexWrap="wrap" gap={1} alignItems="flex-end">
         <FilterSelect
           label="종류"
-          value={kind}
-          onChange={setKind}
+          value={d.kind}
+          onChange={(v) => set({ kind: v })}
           options={[
             { value: KIND_DECISION, label: "결정" },
             { value: KIND_ACTION, label: "할 일" },
@@ -289,16 +252,16 @@ function DecisionComposer({ onAdd, busy, assigneeOptions, ticketOptions }) {
         <TextField
           size="small"
           label="내용"
-          value={body}
-          onChange={(e) => setBody(e.target.value)}
+          value={d.body || ""}
+          onChange={(e) => set({ body: e.target.value })}
           placeholder="회의에서 정한 것을 한 문장으로 적습니다."
           InputLabelProps={{ shrink: true }}
           sx={{ flex: "1 1 18rem", minWidth: "14rem" }}
         />
         <EntityCombobox
           label="관련 티켓"
-          value={ticketId}
-          onChange={(next) => setTicketId(next || "")}
+          value={d.ticketId || ""}
+          onChange={(next) => set({ ticketId: next || "" })}
           options={ticketOptions || []}
           allLabel="연결 안 함"
           sx={{ minWidth: "12rem" }}
@@ -307,8 +270,8 @@ function DecisionComposer({ onAdd, busy, assigneeOptions, ticketOptions }) {
           <>
             <EntityCombobox
               label="담당자"
-              value={assignee}
-              onChange={(next) => setAssignee(next || "")}
+              value={d.assignee || ""}
+              onChange={(next) => set({ assignee: next || "" })}
               options={assigneeOptions || []}
               allLabel="아직 미정"
               sx={{ minWidth: "11rem" }}
@@ -316,13 +279,13 @@ function DecisionComposer({ onAdd, busy, assigneeOptions, ticketOptions }) {
             <DateField
               size="small"
               label="마감"
-              value={due}
-              onChange={setDue}
+              value={d.due || ""}
+              onChange={(v) => set({ due: v })}
               sx={{ minWidth: "10rem" }}
             />
           </>
         ) : null}
-        <Button type="submit" disabled={busy || !body.trim()}>
+        <Button type="submit" disabled={busy || !(d.body || "").trim()}>
           적기
         </Button>
       </Stack>
@@ -330,90 +293,104 @@ function DecisionComposer({ onAdd, busy, assigneeOptions, ticketOptions }) {
   );
 }
 
+/** 짝 판의 격자 — 두 절이 같은 트랙·높이를 쓴다. */
+const PAIR_GRID = {
+  display: "grid", gap: 2, mb: 2,
+  gridTemplateColumns: MEETING_PAIR_TRACKS,
+  "& > *": { minHeight: PAIR_CHART_MIN_HEIGHT, display: "flex", flexDirection: "column" },
+  "& > * > *:last-child": { flex: 1, minHeight: 0, justifyContent: "flex-start" },
+};
+
 export function Sprint() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const toast = useToast();
   const confirm = useConfirm();
+  useListMemory("/sprint", { omit: ["peek"] });
   const [state, setState] = useQueryState(SPRINT_SPEC);
-  const [discussTab, setDiscussTab] = React.useState(DISCUSS_TABS[0].key);
-  // §8.3 — 스프린트를 만드는 자리 셋 중 하나가 이 화면의 빈 상태다.
+  const peek = useTicketPeek(state, setState);
+  const teamId = state.team;
+  const sprintId = state.sprint;
+  // §8.3 — 회차를 만드는 자리 셋 중 하나가 이 화면의 빈 상태다.
   const [sprintFormOpen, setSprintFormOpen] = React.useState(false);
   const [editingDecision, setEditingDecision] = React.useState(null);
   const auth = useAuth();
 
   const projects = useTicketProjects(true);
+  /* 회차 목록은 **팀별**이다(D-482). 응답에 팀 선택기의 후보와 기본 선택이 함께 온다. */
   const sprints = useQuery({
-    queryKey: ["work-sprints", state.project],
-    queryFn: () =>
-      api(
-        "/api/work/sprints" +
-          (state.project ? `?project_id=${encodeURIComponent(state.project)}` : "")
-      ),
+    queryKey: ["work-sprints", teamId],
+    queryFn: () => api("/api/work/sprints?" + qs({ department_id: teamId })),
   });
   const sprintRows = React.useMemo(
     () => (sprints.data && sprints.data.sprints) || [],
     [sprints.data]
   );
+  const team = (sprints.data && sprints.data.team) || null;
+  const teamOptions = React.useMemo(() => (team && team.options) || [], [team]);
+  const teamRow = React.useMemo(
+    () => teamOptions.find((o) => o.id === teamId) || null,
+    [teamOptions, teamId],
+  );
+  const teamLabel = teamLabelOf(teamRow);
+  const roleCanPlan = useCanPlanSprint();
+  const canPlan = roleCanPlan && !!teamRow && teamRow.manageable === true;
+
+  /* 팀 자동 선택 — 작업 보드와 같은 규칙. */
+  React.useEffect(() => {
+    if (teamId || !sprints.isSuccess) return;
+    const picked = team && team.selected;
+    if (!picked) return;
+    qc.setQueryData(["work-sprints", picked], sprints.data);
+    setState({ team: picked }, { replace: true });
+  }, [teamId, sprints.isSuccess, sprints.data, team, qc, setState]);
+  const teamSettled = !!teamId || (sprints.isSuccess && !(team && team.selected));
+
+  /* 회차를 안 골랐으면 **열려 있는 회차**를 고른다. 「한 번만」은 **팀 단위**다 — 팀을
+     바꾸면 재자동선택이 돌고, 같은 팀에서 사용자가 손으로 비운 선택은 다시 덮지 않는다. */
+  const autoFor = React.useRef(state.sprint ? teamId : null);
+  React.useEffect(() => {
+    if (!teamSettled || !teamId) return;
+    if (sprintId) { autoFor.current = teamId; return; }
+    if (sprints.isLoading || autoFor.current === teamId) return;
+    autoFor.current = teamId;
+    const picked = pickOpenSprint(sprintRows);
+    if (picked) setState({ sprint: picked.id }, { replace: true });
+  }, [teamSettled, teamId, sprintId, sprintRows, sprints.isLoading, setState]);
+
+  const changeTeam = React.useCallback((next) => {
+    autoFor.current = null;
+    setState({ team: next || "", sprint: "", project: "", discuss: "" });
+  }, [setState]);
+
   const projectOptions = React.useMemo(
     () =>
-      ((projects.data && projects.data.projects) || []).map((p) => ({
+      eligibleProjects((projects.data && projects.data.projects) || [], teamId).map((p) => ({
         value: p.id,
         label: p.name,
       })),
-    [projects.data]
+    [projects.data, teamId]
   );
 
-  /* 회차를 안 골랐으면 **열려 있는 회차**를 고른다. 회의를 여는 사람이 매번 목록에서
-     같은 것을 다시 고르게 하지 않는다. 열린 회차가 없으면 고르지 않고 아래 빈 상태가
-     안내한다(pickOpenSprint 의 qa-contract-change).
-
-     🔴 「한 번만」은 **프로젝트 단위**다. 예전에는 불리언 ref 라, 프로젝트를 바꾸면
-     (선택기가 sprint 를 비운다) 재자동선택이 영영 안 돌아 머리+필터만 남고 본문이
-     백지가 됐다 — 빈 상태 조건(회차 0건)도 안 맞아 아무 안내가 없었다. 같은
-     프로젝트에서 사용자가 손으로 비운 선택은 여전히 다시 덮지 않는다. */
-  const autoFor = React.useRef(null);
-  React.useEffect(() => {
-    if (state.sprint) { autoFor.current = state.project; return; }
-    if (sprints.isLoading || autoFor.current === state.project) return;
-    autoFor.current = state.project;
-    const picked = pickOpenSprint(sprintRows);
-    if (picked) setState({ sprint: picked.id }, { replace: true });
-  }, [state.sprint, state.project, sprintRows, sprints.isLoading, setState]);
-
   const meeting = useQuery({
-    queryKey: ["sprint-meeting", state.sprint],
-    queryFn: () => api(`/api/work/sprints/${encodeURIComponent(state.sprint)}/meeting`),
-    enabled: !!state.sprint,
-    // 회차를 넘길 때 본문을 언마운트하지 않는다 — 예전에는 매 전환마다 전체가
-    // Skeleton 으로 무너졌다 차트 넷을 다시 세웠다(reveal 애니메이션까지 재생).
-    // 이전 회차의 판을 감광 상태로 붙잡아 두고 새 응답이 오면 갈아 끼운다.
+    // 프로젝트 필터는 논의 목록만 좁히지만 응답 하나에 실려 오므로 키에 함께 든다.
+    queryKey: ["sprint-meeting", sprintId, state.project],
+    queryFn: () =>
+      api(`/api/work/sprints/${encodeURIComponent(sprintId)}/meeting` + (state.project ? `?${qs({ project_id: state.project })}` : "")),
+    enabled: !!sprintId,
+    // 회차를 넘길 때 본문을 언마운트하지 않는다 — 이전 회차의 판을 감광 상태로 붙잡아
+    // 두고 새 응답이 오면 갈아 끼운다.
     placeholderData: keepPreviousData,
-    // 부분 응답에도 안 죽는 모양으로 한 곳에서 정규화한다(sprint-charts.js).
     select: normalizeMeeting,
-    // 회의는 여럿이 **같이** 보는 화면인데 실시간 축이 없었다 — 남이 적은 회의록·
-    // 담은 티켓이 새로고침 전에는 안 보였다. 홈과 같은 판단·같은 간격(30초)이다.
-    // `refetchIntervalInBackground` 는 켜지 않는다 — 숨은 탭은 라이브러리 기본값이
-    // 알아서 멈춘다(polling-visibility.test.js 가 저장소 전체에서 금지를 지킨다).
+    // 회의는 여럿이 **같이** 보는 화면이다 — 홈과 같은 간격(30초)으로 다시 읽는다.
     staleTime: 30000,
     refetchInterval: 30000,
   });
-  // keepPreviousData 는 회차 선택을 **비운** 직후에도 옛 판을 들고 있다 — 선택이
-  // 없으면 본문도 없어야 한다(잔상 차단).
-  const body = state.sprint ? meeting.data : null;
-  // 지연 표식은 서버의 「오늘」로 판정한다(§불변 9 — 신호의 정본은 서버). 브라우저
-  // 시계로 재면 지연 버킷 안의 티켓에 지연 표식이 안 붙는 모순이 났다(시계가 다른
-  // PC, 자정을 넘겨 켜 둔 탭).
+  const body = sprintId ? meeting.data : null;
+  // 지연 표식은 서버의 「오늘」로 판정한다(§불변 9).
   const signalsOf = useTicketSignals(body ? body.today : undefined);
-  const canPlan = useCanPlanSprint();
-  // 회차 머리의 축 표시용 — 회차의 project_id 를 이름으로 옮긴다(회의는 회차 단위라
-  // 화면 필터값이 아니라 회차 자신의 프로젝트를 본다).
-  const sprintProjectName = body && body.sprint.project_id
-    ? (projectOptions.find((p) => p.value === body.sprint.project_id) || {}).label || ""
-    : "";
 
-  // 회의록의 담당자 후보 — 프로젝트를 골랐으면 그 프로젝트에 닿는 사람으로 좁힌다
-  // (보드와 같은 서버 축).
+  // 회의록의 담당자 후보 — 프로젝트를 골랐으면 그 프로젝트에 닿는 사람으로 좁힌다.
   const assignees = useAssigneeOptions(true, state.project);
   const assigneeOptions = React.useMemo(
     () =>
@@ -423,73 +400,65 @@ export function Sprint() {
       })),
     [assignees.data]
   );
-  // 회의록에 걸 티켓 후보 — 이 회의가 이미 들고 있는 티켓(논의 갈래 ∪ 후보)이다.
-  // 새 API 없이, 회의에서 말이 나온 그 티켓들에 잇는다.
+  // 회의록에 걸 티켓 후보 — **이 회차에 담긴 티켓**이다(`body.tickets`).
   const ticketOptions = React.useMemo(() => {
     if (!body) return [];
-    const seen = new Map();
-    for (const bucket of Object.values(body.discuss || {})) {
-      for (const row of (bucket && bucket.items) || []) {
-        if (row && row.id && !seen.has(row.id)) {
-          seen.set(row.id, { value: row.id, label: `${row.key || ""} ${row.title || ""}`.trim() });
-        }
-      }
-    }
-    for (const row of body.candidates || []) {
-      if (row && row.id && !seen.has(row.id)) {
-        seen.set(row.id, { value: row.id, label: `${row.key || ""} ${row.title || ""}`.trim() });
-      }
-    }
-    return [...seen.values()];
+    return (body.tickets || [])
+      .filter((row) => row && row.id)
+      .map((row) => ({ value: row.id, label: `${row.key || ""} ${row.title || ""}`.trim() }));
   }, [body]);
   // 서버 _editable_or_403 과 같은 판정 — 못 누를 단추를 안 보여 준다.
   const canEditDecision = React.useCallback(
     (row) => {
       const myId = auth.data && auth.data.id;
-      return canPlan || (myId && (row.author_user_id === myId || row.assignee_user_id === myId));
+      return roleCanPlan || (myId && (row.author_user_id === myId || row.assignee_user_id === myId));
     },
-    [auth.data, canPlan]
+    [auth.data, roleCanPlan]
+  );
+  // 감사자는 회의를 읽기만 한다 — 서버(`_ensure_not_read_only`)와 같은 판정.
+  const readOnly = !!(auth.data && auth.data.role === "auditor");
+
+  /* 작성 중인 회의록 — 회차별 초안(D-483). 회차를 안 골랐으면 저장하지 않는다. */
+  const [draft, setDraft, clearDraft] = useSessionDraft(
+    sprintId ? `cv.meetingDraft.v1:${sprintId}` : null,
+    EMPTY_DRAFT,
   );
 
-  function refreshMeeting() {
-    qc.invalidateQueries({ queryKey: ["sprint-meeting"] });
-  }
-
   const createSprint = useMutation({
-    mutationFn: (body) => api("/api/work/sprints", { method: "POST", body }),
+    mutationFn: (payload) => api("/api/work/sprints", { method: "POST", body: payload }),
     onSuccess: (sprint) => {
       qc.invalidateQueries({ queryKey: ["work-sprints"] });
       setSprintFormOpen(false);
-      // 만든 회차를 바로 연다 — 안 열면 「만들었는데 아무 일도 안 일어난」 것으로 보인다.
-      // 프로젝트 필터도 그 회차의 것으로 옮긴다(폼에서 다른 프로젝트를 골랐을 수 있다).
-      setState({ project: sprint.project_id || "", sprint: sprint.id });
-      toast("스프린트를 만들었습니다.", "success");
+      setState({ sprint: sprint.id });
+      toast("회차를 추가했습니다.", "success");
     },
     onError: (e) =>
-      toast((e && e.message) || "스프린트를 만들지 못했습니다. 다시 시도해 주세요.", "error"),
+      toast((e && e.message) || "회차를 추가하지 못했습니다. 다시 시도해 주세요.", "error"),
   });
 
-  /* 회의록만 캐시에서 수술한다 — 회의록은 응답의 다른 갈래(요약·번다운·버킷)에 파생값이
-     없어, 체크 한 번에 서버 12~14 쿼리짜리 `/meeting` 전체를 다시 읽을 이유가 없다.
-     캐시는 **원본 응답**을 들고(select 가 읽을 때 정규화한다) 원본 모양으로 고친다.
-     최종 정합은 30초 폴링이 보증한다. */
+  /* 회의록만 캐시에서 수술한다 — 체크 한 번에 `/meeting` 전체를 다시 읽을 이유가 없다.
+     캐시는 **원본 응답**을 들고(select 가 읽을 때 정규화한다) 원본 모양으로 고친다. */
+  const meetingKey = React.useMemo(() => ["sprint-meeting", sprintId, state.project], [sprintId, state.project]);
   const patchDecisions = React.useCallback(
     (updater) => {
-      qc.setQueryData(["sprint-meeting", state.sprint], (old) =>
+      qc.setQueryData(meetingKey, (old) =>
         old ? { ...old, decisions: updater(old.decisions || []) } : old
       );
     },
-    [qc, state.sprint]
+    [qc, meetingKey]
   );
 
   const addDecision = useMutation({
     mutationFn: (payload) =>
-      api(`/api/work/sprints/${encodeURIComponent(state.sprint)}/decisions`, {
+      api(`/api/work/sprints/${encodeURIComponent(sprintId)}/decisions`, {
         method: "POST",
         body: payload,
       }),
     onSuccess: (row) => {
       patchDecisions((list) => [...list, row]);
+      // 다른 프로젝트 필터의 캐시도 회의록은 같다 — 다음에 읽을 때 새로 온다.
+      qc.invalidateQueries({ queryKey: ["sprint-meeting", sprintId], refetchType: "none" });
+      clearDraft();
       toast("회의 기록을 남겼습니다.", "success");
     },
     onError: (e) => toast((e && e.message) || "적지 못했습니다. 다시 시도해 주세요.", "error"),
@@ -497,19 +466,17 @@ export function Sprint() {
   const editDecision = useMutation({
     mutationFn: ({ id, patch }) =>
       api(`/api/work/decisions/${encodeURIComponent(id)}`, { method: "PATCH", body: patch }),
-    // done 토글은 회의에서 가장 잦은 조작이다 — 왕복을 기다리지 않고 먼저 반영하고,
-    // 실패하면 스냅샷으로 되돌린다. 나머지 수정은 성공 응답으로 그 줄만 갈아 끼운다.
     onMutate: async ({ id, patch }) => {
       if (!("done" in patch)) return undefined;
-      await qc.cancelQueries({ queryKey: ["sprint-meeting", state.sprint] });
-      const prev = qc.getQueryData(["sprint-meeting", state.sprint]);
+      await qc.cancelQueries({ queryKey: meetingKey });
+      const prev = qc.getQueryData(meetingKey);
       patchDecisions((list) =>
         list.map((d) => (d.id === id ? { ...d, done: patch.done } : d))
       );
       return { prev };
     },
     onError: (e, _vars, ctx) => {
-      if (ctx && ctx.prev) qc.setQueryData(["sprint-meeting", state.sprint], ctx.prev);
+      if (ctx && ctx.prev) qc.setQueryData(meetingKey, ctx.prev);
       toast((e && e.message) || "고치지 못했습니다. 다시 시도해 주세요.", "error");
     },
     onSuccess: (row) => {
@@ -525,109 +492,33 @@ export function Sprint() {
     },
     onError: (e) => toast((e && e.message) || "삭제하지 못했습니다. 다시 시도해 주세요.", "error"),
   });
-  const addToSprint = useMutation({
-    mutationFn: (card) =>
-      api(`/api/work/board/${encodeURIComponent(card.id)}/move`, {
-        method: "POST",
-        body: { sprint_id: state.sprint, set_sprint: true, base_version: card.version },
-      }),
-    onSuccess: () => {
-      // 담기는 버킷·번다운·후보가 실제로 변한다 — 회의 전체를 다시 읽는 것이 맞다.
-      // 나머지 판은 접두사 표(ticket-views.js)가 안다. refetchType:"all" 은 삭제·복원급
-      // 전용 규약이라 쓰지 않는다.
-      refreshMeeting();
-      invalidateTicketViews(qc);
-      toast("이번 회차에 담았습니다.", "success");
-    },
-    onError: (e) => toast((e && e.message) || "담지 못했습니다. 다시 시도해 주세요.", "error"),
-  });
 
-  const removeFromSprint = useMutation({
-    mutationFn: (card) =>
-      api(`/api/work/board/${encodeURIComponent(card.id)}/move`, {
-        method: "POST",
-        // 「스프린트에서 뺀다」와 「안 건드린다」는 다른 요청이다 — 의도(set_sprint)를
-        // 따로 싣는 서버 계약(schemas.py) 그대로다.
-        body: { sprint_id: null, set_sprint: true, base_version: card.version },
-      }),
-    onSuccess: () => {
-      refreshMeeting();
-      invalidateTicketViews(qc);
-      toast("회차에서 빼 백로그로 돌렸습니다.", "success");
-    },
-    onError: (e) => toast((e && e.message) || "빼지 못했습니다. 다시 시도해 주세요.", "error"),
-  });
-
-  const openTicket = React.useCallback(
-    (row) => {
-      const id = row.page_id || row.ticket_page_id;
-      if (id) navigate(`/tickets/${encodeURIComponent(id)}`);
-    },
-    [navigate]
-  );
-
-  /** 이 회차를 작업 보드에서 연다 — 회의에서 「그래서 지금 뭐가 어디까지 왔나」로 넘어가는 길. */
+  /** 이 회차를 작업 보드에서 연다 — 팀·회차 문맥을 그대로 싣는다. */
   const openBoard = React.useCallback(
     (extra) => {
-      navigate("/work-board?" + new URLSearchParams({
-        project: state.project || "",
-        sprint: state.sprint || "",
-        ...(extra || {}),
-      }).toString());
+      navigate("/work-board?" + qs({ team: teamId, sprint: sprintId, ...(extra || {}) }));
     },
-    [navigate, state.project, state.sprint]
+    [navigate, teamId, sprintId]
   );
 
   const burndown = body ? burndownSeries(body.burndown) : null;
   const scopeTrend = body ? scopeTrendSeries(body.scope) : null;
   const workload = body ? workloadItems(body.workload) : null;
   const summary = body ? body.summary : null;
+  const band = body && body.health ? healthBand(body.health.score) : null;
 
-  /* 후보 표. 지시가 적은 열 그대로다 — 티켓 ID · 제목 · Project · 우선순위 · 예상 WD ·
-     담당자 · 마감 · 추가. 머리는 가운데이고 제목만 왼쪽이다(지시 8). */
-  const candidateColumns = React.useMemo(
-    () => [
-      { key: "key", label: "티켓", type: "identifier", render: (r) => r.key || "-" },
-      { key: "title", label: "제목", type: "title" },
-      { key: "project", label: "프로젝트", type: "name", render: (r) => r.project || "-" },
-      {
-        key: "priority", label: "우선순위", type: "enum",
-        render: (r) =>
-          r.priority ? <Badge value={priorityKo(r.priority)} kind={priorityKind(r.priority)} /> : "-",
-      },
-      {
-        key: "est_wd", label: "예상 WD", type: "number",
-        render: (r) => (r.est_wd != null ? r.est_wd : "-"),
-      },
-      { key: "assignees", label: "담당자", type: "name", render: (r) => <People row={r} /> },
-      { key: "due", label: "마감", type: "date", render: (r) => r.due || "-" },
-      {
-        key: "add", label: "", type: "actions",
-        render: (r) => (
-          <Button
-            variant="ghost"
-            size="sm"
-            // 연타 방지 — 두 번째 요청이 자기 version 과 409(「다른 사람이 먼저…」)를
-            // 만든다. 같은 화면의 DecisionComposer 가 이미 지키는 규칙이다.
-            disabled={addToSprint.isPending}
-            onClick={(e) => {
-              e.stopPropagation();
-              addToSprint.mutate(r);
-            }}
-          >
-            추가
-          </Button>
-        ),
-      },
-    ],
-    // mutation 결과 객체는 렌더마다 새것이라 memo 를 헛돌게 한다 — 안정 참조(mutate)와
-    // 실제로 렌더를 바꾸는 값(isPending)만 의존한다.
-    [addToSprint.mutate, addToSprint.isPending]
-  );
-
-  const tab = DISCUSS_TABS.find((t) => t.key === discussTab) || DISCUSS_TABS[0];
+  const discussKey = state.discuss || DISCUSS_TABS[0].key;
+  const tab = DISCUSS_TABS.find((t) => t.key === discussKey) || DISCUSS_TABS[0];
+  const setDiscussTab = React.useCallback((key) => setState({ discuss: key === DISCUSS_TABS[0].key ? "" : key }), [setState]);
   // 서버가 아직 새 갈래를 모르는 순간(배포 사이)에도 화면이 안 죽는다.
   const bucket = body ? (body.discuss[tab.key] || { items: [], total: 0, truncated: false }) : null;
+  const teamOptionsForForm = React.useMemo(
+    () => teamOptions.filter((o) => o.manageable).map((o) => ({ value: o.id, label: teamLabelOf(o) })),
+    [teamOptions],
+  );
+  const noTeamAtAll = sprints.isSuccess && teamOptions.length === 0;
+  const needTeamPick = sprints.isSuccess && !teamId && !(team && team.selected) && teamOptions.length > 0;
+  const sprintsReady = !!teamId && !sprints.isLoading && !sprints.isError;
 
   return (
     <>
@@ -635,59 +526,27 @@ export function Sprint() {
         area="팀 업무"
         title="스프린트 회의"
         crumbRoot={null}
-        description="이번 회차가 계획대로 가고 있는지 함께 보고, 다음에 할 일을 정합니다."
-        // 한 바퀴 흐름을 물음표 도움말로 연다 — 「어떻게 쓰는지 모르겠다」의 답이
-        // 지금까지 코드 주석(SprintLifecycle.jsx)에만 있었다.
-        help={"회차를 만들어 백로그에서 할 일을 담고, 「회차 열기」로 시작합니다. "
-          + "진행은 작업 보드에서 하고, 이 화면에서 남은 일과 막힌 일을 봅니다. "
+        description="팀의 회차가 계획대로 가고 있는지 함께 보고, 다음에 할 일을 정합니다."
+        help={"회차를 구성하는 일은 작업 보드에서 합니다. "
+          + "여기서는 남은 일과 막힌 일을 보고, 결정과 할 일을 적습니다. "
           + "다 되면 「회차 닫기」로 안 끝난 일을 다음 회차로 넘깁니다."}
-        actions={
-          body ? (
-            <Stack direction="row" spacing={1} alignItems="center">
-              {/* 앞뒤 회차는 서버가 준다. 화면이 목록에서 스스로 찾으면 두 곳의 정렬이 갈린다. */}
-              <Button
-                variant="ghost"
-                size="sm"
-                disabled={!body.neighbours.prev}
-                onClick={() => setState({ sprint: body.neighbours.prev.id })}
-              >
-                이전 회차
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                disabled={!body.neighbours.next}
-                onClick={() => setState({ sprint: body.neighbours.next.id })}
-              >
-                다음 회차
-              </Button>
-            </Stack>
-          ) : null
-        }
       />
 
       <FilterSurface>
         <FilterRow>
-          <EntityCombobox
-            label="프로젝트"
-            value={state.project}
-            onChange={(next) => setState({ project: next || "", sprint: "" })}
-            loading={projects.isLoading}
-            options={projectOptions}
-            allLabel="전체"
-            // 이 필터는 아래 회차 목록만 좁힌다 — 회의 내용은 고른 회차 단위로 본다.
-            // (작업 보드의 프로젝트 필터는 판 티켓을 좁히지만, 회의는 회차가 경계다.)
-            helperText="회차 목록을 좁힙니다."
+          <TeamSelect
+            team={team}
+            value={teamId}
+            onChange={changeTeam}
+            loading={sprints.isLoading}
             sx={{ minWidth: "14rem" }}
           />
           <EntityCombobox
-            label="스프린트"
-            value={state.sprint}
-            onChange={(next) => setState({ sprint: next || "" })}
+            label="회차"
+            value={sprintId}
+            onChange={(next) => setState({ sprint: next || "", discuss: "" })}
             loading={sprints.isLoading}
-            /* 상태를 이름 옆에 적는다. 예정·진행 중·종료가 안 보이면 목록에서 어느 회차가
-               지금 것인지 고를 수가 없다 — 「진행 중」 배지가 한 번도 안 붙던 이유가
-               여는 동작 자체가 없어서였다(`SprintLifecycle.jsx`). */
+            disabled={!teamId}
             options={sprintRows.map((s) => ({
               value: s.id,
               label: `${s.name} (${sprintStateLabel(s)})`,
@@ -699,9 +558,7 @@ export function Sprint() {
         </FilterRow>
       </FilterSurface>
 
-      {meeting.isLoading || (sprints.isLoading && !state.sprint) ? (
-        /* 본문의 실제 구조(머리 절 + 차트 두 단 + 표)를 근사한다 — 절 하나짜리
-           스켈레톤은 로딩이 끝나는 순간 화면이 통째로 다른 모양으로 바뀌어 튄다. */
+      {meeting.isLoading || (sprints.isLoading && !sprintId) ? (
         <Stack spacing={2}>
           <Skeleton kind="section" />
           <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: MEETING_PAIR_TRACKS }}>
@@ -712,48 +569,56 @@ export function Sprint() {
         </Stack>
       ) : null}
       {meeting.isError ? <ErrorState error={meeting.error} onRetry={meeting.refetch} /> : null}
-      {/* 회차 목록 자체가 실패하면 아래 빈 상태들이 「회차가 없다」는 다른 사실을 말하게
-          된다 — 실패는 실패로 그린다. */}
-      {sprints.isError && !state.sprint ? (
-        <ErrorState error={sprints.error} onRetry={sprints.refetch} />
-      ) : null}
-      {!state.sprint && !sprints.isLoading && !sprints.isError && sprintRows.length === 0 ? (
-        // §8.3 — 회의 빈 상태는 화면 전체가 비었다(layout="page")로 그린다. 없는 prop
-        // `hint` 를 넘기던 자리라 안내 문장 자체가 안 나왔다(A2) — `help` 로 옮기고,
-        // 「스프린트 만들기」·「백로그 보기」 둘을 다음 행동으로 준다.
+      {sprints.isError ? <ErrorState error={sprints.error} onRetry={sprints.refetch} /> : null}
+
+      {noTeamAtAll ? (
         <EmptyState
           layout="page"
-          title="아직 만든 스프린트가 없습니다."
+          title="회차를 볼 수 있는 팀이 없습니다."
+          help="소속 팀이 정해지면 그 팀의 회차와 회의가 여기 보입니다. 소속은 관리자가 지정할 수 있습니다."
+        />
+      ) : null}
+      {needTeamPick ? (
+        <EmptyState
+          layout="page"
+          title="팀을 골라 주세요."
+          help="회차는 팀이 운영합니다. 위 팀 칸에서 팀을 고르면 그 팀의 회차로 회의를 시작할 수 있습니다."
+        />
+      ) : null}
+      {sprintsReady && !sprintId && sprintRows.length === 0 ? (
+        <EmptyState
+          layout="page"
+          title="아직 만든 회차가 없습니다."
           help="회차를 만들면 여기서 번다운과 건강, 담당자별 남은 일을 보고 회의를 진행할 수 있습니다."
           action={
             <>
-              <Button variant="primary" onClick={() => setSprintFormOpen(true)}>스프린트 추가</Button>
-              <Button variant="secondary" onClick={() => navigate("/work-board?tab=backlog")}>백로그 보기</Button>
+              {canPlan ? (
+                <Button variant="primary" onClick={() => setSprintFormOpen(true)}>회차 추가</Button>
+              ) : null}
+              <Button variant="secondary" onClick={() => openBoard({ tab: "backlog" })}>백로그 보기</Button>
             </>
           }
         />
       ) : null}
-      {!state.sprint && !sprints.isLoading && !sprints.isError && sprintRows.length > 0 ? (
-        /* 회차는 있는데 열린 것이 없어 자동 선택이 비켜 간 상태다. 예전에는 이 조합이
-           머리+필터만 남는 백지였다 — 화면이 다음 행동을 말한다. */
+      {sprintsReady && !sprintId && sprintRows.length > 0 ? (
         <EmptyState
           layout="page"
           title="회의할 회차를 고르세요."
-          help="위 스프린트 칸에서 회차를 고르면 번다운과 남은 일을 보며 회의를 시작할 수 있습니다. 열려 있는 회차가 있으면 자동으로 고릅니다."
+          help="위 회차 칸에서 회차를 고르면 번다운과 남은 일을 보며 회의를 시작할 수 있습니다. 열려 있는 회차가 있으면 자동으로 고릅니다."
           action={
             <>
               <Button variant="primary" onClick={() => setState({ sprint: sprintRows[0].id })}>
                 가장 최근 회차 열기
               </Button>
-              <Button variant="secondary" onClick={() => setSprintFormOpen(true)}>스프린트 추가</Button>
+              {canPlan ? (
+                <Button variant="secondary" onClick={() => setSprintFormOpen(true)}>회차 추가</Button>
+              ) : null}
             </>
           }
         />
       ) : null}
 
       {body ? (
-        /* 회차 전환 중(keepPreviousData 의 잔상 표시)에는 감광으로 「바뀌는 중」을
-           말한다 — 차트 넷을 언마운트하지 않으면서도 옛 값이 새 값 행세를 안 한다. */
         <Box
           aria-busy={meeting.isPlaceholderData || undefined}
           sx={{
@@ -761,158 +626,167 @@ export function Sprint() {
             transition: "opacity 120ms ease",
           }}
         >
-          {/* 회차 머리 — **안내가 아니라 화면 문맥**이다.
-              예전에는 이 자리가 `Callout` 이었고, 그 톤의 색(#1F5FBF)이 Brand(#4C58C8)와
-              가까워서 「안내 영역인데 본문과 시각적으로 구분되지 않는다」는 말을 들었다.
-              지금은 중립 함몰면 위에 회차 이름·기간·오늘·상태·목표와 **여는/닫는 단추**가
-              한 줄로 선다 — 이 화면에서 회차에 대해 할 수 있는 일이 전부 여기 있다. */}
-          <Box sx={{ ...LANE_SURFACE, p: PANEL_SURFACE.p, mb: 2 }}>
-            <Stack
-              direction="row" flexWrap="wrap" gap={1} alignItems="center"
-              justifyContent="space-between"
-            >
-              <Box sx={{ minWidth: 0 }}>
-                <Stack direction="row" spacing={1} alignItems="center" sx={{ minWidth: 0 }}>
-                  <Typography component="h2" variant="sectionTitle" sx={{ ...KO_WORD_BREAK }}>
-                    {body.sprint.name}
+          {/* 1 — 회차 개요. 어느 팀의 어느 회차인가가 첫 줄이다 — 팀 A 의 「9-2」와 팀 B 의
+              「9-2」는 다른 회차라 이름만으로는 어느 회의인지 알 수 없다. */}
+          <Section title="회차 개요" rule>
+            <Box sx={{ ...LANE_SURFACE, p: PANEL_SURFACE.p }}>
+              <Stack
+                direction="row" flexWrap="wrap" gap={1} alignItems="center"
+                justifyContent="space-between"
+              >
+                <Box sx={{ minWidth: 0 }}>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: "block", ...KO_WORD_BREAK }}>
+                    {body.team
+                      ? (body.team.path || []).map((n) => n.name).join(" › ") || body.team.name
+                      : "팀이 정해지지 않은 회차"}
                   </Typography>
-                  <SprintStateBadge sprint={body.sprint} />
+                  <Stack direction="row" spacing={1} alignItems="center" sx={{ minWidth: 0 }}>
+                    <Typography component="h3" variant="sectionTitle" sx={{ ...KO_WORD_BREAK }}>
+                      {body.sprint.name}
+                    </Typography>
+                    <SprintStateBadge sprint={body.sprint} />
+                  </Stack>
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25, ...KO_WORD_BREAK }}>
+                    {`${datedLabel(body.sprint.starts_on)} ~ ${datedLabel(body.sprint.ends_on)}, 오늘 ${datedLabel(body.today)}`}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25, ...KO_WORD_BREAK }}>
+                    {sprintPhaseNote({ state: body.sprint.state, phase: body.phase, canPlan })}
+                  </Typography>
+                  {body.sprint.goal ? (
+                    <Typography variant="body2" sx={{ mt: 0.75, ...KO_WORD_BREAK }}>
+                      {`회차 목표: ${body.sprint.goal}`}
+                    </Typography>
+                  ) : null}
+                </Box>
+                <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap sx={{ flexShrink: 0 }}>
+                  {/* 앞뒤 회차는 서버가 준다(같은 팀 안에서). 화면이 목록에서 스스로 찾으면 두 곳의 정렬이 갈린다. */}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={!body.neighbours.prev}
+                    onClick={() => setState({ sprint: body.neighbours.prev.id, discuss: "" })}
+                  >
+                    이전 회차
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={!body.neighbours.next}
+                    onClick={() => setState({ sprint: body.neighbours.next.id, discuss: "" })}
+                  >
+                    다음 회차
+                  </Button>
+                  <Button variant="secondary" size="sm" onClick={() => openBoard()}>
+                    작업 보드에서 보기
+                  </Button>
+                  <SprintLifecycle
+                    sprint={body.sprint}
+                    sprints={sprintRows}
+                    size="sm"
+                    canPlan={canPlan}
+                    teams={teamOptionsForForm}
+                    onDeleted={() => setState({ sprint: "" })}
+                  />
                 </Stack>
-                {/* 이 회차가 프로젝트 회차인지 팀 전체 회차인지 한 줄로 말한다 — 사용자가
-                    「프로젝트별로 스프린트가 만들어지나」를 화면 안에서 답할 수 있게. */}
-                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25, ...KO_WORD_BREAK }}>
-                  {body.sprint.project_id
-                    ? `${sprintProjectName || "이 프로젝트"}의 회차입니다.`
-                    : "팀 전체 회차라 모든 프로젝트의 티켓을 담을 수 있습니다."}
-                </Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25, ...KO_WORD_BREAK }}>
-                  {/* 한 줄 안에서 날짜 표기가 갈리지 않는다 — 예전에는 「8/22 토 ~ 9/3 목,
-                      오늘 2026-09-03」처럼 짧은 표기와 ISO 가 섞여 있었고, 사용자는 마지막
-                      값을 다른 종류의 정보로 읽는다. */}
-                  {`${datedLabel(body.sprint.starts_on)} ~ ${datedLabel(body.sprint.ends_on)}, 오늘 ${datedLabel(body.today)}`}
-                </Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25, ...KO_WORD_BREAK }}>
-                  {sprintPhaseNote({ state: body.sprint.state, phase: body.phase, canPlan })}
-                </Typography>
-                {body.sprint.goal ? (
-                  <Typography variant="body2" sx={{ mt: 0.75, ...KO_WORD_BREAK }}>
-                    {`회차 목표: ${body.sprint.goal}`}
-                  </Typography>
-                ) : null}
-              </Box>
-              <Stack direction="row" spacing={1} alignItems="center" sx={{ flexShrink: 0 }}>
-                <SprintLifecycle
-                  sprint={body.sprint}
-                  sprints={sprintRows}
-                  size="md"
-                  onDeleted={() => setState({ sprint: "" })}
-                />
-                <Button
-                  variant="secondary"
-                  onClick={() => navigate("/work-board?" + new URLSearchParams({
-                    project: state.project || "", sprint: body.sprint.id,
-                  }).toString())}
-                >
-                  작업 보드에서 보기
-                </Button>
               </Stack>
-            </Stack>
-          </Box>
+            </Box>
+          </Section>
 
-          {/* 1 — 정상 진행인가. **판을 두르지 않는다** — 타일이 이미 판이다. */}
-          <StatusKpiStrip
-            ariaLabel="이번 회차 요약"
-            revealKey="sprint-meeting:kpi"
-            sx={{ mb: 2 }}
-            items={[
-              /* 셈 타일 셋은 전부 눌린다 — 「전체」만 눌리면 똑같이 생긴 타일이 어떤
-                 것은 반응하고 어떤 것은 죽어 있어, 사용자가 규칙을 못 배운다. 측정
-                 타일 둘(남은 WD·진행률)은 데려갈 목록이 없어 그대로 둔다. */
-              { label: "전체", value: String(summary.total), primary: true, onClick: () => openBoard() },
-              {
-                label: "완료", value: String(summary.done), kind: "ok",
-                pct: summary.total ? Math.round((summary.done / summary.total) * 100) : 0,
-                onClick: () => openBoard({ all: "1" }),
-              },
-              { label: "진행 중", value: String(summary.in_progress), kind: "info", onClick: () => openBoard() },
-              { label: "남은 WD", value: String(summary.remaining_wd) },
-              /* 🔴 이 둘은 예전에 **타일 하나**였다: 값이 진도율이고 그 아래 작은 글자가
-                 기간 경과율이었다. 그런데 바로 왼쪽 「완료」 타일에서 같은 자리의 작은
-                 글자는 「전체 대비 비율」이다 — 같은 모양이 두 가지 뜻을 말하니 화면만
-                 보고는 「5%」와 「16.7%」가 무슨 사이인지 알 길이 없었다. 뜻이 둘이면
-                 타일도 둘이고, 각자 자기 이름을 든다. */
-              {
-                label: "진도율",
-                value: body.health ? `${body.health.progress_pct}%` : "-",
-              },
-              {
-                label: "기간 경과율",
-                value: body.health ? `${body.health.elapsed_pct}%` : "-",
-              },
-            ]}
-          />
-
-          <Box
-            sx={{
-              display: "grid", gap: 2, mb: 2,
-              gridTemplateColumns: MEETING_PAIR_TRACKS,
-              "& > *": { minHeight: PAIR_CHART_MIN_HEIGHT, display: "flex", flexDirection: "column" },
-              "& > * > *:last-child": { flex: 1, minHeight: 0, justifyContent: "flex-start" },
-            }}
-          >
-            <Section title="번다운" rule sx={{ mb: 0, flex: 1 }}>
-              <Box sx={{ ...PANEL_SURFACE, flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
-              {burndown ? (
-                <LineSeries
-                  series={burndown.series}
-                  labels={burndown.labels}
-                  unit="인일"
-                  summary={burndown.summary}
-                  question="이 회차가 계획대로 줄고 있는지 봅니다. 남은 일 선은 오늘까지만 그립니다."
-                  revealKey={body.sprint.id}
-                />
-              ) : (
-                <Typography variant="body2" color="text.secondary">
-                  예상 WD 가 적힌 티켓이 있어야 번다운을 그릴 수 있습니다. 위 「예상 WD 없음」에서 채울 수 있습니다.
-                </Typography>
-              )}
-              </Box>
-            </Section>
-            <Section title="회차 건강" rule sx={{ mb: 0, flex: 1 }}>
-              <Box sx={{ ...PANEL_SURFACE, flex: 1, display: "flex", flexDirection: "column", alignItems: "center", minHeight: 0 }}>
-              <Stack spacing={1.5} alignItems="center" sx={{ width: "100%", pt: 0.5 }}>
-                <Gauge
-                  value={body.health ? body.health.score : null}
-                  centerText={body.health && healthBand(body.health.score)
-                    ? `${body.health.score} ${healthBand(body.health.score).label}`
-                    : undefined}
-                  label={body.health ? healthCuts(summary) : "지연과 차단을 반영한 점수입니다."}
-                  emptyLabel="담긴 티켓이 없어 아직 재지 않았습니다."
-                  revealKey={body.sprint.id}
-                />
-                {body.health ? (
-                  <Box sx={{ width: "100%" }}>
-                    <ProgressBar
-                      percent={body.health.progress_pct}
-                      /* 위 타일과 **같은 낱말**을 쓴다 — 한 화면에서 같은 값이 두 이름을
-                         가지면 사용자는 둘을 다른 값으로 읽는다. */
-                      label={`진도율 ${body.health.progress_pct}%, 기간 경과율 ${body.health.elapsed_pct}%`}
+          {/* 2 — 현재 진행 상황. 숫자 셋은 **읽는 것**이다 — 누르면 어디로 가는 단추가 아니다.
+              그래서 어디로도 안 간다고 캡션이 말한다. */}
+          <Section title="현재 진행 상황" rule>
+            <StatusKpiStrip
+              ariaLabel="이번 회차 요약"
+              revealKey="sprint-meeting:kpi"
+              sx={{ mb: 2 }}
+              note="회차 전체의 숫자입니다. 아래 프로젝트 필터는 논의 목록만 좁힙니다."
+              items={[
+                { label: "전체", value: String(summary.total), primary: true },
+                {
+                  label: "완료", value: String(summary.done), kind: "ok",
+                  pct: summary.total ? Math.round((summary.done / summary.total) * 100) : 0,
+                },
+                { label: "진행 중", value: String(summary.in_progress), kind: "info" },
+              ]}
+            />
+            <Box sx={PAIR_GRID}>
+              <Section title="번다운" rule sx={{ mb: 0, flex: 1 }} titleAs="h4">
+                <Box sx={{ ...PANEL_SURFACE, flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
+                  {burndown ? (
+                    <LineSeries
+                      series={burndown.series}
+                      labels={burndown.labels}
+                      unit="인일"
+                      summary={burndown.summary}
+                      question="이 회차가 계획대로 줄고 있는지 봅니다. 남은 일 선은 오늘까지만 그립니다."
                       revealKey={body.sprint.id}
                     />
-                  </Box>
-                ) : null}
-              </Stack>
-              </Box>
-            </Section>
-          </Box>
+                  ) : (
+                    <Typography variant="body2" color="text.secondary">
+                      예상 WD 가 적힌 티켓이 있어야 번다운을 그릴 수 있습니다. 아래 「예상 WD 없음」에서 채울 수 있습니다.
+                    </Typography>
+                  )}
+                </Box>
+              </Section>
+              <Section title="회차 건강" rule sx={{ mb: 0, flex: 1 }} titleAs="h4">
+                <Box sx={{ ...PANEL_SURFACE, flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: 0 }}>
+                  <Stack spacing={1.5} alignItems="center" sx={{ width: "100%" }}>
+                    {/* 게이지가 이 판의 주인이다 — 크게, 한가운데. 점수와 밴드가 링 안에 서고
+                        깎인 이유는 그 아래 한 줄이다. */}
+                    <Gauge
+                      value={body.health ? body.health.score : null}
+                      size="11rem"
+                      thickness={8}
+                      centerSize="readout"
+                      centerText={body.health ? String(body.health.score) : undefined}
+                      centerCaption={band ? band.label : undefined}
+                      label={body.health ? (healthCuts(summary) || "지연과 차단이 없습니다.") : "지연과 차단을 반영한 점수입니다."}
+                      emptyLabel="담긴 티켓이 없어 아직 재지 않았습니다."
+                      revealKey={body.sprint.id}
+                    />
+                    {body.health ? (
+                      <Stack spacing={1} sx={{ width: "100%" }}>
+                        {/* 막대가 값을 스스로 적는다 — 라벨은 이름만. 위 요약 줄과 **같은
+                            낱말**(진도율·기간 경과율)이다. */}
+                        <ProgressBar
+                          percent={body.health.progress_pct}
+                          label="진도율"
+                          revealKey={body.sprint.id}
+                        />
+                        <ProgressBar
+                          percent={body.health.elapsed_pct}
+                          label="기간 경과율"
+                          color="neutral"
+                          revealKey={body.sprint.id}
+                        />
+                      </Stack>
+                    ) : null}
+                  </Stack>
+                </Box>
+              </Section>
+            </Box>
+          </Section>
 
-          {/* 2 — 어떤 티켓이 문제인가. 이 줄이 **판독이자 드릴다운**이다: 숫자를 누르면
-              바로 아래에 그 티켓이 선다. 위 요약 줄과 숫자가 겹치지 않는다. */}
+          {/* 3 — 오늘 논의할 항목. 프로젝트 필터는 **여기만** 좁힌다. */}
           <Section
             title="오늘 논의할 항목"
-            help="숫자를 누르면 그 티켓이 아래에 나옵니다. 뒤의 둘은 회의 전에 채워 두면 좋은 값입니다."
+            help="갈래를 누르면 그 티켓이 아래에 나옵니다. 줄을 누르면 미리보기가 열립니다."
             rule
           >
+            <Stack direction="row" flexWrap="wrap" gap={1} alignItems="center" sx={{ mb: 1.5 }}>
+              <EntityCombobox
+                label="프로젝트"
+                value={state.project}
+                onChange={(next) => setState({ project: next || "" })}
+                loading={projects.isLoading}
+                options={projectOptions}
+                allLabel="전체"
+                sx={{ minWidth: "14rem" }}
+              />
+              <Typography variant="caption" color="text.secondary" sx={{ ...KO_WORD_BREAK }}>
+                이 필터는 논의 목록만 좁힙니다.
+              </Typography>
+            </Stack>
             <DiscussBucketRow
               value={tab.key}
               onChange={setDiscussTab}
@@ -930,167 +804,126 @@ export function Sprint() {
               aria-labelledby={`discuss-tab-${tab.key}`}
               sx={{
                 ...LANE_SURFACE, p: PANEL_SURFACE.p, minHeight: "6rem",
-                // 목록은 자기 상자 안에서 구른다 — 20행이 화면 한 장을 통째로 먹지 않게.
                 maxHeight: MEETING_LIST_MAX, overflowY: "auto",
               }}
             >
-            {bucket.items.length === 0 ? (
-              <Typography variant="body2" color="text.secondary">
-                {tab.empty}
-              </Typography>
-            ) : (
-              /* 🔴 카드 하나의 내용은 네 줄짜리 세로 묶음인데(공용 `TicketFace`), 줄을
-                 1,600px 통짜로 주면 그 넉 줄이 왼쪽 20% 에만 붙고 나머지가 빈다. 넓은
-                 화면에서는 두 벌씩 나란히 세워 폭을 **내용으로** 채운다 — 카드 자체는
-                 안 건드린다(같은 부품이 칸반의 좁은 칸에서도 선다). */
-              <Box
-                sx={{
-                  display: "grid", gap: 1,
-                  gridTemplateColumns: { xs: "1fr", xl: "repeat(2, minmax(0, 1fr))" },
-                }}
-              >
-                {bucket.items.map((row) => (
-                  <DiscussRow
-                    key={row.id || row.ticket_id}
-                    row={row}
-                    onOpen={openTicket}
-                    signals={signalsOf(row)}
-                    showProject={!state.project}
-                    /* 이미 빠진 티켓(범위 변경 갈래의 removed)에는 뺄 것이 없다. */
-                    onRemove={
-                      row.direction === "removed"
-                        ? undefined
-                        : (r) => removeFromSprint.mutate(r)
-                    }
-                    removing={removeFromSprint.isPending}
-                  />
-                ))}
-                {bucket.truncated ? (
-                  <Typography variant="caption" color="text.secondary" sx={{ gridColumn: "1 / -1" }}>
-                    {`${bucket.total}건 가운데 앞의 ${bucket.items.length}건만 보여 줍니다.`}
-                  </Typography>
-                ) : null}
-              </Box>
-            )}
+              {bucket.items.length === 0 ? (
+                <Typography variant="body2" color="text.secondary">
+                  {body.discuss_project_id ? "이 프로젝트에는 해당하는 티켓이 없습니다." : tab.empty}
+                </Typography>
+              ) : (
+                <Box
+                  sx={{
+                    display: "grid", gap: 1,
+                    gridTemplateColumns: { xs: "1fr", xl: "repeat(2, minmax(0, 1fr))" },
+                  }}
+                >
+                  {bucket.items.map((row) => (
+                    <DiscussRow
+                      key={row.id || row.ticket_id}
+                      row={row}
+                      onOpen={peek.open}
+                      signals={signalsOf(row)}
+                      showProject={!state.project}
+                    />
+                  ))}
+                  {bucket.truncated ? (
+                    <Typography variant="caption" color="text.secondary" sx={{ gridColumn: "1 / -1" }}>
+                      {`${bucket.total}건 가운데 앞의 ${bucket.items.length}건만 보여 줍니다.`}
+                    </Typography>
+                  ) : null}
+                </Box>
+              )}
             </Box>
+            {/* 편성은 작업 보드의 일이다(D-484). 회의에서 「빼기」를 누르던 자리에 그 사실과
+                가는 길을 둔다. */}
+            <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap sx={{ mt: 1 }}>
+              <Typography variant="caption" color="text.secondary">
+                티켓을 담거나 빼는 일은 작업 보드에서 합니다.
+              </Typography>
+              <Button variant="ghost" size="sm" onClick={() => openBoard()}>
+                작업 보드에서 회차 관리
+              </Button>
+            </Stack>
           </Section>
 
-          {/* 3 · 4 — 업무량과 범위 변경 */}
-          <Box
-            sx={{
-              display: "grid", gap: 2, mb: 2,
-              gridTemplateColumns: MEETING_PAIR_TRACKS,
-              "& > *": { minHeight: PAIR_CHART_MIN_HEIGHT, display: "flex", flexDirection: "column" },
-              "& > * > *:last-child": { flex: 1, minHeight: 0, justifyContent: "flex-start" },
-            }}
-          >
-            <Section title="담당자별 남은 WD" rule sx={{ mb: 0, flex: 1 }}>
-              <Box sx={{ ...PANEL_SURFACE, flex: 1, minHeight: 0 }}>
-              {workload ? (
-                <BarSeries
-                  items={workload.items}
-                  max={workload.max}
-                  unit="인일"
-                  relativeNote={workload.summary}
-                  question="한 사람에게 일이 몰려 있는지 봅니다."
-                  revealKey={body.sprint.id}
-                />
-              ) : (
-                <Typography variant="body2" color="text.secondary">
-                  담당자가 걸린 남은 티켓이 없습니다.
-                </Typography>
-              )}
-              </Box>
-            </Section>
-            <Section title="범위 변경" rule sx={{ mb: 0, flex: 1 }}>
-              <Box sx={{ ...PANEL_SURFACE, flex: 1, minHeight: 0 }}>
-              {/* 「기록이 없다」와 「안 바뀌었다」는 다른 사실이다. 0 으로 적으면 화면이
-                  안정된 회차라고 말하는데, 실은 아무것도 모르는 것이다. */}
-              {body.scope.tracked ? (
-                <Stack spacing={1}>
-                  <Typography variant="body2">
-                    {`회차가 시작한 뒤 ${body.scope.added}건이 들어오고 ${body.scope.removed}건이 빠졌습니다.`}
-                  </Typography>
-                  {/* 막대 두 개가 아니라 **추이**다. 회의가 묻는 것은 「얼마나」보다
-                      「언제부터 불어났나」이고, 그 답은 이미 읽은 활동 기록의 날짜에 있다 —
-                      새 API 를 만들지 않고 같은 기록을 날짜로 접었다. */}
-                  {scopeTrend ? (
-                    <LineSeries
-                      series={scopeTrend.series}
-                      labels={scopeTrend.labels}
-                      unit="건"
-                      question="회차 중에 범위가 언제 드나들었는지 봅니다."
+          {/* 4 — 업무량과 범위 변경. 회차 전체다. */}
+          <Section title="업무량과 범위 변경" rule>
+            <Box sx={PAIR_GRID}>
+              <Section title="담당자별 남은 WD" rule sx={{ mb: 0, flex: 1 }} titleAs="h4">
+                <Box sx={{ ...PANEL_SURFACE, flex: 1, minHeight: 0 }}>
+                  {workload ? (
+                    <BarSeries
+                      items={workload.items}
+                      max={workload.max}
+                      unit="인일"
+                      relativeNote={workload.summary}
+                      question="한 사람에게 일이 몰려 있는지 봅니다."
                       revealKey={body.sprint.id}
                     />
-                  ) : null}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setDiscussTab("scope_changes")}
-                  >
-                    드나든 티켓 보기
-                  </Button>
-                </Stack>
-              ) : (
-                <Typography variant="body2" color="text.secondary">
-                  이 회차에는 드나든 기록이 없어서 범위가 얼마나 바뀌었는지 알 수 없습니다.
-                </Typography>
-              )}
-              </Box>
-            </Section>
-          </Box>
-
-          {/* 5 — 무엇을 더 넣을까 */}
-          <Section
-            title="이번 회차 후보"
-            help={
-              body.sprint.project_id
-                ? `${sprintProjectName || "이 프로젝트"}의 백로그에서 어느 회차에도 담기지 않은 티켓입니다. 「추가」를 누르면 이번 회차로 들어옵니다.`
-                : "모든 프로젝트의 백로그에서 어느 회차에도 담기지 않은 티켓입니다. 「추가」를 누르면 이번 회차로 들어옵니다."
-            }
-            rule
-          >
-            <Box sx={{ ...LANE_SURFACE, overflow: "hidden" }}>
-              <Box sx={{ maxHeight: MEETING_LIST_MAX, overflowY: "auto" }}>
-                <DataTable
-                  columns={candidateColumns}
-                  rows={body.candidates}
-                  rowKey={(r) => r.id}
-                  onRow={openTicket}
-                  empty="담을 수 있는 백로그 티켓이 없습니다."
-                />
-              </Box>
+                  ) : (
+                    <Typography variant="body2" color="text.secondary">
+                      담당자가 걸린 남은 티켓이 없습니다.
+                    </Typography>
+                  )}
+                </Box>
+              </Section>
+              <Section title="범위 변경" rule sx={{ mb: 0, flex: 1 }} titleAs="h4">
+                <Box sx={{ ...PANEL_SURFACE, flex: 1, minHeight: 0 }}>
+                  {body.scope.tracked ? (
+                    <Stack spacing={1}>
+                      <Typography variant="body2">
+                        {`회차가 시작한 뒤 ${body.scope.added}건이 들어오고 ${body.scope.removed}건이 빠졌습니다.`}
+                      </Typography>
+                      {scopeTrend ? (
+                        <LineSeries
+                          series={scopeTrend.series}
+                          labels={scopeTrend.labels}
+                          unit="건"
+                          question="회차 중에 범위가 언제 드나들었는지 봅니다."
+                          revealKey={body.sprint.id}
+                        />
+                      ) : null}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setDiscussTab("scope_changes")}
+                      >
+                        드나든 티켓 보기
+                      </Button>
+                    </Stack>
+                  ) : (
+                    <Typography variant="body2" color="text.secondary">
+                      이 회차에는 드나든 기록이 없어서 범위가 얼마나 바뀌었는지 알 수 없습니다.
+                    </Typography>
+                  )}
+                </Box>
+              </Section>
             </Box>
-            {/* 잘렸다는 사실을 말한다 — 논의 갈래는 truncated 를 말하는데 이 표만
-                조용히 잘려, 백로그 181건인 프로젝트에서 「후보가 20개뿐」으로 읽혔다. */}
-            {body.candidates_total > body.candidates.length ? (
-              <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 1 }}>
-                <Typography variant="caption" color="text.secondary">
-                  {`백로그 ${body.candidates_total}건 가운데 앞의 ${body.candidates.length}건만 보여 줍니다.`}
-                </Typography>
-                <Button variant="ghost" size="sm" onClick={() => openBoard({ tab: "backlog" })}>
-                  백로그 보기
-                </Button>
-              </Stack>
-            ) : null}
           </Section>
 
-          {/* 6 — 무엇을 정했나 */}
+          {/* 5 — 회의 결정과 다음 할 일 */}
           <Section
             title="회의 결정과 다음 할 일"
             help="회의에서 정한 내용과 할 일을 적어 두면 다음에 다시 열어도 남습니다."
             rule
           >
-            <Box sx={{ ...PANEL_SURFACE, mb: 2 }}>
-              <DecisionComposer
-                busy={addDecision.isPending}
-                assigneeOptions={assigneeOptions}
-                ticketOptions={ticketOptions}
-                onAdd={(payload, reset) =>
-                  addDecision.mutate(payload, { onSuccess: reset })
-                }
-              />
-            </Box>
+            {readOnly ? (
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                감사자는 회의록을 읽기만 할 수 있습니다.
+              </Typography>
+            ) : (
+              <Box sx={{ ...PANEL_SURFACE, mb: 2 }}>
+                <DecisionComposer
+                  busy={addDecision.isPending}
+                  draft={draft}
+                  onDraftChange={setDraft}
+                  assigneeOptions={assigneeOptions}
+                  ticketOptions={ticketOptions}
+                  onAdd={(payload) => addDecision.mutate(payload)}
+                />
+              </Box>
+            )}
             <Box
               sx={{
                 display: "grid",
@@ -1120,7 +953,6 @@ export function Sprint() {
                       ...LANE_SURFACE,
                       p: TILE_PADDING,
                       minHeight: "10rem",
-                      // 회의록이 쌓여도 레인은 자기 상자 안에서 구른다(세로 예산).
                       maxHeight: MEETING_LIST_MAX,
                       overflowY: "auto",
                       display: "flex",
@@ -1128,7 +960,7 @@ export function Sprint() {
                     }}
                   >
                     <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 0.5 }}>
-                      <Typography variant="subtitle2" component="h3">{lane.title}</Typography>
+                      <Typography variant="subtitle2" component="h4">{lane.title}</Typography>
                       <Badge value={String(rows.length)} kind="neutral" />
                     </Stack>
                     <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: "block" }}>
@@ -1145,11 +977,11 @@ export function Sprint() {
                             key={row.id}
                             row={row}
                             inLane
-                            onToggle={(r, done) => editDecision.mutate({ id: r.id, patch: { done } })}
-                            onOpenTicket={openTicket}
-                            onEdit={canEditDecision(row) ? (r) => setEditingDecision(r) : undefined}
+                            onToggle={readOnly ? () => {} : (r, done) => editDecision.mutate({ id: r.id, patch: { done } })}
+                            onOpenTicket={(r) => peek.open(r.ticket_page_id)}
+                            onEdit={!readOnly && canEditDecision(row) ? (r) => setEditingDecision(r) : undefined}
                             onDelete={
-                              canEditDecision(row)
+                              !readOnly && canEditDecision(row)
                                 ? async (r) => {
                                     const ok = await confirm(
                                       "삭제한 회의 기록은 되살릴 수 없습니다. 이 기록을 삭제할까요?",
@@ -1175,8 +1007,6 @@ export function Sprint() {
         open={!!editingDecision}
         title="회의 기록 수정"
         submitLabel="저장"
-        // 종류는 못 바꾼다(서버 계약 — 「결정」을 「할 일」로 바꾸는 것은 고치기가 아니라
-        // 다른 줄을 쓰는 것이다). 할 일에만 담당자·마감 칸이 붙는다.
         fields={
           editingDecision && editingDecision.kind === KIND_ACTION
             ? [
@@ -1215,21 +1045,30 @@ export function Sprint() {
       />
       <FormModal
         open={sprintFormOpen}
-        title="새 스프린트"
-        submitLabel="만들기"
-        // 프로젝트 칸이 폼에 보인다(sprint-fields.js 의 이유). 기본값은 현재 필터다.
-        fields={sprintFields(projectOptions)}
-        initial={{ project_id: state.project || "" }}
+        title="새 회차"
+        submitLabel="추가"
+        fields={sprintFields({ teamLabel })}
+        initial={{}}
         onSubmit={(values) =>
           createSprint.mutateAsync({
             name: values.name,
             starts_on: values.starts_on,
             ends_on: values.ends_on,
-            project_id: values.project_id || null,
+            department_id: teamId,
             goal: values.goal || null,
           })
         }
         onClose={() => setSprintFormOpen(false)}
+      />
+
+      {/* 티켓 미리보기 — 회의를 떠나지 않고 티켓 하나를 확인한다(D-483). 편성 단추는 없다. */}
+      <TicketPeek
+        pageId={peek.pageId}
+        onClose={peek.close}
+        onDetail={peek.detail}
+        from="/sprint"
+        sprints={sprintRows}
+        quickEdit={!readOnly}
       />
     </>
   );

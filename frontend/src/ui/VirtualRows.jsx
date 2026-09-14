@@ -66,9 +66,40 @@ const DEFAULT_OVERSCAN = 8;
  *                   `null` 을 준다 — 안 그러면 listitem 이 listitem 을 감싸는 이중 구조가
  *                   된다(§15.1 가상화 · dnd-kit 공존).
  */
+/* 안쪽 스크롤 창의 자리 기억 (D-483).
+ *
+ * `lib/listReturn.js` 는 `window.scrollY` 만 안다. 판의 열과 백로그는 **자기 스크롤 창**
+ * (60vh) 안에서 구르므로 상세에서 돌아왔을 때 페이지는 제자리인데 열은 맨 위였다 — 200번째
+ * 카드를 확인한 사람이 매번 다시 내려와야 했다. `scrollKey` 를 주면 창의 `scrollTop` 을
+ * 세션 저장소에 적고, 같은 키로 다시 서는 순간 되돌린다. 키에 회차와 열이 들어가므로 다른
+ * 회차의 자리가 이 열에 되살아나지 않는다. */
+const SCROLL_STORE = "cv.boardScroll.v1";
+
+function readScroll(key) {
+  if (!key) return 0;
+  try {
+    const raw = window.sessionStorage.getItem(`${SCROLL_STORE}:${key}`);
+    const n = Number(raw);
+    return Number.isFinite(n) && n > 0 ? n : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function writeScroll(key, top) {
+  if (!key) return;
+  try {
+    const n = Math.max(0, Math.round(top) || 0);
+    if (n) window.sessionStorage.setItem(`${SCROLL_STORE}:${key}`, String(n));
+    else window.sessionStorage.removeItem(`${SCROLL_STORE}:${key}`);
+  } catch {
+    // 저장을 못 해도 목록은 그대로 동작한다.
+  }
+}
+
 export function VirtualRows({
   items, estimateSize, renderItem, getItemKey, height = "32rem", overscan = DEFAULT_OVERSCAN,
-  ariaLabel, footer, sx, itemRole = "listitem", onEndReached, rowGap = 0,
+  ariaLabel, footer, sx, itemRole = "listitem", onEndReached, rowGap = 0, scrollKey,
 }) {
   const parentRef = React.useRef(null);
   const list = Array.isArray(items) ? items : [];
@@ -101,6 +132,35 @@ export function VirtualRows({
     endNotifiedFor.current = list.length;
     onEndReached();
   }, [onEndReached, list.length, lastVisibleIndex]);
+
+  /* 되돌리는 것은 **이 키로 처음 행이 그려질 때 한 번**이다. 행이 없을 때 되돌리면 창 높이가
+     0 이라 브라우저가 값을 잘라 버린다. 그 뒤로는 사용자가 굴린 자리를 프레임 하나에 한 번
+     적는다 — 프레임마다 저장소에 쓰면 목록이 눈에 띄게 끊긴다. */
+  const restoredFor = React.useRef(null);
+  React.useLayoutEffect(() => {
+    if (!scrollKey || !list.length || restoredFor.current === scrollKey) return;
+    restoredFor.current = scrollKey;
+    const saved = readScroll(scrollKey);
+    if (saved && parentRef.current) {
+      parentRef.current.scrollTop = saved;
+      virtualizer.scrollToOffset(saved);
+    }
+  }, [scrollKey, list.length, virtualizer]);
+  React.useEffect(() => {
+    const el = parentRef.current;
+    if (!scrollKey || !el) return undefined;
+    let pending = false;
+    const onScroll = () => {
+      if (pending) return;
+      pending = true;
+      window.requestAnimationFrame(() => {
+        pending = false;
+        if (parentRef.current) writeScroll(scrollKey, parentRef.current.scrollTop);
+      });
+    };
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => el.removeEventListener("scroll", onScroll);
+  }, [scrollKey]);
 
   return (
     <Box

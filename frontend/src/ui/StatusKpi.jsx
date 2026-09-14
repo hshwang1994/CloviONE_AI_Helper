@@ -19,8 +19,10 @@ function accentOf(kind) {
 }
 
 /* 상태의 색을 나르는 **유일한** 자리 — 7px 점. 라벨 글자 옆에 서고 글자를 대신하지 않는다
- * (WCAG 1.4.1: 색만으로 뜻을 전하지 않는다). `aria-hidden` 인 이유가 그것이다. */
-function StatusDot({ accent }) {
+ * (WCAG 1.4.1: 색만으로 뜻을 전하지 않는다). `aria-hidden` 인 이유가 그것이다.
+ * 내보내는 이유: 회의의 논의 갈래 칩(`DiscussBucket`)이 같은 점으로 신호 색을 단다 —
+ * 두 곳이 각자 점을 그리면 크기가 갈린다. */
+export function StatusDot({ accent }) {
   return (
     <Box
       aria-hidden="true"
@@ -133,7 +135,7 @@ const KO_KEEP = { wordBreak: "keep-all", overflowWrap: "break-word" };
  * 「오늘 논의할 항목」이 이 줄과 아래 목록을 같은 상태로 잇는다. 항목이 `href` 를 가지면
  * 다른 화면으로 간다(작업 보드의 그 조건으로).
  */
-export function StatusKpiStrip({ items, ariaLabel, revealKey, sx, value, onSelect }) {
+export function StatusKpiStrip({ items, ariaLabel, revealKey, sx, value, onSelect, note }) {
   const list = (items || []).filter(Boolean);
   const shown = useRevealOnce(revealKey == null ? null : String(revealKey));
   if (!list.length) return null;
@@ -142,7 +144,10 @@ export function StatusKpiStrip({ items, ariaLabel, revealKey, sx, value, onSelec
   const reservePct = list.some((it) => it.pct != null && Number.isFinite(it.pct));
   const selectable = typeof onSelect === "function";
 
-  return (
+  /* `note` — 줄 아래 한 줄 캡션. 회의의 요약 줄이 「이 숫자는 회차 전체입니다」처럼 **이
+     줄이 무엇을 세는가**를 말하는 자리다. 타일이 눌리지 않을 때 그 사실도 여기서 말한다 —
+     예전에는 눌리는 타일과 안 눌리는 타일이 같은 얼굴이라 사용자가 규칙을 못 배웠다. */
+  const grid = (
     <Box
       role="group"
       aria-label={ariaLabel}
@@ -155,7 +160,7 @@ export function StatusKpiStrip({ items, ariaLabel, revealKey, sx, value, onSelec
           md: wideTrack,
         },
         gap: TILE_GRID_GAP,
-        ...sx,
+        ...(note ? null : sx),
       }}
     >
       {list.map((it, i) => (
@@ -182,6 +187,15 @@ export function StatusKpiStrip({ items, ariaLabel, revealKey, sx, value, onSelec
           />
         </Box>
       ))}
+    </Box>
+  );
+  if (!note) return grid;
+  return (
+    <Box sx={sx}>
+      {grid}
+      <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.75, ...KO_KEEP }}>
+        {note}
+      </Typography>
     </Box>
   );
 }

@@ -116,13 +116,17 @@ export function balancedTileTracks(count) {
   };
 }
 
-export const DISCUSS_BUCKET_COUNT = 8;
-export const DISCUSS_TILE_TRACK = balancedTileTracks(DISCUSS_BUCKET_COUNT);
+/* 회의의 짝 판(번다운 | 건강, 업무량 | 범위 변경, 결정 | 할 일).
+ *
+ * 🔴 오른쪽 트랙에 **바닥**(20rem)이 있다. 예전 `2fr 1fr` 은 1366 폭에서 오른쪽 판을
+ * 300px 남짓으로 눌러 건강 게이지가 손톱만 했고, 그 옆의 번다운은 반쯤 비어 있었다.
+ * 게이지는 원이라 폭이 곧 크기다 — 바닥을 주면 왼쪽이 그만큼 양보한다. 높이도 함께 올린다
+ * (`18rem`): 큰 게이지와 그 아래 진도 막대가 서는 데 12rem 은 모자랐다. */
 export const MEETING_PAIR_TRACKS = {
   xs: "1fr",
-  lg: "minmax(0, 2fr) minmax(0, 1fr)",
+  lg: "minmax(0, 1.6fr) minmax(20rem, 1fr)",
 };
-export const PAIR_CHART_MIN_HEIGHT = { lg: "12rem" };
+export const PAIR_CHART_MIN_HEIGHT = { lg: "18rem" };
 
 /* px 를 기본 루트(16px)에서 같은 픽셀이 되는 rem 문자열로. */
 export function rem(px) {

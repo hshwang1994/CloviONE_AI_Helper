@@ -97,13 +97,33 @@ export function listReturnUrl(key, fallback) {
   return (entry && entry.url) || fallback || key;
 }
 
+/** 주소에서 **기억하지 않을 키**를 걷어 낸다.
+ *
+ * 미리보기(`peek`)처럼 목록의 조건이 아니라 **그 위에 잠깐 열린 것**을 가리키는 키가 있다.
+ * 그 키까지 기억하면 상세에서 「목록」으로 돌아온 순간 미리보기가 다시 열리고, 조건이
+ * 같은데도 주소가 달라 스크롤 기억이 버려진다. */
+export function stripQueryKeys(search, omit) {
+  if (!omit || !omit.length) return search || "";
+  const params = new URLSearchParams(search || "");
+  for (const key of omit) params.delete(key);
+  const rest = params.toString();
+  return rest ? `?${rest}` : "";
+}
+
 /** 목록 화면이 부른다 — 지금 주소를 적고, 돌아왔으면 있던 자리로 되돌린다.
  *
  * `key` 는 목록의 **정체**다(`/my-tickets`). 주소가 아니라 정체인 이유: 조건이 바뀌면
- * 주소는 바뀌지만 그것은 여전히 같은 목록이다. */
-export function useListMemory(key) {
+ * 주소는 바뀌지만 그것은 여전히 같은 목록이다.
+ *
+ * `options.omit` 은 기억에서 뺄 질의 키다(`["peek"]`) — 위 `stripQueryKeys` 의 이유. */
+export function useListMemory(key, options) {
   const loc = useLocation();
-  const url = loc.pathname + loc.search;
+  const omitList = (options && options.omit) || null;
+  const omitKey = omitList ? omitList.join("") : "";
+  const url = React.useMemo(
+    () => loc.pathname + stripQueryKeys(loc.search, omitKey ? omitKey.split("") : null),
+    [loc.pathname, loc.search, omitKey],
+  );
 
   React.useEffect(() => {
     rememberList(key, url);

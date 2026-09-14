@@ -35,7 +35,7 @@ import { BASELINE_TRACKS, GRID_GAP } from "../ui/density.js";
 import { affiliation, needsOrg, personLabel } from "../lib/people.js";
 import { EMPTYABLE_SELECT, EntityCombobox } from "../ui/filters.jsx";
 import { useQueryState } from "../lib/useQueryState.js";
-import { TICKET_AUTO_MAX_ROWS, useAssigneeOptions, useTicketList, useTicketMeta, useTicketProjects, useWorkStatuses, statusOptions, ticketProjectId, ticketRows } from "./ticket-options.js";
+import { TICKET_AUTO_MAX_ROWS, eligibleProjects, useAssigneeOptions, useTicketList, useTicketMeta, useTicketProjects, useWorkStatuses, statusOptions, ticketProjectId, ticketRows } from "./ticket-options.js";
 import { ListFooter } from "../ui/InfiniteScroll.jsx";
 import { invalidateTicketViews } from "./ticket-views.js";
 import { useCelebrateOnCleared, celebrateIfCompleted, doneStatusKeys } from "../ui/celebrate.js";
@@ -470,7 +470,10 @@ function withCurrentProject(projects, currentId) {
   return [...projects, { id: currentId, name: "(목록에 없는 프로젝트)" }];
 }
 
-export function TicketEditModal({ ticket, open, onClose }) {
+/* `projectScope` — 열린 회차에 담긴 티켓은 **같은 팀의 프로젝트로만** 옮길 수 있다(D-482).
+ * 작업 보드·미리보기가 `{ teamId, note }` 를 넘기면 프로젝트 후보를 그 팀으로 좁히고 한 줄로
+ * 이유를 말한다. 서버 검증(422)은 그대로 정본이다 — 골라서 거절당하는 것은 안내가 아니다. */
+export function TicketEditModal({ ticket, open, onClose, projectScope }) {
   const qc = useQueryClient();
   const toast = useToast();
   const confirm = useConfirm();
@@ -639,8 +642,12 @@ export function TicketEditModal({ ticket, open, onClose }) {
             loading={projectsQ.isLoading}
             disabled={projectsQ.isLoading}
             allLabel="선택 안 함"
+            helperText={projectScope && projectScope.teamId ? projectScope.note : undefined}
             sx={{ width: "100%", maxWidth: "none" }}
-            options={withCurrentProject(projects, form.project_id).map((p) => ({
+            options={withCurrentProject(
+              projectScope && projectScope.teamId ? eligibleProjects(projects, projectScope.teamId) : projects,
+              form.project_id,
+            ).map((p) => ({
               value: p.id, label: p.name || "(제목 없음)",
             }))}
           />
@@ -1258,7 +1265,14 @@ export function NewTicket() {
     const raw = String(window.location.hash || "");
     const q = raw.indexOf("?");
     const sp = new URLSearchParams(q >= 0 ? raw.slice(q + 1) : "");
-    return { project: sp.get("project") || "", sprint: sp.get("sprint") || "", status: sp.get("status") || "" };
+    return {
+      project: sp.get("project") || "",
+      sprint: sp.get("sprint") || "",
+      status: sp.get("status") || "",
+      // 작업 보드의 팀 문맥(D-482). 회차에 담을 수 있는 것은 **그 팀의 프로젝트** 뿐이라
+      // 프로젝트 후보를 여기서 먼저 좁힌다 — 서버가 다시 본다(`ensure_eligible`).
+      team: sp.get("team") || "",
+    };
   }, []);
   /* 설명의 정본은 **문서**다(`description_doc`). 문서 화면과 같은 편집기를 쓰므로 만들 때부터
      이 모양이고, 서버가 여기서 마크다운·평문을 파생시킨다 — 화면이 두 벌을 만들지 않는다. */
@@ -1311,7 +1325,7 @@ export function NewTicket() {
       toast("티켓을 추가했습니다.", "success");
       invalidateTicketViews(qc);
       const made = res && res.ticket;
-      const from = context.sprint ? "/work-board" : "/my-tickets";
+      const from = context.sprint || context.team ? "/work-board" : "/my-tickets";
       if (made && made.id) nav(`/tickets/${made.id}`, { state: { from } });
       else nav(from);
     },
@@ -1320,7 +1334,11 @@ export function NewTicket() {
 
   const meta = metaQ.data || {};
   const candidates = (assigneesQ.data && assigneesQ.data.assignees) || [];
-  const projects = (projectsQ.data && projectsQ.data.projects) || [];
+  const allProjects = (projectsQ.data && projectsQ.data.projects) || [];
+  /* 회차 문맥이면 **그 팀의 프로젝트만** 후보다(D-482). 다른 팀·조직 공통 프로젝트를 골라
+     만들면 서버가 담기를 거절(422)하고 티켓은 만들어지지 않는다 — 고를 수 없게 두는 편이
+     거절을 설명하는 것보다 낫다. 팀 문맥이 없으면 예전처럼 전부다. */
+  const projects = context.team ? eligibleProjects(allProjects, context.team) : allProjects;
   const selectedProject = projects.find((p) => p.id === form.project_id) || null;
   const me = auth.data && (auth.data.user || auth.data);
   const set = (k, v) => setForm((s) => ({ ...s, [k]: v }));
@@ -1406,7 +1424,11 @@ export function NewTicket() {
                   allLabel="프로젝트 선택"
                   sx={{ width: "100%", maxWidth: "none" }}
                   noOptionsText={projects.length ? "일치하는 프로젝트가 없습니다" : "선택할 수 있는 프로젝트가 없습니다"}
-                  helperText={projects.length ? undefined : "선택할 수 있는 프로젝트가 없습니다"}
+                  helperText={
+                    !projects.length
+                      ? (context.team ? "이 팀의 회차에 담을 수 있는 프로젝트가 없습니다." : "선택할 수 있는 프로젝트가 없습니다")
+                      : (context.team ? "이 팀의 회차에 담을 수 있는 프로젝트만 보입니다." : undefined)
+                  }
                   options={projects
                     .filter((p) => p.can_create_ticket !== false)
                     .map((p) => ({ value: p.id, label: p.name || "(제목 없음)" }))}

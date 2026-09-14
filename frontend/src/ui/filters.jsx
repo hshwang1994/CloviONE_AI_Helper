@@ -462,6 +462,35 @@ export function EntityCombobox({
  * 고를 것이 하나뿐이면 아무것도 안 그린다 — 선택지가 하나인 선택기는 정보가 아니라 소음이고,
  * 화면만 좁힌다(부서가 하나인 조직, 팀 하나에만 속한 사람이 그렇다).
  */
+/** 회차의 **팀** 선택기 (D-482) — 작업 보드와 스프린트 회의가 같은 부품을 쓴다.
+ *
+ * 부서 필터(`DepartmentFilter`)와 다른 물건이다. 그쪽은 「내 범위 전체」가 있는 **좁히기**
+ * 이고, 이쪽은 **문맥**이다 — 회차는 팀의 것이라 「전체 팀의 회차」라는 목록이 없다. 그래서
+ * 「전체」 항목이 없고 값이 비면 화면이 고르라고 말한다. 후보는 서버가 동봉한 것
+ * (`team.options` — 회차를 볼 수 있는 팀)만이고, 화면이 스스로 조직도를 훑어 만들지 않는다.
+ *
+ * 후보가 하나뿐이면 아무것도 안 그린다 — 선택지가 하나인 선택기는 정보가 아니라 소음이다.
+ * 그때도 문맥은 주소(`team`)에 있다. */
+export function TeamSelect({ team, value, onChange, label = "팀", sx, loading }) {
+  const options = (team && team.options) || [];
+  if (options.length < 2) return null;
+  return (
+    <EntityCombobox
+      label={label}
+      value={value || ""}
+      onChange={(next) => onChange(next || "")}
+      loading={loading}
+      noAllOption
+      allLabel="팀을 고르세요"
+      sx={sx}
+      options={options.map((o) => ({
+        value: o.id,
+        label: (o.path || []).map((n) => n.name).join(" › ") || o.name,
+      }))}
+    />
+  );
+}
+
 export function DepartmentFilter({ departments, value, onChange, label = "부서", sx }) {
   const options = (departments && departments.options) || [];
   if (options.length < 2) return null;

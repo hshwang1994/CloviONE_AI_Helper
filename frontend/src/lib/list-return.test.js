@@ -8,7 +8,7 @@ import { describe, it, expect, beforeEach } from "vitest";
  *   3) 기억이 없으면 조용히 예전처럼 동작한다(`fallback`).
  */
 
-import { listReturnUrl, rememberList, rememberScroll } from "./listReturn.js";
+import { listReturnUrl, rememberList, rememberScroll, stripQueryKeys } from "./listReturn.js";
 
 beforeEach(() => {
   window.sessionStorage.clear();
@@ -53,6 +53,20 @@ describe("스크롤", () => {
   it("기억한 적 없는 목록의 스크롤은 안 적는다", () => {
     rememberScroll("/knowledge", 500);
     expect(window.sessionStorage.getItem("cv.listReturn.v1")).toBeNull();
+  });
+});
+
+describe("기억에서 빼는 키 (D-483)", () => {
+  it("🔴 미리보기 키를 걷어 낸 주소를 기억한다 — 돌아왔을 때 미리보기가 다시 열리면 안 된다", () => {
+    expect(stripQueryKeys("?team=a&sprint=s&peek=pg-1", ["peek"])).toBe("?team=a&sprint=s");
+    // 걷어 낼 키뿐이면 빈 주소다 — `?` 만 남기지 않는다.
+    expect(stripQueryKeys("?peek=pg-1", ["peek"])).toBe("");
+    expect(stripQueryKeys("", ["peek"])).toBe("");
+  });
+
+  it("뺄 키가 없으면 주소를 그대로 둔다", () => {
+    expect(stripQueryKeys("?team=a&peek=x", null)).toBe("?team=a&peek=x");
+    expect(stripQueryKeys("?team=a&peek=x", [])).toBe("?team=a&peek=x");
   });
 });
 

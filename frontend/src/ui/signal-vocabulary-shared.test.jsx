@@ -18,8 +18,9 @@ import { SIGNALS, SIGNAL_ORDER } from "../lib/ticketSignals.js";
  *
  * qa-contract-change: KPI 타일이 톤을 나르는 자리가 3px 위색 띠에서 라벨 앞의 7px 점으로 옮겨졌다(D-474). 재는 곳만 바꾸고 재는 것은 그대로다 — 같은 신호가 제품 전체에서 같은 색인가.
  * 띠를 걷은 이유는 칸마다 다른 색 띠 일곱 개가 나란히 서면 무엇이 중요한지가 사라지기
- * 때문이고, 그 판단은 색 어휘가 한 곳이라는 이 시험의 목적과 무관하다. 논의 갈래
- * 카드(`DiscussBucket`)는 띠를 그대로 쓰므로 그쪽 단언은 안 옮긴다.
+ * 때문이고, 그 판단은 색 어휘가 한 곳이라는 이 시험의 목적과 무관하다.
+ *
+ * qa-contract-change: 논의 갈래(`DiscussBucket`)가 큰 타일에서 칩 한 줄로 바뀌면서(D-484) 톤을 나르는 자리가 3px 위색 띠에서 KPI 타일과 **같은 7px 점**으로 옮겨졌다. 재는 것은 그대로다 — 같은 신호가 두 화면에서 같은 색 어휘를 보는가. 점이 하나로 합쳐졌으니 오히려 사본이 하나 줄었다.
  */
 
 function withTheme(node) {
@@ -57,12 +58,24 @@ describe("신호 어휘는 한 곳이다", () => {
     expect(topBandColor(container.firstChild)).not.toContain("--badge-purple-fg");
   });
 
-  it("논의 갈래 카드가 같은 톤 표를 본다", () => {
+  it("논의 갈래 칩이 같은 톤 표를 본다 — KPI 타일과 같은 점으로", () => {
     withTheme(
       <DiscussBucket label={SIGNALS.issue.label} count={2} tone={SIGNALS.issue.tone} selected={false} onClick={() => {}} />,
     );
-    const tile = screen.getByRole("tab");
-    expect(topBandColor(tile)).toContain("--badge-purple-fg");
+    const chip = screen.getByRole("tab");
+    const dot = chip.querySelector("[data-status-dot]");
+    expect(dot).toBeInTheDocument();
+    expect(getComputedStyle(dot).backgroundColor).toContain("--badge-purple-fg");
+    // 띠는 없다 — 칩은 점 하나로 색을 나른다.
+    expect(topBandColor(chip)).not.toContain("--badge-purple-fg");
+  });
+
+  it("톤이 없는 회의 준비 갈래(미할당 등)는 점을 달지 않는다 — 점은 신호에만 붙는다", () => {
+    withTheme(
+      <DiscussBucket label="미할당" count={0} selected={false} onClick={() => {}} />,
+    );
+    expect(screen.getByRole("tab").querySelector("[data-status-dot]")).toBeNull();
+    expect(screen.getByRole("tab", { name: "미할당 0" })).toBeInTheDocument();
   });
 
   it("어느 화면도 신호 이름을 따로 적지 않는다", async () => {

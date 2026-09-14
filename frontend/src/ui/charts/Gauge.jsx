@@ -71,9 +71,14 @@ export function gaugeOption({ pct, thickness, trackColor, strokeColor, drawn }) 
   };
 }
 
+/* 가운데 글자의 크기 — `centerSize="readout"` 은 판독값(회차 건강처럼 한 화면의 주인 숫자)이고,
+ * 기본은 카드 안의 작은 링이다. 크기는 링 크기와 별개로 부르는 쪽이 고른다: 큰 링에 작은
+ * 글자는 비고, 작은 링에 큰 글자는 링에 닿는다. 두 값 다 `FONT_SIZE` 토큰이다. */
+
 export function Gauge({
   value, max = 100, size = "7rem", thickness = 5,
-  label, centerText, color, emptyLabel = "아직 재지 않음", revealKey,
+  label, centerText, centerCaption, centerSize = "default", color,
+  emptyLabel = "아직 재지 않음", revealKey,
 }) {
   const theme = useTheme();
   const track = useTrackColor();
@@ -118,13 +123,36 @@ export function Gauge({
             작은 링(46~72px)에서 안쪽 지름은 두께를 뺀 만큼이라 두 자리 백분율이 안 들어가고,
             억지로 넣으면 글자가 링에 닿는다. 그때는 숫자와 이름을 링 옆에 세로로 묶는다. */}
         {centerText === false ? null : (
-          <Box sx={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", textAlign: "center" }}>
-            <Typography
-              component="span"
-              sx={{ fontSize: FONT_SIZE.sectionTitle, fontWeight: FONT_WEIGHT.extrabold, lineHeight: 1.1 }}
-            >
-              {centerText == null ? value : centerText}
-            </Typography>
+          /* 덮개는 **세 줄 격자**(`1fr auto 1fr`)다 — 가운데 줄에 숫자와 캡션이 한 덩어리로
+             서고 위아래 빈 줄이 같은 높이라, 캡션이 있든 없든 덩어리의 중심이 링의 중심과
+             맞는다. `placeItems: center` 하나로는 두 줄짜리 내용이 아래로 처졌다. */
+          <Box
+            data-gauge-center=""
+            sx={{
+              position: "absolute", inset: 0, display: "grid",
+              gridTemplateRows: "1fr auto 1fr", justifyItems: "center", textAlign: "center",
+              px: `${thickness * 2}px`,
+            }}
+          >
+            <Box aria-hidden="true" />
+            <Box sx={{ display: "grid", gap: 0.25, justifyItems: "center", minWidth: 0 }}>
+              <Typography
+                component="span"
+                sx={{
+                  fontSize: centerSize === "readout" ? FONT_SIZE.pageTitle : FONT_SIZE.sectionTitle,
+                  fontWeight: FONT_WEIGHT.extrabold, lineHeight: 1.05,
+                  fontVariantNumeric: "tabular-nums",
+                }}
+              >
+                {centerText == null ? value : centerText}
+              </Typography>
+              {centerCaption ? (
+                <Typography component="span" variant="caption" color="text.secondary" sx={{ lineHeight: 1.2 }}>
+                  {centerCaption}
+                </Typography>
+              ) : null}
+            </Box>
+            <Box aria-hidden="true" />
           </Box>
         )}
       </Box>

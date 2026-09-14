@@ -212,7 +212,12 @@ describe("normalizeMeeting", () => {
     expect(out.summary.total).toBe(0);
     expect(out.summary.remaining_wd).toBe(0);
     expect(out.scope).toEqual({ tracked: false, added: 0, removed: 0, trend: [] });
-    expect(out.candidates).toEqual([]);
+    // 후보(`candidates`)는 없다(D-484) — 회차에 담긴 티켓 목록이 그 자리다.
+    expect(out.candidates).toBeUndefined();
+    expect(out.tickets).toEqual([]);
+    expect(out.tickets_total).toBe(0);
+    expect(out.discuss_project_id).toBeNull();
+    expect(out.team).toBeNull();
     expect(out.decisions).toEqual([]);
     expect(out.health).toBeNull();
     expect(out.burndown).toEqual({ points: [] });

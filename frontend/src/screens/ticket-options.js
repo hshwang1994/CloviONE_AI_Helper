@@ -66,6 +66,18 @@ export function useTicketProjects(enabled) {
   });
 }
 
+/* 이 팀의 회차에 **담을 수 있는** 프로젝트 — `dept_id` 가 정확히 그 팀인 것 (D-482).
+ *
+ * 서버의 담기 자격(`app/work/service.py::ensure_eligible`)과 같은 정의다. 하위 팀·상위
+ * 본부·조직 공통 프로젝트의 티켓은 그 팀 회차에 못 담기므로, 회차 문맥에서 티켓을 만들
+ * 때 후보를 여기서 먼저 좁힌다 — 골라서 422 를 보는 것은 안내가 아니다. 서버 검증은 그대로
+ * 정본이다. 팀이 없으면(회차 문맥 밖) 전부다. */
+export function eligibleProjects(projects, teamId) {
+  const list = Array.isArray(projects) ? projects : [];
+  if (!teamId) return list;
+  return list.filter((p) => p && p.dept_id === teamId);
+}
+
 /* 티켓 목록의 **묶음**. `qs` 는 화면이 조립한 조건 문자열(`TicketFilterBar.ticketQueryParams`)이고
  * 쪽 파라미터는 여기서 붙인다 — 화면은 「무엇을 거를까」만 알면 된다.
  *
