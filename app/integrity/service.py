@@ -491,6 +491,76 @@ def _admin_scope_overview(db: Session) -> dict:
     }
 
 
+def _sprints_without_team(db: Session) -> Finding:
+    """팀이 정해지지 않은 회차 (D-482). 0029 마이그레이션이 **근거 없이 귀속하지 않은**
+    레거시다 — 조직·전역 관리자에게만 보이고, 팀을 정하기 전까지 담기·열기가 막힌다."""
+    from app.work.models import Sprint
+
+    rows = list(
+        db.execute(
+            select(Sprint).where(Sprint.department_id.is_(None))
+            .order_by(Sprint.starts_on.desc(), Sprint.name)
+        ).scalars()
+    )
+    return Finding(
+        key="sprints_without_team",
+        title="팀이 정해지지 않은 회차",
+        why=(
+            "회차는 팀이 운영하는 주기입니다. 팀이 없으면 팀 사용자에게 보이지 않고, "
+            "티켓을 담거나 회차를 열 수 없습니다."
+        ),
+        remedy=(
+            "작업 보드에서 회차를 열어 팀을 지정하세요. 닫힌 회차는 기록이므로 그대로 두어도 됩니다."
+        ),
+        count=len(rows),
+        items=_sample(
+            {"id": s.id, "name": s.name, "state": s.state, "org_id": s.org_id} for s in rows
+        ),
+    )
+
+
+def _open_sprint_tickets_off_team(db: Session) -> Finding:
+    """열린 회차에 담긴 **다른 팀의 티켓** (D-482). 담기 규칙은 「티켓의 팀(프로젝트의
+    부서) == 회차의 팀」이고 API 가 막지만, 마이그레이션 이전 데이터나 직접 수정으로 어긋난
+    행은 여기서만 드러난다. 닫힌 회차는 과거 기록이라 세지 않는다."""
+    from app.work.models import SPRINT_CLOSED, Sprint
+
+    rows = list(
+        db.execute(
+            select(TicketCache, Sprint, Project)
+            .join(Sprint, Sprint.id == TicketCache.sprint_id)
+            .outerjoin(Project, Project.id == TicketCache.project_uid)
+            .where(
+                Sprint.state != SPRINT_CLOSED,
+                Sprint.department_id.is_not(None),
+                or_(Project.id.is_(None), Project.dept_id.is_(None),
+                    Project.dept_id != Sprint.department_id),
+            )
+            .order_by(Sprint.name, TicketCache.seq)
+        ).all()
+    )
+    return Finding(
+        key="open_sprint_tickets_off_team",
+        title="열린 회차에 담긴 다른 팀의 티켓",
+        why=(
+            "회차에는 같은 팀 프로젝트의 티켓만 담깁니다. 팀이 어긋난 티켓은 그 팀의 회의에서 "
+            "우리 일이 아닌 항목으로 보입니다."
+        ),
+        remedy="작업 보드에서 그 티켓을 회차에서 빼거나, 프로젝트의 부서를 회차의 팀에 맞추세요.",
+        count=len(rows),
+        items=_sample(
+            {
+                "ticket_id": t.id, "page_id": api_page_id(t), "key": t.canonical_key,
+                "title": t.title, "sprint_id": s.id, "sprint": s.name,
+                "project_id": p.id if p is not None else None,
+                "project_dept_id": p.dept_id if p is not None else None,
+                "sprint_dept_id": s.department_id,
+            }
+            for t, s, p in rows
+        ),
+    )
+
+
 _CHECKS = (
     _users_without_membership,
     _tickets_without_one_project,
@@ -499,6 +569,8 @@ _CHECKS = (
     _spaces_without_ownership,
     _projects_without_scope,
     _resources_on_inactive_departments,
+    _sprints_without_team,
+    _open_sprint_tickets_off_team,
 )
 
 

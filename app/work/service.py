@@ -34,17 +34,22 @@ import logging
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
+from app.authz.permissions import PROJECT_WRITE
+from app.authz.service import has_permission
 from app.authz.visibility import (
     RESOURCE_PROJECT,
     context_for_user,
     effective_visibility_clause,
 )
 from app.core.dates import iso_date, parse_date
-from app.core.errors import ConflictError, NotFoundError, ValidationAppError
+from app.core.errors import ConflictError, ForbiddenError, NotFoundError, ValidationAppError
 from app.core.models_base import NAMES_SEP, split_names, utcnow
+from app.core.org_tree import DeptTree
+from app.core.scope import MATCH_NOTHING, principal_from_user
+from app.org import context as org_context
 from app.projects.models import Project
 from app.tickets.models import Ticket, api_page_id, api_page_id_expr
 from app.trash import repository as trash_repo
@@ -144,6 +149,17 @@ def _ilike_escape(text: str) -> str:
     return text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
+def _team_projects_clause(team_id: str):
+    """이 팀의 일 — **프로젝트의 `dept_id` 가 정확히 그 팀**인 티켓 (D-482).
+
+    티켓에는 부서 칸이 없고 티켓의 팀은 `project.dept_id` 한 단계다. 하위 팀·상위 본부·
+    조직 공통 프로젝트의 티켓은 이 팀의 일이 아니다 — 회차에 담을 수 있는 자격
+    (`ensure_eligible`)과 같은 정의라, 백로그에 보이는 티켓은 전부 담을 수 있고 담을 수
+    없는 티켓은 백로그에 안 보인다.
+    """
+    return Ticket.project_uid.in_(select(Project.id).where(Project.dept_id == team_id))
+
+
 def _board_scope_stmt(
     db: Session,
     user: User,
@@ -153,7 +169,7 @@ def _board_scope_stmt(
     scope: str,
     assignee_token: str | None = None,
     blocked_only: bool = False,
-    dept_scope=None,
+    team_id: str | None = None,
     q: str | None = None,
     priority: str | None = None,
     difficulty: str | None = None,
@@ -165,12 +181,17 @@ def _board_scope_stmt(
 
     범위(가시성) 절이 **무엇보다도 먼저** 걸린다(D-202). 커서·상한은 이 위에 얹힐 뿐,
     이 절을 지나지 않은 행은 어느 쪽에도 새어 나오지 않는다.
+
+    회차를 골랐으면 그 회차에 담긴 티켓이 판이다(회차 게이트는 `board()` 가 먼저 지난다).
+    회차 없이 팀만 골랐으면 그 팀의 실행분 — 팀 절은 백로그와 같은 정의다.
     """
-    stmt = _visible_tickets_stmt(db, user, scope=dept_scope)
+    stmt = _visible_tickets_stmt(db, user)
     if project_id:
         stmt = stmt.where(Ticket.project_uid == project_id)
     if sprint_id:
         stmt = stmt.where(Ticket.sprint_id == sprint_id)
+    elif team_id:
+        stmt = stmt.where(_team_projects_clause(team_id))
     stmt = stmt.where(
         Ticket.notion_missing_at.is_(None),
         _not_trashed_ticket_clause(),
@@ -480,7 +501,7 @@ def board(
     scope: str | None = None,
     assignee_token: str | None = None,
     blocked_only: bool = False,
-    dept_scope=None,
+    team_id: str | None = None,
     q: str | None = None,
     priority: str | None = None,
     difficulty: str | None = None,
@@ -524,10 +545,11 @@ def board(
     성질은 그대로이면서 메모리에서 행이 사라진다.
     """
     resolved_scope = resolve_board_scope(scope, sprint_id)
+    _ensure_sprint_on_team(db, user, sprint_id=sprint_id, team_id=team_id)
     page_size = max(1, min(column_page_size or DEFAULT_COLUMN_PAGE_SIZE, MAX_COLUMN_PAGE_SIZE))
     base_stmt = _board_scope_stmt(
         db, user, project_id=project_id, sprint_id=sprint_id, scope=resolved_scope,
-        assignee_token=assignee_token, blocked_only=blocked_only, dept_scope=dept_scope,
+        assignee_token=assignee_token, blocked_only=blocked_only, team_id=team_id,
         q=q, priority=priority, difficulty=difficulty, signal=signal, today=today,
     )
 
@@ -621,7 +643,7 @@ def board_column(
     scope: str | None = None,
     assignee_token: str | None = None,
     blocked_only: bool = False,
-    dept_scope=None,
+    team_id: str | None = None,
     q: str | None = None,
     priority: str | None = None,
     difficulty: str | None = None,
@@ -638,10 +660,11 @@ def board_column(
     (D-202) — 다음 쪽 요청도 그 순서를 지킨다.
     """
     resolved_scope = resolve_board_scope(scope, sprint_id)
+    _ensure_sprint_on_team(db, user, sprint_id=sprint_id, team_id=team_id)
     page_size = max(1, min(limit or DEFAULT_COLUMN_PAGE_SIZE, MAX_COLUMN_PAGE_SIZE))
     base_stmt = _board_scope_stmt(
         db, user, project_id=project_id, sprint_id=sprint_id, scope=resolved_scope,
-        assignee_token=assignee_token, blocked_only=blocked_only, dept_scope=dept_scope,
+        assignee_token=assignee_token, blocked_only=blocked_only, team_id=team_id,
         q=q, priority=priority, difficulty=difficulty, signal=signal, today=today,
     )
     known_keys = [key for key in db.execute(select(TicketStatus.key)).scalars().all()]
@@ -671,7 +694,7 @@ def _backlog_scope_stmt(
     priority: str | None = None,
     difficulty: str | None = None,
     exclude_ticket_id: str | None = None,
-    dept_scope=None,
+    team_id: str | None = None,
     signal: str | None = None,
     blocked_only: bool = False,
     today: date | None = None,
@@ -681,7 +704,9 @@ def _backlog_scope_stmt(
     아래로가 계산한 백로그"가 다른 집합이 되고, 그 어긋남은 카드 순서가 화면마다
     다르게 보이는 것으로만 드러난다(오류가 안 난다).
     """
-    stmt = _visible_tickets_stmt(db, user, scope=dept_scope)
+    stmt = _visible_tickets_stmt(db, user)
+    if team_id:
+        stmt = stmt.where(_team_projects_clause(team_id))
     if project_id:
         stmt = stmt.where(Ticket.project_uid == project_id)
     cat = workflow.category_sql(Ticket.status)
@@ -713,7 +738,7 @@ def backlog(
     assignee_token: str | None = None,
     priority: str | None = None,
     difficulty: str | None = None,
-    dept_scope=None,
+    team_id: str | None = None,
     signal: str | None = None,
     blocked_only: bool = False,
     today: date | None = None,
@@ -739,7 +764,7 @@ def backlog(
     page_size = max(1, min(limit or DEFAULT_COLUMN_PAGE_SIZE, MAX_COLUMN_PAGE_SIZE))
     stmt = _backlog_scope_stmt(
         db, user, project_id=project_id, q=q, assignee_token=assignee_token,
-        priority=priority, difficulty=difficulty, dept_scope=dept_scope,
+        priority=priority, difficulty=difficulty, team_id=team_id,
         signal=signal, blocked_only=blocked_only, today=today,
     )
     page, next_cursor = _rank_keyset_page(db, stmt, Ticket.backlog_rank, cursor=cursor, limit=page_size)
@@ -763,7 +788,7 @@ def backlog_position_rank(
     assignee_token: str | None = None,
     priority: str | None = None,
     difficulty: str | None = None,
-    dept_scope=None,
+    team_id: str | None = None,
     signal: str | None = None,
     blocked_only: bool = False,
     today: date | None = None,
@@ -787,7 +812,7 @@ def backlog_position_rank(
     stmt = _backlog_scope_stmt(
         db, user, project_id=project_id, q=q, assignee_token=assignee_token,
         priority=priority, difficulty=difficulty, exclude_ticket_id=ticket_id,
-        dept_scope=dept_scope, signal=signal, blocked_only=blocked_only, today=today,
+        team_id=team_id, signal=signal, blocked_only=blocked_only, today=today,
     )
     sq = stmt.subquery()
     # 전체 순위를 파이썬으로 끌어오지 않는다 — 필요한 것은 양 끝 값 둘뿐이다.
@@ -879,24 +904,131 @@ def load_ticket_in_scope_or_404(db: Session, ticket_id: str, user: User) -> Tick
     return ticket
 
 
+# ── 회차의 세 문 (D-482) ──────────────────────────────────────────────────────
+#
+# 회차에는 서로 다른 질문이 셋 있고, 셋이 각자 함수다. 한 함수에 섞으면 한쪽을 고칠 때
+# 다른 쪽이 조용히 넓어진다.
+#
+#   조회   sprint_visibility_clause   자기 팀과 그 아래 ∪ 관리 범위 (프로젝트 줄기와 다르다)
+#   편성   ensure_sprint_manageable   관리 범위가 그 팀을 덮는가 — 보이는데 못 고치면 403
+#   담기   ensure_eligible           티켓의 팀(프로젝트의 dept_id) == 회차의 팀, 열린 회차만
+
+SPRINT_NOT_FOUND = "스프린트를 찾을 수 없습니다."
+SPRINT_FORBIDDEN = "이 팀의 회차를 편성할 권한이 없습니다."
+
+
+def _principal(db: Session, user: User):
+    return principal_from_user(db, user, DeptTree.load(db))
+
+
+def sprint_visibility_clause(principal):
+    """회차 조회 절 — `None` 은 제한 없음(전역), 그 밖에는 WHERE 에 붙일 절이다.
+
+    볼 수 있는 팀은 `org_context.sprint_team_ids` 가 정한다(자기 부서와 그 아래 ∪ 관리
+    범위 ∪ 조직 직속이면 조직의 모든 팀). 팀 미정(`department_id IS NULL`) 회차는 조직
+    범위·전역 범위에만 보인다 — 팀 사용자의 주기가 아니다.
+
+    목록·단건·회의·이웃·판·집계가 **전부 이 절 하나**를 쓴다. 한 곳이 다른 절을 쓰면
+    목록에 없는 회차가 「다음 회차」 단추로 새거나 그 반대가 된다.
+    """
+    teams = org_context.sprint_team_ids(principal)
+    if teams is None:
+        return None
+    parts = []
+    if teams:
+        parts.append(Sprint.department_id.in_(tuple(sorted(teams))))
+    vis = principal.visibility
+    if vis.is_org and vis.org_id:
+        parts.append(Sprint.department_id.is_(None) & (Sprint.org_id == vis.org_id))
+    if not parts:
+        return MATCH_NOTHING
+    return or_(*parts)
+
+
+def _visible_sprints_stmt(db: Session, user: User, principal=None):
+    principal = principal if principal is not None else _principal(db, user)
+    stmt = select(Sprint)
+    clause = sprint_visibility_clause(principal)
+    return stmt if clause is None else stmt.where(clause)
+
+
 def get_scoped_sprint_or_404(db: Session, sprint_id: str, user: User) -> Sprint:
     """스프린트 하나 — **목록과 같은 판정**을 지난다.
 
-    목록만 좁히고 단건·쓰기를 열어 두면 목록을 좁힌 의미가 없다. 프로젝트 스프린트는
-    그 프로젝트가 보이는 사람에게만 보이고, 팀 전체 스프린트(`project_id IS NULL`)는
-    조직 안에서 열려 있다.
+    목록만 좁히고 단건·쓰기를 열어 두면 목록을 좁힌 의미가 없다. 범위 밖 회차는 없는
+    회차와 **똑같이 404** 다 — 403 은 그 id 가 존재한다는 사실을 알려 주고, 그러면 id 를
+    찍어 보며 남의 팀 회차를 열거할 수 있다.
     """
-    ctx = context_for_user(db, user)
-    stmt = select(Sprint).where(Sprint.id == sprint_id)
-    clause = effective_visibility_clause(ctx, RESOURCE_PROJECT)
-    if clause is not None:
-        stmt = stmt.where(
-            Sprint.project_id.is_(None)
-            | Sprint.project_id.in_(select(Project.id).where(clause))
-        )
-    sprint = db.execute(stmt).scalar_one_or_none()
+    sprint = db.execute(
+        _visible_sprints_stmt(db, user).where(Sprint.id == sprint_id)
+    ).scalar_one_or_none()
     if sprint is None:
-        raise NotFoundError("스프린트를 찾을 수 없습니다.")
+        raise NotFoundError(SPRINT_NOT_FOUND)
+    return sprint
+
+
+def ensure_team_manageable(db: Session, user: User, department_id: str | None, *, org_id=None):
+    """이 팀의 회차를 **편성**할 수 있는가 — 관리 범위가 그 팀을 덮어야 한다 (403).
+
+    조회와 다른 문이다. A 본부 사람은 A-1 회차를 보지만 A-1 을 관리하지 않으면 못 연다.
+    팀 미정 회차(`department_id` 없음)는 조직·전역 관리자만 만진다 — 팀을 정해 주는 사람이다.
+    """
+    principal = _principal(db, user)
+    if department_id is None:
+        if not org_context.can_manage_unassigned_sprints(principal, org_id):
+            raise ForbiddenError("팀 미정 회차는 조직 관리자만 편성할 수 있습니다.")
+        return principal
+    managed = org_context.manageable_team_ids(principal)
+    if managed is not None and department_id not in managed:
+        raise ForbiddenError(SPRINT_FORBIDDEN)
+    return principal
+
+
+def ensure_sprint_manageable(db: Session, user: User, sprint: Sprint):
+    """`ensure_team_manageable` 의 회차판. 부르는 쪽은 이미 회차 조회 문을 지났다."""
+    return ensure_team_manageable(db, user, sprint.department_id, org_id=sprint.org_id)
+
+
+def ensure_planning_role(db: Session, user: User) -> None:
+    """회차에 담고 빼는 것은 편성이다 — 역할 게이트도 회차 쓰기와 같은 `PROJECT_WRITE` 다.
+
+    판의 상태·순서 이동은 티켓 편집 권한(전원)이지만, 어느 회차에 무엇이 들어가는가는
+    팀의 계획이라 운영군이 정한다. 화면이 단추를 감추는 것은 안내이고 문은 여기다.
+    """
+    if not has_permission(db, user, PROJECT_WRITE):
+        raise ForbiddenError("회차에 담거나 빼는 일은 운영 권한이 있어야 할 수 있습니다.")
+
+
+def ensure_sprint_open(sprint: Sprint, *, what: str) -> None:
+    """닫힌 회차는 **과거 기록**이다 — 담기·빼기·순서·상태 변경 어느 것도 안 된다."""
+    if sprint.state == SPRINT_CLOSED:
+        raise ValidationAppError(f"닫힌 회차의 티켓은 {what} 수 없습니다. 닫힌 회차는 기록으로만 남습니다.")
+
+
+def ensure_eligible(db: Session, sprint: Sprint, ticket: Ticket) -> None:
+    """이 티켓을 이 회차에 담을 수 있는가 — **정확 일치**다.
+
+    티켓의 팀은 프로젝트의 `dept_id` 한 단계이고, 회차의 팀과 같아야 한다. 상위 본부·
+    하위 팀·형제 팀의 프로젝트 티켓도, 조직 공통(`dept_id` 없음) 프로젝트의 티켓도 안
+    된다 — 그 티켓은 그 팀의 백로그에 없고, 백로그에 없는 것이 담기면 회의에서 「우리
+    일이 아닌데 왜 여기 있지」가 된다. 프로젝트에 부서를 지정하면 그 팀의 일이 된다.
+    """
+    if sprint.department_id is None:
+        raise ValidationAppError("팀이 정해지지 않은 회차에는 티켓을 담을 수 없습니다. 먼저 회차의 팀을 정해 주세요.")
+    project = db.get(Project, ticket.project_uid) if ticket.project_uid else None
+    if project is None or project.dept_id != sprint.department_id:
+        raise ValidationAppError("이 티켓은 다른 팀의 일이라 이 회차에 담을 수 없습니다. 같은 팀 프로젝트의 티켓만 담을 수 있습니다.")
+
+
+def _ensure_sprint_on_team(
+    db: Session, user: User, *, sprint_id: str | None, team_id: str | None
+) -> Sprint | None:
+    """판이 고른 회차는 보여야 하고, 팀도 골랐다면 그 팀의 회차여야 한다 (422)."""
+    if not sprint_id:
+        return None
+    sprint = get_scoped_sprint_or_404(db, sprint_id, user)
+    if team_id and sprint.department_id != team_id:
+        raise ValidationAppError("고른 회차가 이 팀의 회차가 아닙니다.")
     return sprint
 
 
@@ -959,7 +1091,7 @@ def move(
     position_assignee_token: str | None = None,
     position_priority: str | None = None,
     position_difficulty: str | None = None,
-    position_dept_scope=None,
+    position_team_id: str | None = None,
     position_signal: str | None = None,
     position_today: date | None = None,
     base_version: int | None = None,
@@ -973,20 +1105,27 @@ def move(
     아무것도 안 바뀌면 거절한다 — 빈 요청이 버전을 올리면 다른 사람의 편집이 헛
     충돌한다.
     """
+    from app.tickets import service as tickets_service
+
     stamp = now or utcnow()
     ticket = load_ticket_in_scope_or_404(db, ticket_id, user)
     _ensure_version(ticket, base_version)
 
     if not (to_status or set_sprint or reorder):
         raise ValidationAppError("옮길 내용이 없습니다.")
+    # 세 종류 전부 티켓 편집 문을 지난다 — 상태는 `update_ticket` 안에서 한 번 더 지나지만,
+    # 순서·회차만 옮기는 요청이 그 문을 건너뛰면 읽기 전용 역할(감사자)이 판을 만진다.
+    tickets_service.ensure_can_edit(ticket, user, None)
+    # 지금 담긴 회차. 클라이언트가 준 id 가 아니라 티켓의 값이라 조회 문을 안 지난다.
+    current_sprint = db.get(Sprint, ticket.sprint_id) if ticket.sprint_id else None
+    changed = False
 
     from_status = ticket.status
     if to_status:
         target = workflow.validate_transition(from_status, to_status)
         if target != from_status:
-            # 소스까지 반영하는 유일한 경로. 범위·편집 권한 판정도 여기 한 곳이다.
-            from app.tickets import service as tickets_service
-
+            # 소스까지 반영하는 유일한 경로. 범위·편집 권한 판정도 여기 한 곳이다
+            # (닫힌 회차의 티켓은 그 안에서 422 로 막힌다).
             tickets_service.update_ticket(
                 db, outbound, settings, user,
                 page_id=api_page_id(ticket), changes={"status": target},
@@ -997,23 +1136,48 @@ def move(
                 db, ticket_id=ticket.id, kind=ACT_STATUS, actor_id=user.id,
                 field="status", from_value=from_status, to_value=target, now=stamp,
             )
+            changed = True
 
     if set_sprint:
+        # 담고 빼는 것은 **편성**이다 — 역할(`PROJECT_WRITE`)과 관리 범위(그 회차의 팀)를
+        # 둘 다 본다. 화면이 단추를 감추는 것은 안내이고 문은 여기다.
+        ensure_planning_role(db, user)
         before_sprint = ticket.sprint_id
+        target_sprint = None
         if sprint_id:
             # 담는 쪽 문도 회차 게이트를 지난다(위 「문이 둘이다」와 같은 이유). 범위 밖
             # 회차는 404 다 — 400 으로 거절하면 그 응답 자체가 「그 id 의 회차가 있다」를
             # 알려 주는 오라클이 되어, id 를 찍어 남의 팀 회차를 열거할 수 있다.
-            sprint = get_scoped_sprint_or_404(db, sprint_id, user)
-            if sprint.project_id and sprint.project_id != ticket.project_uid:
-                raise ValidationAppError("다른 프로젝트의 스프린트에는 넣을 수 없습니다.")
-        ticket.sprint_id = sprint_id or None
-        activity.record(
-            db, ticket_id=ticket.id, kind=ACT_SPRINT, actor_id=user.id, field="sprint_id",
-            from_value=before_sprint, to_value=ticket.sprint_id, now=stamp,
-        )
+            target_sprint = get_scoped_sprint_or_404(db, sprint_id, user)
+            ensure_sprint_manageable(db, user, target_sprint)
+            ensure_sprint_open(target_sprint, what="담을")
+            if before_sprint and before_sprint != target_sprint.id:
+                # 🔴 다른 회차에 든 티켓을 조용히 옮기지 않는다. 옮기면 원래 회차의 범위가
+                # 아무 기록 없이 줄고, 그 회의는 「어디 갔지」로 시작한다. 먼저 빼고 담는다.
+                held = current_sprint.name if current_sprint is not None else "다른"
+                raise ConflictError(
+                    f"이 티켓은 이미 «{held}» 회차에 담겨 있습니다. 먼저 그 회차에서 뺀 뒤 담아 주세요."
+                )
+            ensure_eligible(db, target_sprint, ticket)
+        if before_sprint and (target_sprint is None or target_sprint.id != before_sprint):
+            # 빼는 쪽도 편성이다 — 지금 담긴 회차를 관리할 수 있어야 하고, 닫힌 회차의
+            # membership 은 기록이라 못 뺀다.
+            if current_sprint is not None:
+                ensure_sprint_manageable(db, user, current_sprint)
+                ensure_sprint_open(current_sprint, what="뺄")
+        new_sprint_id = target_sprint.id if target_sprint is not None else None
+        if new_sprint_id != before_sprint:
+            ticket.sprint_id = new_sprint_id
+            activity.record(
+                db, ticket_id=ticket.id, kind=ACT_SPRINT, actor_id=user.id, field="sprint_id",
+                from_value=before_sprint, to_value=ticket.sprint_id, now=stamp,
+            )
+            changed = True
 
     if reorder:
+        # 닫힌 회차의 판은 기록이다 — 순서도 안 바꾼다.
+        if on_board and current_sprint is not None:
+            ensure_sprint_open(current_sprint, what="옮길")
         # **어느 목록의 순서인가.** 판과 백로그는 다른 줄이라 한 컬럼으로 두면 카드를
         # 판에서 옮긴 순간 백로그 순서가 함께 흐트러진다 — 그 흐트러짐은 오류를 안 내고
         # 다음 계획 회의에서야 보인다.
@@ -1025,7 +1189,7 @@ def move(
                 project_id=position_project_id, q=position_q,
                 assignee_token=position_assignee_token,
                 priority=position_priority, difficulty=position_difficulty,
-                dept_scope=position_dept_scope, signal=position_signal,
+                team_id=position_team_id, signal=position_signal,
                 today=position_today,
             )
         else:
@@ -1041,6 +1205,11 @@ def move(
             from_value=str(before_rank) if before_rank is not None else None,
             to_value=str(placed), now=stamp,
         )
+        changed = True
+
+    if not changed:
+        # 같은 회차에 다시 담기 같은 no-op — 버전을 올리면 다른 사람의 편집이 헛 충돌한다.
+        return {"ticket": _card(ticket)}
 
     ticket.version = int(ticket.version) + 1
     ticket.updated_at = stamp
@@ -1073,7 +1242,9 @@ def _sprint_view(sprint: Sprint, *, today: date | None = None) -> dict:
     return {
         "id": sprint.id,
         "name": sprint.name,
-        "project_id": sprint.project_id,
+        # 이 회차를 운영하는 팀(`org_units.id`). `None` 은 팀 미정(레거시)이다 — 화면은
+        # 이 값을 팀 후보 목록에서 이름·경로로 옮긴다. `project_id` 는 더 이상 없다(D-482).
+        "department_id": sprint.department_id,
         # 화면은 'YYYY-MM-DD' 문자열을 읽는다. 컬럼은 `date` 다 (S7 · P-14a).
         "starts_on": iso_date(sprint.starts_on),
         "ends_on": iso_date(sprint.ends_on),
@@ -1089,22 +1260,64 @@ def _sprint_view(sprint: Sprint, *, today: date | None = None) -> dict:
     }
 
 
+#: 회차 목록·이웃의 정렬 열쇠. 이름 사전순은 「9-10」이 「9-2」보다 앞에 서서 버렸다 —
+#: 같은 시작일이면 나중에 만든 것이 앞이고, 그것도 같으면 id 로 고정된다(안정 정렬).
+def _sprint_order_desc():
+    return (Sprint.starts_on.desc(), Sprint.created_at.desc(), Sprint.id.desc())
+
+
+def _same_team_clause(sprint: Sprint):
+    """같은 팀의 회차 — 팀 미정끼리는 같은 조직의 팀 미정끼리다."""
+    if sprint.department_id is not None:
+        return Sprint.department_id == sprint.department_id
+    return Sprint.department_id.is_(None) & (Sprint.org_id == sprint.org_id)
+
+
 def list_sprints(
-    db: Session, user: User, *, project_id: str | None = None, today: date | None = None
+    db: Session, user: User, *, department_id: str | None = None, today: date | None = None
 ) -> list[dict]:
-    """스프린트 목록. 프로젝트 스프린트는 그 프로젝트가 보이는 사람에게만 보인다."""
-    ctx = context_for_user(db, user)
-    stmt = select(Sprint)
-    clause = effective_visibility_clause(ctx, RESOURCE_PROJECT)
-    if clause is not None:
-        stmt = stmt.where(
-            Sprint.project_id.is_(None)
-            | Sprint.project_id.in_(select(Project.id).where(clause))
-        )
-    if project_id:
-        stmt = stmt.where(Sprint.project_id == project_id)
-    rows = db.execute(stmt.order_by(Sprint.starts_on.desc(), Sprint.name)).scalars().all()
+    """회차 목록 — **팀별**이다.
+
+    `department_id` 를 주면 그 팀의 회차만(범위 밖 팀은 404), `"none"` 이면 팀 미정
+    회차만, 안 주면 볼 수 있는 회차 전부다. 어느 경우든 조회 절은 하나
+    (`sprint_visibility_clause`)다.
+    """
+    principal = _principal(db, user)
+    stmt = _visible_sprints_stmt(db, user, principal)
+    if department_id == "none":
+        stmt = stmt.where(Sprint.department_id.is_(None))
+    elif department_id:
+        teams = org_context.sprint_team_ids(principal)
+        if teams is not None and department_id not in teams:
+            raise NotFoundError("팀을 찾을 수 없습니다.")
+        stmt = stmt.where(Sprint.department_id == department_id)
+    rows = db.execute(stmt.order_by(*_sprint_order_desc())).scalars().all()
     return [_sprint_view(s, today=today) for s in rows]
+
+
+def _ensure_name_free(db: Session, *, org_id, department_id, name: str, except_id=None) -> None:
+    """이름은 팀 안에서 유일하다. 제약 이름(`uq_sprints_name`)만 보고 무엇이 문제인지
+    아는 사람은 없으므로 여기서 먼저 사람의 말로 거절한다."""
+    stmt = select(Sprint.id).where(Sprint.org_id == org_id, Sprint.name == name)
+    stmt = stmt.where(
+        Sprint.department_id == department_id if department_id is not None
+        else Sprint.department_id.is_(None)
+    )
+    if except_id:
+        stmt = stmt.where(Sprint.id != except_id)
+    if db.execute(stmt).first() is not None:
+        raise ConflictError("이 팀에 같은 이름의 회차가 이미 있습니다.")
+
+
+def _ensure_no_other_active(db: Session, sprint: Sprint) -> None:
+    """활성 회차는 **팀당 하나**다. 둘이면 「이번 회차」에 답이 둘이 되고 번다운이 둘이 된다."""
+    conflict = db.execute(
+        select(Sprint).where(
+            Sprint.state == SPRINT_ACTIVE, Sprint.id != sprint.id, _same_team_clause(sprint),
+        )
+    ).scalars().first()
+    if conflict is not None:
+        raise ConflictError(f"이미 «{conflict.name}» 회차가 열려 있습니다. 먼저 닫아 주세요.")
 
 
 def create_sprint(
@@ -1114,30 +1327,36 @@ def create_sprint(
     name: str,
     starts_on: str,
     ends_on: str,
-    project_id: str | None = None,
+    department_id: str,
     goal: str | None = None,
     now: datetime | None = None,
 ) -> dict:
-    """스프린트 한 회차. 시작 상태는 `planned` 다 — **여는 것은 별도 동작**이다.
+    """회차 하나 — **팀의 회차**다. 시작 상태는 `planned` 다 — **여는 것은 별도 동작**이다.
 
     만들자마자 열면 다음 회차를 미리 계획해 둘 수 없다. 「이번」이 무엇인지가 계획의
     핵심이라 그 전환을 사람이 눌러야 한다.
+
+    팀은 보이는 팀이어야 하고(아니면 없는 팀과 같은 404) 관리 범위 안이어야 한다(403).
+    프로젝트가 아직 없는 새 팀도 회차를 먼저 만들 수 있다 — 그런 제한은 없다.
     """
     label = (name or "").strip()
     if not label:
         raise ValidationAppError("스프린트 이름을 입력해 주세요.")
+    if not department_id:
+        raise ValidationAppError("회차를 운영할 팀을 골라 주세요.")
     # 여기서 한 번 날짜로 읽는다 — 못 읽는 값을 그대로 두면 DB 가 거절하고,
     # 그 실패는 422 가 아니라 500 이 된다 (S7 · P-14a).
     first, last = parse_date(starts_on), parse_date(ends_on)
     if first is None or last is None or first >= last:
         raise ValidationAppError("스프린트 기간은 시작일이 종료일보다 앞이어야 합니다.")
-    if project_id is not None:
-        # 남의 팀 프로젝트에 회차를 만들 수 있으면, 그 팀의 백로그에 내 회차가 나타난다.
-        get_scoped_project_or_404(db, project_id, user)
+    team = org_context.team_context(db, user, department_id)   # 범위 밖 팀은 404
+    ensure_team_manageable(db, user, department_id)
+    org_id = team["principal"].tree.org_of(department_id)
+    _ensure_name_free(db, org_id=org_id, department_id=department_id, name=label)
 
     row = Sprint(
-        name=label, project_id=project_id, starts_on=first, ends_on=last,
-        state=SPRINT_PLANNED, goal=(goal or None),
+        name=label, department_id=department_id, org_id=org_id,
+        starts_on=first, ends_on=last, state=SPRINT_PLANNED, goal=(goal or None),
         created_at=now or utcnow(), updated_at=now or utcnow(),
     )
     db.add(row)
@@ -1148,15 +1367,16 @@ def create_sprint(
 def set_sprint_state(
     db: Session, user: User, *, sprint_id: str, state: str, now: datetime | None = None
 ) -> dict:
-    """회차를 연다/닫는다. **한 프로젝트에 열린 회차는 하나**뿐이다.
+    """회차를 연다/되돌린다. **한 팀에 열린 회차는 하나**뿐이다.
 
     둘이면 「이번 스프린트」에 답이 둘이 되고 번다운이 두 개가 된다. 부분 유니크
     인덱스가 막지만, 여기서 먼저 읽을 수 있는 말로 거절한다 — 제약 이름만 보고
-    무엇이 문제인지 아는 사람은 없다.
+    무엇이 문제인지 아는 사람은 없다. 팀이 다르면 같은 기간에 나란히 연다.
     """
     if state not in SPRINT_STATES:
         raise ValidationAppError(f"모르는 스프린트 상태입니다: {state}")
     sprint = get_scoped_sprint_or_404(db, sprint_id, user)
+    ensure_sprint_manageable(db, user, sprint)
     # closed 는 종착이다 — 번다운·이월 기록이 닫힌 시점 기준으로 서 있고, 다시 열면
     # 그 기록이 전부 거짓이 된다. 같은 상태로의 재설정은 재실행 안전으로 남긴다.
     if sprint.state == SPRINT_CLOSED and state != SPRINT_CLOSED:
@@ -1167,21 +1387,9 @@ def set_sprint_state(
             "회차를 닫으려면 「회차 닫기」를 써 주세요. 안 끝난 티켓을 보낼 곳을 함께 정해야 합니다."
         )
     if state == SPRINT_ACTIVE and sprint.state != SPRINT_ACTIVE:
-        conflict = db.execute(
-            select(Sprint).where(
-                Sprint.state == SPRINT_ACTIVE,
-                Sprint.org_id == sprint.org_id,
-                (
-                    Sprint.project_id == sprint.project_id
-                    if sprint.project_id is not None
-                    else Sprint.project_id.is_(None)
-                ),
-            )
-        ).scalars().first()
-        if conflict is not None:
-            raise ConflictError(
-                f"이미 «{conflict.name}» 회차가 열려 있습니다. 먼저 닫아 주세요."
-            )
+        if sprint.department_id is None:
+            raise ValidationAppError("팀이 정해지지 않은 회차는 열 수 없습니다. 먼저 회차의 팀을 정해 주세요.")
+        _ensure_no_other_active(db, sprint)
     sprint.state = state
     sprint.updated_at = now or utcnow()
     db.flush()
@@ -1193,34 +1401,49 @@ def update_sprint(
 ) -> dict:
     """이름·기간·목표를 고친다. **보낸 칸만** 바뀐다(라우터가 `exclude_unset` 으로 거른다).
 
-    닫은 회차는 기간을 못 고친다 — 번다운·이월 기록이 그 축 위에 서 있고, 지난 축을
-    다시 쓰면 기록이 거짓이 된다. 이름·목표는 기록을 안 바꾸므로 닫은 뒤에도 고칠 수
-    있다 — 오타는 기록이 아니라 실수다.
+    닫은 회차는 **이름만** 고친다 — 기간·목표는 그 회차의 기록이고, 지난 기록을 다시
+    쓰면 회의록과 번다운이 거짓이 된다. 오타는 기록이 아니라 실수라 이름은 남긴다.
+
+    `department_id` 는 팀 미정(레거시) 회차에 팀을 **정해 주는** 칸이다. 이미 팀이 있는
+    회차의 팀은 못 바꾼다 — 담긴 티켓의 자격(같은 팀)이 통째로 깨진다.
     """
     sprint = get_scoped_sprint_or_404(db, sprint_id, user)
-    if sprint.state == SPRINT_CLOSED and ("starts_on" in changes or "ends_on" in changes):
-        raise ValidationAppError("닫은 회차의 기간은 고칠 수 없습니다. 이름과 목표만 고칠 수 있습니다.")
+    ensure_sprint_manageable(db, user, sprint)
+    if sprint.state == SPRINT_CLOSED and any(
+        k in changes for k in ("starts_on", "ends_on", "goal", "department_id")
+    ):
+        raise ValidationAppError("닫은 회차는 이름만 고칠 수 있습니다. 기간과 목표는 기록으로 남습니다.")
+    team_after = sprint.department_id
+    if "department_id" in changes:
+        target = changes.get("department_id") or None
+        if sprint.department_id is not None:
+            if target != sprint.department_id:
+                raise ValidationAppError("회차의 팀은 바꿀 수 없습니다. 팀이 다르면 새 회차를 만들어 주세요.")
+        elif target is None:
+            raise ValidationAppError("회차의 팀을 골라 주세요.")
+        else:
+            team = org_context.team_context(db, user, target)   # 범위 밖 팀은 404
+            ensure_team_manageable(db, user, target)
+            if team["principal"].tree.org_of(target) != sprint.org_id:
+                raise ValidationAppError("다른 조직의 팀에는 이 회차를 둘 수 없습니다.")
+            team_after = target
     if "name" in changes:
         label = (changes.get("name") or "").strip()
         if not label:
             raise ValidationAppError("스프린트 이름을 입력해 주세요.")
-        if label != sprint.name:
-            conflict = db.execute(
-                select(Sprint).where(
-                    Sprint.org_id == sprint.org_id,
-                    (
-                        Sprint.project_id == sprint.project_id
-                        if sprint.project_id is not None
-                        else Sprint.project_id.is_(None)
-                    ),
-                    Sprint.name == label,
-                    Sprint.id != sprint.id,
-                )
-            ).scalars().first()
-            if conflict is not None:
-                # 제약 이름(`uq_sprints_name`)만 보고 무엇이 문제인지 아는 사람은 없다.
-                raise ConflictError("같은 이름의 회차가 이미 있습니다.")
-            sprint.name = label
+        if label != sprint.name or team_after != sprint.department_id:
+            _ensure_name_free(
+                db, org_id=sprint.org_id, department_id=team_after, name=label, except_id=sprint.id,
+            )
+        sprint.name = label
+    elif team_after != sprint.department_id:
+        _ensure_name_free(
+            db, org_id=sprint.org_id, department_id=team_after, name=sprint.name, except_id=sprint.id,
+        )
+    if team_after != sprint.department_id:
+        sprint.department_id = team_after
+        if sprint.state == SPRINT_ACTIVE:
+            _ensure_no_other_active(db, sprint)
     if "starts_on" in changes or "ends_on" in changes:
         first = parse_date(changes["starts_on"]) if "starts_on" in changes else sprint.starts_on
         last = parse_date(changes["ends_on"]) if "ends_on" in changes else sprint.ends_on
@@ -1247,6 +1470,7 @@ def delete_sprint(
     회의록은 FK CASCADE 로 함께 사라진다 — 연 적 없는 회차의 회의록은 사실상 없다.
     """
     sprint = get_scoped_sprint_or_404(db, sprint_id, user)
+    ensure_sprint_manageable(db, user, sprint)
     if sprint.state == SPRINT_ACTIVE:
         raise ValidationAppError("진행 중인 회차는 삭제할 수 없습니다. 먼저 「회차 닫기」로 닫아 주세요.")
     if sprint.state == SPRINT_CLOSED:
@@ -1277,8 +1501,10 @@ def sprint_scope(db: Session, sprint_id: str, user: User) -> dict:
     공수를 읽을 수 있으면 그것으로 그 팀의 상태를 읽는다.
     """
     get_scoped_sprint_or_404(db, sprint_id, user)
+    # 🔴 문이 둘이다 — 회차가 보인다고 그 안의 티켓이 다 보이는 것은 아니다. 회의·판과
+    # 같은 티켓 절을 한 번 더 지난다(숫자만 돌려줘도 남의 프로젝트 공수는 유출이다).
     tickets = db.execute(
-        select(Ticket).where(Ticket.sprint_id == sprint_id)
+        _visible_tickets_stmt(db, user).where(Ticket.sprint_id == sprint_id)
     ).scalars().all()
     planned = sum(float(t.est_wd or 0) for t in tickets)
     done = sum(
@@ -1339,6 +1565,7 @@ def close_sprint_and_carry_over(
     손으로 다시 만들게 된다 — 그러면 몇 건은 반드시 빠진다.
     """
     sprint = get_scoped_sprint_or_404(db, sprint_id, user)
+    ensure_sprint_manageable(db, user, sprint)
     # 닫기는 되돌릴 수 없다(이월이 실제로 티켓을 옮긴다) — 전제부터 확인한다.
     if sprint.state == SPRINT_CLOSED:
         raise ConflictError("이미 닫은 회차입니다.")
@@ -1356,10 +1583,11 @@ def close_sprint_and_carry_over(
         target = get_scoped_sprint_or_404(db, target_sprint_id, user)
         if target.state == SPRINT_CLOSED:
             raise ValidationAppError("이미 닫힌 회차로는 이월할 수 없습니다.")
-        # 담기(`move`)·생성이 지키는 불변식과 같다 — 다른 프로젝트의 회차로는 못 보낸다.
-        # 팀 전체 회차(project_id NULL)는 모두의 것이라 언제나 받을 수 있다.
-        if target.project_id is not None and target.project_id != sprint.project_id:
-            raise ValidationAppError("다른 프로젝트의 회차로는 이월할 수 없습니다.")
+        # 담기(`move`)·생성이 지키는 불변식과 같다 — 같은 팀의 열린 회차로만 보낸다.
+        # 대상이 없으면(`None`) 안 끝난 티켓은 백로그로 돌아간다 — 다음 회차가 아직
+        # 없어도 닫을 수 있고, 그것이 기본값이다.
+        if target.department_id != sprint.department_id or target.org_id != sprint.org_id:
+            raise ValidationAppError("다른 팀의 회차로는 이월할 수 없습니다. 같은 팀의 열린 회차만 고를 수 있습니다.")
 
     stamp = now or utcnow()
     carried = 0

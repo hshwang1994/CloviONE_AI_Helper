@@ -246,14 +246,14 @@ def test_a_plain_user_cannot_assign_a_migration_exception(client, login_as, worl
 
 
 def _sprint_on(db, project, *, name, state="planned"):
-    """시험 안에서만 쓰는 회차 한 줄. 픽스처에 넣지 않는 이유는 위 활동 기록과 같다 —
-    회차가 있으면 판 시험들의 「회차 없음」 전제가 바뀐다."""
+    """시험 안에서만 쓰는 회차 한 줄 — **그 프로젝트의 팀**의 회차다(D-482). 픽스처에 넣지
+    않는 이유는 위 활동 기록과 같다 — 회차가 있으면 판 시험들의 「회차 없음」 전제가 바뀐다."""
     from datetime import date, timedelta
 
     from app.work.models import Sprint
 
     row = Sprint(
-        name=name, project_id=project.id if project is not None else None,
+        name=name, department_id=project.dept_id if project is not None else None,
         org_id=DEFAULT_ORG_ID,
         starts_on=date(2026, 8, 24), ends_on=date(2026, 8, 24) + timedelta(days=7),
         state=state,

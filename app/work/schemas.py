@@ -49,24 +49,29 @@ class BoardMove(BaseModel):
 
 
 class SprintCreate(BaseModel):
+    """회차 하나 — **팀의 회차**다 (D-482). `department_id` 가 그 팀(`org_units.id`)이고
+    필수다. 프로젝트 칸은 없다 — 프로젝트는 회차의 소유자가 아니라 티켓의 필터다."""
+
     name: str = Field(min_length=1, max_length=120)
     starts_on: str = Field(pattern=_ISO_DATE)
     ends_on: str = Field(pattern=_ISO_DATE)
-    project_id: str | None = Field(default=None, max_length=36)
+    department_id: str = Field(min_length=1, max_length=36)
     goal: str | None = Field(default=None, max_length=2000)
 
 
 class SprintUpdate(BaseModel):
     """고칠 수 있는 칸만. **보낸 칸만 바뀐다**(`exclude_unset`).
 
-    `project_id` 와 `state` 는 여기 없다 — 소속 이동은 담긴 티켓의 프로젝트 불변식을
-    깨고, 상태는 `/state`·`/close` 두 엔드포인트가 소유한다(전이 규칙이 그쪽에 있다).
+    `state` 는 여기 없다 — `/state`·`/close` 두 엔드포인트가 소유한다(전이 규칙이 그쪽에
+    있다). `department_id` 는 **팀 미정(레거시) 회차에 팀을 정해 주는** 칸이다 — 이미 팀이
+    있는 회차의 팀은 바꿀 수 없다(담긴 티켓의 자격이 통째로 깨진다).
     """
 
     name: str | None = Field(default=None, min_length=1, max_length=120)
     starts_on: str | None = Field(default=None, pattern=_ISO_DATE)
     ends_on: str | None = Field(default=None, pattern=_ISO_DATE)
     goal: str | None = Field(default=None, max_length=2000)
+    department_id: str | None = Field(default=None, max_length=36)
 
 
 class SprintState(BaseModel):

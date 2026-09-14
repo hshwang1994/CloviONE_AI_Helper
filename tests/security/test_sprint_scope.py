@@ -1,5 +1,7 @@
 """스프린트 회의도 **범위를 지킨다** — 문이 둘이다 (D-194 · 지시 4).
 
+qa-contract-change: 회차의 소유자가 프로젝트에서 팀(D-482)으로 바뀌어 「팀 전체 회차(`project_id IS NULL`)는 조직 안에서 누구에게나 보인다」는 전제가 사라졌다. 이제 두 번째 문(회차 안의 티켓 가시성)은 **우리 팀 회차에 남의 팀 티켓이 담긴 상태**(데이터 직접 삽입 — API 는 막는다)로 연다. 후보 목록 단정은 회의에서 후보가 사라져(D-484) 「담긴 티켓 목록도 같은 문을 지난다」로 바뀌었다. 단언 수는 줄지 않았다.
+
 ## 이 파일이 바뀐 이유
 
 예전 이 파일은 `GET /api/sprint/summary` 를 봤다. 그 API 는 「그 주에 마감인 티켓 묶음」을
@@ -15,9 +17,10 @@
 
   1. 회차 자체 — `get_scoped_sprint_or_404`. 안 보이는 회차는 404 다(403 이 아니다:
      존재를 알리면 id 를 찍어 남의 팀 회차 목록을 열거할 수 있다).
-  2. 회차 안의 티켓 — 팀 전체 회차(`project_id IS NULL`)는 조직 안에서 열려 있는데,
-     거기 담긴 티켓은 여러 프로젝트에 걸린다. 회차 문만 지나고 `WHERE sprint_id = ?` 로
-     읽으면 그중 내가 못 보는 프로젝트의 제목·담당자·마감이 회의 화면에 그대로 실린다.
+  2. 회차 안의 티켓 — 회차는 팀의 것이지만 상위 권한자·프로젝트 멤버십·옛 데이터 때문에
+     회차가 보이는 사람과 그 안의 티켓이 보이는 사람이 다를 수 있다. 회차 문만 지나고
+     `WHERE sprint_id = ?` 로 읽으면 내가 못 보는 프로젝트의 제목·담당자·마감이 회의
+     화면에 그대로 실린다.
 
 두 번째가 이 파일의 핵심 단정이다 — 첫 번째만 걸어 두고 통과했다고 믿기 쉬운 자리다.
 
@@ -75,15 +78,16 @@ def world(db, make_user):
     ours = project("우리 프로젝트", mine, "sp-proj-ours")
     yours = project("남의 프로젝트", theirs, "sp-proj-theirs")
 
-    # 팀 전체 회차 — `project_id` 가 없다. 조직 안에서 **누구에게나 보인다.**
+    # 우리 팀의 회차. 여기에 **남의 팀 티켓도 직접 담는다** — API 는 막지만(같은 팀만),
+    # 두 번째 문(티켓 가시성)은 그런 행이 있어야만 열린다.
     open_sprint = Sprint(
-        name="전사 8월 회차", project_id=None, org_id=DEFAULT_ORG_ID,
+        name="우리팀 8월 회차", department_id=mine.id, org_id=DEFAULT_ORG_ID,
         starts_on=TODAY - timedelta(days=3), ends_on=TODAY + timedelta(days=4),
         state="active",
     )
-    # 남의 팀 프로젝트에 묶인 회차 — 이 사람에게는 **없는 것**이어야 한다.
+    # 남의 팀의 회차 — 이 사람에게는 **없는 것**이어야 한다.
     theirs_sprint = Sprint(
-        name="남의팀 8월 회차", project_id=yours.id, org_id=DEFAULT_ORG_ID,
+        name="남의팀 8월 회차", department_id=theirs.id, org_id=DEFAULT_ORG_ID,
         starts_on=TODAY - timedelta(days=3), ends_on=TODAY + timedelta(days=4),
         state="planned",
     )
@@ -153,24 +157,18 @@ def test_the_summary_counts_only_what_i_can_see(client, login_as, world):
     assert body["summary"]["remaining_wd"] == 2.0, body["summary"]
 
 
-def test_the_candidates_stay_inside_my_scope(client, login_as, world, db):
-    """후보 목록은 백로그를 그대로 읽는다 — 그쪽 범위 절을 우회하지 않는다."""
-    stray = Ticket(
-        title="남의팀 백로그", notion_page_id="sp-page-backlog", project_uid=world["yours"].id,
-        project_link=PROJECT_LINK_OK, status="계획", org_id=DEFAULT_ORG_ID,
-        source="notion", notion_ticket_number=33, seq=33,
-    )
-    mine = Ticket(
-        title="우리팀 백로그", notion_page_id="sp-page-backlog-ours", project_uid=world["ours"].id,
-        project_link=PROJECT_LINK_OK, status="계획", org_id=DEFAULT_ORG_ID,
-        source="notion", notion_ticket_number=34, seq=34,
-    )
-    db.add_all([stray, mine])
-    db.commit()
+def test_the_ticket_list_stays_inside_my_scope(client, login_as, world):
+    """회의록의 「관련 티켓」 목록(`tickets`)도 같은 문을 지난다 — 후보(`candidates`)는 없다."""
     body = _meeting(client, login_as, world["open_sprint"].id).json()
-    titles = {c["title"] for c in body["candidates"]}
-    assert "우리팀 백로그" in titles, f"우리 팀 후보가 없다 — 검사가 헛돈다: {titles}"
-    assert "남의팀 백로그" not in titles, f"남의 팀 백로그가 후보로 나왔다: {titles}"
+    assert "candidates" not in body
+    titles = {c["title"] for c in body["tickets"]}
+    assert "우리팀 일" in titles, f"우리 팀 티켓이 없다 — 검사가 헛돈다: {titles}"
+    assert "남의팀 일" not in titles, f"남의 팀 티켓이 관련 티켓 목록에 실렸다: {titles}"
+    assert body["tickets_total"] == 1, body["tickets_total"]
+    scope = client.get(
+        f"/api/work/sprints/{world['open_sprint'].id}/scope", headers=_hdr(login_as)
+    ).json()
+    assert scope["tickets"] == 1, f"집계도 문을 지나야 한다: {scope}"
 
 
 def test_a_global_admin_sees_both(client, login_as, world):

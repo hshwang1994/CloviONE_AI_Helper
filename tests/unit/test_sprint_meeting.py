@@ -1,6 +1,7 @@
 """스프린트 회의 — **회차를 아는 화면** (지시 4).
 
 qa-contract-replaced-by: tests/unit/test_sprint_burndown.py
+qa-contract-change: 회차의 소유자가 프로젝트에서 팀(D-482)으로 바뀌었고 회의 화면은 회차를 구성하는 곳이 아니라 리뷰하는 곳이 됐다(D-484). 「후보(`candidates`)는 백로그다」 단정이 「담긴 티켓 목록(`tickets`)은 회차다」로, 프로젝트 축 이웃이 팀 축 이웃 + `(starts_on, created_at, id)` 정렬로, 「다른 프로젝트의 회차 거절」이 「다른 팀의 회차 거절」로 바뀌었다. 프로젝트 필터가 논의 목록만 좁힌다는 단정이 새로 붙었다.
 
 ## 이 파일이 지키는 것
 
@@ -29,6 +30,7 @@ import pytest
 
 from app.core.errors import ForbiddenError, ValidationAppError
 from app.org.constants import DEFAULT_ORG_ID
+from app.org.models import Department
 from app.projects.models import Project
 from app.tickets.models import PROJECT_LINK_OK, Ticket
 from app.work import codes as work_codes
@@ -46,13 +48,20 @@ def world(db, make_user):
     boss = make_user("meeting-boss@goodmit.co.kr", role="admin", display_name="관리자")
     boss.admin_scope = "global"
     member = make_user("meeting-dev@goodmit.co.kr", role="user", display_name="개발자")
+    # 팀 둘 — 회차는 팀의 것이고(D-482), 회의 화면은 그 팀의 회차를 본다.
+    team = Department(name="회의 A팀", org_id=DEFAULT_ORG_ID)
+    team_b = Department(name="회의 B팀", org_id=DEFAULT_ORG_ID)
+    db.add_all([team, team_b])
+    db.flush()
+    member.department_id = team.id
     db.commit()
 
     project = work_codes.insert_with_code(
-        db, Project(name="회의 프로젝트", org_id=DEFAULT_ORG_ID, notion_page_id="proj-meet")
+        db, Project(name="회의 프로젝트", org_id=DEFAULT_ORG_ID, dept_id=team.id,
+                    notion_page_id="proj-meet")
     )
     sprint = Sprint(
-        name="8월 넷째 주", project_id=project.id, org_id=DEFAULT_ORG_ID,
+        name="8월 넷째 주", department_id=team.id, org_id=DEFAULT_ORG_ID,
         starts_on=TODAY - timedelta(days=4), ends_on=TODAY + timedelta(days=3),
         state="active",
     )
@@ -85,7 +94,8 @@ def world(db, make_user):
     ticket(5, title="아직 안 담은 일", status="계획", est_wd=5)
     db.commit()
     return {
-        "boss": boss, "member": member, "project": project, "sprint": sprint,
+        "boss": boss, "member": member, "team": team, "team_b": team_b,
+        "project": project, "sprint": sprint,
         "late": late, "stuck": stuck, "soon": soon, "done": done,
     }
 
@@ -160,15 +170,21 @@ def test_the_sprint_is_the_boundary_not_the_week(db, world):
     assert "아직 안 담은 일" not in titles
 
 
-def test_the_candidates_are_real_backlog_tickets(db, world):
-    """후보는 **어느 회차에도 안 담긴** 티켓이다.
+def test_the_ticket_list_is_the_sprint_and_the_backlog_stays_out(db, world):
+    """🔴 회의는 회차를 **구성하는 곳이 아니다** (D-484).
 
-    회차 안의 티켓이 후보로 다시 나오면 회의가 같은 일을 두 번 보고, 「추가」를 누르면
-    아무 일도 안 일어난다.
+    응답에는 후보(`candidates`)가 없고, 회의록의 「관련 티켓」이 고르는 목록(`tickets`)은
+    회차에 담긴 티켓 전부다. 백로그의 일은 여기 없다 — 담고 빼는 일은 작업 보드가 한다.
     """
     body = _meeting(db, world)
-    titles = {c["title"] for c in body["candidates"]}
-    assert titles == {"아직 안 담은 일"}
+    assert "candidates" not in body and "candidates_total" not in body
+    titles = {c["title"] for c in body["tickets"]}
+    assert titles == {"늦은 일", "막힌 일", "곧 마감", "끝난 일"}
+    assert body["tickets_total"] == 4
+    assert body["team"]["id"] == world["team"].id
+    assert [p["name"] for p in body["team"]["path"]] == ["회의 A팀"]
+    assert body["sprint"]["department_id"] == world["team"].id
+    assert "project_id" not in body["sprint"]
 
 
 # ── 오늘 논의할 항목 ─────────────────────────────────────────────────────────
@@ -290,7 +306,7 @@ def test_an_empty_sprint_has_no_health(db, world, make_user):
     아니고, 「모른다」는 「좋다」가 아니다.
     """
     empty = Sprint(
-        name="빈 회차", project_id=world["project"].id, org_id=DEFAULT_ORG_ID,
+        name="빈 회차", department_id=world["team"].id, org_id=DEFAULT_ORG_ID,
         starts_on=TODAY, ends_on=TODAY + timedelta(days=7), state="planned",
     )
     db.add(empty)
@@ -455,31 +471,52 @@ def test_creating_inside_a_sprint_context_puts_it_in_that_sprint(db, settings, w
     assert body["scope"]["added"] == 1
 
 
-def test_a_sprint_from_another_project_is_refused(db, settings, world):
-    """다른 프로젝트의 회차에 담긴 티켓은 그 회의에서 「우리 일이 아닌데 왜 여기 있지」가 된다."""
-    from app.org.constants import DEFAULT_ORG_ID
-    from app.projects.models import Project
-    from app.work import codes as work_codes
+def test_a_ticket_of_another_team_is_refused_at_creation(db, settings, world):
+    """🔴 다른 팀 프로젝트의 티켓은 이 회차에 못 담긴다 — 조직 공통 프로젝트도 마찬가지다.
 
+    담긴 자격은 「티켓의 팀(프로젝트의 부서) == 회차의 팀」정확 일치다(D-482). 만들면서
+    담는 길이 그 문을 건너뛰면 「티켓 추가」가 「회차에 담기」의 우회로가 된다.
+    """
     other = work_codes.insert_with_code(
-        db, Project(name="다른 프로젝트", org_id=DEFAULT_ORG_ID, notion_page_id="proj-other")
+        db, Project(name="다른 팀 프로젝트", org_id=DEFAULT_ORG_ID, dept_id=world["team_b"].id,
+                    notion_page_id="proj-other")
+    )
+    common = work_codes.insert_with_code(
+        db, Project(name="조직 공통 프로젝트", org_id=DEFAULT_ORG_ID, notion_page_id="proj-common")
     )
     db.commit()
-    with pytest.raises(ValidationAppError):
-        _create(
-            db, settings, world["boss"],
-            project_id=other.id, sprint_id=world["sprint"].id,
-        )
+    for project in (other, common):
+        with pytest.raises(ValidationAppError):
+            _create(
+                db, settings, world["boss"],
+                project_id=project.id, sprint_id=world["sprint"].id,
+            )
 
 
-def test_the_candidate_list_carries_its_total(db, world):
-    """후보가 잘려도 **전체 수**를 함께 낸다 — 논의 갈래의 truncated 와 같은 계약.
+def test_the_project_filter_narrows_the_discussion_only(db, world):
+    """🔴 프로젝트 필터는 **논의 목록만** 좁힌다 — 요약·건강·번다운은 회차 전체다.
 
-    이것이 없으면 백로그가 백여 건인 프로젝트에서 「후보가 20개뿐」으로 읽힌다.
-    이 픽스처의 백로그는 한 건이라 둘이 같다 — 칸이 실려 있는지가 계약이다.
+    필터가 지표까지 바꾸면 같은 회의에서 두 사람이 다른 번다운을 본다. 응답은 어느
+    프로젝트로 좁혔는지(`discuss_project_id`)를 되돌려 화면이 「이 필터는 논의 목록만
+    좁힙니다」라고 말할 근거를 준다.
     """
-    body = _meeting(db, world)
-    assert body["candidates_total"] == len(body["candidates"]) == 1
+    whole = _meeting(db, world)
+    narrowed = meeting.meeting(
+        db, world["boss"], sprint_id=world["sprint"].id, today=TODAY,
+        project_id="00000000-0000-0000-0000-000000000000",
+    )
+    assert narrowed["discuss_project_id"] == "00000000-0000-0000-0000-000000000000"
+    assert whole["discuss_project_id"] is None
+    assert all(b["total"] == 0 for b in narrowed["discuss"].values()), narrowed["discuss"]
+    assert narrowed["summary"] == whole["summary"]
+    assert narrowed["health"] == whole["health"]
+    assert narrowed["burndown"] == whole["burndown"]
+    assert narrowed["tickets_total"] == whole["tickets_total"] == 4
+    same = meeting.meeting(
+        db, world["boss"], sprint_id=world["sprint"].id, today=TODAY,
+        project_id=world["project"].id,
+    )
+    assert same["discuss"]["overdue"]["total"] == whole["discuss"]["overdue"]["total"] == 1
 
 
 def test_a_decision_view_names_its_author(db, world):
@@ -493,19 +530,20 @@ def test_a_decision_view_names_its_author(db, world):
     assert body["decisions"][0]["author_user_id"] == world["member"].id
 
 
-def test_team_sprint_neighbours_are_team_sprints_only(db, world):
-    """🔴 팀 전체 회차의 이웃은 팀 전체 회차뿐이다.
+def test_neighbours_stay_inside_the_team(db, world):
+    """🔴 이웃은 **같은 팀**의 회차뿐이다 (D-482).
 
-    예전에는 `project_id=None` 이 「전체 목록」으로 읽혀 전 프로젝트의 회차가 이웃으로
-    섞였다 — 「다음 회차」를 누르면 남의 프로젝트 회차로 넘어갔다.
+    B 팀의 회차 둘 사이에 A 팀의 회차(`world["sprint"]`, 나흘 전 시작)가 날짜상 끼어
+    있어도 B 의 「이전 회차」는 B 의 지난 회차다 — 「다음 회차」를 누르면 남의 팀 회차로
+    넘어가면 안 된다.
     """
     team_prev = Sprint(
-        name="지난 팀 회차", project_id=None, org_id=DEFAULT_ORG_ID,
+        name="지난 B 회차", department_id=world["team_b"].id, org_id=DEFAULT_ORG_ID,
         starts_on=TODAY - timedelta(days=14), ends_on=TODAY - timedelta(days=8),
         state="closed",
     )
     team_now = Sprint(
-        name="이번 팀 회차", project_id=None, org_id=DEFAULT_ORG_ID,
+        name="이번 B 회차", department_id=world["team_b"].id, org_id=DEFAULT_ORG_ID,
         starts_on=TODAY - timedelta(days=1), ends_on=TODAY + timedelta(days=6),
         state="planned",
     )
@@ -513,20 +551,41 @@ def test_team_sprint_neighbours_are_team_sprints_only(db, world):
     db.commit()
 
     body = meeting.meeting(db, world["boss"], sprint_id=team_now.id, today=TODAY)
-    # world["sprint"](프로젝트 회차, 나흘 전 시작)가 날짜상 사이에 있어도 이웃이 아니다.
-    assert body["neighbours"]["prev"]["name"] == "지난 팀 회차", body["neighbours"]
+    assert body["neighbours"]["prev"]["name"] == "지난 B 회차", body["neighbours"]
     assert body["neighbours"]["next"] is None
+    # A 팀 쪽에서 봐도 B 회차는 이웃이 아니다.
+    mine = _meeting(db, world)["neighbours"]
+    assert mine["prev"] is None and mine["next"] is None, mine
 
 
-def test_project_sprint_neighbours_stay_in_the_project(db, world):
-    """반례 — 프로젝트 회차의 이웃은 같은 프로젝트에서 앞뒤로 선다."""
-    nxt = Sprint(
-        name="다음 회차", project_id=world["project"].id, org_id=DEFAULT_ORG_ID,
-        starts_on=TODAY + timedelta(days=4), ends_on=TODAY + timedelta(days=10),
-        state="planned",
+def test_neighbours_are_ordered_by_start_then_creation_not_by_name(db, world):
+    """🔴 같은 날 시작한 회차는 **만든 순서**가 정한다 — 이름 사전순이면 「9-10」이 「9-2」
+    앞에 선다. 목록(`list_sprints`)과 이웃이 같은 열쇠 `(starts_on, created_at, id)` 를 쓴다."""
+    from app.work import service as work_service
+
+    start = TODAY + timedelta(days=4)
+    first = Sprint(
+        name="9-2", department_id=world["team"].id, org_id=DEFAULT_ORG_ID,
+        starts_on=start, ends_on=start + timedelta(days=6), state="planned",
+        created_at=world["sprint"].created_at.replace(year=2026, month=8, day=20),
     )
-    db.add(nxt)
+    second = Sprint(
+        name="9-10", department_id=world["team"].id, org_id=DEFAULT_ORG_ID,
+        starts_on=start, ends_on=start + timedelta(days=6), state="planned",
+        created_at=world["sprint"].created_at.replace(year=2026, month=8, day=21),
+    )
+    db.add_all([first, second])
     db.commit()
+
     body = _meeting(db, world)
-    assert body["neighbours"]["next"]["name"] == "다음 회차"
+    assert body["neighbours"]["next"]["name"] == "9-2", body["neighbours"]
     assert body["neighbours"]["prev"] is None
+    after = meeting.meeting(db, world["boss"], sprint_id=first.id, today=TODAY)
+    assert after["neighbours"]["next"]["name"] == "9-10"
+    assert after["neighbours"]["prev"]["name"] == "8월 넷째 주"
+    listed = [
+        s["name"] for s in work_service.list_sprints(
+            db, world["boss"], department_id=world["team"].id, today=TODAY,
+        )
+    ]
+    assert listed == ["9-10", "9-2", "8월 넷째 주"], listed

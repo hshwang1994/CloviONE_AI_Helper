@@ -490,6 +490,122 @@ def _seed_pilot(db, settings, me, projects, now) -> None:
             created_at=now - timedelta(minutes=i * 5),
         ))
 
+    _seed_sprints(db, me, people, teams, projects, now)
+
+
+def _seed_sprints(db, me, people, teams, projects, now) -> None:
+    """작업 보드와 스프린트 회의가 **팀 회차**를 보여 주게 한다 (D-482 · D-484).
+
+    회차는 팀의 것이라 씨앗도 팀 단위다: 플랫폼개발팀은 9-1(닫힘) · 9-2(진행) · 9-3(계획),
+    서비스운영팀은 같은 이름의 9-2(진행) — 팀이 다르면 같은 이름·같은 기간이 나란히
+    선다는 것을 화면이 보여 줘야 한다. 팀 아래 파트 하나와 조직 공통 프로젝트 하나를
+    두는 이유: 팀 선택기의 경로 표시와 「조직 공통 티켓은 어느 회차에도 못 담긴다」가
+    화면에서 실제로 보여야 한다.
+
+    회차 기간은 **실제 오늘**을 기준으로 잡는다. 씨앗의 `now` 는 캡처 재현을 위해
+    2026-08-24 에 고정돼 있지만, 「오늘 활성인 회차」(`active`)는 서버의 진짜 시계로
+    판정한다 — 고정 시계로 잡으면 캡처하는 날이 지나는 순간 자동 선택할 회차가 사라진다.
+    """
+    from datetime import date, datetime, timedelta
+
+    from app.org.constants import DEFAULT_ORG_ID
+    from app.org.models import OrgUnit
+    from app.projects.models import Project
+    from app.tickets.models import TicketCache
+    from app.work import activity as work_activity
+    from app.work import codes as work_codes
+    from app.work import workflow
+    from app.work.models import ACT_SPRINT, Sprint, SprintDecision
+
+    team_a, team_b = teams[0], teams[1]
+    part = OrgUnit(name="플랫폼 QA파트", kind="department", parent_id=team_a.id,
+                   org_id=DEFAULT_ORG_ID)
+    db.add(part)
+    common = Project(name="전사 보안 점검", org_id=DEFAULT_ORG_ID, status="진행",
+                     health_score=80, progress_pct=40.0)
+    work_codes.insert_with_code(db, common)
+    db.flush()
+
+    today = datetime.utcnow().date()
+
+    def sprint(name, team, state, start, *, days=7, goal=None):
+        row = Sprint(name=name, department_id=team.id, org_id=DEFAULT_ORG_ID,
+                     starts_on=start, ends_on=start + timedelta(days=days), state=state,
+                     goal=goal, created_at=now, updated_at=now)
+        db.add(row)
+        db.flush()
+        return row
+
+    a91 = sprint("9-1", team_a, "closed", today - timedelta(days=14),
+                 goal="포털 개편 1차 오픈 준비를 끝낸다.")
+    a92 = sprint("9-2", team_a, "active", today - timedelta(days=3),
+                 goal="지연된 티켓을 줄이고 검증 열을 비운다.")
+    sprint("9-3", team_a, "planned", today + timedelta(days=5))
+    b92 = sprint("9-2", team_b, "active", today - timedelta(days=3),
+                 goal="운영 자동화 이관을 마친다.")
+    sprint("QA 9-2", part, "planned", today + timedelta(days=1))
+
+    tickets = db.query(TicketCache).order_by(TicketCache.notion_ticket_number).all()
+    by_team = {team_a.id: [], team_b.id: []}
+    for ticket in tickets:
+        project = next((p for p in projects if p.id == ticket.project_uid), None)
+        if project is not None and project.dept_id in by_team:
+            by_team[project.dept_id].append(ticket)
+
+    def place(ticket, row, *, when):
+        ticket.sprint_id = row.id
+        # 제품이 남기는 것과 같은 줄이다 — 회의의 「범위 변경」이 이 기록을 읽는다.
+        work_activity.record(
+            db, ticket_id=ticket.id, kind=ACT_SPRINT, actor_id=me.id, field="sprint_id",
+            from_value=None, to_value=row.id, now=when,
+        )
+
+    # 팀 A — 끝난 일은 지난 회차에, 진행 중인 일 대부분은 이번 회차에, 일부는 백로그에.
+    started = datetime.combine(a92.starts_on, datetime.min.time())
+    for i, ticket in enumerate(by_team[team_a.id]):
+        if workflow.is_terminal(ticket.status):
+            place(ticket, a91, when=started - timedelta(days=10))
+        elif i % 4 == 3:
+            continue   # 백로그 — 「회차에 담기」가 보일 자리
+        else:
+            # 넷 중 하나는 회차가 시작한 **뒤에** 들어온다 — 범위 변경 기록이 그 자리다.
+            late = i % 4 == 2
+            place(ticket, a92, when=started + timedelta(days=2 if late else -1))
+            if i % 6 == 1:
+                ticket.blocked_flag = True
+                ticket.blocked_reason = "외부 응답을 기다리고 있습니다."
+    # 팀 B — 절반만 이번 회차에.
+    for i, ticket in enumerate(by_team[team_b.id]):
+        if workflow.is_terminal(ticket.status):
+            continue
+        if i % 2 == 0:
+            place(ticket, b92, when=datetime.combine(b92.starts_on, datetime.min.time()))
+    # 조직 공통 프로젝트의 티켓 둘 — 어느 팀 백로그에도 안 나오고 어느 회차에도 못 담긴다.
+    from app.tickets.models import PROJECT_LINK_OK, SOURCE_NATIVE
+    from app.work import numbering
+
+    for j in range(2):
+        db.add(TicketCache(
+            title=f"보안 점검 {j + 1:02d} — 전사 공통 항목",
+            status="계획", priority="Normal", difficulty="중", category="보안",
+            due_date=today + timedelta(days=10), est_wd=2.0,
+            project_uid=common.id, project_link=PROJECT_LINK_OK, project_names=common.name,
+            seq=numbering.allocate(db, common.id), assignee_notion_ids="",
+            source=SOURCE_NATIVE, synced_at=now, notion_ticket_number=900 + j,
+            org_id=DEFAULT_ORG_ID,
+        ))
+    # 회의록 — 「정한 것」 하나와 그 아래 「할 일」 하나.
+    db.add(SprintDecision(
+        sprint_id=a92.id, kind="decision", body="검증 열이 비기 전까지 새 일을 담지 않는다.",
+        author_user_id=me.id, done=False, created_at=now, updated_at=now,
+    ))
+    db.add(SprintDecision(
+        sprint_id=a92.id, kind="action", body="지연된 티켓의 마감일을 담당자와 다시 정한다.",
+        assignee_user_id=people[1].id, due_date=today + timedelta(days=2),
+        author_user_id=me.id, done=False, created_at=now, updated_at=now,
+    ))
+    db.flush()
+
 
 def _seed_s21(db, me, now) -> None:
     """관리자 영역이 **빈 화면이 아니게** 한다 (S21 · W14).

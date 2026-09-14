@@ -1107,6 +1107,7 @@ def update_ticket(
         ensure_can_edit(current, user, my_token, changes=changes)
     else:
         ensure_can_claim(current, user, my_token)
+    _ensure_sprint_allows(db, page_id=page_id, changes=changes)
 
     repo_changes = dict(changes)
     if "assignee_user_ids" in repo_changes:
@@ -1475,6 +1476,45 @@ def claim_ticket(
         )
 
 
+def _ensure_sprint_allows(db: Session, *, page_id: str, changes: dict) -> None:
+    """티켓이 담긴 회차가 이 편집을 허락하는가 (D-482).
+
+    * **닫힌 회차의 티켓은 상태를 못 바꾼다.** 닫힌 회차는 과거 기록이고, 그 기록 위의
+      티켓 상태가 바뀌면 그때의 번다운·완료 수가 거짓이 된다.
+    * **열린 회차의 티켓은 같은 팀의 프로젝트로만 옮긴다.** 회차에 담긴 자격이 「티켓의
+      팀 == 회차의 팀」인데, 다른 팀 프로젝트로 옮기면 그 자격이 조용히 깨진다 — 먼저
+      회차에서 빼야 한다. 닫힌 회차의 membership 은 기록이라 프로젝트 이동을 막지도
+      바꾸지도 않는다.
+
+    회차가 없는 티켓(백로그)은 아무 제약이 없다.
+    """
+    if "status" not in changes and "project_id" not in changes:
+        return
+    row = ticket_row_for(db, page_id)
+    if row is None or not row.sprint_id:
+        return
+    from app.work.models import SPRINT_CLOSED, Sprint
+
+    sprint = db.get(Sprint, row.sprint_id)
+    if sprint is None:
+        return
+    if "status" in changes and sprint.state == SPRINT_CLOSED and changes["status"] != row.status:
+        raise ValidationAppError(
+            "닫힌 회차에 담긴 티켓은 상태를 바꿀 수 없습니다. 닫힌 회차는 기록으로만 남습니다."
+        )
+    if "project_id" in changes and sprint.state != SPRINT_CLOSED:
+        pid = (changes.get("project_id") or "").strip()
+        if pid and pid != row.project_uid:
+            from app.projects.models import Project
+
+            project = db.get(Project, pid)
+            if project is None or project.dept_id != sprint.department_id:
+                raise ValidationAppError(
+                    "열린 회차에 담긴 티켓은 같은 팀의 프로젝트로만 옮길 수 있습니다. "
+                    "다른 팀으로 옮기려면 먼저 회차에서 빼 주세요."
+                )
+
+
 def _resolve_writable_project(db: Session, user: User, project_id: str) -> str:
     """Portal 프로젝트 id → 외부 소스 relation id. 범위 밖이거나 없으면 404.
 
@@ -1585,8 +1625,12 @@ def _place_in_sprint(
     row = db.get(Ticket, ticket_id)
     if row is None:
         return
-    if sprint.project_id and sprint.project_id != row.project_uid:
-        raise ValidationAppError("다른 프로젝트의 스프린트에는 넣을 수 없습니다.")
+    # 담기(`move`)와 **같은 문 넷** — 편성 권한 · 관리 범위 · 열린 회차 · 같은 팀 (D-482).
+    # 여기서 하나라도 빠지면 「티켓 추가」가 「회차에 담기」를 우회하는 길이 된다.
+    work_service.ensure_planning_role(db, user)
+    work_service.ensure_sprint_manageable(db, user, sprint)
+    work_service.ensure_sprint_open(sprint, what="담을")
+    work_service.ensure_eligible(db, sprint, row)
     row.sprint_id = sprint.id
     work_activity.record(
         db, ticket_id=row.id, kind=ACT_SPRINT, actor_id=user.id,

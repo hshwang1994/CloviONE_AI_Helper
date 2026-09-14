@@ -288,28 +288,36 @@ class TestActiveSprintFlag:
         from app.home.service import local_today
 
         project = paging_world["project"]
-        other_project = work_codes.insert_with_code(
-            db, Project(name="둘째 프로젝트", org_id=DEFAULT_ORG_ID, dept_id=project.dept_id,
-                        notion_page_id="second-proj"),
-        )
+        # 회차는 팀의 것이다(D-482). 활성은 팀당 하나라, 「지난 활성 회차」는 이 팀 아래의
+        # 파트에 둔다 — 팀장의 조회 범위(자기 팀과 그 아래)에는 들어온다.
+        sub_team = Department(name="페이징 파트", org_id=DEFAULT_ORG_ID, parent_id=project.dept_id)
+        db.add(sub_team)
+        db.flush()
         today = local_today(settings, fake_clock.now())
         active = Sprint(
-            name="이번 회차", project_id=project.id, org_id=DEFAULT_ORG_ID,
+            name="이번 회차", department_id=project.dept_id, org_id=DEFAULT_ORG_ID,
             starts_on=today - timedelta(days=2), ends_on=today + timedelta(days=2), state="active",
         )
         planned_but_covers_today = Sprint(
-            name="계획만 된 회차", project_id=project.id, org_id=DEFAULT_ORG_ID,
+            name="계획만 된 회차", department_id=project.dept_id, org_id=DEFAULT_ORG_ID,
             starts_on=today - timedelta(days=1), ends_on=today + timedelta(days=1), state="planned",
         )
         active_but_past = Sprint(
-            name="지난 활성 회차", project_id=other_project.id, org_id=DEFAULT_ORG_ID,
+            name="지난 활성 회차", department_id=sub_team.id, org_id=DEFAULT_ORG_ID,
             starts_on=today - timedelta(days=20), ends_on=today - timedelta(days=10), state="active",
         )
         db.add_all([active, planned_but_covers_today, active_but_past])
         db.commit()
 
         headers = _hdr(login_as)
-        body = client.get("/api/work/sprints", headers=headers).json()
+        mine = client.get("/api/work/sprints", headers=headers).json()
+        # 기본 팀은 본인 부서다 — 파트의 회차는 그 팀을 골라야 나온다.
+        assert mine["team"]["selected"] == project.dept_id, mine["team"]
+        assert {s["name"] for s in mine["sprints"]} == {"이번 회차", "계획만 된 회차"}
+        sub = client.get(
+            "/api/work/sprints", params={"department_id": sub_team.id}, headers=headers,
+        ).json()
+        body = {"sprints": mine["sprints"] + sub["sprints"]}
         by_name = {s["name"]: s["active"] for s in body["sprints"]}
         assert by_name["이번 회차"] is True
         assert by_name["계획만 된 회차"] is False, "state=planned 인데 활성으로 표시됐다"

@@ -106,19 +106,23 @@ def _resolve_assignee_token(
     return None
 
 
-def _dept(db: Session, user: User, department_id: str | None) -> dict:
-    """부서(팀) 필터 한 벌 — 좁힌 범위와 화면이 그릴 후보를 함께.
+def _team(db: Session, user: User, department_id: str | None) -> dict:
+    """팀 문맥 한 벌 (D-482) — 고른 팀 id 와 화면이 그릴 후보(`envelope`)를 함께.
 
-    티켓에는 부서 칸이 없다(`app/tickets/models.py` 가 그 칸을 일부러 없앴다). 티켓의
-    팀은 `project.dept_id` 한 단계이므로, 판정 규칙을 새로 만들지 않고 `/api/tickets/team`
-    과 **같은 헬퍼**로 좁힌 Scope 를 구해 프로젝트 절에 넣는다. 응답에 후보를 동봉하는
-    규약도 그쪽과 같다 — 화면이 스스로 조직도를 훑어 만들면 서버가 좁힌 범위와 갈라진다.
+    회차는 팀의 주기라 판·백로그·회차 목록이 **팀을 먼저** 고른다. 후보는 회차를 볼 수
+    있는 팀(`org_context.team_context`)이고, 범위 밖 id 는 없는 팀과 똑같이 404 다. 팀의
+    티켓은 프로젝트의 `dept_id` 가 **정확히 그 팀**인 것이다(하위 팀·조직 공통 제외) —
+    회차에 담을 수 있는 자격과 같은 정의라 백로그와 담기가 서로 다른 말을 하지 않는다.
+    응답에 후보를 동봉하는 규약은 `/api/tickets/team` 과 같다 — 화면이 스스로 조직도를
+    훑어 만들면 서버가 좁힌 범위와 갈라진다.
     """
+    ctx = org_context.team_context(db, user, department_id)
     return {
-        "scope": org_context.filter_scope(db, user, department_id),
+        "team_id": ctx["selected"],
         "envelope": {
-            "selected": department_id or None,
-            "options": org_context.department_options(db, user),
+            "selected": ctx["selected"],
+            "options": ctx["options"],
+            "manageable": ctx["manageable"],
         },
     }
 
@@ -153,17 +157,17 @@ def get_board(
     KST 09:00 이전에 하루 밀린 건수를 요약 줄에 그린다.
     """
     token = _resolve_assignee_token(db, user, mine=mine, assignee_user_id=assignee_user_id)
-    dept = _dept(db, user, department_id)
+    team = _team(db, user, department_id)
     body = service.board(
         db, user,
         project_id=project_id, sprint_id=sprint_id, scope=scope,
         assignee_token=token, blocked_only=blocked_only,
-        dept_scope=dept["scope"], q=q, priority=priority, difficulty=difficulty,
+        team_id=team["team_id"], q=q, priority=priority, difficulty=difficulty,
         signal=signal,
         column_page_size=column_page_size,
         today=local_today(request.app.state.settings, request.app.state.clock.now()),
     )
-    body["departments"] = dept["envelope"]
+    body["team"] = team["envelope"]
     return body
 
 
@@ -199,7 +203,7 @@ def get_board_column(
         status_key=status_key,
         project_id=project_id, sprint_id=sprint_id, scope=scope,
         assignee_token=token, blocked_only=blocked_only,
-        dept_scope=org_context.filter_scope(db, user, department_id),
+        team_id=_team(db, user, department_id)["team_id"],
         q=q, priority=priority, difficulty=difficulty, signal=signal,
         today=local_today(request.app.state.settings, request.app.state.clock.now()),
         cursor=cursor, limit=limit,
@@ -226,16 +230,16 @@ def get_backlog(
 ) -> dict:
     """백로그 — 아직 어느 회차에도 안 담긴 일. 조건은 판과 **같은 이름**을 쓴다."""
     token = _resolve_assignee_token(db, user, mine=mine, assignee_user_id=assignee_user_id)
-    dept = _dept(db, user, department_id)
+    team = _team(db, user, department_id)
     body = service.backlog(
         db, user,
         project_id=project_id, q=q, assignee_token=token,
         priority=priority, difficulty=difficulty,
-        dept_scope=dept["scope"], signal=signal, blocked_only=blocked_only,
+        team_id=team["team_id"], signal=signal, blocked_only=blocked_only,
         today=local_today(request.app.state.settings, request.app.state.clock.now()),
         cursor=cursor, limit=limit,
     )
-    body["departments"] = dept["envelope"]
+    body["team"] = team["envelope"]
     return body
 
 
@@ -271,7 +275,7 @@ def move_card(
         position_assignee_token=position_token,
         position_priority=payload.position_priority,
         position_difficulty=payload.position_difficulty,
-        position_dept_scope=org_context.filter_scope(db, user, payload.position_department_id),
+        position_team_id=_team(db, user, payload.position_department_id)["team_id"],
         position_signal=payload.position_signal,
         position_today=local_today(request.app.state.settings, request.app.state.clock.now()),
         base_version=payload.base_version,
@@ -288,16 +292,31 @@ def list_sprints(
     request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
-    project_id: str | None = Query(default=None, max_length=36),
+    department_id: str | None = Query(default=None, max_length=36),
 ) -> dict:
-    """스프린트 목록 — 각 회차가 **오늘 활성인가**(`active`)를 함께 낸다(§8.3).
+    """회차 목록 — **팀별**이고, 각 회차가 **오늘 활성인가**(`active`)를 함께 낸다(§8.3).
 
-    화면(작업 보드)이 진입 시 이 값으로 자동 선택할 회차를 고른다. 「오늘」의 정본은
-    서버다(§불변 9) — 브라우저가 자기 시계로 판정하면 자정 앞뒤 몇 분 사용자마다
+    화면(작업 보드·스프린트 회의)이 진입 시 이 값으로 자동 선택할 회차를 고른다. 「오늘」의
+    정본은 서버다(§불변 9) — 브라우저가 자기 시계로 판정하면 자정 앞뒤 몇 분 사용자마다
     다른 회차가 활성으로 보인다.
+
+    `team` 은 팀 선택기의 후보와 기본 선택이다(판·백로그와 같은 봉투). `department_id`
+    를 안 주면 기본 팀(본인 부서, 아니면 유일한 후보)의 회차를 낸다 — 기본 팀이 없으면
+    빈 목록이고 화면이 팀을 고르라고 말한다. `"none"` 은 팀 미정 회차다.
     """
     today = local_today(request.app.state.settings, request.app.state.clock.now())
-    return {"sprints": service.list_sprints(db, user, project_id=project_id, today=today)}
+    unassigned = department_id == "none"
+    team = _team(db, user, None if unassigned else department_id)
+    picked = "none" if unassigned else team["team_id"]
+    if unassigned:
+        # 팀 미정 회차는 팀 선택기의 한 항목이 아니라 **관리자의 정리 목록**이다 — 봉투의
+        # 선택도 그렇게 말한다. 편성 가능 여부는 조직·전역 관리 범위가 정한다.
+        team["envelope"]["selected"] = "none"
+        team["envelope"]["manageable"] = org_context.can_manage_unassigned_sprints(
+            org_context.team_context(db, user)["principal"], getattr(user, "org_id", None),
+        )
+    sprints = service.list_sprints(db, user, department_id=picked, today=today) if picked else []
+    return {"sprints": sprints, "team": team["envelope"]}
 
 
 @router.post("/sprints", dependencies=[Depends(require_csrf)])
@@ -309,7 +328,7 @@ def create_sprint(
 ) -> dict:
     sprint = service.create_sprint(
         db, user, name=payload.name, starts_on=payload.starts_on,
-        ends_on=payload.ends_on, project_id=payload.project_id, goal=payload.goal,
+        ends_on=payload.ends_on, department_id=payload.department_id, goal=payload.goal,
     )
     record_audit_from_request(
         request, db, action="sprint.create", object_type="sprint",
@@ -409,6 +428,8 @@ def sprint_meeting(
     request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
+    # 논의 목록만 좁히는 프로젝트 필터 — 지표는 회차 전체다(`meeting.py` 서문).
+    project_id: str | None = Query(default=None, max_length=36),
 ) -> dict:
     """회의 한 판. 여섯 질문의 답이 한 응답에 있다(`app/work/meeting.py`).
 
@@ -417,7 +438,7 @@ def sprint_meeting(
     회의에서 두 사람이 다른 화면을 읽게 된다.
     """
     return meeting.meeting(
-        db, user, sprint_id=sprint_id,
+        db, user, sprint_id=sprint_id, project_id=project_id,
         today=local_today(request.app.state.settings, request.app.state.clock.now()),
     )
 

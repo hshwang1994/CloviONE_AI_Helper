@@ -272,19 +272,35 @@ class TicketStatus(Base):
 
 
 class Sprint(OrgScopedMixin, TimestampMixin, UUIDPrimaryKeyMixin, Base):
-    """스프린트 한 회차. **지금까지 이 제품에 정의된 적이 없던 것이다.**
+    """스프린트 한 회차 — **팀의 업무 주기**다.
 
     실측(INVENTORY 07): `notion_sprint_database_id` 를 읽는 코드가 없고, 화면의
     「이번 주」는 마감일 범위 집계였다. 즉 스프린트라는 말은 쓰였는데 실체가 없었다 —
     그래서 「지난 스프린트에 무엇을 넣었나」에 아무도 답할 수 없었다.
 
-    `project_id` 가 NULL 이면 팀 전체 스프린트다. 한 프로젝트에 동시에 두 개의
-    `active` 회차를 둘 수 없다 — 「이번 스프린트」에 답이 둘이면 번다운이 두 개가 된다.
+    ## 소유자는 팀이다 (D-482)
+
+    `department_id` 가 이 회차를 운영하는 조직 단위(`org_units`)다. 회차는 그 팀의
+    업무 주기이고 여러 프로젝트의 티켓을 담는다 — 프로젝트는 회차의 소유자가 아니라
+    티켓의 분류이자 화면의 필터다. 한 팀에 동시에 두 개의 `active` 회차를 둘 수 없다
+    (「이번 회차」에 답이 둘이면 번다운이 두 개가 된다). 팀이 다르면 같은 기간·같은
+    이름의 회차가 나란히 열린다 — 팀 A 의 「9-2」와 팀 B 의 「9-2」는 다른 회차다.
+
+    `department_id` 가 NULL 인 행은 **팀 미정**(0029 마이그레이션이 근거 없이 귀속하지
+    않은 레거시)이다. 조직·전역 조회 범위에만 보이고, 관리자가 팀을 정하기 전까지
+    담기·열기가 막힌다.
+
+    `project_id` 는 **읽기 전용 레거시**다. 0029 가 팀 소유를 세운 뒤로 어떤 코드도
+    읽거나 쓰지 않는다 — 롤백과 대조를 위해 한 릴리스 동안 남기고 0030 이 걷는다.
     """
 
     __tablename__ = "sprints"
 
     name: Mapped[str] = mapped_column(String(120), nullable=False)
+    department_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("org_units.id", ondelete="SET NULL"), index=True
+    )
+    # 레거시(0030 에서 삭제). 앱 코드는 이 칸을 읽지도 쓰지도 않는다.
     project_id: Mapped[str | None] = mapped_column(
         String(36), ForeignKey("projects.id", ondelete="CASCADE"), index=True
     )
@@ -299,9 +315,14 @@ class Sprint(OrgScopedMixin, TimestampMixin, UUIDPrimaryKeyMixin, Base):
     __table_args__ = (
         CheckConstraint(_in_list("state", SPRINT_STATES), name="ck_sprints_state"),
         CheckConstraint("starts_on < ends_on", name="ck_sprints_window"),
-        Index("uq_sprints_name", "org_id", "project_id", "name", unique=True),
+        # 이름은 **팀 안에서** 유일하다. 팀 미정(NULL)끼리는 조직 안에서 유일하다.
         Index(
-            "uq_sprints_active", "org_id", text("coalesce(project_id, '')"), unique=True,
+            "uq_sprints_name", "org_id", text("coalesce(department_id, '')"), "name",
+            unique=True,
+        ),
+        # 활성 회차는 **팀당 하나**다. 팀 미정끼리는 조직당 하나(레거시 잔여).
+        Index(
+            "uq_sprints_active", "org_id", text("coalesce(department_id, '')"), unique=True,
             postgresql_where=text("state = 'active'"),
         ),
         Index("ix_sprints_window", "org_id", "starts_on", "ends_on"),

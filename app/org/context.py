@@ -123,3 +123,117 @@ def filter_scope(db: Session, viewer, department_id: str | None):
     if not department_id:
         return None
     return department_context(db, viewer, department_id)["scope"]
+
+
+# ── 회차의 팀 (D-482) ──────────────────────────────────────────────────────────
+#
+# 회차(`sprints.department_id`)는 **팀이 운영하는 주기**라 조회 규칙이 프로젝트와 다르다.
+# 프로젝트는 줄기(조상 ∪ 자기 ∪ 후손)로 보이지만, 회차는 **자기 팀과 그 아래**만 본다 —
+# 상위 본부의 회차는 하위 팀 사람의 주기가 아니고, 형제 팀의 회차도 아니다. 상위 권한자
+# (관리 범위)와 조직 직속 사람만 아래 팀들의 회차를 함께 본다.
+#
+# 조회(무엇을 볼 수 있나)와 편성(무엇을 고칠 수 있나)은 다른 질문이다. 조회는 소속 ∪ 관리
+# 범위이고, 편성은 **관리 범위만**이다 — A 본부 사람이 A-1 회차를 본다고 그 회차를 열고
+# 닫을 수 있으면 안 된다.
+
+
+def sprint_team_ids(principal) -> frozenset[str] | None:
+    """이 사람이 **회차를 볼 수 있는** 팀 id 집합. `None` 은 전부(전역)다."""
+    if principal is None:
+        return frozenset()
+    tree = principal.tree
+    if principal.management.is_global:
+        return None
+    teams: set[str] = set()
+    if principal.department_id:
+        teams |= tree.descendants(principal.department_id)
+    elif principal.visibility.is_org and principal.visibility.org_id:
+        # 조직 직속 — 조직의 모든 팀 회차를 본다.
+        teams |= tree.in_org(principal.visibility.org_id)
+    managed = manageable_team_ids(principal)
+    if managed is None:
+        return None
+    teams |= managed
+    return frozenset(teams)
+
+
+def manageable_team_ids(principal) -> frozenset[str] | None:
+    """이 사람이 **회차를 편성할 수 있는** 팀 id 집합. `None` 은 전부(전역)다.
+
+    관리 범위 그대로다 — 부서 범위는 자기 ∪ 후손, 조직 범위는 조직의 모든 팀. 일반
+    사용자는 빈 집합이다(회차 편성 권한 `PROJECT_WRITE` 는 역할 게이트가 따로 본다).
+    """
+    if principal is None:
+        return frozenset()
+    scope = principal.management
+    if scope.is_global:
+        return None
+    if scope.is_org and scope.org_id:
+        return principal.tree.in_org(scope.org_id)
+    if scope.is_dept:
+        return frozenset(scope.dept_ids)
+    return frozenset()
+
+
+def can_manage_unassigned_sprints(principal, org_id: str | None) -> bool:
+    """팀 미정(레거시) 회차는 조직·전역 관리자만 만진다 — 팀을 정해 주는 사람이다."""
+    if principal is None:
+        return False
+    scope = principal.management
+    if scope.is_global:
+        return True
+    return bool(scope.is_org and scope.org_id and org_id and scope.org_id == org_id)
+
+
+def team_context(db: Session, viewer, department_id: str | None = None) -> dict:
+    """작업 보드·스프린트 회의가 고른 **팀** — `{selected, options, manageable, principal}`.
+
+    `options` 는 회차를 볼 수 있는 팀 전부(경로 포함)이고, 각 항목의 `manageable` 이
+    「이 팀의 회차를 편성할 수 있는가」다. 범위 밖 id 는 **없는 팀과 똑같이 404** 다.
+
+    기본 선택은 본인 부서(후보에 있을 때), 아니면 후보가 하나뿐일 때 그것, 아니면 없음 —
+    없음이면 화면이 고르라고 말한다. 조직 직속 사람의 「없음」을 조직 전체로 넓혀 읽지
+    않는다: 회차는 팀의 주기라 「전체」라는 회차 목록은 없다.
+    """
+    from app.core.scope import principal_from_user
+
+    if viewer is None:
+        return {"selected": None, "options": [], "manageable": False, "principal": None}
+
+    tree = DeptTree.load(db)
+    principal = principal_from_user(db, viewer, tree)
+    visible = sprint_team_ids(principal)
+    managed = manageable_team_ids(principal)
+    allowed = tree.all_ids() if visible is None else visible
+
+    def _manageable(dept_id: str) -> bool:
+        return managed is None or dept_id in managed
+
+    options = sorted(
+        (
+            {
+                "id": dept_id,
+                "name": (node.name if (node := tree.get(dept_id)) else dept_id),
+                "path": [{"id": n.id, "name": n.name} for n in tree.path(dept_id)],
+                "manageable": _manageable(dept_id),
+            }
+            for dept_id in allowed
+        ),
+        key=lambda o: [p["name"] for p in o["path"]],
+    )
+
+    if department_id and department_id not in allowed:
+        raise NotFoundError("팀을 찾을 수 없습니다.")
+    selected = department_id or None
+    if not selected:
+        own = getattr(viewer, "department_id", None)
+        if own and own in allowed:
+            selected = own
+        elif len(options) == 1:
+            selected = options[0]["id"]
+    return {
+        "selected": selected,
+        "options": options,
+        "manageable": bool(selected) and _manageable(selected),
+        "principal": principal,
+    }

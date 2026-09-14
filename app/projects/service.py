@@ -226,6 +226,34 @@ def ensure_not_changed(project: Project, base_version: int | None) -> None:
         )
 
 
+def _ensure_no_open_sprint_membership(db: Session, project: Project, *, new_dept_id) -> None:
+    """프로젝트의 팀을 바꾸면 그 티켓들이 **다른 팀의 열린 회차**에 남게 되는가 (D-482).
+
+    회차에 담긴 자격은 「티켓의 팀 == 회차의 팀」이고, 프로젝트의 팀이 바뀌는 순간 그
+    자격이 조용히 깨진다 — 회의는 「우리 일이 아닌 티켓」으로 시작하게 된다. 그래서
+    열린(planned·active) 회차에 담긴 티켓이 있으면 거절한다. 닫힌 회차는 과거 기록이라
+    검사하지도, 바꾸지도 않는다. 옮기려는 팀의 회차에 담긴 티켓은 그대로 자격이 맞는다.
+    """
+    from app.tickets.models import Ticket
+    from app.work.models import SPRINT_CLOSED, Sprint
+
+    stmt = (
+        select(Sprint.name)
+        .join(Ticket, Ticket.sprint_id == Sprint.id)
+        .where(Ticket.project_uid == project.id, Sprint.state != SPRINT_CLOSED)
+    )
+    stmt = stmt.where(
+        Sprint.department_id != new_dept_id if new_dept_id is not None
+        else Sprint.department_id.is_not(None)
+    )
+    held = db.execute(stmt.limit(1)).scalar_one_or_none()
+    if held is not None:
+        raise ValidationAppError(
+            f"이 프로젝트의 티켓이 «{held}» 회차에 담겨 있어 팀을 바꿀 수 없습니다. "
+            "먼저 그 회차에서 티켓을 빼 주세요."
+        )
+
+
 def update_project(
     db: Session, project: Project, payload: ProjectUpdate, principal: Principal,
     *, now: datetime,
@@ -246,6 +274,8 @@ def update_project(
     if "dept_id" in given:
         # 남의 팀으로 옮기면 그 행은 내 범위에서 사라진다 — 되돌릴 수도 없다.
         ensure_dept_in_scope(db, principal, payload.dept_id)
+        if payload.dept_id != project.dept_id:
+            _ensure_no_open_sprint_membership(db, project, new_dept_id=payload.dept_id)
     # `code` 는 요청 스키마에 아예 없다 (D-282). 실려 오면 `extra="forbid"` 가 422 로
     # 막으므로 여기서 다시 볼 것이 없다 — 이름을 바꾸는 이 경로가 코드를 못 건드린다는
     # 것이 「이름 변경은 코드와 티켓 번호에 영향을 주지 않는다」의 실체다.

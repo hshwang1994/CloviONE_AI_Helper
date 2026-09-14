@@ -20,8 +20,18 @@
     2 어떤 티켓이 문제인가    → `discuss` (지연 · 차단 · 미할당 · 마감 임박 · 범위 변경)
     3 Workload 가 고른가      → `workload`
     4 Scope 가 얼마나 바뀌었나 → `scope` + `discuss.scope_changes`
-    5 무엇을 더 넣을까        → `candidates`
+    5 어떤 티켓이 담겼나      → `tickets` (회의록의 「관련 티켓」이 고르는 목록)
     6 무엇을 정했나           → `decisions`
+
+「무엇을 더 넣을까」는 이제 이 화면의 질문이 아니다(D-484). 회차를 구성하는 곳은 작업
+보드이고, 회의는 **이미 구성된 팀 회차 전체**를 리뷰하고 결정하는 곳이다 — 후보 목록과
+「빼기」가 회의에 있으면 두 화면이 같은 편성을 서로 다른 규칙으로 한다.
+
+## 프로젝트 필터는 논의 목록만 좁힌다
+
+회차는 팀의 주기라 여러 프로젝트의 티켓을 담는다. `project_id` 는 「오늘 논의할 항목」
+여덟 갈래만 좁히고, 요약·건강·번다운·업무량·범위 변경 요약·이웃은 **회차 전체**다 —
+필터가 지표까지 바꾸면 같은 회의에서 두 사람이 다른 번다운을 본다.
 
 ## 「범위 변경」은 계산이 아니라 **기록**이다
 
@@ -72,6 +82,22 @@ DECISION_BODY_MAX = 2000
 #: 「논의할 항목」 한 종류가 실어 나르는 최대 건수. 회의 한 자리에서 볼 수 있는 양이다.
 #: 자르면 **자른 사실을 함께 싣는다**(`truncated`) — 안 그러면 다섯 건이 전부인 줄 안다.
 DISCUSS_LIMIT = 20
+
+#: 회의록의 「관련 티켓」이 고르는 목록(`tickets`)의 상한. 회차 전체가 실리되, 수백 건인
+#: 회차에서 응답이 수 MB 가 되지 않게 자른다 — 자른 사실은 `tickets_total` 이 말한다.
+TICKETS_LIMIT = 200
+
+
+def _team_brief(tree, department_id: str | None) -> dict | None:
+    """회차 머리에 쓰는 팀 한 줄 — `{id, name, path}`. 팀 미정이면 `None`."""
+    node = tree.get(department_id)
+    if node is None:
+        return None
+    return {
+        "id": node.id,
+        "name": node.name,
+        "path": [{"id": n.id, "name": n.name} for n in tree.path(department_id)],
+    }
 
 
 def _row(ticket: Ticket, *, names: dict[str, dict]) -> dict:
@@ -358,12 +384,19 @@ def list_decisions(db: Session, sprint_id: str) -> list[dict]:
     return [_decision_view(r, people=people, keys=keys) for r in rows]
 
 
-def meeting(db: Session, user: User, *, sprint_id: str, today: date) -> dict:
+def meeting(
+    db: Session, user: User, *, sprint_id: str, today: date, project_id: str | None = None
+) -> dict:
     """회의 한 판. 위 여섯 질문의 답을 한 번에 조립한다.
 
     티켓은 **한 번만 읽는다.** 요약·번다운·업무량·논의 목록이 전부 같은 목록을 본다 —
     질문마다 다시 읽으면 회의 중 새로고침 한 번에 질의가 예닐곱 번 난다.
+
+    `project_id` 는 논의 목록(`discuss`)만 좁힌다 — 위 모듈 설명의 「프로젝트 필터는
+    논의 목록만 좁힌다」. 모르는 id 는 빈 목록이 될 뿐 오류가 아니다(판의 프로젝트
+    필터와 같은 규약 — 보이지 않는 프로젝트의 존재를 응답 코드로 알리지 않는다).
     """
+    from app.core.org_tree import DeptTree
     from app.work import service as work_service
 
     sprint = work_service.get_scoped_sprint_or_404(db, sprint_id, user)
@@ -444,13 +477,25 @@ def meeting(db: Session, user: User, *, sprint_id: str, today: date) -> dict:
     # `by_id` 는 위에서 가시성 절로 읽었다 — 범위 변경 갈래가 그 맵만 본다(문이 둘이다).
     scope, changes = _scope_changes(sprint, ids=ids, acts=acts, tickets=by_id, names=names)
 
-    # 후보는 **실제 백로그 티켓**이다(지시 4). 같은 프로젝트의, 어느 회차에도 안 담긴,
-    # 아직 안 끝난 일. 팀 전체 회차(`project_id IS NULL`)면 프로젝트로 안 좁힌다.
-    backlog_page = work_service.backlog(db, user, project_id=sprint.project_id or None)
-    candidates = backlog_page["items"][:DISCUSS_LIMIT]
+    # 프로젝트 필터 — **논의 목록만**. 지표는 위에서 이미 회차 전체로 셌다.
+    def _only(rows):
+        if not project_id:
+            return rows
+        return [t for t in rows if t.project_uid == project_id]
+
+    if project_id:
+        changes = [c for c in changes if c.get("project_uid") == project_id]
+
+    # 회의록의 「관련 티켓」이 고르는 목록 — 회차 전체(보이는 것)를 상태·이름 순으로.
+    listed = sorted(
+        tickets,
+        key=lambda t: (workflow.category_of(t.status) or "", t.status or "", t.seq or 0, t.id),
+    )
 
     return {
         "sprint": work_service._sprint_view(sprint),
+        # 회차 머리의 팀 한 줄. 팀 미정(레거시)이면 `None` 이고 화면이 그렇게 말한다.
+        "team": _team_brief(DeptTree.load(db), sprint.department_id),
         # 이전·다음 회차. 화면이 목록을 다시 읽어 스스로 찾으면 두 곳의 정렬이 갈린다.
         "neighbours": _neighbours(db, user, sprint),
         "summary": {
@@ -482,19 +527,22 @@ def meeting(db: Session, user: User, *, sprint_id: str, today: date) -> dict:
         # 「오늘 논의할 항목」. 단순 목록 하나가 아니라 **유형별**이다 — 지연과 미할당은
         # 회의에서 하는 말이 다르다(하나는 「왜 늦나」, 하나는 「누가 하나」).
         "discuss": {
-            "overdue": _bucket([_row(t, names=names) for t in overdue]),
-            "blocked": _bucket([_row(t, names=names) for t in blocked]),
-            "issue": _bucket([_row(t, names=names) for t in issues]),
-            "unassigned": _bucket([_row(t, names=names) for t in unassigned]),
-            "due_soon": _bucket([_row(t, names=names) for t in due_soon]),
-            "no_estimate": _bucket([_row(t, names=names) for t in no_estimate]),
-            "no_due": _bucket([_row(t, names=names) for t in no_due]),
+            "overdue": _bucket([_row(t, names=names) for t in _only(overdue)]),
+            "blocked": _bucket([_row(t, names=names) for t in _only(blocked)]),
+            "issue": _bucket([_row(t, names=names) for t in _only(issues)]),
+            "unassigned": _bucket([_row(t, names=names) for t in _only(unassigned)]),
+            "due_soon": _bucket([_row(t, names=names) for t in _only(due_soon)]),
+            "no_estimate": _bucket([_row(t, names=names) for t in _only(no_estimate)]),
+            "no_due": _bucket([_row(t, names=names) for t in _only(no_due)]),
             "scope_changes": _bucket(changes),
         },
-        "candidates": candidates,
-        # 잘렸다는 사실을 함께 싣는다 — 논의 갈래(`_bucket.truncated`)와 같은 이유다.
-        # 이것이 없으면 백로그 181건인 프로젝트에서 「후보가 20개뿐」으로 읽힌다.
-        "candidates_total": backlog_page["total"],
+        # 논의 목록에 걸린 프로젝트 필터. 화면이 「이 필터는 논의 목록만 좁힙니다」라고
+        # 말할 때 서버가 실제로 그렇게 했다는 증거다.
+        "discuss_project_id": project_id or None,
+        # 회차에 담긴 티켓 전체(보이는 것). 잘렸으면 `tickets_total` 이 전체 수를 말한다 —
+        # 논의 갈래(`_bucket.truncated`)와 같은 이유다.
+        "tickets": [_row(t, names=names) for t in listed[:TICKETS_LIMIT]],
+        "tickets_total": len(listed),
         "decisions": list_decisions(db, sprint.id),
         "today": today.isoformat(),
     }
@@ -506,43 +554,36 @@ def _neighbours(db: Session, user: User, sprint: Sprint) -> dict:
     범위 절은 목록(`list_sprints`)과 같은 것을 쓴다 — 여기서 절 없이 질의하면 안
     보이는 회차의 id 가 「다음 회차」 단추로 새 나간다.
 
-    🔴 축은 **정확 일치**다: 프로젝트 회차의 이웃은 같은 프로젝트, 팀 전체 회차
-    (`project_id IS NULL`)의 이웃은 팀 전체 회차뿐이다. 예전에는 목록 전량을 매 요청
-    다시 읽어 파이썬에서 정렬했고, 팀 전체 회차에서는 `project_id=None` 이 「전체
-    목록」으로 읽혀 전 프로젝트의 회차가 이웃으로 섞였다 — 「다음 회차」를 누르면
-    남의 프로젝트 회차로 넘어갔다. 이제 키셋 LIMIT 1 두 번이다(전량 로드 제거).
+    🔴 축은 **같은 팀**이다(D-482). 팀 A 의 이웃은 팀 A 의 회차뿐이고, 팀 미정 회차의
+    이웃은 같은 조직의 팀 미정 회차뿐이다 — 「다음 회차」를 누르면 남의 팀 회차로
+    넘어가면 안 된다. 정렬 열쇠는 목록과 같은 `(starts_on, created_at, id)` 다 — 이름
+    사전순은 「9-10」이 「9-2」보다 앞에 서서 버렸다. 키셋 LIMIT 1 두 번이다(전량 로드 없음).
     """
-    from app.authz.visibility import (
-        RESOURCE_PROJECT, context_for_user, effective_visibility_clause,
-    )
-    from app.projects.models import Project
     from app.work import service as work_service
 
-    ctx = context_for_user(db, user)
-    clause = effective_visibility_clause(ctx, RESOURCE_PROJECT)
-    stmt = select(Sprint)
-    if clause is not None:
-        stmt = stmt.where(
-            Sprint.project_id.is_(None)
-            | Sprint.project_id.in_(select(Project.id).where(clause))
-        )
-    stmt = stmt.where(
-        Sprint.project_id == sprint.project_id
-        if sprint.project_id is not None
-        else Sprint.project_id.is_(None)
+    stmt = work_service._visible_sprints_stmt(db, user).where(
+        work_service._same_team_clause(sprint)
     )
-    # 정렬 계약은 기존과 같다 — (starts_on, name).
+    s, c, i = sprint.starts_on, sprint.created_at, sprint.id
+    before = (
+        (Sprint.starts_on < s)
+        | ((Sprint.starts_on == s) & (Sprint.created_at < c))
+        | ((Sprint.starts_on == s) & (Sprint.created_at == c) & (Sprint.id < i))
+    )
+    after = (
+        (Sprint.starts_on > s)
+        | ((Sprint.starts_on == s) & (Sprint.created_at > c))
+        | ((Sprint.starts_on == s) & (Sprint.created_at == c) & (Sprint.id > i))
+    )
     prev_row = db.execute(
-        stmt.where(
-            (Sprint.starts_on < sprint.starts_on)
-            | ((Sprint.starts_on == sprint.starts_on) & (Sprint.name < sprint.name))
-        ).order_by(Sprint.starts_on.desc(), Sprint.name.desc()).limit(1)
+        stmt.where(before)
+        .order_by(Sprint.starts_on.desc(), Sprint.created_at.desc(), Sprint.id.desc())
+        .limit(1)
     ).scalars().first()
     next_row = db.execute(
-        stmt.where(
-            (Sprint.starts_on > sprint.starts_on)
-            | ((Sprint.starts_on == sprint.starts_on) & (Sprint.name > sprint.name))
-        ).order_by(Sprint.starts_on.asc(), Sprint.name.asc()).limit(1)
+        stmt.where(after)
+        .order_by(Sprint.starts_on.asc(), Sprint.created_at.asc(), Sprint.id.asc())
+        .limit(1)
     ).scalars().first()
     return {
         "prev": work_service._sprint_view(prev_row) if prev_row else None,
@@ -650,6 +691,7 @@ def add_decision(
     from app.work import service as work_service
 
     sprint = work_service.get_scoped_sprint_or_404(db, sprint_id, user)
+    _ensure_not_read_only(user)
     text = (body or "").strip()
     if not text:
         raise ValidationAppError("내용을 적어 주세요.")
@@ -703,11 +745,21 @@ def _editable_or_403(db: Session, user: User, decision_id: str) -> SprintDecisio
     if row is None:
         raise NotFoundError("회의 기록을 찾을 수 없습니다.")
     work_service.get_scoped_sprint_or_404(db, row.sprint_id, user)
+    _ensure_not_read_only(user)
     if user.role in MODERATOR_ROLES:
         return row
     if user.id in (row.author_user_id, row.assignee_user_id):
         return row
     raise ForbiddenError("이 기록을 고칠 권한이 없습니다.")
+
+
+def _ensure_not_read_only(user: User) -> None:
+    """감사자는 회의를 **읽기만** 한다 — 티켓 편집이 막히는 것(`ensure_can_edit`)과 같은
+    이유다. 회의록은 회차가 보이는 사람이 적지만, 읽기 전용 역할은 예외다."""
+    from app.users.models import ROLE_AUDITOR
+
+    if user.role == ROLE_AUDITOR:
+        raise ForbiddenError("감사자는 회의록을 적거나 고칠 수 없습니다.")
 
 
 def update_decision(
@@ -747,6 +799,6 @@ def delete_decision(db: Session, user: User, *, decision_id: str) -> None:
 
 __all__ = [
     "DECISION_BODY_MAX", "DECISION_KIND_ACTION", "DECISION_KIND_DECISION",
-    "DISCUSS_LIMIT", "DUE_SOON_DAYS",
+    "DISCUSS_LIMIT", "DUE_SOON_DAYS", "TICKETS_LIMIT",
     "add_decision", "delete_decision", "list_decisions", "meeting", "update_decision",
 ]
