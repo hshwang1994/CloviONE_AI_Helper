@@ -1341,14 +1341,18 @@ def create_sprint(
     """
     label = (name or "").strip()
     if not label:
-        raise ValidationAppError("스프린트 이름을 입력해 주세요.")
+        raise ValidationAppError("회차 이름을 입력해 주세요.")
     if not department_id:
         raise ValidationAppError("회차를 운영할 팀을 골라 주세요.")
     # 여기서 한 번 날짜로 읽는다 — 못 읽는 값을 그대로 두면 DB 가 거절하고,
     # 그 실패는 422 가 아니라 500 이 된다 (S7 · P-14a).
     first, last = parse_date(starts_on), parse_date(ends_on)
-    if first is None or last is None or first >= last:
-        raise ValidationAppError("스프린트 기간은 시작일이 종료일보다 앞이어야 합니다.")
+    # 못 읽는 날짜와 거꾸로 된 기간은 다른 잘못이다 — 2월 31일을 적은 사람에게 「시작일이
+    # 종료일보다 앞이어야」라고 답하면 무엇을 고쳐야 하는지 모른다.
+    if first is None or last is None:
+        raise ValidationAppError("회차 기간은 달력에 있는 날짜(YYYY-MM-DD)여야 합니다.")
+    if first >= last:
+        raise ValidationAppError("회차 기간은 시작일이 종료일보다 앞이어야 합니다.")
     team = org_context.team_context(db, user, department_id)   # 범위 밖 팀은 404
     ensure_team_manageable(db, user, department_id)
     org_id = team["principal"].tree.org_of(department_id)
@@ -1430,7 +1434,7 @@ def update_sprint(
     if "name" in changes:
         label = (changes.get("name") or "").strip()
         if not label:
-            raise ValidationAppError("스프린트 이름을 입력해 주세요.")
+            raise ValidationAppError("회차 이름을 입력해 주세요.")
         if label != sprint.name or team_after != sprint.department_id:
             _ensure_name_free(
                 db, org_id=sprint.org_id, department_id=team_after, name=label, except_id=sprint.id,
@@ -1448,8 +1452,10 @@ def update_sprint(
         first = parse_date(changes["starts_on"]) if "starts_on" in changes else sprint.starts_on
         last = parse_date(changes["ends_on"]) if "ends_on" in changes else sprint.ends_on
         # create 와 같은 규칙 — 반쪽만 보내도 합성해서 다시 검증한다.
-        if first is None or last is None or first >= last:
-            raise ValidationAppError("스프린트 기간은 시작일이 종료일보다 앞이어야 합니다.")
+        if first is None or last is None:
+            raise ValidationAppError("회차 기간은 달력에 있는 날짜(YYYY-MM-DD)여야 합니다.")
+        if first >= last:
+            raise ValidationAppError("회차 기간은 시작일이 종료일보다 앞이어야 합니다.")
         sprint.starts_on = first
         sprint.ends_on = last
     if "goal" in changes:

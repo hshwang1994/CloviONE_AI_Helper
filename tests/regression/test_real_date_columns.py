@@ -16,6 +16,8 @@
 응답은 여전히 'YYYY-MM-DD' 문자열이다. 저장 타입이 바뀌었다고 프런트가 함께 바뀌면
 그건 이전이 아니라 재작성이다 — 경계는 `app/core/dates.py` 한 곳이다.
 """
+# qa-contract-change: 회차의 소유자가 팀이 됐다(D-482) — POST /api/work/sprints 는 department_id 가 필수라
+# 회차를 만드는 세 시험이 팀 행을 만들어 보낸다. 날짜 단언은 그대로이고, 422 의 이유가 날짜인지 더 본다.
 
 from __future__ import annotations
 
@@ -25,6 +27,7 @@ import pytest
 from sqlalchemy import inspect, text
 
 from app.org.constants import DEFAULT_ORG_ID
+from app.org.models import Department
 from app.projects.models import Project, ProjectMilestone
 from app.tickets.models import Ticket
 from app.work.models import Sprint
@@ -157,11 +160,20 @@ def test_the_project_api_still_answers_with_iso_strings(client, login_as, db):
     assert rows["items"][0]["due_on"] == "2026-08-25"
 
 
-def test_the_sprint_api_still_answers_with_iso_strings(client, login_as):
+@pytest.fixture
+def team_id(db):
+    """회차는 팀의 것이다(D-482) — 만들 때 팀을 줘야 한다. 날짜 계약과는 무관한 준비물이다."""
+    team = Department(name="날짜팀", org_id=DEFAULT_ORG_ID)
+    db.add(team)
+    db.commit()
+    return team.id
+
+
+def test_the_sprint_api_still_answers_with_iso_strings(client, login_as, team_id):
     headers = {"X-CSRF-Token": login_as("admin")}
     made = client.post(
         "/api/work/sprints",
-        json={"name": "1차", "starts_on": "2026-08-17", "ends_on": "2026-08-28"},
+        json={"name": "1차", "starts_on": "2026-08-17", "ends_on": "2026-08-28", "department_id": team_id},
         headers=headers,
     )
     assert made.status_code == 200, made.text
@@ -169,7 +181,7 @@ def test_the_sprint_api_still_answers_with_iso_strings(client, login_as):
     assert made.json()["ends_on"] == "2026-08-28"
 
 
-def test_a_sprint_with_an_impossible_day_is_rejected_with_422_not_500(client, login_as):
+def test_a_sprint_with_an_impossible_day_is_rejected_with_422_not_500(client, login_as, team_id):
     """DB 가 막는 것과 **사용자에게 뭐가 틀렸는지 말하는 것**은 다른 일이다.
 
     경계에서 안 읽으면 그 실패는 flush 에서 나고, 화면에는 「서버 오류」만 뜬다.
@@ -177,20 +189,24 @@ def test_a_sprint_with_an_impossible_day_is_rejected_with_422_not_500(client, lo
     headers = {"X-CSRF-Token": login_as("admin")}
     r = client.post(
         "/api/work/sprints",
-        json={"name": "틀린 기간", "starts_on": "2026-02-31", "ends_on": "2026-03-10"},
+        json={"name": "틀린 기간", "starts_on": "2026-02-31", "ends_on": "2026-03-10", "department_id": team_id},
         headers=headers,
     )
     assert r.status_code == 422, f"{r.status_code} {r.text}"
+    # 422 의 이유가 **날짜**여야 한다 — 팀이 빠져서 난 422 도, 「거꾸로 된 기간」 422 도
+    # 이 시험이 보려는 것이 아니다. 2월 31일을 적은 사람은 날짜를 고치라는 말을 들어야 한다.
+    assert "달력에 있는 날짜" in r.text, r.text
 
 
-def test_a_sprint_window_must_still_be_ordered(client, login_as):
+def test_a_sprint_window_must_still_be_ordered(client, login_as, team_id):
     headers = {"X-CSRF-Token": login_as("admin")}
     r = client.post(
         "/api/work/sprints",
-        json={"name": "거꾸로", "starts_on": "2026-08-28", "ends_on": "2026-08-17"},
+        json={"name": "거꾸로", "starts_on": "2026-08-28", "ends_on": "2026-08-17", "department_id": team_id},
         headers=headers,
     )
     assert r.status_code == 422, r.text
+    assert "시작일이 종료일보다 앞" in r.text, r.text
 
 
 # ── 주기 재계산이 회차마다 전 행을 흔들지 않는다 ──────────────────────────
