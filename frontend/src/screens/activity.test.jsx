@@ -10,6 +10,9 @@ import { MemoryRouter } from "react-router-dom";
  * 서버가 두 원천(감사 로그·알림)을 합쳐서 준다. 화면은 그걸 날짜로 묶어 보여 주고,
  * 목적지가 있는 항목에만 '열기'를 붙인다 — 목적지가 없는데 버튼을 붙이면 눌러도
  * 아무 일도 안 나는 죽은 컨트롤이 된다(이 저장소가 특히 싫어하는 것).
+ *
+ * qa-contract-change: 종류 고르기를 판 안의 토글 단추 묶음에서 세그먼티드(tablist)로 옮겼다(핸드오프 B-4, B-7) — 단추 역할 단언을 같은 이름의 탭으로 옮긴다.
+ * 고른 탭의 aria-selected 를 더 단언한다.
  */
 
 const apiMock = vi.fn();
@@ -92,10 +95,11 @@ describe("내 활동", () => {
     apiMock.mockResolvedValue(FEED);
     renderActivity();
     await screen.findByText("티켓을(를) 고침");
-    await userEvent.click(screen.getByRole("button", { name: "내가 한 일" }));
+    await userEvent.click(screen.getByRole("tab", { name: "내가 한 일" }));
     await waitFor(() =>
       expect(apiMock).toHaveBeenCalledWith("/api/me/activity?page=1&page_size=50&kind=did")
     );
+    expect(screen.getByRole("tab", { name: "내가 한 일" })).toHaveAttribute("aria-selected", "true");
   });
 
   it("고른 종류에 기록이 없을 때와 아예 없을 때를 다르게 말한다", async () => {
@@ -103,7 +107,7 @@ describe("내 활동", () => {
     renderActivity();
     expect(await screen.findByText("아직 활동 기록이 없습니다")).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole("button", { name: "내가 한 일" }));
+    await userEvent.click(screen.getByRole("tab", { name: "내가 한 일" }));
     expect(await screen.findByText("이 종류의 활동이 없습니다")).toBeInTheDocument();
     // 필터 때문에 비었을 때만 되돌릴 길을 준다.
     expect(screen.getByRole("button", { name: "전체 보기" })).toBeInTheDocument();

@@ -1,10 +1,7 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import FormControlLabel from "@mui/material/FormControlLabel";
-import Stack from "@mui/material/Stack";
-import Switch from "@mui/material/Switch";
-import Typography from "@mui/material/Typography";
 import { Callout, Card, EmptyState, ErrorState, Skeleton } from "../ui/kit.jsx";
+import { FilterToggle, ResultLine } from "../ui/FilterBar.jsx";
 import { GroupedTickets, TicketEditModal, ticketColumns, ticketConnState, useInlineStatusEdit } from "./MyTickets.jsx";
 import { useTicketSignals } from "../lib/ticketSignals.js";
 import { groupByAssignee } from "./TeamTickets.jsx";
@@ -64,12 +61,11 @@ function ProjectTicketList({ pageId }) {
   /* 범위(완료·취소 포함)를 바꾸면 받아 둔 묶음은 질의 키가 바뀌며 함께 버려진다 —
      되돌릴 쪽 번호가 없다. */
   const toggleIncludeDone = (checked) => { setIncludeDone(checked); };
+  // 필터 바의 켬/끔은 스위치가 아니라 34 중립 단추다 — 켜져 있을 때만 눌린 면이다(핸드오프 RULES §3 · 계획 P-14).
   const activeToggle = (
-    <FormControlLabel
-      sx={{ m: 0 }}
-      control={<Switch size="small" checked={includeDone} onChange={(e) => toggleIncludeDone(e.target.checked)} />}
-      label={<Typography variant="body2">완료, 취소 포함</Typography>}
-    />
+    <FilterToggle pressed={includeDone} onClick={() => toggleIncludeDone(!includeDone)}>
+      완료, 취소 포함
+    </FilterToggle>
   );
 
   if (q.isLoading) return <Card><Skeleton lines={6} /></Card>;
@@ -94,12 +90,14 @@ function ProjectTicketList({ pageId }) {
 
   return (
     <Card>
-      <Stack direction="row" gap={2} sx={{ flexWrap: "wrap", alignItems: "center", mb: 1.5 }}>
-        <Typography variant="body2" color="text.secondary" aria-live="polite">
-          총 {q.total != null ? q.total : rows.length}건
-        </Typography>
-        {activeToggle}
-      </Stack>
+      {/* 건수는 결과 줄이 말한다 — 화면이 쓰던 문장(「총 N건」)을 그대로 세우고, 켬/끔 단추가 같은 줄 끝에
+          선다(계획 P-21). */}
+      <ResultLine
+        total={q.total != null ? q.total : rows.length}
+        text={`총 ${q.total != null ? q.total : rows.length}건`}
+        action={activeToggle}
+        sx={{ alignItems: "center" }}
+      />
       <GroupedTickets
         rows={rows} columns={cols} groupBy={groupByAssignee}
         emptyState={

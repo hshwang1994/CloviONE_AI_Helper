@@ -3,10 +3,8 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tansta
 import { ListFooter } from "../ui/InfiniteScroll.jsx";
 import { useNavigate, Link as RouterLink } from "react-router-dom";
 import Box from "@mui/material/Box";
-import FormControlLabel from "@mui/material/FormControlLabel";
 import LinearProgress from "@mui/material/LinearProgress";
 import Stack from "@mui/material/Stack";
-import Switch from "@mui/material/Switch";
 import Tab from "@mui/material/Tab";
 import Tabs from "@mui/material/Tabs";
 import Typography from "@mui/material/Typography";
@@ -25,7 +23,7 @@ import {
   useToast,
   FlatBadgeSurface,
 } from "../ui/kit.jsx";
-import { FilterActions, FilterRow, FilterSurface } from "../ui/FilterBar.jsx";
+import { FilterActions, FilterRow, FilterSurface, FilterToggle } from "../ui/FilterBar.jsx";
 import { DragBoard, DragItem, DragItemActions, SortableList } from "../ui/DragDrop.jsx";
 import { EntityCombobox, FilterSelect, SearchBox, TeamSelect } from "../ui/filters.jsx";
 import { SprintLifecycle, sprintStateLabel, useCanPlanSprint } from "./SprintLifecycle.jsx";
@@ -982,17 +980,8 @@ export function WorkBoard() {
             disabled={mine}
             sx={{ flex: "1 1 11rem", minWidth: "11rem", maxWidth: "16rem" }}
           />
-          <FormControlLabel
-            sx={{ m: 0 }}
-            control={
-              <Switch
-                size="small"
-                checked={mine}
-                onChange={(e) => setState({ mine: e.target.checked })}
-              />
-            }
-            label={<Typography variant="body2">내 티켓만</Typography>}
-          />
+          {/* 필터 바의 켬/끔은 스위치가 아니라 34 중립 단추다 — 켜져 있을 때만 눌린 면이다(핸드오프 RULES §3 · 계획 P-14). */}
+          <FilterToggle pressed={mine} onClick={() => setState({ mine: !mine })}>내 티켓만</FilterToggle>
         </FilterRow>
         <FilterRow>
           <SearchBox
@@ -1073,19 +1062,14 @@ export function WorkBoard() {
             ) : null}
             {tab === TAB_BOARD ? (
               <Stack direction="row" spacing={1} alignItems="center">
-                <Button
-                  variant="ghost" size="sm" aria-pressed={showHold}
-                  onClick={() => setState({ hold: !showHold })}
-                >
+                {/* 보기 토글도 필터 토글이다 — 같은 라벨 · 같은 aria-pressed 로 34 중립 단추에 선다(표 5). */}
+                <FilterToggle pressed={showHold} onClick={() => setState({ hold: !showHold })}>
                   {showHold ? "보류 접기" : "보류 펴기"}
-                </Button>
+                </FilterToggle>
                 {sprintClosed ? null : (
-                  <Button
-                    variant="ghost" size="sm" aria-pressed={showAll}
-                    onClick={() => setState({ all: !showAll })}
-                  >
+                  <FilterToggle pressed={showAll} onClick={() => setState({ all: !showAll })}>
                     {showAll ? "완료와 취소 감추기" : "완료와 취소 보기"}
-                  </Button>
+                  </FilterToggle>
                 )}
               </Stack>
             ) : null}

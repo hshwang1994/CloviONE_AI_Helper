@@ -195,24 +195,27 @@ export function FilterActions({ children, sx }) {
  * `aria-live="polite"` — 필터를 바꾸면 화면 어딘가의 숫자가 바뀐다는 사실을 눈으로만
  * 알 수 있으면 안 된다.
  */
-export function ResultLine({ total, unit = "건", conditions, action, sx }) {
+/* `text` — 화면이 이미 쓰던 결과 문장(「총 N건 가운데 M건을 보여 줍니다.」 · 「총 N건, 짧은 검색어라
+   부분 일치로 찾았습니다」)을 그대로 세운다(계획 P-21 — 문구를 통일하지 않는다). 문장을 준 화면은
+   0건이어도 그 문장을 말한다 — 원래 그랬다. */
+export function ResultLine({ total, unit = "건", conditions, action, text, sx }) {
   const has = Array.isArray(conditions) ? conditions.filter(Boolean) : [];
   /* 조건도 없고 결과도 0 이면 그리지 않는다 — 그 자리에는 이미 빈 상태가 «왜 비었는지» 를
      말하고 있고, 그 위에 「전체 0건」을 한 줄 더 얹으면 같은 사실이 두 번 나온다.
      반대로 **조건이 걸린 채 0건**이면 이 줄이 그 화면에서 가장 중요한 문장이다 —
      «데이터가 없다» 와 «조건 때문에 없다» 를 가르는 것이 그것이기 때문이다(C2). */
-  if (!has.length && (total === 0 || total == null)) return null;
+  if (!text && !has.length && (total === 0 || total == null)) return null;
   return (
     <Box
       data-result-line=""
       sx={{ display: "flex", alignItems: "baseline", gap: 1.5, flexWrap: "wrap", mb: 1.5, ...sx }}
     >
       <Typography variant="body2" color="text.secondary" aria-live="polite">
-        {total == null
+        {text || (total == null
           ? "세는 중…"
           : has.length
             ? `조건 ${has.length}개, 결과 ${total.toLocaleString("ko-KR")}${unit}`
-            : `전체 ${total.toLocaleString("ko-KR")}${unit}`}
+            : `전체 ${total.toLocaleString("ko-KR")}${unit}`)}
       </Typography>
       {action}
     </Box>

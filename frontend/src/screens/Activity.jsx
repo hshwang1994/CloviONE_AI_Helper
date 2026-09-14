@@ -2,8 +2,6 @@ import React from "react";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import Box from "@mui/material/Box";
-import ToggleButton from "@mui/material/ToggleButton";
-import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
 import Typography from "@mui/material/Typography";
 import EastRoundedIcon from "@mui/icons-material/EastRounded";
 import InboxRoundedIcon from "@mui/icons-material/InboxRounded";
@@ -11,8 +9,10 @@ import { api } from "../lib/api.js";
 import { fmtDateTime, fmtRelative } from "../lib/format.js";
 import {
   Badge, Button, Card, EmptyState, ErrorState, ListCard, PageHeader, Skeleton, FlatBadgeSurface,
+  Segmented,
 } from "../ui/kit.jsx";
 import { ListFooter } from "../ui/InfiniteScroll.jsx";
+import { FilterSurface, ToolbarRow } from "../ui/FilterBar.jsx";
 import { useInfiniteList } from "../lib/useInfiniteList.js";
 import { FONT_WEIGHT, KO_WORD_BREAK, stickyTopSx } from "../ui/theme.js";
 
@@ -120,40 +120,13 @@ export function Activity() {
     <div className="c-screen">
       <PageHeader area="내 정보" title="내 활동" crumbRoot="" />
 
-      <Card sx={{ p: 2, mb: 2.5 }}>
-        <ToggleButtonGroup
-          exclusive
-          size="small"
-          value={kind}
-          onChange={(_e, value) => { if (value != null) setKind(value); }}
-          aria-label="활동 종류"
-        >
-          {KINDS.map((k) => (
-            /* 🔴 **선택은 면이 아니라 잉크와 레일로 말한다** (D-289 · S22 실측).
-               MUI 기본 `Mui-selected` 는 `rgba(0,0,0,.08)` 회색 면이라, 캡처가 이 화면의
-               선택 자리를 `#ECEDEE`(S 0.05 · ΔE 3.1)로 읽고 「있는 자리가 회색이다」로
-               세었다. 이 제품은 사이드바(3px 레일)도 판독 줄(아래 레일)도 같은 어휘를
-               쓴다 — 한 제품이 선택을 두 가지 말로 하지 않는다. */
-            <ToggleButton
-              key={k.value || "all"}
-              value={k.value}
-              data-brand-role={kind === k.value ? "selected-state" : undefined}
-              sx={(t) => ({
-                textTransform: "none", px: 2,
-                "&.Mui-selected": {
-                  color: t.palette.brand.core,
-                  borderColor: t.palette.brand.core,
-                  backgroundColor: "transparent",
-                  fontWeight: FONT_WEIGHT.semibold,
-                  "&:hover": { backgroundColor: "transparent" },
-                },
-              })}
-            >
-              {k.label}
-            </ToggleButton>
-          ))}
-        </ToggleButtonGroup>
-      </Card>
+      {/* 종류 고르기는 필터 바 위의 보기 전환이다 — 판(Card) 안의 토글 단추 묶음이 아니라 세그먼티드(34)이고,
+          화살표 · Home · End 로 옮긴다(핸드오프 RULES §3 · 계획 B-4 · B-7). */}
+      <FilterSurface>
+        <ToolbarRow>
+          <Segmented ariaLabel="활동 종류" value={kind} onChange={setKind} options={KINDS} />
+        </ToolbarRow>
+      </FilterSurface>
 
       {q.isLoading ? (
         <Card><Skeleton lines={8} /></Card>

@@ -8,14 +8,14 @@ import { api } from "../../lib/api.js";
 import { fmtDateTime } from "../../lib/format.js";
 import { Note, StatusList, StatusTile } from "../../ui/adminKit.jsx";
 import {
-  PageHeader, Badge, Callout, MetricStrip, Section, Skeleton, ErrorState, EmptyState, Surface, TechDetail, useToast,
+  PageHeader, Badge, Callout, DataTable, MetricStrip, Section, Skeleton, ErrorState, EmptyState, Surface, TechDetail, useToast,
 } from "../../ui/kit.jsx";
 import { FONT_SIZE, FONT_WEIGHT } from "../../ui/theme.js";
 import {
   serviceLabel, fmtNum, errorBuckets, healthVerdict, copyText, bundleStamp,
   integrationState, upSummaryText, SERVICE_STATE_LABEL, SERVICE_STATE_KIND,
 } from "./opsHelpers.js";
-import { LogRow, LogList } from "./LogList.jsx";
+import { OVERFLOW } from "../../ui/columnTypes.js";
 import { ServiceStatusPanel } from "./ServiceStatusPanel.jsx";
 import { JobQueuePanel } from "./JobQueuePanel.jsx";
 import { DiagnosticActions } from "./DiagnosticActions.jsx";
@@ -260,19 +260,21 @@ export function Diagnostics() {
                       </Callout>
                     </Box>
                   )}
-                  <LogList>
-                    {tenantItems.map((item) => (
-                      <LogRow key={item.key} when={item.state === "set" ? "설정됨" : "설정 안 됨"} what={item.label}>
-                        {/* 안 채운 항목만 "그래서 무슨 일이 벌어지는가"를 붙인다. 다 채운 항목에까지
-                            설명을 달면 경고가 묻힌다. 고칠 자리(환경 변수 이름)도 같이 준다. */}
-                        {item.state === "set" ? null : (
-                          <Typography variant="body2" color="text.secondary">
-                            {item.when_unset} ({item.env_var})
-                          </Typography>
-                        )}
-                      </LogRow>
-                    ))}
-                  </LogList>
+                  {/* 채웠는지 · 무엇을 · 안 채우면 무슨 일이 벌어지는지 세 열은 표다(계획 B-5). 상태는 표 안이라
+                      점 + 낱말로 선다(글자가 남는다 — 색만으로 구분하지 않는다). */}
+                  <DataTable
+                    columns={[
+                      { key: "state", label: "상태", type: "status",
+                        render: (item) => <Badge value={item.state === "set" ? "설정됨" : "설정 안 됨"} kind={item.state === "set" ? "ok" : "warn"} /> },
+                      { key: "label", label: "설정", type: "title" },
+                      /* 안 채운 항목만 "그래서 무슨 일이 벌어지는가"를 붙인다. 다 채운 항목에까지 설명을 달면
+                         경고가 묻힌다. 고칠 자리(환경 변수 이름)도 같이 준다. */
+                      { key: "when_unset", label: "설정하지 않으면", type: "text", overflow: OVERFLOW.word,
+                        render: (item) => (item.state === "set" ? "" : `${item.when_unset} (${item.env_var})`) },
+                    ]}
+                    rows={tenantItems}
+                    rowKey={(item) => item.key}
+                  />
               </Section>
             ) : null}
             {/* '현재 리소스'는 '시스템 리소스', '서비스 상태'와 같은 '지금 이 순간' 스냅샷이라, 이전엔

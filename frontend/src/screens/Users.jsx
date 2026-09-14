@@ -2,8 +2,6 @@ import React, { useState } from "react";
 import { useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import Box from "@mui/material/Box";
-import Checkbox from "@mui/material/Checkbox";
-import FormControlLabel from "@mui/material/FormControlLabel";
 import Link from "@mui/material/Link";
 import MenuItem from "@mui/material/MenuItem";
 import TextField from "@mui/material/TextField";
@@ -17,7 +15,7 @@ import { useAuth } from "../app/auth.jsx";
 import { PageHeader, Card, ListCard, Badge, Button, DataTable, DetailGrid, DetailRow, FormModal, Modal, OverflowMenu, Skeleton, EmptyState, ErrorState, Callout, useConfirm, useToast } from "../ui/kit.jsx";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
 import { useRowSelection, selectionColumn } from "../ui/bulkSelect.jsx";
-import { FilterActions, FilterRow, FilterSurface, ResultLine, ToolbarRow } from "../ui/FilterBar.jsx";
+import { FilterActions, FilterRow, FilterSurface, FilterToggle, ResultLine, ToolbarRow } from "../ui/FilterBar.jsx";
 import { ListFooter } from "../ui/InfiniteScroll.jsx";
 import { useInfiniteList } from "../lib/useInfiniteList.js";
 import { BulkBar, CsvTools } from "./UsersBulk.jsx";
@@ -718,11 +716,8 @@ export function Users() {
             label="잠김" value={lockedFilter} onChange={setLockedFilter} allLabel="잠김: 전체"
             options={[{ value: "true", label: "지금 잠김" }, { value: "false", label: "잠기지 않음" }]}
           />
-          <FormControlLabel
-            sx={{ m: 0, flex: "0 0 auto" }}
-            control={<Checkbox size="small" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} />}
-            label={<Typography variant="body2">보관된 계정 보기</Typography>}
-          />
+          {/* 필터 바의 켬/끔은 스위치가 아니라 34 중립 단추다 — 켜져 있을 때만 눌린 면이다(핸드오프 RULES §3 · 계획 P-14). */}
+          <FilterToggle pressed={showArchived} onClick={() => setShowArchived(!showArchived)}>보관된 계정 보기</FilterToggle>
           {hasContentFilter ? (
             <FilterActions>
               <Button variant="ghost" size="sm" onClick={clearContentFilters}>필터 지우기</Button>

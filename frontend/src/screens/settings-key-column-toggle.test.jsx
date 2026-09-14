@@ -8,6 +8,8 @@ import { MemoryRouter } from "react-router-dom";
 /* PA-RC-0022 acceptance_criteria 6: 백엔드 키는 기본 숨김 + 열 토글로 접근한다(완전히
  * 없애지는 않는다 — 운영 디버깅 가치가 있다, constraints가 명시). target_design: 「기본값」
  * 배지 10개를 없애고 「수정됨」만 남긴다 — 안 바뀐 항목은 배지가 아예 없다.
+ *
+ * qa-contract-change: 필터 바의 켬/끔 스위치 · 체크박스를 34 중립 단추(FilterToggle, aria-pressed)로 옮겼다(핸드오프 RULES §3, 계획 P-14). 스위치 · 체크박스 역할로 찾던 단언을 같은 이름의 단추로 옮기고, 눌림 상태(aria-pressed)를 더 단언한다.
  */
 
 const apiMock = vi.fn();
@@ -66,7 +68,10 @@ describe("설정 표 — 백엔드 키 열 토글 + 상태 배지 (PA-RC-0022)",
     const user = userEvent.setup();
     renderScreen();
     await screen.findByText("대화 보존 기간");
-    await user.click(screen.getByRole("checkbox", { name: "기술 정보(설정 키) 보기" }));
+    const keyToggle = screen.getByRole("button", { name: "기술 정보(설정 키) 보기" });
+    expect(keyToggle).toHaveAttribute("aria-pressed", "false");
+    await user.click(keyToggle);
+    expect(keyToggle).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("columnheader", { name: "키" })).toBeInTheDocument();
     expect(screen.getByText("conversation_retention_days")).toBeInTheDocument();
   });

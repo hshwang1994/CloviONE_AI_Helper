@@ -17,6 +17,8 @@ import { MemoryRouter, Routes, Route } from "react-router-dom";
  *
  * 반례를 함께 잰다: 상자가 꺼져 있으면 배너 자체가 없어야 한다. 하나만 재면
  * 「항상 띄운다」도 통과한다.
+ *
+ * qa-contract-change: 필터 바의 켬/끔 스위치 · 체크박스를 34 중립 단추(FilterToggle, aria-pressed)로 옮겼다(핸드오프 RULES §3, 계획 P-14). 스위치 · 체크박스 역할로 찾던 단언을 같은 이름의 단추로 옮기고, 눌림 상태(aria-pressed)를 더 단언한다.
  */
 
 beforeEach(() => { window.location.hash = ""; });
@@ -74,7 +76,10 @@ describe("사용자 목록 — 보관함 배너는 '만'이라고 말한다", ()
     renderUsers();
     await screen.findByText("리브계정");
 
-    await user.click(screen.getByRole("checkbox", { name: /보관된 계정 보기/ }));
+    const archivedToggle = screen.getByRole("button", { name: /보관된 계정 보기/ });
+    expect(archivedToggle).toHaveAttribute("aria-pressed", "false");
+    await user.click(archivedToggle);
+    await waitFor(() => expect(archivedToggle).toHaveAttribute("aria-pressed", "true"));
 
     await waitFor(() => expect(screen.getByText(/보관된 계정만 보고 있습니다/)).toBeInTheDocument());
     // 옛 문구가 되살아나면 관리자는 사라진 계정을 사고로 읽는다.

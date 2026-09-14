@@ -1,13 +1,11 @@
 import React from "react";
 import Link from "@mui/material/Link";
 import Box from "@mui/material/Box";
-import Typography from "@mui/material/Typography";
 import { fmtDateTime, jobTypeKo } from "../../lib/format.js";
-import { EmptyState, MetricStrip, Section } from "../../ui/kit.jsx";
+import { DataTable, EmptyState, MetricStrip, Section } from "../../ui/kit.jsx";
 import { Sparkline } from "../../ui/charts/Sparkline.jsx";
 import { Note } from "../../ui/adminKit.jsx";
 import { fmtNum, fmtProcessingTime } from "./opsHelpers.js";
-import { LogRow, LogList } from "./LogList.jsx";
 
 /* 진단 화면의 "작업 지표 (최근 24시간)" + "최근 작업 오류" — 둘 다 작업 큐 관련 신호라 한 패널로
  * 묶는다. errorDist는 부모(Diagnostics)가 errorBuckets()로 미리 계산해 전달한다(순수 계산이라
@@ -59,17 +57,19 @@ export function JobQueuePanel({ jobs24, jobErrors, errorDist, nav }) {
                       + " (전체 실패 추세가 아니라 이 목록에 담긴 건들의 분포입니다)"} />
                 </Box>
               ) : null}
-              <LogList>
-                {/* 이 목록은 60초마다 자동 재수집돼 순서가 바뀔 수 있다 — '최근 주요 변경' 목록과 같은
-                    이유로 index 대신 안정적인 합성 키를 쓴다(잡 id가 번들에 없어 시각+타입+인덱스로
-                    최대한 안정화). */}
-                {jobErrors.map((e, i) => (
-                  <LogRow key={e.at + "|" + e.job_type + "|" + i} when={fmtDateTime(e.at)} what={e.error || "-"}>
-                    {/* 원시 영어 enum(chat_message 등)이 한글 콘솔에 새지 않게 한국어로 변환(미매핑은 원값 폴백). */}
-                    <Typography variant="body2" color="text.secondary">{jobTypeKo(e.job_type)}</Typography>
-                  </LogRow>
-                ))}
-              </LogList>
+              {/* 시각 · 내용 · 작업 종류 세 열은 표다 — 손으로 짠 줄 격자(`LogList`)가 열 정렬 · 머리 · 좁은
+                  화면 접기를 따로 가졌다(계획 B-5). 이 목록은 60초마다 자동 재수집돼 순서가 바뀔 수 있어
+                  index 대신 안정적인 합성 키를 쓴다(잡 id가 번들에 없어 시각+타입+인덱스로 최대한 안정화). */}
+              <DataTable
+                columns={[
+                  { key: "at", label: "시각", type: "datetime", render: (e) => fmtDateTime(e.at) },
+                  { key: "error", label: "오류", type: "title", render: (e) => e.error || "-" },
+                  /* 원시 영어 enum(chat_message 등)이 한글 콘솔에 새지 않게 한국어로 변환(미매핑은 원값 폴백). */
+                  { key: "job_type", label: "작업", type: "enum", render: (e) => jobTypeKo(e.job_type) },
+                ]}
+                rows={jobErrors.map((e, i) => ({ ...e, rowId: e.at + "|" + e.job_type + "|" + i }))}
+                rowKey={(e) => e.rowId}
+              />
             </>
           ) : <EmptyState layout="inline" title="최근 실패한 작업이 없습니다." />}
       </Section>

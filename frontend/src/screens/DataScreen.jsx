@@ -8,7 +8,6 @@ import { useAuth } from "../app/auth.jsx";
 import Box from "@mui/material/Box";
 import MenuItem from "@mui/material/MenuItem";
 import Stack from "@mui/material/Stack";
-import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { PageHeader, Card, Button, DataTable, DetailGrid, DetailRow, FormDrawer, ListCard, Modal, OverflowMenu, Skeleton, EmptyState, ErrorState, MetricStrip, Callout, useConfirm, useToast } from "../ui/kit.jsx";
 /* 검색 입력은 `ui/filters.jsx` 의 `SearchBox` 다 — **자기 상태를 자기가 든다**(PF4).
@@ -1406,16 +1405,13 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
                 if (f.type === "datetime-local") {
                   // 날짜만 다루는 `DateField` 와 계약이 다르다(시각 포함, KST 경계) — 순수
                   // 달력일이 아니라서 그 부품을 그대로 못 쓴다. 브라우저는 datetime 입력의
-                  // placeholder를 무시한다 — 라벨을 항상 띄워 둬야 나란히 놓인 시작/종료 두
-                  // 상자를 구분할 수 있다.
+                  // placeholder를 무시한다 — 칸 안 이름(접두)이 나란히 놓인 시작/종료 두 칸을 가른다.
+                  // 필터 바의 다른 칸과 같은 34 칸이고, 확정은 다른 자유 입력 조건처럼 디바운스된다.
                   return (
-                    <TextField
-                      key={f.key} type={f.type} size="small" label={f.label}
-                      InputLabelProps={{ shrink: true }}
+                    <DebouncedTextField
+                      key={f.key} type={f.type} kind="date" label={f.label}
                       value={filters[f.key] || ""}
-                      onChange={(e) => setFilter(f.key, e.target.value)}
-                      data-filter-kind="date"
-                      sx={kindSx("date")}
+                      onCommit={(v) => setFilter(f.key, v)}
                     />
                   );
                 }

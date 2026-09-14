@@ -1,9 +1,7 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import Box from "@mui/material/Box";
-import FormControlLabel from "@mui/material/FormControlLabel";
 import Stack from "@mui/material/Stack";
-import Switch from "@mui/material/Switch";
 import Typography from "@mui/material/Typography";
 import {
   ListEmptyState,
@@ -15,7 +13,7 @@ import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
 import { useAuth } from "../app/auth.jsx";
 import { useQueryState } from "../lib/useQueryState.js";
 import { DepartmentFilter, FilterSelect } from "../ui/filters.jsx";
-import { FilterActions, FilterRow, FilterSurface, ResultLine, ToolbarRow } from "../ui/FilterBar.jsx";
+import { FilterActions, FilterRow, FilterSurface, FilterToggle, ResultLine, ToolbarRow } from "../ui/FilterBar.jsx";
 import { SearchBox } from "../ui/filters.jsx";
 import { BarSeries } from "../ui/charts/BarSeries.jsx";
 import { Gauge } from "../ui/charts/Gauge.jsx";
@@ -523,17 +521,10 @@ export function Projects() {
             onChange={(v) => setFilters({ status: v, trouble: false, overdue: false })}
             options={PROJECT_STATUS_OPTIONS}
           />
-          <FormControlLabel
-            sx={{ m: 0 }}
-            control={
-              <Switch
-                size="small"
-                checked={!!filters.archived}
-                onChange={(e) => setFilters({ archived: e.target.checked })}
-              />
-            }
-            label={<Typography variant="body2">보관한 프로젝트 포함</Typography>}
-          />
+          {/* 필터 바의 켬/끔은 스위치가 아니라 34 중립 단추다 — 켜져 있을 때만 눌린 면이다(핸드오프 RULES §3 · 계획 P-14). */}
+          <FilterToggle pressed={!!filters.archived} onClick={() => setFilters({ archived: !filters.archived })}>
+            보관한 프로젝트 포함
+          </FilterToggle>
           {hasProjectFilter ? (
             <FilterActions>
               <Button variant="ghost" size="sm" onClick={clearProjectFilters}>필터 지우기</Button>

@@ -13,8 +13,11 @@ import "@testing-library/jest-dom/vitest";
  *   1) 빈 화면 두 종류를 구분한다 — '아직 글이 없다'와 '검색·필터에 걸리는 글이 없다'는
  *      사용자가 해야 할 일이 정반대다(첫 글을 쓰라 vs 필터를 지워라). 예전엔 둘 다
  *      "아직 게시글이 없습니다 / 첫 이야기를 남겨 보세요"로 뭉개져 있었다.
- *   2) 카테고리 칩이 서버 쿼리에 실제로 반영된다(눌러도 아무 일 없는 필터 방지).
+ *   2) 카테고리 선택이 서버 쿼리에 실제로 반영된다(눌러도 아무 일 없는 필터 방지).
  *   3) 고정 글 배지와 댓글 수가 목록에 남아 있다.
+ *
+ * qa-contract-change: 카테고리 칩 토글 줄을 칸 안에 이름이 선 선택(FilterSelect)으로 옮겼다(핸드오프 B-4, 계획 P-20).
+ * 칩 버튼을 누르던 단언은 선택 칸에서 고르는 단언으로 옮기고, 걸린 조건 칩과 정렬 칸에 빈 항목이 없다는 단언을 더한다.
  */
 
 const apiMock = vi.fn();
@@ -58,6 +61,11 @@ beforeEach(() => {
   apiMock.mockReset();
 });
 
+async function pickOption(user, comboName, optionName) {
+  await user.click(screen.getByRole("combobox", { name: comboName }));
+  await user.click(await screen.findByRole("option", { name: optionName }));
+}
+
 describe("빈 화면은 '아직 글이 없음'과 '검색 결과 없음'을 구분한다", () => {
   it("필터가 없으면 첫 글을 쓰라고 안내한다", async () => {
     mockApi(() => ({ items: [] }));
@@ -72,9 +80,11 @@ describe("빈 화면은 '아직 글이 없음'과 '검색 결과 없음'을 구�
     renderBoard();
     await screen.findByRole("heading", { name: "아직 게시글이 없습니다" });
 
-    await user.click(await screen.findByRole("button", { name: "질문" }));
+    await pickOption(user, "카테고리", "질문");
 
     expect(await screen.findByRole("heading", { name: "검색 결과가 없습니다" })).toBeInTheDocument();
+    // 걸린 조건은 조건 칩으로 선다 — 칸이 닫혀도 무엇으로 좁혔는지 보인다.
+    expect(screen.getByText("카테고리: 질문")).toBeInTheDocument();
     const clear = screen.getByRole("button", { name: "검색, 카테고리 지우기" });
     expect(clear).toBeInTheDocument();
 
@@ -101,14 +111,14 @@ describe("제목 계층 — 필터·목록 구획 (SEM-02, PA-F-031)", () => {
   });
 });
 
-describe("카테고리 칩은 서버 쿼리에 반영된다", () => {
-  it("칩을 누르면 category= 파라미터가 붙은 요청이 나간다", async () => {
+describe("카테고리 선택은 서버 쿼리에 반영된다", () => {
+  it("카테고리를 고르면 category= 파라미터가 붙은 요청이 나간다", async () => {
     mockApi(() => ({ items: [] }));
     const user = userEvent.setup();
     renderBoard();
     await screen.findByRole("heading", { name: "아직 게시글이 없습니다" });
 
-    await user.click(await screen.findByRole("button", { name: "공지" }));
+    await pickOption(user, "카테고리", "공지");
 
     await waitFor(() => {
       const urls = apiMock.mock.calls.map((c) => String(c[0]));
@@ -126,8 +136,19 @@ describe("필터 순서 — 다른 화면과 같은 관용(왼쪽 검색 먼저)
     await screen.findByRole("heading", { name: "아직 게시글이 없습니다" });
 
     const search = screen.getByRole("searchbox", { name: "검색" });
-    const categoryGroup = screen.getByRole("group", { name: "카테고리" });
+    const categoryGroup = screen.getByRole("combobox", { name: "카테고리" });
     expect(search.compareDocumentPosition(categoryGroup) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("정렬 칸에는 「전체」 항목이 없다 — 정렬 없음은 고를 수 있는 값이 아니다", async () => {
+    mockApi(() => ({ items: [] }));
+    const user = userEvent.setup();
+    renderBoard();
+    await screen.findByRole("heading", { name: "아직 게시글이 없습니다" });
+
+    await user.click(screen.getByRole("combobox", { name: "정렬" }));
+    const names = (await screen.findAllByRole("option")).map((o) => o.textContent);
+    expect(names).toEqual(["최신순", "조회순", "공감순"]);
   });
 });
 
@@ -256,7 +277,7 @@ describe("묶음 이어 받기", () => {
     await userEvent.click(screen.getByRole("button", { name: "글 더 보기" }));
     await waitFor(() => expect(asked.some((u) => u.includes("page=2"))).toBe(true));
 
-    await userEvent.click(screen.getByRole("button", { name: "공지" }));
+    await pickOption(userEvent, "카테고리", "공지");
     await waitFor(() => expect(asked.some((u) => u.includes("category=%EA%B3%B5%EC%A7%80"))).toBe(true));
     const last = asked[asked.length - 1];
     expect(last).not.toContain("page=2");

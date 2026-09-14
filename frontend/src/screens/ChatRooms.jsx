@@ -9,6 +9,7 @@ import Typography from "@mui/material/Typography";
 import { alpha } from "@mui/material/styles";
 import { api } from "../lib/api.js";
 import { Button, Card, FieldLabel, ListEmptyState, PageHeader, Skeleton, ErrorState, EmptyState, Modal, useConfirm, useToast, CountChip, DotLabel } from "../ui/kit.jsx";
+import { SearchBox } from "../ui/filters.jsx";
 import { FONT_SIZE, FONT_WEIGHT } from "../ui/theme.js";
 import { fmtRelative } from "../lib/format.js";
 import { personLabel } from "../lib/people.js";
@@ -303,11 +304,11 @@ export function ChatRooms() {
         <Button size="small" variant="primary" onClick={() => setGroupOpen(true)}>새 그룹</Button>
       </Box>
       <Box sx={{ px: 2, py: 1.25, borderBottom: 1, borderColor: "divider" }}>
-        <TextField
-          size="small" fullWidth value={roomQuery}
-          onChange={(e) => setRoomQuery(e.target.value)}
-          placeholder="채팅방 검색"
-          inputProps={{ "aria-label": "채팅방 이름으로 거르기" }}
+        {/* 좁은 목록(296)의 검색은 부모 폭을 그대로 쓰는 검색 칸이다(`layout="fill"` — 320 슬롯은 필터 바의
+            규칙이다). 목록을 글자마다 바로 거르므로 디바운스하지 않는다(`immediate`). */}
+        <SearchBox
+          layout="fill" immediate value={roomQuery} onSearch={setRoomQuery}
+          placeholder="채팅방 검색" ariaLabel="채팅방 이름으로 거르기"
         />
       </Box>
       {/* 목록은 **자기 안에서** 스크롤한다 — 페이지가 통째로 스크롤되면 대화창이 같이 밀린다. */}

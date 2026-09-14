@@ -3,19 +3,18 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import Box from "@mui/material/Box";
 import Fade from "@mui/material/Fade";
-import InputBase from "@mui/material/InputBase";
 import List from "@mui/material/List";
 import ListItemButton from "@mui/material/ListItemButton";
 import ListItemText from "@mui/material/ListItemText";
-import Paper from "@mui/material/Paper";
 import Typography from "@mui/material/Typography";
-import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import OpenInNewRoundedIcon from "@mui/icons-material/OpenInNewRounded";
 import { api } from "../lib/api.js";
 import { failureText } from "../lib/failure.js";
 import { Button, Callout, Card, CountChip, EmptyState, ErrorState, PageHeader, Skeleton, useConfirm, useToast } from "../ui/kit.jsx";
 import { FAB_CLEARANCE, FONT_SIZE, FONT_WEIGHT } from "../ui/theme.js";
 import { isSearchable, normalizeQuery, routeOf, searchApi } from "../lib/search.js";
+import { SearchBox } from "../ui/filters.jsx";
+import { FilterSurface, ResultLine, ToolbarRow } from "../ui/FilterBar.jsx";
 import { useAuth } from "../app/auth.jsx";
 import { OPS_ROLES, WRITE_ROLES } from "./registry/shared.js";
 
@@ -65,33 +64,19 @@ const GROUP_GRID = {
 };
 
 function SearchField({ value, onChange, onSubmit, placeholder }) {
+  /* 검색 줄은 필터 바다 — 다른 목록 화면과 같은 검색 칸(34 · 데스크톱 슬롯 320)과 제출 단추가 한 줄에
+     선다(핸드오프 README §3 · 계획 표 2). 예전에는 둥근 테두리 판(Paper) 안에 테두리 없는 입력이 서서
+     같은 「검색」이 화면마다 다른 물건으로 보였다. 이 화면은 **제출형**이라 칸이 글자마다 값을 부모에
+     올리고(`immediate`) Enter · 「검색」이 확정한다. 단추의 한 줄 · 폭 계약은 부품이 든다(§0-3). */
   return (
-    <Paper
-      component="form"
-      role="search"
-      elevation={0}
-      onSubmit={(e) => { e.preventDefault(); onSubmit(value); }}
-      sx={{
-        display: "flex", alignItems: "center", gap: 1.5, px: 2.5, py: 1.25, mb: 3,
-        border: 1, borderColor: "divider", borderRadius: 3,
-      }}
-    >
-      <SearchRoundedIcon aria-hidden="true" sx={{ color: "text.secondary" }} />
-      <InputBase
-        fullWidth
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        inputProps={{ "aria-label": "통합 검색어" }}
-        sx={{ fontSize: "1rem" }}
-      />
-      {/* flexShrink/nowrap 이 없으면 4K 에서 '검색'이 '검 / 색' 두 줄로 접힌다 —
-          루트 폰트사이즈 레버(3000px 에서 20px)로 글자가 커지는데 입력이 fullWidth 라
-          버튼만 눌려 찌그러진다. 실제 3840 캡처에서 그랬다. */}
-      <Button type="submit" variant="primary" sx={{ flexShrink: 0, whiteSpace: "nowrap" }}>
-        검색
-      </Button>
-    </Paper>
+    <FilterSurface sx={{ mb: 3 }}>
+      <Box component="form" role="search" onSubmit={(e) => { e.preventDefault(); onSubmit(value); }}>
+        <ToolbarRow>
+          <SearchBox immediate value={value} onSearch={onChange} placeholder={placeholder} ariaLabel="통합 검색어" />
+          <Button type="submit" variant="primary">검색</Button>
+        </ToolbarRow>
+      </Box>
+    </FilterSurface>
   );
 }
 
@@ -263,13 +248,14 @@ export function Search() {
       ) : (
         <Fade in timeout={200}>
           <Box>
-            <Typography
-              variant="body2" color="text.secondary" role="status" sx={{ mb: 2 }}
-            >
-              {`총 ${result.total}건`}
-              {result.mode === "like" ? ", 짧은 검색어라 부분 일치로 찾았습니다" : ""}
-              {result.truncated ? ", 일부만 표시합니다" : ""}
-            </Typography>
+            {/* 결과 줄 — 화면이 쓰던 문장을 그대로 세운다(계획 P-21). */}
+            <ResultLine
+              total={result.total}
+              text={`총 ${result.total}건`
+                + (result.mode === "like" ? ", 짧은 검색어라 부분 일치로 찾았습니다" : "")
+                + (result.truncated ? ", 일부만 표시합니다" : "")}
+              sx={{ mb: 2 }}
+            />
             <Box sx={GROUP_GRID}>
               {groups.map((group) => (
                 <ResultGroup key={group.kind} group={group} onOpen={open} />

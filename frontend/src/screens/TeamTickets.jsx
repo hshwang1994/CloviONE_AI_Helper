@@ -1,11 +1,9 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import FormControlLabel from "@mui/material/FormControlLabel";
-import Switch from "@mui/material/Switch";
-import Typography from "@mui/material/Typography";
 import { Card, Callout, ErrorState, PageHeader, Skeleton } from "../ui/kit.jsx";
 import { useQueryState } from "../lib/useQueryState.js";
 import { DepartmentFilter } from "../ui/filters.jsx";
+import { FilterToggle } from "../ui/FilterBar.jsx";
 import { ticketColumns, GroupedTickets, TicketEditModal, ticketConnState, useInlineStatusEdit } from "./MyTickets.jsx";
 import { useTicketSignals } from "../lib/ticketSignals.js";
 import { useListMemory } from "../lib/listReturn.js";
@@ -89,18 +87,11 @@ export function TeamTickets() {
      밖에서 덮어쓸 것이 없다. 엔드포인트 자체가 없어졌으므로 화면에서도 부르지 않는다. */
 
   // 완료·취소까지 볼지는 필터 줄 안에 둔다 — 조건과 떨어져 있으면 목록이 왜 이만큼인지 보이지 않는다.
+  // 필터 바의 켬/끔은 스위치가 아니라 34 중립 단추다 — 켜져 있을 때만 눌린 면이다(핸드오프 RULES §3 · 계획 P-14).
   const activeToggle = (
-    <FormControlLabel
-      sx={{ m: 0 }}
-      control={
-        <Switch
-          size="small"
-          checked={!filters.active}
-          onChange={(e) => setFilters({ active: !e.target.checked })}
-        />
-      }
-      label={<Typography variant="body2">완료, 취소 포함</Typography>}
-    />
+    <FilterToggle pressed={!filters.active} onClick={() => setFilters({ active: !filters.active })}>
+      완료, 취소 포함
+    </FilterToggle>
   );
 
   /* 부서 후보는 **목록 응답이** 들고 온다(서버가 계산한 내 조회 범위). 별도 질의를 만들지

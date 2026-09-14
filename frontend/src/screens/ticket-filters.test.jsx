@@ -14,6 +14,8 @@
  *
  * 오탐 방지: 아무것도 안 고른 화면의 주소에는 쿼리가 없어야 하고, 필터를 지우면 다시
  * 비어야 한다. 이게 없으면 "주소가 바뀐다" 검사는 아무 값이나 실려도 통과한다.
+ *
+ * qa-contract-change: 필터 바의 켬/끔 스위치 · 체크박스를 34 중립 단추(FilterToggle, aria-pressed)로 옮겼다(핸드오프 RULES §3, 계획 P-14). 스위치 · 체크박스 역할로 찾던 단언을 같은 이름의 단추로 옮기고, 눌림 상태(aria-pressed)를 더 단언한다.
  */
 import React from "react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
@@ -327,10 +329,13 @@ describe("팀 티켓 — 같은 부품, 담당자 조건까지", () => {
     await screen.findByText("티켓 1");
     expect(lastListQuery("/api/tickets/team").get("active")).toBe("true");
 
-    await user.click(screen.getByRole("switch", { name: "완료, 취소 포함" }));
+    const includeDone = screen.getByRole("button", { name: "완료, 취소 포함" });
+    expect(includeDone).toHaveAttribute("aria-pressed", "false");
+    await user.click(includeDone);
 
     await waitFor(() => expect(lastListQuery("/api/tickets/team").get("active")).toBe("false"));
     expect(addrParam("active")).toBe("0");
+    expect(screen.getByRole("button", { name: "완료, 취소 포함" })).toHaveAttribute("aria-pressed", "true");
   });
 });
 

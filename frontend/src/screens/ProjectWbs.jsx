@@ -4,7 +4,8 @@ import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import ChevronRightRoundedIcon from "@mui/icons-material/ChevronRightRounded";
 import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded";
-import { Badge, Card, EmptyState, FlatBadgeSurface } from "../ui/kit.jsx";
+import { Badge, Card, DataTable, EmptyState, FlatBadgeSurface } from "../ui/kit.jsx";
+import { OVERFLOW } from "../ui/columnTypes.js";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, NUMERIC } from "../ui/theme.js";
 import { ProgressBasis } from "./ProjectMetrics.jsx";
 import { WBS_UNPLACED_KO, percentText } from "./project-format.js";
@@ -183,17 +184,17 @@ export function ProjectWbs({ data }) {
           <Note sx={{ mt: 0 }}>
             아래 작업은 트리에 넣지 못했지만 위의 진행률에는 들어 있습니다. 빼면 상위 작업 설정 하나에 진행률이 통째로 흔들립니다.
           </Note>
-          <Box component="ul" sx={{ m: 0, mt: 1.5, p: 0, display: "grid", gap: 1 }}>
-            {unplaced.map((u) => (
-              <Box component="li" key={u.key} sx={{ listStyle: "none", display: "grid", gap: 0.25 }}>
-                <Typography sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: FONT_SIZE.body, ...KO_WORD_BREAK }}>
-                  {u.title || "제목 없음"}
-                </Typography>
-                <Typography variant="body2" color="text.secondary" sx={KO_WORD_BREAK}>
-                  {WBS_UNPLACED_KO[u.reason] || "트리에 넣지 못했습니다. 작업의 상위 구조를 확인해 주세요."}
-                </Typography>
-              </Box>
-            ))}
+          {/* 작업 · 이유 두 열은 표다(계획 B-5) — 작업과 이유를 한 줄씩 쌓던 손 목록을 옮겼다. 이유 문장은 줄을 바꾼다. */}
+          <Box sx={{ mt: 1.5 }}>
+            <DataTable
+              columns={[
+                { key: "title", label: "작업", type: "title", render: (u) => u.title || "제목 없음" },
+                { key: "reason", label: "이유", type: "text", overflow: OVERFLOW.word,
+                  render: (u) => WBS_UNPLACED_KO[u.reason] || "트리에 넣지 못했습니다. 작업의 상위 구조를 확인해 주세요." },
+              ]}
+              rows={unplaced}
+              rowKey={(u) => u.key}
+            />
           </Box>
         </Card>
       ) : null}

@@ -17,6 +17,8 @@
  *
  * 오탐 방지를 위해 표본은 **값이 서로 다른 것**을 쓴다. 0 을 쓰면 "null 을 0으로 그렸다"를
  * 잡지 못하고, 요약 숫자를 목록 건수와 같게 두면 화면이 목록을 세도 통과한다.
+ *
+ * qa-contract-change: 필터 바의 켬/끔 스위치 · 체크박스를 34 중립 단추(FilterToggle, aria-pressed)로 옮겼다(핸드오프 RULES §3, 계획 P-14). 스위치 · 체크박스 역할로 찾던 단언을 같은 이름의 단추로 옮기고, 눌림 상태(aria-pressed)를 더 단언한다.
  */
 import React from "react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
@@ -563,9 +565,12 @@ describe("프로젝트 목록 — 조건이 주소에 남는다", () => {
     renderAt("/projects");
     await screen.findByText("배포 자동화");
 
-    await user.click(screen.getByRole("switch", { name: "보관한 프로젝트 포함" }));
+    const archivedToggle = screen.getByRole("button", { name: "보관한 프로젝트 포함" });
+    expect(archivedToggle).toHaveAttribute("aria-pressed", "false");
+    await user.click(archivedToggle);
 
     await waitFor(() => expect(addrParam("archived")).toBe("1"));
+    expect(screen.getByRole("button", { name: "보관한 프로젝트 포함" })).toHaveAttribute("aria-pressed", "true");
     await waitFor(() => expect(lastQuery("/api/projects").get("include_archived")).toBe("true"));
   });
 
@@ -573,7 +578,7 @@ describe("프로젝트 목록 — 조건이 주소에 남는다", () => {
     renderAt("/projects?archived=1");
     await screen.findByText("배포 자동화");
     expect(lastQuery("/api/projects").get("include_archived")).toBe("true");
-    expect(screen.getByRole("switch", { name: "보관한 프로젝트 포함" })).toBeChecked();
+    expect(screen.getByRole("button", { name: "보관한 프로젝트 포함" })).toHaveAttribute("aria-pressed", "true");
   });
 
   it("더 받아도 걸어 둔 조건은 그대로 간다", async () => {
@@ -763,9 +768,12 @@ describe("프로젝트 상세 — 탭", () => {
     // 서버 기본값에 기대지 않고 명시적으로 활성만 요청한다(화면이 무엇을 요청하는지 보인다).
     expect(lastQuery("/api/tickets/team").get("active")).toBe("true");
 
-    await user.click(screen.getByRole("switch", { name: "완료, 취소 포함" }));
+    const includeDone = screen.getByRole("button", { name: "완료, 취소 포함" });
+    expect(includeDone).toHaveAttribute("aria-pressed", "false");
+    await user.click(includeDone);
 
     await waitFor(() => expect(lastQuery("/api/tickets/team").get("active")).toBe("false"));
+    expect(screen.getByRole("button", { name: "완료, 취소 포함" })).toHaveAttribute("aria-pressed", "true");
   });
 
   it("🔴 외부 짝이 없는 프로젝트도 자기 티켓을 부른다 — 포털 id 로", async () => {

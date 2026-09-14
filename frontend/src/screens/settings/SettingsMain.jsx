@@ -1,14 +1,12 @@
 import React, { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Box from "@mui/material/Box";
-import Checkbox from "@mui/material/Checkbox";
-import FormControlLabel from "@mui/material/FormControlLabel";
 import Typography from "@mui/material/Typography";
 import { api } from "../../lib/api.js";
 import { useAuth } from "../../app/auth.jsx";
 import { useQueryState } from "../../lib/useQueryState.js";
 import { ListCard, Badge, Button, DataTable, EmptyState, ErrorState, Tag, useToast } from "../../ui/kit.jsx";
-import { ToolbarEnd, ToolbarRow } from "../../ui/FilterBar.jsx";
+import { FilterSurface, FilterToggle, ToolbarEnd, ToolbarRow } from "../../ui/FilterBar.jsx";
 import {
   SETTING_LABELS, settingLabel, WRITE_ROLES, MAINTENANCE_KEYS, DEDICATED_SCREEN_KEYS,
   summarizeSetting, displayValue,
@@ -169,14 +167,14 @@ export function Settings({ embedded = false } = {}) {
         : <>
             {/* 기술 정보 토글 (지시 36). 원시 설정 키는 운영·장애 분석에 필요한 값이지만
                 일반 사용자 언어가 아니다 — 기본은 숨기고 필요할 때 꺼내 본다. */}
-            <ToolbarRow sx={{ mb: 1 }}>
-              <ToolbarEnd>
-                <FormControlLabel
-                  control={<Checkbox size="small" checked={showKey} onChange={(e) => setShowKey(e.target.checked)} />}
-                  label={<Typography variant="body2" color="text.secondary">기술 정보(설정 키) 보기</Typography>}
-                />
-              </ToolbarEnd>
-            </ToolbarRow>
+            {/* 목록 위의 보기 줄도 필터 바다 — 켬/끔은 34 중립 단추다(핸드오프 RULES §3 · 계획 P-14). */}
+            <FilterSurface divider={false} sx={{ mb: 1 }}>
+              <ToolbarRow>
+                <ToolbarEnd>
+                  <FilterToggle pressed={showKey} onClick={() => setShowKey(!showKey)}>기술 정보(설정 키) 보기</FilterToggle>
+                </ToolbarEnd>
+              </ToolbarRow>
+            </FilterSurface>
             {/* 목록을 담는 판은 `ListCard` 다(다른 목록 화면과 같은 판 — 열 이름 고정이 판 안에
                 갇히지 않는다). */}
             <ListCard sx={{ mb: 2.5 }}><DataTable columns={columns} rows={rows} rowKey={(r) => r.key} onRow={setSel} /></ListCard>

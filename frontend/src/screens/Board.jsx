@@ -31,8 +31,8 @@ import { CONTROL, FONT_SIZE, FONT_WEIGHT, remPx } from "../ui/theme.js";
 import { ideaStatusKind } from "../lib/badges.js";
 import { buildPostsQuery, reactionMap } from "./board-helpers.js";
 import { useQueryState } from "../lib/useQueryState.js";
-import { SearchBox } from "../ui/filters.jsx";
-import { FilterRow, FilterSurface, ResultLine, ToolbarEnd, ToolbarRow } from "../ui/FilterBar.jsx";
+import { FilterSelect, SearchBox } from "../ui/filters.jsx";
+import { FilterChips, FilterRow, FilterSurface, ResultLine, ToolbarEnd, ToolbarRow } from "../ui/FilterBar.jsx";
 import { DateCell } from "../ui/cells.jsx";
 import { ListFooter } from "../ui/InfiniteScroll.jsx";
 import { useInfiniteList } from "../lib/useInfiniteList.js";
@@ -549,60 +549,42 @@ function BoardScreen({ kind = "free" }) {
             placeholder="제목, 내용, 작성자 검색"
             ariaLabel="검색"
           />
+          {/* 정렬은 「어떻게 볼지」라 줄 오른쪽 끝의 칸이다 — 이름이 칸 안에 서는 34 칸이고, 「전체」가 답이
+              아닌 축이라 빈 항목이 없다(핸드오프 README §3). */}
           <ToolbarEnd>
-            <TextField
-              select size="small" label="정렬" value={sort}
-              InputLabelProps={{ shrink: true }}
-              onChange={(e) => setQuery({ sort: e.target.value })}
-              sx={{ minWidth: "10rem" }}
-            >
-              {SORTS.map(([v, label]) => <MenuItem key={v} value={v}>{label}</MenuItem>)}
-            </TextField>
+            <FilterSelect
+              label="정렬" value={sort} noAllOption
+              onChange={(v) => setQuery({ sort: v })}
+              options={SORTS.map(([v, label]) => ({ value: v, label }))}
+            />
           </ToolbarEnd>
         </ToolbarRow>
+        {/* 카테고리 · 상태는 칩 토글 줄이 아니라 이름이 칸 안에 선 선택이다(계획 P-20 · 핸드오프 RULES §3).
+            칩 토글은 분류 수만큼 조작기가 늘어나고, 필터 바의 다른 칸(34 · 칸 안 이름)과 어휘가 갈렸다.
+            걸린 조건은 아래 조건 칩이 말하고 하나씩 뗄 수 있다. */}
         <FilterRow>
-          <Box role="group" aria-label="카테고리" sx={{ display: "flex", gap: 1, flexWrap: "wrap", minWidth: 0 }}>
-            <Chip
-              component="button" type="button" clickable label="전체"
-              aria-pressed={category === ""}
-              color={category === "" ? "primary" : "default"}
-              variant={category === "" ? "filled" : "outlined"}
-              onClick={() => setQuery({ category: "" })}
-            />
-            {categories.map((c) => (
-              <Chip
-                key={c}
-                component="button" type="button" clickable label={c}
-                aria-pressed={category === c}
-                color={category === c ? "primary" : "default"}
-                variant={category === c ? "filled" : "outlined"}
-                onClick={() => setQuery({ category: c })}
-              />
-            ))}
-          </Box>
+          <FilterSelect
+            label="카테고리" value={category} allLabel="전체"
+            onChange={(v) => setQuery({ category: v })}
+            options={categories}
+          />
           {statuses.length > 0 ? (
-            <Box role="group" aria-label="상태" sx={{ display: "flex", gap: 1, flexWrap: "wrap", minWidth: 0 }}>
-              <Chip
-                component="button" type="button" clickable label="전체 상태"
-                aria-pressed={status === ""}
-                color={status === "" ? "primary" : "default"}
-                variant={status === "" ? "filled" : "outlined"}
-                onClick={() => setQuery({ status: "" })}
-              />
-              {statuses.map((st) => (
-                <Chip
-                  key={st}
-                  component="button" type="button" clickable label={st}
-                  aria-pressed={status === st}
-                  color={status === st ? "primary" : "default"}
-                  variant={status === st ? "filled" : "outlined"}
-                  onClick={() => setQuery({ status: st })}
-                />
-              ))}
-            </Box>
+            <FilterSelect
+              label="상태" value={status} allLabel="전체 상태"
+              onChange={(v) => setQuery({ status: v })}
+              options={statuses}
+            />
           ) : null}
         </FilterRow>
       </FilterSurface>
+      <FilterChips
+        items={[
+          category ? { key: "category", label: `카테고리: ${category}`, onDelete: () => setQuery({ category: "" }) } : null,
+          status ? { key: "status", label: `상태: ${status}`, onDelete: () => setQuery({ status: "" }) } : null,
+        ]}
+        onClearAll={category && status ? () => setQuery({ category: "", status: "" }) : null}
+        clearLabel="필터 지우기"
+      />
       {list.first ? (
         <ResultLine
           total={list.total != null ? list.total : items.length}

@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
+import { ResultLine } from "../ui/FilterBar.jsx";
 import { api } from "../lib/api.js";
 import {
   Button, Card, DataTable, EmptyState, ErrorState, Skeleton, useToast,
@@ -122,14 +123,19 @@ export function ProjectDocuments({ projectId, projectName = "" }) {
 
   return (
     <Stack spacing={2}>
-      <Stack direction="row" gap={2} sx={{ flexWrap: "wrap", alignItems: "center" }}>
-        <Typography variant="body2" color="text.secondary" aria-live="polite" sx={{ flex: 1 }}>
-          {hidden
-            ? "총 " + total + "건 가운데 " + rows.length + "건을 보여 줍니다. 나머지는 문서 화면에서 찾을 수 있습니다."
-            : "총 " + total + "건"}
-        </Typography>
-        <Button variant="primary" onClick={() => { createDocument.reset(); setNewDoc(true); }}>새 문서</Button>
-      </Stack>
+      {/* 결과 줄 — 화면이 쓰던 문장을 그대로 세우고(계획 P-21), 이 탭의 주 행동이 같은 줄 끝에 선다. */}
+      <ResultLine
+        total={total}
+        text={hidden
+          ? "총 " + total + "건 가운데 " + rows.length + "건을 보여 줍니다. 나머지는 문서 화면에서 찾을 수 있습니다."
+          : "총 " + total + "건"}
+        action={
+          <Button variant="primary" sx={{ marginInlineStart: "auto" }} onClick={() => { createDocument.reset(); setNewDoc(true); }}>
+            새 문서
+          </Button>
+        }
+        sx={{ alignItems: "center", mb: 0 }}
+      />
       {rows.length === 0 ? (
         <EmptyState
           title="이 프로젝트에 문서가 아직 없습니다."

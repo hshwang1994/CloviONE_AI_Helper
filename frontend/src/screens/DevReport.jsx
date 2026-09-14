@@ -1,8 +1,6 @@
 import React from "react";
 import { useQuery } from "@tanstack/react-query";
 import Box from "@mui/material/Box";
-import MenuItem from "@mui/material/MenuItem";
-import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { useTheme } from "@mui/material/styles";
 import { api } from "../lib/api.js";
@@ -12,6 +10,7 @@ import {
   Section, SectionTitle,
 } from "../ui/kit.jsx";
 import { FilterActions, FilterRow, FilterSurface } from "../ui/FilterBar.jsx";
+import { FilterSelect } from "../ui/filters.jsx";
 import { FONT_WEIGHT, KO_WORD_BREAK, PROSE_MAX_WIDTH } from "../ui/theme.js";
 import { Donut } from "../ui/charts/Donut.jsx";
 import { resolveChartColor } from "../ui/charts/base.jsx";
@@ -267,22 +266,18 @@ export function DevReport() {
           `FilterActions` 로 줄 끝에 붙는다. 화면마다 다른 조건 줄을 만들지 않는다. */}
       <FilterSurface sx={{ "@media print": { display: "none" } }}>
         <FilterRow>
-          <TextField
-            InputLabelProps={{ shrink: true }}
-            id="devrep-year" select size="small" label="연도" value={period.slice(0, 4)}
-            onChange={(e) => setPeriod(e.target.value + "-" + period.slice(5, 7))}
-            sx={{ minWidth: "8rem" }}
-          >
-            {yearOptions(5).map((y) => <MenuItem key={y} value={String(y)}>{y}년</MenuItem>)}
-          </TextField>
-          <TextField
-            InputLabelProps={{ shrink: true }}
-            id="devrep-month" select size="small" label="월" value={period.slice(5, 7)}
-            onChange={(e) => setPeriod(period.slice(0, 4) + "-" + e.target.value)}
-            sx={{ minWidth: "7rem" }}
-          >
-            {MONTH_VALUES.map((m) => <MenuItem key={m} value={m}>{parseInt(m, 10)}월</MenuItem>)}
-          </TextField>
+          {/* 연도 · 월은 필터 바의 칸이다 — 이름이 칸 안에 서는 34 칸이고(핸드오프 README §3), 「전체」가
+              답이 아닌 축이라 빈 항목이 없다. */}
+          <FilterSelect
+            label="연도" value={period.slice(0, 4)} noAllOption
+            onChange={(v) => setPeriod(v + "-" + period.slice(5, 7))}
+            options={yearOptions(5).map((y) => ({ value: String(y), label: y + "년" }))}
+          />
+          <FilterSelect
+            label="월" value={period.slice(5, 7)} noAllOption
+            onChange={(v) => setPeriod(period.slice(0, 4) + "-" + v)}
+            options={MONTH_VALUES.map((m) => ({ value: m, label: parseInt(m, 10) + "월" }))}
+          />
           <FilterActions>
             <Button onClick={() => window.print()}>인쇄하거나 PDF로 저장</Button>
           </FilterActions>

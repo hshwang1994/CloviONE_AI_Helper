@@ -81,8 +81,9 @@ export const FORM_FIELD_SX = { flex: "0 0 auto", width: "100%", minWidth: 0, max
  * `layout="form"` · `"fill"` 은 언제나 폼 치수(36 · 라벨 위)다. */
 export const FilterRowContext = React.createContext(false);
 
-/** 이 칸이 필터 바의 줄 모양(34 · 칸 안 이름)인가. */
-function useRowCell(layout) {
+/** 이 칸이 필터 바의 줄 모양(34 · 칸 안 이름)인가. 같은 줄에 서는 다른 고르개(`TagPicker`)도 이
+ * 판정과 아래 `PrefixLabel` 을 같이 쓴다 — 줄 모양을 부품마다 따로 판정하면 한 줄에서 갈린다. */
+export function useRowCell(layout) {
   const inRow = React.useContext(FilterRowContext);
   if (layout === "row") return true;
   if (layout === "form" || layout === "fill") return false;
@@ -105,7 +106,7 @@ const ROW_SEARCH_SX = {
 };
 
 /* 칸 안의 이름. 값보다 가볍고(muted · 400) 줄어들지 않는다 — 좁아지면 값이 말줄임된다. */
-function PrefixLabel({ id, children }) {
+export function PrefixLabel({ id, children }) {
   return (
     <Box
       component="span"
@@ -285,9 +286,12 @@ export function useDebouncedCommit(value, onCommit, delay = FILTER_DEBOUNCE_MS) 
  * 한 호출부가 우회로 알고 있는 기본값은 기본값이 아니라 결함이다. 폭은 이제 종류가 정한다.
  */
 export const SearchBox = React.memo(function SearchBox({
-  value, placeholder, ariaLabel, onSearch, sx, layout,
+  value, placeholder, ariaLabel, onSearch, sx, layout, immediate = false,
 }) {
-  const [draft, setDraft] = useDebouncedCommit(value, onSearch);
+  const debounced = useDebouncedCommit(value, onSearch);
+  /* `immediate` — **제출형 검색**(통합 검색)은 부모가 글자마다 값을 들고 Enter · 「검색」 단추가
+     확정한다. 디바운스로 확정하면 Enter 를 누른 순간 부모 값이 아직 옛 글자일 수 있다. */
+  const [draft, setDraft] = immediate ? [value, onSearch] : debounced;
   const row = useRowCell(layout);
   return (
     <TextField
@@ -320,12 +324,15 @@ export const SearchBox = React.memo(function SearchBox({
  * 선택기가 될 수 없다(고를 후보가 세상에 없다)» 는 **종류 선언**이다. 값이 boolean 이 아니라
  * 문장인 이유도 같다: 읽는 사람이 DOM 에서 바로 그 이유를 본다. */
 export const DebouncedTextField = React.memo(function DebouncedTextField({
-  value, onCommit, label, placeholder, sx, kind = "text", inputProps, freeTextReason, layout,
+  value, onCommit, label, placeholder, sx, kind = "text", inputProps, freeTextReason, layout, type,
 }) {
   const [draft, setDraft] = useDebouncedCommit(value, onCommit);
   const row = useRowCell(layout);
   return (
     <TextField
+      /* `type` — 시각 조건(`datetime-local`)도 같은 칸 모양으로 선다. 브라우저가 자리표시자를 무시하는
+         종류라 칸 안 이름이 그 칸이 무엇인지 말한다. */
+      type={type}
       size="small"
       label={row ? undefined : label}
       InputLabelProps={row ? undefined : { shrink: true }}
@@ -355,8 +362,10 @@ export const DebouncedTextField = React.memo(function DebouncedTextField({
  * (담당자는 앱 user_id 로 나가고 화면에는 이름이 보인다)가 있어서 둘 다 받는다. */
 export function FilterSelect({
   label, value, onChange, options, allLabel, disabled, sx, kind = "enum", multiple = false,
-  layout,
+  layout, noAllOption = false,
 }) {
+  /* `noAllOption` — 「전체」가 답이 될 수 없는 축(정렬 · 연도 · 월). 빈 항목을 세우지 않는다 —
+     세우면 고를 수 없던 값(정렬 없음)이 메뉴에 생긴다. `EntityCombobox` 와 같은 이름이다. */
   const list = normalizeOptions(options);
   const row = useRowCell(layout);
   if (multiple) {
@@ -431,7 +440,7 @@ export function FilterSelect({
           ...SELECT_MENU,
         }}
       >
-        <MenuItem value="">{allLabel || `${label} 전체`}</MenuItem>
+        {noAllOption ? null : <MenuItem value="">{allLabel || `${label} 전체`}</MenuItem>}
         {list.map((o) => <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>)}
       </TextField>
     );
@@ -445,7 +454,7 @@ export function FilterSelect({
       {...EMPTYABLE_SELECT}
       SelectProps={{ ...EMPTYABLE_SELECT.SelectProps, ...SELECT_MENU }}
     >
-      <MenuItem value="">{allLabel || `${label} 전체`}</MenuItem>
+      {noAllOption ? null : <MenuItem value="">{allLabel || `${label} 전체`}</MenuItem>}
       {list.map((o) => <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>)}
     </TextField>
   );

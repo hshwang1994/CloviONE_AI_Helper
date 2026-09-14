@@ -234,6 +234,24 @@ B 단계가 전수 흡수를 끝낸 뒤 남는 자리만 적는다. 형식은 �
 - `app/StatusNotices.jsx::StatusChip` → `StatusNoticeButton` 개명 — 상태를 좁히는 `ui/StatusKpi.jsx::StatusChip` 과
   이름이 같았다. MUI 칩 위 MUI 배지 겹침을 30 단추 + 건수 칩으로 옮겼다.
 
+## 0-9. 필터 바 — 칸 34 · 칸 안 이름 · 켬/끔 단추 (핸드오프 README §3 · RULES §3 · ACCEPTANCE D1~D4)
+
+- **필터 바 안의 조건은 전부 줄 칸이다.** 게시판 정렬 · 카테고리 · 상태(칩 토글 줄이던 것 — 계획 P-20), 개발자 리포트
+  연도 · 월, 감사 징후 시작 · 종료 시각(`datetime-local`), 하위 목록 서랍의 조건 줄이 `FilterSurface` 안의
+  `FilterSelect` · `DebouncedTextField` 로 선다. 「전체」가 답이 아닌 축(정렬 · 연도 · 월)은 `FilterSelect noAllOption`.
+  문서 목록의 태그 고르개(`TagPicker`)도 줄 안에서는 같은 칸이다(`useRowCell` · `PrefixLabel` 을 `filters.jsx` 와 같이 쓴다).
+- **켬/끔은 `FilterToggle`(34 중립 단추, `aria-pressed`)** — 보관한 프로젝트 포함 · 완료, 취소 포함(팀 티켓 ·
+  프로젝트 티켓 탭) · 보관된 계정 보기 · 기술 정보(설정 키) 보기 · 작업 보드의 내 티켓만 · 보류 펴기/접기 ·
+  완료와 취소 보기/감추기(보호 화면 — 같은 라벨 · 같은 눌림 상태).
+- **검색 칸** — 통합 검색은 필터 바의 검색 슬롯(320)에 제출 단추가 붙는다(`SearchBox immediate`: 제출형이라 글자마다
+  값을 부모가 든다). 채팅방 목록(296)은 `SearchBox layout="fill" immediate`.
+- **결과 줄** — 화면이 쓰던 문장을 `ResultLine text` 로 그대로 세운다(계획 P-21): 통합 검색 · 프로젝트 문서 탭 ·
+  프로젝트 티켓 탭(켬/끔 단추가 같은 줄 끝). 실제 손 결과 줄은 셋이었다(계획의 「7」은 조사 시점 추정).
+- 내 활동의 종류 고르기는 판 안 토글 단추 묶음에서 필터 바 위 `Segmented` 로 옮겼다(B-7 과 같은 줄).
+- **남긴 자리**: `DateField`(MUI X 날짜 고르개)는 줄 칸 모양이 없다 — 지금 날짜 조건을 쓰는 목록 · 서랍이 없어(registry
+  `type: "date"` 소비처 0) 부품을 넓히지 않았다. 사용자 일괄 지정 줄(`UsersBulk`)은 필터가 아니라 일괄 동작 줄이고
+  「값」 칸이 고르기 전 자리표시자를 요구하는 폼 칸이라 B-8(폼 라벨)에서 본다.
+
 ---
 
 ## 1. 신설한 부품

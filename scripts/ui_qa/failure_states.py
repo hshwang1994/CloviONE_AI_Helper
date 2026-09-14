@@ -113,13 +113,30 @@ def main() -> int:
                         if m.type == "error" else None)
                 try:
                     # 셸을 먼저 띄운 뒤 가로채기를 건다 — 번들 자체는 정상적으로 받아야 한다.
-                    page.goto(f"{BASE}{route.shell}", wait_until="domcontentloaded", timeout=45_000)
+                    # 🔴 셸은 **목표와 다른 빈 주소**로 띄운다. 셸 주소만 열면 착지 화면(사용자 콘솔은 홈)이
+                    # 가로채기 전에 데이터를 받아 두고, 같은 화면으로 다시 가면 캐시를 그대로 그려 「실패를
+                    # 말하지 않는다」로 셌다(B-3 게이트의 홈). 모르는 주소는 셸 밖 데이터를 부르지 않는다.
+                    page.goto(f"{BASE}{route.shell}#/__failure_states_blank", wait_until="domcontentloaded", timeout=45_000)
                     page.wait_for_timeout(800)
                     install(page, mode)
                     page.goto(f"{BASE}{route.shell}#{route.hash_path}",
                               wait_until="domcontentloaded", timeout=60_000)
-                    page.wait_for_timeout(2500 if mode != "slow" else 3000)
-                    got = page.evaluate(READ)
+                    if mode == "slow":
+                        page.wait_for_timeout(3000)
+                        got = page.evaluate(READ)
+                        waited = 3000
+                    else:
+                        # 🔴 조회는 5xx · 끊김을 두 번 더 시도한다(`lib/queryRetry.js` — 1초 · 2초 뒤). 2.5초만
+                        # 보고 판정하면 **재시도 중인 뼈대**를 「실패를 말하지 않는다」로 셌다(B-1·B-2 게이트의
+                        # 조직 정합성 화면 캡처가 뼈대였다). 재시도 창(약 3초 + 응답)을 넘겨 9초까지 기다리되,
+                        # 실패 낱말이 서면 거기서 멈춘다.
+                        waited = 0
+                        got = page.evaluate(READ)
+                        while not any(w in got["text"] for w in ERROR_WORDS) and waited < 9000:
+                            page.wait_for_timeout(500)
+                            waited += 500
+                            got = page.evaluate(READ)
+                    got["waited_ms"] = waited
                     spoke = [w for w in ERROR_WORDS if w in got["text"]]
                     retry = [x for x in got["buttons"] if "시도" in x or "새로" in x or "재" in x]
                     got.update({"error_words": spoke, "retry_buttons": retry,
@@ -128,7 +145,7 @@ def main() -> int:
                     verdict = ("말함" if spoke else "**침묵**") if mode != "slow" else \
                               ("로딩표시" if got["spinners"] else "**표시없음**")
                     print(f"{mode:<8}{rid:<20}{verdict:<10}chars={got['chars']:<5}"
-                          f"spin={got['spinners']} retry={len(retry)} js_err={len(errs)}", flush=True)
+                          f"spin={got['spinners']} retry={len(retry)} js_err={len(errs)} wait={got['waited_ms']}", flush=True)
                     page.screenshot(path=str(OUT / f"{mode}-{rid}.png"))
                 except Exception as exc:  # 한 화면의 하네스 사고가 나머지 화면을 죽이지 않는다
                     report[f"{mode}/{rid}"] = {"harness_error": str(exc)[:300]}

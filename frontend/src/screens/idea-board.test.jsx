@@ -18,6 +18,9 @@ import "@testing-library/jest-dom/vitest";
  *   2. **자유게시글에 상태 배지가 뜨지 않는가.** 상태는 아이디어에만 뜻이 있다.
  *      서버가 실수로 값을 실어 보내더라도 자유게시판은 그리면 안 되므로, 일부러
  *      `idea_status` 가 실린 자유게시글을 넣고 확인한다.
+ *
+ * qa-contract-change: 상태 칩 토글 줄을 칸 안에 이름이 선 선택(FilterSelect)으로 옮겼다(핸드오프 B-4, 계획 P-20).
+ * 칩 버튼을 누르던 단언은 「상태」 칸에서 고르는 단언으로 옮기고, 걸린 조건 칩이 서는지를 더 단언한다.
  */
 
 const apiMock = vi.fn();
@@ -79,27 +82,31 @@ beforeEach(() => {
   apiMock.mockReset();
 });
 
+async function pickOption(user, comboName, optionName) {
+  await user.click(await screen.findByRole("combobox", { name: comboName }));
+  await user.click(await screen.findByRole("option", { name: optionName }));
+}
+
 describe("상태 필터는 주소에 남는다", () => {
-  it("상태 칩을 누르면 주소에 status= 가 붙는다", async () => {
+  it("상태를 고르면 주소에 status= 가 붙는다", async () => {
     mockApi(() => ({ items: [] }));
     const user = userEvent.setup();
     renderScreen(<IdeaBoard />);
-    await screen.findByRole("button", { name: "검토중" });
 
-    await user.click(screen.getByRole("button", { name: "검토중" }));
+    await pickOption(user, "상태", "검토중");
 
     await waitFor(() => {
       expect(decodeURIComponent(lastSearch)).toContain("status=검토중");
     });
+    expect(screen.getByText("상태: 검토중")).toBeInTheDocument();
   });
 
   it("주소에 실린 상태로 목록을 부른다(새로고침, 링크 공유가 이 위에 선다)", async () => {
     mockApi(() => ({ items: [] }));
     const user = userEvent.setup();
     renderScreen(<IdeaBoard />);
-    await screen.findByRole("button", { name: "진행" });
 
-    await user.click(screen.getByRole("button", { name: "진행" }));
+    await pickOption(user, "상태", "진행");
 
     await waitFor(() => {
       const urls = apiMock.mock.calls.map((c) => decodeURIComponent(String(c[0])));
@@ -111,13 +118,13 @@ describe("상태 필터는 주소에 남는다", () => {
     mockApi(() => ({ items: [] }));
     const user = userEvent.setup();
     renderScreen(<IdeaBoard />);
-    await screen.findByRole("button", { name: "보류" });
 
-    await user.click(screen.getByRole("button", { name: "보류" }));
+    await pickOption(user, "상태", "보류");
     await waitFor(() => expect(decodeURIComponent(lastSearch)).toContain("status=보류"));
 
-    await user.click(screen.getByRole("button", { name: "전체 상태" }));
+    await pickOption(user, "상태", "전체 상태");
     await waitFor(() => expect(lastSearch).not.toContain("status="));
+    expect(screen.queryByText("상태: 보류")).toBeNull();
   });
 });
 
@@ -167,6 +174,7 @@ describe("상태 배지는 아이디어에만 뜬다", () => {
     renderScreen(<Board />);
     await screen.findByRole("heading", { name: "아직 게시글이 없습니다" });
 
-    expect(screen.queryByRole("group", { name: "상태" })).toBeNull();
+    expect(screen.queryByRole("combobox", { name: "상태" })).toBeNull();
+    expect(screen.getByRole("combobox", { name: "카테고리" })).toBeInTheDocument();
   });
 });
