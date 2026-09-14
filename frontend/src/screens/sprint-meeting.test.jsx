@@ -1,6 +1,6 @@
 import React from "react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { configure, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
@@ -31,6 +31,10 @@ import { ConfirmProvider, ToastProvider } from "../ui/kit.jsx";
 import { ThemeModeProvider } from "../ui/ThemeModeProvider.jsx";
 import { SIGNALS } from "../lib/ticketSignals.js";
 import { readSessionDraft } from "../lib/useSessionDraft.js";
+
+/* 회의 화면은 차트 셋(번다운·게이지·범위 변경)을 함께 그려, 전량 vitest 의 병렬 부하에서 첫 그림이
+   5초를 넘긴 적이 있다(단독 실행은 1초 안). 기다림의 상한만 늘린다 — 단언은 그대로다. */
+configure({ asyncUtilTimeout: 15000 });
 
 const TEAM = {
   selected: "d-a",
@@ -192,7 +196,7 @@ describe("스프린트 회의", () => {
 
   it("🔴 회차 개요가 어느 팀의 회차인지, 기간·오늘·단계를 말한다", async () => {
     renderSprint();
-    await waitFor(() => expect(screen.getByText(/8\/24.*~.*8\/30/)).toBeTruthy(), { timeout: 5000 });
+    await waitFor(() => expect(screen.getByText(/8\/24.*~.*8\/30/)).toBeTruthy(), { timeout: 15000 });
     expect(screen.getByText("본부 › A팀")).toBeTruthy();
     expect(screen.getByText(/오늘 8\/27/)).toBeTruthy();
     expect(screen.getByText(/진행 중인 회차입니다/)).toBeTruthy();
@@ -207,7 +211,7 @@ describe("스프린트 회의", () => {
   it("🔴 논의 항목은 유형별 칩이고 각 칩이 건수를 말한다", async () => {
     renderSprint();
     const OVERDUE = `${SIGNALS.overdue.label} 1`;
-    await waitFor(() => expect(screen.getByRole("tab", { name: OVERDUE })).toBeTruthy(), { timeout: 5000 });
+    await waitFor(() => expect(screen.getByRole("tab", { name: OVERDUE })).toBeTruthy(), { timeout: 15000 });
     for (const name of [`${SIGNALS.blocked.label} 1`, `${SIGNALS.issue.label} 0`,
       "미할당 0", "마감 임박 0", "예상 WD 없음 0", "마감 없음 0", "범위 변경 0"]) {
       expect(screen.getByRole("tab", { name })).toBeTruthy();
