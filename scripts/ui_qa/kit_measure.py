@@ -1,0 +1,631 @@
+"""공통 부품의 **치수 · 줄바꿈 · 관계**를 실브라우저에서 잰다 (핸드오프 §0-1 · §0-3 · §0-9).
+
+`run.py` 의 검사는 「화면이 깨졌는가」를 본다(넘침 · 잘림 · 대비). 이 하네스는 그보다 좁고
+딱딱한 질문을 한다 — **정본 부품이 계약값으로 서 있는가.** 버튼 높이 집합이 {34, 30} 인가,
+세그먼티드가 34/3/28 인가, 필터 칸이 34 이고 라벨이 칸 안에 있는가, 같은 줄의 입력칸 윗변이
+같은가, 카드 발의 면과 위 선을 그리는 요소가 하나뿐인가.
+
+## 쓰는 법
+
+    python -m scripts.ui_qa.local_capture --harness kit_measure \\
+        --routes user_kit user_knowledge --viewports 1920x1080 1366x768 1200x900 \\
+        --measure-label a-r1 --fail-on button_height segmented filter_cell
+
+    python -m scripts.ui_qa.local_capture --harness kit_measure --selftest
+
+`--label` · `--themes` 는 `local_capture` 가 먹는 이름이라 `--measure-label` · `--measure-themes`
+를 쓴다.
+
+## 판정 규율 (자작 프로브는 양방향으로 틀린다)
+
+- 검사마다 **표본 수(`checked`)** 를 같이 적는다. `--fail-on` 에 건 검사가 표본 0 이면 통과가
+  아니라 미실행이다 — 종료 코드 2.
+- `--selftest` 는 갤러리 위에 **일부러 틀린 견본**(40px 버튼 · 두 줄 버튼 · 점 있는 배지 ·
+  600 태그 · 24px 건수 칩 · 36px 필터 칸 · 노치 라벨)과 **맞는 견본**을 끼워 넣고, 틀린 것은
+  전부 잡히고 맞는 것은 하나도 안 잡히는지 본다. 이것이 초록이 아니면 제품 판정에 쓰지 않는다.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from collections import defaultdict
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+OUT_BASE = REPO_ROOT / "dist" / "ui-qa"
+
+# 핸드오프 README · DECISIONS 의 확정값. 여기 숫자를 바꾸는 것은 계약을 바꾸는 일이다.
+CONTRACT = {
+    "buttonHeights": [34, 30],
+    "segmented": {"outer": 34, "pad": 3, "inner": 28},
+    "statusChip": 30,
+    "filterChip": 26,
+    "calloutSingle": 49,
+    "calloutIcon": 16,
+    "calloutIconTop": 3,
+    "badge": {"h": 22, "px": 8, "r": 4, "w": 600},
+    "tag": {"h": 22, "r": 6, "w": 400},
+    "filterCell": 34,
+    "searchSlot": 320,
+    "table": {"head": 40, "row": 48, "group": 36, "footer": 44},
+    "cardPadding": 20,
+    "modal": {"radius": 8, "titleSize": 17, "titleWeight": 700, "close": 30},
+    "floatingRadius": 8,
+    "countChip": {"default": 20, "compact": 18},
+    "picker": {"h": 32, "avatar": 22},
+    "mascot": {"pageMin": 112, "pageMax": 132, "region": 72},
+    "tol": 1,
+}
+
+CHECKS = (
+    "button_height", "button_wrap", "button_clip", "icon_button_height", "segmented",
+    "status_chip", "callout", "badge", "tag", "filter_cell", "filter_notched", "search_slot",
+    "filter_switch", "filter_toggle", "filter_surface", "filter_row_tops", "table_heights",
+    "table_align", "card_padding", "modal", "floating_radius", "count_chip", "picker_option",
+    "empty_layout", "error_icon", "mascot_size", "card_row_tops", "page_head_overlap",
+    "footer_owner", "variant_height",
+)
+
+MEASURE_JS = r"""
+(C) => {
+  const scope = C.scope ? document.querySelector(C.scope) : document.body;
+  if (!scope) return { error: 'scope not found: ' + C.scope };
+  const tol = C.tol;
+  const out = {};
+  const check = (name) => (out[name] = out[name] || { checked: 0, bad: [] });
+  const fail = (name, sample) => { const c = check(name); if (c.bad.length < 12) c.bad.push(sample); c.failed = (c.failed || 0) + 1; };
+  const shown = (el) => {
+    const r = el.getBoundingClientRect();
+    if (r.width < 1 || r.height < 1) return false;
+    const st = getComputedStyle(el);
+    return st.visibility !== 'hidden' && st.display !== 'none' && st.opacity !== '0';
+  };
+  const all = (sel) => [...scope.querySelectorAll(sel)].filter(shown);
+  const px = (v) => parseFloat(v) || 0;
+  const hOf = (el) => Math.round(el.getBoundingClientRect().height * 10) / 10;
+  const near = (a, b, t) => Math.abs(a - b) <= (t == null ? tol : t);
+  const text = (el) => ((el.innerText || el.getAttribute('aria-label') || el.getAttribute('title') || '')
+    .replace(/\s+/g, ' ').trim()).slice(0, 40);
+  const where = (el) => {
+    const r = el.getBoundingClientRect();
+    return { text: text(el), x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height) };
+  };
+  const lineCount = (el) => {
+    const tops = [];
+    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+      if (!n.textContent.trim()) continue;
+      const range = document.createRange();
+      range.selectNodeContents(n);
+      for (const r of range.getClientRects()) {
+        if (r.width < 1 || r.height < 1) continue;
+        const mid = r.top + r.height / 2;
+        if (!tops.some((t) => Math.abs(t - mid) < 6)) tops.push(mid);
+      }
+    }
+    return tops.length;
+  };
+  const transparent = (c) => !c || c === 'transparent' || /rgba\([^)]*,\s*0\)$/.test(c);
+  const heightsHist = {};
+  const bump = (h, k) => { h[k] = (h[k] || 0) + 1; };
+
+  // ── 버튼 ────────────────────────────────────────────────────────────────
+  const insideSegmented = (el) => !!el.closest('.k-segmented');
+  const btns = all('.MuiButton-root').filter((el) => !insideSegmented(el));
+  const hist = {};
+  for (const b of btns) {
+    const h = Math.round(hOf(b));
+    bump(hist, h);
+    check('button_height').checked++;
+    if (!C.buttonHeights.some((v) => near(h, v))) fail('button_height', { ...where(b), got: h });
+    check('button_wrap').checked++;
+    if (lineCount(b) > 1) fail('button_wrap', { ...where(b), lines: lineCount(b) });
+    check('button_clip').checked++;
+    const clipped = b.scrollWidth > b.clientWidth + 1 || [...b.querySelectorAll('*')].some((c) => c.scrollWidth > c.clientWidth + 1 && getComputedStyle(c).overflow !== 'visible');
+    if (clipped) {
+      const constrained = !!b.closest('td,th,[role=cell],[data-constrained]');
+      if (!(constrained && b.getAttribute('title'))) fail('button_clip', { ...where(b), constrained, vw: innerWidth });
+    }
+  }
+  out.button_hist = hist;
+  const ibtns = all('.MuiIconButton-root').filter((el) => !el.closest('.MuiInputBase-root,.MuiAutocomplete-root,.MuiChip-root,.MuiSnackbar-root,header,.c-topbar,.c-sidebar,nav'));
+  const ihist = {};
+  for (const b of ibtns) {
+    const h = Math.round(hOf(b));
+    bump(ihist, h);
+    check('icon_button_height').checked++;
+    if (!C.buttonHeights.some((v) => near(h, v))) fail('icon_button_height', { ...where(b), got: h });
+  }
+  out.icon_button_hist = ihist;
+
+  // ── 세그먼티드 · 상태 칩 ────────────────────────────────────────────────
+  for (const s of all('.k-segmented')) {
+    check('segmented').checked++;
+    const st = getComputedStyle(s);
+    const inner = [...s.querySelectorAll('[role=tab],button')].filter(shown);
+    const innerBad = inner.filter((i) => !near(hOf(i), C.segmented.inner)).map((i) => hOf(i));
+    if (!near(hOf(s), C.segmented.outer) || !near(px(st.paddingTop), C.segmented.pad, 0.5) || innerBad.length) {
+      fail('segmented', { ...where(s), outer: hOf(s), pad: st.paddingTop, inner: innerBad.slice(0, 3) });
+    }
+  }
+  for (const s of all('.k-status-chip')) {
+    check('status_chip').checked++;
+    if (!near(hOf(s), C.statusChip)) fail('status_chip', { ...where(s), got: hOf(s) });
+  }
+
+  // ── 메시지 박스 ─────────────────────────────────────────────────────────
+  const calloutBg = new Set();
+  for (const c of all('.k-callout')) {
+    check('callout').checked++;
+    const st = getComputedStyle(c);
+    calloutBg.add(st.backgroundColor + '|' + st.borderTopColor);
+    const problems = [];
+    if (!near(px(st.borderLeftWidth), 1, 0.5)) problems.push('border-left ' + st.borderLeftWidth);
+    const body = c.querySelector('.k-callout-body') || c;
+    const icon = c.querySelector('svg');
+    if (icon) {
+      const ir = icon.getBoundingClientRect();
+      if (!near(ir.width, C.calloutIcon) && !near(ir.width, 14)) problems.push('icon ' + Math.round(ir.width));
+    }
+    const compact = c.getAttribute('data-compact') === 'true' || px(st.paddingTop) < 10;
+    if (!compact && lineCount(body) === 1 && !c.querySelector('button,a[role=button]') && !near(hOf(c), C.calloutSingle)) {
+      problems.push('single-line height ' + hOf(c));
+    }
+    const role = c.getAttribute('role');
+    if (role !== 'alert' && role !== 'status') problems.push('role ' + role);
+    if (problems.length) fail('callout', { ...where(c), problems });
+  }
+  out.callout_backgrounds = [...calloutBg];
+
+  // ── 배지 · 태그 · 건수 칩 ───────────────────────────────────────────────
+  for (const b of all('.k-badge')) {
+    const st = getComputedStyle(b);
+    if (transparent(st.backgroundColor)) continue; // 면 없는 갈래는 점 + 낱말이다
+    check('badge').checked++;
+    const problems = [];
+    if (!near(hOf(b), C.badge.h)) problems.push('h ' + hOf(b));
+    if (!near(px(st.paddingLeft), C.badge.px, 1)) problems.push('px ' + st.paddingLeft);
+    if (!near(px(st.borderTopLeftRadius), C.badge.r, 0.5)) problems.push('r ' + st.borderTopLeftRadius);
+    if (String(st.fontWeight) !== String(C.badge.w)) problems.push('w ' + st.fontWeight);
+    const dot = [...b.querySelectorAll('*')].find((d) => { const r = d.getBoundingClientRect(); const ds = getComputedStyle(d); return r.width > 2 && r.width <= 9 && near(r.width, r.height, 1) && px(ds.borderTopLeftRadius) >= r.width / 2 - 0.5 && !transparent(ds.backgroundColor); });
+    if (dot) problems.push('dot inside');
+    if (problems.length) fail('badge', { ...where(b), problems });
+  }
+  for (const t of all('.k-tag')) {
+    check('tag').checked++;
+    const st = getComputedStyle(t);
+    const problems = [];
+    if (!near(hOf(t), C.tag.h)) problems.push('h ' + hOf(t));
+    if (!near(px(st.borderTopLeftRadius), C.tag.r, 0.5)) problems.push('r ' + st.borderTopLeftRadius);
+    if (String(st.fontWeight) !== String(C.tag.w)) problems.push('w ' + st.fontWeight);
+    if (transparent(st.backgroundColor)) problems.push('no surface');
+    if (!near(px(st.borderTopWidth), 1, 0.5)) problems.push('border ' + st.borderTopWidth);
+    if (problems.length) fail('tag', { ...where(t), problems });
+  }
+  for (const c of all('[data-count-chip]')) {
+    check('count_chip').checked++;
+    const want = c.getAttribute('data-count-chip') === 'compact' ? C.countChip.compact : C.countChip.default;
+    if (!near(hOf(c), want)) fail('count_chip', { ...where(c), got: hOf(c), want });
+  }
+
+  // ── 필터 바 ─────────────────────────────────────────────────────────────
+  const surfaces = all('[data-filter-surface]');
+  for (const s of surfaces) {
+    check('filter_surface').checked++;
+    const st = getComputedStyle(s);
+    const problems = [];
+    if (!transparent(st.backgroundColor)) problems.push('background ' + st.backgroundColor);
+    const next = s.nextElementSibling;
+    if (next && shown(next) && next.getBoundingClientRect().top < s.getBoundingClientRect().bottom - 1) problems.push('overlaps next sibling');
+    if (problems.length) fail('filter_surface', { ...where(s), problems });
+    for (const sw of s.querySelectorAll('.MuiSwitch-root')) {
+      if (!shown(sw)) continue;
+      check('filter_switch').checked++;
+      fail('filter_switch', where(sw.closest('label') || sw));
+    }
+    if (!s.querySelector('.MuiSwitch-root')) check('filter_switch').checked++;
+    const rows = new Map();
+    for (const f of s.querySelectorAll('[data-filter-kind]')) {
+      if (!shown(f)) continue;
+      const box = f.querySelector('.MuiInputBase-root') || f;
+      check('filter_cell').checked++;
+      if (!near(hOf(box), C.filterCell)) fail('filter_cell', { ...where(f), got: hOf(box), kind: f.getAttribute('data-filter-kind') });
+      const legend = f.querySelector('legend > span');
+      check('filter_notched').checked++;
+      if (legend && legend.textContent.replace(/​/g, '').trim() && legend.getBoundingClientRect().width > 2) {
+        fail('filter_notched', { ...where(f), label: legend.textContent.trim() });
+      }
+      const row = f.parentElement;
+      if (!rows.has(row)) rows.set(row, []);
+      rows.get(row).push(box.getBoundingClientRect());
+      if (f.getAttribute('data-filter-kind') === 'search' && (f.parentElement.matches('[data-filter-row]') || f.closest('[data-filter-surface]'))) {
+        check('search_slot').checked++;
+        if (innerWidth >= 900 && !near(f.getBoundingClientRect().width, C.searchSlot)) fail('search_slot', { ...where(f), got: Math.round(f.getBoundingClientRect().width) });
+      }
+    }
+    for (const [, rects] of rows) {
+      // 같은 줄(윗변이 12px 안)끼리 묶어 윗변 차이를 본다
+      const lines = [];
+      for (const r of rects) {
+        const line = lines.find((l) => Math.abs(l[0].top - r.top) < 12);
+        if (line) line.push(r); else lines.push([r]);
+      }
+      for (const l of lines) {
+        if (l.length < 2) continue;
+        check('filter_row_tops').checked++;
+        const tops = l.map((r) => r.top);
+        if (Math.max(...tops) - Math.min(...tops) > tol) fail('filter_row_tops', { tops: tops.map((t) => Math.round(t)) });
+      }
+    }
+    for (const t of s.querySelectorAll('[data-filter-toggle]')) {
+      if (!shown(t)) continue;
+      check('filter_toggle').checked++;
+      const aria = t.hasAttribute('aria-pressed') || t.hasAttribute('aria-expanded');
+      if (!near(hOf(t), 34) || !aria) fail('filter_toggle', { ...where(t), got: hOf(t), aria });
+    }
+  }
+
+  // ── 표 ──────────────────────────────────────────────────────────────────
+  for (const t of all('table')) {
+    const head = t.querySelector('thead tr');
+    if (!head) continue;
+    check('table_heights').checked++;
+    const problems = [];
+    if (!near(hOf(head), C.table.head)) problems.push('head ' + hOf(head));
+    const bodyRows = [...t.querySelectorAll('tbody tr')].filter((r) => shown(r) && !r.hasAttribute('data-group-row') && r.querySelectorAll('td').length > 1);
+    const short = bodyRows.filter((r) => hOf(r) < C.table.row - tol).map((r) => hOf(r));
+    if (short.length) problems.push('row<48 ' + short.slice(0, 3).join(','));
+    const groups = [...t.querySelectorAll('[data-group-row]')].filter(shown).filter((g) => !near(hOf(g), C.table.group)).map((g) => hOf(g));
+    if (groups.length) problems.push('group ' + groups.slice(0, 3).join(','));
+    if (problems.length) fail('table_heights', { rows: bodyRows.length, problems });
+    const ths = [...head.children];
+    const first = bodyRows[0];
+    if (first) {
+      check('table_align').checked++;
+      const tds = [...first.children];
+      const mism = [];
+      ths.forEach((th, i) => {
+        const td = tds[i];
+        if (!td) return;
+        const a = getComputedStyle(th).textAlign, b = getComputedStyle(td).textAlign;
+        const norm = (v) => (v === 'left' ? 'start' : v === 'right' ? 'end' : v);
+        if (norm(a) !== norm(b)) mism.push(i + ':' + a + '/' + b);
+      });
+      if (mism.length) fail('table_align', { mism: mism.slice(0, 4) });
+    }
+  }
+
+  // ── 카드 ────────────────────────────────────────────────────────────────
+  const padHist = {};
+  for (const c of all('.MuiCard-root')) {
+    const st = getComputedStyle(c);
+    const p = Math.round(px(st.paddingTop)) + '/' + Math.round(px(st.paddingLeft));
+    bump(padHist, p);
+    if (px(st.paddingTop) === 0 && px(st.paddingLeft) === 0) continue; // 목록 판(p:0)은 안쪽이 부품이다
+    check('card_padding').checked++;
+    if (!near(px(st.paddingLeft), C.cardPadding) || !near(px(st.paddingTop), C.cardPadding)) {
+      fail('card_padding', { ...where(c), got: p });
+    }
+  }
+  out.card_padding_hist = padHist;
+  // 같은 부모 안에서 같은 줄에 선 카드의 윗변
+  const parents = new Map();
+  for (const c of all('.MuiCard-root')) {
+    const p = c.parentElement;
+    if (!p) continue;
+    const d = getComputedStyle(p).display;
+    if (!/grid|flex/.test(d)) continue;
+    if (!parents.has(p)) parents.set(p, []);
+    parents.get(p).push(c.getBoundingClientRect());
+  }
+  for (const [, rects] of parents) {
+    const lines = [];
+    for (const r of rects) {
+      const line = lines.find((l) => Math.abs(l[0].top - r.top) < 24 && !l.some((x) => x.left === r.left));
+      if (line) line.push(r); else lines.push([r]);
+    }
+    for (const l of lines) {
+      if (l.length < 2) continue;
+      check('card_row_tops').checked++;
+      const tops = l.map((r) => r.top);
+      if (Math.max(...tops) - Math.min(...tops) > tol) fail('card_row_tops', { tops: tops.map((t) => Math.round(t)) });
+    }
+  }
+
+  // ── 페이지 머리 ─────────────────────────────────────────────────────────
+  for (const h of all('.k-page-head')) {
+    const title = h.querySelector('h1');
+    const actions = h.querySelector('.k-page-actions');
+    if (!title || !actions || !shown(actions)) continue;
+    check('page_head_overlap').checked++;
+    const a = title.getBoundingClientRect(), b = actions.getBoundingClientRect();
+    const overlap = !(a.right <= b.left || b.right <= a.left || a.bottom <= b.top || b.bottom <= a.top);
+    if (overlap) fail('page_head_overlap', { title: text(title), actions: text(actions) });
+  }
+
+  // ── 모달 · 떠 있는 것 ───────────────────────────────────────────────────
+  for (const d of [...document.querySelectorAll('.MuiDialog-paper')].filter(shown)) {
+    check('modal').checked++;
+    const st = getComputedStyle(d);
+    const problems = [];
+    if (!near(px(st.borderTopLeftRadius), C.modal.radius, 0.5)) problems.push('radius ' + st.borderTopLeftRadius);
+    const title = d.querySelector('h2, .MuiDialogTitle-root');
+    if (title) {
+      const ts = getComputedStyle(title);
+      if (!near(px(ts.fontSize), C.modal.titleSize, 0.5)) problems.push('title size ' + ts.fontSize);
+      if (String(ts.fontWeight) !== String(C.modal.titleWeight)) problems.push('title weight ' + ts.fontWeight);
+    }
+    const close = d.querySelector('[aria-label="닫기"]');
+    if (close && !near(hOf(close), C.modal.close)) problems.push('close ' + hOf(close));
+    if (problems.length) fail('modal', { title: title ? text(title) : '', problems });
+  }
+  for (const p of [...document.querySelectorAll('.MuiPopover-paper, .MuiMenu-paper, .noti-pop, .MuiSnackbarContent-root, .MuiAlert-root.k-toast')].filter(shown)) {
+    check('floating_radius').checked++;
+    const r = px(getComputedStyle(p).borderTopLeftRadius);
+    if (!near(r, C.floatingRadius, 0.5)) fail('floating_radius', { cls: p.className.toString().slice(0, 60), r });
+  }
+  for (const f of all('[data-action-footer]')) {
+    check('footer_owner').checked++;
+    const host = f.closest('.MuiDialog-paper, .MuiCard-root') || f.parentElement;
+    const owners = [f, ...f.querySelectorAll('*')].concat(host && host !== f ? [f.parentElement] : [])
+      .filter(Boolean).filter((el) => { const s = getComputedStyle(el); return !transparent(s.backgroundColor) && px(s.borderTopWidth) >= 1; });
+    if (owners.length !== 1) fail('footer_owner', { owners: owners.length, text: text(f) });
+  }
+  for (const o of all('[data-picker-option]')) {
+    check('picker_option').checked++;
+    const av = o.querySelector('.MuiAvatar-root, img');
+    const problems = [];
+    if (!near(hOf(o), C.picker.h)) problems.push('h ' + hOf(o));
+    if (av && !near(av.getBoundingClientRect().width, C.picker.avatar)) problems.push('avatar ' + Math.round(av.getBoundingClientRect().width));
+    if (problems.length) fail('picker_option', { ...where(o), problems });
+  }
+
+  // ── 빈 상태 · 오류 · 마스코트 ───────────────────────────────────────────
+  for (const e of all('.k-empty[data-empty-layout], [data-error-layout]')) {
+    const layout = e.getAttribute('data-empty-layout') || e.getAttribute('data-error-layout');
+    const st = getComputedStyle(e);
+    if (layout === 'region' || layout === 'card') {
+      check('empty_layout').checked++;
+      if (st.textAlign === 'center' || st.alignContent === 'center') fail('empty_layout', { ...where(e), layout, textAlign: st.textAlign, alignContent: st.alignContent });
+    }
+    if (e.hasAttribute('data-error-layout')) {
+      check('error_icon').checked++;
+      if (!e.querySelector('svg')) fail('error_icon', { ...where(e), layout });
+    }
+    const img = e.querySelector('[data-mascot-context] img, img[src*="empty"], img[src*="mascot"], img[src*="clovi"]');
+    if (img && shown(img)) {
+      check('mascot_size').checked++;
+      const w = Math.max(img.getBoundingClientRect().width, img.getBoundingClientRect().height);
+      const ok = layout === 'page' ? w <= C.mascot.pageMax + tol : w <= C.mascot.region + tol;
+      if (!ok) fail('mascot_size', { ...where(e), layout, got: Math.round(w) });
+    }
+  }
+
+  // ── 같은 갈래의 높이 분산 ───────────────────────────────────────────────
+  const variants = {
+    'badge-face': all('.k-badge').filter((b) => !transparent(getComputedStyle(b).backgroundColor)),
+    'tag': all('.k-tag'),
+    'count-default': all('[data-count-chip]:not([data-count-chip=compact])'),
+    'button-small': all('.MuiButton-sizeSmall').filter((el) => !insideSegmented(el)),
+    'button-medium': all('.MuiButton-sizeMedium').filter((el) => !insideSegmented(el)),
+  };
+  for (const [name, els] of Object.entries(variants)) {
+    if (els.length < 2) continue;
+    check('variant_height').checked++;
+    const hs = [...new Set(els.map((e) => Math.round(hOf(e))))];
+    if (hs.length > 1) fail('variant_height', { variant: name, heights: hs.slice(0, 6) });
+  }
+  out.vw = innerWidth;
+  return out;
+}
+"""
+
+SELFTEST_HTML = r"""
+(() => {
+  const box = document.createElement('div');
+  box.id = 'kit-selftest';
+  box.style.cssText = 'position:absolute;left:0;top:0;width:1200px;background:#fff;z-index:99999;padding:16px;display:grid;gap:12px';
+  box.innerHTML = `
+    <div id="good">
+      <button class="MuiButton-root MuiButton-sizeMedium" style="height:34px;white-space:nowrap;padding:0 12px">저장</button>
+      <span class="k-badge" style="display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:4px;font-weight:600;background:#e9edf9;font-size:12px">완료</span>
+      <span class="k-tag" style="display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:6px;font-weight:400;background:#fff;border:1px solid #dcdfec;font-size:12px">Docker</span>
+      <span data-count-chip="" style="display:inline-flex;height:20px;padding:0 6px">3</span>
+    </div>
+    <div id="bad">
+      <button class="MuiButton-root MuiButton-sizeMedium" style="height:40px;padding:0 12px">큰 버튼</button>
+      <button class="MuiButton-root MuiButton-sizeSmall" style="width:60px;height:auto;min-height:30px;white-space:normal;padding:0 4px">아주 긴 두 줄 버튼 라벨</button>
+      <span class="k-badge" style="display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 8px;border-radius:4px;font-weight:600;background:#e9edf9;font-size:12px"><i style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#1f5fbf"></i>점 배지</span>
+      <span class="k-tag" style="display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:6px;font-weight:600;background:#fff;border:1px solid #dcdfec;font-size:12px">굵은 태그</span>
+      <span data-count-chip="" style="display:inline-flex;height:24px;padding:0 6px">12</span>
+      <div data-filter-surface="" style="background:transparent">
+        <div data-filter-row="" style="display:flex;gap:12px">
+          <div data-filter-kind="enum" class="MuiFormControl-root"><div class="MuiInputBase-root" style="height:36px;width:160px;border:1px solid #ccc"><fieldset><legend><span>상태</span></legend></fieldset></div></div>
+          <div data-filter-kind="search" class="MuiFormControl-root" style="width:500px"><div class="MuiInputBase-root" style="height:34px;border:1px solid #ccc"></div></div>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(box);
+  return true;
+})()
+"""
+
+# 틀린 견본이 반드시 걸려야 하는 검사와 기대 최소 실패 수, 맞는 견본이 걸리면 안 되는 검사.
+SELFTEST_EXPECT_BAD = {
+    "button_height": 1, "button_wrap": 1, "badge": 1, "tag": 1, "count_chip": 1,
+    "filter_cell": 1, "filter_notched": 1, "search_slot": 1,
+}
+
+
+def _merge(total: dict, page_result: dict, where: str) -> None:
+    for name in CHECKS:
+        got = page_result.get(name)
+        if not got:
+            continue
+        slot = total[name]
+        slot["checked"] += got.get("checked", 0)
+        slot["failed"] += got.get("failed", 0)
+        for sample in got.get("bad", []):
+            if len(slot["samples"]) < 40:
+                slot["samples"].append({"at": where, **sample})
+
+
+def selftest(args) -> int:
+    from scripts.ui_qa import capture as cap, routes as routes_mod, tls
+    from scripts.ui_qa.auth import ensure_session
+    from playwright.sync_api import sync_playwright
+
+    base = args.base_url or cap.DEFAULT_BASE_URL
+    insecure = tls.apply_default_https_context()
+    route = routes_mod.BY_ID["user_kit"]
+    with sync_playwright() as pw:
+        browser = pw.chromium.launch(headless=True)
+        try:
+            session = ensure_session(browser, base, OUT_BASE / "auth-measure", insecure=insecure, log=print)
+            ctx = cap.new_context(browser, storage_state=session.storage_state, user_id=session.user_id,
+                                  theme="light", viewport=cap.resolve_viewports(["1920x1080"])[0],
+                                  insecure=insecure)
+            page = ctx.new_page()
+            page.goto(route.url(base, route.hash_path), wait_until="domcontentloaded", timeout=45_000)
+            cap._settle(page, settle_ms=600, timeout_ms=45_000)
+            page.evaluate(SELFTEST_HTML)
+            good = page.evaluate(MEASURE_JS, {**CONTRACT, "scope": "#kit-selftest #good"})
+            bad = page.evaluate(MEASURE_JS, {**CONTRACT, "scope": "#kit-selftest #bad"})
+            ctx.close()
+        finally:
+            browser.close()
+    problems = []
+    for name, want in SELFTEST_EXPECT_BAD.items():
+        got = (bad.get(name) or {}).get("failed", 0)
+        if got < want:
+            problems.append(f"틀린 견본을 못 잡음: {name} (실패 {got} < {want})")
+    for name in CHECKS:
+        if (good.get(name) or {}).get("failed", 0):
+            problems.append(f"맞는 견본을 잘못 잡음: {name} → {good[name]['bad'][:2]}")
+    checked_good = sum((good.get(n) or {}).get("checked", 0) for n in CHECKS)
+    if checked_good < 4:
+        problems.append(f"맞는 견본 표본이 너무 적다({checked_good})")
+    if problems:
+        for p in problems:
+            print("[SELFTEST] " + p)
+        print("KIT_MEASURE_SELFTEST_FAILED")
+        return 1
+    print(f"KIT_MEASURE_SELFTEST_OK (틀린 견본 {len(SELFTEST_EXPECT_BAD)}종 전부 잡음, 맞는 견본 표본 {checked_good} 오탐 0)")
+    return 0
+
+
+def measure(args) -> int:
+    from scripts.ui_qa import capture as cap, routes as routes_mod, tls
+    from scripts.ui_qa.auth import ensure_session
+    from playwright.sync_api import sync_playwright
+
+    base = args.base_url or cap.DEFAULT_BASE_URL
+    insecure = tls.apply_default_https_context()
+    routes = routes_mod.resolve(args.routes or ["user_kit"])
+    viewports = cap.resolve_viewports(args.viewports or ["1920x1080"])
+    themes = args.measure_themes or ["light"]
+    out_dir = OUT_BASE / args.measure_label
+    out_dir.mkdir(parents=True, exist_ok=True)
+    total = defaultdict(lambda: {"checked": 0, "failed": 0, "samples": []})
+    pages: dict[str, dict] = {}
+    with sync_playwright() as pw:
+        browser = pw.chromium.launch(headless=True)
+        try:
+            session = ensure_session(browser, base, OUT_BASE / "auth-measure", insecure=insecure, log=print)
+            probe = browser.new_context(storage_state=session.storage_state, ignore_https_errors=insecure)
+            hashes: dict[str, str] = {}
+            try:
+                for route in routes:
+                    if route.is_detail:
+                        found, note = cap.discover_detail_hash(probe, base, route, log=print)
+                        if found:
+                            hashes[route.id] = found
+            finally:
+                probe.close()
+            for theme in themes:
+                for viewport in viewports:
+                    ctx = cap.new_context(browser, storage_state=session.storage_state,
+                                          user_id=session.user_id, theme=theme, viewport=viewport,
+                                          insecure=insecure)
+                    page = ctx.new_page()
+                    try:
+                        for route in routes:
+                            if route.is_public or not route.visible_to(session.role):
+                                continue
+                            if route.is_detail and route.id not in hashes:
+                                continue
+                            page.goto(route.url(base, hashes.get(route.id, route.hash_path)),
+                                      wait_until="domcontentloaded", timeout=45_000)
+                            cap._settle(page, settle_ms=args.settle_ms, timeout_ms=45_000)
+                            result = page.evaluate(MEASURE_JS, {**CONTRACT, "scope": None})
+                            key = f"{route.id}__{theme}__{viewport.name}"
+                            pages[key] = result
+                            _merge(total, result, key)
+                            fails = [n for n in CHECKS if (result.get(n) or {}).get("failed")]
+                            print(f"[measure] {key:<50} " + (", ".join(fails) if fails else "ok"), flush=True)
+                    finally:
+                        page.close()
+                        ctx.close()
+        finally:
+            browser.close()
+
+    summary = {name: {"checked": total[name]["checked"], "failed": total[name]["failed"]} for name in CHECKS}
+    (out_dir / "measure.json").write_text(json.dumps(
+        {"contract": CONTRACT, "summary": summary,
+         "samples": {n: total[n]["samples"] for n in CHECKS}, "pages": pages},
+        ensure_ascii=False, indent=1), encoding="utf-8")
+    print("")
+    print(f"{'검사':<22} {'표본':>6} {'실패':>6}")
+    for name in CHECKS:
+        s = summary[name]
+        mark = "  ← 표본 0" if s["checked"] == 0 else ""
+        print(f"{name:<22} {s['checked']:>6} {s['failed']:>6}{mark}")
+    fail_on = args.fail_on or []
+    unknown = [n for n in fail_on if n not in CHECKS]
+    if unknown:
+        print("[FATAL] 모르는 검사 이름: " + ", ".join(unknown))
+        return 2
+    blind = [n for n in fail_on if summary[n]["checked"] == 0]
+    failed = [n for n in fail_on if summary[n]["failed"]]
+    for n in failed:
+        for sample in total[n]["samples"][:6]:
+            print(f"  ✗ {n}: {json.dumps(sample, ensure_ascii=False)[:300]}")
+    print(f"measure.json : {out_dir / 'measure.json'}")
+    if failed:
+        print("KIT_MEASURE_FAILED: " + ", ".join(failed))
+        return 1
+    if blind:
+        print("KIT_MEASURE_BLIND (표본 0 — 미실행): " + ", ".join(blind))
+        return 2
+    print("KIT_MEASURE_OK" + (f" (--fail-on {', '.join(fail_on)})" if fail_on else " (보고만)"))
+    return 0
+
+
+def main() -> int:
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:  # noqa: BLE001
+            pass
+    ap = argparse.ArgumentParser(description="공통 부품 계약 실측")
+    ap.add_argument("--routes", nargs="*", default=None)
+    ap.add_argument("--viewports", nargs="*", default=None)
+    ap.add_argument("--measure-themes", nargs="*", default=None)
+    ap.add_argument("--measure-label", default="kit-measure")
+    ap.add_argument("--base-url", default=None)
+    ap.add_argument("--settle-ms", type=int, default=600)
+    ap.add_argument("--fail-on", nargs="*", default=None, dest="fail_on")
+    ap.add_argument("--selftest", action="store_true")
+    args = ap.parse_args()
+    if args.selftest:
+        return selftest(args)
+    return measure(args)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
