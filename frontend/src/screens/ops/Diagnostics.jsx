@@ -8,8 +8,9 @@ import { api } from "../../lib/api.js";
 import { fmtDateTime } from "../../lib/format.js";
 import { Note, StatusList, StatusTile } from "../../ui/adminKit.jsx";
 import {
-  PageHeader, Badge, Callout, DataTable, MetricStrip, Section, Skeleton, ErrorState, EmptyState, Surface, TechDetail, useToast,
+  PageHeader, Badge, Callout, DataTable, Section, Skeleton, ErrorState, EmptyState, Surface, TechDetail, useToast,
 } from "../../ui/kit.jsx";
+import { StatusSummaryCard } from "../../ui/StatusKpi.jsx";
 import { FONT_SIZE, FONT_WEIGHT } from "../../ui/theme.js";
 import {
   serviceLabel, fmtNum, errorBuckets, healthVerdict, copyText, bundleStamp,
@@ -285,11 +286,13 @@ export function Diagnostics() {
                 {/* Dashboard.jsx의 동일한 인벤토리 판독과 똑같이 해당 레지스트리로 드릴다운한다 -
                     이 화면은 admin/system_admin 전용이라 항상 도달 가능하다(대시보드처럼
                     역할별 canGo 분기가 필요 없다). */}
-                <MetricStrip
+                {/* 값 하나는 큰 숫자 하나다(핸드오프 RULES §10 · 계획 표 7). 가는 길은 옆의 글자 링크가 든다 —
+                    같은 화면 「최근 작업 오류」의 「작업 큐에서 보기 →」와 같은 어휘다. */}
+                <StatusSummaryCard
                   ariaLabel="현재 리소스"
-                  items={[
-                    { key: "schedules", value: fmtNum(counts.active_schedules), label: "활성 스케줄", onClick: () => nav("/schedules") },
-                  ]}
+                  total={fmtNum(counts.active_schedules)}
+                  totalLabel="활성 스케줄"
+                  action={<Link component="button" type="button" variant="body2" underline="hover" onClick={() => nav("/schedules")}>스케줄에서 보기 →</Link>}
                 />
               </Section>
             ) : null}

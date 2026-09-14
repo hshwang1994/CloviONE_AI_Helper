@@ -2,7 +2,8 @@ import React from "react";
 import Box from "@mui/material/Box";
 import Link from "@mui/material/Link";
 import Typography from "@mui/material/Typography";
-import { Badge, MetricStrip, Callout, Section, useToast } from "../../ui/kit.jsx";
+import { Badge, Callout, Section, useToast } from "../../ui/kit.jsx";
+import { StatusKpiStrip } from "../../ui/StatusKpi.jsx";
 import { StatusList, StatusTile } from "../../ui/adminKit.jsx";
 import {
   fmtNum, serviceLabel, fmtCertDays, copyText,
@@ -42,7 +43,7 @@ export function ServiceStatusPanel({ disk, mem, certDaysRemaining, comps, nav, a
         <Section titleAs="h2" title="시스템 리소스">
           {/* Dashboard.jsx가 같은 필드(disk.free_gb)를 fmtNum()+단위-on-값으로 보여주는데
               이 화면만 raw 숫자에 라벨 괄호 단위였다, 같은 표기 규칙으로 맞춘다. */}
-          <MetricStrip
+          <StatusKpiStrip
             ariaLabel="시스템 리소스"
             items={[
               disk.free_gb != null ? { key: "disk_free", value: fmtNum(disk.free_gb) + "GB", label: "디스크 여유" } : null,

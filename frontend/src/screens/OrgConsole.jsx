@@ -4,8 +4,9 @@ import Box from "@mui/material/Box";
 import { useAuth } from "../app/auth.jsx";
 import { OrgTree, isOrgRow, nestRows, pruneTree } from "./OrgTree.jsx";
 import {
-  Button, Card, EmptyState, MetricStrip, PageHeader, Skeleton,
+  Button, Card, EmptyState, PageHeader, Skeleton,
 } from "../ui/kit.jsx";
+import { StatusKpiStrip } from "../ui/StatusKpi.jsx";
 import {
   FilterActions, FilterRow, FilterSurface, ResultLine, ToolbarRow,
 } from "../ui/FilterBar.jsx";
@@ -147,7 +148,7 @@ export function OrgConsole() {
         )}
       />
 
-      <MetricStrip
+      <StatusKpiStrip
         ariaLabel="조직 요약"
         sx={{ mb: 2 }}
         items={[

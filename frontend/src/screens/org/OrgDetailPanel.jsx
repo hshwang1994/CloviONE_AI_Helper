@@ -7,8 +7,9 @@ import Typography from "@mui/material/Typography";
 import { api } from "../../lib/api.js";
 import { useAuth } from "../../app/auth.jsx";
 import {
-  Badge, Button, Card, MetricStrip, Section, TechDetail, useConfirm, useToast,
+  Badge, Button, Card, Section, TechDetail, useConfirm, useToast,
 } from "../../ui/kit.jsx";
+import { StatusKpiStrip } from "../../ui/StatusKpi.jsx";
 import { handleApiError } from "../data-screen/apiError.js";
 import { FONT_SIZE, KO_WORD_BREAK, PROSE_MAX_WIDTH } from "../../ui/theme.js";
 import { useInvalidateOrgCaches } from "./orgQueries.js";
@@ -121,7 +122,7 @@ export function OrgDetailPanel({ org, treeRow, deptRows = [], onOpenDept }) {
         <Button size="sm" variant="primary" onClick={() => setEditing(true)}>수정</Button>
       </Box>
 
-      <MetricStrip
+      <StatusKpiStrip
         ariaLabel={org.name + " 요약"}
         items={[
           { key: "departments", label: "부서", value: org.department_count ?? 0 },

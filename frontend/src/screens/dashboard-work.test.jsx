@@ -21,6 +21,9 @@ import { MemoryRouter } from "react-router-dom";
  *  2. **같은 수를 두 자리에서 말하지 않는다.** 판독 줄이 이미 말하는 티켓 수는 없다.
  *  3. **0 과 못 잼을 구별한다.** Health 를 아직 안 잰 프로젝트도 차질 0건에 섞이면 안 된다.
  *  4. **다른 질의가 죽어도 이 묶음은 뜬다.** 질의가 따로라 함께 죽을 이유가 없다.
+ *
+ * qa-contract-change: 프로젝트 축 줄을 손으로 그린 버튼 목록에서 대시보드와 같은 상태 줄 부품(StatusList, StatusTile — role=button 칸)으로 옮겼다(계획 B-6).
+ * 네이티브 button 으로 찾던 단언을 role=button 칸으로 옮기고, 키보드로 닿는다(tabIndex 0)는 단언을 더한다.
  */
 
 const apiMock = vi.fn();
@@ -109,9 +112,11 @@ describe("이번 주 업무 상태 묶음", () => {
     renderDashboard();
     expect(await screen.findByText("차질 프로젝트")).toBeInTheDocument();
 
-    const row = (label) => screen.getByText(label).closest("button");
+    const row = (label) => screen.getByText(label).closest('[role="button"], button');
     expect(row("차질 프로젝트")).toHaveTextContent("2건");
     expect(row("지연 마일스톤")).toHaveTextContent("1건");
+    // 줄은 키보드로도 닿는다 — 누를 수 있는 칸이 탭 순서에 선다.
+    expect(row("차질 프로젝트")).toHaveAttribute("tabindex", "0");
   });
 
   /* 🔴 판독 줄이 이미 말하는 티켓 수를 여기서 되풀이하지 않는다. 세 라벨은 각각 홈 상단의
@@ -127,7 +132,8 @@ describe("이번 주 업무 상태 묶음", () => {
   it("차질 프로젝트·지연 마일스톤 줄을 누르면 /projects로 간다(이름·사유 상세는 거기에 있다)", async () => {
     renderDashboard();
     const row = await screen.findByText("차질 프로젝트");
-    expect(row.closest("button")).toBeInTheDocument();
+    expect(row.closest('[role="button"], button')).toBeInTheDocument();
+    expect(row.closest('[role="button"], button')).toHaveAttribute("aria-label", "차질 프로젝트 목록 열기");
     expect(screen.queryByText("노션 차질")).not.toBeInTheDocument();
   });
 

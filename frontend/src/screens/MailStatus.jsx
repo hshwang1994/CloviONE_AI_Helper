@@ -5,9 +5,9 @@ import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
 import { failureText } from "../lib/failure.js";
 import {
-  Badge, Button, Callout, DataTable, EmptyState, ErrorState, ListCard, MetaBar, MetricStrip,
-  PageHeader, Section, Skeleton, TechDetail, useConfirm, useToast,
+  Badge, Button, Callout, DataTable, EmptyState, ErrorState, ListCard, MetaBar, PageHeader, Section, Skeleton, TechDetail, useConfirm, useToast,
 } from "../ui/kit.jsx";
+import { StatusSummaryCard } from "../ui/StatusKpi.jsx";
 import { DateCell, NumberCell } from "../ui/cells.jsx";
 import { FONT_WEIGHT } from "../ui/theme.js";
 import { useAuth } from "../app/auth.jsx";
@@ -180,27 +180,24 @@ export function MailStatus() {
         ]}
       />
 
-      <MetricStrip
+      {/* 발송 현황은 네 상태의 합이 전체 메일인 구성이다 — 상태 요약 카드(계획 표 7). */}
+      <StatusSummaryCard
         ariaLabel="발송 현황"
         sx={{ mt: 2 }}
+        total={(counts.failed || 0) + (counts.queued || 0) + (counts.sent || 0) + (counts.unconfigured || 0)}
         items={[
-          {
-            key: "failed", label: "발송 실패", value: counts.failed || 0, primary: true,
-            kind: counts.failed ? "danger" : undefined,
-          },
-          { key: "queued", label: "발송 대기", value: counts.queued || 0 },
-          { key: "sent", label: "발송됨", value: counts.sent || 0 },
-          {
-            key: "blocked", label: "발송 못 함", value: counts.unconfigured || 0,
-            kind: counts.unconfigured ? "warn" : undefined,
-            /* MAIL-03: 이 건수는 설정을 나중에 고쳐도 저절로 줄지 않는다(queue_mail 이 설정
-               문제를 만나면 재시도 잡 자체를 안 만든다). 그 사실을 별도 상자가 아니라 그
-               숫자 바로 아래에 둔다 - 어느 숫자를 한정하는지 다시 찾을 필요가 없다. */
-            note: counts.unconfigured
-              ? "설정을 고쳐도 이 건들은 다시 보내지 않습니다. 고친 뒤 새로 생기는 메일부터 나갑니다."
-              : null,
-          },
+          { key: "failed", label: "발송 실패", value: counts.failed || 0, kind: "danger" },
+          { key: "queued", label: "발송 대기", value: counts.queued || 0, kind: "info" },
+          { key: "sent", label: "발송됨", value: counts.sent || 0, kind: "ok" },
+          { key: "blocked", label: "발송 못 함", value: counts.unconfigured || 0, kind: "warn" },
         ]}
+        /* MAIL-03: 이 건수는 설정을 나중에 고쳐도 저절로 줄지 않는다(queue_mail 이 설정 문제를 만나면
+           재시도 잡 자체를 안 만든다). 그 사실을 별도 상자가 아니라 그 숫자의 정의로 둔다 — 어느 숫자를
+           한정하는지 다시 찾을 필요가 없다. */
+        notes={counts.unconfigured ? [{
+          key: "blocked", label: "발송 못 함",
+          text: "설정을 고쳐도 이 건들은 다시 보내지 않습니다. 고친 뒤 새로 생기는 메일부터 나갑니다.",
+        }] : null}
       />
 
       {/* 구획 제목 + 목록 판 — 다른 목록 화면과 같은 배치. 0건은 표 안의 평문 한 줄이 아니라

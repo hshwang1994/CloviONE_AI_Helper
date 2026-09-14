@@ -5,9 +5,10 @@ import Link from "@mui/material/Link";
 import Typography from "@mui/material/Typography";
 import { api } from "../../lib/api.js";
 import {
-  Badge, Button, Card, ErrorState, MetricStrip, Section, Skeleton, TechDetail, FlatBadgeSurface,
+  Badge, Button, Card, ErrorState, Section, Skeleton, TechDetail, FlatBadgeSurface,
   useConfirm, useToast,
 } from "../../ui/kit.jsx";
+import { StatusKpiStrip } from "../../ui/StatusKpi.jsx";
 import { UserAvatar } from "../../ui/UserAvatar.jsx";
 import { handleApiError } from "../data-screen/apiError.js";
 import { KO_WORD_BREAK, PROSE_MAX_WIDTH } from "../../ui/theme.js";
@@ -204,7 +205,7 @@ export function DeptDetailPanel({ deptId, treeRow }) {
         <Button size="sm" variant="primary" onClick={() => setEditing(true)}>수정</Button>
       </Box>
 
-      <MetricStrip
+      <StatusKpiStrip
         ariaLabel={dept.name + " 요약"}
         items={[
           { key: "members", label: "소속 인원", value: userCount, note: "보관 계정 포함" },

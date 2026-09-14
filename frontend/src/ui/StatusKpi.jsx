@@ -33,7 +33,7 @@ export { StatusDot };
  */
 export function StatusKpiTile({
   label, value, kind, pct, primary, reservePct = false,
-  onClick, selected, ariaLabel,
+  onClick, selected, ariaLabel, note,
 }) {
   const k = kind || (primary ? "indigo" : statusKind(label));
   const accent = accentOf(k);
@@ -93,6 +93,11 @@ export function StatusKpiTile({
         <StatusDot accent={accent} />
         {label}
       </Typography>
+      {/* `note` — 이 숫자를 한정하는 각주(「보관 계정 포함」). 판독 줄이 칸마다 들던 셋째 줄을 그대로
+          이어받는다 — 줄 아래 공용 각주로 빼면 어느 숫자를 한정하는지 다시 찾아야 한다(VIS-09). */}
+      {note ? (
+        <Typography variant="caption" color="text.secondary" sx={{ ...KO_KEEP }}>{note}</Typography>
+      ) : null}
       {reservePct ? (
         <Typography
           variant="caption"
@@ -170,6 +175,7 @@ export function StatusKpiStrip({ items, ariaLabel, revealKey, sx, value, onSelec
             onClick={it.onClick || (selectable && it.key ? () => onSelect(it.key) : undefined)}
             selected={it.key != null && value != null ? it.key === value : undefined}
             ariaLabel={it.ariaLabel}
+            note={it.note}
           />
         </Box>
       ))}
@@ -221,8 +227,8 @@ export function StatusChip({ label, value, accent, pct, onClick, selected, ariaL
       }}
     >
       <StatusDot accent={accent} />
-      <Box component="span" sx={{ ...KO_KEEP }}>{label}</Box>
-      <Box component="span" sx={{ fontWeight: FONT_WEIGHT.bold, color: "text.primary", ...NUMERIC }}>{value}</Box>
+      <Box component="span" data-readout="label" sx={{ ...KO_KEEP }}>{label}</Box>
+      <Box component="span" data-readout="value" sx={{ fontWeight: FONT_WEIGHT.bold, color: "text.primary", ...NUMERIC }}>{value}</Box>
       {pct != null ? <Box component="span" sx={{ ...NUMERIC }}>{pct}%</Box> : null}
     </Box>
   );
@@ -295,8 +301,25 @@ function RatioBar({ parts, total }) {
  */
 export function StatusSummaryCard({
   title, help, total, totalLabel = "전체", items, risks,
-  value, onSelect, riskValue, onRiskSelect, ariaLabel, revealKey, action, sx,
+  value, onSelect, riskValue, onRiskSelect, ariaLabel, revealKey, action, notes, unit = "", sx,
 }) {
+  /* `unit` — 칩 건수 뒤에 붙는 낱말(「3건」). 같은 화면의 다른 자리(도넛 범례)가 「3건」이라 말하면 칩도 같은
+     말을 한다. 비율은 숫자로 센다. */
+  const shownValue = (v) => (unit && v != null && v !== "-" ? `${v}${unit}` : v);
+  /* `notes` — 칩마다 「이 숫자가 무엇을 센 것인지」(`{ key, label, text }`). 판독 줄(MetricStrip)은 칸마다
+     셋째 줄로 그 정의를 들었다 — 정의가 사라지면 숫자를 믿을 수 없다(개발자 리포트). 칩 줄 아래 한
+     묶음의 정의 목록(dl)으로 선다. */
+  const noteList = (notes || []).filter((n) => n && n.text);
+  const noteBlock = noteList.length ? (
+    <Box component="dl" data-summary-notes="" sx={{ m: 0, display: "flex", flexWrap: "wrap", columnGap: 2, rowGap: 0.25 }}>
+      {noteList.map((n) => (
+        <Box key={n.key || n.label} sx={{ display: "flex", alignItems: "baseline", gap: 0.5, minWidth: 0 }}>
+          <Typography component="dt" variant="caption" sx={{ fontWeight: FONT_WEIGHT.semibold, ...KO_KEEP }}>{n.label}</Typography>
+          <Typography component="dd" variant="caption" color="text.secondary" sx={{ m: 0, ...KO_KEEP }}>{n.text}</Typography>
+        </Box>
+      ))}
+    </Box>
+  ) : null;
   const shown = useRevealOnce(revealKey == null ? null : String(revealKey));
   /* 색은 톤에서 오지만 **항목이 직접 말할 수도 있다**(`accent`).
      비율 바에서 색을 여럿 쓰면 어느 조각이 주인지가 사라진다 — 뜻이 있는 조각 하나만
@@ -330,13 +353,17 @@ export function StatusSummaryCard({
           {title ? (
             <Typography component="span" sx={{ fontSize: FONT_SIZE.body, fontWeight: FONT_WEIGHT.bold, ...KO_KEEP }}>{title}</Typography>
           ) : null}
-          <Typography component="span" sx={{ fontSize: FONT_SIZE.pageTitle, fontWeight: FONT_WEIGHT.bold, lineHeight: 1, ...NUMERIC }}>
-            {total}
-          </Typography>
-          <Typography component="span" sx={{ fontSize: FONT_SIZE.bodySm, fontWeight: FONT_WEIGHT.semibold }}>{totalLabel}</Typography>
+          {/* 시험 · 프로브가 「이 카드의 큰 숫자와 그 이름」을 순서가 아니라 이름으로 짚는 손잡이(`data-readout`). */}
+          <Box component="span" data-summary-total="" sx={{ display: "contents" }}>
+            <Typography component="span" data-readout="value" sx={{ fontSize: FONT_SIZE.pageTitle, fontWeight: FONT_WEIGHT.bold, lineHeight: 1, ...NUMERIC }}>
+              {total}
+            </Typography>
+            <Typography component="span" data-readout="label" sx={{ fontSize: FONT_SIZE.bodySm, fontWeight: FONT_WEIGHT.semibold }}>{totalLabel}</Typography>
+          </Box>
           {action ? <Box sx={{ marginInlineStart: "auto" }}>{action}</Box> : null}
         </Box>
         {help ? <Typography variant="caption" color="text.secondary" sx={{ ...KO_KEEP }}>{help}</Typography> : null}
+        {noteBlock}
       </Box>
     );
   }
@@ -374,7 +401,7 @@ export function StatusSummaryCard({
     <StatusChip
       key={it.key || it.label}
       label={it.label}
-      value={it.value}
+      value={shownValue(it.value)}
       accent={it.accent}
       onClick={it.onClick || (riskSelectable && it.key ? () => onRiskSelect(it.key) : undefined)}
       selected={it.key != null && riskValue != null ? it.key === riskValue : undefined}
@@ -428,14 +455,14 @@ export function StatusSummaryCard({
             </Typography>
           ) : null}
           {Number.isFinite(sum) ? (
-            <>
-              <Typography component="span" sx={{ fontSize: FONT_SIZE.pageTitle, fontWeight: FONT_WEIGHT.bold, lineHeight: 1, ...NUMERIC }}>
+            <Box component="span" data-summary-total="" sx={{ display: "contents" }}>
+              <Typography component="span" data-readout="value" sx={{ fontSize: FONT_SIZE.pageTitle, fontWeight: FONT_WEIGHT.bold, lineHeight: 1, ...NUMERIC }}>
                 {total}
               </Typography>
-              <Typography component="span" sx={{ fontSize: FONT_SIZE.bodySm, fontWeight: FONT_WEIGHT.semibold }}>
+              <Typography component="span" data-readout="label" sx={{ fontSize: FONT_SIZE.bodySm, fontWeight: FONT_WEIGHT.semibold }}>
                 {totalLabel}
               </Typography>
-            </>
+            </Box>
           ) : null}
           {help ? (
             <Typography component="span" variant="caption" color="text.secondary" sx={{ ...KO_KEEP }}>{help}</Typography>
@@ -467,7 +494,7 @@ export function StatusSummaryCard({
             <StatusChip
               key={it.key || it.label}
               label={it.label}
-              value={it.value}
+              value={shownValue(it.value)}
               accent={it.accent}
               pct={whole ? Math.round((100 * it.n) / whole) : null}
               onClick={it.onClick || (selectable && it.key ? () => onSelect(it.key) : undefined)}
@@ -483,6 +510,7 @@ export function StatusSummaryCard({
           </Box>
         ) : null}
       </Box>
+      {noteBlock}
     </Box>
   );
 }

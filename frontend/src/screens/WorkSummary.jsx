@@ -7,6 +7,7 @@ import { api } from "../lib/api.js";
 // `fmtNum` 은 운영 화면 헬퍼에 있다(대시보드와 같은 출처를 쓴다 — 숫자 표기가
 // 두 화면에서 달라지면 같은 값이 다르게 보인다).
 import { fmtNum } from "./ops/opsHelpers.js";
+import { StatusList, StatusTile } from "../ui/adminKit.jsx";
 import { ErrorState, Skeleton, SubGroup, TechDetail } from "../ui/kit.jsx";
 import { ProgressRows } from "../ui/charts/ProgressRows.jsx";
 import { fmtDayKo } from "../lib/format.js";
@@ -106,41 +107,19 @@ export function trendRows(trend) {
 /* 프로젝트 축 한 줄 — 이름과 값, 누르면 그 목록으로 간다.
  *
  * 판독 칸(MetricStrip)을 쓰지 않는다. 이 자리는 좁은 레일이고, 값 둘을 40px 로 세우면
- * 「지금 급한 것」보다 커진다. 목록 줄이 맞는 모양이다. */
+ * 「지금 급한 것」보다 커진다. 목록 줄이 맞는 모양이다 — 대시보드 · 진단의 상태 줄과 같은 부품
+ * (`StatusList` · `StatusTile`)이다(계획 B-6). 예전에는 같은 줄을 이 파일이 손으로 그렸다. */
 function StatRow({ label, value, kind, onClick, ariaLabel }) {
   const tone = kind === "danger" ? "error.strong" : kind === "warn" ? "warning.strong" : "text.primary";
   return (
-    <Box
-      component="li"
-      sx={{
-        listStyle: "none",
-        "&:not(:first-of-type)": { borderTop: 1, borderColor: "divider" },
-      }}
-    >
-      <Box
-        component="button"
-        type="button"
-        onClick={onClick}
-        aria-label={ariaLabel}
-        sx={(t) => ({
-          width: "100%", textAlign: "left", font: "inherit", color: "inherit",
-          border: 0, bgcolor: "transparent", borderRadius: 1,
-          px: 1, py: 1, display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 1.5,
-          cursor: "pointer",
-          transition: `background-color ${MOTION.instant} ${MOTION.ease}`,
-          "&:hover": { bgcolor: t.palette.background.inset },
-          "&:focus-visible": { outline: `2px solid ${t.palette.focusRing}`, outlineOffset: -2 },
-        })}
+    <StatusTile name={label} onClick={onClick} ariaLabel={ariaLabel}>
+      <Typography
+        component="span"
+        sx={{ fontWeight: FONT_WEIGHT.bold, color: tone, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}
       >
-        <Typography component="span" variant="body2" sx={{ minWidth: 0, ...KO_WORD_BREAK }}>{label}</Typography>
-        <Typography
-          component="span"
-          sx={{ fontWeight: FONT_WEIGHT.bold, color: tone, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}
-        >
-          {value}건
-        </Typography>
-      </Box>
-    </Box>
+        {value}건
+      </Typography>
+    </StatusTile>
   );
 }
 
@@ -175,7 +154,7 @@ export function WorkSection() {
           실선은 이제 **굴리지 않는 상자**가 갖는다(Home.jsx 의 「이번 주」 판). 여기에
           두면 몇 줄만 굴려도 경계가 스크롤 밖으로 사라진다. */}
       <SubGroup title="프로젝트" first>
-        <Box component="ul" sx={{ m: 0, p: 0 }}>
+        <StatusList ariaLabel="프로젝트">
           <StatRow
             label="차질 프로젝트" value={fmtNum(troubled.count)}
             kind={troubled.count ? "danger" : undefined}
@@ -186,7 +165,7 @@ export function WorkSection() {
             kind={overdueMs.count ? "warn" : undefined}
             onClick={() => nav("/projects")} ariaLabel="지연 마일스톤이 있는 프로젝트 목록 열기"
           />
-        </Box>
+        </StatusList>
         {/* 빠진 것이 있으면 빠졌다고 말한다. 다만 그 이유를 화면 본문에 세 줄로 늘어놓지
             않는다 — 읽어도 사용자가 할 수 있는 일이 없는 문장이다. */}
         {caveat ? (

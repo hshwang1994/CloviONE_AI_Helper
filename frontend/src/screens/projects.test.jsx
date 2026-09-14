@@ -19,6 +19,7 @@
  * 잡지 못하고, 요약 숫자를 목록 건수와 같게 두면 화면이 목록을 세도 통과한다.
  *
  * qa-contract-change: 필터 바의 켬/끔 스위치 · 체크박스를 34 중립 단추(FilterToggle, aria-pressed)로 옮겼다(핸드오프 RULES §3, 계획 P-14). 스위치 · 체크박스 역할로 찾던 단언을 같은 이름의 단추로 옮기고, 눌림 상태(aria-pressed)를 더 단언한다.
+ * qa-contract-change: 요약 구성 칸(판독 줄 MetricStrip)이 상태 요약 카드(StatusSummaryCard)로 바뀌었다(계획 B-6, 표 7). 판독 칸 선택자에 카드의 큰 숫자와 상태 칩을 더하고, 서버 숫자를 그대로 쓴다는 단언과 누르면 좁히고 다시 누르면 푸는 단언은 그대로 둔다.
  */
 import React from "react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
@@ -292,7 +293,7 @@ function lastQuery(path) {
 /* 판독 칸의 선택자. 요약을 카드 벽에서 한 줄(MetricStrip)로 바꿨을 때 이 이름만 늘었고
    아래 단언은 그대로다 — 지키는 것은 DOM 모양이 아니라 "서버 숫자를 그대로 쓴다"와
    "각주가 자기 숫자 옆에 있다"는 계약이다. */
-const READOUT = ".k-stat, .k-readout";
+const READOUT = ".k-stat, .k-readout, [data-summary-total], .k-status-chip";
 
 /** 판독 칸 하나를 이름으로. 접근 이름은 값과 라벨이 붙은 문자열이라 역할로 못 짚는다. */
 function tile(label) {

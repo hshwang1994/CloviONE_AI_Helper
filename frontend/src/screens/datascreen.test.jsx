@@ -18,6 +18,9 @@ import "@testing-library/jest-dom/vitest";
  *   3) 액션 하나를 눌렀을 때 그 버튼만 '처리 중…'이 된다 — 예전엔 단일 boolean이라 화면의 모든
  *      버튼이 같이 처리 중으로 보였다.
  *   4) 401은 재시도해도 401이다 — 일반 오류 토스트로 뭉개면 사용자가 이유도 모른 채 막힌다.
+ *
+ * qa-contract-change: 요약이 판독 줄(MetricStrip) 대신 뜻에 맞는 그릇(summary.kind — KPI 타일 줄 · 상태 요약 카드 · 속성 줄)으로 선다(계획 B-6, 표 7).
+ * 요약 줄 구조 단언을 KPI 타일 줄 한 묶음과 칸 수로, 안 읽음 한 칸을 큰 숫자 카드로 옮기고, 옛 판독 줄이 남지 않았다는 단언을 더한다.
  */
 
 const apiMock = vi.fn();
@@ -341,39 +344,35 @@ describe("요약 줄 — 카드 수와 무관하게 빈 칸이 안 생긴다 (VI
     });
     await screen.findByText("실행 가능(ready)");
 
-    const strips = document.querySelectorAll(".k-metrics");
-    expect(strips, "요약 줄이 하나여야 한다").toHaveLength(1);
+    /* 뜻을 말하지 않은 요약(`summary.kind` 없음)은 서로 다른 측정값의 **KPI 타일 줄**이다(계획 표 7).
+       타일 줄은 칸 수만큼만 트랙을 만든다(`fixedTileTrack`) — 여섯 장이 한 묶음 안에 여섯 칸으로 선다. */
+    const strips = screen.getAllByRole("group", { name: "요약" });
+    expect(strips, "요약 묶음이 하나여야 한다").toHaveLength(1);
     for (const label of LABELS) {
       expect(within(strips[0]).getByText(label), label).toBeInTheDocument();
     }
-    // 줄은 접힌다 — 좁아지면 다음 줄로 내려간다. W4 에서 판을 벗기면서 `.k-metrics` 자체가
-    // flex 컨테이너가 됐다(예전에는 그 안의 첫 자식이었다).
-    expect(getComputedStyle(strips[0]).flexWrap).toBe("wrap");
-    // W4 — **판독 한 줄에 plate 금지**(PLAN «Surface 위계» 하드 금지). 요약 줄은 판을
-    // 갖지 않는다: 자기 배경도, 테두리도 없다. 예전에는 `<Card>` 였고 그래서 canvas ->
-    // plate -> inset 세 톤이 한 줄에 겹쳤다(F-W1R-16).
-    expect(strips[0].className, "판(MuiCard/MuiPaper)이 남아 있으면 안 된다")
-      .not.toMatch(/MuiCard|MuiPaper/);
-    const stripStyle = getComputedStyle(strips[0]);
-    expect(stripStyle.backgroundColor === "" || stripStyle.backgroundColor === "rgba(0, 0, 0, 0)").toBe(true);
-    expect(Number.parseFloat(stripStyle.borderTopWidth || "0")).toBe(0);
-    // 칸 사이 실선은 **실제로 그려지는 형태**여야 한다 — `borderInlineStart: 1` 은 MUI 가
-    // 펴 주지 않아 style 없는 무효 선언이 된다(F-W2R-01, 배포본에서 구분선 픽셀 0개였다).
-    const cells = strips[0].querySelectorAll(".k-readout");
-    expect(cells.length).toBe(LABELS.length);
-    const second = getComputedStyle(cells[1]);
-    expect(second.borderInlineStartStyle).toBe("solid");
-    expect(second.borderInlineStartWidth).toBe("1px");
+    expect(strips[0].children.length, "칸 수가 카드 수와 같아야 한다").toBe(LABELS.length);
+    // 서버 숫자를 그대로 쓴다 — 칸마다 **자기** 값이 선다. 칸은 묶음의 직계 자식이고, 이름과 값이 같은 칸에 있다.
+    const tileOf = (label) => [...strips[0].children].find((el) => within(el).queryByText(label));
+    for (const [label, value] of [["대기", "1"], ["실행 중", "2"], ["실행 가능(ready)", "1"], ["실패", "0"], ["완료", "10"], ["취소됨", "0"]]) {
+      const tile = tileOf(label);
+      expect(tile, label + " 칸이 없다").toBeTruthy();
+      expect(within(tile).getByText(value), label + " 칸의 값").toBeInTheDocument();
+    }
+    expect(getComputedStyle(strips[0]).display).toBe("grid");
+    // 옛 판독 줄이 되살아나지 않는다 — 합이 전체가 아닌 값들을 한 줄 판독으로 늘어놓던 그릇이다.
+    expect(document.querySelectorAll(".k-metrics, .k-readout")).toHaveLength(0);
   });
 
-  it("unreadCountKey가 항목 1개뿐이어도 같은 판독 줄을 쓴다", async () => {
+  it("unreadCountKey 한 값은 큰 숫자 하나로 선다(값 하나 갈래)", async () => {
     apiMock.mockResolvedValue({ items: [], total: 0, unread_count: 3 });
     renderScreen({ ...BASE_CONFIG, unreadCountKey: "unread_count" });
     const label = await screen.findByText("안 읽음");
 
-    const plate = label.closest(".k-metrics");
-    expect(plate, "판독 줄 안에 있어야 한다").not.toBeNull();
+    const plate = label.closest("[data-summary-single]");
+    expect(plate, "값 하나 카드 안에 있어야 한다").not.toBeNull();
     expect(within(plate).getByText("3")).toBeInTheDocument();
+    expect(plate.querySelector('[data-ratio-bar]'), "값 하나에는 비율 바가 없다").toBeNull();
   });
 });
 

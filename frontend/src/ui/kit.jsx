@@ -1013,7 +1013,7 @@ const CALLOUT_ICON = {
 
 export function Callout({
   tone = "info", variant = "block", compact = false, title, action,
-  detail, detailLabel = "기술 정보", children, role, sx,
+  detail, detailLabel = "기술 정보", children, role, toneLabel, sx,
 }) {
   /* 안내 — **큰 외곽선 상자를 기본형으로 쓰지 않는다** (지시 35).
    *
@@ -1045,7 +1045,9 @@ export function Callout({
    * 없습니다」처럼 아무 정보도 없는 머리 아래 정작 할 말이 앉았다.
    * 색만으로 나르지 않는다는 요구(WCAG 1.4.1)는 아이콘의 **모양 넷**과 이 접근 이름이
    * 이미 만족한다. 낭독기는 「경고 아이콘, 주의」를 읽고 화면에는 낱말이 겹치지 않는다. */
-  const toneWord = kind === "danger" ? "오류" : kind === "warn" ? "주의" : kind === "success" ? "성공" : "안내";
+  /* `toneLabel` — 아이콘의 접근 이름을 화면의 판정 낱말로 준다(대시보드의 「위험 · 주의 · 정상」). 같은 화면의
+     조치 목록 심각도 태그와 같은 말이어야 낭독기가 한 뜻을 두 낱말로 읽지 않는다(재감사 C16). */
+  const toneWord = toneLabel || (kind === "danger" ? "오류" : kind === "warn" ? "주의" : kind === "success" ? "성공" : "안내");
   const paletteKey = kind === "danger" ? "error" : kind === "warn" ? "warning" : kind === "success" ? "success" : "info";
   const Icon = CALLOUT_ICON[kind] || InfoOutlinedIcon;
 

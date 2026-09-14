@@ -17,9 +17,10 @@ import { OPS_ROLES } from "./registry/shared.js";
 import { EntityCombobox } from "../ui/filters.jsx";
 import { FilterSurface, ToolbarEnd, ToolbarRow } from "../ui/FilterBar.jsx";
 import {
-  Card, Callout, Button, MetricStrip, Skeleton,
+  Card, Callout, Button, Skeleton,
   EmptyState, ErrorState, Modal, DataTable, useConfirm, useToast,
 } from "../ui/kit.jsx";
+import { StatusSummaryCard } from "../ui/StatusKpi.jsx";
 
 /* 스케줄러 캘린더 (PLAN Phase 6, 관리자 백로그).
  *
@@ -331,15 +332,16 @@ export function SchedulerCalendar({ embedded = false } = {}) {
         </Box>
       ) : (
         <>
-          {/* 요약은 판독 줄이다 — 숫자 셋을 문장 하나와 판 하나에 담을 이유가 없다. 실패는
-              0 이 아닐 때만 위험 톤을 받는다(색만이 아니라 판독 줄이 글자 표지를 함께 단다). */}
-          <MetricStrip
+          {/* 요약은 이 구간 실행의 **구성**이다 — 실행 · 예정 · 실패의 합이 전체라 상태 요약 카드 하나로
+              선다(계획 표 7). 실패의 색은 점이 맡고 이름 글자가 함께 선다. */}
+          <StatusSummaryCard
             ariaLabel="이 구간 실행"
             sx={{ mt: 2 }}
+            total={(counts.run || 0) + (counts.planned || 0) + (counts.failed || 0)}
             items={[
-              { key: "run", label: "실행", value: counts.run },
-              { key: "planned", label: "예정", value: counts.planned },
-              { key: "failed", label: "실패", value: counts.failed, kind: counts.failed ? "danger" : undefined },
+              { key: "run", label: "실행", value: counts.run, kind: "ok" },
+              { key: "planned", label: "예정", value: counts.planned, kind: "info" },
+              { key: "failed", label: "실패", value: counts.failed, kind: "danger" },
             ]}
           />
 

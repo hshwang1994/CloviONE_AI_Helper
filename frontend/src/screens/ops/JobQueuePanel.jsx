@@ -2,7 +2,8 @@ import React from "react";
 import Link from "@mui/material/Link";
 import Box from "@mui/material/Box";
 import { fmtDateTime, jobTypeKo } from "../../lib/format.js";
-import { DataTable, EmptyState, MetricStrip, Section } from "../../ui/kit.jsx";
+import { DataTable, EmptyState, Section } from "../../ui/kit.jsx";
+import { StatusKpiStrip } from "../../ui/StatusKpi.jsx";
 import { Sparkline } from "../../ui/charts/Sparkline.jsx";
 import { Note } from "../../ui/adminKit.jsx";
 import { fmtNum, fmtProcessingTime } from "./opsHelpers.js";
@@ -22,7 +23,7 @@ export function JobQueuePanel({ jobs24, jobErrors, errorDist, nav }) {
               queued/failed_open은 24시간 창이 아니라 시점 백로그 누계다(백엔드가 시간 필터 없이
               계산) - '24시간' 프레임과 섞여 오래된 백로그가 오늘 실패처럼 읽히던 문제를 라벨의
               '(전체)'로 구분하고, /jobs로 드릴다운해 조치할 곳을 준다. */}
-          <MetricStrip
+          <StatusKpiStrip
             ariaLabel="작업 지표"
             items={[
               { key: "total", value: fmtNum(jobs24.total), label: "처리 요청", primary: true },

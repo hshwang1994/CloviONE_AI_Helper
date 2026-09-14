@@ -6,9 +6,10 @@ import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
 import { useAuth } from "../app/auth.jsx";
 import {
-  PageHeader, Card, Badge, Button, Callout, MetricStrip, Skeleton, ErrorState, EmptyState,
+  PageHeader, Card, Badge, Button, Callout, Skeleton, ErrorState, EmptyState,
   DotLabel,
 } from "../ui/kit.jsx";
+import { StatusSummaryCard } from "../ui/StatusKpi.jsx";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
 import { BASELINE_TRACKS, pairTracks } from "../ui/density.js";
 
@@ -147,12 +148,14 @@ function Summary({ data }) {
           {" 확인이 필요한 것은 이 서버에서는 판단할 수 없어 사람에게 묻는 항목입니다."}
         </Callout>
       )}
-      <MetricStrip
+      {/* 남은 항목이 전체이고 할 일 · 확인 필요가 그 구성이다 — 상태 요약 카드(계획 표 7). */}
+      <StatusSummaryCard
         ariaLabel="초기 설정 진행"
+        total={remaining}
+        totalLabel="남은 항목"
         items={[
-          { key: "remaining", label: "남은 항목", value: remaining, primary: true },
-          { key: "todo", label: "할 일", value: todo },
-          { key: "unknown", label: "확인 필요", value: unknown },
+          { key: "todo", label: "할 일", value: todo, kind: "warn" },
+          { key: "unknown", label: "확인 필요", value: unknown, kind: "info" },
         ]}
       />
     </Box>

@@ -17,6 +17,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
  *      이름을 쓰고 원문은 `기술 정보`로 접힌다. 지우지는 않는다.
  *   5) **같은 원인을 두 번 말하지 않는다**(지시 35 · 44) — 설정 문제로 못 보낸 행은 설정
  *      문제 문장을 다시 늘어놓지 않고 위를 가리킨다.
+ *
+ * qa-contract-change: 발송 현황 판독 줄(MetricStrip)이 상태 요약 카드(StatusSummaryCard)로 바뀌었다(계획 B-6, 표 7) — 각주 자리를 판독 칸에서 카드의 정의 목록으로 옮긴다.
+ * 0건 상태는 한 칩으로 접히므로 이름을 정규식으로 찾고, 각주가 발송 현황 카드 안에 있다는 단언을 더한다.
  */
 
 const apiMock = vi.fn();
@@ -98,8 +101,9 @@ describe("메일 발송 화면", () => {
     renderScreen();
     await screen.findByText(/메일 서버 주소가 비어 있습니다/);
     const metrics = screen.getByLabelText("발송 현황");
-    expect(within(metrics).getByText("발송 실패")).toBeInTheDocument();
-    expect(within(metrics).getByText("발송 못 함")).toBeInTheDocument();
+    // 0건인 상태는 「발송 실패, 발송 대기 0건」처럼 한 칩으로 접힌다 — 이름이 그 칩에 남는다.
+    expect(within(metrics).getAllByText(/발송 실패/).length).toBeGreaterThan(0);
+    expect(within(metrics).getAllByText(/발송 못 함/).length).toBeGreaterThan(0);
     expect(screen.getByText("비밀번호 재설정 안내")).toBeInTheDocument();
   });
 
@@ -109,9 +113,11 @@ describe("메일 발송 화면", () => {
   it("발송 못 함 건수가 있으면 재발송 안 된다는 각주가 그 숫자에 붙는다", async () => {
     renderScreen();
     const note = await screen.findByText(/설정을 고쳐도 이 건들은 다시 보내지 않습니다/);
-    const cell = note.closest(".k-readout");
+    // 정의 목록의 한 항목 — 이름(dt)과 각주(dd)가 한 짝이다.
+    const cell = note.closest("[data-summary-notes] > *");
     expect(cell, "각주가 어느 숫자를 한정하는지 알 수 없는 자리에 있다").toBeTruthy();
     expect(within(cell).getByText("발송 못 함")).toBeInTheDocument();
+    expect(screen.getByLabelText("발송 현황").contains(note), "각주가 발송 현황 카드 밖에 떨어져 있다").toBe(true);
   });
 
   it("발송 못 함 건수가 0이면 재발송 각주가 안 뜬다", async () => {

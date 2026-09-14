@@ -9,8 +9,9 @@ import { CONSOLE_WRITE_ROLES } from "../lib/roles.js";
 import { useAuth } from "../app/auth.jsx";
 import {
   Button, Callout, Card, CountChip, DataTable, ErrorState, ListCard, PageHeader,
-  MetricStrip, Section, SectionTitle, Skeleton, useToast,
+  Section, SectionTitle, Skeleton, useToast,
 } from "../ui/kit.jsx";
+import { StatusSummaryCard } from "../ui/StatusKpi.jsx";
 import { SettingRow } from "../ui/adminKit.jsx";
 import { selectionColumn, useRowSelection } from "../ui/bulkSelect.jsx";
 import { OrgPath } from "../ui/OrgPath.jsx";
@@ -248,8 +249,10 @@ export function Integrity() {
           rule
           sx={{ mb: 0 }}
         >
-          <MetricStrip
+          {/* 범위 셋의 합이 관리자 전체인 구성이다 — 상태 요약 카드(계획 표 7). */}
+          <StatusSummaryCard
             ariaLabel="관리자 범위 현황"
+            total={admins.total}
             items={["global", "org", "dept"].map((k) => ({
               key: k,
               value: admins.by_scope[k] || 0,

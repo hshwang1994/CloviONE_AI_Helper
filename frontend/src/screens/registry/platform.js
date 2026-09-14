@@ -94,6 +94,8 @@ export const PLATFORM_SCREENS = {
        평온했다(RSTR-03 이 겪은 그 상태다). */
     summary: {
       endpoint: "/api/admin/backups/schedule",
+      /* 백업 일정은 세는 값이 아니라 **속성**이다(cron · 마지막 시각 · 보관 규칙) — 속성 줄로 선다(계획 표 7). */
+      kind: "meta",
       cards: (data) => {
         const s = (data && data.schedule) || {};
         const last = data && data.last_backup;
@@ -235,6 +237,8 @@ export const PLATFORM_SCREENS = {
     searchPlaceholder: "원본 백업 이름으로 검색",
     summary: {
       endpoint: "/api/admin/backups/schedule",
+      /* 백업 일정은 세는 값이 아니라 **속성**이다(cron · 마지막 시각 · 보관 규칙) — 속성 줄로 선다(계획 표 7). */
+      kind: "meta",
       cards: (data) => {
         const s = (data && data.schedule) || {};
         const last = data && data.last_backup;

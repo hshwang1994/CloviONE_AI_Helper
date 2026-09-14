@@ -9,7 +9,9 @@ import Box from "@mui/material/Box";
 import MenuItem from "@mui/material/MenuItem";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
-import { PageHeader, Card, Button, DataTable, DetailGrid, DetailRow, FormDrawer, ListCard, Modal, OverflowMenu, Skeleton, EmptyState, ErrorState, MetricStrip, Callout, useConfirm, useToast } from "../ui/kit.jsx";
+import { PageHeader, Card, Button, DataTable, DetailGrid, DetailRow, FormDrawer, ListCard, Modal, OverflowMenu, Skeleton, EmptyState, ErrorState, Callout, useConfirm, useToast } from "../ui/kit.jsx";
+import { StatusSummaryCard } from "../ui/StatusKpi.jsx";
+import { SummaryView } from "./data-screen/SummaryView.jsx";
 /* 검색 입력은 `ui/filters.jsx` 의 `SearchBox` 다 — **자기 상태를 자기가 든다**(PF4).
  *
  * 예전에는 그 부품이 이 파일 안에 있었다. 사용자 콘솔의 티켓·문서 목록도 같은 것이 필요해
@@ -1267,15 +1269,12 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
       ) : null}
       {/* 목록 응답에 이미 실려 오는 카운트(예: 알림의 unread)를 별도 요약 엔드포인트 없이 바로 보여준다. */}
       {config.unreadCountKey && query.data && query.data[config.unreadCountKey] != null ? (
-        <MetricStrip
+        /* 값 하나는 큰 숫자 하나다 — 상태 요약 카드의 값 하나 갈래(계획 P-30 · 핸드오프 RULES §10). */
+        <StatusSummaryCard
           ariaLabel="안 읽음"
           sx={{ mb: 2.5 }}
-          items={[{
-            key: "unread",
-            value: query.data[config.unreadCountKey],
-            label: "안 읽음",
-            kind: query.data[config.unreadCountKey] > 0 ? "warn" : undefined,
-          }]}
+          total={query.data[config.unreadCountKey]}
+          totalLabel="안 읽음"
         />
       ) : null}
       {config.summary ? (
@@ -1298,12 +1297,12 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
           )
         ) : summaryQuery.data ? (
           <>
-            <MetricStrip
-              ariaLabel="요약"
+            {/* 요약의 그릇은 데이터의 뜻이 정한다 — `summary.kind`(상태 구성 · 측정값 · 속성, 계획 표 7). */}
+            <SummaryView
+              summary={config.summary}
+              data={summaryQuery.data}
+              ctx={{ setFilter }}
               sx={{ mb: config.summary.notes ? 1.5 : 2.5 }}
-              items={config.summary.cards(summaryQuery.data, { setFilter }).map((c, i) => ({
-                key: i, value: c.value, label: c.label, kind: c.kind, onClick: c.onClick,
-              }))}
             />
             {/* 🔴 **경고는 개수가 아니라 문장이다** (2026-09-01). 요약 줄은 「N건」밖에 못
                 말하는데, 이 자리에 오는 것들(「백업이 앱과 같은 디스크에만 있습니다」)은

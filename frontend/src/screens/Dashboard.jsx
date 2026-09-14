@@ -387,27 +387,14 @@ function ActionQueue({ alerts, goto }) {
  *
  * 배지가 모양과 색을 함께 나르고 문장이 같은 사실을 글자로 말한다 — 색만으로 전하지 않는다. */
 function StatusBand({ verdict, strip }) {
-  const line = { ok: "success.main", warn: "warning.main", danger: "error.main" }[verdict.tone];
+  /* 판정 줄은 메시지 박스다(계획 P-18 · 핸드오프 RULES §1). 예전에는 판정 톤 색 테두리 상자에 면 배지를
+     손으로 얹었다 — 상태별 테두리는 메시지 박스 규약이 금지한 얼굴이다. 판정 낱말(위험 · 주의 · 정상)은
+     아이콘의 모양과 접근 이름이 말하고, 문장은 제목, 지금 정상인 지표 줄은 그 아래에 선다. */
+  const tone = verdict.tone === "danger" ? "danger" : verdict.tone === "warn" ? "warn" : "success";
   return (
-    <Box
-      sx={(t) => ({
-        display: "flex", alignItems: "center", justifyContent: "space-between",
-        gap: 2, flexWrap: "wrap",
-        px: 2, py: 1.5, borderRadius: 1,
-        border: 1, borderColor: line, bgcolor: t.palette.action.hover,
-      })}
-    >
-      <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, minWidth: 0 }}>
-        {/* 배지는 줄어들지 않는다. `Badge` 안쪽 글자는 말줄임을 갖고 있어서, 좁은 폭에서
-            이 자리가 눌리면 「문제」가 「문.」이 된다(390 실측). 두 글자짜리 판정이 잘리면
-            그 판정은 아무 말도 안 한 것과 같다. */}
-        <Box sx={{ flexShrink: 0 }}>
-          <Badge value={verdict.label} kind={verdict.tone === "danger" ? "danger" : verdict.tone === "warn" ? "warn" : "ok"} emphasis="strong" />
-        </Box>
-        <Typography sx={{ fontWeight: FONT_WEIGHT.semibold, minWidth: 0, ...KO_WORD_BREAK }}>{verdict.text}</Typography>
-      </Box>
+    <Callout tone={tone} toneLabel={verdict.label} title={verdict.text}>
       <HealthyStrip items={strip} />
-    </Box>
+    </Callout>
   );
 }
 

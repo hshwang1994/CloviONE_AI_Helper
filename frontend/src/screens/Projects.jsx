@@ -6,8 +6,9 @@ import Typography from "@mui/material/Typography";
 import {
   ListEmptyState,
   Badge, Button, Callout, Card, DataTable, EmptyState, ErrorState, FormModal,
-  ListCard, MetricStrip, PageHeader, Skeleton, useToast,
+  ListCard, PageHeader, Skeleton, useToast,
 } from "../ui/kit.jsx";
+import { StatusSummaryCard } from "../ui/StatusKpi.jsx";
 import { ListFooter } from "../ui/InfiniteScroll.jsx";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
 import { useAuth } from "../app/auth.jsx";
@@ -231,18 +232,14 @@ function Summary({ query, filters, onFilter }) {
     <Box sx={{ mb: 2.5, display: "grid", gap: 1.5 }}>
       {/* 구성 칸은 **누르면 목록이 그 상태로 좁아진다** (지시 15). 같은 칸을 다시 누르면
           조건이 풀린다 — 조건을 켜는 자리와 끄는 자리가 다르면 사용자는 끄는 법을 못 찾는다. */}
-      <MetricStrip
+      {/* 구성은 상태 요약 카드 하나다(계획 표 7) — 전체 숫자 · 비율 바 · 상태 칩. 고른 칩을 다시 누르면
+          조건이 풀린다(`onSelect` 가 같은 키를 받으면 비운다). */}
+      <StatusSummaryCard
         ariaLabel="프로젝트 구성"
-        items={[
-          { key: "total", value: d.total, label: "전체", primary: true,
-            active: !filters.status && !filters.trouble && !filters.overdue,
-            onClick: () => onFilter({ status: "", trouble: false, overdue: false }) },
-          ...STATUS_TILES.map(([key, label]) => ({
-            key, value: status[key], label,
-            active: filters.status === key,
-            onClick: () => onFilter({ status: filters.status === key ? "" : key, trouble: false, overdue: false }),
-          })),
-        ]}
+        total={d.total}
+        items={STATUS_TILES.map(([key, label]) => ({ key, value: status[key] || 0, label }))}
+        value={filters.status || null}
+        onSelect={(key) => onFilter({ status: filters.status === key ? "" : key, trouble: false, overdue: false })}
       />
       {/* 진행과 위험 — **숫자만 나열하지 않는다** (지시 15).
           평균 진행률은 막대가, Health 는 원이 그 값을 그린다. 셋 다 성격이 달라서 한

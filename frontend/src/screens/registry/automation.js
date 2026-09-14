@@ -263,6 +263,10 @@ export const AUTOMATION_SCREENS = {
     summary: {
       endpoint: "/api/admin/jobs/stats",
       poll: true,   // 대기/실행/실패 카운트도 목록과 함께 주기적으로 갱신(정체를 실시간 감지).
+      /* 큐 상태 다섯이 구성(칩)이고, 실행 가능 · 최근 24시간 실패가 그 위의 신호, 평균 처리 시간 · 가장 오래된
+         대기가 구성에 들지 않는 측정값이다(계획 표 7). 실행 가능은 대기의 부분집합이라 전체 합을 내지 않는다
+         (겹치는 축엔 비율 없음, D-475). */
+      kind: "status",
       // (s, {setFilter}) — Dashboard.jsx/Ops.jsx는 이미 이 화면 바깥에서 동일한 카운트 데이터로
       // onClick 드릴다운을 건다(Ops.jsx 주석: '문제를 보여주기만 하고 조치할 방법이 없는 죽은
       // 타일'을 피하려는 목적) — 정작 이 화면 자신의 요약 판독은 그 드릴다운이 없어 같은 데이터를
@@ -270,21 +274,21 @@ export const AUTOMATION_SCREENS = {
       cards: (s, ctx) => {
         const cards = [
           { value: s.queued != null ? s.queued : 0, label: "대기", type: "count", kind: s.queued > 0 ? "warn" : undefined, onClick: () => ctx.setFilter("status", "queued") },
-          { value: s.running != null ? s.running : 0, label: "실행 중", onClick: () => ctx.setFilter("status", "running") },
+          { value: s.running != null ? s.running : 0, label: "실행 중", kind: "info", onClick: () => ctx.setFilter("status", "running") },
           // '실행 가능(ready)'은 status 값이 아니라 대기 중 행 중 available_at이 이미 지난 부분집합의
           // 계산값이다(백엔드에 그 자체의 status 필터가 없다) — '대기'와 동일하게 좁혀 준 뒤 목록의
           // '대기' 열(지연 표시)에서 직접 훑게 한다(전혀 드릴다운이 없는 것보다는 낫다).
-          { value: s.ready != null ? s.ready : 0, label: "실행 가능(ready)", kind: s.ready > 0 ? "warn" : undefined, onClick: () => ctx.setFilter("status", "queued") },
+          { value: s.ready != null ? s.ready : 0, label: "실행 가능(ready)", role: "risk", kind: s.ready > 0 ? "warn" : undefined, onClick: () => ctx.setFilter("status", "queued") },
           { value: s.failed != null ? s.failed : 0, label: "실패", kind: s.failed > 0 ? "danger" : undefined, onClick: () => ctx.setFilter("status", "failed") },
-          { value: s.succeeded != null ? s.succeeded : 0, label: "완료", onClick: () => ctx.setFilter("status", "succeeded") },
-          { value: s.cancelled != null ? s.cancelled : 0, label: "취소됨", onClick: () => ctx.setFilter("status", "cancelled") },
+          { value: s.succeeded != null ? s.succeeded : 0, label: "완료", kind: "ok", onClick: () => ctx.setFilter("status", "succeeded") },
+          { value: s.cancelled != null ? s.cancelled : 0, label: "취소됨", kind: "neutral", onClick: () => ctx.setFilter("status", "cancelled") },
           // VIS-120: 위 6장은 전부 "지금 이 순간의 큐 깊이"뿐이라 셋 다 0이면 큐가 건강해
           // 보이지만, 최근에 계속 실패해 왔거나(재시도로 큐를 이미 빠져나갔다) 처리가
           // 느려지고 있다는 신호는 어디에도 없었다 — 같은 24시간 창으로 그 둘을 더한다.
           // '실패'(현재 status=failed 행 수, 오래된 것도 포함)와는 다른 신호다: 이건
           // "최근에 새로 실패가 났는가"라는 속도 신호다.
           {
-            value: s.recent_failed_24h != null ? s.recent_failed_24h : 0, label: "최근 24시간 실패",
+            value: s.recent_failed_24h != null ? s.recent_failed_24h : 0, label: "최근 24시간 실패", role: "risk",
             kind: s.recent_failed_24h > 0 ? "danger" : undefined, onClick: () => ctx.setFilter("status", "failed"),
           },
           {
@@ -293,7 +297,7 @@ export const AUTOMATION_SCREENS = {
                 ? s.avg_processing_seconds_24h.toFixed(1) + "초"
                 : Math.floor(s.avg_processing_seconds_24h / 60) + "분 " + Math.round(s.avg_processing_seconds_24h % 60) + "초"
             ),
-            label: "평균 처리 시간(24h)",
+            label: "평균 처리 시간(24h)", role: "measure",
           },
         ];
         if (s.oldest_queued_at) {
@@ -305,7 +309,7 @@ export const AUTOMATION_SCREENS = {
             const age = m < 1 ? "<1분" : (m < 60 ? m + "분" : Math.floor(m / 60) + "시간 " + (m % 60) + "분");
             // 다른 타일과 달리 이 '가장 오래된 대기' 카드만 드릴다운이 없어(백로그로 빨갛게 물들어도
             // 눌러도 아무 일이 없었다) — 인접한 '실행 가능(ready)' 타일과 같은 대기 큐로 좁혀 준다.
-            cards.push({ value: age, label: "가장 오래된 대기", kind: m >= 10 ? "danger" : (m >= 1 ? "warn" : undefined), onClick: () => ctx.setFilter("status", "queued") });
+            cards.push({ value: age, label: "가장 오래된 대기", role: "measure", kind: m >= 10 ? "danger" : (m >= 1 ? "warn" : undefined), onClick: () => ctx.setFilter("status", "queued") });
           }
         }
         return cards;

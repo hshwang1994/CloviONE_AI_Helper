@@ -6,9 +6,10 @@ import { useTheme } from "@mui/material/styles";
 import { api } from "../lib/api.js";
 import { useQueryState } from "../lib/useQueryState.js";
 import {
-  PageHeader, Card, ListCard, Badge, Button, Callout, Skeleton, EmptyState, ErrorState, MetricStrip, DataTable,
+  PageHeader, Card, ListCard, Badge, Button, Callout, Skeleton, EmptyState, ErrorState, DataTable,
   Section, SectionTitle,
 } from "../ui/kit.jsx";
+import { StatusSummaryCard } from "../ui/StatusKpi.jsx";
 import { FilterActions, FilterRow, FilterSurface } from "../ui/FilterBar.jsx";
 import { FilterSelect } from "../ui/filters.jsx";
 import { FONT_WEIGHT, KO_WORD_BREAK, PROSE_MAX_WIDTH } from "../ui/theme.js";
@@ -244,7 +245,7 @@ export function DevReport() {
       sx={{
         /* 자릿수 고정을 예전에는 **화면 전체**에 걸었다 — 산문과 라벨까지 고정폭 숫자를 쓰면
            «2026년 8월» 의 숫자 사이가 벌어진다. 이제 열이 자기 타입으로 말하고 그 열만
-           고정한다(`columnTypes.js`). 표 밖의 지표 줄은 `MetricStrip` 이 자기 것을 건다. */
+           고정한다(`columnTypes.js`). 표 밖의 팀 합계는 상태 요약 카드(`StatusSummaryCard`)가 자기 것을 건다. */
         // 인쇄: 카드 그림자는 회색 얼룩으로만 나오고, 섹션이 페이지 중간에서 잘리면 표 머리가 사라진다.
         "@media print": { "& .MuiPaper-root": { boxShadow: "none" }, "& section": { breakInside: "avoid" } },
       }}>
@@ -304,19 +305,31 @@ export function DevReport() {
           {/* 각 칸의 셋째 줄은 '이 숫자가 무엇을 센 것인지'다 — 정의가 사라지면 숫자를
               신뢰할 수 없다. 판독 줄이 값·라벨·각주 셋을 모두 모델링하므로 예전처럼 라벨
               자리에 두 줄을 밀어 넣지 않는다(KpiLabel 을 없앤 이유). */}
-          <MetricStrip
+          {/* 팀 합계는 **구성**이다 — 완료 · 진행 중 · 검증 · 계획의 합이 전체이고, 지연 · 담당자 없음은 그 위의
+              신호다. 상태 요약 카드 하나로 선다(계획 표 7 · 핸드오프 RULES §10). 칸마다 셋째 줄이던 정의는
+              카드 아래 정의 목록으로 이어진다 — 정의가 사라지면 숫자를 믿을 수 없다. */}
+          <StatusSummaryCard
             ariaLabel="팀 합계"
             sx={{ mb: 4 }}
+            unit="건"
+            total={data.team.done + data.team.in_progress + data.team.verify + data.team.plan}
             items={[
-              { key: "done", kind: "ok", value: data.team.done + "건", label: "완료", primary: true,
-                note: "취소를 뺀 기준 완료 " + data.team.est_done_total + "인일" },
-              { key: "in_progress", value: data.team.in_progress + "건", label: "진행 중", note: "진행과 이슈 상태" },
-              { key: "verify", value: data.team.verify + "건", label: "검증", note: "검토, 확인 단계" },
-              { key: "plan", value: data.team.plan + "건", label: "계획", note: "아직 착수 전" },
-              { key: "overdue", kind: data.team.overdue > 0 ? "danger" : undefined, value: data.team.overdue + "건",
-                label: "지연", note: "마감이 지난 미완료" },
-              { key: "unassigned", value: data.unassigned.total + "건", label: "담당자 없음",
-                note: "담당자가 지정되지 않음" },
+              { key: "done", kind: "ok", value: data.team.done, label: "완료" },
+              { key: "in_progress", kind: "info", value: data.team.in_progress, label: "진행 중" },
+              { key: "verify", kind: "warn", value: data.team.verify, label: "검증" },
+              { key: "plan", kind: "neutral", value: data.team.plan, label: "계획" },
+            ]}
+            risks={[
+              { key: "overdue", kind: "danger", value: data.team.overdue, label: "지연" },
+              { key: "unassigned", kind: "warn", value: data.unassigned.total, label: "담당자 없음" },
+            ]}
+            notes={[
+              { key: "done", label: "완료", text: "취소를 뺀 기준 완료 " + data.team.est_done_total + "인일" },
+              { key: "in_progress", label: "진행 중", text: "진행과 이슈 상태" },
+              { key: "verify", label: "검증", text: "검토, 확인 단계" },
+              { key: "plan", label: "계획", text: "아직 착수 전" },
+              { key: "overdue", label: "지연", text: "마감이 지난 미완료" },
+              { key: "unassigned", label: "담당자 없음", text: "담당자가 지정되지 않음" },
             ]}
           />
 
