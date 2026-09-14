@@ -82,7 +82,8 @@ async function openEditing() {
   );
   await userEvent.click(screen.getByRole("button", { name: "본문 수정" }));
   const heading = screen.getByRole("heading", { name: "본문 수정" });
-  const widthBox = heading.parentElement.parentElement; // heading -> Stack -> 편집 폭 Box
+  // heading -> 제목 칸 -> 판 제목(SectionTitle) 줄 -> 편집 폭 Box. 머리 줄은 판 제목 정본이다(핸드오프 B-8).
+  const widthBox = heading.parentElement.parentElement.parentElement;
   const container = widthBox.parentElement;
   return { widthBox, container };
 }

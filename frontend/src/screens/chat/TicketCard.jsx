@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import Box from "@mui/material/Box";
 import Link from "@mui/material/Link";
-import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { Badge, Button, DotLabel, FlatBadgeSurface } from "../../ui/kit.jsx";
@@ -57,10 +56,11 @@ export function TicketCard({ t, index, onChoose, isTicket = true, sending }) {
   // 여전히 클릭 가능한 것처럼 훈련시킨 그 번호 라벨이 계속 남아 사용자를 오도한다.
   const prefix = typeof index === "number" && onChoose ? index + ". " : (t.number ? "#" + t.number + ", " : "");
   return (
-    <Paper
-      variant="outlined"
+    <Box
+      data-result-card=""
       sx={{
         p: 1.75, display: "grid", gap: 0.5, minWidth: 0,
+        border: 1,
         borderRadius: 3,
         /* 네 변이 같은 중립 테두리다 — 상태는 아래 배지가 말한다(기준선 .kanban-card). */
         borderColor: "divider",
@@ -112,7 +112,7 @@ export function TicketCard({ t, index, onChoose, isTicket = true, sending }) {
         </Stack>
       ) : null}
       </FlatBadgeSurface>
-    </Paper>
+    </Box>
   );
 }
 

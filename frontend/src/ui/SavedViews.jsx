@@ -16,7 +16,7 @@ import LinkRoundedIcon from "@mui/icons-material/LinkRounded";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api.js";
 import { failureText } from "../lib/failure.js";
-import { Button, Callout, Modal, ModalFooter, overflowMenuItems, useConfirm, useToast } from "./kit.jsx";
+import { Button, Callout, Modal, ModalFooter, overflowMenuItems, useConfirm, useToast, FieldLabel } from "./kit.jsx";
 
 /* 저장된 뷰 — 자주 쓰는 필터 조합에 이름을 붙여 두고 다시 부른다.
  *
@@ -205,16 +205,17 @@ export function SavedViews({ screenKey, query, describe, onApply }) {
           />
         }
       >
-        <TextField
-          InputLabelProps={{ shrink: true }}
-          autoFocus
-          fullWidth
-          label="뷰 이름"
-          value={name}
-          onChange={(e) => { setName(e.target.value); setConflict(false); }}
-          inputProps={{ maxLength: 80 }}
-          helperText={describe ? (describe(query) || "조건 없음(전체 목록)") : " "}
-        />
+        <Box sx={{ minWidth: 0 }}>
+          <FieldLabel htmlFor="saved-view-name">뷰 이름</FieldLabel>
+          <TextField id="saved-view-name"
+            autoFocus
+            fullWidth
+            value={name}
+            onChange={(e) => { setName(e.target.value); setConflict(false); }}
+            inputProps={{ maxLength: 80 }}
+            helperText={describe ? (describe(query) || "조건 없음(전체 목록)") : " "}
+          />
+        </Box>
         {conflict ? (
           <Callout tone="warn" compact sx={{ mt: 1.5 }}>
             같은 이름의 뷰가 이미 있습니다. ‘덮어쓰기’를 누르면 그 뷰의 조건이 지금 조건으로 바뀝니다.

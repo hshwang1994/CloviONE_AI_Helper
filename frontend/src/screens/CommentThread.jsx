@@ -7,8 +7,8 @@ import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
 import { failureText } from "../lib/failure.js";
 import { fmtDateTime } from "../lib/format.js";
-import { Button, Callout, Card, ErrorState, Skeleton, useConfirm, useToast } from "../ui/kit.jsx";
-import { FONT_SIZE, KO_WORD_BREAK } from "../ui/theme.js";
+import { Button, Callout, Card, ErrorState, Skeleton, useConfirm, useToast, SectionTitle } from "../ui/kit.jsx";
+import { KO_WORD_BREAK } from "../ui/theme.js";
 import { AuthorLine } from "./Board.jsx";
 
 /* 댓글 타래 (티켓 · 문서 공용).
@@ -147,9 +147,8 @@ export function CommentThread({ queryKey, listUrl, itemUrl, emptyHint, readOnly 
 
   return (
     <Card component="section" aria-label="댓글" sx={{ minWidth: 0 }}>
-      <Typography component="h2" variant="h6" sx={{ fontSize: FONT_SIZE.sectionTitle, mb: 1 }}>
-        댓글 {liveCount > 0 ? liveCount : ""}
-      </Typography>
+      {/* 판 제목은 판 제목 정본이다(`SectionTitle` — 핸드오프 RULES §6 카드 제목 1.0625rem/700). */}
+      <SectionTitle component="h2" title={`댓글 ${liveCount > 0 ? liveCount : ""}`} sx={{ mb: 1 }} />
 
       {list.isPending ? <Skeleton lines={3} /> : null}
       {list.isError ? (

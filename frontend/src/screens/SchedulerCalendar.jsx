@@ -345,7 +345,8 @@ export function SchedulerCalendar({ embedded = false } = {}) {
             ]}
           />
 
-          <Card sx={{ mt: 2, p: { xs: 1, sm: 2 }, overflowX: "auto" }}>
+          {/* 판 여백은 판 규약값이다(`CARD_PADDING`) — 달력 격자는 좁으면 판 안에서 가로로 굴린다. */}
+          <Card sx={{ mt: 2, overflowX: "auto" }}>
             <Box
               role="grid"
               aria-label={`${monthLabel} 실행 달력`}

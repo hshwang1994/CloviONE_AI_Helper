@@ -37,7 +37,8 @@ function renderCard(t = TICKET) {
 }
 
 function cardOf(titleText) {
-  return screen.getByText(titleText, { exact: false }).closest(".MuiPaper-root");
+  // 카드는 MUI Paper 가 아니라 판 면 토큰을 쓰는 상자다(핸드오프 B-8) — 이름표(`data-result-card`)로 짚는다.
+  return screen.getByText(titleText, { exact: false }).closest("[data-result-card]");
 }
 
 describe("결과 카드에는 상태를 뜻하는 왼쪽 색 막대가 없다", () => {

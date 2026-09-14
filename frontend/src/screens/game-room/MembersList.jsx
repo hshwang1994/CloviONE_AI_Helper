@@ -1,9 +1,8 @@
 import Box from "@mui/material/Box";
-import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { alpha } from "@mui/material/styles";
-import { Badge, FlatBadgeSurface } from "../../ui/kit.jsx";
+import { Badge, FlatBadgeSurface, Card } from "../../ui/kit.jsx";
 import { FONT_SIZE, FONT_WEIGHT } from "../../ui/theme.js";
 import { ROLE_LABELS } from "./constants.js";
 
@@ -11,7 +10,7 @@ import { ROLE_LABELS } from "./constants.js";
  * 옮겼다. 상한 높이로 접어(자체 스크롤) 아무리 많아도 채팅을 밀어내지 않는다. */
 export function MembersList({ members, room, you, submissionActive, submittedSet }) {
   return (
-    <Paper variant="outlined" sx={{ p: 1.5, flexShrink: 0 }}>
+    <Card sx={{ flexShrink: 0 }}>
       <Typography variant="body2" sx={{ fontWeight: FONT_WEIGHT.bold, mb: 1 }}>참여자 {members.length}명</Typography>
       {/* 목록 행 안이라 배지가 면을 갖지 않는다(핸드오프 RULES §2 · ACCEPTANCE F7). */}
       <FlatBadgeSurface>
@@ -70,6 +69,6 @@ export function MembersList({ members, room, you, submissionActive, submittedSet
         })}
       </Box>
       </FlatBadgeSurface>
-    </Paper>
+    </Card>
   );
 }

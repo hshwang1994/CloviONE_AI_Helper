@@ -2,7 +2,6 @@ import React, { useState } from "react";
 import Box from "@mui/material/Box";
 import IconButton from "@mui/material/IconButton";
 import InputBase from "@mui/material/InputBase";
-import Paper from "@mui/material/Paper";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import { alpha } from "@mui/material/styles";
@@ -10,11 +9,11 @@ import AddRoundedIcon from "@mui/icons-material/AddRounded";
 import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded";
 import EditRoundedIcon from "@mui/icons-material/EditRounded";
 import Inventory2OutlinedIcon from "@mui/icons-material/Inventory2Outlined";
-import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import UnarchiveOutlinedIcon from "@mui/icons-material/UnarchiveOutlined";
 import { Badge, Button, Callout, EmptyState, ErrorState, ListEmptyState, Skeleton } from "../../ui/kit.jsx";
 import { FONT_SIZE, FONT_WEIGHT } from "../../ui/theme.js";
 import { fmtShort } from "../chat-helpers.js";
+import { SearchBox } from "../../ui/filters.jsx";
 
 // ── 대화 목록 항목 ──────────────────────────────────────────────────────────
 
@@ -170,15 +169,9 @@ export function ConversationSidebar({
          * 가 유일한 출구였는데, 조건을 **좁힌 사람이 넓히는 길**은 그 조건을 적은 자리여야
          * 한다. 검색어가 있으면 결과가 없어도 상자를 남긴다. */}
         {(convItems.length > 0 || convFilter.trim()) ? (
-          <Paper variant="outlined" sx={{ display: "flex", alignItems: "center", gap: 1, px: 1.25, py: 0.25, borderRadius: 2 }}>
-            <SearchRoundedIcon aria-hidden="true" sx={{ fontSize: "1.125rem", color: "text.secondary" }} />
-            <InputBase
-              type="search" fullWidth placeholder="대화 제목 검색" value={convFilter}
-              onChange={(e) => setConvFilter(e.target.value)}
-              inputProps={{ "aria-label": "대화 목록 검색" }}
-              sx={{ fontSize: FONT_SIZE.body }}
-            />
-          </Paper>
+          /* 검색 칸 정본(`SearchBox`) — 좁은 목록에서는 칸 폭을 채운다(`layout="fill"`). 글자마다 바로 거른다
+             (`immediate`) — 예전 칸도 디바운스 없이 곧바로 걸렀다. */
+          <SearchBox layout="fill" immediate value={convFilter} onSearch={setConvFilter} placeholder="대화 제목 검색" ariaLabel="대화 목록 검색" />
         ) : null}
         {/* 대화 목록만 스크롤한다(사이드바 전체가 아니라) — '새 대화' 버튼과 보관 토글은 항상 위에
             고정되고, 목록이 사이드바 높이를 넘칠 때만 이 안에서 스크롤된다. */}

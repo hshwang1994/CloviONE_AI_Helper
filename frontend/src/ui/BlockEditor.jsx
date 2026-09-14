@@ -1,7 +1,7 @@
 import React from "react";
 import Box from "@mui/material/Box";
 import Divider from "@mui/material/Divider";
-import { Button as KitButton } from "./kit.jsx";
+import { Button as KitButton, FieldLabel } from "./kit.jsx";
 import IconButton from "@mui/material/IconButton";
 import Popover from "@mui/material/Popover";
 import Stack from "@mui/material/Stack";
@@ -241,6 +241,7 @@ function isActive(editor, on) {
  * 지우려고 전부 다시 치게 하지 않는다. */
 function LinkPopover({ anchorEl, initialHref, onClose, onSubmit, onRemove }) {
   const [href, setHref] = React.useState(initialHref || "");
+  const hrefId = React.useId();
   React.useEffect(() => {
     if (anchorEl) setHref(initialHref || "");
   }, [anchorEl, initialHref]);
@@ -263,17 +264,20 @@ function LinkPopover({ anchorEl, initialHref, onClose, onSubmit, onRemove }) {
       transformOrigin={{ vertical: "top", horizontal: "left" }}
       slotProps={{ paper: { sx: { p: 1.5 } } }}
     >
-      <Box component="form" onSubmit={submit} sx={{ display: "flex", gap: 1, alignItems: "flex-start", width: "20rem" }}>
-        <TextField
-          autoFocus
-          size="small"
-          fullWidth
-          label="링크 주소"
-          placeholder="https://"
-          value={href}
-          onChange={(e) => setHref(e.target.value)}
-          InputLabelProps={{ shrink: true }}
-        />
+      {/* 라벨은 칸 위(`FieldLabel`)이고, 단추는 칸 바닥 줄에 선다. */}
+      <Box component="form" onSubmit={submit} sx={{ display: "flex", gap: 1, alignItems: "flex-end", width: "20rem" }}>
+        <Box sx={{ minWidth: 0, flex: 1 }}>
+          <FieldLabel htmlFor={hrefId}>링크 주소</FieldLabel>
+          <TextField
+            id={hrefId}
+            autoFocus
+            size="small"
+            fullWidth
+            placeholder="https://"
+            value={href}
+            onChange={(e) => setHref(e.target.value)}
+          />
+        </Box>
         {initialHref ? (
           <KitButton size="sm" onClick={onRemove}>
             삭제

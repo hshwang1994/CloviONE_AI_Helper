@@ -5,11 +5,11 @@ import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
 import { expireSession } from "../lib/sessionRedirect.js";
-import { Badge, Button, DataTable, Modal, Callout, useConfirm, useToast, ActionFooter } from "../ui/kit.jsx";
+import { Badge, Button, DataTable, Modal, Callout, useConfirm, useToast, ActionFooter, FieldLabel } from "../ui/kit.jsx";
 import { FONT_WEIGHT } from "../ui/theme.js";
 import { Note } from "../ui/adminKit.jsx";
 import { ToolbarRow } from "../ui/FilterBar.jsx";
-import { FilterSelect } from "../ui/filters.jsx";
+import { FilterRowContext, FilterSelect, PrefixLabel, kindSx } from "../ui/filters.jsx";
 
 const ASSIGN_OPTIONS = [
   { value: "set_department", label: "부서" },
@@ -117,6 +117,9 @@ export function BulkBar({ selection, deptOptions, titleOptions, onDone }) {
         ))}
         <Button size="sm" variant="ghost" onClick={selection.clear}>선택 해제</Button>
       </ToolbarRow>
+      {/* 일괄 지정 줄의 두 칸은 도구 줄의 **줄 칸**이다(34 · 칸 안 이름) — 노치 라벨이 떠 있으면 옆 단추와
+          윗선이 어긋났다(핸드오프 RULES §3 · §7). */}
+      <FilterRowContext.Provider value>
       <ToolbarRow sx={{ gap: 1 }}>
         <FilterSelect
           label="일괄 지정" value={assign.action} options={ASSIGN_OPTIONS} allLabel="지정 안 함"
@@ -126,9 +129,20 @@ export function BulkBar({ selection, deptOptions, titleOptions, onDone }) {
             는 실제 옵션(없음 = 지운다)이고, 자리표시자는 그와 다른 `UNASSIGNED_VALUE` 다.
             같은 부품으로 그리면 두 뜻이 한 값에 겹친다(위 상수 주석). */}
         {assign.action ? (
-          <TextField select size="small" label="값" value={assign.value}
-            SelectProps={{ displayEmpty: true }} InputLabelProps={{ shrink: true }}
-            sx={{ minWidth: "12rem" }}
+          <TextField select size="small" value={assign.value}
+            inputProps={{ "aria-label": "값" }}
+            SelectProps={{
+              displayEmpty: true,
+              renderValue: (v) => (
+                <>
+                  <PrefixLabel>값</PrefixLabel>
+                  {v === UNASSIGNED_VALUE
+                    ? "값을 선택하세요"
+                    : ((assignOptions || []).find((o) => o.value === v) || { label: String(v) }).label}
+                </>
+              ),
+            }}
+            sx={kindSx("enum", { minWidth: "12rem" }, undefined, true)}
             onChange={(e) => setAssign((s) => ({ ...s, value: e.target.value }))}>
             {/* 자리표시자는 목록에 남겨 두되 다시 고를 수 없게 disabled — 관리자가 실제 옵션(없음 포함)을
                 능동적으로 고르기 전까지는 이 값이 유지되어 '적용'이 비활성 상태를 유지한다. */}
@@ -143,6 +157,7 @@ export function BulkBar({ selection, deptOptions, titleOptions, onDone }) {
           </Button>
         ) : null}
       </ToolbarRow>
+      </FilterRowContext.Provider>
       </>) : null}
     </Box>
   );
@@ -250,13 +265,15 @@ export function ImportModal({ onClose, onImported }) {
       <Note sx={{ mt: 0.75 }}>
         추가된 계정은 임시 비밀번호가 발급되고 첫 로그인 시 변경을 요구합니다.
       </Note>
-      <TextField
-        InputLabelProps={{ shrink: true }}
-        multiline minRows={6} fullWidth sx={{ mt: 2 }}
-        label="CSV 내용" placeholder={SAMPLE_CSV}
-        value={text} onChange={(e) => { setText(e.target.value); setPreview(null); }}
-        helperText="내보내기 파일을 열어 복사해 붙여 넣어도 됩니다(헤더 이름이 같습니다)."
-      />
+      <Box sx={{ minWidth: 0, mt: 2 }}>
+        <FieldLabel htmlFor="users-csv-text">CSV 내용</FieldLabel>
+        <TextField id="users-csv-text"
+          multiline minRows={6} fullWidth
+          placeholder={SAMPLE_CSV}
+          value={text} onChange={(e) => { setText(e.target.value); setPreview(null); }}
+          helperText="내보내기 파일을 열어 복사해 붙여 넣어도 됩니다(헤더 이름이 같습니다)."
+        />
+      </Box>
       {sendFailure ? <Callout tone="danger" compact sx={{ mt: 2 }}>{sendFailure}</Callout> : null}
       {preview ? (
         <Box sx={{ mt: 2 }}>

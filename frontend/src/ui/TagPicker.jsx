@@ -7,7 +7,7 @@ import Typography from "@mui/material/Typography";
 import { useQuery } from "@tanstack/react-query";
 
 import { api } from "../lib/api.js";
-import { FILTER_LISTBOX_SX, PrefixLabel, kindSx, useRowCell } from "./filters.jsx";
+import { FILTER_LISTBOX_SX, LABEL_ABOVE_SX, PrefixLabel, kindSx, useRowCell } from "./filters.jsx";
 
 /* 태그 고르개 — 검색 · 다중 선택 · 새 태그 생성 · 사용 문서 수 (§15.3).
  *
@@ -111,6 +111,8 @@ export function TagPicker({
           /* 줄 칸에는 이름이 이미 접두로 서 있으므로 자리표시자에서 그 낱말을 뗀다(「태그 태그 검색」이
              되지 않게 — `rowAllText` 와 같은 규칙). */
           placeholder={selected.length ? undefined : (row ? "검색 또는 입력" : "태그 검색 또는 입력")}
+          /* 폼 자리의 이름은 칸 위다(`filters.jsx::LABEL_ABOVE_SX`). */
+          sx={row ? undefined : LABEL_ABOVE_SX}
         />
       )}
     />

@@ -84,7 +84,7 @@ function ResultGroup({ group, onOpen }) {
   return (
     <Card>
       <Box sx={{ display: "flex", alignItems: "baseline", gap: 1, mb: 1 }}>
-        <Typography component="h2" sx={{ fontWeight: FONT_WEIGHT.extrabold, fontSize: FONT_SIZE.sectionTitle }}>
+        <Typography component="h2" variant="sectionTitle">
           {group.label}
         </Typography>
         <CountChip value={group.total} />

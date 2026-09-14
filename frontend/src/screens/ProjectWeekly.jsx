@@ -7,7 +7,7 @@ import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
 import { failureText } from "../lib/failure.js";
 import { useAuth } from "../app/auth.jsx";
-import { Badge, Button, Callout, Card, EmptyState, ErrorState, FlatBadgeSurface, Skeleton, useToast } from "../ui/kit.jsx";
+import { Badge, Button, Callout, Card, EmptyState, ErrorState, FlatBadgeSurface, Skeleton, useToast, SectionTitle } from "../ui/kit.jsx";
 import { BodyPreview } from "../ui/BodyEditor.jsx";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
 import { MILESTONE_STATUS_KO, PROJECT_WRITE_ROLES } from "./project-format.js";
@@ -200,7 +200,7 @@ export function ProjectWeekly({ projectId, week, onWeek, query }) {
       </Card>
 
       <Card>
-        <Typography component="h2" variant="h6" sx={{ fontSize: FONT_SIZE.sectionTitle, mb: 1.5 }}>이번 주 작업</Typography>
+        <SectionTitle component="h2" title="이번 주 작업" />
         <Box sx={{ display: "grid", gap: 2.5, gridTemplateColumns: { xs: "1fr", md: "repeat(2, minmax(0, 1fr))" } }}>
           {SECTIONS.map(([key, title]) => (
             <Bucket key={key} title={title} bucket={data[key]} onOpen={openTicket} />
@@ -209,7 +209,7 @@ export function ProjectWeekly({ projectId, week, onWeek, query }) {
       </Card>
 
       <Card>
-        <Typography component="h2" variant="h6" sx={{ fontSize: FONT_SIZE.sectionTitle, mb: 1.5 }}>마일스톤</Typography>
+        <SectionTitle component="h2" title="마일스톤" />
         <Box sx={{ display: "grid", gap: 2.5, gridTemplateColumns: { xs: "1fr", md: "repeat(3, minmax(0, 1fr))" } }}>
           {MILESTONE_BUCKETS.map(([key, title]) => (
             <MilestoneBucket key={key} title={title} bucket={milestones[key]} />
@@ -218,21 +218,26 @@ export function ProjectWeekly({ projectId, week, onWeek, query }) {
       </Card>
 
       <Card>
-        <Stack direction="row" gap={1} sx={{ flexWrap: "wrap", alignItems: "center", mb: 1.5 }}>
-          <Typography component="h2" variant="h6" sx={{ fontSize: FONT_SIZE.sectionTitle, flex: 1 }}>요약</Typography>
-          {canWrite ? (
-            <Button variant="primary" size="sm" disabled={save.isPending} onClick={() => save.mutate()}>
-              이 주 리포트 저장
-            </Button>
-          ) : null}
-          {/* AI 요약이 꺼져 있으면(llm_notice가 있으면) 눌러도 규칙 요약만 다시 나오므로
-              버튼을 안 보여준다 — 있는 기능처럼 보이고 안 되면 고장으로 읽힌다. */}
-          {canWrite && !data.llm_notice ? (
-            <Button size="sm" disabled={generateLlm.isPending} loading={generateLlm.isPending} onClick={() => generateLlm.mutate()}>
-              AI 요약 생성
-            </Button>
-          ) : null}
-        </Stack>
+        <SectionTitle
+          component="h2"
+          title="요약"
+          action={(
+            <Stack direction="row" gap={1} sx={{ flexWrap: "wrap", alignItems: "center" }}>
+              {canWrite ? (
+                <Button variant="primary" size="sm" disabled={save.isPending} onClick={() => save.mutate()}>
+                  이 주 리포트 저장
+                </Button>
+              ) : null}
+              {/* AI 요약이 꺼져 있으면(llm_notice가 있으면) 눌러도 규칙 요약만 다시 나오므로
+                  버튼을 안 보여준다 — 있는 기능처럼 보이고 안 되면 고장으로 읽힌다. */}
+              {canWrite && !data.llm_notice ? (
+                <Button size="sm" disabled={generateLlm.isPending} loading={generateLlm.isPending} onClick={() => generateLlm.mutate()}>
+                  AI 요약 생성
+                </Button>
+              ) : null}
+            </Stack>
+          )}
+        />
         {summaryFailure ? <Callout tone="danger" compact sx={{ mb: 1.5 }}>{summaryFailure}</Callout> : null}
         {/* 규칙이 쓴 문장인지 모델이 쓴 문장인지 구별을 남긴다. 안 남기면 몇 주 뒤에 둘 다
             못 믿게 된다(app/projects/models.py::REPORT_SOURCES).

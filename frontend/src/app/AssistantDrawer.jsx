@@ -2,7 +2,6 @@ import React from "react";
 import Box from "@mui/material/Box";
 import Drawer from "@mui/material/Drawer";
 import IconButton from "@mui/material/IconButton";
-import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
@@ -248,8 +247,8 @@ export function AssistantDrawer({ open, onClose }) {
         {chat.pending.length ? (
           <Stack direction="row" flexWrap="wrap" gap={0.75}>
             {chat.pending.map((a, i) => (
-              <Paper key={i} variant="outlined"
-                sx={{ display: "inline-flex", alignItems: "center", gap: 0.75, pl: 0.5, pr: 0.25, py: 0.25, borderRadius: RADIUS.full, maxWidth: "100%" }}>
+              <Box key={i}
+                sx={{ display: "inline-flex", alignItems: "center", gap: 0.75, pl: 0.5, pr: 0.25, py: 0.25, borderRadius: RADIUS.full, maxWidth: "100%", border: 1, borderColor: "divider", bgcolor: "background.paper" }}>
                 <Box component="img" src={"data:" + (a.media_type || "image/png") + ";base64," + a.data} alt=""
                   sx={{ width: "1.5rem", height: "1.5rem", objectFit: "cover", borderRadius: "50%", flexShrink: 0 }} />
                 <Typography sx={{ fontSize: FONT_SIZE.caption, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.filename}</Typography>
@@ -258,7 +257,7 @@ export function AssistantDrawer({ open, onClose }) {
                   sx={{ flexShrink: 0 }}>
                   <CloseRoundedIcon sx={{ fontSize: FONT_SIZE.body }} />
                 </IconButton>
-              </Paper>
+              </Box>
             ))}
           </Stack>
         ) : null}

@@ -176,7 +176,7 @@ export function DeptDetailPanel({ deptId, treeRow }) {
   return (
     <Card sx={{ display: "grid", gap: 2, alignContent: "start" }}>
       <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
-        <Typography component="h2" variant="h6" sx={{ ...KO_WORD_BREAK, minWidth: 0 }}>
+        <Typography component="h2" variant="sectionTitle" sx={{ ...KO_WORD_BREAK, minWidth: 0 }}>
           {dept.name}
         </Typography>
         <Badge value={dept.active ? "사용 중" : "미사용"} kind={dept.active ? "ok" : "warn"} />

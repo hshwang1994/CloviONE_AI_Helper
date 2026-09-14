@@ -20,6 +20,8 @@ import {
   useConfirm,
   useToast,
   CountChip,
+  SectionTitle,
+  FieldLabel,
 } from "../ui/kit.jsx";
 import { FilterRow, FilterSurface } from "../ui/FilterBar.jsx";
 import { EntityCombobox, FilterSelect, TeamSelect } from "../ui/filters.jsx";
@@ -252,15 +254,17 @@ function DecisionComposer({ draft, onDraftChange, onAdd, busy, assigneeOptions, 
             { value: KIND_ACTION, label: "할 일" },
           ]}
         />
-        <TextField
-          size="small"
-          label="내용"
-          value={d.body || ""}
-          onChange={(e) => set({ body: e.target.value })}
-          placeholder="회의에서 정한 것을 한 문장으로 적습니다."
-          InputLabelProps={{ shrink: true }}
-          sx={{ flex: "1 1 18rem", minWidth: "14rem" }}
-        />
+        {/* 이 줄의 고르개들이 이름을 칸 위에 세우므로(`filters.jsx::LABEL_ABOVE_SX`) 내용 칸도 같은 자리에 이름을 둔다. */}
+        <Box sx={{ flex: "1 1 18rem", minWidth: "14rem" }}>
+          <FieldLabel htmlFor="sprint-decision-body">내용</FieldLabel>
+          <TextField id="sprint-decision-body"
+            size="small"
+            fullWidth
+            value={d.body || ""}
+            onChange={(e) => set({ body: e.target.value })}
+            placeholder="회의에서 정한 것을 한 문장으로 적습니다."
+          />
+        </Box>
         <EntityCombobox
           label="관련 티켓"
           value={d.ticketId || ""}
@@ -966,13 +970,14 @@ export function Sprint() {
                       flexDirection: "column",
                     }}
                   >
-                    <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 0.5 }}>
-                      <Typography variant="subtitle2" component="h4">{lane.title}</Typography>
-                      <CountChip value={rows.length} />
-                    </Stack>
-                    <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: "block" }}>
-                      {lane.help}
-                    </Typography>
+                    {/* 레인 머리는 판 제목 정본이다 — 이름 · 도움말 한 쌍과 오른쪽 건수 칩(계획 표 5 허용 치환). */}
+                    <SectionTitle
+                      component="h4"
+                      title={lane.title}
+                      help={lane.help}
+                      action={<CountChip value={rows.length} />}
+                      sx={{ mb: 1 }}
+                    />
                     {rows.length === 0 ? (
                       <Box sx={{ mt: "auto" }}>
                         <EmptyState layout="inline" title={lane.empty} />

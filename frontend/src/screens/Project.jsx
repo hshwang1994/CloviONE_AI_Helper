@@ -8,6 +8,7 @@ import {
   Badge, Button, Callout, Card, EmptyState, ErrorState, FormModal, PageHeader,
   Skeleton, useConfirm, useToast,
   FlatBadgeSurface,
+  SectionTitle,
 } from "../ui/kit.jsx";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
 import { EntityCombobox } from "../ui/filters.jsx";
@@ -159,10 +160,15 @@ function MilestoneTimeline({ projectId, query, canWrite }) {
   return (
     <>
       <Card>
-        <Stack direction="row" gap={1} sx={{ flexWrap: "wrap", alignItems: "center", mb: 1.5 }}>
-          <Typography component="h2" variant="h6" sx={{ fontSize: FONT_SIZE.sectionTitle, flex: 1 }}>마일스톤</Typography>
-          {addButton}
-        </Stack>
+        <SectionTitle
+          component="h2"
+          title="마일스톤"
+          action={(
+            <Stack direction="row" gap={1} sx={{ flexWrap: "wrap", alignItems: "center" }}>
+              {addButton}
+            </Stack>
+          )}
+        />
         {deleteFailure ? <Callout tone="danger" compact sx={{ mb: 1.5 }}>{deleteFailure}</Callout> : null}
         {/* 목록 행 안이라 배지가 면을 갖지 않는다(핸드오프 RULES §2 · ACCEPTANCE F7). */}
         <FlatBadgeSurface>
@@ -229,16 +235,22 @@ function Overview({
   return (
     <Stack gap={2.5}>
       <Card>
-        <Stack direction="row" gap={1} sx={{ flexWrap: "wrap", alignItems: "center", mb: 1 }}>
-          <Typography component="h2" variant="h6" sx={{ fontSize: FONT_SIZE.sectionTitle, flex: 1 }}>개요</Typography>
-          {canWrite ? <Button size="sm" onClick={onEdit}>수정</Button> : null}
-          {/* FN-04: 화면엔 "보관됨" 배지·"보관한 프로젝트 포함" 체크박스가 있는데 정작
-              그 상태로 보내는 버튼이 없었다 — 보관은 되돌릴 API가 없어(project-queries.js
-              주석 참조) 이미 보관된 프로젝트에는 버튼을 다시 안 그린다. */}
-          {canWrite && !p.archived_at ? (
-            <Button size="sm" variant="ghost" disabled={archiving} onClick={onArchive}>보관</Button>
-          ) : null}
-        </Stack>
+        <SectionTitle
+          component="h2"
+          title="개요"
+          sx={{ mb: 1 }}
+          action={(
+            <Stack direction="row" gap={1} sx={{ flexWrap: "wrap", alignItems: "center" }}>
+              {canWrite ? <Button size="sm" onClick={onEdit}>수정</Button> : null}
+              {/* FN-04: 화면엔 "보관됨" 배지·"보관한 프로젝트 포함" 체크박스가 있는데 정작
+                  그 상태로 보내는 버튼이 없었다 — 보관은 되돌릴 API가 없어(project-queries.js
+                  주석 참조) 이미 보관된 프로젝트에는 버튼을 다시 안 그린다. */}
+              {canWrite && !p.archived_at ? (
+                <Button size="sm" variant="ghost" disabled={archiving} onClick={onArchive}>보관</Button>
+              ) : null}
+            </Stack>
+          )}
+        />
         {deptFailure ? <Callout tone="danger" compact sx={{ mb: 1 }}>{deptFailure}</Callout> : null}
         <Box>
           <MetaRow label="상태">
@@ -300,9 +312,7 @@ function Overview({
           들어온 프로젝트와 석 달에 걸쳐 스무 건이 들어온 프로젝트는 진행률이 같아도
           전혀 다른 프로젝트다. */}
       <Card>
-        <Typography component="h2" variant="h6" sx={{ fontSize: FONT_SIZE.sectionTitle, mb: 1.5 }}>
-          티켓 발생 추이
-        </Typography>
+        <SectionTitle component="h2" title="티켓 발생 추이" />
         {trendQuery.isPending ? <Skeleton lines={4} />
           : trendQuery.isError ? <ErrorState layout="region" error={trendQuery.error} onRetry={() => trendQuery.refetch()} />
           : (
@@ -322,17 +332,22 @@ function Overview({
         gridTemplateColumns: { xs: "1fr", lg: "repeat(2, minmax(0, 1fr))" },
       }}>
       <Card>
-        <Stack direction="row" gap={1} sx={{ flexWrap: "wrap", alignItems: "center", mb: 1.5 }}>
-          <Typography component="h2" variant="h6" sx={{ fontSize: FONT_SIZE.sectionTitle, flex: 1 }}>진행률</Typography>
-          {/* FN-06: progress_pct/health_score는 이미 백그라운드가 채운다(project-queries.js
-              주석 참조) — 이 버튼은 그 값이 틀렸다는 뜻이 아니라, 방금 티켓/마일스톤을 고친
-              사람이 다음 스윕까지 기다리지 않게 하는 수동 트리거다. */}
-          {canWrite ? (
-            <Button size="sm" disabled={recomputingProgress} loading={recomputingProgress} onClick={onRecomputeProgress}>
-              다시 계산
-            </Button>
-          ) : null}
-        </Stack>
+        <SectionTitle
+          component="h2"
+          title="진행률"
+          action={(
+            <Stack direction="row" gap={1} sx={{ flexWrap: "wrap", alignItems: "center" }}>
+              {/* FN-06: progress_pct/health_score는 이미 백그라운드가 채운다(project-queries.js
+                  주석 참조) — 이 버튼은 그 값이 틀렸다는 뜻이 아니라, 방금 티켓/마일스톤을 고친
+                  사람이 다음 스윕까지 기다리지 않게 하는 수동 트리거다. */}
+              {canWrite ? (
+                <Button size="sm" disabled={recomputingProgress} loading={recomputingProgress} onClick={onRecomputeProgress}>
+                  다시 계산
+                </Button>
+              ) : null}
+            </Stack>
+          )}
+        />
         {progressFailure ? <Callout tone="danger" compact sx={{ mb: 1.5 }}>{progressFailure}</Callout> : null}
         {progressQuery.isPending ? <Skeleton lines={4} />
           : progressQuery.isError ? <ErrorState layout="region" error={progressQuery.error} onRetry={() => progressQuery.refetch()} />
@@ -344,14 +359,19 @@ function Overview({
       </Card>
 
       <Card>
-        <Stack direction="row" gap={1} sx={{ flexWrap: "wrap", alignItems: "center", mb: 1.5 }}>
-          <Typography component="h2" variant="h6" sx={{ fontSize: FONT_SIZE.sectionTitle, flex: 1 }}>Health</Typography>
-          {canWrite ? (
-            <Button size="sm" disabled={snapshottingHealth} loading={snapshottingHealth} onClick={onSnapshotHealth}>
-              다시 계산
-            </Button>
-          ) : null}
-        </Stack>
+        <SectionTitle
+          component="h2"
+          title="Health"
+          action={(
+            <Stack direction="row" gap={1} sx={{ flexWrap: "wrap", alignItems: "center" }}>
+              {canWrite ? (
+                <Button size="sm" disabled={snapshottingHealth} loading={snapshottingHealth} onClick={onSnapshotHealth}>
+                  다시 계산
+                </Button>
+              ) : null}
+            </Stack>
+          )}
+        />
         {healthFailure ? <Callout tone="danger" compact sx={{ mb: 1.5 }}>{healthFailure}</Callout> : null}
         {healthQuery.isPending ? <Skeleton lines={5} />
           : healthQuery.isError ? <ErrorState layout="region" error={healthQuery.error} onRetry={() => healthQuery.refetch()} />

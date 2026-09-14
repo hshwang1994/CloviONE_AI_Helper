@@ -3,12 +3,10 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
 import Tooltip from "@mui/material/Tooltip";
-import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
 import { failureText } from "../lib/failure.js";
 import { editorContainerSx, editorSurfaceWidthSx } from "./BodyEditor.jsx";
-import { Button, Callout, Skeleton, useConfirm, useToast } from "./kit.jsx";
-import { FONT_SIZE } from "./theme.js";
+import { Button, Callout, SectionTitle, Skeleton, useConfirm, useToast } from "./kit.jsx";
 
 /* 편집기는 **지연 로드**한다. TipTap 과 그 확장 열두 개는 진입 번들에 넣을 것이 아니고,
  * `ui/block-editor-lazy.test.jsx` 가 정적 import 를 소스 전체에서 금지한다. */
@@ -160,15 +158,20 @@ export function EditableBody({
     return (
       <Box sx={editorContainerSx(EDIT_SURFACE_CONTAINER)}>
         <Box sx={editorSurfaceWidthSx(EDIT_SURFACE_CONTAINER)}>
-          <Stack direction="row" gap={1} sx={{ alignItems: "center", mb: 1.5, flexWrap: "wrap" }}>
-            <Typography component="h2" variant="h6" sx={{ fontSize: FONT_SIZE.sectionTitle, flex: 1 }}>{heading} 수정</Typography>
-            <Button size="sm" onClick={cancel} disabled={save.isPending}>취소</Button>
-            <Button size="sm" variant="primary" disabled={save.isPending}
-              loading={save.isPending}
-              onClick={() => save.mutate({ body: draft, baseVersion: editBaseVersion })}>
-              저장
-            </Button>
-          </Stack>
+          <SectionTitle
+            component="h2"
+            title={`${heading} 수정`}
+            action={(
+              <Stack direction="row" gap={1}>
+                <Button size="sm" onClick={cancel} disabled={save.isPending}>취소</Button>
+                <Button size="sm" variant="primary" disabled={save.isPending}
+                  loading={save.isPending}
+                  onClick={() => save.mutate({ body: draft, baseVersion: editBaseVersion })}>
+                  저장
+                </Button>
+              </Stack>
+            )}
+          />
           {saveFailure ? <Callout tone="danger" compact sx={{ mb: 1.5 }}>{saveFailure}</Callout> : null}
           {/* 여기 「이 본문은 원본(Notion)에서 읽어온 것입니다 … '원본 열기'에서
               수정하세요」 경고가 있었다. body_is_local 이 거짓일 때 떴는데, 이관해 온
@@ -203,19 +206,20 @@ export function EditableBody({
 
   return (
     <Box>
-      <Stack direction="row" gap={1} sx={{ alignItems: "center", mb: 1.5, flexWrap: "wrap" }}>
-        <Typography component="h2" variant="h6" sx={{ fontSize: FONT_SIZE.sectionTitle, flex: 1 }}>{heading}</Typography>
-        {/* canEdit이 false일 땐 버튼이 disabled라 MUI Tooltip이 그 위에서 마우스 이벤트를
-            못 받는다(MUI 자체 경고) — 그리고 바로 아래 Callout이 "왜 못 고치는지"를 이미
-            말하고 있어 이 시점엔 안내가 중복이다. 고칠 수 있을 때만 감싼다. */}
-        {editButtonHint && canEdit ? (
+      {/* canEdit이 false일 땐 버튼이 disabled라 MUI Tooltip이 그 위에서 마우스 이벤트를
+          못 받는다(MUI 자체 경고) — 그리고 바로 아래 Callout이 "왜 못 고치는지"를 이미
+          말하고 있어 이 시점엔 안내가 중복이다. 고칠 수 있을 때만 감싼다. */}
+      <SectionTitle
+        component="h2"
+        title={heading}
+        action={editButtonHint && canEdit ? (
           <Tooltip describeChild title={editButtonHint}>
             <Button size="sm" onClick={startEditing} disabled={!canEdit}>{heading} 수정</Button>
           </Tooltip>
         ) : (
           <Button size="sm" onClick={startEditing} disabled={!canEdit}>{heading} 수정</Button>
         )}
-      </Stack>
+      />
       {!canEdit ? (
         <Box sx={{ mb: 1.5 }}>
           <Callout tone="danger">

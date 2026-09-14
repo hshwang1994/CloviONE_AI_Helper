@@ -3,7 +3,6 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import Box from "@mui/material/Box";
 import Link from "@mui/material/Link";
-import Paper from "@mui/material/Paper";
 import MenuItem from "@mui/material/MenuItem";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
@@ -20,6 +19,7 @@ import {
   Tag,
   useConfirm,
   useToast,
+  SectionTitle,
 } from "../ui/kit.jsx";
 import { fmtDateTime } from "../lib/format.js";
 import { failureText } from "../lib/failure.js";
@@ -171,10 +171,12 @@ function CommentComposer({ postId, parentId, palette, onDone, autoFocus }) {
  * 규약이다: 행이 조용히 사라지면 그 답글(자식)만 남아 부모 없는 대화처럼 보인다. */
 function CommentTombstone({ comment, isReply }) {
   return (
-    <Paper
-      component="article" variant="outlined"
+    /* 댓글 한 건은 판 하나다(`Card` — 여백 20 · 모서리 8 · 1px 테두리, 핸드오프 RULES §6). 답글은 왼쪽 선이
+       부모 댓글에 딸린 것임을 말한다. */
+    <Card
+      component="article"
       sx={{
-        p: 2, minWidth: 0,
+        minWidth: 0,
         borderLeft: isReply ? 3 : 1,
         borderLeftColor: isReply ? "primary.light" : "divider",
       }}
@@ -182,7 +184,7 @@ function CommentTombstone({ comment, isReply }) {
       <Typography variant="body2" color="text.disabled" sx={{ fontStyle: "italic" }}>
         {comment.author_name || "알 수 없음"}, 삭제된 댓글입니다
       </Typography>
-    </Paper>
+    </Card>
   );
 }
 
@@ -227,11 +229,10 @@ function CommentItem({ comment, postId, palette, isReply, person, onChanged }) {
   };
 
   return (
-    <Paper
+    <Card
       component="article"
-      variant="outlined"
       sx={{
-        p: 2, minWidth: 0,
+        minWidth: 0,
         // 답글은 부모 댓글에 딸린 것임을 왼쪽 선으로 보인다(들여쓰기는 부모 목록이 준다).
         borderLeft: isReply ? 3 : 1,
         borderLeftColor: isReply ? "primary.light" : "divider",
@@ -301,7 +302,7 @@ function CommentItem({ comment, postId, palette, isReply, person, onChanged }) {
           onDone={() => { setReplying(false); onChanged && onChanged(); }}
         />
       ) : null}
-    </Paper>
+    </Card>
   );
 }
 
@@ -571,7 +572,7 @@ export function BoardPost() {
             전체 폭이고, 여기서는 기준이 맞다.
             소스 순서(본문 → 메타 → 댓글)는 그대로라 스크린리더가 읽는 차례도 그대로다. */}
         <Box component="section" sx={{ minWidth: 0 }}>
-            <Typography variant="h6" component="h2" sx={{ mb: 1.5 }}>댓글 {comments.length}</Typography>
+            <SectionTitle component="h2" title={`댓글 ${comments.length}`} />
             {tops.length === 0 ? (
               <Typography color="text.secondary">아직 댓글이 없습니다. 첫 댓글을 남겨 보세요.</Typography>
             ) : (

@@ -1,8 +1,9 @@
 import React from "react";
+import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
-import { Button, Modal, ModalFooter, Segmented } from "../../ui/kit.jsx";
+import { Button, Modal, ModalFooter, Segmented, FieldLabel } from "../../ui/kit.jsx";
 import { KO_WORD_BREAK } from "../../ui/theme.js";
 import { bodyToText, textToBody } from "./templateText.js";
 
@@ -35,6 +36,7 @@ function VocabularyPanel({
   const [name, setName] = React.useState("");
   const [editing, setEditing] = React.useState(null);
   const [draft, setDraft] = React.useState("");
+  const addId = React.useId();
 
   const add = () => {
     const clean = name.trim();
@@ -47,17 +49,20 @@ function VocabularyPanel({
       <Typography variant="body2" color="text.secondary" sx={KO_WORD_BREAK}>
         {helpText}
       </Typography>
-      <Stack direction="row" spacing={1} alignItems="flex-start">
-        <TextField
-          label={addLabel}
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); add(); } }}
-          InputLabelProps={{ shrink: true }}
-          inputProps={{ maxLength: 80 }}
-          size="small"
-          fullWidth
-        />
+      <Stack direction="row" spacing={1} alignItems="flex-end">
+        {/* 라벨은 칸 위에 선다(`FieldLabel`, 핸드오프 RULES §7). 옆 「추가」 단추는 칸 바닥에 맞춘다. */}
+        <Box sx={{ minWidth: 0, flex: 1 }}>
+          <FieldLabel htmlFor={addId}>{addLabel}</FieldLabel>
+          <TextField
+            id={addId}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); add(); } }}
+            inputProps={{ maxLength: 80 }}
+            size="small"
+            fullWidth
+          />
+        </Box>
         <Button variant="primary" disabled={!name.trim() || busy} onClick={add}>추가</Button>
       </Stack>
 
@@ -143,6 +148,7 @@ function TemplatePanel({
   const [name, setName] = React.useState("");
   const [help, setHelp] = React.useState("");
   const [text, setText] = React.useState("");
+  const fieldId = React.useId();
 
   /* 서버가 본문을 실어 주면 그때 판을 채운다 — 목록 응답에는 본문이 없다. */
   React.useEffect(() => {
@@ -158,38 +164,44 @@ function TemplatePanel({
   if (editing) {
     return (
       <Stack spacing={2}>
-        <TextField
-          label="틀 이름"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          InputLabelProps={{ shrink: true }}
-          inputProps={{ maxLength: 80 }}
-          size="small"
-          fullWidth
-          required
-        />
-        <TextField
-          label="설명"
-          value={help}
-          onChange={(e) => setHelp(e.target.value)}
-          InputLabelProps={{ shrink: true }}
-          inputProps={{ maxLength: 500 }}
-          size="small"
-          fullWidth
-          helperText="새 문서 대화상자에서 이 틀 아래에 보이는 한 줄입니다."
-        />
-        <TextField
-          label="본문"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          multiline
-          minRows={8}
-          maxRows={16}
-          InputLabelProps={{ shrink: true }}
-          size="small"
-          fullWidth
-          helperText="## 은 제목, - 는 글머리, 1. 은 번호입니다. 나머지 줄은 문단이 됩니다."
-        />
+        <Box sx={{ minWidth: 0 }}>
+          <FieldLabel htmlFor={`${fieldId}-name`} required>틀 이름</FieldLabel>
+          <TextField
+            id={`${fieldId}-name`}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            inputProps={{ maxLength: 80 }}
+            size="small"
+            fullWidth
+            required
+          />
+        </Box>
+        <Box sx={{ minWidth: 0 }}>
+          <FieldLabel htmlFor={`${fieldId}-help`}>설명</FieldLabel>
+          <TextField
+            id={`${fieldId}-help`}
+            value={help}
+            onChange={(e) => setHelp(e.target.value)}
+            inputProps={{ maxLength: 500 }}
+            size="small"
+            fullWidth
+            helperText="새 문서 대화상자에서 이 틀 아래에 보이는 한 줄입니다."
+          />
+        </Box>
+        <Box sx={{ minWidth: 0 }}>
+          <FieldLabel htmlFor={`${fieldId}-body`}>본문</FieldLabel>
+          <TextField
+            id={`${fieldId}-body`}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            multiline
+            minRows={8}
+            maxRows={16}
+            size="small"
+            fullWidth
+            helperText="## 은 제목, - 는 글머리, 1. 은 번호입니다. 나머지 줄은 문단이 됩니다."
+          />
+        </Box>
         <Stack direction="row" spacing={1} justifyContent="flex-end">
           <Button variant="ghost" onClick={onCancel}>취소</Button>
           <Button

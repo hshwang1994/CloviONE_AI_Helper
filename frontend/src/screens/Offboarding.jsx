@@ -15,6 +15,7 @@ import {
   PageHeader, Card, ListCard, Badge, Button, DataTable, DetailGrid, DetailRow, Modal, Skeleton,
   Section, SectionTitle, EmptyState, ErrorState, Callout, useConfirm, useToast,
   ActionFooter,
+  FieldLabel,
 } from "../ui/kit.jsx";
 import { KO_WORD_BREAK } from "../ui/theme.js";
 import { useRowSelection, selectionColumn } from "../ui/bulkSelect.jsx";
@@ -345,14 +346,16 @@ function OffboardPlan({ preview, onDone, toast }) {
             describe={(c) => [c.email, c.department].filter(Boolean).join(", ")}
             helperText="비워 두면 선택한 티켓이 미할당으로 돌아갑니다(미할당 트리아지에서 다시 배정)."
           />
-          <TextField
-            InputLabelProps={{ shrink: true }}
-            size="small" fullWidth label="메모(선택)" value={note}
-            onChange={(e) => { setNote(e.target.value); if (noteError) setNoteError(""); }}
-            error={!!noteError}
-            helperText={noteError || "왜 오프보딩하는지 남겨 두면 이력에서 바로 읽힙니다."}
-            inputProps={noteMaxLength ? { maxLength: noteMaxLength } : undefined}
-          />
+          <Box sx={{ minWidth: 0 }}>
+            <FieldLabel htmlFor="offboarding-note">메모(선택)</FieldLabel>
+            <TextField id="offboarding-note"
+              size="small" fullWidth value={note}
+              onChange={(e) => { setNote(e.target.value); if (noteError) setNoteError(""); }}
+              error={!!noteError}
+              helperText={noteError || "왜 오프보딩하는지 남겨 두면 이력에서 바로 읽힙니다."}
+              inputProps={noteMaxLength ? { maxLength: noteMaxLength } : undefined}
+            />
+          </Box>
         </Box>
         <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap", mt: 1.5 }}>
           <FormControlLabel control={<Checkbox size="small" checked={deactivate} onChange={(e) => setDeactivate(e.target.checked)} />}

@@ -4,7 +4,7 @@ import IconButton from "@mui/material/IconButton";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
-import { Button, Callout, Tag } from "../../ui/kit.jsx";
+import { Button, Callout, Tag, FieldLabel } from "../../ui/kit.jsx";
 import { FONT_SIZE, FONT_WEIGHT } from "../../ui/theme.js";
 import { fmtDuration } from "./settingsRegistry.js";
 
@@ -116,22 +116,26 @@ export function StructuredObjectFields({ settingKey, val, onChange, canWrite, de
       <Box sx={pairGrid}>
         {/* 옆 '문자 종류 수(1~4)' 필드처럼 허용 범위를 라벨에 직접 접어 넣는다, 백엔드(registry.py
             _password_policy)가 실제로 강제하는 8~128 범위를 저장 왕복 전까지 알 길이 없었다. */}
-        <TextField
-          InputLabelProps={{ shrink: true }}
-          id={minLenId} label="최소 글자 수(8~128자)" type="number" size="small" fullWidth disabled={!canWrite}
-          error={!!invalid}
-          inputProps={{ min: 8, max: 128, "aria-invalid": ariaInvalid, "aria-describedby": describedBy }}
-          value={safe.min_length != null ? safe.min_length : ""}
-          onChange={(e) => patch({ min_length: e.target.value === "" ? null : Number(e.target.value) })}
-        />
-        <TextField
-          InputLabelProps={{ shrink: true }}
-          id={minClassesId} label="문자 종류 수(1~4)" type="number" size="small" fullWidth disabled={!canWrite}
-          error={!!invalid}
-          inputProps={{ min: 1, max: 4, "aria-invalid": ariaInvalid, "aria-describedby": describedBy }}
-          value={safe.min_classes != null ? safe.min_classes : ""}
-          onChange={(e) => patch({ min_classes: e.target.value === "" ? null : Number(e.target.value) })}
-        />
+        <Box sx={{ minWidth: 0 }}>
+          <FieldLabel htmlFor={minLenId}>최소 글자 수(8~128자)</FieldLabel>
+          <TextField
+            id={minLenId} type="number" size="small" fullWidth disabled={!canWrite}
+            error={!!invalid}
+            inputProps={{ min: 8, max: 128, "aria-invalid": ariaInvalid, "aria-describedby": describedBy }}
+            value={safe.min_length != null ? safe.min_length : ""}
+            onChange={(e) => patch({ min_length: e.target.value === "" ? null : Number(e.target.value) })}
+          />
+        </Box>
+        <Box sx={{ minWidth: 0 }}>
+          <FieldLabel htmlFor={minClassesId}>문자 종류 수(1~4)</FieldLabel>
+          <TextField
+            id={minClassesId} type="number" size="small" fullWidth disabled={!canWrite}
+            error={!!invalid}
+            inputProps={{ min: 1, max: 4, "aria-invalid": ariaInvalid, "aria-describedby": describedBy }}
+            value={safe.min_classes != null ? safe.min_classes : ""}
+            onChange={(e) => patch({ min_classes: e.target.value === "" ? null : Number(e.target.value) })}
+          />
+        </Box>
       </Box>
     );
   }
@@ -147,27 +151,31 @@ export function StructuredObjectFields({ settingKey, val, onChange, canWrite, de
     return (
       <Box sx={pairGrid}>
         <Box>
-          <TextField
-            InputLabelProps={{ shrink: true }}
-            id={idleId} label="유휴 제한(분, 최소 1분)" type="number" size="small" fullWidth disabled={!canWrite}
-            error={!!invalid}
-            inputProps={{ min: 1, "aria-invalid": ariaInvalid, "aria-describedby": describedBy }}
-            value={idleMin}
-            onChange={(e) => patch({ idle_timeout_seconds: e.target.value === "" ? null : Math.round(Number(e.target.value) * 60) })}
-          />
+          <Box sx={{ minWidth: 0 }}>
+            <FieldLabel htmlFor={idleId}>유휴 제한(분, 최소 1분)</FieldLabel>
+            <TextField
+              id={idleId} type="number" size="small" fullWidth disabled={!canWrite}
+              error={!!invalid}
+              inputProps={{ min: 1, "aria-invalid": ariaInvalid, "aria-describedby": describedBy }}
+              value={idleMin}
+              onChange={(e) => patch({ idle_timeout_seconds: e.target.value === "" ? null : Math.round(Number(e.target.value) * 60) })}
+            />
+          </Box>
           {/* 분 단위 숫자만으론 시간 규모(예: 480 = 8시간)를 확인하기 어렵다, 표 요약과 같은
               fmtDuration으로 사람이 읽는 값을 바로 옆에 함께 보여준다. */}
           {safe.idle_timeout_seconds != null ? <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>= {fmtDuration(safe.idle_timeout_seconds)}</Typography> : null}
         </Box>
         <Box>
-          <TextField
-            InputLabelProps={{ shrink: true }}
-            id={absId} label="최대 세션 길이(분, 최소 1분)" type="number" size="small" fullWidth disabled={!canWrite}
-            error={!!invalid}
-            inputProps={{ min: 1, step: 1, "aria-invalid": ariaInvalid, "aria-describedby": describedBy }}
-            value={absMin}
-            onChange={(e) => patch({ absolute_timeout_seconds: e.target.value === "" ? null : Math.round(Number(e.target.value) * 60) })}
-          />
+          <Box sx={{ minWidth: 0 }}>
+            <FieldLabel htmlFor={absId}>최대 세션 길이(분, 최소 1분)</FieldLabel>
+            <TextField
+              id={absId} type="number" size="small" fullWidth disabled={!canWrite}
+              error={!!invalid}
+              inputProps={{ min: 1, step: 1, "aria-invalid": ariaInvalid, "aria-describedby": describedBy }}
+              value={absMin}
+              onChange={(e) => patch({ absolute_timeout_seconds: e.target.value === "" ? null : Math.round(Number(e.target.value) * 60) })}
+            />
+          </Box>
           {safe.absolute_timeout_seconds != null ? <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>= {fmtDuration(safe.absolute_timeout_seconds)}</Typography> : null}
         </Box>
       </Box>
@@ -181,23 +189,27 @@ export function StructuredObjectFields({ settingKey, val, onChange, canWrite, de
     const lockId = fieldId("lock_minutes");
     return (
       <Box sx={pairGrid}>
-        <TextField
-          InputLabelProps={{ shrink: true }}
-          id={maxId} label="로그인 실패 임계값(1~20회)" type="number" size="small" fullWidth disabled={!canWrite}
-          error={!!invalid}
-          inputProps={{ min: 1, max: 20, "aria-invalid": ariaInvalid, "aria-describedby": describedBy }}
-          value={safe.max_failures != null ? safe.max_failures : ""}
-          onChange={(e) => patch({ max_failures: e.target.value === "" ? null : Number(e.target.value) })}
-        />
-        <Box>
+        <Box sx={{ minWidth: 0 }}>
+          <FieldLabel htmlFor={maxId}>로그인 실패 임계값(1~20회)</FieldLabel>
           <TextField
-            InputLabelProps={{ shrink: true }}
-            id={lockId} label="잠금 시간(분, 최소 1분)" type="number" size="small" fullWidth disabled={!canWrite}
+            id={maxId} type="number" size="small" fullWidth disabled={!canWrite}
             error={!!invalid}
-            inputProps={{ min: 1, "aria-invalid": ariaInvalid, "aria-describedby": describedBy }}
-            value={lockMin}
-            onChange={(e) => patch({ lock_seconds: e.target.value === "" ? null : Math.round(Number(e.target.value) * 60) })}
+            inputProps={{ min: 1, max: 20, "aria-invalid": ariaInvalid, "aria-describedby": describedBy }}
+            value={safe.max_failures != null ? safe.max_failures : ""}
+            onChange={(e) => patch({ max_failures: e.target.value === "" ? null : Number(e.target.value) })}
           />
+        </Box>
+        <Box>
+          <Box sx={{ minWidth: 0 }}>
+            <FieldLabel htmlFor={lockId}>잠금 시간(분, 최소 1분)</FieldLabel>
+            <TextField
+              id={lockId} type="number" size="small" fullWidth disabled={!canWrite}
+              error={!!invalid}
+              inputProps={{ min: 1, "aria-invalid": ariaInvalid, "aria-describedby": describedBy }}
+              value={lockMin}
+              onChange={(e) => patch({ lock_seconds: e.target.value === "" ? null : Math.round(Number(e.target.value) * 60) })}
+            />
+          </Box>
           {safe.lock_seconds != null ? <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>= {fmtDuration(safe.lock_seconds)}</Typography> : null}
         </Box>
       </Box>
@@ -222,26 +234,30 @@ export function StructuredObjectFields({ settingKey, val, onChange, canWrite, de
     return (
       <Box sx={{ display: "grid", gap: 2.5 }}>
         <Box sx={pairGrid}>
-          <TextField
-            InputLabelProps={{ shrink: true }}
-            id={fieldId("enabled")} select label="자동 백업" size="small" fullWidth disabled={!canWrite}
-            error={!!invalid} SelectProps={{ native: true }}
-            inputProps={{ "aria-invalid": ariaInvalid, "aria-describedby": describedBy }}
-            value={safe.enabled ? "true" : "false"}
-            onChange={(e) => patch({ enabled: e.target.value === "true" })}
-          >
-            <option value="true">사용</option>
-            <option value="false">사용 안 함</option>
-          </TextField>
-          <TextField
-            InputLabelProps={{ shrink: true }}
-            id={fieldId("keep")} label="남길 백업 개수(1~365)" type="number" size="small" fullWidth
-            disabled={!canWrite} error={!!invalid}
-            helperText="최근 이 개수만큼은 나이와 상관없이 남습니다."
-            inputProps={{ min: 1, max: 365, "aria-invalid": ariaInvalid, "aria-describedby": describedBy }}
-            value={safe.keep != null ? safe.keep : ""}
-            onChange={(e) => patch({ keep: e.target.value === "" ? null : Number(e.target.value) })}
-          />
+          <Box sx={{ minWidth: 0 }}>
+            <FieldLabel htmlFor={fieldId("enabled")}>자동 백업</FieldLabel>
+            <TextField
+              id={fieldId("enabled")} select size="small" fullWidth disabled={!canWrite}
+              error={!!invalid} SelectProps={{ native: true }}
+              inputProps={{ "aria-invalid": ariaInvalid, "aria-describedby": describedBy }}
+              value={safe.enabled ? "true" : "false"}
+              onChange={(e) => patch({ enabled: e.target.value === "true" })}
+            >
+              <option value="true">사용</option>
+              <option value="false">사용 안 함</option>
+            </TextField>
+          </Box>
+          <Box sx={{ minWidth: 0 }}>
+            <FieldLabel htmlFor={fieldId("keep")}>남길 백업 개수(1~365)</FieldLabel>
+            <TextField
+              id={fieldId("keep")} type="number" size="small" fullWidth
+              disabled={!canWrite} error={!!invalid}
+              helperText="최근 이 개수만큼은 나이와 상관없이 남습니다."
+              inputProps={{ min: 1, max: 365, "aria-invalid": ariaInvalid, "aria-describedby": describedBy }}
+              value={safe.keep != null ? safe.keep : ""}
+              onChange={(e) => patch({ keep: e.target.value === "" ? null : Number(e.target.value) })}
+            />
+          </Box>
         </Box>
 
         {/* 🔴 **보관 기간을 화면에서 고칠 수 없었다** (2026-09-01).
@@ -252,94 +268,106 @@ export function StructuredObjectFields({ settingKey, val, onChange, canWrite, de
             («정한 개수와 기간만큼 남깁니다»)은 절반이 지킬 수 없는 약속이었다.
             0 은 「개수만으로 자른다」를 **명시적으로** 고르는 값이라 허용한다(서버도 그렇다). */}
         <Box sx={pairGrid}>
-          <TextField
-            InputLabelProps={{ shrink: true }}
-            id={fieldId("keep_days")} label="보관 기간(0~365일)" type="number" size="small" fullWidth
-            disabled={!canWrite} error={!!invalid}
-            helperText="이 기간 안에 만든 백업은 개수를 넘어도 남습니다. 0이면 개수로만 정리합니다."
-            inputProps={{ min: 0, max: 365, "aria-invalid": ariaInvalid, "aria-describedby": describedBy }}
-            value={safe.keep_days != null ? safe.keep_days : ""}
-            onChange={(e) => patch({ keep_days: e.target.value === "" ? null : Number(e.target.value) })}
-          />
+          <Box sx={{ minWidth: 0 }}>
+            <FieldLabel htmlFor={fieldId("keep_days")}>보관 기간(0~365일)</FieldLabel>
+            <TextField
+              id={fieldId("keep_days")} type="number" size="small" fullWidth
+              disabled={!canWrite} error={!!invalid}
+              helperText="이 기간 안에 만든 백업은 개수를 넘어도 남습니다. 0이면 개수로만 정리합니다."
+              inputProps={{ min: 0, max: 365, "aria-invalid": ariaInvalid, "aria-describedby": describedBy }}
+              value={safe.keep_days != null ? safe.keep_days : ""}
+              onChange={(e) => patch({ keep_days: e.target.value === "" ? null : Number(e.target.value) })}
+            />
+          </Box>
         </Box>
 
         <Box sx={pairGrid}>
-          <TextField
-            InputLabelProps={{ shrink: true }}
-            id={fieldId("cron-preset")} select label="주기" size="small" fullWidth disabled={!canWrite}
-            error={!!invalid} SelectProps={{ native: true }}
-            inputProps={{ "aria-invalid": ariaInvalid, "aria-describedby": describedBy }}
-            value={preset || "custom"}
-            onChange={(e) => {
-              const v = e.target.value;
-              if (v === "daily") setCron(`${minute} ${hour} * * *`);
-              else if (v === "weekly") setCron(`${minute} ${hour} * * ${weekday}`);
-              else if (v === "monthly") setCron(`${minute} ${hour} ${day} * *`);
-              // '직접 입력'으로 옮길 때는 지금 값을 그대로 둔다 — 고르는 순간 값이 사라지면
-              // 사용자는 자기가 뭘 지웠는지 모른다.
-            }}
-          >
-            <option value="daily">매일</option>
-            <option value="weekly">매주</option>
-            <option value="monthly">매월</option>
-            <option value="custom">직접 입력</option>
-          </TextField>
-          {preset ? (
+          <Box sx={{ minWidth: 0 }}>
+            <FieldLabel htmlFor={fieldId("cron-preset")}>주기</FieldLabel>
             <TextField
-              id={fieldId("cron-time")} label="시각" type="time" size="small" fullWidth
-              disabled={!canWrite} error={!!invalid}
-              InputLabelProps={{ shrink: true }}
+              id={fieldId("cron-preset")} select size="small" fullWidth disabled={!canWrite}
+              error={!!invalid} SelectProps={{ native: true }}
               inputProps={{ "aria-invalid": ariaInvalid, "aria-describedby": describedBy }}
-              value={`${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`}
+              value={preset || "custom"}
               onChange={(e) => {
-                const [h, m] = String(e.target.value || "0:0").split(":").map((x) => Number(x) || 0);
-                if (preset === "daily") setCron(`${m} ${h} * * *`);
-                else if (preset === "weekly") setCron(`${m} ${h} * * ${weekday}`);
-                else setCron(`${m} ${h} ${day} * *`);
+                const v = e.target.value;
+                if (v === "daily") setCron(`${minute} ${hour} * * *`);
+                else if (v === "weekly") setCron(`${minute} ${hour} * * ${weekday}`);
+                else if (v === "monthly") setCron(`${minute} ${hour} ${day} * *`);
+                // '직접 입력'으로 옮길 때는 지금 값을 그대로 둔다 — 고르는 순간 값이 사라지면
+                // 사용자는 자기가 뭘 지웠는지 모른다.
               }}
-            />
+            >
+              <option value="daily">매일</option>
+              <option value="weekly">매주</option>
+              <option value="monthly">매월</option>
+              <option value="custom">직접 입력</option>
+            </TextField>
+          </Box>
+          {preset ? (
+            <Box sx={{ minWidth: 0 }}>
+              <FieldLabel htmlFor={fieldId("cron-time")}>시각</FieldLabel>
+              <TextField
+                id={fieldId("cron-time")} type="time" size="small" fullWidth
+                disabled={!canWrite} error={!!invalid}
+                inputProps={{ "aria-invalid": ariaInvalid, "aria-describedby": describedBy }}
+                value={`${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`}
+                onChange={(e) => {
+                  const [h, m] = String(e.target.value || "0:0").split(":").map((x) => Number(x) || 0);
+                  if (preset === "daily") setCron(`${m} ${h} * * *`);
+                  else if (preset === "weekly") setCron(`${m} ${h} * * ${weekday}`);
+                  else setCron(`${m} ${h} ${day} * *`);
+                }}
+              />
+            </Box>
           ) : null}
         </Box>
 
         {preset === "weekly" ? (
           <Box sx={pairGrid}>
-            <TextField
-              InputLabelProps={{ shrink: true }}
-              id={fieldId("cron-weekday")} select label="요일" size="small" fullWidth disabled={!canWrite}
-              error={!!invalid} SelectProps={{ native: true }}
-              inputProps={{ "aria-invalid": ariaInvalid, "aria-describedby": describedBy }}
-              value={weekday}
-              onChange={(e) => setCron(`${minute} ${hour} * * ${e.target.value}`)}
-            >
-              {WEEKDAYS.map((w, i) => <option key={w} value={String(i)}>{w}</option>)}
-            </TextField>
+            <Box sx={{ minWidth: 0 }}>
+              <FieldLabel htmlFor={fieldId("cron-weekday")}>요일</FieldLabel>
+              <TextField
+                id={fieldId("cron-weekday")} select size="small" fullWidth disabled={!canWrite}
+                error={!!invalid} SelectProps={{ native: true }}
+                inputProps={{ "aria-invalid": ariaInvalid, "aria-describedby": describedBy }}
+                value={weekday}
+                onChange={(e) => setCron(`${minute} ${hour} * * ${e.target.value}`)}
+              >
+                {WEEKDAYS.map((w, i) => <option key={w} value={String(i)}>{w}</option>)}
+              </TextField>
+            </Box>
           </Box>
         ) : null}
 
         {preset === "monthly" ? (
           <Box sx={pairGrid}>
-            <TextField
-              InputLabelProps={{ shrink: true }}
-              id={fieldId("cron-day")} label="며칠(1~28)" type="number" size="small" fullWidth
-              disabled={!canWrite} error={!!invalid}
-              helperText="29~31일은 없는 달이 있어 그 달에는 안 돕니다."
-              inputProps={{ min: 1, max: 28, "aria-invalid": ariaInvalid, "aria-describedby": describedBy }}
-              value={day}
-              onChange={(e) => setCron(`${minute} ${hour} ${e.target.value || 1} * *`)}
-            />
+            <Box sx={{ minWidth: 0 }}>
+              <FieldLabel htmlFor={fieldId("cron-day")}>며칠(1~28)</FieldLabel>
+              <TextField
+                id={fieldId("cron-day")} type="number" size="small" fullWidth
+                disabled={!canWrite} error={!!invalid}
+                helperText="29~31일은 없는 달이 있어 그 달에는 안 돕니다."
+                inputProps={{ min: 1, max: 28, "aria-invalid": ariaInvalid, "aria-describedby": describedBy }}
+                value={day}
+                onChange={(e) => setCron(`${minute} ${hour} ${e.target.value || 1} * *`)}
+              />
+            </Box>
           </Box>
         ) : null}
 
         {!preset ? (
           <Box sx={pairGrid}>
             <Box>
-              <TextField
-                InputLabelProps={{ shrink: true }}
-                id={fieldId("cron")} label="cron 표현식" size="small" fullWidth disabled={!canWrite}
-                error={!!invalid} placeholder="0 3 * * *"
-                inputProps={{ "aria-invalid": ariaInvalid, "aria-describedby": describedBy, spellCheck: false }}
-                value={cron} onChange={(e) => setCron(e.target.value)}
-              />
+              <Box sx={{ minWidth: 0 }}>
+                <FieldLabel htmlFor={fieldId("cron")}>cron 표현식</FieldLabel>
+                <TextField
+                  id={fieldId("cron")} size="small" fullWidth disabled={!canWrite}
+                  error={!!invalid} placeholder="0 3 * * *"
+                  inputProps={{ "aria-invalid": ariaInvalid, "aria-describedby": describedBy, spellCheck: false }}
+                  value={cron} onChange={(e) => setCron(e.target.value)}
+                />
+              </Box>
               <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>
                 분 시 일 월 요일 순서입니다. 예: <code>0 3 * * *</code> = 매일 새벽 3시.
               </Typography>
@@ -348,13 +376,15 @@ export function StructuredObjectFields({ settingKey, val, onChange, canWrite, de
         ) : null}
 
         <Box sx={pairGrid}>
-          <TextField
-            InputLabelProps={{ shrink: true }}
-            id={fieldId("timezone")} label="기준 시간대" size="small" fullWidth disabled={!canWrite}
-            error={!!invalid} placeholder="Asia/Seoul"
-            inputProps={{ "aria-invalid": ariaInvalid, "aria-describedby": describedBy, spellCheck: false }}
-            value={safe.timezone || ""} onChange={(e) => patch({ timezone: e.target.value })}
-          />
+          <Box sx={{ minWidth: 0 }}>
+            <FieldLabel htmlFor={fieldId("timezone")}>기준 시간대</FieldLabel>
+            <TextField
+              id={fieldId("timezone")} size="small" fullWidth disabled={!canWrite}
+              error={!!invalid} placeholder="Asia/Seoul"
+              inputProps={{ "aria-invalid": ariaInvalid, "aria-describedby": describedBy, spellCheck: false }}
+              value={safe.timezone || ""} onChange={(e) => patch({ timezone: e.target.value })}
+            />
+          </Box>
         </Box>
       </Box>
     );
@@ -372,88 +402,106 @@ export function StructuredObjectFields({ settingKey, val, onChange, canWrite, de
     return (
       <Box sx={{ display: "grid", gap: 2.5 }}>
         <Box sx={pairGrid}>
-          <TextField
-            InputLabelProps={{ shrink: true }}
-            id={fieldId("enabled")} select label="메일 발송" size="small" fullWidth disabled={!canWrite}
-            error={!!invalid} SelectProps={{ native: true }}
-            inputProps={{ "aria-invalid": ariaInvalid, "aria-describedby": describedBy }}
-            value={safe.enabled ? "true" : "false"}
-            onChange={(e) => patch({ enabled: e.target.value === "true" })}
-          >
-            <option value="true">사용</option>
-            <option value="false">사용 안 함</option>
-          </TextField>
-          <TextField
-            InputLabelProps={{ shrink: true }}
-            id={secId} select label="보안 연결" size="small" fullWidth disabled={!canWrite}
-            error={!!invalid} SelectProps={{ native: true }}
-            inputProps={{ "aria-invalid": ariaInvalid, "aria-describedby": describedBy }}
-            value={safe.security || "starttls"}
-            onChange={(e) => patch({ security: e.target.value })}
-          >
-            <option value="starttls">STARTTLS(587 포트에서 주로 씁니다)</option>
-            <option value="ssl">SSL(465 포트에서 주로 씁니다)</option>
-            <option value="none">사용 안 함(사내망에서만)</option>
-          </TextField>
-        </Box>
-        <Box sx={pairGrid}>
-          <TextField
-            InputLabelProps={{ shrink: true }}
-            id={fieldId("host")} label="메일 서버 주소" size="small" fullWidth disabled={!canWrite} error={!!invalid}
-            placeholder="smtp.example.com"
-            inputProps={{ "aria-invalid": ariaInvalid, "aria-describedby": describedBy, spellCheck: false }}
-            value={safe.host || ""} onChange={(e) => patch({ host: e.target.value })}
-          />
-          <TextField
-            InputLabelProps={{ shrink: true }}
-            id={fieldId("port")} label="포트(1~65535)" type="number" size="small" fullWidth disabled={!canWrite} error={!!invalid}
-            inputProps={{ min: 1, max: 65535, "aria-invalid": ariaInvalid, "aria-describedby": describedBy }}
-            value={safe.port != null ? safe.port : ""}
-            onChange={(e) => patch({ port: e.target.value === "" ? null : Number(e.target.value) })}
-          />
-        </Box>
-        <Box sx={pairGrid}>
-          <TextField
-            InputLabelProps={{ shrink: true }}
-            id={fieldId("from_address")} label="보내는 사람 주소" size="small" fullWidth disabled={!canWrite} error={!!invalid}
-            placeholder="portal@example.com"
-            inputProps={{ "aria-invalid": ariaInvalid, "aria-describedby": describedBy, spellCheck: false }}
-            value={safe.from_address || ""} onChange={(e) => patch({ from_address: e.target.value })}
-          />
-          <TextField
-            InputLabelProps={{ shrink: true }}
-            id={fieldId("from_name")} label="보내는 사람 이름" size="small" fullWidth disabled={!canWrite} error={!!invalid}
-            inputProps={{ "aria-invalid": ariaInvalid, "aria-describedby": describedBy }}
-            value={safe.from_name || ""} onChange={(e) => patch({ from_name: e.target.value })}
-          />
-        </Box>
-        <Box sx={pairGrid}>
-          <TextField
-            InputLabelProps={{ shrink: true }}
-            id={fieldId("username")} label="로그인 계정(필요할 때만)" size="small" fullWidth disabled={!canWrite} error={!!invalid}
-            inputProps={{ "aria-invalid": ariaInvalid, "aria-describedby": describedBy, spellCheck: false }}
-            value={safe.username || ""} onChange={(e) => patch({ username: e.target.value })}
-          />
-          <Box>
+          <Box sx={{ minWidth: 0 }}>
+            <FieldLabel htmlFor={fieldId("enabled")}>메일 발송</FieldLabel>
             <TextField
-              InputLabelProps={{ shrink: true }}
-              id={fieldId("password_ref")} label="비밀번호 파일 이름" size="small" fullWidth disabled={!canWrite} error={!!invalid}
+              id={fieldId("enabled")} select size="small" fullWidth disabled={!canWrite}
+              error={!!invalid} SelectProps={{ native: true }}
+              inputProps={{ "aria-invalid": ariaInvalid, "aria-describedby": describedBy }}
+              value={safe.enabled ? "true" : "false"}
+              onChange={(e) => patch({ enabled: e.target.value === "true" })}
+            >
+              <option value="true">사용</option>
+              <option value="false">사용 안 함</option>
+            </TextField>
+          </Box>
+          <Box sx={{ minWidth: 0 }}>
+            <FieldLabel htmlFor={secId}>보안 연결</FieldLabel>
+            <TextField
+              id={secId} select size="small" fullWidth disabled={!canWrite}
+              error={!!invalid} SelectProps={{ native: true }}
+              inputProps={{ "aria-invalid": ariaInvalid, "aria-describedby": describedBy }}
+              value={safe.security || "starttls"}
+              onChange={(e) => patch({ security: e.target.value })}
+            >
+              <option value="starttls">STARTTLS(587 포트에서 주로 씁니다)</option>
+              <option value="ssl">SSL(465 포트에서 주로 씁니다)</option>
+              <option value="none">사용 안 함(사내망에서만)</option>
+            </TextField>
+          </Box>
+        </Box>
+        <Box sx={pairGrid}>
+          <Box sx={{ minWidth: 0 }}>
+            <FieldLabel htmlFor={fieldId("host")}>메일 서버 주소</FieldLabel>
+            <TextField
+              id={fieldId("host")} size="small" fullWidth disabled={!canWrite} error={!!invalid}
+              placeholder="smtp.example.com"
               inputProps={{ "aria-invalid": ariaInvalid, "aria-describedby": describedBy, spellCheck: false }}
-              value={safe.password_ref || ""} onChange={(e) => patch({ password_ref: e.target.value })}
+              value={safe.host || ""} onChange={(e) => patch({ host: e.target.value })}
             />
+          </Box>
+          <Box sx={{ minWidth: 0 }}>
+            <FieldLabel htmlFor={fieldId("port")}>포트(1~65535)</FieldLabel>
+            <TextField
+              id={fieldId("port")} type="number" size="small" fullWidth disabled={!canWrite} error={!!invalid}
+              inputProps={{ min: 1, max: 65535, "aria-invalid": ariaInvalid, "aria-describedby": describedBy }}
+              value={safe.port != null ? safe.port : ""}
+              onChange={(e) => patch({ port: e.target.value === "" ? null : Number(e.target.value) })}
+            />
+          </Box>
+        </Box>
+        <Box sx={pairGrid}>
+          <Box sx={{ minWidth: 0 }}>
+            <FieldLabel htmlFor={fieldId("from_address")}>보내는 사람 주소</FieldLabel>
+            <TextField
+              id={fieldId("from_address")} size="small" fullWidth disabled={!canWrite} error={!!invalid}
+              placeholder="portal@example.com"
+              inputProps={{ "aria-invalid": ariaInvalid, "aria-describedby": describedBy, spellCheck: false }}
+              value={safe.from_address || ""} onChange={(e) => patch({ from_address: e.target.value })}
+            />
+          </Box>
+          <Box sx={{ minWidth: 0 }}>
+            <FieldLabel htmlFor={fieldId("from_name")}>보내는 사람 이름</FieldLabel>
+            <TextField
+              id={fieldId("from_name")} size="small" fullWidth disabled={!canWrite} error={!!invalid}
+              inputProps={{ "aria-invalid": ariaInvalid, "aria-describedby": describedBy }}
+              value={safe.from_name || ""} onChange={(e) => patch({ from_name: e.target.value })}
+            />
+          </Box>
+        </Box>
+        <Box sx={pairGrid}>
+          <Box sx={{ minWidth: 0 }}>
+            <FieldLabel htmlFor={fieldId("username")}>로그인 계정(필요할 때만)</FieldLabel>
+            <TextField
+              id={fieldId("username")} size="small" fullWidth disabled={!canWrite} error={!!invalid}
+              inputProps={{ "aria-invalid": ariaInvalid, "aria-describedby": describedBy, spellCheck: false }}
+              value={safe.username || ""} onChange={(e) => patch({ username: e.target.value })}
+            />
+          </Box>
+          <Box>
+            <Box sx={{ minWidth: 0 }}>
+              <FieldLabel htmlFor={fieldId("password_ref")}>비밀번호 파일 이름</FieldLabel>
+              <TextField
+                id={fieldId("password_ref")} size="small" fullWidth disabled={!canWrite} error={!!invalid}
+                inputProps={{ "aria-invalid": ariaInvalid, "aria-describedby": describedBy, spellCheck: false }}
+                value={safe.password_ref || ""} onChange={(e) => patch({ password_ref: e.target.value })}
+              />
+            </Box>
             <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>
               비밀번호 자체는 적지 않습니다. 서버에 미리 둔 파일의 이름만 적습니다.
             </Typography>
           </Box>
         </Box>
         <Box sx={pairGrid}>
-          <TextField
-            InputLabelProps={{ shrink: true }}
-            id={fieldId("timeout_seconds")} label="응답 대기 시간(초, 1~300)" type="number" size="small" fullWidth disabled={!canWrite} error={!!invalid}
-            inputProps={{ min: 1, max: 300, "aria-invalid": ariaInvalid, "aria-describedby": describedBy }}
-            value={safe.timeout_seconds != null ? safe.timeout_seconds : ""}
-            onChange={(e) => patch({ timeout_seconds: e.target.value === "" ? null : Number(e.target.value) })}
-          />
+          <Box sx={{ minWidth: 0 }}>
+            <FieldLabel htmlFor={fieldId("timeout_seconds")}>응답 대기 시간(초, 1~300)</FieldLabel>
+            <TextField
+              id={fieldId("timeout_seconds")} type="number" size="small" fullWidth disabled={!canWrite} error={!!invalid}
+              inputProps={{ min: 1, max: 300, "aria-invalid": ariaInvalid, "aria-describedby": describedBy }}
+              value={safe.timeout_seconds != null ? safe.timeout_seconds : ""}
+              onChange={(e) => patch({ timeout_seconds: e.target.value === "" ? null : Number(e.target.value) })}
+            />
+          </Box>
         </Box>
       </Box>
     );
@@ -463,18 +511,22 @@ export function StructuredObjectFields({ settingKey, val, onChange, canWrite, de
     const emailId = fieldId("support_email");
     return (
       <Box sx={pairGrid}>
-        <TextField
-          InputLabelProps={{ shrink: true }}
-          id={nameId} label="제품명" size="small" fullWidth disabled={!canWrite} error={!!invalid}
-          inputProps={{ "aria-invalid": ariaInvalid, "aria-describedby": describedBy }}
-          value={safe.product_name || ""} onChange={(e) => patch({ product_name: e.target.value })}
-        />
-        <TextField
-          InputLabelProps={{ shrink: true }}
-          id={emailId} label="지원 이메일" size="small" fullWidth disabled={!canWrite} error={!!invalid}
-          inputProps={{ "aria-invalid": ariaInvalid, "aria-describedby": describedBy }}
-          value={safe.support_email || ""} onChange={(e) => patch({ support_email: e.target.value })}
-        />
+        <Box sx={{ minWidth: 0 }}>
+          <FieldLabel htmlFor={nameId}>제품명</FieldLabel>
+          <TextField
+            id={nameId} size="small" fullWidth disabled={!canWrite} error={!!invalid}
+            inputProps={{ "aria-invalid": ariaInvalid, "aria-describedby": describedBy }}
+            value={safe.product_name || ""} onChange={(e) => patch({ product_name: e.target.value })}
+          />
+        </Box>
+        <Box sx={{ minWidth: 0 }}>
+          <FieldLabel htmlFor={emailId}>지원 이메일</FieldLabel>
+          <TextField
+            id={emailId} size="small" fullWidth disabled={!canWrite} error={!!invalid}
+            inputProps={{ "aria-invalid": ariaInvalid, "aria-describedby": describedBy }}
+            value={safe.support_email || ""} onChange={(e) => patch({ support_email: e.target.value })}
+          />
+        </Box>
       </Box>
     );
   }

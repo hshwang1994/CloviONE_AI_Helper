@@ -4,7 +4,6 @@ import Box from "@mui/material/Box";
 import IconButton from "@mui/material/IconButton";
 import InputBase from "@mui/material/InputBase";
 import Menu from "@mui/material/Menu";
-import Paper from "@mui/material/Paper";
 import Popover from "@mui/material/Popover";
 import Typography from "@mui/material/Typography";
 import { alpha } from "@mui/material/styles";
@@ -529,9 +528,8 @@ export function ChatPane({ roomId, compact = false, interval = 2000, idleMax = 0
           이미지를 보내는 중…
         </Typography>
       ) : null}
-      <Paper
-        variant="outlined"
-        sx={{ display: "flex", alignItems: "center", gap: 0.5, pl: 0.75, pr: 0.75, py: 0.5, borderRadius: RADIUS.full }}
+      <Box
+        sx={{ display: "flex", alignItems: "center", gap: 0.5, pl: 0.75, pr: 0.75, py: 0.5, borderRadius: RADIUS.full, border: 1, borderColor: "divider", bgcolor: "background.paper" }}
       >
         <IconButton
           aria-label="이모지 넣기" aria-haspopup="dialog" aria-expanded={!!emojiAnchor}
@@ -565,7 +563,7 @@ export function ChatPane({ roomId, compact = false, interval = 2000, idleMax = 0
         <IconButton color="primary" aria-label="보내기" onClick={doSend} disabled={send.isPending || !draft.trim()} sx={{ flexShrink: 0 }}>
           <SendRoundedIcon sx={{ fontSize: FONT_SIZE.pageTitle }} />
         </IconButton>
-      </Paper>
+      </Box>
       <Popover
         open={!!emojiAnchor} anchorEl={emojiAnchor} onClose={() => setEmojiAnchor(null)}
         anchorOrigin={{ vertical: "top", horizontal: "left" }}

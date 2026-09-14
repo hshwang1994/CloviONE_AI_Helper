@@ -28,6 +28,7 @@ import {
   useToast,
   FlatBadgeSurface,
   Tag,
+  FieldLabel,
 } from "../ui/kit.jsx";
 import { DetailLayout } from "../ui/DetailLayout.jsx";
 import { GRID_GAP } from "../ui/density.js";
@@ -517,38 +518,41 @@ function Relations({ documentId, relations, backlinks, tickets, onChanged, readO
         )}
       >
         <Stack spacing={2}>
-          <TextField
-            label="문서 찾기"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            InputLabelProps={{ shrink: true }}
-            helperText="내가 볼 수 있는 문서만 이을 수 있습니다."
-            fullWidth
-          />
-          <TextField
-            select
-            label="이을 문서"
-            value={target}
-            onChange={(e) => setTarget(e.target.value)}
-            InputLabelProps={{ shrink: true }}
-            fullWidth
-          >
-            {rows.filter((d) => d.id !== documentId).map((d) => (
-              <MenuItem key={d.id} value={d.id}>{d.title}</MenuItem>
-            ))}
-          </TextField>
-          <TextField
-            select
-            label="관계"
-            value={kind}
-            onChange={(e) => setKind(e.target.value)}
-            InputLabelProps={{ shrink: true }}
-            fullWidth
-          >
-            {RELATION_KINDS.map((k) => (
-              <MenuItem key={k.value} value={k.value}>{k.label}</MenuItem>
-            ))}
-          </TextField>
+          <Box sx={{ minWidth: 0 }}>
+            <FieldLabel htmlFor="kd-link-query">문서 찾기</FieldLabel>
+            <TextField id="kd-link-query"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              helperText="내가 볼 수 있는 문서만 이을 수 있습니다."
+              fullWidth
+            />
+          </Box>
+          <Box sx={{ minWidth: 0 }}>
+            <FieldLabel id="kd-link-target-label">이을 문서</FieldLabel>
+            <TextField SelectProps={{ labelId: "kd-link-target-label" }} id="kd-link-target"
+              select
+              value={target}
+              onChange={(e) => setTarget(e.target.value)}
+              fullWidth
+            >
+              {rows.filter((d) => d.id !== documentId).map((d) => (
+                <MenuItem key={d.id} value={d.id}>{d.title}</MenuItem>
+              ))}
+            </TextField>
+          </Box>
+          <Box sx={{ minWidth: 0 }}>
+            <FieldLabel id="kd-link-kind-label">관계</FieldLabel>
+            <TextField SelectProps={{ labelId: "kd-link-kind-label" }} id="kd-link-kind"
+              select
+              value={kind}
+              onChange={(e) => setKind(e.target.value)}
+              fullWidth
+            >
+              {RELATION_KINDS.map((k) => (
+                <MenuItem key={k.value} value={k.value}>{k.label}</MenuItem>
+              ))}
+            </TextField>
+          </Box>
           {addFailure ? <Callout tone="danger" compact>{addFailure}</Callout> : null}
         </Stack>
       </Modal>
@@ -824,20 +828,21 @@ export function KnowledgeDoc() {
             </Typography>
           ) : (
           <Stack spacing={2}>
-            <TextField
-              select
-              size="small"
-              label="분류"
-              value={categoryId}
-              onChange={(e) => setCategoryId(e.target.value)}
-              InputLabelProps={{ shrink: true }}
-              fullWidth
-            >
-              <MenuItem value="">분류 없음</MenuItem>
-              {(categoriesQuery.data?.items || []).map((c) => (
-                <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>
-              ))}
-            </TextField>
+            <Box sx={{ minWidth: 0 }}>
+              <FieldLabel id="kd-category-label">분류</FieldLabel>
+              <TextField SelectProps={{ labelId: "kd-category-label" }} id="kd-category"
+                select
+                size="small"
+                value={categoryId}
+                onChange={(e) => setCategoryId(e.target.value)}
+                fullWidth
+              >
+                <MenuItem value="">분류 없음</MenuItem>
+                {(categoriesQuery.data?.items || []).map((c) => (
+                  <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>
+                ))}
+              </TextField>
+            </Box>
             <TagPicker
               layout="form"
               value={tags}
@@ -987,14 +992,15 @@ export function KnowledgeDoc() {
               ) : (
                 <>
                   {imageFailure ? <Callout tone="danger" compact>{imageFailure}</Callout> : null}
-                  <TextField
-                    label="문서 제목"
-                    InputLabelProps={{ shrink: true }}
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    inputProps={{ maxLength: 500 }}
-                    fullWidth
-                  />
+                  <Box sx={{ minWidth: 0 }}>
+                    <FieldLabel htmlFor="kd-title">문서 제목</FieldLabel>
+                    <TextField id="kd-title"
+                      value={title}
+                      onChange={(e) => setTitle(e.target.value)}
+                      inputProps={{ maxLength: 500 }}
+                      fullWidth
+                    />
+                  </Box>
                   <React.Suspense fallback={<Skeleton kind="section" lines={6} />}>
                     <BlockEditor value={body} onChange={setBody} onPickImage={pickImage} />
                   </React.Suspense>

@@ -3,6 +3,7 @@ import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import dayjs from "dayjs";
+import { withLabelAbove } from "./filters.jsx";
 import "dayjs/locale/ko";
 
 /* `DateField` 의 실제 몸통 — **지연 로드되는 청크 하나**(§15.5·§15.8).
@@ -47,7 +48,8 @@ export default function DateFieldInner({
         format="YYYY-MM-DD"
         slotProps={{
           textField: {
-            id, fullWidth: true, size, required, error, sx,
+            /* 이름이 있으면 칸 위에 선다(`filters.jsx::LABEL_ABOVE_SX`) — 노치 라벨을 쓰지 않는다. */
+            id, fullWidth: true, size, required, error, sx: label ? withLabelAbove(sx) : sx,
             helperText,
             // 폼 맥락(FormModal)은 라벨을 위에서 따로 그린다(지시 17) — 이 부품에 label 을
             // 안 주면 MUI 자신의 뜬 라벨도 안 뜬다. 필터·독립 사용처는 label 을 그대로 넘긴다.

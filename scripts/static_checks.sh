@@ -356,6 +356,17 @@ else
   echo "$LBLABOVE"; fail "라벨이 입력 칸 안으로 내려앉는 자리가 있다"
 fi
 
+step "Screens use the canonical kit parts, not raw MUI primitives"
+# 화면이 정본 부품 대신 MUI 원재료(Alert · Chip · Tabs · Paper …)를 직접 쓰면 그 자리는 정본 계약(높이 ·
+# 모서리 · 톤 · 접근성)을 자기 식으로 다시 그린 사본이 되고, 갤러리와 계약 시험은 그 사본을 보지 못한다.
+# 대장(`docs/ui-renewal/COMPONENT_LEDGER.md`) 「예외」 표에 적힌 자리만 통과하고, 적혀 있는데 더는 안 쓰는
+# 예외도 실패다(핸드오프 계획 §0-7 · §0-11 · B-9).
+if KITC="$("$PY" scripts/check_kit_consumers.py 2>&1)"; then
+  ok "$(echo "$KITC" | tail -1)"
+else
+  echo "$KITC"; fail "화면이 정본 부품 대신 MUI 원재료를 직접 쓴다(대장 예외 없음)"
+fi
+
 step "QA harness targets the canonical product host"
 # 「검사를 돌렸다」와 「검사가 이 제품을 봤다」는 다른 사실이다. 보조 프로브 14개가 제품 이름이
 # 바뀐 뒤에도 각자 옛 호스트 문자열을 들고 있었고, 그중 하나는 검색 3중 구조를 재는 유일한

@@ -8,7 +8,7 @@ import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import CheckRoundedIcon from "@mui/icons-material/CheckRounded";
-import { CONTROL, DEBOUNCE_MS, FONT_WEIGHT, ICON, remPx } from "./theme.js";
+import { CONTROL, DEBOUNCE_MS, FONT_SIZE, FONT_WEIGHT, ICON, remPx } from "./theme.js";
 
 /* 목록 화면들이 함께 쓰는 필터 입력 부품.
  *
@@ -148,6 +148,29 @@ export function rowAllText(label, allLabel) {
  * `layout="form"` · `"fill"` 이면 줄 치수 대신 폼 치수를 깐다(위 `FORM_FIELD_SX` 참고). `fill` 은
  * 좁은 판 · 모달 · 채팅 목록처럼 **부모 폭을 그대로 쓰는** 검색창의 이름이다(핸드오프: 320 은
  * 필터 바 검색 슬롯의 규칙이고, 그보다 좁은 부모에서는 100%). */
+/* 폼 · 판 자리의 이름은 **칸 위**에 선다 — 핸드오프 RULES §7(「라벨 위 0.8125rem/600」) · 계획 §0-11(필터 · 폼의
+   노치 라벨 금지). 줄 칸이 아닌 자리에서 `label` 을 받으면 MUI 라벨을 테두리 노치에서 떼어 칸 위 흐름에 세운다 —
+   글자 · 간격은 `kit.jsx::FieldLabel` 과 같다. 노치 틈(`legend`)은 폭만 0 으로 접는다: 높이를 남겨야 테두리 윗선이
+   제자리(칸 윗변)에 그려진다. 날짜 칸(MUI X)도 같은 라벨 · 같은 윤곽 구조라 같은 규칙을 쓴다. */
+export const LABEL_ABOVE_SX = {
+  "& .MuiInputLabel-root": {
+    position: "static", transform: "none", maxWidth: "none", whiteSpace: "normal", overflow: "visible",
+    marginBottom: remPx(4), fontSize: FONT_SIZE.bodySm, fontWeight: FONT_WEIGHT.medium, lineHeight: 1.25,
+    color: "text.primary",
+  },
+  "& .MuiInputLabel-root.Mui-focused, & .MuiInputLabel-root.Mui-error, & .MuiInputLabel-root.Mui-disabled": {
+    color: "text.primary",
+  },
+  "& .MuiFormLabel-asterisk": { color: "error.main" },
+  "& .MuiOutlinedInput-notchedOutline legend, & .MuiPickersOutlinedInput-notchedOutline legend": { maxWidth: "0.01px" },
+};
+
+/** 칸 sx 에 위 라벨 규칙을 얹는다(sx 가 함수여도 모양을 지킨다). */
+export function withLabelAbove(sx) {
+  if (typeof sx === "function") return (theme) => ({ ...LABEL_ABOVE_SX, ...sx(theme) });
+  return { ...LABEL_ABOVE_SX, ...sx };
+}
+
 export function kindSx(kind, sx, layout, row = false) {
   const base = layout === "form" || layout === "fill" ? FORM_FIELD_SX : (CONTROL_KIND[kind] || null);
   /* 검색창은 친 글자라 값 굵기(600)를 받지 않는다 — 이름표가 없는 칸이다. */
@@ -353,7 +376,7 @@ export const DebouncedTextField = React.memo(function DebouncedTextField({
       inputProps={{ maxLength: 200, ...(row && label ? { "aria-label": label } : null), ...inputProps }}
       data-filter-kind={kind}
       data-free-text={freeTextReason || undefined}
-      sx={kindSx(kind, sx, layout, row)}
+      sx={row ? kindSx(kind, sx, layout, row) : withLabelAbove(kindSx(kind, sx, layout, row))}
     />
   );
 });
@@ -391,7 +414,7 @@ export function FilterSelect({
       <TextField
         select size="small" label={row ? undefined : label} value={selected} disabled={disabled}
         data-filter-kind={kind}
-        sx={kindSx(kind, sx, layout, row)}
+        sx={row ? kindSx(kind, sx, layout, row) : withLabelAbove(kindSx(kind, sx, layout, row))}
         onChange={(e) => onChange(Array.isArray(e.target.value) ? e.target.value : [])}
         InputLabelProps={row ? undefined : { shrink: true }}
         inputProps={row ? { "aria-label": label } : undefined}
@@ -455,7 +478,7 @@ export function FilterSelect({
     <TextField
       select size="small" label={label} value={value} disabled={disabled}
       data-filter-kind={kind}
-      sx={kindSx(kind, sx, layout)}
+      sx={withLabelAbove(kindSx(kind, sx, layout))}
       onChange={(e) => onChange(e.target.value)}
       {...EMPTYABLE_SELECT}
       SelectProps={{ ...EMPTYABLE_SELECT.SelectProps, ...SELECT_MENU }}
@@ -560,6 +583,7 @@ export function EntityCombobox({
               : params.InputProps}
             inputProps={row ? { ...params.inputProps, "aria-label": label } : params.inputProps}
             placeholder={placeholder || (row ? rowAllText(label, allLabel) : (allLabel || `${label} 전체`))}
+            sx={row ? undefined : LABEL_ABOVE_SX}
           />
         )}
       />
@@ -635,6 +659,7 @@ export function EntityCombobox({
              사용자는 그 차이를 «이 칸만 비어 있다» 로 읽는다. 값을 **입력 글자로** 넣지 않는
              이유는 그대로다(타이핑이 그 글자 뒤에 덧붙는다) — 무게만 맞춘다. */
           sx={{
+            ...(row ? null : LABEL_ABOVE_SX),
             "& .MuiInputBase-input::placeholder": { opacity: 1, color: "text.primary" },
             "& .MuiInputBase-input:focus::placeholder": { opacity: 1, color: "text.primary" },
             "& .MuiInputBase-input::-webkit-input-placeholder": { opacity: 1, color: "text.primary" },

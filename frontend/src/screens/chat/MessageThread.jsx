@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from "react";
 import Box from "@mui/material/Box";
 import IconButton from "@mui/material/IconButton";
-import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
@@ -79,8 +78,7 @@ export function Message({
        * 화자 구분은 남긴다(정렬 + 면). 다만 구분을 **장식이 아니라 면**으로 한다:
        * 내 말은 강조색 면, 도우미 말은 안쪽 면. 반지름은 채팅 전용 규격(`ui/chat.js::CHAT`)을
        * 채팅방과 함께 쓴다 — 떠 있는 것의 모서리(8)가 아니다. */}
-      <Paper
-        elevation={0}
+      <Box
         sx={{
           px: 2, py: 1.5, minWidth: 0, maxWidth: "100%",
           fontSize: FONT_SIZE.body, lineHeight: 1.6, ...KO_WORD_BREAK,
@@ -142,7 +140,7 @@ export function Message({
               )}
           </Typography>
         ) : null}
-      </Paper>
+      </Box>
 
       {/* 원탭 선택은 가장 최근 어시스턴트 메시지에만. 옛 미리보기의 '등록해줘'가 살아 있으면
           스크롤해 올라가 눌렀을 때 지나간 맥락의 작업을 보낼 수 있다(오작동). */}
@@ -250,8 +248,7 @@ export function TypingBubble({ since }) {
   }, [since]);
   const elapsedSec = since ? Math.floor(msgAgeMs({ created_at: since }) / 1000) : null;
   return (
-    <Paper
-      elevation={0}
+    <Box
       sx={{
         alignSelf: "flex-start", px: 2, py: 1.5, borderRadius: 3, borderBottomLeftRadius: "0.375rem",
         bgcolor: "background.paper", border: 1, borderColor: "divider",
@@ -283,7 +280,7 @@ export function TypingBubble({ since }) {
           </Typography>
         ) : null}
       </Box>
-    </Paper>
+    </Box>
   );
 }
 

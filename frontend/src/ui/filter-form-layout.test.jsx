@@ -116,3 +116,41 @@ describe("타일 트랙 — 마지막 줄이 반만 차지 않는다", () => {
 
 /* jsdom 은 레이아웃이 없어 «324px 였다» 를 직접 못 잰다 — 그래서 위 시험들은 값이 만들어지는
    자리를 못박는다. 실제 높이는 실브라우저 검수가 확인했다(모달 1,066px → 471px). */
+
+/* 폼 자리의 이름은 **칸 위**에 선다 — 핸드오프 RULES §7 · 계획 §0-11(노치 라벨 금지).
+ * 줄 칸이 아닌 자리에서 `label` 을 받으면 MUI 라벨이 테두리 노치 대신 칸 위 흐름에 서고, 노치 틈은 접힌다. */
+describe("폼 자리의 이름 — 노치가 아니라 칸 위", () => {
+  it("FilterSelect 폼 자리의 라벨은 흐름 안(static)에 서고 노치 틈이 접힌다", () => {
+    const { container } = withTheme(
+      <FilterSelect layout="form" label="역할" value="" onChange={() => {}} options={["관리자", "사용자"]} />,
+    );
+    const label = container.querySelector(".MuiInputLabel-root");
+    expect(label, "라벨이 없다").not.toBeNull();
+    expect(getComputedStyle(label).position).toBe("static");
+    expect(getComputedStyle(label).transform === "none" || getComputedStyle(label).transform === "").toBe(true);
+    const legend = container.querySelector("fieldset legend");
+    expect(getComputedStyle(legend).maxWidth).toBe("0.01px");
+    // 접근 이름은 그대로 라벨 낱말이다.
+    expect(screen.getByLabelText("역할")).toBeTruthy();
+  });
+
+  it("EntityCombobox 폼 자리도 같은 규칙이고, 줄 칸은 칸 안 접두 이름 그대로다", () => {
+    const { container, unmount } = withTheme(
+      <EntityCombobox layout="form" label="담당자" value="" onChange={() => {}} options={[{ value: "u1", label: "김하나" }]} />,
+    );
+    /* jsdom 의 계산 스타일은 선택자 우선순위를 다 따지지 않는다 — 칸 뿌리 클래스에 걸린 규칙 자체를 읽는다. */
+    const root = container.querySelector(".MuiInputLabel-root").parentElement;
+    const rootClass = [...root.classList].find((c) => c.startsWith("css-"));
+    const rules = [...document.styleSheets].flatMap((sh) => [...sh.cssRules].map((r) => r.cssText));
+    expect(
+      rules.some((t) => t.startsWith(`.${rootClass} .MuiInputLabel-root`) && /position:\s*static/.test(t)),
+      "칸 뿌리에 위 라벨 규칙이 없다",
+    ).toBe(true);
+    expect(rules.some((t) => t.includes(`.${rootClass} .MuiOutlinedInput-notchedOutline legend`) && t.includes("0.01px"))).toBe(true);
+    unmount();
+    const row = withTheme(
+      <EntityCombobox layout="row" label="담당자" value="" onChange={() => {}} options={[{ value: "u1", label: "김하나" }]} />,
+    );
+    expect(row.container.querySelector(".MuiInputLabel-root"), "줄 칸에 노치 라벨이 생겼다").toBeNull();
+  });
+});

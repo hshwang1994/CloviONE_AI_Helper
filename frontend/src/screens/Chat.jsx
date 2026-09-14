@@ -2,7 +2,6 @@ import React from "react";
 import { useLocation } from "react-router-dom";
 import Box from "@mui/material/Box";
 import IconButton from "@mui/material/IconButton";
-import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
@@ -202,9 +201,9 @@ export function Chat() {
         sx={{ display: "flex", flexDirection: "column", minWidth: 0, minHeight: 0, position: "relative" }}
       >
         {/* 대화 제목 헤더 — 특히 좁은 폭(서랍이 닫혀 어느 대화인지 모른다)에서 현재 대화를 알린다. */}
-        <Paper
-          elevation={0} square
-          sx={{ display: "flex", alignItems: "center", gap: 1.5, px: { xs: 2, lg: 3 }, py: 1.25, borderBottom: 1, borderColor: "divider", flexShrink: 0 }}
+        {/* 머리 띠는 판이 아니라 스레드 열의 윗단이다 — 판 면(`background.paper`)과 아래 실선만 든다. */}
+        <Box
+          sx={{ display: "flex", alignItems: "center", gap: 1.5, px: { xs: 2, lg: 3 }, py: 1.25, borderBottom: 1, borderColor: "divider", flexShrink: 0, bgcolor: "background.paper" }}
         >
           {/* 앱 셸의 햄버거와 같은 방식으로 aria-expanded/aria-controls를 실제 토글 상태에 맞춘다,
               이전엔 '열기' 전용 편도 트리거라 열린 뒤에도 라벨, 상태가 안 바뀌었다.
@@ -240,7 +239,7 @@ export function Chat() {
           ) : null}
           <span className="sr-only" role="status" aria-live="polite">{convCopied}</span>
           <MascotStatus mode={mascot} />
-        </Paper>
+        </Box>
 
         {/* 스레드 전체를 aria-live로 감싸면 1.5초 폴링마다 대화가 통째로 다시 낭독된다.
             스레드에서 aria-live를 걷어내고, 일시 상태만 이 작은 라이브 영역에서 알린다. */}
@@ -325,7 +324,7 @@ export function Chat() {
         {/* 전폭 배경 띠 — 초광폭에서 상단 헤더는 전폭 구분선인데 컴포저만 카드 폭으로 떠 좌우에
             페이지 배경 여백이 생겨 미완성처럼 보였다. 띠로 감싸고 안쪽 내용만 스레드와 같은 폭으로
             가운데 정렬해 헤더가 콘텐츠를 감싸는 방식과 맞춘다. */}
-        <Paper elevation={0} square sx={{ borderTop: 1, borderColor: "divider", flexShrink: 0 }}>
+        <Box sx={{ borderTop: 1, borderColor: "divider", flexShrink: 0, bgcolor: "background.paper" }}>
           <Box sx={{ width: "100%", maxWidth: THREAD_MAX, mx: "auto", px: { xs: 2, sm: 3 }, py: 1.5, display: "grid", gap: 1 }}>
             {pending.length ? (
               <>
@@ -333,8 +332,8 @@ export function Chat() {
                     사용자가 첨부를 뺄 방법이 사라진다. 이름이 붙은 진짜 버튼을 직접 둔다. */}
                 <Stack direction="row" flexWrap="wrap" gap={0.75}>
                   {pending.map((a, i) => (
-                    <Paper key={i} variant="outlined"
-                      sx={{ display: "inline-flex", alignItems: "center", gap: 0.75, pl: 0.5, pr: 0.25, py: 0.25, borderRadius: RADIUS.full, maxWidth: "18rem" }}>
+                    <Box key={i}
+                      sx={{ display: "inline-flex", alignItems: "center", gap: 0.75, pl: 0.5, pr: 0.25, py: 0.25, borderRadius: RADIUS.full, maxWidth: "18rem", border: 1, borderColor: "divider", bgcolor: "background.paper" }}>
                       {/* 보낼 이미지를 텍스트 칩이 아니라 실제 썸네일로 확인시킨다(로컬 data URL). */}
                       <Box component="img" src={"data:" + (a.media_type || "image/png") + ";base64," + a.data} alt=""
                         sx={{ width: "1.75rem", height: "1.75rem", objectFit: "cover", borderRadius: "50%", flexShrink: 0 }} />
@@ -344,7 +343,7 @@ export function Chat() {
                         sx={{ flexShrink: 0 }}>
                         <CloseRoundedIcon sx={{ fontSize: "0.9375rem" }} />
                       </IconButton>
-                    </Paper>
+                    </Box>
                   ))}
                 </Stack>
                 {/* hover-only 툴팁은 모바일/터치에서 아예 안 보인다, 전송 전에 눈에 보이는 문장으로도 알린다. */}
@@ -433,7 +432,7 @@ export function Chat() {
               </Box>
             </Box>
           </Box>
-        </Paper>
+        </Box>
       </Box>
 
       <ResultsRail railOpen={railOpen} railMsg={railMsg} railPayload={railPayload} railIsLast={railIsLast} doSend={doSend} sending={sending} />

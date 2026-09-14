@@ -4,7 +4,7 @@ import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import ChevronRightRoundedIcon from "@mui/icons-material/ChevronRightRounded";
 import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded";
-import { Badge, Card, DataTable, EmptyState, FlatBadgeSurface } from "../ui/kit.jsx";
+import { Badge, Card, DataTable, EmptyState, FlatBadgeSurface, SectionTitle } from "../ui/kit.jsx";
 import { OVERFLOW } from "../ui/columnTypes.js";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, NUMERIC } from "../ui/theme.js";
 import { ProgressBasis } from "./ProjectMetrics.jsx";
@@ -155,7 +155,7 @@ export function ProjectWbs({ data }) {
   return (
     <Stack gap={2.5}>
       <Card>
-        <Typography component="h2" variant="h6" sx={{ fontSize: FONT_SIZE.sectionTitle, mb: 1 }}>트리 전체 진행률</Typography>
+        <SectionTitle component="h2" title="트리 전체 진행률" sx={{ mb: 1 }} />
         {/* 머리글 숫자는 개요 탭과 **같은 함수, 같은 표본**이다(서버가 그렇게 만든다).
             그 사실이 화면에서도 보이도록 같은 근거 표를 그린다. */}
         {/* PA-RC-0001: 24px — game-room/GameStage.jsx·charts/Donut.jsx와 같은 값+굵기(의도된
@@ -178,9 +178,7 @@ export function ProjectWbs({ data }) {
 
       {unplaced.length ? (
         <Card>
-          <Typography component="h2" variant="h6" sx={{ fontSize: FONT_SIZE.sectionTitle, mb: 1 }}>
-            {"트리에 넣지 못한 작업 " + unplaced.length + "건"}
-          </Typography>
+          <SectionTitle component="h2" title={"트리에 넣지 못한 작업 " + unplaced.length + "건"} sx={{ mb: 1 }} />
           <Note sx={{ mt: 0 }}>
             아래 작업은 트리에 넣지 못했지만 위의 진행률에는 들어 있습니다. 빼면 상위 작업 설정 하나에 진행률이 통째로 흔들립니다.
           </Note>

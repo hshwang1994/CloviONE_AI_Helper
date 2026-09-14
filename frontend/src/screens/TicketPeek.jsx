@@ -6,7 +6,7 @@ import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 
 import { api } from "../lib/api.js";
-import { Button, Callout, ErrorState, MetaBar, Modal, Skeleton, ActionFooter } from "../ui/kit.jsx";
+import { Button, Callout, ErrorState, MetaBar, Modal, Skeleton, ActionFooter, SectionTitle } from "../ui/kit.jsx";
 import { KO_WORD_BREAK } from "../ui/theme.js";
 import { useTicketSignals } from "../lib/ticketSignals.js";
 import { TicketEditModal } from "./MyTickets.jsx";
@@ -164,7 +164,7 @@ export function TicketPeek({ pageId, onClose, onDetail, from, sprints, actions, 
             )}
             {previewText(data.body_markdown) ? (
               <Box>
-                <Typography variant="subtitle2" component="h3" sx={{ mb: 0.5 }}>설명</Typography>
+                <SectionTitle component="h3" title="설명" sx={{ mb: 0.5 }} />
                 <Typography
                   variant="body2"
                   component="p"

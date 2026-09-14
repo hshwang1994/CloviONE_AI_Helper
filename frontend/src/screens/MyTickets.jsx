@@ -12,7 +12,7 @@ import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import { api } from "../lib/api.js";
-import { Card, Badge, DataTable, EmptyState, ErrorState, Skeleton, Callout, PageHeader, Modal, ModalFooter, Button, useToast, useConfirm } from "../ui/kit.jsx";
+import { Card, Badge, DataTable, EmptyState, ErrorState, Skeleton, Callout, PageHeader, Modal, ModalFooter, Button, useToast, useConfirm, FieldLabel } from "../ui/kit.jsx";
 import { DateField } from "../ui/DateField.jsx";
 import { PersonLine } from "../ui/UserAvatar.jsx";
 import { priorityKo, priorityKind } from "../lib/priority.js";
@@ -593,11 +593,13 @@ export function TicketEditModal({ ticket, open, onClose, projectScope }) {
       <form onSubmit={(e) => { e.preventDefault(); submit(); }}>
         {/* 제목이 맨 위다 — 이 화면에서 바꾸는 값 중 사용자가 가장 먼저 보는 것이다.
             예전에는 아예 없어서 제목 오타 하나 때문에 노션을 열어야 했다. */}
-        <TextField
-      InputLabelProps={{ shrink: true }} id="te-title" fullWidth size="small" label="제목" required sx={{ mb: 2.5 }}
-          value={form.title} onChange={(e) => set("title", e.target.value)}
-          error={!!fieldError("title")} helperText={fieldError("title") || undefined}
-          inputProps={{ maxLength: 200 }} />
+        <Box sx={{ minWidth: 0 }}>
+          <FieldLabel htmlFor="te-title" required>제목</FieldLabel>
+          <TextField id="te-title" fullWidth size="small" required sx={{ mb: 2.5 }}
+            value={form.title} onChange={(e) => set("title", e.target.value)}
+            error={!!fieldError("title")} helperText={fieldError("title") || undefined}
+            inputProps={{ maxLength: 200 }} />
+        </Box>
         <Box sx={{ mb: 2.5 }}>
           <Typography component="span" variant="body2" sx={{ fontWeight: FONT_WEIGHT.bold, display: "block", mb: 1 }}>담당자</Typography>
           <AssigneePicker loading={assigneesQ.isLoading} candidates={candidates} selected={form.assignees} onChange={(ids) => set("assignees", ids)} />
@@ -607,27 +609,39 @@ export function TicketEditModal({ ticket, open, onClose, projectScope }) {
         </Box>
         {/* 짧은 값 입력들은 넓은 화면에서 두 열로 접는다 — 한 열로 길게 쌓으면 모달이 세로로만 길어진다. */}
         <Box sx={{ display: "grid", gap: 2.5, gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0,1fr))" } }}>
-          <TextField
-      InputLabelProps={{ shrink: true }} id="te-status" select fullWidth size="small" label="진행상태" value={form.status} onChange={(e) => set("status", e.target.value)}
-            error={!!fieldError("status")} helperText={fieldError("status") || undefined}>
-            {statusOptions(statusOpts).map((o) => <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>)}
-          </TextField>
-          <TextField id="te-prio" select fullWidth size="small" label="우선순위" {...EMPTYABLE_SELECT} value={form.priority} onChange={(e) => set("priority", e.target.value)}>
-            <MenuItem value="">없음</MenuItem>
-            {prioOpts.map((p) => <MenuItem key={p} value={p}>{priorityKo(p)}</MenuItem>)}
-          </TextField>
-          <TextField id="te-diff" select fullWidth size="small" label="난이도" {...EMPTYABLE_SELECT} value={form.difficulty} onChange={(e) => set("difficulty", e.target.value)}>
-            <MenuItem value="">없음</MenuItem>
-            {diffOpts.map((d) => <MenuItem key={d} value={d}>{d}</MenuItem>)}
-          </TextField>
-          <TextField
-      InputLabelProps={{ shrink: true }} id="te-wd" fullWidth size="small" label="예상 WD" type="number" inputProps={{ step: "0.5", min: "0" }}
-            value={form.est_wd} onChange={(e) => set("est_wd", e.target.value)}
-            error={!!fieldError("est_wd")} helperText={fieldError("est_wd") || undefined} />
-          <TextField
-      InputLabelProps={{ shrink: true }} id="te-act-wd" fullWidth size="small" label="실제 WD" type="number" inputProps={{ step: "0.5", min: "0" }}
-            value={form.act_wd} onChange={(e) => set("act_wd", e.target.value)}
-            error={!!fieldError("act_wd")} helperText={fieldError("act_wd") || "다 끝낸 뒤 실제로 들인 공수"} />
+          <Box sx={{ minWidth: 0 }}>
+            <FieldLabel id="te-status-label">진행상태</FieldLabel>
+            <TextField SelectProps={{ labelId: "te-status-label" }} id="te-status" select fullWidth size="small" value={form.status} onChange={(e) => set("status", e.target.value)}
+              error={!!fieldError("status")} helperText={fieldError("status") || undefined}>
+              {statusOptions(statusOpts).map((o) => <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>)}
+            </TextField>
+          </Box>
+          <Box sx={{ minWidth: 0 }}>
+            <FieldLabel id="te-prio-label">우선순위</FieldLabel>
+            <TextField id="te-prio" select fullWidth size="small" SelectProps={{ displayEmpty: true, labelId: "te-prio-label" }} value={form.priority} onChange={(e) => set("priority", e.target.value)}>
+              <MenuItem value="">없음</MenuItem>
+              {prioOpts.map((p) => <MenuItem key={p} value={p}>{priorityKo(p)}</MenuItem>)}
+            </TextField>
+          </Box>
+          <Box sx={{ minWidth: 0 }}>
+            <FieldLabel id="te-diff-label">난이도</FieldLabel>
+            <TextField id="te-diff" select fullWidth size="small" SelectProps={{ displayEmpty: true, labelId: "te-diff-label" }} value={form.difficulty} onChange={(e) => set("difficulty", e.target.value)}>
+              <MenuItem value="">없음</MenuItem>
+              {diffOpts.map((d) => <MenuItem key={d} value={d}>{d}</MenuItem>)}
+            </TextField>
+          </Box>
+          <Box sx={{ minWidth: 0 }}>
+            <FieldLabel htmlFor="te-wd">예상 WD</FieldLabel>
+            <TextField id="te-wd" fullWidth size="small" type="number" inputProps={{ step: "0.5", min: "0" }}
+              value={form.est_wd} onChange={(e) => set("est_wd", e.target.value)}
+              error={!!fieldError("est_wd")} helperText={fieldError("est_wd") || undefined} />
+          </Box>
+          <Box sx={{ minWidth: 0 }}>
+            <FieldLabel htmlFor="te-act-wd">실제 WD</FieldLabel>
+            <TextField id="te-act-wd" fullWidth size="small" type="number" inputProps={{ step: "0.5", min: "0" }}
+              value={form.act_wd} onChange={(e) => set("act_wd", e.target.value)}
+              error={!!fieldError("act_wd")} helperText={fieldError("act_wd") || "다 끝낸 뒤 실제로 들인 공수"} />
+          </Box>
           <DateField id="te-start" label="시작일" value={form.start} onChange={(v) => set("start", v)} />
           <DateField id="te-due" label="마감일" value={form.due} onChange={(v) => set("due", v)} />
           {/* 새 티켓 폼과 **같은 부품**이다 — 같은 값을 고르는 자리가 화면마다 다른 상호작용을
@@ -651,10 +665,12 @@ export function TicketEditModal({ ticket, open, onClose, projectScope }) {
               value: p.id, label: p.name || "(제목 없음)",
             }))}
           />
-          <TextField
-      InputLabelProps={{ shrink: true }} id="te-category" fullWidth size="small" label="대분류"
-            value={form.category} onChange={(e) => set("category", e.target.value)}
-            inputProps={{ maxLength: 200 }} />
+          <Box sx={{ minWidth: 0 }}>
+            <FieldLabel htmlFor="te-category">대분류</FieldLabel>
+            <TextField id="te-category" fullWidth size="small"
+              value={form.category} onChange={(e) => set("category", e.target.value)}
+              inputProps={{ maxLength: 200 }} />
+          </Box>
         </Box>
         {/* 🔴 신호를 켜는 자리가 제품 어디에도 없었다. 서버는 이 세 칸을 받고
             (`app/tickets/schemas.py::TicketUpdate`), 목록·상세·보드·회의·주간보고가 전부
@@ -681,12 +697,14 @@ export function TicketEditModal({ ticket, open, onClose, projectScope }) {
           {/* 사유 칸은 차단을 켰을 때만 선다. 항상 세워 두면 「사유는 적었는데 차단은 안 켜진」
               저장이 생기고, 그 글은 아무 화면에도 안 나온다(서버가 버린다). */}
           {form.blocked ? (
-            <TextField
-              InputLabelProps={{ shrink: true }} id="te-blocked-reason" fullWidth size="small" label="차단 사유" sx={{ mt: 1 }}
-              value={form.blockedReason} onChange={(e) => set("blockedReason", e.target.value)}
-              inputProps={{ maxLength: BLOCKED_REASON_MAX }}
-              error={!!fieldError("blockedReason")}
-              helperText={fieldError("blockedReason") || "무엇이 끝나야 이 일이 다시 움직이는지 적습니다. 목록에서 신호에 마우스를 올리면 보입니다."} />
+            <Box sx={{ minWidth: 0, mt: 1 }}>
+              <FieldLabel htmlFor="te-blocked-reason">차단 사유</FieldLabel>
+              <TextField id="te-blocked-reason" fullWidth size="small"
+                value={form.blockedReason} onChange={(e) => set("blockedReason", e.target.value)}
+                inputProps={{ maxLength: BLOCKED_REASON_MAX }}
+                error={!!fieldError("blockedReason")}
+                helperText={fieldError("blockedReason") || "무엇이 끝나야 이 일이 다시 움직이는지 적습니다. 목록에서 신호에 마우스를 올리면 보입니다."} />
+            </Box>
           ) : null}
         </Box>
         {/* 저장 실패는 발 바로 위 — 누른 단추 곁에 남는다. 다시 저장하면 걷힌다. */}

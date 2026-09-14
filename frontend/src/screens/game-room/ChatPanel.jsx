@@ -1,9 +1,8 @@
 import Box from "@mui/material/Box";
-import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
-import { Button, Callout, EmptyState } from "../../ui/kit.jsx";
+import { Button, Callout, EmptyState, Card } from "../../ui/kit.jsx";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../../ui/theme.js";
 import { fmtTime } from "./timeUtils.js";
 
@@ -17,7 +16,7 @@ import { fmtTime } from "./timeUtils.js";
  * 다르게 생기지 않게). */
 export function ChatPanel({ chatLogRef, chatMsgs, you, draft, setDraft, sendChat, chatPending, chatFailure }) {
   return (
-    <Paper variant="outlined" sx={{ p: 1.5, display: "flex", flexDirection: "column", flex: { md: "1 1 auto" }, minHeight: { md: 0 } }}>
+    <Card sx={{ display: "flex", flexDirection: "column", flex: { md: "1 1 auto" }, minHeight: { md: 0 } }}>
       <Typography variant="body2" sx={{ fontWeight: FONT_WEIGHT.bold, mb: 1 }}>채팅</Typography>
       <Box ref={chatLogRef} data-testid="game-chat-log" sx={{
         display: "flex", flexDirection: "column", gap: 1, overflowY: "auto", px: 0.5, py: 1, mb: 1.25,
@@ -65,7 +64,9 @@ export function ChatPanel({ chatLogRef, chatMsgs, you, draft, setDraft, sendChat
         })}
       </Box>
       {chatFailure ? <Callout tone="danger" compact sx={{ mb: 1 }}>{chatFailure}</Callout> : null}
-      <Stack direction="row" gap={1}>
+      {/* 입력(36)과 단추(34)가 한 줄에 선다 — 가운데 정렬이 없으면 flex 기본값(stretch)이 단추를 36 으로
+          늘려 같은 이름의 단추가 화면마다 다른 높이로 섰다(kit_measure `variant_height`). */}
+      <Stack direction="row" gap={1} alignItems="center">
         <TextField
           size="small" fullWidth value={draft} placeholder="메시지 입력"
           inputProps={{ maxLength: 500, "aria-label": "메시지 입력" }}
@@ -77,6 +78,6 @@ export function ChatPanel({ chatLogRef, chatMsgs, you, draft, setDraft, sendChat
         <Button variant="primary" onClick={sendChat} disabled={chatPending}
           sx={{ flexShrink: 0, whiteSpace: "nowrap" }}>보내기</Button>
       </Stack>
-    </Paper>
+    </Card>
   );
 }

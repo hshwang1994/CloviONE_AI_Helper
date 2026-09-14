@@ -12,6 +12,7 @@ import {
 } from "../../ui/kit.jsx";
 import { StatusSummaryCard } from "../../ui/StatusKpi.jsx";
 import { FONT_SIZE, FONT_WEIGHT } from "../../ui/theme.js";
+import { TILE_PADDING } from "../../ui/density.js";
 import {
   serviceLabel, fmtNum, errorBuckets, healthVerdict, copyText, bundleStamp,
   integrationState, upSummaryText, SERVICE_STATE_LABEL, SERVICE_STATE_KIND,
@@ -316,7 +317,7 @@ export function Diagnostics() {
               <TechDetail label="원본(JSON) 보기">
                 <Surface tone="sunken" component="pre" aria-label="진단 번들 원본 JSON"
                   sx={{
-                    m: 0, mt: 1, p: 2, whiteSpace: "pre-wrap", wordBreak: "break-word",
+                    m: 0, mt: 1, p: TILE_PADDING, whiteSpace: "pre-wrap", wordBreak: "break-word",
                     fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: FONT_SIZE.caption, lineHeight: 1.5,
                     maxHeight: "60vh", overflow: "auto",
                   }}>

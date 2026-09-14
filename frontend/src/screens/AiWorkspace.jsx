@@ -18,6 +18,7 @@ import {
   Section,
   Skeleton,
   useToast,
+  FieldLabel,
 } from "../ui/kit.jsx";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, PROSE_MAX_WIDTH } from "../ui/theme.js";
 import { PROJECT_NONE, navEntriesFrom } from "./knowledge/constants.js";
@@ -54,7 +55,7 @@ function useAiStatus() {
  * 밖으로 밀려나고, 그러면 근거를 먼저 보여 준 뜻이 없어진다. */
 function Citation({ index, citation, onOpen }) {
   return (
-    <Card sx={{ p: 2 }}>
+    <Card>
       <Stack direction="row" spacing={1.5} alignItems="flex-start">
         <Chip
           label={index}
@@ -113,7 +114,7 @@ function Answer({ result }) {
     );
   }
   return (
-    <Card sx={{ p: 2.5 }}>
+    <Card>
       <Typography
         component="p"
         sx={{ whiteSpace: "pre-wrap", maxWidth: PROSE_MAX_WIDTH, ...KO_WORD_BREAK }}
@@ -199,7 +200,7 @@ export function AiWorkspace() {
         </Callout>
       ) : null}
 
-      <Card sx={{ p: 2, mb: 2 }}>
+      <Card sx={{ mb: 2 }}>
         <Stack
           component="form"
           direction={{ xs: "column", sm: "row" }}
@@ -210,17 +211,18 @@ export function AiWorkspace() {
             run(canAsk ? "ask" : "search");
           }}
         >
-          <TextField
-            label="무엇을 찾고 있습니까?"
-            /* 라벨이 칸 안으로 내려앉으면 값이 들어간 뒤 무엇을 묻는 칸이었는지 사라진다.
-               `check_label_above.py` 가 이 계약을 지킨다. */
-            InputLabelProps={{ shrink: true }}
-            value={draft}
-            onChange={(event) => setDraft(event.target.value)}
-            fullWidth
-            multiline
-            maxRows={4}
-          />
+          {/* 라벨은 칸 위에 선다(`FieldLabel`) — 칸 안으로 내려앉으면 값이 들어간 뒤 무엇을 묻는 칸이었는지 사라진다. */}
+          <Box sx={{ minWidth: 0, flex: 1, width: "100%" }}>
+            <FieldLabel htmlFor="ai-workspace-question">무엇을 찾고 있습니까?</FieldLabel>
+            <TextField
+              id="ai-workspace-question"
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+              fullWidth
+              multiline
+              maxRows={4}
+            />
+          </Box>
           <Stack direction="row" spacing={1}>
             <Button type="button" onClick={() => run("search")} disabled={busy || !draft.trim()}>
               문서 찾기

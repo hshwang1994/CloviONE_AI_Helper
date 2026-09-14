@@ -4,7 +4,7 @@ import MenuItem from "@mui/material/MenuItem";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
-import { Callout, Modal, ModalFooter } from "../../ui/kit.jsx";
+import { Callout, Modal, ModalFooter, FieldLabel } from "../../ui/kit.jsx";
 import { ProjectPicker } from "../../ui/ProjectPicker.jsx";
 import { TagPicker } from "../../ui/TagPicker.jsx";
 import { FONT_WEIGHT, KO_WORD_BREAK } from "../../ui/theme.js";
@@ -81,30 +81,32 @@ export function NewDocumentModal({
         gridTemplateColumns: { xs: "1fr", md: "1fr 16rem" },
       }}>
         <Stack spacing={2}>
-          <TextField
-            label="문서 제목"
-            required
-            autoFocus
-            value={values.title}
-            onChange={(e) => set({ title: e.target.value })}
-            inputProps={{ maxLength: 500 }}
-            InputLabelProps={{ shrink: true }}
-            fullWidth
-          />
-          <TextField
-            select
-            label="분류"
-            required
-            value={values.category_id || ""}
-            onChange={(e) => set({ category_id: e.target.value })}
-            InputLabelProps={{ shrink: true }}
-            helperText="문서의 큰 갈래입니다. 분류 관리에서 갈래를 만들 수 있습니다."
-            fullWidth
-          >
-            {categories.map((c) => (
-              <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>
-            ))}
-          </TextField>
+          <Box sx={{ minWidth: 0 }}>
+            <FieldLabel htmlFor="new-doc-title" required>문서 제목</FieldLabel>
+            <TextField id="new-doc-title"
+              required
+              autoFocus
+              value={values.title}
+              onChange={(e) => set({ title: e.target.value })}
+              inputProps={{ maxLength: 500 }}
+              fullWidth
+            />
+          </Box>
+          <Box sx={{ minWidth: 0 }}>
+            <FieldLabel id="new-doc-category-label" required>분류</FieldLabel>
+            <TextField SelectProps={{ labelId: "new-doc-category-label" }} id="new-doc-category"
+              select
+              required
+              value={values.category_id || ""}
+              onChange={(e) => set({ category_id: e.target.value })}
+              helperText="문서의 큰 갈래입니다. 분류 관리에서 갈래를 만들 수 있습니다."
+              fullWidth
+            >
+              {categories.map((c) => (
+                <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>
+              ))}
+            </TextField>
+          </Box>
           <TagPicker
             layout="form"
             required
@@ -115,14 +117,15 @@ export function NewDocumentModal({
           {/* 라벨은 필터 줄과 **같은 낱말**이다 — 같은 축을 두 자리가 두 이름으로 부르면
               사용자는 그것을 두 가지 설정으로 읽는다. */}
           {lockedProject ? (
-            <TextField
-              label="프로젝트"
-              value={lockedProjectName || "이 프로젝트"}
-              disabled
-              InputLabelProps={{ shrink: true }}
-              helperText="이 프로젝트를 볼 수 있는 사람이 이 문서를 볼 수 있습니다."
-              fullWidth
-            />
+            <Box sx={{ minWidth: 0 }}>
+              <FieldLabel htmlFor="new-doc-project">프로젝트</FieldLabel>
+              <TextField id="new-doc-project"
+                value={lockedProjectName || "이 프로젝트"}
+                disabled
+                helperText="이 프로젝트를 볼 수 있는 사람이 이 문서를 볼 수 있습니다."
+                fullWidth
+              />
+            </Box>
           ) : (
             <ProjectPicker
               label="프로젝트"

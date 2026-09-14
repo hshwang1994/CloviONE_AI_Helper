@@ -5,15 +5,15 @@ import Box from "@mui/material/Box";
 import Checkbox from "@mui/material/Checkbox";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import MenuItem from "@mui/material/MenuItem";
-import Paper from "@mui/material/Paper";
 import Radio from "@mui/material/Radio";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
 import { failureText } from "../lib/failure.js";
-import { Badge, Button, Callout, Card, EmptyState, ErrorState, Modal, ModalFooter, PageHeader, Skeleton, useConfirm, useToast } from "../ui/kit.jsx";
+import { Badge, Button, Callout, Card, EmptyState, ErrorState, Modal, ModalFooter, PageHeader, Skeleton, useConfirm, useToast, Surface, FieldLabel } from "../ui/kit.jsx";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
+import { TILE_PADDING } from "../ui/density.js";
 
 /* 팀 공간 > 놀이 (§5). 한 페이지에서 모든 게임방을 보고, 여기서 방을 만든다(별도 페이지 분리
  * 안 함). 목록은 3초 폴링으로 새 방을 실시간처럼 보여준다. 첫 게임=랜덤 추첨.
@@ -60,7 +60,7 @@ function QuizEditor({ questions, setQuestions }) {
   return (
     <Box sx={{ display: "grid", gap: 1.5 }}>
       {questions.map((q, i) => (
-        <Paper key={i} variant="outlined" sx={{ p: 2, display: "grid", gap: 1.5 }}>
+        <Card key={i} sx={{ display: "grid", gap: 1.5 }}>
           <Stack direction="row" alignItems="center" justifyContent="space-between" gap={1}>
             <Typography variant="body2" sx={{ fontWeight: FONT_WEIGHT.bold }}>문제 {i + 1}</Typography>
             {questions.length > 1 ? <Button size="sm" onClick={() => removeQuestion(i)}>문제 삭제</Button> : null}
@@ -99,7 +99,7 @@ function QuizEditor({ questions, setQuestions }) {
              * 글로 한 번 더 알린다("몰래 다른 보기가 정답이 되는" 문제의 재발 지점). */}
             {q.answer < 0 ? <Callout tone="warn">정답으로 표시했던 보기를 지웠습니다. 정답을 다시 선택해 주세요.</Callout> : null}
           </Box>
-        </Paper>
+        </Card>
       ))}
       {questions.length < MAX_QUESTIONS ? <Box><Button size="sm" onClick={addQuestion}>문제 추가</Button></Box> : null}
     </Box>
@@ -238,36 +238,42 @@ function CreateRoomModal({ open, onClose, onCreated, aiEnabled }) {
     <Modal open={open} onClose={onClose} title="게임방 추가" size="md" dirty={dirty}
       footer={<ModalFooter onCancel={requestClose} onSubmit={() => canSave && create.mutate()} submitLabel="추가" busy={create.isPending} />}>
       <Box sx={{ display: "grid", gap: 2.5 }}>
-        <TextField
-          InputLabelProps={{ shrink: true }}
-          id="gr-game" select size="small" fullWidth label="게임"
-          value={gameType} onChange={(e) => setGameType(e.target.value)}
-        >
-          <MenuItem value="random_draw">랜덤 추첨</MenuItem>
-          <MenuItem value="quick_vote">빠른 투표</MenuItem>
-          <MenuItem value="team_split">랜덤 팀 나누기</MenuItem>
-          <MenuItem value="number">숫자 눈치</MenuItem>
-          <MenuItem value="ladder">사다리타기</MenuItem>
-          <MenuItem value="rps">가위바위보</MenuItem>
-          <MenuItem value="quiz">실시간 퀴즈</MenuItem>
-        </TextField>
+        <Box sx={{ minWidth: 0 }}>
+          <FieldLabel id="gr-game-label">게임</FieldLabel>
+          <TextField SelectProps={{ labelId: "gr-game-label" }}
+            id="gr-game" select size="small" fullWidth
+            value={gameType} onChange={(e) => setGameType(e.target.value)}
+          >
+            <MenuItem value="random_draw">랜덤 추첨</MenuItem>
+            <MenuItem value="quick_vote">빠른 투표</MenuItem>
+            <MenuItem value="team_split">랜덤 팀 나누기</MenuItem>
+            <MenuItem value="number">숫자 눈치</MenuItem>
+            <MenuItem value="ladder">사다리타기</MenuItem>
+            <MenuItem value="rps">가위바위보</MenuItem>
+            <MenuItem value="quiz">실시간 퀴즈</MenuItem>
+          </TextField>
+        </Box>
 
-        <TextField
-          InputLabelProps={{ shrink: true }}
-          id="gr-title" size="small" fullWidth required label="방 제목"
-          inputProps={{ maxLength: 120 }} value={title} onChange={(e) => setTitle(e.target.value)}
-          placeholder={isVote ? "예: 오늘 점심 정하기" : isTeam ? "예: 축구 팀 나누기" : isLadder ? "예: 청소 당번 사다리" : isQuiz ? "예: 사내 상식 퀴즈" : "예: 점심 커피 추첨"}
-        />
+        <Box sx={{ minWidth: 0 }}>
+          <FieldLabel htmlFor="gr-title" required>방 제목</FieldLabel>
+          <TextField
+            id="gr-title" size="small" fullWidth required
+            inputProps={{ maxLength: 120 }} value={title} onChange={(e) => setTitle(e.target.value)}
+            placeholder={isVote ? "예: 오늘 점심 정하기" : isTeam ? "예: 축구 팀 나누기" : isLadder ? "예: 청소 당번 사다리" : isQuiz ? "예: 사내 상식 퀴즈" : "예: 점심 커피 추첨"}
+          />
+        </Box>
 
         {needsOptions ? (
           <>
             {isVote ? (
-              <TextField
-                InputLabelProps={{ shrink: true }}
-                id="gr-q" size="small" fullWidth required label="질문"
-                inputProps={{ maxLength: 120 }} value={question} onChange={(e) => setQuestion(e.target.value)}
-                placeholder="예: 점심 뭐 먹을까요?"
-              />
+              <Box sx={{ minWidth: 0 }}>
+                <FieldLabel htmlFor="gr-q" required>질문</FieldLabel>
+                <TextField
+                  id="gr-q" size="small" fullWidth required
+                  inputProps={{ maxLength: 120 }} value={question} onChange={(e) => setQuestion(e.target.value)}
+                  placeholder="예: 점심 뭐 먹을까요?"
+                />
+              </Box>
             ) : null}
             <Box>
               <Typography variant="body2" color="text.secondary" id="gr-opts-label" sx={{ mb: 1 }}>
@@ -298,37 +304,44 @@ function CreateRoomModal({ open, onClose, onCreated, aiEnabled }) {
             </Box>
           </>
         ) : isTeam ? (
-          <TextField
-            InputLabelProps={{ shrink: true }}
-            id="gr-teams" type="number" size="small" fullWidth label="팀 수"
-            inputProps={{ min: 2, max: 8 }} value={teams} onChange={(e) => setTeams(e.target.value)}
-          />
+          <Box sx={{ minWidth: 0 }}>
+            <FieldLabel htmlFor="gr-teams">팀 수</FieldLabel>
+            <TextField
+              id="gr-teams" type="number" size="small" fullWidth
+              inputProps={{ min: 2, max: 8 }} value={teams} onChange={(e) => setTeams(e.target.value)}
+            />
+          </Box>
         ) : isNumber ? (
-          <TextField
-            InputLabelProps={{ shrink: true }}
-            id="gr-nummax" type="number" size="small" fullWidth label="숫자 범위 (1 ~ ?)"
-            inputProps={{ min: 2, max: 100 }} value={numMax} onChange={(e) => setNumMax(e.target.value)}
-            helperText={`참여자가 1~${Number(numMax) || 10} 중 하나를 몰래 냅니다. 가장 낮은 ‘유일한’ 숫자를 낸 사람이 승리해요.`}
-          />
+          <Box sx={{ minWidth: 0 }}>
+            <FieldLabel htmlFor="gr-nummax">숫자 범위 (1 ~ ?)</FieldLabel>
+            <TextField
+              id="gr-nummax" type="number" size="small" fullWidth
+              inputProps={{ min: 2, max: 100 }} value={numMax} onChange={(e) => setNumMax(e.target.value)}
+              helperText={`참여자가 1~${Number(numMax) || 10} 중 하나를 몰래 냅니다. 가장 낮은 ‘유일한’ 숫자를 낸 사람이 승리해요.`}
+            />
+          </Box>
         ) : isRps ? (
-          <TextField
-            InputLabelProps={{ shrink: true }}
-            id="gr-rpsmode" select size="small" fullWidth label="방식"
-            value={rpsMode} onChange={(e) => setRpsMode(e.target.value)}
-            helperText={rpsMode === "tournament"
-              ? "참여자를 무작위로 짝지어 1:1로 붙고, 이긴 사람이 다음 라운드로 올라가 마지막 한 명이 챔피언이 됩니다. 비기면 그 대진만 다시 냅니다."
-              : "참여자가 몰래 가위, 바위, 보 중 하나를 냅니다. 방장이 공개하면 서버가 판정해요 (두 종류만 나오면 이기는 쪽 승리, 아니면 무승부)."}
-          >
-            <MenuItem value="single">한 판 (다 같이 한 번에)</MenuItem>
-            <MenuItem value="tournament">토너먼트 (짝지어 이긴 사람이 올라감)</MenuItem>
-          </TextField>
+          <Box sx={{ minWidth: 0 }}>
+            <FieldLabel id="gr-rpsmode-label">방식</FieldLabel>
+            <TextField SelectProps={{ labelId: "gr-rpsmode-label" }}
+              id="gr-rpsmode" select size="small" fullWidth
+              value={rpsMode} onChange={(e) => setRpsMode(e.target.value)}
+              helperText={rpsMode === "tournament"
+                ? "참여자를 무작위로 짝지어 1:1로 붙고, 이긴 사람이 다음 라운드로 올라가 마지막 한 명이 챔피언이 됩니다. 비기면 그 대진만 다시 냅니다."
+                : "참여자가 몰래 가위, 바위, 보 중 하나를 냅니다. 방장이 공개하면 서버가 판정해요 (두 종류만 나오면 이기는 쪽 승리, 아니면 무승부)."}
+            >
+              <MenuItem value="single">한 판 (다 같이 한 번에)</MenuItem>
+              <MenuItem value="tournament">토너먼트 (짝지어 이긴 사람이 올라감)</MenuItem>
+            </TextField>
+          </Box>
         ) : isQuiz ? (
           <Box>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
               문제<Box component="span" sx={{ color: "error.main" }}> *</Box>
             </Typography>
             {aiEnabled ? (
-              <Paper variant="outlined" sx={{ p: 2, mb: 1.5, bgcolor: "action.hover" }}>
+              /* 문제 목록 위의 보조 동작 자리 — 함몰면 하나(`Surface inset`)다. */
+              <Surface tone="inset" sx={{ p: TILE_PADDING, mb: 1.5 }}>
                 <Stack direction={{ xs: "column", sm: "row" }} gap={1} alignItems={{ sm: "center" }}>
                   <TextField
                     size="small" fullWidth value={aiTopic} placeholder="예: 사내 보안 상식"
@@ -351,7 +364,7 @@ function CreateRoomModal({ open, onClose, onCreated, aiEnabled }) {
                   주제를 적고 생성하면 아래 문제가 채워집니다. 그대로 쓰거나 수정하세요.
                 </Typography>
                 {genNotice ? <Callout tone="danger" compact sx={{ mt: 1 }}>{genNotice}</Callout> : null}
-              </Paper>
+              </Surface>
             ) : null}
             <QuizEditor questions={quizQs} setQuestions={setQuizQs} />
             <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1 }}>
@@ -359,26 +372,32 @@ function CreateRoomModal({ open, onClose, onCreated, aiEnabled }) {
             </Typography>
           </Box>
         ) : (
-          <TextField
-            InputLabelProps={{ shrink: true }}
-            id="gr-winners" type="number" size="small" fullWidth label="당첨 인원"
-            inputProps={{ min: 1, max: 20 }} value={winners} onChange={(e) => setWinners(e.target.value)}
-          />
+          <Box sx={{ minWidth: 0 }}>
+            <FieldLabel htmlFor="gr-winners">당첨 인원</FieldLabel>
+            <TextField
+              id="gr-winners" type="number" size="small" fullWidth
+              inputProps={{ min: 1, max: 20 }} value={winners} onChange={(e) => setWinners(e.target.value)}
+            />
+          </Box>
         )}
 
         {timed ? (
-          <TextField
-            InputLabelProps={{ shrink: true }}
-            id="gr-timer" type="number" size="small" fullWidth label="제한 시간 (초)"
-            inputProps={{ min: 0, max: 300 }} value={timer} onChange={(e) => setTimer(e.target.value)}
-            helperText={`${isQuiz ? "문제마다" : "라운드마다"} 남은 시간이 카운트다운으로 보입니다. 시간이 끝나면 자동으로 다음 단계로 넘어갑니다${isRps ? " (안 낸 사람은 무작위로 처리)" : ""}. 0이면 시간 제한이 없습니다.`}
-          />
+          <Box sx={{ minWidth: 0 }}>
+            <FieldLabel htmlFor="gr-timer">제한 시간 (초)</FieldLabel>
+            <TextField
+              id="gr-timer" type="number" size="small" fullWidth
+              inputProps={{ min: 0, max: 300 }} value={timer} onChange={(e) => setTimer(e.target.value)}
+              helperText={`${isQuiz ? "문제마다" : "라운드마다"} 남은 시간이 카운트다운으로 보입니다. 시간이 끝나면 자동으로 다음 단계로 넘어갑니다${isRps ? " (안 낸 사람은 무작위로 처리)" : ""}. 0이면 시간 제한이 없습니다.`}
+            />
+          </Box>
         ) : null}
-        <TextField
-          InputLabelProps={{ shrink: true }}
-          id="gr-max" type="number" size="small" fullWidth label="최대 참여 인원"
-          inputProps={{ min: 2, max: 50 }} value={maxPlayers} onChange={(e) => setMaxPlayers(e.target.value)}
-        />
+        <Box sx={{ minWidth: 0 }}>
+          <FieldLabel htmlFor="gr-max">최대 참여 인원</FieldLabel>
+          <TextField
+            id="gr-max" type="number" size="small" fullWidth
+            inputProps={{ min: 2, max: 50 }} value={maxPlayers} onChange={(e) => setMaxPlayers(e.target.value)}
+          />
+        </Box>
         <FormControlLabel
           control={<Checkbox checked={spectators} onChange={(e) => setSpectators(e.target.checked)} />}
           label="관전 허용"
@@ -433,14 +452,13 @@ export function Games() {
           },
         }}>
           {list.data.items.map((r) => (
-            <Paper
+            <Card
               key={r.id}
               component="button"
               type="button"
-              variant="outlined"
               onClick={() => nav("/games/" + r.id)}
               sx={{
-                p: 2.5, textAlign: "left", font: "inherit", color: "inherit", cursor: "pointer",
+                textAlign: "left", font: "inherit", color: "inherit", cursor: "pointer",
                 display: "grid", gap: 1, alignContent: "start", minWidth: 0,
                 transition: "border-color .15s, transform .15s",
                 "&:hover": { borderColor: "primary.main", transform: "translateY(-2px)" },
@@ -454,7 +472,7 @@ export function Games() {
               <Typography variant="body2" color="text.secondary">
                 참여 {r.player_count}/{r.max_players}{r.allow_spectators ? ", 관전 가능" : ""}
               </Typography>
-            </Paper>
+            </Card>
           ))}
         </Box>
       )}

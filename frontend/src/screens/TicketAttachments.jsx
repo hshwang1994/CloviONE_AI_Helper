@@ -10,8 +10,8 @@ import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import { api } from "../lib/api.js";
 import { objectParticle, topicParticle } from "../lib/format.js";
 import { failureText, latestMutation } from "../lib/failure.js";
-import { Button, Callout, Card, EmptyState, useConfirm, useToast } from "../ui/kit.jsx";
-import { FONT_SIZE, KO_WORD_BREAK } from "../ui/theme.js";
+import { Button, Callout, Card, EmptyState, useConfirm, useToast, SectionTitle } from "../ui/kit.jsx";
+import { KO_WORD_BREAK } from "../ui/theme.js";
 import { ImageLightbox, useLightbox } from "../ui/ImageLightbox.jsx";
 import { Note } from "../ui/adminKit.jsx";
 
@@ -142,16 +142,15 @@ export function TicketAttachments({ ticketId, attachments, canEdit, onChanged })
 
   return (
     <Card>
-      <Stack direction="row" sx={{ alignItems: "center", justifyContent: "space-between", mb: 1.5, gap: 1, flexWrap: "wrap" }}>
-        <Typography component="h2" variant="h6" sx={{ fontSize: FONT_SIZE.sectionTitle }}>
-          첨부 {list.length > 0 ? `(${list.length})` : ""}
-        </Typography>
-        {canEdit ? (
+      <SectionTitle
+        component="h2"
+        title={`첨부 ${list.length > 0 ? `(${list.length})` : ""}`}
+        action={canEdit ? (
           <Button onClick={openPicker} disabled={upload.isPending || full} loading={upload.isPending}>
             파일 추가
           </Button>
         ) : null}
-      </Stack>
+      />
 
       {attachNotice ? <Callout tone="danger" compact sx={{ mb: 1.5 }}>{attachNotice}</Callout> : null}
 

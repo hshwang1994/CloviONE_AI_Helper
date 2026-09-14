@@ -9,6 +9,7 @@ import { fmtDateTime, actionKo, objKo } from "../lib/format.js";
 import { useAuth } from "../app/auth.jsx";
 import { canReach } from "../app/navConfig.js";
 import { PageHeader, Card, ListCard, DataTable, Badge, Section, Skeleton, EmptyState, ErrorState, Button, Callout, SubGroup, Surface, useToast } from "../ui/kit.jsx";
+import { CARD_PADDING } from "../ui/density.js";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
 import { StatusList, StatusTile, Note } from "../ui/adminKit.jsx";
 import {
@@ -520,7 +521,7 @@ const BOTTOM_GRID = {
  * 눈이 매번 다른 높이에서 상태를 찾아야 했다. */
 function OpsGroup({ title, children }) {
   return (
-    <Surface tone="inset" sx={{ p: 2.5, minWidth: 0, display: "flex", flexDirection: "column" }}>
+    <Surface tone="inset" sx={{ p: CARD_PADDING, minWidth: 0, display: "flex", flexDirection: "column" }}>
       <SubGroup first title={title} sx={{ flex: 1, display: "flex", flexDirection: "column" }}>
         {children}
       </SubGroup>
@@ -585,7 +586,7 @@ export function Dashboard() {
         q.isError ? <ErrorState error={q.error} onRetry={() => q.refetch()} /> : (
           <Box>
             <Card sx={{ mb: 3 }}><Skeleton lines={3} /></Card>
-            <Card sx={{ mb: 3, py: 1.5 }}><Skeleton lines={2} /></Card>
+            <Card sx={{ mb: 3 }}><Skeleton lines={2} /></Card>
             <Card><Skeleton lines={4} /></Card>
           </Box>
         )

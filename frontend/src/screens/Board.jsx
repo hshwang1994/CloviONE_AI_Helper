@@ -24,6 +24,7 @@ import {
   Tag,
   useConfirm,
   useToast,
+  FieldLabel,
 } from "../ui/kit.jsx";
 import { fmtDateTime, affiliationOf, ARCHIVED_SUFFIX } from "../lib/format.js";
 import { UserAvatar } from "../ui/UserAvatar.jsx";
@@ -237,64 +238,68 @@ export function PostFormModal({ open, onClose, categories, mode = "create", post
     >
       {/* 카테고리·제목은 한 줄에 나란히(넓은 화면) — 세로로만 쌓으면 본문 입력이 접힌 아래로 밀린다. */}
       <Box sx={{ display: "grid", gap: 2.5, gridTemplateColumns: { xs: "1fr", sm: "12rem minmax(0,1fr)" } }}>
+        <Box sx={{ minWidth: 0 }}>
+          <FieldLabel id="board-cat-label">카테고리</FieldLabel>
+          <TextField SelectProps={{ labelId: "board-cat-label" }}
+            id="board-cat"
+            select
+            size="small"
+            fullWidth
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+          >
+            {(categories || []).map((c) => (
+              <MenuItem key={c} value={c}>{c}</MenuItem>
+            ))}
+          </TextField>
+        </Box>
+        <Box sx={{ minWidth: 0 }}>
+          <FieldLabel htmlFor="board-title" required>제목</FieldLabel>
+          <TextField
+            id="board-title"
+            size="small"
+            fullWidth
+            required
+            inputProps={{ maxLength: 200 }}
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+          />
+        </Box>
+      </Box>
+      <Box sx={{ minWidth: 0, mt: 2.5 }}>
+        <FieldLabel htmlFor="board-body">내용</FieldLabel>
         <TextField
-          InputLabelProps={{ shrink: true }}
-          id="board-cat"
-          select
+          id="board-body"
           size="small"
-          label="카테고리"
-          value={category}
-          onChange={(e) => setCategory(e.target.value)}
-        >
-          {(categories || []).map((c) => (
-            <MenuItem key={c} value={c}>{c}</MenuItem>
-          ))}
-        </TextField>
-        <TextField
-          InputLabelProps={{ shrink: true }}
-          id="board-title"
-          size="small"
-          required
-          label="제목"
-          inputProps={{ maxLength: 200 }}
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
+          fullWidth
+          multiline
+          minRows={8}
+          value={body}
+          onChange={(e) => setBody(e.target.value)}
         />
       </Box>
-      <TextField
-        InputLabelProps={{ shrink: true }}
-        id="board-body"
-        label="내용"
-        size="small"
-        fullWidth
-        multiline
-        minRows={8}
-        value={body}
-        onChange={(e) => setBody(e.target.value)}
-        sx={{ mt: 2.5 }}
-      />
-      <TextField
-        id="board-files"
-        type="file"
-        size="small"
-        fullWidth
-        label={`첨부 (이미지 또는 PDF, 최대 ${MAX_FILES}개, 각 10MB)`}
-        InputLabelProps={{ shrink: true }}
-        inputProps={{ multiple: true, accept: UPLOAD_ACCEPT }}
-        error={tooBigFiles.length > 0}
-        helperText={tooBigFiles.length > 0
-          ? "10MB를 넘어 제외했습니다: " + tooBigFiles.join(", ")
-          : (files.length > 0 ? files.map((f) => f.name).join(", ") : undefined)}
-        onChange={(e) => {
-          const picked = Array.from(e.target.files || []);
-          const tooBig = picked.filter((f) => f.size > MAX_FILE_BYTES).map((f) => f.name);
-          let ok = picked.filter((f) => f.size <= MAX_FILE_BYTES);
-          if (ok.length > MAX_FILES) ok = ok.slice(0, MAX_FILES);
-          setTooBigFiles(tooBig);
-          setFiles(ok);
-        }}
-        sx={{ mt: 2.5 }}
-      />
+      <Box sx={{ minWidth: 0, mt: 2.5 }}>
+        <FieldLabel htmlFor="board-files">{`첨부 (이미지 또는 PDF, 최대 ${MAX_FILES}개, 각 10MB)`}</FieldLabel>
+        <TextField
+          id="board-files"
+          type="file"
+          size="small"
+          fullWidth
+          inputProps={{ multiple: true, accept: UPLOAD_ACCEPT }}
+          error={tooBigFiles.length > 0}
+          helperText={tooBigFiles.length > 0
+            ? "10MB를 넘어 제외했습니다: " + tooBigFiles.join(", ")
+            : (files.length > 0 ? files.map((f) => f.name).join(", ") : undefined)}
+          onChange={(e) => {
+            const picked = Array.from(e.target.files || []);
+            const tooBig = picked.filter((f) => f.size > MAX_FILE_BYTES).map((f) => f.name);
+            let ok = picked.filter((f) => f.size <= MAX_FILE_BYTES);
+            if (ok.length > MAX_FILES) ok = ok.slice(0, MAX_FILES);
+            setTooBigFiles(tooBig);
+            setFiles(ok);
+          }}
+        />
+      </Box>
       {/* 저장 실패는 발 바로 위 — 누른 단추 곁에 남는다. 다시 저장하면 걷힌다. */}
       {saveFailure ? <Callout tone="danger" compact sx={{ mt: 2.5 }}>{saveFailure}</Callout> : null}
     </Modal>

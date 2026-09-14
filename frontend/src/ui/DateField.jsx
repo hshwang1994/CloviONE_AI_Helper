@@ -1,5 +1,6 @@
 import React from "react";
 import TextField from "@mui/material/TextField";
+import { withLabelAbove } from "./filters.jsx";
 
 /* 날짜 고르개 — `@mui/x-date-pickers` 감싸개 (REAUDIT §15.5).
  *
@@ -33,7 +34,7 @@ function DateFieldFallback({
       label={label}
       disabled
       value=""
-      sx={sx}
+      sx={label ? withLabelAbove(sx) : sx}
       InputLabelProps={label ? { shrink: true } : undefined}
       {...rest}
     />
