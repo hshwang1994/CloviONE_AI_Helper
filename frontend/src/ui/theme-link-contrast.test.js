@@ -1,4 +1,5 @@
 /* qa-contract-change: 옛 문서 목록(TeamDocs.jsx)의 제목 링크 hover 두 자리를 걷었다. 그 화면이 S14 에서 사라졌고 없는 파일을 readFileSync 하면 이 파일 전체가 죽는다. 계약(본문 링크의 raw .main 은 대비 보강 색을 쓴다)과 남은 세 자리·모든 accent 조합의 계산 대비는 그대로다.
+ * qa-contract-change: 사이드바 안 읽음 배지(NavBadge)와 AI 도우미 시작 예시(QuickPrompts)가 정본 부품(건수 칩 unread · 작은 단추)으로 옮겨졌다(핸드오프 계획 B-3). 두 자리의 손 색 단언을 「정본 부품을 쓴다 · 흰 글자나 raw .main 글자를 손으로 칠하지 않는다」로 옮기고, 건수 칩 unread 의 글자와 면 대비를 모든 모드 · accent 조합으로 더 잰다.
  */
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -553,13 +554,30 @@ describe("PA-RC-0021 — NavBadge가 색을 하드코딩하지 않고 error.cont
     "utf-8",
   );
 
-  it("NavBadge의 color가 error.contrastText이고 common.white 하드코딩이 아니다", () => {
+  it("NavBadge 는 건수 칩 정본(CountChip unread)을 쓰고 글자색을 손으로 칠하지 않는다", () => {
     const start = appShellSrc.indexOf("function NavBadge");
     expect(start, "NavBadge 정의를 못 찾았다").toBeGreaterThan(-1);
-    const block = appShellSrc.slice(start, start + 1100);
-    expect(block).toMatch(/color:\s*"error\.contrastText"/);
+    const block = appShellSrc.slice(start, appShellSrc.indexOf("\n}\n", start));
+    // 색은 부품이 정한다 — 안 읽음 칩은 Primary 면 위 primary.contrastText 다(kit.jsx::CountChip).
+    expect(block).toMatch(/<CountChip\s+unread\b/);
     expect(block).not.toMatch(/color:\s*"common\.white"/);
+    expect(block).not.toMatch(/bgcolor:/);
   });
+
+  for (const mode of ["light", "dark"]) {
+    for (const accent of ACCENT_PRESETS) {
+      it(`${mode} 모드, accent=${accent} — 건수 칩 unread 글자(primary.contrastText)가 Primary 면 위에서 AA 다`, () => {
+        const theme = createClovirTheme(mode, accent);
+        const bg = theme.palette.primary.main;
+        const resolvedFg = resolveOverBackground(theme.palette.primary.contrastText, bg);
+        const ratio = contrastRatio(resolvedFg, bg);
+        expect(
+          ratio,
+          `mode=${mode} accent=${accent} contrastText=${theme.palette.primary.contrastText} bg=${bg} ratio=${ratio.toFixed(2)}`,
+        ).toBeGreaterThanOrEqual(AA_NORMAL_TEXT);
+      });
+    }
+  }
 
   for (const mode of ["light", "dark"]) {
     it(`${mode} 모드 — error.contrastText가 실제 배경(error.main) 위에서 AA를 만족한다`, () => {
@@ -596,9 +614,14 @@ describe("QAH-07 — ChatPane·AccentPicker·WelcomeStatus의 raw .main 텍스�
     expect(src).toMatch(/fontWeight:\s*FONT_WEIGHT\.extrabold,\s*color:\s*"primary\.dark"\s*}}>✓/);
   });
 
-  it("chat/WelcomeStatus.jsx QuickPrompts hover색이 primary.dark를 쓴다(테두리는 그대로 primary.main)", () => {
+  it("chat/WelcomeStatus.jsx QuickPrompts 는 작은 단추 정본이고 raw .main 글자를 손으로 칠하지 않는다", () => {
     const src = readSite(screensDir, "chat", "WelcomeStatus.jsx");
-    expect(src).toMatch(/"&:hover":\s*{\s*borderColor:\s*"primary\.main",\s*color:\s*"primary\.dark"\s*}/);
+    const start = src.indexOf("export function QuickPrompts");
+    expect(start, "QuickPrompts 정의를 못 찾았다").toBeGreaterThan(-1);
+    const block = src.slice(start, src.indexOf("\n}\n", start));
+    // 글자 · 테두리 대비는 키트 단추가 지킨다(default 갈래 — 잉크 글자 + text.faint 테두리).
+    expect(block).toMatch(/<Button\b[^>]*size="sm"/);
+    expect(block).not.toMatch(/color:\s*"primary\.main"/);
   });
 
   // ── 계산된 대비: 각 자리의 실제 배경과 비교 ──────────────────────────────────────
