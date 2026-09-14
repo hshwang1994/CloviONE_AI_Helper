@@ -24,8 +24,12 @@
   규칙은 없다, 티켓 추가 후보는 팀으로 좁힌다, 닫기·이월 정책은 그대로다.
 - branch: `ui/mui-migration`
 - last_stable_commit: **`eec4886c`** — 이번 회차도 안 옮긴다.
-- deployed: **배포 전** — 코드 커밋 `91c2aba7`(0029 마이그레이션 포함)을 아래 「다음 시작점」
-  순서로 올린다.
+- deployed: **`2c8915e5`** — `scripts/deploy-upgrade.sh` 로 올렸다. `UPGRADE_OK`(alembic
+  0028 → 0029, 스냅샷 `/var/backups/clovirassist/20260914-192359`) · `DEPLOY_VERIFY_OK`(정적
+  자산 53/53 새 번들, 새 라우트 401, CSP). 0029 결과는 예상 그대로다 — `9_2`(active) →
+  ClovirONE팀, `9월첫째주`(closed, 21건) → 감사 증거로 ClovirONE팀, `REAUDIT 번들1 검증
+  스프린트`(closed, 빈 회차) → 팀 미정 1건. 열린 회차의 팀 어긋난 티켓 0, 팀 유일 인덱스 둘과
+  `sprints_department_id_fkey` 확인, `project_id` FK 는 남아 있다(P-94).
 - verification: 아래 「이번 회차가 잰 것」.
 - capture: 전량 정본은 **`s22-final`** 그대로다(D-306). 이 회차는 기능 회차라 캡처를 안 옮긴다.
 - ui_gate: 변화 없음.
@@ -78,8 +82,13 @@
   순서·칩 한 줄·게이지 중심 0px·초안 보존·이전/다음·팀원의 편성 API 403·형제 팀 404·관리자의
   A/B 9-2 분리. 그 과정에서 셋을 고쳤다(D-484 ⑥): 판 시작 462→414px, 닫힌 회차의 빈 판,
   팀원에게 보이던 편성 안내.
-- **전량 게이트** — `python scripts/verify.py --full`(정적 전량 + 백엔드 청크 회귀 + vitest 전량)과
-  `check_test_strength.py --base eec4886c` 의 결과는 이 파일의 다음 갱신에 적는다.
+- **전량 게이트** — `python scripts/verify.py --full`: 정적 전량은 번들 지문(`BUILD_STAMP.json`)이
+  번들 재빌드 때 지워져 있어 한 번 빨갛게 섰고, 되찍어 `STATIC_CHECKS_OK`. 백엔드 전량 회귀는
+  unit · security · integration 4청크 초록, regression 청크에서 회차를 팀 없이 만들던 옛 시험
+  하나가 떨어져 고쳤다(그 시험이 「2월 31일 → 시작일이 종료일보다 앞이어야」 라는 엉뚱한 답을
+  드러내 회차 기간 오류 문구도 갈랐다). vitest 전량 **3,278건(425파일)** 중 회의 화면 시험
+  하나가 병렬 부하에서 5초 시간 초과 — 기다림 상한만 15초로 올렸다. `--failed` 재실행
+  `TARGETED_OK`, `check_test_strength.py --base eec4886c` → `TEST_STRENGTH_OK`(558파일).
 
 ## 이번 회차가 **안 고친** 것 — 그리고 그 이유
 
@@ -110,7 +119,8 @@
 - **관리자 화면 전수 UI/UX 정리 + 내 프로필 ✅** — D-452~D-458.
 - **관리자 기능 전수 검증·수정 ✅** — D-459~D-472. 배포 `15e2335e`.
 - **작업 보드·스프린트 회의를 팀 회차 위에 재설계 ✅** — 이번 회차, D-482~D-484. 커밋
-  `bef4e63f`(0029 + 네 문) · `4bd32261`(화면) · `91c2aba7`(실브라우저가 찾은 셋).
+  `bef4e63f`(0029 + 네 문) · `4bd32261`(화면) · `91c2aba7`(실브라우저가 찾은 셋) ·
+  `e196ff7c`(전량 검증이 찾은 둘) · `2c8915e5`(배포). 배포 `2c8915e5`.
 
 ## BLOCKERS
 
@@ -118,8 +128,8 @@
 
 ## 다음 시작점
 
-1. `bash scripts/deploy-upgrade.sh` — 0029 preflight 가 지나야 한다(랩 기대: `9_2`(active) →
-   ClovirONE팀, 닫힌 둘은 증거에 따라 ClovirONE팀 또는 미정, 충돌 없음).
-2. `BASE=https://clovirassist.gooddi.lab bash scripts/verify_deploy.sh` → `DEPLOY_VERIFY_OK`.
-3. `/api/admin/integrity` 에서 「팀 미정 회차」·「열린 회차의 팀 어긋난 티켓」을 본다.
-4. 실환경에서 작업 보드·스프린트 회의·티켓 상세 세 화면을 눌러 본 뒤 이 파일의 `deployed` 를 적는다.
+1. 실환경 세 화면(작업 보드 · 스프린트 회의 · 티켓 상세)은 **로그인한 브라우저**로 눌러 본다 —
+   이 회차는 Chrome 확장이 연결되지 않았고 랩 앱 계정이 없어 API·DB·외부 게이트까지만 확인했다.
+   `/api/admin/integrity` 가 「팀 미정 회차 1」(REAUDIT, 빈 닫힌 회차)을 센다 — 관리자가
+   「회차 수정」에서 팀을 정하거나 그대로 둔다.
+2. 다음 릴리스에 P-94(`0030`, `sprints.project_id` 삭제).
