@@ -75,6 +75,11 @@ def install(page, mode: str) -> None:
     page.route("**/api/**", handler)
 
 
+def _late_route_error(exc: BaseException) -> bool:
+    """판이 닫힌 뒤 늦게 도착한 가로채기의 오류인가 — 다음 화면의 실패로 새면 안 된다."""
+    return "has been closed" in str(exc)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--routes", nargs="*", default=[
@@ -106,25 +111,41 @@ def main() -> int:
                 page.on("pageerror", lambda e: errs.append(str(e)[:120]))
                 page.on("console", lambda m: errs.append(f"console.error: {m.text[:110]}")
                         if m.type == "error" else None)
-                # 셸을 먼저 띄운 뒤 가로채기를 건다 — 번들 자체는 정상적으로 받아야 한다.
-                page.goto(f"{BASE}{route.shell}", wait_until="domcontentloaded", timeout=45_000)
-                page.wait_for_timeout(800)
-                install(page, mode)
-                page.goto(f"{BASE}{route.shell}#{route.hash_path}",
-                          wait_until="domcontentloaded", timeout=60_000)
-                page.wait_for_timeout(2500 if mode != "slow" else 3000)
-                got = page.evaluate(READ)
-                spoke = [w for w in ERROR_WORDS if w in got["text"]]
-                retry = [x for x in got["buttons"] if "시도" in x or "새로" in x or "재" in x]
-                got.update({"error_words": spoke, "retry_buttons": retry,
-                            "page_errors": errs[:4]})
-                report[f"{mode}/{rid}"] = got
-                verdict = ("말함" if spoke else "**침묵**") if mode != "slow" else \
-                          ("로딩표시" if got["spinners"] else "**표시없음**")
-                print(f"{mode:<8}{rid:<20}{verdict:<10}chars={got['chars']:<5}"
-                      f"spin={got['spinners']} retry={len(retry)} js_err={len(errs)}", flush=True)
-                page.screenshot(path=str(OUT / f"{mode}-{rid}.png"))
-                ctx.close()
+                try:
+                    # 셸을 먼저 띄운 뒤 가로채기를 건다 — 번들 자체는 정상적으로 받아야 한다.
+                    page.goto(f"{BASE}{route.shell}", wait_until="domcontentloaded", timeout=45_000)
+                    page.wait_for_timeout(800)
+                    install(page, mode)
+                    page.goto(f"{BASE}{route.shell}#{route.hash_path}",
+                              wait_until="domcontentloaded", timeout=60_000)
+                    page.wait_for_timeout(2500 if mode != "slow" else 3000)
+                    got = page.evaluate(READ)
+                    spoke = [w for w in ERROR_WORDS if w in got["text"]]
+                    retry = [x for x in got["buttons"] if "시도" in x or "새로" in x or "재" in x]
+                    got.update({"error_words": spoke, "retry_buttons": retry,
+                                "page_errors": errs[:4]})
+                    report[f"{mode}/{rid}"] = got
+                    verdict = ("말함" if spoke else "**침묵**") if mode != "slow" else \
+                              ("로딩표시" if got["spinners"] else "**표시없음**")
+                    print(f"{mode:<8}{rid:<20}{verdict:<10}chars={got['chars']:<5}"
+                          f"spin={got['spinners']} retry={len(retry)} js_err={len(errs)}", flush=True)
+                    page.screenshot(path=str(OUT / f"{mode}-{rid}.png"))
+                except Exception as exc:  # 한 화면의 하네스 사고가 나머지 화면을 죽이지 않는다
+                    report[f"{mode}/{rid}"] = {"harness_error": str(exc)[:300]}
+                    print(f"{mode:<8}{rid:<20}하네스오류 {str(exc)[:120]}", flush=True)
+                finally:
+                    # 🔴 늦게 도착한 가로채기(느린 모드의 6초 대기 · 끊긴 요청)가 닫힌 판에서 터지면
+                    # 그 예외가 **다음 화면의 new_context** 로 새어 전체 실행이 죽었다(B-1·B-2 게이트).
+                    # 가로채기를 먼저 걷고, 판을 닫는 중에 난 늦은 오류는 삼킨다.
+                    try:
+                        page.unroute_all(behavior="ignoreErrors")
+                        ctx.close()
+                    except Exception as exc:
+                        if not _late_route_error(exc):
+                            raise
+                # 중간에 멈춰도 여기까지의 판정은 남긴다.
+                (OUT / "failure_states.json").write_text(
+                    json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
         b.close()
 
     (OUT / "failure_states.json").write_text(
