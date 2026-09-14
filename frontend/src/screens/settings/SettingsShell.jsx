@@ -1,16 +1,12 @@
 import React from "react";
 import Box from "@mui/material/Box";
-import Tabs from "@mui/material/Tabs";
-import Tab from "@mui/material/Tab";
 import { useAuth } from "../../app/auth.jsx";
-import { Button, Card, EmptyState, ErrorState, PageHeader, Skeleton } from "../../ui/kit.jsx";
-import { useQueryState } from "../../lib/useQueryState.js";
+import { TabShell } from "../../ui/TabShell.jsx";
 import { Settings } from "./SettingsMain.jsx";
 import { SystemOps, HELP as SYSTEM_OPS_HELP } from "../SystemOps.jsx";
 import { LlmConsole } from "../LlmConsole.jsx";
 import { StorageProviders, HELP as STORAGE_HELP } from "../StorageProviders.jsx";
 import { Maintenance } from "../ops/Maintenance.jsx";
-import { HeaderActionsHost, HeaderActionsProvider, useHeaderActionsSlot } from "../../ui/HeaderSlot.jsx";
 
 /* 설정 — 6화면 IA 정리(PA-RC-0017)의 탭 그릇.
  *
@@ -54,8 +50,14 @@ import { HeaderActionsHost, HeaderActionsProvider, useHeaderActionsSlot } from "
  * 와 달리) — 이 화면들이 처음으로 "라우트가 아니라 탭 상태"로 접근 가능해지는 지점이라,
  * 파생 로직 한 곳의 실수가 OS 특권 동작을 그대로 노출시킬 수 있다. 실제 서버 게이트는 각
  * 라우터가 독립적으로 걸지만(정본은 거기다), 프런트에서도 이 경계만은 한 겹을 더 둔다.
+ *
+ * ## 그릇은 `TabShell` 이다
+ *
+ * 이 파일이 탭 그릇 로직(역할로 거르기 · 모르는 탭과 못 보는 탭 구별 · 딥링크 · 탭↔패널
+ * 연결 · 머리 동작 자리)을 먼저 만들었고, `ui/TabShell.jsx` 가 그것을 공용으로 옮겼다. 두
+ * 사본이 따로 고쳐지지 않게 여기서도 그 그릇을 쓴다(핸드오프 계획 B-7 「페이지 탭 = TabShell」).
+ * 탭 id 는 `settings-tab-*` · `settings-tabpanel-*` 그대로다(`idPrefix`).
  */
-const TAB_SPEC = { tab: "policy" };
 
 /* `help` 는 그릇이 제목 옆 `?` 로 그린다(D-453) — 탭 본문이 자기 첫 줄에 설명 문단을 두지
    않는다. 문장이 없는 탭은 `?` 도 없다. */
@@ -77,107 +79,36 @@ export const SETTINGS_TAB_KEYS = TAB_DEFS.map((t) => t.key);
 const SYSTEM_ADMIN_TAB_HELP = "이 화면은 시스템 관리자만 사용할 수 있습니다.";
 
 export function SettingsShell() {
-  return (
-    <HeaderActionsProvider>
-      <SettingsShellBody />
-    </HeaderActionsProvider>
-  );
-}
-
-function SettingsShellBody() {
   const auth = useAuth();
   const role = auth.data && auth.data.role;
-  const visibleTabs = TAB_DEFS.filter((t) => !t.roles || t.roles.includes(role));
-  const [state, setState] = useQueryState(TAB_SPEC);
-  const tabKeys = visibleTabs.map((t) => t.key);
-  // PA-RC-0030: "모르는 tab 값"과 "역할 때문에 못 보는 tab"은 사용자에게 다른 사실이다 —
-  // 예전엔 둘 다 조용히 첫 탭으로 떨어져(아래 requestedDef가 없다) admin·operator가
-  // /system 등 옛 주소로 들어오면 주소는 ?tab=os인데 화면은 시스템 정책이고 거부 안내가
-  // 없었다. requestedDef가 있는데(=진짜 있는 탭 키) visibleTabs엔 없으면 역할 문제다 —
-  // 라우트 게이트(AdminRoutes.jsx RequireRole)와 같은 EmptyState로 명시하고 주소는
-  // 그대로 둔다(PA-RC-0024 딥링크 계약). requestedDef 자체가 없으면(오타·삭제된 탭) 아래
-  // effect가 주소를 정정한다(useQueryState의 setState는 기본이 replace라 히스토리를
-  // 안 남긴다 — 뒤로가기가 이전 화면으로 간다).
-  const requestedDef = TAB_DEFS.find((t) => t.key === state.tab);
-  const roleDenied = !!requestedDef && !tabKeys.includes(requestedDef.key);
-  const unknownTab = state.tab !== "policy" && !requestedDef;
-  React.useEffect(() => {
-    if (unknownTab) setState({ tab: "policy" });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [unknownTab, state.tab]);
-
-  const tab = roleDenied ? requestedDef.key : (tabKeys.includes(state.tab) ? state.tab : "policy");
-  const activeTabDef = roleDenied ? requestedDef : (visibleTabs.find((t) => t.key === tab) || visibleTabs[0]);
-
-  // Project.jsx의 상세 탭(TABS.map)에는 이 id/aria-controls 연결이 없다 — 그쪽도 같은 MUI
-  // Tabs 패턴을 쓰므로 이 화면만 고친다고 전체가 나아지진 않는다(BACKLOG의 별도 항목으로
-  // 남긴다). 여기서는 새로 만드는 화면이니 처음부터 WAI-ARIA Tabs 패턴대로 탭↔패널을 잇는다.
-  const tabId = (key) => `settings-tab-${key}`;
-  const panelId = (key) => `settings-tabpanel-${key}`;
-
-  /* 탭 본문이 머리 동작을 붙였을 때만 자리를 낸다(`ui/HeaderSlot.jsx`, D-454) — 파일
-     저장소의 「저장소 추가」가 여기 선다. */
-  const slot = useHeaderActionsSlot();
-  const hasActions = !!(slot && slot.count > 0);
-
-  if (auth.isLoading) return <Card><Skeleton /></Card>;
-  // 세션 만료(401)는 role 이 아직 안 왔을 뿐인데 roleDenied 로 오판해 "권한이 없습니다"를
-  // 잘못 보여줄 수 있다 — RequireRole 과 같은 이유로 재로그인 경로가 있는 ErrorState 를 먼저 본다.
-  if (auth.isError) return <ErrorState error={auth.error} onRetry={() => auth.refetch()} />;
-
+  /* 본문 분기에 role 을 한 번 더 건다(위 「role 게이트를 두 번 거는 이유」). 탭 줄에서 이미
+     걸렀어도 탭 상태 한 곳의 실수가 OS 특권 화면을 그리지 않게 한다. */
+  const isSystemAdmin = role === "system_admin";
+  const render = {
+    policy: () => (
+      <>
+        <Settings embedded />
+        <Box sx={{ mt: 4 }}>
+          <Maintenance embedded />
+        </Box>
+      </>
+    ),
+    os: () => (isSystemAdmin ? <SystemOps embedded /> : null),
+    storage: () => (isSystemAdmin ? <StorageProviders embedded /> : null),
+    ai: () => (isSystemAdmin ? <LlmConsole embedded /> : null),
+  };
+  /* 사이드바가 이 화면을 「설정」 묶음에 두므로 빵부스러기도 「설정」이다(S20). 제목은 고정이고
+     탭은 아래다(D-452) — 예전에는 탭 라벨이 h1 이라 「AI」가 제목이었다. 전환할 곳이 없는 탭
+     줄(system_admin 이 아니면 항상 1개)은 그릇이 그리지 않는다. */
   return (
-    <Box className="c-screen">
-      {/* 사이드바가 이 화면을 「설정」 묶음에 두는데(navConfig.js) 빵부스러기만 「운영」
-          이라고 말하고 있었다 — 같은 화면이 두 자리에 있다고 읽힌다(S20).
-          제목은 고정이고 탭은 아래다(D-452) — 예전에는 탭 라벨이 h1 이라 「AI」가 제목이었다. */}
-      <PageHeader
-        area="설정" title="설정"
-        help={roleDenied ? null : (activeTabDef.help || null)}
-        actions={hasActions ? <HeaderActionsHost /> : null}
-      />
-      {/* 전환할 곳이 없는 탭 스트립은 장식이다 — role 이 system_admin 이 아니면 항상 1개뿐이다. */}
-      {visibleTabs.length > 1 ? (
-        <Box sx={{ borderBottom: 1, borderColor: "divider", mb: 2.5 }}>
-          <Tabs
-            value={tab}
-            onChange={(e, next) => setState({ tab: next })}
-            variant="scrollable"
-            allowScrollButtonsMobile
-            aria-label="설정 탭"
-          >
-            {visibleTabs.map((t) => (
-              <Tab key={t.key} value={t.key} label={t.label} id={tabId(t.key)} aria-controls={panelId(t.key)} />
-            ))}
-          </Tabs>
-        </Box>
-      ) : null}
-
-      {roleDenied ? (
-        <EmptyState
-          title="권한이 없습니다"
-          help={SYSTEM_ADMIN_TAB_HELP}
-          art="noPermission"
-          /* 라벨이 「대시보드」인데 `#/` 로 보내고 있었다 — 그 주소는 어느 라우트 표에도
-             없어서 「찾을 수 없습니다」로 갔다(App.jsx 의 착지 규칙이 지금은 받아 주지만,
-             단추는 자기가 말한 곳으로 곧장 가는 것이 맞다). */
-          action={<Button variant="contained" href="#/dashboard">대시보드로 이동</Button>}
-        />
-      ) : (
-        <Box role="tabpanel" id={panelId(tab)} aria-labelledby={tabId(tab)} tabIndex={0}>
-          {tab === "policy" ? (
-            <>
-              <Settings embedded />
-              <Box sx={{ mt: 4 }}>
-                <Maintenance embedded />
-              </Box>
-            </>
-          ) : null}
-          {tab === "os" && role === "system_admin" ? <SystemOps embedded /> : null}
-          {tab === "storage" && role === "system_admin" ? <StorageProviders embedded /> : null}
-          {tab === "ai" && role === "system_admin" ? <LlmConsole embedded /> : null}
-        </Box>
-      )}
-    </Box>
+    <TabShell
+      area="설정"
+      title="설정"
+      ariaLabel="설정 탭"
+      idPrefix="settings"
+      deniedHelp={SYSTEM_ADMIN_TAB_HELP}
+      tabs={TAB_DEFS.map((t) => ({ ...t, render: render[t.key] }))}
+    />
   );
 }
 

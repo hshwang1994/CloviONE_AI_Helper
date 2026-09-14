@@ -1,7 +1,13 @@
 import React from "react";
 import Box from "@mui/material/Box";
+import Checkbox from "@mui/material/Checkbox";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
+import { alpha } from "@mui/material/styles";
+import { affiliation } from "../../lib/people.js";
+import { PickerOption } from "../../ui/filters.jsx";
+import { UserAvatar } from "../../ui/UserAvatar.jsx";
+import { FONT_SIZE } from "../../ui/theme.js";
 
 /* 여러 명을 고르는 자리의 «좁히기» (W5 · F-W5D-129 ①).
  *
@@ -46,6 +52,56 @@ export function PeopleFilter({ value, onChange, count, total }) {
         </Typography>
       ) : null}
     </Box>
+  );
+}
+
+/* 사람 한 줄 — 검색 팝오버의 항목 정본(`PickerOption`: 한 줄 32 · 아바타 22 + 이름 + 소속 muted)을 모달 안에
+ * 늘 펼쳐 둔 목록에 그대로 쓴다(핸드오프 계획 B-7). 예전에는 세 모달이 「이름 (소속)」 한 덩어리 글자를 각자
+ * 손으로 그렸다.
+ *
+ * - `onToggle` 이 있으면 체크박스 줄이다(그룹 초대 · 멤버 추가). 줄 전체가 `<label>` 이라 이름을 눌러도 켜진다.
+ * - `onPick` 이 있으면 누르면 바로 고르는 단추 줄이다(1:1 상대).
+ *
+ * 포커스 링은 줄이 든다 — 체크박스의 물결만으로는 키보드로 어디 있는지 보이지 않는다. */
+const ROW_SX = {
+  "&&": { px: 1, borderRadius: 1.5, cursor: "pointer", fontSize: FONT_SIZE.body },
+};
+
+export function PersonPickRow({ person, checked, onToggle, onPick, disabled }) {
+  const name = person.display_name || person.name || "";
+  const avatar = <UserAvatar person={person} name={name} size="xs" />;
+  if (onToggle) {
+    return (
+      <PickerOption
+        liProps={{ component: "label" }}
+        leading={(
+          <>
+            <Checkbox size="small" checked={!!checked} onChange={(e) => onToggle(e.target.checked)} sx={{ m: 0 }} />
+            {avatar}
+          </>
+        )}
+        label={name}
+        secondary={affiliation(person)}
+        sx={[ROW_SX, {
+          "&:hover": { bgcolor: (t) => alpha(t.palette.primary.main, 0.06) },
+          "&:focus-within": { outline: (t) => `2px solid ${t.palette.primary.main}`, outlineOffset: "-2px" },
+        }]}
+      />
+    );
+  }
+  return (
+    <PickerOption
+      liProps={{ component: "button", type: "button", disabled, onClick: onPick }}
+      leading={avatar}
+      label={name}
+      secondary={affiliation(person)}
+      sx={[ROW_SX, {
+        "&&": { width: "100%", border: 0, background: "none", color: "text.primary", font: "inherit", textAlign: "left" },
+        "&:hover:not(:disabled)": { bgcolor: (t) => alpha(t.palette.primary.main, 0.06) },
+        "&:focus-visible": { outline: (t) => `2px solid ${t.palette.primary.main}`, outlineOffset: "-2px" },
+        "&:disabled": { opacity: 0.6, cursor: "default" },
+      }]}
+    />
   );
 }
 

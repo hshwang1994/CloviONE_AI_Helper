@@ -183,7 +183,17 @@ B 단계가 전수 흡수를 끝낸 뒤 남는 자리만 적는다. 형식은 �
 | `ui/TagPicker.jsx` | `Chip` | Autocomplete `renderTags` 선택 칩 | MUI Autocomplete 가 지우기 · 키보드 이동을 그 칩에 건다 |
 | `screens/AiWorkspace.jsx` | `Chip` | 인용 번호(1, 2 …) | 건수도 사람이 붙인 낱말도 아닌 순번 표지다(계획 표 2) |
 | `screens/Board.jsx` | `Chip` | 이모지 반응 토글(`aria-pressed` + 누른 수) | 누르면 켜고 끄는 반응이고 높이는 작은 단추(30)에 맞췄다(계획 표 2) |
-| `app/NotificationBell.jsx` | `Badge`(MUI) | 종 아이콘 위 네 상태(숫자 · 조용 · 오류 · 불러오는 중) | 아이콘에 겹쳐 서는 표지라 칩 줄에 놓이지 않는다(계획 §0-11) |
+| `app/NotificationBell.jsx` | `Badge` | MUI 배지로 종 아이콘 위에 네 상태(숫자 · 조용 · 오류 · 불러오는 중)를 겹친다 | 아이콘에 겹쳐 서는 표지라 칩 줄에 놓이지 않는다(계획 §0-11) |
+| `app/AppShell.jsx` | `Button` | 사이드바 위 「사용자 · 관리자」 화면 전환 스위치(`ConsoleSwitch`) | 셸 반전 트랙(`sidebar.*` 토큰) 위의 이동 링크 둘(`aria-current`)이다 — 판 위 34 단추도, 보기 전환 `Segmented`(`tablist`)도 아니다 |
+| `app/TopBrand.jsx` | `Button` | 상단바 브랜드 락업(홈으로) | 로고 그림이 곧 이름인 셸 링크라 테두리 · 높이를 가진 단추 어휘가 맞지 않는다 |
+| `app/UserMenu.jsx` | `Button` · `Menu` | 상단바 이름 + 아바타 트리거와 그 팝오버 — 항목은 `overflowMenuItems` | 트리거가 셸 토큰 위 이름 + 아바타 알약이라 `OverflowMenu`(⋯ 아이콘)로 설 수 없고, 팝오버 머리에 내 소속 블록이 선다 |
+| `ui/SavedViews.jsx` | `Badge` · `Menu` | 저장 안 한 필터 점 표지와 저장된 뷰 목록 — 저장 항목은 `overflowMenuItems` | 뷰 한 줄에 이름 · 조건 요약 · 지우기 단추가 함께 서서 라벨만 받는 항목 정본으로 설 수 없다. 점은 아이콘에 겹치는 표지다 |
+| `screens/ChatPane.jsx` | `Menu` | 멘션 고르기(@ 도구가 여는 팝오버) — 항목은 `overflowMenuItems` | 트리거가 입력창 도구(@)라 `OverflowMenu`(⋯)로 설 수 없다 |
+| `ui/columnFilter.jsx` | `Button` | 열 필터 팝오버의 「이 조건 지우기」 | `kit.jsx` → `TableHeaderCell` → `columnFilter` 순으로 불려 kit `Button` 을 가져오면 순환 import 가 된다 |
+| `ui/InlineEdit.jsx` | `Menu` | 표 칸 인라인 편집의 값 목록(`role=option`) | 고르는 값 목록(listbox)이라 동작 메뉴 항목이 아니다(계획 §0-11 「InlineEdit listbox 는 B」) |
+| `screens/dev/KitGallery.jsx` | `MenuList` | 열린 팝오버 항목 붙박이 견본 | 대조표가 실제 `overflowMenuItems` 를 열린 채로 세우는 틀이다 |
+| `app/CommandPalette.jsx` | `Dialog` · `DialogContent` · `LinearProgress` | 명령 팔레트(Ctrl+K) 창과 찾는 중 줄 | 머리 · 발 · 제목이 없는 검색 창이라 모달 3단 계약과 다르다(계획 §0-11 대장 예외) |
+| `app/LoginHandoff.jsx` | `LinearProgress` | 로그인 넘김 진행 줄 | 화면 전체가 넘어가는 동안의 진행 표시라 단추 `loading` 자리가 없다(계획 §0-11 대장 예외) |
 
 ## 0-5. 카드 발 · 모달 발의 주인은 하나다
 
@@ -278,6 +288,26 @@ B 단계가 전수 흡수를 끝낸 뒤 남는 자리만 적는다. 형식은 �
 - 대시보드의 판정 줄(`StatusBand`)은 메시지 박스(`Callout toneLabel`)다(계획 P-18) — 판정 낱말(위험 · 주의 · 정상)은 아이콘
   접근 이름이 말한다. 홈 「이번 주」의 프로젝트 축 줄은 `StatusList` · `StatusTile` 이다.
 - `MetricStrip` 의 남은 소비처는 문서 목록 하나이고, D 단계(보기 전환 `Segmented count`)가 걷는다.
+- 값 하나 카드의 심각도는 이름 앞 7px 점이다(`totalKind`) — 알림의 안 읽음이 남으면 주의 점. 숫자는 타일 줄처럼 잉크색이다.
+
+## 0-12. 단추 · 탭 · 모달 발 · 팝오버 항목 · 사람 고르개 (핸드오프 RULES §3 · §8 · 계획 B-7)
+
+- **페이지 탭 = `TabShell`**: 설정(`settings-tab-*` id 그대로, 본문 분기의 역할 검사도 그대로)과 프로젝트 상세
+  (`idPrefix="project"`, 머리 동작은 `actions`). 두 화면이 탭 그릇 사본을 따로 들고 있었다. 프로젝트 상세의 모르는
+  탭 값은 이제 주소도 개요로 정정된다(그릇 계약 2 — 보이는 결과는 전과 같은 개요).
+- **보기 전환 = `Segmented`**: 내 승인 요청 · 분류 관리 · 휴지통 · 작업 보드(칸반/백로그) · 활동(B-4). 건수는 칸 안
+  `count` 로 선다.
+- **모달 발 = `ActionFooter`**: 티켓 미리보기(회차 작업 · 빠른 수정이 왼쪽, 「티켓 상세 보기」 오른쪽) · 둘러보기(진행
+  점이 왼쪽, 발에 ghost 없음) · DataScreen 상세 · 하위 목록 서랍 · 오프보딩 실행 상세 · 설정 편집 · 설정 이력 ·
+  사용자 셋 · 사용자 일괄. `.k-footer-*` 클래스와 그 CSS 는 걷었다.
+- **팝오버 항목 = `overflowMenuItems`**: 사용자 메뉴(비밀번호 변경은 `href` 링크 항목, 로그아웃은 `tone:"danger"` 이고
+  실패 문장이 남도록 닫지 않는다 — `onPick(item)`) · 저장된 뷰의 저장 항목 · 채팅방 멘션 고르기.
+- **사람 고르개 = `UserPicker`**: 새 티켓 · 티켓 수정의 담당자(칩은 이름만 — 옵션 `tagLabel`, 전체 이름은 칩 `title`) ·
+  오프보딩 후임(`describe` 로 이메일 · 부서, 비운 값은 「(후임 없음. 미할당으로)」). 모달 안에 펼쳐 둔 사람 목록(그룹
+  초대 · 1:1 상대 · 멤버 초대)의 줄은 `PickerOption` 이다(`chat/peoplePicker.jsx::PersonPickRow`).
+- **크기 리터럴 0**: 행 안 · 입력 도구 아이콘 단추는 테마의 작은 단추(30)다(대화 행 동작 · 보낼 첨부 제거 · AI 도우미
+  첨부 도구 · 설정 도메인 제거). 스프린트 회의 결정 줄의 티켓 단추는 높이 덮어쓰기를 걷어 30 으로 선다(계획 표 5).
+- 표 머리글 조작기(정렬 · 필터)는 `CONTROL.tableCellDense` 30 이다.
 
 ---
 
@@ -475,7 +505,8 @@ B 단계가 전수 흡수를 끝낸 뒤 남는 자리만 적는다. 형식은 �
 
 ### 토큰 신설
 - **파일**: `frontend/src/ui/theme.js`
-- `CONTROL.tableHead/tableRow/tableGroupRow/tableFooter/tableCellDense` = 40/48/36/44/32
+- `CONTROL.tableHead/tableRow/tableGroupRow/tableFooter/tableCellDense` = 40/48/36/44/30
+  (`tableCellDense` 는 표 머리 조작기 높이다. 32 였으나 핸드오프 B-7 에서 작은 단추와 같은 30 으로 내렸다 — 단추 높이는 두 단계뿐이다)
   (`tableRow` 는 오래 **정의만 있고 소비처가 0** 이었다 — 44에서 48로 옮기며 배선)
 - `palette.rule` = light `#E5E8F3` / dark `#242A46` (`--color-rule`) — 판 **안쪽** 실선
 - `ICON.mark` = 16 (다섯째 역할 슬롯)

@@ -373,6 +373,16 @@ describe("요약 줄 — 카드 수와 무관하게 빈 칸이 안 생긴다 (VI
     expect(plate, "값 하나 카드 안에 있어야 한다").not.toBeNull();
     expect(within(plate).getByText("3")).toBeInTheDocument();
     expect(plate.querySelector('[data-ratio-bar]'), "값 하나에는 비율 바가 없다").toBeNull();
+    // 안 읽음이 남아 있으면 주의다 — 판독 줄의 톤 색 대신 이름 앞 점이 말한다(숫자는 잉크색).
+    expect(label.querySelector("[data-status-dot]"), "안 읽음이 남았는데 주의 점이 없다").not.toBeNull();
+  });
+
+  it("안 읽음이 0 이면 주의 점을 그리지 않는다", async () => {
+    apiMock.mockResolvedValue({ items: [], total: 0, unread_count: 0 });
+    renderScreen({ ...BASE_CONFIG, unreadCountKey: "unread_count" });
+    const label = await screen.findByText("안 읽음");
+    expect(label.closest("[data-summary-single]")).not.toBeNull();
+    expect(label.querySelector("[data-status-dot]")).toBeNull();
   });
 });
 

@@ -4,7 +4,7 @@ import Box from "@mui/material/Box";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { api } from "../../lib/api.js";
-import { Button, Callout, Modal, useConfirm } from "../../ui/kit.jsx";
+import { Button, Callout, Modal, useConfirm, ActionFooter } from "../../ui/kit.jsx";
 import { FONT_SIZE } from "../../ui/theme.js";
 import { settingLabel, OBJECT_SCHEMA_HELP, STRUCTURED_OBJECT_KEYS, INT_BOUNDS, securityDowngradeWarning } from "./settingsRegistry.js";
 import { StructuredObjectFields } from "./StructuredObjectFields.jsx";
@@ -164,19 +164,22 @@ export function SettingEditor({ setting, canWrite, onClose, onSaved }) {
   const describedBy = [setting.description ? "setting-desc" : null, helpShown ? "setting-help" : null, intBounds ? "setting-range" : null, err ? "setting-err" : null].filter(Boolean).join(" ") || undefined;
 
   const footer = (
-    <Box className="k-footer-row" sx={{ px: 3, py: 2 }}>
-      <Box className="k-footer-extra">
-        <Button variant="ghost" onClick={requestClose} disabled={save.isPending}>취소</Button>
-        <Button variant="ghost" onClick={() => setShowVersions(true)}>버전 기록</Button>
-      </Box>
-      <Box className="k-footer-main">
+    /* 모달 발은 `ActionFooter` 하나다 — 면 · 위 선 · 여백의 주인이 하나이고, 발의 단추는 34 다(핸드오프 RULES §3 · 계획 B-7). 발에 ghost 를 두지 않는다. */
+    <ActionFooter
+      placement="modal"
+      extra={(
+        <>
+          <Button onClick={requestClose} disabled={save.isPending}>취소</Button>
+          <Button onClick={() => setShowVersions(true)}>버전 기록</Button>
+        </>
+      )}
+    >
         {/* 쓰기 권한이 없어도 버튼을 지우지 않는다 — 비활성 + 위 안내문(aria-describedby)으로
             '있지만 지금은 못 누른다'를 보여 준다(Maintenance.jsx 가 같은 실수를 겪고 고친 관례). */}
         <Button onClick={onCheck} disabled={!canWrite || dryRun.isPending} loading={dryRun.isPending} aria-describedby={canWrite ? undefined : "setting-locked-reason"}>미리 검증</Button>
         {/* 변경이 없으면 저장을 막는다, 같은 값 재저장은 config_versions, 감사 로그에 no-op을 쌓는다. */}
         <Button variant="primary" onClick={onSave} disabled={!canWrite || save.isPending || !dirty} loading={save.isPending} aria-describedby={canWrite ? undefined : "setting-locked-reason"}>저장</Button>
-      </Box>
-    </Box>
+    </ActionFooter>
   );
   return (
     <>

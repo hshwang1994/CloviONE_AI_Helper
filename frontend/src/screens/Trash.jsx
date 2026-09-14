@@ -2,8 +2,6 @@ import React, { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
-import Tab from "@mui/material/Tab";
-import Tabs from "@mui/material/Tabs";
 import Typography from "@mui/material/Typography";
 import WarningAmberRoundedIcon from "@mui/icons-material/WarningAmberRounded";
 import { api } from "../lib/api.js";
@@ -11,6 +9,7 @@ import Link from "@mui/material/Link";
 import {
   Badge, Button, Callout, Card, DataTable, EmptyState, ErrorState, ListCard, ListEmptyState,
   Modal, PageHeader, Skeleton, useConfirm, useToast,
+  Segmented,
 } from "../ui/kit.jsx";
 import { ListFooter } from "../ui/InfiniteScroll.jsx";
 import { DocBody } from "../ui/DocBody.jsx";
@@ -428,20 +427,13 @@ export function Trash() {
    * 숫자는 **탭 라벨**에 들어가고 서버의 조건-무관 개수에서 온다. */
   const tabs = (
     <Box sx={{ display: "flex", alignItems: "center", gap: 2, flexWrap: "wrap", mb: 2 }}>
-      <Tabs
-        value={kind}
-        onChange={(_e, v) => setState({ kind: v })}
-        aria-label="종류 구분"
-        sx={{ minHeight: 0 }}
-      >
-        {/* 숫자는 **서버가 준 것만** 적는다. 옛 응답이나 304 로 `counts` 가 없으면 낱말만
-            남기고 조작기는 그대로 둔다 — 숫자를 지어내는 것보다 낫고, 조작기를 통째로
-            없애는 것보다는 훨씬 낫다(그것이 이 화면의 원래 결함이었다). */}
-        {KINDS.map((k) => {
-          const n = counts ? counts[k.countKey] : null;
-          return <Tab key={k.value || "all"} value={k.value} label={n == null ? k.label : `${k.label} ${n}`} />;
-        })}
-      </Tabs>
+      {/* 종류 구분은 세그먼티드(34)다(계획 B-7). 숫자는 **서버가 준 것만** 적는다. 옛 응답이나 304 로
+          `counts` 가 없으면 낱말만 남기고 조작기는 그대로 둔다 — 숫자를 지어내는 것보다 낫고, 조작기를
+          통째로 없애는 것보다는 훨씬 낫다(그것이 이 화면의 원래 결함이었다). */}
+      <Segmented
+        ariaLabel="종류 구분" value={kind} onChange={(v) => setState({ kind: v })}
+        options={KINDS.map((k) => ({ value: k.value, label: k.label, count: counts ? counts[k.countKey] : undefined }))}
+      />
       {/* 「곧 사라진다」는 말만으로는 언제가 그 순간인지 알 수 없다. 누르면 임박한 순으로
           세워 준다 — 예전에는 같은 줄에 서 있으면서 혼자 누를 수 없는 칸이었다. */}
       {urgent > 0 ? (

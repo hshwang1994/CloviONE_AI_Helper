@@ -1328,6 +1328,7 @@ PROBE_JS = r"""
     return tops.length;
   }
   function kindOf(el) {
+    if (el.classList && el.classList.contains('k-segmented')) return '버튼';
     const tag = el.tagName;
     const role = (el.getAttribute('role') || '').toLowerCase();
     const type = (el.getAttribute('type') || '').toLowerCase();
@@ -1356,6 +1357,10 @@ PROBE_JS = r"""
    * 반례로 검증했다: 위양성 3건은 사라지고, 4K 아이콘버튼/버튼 6px 과 카드 목록 체크박스
    * 3.5px 은 그대로 잡히며, 일부러 `min-height:46px` 를 주입한 DOM 도 12px 로 잡힌다. */
   function controlsWithin(el, depth) {
+    /* 세그먼티드는 **트랙 하나가 컨트롤 하나**다 (핸드오프 B-7). 트랙 34 안의 칸은 28 이고(계획 P-2),
+       그 칸을 옆의 34 단추와 짝지으면 「높이 6px 차이」가 된다 — 작업 보드의 칸반/백로그 전환이
+       그렇게 잡혔다. 트랙을 재면 트랙 높이가 어긋난 진짜 결함은 그대로 잡힌다. */
+    if (el.classList && el.classList.contains('k-segmented')) return [el];
     if (el.matches(CTRL_SEL)) return [el];
     if (depth <= 0) return [];
     const out2 = [];

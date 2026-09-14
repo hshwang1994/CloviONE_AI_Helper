@@ -3,8 +3,8 @@ import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-quer
 import Box from "@mui/material/Box";
 import Checkbox from "@mui/material/Checkbox";
 import FormControlLabel from "@mui/material/FormControlLabel";
-import MenuItem from "@mui/material/MenuItem";
 import TextField from "@mui/material/TextField";
+import { UserPicker } from "../ui/UserPicker.jsx";
 import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
 import { expireSession } from "../lib/sessionRedirect.js";
@@ -14,6 +14,7 @@ import {
   ListEmptyState,
   PageHeader, Card, ListCard, Badge, Button, DataTable, DetailGrid, DetailRow, Modal, Skeleton,
   Section, SectionTitle, EmptyState, ErrorState, Callout, useConfirm, useToast,
+  ActionFooter,
 } from "../ui/kit.jsx";
 import { KO_WORD_BREAK } from "../ui/theme.js";
 import { useRowSelection, selectionColumn } from "../ui/bulkSelect.jsx";
@@ -332,19 +333,18 @@ function OffboardPlan({ preview, onDone, toast }) {
       <Box sx={pairTracks(BASELINE_TRACKS.two)}>
       <Card>
         <Box sx={{ display: "grid", gap: 2.5 }}>
-          <TextField
-            select size="small" fullWidth label="후임(티켓을 받을 사람)" value={successor}
-            SelectProps={{ displayEmpty: true }} InputLabelProps={{ shrink: true }}
-            onChange={(e) => setSuccessor(e.target.value)}
+          {/* 후임은 사람 고르개 정본이다(핸드오프 계획 B-7) — 검색 · 아바타 · 한 줄 32. 예전에는 후보 전원을
+              펼치는 셀렉트라 사람이 많으면 스크롤로 찾아야 했다. 「후임 없음」은 비운 값의 낱말이다. */}
+          <UserPicker
+            layout="form"
+            label="후임(티켓을 받을 사람)"
+            candidates={preview.successor_candidates || []}
+            value={successor}
+            onChange={setSuccessor}
+            allLabel="(후임 없음. 미할당으로)"
+            describe={(c) => [c.email, c.department].filter(Boolean).join(", ")}
             helperText="비워 두면 선택한 티켓이 미할당으로 돌아갑니다(미할당 트리아지에서 다시 배정)."
-          >
-            <MenuItem value="">(후임 없음. 미할당으로)</MenuItem>
-            {(preview.successor_candidates || []).map((c) => (
-              <MenuItem key={c.user_id} value={c.user_id}>
-                {c.display_name}, {c.email}{c.department ? ", " + c.department : ""}
-              </MenuItem>
-            ))}
-          </TextField>
+          />
           <TextField
             InputLabelProps={{ shrink: true }}
             size="small" fullWidth label="메모(선택)" value={note}
@@ -516,8 +516,7 @@ function RunHistory() {
       <Modal open={!!sel} onClose={() => setSel(null)} size="lg"
         title={sel ? (sel.user_name || "오프보딩") + " 실행 상세" : ""}
         footer={sel ? (
-          <Box className="k-footer-row" sx={{ px: 3, py: 2 }}>
-            <Box className="k-footer-main">
+          <ActionFooter placement="modal">
               {!sel.undone_at ? (
                 <Button variant="primary" disabled={busy} loading={busy} onClick={() => undo(sel)}>
                   되돌리기
@@ -530,8 +529,7 @@ function RunHistory() {
               <Button href={"#/audit?object_type=offboarding_run&object_id=" + sel.id}>
                 감사 로그에서 보기
               </Button>
-            </Box>
-          </Box>
+            </ActionFooter>
         ) : null}>
         {undoFailure ? <Callout tone="danger" compact sx={{ mb: 2 }}>{undoFailure}</Callout> : null}
         {detail ? (

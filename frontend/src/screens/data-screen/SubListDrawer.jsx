@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "../../lib/api.js";
 import { useAuth } from "../../app/auth.jsx";
 import Typography from "@mui/material/Typography";
-import { Callout, Button, DataTable, Modal, EmptyState, ErrorState, useConfirm, useToast } from "../../ui/kit.jsx";
+import { Callout, Button, DataTable, Modal, EmptyState, ErrorState, useConfirm, useToast, ActionFooter } from "../../ui/kit.jsx";
 import { DateField } from "../../ui/DateField.jsx";
 import { DebouncedTextField, FilterSelect } from "../../ui/filters.jsx";
 import { FilterRow, FilterSurface } from "../../ui/FilterBar.jsx";
@@ -174,7 +174,7 @@ export function SubListDrawer({ view, onClose, onActed }) {
           </>}
       {subInfo ? (
         <Modal open onClose={() => setSubInfo(null)} title={subInfo.title} size="md"
-          footer={<div className="k-footer-row"><div className="k-footer-main"><Button variant="primary" onClick={() => setSubInfo(null)}>확인</Button></div></div>}>
+          footer={<ActionFooter placement="modal"><Button variant="primary" onClick={() => setSubInfo(null)}>확인</Button></ActionFooter>}>
           <JsonBlock>{subInfo.body}</JsonBlock>
         </Modal>
       ) : null}

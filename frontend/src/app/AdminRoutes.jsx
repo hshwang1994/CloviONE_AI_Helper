@@ -1,8 +1,7 @@
 import React from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
-import Button from "@mui/material/Button";
 import { useAuth } from "./auth.jsx";
-import { Card, Skeleton, ErrorState, EmptyState } from "../ui/kit.jsx";
+import { Button, Card, Skeleton, ErrorState, EmptyState } from "../ui/kit.jsx";
 import { SCREEN_ROLES, SCREEN_ROLE_HELP } from "./navConfig.js";
 import { TabShell } from "../ui/TabShell.jsx";
 /* 탭 그릇의 `?` 도움말 — 단독 DataScreen 이 쓰는 것과 같은 함수(D-453). 가벼운 모듈이다
@@ -69,7 +68,7 @@ function RequireRole({ roles, children, help }) {
         /* 🔴 `#/` 였다. 두 라우트 표 어디에도 `path="/"` 가 없어서(AdminRoutes 는 아래
            catch-all, UserRoutes 는 `path="*"`), 권한 벽에서 유일한 단추를 누르면
            「찾을 수 없습니다」로 갔다 — 막다른 길에서 막다른 길로 보냈다. */
-        action={<Button variant="contained" href="#/dashboard">대시보드로 이동</Button>}
+        action={<Button variant="primary" href="#/dashboard">대시보드로 이동</Button>}
       />
     );
   }

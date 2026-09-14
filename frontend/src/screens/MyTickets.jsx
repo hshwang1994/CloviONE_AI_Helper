@@ -1,15 +1,12 @@
 import React from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import Autocomplete from "@mui/material/Autocomplete";
 import Box from "@mui/material/Box";
 import Checkbox from "@mui/material/Checkbox";
-import Chip from "@mui/material/Chip";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import IconButton from "@mui/material/IconButton";
 import Link from "@mui/material/Link";
 import MenuItem from "@mui/material/MenuItem";
-import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
@@ -32,8 +29,8 @@ import { useRowSelection, selectionColumn, BulkActions } from "../ui/bulkSelect.
 import { pathText } from "../ui/OrgPath.jsx";
 import { FAB_CLEARANCE, FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
 import { BASELINE_TRACKS, GRID_GAP } from "../ui/density.js";
-import { affiliation, needsOrg, personLabel } from "../lib/people.js";
 import { EMPTYABLE_SELECT, EntityCombobox } from "../ui/filters.jsx";
+import { UserPicker } from "../ui/UserPicker.jsx";
 import { useQueryState } from "../lib/useQueryState.js";
 import { TICKET_AUTO_MAX_ROWS, eligibleProjects, useAssigneeOptions, useTicketList, useTicketMeta, useTicketProjects, useWorkStatuses, statusOptions, ticketProjectId, ticketRows } from "./ticket-options.js";
 import { ListFooter } from "../ui/InfiniteScroll.jsx";
@@ -417,9 +414,6 @@ export function GroupedTickets({ rows, columns, empty, emptyHelp, emptyState, gr
  * 폼 안에 머무름)에 그대로 재사용할 모양이 아니었다 — 그래도 새 컴포넌트를 만들지는
  * 않았다, MUI가 이미 이 상호작용을 위해 제공하는 컴포넌트를 쓴다. */
 function AssigneePicker({ loading, candidates, selected, onChange, myId }) {
-  // 조직은 둘 이상 섞여 있을 때만 그린다 — 하나뿐이면 모든 줄에 같은 값이 붙어 구분에
-  // 도움이 안 되면서 줄만 길어진다.
-  const withOrg = needsOrg(candidates);
   /* 로딩은 화면마다 다른 회색 문장을 쓰지 않는다 (R-20) — 들어올 것의 모양을 그린다.
      여기 들어오는 것은 선택 상자 한 줄이라 `lines={1}` 이다. */
   if (loading) return <Skeleton lines={1} />;
@@ -434,49 +428,22 @@ function AssigneePicker({ loading, candidates, selected, onChange, myId }) {
       </Typography>
     );
   }
-  const byId = new Map(candidates.map((c) => [c.user_id, c]));
-  // selected는 id 배열이다(서버로 보내는 값 그대로, PA-RC-0035 이전과 같은 계약) —
-  // Autocomplete는 옵션 객체로 값을 다루므로 여기서만 id -> 후보 객체로 바꾼다. 서버가
-  // 이미 지워졌거나 배정 범위 밖으로 나간 id는 후보 목록에 없을 수 있다 — 조용히 건너뛴다
-  // (모달의 도움말 문구 "앱에 연결되지 않은 기존 담당자는 그대로 유지됩니다"와 같은 값,
-  // 화면에 안 보여도 selected 배열 자체에서는 지우지 않는다 — 다음 저장까지는 유지된다).
-  const value = selected.map((id) => byId.get(id)).filter(Boolean);
+  /* 고르개는 사람 고르개 정본(`ui/UserPicker.jsx`)이다 — 핸드오프 계획 B-7 · P-6. 예전에는 이 자리가
+     MUI 자동완성을 따로 짜서 옵션 줄(이름 + 소속 두 줄)과 칩을 손으로 그렸다. 정본은 한 줄 32 에
+     아바타 22 + 이름 + 소속 muted + 고른 사람 체크를 세우고, 내 계정을 맨 위에 둔다.
+     `selected` 는 id 배열 그대로다(서버로 보내는 값 — PA-RC-0035 이전과 같은 계약). 후보 밖으로 나간
+     id 는 정본이 「이름을 확인할 수 없는 항목」 칩으로 남겨 저장할 때까지 지우지 않는다(아래 도움말 문장
+     「앱에 연결되지 않은 기존 담당자는 그대로 유지됩니다」와 같은 약속). */
   return (
-    <Autocomplete
+    <UserPicker
       multiple
-      size="small"
-      options={candidates}
-      value={value}
-      onChange={(e, next) => onChange(next.map((c) => c.user_id))}
-      getOptionLabel={(c) => personLabel(c, { withOrg })}
-      isOptionEqualToValue={(a, b) => a.user_id === b.user_id}
-      noOptionsText="일치하는 사람이 없습니다"
-      renderOption={(props, c) => {
-        const { key, ...rest } = props;
-        const aff = affiliation(c, { withOrg });
-        return (
-          <Box component="li" key={key ?? c.user_id} {...rest} sx={{ display: "block !important" }}>
-            <Typography variant="body2" sx={{ lineHeight: 1.3 }}>
-              {c.display_name}{myId && c.user_id === myId ? " (나)" : ""}
-            </Typography>
-            {/* 소속은 보조줄로 — 동명이인이 있을 때 이게 유일한 구분 수단이다. 소속 정보가
-                없는 사용자는 줄을 만들지 않는다(빈 줄이 생기면 옵션 목록이 들쭉날쭉). */}
-            {aff ? (
-              <Typography variant="caption" color="text.secondary" sx={{ display: "block", lineHeight: 1.3 }}>
-                {aff}
-              </Typography>
-            ) : null}
-          </Box>
-        );
-      }}
-      renderTags={(tagValue, getTagProps) => tagValue.map((c, i) => {
-        const { key, ...rest } = getTagProps({ index: i });
-        return <Chip key={key ?? c.user_id} {...rest} size="small" label={c.display_name} />;
-      })}
-      renderInput={(params) => (
-        <TextField
-      InputLabelProps={{ shrink: true }} {...params} label="담당자 검색" placeholder="예: 김하나" />
-      )}
+      layout="form"
+      label="담당자 검색"
+      placeholder="예: 김하나"
+      candidates={candidates}
+      value={selected}
+      onChange={onChange}
+      myId={myId}
     />
   );
 }

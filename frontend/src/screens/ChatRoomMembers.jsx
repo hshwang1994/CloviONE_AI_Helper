@@ -1,14 +1,13 @@
 import React from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Box from "@mui/material/Box";
-import Checkbox from "@mui/material/Checkbox";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { alpha } from "@mui/material/styles";
 import { api } from "../lib/api.js";
 import { failureText } from "../lib/failure.js";
 import { Badge, Button, Callout, EmptyState, ErrorState, FieldLabel, Modal, Skeleton, useConfirm, useToast } from "../ui/kit.jsx";
-import { PeopleFilter, filterPeople } from "./chat/peoplePicker.jsx";
+import { PeopleFilter, PersonPickRow, filterPeople } from "./chat/peoplePicker.jsx";
 import { FONT_SIZE, FONT_WEIGHT } from "../ui/theme.js";
 import { affiliation, hasDuplicateNames, personLabel } from "../lib/people.js";
 import { ARCHIVED_SUFFIX } from "../lib/format.js";
@@ -297,19 +296,10 @@ export function ManageRoomModal({ open, onClose, roomId, title, members, meId, p
               ) : (
               <Box sx={PICKER_SX}>
                 {shownCandidates.map((u) => (
-                  <Box key={u.user_id} component="label"
-                    sx={{
-                      display: "flex", alignItems: "center", gap: 1, px: 1, py: 0.75, borderRadius: 1.5,
-                      cursor: "pointer", fontSize: FONT_SIZE.body,
-                      "&:hover": { bgcolor: (t) => alpha(t.palette.primary.main, 0.06) },
-                      "&:focus-within": { outline: (t) => `2px solid ${t.palette.primary.main}`, outlineOffset: "-2px" },
-                    }}>
-                    {/* 제품의 체크박스를 쓴다 — 맨 `<input type=checkbox>` 는 테마의 높이·
-                        포커스 링·색을 하나도 받지 않는다. */}
-                    <Checkbox size="small" checked={!!picked[u.user_id]}
-                      onChange={(e) => setPicked((p) => ({ ...p, [u.user_id]: e.target.checked }))} sx={{ m: 0 }} />
-                    <span>{personLabel(u)}</span>
-                  </Box>
+                  <PersonPickRow
+                    key={u.user_id} person={u} checked={!!picked[u.user_id]}
+                    onToggle={(on) => setPicked((p) => ({ ...p, [u.user_id]: on }))}
+                  />
                 ))}
               </Box>
               )}

@@ -5,8 +5,6 @@ import { useNavigate, Link as RouterLink } from "react-router-dom";
 import Box from "@mui/material/Box";
 import LinearProgress from "@mui/material/LinearProgress";
 import Stack from "@mui/material/Stack";
-import Tab from "@mui/material/Tab";
-import Tabs from "@mui/material/Tabs";
 import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
 import {
@@ -22,6 +20,7 @@ import {
   Skeleton,
   useToast,
   FlatBadgeSurface,
+  Segmented,
 } from "../ui/kit.jsx";
 import { FilterActions, FilterRow, FilterSurface, FilterToggle } from "../ui/FilterBar.jsx";
 import { DragBoard, DragItem, DragItemActions, SortableList } from "../ui/DragDrop.jsx";
@@ -1051,10 +1050,11 @@ export function WorkBoard() {
               flexWrap: "wrap", columnGap: 2, rowGap: 0.5, mb: 1.5,
             }}
           >
-            <Tabs value={tab} onChange={(_e, v) => setState({ tab: v })} aria-label="보기 선택">
-              <Tab value={TAB_BOARD} label="칸반" />
-              <Tab value={TAB_BACKLOG} label="백로그" />
-            </Tabs>
+            {/* 보기 전환은 세그먼티드(34)다 — 같은 두 옵션 · 같은 접근 이름(표 5). */}
+            <Segmented
+              ariaLabel="보기 선택" value={tab} onChange={(v) => setState({ tab: v })}
+              options={[{ value: TAB_BOARD, label: "칸반" }, { value: TAB_BACKLOG, label: "백로그" }]}
+            />
             {tab === TAB_BOARD ? (
               <Callout variant="inline" tone="info" sx={{ flex: "1 1 24rem", minWidth: 0, m: 0 }} title={boardNotice.title}>
                 {boardNotice.body}

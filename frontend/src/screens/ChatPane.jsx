@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Box from "@mui/material/Box";
 import IconButton from "@mui/material/IconButton";
 import InputBase from "@mui/material/InputBase";
+import Menu from "@mui/material/Menu";
 import Paper from "@mui/material/Paper";
 import Popover from "@mui/material/Popover";
 import Typography from "@mui/material/Typography";
@@ -14,7 +15,8 @@ import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded";
 import { api } from "../lib/api.js";
 import { fmtDateTime, fmtTimeShort, affiliationOf, ARCHIVED_SUFFIX } from "../lib/format.js";
 import { useIdleGetter } from "../lib/idle.js";
-import { Button, Callout, EmptyState, ErrorState, Skeleton, useConfirm, useToast } from "../ui/kit.jsx";
+import { Button, Callout, EmptyState, ErrorState, Skeleton, overflowMenuItems, useConfirm, useToast } from "../ui/kit.jsx";
+import { FILTER_LISTBOX_SX } from "../ui/filters.jsx";
 import { EMOJI_GROUPS, EMOJI_LABELS, imageFromClipboard, imageRejectReason, insertAtCursor } from "./chat-compose.js";
 import { ChatBubbleText } from "./ChatBubbleText.jsx";
 import { mentionNames } from "./chat-text.js";
@@ -544,7 +546,7 @@ export function ChatPane({ roomId, compact = false, interval = 2000, idleMax = 0
             버튼에서 고른다 — 전송 동작을 건드리지 않는 가장 안전한 자리다. */}
         {pickable.length > 0 ? (
           <IconButton
-            aria-label="언급할 사람 고르기" aria-haspopup="dialog" aria-expanded={!!mentionAnchor}
+            aria-label="언급할 사람 고르기" aria-haspopup="menu" aria-expanded={!!mentionAnchor}
             onClick={(e) => setMentionAnchor(e.currentTarget)}
             sx={{ flexShrink: 0, color: "text.secondary" }}
           >
@@ -593,28 +595,17 @@ export function ChatPane({ roomId, compact = false, interval = 2000, idleMax = 0
           </Box>
         ))}
       </Popover>
-      <Popover
+      {/* 멘션 고르기는 검색 없는 **팝오버 항목 목록**이다 — 항목 정본(`overflowMenuItems`, 32)이 한 줄을 그리고
+          메뉴가 화살표 이동을 준다(핸드오프 RULES §8). 예전에는 단추 줄을 손으로 그려 키보드로는 Tab 만 됐다.
+          목록 높이는 필터 목록과 같은 상한이다(`FILTER_LISTBOX_SX`). */}
+      <Menu
         open={!!mentionAnchor} anchorEl={mentionAnchor} onClose={() => setMentionAnchor(null)}
         anchorOrigin={{ vertical: "top", horizontal: "left" }}
         transformOrigin={{ vertical: "bottom", horizontal: "left" }}
-        slotProps={{ paper: { sx: { p: 0.75, maxWidth: "18rem", maxHeight: "16rem" }, "aria-label": "언급할 사람 고르기" } }}
+        slotProps={{ paper: { sx: { maxWidth: "18rem", ...FILTER_LISTBOX_SX } }, list: { "aria-label": "언급할 사람 고르기" } }}
       >
-        <Box sx={{ display: "flex", flexDirection: "column", gap: 0.25 }}>
-          {pickable.map((name) => (
-            <Box
-              key={name} component="button" type="button" onClick={() => insertMention(name)}
-              sx={{
-                border: 0, background: "none", color: "inherit", font: "inherit", fontSize: FONT_SIZE.body,
-                textAlign: "left", px: 1, py: 0.75, borderRadius: 1, cursor: "pointer",
-                "&:hover": { bgcolor: (t) => alpha(t.palette.primary.main, 0.12) },
-                "&:focus-visible": { outline: (t) => `2px solid ${t.palette.primary.main}`, outlineOffset: "-2px" },
-              }}
-            >
-              @{name}
-            </Box>
-          ))}
-        </Box>
-      </Popover>
+        {overflowMenuItems(pickable.map((name) => ({ key: name, label: "@" + name, onClick: () => insertMention(name) })))}
+      </Menu>
       <ImageLightbox {...lb.props} />
     </Box>
   );

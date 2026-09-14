@@ -301,7 +301,7 @@ function RatioBar({ parts, total }) {
  */
 export function StatusSummaryCard({
   title, help, total, totalLabel = "전체", items, risks,
-  value, onSelect, riskValue, onRiskSelect, ariaLabel, revealKey, action, notes, unit = "", sx,
+  value, onSelect, riskValue, onRiskSelect, ariaLabel, revealKey, action, notes, unit = "", totalKind, sx,
 }) {
   /* `unit` — 칩 건수 뒤에 붙는 낱말(「3건」). 같은 화면의 다른 자리(도넛 범례)가 「3건」이라 말하면 칩도 같은
      말을 한다. 비율은 숫자로 센다. */
@@ -333,7 +333,9 @@ export function StatusSummaryCard({
   const riskList = (risks || []).filter(Boolean).map(withAccent);
   /* **값 하나** 갈래 (RULES §10 — 값이 하나면 큰 숫자 하나, 차트 금지). 부분도 신호도 없고 전체만
      있으면 칩 줄과 비율 바를 그리지 않고 숫자 하나와 이름만 선다(「안 읽음 N」 · 「활성 스케줄」).
-     예전에는 이 자리가 판독 줄(`MetricStrip`) 한 칸이었다. */
+     예전에는 이 자리가 판독 줄(`MetricStrip`) 한 칸이었다.
+     `totalKind` — 그 값에 심각도가 있으면(안 읽음이 남아 있으면 주의) 이름 앞 7px 점이 말한다. 판독 줄은
+     숫자를 톤 색으로 칠했는데, 타일 줄과 같이 숫자는 잉크색이고 점이 거든다(`StatusKpiTile`). */
   if (!list.length && !riskList.length) {
     if (total == null || total === "") return null;
     return (
@@ -358,7 +360,13 @@ export function StatusSummaryCard({
             <Typography component="span" data-readout="value" sx={{ fontSize: FONT_SIZE.pageTitle, fontWeight: FONT_WEIGHT.bold, lineHeight: 1, ...NUMERIC }}>
               {total}
             </Typography>
-            <Typography component="span" data-readout="label" sx={{ fontSize: FONT_SIZE.bodySm, fontWeight: FONT_WEIGHT.semibold }}>{totalLabel}</Typography>
+            <Typography
+              component="span" data-readout="label"
+              sx={{ fontSize: FONT_SIZE.bodySm, fontWeight: FONT_WEIGHT.semibold, display: "inline-flex", alignItems: "center", gap: 0.75 }}
+            >
+              {totalKind ? <StatusDot accent={accentOf(totalKind)} /> : null}
+              {totalLabel}
+            </Typography>
           </Box>
           {action ? <Box sx={{ marginInlineStart: "auto" }}>{action}</Box> : null}
         </Box>

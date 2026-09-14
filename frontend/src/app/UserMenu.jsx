@@ -3,11 +3,10 @@ import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Divider from "@mui/material/Divider";
 import Menu from "@mui/material/Menu";
-import MenuItem from "@mui/material/MenuItem";
 import Typography from "@mui/material/Typography";
 import { useNavigate } from "react-router-dom";
 import { api } from "../lib/api.js";
-import { Callout } from "../ui/kit.jsx";
+import { Callout, overflowMenuItems } from "../ui/kit.jsx";
 import { FONT_SIZE, FONT_WEIGHT, RADIUS } from "../ui/theme.js";
 import { applyTheme, readTheme, storeTheme, clearBootTheme } from "./theme-store.js";
 import { clearBootAccent, useThemeMode } from "../ui/ThemeModeProvider.jsx";
@@ -204,17 +203,19 @@ export function UserMenu({ name, userId, avatarUrl, me }) {
             한 줄로 뭉치면 부서 관리자가 자기 소속을 관리 범위로 착각한다. */}
         <MyAffiliation user={me} />
         <Divider />
-        <MenuItem onClick={() => { setAnchor(null); nav("/profile"); }}>내 프로필</MenuItem>
-        <MenuItem onClick={() => { setAnchor(null); nav("/my-stats"); }}>내 업무량</MenuItem>
-        <MenuItem onClick={() => { setAnchor(null); nav("/activity"); }}>내 활동</MenuItem>
-        {/* PA-RC-0022 가 관리자 전용 「설정」 화면에서 떼어 온 화면 강조색은 이제 「내 프로필」
+        {/* 항목 한 줄은 팝오버 항목 정본(`overflowMenuItems`, 32)이다 — 핸드오프 계획 B-7.
+            PA-RC-0022 가 관리자 전용 「설정」 화면에서 떼어 온 화면 강조색은 이제 「내 프로필」
             안에 있다(S19) — 개인 설정이 한 화면에 모였으므로 메뉴 항목을 둘로 나누지
             않는다. 역할과 무관하게 누구나 닿는다는 성질은 그대로다. */}
-        <MenuItem component="a" href="/change-password">비밀번호 변경</MenuItem>
-        <Divider />
-        <MenuItem disabled={busy} onClick={logout} sx={{ color: "error.main" }}>
-          {busy ? "로그아웃 중…" : "로그아웃"}
-        </MenuItem>
+        {/* 로그아웃은 파괴적 항목이라 앞 항목들과 실선으로 갈린다(항목 정본이 긋는다). 누른 뒤에도 메뉴를
+            닫지 않는다 — 실패하면 그 문장이 바로 아래에 남아야 한다. */}
+        {overflowMenuItems([
+          { key: "profile", label: "내 프로필", onClick: () => nav("/profile") },
+          { key: "my-stats", label: "내 업무량", onClick: () => nav("/my-stats") },
+          { key: "activity", label: "내 활동", onClick: () => nav("/activity") },
+          { key: "password", label: "비밀번호 변경", href: "/change-password" },
+          { key: "logout", label: busy ? "로그아웃 중…" : "로그아웃", tone: "danger", disabled: busy, onClick: logout },
+        ], (it) => { if (it.key !== "logout") setAnchor(null); })}
         {logoutFailure ? (
           <Box role="none" sx={{ px: 1.5, pb: 1, maxWidth: "22rem" }}>
             <Callout tone="danger" compact>{logoutFailure}</Callout>

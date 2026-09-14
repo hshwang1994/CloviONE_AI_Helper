@@ -20,11 +20,6 @@
    브라우저 기본 monospace만 적용돼 배경/여백 없이 그냥 흘러 다른 코드 표면(.ops-pre, .c-detail-json)과
    달리 유독 밋밋했다 — 작은 배경 pill로 통일한다. */
 .k-callout code { background: var(--color-bg); padding: 1px 5px; border-radius: 4px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.9em; }
-/* kit.css의 .k-footer-row 세로 스택 breakpoint(≤560px)와 짝을 맞춘다 — 이 묶음만 폭이 안 맞춰지면
-   나머지(k-footer-extra/k-footer-main)는 전폭으로 쌓이는데 이것만 좁게 남아 줄이 어긋나 보인다. */
-
-@media (max-width: 760px) {
-}
 
 /* 알림 벨 + 팝오버(§6.4) — 인라인 스타일 없음. 열림 애니메이션은 동작 감소 설정에서 끔. */
 .noti { position: relative; }

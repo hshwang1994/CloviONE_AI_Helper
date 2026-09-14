@@ -18,14 +18,18 @@ import { UserAvatar } from "./UserAvatar.jsx";
  */
 export function UserPicker({
   label = "담당자", candidates, value, onChange, multiple = false, loading, disabled,
-  myId, kind = "entity", sx, helperText, required, layout, open, disablePortal,
+  myId, kind = "entity", sx, helperText, required, layout, open, disablePortal, placeholder, allLabel, describe,
 }) {
   const list = candidates || [];
   const withOrg = needsOrg(list);
+  /* `describe(person)` — 후보가 identity 모양이 아닐 때(오프보딩 후임: 이메일 · 부서) 소속 자리에 설 낱말.
+     고른 값의 글자와 검색은 「이름, 그 낱말」 전체다. */
   const options = list.map((c) => ({
     value: c.user_id,
-    label: personLabel(c, { withOrg }),
-    secondary: affiliation(c, { withOrg }),
+    label: describe ? [c.display_name, describe(c)].filter(Boolean).join(", ") : personLabel(c, { withOrg }),
+    secondary: describe ? describe(c) : affiliation(c, { withOrg }),
+    /* 칩은 이름만 말한다 — 소속은 목록 줄과 검색이 든다(칩의 `title` 에 전체 이름이 남는다). */
+    tagLabel: c.display_name,
     person: c,
   }));
 
@@ -45,6 +49,8 @@ export function UserPicker({
       sx={sx}
       helperText={helperText}
       required={required}
+      placeholder={placeholder}
+      allLabel={allLabel}
       noOptionsText="일치하는 사람이 없습니다"
       myId={myId}
       renderOption={(props, o, state) => (

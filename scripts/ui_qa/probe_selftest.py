@@ -88,6 +88,35 @@ CASES: list[dict] = [
         </div>""",
     },
     {
+        "name": "control_baseline_mismatch/세그먼티드 트랙의 안쪽 칸은 옆 단추와 짝지어지지 않는다",
+        "assertion": "control_baseline_mismatch",
+        "expect": "pass",
+        "why": ("세그먼티드는 트랙(34) 안에 칸(28)이 선다(계획 P-2). 칸을 옆 34 단추와 짝지으면 "
+                "6px 차이로 잡혔다 — 작업 보드 칸반/백로그 전환 옆 「보류 펴기」에서 실제로 그랬다."),
+        "html": """
+        <div style="display:flex;gap:12px;align-items:center;width:800px">
+          <div class="k-segmented" role="tablist" style="display:flex;height:34px;padding:3px;box-sizing:border-box">
+            <button role="tab" style="height:28px;width:80px">칸반</button>
+            <button role="tab" style="height:28px;width:80px">백로그</button>
+          </div>
+          <button style="height:34px;width:120px">보류 펴기</button>
+        </div>""",
+    },
+    {
+        "name": "control_baseline_mismatch/세그먼티드 트랙 자체의 높이가 다르면 잡힌다",
+        "assertion": "control_baseline_mismatch",
+        "expect": "fail",
+        "why": "트랙을 컨트롤 하나로 재도 트랙이 옆 단추보다 12px 크면 그대로 결함이다(반례).",
+        "html": """
+        <div style="display:flex;gap:12px;align-items:center;width:800px">
+          <div class="k-segmented" role="tablist" style="display:flex;height:46px;padding:3px;box-sizing:border-box">
+            <button role="tab" style="height:40px;width:80px">칸반</button>
+            <button role="tab" style="height:40px;width:80px">백로그</button>
+          </div>
+          <button style="height:34px;width:120px">보류 펴기</button>
+        </div>""",
+    },
+    {
         "name": "control_baseline_mismatch/세로로 쌓인 둘은 안 잡힌다",
         "assertion": "control_baseline_mismatch",
         "expect": "pass",

@@ -12,7 +12,7 @@ import { expireSession } from "../lib/sessionRedirect.js";
 import { diffFields } from "../lib/diffFields.js";
 import { fmtDateTime, shortUA } from "../lib/format.js";
 import { useAuth } from "../app/auth.jsx";
-import { PageHeader, Card, ListCard, Badge, Button, DataTable, DetailGrid, DetailRow, FormModal, Modal, OverflowMenu, Skeleton, EmptyState, ErrorState, Callout, useConfirm, useToast } from "../ui/kit.jsx";
+import { PageHeader, Card, ListCard, Badge, Button, DataTable, DetailGrid, DetailRow, FormModal, Modal, OverflowMenu, Skeleton, EmptyState, ErrorState, Callout, useConfirm, useToast, ActionFooter } from "../ui/kit.jsx";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
 import { useRowSelection, selectionColumn } from "../ui/bulkSelect.jsx";
 import { FilterActions, FilterRow, FilterSurface, FilterToggle, ResultLine, ToolbarRow } from "../ui/FilterBar.jsx";
@@ -251,12 +251,10 @@ function TempPasswordModal({ data, onClose }) {
     else setCopyNotice({ tone: "info", text: "복사를 지원하지 않는 환경입니다. 직접 선택해 복사하세요." });
   }
   const footer = (
-    <Box className="k-footer-row" sx={{ px: 3, py: 2 }}>
-      <Box className="k-footer-main">
-        <Button onClick={copy}>{copied || "복사"}</Button>
-        <Button variant="primary" onClick={onClose}>확인</Button>
-      </Box>
-    </Box>
+    <ActionFooter placement="modal">
+      <Button onClick={copy}>{copied || "복사"}</Button>
+      <Button variant="primary" onClick={onClose}>확인</Button>
+    </ActionFooter>
   );
   return (
     <Modal open onClose={onClose} title="임시 비밀번호" size="sm" footer={footer}>
@@ -1062,29 +1060,32 @@ function UserDetail({ user, notFound, onClose, onEdit, onChanged, onTempPw, pwHe
   ].filter(Boolean) : [];
 
   const footer = canManage ? (
-    <Box className="k-footer-row" sx={{ px: 3, py: 2 }}>
-      <Box className="k-footer-extra">
-        {/* 계정 잠금 해제는 이 화면에서 가장 시급한 복구 조작이라 메뉴에 접지 않는다. */}
-        {d.locked ? <Button disabled={actionsDisabled} onClick={() => run("/api/admin/users/" + id + "/unlock", { confirm: "이 계정의 잠금을 해제할까요?", okMsg: "잠금을 해제했습니다." })}>잠금 해제</Button> : null}
-        <Button disabled={actionsDisabled} onClick={() => setResetting(true)}>비밀번호 재설정</Button>
-        <OverflowMenu ariaLabel="사용자 작업 더 보기" items={manageItems} />
-      </Box>
-      {/* 본인 계정을 보는 중엔 비활성화, 보관, 세션 해제가 조용히 사라진다(자기 보호), 이유를
-          바로 옆에서 밝히지 않으면 버그로 보이기 쉽다. */}
-      {isSelf ? <Typography variant="caption" color="text.secondary">본인 계정은 비활성화, 보관, 세션 해제를 할 수 없습니다.</Typography> : null}
-      <Box className="k-footer-main">
-        {/* detailStale일 때 다른 모든 쓰기 버튼과 마찬가지로 잠근다, 수정은 role을 포함한 임의
-            필드를 PATCH할 수 있어(권한 상승 가능), 낡은 스냅샷을 근거로 열리면 안 된다. */}
-        <Button variant="primary" disabled={actionsDisabled} onClick={() => onEdit(d)}>수정</Button>
-      </Box>
-    </Box>
+    /* 모달 발은 `ActionFooter` 하나다 — 면 · 위 선 · 여백의 주인이 하나이고, 발의 단추는 34 다(핸드오프 RULES §3 · 계획 B-7). 발에 ghost 를 두지 않는다. */
+    <ActionFooter
+      placement="modal"
+      extra={(
+        <>
+          {/* 계정 잠금 해제는 이 화면에서 가장 시급한 복구 조작이라 메뉴에 접지 않는다. */}
+          {d.locked ? <Button disabled={actionsDisabled} onClick={() => run("/api/admin/users/" + id + "/unlock", { confirm: "이 계정의 잠금을 해제할까요?", okMsg: "잠금을 해제했습니다." })}>잠금 해제</Button> : null}
+          <Button disabled={actionsDisabled} onClick={() => setResetting(true)}>비밀번호 재설정</Button>
+          <OverflowMenu ariaLabel="사용자 작업 더 보기" items={manageItems} />
+          {/* 본인 계정을 보는 중엔 비활성화, 보관, 세션 해제가 조용히 사라진다(자기 보호), 이유를
+              바로 옆에서 밝히지 않으면 버그로 보이기 쉽다. */}
+          {isSelf ? <Typography variant="caption" color="text.secondary">본인 계정은 비활성화, 보관, 세션 해제를 할 수 없습니다.</Typography> : null}
+        </>
+      )}
+    >
+      {/* detailStale일 때 다른 모든 쓰기 버튼과 마찬가지로 잠근다, 수정은 role을 포함한 임의
+          필드를 PATCH할 수 있어(권한 상승 가능), 낡은 스냅샷을 근거로 열리면 안 된다. */}
+      <Button variant="primary" disabled={actionsDisabled} onClick={() => onEdit(d)}>수정</Button>
+    </ActionFooter>
   ) : (
-    <Box className="k-footer-row" sx={{ px: 3, py: 2 }}>
-      <Typography variant="caption" color="text.secondary">이 계정을 관리할 권한이 없습니다(system_admin 전용).</Typography>
-      <Box className="k-footer-main">
-        <OverflowMenu ariaLabel="사용자 작업 더 보기" items={navItems} />
-      </Box>
-    </Box>
+    <ActionFooter
+      placement="modal"
+      extra={<Typography variant="caption" color="text.secondary">이 계정을 관리할 권한이 없습니다(system_admin 전용).</Typography>}
+    >
+      <OverflowMenu ariaLabel="사용자 작업 더 보기" items={navItems} />
+    </ActionFooter>
   );
 
   return (

@@ -8,7 +8,9 @@ import { CONTROL, remPx } from "../ui/theme.js";
 import { COLUMN_TYPES, resolveColumn } from "../ui/columnTypes.js";
 import { pairTracks } from "../ui/density.js";
 
-/* S22 Final UI Audit 이 실브라우저에서 잡은 시각 결함 넷을 **뿌리에서** 못 박는다.
+/* qa-contract-change: 표 머리글 조작기 토큰(tableCellDense)이 32 에서 작은 단추와 같은 30 으로 내려갔다(핸드오프 단추 크기 두 단계, 계획 B-7) — 그 값 단언을 옮기고 「작은 단추와 같은 값」 단언을 더한다.
+ *
+ * S22 Final UI Audit 이 실브라우저에서 잡은 시각 결함 넷을 **뿌리에서** 못 박는다.
  *
  * 넷 다 「눌러 보면 되는데 보기가 틀린」 종류라 기능 시험이 잡을 수 없었다. 전량 캡처
  * (81 화면 × 2 테마 × 9 뷰포트)가 처음 봤고, 여기서는 그 캡처 없이도 되돌아오지 않게
@@ -57,7 +59,9 @@ describe("표 머리글의 두 조작기는 같은 높이로 선다 (control_bas
     const sortButton = screen.getByRole("button", { name: "상태" });
     const filterButton = screen.getByRole("button", { name: "상태 필터" });
     const want = remPx(CONTROL.tableCellDense);
-    expect(want).toBe("2rem");
+    expect(want).toBe("1.875rem");
+    // 표 안 조작기는 작은 단추와 같은 높이다 — 단추 높이는 34 와 30 두 단계뿐이다.
+    expect(CONTROL.tableCellDense).toBe(CONTROL.buttonSm);
     // 🔴 **둘이 같은 값이어야 한다.** 한쪽만 재면 「둘 다 안 걸렸다」와 구별되지 않으므로
     // 값이 실제로 그 토큰인지도 함께 본다.
     expect(getComputedStyle(sortButton).minHeight).toBe(want);

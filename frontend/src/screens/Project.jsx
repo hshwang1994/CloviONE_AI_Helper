@@ -3,8 +3,6 @@ import { failureText } from "../lib/failure.js";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
-import Tab from "@mui/material/Tab";
-import Tabs from "@mui/material/Tabs";
 import Typography from "@mui/material/Typography";
 import {
   Badge, Button, Callout, Card, EmptyState, ErrorState, FormModal, PageHeader,
@@ -14,6 +12,7 @@ import {
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
 import { EntityCombobox } from "../ui/filters.jsx";
 import { useAuth } from "../app/auth.jsx";
+import { TabShell } from "../ui/TabShell.jsx";
 import { useQueryState } from "../lib/useQueryState.js";
 import { useListReturn } from "../lib/listReturn.js";
 import { HealthBlock, HealthHistory, ProgressBlock } from "./ProjectMetrics.jsx";
@@ -374,7 +373,8 @@ export function Project() {
   const auth = useAuth();
   const [state, setState] = useQueryState(DETAIL_SPEC);
   // 주소를 손으로 고친 사람에게 오류 화면을 주지 않는다 - 모르는 값이면 개요를 보여 준다
-  // (`weekly.resolve_week` 가 서버에서 같은 판단을 기록한다).
+  // (`weekly.resolve_week` 가 서버에서 같은 판단을 기록한다). 탭 줄과 주소 정정은 탭 그릇
+  // (`ui/TabShell.jsx`)이 맡고, 여기서는 안 보는 탭의 자료를 안 받으려고 같은 판단을 한 번 더 읽는다.
   const tab = TAB_KEYS.includes(state.tab) ? state.tab : "overview";
   const [editing, setEditing] = React.useState(false);
 
@@ -475,12 +475,54 @@ export function Project() {
     }
   }
 
+  /* 탭마다 그리는 것 — 탭 줄 · 탭↔패널 연결 · 주소는 탭 그릇이 맡는다(핸드오프 계획 B-7 「페이지 탭 =
+     TabShell」). 예전에는 이 화면이 MUI 탭 줄을 따로 그렸고 탭과 패널이 이어져 있지 않았다. */
+  const renderTab = {
+    overview: () => (
+      <Overview
+        project={project} deptNames={deptNames}
+        progressQuery={progressQuery} healthQuery={healthQuery} healthHistoryQuery={healthHistoryQuery}
+        trendQuery={trendQuery}
+        canWrite={canWrite} onEdit={() => setEditing(true)}
+        onArchive={handleArchive} archiving={archive.isPending}
+        onRecomputeProgress={handleRecomputeProgress} recomputingProgress={recomputeProgress.isPending}
+        onSnapshotHealth={handleSnapshotHealth} snapshottingHealth={snapshotHealth.isPending}
+        canAssignDept={DEPT_ROLES.includes(role)} onAssignDept={handleAssignDept}
+        assigningDept={update.isPending}
+        deptFailure={deptFailure}
+        progressFailure={failureText([recomputeProgress, "진행률을 다시 계산하지 못했습니다."])}
+        healthFailure={failureText([snapshotHealth, "Health를 다시 계산하지 못했습니다."])}
+      />
+    ),
+    wbs: () => (
+      wbsQuery.isPending ? <Card><Skeleton lines={8} /></Card>
+        : wbsQuery.isError ? <ErrorState layout="region" error={wbsQuery.error} onRetry={() => wbsQuery.refetch()} />
+        : <ProjectWbs data={wbsQuery.data} />
+    ),
+    milestones: () => <MilestoneTimeline projectId={id} query={milestoneQuery} canWrite={canWrite} />,
+    tickets: () => <ProjectTickets project={project} />,
+    documents: () => <ProjectDocuments projectId={id} projectName={project?.name || ""} />,
+    weekly: () => (
+      <ProjectWeekly
+        projectId={id} week={state.week}
+        onWeek={(week) => setState({ week }, { push: true })}
+        query={weeklyQuery}
+      />
+    ),
+  };
+
+  /* 여기 있던 배너 둘(「노션에 반영하지 못했습니다」·「이번 동기화에서 안 보였습니다」)을
+     걷었다. 두 값을 쓰는 코드가 없어졌으므로(S14 · D-284) 이관 시점에 딸려 온 값이
+     **영원히 그 자리에** 남는다 — 고칠 방법이 없는 경고를 계속 띄우면 사용자는 배너
+     자체를 안 읽게 되고, 그러면 진짜 경고도 함께 묻힌다. */
   return (
-    <div className="c-screen">
-      <PageHeader
+    <>
+      <TabShell
         crumbRoot="팀 공간"
         area="프로젝트"
         title={project.name || "프로젝트"}
+        ariaLabel="프로젝트 상세 탭"
+        idPrefix="project"
         actions={(
           <>
             {/* 내보내기는 실제 파일 다운로드라 fetch 가 아니라 **링크**다(UsersBulk 관례).
@@ -496,69 +538,8 @@ export function Project() {
             {back}
           </>
         )}
+        tabs={TABS.map(([key, label]) => ({ key, label, render: renderTab[key] }))}
       />
-
-      {/* 여기 있던 배너 둘(「노션에 반영하지 못했습니다」·「이번 동기화에서 안 보였습니다」)을
-          걷었다. 두 값을 쓰는 코드가 없어졌으므로(S14 · D-284) 이관 시점에 딸려 온 값이
-          **영원히 그 자리에** 남는다 — 고칠 방법이 없는 경고를 계속 띄우면 사용자는 배너
-          자체를 안 읽게 되고, 그러면 진짜 경고도 함께 묻힌다. */}
-
-      <Box sx={{ borderBottom: 1, borderColor: "divider", mb: 2.5 }}>
-        <Tabs
-          value={tab}
-          onChange={(e, next) => setState({ tab: next })}
-          variant="scrollable"
-          allowScrollButtonsMobile
-          aria-label="프로젝트 상세 탭"
-        >
-          {TABS.map(([key, label]) => <Tab key={key} value={key} label={label} />)}
-        </Tabs>
-      </Box>
-
-      {tab === "overview" ? (
-        <Overview
-          project={project} deptNames={deptNames}
-          progressQuery={progressQuery} healthQuery={healthQuery} healthHistoryQuery={healthHistoryQuery}
-          trendQuery={trendQuery}
-          canWrite={canWrite} onEdit={() => setEditing(true)}
-          onArchive={handleArchive} archiving={archive.isPending}
-          onRecomputeProgress={handleRecomputeProgress} recomputingProgress={recomputeProgress.isPending}
-          onSnapshotHealth={handleSnapshotHealth} snapshottingHealth={snapshotHealth.isPending}
-          canAssignDept={DEPT_ROLES.includes(role)} onAssignDept={handleAssignDept}
-          assigningDept={update.isPending}
-          deptFailure={deptFailure}
-          progressFailure={failureText([recomputeProgress, "진행률을 다시 계산하지 못했습니다."])}
-          healthFailure={failureText([snapshotHealth, "Health를 다시 계산하지 못했습니다."])}
-        />
-      ) : null}
-
-      {tab === "wbs" ? (
-        wbsQuery.isPending ? <Card><Skeleton lines={8} /></Card>
-          : wbsQuery.isError ? <ErrorState layout="region" error={wbsQuery.error} onRetry={() => wbsQuery.refetch()} />
-          : <ProjectWbs data={wbsQuery.data} />
-      ) : null}
-
-      {tab === "milestones" ? (
-        <MilestoneTimeline projectId={id} query={milestoneQuery} canWrite={canWrite} />
-      ) : null}
-
-      {tab === "tickets" ? (
-        <ProjectTickets
-          project={project}
-        />
-      ) : null}
-
-      {tab === "documents" ? (
-        <ProjectDocuments projectId={id} projectName={project?.name || ""} />
-      ) : null}
-
-      {tab === "weekly" ? (
-        <ProjectWeekly
-          projectId={id} week={state.week}
-          onWeek={(week) => setState({ week }, { push: true })}
-          query={weeklyQuery}
-        />
-      ) : null}
 
       <FormModal
         open={editing}
@@ -569,6 +550,6 @@ export function Project() {
         onSubmit={submitEdit}
         onClose={() => setEditing(false)}
       />
-    </div>
+    </>
   );
 }

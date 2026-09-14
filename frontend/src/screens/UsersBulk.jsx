@@ -5,7 +5,7 @@ import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
 import { expireSession } from "../lib/sessionRedirect.js";
-import { Badge, Button, DataTable, Modal, Callout, useConfirm, useToast } from "../ui/kit.jsx";
+import { Badge, Button, DataTable, Modal, Callout, useConfirm, useToast, ActionFooter } from "../ui/kit.jsx";
 import { FONT_WEIGHT } from "../ui/theme.js";
 import { Note } from "../ui/adminKit.jsx";
 import { ToolbarRow } from "../ui/FilterBar.jsx";
@@ -220,8 +220,7 @@ export function ImportModal({ onClose, onImported }) {
   }
 
   const footer = (
-    <Box className="k-footer-row" sx={{ px: 3, py: 2 }}>
-      <Box className="k-footer-main">
+    <ActionFooter placement="modal">
         <Button onClick={requestClose}>{applied ? "닫기" : "취소"}</Button>
         {!applied ? (
           <>
@@ -235,8 +234,7 @@ export function ImportModal({ onClose, onImported }) {
             </Button>
           </>
         ) : null}
-      </Box>
-    </Box>
+    </ActionFooter>
   );
 
   return (

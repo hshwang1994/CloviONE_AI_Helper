@@ -16,7 +16,7 @@ import LinkRoundedIcon from "@mui/icons-material/LinkRounded";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api.js";
 import { failureText } from "../lib/failure.js";
-import { Button, Callout, Modal, ModalFooter, useConfirm, useToast } from "./kit.jsx";
+import { Button, Callout, Modal, ModalFooter, overflowMenuItems, useConfirm, useToast } from "./kit.jsx";
 
 /* 저장된 뷰 — 자주 쓰는 필터 조합에 이름을 붙여 두고 다시 부른다.
  *
@@ -174,9 +174,11 @@ export function SavedViews({ screenKey, query, describe, onApply }) {
           </MenuItem>
         ))}
         <Divider />
-        <MenuItem onClick={() => { setAnchor(null); setConflict(false); setSaving(true); }}>
-          지금 필터를 뷰로 저장…
-        </MenuItem>
+        {/* 뷰 행(이름 · 조건 요약 · 지우기 단추)은 한 항목에 단추가 함께 서서 라벨만 받는 항목 정본으로
+            설 수 없다(대장 예외). 저장 항목은 팝오버 항목 정본이다. */}
+        {overflowMenuItems([
+          { key: "save", label: "지금 필터를 뷰로 저장…", onClick: () => { setConflict(false); setSaving(true); } },
+        ], () => setAnchor(null))}
       </Menu>
 
       <Modal

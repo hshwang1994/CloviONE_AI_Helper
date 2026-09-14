@@ -1,7 +1,7 @@
 import React from "react";
 import Box from "@mui/material/Box";
 import Divider from "@mui/material/Divider";
-import MuiButton from "@mui/material/Button";
+import { Button as KitButton } from "./kit.jsx";
 import IconButton from "@mui/material/IconButton";
 import Popover from "@mui/material/Popover";
 import Stack from "@mui/material/Stack";
@@ -275,13 +275,13 @@ function LinkPopover({ anchorEl, initialHref, onClose, onSubmit, onRemove }) {
           InputLabelProps={{ shrink: true }}
         />
         {initialHref ? (
-          <MuiButton type="button" size="small" color="inherit" onClick={onRemove} sx={{ flexShrink: 0 }}>
+          <KitButton size="sm" onClick={onRemove}>
             삭제
-          </MuiButton>
+          </KitButton>
         ) : null}
-        <MuiButton type="submit" size="small" variant="contained" sx={{ flexShrink: 0 }}>
+        <KitButton type="submit" size="sm" variant="primary">
           적용
-        </MuiButton>
+        </KitButton>
       </Box>
     </Popover>
   );

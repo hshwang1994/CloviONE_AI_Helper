@@ -1,6 +1,7 @@
 import React from "react";
 import Autocomplete from "@mui/material/Autocomplete";
 import Box from "@mui/material/Box";
+import Chip from "@mui/material/Chip";
 import InputAdornment from "@mui/material/InputAdornment";
 import MenuItem from "@mui/material/MenuItem";
 import TextField from "@mui/material/TextField";
@@ -197,7 +198,9 @@ export function unmatchedLabel(value, loading) {
  *
  * 한 줄이다 — 이름이 길면 이름이, 그다음 보조 식별자가 말줄임되고 전체는 `title` 이 든다.
  * `aria-selected` 는 MUI 가 `props` 로 준다(그대로 흘려보낸다). */
-export function PickerOption({ liProps, label, secondary, leading, suffix, selected }) {
+/* `sx` — 자동완성 목록 밖(모달 안에 늘 펼쳐 둔 사람 목록)에서 줄에 여백 · 가리킴 · 포커스 링을 더할 때만 쓴다.
+   자동완성 안에서는 MUI 가 그 셋을 준다. */
+export function PickerOption({ liProps, label, secondary, leading, suffix, selected, sx }) {
   const { key, ...rest } = liProps || {};
   const full = [label, secondary].filter((v) => typeof v === "string" && v).join(", ");
   return (
@@ -207,12 +210,15 @@ export function PickerOption({ liProps, label, secondary, leading, suffix, selec
       {...rest}
       data-picker-option=""
       title={full || undefined}
-      sx={{
-        "&&": {
-          display: "flex", alignItems: "center", gap: 1, minWidth: 0,
-          minHeight: remPx(CONTROL.menuItem), paddingTop: 0, paddingBottom: 0,
+      sx={[
+        {
+          "&&": {
+            display: "flex", alignItems: "center", gap: 1, minWidth: 0,
+            minHeight: remPx(CONTROL.menuItem), paddingTop: 0, paddingBottom: 0,
+          },
         },
-      }}
+        ...(Array.isArray(sx) ? sx : [sx]),
+      ]}
     >
       {leading}
       <Box component="span" sx={{ display: "flex", alignItems: "baseline", gap: 0.75, minWidth: 0, flex: 1, overflow: "hidden" }}>
@@ -507,6 +513,10 @@ export function EntityCombobox({
   ));
   if (multiple) {
     const selected = Array.isArray(value) ? value : (value ? [value] : []);
+    /* 고른 칩의 낱말 — 옵션이 `tagLabel` 을 들면 칩은 그 짧은 이름만 말한다(사람 고르개: 칩은 「김하나」,
+       목록 줄과 검색은 「김하나 (개발본부 팀장)」). 전체 이름은 칩의 `title` 로 남는다. 없으면 MUI 기본 칩이
+       옵션 이름을 그대로 쓴다. */
+    const shortTags = list.some((o) => o && o.tagLabel);
     const current = selected.map((v) => (
       list.find((o) => String(o.value) === String(v))
         || { value: v, label: unmatchedLabel(v, loading) }
@@ -534,6 +544,10 @@ export function EntityCombobox({
         sx={kindSx(kind, sx, layout, row)}
         ListboxProps={{ sx: FILTER_LISTBOX_SX }}
         renderOption={renderRow}
+        renderTags={shortTags ? (tagValue, getTagProps) => tagValue.map((o, i) => {
+          const { key, ...rest } = getTagProps({ index: i });
+          return <Chip key={key ?? o.value} {...rest} size="small" label={o.tagLabel || o.label} title={o.label} />;
+        }) : undefined}
         renderInput={(params) => (
           <TextField
             {...params}

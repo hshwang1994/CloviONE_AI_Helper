@@ -40,7 +40,7 @@ import { MascotTopButton } from "../ui/Mascot.jsx";
 import { useDocumentTitle, brand, setBrand } from "./documentTitle.js";
 import { useRouteAnnounce } from "./routeAnnounce.js";
 import { recordNavVisit } from "../lib/recentNav.js";
-import { Card, CountChip, CrumbRootProvider, ErrorState, SessionExpiredOutlet, Skeleton } from "../ui/kit.jsx";
+import { Button as KitButton, Card, CountChip, CrumbRootProvider, ErrorState, SessionExpiredOutlet, Skeleton } from "../ui/kit.jsx";
 import { Banners } from "./Banners.jsx";
 import { useStatusNotices } from "./StatusNotices.jsx";
 import { NOTI_UNREAD, invalidateNotifications, notiUnreadKey } from "./notification-keys.js";
@@ -785,7 +785,7 @@ export function AppShell({
            사이드바도 재로그인 안내 한 칸으로 접는다. */
         <Box sx={{ p: 3, display: "grid", gap: 2 }}>
           <Typography variant="body2" sx={{ color: "sidebar.muted" }}>세션이 만료되었습니다.</Typography>
-          <Button variant="contained" href={loginUrl()}>다시 로그인</Button>
+          <KitButton variant="primary" href={loginUrl()}>다시 로그인</KitButton>
         </Box>
       ) : (
         <>

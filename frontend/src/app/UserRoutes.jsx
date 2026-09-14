@@ -1,6 +1,5 @@
 import React from "react";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
-import MuiButton from "@mui/material/Button";
 import { MyTickets, Unassigned, NewTicket } from "../screens/MyTickets.jsx";
 import { Home } from "../screens/Home.jsx";
 import { Board, IdeaBoard } from "../screens/Board.jsx";
@@ -29,7 +28,7 @@ import { NOTIFICATIONS_SCREEN } from "../screens/registry/notifications.js";
 // App.jsx가 이미 무조건 정적으로 물어 오는 가벼운 모듈(아이콘 레퍼런스 + 배열)이라 이
 // 파일이 추가로 들여와도 초기 번들 비용이 늘지 않는다.
 import { NAV } from "./navConfig.js";
-import { Skeleton, ErrorState, EmptyState } from "../ui/kit.jsx";
+import { Button, Skeleton, ErrorState, EmptyState } from "../ui/kit.jsx";
 
 /* 사용자 콘솔 라우트
  *
@@ -88,7 +87,7 @@ function UserConsoleFallback() {
         title="권한이 없습니다"
         help="이 화면은 관리자 콘솔 전용입니다. 관리자 권한이 필요하면 관리자에게 문의하세요."
         art="noPermission"
-        action={<MuiButton variant="contained" href="#/me">홈으로 이동</MuiButton>}
+        action={<Button variant="primary" href="#/me">홈으로 이동</Button>}
       />
     );
   }

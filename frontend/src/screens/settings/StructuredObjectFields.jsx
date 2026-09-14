@@ -76,8 +76,8 @@ export function StructuredObjectFields({ settingKey, val, onChange, canWrite, de
             <Box key={d} sx={{ display: "inline-flex", alignItems: "center", gap: 0.25 }}>
               <Tag label={d} />
               {canWrite ? (
-                <IconButton size="small" aria-label={d + " 제거"} onClick={() => removeDomain(d)}
-                  sx={{ p: 0.25 }}>
+                /* 크기는 테마의 작은 아이콘 단추(30)다 — 여백을 손으로 줄이면 누를 자리가 24 아래로 줄었다. */
+                <IconButton size="small" aria-label={d + " 제거"} onClick={() => removeDomain(d)}>
                   <CloseRoundedIcon sx={{ fontSize: FONT_SIZE.body }} />
                 </IconButton>
               ) : null}

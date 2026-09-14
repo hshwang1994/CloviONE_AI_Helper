@@ -73,6 +73,9 @@ export { TicketCard } from "./chat/TicketCard.jsx";
 
 // ── 화면 ────────────────────────────────────────────────────────────────────
 
+/* 입력창 한 줄의 높이 — 입력칸의 바닥, 보내기 단추, 첨부 도구가 서는 줄이 이 값 하나를 나눠 쓴다. */
+const COMPOSER_LINE = "2.75rem";
+
 export function Chat() {
   const confirm = useConfirm();
   const loc = useLocation();
@@ -338,7 +341,7 @@ export function Chat() {
                       <Typography sx={{ fontSize: FONT_SIZE.caption, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.filename}</Typography>
                       <IconButton size="small" aria-label={"첨부 제거: " + a.filename}
                         onClick={() => setPending((p) => p.filter((_, j) => j !== i))}
-                        sx={{ minWidth: "1.75rem", minHeight: "1.75rem", flexShrink: 0 }}>
+                        sx={{ flexShrink: 0 }}>
                         <CloseRoundedIcon sx={{ fontSize: "0.9375rem" }} />
                       </IconButton>
                     </Paper>
@@ -388,11 +391,13 @@ export function Chat() {
                 aria-hidden="true" tabIndex={-1} onChange={(e) => pickFiles(e.target.files)} sx={{ display: "none" }} />
               {/* 전송과 같은 '어시스턴트가 아직 작업 중' 가드를 쓴다, 이전엔 이 버튼만 그 상태에서도
                   눌려, 첨부를 골라도 어차피 이번 턴엔 보낼 수 없는데 활성으로 보였다. */}
+              {/* 첨부는 입력창 도구라 30 이다(계획 P-26 — AI 도우미가 채팅방과 나누는 규격 셋 중 「도구」).
+                  입력창 한 줄 높이 안에서 가운데에 선다 — 입력이 여러 줄로 자라도 첫 줄이 아니라 보내기와 같은 아래 줄에 남는다. */}
               <Tooltip title="이미지 첨부(PNG, JPEG, WebP)">
-                <Box component="span" sx={{ flexShrink: 0 }}>
-                  <IconButton aria-label="이미지 첨부" disabled={inputDisabled}
+                <Box component="span" sx={{ flexShrink: 0, height: COMPOSER_LINE, display: "flex", alignItems: "center" }}>
+                  <IconButton size="small" aria-label="이미지 첨부" disabled={inputDisabled}
                     onClick={() => fileRef.current && fileRef.current.click()}
-                    sx={{ border: 1, borderColor: "divider", borderRadius: 2.5, width: "2.75rem", height: "2.75rem", minWidth: "2.75rem", minHeight: "2.75rem" }}>
+                    sx={{ border: 1, borderColor: "divider", borderRadius: 2.5 }}>
                     <AttachFileRoundedIcon sx={{ fontSize: FONT_SIZE.pageTitle }} />
                   </IconButton>
                 </Box>
@@ -409,7 +414,7 @@ export function Chat() {
                 onBlur={() => setComposerFocused(false)}
                 onKeyDown={(e) => { if (e.nativeEvent.isComposing || e.keyCode === 229) return; if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); doSend(); } }}
                 sx={{
-                  flex: 1, minWidth: 0, resize: "none", minHeight: "2.75rem", maxHeight: "10rem", boxSizing: "border-box",
+                  flex: 1, minWidth: 0, resize: "none", minHeight: COMPOSER_LINE, maxHeight: "10rem", boxSizing: "border-box",
                   font: "inherit", fontSize: "0.9375rem", lineHeight: 1.5, px: 1.75, py: 1.25,
                   border: 1, borderColor: "divider", borderRadius: 2.5,
                   bgcolor: "background.default", color: "text.primary",
@@ -418,10 +423,14 @@ export function Chat() {
                   "&:disabled": { opacity: 0.6 },
                 }}
               />
-              <Button variant="primary" onClick={() => doSend()} disabled={inputDisabled || (!text.trim() && !pending.length)}
-                sx={{ flexShrink: 0, minHeight: "2.75rem" }}>
-                <SendRoundedIcon aria-hidden="true" sx={{ fontSize: "1.125rem", mr: 0.5 }} />전송
-              </Button>
+              {/* 보내기도 입력창 도구와 같은 작은 단추(30)다 — 핸드오프 RULES §9 「도구 30px, 보내기 30px 채움」.
+                  한 줄에 선 단추의 높이는 하나라서, 첨부 도구만 30 으로 내리고 보내기를 44 로 두면 두 단추가
+                  14px 어긋났다(control_baseline_mismatch). 입력창 한 줄 높이 안에서 가운데에 선다. */}
+              <Box component="span" sx={{ flexShrink: 0, height: COMPOSER_LINE, display: "flex", alignItems: "center" }}>
+                <Button variant="primary" size="sm" onClick={() => doSend()} disabled={inputDisabled || (!text.trim() && !pending.length)}>
+                  <SendRoundedIcon aria-hidden="true" sx={{ fontSize: "1.125rem", mr: 0.5 }} />전송
+                </Button>
+              </Box>
             </Box>
           </Box>
         </Paper>

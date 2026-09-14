@@ -4,7 +4,6 @@ import { useNavigate } from "react-router-dom";
 import Badge from "@mui/material/Badge";
 import Box from "@mui/material/Box";
 import IconButton from "@mui/material/IconButton";
-import MuiButton from "@mui/material/Button";
 import Popover from "@mui/material/Popover";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
@@ -594,8 +593,8 @@ export function NotificationBell({ isUser, consoleUser, notices }) {
             {/* 몸통이 오류면 헤더 숫자, '모두 읽음'을 감춰 한 팝오버 안에서 상반된 메시지를 없앤다.
                 개수 조회만 실패한 경우엔(countError) 수동 재시도 진입로를 준다. */}
             {listError ? null
-              : countError ? <MuiButton size="small" onClick={() => unread.refetch()}>개수 다시 불러오기</MuiButton>
-              : ownUnread.value > 0 ? <MuiButton size="small" onClick={markAll} disabled={readAll.isPending}>{markAllLabel}</MuiButton>
+              : countError ? <Button size="sm" variant="ghost" onClick={() => unread.refetch()}>개수 다시 불러오기</Button>
+              : ownUnread.value > 0 ? <Button size="sm" variant="ghost" onClick={markAll} disabled={readAll.isPending}>{markAllLabel}</Button>
               : null}
           </Box>
           {/* 읽음 처리 실패는 팝오버 머리 바로 아래 — 가장 나중에 누른 동작 하나만 말하고 다음 동작에서 걷힌다. */}
@@ -772,9 +771,9 @@ export function NotificationBell({ isUser, consoleUser, notices }) {
           <Box className="noti-pop-foot" sx={{
             px: 1.5, py: 1, borderTop: 1, borderColor: "divider", flexShrink: 0,
           }}>
-            <MuiButton size="small" fullWidth onClick={() => { setOpen(false); nav("/notifications"); }}>
+            <Button size="sm" variant="ghost" fullWidth onClick={() => { setOpen(false); nav("/notifications"); }}>
               전체 알림 보기
-            </MuiButton>
+            </Button>
           </Box>
         </>
       </Popover>

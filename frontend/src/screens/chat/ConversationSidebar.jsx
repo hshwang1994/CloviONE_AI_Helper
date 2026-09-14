@@ -48,8 +48,9 @@ function ConvItem({ c, active, onOpen, onRename, onDelete, onArchive }) {
   }
   const act = (title, ariaLabel, icon, onClick) => (
     <Tooltip title={title}>
+      /* 행 안 동작은 30 이다(핸드오프 RULES §5) — 크기는 테마의 작은 아이콘 단추가 정한다. */
       <IconButton size="small" aria-label={ariaLabel} onClick={onClick}
-        sx={{ minWidth: "2rem", minHeight: "2rem", color: "text.secondary" }}>{icon}</IconButton>
+        sx={{ color: "text.secondary" }}>{icon}</IconButton>
     </Tooltip>
   );
   return (

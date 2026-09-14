@@ -516,8 +516,11 @@ export const Button = React.forwardRef(function Button({ variant: askedVariant =
  * 규칙: 주 동작 하나(+ 필요하면 보조 하나)만 버튼으로 두고 나머지는 여기로 넣는다.
  * 파괴적 항목은 `tone: "danger"` 로 표시하고 목록 끝에 실선으로 갈라 둔다.
  *
- * items: `{ key, label, onClick, tone, disabled, hint }[]` — `null`/`false` 는 걸러 낸다
- * (호출부가 권한 분기를 그대로 인라인으로 쓸 수 있게).
+ * items: `{ key, label, onClick, href, tone, disabled, hint }[]` — `null`/`false` 는 걸러 낸다
+ * (호출부가 권한 분기를 그대로 인라인으로 쓸 수 있게). `href` 가 있으면 항목은 링크(`<a>`)로 선다 —
+ * 서버가 그리는 화면(비밀번호 변경)으로 가는 항목은 새 탭 열기 · 주소 복사가 되어야 한다.
+ * `onPick(item)` 은 항목을 누를 때마다 불린다(보통 팝오버 닫기) — 누른 항목을 받으므로 결과를 그 자리에
+ * 남겨야 하는 항목(로그아웃 실패)만 열어 둘 수 있다.
  */
 /* `size` 는 **이웃이 정한다** (W5 재정정 — 복원된 프로브가 잡았다).
  *
@@ -547,7 +550,8 @@ export function overflowMenuItems(items, onPick) {
       <MenuItem
         key={it.key || it.label || i}
         disabled={it.disabled}
-        onClick={() => { if (onPick) onPick(); if (it.onClick) it.onClick(); }}
+        {...(it.href ? { component: "a", href: it.href } : null)}
+        onClick={() => { if (onPick) onPick(it); if (it.onClick) it.onClick(); }}
         sx={{
           fontSize: FONT_SIZE.bodySm,
           color: danger ? "error.strong" : "text.primary",
@@ -725,7 +729,8 @@ export function Segmented({ value, onChange, options, ariaLabel, sx }) {
               cursor: "pointer",
               color: on ? "text.primary" : "text.secondary",
               bgcolor: on ? "background.plate" : "transparent",
-              boxShadow: (t) => (on ? t.shadowTokens.raised : "none"),
+              /* 테마 토큰이 없는 자리(테마 없이 부품을 격리해 그리는 시험)에서 죽지 않는다 — `UserAvatar` 와 같은 이유. */
+              boxShadow: (t) => (on ? (t.shadowTokens && t.shadowTokens.raised) || "none" : "none"),
               transition: `background-color ${MOTION.fast} ${MOTION.ease}, color ${MOTION.fast} ${MOTION.ease}`,
               "&:hover": on ? null : { color: "text.primary" },
               "&:focus-visible": (t) => ({ outline: `2px solid ${t.palette.focusRing}`, outlineOffset: 2 }),
@@ -733,9 +738,14 @@ export function Segmented({ value, onChange, options, ariaLabel, sx }) {
           >
             {o.label}
             {o.count != null ? (
-              /* 건수는 언제나 보조 잉크다 — `faint` 는 AA-large 자리 전용이라 이 크기에
-                 못 쓴다(`scripts/check_ink_scale.py`). 라벨과의 위계는 굵기가 만든다. */
-              <Box component="span" sx={{ color: "text.secondary", fontWeight: FONT_WEIGHT.regular, ...NUMERIC }}>{o.count}</Box>
+              <>
+                {/* 낱말과 숫자 사이 공백은 **글자로** 둔다 — 간격(gap)만 두면 접근 이름이 「티켓1」로
+                    붙어 읽힌다. flex 칸 안의 공백만 있는 글자는 그려지지 않으므로 모양은 그대로다. */}
+                {" "}
+                {/* 건수는 언제나 보조 잉크다 — `faint` 는 AA-large 자리 전용이라 이 크기에
+                    못 쓴다(`scripts/check_ink_scale.py`). 라벨과의 위계는 굵기가 만든다. */}
+                <Box component="span" sx={{ color: "text.secondary", fontWeight: FONT_WEIGHT.regular, ...NUMERIC }}>{o.count}</Box>
+              </>
             ) : null}
           </Box>
         );

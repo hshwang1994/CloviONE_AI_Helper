@@ -21,7 +21,7 @@ const LABEL_SX = { whiteSpace: "nowrap", lineHeight: 1.5 };
  * 높이를 썼다 — 같은 줄에 선 같은 종류(버튼) 둘이 6px 어긋났고, 실측에서 「내 티켓」·
  * 「팀 티켓」·「미할당 티켓」 세 화면이 그 하나 때문에 42페이지에서 실패했다.
  *
- * 높이는 `CONTROL.tableCellDense`(32) 다. 이 토큰은 **표 안의 조작기**를 위해 이미 있었고
+ * 높이는 `CONTROL.tableCellDense`(30, 작은 단추와 같은 값) 다. 이 토큰은 **표 안의 조작기**를 위해 이미 있었고
  * (theme.js 주석: 「배선은 W6 이 한다」) 여기가 그 배선이다 — 새 리터럴을 만들지 않는다.
  *
  * 아이콘 단추 쪽은 `minHeight` 만으로는 안 줄어든다 — 테마가 `MuiIconButton.root` 에 34 를

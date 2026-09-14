@@ -195,7 +195,9 @@ export function Maintenance({ embedded = false } = {}) {
                   토글 자체는 누가 언제 켜고 껐는지 볼 곳이 없었다, 백엔드가 config_versions에 이미
                   기록하므로 같은 SettingVersions UI를 maintenance_mode에도 붙인다. */}
               {modeFailure ? <Callout tone="danger" compact sx={{ mt: 2 }}>{modeFailure}</Callout> : null}
-              <Box sx={{ mt: 2, display: "flex", gap: 1, flexWrap: "wrap", justifyContent: "flex-end" }}>
+              {/* 작은 단추(30)와 기본 단추(34)가 한 줄에 선다 — 가운데 정렬이 없으면 flex 기본값(stretch)이 작은
+                  단추를 34 로 늘려 같은 이름의 단추가 화면마다 다른 높이로 섰다(kit_measure `variant_height`). */}
+              <Box sx={{ mt: 2, display: "flex", gap: 1, flexWrap: "wrap", justifyContent: "flex-end", alignItems: "center" }}>
                 <Button variant="ghost" size="sm" onClick={() => setShowModeVersions(true)}>변경 기록(켜고 끈 이력)</Button>
                 <Button variant={on ? "primary" : "danger"} disabled={!canWrite || toggle.isPending} loading={toggle.isPending} onClick={onToggle}
                   aria-describedby={lockedDescribedBy}>

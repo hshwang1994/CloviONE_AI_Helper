@@ -1,10 +1,8 @@
 import React from "react";
 import Stack from "@mui/material/Stack";
-import Tab from "@mui/material/Tab";
-import Tabs from "@mui/material/Tabs";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
-import { Button, Modal, ModalFooter } from "../../ui/kit.jsx";
+import { Button, Modal, ModalFooter, Segmented } from "../../ui/kit.jsx";
 import { KO_WORD_BREAK } from "../../ui/theme.js";
 import { bodyToText, textToBody } from "./templateText.js";
 
@@ -286,16 +284,12 @@ export function TaxonomyManager({
       size="lg"
       footer={<ModalFooter onCancel={onClose} cancelLabel="닫기" />}
     >
-      <Tabs
-        value={tab}
-        onChange={(e, next) => setTab(next)}
-        aria-label="분류 관리 탭"
-        sx={{ borderBottom: 1, borderColor: "divider", mb: 2 }}
-      >
-        <Tab label="분류" />
-        <Tab label="태그" />
-        <Tab label="틀" />
-      </Tabs>
+      {/* 보기 전환은 세그먼티드(34)다 — 밑줄 탭(48)은 페이지 탭(`TabShell`)의 어휘다(핸드오프 RULES §3 · 계획 B-7). */}
+      <Segmented
+        ariaLabel="분류 관리 탭" value={tab} onChange={setTab}
+        options={[{ value: 0, label: "분류" }, { value: 1, label: "태그" }, { value: 2, label: "틀" }]}
+        sx={{ mb: 2 }}
+      />
       {tab === 0 ? (
         <VocabularyPanel
           rows={categories}

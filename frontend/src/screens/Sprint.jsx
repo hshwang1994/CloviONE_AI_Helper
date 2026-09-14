@@ -164,11 +164,13 @@ function DecisionRow({ row, onToggle, onDelete, onEdit, onOpenTicket, inLane = f
             ) : null}
           </Stack>
         ) : row.ticket_page_id ? (
+          /* 인라인 동작은 작은 단추 30 그대로다(계획 표 5) — 높이와 좌우 여백을 0 으로 덮으면 누를 자리가
+             글자 줄상자만큼 줄고 같은 줄의 다른 30 단추와 높이가 갈린다. */
           <Button
             variant="ghost"
             size="sm"
             onClick={() => onOpenTicket(row)}
-            sx={{ mb: 0.25, minHeight: 0, px: 0 }}
+            sx={{ mb: 0.25 }}
           >
             {row.ticket_key || "티켓 열기"}
           </Button>

@@ -38,16 +38,8 @@
 /* `.k-table` 계열과 매치 불가 클래스 아홉을 지웠다 (W4 · R-82). 좁은 화면 표 카드 전환의
    정본은 `kit.jsx` 의 `useMediaQuery(TABLE_CARD_QUERY)`(899.95px) 하나다 — CSS 가 760px 에서
    따로 접고 있어 두 숫자가 서로 다른 말을 하고 있었다. 사유 전문은 `docs/DECISIONS.md` D-185. */
-.k-footer-row { width: 100%; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.k-footer-extra { display: flex; gap: 8px; flex-wrap: wrap; flex-shrink: 0; }
-.k-footer-main { display: flex; gap: 8px; margin-left: auto; flex-shrink: 0; }
-/* 좁은 폭(실측 375~400px 폰)에서는 부가·위험·주 작업 묶음이 한 줄에 욱여넣어져 버튼 자체가
-   찌그러들며 한국어 라벨이 글자 단위로 세로 줄바꿈되던 문제 — 묶음 단위로 세로 스택시켜
-   버튼은 항상 자기 폭(white-space:nowrap)을 유지하게 한다. */
-@media (max-width: 560px) {
-  .k-footer-row { flex-direction: column; align-items: stretch; }
-  .k-footer-extra, .k-footer-main { margin-left: 0; width: 100%; }
-}
+/* `.k-footer-row` · `.k-footer-extra` · `.k-footer-main` 을 걷었다(핸드오프 B-7). 모달 · 카드 발은 `kit.jsx::ActionFooter`
+   하나이고 소비처가 0 이 됐다 — 발의 버튼은 nowrap 이고 줄이 모자라면 묶음이 다음 줄로 접힌다. */
 
 /* 페이지 헤더 레이아웃(display/gap/여백)은 kit.jsx의 PageHeader가 sx로 직접 준다(DS-19) —
    `& .k-page-head` 중첩 선택자로 개별 화면(OrgConsole 등)이 margin만 덮어쓰는 자리는 그대로

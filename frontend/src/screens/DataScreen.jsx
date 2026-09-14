@@ -9,7 +9,7 @@ import Box from "@mui/material/Box";
 import MenuItem from "@mui/material/MenuItem";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
-import { PageHeader, Card, Button, DataTable, DetailGrid, DetailRow, FormDrawer, ListCard, Modal, OverflowMenu, Skeleton, EmptyState, ErrorState, Callout, useConfirm, useToast } from "../ui/kit.jsx";
+import { ActionFooter, PageHeader, Card, Button, DataTable, DetailGrid, DetailRow, FormDrawer, ListCard, Modal, OverflowMenu, Skeleton, EmptyState, ErrorState, Callout, useConfirm, useToast } from "../ui/kit.jsx";
 import { StatusSummaryCard } from "../ui/StatusKpi.jsx";
 import { SummaryView } from "./data-screen/SummaryView.jsx";
 /* 검색 입력은 `ui/filters.jsx` 의 `SearchBox` 다 — **자기 상태를 자기가 든다**(PF4).
@@ -1275,6 +1275,7 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
           sx={{ mb: 2.5 }}
           total={query.data[config.unreadCountKey]}
           totalLabel="안 읽음"
+          totalKind={query.data[config.unreadCountKey] > 0 ? "warn" : undefined}
         />
       ) : null}
       {config.summary ? (
@@ -1555,32 +1556,33 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
         }}
         title={sel ? detailTitle(sel, columns) : ""} size="lg"
         footer={(sel && (canEdit || visibleActions.length)) ? (
-          <Box className="k-footer-row">
-            <Box className="k-footer-extra">
-              {inlineActions.map((a) => (
-                <Button key={actionKeyOf(a)} size="sm" variant={a.variant || "default"} disabled={busy}
-                  loading={busyKey === actionKeyOf(a)}
-                  onClick={() => runAction(a, sel, actionKeyOf(a))}>{a.label}</Button>
-              ))}
-              {/* 파괴적 동작과 저빈도 액션은 세로 목록으로 내린다 — 실선이 손이 미끄러지는
-                  거리를 준다(kit.jsx::OverflowMenu). */}
-              <OverflowMenu
-                /* 이 줄의 이웃은 `size="sm"` 버튼이다 — 아이콘 버튼도 같은 높이여야 한다. */
-                size="small"
-                ariaLabel={config.title + " 작업 더 보기"}
-                items={overflowActions.map((a) => ({
-                  key: actionKeyOf(a),
-                  label: busyKey === actionKeyOf(a) ? "처리 중…" : a.label,
-                  tone: isRisky(a) ? "danger" : undefined,
-                  disabled: busy,
-                  onClick: () => runAction(a, sel, actionKeyOf(a)),
-                }))}
-              />
-            </Box>
-            <Box className="k-footer-main">
-              {canEdit ? <Button variant="primary" size="sm" disabled={busy} onClick={() => setEditing(sel)}>수정</Button> : null}
-            </Box>
-          </Box>
+          /* 모달 발은 `ActionFooter` 하나다 — 면 · 위 선 · 여백의 주인이 하나이고, 발의 단추는 34 다(핸드오프 RULES §3 · 계획 B-7). 발에 ghost 를 두지 않는다. */
+          <ActionFooter
+            placement="modal"
+            extra={(
+              <>
+                {inlineActions.map((a) => (
+                  <Button key={actionKeyOf(a)} variant={a.variant || "default"} disabled={busy}
+                    loading={busyKey === actionKeyOf(a)}
+                    onClick={() => runAction(a, sel, actionKeyOf(a))}>{a.label}</Button>
+                ))}
+                {/* 파괴적 동작과 저빈도 액션은 세로 목록으로 내린다 — 실선이 손이 미끄러지는
+                    거리를 준다(kit.jsx::OverflowMenu). 이웃 단추와 같은 높이(34)다. */}
+                <OverflowMenu
+                  ariaLabel={config.title + " 작업 더 보기"}
+                  items={overflowActions.map((a) => ({
+                    key: actionKeyOf(a),
+                    label: busyKey === actionKeyOf(a) ? "처리 중…" : a.label,
+                    tone: isRisky(a) ? "danger" : undefined,
+                    disabled: busy,
+                    onClick: () => runAction(a, sel, actionKeyOf(a)),
+                  }))}
+                />
+              </>
+            )}
+          >
+            {canEdit ? <Button variant="primary" disabled={busy} onClick={() => setEditing(sel)}>수정</Button> : null}
+          </ActionFooter>
         ) : null}>
         {/* 상세는 라벨/값 쌍이 20개 넘는 화면(러너·워크플로)이 있다. 좁은 화면은 한 열, 넓은
             화면은 두세 열로 접어 스크롤을 줄인다 — 4K에서 한 열로 길게 늘어놓으면 오른쪽이
@@ -1677,7 +1679,7 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
       ) : null}
       {infoView ? (
         <Modal open onClose={() => setInfoView(null)} title={infoView.title} size="md"
-          footer={<div className="k-footer-row"><div className="k-footer-main"><Button variant="primary" onClick={() => setInfoView(null)}>확인</Button></div></div>}>
+          footer={<ActionFooter placement="modal"><Button variant="primary" onClick={() => setInfoView(null)}>확인</Button></ActionFooter>}>
           <JsonBlock>{infoView.body}</JsonBlock>
         </Modal>
       ) : null}

@@ -4,7 +4,7 @@ import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import { api } from "../../lib/api.js";
 import { fmtDateTime } from "../../lib/format.js";
-import { Card, Button, Callout, DataTable, Modal, EmptyState, ErrorState, useConfirm, useToast } from "../../ui/kit.jsx";
+import { Card, Button, Callout, DataTable, Modal, EmptyState, ErrorState, useConfirm, useToast, ActionFooter } from "../../ui/kit.jsx";
 import { summarizeSetting, securityDowngradeWarning, displayValue } from "./settingsRegistry.js";
 import { DateCell } from "../../ui/cells.jsx";
 
@@ -71,9 +71,8 @@ export function SettingVersions({ settingKey, label, canWrite, onClose, onRolled
   });
 
   const footer = (
-    <Box className="k-footer-row" sx={{ px: 3, py: 2 }}>
-      <Box className="k-footer-main"><Button variant="ghost" onClick={onClose}>닫기</Button></Box>
-    </Box>
+    /* 모달 발은 `ActionFooter` 하나다 — 면 · 위 선 · 여백의 주인이 하나이고, 발의 단추는 34 다(핸드오프 RULES §3 · 계획 B-7). 발에 ghost 를 두지 않는다. */
+    <ActionFooter placement="modal"><Button onClick={onClose}>닫기</Button></ActionFooter>
   );
   return (
     <Modal open onClose={onClose} title={label + ", 버전 기록"} size="lg" footer={footer}>

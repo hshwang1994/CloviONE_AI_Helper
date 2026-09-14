@@ -155,10 +155,10 @@ export const CONTROL = {
   tableRowTall: 76,
   tableGroupRow: 36,
   tableFooter: 44,
-  /* 표 **안**의 컨트롤(인라인 편집 select·아이콘 버튼)은 행 안에 들어가야 하므로
-     일반 컨트롤(34/36)보다 작다. 배선은 W6 이 한다 — 값을 여기 두는 이유는 그때 새 리터럴이
-     생기지 않게 하기 위해서다. */
-  tableCellDense: 32,
+  /* 표 **안**의 컨트롤(머리글 정렬 · 필터 단추)은 행 안에 들어가야 하므로 일반 컨트롤(34/36)보다
+     작다. 값은 작은 단추와 같은 30 이다 — 핸드오프의 단추 크기는 34 와 30 두 단계뿐이고(RULES §3 · §5
+     「행 안 동작은 30px」), 32 로 두면 표 머리에만 셋째 단추 높이가 섰다(kit_measure `icon_button_height`). */
+  tableCellDense: 30,
   /* 알약 하나의 높이 — **배지의 면 갈래와 태그가 같은 값으로 선다**(확정 규약 §9).
      둘은 면으로만 갈린다: 배지는 옅은 면에 테두리가 없고, 태그는 흰 면에 1px 테두리다.
      높이까지 갈리면 한 줄에 섞여 설 때 두 어휘가 아니라 **두 부품**으로 읽힌다 —
@@ -1083,8 +1083,8 @@ export function createClovirTheme(mode = "light", accent = DEFAULT_ACCENT) {
              머리 줄을 별도의 판처럼 보이게 했다. */
           head: ({ theme }) => ({
             height: remPx(CONTROL.tableHead),
-            /* 머리 칸 안의 조작기(정렬 · 필터 32)가 위아래 기본 여백(6)을 더해 44.5 로 섰다.
-               머리 40 = 조작기 32 + 4 × 2 — 여백을 조작기 높이에서 유도한다. */
+            /* 머리 칸 안의 조작기(정렬 · 필터 30)가 위아래 기본 여백(6)을 더해 44.5 로 섰다.
+               머리 40 = 조작기 30 + 5 × 2 — 여백을 조작기 높이에서 유도한다. */
             paddingTop: remPx((CONTROL.tableHead - CONTROL.tableCellDense) / 2),
             paddingBottom: remPx((CONTROL.tableHead - CONTROL.tableCellDense) / 2),
             color: theme.palette.text.secondary,

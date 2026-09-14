@@ -34,7 +34,9 @@ import { HeaderActionsHost, HeaderActionsProvider, useHeaderActionsSlot } from "
  *    프로젝트 상세)과 같은 모양으로 둔다.
  * 6. **도움말과 머리 동작은 그릇이 그린다** (D-453 · D-454). 탭 정의의 `help`(문자열·노드·
  *    `(role) => 노드`)가 제목 옆 `?` 가 되고, 탭 본문이 `HeaderActions` 로 넘긴 단추는
- *    `PageHeader` 의 오른쪽에 선다 — 단독 화면과 같은 자리다.
+ *    `PageHeader` 의 오른쪽에 선다 — 단독 화면과 같은 자리다. 탭과 상관없는 화면 전체의
+ *    동작(프로젝트 상세의 「엑셀 내보내기」 · 「목록」)은 `actions` 로 넘긴다 — 포털을 거치지
+ *    않으므로 첫 그림부터 제자리에 선다.
  *
  * ## 쓰는 법
  *
@@ -59,7 +61,7 @@ export function TabShell(props) {
 }
 
 function TabShellBody({
-  area, title, crumbRoot, tabs, ariaLabel, deniedHelp, idPrefix = "tabshell", children,
+  area, title, crumbRoot, tabs, ariaLabel, deniedHelp, idPrefix = "tabshell", actions, children,
 }) {
   const defs = (tabs || []).filter(Boolean);
   const defaultKey = defs.length ? defs[0].key : "";
@@ -106,7 +108,12 @@ function TabShellBody({
       <PageHeader
         area={area} title={title} crumbRoot={crumbRoot}
         help={help} helpTone={activeDef.helpTone || "info"}
-        actions={hasActions ? <HeaderActionsHost /> : null}
+        actions={actions || hasActions ? (
+          <>
+            {actions}
+            {hasActions ? <HeaderActionsHost /> : null}
+          </>
+        ) : null}
       />
       {children}
       {/* 전환할 곳이 없는 탭 줄은 장식이다. */}

@@ -2,8 +2,6 @@ import React from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
 import Box from "@mui/material/Box";
-import Checkbox from "@mui/material/Checkbox";
-import Paper from "@mui/material/Paper";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { alpha } from "@mui/material/styles";
@@ -12,8 +10,7 @@ import { Button, Card, FieldLabel, ListEmptyState, PageHeader, Skeleton, ErrorSt
 import { SearchBox } from "../ui/filters.jsx";
 import { FONT_SIZE, FONT_WEIGHT } from "../ui/theme.js";
 import { fmtRelative } from "../lib/format.js";
-import { personLabel } from "../lib/people.js";
-import { PeopleFilter, filterPeople } from "./chat/peoplePicker.jsx";
+import { PeopleFilter, PersonPickRow, filterPeople } from "./chat/peoplePicker.jsx";
 import { RoomDetailPanel } from "./ChatRoom.jsx";
 
 /* 채팅방 목록 — 전체 채팅(고정) + 내가 속한 그룹/1:1. 새 그룹 만들기, 1:1 시작(디렉터리에서 상대
@@ -157,21 +154,13 @@ export function GroupModal({ open, onClose }) {
               <EmptyState size="compact" title="조건에 맞는 사람이 없습니다" help="이름이나 이메일 일부로 다시 찾아보세요." />
             ) : (
             <Box sx={PICKER_SX}>
+              {/* 체크박스도 제품의 것을 쓴다 — 맨 `<input type=checkbox>` 는 테마의 높이·
+                  포커스 링·색을 하나도 받지 않는다(F-W5D-143 ④: 체크박스가 네 종류였다). */}
               {shownUsers.map((u) => (
-                <Box
-                  key={u.user_id} component="label"
-                  sx={{
-                    display: "flex", alignItems: "center", gap: 1, px: 1, py: 1, borderRadius: 1.5, cursor: "pointer", fontSize: FONT_SIZE.body,
-                    "&:hover": { bgcolor: (t) => alpha(t.palette.primary.main, 0.06) },
-                    "&:focus-within": { outline: (t) => `2px solid ${t.palette.primary.main}`, outlineOffset: "-2px" },
-                  }}
-                >
-                  {/* 체크박스도 제품의 것을 쓴다 — 맨 `<input type=checkbox>` 는 테마의 높이·
-                      포커스 링·색을 하나도 받지 않는다(F-W5D-143 ④: 체크박스가 네 종류였다). */}
-                  <Checkbox size="small" checked={!!picked[u.user_id]}
-                    onChange={(e) => setPicked((p) => ({ ...p, [u.user_id]: e.target.checked }))} sx={{ m: 0 }} />
-                  <span>{personLabel(u)}</span>
-                </Box>
+                <PersonPickRow
+                  key={u.user_id} person={u} checked={!!picked[u.user_id]}
+                  onToggle={(on) => setPicked((p) => ({ ...p, [u.user_id]: on }))}
+                />
               ))}
             </Box>
             )}
@@ -210,20 +199,10 @@ function DirectModal({ open, onClose }) {
           ) : (
           <Box sx={PICKER_SX}>
             {shownUsers.map((u) => (
-              <Box
-                key={u.user_id} component="button" type="button"
-                disabled={start.isPending} onClick={() => start.mutate(u.user_id)}
-                sx={{
-                  display: "block", width: "100%", textAlign: "left", px: 1.5, py: 1,
-                  border: 0, borderRadius: 1.5, background: "none", color: "text.primary",
-                  font: "inherit", fontSize: FONT_SIZE.body, cursor: "pointer",
-                  "&:hover:not(:disabled)": { bgcolor: (t) => alpha(t.palette.primary.main, 0.06) },
-                  "&:focus-visible": { outline: (t) => `2px solid ${t.palette.primary.main}`, outlineOffset: "-2px" },
-                  "&:disabled": { opacity: 0.6, cursor: "default" },
-                }}
-              >
-                {personLabel(u)}
-              </Box>
+              <PersonPickRow
+                key={u.user_id} person={u}
+                disabled={start.isPending} onPick={() => start.mutate(u.user_id)}
+              />
             ))}
           </Box>
           )}

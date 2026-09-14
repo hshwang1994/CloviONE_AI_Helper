@@ -255,7 +255,7 @@ export function AssistantDrawer({ open, onClose }) {
                 <Typography sx={{ fontSize: FONT_SIZE.caption, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.filename}</Typography>
                 <IconButton size="small" aria-label={"첨부 제거: " + a.filename}
                   onClick={() => chat.setPending((p) => p.filter((_, j) => j !== i))}
-                  sx={{ minWidth: "1.5rem", minHeight: "1.5rem", flexShrink: 0 }}>
+                  sx={{ flexShrink: 0 }}>
                   <CloseRoundedIcon sx={{ fontSize: FONT_SIZE.body }} />
                 </IconButton>
               </Paper>

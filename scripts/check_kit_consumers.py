@@ -51,7 +51,7 @@ B_PRIMITIVES = {
 CANONICAL_HOSTS = {
     "ui/kit.jsx": A_PRIMITIVES,
     "ui/FilterBar.jsx": {"Chip"},
-    "ui/filters.jsx": {"Autocomplete", "MenuItem"},
+    "ui/filters.jsx": {"Autocomplete", "MenuItem", "Chip"},
     "ui/TabShell.jsx": {"Tabs", "Tab"},
     "ui/TagPicker.jsx": {"Chip", "Autocomplete"},
     "ui/TableHeaderCell.jsx": {"TableCell"},

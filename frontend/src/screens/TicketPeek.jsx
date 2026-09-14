@@ -6,7 +6,7 @@ import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 
 import { api } from "../lib/api.js";
-import { Button, Callout, ErrorState, MetaBar, Modal, Skeleton } from "../ui/kit.jsx";
+import { Button, Callout, ErrorState, MetaBar, Modal, Skeleton, ActionFooter } from "../ui/kit.jsx";
 import { KO_WORD_BREAK } from "../ui/theme.js";
 import { useTicketSignals } from "../lib/ticketSignals.js";
 import { TicketEditModal } from "./MyTickets.jsx";
@@ -117,26 +117,32 @@ export function TicketPeek({ pageId, onClose, onDetail, from, sprints, actions, 
 
   if (!pageId) return null;
 
+  /* 발은 `ActionFooter` 하나다(표 5 가 허용한 치환) — 회차 작업 · 빠른 수정이 왼쪽 묶음, 「티켓 상세 보기」가
+     오른쪽이다. 예전에는 30 과 34 단추가 한 발에 섞이고 빈 상자로 밀어냈다. 발의 단추는 34 다(핸드오프 RULES §3). */
   const footer = (
-    <Stack direction="row" spacing={1} alignItems="center" sx={{ width: "100%", flexWrap: "wrap", rowGap: 1 }}>
-      {(actions || []).map((a) => (
-        <Button
-          key={a.key || a.label}
-          variant={a.tone === "danger" ? "danger" : "secondary"}
-          size="sm"
-          disabled={a.disabled}
-          onClick={() => a.onClick(t)}
-        >
-          {a.label}
-        </Button>
-      ))}
-      {quickEdit && t && data.can_edit !== false ? (
-        <Button variant="secondary" size="sm" onClick={() => setEditing(true)}>빠른 수정</Button>
-      ) : null}
-      <Box sx={{ flex: 1 }} />
+    <ActionFooter
+      placement="modal"
+      extra={(
+        <>
+          {(actions || []).map((a) => (
+            <Button
+              key={a.key || a.label}
+              variant={a.tone === "danger" ? "danger" : "secondary"}
+              disabled={a.disabled}
+              onClick={() => a.onClick(t)}
+            >
+              {a.label}
+            </Button>
+          ))}
+          {quickEdit && t && data.can_edit !== false ? (
+            <Button variant="secondary" onClick={() => setEditing(true)}>빠른 수정</Button>
+          ) : null}
+        </>
+      )}
+    >
       {/* 닫기는 창의 X 와 Esc 가 맡는다 — 같은 이름의 단추가 둘이면 낭독기가 둘을 구별하지 못한다. */}
       <Button variant="primary" onClick={() => onDetail(pageId, from)} disabled={!t}>티켓 상세 보기</Button>
-    </Stack>
+    </ActionFooter>
   );
 
   return (

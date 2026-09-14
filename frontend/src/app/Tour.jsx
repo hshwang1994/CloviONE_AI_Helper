@@ -5,7 +5,7 @@ import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
 import { useAuth } from "./auth.jsx";
-import { Button, Modal, ModalFooter } from "../ui/kit.jsx";
+import { Button, Modal, ActionFooter } from "../ui/kit.jsx";
 import { MASCOT, MISC, SPOT } from "../lib/assets.js";
 import { RADIUS } from "../ui/theme.js";
 
@@ -137,18 +137,18 @@ export function Tour() {
       onClose={() => close("skip")}
       title={step.title}
       size="sm"
+      /* 발은 `ActionFooter` 하나다 — 예전에는 모달 발 안에 여백을 한 번 더 둔 상자를 넣어 여백이 두 겹이었다.
+         진행 점이 왼쪽 묶음이고, 발에는 ghost 를 두지 않는다(핸드오프 RULES §3). */
       footer={
-        <Box sx={{ display: "flex", alignItems: "center", gap: 2, width: "100%", px: 3, py: 2, flexWrap: "wrap" }}>
-          <Dots index={index} total={TOUR_STEPS.length} />
-          <Box sx={{ flex: 1 }} />
-          <Button variant="ghost" onClick={() => close("skip")}>건너뛰기</Button>
+        <ActionFooter placement="modal" extra={<Dots index={index} total={TOUR_STEPS.length} />}>
+          <Button onClick={() => close("skip")}>건너뛰기</Button>
           {index > 0 ? <Button onClick={() => setIndex((i) => i - 1)}>이전</Button> : null}
           {last ? (
             <Button variant="primary" onClick={() => close("complete")}>시작하기</Button>
           ) : (
             <Button variant="primary" onClick={() => setIndex((i) => i + 1)}>다음</Button>
           )}
-        </Box>
+        </ActionFooter>
       }
     >
       <Box sx={{ display: "grid", gap: 2, justifyItems: "center", textAlign: "center" }}>

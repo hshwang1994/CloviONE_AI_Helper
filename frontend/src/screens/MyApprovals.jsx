@@ -1,14 +1,13 @@
 import React from "react";
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import Box from "@mui/material/Box";
-import Tab from "@mui/material/Tab";
-import Tabs from "@mui/material/Tabs";
 import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
 import { actionKo, fmtDateTime } from "../lib/format.js";
 import { failureText } from "../lib/failure.js";
 import {
   Badge, Button, Callout, Card, DataTable, EmptyState, ErrorState, PageHeader, useConfirm, useToast,
+  Segmented,
 } from "../ui/kit.jsx";
 import { OrgPath } from "../ui/OrgPath.jsx";
 import { DateCell } from "../ui/cells.jsx";
@@ -244,14 +243,12 @@ export function MyApprovals() {
         area="내 업무" title="승인"
         help="나에게 배정된 결재와 내가 올린 요청입니다. 관리 범위 전체 현황은 관리자 콘솔의 승인 화면에 있습니다."
       />
-      <Tabs
-        value={box}
-        onChange={(_e, v) => setBox(v)}
+      {/* 보기 전환은 세그먼티드(34)다 — 밑줄 탭(48)은 페이지 탭(`TabShell`)의 어휘다(핸드오프 RULES §3 · 계획 B-7). */}
+      <Segmented
+        ariaLabel="결재함 구분" value={box} onChange={setBox}
+        options={BOXES.map((b) => ({ value: b.key, label: b.label }))}
         sx={{ mb: 2 }}
-        aria-label="결재함 구분"
-      >
-        {BOXES.map((b) => <Tab key={b.key} value={b.key} label={b.label} />)}
-      </Tabs>
+      />
 
       {q.isError ? <ErrorState layout="region" error={q.error} onRetry={() => q.refetch()} /> : null}
       {decideFailure ? <Callout tone="danger" compact sx={{ mb: 2 }}>{decideFailure}</Callout> : null}
