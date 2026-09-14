@@ -15,7 +15,8 @@ import ThumbDownRoundedIcon from "@mui/icons-material/ThumbDownRounded";
 import ThumbUpOutlinedIcon from "@mui/icons-material/ThumbUpOutlined";
 import ThumbUpRoundedIcon from "@mui/icons-material/ThumbUpRounded";
 import { Button } from "../../ui/kit.jsx";
-import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, RADIUS } from "../../ui/theme.js";
+import { CHAT } from "../../ui/chat.js";
+import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../../ui/theme.js";
 import {
   copyText, fmtDateSep, fmtTime, msgAgeMs, responseTimeLabel, structuredCards,
   stripDuplicatedTicketLines, ticketPageStart,
@@ -77,13 +78,14 @@ export function Message({
        * 다른 언어를 쓰고 있었고, 그 언어가 하필 "AI 채팅 제품" 을 가리켰다.
        *
        * 화자 구분은 남긴다(정렬 + 면). 다만 구분을 **장식이 아니라 면**으로 한다:
-       * 내 말은 강조색 면, 도우미 말은 안쪽 면. 반지름은 이 앱의 단일 규칙을 따른다. */}
+       * 내 말은 강조색 면, 도우미 말은 안쪽 면. 반지름은 채팅 전용 규격(`ui/chat.js::CHAT`)을
+       * 채팅방과 함께 쓴다 — 떠 있는 것의 모서리(8)가 아니다. */}
       <Paper
         elevation={0}
         sx={{
           px: 2, py: 1.5, minWidth: 0, maxWidth: "100%",
           fontSize: FONT_SIZE.body, lineHeight: 1.6, ...KO_WORD_BREAK,
-          borderRadius: `${RADIUS.lg}px`,
+          borderRadius: `${CHAT.bubbleRadius}px`,
           ...(isUser
             ? { bgcolor: "primary.main", color: "primary.contrastText" }
             : { bgcolor: "background.inset" }),

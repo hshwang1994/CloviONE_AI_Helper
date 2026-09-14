@@ -2,7 +2,9 @@ import React from "react";
 import Box from "@mui/material/Box";
 import Chip from "@mui/material/Chip";
 import Typography from "@mui/material/Typography";
-import { CONTROL, FONT_SIZE, FONT_WEIGHT, RADIUS, remPx } from "./theme.js";
+import { Button } from "./kit.jsx";
+import { FilterRowContext } from "./filters.jsx";
+import { BREAKPOINTS, CONTROL, FONT_SIZE, FONT_WEIGHT, RADIUS, remPx } from "./theme.js";
 
 /* 탐색 줄 — 목록 화면의 «어떻게 볼지»(도구)와 «무엇을 볼지»(필터)를 담는 자리.
  *
@@ -72,9 +74,27 @@ export function FilterSurface({ children, divider = true, sx, ...rest }) {
       }}
       {...rest}
     >
-      {children}
+      {/* 이 안의 필터 칸은 줄 모양(34 · 칸 안 이름)이다 — `filters.jsx::FilterRowContext`. */}
+      <FilterRowContext.Provider value>{children}</FilterRowContext.Provider>
     </Box>
   );
+}
+
+/* ── 검색 슬롯 — desktop 에서 **320 고정**, 남는 폭을 먹지 않는다 (핸드오프 D-5 · README §3) ──
+ *
+ * 폭은 `SearchBox` 가 아니라 **필터 바의 줄**이 정한다. 같은 검색창이 좁은 판 · 모달 · 채팅 목록
+ * (296)에 서면 그 부모 폭을 그대로 써야 하고(`layout="fill"`), 320 을 부품에 박으면 그 자리마다
+ * 넘친다. 그래서 줄 부품 둘(`ToolbarRow` · `FilterRow`)이 자기 **직계** 검색 칸에만 슬롯을 준다.
+ * `sm` 미만에서는 한 줄을 다 쓴다. `max-width: 100%` 는 줄이 320 보다 좁아지는 드문 경우의 안전선이다. */
+function searchSlotSx() {
+  /* 🔴 MUI 는 sx 안의 미디어 규칙을 **평범한 규칙보다 앞에** 싣는다(실측: 생성된 CSS 순서). 같은
+     특이도면 뒤의 것이 이기므로, 좁은 화면 규칙은 선택자를 한 단 더 세게(`&&`) 적는다. */
+  return {
+    "& > [data-filter-kind=search]": { flex: "0 0 20rem", width: "20rem", maxWidth: "100%", minWidth: 0 },
+    [`@media (max-width:${BREAKPOINTS.sm - 0.05}px)`]: {
+      "&& > [data-filter-kind=search]": { flex: "1 1 100%", width: "100%" },
+    },
+  };
 }
 
 /* 도구 줄 — 필터 줄 **위**에 놓는 한 줄이다 (지시 5).
@@ -88,7 +108,7 @@ export function FilterSurface({ children, divider = true, sx, ...rest }) {
  */
 export function ToolbarRow({ children, sx }) {
   return (
-    <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap", ...sx }}>
+    <Box data-search-slot="" sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap", ...searchSlotSx(), ...sx }}>
       {children}
     </Box>
   );
@@ -103,15 +123,15 @@ export function ToolbarEnd({ children, sx }) {
          요구하고, 공유 부품에 박은 표식은 그 대장을 «영구 예외» 목록으로 만든다. 대신
          `isolated_control_row` 가 **기하로** 가른다 — 고아는 왼쪽에 남고 이것은 오른쪽 끝에
          선다(지시 76 의 문장 그대로). */
-      sx={{ display: "flex", alignItems: "center", gap: 1, marginInlineStart: "auto", ...sx }}
+      /* **한 덩어리로 줄바꿈한다** (핸드오프 §0-4). 폭이 모자라면 버튼 하나를 줄이거나 떨어뜨리지
+         않고 묶음째 다음 줄로 내려간다 — `nowrap` 은 묶음 안, `flex: 0 0 auto` 는 묶음 자신이
+         줄어들지 않게 한다. 버튼의 라벨이 잘리는 것보다 줄이 하나 느는 편이 낫다. */
+      sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "nowrap", flex: "0 0 auto", marginInlineStart: "auto", ...sx }}
     >
       {children}
     </Box>
   );
 }
-
-/** 도구 줄 안의 검색창 폭 — 늘어나되 한없이 늘지는 않는다(긴 입력은 읽기 어렵다). */
-export const TOOLBAR_SEARCH_SX = { flex: "1 1 20rem", maxWidth: "32rem" };
 
 /* 내용 필터 줄 — «무엇을 볼지».
  *
@@ -126,13 +146,14 @@ export function FilterRow({ children, sx, ...rest }) {
   return (
     <Box
       data-filter-row=""
+      data-search-slot=""
       /* 🔴 세로 정렬은 **위**다(가운데가 아니다). 이 줄의 컨트롤은 전부 같은 높이(36px)인데,
          그중 하나가 `helperText` 를 달면 그 상자만 20px 더 커진다. 가운데 정렬이면 그
          차이의 절반만큼 **입력칸 자체가 서로 어긋난다** — 회의 화면의 「프로젝트」와
          「스프린트」가 11.4px 어긋나 있었고(QA `control_baseline_mismatch`), 사용자에게는
          두 상자가 층이 진 것으로 보였다. 위로 맞추면 입력칸의 윗변이 한 줄로 서고 설명은
          그 아래에 매달린다. */
-      sx={{ display: "flex", flexWrap: "wrap", alignItems: "flex-start", gap: 1.5, width: "100%", ...sx }}
+      sx={{ display: "flex", flexWrap: "wrap", alignItems: "flex-start", gap: 1.5, width: "100%", ...searchSlotSx(), ...sx }}
       {...rest}
     >
       {children}
@@ -247,18 +268,18 @@ const CONDITION_CHIP_SX = {
   },
 };
 
-export function FilterChips({ items, onClearAll, clearLabel = "필터 초기화", extraAction }) {
-  const chips = Array.isArray(items) ? items.filter((c) => c && c.label) : [];
-  if (!chips.length && !extraAction) return null;
+function ConditionChips({ chips, onClearAll, clearLabel, extraAction }) {
   return (
-    <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap", mb: 1.5 }}>
+    <>
       {chips.map((chip) => (
         <Chip
           key={chip.key}
           size="small"
           label={chip.label}
           onDelete={chip.onDelete}
-          sx={CONDITION_CHIP_SX}
+          /* 긴 조건값은 한 칩 안에서 말줄임되고 전체 값은 `title` 이 든다(§0-3). */
+          title={typeof chip.label === "string" ? chip.label : undefined}
+          sx={{ ...CONDITION_CHIP_SX, maxWidth: "100%", "& .MuiChip-label": { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }}
         />
       ))}
       {onClearAll ? (
@@ -277,6 +298,77 @@ export function FilterChips({ items, onClearAll, clearLabel = "필터 초기화"
         </Typography>
       ) : null}
       {extraAction ? <Box sx={CHIP_ROW_CONTROL}>{extraAction}</Box> : null}
+    </>
+  );
+}
+
+export function FilterChips({ items, onClearAll, clearLabel = "필터 초기화", extraAction }) {
+  const chips = Array.isArray(items) ? items.filter((c) => c && c.label) : [];
+  if (!chips.length && !extraAction) return null;
+  return (
+    <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap", mb: 1.5 }}>
+      <ConditionChips chips={chips} onClearAll={onClearAll} clearLabel={clearLabel} extraAction={extraAction} />
     </Box>
   );
 }
+
+/* ── 조건 줄 — 필터 바의 **두 번째 줄** (핸드오프 README §3 · ACCEPTANCE D3) ─────────────────
+ *
+ * 조건이 하나라도 걸리면 `FilterSurface` 안, 컨트롤 줄 아래에 위 1px 실선을 긋고 한 줄로 선다:
+ * 「조건 N개, 결과 M건」 → 조건 칩 → 지우기. 조건이 없으면 **그리지 않는다** — 그때 결과 수는
+ * 표 위의 `ResultLine`(「전체 M건」)이 말한다. 예전에는 결과 문장과 칩이 필터 판 **밖**에 따로
+ * 두 줄로 서서, 「이 칩이 위의 어느 컨트롤에서 왔나」와 「이 숫자가 무엇의 결과인가」가 공간으로
+ * 이어지지 않았다.
+ *
+ * `conditions` 를 주면 그 수로 「조건 N개」를 센다(칩으로 안 보이는 조건이 있는 화면). */
+export function FilterConditionLine({ total, unit = "건", chips, conditions, onClearAll, clearLabel = "필터 초기화", extraAction }) {
+  const list = Array.isArray(chips) ? chips.filter((c) => c && c.label) : [];
+  const count = Array.isArray(conditions) ? conditions.filter(Boolean).length : list.length;
+  if (!count) return null;
+  return (
+    <Box
+      data-condition-line=""
+      sx={{ display: "flex", alignItems: "center", flexWrap: "wrap", columnGap: 1, rowGap: 1, pt: 1.5, borderTop: 1, borderColor: "rule" }}
+    >
+      <Typography variant="body2" color="text.secondary" aria-live="polite" sx={{ marginInlineEnd: 0.5, whiteSpace: "nowrap" }}>
+        {total == null ? "세는 중…" : `조건 ${count}개, 결과 ${total.toLocaleString("ko-KR")}${unit}`}
+      </Typography>
+      <ConditionChips chips={list} onClearAll={onClearAll} clearLabel={clearLabel} extraAction={extraAction} />
+    </Box>
+  );
+}
+
+/* ── 필터 토글 — 「내 티켓만」 · 「상세 필터」 (핸드오프 README §3 · RULES §3) ───────────────
+ *
+ * 필터 바에서 켜고 끄는 것은 **스위치가 아니라 34px 중립 버튼**이고, 켜져 있을 때만 눌린 면
+ * (함몰면 + strong 테두리)이다. 스위치는 「누르는 즉시 저장되는 설정」의 어휘라, 필터 줄에 서면
+ * 조건이 아니라 설정처럼 읽힌다.
+ *
+ * 둘 중 하나를 말한다:
+ *   `pressed`   목록을 좁히는 켜짐/꺼짐 — `aria-pressed`
+ *   `expanded`  패널을 여닫는 것(상세 필터) — `aria-expanded`
+ * 라벨은 화면이 주는 낱말 그대로다(문구를 바꾸지 않는다). */
+export const FilterToggle = React.forwardRef(function FilterToggle(
+  { pressed, expanded, onClick, disabled, children, sx, ...rest }, ref,
+) {
+  const panel = expanded !== undefined;
+  const on = panel ? !!expanded : !!pressed;
+  return (
+    <Button
+      ref={ref}
+      variant="default"
+      onClick={onClick}
+      disabled={disabled}
+      aria-pressed={panel ? undefined : on}
+      aria-expanded={panel ? on : undefined}
+      data-filter-toggle={panel ? "panel" : "toggle"}
+      sx={(t) => ({
+        ...(on ? { bgcolor: "background.inset", borderColor: t.palette.dividerStrong, "&:hover": { bgcolor: "background.inset", borderColor: t.palette.text.secondary } } : null),
+        ...(typeof sx === "function" ? sx(t) : sx),
+      })}
+      {...rest}
+    >
+      {children}
+    </Button>
+  );
+});

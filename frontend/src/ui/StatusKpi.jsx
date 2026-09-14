@@ -2,8 +2,8 @@ import React from "react";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 
-import { paletteAt, statusKind, TONE_ACCENT } from "./kit.jsx";
-import { fixedTileTrack, KPI_TILE_TRACK, TILE_GRID_GAP, TILE_PADDING } from "./density.js";
+import { paletteAt, StatusDot, statusKind, TONE_ACCENT } from "./kit.jsx";
+import { CARD_PADDING, fixedTileTrack, KPI_TILE_TRACK, TILE_GRID_GAP, TILE_PADDING } from "./density.js";
 import { useRevealOnce } from "./motion.js";
 import { CONTROL, FONT_SIZE, FONT_WEIGHT, MOTION, NUMERIC, RADIUS, remPx } from "./theme.js";
 
@@ -18,23 +18,9 @@ function accentOf(kind) {
   return TONE_ACCENT[kind] || "brand.core";
 }
 
-/* 상태의 색을 나르는 **유일한** 자리 — 7px 점. 라벨 글자 옆에 서고 글자를 대신하지 않는다
- * (WCAG 1.4.1: 색만으로 뜻을 전하지 않는다). `aria-hidden` 인 이유가 그것이다.
- * 내보내는 이유: 회의의 논의 갈래 칩(`DiscussBucket`)이 같은 점으로 신호 색을 단다 —
- * 두 곳이 각자 점을 그리면 크기가 갈린다. */
-export function StatusDot({ accent }) {
-  return (
-    <Box
-      aria-hidden="true"
-      component="span"
-      data-status-dot=""
-      sx={{
-        flexShrink: 0, width: 7, height: 7, borderRadius: "999px",
-        bgcolor: (theme) => paletteAt(theme, accent),
-      }}
-    />
-  );
-}
+/* 7px 점의 정본은 `kit.jsx::StatusDot` 이다 — 점 + 낱말(`DotLabel`)이 같은 점을 쓰려고 키트로
+ * 올렸다. 이 파일에서 가져가던 소비처(`DiscussBucket`)가 깨지지 않게 다시 내보낸다. */
+export { StatusDot };
 
 /** 판독 하나가 **누를 수 있는가**. `onClick` 을 주면 단추가 된다.
  *
@@ -204,7 +190,7 @@ export function StatusKpiStrip({ items, ariaLabel, revealKey, sx, value, onSelec
  *
  * 누를 수 있으면 진짜 `<button>` 이고 `aria-pressed` 로 지금 고른 것을 말한다 —
  * `StatusKpiTile` 과 **같은 계약**이다(그릇만 다르다). */
-function StatusChip({ label, value, accent, pct, onClick, selected, ariaLabel }) {
+export function StatusChip({ label, value, accent, pct, onClick, selected, ariaLabel }) {
   const pressable = typeof onClick === "function";
   return (
     <Box
@@ -322,7 +308,38 @@ export function StatusSummaryCard({
   });
   const list = (items || []).filter(Boolean).map(withAccent);
   const riskList = (risks || []).filter(Boolean).map(withAccent);
-  if (!list.length && !riskList.length) return null;
+  /* **값 하나** 갈래 (RULES §10 — 값이 하나면 큰 숫자 하나, 차트 금지). 부분도 신호도 없고 전체만
+     있으면 칩 줄과 비율 바를 그리지 않고 숫자 하나와 이름만 선다(「안 읽음 N」 · 「활성 스케줄」).
+     예전에는 이 자리가 판독 줄(`MetricStrip`) 한 칸이었다. */
+  if (!list.length && !riskList.length) {
+    if (total == null || total === "") return null;
+    return (
+      <Box
+        role="group"
+        aria-label={ariaLabel}
+        data-summary-single=""
+        sx={{
+          p: CARD_PADDING, borderRadius: `${RADIUS.md}px`, bgcolor: "background.plate",
+          border: 1, borderColor: "divider", display: "grid", rowGap: 0.75,
+          opacity: shown ? 1 : 0,
+          transition: `opacity ${MOTION.base} ${MOTION.ease}`,
+          ...sx,
+        }}
+      >
+        <Box sx={{ display: "flex", alignItems: "baseline", flexWrap: "wrap", gap: 1 }}>
+          {title ? (
+            <Typography component="span" sx={{ fontSize: FONT_SIZE.body, fontWeight: FONT_WEIGHT.bold, ...KO_KEEP }}>{title}</Typography>
+          ) : null}
+          <Typography component="span" sx={{ fontSize: FONT_SIZE.pageTitle, fontWeight: FONT_WEIGHT.bold, lineHeight: 1, ...NUMERIC }}>
+            {total}
+          </Typography>
+          <Typography component="span" sx={{ fontSize: FONT_SIZE.bodySm, fontWeight: FONT_WEIGHT.semibold }}>{totalLabel}</Typography>
+          {action ? <Box sx={{ marginInlineStart: "auto" }}>{action}</Box> : null}
+        </Box>
+        {help ? <Typography variant="caption" color="text.secondary" sx={{ ...KO_KEEP }}>{help}</Typography> : null}
+      </Box>
+    );
+  }
 
   /* **전체를 준 카드와 안 준 카드는 다른 것을 말한다.**
    *
@@ -382,9 +399,9 @@ export function StatusSummaryCard({
       role="group"
       aria-label={ariaLabel}
       sx={{
-        /* 판의 여백은 규약값 하나다 — 세로 18px, 가로 20px. 안쪽 줄 사이도 12px 하나라
-           숫자 줄 · 비율 바 · 칩 줄이 같은 간격으로 선다. */
-        py: 2.25, px: 2.5,
+        /* 판의 여백은 판 규약값 하나다(`CARD_PADDING` 20 — 핸드오프 D-16). 안쪽 줄 사이는 12px
+           하나라 숫자 줄 · 비율 바 · 칩 줄이 같은 간격으로 선다. */
+        p: CARD_PADDING,
         borderRadius: `${RADIUS.md}px`,
         bgcolor: "background.plate",
         border: 1,

@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 
 import { MASCOT } from "../lib/assets.js";
 import { MASCOT_BOUNDS, hfracOf } from "./mascotBounds.js";
-import { MASCOT_PLACE, mascotBoxPx } from "./Mascot.jsx";
+import { MASCOT_PLACE, PAGE_SHORT_VIEWPORT, mascotBoxPx, mascotBoxSx } from "./Mascot.jsx";
 
 /* 클로비가 **보이는 크기**로 나오는가 (지시 71 · PLAN «Clovi 계약»).
  *
@@ -17,6 +17,10 @@ import { MASCOT_PLACE, mascotBoxPx } from "./Mascot.jsx";
  * 판정 밴드의 정본은 QA 프로브(`scripts/ui_qa/mascot.py`)다. 여기서 그 숫자를 다시 적지
  * 않고 **소스에서 읽는다** — 두 벌로 적는 순간 한쪽만 고쳐지고, 그때 이 시험은 통과하는데
  * 캡처는 실패한다.
+ *
+ * qa-contract-change: 핸드오프 D-24 · 리포 D-485(소유자 확정)가 빈/오류 상태 클로비 크기를 정보
+ * 계층으로 다시 정했다 — page 132(짧은 화면 112) · card/region/compact 72 · inline 없음. 옛
+ * `errorState` 한 밴드(112)는 `errorPage`/`errorRegion` 둘로 갈렸다. 아래 「정보 계층」 묶음이 값을 단언한다.
  */
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -139,5 +143,42 @@ describe("클로비 크기 계약", () => {
        이 값이 1 보다 작으면 모르는 자산이 조용히 커지고, 1 보다 크면 조용히 작아진다. */
     expect(hfracOf("/static/brand/mascot/없는-자산.png")).toBe(1);
     expect(mascotBoxPx("gameCelebrate", "/없는/경로.png")).toBe(MASCOT_PLACE.gameCelebrate.visible);
+  });
+});
+
+describe("빈/오류 상태 클로비는 정보 계층이 크기를 정한다 (D-24 · D-485)", () => {
+  it("화면 전체(page)만 132 이고 짧은 화면에서 112 로 줄어든다", () => {
+    for (const place of ["emptyPage", "errorPage"]) {
+      expect(MASCOT_PLACE[place].visible, place).toBe(132);
+      expect(MASCOT_PLACE[place].short, place).toBe(112);
+      expect(MASCOT_PLACE[place].context, place).toBe("empty_state");
+    }
+    expect(PAGE_SHORT_VIEWPORT).toBe(800);
+  });
+
+  it("판 · 구획 · 컴팩트는 최대 72 다 — 그림이 판의 글보다 커지지 않는다", () => {
+    for (const place of ["emptyCard", "emptyRegion", "emptyCompact", "errorRegion"]) {
+      expect(MASCOT_PLACE[place].visible, place).toBeLessThanOrEqual(72);
+      expect(MASCOT_PLACE[place].short, place).toBeUndefined();
+    }
+  });
+
+  it("옛 한 밴드 `errorState` 는 없다 — 판 하나의 오류가 112 로 서지 않는다", () => {
+    expect(MASCOT_PLACE.errorState).toBeUndefined();
+  });
+
+  it("짧은 화면 박스는 같은 자산의 112/132 비율로 줄어든다", () => {
+    const src = Object.values(MASCOT)[0];
+    const sx = mascotBoxSx("emptyPage", src);
+    const small = (sx[`@media (max-height:${PAGE_SHORT_VIEWPORT}px)`] || {})["&&"];
+    expect(small).toBeTruthy();
+    expect(sx.width).toBe(mascotBoxPx("emptyPage", src));
+    expect(small.width * hfracOf(src)).toBeCloseTo(112, 0);
+    // short 가 없는 자리는 미디어 규칙을 만들지 않는다.
+    expect(Object.keys(mascotBoxSx("emptyRegion", src))).toEqual(["width", "height"]);
+  });
+
+  it("장식 삽화(내 업무량 타일)는 빈 상태 계약 밖이라 옛 크기 그대로다", () => {
+    expect(MASCOT_PLACE.statsArt.visible).toBe(84);
   });
 });

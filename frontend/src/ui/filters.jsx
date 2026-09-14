@@ -6,7 +6,8 @@ import MenuItem from "@mui/material/MenuItem";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
-import { DEBOUNCE_MS } from "./theme.js";
+import CheckRoundedIcon from "@mui/icons-material/CheckRounded";
+import { CONTROL, DEBOUNCE_MS, FONT_WEIGHT, ICON, remPx } from "./theme.js";
 
 /* 목록 화면들이 함께 쓰는 필터 입력 부품.
  *
@@ -67,14 +68,91 @@ export const CONTROL_KIND = {
  * 수는 없으므로, 아는 쪽(호출부)이 말한다. */
 export const FORM_FIELD_SX = { flex: "0 0 auto", width: "100%", minWidth: 0, maxWidth: "none" };
 
+/* ── 필터 바 안의 칸은 **34 한 줄**이고 이름이 칸 **안**에 있다 (핸드오프 README §3 · D1) ──────
+ *
+ * 폼의 입력은 36 이고 라벨이 위에 선다(`FieldLabel`). 필터 바의 칸은 폼이 아니다 — 「프로젝트
+ * 전체」처럼 이름(muted)과 값(600)이 34px 한 칸에 나란히 선다. 예전에는 필터 칸이 폼 입력과 같은
+ * 36 에 MUI 노치 라벨(테두리에 얹힌 라벨)이었다: 한 줄의 높이가 버튼(34)과 갈렸고, 라벨이 칸
+ * 위로 튀어나와 필터 줄이 폼처럼 읽혔다.
+ *
+ * **어디가 필터 바인가는 자리가 말한다.** `FilterBar.jsx::FilterSurface` 가 이 문맥을 깔고, 그
+ * 안의 `SearchBox` · `FilterSelect` · `EntityCombobox` · `DebouncedTextField` 가 스스로 줄 모양이
+ * 된다. 판 · 모달 · 서랍처럼 필터 바 밖에서 필터를 세우는 자리는 `layout="row"` 로 말한다.
+ * `layout="form"` · `"fill"` 은 언제나 폼 치수(36 · 라벨 위)다. */
+export const FilterRowContext = React.createContext(false);
+
+/** 이 칸이 필터 바의 줄 모양(34 · 칸 안 이름)인가. */
+function useRowCell(layout) {
+  const inRow = React.useContext(FilterRowContext);
+  if (layout === "row") return true;
+  if (layout === "form" || layout === "fill") return false;
+  return layout == null && inRow;
+}
+
+/* 줄 칸의 높이 — 버튼(34)과 같은 값. Autocomplete 는 테마가 `inputRoot` 에 36 을 박으므로 거기도
+   함께 말한다(크기를 정하는 속성이 둘이면 둘 다 말해야 한다 — `MuiIconButton.sizeSmall` 과 같은 교훈). */
+const ROW_CELL_SX = {
+  "& .MuiInputBase-root, & .MuiAutocomplete-inputRoot:not(:has(.MuiChip-root))": {
+    height: remPx(CONTROL.button), minHeight: remPx(CONTROL.button),
+  },
+  "& .MuiInputBase-input, & .MuiSelect-select": { paddingTop: 0, paddingBottom: 0, fontWeight: FONT_WEIGHT.semibold },
+  "& .MuiSelect-select": { display: "flex", alignItems: "center", minHeight: 0 },
+};
+
+const ROW_SEARCH_SX = {
+  "& .MuiInputBase-root": { height: remPx(CONTROL.button), minHeight: remPx(CONTROL.button) },
+  "& .MuiInputBase-input": { paddingTop: 0, paddingBottom: 0 },
+};
+
+/* 칸 안의 이름. 값보다 가볍고(muted · 400) 줄어들지 않는다 — 좁아지면 값이 말줄임된다. */
+function PrefixLabel({ id, children }) {
+  return (
+    <Box
+      component="span"
+      id={id}
+      sx={{ color: "text.secondary", fontWeight: FONT_WEIGHT.regular, whiteSpace: "nowrap", flexShrink: 0, marginInlineEnd: 0.75 }}
+    >
+      {children}
+    </Box>
+  );
+}
+
+/* 칸 안의 값 — 한 줄, 넘치면 말줄임, 전체 값은 `title` 로. */
+function RowValue({ children, title }) {
+  return (
+    <Box
+      component="span"
+      title={title}
+      sx={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: FONT_WEIGHT.semibold }}
+    >
+      {children}
+    </Box>
+  );
+}
+
+/* 줄 칸의 빈 값 낱말. 칸 안에 이름(접두)이 이미 서 있으므로, 호출부가 준 「역할: 전체」 ·
+   「분류 전체」처럼 **이름으로 시작하는 낱말**은 그 이름을 떼고 나머지만 값 자리에 세운다 —
+   「역할 역할: 전체」로 같은 낱말이 두 번 읽히지 않는다. 메뉴의 빈 항목 글자는 호출부 낱말 그대로다. */
+export function rowAllText(label, allLabel) {
+  if (!allLabel) return "전체";
+  if (typeof label !== "string" || !label || typeof allLabel !== "string") return allLabel;
+  if (!allLabel.startsWith(label)) return allLabel;
+  const rest = allLabel.slice(label.length).replace(/^[\s:：]+/, "");
+  return rest || allLabel;
+}
+
 /** 종류별 기본 폭에 호출부 `sx` 를 얹는다. 호출부가 이기되, 안 주면 의미가 정한다.
  *
- * `layout="form"` 이면 줄 치수 대신 폼 치수를 깐다(위 `FORM_FIELD_SX` 참고). */
-export function kindSx(kind, sx, layout) {
-  const base = layout === "form" ? FORM_FIELD_SX : (CONTROL_KIND[kind] || null);
-  if (!base) return sx;
-  if (typeof sx === "function") return (theme) => ({ ...base, ...sx(theme) });
-  return { ...base, ...sx };
+ * `layout="form"` · `"fill"` 이면 줄 치수 대신 폼 치수를 깐다(위 `FORM_FIELD_SX` 참고). `fill` 은
+ * 좁은 판 · 모달 · 채팅 목록처럼 **부모 폭을 그대로 쓰는** 검색창의 이름이다(핸드오프: 320 은
+ * 필터 바 검색 슬롯의 규칙이고, 그보다 좁은 부모에서는 100%). */
+export function kindSx(kind, sx, layout, row = false) {
+  const base = layout === "form" || layout === "fill" ? FORM_FIELD_SX : (CONTROL_KIND[kind] || null);
+  /* 검색창은 친 글자라 값 굵기(600)를 받지 않는다 — 이름표가 없는 칸이다. */
+  const extra = row === "search" ? ROW_SEARCH_SX : row ? ROW_CELL_SX : null;
+  if (!base && !extra) return sx;
+  if (typeof sx === "function") return (theme) => ({ ...base, ...extra, ...sx(theme) });
+  return { ...base, ...extra, ...sx };
 }
 
 /* 빈 값(전체·없음)을 고를 수 있는 select 에 반드시 함께 넘긴다.
@@ -107,6 +185,58 @@ export function unmatchedLabel(value, loading) {
   const text = String(value == null ? "" : value);
   if (!isOpaqueId(text)) return text;
   return loading ? "불러오는 중" : "이름을 확인할 수 없는 항목";
+}
+
+/* ── 검색 팝오버의 항목 한 줄 — `PickerOption` (핸드오프 README §6 · RULES §3 · ACCEPTANCE G3) ──
+ *
+ * 사람 · 프로젝트 · 태그처럼 늘어나는 목록은 셀렉트가 아니라 검색 팝오버다: 위에 검색 입력,
+ * 아래에 **32px 항목**(앞 그림 + 이름 + 보조 식별자 muted), 고른 항목에 체크. 새 부품이 아니라
+ * `EntityCombobox` 가 그리는 목록의 계약이다(P-6). 예전에는 항목이 이름과 보조 식별자를 두 줄로
+ * 쌓아 48~56px 로 섰고, 고른 것이 무엇인지는 배경색 하나로만 말했다.
+ *
+ * 한 줄이다 — 이름이 길면 이름이, 그다음 보조 식별자가 말줄임되고 전체는 `title` 이 든다.
+ * `aria-selected` 는 MUI 가 `props` 로 준다(그대로 흘려보낸다). */
+export function PickerOption({ liProps, label, secondary, leading, suffix, selected }) {
+  const { key, ...rest } = liProps || {};
+  const full = [label, secondary].filter((v) => typeof v === "string" && v).join(", ");
+  return (
+    <Box
+      component="li"
+      key={key}
+      {...rest}
+      data-picker-option=""
+      title={full || undefined}
+      sx={{
+        "&&": {
+          display: "flex", alignItems: "center", gap: 1, minWidth: 0,
+          minHeight: remPx(CONTROL.menuItem), paddingTop: 0, paddingBottom: 0,
+        },
+      }}
+    >
+      {leading}
+      <Box component="span" sx={{ display: "flex", alignItems: "baseline", gap: 0.75, minWidth: 0, flex: 1, overflow: "hidden" }}>
+        <Typography component="span" variant="body2" noWrap sx={{ minWidth: 0, flexShrink: 1 }}>{label}</Typography>
+        {suffix}
+        {secondary ? (
+          <Typography component="span" variant="caption" color="text.secondary" noWrap sx={{ minWidth: 0, flexShrink: 2 }}>
+            {secondary}
+          </Typography>
+        ) : null}
+      </Box>
+      <CheckRoundedIcon
+        aria-hidden="true"
+        sx={{ flexShrink: 0, fontSize: remPx(ICON.inline), color: "primary.main", visibility: selected ? "visible" : "hidden" }}
+      />
+    </Box>
+  );
+}
+
+/** 후보를 **내 계정이 맨 위**가 되게 세운다(핸드오프 README §6). 나머지 순서는 그대로다. */
+export function mineFirst(options, myId) {
+  if (myId == null || myId === "") return options;
+  const at = options.findIndex((o) => o && String(o.value) === String(myId));
+  if (at <= 0) return options;
+  return [options[at], ...options.slice(0, at), ...options.slice(at + 1)];
 }
 
 /** 후보가 많아져도 화면 높이가 같이 늘어나지 않게 한다. 넘는 분은 안에서 스크롤한다. */
@@ -158,6 +288,7 @@ export const SearchBox = React.memo(function SearchBox({
   value, placeholder, ariaLabel, onSearch, sx, layout,
 }) {
   const [draft, setDraft] = useDebouncedCommit(value, onSearch);
+  const row = useRowCell(layout);
   return (
     <TextField
       type="search"
@@ -168,7 +299,7 @@ export const SearchBox = React.memo(function SearchBox({
       inputProps={{ "aria-label": ariaLabel }}
       InputProps={{ startAdornment: <InputAdornment position="start"><SearchRoundedIcon fontSize="small" /></InputAdornment> }}
       data-filter-kind="search"
-      sx={kindSx("search", sx, layout)}
+      sx={kindSx("search", sx, layout, row ? "search" : false)}
     />
   );
 });
@@ -192,11 +323,13 @@ export const DebouncedTextField = React.memo(function DebouncedTextField({
   value, onCommit, label, placeholder, sx, kind = "text", inputProps, freeTextReason, layout,
 }) {
   const [draft, setDraft] = useDebouncedCommit(value, onCommit);
+  const row = useRowCell(layout);
   return (
     <TextField
       size="small"
-      label={label}
-      InputLabelProps={{ shrink: true }}
+      label={row ? undefined : label}
+      InputLabelProps={row ? undefined : { shrink: true }}
+      InputProps={row && label ? { startAdornment: <PrefixLabel>{label}</PrefixLabel> } : undefined}
       value={draft}
       onChange={(e) => setDraft(e.target.value)}
       /* 값이 없을 때 **아무 말도 안 하는 상자**를 만들지 않는다 (W5 재정정 — 독립 검수 실측:
@@ -204,10 +337,10 @@ export const DebouncedTextField = React.memo(function DebouncedTextField({
          라고 자기 상태를 말하는데 이 칸만 비어 있으면 사용자는 그것을 «덜 그려졌다» 로 읽는다.
          조건이 없는 자유 입력의 뜻은 정확히 «전체» 다 — 그 낱말을 그대로 쓴다. */
       placeholder={placeholder || "전체"}
-      inputProps={{ maxLength: 200, ...inputProps }}
+      inputProps={{ maxLength: 200, ...(row && label ? { "aria-label": label } : null), ...inputProps }}
       data-filter-kind={kind}
       data-free-text={freeTextReason || undefined}
-      sx={kindSx(kind, sx, layout)}
+      sx={kindSx(kind, sx, layout, row)}
     />
   );
 });
@@ -225,6 +358,7 @@ export function FilterSelect({
   layout,
 }) {
   const list = normalizeOptions(options);
+  const row = useRowCell(layout);
   if (multiple) {
     const selected = Array.isArray(value) ? value.map(String) : (value ? [String(value)] : []);
     for (const item of selected) {
@@ -233,21 +367,30 @@ export function FilterSelect({
       }
     }
     const labelOf = (v) => (list.find((o) => o.value === v) || { label: v }).label;
+    const text = (picked) => (
+      picked && picked.length
+        ? picked.map(labelOf).join(", ")
+        : (row ? rowAllText(label, allLabel) : (allLabel || `${label} 전체`))
+    );
     return (
       <TextField
-        select size="small" label={label} value={selected} disabled={disabled}
+        select size="small" label={row ? undefined : label} value={selected} disabled={disabled}
         data-filter-kind={kind}
-        sx={kindSx(kind, sx, layout)}
+        sx={kindSx(kind, sx, layout, row)}
         onChange={(e) => onChange(Array.isArray(e.target.value) ? e.target.value : [])}
-        InputLabelProps={{ shrink: true }}
+        InputLabelProps={row ? undefined : { shrink: true }}
+        inputProps={row ? { "aria-label": label } : undefined}
         SelectProps={{
           multiple: true,
           displayEmpty: true,
-          renderValue: (picked) => (
-            picked && picked.length
-              ? picked.map(labelOf).join(", ")
-              : (allLabel || `${label} 전체`)
-          ),
+          renderValue: row
+            ? (picked) => (
+              <>
+                <PrefixLabel>{label}</PrefixLabel>
+                <RowValue title={`${label} ${text(picked)}`}>{text(picked)}</RowValue>
+              </>
+            )
+            : text,
           ...SELECT_MENU,
         }}
       >
@@ -261,6 +404,37 @@ export function FilterSelect({
   }
   if (value && !list.some((o) => o.value === value)) {
     list.unshift({ value, label: unmatchedLabel(value, false) });
+  }
+  if (row) {
+    /* 줄 칸 — 이름은 칸 안 접두(muted), 값은 600 한 줄. 「… 전체」 항목의 메뉴 글자는 그대로 두고
+       칸에는 이미 이름이 있으니 값 자리에 「전체」만 선다(같은 낱말을 두 번 쓰지 않는다). */
+    const shown = (v) => {
+      if (v === "" || v == null) return rowAllText(label, allLabel);
+      const hit = list.find((o) => String(o.value) === String(v));
+      return hit ? hit.label : String(v);
+    };
+    return (
+      <TextField
+        select size="small" value={value == null ? "" : value} disabled={disabled}
+        data-filter-kind={kind}
+        sx={kindSx(kind, sx, layout, true)}
+        onChange={(e) => onChange(e.target.value)}
+        inputProps={{ "aria-label": label }}
+        SelectProps={{
+          displayEmpty: true,
+          renderValue: (v) => (
+            <>
+              <PrefixLabel>{label}</PrefixLabel>
+              <RowValue title={`${label} ${shown(v)}`}>{shown(v)}</RowValue>
+            </>
+          ),
+          ...SELECT_MENU,
+        }}
+      >
+        <MenuItem value="">{allLabel || `${label} 전체`}</MenuItem>
+        {list.map((o) => <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>)}
+      </TextField>
+    );
   }
   return (
     <TextField
@@ -305,24 +479,23 @@ export function normalizeOptions(options) {
 export function EntityCombobox({
   label, value, onChange, options, loading, disabled, sx, kind = "entity", id,
   placeholder, allLabel, noOptionsText = "일치하는 항목이 없습니다", required, helperText,
-  ariaLabelledBy, hideLabel, multiple = false, renderOption, noAllOption = false, layout,
+  ariaLabelledBy, hideLabel, multiple = false, renderOption, noAllOption = false, layout, myId,
+  open, disablePortal,
 }) {
-  const list = normalizeOptions(options);
+  const list = mineFirst(normalizeOptions(options), myId);
+  /* 필터 바 줄 칸이면 이름이 칸 안 접두로 선다(위 `FilterRowContext`). 이름을 밖에서 그리는 폼
+     자리(`hideLabel` · `ariaLabelledBy`)는 줄 칸이 아니다. */
+  const row = useRowCell(layout) && !hideLabel && !ariaLabelledBy;
   // 기본 렌더(라벨 + 보조줄)는 그대로 두고, 부르는 쪽이 다른 그림(아바타 등)이 필요하면
   // 이것 하나로 갈아 끼운다 — §15.3 의 UserPicker 가 이 자리를 쓴다.
-  const renderRow = renderOption || ((props, o) => {
-    const { key, ...rest } = props;
-    return (
-      <Box component="li" key={key ?? o.value} {...rest} sx={{ display: "block !important" }}>
-        <Typography variant="body2" sx={{ lineHeight: 1.35 }}>{o.label}</Typography>
-        {o.secondary ? (
-          <Typography variant="caption" color="text.secondary" sx={{ display: "block", lineHeight: 1.35 }}>
-            {o.secondary}
-          </Typography>
-        ) : null}
-      </Box>
-    );
-  });
+  const renderRow = renderOption || ((props, o, state) => (
+    <PickerOption
+      liProps={{ ...props, key: props.key ?? o.value }}
+      label={o.label}
+      secondary={o.secondary}
+      selected={!!(state && state.selected)}
+    />
+  ));
   if (multiple) {
     const selected = Array.isArray(value) ? value : (value ? [value] : []);
     const current = selected.map((v) => (
@@ -333,6 +506,8 @@ export function EntityCombobox({
       <Autocomplete
         id={id}
         multiple
+        open={open}
+        disablePortal={disablePortal}
         size="small"
         openOnFocus
         autoHighlight
@@ -347,17 +522,21 @@ export function EntityCombobox({
         noOptionsText={noOptionsText}
         loadingText="불러오는 중…"
         data-filter-kind={kind}
-        sx={kindSx(kind, sx, layout)}
+        sx={kindSx(kind, sx, layout, row)}
         ListboxProps={{ sx: FILTER_LISTBOX_SX }}
         renderOption={renderRow}
         renderInput={(params) => (
           <TextField
             {...params}
-            label={hideLabel ? undefined : label}
+            label={hideLabel || row ? undefined : label}
             required={required}
             helperText={helperText}
-            InputLabelProps={{ ...params.InputLabelProps, shrink: true }}
-            placeholder={placeholder || allLabel || `${label} 전체`}
+            InputLabelProps={row ? params.InputLabelProps : { ...params.InputLabelProps, shrink: true }}
+            InputProps={row
+              ? { ...params.InputProps, startAdornment: <><PrefixLabel>{label}</PrefixLabel>{params.InputProps.startAdornment}</> }
+              : params.InputProps}
+            inputProps={row ? { ...params.inputProps, "aria-label": label } : params.inputProps}
+            placeholder={placeholder || (row ? rowAllText(label, allLabel) : (allLabel || `${label} 전체`))}
           />
         )}
       />
@@ -379,6 +558,8 @@ export function EntityCombobox({
   return (
     <Autocomplete
       id={id}
+      open={open}
+      disablePortal={disablePortal}
       size="small"
       openOnFocus
       autoHighlight
@@ -400,7 +581,7 @@ export function EntityCombobox({
       noOptionsText={noOptionsText}
       loadingText="불러오는 중…"
       data-filter-kind={kind}
-      sx={kindSx(kind, sx, layout)}
+      sx={kindSx(kind, sx, layout, row)}
       ListboxProps={{ sx: FILTER_LISTBOX_SX }}
       renderOption={renderRow}
       renderInput={(params) => {
@@ -416,11 +597,14 @@ export function EntityCombobox({
              한 번 더 그린다. 이름을 지우는 게 아니라 **보이는 자리에서만 뺀다**: 접근
              이름은 아래 `aria-label` 로 그대로 남는다(이름 없는 combobox 는 스크린리더도
              시험도 부를 수 없다). */
-          label={shownLabel}
+          label={row ? undefined : shownLabel}
           required={required}
           helperText={helperText}
-          InputLabelProps={{ ...params.InputLabelProps, shrink: Boolean(shownLabel) }}
-          placeholder={current ? placeholder : (placeholder || all.label)}
+          InputLabelProps={{ ...params.InputLabelProps, shrink: Boolean(shownLabel) && !row }}
+          InputProps={row
+            ? { ...params.InputProps, startAdornment: <><PrefixLabel>{label}</PrefixLabel>{params.InputProps.startAdornment}</> }
+            : params.InputProps}
+          placeholder={current ? placeholder : (placeholder || (row ? rowAllText(label, allLabel) : all.label))}
           /* **한 줄에 잉크 무게는 하나다** (W5 재정정 — 독립 검수 실측 2.68:1 vs 옆 select 17.24:1).
              값이 없을 때 이 상자가 말하는 「… 전체」는 자리표시자가 아니라 **고른 값**이다 —
              옆의 `FilterSelect` 는 같은 뜻을 빈 `MenuItem` 의 **본문 글자**로 그린다. 브라우저
@@ -440,7 +624,7 @@ export function EntityCombobox({
           inputProps={{
             ...params.inputProps,
             "aria-labelledby": ariaLabelledBy || params.inputProps["aria-labelledby"],
-            "aria-label": hideLabel && !ariaLabelledBy ? label : params.inputProps["aria-label"],
+            "aria-label": (hideLabel && !ariaLabelledBy) || row ? label : params.inputProps["aria-label"],
             title: current ? current.label : undefined,
           }}
         />

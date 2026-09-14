@@ -61,15 +61,20 @@ export function normalizeAccent(value) {
 }
 
 /* 모서리 — 4개 의미 슬롯.
- *   sm   입력·버튼·칩          6
- *   md   판(plate)·패널        8   ← MUI 기본 shape
- *   lg   떠 있는 것(모달·팝오버) 14
- *   full 아바타처럼 완전한 원   999
- * 계측 전면은 여전히 둥글지 않다. 다만 4/6/10 은 34~36px 컨트롤 옆에서 **모서리가 없는
- * 것처럼** 보였다 — 형태가 형태로 읽히는 최소치로 한 단계씩 올린다. */
-/* `xs`(4)는 **배지와 세그먼티드 안쪽 칸**의 모서리다 — 22px 짜리 작은 알약에 6px 를 주면
-   모서리가 높이의 1/4 을 먹어 알약이 아니라 둥근 사각형으로 보인다(확정 규약 §9). */
-export const RADIUS = { xs: 4, sm: 6, md: 8, lg: 14, full: 999 };
+ *   xs   배지·세그먼티드 안쪽 칸   4
+ *   sm   입력·버튼·칩             6
+ *   md   판(plate)·패널 **그리고 떠 있는 것**(모달·팝오버·메뉴·토스트) 8  ← MUI 기본 shape
+ *   full 아바타처럼 완전한 원      999
+ *
+ * 🔴 `lg`(14)를 걷었다 (핸드오프 DECISIONS D-13 · D-6). 떠 있는 것 셋이 같은 값을 쓴다는 원칙은
+ * 그대로이고 **값만 카드와 같은 8** 이 됐다. 14 는 판(8) 옆에서 떠 있는 것만 둥글게 부풀려
+ * 한 화면에 모서리 어휘가 둘 서게 했다. 소비처가 0 이 된 슬롯은 남기지 않는다 — 이름만 남은
+ * 값은 다음 사람에게 「여기 정본이 있다」고 거짓말을 한다(`density.js` 머리 주석과 같은 관용).
+ * 채팅 말풍선의 12 는 이 표의 슬롯이 아니라 `ui/chat.js::CHAT` 의 채팅 전용 규격이다.
+ *
+ * `xs`(4)는 **배지와 세그먼티드 안쪽 칸**의 모서리다 — 22px 짜리 작은 알약에 6px 를 주면
+ * 모서리가 높이의 1/4 을 먹어 알약이 아니라 둥근 사각형으로 보인다(확정 규약 §9). */
+export const RADIUS = { xs: 4, sm: 6, md: 8, full: 999 };
 
 /* 굵기 — 5단계. extrabold 는 워드마크 전용 예외다(본문 위계에 쓰지 않는다). */
 export const FONT_WEIGHT = { regular: 400, medium: 500, semibold: 600, bold: 700, extrabold: 800 };
@@ -144,6 +149,10 @@ export const CONTROL = {
      「여기 정본이 있으니 이걸 쓰면 되겠다」로 읽는데 어느 화면에서도 검증된 적이 없다. */
   tableHead: 40,
   tableRow: 48,
+  /* 두 줄 이상인 행(제목 + 요약 + 태그 — 문서 목록)의 **바닥**이다. 고정 높이가 아니다: 표 칸의
+     `height` 는 CSS 에서 최솟값으로 계산되므로 내용이 더 필요하면 행이 자란다(잘리거나 겹치지
+     않는다). 일반 행의 바닥은 위 `tableRow` 48 그대로다(핸드오프 O-2 · ACCEPTANCE E1). */
+  tableRowTall: 76,
   tableGroupRow: 36,
   tableFooter: 44,
   /* 표 **안**의 컨트롤(인라인 편집 select·아이콘 버튼)은 행 안에 들어가야 하므로
@@ -462,6 +471,11 @@ const TOKENS = {
     faint: "#737B99",
     /* 비활성 잉크. `faint` 의 옛 값이다 — 역할이 갈리면서 값도 갈렸다. */
     disabledInk: "#5C6480",
+    /* **비활성 버튼**의 글자. `disabledInk` 와 다른 역할이다 — 그쪽은 비활성 **입력의 값**이라
+       사용자가 그 칸에 무엇이 설정돼 있는지 읽어야 해서 AA 를 지킨다. 버튼은 누를 수 없다는
+       사실만 말하면 되고 이유는 컨트롤 밖 도움말이 말한다(핸드오프 README §2 · ACCEPTANCE C4:
+       면 #F5F6FB · 글자 #BCC2D9). WCAG 1.4.3 은 비활성 컨트롤을 대비 요구에서 뺀다. */
+    disabledControlInk: "#BCC2D9",
     line: "#DCDFEC",
     lineStrong: "#BCC2D9",
     /* 판 **안쪽**을 나누는 실선 — 표의 행 사이, 카드 안 목록의 줄 사이.
@@ -503,6 +517,8 @@ const TOKENS = {
     faint: "#767FA2",
     /* 비활성 잉크. `faint` 의 옛 값이다 — 역할이 갈리면서 값도 갈렸다(위 palette 주석). */
     disabledInk: "#8C96B8",
+    /* 비활성 버튼 글자(위 light 주석이 정본) — 핸드오프 다크 규격 K3 의 #4B5478. */
+    disabledControlInk: "#4B5478",
     line: "#242A46",
     lineStrong: "#333B5E",
     /* 판 안쪽 실선 — dark 에서는 `line` 과 같은 값이다(위 light 주석이 정본). */
@@ -528,6 +544,7 @@ const TOKENS = {
     focusRing: "#9FB0FF",
   },
 };
+
 
 /* 사이드바가 서랍(temporary)으로 바뀌는 지점. 1024×768·1152×720 사내 장비를 고려한 값이라
  * MUI 의 lg(1200)를 쓰면 안 된다. `app/navConfig.js` 가 이 값을 가져다 쓴다(지시 23). */
@@ -679,6 +696,7 @@ export function createClovirTheme(mode = "light", accent = DEFAULT_ACCENT) {
       brand: { accent: primary, ...BRAND_FIXED, ...brandInk },
       gradient,
       chart: light ? CHART_SERIES.light : CHART_SERIES.dark,
+      disabledControlInk: t.disabledControlInk,
       focusRing: t.focusRing,
     },
     shape: { borderRadius: RADIUS.md },
@@ -813,6 +831,19 @@ export function createClovirTheme(mode = "light", accent = DEFAULT_ACCENT) {
             borderRadius: RADIUS.sm,
             paddingInline: 14,
             transition: `background-color ${MOTION.fast} ${MOTION.ease}, border-color ${MOTION.fast} ${MOTION.ease}`,
+          },
+          /* 비활성 — 면 `inset` · 글자 `disabledControlInk` (핸드오프 C4 · K3). MUI 기본은 검정
+             반투명이라 판 위·함몰면 위에서 값이 달라지고, 채운 버튼은 회색 알약이 되어 「무엇이
+             꺼졌나」가 아니라 「다른 종류의 버튼」으로 읽혔다. 글자만 있는 ghost 는 면을 받지
+             않는다 — 면이 생기면 꺼진 순간 버튼의 모양이 바뀐다. */
+          contained: {
+            "&.Mui-disabled": { backgroundColor: t.inset, color: t.disabledControlInk },
+          },
+          outlined: {
+            "&.Mui-disabled": { backgroundColor: t.inset, borderColor: t.line, color: t.disabledControlInk },
+          },
+          text: {
+            "&.Mui-disabled": { color: t.disabledControlInk },
           },
           sizeSmall: { minHeight: remPx(CONTROL.buttonSm), paddingBlock: 0, paddingInline: 11 },
           sizeLarge: { minHeight: remPx(CONTROL.buttonLg), paddingBlock: 0, paddingInline: 18 },
@@ -1052,6 +1083,10 @@ export function createClovirTheme(mode = "light", accent = DEFAULT_ACCENT) {
              머리 줄을 별도의 판처럼 보이게 했다. */
           head: ({ theme }) => ({
             height: remPx(CONTROL.tableHead),
+            /* 머리 칸 안의 조작기(정렬 · 필터 32)가 위아래 기본 여백(6)을 더해 44.5 로 섰다.
+               머리 40 = 조작기 32 + 4 × 2 — 여백을 조작기 높이에서 유도한다. */
+            paddingTop: remPx((CONTROL.tableHead - CONTROL.tableCellDense) / 2),
+            paddingBottom: remPx((CONTROL.tableHead - CONTROL.tableCellDense) / 2),
             color: theme.palette.text.secondary,
             fontSize: FONT_SIZE.micro,
             fontWeight: FONT_WEIGHT.semibold,
@@ -1127,7 +1162,8 @@ export function createClovirTheme(mode = "light", accent = DEFAULT_ACCENT) {
       /* ── 떠 있는 면(overlay · modal) — PLAN «Surface 위계» 의 마지막 두 줄 ─────────
        *
        * 그 표는 overlay(메뉴·팝오버·툴팁)와 modal(다이얼로그·드로어)에 `1px divider` 테두리와
-       * `lg`(14) 모서리, 그리고 각자의 그림자를 주는데 **구현이 하나도 없었다.** 그래서
+       * 모서리(지금은 판과 같은 `md` 8 — 핸드오프 D-13), 그리고 각자의 그림자를 주는데
+       * **구현이 하나도 없었다.** 그래서
        * 실측이 이렇게 갈라져 있었다: 모달만 14px(kit.jsx 가 sx 로 직접 준다) · 메뉴/팝오버/
        * 툴팁은 `shape.borderRadius`(8) · 테두리는 어디에도 없음. 같은 "떠 있는 것" 이 세 가지
        * 모양이었다는 뜻이다.
@@ -1141,7 +1177,7 @@ export function createClovirTheme(mode = "light", accent = DEFAULT_ACCENT) {
       MuiMenu: {
         styleOverrides: {
           paper: ({ theme }) => ({
-            borderRadius: RADIUS.lg,
+            borderRadius: RADIUS.md,
             border: `1px solid ${theme.palette.divider}`,
             boxShadow: theme.shadowTokens.overlay,
           }),
@@ -1150,7 +1186,7 @@ export function createClovirTheme(mode = "light", accent = DEFAULT_ACCENT) {
       MuiPopover: {
         styleOverrides: {
           paper: ({ theme }) => ({
-            borderRadius: RADIUS.lg,
+            borderRadius: RADIUS.md,
             border: `1px solid ${theme.palette.divider}`,
             boxShadow: theme.shadowTokens.overlay,
           }),
@@ -1189,11 +1225,11 @@ export function createClovirTheme(mode = "light", accent = DEFAULT_ACCENT) {
              * (`tiny_text` 검사가 폭 >=2200 에서만 돌아 1920 에서 안 잡혔을 뿐이다). */
             fontSize: FONT_SIZE.micro,
             /* **툴팁은 `overlay` tone 을 따르지 않는다 — 의도된 예외다.**
-             * 위 셋(Menu·Popover·Dialog)은 `RADIUS.lg` + `1px divider` 로 맞췄는데 툴팁만
+             * 위 셋(Menu·Popover·Dialog)은 `RADIUS.md` + `1px divider` 로 맞췄는데 툴팁만
              * `sm` 이고 테두리가 없다. PLAN «Surface 위계» 의 `overlay` 행은 **떠 있으면서
              * 내용을 담는 면**을 규정한다 — 그 안에서 클릭·스크롤·초점 이동이 일어나므로
              * 자기 경계를 그려야 한다. 툴팁은 담지 않는다. 커서를 따라다니는 한 줄짜리
-             * 라벨이고, 대비가 높은 반전 칩 자체가 이미 경계다. 여기에 14px 모서리와
+             * 라벨이고, 대비가 높은 반전 칩 자체가 이미 경계다. 여기에 8px 모서리와
              * 1px 테두리를 주면 «작은 대화상자» 처럼 보여 오히려 계약을 흐린다.
              * 독립 검수가 이 자리를 «계약 한 줄이 2/3 만 구현됐다» 로 지목했다 —
              * 누락이 아니라 결정이라는 것을 여기 적어 둔다. */

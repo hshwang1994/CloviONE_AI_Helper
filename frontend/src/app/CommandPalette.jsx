@@ -240,7 +240,7 @@ export function CommandPalette({ open, onClose, groups }) {
         "& .MuiDialog-paper": {
           alignSelf: "flex-start", mt: { xs: 4, sm: 10 },
           width: "min(46rem, calc(100% - 2rem))", maxWidth: "none",
-          borderRadius: `${RADIUS.lg}px`,
+          borderRadius: `${RADIUS.md}px`,
         },
       }}
     >

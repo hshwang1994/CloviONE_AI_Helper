@@ -31,8 +31,14 @@
 
 ## 판정
 
-  위반(종료 코드 1)  제목 순서 변화 · 글자 추가/삭제 · 블록 수 변화 · 격자/표 열 비율 변화(>2%) ·
+  위반(종료 코드 1)  제목 순서 변화 · **낱말** 추가/삭제 · 블록 수 변화 · 격자/표 열 비율 변화(>2%) ·
                     차트 크기 변화(>4px)
+  조각(보고만)       글자 조각의 개수 차이. 부품을 갈아 끼우면 같은 문구가 다른 마디로 쪼개진다 —
+                    노치 라벨 「역할」 + 값 「역할 전체」가 칸 안 접두 「역할」 + 값 「전체」가 되고,
+                    아이콘 표지의 `aria-label` 「지연」이 보이는 낱말 「지연」이 된다. 문구는 그대로인데
+                    조각 목록은 달라진다(handoff-a 에서 142화면이 이 이유로 빨갛게 섰다). 그래서 문구
+                    판정은 화면 전체의 **낱말 집합**(보이는 글자 + `aria-label` · `title` · `placeholder`)
+                    으로 하고, 조각 차이는 사람이 훑을 수 있게 보고만 한다.
   이동(보고만)       블록 사각형의 dx/dy/dw/dh. `--tol-*` 를 넘으면 목록에 올린다 — 토큰 변경에서
                     유도한 허용 delta(카드 안쪽 −4px 등)인지 사람이 표 5 와 대조한다.
 """
@@ -41,6 +47,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from collections import Counter
 from pathlib import Path
@@ -249,23 +256,55 @@ def _by_key(items: list[dict]) -> dict[str, dict]:
     return {it["key"]: it for it in items}
 
 
+# 씨앗 데이터가 실행마다 새로 뽑는 값 — 프로젝트 키 앞머리(`CUYNPN-12`)와 UUID 조각. 글자 비교에서
+# 이 차이는 문구 변화가 아니다. 숫자는 매니페스트를 적을 때 이미 `#` 로 접었다.
+_SEED_KEY = re.compile(r"\b[A-Z]{6}(?:-#)?\b")
+_SEED_HEX = re.compile(r"(?<![\w#])[0-9a-f#]{1,12}(?:-[0-9a-f#]{1,12}){3,4}(?:-…|…)?")
+
+
+# 대시 없는 16진 식별자(요청 id 등) — 숫자가 `#` 로 접혀 `#acb#f#e` 처럼 남는다.
+_SEED_HEXRUN = re.compile(r"(?<![\w#])(?=[0-9a-f#]*#)(?=[0-9a-f#]*[a-f])[0-9a-f#]{6,}(?![\w#])")
+_CHANNEL = re.compile(r"^@(aria|title|ph):")
+_WORD = re.compile(r"[가-힣]+|[A-Za-z]+")
+
+
+def _norm_text(text: str) -> str:
+    return _SEED_HEXRUN.sub("<id>", _SEED_HEX.sub("<id>", _SEED_KEY.sub("KEY", text)))
+
+
+def _words(texts: list[str]) -> set[str]:
+    """화면의 낱말 집합 — 채널 표지를 떼고, 한글 · 라틴 낱말만 센다(숫자 · 기호는 뼈대가 아니다)."""
+    out: set[str] = set()
+    for t in texts:
+        out.update(_WORD.findall(_norm_text(_CHANNEL.sub("", t))))
+    return out
+
+
 def compare(before: dict, after: dict, *, tol_x: int, tol_w: int, tol_h: int,
             tol_y: int) -> dict:
     """한 화면(route×테마×뷰포트)의 두 매니페스트를 대 본다."""
     violations: list[str] = []
     moves: list[str] = []
 
-    if before["headings"] != after["headings"]:
+    if [_norm_text(h) for h in before["headings"]] != [_norm_text(h) for h in after["headings"]]:
         violations.append("제목 순서: " + json.dumps(
             {"before": before["headings"], "after": after["headings"]}, ensure_ascii=False))
 
-    tb, ta = Counter(before["texts"]), Counter(after["texts"])
+    wb, wa = _words(before["texts"]), _words(after["texts"])
+    lost_words, new_words = sorted(wb - wa), sorted(wa - wb)
+    if lost_words or new_words:
+        violations.append("글자: 빠진 낱말 " + json.dumps(lost_words[:16], ensure_ascii=False)
+                          + " / 생긴 낱말 " + json.dumps(new_words[:16], ensure_ascii=False)
+                          + (f" (빠짐 {len(lost_words)} · 생김 {len(new_words)})"))
+    notes: list[str] = []
+    tb = Counter(_norm_text(t) for t in before["texts"])
+    ta = Counter(_norm_text(t) for t in after["texts"])
     removed = sorted((tb - ta).elements())
     added = sorted((ta - tb).elements())
     if removed or added:
-        violations.append("글자: 빠짐 " + json.dumps(removed[:12], ensure_ascii=False)
-                          + " / 생김 " + json.dumps(added[:12], ensure_ascii=False)
-                          + (f" (빠짐 {len(removed)} · 생김 {len(added)})"))
+        notes.append("글자 조각: 빠짐 " + json.dumps(removed[:8], ensure_ascii=False)
+                     + " / 생김 " + json.dumps(added[:8], ensure_ascii=False)
+                     + (f" (빠짐 {len(removed)} · 생김 {len(added)})"))
 
     kb = Counter(b["key"].rsplit("#", 1)[0] for b in before["blocks"])
     ka = Counter(b["key"].rsplit("#", 1)[0] for b in after["blocks"])
@@ -308,7 +347,38 @@ def compare(before: dict, after: dict, *, tol_x: int, tol_w: int, tol_h: int,
     extra = {}
     if before.get("boardTop") is not None or after.get("boardTop") is not None:
         extra["boardTop"] = [before.get("boardTop"), after.get("boardTop")]
-    return {"violations": violations, "moves": moves, **extra}
+    return {"violations": violations, "moves": moves, "notes": notes, **extra}
+
+
+def selftest() -> int:
+    """Known Good / Known Bad — 판정을 제품에 대기 전에 견본으로 확인한다(CLAUDE.md §7.1)."""
+    base = {"headings": ["h1:사용자"], "blocks": [], "grids": [], "tables": [], "charts": [],
+            "texts": ["역할", "역할 전체", "@aria:지연", "요청 #f#a#c#e"]}
+
+    def make(texts):
+        return {**base, "texts": texts}
+
+    cases = [
+        # 쪼개짐 · 채널 이동 · 씨앗 식별자 — 문구는 그대로다(숫자는 매니페스트가 이미 `#` 로 접었다)
+        ("good: 접두 라벨로 쪼개짐", make(["역할", "전체", "@aria:지연", "요청 #f#a#c#e"]), False),
+        ("good: aria → 보이는 낱말", make(["역할", "역할 전체", "지연", "요청 #f#a#c#e"]), False),
+        ("good: 씨앗 16진 id", make(["역할", "역할 전체", "@aria:지연", "요청 #acb#f#e"]), False),
+        # 문구 변화 — 잡아야 한다
+        ("bad: 낱말이 바뀜", make(["역할", "권한 전체", "@aria:지연", "요청 #f#a#c#e"]), True),
+        ("bad: 낱말이 빠짐", make(["역할", "역할 전체", "요청 #f#a#c#e"]), True),
+        ("bad: 새 낱말", make(["역할", "역할 전체", "@aria:지연", "요청 #f#a#c#e", "필수 항목"]), True),
+    ]
+    before = make([_norm_text(t) for t in base["texts"]])
+    ok = True
+    for name, after, expect_violation in cases:
+        after = make([_norm_text(t) for t in after["texts"]])
+        got = bool([v for v in compare(before, after, tol_x=2, tol_w=2, tol_h=24, tol_y=48)["violations"]
+                    if v.startswith("글자")])
+        status = "OK " if got == expect_violation else "BAD"
+        ok = ok and got == expect_violation
+        print(f"  {status} {name} → 위반 {got}")
+    print("GEOMETRY_DIFF_SELFTEST_" + ("OK" if ok else "FAILED"))
+    return 0 if ok else 1
 
 
 def diff(args) -> int:
@@ -347,6 +417,9 @@ def diff(args) -> int:
             print("    ✗ " + v[:400])
         for m in result["moves"][:args.max_moves]:
             print("    ~ " + m)
+        if args.show_notes:
+            for n in result.get("notes", []):
+                print("    · " + n[:300])
         if len(result["moves"]) > args.max_moves:
             print(f"    ~ … 외 {len(result['moves']) - args.max_moves}건")
     out = OUT_BASE / after_label / "geometry-diff.json"
@@ -383,7 +456,13 @@ def main() -> int:
     ap.add_argument("--tol-h", type=int, default=24)
     ap.add_argument("--tol-y", type=int, default=48)
     ap.add_argument("--max-moves", type=int, default=12)
+    ap.add_argument("--show-notes", action="store_true",
+                    help="글자 조각 차이(보고만)도 찍는다")
+    ap.add_argument("--selftest", action="store_true",
+                    help="낱말 판정이 문구 변화는 잡고 쪼개짐은 넘기는지 견본으로 먼저 확인한다")
     args = ap.parse_args()
+    if args.selftest:
+        return selftest()
     if args.diff:
         return diff(args)
     if not args.manifest_label:

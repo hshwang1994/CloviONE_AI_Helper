@@ -176,7 +176,7 @@ function WeeklyLoad({ load }) {
         >
           <Box
             component="img" src={ART.board} alt=""
-            sx={{ width: mascotBoxPx("emptyRegion", ART.board), height: "auto", objectFit: "contain", flexShrink: 0 }}
+            sx={{ width: mascotBoxPx("statsArt", ART.board), height: "auto", objectFit: "contain", flexShrink: 0 }}
           />
           <Box sx={{ minWidth: 0, display: "grid", rowGap: 0.375 }}>
             <Typography sx={{ fontSize: FONT_SIZE.body, fontWeight: FONT_WEIGHT.bold, ...KO_WORD_BREAK }}>

@@ -1,6 +1,6 @@
 /* 생성 파일이다. 손으로 고치지 마라.
  *
- * 정본: frontend/src/ui/theme.js  (source-hash 0d48d18979a56273)
+ * 정본: frontend/src/ui/theme.js  (source-hash b26a63cb9e7a246b)
  * 생성: node scripts/generate_design_tokens.mjs
  * 검사: node scripts/generate_design_tokens.mjs --check   (static_checks.sh 가 부른다)
  *
@@ -14,7 +14,6 @@
 :root {
   --radius-sm: 6px;
   --radius-md: 8px;
-  --radius-lg: 14px;
   --radius-pill: 999px;
   --space-1: 4px;
   --space-2: 8px;

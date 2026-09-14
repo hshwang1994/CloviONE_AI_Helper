@@ -193,6 +193,12 @@ def open_modals(page, *, limit: int = 8, settle_ms: int = 420) -> list[dict]:
         if not label or DENY.search(label):
             continue
         try:
+            # 눌림 상태를 가진 단추(`aria-pressed`)는 모달을 여는 것이 아니라 **상태를 바꾸는** 토글이다.
+            # 내 프로필의 강조색 칩을 누르면 그 색이 브라우저 저장소에 남아, 같은 문맥에서 뒤에 찍는
+            # 모든 화면의 주 버튼이 청록으로 서고 브랜드 검사가 줄줄이 실패했다(handoff-a 실측).
+            # 필터 토글도 같은 이유로 건드리지 않는다 — 화면 조건이 바뀐 채 다음 검사가 돈다.
+            if handle.get_attribute("aria-pressed") is not None:
+                continue
             if not handle.is_visible() or not handle.is_enabled():
                 continue
             handle.click(timeout=1800)

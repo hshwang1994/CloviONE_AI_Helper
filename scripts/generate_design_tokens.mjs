@@ -226,7 +226,6 @@ function tokensFor(mode) {
 const STATIC_TOKENS = {
   "--radius-sm": `${RADIUS.sm}px`,
   "--radius-md": `${RADIUS.md}px`,
-  "--radius-lg": `${RADIUS.lg}px`,
   "--radius-pill": `${RADIUS.full}px`,
 
   "--space-1": "4px",

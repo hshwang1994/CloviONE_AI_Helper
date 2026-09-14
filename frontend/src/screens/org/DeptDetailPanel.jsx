@@ -58,7 +58,7 @@ function PeopleSection({ departmentId }) {
   return (
     <Section title={"소속 인원" + (q.isPending ? "" : " " + total + "명")}>
       {q.isPending ? <Skeleton lines={3} /> : null}
-      {q.isError ? <ErrorState error={q.error} onRetry={() => q.refetch()} size="sm" /> : null}
+      {q.isError ? <ErrorState error={q.error} onRetry={() => q.refetch()} layout="region" size="compact" /> : null}
       {!q.isPending && !q.isError && items.length === 0 ? (
         <Typography variant="body2" color="text.secondary" sx={KO_WORD_BREAK}>
           이 부서에 배치된 사람이 없습니다. 사용자 화면에서 부서를 지정하면 여기에 나타납니다.

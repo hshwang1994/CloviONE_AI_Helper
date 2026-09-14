@@ -12,6 +12,9 @@ import { render, screen } from "@testing-library/react";
  *   3) **`resultScope` 없이는 어떤 열도 사라지지 않는다** (R-91). 서버가 페이지를 자르는
  *      목록에서 이번 페이지의 값이 우연히 같다고 열을 빼면, 페이지를 넘길 때마다 열이
  *      생겼다 사라진다.
+ *
+ * qa-contract-change: 핸드오프 D-3 · ACCEPTANCE E2 가 「머리글은 언제나 가운데」를 「제목 열만 왼쪽, 나머지 가운데 — 머리와 행이 같다」로 뒤집었다.
+ * 제목 열 머리글 단언이 alignCenter 에서 alignLeft 로 옮겼고, 머리와 몸이 열마다 같은 축인지 단언을 더했다.
  */
 
 import { COLUMN_TYPES, planColumnCollapse, resolveColumn, tableMinWidth } from "./columnTypes.js";
@@ -165,9 +168,9 @@ describe("열 어휘 — 폭·정렬·자릿수는 의미에서 나온다", () =
     expect(screen.getByText("ABC-1").closest("td").getAttribute("data-col-role")).toBe("identifier");
   });
 
-  it("머리글 이름은 열의 정렬과 상관없이 **언제나 가운데**다", () => {
-    /* 몸통이 왼쪽인 열에서도 머리글은 가운데다(지시 6). 예전에는 호출부가 몸통의 정렬을
-       머리글에 그대로 넘겨서, 왼쪽에 붙은 이름 옆에 오른쪽에 붙은 이름이 섰다. */
+  it("머리글은 **자기 열의 몸통과 같은 축**이다 — 제목만 왼쪽, 나머지 가운데 (핸드오프 E2)", () => {
+    /* 예전 계약은 「머리글은 언제나 가운데」였다. 그러면 제목 열의 이름만 가운데에 떠서 그 아래
+       왼쪽에 붙은 제목들과 축이 갈렸다 — 핸드오프 갤러리 지시 [2] 가 이름으로 짚은 자리다. */
     draw(<DataTable
       columns={[
         { key: "t", label: "제목", type: "title" },
@@ -176,11 +179,14 @@ describe("열 어휘 — 폭·정렬·자릿수는 의미에서 나온다", () =
       rows={[{ t: "가", n: 1 }]}
       rowKey={() => "r"}
     />);
-    expect(screen.getByText("제목").closest("th").getAttribute("class")).toContain("alignCenter");
+    expect(screen.getByText("제목").closest("th").getAttribute("class")).toContain("alignLeft");
     expect(screen.getByText("건수").closest("th").getAttribute("class")).toContain("alignCenter");
-    // 몸통은 의미대로 갈린다.
+    // 몸통은 의미대로 갈리고, 머리와 같은 축이다.
     expect(screen.getByText("가").closest("td").getAttribute("class")).toContain("alignLeft");
     expect(screen.getByText("1").closest("td").getAttribute("class")).toContain("alignCenter");
+    const heads = [...document.querySelectorAll("thead th")].map((th) => /alignLeft/.test(th.className));
+    const cells = [...document.querySelectorAll("tbody tr:first-child td")].map((td) => /alignLeft/.test(td.className));
+    expect(heads).toEqual(cells);
   });
 
   it("정렬·필터 조작기는 이름과 한 덩어리로 칸 가운데에 선다", () => {

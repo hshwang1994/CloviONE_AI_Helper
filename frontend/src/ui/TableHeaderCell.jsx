@@ -4,7 +4,7 @@ import IconButton from "@mui/material/IconButton";
 import TableCell from "@mui/material/TableCell";
 import FilterListRoundedIcon from "@mui/icons-material/FilterListRounded";
 import { CONTROL, FONT_SIZE, remPx } from "./theme.js";
-import { HEADER_ALIGN } from "./columnTypes.js";
+import { headerAlignOf } from "./columnTypes.js";
 import { ColumnFilterPopover } from "./columnFilter.jsx";
 
 /* 이름 자리 — **잘리지 않는다** (A4 재검수). 예전엔 `min-width:0` + `overflow:hidden` 으로
@@ -66,11 +66,12 @@ export function TableHeaderCell({
   const dir = active ? sort.dir : null;
   const [anchor, setAnchor] = React.useState(null);
   const filtered = hasFilterValue(filterValue);
+  const align = headerAlignOf(c);
 
   return (
     <TableCell
       scope="col"
-      align={HEADER_ALIGN}
+      align={align}
       data-col-role={colRole}
       /* 이름이 잘렸을 때 전체를 볼 길 — 본문 칸이 `title` 로 하는 것과 같다.
          도움말이 있으면 그것이 이긴다(그쪽이 더 많은 것을 말한다). */
@@ -86,7 +87,7 @@ export function TableHeaderCell({
           (박스가 내용보다 좁아지는 그 순간이 없으니, S19 가 겪은 "박스는 좁은데 글자만
           삐져나온다"도 다시 생기지 않는다). 정렬 화살표·필터 단추는 여전히 `flexShrink:0`
           로 따로 보호된다. */}
-      <Box sx={HEADER_ROW_SX}>
+      <Box sx={align === "left" ? { ...HEADER_ROW_SX, justifyContent: "flex-start" } : HEADER_ROW_SX}>
         {sortable ? (
           <Box
             component="button"

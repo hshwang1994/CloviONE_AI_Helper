@@ -13,6 +13,9 @@
  *   2. 두 벌이 서로 갈라지지 않았는가
  *   3. 화면 코드가 chrome 색을 리터럴로 다시 박아 두지 않았는가
  *   4. 폐기한 목업을 아직 참조하지 않는가
+ *
+ * qa-contract-change: 핸드오프 D-13 으로 `RADIUS.lg`(14) 슬롯을 걷어 생성물에서 `--radius-lg` 가 사라졌다.
+ * 그 단언은 「`--radius-lg` 가 없다 · `--radius-md` 가 떠 있는 것의 모서리(8)다」 두 단언으로 바뀐다.
  */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -83,7 +86,9 @@ describe("생성물이 정본과 같은 값이다", () => {
     const v = varsIn(read(SPA_CSS), ":root");
     expect(v["--radius-sm"]).toBe(`${RADIUS.sm}px`);
     expect(v["--radius-md"]).toBe(`${RADIUS.md}px`);
-    expect(v["--radius-lg"]).toBe(`${RADIUS.lg}px`);
+    // 떠 있는 것의 모서리는 판과 같은 md(8)다 — lg 슬롯은 없다(핸드오프 D-13).
+    expect(v["--radius-lg"]).toBeUndefined();
+    expect(v["--radius-md"]).toBe("8px");
     expect(v["--radius-pill"]).toBe(`${RADIUS.full}px`);
   });
 

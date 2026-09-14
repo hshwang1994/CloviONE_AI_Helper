@@ -15,6 +15,9 @@
  * 지금 이 값들의 정본은 **PLAN «Typography · Density»** 다. W4 가 네 개를 올렸다:
  *
  *   cardPadding    20 -> 24   판 안쪽이 20 이면 19px 구획 제목이 테두리에 붙는다
+ *                  24 -> 20   (핸드오프 D-16) 판 제목이 1.0625rem(17px)으로 내려오면서 위 근거가
+ *                             사라졌다 — 17px 제목은 20px 안쪽에서 테두리에 붙지 않는다. 판 여백
+ *                             하나가 20 이다(메시지 박스 12/14 · 칸반 카드 12/14 는 자기 계약).
  *   sectionGap     24 -> 32   구획 사이가 카드 안쪽 여백과 비슷하면 묶음이 안 읽힌다
  *   gridGap        16 -> 24   판이 커졌으니 판 사이도 같이 벌어져야 관계가 유지된다
  *   healthGridGap  12 -> 16   작은 타일 줄은 판보다 촘촘하되 같은 비율로 따라온다
@@ -39,7 +42,7 @@
 
 /* 치수의 정본 px. 아래 rem 상수가 전부 여기서 나온다. */
 export const DENSITY_PX = {
-  cardPadding: 24,      // 판(plate) 안쪽 여백
+  cardPadding: 20,      // 판(plate) 안쪽 여백 — 핸드오프 D-16
   healthCardPadding: 16, // 작은 상태 타일 안쪽 여백
   gridGap: 24,          // 판끼리의 간격
   healthGridGap: 16,    // 작은 타일끼리의 간격
@@ -61,8 +64,11 @@ export const DENSITY_PX = {
 export const BASELINE_TRACKS = {
   // 티켓·문서 상세(본문 + 속성 레일)
   detail: "minmax(0, 1.5fr) minmax(300px, 0.65fr)",
-  // 폼 + 보조 레일(새 티켓 등)
-  two: "minmax(0, 1.45fr) minmax(280px, 0.8fr)",
+  // 주 판 + 보조 레일(새 티켓 · LLM 콘솔 · 퇴직 처리 · 초기 설정) — 핸드오프 RULES §0 의 2열.
+  // 소비처 넷이 모두 「주 판 + 보조 레일」이라 한 값을 같이 쓴다(D-458 이 앞 둘을 「/new-ticket
+  // 모양」으로 적었다). 두 트랙 모두 바닥이 0 이다 — 좁아지면 `lg` 미만에서 1열로 접히는 것이
+  // 폭을 지키는 방법이지 레일의 px 바닥이 아니다.
+  two: "minmax(0, 1.62fr) minmax(0, 1fr)",
   // 좌측 구조 레일 + 목록(문서 작업공간·조직 콘솔). 이 트랙이 없던 동안 두 화면이
   // 서로 다른 값(18rem·gap16 vs 20~26rem·gap20)을 각자 하드코딩했다 — density.js 가
   // 세 번 겪은 「값이 화면마다 흩어진다」의 네 번째였다. fr 트랙의 최소가 0이라
@@ -264,7 +270,7 @@ export const BUDGET_SCROLL = { flex: "0 1 auto", minHeight: 0 };
 
 /* 화면에서 그대로 쓰는 값들. sx 에 넣기 좋은 모양으로 미리 만들어 둔다 —
  * 호출부마다 rem() 을 다시 부르면 결국 또 숫자가 흩어진다. */
-export const CARD_PADDING = rem(DENSITY_PX.cardPadding);        // 24px
+export const CARD_PADDING = rem(DENSITY_PX.cardPadding);        // 20px
 export const TILE_PADDING = rem(DENSITY_PX.healthCardPadding);  // 16px
 export const GRID_GAP = rem(DENSITY_PX.gridGap);                // 24px
 export const TILE_GRID_GAP = rem(DENSITY_PX.healthGridGap);     // 16px
@@ -325,3 +331,30 @@ export const FORM_FIELD_GRID = {
   [formFieldsFit(2)]: { gridTemplateColumns: "repeat(2, minmax(0, 1fr))" },
   [formFieldsFit(3)]: { gridTemplateColumns: "repeat(3, minmax(0, 1fr))" },
 };
+
+/* ── 12칸 폼 격자 (핸드오프 RULES §7 · README §A) ──────────────────────────────
+ *
+ * 관련 필드를 한 줄에 세운다(제목 12 / 프로젝트 6 · 상태 3 · 우선순위 3 / …). 열 수는 뷰포트가
+ * 아니라 **폼이 받은 칸의 폭**이 정한다 — 위 `FORM_FIELD_GRID` 와 같은 컨테이너 질의 문턱이다:
+ * 칸 셋이 들어가면 12칸, 둘이면 2칸, 그보다 좁으면 1칸.
+ *
+ * 🔴 **데스크톱 span 을 2칸 격자에 그대로 쓰지 않는다.** `span 6` 을 2칸 격자에 주면 암묵 열이
+ * 생겨 칸이 화면 밖으로 밀린다. 그래서 칸마다 `fieldSpan({ wide, mid })` 로 문턱별 span 을 따로
+ * 말한다 — 좁은 1칸에서는 언제나 `span 1` 이다. */
+export const FORM_FIELD_GRID_12 = {
+  display: "grid",
+  gap: `${FORM_FIELD_GAP_REM}rem`,
+  alignItems: "start",
+  gridTemplateColumns: "minmax(0, 1fr)",
+  [formFieldsFit(2)]: { gridTemplateColumns: "repeat(2, minmax(0, 1fr))" },
+  [formFieldsFit(3)]: { gridTemplateColumns: "repeat(12, minmax(0, 1fr))" },
+};
+
+/** 12칸 격자의 칸 하나가 문턱마다 몇 칸을 쓰는가. `wide` 는 12칸일 때, `mid` 는 2칸일 때(1 또는 2). */
+export function fieldSpan({ wide = 12, mid = 2 } = {}) {
+  return {
+    gridColumn: "span 1",
+    [formFieldsFit(2)]: { gridColumn: `span ${Math.max(1, Math.min(2, mid))}` },
+    [formFieldsFit(3)]: { gridColumn: `span ${Math.max(1, Math.min(12, wide))}` },
+  };
+}

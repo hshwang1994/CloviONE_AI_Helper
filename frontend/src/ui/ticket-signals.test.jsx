@@ -122,6 +122,16 @@ describe("밀도는 둘이고 어휘는 하나다", () => {
     expect(await screen.findByText("배포 승인 대기")).toBeInTheDocument();
   });
 
+  it("🔴 점+낱말에서도 사연은 **읽어 주는 글자**에 남는다 — 마우스를 올리지 않는 사람도 듣는다", () => {
+    const { container } = draw(<TicketSignals signals={[{ ...SIGNALS.blocked, reason: "배포 승인 대기" }]} />);
+    const group = container.querySelector("[data-signal-variant='dot']");
+    // 칸반 카드의 옛 표지는 이름이 「차단됨: 사연」이었다 — 같은 말이 낭독 순서대로 나와야 한다.
+    expect(group.textContent).toBe("차단됨: 배포 승인 대기");
+    expect(group.querySelector(".sr-only").textContent).toBe(": 배포 승인 대기");
+    // Tooltip 이 감싼 칸에 aria-label 을 덮으면 보이는 낱말이 가려진다 — 붙이지 않는다.
+    expect(group.querySelector("[aria-label]")).toBeNull();
+  });
+
   it("좁은 표는 title 에 사연을 이어 붙인다 — 사연 없으면 이름만이다", () => {
     draw(<TicketSignals signals={[{ ...SIGNALS.blocked, reason: "배포 승인 대기" }]} variant="mark" />);
     expect(screen.getByRole("img", { name: "차단됨: 배포 승인 대기" })).toBeInTheDocument();

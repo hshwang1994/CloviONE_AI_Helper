@@ -1,3 +1,4 @@
+import { PROJECT_TONE } from "../ui/projectTone.js";
 import { fmtDateTime } from "../lib/format.js";
 
 // 우선순위 어휘는 lib/priority.js가 소유한다(티켓 화면 두 곳이 채팅과 무관하게 쓴다).
@@ -313,16 +314,9 @@ export function projectTone(name) {
   return h % 8;
 }
 
-// projectTone(0~7)의 실제 색. screens.css의 .project-dot.tone-N과 **같은 값**이다 — 채팅 카드를
-// MUI로 옮기면서 그 클래스를 더는 쓰지 않지만, 같은 프로젝트가 다른 화면에서 다른 색 점을 갖게
-// 되면 '색으로 프로젝트를 알아본다'는 규칙 자체가 깨진다. 여기로 옮겨 값만 공유한다.
-// 대비: WCAG 비텍스트(1.4.11, ≥3:1)를 라이트(#FFFFFF)·다크(#11182D) 표면 양쪽에 대해
-// 직접 계산해 확인했다. 원래 주황(#F08C00)은 다크에서는 7.09지만 라이트에서 2.48로
-// 기준 미달이었다(DS-30) — 두 표면 모두 통과하는 값(#C26A00, 라이트 3.92·다크 4.49)으로 교체.
-export const PROJECT_TONE_COLORS = [
-  "#E5484D", "#E8590C", "#C26A00", "#2F9E44",
-  "#0CA678", "#1971C2", "#7048E8", "#C2255C",
-];
+// projectTone(0~7)의 실제 색. 값의 정본은 `ui/projectTone.js` 한 벌이다 — 예전에는 여기와
+// screens.css 의 `.project-dot.tone-N` 두 벌이었고 DS-30 이 한쪽만 고쳐 색이 갈렸다.
+export const PROJECT_TONE_COLORS = PROJECT_TONE;
 export function projectToneColor(name) {
   return PROJECT_TONE_COLORS[projectTone(name)];
 }

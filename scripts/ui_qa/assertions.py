@@ -25,7 +25,7 @@ Assertion classes (these strings are what ``--fail-on`` accepts):
 
   equal_column_split      폭은 똑같이 나눴는데 두 트랙이 요구하는 폭은 배 이상 다르다
   column_width_vs_content 한 열은 접히는데 다른 열은 절반이 비어 있다(폭 1200 이상)
-  header_cell_alignment_mismatch  `th` 이름이 가운데가 아니다 (머리글 정렬 계약)
+  header_cell_alignment_mismatch  `th` 이름이 자기 열의 몸과 다른 축에 선다 (머리 = 행 계약)
   numeric_alignment       숫자 열이 가운데 정렬이 아니거나 `tabular-nums` 가 없다
   isolated_control_row    컨트롤 하나가 줄을 통째로 쓰면서 그 줄의 절반 넘게 비운다(고아 줄)
   control_baseline_mismatch  한 줄 안에서 컨트롤 높이(같은 종류)나 중심선이 어긋난다
@@ -1088,23 +1088,25 @@ PROBE_JS = r"""
   }
 
   // --- 3) header_cell_alignment_mismatch ------------------------------------
-  /* 🔴 **계약이 바뀌었다** (2026-08-27 지시 6·13 · `ui/columnTypes.js`).
+  /* 🔴 **계약이 다시 바뀌었다** (핸드오프 D-3 · ACCEPTANCE E2 · `ui/columnTypes.js::headerAlignOf`).
    *
-   * 예전 계약은 「머리와 몸이 같은 축」이었다. 지금은 축이 둘로 갈렸다:
+   * 2026-08-27 계약은 「머리글 이름은 언제나 가운데」였다. 그러자 제목 열의 이름만 가운데에 떠
+   * 그 아래 왼쪽에 붙은 제목들과 축이 갈렸다(핸드오프 갤러리 지시 [2]). 지금 규칙은 하나다:
    *
-   *   머리글 이름  **언제나 가운데.** 열마다 다르면 머리글 줄을 한 줄로 못 읽는다
-   *   몸통 칸      값의 의미대로 — 읽는 것(제목·이름·설명)은 왼쪽, 나머지는 가운데
+   *   **머리 = 행.** 제목 열(몸이 왼쪽)은 머리도 왼쪽, 나머지 열은 머리도 몸도 가운데
    *
-   * 그래서 이 프로브가 재는 것도 바뀐다: 「둘이 같은가」가 아니라 **「머리가 가운데인가」**다.
-   * 옛 판정을 그대로 두면 제목 열이 있는 표가 전부 빨개지는데, 그것은 제품이 아니라
-   * 검사가 옛 계약을 들고 있는 것이다. */
+   * 그래서 이 프로브는 「머리가 가운데인가」가 아니라 **「머리가 자기 열의 몸과 같은 축인가」**를
+   * 잰다. 몸이 왼쪽으로 뚜렷한(60% 이상) 열만 왼쪽 머리를 요구하고, 몸을 못 읽은 열은 가운데를
+   * 기대한다. 옛 판정을 그대로 두면 제목 열이 있는 표가 전부 빨개진다(handoff-a 66화면). */
   out.headerCellAlignment = [];
   out.headerCellAlignmentChecked = 0;
   for (const c of tableColumns) {
     if (out.headerCellAlignment.length >= MAX) break;
     if (!c.headerAlign) continue;
     out.headerCellAlignmentChecked++;
-    if (c.headerAlign === 'center') continue;
+    const bodyLeft = c.bodyAlign === 'left' && (c.bodyAlignShare || 0) >= 0.6;
+    const expected = bodyLeft ? 'left' : 'center';
+    if (c.headerAlign === expected) continue;
     out.headerCellAlignment.push({
       selector: cssPath(c.th), column: c.header,
       header: c.headerAlign, body: c.bodyAlign || '(없음)',
@@ -2326,7 +2328,7 @@ def classify(probe: dict, *, expected_theme: str, viewport_width: int, final_url
         probe.get("headerCellAlignment") or [], probe.get("headerCellAlignmentChecked", 0),
         lambda s: (f"{s['selector']} «{s['column']}» 머리는 {s['header']} 인데"
                    f" 몸은 {s['body']} ({s['bodyShare']}%)"),
-        "머리글 이름이 열마다 다른 자리에 서면 머리글 줄을 한 줄로 못 읽는다 — 언제나 가운데다",
+        "머리글은 자기 열의 몸과 같은 축에 선다 — 제목 열만 왼쪽, 나머지는 가운데다(핸드오프 E2)",
         "머리글 칸이 있는 표가 이 화면에 없다",
     )
 

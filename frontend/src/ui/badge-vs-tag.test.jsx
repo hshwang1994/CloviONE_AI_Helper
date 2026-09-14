@@ -70,6 +70,11 @@ describe("Badge 와 Tag 는 다른 것을 말한다", () => {
     expect(tag.height).toBe(badge.height);
   });
 
+  it("태그 굵기는 400 이다 — 배지와 굵기까지 같으면 면 하나로만 갈린다 (핸드오프 D-8)", () => {
+    const { container: t } = render(<Tag label="Docker" />);
+    expect(getComputedStyle(t.querySelector(".k-tag")).fontWeight).toBe("400");
+  });
+
   it("톤이 있는 태그도 면은 흰색 하나이고 색은 글자만 받는다", () => {
     const { container: plain } = render(<Tag label="회의록" />);
     const { container: toned } = render(<Tag label="회의록" tone="teal" />);

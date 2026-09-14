@@ -40,7 +40,7 @@ import WarningAmberRoundedIcon from "@mui/icons-material/WarningAmberRounded";
 import ErrorOutlineRoundedIcon from "@mui/icons-material/ErrorOutlineRounded";
 import Collapse from "@mui/material/Collapse";
 import { ART } from "../lib/assets.js";
-import { MASCOT_PLACE, mascotBoxPx } from "./Mascot.jsx";
+import { MASCOT_PLACE, mascotBoxSx } from "./Mascot.jsx";
 import { maxLengthFor } from "../lib/fieldLimits.js";
 import { apiToKstLocal, kstLocalToApi, objectParticle, topicParticle } from "../lib/format.js";
 import { declaredRowName, rowNameOf } from "./rowName.js";
@@ -154,7 +154,7 @@ const TONE_SEVERITY = { danger: "error", warn: "warning", success: "success", in
 // MUI Chip color 팔레트 밖의 톤(문서 종류·게시판 분류 등) — tokens.css의 --badge-*-bg/fg 변수를
 // 그대로 쓴다(다크모드 대응·대비 검증 이미 돼 있는 값). lib/badges.js가 이 네 톤을 배정하는데
 // 예전엔 여기 목록이 없어 전부 회색 필 칩으로 뭉개졌다(DS-09).
-const EXTRA_TONE_VARS = {
+export const EXTRA_TONE_VARS = {
   purple: { bg: "var(--badge-purple-bg)", fg: "var(--badge-purple-fg)" },
   teal: { bg: "var(--badge-teal-bg)", fg: "var(--badge-teal-fg)" },
   indigo: { bg: "var(--badge-indigo-bg)", fg: "var(--badge-indigo-fg)" },
@@ -283,13 +283,92 @@ export function Tag({ label, tone }) {
         display: "inline-flex", alignItems: "center", maxWidth: "100%", minWidth: 0,
         height: remPx(CONTROL.pill), px: 1, py: 0, borderRadius: `${RADIUS.sm}px`,
         border: 1, borderColor: "divider",
-        fontSize: FONT_SIZE.micro, fontWeight: FONT_WEIGHT.medium, lineHeight: 1,
+        /* 굵기 400 (핸드오프 D-8). 배지(600)와 굵기까지 같으면 면만으로 둘을 갈라야 하는데,
+           흰 면과 옅은 면은 다크에서 한 단 차이라 거기서 두 어휘가 붙는다. */
+        fontSize: FONT_SIZE.micro, fontWeight: FONT_WEIGHT.regular, lineHeight: 1,
         whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
         bgcolor: "background.paper",
         color: extra ? extra.fg : "text.secondary",
       }}
     >
       {label}
+    </Box>
+  );
+}
+
+/* 상태의 색을 나르는 **유일한** 자리 — 7px 점. 라벨 글자 옆에 서고 글자를 대신하지 않는다
+ * (WCAG 1.4.1: 색만으로 뜻을 전하지 않는다). `aria-hidden` 인 이유가 그것이다.
+ * `accent` 는 팔레트 경로(`error.main`)이거나 `--badge-*` 변수다(`TONE_ACCENT` 가 톤을 푼다).
+ * 상태 요약 칩 · 회의 갈래 칩 · 점+낱말이 **같은 점**을 쓴다 — 각자 그리면 크기가 갈린다. */
+export function StatusDot({ accent }) {
+  return (
+    <Box
+      aria-hidden="true"
+      component="span"
+      data-status-dot=""
+      sx={{
+        flexShrink: 0, width: 7, height: 7, borderRadius: `${RADIUS.full}px`,
+        bgcolor: (theme) => paletteAt(theme, accent),
+      }}
+    />
+  );
+}
+
+/** 점 + 낱말 — 표 · 칸반 카드 · 목록 행 안의 **정해진 축 값**(상태 · 분류 · 우선순위 · 신호 ·
+ * 방 종류). 핸드오프 D-21 · RULES §2: 그 자리에서는 면 배지를 쓰지 않는다 — 한 화면에 면이
+ * 스무 개 서면 어디가 중요한지 사라진다. 목록 **밖**(카드 머리 · 제목 옆)은 `Badge` 다.
+ *
+ * `tone` 은 키트 톤(`ok` · `danger` · `warn` · `info` · `neutral` · 분류 톤)이다. 위험(`danger`)은
+ * 필요하면 `strong` 으로 낱말을 600 으로 세운다 — 배지로 키우지 않는다.
+ * 긴 낱말은 한 줄에서 말줄임되고 전체는 `title` 이 든다. */
+export function DotLabel({ label, tone = "neutral", strong = false, title, sx, ...rest }) {
+  const accent = tone === "neutral" ? "text.faint" : (TONE_ACCENT[tone] || tone);
+  return (
+    <Box
+      component="span"
+      className="k-dot-label"
+      data-dot-label={tone}
+      {...rest}
+      title={title !== undefined ? (title || undefined) : (typeof label === "string" ? label : undefined)}
+      sx={{
+        display: "inline-flex", alignItems: "center", gap: 0.75, minWidth: 0, maxWidth: "100%",
+        whiteSpace: "nowrap", verticalAlign: "middle",
+        fontWeight: strong ? FONT_WEIGHT.semibold : "inherit",
+        ...sx,
+      }}
+    >
+      <StatusDot accent={accent} />
+      <Box component="span" sx={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>{label}</Box>
+    </Box>
+  );
+}
+
+/** 건수 미니 칩 — 「3」 · 안 읽음 수 (핸드오프 README §9 · RULES §2).
+ *
+ * 함몰면 + 테두리, 등폭 숫자, **높이 20 한 값**이다(`compact` 18 은 이름 붙은 갈래 — 쓰는 자리를
+ * 대장에 적는다). 같은 갈래는 내용과 무관하게 같은 높이로 선다. 안 읽음만 Primary 채움이다.
+ * 예전에는 같은 뜻의 칩이 아홉 얼굴이었다(Badge 건수 · MUI Chip · 손 알약 · MUI Badge …).
+ * 숫자만으로 뜻이 모자라는 자리는 호출부가 `ariaLabel` 로 온전한 문장을 준다. */
+export function CountChip({ value, unread = false, compact = false, ariaLabel, sx }) {
+  const h = compact ? 18 : 20;
+  return (
+    <Box
+      component="span"
+      className="k-count-chip"
+      data-count-chip={compact ? "compact" : ""}
+      aria-label={ariaLabel}
+      sx={{
+        display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+        height: remPx(h), minWidth: remPx(h), px: 0.75, boxSizing: "border-box",
+        borderRadius: `${RADIUS.full}px`, border: 1,
+        borderColor: unread ? "primary.main" : "divider",
+        bgcolor: unread ? "primary.main" : "background.inset",
+        color: unread ? "primary.contrastText" : "text.secondary",
+        fontSize: FONT_SIZE.micro, fontWeight: FONT_WEIGHT.semibold, lineHeight: 1,
+        whiteSpace: "nowrap", ...NUMERIC, ...sx,
+      }}
+    >
+      {value}
     </Box>
   );
 }
@@ -321,12 +400,22 @@ const BUTTON_VARIANT = {
   ghost: { variant: "text", color: "inherit" },
   default: { variant: "outlined", color: "inherit" },
 };
+/* 핸드오프 어휘의 **Secondary** 는 이 키트의 `default` 다(흰 면 + 테두리). 화면 18곳이
+   `variant="secondary"` 로 불렀는데 이 표에 그 이름이 없어 MUI 속성만 기본값으로 떨어지고,
+   아래 `default` 전용 테두리 규칙(`text.faint`)은 못 받았다 — 그 버튼들의 테두리가 R-11 이
+   고친 `currentColor`(17:1)로 서 있었다. 이름을 한 곳에서 풀어 준다. */
+const BUTTON_VARIANT_ALIAS = { secondary: "default" };
 /* loading: 라벨을 "처리 중…"으로 바꿔치기하지 않는다(예전 DataScreen/ModalFooter 관행) —
  * 텍스트만 바뀌면 스피너도 없고 버튼 폭도 라벨 길이 따라 흔들린다(DS-04). 라벨은 그대로 두고
  * visibility만 숨겨 폭을 고정한 채 스피너를 겹쳐 그린다. */
 // forwardRef: MUI 컴포넌트(Tooltip 등)가 자식 DOM 노드에 직접 ref를 걸어야 하는 경우가 있다
 // (Tooltip은 호버 위치를 앵커에서 계산한다) — 일반 함수 컴포넌트면 그 ref가 조용히 버려진다.
-export const Button = React.forwardRef(function Button({ variant = "default", size, loading = false, disabled, children, sx, ...rest }, ref) {
+export const Button = React.forwardRef(function Button({ variant: askedVariant = "default", size, loading = false, disabled, truncate = false, children, sx, ...rest }, ref) {
+  const variant = BUTTON_VARIANT_ALIAS[askedVariant] || askedVariant;
+  if (import.meta.env.DEV && !BUTTON_VARIANT[variant]) {
+    // eslint-disable-next-line no-console
+    console.warn(`Button: 모르는 variant "${askedVariant}". 고를 수 있는 이름은 ${Object.keys(BUTTON_VARIANT).join(", ")}, secondary 중에서 고른다.`);
+  }
   const v = BUTTON_VARIANT[variant] || BUTTON_VARIANT.default;
   /* `sm` 은 키트 옛 어휘, `small` 은 MUI 어휘다. 둘 다 같은 작은 버튼(30)이다 —
      `small` 만 빠지면 ChatRooms 「1:1」처럼 이름만 작고 높이는 medium(34)이 된다. */
@@ -340,8 +429,18 @@ export const Button = React.forwardRef(function Button({ variant = "default", si
       aria-busy={loading || undefined}
       {...v}
       {...rest}
+      /* 잘리는 칸에서만 쓰는 `truncate` — 라벨 전체를 `title` 로 든다(§0-3). */
+      title={truncate && typeof children === "string" && !rest.title ? children : rest.title}
       sx={(theme) => ({
         position: "relative",
+        /* **라벨은 한 줄이고 버튼은 자기 폭을 지킨다** (핸드오프 §0-3 줄바꿈 계약).
+           높이가 34/30 인 조작기가 두 줄이 되면 그 줄의 모든 버튼이 어긋나고, flex 줄 안에서
+           쉽게 줄어들면 정상 공간에서도 라벨이 잘린다. 줄이 모자라면 버튼이 아니라 **줄**이
+           접힌다(`ToolbarEnd` 는 묶음째 내려간다). 표 칸처럼 실제로 좁은 자리만 `truncate` 로
+           말줄임을 켠다. */
+        whiteSpace: "nowrap",
+        flexShrink: truncate ? 1 : 0,
+        ...(truncate ? { minWidth: 0, maxWidth: "100%" } : null),
         /* 보조 버튼의 **테두리가 주 행동보다 강했다** (R-11 실측).
            MUI v7 의 `outlined` + `color="inherit"` 은 테두리를 `currentColor` 로 그린다
            (`@mui/material/Button/Button.js`) — 이 앱에서 그것은 `text.primary`(#161A2C) 이고
@@ -389,7 +488,13 @@ export const Button = React.forwardRef(function Button({ variant = "default", si
           aria-hidden="true"
         />
       ) : null}
-      <Box component="span" sx={{ display: "inline-flex", alignItems: "center", minWidth: 0 }}>
+      <Box
+        component="span"
+        sx={{
+          display: "inline-flex", alignItems: "center", minWidth: 0,
+          ...(truncate ? { display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } : null),
+        }}
+      >
         {children}
       </Box>
     </MuiButton>
@@ -546,12 +651,33 @@ export function OverflowMenu({ items, ariaLabel = "더 보기", size }) {
  */
 export function Segmented({ value, onChange, options, ariaLabel, sx }) {
   const list = (options || []).filter(Boolean);
+  const refs = React.useRef([]);
   if (!list.length) return null;
+  /* 탭 목록의 키보드 계약(WAI-ARIA Tabs) — 칸 여럿이 탭 순서에 **한 번만** 서고(roving
+     tabindex), 화살표 · Home · End 로 옮기면 그 칸이 곧 선택된다. 예전에는 칸마다 탭 정거장이
+     있어서 여섯 칸짜리 세그먼티드를 지나려면 Tab 을 여섯 번 눌러야 했다(`DiscussBucketRow` 가
+     먼저 이 계약을 가졌다). */
+  const current = Math.max(0, list.findIndex((o) => o.value === value));
+  const move = (to) => {
+    const next = (to + list.length) % list.length;
+    onChange(list[next].value);
+    const el = refs.current[next];
+    if (el) el.focus();
+  };
+  const onKeyDown = (e) => {
+    const at = list.findIndex((o) => o.value === value);
+    const from = at < 0 ? 0 : at;
+    if (e.key === "ArrowRight" || e.key === "ArrowDown") { e.preventDefault(); move(from + 1); }
+    else if (e.key === "ArrowLeft" || e.key === "ArrowUp") { e.preventDefault(); move(from - 1); }
+    else if (e.key === "Home") { e.preventDefault(); move(0); }
+    else if (e.key === "End") { e.preventDefault(); move(list.length - 1); }
+  };
   return (
     <Box
       role="tablist"
       aria-label={ariaLabel}
       className="k-segmented"
+      onKeyDown={onKeyDown}
       sx={{
         display: "inline-flex",
         alignItems: "center",
@@ -560,21 +686,26 @@ export function Segmented({ value, onChange, options, ariaLabel, sx }) {
         maxWidth: "100%",
         overflowX: "auto",
         bgcolor: "background.inset",
-        border: 1,
-        borderColor: "divider",
+        /* **바깥 34 = 안쪽 28 + 여백 3 × 2** (핸드오프 D-22 · C6). 테두리를 상자에 그리면 1px 씩
+           더해져 36 이 된다 — 그래서 선을 상자 **안쪽 그림자**로 그린다(`UserAvatar` 의 선과
+           같은 방법). 높이 계산에서 선이 빠진다. */
+        border: 0,
+        boxShadow: (t) => `inset 0 0 0 1px ${t.palette.divider}`,
         borderRadius: `${RADIUS.sm}px`,
         ...sx,
       }}
     >
-      {list.map((o) => {
+      {list.map((o, i) => {
         const on = o.value === value;
         return (
           <Box
             key={o.value}
+            ref={(el) => { refs.current[i] = el; }}
             component="button"
             type="button"
             role="tab"
             aria-selected={on}
+            tabIndex={i === current ? 0 : -1}
             onClick={() => onChange(o.value)}
             sx={{
               flexShrink: 0,
@@ -619,8 +750,8 @@ export const SURFACE_TONES = {
   inset: { fill: "background.inset", radius: RADIUS.sm },
   sunken: { fill: "background.sunken", radius: RADIUS.sm },
   brandTint: { fill: "background.brandTint", radius: RADIUS.md, edge: "brand.core" },
-  overlay: { fill: "background.plate", border: true, radius: RADIUS.lg, shadow: "overlay", floats: true },
-  modal: { fill: "background.plate", border: true, radius: RADIUS.lg, shadow: "modal", floats: true },
+  overlay: { fill: "background.plate", border: true, radius: RADIUS.md, shadow: "overlay", floats: true },
+  modal: { fill: "background.plate", border: true, radius: RADIUS.md, shadow: "modal", floats: true },
 };
 
 /* 팔레트 경로("brand.core")를 실제 색으로. `borderInlineStartColor` 는 MUI 의 border 설정
@@ -917,20 +1048,26 @@ export function Callout({
   const Icon = CALLOUT_ICON[kind] || InfoOutlinedIcon;
 
   if (variant === "inline") {
-    /* 문장 흐름 안에 놓이는 한 줄. 상자도 바탕도 아이콘도 없다 — 여기서는 라벨과 본문이
-       한 줄에 이어지는 것이 맞다. 구조(아이콘·제목·본문·동작)는 아래 판형의 계약이다. */
+    /* 문장 흐름 안에 놓이는 한 줄. 상자도 바탕도 없다 — 여기서는 제목과 본문이 한 줄에 이어지는
+       것이 맞다. 구조(아이콘·제목·본문·동작)는 아래 판형의 계약이다.
+       🔴 **톤 이름 낱말을 그리지 않는다**(핸드오프 D-11). 예전에는 제목이 없으면 「안내」 「주의」가
+       색 글자로 앞에 섰다 — 판형에서 걷어 낸 톤 이름 줄이 이 갈래에만 남아 있었다. 상태는 앞의
+       작은 아이콘 모양과 그 접근 이름이 말한다. */
     return (
-      <Typography className="k-callout" data-tone={kind} component="p" sx={{ fontSize: FONT_SIZE.bodySm, ...KO_WORD_BREAK, ...sx }}>
-        <Box
-          component="span"
-          sx={{
-            fontWeight: FONT_WEIGHT.semibold, mr: 1.25, whiteSpace: "nowrap",
-            color: `${paletteKey}.strong`, fontSize: FONT_SIZE.bodySm,
-          }}
-        >
-          {title || toneWord}
+      <Typography
+        className="k-callout"
+        data-tone={kind}
+        data-variant="inline"
+        component="p"
+        sx={{ fontSize: FONT_SIZE.bodySm, display: "flex", alignItems: "flex-start", gap: 0.75, ...KO_WORD_BREAK, ...sx }}
+      >
+        <Icon titleAccess={toneWord} sx={{ flexShrink: 0, fontSize: remPx(ICON.mark), color: `${paletteKey}.main`, mt: "0.125rem" }} />
+        <Box component="span" sx={{ minWidth: 0 }}>
+          {title ? (
+            <Box component="span" sx={{ fontWeight: FONT_WEIGHT.semibold, mr: 1.25, color: "text.primary" }}>{title}</Box>
+          ) : null}
+          <Box component="span" className="k-callout-body">{children}</Box>
         </Box>
-        <Box component="span" className="k-callout-body">{children}</Box>
       </Typography>
     );
   }
@@ -957,6 +1094,7 @@ export function Callout({
        * 칸에 서는 것은 이 상자가 대개 한 줄이기 때문이다(닫기·다시 시도·자세히 보기).
        * 글이 여러 줄이면 동작은 첫 줄 옆에 붙는다(`align-items: start`).
        * `minmax(0,1fr)` 이 글 칸의 바닥을 0 으로 열어 두므로 동작이 넓어도 글이 안 밀린다. */
+      data-variant={variant}
       sx={(t) => ({
         display: "grid",
         gridTemplateColumns: action ? "auto minmax(0,1fr) auto" : "auto minmax(0,1fr)",
@@ -969,6 +1107,10 @@ export function Callout({
         bgcolor: "background.inset",
         fontSize: compact ? FONT_SIZE.caption : FONT_SIZE.body,
         ...KO_WORD_BREAK,
+        /* `variant="bleed"` — 판 밖 전폭 띠(대리 보기 · 상태 알림 · 팔레트의 실패 줄). 같은 1a
+           얼굴에서 모서리와 좌우 · 위 선만 걷고 아래 실선으로 본문과 가른다. 화면마다 손으로
+           `borderRadius: 0` 을 적던 자리를 이름 하나로 모은다. */
+        ...(variant === "bleed" ? { borderRadius: 0, borderInline: 0, borderBlockStart: 0 } : null),
         ...(typeof sx === "function" ? sx(t) : sx),
       })}
     >
@@ -1643,7 +1785,7 @@ export function EmptyState(props) {
      `empty-notify`(잉크 84%)는 60px 인데 `empty-tickets`(62%)는 45px 였다. 같은 자리에서
      그림이 두 크기로 나오는 것이고, 박스를 재는 검사로는 안 보인다. */
   const artPlace = page ? "emptyPage" : card ? "emptyCard" : "emptyRegion";
-  const artBox = artSrc ? mascotBoxPx(artPlace, artSrc) : null;
+  const artBox = artSrc ? mascotBoxSx(artPlace, artSrc) : null;
   /* 칸 폭은 EMPTY_STATE_MAX_CH. 문구 한도는 COPY_LIMIT.emptyHelp — 폭을 바꾸면 한도가 따라간다. */
   const bodySx = {
     maxWidth: `${EMPTY_STATE_MAX_CH}ch`,
@@ -1697,7 +1839,7 @@ export function EmptyState(props) {
           data-mascot-context={MASCOT_PLACE[artPlace].context}
           sx={{
             display: { xs: "none", sm: "block" }, flexShrink: 0,
-            width: artBox, height: artBox, objectFit: "contain",
+            ...artBox, objectFit: "contain",
           }}
         />
       ) : icon ? (
@@ -1758,7 +1900,19 @@ const RATE_LIMIT_COUNTDOWN_MAX_S = 300;
  * 홀로 가운데 정렬된 채 위아래로 96px 씩 벌어진다. 축을 만들고 기본값은 지금 동작으로 둔다:
  * 87곳을 한 번에 뒤집는 것은 이 회차의 일이 아니다. 판 안의 호출부는 `layout="region"` 을
  * 적는다. */
+const ERROR_STATE_LAYOUTS = ["page", "card", "region", "inline"];
+
 export function ErrorState({ error, onRetry, size, layout = "page" }) {
+  /* 모르는 크기 · 자리는 개발 모드에서 멈춘다 — `size="sm"` 은 조용히 전면 오류 크기로 떨어져
+     판 안에서 96px 여백의 가운데 오류가 섰다(`EmptyState` 의 모르는 prop 검사와 같은 규율). */
+  if (import.meta.env.DEV) {
+    if (size != null && size !== "compact") {
+      throw new Error(`ErrorState: 모르는 size "${size}". 받는 값은 "compact" 하나다(자리는 layout 이 말한다).`);
+    }
+    if (!ERROR_STATE_LAYOUTS.includes(layout)) {
+      throw new Error(`ErrorState: 모르는 layout "${layout}". 받는 값은 ${ERROR_STATE_LAYOUTS.join(", ")} 중 하나다.`);
+    }
+  }
   const compact = size === "compact" || layout === "inline";
   const msg = (error && error.message) || "문제가 발생했습니다.";
   const status = error && error.status;
@@ -1816,7 +1970,10 @@ export function ErrorState({ error, onRetry, size, layout = "page" }) {
     : isOffline ? "offline"
     : "serverError";
   const artSrc = ART[art];
-  const errorArtBox = mascotBoxPx("errorState", artSrc);
+  /* 그림 크기는 자리의 계층이 정한다 — 화면 전체가 실패하면 `errorPage`(132, 짧은 화면 112),
+     판 하나가 실패하면 `errorRegion`(72). 예전에는 자리와 무관하게 112 한 값이었다. */
+  const errorPlace = layout === "page" ? "errorPage" : "errorRegion";
+  const errorArtBox = mascotBoxSx(errorPlace, artSrc);
   /* 화면 전체가 실패했을 때만 가운데다. 판 하나가 실패한 자리는 그 판의 다른 내용과 같은
      축을 쓴다 — 왼쪽 정렬 · 위 정렬(위 `layout` 주석이 정본이다). */
   const centered = layout === "page" || layout === "card";
@@ -1828,15 +1985,19 @@ export function ErrorState({ error, onRetry, size, layout = "page" }) {
     code ? `code ${code}` : null,
     msg && msg !== help ? msg : null,
   ].filter(Boolean).join("   ");
+  /* 동작 단추는 **30(인라인)** 이다 — 오류 상태 안의 다음 행동은 페이지 동작이 아니라 그 자리의
+     동작이다(핸드오프 ACCEPTANCE I2: 다시 시도 30). 채움은 화면 전체가 막혔을 때(page)만 준다 —
+     판 하나의 오류가 그 화면의 주 행동을 가져가지 않는다. */
+  const actionVariant = layout === "page" ? "primary" : "default";
   const action = isAuth
     /* 되돌아올 곳을 실어 보낸다 — 재로그인 뒤 보던 화면으로 돌아온다(지시 19). */
-    ? <MuiButton variant="contained" size={compact ? "small" : "medium"} href={loginUrl()}>로그인 화면으로</MuiButton>
+    ? <Button variant={actionVariant} size="sm" href={loginUrl()}>로그인 화면으로</Button>
     // "홈으로"(#/)는 이 SPA 안이라 다시 같은 403을 부른다 — 실제 페이지 이동이 필요하다.
-    : isPwChange ? <MuiButton variant="contained" size={compact ? "small" : "medium"} href="/change-password">비밀번호 변경하기</MuiButton>
+    : isPwChange ? <Button variant={actionVariant} size="sm" href="/change-password">비밀번호 변경하기</Button>
     // 403/404는 재시도해도 소용없지만 아무 동작도 없으면 막다른 길이다.
-    : (isForbidden || isGone) ? <MuiButton variant="contained" size={compact ? "small" : "medium"} href="#/">홈으로</MuiButton>
+    : (isForbidden || isGone) ? <Button variant={actionVariant} size="sm" href="#/">홈으로</Button>
     // 429 대기 중에는 버튼을 잠근다 — 눌리는 「다시 시도」는 제한을 스스로 연장시킨다.
-    : (!noRetry && onRetry ? <Button variant="primary" onClick={onRetry} disabled={cooling}>다시 시도</Button> : null);
+    : (!noRetry && onRetry ? <Button variant={actionVariant} size="sm" onClick={onRetry} disabled={cooling}>다시 시도</Button> : null);
 
   // role="alert"로 오류 전환을 즉시 낭독한다. 제목은 heading으로.
   return (
@@ -1855,10 +2016,10 @@ export function ErrorState({ error, onRetry, size, layout = "page" }) {
       {!compact ? (
         <Box
           component="img" src={artSrc} alt="" aria-hidden="true" loading="lazy" decoding="async"
-          data-mascot-context={MASCOT_PLACE.errorState.context}
+          data-mascot-context={MASCOT_PLACE[errorPlace].context}
           /* 4K 에서 320px 짜리 상자였다 — 그리고 그 상자 안의 그림은 자산마다 65~78% 만
              채웠다. 이제 «보이는 캐릭터 112px»(PLAN «Clovi 계약») 하나가 세 단계를 대신한다. */
-          sx={{ display: { xs: "none", sm: "block" }, flexShrink: 0, width: errorArtBox, height: errorArtBox, objectFit: "contain" }}
+          sx={{ display: { xs: "none", sm: "block" }, flexShrink: 0, ...errorArtBox, objectFit: "contain" }}
         />
       ) : null}
       <Box sx={{ display: "grid", gap: compact ? 0.75 : 1.5, minWidth: 0, ...(centered ? { justifyItems: "center" } : null) }}>
@@ -2304,18 +2465,8 @@ function GroupHeaderRow({ group, colSpan, collapsible, open, onToggle }) {
 function GroupHeaderMeta({ group }) {
   return (
     <>
-      {group.count != null ? (
-        <Box
-          component="span"
-          sx={{
-            flexShrink: 0, px: 0.75, py: 0.125, borderRadius: `${RADIUS.sm}px`,
-            bgcolor: "primary.soft", color: "primary.dark",
-            fontSize: FONT_SIZE.micro, fontWeight: FONT_WEIGHT.bold, ...NUMERIC,
-          }}
-        >
-          {group.count}건
-        </Box>
-      ) : null}
+      {/* 건수는 **건수 미니 칩** 하나다(핸드오프 README §4 · P-7) — 「프로젝트명」 옆에 「N건」. */}
+      {group.count != null ? <CountChip value={`${group.count}건`} /> : null}
       {group.note != null ? (
         <Box
           component="span"
@@ -2365,7 +2516,7 @@ function TableFooterRow({ note, actions, shown, total, colSpan }) {
   );
 }
 
-export function DataTable({ columns, rows, rowKey, onRow, rowHref, rowSelected, groupOf, groupCollapsible, footer, empty, emptyState, ellipsis, stickyHeader, loading, sort, onSort, resultScope, filters, filterValueOf, onFilter, filterOptions, entityOptions, virtualize, total }) {
+export function DataTable({ columns, rows, rowKey, onRow, rowHref, rowSelected, groupOf, groupCollapsible, footer, empty, emptyState, ellipsis, stickyHeader, loading, sort, onSort, resultScope, filters, filterValueOf, onFilter, filterOptions, entityOptions, virtualize, total, rowHeight }) {
   // §15.1 재검수 — `VirtualTableBody` 는 스크롤 창을 스스로 안 만든다(문서 전체가 표
   // 흐름을 지키게, `VirtualRows`와 다른 이유는 그 부품 docblock 참고). 이 상자가 그 창
   // 이다 — `virtualize` 를 안 쓰면 아무도 안 읽는다(회귀 0).
@@ -2486,11 +2637,9 @@ export function DataTable({ columns, rows, rowKey, onRow, rowHref, rowSelected, 
     /* 「정말 없다」와 「필터 때문에 없다」는 다른 사실이고, 그 판정은 필터를 든 화면이
        안다 — `emptyState` 를 주면 그것을 그대로 그린다. 안 주면 예전의 한 줄이다. */
     if (emptyState) return emptyState;
-    return (
-      <Typography color="text.secondary" sx={{ py: 5, textAlign: "center" }}>
-        {empty || "표시할 항목이 없습니다."}
-      </Typography>
-    );
+    /* 안 주면 **빈 상태 부품**이 선다 — 판 안의 빈 목록은 왼쪽 · 위 정렬(region)이다(핸드오프
+       RULES §1 · ACCEPTANCE I1). 예전에는 가운데 정렬 회색 문장 한 줄을 표가 손으로 그렸다. */
+    return <EmptyState layout="region" size="compact" title={empty || "표시할 항목이 없습니다."} />;
   }
 
   /* 행을 묶음 순서로 훑어 «머리행이 설 자리»를 찾는다 — 표와 카드가 **같은 계산**을 본다.
@@ -2636,6 +2785,8 @@ export function DataTable({ columns, rows, rowKey, onRow, rowHref, rowSelected, 
         onKeyDown={onRow ? (e) => { if (e.target.closest("a,button")) return; if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onRow(row); } } : undefined}
         tabIndex={onRow ? 0 : undefined}
         aria-label={onRow ? rowOpenLabel(baseCols, row) : undefined}
+        /* `rowHeight="tall"` — 제목 + 요약 + 태그처럼 두 줄 이상인 행의 **바닥** 76(`CONTROL.tableRowTall`).
+           고정 높이가 아니다: 표 칸의 `height` 는 최솟값이라 내용이 더 필요하면 행이 자란다. */
         sx={{ cursor: onRow ? "pointer" : "default" }}
       >
         {wideCols.map((c) => {
@@ -2673,7 +2824,7 @@ export function DataTable({ columns, rows, rowKey, onRow, rowHref, rowSelected, 
               align={resolveColumn(c).align}
               data-col-role={colRole(c)}
               title={!truncate && hint ? hint : undefined}
-              sx={colCellSx(c, { truncate })}
+              sx={rowHeight === "tall" ? { ...colCellSx(c, { truncate }), height: remPx(CONTROL.tableRowTall) } : colCellSx(c, { truncate })}
             >
               {body}
             </TableCell>
@@ -2887,19 +3038,29 @@ export function DataTable({ columns, rows, rowKey, onRow, rowHref, rowSelected, 
  */
 const MODAL_MAX_WIDTH = { sm: "30rem", md: "45rem", lg: "62rem" };
 
-export function ModalHeader({ title, onClose, titleId }) {
+/* 모달 머리 — 제목은 **판 제목과 같은 단계**(1.0625rem/700, 핸드오프 D-12)다. 예전에는 19px/800
+ * 이라 모달이 뜨면 그 제목이 페이지 제목(28px)과 판 제목(17px) 사이 어디에도 없는 단계로 섰다.
+ * 닫기는 인라인 30. `tone="danger"` 인 확인 창은 제목 앞에 오류 표지를 단다(RULES §8 — 위험
+ * 확인 모달은 아이콘 + 제목 + 결과 문장). */
+export function ModalHeader({ title, onClose, titleId, tone }) {
   return (
     <MuiDialogTitle
       id={titleId}
-      sx={{ display: "flex", alignItems: "center", gap: 2, pr: 1.5, fontSize: FONT_SIZE.sectionTitle, fontWeight: FONT_WEIGHT.extrabold }}
+      sx={{ display: "flex", alignItems: "center", gap: 1.25, pr: 1.5, fontSize: FONT_SIZE.cardTitle, fontWeight: FONT_WEIGHT.bold, lineHeight: LINE_HEIGHT.title }}
     >
+      {tone === "danger" ? (
+        /* `titleAccess` 라야 MUI 가 `aria-hidden` 을 걷는다 — `aria-label` 만 주면 표지가 낭독에서 빠진다. */
+        <ErrorOutlineRoundedIcon titleAccess="주의" sx={{ flexShrink: 0, fontSize: remPx(ICON.action), color: "error.main" }} />
+      ) : null}
       <Box component="span" sx={{ flex: 1, minWidth: 0 }}>{title}</Box>
       <IconButton onClick={onClose} aria-label="닫기" size="small"><CloseRoundedIcon fontSize="small" /></IconButton>
     </MuiDialogTitle>
   );
 }
+/* 몸통은 **위 선 하나**만 긋는다. 아래 선은 발(`ActionFooter`)이 자기 면과 함께 긋는다 — 둘 다
+ * 그으면 발 위에 2px 선이 서고, 「면 · 선 · 여백의 주인이 하나」라는 발 계약이 깨진다. */
 export function ModalBody({ children }) {
-  return <MuiDialogContent dividers sx={{ minWidth: 0 }}>{children}</MuiDialogContent>;
+  return <MuiDialogContent dividers sx={{ minWidth: 0, borderBottom: 0 }}>{children}</MuiDialogContent>;
 }
 /* 모달 모서리 반지름 — 사용자 지적 P4("전체적으로 눌렀을 때 라운드가 너무 크다").
  *
@@ -2909,23 +3070,84 @@ export function ModalBody({ children }) {
  *
  * 절댓값으로 적는 이유: 배수로 두면 `shape.borderRadius` 를 나중에 건드리는 순간 다시
  * 틀어진다. 이 값은 "카드와 같은 반지름" 이라는 뜻이지 "shape 의 2.5배" 가 아니다.
- * PA-RC-0001: RADIUS.lg가 바로 그 "카드와 같은 반지름"이므로 그 값을 그대로 쓴다(여전히
- * 절댓값 — RADIUS.lg 자체가 shape.borderRadius에서 유도되지 않는다). */
-const MODAL_RADIUS = `${RADIUS.lg}px`;
+ * 핸드오프 D-13: 팝오버 · 모달 · 토스트 모서리는 모두 8 — 카드(`RADIUS.md`)와 같은 값이다. */
+const MODAL_RADIUS = `${RADIUS.md}px`;
 
-/* 표준 하단 작업줄 — 취소(고스트), 기본 작업(오른쪽). 전 화면 동일 위치·크기. */
+/* ── 카드 발 · 모달 발 — `ActionFooter` (핸드오프 D-12 · RULES §7 · §8) ─────────────────
+ *
+ * 저장 · 확정 · 취소가 서는 마지막 줄은 **한 부품**이다. 함몰면(`background.inset`) + 위 1px 실선
+ * (`rule`), 오른쪽 정렬, 버튼 사이 8, 버튼은 34(페이지 동작). 왼쪽 `extra` 칸은 보조 동작(회차
+ * 작업 · 빠른 수정 · 초기화)이 선다.
+ *
+ * 예전에는 같은 줄이 여러 벌이었다: `ModalFooter`(면 없음 · 취소 ghost), `kit.css .k-footer-row`
+ * 를 손으로 조립한 화면 일곱, `footer` 변수를 스스로 그린 화면 열. 모양이 화면마다 달랐고,
+ * 무엇보다 몸통의 아래 선과 발의 위 선이 겹쳐 2px 선이 서는 자리가 있었다.
+ *
+ * ## 면 · 선 · 여백의 주인은 하나다
+ *
+ * 발 하나에는 면과 위 선과 여백을 그리는 요소가 **정확히 하나**다(`data-action-footer`).
+ * 겹치면 그리지 않는 쪽이 정해져 있다: `Modal` 이 받은 `footer` 가 이미 발이면 모달은 감싸지
+ * 않고(바깥이 물러난다), 발 안에 또 발이 들어오면 안쪽이 맨 줄(`bare`)로 선다.
+ *
+ * `placement`
+ *   modal   모달 발 — 좌우 24 · 위아래 16.
+ *   card    판 안 마지막 줄 — 판 여백(20)을 거슬러 판 가장자리까지 면을 편다.
+ *   inline  그 밖(서랍 · 판 없는 폼).
+ */
+const ActionFooterCtx = React.createContext(false);
+
+export function ActionFooter({ children, extra, placement = "inline", sx }) {
+  const nested = React.useContext(ActionFooterCtx);
+  const row = {
+    display: "flex", alignItems: "center", justifyContent: "flex-end",
+    flexWrap: "wrap", gap: 1, rowGap: 1, minWidth: 0,
+  };
+  const body = (
+    <>
+      {extra ? (
+        <Box sx={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 1, marginInlineEnd: "auto", minWidth: 0 }}>
+          {extra}
+        </Box>
+      ) : null}
+      {children}
+    </>
+  );
+  if (nested) {
+    return <Box sx={{ ...row, ...sx }}>{body}</Box>;
+  }
+  const face = { bgcolor: "background.inset", borderTop: 1, borderColor: "rule" };
+  const pad = placement === "modal"
+    ? { px: 3, py: 2, m: 0 }
+    : placement === "card"
+      ? { mx: `calc(-1 * ${CARD_PADDING})`, mb: `calc(-1 * ${CARD_PADDING})`, mt: 2, px: CARD_PADDING, py: 1.5 }
+      : { px: 2, py: 1.5 };
+  const Comp = placement === "modal" ? MuiDialogActions : Box;
+  return (
+    <ActionFooterCtx.Provider value>
+      <Comp data-action-footer={placement} sx={{ ...row, ...face, ...pad, ...sx }}>
+        {body}
+      </Comp>
+    </ActionFooterCtx.Provider>
+  );
+}
+
+/* 표준 하단 작업줄 — 취소(Secondary), 기본 작업(오른쪽). 전 화면 동일 위치·크기. */
 /* 모달의 마지막 줄. `disabled` 는 **감추는 것과 다르다.**
  *
  * 필수 칸을 아직 안 채운 사람에게 필요한 것은 단추가 사라지는 것이 아니라 「무엇이
  * 모자란가」다. 단추가 없어지면 그 사람은 자기가 잘못 들어온 화면이라고 읽는다 — 그래서
  * 조건을 못 채운 상태는 **꺼진 단추**로 말하고, `onSubmit` 을 아예 안 주는 것은 「이
  * 모달에는 확인 동작이 없다」는 다른 뜻으로 남긴다. */
-export function ModalFooter({ onCancel, onSubmit, submitLabel = "저장", cancelLabel = "취소", busy, disabled, submitVariant = "primary" }) {
+/* 취소는 **흰 면 + 테두리(default)** 다 — ghost 가 아니다(핸드오프 D-12). 발에서 글자만 있는
+ * 취소는 「누를 수 있는 것」으로 안 읽혀 확정 버튼 하나만 서 있는 발처럼 보였다.
+ * `cancelAutoFocus` — 되돌릴 수 없는 확인에서는 취소가 기본 포커스다(RULES §8). Enter 한 번이
+ * 삭제가 되지 않게 한다. */
+export function ModalFooter({ onCancel, onSubmit, submitLabel = "저장", cancelLabel = "취소", busy, disabled, submitVariant = "primary", cancelAutoFocus = false, extra }) {
   return (
-    <MuiDialogActions className="k-footer-row" sx={{ px: 3, py: 2, gap: 1 }}>
-      {onCancel ? <Button variant="ghost" onClick={onCancel} disabled={busy}>{cancelLabel}</Button> : null}
+    <ActionFooter placement="modal" extra={extra}>
+      {onCancel ? <Button variant="default" onClick={onCancel} disabled={busy} autoFocus={cancelAutoFocus || undefined}>{cancelLabel}</Button> : null}
       {onSubmit ? <Button variant={submitVariant} onClick={onSubmit} disabled={busy || disabled} loading={busy}>{submitLabel}</Button> : null}
-    </MuiDialogActions>
+    </ActionFooter>
   );
 }
 
@@ -2940,15 +3162,14 @@ export function ModalFooter({ onCancel, onSubmit, submitLabel = "저장", cancel
  * 빠뜨린다** — 지금 상태가 정확히 그 결과다. 부품이 스스로 판단하면 빠뜨릴 수가 없다.
  * 이미 감싸 온 것을 또 감싸면 패딩이 두 배가 되고 flex 가 중첩되므로 그것도 막는다. */
 function ModalActions({ children }) {
-  const wrapped =
-    React.isValidElement(children) &&
-    (children.type === ModalFooter || children.type === MuiDialogActions);
-  if (wrapped) return children;
-  return (
-    <MuiDialogActions className="k-footer-row" sx={{ px: 3, py: 2, gap: 1 }}>
-      {children}
-    </MuiDialogActions>
-  );
+  if (React.isValidElement(children)) {
+    if (children.type === ModalFooter || children.type === MuiDialogActions) return children;
+    /* 이미 발이면 모달이 감싸지 않는다 — 자리만 모달 발로 맞춘다(주인은 그 발 하나). */
+    if (children.type === ActionFooter) {
+      return children.props.placement ? children : React.cloneElement(children, { placement: "modal" });
+    }
+  }
+  return <ActionFooter placement="modal">{children}</ActionFooter>;
 }
 
 /* `dirty` 를 주면 **닫기 전에 확인**한다 (E11).
@@ -2959,7 +3180,7 @@ function ModalActions({ children }) {
  * 이게 없어서 실제로 아팠던 자리: 퀴즈 방 만들기(최대 20문항)를 다 쓰고 Esc 나 바깥을 한 번
  * 누르면 **전부 사라졌다.** 되돌릴 방법도 없다. 확인 문구는 FormModal 과 같은 것을 쓴다 -
  * 같은 상황에 다른 말이 나오면 사용자는 다른 일이 일어난다고 읽는다. */
-export function Modal({ open, onClose, title, size = "md", children, footer, dirty = false }) {
+export function Modal({ open, onClose, title, size = "md", children, footer, dirty = false, tone }) {
   const titleId = React.useId();
   const confirm = useConfirm();
   const isFit = size === "fit";
@@ -3001,11 +3222,51 @@ export function Modal({ open, onClose, title, size = "md", children, footer, dir
       } }}
     >
       <SurfaceReset>
-        <ModalHeader title={title} onClose={requestClose} titleId={titleId} />
+        <ModalHeader title={title} onClose={requestClose} titleId={titleId} tone={tone} />
         <ModalBody>{children}</ModalBody>
         {footer ? <ModalActions>{footer}</ModalActions> : null}
       </SurfaceReset>
     </MuiDialog>
+  );
+}
+
+/* ── 폼 칸 하나 — **라벨 20 · 필드 36 · 도움말 auto 의 고정 세로 트랙** (핸드오프 README 정렬 규약 1 · RULES §7) ──
+ *
+ * 도움말이 있는 칸과 없는 칸이 한 줄에 섞이면, 트랙이 없을 때 도움말 한 줄이 그 칸만 늘려 옆 칸의
+ * 입력 상자와 윗선이 어긋난다. 트랙을 고정하면 도움말이 없어도 셋째 줄이 남고, 한 줄에 선 입력칸
+ * 윗선이 언제나 같은 y 에서 시작한다. 필드 높이의 정본은 `CONTROL.input` 이다(MUI 외곽선 입력은
+ * 테두리를 상자 안에 그리므로 36 이 곧 보이는 높이다).
+ *
+ * `/profile` 이 이 트랙을 먼저 만들었고(`FIELD_ROWS`), 새 티켓이 둘째 소비처라 키트로 올린다.
+ * 도움말과 오류는 셋째 줄 한 자리를 나눠 쓴다 — 오류가 있으면 오류가 선다(`aria-describedby` 는
+ * 입력 쪽이 `helpId` 를 가리킨다). */
+export const FIELD_ROWS = `${remPx(20)} ${remPx(CONTROL.input)} auto`;
+
+export function FormFieldCell({ label, htmlFor, labelId, required, help, error, helpId, children, sx }) {
+  return (
+    <Box
+      data-form-field=""
+      sx={{ display: "grid", gridTemplateRows: FIELD_ROWS, alignContent: "start", minWidth: 0, ...sx }}
+    >
+      <FieldLabel htmlFor={htmlFor} id={labelId} required={required} sx={{ mb: 0, lineHeight: 1.25, alignSelf: "start" }}>
+        {label}
+      </FieldLabel>
+      <Box sx={{ minWidth: 0, display: "flex", alignItems: "stretch", "& > *": { flex: "1 1 auto", minWidth: 0 } }}>{children}</Box>
+      <Box id={helpId} sx={{ minWidth: 0, pt: 0.5 }}>
+        {error ? (
+          <Typography
+            component="p"
+            role="alert"
+            sx={{ m: 0, display: "flex", alignItems: "flex-start", gap: 0.5, fontSize: FONT_SIZE.micro, color: "error.strong", ...KO_WORD_BREAK }}
+          >
+            <ErrorOutlineRoundedIcon aria-hidden="true" sx={{ fontSize: remPx(ICON.mark), mt: "0.0625rem", flexShrink: 0 }} />
+            <span>{error}</span>
+          </Typography>
+        ) : help ? (
+          <Typography component="p" sx={{ m: 0, fontSize: FONT_SIZE.micro, color: "text.secondary", ...KO_WORD_BREAK }}>{help}</Typography>
+        ) : null}
+      </Box>
+    </Box>
   );
 }
 
@@ -3474,7 +3735,10 @@ export function ConfirmProvider({ children }) {
     <ConfirmCtx.Provider value={confirm}>
       {children}
       <Modal open={!!state} onClose={() => done(false)} title={state ? state.title : ""} size="sm"
+        tone={state && state.danger ? "danger" : undefined}
         footer={<DialogFooter onCancel={() => done(false)} onSubmit={() => done(true)}
+          /* 되돌릴 수 없는 확인에서는 취소가 기본 포커스다(RULES §8) — Enter 한 번이 파괴가 되지 않는다. */
+          cancelAutoFocus={!!(state && state.danger)}
           /* 확인 대화의 마지막 버튼만 채운 error 면을 쓴다 — 여기서는 파괴적 동작이
              이 화면(모달)의 주 행동이고, 사용자는 이미 그것을 하기로 정한 상태다.
              화면 본문의 `danger` 는 외곽선이다(위 BUTTON_VARIANT 주석). */
@@ -3553,7 +3817,17 @@ export function ToastProvider({ children }) {
                    severity 가 주는 색·아이콘은 그대로다(시각 정보는 잃지 않는다). */
                 role="presentation"
                 onClose={() => dismiss(t.id)}
-                sx={{ width: "100%" }}
+                /* 토스트는 **잉크 면 + 흰 글자** 하나다(핸드오프 README §10) — 상태색 면이 아니다.
+                   상태는 아이콘 모양이 말한다. 다크에서는 잉크 면이 캔버스와 안 갈리므로 함몰면 +
+                   strong 테두리다(RULES §13). 모서리는 떠 있는 것의 8. */
+                sx={(theme) => ({
+                  width: "100%",
+                  borderRadius: `${RADIUS.md}px`,
+                  ...(theme.palette.mode === "dark"
+                    ? { bgcolor: "background.inset", color: "text.primary", border: 1, borderColor: "dividerStrong" }
+                    : { bgcolor: "text.primary", color: "common.white" }),
+                  "& .MuiAlert-icon, & .MuiAlert-action": { color: "inherit" },
+                })}
               >
                 {t.message}
               </MuiAlert>

@@ -5,6 +5,7 @@ import BlockRoundedIcon from "@mui/icons-material/BlockRounded";
 import ScheduleRoundedIcon from "@mui/icons-material/ScheduleRounded";
 import ErrorOutlineRoundedIcon from "@mui/icons-material/ErrorOutlineRounded";
 
+import { DotLabel, EXTRA_TONE_VARS } from "./kit.jsx";
 import { FONT_SIZE, FONT_WEIGHT, RADIUS } from "./theme.js";
 import { SIGNALS } from "../lib/ticketSignals.js";
 
@@ -21,8 +22,9 @@ import { SIGNALS } from "../lib/ticketSignals.js";
  * 의 같은 표에서 나오고, 좁은 쪽에서도 접근 이름은 온전한 낱말이다 — 화면을 읽어
  * 주는 사람에게는 두 밀도가 같은 말을 한다.
  *
- *   variant="pill"  아이콘 + 낱말. 상세 · 보드 카드 · 넓은 목록
- *   variant="mark"  아이콘만. 좁은 목록의 상태 칸에 딸려 선다
+ *   variant="dot"   점 + 낱말 **(기본)**. 표 · 칸반 카드 · 목록 행 — 핸드오프 D-14 · D-21 의 어휘
+ *   variant="pill"  아이콘 + 낱말 + 옅은 면. 상세 화면 머리처럼 목록 **밖**에서만
+ *   variant="mark"  아이콘만. 폭이 정말 없는 표 칸(백로그 줄 · 좁은 목록)에 딸려 선다(P-5)
  *
  * 색만으로 전달하지 않는다(WCAG 1.4.1): 아이콘 **모양**이 셋 다 다르고
  * (막음 · 시계 · 느낌표) 낱말이 항상 접근 이름에 있다.
@@ -39,14 +41,12 @@ const TONE_PALETTE = {
   warn: { ink: "warning.strong", bg: "warning.bg", dot: "warning.main" },
   info: { ink: "info.strong", bg: "info.bg", dot: "info.main" },
 };
-const TONE_VARS = {
-  purple: { ink: "var(--badge-purple-fg)", bg: "var(--badge-purple-bg)", dot: "var(--badge-purple-fg)" },
-  teal: { ink: "var(--badge-teal-fg)", bg: "var(--badge-teal-bg)", dot: "var(--badge-teal-fg)" },
-  indigo: { ink: "var(--badge-indigo-fg)", bg: "var(--badge-indigo-bg)", dot: "var(--badge-indigo-fg)" },
-  pink: { ink: "var(--badge-pink-fg)", bg: "var(--badge-pink-bg)", dot: "var(--badge-pink-fg)" },
-};
+/* 분류 톤의 색은 키트의 표 한 벌이다(`kit.jsx::EXTRA_TONE_VARS`) — 여기 사본이 있던 동안
+   두 표가 따로 고쳐질 수 있었다. */
 function toneColors(tone) {
-  return TONE_PALETTE[tone] || TONE_VARS[tone] || TONE_PALETTE.warn;
+  if (TONE_PALETTE[tone]) return TONE_PALETTE[tone];
+  const extra = EXTRA_TONE_VARS[tone];
+  return extra ? { ink: extra.fg, bg: extra.bg, dot: extra.fg } : TONE_PALETTE.warn;
 }
 
 /* REAUDIT A8 — `blocked_reason` 은 API 가 이미 실었는데 어느 화면도 안 읽었다(차단됐다는
@@ -104,21 +104,54 @@ function SignalMark({ signal }) {
   );
 }
 
+function SignalDot({ signal }) {
+  const body = (
+    <DotLabel
+      label={signal.label}
+      tone={signal.tone}
+      strong={signal.tone === "danger"}
+      /* 신호 표지를 짚는 손잡이는 밀도와 무관하게 같다 — 시험과 프로브가 `data-signal` 로 찾는다. */
+      data-signal={signal.key}
+      data-tone={signal.tone}
+      /* 사연이 있으면 MUI Tooltip 이 말한다(A8) — 브라우저 기본 툴팁과 둘이 겹쳐 뜨지 않게
+         그때는 `title` 을 비운다. */
+      title={signal.reason ? "" : signal.label}
+      sx={{ fontSize: FONT_SIZE.caption }}
+    />
+  );
+  /* Tooltip 은 ref 를 받는 자식이 필요하다 — 점+낱말을 span 하나로 감싼다.
+     사연은 **읽어 주는 글자로도** 붙인다. 예전 칸반 카드의 표지(`mark`)는 `role="img"` 의 이름이
+     「차단됨: 사연」이었는데, 점+낱말로 바뀌면서 사연이 마우스를 올려야만 뜨는 Tooltip 에만 남았다
+     — 낭독기와 키보드 사용자에게서 사연이 사라진 셈이다. `describeChild` 는 Tooltip 이 감싼 span 에
+     `aria-label` 을 덮어 보이는 낱말을 가리지 않게 한다. */
+  return signal.reason
+    ? (
+      <Tooltip title={signal.reason} describeChild>
+        <Box component="span" sx={{ display: "inline-flex", minWidth: 0 }}>
+          {body}
+          <span className="sr-only">{`: ${signal.reason}`}</span>
+        </Box>
+      </Tooltip>
+    )
+    : body;
+}
+
 /** 켜져 있는 신호를 그린다. 하나도 없으면 **아무것도 그리지 않는다.**
  *
  * 빈 자리에 «-» 를 찍지 않는 이유: 「신호가 없다」는 값이 빠진 것이 아니라 정상이고,
  * 목록의 대부분이 그 상태다. 대시를 찍으면 화면이 없는 데이터로 가득 찬 것처럼 보인다.
  */
-export function TicketSignals({ signals, variant = "pill", sx }) {
+export function TicketSignals({ signals, variant = "dot", sx }) {
   const list = Array.isArray(signals) ? signals : [];
   if (!list.length) return null;
-  const Item = variant === "mark" ? SignalMark : SignalPill;
+  const Item = variant === "mark" ? SignalMark : variant === "pill" ? SignalPill : SignalDot;
   return (
     <Box
       component="span"
+      data-signal-variant={variant}
       sx={{
-        display: "inline-flex", alignItems: "center", minWidth: 0,
-        gap: variant === "mark" ? 0.375 : 0.5,
+        display: "inline-flex", alignItems: "center", minWidth: 0, flexWrap: variant === "dot" ? "wrap" : "nowrap",
+        columnGap: variant === "mark" ? 0.375 : variant === "dot" ? 1 : 0.5, rowGap: 0.25,
         ...sx,
       }}
     >

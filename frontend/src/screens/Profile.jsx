@@ -16,10 +16,11 @@ import { ROLE_KO } from "../app/navConfig.js";
 import { invalidateNotifications } from "../app/notification-keys.js";
 import { invalidatePersonFaces } from "./ticket-views.js";
 import {
+  FIELD_ROWS,
   Badge, Button, Callout, Card, EmptyState, ErrorState, FieldLabel, PageHeader, SectionTitle, Skeleton,
   useConfirm, useToast,
 } from "../ui/kit.jsx";
-import { CONTROL, FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, RADIUS, remPx } from "../ui/theme.js";
+import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, RADIUS } from "../ui/theme.js";
 import { Note, SettingRow } from "../ui/adminKit.jsx";
 import { GRID_GAP, pairTracks } from "../ui/density.js";
 /* 화면 강조색은 예전에 자기 라우트(`/my-display`)를 갖고 있었다 — 설정 하나뿐인 화면이
@@ -74,12 +75,8 @@ const DND_PRESETS = [
   { minutes: 0, label: "직접 끌 때까지" },
 ];
 
-/* 폼 한 칸의 **고정 세로 트랙** — 라벨 20 · 필드 36 · 도움말 auto.
- *
- * 트랙을 고정하는 이유는 도움말이 있는 칸과 없는 칸이 한 줄에 섞이기 때문이다. 트랙이
- * 없으면 도움말 한 줄이 그 칸만 아래로 늘려 옆 칸의 입력 상자와 바닥선이 어긋난다.
- * 필드 높이의 정본은 `CONTROL.input` 이다 — 이 제품의 모든 입력이 그 값으로 선다. */
-const FIELD_ROWS = `${remPx(20)} ${remPx(CONTROL.input)} auto`;
+/* 폼 한 칸의 **고정 세로 트랙**(라벨 20 · 필드 36 · 도움말 auto)의 정본은 `kit.jsx::FIELD_ROWS` 다 —
+ * 이 화면이 먼저 만들었고 새 티켓이 둘째 소비처라 키트로 올렸다(값은 그대로다). */
 
 /* 값과 값 사이의 **점**. 글자가 아니라 도형이다.
  *

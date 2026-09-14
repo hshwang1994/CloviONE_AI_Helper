@@ -115,7 +115,13 @@ export const MASCOT_PLACE = {
      `layout="page"` 는 `minHeight: min(28rem, 55vh)` 를 레이아웃이 정하므로 순환이 아니고,
      그 자리가 바로 지시 18 이 지목한 자리다(4K 에서 세로 450px 를 마스코트가 차지하던 화면).
      구획·팝오버의 빈 상태는 본문 안 그림이라 `inline` 이다. */
-  emptyPage:     { visible: 132, context: "empty_state" },
+  /* 🔴 **크기는 정보 계층이 정한다** (핸드오프 D-24 · 리포 D-485, 소유자 확정 2026-09-14).
+     페이지 전체가 비었거나 쓸 수 없을 때만 큰 클로비(132)가 선다. 화면 높이가 모자라면
+     (`PAGE_SHORT_VIEWPORT` 이하) 112 까지 줄인다 — 그림이 제목 · 설명 · 다음 행동을 첫 화면
+     아래로 밀면 빈 상태가 할 일을 못 한다. 판 · 구획 · 컴팩트는 **최대 72** 이고(표지 크기),
+     inline(팝오버 · 하위 목록)은 그림이 없다. 판 안의 빈 상태에서 그림이 글보다 크면 그 판의
+     주인공이 「비어 있다」가 아니라 캐릭터가 된다. */
+  emptyPage:     { visible: 132, short: 112, context: "empty_state" },
   /* 판 하나가 통째로 빈 자리(`EmptyState layout="card"`). `emptyRegion` 보다 크다 — 그
      자리는 카드 안의 한 칸이 조용히 비어 있는 것이고, 이 자리는 **그 화면의 주요 판이
      비어 있는 것**이라 「의도해서 만든 빈 상태」로 읽혀야 한다.
@@ -126,11 +132,36 @@ export const MASCOT_PLACE = {
      였다 — 제목과 설명과 버튼이 같은 무게로 서서 「이 판은 비어 있다」가 한눈에 안 읽혔다.
      `emptyPage` 와 같은 132 로 올린다. 두 자리는 같은 뜻(이 면이 통째로 비었다)이고,
      다른 것은 «면» 이 화면이냐 판이냐뿐이라 보이는 크기가 같아야 한다. */
-  emptyCard:     { visible: 132, context: "inline" },
-  emptyRegion:   { visible: 84,  context: "inline" },
-  emptyCompact:  { visible: 84,  context: "inline" },
-  errorState:    { visible: 112, context: "empty_state" },
+  emptyCard:     { visible: 72,  context: "inline" },
+  emptyRegion:   { visible: 72,  context: "inline" },
+  emptyCompact:  { visible: 72,  context: "inline" },
+  /* 오류도 같은 계층을 탄다 — 예전의 `errorState` 112 한 밴드는 판 하나가 실패한 자리에서도
+     그림을 112 로 세웠다. 화면 전체가 실패하면 `errorPage`, 판 하나면 `errorRegion`. */
+  errorPage:     { visible: 132, short: 112, context: "empty_state" },
+  errorRegion:   { visible: 72,  context: "inline" },
+  /* 내 업무량의 요약 타일 그림 — **빈 상태가 아니다**(장식 삽화). 빈 상태 계약 밖이라 옛
+     크기(84)를 그대로 지킨다: 개별 리디자인 제외 화면이다(핸드오프 C-4). */
+  statsArt:      { visible: 84,  context: "inline" },
 };
+
+/** 화면 높이가 이만큼 이하면 `short` 크기를 쓴다 — 1366×768 은 줄이고 1200×900 은 안 줄인다. */
+export const PAGE_SHORT_VIEWPORT = 800;
+
+/** 짧은 화면에서 줄어드는 자리의 박스 sx — `{ width, height, "@media (max-height:…)": {…} }`.
+ *  `short` 가 없는 자리는 한 크기 그대로다. */
+export function mascotBoxSx(place, src) {
+  const spec = MASCOT_PLACE[place];
+  const full = mascotBoxPx(place, src);
+  if (!spec || spec.short == null) return { width: full, height: full };
+  const hfrac = hfracOf(src) > 0 ? hfracOf(src) : 1;
+  const small = Math.round(spec.short / hfrac);
+  /* MUI 는 sx 안의 미디어 규칙을 평범한 규칙보다 **앞에** 싣는다 — 같은 특이도면 뒤의 기본 크기가
+     이긴다. 짧은 화면 규칙은 선택자를 한 단 세게(`&&`) 적어 순서와 무관하게 이기게 한다. */
+  return {
+    width: full, height: full,
+    [`@media (max-height:${PAGE_SHORT_VIEWPORT}px)`]: { "&&": { width: small, height: small } },
+  };
+}
 
 /** 자리 이름 + 자산 경로 → CSS 박스 픽셀. 자산의 투명 여백을 보정한 값이다.
  *

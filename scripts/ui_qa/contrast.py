@@ -85,6 +85,11 @@ PROBE = r"""() => {
     if (r.width < 4 || r.height < 4) return;
     const st = getComputedStyle(el);
     if (st.visibility === "hidden" || st.display === "none" || parseFloat(st.opacity) < 0.5) return;
+    // 비활성 컨트롤의 글자는 WCAG 1.4.3 의 대비 요구 밖이다(「inactive user interface component」).
+    // 핸드오프가 비활성 버튼 글자를 일부러 흐리게 정했다(#BCC2D9 on #F5F6FB — C4 · K3).
+    // 비활성 **입력의 값**은 여기 해당하지 않는다: 그 잉크(`text.disabled`)는 theme-contract 가
+    // AA 를 따로 지킨다. 그래서 버튼 · 탭 · 메뉴 항목 같은 조작기만 뺀다.
+    if (el.closest("button[disabled], [role=button][aria-disabled=true], [role=tab][aria-disabled=true], .MuiButton-root.Mui-disabled, .MuiMenuItem-root.Mui-disabled")) return;
     const fg = parse(st.color);
     if (!fg || fg.a < 0.5) return;
     const size = parseFloat(st.fontSize) || 16;

@@ -32,7 +32,7 @@ export function ticketMetaItems(t, signals) {
        한 낱말처럼 읽히고, 「지금 어떤 상태인가」에 답이 둘이 된다. 켜진 신호가 하나도
        없으면 이 칸 자체를 안 만든다 — 목록의 대부분이 그 상태다. */
     marks.length
-      ? { key: "signals", label: "신호", type: "status", rank: "primary", value: <TicketSignals signals={marks} /> }
+      ? { key: "signals", label: "신호", type: "status", rank: "primary", value: <TicketSignals signals={marks} variant="pill" /> }
       : null,
     ticket.priority ? { key: "priority", label: "우선순위", type: "status", rank: "primary", value: <Badge value={priorityKo(ticket.priority)} kind={priorityKind(ticket.priority)} /> } : null,
     ticket.project ? { key: "project", label: "프로젝트", type: "name", rank: "primary", value: ticket.project } : null,

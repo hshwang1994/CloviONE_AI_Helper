@@ -1,10 +1,9 @@
 import React from "react";
-import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 
 import { affiliation, needsOrg, personLabel } from "../lib/people.js";
-import { EntityCombobox } from "./filters.jsx";
-import { PersonLine } from "./UserAvatar.jsx";
+import { EntityCombobox, PickerOption } from "./filters.jsx";
+import { UserAvatar } from "./UserAvatar.jsx";
 
 /* 사람 고르개 — 검색 · 단일/다중 · **아바타 + 이름 + 부서** (§15.3).
  *
@@ -19,7 +18,7 @@ import { PersonLine } from "./UserAvatar.jsx";
  */
 export function UserPicker({
   label = "담당자", candidates, value, onChange, multiple = false, loading, disabled,
-  myId, kind = "entity", sx, helperText, required, layout,
+  myId, kind = "entity", sx, helperText, required, layout, open, disablePortal,
 }) {
   const list = candidates || [];
   const withOrg = needsOrg(list);
@@ -41,40 +40,28 @@ export function UserPicker({
       loading={loading}
       disabled={disabled}
       layout={layout}
+      open={open}
+      disablePortal={disablePortal}
       sx={sx}
       helperText={helperText}
       required={required}
       noOptionsText="일치하는 사람이 없습니다"
-      renderOption={(props, o) => {
-        const { key, ...rest } = props;
-        // 단일 선택은 "작성자 전체" 같은 자리표시자 옵션을 앞에 끼운다(EntityCombobox 의
-        // 규약) — 그 옵션에는 person 이 없다. 사람 그림 없이 글자만 그린다.
-        if (!o.person) {
-          return (
-            <Box component="li" key={key ?? o.value} {...rest}>
-              <Typography variant="body2">{o.label}</Typography>
-            </Box>
-          );
-        }
-        return (
-          <Box component="li" key={key ?? o.value} {...rest} sx={{ display: "block !important" }}>
-            <PersonLine
-              person={o.person}
-              name={o.person.display_name}
-              suffix={myId && o.value === myId ? (
-                <Typography variant="caption" color="text.secondary" sx={{ ml: 0.5 }}>(나)</Typography>
-              ) : null}
-              size="sm"
-            />
-            {/* 소속은 보조줄로 — 동명이인이 있을 때 이것이 유일한 구분 수단이다. */}
-            {o.secondary ? (
-              <Typography variant="caption" color="text.secondary" sx={{ display: "block", lineHeight: 1.3, pl: "1.875rem" }}>
-                {o.secondary}
-              </Typography>
-            ) : null}
-          </Box>
-        );
-      }}
+      myId={myId}
+      renderOption={(props, o, state) => (
+        /* 한 줄 32 — 아바타 22 + 이름 + 소속 muted, 고른 사람에 체크(검색 팝오버 계약).
+           소속은 동명이인이 있을 때 유일한 구분 수단이라 같은 줄에 남긴다(좁으면 말줄임 + title).
+           "작성자 전체" 같은 자리표시자 옵션에는 person 이 없어 그림 없이 선다. */
+        <PickerOption
+          liProps={{ ...props, key: props.key ?? o.value }}
+          leading={o.person ? <UserAvatar person={o.person} name={o.person.display_name} size="xs" /> : null}
+          label={o.person ? o.person.display_name : o.label}
+          suffix={myId && o.value === myId ? (
+            <Typography component="span" variant="caption" color="text.secondary" sx={{ flexShrink: 0 }}>(나)</Typography>
+          ) : null}
+          secondary={o.person ? o.secondary : null}
+          selected={!!(state && state.selected)}
+        />
+      )}
     />
   );
 }

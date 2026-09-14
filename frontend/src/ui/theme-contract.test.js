@@ -12,6 +12,10 @@
  * 보이는가)은 그대로 두고 근거를 목업에서 런타임으로 옮겼다.
  *
  * 계약의 출처는 `docs/DECISIONS.md` D-141 방향 계약이다.
+ *
+ * qa-contract-change: 핸드오프 D-13 · D-6 이 떠 있는 것(모달 · 팝오버 · 메뉴 · 토스트)의 모서리를 14 에서 판과 같은 8 로 옮겼다.
+ * `RADIUS.lg` 슬롯은 소비처가 0 이 되어 걷었고, 「lg > md」 단언은 「떠 있는 것 = md = 8 · 슬롯 넷」
+ * 단언으로 바뀌었다(값 단언이 늘었다). 비활성 버튼 잉크(`disabledControlInk`)는 새 단언이다.
  */
 import { describe, expect, it } from "vitest";
 import {
@@ -612,12 +616,18 @@ describe("재양자화 단계 수 (PA-RC-0001 — 이 계약은 목업이 아니
     expect(Object.keys(FONT_WEIGHT)).toHaveLength(5);
   });
 
-  it("RADIUS 는 5개 의미 슬롯이고 계측 전면 배율이다", () => {
-    expect(Object.keys(RADIUS).sort()).toEqual(["full", "lg", "md", "sm", "xs"]);
+  it("RADIUS 는 4개 의미 슬롯이고 계측 전면 배율이다", () => {
+    expect(Object.keys(RADIUS).sort()).toEqual(["full", "md", "sm", "xs"]);
     // 18px 카드 모서리는 이 방향이 아니다. 판은 8px 다.
     expect(RADIUS.md).toBeLessThanOrEqual(8);
     expect(RADIUS.sm).toBeLessThan(RADIUS.md);
-    expect(RADIUS.lg).toBeGreaterThan(RADIUS.md);
+    /* 떠 있는 것(모달 · 팝오버 · 메뉴 · 토스트)은 판과 **같은** 8 이다(핸드오프 D-13). 14 로
+       되돌아가면 한 화면에 모서리 어휘가 둘 선다. */
+    expect(RADIUS.md).toBe(8);
+    const components = createClovirTheme("light").components;
+    const paperOf = (name) => components[name].styleOverrides.paper({ theme: createClovirTheme("light") });
+    expect(paperOf("MuiMenu").borderRadius).toBe(RADIUS.md);
+    expect(paperOf("MuiPopover").borderRadius).toBe(RADIUS.md);
     /* `xs`(4)는 22px 알약의 모서리다 — 6px 를 주면 높이의 1/4 을 모서리가 먹는다.
        판(8)보다 두 단 작고, 그보다 더 내려가면 각진 사각형과 구별이 안 된다. */
     expect(RADIUS.xs).toBeLessThan(RADIUS.sm);
@@ -626,6 +636,18 @@ describe("재양자화 단계 수 (PA-RC-0001 — 이 계약은 목업이 아니
 
   it("MUI 기본 모서리는 판의 모서리(md)다", () => {
     expect(createClovirTheme("light").shape.borderRadius).toBe(RADIUS.md);
+  });
+
+  /* 비활성 버튼은 면 `inset` · 글자 `disabledControlInk`(light #BCC2D9 · dark #4B5478 — 핸드오프
+     C4 · K3). 비활성 **입력 값**의 잉크(`text.disabled`)와 다른 역할이라 값도 다르다. */
+  it.each([["light", "#BCC2D9"], ["dark", "#4B5478"]])("%s — 비활성 버튼 잉크는 규격값이고 입력 비활성 잉크와 갈린다", (mode, want) => {
+    const theme = createClovirTheme(mode);
+    expect(theme.palette.disabledControlInk).toBe(want);
+    expect(theme.palette.disabledControlInk).not.toBe(theme.palette.text.disabled);
+    const btn = theme.components.MuiButton.styleOverrides;
+    expect(btn.contained["&.Mui-disabled"]).toEqual({ backgroundColor: theme.palette.background.inset, color: want });
+    expect(btn.outlined["&.Mui-disabled"].backgroundColor).toBe(theme.palette.background.inset);
+    expect(btn.text["&.Mui-disabled"]).toEqual({ color: want });
   });
 });
 

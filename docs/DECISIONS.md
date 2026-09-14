@@ -15005,3 +15005,70 @@ difficulty, signal, hold, all, peek`, 회의 `team, sprint, project, discuss, pe
 바꾸는 일은 작업 보드에서 합니다」와 「작업 보드로 가기」다. 보드 줄 A 의 선택기 넷은 flex
 basis 까지 13·13·13·11rem 으로 줄였다(`entity` 기본 basis 18rem 이면 1366 에서 세 줄이 되어
 판이 462px 에서 시작했다 → 두 줄, 414px).
+
+### D-485. 빈 상태 · 오류 상태의 클로비 크기는 정보 계층이 정한다
+
+소유자 확정(2026-09-14, 핸드오프 계획 P-29 종결). 값의 정본은 `frontend/src/ui/Mascot.jsx::MASCOT_PLACE`
+하나이고 이 결정 · 핸드오프 `DECISIONS.md` D-24 · `ACCEPTANCE.md` I4 · 부품 대장이 그것을 가리킨다.
+
+| 자리 | 쓰는 곳 | 보이는 캐릭터 |
+|---|---|---|
+| `page` | `EmptyState` / `ErrorState` `layout="page"` — 화면 전체가 비었거나 쓸 수 없다 | **132**, 화면 높이가 800 이하면 **112** |
+| `card` · `region` · `compact` | 판 하나 · 구획 · 좁은 자리 | **최대 72** |
+| `inline` | 팝오버 · 하위 목록 | 그림 없음 |
+
+- 옛 `errorState` 한 밴드(112)는 자리와 무관하게 판 안 오류에도 112 로 섰다 → `errorPage`(132/112) ·
+  `errorRegion`(72) 둘로 가른다. `emptyCard` 132 → 72, `emptyRegion` · `emptyCompact` 84 → 72.
+- 판 안에서 그림이 글보다 크면 그 판의 주인공이 「비어 있다」가 아니라 캐릭터가 된다(RULES §11 「표지
+  크기로 옆에」). 큰 클로비는 화면 전체가 빈 자리에서만 선다.
+- 짧은 화면 규칙은 `@media (max-height:800px)` 이다 — 1366×768 은 줄이고 1200×900 은 안 줄인다.
+- 장식 삽화(내 업무량 요약 타일 `statsArt`)는 빈 상태 계약 밖이라 옛 크기(84)를 지킨다 — 개별
+  리디자인 제외 화면이다.
+
+### D-486. 공통 부품의 정본은 핸드오프 문서다 — 갤러리는 그 구현 참고값이다 (핸드오프 A)
+
+D-473~D-481 회차는 「정본은 갤러리다」로 적었다. `design_handoff_clovirassist_ui/`(DECISIONS → README →
+RULES → ACCEPTANCE → GALLERY-FIXES)가 그 순서를 뒤집는다: 문서가 정본이고, 리포 갤러리(`/kit`)는 A 정리
+뒤의 구현 참고값이다. 대장 §4 에서 갤러리 쪽으로 확정했던 값 가운데 셋이 문서 값으로 옮겨 갔다.
+
+| 자리 | 갤러리 확정(옛) | 핸드오프 확정(새) |
+|---|---|---|
+| 검색 폭 | `flex 1 1 20rem` · 최대 32rem | **필터 바 검색 슬롯 320 고정**(`ToolbarRow` · `FilterRow` 직계 규칙). 좁은 판 · 모달 · 채팅 목록은 `layout="fill"` 100% |
+| 떠 있는 것 모서리 | 14(`RADIUS.lg`) | **8**(`RADIUS.md`, 카드와 같음). `RADIUS.lg` 슬롯은 걷었다 |
+| 태그 굵기 | 500 | **400** |
+
+A 가 함께 정본으로 세운 계약(소비처 전환은 B 가 한다):
+
+- **카드 여백 20**(`DENSITY_PX.cardPadding` 24 → 20). 판 제목이 17px 이 되며 24 의 근거가 사라졌다.
+- **모달** 제목 1.0625rem/700 · 닫기 30 · 발은 `ActionFooter`(함몰면 + 위 실선, 취소 `default`). 발 하나에
+  면 · 선 · 여백의 주인은 하나다(겹치면 모달이 감싸지 않고, 발 안의 발은 맨 줄). 되돌릴 수 없는 확인은
+  제목 앞 주의 표지 + 취소가 기본 포커스.
+- **버튼** 라벨 한 줄 · flex 줄에서 안 줄어듦 · 말줄임은 `truncate` 를 켠 좁은 칸만. 핸드오프 어휘
+  `secondary` 는 `default` 의 별칭(호출부 18곳이 테두리 규칙을 못 받던 결함). 비활성 버튼 잉크는
+  `disabledControlInk`(light #BCC2D9 · dark #4B5478) — 입력 비활성 잉크(`text.disabled`)와 다른 역할.
+- **필터 바 칸** 34 + 칸 안 이름(접두). `FilterSurface` 가 문맥을 깔고 그 안의 `SearchBox` · `FilterSelect` ·
+  `EntityCombobox` · `DebouncedTextField` 가 줄 모양이 된다. 오른쪽 묶음(`ToolbarEnd`)은 통째로 줄바꿈.
+  조건 줄(`FilterConditionLine`)은 조건이 있을 때만 위 실선 아래 선다. 필터의 켬/끔은 `FilterToggle`.
+- **세그먼티드** 바깥 34(선은 안쪽 그림자) · 여백 3 · 안쪽 28 · roving tabindex + 화살표/Home/End.
+- **표** 머리 40(조작기 32 + 4×2), 제목 열 머리글도 왼쪽(머리와 행이 같은 축 — 옛 「머리글은 언제나
+  가운데」를 뒤집었다), 두 줄 행 바닥 `CONTROL.tableRowTall` 76(`rowHeight="tall"`, 최솟값), 빈 표는
+  `EmptyState region`, 묶음 건수는 `CountChip`.
+- **값 표시** `DotLabel`(점 + 낱말 — 표 · 칸반 · 목록 행), `CountChip`(20, `compact` 18), `StatusDot`
+  은 키트로 올렸다. 칸반 카드는 12/14 · 줄 8 · 발 위 실선, 우선순위와 신호가 점 + 낱말(`TicketSignals`
+  기본 갈래가 `dot`, 상세 머리만 `pill`).
+- **메시지 박스** inline 갈래의 톤 이름 낱말을 걷고 아이콘으로, `variant="bleed"`(전폭 띠). 토스트는
+  잉크 면(다크는 함몰면 + strong 테두리).
+- **폼** `FormFieldCell` + `FIELD_ROWS`(라벨 20 · 필드 36 · 도움말 auto), `FORM_FIELD_GRID_12` +
+  `fieldSpan({ wide, mid })`(컨테이너 질의 12 → 2 → 1칸, 데스크톱 span 을 2칸에 쓰지 않는다).
+- **검색 팝오버** 새 부품이 아니라 `EntityCombobox` 목록 계약: `PickerOption` 32 한 줄 · 아바타 22
+  (`AVATAR_SIZE.xs`) · 고른 것에 체크 · 내 계정 맨 위(`myId`).
+- **오류 상태** 모르는 `size` · `layout` 은 개발 모드에서 멈춘다. 판 안 오류의 동작은 인라인 30 이고 채운
+  버튼은 화면 전체 오류만.
+- **2열 트랙** `BASELINE_TRACKS.two` = `minmax(0,1.62fr) minmax(0,1fr)` — 소비처 넷(새 티켓 · LLM 콘솔 ·
+  퇴직 처리 · 초기 설정)이 모두 「주 판 + 보조 레일」이다.
+- **프로젝트 색조** 한 벌(`ui/projectTone.js`) — 채팅 카드와 CSS 두 벌이던 것, CSS 쪽은 소비처 0 이라 걷었다.
+- **채팅 전용 규격** `ui/chat.js::CHAT` — 소비처가 생기는 회차가 값을 더한다(지금은 말풍선 모서리 12).
+
+QA 도구: `scripts/ui_qa/kit_measure.py`(부품 계약 실측, 자기검증 틀린 견본 8종) ·
+`scripts/ui_qa/geometry_diff.py`(보호 화면 뼈대 전후 비교) · `scripts/check_kit_consumers.py`(정본
+wrapper 가 있는 MUI 원재료의 화면 직접 사용). 대비 프로브는 비활성 조작기 글자를 WCAG 1.4.3 대로 뺀다.

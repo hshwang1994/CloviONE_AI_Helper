@@ -21,6 +21,9 @@ import { DefaultAvatar } from "./DefaultAvatar.jsx";
  * 그리고, 4K 에서는 그 숫자만 안 자란다. 크기는 이름이고 값은 `rem` 이다.
  */
 export const AVATAR_SIZE = {
+  /** 표의 사람 칸과 검색 팝오버의 항목 — 32px 줄 안에 이름과 나란히 서는 크기(핸드오프 README
+   *  §5 · §6: 「표 안의 사람은 아바타 22 + 이름」, 「32px 항목(아바타 22 + 이름 + 부서)」). */
+  xs: "1.375rem",
   /** 목록 줄·댓글·채팅 — 글줄 옆에 붙는 크기. */
   inline: "1.25rem",
   /** 카드·표의 담당자 칸. */

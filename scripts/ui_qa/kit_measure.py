@@ -38,6 +38,15 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 OUT_BASE = REPO_ROOT / "dist" / "ui-qa"
+MASCOT_BOUNDS = REPO_ROOT / "app" / "static" / "brand" / "mascot" / "mascot-bounds.json"
+
+
+def _mascot_hfrac() -> dict[str, float]:
+    try:
+        data = json.loads(MASCOT_BOUNDS.read_text(encoding="utf-8"))
+        return {name: float(entry.get("hfrac") or 1) for name, entry in data.get("assets", {}).items()}
+    except Exception:  # noqa: BLE001
+        return {}
 
 # 핸드오프 README · DECISIONS 의 확정값. 여기 숫자를 바꾸는 것은 계약을 바꾸는 일이다.
 CONTRACT = {
@@ -116,7 +125,9 @@ MEASURE_JS = r"""
 
   // ── 버튼 ────────────────────────────────────────────────────────────────
   const insideSegmented = (el) => !!el.closest('.k-segmented');
-  const btns = all('.MuiButton-root').filter((el) => !insideSegmented(el));
+  // 셸(상단바 · 사이드바)은 `chrome.*` 토큰의 하우징이라 본문 부품 계약 밖이다.
+  const inShell = (el) => !!el.closest('.MuiAppBar-root, #app-sidebar, .MuiDrawer-root, nav');
+  const btns = all('.MuiButton-root').filter((el) => !insideSegmented(el) && !inShell(el));
   const hist = {};
   for (const b of btns) {
     const h = Math.round(hOf(b));
@@ -128,12 +139,15 @@ MEASURE_JS = r"""
     check('button_clip').checked++;
     const clipped = b.scrollWidth > b.clientWidth + 1 || [...b.querySelectorAll('*')].some((c) => c.scrollWidth > c.clientWidth + 1 && getComputedStyle(c).overflow !== 'visible');
     if (clipped) {
-      const constrained = !!b.closest('td,th,[role=cell],[data-constrained]');
-      if (!(constrained && b.getAttribute('title'))) fail('button_clip', { ...where(b), constrained, vw: innerWidth });
+      /* 말줄임을 **켠** 버튼(`truncate`: title + 라벨 칸 ellipsis)은 의도한 잘림이다. 그 밖의 잘림은
+         정상 공간에서 라벨이 먹힌 것이다. */
+      const label = b.querySelector(':scope > span');
+      const optedIn = b.hasAttribute('title') && label && getComputedStyle(label).textOverflow === 'ellipsis';
+      if (!optedIn) fail('button_clip', { ...where(b), constrained: !!b.closest('td,th,[role=cell]'), vw: innerWidth });
     }
   }
   out.button_hist = hist;
-  const ibtns = all('.MuiIconButton-root').filter((el) => !el.closest('.MuiInputBase-root,.MuiAutocomplete-root,.MuiChip-root,.MuiSnackbar-root,header,.c-topbar,.c-sidebar,nav'));
+  const ibtns = all('.MuiIconButton-root').filter((el) => !el.closest('.MuiInputBase-root,.MuiAutocomplete-root,.MuiChip-root,.MuiSnackbar-root') && !inShell(el));
   const ihist = {};
   for (const b of ibtns) {
     const h = Math.round(hOf(b));
@@ -161,11 +175,12 @@ MEASURE_JS = r"""
   // ── 메시지 박스 ─────────────────────────────────────────────────────────
   const calloutBg = new Set();
   for (const c of all('.k-callout')) {
+    if (c.tagName.toLowerCase() === 'p') continue; // inline 갈래는 상자가 아니다
     check('callout').checked++;
     const st = getComputedStyle(c);
     calloutBg.add(st.backgroundColor + '|' + st.borderTopColor);
     const problems = [];
-    if (!near(px(st.borderLeftWidth), 1, 0.5)) problems.push('border-left ' + st.borderLeftWidth);
+    if (c.getAttribute('data-variant') !== 'bleed' && !near(px(st.borderLeftWidth), 1, 0.5)) problems.push('border-left ' + st.borderLeftWidth);
     const body = c.querySelector('.k-callout-body') || c;
     const icon = c.querySelector('svg');
     if (icon) {
@@ -173,7 +188,8 @@ MEASURE_JS = r"""
       if (!near(ir.width, C.calloutIcon) && !near(ir.width, 14)) problems.push('icon ' + Math.round(ir.width));
     }
     const compact = c.getAttribute('data-compact') === 'true' || px(st.paddingTop) < 10;
-    if (!compact && lineCount(body) === 1 && !c.querySelector('button,a[role=button]') && !near(hOf(c), C.calloutSingle)) {
+    const extraRows = c.querySelector('button,a[role=button],details,ul,ol') || (body.previousElementSibling && body.previousElementSibling.tagName !== 'svg');
+    if (!compact && lineCount(body) === 1 && !extraRows && !near(hOf(c), C.calloutSingle)) {
       problems.push('single-line height ' + hOf(c));
     }
     const role = c.getAttribute('role');
@@ -303,6 +319,7 @@ MEASURE_JS = r"""
   // ── 카드 ────────────────────────────────────────────────────────────────
   const padHist = {};
   for (const c of all('.MuiCard-root')) {
+    if (c.hasAttribute('data-card-kind')) continue; // 칸반 카드 등 자기 계약이 있는 판
     const st = getComputedStyle(c);
     const p = Math.round(px(st.paddingTop)) + '/' + Math.round(px(st.paddingLeft));
     bump(padHist, p);
@@ -371,9 +388,11 @@ MEASURE_JS = r"""
   }
   for (const f of all('[data-action-footer]')) {
     check('footer_owner').checked++;
-    const host = f.closest('.MuiDialog-paper, .MuiCard-root') || f.parentElement;
-    const owners = [f, ...f.querySelectorAll('*')].concat(host && host !== f ? [f.parentElement] : [])
-      .filter(Boolean).filter((el) => { const s = getComputedStyle(el); return !transparent(s.backgroundColor) && px(s.borderTopWidth) >= 1; });
+    /* 발의 면 색과 **같은 면**에 위 선까지 가진 요소를 센다(발 자신 · 안쪽 · 바로 바깥). 모달 판처럼
+       다른 면을 가진 바깥 상자는 발의 주인이 아니다. */
+    const faceBg = getComputedStyle(f).backgroundColor;
+    const owners = [f.parentElement, f, ...f.querySelectorAll('*')]
+      .filter(Boolean).filter((el) => { const s = getComputedStyle(el); return !transparent(s.backgroundColor) && s.backgroundColor === faceBg && px(s.borderTopWidth) >= 1; });
     if (owners.length !== 1) fail('footer_owner', { owners: owners.length, text: text(f) });
   }
   for (const o of all('[data-picker-option]')) {
@@ -397,12 +416,16 @@ MEASURE_JS = r"""
       check('error_icon').checked++;
       if (!e.querySelector('svg')) fail('error_icon', { ...where(e), layout });
     }
-    const img = e.querySelector('[data-mascot-context] img, img[src*="empty"], img[src*="mascot"], img[src*="clovi"]');
+    const img = e.querySelector('img[data-mascot-context], img[src*="empty"], img[src*="state-"], img[src*="clovi"]');
     if (img && shown(img)) {
       check('mascot_size').checked++;
-      const w = Math.max(img.getBoundingClientRect().width, img.getBoundingClientRect().height);
-      const ok = layout === 'page' ? w <= C.mascot.pageMax + tol : w <= C.mascot.region + tol;
-      if (!ok) fail('mascot_size', { ...where(e), layout, got: Math.round(w) });
+      /* 박스가 아니라 **보이는 캐릭터**를 잰다 — 자산마다 투명 여백이 달라 박스 = 보이는 크기 / hfrac 이다
+         (`mascot-bounds.json`). 모르는 자산은 여백이 없다고 본다(크기를 부풀리지 않는다). */
+      const file = (img.getAttribute('src') || '').split('/').pop();
+      const hfrac = (C.mascotHfrac && C.mascotHfrac[file]) || 1;
+      const visible = img.getBoundingClientRect().height * hfrac;
+      const ok = layout === 'page' ? visible <= C.mascot.pageMax + tol : visible <= C.mascot.region + tol;
+      if (!ok) fail('mascot_size', { ...where(e), layout, visible: Math.round(visible), file });
     }
   }
 
@@ -411,8 +434,8 @@ MEASURE_JS = r"""
     'badge-face': all('.k-badge').filter((b) => !transparent(getComputedStyle(b).backgroundColor)),
     'tag': all('.k-tag'),
     'count-default': all('[data-count-chip]:not([data-count-chip=compact])'),
-    'button-small': all('.MuiButton-sizeSmall').filter((el) => !insideSegmented(el)),
-    'button-medium': all('.MuiButton-sizeMedium').filter((el) => !insideSegmented(el)),
+    'button-small': all('.MuiButton-sizeSmall').filter((el) => !insideSegmented(el) && !inShell(el)),
+    'button-medium': all('.MuiButton-sizeMedium').filter((el) => !insideSegmented(el) && !inShell(el)),
   };
   for (const [name, els] of Object.entries(variants)) {
     if (els.length < 2) continue;
@@ -533,6 +556,7 @@ def measure(args) -> int:
     out_dir.mkdir(parents=True, exist_ok=True)
     total = defaultdict(lambda: {"checked": 0, "failed": 0, "samples": []})
     pages: dict[str, dict] = {}
+    hfrac = _mascot_hfrac()
     with sync_playwright() as pw:
         browser = pw.chromium.launch(headless=True)
         try:
@@ -562,7 +586,7 @@ def measure(args) -> int:
                             page.goto(route.url(base, hashes.get(route.id, route.hash_path)),
                                       wait_until="domcontentloaded", timeout=45_000)
                             cap._settle(page, settle_ms=args.settle_ms, timeout_ms=45_000)
-                            result = page.evaluate(MEASURE_JS, {**CONTRACT, "scope": None})
+                            result = page.evaluate(MEASURE_JS, {**CONTRACT, "scope": None, "mascotHfrac": hfrac})
                             key = f"{route.id}__{theme}__{viewport.name}"
                             pages[key] = result
                             _merge(total, result, key)
