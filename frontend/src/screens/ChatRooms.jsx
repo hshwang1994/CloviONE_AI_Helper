@@ -155,7 +155,7 @@ export function GroupModal({ open, onClose }) {
       <Box>
         <FieldLabel>초대할 사람 (선택)</FieldLabel>
         {dir.isPending ? <Skeleton lines={4} />
-          : dir.isError ? <ErrorState error={dir.error} onRetry={() => dir.refetch()} />
+          : dir.isError ? <ErrorState layout="region" error={dir.error} onRetry={() => dir.refetch()} />
           : users.length === 0 ? <EmptyState size="compact" title="초대할 다른 사용자가 없습니다" />
           : (
             <>
@@ -208,7 +208,7 @@ function DirectModal({ open, onClose }) {
   return (
     <Modal open={open} onClose={onClose} title="1:1 대화 시작" footer={<Button onClick={onClose}>닫기</Button>}>
       {dir.isPending ? <Skeleton lines={5} />
-        : dir.isError ? <ErrorState error={dir.error} onRetry={() => dir.refetch()} />
+        : dir.isError ? <ErrorState layout="region" error={dir.error} onRetry={() => dir.refetch()} />
         : users.length === 0 ? <EmptyState size="compact" title="대화할 다른 사용자가 없습니다" />
         : (
           <>
@@ -323,7 +323,7 @@ export function ChatRooms() {
       {/* 목록은 **자기 안에서** 스크롤한다 — 페이지가 통째로 스크롤되면 대화창이 같이 밀린다. */}
       <Box data-testid="chatroom-list-rows" sx={{ minHeight: 0, overflowY: "auto" }}>
         {q.isPending ? <Box sx={{ p: 2 }}><Skeleton lines={6} /></Box>
-          : q.isError ? <Box sx={{ p: 2 }}><ErrorState error={q.error} onRetry={() => q.refetch()} /></Box>
+          : q.isError ? <Box sx={{ p: 2 }}><ErrorState layout="region" error={q.error} onRetry={() => q.refetch()} /></Box>
           : (
             <>
               {/* 내 팀 → 전체 채팅 → 나머지. 팀 방이 맨 위다 — 매일 쓰는 단위가 회사 전체가

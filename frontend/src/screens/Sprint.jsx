@@ -568,8 +568,8 @@ export function Sprint() {
           <Skeleton kind="section" />
         </Stack>
       ) : null}
-      {meeting.isError ? <ErrorState error={meeting.error} onRetry={meeting.refetch} /> : null}
-      {sprints.isError ? <ErrorState error={sprints.error} onRetry={sprints.refetch} /> : null}
+      {meeting.isError ? <ErrorState layout="region" error={meeting.error} onRetry={meeting.refetch} /> : null}
+      {sprints.isError ? <ErrorState layout="region" error={sprints.error} onRetry={sprints.refetch} /> : null}
 
       {noTeamAtAll ? (
         <EmptyState
@@ -971,9 +971,9 @@ export function Sprint() {
                       {lane.help}
                     </Typography>
                     {rows.length === 0 ? (
-                      <Typography variant="body2" color="text.secondary" sx={{ mt: "auto" }}>
-                        {lane.empty}
-                      </Typography>
+                      <Box sx={{ mt: "auto" }}>
+                        <EmptyState layout="inline" title={lane.empty} />
+                      </Box>
                     ) : (
                       <Stack spacing={1}>
                         {rows.map((row) => (

@@ -3,7 +3,7 @@ import Box from "@mui/material/Box";
 import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
-import { Badge, Button, Card, ErrorState, PageHeader, Skeleton } from "../ui/kit.jsx";
+import { Badge, Button, Callout, Card, ErrorState, PageHeader, Skeleton } from "../ui/kit.jsx";
 import { FONT_WEIGHT } from "../ui/theme.js";
 import { GAME_LABELS } from "./Games.jsx";
 import { STATUS_LABELS, STATUS_KIND } from "./game-room/constants.js";
@@ -35,7 +35,7 @@ export function GameRoom() {
   const {
     room, you, submissionActive, remaining, activePlayers, submittedCount, waitingNames,
     canReady, isHost, isVote, isTeam, isNumber, isLadder, isRps, isQuiz, isTournament,
-    quizPlaying, mutations,
+    quizPlaying, mutations, actionFailure,
   } = c;
   const { ready, start, finish, reveal, nextQ, reset, disband, leave } = mutations;
 
@@ -58,6 +58,8 @@ export function GameRoom() {
             </Typography>
             {you.role === "spectator" ? <Typography variant="body2" color="text.secondary">관전 중</Typography> : null}
           </Stack>
+
+          {actionFailure ? <Callout tone="danger" compact>{actionFailure}</Callout> : null}
 
           {/* 진행 현황: 카운트다운 + 제출/대기(모든 제출형 게임 공통) */}
           {submissionActive || remaining != null ? (

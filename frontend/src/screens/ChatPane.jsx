@@ -15,7 +15,7 @@ import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded";
 import { api } from "../lib/api.js";
 import { fmtDateTime, fmtTimeShort, affiliationOf, ARCHIVED_SUFFIX } from "../lib/format.js";
 import { useIdleGetter } from "../lib/idle.js";
-import { Button, EmptyState, ErrorState, Skeleton, useConfirm, useToast } from "../ui/kit.jsx";
+import { Button, Callout, EmptyState, ErrorState, Skeleton, useConfirm, useToast } from "../ui/kit.jsx";
 import { EMOJI_GROUPS, EMOJI_LABELS, imageFromClipboard, imageRejectReason, insertAtCursor } from "./chat-compose.js";
 import { ChatBubbleText } from "./ChatBubbleText.jsx";
 import { mentionNames } from "./chat-text.js";
@@ -312,7 +312,7 @@ export function ChatPane({ roomId, compact = false, interval = 2000, idleMax = 0
             예전에는 셋 다 같은 회색 한 줄이라, 로딩 중인지 서버가 오류를 줬는지 정말로
             빈 방인지 구분할 방법이 사용자에게 없었다. 실패에는 이유와 '다시 시도' 를 준다. */}
         {q.isPending ? <Box sx={{ px: 1 }}><Skeleton lines={compact ? 3 : 6} /></Box>
-          : (q.isError && msgs.length === 0) ? <ErrorState error={q.error} onRetry={() => q.refetch()} />
+          : (q.isError && msgs.length === 0) ? <ErrorState layout="region" error={q.error} onRetry={() => q.refetch()} />
           // VIS-90 — 이 화면만 아이콘 없는 회색 한 줄이었다(같은 제품 안의 /games·/chat은
           // 아이콘/마스코트+제목+안내를 갖췄다). game-room/ChatPanel.jsx의 같은 빈 상태와
           // 짝을 맞춘다 — 문구·아이콘이 다르면 사용자는 "다른 채팅 기능"이라고 오해한다.
@@ -506,20 +506,20 @@ export function ChatPane({ roomId, compact = false, interval = 2000, idleMax = 0
           대화 전체가 한 줄로 사라졌다** — 잠깐의 네트워크 끊김이 화면에서는 대화가 지워진
           것처럼 보였다. 대화는 그대로 두고, 낡았다는 사실만 한 줄로 알린다. */}
       {q.isError && msgs.length > 0 ? (
-        <Box role="alert" sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap", mb: 0.75, px: 0.5 }}>
-          <Typography sx={{ fontSize: FONT_SIZE.caption, color: "error.main" }}>
-            새 메시지를 받지 못했습니다. 아래 대화는 마지막으로 받은 내용입니다.
-          </Typography>
-          <Button size="sm" variant="ghost" onClick={() => q.refetch()}>다시 시도</Button>
-        </Box>
+        <Callout
+          tone="danger" compact sx={{ mb: 0.75 }}
+          action={<Button size="sm" variant="ghost" onClick={() => q.refetch()}>다시 시도</Button>}
+        >
+          새 메시지를 받지 못했습니다. 아래 대화는 마지막으로 받은 내용입니다.
+        </Callout>
       ) : null}
       {/* 붙여넣기 실패·업로드 중 안내 — 컴포저 바로 위에 둬야 원인과 결과가 붙어 보인다. */}
-      {sendImage.isPending || composerError ? (
-        <Typography
-          role={composerError ? "alert" : undefined}
-          sx={{ mb: 0.75, px: 0.5, fontSize: FONT_SIZE.caption, color: composerError ? "error.main" : "text.secondary" }}
-        >
-          {composerError || "이미지를 보내는 중…"}
+      {/* 실패는 메시지 박스(오류는 `alert`)이고, 올리는 중이라는 진행 표시는 글자 한 줄이다. */}
+      {composerError ? (
+        <Callout tone="danger" compact sx={{ mb: 0.75 }}>{composerError}</Callout>
+      ) : sendImage.isPending ? (
+        <Typography sx={{ mb: 0.75, px: 0.5, fontSize: FONT_SIZE.caption, color: "text.secondary" }}>
+          이미지를 보내는 중…
         </Typography>
       ) : null}
       <Paper

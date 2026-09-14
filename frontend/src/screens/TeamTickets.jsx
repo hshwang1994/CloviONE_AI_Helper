@@ -127,7 +127,7 @@ export function TeamTickets() {
         description="팀 전체 티켓을 담당자별로 묶어서 봅니다. 보이는 티켓은 담당자가 아니어도 고칠 수 있고, 고친 내용은 이력에 남습니다."
       />
       {q.isLoading ? <Card><Skeleton lines={6} /></Card>
-        : q.isError ? <ErrorState error={q.error} onRetry={() => q.refetch()} />
+        : q.isError ? <ErrorState layout="region" error={q.error} onRetry={() => q.refetch()} />
         : (() => {
           /* 목록 밖의 값(부서 후보·연결 상태)은 첫 묶음 원본이 들고 온다 — 묶음마다 같다. */
           const data = q.first || {};

@@ -33,7 +33,7 @@ export function TicketHistory({ ticketId }) {
     <Card>
       <SectionTitle component="h2" title="활동 이력" />
       {q.isPending ? <Skeleton lines={4} /> : null}
-      {q.isError ? <ErrorState error={q.error} onRetry={() => q.refetch()} /> : null}
+      {q.isError ? <ErrorState layout="region" error={q.error} onRetry={() => q.refetch()} /> : null}
       {/* 값이 없으면 목록 껍데기를 남기지 않는다(D-296). 여기서 «아직 없다» 는 진짜
           없는 것이라 필터 얼굴이 아니라 데이터 없음 얼굴이다. */}
       {!q.isPending && !q.isError && items.length === 0 ? (

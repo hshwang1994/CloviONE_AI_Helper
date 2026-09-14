@@ -5,8 +5,9 @@ import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
+import { failureText } from "../lib/failure.js";
 import { useAuth } from "../app/auth.jsx";
-import { Badge, Button, Callout, Card, ErrorState, Skeleton, useToast } from "../ui/kit.jsx";
+import { Badge, Button, Callout, Card, EmptyState, ErrorState, Skeleton, useToast } from "../ui/kit.jsx";
 import { BodyPreview } from "../ui/BodyEditor.jsx";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
 import { MILESTONE_STATUS_KO, PROJECT_WRITE_ROLES } from "./project-format.js";
@@ -60,7 +61,7 @@ function Bucket({ title, bucket, onOpen }) {
         {title + " " + (b.count || 0) + "건"}
       </Typography>
       {items.length === 0 ? (
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>없습니다.</Typography>
+        <EmptyState layout="inline" title="없습니다." />
       ) : (
         <Box component="ul" sx={{ m: 0, mt: 1, p: 0, display: "grid", gap: 0.75 }}>
           {items.map((it) => (
@@ -98,7 +99,7 @@ function MilestoneBucket({ title, bucket }) {
         {title + " " + (b.count || 0) + "건"}
       </Typography>
       {items.length === 0 ? (
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>없습니다.</Typography>
+        <EmptyState layout="inline" title="없습니다." />
       ) : (
         <Box component="ul" sx={{ m: 0, mt: 1, p: 0, display: "grid", gap: 0.5 }}>
           {items.map((m) => (
@@ -135,7 +136,6 @@ export function ProjectWeekly({ projectId, week, onWeek, query }) {
       toast("주간 리포트를 저장했습니다.", "success");
       qc.invalidateQueries({ queryKey: ["projects", "one", projectId], refetchType: "all" });
     },
-    onError: (e) => toast((e && e.message) || "주간 리포트를 저장하지 못했습니다. 다시 시도해 주세요.", "error"),
   });
 
   /* AI 요약 생성(§L). 여기서 결과를 기다리지 않는다 — CLI 왕복이 수십 초 걸릴 수 있어
@@ -150,11 +150,15 @@ export function ProjectWeekly({ projectId, week, onWeek, query }) {
       { method: "POST" },
     ),
     onSuccess: () => toast("AI 요약 생성을 요청했습니다. 잠시 후 새로고침해서 확인하세요.", "success"),
-    onError: (e) => toast((e && e.message) || "AI 요약 생성을 요청하지 못했습니다. 다시 시도해 주세요.", "error"),
   });
+  /* 요약 판 동작(저장 · AI 요약 요청)의 실패 — 그 판 안에 남고 다음 동작에서 걷힌다. */
+  const summaryFailure = failureText(
+    [save, "주간 리포트를 저장하지 못했습니다. 다시 시도해 주세요."],
+    [generateLlm, "AI 요약 생성을 요청하지 못했습니다. 다시 시도해 주세요."],
+  );
 
   if (query.isPending) return <Card><Skeleton lines={8} /></Card>;
-  if (query.isError) return <ErrorState error={query.error} onRetry={() => query.refetch()} />;
+  if (query.isError) return <ErrorState layout="region" error={query.error} onRetry={() => query.refetch()} />;
 
   const data = query.data || {};
   const win = data.window || {};
@@ -222,11 +226,12 @@ export function ProjectWeekly({ projectId, week, onWeek, query }) {
           {/* AI 요약이 꺼져 있으면(llm_notice가 있으면) 눌러도 규칙 요약만 다시 나오므로
               버튼을 안 보여준다 — 있는 기능처럼 보이고 안 되면 고장으로 읽힌다. */}
           {canWrite && !data.llm_notice ? (
-            <Button size="sm" disabled={generateLlm.isPending} onClick={() => generateLlm.mutate()}>
-              {generateLlm.isPending ? "요청하는 중…" : "AI 요약 생성"}
+            <Button size="sm" disabled={generateLlm.isPending} loading={generateLlm.isPending} onClick={() => generateLlm.mutate()}>
+              AI 요약 생성
             </Button>
           ) : null}
         </Stack>
+        {summaryFailure ? <Callout tone="danger" compact sx={{ mb: 1.5 }}>{summaryFailure}</Callout> : null}
         {/* 규칙이 쓴 문장인지 모델이 쓴 문장인지 구별을 남긴다. 안 남기면 몇 주 뒤에 둘 다
             못 믿게 된다(app/projects/models.py::REPORT_SOURCES).
             GET 은 언제나 규칙 문장만 계산한다(§L, 웹에서 LLM 을 안 부른다) — 그래서 AI 가

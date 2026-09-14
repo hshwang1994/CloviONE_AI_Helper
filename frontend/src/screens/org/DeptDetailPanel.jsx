@@ -121,7 +121,7 @@ export function DeptDetailPanel({ deptId, treeRow }) {
   if (item.isPending) return <Card><Skeleton lines={6} /></Card>;
   if (item.isError) {
     /* 없는 id 딥링크(D-127) — 판 안에서 말하고 트리는 그대로 산다. */
-    return <Card><ErrorState error={item.error} onRetry={() => item.refetch()} /></Card>;
+    return <Card><ErrorState layout="region" error={item.error} onRetry={() => item.refetch()} /></Card>;
   }
   const dept = item.data || {};
   const row = treeRow || {};

@@ -1,6 +1,5 @@
 import React from "react";
 import { useLocation } from "react-router-dom";
-import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import IconButton from "@mui/material/IconButton";
 import Paper from "@mui/material/Paper";
@@ -15,7 +14,7 @@ import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import ContentCopyRoundedIcon from "@mui/icons-material/ContentCopyRounded";
 import MenuRoundedIcon from "@mui/icons-material/MenuRounded";
 import SendRoundedIcon from "@mui/icons-material/SendRounded";
-import { Button, Card, ErrorState, PageHeader, Skeleton, useConfirm } from "../ui/kit.jsx";
+import { Button, Callout, Card, ErrorState, PageHeader, Skeleton, useConfirm } from "../ui/kit.jsx";
 import { FONT_SIZE, FONT_WEIGHT, RADIUS } from "../ui/theme.js";
 import { useChat } from "./useChat.js";
 import { copyText, dayKeyKST, formatConversationText, mascotMode, structuredCards } from "./chat-helpers.js";
@@ -190,6 +189,7 @@ export function Chat() {
         cid={cid} setCid={setCid} setComposingNew={setComposingNew} clearDraft={clearDraft}
         textareaRef={textareaRef}
         renameConv={renameConv} archiveConv={archiveConv} deleteConv={deleteConv} confirm={confirm}
+        failure={ch.sidebarFailure}
       />
 
       {/* 스레드 열 — 높이와 스크롤은 이 화면이 직접 소유한다(셸이 flush로 넘긴다). */}
@@ -252,13 +252,13 @@ export function Chat() {
               // 대화 목록 조회가 실패/로딩 중이면 환영 화면 대신 그 상태를 보여준다, 좁은 폭에선 목록이
               // 닫힌 서랍 안에 있어 그 안의 오류/재시도가 안 보이므로, 여기(본문)에도 같은 신호가 있어야 한다.
               convs.isLoading ? <Skeleton lines={3} />
-              : convs.isError ? <ErrorState error={convs.error} onRetry={() => convs.refetch()} />
+              : convs.isError ? <ErrorState layout="region" error={convs.error} onRetry={() => convs.refetch()} />
               : (
                 <Welcome mode={mascot} title="무엇을 도와드릴까요?" busy={starting} onPick={prefillFromPrompt}
                   help="대화 한 줄이면 티켓 생성, 조회, 요약까지 처리합니다. 아래 예시를 눌러 바로 시작해 보세요." />
               )
             ) : thread.isLoading ? <Skeleton lines={3} />
-              : thread.isError && !items.length ? <ErrorState error={thread.error} onRetry={() => thread.refetch()} />
+              : thread.isError && !items.length ? <ErrorState layout="region" error={thread.error} onRetry={() => thread.refetch()} />
               : items.length === 0 ? (
                 <Welcome mode={mascot} title="새 대화" busy={starting} onPick={prefillFromPrompt}
                   help="아래에 메시지를 입력하거나, 예시를 눌러 시작하세요." />
@@ -266,10 +266,10 @@ export function Chat() {
               : (<>
                   {/* 폴링이 일시 실패해도 읽던 메시지를 지우지 않는다, 작은 안내만 띄우고 스레드는 유지. */}
                   {thread.isError ? (
-                    <Alert severity="warning" variant="outlined" role="status" sx={{ alignSelf: "center", fontSize: FONT_SIZE.bodySm, py: 0 }}
+                    <Callout tone="warn" compact sx={{ alignSelf: "center" }}
                       action={<Button size="sm" variant="ghost" onClick={() => thread.refetch()}>새로고침</Button>}>
                       연결이 잠시 끊겼습니다.
-                    </Alert>
+                    </Callout>
                   ) : null}
                   {items.map((m, i) => {
                     // 앞 메시지와 KST 기준 날짜가 다르면(또는 첫 메시지면) 그 앞에 날짜 구분선을 끼운다.
@@ -297,10 +297,13 @@ export function Chat() {
                       재조회가 아니라 폴링 재시작 기준선(resumedAt)도 지금 시각으로 옮긴다, 안 그러면 created_at이
                       그대로라 재조회 직후 다시 즉시 stalled로 재계산돼 자동 폴링이 재개되지 않는 막다른 길이 된다. */}
                   {stalled ? (
-                    <Alert severity="warning" variant="outlined" role="status" sx={{ alignSelf: "flex-start", fontSize: FONT_SIZE.bodySm }}
+                    <Callout tone="warn" compact sx={{ alignSelf: "flex-start" }}
                       action={<Button size="sm" variant="ghost" onClick={() => { setResumedAt(Date.now()); thread.refetch(); }}>새로고침</Button>}>
                       응답이 지연되고 있습니다.
-                    </Alert>
+                    </Callout>
+                  ) : null}
+                  {ch.threadFailure ? (
+                    <Callout tone="danger" compact sx={{ alignSelf: "flex-start" }}>{ch.threadFailure}</Callout>
                   ) : null}
                 </>)}
             {/* 스크롤 컨테이너 안에서 sticky로 띄운다, 예전엔 열 기준(컴포저 바로 위 고정 거리)이라,
@@ -355,17 +358,18 @@ export function Chat() {
             {/* 유지보수 모드 차단 안내 — 폴링 경고와 같은 지속 배너 패턴(사라지는 토스트 하나에만
                 기대지 않는다). '다시 시도'를 눌러야 컴포저 잠금이 풀린다. */}
             {maintenanceNotice ? (
-              <Alert severity="warning" role="status" sx={{ fontSize: FONT_SIZE.bodySm }}
+              <Callout tone="warn" compact
                 action={<Button size="sm" variant="ghost" onClick={() => setMaintenanceNotice(null)}>다시 시도</Button>}>
                 {maintenanceNotice}
-              </Alert>
+              </Callout>
             ) : null}
             {rateLimitNotice ? (
-              <Alert severity="warning" role="status" sx={{ fontSize: FONT_SIZE.bodySm }}
+              <Callout tone="warn" compact
                 action={<Button size="sm" variant="ghost" onClick={() => setRateLimitNotice(null)}>닫기</Button>}>
                 {rateLimitNotice}
-              </Alert>
+              </Callout>
             ) : null}
+            {ch.composerFailure ? <Callout tone="danger" compact>{ch.composerFailure}</Callout> : null}
             {/* 답변을 기다리는 동안 textarea는 계속 활성이라(placeholder는 'Enter 전송'을 약속) 입력이
                 막혔다는 신호가 없어, Enter를 쳐도 사라지는 토스트로만 알렸다, 유지보수·속도제한 배너처럼
                 지속되는 수동 힌트를 컴포저 위에 둔다. */}

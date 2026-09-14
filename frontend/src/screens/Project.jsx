@@ -1,4 +1,5 @@
 import React from "react";
+import { failureText } from "../lib/failure.js";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
@@ -101,17 +102,20 @@ function MilestoneTimeline({ projectId, query, canWrite }) {
     toast(editing && editing.id ? "마일스톤을 수정했습니다." : "마일스톤을 추가했습니다.", "success");
   }
 
+  /* 마일스톤 삭제 실패 — 마일스톤 판 안에 남는다. 다시 지우면 걷힌다. */
+  const [deleteFailure, setDeleteFailure] = React.useState("");
   async function del(m) {
     const ok = await confirm(
       "'" + m.name + "' 마일스톤을 삭제할까요? 되돌릴 수 없습니다.",
       { danger: true, title: "마일스톤 삭제", confirmLabel: "삭제" },
     );
     if (!ok) return;
+    setDeleteFailure("");
     try {
       await remove.mutateAsync(m.id);
       toast("마일스톤을 삭제했습니다.", "success");
     } catch (e) {
-      toast((e && e.message) || "마일스톤을 삭제하지 못했습니다. 다시 시도해 주세요.", "error");
+      setDeleteFailure((e && e.message) || "마일스톤을 삭제하지 못했습니다. 다시 시도해 주세요.");
     }
   }
 
@@ -134,7 +138,7 @@ function MilestoneTimeline({ projectId, query, canWrite }) {
   );
 
   if (query.isPending) return <Card><Skeleton lines={5} /></Card>;
-  if (query.isError) return <ErrorState error={query.error} onRetry={() => query.refetch()} />;
+  if (query.isError) return <ErrorState layout="region" error={query.error} onRetry={() => query.refetch()} />;
 
   if (!items.length) {
     return (
@@ -159,6 +163,7 @@ function MilestoneTimeline({ projectId, query, canWrite }) {
           <Typography component="h2" variant="h6" sx={{ fontSize: FONT_SIZE.sectionTitle, flex: 1 }}>마일스톤</Typography>
           {addButton}
         </Stack>
+        {deleteFailure ? <Callout tone="danger" compact sx={{ mb: 1.5 }}>{deleteFailure}</Callout> : null}
         <Box component="ol" sx={{ m: 0, p: 0, display: "grid", gap: 0 }}>
           {items.map((m) => (
             <Box
@@ -209,7 +214,7 @@ function MilestoneTimeline({ projectId, query, canWrite }) {
 function Overview({
   project, deptNames, progressQuery, healthQuery, healthHistoryQuery, trendQuery, canWrite, onEdit,
   onArchive, archiving, onRecomputeProgress, recomputingProgress, onSnapshotHealth, snapshottingHealth,
-  canAssignDept, onAssignDept, assigningDept,
+  canAssignDept, onAssignDept, assigningDept, deptFailure, progressFailure, healthFailure,
 }) {
   const p = project || {};
   const dept = deptLabel(p, deptNames);
@@ -231,6 +236,7 @@ function Overview({
             <Button size="sm" variant="ghost" disabled={archiving} onClick={onArchive}>보관</Button>
           ) : null}
         </Stack>
+        {deptFailure ? <Callout tone="danger" compact sx={{ mb: 1 }}>{deptFailure}</Callout> : null}
         <Box>
           <MetaRow label="상태">
             <Stack direction="row" gap={1} sx={{ flexWrap: "wrap" }}>
@@ -295,7 +301,7 @@ function Overview({
           티켓 발생 추이
         </Typography>
         {trendQuery.isPending ? <Skeleton lines={4} />
-          : trendQuery.isError ? <ErrorState error={trendQuery.error} onRetry={() => trendQuery.refetch()} />
+          : trendQuery.isError ? <ErrorState layout="region" error={trendQuery.error} onRetry={() => trendQuery.refetch()} />
           : (
             <DateHistogram
               days={(trendQuery.data || {}).days}
@@ -319,13 +325,14 @@ function Overview({
               주석 참조) — 이 버튼은 그 값이 틀렸다는 뜻이 아니라, 방금 티켓/마일스톤을 고친
               사람이 다음 스윕까지 기다리지 않게 하는 수동 트리거다. */}
           {canWrite ? (
-            <Button size="sm" disabled={recomputingProgress} onClick={onRecomputeProgress}>
-              {recomputingProgress ? "계산하는 중" : "다시 계산"}
+            <Button size="sm" disabled={recomputingProgress} loading={recomputingProgress} onClick={onRecomputeProgress}>
+              다시 계산
             </Button>
           ) : null}
         </Stack>
+        {progressFailure ? <Callout tone="danger" compact sx={{ mb: 1.5 }}>{progressFailure}</Callout> : null}
         {progressQuery.isPending ? <Skeleton lines={4} />
-          : progressQuery.isError ? <ErrorState error={progressQuery.error} onRetry={() => progressQuery.refetch()} />
+          : progressQuery.isError ? <ErrorState layout="region" error={progressQuery.error} onRetry={() => progressQuery.refetch()} />
           : (
             /* 포털이 계산한 값 하나만 그린다. 응답에는 `notion_percent` 도 있지만 그리지
                않는다 - 정본은 포털이고 Notion 은 데이터 소스다(ProjectMetrics.jsx). */
@@ -337,13 +344,14 @@ function Overview({
         <Stack direction="row" gap={1} sx={{ flexWrap: "wrap", alignItems: "center", mb: 1.5 }}>
           <Typography component="h2" variant="h6" sx={{ fontSize: FONT_SIZE.sectionTitle, flex: 1 }}>Health</Typography>
           {canWrite ? (
-            <Button size="sm" disabled={snapshottingHealth} onClick={onSnapshotHealth}>
-              {snapshottingHealth ? "계산하는 중" : "다시 계산"}
+            <Button size="sm" disabled={snapshottingHealth} loading={snapshottingHealth} onClick={onSnapshotHealth}>
+              다시 계산
             </Button>
           ) : null}
         </Stack>
+        {healthFailure ? <Callout tone="danger" compact sx={{ mb: 1.5 }}>{healthFailure}</Callout> : null}
         {healthQuery.isPending ? <Skeleton lines={5} />
-          : healthQuery.isError ? <ErrorState error={healthQuery.error} onRetry={() => healthQuery.refetch()} />
+          : healthQuery.isError ? <ErrorState layout="region" error={healthQuery.error} onRetry={() => healthQuery.refetch()} />
           : <HealthBlock score={health.score} reasons={health.reasons} unknown={health.unknown} />}
         <HealthHistory query={healthHistoryQuery} />
       </Card>
@@ -377,6 +385,8 @@ export function Project() {
   const deptNames = useDeptNames();
   const update = useUpdateProject(id);
   const archive = useArchiveProject();
+  /* 부서 지정 실패 — 개요 판 안에 남는다. 다시 지정하면 걷힌다. */
+  const [deptFailure, setDeptFailure] = React.useState("");
   const recomputeProgress = useRecomputeProgress(id);
   const snapshotHealth = useSnapshotHealth(id);
 
@@ -420,11 +430,12 @@ export function Project() {
   // 않는다. 그 목록에 넣으면 운영자에게도 뜨는데 useDeptNames는 admin/system_admin만
   // 응답을 받아(DEPT_ROLES) 운영자에게는 빈 선택기가 된다(project-format.js의 경고 그대로).
   async function handleAssignDept(deptId) {
+    setDeptFailure("");
     try {
       await update.mutateAsync({ dept_id: deptId, base_version: project.version });
       toast(deptId ? "부서를 지정했습니다." : "부서 지정을 해제했습니다.", "success");
     } catch (e) {
-      toast((e && e.message) || "부서를 저장하지 못했습니다. 다시 시도해 주세요.", "error");
+      setDeptFailure((e && e.message) || "부서를 저장하지 못했습니다. 다시 시도해 주세요.");
     }
   }
 
@@ -442,7 +453,7 @@ export function Project() {
       await recomputeProgress.mutateAsync();
       toast("진행률을 다시 계산했습니다.", "success");
     } catch (e) {
-      toast((e && e.message) || "진행률을 다시 계산하지 못했습니다.", "error");
+      // 실패 문장은 진행률 판 안에 선다(`progressFailure` — 요청이 들고 있는 실패를 읽는다).
     }
   }
 
@@ -456,7 +467,7 @@ export function Project() {
         "success",
       );
     } catch (e) {
-      toast((e && e.message) || "Health를 다시 계산하지 못했습니다.", "error");
+      // 실패 문장은 Health 판 안에 선다(`healthFailure`).
     }
   }
 
@@ -511,12 +522,15 @@ export function Project() {
           onSnapshotHealth={handleSnapshotHealth} snapshottingHealth={snapshotHealth.isPending}
           canAssignDept={DEPT_ROLES.includes(role)} onAssignDept={handleAssignDept}
           assigningDept={update.isPending}
+          deptFailure={deptFailure}
+          progressFailure={failureText([recomputeProgress, "진행률을 다시 계산하지 못했습니다."])}
+          healthFailure={failureText([snapshotHealth, "Health를 다시 계산하지 못했습니다."])}
         />
       ) : null}
 
       {tab === "wbs" ? (
         wbsQuery.isPending ? <Card><Skeleton lines={8} /></Card>
-          : wbsQuery.isError ? <ErrorState error={wbsQuery.error} onRetry={() => wbsQuery.refetch()} />
+          : wbsQuery.isError ? <ErrorState layout="region" error={wbsQuery.error} onRetry={() => wbsQuery.refetch()} />
           : <ProjectWbs data={wbsQuery.data} />
       ) : null}
 

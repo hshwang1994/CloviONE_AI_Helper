@@ -8,9 +8,11 @@ import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
 import { useListMemory } from "../lib/listReturn.js";
+import { failureText } from "../lib/failure.js";
 import {
   Badge,
   Button,
+  Callout,
   Card,
   DataTable,
   EmptyState,
@@ -111,6 +113,8 @@ export function PostFormModal({ open, onClose, categories, mode = "create", post
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [files, setFiles] = useState([]);
+  /* 10MB 를 넘어 뺀 파일 이름 — 첨부 칸 아래 오류 줄이 말한다. 다시 고르면 새로 선다. */
+  const [tooBigFiles, setTooBigFiles] = useState([]);
   // 열릴 때(또는 mode/post가 바뀔 때)의 값 스냅샷 — dirty(변경) 판정 기준(VIS-88, FormModal의
   // initialRef와 같은 패턴). edit이면 원본 글, create면 빈 값 + 기본 카테고리가 기준이다.
   const initialRef = useRef({ category: "", title: "", body: "" });
@@ -139,6 +143,9 @@ export function PostFormModal({ open, onClose, categories, mode = "create", post
       initialRef.current = { category: cat, title: "", body: "" };
     }
     setFiles([]);
+    setTooBigFiles([]);
+    // 닫혀도 자리를 지키는 모달이라 요청 상태가 남는다 — 다시 열 때 지난 저장 실패를 걷는다.
+    save.reset();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- categories는 의도적으로 뺀다(위 주석).
   }, [open, mode, post]);
 
@@ -187,15 +194,15 @@ export function PostFormModal({ open, onClose, categories, mode = "create", post
       // 이 키는 지금까지 어떤 게시판 mutation에서도 무효화된 적이 없었다(L축 재감사).
       // 수정은 post_count를 안 바꾸지만, mode로 분기하는 비용보다 여기 한 줄이 더 싸다.
       qc.invalidateQueries({ queryKey: ["board-mine"] });
-      if (failed && failed.length) {
-        toast("글은 저장했지만 첨부 " + failed.length + "개를 올리지 못했습니다: " + failed.join(", ") + ". 다시 시도해 주세요.", "error");
-      } else {
+      /* 글은 저장됐고 첨부 일부만 못 올렸다 — 이 사실은 사라지면 안 된다. 저장 뒤 서는 글 화면의
+         첨부 자리가 말한다(`onSaved` 의 둘째 인자). 다 올렸을 때만 토스트다. */
+      if (!(failed && failed.length)) {
         toast(mode === "edit" ? "게시글을 수정했습니다." : "게시글을 추가했습니다.", "success");
       }
-      onSaved && onSaved(target);
+      onSaved && onSaved(target, failed || []);
     },
-    onError: (e) => toast((e && e.message) || "저장에 실패했습니다. 다시 시도해 주세요.", "error"),
   });
+  const saveFailure = failureText([save, "저장에 실패했습니다. 다시 시도해 주세요."]);
 
   const canSave = title.trim().length > 0 && !save.isPending;
   // 뭔가 바꿨으면 Esc·바깥 클릭·X·'취소' 전부에서 확인을 받는다(VIS-88) — 첨부까지 고른
@@ -274,24 +281,28 @@ export function PostFormModal({ open, onClose, categories, mode = "create", post
         label={`첨부 (이미지 또는 PDF, 최대 ${MAX_FILES}개, 각 10MB)`}
         InputLabelProps={{ shrink: true }}
         inputProps={{ multiple: true, accept: UPLOAD_ACCEPT }}
-        helperText={files.length > 0 ? files.map((f) => f.name).join(", ") : undefined}
+        error={tooBigFiles.length > 0}
+        helperText={tooBigFiles.length > 0
+          ? "10MB를 넘어 제외했습니다: " + tooBigFiles.join(", ")
+          : (files.length > 0 ? files.map((f) => f.name).join(", ") : undefined)}
         onChange={(e) => {
           const picked = Array.from(e.target.files || []);
           const tooBig = picked.filter((f) => f.size > MAX_FILE_BYTES).map((f) => f.name);
           let ok = picked.filter((f) => f.size <= MAX_FILE_BYTES);
           if (ok.length > MAX_FILES) ok = ok.slice(0, MAX_FILES);
-          if (tooBig.length) toast("10MB를 넘어 제외했습니다: " + tooBig.join(", "), "error");
+          setTooBigFiles(tooBig);
           setFiles(ok);
         }}
         sx={{ mt: 2.5 }}
       />
+      {/* 저장 실패는 발 바로 위 — 누른 단추 곁에 남는다. 다시 저장하면 걷힌다. */}
+      {saveFailure ? <Callout tone="danger" compact sx={{ mt: 2.5 }}>{saveFailure}</Callout> : null}
     </Modal>
   );
 }
 
 /* 이모지 반응 바 — 대상(게시글/댓글)에 팔레트 이모지를 토글한다. mine이면 DELETE, 아니면 POST. */
 export function Reactions({ targetType, targetId, reactions, palette, onChanged }) {
-  const toast = useToast();
   const qc = useQueryClient();
   const byEmoji = reactionMap(reactions);
   const toggle = useMutation({
@@ -310,8 +321,8 @@ export function Reactions({ targetType, targetId, reactions, palette, onChanged 
       // 값이라 사실 필요 없지만, 대상 종류를 분기하는 비용보다 여기 한 줄이 더 싸다.
       qc.invalidateQueries({ queryKey: ["board"] });
     },
-    onError: (e) => toast((e && e.message) || "반응을 저장하지 못했습니다. 다시 시도해 주세요.", "error"),
   });
+  const reactFailure = failureText([toggle, "반응을 저장하지 못했습니다. 다시 시도해 주세요."]);
   return (
     <Box sx={{ display: "flex", gap: 0.75, flexWrap: "wrap" }}>
       {(palette || []).map((emoji) => {
@@ -346,6 +357,8 @@ export function Reactions({ targetType, targetId, reactions, palette, onChanged 
           />
         );
       })}
+      {/* 반응 줄의 실패는 그 줄 아래 한 칸 전체 — 다음에 누르면 걷힌다. */}
+      {reactFailure ? <Callout tone="danger" compact sx={{ flexBasis: "100%" }}>{reactFailure}</Callout> : null}
     </Box>
   );
 }
@@ -599,24 +612,25 @@ function BoardScreen({ kind = "free" }) {
 
       <Typography component="h2" className="sr-only">목록</Typography>
       {list.isError ? (
-        <ErrorState error={list.error} onRetry={() => list.refetch()} />
+        <ErrorState layout="region" error={list.error} onRetry={() => list.refetch()} />
       ) : list.isLoading ? (
         <Card>{/* 표가 들어올 자리에는 표 모양을 그린다 (지시 20) - 빈 목록과 아직 안 온 목록은 다른 사실이다. */}<DataTable columns={columns} rows={[]} loading /></Card>
       ) : items.length === 0 ? (
         hasFilter ? (
+          /* 조건 때문에 0건 — 판 안 빈 상태(region)이고 그림이 없다(조건 문제라서). 조건을 지우는 동작은
+             30 단추다 — 화면의 채운 단추는 머리의 「글쓰기」 하나다(핸드오프 RULES §1 · §3). */
           <EmptyState
-            layout="page"
-            art="search"
+            layout="region"
             title="검색 결과가 없습니다"
             help="조건에 맞는 게시글이 없습니다. 검색어를 지우거나 카테고리를 ‘전체’로 되돌려 보세요."
-            action={<Button variant="primary" onClick={clearFilters}>검색, 카테고리 지우기</Button>}
+            action={<Button size="sm" onClick={clearFilters}>검색, 카테고리 지우기</Button>}
           />
         ) : (
           /* 🔴 여기에 «글쓰기» 를 다시 두지 않는다 (S19) — 상단 행동과 같은 일이다.
              `copy.emptyHelp` 가 그 버튼을 이름으로 가리킨다. 조건 때문에 0건인 위쪽
              갈래는 다르다: «조건 지우기» 는 상단에 없는 **다른 행동**이라 CTA 를 갖는다. */
           <EmptyState
-            layout="page"
+            layout="region"
             art="board"
             title={copy.empty}
             help={copy.emptyHelp}
@@ -652,7 +666,10 @@ function BoardScreen({ kind = "free" }) {
         categories={categories}
         kind={kind}
         mode="create"
-        onSaved={(post) => { setComposing(false); nav(copy.route + post.id); }}
+        onSaved={(post, failed) => {
+          setComposing(false);
+          nav(copy.route + post.id, failed && failed.length ? { state: { attachFailed: failed } } : undefined);
+        }}
       />
     </div>
   );

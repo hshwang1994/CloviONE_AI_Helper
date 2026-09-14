@@ -136,10 +136,9 @@ describe("파일 저장소 — 다음에 할 일을 준다", () => {
       apiMock.mock.calls.some(([p, o]) => p === "/api/storage/providers/sp-bk/probe" && o && o.method === "POST")
     ).toBe(true), WAIT);
     expect(await screen.findByText(/systemctl start mnt-backup\.mount/, {}, WAIT)).toBeInTheDocument();
-    /* 결과를 토스트로도 말한다. `useToast()` 는 `(message, kind)` 를 받는 **함수 하나**라
-       `toast.error(…)` 로 부르면 rejected promise 안에서 TypeError 로 죽고 화면에는 «아무 일도
-       안 일어남» 으로 보인다 — `SystemOps.jsx` 가 실제로 그 자리에 있었다. 그 죽음을 여기서
-       잡는다. */
+    /* 결과의 한마디(쓸 수 있다 · 없다)를 화면이 말한다 — 지금은 확인 결과 상자의 제목이다(토스트로
+       겹쳐 말하지 않는다, 핸드오프 RULES §1). 예전에 `toast.error(…)` 가 rejected promise 안에서
+       TypeError 로 죽어 «아무 일도 안 일어남» 으로 보였던 자리라, 그 한마디가 실제로 서는지를 여기서 잡는다. */
     expect(await screen.findByText("지금은 쓸 수 없습니다.", {}, WAIT)).toBeInTheDocument();
   });
 

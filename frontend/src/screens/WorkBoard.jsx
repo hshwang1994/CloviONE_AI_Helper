@@ -1031,7 +1031,7 @@ export function WorkBoard() {
         </FilterRow>
       </FilterSurface>
 
-      {sprints.isError ? <ErrorState error={sprints.error} onRetry={sprints.refetch} /> : null}
+      {sprints.isError ? <ErrorState layout="region" error={sprints.error} onRetry={sprints.refetch} /> : null}
 
       {noTeamAtAll ? (
         <EmptyState
@@ -1092,7 +1092,7 @@ export function WorkBoard() {
           ) : null}
 
           {active.isLoading ? <Skeleton kind="section" /> : null}
-          {active.isError ? <ErrorState error={active.error} onRetry={active.refetch} /> : null}
+          {active.isError ? <ErrorState layout="region" error={active.error} onRetry={active.refetch} /> : null}
 
           {tab === TAB_BOARD && board.data ? (
             boardEmpty ? (

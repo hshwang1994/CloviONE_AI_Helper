@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
+import { failureText } from "../lib/failure.js";
 import {
   Badge, Button, Callout, Card, EmptyState, ErrorState, FormModal, OverflowMenu,
   Skeleton, useConfirm, useToast,
@@ -242,10 +243,15 @@ export function SystemOps({ embedded = false } = {}) {
       // 같은 호출 모양을 쓴다. toast[...](...)/toast.error(...)로 부르면 존재하지 않는
       // 메서드를 호출하는 셈이라 TypeError로 죽어, 이 화면의 모든 쓰기 작업(재시작, 타임존
       // 변경 등)이 결과를 토스트로 전혀 알리지 못했다.
-      toast(outcomeText(result), result && result.ok ? "success" : "error");
+      // 적용했을 때만 토스트다. 못 적용한 결과는 본문 위 메시지 박스가 말한다(`opsNotice`).
+      if (result && result.ok) toast(outcomeText(result), "success");
     },
-    onError: (err) => toast((err && err.message) || "요청을 보내지 못했습니다. 잠시 후 다시 시도해 주세요.", "error"),
   });
+  /* 요청 실패 또는 「적용하지 못했다」는 결과 — 되돌린 경우는 아래 「원래 설정으로 되돌렸습니다」 상자가
+     이미 말하므로 겹쳐 세우지 않는다. 다음 요청에서 걷힌다. */
+  const opsNotice = failureText([run, "요청을 보내지 못했습니다. 잠시 후 다시 시도해 주세요."])
+    || (run.isSuccess && lastResult && lastResult.available !== false && !lastResult.ok && !lastResult.rolled_back
+      ? outcomeText(lastResult) : null);
 
   /* 헤더까지 포함해 **화면 전체**가 아직 없다 - 회색 줄만 그리면 도착하는 순간 제목·본문이
      한꺼번에 튀어 들어온다. 들어올 배치를 미리 잡아 준다(지시 20). */
@@ -366,6 +372,8 @@ export function SystemOps({ embedded = false } = {}) {
           못하며, 여기서 바꾼 것은 아무것도 적용되지 않습니다.
         </Callout>
       )}
+
+      {opsNotice ? <Callout tone="danger">{opsNotice}</Callout> : null}
 
       {lastResult && lastResult.rolled_back && (
         <Callout tone="danger">

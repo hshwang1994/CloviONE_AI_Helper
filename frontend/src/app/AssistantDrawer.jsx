@@ -13,7 +13,7 @@ import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import OpenInFullRoundedIcon from "@mui/icons-material/OpenInFullRounded";
 import SendRoundedIcon from "@mui/icons-material/SendRounded";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Button, Callout, Skeleton } from "../ui/kit.jsx";
+import { Button, Callout, EmptyState, Skeleton } from "../ui/kit.jsx";
 import { FONT_SIZE, FONT_WEIGHT, RADIUS } from "../ui/theme.js";
 import { MascotPose } from "../ui/Mascot.jsx";
 import { useChat } from "../screens/useChat.js";
@@ -199,13 +199,14 @@ export function AssistantDrawer({ open, onClose }) {
       {/* 대화 */}
       <Box ref={bodyRef} sx={{ minHeight: 0, overflowY: "auto", px: 2, py: 2, display: "grid", gap: 1.5, alignContent: "start" }}>
         {!hasThread ? (
-          <Box sx={{ display: "grid", justifyItems: "center", textAlign: "center", gap: 1, py: 2 }}>
-            <MascotPose mode="listening" place="assistantHero" decorative />
-            <Typography sx={{ fontWeight: FONT_WEIGHT.bold }}>무엇을 도와드릴까요?</Typography>
-            <Typography sx={{ fontSize: FONT_SIZE.bodySm, color: "text.secondary", maxWidth: "20rem", lineHeight: 1.6 }}>
-              지금 보고 있는 화면의 티켓, 문서, 사용자를 기준으로 물어볼 수 있습니다.
-            </Typography>
-          </Box>
+          /* 대화가 없는 드로어는 판 하나가 빈 자리다 — 판 빈 상태(card)이고 클로비는 판 계약 크기(72)다
+             (D-485). 예전 히어로는 144 로 서서 좁은 드로어의 절반을 그림이 차지했다. */
+          <EmptyState
+            layout="card"
+            icon={<MascotPose mode="listening" place="emptyCard" decorative />}
+            title="무엇을 도와드릴까요?"
+            help="지금 보고 있는 화면의 티켓, 문서, 사용자를 기준으로 물어볼 수 있습니다."
+          />
         ) : chat.items.map((m, i) => (
           /* AI-25: 예전엔 여기서 m.content를 그냥 pre-wrap 텍스트로만 그려 리치 텍스트·티켓
              카드·프로젝트 카드·Notion 링크·선택지 칩·재시도·복사·타임스탬프를 전부 버렸다.
@@ -280,6 +281,10 @@ export function AssistantDrawer({ open, onClose }) {
             action={<Button size="sm" variant="ghost" onClick={() => chat.setRateLimitNotice(null)}>닫기</Button>}>
             {chat.rateLimitNotice}
           </Callout>
+        ) : null}
+        {/* 스레드 · 입력 칸의 실패 — 드로어는 좁아 한 자리(입력 칸 위)에 모은다. 다음 동작에서 걷힌다. */}
+        {chat.threadFailure || chat.composerFailure ? (
+          <Callout tone="danger" compact>{chat.composerFailure || chat.threadFailure}</Callout>
         ) : null}
         <Box
           component="form"

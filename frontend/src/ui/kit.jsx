@@ -51,7 +51,7 @@ import { EntityCombobox } from "./filters.jsx";
 import { TableHeaderCell } from "./TableHeaderCell.jsx";
 import { DateField } from "./DateField.jsx";
 import { VirtualTableBody, WindowVirtualTableBody, useScrollMargin } from "./VirtualRows.jsx";
-import { loginUrl, redirectToLogin } from "../lib/sessionRedirect.js";
+import { SESSION_EXPIRED_ERROR, expireSession, isSessionExpired, loginUrl, subscribeSessionExpired } from "../lib/sessionRedirect.js";
 
 /* ClovirONE 공통 UI 키트 — 카드/배지/버튼/상태/빈 화면/스켈레톤을 한 규칙으로 그린다.
  *
@@ -2060,6 +2060,14 @@ export function ErrorState({ error, onRetry, size, layout = "page" }) {
   );
 }
 
+/** 세션이 끊기면 본문 자리가 **오류 상태(401 갈래)** 로 바뀐다 — 동작 중 401 을 맞은 화면이
+ * `expireSession()` 을 부르면 서는 자리다(`lib/sessionRedirect.js`). 셸의 본문 열이 이것으로 화면을
+ * 감싼다. 떠나는 것(1.2초 뒤 로그인 화면)은 `expireSession` 이 이미 예약했다. */
+export function SessionExpiredOutlet({ children }) {
+  const expired = React.useSyncExternalStore(subscribeSessionExpired, isSessionExpired, isSessionExpired);
+  return expired ? <ErrorState error={SESSION_EXPIRED_ERROR} /> : children;
+}
+
 /* 반응형 표 — 넓은 화면은 표, 좁은 화면(≤760px)은 카드 목록으로 CSS가 전환한다(§21).
  * columns: [{key,label,render?}], rows: [obj], rowKey: (row)=>id. onRow: 행 클릭(상세).
  *
@@ -3043,18 +3051,24 @@ const MODAL_MAX_WIDTH = { sm: "30rem", md: "45rem", lg: "62rem" };
  * 닫기는 인라인 30. `tone="danger"` 인 확인 창은 제목 앞에 오류 표지를 단다(RULES §8 — 위험
  * 확인 모달은 아이콘 + 제목 + 결과 문장). */
 export function ModalHeader({ title, onClose, titleId, tone }) {
+  /* 머리 줄(표지 · 제목 · 닫기)은 상자이고, **제목 요소는 제목 글자만** 든다. MUI `DialogTitle` 은
+     대화상자의 `aria-labelledby` id 를 스스로 달기 때문에(DialogContext), 표지를 그 안에 넣으면 위험 확인의
+     이름이 「주의 확인」이 된다 — 이름으로 대화상자를 찾는 쪽(낭독기의 대화상자 목록 · 시험)이 전부
+     어긋났다. 표지는 머리 줄에 남아 읽는 순서대로 낭독된다. 여백은 MUI 제목의 기본값(24 · 16)을 줄이 갖는다. */
   return (
-    <MuiDialogTitle
-      id={titleId}
-      sx={{ display: "flex", alignItems: "center", gap: 1.25, pr: 1.5, fontSize: FONT_SIZE.cardTitle, fontWeight: FONT_WEIGHT.bold, lineHeight: LINE_HEIGHT.title }}
-    >
+    <Box sx={{ display: "flex", alignItems: "center", gap: 1.25, pl: 3, pr: 1.5, py: 2, flex: "0 0 auto" }}>
       {tone === "danger" ? (
         /* `titleAccess` 라야 MUI 가 `aria-hidden` 을 걷는다 — `aria-label` 만 주면 표지가 낭독에서 빠진다. */
         <ErrorOutlineRoundedIcon titleAccess="주의" sx={{ flexShrink: 0, fontSize: remPx(ICON.action), color: "error.main" }} />
       ) : null}
-      <Box component="span" sx={{ flex: 1, minWidth: 0 }}>{title}</Box>
+      <MuiDialogTitle
+        id={titleId}
+        sx={{ p: 0, flex: 1, minWidth: 0, fontSize: FONT_SIZE.cardTitle, fontWeight: FONT_WEIGHT.bold, lineHeight: LINE_HEIGHT.title }}
+      >
+        {title}
+      </MuiDialogTitle>
       <IconButton onClick={onClose} aria-label="닫기" size="small"><CloseRoundedIcon fontSize="small" /></IconButton>
-    </MuiDialogTitle>
+    </Box>
   );
 }
 /* 몸통은 **위 선 하나**만 긋는다. 아래 선은 발(`ActionFooter`)이 자기 면과 함께 긋는다 — 둘 다
@@ -3334,7 +3348,9 @@ export function FormField({ field: f, value, onChange, invalid, maxLength, error
   const required = !!f.required;
   const isJson = f.type === "json";
   const multiline = f.type === "textarea" || isJson;
-  const toast = useToast();
+  /* 붙여넣은 글이 상한에서 잘린 사실 — 그 칸의 도움말 자리에 남는다(되돌릴 수 없는 결과는 사라지는 토스트에
+     두지 않는다). 칸을 다시 고치면 걷힌다. */
+  const [pasteNotice, setPasteNotice] = React.useState("");
   const handlePasteOverflowWarning = maxLength ? (e) => {
     const pasted = e.clipboardData ? e.clipboardData.getData("text") : "";
     if (!pasted) return;
@@ -3343,14 +3359,14 @@ export function FormField({ field: f, value, onChange, invalid, maxLength, error
     const end = el.selectionEnd ?? el.value.length;
     const nextLength = el.value.length - (end - start) + pasted.length;
     if (nextLength > maxLength) {
-      toast(`최대 ${maxLength}자까지만 저장됩니다. 붙여넣은 내용 중 일부가 잘렸습니다.`, "warn");
+      setPasteNotice(`최대 ${maxLength}자까지만 저장됩니다. 붙여넣은 내용 중 일부가 잘렸습니다.`);
     }
   } : undefined;
   const charCount = (multiline && maxLength) ? `${(value || "").length}/${maxLength}자` : null;
   const staticHelp = charCount ? (f.help ? `${f.help} (${charCount})` : charCount) : (f.help || undefined);
   // PA-RC-0014: invalid면 도움말 대신 실제 오류 문구를 aria-describedby가 가리키는 자리에 둔다 —
   // 빨간 테두리(error)만으로는 스크린리더가 "무엇이 문제인지"를 읽을 수 없었다.
-  const helpText = invalid && errorMessage ? errorMessage : staticHelp;
+  const helpText = invalid && errorMessage ? errorMessage : (pasteNotice || staticHelp);
   const helpId = helpText ? id + "-helper-text" : undefined;
 
   if (f.type === "checkbox") {
@@ -3650,8 +3666,7 @@ export function FormModal({ open, title, fields, initial, submitLabel, onSubmit,
       // 세션 만료(401)는 여기서 재시도해도 항상 401이라, 일반 폼 오류 문구만 띄우면 사용자는
       // 자신이 방금 입력한 내용이 왜 저장되지 않는지 모른 채 이 모달 안에 막힌다.
       if (e && e.status === 401) {
-        toast("로그인이 필요합니다. 로그인 화면으로 이동합니다.", "error");
-        redirectToLogin({ delayMs: 1200 });
+        expireSession();
         return; // busy=true로 남겨 재제출을 막는다 — 곧 페이지가 이동한다.
       }
       // UX-40: details({loc,msg} 배열, 예: 비밀번호 정책 위반) 합치는 로직은 lib/api.js의

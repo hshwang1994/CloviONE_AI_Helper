@@ -3,7 +3,7 @@ import Link from "@mui/material/Link";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import { fmtDateTime, jobTypeKo } from "../../lib/format.js";
-import { MetricStrip, Section } from "../../ui/kit.jsx";
+import { EmptyState, MetricStrip, Section } from "../../ui/kit.jsx";
 import { Sparkline } from "../../ui/charts/Sparkline.jsx";
 import { Note } from "../../ui/adminKit.jsx";
 import { fmtNum, fmtProcessingTime } from "./opsHelpers.js";
@@ -71,7 +71,7 @@ export function JobQueuePanel({ jobs24, jobErrors, errorDist, nav }) {
                 ))}
               </LogList>
             </>
-          ) : <Note sx={{ mt: 0 }}>최근 실패한 작업이 없습니다.</Note>}
+          ) : <EmptyState layout="inline" title="최근 실패한 작업이 없습니다." />}
       </Section>
     </>
   );

@@ -4,7 +4,7 @@ import MenuItem from "@mui/material/MenuItem";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
-import { redirectToLogin } from "../lib/sessionRedirect.js";
+import { expireSession } from "../lib/sessionRedirect.js";
 import { Badge, Button, DataTable, Modal, Callout, useConfirm, useToast } from "../ui/kit.jsx";
 import { FONT_WEIGHT } from "../ui/theme.js";
 import { Note } from "../ui/adminKit.jsx";
@@ -58,8 +58,10 @@ export function BulkBar({ selection, deptOptions, titleOptions, onDone }) {
   const [assign, setAssign] = useState({ action: "", value: UNASSIGNED_VALUE });
   const confirm = useConfirm();
   const toast = useToast();
+  /* 일괄 작업의 실패와 일부 실패 — 선택을 비운 뒤에도 이 줄이 남아 말한다. 다음 작업을 누르면 걷힌다. */
+  const [notice, setNotice] = useState("");
   const ids = Array.from(selection.selected);
-  if (!ids.length) return null;
+  if (!ids.length && !notice) return null;
 
   // danger — 호출자가 그 작업의 실제 위험도를 넘긴다(BULK_ACTIONS의 danger 속성, 또는 지정 작업은 false).
   // 예전엔 여기서 무조건 true였다: 활성화·보관 복구·잠금 해제·부서/직책 지정처럼 되돌리기 쉬운 작업까지
@@ -67,6 +69,7 @@ export function BulkBar({ selection, deptOptions, titleOptions, onDone }) {
   async function apply(action, value, confirmMsg, danger) {
     if (confirmMsg && !(await confirm(confirmMsg + `\n\n대상 ${ids.length}명.`, { danger: !!danger }))) return;
     setBusy(action);
+    setNotice("");
     try {
       const res = await api("/api/admin/users/bulk/apply", {
         method: "POST", body: { user_ids: ids, action, value: value || null },
@@ -75,15 +78,15 @@ export function BulkBar({ selection, deptOptions, titleOptions, onDone }) {
       const failed = (res.failed || []).length;
       // 실패를 성공 토스트로 덮지 않는다 — 몇 명이 왜 안 됐는지 숫자와 첫 사유를 함께 말한다.
       if (failed) {
-        toast(`${changed}명 적용, ${failed}명 실패: ${res.failed[0].error}`, "error");
+        setNotice(`${changed}명 적용, ${failed}명 실패: ${res.failed[0].error}`);
       } else {
         toast(`${res.action_label}: ${changed}명 적용(${ids.length - changed}명은 이미 그 상태)`, "success");
       }
       selection.clear();
       onDone();
     } catch (e) {
-      if (e && e.status === 401) { toast("로그인이 필요합니다. 로그인 화면으로 이동합니다.", "error"); redirectToLogin({ delayMs: 1200 }); return; }
-      toast(e.message, "error");
+      if (e && e.status === 401) { expireSession(); return; }
+      setNotice(e.message);
     } finally { setBusy(null); }
   }
 
@@ -100,13 +103,16 @@ export function BulkBar({ selection, deptOptions, titleOptions, onDone }) {
        표면이 끼었다. 선택이 있을 때만 나타나는 독립 블록이라 h2 로 구획한다(SEM-02 · PA-F-031,
        시각은 그대로 .sr-only). */
     <Box sx={{ display: "grid", gap: 1.5, mb: 2.5 }}>
+      {notice ? <Callout tone="danger" compact>{notice}</Callout> : null}
+      {ids.length ? (<>
       <Typography component="h2" className="sr-only">일괄 작업</Typography>
       <ToolbarRow sx={{ gap: 1 }}>
         <Typography variant="body2" sx={{ fontWeight: FONT_WEIGHT.semibold }}>{ids.length}명 선택</Typography>
         {BULK_ACTIONS.map((a) => (
           <Button key={a.value} size="sm" variant={a.danger ? "danger" : "default"} disabled={!!busy}
+            loading={busy === a.value}
             onClick={() => apply(a.value, null, a.confirm, a.danger)}>
-            {busy === a.value ? "처리 중…" : a.label}
+            {a.label}
           </Button>
         ))}
         <Button size="sm" variant="ghost" onClick={selection.clear}>선택 해제</Button>
@@ -137,6 +143,7 @@ export function BulkBar({ selection, deptOptions, titleOptions, onDone }) {
           </Button>
         ) : null}
       </ToolbarRow>
+      </>) : null}
     </Box>
   );
 }
@@ -171,20 +178,23 @@ export function ImportModal({ onClose, onImported }) {
   const [busyAction, setBusyAction] = useState(null);
   const toast = useToast();
   const confirm = useConfirm();
+  /* 요청 자체가 실패한 사실 — 모달 안에 남는다. 다시 누르면 걷힌다. */
+  const [sendFailure, setSendFailure] = useState("");
 
   async function send(dryRun) {
     setBusyAction(dryRun ? "preview" : "create");
+    setSendFailure("");
     try {
       const res = await api("/api/admin/users/import/csv", {
         method: "POST", body: { csv_text: text, dry_run: dryRun },
       });
       setPreview(res);
       if (!dryRun) {
-        toast(`${res.created}명을 추가했습니다(건너뜀 ${res.skipped}, 실패 ${res.failed}).`,
-          res.failed ? "error" : "success");
+        // 실패한 행이 있으면 아래 결과 상자(오류 톤)가 이미 그 사실을 말한다 — 토스트로 겹쳐 말하지 않는다.
+        if (!res.failed) toast(`${res.created}명을 추가했습니다(건너뜀 ${res.skipped}, 실패 ${res.failed}).`, "success");
         onImported();
       }
-    } catch (e) { toast(e.message, "error"); }
+    } catch (e) { setSendFailure(e.message); }
     finally { setBusyAction(null); }
   }
 
@@ -215,12 +225,13 @@ export function ImportModal({ onClose, onImported }) {
         <Button onClick={requestClose}>{applied ? "닫기" : "취소"}</Button>
         {!applied ? (
           <>
-            <Button disabled={!!busyAction || !text.trim()} onClick={() => send(true)}>
-              {busyAction === "preview" ? "확인 중…" : "미리 보기"}
+            <Button disabled={!!busyAction || !text.trim()} loading={busyAction === "preview"} onClick={() => send(true)}>
+              미리 보기
             </Button>
             <Button variant="primary" disabled={!!busyAction || !preview || !preview.created}
+              loading={busyAction === "create"}
               onClick={() => send(false)}>
-              {busyAction === "create" ? "추가하는 중…" : preview ? `${preview.created}명 추가` : "미리 보기를 먼저 하세요"}
+              {preview ? `${preview.created}명 추가` : "미리 보기를 먼저 하세요"}
             </Button>
           </>
         ) : null}
@@ -248,12 +259,17 @@ export function ImportModal({ onClose, onImported }) {
         value={text} onChange={(e) => { setText(e.target.value); setPreview(null); }}
         helperText="내보내기 파일을 열어 복사해 붙여 넣어도 됩니다(헤더 이름이 같습니다)."
       />
+      {sendFailure ? <Callout tone="danger" compact sx={{ mt: 2 }}>{sendFailure}</Callout> : null}
       {preview ? (
         <Box sx={{ mt: 2 }}>
           {/* 실패한 행이 있다는 것은 "그 계정이 만들어지지 않았다"는 뜻이다 — 주의가 아니라
               오류다(D-155). 미리 보기에서의 실패도 마찬가지로 적용하면 그대로 실패한다.
               건너뜀(이미 있는 이메일)은 설계된 정상 동작이라 등급을 올리지 않는다. */}
-          <Callout tone={preview.failed ? "danger" : "info"}>
+          {/* 적용했는데 실패한 행이 있으면 그 사실이 이 상자의 제목이다 — 예전에는 같은 문장이 토스트로 따로 떴다. */}
+          <Callout
+            tone={preview.failed ? "danger" : "info"}
+            title={!preview.dry_run && preview.failed ? `${preview.created}명을 추가했습니다(건너뜀 ${preview.skipped}, 실패 ${preview.failed}).` : undefined}
+          >
             {preview.dry_run ? "미리 보기: " : "적용 결과: "}
             총 {preview.total}행, {preview.dry_run ? "추가 예정" : "추가"} {preview.created}
             {", 건너뜀 "}{preview.skipped}{", 실패 "}{preview.failed}

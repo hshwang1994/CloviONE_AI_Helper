@@ -588,7 +588,7 @@ function SessionsCard() {
         )}
       />
       {q.isLoading ? <Skeleton lines={3} /> : q.isError ? (
-        <ErrorState error={q.error} onRetry={() => q.refetch()} />
+        <ErrorState layout="region" error={q.error} onRetry={() => q.refetch()} />
       ) : items.length === 0 ? (
         <EmptyState title="표시할 세션이 없습니다" />
       ) : (
@@ -682,7 +682,7 @@ export function Profile() {
       {loading ? (
         <Card><Skeleton lines={8} /></Card>
       ) : error ? (
-        <ErrorState error={error} onRetry={() => { profileQuery.refetch(); prefsQuery.refetch(); }} />
+        <ErrorState layout="region" error={error} onRetry={() => { profileQuery.refetch(); prefsQuery.refetch(); }} />
       ) : (
         <Box sx={{ display: "grid", gap: GRID_GAP }}>
           {/* 신원 머리는 **전폭**이다. 「내가 누구인가」는 두 열 중 한 열에 들어갈 사실이

@@ -11,6 +11,7 @@ import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
+import { failureText } from "../lib/failure.js";
 import { Badge, Button, Callout, Card, EmptyState, ErrorState, Modal, ModalFooter, PageHeader, Skeleton, useConfirm, useToast } from "../ui/kit.jsx";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
 
@@ -132,8 +133,10 @@ function CreateRoomModal({ open, onClose, onCreated, aiEnabled }) {
       // 재실행을 건너뛴다) timer가 잘못된 값으로 굳어, 아무것도 안 바꾸고 열자마자 닫아도
       // dirty가 거짓으로 true가 되어 확인 대화상자가 새로 열 때마다 떴다.
       setAiTopic(""); setAiCount(5); setSpectators(true); setTimer(0); setRpsMode("single");
+      // 닫혀도 자리를 지키는 모달이라 요청 상태가 남는다 — 다시 열 때 지난 결과를 걷는다.
+      genAi.reset(); create.reset();
     }
-  }, [open]);
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
   // 게임을 바꾸면 그 게임에 맞는 제한 시간 기본값으로(가위바위보 15초, 퀴즈 25초, 그 외 무제한).
   React.useEffect(() => {
     setTimer(gameType === "rps" ? 15 : gameType === "quiz" ? 25 : 0);
@@ -144,11 +147,13 @@ function CreateRoomModal({ open, onClose, onCreated, aiEnabled }) {
     mutationFn: () => api("/api/games/quiz/generate", { method: "POST", body: { topic: aiTopic.trim(), count: Number(aiCount) || 5 } }),
     onSuccess: (res) => {
       const qs = (res.questions || []).map((q) => ({ q: q.q, options: q.options, answer: q.answer }));
+      // 만든 문제가 없으면 생성 칸 아래 오류 줄이 말한다(`genNotice`) — 만들었을 때만 토스트다.
       if (qs.length) { setQuizQs(qs); toast(`문제 ${qs.length}개를 만들었어요. 검토하고 수정한 뒤 방을 추가하세요.`, "success"); }
-      else toast("생성된 문제가 없습니다. 주제를 더 구체적으로 적어 보세요.", "error");
     },
-    onError: (e) => toast((e && e.message) || "AI 생성에 실패했습니다. 다시 시도해 주세요.", "error"),
   });
+  const genNotice = failureText([genAi, "AI 생성에 실패했습니다. 다시 시도해 주세요."])
+    || (genAi.isSuccess && !((genAi.data && genAi.data.questions) || []).length
+      ? "생성된 문제가 없습니다. 주제를 더 구체적으로 적어 보세요." : null);
 
   const setOption = (i, v) => setOptions((prev) => prev.map((o, idx) => (idx === i ? v : o)));
   const addOption = () => setOptions((prev) => (prev.length >= MAX_OPTIONS ? prev : [...prev, ""]));
@@ -190,8 +195,8 @@ function CreateRoomModal({ open, onClose, onCreated, aiEnabled }) {
       body: { title, game_type: gameType, max_players: Number(maxPlayers) || 8, allow_spectators: spectators, config },
     }),
     onSuccess: (res) => { toast("게임방을 만들었습니다.", "success"); onCreated && onCreated(res.room); },
-    onError: (e) => toast((e && e.message) || "게임방을 만들지 못했습니다. 다시 시도해 주세요.", "error"),
   });
+  const createFailure = failureText([create, "게임방을 만들지 못했습니다. 다시 시도해 주세요."]);
   const canSave = title.trim().length > 0 && optionsReady && questionReady && quizReady && !create.isPending;
 
   // 뭔가 입력했으면 Esc·바깥 클릭에 그냥 닫히지 않게 한다 (E11). 퀴즈는 최대 20문항이라
@@ -339,11 +344,13 @@ function CreateRoomModal({ open, onClose, onCreated, aiEnabled }) {
                   {/* fullWidth 입력 옆의 버튼은 먼저 눌려 글자가 두 줄로 깨진다 — 양보하지 않게 못 박는다. */}
                   <Button size="sm" variant="primary" disabled={genAi.isPending || !aiTopic.trim()}
                     sx={NOSHRINK}
-                    onClick={() => aiTopic.trim() && genAi.mutate()}>{genAi.isPending ? "생성 중…" : "AI로 문제 생성"}</Button>
+                    loading={genAi.isPending}
+                    onClick={() => aiTopic.trim() && genAi.mutate()}>AI로 문제 생성</Button>
                 </Stack>
                 <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1 }}>
                   주제를 적고 생성하면 아래 문제가 채워집니다. 그대로 쓰거나 수정하세요.
                 </Typography>
+                {genNotice ? <Callout tone="danger" compact sx={{ mt: 1 }}>{genNotice}</Callout> : null}
               </Paper>
             ) : null}
             <QuizEditor questions={quizQs} setQuestions={setQuizQs} />
@@ -377,6 +384,8 @@ function CreateRoomModal({ open, onClose, onCreated, aiEnabled }) {
           label="관전 허용"
         />
       </Box>
+      {/* 방 만들기 실패는 발 바로 위 — 누른 단추 곁에 남는다. 다시 누르면 걷힌다. */}
+      {createFailure ? <Callout tone="danger" compact sx={{ mt: 2.5 }}>{createFailure}</Callout> : null}
     </Modal>
   );
 }
@@ -396,7 +405,7 @@ export function Games() {
       />
 
       {list.isError ? (
-        <ErrorState error={list.error} onRetry={() => list.refetch()} />
+        <ErrorState layout="region" error={list.error} onRetry={() => list.refetch()} />
       ) : list.isPending ? (
         <Card><Skeleton lines={5} /></Card>
       ) : (list.data.items || []).length === 0 ? (

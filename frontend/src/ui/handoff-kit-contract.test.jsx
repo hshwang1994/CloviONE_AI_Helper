@@ -126,6 +126,8 @@ describe("모달 머리와 발 · ActionFooter", () => {
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByRole("img", { name: "주의" })).toBeInTheDocument();
     expect(document.activeElement).toBe(within(dialog).getByRole("button", { name: "취소" }));
+    // 표지는 머리 줄에 서되 대화상자의 **이름**에는 섞이지 않는다 — 이름은 제목 글자 그대로다.
+    expect(screen.getByRole("dialog", { name: "확인" })).toBe(dialog);
   });
 });
 

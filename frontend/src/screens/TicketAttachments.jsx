@@ -9,7 +9,8 @@ import Typography from "@mui/material/Typography";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import { api } from "../lib/api.js";
 import { objectParticle, topicParticle } from "../lib/format.js";
-import { Button, Card, useConfirm, useToast } from "../ui/kit.jsx";
+import { failureText, latestMutation } from "../lib/failure.js";
+import { Button, Callout, Card, EmptyState, useConfirm, useToast } from "../ui/kit.jsx";
 import { FONT_SIZE, KO_WORD_BREAK } from "../ui/theme.js";
 import { ImageLightbox, useLightbox } from "../ui/ImageLightbox.jsx";
 import { Note } from "../ui/adminKit.jsx";
@@ -87,21 +88,28 @@ export function TicketAttachments({ ticketId, attachments, canEdit, onChanged })
     },
     onSuccess: ({ failed }) => {
       refresh();
-      if (failed.length) {
-        toast(`첨부 ${failed.length}개를 올리지 못했습니다: ${failed.join(", ")}`, "error");
-      } else {
-        toast("파일을 첨부했습니다.", "success");
-      }
+      // 일부를 못 올린 사실은 첨부 판 안에 남는다(아래 `attachNotice`) — 다 올렸을 때만 토스트다.
+      if (!failed.length) toast("파일을 첨부했습니다.", "success");
     },
-    onError: (e) => toast((e && e.message) || "첨부하지 못했습니다. 다시 시도해 주세요.", "error"),
   });
 
   const remove = useMutation({
     mutationFn: (attachmentId) =>
       api(`/api/tickets/attachments/${attachmentId}`, { method: "DELETE" }),
     onSuccess: () => { toast("첨부를 뗐습니다.", "success"); refresh(); },
-    onError: (e) => toast((e && e.message) || "떼지 못했습니다. 다시 시도해 주세요.", "error"),
   });
+  /* 개수 상한에 걸려 고르기를 멈춘 사실 — 다음에 고르면 새로 선다. */
+  const [limitNotice, setLimitNotice] = React.useState("");
+  /* 첨부 판의 결과 중 남아야 하는 것 — 올리기 · 떼기 실패, 일부만 올라간 사실, 개수 상한. 가장 나중
+     동작 하나만 말하고 다음 동작에서 걷힌다(`lib/failure.js`). 문구는 토스트 때와 같다. */
+  const attachFailure = failureText(
+    [upload, "첨부하지 못했습니다. 다시 시도해 주세요."],
+    [remove, "떼지 못했습니다. 다시 시도해 주세요."],
+  );
+  const lastAttach = latestMutation(upload, remove);
+  const partial = !attachFailure && lastAttach === upload && upload.isSuccess && upload.data && upload.data.failed.length
+    ? `첨부 ${upload.data.failed.length}개를 올리지 못했습니다: ${upload.data.failed.join(", ")}` : null;
+  const attachNotice = limitNotice || attachFailure || partial;
 
   /* 파일이 들어오는 문은 여기 하나다 — 버튼으로 고르든 끌어다 놓든 같은 판정을 지난다.
      둘로 갈라 두면 한쪽에만 상한 검사를 빠뜨리게 된다. */
@@ -116,8 +124,9 @@ export function TicketAttachments({ ticketId, attachments, canEdit, onChanged })
        죽고 드래그만 살아 보인 이유가 정확히 이것이다. */
     const picked = Array.from(fileList || []);
     if (picked.length === 0) return;
+    setLimitNotice("");
     if (list.length + picked.length > MAX_ATTACHMENTS) {
-      toast(`첨부는 최대 ${MAX_ATTACHMENTS}개까지 올릴 수 있습니다.`, "error");
+      setLimitNotice(`첨부는 최대 ${MAX_ATTACHMENTS}개까지 올릴 수 있습니다.`);
       return;
     }
     upload.mutate(picked);
@@ -138,11 +147,13 @@ export function TicketAttachments({ ticketId, attachments, canEdit, onChanged })
           첨부 {list.length > 0 ? `(${list.length})` : ""}
         </Typography>
         {canEdit ? (
-          <Button onClick={openPicker} disabled={upload.isPending || full}>
-            {upload.isPending ? "올리는 중" : "파일 추가"}
+          <Button onClick={openPicker} disabled={upload.isPending || full} loading={upload.isPending}>
+            파일 추가
           </Button>
         ) : null}
       </Stack>
+
+      {attachNotice ? <Callout tone="danger" compact sx={{ mb: 1.5 }}>{attachNotice}</Callout> : null}
 
       {canEdit ? (
         <Box
@@ -167,9 +178,7 @@ export function TicketAttachments({ ticketId, attachments, canEdit, onChanged })
       ) : null}
 
       {list.length === 0 && !canEdit ? (
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5 }}>
-          첨부된 파일이 없습니다.
-        </Typography>
+        <EmptyState layout="inline" title="첨부된 파일이 없습니다." />
       ) : null}
 
       {list.length > 0 ? (

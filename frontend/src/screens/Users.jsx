@@ -10,7 +10,7 @@ import TextField from "@mui/material/TextField";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
-import { redirectToLogin } from "../lib/sessionRedirect.js";
+import { expireSession } from "../lib/sessionRedirect.js";
 import { diffFields } from "../lib/diffFields.js";
 import { fmtDateTime, shortUA } from "../lib/format.js";
 import { useAuth } from "../app/auth.jsx";
@@ -237,17 +237,20 @@ function TempPasswordModal({ data, onClose }) {
   // Ops.jsx 진단 번들 '복사' 버튼과 같은 패턴 — 토스트(3.5초 소멸)만으론 라벨 변화가 스크린리더에
   // 안 들린다는 이유로 이미 그 화면에서 버튼 라벨을 잠깐 '복사됨'으로 바꾸는 방식을 쓰고 있다.
   const [copied, setCopied] = useState("");
+  /* 복사가 안 된 사실 — 모달 안에 남는다(직접 선택해 복사해야 하는 사람이 읽을 수 있게). 다시 누르면 걷힌다. */
+  const [copyNotice, setCopyNotice] = useState(null);
   const copiedTimerRef = React.useRef(null);
   React.useEffect(() => () => { if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current); }, []);
   if (!data) return null;
   function copy() {
+    setCopyNotice(null);
     if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(data.password).then(() => {
       setCopied("복사됨");
       if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current);
       copiedTimerRef.current = setTimeout(() => setCopied(""), 1500);
       toast("복사했습니다.", "success");
-    }, () => toast("복사 실패", "error"));
-    else toast("복사를 지원하지 않는 환경입니다. 직접 선택해 복사하세요.", "info");
+    }, () => setCopyNotice({ tone: "danger", text: "복사 실패" }));
+    else setCopyNotice({ tone: "info", text: "복사를 지원하지 않는 환경입니다. 직접 선택해 복사하세요." });
   }
   const footer = (
     <Box className="k-footer-row" sx={{ px: 3, py: 2 }}>
@@ -260,6 +263,7 @@ function TempPasswordModal({ data, onClose }) {
   return (
     <Modal open onClose={onClose} title="임시 비밀번호" size="sm" footer={footer}>
       <Typography sx={{ whiteSpace: "pre-line" }}>{data.notice || "이 임시 비밀번호는 지금 한 번만 표시됩니다. 사용자에게 안전하게 전달하세요."}</Typography>
+      {copyNotice ? <Callout tone={copyNotice.tone} compact sx={{ mt: 1.5 }}>{copyNotice.text}</Callout> : null}
       {/* role="textbox"는 스크린리더에 '편집 가능'으로 읽히지만 실제로는 도달 불가였다.
           포커스 가능한 읽기 전용 텍스트로 바꿔(tabIndex) 키보드로 접근, 선택할 수 있게 한다.
           aria-label을 달면 접근 가능한 이름 계산을 그 문자열이 덮어써('임시 비밀번호'만 들리고
@@ -294,6 +298,9 @@ export function Users() {
   // 딥링크(다른 화면이 보내는, 한 번 쓰고 지우는 프리필)와는 다른, 지속적인 canonical
   // 주소다. AdminRoutes.jsx가 /users와 /users/:id 둘 다 이 컴포넌트로 보낸다.
   const routeId = useParams().id;
+  /* 다른 화면이 `?id=` 로 넘긴 사용자를 못 연 사실 — 목록 위에 남는다(사라지는 토스트였을 때는 빈 목록에
+     떨어진 것처럼 보였다). 다음에 누가 열리면 걷힌다. */
+  const [deepLinkFailure, setDeepLinkFailure] = React.useState("");
   const navigate = useNavigate();
   const [q, setQ] = useState(() => searchParams.get("q") || "");
   // PA-RC-0013: 아래 다섯 필터·페이지도 q/department_id와 같은 방식으로 최초 마운트에
@@ -342,8 +349,8 @@ export function Users() {
     const id = searchParams.get("id");
     if (id) {
       api("/api/admin/users/" + id)
-        .then((item) => { if (item) setSel(item); })
-        .catch(() => toast("연결된 사용자를 열지 못했습니다(삭제되었거나 접근 권한이 없을 수 있습니다). 목록에서 다시 확인해 주세요.", "error"));
+        .then((item) => { if (item) { setDeepLinkFailure(""); setSel(item); } })
+        .catch(() => setDeepLinkFailure("연결된 사용자를 열지 못했습니다(삭제되었거나 접근 권한이 없을 수 있습니다). 목록에서 다시 확인해 주세요."));
       // 한 번 연 뒤에는 주소에서 지운다 — 안 지우면 드로어를 닫고 새로고침할 때마다 같은
       // 사용자가 다시 열린다(DataScreen.jsx가 해시 쿼리를 지우는 것과 같은 이유).
       setSearchParams((prev) => { const next = new URLSearchParams(prev); next.delete("id"); return next; }, { replace: true });
@@ -682,6 +689,7 @@ export function Users() {
           <p>일반 사용자를 <strong>관리자</strong>로 올리면 승인 요청이 접수되어 승인 후 반영됩니다.</p>
           <p>임시 비밀번호는 생성, 재설정 시 화면에 한 번만 표시됩니다.</p>
         </Box>} />
+      {deepLinkFailure ? <Callout tone="danger" compact sx={{ mb: 2 }}>{deepLinkFailure}</Callout> : null}
       {/* 필터 바 — DataScreen(재설계 기준 화면)과 같은 자동 줄바꿈 그리드. 화면이 넓어지면 열이
           늘어 한 줄에 담기고, 좁아지면 접힌다(예전엔 flex 한 줄이라 1366px에서 이미 두 줄로 꺾였다).
           SEM-02(PA-F-031): h1 하나뿐이라 필터·목록이 스크린리더 제목 탐색에서 구획 없는 한
@@ -753,7 +761,7 @@ export function Users() {
       {query.isLoading ? (
         <Card><Skeleton lines={5} /></Card>
       ) : query.isError ? (
-        <ErrorState error={query.error} onRetry={() => query.refetch()} />
+        <ErrorState layout="region" error={query.error} onRetry={() => query.refetch()} />
       ) : items.length === 0 ? (
         showArchived ? (
           // 보관함을 보는 중엔 내용 필터만 지운다(clearContentFilters), clearFilters를 쓰면
@@ -845,9 +853,9 @@ export function Users() {
                 toast("보관된 계정을 복구했습니다(예전 정보 그대로, 방금 입력한 값은 반영되지 않았습니다. 필요하면 상세에서 따로 수정하세요).", "success");
                 return;
               }
-              // 복구를 취소했거나 id가 없으면 폼을 유지하고 안내만(다른 이메일로 바꿀 수 있게).
-              toast(e.body.error.message || "그 이메일은 보관된 계정이 쓰고 있습니다.", "info");
-              return;
+              // 복구를 취소했거나 id가 없으면 폼을 유지하고 **폼 위 오류로** 말한다(다른 이메일로 바꿀 수 있게) —
+              // 토스트는 사라지고, 사람은 그 이메일로 왜 못 만드는지 다시 찾아야 했다.
+              throw new Error(e.body.error.message || "그 이메일은 보관된 계정이 쓰고 있습니다.");
             }
             throw e;   // 그 외 오류는 FormModal이 폼 상단에 표시하도록 다시 던진다
           }
@@ -923,6 +931,8 @@ function inactiveSuffix(nameOpts, currentId) {
 
 function UserDetail({ user, notFound, onClose, onEdit, onChanged, onTempPw, pwHelp, dept, title }) {
   const [busy, setBusy] = useState(false);
+  /* 상세 작업의 실패와 복사가 안 된 사실 — 이 모달 안에 남는다. 다음 작업을 누르면 걷힌다. */
+  const [actionNotice, setActionNotice] = useState(null);
   const [resetting, setResetting] = useState(false);
   const confirm = useConfirm();
   const toast = useToast();
@@ -954,7 +964,7 @@ function UserDetail({ user, notFound, onClose, onEdit, onChanged, onTempPw, pwHe
     if (notFound) {
       return (
         <Modal open onClose={onClose} title="" size="lg">
-          <ErrorState error={{ status: 404 }} />
+          <ErrorState layout="region" error={{ status: 404 }} />
         </Modal>
       );
     }
@@ -981,6 +991,7 @@ function UserDetail({ user, notFound, onClose, onEdit, onChanged, onTempPw, pwHe
   async function run(path, { confirm: confirmMsg, danger, okMsg, format } = {}) {
     if (confirmMsg && !(await confirm(confirmMsg, { danger }))) return;
     setBusy(true);
+    setActionNotice(null);
     try {
       const res = await api(path, { method: "POST", body: {} });
       // format이 {msg, kind}를 돌려주면 그 톤으로(성공만이 아니라 info/warn도) 알린다.
@@ -992,8 +1003,8 @@ function UserDetail({ user, notFound, onClose, onEdit, onChanged, onTempPw, pwHe
     catch (e) {
       // 다른 admin 화면(DataScreen.jsx handleApiError)과 같은 401 처리 — 세션이 끊긴 채 계속
       // 여기서만 일반 오류 토스트로 흘리면, 다시 로그인하라는 신호 없이 다음 조작도 계속 실패한다.
-      if (e && e.status === 401) { toast("로그인이 필요합니다. 로그인 화면으로 이동합니다.", "error"); redirectToLogin({ delayMs: 1200 }); return; }
-      toast(e.message, "error");
+      if (e && e.status === 401) { expireSession(); return; }
+      setActionNotice({ tone: "danger", text: e.message });
     }
     finally { setBusy(false); }
   }
@@ -1017,8 +1028,8 @@ function UserDetail({ user, notFound, onClose, onEdit, onChanged, onTempPw, pwHe
       if (copiedIdTimerRef.current) clearTimeout(copiedIdTimerRef.current);
       copiedIdTimerRef.current = setTimeout(() => setCopiedId(""), 1500);
       toast("ID를 복사했습니다.", "success");
-    }, () => toast("복사 실패", "error"));
-    else toast("복사를 지원하지 않는 환경입니다. 직접 선택해 복사하세요.", "info");
+    }, () => setActionNotice({ tone: "danger", text: "복사 실패" }));
+    else setActionNotice({ tone: "info", text: "복사를 지원하지 않는 환경입니다. 직접 선택해 복사하세요." });
   }
   // 되돌리기 어려운 작업(비활성화, 보관)은 별도 묶음으로 떼어 오조작을 줄인다, 이전엔 무해한
   // 유틸리티(재설정, 세션 해제 등) 사이에 섞여 있어 위험 작업을 잘못 누르기 쉬웠다.
@@ -1084,13 +1095,14 @@ function UserDetail({ user, notFound, onClose, onEdit, onChanged, onTempPw, pwHe
   return (
     <>
     <Modal open={!!user} onClose={onClose} title={d.display_name || d.email} footer={footer} size="lg">
+      {actionNotice ? <Callout tone={actionNotice.tone} compact sx={{ mb: 2 }}>{actionNotice.text}</Callout> : null}
       {/* detailStale이 모든 작업 버튼을 잠그지만(actionsDisabled), 그 이유를 아무 데도 보여주지
           않으면 관리자는 버튼이 왜 안 눌리는지 알 길이 없다, sessionsQ.isError와 같은 패턴으로
           여기서도 실패와 재시도 경로를 드러낸다. */}
       {detailStale ? (
         <Box sx={{ mb: 2 }}>
-          <Callout tone="danger">
-            최신 상태를 불러오지 못해 작업을 수행할 수 없습니다. <LinkButton onClick={refetchDetail}>다시 시도</LinkButton>
+          <Callout tone="danger" action={<Button size="sm" variant="ghost" onClick={refetchDetail}>다시 시도</Button>}>
+            최신 상태를 불러오지 못해 작업을 수행할 수 없습니다.
           </Callout>
         </Box>
       ) : null}
@@ -1153,7 +1165,7 @@ function UserDetail({ user, notFound, onClose, onEdit, onChanged, onTempPw, pwHe
             <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1 }}>로그인 세션 (IP, 기기, 최근 활동)</Typography>
             <DataTable columns={SESSION_COLUMNS} rows={sessions} rowKey={(s) => s.id} />
           </>
-        ) : (sessionsQ.data ? <Typography variant="caption" color="text.secondary">활성 세션이 없습니다.</Typography> : null)}
+        ) : (sessionsQ.data ? <EmptyState layout="inline" title="활성 세션이 없습니다." /> : null)}
       </Box>
     </Modal>
     <FormModal open={resetting} title="비밀번호 재설정"

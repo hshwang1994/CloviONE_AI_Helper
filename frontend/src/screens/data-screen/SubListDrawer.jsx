@@ -50,7 +50,10 @@ export function SubListDrawer({ view, onClose, onActed }) {
   // 직접 거른다(DataScreen 메인 목록의 clientFilter와 동일한 발상).
   const rows = sl.filterRows ? rawRows.filter((r) => sl.filterRows(r, row)) : rawRows;
   const total = q.total;
+  /* 하위 행 작업의 실패 — 이 창 안에 남는다. 다음 작업을 누르면 걷힌다. */
+  const [subFailure, setSubFailure] = useState("");
   async function act(ra, subRow, key) {
+    setSubFailure("");
     // 조회형(로컬) 하위 행 작업 — 네트워크 호출 없이 이미 불러온 하위 행 데이터를 그대로 안내 모달로
     // 보여준다(예: 실행 이력 목록에서는 60자로 자르는 보낸 페이로드/응답 요약의 전체 텍스트 보기).
     // 동기 작업이라 busy 상태를 걸 필요가 없다(예전엔 이것도 subBusy를 켜서 다른 모든 행의 버튼까지
@@ -60,7 +63,7 @@ export function SubListDrawer({ view, onClose, onActed }) {
     if (ra.info) {
       setSubBusyKey(key);
       try { const res = await api(ra.path(subRow, row), { method: ra.method || "GET" }); setSubInfo({ title: ra.label, body: ra.info(res) }); }
-      catch (e) { handleApiError(e, toast); }
+      catch (e) { handleApiError(e, setSubFailure); }
       finally { setSubBusyKey(null); }
       return;
     }
@@ -79,7 +82,7 @@ export function SubListDrawer({ view, onClose, onActed }) {
       // 보려고 재시도했는데 곧바로 드로어가 닫혀 다시 열어야 했던 것을 없앤다. 그 외(예: 버전
       // 롤백처럼 하위 목록을 벗어나는 게 자연스러운 작업)는 기존처럼 닫는다.
       if (ra.keepOpen) q.refetch(); else onClose();
-    } catch (e) { handleApiError(e, toast); }
+    } catch (e) { handleApiError(e, setSubFailure); }
     finally { setSubBusyKey(null); }
   }
   // subList는 단일 rowAction(하위호환) 또는 rowActions 배열(롤백+비교 등 다중)을 받는다. when은 (하위행, 부모행).
@@ -98,7 +101,7 @@ export function SubListDrawer({ view, onClose, onActed }) {
           const key = subRowKey(r) + ":" + ra.label;
           // 클릭한 그 버튼만 라벨이 '처리 중…'으로 바뀐다(disabled는 중복 제출 방지를 위해 전체에
           // 걸지만, 라벨은 실제로 진행 중인 액션 하나만, 부모 drawer의 busyKey와 동일한 패턴).
-          return <Button key={i} size="sm" variant={ra.variant || "default"} disabled={subBusy} onClick={() => act(ra, r, key)}>{subBusyKey === key ? "처리 중…" : ra.label}</Button>;
+          return <Button key={i} size="sm" variant={ra.variant || "default"} disabled={subBusy} loading={subBusyKey === key} onClick={() => act(ra, r, key)}>{ra.label}</Button>;
         })}</>;
       } }]
     : sl.columns;
@@ -147,13 +150,14 @@ export function SubListDrawer({ view, onClose, onActed }) {
        * 원본(rawRows)이 500건 상한에 닿았는지로 판정해야 한다 — 그렇지 않으면 필터로 몇 건만 남은
        * 경우 상한 경고가 안 떠서, 잘린 원본 때문에 누락된 항목이 있는데도 완전한 목록처럼 보였다
        * (예: 정책의 '이 정책을 쓰는 템플릿' — 발행·롤백 전 영향 범위를 이 불완전한 목록으로 오판할 수 있다). */}
+      {subFailure ? <Callout tone="danger" compact sx={{ mb: 1.5 }}>{subFailure}</Callout> : null}
       {!sl.paginated && (sl.filterRows ? rawRows.length >= 500 : rows.length >= 500) ? (
         <Callout tone="warn">{sl.filterRows
           ? "원본 목록이 500건으로 제한되어 이 필터 결과가 불완전할 수 있습니다. 일부 관련 항목이 누락됐을 수 있습니다."
           : "결과가 500건으로 제한되어 일부 항목이 보이지 않을 수 있습니다."}</Callout>
       ) : null}
       {q.isLoading ? <DataTable columns={cols} rows={[]} loading />
-        : q.isError ? <ErrorState error={q.error} onRetry={() => q.refetch()} />
+        : q.isError ? <ErrorState layout="region" error={q.error} onRetry={() => q.refetch()} />
         : rows.length === 0 ? <EmptyState title={sl.emptyTitle || "표시할 항목이 없습니다"} help={sl.emptyHelp} />
         : <>
             <DataTable columns={cols} rows={rows} total={total}

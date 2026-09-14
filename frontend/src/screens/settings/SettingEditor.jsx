@@ -172,9 +172,9 @@ export function SettingEditor({ setting, canWrite, onClose, onSaved }) {
       <Box className="k-footer-main">
         {/* 쓰기 권한이 없어도 버튼을 지우지 않는다 — 비활성 + 위 안내문(aria-describedby)으로
             '있지만 지금은 못 누른다'를 보여 준다(Maintenance.jsx 가 같은 실수를 겪고 고친 관례). */}
-        <Button onClick={onCheck} disabled={!canWrite || dryRun.isPending} aria-describedby={canWrite ? undefined : "setting-locked-reason"}>{dryRun.isPending ? "검증 중…" : "미리 검증"}</Button>
+        <Button onClick={onCheck} disabled={!canWrite || dryRun.isPending} loading={dryRun.isPending} aria-describedby={canWrite ? undefined : "setting-locked-reason"}>미리 검증</Button>
         {/* 변경이 없으면 저장을 막는다, 같은 값 재저장은 config_versions, 감사 로그에 no-op을 쌓는다. */}
-        <Button variant="primary" onClick={onSave} disabled={!canWrite || save.isPending || !dirty} aria-describedby={canWrite ? undefined : "setting-locked-reason"}>{save.isPending ? "저장 중…" : "저장"}</Button>
+        <Button variant="primary" onClick={onSave} disabled={!canWrite || save.isPending || !dirty} loading={save.isPending} aria-describedby={canWrite ? undefined : "setting-locked-reason"}>저장</Button>
       </Box>
     </Box>
   );
@@ -239,14 +239,15 @@ export function SettingEditor({ setting, canWrite, onClose, onSaved }) {
             onClick={() => setAdvanced((v) => !v)}>{advanced ? "구조화된 입력으로 전환" : "JSON으로 직접 수정(고급)"}</Button>
         </Box>
       ) : null}
-      {advanced && !advancedJsonValid ? <Typography color="error" variant="body2" role="alert" sx={{ mt: 1 }}>JSON 형식이 올바르지 않아 구조화된 입력으로 전환할 수 없습니다. 먼저 JSON을 고치세요.</Typography> : null}
+      {advanced && !advancedJsonValid ? <Callout tone="danger" compact sx={{ mt: 1 }}>JSON 형식이 올바르지 않아 구조화된 입력으로 전환할 수 없습니다. 먼저 JSON을 고치세요.</Callout> : null}
       {isObjectSetting(setting) && (!STRUCTURED_OBJECT_KEYS.includes(setting.key) || advanced) ? <Typography variant="caption" color="text.secondary" id="setting-help" sx={{ display: "block", mt: 1 }}>{OBJECT_SCHEMA_HELP[setting.key] || "JSON 형식으로 입력하세요."}</Typography> : null}
       {setting.restart_required ? <Typography variant="body2" sx={{ mt: 1.5 }}>이 설정은 저장 후 서비스를 수동으로 재시작해야 적용됩니다.</Typography> : null}
       {/* 검증 통과는 성공 신호이므로 흐린 힌트 대신 Callout로 확실히 표시한다.
           tone="success"로 '이 항목 저장 시도 예정' 같은 평범한 안내(info)와 구분한다. */}
       {checked ? <Box role="status" sx={{ mt: 2 }}><Callout tone="success">{checked}</Callout></Box> : null}
-      {/* 오류는 앱 공통 오류 색(error)으로 — 예전 .k-empty-help는 색이 없어 일반 텍스트로 보였다. */}
-      {err ? <Typography color="error" variant="body2" id="setting-err" role="alert" sx={{ mt: 2 }}>{err}</Typography> : null}
+      {/* 오류는 폼 안 메시지 박스다(핸드오프 RULES §1). 입력의 aria-describedby 가 가리키는 자리는
+          그대로 `setting-err` 이다 — 상자를 감싼 칸이 그 이름을 든다. */}
+      {err ? <Box id="setting-err" sx={{ mt: 2 }}><Callout tone="danger" compact>{err}</Callout></Box> : null}
     </Modal>
     {showVersions ? (
       // 롤백 후 부모 편집기를 닫을 때도 requestClose()(같은 미저장 변경 확인)를 거친다, onClose()를

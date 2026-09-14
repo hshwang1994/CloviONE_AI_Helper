@@ -40,7 +40,7 @@ import { MascotTopButton } from "../ui/Mascot.jsx";
 import { useDocumentTitle, brand, setBrand } from "./documentTitle.js";
 import { useRouteAnnounce } from "./routeAnnounce.js";
 import { recordNavVisit } from "../lib/recentNav.js";
-import { Card, CrumbRootProvider, ErrorState, Skeleton } from "../ui/kit.jsx";
+import { Card, CrumbRootProvider, ErrorState, SessionExpiredOutlet, Skeleton } from "../ui/kit.jsx";
 import { Banners } from "./Banners.jsx";
 import { useStatusNotices } from "./StatusNotices.jsx";
 import { NOTI_UNREAD, invalidateNotifications, notiUnreadKey } from "./notification-keys.js";
@@ -1095,7 +1095,7 @@ export function AppShell({
         >
           {!minimal ? <ScopeBar /> : null}
           <CrumbRootProvider value={crumbRoot}>
-            {auth.isLoading ? <Card><Skeleton /></Card> : children}
+            {auth.isLoading ? <Card><Skeleton /></Card> : <SessionExpiredOutlet>{children}</SessionExpiredOutlet>}
           </CrumbRootProvider>
         </Box>
       </Box>

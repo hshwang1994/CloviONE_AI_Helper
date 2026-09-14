@@ -13,7 +13,8 @@ import Typography from "@mui/material/Typography";
 import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import OpenInNewRoundedIcon from "@mui/icons-material/OpenInNewRounded";
 import { api } from "../lib/api.js";
-import { Button, Card, EmptyState, ErrorState, PageHeader, Skeleton, useConfirm, useToast } from "../ui/kit.jsx";
+import { failureText } from "../lib/failure.js";
+import { Button, Callout, Card, EmptyState, ErrorState, PageHeader, Skeleton, useConfirm, useToast } from "../ui/kit.jsx";
 import { FAB_CLEARANCE, FONT_SIZE, FONT_WEIGHT } from "../ui/theme.js";
 import { isSearchable, normalizeQuery, routeOf, searchApi } from "../lib/search.js";
 import { useAuth } from "../app/auth.jsx";
@@ -195,11 +196,13 @@ export function Search() {
     onSuccess: (res) => {
       const r = res && res.reindex;
       qc.invalidateQueries({ queryKey: ["search"] });
-      if (r && r.status === "error") toast("재색인 실패: " + (r.error || "확인이 필요합니다"), "error");
-      else toast("검색 색인을 다시 만들었습니다" + (r ? " (" + r.item_count + "건)" : "") + ".", "success");
+      // 실패 결과는 머리 바로 아래 메시지 박스가 말한다(`reindexNotice`) — 성공만 토스트다.
+      if (!(r && r.status === "error")) toast("검색 색인을 다시 만들었습니다" + (r ? " (" + r.item_count + "건)" : "") + ".", "success");
     },
-    onError: (e) => toast((e && e.message) || "재색인하지 못했습니다. 다시 시도해 주세요.", "error"),
   });
+  const reindexResult = reindex.isSuccess && reindex.data ? reindex.data.reindex : null;
+  const reindexNotice = failureText([reindex, "재색인하지 못했습니다. 다시 시도해 주세요."])
+    || (reindexResult && reindexResult.status === "error" ? "재색인 실패: " + (reindexResult.error || "확인이 필요합니다") : null);
   async function doReindex() {
     const ok = await confirm(
       "검색 색인을 지금 다시 만들까요? 데이터가 많으면 잠시 시간이 걸릴 수 있습니다.",
@@ -219,11 +222,12 @@ export function Search() {
         title={enabled ? `‘${urlQuery}’ 검색 결과` : "통합 검색"}
         description="검색어와 관련된 항목을 유형별로 모아 봅니다."
         actions={canReindex ? (
-          <Button size="sm" onClick={doReindex} disabled={reindex.isPending}>
-            {reindex.isPending ? "재색인 중…" : "지금 재색인"}
+          <Button size="sm" onClick={doReindex} disabled={reindex.isPending} loading={reindex.isPending}>
+            지금 재색인
           </Button>
         ) : null}
       />
+      {reindexNotice ? <Callout tone="danger" compact sx={{ mb: 2 }}>{reindexNotice}</Callout> : null}
       <SearchField value={draft} onChange={setDraft} onSubmit={submit} placeholder={searchKindsPlaceholder} />
 
       {!enabled ? (
@@ -241,7 +245,7 @@ export function Search() {
       ) : q.isPending ? (
         <Card><Skeleton lines={6} /></Card>
       ) : q.isError ? (
-        <ErrorState error={q.error} onRetry={() => q.refetch()} />
+        <ErrorState layout="region" error={q.error} onRetry={() => q.refetch()} />
       ) : groups.length === 0 ? (
         /* '쳤는데 없다' — art="search" 로 '데이터 없음'과 구분한다. 복구 행동은 검색어를
            지우는 것이지, 데이터를 만드는 것이 아니다. */

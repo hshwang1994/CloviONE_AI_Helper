@@ -7,7 +7,8 @@ import Chip from "@mui/material/Chip";
 import Typography from "@mui/material/Typography";
 import { alpha } from "@mui/material/styles";
 import { api } from "../lib/api.js";
-import { Button, EmptyState, ErrorState, FieldLabel, Modal, Skeleton, useConfirm, useToast } from "../ui/kit.jsx";
+import { failureText } from "../lib/failure.js";
+import { Button, Callout, EmptyState, ErrorState, FieldLabel, Modal, Skeleton, useConfirm, useToast } from "../ui/kit.jsx";
 import { PeopleFilter, filterPeople } from "./chat/peoplePicker.jsx";
 import { FONT_SIZE, FONT_WEIGHT } from "../ui/theme.js";
 import { affiliation, hasDuplicateNames, personLabel } from "../lib/people.js";
@@ -159,13 +160,18 @@ export function ManageRoomModal({ open, onClose, roomId, title, members, meId, p
    * 경로는 이미 `setPicked({})`를 명시적으로 부르므로(위 invite.onSuccess), 여기서 title
    * 변화에 반응할 이유가 없다 - 모달이 열리는 순간의 값으로 한 번만 채우면 된다(그 시점에는
    * title 이 이미 최신값이다 - "관리" 버튼 자체가 room 데이터 로딩 후에만 보인다). */
-  React.useEffect(() => { if (open) { setName(title || ""); setPicked({}); } }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+  React.useEffect(() => {
+    if (open) {
+      setName(title || ""); setPicked({});
+      // 다시 열 때 지난 실패를 걷는다 — 모달은 닫혀도 자리를 지키므로 요청 상태가 남는다.
+      [rename, invite, remove, handOver].forEach((m) => m.reset());
+    }
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const refresh = () => {
     qc.invalidateQueries({ queryKey: ["team-chat-msgs", roomId] });
     qc.invalidateQueries({ queryKey: ["team-chat-rooms"] });
   };
-  const fail = (e, fallback) => toast((e && e.message) || fallback, "error");
 
   const dir = useQuery({
     queryKey: ["team-chat-directory"],
@@ -177,7 +183,6 @@ export function ManageRoomModal({ open, onClose, roomId, title, members, meId, p
   const rename = useMutation({
     mutationFn: () => api(`/api/team-chat/rooms/${roomId}/rename`, { method: "POST", body: { title: name.trim() } }),
     onSuccess: () => { refresh(); toast("방 이름을 바꿨습니다.", "success"); },
-    onError: (e) => fail(e, "이름을 바꾸지 못했습니다. 다시 시도해 주세요."),
   });
   const invite = useMutation({
     mutationFn: (ids) => api(`/api/team-chat/rooms/${roomId}/members/add`, { method: "POST", body: { user_ids: ids } }),
@@ -187,18 +192,23 @@ export function ManageRoomModal({ open, onClose, roomId, title, members, meId, p
       // 서버는 '실제로 새로 들어온 수'를 돌려준다 — 이미 있던 사람은 조용히 건너뛴다.
       toast(r && r.added ? `${r.added}명을 초대했습니다.` : "이미 모두 참여 중입니다.", "success");
     },
-    onError: (e) => fail(e, "초대하지 못했습니다. 다시 시도해 주세요."),
   });
   const remove = useMutation({
     mutationFn: (userId) => api(`/api/team-chat/rooms/${roomId}/members/remove`, { method: "POST", body: { user_id: userId } }),
     onSuccess: () => { refresh(); toast("참여자를 내보냈습니다.", "success"); },
-    onError: (e) => fail(e, "내보내지 못했습니다. 다시 시도해 주세요."),
   });
   const handOver = useMutation({
     mutationFn: (userId) => api(`/api/team-chat/rooms/${roomId}/owner`, { method: "POST", body: { user_id: userId } }),
     onSuccess: () => { refresh(); onClose(); toast("방장을 넘겼습니다. 이제 이 방을 관리할 수 없습니다.", "info"); },
-    onError: (e) => fail(e, "방장을 넘기지 못했습니다. 다시 시도해 주세요."),
   });
+  /* 관리 동작(이름 · 초대 · 내보내기 · 방장 넘기기)의 실패는 이 모달 안에 남는다 — 가장 나중에 누른 동작
+     하나만 말하고, 다음 동작을 누르면 걷힌다(`lib/failure.js`). */
+  const manageFailure = failureText(
+    [rename, "이름을 바꾸지 못했습니다. 다시 시도해 주세요."],
+    [invite, "초대하지 못했습니다. 다시 시도해 주세요."],
+    [remove, "내보내지 못했습니다. 다시 시도해 주세요."],
+    [handOver, "방장을 넘기지 못했습니다. 다시 시도해 주세요."],
+  );
 
   const rows = members || [];
   const memberIds = new Set(rows.map((m) => m.user_id));
@@ -234,6 +244,7 @@ export function ManageRoomModal({ open, onClose, roomId, title, members, meId, p
 
   return (
     <Modal open={open} onClose={onClose} title="채팅방 관리" size="md" dirty={dirty} footer={<Button onClick={requestClose}>닫기</Button>}>
+      {manageFailure ? <Callout tone="danger" compact sx={{ mb: 2 }}>{manageFailure}</Callout> : null}
       <Box component="section" sx={{ mb: 3 }}>
         <FieldLabel htmlFor="tc-rename">방 이름</FieldLabel>
         <Box sx={{ display: "flex", gap: 1, alignItems: "center", flexWrap: "wrap" }}>
@@ -275,7 +286,7 @@ export function ManageRoomModal({ open, onClose, roomId, title, members, meId, p
       <Box component="section">
         <Typography component="h3" sx={{ mb: 0.75, fontSize: FONT_SIZE.bodySm, fontWeight: FONT_WEIGHT.bold }}>초대하기</Typography>
         {dir.isPending ? <Skeleton lines={3} />
-          : dir.isError ? <ErrorState error={dir.error} onRetry={() => dir.refetch()} />
+          : dir.isError ? <ErrorState layout="region" error={dir.error} onRetry={() => dir.refetch()} />
           : candidates.length === 0 ? (
             <EmptyState size="compact" title="초대할 다른 사용자가 없습니다" />
           ) : (

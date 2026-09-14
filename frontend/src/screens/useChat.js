@@ -2,6 +2,7 @@ import { redirectToLogin } from "../lib/sessionRedirect.js";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { api } from "../lib/api.js";
+import { failureText, latestMutation } from "../lib/failure.js";
 import { useConfirm, useToast } from "../ui/kit.jsx";
 import {
   STALL_MS, CHAT_LAST_CONV_KEY, LIST_DRAWER_MEDIA,
@@ -252,7 +253,6 @@ export function useChat({ pasteEnabled = true, screenContext = null, dataEnabled
   const renameConv = useMutation({
     mutationFn: ({ id, title }) => api("/api/conversations/" + id, { method: "PATCH", body: { title } }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["conversations"] }),
-    onError: (e) => toast(e.message || "이름을 바꾸지 못했습니다. 다시 시도해 주세요.", "error"),
   });
   const archiveConv = useMutation({
     mutationFn: ({ id, archived }) => api("/api/conversations/" + id, { method: "PATCH", body: { archived } }),
@@ -276,7 +276,6 @@ export function useChat({ pasteEnabled = true, screenContext = null, dataEnabled
       });
       qc.invalidateQueries({ queryKey: ["conversations"] });
     },
-    onError: (e) => toast(e.message || "보관 상태를 바꾸지 못했습니다. 다시 시도해 주세요.", "error"),
   });
   const deleteConv = useMutation({
     mutationFn: (id) => api("/api/conversations/" + id, { method: "DELETE", body: {} }),
@@ -292,8 +291,15 @@ export function useChat({ pasteEnabled = true, screenContext = null, dataEnabled
           : old);
       qc.invalidateQueries({ queryKey: ["conversations"] });
     },
-    onError: (e) => toast(e.message || "삭제하지 못했습니다. 잠시 후 다시 시도해 주세요.", "error"),
   });
+  /* 대화 목록 동작(이름 · 보관 · 삭제)의 실패 — 목록 안에 남고 다음 동작에서 걷힌다. 문구는 토스트 때와 같다. */
+  const sidebarFailure = failureText(
+    [renameConv, "이름을 바꾸지 못했습니다. 다시 시도해 주세요."],
+    [archiveConv, "보관 상태를 바꾸지 못했습니다. 다시 시도해 주세요."],
+    [deleteConv, "삭제하지 못했습니다. 잠시 후 다시 시도해 주세요."],
+  );
+  /* 입력 칸 곁에 남는 실패 — 첨부 이미지 거절 사유와 보내기 실패. 다음에 고르거나 보내면 걷힌다. */
+  const [composerFailure, setComposerFailure] = useState("");
 
   async function pickFiles(fileList) {
     // 인코딩(downscaleImage)은 비동기라 그 사이 사용자가 다른 대화로 전환할 수 있다 — 시작 시점의
@@ -301,6 +307,7 @@ export function useChat({ pasteEnabled = true, screenContext = null, dataEnabled
     // A 대화에서 고른 이미지가 뒤늦게 B 대화의 컴포저에 나타나 엉뚱한 곳으로 전송될 수 있다.
     const startCid = cid;
     const files = Array.from(fileList || []);
+    setComposerFailure("");
     // 서버 상한(개당 3MB·합계 6MB·최대 3장·PNG/JPEG/WebP)을 왕복 전에 검사하되, 크기 검사는
     // 반드시 축소 뒤에 한다 — 폰 사진·스샷은 원본이 3MB를 쉽게 넘지만 축소하면 대부분 통과한다.
     const next = [...pending];   // 로컬 스냅숏(상태는 마지막에 한 번만 갱신 — 불변성 유지)
@@ -329,7 +336,7 @@ export function useChat({ pasteEnabled = true, screenContext = null, dataEnabled
     if (hitCount) reasons.push("이미지는 최대 " + MAX_ATTACH_COUNT + "장까지 첨부할 수 있습니다");
     if (hitTotal) reasons.push("첨부 이미지 전체 용량은 6MB를 넘을 수 없습니다");
     if (failed.length) reasons.push("처리하지 못한 이미지(" + failed.join(", ") + ")");
-    if (reasons.length) toast(reasons.join(", "), "error");
+    if (reasons.length) setComposerFailure(reasons.join(", "));
   }
   pickFilesRef.current = pickFiles;
   // 재시도는 전용 엔드포인트로 같은 메시지를 다시 처리한다(새 메시지 생성·첨부 유실 방지).
@@ -348,7 +355,7 @@ export function useChat({ pasteEnabled = true, screenContext = null, dataEnabled
         return;
       }
       if (e && e.status === 429) { setRateLimitNotice(rateLimitNoticeText(e)); return; }
-      toast(e.message || "다시 시도하지 못했습니다.", "error");
+      // 그 밖의 실패는 스레드 안 메시지 박스가 말한다(`threadFailure`).
     },
     onSettled: () => { retryingRef.current = null; },
   });
@@ -373,8 +380,8 @@ export function useChat({ pasteEnabled = true, screenContext = null, dataEnabled
       }
       if (e && e.status === 429) { setRateLimitNotice(rateLimitNoticeText(e)); return; }
       // 409(대화가 이어짐/미완료)는 화면이 이미 isLast로 버튼을 감추므로 평소엔 안 나지만,
-      // 폴링 사이의 경합(다른 탭에서 방금 새 메시지를 보냄 등)으로는 여전히 날 수 있다.
-      toast(e && e.status === 409 ? "그 사이 대화가 이어져 다시 생성할 수 없습니다." : (e.message || "다시 생성하지 못했습니다."), "error");
+      // 폴링 사이의 경합(다른 탭에서 방금 새 메시지를 보냄 등)으로는 여전히 날 수 있다 — 그 문장은
+      // 스레드 안 메시지 박스가 말한다(`threadFailure`).
     },
     onSettled: () => { regeneratingRef.current = null; },
   });
@@ -388,7 +395,6 @@ export function useChat({ pasteEnabled = true, screenContext = null, dataEnabled
   const deleteMsg = useMutation({
     mutationFn: ({ messageId }) => api("/api/messages/" + messageId, { method: "DELETE" }),
     onSuccess: (_d, vars) => qc.invalidateQueries({ queryKey: ["messages", vars.conversationId] }),
-    onError: (e) => toast(e.message || "메시지를 지우지 못했습니다.", "error"),
   });
   // team_chat의 같은 기능(ChatPane.jsx)과 같은 이유로 확인을 받는다 — 되돌릴 수 없다.
   async function doDeleteMessage(m) {
@@ -400,8 +406,23 @@ export function useChat({ pasteEnabled = true, screenContext = null, dataEnabled
   const feedbackMut = useMutation({
     mutationFn: ({ messageId, feedback }) => api("/api/messages/" + messageId + "/feedback", { method: "PATCH", body: { feedback } }),
     onSuccess: (_d, vars) => qc.invalidateQueries({ queryKey: ["messages", vars.conversationId] }),
-    onError: (e) => toast(e.message || "피드백을 저장하지 못했습니다.", "error"),
   });
+  /* 스레드 동작(다시 시도 · 다시 생성 · 메시지 삭제 · 피드백)의 실패 — 스레드 안에 남고 다음 동작에서 걷힌다.
+     세션 만료 · 점검 · 과다 요청은 제 자리(로그인 이동 · 점검 배너 · 속도 제한 배너)가 따로 말하므로 여기서
+     겹쳐 말하지 않는다. 문구는 토스트 때와 같다. */
+  const threadFailure = (() => {
+    const last = latestMutation(retry, regenerate, deleteMsg, feedbackMut);
+    if (!last || !last.isError) return null;
+    const e = last.error;
+    const handledElsewhere = e && (e.status === 401 || e.status === 429
+      || (e.status === 503 && e.body && e.body.error && e.body.error.code === "maintenance_mode"));
+    if ((last === retry || last === regenerate) && handledElsewhere) return null;
+    if (last === regenerate) {
+      return e && e.status === 409 ? "그 사이 대화가 이어져 다시 생성할 수 없습니다." : ((e && e.message) || "다시 생성하지 못했습니다.");
+    }
+    const fallback = last === retry ? "다시 시도하지 못했습니다." : last === deleteMsg ? "메시지를 지우지 못했습니다." : "피드백을 저장하지 못했습니다.";
+    return (e && e.message) || fallback;
+  })();
   function doFeedback(m, feedback) {
     feedbackMut.mutate({ messageId: m.id, feedback: m.feedback === feedback ? null : feedback, conversationId: cid });
   }
@@ -538,9 +559,12 @@ export function useChat({ pasteEnabled = true, screenContext = null, dataEnabled
     // 칠 수 있었다 — 여기서 이유를 한 줄로 알린다.
     // 이 가드는 컴포저뿐 아니라 선택 버튼·카드 '상세'(fromComposer=false)에도 적용한다 — 안 그러면
     // 재시도로 다른 메시지가 'pending'인 동안에도 선택/카드 클릭이 겹치는 러너 작업을 만들어 낼 수 있다.
-    if (busy || awaitingReply) { toast("답변을 기다리는 중입니다."); return; }
-    if (fromComposer && maintenanceNotice) { toast("시스템 점검 중에는 새 요청을 보낼 수 없습니다."); return; }
-    if (fromComposer && rateLimitNotice) { toast("요청이 너무 잦습니다. 잠시 후 다시 시도하세요."); return; }
+    /* 막힌 이유는 토스트로 따로 말하지 않는다 — 기다리는 중이면 입력 칸 위 「답변을 기다리는 중입니다」 줄이,
+       점검 · 과다 요청이면 그 배너가 이미 서 있다(핸드오프 RULES §1: 사라지는 토스트에 조치 필요를 싣지 않는다). */
+    if (busy || awaitingReply) return;
+    if (fromComposer && maintenanceNotice) return;
+    if (fromComposer && rateLimitNotice) return;
+    setComposerFailure("");
     sendingRef.current = true;
     if (fromComposer) {
       setText(""); setPending([]);   // 낙관적 비우기 — 실패하면 복구
@@ -591,7 +615,7 @@ export function useChat({ pasteEnabled = true, screenContext = null, dataEnabled
       } else if (e && e.status === 429) {
         setRateLimitNotice(rateLimitNoticeText(e));
       } else {
-        toast(e.message || "메시지를 보내지 못했습니다. 다시 시도해 주세요.", "error");
+        setComposerFailure(e.message || "메시지를 보내지 못했습니다. 다시 시도해 주세요.");
       }
     } finally {
       sendingRef.current = false;
@@ -616,6 +640,8 @@ export function useChat({ pasteEnabled = true, screenContext = null, dataEnabled
     // 컴포저
     text, setText, pending, setPending, composerFocused, setComposerFocused,
     maintenanceNotice, setMaintenanceNotice, rateLimitNotice, setRateLimitNotice,
+    // 제자리 실패 문장(토스트 대신) — 목록 · 스레드 · 입력 칸
+    sidebarFailure, threadFailure, composerFailure,
     send, createConv, retry, retryingRef,
     doSend, doRetry, pickFiles, clearDraft, prefillFromPrompt,
     composerLocked, sending, inputDisabled,

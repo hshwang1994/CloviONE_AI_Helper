@@ -133,11 +133,12 @@ export function Message({
               : (
                 <>
                   처리하지 못했습니다.{" "}
-                  <Box component="button" type="button" disabled={retrying}
-                    onClick={() => { if (!retrying) onRetry(m); }}
-                    sx={{ font: "inherit", fontWeight: FONT_WEIGHT.bold, border: 0, background: "none", p: 0, cursor: "pointer", color: "inherit", textDecoration: "underline" }}>
-                    {retrying ? "재시도 중…" : "다시 시도"}
-                  </Box>
+                  {/* 다시 시도는 손으로 그린 밑줄 글자가 아니라 30 단추다 — 진행 중에는 라벨을 그대로 두고
+                      앞에 진행 표시를 붙인다(라벨 바꿔치기 금지). */}
+                  <Button size="sm" variant="ghost" loading={retrying}
+                    onClick={() => { if (!retrying) onRetry(m); }}>
+                    다시 시도
+                  </Button>
                 </>
               )}
           </Typography>

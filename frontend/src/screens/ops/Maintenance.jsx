@@ -12,6 +12,7 @@ import { SettingVersions } from "../settings/SettingVersions.jsx";
 import { Section, SectionTitle, Card, Badge, Button, Callout, DetailRow, Skeleton, ErrorState, useConfirm, useToast } from "../../ui/kit.jsx";
 import { pairTracks } from "../../ui/density.js";
 import { isWriteRole, NO_WRITE_REASON } from "./opsHelpers.js";
+import { failureText } from "../../lib/failure.js";
 
 /* 유지보수 — 유지보수 모드(maintenance_mode 설정)를 켜고 끈다. 켜면 일반 사용자의 내용 쓰기가 차단된다.
    여기 문구는 서버가 실제로 막는 범위와 일치해야 한다 — 예전에는 게이트가 AI 채팅 2곳에만 걸려
@@ -76,8 +77,9 @@ export function Maintenance({ embedded = false } = {}) {
       qc.invalidateQueries({ queryKey: ["settings", "maintenance_mode", "versions"] });
       toast("유지보수 모드를 전환했습니다.", "success");
     },
-    onError: (e) => toast(e.message, "error"),
   });
+  /* 전환 전에 최신 상태를 못 읽어 취소한 사실 — 전환 실패와 같은 자리(모드 판)에 남는다. 다시 누르면 걷힌다. */
+  const [modeCheckFailure, setModeCheckFailure] = React.useState("");
   const saveMsg = useMutation({
     mutationFn: (val) => api("/api/admin/settings/maintenance_message", { method: "PUT", body: { value: val } }),
     // 저장 시작 시 이전 '미리 검증' 결과를 지운다 — 안 그러면 검증 통과 뒤 저장하면 이미 저장된
@@ -91,9 +93,9 @@ export function Maintenance({ embedded = false } = {}) {
       qc.invalidateQueries({ queryKey: ["settings", "maintenance_message", "versions"] });
       toast("점검 공지를 저장했습니다.", "success");
     },
-    // 실패는 사라지는 토스트만이 아니라 미리 검증 실패와 같은 자리에도 남긴다 —
-    // 필드 바로 옆에 지속되는 이유를 남겨 토스트를 놓쳐도 원인을 알 수 있게 한다.
-    onError: (e) => { setMsgCheckErr(e.message); toast(e.message, "error"); },
+    // 실패는 미리 검증 실패와 같은 자리에 남긴다 — 필드 바로 옆에 지속되는 이유다(토스트는 걷었다:
+    // 같은 문장이 두 곳에 서면 어느 쪽이 지금 상태인지 헷갈린다).
+    onError: (e) => { setMsgCheckErr(e.message); },
   });
   // Settings.jsx의 다른 설정들은 '미리 검증'(dry-run)을 제공하는데 이 두 키(같은 PUT 엔드포인트)만
   // 여기 전용 화면이라 그 수단이 없었다 — 같은 백엔드 능력을 여기서도 노출한다.
@@ -113,11 +115,12 @@ export function Maintenance({ embedded = false } = {}) {
     // 뒤집었다. 그 사이(대화상자가 열려 있던 몇 초) 다른 관리자가 이미 상태를 바꿨다면, 대화상자는
     // "켤까요?"라고 말해 놓고 실제로는 끄는(반대) 동작이 조용히 실행될 수 있었다, 대화상자를 열기
     // '전에' 먼저 최신 상태를 확인해, 그 값 하나로 문구와 실제 전환을 항상 일치시킨다.
+    setModeCheckFailure("");
     const fresh = await q.refetch();
     // refetch()는 실패해도 throw하지 않고 { isError: true, data: undefined }로 조용히 해결된다 -
     // 이 확인을 건너뛰면(예전 코드) 네트워크 blip 때 fresh.data가 undefined가 돼 freshOn이 클로저의
     // 낡은 on으로 폴백하면서도 사용자에게는 "최신 상태 확인"이 성공한 것처럼 그대로 진행됐다.
-    if (fresh.isError) { toast("현재 상태를 확인하지 못해 전환을 취소했습니다. 다시 시도하세요.", "error"); return; }
+    if (fresh.isError) { setModeCheckFailure("현재 상태를 확인하지 못해 전환을 취소했습니다. 다시 시도하세요."); return; }
     const freshMm = fresh.data && fresh.data.settings && fresh.data.settings.maintenance_mode;
     const freshOn = freshMm ? (freshMm.value === true || freshMm.value === "true") : on;
     const ok = await confirm(freshOn ? "유지보수 모드를 비활성화할까요?" : "유지보수 모드를 활성화할까요? 일반 사용자의 쓰기가 차단됩니다. 운영자 이상은 계속 쓸 수 있습니다.",
@@ -128,6 +131,7 @@ export function Maintenance({ embedded = false } = {}) {
     toggle.mutate(!freshOn);
   }
   const dirty = msg !== serverMsg;
+  const modeFailure = modeCheckFailure || failureText([toggle, null]);
   // 비활성 버튼의 '왜'를 스크린리더에도 연결한다 — 눈으로는 옆 문장이 보이지만, 연결이 없으면
   // 보조기기는 '비활성 버튼'까지만 읽고 이유는 영영 읽지 않는다.
   const lockedDescribedBy = canWrite ? undefined : "maint-locked-reason";
@@ -148,7 +152,7 @@ export function Maintenance({ embedded = false } = {}) {
           {updated} 기준
         </Typography>
       ) : null}
-      <Button size="sm" onClick={() => q.refetch()} disabled={q.isFetching}>{q.isFetching ? "새로고침 중…" : "새로고침"}</Button>
+      <Button size="sm" onClick={() => q.refetch()} disabled={q.isFetching} loading={q.isFetching}>새로고침</Button>
     </Box>
   );
   return (
@@ -158,15 +162,15 @@ export function Maintenance({ embedded = false } = {}) {
           true가 된다. 그걸 그대로 ErrorState로 바꿔치기하면 방금까지 보이던 켜짐/꺼짐 토글과 공지
           textarea가 통째로 사라진다, 캐시된 데이터가 하나도 없을 때만 전체화면 ErrorState를 쓴다. */}
       {(q.isLoading || (q.isError && !q.data)) ? (
-        q.isLoading ? <Card><Skeleton lines={2} /></Card> : <ErrorState error={q.error} onRetry={() => q.refetch()} />
+        q.isLoading ? <Card><Skeleton lines={2} /></Card> : <ErrorState layout="region" error={q.error} onRetry={() => q.refetch()} />
       ) : (
         <>
           {/* 새로고침이 실패했지만 이전 값이 남아 있는 경우, 화면을 지우지 않고 낡았다는 사실만 알린다. */}
           {q.isError ? (
-            <Box sx={{ mb: 3 }} role="status">
-              <Callout tone="warn">
-                최신 상태를 불러오지 못했습니다. 아래 값은 이전에 불러온 자료입니다.{" "}
-                <Link component="button" type="button" variant="body2" underline="hover" onClick={() => q.refetch()}>다시 시도</Link>
+            <Box sx={{ mb: 3 }}>
+              {/* 다시 부르는 동작은 본문 속 글자 링크가 아니라 상자의 동작 칸에 선다(메시지 박스 구조). */}
+              <Callout tone="warn" action={<Button size="sm" variant="ghost" onClick={() => q.refetch()}>다시 시도</Button>}>
+                최신 상태를 불러오지 못했습니다. 아래 값은 이전에 불러온 자료입니다.
               </Callout>
             </Box>
           ) : null}
@@ -190,11 +194,12 @@ export function Maintenance({ embedded = false } = {}) {
               {/* 점검 공지에는 '버전 기록'이 있는데 정작 더 위험한(앱 전체 쓰기를 막는) 유지보수 모드
                   토글 자체는 누가 언제 켜고 껐는지 볼 곳이 없었다, 백엔드가 config_versions에 이미
                   기록하므로 같은 SettingVersions UI를 maintenance_mode에도 붙인다. */}
+              {modeFailure ? <Callout tone="danger" compact sx={{ mt: 2 }}>{modeFailure}</Callout> : null}
               <Box sx={{ mt: 2, display: "flex", gap: 1, flexWrap: "wrap", justifyContent: "flex-end" }}>
                 <Button variant="ghost" size="sm" onClick={() => setShowModeVersions(true)}>변경 기록(켜고 끈 이력)</Button>
-                <Button variant={on ? "primary" : "danger"} disabled={!canWrite || toggle.isPending} onClick={onToggle}
+                <Button variant={on ? "primary" : "danger"} disabled={!canWrite || toggle.isPending} loading={toggle.isPending} onClick={onToggle}
                   aria-describedby={lockedDescribedBy}>
-                  {toggle.isPending ? "전환 중…" : on ? "유지보수 모드 비활성화" : "유지보수 모드 활성화"}
+                  {on ? "유지보수 모드 비활성화" : "유지보수 모드 활성화"}
                 </Button>
               </Box>
             </Card>
@@ -229,24 +234,24 @@ export function Maintenance({ embedded = false } = {}) {
                 }}
               />
               {canWrite && !msg.trim() ? (
-                <Typography id="maint-msg-help" variant="caption" color="error.main" sx={{ display: "block", mt: 0.5 }}>
-                  공지 내용을 입력하세요. 빈 공지는 저장할 수 없습니다.
-                </Typography>
+                <Box id="maint-msg-help" sx={{ mt: 0.5 }}>
+                  <Callout tone="danger" compact>공지 내용을 입력하세요. 빈 공지는 저장할 수 없습니다.</Callout>
+                </Box>
               ) : null}
               {msgChecked ? <Box sx={{ mt: 2 }} role="status"><Callout tone="success">{msgChecked}</Callout></Box> : null}
               {msgCheckErr ? (
-                <Typography role="alert" variant="body2" color="error.main" sx={{ mt: 2 }}>{msgCheckErr}</Typography>
+                <Callout tone="danger" compact sx={{ mt: 2 }}>{msgCheckErr}</Callout>
               ) : null}
               {/* 폼 작업줄 — 앱 공통 우측 정렬. 쓰기 권한이 없어도 버튼을 지우지 않는다:
                   비활성 + 위의 이유 문구(aria-describedby)로 '있지만 지금은 못 누른다'를 그대로 보여 준다.
                   (예전엔 '미리 검증'만 canWrite일 때 렌더돼, 읽기 전용 역할에겐 그 기능의 존재 자체가 사라졌다.) */}
               <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 1, flexWrap: "wrap", mt: 2 }}>
-                <Button disabled={!canWrite || dryRunMsg.isPending} onClick={onCheckMsg} aria-describedby={lockedDescribedBy}>
-                  {dryRunMsg.isPending ? "검증 중…" : "미리 검증"}
+                <Button disabled={!canWrite || dryRunMsg.isPending} loading={dryRunMsg.isPending} onClick={onCheckMsg} aria-describedby={lockedDescribedBy}>
+                  미리 검증
                 </Button>
-                <Button variant="primary" disabled={!canWrite || !dirty || !msg.trim() || saveMsg.isPending} onClick={() => saveMsg.mutate(msg)}
+                <Button variant="primary" disabled={!canWrite || !dirty || !msg.trim() || saveMsg.isPending} loading={saveMsg.isPending} onClick={() => saveMsg.mutate(msg)}
                   aria-describedby={lockedDescribedBy}>
-                  {saveMsg.isPending ? "저장 중…" : "공지 저장"}
+                  공지 저장
                 </Button>
                 {dirty ? <Button disabled={saveMsg.isPending} onClick={() => changeMsg(serverMsg)}>되돌리기</Button> : null}
                 {/* 다른 설정과 달리 점검 공지는 설정 표에서 제외돼 버전 기록, 롤백이 닿지 않았다, 여기서 같은 UI를 재사용해 제공한다. */}

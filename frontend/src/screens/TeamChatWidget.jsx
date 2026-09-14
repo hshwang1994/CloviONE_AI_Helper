@@ -55,7 +55,7 @@ export function TeamChatWidget() {
     // 기능이 아예 없거나(404) 볼 권한이 없는(403) 것은 '고장' 이 아니다 — 그때만 숨긴다.
     const status = q.error && q.error.status;
     if (status === 404 || status === 403) return null;
-    return shell(<ErrorState error={q.error} onRetry={() => q.refetch()} />);
+    return shell(<ErrorState layout="region" error={q.error} onRetry={() => q.refetch()} />);
   }
   const glob = q.data && q.data.global;
   // 전체 채팅 방이 없는 것은 성공한 응답의 정상적인 결과다(기능 미구성) — 조용히 숨긴다.

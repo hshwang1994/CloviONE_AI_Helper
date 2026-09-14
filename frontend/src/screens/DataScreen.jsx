@@ -35,6 +35,7 @@ import { loginUrl } from "../lib/sessionRedirect.js";
 import { JsonBlock } from "./data-screen/JsonBlock.jsx";
 import { CROSS_SCREEN_KEYS } from "./data-screen/crossScreenKeys.js";
 import { handleApiError } from "./data-screen/apiError.js";
+import { expireSession } from "../lib/sessionRedirect.js";
 import { mergeDetailFields, detailTitle } from "./data-screen/detailFields.js";
 import { SubListDrawer } from "./data-screen/SubListDrawer.jsx";
 import { successMessageFor } from "./data-screen/successMessages.js";
@@ -104,6 +105,10 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
   const [createInitial, setCreateInitial] = useState(null); // 다른 화면에서 넘어온 생성 폼 프리필 값
   const [subView, setSubView] = useState(null);        // 하위 리소스 조회(버전·실행 이력)
   const [infoView, setInfoView] = useState(null);      // 결과 안내 모달(예: 복원 안내)
+  /* 동작 결과 중 **남아야 하는 것** — 실패 · 경고 결과 · 끝나지 않은 작업. 토스트는 사라지므로 목록 동작은
+     목록 위(`where: "list"`), 상세에서 누른 동작은 상세 안(`where: "detail"`)에 선다. 다음 동작을 누르면
+     걷힌다. 문구는 토스트 때와 같다. */
+  const [actionNotice, setActionNotice] = useState(null);
   // f.value(필터 정의의 기본값) — 예: 정책 화면의 상태 필터를 'published'로 기본 스코프한다
   // (지정 안 하면 draft/test/review/published/archived가 첫 방문부터 뒤섞여 보였다). 여전히
   // 사용자가 '전체'로 바꿀 수 있다(select의 빈 옵션이 그대로 남아 있음).
@@ -390,6 +395,8 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
       qc.invalidateQueries({ queryKey: key });
     }
   };
+  const noticeWhere = (row) => (row && sel && (row === sel || (row.id != null && row.id === sel.id)) ? "detail" : "list");
+  const reportFailure = (row) => (message) => setActionNotice({ tone: "danger", text: message, where: noticeWhere(row) });
   function announce(res, okMsg) {
     if (res && (res.status === "approval_pending" || res.approval_pending)) toast("승인 요청이 접수되었습니다. 관리자 승인 후 반영됩니다.", "info");
     else toast(okMsg, "success");
@@ -405,19 +412,19 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
       let job = null;
       // 세션 만료(401)는 폴링을 조용히 계속하면 안 된다 — 다른 API 경로처럼 로그인 화면으로
       // 보내고 폴링을 끝낸다(예전엔 401도 삼키고 maxTries까지 돌다 거짓 '진행 중' 토스트를 냈다).
-      try { const j = await api("/api/admin/jobs/" + jobId); job = (j && j.job) || j; } catch (e) { if (e && e.status === 401) { handleApiError(e, toast); return; } continue; }
+      try { const j = await api("/api/admin/jobs/" + jobId); job = (j && j.job) || j; } catch (e) { if (e && e.status === 401) { expireSession(); return; } continue; }
       if (job && terminal.includes(job.status)) {
         refresh();
         if (job.status === "succeeded") toast(opts.doneMsg || "완료되었습니다.", "success");
         /* 백엔드 예외 원문(`job.last_error`)을 토스트에 붙이지 않는다 (지시 20 · 36). 토스트는
            사라지고, 사라지는 자리에 유일한 단서를 두면 안 된다 - 원문은 작업 큐의 그 작업
            상세에 그대로 남아 있고 거기가 기술 정보를 읽는 자리다. */
-        else toast(opts.failMsg || "작업이 실패했습니다. 작업 큐에서 실패 원인을 확인하세요.", "error");
+        else setActionNotice({ tone: "danger", text: opts.failMsg || "작업이 실패했습니다. 작업 큐에서 실패 원인을 확인하세요.", where: "list" });
         return;
       }
     }
     refresh();
-    toast(opts.timeoutMsg || "작업이 아직 진행 중입니다. 잠시 후 목록을 새로고침하세요.", "info");
+    setActionNotice({ tone: "info", text: opts.timeoutMsg || "작업이 아직 진행 중입니다. 잠시 후 목록을 새로고침하세요.", where: "list" });
   }
   // 액션 실행 성공 결과를 공통 처리한다 — result/announce(+선택 상태 갱신)/pollJob 로직을 한 곳에
   // 모아 runAction·runHeaderAction·actionForm 제출(입력 폼이 먼저 열리는 액션)이 모두 같은 방식으로
@@ -431,7 +438,11 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
       // 액션 결과가 성공/실패를 담고 있는 경우(헬스체크·백업 검증 등) 실제 결과를 알린다.
       // rr.kind가 있으면 그 톤(info/warn 등)을 쓴다 — 실패는 아니지만 성공도 아닌 상태(예: 충돌)용.
       const rr = a.result(res);
-      toast(rr.msg, rr.kind || (rr.ok ? "success" : "error"));
+      const rrKind = rr.kind || (rr.ok ? "success" : "error");
+      /* 잘 됐다는 결과만 토스트다. 실패 · 주의 결과(헬스체크 실패 · 검증 충돌)는 사람이 읽고 다음 일을 해야
+         하므로 그 자리에 남긴다. */
+      if (rrKind === "success" || rrKind === "info") toast(rr.msg, rrKind);
+      else setActionNotice({ tone: rrKind === "warn" ? "warn" : "danger", text: rr.msg, where: noticeWhere(row) });
       if (row) {
         if (rr.ok) setSel(null);              // 실패면 드로어 유지(원인 확인)
         else if (res && res.mapping) setSel(res.mapping);  // 검증→충돌 등: 최신 엔티티로 드로어 갱신(상태·후보 반영)
@@ -580,6 +591,7 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
       return;
     }
     setBusyKey(key);
+    setActionNotice(null);
     try {
       await fetchDownload(url);
       /* 🔴 **내려받기는 행을 바꾼다** (2026-09-01). 백업 내려받기는 서버에서
@@ -591,7 +603,7 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
          이제는 그 GET 이 **끝난 것을 알고** 다시 읽는다 — 어림 타이머가 필요 없다. */
       refresh();
     } catch (e) {
-      handleApiError(e, toast);
+      handleApiError(e, reportFailure(row));
     } finally { setBusyKey(null); }
   }
   /* 이동과 내려받기는 **행 액션과 머리 액션이 같은 계약**이다 (audit-01 · S21).
@@ -612,6 +624,7 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
     return false;
   }
   async function runAction(a, row, key) {
+    setActionNotice(null);
     if (runNavigateOrDownload(a, row, key)) return;
     if (a.subList) { setSubView({ a, row }); return; }        // 하위 리소스 드로어
     // confirm은 고정 문자열 또는 (row)=>문자열 함수 둘 다 지원한다(행 데이터에 따라 경고 문구를 바꿔야
@@ -642,7 +655,7 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
       if (a.info) { setInfoView({ title: a.label, body: a.info(res) }); return; }
       finishAction(a, res, row);
     } catch (e) {
-      handleApiError(e, toast);
+      handleApiError(e, reportFailure(row));
       // 결과 담지 액션(a.result — 헬스체크·백업 검증 등)이 실패해도, 서버가 이미 결과를 기록했을 수
       // 있다(예: 러너 '테스트'의 RunnerUnavailableError는 record_runner_result 이후 발생) — 성공 경로만
       // refresh하면 그 실패 기록이 목록에 반영되지 않는다.
@@ -651,6 +664,7 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
     finally { setBusyKey(null); }
   }
   async function runHeaderAction(a, key) {
+    setActionNotice(null);
     /* 🔴 머리의 이동·내려받기 버튼도 **행 액션과 같은 것을 한다** (S21 · audit-01).
      *
      * 예전에는 이 함수가 자기 앞머리에 `navigate` 가지 하나만 갖고 있었다. registry 가 머리에
@@ -663,7 +677,7 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
       // (그 아래 쓰기 액션 분기와 동일한 패턴 — 예전엔 이 분기만 setBusy가 빠져 있었다).
       setBusyKey(key);
       try { const res = await api(a.path(), { method: a.method || "GET" }); setInfoView({ title: a.label, body: a.info(res) }); }
-      catch (e) { handleApiError(e, toast); }
+      catch (e) { handleApiError(e, reportFailure(null)); }
       finally { setBusyKey(null); }
       return;
     }
@@ -678,7 +692,7 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
     try {
       const res = await api(a.path(), { method: a.method || "POST", body: a.body || {} });
       finishAction(a, res, null);
-    } catch (e) { handleApiError(e, toast); }
+    } catch (e) { handleApiError(e, reportFailure(null)); }
     finally { setBusyKey(null); }
   }
   /* 지금까지 받아 둔 행 전부 — 한 쪽이 아니다. 아래 계산(상세 드로어 동기화·클라이언트
@@ -807,7 +821,7 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
         // 대상이 삭제됐거나(404) 권한이 없는 등 조회가 실패해도 목록 자체는 그대로 보여준다 — 다만
         // 예전엔 아무 안내 없이 조용히 실패해, 클릭해서 들어온 특정 항목을 못 찾았다는 사실을 사용자가
         // 전혀 알 수 없었다(그냥 빈 필터 목록에 떨어진 것처럼 보였다). 이제는 이유를 알려준다.
-        toast("연결된 항목을 열지 못했습니다(삭제되었거나 접근 권한이 없을 수 있습니다).", "error");
+        setActionNotice({ tone: "danger", text: "연결된 항목을 열지 못했습니다(삭제되었거나 접근 권한이 없을 수 있습니다).", where: "list" });
       });
     }
     // location.search도 의존성에 넣는다 — 같은 라우트(config.key 불변)에 해시 쿼리만 바뀐 채로 다시
@@ -1102,7 +1116,7 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
   // 진행 중에도 계속 눌러 중복 제출을 낼 수 있었다.
   const createBtn = showCreate
     ? <Button variant="primary" disabled={busy} onClick={() => setCreating(true)}>{config.createLabel || "추가"}</Button>
-    : (primaryHeaderAction ? <Button variant="primary" disabled={busy} onClick={() => runHeaderAction(primaryHeaderAction, "h-primary")}>{busyKey === "h-primary" ? "처리 중…" : primaryHeaderAction.label}</Button> : null);
+    : (primaryHeaderAction ? <Button variant="primary" disabled={busy} loading={busyKey === "h-primary"} onClick={() => runHeaderAction(primaryHeaderAction, "h-primary")}>{primaryHeaderAction.label}</Button> : null);
   /* 머리 액션도 같은 규칙이다 — 주 동작(추가)이 primary 이고, 위험한 것은 그 옆에 나란히
    * 두지 않는다. 예전에는 registry 의 `variant:"danger"` 머리 액션(예: '전체 삭제')이
    * '추가' 바로 왼쪽에 같은 크기로 앉았다. */
@@ -1451,6 +1465,9 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
       {showToolbar && !query.isLoading && !query.isError ? (
         <ResultLine total={resultTotal} conditions={activeFilterKeys} />
       ) : null}
+      {actionNotice && (actionNotice.where === "list" || !sel) ? (
+        <Callout tone={actionNotice.tone} compact sx={{ mb: 2 }}>{actionNotice.text}</Callout>
+      ) : null}
       {/* SEM-02: 로딩·오류·빈 상태·정상 목록 네 갈래 전부를 아우르는 자리에 한 번만 둔다
           (갈래마다 넣으면 하나는 반드시 빠뜨린다). */}
       <Typography component={config.compact ? "h3" : "h2"} className="sr-only">목록</Typography>
@@ -1459,7 +1476,7 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
            아니라 "무언가 온다"라는 뜻이고, 실제 표가 도착하면 배치가 통째로 튄다. */
         <ListCard><DataTable columns={columns} rows={[]} loading /></ListCard>
       ) : query.isError ? (
-        <ErrorState error={query.error} onRetry={() => query.refetch()} />
+        <ErrorState layout="region" error={query.error} onRetry={() => query.refetch()} />
       ) : filtered.length === 0 ? (
         <>
         {(q || hasFilter) ? (
@@ -1573,6 +1590,9 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
         {/* 상세는 라벨/값 쌍이 20개 넘는 화면(러너·워크플로)이 있다. 좁은 화면은 한 열, 넓은
             화면은 두세 열로 접어 스크롤을 줄인다 — 4K에서 한 열로 길게 늘어놓으면 오른쪽이
             통째로 비고 눈은 위아래로만 움직인다. */}
+        {sel && actionNotice && actionNotice.where === "detail" ? (
+          <Callout tone={actionNotice.tone} compact sx={{ mb: 2 }}>{actionNotice.text}</Callout>
+        ) : null}
         {sel ? (
           <DetailGrid>
             {mergeDetailFields(config, columns).map((c, i) => (
@@ -1582,7 +1602,7 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
             ))}
           </DetailGrid>
         ) : routeIdNotFound ? (
-          <ErrorState error={{ status: 404 }} />
+          <ErrorState layout="region" error={{ status: 404 }} />
         ) : null}
       </Modal>
 
@@ -1631,7 +1651,10 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
             const res = await api(config.endpoint + "/" + editing.id, { method: editMethod, body: apiBody });
             setEditing(null); setSel(null); refresh();
             // 저장 후 훅(예: 스케줄 정의 변경으로 자동 비활성화됨)이 경고를 직접 알린 경우 기본 성공 토스트는 생략한다.
-            const handled = config.onSaved ? config.onSaved(res, { toast, prev }) : false;
+            /* `notice` — 저장 뒤 사람이 알아야 할 결과(정의 변경으로 비활성화됨 등)를 상세 안에 남긴다. */
+            const handled = config.onSaved
+              ? config.onSaved(res, { toast, prev, notice: (text, tone) => setActionNotice({ tone: tone || "warn", text, where: "detail" }) })
+              : false;
             if (!handled) announce(res, "저장했습니다.");
           }} />
       ) : null}

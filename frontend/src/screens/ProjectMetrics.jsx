@@ -2,7 +2,7 @@ import React from "react";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
-import { Skeleton } from "../ui/kit.jsx";
+import { EmptyState, Skeleton } from "../ui/kit.jsx";
 import { Gauge } from "../ui/charts/Gauge.jsx";
 import { ProgressBar } from "../ui/charts/ProgressBar.jsx";
 import { Sparkline } from "../ui/charts/Sparkline.jsx";
@@ -158,9 +158,7 @@ export function HealthBlock({ score, reasons, unknown }) {
             ))}
           </Box>
         ) : (
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-            점수를 깎은 규칙이 없습니다.
-          </Typography>
+          <EmptyState layout="inline" title="점수를 깎은 규칙이 없습니다." />
         )}
 
         {unsure.length ? (

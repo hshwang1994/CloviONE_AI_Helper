@@ -83,8 +83,9 @@ export function Ticket() {
       // 지운 뒤에도 왔던 목록으로 돌아간다 — 지우기 전에 보던 조건이 그대로다.
       nav(backToList);
     },
-    onError: (e) => toast((e && e.message) || "삭제하지 못했습니다. 다시 시도해 주세요.", "error"),
   });
+  /* 휴지통으로 보내기 실패는 머리 바로 아래 — 누른 단추 곁에 남고 다시 누르면 걷힌다. */
+  const trashFailure = trash.isError ? ((trash.error && trash.error.message) || "삭제하지 못했습니다. 다시 시도해 주세요.") : null;
 
   if (detail.isError) {
     return (
@@ -202,6 +203,7 @@ export function Ticket() {
           보여주게 하고, 아래 카드의 중복 h1은 없앤다. ticketId는 사라지지 않고 위 meta의
           '티켓 번호'로 옮겨 계속 보인다. */}
       <PageHeader crumbRoot="내 업무" area="티켓" title={t.title || ticketId(t)} actions={actions} />
+      {trashFailure ? <Callout tone="danger" compact sx={{ mb: 2 }}>{trashFailure}</Callout> : null}
       {/* 속성은 상단 전폭 한 줄이다 (지시 7). 예전에는 오른쪽 레일 맨 위에 세로로 쌓여
           있었고, 본문을 읽다가 마감을 확인하려면 시선이 화면 오른쪽 끝까지 갔다 와야 했다.
           훑는 정보라 눕히는 편이 짧다 — 그리고 그 자리를 비워 준 레일은 본문과 나란히
@@ -210,7 +212,7 @@ export function Ticket() {
         {meta.length ? (
           <MetaBar ariaLabel="티켓 속성" items={meta} />
         ) : (
-          <Card><Typography variant="body2" color="text.secondary">표시할 속성이 없습니다.</Typography></Card>
+          <Card><EmptyState layout="inline" title="표시할 속성이 없습니다." /></Card>
         )}
       </Box>
       {/* 폭 계약은 `ui/DetailLayout.jsx` 한 곳이다 — 곁열이 없는 상세 화면(게시글 · 기능

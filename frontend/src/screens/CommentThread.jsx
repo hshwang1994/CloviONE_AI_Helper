@@ -5,8 +5,9 @@ import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
+import { failureText } from "../lib/failure.js";
 import { fmtDateTime } from "../lib/format.js";
-import { Button, Card, ErrorState, Skeleton, useConfirm, useToast } from "../ui/kit.jsx";
+import { Button, Callout, Card, ErrorState, Skeleton, useConfirm, useToast } from "../ui/kit.jsx";
 import { FONT_SIZE, KO_WORD_BREAK } from "../ui/theme.js";
 import { AuthorLine } from "./Board.jsx";
 
@@ -104,23 +105,24 @@ export function CommentThread({ queryKey, listUrl, itemUrl, emptyHint, readOnly 
   });
 
   const applyList = (res) => { if (res) qc.setQueryData(queryKey, res); };
-  const fail = (fallback) => (e) => toast((e && e.message) || fallback, "error");
 
   const create = useMutation({
     mutationFn: (body) => api(listUrl, { method: "POST", body: { body } }),
     onSuccess: (res) => { applyList(res); setDraft(""); },
-    onError: fail("댓글을 추가하지 못했습니다. 다시 시도해 주세요."),
   });
   const update = useMutation({
     mutationFn: ({ id, body }) => api(itemUrl(id), { method: "PATCH", body: { body } }),
     onSuccess: (res) => { applyList(res); setEditingId(null); setEditDraft(""); },
-    onError: fail("댓글을 수정하지 못했습니다. 다시 시도해 주세요."),
   });
   const remove = useMutation({
     mutationFn: (id) => api(itemUrl(id), { method: "DELETE" }),
     onSuccess: (res) => { applyList(res); toast("댓글을 삭제했습니다.", "success"); },
-    onError: fail("댓글을 삭제하지 못했습니다. 다시 시도해 주세요."),
   });
+  /* 실패는 그 동작의 자리에 남는다 — 쓰기는 입력 칸 아래, 고치기는 고치는 칸 아래, 지우기는 목록 위.
+     다음에 누르면 걷힌다(`lib/failure.js`). 문구는 토스트 때와 같다. */
+  const createFailure = failureText([create, "댓글을 추가하지 못했습니다. 다시 시도해 주세요."]);
+  const updateFailure = failureText([update, "댓글을 수정하지 못했습니다. 다시 시도해 주세요."]);
+  const removeFailure = failureText([remove, "댓글을 삭제하지 못했습니다. 다시 시도해 주세요."]);
 
   const busy = create.isPending || update.isPending || remove.isPending;
   const comments = (list.data && list.data.comments) || [];
@@ -151,7 +153,7 @@ export function CommentThread({ queryKey, listUrl, itemUrl, emptyHint, readOnly 
 
       {list.isPending ? <Skeleton lines={3} /> : null}
       {list.isError ? (
-        <ErrorState error={list.error} onRetry={() => list.refetch()} />
+        <ErrorState layout="region" error={list.error} onRetry={() => list.refetch()} />
       ) : null}
 
       {!list.isPending && !list.isError && comments.length === 0 ? (
@@ -160,6 +162,7 @@ export function CommentThread({ queryKey, listUrl, itemUrl, emptyHint, readOnly 
         </Typography>
       ) : null}
 
+      {removeFailure ? <Callout tone="danger" compact sx={{ mb: 1 }}>{removeFailure}</Callout> : null}
       <Box sx={{ display: "grid" }}>
         {comments.map((c) => (
           editingId === c.id ? (
@@ -170,6 +173,7 @@ export function CommentThread({ queryKey, listUrl, itemUrl, emptyHint, readOnly 
                 onChange={(e) => setEditDraft(e.target.value)}
                 inputProps={{ maxLength: MAX_COMMENT_CHARS, "aria-label": "댓글 수정" }}
               />
+              {updateFailure ? <Callout tone="danger" compact sx={{ mt: 1 }}>{updateFailure}</Callout> : null}
               <Stack direction="row" gap={1} sx={{ mt: 1, justifyContent: "flex-end" }}>
                 <Button size="sm" disabled={busy} onClick={() => { setEditingId(null); setEditDraft(""); }}>취소</Button>
                 <Button size="sm" variant="primary" disabled={busy || !editDraft.trim()}
@@ -202,12 +206,13 @@ export function CommentThread({ queryKey, listUrl, itemUrl, emptyHint, readOnly 
           placeholder="댓글을 입력하세요."
           inputProps={{ maxLength: MAX_COMMENT_CHARS, "aria-label": "댓글 입력" }}
         />
+        {createFailure ? <Callout tone="danger" compact sx={{ mt: 1 }}>{createFailure}</Callout> : null}
         <Stack direction="row" gap={1} sx={{ mt: 1, justifyContent: "flex-end", alignItems: "center" }}>
           <Typography variant="caption" color="text.secondary">
             {draft.length}/{MAX_COMMENT_CHARS}
           </Typography>
-          <Button variant="primary" size="sm" disabled={busy || !draft.trim()} onClick={submit}>
-            {create.isPending ? "추가 중…" : "댓글 추가"}
+          <Button variant="primary" size="sm" disabled={busy || !draft.trim()} loading={create.isPending} onClick={submit}>
+            댓글 추가
           </Button>
         </Stack>
       </Box>

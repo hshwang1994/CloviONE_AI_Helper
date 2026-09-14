@@ -6,8 +6,9 @@ import Tabs from "@mui/material/Tabs";
 import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
 import { actionKo, fmtDateTime } from "../lib/format.js";
+import { failureText } from "../lib/failure.js";
 import {
-  Badge, Button, Card, DataTable, EmptyState, ErrorState, PageHeader, useConfirm, useToast,
+  Badge, Button, Callout, Card, DataTable, EmptyState, ErrorState, PageHeader, useConfirm, useToast,
 } from "../ui/kit.jsx";
 import { OrgPath } from "../ui/OrgPath.jsx";
 import { DateCell } from "../ui/cells.jsx";
@@ -153,8 +154,9 @@ export function MyApprovals() {
       });
       qc.invalidateQueries({ queryKey: ["noti"] });
     },
-    onError: (err) => toast(err?.message || "처리하지 못했습니다.", "danger"),
   });
+  /* 결재 실패는 목록 위에 남는다 — 되돌릴 수 없는 결재가 됐는지 안 됐는지는 사라지면 안 되는 사실이다. */
+  const decideFailure = failureText([decide, "처리하지 못했습니다."]);
 
   /* 결재 한 번은 되돌릴 수 없다 — 누구의 무엇을 결재하는지 먼저 확인받는다.
      관리자 콘솔의 같은 API 도 승인에 메모 폼을, 거절에 확인 창을 받는다. */
@@ -251,7 +253,8 @@ export function MyApprovals() {
         {BOXES.map((b) => <Tab key={b.key} value={b.key} label={b.label} />)}
       </Tabs>
 
-      {q.isError ? <ErrorState error={q.error} onRetry={() => q.refetch()} /> : null}
+      {q.isError ? <ErrorState layout="region" error={q.error} onRetry={() => q.refetch()} /> : null}
+      {decideFailure ? <Callout tone="danger" compact sx={{ mb: 2 }}>{decideFailure}</Callout> : null}
       {!q.first && !q.isError ? <Card>{/* 표가 들어올 자리에는 표 모양을 그린다 (지시 20) - 빈 목록과 아직 안 온 목록은 다른 사실이다. */}<DataTable columns={columns} rows={[]} loading /></Card> : null}
 
       {data && box === "todo" && !canDecide ? (

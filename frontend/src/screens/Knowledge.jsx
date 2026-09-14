@@ -461,7 +461,7 @@ export function Knowledge() {
           `LIST_RAIL_GRID` 는 조직 콘솔이 계속 쓰므로 `ui/density.js` 에 그대로 둔다. */}
       <Box sx={{ minWidth: 0 }}>
           {documents.isError ? (
-            <ErrorState error={documents.error} onRetry={() => documents.refetch()} />
+            <ErrorState layout="region" error={documents.error} onRetry={() => documents.refetch()} />
           ) : (
             <ListCard>
               {!documents.isLoading && rows.length === 0 ? (

@@ -51,13 +51,15 @@ import { SIGNALS, useTicketSignals } from "../lib/ticketSignals.js";
  *  여기서 막아야 사용자가 500자를 넘겨 적고 저장 버튼에서야 그 사실을 알지 않는다. */
 const BLOCKED_REASON_MAX = 500;
 import { useListMemory } from "../lib/listReturn.js";
+import { failureText, latestMutation } from "../lib/failure.js";
 
 /* `EMPTYABLE_SELECT` 는 이제 ui/filters.jsx 가 정본이다(필터 select 와 편집 폼 select 가
  * 같은 함정을 밟는다). 여기서 다시 내보내는 이유는 팀 티켓 화면이 예전부터 이 경로로
  * 가져다 쓰기 때문이다 — 옮기면서 import 경로만 바꾸는 변경을 화면마다 흩뜨리지 않는다. */
 export { EMPTYABLE_SELECT };
 
-// 일괄 삭제(휴지통) 뮤테이션 — page_ids 를 보내고, 결과(N건 삭제/M건 실패)를 토스트로 알린다.
+// 일괄 삭제(휴지통) 뮤테이션 — page_ids 를 보낸다. 전부 옮겼으면 토스트로 알리고, 실패 · 일부 건너뜀은
+// 목록 위 메시지 박스가 말한다(`listActionNotice`) — 몇 건이 왜 안 됐는지는 사라지면 안 되는 사실이다.
 function useBulkTrash(path, qc, toast, onDone) {
   return useMutation({
     mutationFn: (ids) => api(path, { method: "POST", body: { page_ids: ids } }),
@@ -65,7 +67,7 @@ function useBulkTrash(path, qc, toast, onDone) {
       const n = (res.trashed || []).length;
       const failed = res.failed || [];
       // UA-25 — Trash.jsx와 같은 이유로 실제 사유를 보여준다(전엔 항상 "권한이 없어"였다).
-      toast(`${n}건을 휴지통으로 옮겼습니다.` + bulkFailureNote(failed), failed.length ? "info" : "success");
+      if (!failed.length) toast(`${n}건을 휴지통으로 옮겼습니다.`, "success");
       // refetchType:"all" — 지금 화면에 없는(비활성) 목록까지 즉시 다시 불러와, 삭제 후 어느 페이지로
       // 가도 최신으로 보이게 한다(이전엔 비활성 목록이 stale로만 남아 '자동 갱신 안 됨'처럼 보였다).
       // 어떤 키가 티켓을 그리는지는 ticket-views.js 한 곳이 안다(홈·스프린트가 여기서 빠져 있었다).
@@ -76,8 +78,27 @@ function useBulkTrash(path, qc, toast, onDone) {
       qc.invalidateQueries({ queryKey: ["trash"], refetchType: "all" });
       onDone && onDone();
     },
-    onError: (e) => toast((e && e.message) || "삭제하지 못했습니다. 다시 시도해 주세요.", "error"),
   });
+}
+
+/* 목록 동작(일괄 삭제 · 나에게 배정)의 결과 중 **남아야 하는 것** — 실패와 일부 건너뜀.
+ * 가장 나중에 보낸 동작 하나만 말한다(`lib/failure.js`): 다음 동작을 누르면 걷히고, 그 동작이
+ * 성공하면 다시 서지 않는다. 문구는 토스트 때와 같다. */
+function listActionNotice(bulk, claim) {
+  const failure = failureText(
+    [bulk, "삭제하지 못했습니다. 다시 시도해 주세요."],
+    [claim, "배정하지 못했습니다. 잠시 후 다시 시도해 주세요."],
+  );
+  if (failure) return <Callout tone="danger" compact sx={{ mb: 1.5 }}>{failure}</Callout>;
+  const last = latestMutation(bulk, claim);
+  const res = last === bulk && bulk.isSuccess ? bulk.data : null;
+  const failed = (res && res.failed) || [];
+  if (!failed.length) return null;
+  return (
+    <Callout tone="warn" compact sx={{ mb: 1.5 }}>
+      {`${(res.trashed || []).length}건을 휴지통으로 옮겼습니다.` + bulkFailureNote(failed)}
+    </Callout>
+  );
 }
 
 /* 사용자 셀프서비스 — 내 업무(홈)·내 티켓·미할당 티켓.
@@ -523,13 +544,18 @@ export function TicketEditModal({ ticket, open, onClose, projectScope }) {
       onClose();
       celebrateIfCompleted(changes && changes.status, doneKeys);
     },
-    onError: (e) => { toast((e && e.message) || "저장하지 못했습니다. 잠시 후 다시 시도해 주세요.", "error"); },
   });
+  /* 모달은 닫혀도 자리를 지키므로(`return null`) 요청 상태가 남는다 — 다시 열 때 지난 실패를 걷는다. */
+  React.useEffect(() => { if (open) m.reset(); }, [open, ticket]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!open || !ticket || !form) return null;
 
   const meta = metaQ.data || {};
   const candidates = (assigneesQ.data && assigneesQ.data.assignees) || [];
-  const set = (k, v) => setForm((s) => ({ ...s, [k]: v }));
+  /* 칸을 고치면 그 칸의 오류를 걷는다 — 오류는 폼 상태(`form.errors`)에 들어 있어 모달을 다시 열면
+     폼과 함께 새로 선다. */
+  const set = (k, v) => setForm((s) => ({ ...s, [k]: v, errors: s.errors && s.errors[k] ? { ...s.errors, [k]: null } : s.errors }));
+  const invalid = (k, message) => setForm((s) => ({ ...s, errors: { [k]: message } }));
+  const fieldError = (k) => (form.errors && form.errors[k]) || null;
 
   function buildChanges() {
     const c = {};
@@ -560,14 +586,17 @@ export function TicketEditModal({ ticket, open, onClose, projectScope }) {
     return c;
   }
 
+  /* 검증 실패는 **그 칸 아래**에 선다(핸드오프 RULES §1 · §7) — 토스트는 몇 초 뒤 사라지고 어느 칸인지도
+     말하지 않았다. 검사 순서와 문구는 그대로이고, 예전처럼 처음 걸린 하나만 말한다. */
   function submit() {
-    if (!form.title.trim()) { toast("제목은 비울 수 없습니다.", "error"); return; }
-    if (!form.status) { toast("진행상태는 비울 수 없습니다.", "error"); return; }
-    if (form.est_wd !== "" && Number.isNaN(Number(form.est_wd))) { toast("예상 WD에는 숫자를 입력하세요.", "error"); return; }
-    if (form.act_wd !== "" && Number.isNaN(Number(form.act_wd))) { toast("실제 WD에는 숫자를 입력하세요.", "error"); return; }
+    if (!form.title.trim()) { invalid("title", "제목은 비울 수 없습니다."); return; }
+    if (!form.status) { invalid("status", "진행상태는 비울 수 없습니다."); return; }
+    if (form.est_wd !== "" && Number.isNaN(Number(form.est_wd))) { invalid("est_wd", "예상 WD에는 숫자를 입력하세요."); return; }
+    if (form.act_wd !== "" && Number.isNaN(Number(form.act_wd))) { invalid("act_wd", "실제 WD에는 숫자를 입력하세요."); return; }
     if (form.blocked && form.blockedReason.trim().length > BLOCKED_REASON_MAX) {
-      toast(`차단 사유는 ${BLOCKED_REASON_MAX}자 이하로 입력하세요.`, "error"); return;
+      invalid("blockedReason", `차단 사유는 ${BLOCKED_REASON_MAX}자 이하로 입력하세요.`); return;
     }
+    setForm((s) => ({ ...s, errors: null }));
     const changes = buildChanges();
     if (Object.keys(changes).length === 0) { toast("수정한 내용이 없습니다.", "info"); return; }
     m.mutate(changes);
@@ -591,6 +620,7 @@ export function TicketEditModal({ ticket, open, onClose, projectScope }) {
   const prioOpts = withCurrent(meta.priorities, form.priority);
   const diffOpts = withCurrent(meta.difficulties, form.difficulty);
   const projects = (projectsQ.data && projectsQ.data.projects) || [];
+  const saveFailure = failureText([m, "저장하지 못했습니다. 잠시 후 다시 시도해 주세요."]);
   return (
     <Modal open={open} onClose={onClose} title={"티켓 수정" + (ticket.key ? ", " + ticket.key : "")} size="md" footer={footer} dirty={dirty}>
       <form onSubmit={(e) => { e.preventDefault(); submit(); }}>
@@ -599,6 +629,7 @@ export function TicketEditModal({ ticket, open, onClose, projectScope }) {
         <TextField
       InputLabelProps={{ shrink: true }} id="te-title" fullWidth size="small" label="제목" required sx={{ mb: 2.5 }}
           value={form.title} onChange={(e) => set("title", e.target.value)}
+          error={!!fieldError("title")} helperText={fieldError("title") || undefined}
           inputProps={{ maxLength: 200 }} />
         <Box sx={{ mb: 2.5 }}>
           <Typography component="span" variant="body2" sx={{ fontWeight: FONT_WEIGHT.bold, display: "block", mb: 1 }}>담당자</Typography>
@@ -610,7 +641,8 @@ export function TicketEditModal({ ticket, open, onClose, projectScope }) {
         {/* 짧은 값 입력들은 넓은 화면에서 두 열로 접는다 — 한 열로 길게 쌓으면 모달이 세로로만 길어진다. */}
         <Box sx={{ display: "grid", gap: 2.5, gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0,1fr))" } }}>
           <TextField
-      InputLabelProps={{ shrink: true }} id="te-status" select fullWidth size="small" label="진행상태" value={form.status} onChange={(e) => set("status", e.target.value)}>
+      InputLabelProps={{ shrink: true }} id="te-status" select fullWidth size="small" label="진행상태" value={form.status} onChange={(e) => set("status", e.target.value)}
+            error={!!fieldError("status")} helperText={fieldError("status") || undefined}>
             {statusOptions(statusOpts).map((o) => <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>)}
           </TextField>
           <TextField id="te-prio" select fullWidth size="small" label="우선순위" {...EMPTYABLE_SELECT} value={form.priority} onChange={(e) => set("priority", e.target.value)}>
@@ -623,11 +655,12 @@ export function TicketEditModal({ ticket, open, onClose, projectScope }) {
           </TextField>
           <TextField
       InputLabelProps={{ shrink: true }} id="te-wd" fullWidth size="small" label="예상 WD" type="number" inputProps={{ step: "0.5", min: "0" }}
-            value={form.est_wd} onChange={(e) => set("est_wd", e.target.value)} />
+            value={form.est_wd} onChange={(e) => set("est_wd", e.target.value)}
+            error={!!fieldError("est_wd")} helperText={fieldError("est_wd") || undefined} />
           <TextField
       InputLabelProps={{ shrink: true }} id="te-act-wd" fullWidth size="small" label="실제 WD" type="number" inputProps={{ step: "0.5", min: "0" }}
             value={form.act_wd} onChange={(e) => set("act_wd", e.target.value)}
-            helperText="다 끝낸 뒤 실제로 들인 공수" />
+            error={!!fieldError("act_wd")} helperText={fieldError("act_wd") || "다 끝낸 뒤 실제로 들인 공수"} />
           <DateField id="te-start" label="시작일" value={form.start} onChange={(v) => set("start", v)} />
           <DateField id="te-due" label="마감일" value={form.due} onChange={(v) => set("due", v)} />
           {/* 새 티켓 폼과 **같은 부품**이다 — 같은 값을 고르는 자리가 화면마다 다른 상호작용을
@@ -685,9 +718,12 @@ export function TicketEditModal({ ticket, open, onClose, projectScope }) {
               InputLabelProps={{ shrink: true }} id="te-blocked-reason" fullWidth size="small" label="차단 사유" sx={{ mt: 1 }}
               value={form.blockedReason} onChange={(e) => set("blockedReason", e.target.value)}
               inputProps={{ maxLength: BLOCKED_REASON_MAX }}
-              helperText="무엇이 끝나야 이 일이 다시 움직이는지 적습니다. 목록에서 신호에 마우스를 올리면 보입니다." />
+              error={!!fieldError("blockedReason")}
+              helperText={fieldError("blockedReason") || "무엇이 끝나야 이 일이 다시 움직이는지 적습니다. 목록에서 신호에 마우스를 올리면 보입니다."} />
           ) : null}
         </Box>
+        {/* 저장 실패는 발 바로 위 — 누른 단추 곁에 남는다. 다시 저장하면 걷힌다. */}
+        {saveFailure ? <Callout tone="danger" compact sx={{ mt: 2.5 }}>{saveFailure}</Callout> : null}
         <button type="submit" className="sr-only" tabIndex={-1} aria-hidden="true" />
       </form>
     </Modal>
@@ -701,7 +737,7 @@ export function useClaim() {
   return useMutation({
     mutationFn: (id) => api(`/api/tickets/${id}/claim`, { method: "POST" }),
     onSuccess: () => { toast("나에게 배정했습니다.", "success"); invalidateTicketViews(qc); },
-    onError: (e) => { toast((e && e.message) || "배정하지 못했습니다. 잠시 후 다시 시도해 주세요.", "error"); }, });
+  });
 }
 
 // configured=false(서버가 티켓을 읽지 못함) 공통 안내.
@@ -839,7 +875,7 @@ export function MyTickets() {
     <div className="c-screen">
       <PageHeader crumbRoot="내 업무" area="내 티켓" title="내 티켓" actions={headerActions} />
       {q.isLoading ? <Card><Skeleton /></Card>
-        : q.isError ? <ErrorState error={q.error} onRetry={() => q.refetch()} />
+        : q.isError ? <ErrorState layout="region" error={q.error} onRetry={() => q.refetch()} />
         : (() => {
           /* 목록 밖의 값(연결 상태 안내)은 첫 묶음 원본이 들고 온다 — 묶음마다 같다. */
           const data = q.first || {};
@@ -865,6 +901,7 @@ export function MyTickets() {
                 onClear={clearFilters}
                 resetLabel="필터 초기화"
               />
+              {listActionNotice(bulk, null)}
               <Typography component="h2" className="sr-only">목록</Typography>
               <Card>
                 <GroupedTickets
@@ -940,7 +977,7 @@ export function Unassigned() {
     <div className="c-screen">
       <PageHeader crumbRoot="내 업무" area="미할당 티켓" title="미할당 티켓" actions={headerActions} />
       {q.isLoading ? <Card><Skeleton /></Card>
-        : q.isError ? <ErrorState error={q.error} onRetry={() => q.refetch()} />
+        : q.isError ? <ErrorState layout="region" error={q.error} onRetry={() => q.refetch()} />
         : (() => {
           /* 목록 밖의 값(연결 상태 안내)은 첫 묶음 원본이 들고 온다 — 묶음마다 같다. */
           const data = q.first || {};
@@ -953,6 +990,7 @@ export function Unassigned() {
             <>
               {/* 여기 미러 신선도 안내가 있었다. 위 목록과 같은 이유로 걷었다(S14). */}
               <TicketFilterBar fields={SELF_FILTER_FIELDS} value={filters} onChange={setFilters} total={q.total} onClear={clearFilters} />
+              {listActionNotice(bulk, claim)}
               <Card>
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                   담당자 없는 활성 티켓입니다. ‘나에게 배정’ 또는 ‘수정’으로 지정하세요.
@@ -1384,7 +1422,7 @@ export function NewTicket() {
       ) : loadFailed ? (
         /* `ErrorState` 는 상태 코드로 제목과 안내를 스스로 고른다(401·403·404·네트워크를
            갈라 쓴다) — 여기서 문구를 덧씌우지 않는다. */
-        <ErrorState error={projectsQ.error || metaQ.error} onRetry={retryLoad} />
+        <ErrorState layout="region" error={projectsQ.error || metaQ.error} onRetry={retryLoad} />
       ) : (
         /* 폼 + 작성 도움 레일 2열(기준 목업과 같은 구조). 좁아지면 레일이 폼 아래로 내려간다 —
            레일을 옆에 억지로 붙여 두면 폼이 짜부라져 정작 쓸 수가 없다. */

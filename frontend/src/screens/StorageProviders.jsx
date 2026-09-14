@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
+import { failureText } from "../lib/failure.js";
 import {
   Badge, Button, Callout, DataTable, EmptyState, ErrorState, FormModal, ListCard, OverflowMenu, Skeleton, useConfirm, useToast,
 } from "../ui/kit.jsx";
@@ -146,12 +147,10 @@ export function StorageProviders({ embedded = false }) {
   const probe = useMutation({
     mutationFn: (id) => api("/api/storage/providers/" + id + "/probe", { method: "POST", body: {} }),
     onSuccess: (res) => {
+      /* 쓸 수 있는지는 표 아래 확인 결과 상자(`probed`)가 말한다 — 같은 사실을 토스트로 겹쳐 말하지 않는다. */
       setProbed(res);
-      const ok = !!(res && res.writable);
-      toast(ok ? "지금 쓸 수 있습니다." : "지금은 쓸 수 없습니다.", ok ? "success" : "error");
       refresh();
     },
-    onError: (e) => toast((e && e.message) || "확인하지 못했습니다.", "error"),
   });
 
   /* 수정은 **편집을 시작한 시점의 판**을 함께 보낸다 (D-240 · settings-07).
@@ -192,8 +191,9 @@ export function StorageProviders({ embedded = false }) {
       toast(vars.enabled ? "사용으로 바꿨습니다." : "사용 안 함으로 바꿨습니다.", "success");
       refresh();
     },
-    onError: (e) => toast((e && e.message) || "바꾸지 못했습니다.", "error"),
   });
+  /* 확인 · 사용 전환의 실패는 표 바로 아래에 남는다 — 가장 나중에 누른 동작 하나만 말한다. */
+  const rowFailure = failureText([probe, "확인하지 못했습니다."], [toggle, "바꾸지 못했습니다."]);
 
   const data = query.data || {};
   const rows = data.providers || [];
@@ -264,7 +264,7 @@ export function StorageProviders({ embedded = false }) {
       {query.isLoading ? (
         <Skeleton kind="table" rows={3} cols={6} />
       ) : query.isError ? (
-        <ErrorState error={query.error} onRetry={() => query.refetch()} />
+        <ErrorState layout="region" error={query.error} onRetry={() => query.refetch()} />
       ) : (
         <>
           {/* 「운영과 백업이 같은 장치」는 이 화면에서 가장 값진 한 문장이다 — 장치가
@@ -303,9 +303,11 @@ export function StorageProviders({ embedded = false }) {
               <ListCard sx={{ mt: 2 }}>
                 <DataTable columns={columns} rows={rows} rowKey={(r) => r.id} />
               </ListCard>
+              {rowFailure ? <Callout tone="danger" compact>{rowFailure}</Callout> : null}
 
               {probed ? (
-                <Callout tone={probed.writable ? "success" : "warn"}>
+                /* 확인 결과의 한마디(쓸 수 있다 · 없다)가 이 상자의 제목이다 — 예전에는 같은 말이 토스트로 따로 떴다. */
+                <Callout tone={probed.writable ? "success" : "warn"} title={probed.writable ? "지금 쓸 수 있습니다." : "지금은 쓸 수 없습니다."}>
                   {"‘" + probed.name + "’: " + mountText(probed) + "."}
                   {probed.mount && probed.mount.detail ? " " + probed.mount.detail : ""}
                   {/* 안 붙어 있을 때 다음에 칠 명령을 준다. 유닛 이름은 이 응답에만 있다. */}

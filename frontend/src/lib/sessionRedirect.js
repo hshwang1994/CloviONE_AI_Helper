@@ -32,6 +32,7 @@ let pendingTimer = null;
 export function resetSessionRedirect() {
   redirected = false;
   if (pendingTimer) { clearTimeout(pendingTimer); pendingTimer = null; }
+  resetSessionExpired();
 }
 
 function onLoginPage(path) {
@@ -70,4 +71,41 @@ export function redirectToLogin({ delayMs = 0 } = {}) {
   if (delayMs > 0) pendingTimer = setTimeout(go, delayMs);
   else go();
   return true;
+}
+
+/* ## 세션이 끊긴 순간의 화면 — 토스트가 아니라 오류 상태다 (핸드오프 RULES §1 · ACCEPTANCE I3)
+ *
+ * 동작(저장 · 실행 · 적용) 중에 401 을 맞으면 예전에는 화면마다 「로그인이 필요합니다. 로그인 화면으로
+ * 이동합니다.」 토스트를 띄우고 1.2초 뒤 로그인으로 보냈다 — 같은 두 줄이 다섯 곳에 사본으로 있었다.
+ * 권한 · 세션 실패는 사라지는 토스트가 아니라 **화면 전체의 오류 상태(401 갈래)** 로 말한다: 본문 자리가
+ * 그 상태로 바뀌고(`SessionExpiredOutlet`), 같은 1.2초 뒤 같은 주소로 떠난다. 두 문장은 그대로다 —
+ * 제목이 앞 문장, 도움말이 뒤 문장이다. */
+export const SESSION_EXPIRED_ERROR = Object.freeze({ status: 401, message: "로그인 화면으로 이동합니다." });
+
+let expired = false;
+const listeners = new Set();
+
+/** 세션이 끊겼다고 알리고 로그인 화면으로 보낸다(1.2초 뒤, 한 번만). 사본 다섯 곳이 이것 하나를 부른다. */
+export function expireSession() {
+  if (!expired) {
+    expired = true;
+    listeners.forEach((fn) => fn());
+  }
+  redirectToLogin({ delayMs: 1200 });
+}
+
+/** 지금 세션이 끊긴 것으로 알려졌는가 — 본문 자리가 이 값을 보고 오류 상태로 바뀐다. */
+export function isSessionExpired() {
+  return expired;
+}
+
+export function subscribeSessionExpired(fn) {
+  listeners.add(fn);
+  return () => listeners.delete(fn);
+}
+
+/** 테스트가 경우마다 처음 상태로 돌린다(프로덕션에서는 부르지 않는다). */
+export function resetSessionExpired() {
+  expired = false;
+  listeners.forEach((fn) => fn());
 }

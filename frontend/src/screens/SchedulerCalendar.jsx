@@ -10,6 +10,7 @@ import ChevronLeftRoundedIcon from "@mui/icons-material/ChevronLeftRounded";
 import ChevronRightRoundedIcon from "@mui/icons-material/ChevronRightRounded";
 import { api } from "../lib/api.js";
 import { toUTCDate } from "../lib/format.js";
+import { failureText } from "../lib/failure.js";
 import { FONT_SIZE, FONT_WEIGHT } from "../ui/theme.js";
 import { useAuth } from "../app/auth.jsx";
 import { OPS_ROLES } from "./registry/shared.js";
@@ -177,7 +178,6 @@ export function SchedulerCalendar({ embedded = false } = {}) {
       qc.invalidateQueries({ queryKey: ["schedules"] });
       setSelected(null);
     },
-    onError: (e) => toast(e.message, "error"),
   });
 
   const cancelRun = useMutation({
@@ -188,8 +188,9 @@ export function SchedulerCalendar({ embedded = false } = {}) {
       qc.invalidateQueries({ queryKey: ["schedules"] });
       setSelected(null);
     },
-    onError: (e) => toast(e.message, "error"),
   });
+  /* 재시도 · 취소 실패는 그 실행을 연 창 안에 남는다(창은 닫히지 않는다). 다음 동작에서 걷힌다. */
+  const runFailure = failureText([retryRun, null], [cancelRun, null]);
 
   async function retrySelectedRun() {
     if (!selected) return;
@@ -303,7 +304,7 @@ export function SchedulerCalendar({ embedded = false } = {}) {
       {query.isLoading ? (
         <Card sx={{ mt: 2 }}><Skeleton lines={8} /></Card>
       ) : query.isError ? (
-        <Box sx={{ mt: 2 }}><ErrorState error={query.error} onRetry={() => query.refetch()} /></Box>
+        <Box sx={{ mt: 2 }}><ErrorState layout="region" error={query.error} onRetry={() => query.refetch()} /></Box>
       ) : schedules.length === 0 ? (
         <Box sx={{ mt: 2 }}>
           <EmptyState
@@ -397,7 +398,7 @@ export function SchedulerCalendar({ embedded = false } = {}) {
                           {isToday ? ", 오늘" : ""}
                         </Typography>
                         {events.slice(0, 4).map((event, i) => (
-                          <EventDot key={event.run_id || `${event.schedule_id}-${event.occurs_at}-${i}`} event={event} onClick={setSelected} />
+                          <EventDot key={event.run_id || `${event.schedule_id}-${event.occurs_at}-${i}`} event={event} onClick={(ev) => { retryRun.reset(); cancelRun.reset(); setSelected(ev); }} />
                         ))}
                         {events.length > 4 ? (
                           <Tooltip title={`${events.length - 4}건 더 있습니다`}>
@@ -422,6 +423,7 @@ export function SchedulerCalendar({ embedded = false } = {}) {
         title={selected ? (selected.schedule_name || "실행") : ""}
         size="sm"
       >
+        {selected && runFailure ? <Callout tone="danger" compact sx={{ mb: 2 }}>{runFailure}</Callout> : null}
         {selected ? (
           <DataTable
             columns={[{ key: "label", label: "항목" }, { key: "value", label: "값" }]}
@@ -443,14 +445,14 @@ export function SchedulerCalendar({ embedded = false } = {}) {
               실행 자체가 없어 재시도할 대상이 없고, 성공/대기/실행 중은 백엔드가 409 로
               거절한다(RUN_FAILED 만 허용, app/schedules/router.py retry_run). */}
           {selected && selected.kind !== "planned" && selected.status === "failed" && canOps ? (
-            <Button variant="primary" onClick={retrySelectedRun} disabled={retryRun.isPending}>
-              {retryRun.isPending ? "재시도 중…" : "재시도"}
+            <Button variant="primary" onClick={retrySelectedRun} disabled={retryRun.isPending} loading={retryRun.isPending}>
+              재시도
             </Button>
           ) : null}
           {/* 대기/실행 중인 실행만 취소할 수 있다(백엔드 cancel_run 이 RUN_QUEUED/RUN_RUNNING 만 허용). */}
           {selected && selected.kind !== "planned" && (selected.status === "queued" || selected.status === "running") && canOps ? (
-            <Button variant="danger" onClick={cancelSelectedRun} disabled={cancelRun.isPending}>
-              {cancelRun.isPending ? "취소하는 중…" : "취소"}
+            <Button variant="danger" onClick={cancelSelectedRun} disabled={cancelRun.isPending} loading={cancelRun.isPending}>
+              취소
             </Button>
           ) : null}
           <Button

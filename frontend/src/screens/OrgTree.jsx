@@ -255,7 +255,7 @@ export function OrgTree({ selectedId, onSelect, search = "", active = "", onClea
       {query.isLoading ? (
         <Skeleton lines={5} />
       ) : query.isError ? (
-        <ErrorState error={query.error} onRetry={() => query.refetch()} />
+        <ErrorState layout="region" error={query.error} onRetry={() => query.refetch()} />
       ) : nodes.length === 0 ? (
         /* 조건을 푸는 길을 함께 준다 (C1 · W5) — 조건은 위 탐색 줄이 들지만, 0건의 이유와
            푸는 단추는 빈 자리 곁에 서야 한다. */

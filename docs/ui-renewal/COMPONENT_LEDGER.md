@@ -192,6 +192,20 @@ B 단계가 전수 흡수를 끝낸 뒤 남는 자리만 적는다. 형식은 �
 - 표 행은 **최솟값**이다: 일반 행 `CONTROL.tableRow` 48, 두 줄 행 `rowHeight="tall"` → `CONTROL.tableRowTall`
   76. 내용이 더 필요하면 자라고 잘리거나 겹치지 않는다. 태그는 네 개 + 「+N」으로 줄 폭증을 막는다.
 
+## 0-7. 실패는 그 자리의 메시지 박스다 — 토스트가 아니다 (핸드오프 RULES §1 · ACCEPTANCE I3)
+
+- 토스트는 **잘 된 일**만 말한다. 저장 실패 · 권한 없음 · 되돌릴 수 없는 결과 · 다시 눌러야 하는 실패는 그 동작이
+  속한 자리에 `Callout`(오류는 `danger` · `role="alert"`)로 남는다: 칸 오류는 그 칸의 도움말 자리, 모달 저장 실패는
+  발 바로 위, 판 · 목록 동작은 그 판 · 목록 위, 머리 동작은 머리 바로 아래.
+- 수명은 `lib/failure.js::failureText`(요청 여럿 중 **가장 나중에 보낸 요청**의 실패) · `latestMutation` 이 요청
+  상태에서 읽는다 — 새 상태를 만들지 않는다. 손으로 부른 요청만 지역 상태다. 모달은 열 때 `reset()` 한다.
+  시험: `lib/failure.test.js`, `screens/failure-inline-lifecycle.test.jsx`(칸 고치면 해제 · 재오픈 잔존 0 · 성공하면 해제).
+- 세션 만료(401)는 `lib/sessionRedirect.js::expireSession` 하나 — 본문 자리가 `kit.jsx::SessionExpiredOutlet`
+  (셸이 감싼다)에서 `ErrorState` 401 갈래로 바뀐 뒤 1.2초 뒤 로그인 화면으로 간다.
+- 예외(토스트 유지): 보호 화면(`Profile` · `WorkBoard` · `Sprint` · `SprintLifecycle`)의 실패 토스트 — 계획 표 5가
+  허용한 치환 목록 밖이다. 문서 목록(`Knowledge.jsx`)은 D, 새 티켓은 C, 채팅방(`ChatRoom` · `ChatRooms` ·
+  `ChatPane` · `chat/links.jsx`)은 E 가 옮긴다.
+
 ---
 
 ## 1. 신설한 부품

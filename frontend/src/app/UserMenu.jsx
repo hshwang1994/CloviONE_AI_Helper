@@ -7,7 +7,7 @@ import MenuItem from "@mui/material/MenuItem";
 import Typography from "@mui/material/Typography";
 import { useNavigate } from "react-router-dom";
 import { api } from "../lib/api.js";
-import { useToast } from "../ui/kit.jsx";
+import { Callout } from "../ui/kit.jsx";
 import { FONT_SIZE, FONT_WEIGHT, RADIUS } from "../ui/theme.js";
 import { applyTheme, readTheme, storeTheme, clearBootTheme } from "./theme-store.js";
 import { clearBootAccent, useThemeMode } from "../ui/ThemeModeProvider.jsx";
@@ -96,7 +96,8 @@ export function UserMenu({ name, userId, avatarUrl, me }) {
   const [busy, setBusy] = React.useState(false);
   const open = Boolean(anchor);
   const nav = useNavigate();
-  const toast = useToast();
+  /* 로그아웃 실패 문장 — 메뉴 안에 남고, 다시 누르면 걷힌다. */
+  const [logoutFailure, setLogoutFailure] = React.useState("");
   const { identifyAccentUser } = useThemeMode();
 
   React.useEffect(() => {
@@ -119,6 +120,7 @@ export function UserMenu({ name, userId, avatarUrl, me }) {
 
   async function logout() {
     setBusy(true);
+    setLogoutFailure("");
     // 계정 구분 없는 테마 키는 로그아웃 때 지운다 — 공용/키오스크 PC에서 다음 사용자가
     // 로그인 화면부터 이전 사용자의 테마를 물려받지 않게. 계정별 키는 남겨 본인 재로그인 시 복원.
     clearBootTheme();
@@ -140,7 +142,8 @@ export function UserMenu({ name, userId, avatarUrl, me }) {
         return;
       }
       setBusy(false);
-      toast((e && e.message) || "로그아웃하지 못했습니다. 다시 시도해 주세요.", "error");
+      // 실패는 메뉴 안에 남는다 — 사라지는 토스트였을 때 사람은 로그아웃된 줄 알고 자리를 떴다.
+      setLogoutFailure((e && e.message) || "로그아웃하지 못했습니다. 다시 시도해 주세요.");
       return;
     }
     window.location.href = "/login";
@@ -212,6 +215,11 @@ export function UserMenu({ name, userId, avatarUrl, me }) {
         <MenuItem disabled={busy} onClick={logout} sx={{ color: "error.main" }}>
           {busy ? "로그아웃 중…" : "로그아웃"}
         </MenuItem>
+        {logoutFailure ? (
+          <Box role="none" sx={{ px: 1.5, pb: 1, maxWidth: "22rem" }}>
+            <Callout tone="danger" compact>{logoutFailure}</Callout>
+          </Box>
+        ) : null}
       </Menu>
     </>
   );

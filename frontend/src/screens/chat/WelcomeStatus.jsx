@@ -4,6 +4,7 @@ import Chip from "@mui/material/Chip";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { MascotPose } from "../../ui/Mascot.jsx";
+import { EmptyState } from "../../ui/kit.jsx";
 import { FONT_SIZE } from "../../ui/theme.js";
 import { MASCOT_PHASE_TEXT, QUICK_PROMPTS } from "../chat-helpers.js";
 
@@ -25,16 +26,17 @@ export function QuickPrompts({ onPick, busy }) {
 /* 빈 화면 — 마스코트는 여기서 장식(decorative)이다. 상태를 말하는 마스코트는 상단바에 하나뿐이고,
    같은 상태를 두 번 낭독시키지 않는다. */
 export function Welcome({ title, help, onPick, busy, mode }) {
+  /* 대화가 없는 AI 도우미는 화면 전체가 비어 있는 자리다 — 화면 빈 상태(page)이고 클로비는 화면 계약
+     크기(132, 짧은 화면 112)다(D-485 · 계획 P-12). 다음 행동은 시작 예시다. */
   return (
-    <Box sx={{ m: "auto", textAlign: "center", color: "text.secondary", maxWidth: "38rem", px: 2, py: 4 }}>
-      <Box sx={{ display: "grid", justifyItems: "center", mb: 1 }}>
-        <MascotPose mode={mode} place="chatWelcome" decorative />
-      </Box>
-      {/* PA-RC-0001: MUI 기본 h5(24px)보다 의도적으로 작게 한 22px — pageTitle(20px)·statValue(30px)
-          사이라 기존 토큰과 안 맞는다. 실측 없이 스냅하지 않는다(의도된 예외). */}
-      <Typography variant="h5" component="h2" color="text.primary" sx={{ fontSize: "1.375rem", mb: 1 }}>{title}</Typography>
-      <Typography sx={{ fontSize: "0.9375rem", lineHeight: 1.6 }}>{help}</Typography>
-      <QuickPrompts onPick={onPick} busy={busy} />
+    <Box sx={{ m: "auto", width: "100%", maxWidth: "38rem" }}>
+      <EmptyState
+        layout="page"
+        icon={<MascotPose mode={mode} place="emptyPage" decorative />}
+        title={title}
+        help={help}
+        action={<QuickPrompts onPick={onPick} busy={busy} />}
+      />
     </Box>
   );
 }

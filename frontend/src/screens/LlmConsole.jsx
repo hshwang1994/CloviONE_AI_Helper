@@ -5,6 +5,7 @@ import MenuItem from "@mui/material/MenuItem";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
+import { failureText } from "../lib/failure.js";
 import { Badge, Button, Callout, Card, ErrorState, FieldLabel, Section, SectionTitle, Skeleton, Tag, TechDetail, useToast } from "../ui/kit.jsx";
 import { kindSx } from "../ui/filters.jsx";
 import { KO_WORD_BREAK } from "../ui/theme.js";
@@ -161,10 +162,13 @@ export function LlmConsole({ embedded = false } = {}) {
   // 사이를 들락거려 저장 버튼의 비활성 상태를 신뢰할 수 없음. 필드를 하나씩 순서대로 저장하고,
   // 실패한 필드만 초안에 남겨 사용자가 그 값을 잃지 않게 한다.
   const [saving, setSaving] = React.useState(false);
+  /* 일부 항목을 못 저장한 사실 — 초안에 남은 값과 함께 저장 줄 위에 남는다. 다시 저장하면 새로 선다. */
+  const [saveFailure, setSaveFailure] = React.useState("");
   async function saveDraft() {
     const keys = Object.keys(draft || {});
     if (!keys.length) return;
     setSaving(true);
+    setSaveFailure("");
     const remaining = { ...draft };
     let failCount = 0;
     for (const key of keys) {
@@ -180,7 +184,7 @@ export function LlmConsole({ embedded = false } = {}) {
     setSaving(false);
     setDraft(Object.keys(remaining).length ? remaining : null);
     if (failCount) {
-      toast(failCount + "개 항목을 저장하지 못했습니다. 나머지 값은 초안에 그대로 남아 있습니다. 다시 시도해 주세요.", "error");
+      setSaveFailure(failCount + "개 항목을 저장하지 못했습니다. 나머지 값은 초안에 그대로 남아 있습니다. 다시 시도해 주세요.");
     } else {
       toast("저장했습니다. " + ((state.data && state.data.apply_note) || ""), "success");
     }
@@ -192,8 +196,8 @@ export function LlmConsole({ embedded = false } = {}) {
       setJobId(result.job_id);
       toast("연결 테스트를 작업 큐에 맡겼습니다.", "success");
     },
-    onError: (err) => toast((err && err.message) || "연결 테스트를 시작하지 못했습니다. 잠시 후 다시 시도해 주세요.", "error"),
   });
+  const testFailure = failureText([startTest, "연결 테스트를 시작하지 못했습니다. 잠시 후 다시 시도해 주세요."]);
 
   /* 이 셋은 헤더까지 포함해 **화면 전체**가 아직 없다 - 회색 줄만 그리면 도착하는 순간
      제목·지표·본문이 한꺼번에 튀어 들어온다. 들어올 배치를 미리 잡아 준다(지시 20). */
@@ -350,12 +354,15 @@ export function LlmConsole({ embedded = false } = {}) {
 
           {/* 연결 테스트를 별도 큰 카드로 두지 않는다(지시 38) - 설정을 바꾸고 나서 확인하는
               것이 하나의 흐름이라 저장 줄에 함께 둔다. 주 동작(저장)은 폼 판의 오른쪽 끝이다. */}
+          {saveFailure || testFailure ? (
+            <Callout tone="danger" compact sx={{ mt: 2.5 }}>{saveFailure || testFailure}</Callout>
+          ) : null}
           <Box sx={{ mt: 2.5, display: "flex", gap: 1, flexWrap: "wrap", alignItems: "center" }}>
-            <Button disabled={busy} onClick={() => startTest.mutate()}>연결 테스트</Button>
+            <Button disabled={busy} onClick={() => { setSaveFailure(""); startTest.mutate(); }}>연결 테스트</Button>
             <Box sx={{ flex: 1 }} />
             <Button disabled={busy || !draft} onClick={() => setDraft(null)}>되돌리기</Button>
-            <Button variant="primary" disabled={busy || !draft} onClick={saveDraft}>
-              {saving ? "저장 중…" : "저장"}
+            <Button variant="primary" disabled={busy || !draft} loading={saving} onClick={saveDraft}>
+              저장
             </Button>
           </Box>
           <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1, ...KO_WORD_BREAK }}>{data.test_mode_note}</Typography>

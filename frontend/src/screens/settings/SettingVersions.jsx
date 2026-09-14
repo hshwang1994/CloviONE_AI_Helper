@@ -4,7 +4,7 @@ import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import { api } from "../../lib/api.js";
 import { fmtDateTime } from "../../lib/format.js";
-import { Card, Button, DataTable, Modal, EmptyState, ErrorState, useConfirm, useToast } from "../../ui/kit.jsx";
+import { Card, Button, Callout, DataTable, Modal, EmptyState, ErrorState, useConfirm, useToast } from "../../ui/kit.jsx";
 import { summarizeSetting, securityDowngradeWarning, displayValue } from "./settingsRegistry.js";
 import { DateCell } from "../../ui/cells.jsx";
 
@@ -28,6 +28,8 @@ export function SettingVersions({ settingKey, label, canWrite, onClose, onRolled
   });
   const items = (vq.data && vq.data.items) || [];
 
+  /* 롤백 실패 — 이 기록 창 안에 남는다. 다시 롤백하면 걷힌다. */
+  const [rollFailure, setRollFailure] = React.useState("");
   async function doRollback(version, snapshotValue) {
     // 직접 편집(SettingEditor.onSave)은 저장 직전 securityDowngradeWarning으로 보안 완화(도메인 제한
     // 해제·비밀번호 정책 약화·세션 완화)를 danger 확인으로 한 번 더 막는데, 롤백 경로는 그 확인을
@@ -38,6 +40,7 @@ export function SettingVersions({ settingKey, label, canWrite, onClose, onRolled
       warnMsg ? warnMsg + " (버전 " + version + "(으)로 롤백)" : "버전 " + version + "(으)로 롤백할까요? 현재 값을 이 버전의 값으로 되돌립니다.",
       { danger: true, title: warnMsg ? "보안 설정 변경 확인" : "버전 롤백", confirmLabel: warnMsg ? "변경" : "롤백" });
     if (!ok) return;
+    setRollFailure("");
     try {
       await roll.mutateAsync(version);
       qc.invalidateQueries({ queryKey: ["settings"] });
@@ -46,7 +49,7 @@ export function SettingVersions({ settingKey, label, canWrite, onClose, onRolled
       qc.invalidateQueries({ queryKey: ["settings", settingKey, "versions"] });
       toast("버전 " + version + "(으)로 롤백했습니다.", "success");
       onRolledBack();
-    } catch (e) { toast(e.message, "error"); }
+    } catch (e) { setRollFailure(e.message); }
   }
 
   const columns = [
@@ -77,12 +80,13 @@ export function SettingVersions({ settingKey, label, canWrite, onClose, onRolled
       <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
         각 버전은 그 시점의 값입니다. 롤백하면 현재 값이 그 버전으로 돌아가고, 그 사실이 새 기록으로 남습니다.
       </Typography>
+      {rollFailure ? <Callout tone="danger" compact sx={{ mb: 2 }}>{rollFailure}</Callout> : null}
       {/* 목록 자체는 페이지네이션 없이 전체를 보여준다(app/core/versioning.py list_versions에 상한 없음) —
           자주 손보는 설정은 기록이 눈에 안 띄게 계속 늘어날 수 있어, 최소한 개수라도 먼저 보여준다
           (DataScreen의 capWarning과 같은 취지 — '이 목록이 얼마나 긴지' 모르는 채로 스크롤하지 않게). */}
       {!vq.isLoading && !vq.isError && items.length > 0 ? <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1 }}>{items.length}건</Typography> : null}
       {vq.isLoading ? <DataTable columns={columns} rows={[]} loading />
-        : vq.isError ? <ErrorState error={vq.error} onRetry={() => vq.refetch()} />
+        : vq.isError ? <ErrorState layout="region" error={vq.error} onRetry={() => vq.refetch()} />
         : items.length === 0 ? <EmptyState title="버전 기록이 없습니다" help="이 설정을 아직 변경한 적이 없습니다." />
         : <Card><DataTable columns={columns} rows={items} rowKey={(r) => r.version} /></Card>}
     </Modal>

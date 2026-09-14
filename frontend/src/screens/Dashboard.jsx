@@ -8,7 +8,7 @@ import { api } from "../lib/api.js";
 import { fmtDateTime, actionKo, objKo } from "../lib/format.js";
 import { useAuth } from "../app/auth.jsx";
 import { canReach } from "../app/navConfig.js";
-import { PageHeader, Card, ListCard, DataTable, Badge, Section, Skeleton, ErrorState, Button, Callout, SubGroup, Surface, useToast } from "../ui/kit.jsx";
+import { PageHeader, Card, ListCard, DataTable, Badge, Section, Skeleton, EmptyState, ErrorState, Button, Callout, SubGroup, Surface, useToast } from "../ui/kit.jsx";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
 import { StatusList, StatusTile, Note } from "../ui/adminKit.jsx";
 import {
@@ -587,7 +587,7 @@ export function Dashboard() {
               {updated} 기준{staleAfterError ? ", 새로고침 실패" : ""}
             </Typography>
           ) : null}
-          <Button variant="ghost" size="sm" disabled={manualRefreshing} onClick={onManualRefresh}>{manualRefreshing ? "새로고침 중…" : "새로고침"}</Button>
+          <Button variant="ghost" size="sm" disabled={manualRefreshing} loading={manualRefreshing} onClick={onManualRefresh}>새로고침</Button>
           {/* 수동 새로고침 완료만 조용히 알린다. */}
           <span className="sr-only" role="status" aria-live="polite">{refreshAnnounce}</span>
         </>} />
@@ -722,7 +722,7 @@ function DashboardBody({ d, nav, role, stale }) {
               </StatusTile>
             ))}
           </StatusList>
-        ) : <Note sx={{ mt: 0 }}>서비스 정보 없음</Note>}
+        ) : <EmptyState layout="inline" title="서비스 정보 없음" />}
       </Section>
 
       <Section titleAs="h2"
@@ -744,7 +744,7 @@ function DashboardBody({ d, nav, role, stale }) {
             ))}
           </StatusList>
         ) : (
-          <Note sx={{ mt: 0 }}>추가된 외부 연동이 없습니다. 이 설치는 바깥으로 나가는 호출을 쓰지 않습니다.</Note>
+          <EmptyState layout="inline" title="추가된 외부 연동이 없습니다." help="이 설치는 바깥으로 나가는 호출을 쓰지 않습니다." />
         )}
       </Section>
       </Box>
@@ -798,7 +798,7 @@ function DashboardBody({ d, nav, role, stale }) {
                 「처리 요청 0 · 성공 0 · 평균 처리 -」 세 줄이었다. 세 줄을 다 읽고 나서야
                 「아무 일도 없었다」를 알게 되는데, 그것은 한 문장이면 되는 사실이다. */}
             {jobsQuiet ? (
-              <Note sx={{ mt: 0 }}>최근 24시간 동안 처리한 작업이 없습니다.</Note>
+              <EmptyState layout="inline" title="최근 24시간 동안 처리한 작업이 없습니다." />
             ) : (
               <>
                 <Fact label="처리 요청" value={fmtNum(jobs.total)} />

@@ -2,7 +2,7 @@ import React from "react";
 import Box from "@mui/material/Box";
 import Divider from "@mui/material/Divider";
 import Typography from "@mui/material/Typography";
-import { Callout } from "./kit.jsx";
+import { Callout, EmptyState } from "./kit.jsx";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "./theme.js";
 import { ClickableImage, ImageLightbox, useLightbox } from "./ImageLightbox.jsx";
 import { linkifyText } from "../screens/chat/links.jsx";
@@ -103,9 +103,8 @@ export function DocBody({ blocks, blocksError }) {
     );
   }
   if (!blocks || blocks.length === 0) {
-    /* 빈 상태는 안내가 아니다 - `안내` 라벨을 붙이면 읽을 것이 없다는 사실보다 라벨이 먼저
-       읽힌다. 평문으로 둔다. */
-    return <Typography color="text.secondary">본문 내용이 없습니다.</Typography>;
+    /* 빈 상태는 안내가 아니다 - `안내` 라벨을 붙이지 않는다. 판 안 빈 상태(inline, 그림 없음)로 선다. */
+    return <EmptyState layout="inline" title="본문 내용이 없습니다." />;
   }
   // 연속한 목록 항목(bulleted/numbered)을 <ul>/<ol>로 묶는다 — bare <li>는 번호가
   // 문서 전체 카운터를 공유해 잘못 매겨지고 목록 시맨틱(스크린리더)도 잃는다(검수 결함).

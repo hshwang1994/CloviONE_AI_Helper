@@ -7,7 +7,7 @@ import { Button } from "../../ui/kit.jsx";
 export function DiagnosticActions({ manualCollecting, onCollect, hasText, copied, onCopy, onDownload }) {
   return (
     <>
-      <Button variant="primary" onClick={onCollect} disabled={manualCollecting}>{manualCollecting ? "수집 중…" : "진단 수집"}</Button>
+      <Button variant="primary" onClick={onCollect} disabled={manualCollecting} loading={manualCollecting}>진단 수집</Button>
       {/* '복사'↔'복사됨' 라벨 전환으로 버튼 폭이 바뀌어 옆 'JSON 다운로드' 버튼이 그때마다
           옆으로 밀리던 문제, 폭을 예약하는 래퍼로 감싼다(rem이라 4K에서 함께 커진다). */}
       {hasText ? (

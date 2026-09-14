@@ -5,7 +5,7 @@ import IconButton from "@mui/material/IconButton";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
-import { Button } from "../../ui/kit.jsx";
+import { Button, Callout } from "../../ui/kit.jsx";
 import { FONT_SIZE, FONT_WEIGHT } from "../../ui/theme.js";
 import { fmtDuration } from "./settingsRegistry.js";
 
@@ -100,7 +100,7 @@ export function StructuredObjectFields({ settingKey, val, onChange, canWrite, de
                   항상 관찰 가능한 결과를 내게 한다. */}
               <Button size="sm" onClick={addDomain} disabled={!draft.trim()}>추가</Button>
             </Box>
-            {domainErr ? <Typography color="error" variant="body2" id={domainErrId} role="alert" sx={{ mt: 1 }}>{domainErr}</Typography> : null}
+            {domainErr ? <Box id={domainErrId} sx={{ mt: 1 }}><Callout tone="danger" compact>{domainErr}</Callout></Box> : null}
           </>
         ) : null}
       </Box>

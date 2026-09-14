@@ -263,7 +263,7 @@ export function MyStats() {
       {q.isLoading ? (
         <Card><Skeleton kind="chart" /></Card>
       ) : q.isError ? (
-        <ErrorState error={q.error} onRetry={() => q.refetch()} />
+        <ErrorState layout="card" error={q.error} onRetry={() => q.refetch()} />
       ) : (
         <>
           <SourceNotice source={data.source} />

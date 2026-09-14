@@ -73,7 +73,7 @@ function ProjectTicketList({ pageId }) {
   );
 
   if (q.isLoading) return <Card><Skeleton lines={6} /></Card>;
-  if (q.isError) return <ErrorState error={q.error} onRetry={() => q.refetch()} />;
+  if (q.isError) return <ErrorState layout="region" error={q.error} onRetry={() => q.refetch()} />;
 
   /* 목록 밖의 값(연결 상태)은 첫 묶음 원본이 들고 온다 — 묶음마다 같다. */
   const data = q.first || {};

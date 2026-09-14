@@ -12,7 +12,7 @@ import EditRoundedIcon from "@mui/icons-material/EditRounded";
 import Inventory2OutlinedIcon from "@mui/icons-material/Inventory2Outlined";
 import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import UnarchiveOutlinedIcon from "@mui/icons-material/UnarchiveOutlined";
-import { Badge, Button, EmptyState, ErrorState, ListEmptyState, Skeleton } from "../../ui/kit.jsx";
+import { Badge, Button, Callout, EmptyState, ErrorState, ListEmptyState, Skeleton } from "../../ui/kit.jsx";
 import { FONT_SIZE, FONT_WEIGHT } from "../../ui/theme.js";
 import { fmtShort } from "../chat-helpers.js";
 
@@ -112,7 +112,7 @@ export function ConversationSidebar({
   convs, convItems, convFilter, setConvFilter, showArchived, setShowArchived,
   cid, setCid, setComposingNew, clearDraft, textareaRef,
   renameConv, archiveConv, deleteConv, confirm,
-  hasMoreConvs, loadMoreConvs,
+  hasMoreConvs, loadMoreConvs, failure,
 }) {
   // AI-56: "새 대화" 그대로 방치된 항목(메시지 한 번도 안 보낸 시험용)이 쌓이면 목록
   // 상단부를 영구히 차지한다 — 자동 보관은 하지 않지만(멋대로 지우면 사용자가 놀란다),
@@ -138,6 +138,8 @@ export function ConversationSidebar({
         <Button variant="primary" onClick={() => { clearDraft(); setComposingNew(true); setCid(null); setSideOpen(false); textareaRef.current && textareaRef.current.focus(); }}>
           <AddRoundedIcon aria-hidden="true" sx={{ fontSize: "1.125rem", mr: 0.5 }} />새 대화
         </Button>
+        {/* 목록 동작(이름 · 보관 · 삭제)의 실패 — 이 목록 안에 남는다(`useChat::sidebarFailure`). */}
+        {failure ? <Callout tone="danger" compact>{failure}</Callout> : null}
         <Box component="label" sx={{ display: "flex", alignItems: "center", gap: 1, fontSize: FONT_SIZE.bodySm, color: "text.secondary", cursor: "pointer" }}>
           <Box component="input" type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} sx={{ m: 0 }} />
           보관된 대화 보기
@@ -181,7 +183,7 @@ export function ConversationSidebar({
             고정되고, 목록이 사이드바 높이를 넘칠 때만 이 안에서 스크롤된다. */}
         <Box sx={{ display: "flex", flexDirection: "column", gap: 0.25, flex: 1, minHeight: 0, overflowY: "auto", pr: 0.5, scrollbarGutter: "stable" }}>
           {convs.isLoading ? <Skeleton lines={4} />
-            : convs.isError ? <ErrorState error={convs.error} onRetry={() => convs.refetch()} />
+            : convs.isError ? <ErrorState layout="region" error={convs.error} onRetry={() => convs.refetch()} />
             : !convItems.length
               /* 빈 상태는 kit `EmptyState` 로. 회색 한 줄은 로딩 중인지·보관 필터 때문인지·
                  정말 없는 건지 구분해 주지 않는다(E계열 지적, `GroupedTickets` 와 같은 수정).

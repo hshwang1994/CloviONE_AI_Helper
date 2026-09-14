@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
+import { failureText } from "../lib/failure.js";
 import {
   Badge, Button, Callout, DataTable, EmptyState, ErrorState, ListCard, MetaBar, MetricStrip,
   PageHeader, Section, Skeleton, TechDetail, useConfirm, useToast,
@@ -123,12 +124,14 @@ export function MailStatus() {
       qc.invalidateQueries({ queryKey: ["mail-status"] });
       const d = data && data.delivery;
       if (d && d.status === "sent") toast("시험 메일을 보냈습니다. 받은 편지함을 확인하세요.", "success");
-      /* 실패 원문을 토스트에 붙이지 않는다 - 토스트는 사라지고, 예외 원문은 사라지는 자리에
-         둘 것이 아니다. 결과 행은 아래 `최근 실패` 표에 남고 원문은 그 행의 기술 정보에 있다. */
-      else toast("시험 메일을 보내지 못했습니다. 아래 최근 실패에서 원인을 확인하세요.", "error");
+      /* 못 보낸 사실은 머리 바로 아래 메시지 박스가 말한다(`testNotice`). 실패 원문은 붙이지 않는다 —
+         결과 행은 아래 `최근 실패` 표에 남고 원문은 그 행의 기술 정보에 있다. */
     },
-    onError: (err) => toast((err && err.message) || "요청을 보내지 못했습니다. 잠시 후 다시 시도해 주세요.", "error"),
   });
+  /* 시험 발송의 결과 중 남아야 하는 것 — 요청 실패와 「못 보냈다」. 다시 보내면 걷힌다. */
+  const testNotice = failureText([test, "요청을 보내지 못했습니다. 잠시 후 다시 시도해 주세요."])
+    || (test.isSuccess && !(test.data && test.data.delivery && test.data.delivery.status === "sent")
+      ? "시험 메일을 보내지 못했습니다. 아래 최근 실패에서 원인을 확인하세요." : null);
 
   if (query.isLoading) return <Box className="c-screen"><PageHeader area="운영" title="메일 발송" help={HELP} /><Skeleton lines={6} /></Box>;
   if (query.isError) return <Box className="c-screen"><PageHeader area="운영" title="메일 발송" help={HELP} /><ErrorState error={query.error} onRetry={query.refetch} /></Box>;
@@ -156,6 +159,7 @@ export function MailStatus() {
         ) : null}
       />
 
+      {testNotice ? <Callout tone="danger" compact sx={{ mb: 2 }}>{testNotice}</Callout> : null}
       <ProblemsList problems={mail.problems} />
 
       <MetaBar

@@ -31,7 +31,7 @@ vi.mock("../app/auth.jsx", () => ({
 
 import { DataScreen } from "./DataScreen.jsx";
 import { resetSessionRedirect } from "../lib/sessionRedirect.js";
-import { ConfirmProvider, ToastProvider } from "../ui/kit.jsx";
+import { ConfirmProvider, SessionExpiredOutlet, ToastProvider } from "../ui/kit.jsx";
 import { ThemeModeProvider } from "../ui/ThemeModeProvider.jsx";
 
 function renderScreen(config) {
@@ -42,7 +42,10 @@ function renderScreen(config) {
         <ToastProvider>
           <ConfirmProvider>
             <MemoryRouter>
-              <DataScreen config={config} />
+              {/* 셸의 본문 자리와 같다 — 세션이 끊기면 이 자리가 오류 상태(401 갈래)로 바뀐다. */}
+              <SessionExpiredOutlet>
+                <DataScreen config={config} />
+              </SessionExpiredOutlet>
             </MemoryRouter>
           </ConfirmProvider>
         </ToastProvider>

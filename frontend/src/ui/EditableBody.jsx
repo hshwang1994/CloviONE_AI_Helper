@@ -5,6 +5,7 @@ import Stack from "@mui/material/Stack";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
+import { failureText } from "../lib/failure.js";
 import { editorContainerSx, editorSurfaceWidthSx } from "./BodyEditor.jsx";
 import { Button, Callout, Skeleton, useConfirm, useToast } from "./kit.jsx";
 import { FONT_SIZE } from "./theme.js";
@@ -138,8 +139,9 @@ export function EditableBody({
       toast("본문을 저장했습니다.", "success");
       if (onSaved) onSaved();
     },
-    onError: (e) => toast((e && e.message) || "본문을 저장하지 못했습니다. 다시 시도해 주세요.", "error"),
   });
+  /* 저장 실패는 편집기 머리 바로 아래 — 쓰던 글이 편집기에 그대로 있고, 다시 저장하면 걷힌다. */
+  const saveFailure = failureText([save, "본문을 저장하지 못했습니다. 다시 시도해 주세요."]);
 
   const startEditing = () => { setDraft(bodyDoc || null); setEditBaseVersion(bodyVersion); setEditing(true); };
   const cancel = async () => {
@@ -162,10 +164,12 @@ export function EditableBody({
             <Typography component="h2" variant="h6" sx={{ fontSize: FONT_SIZE.sectionTitle, flex: 1 }}>{heading} 수정</Typography>
             <Button size="sm" onClick={cancel} disabled={save.isPending}>취소</Button>
             <Button size="sm" variant="primary" disabled={save.isPending}
+              loading={save.isPending}
               onClick={() => save.mutate({ body: draft, baseVersion: editBaseVersion })}>
-              {save.isPending ? "저장 중…" : "저장"}
+              저장
             </Button>
           </Stack>
+          {saveFailure ? <Callout tone="danger" compact sx={{ mb: 1.5 }}>{saveFailure}</Callout> : null}
           {/* 여기 「이 본문은 원본(Notion)에서 읽어온 것입니다 … '원본 열기'에서
               수정하세요」 경고가 있었다. body_is_local 이 거짓일 때 떴는데, 이관해 온
               문서 110건이 전부 그 상태라 전 건에서 떴다. 밀어 넣을 원본이 없고 저장은

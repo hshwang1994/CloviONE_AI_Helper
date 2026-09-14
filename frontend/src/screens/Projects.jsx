@@ -202,7 +202,7 @@ function OverdueBars({ items, today }) {
  * 보이게 한다(app/projects/service.py::project_dashboard). */
 function Summary({ query, filters, onFilter }) {
   if (query.isPending) return <Card><Skeleton lines={3} /></Card>;
-  if (query.isError) return <ErrorState error={query.error} onRetry={() => query.refetch()} />;
+  if (query.isError) return <ErrorState layout="region" error={query.error} onRetry={() => query.refetch()} />;
 
   const d = query.data || {};
   // PA-RC-0018 direction 4(0 지표 규칙): 프로젝트가 0건이면 여덟 타일 전부가 0/-다 —
@@ -312,9 +312,7 @@ function Summary({ query, filters, onFilter }) {
           {overdue.count ? (
             <OverdueBars items={overdue.items} today={d.today} />
           ) : (
-            <Typography variant="body2" color="text.secondary" sx={KO_WORD_BREAK}>
-              지연된 마일스톤이 없습니다.
-            </Typography>
+            <EmptyState layout="inline" title="지연된 마일스톤이 없습니다." />
           )}
         </SummaryPanel>
       </Box>
@@ -546,7 +544,7 @@ export function Projects() {
       <ResultLine total={data.total} conditions={activeProjectConditions} />
 
       {q.isLoading ? <Card>{/* 표가 들어올 자리에는 표 모양을 그린다 (지시 20) - 빈 목록과 아직 안 온 목록은 다른 사실이다. */}<DataTable columns={cols} rows={[]} loading /></Card>
-        : q.isError ? <ErrorState error={q.error} onRetry={() => q.refetch()} />
+        : q.isError ? <ErrorState layout="region" error={q.error} onRetry={() => q.refetch()} />
         : items.length === 0 ? (
           <Card>
             {/* «정말 없다» 와 «조건 때문에 0건» 을 가른다 (C1 · W5).

@@ -24,6 +24,7 @@ export function RoomSidebar({ c }) {
         chatLogRef={c.chatLogRef} chatMsgs={c.chatMsgs} you={c.you}
         draft={c.draft} setDraft={c.setDraft} sendChat={c.sendChat}
         chatPending={c.mutations.chat.isPending}
+        chatFailure={c.chatFailure}
       />
     </Box>
   );

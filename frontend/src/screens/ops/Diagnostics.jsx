@@ -58,12 +58,9 @@ export function Diagnostics() {
       const wasManual = manualRef.current;
       manualRef.current = false;
       if (q.isError) {
-        if (q.data) {
-          // 자동 폴링(manual=false)이 계속 실패하는 동안엔(장애 지속) 매 60초마다 같은 배너를 반복
-          // 토스트하지 않는다 — 오류 스트릭 진입 순간과, 사용자가 수동으로 다시 시도한 순간에만 알린다.
-          if (wasManual || !wasErrorRef.current) toast("진단 갱신에 실패했습니다. 아래 값은 이전에 수집한 자료입니다.", "error");
-        } else if (wasManual) toast("진단 수집에 실패했습니다. 잠시 후 다시 시도해 주세요.", "error");
-        // 자동 수집(manual=false)이고 이전 번들도 없으면 전체화면 ErrorState가 이미 실패를 알리므로 토스트를 겹치지 않는다.
+        /* 실패는 토스트로 따로 말하지 않는다 — 이전 번들이 있으면 본문 위 주의 상자(「진단 갱신에 실패했습니다」)가,
+           없으면 전체 오류 상태가 이미 그 사실을 말한다. 같은 말이 두 곳에 서면 어느 쪽이 지금 상태인지
+           헷갈린다(핸드오프 RULES §1). */
         wasErrorRef.current = true;
       } else {
         wasErrorRef.current = false;
@@ -90,7 +87,11 @@ export function Diagnostics() {
   const bundle = q.data || null;
   const text = bundle ? JSON.stringify(bundle, null, 2) : "";
 
+  /* 복사 · 내려받기 실패 — 머리 바로 아래에 남는다(원본을 직접 선택해 복사해야 하는 사람이 읽을 수 있게).
+     다음에 누르면 걷힌다. */
+  const [bundleFailure, setBundleFailure] = React.useState("");
   function doCopy() {
+    setBundleFailure("");
     copyText(text).then((ok) => {
       // 성공도 토스트로 알린다 — 버튼 라벨 변화만으론 스크린리더가 인지하지 못한다.
       if (ok) {
@@ -99,10 +100,11 @@ export function Diagnostics() {
         copiedTimerRef.current = setTimeout(() => setCopied(""), 1500);
         toast("복사됨", "success");
       }
-      else toast("복사에 실패했습니다. 아래 원본을 직접 선택해 복사하세요.", "error");
+      else setBundleFailure("복사에 실패했습니다. 아래 원본을 직접 선택해 복사하세요.");
     });
   }
   function doDownload() {
+    setBundleFailure("");
     try {
       const blob = new Blob([text], { type: "application/json" });
       const url = URL.createObjectURL(blob);
@@ -112,7 +114,7 @@ export function Diagnostics() {
       URL.revokeObjectURL(url);
       // 복사와 대칭으로 성공도 알린다 — 브라우저가 조용히 내려받는 경우 확인 신호가 없었다.
       toast("진단 번들을 내려받았습니다.", "success");
-    } catch (e) { toast("다운로드에 실패했습니다. 다시 시도해 주세요.", "error"); }
+    } catch (e) { setBundleFailure("다운로드에 실패했습니다. 다시 시도해 주세요."); }
   }
 
   const dash = (bundle && bundle.dashboard) || {};
@@ -155,6 +157,7 @@ export function Diagnostics() {
               hasText={!!text} copied={copied} onCopy={doCopy} onDownload={doDownload} />
           </>
         } />
+      {bundleFailure ? <Callout tone="danger" compact sx={{ mb: 2 }}>{bundleFailure}</Callout> : null}
       {/* 스켈레톤은 최초 수집 때만, 재수집(refetch) 중에는 이전 번들을 그대로 두어 읽던 맥락이 사라지지 않게 한다.
           (재수집 진행은 헤더의 '수집 중…' 버튼 상태가 알려 준다.) */}
       {(q.isFetching && !bundle) ? <Skeleton kind="page" lines={4} />
@@ -239,7 +242,7 @@ export function Diagnostics() {
                 // service.py build_dashboard), integration_errors는 그중 down/degraded만 거른 부분집합이다 -
                 // 그래서 integrations가 비어 있으면 그 부분집합도 항상 비어 있다. '등록된 연동은 없지만
                 // 오류만 있는' 중간 분기는 절대 일어나지 않아 제거하고, 곧장 빈 상태로 간다.
-                <Note sx={{ mt: 0 }}>추가된 외부 연동이 없습니다. 이 설치는 바깥으로 나가는 호출을 쓰지 않습니다. 연동이 추가되면 여기에 상태가 표시됩니다.</Note>
+                <EmptyState layout="inline" title="추가된 외부 연동이 없습니다." help="이 설치는 바깥으로 나가는 호출을 쓰지 않습니다. 연동이 추가되면 여기에 상태가 표시됩니다." />
               )}
             </Section>
               } />

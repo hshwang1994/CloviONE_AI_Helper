@@ -63,10 +63,11 @@ export const AUTOMATION_SCREENS = {
       // 상세를 하나씩 열지 않고도 곧 만료될 일정을 목록에서 바로 훑을 수 있게 노출한다.
       dateCol("end_at", "유효 기간(종료)")],
     // 관리자(비-system_admin)가 활성 스케줄의 정의를 바꾸면 백엔드가 재승인 위해 자동 비활성화한다 → 저장 후 경고.
-    onSaved: (res, { toast, prev }) => {
+    onSaved: (res, { notice, prev }) => {
       const s = res && res.schedule;
       if (prev && prev.enabled && s && s.enabled === false) {
-        toast("저장했지만 정의 변경으로 비활성화되었습니다. 다시 활성화(승인)해야 실행됩니다.", "error");
+        // 사라지면 안 되는 결과다 — 다시 승인하기 전에는 실행되지 않는다. 상세 안에 남긴다.
+        notice("저장했지만 정의 변경으로 비활성화되었습니다. 다시 활성화(승인)해야 실행됩니다.", "danger");
         return true;
       }
       return false;

@@ -155,7 +155,7 @@ export function WorkSection() {
 
   if (!q.data) {
     return q.isError
-      ? <ErrorState error={q.error} onRetry={() => q.refetch()} size="compact" />
+      ? <ErrorState layout="region" error={q.error} onRetry={() => q.refetch()} size="compact" />
       : <Skeleton kind="chart" height="6rem" />;
   }
 

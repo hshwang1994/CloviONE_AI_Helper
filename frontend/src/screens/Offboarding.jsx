@@ -7,7 +7,7 @@ import MenuItem from "@mui/material/MenuItem";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
-import { redirectToLogin } from "../lib/sessionRedirect.js";
+import { expireSession } from "../lib/sessionRedirect.js";
 import { fmtDateTime } from "../lib/format.js";
 import { maxLengthFor } from "../lib/fieldLimits.js";
 import {
@@ -109,7 +109,7 @@ export function Offboarding() {
       ) : previewQ.isLoading ? (
         <Card><Skeleton lines={6} /></Card>
       ) : previewQ.isError ? (
-        <ErrorState error={previewQ.error} onRetry={() => previewQ.refetch()} />
+        <ErrorState layout="region" error={previewQ.error} onRetry={() => previewQ.refetch()} />
       ) : (
         <OffboardPlan
           preview={previewQ.data}
@@ -162,7 +162,7 @@ function TargetPicker({ q, setQ, query, onPick }) {
       {query.isLoading ? (
         <Card><Skeleton lines={5} /></Card>
       ) : query.isError ? (
-        <ErrorState error={query.error} onRetry={() => query.refetch()} />
+        <ErrorState layout="region" error={query.error} onRetry={() => query.refetch()} />
       ) : items.length === 0 ? (
         /* 조건이 없는데 조건 탓을 하지 않는다 (C1 · W5). 예전에는 검색어가 비어 있어도
            언제나 「조건에 해당하는 사용자가 없습니다」라고 말했다 — 신규 설치에서 이 문장은
@@ -210,6 +210,8 @@ function OffboardPlan({ preview, onDone, toast }) {
   const [noteError, setNoteError] = useState("");
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState(null);
+  /* 실행 요청이 실패한 사실 — 실행 단추 곁에 남는다. 다시 실행하면 걷힌다. */
+  const [runFailure, setRunFailure] = useState("");
   const confirm = useConfirm();
   const noteMaxLength = maxLengthFor("offboarding", "run", "note");
 
@@ -259,7 +261,7 @@ function OffboardPlan({ preview, onDone, toast }) {
     const message = planLines.join("\n");
     if (!(await confirm(message, { danger: true, title: "오프보딩 실행", confirmLabel: "실행" }))) return;
 
-    setBusy(true); setNoteError("");
+    setBusy(true); setNoteError(""); setRunFailure("");
     try {
       const res = await api("/api/admin/offboarding/run/" + user.id, {
         method: "POST",
@@ -272,17 +274,16 @@ function OffboardPlan({ preview, onDone, toast }) {
       setResult(res);
       onDone();
       const run = res.run;
-      // 부분 실패를 성공 토스트로 덮지 않는다 — 12건 중 3건이 실패했으면 그 숫자를 말한다.
-      if (run.ticket_failed) toast(`티켓 ${run.ticket_moved}건을 옮기고 ${run.ticket_failed}건은 실패했습니다.`, "error");
-      else toast("오프보딩을 실행했습니다.", "success");
+      // 부분 실패를 성공 토스트로 덮지 않는다 — 실행 결과 판(`RunResult`)의 오류 상자가 그 숫자를 말한다.
+      if (!run.ticket_failed) toast("오프보딩을 실행했습니다.", "success");
     } catch (e) {
-      if (e && e.status === 401) { toast("로그인이 필요합니다. 로그인 화면으로 이동합니다.", "error"); redirectToLogin({ delayMs: 1200 }); return; }
+      if (e && e.status === 401) { expireSession(); return; }
       // PA-RC-0014: 이 화면은 FormModal을 안 쓰는 손수 제작 폼이라 details[].loc 연결을
       // 직접 한다 — 메모(note)가 서버 상한(1000자)을 넘으면 그 칸에도 aria-invalid를 건다.
       const details = e && e.body && e.body.error && Array.isArray(e.body.error.details) ? e.body.error.details : null;
       const noteDetail = details && details.find((d) => Array.isArray(d.loc) && d.loc[d.loc.length - 1] === "note");
       if (noteDetail) setNoteError(e.message || "");
-      toast(e.message, "error");
+      else setRunFailure(e.message);
     } finally { setBusy(false); }
   }
 
@@ -359,9 +360,10 @@ function OffboardPlan({ preview, onDone, toast }) {
           <FormControlLabel control={<Checkbox size="small" checked={archive} onChange={(e) => setArchive(e.target.checked)} />}
             label={<Typography variant="body2">계정 보관(목록에서 감춤)</Typography>} />
         </Box>
+        {runFailure ? <Callout tone="danger" compact sx={{ mt: 2 }}>{runFailure}</Callout> : null}
         <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 2 }}>
-          <Button variant="danger" disabled={busy} onClick={run}>
-            {busy ? "실행 중…" : "오프보딩 실행"}
+          <Button variant="danger" disabled={busy} loading={busy} onClick={run}>
+            오프보딩 실행
           </Button>
         </Box>
       </Card>
@@ -386,7 +388,11 @@ function RunResult({ result }) {
     <Section titleAs="h2" title="실행 결과">
       {/* 실패한 티켓이 남았다는 것은 주의가 아니라 오류다 - 그 티켓은 아직 그 사람 앞에
           있다. 실패가 없으면 이 줄은 실행 결과 요약일 뿐이므로 조용한 안내다. */}
-      <Callout tone={run.ticket_failed ? "danger" : "info"}>
+      {/* 일부가 실패했으면 그 사실이 이 상자의 제목이다 — 예전에는 같은 문장이 사라지는 토스트로 따로 떴다. */}
+      <Callout
+        tone={run.ticket_failed ? "danger" : "info"}
+        title={run.ticket_failed ? `티켓 ${run.ticket_moved}건을 옮기고 ${run.ticket_failed}건은 실패했습니다.` : undefined}
+      >
         티켓 {run.ticket_total}건 중 <strong>{run.ticket_moved}건 이동</strong>
         {run.ticket_failed ? <>, <strong>{run.ticket_failed}건 실패</strong></> : null}.
         {run.deactivated ? " 계정을 비활성화했습니다." : ""}
@@ -420,6 +426,10 @@ const RUN_PAGE_SIZE = 20;
 function RunHistory() {
   const [sel, setSel] = useState(null);
   const [busy, setBusy] = useState(false);
+  /* 되돌리기 결과 중 남아야 하는 것. 실패는 열린 상세 안(`undoFailure`), 일부만 되돌린 사실은 상세가 닫힌 뒤
+     이력 목록 위(`undoPartial`)에 선다. 다음 되돌리기에서 걷힌다. */
+  const [undoFailure, setUndoFailure] = useState("");
+  const [undoPartial, setUndoPartial] = useState("");
   const qc = useQueryClient();
   const toast = useToast();
   const confirm = useConfirm();
@@ -447,6 +457,7 @@ function RunHistory() {
     ].filter(Boolean).join("\n");
     if (!(await confirm(message, { title: "오프보딩 되돌리기", confirmLabel: "되돌리기" }))) return;
     setBusy(true);
+    setUndoFailure(""); setUndoPartial("");
     try {
       const res = await api("/api/admin/offboarding/" + run.id + "/undo", { method: "POST", body: {} });
       qc.invalidateQueries({ queryKey: ["offboarding-runs"] });
@@ -455,10 +466,10 @@ function RunHistory() {
       // 되돌리기도 티켓 담당자를 다시 바꾼다(후임 → 원래 담당자) — 실행과 같은 이유로
       // 티켓을 그리는 화면 전부를 함께 무효화한다.
       invalidateTicketViews(qc, { refetchType: "all" });
-      if (res.revert_failed) toast(`${res.revert_failed}건을 되돌리지 못했습니다. 상세에서 사유를 확인하세요.`, "error");
+      if (res.revert_failed) setUndoPartial(`${res.revert_failed}건을 되돌리지 못했습니다. 상세에서 사유를 확인하세요.`);
       else toast("되돌렸습니다.", "success");
       setSel(null);
-    } catch (e) { toast(e.message, "error"); }
+    } catch (e) { setUndoFailure(e.message); }
     finally { setBusy(false); }
   }
 
@@ -484,13 +495,14 @@ function RunHistory() {
       {query.isLoading ? (
         <Card><Skeleton lines={3} /></Card>
       ) : query.isError ? (
-        <ErrorState error={query.error} onRetry={() => query.refetch()} />
+        <ErrorState layout="region" error={query.error} onRetry={() => query.refetch()} />
       ) : items.length === 0 ? (
         <EmptyState title="아직 실행한 오프보딩이 없습니다"
           help="위에서 대상을 고르고 실행하면 여기에 기록이 남고, 그 자리에서 되돌릴 수 있습니다." />
       ) : (
         <ListCard>
-          <DataTable columns={columns} rows={items} rowKey={(r) => r.id} onRow={setSel} total={total} />
+          {undoPartial ? <Callout tone="danger" compact sx={{ mb: 1.5 }}>{undoPartial}</Callout> : null}
+          <DataTable columns={columns} rows={items} rowKey={(r) => r.id} onRow={(r) => { setUndoFailure(""); setSel(r); }} total={total} />
           {/* 감사 이력은 지워지지 않고 계속 쌓인다 — 굴리면 이어 받는다(손으로 그린 페이저가
               여기 있었다, 이제 목록 끝 줄 하나를 다른 화면과 함께 쓴다). */}
           <ListFooter
@@ -507,8 +519,8 @@ function RunHistory() {
           <Box className="k-footer-row" sx={{ px: 3, py: 2 }}>
             <Box className="k-footer-main">
               {!sel.undone_at ? (
-                <Button variant="primary" disabled={busy} onClick={() => undo(sel)}>
-                  {busy ? "되돌리는 중…" : "되돌리기"}
+                <Button variant="primary" disabled={busy} loading={busy} onClick={() => undo(sel)}>
+                  되돌리기
                 </Button>
               ) : null}
               {/* offboarding_run은 감사 로그의 유효한 object_type이고(app/offboarding/router.py)
@@ -521,6 +533,7 @@ function RunHistory() {
             </Box>
           </Box>
         ) : null}>
+        {undoFailure ? <Callout tone="danger" compact sx={{ mb: 2 }}>{undoFailure}</Callout> : null}
         {detail ? (
           <>
             <DetailGrid>

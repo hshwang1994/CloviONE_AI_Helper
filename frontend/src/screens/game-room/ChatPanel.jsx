@@ -4,7 +4,7 @@ import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
-import { Button, EmptyState } from "../../ui/kit.jsx";
+import { Button, Callout, EmptyState } from "../../ui/kit.jsx";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../../ui/theme.js";
 import { fmtTime } from "./timeUtils.js";
 
@@ -16,7 +16,7 @@ import { fmtTime } from "./timeUtils.js";
  * useGameRoomController::isChatFeedEvent)도 섞여 들어온다 — 팀 채팅(ChatPane.jsx)이 시스템
  * 메시지를 Chip으로 가운데 놓는 것과 같은 자리·같은 모양을 쓴다(같은 앱에서 '안내문'이 두 벌
  * 다르게 생기지 않게). */
-export function ChatPanel({ chatLogRef, chatMsgs, you, draft, setDraft, sendChat, chatPending }) {
+export function ChatPanel({ chatLogRef, chatMsgs, you, draft, setDraft, sendChat, chatPending, chatFailure }) {
   return (
     <Paper variant="outlined" sx={{ p: 1.5, display: "flex", flexDirection: "column", flex: { md: "1 1 auto" }, minHeight: { md: 0 } }}>
       <Typography variant="body2" sx={{ fontWeight: FONT_WEIGHT.bold, mb: 1 }}>채팅</Typography>
@@ -63,6 +63,7 @@ export function ChatPanel({ chatLogRef, chatMsgs, you, draft, setDraft, sendChat
           );
         })}
       </Box>
+      {chatFailure ? <Callout tone="danger" compact sx={{ mb: 1 }}>{chatFailure}</Callout> : null}
       <Stack direction="row" gap={1}>
         <TextField
           size="small" fullWidth value={draft} placeholder="메시지 입력"

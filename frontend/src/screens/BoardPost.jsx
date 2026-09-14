@@ -12,6 +12,7 @@ import { api } from "../lib/api.js";
 import {
   Badge,
   Button,
+  Callout,
   Card,
   ErrorState,
   PageHeader,
@@ -21,6 +22,7 @@ import {
   useToast,
 } from "../ui/kit.jsx";
 import { fmtDateTime } from "../lib/format.js";
+import { failureText } from "../lib/failure.js";
 import { KO_WORD_BREAK } from "../ui/theme.js";
 
 import { ideaStatusKind } from "../lib/badges.js";
@@ -113,7 +115,6 @@ function AttachmentList({ attachments }) {
 }
 
 function CommentComposer({ postId, parentId, palette, onDone, autoFocus }) {
-  const toast = useToast();
   const qc = useQueryClient();
   const [body, setBody] = useState("");
   const submit = useMutation({
@@ -133,8 +134,8 @@ function CommentComposer({ postId, parentId, palette, onDone, autoFocus }) {
       qc.invalidateQueries({ queryKey: ["home"] });
       qc.invalidateQueries({ queryKey: ["board-mine"] });
     },
-    onError: (e) => toast((e && e.message) || "댓글을 남기지 못했습니다. 다시 시도해 주세요.", "error"),
   });
+  const submitFailure = failureText([submit, "댓글을 남기지 못했습니다. 다시 시도해 주세요."]);
   return (
     <Box sx={{ mt: 1.5 }}>
       <TextField
@@ -148,6 +149,7 @@ function CommentComposer({ postId, parentId, palette, onDone, autoFocus }) {
         autoFocus={autoFocus}
         onChange={(e) => setBody(e.target.value)}
       />
+      {submitFailure ? <Callout tone="danger" compact sx={{ mt: 1 }}>{submitFailure}</Callout> : null}
       <Stack direction="row" gap={1} justifyContent="flex-end" sx={{ mt: 1 }}>
         {parentId ? (
           <Button variant="ghost" size="sm" onClick={() => onDone && onDone()}>취소</Button>
@@ -187,7 +189,6 @@ function CommentTombstone({ comment, isReply }) {
 /* 댓글 한 건. 목록 시맨틱(<li>)은 부모가 만든다 — 답글은 최상위 댓글 안에 중첩된 <ul>로 들어가야
  * 하는데, 이 컴포넌트가 스스로 <li>를 그리면 최상위 댓글이 <li> 안의 <li>가 되어 무효 마크업이 된다. */
 function CommentItem({ comment, postId, palette, isReply, person, onChanged }) {
-  const toast = useToast();
   const qc = useQueryClient();
   if (comment.deleted) return <CommentTombstone comment={comment} isReply={isReply} />;
   // CommentThread.jsx(티켓·문서 공용 댓글)와 같은 판정 — 수정된 댓글에는 "(수정됨)" 표시.
@@ -203,7 +204,6 @@ function CommentItem({ comment, postId, palette, isReply, person, onChanged }) {
     mutationFn: () =>
       api("/api/board/comments/" + comment.id, { method: "PATCH", body: { body: text } }),
     onSuccess: () => { setEditing(false); onChanged && onChanged(); },
-    onError: (e) => toast((e && e.message) || "수정하지 못했습니다. 다시 시도해 주세요.", "error"),
   });
   const remove = useMutation({
     mutationFn: () => api("/api/board/comments/" + comment.id, { method: "DELETE" }),
@@ -214,8 +214,12 @@ function CommentItem({ comment, postId, palette, isReply, person, onChanged }) {
       qc.invalidateQueries({ queryKey: ["home"] });
       qc.invalidateQueries({ queryKey: ["board-mine"] });
     },
-    onError: (e) => toast((e && e.message) || "삭제하지 못했습니다. 다시 시도해 주세요.", "error"),
   });
+  /* 이 댓글에서 한 동작(고치기 · 지우기)의 실패는 이 댓글 안에 남는다 — 다음 동작을 누르면 걷힌다. */
+  const commentFailure = failureText(
+    [saveEdit, "수정하지 못했습니다. 다시 시도해 주세요."],
+    [remove, "삭제하지 못했습니다. 다시 시도해 주세요."],
+  );
 
   const askDelete = async () => {
     const ok = await confirm("이 댓글을 삭제할까요?", { danger: true, confirmLabel: "삭제" });
@@ -249,15 +253,19 @@ function CommentItem({ comment, postId, palette, isReply, person, onChanged }) {
             inputProps={{ "aria-label": "댓글 수정" }}
             onChange={(e) => setText(e.target.value)}
           />
+          {commentFailure ? <Callout tone="danger" compact sx={{ mt: 1 }}>{commentFailure}</Callout> : null}
           <Stack direction="row" gap={1} justifyContent="flex-end" sx={{ mt: 1 }}>
             <Button variant="ghost" size="sm" onClick={() => { setEditing(false); setText(comment.body); }}>취소</Button>
             <Button variant="primary" size="sm" disabled={!text.trim() || saveEdit.isPending} onClick={() => saveEdit.mutate()}>저장</Button>
           </Stack>
         </Box>
       ) : (
-        <Typography sx={{ my: 1, whiteSpace: "pre-wrap", ...KO_WORD_BREAK, fontSize: "0.9375rem" }}>
-          {comment.body}
-        </Typography>
+        <>
+          <Typography sx={{ my: 1, whiteSpace: "pre-wrap", ...KO_WORD_BREAK, fontSize: "0.9375rem" }}>
+            {comment.body}
+          </Typography>
+          {commentFailure ? <Callout tone="danger" compact sx={{ mb: 1 }}>{commentFailure}</Callout> : null}
+        </>
       )}
       <Stack direction="row" gap={1} alignItems="center" justifyContent="space-between" flexWrap="wrap">
         <Reactions
@@ -403,7 +411,6 @@ export function BoardPost() {
     mutationFn: (pinned) =>
       api("/api/board/posts/" + id + "/pin?pinned=" + (pinned ? "true" : "false"), { method: "POST" }),
     onSuccess: () => { refetch(); qc.invalidateQueries({ queryKey: ["board"] }); qc.invalidateQueries({ queryKey: ["home"] }); },
-    onError: (e) => toast((e && e.message) || "고정 상태를 바꾸지 못했습니다. 다시 시도해 주세요.", "error"),
   });
   const remove = useMutation({
     mutationFn: () => api("/api/board/posts/" + id, { method: "DELETE" }),
@@ -416,8 +423,21 @@ export function BoardPost() {
       qc.invalidateQueries({ queryKey: ["board-mine"] });
       toast("게시글을 삭제했습니다.", "success"); nav("/board");
     },
-    onError: (e) => toast((e && e.message) || "삭제하지 못했습니다. 다시 시도해 주세요.", "error"),
   });
+  /* 머리 동작(공지 고정 · 삭제)의 실패는 글 머리 바로 아래 — 누른 단추 곁이다. */
+  const postFailure = failureText(
+    [pin, "고정 상태를 바꾸지 못했습니다. 다시 시도해 주세요."],
+    [remove, "삭제하지 못했습니다. 다시 시도해 주세요."],
+  );
+  /* 글은 저장했지만 첨부 일부를 못 올린 사실 — 새 글이면 목록이 주소 상태로 넘겨 주고, 고친 글이면
+     이 화면의 수정 모달이 알려 준다. 주소 상태는 한 번 옮겨 담고 걷는다(새로고침하면 다시 서지 않게). */
+  const [attachFailed, setAttachFailed] = useState(() => (loc.state && loc.state.attachFailed) || null);
+  useEffect(() => {
+    if (!(loc.state && loc.state.attachFailed)) return;
+    const { attachFailed: _moved, ...rest } = loc.state;
+    nav(loc.pathname, { replace: true, state: rest });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 들어온 순간 한 번만 옮긴다.
+  }, []);
 
   // 로딩·오류 상태에서는 아직 post.kind를 모른다(주소만으로는 자유/제안을 가를 수 없다 —
   // 상세 라우트가 둘 다 "/board/:id" 하나를 같이 쓴다, 위 boardArea 주석 참고). 이 두 상태에서
@@ -496,6 +516,7 @@ export function BoardPost() {
             면으로 남아 잉크 19% 였다(S18 실측). 읽기 원형의 계약은 «제목 → 본문 →
             반응 → 댓글이 한 열로 이어지고 사이에 카드 경계가 없다» 이다. 판을 걷으면
             네 구획이 같은 바닥 위에서 이어진다. */}
+        {postFailure ? <Callout tone="danger" compact>{postFailure}</Callout> : null}
         <Box component="article" sx={{ minWidth: 0 }}>
           <Stack direction="row" gap={1} flexWrap="wrap" alignItems="center">
             {post.is_pinned ? <Tag label="고정" /> : null}
@@ -526,6 +547,11 @@ export function BoardPost() {
             <Typography variant="body2" color="text.secondary" sx={{ mt: 3 }}>본문 내용이 없습니다.</Typography>
           )}
 
+          {attachFailed && attachFailed.length ? (
+            <Callout tone="danger" compact sx={{ mt: 3 }}>
+              {"글은 저장했지만 첨부 " + attachFailed.length + "개를 올리지 못했습니다: " + attachFailed.join(", ") + ". 다시 시도해 주세요."}
+            </Callout>
+          ) : null}
           <AttachmentList attachments={post.attachments} />
 
           <Box sx={{ mt: 3 }}>
@@ -588,7 +614,7 @@ export function BoardPost() {
         categories={post.categories || (meta.data && meta.data.categories) || []}
         mode="edit"
         post={post}
-        onSaved={() => { setEditing(false); refetch(); }}
+        onSaved={(_saved, failed) => { setEditing(false); setAttachFailed(failed && failed.length ? failed : null); refetch(); }}
       />
     </div>
   );

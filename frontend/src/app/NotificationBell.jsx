@@ -9,9 +9,11 @@ import Popover from "@mui/material/Popover";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import NotificationsNoneRoundedIcon from "@mui/icons-material/NotificationsNoneRounded";
+import { Note } from "../ui/adminKit.jsx";
 import { api } from "../lib/api.js";
+import { failureText } from "../lib/failure.js";
 import { fmtRelative, fmtDateTime, typeKo, NOTI_FAILURE_TYPES } from "../lib/format.js";
-import { Skeleton, ErrorState, EmptyState, useToast, useConfirm } from "../ui/kit.jsx";
+import { Button, Callout, Skeleton, ErrorState, EmptyState, useToast, useConfirm } from "../ui/kit.jsx";
 import { FONT_SIZE, FONT_WEIGHT } from "../ui/theme.js";
 import { useAuth } from "./auth.jsx";
 import { NOTI_LIST, NOTI_UNREAD, invalidateNotifications, notiListKey, notiUnreadKey } from "./notification-keys.js";
@@ -300,7 +302,6 @@ export function NotificationBell({ isUser, consoleUser, notices }) {
         const cur = qc.getQueryData(notiUnreadKey(ctx.aud));
         if (cur && typeof cur.unread === "number") qc.setQueryData(notiUnreadKey(ctx.aud), shiftUnread(cur, 1));
       }
-      toast(e.message || "읽음 처리하지 못했습니다. 다시 시도해 주세요.", "error");
     },
     onSettled: invalidateNoti,
   });
@@ -371,12 +372,15 @@ export function NotificationBell({ isUser, consoleUser, notices }) {
           qc.setQueryData(notiUnreadKey(audience), { ...cur, unread: ctx.prevUnreadCount != null ? ctx.prevUnreadCount : cur.unread + ctx.changedIds.size });
         }
       }
-      toast(e.message || "모두 읽음 처리하지 못했습니다. 다시 시도해 주세요.", "error");
     },
     // 백엔드가 실제 처리 건수(read_count)를 준다 — 전체 목록 화면과 문구를 맞춘다.
     onSuccess: (res) => { const n = res && typeof res.read_count === "number" ? res.read_count : null; toast(n != null ? n + "건을 읽음 처리했습니다." : "모든 알림을 읽음 처리했습니다.", "success"); },
     onSettled: invalidateNoti,
   });
+  const readFailure = failureText(
+    [readOne, "읽음 처리하지 못했습니다. 다시 시도해 주세요."],
+    [readAll, "모두 읽음 처리하지 못했습니다. 다시 시도해 주세요."],
+  );
 
   /* 2026-08 MUI 전환: 바깥 클릭 감지·Esc·포커스 트랩·포커스 복귀를 손으로 만들어 두었던
    * 이펙트를 지웠다. MUI Popover 가 넷을 다 한다(ClickAwayListener + Modal 의 FocusTrap).
@@ -594,6 +598,8 @@ export function NotificationBell({ isUser, consoleUser, notices }) {
               : ownUnread.value > 0 ? <MuiButton size="small" onClick={markAll} disabled={readAll.isPending}>{markAllLabel}</MuiButton>
               : null}
           </Box>
+          {/* 읽음 처리 실패는 팝오버 머리 바로 아래 — 가장 나중에 누른 동작 하나만 말하고 다음 동작에서 걷힌다. */}
+          {readFailure ? <Callout tone="danger" compact sx={{ mx: 1.5, my: 1, flexShrink: 0 }}>{readFailure}</Callout> : null}
           {sysNotices.length ? (
             <Box sx={{ flexShrink: 0, borderBottom: 1, borderColor: "divider" }}>
               <Typography
@@ -615,24 +621,23 @@ export function NotificationBell({ isUser, consoleUser, notices }) {
           {/* 안 읽음이 page_size(8건)보다 많으면 헤더 숫자와 실제 보이는 행 수가 어긋난다 —
               무엇이 더 있는지 명시적으로 알려준다(product-quality-audit AREA=D). */}
           {!listPending && !listError && groupedItems.length > 0 && groupedItems.length < count ? (
-            <Typography className="noti-pop-hint" sx={{
-              px: 2, py: 0.75, fontSize: FONT_SIZE.caption, color: "text.secondary",
-              bgcolor: "action.hover", flexShrink: 0,
-            }}>{groupedItems.length}건 표시 중, 전체 보기에서 나머지 확인</Typography>
+            <Note sx={{ mt: 0, px: 2, py: 0.75, fontSize: FONT_SIZE.caption, flexShrink: 0 }}>
+              {groupedItems.length}건 표시 중, 전체 보기에서 나머지 확인
+            </Note>
           ) : null}
           {/* 상대 묶음만 실패했을 때의 자리. 이 한 줄이 없으면 그 묶음이 **조용히 빠진 채**
               나머지가 전부인 것처럼 보인다 — 「실패인데 없다고 말하는 것」이 그것이다.
               다시 부르는 것도 실패한 질의 하나뿐이다(멀쩡한 목록을 다시 받을 이유가 없다). */}
           {otherListError && !listPending && !listError ? (
-            <Box className="noti-pop-partial" role="status" sx={{
-              display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1,
-              px: 2, py: 0.75, bgcolor: "action.hover", flexShrink: 0,
-            }}>
-              <Typography sx={{ fontSize: FONT_SIZE.caption, color: "text.secondary" }}>
-                {audienceLabel(otherAudience)} 알림을 불러오지 못했습니다.
-              </Typography>
-              <MuiButton size="small" onClick={() => listOther.refetch()}>다시 불러오기</MuiButton>
-            </Box>
+            /* 부분 실패는 메시지 박스(주의)다 — 나머지 목록은 멀쩡하므로 오류가 아니라 주의이고,
+               다시 부르는 동작은 상자의 오른쪽 칸에 선다. */
+            <Callout
+              tone="warn" compact
+              sx={{ mx: 1.5, my: 1, flexShrink: 0 }}
+              action={<Button size="sm" variant="ghost" onClick={() => listOther.refetch()}>다시 불러오기</Button>}
+            >
+              {audienceLabel(otherAudience)} 알림을 불러오지 못했습니다.
+            </Callout>
           ) : null}
           <Box className="noti-pop-body" sx={{ overflowY: "auto", flex: 1, minHeight: 0 }}>
             {/* v5에서 isLoading은 isPending && isFetching이다, enabled:open이라 팝오버가 막
@@ -643,7 +648,7 @@ export function NotificationBell({ isUser, consoleUser, notices }) {
               // '로그인이 필요합니다' + 로그인 링크를 보이고, 소용없는 재시도 버튼을 숨긴다.
               // 자체 오류 UI를 만들지 않는다. size="compact"(DS-15) — 340px 팝오버 폭에 맞춘다,
               // 예전엔 이 크기를 global.css의 특이도 전쟁 CSS로 되짚어 맞췄다.
-              : listError ? <ErrorState size="compact" error={list.error}
+              : listError ? <ErrorState layout="inline" size="compact" error={list.error}
                   onRetry={() => list.refetch()} />
               // 상대 묶음이 실패했으면 「새 알림이 없습니다」라고 말하지 않는다 — 그것은
               // 못 받아 온 것을 안 온 것이라고 말하는 문장이다. 위 한 줄이 그 사실을 맡는다.

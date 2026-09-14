@@ -4,6 +4,7 @@ import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import { EntityCombobox } from "../ui/filters.jsx";
 import { api } from "../lib/api.js";
+import { failureText } from "../lib/failure.js";
 import { CONSOLE_WRITE_ROLES } from "../lib/roles.js";
 import { useAuth } from "../app/auth.jsx";
 import {
@@ -122,22 +123,21 @@ function MembershipFixer({ ids, onDone, departments }) {
          사람이 된다. 사유는 종류가 몇 개뿐이라 첫 사유 하나로 요약한다 — 전부 나열하면
          토스트가 화면을 덮는다. */
       const skipped = Array.isArray(res.skipped) ? res.skipped : [];
-      if (skipped.length) {
-        const first = skipped[0] || {};
-        const who = first.display_name || first.user_id || "";
-        toast(
-          `${res.changed}명의 소속을 지정했습니다. ${skipped.length}명은 지정하지 못했습니다.`
-            + (who ? ` ${who}: ${first.reason || ""}` : ` ${first.reason || ""}`),
-          "warn",
-        );
-      } else {
-        toast(`${res.changed}명의 소속을 지정했습니다.`);
-      }
+      // 건너뛴 사람은 이 줄 아래 메시지 박스가 말한다(`skippedNotice`) — 다 지정했을 때만 토스트다.
+      if (!skipped.length) toast(`${res.changed}명의 소속을 지정했습니다.`);
       onDone();
       qc.invalidateQueries({ queryKey: ["integrity"] });
     },
-    onError: (err) => toast(err?.message || "지정하지 못했습니다.", "danger"),
   });
+  /* 지정 실패(오류)와 건너뛴 사람(주의) — 다음에 적용하면 걷힌다. 문구는 토스트 때와 같다. */
+  const runFailure = failureText([run, "지정하지 못했습니다."]);
+  const skippedRows = !runFailure && run.isSuccess && run.data && Array.isArray(run.data.skipped) ? run.data.skipped : [];
+  const skippedFirst = skippedRows[0] || {};
+  const skippedWho = skippedFirst.display_name || skippedFirst.user_id || "";
+  const skippedNotice = skippedRows.length
+    ? `${run.data.changed}명의 소속을 지정했습니다. ${skippedRows.length}명은 지정하지 못했습니다.`
+      + (skippedWho ? ` ${skippedWho}: ${skippedFirst.reason || ""}` : ` ${skippedFirst.reason || ""}`)
+    : null;
 
   return (
     <Box sx={{ display: "flex", gap: 1, alignItems: "center", flexWrap: "wrap" }}>
@@ -160,6 +160,9 @@ function MembershipFixer({ ids, onDone, departments }) {
       >
         선택한 {ids.length}명에 적용
       </Button>
+      {runFailure || skippedNotice ? (
+        <Callout tone={runFailure ? "danger" : "warn"} compact sx={{ flexBasis: "100%" }}>{runFailure || skippedNotice}</Callout>
+      ) : null}
     </Box>
   );
 }

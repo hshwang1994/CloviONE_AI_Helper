@@ -17,6 +17,7 @@ import {
    2열이다 — 대시보드와 같은 규칙(D-343): 양쪽 다 목록일 때만 나란히 둔다. 오른쪽이 문장 한 줄뿐이면
    균등 분할이 그 옆을 빈 칸으로 남긴다. */
 export function ServiceStatusPanel({ disk, mem, certDaysRemaining, comps, nav, aside = null, pair = false }) {
+  const [copyFailed, setCopyFailed] = React.useState(false);
   const toast = useToast();
   // 실제로 중단·응답 없음 상태인 컴포넌트의 systemd 유닛만 안내한다 — web과 worker/scheduler는
   // 서로 다른 유닛이라, 웹만 죽었을 때 워커 로그를 보라고 하면 실제 장애 순간에 엉뚱한 곳을
@@ -75,8 +76,10 @@ export function ServiceStatusPanel({ disk, mem, certDaysRemaining, comps, nav, a
               <Box sx={{ mb: 2 }}>
                 <Callout tone="danger">
                   일부 서비스가 응답하지 않습니다. 이 화면에서 재시작할 수는 없습니다. 서버 로그(예: <Box component="code" sx={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>{journalCmd}</Box>{" "}
-                  <Link component="button" type="button" variant="body2" underline="hover" onClick={() => copyText(journalCmd).then((ok) => toast(ok ? "명령을 복사했습니다." : "복사에 실패했습니다. 직접 선택해 복사하세요.", ok ? "success" : "error"))}>복사</Link>
+                  <Link component="button" type="button" variant="body2" underline="hover" onClick={() => { setCopyFailed(false); copyText(journalCmd).then((ok) => { if (ok) toast("명령을 복사했습니다.", "success"); else setCopyFailed(true); }); }}>복사</Link>
                   )를 확인하고, 필요하면 담당자가 서비스를 재시작하세요.
+                  {/* 복사가 안 된 사실은 이 상자 안에 남는다 — 명령을 직접 선택해 복사해야 한다. */}
+                  {copyFailed ? <Box component="span" sx={{ display: "block", mt: 0.5 }}>복사에 실패했습니다. 직접 선택해 복사하세요.</Box> : null}
                 </Callout>
               </Box>
             );

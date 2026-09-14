@@ -454,7 +454,7 @@ function weeklyParts(data) {
                   ))}
                 </Stack>
               ) : (
-                <Typography variant="body2" color="text.secondary">이번 주에 완료한 사람이 아직 없습니다.</Typography>
+                <EmptyState layout="inline" title="이번 주에 완료한 사람이 아직 없습니다." />
               )}
             </Box>
           </Box>
@@ -481,7 +481,7 @@ function weeklyParts(data) {
                   ))}
                   <MoreNote count={docs.count || 0} shown={(docs.items || []).length} />
                 </Stack>
-              ) : <Typography variant="body2" color="text.secondary">바뀐 문서가 없습니다.</Typography>}
+              ) : <EmptyState layout="inline" title="바뀐 문서가 없습니다." />}
             </Box>
             <Box sx={{ minWidth: 0 }}>
               <Typography component="h4" variant="body2" sx={{ fontWeight: FONT_WEIGHT.bold, mb: 0.75 }}>게시글</Typography>
@@ -494,11 +494,11 @@ function weeklyParts(data) {
                   ))}
                   <MoreNote count={board.count || 0} shown={(board.items || []).length} />
                 </Stack>
-              ) : <Typography variant="body2" color="text.secondary">새로 올라온 글이 없습니다.</Typography>}
+              ) : <EmptyState layout="inline" title="새로 올라온 글이 없습니다." />}
             </Box>
           </Box>
         ) : (
-          <Typography variant="body2" color="text.secondary">이번 주에 바뀐 문서와 새 글이 없습니다.</Typography>
+          <EmptyState layout="inline" title="이번 주에 바뀐 문서와 새 글이 없습니다." />
         )}
       </SubGroup>
     </>
@@ -639,7 +639,7 @@ export function AssistantPanel() {
   const narrative = q.data && q.data.narrative;
   const parts = q.isLoading || q.isError ? null : Renderer(q.data || {});
   const body = q.isLoading ? <Skeleton kind="chart" height="8rem" />
-    : q.isError ? <ErrorState error={q.error} onRetry={() => q.refetch()} />
+    : q.isError ? <ErrorState layout="region" error={q.error} onRetry={() => q.refetch()} />
       : (
         <>
           {parts.head}
@@ -678,8 +678,8 @@ export function AssistantPanel() {
               <Button size="sm" variant="ghost" onClick={() => copy(narrative.text)}>문장 복사</Button>
             ) : null}
             {tab.narratable ? (
-              <Button size="sm" disabled={q.isFetching} onClick={() => setNarrate(true)}>
-                {narrate && q.isFetching ? "요약 만드는 중…" : "문장 요약 만들기"}
+              <Button size="sm" disabled={q.isFetching} loading={narrate && q.isFetching} onClick={() => setNarrate(true)}>
+                문장 요약 만들기
               </Button>
             ) : null}
           </Actions>

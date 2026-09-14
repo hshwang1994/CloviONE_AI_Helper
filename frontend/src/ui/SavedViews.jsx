@@ -15,7 +15,8 @@ import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded";
 import LinkRoundedIcon from "@mui/icons-material/LinkRounded";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api.js";
-import { Button, Modal, ModalFooter, useConfirm, useToast } from "./kit.jsx";
+import { failureText } from "../lib/failure.js";
+import { Button, Callout, Modal, ModalFooter, useConfirm, useToast } from "./kit.jsx";
 
 /* 저장된 뷰 — 자주 쓰는 필터 조합에 이름을 붙여 두고 다시 부른다.
  *
@@ -62,8 +63,7 @@ export function SavedViews({ screenKey, query, describe, onApply }) {
     },
     onError: (e) => {
       // 409 는 실패가 아니라 질문이다 — "같은 이름이 있는데 덮어쓸까요?"
-      if (e && e.status === 409) { setConflict(true); return; }
-      toast(e.message, "error");
+      if (e && e.status === 409) { setConflict(true); }
     },
   });
 
@@ -73,8 +73,10 @@ export function SavedViews({ screenKey, query, describe, onApply }) {
       qc.invalidateQueries({ queryKey: ["saved-views", screenKey] });
       toast("뷰를 지웠습니다.", "success");
     },
-    onError: (e) => toast(e.message, "error"),
   });
+  /* 저장 실패(409 는 질문이라 뺀다)는 저장 창 안, 지우기 실패는 뷰 목록 안에 남는다. 다시 누르면 걷힌다. */
+  const saveFailure = save.isError && !(save.error && save.error.status === 409) ? failureText([save, null]) : null;
+  const removeFailure = failureText([remove, null]);
 
   /* 휴지통은 **고르는 항목 바로 옆**에 있다 — 뷰를 부르려다 손이 미끄러지면 그 뷰가 한 번에
    * 사라졌고, 서버에 휴지통이 없어 되돌릴 방법도 없었다(E2). 이 저장소의 다른 되돌릴 수 없는
@@ -138,6 +140,11 @@ export function SavedViews({ screenKey, query, describe, onApply }) {
         onClose={() => setAnchor(null)}
         slotProps={{ paper: { sx: { minWidth: "18rem", maxWidth: "28rem" } } }}
       >
+        {removeFailure ? (
+          <Box role="none" sx={{ px: 1.5, py: 1 }}>
+            <Callout tone="danger" compact>{removeFailure}</Callout>
+          </Box>
+        ) : null}
         {views.length === 0 ? (
           <Box sx={{ px: 2, py: 1.5 }}>
             <Typography variant="body2" color="text.secondary">
@@ -207,10 +214,11 @@ export function SavedViews({ screenKey, query, describe, onApply }) {
           helperText={describe ? (describe(query) || "조건 없음(전체 목록)") : " "}
         />
         {conflict ? (
-          <Typography variant="body2" color="warning.main" sx={{ mt: 1.5 }}>
+          <Callout tone="warn" compact sx={{ mt: 1.5 }}>
             같은 이름의 뷰가 이미 있습니다. ‘덮어쓰기’를 누르면 그 뷰의 조건이 지금 조건으로 바뀝니다.
-          </Typography>
+          </Callout>
         ) : null}
+        {saveFailure ? <Callout tone="danger" compact sx={{ mt: 1.5 }}>{saveFailure}</Callout> : null}
       </Modal>
     </>
   );

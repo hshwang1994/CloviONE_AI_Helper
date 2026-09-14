@@ -160,7 +160,7 @@ export function Settings({ embedded = false } = {}) {
   return (
     <>
       {q.isLoading ? <ListCard>{/* 표가 들어올 자리에는 표 모양을 그린다 (지시 20) - 빈 목록과 아직 안 온 목록은 다른 사실이다. */}<DataTable columns={columns} rows={[]} loading /></ListCard>
-        : q.isError ? <ErrorState error={q.error} onRetry={() => q.refetch()} />
+        : q.isError ? <ErrorState layout="region" error={q.error} onRetry={() => q.refetch()} />
         /* effective_settings()는 항상 REGISTRY의 모든 키를 반환하므로 정상 경로에선 도달하지 않는다.
            응답이 비정상(빈 형태)일 때를 위한 방어적 폴백으로만 남긴다. */
         /* effective_settings()가 항상 전 키를 돌려주므로 이 빈 상태는 비정상 응답에서만 뜬다 -

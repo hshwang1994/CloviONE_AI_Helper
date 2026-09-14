@@ -1,12 +1,11 @@
 import React from "react";
-import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
-import { alpha } from "@mui/material/styles";
 import { useLocation } from "react-router-dom";
 import { useAuth } from "./auth.jsx";
 import { isScopeEnforcedRoute } from "./navConfig.js";
 import { pathText } from "../ui/OrgPath.jsx";
-import { FONT_SIZE, FONT_WEIGHT, RADIUS } from "../ui/theme.js";
+import { Callout } from "../ui/kit.jsx";
+import { FONT_SIZE } from "../ui/theme.js";
 
 /* 스코프 바 — **지금 보고 있는 범위를 화면에 적는다** (S4 / A8).
  *
@@ -136,39 +135,22 @@ export function ScopeBar() {
    * 관리 화면에서 "상위 부서와 하위 부서 밖" 이라고 쓰면 부서 관리자가 상위 부서 사람도
    * 관리할 수 있다고 읽는다. 실제로는 목록에 나오지 않으므로 화면이 거짓말을 한 셈이 된다. */
   const caveat = caveatFor(location.pathname);
+  /* 범위 알림은 메시지 박스(1a)다 — 이름표(범위 이름)가 제목, 범위의 내용이 본문이다. 손으로 칠한
+     알약(보라 · 주황 알파 면)은 같은 뜻의 다른 상자와 무게가 달랐다. 「이 범위 밖은 안 보인다」
+     단서는 오른쪽 칸에 그대로 선다. */
   return (
-    <Box
-      role="status"
-      aria-live="polite"
-      sx={{
-        display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap",
-        // 반지름은 토큰에서 온다 — 12px 리터럴은 RADIUS 세 단(6/8/14) 어디에도 없는
-        // 네 번째 값이었다(지시 26: 화면마다 숫자를 박지 않는다).
-        px: 2, py: 0.75, mb: 2, borderRadius: `${RADIUS.md}px`,
-        bgcolor: (t) => alpha(warn ? t.palette.warning.main : t.palette.primary.main, 0.07),
-        border: 1,
-        borderColor: (t) => alpha(warn ? t.palette.warning.main : t.palette.primary.main, 0.18),
-        fontSize: FONT_SIZE.bodySm,
-      }}
-    >
-      <Typography
-        component="span"
-        sx={{
-          fontWeight: FONT_WEIGHT.bold, fontSize: FONT_SIZE.caption,
-          color: warn ? "warning.dark" : "primary.dark",
-        }}
-      >
-        {summary.label}
-      </Typography>
-      <Typography component="span" sx={{ fontSize: FONT_SIZE.bodySm, minWidth: 0 }}>
-        {summary.detail}
-      </Typography>
-      <Box sx={{ flex: 1 }} />
-      {enforced && !warn ? (
+    <Callout
+      tone={warn ? "warn" : "info"}
+      compact
+      title={summary.label}
+      sx={{ mb: 2 }}
+      action={enforced && !warn ? (
         <Typography component="span" sx={{ fontSize: FONT_SIZE.caption, color: "text.secondary" }}>
           {caveat}
         </Typography>
       ) : null}
-    </Box>
+    >
+      {summary.detail}
+    </Callout>
   );
 }

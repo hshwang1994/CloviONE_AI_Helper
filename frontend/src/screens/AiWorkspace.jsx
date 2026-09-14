@@ -161,11 +161,10 @@ export function AiWorkspace() {
   const makeDocument = useMutation({
     mutationFn: (body) => api("/api/ai/documents", { method: "POST", body }),
     onSuccess: (data) => {
+      /* 초안을 못 쓴 응답이면 모달을 닫지 않는다 — 그 이유는 폼 위 오류로 선다(아래 `onSubmit` 이
+         던진다). 예전에는 모달을 닫고 사라지는 토스트로만 말했다. */
+      if (!data.document) return;
       setDrafting(false);
-      if (!data.document) {
-        toast(data.notice || "초안을 쓰지 못했습니다.", "error");
-        return;
-      }
       toast("초안 문서를 추가했습니다.");
       navigate(data.document.route);
     },
@@ -247,7 +246,7 @@ export function AiWorkspace() {
         ) : null}
       </Card>
 
-      {failure ? <ErrorState error={failure} /> : null}
+      {failure ? <ErrorState layout="region" error={failure} /> : null}
       {busy ? <Skeleton kind="section" lines={3} /> : null}
 
       {result ? (
@@ -307,16 +306,17 @@ export function AiWorkspace() {
         ]}
         initial={{ title: draft.slice(0, 60), project_id: PROJECT_NONE }}
         onClose={() => setDrafting(false)}
-        onSubmit={(values) =>
-          makeDocument.mutateAsync({
+        onSubmit={async (values) => {
+          const data = await makeDocument.mutateAsync({
             title: values.title,
             /* 「프로젝트 미지정」은 아무것도 안 보낸다 — 서버의 기본 자리가 그것이다. */
             ...(values.project_id && values.project_id !== PROJECT_NONE
               ? { project_id: values.project_id }
               : {}),
             instruction: draft.trim(),
-          })
-        }
+          });
+          if (!data.document) throw new Error(data.notice || "초안을 쓰지 못했습니다.");
+        }}
       />
     </Box>
   );

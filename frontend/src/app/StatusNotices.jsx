@@ -4,7 +4,6 @@ import Badge from "@mui/material/Badge";
 import Box from "@mui/material/Box";
 import Chip from "@mui/material/Chip";
 import Popover from "@mui/material/Popover";
-import Button from "@mui/material/Button";
 import Typography from "@mui/material/Typography";
 import ReportProblemRoundedIcon from "@mui/icons-material/ReportProblemRounded";
 import { api } from "../lib/api.js";
@@ -27,7 +26,6 @@ import { safeExternal } from "../lib/safeUrl.js";
  */
 
 const LEVEL_SEVERITY = { info: "info", warning: "warning", critical: "error" };
-const LEVEL_LABEL = { info: "안내", warning: "주의", critical: "장애" };
 // 동기화 정지류 병합 문구에 쓰는, 심각도별 서술어 — app/observability/router.py의
 // LEVEL_WARNING/LEVEL_CRITICAL 판정과 같은 두 단어를 그대로 재사용한다(문구가 갈라지면
 // "같은 사실을 다르게 말한다"는 새 혼란이 생긴다).
@@ -224,9 +222,9 @@ export function useStatusNotices({ enabled = true } = {}) {
   };
 }
 
-/* 알림함의 심각도 셋을 메시지 박스의 톤으로 옮긴다. 낱말은 그대로다 — `LEVEL_LABEL` 이
-   「안내·주의·장애」를 계속 말한다(메시지 박스 기본 낱말의 「오류」로 갈아타지 않는다:
-   서버가 쓰는 말과 화면이 쓰는 말이 갈리면 같은 사실을 다르게 부르게 된다). */
+/* 알림함의 심각도 셋을 메시지 박스의 톤으로 옮긴다. 예전에는 제목 앞에 「안내·주의·장애」 낱말을
+   붙였는데, 핸드오프 D-11 이 메시지 박스의 톤 이름 줄을 걷었다 — 심각도는 아이콘의 모양과 그 접근
+   이름이 말하고, 제목은 서버가 준 문장 그대로다. */
 const NOTICE_TONE = { info: "info", warning: "warn", critical: "danger" };
 
 export function NoticeRow({ notice, onDismiss }) {
@@ -237,14 +235,16 @@ export function NoticeRow({ notice, onDismiss }) {
        그대로 두고(그래야 목록이 안 깨진다) 모서리와 좌우 선을 없애 줄들이 한 기둥으로
        이어지게 한다. 닫기는 상자의 오른쪽 동작 칸에 선다 — 심각도와 별개로 이 알림이
        닫을 수 있는 것인지는 서버가 정한다. */
+    /* 제목 앞의 톤 낱말(「안내:」 「주의:」 「장애:」)을 걷었다(핸드오프 D-11 — 톤 이름 줄 금지).
+       상태는 아이콘의 모양과 그 접근 이름이 말한다. 줄들이 한 기둥으로 이어지는 띠라 `bleed` 갈래다. */
     <Callout
       role="listitem"
       tone={NOTICE_TONE[notice.level] || "info"}
-      title={`${LEVEL_LABEL[notice.level] || "안내"}: ${notice.message}`}
+      variant="bleed"
+      title={notice.message}
       action={dismissible ? (
         <KitButton size="sm" variant="ghost" onClick={() => onDismiss(notice)}>닫기</KitButton>
       ) : null}
-      sx={{ borderRadius: 0, borderInline: 0, borderBlockStart: 0 }}
     >
       <Box sx={{ display: "grid", gap: 0.5 }}>
         {notice.body ? <Box component="span">{notice.body}</Box> : null}
@@ -255,9 +255,9 @@ export function NoticeRow({ notice, onDismiss }) {
         ) : null}
         {notice.href ? (
           <Box>
-            <Button size="small" href={notice.href} sx={{ px: 0, fontWeight: FONT_WEIGHT.bold }}>
+            <KitButton size="sm" variant="ghost" href={notice.href}>
               {notice.hrefLabel || "자세히 보기"}
-            </Button>
+            </KitButton>
           </Box>
         ) : null}
       </Box>
@@ -340,23 +340,19 @@ export function CriticalStatusLine({ notices }) {
   // 여럿이어도 한 줄만 — 첫 항목을 대표로 보이고 개수만 덧붙인다(칩을 열면 전부 보인다).
   const first = critical[0];
   const extra = critical.length - 1;
+  /* 전폭 한 줄 띠는 메시지 박스의 `bleed` 갈래다 — 붉게 칠한 손 띠 대신 다른 알림 줄과 같은 1a 얼굴로 서고,
+     장애라는 사실은 오류 아이콘과 그 접근 이름이 말한다. */
   return (
-    <Box
+    <Callout
+      tone="danger"
+      compact
+      variant="bleed"
       role="status"
-      sx={{
-        display: "flex", alignItems: "center", gap: 1.5, minHeight: 40,
-        px: 2, py: 0.75, bgcolor: "error.main", color: "error.contrastText",
-      }}
-    >
-      <ReportProblemRoundedIcon fontSize="small" aria-hidden="true" />
-      <Typography sx={{ fontSize: FONT_SIZE.bodySm, fontWeight: FONT_WEIGHT.bold, flex: 1 }}>
-        {first.message}{extra > 0 ? ` (그 외 장애 ${extra}건, 우측 상단 칩에서 확인)` : ""}
-      </Typography>
-      {first.kind === "sync" ? (
-        <Button size="small" color="inherit" onClick={() => dismiss(first)} sx={{ flexShrink: 0, textDecorationLine: "underline" }}>
-          닫기
-        </Button>
+      action={first.kind === "sync" ? (
+        <KitButton size="sm" variant="ghost" onClick={() => dismiss(first)}>닫기</KitButton>
       ) : null}
-    </Box>
+    >
+      {first.message}{extra > 0 ? ` (그 외 장애 ${extra}건, 우측 상단 칩에서 확인)` : ""}
+    </Callout>
   );
 }

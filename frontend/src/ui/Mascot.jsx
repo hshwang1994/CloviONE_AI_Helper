@@ -373,7 +373,9 @@ export function MascotPose({ mode = "idle", place, size = 96, label, decorative 
   const name = label || LABEL[mode] || LABEL.idle;
   const spec = place ? MASCOT_PLACE[place] : null;
   /* 눈 레이어 한 벌은 얼굴 자산과 여백이 달라 자기 지문으로 박스를 잰다. */
-  const box = spec ? mascotBoxPx(place, live ? MASCOT_LIVE.base : src) : size;
+  /* 크기 규칙은 빈 상태 그림과 같은 함수가 낸다 — 화면 자리(`short` 가 있는 밴드)는 짧은 화면에서 한 단
+     작아진다(`mascotBoxSx`). 예전에는 이 부품만 한 크기로 고정돼 1366×768 에서 첫 화면이 fold 아래로 밀렸다. */
+  const boxSx = spec ? mascotBoxSx(place, live ? MASCOT_LIVE.base : src) : { width: size, height: size };
   return (
     <Box
       role={decorative ? undefined : "img"}
@@ -382,8 +384,7 @@ export function MascotPose({ mode = "idle", place, size = 96, label, decorative 
       data-mascot-context={spec ? spec.context : undefined}
       sx={{
         position: "relative",
-        width: box,
-        height: box,
+        ...boxSx,
         display: "inline-grid",
         placeItems: "center",
         flexShrink: 0,

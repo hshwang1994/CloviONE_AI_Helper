@@ -12,6 +12,7 @@ import {
 import { UserAvatar } from "../ui/UserAvatar.jsx";
 import { FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
 import { fmtDateTimeCompact } from "../lib/format.js";
+import { failureText } from "../lib/failure.js";
 import { NewDocumentModal } from "./knowledge/NewDocumentModal.jsx";
 import { useCategories, useTemplates } from "./knowledge/queries.js";
 
@@ -65,7 +66,6 @@ export function ProjectDocuments({ projectId, projectName = "" }) {
       setNewDoc(false);
       navigate(`/knowledge/${doc.id}`, { state: { from: backToDocsTab(projectId) } });
     },
-    onError: (e) => toast(e.message, "error"),
   });
 
   const openDoc = (doc) => navigate(`/knowledge/${doc.id}`, { state: { from: backToDocsTab(projectId) } });
@@ -109,7 +109,7 @@ export function ProjectDocuments({ projectId, projectName = "" }) {
 
   if (documents.isLoading) return <Card><Skeleton lines={4} /></Card>;
   if (documents.isError) {
-    return <ErrorState error={documents.error} onRetry={() => documents.refetch()} />;
+    return <ErrorState layout="region" error={documents.error} onRetry={() => documents.refetch()} />;
   }
 
   const rows = documents.data?.items || [];
@@ -128,13 +128,13 @@ export function ProjectDocuments({ projectId, projectName = "" }) {
             ? "총 " + total + "건 가운데 " + rows.length + "건을 보여 줍니다. 나머지는 문서 화면에서 찾을 수 있습니다."
             : "총 " + total + "건"}
         </Typography>
-        <Button variant="primary" onClick={() => setNewDoc(true)}>새 문서</Button>
+        <Button variant="primary" onClick={() => { createDocument.reset(); setNewDoc(true); }}>새 문서</Button>
       </Stack>
       {rows.length === 0 ? (
         <EmptyState
           title="이 프로젝트에 문서가 아직 없습니다."
           help="회의록이나 설계 문서를 여기에 모아 두면 프로젝트 안에서 바로 찾을 수 있습니다."
-          action={<Button variant="primary" onClick={() => setNewDoc(true)}>이 프로젝트 문서 추가</Button>}
+          action={<Button variant="primary" onClick={() => { createDocument.reset(); setNewDoc(true); }}>이 프로젝트 문서 추가</Button>}
         />
       ) : (
         <Card>
@@ -149,6 +149,7 @@ export function ProjectDocuments({ projectId, projectName = "" }) {
         lockedProject={projectId}
         lockedProjectName={projectName}
         busy={createDocument.isPending}
+        error={failureText([createDocument, null])}
         onClose={() => setNewDoc(false)}
         onSubmit={(values) => createDocument.mutate({
           project_id: projectId,

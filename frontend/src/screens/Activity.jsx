@@ -158,7 +158,7 @@ export function Activity() {
       {q.isLoading ? (
         <Card><Skeleton lines={8} /></Card>
       ) : q.isError ? (
-        <ErrorState error={q.error} onRetry={() => q.refetch()} />
+        <ErrorState layout="region" error={q.error} onRetry={() => q.refetch()} />
       ) : items.length === 0 ? (
         <Card>
           <EmptyState

@@ -4,7 +4,7 @@ import MenuItem from "@mui/material/MenuItem";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
-import { Modal, ModalFooter } from "../../ui/kit.jsx";
+import { Callout, Modal, ModalFooter } from "../../ui/kit.jsx";
 import { ProjectPicker } from "../../ui/ProjectPicker.jsx";
 import { TagPicker } from "../../ui/TagPicker.jsx";
 import { FONT_WEIGHT, KO_WORD_BREAK } from "../../ui/theme.js";
@@ -36,7 +36,7 @@ import { PROJECT_NONE, PROJECT_UNASSIGNED_LABEL } from "./constants.js";
  * 정해져 있으므로 고르는 칸 대신 고정 표기가 선다. */
 export function NewDocumentModal({
   open, onClose, onSubmit, busy, templates, categories, initial,
-  lockedProject = null, lockedProjectName = "",
+  lockedProject = null, lockedProjectName = "", error = null,
 }) {
   const [values, setValues] = React.useState(initial);
   React.useEffect(() => { if (open) setValues(initial); }, [open, initial]);
@@ -178,6 +178,8 @@ export function NewDocumentModal({
           ) : null}
         </Stack>
       </Box>
+      {/* 만들기 실패는 발 바로 위 — 쓰던 값이 그대로 있고, 다시 누르면 걷힌다(부르는 쪽이 `error` 를 준다). */}
+      {error ? <Callout tone="danger" compact sx={{ mt: 2.5 }}>{error}</Callout> : null}
     </Modal>
   );
 }

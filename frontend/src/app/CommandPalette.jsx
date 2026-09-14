@@ -19,6 +19,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { isSearchable, normalizeQuery, routeOf, searchApi, searchResultsPath } from "../lib/search.js";
 import { readRecentNav } from "../lib/recentNav.js";
 import { navIcon } from "./navIcons.js";
+import { Callout, EmptyState } from "../ui/kit.jsx";
 import { DEBOUNCE_MS, FONT_SIZE, FONT_WEIGHT, ICON, KO_WORD_BREAK, RADIUS, remPx } from "../ui/theme.js";
 
 /* 명령 팔레트 (Ctrl+K / Cmd+K) — **메뉴 이동 + 진짜 통합 검색**.
@@ -267,20 +268,11 @@ export function CommandPalette({ open, onClose, groups }) {
           E9 가 막으려던 실패("없다고 말하지 않는다")의 나머지 절반이 이 경계였다. 목록이
           있든 없든 실패는 실패라고 한 줄로 말한다. */}
       {failed && flat.length > 0 ? (
-        <Box
-          role="alert"
-          sx={{
-            display: "flex", alignItems: "center", gap: 1,
-            px: 2.5, py: 1, borderBottom: 1, borderColor: "divider",
-            bgcolor: (t) => t.palette.error.bg, color: "error.strong",
-            fontSize: FONT_SIZE.bodySm, ...KO_WORD_BREAK,
-          }}
-        >
-          <ErrorOutlineRoundedIcon aria-hidden="true" sx={{ fontSize: FONT_SIZE.title }} />
-          <Box component="span">
-            티켓, 문서, 게시판 검색을 불러오지 못했습니다. 아래는 메뉴 결과만 있습니다.
-          </Box>
-        </Box>
+        /* 팔레트 폭 전체를 쓰는 띠라 메시지 박스의 `bleed` 갈래다 — 모서리와 좌우 선 없이 아래 실선이
+           목록과 가른다. 손으로 칠하던 붉은 면 대신 다른 실패 줄과 같은 1a 얼굴을 쓴다. */
+        <Callout tone="danger" compact variant="bleed" sx={{ px: 2.5 }}>
+          티켓, 문서, 게시판 검색을 불러오지 못했습니다. 아래는 메뉴 결과만 있습니다.
+        </Callout>
       ) : null}
       <DialogContent sx={{ p: 0, maxHeight: "62vh" }}>
         {flat.length === 0 ? (
@@ -369,22 +361,19 @@ const MESSAGE_FACE = {
 function PaletteMessage({ state }) {
   const face = MESSAGE_FACE[state] || MESSAGE_FACE.empty;
   const { Icon } = face;
+  /* 손으로 그린 가운데 얼굴 넷을 공용 부품으로 옮겼다(계획 B-2). 오류는 메시지 박스(오류 `alert`)이고,
+     나머지 셋(묻기 · 찾는 중 · 없음)은 좁은 자리의 빈 상태(inline — 그림 없음, 아이콘만)다. 제목에 검색어를
+     되풀이하지 않는다 — 바로 두 줄 위 입력창에 그대로 보인다(지시 44). */
+  if (state === "error") {
+    return (
+      <Box sx={{ px: 2.5, py: 2 }}>
+        <Callout tone="danger" compact title={face.title}>{face.hint}</Callout>
+      </Box>
+    );
+  }
   return (
-    <Box
-      role={state === "error" ? "alert" : undefined}
-      sx={{ px: 3, py: 4, display: "grid", justifyItems: "center", gap: 0.75, textAlign: "center" }}
-    >
-      <Icon aria-hidden="true" sx={{ fontSize: FONT_SIZE.pageTitle, color: face.tone || "text.faint" }} />
-      {/* 제목에 검색어를 되풀이하지 않는다 — 바로 두 줄 위 입력창에 그대로 보인다
-          (지시 44: 같은 말을 두 번 하지 않는다). */}
-      <Typography sx={{ fontSize: FONT_SIZE.body, fontWeight: FONT_WEIGHT.semibold, color: face.tone || "text.primary" }}>
-        {face.title}
-      </Typography>
-      {face.hint ? (
-        <Typography color="text.secondary" sx={{ fontSize: FONT_SIZE.bodySm, maxWidth: "34rem", ...KO_WORD_BREAK }}>
-          {face.hint}
-        </Typography>
-      ) : null}
+    <Box sx={{ px: 1 }}>
+      <EmptyState layout="inline" icon={<Icon />} title={face.title} help={face.hint || undefined} />
     </Box>
   );
 }

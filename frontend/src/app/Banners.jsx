@@ -1,6 +1,6 @@
 import React from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button, Callout, useToast } from "../ui/kit.jsx";
+import { Button, Callout } from "../ui/kit.jsx";
 import { api } from "../lib/api.js";
 
 /* 화면 위쪽 띠 — **임퍼소네이션 하나만 남는다** (지시 1·55·67).
@@ -52,11 +52,13 @@ export function useImpersonation() {
 
 function ImpersonationBanner({ data }) {
   const qc = useQueryClient();
-  const toast = useToast();
   const [busy, setBusy] = React.useState(false);
+  /* 종료 실패는 이 띠 안에 남는다 — 사라지는 토스트에 두면 관리자가 남인 채로 계속 활동한다(E5). */
+  const [stopFailure, setStopFailure] = React.useState("");
 
   const stop = async () => {
     setBusy(true);
+    setStopFailure("");
     try {
       await api("/api/admin/impersonation/stop", { method: "POST", body: {} });
       // 역할·이름이 통째로 바뀌므로 부분 갱신이 아니라 새로 읽는다. 어중간하게 남은
@@ -68,7 +70,7 @@ function ImpersonationBanner({ data }) {
       /* 조용히 삼키면 **관리자가 남인 채로 계속 활동**하면서 빠져나온 줄 안다 (E5).
          대리 보기 중에는 그 사람 이름으로 기록이 남으므로, 못 빠져나온 것을 모르는 것이
          가장 위험하다. */
-      toast((e && e.message) || "대리 보기를 종료하지 못했습니다. 다시 시도해 주세요.", "error");
+      setStopFailure((e && e.message) || "대리 보기를 종료하지 못했습니다. 다시 시도해 주세요.");
     }
   };
 
@@ -81,14 +83,15 @@ function ImpersonationBanner({ data }) {
       tone="warn"
       title={`${data.target_name || data.target_email}님의 화면을 보는 중입니다 (읽기 전용)`}
       action={
-        <Button variant="secondary" size="sm" onClick={stop} disabled={busy}>
-          {busy ? "종료 중…" : "대리 보기 종료"}
+        <Button variant="secondary" size="sm" onClick={stop} disabled={busy} loading={busy}>
+          대리 보기 종료
         </Button>
       }
-      sx={{ borderRadius: 0, borderInline: 0, borderBlockStart: 0 }}
+      variant="bleed"
     >
       {data.actor_name}(으)로 로그인한 상태이며, 이 화면에서는 어떤 변경도 저장되지 않습니다.
       {data.blocked_write_count ? ` 지금까지 차단된 변경 시도 ${data.blocked_write_count}건.` : ""}
+      {stopFailure ? <Callout tone="danger" compact sx={{ mt: 1 }}>{stopFailure}</Callout> : null}
     </Callout>
   );
 }

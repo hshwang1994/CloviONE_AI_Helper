@@ -10,13 +10,14 @@ import WarningAmberRoundedIcon from "@mui/icons-material/WarningAmberRounded";
 import { api } from "../lib/api.js";
 import Link from "@mui/material/Link";
 import {
-  Badge, Button, Card, DataTable, EmptyState, ErrorState, ListCard, ListEmptyState,
+  Badge, Button, Callout, Card, DataTable, EmptyState, ErrorState, ListCard, ListEmptyState,
   Modal, PageHeader, Skeleton, useConfirm, useToast,
 } from "../ui/kit.jsx";
 import { ListFooter } from "../ui/InfiniteScroll.jsx";
 import { DocBody } from "../ui/DocBody.jsx";
 import { toggleSort } from "../ui/TableHeaderCell.jsx";
 import { bulkFailureNote, objectParticle, toUTCDate } from "../lib/format.js";
+import { failureText, latestMutation } from "../lib/failure.js";
 import { useQueryState } from "../lib/useQueryState.js";
 import { useRowSelection, selectionColumn, BulkActions } from "../ui/bulkSelect.jsx";
 import { invalidateTicketViews } from "./ticket-views.js";
@@ -126,7 +127,7 @@ function PreviewDialog({ row, onClose }) {
   return (
     <Modal open={!!row} onClose={onClose} size="md" title={(row && row.title) || "제목 없음"}>
       {q.isPending ? <Skeleton kind="page" lines={4} />
-        : q.isError ? <ErrorState error={q.error} onRetry={() => q.refetch()} />
+        : q.isError ? <ErrorState layout="region" error={q.error} onRetry={() => q.refetch()} />
         : <DocBody blocks={q.data && q.data.blocks} blocksError={q.data && q.data.blocks_error} />}
     </Modal>
   );
@@ -173,7 +174,9 @@ export function Trash() {
     // UA-25 — 실패 사유를 "권한이 없어"로 뭉개지 않는다. 실제로는 이미 처리됨·권한·Notion
     // 보관 실패 3종이 섞일 수 있고, Notion 장애일 때 이 문구 때문에 관리자가 다른 계정으로
     // 헛되이 재시도했다.
-    toast(`${n}건을 ${verb}했습니다.` + bulkFailureNote(failed), failed.length ? "info" : "success");
+    /* 전부 되살렸으면 토스트다. 일부 건너뜀 · 영구 삭제는 목록 위 메시지 박스가 말한다(`trashNotice`) —
+       안 된 이유와 되돌릴 수 없는 결과는 사라지면 안 된다. */
+    if (!failed.length && verb === "복원") toast(`${n}건을 ${verb}했습니다.`, "success");
     qc.invalidateQueries({ queryKey: ["trash"], refetchType: "all" });
     // 복원한 티켓은 홈·스프린트에도 다시 나타나야 한다 — 그 키 목록은 ticket-views.js 가 안다.
     invalidateTicketViews(qc, { refetchType: "all" });
@@ -185,12 +188,10 @@ export function Trash() {
   const bulkRestore = useMutation({
     mutationFn: (ids) => api("/api/trash/restore-bulk", { method: "POST", body: { ids } }),
     onSuccess: (res) => bulkMsg(res, "복원"),
-    onError: (e) => toast((e && e.message) || "복원하지 못했습니다. 다시 시도해 주세요.", "error"),
   });
   const bulkPurge = useMutation({
     mutationFn: (ids) => api("/api/trash/purge-bulk", { method: "POST", body: { ids } }),
     onSuccess: (res) => bulkMsg(res, "영구 삭제"),
-    onError: (e) => toast((e && e.message) || "삭제하지 못했습니다. 다시 시도해 주세요.", "error"),
   });
 
   // FN-14 — id가 아니라 행 전체(row)를 넘긴다(mutationFn이 row.id를 쓴다). onSuccess는 더는
@@ -204,12 +205,10 @@ export function Trash() {
       invalidateTicketViews(qc, { refetchType: "all" });
       invalidateDocumentViews(qc, { refetchType: "all" });
     },
-    onError: (e) => toast((e && e.message) || "복원하지 못했습니다. 다시 시도해 주세요.", "error"),
   });
   const purge = useMutation({
     mutationFn: (row) => api("/api/trash/" + row.id + "/purge", { method: "POST" }),
     onSuccess: () => {
-      toast("영구 삭제했습니다. 원본이 보관처리됐습니다.", "success");
       qc.invalidateQueries({ queryKey: ["trash"], refetchType: "all" });
       // restore와 대칭을 맞춘다 — 예전엔 purge만 이 둘이 빠져 있어 티켓/문서 목록이 영구
       // 삭제 뒤에도 최대 staleTime 동안 그 항목을 계속 보여줄 수 있었다(FN-14와 같은 자리에서
@@ -217,8 +216,30 @@ export function Trash() {
       invalidateTicketViews(qc, { refetchType: "all" });
       invalidateDocumentViews(qc, { refetchType: "all" });
     },
-    onError: (e) => toast((e && e.message) || "삭제하지 못했습니다. 다시 시도해 주세요.", "error"),
   });
+  /* 목록 동작의 결과 중 **남아야 하는 것** — 실패(오류), 일부 건너뜀과 영구 삭제의 사실(주의).
+     가장 나중에 누른 동작 하나만 말하고 다음 동작에서 걷힌다(`lib/failure.js`). 휴지통이 비어도
+     서도록 목록 판이 아니라 머리 바로 아래에 둔다. 문구는 토스트 때와 같다. */
+  const trashNotice = (() => {
+    const failure = failureText(
+      [bulkRestore, "복원하지 못했습니다. 다시 시도해 주세요."],
+      [bulkPurge, "삭제하지 못했습니다. 다시 시도해 주세요."],
+      [restore, "복원하지 못했습니다. 다시 시도해 주세요."],
+      [purge, "삭제하지 못했습니다. 다시 시도해 주세요."],
+    );
+    if (failure) return { tone: "danger", text: failure };
+    const last = latestMutation(bulkRestore, bulkPurge, restore, purge);
+    if (!last || !last.isSuccess) return null;
+    if (last === purge) return { tone: "warn", text: "영구 삭제했습니다. 원본이 보관처리됐습니다." };
+    if (last === bulkRestore || last === bulkPurge) {
+      const res = last.data || {};
+      const failed = res.failed || [];
+      const verb = last === bulkPurge ? "영구 삭제" : "복원";
+      if (!failed.length && last === bulkRestore) return null;
+      return { tone: "warn", text: `${((res.restored || res.purged) || []).length}건을 ${verb}했습니다.` + bulkFailureNote(failed) };
+    }
+    return null;
+  })();
 
   const days = (q.data && q.data.retention_days) || 7;
   // 문서 정책은 티켓과 따로다(D-352) — 그쪽의 다음 단계는 「행을 지우는 것」이라 되돌릴 수
@@ -449,8 +470,9 @@ export function Trash() {
             : `삭제한 티켓을 ${days}일 동안 보관합니다. 문서는 자동으로 지워지지 않으며, 영구 삭제는 사람이 누를 때만 실행됩니다.`
         }
       />
+      {trashNotice ? <Callout tone={trashNotice.tone} compact sx={{ mb: 2 }}>{trashNotice.text}</Callout> : null}
 
-      {q.isError ? <ErrorState error={q.error} onRetry={() => q.refetch()} />
+      {q.isError ? <ErrorState layout="region" error={q.error} onRetry={() => q.refetch()} />
         : q.isPending ? <Card>{/* 표가 들어올 자리에는 표 모양을 그린다 (지시 20) - 빈 목록과 아직 안 온 목록은 다른 사실이다. */}<DataTable columns={columns} rows={[]} loading /></Card>
         : empty && !filtered ? (
           /* 자산(empty-trash.png)이 처음부터 있었는데 어디에도 연결돼 있지 않았다.

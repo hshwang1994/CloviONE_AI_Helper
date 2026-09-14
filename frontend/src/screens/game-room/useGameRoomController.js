@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { alpha } from "@mui/material/styles";
 import { api } from "../../lib/api.js";
+import { failureText } from "../../lib/failure.js";
 import { useConfirm, useToast } from "../../ui/kit.jsx";
 import { celebrate, deriveCelebrateKey } from "./celebration.js";
 import { useCountdown } from "./timeUtils.js";
@@ -47,7 +48,6 @@ export function useGameRoomController(id) {
   const join = useMutation({
     mutationFn: () => api(`/api/games/rooms/${id}/join`, { method: "POST" }),
     onSuccess: () => state.refetch(),
-    onError: (e) => toast((e && e.message) || "입장하지 못했습니다. 다시 시도해 주세요.", "error"),
   });
   // HashRouter라 다른 방으로 가는 링크(예: 두 번째 초대 링크)를 이미 열린 게임방 탭에서 열면
   // 해시만 바뀌어 이 컴포넌트는 마운트 해제 없이 id만 바뀐다 — joinedRef를 id별로 리셋하지
@@ -80,72 +80,78 @@ export function useGameRoomController(id) {
   const ready = useMutation({
     mutationFn: (v) => api(`/api/games/rooms/${id}/ready`, { method: "POST", body: { ready: v } }),
     onSuccess: () => state.refetch(),
-    onError: (e) => toast((e && e.message) || "준비 상태를 바꾸지 못했습니다. 다시 시도해 주세요.", "error"),
   });
   const start = useMutation({
     mutationFn: () => api(`/api/games/rooms/${id}/start`, { method: "POST" }),
     onSuccess: () => state.refetch(),
-    onError: (e) => toast((e && e.message) || "게임을 시작하지 못했습니다. 다시 시도해 주세요.", "error"),
   });
   const vote = useMutation({
     mutationFn: (option) => api(`/api/games/rooms/${id}/vote`, { method: "POST", body: { option } }),
     onSuccess: () => state.refetch(),
-    onError: (e) => toast((e && e.message) || "투표하지 못했습니다. 다시 시도해 주세요.", "error"),
   });
   const finish = useMutation({
     mutationFn: () => api(`/api/games/rooms/${id}/finish`, { method: "POST" }),
     onSuccess: () => state.refetch(),
-    onError: (e) => toast((e && e.message) || "게임을 종료하지 못했습니다. 다시 시도해 주세요.", "error"),
   });
   const pick = useMutation({
     mutationFn: (value) => api(`/api/games/rooms/${id}/pick`, { method: "POST", body: { value } }),
     onSuccess: () => { setNumDraft(""); state.refetch(); },
-    onError: (e) => toast((e && e.message) || "숫자를 내지 못했습니다. 다시 시도해 주세요.", "error"),
   });
   const rps = useMutation({
     mutationFn: (option) => api(`/api/games/rooms/${id}/rps`, { method: "POST", body: { option } }),
     onSuccess: () => state.refetch(),
-    onError: (e) => toast((e && e.message) || "내지 못했습니다. 다시 시도해 주세요.", "error"),
   });
   const quizAnswer = useMutation({
     mutationFn: (option) => api(`/api/games/rooms/${id}/quiz-answer`, { method: "POST", body: { option } }),
     onSuccess: () => state.refetch(),
-    onError: (e) => toast((e && e.message) || "답을 내지 못했습니다. 다시 시도해 주세요.", "error"),
   });
   const reveal = useMutation({
     mutationFn: () => api(`/api/games/rooms/${id}/reveal`, { method: "POST" }),
     onSuccess: () => state.refetch(),
-    onError: (e) => toast((e && e.message) || "정답을 공개하지 못했습니다. 다시 시도해 주세요.", "error"),
   });
   const nextQ = useMutation({
     mutationFn: () => api(`/api/games/rooms/${id}/next`, { method: "POST" }),
     onSuccess: () => state.refetch(),
-    onError: (e) => toast((e && e.message) || "다음으로 넘어가지 못했습니다. 다시 시도해 주세요.", "error"),
   });
   const reset = useMutation({
     mutationFn: () => api(`/api/games/rooms/${id}/reset`, { method: "POST" }),
     onSuccess: () => state.refetch(),
-    onError: (e) => toast((e && e.message) || "다시 시작하지 못했습니다. 다시 시도해 주세요.", "error"),
   });
   const leave = useMutation({
     mutationFn: () => api(`/api/games/rooms/${id}/leave`, { method: "POST" }),
     /* 성공했을 때만 떠난다 (E4). `onSettled` 는 **실패해도** 실행돼서, 실패한 '방 파하기' 가
        성공한 것과 똑같이 보였다 — 방은 그대로인데 사용자는 파했다고 믿는다. */
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["games-rooms"] }); nav("/games"); },
-    onError: (e) => toast((e && e.message) || "처리하지 못했습니다. 다시 시도해 주세요.", "error"),
   });
   const disband = useMutation({
     mutationFn: () => api(`/api/games/rooms/${id}/disband`, { method: "POST" }),
     /* 성공했을 때만 떠난다 (E4). `onSettled` 는 **실패해도** 실행돼서, 실패한 '방 파하기' 가
        성공한 것과 똑같이 보였다 — 방은 그대로인데 사용자는 파했다고 믿는다. */
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["games-rooms"] }); nav("/games"); },
-    onError: (e) => toast((e && e.message) || "처리하지 못했습니다. 다시 시도해 주세요.", "error"),
   });
   const chat = useMutation({
     mutationFn: (text) => api(`/api/games/rooms/${id}/chat`, { method: "POST", body: { text } }),
     onSuccess: () => { setDraft(""); state.refetch(); },
-    onError: (e) => toast((e && e.message) || "메시지를 보내지 못했습니다. 다시 시도해 주세요.", "error"),
   });
+
+  /* 실패는 그 동작의 자리에 남는다 — 방 동작(입장 · 준비 · 시작 · 제출 · 공개 · 나가기 …)은 무대 위, 채팅은
+     입력 칸 위. 가장 나중에 누른 동작 하나만 말하고 다음 동작에서 걷힌다(`lib/failure.js`). 문구는 토스트 때와 같다. */
+  const actionFailure = failureText(
+    [join, "입장하지 못했습니다. 다시 시도해 주세요."],
+    [ready, "준비 상태를 바꾸지 못했습니다. 다시 시도해 주세요."],
+    [start, "게임을 시작하지 못했습니다. 다시 시도해 주세요."],
+    [vote, "투표하지 못했습니다. 다시 시도해 주세요."],
+    [finish, "게임을 종료하지 못했습니다. 다시 시도해 주세요."],
+    [pick, "숫자를 내지 못했습니다. 다시 시도해 주세요."],
+    [rps, "내지 못했습니다. 다시 시도해 주세요."],
+    [quizAnswer, "답을 내지 못했습니다. 다시 시도해 주세요."],
+    [reveal, "정답을 공개하지 못했습니다. 다시 시도해 주세요."],
+    [nextQ, "다음으로 넘어가지 못했습니다. 다시 시도해 주세요."],
+    [reset, "다시 시작하지 못했습니다. 다시 시도해 주세요."],
+    [leave, "처리하지 못했습니다. 다시 시도해 주세요."],
+    [disband, "처리하지 못했습니다. 다시 시도해 주세요."],
+  );
+  const chatFailure = failureText([chat, "메시지를 보내지 못했습니다. 다시 시도해 주세요."]);
 
   /* 승자가 **확정되는 순간** 축포를 한 번 터뜨린다. celebrateKey 는 결과 내용이 바뀔 때만
    * 값이 달라지므로 폴링마다 재발화하지 않는다. 훅 순서 유지를 위해 조기 return 위에
@@ -310,6 +316,7 @@ export function useGameRoomController(id) {
     draft, setDraft, numDraft, setNumDraft, sendChat, voteOptionSx,
     chatLogRef,
     mutations: { join, ready, start, vote, finish, pick, rps, quizAnswer, reveal, nextQ, reset, leave, disband, chat },
+    actionFailure, chatFailure,
     disbandWithConfirm,
   };
 }

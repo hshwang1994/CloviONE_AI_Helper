@@ -292,7 +292,7 @@ export function DevReport() {
       {query.isLoading ? (
         <Card><Skeleton kind="chart" /></Card>
       ) : query.isError ? (
-        <ErrorState error={query.error} onRetry={() => query.refetch()} />
+        <ErrorState layout="region" error={query.error} onRetry={() => query.refetch()} />
       ) : data && data.configured === false ? (
         // 이 갈래는 더 이상 안 열린다 — 티켓의 정본이 이 서버라 사람이 채워 넣을 접속
         // 설정이 없다(S14 · D-284). 응답 모양은 남아 있으므로 갈래도 남기되, 없어진
@@ -303,7 +303,7 @@ export function DevReport() {
           </Callout>
         </Card>
       ) : data && ok === false ? (
-        <ErrorState error={{ message: data.error || "리포트를 불러오지 못했습니다." }} onRetry={() => query.refetch()} />
+        <ErrorState layout="region" error={{ message: data.error || "리포트를 불러오지 못했습니다." }} onRetry={() => query.refetch()} />
       ) : ok ? (
         <>
           {/* 각 칸의 셋째 줄은 '이 숫자가 무엇을 센 것인지'다 — 정의가 사라지면 숫자를

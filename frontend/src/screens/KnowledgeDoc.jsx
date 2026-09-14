@@ -37,6 +37,7 @@ import { TagPicker } from "../ui/TagPicker.jsx";
 import { FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
 import { fmtDateTimeCompact, objectParticle } from "../lib/format.js";
 import { useListReturn } from "../lib/listReturn.js";
+import { failureText } from "../lib/failure.js";
 import { useCategories } from "./knowledge/queries.js";
 import { PROJECT_NONE, PROJECT_UNASSIGNED_LABEL } from "./knowledge/constants.js";
 import { celebrateCreated } from "../ui/celebrate.js";
@@ -116,7 +117,7 @@ function VersionDiff({ documentId, base, target }) {
   });
 
   if (diff.isLoading) return <Skeleton kind="section" lines={4} />;
-  if (diff.isError) return <ErrorState error={diff.error} onRetry={() => diff.refetch()} />;
+  if (diff.isError) return <ErrorState layout="region" error={diff.error} onRetry={() => diff.refetch()} />;
 
   const changes = diff.data?.changes || [];
   if (!changes.length) {
@@ -241,21 +242,23 @@ function Attachments({ documentId, items, onChanged, readOnly = false }) {
     },
     onSuccess: ({ failed }) => {
       onChanged();
-      if (failed.length) {
-        toast(`파일 ${failed.length}개를 올리지 못했습니다: ${failed.join(", ")}`, "error");
-      } else {
-        toast("파일을 첨부했습니다.");
-      }
+      // 일부를 못 올린 사실은 첨부 판 안에 남는다(아래 `attachNotice`) — 다 올렸을 때만 토스트다.
+      if (!failed.length) toast("파일을 첨부했습니다.");
     },
-    onError: (e) => toast(e.message, "error"),
   });
 
   const remove = useMutation({
     mutationFn: (attachmentId) =>
       api(`/api/knowledge/attachments/${attachmentId}`, { method: "DELETE" }),
     onSuccess: () => { onChanged(); toast("첨부를 뗐습니다."); },
-    onError: (e) => toast(e.message, "error"),
   });
+  /* 첨부 판의 결과 중 남아야 하는 것 — 올리기 · 떼기 실패와 일부만 올라간 사실. 가장 나중에 누른
+     동작 하나만 말하고 다음 동작에서 걷힌다(`lib/failure.js`). */
+  const attachFailure = failureText([upload, null], [remove, null]);
+  const lastAttach = upload.submittedAt >= remove.submittedAt ? upload : remove;
+  const partial = !attachFailure && lastAttach === upload && upload.isSuccess && upload.data && upload.data.failed.length
+    ? `파일 ${upload.data.failed.length}개를 올리지 못했습니다: ${upload.data.failed.join(", ")}` : null;
+  const attachNotice = attachFailure || partial;
 
   return (
     <Section
@@ -283,10 +286,9 @@ function Attachments({ documentId, items, onChanged, readOnly = false }) {
           if (picked.length) upload.mutate(picked);
         }}
       />
+      {attachNotice ? <Callout tone="danger" compact sx={{ mb: 1.5 }}>{attachNotice}</Callout> : null}
       {items.length === 0 ? (
-        <Typography variant="body2" color="text.secondary" sx={KO_WORD_BREAK}>
-          이 문서에 붙은 파일이 없습니다.
-        </Typography>
+        <EmptyState layout="inline" title="이 문서에 붙은 파일이 없습니다." />
       ) : (
         <Stack spacing={1.5}>
           {images.length ? (
@@ -422,28 +424,28 @@ function Relations({ documentId, relations, backlinks, tickets, onChanged, readO
     mutationFn: (body) =>
       api(`/api/knowledge/documents/${documentId}/relations`, { method: "POST", body }),
     onSuccess: () => { onChanged(); setOpen(false); setTarget(""); toast("문서를 이었습니다."); },
-    onError: (e) => toast(e.message, "error"),
   });
 
   const drop = useMutation({
     mutationFn: (body) =>
       api(`/api/knowledge/documents/${documentId}/relations`, { method: "DELETE", body }),
     onSuccess: () => { onChanged(); toast("연결을 끊었습니다."); },
-    onError: (e) => toast(e.message, "error"),
   });
+  /* 잇기 실패는 잇기 대화상자 안, 끊기 실패는 이 판 안이다. 다시 누르면 걷힌다. */
+  const addFailure = failureText([add, null]);
+  const dropFailure = failureText([drop, null]);
 
   const rows = candidates.data?.items || [];
 
   return (
     <Section
       title={`관련 문서 ${relations.length}`}
-      action={readOnly ? null : <Button size="small" variant="ghost" onClick={() => setOpen(true)}>문서 잇기</Button>}
+      action={readOnly ? null : <Button size="small" variant="ghost" onClick={() => { add.reset(); setOpen(true); }}>문서 잇기</Button>}
     >
       <Stack spacing={1}>
+        {dropFailure ? <Callout tone="danger" compact>{dropFailure}</Callout> : null}
         {relations.length === 0 ? (
-          <Typography variant="body2" color="text.secondary" sx={KO_WORD_BREAK}>
-            이어 둔 문서가 없습니다.
-          </Typography>
+          <EmptyState layout="inline" title="이어 둔 문서가 없습니다." />
         ) : relations.map((rel) => (
           <Stack key={`${rel.document_id}-${rel.kind}`} direction="row" alignItems="center" spacing={1}>
             <Link href={`#/knowledge/${rel.document_id}`} sx={{ ...KO_WORD_BREAK, flex: 1, minWidth: 0 }}>
@@ -543,6 +545,7 @@ function Relations({ documentId, relations, backlinks, tickets, onChanged, readO
               <MenuItem key={k.value} value={k.value}>{k.label}</MenuItem>
             ))}
           </TextField>
+          {addFailure ? <Callout tone="danger" compact>{addFailure}</Callout> : null}
         </Stack>
       </Modal>
     </Section>
@@ -613,7 +616,6 @@ export function KnowledgeDoc() {
          축하하면 저장 단추를 두 번 누른 사람이 두 번 축하받는다. */
       if (result.created_version) celebrateCreated();
     },
-    onError: (e) => toast(e.message, "error"),
   });
 
   /* 즐겨찾기는 **내 목록**을 고치는 일이다 — 문서를 고치는 것이 아니라서 볼 수 있는
@@ -626,7 +628,6 @@ export function KnowledgeDoc() {
       refresh();
       toast(result.is_favorite ? "즐겨찾기에 담았습니다." : "즐겨찾기에서 뺐습니다.");
     },
-    onError: (e) => toast(e.message, "error"),
   });
 
   const move = useMutation({
@@ -644,7 +645,6 @@ export function KnowledgeDoc() {
           : "문서를 옮겼습니다. 볼 수 있는 사람은 그대로입니다.",
       );
     },
-    onError: (e) => toast(e.message, "error"),
   });
 
   const archive = useMutation({
@@ -654,7 +654,6 @@ export function KnowledgeDoc() {
       toast("문서를 휴지통으로 보냈습니다. 휴지통에서 되살릴 수 있습니다.");
       navigate(backTo);
     },
-    onError: (e) => toast(e.message, "error"),
   });
 
   const restore = useMutation({
@@ -668,7 +667,6 @@ export function KnowledgeDoc() {
       qc.invalidateQueries({ queryKey: ["knowledge", "versions", id] });
       toast("옛 판의 본문으로 새 판을 만들었습니다. 이력은 그대로 남아 있습니다.");
     },
-    onError: (e) => toast(e.message, "error"),
   });
 
   /* 🔴 **휴지통에서 온 사람이 여기서 되살릴 수 있어야 한다.**
@@ -683,8 +681,14 @@ export function KnowledgeDoc() {
       qc.invalidateQueries({ queryKey: ["trash"] });
       toast("복원했습니다. 문서 목록에서 다시 볼 수 있습니다.", "success");
     },
-    onError: (e) => toast(e.message, "error"),
   });
+  /* 머리 동작(저장 · 즐겨찾기 · 휴지통으로 보내기 · 복원)의 실패는 머리 바로 아래, 판 되돌리기 실패는
+     이력 판 안, 옮기기 실패는 옮기기 대화상자 안이다. 가장 나중에 누른 동작 하나만 말한다. */
+  const headFailure = failureText([save, null], [favorite, null], [archive, null], [unarchive, null]);
+  const restoreFailure = failureText([restore, null]);
+  const moveFailure = failureText([move, null]);
+  /* 본문에 그림을 넣다가 실패한 사실 — 편집기 판 안에 남고, 다음 그림을 고르면 걷힌다. */
+  const [imageFailure, setImageFailure] = React.useState("");
 
   /* 본문에 그림을 넣는 길 — **첨부로 올리고 주소만 본문에 남긴다** (D4 · 지시 22.6).
    *
@@ -701,6 +705,7 @@ export function KnowledgeDoc() {
     input.onchange = async () => {
       const file = (input.files || [])[0];
       if (!file) { resolve(null); return; }
+      setImageFailure("");
       try {
         const form = new FormData();
         form.append("file", file);
@@ -709,7 +714,7 @@ export function KnowledgeDoc() {
         refresh();
         resolve(`/api/knowledge/attachments/${made.id}/content`);
       } catch (e) {
-        toast(e.message, "error");
+        setImageFailure(e.message);
         resolve(null);
       }
     };
@@ -894,7 +899,7 @@ export function KnowledgeDoc() {
                 : <StarOutlineRoundedIcon sx={{ fontSize: "1.125rem" }} />}
               {data.is_favorite ? "즐겨찾기 해제" : "즐겨찾기"}
             </Button>
-            <Button onClick={() => setMoving(true)}>이동</Button>
+            <Button onClick={() => { move.reset(); setMoving(true); }}>이동</Button>
             <Button onClick={() => setHistory((v) => !v)}>
               {history ? "이력 닫기" : `이력 ${versionRows.length}`}
             </Button>
@@ -918,6 +923,8 @@ export function KnowledgeDoc() {
           </>
         )}
       />
+
+      {headFailure ? <Callout tone="danger" compact sx={{ mb: 2 }}>{headFailure}</Callout> : null}
 
       {/* 🔴 **이 문서가 휴지통에 있다는 사실을 화면이 말한다.**
           누가 언제 버렸는지까지 적는다 — 그 둘이 「내가 되살릴 수 있는가」의 근거이기도 하다
@@ -975,6 +982,7 @@ export function KnowledgeDoc() {
                 </React.Suspense>
               ) : (
                 <>
+                  {imageFailure ? <Callout tone="danger" compact>{imageFailure}</Callout> : null}
                   <TextField
                     label="문서 제목"
                     InputLabelProps={{ shrink: true }}
@@ -994,9 +1002,10 @@ export function KnowledgeDoc() {
           {history ? (
             <Card>
               <Section title="판 이력">
+                {restoreFailure ? <Callout tone="danger" compact sx={{ mb: 1.5 }}>{restoreFailure}</Callout> : null}
                 {versions.isLoading && <Skeleton kind="list" rows={4} />}
                 {versions.isError && (
-                  <ErrorState error={versions.error} onRetry={() => versions.refetch()} />
+                  <ErrorState layout="region" error={versions.error} onRetry={() => versions.refetch()} />
                 )}
                 {!versions.isLoading && versionRows.length === 0 && (
                   <EmptyState
@@ -1130,6 +1139,7 @@ export function KnowledgeDoc() {
                 : "이 문서를 볼 수 있는 사람이 그 프로젝트를 볼 수 있는 사람으로 바뀝니다."
             }
           />
+          {moveFailure ? <Callout tone="danger" compact>{moveFailure}</Callout> : null}
         </Stack>
       </Modal>
     </>
