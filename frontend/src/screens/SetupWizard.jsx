@@ -7,8 +7,9 @@ import { api } from "../lib/api.js";
 import { useAuth } from "../app/auth.jsx";
 import {
   PageHeader, Card, Badge, Button, Callout, MetricStrip, Skeleton, ErrorState, EmptyState,
+  DotLabel,
 } from "../ui/kit.jsx";
-import { FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
+import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
 import { BASELINE_TRACKS, pairTracks } from "../ui/density.js";
 
 /* 최초 실행 셋업 마법사 (9-3, P3).
@@ -96,7 +97,8 @@ function SetupItem({ item, isNext }) {
           {item.label}
         </Typography>
         <Badge value={STATE_LABEL[item.state] || item.state} kind={STATE_KIND[item.state]} />
-        {isNext ? <Badge value="지금 할 차례" kind="info" emphasis="strong" /> : null}
+        {/* 목록 행 안에서 면 배지를 세우지 않는다(RULES §2) — 「지금 할 차례」는 점 + 낱말을 600 으로 세운다. */}
+        {isNext ? <DotLabel label="지금 할 차례" tone="info" strong sx={{ fontSize: FONT_SIZE.bodySm }} /> : null}
       </Box>
       <Typography variant="body2" color="text.secondary" sx={KO_WORD_BREAK}>{item.detail}</Typography>
       {blocked ? (

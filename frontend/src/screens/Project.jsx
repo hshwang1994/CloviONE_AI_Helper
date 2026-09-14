@@ -9,6 +9,7 @@ import Typography from "@mui/material/Typography";
 import {
   Badge, Button, Callout, Card, EmptyState, ErrorState, FormModal, PageHeader,
   Skeleton, useConfirm, useToast,
+  FlatBadgeSurface,
 } from "../ui/kit.jsx";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
 import { EntityCombobox } from "../ui/filters.jsx";
@@ -164,6 +165,8 @@ function MilestoneTimeline({ projectId, query, canWrite }) {
           {addButton}
         </Stack>
         {deleteFailure ? <Callout tone="danger" compact sx={{ mb: 1.5 }}>{deleteFailure}</Callout> : null}
+        {/* 목록 행 안이라 배지가 면을 갖지 않는다(핸드오프 RULES §2 · ACCEPTANCE F7). */}
+        <FlatBadgeSurface>
         <Box component="ol" sx={{ m: 0, p: 0, display: "grid", gap: 0 }}>
           {items.map((m) => (
             <Box
@@ -205,6 +208,7 @@ function MilestoneTimeline({ projectId, query, canWrite }) {
             </Box>
           ))}
         </Box>
+        </FlatBadgeSurface>
       </Card>
       {form}
     </>

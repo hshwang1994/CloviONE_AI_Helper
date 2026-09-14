@@ -40,7 +40,7 @@ import { MascotTopButton } from "../ui/Mascot.jsx";
 import { useDocumentTitle, brand, setBrand } from "./documentTitle.js";
 import { useRouteAnnounce } from "./routeAnnounce.js";
 import { recordNavVisit } from "../lib/recentNav.js";
-import { Card, CrumbRootProvider, ErrorState, SessionExpiredOutlet, Skeleton } from "../ui/kit.jsx";
+import { Card, CountChip, CrumbRootProvider, ErrorState, SessionExpiredOutlet, Skeleton } from "../ui/kit.jsx";
 import { Banners } from "./Banners.jsx";
 import { useStatusNotices } from "./StatusNotices.jsx";
 import { NOTI_UNREAD, invalidateNotifications, notiUnreadKey } from "./notification-keys.js";
@@ -194,28 +194,14 @@ function useClearBadgeOnEntry(pathname, ready) {
   }, [pathname, ready, qc]);
 }
 
-/** 배지 숫자. 99를 넘으면 폭이 튀어 항목 이름이 밀리므로 99+로 자른다. */
+/** 안 읽음 숫자. 99를 넘으면 폭이 튀어 항목 이름이 밀리므로 99+로 자른다.
+ *
+ * 건수 미니 칩의 안 읽음 갈래다(핸드오프 RULES §2 — 안 읽음만 Primary 채움, 높이 20 한 값).
+ * 예전에는 붉은 면의 손 알약이었다 — 같은 뜻의 칩이 화면마다 다른 얼굴이던 아홉 중 하나다.
+ * 글자색은 부품이 `primary.contrastText` 로 두 모드 모두 대비를 지킨다. */
 function NavBadge({ count }) {
   if (!count) return null;
-  return (
-    <Box
-      component="span"
-      aria-label={`안 읽음 ${count}건`}
-      sx={{
-        ml: 1, px: 0.75, minWidth: "1.25rem", height: "1.25rem",
-        display: "inline-flex", alignItems: "center", justifyContent: "center",
-        borderRadius: "0.625rem", flexShrink: 0,
-        fontSize: FONT_SIZE.caption, fontWeight: FONT_WEIGHT.extrabold, lineHeight: 1,
-        // PA-RC-0021: 흰 글자를 고정해 뒀었다 — 다크 모드의 error.main(#FF8B9B, 밝은 분홍)
-        // 위에서 2.23:1(기준 4.5)로 실측 실패했다. error.contrastText는 MUI가 각 모드의
-        // error.main 명도로 자동 계산한 값이라(명시적 override 없음, theme.js:256) 라이트에서는
-        // 여전히 흰 글자, 다크에서는 검은 글자로 갈라져 두 모드 다 통과한다.
-        bgcolor: "error.main", color: "error.contrastText",
-      }}
-    >
-      {count > 99 ? "99+" : count}
-    </Box>
-  );
+  return <CountChip unread value={count > 99 ? "99+" : count} ariaLabel={`안 읽음 ${count}건`} sx={{ ml: 1 }} />;
 }
 
 /* 사이드바 한 줄의 **공통 해부구조** (PLAN «Icon System» 라벨 시작선 계약).

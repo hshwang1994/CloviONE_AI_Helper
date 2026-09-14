@@ -1,11 +1,10 @@
 import React, { useState } from "react";
 import Box from "@mui/material/Box";
-import Chip from "@mui/material/Chip";
 import IconButton from "@mui/material/IconButton";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
-import { Button, Callout } from "../../ui/kit.jsx";
+import { Button, Callout, Tag } from "../../ui/kit.jsx";
 import { FONT_SIZE, FONT_WEIGHT } from "../../ui/theme.js";
 import { fmtDuration } from "./settingsRegistry.js";
 
@@ -75,7 +74,7 @@ export function StructuredObjectFields({ settingKey, val, onChange, canWrite, de
             // 첨부 제거 버튼과 같은 이유로 이미 이 저장소에 적힌 함정) — 칩 옆에 독립적으로
             // 포커스되는 IconButton을 따로 둔다.
             <Box key={d} sx={{ display: "inline-flex", alignItems: "center", gap: 0.25 }}>
-              <Chip label={d} size="small" variant="outlined" />
+              <Tag label={d} />
               {canWrite ? (
                 <IconButton size="small" aria-label={d + " 제거"} onClick={() => removeDomain(d)}
                   sx={{ p: 0.25 }}>

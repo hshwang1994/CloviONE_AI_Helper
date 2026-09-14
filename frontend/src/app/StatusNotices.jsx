@@ -1,14 +1,12 @@
 import React, { useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import Badge from "@mui/material/Badge";
 import Box from "@mui/material/Box";
-import Chip from "@mui/material/Chip";
 import Popover from "@mui/material/Popover";
 import Typography from "@mui/material/Typography";
 import ReportProblemRoundedIcon from "@mui/icons-material/ReportProblemRounded";
 import { api } from "../lib/api.js";
 import { fmtDateTime } from "../lib/format.js";
-import { Button as KitButton, Callout, EmptyState } from "../ui/kit.jsx";
+import { Button as KitButton, Callout, CountChip, EmptyState } from "../ui/kit.jsx";
 import { FONT_SIZE, FONT_WEIGHT } from "../ui/theme.js";
 import { safeExternal } from "../lib/safeUrl.js";
 
@@ -265,8 +263,11 @@ export function NoticeRow({ notice, onDismiss }) {
   );
 }
 
-/** 헤더 우측의 작은 상태 칩. 심각도별 개수만 보이고, 누르면 전체 목록 패널이 열린다. */
-export function StatusChip({ notices }) {
+/** 헤더 우측의 작은 상태 단추. 심각도별 개수만 보이고, 누르면 전체 목록 패널이 열린다.
+ *
+ * 이름이 `StatusChip` 이었다 — 목록을 상태로 좁히는 상태 칩(`ui/StatusKpi.jsx::StatusChip`)과 이름이 같아
+ * 둘이 같은 부품으로 읽혔다. 누르면 패널이 열리는 단추라 이름도 단추다. */
+export function StatusNoticeButton({ notices }) {
   const [open, setOpen] = useState(false);
   const anchorRef = useRef(null);
   const { visible, counts, dismiss, isLoading } = notices;
@@ -279,30 +280,24 @@ export function StatusChip({ notices }) {
     counts.warning ? `주의 ${counts.warning}` : null,
     counts.info ? `안내 ${counts.info}` : null,
   ].filter(Boolean).join(", ");
-  const chipColor = counts.critical ? "error" : counts.warning ? "warning" : "info";
+  const tone = counts.critical ? "error" : counts.warning ? "warning" : "info";
 
   return (
     <Box sx={{ display: "inline-flex" }}>
-      <Badge
-        badgeContent={total > 9 ? "9+" : total}
-        color={chipColor}
-        overlap="circular"
-        sx={{ "& .MuiBadge-badge": { pointerEvents: "none" } }}
+      {/* 누르는 것은 30 단추이고, 합계는 단추 안의 건수 미니 칩이 말한다(핸드오프 RULES §2 · §3). 심각도는
+          낱말(「장애 1」)이 말하고 아이콘 색이 거든다 — 색만으로 말하지 않는다. */}
+      <KitButton
+        ref={anchorRef}
+        size="sm"
+        startIcon={<ReportProblemRoundedIcon fontSize="small" color={tone} />}
+        onClick={() => setOpen((v) => !v)}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        aria-controls="status-notices-pop"
       >
-        <Chip
-          ref={anchorRef}
-          icon={<ReportProblemRoundedIcon fontSize="small" />}
-          label={label}
-          color={chipColor}
-          variant="outlined"
-          size="small"
-          onClick={() => setOpen((v) => !v)}
-          aria-haspopup="dialog"
-          aria-expanded={open}
-          aria-controls="status-notices-pop"
-          sx={{ color: "inherit", borderColor: "rgba(255,255,255,0.5)", fontWeight: FONT_WEIGHT.bold }}
-        />
-      </Badge>
+        {label}
+        <CountChip value={total > 9 ? "9+" : total} sx={{ ml: 0.75 }} />
+      </KitButton>
       <Popover
         open={open}
         anchorEl={anchorRef.current}

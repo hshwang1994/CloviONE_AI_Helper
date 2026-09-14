@@ -2,12 +2,12 @@ import React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import Box from "@mui/material/Box";
-import Chip from "@mui/material/Chip";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
 import {
   Button, Card, DataTable, EmptyState, ErrorState, Skeleton, useToast,
+  Tag,
 } from "../ui/kit.jsx";
 import { UserAvatar } from "../ui/UserAvatar.jsx";
 import { FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
@@ -86,7 +86,7 @@ export function ProjectDocuments({ projectId, projectName = "" }) {
           ) : null}
           {(doc.tags || []).length > 0 ? (
             <Stack direction="row" spacing={0.5} sx={{ flexWrap: "wrap", rowGap: 0.5, mt: 0.25 }}>
-              {(doc.tags || []).map((t) => <Chip key={t.id} size="small" label={t.name} />)}
+              {(doc.tags || []).map((t) => <Tag key={t.id} label={t.name} />)}
             </Stack>
           ) : null}
         </Box>

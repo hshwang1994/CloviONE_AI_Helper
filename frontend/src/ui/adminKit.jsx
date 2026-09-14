@@ -1,7 +1,7 @@
 import React from "react";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
-import { Badge, SectionTitle } from "./kit.jsx";
+import { Badge, FlatBadgeSurface, SectionTitle } from "./kit.jsx";
 import { SECTION_GAP } from "./density.js";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, MOTION } from "./theme.js";
 
@@ -66,6 +66,8 @@ const SETTING_STATE_KIND = {
 export function SettingRow({ label, value, description, tone, action, state, last, compact, children }) {
   const oneLine = { minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
   return (
+    /* 설정 줄도 목록 행이다 — 상태 배지는 면 없이 점 + 낱말로 선다(RULES §2). */
+    <FlatBadgeSurface>
     <Box
       /* 줄 하나가 한 항목이라는 사실을 시험이 붙잡을 자리. 라벨에서 부모를 몇 번 거슬러
          올라가는 식으로 찾으면 안쪽 배치를 조금만 바꿔도 시험이 깨진다. */
@@ -122,6 +124,7 @@ export function SettingRow({ label, value, description, tone, action, state, las
       </Box>
       {action ? <Box sx={{ flexShrink: 0 }}>{action}</Box> : null}
     </Box>
+    </FlatBadgeSurface>
   );
 }
 
@@ -178,14 +181,18 @@ export function StatusList({ children, ariaLabel }) {
        "목록 하나뿐이고 Action 없는 plate 는 divider group 이다". 이 목록은 이름과 배지만
        담고 자기 Action 도 생명주기도 없다. B8(Operations console)의 «Health line(한 줄,
        카드 없음)» 도 같은 말이다. 실선이 줄을 나누고, 묶음은 제목이 만든다. */
-    <Box
-      className="k-statuslist"
-      role="group"
-      aria-label={ariaLabel}
-      sx={{ "& > *:not(:first-of-type)": { borderTop: 1, borderColor: "divider" } }}
-    >
-      {children}
-    </Box>
+    /* 줄 목록이라 그 안의 배지는 면을 갖지 않는다(핸드오프 RULES §2 · F7) — 표(`DataTable`)가
+       그러듯 그릇이 선언한다. 예전에는 「멈춤」 같은 위험 배지만 줄 안에서 붉은 면으로 섰다. */
+    <FlatBadgeSurface>
+      <Box
+        className="k-statuslist"
+        role="group"
+        aria-label={ariaLabel}
+        sx={{ "& > *:not(:first-of-type)": { borderTop: 1, borderColor: "divider" } }}
+      >
+        {children}
+      </Box>
+    </FlatBadgeSurface>
   );
 }
 

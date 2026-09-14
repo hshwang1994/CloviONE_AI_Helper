@@ -1,7 +1,6 @@
 import React from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Box from "@mui/material/Box";
-import Chip from "@mui/material/Chip";
 import IconButton from "@mui/material/IconButton";
 import InputBase from "@mui/material/InputBase";
 import Paper from "@mui/material/Paper";
@@ -341,7 +340,13 @@ export function ChatPane({ roomId, compact = false, interval = 2000, idleMax = 0
             }
             const m = row.message;
             if (m.kind === "system") {
-              return <Chip key={m.seq} size="small" label={m.body} sx={{ alignSelf: "center", fontSize: FONT_SIZE.caption, height: "1.5rem", maxWidth: "100%" }} />;
+              /* 시스템 안내는 말이 아니라 대화 사이의 사실이다 — 면 칩이 아니라 가운데 흐린 낱말로 선다
+                 (날짜 구분선의 낱말과 같은 크기 · 색). 긴 안내는 줄을 바꾼다. */
+              return (
+                <Typography key={m.seq} sx={{ alignSelf: "center", maxWidth: "100%", textAlign: "center", fontSize: FONT_SIZE.caption, color: "text.secondary", ...KO_WORD_BREAK }}>
+                  {m.body}
+                </Typography>
+              );
             }
             const mine = m.sender_user_id === you.user_id;
             // 읽음 표시는 1:1에서 내가 마지막으로 보낸 말 한 줄에만(위 주석 참고).

@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import Box from "@mui/material/Box";
-import Chip from "@mui/material/Chip";
 import Stack from "@mui/material/Stack";
 import Tab from "@mui/material/Tab";
 import Tabs from "@mui/material/Tabs";
@@ -446,12 +445,15 @@ export function Trash() {
       {/* 「곧 사라진다」는 말만으로는 언제가 그 순간인지 알 수 없다. 누르면 임박한 순으로
           세워 준다 — 예전에는 같은 줄에 서 있으면서 혼자 누를 수 없는 칸이었다. */}
       {urgent > 0 ? (
-        <Chip
-          color="warning" variant="outlined" size="small" clickable
-          icon={<WarningAmberRoundedIcon fontSize="small" />}
-          label={`24시간 내 영구 삭제 ${urgent}`}
+        /* 누르는 것이라 30 단추다 — 칩 모양 조작기는 버튼 높이 집합 밖이다(핸드오프 RULES §3). 임박하다는
+           사실은 낱말이 말하고 경고 아이콘 색이 거든다. */
+        <Button
+          size="sm"
+          startIcon={<WarningAmberRoundedIcon fontSize="small" color="warning" />}
           onClick={() => setState({ sort: "purge_after", dir: "asc" })}
-        />
+        >
+          {`24시간 내 영구 삭제 ${urgent}`}
+        </Button>
       ) : null}
     </Box>
   );

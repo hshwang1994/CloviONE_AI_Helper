@@ -3,14 +3,13 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
 import Box from "@mui/material/Box";
 import Checkbox from "@mui/material/Checkbox";
-import Chip from "@mui/material/Chip";
 import Paper from "@mui/material/Paper";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { alpha } from "@mui/material/styles";
 import { api } from "../lib/api.js";
-import { Button, Card, FieldLabel, ListEmptyState, PageHeader, Skeleton, ErrorState, EmptyState, Modal, useConfirm, useToast } from "../ui/kit.jsx";
-import { FONT_SIZE, FONT_WEIGHT, RADIUS } from "../ui/theme.js";
+import { Button, Card, FieldLabel, ListEmptyState, PageHeader, Skeleton, ErrorState, EmptyState, Modal, useConfirm, useToast, CountChip, DotLabel } from "../ui/kit.jsx";
+import { FONT_SIZE, FONT_WEIGHT } from "../ui/theme.js";
 import { fmtRelative } from "../lib/format.js";
 import { personLabel } from "../lib/people.js";
 import { PeopleFilter, filterPeople } from "./chat/peoplePicker.jsx";
@@ -51,7 +50,8 @@ function RoomRow({ room, onOpen, active }) {
           <Typography sx={{ fontWeight: FONT_WEIGHT.bold, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: FONT_SIZE.body }}>
             {room.title}
           </Typography>
-          <Chip size="small" label={tag} sx={{ flexShrink: 0, height: "1.375rem", fontSize: FONT_SIZE.caption }} />
+          {/* 목록 행 안의 방 종류는 점 + 낱말이다(핸드오프 RULES §2) — 면 칩이 행마다 서면 제목보다 먼저 읽힌다. */}
+          <DotLabel label={tag} sx={{ flexShrink: 0, fontSize: FONT_SIZE.caption, color: "text.secondary" }} />
         </Box>
         <Typography sx={{ color: "text.secondary", fontSize: FONT_SIZE.bodySm, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {room.last_preview || "새 채팅방"}
@@ -60,16 +60,7 @@ function RoomRow({ room, onOpen, active }) {
       <Box sx={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 0.5, flexShrink: 0 }}>
         {room.last_at ? <Typography sx={{ color: "text.secondary", fontSize: FONT_SIZE.caption }}>{fmtRelative(room.last_at)}</Typography> : null}
         {room.unread > 0 ? (
-          <Box
-            component="span"
-            sx={{
-              minWidth: "1.375rem", textAlign: "center", px: 0.75, py: "0.0625rem", borderRadius: RADIUS.full,
-              bgcolor: "primary.main", color: "primary.contrastText",
-              fontSize: FONT_SIZE.caption, fontWeight: FONT_WEIGHT.bold, fontVariantNumeric: "tabular-nums",
-            }}
-          >
-            {room.unread > 99 ? "99+" : room.unread}
-          </Box>
+          <CountChip unread value={room.unread > 99 ? "99+" : room.unread} ariaLabel={`안 읽음 ${room.unread}`} />
         ) : null}
       </Box>
     </Box>
@@ -305,8 +296,7 @@ export function ChatRooms() {
       }}>
         <Typography component="h2" sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: FONT_SIZE.sectionTitle }}>대화</Typography>
         {unreadTotal > 0 ? (
-          <Chip size="small" color="primary" label={unreadTotal > 99 ? "99+" : unreadTotal}
-            sx={{ height: "1.375rem", fontSize: FONT_SIZE.caption, fontWeight: FONT_WEIGHT.bold }} />
+          <CountChip unread value={unreadTotal > 99 ? "99+" : unreadTotal} ariaLabel={`안 읽음 ${unreadTotal}`} />
         ) : null}
         <Box sx={{ flex: 1 }} />
         <Button size="small" onClick={() => setDirectOpen(true)}>1:1</Button>

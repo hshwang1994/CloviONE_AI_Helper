@@ -24,7 +24,7 @@ vi.mock("../lib/api.js", () => ({
   setCsrf: () => {},
 }));
 
-import { StatusChip, CriticalStatusLine, useStatusNotices } from "./StatusNotices.jsx";
+import { StatusNoticeButton, CriticalStatusLine, useStatusNotices } from "./StatusNotices.jsx";
 
 const QUIET = {
   "/api/system/status": { notices: [], poll_seconds: 120 },
@@ -48,7 +48,7 @@ function Harness() {
   const notices = useStatusNotices();
   return (
     <>
-      <StatusChip notices={notices} />
+      <StatusNoticeButton notices={notices} />
       <CriticalStatusLine notices={notices} />
     </>
   );
@@ -69,7 +69,7 @@ beforeEach(() => {
   window.localStorage.clear();
 });
 
-describe("StatusChip / CriticalStatusLine", () => {
+describe("StatusNoticeButton / CriticalStatusLine", () => {
   it("활성 항목이 없으면 칩이 안 그려진다", async () => {
     const { container } = renderHarness();
     await waitFor(() => expect(apiMock).toHaveBeenCalled());

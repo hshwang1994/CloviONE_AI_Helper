@@ -3,7 +3,7 @@ import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { alpha } from "@mui/material/styles";
-import { Badge } from "../../ui/kit.jsx";
+import { Badge, FlatBadgeSurface } from "../../ui/kit.jsx";
 import { FONT_SIZE, FONT_WEIGHT } from "../../ui/theme.js";
 import { ROLE_LABELS } from "./constants.js";
 
@@ -13,6 +13,8 @@ export function MembersList({ members, room, you, submissionActive, submittedSet
   return (
     <Paper variant="outlined" sx={{ p: 1.5, flexShrink: 0 }}>
       <Typography variant="body2" sx={{ fontWeight: FONT_WEIGHT.bold, mb: 1 }}>참여자 {members.length}명</Typography>
+      {/* 목록 행 안이라 배지가 면을 갖지 않는다(핸드오프 RULES §2 · ACCEPTANCE F7). */}
+      <FlatBadgeSurface>
       <Box component="ul" sx={{ listStyle: "none", m: 0, p: 0, display: "grid", gap: 0.5, maxHeight: "13rem", overflowY: "auto" }}>
         {members.map((m) => {
           // 부서를 직책보다 먼저 그린다 — lib/people.js::affiliation / lib/format.js::affiliationOf /
@@ -67,6 +69,7 @@ export function MembersList({ members, room, you, submissionActive, submittedSet
           );
         })}
       </Box>
+      </FlatBadgeSurface>
     </Paper>
   );
 }

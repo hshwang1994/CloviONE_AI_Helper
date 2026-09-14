@@ -1,6 +1,5 @@
 import React from "react";
 import Box from "@mui/material/Box";
-import Chip from "@mui/material/Chip";
 import Drawer from "@mui/material/Drawer";
 import IconButton from "@mui/material/IconButton";
 import Paper from "@mui/material/Paper";
@@ -226,12 +225,9 @@ export function AssistantDrawer({ open, onClose }) {
             자리를 비켜 준다(칩이 계속 남아 있으면 대화가 아니라 메뉴처럼 보인다). */}
         {!hasThread ? (
           <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, justifyContent: "center", mt: 1 }}>
+            {/* 제안은 누르는 것이라 단추다(30) — AI 도우미 첫 화면의 시작 예시와 같은 얼굴이다(RULES §3). */}
             {SUGGESTIONS.map((s) => (
-              <Chip
-                key={s} label={s} size="small" variant="outlined" clickable
-                onClick={() => chat.prefillFromPrompt(s)}
-                sx={{ fontSize: FONT_SIZE.caption }}
-              />
+              <Button key={s} size="sm" onClick={() => chat.prefillFromPrompt(s)}>{s}</Button>
             ))}
           </Box>
         ) : null}

@@ -1,11 +1,10 @@
 import React from "react";
 import Box from "@mui/material/Box";
-import Chip from "@mui/material/Chip";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import StarRoundedIcon from "@mui/icons-material/StarRounded";
 import StarOutlineRoundedIcon from "@mui/icons-material/StarOutlineRounded";
-import { OverflowMenu } from "../../ui/kit.jsx";
+import { OverflowMenu, Tag } from "../../ui/kit.jsx";
 import { UserAvatar } from "../../ui/UserAvatar.jsx";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../../ui/theme.js";
 import { fmtDateTimeCompact, objectParticle } from "../../lib/format.js";
@@ -60,7 +59,7 @@ export function buildDocumentColumns({ onToggleFavorite, onOpen, onArchive, conf
           {/* 제목 칸의 칩은 태그만이다(§11.3) — 분류는 프로젝트 열의 보조 글자다. */}
           {(doc.tags || []).length > 0 ? (
             <Stack direction="row" spacing={0.5} sx={{ flexWrap: "wrap", rowGap: 0.5, mt: 0.25 }}>
-              {(doc.tags || []).map((t) => <Chip key={t.id} size="small" label={t.name} />)}
+              {(doc.tags || []).map((t) => <Tag key={t.id} label={t.name} />)}
             </Stack>
           ) : null}
         </Box>

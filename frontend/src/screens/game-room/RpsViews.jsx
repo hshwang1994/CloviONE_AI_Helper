@@ -3,7 +3,7 @@ import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { alpha } from "@mui/material/styles";
-import { Badge } from "../../ui/kit.jsx";
+import { Badge, FlatBadgeSurface } from "../../ui/kit.jsx";
 import { FONT_SIZE, FONT_WEIGHT } from "../../ui/theme.js";
 import { RPS_LABELS, RPS_EMOJI, bracketListSx, rise } from "./constants.js";
 import { ResultStage, StageHint, WinnerName } from "./StageShared.jsx";
@@ -53,6 +53,8 @@ export function RpsTournamentLive({ gstate, onPick, pending, canPlay }) {
   return (
     <Box sx={{ display: "grid", gap: 1.5, justifyItems: "center", width: "100%" }}>
       <Typography variant="body2" color="text.secondary">라운드 {(gstate.round_idx || 0) + 1}</Typography>
+      {/* 목록 행 안이라 배지가 면을 갖지 않는다(핸드오프 RULES §2 · ACCEPTANCE F7). */}
+      <FlatBadgeSurface>
       <Box component="ul" sx={bracketListSx}>
         {(gstate.matches || []).map((m, i) => (
           <Paper component="li" key={i} variant="outlined" sx={{
@@ -80,6 +82,7 @@ export function RpsTournamentLive({ gstate, onPick, pending, canPlay }) {
           </Paper>
         ))}
       </Box>
+      </FlatBadgeSurface>
       {ym ? (
         <Box sx={{ display: "grid", gap: 1, justifyItems: "center", width: "100%", pt: 1, borderTop: 1, borderStyle: "dashed", borderColor: "divider" }}>
           <Typography sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: FONT_SIZE.sectionTitle }}>내 상대: {ym.opponent}</Typography>

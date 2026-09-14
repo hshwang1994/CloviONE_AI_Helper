@@ -2,10 +2,9 @@ import React from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import Box from "@mui/material/Box";
-import Chip from "@mui/material/Chip";
 import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
-import { Button, ErrorState, Skeleton, useToast, useConfirm } from "../ui/kit.jsx";
+import { Button, ErrorState, Skeleton, useToast, useConfirm, Badge } from "../ui/kit.jsx";
 import { FONT_SIZE, FONT_WEIGHT } from "../ui/theme.js";
 import { ChatPane } from "./ChatPane.jsx";
 import { ManageRoomModal, MemberStrip } from "./ChatRoomMembers.jsx";
@@ -92,7 +91,8 @@ export function RoomDetailPanel({ id }) {
     : room.is_global ? "전체" : room.department_id ? "내 팀" : room.kind === "direct" ? "1:1" : (room.member_count ? "그룹 " + room.member_count : "그룹");
   const actions = (
     <>
-      {tag ? <Chip size="small" label={tag} sx={{ height: "1.5rem", fontSize: FONT_SIZE.caption, alignSelf: "center" }} /> : null}
+      {/* 방 머리는 목록 밖이다 — 정해진 축의 값(방 종류)은 면 있는 배지로 선다(핸드오프 RULES §2 · F4). */}
+      {tag ? <Box component="span" sx={{ alignSelf: "center", display: "inline-flex" }}><Badge value={tag} emphasis="strong" /></Box> : null}
       {/* 관리(이름 변경·초대·내보내기·방장 넘기기)는 서버가 준 한 플래그로만 판단한다.
           네 동작의 조건이 모두 같으므로 버튼도 하나다 — 여기서 규칙을 다시 쓰면 어긋난다. */}
       {you.can_manage ? <Button onClick={() => setManageOpen(true)}>관리</Button> : null}

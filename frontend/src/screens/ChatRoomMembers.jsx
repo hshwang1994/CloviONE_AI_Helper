@@ -3,12 +3,11 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Box from "@mui/material/Box";
 import Checkbox from "@mui/material/Checkbox";
 import TextField from "@mui/material/TextField";
-import Chip from "@mui/material/Chip";
 import Typography from "@mui/material/Typography";
 import { alpha } from "@mui/material/styles";
 import { api } from "../lib/api.js";
 import { failureText } from "../lib/failure.js";
-import { Button, Callout, EmptyState, ErrorState, FieldLabel, Modal, Skeleton, useConfirm, useToast } from "../ui/kit.jsx";
+import { Badge, Button, Callout, EmptyState, ErrorState, FieldLabel, Modal, Skeleton, useConfirm, useToast } from "../ui/kit.jsx";
 import { PeopleFilter, filterPeople } from "./chat/peoplePicker.jsx";
 import { FONT_SIZE, FONT_WEIGHT } from "../ui/theme.js";
 import { affiliation, hasDuplicateNames, personLabel } from "../lib/people.js";
@@ -84,7 +83,7 @@ function MemberRow({ member, meId, actions, person }) {
         ) : null}
       </Box>
       {member.role === "owner" ? (
-        <Chip size="small" label="방장" sx={{ flexShrink: 0, height: "1.25rem", fontSize: FONT_SIZE.caption }} />
+        <Badge value="방장" kind="info" />
       ) : null}
       <Typography sx={{ flexShrink: 0, ml: "auto", fontSize: FONT_SIZE.caption, color: "text.secondary" }}>
         {member.online ? "이 대화 보는 중" : "자리 비움"}

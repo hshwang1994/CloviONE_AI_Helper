@@ -2,7 +2,6 @@ import React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import Box from "@mui/material/Box";
-import Chip from "@mui/material/Chip";
 import Link from "@mui/material/Link";
 import MenuItem from "@mui/material/MenuItem";
 import Stack from "@mui/material/Stack";
@@ -27,6 +26,8 @@ import {
   Skeleton,
   useConfirm,
   useToast,
+  FlatBadgeSurface,
+  Tag,
 } from "../ui/kit.jsx";
 import { DetailLayout } from "../ui/DetailLayout.jsx";
 import { GRID_GAP } from "../ui/density.js";
@@ -130,6 +131,8 @@ function VersionDiff({ documentId, base, target }) {
   }
 
   return (
+    /* 목록 행 안이라 배지가 면을 갖지 않는다(핸드오프 RULES §2 · ACCEPTANCE F7). */
+    <FlatBadgeSurface>
     <Stack spacing={1} component="ul" sx={{ listStyle: "none", p: 0, m: 0 }}>
       {changes.map((change) => (
         <Box
@@ -157,6 +160,7 @@ function VersionDiff({ documentId, base, target }) {
         </Box>
       ))}
     </Stack>
+    </FlatBadgeSurface>
   );
 }
 
@@ -451,7 +455,7 @@ function Relations({ documentId, relations, backlinks, tickets, onChanged, readO
             <Link href={`#/knowledge/${rel.document_id}`} sx={{ ...KO_WORD_BREAK, flex: 1, minWidth: 0 }}>
               {rel.title || rel.document_id}
             </Link>
-            <Chip size="small" variant="outlined" label={rel.label || rel.kind} />
+            <Tag label={rel.label || rel.kind} />
             <Button
               size="small"
               variant="ghost"

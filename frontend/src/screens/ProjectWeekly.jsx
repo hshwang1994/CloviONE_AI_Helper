@@ -7,7 +7,7 @@ import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
 import { failureText } from "../lib/failure.js";
 import { useAuth } from "../app/auth.jsx";
-import { Badge, Button, Callout, Card, EmptyState, ErrorState, Skeleton, useToast } from "../ui/kit.jsx";
+import { Badge, Button, Callout, Card, EmptyState, ErrorState, FlatBadgeSurface, Skeleton, useToast } from "../ui/kit.jsx";
 import { BodyPreview } from "../ui/BodyEditor.jsx";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
 import { MILESTONE_STATUS_KO, PROJECT_WRITE_ROLES } from "./project-format.js";
@@ -63,6 +63,7 @@ function Bucket({ title, bucket, onOpen }) {
       {items.length === 0 ? (
         <EmptyState layout="inline" title="없습니다." />
       ) : (
+        <FlatBadgeSurface>
         <Box component="ul" sx={{ m: 0, mt: 1, p: 0, display: "grid", gap: 0.75 }}>
           {items.map((it) => (
             <Box component="li" key={it.id} sx={{ listStyle: "none", display: "flex", gap: 1, alignItems: "baseline", flexWrap: "wrap" }}>
@@ -85,6 +86,7 @@ function Bucket({ title, bucket, onOpen }) {
             </Typography>
           ) : null}
         </Box>
+        </FlatBadgeSurface>
       )}
     </Box>
   );

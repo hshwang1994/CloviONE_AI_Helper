@@ -1,11 +1,10 @@
 import React, { useState } from "react";
 import Box from "@mui/material/Box";
-import Chip from "@mui/material/Chip";
 import Link from "@mui/material/Link";
 import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
-import { Badge, Button } from "../../ui/kit.jsx";
+import { Badge, Button, DotLabel, FlatBadgeSurface } from "../../ui/kit.jsx";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../../ui/theme.js";
 import {
   fmtDue, peopleText, priorityKind, priorityKo, projectToneColor,
@@ -70,6 +69,10 @@ export function TicketCard({ t, index, onChoose, isTicket = true, sending }) {
         "&:hover": { boxShadow: 1 },
       }}
     >
+      {/* 카드 안의 값(상태 · 우선순위 · 프로젝트)은 칸반 카드(`TicketFace`)와 같은 어휘다 — 면 배지가 아니라
+          점 + 낱말이다(핸드오프 RULES §2 · D-21). 이 카드는 담당(정/부) · 진행 중 건수 · 여러 프로젝트처럼
+          칸반 카드에 없는 줄을 나르므로 부품을 통째로 바꾸지 않고 얼굴의 어휘만 맞춘다. */}
+      <FlatBadgeSurface>
       <Typography sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: FONT_SIZE.body, lineHeight: 1.4, ...KO_WORD_BREAK }}>
         {prefix}{title}
       </Typography>
@@ -83,29 +86,17 @@ export function TicketCard({ t, index, onChoose, isTicket = true, sending }) {
       {projects.length ? (
         <CardRow label="프로젝트">
           <Box sx={{ display: "inline-flex", flexWrap: "wrap", gap: 0.5 }}>
-            {/* 색 점은 label 안에 직접 넣는다 — Chip의 icon 슬롯은 MUI가 자기 마진·색을 덮어써
-                프로젝트 색(projectToneColor)이 조용히 사라진다. */}
+            {/* 프로젝트는 그 프로젝트 색의 점 + 이름이다 — 같은 프로젝트가 어디서나 같은 색 점을 갖는다
+                (`ui/projectTone.js`). */}
             {(showAllProjects ? projects : projects.slice(0, 3)).map((p, i) => (
-              <Chip
-                key={i} size="small" variant="outlined"
-                label={
-                  <Box component="span" sx={{ display: "inline-flex", alignItems: "center", gap: 0.625 }}>
-                    <Box component="span" aria-hidden="true" sx={{ width: "0.4375rem", height: "0.4375rem", borderRadius: "50%", bgcolor: projectToneColor(p), flexShrink: 0 }} />
-                    {String(p)}
-                  </Box>
-                }
-                sx={{ height: "1.375rem", fontSize: FONT_SIZE.caption, maxWidth: "100%" }}
-              />
+              <DotLabel key={i} label={String(p)} tone={projectToneColor(p)} sx={{ fontSize: FONT_SIZE.caption }} />
             ))}
             {/* 예전엔 4개 이상이면 나머지가 아무 표시 없이 조용히 잘렸다 — choices의 '+N개 더 보기'와
                 같은 패턴으로, 숨겨진 개수를 알리고 눌러서 펼칠 수 있게 한다. */}
             {!showAllProjects && projects.length > 3 ? (
-              <Chip
-                size="small" variant="outlined" clickable color="primary"
-                label={"+" + (projects.length - 3)}
-                onClick={() => setShowAllProjects(true)}
-                sx={{ height: "1.375rem", fontSize: FONT_SIZE.caption, fontWeight: FONT_WEIGHT.bold }}
-              />
+              <Button size="sm" variant="ghost" onClick={() => setShowAllProjects(true)}>
+                {"+" + (projects.length - 3)}
+              </Button>
             ) : null}
           </Box>
         </CardRow>
@@ -120,6 +111,7 @@ export function TicketCard({ t, index, onChoose, isTicket = true, sending }) {
           ) : null}
         </Stack>
       ) : null}
+      </FlatBadgeSurface>
     </Paper>
   );
 }

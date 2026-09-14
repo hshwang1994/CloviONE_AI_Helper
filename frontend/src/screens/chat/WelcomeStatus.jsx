@@ -1,10 +1,9 @@
 import React from "react";
 import Box from "@mui/material/Box";
-import Chip from "@mui/material/Chip";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { MascotPose } from "../../ui/Mascot.jsx";
-import { EmptyState } from "../../ui/kit.jsx";
+import { Button, EmptyState } from "../../ui/kit.jsx";
 import { FONT_SIZE } from "../../ui/theme.js";
 import { MASCOT_PHASE_TEXT, QUICK_PROMPTS } from "../chat-helpers.js";
 
@@ -13,11 +12,9 @@ export function QuickPrompts({ onPick, busy }) {
   return (
     <Stack direction="row" flexWrap="wrap" gap={1} justifyContent="center" role="group" aria-label="시작 예시" sx={{ mt: 2 }}>
       {QUICK_PROMPTS.map((p, i) => (
-        <Chip key={i} clickable disabled={busy} label={p} onClick={() => onPick(p)} variant="outlined"
-          // QAH-07 — 이 칩은 Chat.jsx의 background.default 위에 뜬다(Card의 background.paper가
-          // 아니다) — light 모드도 accent 4개 중 2개가 미달(4.37/4.38), dark는 전량 미달(최저
-          // 3.07) 실측. borderColor는 텍스트가 아니라 손대지 않고 color만 primary.dark로 교체.
-          sx={{ fontSize: FONT_SIZE.bodySm, height: "2rem", "&:hover": { borderColor: "primary.main", color: "primary.dark" } }} />
+        /* 누르는 시작 예시는 단추다(30) — 예전의 32 칩은 버튼 높이 집합 밖이었고(핸드오프 C1), hover 에서만
+           강조색 글자로 바뀌어 대비를 따로 맞춰야 했다(QAH-07). 단추의 글자·테두리 대비는 부품이 지킨다. */
+        <Button key={i} size="sm" disabled={busy} onClick={() => onPick(p)}>{p}</Button>
       ))}
     </Stack>
   );

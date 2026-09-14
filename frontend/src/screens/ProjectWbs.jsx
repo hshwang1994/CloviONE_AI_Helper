@@ -4,7 +4,7 @@ import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import ChevronRightRoundedIcon from "@mui/icons-material/ChevronRightRounded";
 import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded";
-import { Badge, Card, EmptyState } from "../ui/kit.jsx";
+import { Badge, Card, EmptyState, FlatBadgeSurface } from "../ui/kit.jsx";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, NUMERIC } from "../ui/theme.js";
 import { ProgressBasis } from "./ProjectMetrics.jsx";
 import { WBS_UNPLACED_KO, percentText } from "./project-format.js";
@@ -50,6 +50,8 @@ function WbsRow({ node, collapsed, onToggle }) {
   const hasKids = (node.children || []).length > 0;
   const open = hasKids && !collapsed.has(node.key);
   return (
+    /* 나무 줄도 목록 행이다 — 상태 배지는 면 없이 선다(RULES §2). */
+    <FlatBadgeSurface>
     <Box component="li" sx={{ listStyle: "none" }}>
       <Box
         sx={{
@@ -113,6 +115,7 @@ function WbsRow({ node, collapsed, onToggle }) {
         </Box>
       ) : null}
     </Box>
+    </FlatBadgeSurface>
   );
 }
 

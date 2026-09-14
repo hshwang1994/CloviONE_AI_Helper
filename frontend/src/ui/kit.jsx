@@ -272,13 +272,15 @@ export function Badge({ value, kind, emphasis }) {
  * 톤이 있는 태그(문서 종류)도 **면은 흰색 하나**다. 색은 글자만 받는다 — 면을 톤마다 주면
  * 그 순간 태그가 다시 배지가 되고, DS-09 가 고친 「분류에 의미색을 매기지 않는다」도 함께
  * 흔들린다. */
-export function Tag({ label, tone }) {
+export function Tag({ label, tone, title }) {
   const extra = EXTRA_TONE_VARS[tone];
   return (
     <Box
       component="span"
       className="k-tag"
       data-tone={tone || "neutral"}
+      /* 한 줄에서 말줄임되는 부품이라 전체 낱말을 `title` 로 든다(계획 §0-3). */
+      title={title !== undefined ? (title || undefined) : (typeof label === "string" ? label : undefined)}
       sx={{
         display: "inline-flex", alignItems: "center", maxWidth: "100%", minWidth: 0,
         height: remPx(CONTROL.pill), px: 1, py: 0, borderRadius: `${RADIUS.sm}px`,

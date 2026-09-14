@@ -1,5 +1,4 @@
 import Box from "@mui/material/Box";
-import Chip from "@mui/material/Chip";
 import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
@@ -32,8 +31,10 @@ export function ChatPanel({ chatLogRef, chatMsgs, you, draft, setDraft, sendChat
         ) : chatMsgs.map((e) => {
           if (e.kind === "system") {
             return (
-              <Chip key={e.seq} size="small" label={e.payload.text}
-                sx={{ alignSelf: "center", fontSize: FONT_SIZE.caption, height: "1.5rem", maxWidth: "100%" }} />
+              /* 시스템 안내 줄 — 팀 채팅(`ChatPane`)과 같은 얼굴(가운데 흐린 낱말)이다. */
+              <Typography key={e.seq} sx={{ alignSelf: "center", maxWidth: "100%", textAlign: "center", fontSize: FONT_SIZE.caption, color: "text.secondary", ...KO_WORD_BREAK }}>
+                {e.payload.text}
+              </Typography>
             );
           }
           const mine = e.actor_user_id === you.user_id;

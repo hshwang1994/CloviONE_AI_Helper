@@ -179,6 +179,11 @@ B 단계가 전수 흡수를 끝낸 뒤 남는 자리만 적는다. 형식은 �
 
 | 파일 | 원재료 | 이유 | 대체 불가 근거 |
 |---|---|---|---|
+| `ui/FilterBar.jsx` | `Chip` | `FilterChips` 조건 칩의 알맹이 | 정본 부품 자신이다 |
+| `ui/TagPicker.jsx` | `Chip` | Autocomplete `renderTags` 선택 칩 | MUI Autocomplete 가 지우기 · 키보드 이동을 그 칩에 건다 |
+| `screens/AiWorkspace.jsx` | `Chip` | 인용 번호(1, 2 …) | 건수도 사람이 붙인 낱말도 아닌 순번 표지다(계획 표 2) |
+| `screens/Board.jsx` | `Chip` | 이모지 반응 토글(`aria-pressed` + 누른 수) | 누르면 켜고 끄는 반응이고 높이는 작은 단추(30)에 맞췄다(계획 표 2) |
+| `app/NotificationBell.jsx` | `Badge`(MUI) | 종 아이콘 위 네 상태(숫자 · 조용 · 오류 · 불러오는 중) | 아이콘에 겹쳐 서는 표지라 칩 줄에 놓이지 않는다(계획 §0-11) |
 
 ## 0-5. 카드 발 · 모달 발의 주인은 하나다
 
@@ -205,6 +210,29 @@ B 단계가 전수 흡수를 끝낸 뒤 남는 자리만 적는다. 형식은 �
 - 예외(토스트 유지): 보호 화면(`Profile` · `WorkBoard` · `Sprint` · `SprintLifecycle`)의 실패 토스트 — 계획 표 5가
   허용한 치환 목록 밖이다. 문서 목록(`Knowledge.jsx`)은 D, 새 티켓은 C, 채팅방(`ChatRoom` · `ChatRooms` ·
   `ChatPane` · `chat/links.jsx`)은 E 가 옮긴다.
+
+## 0-8. 값을 표시하는 어휘 — 배지 · 태그 · 점+낱말 · 건수 칩 (핸드오프 RULES §2 · ACCEPTANCE F4~F7)
+
+- **목록 그릇이 「여기는 목록이다」를 선언한다.** 표(`DataTable`)에 더해 `adminKit.jsx::StatusList` · `SettingRow` 가
+  `FlatBadgeSurface` 를 두른다(대시보드 · 진단 · 서비스 상태 판의 「멈춤」이 줄 안에서 붉은 면으로 섰다). 손으로 만든
+  목록은 그 목록이 두른다: 작업 보드 백로그 줄 · 프로젝트 WBS 나무 줄 · 주간 목록 · 마일스톤 목록 · 문서 변경 목록 ·
+  게임방 참여자 · 대진표 · AI 도우미 결과 카드.
+- **목록 밖(방 머리 · 카드 머리)의 정해진 축 값은 면 배지다** — 채팅방 머리의 방 종류는 `Badge emphasis="strong"`,
+  방 목록 행의 방 종류는 `DotLabel`. 목록 행 안의 강조(설치 마법사 「지금 할 차례」)는 `DotLabel strong` 이다.
+- **사람이 붙인 낱말은 `Tag`** — 문서 태그(문서 목록 · 프로젝트 문서) · 관계 이름 · 허용 이메일 도메인 · AI 도우미에서
+  보낸 첨부 이름. `Tag` 는 전체 낱말을 `title` 로 든다(§0-3 말줄임 계약).
+- **건수는 `CountChip`**: 사이드바 안 읽음(`AppShell` — 붉은 손 알약이던 것, 안 읽음 갈래라 Primary 채움) · 채팅방
+  목록 행과 머리의 안 읽음 · 검색 결과 묶음 · 정합성 발견 건수 · 스프린트 회의록 레인 · 헤더 상태 단추의 합계.
+- **누르는 제안은 30 단추다** — AI 도우미 첫 화면의 시작 예시 · 드로어 제안 · 스레드의 원탭 선택 · 휴지통 「24시간 내
+  영구 삭제 N」. 칩 모양의 24~32 조작기는 버튼 높이 집합(34 · 30) 밖이다(ACCEPTANCE C1). 핸드오프에 「제안 칩」
+  규격이 따로 없어 새 부품을 만들지 않고 kit `Button size="sm"` 으로 모았다.
+- **시스템 안내 줄은 가운데 흐린 낱말이다** — 팀 채팅 · 게임방 채팅의 시스템 메시지와 AI 도우미 날짜 구분선이 같은
+  글자(0.75rem · `text.secondary`)로 선다. 채팅방 시안의 날짜 구분선이 선 사이 낱말이라 면 칩을 두지 않는다.
+- AI 도우미 결과 카드(`chat/TicketCard.jsx`)는 담당(정/부) · 진행 중 건수 · 여러 프로젝트처럼 칸반 카드에 없는 줄을
+  나르므로 `TicketFace` 로 통째로 바꾸지 않고 **어휘만** 맞췄다: 상태 · 우선순위는 점 + 낱말, 프로젝트는 그 프로젝트
+  색의 점 + 이름, 「+N」은 30 ghost 단추.
+- `app/StatusNotices.jsx::StatusChip` → `StatusNoticeButton` 개명 — 상태를 좁히는 `ui/StatusKpi.jsx::StatusChip` 과
+  이름이 같았다. MUI 칩 위 MUI 배지 겹침을 30 단추 + 건수 칩으로 옮겼다.
 
 ---
 

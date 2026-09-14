@@ -2,7 +2,6 @@ import React from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import Box from "@mui/material/Box";
-import Chip from "@mui/material/Chip";
 import Fade from "@mui/material/Fade";
 import InputBase from "@mui/material/InputBase";
 import List from "@mui/material/List";
@@ -14,7 +13,7 @@ import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import OpenInNewRoundedIcon from "@mui/icons-material/OpenInNewRounded";
 import { api } from "../lib/api.js";
 import { failureText } from "../lib/failure.js";
-import { Button, Callout, Card, EmptyState, ErrorState, PageHeader, Skeleton, useConfirm, useToast } from "../ui/kit.jsx";
+import { Button, Callout, Card, CountChip, EmptyState, ErrorState, PageHeader, Skeleton, useConfirm, useToast } from "../ui/kit.jsx";
 import { FAB_CLEARANCE, FONT_SIZE, FONT_WEIGHT } from "../ui/theme.js";
 import { isSearchable, normalizeQuery, routeOf, searchApi } from "../lib/search.js";
 import { useAuth } from "../app/auth.jsx";
@@ -103,7 +102,7 @@ function ResultGroup({ group, onOpen }) {
         <Typography component="h2" sx={{ fontWeight: FONT_WEIGHT.extrabold, fontSize: FONT_SIZE.sectionTitle }}>
           {group.label}
         </Typography>
-        <Chip size="small" label={group.total} />
+        <CountChip value={group.total} />
       </Box>
       <List dense disablePadding>
         {group.items.map((item) => (

@@ -8,7 +8,7 @@ import { failureText } from "../lib/failure.js";
 import { CONSOLE_WRITE_ROLES } from "../lib/roles.js";
 import { useAuth } from "../app/auth.jsx";
 import {
-  Badge, Button, Callout, Card, DataTable, ErrorState, ListCard, PageHeader,
+  Button, Callout, Card, CountChip, DataTable, ErrorState, ListCard, PageHeader,
   MetricStrip, Section, SectionTitle, Skeleton, useToast,
 } from "../ui/kit.jsx";
 import { SettingRow } from "../ui/adminKit.jsx";
@@ -60,7 +60,7 @@ function Findings({ finding, onFix }) {
         component="h3"
         title={finding.title}
         help={finding.why}
-        action={<Badge value={`${finding.count}건`} kind="warn" />}
+        action={<CountChip value={`${finding.count}건`} />}
       />
       <Callout tone="info" variant="inline">{finding.remedy}</Callout>
       {finding.count > finding.items.length ? (
@@ -96,7 +96,7 @@ function ClearFindings({ findings }) {
           label={f.title}
           description={f.why}
           last={i === findings.length - 1}
-          action={<Badge value="0건" kind="ok" />}
+          action={<CountChip value="0건" />}
         />
       ))}
     </Box>

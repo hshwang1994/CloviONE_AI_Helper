@@ -23,6 +23,7 @@ import {
   PageHeader,
   Skeleton,
   useToast,
+  FlatBadgeSurface,
 } from "../ui/kit.jsx";
 import { FilterActions, FilterRow, FilterSurface } from "../ui/FilterBar.jsx";
 import { DragBoard, DragItem, DragItemActions, SortableList } from "../ui/DragDrop.jsx";
@@ -211,6 +212,8 @@ function BacklogHead() {
 
 function BacklogRow({ card, onOpen, signals, onAddToSprint, canAdd, onQuickEdit, onMoveToTop, onMoveToBottom }) {
   return (
+    /* 백로그는 표 모양의 목록이다 — 우선순위 「긴급」도 면 없이 점 + 낱말로 선다(RULES §2). */
+    <FlatBadgeSurface>
     <Card
       sx={{
         ...BACKLOG_GRID,
@@ -280,6 +283,7 @@ function BacklogRow({ card, onOpen, signals, onAddToSprint, canAdd, onQuickEdit,
         />
       </DragItemActions>
     </Card>
+    </FlatBadgeSurface>
   );
 }
 

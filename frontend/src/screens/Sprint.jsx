@@ -19,6 +19,7 @@ import {
   Skeleton,
   useConfirm,
   useToast,
+  CountChip,
 } from "../ui/kit.jsx";
 import { FilterRow, FilterSurface } from "../ui/FilterBar.jsx";
 import { EntityCombobox, FilterSelect, TeamSelect } from "../ui/filters.jsx";
@@ -965,7 +966,7 @@ export function Sprint() {
                   >
                     <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 0.5 }}>
                       <Typography variant="subtitle2" component="h4">{lane.title}</Typography>
-                      <Badge value={String(rows.length)} kind="neutral" />
+                      <CountChip value={rows.length} />
                     </Stack>
                     <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: "block" }}>
                       {lane.help}

@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from "react";
 import Box from "@mui/material/Box";
-import Chip from "@mui/material/Chip";
 import IconButton from "@mui/material/IconButton";
 import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
@@ -14,9 +13,9 @@ import ThumbDownOutlinedIcon from "@mui/icons-material/ThumbDownOutlined";
 import ThumbDownRoundedIcon from "@mui/icons-material/ThumbDownRounded";
 import ThumbUpOutlinedIcon from "@mui/icons-material/ThumbUpOutlined";
 import ThumbUpRoundedIcon from "@mui/icons-material/ThumbUpRounded";
-import { Button } from "../../ui/kit.jsx";
+import { Button, Tag } from "../../ui/kit.jsx";
 import { CHAT } from "../../ui/chat.js";
-import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../../ui/theme.js";
+import { FONT_SIZE, KO_WORD_BREAK } from "../../ui/theme.js";
 import {
   copyText, fmtDateSep, fmtTime, msgAgeMs, responseTimeLabel, structuredCards,
   stripDuplicatedTicketLines, ticketPageStart,
@@ -102,10 +101,10 @@ export function Message({
             <Stack direction="row" flexWrap="wrap" gap={0.75} sx={{ mt: 1 }}>
               {/* 서버는 이미지 바이트를 저장하지 않는다(app/chat/service.py) — 전송 후엔 파일명 칩만 남고
                   실제 이미지는 다시 볼 수 없다. */}
+              {/* 파일 이름은 태그다 — 긴 이름은 말줄임되고 전체는 `title` 이 든다. 저장 안 됨 안내는 바로 아래
+                  캡션이 늘 보이게 말한다. */}
               {attachments.map((name, i) => (
-                <Chip key={i} size="small" variant="outlined" title={attachCaveat}
-                  label={typeof name === "string" ? name : (name && name.filename) || "첨부"}
-                  sx={{ height: "1.5rem", fontSize: FONT_SIZE.caption, maxWidth: "15rem", color: "inherit", borderColor: "currentColor" }} />
+                <Tag key={i} label={typeof name === "string" ? name : (name && name.filename) || "첨부"} />
               ))}
             </Stack>
             {/* title 툴팁은 hover 전용이라 모바일/터치에선 아예 안 뜬다, 전송 전 미리보기와
@@ -150,9 +149,11 @@ export function Message({
       {showChoices ? (
         <Stack direction="row" flexWrap="wrap" gap={1}>
           {(showAllChoices ? choices : choices.slice(0, 6)).map((c, i) => c && c.send ? (
-            <Chip key={i} clickable color="primary" variant="outlined" disabled={sending}
-              label={c.label || c.send} onClick={() => onChoose(c.send)}
-              sx={{ fontSize: FONT_SIZE.bodySm, fontWeight: FONT_WEIGHT.bold, height: "2rem" }} />
+            /* 누르는 제안은 단추다(30) — 칩 모양의 32 조작기는 버튼 높이 집합 밖이다(핸드오프 RULES §3 · C1).
+               서버가 준 문장이 길 수 있어 좁은 말풍선에서만 말줄임한다(`truncate`, 전체는 `title`). */
+            <Button key={i} size="sm" truncate disabled={sending} onClick={() => onChoose(c.send)}>
+              {c.label || c.send}
+            </Button>
           ) : null)}
           {/* 7개 이상은 예전엔 조용히 잘려 나갔다 — '더 있다'는 사실만 알리고 실제로 꺼내 볼 방법은
               없었다. 이제 눌러서 나머지를 펼칠 수 있다. */}
@@ -293,7 +294,8 @@ export function DaySeparator({ at }) {
   return (
     <Box role="separator" aria-label={label} sx={{ display: "flex", alignItems: "center", gap: 1.5, alignSelf: "stretch", my: 0.5 }}>
       <Box sx={{ flex: 1, height: "1px", bgcolor: "divider" }} />
-      <Chip size="small" label={label} sx={{ fontSize: FONT_SIZE.caption, height: "1.5rem" }} />
+      {/* 팀 채팅(`ChatPane`)의 날짜 구분선과 같은 얼굴 — 선 사이의 낱말이다(채팅방 시안). */}
+      <Typography sx={{ fontSize: FONT_SIZE.caption, color: "text.secondary", whiteSpace: "nowrap" }}>{label}</Typography>
       <Box sx={{ flex: 1, height: "1px", bgcolor: "divider" }} />
     </Box>
   );
