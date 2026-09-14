@@ -44,11 +44,16 @@ ACTIVE = """() => {
   const ow = parseFloat(st.outlineWidth) || 0;
   const hasOutline = ow > 0 && st.outlineStyle !== "none";
   const hasShadow = st.boxShadow && st.boxShadow !== "none";
+  // 문서 좌표 — 포커스가 화면 밖 행으로 가면 페이지가 스크롤되어 **화면 좌표**의 y 가 줄어든다.
+  // 그 줄어듦을 「위로 거슬러 올라갔다」로 세면 표 행을 차례로 도는 것만으로 역순이 난다.
+  let docX = r.left + window.scrollX, docY = r.top + window.scrollY;
+  for (let p = el.parentElement; p; p = p.parentElement) { docX += p.scrollLeft; docY += p.scrollTop; }
   return {
     tag: el.tagName.toLowerCase(),
     role: el.getAttribute("role") || "",
     text: (el.innerText || el.value || el.getAttribute("aria-label") || "").trim().slice(0, 34),
     x: Math.round(r.left), y: Math.round(r.top),
+    dx: Math.round(docX), dy: Math.round(docY),
     w: Math.round(r.width), h: Math.round(r.height),
     visible, hasOutline, hasShadow,
     outline: hasOutline ? st.outlineColor + " " + st.outlineWidth : "",
@@ -96,11 +101,18 @@ def main() -> int:
             real = [s_ for s_ in stops if not s_.get("none")]
             no_marker = [s_ for s_ in real if not s_["hasOutline"] and not s_["hasShadow"]]
             offscreen = [s_ for s_ in real if not s_["visible"]]
-            # 시각 순서 위반: 다음 정지점이 이전보다 y 가 30px 이상 위로 올라가고 x 도 왼쪽이면
+            # 시각 순서 위반: 다음 정지점이 이전보다 y 가 30px 이상 위로 올라가고 x 도 왼쪽이면.
+            # 비교는 문서 좌표로 한다(스크롤로 생긴 화면 좌표 변화는 순서 위반이 아니다).
             backwards = 0
+            backwards_samples = []
             for a, c in zip(real, real[1:]):
-                if c["y"] < a["y"] - 30 and c["x"] <= a["x"]:
+                if c["dy"] < a["dy"] - 30 and c["dx"] <= a["dx"]:
                     backwards += 1
+                    # 어느 두 정지점 사이인지 남긴다 — 수만으로는 원인을 짚을 수 없다.
+                    backwards_samples.append({
+                        "from": f"{a['tag']}«{a['text'][:24]}» ({a['dx']},{a['dy']})",
+                        "to": f"{c['tag']}«{c['text'][:24]}» ({c['dx']},{c['dy']})",
+                    })
             # 본문에 닿기까지 몇 번 눌러야 하나 (main 안의 첫 요소)
             main_at = None
             for i, s_ in enumerate(real):
@@ -120,6 +132,7 @@ def main() -> int:
                 "offscreen_focus": len(offscreen), "backwards_jumps": backwards,
                 "tabs_to_main": main_at, "skip_links": skip,
                 "no_marker_samples": no_marker[:4], "offscreen_samples": offscreen[:4],
+                "backwards_samples": backwards_samples[:6],
                 "first8": [f"{x['tag']}«{x['text'][:16]}»" for x in real[:8]],
             }
             print(f"{rid:<18} 정지점={len(real):<3} 표시없음={len(no_marker):<3} "
