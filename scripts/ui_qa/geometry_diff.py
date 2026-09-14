@@ -162,10 +162,15 @@ MANIFEST_JS = r"""
   let filter = null;
   if (fs && shown(fs)) {
     const tops = new Set();
+    const raw = [];
     fs.querySelectorAll('[data-filter-kind],.MuiButton-root,.MuiFormControlLabel-root,[role=tablist]').forEach((c) => {
-      if (shown(c)) tops.add(Math.round(c.getBoundingClientRect().top / 8));
+      if (shown(c)) {
+        tops.add(Math.round(c.getBoundingClientRect().top / 8));
+        raw.push(Math.round(c.getBoundingClientRect().top));
+      }
     });
-    filter = { bottom: Math.round(fs.getBoundingClientRect().bottom + offY), rows: tops.size };
+    // `rows` 는 옛 매니페스트와 비교하려고 남긴 8px 칸 세기다. 새 판정은 `tops`(원시 px)를 모아 센다.
+    filter = { bottom: Math.round(fs.getBoundingClientRect().bottom + offY), rows: tops.size, tops: raw };
   }
   const board = root.querySelector('[data-equal-grid=kanban]');
   const head = root.querySelector('.k-page-head');
@@ -342,12 +347,37 @@ def compare(before: dict, after: dict, *, tol_x: int, tol_w: int, tol_h: int,
             violations.append(f"차트 크기 {key}: {c['w']}x{c['h']} → {d['w']}x{d['h']}")
 
     fb, fa = before.get("filter"), after.get("filter")
-    if fb and fa and fb.get("rows") != fa.get("rows"):
-        violations.append(f"필터 줄 수 {fb.get('rows')} → {fa.get('rows')}")
+    if fb and fa:
+        # 🔴 옛 판정은 top 을 8px 칸으로 나눠 셌다 — 같은 줄의 칸(34)과 가운데 선 글자 단추(30)가 3px 어긋나
+        # 칸 경계를 넘으면 한 줄이 둘로 세어졌다(B-4 게이트의 작업 보드 1200: 눈으로 세 줄인데 「4」).
+        # 두 매니페스트가 원시 top 을 가지면 가까운 top 을 한 줄로 모아 센다(`cluster_rows`).
+        if fb.get("tops") is not None and fa.get("tops") is not None:
+            rb, ra = cluster_rows(fb["tops"]), cluster_rows(fa["tops"])
+        else:
+            rb, ra = fb.get("rows"), fa.get("rows")
+        if rb != ra:
+            violations.append(f"필터 줄 수 {rb} → {ra}")
     extra = {}
     if before.get("boardTop") is not None or after.get("boardTop") is not None:
         extra["boardTop"] = [before.get("boardTop"), after.get("boardTop")]
     return {"violations": violations, "moves": moves, "notes": notes, **extra}
+
+
+ROW_GAP_PX = 12
+
+
+def cluster_rows(tops) -> int:
+    """필터 줄 수 — top 이 서로 `ROW_GAP_PX` 안이면 한 줄이다.
+
+    한 줄 안의 조작기는 top 이 같거나(위 정렬) 높이 차의 절반만큼 어긋난다(34 칸 옆 30 단추 → 2~3px).
+    다른 줄은 적어도 조작기 높이(30) + 줄 간격(12)만큼 떨어진다. 12 는 그 사이에 있다."""
+    rows = 0
+    last = None
+    for t in sorted(int(x) for x in tops):
+        if last is None or t - last > ROW_GAP_PX:
+            rows += 1
+            last = t
+    return rows
 
 
 def selftest() -> int:
@@ -377,6 +407,18 @@ def selftest() -> int:
         status = "OK " if got == expect_violation else "BAD"
         ok = ok and got == expect_violation
         print(f"  {status} {name} → 위반 {got}")
+    # 필터 줄 세기 — 같은 줄의 3px 어긋남은 한 줄, 실제로 다른 줄(46px)은 둘
+    row_cases = [
+        ("good: 칸과 가운데 선 단추(283 · 286)는 한 줄", [191, 191, 237, 283, 286], 3),
+        ("good: 칸 경계를 넘는 3px(279 · 282)도 한 줄", [191, 239, 279, 282], 3),
+        ("bad: 줄이 하나 늘면 센다", [191, 237, 283, 329], 4),
+        ("bad: 한 줄로 모이면 센다", [191, 191, 194], 1),
+    ]
+    for name, tops, want in row_cases:
+        got = cluster_rows(tops)
+        status = "OK " if got == want else "BAD"
+        ok = ok and got == want
+        print(f"  {status} {name} → {got} (기대 {want})")
     print("GEOMETRY_DIFF_SELFTEST_" + ("OK" if ok else "FAILED"))
     return 0 if ok else 1
 
