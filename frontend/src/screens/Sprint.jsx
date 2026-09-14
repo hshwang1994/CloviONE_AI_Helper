@@ -838,11 +838,15 @@ export function Sprint() {
             {/* 편성은 작업 보드의 일이다(D-484). 회의에서 「빼기」를 누르던 자리에 그 사실과
                 가는 길을 둔다. */}
             <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap sx={{ mt: 1 }}>
+              {/* 편성할 수 없는 사람에게 「담거나 빼는 일」을 말하지 않는다 — 그 사람이 판에서
+                  할 수 있는 일은 옮기고 순서를 바꾸는 것이다. 단추 이름도 그 일에 맞춘다. */}
               <Typography variant="caption" color="text.secondary">
-                티켓을 담거나 빼는 일은 작업 보드에서 합니다.
+                {canPlan
+                  ? "티켓을 담거나 빼는 일은 작업 보드에서 합니다."
+                  : "티켓을 옮기거나 순서를 바꾸는 일은 작업 보드에서 합니다."}
               </Typography>
               <Button variant="ghost" size="sm" onClick={() => openBoard()}>
-                작업 보드에서 회차 관리
+                {canPlan ? "작업 보드에서 회차 관리" : "작업 보드로 가기"}
               </Button>
             </Stack>
           </Section>

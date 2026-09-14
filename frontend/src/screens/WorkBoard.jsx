@@ -356,7 +356,7 @@ export function WorkBoard() {
   const showHold = state.hold;
   /* §8.1 — 완료·취소까지 보는 토글. 회차 안에서도 접을 수 있고, **회차 안의 기본값은
      접힘**이다. 회의에서 보는 것은 남은 일이다. */
-  const showAll = state.all;
+  const showAllChosen = state.all;
   const query = state.q;
   const priority = state.priority;
   const difficulty = state.difficulty;
@@ -383,6 +383,10 @@ export function WorkBoard() {
     () => (sprints.data && sprints.data.sprints) || [],
     [sprints.data],
   );
+  /* 닫힌 회차의 판은 **기록**이다(D-484) — 「남은 일만」 보는 실행 시야는 끝난 회차에서 뜻이
+     없어(전부 끝난 회차는 빈 판이 된다) 완료·취소까지 늘 편다. 그때 토글은 감춘다. */
+  const sprintClosed = sprintRows.some((s) => s && s.id === sprintId && s.state === "closed");
+  const showAll = showAllChosen || sprintClosed;
   const team = (sprints.data && sprints.data.team) || null;
   const teamOptions = React.useMemo(() => (team && team.options) || [], [team]);
   const teamRow = React.useMemo(
@@ -823,7 +827,7 @@ export function WorkBoard() {
     if (sprint && sprint.state === "closed") {
       return {
         title: `${label} (${sprintStateLabel(sprint)})`,
-        body: "끝난 회차라 기록으로만 남습니다. 카드를 옮기거나 담고 뺄 수 없습니다.",
+        body: "끝난 회차라 기록으로만 남습니다. 완료와 취소까지 모두 보이고, 카드를 옮기거나 담고 뺄 수 없습니다.",
       };
     }
     return {
@@ -923,8 +927,11 @@ export function WorkBoard() {
         help="카드를 누르면 미리보기가 열리고, 끌어서 상태와 순서를 바꿉니다. 키보드로는 스페이스로 집고 화살표로 옮긴 뒤 스페이스로 놓습니다."
       />
 
-      {/* 탐색 줄 — 위 줄은 **문맥**(팀 → 회차 → 프로젝트)과 「누가」, 아래 줄은 저빈도 축.
-          접이식이 아니다: 걸린 조건이 안 보이면 목록이 왜 좁은지 아무도 모른다. */}
+      {/* 탐색 줄 — 위 줄은 **문맥**(팀 → 회차 → 프로젝트)과 「누가」, 아래 줄은 검색과 저빈도 축.
+          접이식이 아니다: 걸린 조건이 안 보이면 목록이 왜 좁은지 아무도 모른다.
+          폭은 1366 에서 두 줄이 되게 잡았다 — 선택기 넷(13·13·13·11rem)과 스위치가 한 줄,
+          검색과 셀렉트 셋과 초기화가 한 줄이다. 기본 `entity` 치수는 basis 18rem 이라 넷을 한 줄에
+          못 세운다 — basis 까지 함께 줄인다. 세 줄이 되면 판이 화면 절반 아래서 시작한다. */}
       <FilterSurface>
         <FilterRow>
           <TeamSelect
@@ -932,7 +939,7 @@ export function WorkBoard() {
             value={teamId}
             onChange={changeTeam}
             loading={sprints.isLoading}
-            sx={{ minWidth: "14rem" }}
+            sx={{ flex: "1 1 13rem", minWidth: "13rem", maxWidth: "20rem" }}
           />
           <EntityCombobox
             /* 백로그 탭에서 이 축은 목록을 거르지 않는다(백로그는 회차 없는 일이다) —
@@ -948,7 +955,7 @@ export function WorkBoard() {
               secondary: `${s.starts_on} ~ ${s.ends_on}`,
             }))}
             allLabel="전체"
-            sx={{ minWidth: "14rem" }}
+            sx={{ flex: "1 1 13rem", minWidth: "13rem", maxWidth: "20rem" }}
           />
           {/* 프로젝트는 **필터**다(D-482) — 이 팀의 프로젝트만 후보이고, 바꿔도 팀·회차는 그대로다. */}
           <EntityCombobox
@@ -959,7 +966,7 @@ export function WorkBoard() {
             disabled={!teamId}
             options={projectRows.map((p) => ({ value: p.id, label: p.name }))}
             allLabel="전체"
-            sx={{ minWidth: "14rem" }}
+            sx={{ flex: "1 1 13rem", minWidth: "13rem", maxWidth: "20rem" }}
           />
           <EntityCombobox
             label="담당자"
@@ -969,7 +976,7 @@ export function WorkBoard() {
             options={assigneeRows.map((a) => ({ value: a.user_id, label: a.display_name }))}
             allLabel="전체"
             disabled={mine}
-            sx={{ minWidth: "12rem" }}
+            sx={{ flex: "1 1 11rem", minWidth: "11rem", maxWidth: "16rem" }}
           />
           <FormControlLabel
             sx={{ m: 0 }}
@@ -982,14 +989,14 @@ export function WorkBoard() {
             }
             label={<Typography variant="body2">내 티켓만</Typography>}
           />
+        </FilterRow>
+        <FilterRow>
           <SearchBox
             value={query}
             onSearch={(v) => setState({ q: v || "" })}
             placeholder="티켓 제목, 이름 검색"
             ariaLabel="티켓 검색"
           />
-        </FilterRow>
-        <FilterRow>
           <FilterSelect
             label="우선순위"
             value={priority}
@@ -1043,22 +1050,23 @@ export function WorkBoard() {
 
       {teamId ? (
         <>
-          {tab === TAB_BOARD ? (
-            <Callout variant="inline" tone="info" sx={{ mb: 1.5 }} title={boardNotice.title}>
-              {boardNotice.body}
-            </Callout>
-          ) : null}
-
+          {/* 탭 · 판 안내 · 보기 토글이 **한 줄**이다. 안내가 따로 한 줄을 차지하면 판이 그만큼
+              아래서 시작한다 — 안내는 「지금 어디쯤인가」 한 문장이라 탭 옆에 선다. */}
           <Box
             sx={{
               display: "flex", alignItems: "center", justifyContent: "space-between",
-              flexWrap: "wrap", columnGap: 1, mb: 2,
+              flexWrap: "wrap", columnGap: 2, rowGap: 0.5, mb: 1.5,
             }}
           >
             <Tabs value={tab} onChange={(_e, v) => setState({ tab: v })} aria-label="보기 선택">
               <Tab value={TAB_BOARD} label="칸반" />
               <Tab value={TAB_BACKLOG} label="백로그" />
             </Tabs>
+            {tab === TAB_BOARD ? (
+              <Callout variant="inline" tone="info" sx={{ flex: "1 1 24rem", minWidth: 0, m: 0 }} title={boardNotice.title}>
+                {boardNotice.body}
+              </Callout>
+            ) : null}
             {tab === TAB_BOARD ? (
               <Stack direction="row" spacing={1} alignItems="center">
                 <Button
@@ -1067,12 +1075,14 @@ export function WorkBoard() {
                 >
                   {showHold ? "보류 접기" : "보류 펴기"}
                 </Button>
-                <Button
-                  variant="ghost" size="sm" aria-pressed={showAll}
-                  onClick={() => setState({ all: !showAll })}
-                >
-                  {showAll ? "완료와 취소 감추기" : "완료와 취소 보기"}
-                </Button>
+                {sprintClosed ? null : (
+                  <Button
+                    variant="ghost" size="sm" aria-pressed={showAll}
+                    onClick={() => setState({ all: !showAll })}
+                  >
+                    {showAll ? "완료와 취소 감추기" : "완료와 취소 보기"}
+                  </Button>
+                )}
               </Stack>
             ) : null}
           </Box>
