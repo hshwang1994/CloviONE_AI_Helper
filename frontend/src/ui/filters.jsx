@@ -58,6 +58,27 @@ export const CONTROL_KIND = {
   toggle: { flex: "0 0 auto" },
 };
 
+/* ── 필터 바 줄 칸의 폭 — **늘어나지 않는다** (UI 3차 · 조합 계약 C-2) ────────────────────
+ *
+ * 위 `CONTROL_KIND` 는 칸이 줄에 남는 폭을 나눠 가지는 흐름 치수다(Entity 18rem → 24rem 까지 자란다). 필터 바
+ * 한 줄에서는 그 늘어남이 칸마다 다른 폭을 만들었다 — 같은 화면에서 프로젝트 384 · 대분류 224 · 상태 132 가 한 줄에
+ * 섰고, 줄이 바뀔 때마다 폭이 달라져 칸이 무엇을 기준으로 서는지 읽히지 않았다. 필터 바의 칸은 종류가 폭을
+ * 정하고 줄의 남는 폭은 비워 둔다(오른쪽 끝 묶음이 그 자리를 쓴다). 긴 값은 칸 안에서 말줄임되고 전체 값은
+ * `title` 이 든다.
+ *
+ * 검색은 이 표 밖이다 — 줄의 검색 슬롯(20rem)이 정한다(`FilterBar.jsx::searchSlotSx`). 호출부가 `sx` 로 폭을
+ * 말하면 그 값이 이긴다(작업 보드 · 스프린트 회의의 두 줄 필터 — D-484). */
+export const ROW_KIND = {
+  search: CONTROL_KIND.search,
+  entity: { flex: "0 0 13rem", width: "13rem", minWidth: 0, maxWidth: "100%" },
+  enum: { flex: "0 0 auto", minWidth: "8rem", maxWidth: "13rem" },
+  text: { flex: "0 0 11rem", width: "11rem", minWidth: 0, maxWidth: "100%" },
+  date: { flex: "0 0 11rem", width: "11rem", minWidth: 0, maxWidth: "100%" },
+  datetime: { flex: "0 0 18rem", width: "18rem", minWidth: 0, maxWidth: "100%" },
+  number: CONTROL_KIND.number,
+  toggle: CONTROL_KIND.toggle,
+};
+
 /** 폼 칸으로 설 때의 치수 — **줄 치수를 통째로 무효로 만든다.**
  *
  * 🔴 위 `CONTROL_KIND` 는 **가로로 흐르는 조건 줄**의 치수다. `flex: 1 1 18rem` 의
@@ -92,13 +113,27 @@ export function useRowCell(layout) {
 }
 
 /* 줄 칸의 높이 — 버튼(34)과 같은 값. Autocomplete 는 테마가 `inputRoot` 에 36 을 박으므로 거기도
-   함께 말한다(크기를 정하는 속성이 둘이면 둘 다 말해야 한다 — `MuiIconButton.sizeSmall` 과 같은 교훈). */
+   함께 말한다(크기를 정하는 속성이 둘이면 둘 다 말해야 한다 — `MuiIconButton.sizeSmall` 과 같은 교훈).
+
+   🔴 **칸 해부는 종류와 무관하게 하나다** (UI 3차 · 조합 계약 C-2). 셀렉트 · 자유 입력은 MUI 가 칸 왼쪽에 14 를
+   두고 접두 이름 뒤에 6 이 서는데, 자동완성은 `inputRoot` 여백 6 에 입력 여백 8 이 붙어 **접두가 칸 안 6 에서
+   시작하고 값이 14 떨어져** 섰다(프로젝트 · 작성자 · 태그 칸 실측). 한 줄에 두 해부가 섞이면 이름과 값의
+   세로 열이 칸마다 어긋난다. 자동완성 칸의 여백을 셀렉트와 같게 옮긴다. 다중 선택은 칸 안에 칩을 그리지 않고
+   고른 이름을 한 줄로 요약한다(`RowValue`) — 그래서 이 칸은 칩 때문에 높이가 풀리는 일이 없다. 칩은 조건 줄의
+   것이다. 「전체」처럼 상태를 말하는 빈 값은 자리표시자여도 값 글자(잉크 · 600)로 선다. */
 const ROW_CELL_SX = {
-  "& .MuiInputBase-root, & .MuiAutocomplete-inputRoot:not(:has(.MuiChip-root))": {
+  "& .MuiInputBase-root, && .MuiAutocomplete-inputRoot": {
     height: remPx(CONTROL.button), minHeight: remPx(CONTROL.button),
   },
+  "&& .MuiAutocomplete-inputRoot": { paddingLeft: remPx(14), paddingTop: 0, paddingBottom: 0, flexWrap: "nowrap" },
+  "&& .MuiAutocomplete-inputRoot .MuiAutocomplete-input": { paddingLeft: 0, minWidth: remPx(30) },
   "& .MuiInputBase-input, & .MuiSelect-select": { paddingTop: 0, paddingBottom: 0, fontWeight: FONT_WEIGHT.semibold },
   "& .MuiSelect-select": { display: "flex", alignItems: "center", minHeight: 0 },
+  "& .MuiInputBase-input:not([data-row-hint])::placeholder": { opacity: 1, color: "text.primary" },
+  "& .MuiInputBase-input:not([data-row-hint])::-webkit-input-placeholder": { opacity: 1, color: "text.primary" },
+  /* 「검색 또는 입력」 같은 **안내**는 값이 아니다 — 흐리지 않되 muted · 보통 굵기로 선다. */
+  "& .MuiInputBase-input[data-row-hint]::placeholder": { opacity: 1, color: "text.secondary", fontWeight: FONT_WEIGHT.regular },
+  "& .MuiInputBase-input[data-row-hint]::-webkit-input-placeholder": { opacity: 1, color: "text.secondary", fontWeight: FONT_WEIGHT.regular },
 };
 
 const ROW_SEARCH_SX = {
@@ -112,6 +147,7 @@ export function PrefixLabel({ id, children }) {
     <Box
       component="span"
       id={id}
+      data-prefix-label=""
       sx={{ color: "text.secondary", fontWeight: FONT_WEIGHT.regular, whiteSpace: "nowrap", flexShrink: 0, marginInlineEnd: 0.75 }}
     >
       {children}
@@ -119,28 +155,43 @@ export function PrefixLabel({ id, children }) {
   );
 }
 
-/* 칸 안의 값 — 한 줄, 넘치면 말줄임, 전체 값은 `title` 로. */
-function RowValue({ children, title }) {
+/* 칸 안의 값 — 한 줄, 넘치면 말줄임, 전체 값은 `title` 로. 다중 선택의 고른 이름 요약도 이 자리다. */
+export function RowValue({ children, title }) {
   return (
     <Box
       component="span"
       title={title}
-      sx={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: FONT_WEIGHT.semibold }}
+      data-row-value=""
+      sx={{ minWidth: 0, flex: "0 1 auto", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: FONT_WEIGHT.semibold, color: "text.primary" }}
     >
       {children}
     </Box>
   );
 }
 
-/* 줄 칸의 빈 값 낱말. 칸 안에 이름(접두)이 이미 서 있으므로, 호출부가 준 「역할: 전체」 ·
-   「분류 전체」처럼 **이름으로 시작하는 낱말**은 그 이름을 떼고 나머지만 값 자리에 세운다 —
-   「역할 역할: 전체」로 같은 낱말이 두 번 읽히지 않는다. 메뉴의 빈 항목 글자는 호출부 낱말 그대로다. */
+/* 다중 선택 줄 칸의 요약 — 「가, 나」 한 줄. 넘치면 말줄임이고 전체 이름은 `title` 이 든다. */
+export function RowSummary({ names }) {
+  const list = (Array.isArray(names) ? names : []).filter((n) => n != null && n !== "").map(String);
+  if (!list.length) return null;
+  const text = list.join(", ");
+  return <RowValue title={text}>{text}</RowValue>;
+}
+
+/* 줄 칸의 빈 값 낱말. 칸 안에 이름(접두)이 이미 서 있으므로, 호출부가 준 「역할: 전체」 · 「분류 전체」 ·
+   「전체 상태」처럼 **이름이 따로 선 낱말**이면 그 이름을 떼고 나머지만 값 자리에 세운다 — 「역할 역할: 전체」 ·
+   「상태 전체 상태」로 같은 낱말이 두 번 읽히지 않는다.
+
+   🔴 이름이 **낱말의 일부**면 떼지 않는다. 예전 규칙은 앞글자만 맞으면 뗐다 — 「팀을 고르세요」가 「을 고르세요」가
+   되어 칸이 「팀 · 을 고르세요」로 읽혔다(작업 보드 · 스프린트 회의 실측). 메뉴의 빈 항목 글자는 호출부 낱말 그대로다. */
 export function rowAllText(label, allLabel) {
   if (!allLabel) return "전체";
   if (typeof label !== "string" || !label || typeof allLabel !== "string") return allLabel;
-  if (!allLabel.startsWith(label)) return allLabel;
-  const rest = allLabel.slice(label.length).replace(/^[\s:：]+/, "");
-  return rest || allLabel;
+  const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const lead = allLabel.match(new RegExp(`^${escaped}(?:[\\s:：]+)(.+)$`));
+  if (lead) return lead[1];
+  const tail = allLabel.match(new RegExp(`^(.+?)\\s+${escaped}$`));
+  if (tail) return tail[1];
+  return allLabel;
 }
 
 /** 종류별 기본 폭에 호출부 `sx` 를 얹는다. 호출부가 이기되, 안 주면 의미가 정한다.
@@ -172,7 +223,9 @@ export function withLabelAbove(sx) {
 }
 
 export function kindSx(kind, sx, layout, row = false) {
-  const base = layout === "form" || layout === "fill" ? FORM_FIELD_SX : (CONTROL_KIND[kind] || null);
+  const base = layout === "form" || layout === "fill"
+    ? FORM_FIELD_SX
+    : (row ? (ROW_KIND[kind] || CONTROL_KIND[kind] || null) : (CONTROL_KIND[kind] || null));
   /* 검색창은 친 글자라 값 굵기(600)를 받지 않는다 — 이름표가 없는 칸이다. */
   const extra = row === "search" ? ROW_SEARCH_SX : row ? ROW_CELL_SX : null;
   if (!base && !extra) return sx;
@@ -567,10 +620,14 @@ export function EntityCombobox({
         sx={kindSx(kind, sx, layout, row)}
         ListboxProps={{ sx: FILTER_LISTBOX_SX }}
         renderOption={renderRow}
-        renderTags={shortTags ? (tagValue, getTagProps) => tagValue.map((o, i) => {
-          const { key, ...rest } = getTagProps({ index: i });
-          return <Chip key={key ?? o.value} {...rest} size="small" label={o.tagLabel || o.label} title={o.label} />;
-        }) : undefined}
+        renderTags={row
+          /* 줄 칸은 칩을 그리지 않는다 — 고른 이름을 한 줄로 요약하고 전체는 `title` 이 든다. 하나씩 떼는 칩은
+             필터 바의 조건 줄이 그린다(UI 3차 · 조합 계약 C-2). */
+          ? (tagValue) => <RowSummary names={tagValue.map((o) => o.tagLabel || o.label)} />
+          : (shortTags ? (tagValue, getTagProps) => tagValue.map((o, i) => {
+            const { key, ...rest } = getTagProps({ index: i });
+            return <Chip key={key ?? o.value} {...rest} size="small" label={o.tagLabel || o.label} title={o.label} />;
+          }) : undefined)}
         renderInput={(params) => (
           <TextField
             {...params}
@@ -590,7 +647,7 @@ export function EntityCombobox({
               ...(ariaLabelledBy ? { "aria-labelledby": ariaLabelledBy } : null),
               ...(ariaDescribedBy ? { "aria-describedby": ariaDescribedBy } : null),
             }}
-            placeholder={placeholder || (row ? rowAllText(label, allLabel) : (allLabel || `${label} 전체`))}
+            placeholder={current.length && row ? undefined : (placeholder || (row ? rowAllText(label, allLabel) : (allLabel || `${label} 전체`)))}
             sx={row ? undefined : LABEL_ABOVE_SX}
           />
         )}
@@ -714,6 +771,9 @@ export function EntityCombobox({
  * 그때도 문맥은 주소(`team`)에 있다. */
 export function TeamSelect({ team, value, onChange, label = "팀", sx, loading }) {
   const options = (team && team.options) || [];
+  /* 줄 칸에는 이름(「팀」)이 칸 안 접두로 이미 선다 — 빈 글자는 회차 칸과 같은 「고르세요」다. 폼 자리는
+     이름이 칸 위라 빈 글자가 스스로 무엇을 고르는지 말한다(「팀을 고르세요」). */
+  const row = useRowCell();
   if (options.length < 2) return null;
   return (
     <EntityCombobox
@@ -722,7 +782,7 @@ export function TeamSelect({ team, value, onChange, label = "팀", sx, loading }
       onChange={(next) => onChange(next || "")}
       loading={loading}
       noAllOption
-      allLabel="팀을 고르세요"
+      allLabel={row ? "고르세요" : "팀을 고르세요"}
       sx={sx}
       options={options.map((o) => ({
         value: o.id,

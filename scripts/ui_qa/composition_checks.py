@@ -73,7 +73,7 @@ COMPOSITION_CONTRACT = {
 #   chat         대화 로그가 있어야 한다
 #   skipBudget   채움 단추 수를 세지 않는다(갤러리는 견본을 나란히 세우는 카탈로그다)
 #   callerWidths 필터 칸 폭은 호출부가 정한다(보호 화면 두 줄 필터 — D-484)
-#   filterExempt 필터 조합 검사를 하지 않는다(대장 예외 — 제출형 검색 · 달력 도구 줄 · 보호 화면)
+#   filterExempt 필터 줄 조합 검사를 하지 않는다(대장 예외 — 제출형 검색 · 달력 도구 줄 · 보호 화면). 칸 해부는 잰다
 #   footerExempt 목록 판 밖 `ListFooter` 를 허용한다(보호 화면 백로그)
 ROUTE_EXPECT: dict[str, dict] = {
     "user_my-tickets": {"listSurface": True},
@@ -214,7 +214,8 @@ COMPOSITION_JS = r"""
 
   // ── 필터 칸 해부 ─────────────────────────────────────────────────────────
   out.filter_cell_kinds = {};
-  if (!E.filterExempt) {
+  /* 칸 해부는 조합 예외 화면(보호 화면 두 줄 필터 · 통합 검색)에서도 잰다 — 예외는 줄의 조합이지 칸 모양이 아니다. */
+  {
     for (const cell of all('[data-filter-surface] [data-filter-kind]')) {
       const kind = cell.getAttribute('data-filter-kind');
       if (kind === 'search' || kind === 'toggle' || kind === 'number' || cell.closest('[data-condition-line]')) continue;

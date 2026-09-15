@@ -7,7 +7,7 @@ import Typography from "@mui/material/Typography";
 import { useQuery } from "@tanstack/react-query";
 
 import { api } from "../lib/api.js";
-import { FILTER_LISTBOX_SX, LABEL_ABOVE_SX, PrefixLabel, kindSx, useRowCell } from "./filters.jsx";
+import { FILTER_LISTBOX_SX, LABEL_ABOVE_SX, PrefixLabel, RowSummary, kindSx, useRowCell } from "./filters.jsx";
 
 /* 태그 고르개 — 검색 · 다중 선택 · 새 태그 생성 · 사용 문서 수 (§15.3).
  *
@@ -91,10 +91,13 @@ export function TagPicker({
           </Box>
         );
       }}
-      renderTags={(tagValue, getTagProps) => tagValue.map((o, i) => {
-        const { key, ...rest } = getTagProps({ index: i });
-        return <Chip key={key ?? o.name} {...rest} size="small" label={o.name} />;
-      })}
+      renderTags={row
+        /* 필터 바 줄 칸은 칩 대신 고른 태그를 한 줄로 요약한다 — 하나씩 떼는 칩은 조건 줄의 것이다(`filters.jsx::RowSummary`). */
+        ? (tagValue) => <RowSummary names={tagValue.map((o) => o.name)} />
+        : (tagValue, getTagProps) => tagValue.map((o, i) => {
+          const { key, ...rest } = getTagProps({ index: i });
+          return <Chip key={key ?? o.name} {...rest} size="small" label={o.name} />;
+        })}
       renderInput={(params) => (
         <TextField
           {...params}
@@ -107,7 +110,8 @@ export function TagPicker({
           InputProps={row
             ? { ...params.InputProps, startAdornment: <><PrefixLabel>{label}</PrefixLabel>{params.InputProps.startAdornment}</> }
             : params.InputProps}
-          inputProps={row ? { ...params.inputProps, "aria-label": label } : params.inputProps}
+          /* 「검색 또는 입력」은 값이 아니라 **안내**다 — 줄 칸에서 muted 로 선다(`data-row-hint`). */
+          inputProps={row ? { ...params.inputProps, "aria-label": label, "data-row-hint": "" } : params.inputProps}
           /* 줄 칸에는 이름이 이미 접두로 서 있으므로 자리표시자에서 그 낱말을 뗀다(「태그 태그 검색」이
              되지 않게 — `rowAllText` 와 같은 규칙). */
           placeholder={selected.length ? undefined : (row ? "검색 또는 입력" : "태그 검색 또는 입력")}

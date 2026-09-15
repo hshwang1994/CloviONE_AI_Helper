@@ -88,11 +88,13 @@ export function KnowledgeFilterBar({
         />
         {/* 정렬은 「무엇을 볼지」가 아니라 「어떻게 볼지」라 오른쪽 끝 묶음이다 — 좁아지면 묶음째 다음 줄로 간다. */}
         <ToolbarEnd>
+          {/* 정렬에는 「전체」가 없다 — 빈 항목을 세우면 고를 수 없던 값(정렬 없음)이 메뉴에 생긴다. */}
           <FilterSelect
             label="정렬"
             value={sort}
             onChange={(v) => onQuery({ sort: v })}
             options={SORTS}
+            noAllOption
           />
         </ToolbarEnd>
       </ToolbarRow>

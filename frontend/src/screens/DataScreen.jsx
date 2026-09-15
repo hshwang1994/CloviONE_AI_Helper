@@ -1407,9 +1407,10 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
                   // 달력일이 아니라서 그 부품을 그대로 못 쓴다. 브라우저는 datetime 입력의
                   // placeholder를 무시한다 — 칸 안 이름(접두)이 나란히 놓인 시작/종료 두 칸을 가른다.
                   // 필터 바의 다른 칸과 같은 34 칸이고, 확정은 다른 자유 입력 조건처럼 디바운스된다.
+                  // 폭은 날짜(11rem)가 아니라 날짜시각(18rem) 칸이다 — 「YYYY. MM. DD. 오후 --:--」가 들어가야 한다.
                   return (
                     <DebouncedTextField
-                      key={f.key} type={f.type} kind="date" label={f.label}
+                      key={f.key} type={f.type} kind="datetime" label={f.label}
                       value={filters[f.key] || ""}
                       onCommit={(v) => setFilter(f.key, v)}
                     />
