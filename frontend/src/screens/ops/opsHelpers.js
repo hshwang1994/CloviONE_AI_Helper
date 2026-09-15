@@ -150,7 +150,7 @@ export function failedOpenAgeLabel(jobs) {
   return ", 가장 오래된 것 " + (days < 1 ? "오늘" : days + "일 전");
 }
 
-// 판독 칸은 값을 크게 낸다(ui/kit.jsx::MetricStrip), 자리수가 늘면(작업 누적 총계 등) 천 단위
+// 측정값 타일은 값을 크게 낸다(ui/StatusKpi.jsx::StatusKpiTile), 자리수가 늘면(작업 누적 총계 등) 천 단위
 // 구분자 없이는 스캔하기 어렵다. 현재 단일 테넌트 규모에선 체감이 적지만 값이 자랄수록 필요해진다.
 export function fmtNum(n) {
   return typeof n === "number" ? n.toLocaleString("ko-KR") : n;

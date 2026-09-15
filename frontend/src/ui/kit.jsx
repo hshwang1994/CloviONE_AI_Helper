@@ -148,8 +148,6 @@ export function statusKind(v) {
   return STATUS_KIND[raw] || "neutral";
 }
 
-// 키트의 톤 어휘 → MUI 색 이름. 한 곳에서만 번역한다.
-const TONE_COLOR = { ok: "success", danger: "error", warn: "warning", info: "info", neutral: "default" };
 const TONE_SEVERITY = { danger: "error", warn: "warning", success: "success", info: "info" };
 // MUI Chip color 팔레트 밖의 톤(문서 종류·게시판 분류 등) — tokens.css의 --badge-*-bg/fg 변수를
 // 그대로 쓴다(다크모드 대응·대비 검증 이미 돼 있는 값). lib/badges.js가 이 네 톤을 배정하는데
@@ -683,6 +681,11 @@ export function Segmented({ value, onChange, options, ariaLabel, sx }) {
       role="tablist"
       aria-label={ariaLabel}
       className="k-segmented"
+      /* **보기 전환의 선택은 중립이다**(핸드오프 D-22 · C6 — 고른 칸만 흰 면으로 한 겹 올라온다). 그래서 이 줄은
+         선택의 **브랜드 자리가 아니다** — 프로브(`scripts/ui_qa/brand.py`)가 흰 칸을 「회색인 선택 자리」로 세지 않게
+         의미를 선언한다. 억제가 아니라 선언이라 마크업에 남고 grep 으로 셀 수 있다. 제품의 선택 브랜드는 사이드바
+         레일 · 상태 칩 선택이 나른다. */
+      data-brand-role="none"
       onKeyDown={onKeyDown}
       sx={{
         display: "inline-flex",
@@ -1169,214 +1172,13 @@ export function Callout({
 }
 
 
-/* 판독 한 줄에 쓰이는 두 상수. `rem` 숫자만 뽑아 계산에 쓴다 — 값의 정본은 theme.js 다. */
-const REM_OF = (v) => Number.parseFloat(String(v));
-const READOUT_LEAD = 1.15;   // 판독값 줄의 줄간격
-const READOUT_RAIL = 2;      // 지금 목록을 거르고 있는 칸을 말하는 레일 두께
-
-/** 지표 묶음 — **판이 아니라 판독 줄** (지시 2 · 77, PLAN «Surface 위계»).
- *
- * 예전에는 지표 하나당 카드 하나였다. 그 벽은 이미 없앴는데, 그 자리를 **판 하나**가
- * 대신 차지하고 있었다. PLAN 의 하드 금지 목록에 그것이 이름으로 적혀 있다 —
- * "판독 한 줄에 plate 금지(`MetricStrip` 의 `<Card>` 제거)". 독립 검수도 같은 자리를
- * 짚었다(F-W1R-16): `user_me.png` 에서 canvas -> plate -> inset 세 톤이 한 줄에 겹쳤다.
- *
- * W4 가 바꾼 것 넷.
- *
- * **① 판을 벗겼다.** 이제 캔버스 위에 판독값이 나란히 놓이고 실선이 그것들을 가른다.
- * 테두리가 없어졌으므로 줄은 **왼쪽으로 packing** 한다 — 예전 주석이 "칸을 상한으로 묶으면
- * 판의 오른쪽 절반이 테두리 안에서 빈다" 고 적어 둔 그 실측은 판이 있을 때만 성립한다.
- * 판이 없으면 남는 폭은 그냥 캔버스이고, 숫자 셋을 화면 폭에 억지로 늘리는 편이 나쁘다.
- *
- * **② 라벨 기준선을 공유한다.** 값 40px 과 19px 이 한 줄에 섞이면 각 칸이 자기 높이대로
- * 라벨을 내려 라벨 기준선이 24px 어긋났다(F-W1R-27 픽셀 실측). 이제 값 줄이 **줄 전체에서
- * 같은 최소 높이**를 갖고 값들이 그 아래쪽에 앉는다 — 라벨은 어느 칸에서나 같은 y 에서
- * 시작한다.
- *
- * **③ 판독 슬롯은 판단을 요구하는 값에만 준다.** `primary` 가 40px 을 차지하던 값이
- * 실제로는 «0 오늘 마감»·«0 처리 요청» 이었다 — 위계가 있는데 방향이 반대인 것은 위계가
- * 없는 것보다 나쁘다. 값이 없거나(`null`/`-`) **0 이면 판독 슬롯을 주지 않는다.** 0 은
- * 대개 "할 일이 없다" 이고 그건 화면을 지배할 판단이 아니다. 어떤 지표가 `primary` 여야
- * 하는가는 화면이 정하는 일이라 여기서 다 닫히지 않는다 — 남은 절반은 화면 Wave 로 넘긴다.
- *
- * **④ 전 항목이 비면 그 자리에 원인을 그린다** (PLAN «C1»). `-` 만 늘어선 판독 줄은
- * "없는 데이터를 위한 컨테이너" 다. 다만 PLAN 의 문장은 둘이 한 쌍이다 — "렌더하지 않고
- * **원인을 렌더한다**". 원인 없이 줄만 지우면 화면은 구획 정체성까지 잃는다(실측: 홈에서
- * Notion 매핑이 없을 때 «오늘 마감» 이라는 이름 자체가 사라진다 — "없다" 도 "모른다" 도
- * 아닌 침묵이 된다). 그래서 `emptyCause` 를 받는다: 주면 줄 대신 그것을 그리고, 안 주면
- * 줄을 그대로 두되 `data-metrics-empty="true"` 를 남겨 **몇 곳이 아직 원인을 안 넘기는지
- * 셀 수 있게** 한다. 배선은 원인 표현(`EmptyState`/Blocked)을 소유하는 Wave 의 몫이다.
- *
- * `delta` 는 변화량, `note` 는 그 숫자를 한정하는 각주다(구역 아래 공용 각주로 빼면 어느
- * 숫자를 한정하는지 다시 찾아야 한다 — VIS-09/VIS-27).
- * 심각도는 색만으로 전하지 않는다(WCAG 1.4.1) — `kind` 가 danger/warn 이면 짧은 텍스트
- * 태그를 함께 붙인다.
- */
-export function MetricStrip({ items, ariaLabel, emptyCause, sx }) {
-  const list = (items || []).filter(Boolean);
-  const isEmptyValue = (v) => v == null || v === "" || v === "-";
-  if (!list.length) return null;
-  const allEmpty = list.every((it) => isEmptyValue(it.value));
-  if (allEmpty && emptyCause) return emptyCause;
-
-  /* 판독 슬롯은 묶음당 하나다. 값이 비었거나 0 이면 그 자격을 잃는다. */
-  const earnsReadout = (it) =>
-    !!it.primary && !isEmptyValue(it.value) && String(it.value).trim() !== "0";
-  const readoutKey = list.findIndex(earnsReadout);
-  const hasReadout = readoutKey >= 0;
-  /* 값 줄의 공유 높이 — 이 줄에서 가장 큰 글자가 만드는 높이. 라벨이 같은 y 에서 시작한다. */
-  const valueLead = REM_OF(hasReadout ? FONT_SIZE.readout : FONT_SIZE.title) * READOUT_LEAD;
-
-  return (
-    <Box
-      className="k-metrics"
-      role="group"
-      aria-label={ariaLabel}
-      /* 아직 원인을 안 넘기는 자리. 지우지 않고 **세는** 이유는 위 ④ 에 적었다. */
-      data-metrics-empty={allEmpty ? "true" : undefined}
-      /* **이 줄에 지배 판독값이 있는가**를 줄 자신이 말한다 (S22 · P-43).
-         값이 0 이면 판독 슬롯을 안 준다(위 `earnsReadout`) — 「0 오늘 마감」이 40px 을
-         차지하는 것은 위계가 반대이기 때문이다. 그런데 프로브는 선언이 없으면 이 줄에서
-         **가장 큰 글자**를 그 화면의 지배값으로 읽어서, 할 일이 없는 날의 홈이 「지배값이
-         회색이다」로 세어졌다(배포한 실데이터에서만 나오는 조합이다 — 임시 데이터베이스로
-         찍는 로컬 캡처는 값이 전부 0 이 아니다). 슬롯이 없다는 것은 모르는 것이 아니라
-         **알아낸 사실**이고, 사실일 때의 답은 「없다」다. 판독값이 없는 상세 화면을
-         `unknown` 으로 두는 것과 같은 어휘다. */
-      data-readout-slot={hasReadout ? "value" : "none"}
-      sx={(t) => ({
-        display: "flex", flexWrap: "wrap", alignItems: "stretch",
-        /* 실선이 항목을 가른다. 각 항목이 앞머리 선을 갖고 첫 항목만 그것을 지운다 —
-           줄바꿈이 일어나도 선이 어긋나지 않는다. 논리 속성은 MUI 가 펴 주지 않으므로
-           style·width·color 를 따로 적는다(F-W2R-01). */
-        "& > *:not(:first-of-type)": {
-          borderInlineStartStyle: "solid",
-          borderInlineStartWidth: "1px",
-          borderInlineStartColor: t.palette.divider,
-        },
-        ...(typeof sx === "function" ? sx(t) : sx),
-      })}
-    >
-      {list.map((it, i) => {
-        const sev = it.kind === "danger" ? "위험" : it.kind === "warn" ? "주의" : null;
-        const tone = TONE_COLOR[it.kind];
-        const clickable = !!it.onClick;
-        const readout = i === readoutKey;
-        return (
-          <Box
-            key={it.key || it.label || i}
-            /* `k-readout` = "숫자 하나와 그 라벨·각주를 담은 칸". 칸은 자기 판을 갖지 않고
-               줄 하나를 여럿이 나눠 쓴다. */
-            className="k-readout"
-            component={clickable ? "button" : "div"}
-            type={clickable ? "button" : undefined}
-            onClick={it.onClick}
-            aria-pressed={clickable ? !!it.active : undefined}
-            /* 선택을 **레일**로 말하는 자리다(D-289). 자리를 선언해 두면 프로브가
-               «`aria-pressed` 가 붙은 아무 요소» 가 아니라 실제로 선택을 나르는 것을 잰다. */
-            data-brand-role={clickable && it.active ? "selected-state" : undefined}
-            sx={(t) => ({
-              /* 왼쪽으로 packing 한다. 늘어나지 않고 자기 내용 폭을 갖는다. */
-              flex: "0 0 auto", minWidth: readout ? "9rem" : "6.5rem", maxWidth: "100%",
-              textAlign: "left", font: "inherit", color: "inherit",
-              border: 0, borderRadius: 0, bgcolor: "transparent",
-              px: 2, py: 1.5, display: "grid", gap: 0.25, alignContent: "start",
-              cursor: clickable ? "pointer" : "default",
-              transition: `border-color ${MOTION.instant} ${MOTION.ease}`,
-              "&:hover": clickable
-                ? { borderBlockEndColor: it.active ? t.palette.brand.core : t.palette.text.faint }
-                : undefined,
-              /* **판을 벗기면 선택 신호가 뒤집힌다.** `background.inset` 은 판(#FFFFFF) 위에서는
-                 어두운 함몰면이지만 캔버스(#EEF0F7) 위에서는 오히려 **더 밝고 대비가
-                 1.055:1** 이다 — 눈에 보이지 않는 데다 의미가 반대다. 그래서 지금 어느 칸이
-                 아래 목록을 거르고 있는지를 **면이 아니라 레일**이 말한다. 사이드바가 활성
-                 위치를 3px 레일로 말하는 것과 같은 어휘다(W3, D-184) — 한 제품이 선택을
-                 두 가지 말로 하지 않는다. 색은 Brand 잉크라 사용자 Accent 를 따르지 않는다.
-                 비활성 칸도 같은 두께의 투명 레일을 가져 선택할 때 줄 높이가 튀지 않는다.
-                 처음에는 이 주석을 적어 두고도 `bgcolor` 와 hover 면을 **지우지 않아**,
-                 light 에서 1.055:1 짜리 보이지 않는 면이 유일한 hover 신호로 남아 있었다
-                 (독립 검수 실측 — 주석은 레일이라 말하고 코드는 면을 칠하고 있었다).
-                 hover 도 레일로 말한다: 가리키면 `text.faint`(경계 하한 3:1 을 넘는
-                 잉크), 활성이면 Brand 로 유지된다. */
-              borderBlockEndStyle: "solid",
-              borderBlockEndWidth: `${READOUT_RAIL}px`,
-              borderBlockEndColor: it.active ? t.palette.brand.core : "transparent",
-            })}
-          >
-            {/* 값 줄의 높이를 줄 전체가 공유한다 — 그래서 라벨이 같은 y 에서 시작한다.
-                `data-readout` 는 시험이 **자식 순서 대신** 이름으로 값/라벨을 짚게 한다 —
-                순서로 짚으면 안쪽 배치를 조금만 바꿔도 시험이 깨지는 게 아니라 **조용히 빈
-                문자열을 비교한다**(독립 실측이 `projects.test.jsx` 에서 그 위험을 지목했다). */}
-            <Box data-readout="value" sx={{ minHeight: `${valueLead}rem`, display: "flex", alignItems: "flex-end", minWidth: 0 }}>
-              <Box sx={{ display: "flex", alignItems: "baseline", gap: 1, minWidth: 0 }}>
-                <Typography
-                  component="div"
-                  /* **그 화면을 지배하는 판독값이 제품 정체성을 나른다** (D-288).
-                     지시가 이름으로 든 네 자리 중 하나가 Key Metric 이고, 이 값이 그것이다.
-                     `data-brand-role` 로 자리를 선언하는 이유: 선언이 없으면 프로브가
-                     «DOM 에서 첫 번째 칸» 을 지배값이라고 읽는다 — 어느 칸이 판독 슬롯을
-                     얻었는지는 이 컴포넌트만 안다.
-                     `data-brand-tone` 은 억제가 아니라 **의미 선언**이다: 심각도가 있는 값은
-                     상태색이 이긴다(색이 뜻을 나르는 자리에서 정체성이 이기면 그 색은
-                     거짓말이 된다). 그때 이 자리는 «회색인 브랜드 자리» 가 아니라 «다른 뜻으로
-                     칠한 자리» 이고, 프로브가 그 둘을 구별할 근거가 이 속성이다. */
-                  data-brand-role={readout ? "highlight" : undefined}
-                  /* 판독 슬롯이 아니어도 심각도는 선언한다. 지표가 하나뿐인 줄은
-                     `primary` 를 안 붙여도 그 값이 곧 그 화면의 판독값이고(알림 화면의
-                     「안 읽음」이 그렇다), 프로브는 줄에서 가장 큰 글자를 그 값으로
-                     읽는다 — 선언이 판독 슬롯에만 붙어 있으면 그 자리가 «회색인
-                     브랜드 자리» 로 잘못 세어진다. 실측이 그것을 잡았다. */
-                  data-brand-tone={tone && tone !== "default" ? it.kind : undefined}
-                  sx={{
-                    fontSize: readout ? FONT_SIZE.readout : FONT_SIZE.title,
-                    fontWeight: FONT_WEIGHT.semibold, lineHeight: READOUT_LEAD, ...NUMERIC,
-                  }}
-                  color={tone && tone !== "default"
-                    ? `${tone}.strong`
-                    : (readout ? "brand.core" : "text.primary")}
-                >
-                  {it.value == null ? "-" : it.value}
-                </Typography>
-                {it.delta ? (
-                  <Typography
-                    component="span"
-                    sx={{ fontSize: FONT_SIZE.caption, color: "text.secondary", whiteSpace: "nowrap", ...NUMERIC }}
-                  >
-                    {it.delta}
-                  </Typography>
-                ) : null}
-              </Box>
-            </Box>
-            <Box data-readout="label" sx={{ display: "flex", alignItems: "center", gap: 0.75, minWidth: 0 }}>
-              <Typography component="div" sx={{ fontSize: FONT_SIZE.bodySm, color: "text.secondary", ...KO_WORD_BREAK }}>
-                {it.label}
-              </Typography>
-              {sev ? (
-                <Box
-                  component="span"
-                  sx={{ fontSize: FONT_SIZE.micro, fontWeight: FONT_WEIGHT.semibold, color: `${tone}.strong`, whiteSpace: "nowrap", flexShrink: 0 }}
-                >
-                  {sev}
-                </Box>
-              ) : null}
-            </Box>
-            {/* 각주는 세 번째 잉크 단계가 아니다 — 크기와 자리로 종속을 말한다.
-                `text.faint` 는 본문 크기 글자에서 `text.secondary` 와 눈으로 구분되지
-                않는다(대비 1.10:1, F-W1R-03). 같은 잉크에 caption 크기를 쓴다. */}
-            {it.note ? (
-              <Typography component="div" sx={{ fontSize: FONT_SIZE.caption, color: "text.secondary", lineHeight: 1.4, ...KO_WORD_BREAK }}>
-                {it.note}
-              </Typography>
-            ) : null}
-          </Box>
-        );
-      })}
-    </Box>
-  );
-}
+/* 판독 줄(`MetricStrip`)은 걷었다 — 핸드오프 RULES §6 「판독 줄(dl 형태 KPI 나열)은 쓰지 않는다」. 데이터의 뜻에 따라
+ * 상태 구성은 `StatusSummaryCard`, 독립 측정값은 `StatusKpiStrip`, 값 하나는 큰 숫자, 속성은 아래 `MetaBar` 가 맡는다
+ * (계획 표 7). 마지막 소비처였던 문서 목록의 요약 넷은 보기 전환 세그먼티드의 건수가 됐다(계획 D). */
 
 /* 속성 줄 — 상세 화면 맨 위의 전폭 메타 (지시 7).
  *
- * `MetricStrip` 과 판 모양은 같지만 **읽는 순서가 반대**다: 지표는 숫자를 먼저 보고 그게
+ * 걷어 낸 판독 줄(`MetricStrip`)과 판 모양은 같았지만 **읽는 순서가 반대**다: 지표는 숫자를 먼저 보고 그게
  * 무엇인지 확인하지만, 속성은 "마감이 언제지"처럼 **찾는 이름이 먼저** 있다. 그래서 라벨이
  * 위, 값이 아래다. 값도 지표처럼 크게 내지 않는다 — 여기서 큰 글자는 본문 몫이다.
  * 하나에 두 역할을 겸하게 하지 않고 따로 둔다(지시 57).

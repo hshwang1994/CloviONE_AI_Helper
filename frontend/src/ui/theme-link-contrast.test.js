@@ -1,4 +1,5 @@
 /* qa-contract-change: 옛 문서 목록(TeamDocs.jsx)의 제목 링크 hover 두 자리를 걷었다. 그 화면이 S14 에서 사라졌고 없는 파일을 readFileSync 하면 이 파일 전체가 죽는다. 계약(본문 링크의 raw .main 은 대비 보강 색을 쓴다)과 남은 세 자리·모든 accent 조합의 계산 대비는 그대로다.
+ * qa-contract-change: 판독 줄(MetricStrip)이 걷혀(핸드오프 RULES §6) 그 칸의 「주의」/「위험」 표지가 없어졌다. 같은 계약(심각도 낱말은 대비 보강 잉크 `.strong` 을 쓰고 좁은 칸에서 세로로 무너지지 않는다)을 지금 그 낱말을 나르는 배지(Badge)의 소스에서 잰다.
  * qa-contract-change: 사이드바 안 읽음 배지(NavBadge)와 AI 도우미 시작 예시(QuickPrompts)가 정본 부품(건수 칩 unread · 작은 단추)으로 옮겨졌다(핸드오프 계획 B-3). 두 자리의 손 색 단언을 「정본 부품을 쓴다 · 흰 글자나 raw .main 글자를 손으로 칠하지 않는다」로 옮기고, 건수 칩 unread 의 글자와 면 대비를 모든 모드 · accent 조합으로 더 잰다.
  */
 import { readFileSync } from "node:fs";
@@ -243,17 +244,18 @@ function bodyOf(src, signature) {
   throw new Error(`${signature} 의 본문 끝을 못 찾았다 — 중괄호가 안 맞는다`);
 }
 
-describe("QAH-03 — 판독 칸 「주의」/「위험」 배지가 palette.{warning,error}.strong(대비 보강)을 쓴다", () => {
+describe("QAH-03 — 「주의」/「위험」 낱말(배지)이 palette.{warning,error}.strong(대비 보강)을 쓴다", () => {
   const kitSrc = readFileSync(
     path.join(path.dirname(fileURLToPath(import.meta.url)), "kit.jsx"),
     "utf-8",
   );
 
-  it("판독 칸의 sev Box가 실제로 `${tone}.strong`을 참조한다(원래 버그는 `.main`이었다)", () => {
-    // StatCard(카드 한 장 = 지표 하나)를 MetricStrip 이 대체했다 — 계약은 그대로다.
-    const block = bodyOf(kitSrc, "export function MetricStrip");
-    expect(block).toMatch(/color:\s*`\$\{tone\}\.strong`/);
-    expect(block).not.toMatch(/color:\s*`\$\{tone\}\.main`/);
+  it("배지의 글자색이 실제로 `${palette}.strong`을 참조한다(원래 버그는 `.main`이었다)", () => {
+    // StatCard → 판독 줄(MetricStrip) → 배지. 판독 줄이 걷힌 뒤 심각도 낱말은 배지가 나른다 — 계약은 그대로다.
+    const block = bodyOf(kitSrc, "export function Badge");
+    /* 글자색(`color:`)만 본다 — 표지 점의 면(`bgcolor:`)은 `.main` 이 맞다(글자가 아니라 7px 점이다). */
+    expect(block).toMatch(/\bcolor:[^,]*`\$\{palette\}\.strong`/);
+    expect(block).not.toMatch(/\bcolor:[^,]*`\$\{palette\}\.main`/);
   });
 
   for (const mode of ["light", "dark"]) {
@@ -277,16 +279,17 @@ describe("QAH-03 — 판독 칸 「주의」/「위험」 배지가 palette.{war
 });
 
 describe("QAH-02(2026-08-11 하네스 실측) — 심각도 배지가 좁은 칸에서 세로로 안 무너진다", () => {
-  it("sev Box에 whiteSpace:nowrap과 flexShrink:0이 있다(한글은 word-break 기본값이 음절 사이 어디서나 끊는다)", () => {
+  it("배지 알약에 whiteSpace:nowrap과 flexShrink:0이 있다(한글은 word-break 기본값이 음절 사이 어디서나 끊는다)", () => {
     const kitSrcHere = readFileSync(
       path.join(path.dirname(fileURLToPath(import.meta.url)), "kit.jsx"),
       "utf-8",
     );
-    const block = bodyOf(kitSrcHere, "export function MetricStrip");
-    const sevLine = /\{sev \? \([\s\S]{0,900}?<\/Box>/.exec(block);
-    expect(sevLine, "sev Box 블록을 못 찾았다").not.toBeNull();
-    expect(sevLine[0]).toMatch(/whiteSpace:\s*"nowrap"/);
-    expect(sevLine[0]).toMatch(/flexShrink:\s*0/);
+    // 판독 줄의 sev Box 는 걷혔다 — 심각도 낱말을 나르는 배지(Badge)의 알약이 같은 계약을 진다.
+    const block = bodyOf(kitSrcHere, "export function Badge");
+    const pill = /className="k-badge"[\s\S]{0,1600}?\}\}/.exec(block);
+    expect(pill, "배지 알약 sx 블록을 못 찾았다").not.toBeNull();
+    expect(pill[0]).toMatch(/whiteSpace:\s*"nowrap"/);
+    expect(pill[0]).toMatch(/flexShrink:\s*0/);
   });
 });
 

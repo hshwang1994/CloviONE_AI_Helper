@@ -632,8 +632,8 @@ function DashboardBody({ d, nav, role, stale }) {
    * 정상 1 / 3 · 24시간 성공률 - · 디스크 사용 45.8%」였다. 가운데 「-」는 24시간 안에 끝난
    * 작업이 하나도 없어서 성공률을 **낼 수 없다**는 뜻인데, 그 사실은 아래 「최근 24시간
    * 작업」 칸이 이미 한 문장으로 말한다. 「지금 정상인 지표」 줄에 모르는 값을 세워 두면
-   * 옆의 진짜 값까지 같은 무게로 읽힌다 — `MetricStrip` 이 같은 이유로 「-」를 빈 값으로
-   * 친다(ui/kit.jsx::isEmptyValue). */
+   * 옆의 진짜 값까지 같은 무게로 읽힌다 — 걷어 낸 판독 줄(`MetricStrip`)도 같은 이유로 「-」를 빈 값으로
+   * 쳤다. */
   const headline = headlineStats({ components: comps, jobs, disk, jobsNote, diagTo, diagNote });
   const hasValue = (v) => v != null && v !== "" && v !== "-";
   const stripItems = headline

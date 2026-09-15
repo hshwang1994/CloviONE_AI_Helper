@@ -11,12 +11,15 @@ vi.mock("../app/auth.jsx", () => ({
 }));
 
 import { DataScreen } from "../screens/DataScreen.jsx";
-import { ConfirmProvider, MetricStrip, Skeleton, ToastProvider } from "./kit.jsx";
+import { ConfirmProvider, Skeleton, ToastProvider } from "./kit.jsx";
+import { StatusKpiStrip } from "./StatusKpi.jsx";
 import { ThemeModeProvider } from "./ThemeModeProvider.jsx";
 import { BarSeries } from "./charts/BarSeries.jsx";
 import { Donut } from "./charts/Donut.jsx";
 import { LineSeries } from "./charts/LineSeries.jsx";
 import { Sparkline } from "./charts/Sparkline.jsx";
+
+/* qa-contract-change: 판독 줄(MetricStrip)이 핸드오프 RULES §6 에 따라 걷혀, 그 부품의 「전부 비면 원인을 대신 그린다」 계약(emptyCause · data-metrics-empty — 제품 소비처 0)을 그 줄을 이은 측정값 줄(StatusKpiStrip)의 「항목이 없으면 그릇을 남기지 않는다」로 옮긴다. */
 
 /* 값이 0건일 때 **그리지 않는가** (PLAN «빈 데이터 규칙», 지시 0-10).
  *
@@ -77,35 +80,24 @@ describe("값이 없으면 그림을 접는다", () => {
   });
 });
 
-describe("판독 줄은 전부 비면 원인을 대신 그린다", () => {
-  const EMPTY = [
-    { key: "a", label: "오늘 마감", value: "-" },
-    { key: "b", label: "처리 요청", value: null },
-  ];
-
-  it("원인을 주면 줄 대신 원인이 선다", () => {
-    const { container } = render(ui(
-      <MetricStrip ariaLabel="지표" items={EMPTY} emptyCause={<p>연동이 끊겼습니다</p>} />
-    ));
-    expect(container.querySelector(".k-metrics")).toBeNull();
-    expect(screen.getByText("연동이 끊겼습니다")).toBeInTheDocument();
+describe("측정값 줄은 항목이 없으면 그릇을 남기지 않는다 (판독 줄의 빈 줄 계약을 이은 자리)", () => {
+  it("항목이 없으면 줄도, 칸 격자도 없다", () => {
+    const { container } = render(ui(<StatusKpiStrip ariaLabel="지표" items={[]} />));
+    expect(container.querySelector('[role="group"]')).toBeNull();
+    expect(container.textContent).toBe("");
   });
 
-  it("원인을 안 주면 줄은 남되 **셀 수 있게** 표시된다", () => {
-    /* 반례. 원인 없이 줄만 지우면 화면이 구획 정체성까지 잃는다("오늘 마감" 이라는 이름
-       자체가 사라진다) — 그래서 지우지 않고 표식을 남긴다. 그 표식의 개수가 곧 «아직
-       원인을 안 넘긴 자리» 의 수다. */
-    const { container } = render(ui(<MetricStrip ariaLabel="지표" items={EMPTY} />));
-    expect(container.querySelector('.k-metrics[data-metrics-empty="true"]')).not.toBeNull();
+  it("비어 있는 항목(null · false)은 칸이 되지 않는다 — 전부 비면 줄도 없다", () => {
+    /* 반례. 화면이 조건부로 항목을 빼면서 `null` 을 남기는 일은 흔하다 — 그것을 칸으로 세면 이름 없는 빈 판이
+       선다(「없는 데이터를 위한 컨테이너」). */
+    const { container } = render(ui(<StatusKpiStrip ariaLabel="지표" items={[null, false]} />));
+    expect(container.querySelector('[role="group"]')).toBeNull();
   });
 
-  it("한 칸이라도 값이 있으면 그대로 그린다", () => {
-    const items = [{ key: "a", label: "오늘 마감", value: 3 }, { key: "b", label: "처리 요청", value: "-" }];
-    const { container } = render(ui(
-      <MetricStrip ariaLabel="지표" items={items} emptyCause={<p>연동이 끊겼습니다</p>} />
-    ));
-    expect(container.querySelector(".k-metrics")).not.toBeNull();
-    expect(screen.queryByText("연동이 끊겼습니다")).toBeNull();
+  it("한 칸이라도 있으면 그대로 그린다", () => {
+    render(ui(<StatusKpiStrip ariaLabel="지표" items={[{ key: "a", label: "오늘 마감", value: 3 }, null]} />));
+    expect(screen.getByRole("group", { name: "지표" })).toBeInTheDocument();
+    expect(screen.getByText("오늘 마감")).toBeInTheDocument();
   });
 });
 

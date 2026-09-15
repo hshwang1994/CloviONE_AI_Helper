@@ -74,7 +74,6 @@ UI 의미 → 정본 컴포넌트/파일 → API · 상태 계약 → 소비처 
 | 상태 줄 목록 | `StatusList` | `ui/adminKit.jsx` | 이름 + 슬롯 | 3 | — | — |
 | 회의 갈래 칩 | `DiscussBucketRow` | `ui/DiscussBucket.jsx` | 알약 + StatusDot, tablist · roving tabindex | 1 | — | `sprint-meeting` |
 | 티켓 미리보기 | `TicketPeek` | `screens/TicketPeek.jsx` | Modal md, 발 → ActionFooter(B) | 2 | — | `ticket-peek` |
-| 판독 줄(걷을 대상) | `MetricStrip` | `ui/kit.jsx` | B 단계가 데이터 의미별로 흡수한 뒤 걷는다 | 14 | — | `kit.test` |
 
 소비처 파일 목록:
 
@@ -124,7 +123,6 @@ UI 의미 → 정본 컴포넌트/파일 → API · 상태 계약 → 소비처 
 - `StatusList`: `screens/Dashboard.jsx`, `screens/ops/Diagnostics.jsx`, `screens/ops/ServiceStatusPanel.jsx`
 - `DiscussBucketRow`: `screens/Sprint.jsx`
 - `TicketPeek`: `screens/Sprint.jsx`, `screens/WorkBoard.jsx`
-- `MetricStrip`: `screens/DataScreen.jsx`, `screens/DevReport.jsx`, `screens/Integrity.jsx`, `screens/Knowledge.jsx`, `screens/MailStatus.jsx`, `screens/OrgConsole.jsx`, `screens/Projects.jsx`, `screens/SchedulerCalendar.jsx`, `screens/SetupWizard.jsx`, `screens/ops/Diagnostics.jsx`, `screens/ops/JobQueuePanel.jsx`, `screens/ops/ServiceStatusPanel.jsx`, `screens/org/DeptDetailPanel.jsx`, `screens/org/OrgDetailPanel.jsx`
 
 ---
 
@@ -292,7 +290,12 @@ B 단계가 전수 흡수를 끝낸 뒤 남는 자리만 적는다. 형식은 �
   최근 24시간 실패가 신호, 평균 처리 시간 · 가장 오래된 대기가 측정값이다.
 - 대시보드의 판정 줄(`StatusBand`)은 메시지 박스(`Callout toneLabel`)다(계획 P-18) — 판정 낱말(위험 · 주의 · 정상)은 아이콘
   접근 이름이 말한다. 홈 「이번 주」의 프로젝트 축 줄은 `StatusList` · `StatusTile` 이다.
-- `MetricStrip` 의 남은 소비처는 문서 목록 하나이고, D 단계(보기 전환 `Segmented count`)가 걷는다.
+- **판독 줄(`MetricStrip`)은 걷었다**(계획 D) — 마지막 소비처였던 문서 목록의 요약 넷이 보기 전환 세그먼티드의 건수가 됐다(§0-15).
+  부품이 지키던 계약은 이은 부품으로 옮겼다: 신호를 색만으로 말하지 않는다 · 누를 수 있는 칸만 버튼이고 눌림을 알린다 · 선택은
+  면이 아니라 선이 말한다(`StatusKpiTile`, `kit.test`), 항목이 없으면 그릇을 남기지 않는다(`StatusKpiStrip`, `empty-data-unmount`),
+  심각도 낱말은 대비 보강 잉크 · 한 줄(`Badge`, `theme-link-contrast`). 프로브: `kit_e2e` 의 판독 줄 검사를 걷고 FF-1400 은 상태 칩을
+  누른다, `brand.py` 의 highlight 는 화면 선언(`data-brand-role="highlight"`)만 본다(큰 숫자는 핸드오프 규약상 잉크색이라 그 자리가
+  아니다). 세그먼티드는 선택이 중립이라 `data-brand-role="none"` 을 선언한다(흰 칸을 「회색인 선택 자리」로 세지 않는다).
 - 값 하나 카드의 심각도는 이름 앞 7px 점이다(`totalKind`) — 알림의 안 읽음이 남으면 주의 점. 숫자는 타일 줄처럼 잉크색이다.
 
 ## 0-12. 단추 · 탭 · 모달 발 · 팝오버 항목 · 사람 고르개 (핸드오프 RULES §3 · §8 · 계획 B-7)

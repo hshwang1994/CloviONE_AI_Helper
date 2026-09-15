@@ -106,7 +106,7 @@ export function trendRows(trend) {
 
 /* 프로젝트 축 한 줄 — 이름과 값, 누르면 그 목록으로 간다.
  *
- * 판독 칸(MetricStrip)을 쓰지 않는다. 이 자리는 좁은 레일이고, 값 둘을 40px 로 세우면
+ * 판독 칸(지금은 걷힌 `MetricStrip`)을 쓰지 않았다. 이 자리는 좁은 레일이고, 값 둘을 40px 로 세우면
  * 「지금 급한 것」보다 커진다. 목록 줄이 맞는 모양이다 — 대시보드 · 진단의 상태 줄과 같은 부품
  * (`StatusList` · `StatusTile`)이다(계획 B-6). 예전에는 같은 줄을 이 파일이 손으로 그렸다. */
 function StatRow({ label, value, kind, onClick, ariaLabel }) {

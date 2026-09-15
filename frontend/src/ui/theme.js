@@ -464,7 +464,7 @@ const TOKENS = {
 
        그 대가로 값을 실제로 벌렸다: 다섯 면 최악 3.42(L) / 3.90(D) 로 AA-large 를 넘고,
        `muted` 와의 분리도가 1.10 -> **1.53(L) / 1.60(D)** 가 된다. 본문 크기에서 셋째
-       단계가 필요하면 색이 아니라 **크기와 자리**로 만든다(`MetricStrip` 의 각주가 그 예다).
+       단계가 필요하면 색이 아니라 **크기와 자리**로 만든다(측정값 타일 `StatusKpiTile` 의 각주가 그 예다).
        `scripts/check_ink_scale.py` 가 소비처를 그 범위 안에 묶고,
        `theme-contract.test.js` 가 3.0 하한과 분리도 하한을 함께 단언한다.
        `text.disabled` 는 이 값을 따라오지 않는다 — 아래 `disabledInk` 가 따로 있다. */

@@ -5,7 +5,7 @@
 전 페이지가 초록으로 나온다.
 
 측정 대상은 7개 role 이다. 각 role 을 **어떤 선택자로 잡는지는 소스에서 정했다** —
-`app/AppShell.jsx`(AppBar·사이드바·nav 활성), `ui/kit.jsx`(Button variant·`.k-readout`),
+`app/AppShell.jsx`(AppBar·사이드바·nav 활성), `ui/kit.jsx`(Button variant · `data-brand-role` 선언),
 `ui/theme.js`(토큰), `screens/chat/MessageThread.jsx`(도우미 말풍선).
 
   header          상단바가 칠하는 면
@@ -223,7 +223,12 @@ BRAND_PROBE_JS = r"""() => {
          `user_ticket-detail` 네 페이지가 그 경로로만 빨갰다. 고치는 방향은 속성 값을 Brand
          로 칠하는 것이 아니다 — 그 화면에 판독값이 없다는 것이 사실이고, 사실일 때의 답은
          `unknown` 이다(활성 주요 버튼이 없는 화면을 `unknown` 으로 두는 것과 같다). */
-      sel: ['[data-brand-role="highlight"]', '.k-metrics', '.k-readout'],
+      /* 🔴 **판독 줄(`MetricStrip` · `.k-metrics` · `.k-readout`)은 걷혔다** — 핸드오프 RULES §6 「판독 줄은 쓰지
+         않는다」 · 계획 D. 그 줄을 이은 부품의 큰 숫자(`StatusSummaryCard` 의 합계, 측정값 타일)는 핸드오프 규약상
+         **잉크색**이라(RULES §10 · `StatusKpi.jsx` 「숫자는 잉크색이다」) 이 role 의 자리가 아니다. 그래서 선택자는
+         화면의 선언 하나만 남긴다: 선언한 화면이 없으면 이 role 은 `unknown` 이다(통과로도 회색 결함으로도 세지
+         않는다 — 정족수를 공짜로 채우지 않는다). 옛 줄 선택자를 남겨 두면 걷힌 클래스를 찾는 죽은 경로가 된다. */
+      sel: ['[data-brand-role="highlight"]'],
       /* 🔴 **판독 슬롯이 없는 줄은 이 role 의 자리가 아니다** (S22 · P-43). `MetricStrip`
          은 값이 0 이거나 비면 판독 슬롯을 안 준다 — 그때 그 줄에는 «그 화면을 지배하는
          판독값» 이 없고, 없는 것을 아래 `refine` 이 «가장 큰 글자» 로 대신 집으면 (옳게)

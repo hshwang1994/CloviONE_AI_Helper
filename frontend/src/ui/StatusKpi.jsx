@@ -7,7 +7,8 @@ import { CARD_PADDING, fixedTileTrack, KPI_TILE_TRACK, TILE_GRID_GAP, TILE_PADDI
 import { useRevealOnce } from "./motion.js";
 import { CONTROL, FONT_SIZE, FONT_WEIGHT, MOTION, NUMERIC, RADIUS, remPx } from "./theme.js";
 
-/* 보드·회의의 상태 숫자. 홈의 세로선 `MetricStrip` 과 **다른 부품**이다.
+/* 보드·회의의 상태 숫자. 칸마다 판을 갖는 타일이다 — 판 없이 세로선으로 칸을 가르던 판독 줄(`MetricStrip`)은
+ * 핸드오프 RULES §6 에 따라 걷혔고, 그 줄의 독립 측정값은 이 타일 줄이, 상태 구성은 아래 `StatusSummaryCard` 가 이었다.
  *
  * 칸마다 위색 띠 · 숫자 · 라벨 · (있으면) 비율이 선다. 숫자는 처음부터 최종값이다 —
  * 세어 올라가는 연출은 값을 늦게 읽게 만든다. 등장만 짧게 한 번 한다. */

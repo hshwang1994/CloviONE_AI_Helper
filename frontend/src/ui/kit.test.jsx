@@ -5,10 +5,13 @@ import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 import {
   Badge, Button, Callout, ConfirmProvider, DataTable, EmptyState, ErrorState,
-  Card, FlatBadgeSurface, FormField, MetricStrip, Modal, OverflowMenu, PageHeader, SURFACE_EDGE_WIDTH, SURFACE_TONES, Section, Segmented, Surface,
+  Card, FlatBadgeSurface, FormField, Modal, OverflowMenu, PageHeader, SURFACE_EDGE_WIDTH, SURFACE_TONES, Section, Segmented, Surface,
   ToastProvider, statusKind, statusText, useConfirm,
 } from "./kit.jsx";
 import { ThemeModeProvider } from "./ThemeModeProvider.jsx";
+import { StatusKpiTile } from "./StatusKpi.jsx";
+
+/* qa-contract-change: 판독 줄(MetricStrip)이 핸드오프 RULES §6(「판독 줄은 쓰지 않는다」)에 따라 걷히고 측정값 타일(StatusKpiTile)이 그 자리를 이어, 판독 칸이 지키던 세 계약(신호를 색만으로 말하지 않는다 · 누를 수 있는 칸만 버튼이고 눌림을 알린다 · 선택은 면이 아니라 선이 말한다)을 타일로 옮긴다. */
 
 /* 키트를 MUI로 갈아끼우면서 계약이 유지되는지 보는 테스트.
  *
@@ -222,28 +225,30 @@ describe("심각도를 색만으로 전하지 않는다 (WCAG 1.4.1)", () => {
     });
   });
 
-  /* 아래 둘은 StatCard(카드 한 장 = 지표 하나)가 지키던 계약이다. 그 컴포넌트는
-     MetricStrip 으로 대체됐고, 계약은 그대로 옮겨 왔다. */
-  it("판독 칸은 위험/주의를 글자로도 표시한다", () => {
-    ui(<MetricStrip ariaLabel="티켓" items={[{ key: "o", value: 3, label: "지연", kind: "danger" }]} />);
-    expect(screen.getByText("위험")).toBeInTheDocument();
+  /* 아래 둘은 StatCard(카드 한 장 = 지표 하나)가 지키던 계약이다. 그 컴포넌트는 판독 줄(MetricStrip)로,
+     판독 줄은 측정값 타일(`StatusKpiTile`)로 이어졌고 계약은 그대로 옮겨 왔다. */
+  it("측정값 타일은 신호를 색만으로 말하지 않는다 — 낱말이 늘 함께 서고 점은 거든다", () => {
+    const { container } = ui(<StatusKpiTile label="지연" value={3} kind="danger" />);
+    expect(screen.getByText("지연")).toBeInTheDocument();
     expect(screen.getByText("3")).toBeInTheDocument();
+    // 점은 뜻을 나르지 않는 장식이라 낭독에서 빠진다 — 뜻은 낱말이 나른다.
+    const dot = container.querySelector("[data-status-dot]");
+    expect(dot).toHaveAttribute("aria-hidden", "true");
+    expect(dot.textContent).toBe("");
   });
 
-  it("누를 수 있는 판독 칸만 버튼이 되고 눌림 상태를 알린다", async () => {
+  it("누를 수 있는 측정값 타일만 버튼이 되고 눌림 상태를 알린다", async () => {
     const onClick = vi.fn();
     ui(
-      <MetricStrip
-        ariaLabel="티켓"
-        items={[
-          { key: "open", value: 1, label: "열린 티켓", onClick, active: true },
-          { key: "done", value: 9, label: "완료" },
-        ]}
-      />,
+      <>
+        <StatusKpiTile label="열린 티켓" value={1} onClick={onClick} selected />
+        <StatusKpiTile label="완료" value={9} />
+      </>,
     );
-    // 누를 수 없는 칸은 버튼이 아니다 — 버튼은 하나뿐이어야 한다.
+    // 누를 수 없는 타일은 버튼이 아니다 — 버튼은 하나뿐이어야 한다.
     const card = screen.getByRole("button");
     expect(card).toHaveAttribute("aria-pressed", "true");
+    expect(card).toHaveAccessibleName("열린 티켓 1");
     await userEvent.click(card);
     expect(onClick).toHaveBeenCalled();
   });
@@ -975,33 +980,26 @@ describe("버튼 강도 — 보조 테두리", () => {
   });
 });
 
-/* 판을 벗긴 뒤 선택 신호가 살아 있는가 (W4).
+/* 선택 신호는 면이 아니라 **선**이 말한다 (W4 → 핸드오프 계획 B-6).
  * `background.inset` 은 판 위에서는 함몰면이지만 캔버스 위에서는 더 밝고 대비가 1.055:1 이라
- * 신호가 뒤집히면서 사라진다. 그래서 레일이 말한다 — 사이드바와 같은 어휘다(D-184). */
-describe("판독 줄의 선택 신호", () => {
-  it("지금 목록을 거르는 칸이 레일을 갖고, 나머지는 같은 두께의 투명 레일을 갖는다", () => {
+ * 신호가 뒤집히면서 사라진다. 판독 줄의 레일이 그 계약을 지켰고, 그 줄을 이은 측정값 타일은 판 면을 그대로 두고
+ * **테두리 색**으로 지금 고른 타일을 말한다. */
+describe("측정값 타일의 선택 신호", () => {
+  it("지금 목록을 거르는 타일은 테두리가 달라지고, 두께와 면은 고르지 않은 타일과 같다", () => {
     ui(
-      <MetricStrip
-        ariaLabel="티켓"
-        items={[
-          { key: "a", value: 3, label: "열림", onClick: () => {}, active: true },
-          { key: "b", value: 9, label: "완료", onClick: () => {} },
-        ]}
-      />,
+      <>
+        <StatusKpiTile label="열림" value={3} onClick={() => {}} selected />
+        <StatusKpiTile label="완료" value={9} onClick={() => {}} selected={false} />
+      </>,
     );
-    const cells = document.querySelectorAll(".k-readout");
-    const on = getComputedStyle(cells[0]);
-    const off = getComputedStyle(cells[1]);
-    expect(on.borderBlockEndStyle).toBe("solid");
-    expect(on.borderBlockEndWidth).toBe(off.borderBlockEndWidth);   // 줄 높이가 튀지 않는다
-    // jsdom 은 `transparent` 를 `rgba(0, 0, 0, 0)` 으로 계산해 돌려준다.
-    const clear = (v) => v === "transparent" || v === "rgba(0, 0, 0, 0)";
-    expect(clear(on.borderBlockEndColor), `활성 레일 색 ${on.borderBlockEndColor}`).toBe(false);
-    expect(clear(off.borderBlockEndColor), `비활성 레일 색 ${off.borderBlockEndColor}`).toBe(true);
-    /* **면은 신호를 지지 않는다.** 처음에는 위 주석을 적어 두고도 `bgcolor` 를 지우지
-     * 않아, 캔버스 위에서 1.055:1 로 보이지 않는 면이 그대로 남아 있었다(독립 검수 실측).
-     * 활성 칸이 면을 칠하면 두 어휘가 같은 것을 두 번 말한다 — 그걸 여기서 막는다. */
-    expect(clear(on.backgroundColor), `활성 칸 배경 ${on.backgroundColor}`).toBe(true);
+    const [onEl, offEl] = screen.getAllByRole("button");
+    const on = getComputedStyle(onEl);
+    const off = getComputedStyle(offEl);
+    expect(on.borderTopStyle).toBe("solid");
+    expect(on.borderTopWidth).toBe(off.borderTopWidth);   // 고를 때 타일 크기가 튀지 않는다
+    expect(on.borderTopColor, "고른 타일의 테두리가 고르지 않은 타일과 같다").not.toBe(off.borderTopColor);
+    /* **면은 신호를 지지 않는다.** 활성 칸이 면을 칠하면 두 어휘가 같은 것을 두 번 말한다 — 그걸 여기서 막는다. */
+    expect(on.backgroundColor, `고른 타일 면 ${on.backgroundColor}`).toBe(off.backgroundColor);
   });
 });
 

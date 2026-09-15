@@ -41,7 +41,7 @@ import { CHART_DASH } from "../theme.js";
  * 4K에서 12px 미만으로 남아 QA의 tiny_text 검사에 걸린다. 글자는 전부 바깥 HTML로 낸다.
  */
 
-/* 키트의 톤 어휘(ok/danger/warn/neutral — Badge·MetricStrip 의 kind와 같은 말)를 MUI 팔레트 이름으로.
+/* 키트의 톤 어휘(ok/danger/warn/neutral — Badge · DotLabel 의 kind와 같은 말)를 MUI 팔레트 이름으로.
  * 화면 쪽 코드가 배지엔 kind="danger", 차트엔 color="error"라고 서로 다른 단어를 쓰게 되면
  * 같은 심각도가 두 이름으로 갈라져 언젠가 어긋난다 — 양쪽 다 받아 준다. */
 const TONE_ALIAS = { ok: "success", danger: "error", warn: "warning" };

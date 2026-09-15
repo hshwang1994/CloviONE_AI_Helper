@@ -11,7 +11,7 @@
    시험도 콘솔도 아무 말을 안 하는데 화면에는 선이 없다(F-W2R-01). 그래서 **배포된 CSS 가
    계산한 값**을 브라우저에서 직접 읽는다.
 
-2. **부품의 상호작용은 기능이다.** 모달이 열린다·더티 가드가 묻는다·판독 칸이 목록을
+2. **부품의 상호작용은 기능이다.** 모달이 열린다·더티 가드가 묻는다·상태 칩이 목록을
    거른다는 것은 렌더 시험이 아니라 사슬이다. 서버가 관여하는 것은 네트워크와 함께 기록하고,
    **관여하지 않는 것은 지어내지 않는다** — 사슬의 API 칸을 비워 두고 `IN_PROGRESS` 로
    남긴다(`shell_e2e.py`·`nav_e2e.py` 가 세운 규율).
@@ -19,11 +19,10 @@
 ## 이 모듈이 재는 계약
 
   · 판 안의 판이 몇 자리인가 (`data-surface="plate>none"`)
-  · 판독 줄(`MetricStrip`)이 판을 갖지 않는가, 칸 구분선이 **실제로 그려지는가**,
-    라벨이 한 기준선에서 시작하는가(F-W1R-27 이 24px 어긋남으로 잡은 그 값), 판독 슬롯이
-    묶음당 하나인가, 활성 칸의 레일이 보이는가
-  · 속성 줄(`MetaBar`)도 같은 두 가지
-  · 안내(`Callout`)의 앞머리 실선이 그려지는가, 전폭 상자가 아닌가
+  · (판독 줄 `MetricStrip` 검사는 걷었다 — 핸드오프 RULES §6 이 판독 줄을 없앴고 계획 D 가 마지막 소비처를 옮겼다.
+    그 줄을 이은 상태 요약 카드 · 측정값 타일의 치수는 `kit_measure.py` 가 잰다.)
+  · 속성 줄(`MetaBar`)이 판을 갖지 않는가, 칸 구분선이 **실제로 그려지는가**
+  · 안내(`Callout`)가 메시지 박스 1a 인가 — 함몰면 + 네 면 1px 테두리(핸드오프 RULES §1). `inline` 갈래는 상자가 없다
   · 보조 버튼 테두리가 본문 잉크가 아닌가, **파괴 버튼 테두리가 3:1 을 넘는가**,
     채운 error 면이 대화상자 밖에 없는가
   · 잉크 3단의 실제 분리도
@@ -61,8 +60,6 @@ OUT_DEFAULT = REPO_ROOT / "dist" / "ui-qa" / "w4-kit-e2e"
 # `kit.test.jsx` 가 먼저 깨진다(그쪽은 상수를 import 해서 센다).
 STRIP_DIVIDER_PX = 1
 SURFACE_EDGE_PX = 3     # brandTint 앞머리 edge
-CALLOUT_EDGE_PX = 2     # Callout 앞머리 실선
-READOUT_RAIL_PX = 2     # 활성 판독 칸의 레일
 INK_SEPARATION_MIN = 1.45   # secondary vs faint
 
 # **`[role="dialog"]` 만으로는 모자란다.** AI 서랍(`클로비 AI 도우미`)이 `MuiDrawer` 인데
@@ -110,7 +107,6 @@ SURFACE_JS = r"""
       faint: root.getPropertyValue('--color-faint').trim(),
     },
     nestedPlates: [],
-    strips: [],
     metabars: [],
     callouts: [],
     buttons: { defaultOutlined: [], dangerOutlined: [],
@@ -128,83 +124,7 @@ SURFACE_JS = r"""
     });
   }
 
-  /* ② 판독 줄. 판이 없어야 하고, 칸 구분선은 **실제로 그려져야** 하며, 라벨은 한
-        기준선에서 시작해야 한다. */
-  for (const strip of document.querySelectorAll('.k-metrics')) {
-    const s = cs(strip);
-    const cells = [...strip.querySelectorAll('.k-readout')];
-    const rows = cells.map((c) => {
-      const cst = cs(c);
-      // 칸의 두 번째 자식이 라벨 줄이다(첫째는 값 줄). 라벨 잉크의 시작 y 를 잰다.
-      const labelBox = c.children[1];
-      const valueBox = c.children[0];
-      const lr = labelBox ? labelBox.getBoundingClientRect() : null;
-      const vr = valueBox ? valueBox.getBoundingClientRect() : null;
-      /* 값의 글자 크기는 **값 상자 안에서 가장 큰 것**으로 잰다. 첫 판은
-         `valueBox.querySelector('div')` 로 첫 자식을 짚었는데 그건 baseline 정렬용
-         래퍼라 글자 크기를 물려받기만 한다(15px) — 그 결과 판독 칸이 40px 이어도
-         전 칸이 같은 값으로 읽혀 `readoutCount` 가 **구조적으로 항상 0** 이었다.
-         검사는 통과하고 있었지만 아무것도 재지 않았다. 독립 검수가 지목했다. */
-      const valueText = valueBox
-        ? [...valueBox.querySelectorAll('*')].reduce(
-            (big, e) => (big && num(cs(big).fontSize) >= num(cs(e).fontSize) ? big : e), null)
-        : null;
-      const cr = c.getBoundingClientRect();
-      return {
-        /* 칸이 몇 번째 줄에 있는가. 좁은 화면에서 판독 줄은 **접힌다**(flex-wrap) —
-           다른 줄의 라벨이 같은 y 에서 시작할 이유가 없다. 첫 판이 전 칸을 한 줄로 보고
-           390 에서 72~96px 어긋남을 «계약 위반» 이라고 적었다. 8px 버킷으로 줄을 센다
-           (`vertical_text_collapse` 가 이미 쓰는 기법). */
-        rowIndex: Math.round(cr.top / 8),
-        labelTop: lr ? Math.round(lr.top * 100) / 100 : null,
-        valueHeight: vr ? Math.round(vr.height * 100) / 100 : null,
-        valueFontPx: valueText ? Math.round(num(cs(valueText).fontSize) * 100) / 100 : null,
-        dividerStyle: cst.borderInlineStartStyle,
-        dividerWidth: raw(num(cst.borderInlineStartWidth)),
-        railStyle: cst.borderBlockEndStyle,
-        railWidth: raw(num(cst.borderBlockEndWidth)),
-        railClear: clear(cst.borderBlockEndColor),
-        pressed: c.getAttribute('aria-pressed'),
-      };
-    });
-    // 줄마다 따로 재고 **가장 큰 어긋남**을 남긴다.
-    const byRow = new Map();
-    for (const r of rows) {
-      if (r.labelTop == null) continue;
-      if (!byRow.has(r.rowIndex)) byRow.set(r.rowIndex, []);
-      byRow.get(r.rowIndex).push(r.labelTop);
-    }
-    let spread = null;
-    for (const list of byRow.values()) {
-      if (list.length < 2) continue;
-      const d = Math.max(...list) - Math.min(...list);
-      spread = spread == null ? d : Math.max(spread, d);
-    }
-    const tops = rows.map((r) => r.labelTop).filter((v) => v != null);
-    const fonts = rows.map((r) => r.valueFontPx).filter((v) => v != null);
-    out.strips.push({
-      plate: painted(s),
-      background: s.backgroundColor,
-      borderTopWidth: raw(num(s.borderTopWidth)),
-      cells: rows.length,
-      labelTopSpread: spread == null ? null : Math.round(spread * 100) / 100,
-      rows: byRow.size,
-      readoutCount: fonts.length ? fonts.filter((f) => f >= Math.max(...fonts) && Math.max(...fonts) > Math.min(...fonts)).length : 0,
-      maxValueFont: fonts.length ? norm(Math.max(...fonts)) : null,
-      minValueFont: fonts.length ? norm(Math.min(...fonts)) : null,
-      /* CSS 규칙은 `& > *:not(:first-of-type)` 이라 **첫 칸 하나만** 선을 안 갖는다
-         (줄바꿈된 둘째 줄의 첫 칸도 선을 갖는다 — 알려진 절충이고 계약대로다).
-         그래서 기대값은 `칸 수 - 1` 이고 대상은 첫 칸을 뺀 나머지다. */
-      dividersDrawn: rows.slice(1).filter((r) => r.dividerStyle === 'solid' && r.dividerWidth > 0).length,
-      dividersExpected: Math.max(0, rows.length - 1),
-      activeRail: rows.filter((r) => r.pressed === 'true').map((r) => ({
-        style: r.railStyle, width: r.railWidth, clear: r.railClear })),
-      inactiveRailWidths: [...new Set(rows.filter((r) => r.pressed !== 'true').map((r) => r.railWidth))],
-      emptyMarker: strip.getAttribute('data-metrics-empty'),
-    });
-  }
-
-  /* ③ 속성 줄. 같은 두 가지. */
+  /* ③ 속성 줄. 판이 없고 칸 구분선이 실제로 그려지는가. (② 판독 줄은 걷었다 — 모듈 머리말.) */
   for (const bar of document.querySelectorAll('.k-metabar')) {
     const s = cs(bar);
     const cells = [...bar.querySelectorAll('.k-metacell')];
@@ -218,7 +138,8 @@ SURFACE_JS = r"""
     });
   }
 
-  /* ④ 안내. 앞머리 실선이 그려지는가, 네 면 상자가 아닌가. */
+  /* ④ 안내. 메시지 박스 1a(함몰면 + 네 면 1px 테두리)인가. 앞머리 실선 · 테두리 없는 띠는 W4 의 옛 형태였고,
+        핸드오프 A 가 부품을 1a 로 옮겼다(RULES §1 「함몰면 + 아이콘 + (제목) + 본문」). */
   for (const el of document.querySelectorAll('.k-callout')) {
     const s = cs(el);
     out.callouts.push({
@@ -327,27 +248,6 @@ def verdict(m: dict) -> dict:
     fails: list[str] = []
     checked = 0
 
-    for i, s in enumerate(m.get("strips") or []):
-        checked += 1
-        if s["plate"]:
-            fails.append(f"판독 줄 {i}: 판을 갖는다 (bg={s['background']}, "
-                         f"테두리 {s['borderTopWidth']}px) — PLAN 하드 금지")
-        if s["dividersDrawn"] != s["dividersExpected"]:
-            fails.append(f"판독 줄 {i}: 칸 구분선 {s['dividersDrawn']}/{s['dividersExpected']} "
-                         f"만 그려진다 (선언만 있고 안 그려지는 상태 — F-W2R-01)")
-        if s["labelTopSpread"] is not None and s["labelTopSpread"] > 1.5:
-            fails.append(f"판독 줄 {i}: 라벨 기준선이 {s['labelTopSpread']}px 어긋난다 (F-W1R-27)")
-        if s["readoutCount"] > 1:
-            fails.append(f"판독 줄 {i}: 판독 슬롯이 {s['readoutCount']}개다 — 묶음당 하나여야 한다")
-        for rail in s["activeRail"]:
-            if rail["clear"] or rail["style"] != "solid" or rail["width"] < READOUT_RAIL_PX:
-                fails.append(f"판독 줄 {i}: 활성 칸의 레일이 안 보인다 "
-                             f"({rail['style']} {rail['width']}px, 색 없음={rail['clear']})")
-        if len(s["inactiveRailWidths"]) > 1 or (
-                s["inactiveRailWidths"] and s["inactiveRailWidths"][0] != READOUT_RAIL_PX):
-            fails.append(f"판독 줄 {i}: 비활성 칸 레일 폭이 {s['inactiveRailWidths']} — "
-                         f"활성/비활성 폭이 다르면 선택할 때 줄 높이가 튄다")
-
     for i, b in enumerate(m.get("metabars") or []):
         checked += 1
         if b["plate"]:
@@ -361,12 +261,11 @@ def verdict(m: dict) -> dict:
             if c["topWidth"] or c["rightWidth"] or c["bottomWidth"] or c["edgeWidth"]:
                 fails.append(f"안내 {i}(inline): 상자를 갖는다 — 문장 흐름 안의 한 줄이어야 한다")
             continue
-        if c["edgeStyle"] != "solid" or c["edgeWidth"] < CALLOUT_EDGE_PX or c["edgeClear"]:
-            fails.append(f"안내 {i}: 앞머리 실선이 안 그려진다 "
-                         f"({c['edgeStyle']} {c['edgeWidth']}px, 색 없음={c['edgeClear']})")
-        if c["topWidth"] or c["rightWidth"] or c["bottomWidth"]:
-            fails.append(f"안내 {i}: 네 면 테두리 상자다 (위 {c['topWidth']} / 오른쪽 "
-                         f"{c['rightWidth']} / 아래 {c['bottomWidth']}) — C5 가 폐기한 형태")
+        if not (c["topWidth"] and c["rightWidth"] and c["bottomWidth"] and c["edgeWidth"]):
+            fails.append(f"안내 {i}: 네 면 테두리가 아니다 (위 {c['topWidth']} / 오른쪽 {c['rightWidth']} / "
+                         f"아래 {c['bottomWidth']} / 앞 {c['edgeWidth']}) — 메시지 박스 1a 는 네 면 1px 상자다")
+        if c["background"] in ("transparent", "rgba(0, 0, 0, 0)"):
+            fails.append(f"안내 {i}: 면이 없다 — 메시지 박스 1a 는 함몰면이다")
 
     btn = m.get("buttons") or {}
     for b in btn.get("defaultOutlined") or []:
@@ -415,13 +314,16 @@ def measure(page, label: str) -> dict:
 # 기능 사슬
 # --------------------------------------------------------------------------- #
 def ff_1400_metric_filter(page, rec: Recorder, out: Path, base: str) -> dict:
-    """판독 칸을 눌러 아래 목록을 거른다 (`MetricStrip` 의 `onClick`/`aria-pressed`)."""
-    f = flow("FF-1400", "filter", "판독 칸을 눌러 아래 목록을 거른다")
+    """상태 칩을 눌러 아래 목록을 거른다 (`StatusSummaryCard` 상태 칩의 `onClick`/`aria-pressed`).
+
+    예전에는 판독 줄(`MetricStrip`)의 칸이었다 — 판독 줄이 걷히고(핸드오프 RULES §6) 홈의 요약은 상태 칩 카드가
+    됐다(D-475). 흐름 번호와 뜻(«요약의 한 칸을 누르면 목록이 좁혀진다»)은 그대로다."""
+    f = flow("FF-1400", "filter", "상태 칩을 눌러 아래 목록을 거른다")
     _goto(page, base, "/me")
     rec.reset()
-    cells = page.locator('.k-readout[aria-pressed]')
+    cells = page.locator('.k-status-chip[aria-pressed]')
     if not cells.count():
-        f["notes"].append("이 화면에 누를 수 있는 판독 칸이 없다 — 측정 대상 없음")
+        f["notes"].append("이 화면에 누를 수 있는 상태 칩이 없다 — 측정 대상 없음")
         f["status"] = "NOT_APPLICABLE"
         return f
     before = [cells.nth(i).get_attribute("aria-pressed") for i in range(cells.count())]
@@ -432,7 +334,7 @@ def ff_1400_metric_filter(page, rec: Recorder, out: Path, base: str) -> dict:
     after = [cells.nth(i).get_attribute("aria-pressed") for i in range(cells.count())]
     f["observed"] = {"cells": cells.count(), "before": before, "after": after, "clicked": label}
     f["chain"] = {
-        "ui_action": f"판독 칸 «{label}» 클릭",
+        "ui_action": f"상태 칩 «{label}» 클릭",
         "frontend_state": f"aria-pressed {before} -> {after}",
         "rendered": page.locator("#main-content").inner_text()[:160].replace("\n", " "),
     }
@@ -441,7 +343,7 @@ def ff_1400_metric_filter(page, rec: Recorder, out: Path, base: str) -> dict:
         f["chain"]["api_request"] = calls[0]["url"]
         f["chain"]["api_response"] = f"HTTP {calls[0]['status']}"
     else:
-        f["notes"].append("서버 왕복이 **구조적으로 없다** — 이 판독 줄은 이미 받아 온 "
+        f["notes"].append("서버 왕복이 **구조적으로 없다** — 이 요약 카드는 이미 받아 온 "
                           "데이터의 초점만 바꾼다. 사슬의 API 칸을 지어내지 않는다.")
     f["screenshots"].append(_shot(page, out, "ff1400-metric-filter"))
     f["status"] = "PASS" if after != before else "FAIL"
@@ -687,7 +589,7 @@ def main() -> int:
     (out / "surfaces.json").write_text(
         json.dumps({"base_url": base, "contract": {
             "stripDivider": STRIP_DIVIDER_PX, "surfaceEdge": SURFACE_EDGE_PX,
-            "calloutEdge": CALLOUT_EDGE_PX, "readoutRail": READOUT_RAIL_PX,
+            "calloutBox": "inset + border 1px",
             "inkSeparationMin": INK_SEPARATION_MIN},
             "measurements": surfaces, "generated_at": stamp},
             ensure_ascii=False, indent=1), encoding="utf-8")
