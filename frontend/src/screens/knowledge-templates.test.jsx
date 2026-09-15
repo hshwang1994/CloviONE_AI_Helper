@@ -24,7 +24,7 @@
 
 import React from "react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
@@ -189,6 +189,36 @@ describe("분류 관리 — 틀 탭", () => {
     renderManager({ editingTemplate: { id: "new" } });
     await openTemplateTab(user);
     expect(screen.getByRole("button", { name: "추가" }).disabled).toBe(true);
+  });
+
+  it("틀을 고치는 동안 창의 발은 하나이고 취소 → 확정이다 — 몸 안에 둘째 단추 줄이 없다(핸드오프 RULES §8)", async () => {
+    const user = userEvent.setup();
+    const props = renderManager({ editingTemplate: { id: "new" } });
+    await openTemplateTab(user);
+    const dialog = screen.getByRole("dialog");
+    const footers = dialog.querySelectorAll("[data-action-footer]");
+    expect(footers).toHaveLength(1);
+    expect(footers[0].getAttribute("data-action-footer")).toBe("modal");
+    expect([...footers[0].querySelectorAll("button")].map((b) => b.textContent)).toEqual(["취소", "추가"]);
+    // 틀 판의 칸들은 몸 안이고, 몸에는 취소 · 추가 단추가 없다.
+    const body = screen.getByLabelText(/^틀 이름/).closest(".MuiDialogContent-root") || dialog;
+    expect([...body.querySelectorAll("button")].some((b) => ["취소", "추가"].includes(b.textContent) && !footers[0].contains(b))).toBe(false);
+    // 취소는 흰 면 보조이고, 누르면 틀 판을 닫는다.
+    const cancel = within(footers[0]).getByRole("button", { name: "취소" });
+    expect(cancel.className).toMatch(/MuiButton-outlined/);
+    await user.click(cancel);
+    expect(props.onCancelTemplate).toHaveBeenCalledTimes(1);
+  });
+
+  it("틀 목록의 줄 동작은 표 행과 같은 `RowActions` 다 — 삭제는 파괴 단추다", async () => {
+    const user = userEvent.setup();
+    renderManager();
+    await openTemplateTab(user);
+    const actions = document.querySelectorAll("[data-row-actions]");
+    expect(actions).toHaveLength(1);
+    const remove = within(actions[0]).getByRole("button", { name: "삭제" });
+    expect(remove.className).not.toMatch(/MuiButton-text/);
+    expect(within(actions[0]).getByRole("button", { name: "수정" }).className).toMatch(/MuiButton-outlined/);
   });
 
   it("🔴 운영자가 아니면 고치기·지우기가 안 보인다 — 그러나 **만들기는 보인다**", async () => {

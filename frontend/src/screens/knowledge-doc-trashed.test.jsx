@@ -136,7 +136,17 @@ describe("휴지통에 있는 문서", () => {
   it("🔴 복원이 여기 있다 — 휴지통에서 온 사람에게는 여기 말고 갈 곳이 없다", async () => {
     stubDocument({ archived: true });
     await renderDoc();
-    await userEvent.click(screen.getAllByRole("button", { name: "복원" })[0]);
+    // 「복원」은 두 자리에 서지만 채움은 페이지 머리 하나다 — 휴지통 안내 상자의 복원은 30 보조다(조합 계약 C-4 · RULES §1).
+    const restores = screen.getAllByRole("button", { name: "복원" });
+    expect(restores).toHaveLength(2);
+    const filled = restores.filter((b) => /MuiButton-contained/.test(b.className));
+    expect(filled).toHaveLength(1);
+    expect(filled[0].closest(".k-callout")).toBeNull();
+    const inBox = restores.find((b) => b.closest(".k-callout"));
+    expect(inBox, "안내 상자의 복원이 없다").toBeTruthy();
+    expect(inBox.className).toMatch(/MuiButton-sizeSmall/);
+    expect(inBox.className).not.toMatch(/MuiButton-contained/);
+    await userEvent.click(restores[0]);
     await waitFor(() =>
       expect(calls).toContain(`POST /api/knowledge/documents/${DOC_ID}/restore`));
   });

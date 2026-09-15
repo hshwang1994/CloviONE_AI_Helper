@@ -1,12 +1,11 @@
 import React from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import Box from "@mui/material/Box";
-import Stack from "@mui/material/Stack";
 import Tooltip from "@mui/material/Tooltip";
 import { api } from "../lib/api.js";
 import { failureText } from "../lib/failure.js";
 import { editorContainerSx, editorSurfaceWidthSx } from "./BodyEditor.jsx";
-import { Button, Callout, SectionTitle, Skeleton, useConfirm, useToast } from "./kit.jsx";
+import { ActionFooter, Button, Callout, SectionTitle, Skeleton, useConfirm, useToast } from "./kit.jsx";
 
 /* 편집기는 **지연 로드**한다. TipTap 과 그 확장 열두 개는 진입 번들에 넣을 것이 아니고,
  * `ui/block-editor-lazy.test.jsx` 가 정적 import 를 소스 전체에서 금지한다. */
@@ -138,7 +137,7 @@ export function EditableBody({
       if (onSaved) onSaved();
     },
   });
-  /* 저장 실패는 편집기 머리 바로 아래 — 쓰던 글이 편집기에 그대로 있고, 다시 저장하면 걷힌다. */
+  /* 저장 실패는 판 발 바로 위 — 쓰던 글이 편집기에 그대로 있고, 다시 저장하면 걷힌다(새 티켓 폼과 같은 자리). */
   const saveFailure = failureText([save, "본문을 저장하지 못했습니다. 다시 시도해 주세요."]);
 
   const startEditing = () => { setDraft(bodyDoc || null); setEditBaseVersion(bodyVersion); setEditing(true); };
@@ -158,21 +157,7 @@ export function EditableBody({
     return (
       <Box sx={editorContainerSx(EDIT_SURFACE_CONTAINER)}>
         <Box sx={editorSurfaceWidthSx(EDIT_SURFACE_CONTAINER)}>
-          <SectionTitle
-            component="h2"
-            title={`${heading} 수정`}
-            action={(
-              <Stack direction="row" gap={1}>
-                <Button size="sm" onClick={cancel} disabled={save.isPending}>취소</Button>
-                <Button size="sm" variant="primary" disabled={save.isPending}
-                  loading={save.isPending}
-                  onClick={() => save.mutate({ body: draft, baseVersion: editBaseVersion })}>
-                  저장
-                </Button>
-              </Stack>
-            )}
-          />
-          {saveFailure ? <Callout tone="danger" compact sx={{ mb: 1.5 }}>{saveFailure}</Callout> : null}
+          <SectionTitle component="h2" title={`${heading} 수정`} />
           {/* 여기 「이 본문은 원본(Notion)에서 읽어온 것입니다 … '원본 열기'에서
               수정하세요」 경고가 있었다. body_is_local 이 거짓일 때 떴는데, 이관해 온
               문서 110건이 전부 그 상태라 전 건에서 떴다. 밀어 넣을 원본이 없고 저장은
@@ -199,6 +184,18 @@ export function EditableBody({
               ariaLabel={heading + " 수정"}
             />
           </React.Suspense>
+          {saveFailure ? <Callout tone="danger" compact sx={{ mt: 2 }}>{saveFailure}</Callout> : null}
+          {/* 저장은 판 발이다(핸드오프 RULES §7 「저장은 카드 발」 · 조합 계약 C-4 · C-5) — 취소 → 저장이 오른쪽 끝이다. 예전에는 두 단추가
+              판 제목 오른쪽(30)에 서서, 긴 본문을 고치다 보면 저장이 화면 위로 사라졌다. 발은 긴 본문에서 화면 아래에 따라온다
+              (`sticky` — 담는 판이 넘침을 자르지 않아야 한다, 티켓 상세 본문 판). */}
+          <ActionFooter placement="card" sticky>
+            <Button onClick={cancel} disabled={save.isPending}>취소</Button>
+            <Button variant="primary" disabled={save.isPending}
+              loading={save.isPending}
+              onClick={() => save.mutate({ body: draft, baseVersion: editBaseVersion })}>
+              저장
+            </Button>
+          </ActionFooter>
         </Box>
       </Box>
     );

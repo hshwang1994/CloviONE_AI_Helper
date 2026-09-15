@@ -87,3 +87,16 @@ describe("댓글 초안은 다른 자원으로 이동하면 비워진다", () =>
     expect(boxAfter).toHaveValue("");
   });
 });
+
+describe("쓰는 칸은 입력 영역 하나다 (조합 계약 C-4)", () => {
+  it("「댓글 추가」는 쓰는 칸 영역(data-form-scope) 안에 서서 화면의 채움과 따로 센다", async () => {
+    wrap(<DocComments documentId="doc-1" />);
+    const box = await screen.findByLabelText("댓글 입력");
+    const scope = box.closest("[data-form-scope]");
+    expect(scope, "쓰는 칸이 입력 영역 표식을 들지 않는다").not.toBeNull();
+    const add = screen.getByRole("button", { name: "댓글 추가" });
+    expect(scope.contains(add)).toBe(true);
+    // 영역 안 채움은 하나다.
+    expect([...scope.querySelectorAll("button")].filter((b) => /MuiButton-contained/.test(b.className))).toHaveLength(1);
+  });
+});

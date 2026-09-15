@@ -137,7 +137,8 @@ function CommentComposer({ postId, parentId, palette, onDone, autoFocus }) {
   });
   const submitFailure = failureText([submit, "댓글을 남기지 못했습니다. 다시 시도해 주세요."]);
   return (
-    <Box sx={{ mt: 1.5 }}>
+    /* 쓰는 칸은 입력 영역 하나다(`data-form-scope`) — 이 영역의 채움(「댓글 추가」)은 화면의 채움과 따로 센다(조합 계약 C-4). */
+    <Box data-form-scope="" sx={{ mt: 1.5 }}>
       <TextField
         fullWidth
         size="small"
@@ -152,7 +153,8 @@ function CommentComposer({ postId, parentId, palette, onDone, autoFocus }) {
       {submitFailure ? <Callout tone="danger" compact sx={{ mt: 1 }}>{submitFailure}</Callout> : null}
       <Stack direction="row" gap={1} justifyContent="flex-end" sx={{ mt: 1 }}>
         {parentId ? (
-          <Button variant="ghost" size="sm" onClick={() => onDone && onDone()}>취소</Button>
+          /* 취소는 보조(흰 면)다 — 글자만 있는 단추는 목록 안 부수 동작의 어휘다(핸드오프 RULES §3). 댓글 수정의 취소와 같다. */
+          <Button size="sm" onClick={() => onDone && onDone()}>취소</Button>
         ) : null}
         <Button
           variant="primary"
@@ -248,7 +250,8 @@ function CommentItem({ comment, postId, palette, isReply, person, onChanged }) {
         ) : null}
       </Stack>
       {editing ? (
-        <Box sx={{ mt: 1 }}>
+        /* 고치는 칸도 입력 영역 하나다 — 이 영역의 「저장」은 이 영역의 채움이다. 취소는 보조(흰 면)다 — 티켓 · 문서 댓글 수정과 같다. */
+        <Box data-form-scope="" sx={{ mt: 1 }}>
           <TextField
             fullWidth size="small" multiline minRows={2} value={text}
             inputProps={{ "aria-label": "댓글 수정" }}
@@ -256,7 +259,7 @@ function CommentItem({ comment, postId, palette, isReply, person, onChanged }) {
           />
           {commentFailure ? <Callout tone="danger" compact sx={{ mt: 1 }}>{commentFailure}</Callout> : null}
           <Stack direction="row" gap={1} justifyContent="flex-end" sx={{ mt: 1 }}>
-            <Button variant="ghost" size="sm" onClick={() => { setEditing(false); setText(comment.body); }}>취소</Button>
+            <Button size="sm" onClick={() => { setEditing(false); setText(comment.body); }}>취소</Button>
             <Button variant="primary" size="sm" disabled={!text.trim() || saveEdit.isPending} onClick={() => saveEdit.mutate()}>저장</Button>
           </Stack>
         </Box>
@@ -485,7 +488,8 @@ export function BoardPost() {
     <>
       {/* 상세는 하나지만 **온 곳은 둘**이다. 제안을 열었다가 '목록'을 누르면 자유게시판이
           뜨는 것은 길을 잃는 것이다 - 종류를 보고 돌려보낸다. */}
-      <Button variant="ghost" onClick={() => nav(backToList)}>목록</Button>
+      {/* 페이지 머리 동작은 보조(흰 면 34)다 — 티켓 · 프로젝트 · 문서 상세의 「목록」과 같다(핸드오프 RULES §3). */}
+      <Button onClick={() => nav(backToList)}>목록</Button>
       {post.can_moderate ? (
         <Button onClick={() => pin.mutate(!post.is_pinned)} disabled={pin.isPending}>
           {post.is_pinned ? "고정 해제" : "공지 고정"}

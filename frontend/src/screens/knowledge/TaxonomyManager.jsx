@@ -3,7 +3,7 @@ import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
-import { Button, Callout, Modal, ModalFooter, Segmented, FieldLabel } from "../../ui/kit.jsx";
+import { ActionFooter, Button, Callout, Modal, ModalFooter, RowActions, Segmented, FieldLabel } from "../../ui/kit.jsx";
 import { KO_WORD_BREAK } from "../../ui/theme.js";
 import { bodyToText, textToBody } from "./templateText.js";
 
@@ -100,7 +100,8 @@ function VocabularyPanel({
                   >
                     저장
                   </Button>
-                  <Button size="small" variant="ghost" onClick={() => setEditing(null)}>취소</Button>
+                  {/* 취소는 보조(흰 면)다 — 글자만 있는 단추는 목록 안 부수 동작의 어휘다(핸드오프 RULES §3). */}
+                  <Button size="small" onClick={() => setEditing(null)}>취소</Button>
                 </>
               ) : (
                 <>
@@ -108,19 +109,15 @@ function VocabularyPanel({
                   <Typography variant="caption" color="text.secondary" sx={{ flexShrink: 0 }}>
                     문서 {row.document_count ?? 0}건
                   </Typography>
+                  {/* 줄 동작은 `RowActions` 다(30 보조 · 파괴, 조합 계약 C-4) — 표 행과 같은 어휘다. */}
                   {canManage ? (
-                    <>
-                      <Button
-                        size="small"
-                        variant="ghost"
-                        onClick={() => { setEditing(row.id); setDraft(row.name); }}
-                      >
-                        수정
-                      </Button>
-                      <Button size="small" variant="ghost" onClick={() => onRemove(row)}>
-                        삭제
-                      </Button>
-                    </>
+                    <RowActions
+                      ariaLabel={`${row.name} 작업`}
+                      actions={[
+                        { key: "rename", label: "수정", onClick: () => { setEditing(row.id); setDraft(row.name); } },
+                        { key: "remove", label: "삭제", variant: "danger", onClick: () => onRemove(row) },
+                      ]}
+                    />
                   ) : null}
                 </>
               )}
@@ -143,23 +140,13 @@ function VocabularyPanel({
  * 「빈 문서」는 표의 행이 아니라 화면의 바탕이다(`templates.BLANK`). 목록에는 서지만
  * 고치기·지우기 단추를 안 준다 — 지워지면 새 문서 대화상자의 기본값이 없는 틀을 가리킨다. */
 function TemplatePanel({
-  rows, canManage, busy, editing, onOpen, onCancel, onCreate, onSave, onRemove,
+  rows, canManage, editing, draft, onDraft, onOpen, onRemove,
 }) {
-  const [name, setName] = React.useState("");
-  const [help, setHelp] = React.useState("");
-  const [text, setText] = React.useState("");
   const fieldId = React.useId();
-
-  /* 서버가 본문을 실어 주면 그때 판을 채운다 — 목록 응답에는 본문이 없다. */
-  React.useEffect(() => {
-    if (!editing) { setName(""); setHelp(""); setText(""); return; }
-    setName(editing.name || "");
-    setHelp(editing.help || "");
-    setText(editing.body ? bodyToText(editing.body) : "");
-  }, [editing]);
-
-  const isNew = Boolean(editing) && editing.id === "new";
-  const clean = name.trim();
+  const { name, help, text } = draft;
+  const setName = (v) => onDraft({ ...draft, name: v });
+  const setHelp = (v) => onDraft({ ...draft, help: v });
+  const setText = (v) => onDraft({ ...draft, text: v });
 
   if (editing) {
     return (
@@ -202,22 +189,8 @@ function TemplatePanel({
             helperText="## 은 제목, - 는 글머리, 1. 은 번호입니다. 나머지 줄은 문단이 됩니다."
           />
         </Box>
-        <Stack direction="row" spacing={1} justifyContent="flex-end">
-          <Button variant="ghost" onClick={onCancel}>취소</Button>
-          <Button
-            variant="primary"
-            disabled={!clean || busy}
-            onClick={() => {
-              const payload = { name: clean, help: help.trim(), body: textToBody(text) };
-              if (isNew) onCreate(payload); else onSave(editing.id, payload);
-            }}
-          >
-            {/* 표준 동사표(PA-RC-0002 §3)가 「새로 만든다」를 「추가」로 정했다. 옆의
-                분류·태그 탭 단추와도 같은 낱말이다 — 한 창 안에서 같은 일을 두 이름으로
-                부르지 않는다. */}
-            {isNew ? "추가" : "저장"}
-          </Button>
-        </Stack>
+        {/* 취소 · 저장은 이 창의 발이다(`TaxonomyManager` 가 틀을 고치는 동안 발을 바꾼다) — 예전에는 몸 안에 둘째 단추 줄(ghost 취소 +
+            채움)이 서고 창 발의 「닫기」가 따로 있어 발이 둘이었다(핸드오프 RULES §8 모달 3단). */}
       </Stack>
     );
   }
@@ -259,10 +232,13 @@ function TemplatePanel({
               </Typography>
             ) : null}
             {canManage && !row.builtin ? (
-              <>
-                <Button size="small" variant="ghost" onClick={() => onOpen(row)}>수정</Button>
-                <Button size="small" variant="ghost" onClick={() => onRemove(row)}>삭제</Button>
-              </>
+              <RowActions
+                ariaLabel={`${row.name} 작업`}
+                actions={[
+                  { key: "edit", label: "수정", onClick: () => onOpen(row) },
+                  { key: "remove", label: "삭제", variant: "danger", onClick: () => onRemove(row) },
+                ]}
+              />
             ) : null}
           </Stack>
         ))}
@@ -289,13 +265,43 @@ export function TaxonomyManager({
   const [tab, setTab] = React.useState(0);
   React.useEffect(() => { if (!open) setTab(0); }, [open]);
 
+  /* 틀 고치기 판의 값 — 발(취소 · 저장)이 이 창의 발이라 값을 창이 든다. 서버가 본문을 실어 주면 그때 판을 채운다(목록 응답에는 본문이 없다). */
+  const [templateDraft, setTemplateDraft] = React.useState({ name: "", help: "", text: "" });
+  React.useEffect(() => {
+    if (!editingTemplate) { setTemplateDraft({ name: "", help: "", text: "" }); return; }
+    setTemplateDraft({
+      name: editingTemplate.name || "",
+      help: editingTemplate.help || "",
+      text: editingTemplate.body ? bodyToText(editingTemplate.body) : "",
+    });
+  }, [editingTemplate]);
+  const templateOpen = tab === 2 && Boolean(editingTemplate);
+  const templateIsNew = Boolean(editingTemplate) && editingTemplate.id === "new";
+  const templateName = templateDraft.name.trim();
+  const submitTemplate = () => {
+    const payload = { name: templateName, help: templateDraft.help.trim(), body: textToBody(templateDraft.text) };
+    if (templateIsNew) onCreateTemplate(payload); else onSaveTemplate(editingTemplate.id, payload);
+  };
+
+  /* 발은 하나다(핸드오프 RULES §8). 틀을 고치는 동안은 그 판의 취소 → 확정이고, 아닐 때는 「닫기」다. */
+  const footer = templateOpen ? (
+    <ActionFooter placement="modal">
+      <Button onClick={onCancelTemplate}>취소</Button>
+      <Button variant="primary" disabled={!templateName || busy} onClick={submitTemplate}>
+        {/* 표준 동사표(PA-RC-0002 §3)가 「새로 만든다」를 「추가」로 정했다. 옆의 분류 · 태그 탭 단추와도 같은 낱말이다 — 한 창 안에서
+            같은 일을 두 이름으로 부르지 않는다. */}
+        {templateIsNew ? "추가" : "저장"}
+      </Button>
+    </ActionFooter>
+  ) : <ModalFooter onCancel={onClose} cancelLabel="닫기" />;
+
   return (
     <Modal
       open={open}
       onClose={onClose}
       title="분류 관리"
       size="lg"
-      footer={<ModalFooter onCancel={onClose} cancelLabel="닫기" />}
+      footer={footer}
     >
       {/* 보기 전환은 세그먼티드(34)다 — 밑줄 탭(48)은 페이지 탭(`TabShell`)의 어휘다(핸드오프 RULES §3 · 계획 B-7). */}
       <Segmented
@@ -331,12 +337,10 @@ export function TaxonomyManager({
         <TemplatePanel
           rows={templates || []}
           canManage={canManage}
-          busy={busy}
           editing={editingTemplate}
+          draft={templateDraft}
+          onDraft={setTemplateDraft}
           onOpen={onOpenTemplate}
-          onCancel={onCancelTemplate}
-          onCreate={onCreateTemplate}
-          onSave={onSaveTemplate}
           onRemove={onRemoveTemplate}
         />
       )}

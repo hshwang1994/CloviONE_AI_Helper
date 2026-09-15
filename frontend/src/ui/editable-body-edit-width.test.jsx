@@ -112,3 +112,22 @@ describe("본문 수정 — 편집 중 표면 폭", () => {
     }
   });
 });
+
+describe("본문 수정 — 취소 · 저장은 판 발이다 (핸드오프 RULES §7 · 조합 계약 C-4 · C-5)", () => {
+  it("머리 줄에는 단추가 없고, 발은 판 가장자리까지 편 따라오는 발이며 취소 → 저장이 오른쪽 끝이다", async () => {
+    const { widthBox } = await openEditing();
+    const heading = screen.getByRole("heading", { name: "본문 수정" });
+    const headRow = heading.parentElement.parentElement;
+    expect(headRow.querySelectorAll("button")).toHaveLength(0);
+    const footer = widthBox.querySelector("[data-action-footer]");
+    expect(footer, "판 발이 없다").not.toBeNull();
+    expect(footer.getAttribute("data-action-footer")).toBe("card");
+    expect(footer.hasAttribute("data-action-footer-sticky")).toBe(true);
+    expect(getComputedStyle(footer).position).toBe("sticky");
+    expect([...footer.querySelectorAll("button")].map((b) => b.textContent)).toEqual(["취소", "저장"]);
+    // 발은 편집 표면의 마지막 줄이다 — 편집기 뒤에 선다.
+    expect(widthBox.lastElementChild).toBe(footer);
+    // 발의 단추는 34 다(카드 발) — 머리 줄에 있던 때의 30 이 아니다.
+    for (const b of footer.querySelectorAll("button")) expect(b.className).not.toMatch(/MuiButton-sizeSmall/);
+  });
+});

@@ -509,9 +509,12 @@ function Relations({ documentId, relations, backlinks, tickets, onChanged, readO
         onClose={() => setOpen(false)}
         title="문서 잇기"
         footer={(
+          /* 확정 단추는 늘 선다 — 이을 문서를 고르기 전에는 꺼져 있다. 예전에는 고르기 전까지 단추가 아예 없어 이 창에서 무엇을
+             누르면 끝나는지 보이지 않았다(핸드오프 RULES §3 꺼진 단추 규칙). */
           <ModalFooter
             onCancel={() => setOpen(false)}
-            onSubmit={target ? () => add.mutate({ to_document_id: target, kind }) : undefined}
+            onSubmit={() => { if (target) add.mutate({ to_document_id: target, kind }); }}
+            disabled={!target}
             submitLabel="잇기"
             busy={add.isPending}
           />
@@ -943,8 +946,10 @@ export function KnowledgeDoc() {
           tone="warn"
           title="이 문서는 휴지통에 있습니다"
           sx={{ mb: 2 }}
+          /* 메시지 박스의 동작은 30 보조다(핸드오프 RULES §1) — 같은 「복원」이 페이지 머리의 채움으로 이미 서 있어, 여기까지 채움이면
+             한 화면에 같은 일의 채움이 둘이었다(조합 계약 C-4). */
           action={canRestore ? (
-            <Button size="sm" variant="primary" loading={unarchive.isPending}
+            <Button size="sm" loading={unarchive.isPending}
               onClick={() => unarchive.mutate()}>복원</Button>
           ) : null}
         >

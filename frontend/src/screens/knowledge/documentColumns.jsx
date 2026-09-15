@@ -4,9 +4,9 @@ import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import StarRoundedIcon from "@mui/icons-material/StarRounded";
 import StarOutlineRoundedIcon from "@mui/icons-material/StarOutlineRounded";
-import { DotLabel, OverflowMenu, Tag } from "../../ui/kit.jsx";
+import { DotLabel, OverflowMenu, Tag, TitleCell } from "../../ui/kit.jsx";
 import { UserAvatar } from "../../ui/UserAvatar.jsx";
-import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../../ui/theme.js";
+import { FONT_SIZE, KO_WORD_BREAK } from "../../ui/theme.js";
 import { fmtDateTimeCompact, objectParticle } from "../../lib/format.js";
 import { PROJECT_UNASSIGNED_LABEL } from "./constants.js";
 
@@ -59,9 +59,9 @@ export function buildDocumentColumns({ onToggleFavorite, onOpen, onArchive, conf
         const tags = doc.tags || [];
         return (
           <Box sx={{ display: "grid", gap: 0.5, minWidth: 0, py: 0.5 }}>
-            <Typography sx={{ fontWeight: FONT_WEIGHT.semibold, fontSize: FONT_SIZE.body, ...KO_WORD_BREAK }}>
-              {doc.title}
-            </Typography>
+            {/* 제목은 행을 여는 이름이라 링크색 600 한 줄이다(`TitleCell` — 티켓 · 게시판 · 프로젝트 문서 표와 같은 제목 칸, 조합 계약 C-3).
+                행 열기는 표가 든다(`onRow`) — 제목은 색만 받는다. 넘치면 말줄임이고 전체 제목은 `title` 이 든다. */}
+            <TitleCell title={doc.title} link sx={{ fontSize: FONT_SIZE.body }} />
             {/* 요약은 두 줄에서 자른다 — 긴 요약이 줄 높이를 불리지 않는다. 전문은 문서를 열면 있다. */}
             {doc.excerpt ? (
               <Typography

@@ -165,7 +165,8 @@ export function CommentThread({ queryKey, listUrl, itemUrl, emptyHint, readOnly 
       <Box sx={{ display: "grid" }}>
         {comments.map((c) => (
           editingId === c.id ? (
-            <Box key={c.id} sx={{ py: 1.5, borderBottom: 1, borderColor: "divider" }}>
+            /* 고치는 칸은 입력 영역 하나다(`data-form-scope`) — 이 영역의 「저장」은 쓰는 칸의 「댓글 추가」와 따로 센다. */
+            <Box key={c.id} data-form-scope="" sx={{ py: 1.5, borderBottom: 1, borderColor: "divider" }}>
               <TextField
                 multiline minRows={3} fullWidth size="small" autoFocus
                 value={editDraft}
@@ -197,7 +198,9 @@ export function CommentThread({ queryKey, listUrl, itemUrl, emptyHint, readOnly 
       {/* 못 쓰는 자리에는 쓰는 칸을 안 만든다. 서버가 404 로 막는 문서(휴지통)에서
           칸을 그대로 두면 사람은 글을 다 쓰고 나서야 그것을 안다. */}
       {readOnly ? null : (
-      <Box sx={{ mt: 2 }}>
+      /* 쓰는 칸은 입력 영역 하나다(`data-form-scope`) — 「댓글 추가」는 이 영역의 채움이라 화면의 채움(티켓 「수정」 · 문서 「저장」)과
+         따로 센다(조합 계약 C-4). */
+      <Box data-form-scope="" sx={{ mt: 2 }}>
         <TextField
           multiline minRows={3} fullWidth size="small"
           value={draft}

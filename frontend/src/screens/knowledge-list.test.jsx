@@ -418,6 +418,15 @@ describe("문서 표 — 두 줄 행 · 태그 넷 + N · 분류 점 + 낱말 (A
     expect(more.className).toMatch(/MuiIconButton-sizeSmall/);
     const cell = first.querySelector("td");
     expect(getComputedStyle(cell).height).toBe("4.75rem");
+    // 제목은 표 공통 제목 칸(`TitleCell`)이다 — 링크색 600 한 줄 · 전체 제목은 title. 행 열기는 표가 들어서 제목은 색만 받는다(`link`).
+    const title = first.querySelector("[data-title-cell]");
+    expect(title, "제목이 표 공통 제목 칸이 아니다").not.toBeNull();
+    expect(title.getAttribute("data-title-cell")).toBe("link");
+    expect(title).toHaveTextContent("문서 0");
+    expect(title).toHaveAttribute("title", "문서 0");
+    expect(getComputedStyle(title).whiteSpace).toBe("nowrap");
+    // 요약 · 태그는 제목 칸 아래 그대로다 — 제목 칸이 한 줄이 됐다고 둘을 걷지 않는다.
+    expect(title.parentElement.contains(first.querySelector(".k-tag"))).toBe(true);
   });
 
   it("태그가 넷을 넘으면 넷만 서고 남은 수를 「+N」 하나가 말한다", async () => {

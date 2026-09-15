@@ -575,7 +575,8 @@ export function Dashboard() {
               {updated} 기준{staleAfterError ? ", 새로고침 실패" : ""}
             </Typography>
           ) : null}
-          <Button variant="ghost" size="sm" disabled={manualRefreshing} loading={manualRefreshing} onClick={onManualRefresh}>새로고침</Button>
+          {/* 페이지 머리 동작은 34 보조다(핸드오프 RULES §3 — 머리 줄에 30 · 글자 단추를 두지 않는다). 예전에는 이 머리만 글자 단추 30 이었다. */}
+          <Button disabled={manualRefreshing} loading={manualRefreshing} onClick={onManualRefresh}>새로고침</Button>
           {/* 수동 새로고침 완료만 조용히 알린다. */}
           <span className="sr-only" role="status" aria-live="polite">{refreshAnnounce}</span>
         </>} />

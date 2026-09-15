@@ -138,7 +138,8 @@ export function Ticket() {
   const signals = signalsOf(t);
   const actions = (
     <Stack direction="row" gap={1} sx={{ flexWrap: "wrap" }}>
-      <Button variant="ghost" onClick={() => nav(backToList)}>목록</Button>
+      {/* 「목록」은 페이지 머리 동작이라 보조(흰 면 34)다 — 오류 · 빈 상태의 같은 단추와 같다(핸드오프 RULES §3, 글자 단추는 목록 안 부수 동작). */}
+      <Button onClick={() => nav(backToList)}>목록</Button>
       {/* 이 화면에서 가장 자주 하는 일은 수정이다 — 이 앱 안에서 바로 되는 유일한
           쓰기 동작이라 primary 자리를 준다. */}
       {/* VIS-135: 본문 카드 안에도 별도의 "본문 수정"(EditableBody.jsx)이 있어, 둘의 차이가
@@ -220,7 +221,9 @@ export function Ticket() {
           좁은 화면에서는 DOM 순서 그대로 한 열로 흐른다. */}
       <DetailLayout aside={rail}>
         <Box data-testid="ticket-detail-main" sx={{ minWidth: 0, display: "grid", gap: GRID_GAP, alignContent: "start" }}>
-          <Card component="article" sx={{ minWidth: 0 }}>
+          {/* 본문 판은 넘침을 자르지 않는다 — 본문을 고치는 동안 판 발(취소 · 저장)이 긴 본문에서 화면 아래에 따라와야 한다
+              (`EditableBody` 의 `ActionFooter sticky`, MUI Card 뿌리의 `overflow: hidden` 을 푼다 — 새 티켓 폼 판과 같은 이유). */}
+          <Card component="article" sx={{ minWidth: 0, overflow: "visible" }}>
             {/* SEM-03 재확인 — 제목은 이제 위 PageHeader가 h1로 보여준다. 여기서 같은 글자를
                 또 반복하지 않는다. 상태/우선순위 배지는 VIS-134로 오른쪽 '속성' 카드로
                 옮겼다(라벨 없이 여기 있으면 어느 값이 무엇인지 구별이 안 됐다) — 본문은

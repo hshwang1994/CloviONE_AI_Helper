@@ -296,6 +296,61 @@ def st_knowledge_doc_editing(page, base, settle):
     return "문서 편집 중"
 
 
+def st_knowledge_doc_trashed(page, base, settle):
+    """휴지통 문서 화면 — 서버에는 아무것도 쓰지 않는다.
+
+    로컬 씨앗의 휴지통 줄은 옛 미러(티켓 · 옛 문서)라 휴지통에 든 지식 문서가 없고, 문서를 휴지통으로 보내는 것은 쓰기다.
+    그래서 이 페이지의 문서 응답에만 휴지통 표식(`archived` · `archived_at` · `archiver`)을 얹어 그 화면을 세운다
+    (`KnowledgeDoc.jsx::trashed` 가 보는 값). 가로채기는 이 상태의 페이지에만 걸리고 페이지를 닫으면 걷힌다.
+    """
+    from scripts.ui_qa import capture as cap
+
+    doc_id = cap._first_id(_api_json(page, base, "/api/knowledge/documents"))
+    if not doc_id:
+        raise StateSkipped("문서가 없다")
+
+    def shape(route):
+        response = route.fetch()
+        try:
+            body = response.json()
+        except Exception:  # noqa: BLE001
+            route.fulfill(response=response)
+            return
+        if isinstance(body, dict):
+            body.update({"archived": True, "archived_at": "2026-09-01T09:00:00Z",
+                         "archiver": {"display_name": "UI QA"}, "can_manage": True})
+        route.fulfill(response=response, json=body)
+
+    page.route(f"**/api/knowledge/documents/{doc_id}", shape)
+    _goto(page, base, f"/knowledge/{doc_id}", settle)
+    if _first(page, ["#main-content .k-callout"]) is None:
+        raise StateSkipped("휴지통 안내 상자가 서지 않았다")
+    return "휴지통 문서(응답 표식)"
+
+
+def st_knowledge_taxonomy_template(page, base, settle):
+    # 「분류 관리」 → 「틀」 → 「새 틀」 은 틀 판만 연다(저장 · 추가는 누르지 않는다).
+    _goto(page, base, "/knowledge", settle)
+    opener = _first(page, ["#main-content button:has-text('분류 관리')"])
+    if opener is None:
+        raise StateSkipped("「분류 관리」를 못 찾음")
+    _click(opener, "창을 여는 단추")
+    page.wait_for_timeout(500)
+    tab = _first(page, [".MuiDialog-root [role=tab]:has-text('틀')"])
+    if tab is None:
+        raise StateSkipped("「틀」 탭을 못 찾음")
+    tab.click()
+    page.wait_for_timeout(400)
+    new = _first(page, [".MuiDialog-root button:has-text('새 틀')"])
+    if new is None:
+        raise StateSkipped("「새 틀」을 못 찾음")
+    _click(new, "틀 판을 여는 단추")
+    page.wait_for_timeout(500)
+    if _first(page, [".MuiDialog-root [data-action-footer='modal']"]) is None:
+        raise StateSkipped("창 발이 서지 않았다")
+    return "분류 관리 틀 판 열림"
+
+
 def st_ticket_detail_body_editing(page, base, settle):
     # 「… 수정」은 편집 모드만 연다(`EditableBody.jsx::startEditing` — 서버 요청이 없다). 저장은 누르지 않는다.
     from scripts.ui_qa import capture as cap
@@ -405,6 +460,8 @@ STATES = (
     ("new-ticket.scrolled", "user_new-ticket", st_new_ticket_scrolled, True),
     ("new-ticket.project-picked", "user_new-ticket", st_new_ticket_project_picked, True),
     ("knowledge-doc.editing", "user_knowledge-doc", st_knowledge_doc_editing, True),
+    ("knowledge-doc.trashed", "user_knowledge-doc", st_knowledge_doc_trashed, True),
+    ("knowledge.taxonomy-template", "user_knowledge", st_knowledge_taxonomy_template, True),
     ("ticket-detail.body-editing", "user_ticket-detail", st_ticket_detail_body_editing, True),
     ("settings.editor-open", "admin_settings", st_settings_editor_open, True),
     ("chat.group", "user_chat-room-detail", st_chat_group, True),

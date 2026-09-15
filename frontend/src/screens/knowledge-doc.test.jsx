@@ -250,6 +250,18 @@ describe("곁열이 문서에 대한 것을 든다", () => {
     expect(screen.getByText("회의자료.pdf")).toBeInTheDocument();
   });
 
+  it("문서 잇기 창의 확정 단추는 고르기 전에도 선다 — 꺼져 있을 뿐 사라지지 않는다(핸드오프 RULES §3)", async () => {
+    await renderDoc();
+    await userEvent.click(screen.getByRole("button", { name: "문서 잇기" }));
+    const dialog = await screen.findByRole("dialog");
+    const confirm = within(dialog).getByRole("button", { name: "잇기" });
+    expect(confirm).toBeDisabled();
+    // 발은 모달 발 하나이고 취소 → 확정 순서다.
+    const footer = confirm.closest("[data-action-footer]");
+    expect(footer.getAttribute("data-action-footer")).toBe("modal");
+    expect([...footer.querySelectorAll("button")].map((b) => b.textContent)).toEqual(["취소", "잇기"]);
+  });
+
   /* qa-contract-change: 「이동이 폴더와 잠금 값을 함께 보낸다」가 여기 있었다. 폴더 축이
      화면에서 걷히면서(문서 개편 1·5번) 이동 대화상자에 폴더 칸이 없다. 잠금 값
      (`base_version`)은 아래 프로젝트 이동 시험이 계속 잰다 — 그 계약은 그대로다. */
