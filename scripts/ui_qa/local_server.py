@@ -465,6 +465,30 @@ def _seed_pilot(db, settings, me, projects, now) -> None:
                 kind="text", body=f"{title} 메시지 {s:02d}",
                 created_at=now - timedelta(minutes=message_count - s)))
 
+    # 1:1 방 하나 — 어제와 오늘에 걸친 대화다. 날짜 구분선 · 1:1 읽음 표시 · 짧은 방(마지막 말과 입력창
+    # 사이가 빈다)이 한 방에서 캡처에 선다(UI 3차 `composition_states` 의 `chat.direct`). 만드는 길은
+    # 제품의 1:1 방과 같다: 정렬된 두 사람 id 의 `dm_key`, 두 사람이 멤버.
+    from app.team_chat.service import dm_key as _dm_key
+
+    partner = people[1]
+    direct = ChatRoom(kind="direct", title="", created_by_user_id=me.id, org_id=DEFAULT_ORG_ID,
+                      dm_key=_dm_key(me.id, partner.id), event_seq=4)
+    db.add(direct)
+    db.flush()
+    for person in (me, partner):
+        db.add(ChatRoomMember(
+            room_id=direct.id, user_id=person.id, role="owner" if person.id == me.id else "member",
+            last_read_seq=4 if person.id == me.id else 3,
+            joined_at=now - timedelta(days=2), last_seen=now - timedelta(minutes=2)))
+    for s, (sender, body, ago) in enumerate((
+        (partner, "어제 공유한 배포 체크리스트 확인하셨나요?", timedelta(days=1, hours=2)),
+        (me, "네, 두 항목만 남았습니다.", timedelta(days=1, hours=1)),
+        (partner, "오늘 오후에 같이 보시죠.", timedelta(minutes=40)),
+        (me, "좋습니다.", timedelta(minutes=35)),
+    ), start=1):
+        db.add(ChatMessage(room_id=direct.id, seq=s, sender_user_id=sender.id, kind="text",
+                           body=body, created_at=now - ago))
+
     # ── 작업 이력 (B8 Operations console) ────────────────────────────────────
     # 실패가 섞여 있어야 「지금 확인할 것」이 무엇인지 화면이 말할 수 있다. 실패 사유를
     # 두 종류로 나눈다 — 원인별 묶기가 실제로 묶을 것이 있어야 보인다.

@@ -42,6 +42,10 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 OUT_BASE = REPO_ROOT / "dist" / "ui-qa"
+
+from scripts.ui_qa.composition_checks import (  # noqa: E402
+    COMPOSITION_CHECKS, COMPOSITION_CONTRACT, COMPOSITION_JS, expect_for, selftest_html, selftest_verdict,
+)
 MASCOT_BOUNDS = REPO_ROOT / "app" / "static" / "brand" / "mascot" / "mascot-bounds.json"
 
 
@@ -84,6 +88,8 @@ CHECKS = (
     "empty_layout", "error_icon", "mascot_size", "card_row_tops", "page_head_overlap",
     "footer_owner", "variant_height", "form_field_rows", "chat_layout",
 )
+# 부품 치수(위) + 조합(`composition_checks.py`). 둘을 한 표로 보고한다 — 치수 PASS 를 조합 PASS 로 읽지 않게.
+ALL_CHECKS = CHECKS + COMPOSITION_CHECKS
 
 MEASURE_JS = r"""
 (C) => {
@@ -616,7 +622,7 @@ SELFTEST_EXPECT_BAD = {
 
 
 def _merge(total: dict, page_result: dict, where: str) -> None:
-    for name in CHECKS:
+    for name in ALL_CHECKS:
         got = page_result.get(name)
         if not got:
             continue
@@ -636,10 +642,11 @@ def selftest(args) -> int:
     base = args.base_url or cap.DEFAULT_BASE_URL
     insecure = tls.apply_default_https_context()
     route = routes_mod.BY_ID["user_kit"]
+    auth_dir = Path(args.auth_dir) if args.auth_dir else OUT_BASE / "auth-measure"
     with sync_playwright() as pw:
         browser = pw.chromium.launch(headless=True)
         try:
-            session = ensure_session(browser, base, OUT_BASE / "auth-measure", insecure=insecure, log=print)
+            session = ensure_session(browser, base, auth_dir, insecure=insecure, log=print)
             ctx = cap.new_context(browser, storage_state=session.storage_state, user_id=session.user_id,
                                   theme="light", viewport=cap.resolve_viewports(["1920x1080"])[0],
                                   insecure=insecure)
@@ -649,6 +656,11 @@ def selftest(args) -> int:
             page.evaluate(SELFTEST_HTML)
             good = page.evaluate(MEASURE_JS, {**CONTRACT, "scope": "#kit-selftest #good"})
             bad = page.evaluate(MEASURE_JS, {**CONTRACT, "scope": "#kit-selftest #bad"})
+            # 조합 검사 견본은 따로 붙인다 — 부품 견본의 틀린 줄이 조합 판정에 섞이지 않게.
+            page.evaluate("() => { const k = document.getElementById('kit-selftest'); if (k) k.remove(); }")
+            page.evaluate(selftest_html())
+            c_good = page.evaluate(COMPOSITION_JS, {**COMPOSITION_CONTRACT, "scope": "#compose-selftest #compose-good"})
+            c_bad = page.evaluate(COMPOSITION_JS, {**COMPOSITION_CONTRACT, "scope": "#compose-selftest #compose-bad"})
             ctx.close()
         finally:
             browser.close()
@@ -663,12 +675,15 @@ def selftest(args) -> int:
     checked_good = sum((good.get(n) or {}).get("checked", 0) for n in CHECKS)
     if checked_good < 4:
         problems.append(f"맞는 견본 표본이 너무 적다({checked_good})")
+    problems += [f"조합: {p}" for p in selftest_verdict(c_good, c_bad)]
     if problems:
         for p in problems:
             print("[SELFTEST] " + p)
         print("KIT_MEASURE_SELFTEST_FAILED")
         return 1
-    print(f"KIT_MEASURE_SELFTEST_OK (틀린 견본 {len(SELFTEST_EXPECT_BAD)}종 전부 잡음, 맞는 견본 표본 {checked_good} 오탐 0)")
+    c_checked = sum((c_good.get(n) or {}).get("checked", 0) for n in COMPOSITION_CHECKS)
+    print(f"KIT_MEASURE_SELFTEST_OK (부품 틀린 견본 {len(SELFTEST_EXPECT_BAD)}종 · 조합 틀린 견본 "
+          f"{len(COMPOSITION_CHECKS) - 1}종 전부 잡음, 맞는 견본 표본 {checked_good} + {c_checked} 오탐 0)")
     return 0
 
 
@@ -682,7 +697,9 @@ def measure(args) -> int:
     routes = routes_mod.resolve(args.routes or ["user_kit"])
     viewports = cap.resolve_viewports(args.viewports or ["1920x1080"])
     themes = args.measure_themes or ["light"]
-    out_dir = OUT_BASE / args.measure_label
+    out_root = Path(args.out_root) if args.out_root else OUT_BASE
+    out_dir = out_root / args.measure_label
+    auth_dir = Path(args.auth_dir) if args.auth_dir else OUT_BASE / "auth-measure"
     out_dir.mkdir(parents=True, exist_ok=True)
     total = defaultdict(lambda: {"checked": 0, "failed": 0, "samples": []})
     pages: dict[str, dict] = {}
@@ -690,7 +707,7 @@ def measure(args) -> int:
     with sync_playwright() as pw:
         browser = pw.chromium.launch(headless=True)
         try:
-            session = ensure_session(browser, base, OUT_BASE / "auth-measure", insecure=insecure, log=print)
+            session = ensure_session(browser, base, auth_dir, insecure=insecure, log=print)
             probe = browser.new_context(storage_state=session.storage_state, ignore_https_errors=insecure)
             hashes: dict[str, str] = {}
             try:
@@ -721,10 +738,14 @@ def measure(args) -> int:
                             page.mouse.move(0, 0)
                             page.wait_for_timeout(120)
                             result = page.evaluate(MEASURE_JS, {**CONTRACT, "scope": None, "mascotHfrac": hfrac})
+                            composed = page.evaluate(COMPOSITION_JS, {**COMPOSITION_CONTRACT, "scope": None,
+                                                                      "expect": expect_for(route.id)})
+                            if isinstance(composed, dict) and not composed.get("error"):
+                                result.update(composed)
                             key = f"{route.id}__{theme}__{viewport.name}"
                             pages[key] = result
                             _merge(total, result, key)
-                            fails = [n for n in CHECKS if (result.get(n) or {}).get("failed")]
+                            fails = [n for n in ALL_CHECKS if (result.get(n) or {}).get("failed")]
                             print(f"[measure] {key:<50} " + (", ".join(fails) if fails else "ok"), flush=True)
                             if args.open_modals:
                                 from scripts.ui_qa import interact
@@ -745,19 +766,21 @@ def measure(args) -> int:
         finally:
             browser.close()
 
-    summary = {name: {"checked": total[name]["checked"], "failed": total[name]["failed"]} for name in CHECKS}
+    summary = {name: {"checked": total[name]["checked"], "failed": total[name]["failed"]} for name in ALL_CHECKS}
     (out_dir / "measure.json").write_text(json.dumps(
-        {"contract": CONTRACT, "summary": summary,
-         "samples": {n: total[n]["samples"] for n in CHECKS}, "pages": pages},
+        {"contract": CONTRACT, "composition_contract": COMPOSITION_CONTRACT, "summary": summary,
+         "samples": {n: total[n]["samples"] for n in ALL_CHECKS}, "pages": pages},
         ensure_ascii=False, indent=1), encoding="utf-8")
     print("")
     print(f"{'검사':<22} {'표본':>6} {'실패':>6}")
-    for name in CHECKS:
+    for name in ALL_CHECKS:
+        if name == COMPOSITION_CHECKS[0]:
+            print("-- 조합 --")
         s = summary[name]
         mark = "  ← 표본 0" if s["checked"] == 0 else ""
         print(f"{name:<22} {s['checked']:>6} {s['failed']:>6}{mark}")
     fail_on = args.fail_on or []
-    unknown = [n for n in fail_on if n not in CHECKS]
+    unknown = [n for n in fail_on if n not in ALL_CHECKS]
     if unknown:
         print("[FATAL] 모르는 검사 이름: " + ", ".join(unknown))
         return 2
@@ -793,6 +816,10 @@ def main() -> int:
     ap.add_argument("--open-modals", action="store_true",
                     help="화면마다 모달을 열어 열린 모달 안을 잰다(파괴 동작 단추는 누르지 않는다)")
     ap.add_argument("--fail-on", nargs="*", default=None, dest="fail_on")
+    ap.add_argument("--out-root", default=None,
+                    help="결과 뿌리(기본 dist/ui-qa). 원격 설치처를 잴 때는 dist/ui-qa-remote 처럼 따로 둔다")
+    ap.add_argument("--auth-dir", default=None,
+                    help="세션 캐시 자리(기본 dist/ui-qa/auth-measure). 원격 계정 캐시를 로컬 캐시와 섞지 않는다")
     ap.add_argument("--selftest", action="store_true")
     args = ap.parse_args()
     if args.selftest:

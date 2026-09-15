@@ -367,6 +367,16 @@ else
   echo "$KITC"; fail "화면이 정본 부품 대신 MUI 원재료를 직접 쓴다(대장 예외 없음)"
 fi
 
+step "Screens compose lists, filters and footers through the canonical composites"
+# 부품이 전부 정본이어도 화면이 그 낱개를 제각각 조립하면 조합이 화면마다 달라진다 — 필터 면 밖의 칩 · 결과 줄,
+# 여백 판으로 한 번 더 감싼 표, 표 밖 가운데의 목록 발, 열 render 안의 채움 단추(UI 3차 · 조합 계약 C-1 ~ C-5).
+# 대장 「조합 예외」 표에 적힌 자리만 통과하고, 죽은 예외와 더는 안 걸리는 대기 항목(stale)도 실패다.
+if COMPC="$("$PY" scripts/check_composition.py --selftest 2>&1 && "$PY" scripts/check_composition.py 2>&1)"; then
+  ok "$(echo "$COMPC" | tail -1)"
+else
+  echo "$COMPC"; fail "화면이 목록 · 필터 · 발을 정본 조합 부품 대신 낱개로 조립한다"
+fi
+
 step "QA harness targets the canonical product host"
 # 「검사를 돌렸다」와 「검사가 이 제품을 봤다」는 다른 사실이다. 보조 프로브 14개가 제품 이름이
 # 바뀐 뒤에도 각자 옛 호스트 문자열을 들고 있었고, 그중 하나는 검색 3중 구조를 재는 유일한
