@@ -5,7 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import "@testing-library/jest-dom/vitest";
 
-/* ChatPane 계약 테스트 — 이모지 삽입, Ctrl+V 이미지, 인라인 렌더, 읽음 커서.
+/* ChatPane 계약 테스트 — 이모지 삽입, Ctrl+V 이미지, 인라인 렌더, 읽음 커서, 입력 상자 규격 · 보내기 실패 상자.
  *
  * 지키려는 것 넷:
  *  1. 이모지 피커는 **초안에 글자를 넣는다** — 메시지를 곧장 보내지 않는다(오발신 방지).
@@ -255,5 +255,51 @@ describe("메시지 로그 정렬", () => {
     );
     expect(logBox, "overflowY:auto 인 로그 상자를 찾지 못했다").toBeTruthy();
     expect(getComputedStyle(logBox).justifyContent).not.toBe("flex-end");
+  });
+});
+
+// ── 입력 상자 (핸드오프 RULES §9 · ui/chat.js::CHAT) ──────────────────────────
+
+describe("입력 상자", () => {
+  it("입력은 모서리 10 의 상자 하나이고, 도구는 작은 단추(30), 보내기는 작은 채움 단추다", async () => {
+    mount(messagesPayload());
+    const box = await waitFor(() => {
+      const el = document.querySelector("[data-chat-composer]");
+      if (!el) throw new Error("입력 상자가 아직 없음");
+      return el;
+    });
+    expect(getComputedStyle(box).borderRadius).toBe("10px");
+    expect(screen.getByRole("button", { name: "이모지 넣기" }).className).toMatch(/MuiIconButton-sizeSmall/);
+    const send = screen.getByRole("button", { name: "보내기" });
+    expect(send.className).toMatch(/MuiButton-sizeSmall/);
+    expect(send.className).toMatch(/MuiButton-contained/);
+    // 빈 초안은 보낼 수 없다.
+    expect(send).toBeDisabled();
+    expect(box.contains(screen.getByRole("textbox", { name: "메시지 입력" }))).toBe(true);
+  });
+
+  it("보내기가 실패하면 입력 위 메시지 박스가 말하고 초안은 남으며, 다시 보내면 걷힌다(토스트였다)", async () => {
+    const user = userEvent.setup();
+    let fail = true;
+    apiMock.mockImplementation((url, opts) => {
+      if (url.startsWith("/api/team-chat/rooms/r1/messages?")) return Promise.resolve(messagesPayload());
+      if (url === "/api/team-chat/rooms/r1/messages" && opts && opts.method === "POST") {
+        if (fail) return Promise.reject(new Error("이 방에는 지금 보낼 수 없습니다."));
+        return new Promise(() => {});
+      }
+      return Promise.resolve({ ok: true });
+    });
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity }, mutations: { retry: false } } });
+    render(<QueryClientProvider client={qc}><ChatPane roomId="r1" interval={false} /></QueryClientProvider>);
+    const input = await screen.findByRole("textbox", { name: "메시지 입력" });
+    await user.type(input, "안녕하세요");
+    await user.keyboard("{Enter}");
+    const box = await screen.findByText("이 방에는 지금 보낼 수 없습니다.");
+    // 상자는 입력 상자보다 앞(위)에 선다.
+    expect(box.compareDocumentPosition(document.querySelector("[data-chat-composer]")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(input).toHaveValue("안녕하세요");
+    fail = false;
+    await user.click(screen.getByRole("button", { name: "보내기" }));
+    await waitFor(() => expect(screen.queryByText("이 방에는 지금 보낼 수 없습니다.")).toBeNull());
   });
 });

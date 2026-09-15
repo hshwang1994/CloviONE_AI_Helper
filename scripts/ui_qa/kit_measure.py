@@ -68,6 +68,7 @@ CONTRACT = {
     "countChip": {"default": 20, "compact": 18},
     "picker": {"h": 32, "avatar": 22},
     "mascot": {"pageMin": 112, "pageMax": 132, "region": 72},
+    "chat": {"list": 296, "bubbleMax": 0.68, "composerRadius": 10, "avatar": 34, "stack": 26},
     "tol": 1,
 }
 
@@ -77,7 +78,7 @@ CHECKS = (
     "filter_switch", "filter_toggle", "filter_surface", "filter_row_tops", "table_heights",
     "table_align", "card_padding", "modal", "floating_radius", "count_chip", "picker_option",
     "empty_layout", "error_icon", "mascot_size", "card_row_tops", "page_head_overlap",
-    "footer_owner", "variant_height", "form_field_rows",
+    "footer_owner", "variant_height", "form_field_rows", "chat_layout",
 )
 
 MEASURE_JS = r"""
@@ -476,6 +477,55 @@ MEASURE_JS = r"""
     if (problems.length) fail('form_field_rows', { ...record, problems: problems.slice(0, 6) });
   }
 
+  // ── 채팅방 (핸드오프 RULES §9 · `ui/chat.js::CHAT`) ────────────────────────
+  /* 목록 판 296 · 말풍선 묶음이 스레드 폭의 68% 이하 · 상대 얼굴 34 · 머리 얼굴 26 · 입력 상자 모서리 10 ·
+     머리 세 묶음이 서로 겹치지 않는가. 줄 자리가 없는 화면에서는 표본이 0 이다. */
+  for (const layout of all('[data-chat-layout]')) {
+    const cards = [...layout.children].filter((el) => el.classList.contains('MuiCard-root') && shown(el));
+    if (cards.length < 2) continue;
+    check('chat_layout').checked++;
+    const w = cards[0].getBoundingClientRect().width;
+    if (!near(w, C.chat.list)) fail('chat_layout', { what: 'list width', w: Math.round(w) });
+  }
+  for (const bubble of all('[data-chat-bubble]')) {
+    const group = bubble.parentElement;
+    const row = bubble.closest('[data-chat-row]');
+    const log = row && row.parentElement;
+    if (!group || !log) continue;
+    check('chat_layout').checked++;
+    const gw = group.getBoundingClientRect().width;
+    const lw = log.getBoundingClientRect().width;
+    if (gw > lw * C.chat.bubbleMax + tol) fail('chat_layout', { what: 'bubble group > 68%', group: Math.round(gw), log: Math.round(lw), text: text(bubble) });
+    if (bubble.getBoundingClientRect().right > log.getBoundingClientRect().right + tol) fail('chat_layout', { what: 'bubble overflows log', text: text(bubble) });
+  }
+  for (const row of all('[data-chat-row="theirs"]')) {
+    const av = row.querySelector('.k-avatar');
+    if (!av || !shown(av)) continue;
+    check('chat_layout').checked++;
+    if (!near(av.getBoundingClientRect().width, C.chat.avatar)) fail('chat_layout', { what: 'avatar', w: Math.round(av.getBoundingClientRect().width) });
+  }
+  for (const item of all('[data-member-strip] [role="listitem"] .k-avatar')) {
+    check('chat_layout').checked++;
+    if (!near(item.getBoundingClientRect().width, C.chat.stack)) fail('chat_layout', { what: 'stack avatar', w: Math.round(item.getBoundingClientRect().width) });
+  }
+  for (const comp of all('[data-chat-composer]')) {
+    check('chat_layout').checked++;
+    const r = px(getComputedStyle(comp).borderTopLeftRadius);
+    if (!near(r, C.chat.composerRadius, 0.5)) fail('chat_layout', { what: 'composer radius', r });
+  }
+  for (const head of all('[data-room-head]')) {
+    const groups = [...head.querySelectorAll(':scope > [data-room-head-group]')].filter(shown).map((g) => [g.getAttribute('data-room-head-group'), g.getBoundingClientRect()]);
+    if (groups.length < 2) continue;
+    check('chat_layout').checked++;
+    for (let i = 0; i < groups.length; i += 1) {
+      for (let j = i + 1; j < groups.length; j += 1) {
+        const a = groups[i][1], b = groups[j][1];
+        const overlap = a.left < b.right - tol && b.left < a.right - tol && a.top < b.bottom - tol && b.top < a.bottom - tol;
+        if (overlap) fail('chat_layout', { what: 'room head groups overlap', a: groups[i][0], b: groups[j][0] });
+      }
+    }
+  }
+
   // ── 같은 갈래의 높이 분산 ───────────────────────────────────────────────
   const variants = {
     'badge-face': all('.k-badge').filter((b) => !transparent(getComputedStyle(b).backgroundColor)),
@@ -509,6 +559,10 @@ SELFTEST_HTML = r"""
       <div style="display:grid;grid-template-columns:repeat(12,minmax(0,1fr));column-gap:20px;row-gap:20px;width:800px">
         ${[12, 6, 3, 3, 3, 3, 3, 3].map((n) => `<div data-form-field="" style="grid-column:span ${n};display:grid;grid-template-rows:20px minmax(36px,auto) auto"><span>칸</span><div style="height:36px;border:1px solid #ccc"></div><div></div></div>`).join('')}
       </div>
+      <div style="width:600px">
+        <div data-chat-row="mine" style="display:grid;justify-items:end"><div style="display:flex;max-width:68%"><div data-chat-bubble="mine" style="width:fit-content;padding:10px 14px">짧은 말</div></div></div>
+        <div data-chat-composer="" style="border:1px solid #ccc;border-radius:10px;height:60px"></div>
+      </div>
     </div>
     <div id="bad">
       <button class="MuiButton-root MuiButton-sizeMedium" style="height:40px;padding:0 12px">큰 버튼</button>
@@ -529,6 +583,10 @@ SELFTEST_HTML = r"""
         <div data-form-field="" style="display:grid;grid-template-rows:20px minmax(36px,auto) auto"><span>칸</span><div style="height:36px;border:1px solid #ccc"></div><div></div></div>
         <div data-form-field="" style="display:grid;grid-template-rows:28px minmax(36px,auto) auto"><span>어긋난 라벨</span><div style="height:36px;border:1px solid #ccc"></div><div></div></div>
       </div>
+      <div style="width:600px">
+        <div data-chat-row="mine" style="display:grid;justify-items:end"><div style="display:flex;max-width:90%"><div data-chat-bubble="mine" style="width:500px;padding:10px 14px">넓게 퍼진 말풍선</div></div></div>
+        <div data-chat-composer="" style="border:1px solid #ccc;border-radius:20px;height:60px"></div>
+      </div>
     </div>`;
   document.body.appendChild(box);
   return true;
@@ -538,7 +596,7 @@ SELFTEST_HTML = r"""
 # 틀린 견본이 반드시 걸려야 하는 검사와 기대 최소 실패 수, 맞는 견본이 걸리면 안 되는 검사.
 SELFTEST_EXPECT_BAD = {
     "button_height": 1, "button_wrap": 1, "badge": 1, "tag": 1, "count_chip": 1,
-    "filter_cell": 1, "filter_notched": 1, "search_slot": 1, "form_field_rows": 2,
+    "filter_cell": 1, "filter_notched": 1, "search_slot": 1, "form_field_rows": 2, "chat_layout": 2,
 }
 
 

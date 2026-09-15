@@ -5,7 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import "@testing-library/jest-dom/vitest";
 
-/* 말풍선의 새 동작 — 내 메시지 삭제 · 1:1 읽음 표시 · 링크/멘션 렌더 (PLAN Phase 3 §F).
+/* 말풍선의 새 동작 — 내 메시지 삭제 · 1:1 읽음 표시 · 링크/멘션 렌더 (PLAN Phase 3 §F) · 말풍선 규격(핸드오프 E).
  *
  * 여기서 지키는 것 넷:
  *  1. 지우기는 **내 말에만** 보인다(서버가 다시 검사하지만 남의 말에 지우기 버튼이 보이면
@@ -188,5 +188,51 @@ describe("본문 렌더", () => {
     const row = (await screen.findByText("그냥 하는 말")).closest("[data-chat-row]");
     const style = getComputedStyle(row);
     expect(style.borderInlineStartStyle || style.borderLeftStyle || "none").not.toBe("solid");
+  });
+});
+
+// ── 4. 말풍선 규격 (핸드오프 RULES §9 · ui/chat.js::CHAT) ─────────────────────
+
+describe("말풍선 규격", () => {
+  it("상대는 왼쪽 함몰면 말풍선이고 묶음 첫 말풍선의 시작 모서리가 모인다, 나는 오른쪽 Primary 말풍선이고 묶음 마지막의 끝 모서리가 모인다", async () => {
+    mount(payload({
+      seq: 4,
+      messages: [
+        msg({ seq: 1, sender_user_id: PEER, sender_name: "상대", body: "상대 첫 말", created_at: "2026-08-03T01:00:00" }),
+        msg({ seq: 2, sender_user_id: PEER, sender_name: "상대", body: "상대 둘째 말", created_at: "2026-08-03T01:00:30" }),
+        msg({ seq: 3, body: "내 첫 말", created_at: "2026-08-03T01:01:00" }),
+        msg({ seq: 4, body: "내 마지막 말", created_at: "2026-08-03T01:01:30" }),
+      ],
+    }));
+    const bubbleOf = async (text) => (await screen.findByText(text)).closest("[data-chat-bubble]");
+    const theirsFirst = getComputedStyle(await bubbleOf("상대 첫 말"));
+    const theirsNext = getComputedStyle(await bubbleOf("상대 둘째 말"));
+    const mineFirst = getComputedStyle(await bubbleOf("내 첫 말"));
+    const mineLast = getComputedStyle(await bubbleOf("내 마지막 말"));
+
+    expect((await bubbleOf("상대 첫 말")).getAttribute("data-chat-bubble")).toBe("theirs");
+    expect((await bubbleOf("내 첫 말")).getAttribute("data-chat-bubble")).toBe("mine");
+    // 모서리 12, 연결 모서리 4 — 상대는 첫 말풍선의 시작, 나는 마지막 말풍선의 끝.
+    expect(theirsFirst.borderStartStartRadius).toBe("4px");
+    expect(theirsNext.borderStartStartRadius).not.toBe("4px");
+    expect(mineLast.borderEndEndRadius).toBe("4px");
+    expect(mineFirst.borderEndEndRadius).not.toBe("4px");
+    // 폭은 내용만큼이다 — 한두 글자 말풍선이 줄 폭으로 넓어지지 않는다.
+    expect(mineFirst.width).toBe("fit-content");
+    // 면: 상대는 테두리가 있는 함몰면, 나는 테두리 없는 Primary 면.
+    expect(theirsFirst.borderTopStyle).toBe("solid");
+    expect(mineFirst.borderTopStyle === "none" || mineFirst.borderTopWidth === "0px" || mineFirst.borderTopStyle === "").toBe(true);
+    expect(mineFirst.backgroundColor).not.toBe(theirsFirst.backgroundColor);
+  });
+
+  it("말풍선 묶음은 줄 폭의 68% 에서 멈추고, 시각은 말풍선 밖에 선다", async () => {
+    mount(payload({ messages: [msg({ seq: 1, body: "밖의 시각" })] }));
+    const bubble = (await screen.findByText("밖의 시각")).closest("[data-chat-bubble]");
+    const group = bubble.parentElement;
+    expect(getComputedStyle(group).maxWidth).toBe("68%");
+    const time = group.querySelector("time");
+    expect(time).toBeTruthy();
+    expect(bubble.contains(time)).toBe(false);
+    expect(getComputedStyle(time).fontSize).toBe("0.6875rem");
   });
 });

@@ -8,7 +8,8 @@ import { api } from "../lib/api.js";
 import { failureText } from "../lib/failure.js";
 import { Badge, Button, Callout, EmptyState, ErrorState, FieldLabel, Modal, Skeleton, useConfirm, useToast } from "../ui/kit.jsx";
 import { PeopleFilter, PersonPickRow, filterPeople } from "./chat/peoplePicker.jsx";
-import { FONT_SIZE, FONT_WEIGHT } from "../ui/theme.js";
+import { FONT_SIZE, FONT_WEIGHT, NUMERIC, RADIUS } from "../ui/theme.js";
+import { CHAT } from "../ui/chat.js";
 import { affiliation, hasDuplicateNames, personLabel } from "../lib/people.js";
 import { ARCHIVED_SUFFIX } from "../lib/format.js";
 import { UserAvatar } from "../ui/UserAvatar.jsx";
@@ -92,11 +93,13 @@ function MemberRow({ member, meId, actions, person }) {
   );
 }
 
-/* 방 헤더 아래 한 줄 요약 — 몇 명이 지금 이 대화를 보고 있는지. 전체 채팅은 참여자 개념이 없다.
+/* 방 머리의 참여자 요약 — 몇 명이 지금 이 대화를 보고 있는지 + 얼굴 스택. 전체 채팅은 참여자 개념이 없다.
  *
- * 이름은 최대 STRIP_NAMES 개만 낸다. 정원이 50명이라 전부 늘어놓으면 이 '한 줄'이 세 줄을
- * 차지해 대화창을 밀어낸다 — 숫자(참여자 N명)가 이미 전체를 말하고, 전체 명단은 '관리'
- * 대화상자에 있다. 접속 중인 사람을 먼저 보여 준다(지금 궁금한 것은 그쪽이다).
+ * 얼굴은 최대 STRIP_NAMES 개만 겹쳐 세운다(26 · −8 겹침, 핸드오프 RULES §9 · `ui/chat.js::CHAT`). 정원이 50명이라
+ * 전부 늘어놓으면 머리가 여러 줄이 되어 대화창을 밀어낸다 — 숫자(참여자 N명)가 이미 전체를 말하고, 남은 수는 「+N」,
+ * 전체 명단은 '관리' 대화상자에 있다. 접속 중인 사람을 먼저 세운다(지금 궁금한 것은 그쪽이다). 얼굴마다 이름과
+ * 접속 상태(「이 대화 보는 중」 · 「자리 비움」 — 관리 목록과 같은 말)를 이름표로 든다 — 예전 한 줄 요약의 이름 ·
+ * 접속 점이 들던 사실을 얼굴이 이어 받는다.
  */
 const STRIP_NAMES = 8;
 
@@ -108,25 +111,41 @@ export function MemberStrip({ members, people }) {
   const ordered = [...rows].sort((a, b) => (b.online ? 1 : 0) - (a.online ? 1 : 0));
   const shown = ordered.slice(0, STRIP_NAMES);
   const rest = rows.length - shown.length;
+  /* 얼굴 둘레의 판 색 선 — 겹친 얼굴끼리의 경계를 가른다(시안의 흰 테두리 2px). 판 면 토큰이라 다크에서도 판 색이다. */
+  const ring = (t) => `0 0 0 2px ${t.palette.background.plate}`;
   return (
-    <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap", mb: 1.5, px: 0.5 }}>
-      <Typography sx={{ fontSize: FONT_SIZE.bodySm, color: "text.secondary" }}>
+    <Box data-member-strip="" sx={{ display: "flex", alignItems: "center", gap: 1.25, minWidth: 0 }}>
+      <Typography sx={{ fontSize: FONT_SIZE.caption, color: "text.secondary", whiteSpace: "nowrap" }}>
         참여자 {rows.length}명, 보는 중 {online}명
       </Typography>
-      {/* 한 줄 요약이라 소속을 늘 붙이면 줄이 넘친다. **이름이 겹칠 때만** 붙인다 —
-          그때가 이름만으로 못 고르는 유일한 경우다. */}
-      {shown.map((m) => (
-        <Box key={m.user_id} sx={{ display: "flex", alignItems: "center", gap: 0.5, minWidth: 0 }}>
-          <Dot online={m.online} />
-          <UserAvatar person={people && people[m.user_id]} name={m.name} size="inline" />
-          <Typography sx={{ fontSize: FONT_SIZE.bodySm, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            {dupNames && affiliation(m) ? personLabel(m) : (m.name || "알 수 없음")}
-          </Typography>
-        </Box>
-      ))}
-      {rest > 0 ? (
-        <Typography sx={{ fontSize: FONT_SIZE.bodySm, color: "text.secondary" }}>외 {rest}명</Typography>
-      ) : null}
+      <Box role="list" aria-label="참여자" sx={{ display: "flex", alignItems: "center", pl: 0.25 }}>
+        {shown.map((m, i) => {
+          /* 이름표는 **이름이 겹칠 때만** 소속을 붙인다 — 그때가 이름만으로 못 고르는 유일한 경우다. */
+          const name = dupNames && affiliation(m) ? personLabel(m) : (m.name || "알 수 없음");
+          const label = `${name}, ${m.online ? "이 대화 보는 중" : "자리 비움"}`;
+          return (
+            <Box
+              key={m.user_id} role="listitem" aria-label={label} title={label}
+              sx={{ display: "inline-flex", borderRadius: `${RADIUS.full}px`, boxShadow: ring, ...(i ? { ml: CHAT.stackOverlap } : null) }}
+            >
+              <UserAvatar person={people && people[m.user_id]} name={m.name} size={CHAT.stackAvatar} label={label} />
+            </Box>
+          );
+        })}
+        {rest > 0 ? (
+          <Box
+            role="listitem" aria-label={`외 ${rest}명`}
+            sx={{
+              ml: CHAT.stackOverlap, height: CHAT.stackAvatar, minWidth: CHAT.stackAvatar, px: 0.75,
+              display: "inline-flex", alignItems: "center", justifyContent: "center",
+              borderRadius: `${RADIUS.full}px`, bgcolor: "background.inset", boxShadow: ring,
+              fontSize: FONT_SIZE.micro, fontWeight: FONT_WEIGHT.semibold, color: "text.secondary", ...NUMERIC,
+            }}
+          >
+            +{rest}
+          </Box>
+        ) : null}
+      </Box>
     </Box>
   );
 }

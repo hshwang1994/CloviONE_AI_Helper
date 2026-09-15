@@ -4,11 +4,13 @@ import { useNavigate, useParams } from "react-router-dom";
 import Box from "@mui/material/Box";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
-import { alpha } from "@mui/material/styles";
 import { api } from "../lib/api.js";
-import { Button, Card, FieldLabel, ListEmptyState, PageHeader, Skeleton, ErrorState, EmptyState, Modal, useConfirm, useToast, CountChip, DotLabel } from "../ui/kit.jsx";
+import { failureText } from "../lib/failure.js";
+import { Button, Callout, Card, FieldLabel, ListEmptyState, PageHeader, Skeleton, ErrorState, EmptyState, Modal, useConfirm, CountChip, DotLabel } from "../ui/kit.jsx";
 import { SearchBox } from "../ui/filters.jsx";
 import { FONT_SIZE, FONT_WEIGHT } from "../ui/theme.js";
+import { GRID_GAP } from "../ui/density.js";
+import { CHAT } from "../ui/chat.js";
 import { fmtRelative } from "../lib/format.js";
 import { PeopleFilter, PersonPickRow, filterPeople } from "./chat/peoplePicker.jsx";
 import { RoomDetailPanel } from "./ChatRoom.jsx";
@@ -33,14 +35,15 @@ function RoomRow({ room, onOpen, active }) {
         display: "flex", alignItems: "center", gap: 1.5, width: "100%", textAlign: "left", minWidth: 0,
         px: 1.5, py: 1.5, border: 0, borderBottom: 1, borderColor: "divider", borderStyle: "solid",
         background: "none", color: "inherit", font: "inherit", cursor: "pointer",
-        // 지금 보고 있는 방을 목록에서 표시한다 — 두 칸이 나란히 있으니 "어느 것을 보고
-        // 있는지" 가 목록에도 보여야 한다. 왼쪽 띠 + 옅은 배경으로, 색만으로 알리지 않는다.
+        // 지금 보고 있는 방을 목록에서 표시한다 — 두 판이 나란히 있으니 "어느 것을 보고
+        // 있는지" 가 목록에도 보여야 한다. 사이드바 활성 항목과 같은 어휘다: 함몰면 + 왼쪽 레일(핸드오프 계획 E).
+        // 색만으로 알리지 않는다(`aria-current`).
         borderLeft: 3, borderLeftStyle: "solid",
         borderLeftColor: active ? "primary.main" : "transparent",
-        bgcolor: (t) => (active ? alpha(t.palette.primary.main, 0.08) : "transparent"),
+        bgcolor: active ? "background.inset" : "transparent",
         "&:last-of-type": { borderBottom: 0 },
-        "&:hover": { bgcolor: (t) => alpha(t.palette.primary.main, active ? 0.12 : 0.06) },
-        "&:focus-visible": { outline: (t) => `2px solid ${t.palette.primary.main}`, outlineOffset: "-2px" },
+        "&:hover": { bgcolor: active ? "background.inset" : "action.hover" },
+        "&:focus-visible": { outline: (t) => `2px solid ${t.palette.focusRing}`, outlineOffset: "-2px" },
       }}
     >
       <Box sx={{ display: "flex", flexDirection: "column", gap: 0.25, minWidth: 0, flex: 1 }}>
@@ -86,7 +89,6 @@ const PICKER_SX = {
 export function GroupModal({ open, onClose }) {
   const qc = useQueryClient();
   const nav = useNavigate();
-  const toast = useToast();
   const confirm = useConfirm();
   const dir = useDirectory(open);
   const [title, setTitle] = React.useState("");
@@ -94,7 +96,8 @@ export function GroupModal({ open, onClose }) {
      디바운스가 필요 없다 — 네트워크가 안 간다(C7 의 클라이언트 필터와 같은 부류다). */
   const [pick_q, setPickQ] = React.useState("");
   const [picked, setPicked] = React.useState({});
-  React.useEffect(() => { if (open) { setTitle(""); setPicked({}); } }, [open]);
+  // 열 때 초기화한다 — 지난 실패도 걷는다(창은 닫혀도 요청 상태가 남는다).
+  React.useEffect(() => { if (open) { setTitle(""); setPicked({}); create.reset(); } }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const create = useMutation({
     mutationFn: () => api("/api/team-chat/rooms", {
@@ -102,8 +105,9 @@ export function GroupModal({ open, onClose }) {
       body: { title: title.trim(), member_user_ids: Object.keys(picked).filter((k) => picked[k]) },
     }),
     onSuccess: (r) => { qc.invalidateQueries({ queryKey: ["team-chat-rooms"] }); onClose(); nav(`/chat-rooms/${r.room.id}`); },
-    onError: (e) => toast((e && e.message) || "방을 추가하지 못했습니다. 다시 시도해 주세요.", "error"),
   });
+  /* 만들기 실패는 창 발 바로 위 메시지 박스다(핸드오프 RULES §1 — 토스트였다). 쓰던 이름 · 고른 사람은 그대로다. */
+  const createFailure = failureText([create, "방을 추가하지 못했습니다. 다시 시도해 주세요."]);
 
   const users = (dir.data && dir.data.users) || [];
 
@@ -167,6 +171,7 @@ export function GroupModal({ open, onClose }) {
             </>
           )}
       </Box>
+      {createFailure ? <Callout tone="danger" compact sx={{ mt: 2.5 }}>{createFailure}</Callout> : null}
     </Modal>
   );
 }
@@ -174,13 +179,15 @@ export function GroupModal({ open, onClose }) {
 function DirectModal({ open, onClose }) {
   const qc = useQueryClient();
   const nav = useNavigate();
-  const toast = useToast();
   const dir = useDirectory(open);
   const start = useMutation({
     mutationFn: (userId) => api("/api/team-chat/rooms/direct", { method: "POST", body: { user_id: userId } }),
     onSuccess: (r) => { qc.invalidateQueries({ queryKey: ["team-chat-rooms"] }); onClose(); nav(`/chat-rooms/${r.room.id}`); },
-    onError: (e) => toast((e && e.message) || "대화를 시작하지 못했습니다. 다시 시도해 주세요.", "error"),
   });
+  // 열 때 지난 실패를 걷는다.
+  React.useEffect(() => { if (open) start.reset(); }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+  /* 대화 시작 실패는 창 안 메시지 박스다(토스트였다). 다른 사람을 누르거나 다시 누르면 걷힌다. */
+  const startFailure = failureText([start, "대화를 시작하지 못했습니다. 다시 시도해 주세요."]);
   const users = (dir.data && dir.data.users) || [];
   /* 같은 이유로 여기도 좁힐 수 있어야 한다 — 1:1 상대를 고르는 목록이 그룹 초대 목록보다
      짧을 이유가 없다(같은 디렉터리다). */
@@ -208,6 +215,7 @@ function DirectModal({ open, onClose }) {
           )}
           </>
         )}
+      {startFailure ? <Callout tone="danger" compact sx={{ mt: 2.5 }}>{startFailure}</Callout> : null}
     </Modal>
   );
 }
@@ -332,24 +340,28 @@ export function ChatRooms() {
   return (
     <Box className="c-screen">
       <PageHeader crumbRoot="팀 공간" area="채팅방" title="채팅방" />
-      <Card
+      {/* 목록과 대화는 **두 판**이다(핸드오프 RULES §9 · README §C) — 목록 296(`CHAT.listWidth`) / 대화 나머지, 사이는 판 틈.
+          좁은 화면에서는 한 판만. 고른 방이 있으면 대화를, 없으면 목록을 보여준다. 화면 아래까지 채운다 — 대화창이 자기
+          안에서 스크롤되려면 판에 높이가 있어야 한다. */}
+      <Box
+        data-chat-layout=""
         sx={{
-          p: 0, overflow: "hidden",
-          display: "grid",
-          // 좁은 화면에서는 한 칸만. 고른 방이 있으면 대화를, 없으면 목록을 보여준다.
-          gridTemplateColumns: { xs: "1fr", md: "20rem minmax(0, 1fr)", xxl: "22.5rem minmax(0, 1fr)" },
-          // 화면 아래까지 채운다. 대화창이 자기 안에서 스크롤되려면 껍데기에 높이가 있어야 한다.
+          display: "grid", gap: GRID_GAP,
+          gridTemplateColumns: { xs: "minmax(0, 1fr)", md: `${CHAT.listWidth} minmax(0, 1fr)` },
           height: { xs: "auto", md: "calc(100vh - 13rem)" },
           minHeight: { xs: 0, md: "28rem" },
         }}
       >
-        <Box sx={{
-          display: { xs: activeId ? "none" : "grid", md: "grid" },
-          borderRight: { md: 1 }, borderColor: { md: "divider" }, minHeight: 0, minWidth: 0,
-        }}>
+        <Card sx={{ p: 0, overflow: "hidden", display: { xs: activeId ? "none" : "grid", md: "grid" }, minHeight: 0, minWidth: 0 }}>
           {listPanel}
-        </Box>
-        <Box sx={{ display: { xs: activeId ? "grid" : "none", md: "grid" }, minHeight: 0, minWidth: 0 }}>
+        </Card>
+        <Card
+          sx={{
+            p: 0, overflow: "hidden", display: { xs: activeId ? "grid" : "none", md: "grid" },
+            gridTemplateRows: activeId ? { xs: "auto minmax(0, 1fr)", md: "minmax(0, 1fr)" } : "minmax(0, 1fr)",
+            minHeight: 0, minWidth: 0,
+          }}
+        >
           {/* 좁은 화면에서만 되돌아갈 길을 준다 — 넓은 화면에서는 목록이 옆에 있다. */}
           {activeId ? (
             <Box sx={{ display: { xs: "block", md: "none" }, px: 2, pt: 1.5 }}>
@@ -357,8 +369,8 @@ export function ChatRooms() {
             </Box>
           ) : null}
           {detailPanel}
-        </Box>
-      </Card>
+        </Card>
+      </Box>
       <GroupModal open={groupOpen} onClose={() => setGroupOpen(false)} />
       <DirectModal open={directOpen} onClose={() => setDirectOpen(false)} />
     </Box>

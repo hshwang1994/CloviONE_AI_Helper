@@ -1,9 +1,15 @@
 import React from "react";
-import { describe, it, expect } from "vitest";
-import { render } from "@testing-library/react";
+import { describe, it, expect, vi } from "vitest";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 
-import { linkifyText } from "./links.jsx";
+vi.mock("../chat-helpers.js", async (importOriginal) => ({ ...(await importOriginal()), copyText: vi.fn() }));
+
+import { PlainUrl, linkifyText } from "./links.jsx";
+import { copyText } from "../chat-helpers.js";
+import { ToastProvider } from "../../ui/kit.jsx";
+import { ThemeModeProvider } from "../../ui/ThemeModeProvider.jsx";
 
 /* AI 도우미의 URL 다듬기가 팀 채팅 말풍선(chat-text.js)과 같은 규칙을 쓰는지 본다
  * (step 10 #1). 예전엔 chat-helpers.js 의 URL_RE(`/(https?:\/\/[^\s]+)/g`)가 공백 전까지
@@ -57,5 +63,22 @@ describe("linkifyText — URL 꼬리 다듬기", () => {
     const { container } = renderParts("링크: https://www.notion.so/plain");
     expect(container.querySelector("a")).toBeNull();
     expect(container.querySelector("button").textContent).toBe("https://www.notion.so/plain");
+  });
+});
+
+describe("주소 복사 실패는 그 자리의 한 줄이다 (핸드오프 RULES §1 — 토스트였다)", () => {
+  it("복사에 실패하면 주소 바로 뒤에 알림 한 줄이 서고, 다시 눌러 복사되면 걷힌다", async () => {
+    const user = userEvent.setup();
+    copyText.mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+    render(<ThemeModeProvider><ToastProvider><PlainUrl url="https://example.com/a" /></ToastProvider></ThemeModeProvider>);
+    // 접근 이름은 말풍선 도움말(툴팁)이 든다 — 주소 글자로 단추를 찾는다.
+    const button = screen.getByText("https://example.com/a").closest("button");
+    await user.click(button);
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("복사에 실패했습니다. 직접 선택해 복사하세요.");
+    expect(button.compareDocumentPosition(alert) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    await user.click(button);
+    await waitFor(() => expect(screen.queryByText("복사에 실패했습니다. 직접 선택해 복사하세요.")).toBeNull());
+    expect(await screen.findByText("주소를 복사했습니다.")).toBeInTheDocument();
   });
 });

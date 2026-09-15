@@ -14,7 +14,9 @@ import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded";
 import { api } from "../lib/api.js";
 import { fmtDateTime, fmtTimeShort, affiliationOf, ARCHIVED_SUFFIX } from "../lib/format.js";
 import { useIdleGetter } from "../lib/idle.js";
-import { Button, Callout, EmptyState, ErrorState, Skeleton, overflowMenuItems, useConfirm, useToast } from "../ui/kit.jsx";
+import { Button, Callout, EmptyState, ErrorState, Skeleton, overflowMenuItems, useConfirm } from "../ui/kit.jsx";
+import { CHAT } from "../ui/chat.js";
+import { failureText } from "../lib/failure.js";
 import { FILTER_LISTBOX_SX } from "../ui/filters.jsx";
 import { EMOJI_GROUPS, EMOJI_LABELS, imageFromClipboard, imageRejectReason, insertAtCursor } from "./chat-compose.js";
 import { ChatBubbleText } from "./ChatBubbleText.jsx";
@@ -22,16 +24,17 @@ import { mentionNames } from "./chat-text.js";
 import { idlePollDelayMs } from "./teamchat-poll.js";
 import { markRoomRead } from "./teamchat-unread.js";
 import { ImageLightbox, useLightbox } from "../ui/ImageLightbox.jsx";
-import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, RADIUS } from "../ui/theme.js";
-import { AVATAR_SIZE, UserAvatar } from "../ui/UserAvatar.jsx";
+import { FONT_SIZE, FONT_WEIGHT, ICON, KO_WORD_BREAK, NUMERIC, RADIUS, remPx } from "../ui/theme.js";
+import { UserAvatar } from "../ui/UserAvatar.jsx";
 import { groupMessages } from "./chat-groups.js";
 
-/* 팀 채팅 핵심 창(폴링 로그 + 입력). 방 페이지와 홈 위젯이 공유한다. 놀이(GameRoom) 폴링 패턴 이식:
+/* 팀 채팅 핵심 창(폴링 로그 + 입력). 채팅방 화면이 쓴다. 놀이(GameRoom) 폴링 패턴 이식:
  * since=0 로 최근 메시지를 받아 seq 커서로 따라오고, 내 메시지는 오른쪽 말풍선. 탭이 숨으면 폴링을
  * 늦춰(위젯이 모든 페이지에서 도는 부담 완화) SQLite 쓰기/읽기 압박을 줄인다.
  *
- * 말풍선 규격은 AI 채팅(Chat.jsx)과 같은 언어를 쓴다 — 같은 앱에서 '채팅'이 두 벌 다르게 생기면
- * 사용자는 둘을 다른 기능으로 읽는다. 크기는 전부 rem이다: 예전 CSS(.tc-*)는 px 폰트사이즈가
+ * 말풍선 규격은 채팅 전용 규격 한 곳(`ui/chat.js::CHAT` — 핸드오프 RULES §9)에서 온다: 상대는 왼쪽 함몰면
+ * 말풍선 + 얼굴 34, 나는 오른쪽 Primary 말풍선, 모서리 12 · 연결 모서리 4 · 최대 폭 68% · 시각은 밖. AI 도우미
+ * (Chat.jsx)도 같은 모서리를 쓴다. 크기는 전부 rem이다: 예전 CSS(.tc-*)는 px 폰트사이즈가
  * 남아 있어 4K에서 글자만 그대로 남고 주변이 커졌다(.tc-roomrow-tag가 11px로 잡힌 그 문제).
  *
  * 이모지는 유니코드 글자만 쓴다(스프라이트·외부 폰트 없음 — CSP/오프라인). 이미지는 첨부
@@ -63,7 +66,6 @@ const LOG_SX = {
  * 물러날 수 있는 상한이다. 조용한 방에서 간격이 배로 늘어나는 규칙은 teamchat-poll.js 에
  * 있다(그 파일에 이유가 적혀 있다). 상한을 안 주면 base 의 3배까지만 물러난다. */
 export function ChatPane({ roomId, compact = false, interval = 2000, idleMax = 0 }) {
-  const toast = useToast();
   const qc = useQueryClient();
   const confirm = useConfirm();
   const lb = useLightbox();
@@ -137,8 +139,8 @@ export function ChatPane({ roomId, compact = false, interval = 2000, idleMax = 0
     /* 실패를 말한다 (E3). 예전에는 `onError` 가 아예 없어서, 보내기를 눌러도 **아무 일도
        일어나지 않고** 입력한 글자만 그대로 남았다 — 느린 네트워크와 구분이 안 된다.
        입력을 지우지 않는 것은 맞다(다시 보낼 수 있어야 한다). 다만 왜 안 갔는지는 말해야 한다. */
-    onError: (e) => toast((e && e.message) || "메시지를 보내지 못했습니다. 다시 시도해 주세요.", "error"),
   });
+  const sendFailure = failureText([send, "메시지를 보내지 못했습니다. 다시 시도해 주세요."]);
   const read = useMutation({
     mutationFn: (seq) => api(`/api/team-chat/rooms/${roomId}/read`, { method: "POST", body: { seq } }),
     /* 목록을 **다시 받지 않고** 캐시를 그대로 고친다 (PF3).
@@ -317,25 +319,34 @@ export function ChatPane({ roomId, compact = false, interval = 2000, idleMax = 0
           // 아이콘/마스코트+제목+안내를 갖췄다). game-room/ChatPanel.jsx의 같은 빈 상태와
           // 짝을 맞춘다 — 문구·아이콘이 다르면 사용자는 "다른 채팅 기능"이라고 오해한다.
           : msgs.length === 0 ? <EmptyState size="compact" icon="💬" title="아직 메시지가 없습니다" help="먼저 인사해 보세요." />
-          : groupMessages(msgs, you.user_id).map((row) => {
+          : (() => {
+            const rows = groupMessages(msgs, you.user_id);
+            /* 묶음의 끝 줄 — 다음 줄이 같은 사람의 이어지는 말이 아니면 이 줄이 묶음의 마지막이다(날짜 구분선 · 시스템
+               안내 · 다른 사람 · 시간 간격이 묶음을 끊는다, `chat-groups.js`). 내 말풍선은 묶음의 마지막 줄에서 끝
+               모서리가 모이고, 상대 말풍선은 묶음의 첫 줄에서 시작 모서리가 모인다(핸드오프 RULES §9). */
+            const isTail = (i) => {
+              const next = rows[i + 1];
+              return !next || next.kind !== "message" || next.head || next.message.kind === "system";
+            };
+            return rows.map((row, i) => {
             if (row.kind === "day") {
               /* 🔴 **날짜 구분선** (지시 17). 시각만 그리면 어제 온 말과 오늘 온 말이
                  같아 보이고, 「금요일에 그거 얘기했잖아」를 확인하려면 스크롤을 세면서
                  올라가야 한다. 날짜는 KST 달력일이다 — 브라우저 로컬로 재면 시계가
-                 어긋난 사람에게만 구분선이 하루 밀린다. */
+                 어긋난 사람에게만 구분선이 하루 밀린다. 선 · 낱말 규격은 핸드오프 RULES §9(1px 실선 + 0.75rem/600). */
               return (
                 <Box
                   key={"day-" + row.day}
                   role="separator"
                   aria-label={row.label}
                   data-day-separator={row.day}
-                  sx={{ display: "flex", alignItems: "center", gap: 1, my: 0.5, px: 0.5 }}
+                  sx={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto minmax(0, 1fr)", alignItems: "center", columnGap: 1.5, my: 1, px: 0.5 }}
                 >
-                  <Box sx={{ flex: 1, height: "1px", bgcolor: "divider" }} />
-                  <Typography sx={{ fontSize: FONT_SIZE.caption, color: "text.secondary", whiteSpace: "nowrap" }}>
+                  <Box sx={{ height: "1px", bgcolor: "rule" }} />
+                  <Typography sx={{ fontSize: FONT_SIZE.micro, fontWeight: FONT_WEIGHT.semibold, color: "text.secondary", whiteSpace: "nowrap" }}>
                     {row.label}
                   </Typography>
-                  <Box sx={{ flex: 1, height: "1px", bgcolor: "divider" }} />
+                  <Box sx={{ height: "1px", bgcolor: "rule" }} />
                 </Box>
               );
             }
@@ -344,168 +355,186 @@ export function ChatPane({ roomId, compact = false, interval = 2000, idleMax = 0
               /* 시스템 안내는 말이 아니라 대화 사이의 사실이다 — 면 칩이 아니라 가운데 흐린 낱말로 선다
                  (날짜 구분선의 낱말과 같은 크기 · 색). 긴 안내는 줄을 바꾼다. */
               return (
-                <Typography key={m.seq} sx={{ alignSelf: "center", maxWidth: "100%", textAlign: "center", fontSize: FONT_SIZE.caption, color: "text.secondary", ...KO_WORD_BREAK }}>
+                <Typography key={m.seq} sx={{ alignSelf: "center", maxWidth: "100%", my: 0.5, textAlign: "center", fontSize: FONT_SIZE.caption, color: "text.secondary", ...KO_WORD_BREAK }}>
                   {m.body}
                 </Typography>
               );
             }
             const mine = m.sender_user_id === you.user_id;
+            const tail = isTail(i);
             // 읽음 표시는 1:1에서 내가 마지막으로 보낸 말 한 줄에만(위 주석 참고).
             const receipt = mine && peerReadSeq !== null && m.seq === myLastSeq
               ? (peerReadSeq >= m.seq ? "읽음" : "안 읽음")
               : null;
             const person = people[m.sender_user_id];
+            /* 시각은 말풍선 **밖**이다(핸드오프 RULES §9). 묶음의 이어지는 줄도 자기 시각을 갖는다 — 「누가 언제
+               썼는지는 항상 확인 가능해야 한다」(지시 17). 날짜는 구분선이 말하지만 그 선은 스크롤 밖으로 나가므로
+               `title` 로 언제나 전체 시각을 준다. */
+            const time = (
+              <Typography
+                component="time"
+                data-row-time=""
+                dateTime={m.created_at}
+                title={fmtDateTime(m.created_at)}
+                sx={{ flexShrink: 0, pb: 0.25, fontSize: CHAT.timeText, color: "text.secondary", whiteSpace: "nowrap", ...NUMERIC }}
+              >
+                {fmtTimeShort(m.created_at)}
+              </Typography>
+            );
+            /* 말풍선 — 상대는 왼쪽 함몰면 + 테두리, 나는 오른쪽 Primary 면 + 흰 글자(핸드오프 RULES §9 · 규격은
+               `ui/chat.js::CHAT`). 폭은 내용만큼이고(`fit-content`) 줄 폭의 68% 에서 멈춘다 — 한두 글자 말이 넓어지지
+               않고, 긴 말 · 긴 주소가 스레드 폭을 밀지 않는다(주소는 글자 단위로 끊긴다, `ChatBubbleText`). */
+            const bubble = (
+              <Box
+                data-chat-bubble={mine ? "mine" : "theirs"}
+                sx={{
+                  minWidth: 0, maxWidth: "100%", width: "fit-content",
+                  px: 1.75, py: 1.25,
+                  borderRadius: `${CHAT.bubbleRadius}px`,
+                  fontSize: FONT_SIZE.body, lineHeight: 1.6, whiteSpace: "pre-wrap", ...KO_WORD_BREAK,
+                  ...(mine
+                    ? {
+                      bgcolor: "primary.main", color: "primary.contrastText",
+                      ...(tail ? { borderEndEndRadius: `${CHAT.bubbleJoinRadius}px` } : null),
+                    }
+                    : {
+                      bgcolor: "background.inset", color: "text.primary", border: 1, borderColor: "divider",
+                      ...(row.head ? { borderStartStartRadius: `${CHAT.bubbleJoinRadius}px` } : null),
+                    }),
+                }}
+              >
+                {/* 이미지 메시지: 말풍선 안에 인라인. body(파일명)는 alt 로만 쓴다 —
+                    같은 줄에 파일명과 그림을 같이 두면 그림이 캡션 달린 첨부처럼 보인다. */}
+                {m.kind === "image" && (m.images || []).length > 0
+                  ? (m.images || []).map((img, ii) => (
+                    <Box
+                      key={img.id}
+                      component="button"
+                      type="button"
+                      onClick={() => lb.open(
+                        (m.images || []).map((x) => ({ src: x.url, title: x.filename })), ii)}
+                      aria-label={(img.filename || "이미지") + " 크게 보기"}
+                      sx={{
+                        p: 0, border: 0, background: "none", cursor: "zoom-in", display: "block",
+                        "&:focus-visible": { outline: "3px solid", outlineColor: "primary.main", outlineOffset: 2 },
+                      }}
+                    >
+                      <Box
+                        component="img" src={img.url} alt={img.filename || "붙여넣은 이미지"}
+                        loading="lazy"
+                        sx={{
+                          display: "block", maxWidth: "100%", maxHeight: "18rem",
+                          width: "auto", height: "auto", borderRadius: 1.5,
+                        }}
+                      />
+                    </Box>
+                  ))
+                  : <ChatBubbleText body={m.body} names={names} mine={mine} />}
+              </Box>
+            );
+            /* 지우기는 내 말에만. 서버가 소유권을 다시 검사하므로 이 게이팅은 UX 일 뿐이다.
+               평소에는 투명하고 줄에 손을 올리거나 초점이 오면 나타난다 — 줄마다 아이콘이
+               서 있으면 대화가 아니라 목록으로 보인다. */
+            const remove = mine ? (
+              <IconButton
+                data-row-delete="own"
+                size="small" aria-label={"메시지 삭제 (" + fmtDateTime(m.created_at) + ")"}
+                disabled={del.isPending}
+                onClick={() => askDelete(m.seq)}
+                sx={{
+                  flexShrink: 0, color: "text.disabled", opacity: 0,
+                  transition: "opacity 120ms ease",
+                  "&:hover, &:focus-visible": { opacity: 1, color: "error.main" },
+                }}
+              >
+                <DeleteOutlineRoundedIcon sx={{ fontSize: remPx(ICON.mark) }} />
+              </IconButton>
+            ) : null;
+            const rowSx = {
+              minWidth: 0, px: 0.5, pt: row.head ? 1.25 : 0.5, pb: 0,
+              borderRadius: `${RADIUS.md}px`,
+              "&:hover [data-row-delete]": { opacity: 1 },
+            };
+            if (mine) {
+              /* 내 말은 오른쪽이고 얼굴 · 이름이 없다 — 오른쪽이라는 자리가 「나」를 말한다(핸드오프 RULES §9).
+                 시각 · 읽음 · 지우기는 말풍선의 **안쪽 옆**(왼쪽)에 선다. */
+              return (
+                <Box key={m.seq} data-chat-row="mine" sx={{ ...rowSx, display: "grid", justifyItems: "end" }}>
+                  <Box sx={{ display: "flex", alignItems: "flex-end", gap: 1, minWidth: 0, maxWidth: CHAT.bubbleMaxWidth }}>
+                    {remove}
+                    {receipt ? (
+                      /* QAH-07 — "읽음" 색이 dark 모드에서 대비 미달(최저 2.81) 실측, primary.dark로 교체.
+                         PA-RC-0001: 10px는 스케일 최하단(caption=12px)보다도 작다 — 메신저 관용상
+                         읽음 표시는 본문보다 눈에 덜 띄어야 하는 보조 지표라 의도적으로 더 작게
+                         뒀다. caption으로 올리면 본문과 경쟁한다(의도된 예외). */
+                      <Typography sx={{ flexShrink: 0, pb: 0.25, fontSize: "0.625rem", fontWeight: FONT_WEIGHT.bold, color: receipt === "읽음" ? "primary.dark" : "text.disabled" }}>
+                        {receipt}
+                      </Typography>
+                    ) : null}
+                    {time}
+                    {bubble}
+                  </Box>
+                </Box>
+              );
+            }
             return (
-              /* 🔴 **줄 하나의 구조가 모두 같다** — 아바타 · 이름 · 날짜/시간 · 메시지
-                 (지시 17).
-
-                 예전에는 내 말이 오른쪽 말풍선이었고 **아바타도 이름도 없었다.** 이 파일
-                 주석은 「자기가 쓴 메시지도 예외가 아니다」라고 적고 있었는데 코드는
-                 `{!mine ? … : null}` 이었다 — 주석이 지키던 계약을 코드가 안 지켰다.
-
-                 좌우로 가르면 화자는 빨리 읽히지만 **누가 언제 썼는가**가 한쪽에서
-                 통째로 사라지고, 사람 셋이 넘는 방에서는 오른쪽 줄들만 익명이 된다.
-                 업무용 대화는 나중에 **인용되는 기록**이라 그쪽을 택했다. 화자 구분은
-                 정렬이 아니라 이름과 얼굴이 한다. */
+              /* 상대의 말은 왼쪽이다 — 묶음의 첫 줄에 얼굴(34) · 이름 · 소속이 서고, 이어지는 줄은 얼굴 자리를 비워
+                 말풍선의 왼쪽 선을 맞춘다(핸드오프 RULES §9 「같은 사람 연속 발언은 이름 · 아바타 생략」). */
               <Box
                 key={m.seq}
-                data-chat-row={mine ? "mine" : "theirs"}
+                data-chat-row="theirs"
                 sx={{
-                  display: "grid", gridTemplateColumns: "auto minmax(0, 1fr)", columnGap: 1.25,
-                  alignItems: "start", px: 0.5, py: row.head ? 0.5 : 0.125, minWidth: 0,
-                  borderRadius: RADIUS.md + "px",
+                  ...rowSx,
+                  display: "grid", gridTemplateColumns: `${CHAT.avatar} minmax(0, 1fr)`, columnGap: 1.25, alignItems: "start",
                   // 나를 부른 말은 눈에 띄어야 한다 — 알림은 갔는데 대화에서 어느 줄인지
                   // 못 찾으면 알림만 시끄럽고 쓸모가 없다. 판정은 서버가 한다(mentions_me).
                   ...(m.mentions_me
                     ? {
+                      pb: 0.5,
                       bgcolor: (t) => alpha(t.palette.warning.main, 0.08),
                       borderInlineStartStyle: "solid",
                       borderInlineStartWidth: "3px",
                       borderInlineStartColor: (t) => t.palette.warning.main,
                     }
                     : null),
-                  "&:hover [data-row-time]": { opacity: 1 },
-                  "&:hover [data-row-delete]": { opacity: 1 },
                 }}
               >
-                {/* 왼쪽 홈통. 묶음의 첫 줄은 얼굴이 서고, 이어지는 줄은 그 자리에 시각이
-                    선다 — **비워 두지 않는다.** 비우면 「누가 언제 썼는지는 항상 확인
-                    가능해야 한다」가 이어지는 줄에서만 깨진다. */}
-                <Box sx={{ width: AVATAR_SIZE.md, flexShrink: 0, display: "flex", justifyContent: "center", pt: row.head ? 0.25 : 0.375 }}>
+                <Box sx={{ width: CHAT.avatar, display: "flex", justifyContent: "center" }}>
                   {row.head ? (
-                    <UserAvatar person={person} name={m.sender_name} size="md" label={m.sender_name} />
-                  ) : (
-                    <Typography
-                      data-row-time="gutter"
-                      title={fmtDateTime(m.created_at)}
-                      sx={{
-                        fontSize: "0.625rem", color: "text.disabled", fontVariantNumeric: "tabular-nums",
-                        opacity: 0, transition: "opacity 120ms ease", lineHeight: 1.4,
-                      }}
-                    >
-                      {fmtTimeShort(m.created_at)}
-                    </Typography>
-                  )}
+                    <UserAvatar person={person} name={m.sender_name} size={CHAT.avatar} label={m.sender_name} />
+                  ) : null}
                 </Box>
-                <Box sx={{ minWidth: 0 }}>
+                <Box sx={{ display: "grid", rowGap: 0.625, justifyItems: "start", minWidth: 0 }}>
                   {row.head ? (
-                    <Box sx={{ display: "flex", alignItems: "baseline", gap: 0.75, flexWrap: "wrap", minWidth: 0, mb: 0.125 }}>
-                      <Typography component="span" sx={{ fontWeight: FONT_WEIGHT.semibold, fontSize: FONT_SIZE.bodySm, ...KO_WORD_BREAK }}>
+                    <Box sx={{ display: "flex", alignItems: "baseline", gap: 0.75, flexWrap: "wrap", minWidth: 0 }}>
+                      <Typography component="span" sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: FONT_SIZE.bodySm, ...KO_WORD_BREAK }}>
                         {m.sender_name || "알 수 없음"}
                       </Typography>
                       {/* 소속을 이름 옆에 — 사용자 지시("어느 조직 어느 부서인지"). 없으면
                           아무것도 그리지 않는다(빈 괄호가 붙으면 그게 더 어수선하다). */}
                       {affiliationOf(person) ? (
-                        <Typography component="span" sx={{ fontSize: FONT_SIZE.caption, color: "text.secondary" }}>
+                        <Typography component="span" sx={{ fontSize: FONT_SIZE.micro, color: "text.secondary" }}>
                           {affiliationOf(person)}
                         </Typography>
                       ) : null}
                       {/* 보관된 계정이면 그렇다고 말한다(N3) — 안 하면 답이 안 오는 대화를
                           며칠 기다린다. */}
                       {person && person.archived ? (
-                        <Typography component="span" sx={{ fontSize: FONT_SIZE.caption, color: "text.disabled" }}>
+                        <Typography component="span" sx={{ fontSize: FONT_SIZE.micro, color: "text.disabled" }}>
                           {ARCHIVED_SUFFIX}
                         </Typography>
                       ) : null}
-                      {/* **시간만 보여 주지 않는다**(지시 17). 날짜는 구분선이 이미 말했지만
-                          그 선은 스크롤 밖으로 나간다 — `title` 로 언제나 전체 시각을 준다. */}
-                      <Typography
-                        component="time"
-                        dateTime={m.created_at}
-                        title={fmtDateTime(m.created_at)}
-                        sx={{ fontSize: FONT_SIZE.caption, color: "text.secondary", fontVariantNumeric: "tabular-nums" }}
-                      >
-                        {fmtTimeShort(m.created_at)}
-                      </Typography>
                     </Box>
                   ) : null}
-                  <Box sx={{ display: "flex", alignItems: "flex-start", gap: 0.75, minWidth: 0 }}>
-                    <Box
-                      sx={{
-                        minWidth: 0, flex: 1,
-                        fontSize: FONT_SIZE.body, lineHeight: 1.5, whiteSpace: "pre-wrap", ...KO_WORD_BREAK,
-                      }}
-                    >
-                      {/* 이미지 메시지: 줄 안에 인라인. body(파일명)는 alt 로만 쓴다 —
-                          같은 줄에 파일명과 그림을 같이 두면 그림이 캡션 달린 첨부처럼 보인다. */}
-                      {m.kind === "image" && (m.images || []).length > 0
-                        ? (m.images || []).map((img, ii) => (
-                          <Box
-                            key={img.id}
-                            component="button"
-                            type="button"
-                            onClick={() => lb.open(
-                              (m.images || []).map((x) => ({ src: x.url, title: x.filename })), ii)}
-                            aria-label={(img.filename || "이미지") + " 크게 보기"}
-                            sx={{
-                              p: 0, border: 0, background: "none", cursor: "zoom-in", display: "block",
-                              "&:focus-visible": { outline: "3px solid", outlineColor: "primary.main", outlineOffset: 2 },
-                            }}
-                          >
-                            <Box
-                              component="img" src={img.url} alt={img.filename || "붙여넣은 이미지"}
-                              loading="lazy"
-                              sx={{
-                                display: "block", maxWidth: "100%", maxHeight: "18rem",
-                                width: "auto", height: "auto", borderRadius: 1.5,
-                              }}
-                            />
-                          </Box>
-                        ))
-                        : <ChatBubbleText body={m.body} names={names} mine={false} />}
-                    </Box>
-                    {receipt ? (
-                      /* QAH-07 — "읽음" 색이 dark 모드에서 대비 미달(최저 2.81) 실측, primary.dark로 교체.
-                         PA-RC-0001: 10px는 스케일 최하단(caption=12px)보다도 작다 — 메신저 관용상
-                         읽음 표시는 본문보다 눈에 덜 띄어야 하는 보조 지표라 의도적으로 더 작게
-                         뒀다. caption으로 올리면 본문과 경쟁한다(의도된 예외). */
-                      <Typography sx={{ flexShrink: 0, alignSelf: "flex-end", fontSize: "0.625rem", fontWeight: FONT_WEIGHT.bold, color: receipt === "읽음" ? "primary.dark" : "text.disabled" }}>
-                        {receipt}
-                      </Typography>
-                    ) : null}
-                    {/* 지우기는 내 말에만. 서버가 소유권을 다시 검사하므로 이 게이팅은 UX 일 뿐이다.
-                        평소에는 투명하고 줄에 손을 올리거나 초점이 오면 나타난다 — 줄마다 아이콘이
-                        서 있으면 대화가 아니라 목록으로 보인다. */}
-                    {mine ? (
-                      <IconButton
-                        data-row-delete="own"
-                        size="small" aria-label={"메시지 삭제 (" + fmtDateTime(m.created_at) + ")"}
-                        disabled={del.isPending}
-                        onClick={() => askDelete(m.seq)}
-                        sx={{
-                          flexShrink: 0, color: "text.disabled", opacity: 0,
-                          transition: "opacity 120ms ease",
-                          "&:hover, &:focus-visible": { opacity: 1, color: "error.main" },
-                        }}
-                      >
-                        <DeleteOutlineRoundedIcon sx={{ fontSize: "1rem" }} />
-                      </IconButton>
-                    ) : null}
+                  <Box sx={{ display: "flex", alignItems: "flex-end", gap: 1, minWidth: 0, maxWidth: CHAT.bubbleMaxWidth }}>
+                    {bubble}
+                    {time}
                   </Box>
                 </Box>
               </Box>
             );
-          })}
+            });
+          })()}
       </Box>
       {/* 이미 읽던 대화가 있는데 폴링만 실패한 경우 (E-4).
           예전에는 이때도 위 분기가 `note("불러오지 못했습니다.")` 를 그려서 **읽고 있던
@@ -519,38 +548,27 @@ export function ChatPane({ roomId, compact = false, interval = 2000, idleMax = 0
           새 메시지를 받지 못했습니다. 아래 대화는 마지막으로 받은 내용입니다.
         </Callout>
       ) : null}
-      {/* 붙여넣기 실패·업로드 중 안내 — 컴포저 바로 위에 둬야 원인과 결과가 붙어 보인다. */}
-      {/* 실패는 메시지 박스(오류는 `alert`)이고, 올리는 중이라는 진행 표시는 글자 한 줄이다. */}
-      {composerError ? (
-        <Callout tone="danger" compact sx={{ mb: 0.75 }}>{composerError}</Callout>
+      {/* 붙여넣기 실패·보내기 실패·업로드 중 안내 — 컴포저 바로 위에 둬야 원인과 결과가 붙어 보인다. */}
+      {/* 실패는 메시지 박스(오류는 `alert`)이고, 올리는 중이라는 진행 표시는 글자 한 줄이다. 보내기 실패는 토스트였다 —
+          입력한 글자는 그대로 남고(다시 보낼 수 있다), 다시 보내면 걷힌다(`failureText`, 핸드오프 RULES §1). */}
+      {composerError || sendFailure ? (
+        <Callout tone="danger" compact sx={{ mb: 0.75 }}>{composerError || sendFailure}</Callout>
       ) : sendImage.isPending ? (
         <Typography sx={{ mb: 0.75, px: 0.5, fontSize: FONT_SIZE.caption, color: "text.secondary" }}>
           이미지를 보내는 중…
         </Typography>
       ) : null}
+      {/* 입력 — 1px 테두리 · 모서리 10 의 상자 하나다(핸드오프 RULES §9 · `CHAT.composerRadius`). 위는 글 줄, 아래는
+          도구 줄(이모지 · 언급, 30)과 오른쪽 끝 보내기(30 채움)다. Enter 는 보내기이고 한글 조합 중에는 보내지 않는다
+          (기존 계약 — Shift+Enter 줄바꿈은 제품에 없어 만들지 않는다, 대장 §0-2). */}
       <Box
-        sx={{ display: "flex", alignItems: "center", gap: 0.5, pl: 0.75, pr: 0.75, py: 0.5, borderRadius: RADIUS.full, border: 1, borderColor: "divider", bgcolor: "background.paper" }}
+        data-chat-composer=""
+        sx={{
+          border: 1, borderColor: "divider", borderRadius: `${CHAT.composerRadius}px`, bgcolor: "background.plate",
+          transition: "border-color 120ms ease, box-shadow 120ms ease",
+          "&:focus-within": { borderColor: "primary.main", boxShadow: (t) => `0 0 0 1px ${t.palette.primary.main}` },
+        }}
       >
-        <IconButton
-          aria-label="이모지 넣기" aria-haspopup="dialog" aria-expanded={!!emojiAnchor}
-          onClick={(e) => setEmojiAnchor(e.currentTarget)}
-          sx={{ flexShrink: 0, color: "text.secondary" }}
-        >
-          <MoodRoundedIcon sx={{ fontSize: FONT_SIZE.pageTitle }} />
-        </IconButton>
-        {/* 멘션 고르기 — 자동완성 대신 목록에서 고른다. 이름은 **정확히** 맞아야 알림이 가는데
-            (부분 일치를 허용하면 엉뚱한 사람에게 간다) 사람이 손으로 정확히 치기는 어렵다.
-            입력 중 팝업을 띄우면 Enter(전송)와 키보드가 겹치므로, 이모지와 같은 방식으로
-            버튼에서 고른다 — 전송 동작을 건드리지 않는 가장 안전한 자리다. */}
-        {pickable.length > 0 ? (
-          <IconButton
-            aria-label="언급할 사람 고르기" aria-haspopup="menu" aria-expanded={!!mentionAnchor}
-            onClick={(e) => setMentionAnchor(e.currentTarget)}
-            sx={{ flexShrink: 0, color: "text.secondary" }}
-          >
-            <AlternateEmailRoundedIcon sx={{ fontSize: FONT_SIZE.pageTitle }} />
-          </IconButton>
-        ) : null}
         <InputBase
           fullWidth value={draft} placeholder="메시지 입력 (이미지는 Ctrl+V로 붙여넣기)"
           inputRef={inputRef}
@@ -558,11 +576,41 @@ export function ChatPane({ roomId, compact = false, interval = 2000, idleMax = 0
           onChange={(e) => setDraft(e.target.value)}
           onPaste={onPaste}
           onKeyDown={(e) => { if (e.key === "Enter" && !e.nativeEvent.isComposing) { e.preventDefault(); doSend(); } }}
-          sx={{ fontSize: FONT_SIZE.body }}
+          sx={{ px: 1.75, pt: 1.25, pb: 0.25, fontSize: FONT_SIZE.body }}
         />
-        <IconButton color="primary" aria-label="보내기" onClick={doSend} disabled={send.isPending || !draft.trim()} sx={{ flexShrink: 0 }}>
-          <SendRoundedIcon sx={{ fontSize: FONT_SIZE.pageTitle }} />
-        </IconButton>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, px: 1.25, pt: 0.5, pb: 1.25 }}>
+          <IconButton
+            size="small"
+            aria-label="이모지 넣기" aria-haspopup="dialog" aria-expanded={!!emojiAnchor}
+            onClick={(e) => setEmojiAnchor(e.currentTarget)}
+            sx={{ flexShrink: 0, color: "text.secondary" }}
+          >
+            <MoodRoundedIcon sx={{ fontSize: remPx(ICON.action) }} />
+          </IconButton>
+          {/* 멘션 고르기 — 자동완성 대신 목록에서 고른다. 이름은 **정확히** 맞아야 알림이 가는데
+              (부분 일치를 허용하면 엉뚱한 사람에게 간다) 사람이 손으로 정확히 치기는 어렵다.
+              입력 중 팝업을 띄우면 Enter(전송)와 키보드가 겹치므로, 이모지와 같은 방식으로
+              버튼에서 고른다 — 전송 동작을 건드리지 않는 가장 안전한 자리다. */}
+          {pickable.length > 0 ? (
+            <IconButton
+              size="small"
+              aria-label="언급할 사람 고르기" aria-haspopup="menu" aria-expanded={!!mentionAnchor}
+              onClick={(e) => setMentionAnchor(e.currentTarget)}
+              sx={{ flexShrink: 0, color: "text.secondary" }}
+            >
+              <AlternateEmailRoundedIcon sx={{ fontSize: remPx(ICON.action) }} />
+            </IconButton>
+          ) : null}
+          <Box sx={{ flex: 1 }} />
+          {/* 보내기는 30 채움 단추다 — 그림만 서고 이름은 접근 이름이 든다(예전 아이콘 단추와 같은 「보내기」). */}
+          <Button
+            variant="primary" size="sm" aria-label="보내기"
+            onClick={doSend} disabled={!draft.trim()} loading={send.isPending}
+            sx={{ flexShrink: 0, minWidth: remPx(CHAT.tool), width: remPx(CHAT.tool), px: 0 }}
+          >
+            <SendRoundedIcon aria-hidden="true" sx={{ fontSize: remPx(ICON.inline) }} />
+          </Button>
+        </Box>
       </Box>
       <Popover
         open={!!emojiAnchor} anchorEl={emojiAnchor} onClose={() => setEmojiAnchor(null)}

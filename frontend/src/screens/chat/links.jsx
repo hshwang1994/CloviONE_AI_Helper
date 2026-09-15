@@ -15,12 +15,20 @@ import { trimUrlTail } from "../chat-text.js";
 // 버튼으로 렌더한다.
 export function PlainUrl({ url }) {
   const toast = useToast();
+  /* 복사 실패는 토스트가 아니라 **그 주소 바로 뒤의 한 줄**이다(핸드오프 RULES §1 — 사용자가 직접 해야 할 일이 남는
+     실패는 사라지는 알림으로 말하지 않는다). 다시 눌러 복사되면 걷힌다. 잘 된 복사는 그대로 토스트다. */
+  const [copyFailed, setCopyFailed] = React.useState(false);
+  const copy = () => copyText(url).then((ok) => {
+    setCopyFailed(!ok);
+    if (ok) toast("주소를 복사했습니다.", "success");
+  });
   return (
+    <>
     <Tooltip title="외부 링크는 열 수 없습니다. 눌러서 주소를 복사합니다.">
       <Box
         component="button"
         type="button"
-        onClick={() => copyText(url).then((ok) => toast(ok ? "주소를 복사했습니다." : "복사에 실패했습니다. 직접 선택해 복사하세요.", ok ? "success" : "error"))}
+        onClick={copy}
         sx={{
           font: "inherit", fontSize: FONT_SIZE.bodySm, border: 0, background: "none", p: 0, m: 0,
           textAlign: "left", cursor: "pointer", color: "text.secondary", ...KO_WORD_BREAK,
@@ -31,6 +39,12 @@ export function PlainUrl({ url }) {
         {url}
       </Box>
     </Tooltip>
+    {copyFailed ? (
+      <Box component="span" role="alert" sx={{ display: "block", mt: 0.25, fontSize: FONT_SIZE.caption, color: "error.strong", ...KO_WORD_BREAK }}>
+        복사에 실패했습니다. 직접 선택해 복사하세요.
+      </Box>
+    ) : null}
+    </>
   );
 }
 

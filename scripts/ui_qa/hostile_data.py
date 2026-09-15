@@ -41,7 +41,7 @@ WEIRD = ("עברית RTL 🇰🇷 ""👨‍👩‍👧 é́ ""zero​width <scr
 PROBE = """() => {
   const root = document.querySelector('#main-content') || document.body;
   const vw = innerWidth;
-  const over = [], clipped = [], collapsed = [];
+  const over = [], clipped = [], collapsed = [], truncated = [];
   root.querySelectorAll('*').forEach(el => {
     const r = el.getBoundingClientRect();
     if (r.width < 2 || r.height < 2) return;
@@ -53,8 +53,15 @@ PROBE = """() => {
     if (st.overflow === 'hidden' || st.overflowX === 'hidden') {
       if (el.scrollWidth > el.clientWidth + 4) {
         const t = (el.innerText || '').trim().slice(0, 30);
-        if (t) clipped.push({ tag: el.tagName.toLowerCase(),
-                              over: el.scrollWidth - el.clientWidth, text: t });
+        /* 🔴 **말줄임과 잘림은 다르다**(핸드오프 계획 §0-3). 한 줄 칸이 `text-overflow: ellipsis` 로 줄이고 전체 값을
+           `title`(자기 자신이나 감싼 요소)로 들고 있으면 계약대로 줄인 것이다 — 「…」가 보이고 전체 값에 닿을 수 있다.
+           그런 칸은 따로 세고(`truncated`), 말줄임 표시도 전체 값도 없이 글자가 사라지는 칸만 잘림이다. */
+        const titled = el.getAttribute('title') || (el.closest('[title]') && el.closest('[title]').getAttribute('title'));
+        if (t && st.textOverflow === 'ellipsis' && titled) {
+          truncated.push({ tag: el.tagName.toLowerCase(), over: el.scrollWidth - el.clientWidth, text: t });
+        } else if (t) {
+          clipped.push({ tag: el.tagName.toLowerCase(), over: el.scrollWidth - el.clientWidth, text: t });
+        }
       }
     }
     // 세로 붕괴: 폭이 아주 좁은데 높이가 크고 글자가 있다
@@ -67,7 +74,7 @@ PROBE = """() => {
   });
   const dedupe = (a) => { const s = new Set(), o = []; for (const x of a) {
       const k = x.tag + '|' + (x.text || ''); if (!s.has(k)) { s.add(k); o.push(x); } } return o; };
-  return { overflow: dedupe(over).slice(0, 8), clipped: dedupe(clipped).slice(0, 8),
+  return { overflow: dedupe(over).slice(0, 8), clipped: dedupe(clipped).slice(0, 8), truncated: dedupe(truncated).slice(0, 8),
            collapsed: dedupe(collapsed).slice(0, 8),
            bodyScrollW: document.documentElement.scrollWidth, vw,
            rows: root.querySelectorAll('tbody tr').length };
@@ -177,7 +184,7 @@ def main() -> int:
                 report[f"{mode}/{view.name}/{rid}"] = got
                 print(f"{mode:<7}{view.name:<10}{rid:<20}행={got['rows']:<4}"
                       f"넘침={len(got['overflow'])} "
-                      f"잘림={len(got['clipped'])} 세로붕괴={len(got['collapsed'])} "
+                      f"잘림={len(got['clipped'])} 말줄임={len(got.get('truncated') or [])} 세로붕괴={len(got['collapsed'])} "
                       f"문서폭={got['bodyScrollW']}/{got['vw']} {elapsed}s err={len(errs)}",
                       flush=True)
                 page.screenshot(path=str(OUT / f"{mode}-{view.name}-{rid}.png"))

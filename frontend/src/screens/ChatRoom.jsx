@@ -4,8 +4,9 @@ import { useNavigate } from "react-router-dom";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
-import { Button, ErrorState, Skeleton, useToast, useConfirm, Badge } from "../ui/kit.jsx";
+import { Button, Callout, ErrorState, Skeleton, useToast, useConfirm, Badge } from "../ui/kit.jsx";
 import { FONT_SIZE, FONT_WEIGHT } from "../ui/theme.js";
+import { failureText } from "../lib/failure.js";
 import { ChatPane } from "./ChatPane.jsx";
 import { ManageRoomModal, MemberStrip } from "./ChatRoomMembers.jsx";
 
@@ -65,18 +66,21 @@ export function RoomDetailPanel({ id }) {
   const leave = useMutation({
     mutationFn: () => api(`/api/team-chat/rooms/${id}/leave`, { method: "POST" }),
     onSuccess: () => backToList("채팅방을 나갔습니다."),
-    onError: (e) => toast((e && e.message) || "나가지 못했습니다. 다시 시도해 주세요.", "error"),
   });
   const disband = useMutation({
     mutationFn: () => api(`/api/team-chat/rooms/${id}/disband`, { method: "POST" }),
     onSuccess: () => backToList("채팅방을 파했습니다."),
-    onError: (e) => toast((e && e.message) || "채팅방을 파하지 못했습니다. 다시 시도해 주세요.", "error"),
   });
   const hide = useMutation({
     mutationFn: () => api(`/api/team-chat/rooms/${id}/hide`, { method: "POST" }),
     onSuccess: () => backToList("내 목록에서 숨겼습니다. 새 메시지가 오면 다시 나타납니다."),
-    onError: (e) => toast((e && e.message) || "숨기지 못했습니다. 다시 시도해 주세요.", "error"),
   });
+  /* 머리 동작의 실패는 머리 바로 아래 메시지 박스다(핸드오프 RULES §1 · 계획 표 6 — 토스트였다). 다시 누르면 걷힌다. */
+  const actionFailure = failureText(
+    [leave, "나가지 못했습니다. 다시 시도해 주세요."],
+    [disband, "채팅방을 파하지 못했습니다. 다시 시도해 주세요."],
+    [hide, "숨기지 못했습니다. 다시 시도해 주세요."],
+  );
 
   if (meta.isError) {
     return <Box sx={{ p: 3 }}><ErrorState error={meta.error} onRetry={() => meta.refetch()} /></Box>;
@@ -91,8 +95,6 @@ export function RoomDetailPanel({ id }) {
     : room.is_global ? "전체" : room.department_id ? "내 팀" : room.kind === "direct" ? "1:1" : (room.member_count ? "그룹 " + room.member_count : "그룹");
   const actions = (
     <>
-      {/* 방 머리는 목록 밖이다 — 정해진 축의 값(방 종류)은 면 있는 배지로 선다(핸드오프 RULES §2 · F4). */}
-      {tag ? <Box component="span" sx={{ alignSelf: "center", display: "inline-flex" }}><Badge value={tag} emphasis="strong" /></Box> : null}
       {/* 관리(이름 변경·초대·내보내기·방장 넘기기)는 서버가 준 한 플래그로만 판단한다.
           네 동작의 조건이 모두 같으므로 버튼도 하나다 — 여기서 규칙을 다시 쓰면 어긋난다. */}
       {you.can_manage ? <Button onClick={() => setManageOpen(true)}>관리</Button> : null}
@@ -124,53 +126,58 @@ export function RoomDetailPanel({ id }) {
 
   return (
     /* 래퍼는 flex 컬럼이다 — grid("auto 1fr")로 두면 아래 본문 칸이 자기 높이를 못 정해
-       ChatPane 의 height:100% 가 MemberStrip 높이를 못 빼고 계산되고, 예전처럼 이 래퍼에
+       ChatPane 의 height:100% 가 머리 높이를 못 빼고 계산되고, 예전처럼 이 래퍼에
        overflowY:auto 를 얹으면 ChatPane 자신의 로그 상자와 스크롤이 두 겹으로 생긴다
        (안쪽은 이미 맨 아래로 스크롤돼 있는데 바깥은 scrollTop:0 에서 시작 — 대화가 위로
-       밀려 보이는 원인). 스크롤은 ChatPane 혼자 갖는다: 헤더는 고정, 본문 칸은
-       flex:"1 1 auto" 로 나머지 공간만 차지하고 그 안에서 MemberStrip 은 고정, ChatPane 을
-       감싼 자리만 다시 flex:"1 1 auto" 로 남는 높이를 ChatPane 에 넘긴다. */
+       밀려 보이는 원인). 스크롤은 ChatPane 혼자 갖는다: 머리는 고정, 본문 칸은
+       flex:"1 1 auto" 로 나머지 공간만 차지하고, ChatPane 을 감싼 자리만 다시
+       flex:"1 1 auto" 로 남는 높이를 ChatPane 에 넘긴다. */
     <Box sx={{ display: "flex", flexDirection: "column", minWidth: 0, minHeight: 0, height: "100%" }}>
-      {/* 방 머리 — 화면 제목(PageHeader)이 아니라 **칸 안의 머리**다. 왼쪽 목록과 같은 높이에서
-          시작해야 두 칸이 한 판으로 읽힌다. */}
-      <Box sx={{ flexShrink: 0 }}>
-        <Box sx={{
-          display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap",
-          px: 2.5, py: 1.75, minWidth: 0,
-        }}>
-          <Typography component="h2" sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: FONT_SIZE.sectionTitle, minWidth: 0,
-                                           overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+      {/* 방 머리 — 화면 제목(PageHeader)이 아니라 **판 안의 머리**다(핸드오프 RULES §9). 세 묶음이다:
+          ① 제목(1.0625rem/700, 길면 말줄임 + 전체 이름표) + 방 종류 배지 ② 참여자 요약 + 얼굴 스택 ③ 동작 단추(34).
+          폭이 모자라면 **묶음 단위로** 다음 줄로 간다 — 단추 하나만 떨어지거나 제목과 겹치지 않는다. 예전에는 목록 칸의
+          검색줄과 높이를 맞추는 빈 자리가 있었는데, 목록과 대화가 서로 다른 판이 되면서 맞출 경계가 없어졌다. */}
+      <Box
+        data-room-head=""
+        sx={{
+          flexShrink: 0, display: "flex", alignItems: "center", flexWrap: "wrap", columnGap: 2, rowGap: 1,
+          px: 2.25, py: 1.5, borderBottom: 1, borderColor: "rule", minWidth: 0,
+        }}
+      >
+        <Box data-room-head-group="title" sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0, flex: "1 1 12rem" }}>
+          <Typography
+            component="h2"
+            title={meta.isPending ? undefined : (room.title || "채팅방")}
+            sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: FONT_SIZE.cardTitle, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+          >
             {meta.isPending ? "채팅방" : (room.title || "채팅방")}
           </Typography>
-          <Box sx={{ flex: 1 }} />
-          <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>{actions}</Box>
+          {/* 방 머리는 목록 밖이다 — 정해진 축의 값(방 종류)은 면 있는 배지로 선다(핸드오프 RULES §2 · F4). */}
+          {tag ? <Box component="span" sx={{ display: "inline-flex", flexShrink: 0 }}><Badge value={tag} emphasis="strong" /></Box> : null}
         </Box>
-        {/* 방 목록 헤더(ChatRooms.jsx listPanel)는 제목줄 + 검색줄, 2행이다. 대화창엔 검색이
-            없어 한 줄뿐이지만, 그 차이만큼 빈 자리를 안 주면 두 칸의 헤더/본문 경계선이
-            어긋나 한 판처럼 읽히지 않는다. 검색줄과 세로 치수를 맞춘다: py:1.25 로 감싼
-            자리에 기본 컨트롤 높이 2.5rem(MuiButton.styleOverrides.root.minHeight:40 /
-            입력·버튼의 최소 높이와 같은 값 — TextField(size="small")도
-            이 높이로 맞춰진다)짜리 빈 칸을 두고, 그 자리 아래에 구분선을 그린다. */}
-        <Box
-          data-testid="chatroom-header-spacer" aria-hidden="true"
-          sx={{ px: 2.5, py: 1.25, borderBottom: 1, borderColor: "divider" }}
-        >
-          <Box sx={{ height: "2.5rem" }} />
+        {/* 누가 지금 이 대화를 보고 있는지. 전체 채팅은 참여자 행이 없어 아무것도 그리지 않는다. */}
+        {!meta.isPending && members.length ? (
+          <Box data-room-head-group="members" sx={{ flex: "0 0 auto", minWidth: 0 }}>
+            <MemberStrip members={members} people={people} />
+          </Box>
+        ) : null}
+        <Box data-room-head-group="actions" sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "nowrap", flex: "0 0 auto", marginInlineStart: "auto" }}>
+          {actions}
         </Box>
       </Box>
-      <Box sx={{ display: "flex", flexDirection: "column", flex: "1 1 auto", minHeight: 0, p: { xs: 1.5, sm: 2.5 } }}>
+      {actionFailure ? (
+        <Box sx={{ flexShrink: 0, px: 2.25, pt: 1.5 }}>
+          <Callout tone="danger" compact>{actionFailure}</Callout>
+        </Box>
+      ) : null}
+      <Box sx={{ display: "flex", flexDirection: "column", flex: "1 1 auto", minHeight: 0, px: { xs: 1.5, sm: 2.25 }, pt: 1, pb: { xs: 1.5, sm: 2 } }}>
         {meta.isPending ? <Skeleton lines={6} /> : (
-          <>
-            {/* 누가 지금 이 대화를 보고 있는지. 전체 채팅은 참여자 행이 없어 아무것도 그리지 않는다. */}
-            <MemberStrip members={members} people={people} />
-            {/* ChatPane 은 height:"100%" 로 자기 몫을 채우는 컴포넌트라, 그 100% 를 계산할
-                기준(정해진 높이를 가진 부모)이 있어야 한다. flex:"1 1 auto" + minHeight:0 로
-                이 자리를 만들어 준다 — 부모(위 Box)가 flex 컬럼이라 MemberStrip 이 먼저
-                자기 높이를 차지하고 남는 만큼만 이 자리로 온다. */}
-            <Box sx={{ flex: "1 1 auto", minHeight: 0 }}>
-              <ChatPane roomId={id} interval={1800} />
-            </Box>
-          </>
+          /* ChatPane 은 height:"100%" 로 자기 몫을 채우는 컴포넌트라, 그 100% 를 계산할
+             기준(정해진 높이를 가진 부모)이 있어야 한다. flex:"1 1 auto" + minHeight:0 로
+             이 자리를 만들어 준다. */
+          <Box sx={{ flex: "1 1 auto", minHeight: 0 }}>
+            <ChatPane roomId={id} interval={1800} />
+          </Box>
         )}
       </Box>
       <ManageRoomModal

@@ -1,10 +1,12 @@
 import React from "react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import "@testing-library/jest-dom/vitest";
+
+/* qa-contract-change: 방 머리 참여자 줄이 이름 나열(「외 N명」 글자)에서 얼굴 스택(26 · −8, 「+N」 + 이름표 「외 N명」)으로 바뀌어(핸드오프 RULES §9 · 계획 E), 남은 수 단언을 스택의 이름표 · 글자로 옮기고 얼굴 수 · 접속 순서 · 이름표 단언을 더한다. */
 
 /* 그룹 관리 화면 — 이름 변경 · 초대 · 내보내기 · 방장 넘기기 (PLAN Phase 3 §F).
  *
@@ -239,14 +241,20 @@ describe("참여자 줄", () => {
     expect(await screen.findByText("참여자 2명, 보는 중 1명")).toBeInTheDocument();
   });
 
-  it("사람이 많으면 이름을 잘라 '외 N명'으로 말한다 — 한 줄이 대화창을 밀어내면 안 된다", async () => {
+  it("사람이 많으면 얼굴을 여덟까지 겹쳐 세우고 남은 수를 「+N」(이름표 「외 N명」)으로 말한다 — 머리가 대화창을 밀어내면 안 된다", async () => {
     const many = Array.from({ length: 12 }, (_, i) => ({
       user_id: `m${i}`, name: `사람${i}`, role: i === 0 ? "owner" : "member",
       last_read_seq: 0, online: i % 4 === 0,
     }));
     mount(meta({ members: many }, { can_manage: false }));
     expect(await screen.findByText("참여자 12명, 보는 중 3명")).toBeInTheDocument();
-    expect(screen.getByText("외 4명")).toBeInTheDocument();
+    const stack = screen.getByRole("list", { name: "참여자" });
+    const items = within(stack).getAllByRole("listitem");
+    expect(items).toHaveLength(9);
+    expect(within(stack).getByRole("listitem", { name: "외 4명" })).toHaveTextContent("+4");
+    // 접속 중인 사람이 먼저 서고, 얼굴마다 이름과 접속 상태를 이름표로 든다(예전 한 줄의 이름 · 접속 점).
+    expect(items[0]).toHaveAttribute("aria-label", "사람0, 이 대화 보는 중");
+    expect(items[3]).toHaveAttribute("aria-label", expect.stringMatching(/, 자리 비움$/));
   });
 
   it("전체 채팅은 참여자 행이 없어 아무것도 그리지 않는다", async () => {

@@ -4,7 +4,9 @@ import { render, screen, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import "@testing-library/jest-dom/vitest";
 
-/* 🔴 **모든 메시지가 누가 언제 썼는지 말한다** (지시 17).
+/* qa-contract-change: 핸드오프 RULES §9(소유자 확정 채팅 규격)가 지시 17 의 「내 말에도 아바타와 이름」을 「내 말은 오른쪽 Primary 말풍선, 아바타 · 이름 없음」으로 바꿔, 내 말의 신원 단언을 「오른쪽 자리 + 말풍선 + 시각」으로 옮기고 이어지는 말 단언은 상대의 말로 잰다(시각 · 전체 날짜 · 구분선 계약은 그대로). */
+
+/* 🔴 **모든 메시지가 누가 언제 썼는지 말한다** (지시 17 → 핸드오프 RULES §9).
  *
  * ## 이 파일이 왜 생겼나
  *
@@ -79,21 +81,28 @@ async function rowOf(text) {
 beforeEach(() => { apiMock.mockReset(); });
 
 describe("모든 메시지가 신원을 갖는다", () => {
-  it("🔴 내가 쓴 말에도 아바타와 이름이 선다", async () => {
+  it("🔴 내가 쓴 말은 오른쪽 Primary 말풍선이고 얼굴 · 이름을 되풀이하지 않는다 — 자리가 「나」를 말하고 시각은 남는다", async () => {
     mount(payload([msg({ seq: 1, body: "내가 쓴 말" })]));
     const row = await rowOf("내가 쓴 말");
     expect(row).toHaveAttribute("data-chat-row", "mine");
-    expect(within(row).getByText("나")).toBeInTheDocument();
-    // 아바타는 공용 부품이다 — 사진이 없으면 기본 그림이 선다(지시 6).
-    expect(row.querySelector(".k-avatar")).toBeTruthy();
+    // 오른쪽 자리 — 줄이 말풍선 묶음을 끝(오른쪽)으로 민다.
+    expect(getComputedStyle(row).justifyItems).toBe("end");
+    expect(row.querySelector('[data-chat-bubble="mine"]')).toBeTruthy();
+    // 얼굴 · 이름은 상대의 말에만 선다(핸드오프 RULES §9 「나: 아바타 없음」).
+    expect(row.querySelector(".k-avatar")).toBeNull();
+    expect(within(row).queryByText("나")).toBeNull();
+    // 언제 썼는지는 여전히 말한다.
+    expect(row.querySelector("time")).toBeTruthy();
   });
 
-  it("남이 쓴 말도 같은 구조다", async () => {
+  it("남이 쓴 말은 왼쪽 함몰면 말풍선에 얼굴 · 이름이 선다", async () => {
     mount(payload([msg({ seq: 1, sender_user_id: PEER, sender_name: "상대", body: "남이 쓴 말" })]));
     const row = await rowOf("남이 쓴 말");
     expect(row).toHaveAttribute("data-chat-row", "theirs");
     expect(within(row).getByText("상대")).toBeInTheDocument();
+    // 아바타는 공용 부품이다 — 사진이 없으면 기본 그림이 선다(지시 6).
     expect(row.querySelector(".k-avatar")).toBeTruthy();
+    expect(row.querySelector('[data-chat-bubble="theirs"]')).toBeTruthy();
   });
 
   it("🔴 시간만 보여 주지 않는다 — 줄의 시각이 전체 날짜를 들고 있다", async () => {
@@ -130,15 +139,16 @@ describe("날짜 구분선", () => {
 });
 
 describe("연속 발언", () => {
-  it("이어지는 말은 이름을 반복하지 않는다", async () => {
+  it("이어지는 말은 이름 · 얼굴을 반복하지 않는다", async () => {
     mount(payload([
-      msg({ seq: 1, body: "첫 말", created_at: "2026-08-03T01:00:00" }),
-      msg({ seq: 2, body: "이어지는 말", created_at: "2026-08-03T01:01:00" }),
+      msg({ seq: 1, sender_user_id: PEER, sender_name: "상대", body: "첫 말", created_at: "2026-08-03T01:00:00" }),
+      msg({ seq: 2, sender_user_id: PEER, sender_name: "상대", body: "이어지는 말", created_at: "2026-08-03T01:01:00" }),
     ]));
     await screen.findByText("이어지는 말");
     // 이름은 묶음의 첫 줄에만 — 다섯 줄을 연달아 쓴 사람의 이름이 다섯 번 서면
     // 대화가 아니라 명단으로 보인다.
-    expect(screen.getAllByText("나")).toHaveLength(1);
+    expect(screen.getAllByText("상대")).toHaveLength(1);
+    expect((await rowOf("이어지는 말")).querySelector(".k-avatar")).toBeNull();
   });
 
   it("🔴 그래도 이어지는 줄이 자기 시각을 갖는다 — 언제 썼는지는 항상 확인 가능하다", async () => {

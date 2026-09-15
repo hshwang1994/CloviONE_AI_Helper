@@ -1,9 +1,11 @@
 import React from "react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import "@testing-library/jest-dom/vitest";
+
+/* qa-contract-change: 목록과 대화가 한 판을 가르던 두 칸에서 두 판(핸드오프 RULES §9 · 계획 E)이 되어 「대화창 머리 아래에 목록 검색줄과 같은 빈 자리」 계약이 뜻을 잃었다. 머리는 이제 세 묶음(제목 + 종류 · 참여자 · 동작)이 묶음 단위로 접히는 줄이다 — 그 구조를 잰다(스크롤 하나 계약은 그대로). */
 
 /* 채팅방 페이지의 스크롤·헤더 정합성 회귀 테스트.
  *
@@ -95,23 +97,26 @@ describe("채팅방 스크롤은 겹치지 않는다", () => {
   });
 });
 
-describe("대화창 헤더는 방 목록 헤더(제목줄+검색줄)와 총 높이가 같다", () => {
-  it("제목줄 아래에 목록 검색줄과 같은 치수(여백 1.25 + 기본 컨트롤 높이 2.5rem)의 빈 자리가 있다", async () => {
+describe("방 머리는 세 묶음이 묶음 단위로 접히는 한 줄이다 (핸드오프 RULES §9 · 계획 E)", () => {
+  it("제목 + 종류 · 참여자 · 동작 세 묶음이 순서대로 서고, 줄은 접히되 동작 묶음 안은 접히지 않는다", async () => {
     const { container } = mount();
     await screen.findByText("안녕하세요");
+    // 옛 빈 자리는 없다 — 목록과 대화가 다른 판이라 맞출 경계가 없다.
+    expect(container.querySelector('[data-testid="chatroom-header-spacer"]')).toBeNull();
 
-    // 목록의 검색줄(ChatRooms.jsx listPanel) 치수: px:2, py:1.25, borderBottom:1 를 감싸는
-    // Box 안에 TextField(size="small", 높이 2.5rem = MuiButton.styleOverrides.root.minHeight:40 /
-    // 기준선 .field·.btn min-height:40px 와 같은 값)가 있다.
-    const spacer = container.querySelector('[data-testid="chatroom-header-spacer"]');
-    expect(spacer, "헤더 아래 검색줄 자리 표시자가 없다").toBeTruthy();
+    const head = container.querySelector("[data-room-head]");
+    expect(head, "방 머리가 없다").toBeTruthy();
+    const groups = [...head.children].map((el) => el.getAttribute("data-room-head-group"));
+    expect(groups).toEqual(["title", "members", "actions"]);
+    expect(getComputedStyle(head).flexWrap).toBe("wrap");
+    expect(getComputedStyle(head).borderBottomWidth).toBe("1px");
 
-    const outer = getComputedStyle(spacer);
-    expect(outer.borderBottomWidth).toBe("1px");
-    expect(outer.paddingTop).toBe("0.625rem");
-    expect(outer.paddingBottom).toBe("0.625rem");
-
-    const inner = getComputedStyle(spacer.firstChild);
-    expect(inner.height).toBe("2.5rem");
+    const title = head.querySelector('[data-room-head-group="title"] h2');
+    expect(title).toHaveTextContent("우리방");
+    // 긴 제목은 한 줄에서 말줄임되고 전체 이름은 이름표가 든다.
+    expect(title).toHaveAttribute("title", "우리방");
+    expect(getComputedStyle(title).whiteSpace).toBe("nowrap");
+    expect(getComputedStyle(head.querySelector('[data-room-head-group="actions"]')).flexWrap).toBe("nowrap");
+    expect(within(head).getByText("참여자 2명, 보는 중 1명")).toBeInTheDocument();
   });
 });

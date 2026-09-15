@@ -153,3 +153,43 @@ describe("전체 채팅 방", () => {
     expect(screen.queryByRole("button", { name: "숨기기" })).toBeNull();
   });
 });
+
+describe("머리 동작의 실패는 머리 바로 아래 메시지 박스다 (핸드오프 RULES §1 — 토스트였다)", () => {
+  it("파하기가 실패하면 상자가 말하고 방은 그대로 열려 있으며, 다시 누르면 걷힌다", async () => {
+    const user = userEvent.setup();
+    let fail = true;
+    apiMock.mockImplementation((url, opts) => {
+      if (url.startsWith("/api/team-chat/rooms/r1/messages?")) return Promise.resolve(meta({ role: "owner", can_disband: true }));
+      if (url === "/api/team-chat/rooms/r1/disband" && opts && opts.method === "POST") {
+        if (fail) return Promise.reject(new Error("아직 파할 수 없는 방입니다."));
+        return new Promise(() => {});
+      }
+      return Promise.resolve({ ok: true });
+    });
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity }, mutations: { retry: false } } });
+    render(
+      <QueryClientProvider client={qc}>
+        <ThemeModeProvider><ToastProvider><ConfirmProvider>
+          <MemoryRouter initialEntries={["/chat-rooms/r1"]}>
+            <Routes>
+              <Route path="/chat-rooms/:id" element={<RoomDetailPanel id="r1" />} />
+              <Route path="/chat-rooms" element={<div>채팅방 목록</div>} />
+            </Routes>
+          </MemoryRouter>
+        </ConfirmProvider></ToastProvider></ThemeModeProvider>
+      </QueryClientProvider>,
+    );
+    await user.click(await screen.findByRole("button", { name: "방 파하기" }));
+    await user.click(await screen.findByRole("button", { name: "파하기" }));
+    const box = await screen.findByText("아직 파할 수 없는 방입니다.");
+    const head = document.querySelector("[data-room-head]");
+    expect(head.compareDocumentPosition(box) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(head.contains(box)).toBe(false);
+    expect(screen.queryByText("채팅방 목록")).toBeNull();
+
+    fail = false;
+    await user.click(screen.getByRole("button", { name: "방 파하기" }));
+    await user.click(await screen.findByRole("button", { name: "파하기" }));
+    await waitFor(() => expect(screen.queryByText("아직 파할 수 없는 방입니다.")).toBeNull());
+  });
+});

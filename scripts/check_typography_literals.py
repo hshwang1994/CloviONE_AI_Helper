@@ -40,7 +40,7 @@ RX_FS = re.compile(r"fontSize:\s*([^,\n}]+)")
 # 결함이 그 사각지대에서 살았다(F-W1R-05). 이제 값이 한 표에서 나오므로 그 표를 인정한다.
 # `remPx()` 는 px 계약값을 4K 레버가 따라오는 rem 문자열로 바꾸는 변환 한 자리다.
 TOKEN_LEAF_RE = re.compile(
-    r"^(FONT_SIZE\.\w+|remPx\(ICON\.\w+\)|STAT_VALUE_FONT_SIZE|BRAND_UNIT|undefined)$")
+    r"^(FONT_SIZE\.\w+|CHAT\.\w+|remPx\(ICON\.\w+\)|STAT_VALUE_FONT_SIZE|BRAND_UNIT|undefined)$")
 
 # 2026-08-16 직접 소스 문맥으로 낱개 확인됨(각 값이 실제로 어떤 역할인지 grep + 코드 대조로
 # 검증) — 새 예외를 추가하려면 같은 방식으로 확인한 뒤 이유를 적는다. 근거 없이 값만 늘리지
@@ -52,8 +52,8 @@ EXEMPT_FONT_SIZE_VALUES: dict[str, str] = {
     '"0.9375rem"': "입력창 또는 서체 본문(prose, lineHeight 1.6~1.75) — PA-01 5~7차 확장에서 전수 확인",
     '"0.625rem"': "ChatPane.jsx 메신저 읽음 표시 — 본문보다 작아야 하는 보조 지표라 caption(12px)"
                   "로 올리면 본문과 시각적으로 경쟁한다",
-    '"0.6875rem"': "kit.jsx 판독 칸 심각도 배지(12px로 올리면 실측 줄바꿈 위험) + "
-                   "theme.js MuiTableCell head(기준선 th{11px}와 정확히 일치, 손대면 오히려 이탈)",
+    '"0.6875rem"': "theme.js MuiTableCell head(기준선 th{11px}와 정확히 일치, 손대면 오히려 이탈). "
+                   "채팅 시각 글자는 `ui/chat.js::CHAT.timeText` 토큰 경로로 쓴다(판독 칸 배지는 판독 줄과 함께 걷혔다)",
     '"19px"': "TopSearch.jsx 검색 아이콘(SearchRoundedIcon)",
     '"1.125rem"': "Home.jsx/SchedulerCalendar.jsx 보조 통계(18px, sectionTitle 17px·pageTitle 20px "
                   "사이라 기존 토큰과 안 맞음, 실측 없이 스냅 안 함) 또는 SendRoundedIcon",
