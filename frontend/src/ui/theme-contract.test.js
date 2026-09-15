@@ -461,6 +461,23 @@ describe("컨트롤 높이는 한 곳에서 나온다", () => {
     expect(remValue(ir.height)).toBe(remValue(t.components.MuiOutlinedInput.styleOverrides.root.minHeight));
   });
 
+  /* **날짜 칸도 입력이다.** MUI X 날짜 입력은 `MuiOutlinedInput` 이 아니라 `MuiPickersOutlinedInput` 이라 위 규칙을
+     받지 않고 39px 로 섰다(새 티켓 실측 — 같은 줄의 칸보다 3px 컸다). 높이 · 여백 · 모서리 · 면 · 포커스 선이 같은
+     값에서 나와야 한 줄의 칸이 한 높이로 선다. */
+  it.each(MODES)("%s — 날짜 칸의 높이 · 여백 · 모서리 · 면 · 포커스 선이 윤곽 입력과 같다", (mode) => {
+    const t = createClovirTheme(mode);
+    const picker = t.components.MuiPickersOutlinedInput.styleOverrides;
+    const input = t.components.MuiOutlinedInput.styleOverrides;
+    expect(remValue(picker.root.minHeight)).toBe(CONTROL.input);
+    expect(picker.root.minHeight).toBe(input.root.minHeight);
+    expect(picker.sectionsContainer.paddingTop).toBe(input.input.paddingTop);
+    expect(picker.sectionsContainer.paddingBottom).toBe(input.input.paddingBottom);
+    expect(picker.root.borderRadius).toBe(input.root.borderRadius);
+    expect(picker.root.background).toBe(input.root.background);
+    expect(picker.root["&.Mui-focused:not(.Mui-error) .MuiPickersOutlinedInput-notchedOutline"])
+      .toEqual(input.root["&.Mui-focused:not(.Mui-error) .MuiOutlinedInput-notchedOutline"]);
+  });
+
   it("컨트롤 높이는 전부 같은 단위다 — 하나만 px 로 남으면 4K 에서 그 하나만 안 자란다", () => {
     const t = createClovirTheme("light");
     const heights = [

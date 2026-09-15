@@ -3268,7 +3268,9 @@ export function Modal({ open, onClose, title, size = "md", children, footer, dir
  * `/profile` 이 이 트랙을 먼저 만들었고(`FIELD_ROWS`), 새 티켓이 둘째 소비처라 키트로 올린다.
  * 도움말과 오류는 셋째 줄 한 자리를 나눠 쓴다 — 오류가 있으면 오류가 선다(`aria-describedby` 는
  * 입력 쪽이 `helpId` 를 가리킨다). */
-export const FIELD_ROWS = `${remPx(20)} ${remPx(CONTROL.input)} auto`;
+/* 필드 줄은 36 이 **바닥**이다 — 한 줄 칸은 정확히 36 으로 서고, 고른 칩이 여럿이라 두 줄로 접히는 칸(담당자)은
+   그만큼 자라 아래 도움말과 겹치지 않는다. 라벨 줄이 20 으로 고정이라 같은 줄의 입력칸 윗선은 그대로 같다. */
+export const FIELD_ROWS = `${remPx(20)} minmax(${remPx(CONTROL.input)}, auto) auto`;
 
 export function FormFieldCell({ label, htmlFor, labelId, required, help, error, helpId, children, sx }) {
   return (

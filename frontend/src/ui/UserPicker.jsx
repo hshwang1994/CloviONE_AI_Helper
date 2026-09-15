@@ -19,6 +19,7 @@ import { UserAvatar } from "./UserAvatar.jsx";
 export function UserPicker({
   label = "담당자", candidates, value, onChange, multiple = false, loading, disabled,
   myId, kind = "entity", sx, helperText, required, layout, open, disablePortal, placeholder, allLabel, describe,
+  ariaLabelledBy, ariaDescribedBy,
 }) {
   const list = candidates || [];
   const withOrg = needsOrg(list);
@@ -35,7 +36,10 @@ export function UserPicker({
 
   return (
     <EntityCombobox
-      label={label}
+      /* 이름을 바깥 `FieldLabel` 이 그리는 폼 칸이면(`ariaLabelledBy`) 칸 안에 라벨을 또 세우지 않는다. */
+      label={ariaLabelledBy ? undefined : label}
+      ariaLabelledBy={ariaLabelledBy}
+      ariaDescribedBy={ariaDescribedBy}
       kind={kind}
       value={value}
       onChange={onChange}

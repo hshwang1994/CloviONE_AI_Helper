@@ -86,4 +86,26 @@ describe("새 티켓 — 후보를 못 받은 것과 후보가 없는 것", () =
         .toBeGreaterThan(0));
     expect(screen.queryByRole("button", { name: "다시 시도" })).not.toBeInTheDocument();
   });
+
+  it("아직 받는 중이면 폼 대신 모양을 그리고, 없다고 먼저 말하지 않는다 — 오면 폼이 선다", async () => {
+    let releaseProjects;
+    apiMock.mockImplementation((path) => {
+      if (path === "/api/tickets/projects") return new Promise((resolve) => { releaseProjects = () => resolve({ projects: [] }); });
+      if (path === "/api/tickets/meta") {
+        return Promise.resolve({ statuses: ["계획"], priorities: [], difficulties: [] });
+      }
+      return Promise.resolve({});
+    });
+
+    renderNewTicket();
+
+    await waitFor(() => expect(screen.getByText("불러오는 중…")).toBeInTheDocument());
+    expect(document.querySelector(".MuiSkeleton-root")).toBeTruthy();
+    expect(screen.queryByText("선택할 수 있는 프로젝트가 없습니다")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/제목/)).not.toBeInTheDocument();
+
+    releaseProjects();
+    await waitFor(() => expect(screen.getByLabelText(/^제목( 필수)?$/)).toBeInTheDocument());
+    expect(screen.getAllByText("선택할 수 있는 프로젝트가 없습니다").length).toBeGreaterThan(0);
+  });
 });

@@ -12,7 +12,7 @@ import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import { api } from "../lib/api.js";
-import { Card, Badge, DataTable, EmptyState, ErrorState, Skeleton, Callout, PageHeader, Modal, ModalFooter, Button, useToast, useConfirm, FieldLabel } from "../ui/kit.jsx";
+import { Card, Badge, DataTable, EmptyState, ErrorState, Skeleton, Callout, PageHeader, Modal, ModalFooter, Button, useToast, useConfirm, FieldLabel, FormFieldCell, ActionFooter, SectionTitle } from "../ui/kit.jsx";
 import { DateField } from "../ui/DateField.jsx";
 import { PersonLine } from "../ui/UserAvatar.jsx";
 import { priorityKo, priorityKind } from "../lib/priority.js";
@@ -27,8 +27,8 @@ const BlockEditor = React.lazy(() =>
 );
 import { useRowSelection, selectionColumn, BulkActions } from "../ui/bulkSelect.jsx";
 import { pathText } from "../ui/OrgPath.jsx";
-import { FAB_CLEARANCE, FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
-import { BASELINE_TRACKS, GRID_GAP } from "../ui/density.js";
+import { FAB_CLEARANCE, FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, LINE_HEIGHT } from "../ui/theme.js";
+import { BASELINE_TRACKS, CARD_PADDING, FORM_FIELD_CONTAINER, FORM_FIELD_GRID_12, GRID_GAP, fieldSpan } from "../ui/density.js";
 import { EMPTYABLE_SELECT, EntityCombobox } from "../ui/filters.jsx";
 import { UserPicker } from "../ui/UserPicker.jsx";
 import { useQueryState } from "../lib/useQueryState.js";
@@ -1113,44 +1113,49 @@ const TICKET_SECTIONS = [
 ];
 
 
-/* REAUDIT C19 — 여섯 단추가 전부 같은 무게로 그려져 "넷이 핵심"이라는 §지시 10 의 판단이
-   화면에 없었다(위 TICKET_SECTIONS 주석의 「네 가지가 핵심이고 둘은 보조다」가 `optional`
-   에만 있고 렌더에는 없었다). 실측한 사람은 여섯을 그냥 여섯으로 세었다 — 넷과 둘로
-   갈라 보여야 "넷이 기본, 둘은 더"라고 읽힌다. */
-function WritingAidButton({ sec, already, onInsert }) {
+/* 작성 도움 — 판 하나 안의 목록이다(핸드오프 계획 C · O-4).
+ *
+ * 예전에는 항목 하나가 통째로 단추였다(흰 판 위 12px 모서리 · surface2 면 · 넣은 뒤 반투명). 항목은 읽을 것
+ * (절 이름 · 무엇을 적나 · 예시)이고 누를 것은 「넣기」 하나다 — 그래서 줄마다 오른쪽에 작은 단추(30)를 둔다.
+ * 넣은 절은 단추가 꺼지고 「✓」가 선다(「넣었음」 같은 낱말을 새로 만들지 않는다). 단추의 접근 이름은 예전
+ * 그대로다: 「설명에 '…' 절 넣기」 · 「…: 이미 넣었습니다」.
+ *
+ * REAUDIT C19 — 여섯이 넷(핵심)과 둘(「더 적으면 좋은 항목」, 「선택」 배지)로 갈린 구성은 그대로다. */
+function WritingAidItem({ sec, already, onInsert }) {
   return (
     <Box
-      component="button" type="button"
-      onClick={() => onInsert(sec)}
-      disabled={already}
-      aria-label={already ? `${sec.title}: 이미 넣었습니다` : `설명에 '${sec.title}' 절 넣기`}
+      component="li"
+      data-writing-aid-item=""
       sx={{
-        display: "grid", gap: 0.25, textAlign: "left", width: "100%",
-        px: 1.5, py: 1.25, border: 1, borderColor: "divider", borderRadius: "12px",
-        cursor: already ? "default" : "pointer",
-        /* 흰 Card 위에 배경 없는 버튼(bgcolor:"transparent")이라 경계가 안 보였다
-           (사용자 지적: "버튼이 명확하지가 않다. 버튼이 흰배경이라서"). BodyEditor
-           툴바 버튼과 같은 표면 톤(background.surface2)을 써 카드와 구별한다. */
-        bgcolor: "background.surface2", color: "inherit", font: "inherit",
-        opacity: already ? 0.5 : 1,
-        "&:hover": { bgcolor: already ? "background.surface2" : "action.hover" },
+        display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", columnGap: 1.25, alignItems: "start",
+        py: 1.5, borderTop: 1, borderColor: "rule",
       }}
     >
-      <Stack direction="row" gap={0.75} alignItems="center">
-        <Typography component="span" sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: FONT_SIZE.body }}>
-          {sec.title}{already ? " ✓" : ""}
+      {/* 한 줄의 글자는 셋이 한 단씩 작아진다 — 절 이름(0.875rem/700) · 무엇을 적나(0.8125rem) · 예시(0.75rem 기울임). */}
+      <Box sx={{ display: "grid", gap: 0.375, minWidth: 0 }}>
+        <Stack direction="row" gap={0.75} alignItems="center">
+          <Typography component="span" sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: FONT_SIZE.bodySm, ...KO_WORD_BREAK }}>
+            {sec.title}
+          </Typography>
+          {sec.optional ? <Badge value="선택" /> : null}
+        </Stack>
+        <Typography component="span" color="text.secondary" sx={{ fontSize: FONT_SIZE.caption, lineHeight: LINE_HEIGHT.caption, ...KO_WORD_BREAK }}>
+          {sec.hint}
         </Typography>
-        {sec.optional ? <Badge value="선택" /> : null}
-      </Stack>
-      <Typography component="span" variant="body2" color="text.secondary">{sec.hint}</Typography>
-      {/* 예시는 **넣어 주지 않는다.** 이 자리에서 보여 주기만 한다 — 눌러서 들어가는
-          것은 절 제목뿐이고, 남의 문장이 자기 티켓에 남으면 안 된다. */}
-      <Typography
-        component="span" variant="body2"
-        sx={{ color: "text.secondary", fontStyle: "italic", opacity: 0.9, ...KO_WORD_BREAK }}
+        {/* 예시는 **넣어 주지 않는다.** 이 자리에서 보여 주기만 한다 — 눌러서 들어가는
+            것은 절 제목뿐이고, 남의 문장이 자기 티켓에 남으면 안 된다. */}
+        <Typography component="span" color="text.secondary" sx={{ fontSize: FONT_SIZE.micro, lineHeight: LINE_HEIGHT.caption, fontStyle: "italic", ...KO_WORD_BREAK }}>
+          {sec.example}
+        </Typography>
+      </Box>
+      <Button
+        size="sm"
+        onClick={() => onInsert(sec)}
+        disabled={already}
+        aria-label={already ? `${sec.title}: 이미 넣었습니다` : `설명에 '${sec.title}' 절 넣기`}
       >
-        {sec.example}
-      </Typography>
+        {already ? "✓" : "넣기"}
+      </Button>
     </Box>
   );
 }
@@ -1158,57 +1163,40 @@ function WritingAidButton({ sec, already, onInsert }) {
 function WritingAid({ doc, onInsert }) {
   const core = TICKET_SECTIONS.filter((sec) => !sec.optional);
   const optional = TICKET_SECTIONS.filter((sec) => sec.optional);
+  const list = (items) => (
+    <Box component="ul" sx={{ m: 0, p: 0, listStyle: "none" }}>
+      {items.map((sec) => (
+        <WritingAidItem key={sec.title} sec={sec} already={docHasHeading(doc, sec.title)} onInsert={onInsert} />
+      ))}
+    </Box>
+  );
   return (
-    <Card sx={{ display: "grid", gap: 1.5, alignContent: "start" }}>
-      <Typography component="h2" sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: FONT_SIZE.sectionTitle }}>작성 도움</Typography>
-      <Typography variant="body2" color="text.secondary">
-        좋은 티켓은 <strong>왜 하는지와 무엇을 하면 끝인지</strong>가 적혀 있습니다. 아래를 누르면 설명에 그 절이 들어갑니다.
-      </Typography>
-      <Box sx={{ display: "grid", gap: 0.5 }}>
-        {core.map((sec) => (
-          <WritingAidButton key={sec.title} sec={sec} already={docHasHeading(doc, sec.title)} onInsert={onInsert} />
-        ))}
+    <Card sx={{ display: "grid", gap: 1.75, alignContent: "start" }}>
+      {/* 판 제목과 도움말 한 쌍(`SectionTitle help`) — 문장은 그대로다. */}
+      <SectionTitle
+        component="h2"
+        title="작성 도움"
+        help={<>좋은 티켓은 <strong>왜 하는지와 무엇을 하면 끝인지</strong>가 적혀 있습니다. 아래를 누르면 설명에 그 절이 들어갑니다.</>}
+        sx={{ mb: 0 }}
+      />
+      {list(core)}
+      {/* 묶음 이름은 오른쪽으로 흐르는 실선과 한 줄이다 — 항목 줄의 위 선과 겹쳐 두 줄 선이 되지 않는다. */}
+      <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+        <Typography component="span" color="text.secondary" sx={{ fontSize: FONT_SIZE.micro, fontWeight: FONT_WEIGHT.semibold, whiteSpace: "nowrap" }}>
+          더 적으면 좋은 항목
+        </Typography>
+        <Box aria-hidden="true" sx={{ flex: 1, borderTop: 1, borderColor: "divider" }} />
       </Box>
-      <Typography variant="caption" color="text.secondary" sx={{ fontWeight: FONT_WEIGHT.bold, pt: 1, borderTop: 1, borderColor: "divider" }}>
-        더 적으면 좋은 항목
-      </Typography>
-      <Box sx={{ display: "grid", gap: 0.5 }}>
-        {optional.map((sec) => (
-          <WritingAidButton key={sec.title} sec={sec} already={docHasHeading(doc, sec.title)} onInsert={onInsert} />
-        ))}
-      </Box>
-      <Typography variant="body2" color="text.secondary" sx={{ pt: 1, borderTop: 1, borderColor: "divider" }}>
+      {list(optional)}
+      {/* 판 안 안내는 메시지 박스다(핸드오프 RULES §7) — 문장과 링크는 그대로이고 단추를 새로 만들지 않는다. */}
+      <Callout compact>
         배경이 복잡한 티켓은 <Link href="#/chat" underline="hover">AI 도우미</Link>가 초안을 잡아 줍니다.
-      </Typography>
+      </Callout>
     </Card>
   );
 }
 
 
-/* '새 티켓' 폼의 짧은 값 입력(프로젝트·진행상태·…·마감일) 격자.
- *
- * 왜 컨테이너 질의(@container)인가 — 예전에는 `{ xs, sm:2열, xxl:3열 }` 이었다. sm(600)·
- * xxl(2200)은 **뷰포트** 폭인데, 이 격자가 놓인 **열**은 그보다 훨씬 좁다: 사이드바(264)와
- * 오른쪽 '작성 도움' 레일(22rem)과 카드 여백을 빼고 남은 자리다. 그래서 실측하면
- * 뷰포트 1200에서 격자 폭이 466px 인데 2열이 되어 **한 칸이 223px** 이었다 — 뷰포트 390의
- * 1열(308px)보다 좁다. 폭을 넓혔더니 칸이 좁아지는, 뒤집힌 관계였다.
- *
- * 두 갈래 중 컨테이너 질의를 골랐다. 다른 갈래(레일 유무로 열 수를 못 박기)는 레일 폭·
- * 사이드바 폭·카드 여백이 바뀔 때마다 여기 숫자를 같이 고쳐야 하는 **두 번째 진실**이 된다.
- * 이 저장소가 이미 그 방식으로 어긋난 자리다. 컨테이너 질의는 실제 폭을 직접 보므로
- * 바깥 레이아웃이 어떻게 바뀌든 따라온다.
- *
- * 지원 확인: 컨테이너 질의는 Chrome/Edge 105+, Safari 16+, Firefox 110+(2022~23)이고
- * QA 하네스의 크로미움은 151 이다. 못 알아듣는 브라우저는 `@container` 블록을 통째로
- * 무시하므로 **기본값인 1열**로 떨어진다 — 길어질 뿐 잘리지 않는다(안전한 퇴화).
- *
- * 임계값은 "한 칸이 최소 몇 rem" 하나에서 계산한다. 간격도 여기 rem 값을 그대로 쓴다
- * (테마 spacing 2.5 = 1.25rem 과 같은 값). 두 곳에 적으면 임계값 계산이 실제 간격과
- * 어긋나도 아무도 모른다.
- *
- * 실측(크로미움 151, 뷰포트 10폭, 2026-08-06): 1200 → 1열 466px(전 2열 223px),
- * 1920 → 3열 371px(전 2열 566px), 3840 → 3열 463px. 나머지 일곱 폭은 전과 같다.
- * 어느 폭에서도 한 칸이 16rem 밑으로 안 내려간다 — 검사는 new-ticket-layout.test.jsx. */
 /* '새 티켓' 바깥 2열(폼 + 작성 도움 레일).
  *
  * `stretch` 다. `start` 로 두면 레일이 자기 내용만큼만 높아져 폼 카드와 바닥이 어긋난다 —
@@ -1217,25 +1205,12 @@ function WritingAid({ doc, onInsert }) {
 /* 트랙은 기준선 `.grid.two` 다. 예전 값 `minmax(0, 1fr) 22rem` 은 폭 자체는 채웠지만
  * 레일이 어느 화면에서나 352px 로 고정이라, 넓은 화면에서 폼만 계속 늘어나고 레일은
  * 얇은 띠로 남았다. 기준선은 둘 다 비율(1.45 : 0.8)로 두고 레일에 280px 하한만 준다. */
+/* 칸마다 도움말 · 오류 줄의 id — 입력이 `aria-describedby` 로 가리키고, 검증에 걸린 칸을 찾을 때도 쓴다. */
+const FIELD_HELP_IDS = { title: "nt-title-help", project_id: "nt-proj-help", est_wd: "nt-wd-help", due: "nt-due-help" };
+
 export const NEW_TICKET_GRID = {
   display: "grid", gap: GRID_GAP, alignItems: "stretch",
   gridTemplateColumns: { xs: "1fr", lg: BASELINE_TRACKS.two },
-};
-
-const NT_FIELD_CONTAINER = "nt-fields";
-/* 한 칸이 이보다 좁아지면 프로젝트 이름·'예상 WD' 같은 값이 잘리기 시작한다. */
-const NT_FIELD_MIN_REM = 16;
-const NT_FIELD_GAP_REM = 1.25;
-const ntFieldsFit = (n) =>
-  `@container ${NT_FIELD_CONTAINER} (min-width: ${n * NT_FIELD_MIN_REM + (n - 1) * NT_FIELD_GAP_REM}rem)`;
-/* 3열에서 멈춘다 — 격자 폭 상한이 폼의 72rem 이라 4열은 한 칸 16rem 을 지키더라도
- * 짧은 입력 여섯 개가 한 줄에 몰려 라벨을 훑기 어려워진다. */
-const NT_FIELD_GRID = {
-  display: "grid",
-  gap: `${NT_FIELD_GAP_REM}rem`,
-  gridTemplateColumns: "minmax(0, 1fr)",
-  [ntFieldsFit(2)]: { gridTemplateColumns: "repeat(2, minmax(0, 1fr))" },
-  [ntFieldsFit(3)]: { gridTemplateColumns: "repeat(3, minmax(0, 1fr))" },
 };
 
 /* 이 티켓이 **어디로 공유되는가** (0060 §13).
@@ -1352,8 +1327,12 @@ export function NewTicket() {
       if (made && made.id) nav(`/tickets/${made.id}`, { state: { from } });
       else nav(from);
     },
-    onError: (e) => { toast((e && e.message) || "추가하지 못했습니다. 잠시 후 다시 시도해 주세요.", "error"); },
+    /* 실패는 토스트가 아니라 발 바로 위 메시지 박스다(핸드오프 RULES §1 · 계획 표 6) — 아래 `saveFailure` 가
+       요청 상태에서 읽으므로 다시 누르면 걷히고, 성공하면 다시 서지 않는다. */
   });
+  const saveFailure = failureText([create, "추가하지 못했습니다. 잠시 후 다시 시도해 주세요."]);
+  /* 칸 검증 오류는 그 칸의 도움말 자리에 선다(토스트였다). 칸을 고치면 그 칸의 오류가 걷힌다. */
+  const [errors, setErrors] = React.useState({});
 
   const meta = metaQ.data || {};
   const candidates = (assigneesQ.data && assigneesQ.data.assignees) || [];
@@ -1364,7 +1343,10 @@ export function NewTicket() {
   const projects = context.team ? eligibleProjects(allProjects, context.team) : allProjects;
   const selectedProject = projects.find((p) => p.id === form.project_id) || null;
   const me = auth.data && (auth.data.user || auth.data);
-  const set = (k, v) => setForm((s) => ({ ...s, [k]: v }));
+  const set = (k, v) => {
+    setForm((s) => ({ ...s, [k]: v }));
+    setErrors((e) => (e[k] ? {} : e));
+  };
   const notConfigured = (projectsQ.data && projectsQ.data.configured === false) || (metaQ.data && metaQ.data.configured === false);
   /* 후보를 **못 받은 것**과 후보가 **없는 것**은 다른 사실이다. 예전에는 조회가 실패해도
      `projects` 가 그냥 빈 배열이 되어 프로젝트 칸이 "선택할 수 있는 프로젝트가 없습니다"
@@ -1372,17 +1354,34 @@ export function NewTicket() {
      불렀는데 다시 시도할 자리도 없었다. 실패는 실패라고 말하고 다시 부를 길을 준다. */
   const loadFailed = projectsQ.isError || metaQ.isError;
   const retryLoad = () => { projectsQ.refetch(); metaQ.refetch(); };
+  /* 첫 조회(프로젝트 · 메타)가 오는 동안은 폼 대신 들어올 폼의 모양을 그린다(R-20). 폼을 먼저 세우면 후보를 아직
+     못 받은 프로젝트 칸이 「선택할 수 있는 프로젝트가 없습니다」라고 말하고 진행상태가 빈 채로 서서, 사용자는 불러오는
+     중을 「없다」로 읽는다(느린 응답 실측: 로딩 표시 0). */
+  const firstLoad = projectsQ.isLoading || metaQ.isLoading;
+
+  /* 검증 실패는 **그 칸 아래**에 선다(핸드오프 RULES §1 · §7 · 계획 C) — 토스트였다. 검사 순서와 문구는 그대로이고,
+     수정 모달(`TicketEditModal`)과 같이 처음 걸린 하나만 말한다. 이 폼은 본문 편집기까지 있어 화면보다 길고 단추는
+     맨 아래라, 걸린 칸으로 포커스를 옮겨 그 칸과 오류 줄이 화면에 들어오게 한다(토스트는 어디서든 보였다).
+     날짜 칸은 보이지 않는 입력 대신 첫 날짜 조각(`spinbutton`)이 포커스를 받는다. */
+  function invalid(k, message) {
+    setErrors({ [k]: message });
+    const help = document.getElementById(FIELD_HELP_IDS[k]);
+    const cell = help && help.parentElement;
+    const target = cell && cell.querySelector('input:not([aria-hidden="true"]), [role="spinbutton"]');
+    if (target && typeof target.focus === "function") target.focus();
+  }
 
   function submit() {
-    if (!form.title.trim()) { toast("제목을 입력하세요.", "error"); return; }
+    if (!form.title.trim()) { invalid("title", "제목을 입력하세요."); return; }
     // 프로젝트는 **언제나** 필수다 (0060 §11). 예전에는 후보 목록이 비면 그냥 통과시켰는데,
     // 그러면 소속이 없는 티켓이 만들어지고 그 티켓은 전체 관리자 말고는 아무에게도 안 보인다.
-    if (!form.project_id) { toast("프로젝트를 선택하세요.", "error"); return; }
+    if (!form.project_id) { invalid("project_id", "프로젝트를 선택하세요."); return; }
     /* 예상 WD 와 마감일은 필수다 (지시 10). 서버도 같은 요구를 하므로 여기서 막는 것은
        방어가 아니라 **먼저 말해 주는 것**이다 — 서버까지 다녀와서 422 를 보여 주면
        사용자는 무엇이 빠졌는지 폼에서 다시 찾아야 한다. */
-    if (form.est_wd === "" || Number.isNaN(Number(form.est_wd))) { toast("예상 WD를 숫자로 입력하세요.", "error"); return; }
-    if (!form.due) { toast("마감일을 입력하세요.", "error"); return; }
+    if (form.est_wd === "" || Number.isNaN(Number(form.est_wd))) { invalid("est_wd", "예상 WD를 숫자로 입력하세요."); return; }
+    if (!form.due) { invalid("due", "마감일을 입력하세요."); return; }
+    setErrors({});
     const body = {
       title: form.title.trim(),
       project_id: form.project_id,
@@ -1413,114 +1412,167 @@ export function NewTicket() {
            레일을 옆에 억지로 붙여 두면 폼이 짜부라져 정작 쓸 수가 없다. */
         <Box sx={NEW_TICKET_GRID}>
         <Card>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2.5 }}>
-            간단한 티켓은 여기서 바로 만듭니다. 긴 배경은 <Link href="#/chat" underline="hover">AI 도우미</Link>가 더 정확합니다.
-          </Typography>
-          {/* 본문(설명)은 산문이라 줄이 길어지면 읽기 어렵다 — 폼 자체를 CONTENT 폭 전체로 늘리지 않고
-              읽기 좋은 폭에서 멈춘다. 짧은 값 입력들은 자기가 놓인 칸이 넓어지는 만큼만 접는다
-              (열 수는 뷰포트가 아니라 아래 컨테이너가 정한다 — NT_FIELD_GRID 주석 참고). */}
-          <Box component="form" onSubmit={(e) => { e.preventDefault(); submit(); }} sx={{ maxWidth: "72rem" }}>
-            <TextField
-      InputLabelProps={{ shrink: true }} id="nt-title" fullWidth size="small" required label="제목" sx={{ mb: 2.5 }}
-              value={form.title} onChange={(e) => set("title", e.target.value)} inputProps={{ maxLength: 200 }}
-              placeholder="예: 서버 등록 IP 중복 방지" />
-            {/* 격자를 감싸는 한 겹 — `container-type` 은 **조상**에만 걸 수 있고 자기 자신은 못 묻는다.
-                폼 전체가 아니라 이 격자만 감싼다: 레이아웃 격리(contain)가 담당자 목록·본문
-                편집기까지 덮으면 여기서 확인하지 않은 부작용이 생긴다. */}
-            <Box sx={{ containerType: "inline-size", containerName: NT_FIELD_CONTAINER, mb: 2.5 }}>
-              <Box sx={NT_FIELD_GRID}>
+          {firstLoad ? <Skeleton kind="section" lines={8} /> : (
+          /* 폼은 판 전체다 — 발(`ActionFooter card`)이 판 가장자리까지 면을 펴야 하므로 읽기 폭 상한(72rem)은 안쪽 칸들에만 건다. */
+          <Box component="form" onSubmit={(e) => { e.preventDefault(); submit(); }}>
+          <Box sx={{ maxWidth: "72rem" }}>
+            {/* 폼 안 안내는 메시지 박스다(핸드오프 RULES §7) — 문장과 링크는 그대로다. */}
+            <Callout sx={{ mb: 2.5 }}>
+              간단한 티켓은 여기서 바로 만듭니다. 긴 배경은 <Link href="#/chat" underline="hover">AI 도우미</Link>가 더 정확합니다.
+            </Callout>
+            {/* 칸은 12칸 격자에 선다(핸드오프 RULES §7 · 계획 표 8): 제목 12 / 프로젝트 6 · 진행상태 3 · 우선순위 3 /
+                난이도 3 · 예상 WD 3 · 마감일 3 · 담당자 3. 열 수는 뷰포트가 아니라 **폼이 받은 칸의 폭**이 정한다
+                (`density.js::FORM_FIELD_GRID_12` — 칸 셋이 들어가면 12칸, 둘이면 2칸, 더 좁으면 1칸). 칸마다 라벨 20 ·
+                필드 36 · 도움말의 세 줄 트랙이라(`FormFieldCell`) 도움말이 긴 칸이 있어도 같은 줄의 입력칸 윗선이 같다.
+                컨테이너는 격자만 감싼다: 레이아웃 격리(contain)가 본문 편집기까지 덮으면 확인하지 않은 부작용이 생긴다. */}
+            <Box sx={{ ...FORM_FIELD_CONTAINER, mb: 2.5 }}>
+              <Box sx={FORM_FIELD_GRID_12}>
+                <FormFieldCell label="제목" htmlFor="nt-title" required helpId="nt-title-help" error={errors.title} sx={fieldSpan({ wide: 12, mid: 2 })}>
+                  <TextField
+                    id="nt-title" fullWidth size="small" required
+                    value={form.title} onChange={(e) => set("title", e.target.value)}
+                    error={!!errors.title}
+                    inputProps={{ maxLength: 200, "aria-describedby": "nt-title-help" }}
+                    placeholder="예: 서버 등록 IP 중복 방지"
+                  />
+                </FormFieldCell>
                 {/* 프로젝트는 필수다 — 티켓의 조직 소속을 프로젝트가 정하기 때문이다(0060 §11).
                     '선택 안 함' 을 없앤다: 고를 수 있게 두면 소속 없는 티켓이 만들어지고,
-                    그 티켓은 전체 관리자 말고는 아무에게도 안 보인다. */}
-                {/* 프로젝트는 **Entity** 다 — 후보가 업무가 쌓이는 만큼 자라고 이름이 길다.
+                    그 티켓은 전체 관리자 말고는 아무에게도 안 보인다.
+                    프로젝트는 **Entity** 다 — 후보가 업무가 쌓이는 만큼 자라고 이름이 길다.
                     검색 없는 드롭다운으로 두면 사용자는 이름을 알면서도 목록을 눈으로 훑어야
-                    한다(지시 0-2.17 · R-5). 작업 DB 미연결 프로젝트는 고를 수 없다는 사실을
-                    보조줄로 함께 낸다 — 예전에는 라벨 꼬리에 붙어 이름과 한 줄로 섞였다. */}
-                <EntityCombobox
-                  id="nt-proj"
-                  required
-                  label="프로젝트"
-                  value={form.project_id}
-                  onChange={(v) => { set("project_id", v); set("assignees", []); }}
-                  loading={projectsQ.isLoading}
-                  disabled={projectsQ.isLoading || !projects.length}
-                  allLabel="프로젝트 선택"
-                  sx={{ width: "100%", maxWidth: "none" }}
-                  noOptionsText={projects.length ? "일치하는 프로젝트가 없습니다" : "선택할 수 있는 프로젝트가 없습니다"}
-                  helperText={
+                    한다(지시 0-2.17 · R-5). */}
+                <FormFieldCell
+                  label="프로젝트" labelId="nt-proj-label" required helpId="nt-proj-help"
+                  error={errors.project_id}
+                  help={
                     !projects.length
                       ? (context.team ? "이 팀의 회차에 담을 수 있는 프로젝트가 없습니다." : "선택할 수 있는 프로젝트가 없습니다")
                       : (context.team ? "이 팀의 회차에 담을 수 있는 프로젝트만 보입니다." : undefined)
                   }
-                  options={projects
-                    .filter((p) => p.can_create_ticket !== false)
-                    .map((p) => ({ value: p.id, label: p.name || "(제목 없음)" }))}
-                />
-                <TextField
-      InputLabelProps={{ shrink: true }} id="nt-status" select fullWidth size="small" label="진행상태" value={form.status} onChange={(e) => set("status", e.target.value)}>
-                  {/* 값은 저장 키, 이름은 사람 말이다 — 예전엔 키를 그대로 그려 「진행 중」이
-                      「진행」으로 떴다(`ticket-options.js::statusOptions`). */}
-                  {statusOptions(withCurrent(meta.statuses, form.status)).map((o) => (
-                    <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>
-                  ))}
-                </TextField>
-                <TextField id="nt-prio" select fullWidth size="small" label="우선순위" {...EMPTYABLE_SELECT} value={form.priority} onChange={(e) => set("priority", e.target.value)}>
-                  <MenuItem value="">없음</MenuItem>
-                  {withCurrent(meta.priorities, form.priority).map((p) => <MenuItem key={p} value={p}>{priorityKo(p)}</MenuItem>)}
-                </TextField>
-                <TextField id="nt-diff" select fullWidth size="small" label="난이도" {...EMPTYABLE_SELECT} value={form.difficulty} onChange={(e) => set("difficulty", e.target.value)}>
-                  <MenuItem value="">없음</MenuItem>
-                  {withCurrent(meta.difficulties, form.difficulty).map((d) => <MenuItem key={d} value={d}>{d}</MenuItem>)}
-                </TextField>
+                  sx={fieldSpan({ wide: 6, mid: 1 })}
+                >
+                  <EntityCombobox
+                    id="nt-proj"
+                    required
+                    layout="form"
+                    ariaLabelledBy="nt-proj-label"
+                    ariaDescribedBy="nt-proj-help"
+                    value={form.project_id}
+                    onChange={(v) => { set("project_id", v); set("assignees", []); }}
+                    loading={projectsQ.isLoading}
+                    disabled={projectsQ.isLoading || !projects.length}
+                    allLabel="프로젝트 선택"
+                    noOptionsText={projects.length ? "일치하는 프로젝트가 없습니다" : "선택할 수 있는 프로젝트가 없습니다"}
+                    options={projects
+                      .filter((p) => p.can_create_ticket !== false)
+                      .map((p) => ({ value: p.id, label: p.name || "(제목 없음)" }))}
+                  />
+                </FormFieldCell>
+                <FormFieldCell label="진행상태" labelId="nt-status-label" sx={fieldSpan({ wide: 3, mid: 1 })}>
+                  <TextField
+                    id="nt-status" select fullWidth size="small"
+                    SelectProps={{ labelId: "nt-status-label" }}
+                    value={form.status} onChange={(e) => set("status", e.target.value)}
+                  >
+                    {/* 값은 저장 키, 이름은 사람 말이다 — 예전엔 키를 그대로 그려 「진행 중」이
+                        「진행」으로 떴다(`ticket-options.js::statusOptions`). */}
+                    {statusOptions(withCurrent(meta.statuses, form.status)).map((o) => (
+                      <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>
+                    ))}
+                  </TextField>
+                </FormFieldCell>
+                <FormFieldCell label="우선순위" labelId="nt-prio-label" sx={fieldSpan({ wide: 3, mid: 1 })}>
+                  <TextField
+                    id="nt-prio" select fullWidth size="small"
+                    SelectProps={{ displayEmpty: true, labelId: "nt-prio-label" }}
+                    value={form.priority} onChange={(e) => set("priority", e.target.value)}
+                  >
+                    <MenuItem value="">없음</MenuItem>
+                    {withCurrent(meta.priorities, form.priority).map((p) => <MenuItem key={p} value={p}>{priorityKo(p)}</MenuItem>)}
+                  </TextField>
+                </FormFieldCell>
+                <FormFieldCell label="난이도" labelId="nt-diff-label" sx={fieldSpan({ wide: 3, mid: 1 })}>
+                  <TextField
+                    id="nt-diff" select fullWidth size="small"
+                    SelectProps={{ displayEmpty: true, labelId: "nt-diff-label" }}
+                    value={form.difficulty} onChange={(e) => set("difficulty", e.target.value)}
+                  >
+                    <MenuItem value="">없음</MenuItem>
+                    {withCurrent(meta.difficulties, form.difficulty).map((d) => <MenuItem key={d} value={d}>{d}</MenuItem>)}
+                  </TextField>
+                </FormFieldCell>
                 {/* 예상 WD 와 마감일은 **필수**다 (지시 10). 이 제품의 계획이 그 둘 위에
                     선다 — 예상 WD 가 없으면 스프린트의 남은 일과 담당자별 부하를 못 세고,
                     마감일이 없으면 「지연」이라는 신호 자체가 계산되지 않는다(D-349).
                     별표만 붙이고 끝내지 않는다: 서버도 같은 요구를 한다(`TicketCreate`). */}
-                <TextField
-      InputLabelProps={{ shrink: true }} id="nt-wd" fullWidth size="small" required label="예상 WD" type="number" inputProps={{ step: "0.5", min: "0" }}
-                  helperText="사람이 며칠 붙는 일인가요. 0 도 됩니다."
-                  value={form.est_wd} onChange={(e) => set("est_wd", e.target.value)} />
-                <DateField id="nt-due" required label="마감일" value={form.due} onChange={(v) => set("due", v)} />
+                <FormFieldCell
+                  label="예상 WD" htmlFor="nt-wd" required helpId="nt-wd-help"
+                  help="사람이 며칠 붙는 일인가요. 0 도 됩니다." error={errors.est_wd}
+                  sx={fieldSpan({ wide: 3, mid: 1 })}
+                >
+                  <TextField
+                    id="nt-wd" fullWidth size="small" required type="number"
+                    inputProps={{ step: "0.5", min: "0", "aria-describedby": "nt-wd-help" }}
+                    error={!!errors.est_wd}
+                    value={form.est_wd} onChange={(e) => set("est_wd", e.target.value)}
+                  />
+                </FormFieldCell>
+                <FormFieldCell label="마감일" htmlFor="nt-due" labelId="nt-due-label" required helpId="nt-due-help" error={errors.due} sx={fieldSpan({ wide: 3, mid: 1 })}>
+                  {/* 날짜 칸은 보이지 않는 입력(`#nt-due`)과 날짜 조각 묶음(`role="group"`)으로 선다. 칸 위 라벨의 `for` 는
+                      보이지 않는 입력에만 닿으므로, 낭독기가 실제로 들어가는 묶음에도 이름과 도움말 줄을 따로 잇는다
+                      (MUI 라벨을 쓸 때는 MUI 가 묶음에 라벨을 이었다). */}
+                  <DateField
+                    id="nt-due" required error={!!errors.due}
+                    value={form.due} onChange={(v) => set("due", v)}
+                    slotProps={{ input: { "aria-labelledby": "nt-due-label", "aria-describedby": "nt-due-help" } }}
+                  />
+                </FormFieldCell>
+                {/* 담당자 후보는 **선택한 프로젝트에 닿을 수 있는 사람**만이다(0060 §14) — 프로젝트를 고르기 전에는
+                    후보를 묻지 않는다. 그동안 칸은 꺼진 고르개로 서고, 이유는 칸 안의 회색 글자가 아니라 칸 밖 도움말이
+                    말한다(핸드오프 RULES §7 — 칸 안 글자는 값처럼 읽힌다). 후보를 부르는 동안은 고르개가 불러오는 중을
+                    말하고, 후보가 없다는 사실도 같은 도움말 자리가 말한다(예전 문장 그대로). */}
+                <FormFieldCell
+                  label="담당자" labelId="nt-assignee-label" helpId="nt-assignee-help"
+                  help={!form.project_id
+                    ? "프로젝트를 먼저 고르세요. 그 프로젝트에 닿을 수 있는 사람만 담당자가 될 수 있습니다."
+                    : (!assigneesQ.isLoading && !candidates.length
+                      ? "배정할 수 있는 사람이 없습니다. 이 프로젝트에 접근할 수 있는 계정만 후보로 나옵니다."
+                      : undefined)}
+                  sx={fieldSpan({ wide: 3, mid: 2 })}
+                >
+                  {/* 후보를 부르는 동안은 들어올 고르개 한 줄의 모양을 그린다(R-20 — 예전 담당자 칸과 같다). */}
+                  {form.project_id && assigneesQ.isLoading ? <Skeleton lines={1} /> : (
+                    <UserPicker
+                      multiple
+                      layout="form"
+                      ariaLabelledBy="nt-assignee-label"
+                      ariaDescribedBy="nt-assignee-help"
+                      placeholder="예: 김하나"
+                      candidates={candidates}
+                      value={form.assignees}
+                      onChange={(ids) => set("assignees", ids)}
+                      myId={myId}
+                      disabled={!form.project_id || !candidates.length}
+                    />
+                  )}
+                </FormFieldCell>
               </Box>
             </Box>
             {/* 이 티켓이 **어디로 공유되는가** (0060 §13).
                 작성자의 소속과 프로젝트의 소속은 다를 수 있다 — A-1 사람이 상위 A 프로젝트에
                 티켓을 만들면 A-2 사람도 그 티켓을 본다. 만든 뒤에 알게 되면 늦다. */}
             <TicketShareScope project={selectedProject} me={me} />
-            <Box sx={{ mb: 2.5 }}>
-              <Typography component="span" variant="body2" sx={{ fontWeight: FONT_WEIGHT.bold, display: "block", mb: 1 }}>담당자</Typography>
-              {form.project_id ? (
-                <AssigneePicker loading={assigneesQ.isLoading} candidates={candidates} selected={form.assignees} onChange={(ids) => set("assignees", ids)} myId={myId} />
-              ) : (
-                <Typography variant="body2" color="text.secondary">
-                  프로젝트를 먼저 고르세요. 그 프로젝트에 닿을 수 있는 사람만 담당자가 될 수 있습니다.
-                </Typography>
-              )}
-            </Box>
-            {/* 폭: 예전에는 이 블록만 maxWidth:"60rem" 을 손으로 박아 뒀다 — 바로 위 필드
-                격자와 폼 자체(72rem)는 컨테이너를 따라가는데 설명 블록만 그보다 좁은 상한에
-                갇혀, 4K 등 넓은 화면에서 편집기+미리보기가 폼의 다른 부분보다 눈에 띄게
-                좁게 왼쪽으로 쏠려 보였다. editorContainerSx/editorSurfaceWidthSx(BodyEditor.jsx)
-                는 고정 상한 대신 컨테이너 실측 폭을 쓴다 — 이 자리는 이미 폼의 72rem 상한
-                안에 있으므로 사실상 부모 폭을 그대로 따라가고, 아주 넓어졌을 때만(80rem)
-                한 번 더 멈춘다. */}
+            {/* 폭: 설명 블록은 컨테이너 실측 폭을 따른다(editorContainerSx/editorSurfaceWidthSx, BodyEditor.jsx) —
+                폼의 72rem 상한 안에서 부모 폭을 그대로 따라가고, 아주 넓어졌을 때만(80rem) 한 번 더 멈춘다. */}
             <Box sx={{ mb: 2.5, ...editorContainerSx("nt-desc-surface") }}>
-              {/* 폭 규칙을 시험이 짚는 자리. 예전에는 `label[for="nt-desc"]` 로 찾았는데
-                  `contenteditable` 은 `<label htmlFor>` 의 대상이 될 수 없어 그 라벨이
-                  없어졌다 — 표시가 아니라 **이름**으로 짚게 한다. */}
+              {/* 폭 규칙을 시험이 짚는 자리 — 표시가 아니라 **이름**으로 짚게 한다. */}
               <Box data-nt-desc="surface" sx={editorSurfaceWidthSx("nt-desc-surface")}>
-                {/* `contenteditable` 은 `<label htmlFor>` 의 대상이 될 수 없다 — 편집기가
-                    자기 이름을 든다(`ariaLabel="설명"`). 화면에 보이는 이 말과 같은 말이다. */}
-                <Typography component="div" variant="body2" sx={{ fontWeight: FONT_WEIGHT.bold, display: "block", mb: 1 }}>설명</Typography>
-                {/* PA-RC-0035: placeholder는 예시 한 줄만(제목 필드와 같은 규칙) — 서식
-                    도구·미리보기 안내처럼 입력하는 동안에도 필요한 안내는 placeholder가
-                    아니라 지속적으로 남는 캡션으로 옮긴다(BodyEditor는 MUI TextField가
-                    아니라 FormHelperText를 그대로 못 쓴다 — 바로 아래 '선택한 사람으로…'
-                    캡션과 같은 자리·같은 스타일로 손수 둔다). */}
-                {/* 🔴 **문서와 같은 편집기다.** 예전에는 이 자리만 글자 칩 열한 개짜리
-                    마크다운 편집기였고, 그래서 굵게·기울임·표·이미지를 쓸 수 없었다 —
-                    자료 모델이 달라서 단추를 둘 수도 없었다(눌러 쓴 것이 저장할 곳이
-                    없어 조용히 사라진다). 이제 티켓 본문도 문서와 같은 정본을 쓴다. */}
+                {/* 칸 이름은 칸 위 라벨이다(`FieldLabel`). `contenteditable` 은 `<label htmlFor>` 의 대상이 될 수 없어
+                    편집기가 자기 이름을 든다(`ariaLabel="설명"`) — 화면에 보이는 이 말과 같은 말이다. */}
+                <FieldLabel>설명</FieldLabel>
+                {/* 🔴 **문서와 같은 편집기다.** 예전에는 이 자리만 글자 칩 열한 개짜리 마크다운 편집기였고, 그래서
+                    굵게 · 기울임 · 표 · 이미지를 쓸 수 없었다. 이제 티켓 본문도 문서와 같은 정본을 쓴다. */}
                 <React.Suspense fallback={<Skeleton kind="section" lines={6} />}>
                   <BlockEditor
                     value={form.description_doc}
@@ -1534,15 +1586,17 @@ export function NewTicket() {
                 </Typography>
               </Box>
             </Box>
-            {/* 우하단 마스코트 FAB(고정, 70px, right/bottom 24)이 이 버튼을 덮는다.
-                셸의 pb 여백은 **맨 아래까지 스크롤했을 때만** 도움이 되고, 이 폼은 본문
-                편집기까지 있어 화면보다 훨씬 길다 — 스크롤 중간에서는 '티켓 만들기'가
-                FAB 밑으로 들어가 눌리지 않는다. 같은 함정을 이 저장소가 이미 두 번 밟았다
-                (놀이방 '보내기', AI 채팅 '전송'). FAB 이 뜨는 폭에서만 오른쪽을 비운다. */}
-            <Stack direction="row" gap={1} justifyContent="flex-end" sx={{ pr: { xs: 0, md: FAB_CLEARANCE } }}>
-              <Button variant="primary" type="submit" disabled={create.isPending}>{create.isPending ? "추가 중…" : "티켓 추가"}</Button>
-            </Stack>
+            {saveFailure ? <Callout tone="danger" compact>{saveFailure}</Callout> : null}
           </Box>
+          {/* 저장은 판 발이다(`ActionFooter card` — 함몰면 + 위 실선, 오른쪽 확정). 취소는 이 화면에 없다(계획 P-24).
+              우하단 마스코트 FAB 이 뜨는 폭에서는 오른쪽을 비운다 — 이 폼은 본문 편집기까지 있어 화면보다 길고,
+              스크롤 중간에서 단추가 FAB 밑으로 들어가 눌리지 않던 함정을 이 저장소가 이미 밟았다(놀이방 '보내기',
+              AI 채팅 '전송'). */}
+          <ActionFooter placement="card" sx={{ pr: { md: `calc(${CARD_PADDING} + ${FAB_CLEARANCE})` } }}>
+            <Button variant="primary" type="submit" loading={create.isPending}>티켓 추가</Button>
+          </ActionFooter>
+          </Box>
+          )}
         </Card>
         <WritingAid
           doc={form.description_doc}

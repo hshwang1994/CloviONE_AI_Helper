@@ -517,7 +517,7 @@ export function normalizeOptions(options) {
 export function EntityCombobox({
   label, value, onChange, options, loading, disabled, sx, kind = "entity", id,
   placeholder, allLabel, noOptionsText = "일치하는 항목이 없습니다", required, helperText,
-  ariaLabelledBy, hideLabel, multiple = false, renderOption, noAllOption = false, layout, myId,
+  ariaLabelledBy, ariaDescribedBy, hideLabel, multiple = false, renderOption, noAllOption = false, layout, myId,
   open, disablePortal,
 }) {
   const list = mineFirst(normalizeOptions(options), myId);
@@ -581,7 +581,15 @@ export function EntityCombobox({
             InputProps={row
               ? { ...params.InputProps, startAdornment: <><PrefixLabel>{label}</PrefixLabel>{params.InputProps.startAdornment}</> }
               : params.InputProps}
-            inputProps={row ? { ...params.inputProps, "aria-label": label } : params.inputProps}
+            /* 이름을 바깥 `FieldLabel` 이 그리는 폼 칸이면 그 라벨을 가리키고(`ariaLabelledBy`), 칸 밖의 도움말 · 오류 줄은
+               `ariaDescribedBy` 로 잇는다 — 아래 단일 고르개와 같은 계약이다. 가리킬 것이 없으면 키를 아예 안 싣는다:
+               `undefined` 를 실으면 MUI 가 도움말에서 이은 설명을 덮어 지운다. */
+            inputProps={{
+              ...params.inputProps,
+              ...(row ? { "aria-label": label } : null),
+              ...(ariaLabelledBy ? { "aria-labelledby": ariaLabelledBy } : null),
+              ...(ariaDescribedBy ? { "aria-describedby": ariaDescribedBy } : null),
+            }}
             placeholder={placeholder || (row ? rowAllText(label, allLabel) : (allLabel || `${label} 전체`))}
             sx={row ? undefined : LABEL_ABOVE_SX}
           />
@@ -673,6 +681,7 @@ export function EntityCombobox({
             ...params.inputProps,
             "aria-labelledby": ariaLabelledBy || params.inputProps["aria-labelledby"],
             "aria-label": (hideLabel && !ariaLabelledBy) || row ? label : params.inputProps["aria-label"],
+            ...(ariaDescribedBy ? { "aria-describedby": ariaDescribedBy } : null),
             title: current ? current.label : undefined,
           }}
         />

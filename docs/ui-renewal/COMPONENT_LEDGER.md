@@ -42,7 +42,7 @@ UI 의미 → 정본 컴포넌트/파일 → API · 상태 계약 → 소비처 
 | 확인 대화 | `useConfirm` | `ui/kit.jsx` | danger 는 표지 + 취소 기본 포커스 + dangerConfirm | 40 | 팝오버와 모달 | `handoff-kit-contract`, `kit.test` |
 | 토스트 | `useToast` | `ui/kit.jsx` | 성공 · 정보만, 잉크 면(다크 함몰면), 모서리 8 | 54 | 빈 상태와 오류 | `toast-announce` |
 | 팝오버 동작 목록 | `overflowMenuItems` | `ui/kit.jsx` | 32 항목, 파괴적만 error 글자 + 위 선 | 0 | 팝오버와 모달 | `kit.test` |
-| 폼 칸 | `FormFieldCell` | `ui/kit.jsx` | 라벨 20 · 필드 36 · 도움말 auto, 오류가 도움말 자리 | 0 | 폼 필드 | `handoff-kit-contract` |
+| 폼 칸 | `FormFieldCell` | `ui/kit.jsx` | 라벨 20 · 필드 36(바닥 — 칩이 접히면 자란다) · 도움말 auto, 오류가 도움말 자리 | 1 | 폼 필드 | `handoff-kit-contract`, `new-ticket-layout` |
 | 속성 줄 | `MetaBar` | `ui/kit.jsx` | 키/값 | 4 | — | `metabar-hierarchy` |
 | 페이지 머리 | `PageHeader` | `ui/kit.jsx` | 제목 28/700 + 설명 + 동작 34 | 35 | 머리 | `page-header-*` |
 | 필터 바 그릇 | `FilterSurface` | `ui/FilterBar.jsx` | 판 없음 · 아래 실선 · 줄 칸 문맥 제공 | 12 | 검색과 필터 바 | `filter-row-width`, `handoff-kit-contract` |
@@ -223,8 +223,8 @@ B 단계가 전수 흡수를 끝낸 뒤 남는 자리만 적는다. 형식은 �
 - 세션 만료(401)는 `lib/sessionRedirect.js::expireSession` 하나 — 본문 자리가 `kit.jsx::SessionExpiredOutlet`
   (셸이 감싼다)에서 `ErrorState` 401 갈래로 바뀐 뒤 1.2초 뒤 로그인 화면으로 간다.
 - 예외(토스트 유지): 보호 화면(`Profile` · `WorkBoard` · `Sprint` · `SprintLifecycle`)의 실패 토스트 — 계획 표 5가
-  허용한 치환 목록 밖이다. 문서 목록(`Knowledge.jsx`)은 D, 새 티켓은 C, 채팅방(`ChatRoom` · `ChatRooms` ·
-  `ChatPane` · `chat/links.jsx`)은 E 가 옮긴다.
+  허용한 치환 목록 밖이다. 문서 목록(`Knowledge.jsx`)은 D, 채팅방(`ChatRoom` · `ChatRooms` ·
+  `ChatPane` · `chat/links.jsx`)은 E 가 옮긴다. 새 티켓은 C 에서 옮겼다(§0-14).
 
 ## 0-8. 값을 표시하는 어휘 — 배지 · 태그 · 점+낱말 · 건수 칩 (핸드오프 RULES §2 · ACCEPTANCE F4~F7)
 
@@ -331,10 +331,51 @@ B 단계가 전수 흡수를 끝낸 뒤 남는 자리만 적는다. 형식은 �
   CSV 붙여넣기 · 저장된 뷰 이름 · 오프보딩 메모 · AI 작업공간 질문 · 편집기 링크 · 회의 결정 내용. 키트 칸
   (`FilterSelect` · `DebouncedTextField` · `EntityCombobox` · `TagPicker` · `DateField`)은 줄 칸이 아닌 자리에서
   `label` 을 받으면 `filters.jsx::LABEL_ABOVE_SX` 로 이름을 칸 위 흐름에 세우고 노치 틈을 접는다(`FieldLabel` 과 같은
-  글자 · 간격). 사용자 일괄 지정 줄은 도구 줄이라 줄 칸(34 · 칸 안 이름)이다. 새 티켓 폼은 C 가 3행 트랙으로 옮긴다.
+  글자 · 간격). 사용자 일괄 지정 줄은 도구 줄이라 줄 칸(34 · 칸 안 이름)이다. 새 티켓 폼은 C 에서 12칸 격자로 옮겼다(§0-14).
 - **판 여백 리터럴 0**: AI 작업공간 인용 · 답 · 질문 판, 대시보드 불러오는 판, 예약 달력 판, 홈 팀 채팅 판은 판 규약값
   (`CARD_PADDING`)이고, 대시보드 운영 묶음 함몰면 · 진단 원문 함몰면은 토큰(`CARD_PADDING` · `TILE_PADDING`)이다.
 - 남긴 것: 스프린트 회의의 촘촘한 줄 카드(논의 · 결정 줄 여백 10)는 보호 화면 표 5 허용 치환 밖이라 그대로다.
+
+## 0-14. 새 티켓 폼 (핸드오프 RULES §7 · 계획 C · 표 8)
+
+- **칸은 12칸 격자다**(`density.js::FORM_FIELD_GRID_12` + `fieldSpan` + `kit.jsx::FormFieldCell`). 차지는 표 8 그대로다 —
+  제목 12/2 · 프로젝트 6/1 · 진행상태 · 우선순위 · 난이도 · 예상 WD · 마감일 3/1 · 담당자 3/2. 열 수는 칸 폭이 정한다.
+  브라우저 실측(`kit_measure` `form_grids`): 1920 → 12칸(격자 937, 짧은 칸 219) · 1366 → 2칸(605) · 1200 → **1칸**(502).
+  계획 표 8 이 1200 을 「2칸 ~35rem」으로 적었지만 레일이 붙는 폭이라 격자가 31.4rem 이고 1칸으로 선다(뷰포트 격자였을
+  때도 1200 은 1칸이었다 — 그 전에는 223px 두 칸으로 짜부라졌다). 표 8 을 실측으로 고쳤다.
+- **필드 줄은 36 이 바닥이다**(`FIELD_ROWS` = `20 minmax(36, auto) auto`). 한 줄 칸은 그대로 36 이고, 담당자처럼 고른 칩이
+  두 줄로 접히는 칸만 자라 아래 도움말과 겹치지 않는다. 라벨 줄이 20 고정이라 같은 줄의 입력칸 윗변은 같다. 소비처는
+  `FormFieldCell`(새 티켓 · 갤러리)과 `Profile.jsx`(보호 화면 — 한 줄 칸만 있어 기하가 그대로다, `geometry_diff` 같음).
+  핸드오프 RULES §7 의 「20 / 38 / auto」는 시안 HTML 의 칸(내용 36 + 테두리 1×2)이다. MUI 윤곽 칸은 테두리를 36 안에
+  그리므로(윤곽선이 절대 위치) 필드 줄은 36 이고, ACCEPTANCE J1 「필드 36」과 같다(실측 `form_grids.fieldH` 36).
+- **날짜 칸도 36 이다.** MUI X 날짜 입력(`MuiPickersOutlinedInput`)은 윤곽 입력과 다른 부품이라 `MuiOutlinedInput` 규칙을
+  받지 않고 39 로 섰다(새 티켓 실측 — 같은 줄의 칸보다 3px 컸다). `theme.js` 가 높이 · 위아래 여백 · 모서리 · 면 · 포커스
+  선을 윤곽 입력과 같은 값으로 준다(`theme-contract` 날짜 칸 단언). 소비처: `DateField`(새 티켓 · 티켓 수정 · 회의 결정 ·
+  하위 목록 서랍 · 목록 날짜 필터)와 `FormField date`(프로젝트 · 회차 만들기와 고치기).
+- **칸 이름은 칸 위 `FieldLabel`**(노치 라벨 0). select 는 `SelectProps.labelId`, 고르개(`EntityCombobox` · `UserPicker`)는
+  `ariaLabelledBy` 로 이름을, 새 prop `ariaDescribedBy` 로 칸 밖 도움말 · 오류 줄을 가리킨다(가리킬 것이 없으면 키를 아예
+  싣지 않는다 — `undefined` 를 실으면 MUI 가 도움말에서 이은 설명을 덮어 지운다). 날짜 칸은 라벨의 `for` 가 보이지 않는
+  입력에만 닿으므로 `slotProps.input` 으로 날짜 조각 묶음(`role="group"`)에 이름과 도움말 줄을 잇는다.
+- **검증은 칸 오류 줄이다**(토스트 4 → `FormFieldCell error`, 문구 그대로). 수정 모달과 같이 처음 걸린 하나만 말하고, 걸린
+  칸으로 포커스를 옮기며(단추가 긴 폼 맨 아래라서다), 그 칸을 고치면 걷힌다. 입력의 `required` 는 그대로 둔다(폼에
+  `noValidate` 를 걸지 않는다). **저장 실패**는 발 바로 위 `Callout danger compact`(`failureText` — 다시 보내면 걷힌다).
+- **발은 `ActionFooter card`**(Primary 「티켓 추가」 하나 · `loading`, 취소 없음 P-24). 마스코트 FAB 이 뜨는 폭의 오른쪽
+  여백은 `calc(CARD_PADDING + FAB_CLEARANCE)` 로 예전 단추 자리와 같다. 폼 안 안내 문장은 `Callout`(info)이다.
+- **담당자**는 프로젝트를 고르기 전 꺼진 `UserPicker` 로 서고, 이유 문장(「프로젝트를 먼저 고르세요. …」 · 「배정할 수 있는
+  사람이 없습니다. …」)은 칸 밖 도움말이 말한다. 후보를 부르는 동안은 고르개 한 줄 모양(`Skeleton lines={1}`)이다.
+  질의 게이트 · 「나」 기본 칩 · 요청 본문은 그대로다.
+- **첫 조회(프로젝트 · 메타)가 오는 동안은 폼 대신 폼 모양**(`Skeleton section`)이다. 느린 응답 실측에서 폼이 먼저 서서
+  프로젝트 칸이 「선택할 수 있는 프로젝트가 없습니다」라고 말하고 로딩 표시가 0 이었다(`failure_states slow` 표시없음 →
+  로딩표시).
+- **작성 도움**은 판 하나 안의 목록(`li[data-writing-aid-item]`)이다. 항목은 읽을 것(절 이름 0.875rem/700 · 무엇을 적나
+  0.8125rem · 예시 0.75rem 기울임)이고 누를 것은 줄마다 30 「넣기」 하나다. 넣은 절은 꺼지고 「✓」가 선다(접근 이름
+  「…: 이미 넣었습니다」 그대로). 판 머리는 `SectionTitle help`, 묶음 이름 「더 적으면 좋은 항목」은 오른쪽 실선과 한 줄,
+  AI 도우미 안내 문장은 `Callout`(문장 · 링크 그대로 — 시안의 「열기」 단추는 만들지 않는다). 손 카드의 12px 모서리
+  리터럴 · `surface2` 면 · 반투명은 걷었다.
+- 시험: `new-ticket-layout`(12 — 문턱별 열 수 · 칸 차지 · 실측 폭 대조 · 빈틈 · 칸 폭 하한 · 이름 · 도움말 · 오류 수명 ·
+  저장 실패 상자), `new-ticket-writing-aid-contrast`(4), `new-ticket-assignee-picker`(제목 라벨 규칙),
+  `new-ticket-load-failure`(+1 받는 중), `theme-contract`(+2 날짜 칸 두 테마).
+  실측 프로브: `kit_measure` `form_field_rows`(같은 줄 입력칸 윗변 · 라벨 줄 1.25rem · 줄 빈틈 · 화면 순서 = DOM 순서).
 
 ---
 
@@ -556,7 +597,7 @@ B 단계가 전수 흡수를 끝낸 뒤 남는 자리만 적는다. 형식은 �
 | 작업 보드 **백로그** 격자 | `screens/WorkBoard.jsx` | 끌어서 순서를 바꾼다. `DataTable` 에 끌기 개념이 없고, `rowWrapper` 로 감싸면 드래그와 60vh 가상화가 함께 깨진다(갈림길 A에서 소유자가 **끌기 우선**으로 확정) | 열 어휘와 치수만 표와 맞춘다. 흡수는 안 한다 |
 | 접힘 삼각 `FoldMark` | `screens/MyStats.jsx` | 소비처가 아직 한 곳이다. 둘째 소비처가 생기는 날 `kit.jsx` 로 올린다 | 그때 승격 |
 | 신원 사실 줄 `FactLine` · `Dot` | `screens/Profile.jsx` | 같은 이유. 「라벨 없이 값만 잇는 줄」은 상세 화면에도 쓸 자리가 있지만 아직 안 썼다 | 그때 승격 |
-| 폼 고정 트랙 `FIELD_ROWS` | `screens/Profile.jsx` | 폼 규약(라벨 20 · 필드 `CONTROL.input` · 도움말 auto)의 첫 소비처다. **5-4 새 티켓**이 같은 트랙을 쓰므로 그때 공용으로 올린다 | 5-4에서 승격 |
+| 폼 고정 트랙 `FIELD_ROWS` | `ui/kit.jsx` | 핸드오프 A 에서 키트로 올렸고(`FormFieldCell`), 새 티켓(C)이 둘째 소비처다 | 승격 완료(§0-14) |
 | `Chat.jsx` 의 MUI `Alert` | `screens/Chat.jsx` | 메시지 박스 흡수 회차의 범위 밖이었다(채팅은 5-6) | 5-6에서 `Callout` 으로 |
 | `kit.jsx` 안의 `MuiAlert` 둘 | `ui/kit.jsx:3351` · `:3458` | 폼 오류 줄과 토스트 알맹이다. 메시지 박스와 **다른 부품**이고 각자 자기 계약이 있다 | 흡수 대상 아님 |
 | `StatusKpiStrip` | `ui/StatusKpi.jsx` | 회의 화면이 쓴다 — 세 칸(전체·완료·진행 중)에 「회차 전체의 숫자입니다」 캡션(`note`)을 단 **읽는 줄**이다. `StatusSummaryCard` 는 부분·위험을 함께 말하는 카드라 그 자리에 맞지 않는다(2026-09-14 판단, D-484) | 유지 |

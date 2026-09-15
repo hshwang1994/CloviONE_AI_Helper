@@ -77,7 +77,7 @@ CHECKS = (
     "filter_switch", "filter_toggle", "filter_surface", "filter_row_tops", "table_heights",
     "table_align", "card_padding", "modal", "floating_radius", "count_chip", "picker_option",
     "empty_layout", "error_icon", "mascot_size", "card_row_tops", "page_head_overlap",
-    "footer_owner", "variant_height",
+    "footer_owner", "variant_height", "form_field_rows",
 )
 
 MEASURE_JS = r"""
@@ -429,6 +429,53 @@ MEASURE_JS = r"""
     }
   }
 
+  // ── 폼 칸 격자 (§0-9 · 표 8) ────────────────────────────────────────────
+  /* 같은 격자 안의 칸(`[data-form-field]`)을 줄로 묶어 잰다 — ① 같은 줄 입력칸의 윗변이 같은가, ② 라벨 줄이
+     1.25rem(20) 인가, ③ 줄이 빈틈 없이 찼는가(줄은 격자 왼끝에서 시작하고 마지막 줄 말고는 격자 오른끝에서
+     끝난다), ④ 화면 순서(줄 우선)가 DOM 순서와 같은가. 격자 폭과 줄마다 칸 폭은 기록으로 남긴다. */
+  const rootPx = px(getComputedStyle(document.documentElement).fontSize) || 16;
+  const fieldGrids = new Map();
+  for (const cell of all('[data-form-field]')) {
+    const g = cell.parentElement;
+    if (!g) continue;
+    if (!fieldGrids.has(g)) fieldGrids.set(g, []);
+    fieldGrids.get(g).push(cell);
+  }
+  out.form_grids = [];
+  for (const [g, cells] of fieldGrids) {
+    const gr = g.getBoundingClientRect();
+    const rows = [];
+    for (const c of cells) {
+      const r = c.getBoundingClientRect();
+      const row = rows.find((x) => Math.abs(x.top - r.top) <= tol);
+      if (row) row.cells.push(c); else rows.push({ top: r.top, cells: [c] });
+    }
+    rows.sort((a, b) => a.top - b.top);
+    const leftOf = (c) => c.getBoundingClientRect().left;
+    const visual = rows.flatMap((x) => [...x.cells].sort((a, b) => leftOf(a) - leftOf(b)));
+    check('form_field_rows').checked++;
+    const problems = [];
+    if (visual.some((c, i) => c !== cells[i])) problems.push('order');
+    rows.forEach((row, i) => {
+      const fieldTops = row.cells.map((c) => (c.children[1] || c).getBoundingClientRect().top);
+      if (Math.max(...fieldTops) - Math.min(...fieldTops) > tol) problems.push(`row ${i} field tops ${fieldTops.map(Math.round)}`);
+      for (const c of row.cells) {
+        const track = c.children[1] ? c.children[1].getBoundingClientRect().top - c.getBoundingClientRect().top : 0;
+        if (!near(track, 1.25 * rootPx)) problems.push(`row ${i} label track ${Math.round(track)}`);
+      }
+      const rects = row.cells.map((c) => c.getBoundingClientRect()).sort((a, b) => a.left - b.left);
+      if (!near(rects[0].left, gr.left)) problems.push(`row ${i} starts +${Math.round(rects[0].left - gr.left)}`);
+      if (i < rows.length - 1 && !near(rects[rects.length - 1].right, gr.right)) problems.push(`row ${i} hole ${Math.round(gr.right - rects[rects.length - 1].right)}`);
+    });
+    const record = {
+      w: Math.round(gr.width),
+      rows: rows.map((row) => row.cells.map((c) => Math.round(c.getBoundingClientRect().width))),
+      fieldH: rows.map((row) => row.cells.map((c) => (c.children[1] ? Math.round(c.children[1].getBoundingClientRect().height) : 0))),
+    };
+    out.form_grids.push(record);
+    if (problems.length) fail('form_field_rows', { ...record, problems: problems.slice(0, 6) });
+  }
+
   // ── 같은 갈래의 높이 분산 ───────────────────────────────────────────────
   const variants = {
     'badge-face': all('.k-badge').filter((b) => !transparent(getComputedStyle(b).backgroundColor)),
@@ -459,6 +506,9 @@ SELFTEST_HTML = r"""
       <span class="k-badge" style="display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:4px;font-weight:600;background:#e9edf9;font-size:12px">완료</span>
       <span class="k-tag" style="display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:6px;font-weight:400;background:#fff;border:1px solid #dcdfec;font-size:12px">Docker</span>
       <span data-count-chip="" style="display:inline-flex;height:20px;padding:0 6px">3</span>
+      <div style="display:grid;grid-template-columns:repeat(12,minmax(0,1fr));column-gap:20px;row-gap:20px;width:800px">
+        ${[12, 6, 3, 3, 3, 3, 3, 3].map((n) => `<div data-form-field="" style="grid-column:span ${n};display:grid;grid-template-rows:20px minmax(36px,auto) auto"><span>칸</span><div style="height:36px;border:1px solid #ccc"></div><div></div></div>`).join('')}
+      </div>
     </div>
     <div id="bad">
       <button class="MuiButton-root MuiButton-sizeMedium" style="height:40px;padding:0 12px">큰 버튼</button>
@@ -472,6 +522,13 @@ SELFTEST_HTML = r"""
           <div data-filter-kind="search" class="MuiFormControl-root" style="width:500px"><div class="MuiInputBase-root" style="height:34px;border:1px solid #ccc"></div></div>
         </div>
       </div>
+      <div style="display:grid;grid-template-columns:repeat(12,minmax(0,1fr));column-gap:20px;row-gap:20px;width:800px">
+        ${[12, 6, 3, 6].map((n) => `<div data-form-field="" style="grid-column:span ${n};display:grid;grid-template-rows:20px minmax(36px,auto) auto"><span>빈틈</span><div style="height:36px;border:1px solid #ccc"></div><div></div></div>`).join('')}
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:20px;width:600px">
+        <div data-form-field="" style="display:grid;grid-template-rows:20px minmax(36px,auto) auto"><span>칸</span><div style="height:36px;border:1px solid #ccc"></div><div></div></div>
+        <div data-form-field="" style="display:grid;grid-template-rows:28px minmax(36px,auto) auto"><span>어긋난 라벨</span><div style="height:36px;border:1px solid #ccc"></div><div></div></div>
+      </div>
     </div>`;
   document.body.appendChild(box);
   return true;
@@ -481,7 +538,7 @@ SELFTEST_HTML = r"""
 # 틀린 견본이 반드시 걸려야 하는 검사와 기대 최소 실패 수, 맞는 견본이 걸리면 안 되는 검사.
 SELFTEST_EXPECT_BAD = {
     "button_height": 1, "button_wrap": 1, "badge": 1, "tag": 1, "count_chip": 1,
-    "filter_cell": 1, "filter_notched": 1, "search_slot": 1,
+    "filter_cell": 1, "filter_notched": 1, "search_slot": 1, "form_field_rows": 2,
 }
 
 

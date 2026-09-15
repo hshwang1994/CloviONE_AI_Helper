@@ -7,6 +7,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import { ThemeProvider } from "@mui/material/styles";
 
+/* qa-contract-change: 새 티켓 칸 이름이 MUI 노치 라벨(「제목 *」)에서 칸 위 FieldLabel(「제목」 + 눈으로만 보이는 「필수」)로 옮겨(핸드오프 계획 C), 제목 칸을 찾는 라벨 글자 규칙을 그 모양으로 옮긴다. */
+
 /* qa-contract-replaced-by: frontend/src/ui/body-editor-no-emoji.test.jsx
  * qa-contract-replaced-by: frontend/src/ui/body-editor-toolbar-contrast.test.jsx
  *
@@ -185,7 +187,7 @@ describe("새 티켓 — 담당자는 검색 가능한 자동완성이다 (PA-RC
     await pickProject(user);
     await screen.findByText("나");
 
-    await user.type(screen.getByLabelText(/^제목\s*\*?$/), "담당자 배정 확인");
+    await user.type(screen.getByLabelText(/^제목( 필수)?$/), "담당자 배정 확인");
     /* 예상 WD 와 마감일도 필수다 (지시 10) — 이 시험이 재는 것은 담당자 축이지만,
        필수를 안 채우면 제출 자체가 막혀 아무것도 못 잰다. */
     await user.type(screen.getByLabelText(/예상 WD/), "1");

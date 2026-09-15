@@ -1040,6 +1040,23 @@ export function createClovirTheme(mode = "light", accent = DEFAULT_ACCENT) {
           input: { paddingTop: 7, paddingBottom: 7 },
         },
       },
+      /* 날짜 칸(MUI X `DatePicker` 의 입력)은 윤곽 입력과 **다른 부품**이라 위 `MuiOutlinedInput` 규칙을 받지 않는다.
+         그래서 날짜 칸만 작은 크기의 기본 여백(위아래 8.5px + 글자 줄 1.4375em)으로 39px 에 서서 같은 줄의 칸보다 3px
+         컸다(새 티켓 실측, `kit_measure` `form_grids`). 높이 · 모서리 · 면 · 포커스 선을 윤곽 입력과 같은 규칙으로 맞춘다. */
+      MuiPickersOutlinedInput: {
+        styleOverrides: {
+          root: {
+            minHeight: remPx(CONTROL.input),
+            borderRadius: RADIUS.sm,
+            background: t.plate,
+            "&.Mui-focused:not(.Mui-error) .MuiPickersOutlinedInput-notchedOutline": {
+              borderWidth: 2,
+              borderColor: `var(--clovir-focus-ring, ${t.focusRing})`,
+            },
+          },
+          sectionsContainer: { paddingTop: 7, paddingBottom: 7 },
+        },
+      },
       /* 판(plate). **테두리 하나뿐이고 그림자가 없다** — enclosure 는 기본값이 아니다(D-141). */
       MuiCard: {
         styleOverrides: {

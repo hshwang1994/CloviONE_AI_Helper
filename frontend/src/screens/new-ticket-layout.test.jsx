@@ -7,30 +7,23 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import { ThemeProvider } from "@mui/material/styles";
 
-/* '새 티켓' 폼의 짧은 값 입력 격자가 **뷰포트가 아니라 자기가 놓인 칸의 폭**으로 열 수를
- * 정하는지 본다.
+/* qa-contract-change: 새 티켓 칸 격자가 화면 사본(NT_FIELD_GRID 1·2·3열, 제목은 격자 밖 노치 라벨)에서 정본 12칸 격자(density.js::FORM_FIELD_GRID_12 + kit FormFieldCell)로 옮겨(핸드오프 계획 C · 표 8), 열 수 · 칸 차지 · 칸 폭 하한 · 실측표 · 라벨 계약을 새 구조로 옮기고 검증 오류 줄과 저장 실패 상자의 수명 시험을 더한다. */
+
+/* '새 티켓' 폼의 칸 격자가 **뷰포트가 아니라 자기가 놓인 칸의 폭**으로 열 수를 정하는지 본다.
  *
  * 왜 이 테스트가 필요한가 — 예전 격자는 `{ xs, sm:2열, xxl:3열 }` 이었다. sm(600)·xxl(2200)은
- * 뷰포트 폭인데 격자가 놓인 칸은 사이드바(264)와 '작성 도움' 레일(22rem)을 뺀 나머지라
- * 훨씬 좁다. 실측(scripts/ui_qa 세션을 재사용한 크로미움 10폭 측정, 2026-08-06):
+ * 뷰포트 폭인데 격자가 놓인 칸은 사이드바와 '작성 도움' 레일을 뺀 나머지라 훨씬 좁다. 뷰포트
+ * 1200 에서 한 칸이 223px 로 짜부라졌던 것이 그 결과다.
  *
- *   뷰포트   격자 폭   고친 뒤 열/칸        고치기 전 열/칸
- *      390      308    1열 / 308            1열 / 308
- *      768      670    2열 / 325            2열 / 325
- *      900      538    2열 / 259            2열 / 259
- *     1024      662    2열 / 321            2열 / 321
- *     1200      466    1열 / 466        ←   2열 / 223   ← 뷰포트 390(1열 308)보다 좁았다
- *     1366      632    2열 / 306            2열 / 306
- *     1536      786    2열 / 383            2열 / 383
- *     1920     1152    3열 / 371        ←   2열 / 566
- *     2560     1296    3열 / 419            3열 / 417
- *     3840     1440    3열 / 463            3열 / 463
+ * 지금 격자는 정본 12칸 격자다(핸드오프 RULES §7 · 계획 표 8): 칸 둘(16rem)이 들어가면 2칸, 칸 셋이
+ * 들어가면 12칸이고, 칸마다 문턱별로 차지하는 칸 수를 따로 말한다(제목 12/2, 프로젝트 6/1, 짧은 값 넷 3/1,
+ * 담당자 3/2). 칸 하나는 라벨 · 입력 · 도움말의 세 줄 트랙이다(`kit.jsx::FormFieldCell`).
  *
  * jsdom 은 컨테이너 질의를 **평가하지 않는다**. 그래서 '몇 열로 그려졌나'를 물어볼 수 없다.
  * 대신 emotion 이 실제로 내보낸 CSS 규칙을 읽어 **판정 규칙 자체**를 검사한다:
- *   1) 열 수를 바꾸는 규칙이 전부 `@container` 인가(뷰포트 `@media` 가 하나라도 있으면 실패),
- *   2) 그 임계값을 위 실측 폭에 적용했을 때 한 칸이 절대 16rem 밑으로 안 내려가는가.
- * 실제 브라우저에서의 열 수·픽셀은 위 표대로 별도 실측했다(테스트가 대신하지 못한다).
+ *   1) 열 수와 칸 차지를 바꾸는 규칙이 전부 `@container` 인가(뷰포트 `@media` 가 하나라도 있으면 실패),
+ *   2) 그 규칙을 아래 실측 폭에 적용한 열 수 · 칸 폭이 브라우저가 실제로 그린 값과 같은가,
+ *   3) 어느 폭에서도 칸이 하한 밑으로 내려가지 않고 줄에 빈틈이 생기지 않는가.
  */
 
 const apiMock = vi.fn();
@@ -46,32 +39,42 @@ import { NewTicket } from "./MyTickets.jsx";
 import { createClovirTheme } from "../ui/theme.js";
 import { BASELINE_TRACKS } from "../ui/density.js";
 
-/* 실측표(위 주석)의 컨테이너 폭. root 는 styles/root.css 의 루트 폰트사이즈
- * (기본 16px, ≥2200px 18px, ≥3000px 20px) — rem 임계값이 이 값으로 픽셀이 된다.
- *
- * ⚠️ 이 표는 2026-08-06 에 **레일이 22rem 고정이던 때** 브라우저로 잰 값이다. 2026-08-07 에
- * 바깥 2열이 기준선 `.grid.two`(1.45 : 0.8 비율)로 바뀌면서 폼 열이 좁아졌다. 계산해 보면
- * 1920 에서 격자 폭이 1152 → 약 976px(3열이면 한 칸 312px = 19.5rem)이라 아래 16rem 하한은
- * 여전히 여유가 있고, 2560·3840 은 폼의 72rem 상한이 먼저 걸려 값이 그대로다. 다만
- * **다시 재지는 않았다** — 브라우저 실측은 서버를 띄워야 해서 이 세션에서 못 했다.
- * 표를 지우지 않는 이유: 지우면 이 검사가 무엇을 근거로 하는지가 사라진다. */
+/* 브라우저 실측(2026-09-15, `kit_measure --routes user_new-ticket` 의 `form_grids` — 격자 폭과 줄마다 칸 폭).
+ * root 는 styles/root.css 의 루트 폰트사이즈(기본 16px, ≥2200px 18px, ≥3000px 20px)다.
+ * 뷰포트 1710 은 격자 폭이 12칸 문턱(50.5rem = 808px)에 반올림으로 걸려(브라우저는 2칸) 표에서 뺐다. */
 const MEASURED = [
-  { viewport: 390, container: 308, root: 16 },
-  { viewport: 768, container: 670, root: 16 },
-  { viewport: 900, container: 538, root: 16 },
-  { viewport: 1024, container: 662, root: 16 },
-  { viewport: 1200, container: 466, root: 16 },
-  { viewport: 1366, container: 632, root: 16 },
-  { viewport: 1536, container: 786, root: 16 },
-  { viewport: 1920, container: 1152, root: 16 },
-  { viewport: 2560, container: 1296, root: 18 },
-  { viewport: 3840, container: 1440, root: 20 },
+  { viewport: 390, container: 316, root: 16, rows: [[316], [316], [316], [316], [316], [316], [316], [316]] },
+  { viewport: 768, container: 678, root: 16, rows: [[678], [329, 329], [329, 329], [329, 329], [678]] },
+  { viewport: 900, container: 562, root: 16, rows: [[562], [271, 271], [271, 271], [271, 271], [562]] },
+  { viewport: 1024, container: 686, root: 16, rows: [[686], [333, 333], [333, 333], [333, 333], [686]] },
+  { viewport: 1200, container: 502, root: 16, rows: [[502], [502], [502], [502], [502], [502], [502], [502]] },
+  { viewport: 1366, container: 605, root: 16, rows: [[605], [292, 292], [292, 292], [292, 292], [605]] },
+  { viewport: 1536, container: 700, root: 16, rows: [[700], [340, 340], [340, 340], [340, 340], [700]] },
+  { viewport: 1920, container: 937, root: 16, rows: [[937], [459, 219, 219], [219, 219, 219, 219]] },
+  { viewport: 2560, container: 1296, root: 18, rows: [[1296], [637, 307, 307], [307, 307, 307, 307]] },
+  { viewport: 3840, container: 1440, root: 20, rows: [[1440], [708, 341, 341], [341, 341, 341, 341]] },
 ];
 
-/* 한 칸이 이보다 좁아지면 프로젝트 이름·'예상 WD' 같은 라벨이 잘린다. 화면 코드의
- * NT_FIELD_MIN_REM 과 같은 값이지만 **일부러 여기 다시 적는다** — 화면이 이 하한을 몰래
- * 낮추면 테스트가 잡아야 하므로, 화면에서 import 해 오면 검사가 무의미해진다. */
+/* 칸 폭 하한 — 화면 코드에서 가져오지 않고 **일부러 여기 다시 적는다.** 화면이 문턱이나 칸 차지를
+ * 몰래 바꾸면 이 시험이 잡아야 하므로, 화면에서 import 해 오면 검사가 무의미해진다.
+ *   · 한 칸(1칸 · 2칸 격자의 칸, 12칸 격자의 절반 이상 칸) 16rem — 프로젝트 이름 · 사람 칩이 서는 폭이다.
+ *   · 12칸 격자의 짧은 값 칸(span 3) — 12칸이 켜지는 문턱은 16rem 칸 셋과 틈 둘(50.5rem)이고, 그 폭을
+ *     짧은 칸 넷이 틈 셋을 두고 나눈다: (50.5 − 3 × 1.25) / 4 = 11.6875rem(187px). 날짜(YYYY-MM-DD + 달력
+ *     단추) · 진행상태 · 우선순위가 잘리지 않고 서는 폭이다. */
 const MIN_FIELD_REM = 16;
+const MIN_SHORT_FIELD_REM = 11.6875;
+
+/* 칸 순서와 문턱별 칸 차지(계획 표 8). */
+const FIELDS = [
+  { label: "제목", wide: 12, mid: 2 },
+  { label: "프로젝트", wide: 6, mid: 1 },
+  { label: "진행상태", wide: 3, mid: 1 },
+  { label: "우선순위", wide: 3, mid: 1 },
+  { label: "난이도", wide: 3, mid: 1 },
+  { label: "예상 WD", wide: 3, mid: 1 },
+  { label: "마감일", wide: 3, mid: 1 },
+  { label: "담당자", wide: 3, mid: 2 },
+];
 
 const CONTAINER_QUERY = /^@container\s+([\w-]+)\s+\(min-width:\s*([\d.]+)rem\)$/;
 
@@ -79,7 +82,7 @@ function apiOk() {
   apiMock.mockImplementation((path, opts) => {
     if (path === "/api/tickets/projects") return Promise.resolve({ projects: [{ id: "p-1", name: "인프라" }] });
     if (path === "/api/tickets/meta") return Promise.resolve({ statuses: ["계획", "진행"], priorities: ["high"], difficulties: ["중"] });
-    if (path === "/api/tickets/assignees") return Promise.resolve({ assignees: [{ user_id: "me-1", name: "나" }] });
+    if (String(path).startsWith("/api/tickets/assignees")) return Promise.resolve({ assignees: [{ user_id: "me-1", name: "나" }] });
     if (path === "/api/tickets" && opts && opts.method === "POST") return Promise.resolve({ id: "t-9" });
     return Promise.resolve({});
   });
@@ -91,7 +94,7 @@ beforeEach(() => {
 });
 
 function renderNewTicket() {
-  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
   /* 라우터 안에서 그린다 — 실제 앱이 그렇고(`app/UserRoutes.jsx`), 만든 뒤 그 티켓으로
      이동하는 것이 이 화면의 마지막 단계다(`navigate('/tickets/:id')`). 라우터 없이 그리면
      그 단계 자체를 시험이 못 본다. */
@@ -148,50 +151,72 @@ function columnCount(track) {
   return track.replace(/\([^)]*\)/g, "x").split(/\s+/).filter(Boolean).length;
 }
 
-/* 열 수를 바꾸는 규칙만 (조건, 열 수) 로. 소스 순서를 유지한다 — 뒤에 온 규칙이 이긴다. */
-function columnRules(el) {
+/* 한 속성을 바꾸는 규칙만 (조건, 값) 으로. 소스 순서를 유지한다 — 뒤에 온 규칙이 이긴다. */
+function valueRules(el, prop, parse) {
   return rulesFor(el)
-    .map((r) => ({ cond: r.cond, track: declaration(r, "grid-template-columns") }))
-    .filter((r) => r.track)
-    .map((r) => ({ cond: r.cond, columns: columnCount(r.track) }));
+    .map((r) => ({ cond: r.cond, raw: declaration(r, prop) }))
+    .filter((r) => r.raw)
+    .map((r) => ({ cond: r.cond, value: parse(r.raw) }));
 }
+const columnRules = (el) => valueRules(el, "grid-template-columns", columnCount);
+const spanRules = (el) => valueRules(el, "grid-column", (raw) => {
+  const m = /^span\s+(\d+)$/.exec(raw);
+  if (!m) throw new Error(`칸 차지가 span N 이 아니다: ${raw}`);
+  return Number(m[1]);
+});
 
-/* 실제로 내보낸 CSS 를 그대로 해석해 '이 폭이면 몇 열' 을 계산한다. 테스트가 임계값을
+/* 실제로 내보낸 CSS 를 그대로 해석해 '이 폭이면 무슨 값' 을 계산한다. 테스트가 임계값을
  * 따로 들고 있으면 CSS 와 어긋나도 초록으로 남는다 — 판정은 CSS 한 곳에서만 나온다.
  *
  * 모르는 조건을 만나면 **건너뛰지 않고 던진다.** 조용히 넘기면 뷰포트 @media 로 되돌려 놨을 때
  * '기본값 1열' 로만 계산돼 이 검사가 초록으로 남는다(되돌려 보고 실제로 그랬다). */
-function columnsAt(rules, containerPx, rootPx) {
+function valueAt(rules, containerPx, rootPx) {
   const base = rules.filter((r) => r.cond === "");
-  if (base.length !== 1) throw new Error(`조건 없는 기본 열 수가 ${base.length}개다 — 컨테이너 질의가 아니다`);
-  let columns = base[0].columns;
+  if (base.length !== 1) throw new Error(`조건 없는 기본값이 ${base.length}개다 — 컨테이너 질의가 아니다`);
+  let value = base[0].value;
   for (const r of rules) {
     if (r.cond === "") continue;
     const m = CONTAINER_QUERY.exec(r.cond);
-    if (!m) throw new Error(`컨테이너 질의가 아닌 조건이 열 수를 바꾼다: ${r.cond}`);
-    if (Number(m[2]) * rootPx <= containerPx) columns = r.columns;
+    if (!m) throw new Error(`컨테이너 질의가 아닌 조건이 값을 바꾼다: ${r.cond}`);
+    if (Number(m[2]) * rootPx <= containerPx) value = r.value;
   }
-  return columns;
+  return value;
 }
 
-/* 격자를 찾는 기준점은 **진행상태**(평범한 TextField)다.
- *
- * 예전에는 프로젝트(`#nt-proj`)를 썼는데, W5 에서 그 자리가 검색형 Combobox 가 되면서
- * `Autocomplete` 가 `FormControl` 위에 자기 root 를 한 겹 더 만든다 —
- * `closest(".MuiFormControl-root").parentElement` 가 격자가 아니라 그 root 를 가리킨다.
- * 이 파일이 재려는 것은 «필드 격자의 열 수» 이므로 기준점은 격자의 **직계 자식**이면
- * 무엇이든 되고, 래퍼가 없는 필드를 쓰는 것이 그 뜻에 더 정확하다. */
+/* 칸 차지를 줄로 흘린다(grid auto-flow row). 줄이 넘치면 다음 줄로 가고, 그때 앞줄이 덜 찼으면 빈틈이다. */
+function packRows(spans, columns) {
+  const rows = [];
+  let row = [];
+  let used = 0;
+  const holes = [];
+  for (const span of spans) {
+    if (used + span > columns) {
+      if (used < columns) holes.push(rows.length);
+      rows.push(row);
+      row = [];
+      used = 0;
+    }
+    row.push(span);
+    used += span;
+  }
+  rows.push(row);
+  return { rows, holes };
+}
+
+/* 격자를 찾는 기준점은 **진행상태**(평범한 TextField)다 — 칸(`[data-form-field]`)의 부모가 격자다. */
 async function fieldGrid() {
   const anchor = await waitFor(() => {
     const el = document.getElementById("nt-status");
     if (!el) throw new Error("nt-status 가 아직 없음");
     return el;
   });
-  const grid = anchor.closest(".MuiFormControl-root").parentElement;
-  return { grid, container: grid.parentElement };
+  const grid = anchor.closest("[data-form-field]").parentElement;
+  return { grid, container: grid.parentElement, cells: [...grid.children].filter((c) => c.hasAttribute("data-form-field")) };
 }
 
-describe("새 티켓 — 필드 격자는 컨테이너 폭으로 열 수를 정한다", () => {
+const labelOf = (cell) => (cell.firstElementChild ? cell.firstElementChild.textContent : "").replace(/\s*필수$/, "").trim();
+
+describe("새 티켓 — 칸 격자는 컨테이너 폭으로 열 수와 칸 차지를 정한다", () => {
   it("열 수를 바꾸는 규칙이 전부 @container 이고, 뷰포트 @media 는 하나도 관여하지 않는다", async () => {
     renderNewTicket();
     const { grid, container } = await fieldGrid();
@@ -203,56 +228,103 @@ describe("새 티켓 — 필드 격자는 컨테이너 폭으로 열 수를 정�
     expect(name).toBeTruthy();
 
     const rules = columnRules(grid);
-    expect(rules.length).toBeGreaterThan(1);
     const base = rules.filter((r) => r.cond === "");
     expect(base).toHaveLength(1);
-    expect(base[0].columns).toBe(1); // 컨테이너 질의를 못 알아듣는 브라우저가 받을 값
+    expect(base[0].value).toBe(1); // 컨테이너 질의를 못 알아듣는 브라우저가 받을 값
 
     const conditional = rules.filter((r) => r.cond !== "");
-    expect(conditional.length).toBeGreaterThan(0);
+    expect(conditional.map((r) => r.value)).toEqual([2, 12]);
     for (const r of conditional) {
       const m = CONTAINER_QUERY.exec(r.cond);
       expect(m, `열 수를 뷰포트 조건으로 바꾸고 있다: ${r.cond}`).not.toBeNull();
       expect(m[1]).toBe(name);
     }
-    // 임계값과 열 수가 같이 커져야 columnsAt 의 '뒤가 이긴다' 가 뜻이 통한다.
+    // 임계값과 열 수가 같이 커져야 valueAt 의 '뒤가 이긴다' 가 뜻이 통한다.
     const thresholds = conditional.map((r) => Number(CONTAINER_QUERY.exec(r.cond)[2]));
     expect([...thresholds].sort((a, b) => a - b)).toEqual(thresholds);
-    expect([...conditional.map((r) => r.columns)].sort((a, b) => a - b)).toEqual(conditional.map((r) => r.columns));
   });
 
-  it("실측한 10개 폭 어디에서도 한 칸이 16rem 밑으로 내려가지 않는다", async () => {
+  it("칸 여덟이 표 8 순서로 서고, 칸마다 문턱별 차지가 표 8 과 같다(같은 컨테이너 질의로)", async () => {
     renderNewTicket();
-    const { grid } = await fieldGrid();
-    const rules = columnRules(grid);
+    const { grid, cells } = await fieldGrid();
+    expect(cells.map(labelOf)).toEqual(FIELDS.map((f) => f.label));
+    const columnConds = columnRules(grid).filter((r) => r.cond !== "").map((r) => r.cond);
+    cells.forEach((cell, i) => {
+      const rules = spanRules(cell);
+      expect(rules.filter((r) => r.cond === "").map((r) => r.value), `${FIELDS[i].label} 기본 차지`).toEqual([1]);
+      const conditional = rules.filter((r) => r.cond !== "");
+      // 칸 차지의 문턱은 열 수의 문턱과 같은 질의다 — 따로 놀면 2칸 격자에 span 6 이 들어가 칸이 밀린다.
+      expect(conditional.map((r) => r.cond), `${FIELDS[i].label} 차지 문턱`).toEqual(columnConds);
+      expect(conditional.map((r) => r.value), `${FIELDS[i].label} 차지`).toEqual([FIELDS[i].mid, FIELDS[i].wide]);
+    });
+  });
+
+  it("실측한 폭마다 CSS 로 계산한 줄 · 칸 폭이 브라우저가 그린 값과 같다", async () => {
+    renderNewTicket();
+    const { grid, cells } = await fieldGrid();
+    const columns = columnRules(grid);
+    const spans = cells.map(spanRules);
     const gapRem = Number(/^([\d.]+)rem$/.exec(declaration(rulesFor(grid).find((r) => r.cond === ""), "gap"))[1]);
 
-    const narrow = [];
+    const mismatch = [];
     for (const m of MEASURED) {
-      const columns = columnsAt(rules, m.container, m.root);
-      const field = (m.container - (columns - 1) * gapRem * m.root) / columns;
-      if (field < MIN_FIELD_REM * m.root) {
-        narrow.push(`뷰포트 ${m.viewport}: 격자 ${m.container}px → ${columns}열 → 한 칸 ${Math.round(field)}px`);
-      }
+      const cols = valueAt(columns, m.container, m.root);
+      const gap = gapRem * m.root;
+      const track = (m.container - (cols - 1) * gap) / cols;
+      const { rows } = packRows(spans.map((r) => valueAt(r, m.container, m.root)), cols);
+      const widths = rows.map((row) => row.map((span) => Math.round(span * track + (span - 1) * gap)));
+      const same = widths.length === m.rows.length
+        && widths.every((row, i) => row.length === m.rows[i].length && row.every((w, j) => Math.abs(w - m.rows[i][j]) <= 1));
+      if (!same) mismatch.push(`뷰포트 ${m.viewport}: 계산 ${JSON.stringify(widths)} ≠ 실측 ${JSON.stringify(m.rows)}`);
     }
-    expect(narrow).toEqual([]);
+    expect(mismatch).toEqual([]);
   });
 
-  it("레일이 붙는 lg(1200)에서 1열로 떨어진다 — 예전엔 2열이라 한 칸이 223px 였다", async () => {
+  it("어느 폭에서도 줄에 빈틈이 없고, 칸이 하한 밑으로 내려가지 않는다", async () => {
+    renderNewTicket();
+    const { grid, cells } = await fieldGrid();
+    const columns = columnRules(grid);
+    const spans = cells.map(spanRules);
+    const gapRem = Number(/^([\d.]+)rem$/.exec(declaration(rulesFor(grid).find((r) => r.cond === ""), "gap"))[1]);
+
+    const problems = [];
+    const rowCounts = {};
+    for (const m of MEASURED) {
+      const cols = valueAt(columns, m.container, m.root);
+      const gap = gapRem * m.root;
+      const track = (m.container - (cols - 1) * gap) / cols;
+      const cellSpans = spans.map((r) => valueAt(r, m.container, m.root));
+      const { rows, holes } = packRows(cellSpans, cols);
+      if (holes.length) problems.push(`뷰포트 ${m.viewport}: ${cols}칸 격자의 줄 ${holes.join(", ")} 에 빈틈`);
+      rowCounts[cols] = rows.length;
+      cellSpans.forEach((span, i) => {
+        const width = span * track + (span - 1) * gap;
+        const short = cols === 12 && span < 6;
+        const floor = (short ? MIN_SHORT_FIELD_REM : MIN_FIELD_REM) * m.root;
+        if (width + 0.5 < floor) {
+          problems.push(`뷰포트 ${m.viewport}: ${FIELDS[i].label} ${Math.round(width)}px < ${floor}px`);
+        }
+      });
+    }
+    expect(problems).toEqual([]);
+    // 표 8 의 줄 수 — 1칸 8줄, 2칸 1 + 3 + 1줄, 12칸 1 + 1 + 1줄.
+    expect(rowCounts).toEqual({ 1: 8, 2: 5, 12: 3 });
+  });
+
+  it("레일이 붙는 lg(1200)에서는 1칸으로 선다 — 예전 뷰포트 격자는 여기서 한 칸이 223px 였다", async () => {
     renderNewTicket();
     const { grid } = await fieldGrid();
-    const rules = columnRules(grid);
-    expect(columnsAt(rules, 466, 16)).toBe(1);
+    expect(valueAt(columnRules(grid), 502, 16)).toBe(1);
   });
 
   /* 오탐 방지 — '전부 1열' 로 만들어 놓고 위 검사를 통과시키는 퇴행을 막는다. */
-  it("폭이 남는 화면에서는 여전히 여러 열로 편다(1열로 뭉개지 않는다)", async () => {
+  it("폭이 남는 화면에서는 여전히 여러 칸으로 편다(1칸으로 뭉개지 않는다)", async () => {
     renderNewTicket();
     const { grid } = await fieldGrid();
     const rules = columnRules(grid);
-    expect(columnsAt(rules, 670, 16)).toBe(2);   // 뷰포트 768
-    expect(columnsAt(rules, 1152, 16)).toBe(3);  // 뷰포트 1920
-    expect(columnsAt(rules, 1440, 20)).toBe(3);  // 뷰포트 3840
+    expect(valueAt(rules, 605, 16)).toBe(2);    // 뷰포트 1366
+    expect(valueAt(rules, 937, 16)).toBe(12);   // 뷰포트 1920
+    expect(valueAt(rules, 1440, 20)).toBe(12);  // 뷰포트 3840
   });
 });
 
@@ -274,10 +346,10 @@ describe("새 티켓 — 폼과 레일은 그대로다(오탐 방지)", () => {
     expect(declaration(rail, "grid-template-columns")).toBe(BASELINE_TRACKS.two);
   });
 
-  it("여섯 개 입력이 모두 그려지고, 필수를 채워 제출하면 티켓을 만든다", async () => {
+  it("여덟 칸이 모두 그려지고, 필수를 채워 제출하면 티켓을 만든다", async () => {
     const user = userEvent.setup();
     renderNewTicket();
-    for (const label of ["프로젝트", "진행상태", "우선순위", "난이도", "예상 WD", "마감일"]) {
+    for (const { label } of FIELDS) {
       /* `getAllByLabelText` + `waitFor` — "마감일"(`DateField`)은 지연 로드라 초기에는
          자리표시만 있고(§15.5), 청크가 온 뒤에는 라벨 하나에 걸리는 요소가 둘(구간 그룹 +
          숨은 입력)이라 단수 `find/getByLabelText` 는 부하가 큰 전량 실행에서 "여럿 걸림"으로
@@ -287,7 +359,7 @@ describe("새 티켓 — 폼과 레일은 그대로다(오탐 방지)", () => {
         expect(screen.getAllByLabelText(new RegExp(label)).length).toBeGreaterThan(0);
       });
     }
-    await user.type(screen.getByLabelText(/^제목\s*\*?$/), "서버 등록 IP 중복 방지");
+    await user.type(screen.getByLabelText(/^제목( 필수)?$/), "서버 등록 IP 중복 방지");
     // 프로젝트는 후보가 있으면 필수다 — 고르지 않으면 제출이 막힌다(그 검증도 함께 지킨다).
     await user.click(screen.getByRole("combobox", { name: /프로젝트/ }));
     await user.click(await screen.findByRole("option", { name: "인프라" }));
@@ -308,11 +380,10 @@ describe("새 티켓 — 폼과 레일은 그대로다(오탐 방지)", () => {
   it("🔴 예상 WD 나 마감일이 비면 **보내지 않는다** — 서버까지 다녀와 422 를 보이지 않는다", async () => {
     const user = userEvent.setup();
     renderNewTicket();
-    await user.type(await screen.findByLabelText(/^제목\s*\*?$/), "예상 WD 없는 티켓");
+    await user.type(await screen.findByLabelText(/^제목( 필수)?$/), "예상 WD 없는 티켓");
     await user.click(screen.getByRole("combobox", { name: /프로젝트/ }));
     await user.click(await screen.findByRole("option", { name: "인프라" }));
-    /* 재는 것은 **안 보냈다**이다. 토스트 문구가 아니라 요청을 본다 — 이 하네스에는
-       토스트 공급자가 없고, 문구를 재면 그 문구를 다듬을 때마다 시험이 깨진다. */
+    /* 재는 것은 **안 보냈다**이다. 문구가 아니라 요청을 본다 — 문구는 아래 칸 오류 시험이 잰다. */
     await user.click(screen.getByRole("button", { name: "티켓 추가" }));
     expect(apiMock).not.toHaveBeenCalledWith("/api/tickets", expect.anything());
 
@@ -329,5 +400,95 @@ describe("새 티켓 — 폼과 레일은 그대로다(오탐 방지)", () => {
         body: expect.objectContaining({ est_wd: 3, due_date: "2026-10-01" }),
       }));
     });
+  });
+});
+
+describe("새 티켓 — 칸 이름 · 도움말 · 오류는 칸의 세 줄에 선다(핸드오프 계획 C)", () => {
+  it("노치 라벨이 없고, 입력은 칸 위 이름과 칸 밖 도움말 줄을 가리킨다", async () => {
+    renderNewTicket();
+    const { grid } = await fieldGrid();
+    expect(grid.querySelectorAll(".MuiInputLabel-root")).toHaveLength(0);
+
+    expect(screen.getByLabelText(/^제목( 필수)?$/)).toHaveAttribute("aria-describedby", "nt-title-help");
+    const project = screen.getByRole("combobox", { name: /프로젝트/ });
+    expect(project).toHaveAttribute("aria-labelledby", "nt-proj-label");
+    expect(project).toHaveAttribute("aria-describedby", "nt-proj-help");
+
+    const wd = screen.getByLabelText(/예상 WD/);
+    expect(wd).toHaveAttribute("aria-describedby", "nt-wd-help");
+    expect(document.getElementById("nt-wd-help")).toHaveTextContent("사람이 며칠 붙는 일인가요. 0 도 됩니다.");
+
+    // 날짜 조각 묶음 — 낭독기가 실제로 들어가는 자리에도 이름과 도움말 줄이 이어진다.
+    await waitFor(() => {
+      const group = document.querySelector('#nt-due-help').parentElement.querySelector('[role="group"]');
+      expect(group).toBeTruthy();
+      expect(group).toHaveAttribute("aria-labelledby", "nt-due-label");
+      expect(group).toHaveAttribute("aria-describedby", "nt-due-help");
+    });
+
+    // 담당자는 프로젝트를 고르기 전에는 꺼진 고르개이고, 이유는 칸 밖 도움말이 말한다(예전 문장 그대로).
+    const assignee = screen.getByRole("combobox", { name: /담당자/ });
+    expect(assignee).toBeDisabled();
+    expect(assignee).toHaveAttribute("aria-describedby", "nt-assignee-help");
+    expect(document.getElementById("nt-assignee-help"))
+      .toHaveTextContent("프로젝트를 먼저 고르세요. 그 프로젝트에 닿을 수 있는 사람만 담당자가 될 수 있습니다.");
+  });
+
+  it("검증에 걸리면 그 칸 아래 오류 줄이 서고 포커스가 그 칸으로 가며, 칸을 고치면 걷힌다(토스트였다)", async () => {
+    const user = userEvent.setup();
+    renderNewTicket();
+    const title = await screen.findByLabelText(/^제목( 필수)?$/);
+    /* 공백만 친 제목 — 입력의 `required` 는 통과하지만 화면 검사(`trim`)에서 걸린다. 나머지 필수는 채운다. */
+    await user.type(title, "   ");
+    await user.click(screen.getByRole("combobox", { name: /프로젝트/ }));
+    await user.click(await screen.findByRole("option", { name: "인프라" }));
+    await user.type(screen.getByLabelText(/예상 WD/), "1");
+    await fillDateField(user, /마감일/, "2026-09-30");
+    await user.click(screen.getByRole("button", { name: "티켓 추가" }));
+
+    const help = document.getElementById("nt-title-help");
+    await waitFor(() => expect(help.querySelector('[role="alert"]')).toHaveTextContent("제목을 입력하세요."));
+    expect(title).toHaveFocus();
+    expect(title).toHaveAttribute("aria-invalid", "true");
+    expect(apiMock).not.toHaveBeenCalledWith("/api/tickets", expect.anything());
+
+    await user.type(title, "고친 제목");
+    await waitFor(() => expect(help.querySelector('[role="alert"]')).toBeNull());
+    expect(title).toHaveAttribute("aria-invalid", "false");
+  });
+
+  it("저장이 실패하면 발 바로 위 메시지 박스가 말하고, 다시 보내면 걷힌다", async () => {
+    const user = userEvent.setup();
+    let calls = 0;
+    let release;
+    apiMock.mockImplementation((path, opts) => {
+      if (path === "/api/tickets/projects") return Promise.resolve({ projects: [{ id: "p-1", name: "인프라" }] });
+      if (path === "/api/tickets/meta") return Promise.resolve({ statuses: ["계획"], priorities: [], difficulties: [] });
+      if (String(path).startsWith("/api/tickets/assignees")) return Promise.resolve({ assignees: [] });
+      if (path === "/api/tickets" && opts && opts.method === "POST") {
+        calls += 1;
+        if (calls === 1) return Promise.reject(new Error("이 프로젝트에는 지금 티켓을 만들 수 없습니다."));
+        return new Promise((resolve) => { release = () => resolve({ id: "t-10" }); });
+      }
+      return Promise.resolve({});
+    });
+    renderNewTicket();
+    await user.type(await screen.findByLabelText(/^제목( 필수)?$/), "실패하는 티켓");
+    await user.click(screen.getByRole("combobox", { name: /프로젝트/ }));
+    await user.click(await screen.findByRole("option", { name: "인프라" }));
+    await user.type(screen.getByLabelText(/예상 WD/), "1");
+    await fillDateField(user, /마감일/, "2026-09-30");
+    await user.click(screen.getByRole("button", { name: "티켓 추가" }));
+
+    const message = await screen.findByText("이 프로젝트에는 지금 티켓을 만들 수 없습니다.");
+    const footer = document.querySelector('[data-action-footer="card"]');
+    expect(footer).toBeTruthy();
+    // 상자는 발보다 앞(위)에 선다 — 발 안이나 페이지 머리로 가지 않는다.
+    expect(message.compareDocumentPosition(footer) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(footer.contains(message)).toBe(false);
+
+    await user.click(screen.getByRole("button", { name: "티켓 추가" }));
+    await waitFor(() => expect(screen.queryByText("이 프로젝트에는 지금 티켓을 만들 수 없습니다.")).toBeNull());
+    release();
   });
 });
