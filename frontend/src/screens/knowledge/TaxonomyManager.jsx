@@ -3,7 +3,7 @@ import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
-import { Button, Modal, ModalFooter, Segmented, FieldLabel } from "../../ui/kit.jsx";
+import { Button, Callout, Modal, ModalFooter, Segmented, FieldLabel } from "../../ui/kit.jsx";
 import { KO_WORD_BREAK } from "../../ui/theme.js";
 import { bodyToText, textToBody } from "./templateText.js";
 
@@ -284,6 +284,7 @@ export function TaxonomyManager({
   onAddTag, onRenameTag, onRemoveTag,
   editingTemplate, onOpenTemplate, onCancelTemplate,
   onCreateTemplate, onSaveTemplate, onRemoveTemplate,
+  error = null,
 }) {
   const [tab, setTab] = React.useState(0);
   React.useEffect(() => { if (!open) setTab(0); }, [open]);
@@ -339,6 +340,9 @@ export function TaxonomyManager({
           onRemove={onRemoveTemplate}
         />
       )}
+      {/* 추가 · 이름 고치기 · 지우기 · 틀 저장의 실패는 이 창 발 바로 위다 — 쓰던 값이 그대로 있고, 다시 시도하면
+          걷힌다(부르는 쪽이 `error` 를 준다, 핸드오프 계획 표 6). */}
+      {error ? <Callout tone="danger" compact sx={{ mt: 2.5 }}>{error}</Callout> : null}
     </Modal>
   );
 }

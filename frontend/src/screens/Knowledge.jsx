@@ -7,24 +7,26 @@ import { useAuth } from "../app/auth.jsx";
 import { MODERATOR_ROLES, hasRole } from "../lib/roles.js";
 import {
   Button,
+  Callout,
   DataTable,
   ErrorState,
   FormModal,
   ListCard,
   ListEmptyState,
-  MetricStrip,
   PageHeader,
+  Segmented,
   Skeleton,
   useConfirm,
   useToast,
 } from "../ui/kit.jsx";
 import { ResultLine } from "../ui/FilterBar.jsx";
+import { failureText } from "../lib/failure.js";
 import { ListFooter } from "../ui/InfiniteScroll.jsx";
 import { useResetScrollOnKeyChange } from "../lib/useInfiniteList.js";
 import { useListMemory } from "../lib/listReturn.js";
 import { SPACES_KEY, useKnowledgeSpaces } from "../lib/knowledgeSpaces.js";
 import {
-  LIST_KEY, PROJECT_NONE, VIEW, axisValueOf, navEntriesFrom,
+  LIST_KEY, PROJECT_NONE, VIEW, VIEW_OPTIONS, axisValueOf, navEntriesFrom,
 } from "./knowledge/constants.js";
 import {
   useCategories, useDocuments, useSummary, useTags, useTemplate, useTemplates,
@@ -35,7 +37,7 @@ import { buildDocumentColumns } from "./knowledge/documentColumns.jsx";
 import { TaxonomyManager } from "./knowledge/TaxonomyManager.jsx";
 import { NewDocumentModal } from "./knowledge/NewDocumentModal.jsx";
 
-/* 문서 작업공간 — 상단 탐색 줄 · 좌측 구조 내비 · 목록 (지시 22.4 개정).
+/* 문서 작업공간 — 보기 전환 · 탐색 줄 · 목록 (지시 22.4 개정 · 핸드오프 계획 D).
  *
  * ## 무엇을 바꿨나
  *
@@ -45,17 +47,19 @@ import { NewDocumentModal } from "./knowledge/NewDocumentModal.jsx";
  *
  * 지금은 다른 목록 화면과 같은 골격이다:
  *
- *   PageHeader → 요약 타일 → **전폭 탐색 줄**(검색 + 조건 전부) → 조건 칩 → 건수 줄
+ *   PageHeader → 보기 전환(세그먼티드 + 건수) → **전폭 탐색 줄**(검색 320 → 조건 → 정렬, 조건이 걸리면 조건 줄) → 목록
  *   → [구조 내비(프로젝트·폴더) | 목록]
  *
  * 좌측 내비에는 필터 줄이 대신할 수 없는 **구조** 둘만 남는다 — 공간과 폴더 트리.
  * 곁열은 없앴다: 최근 열람은 「보기」 축으로, 템플릿은 새 문서 모달로 들어갔고, 그만큼
  * 목록이 넓어져 제목 열이 산다(P-59).
  *
- * ## 요약 넷은 누르면 좁혀진다
+ * ## 보기 전환의 건수는 누르면 좁혀지는 그 목록의 수다
  *
  * 장식용 숫자를 안 둔다. 각 수는 아래 목록의 조건 하나와 **같은 판정**을 쓴다
- * (`app/knowledge/service.py::workspace_summary`). */
+ * (`app/knowledge/service.py::workspace_summary`). 예전에는 같은 축이 두 자리(요약 판독 줄 넷 + 필터 줄의
+ * 「보기」 고르개)에 따로 섰다 — 이제 세그먼티드 하나가 둘을 합친다(핸드오프 계획 D · O-1). 「최근 열람」은
+ * 사람마다 다른 발자국이라 건수가 없다. */
 
 /* 공간 목록 질의는 `lib/knowledgeSpaces.js` 가 갖는다 — AI 작업공간과 같은 질의라
  * 두 벌로 두면 한쪽만 응답 모양을 잘못 읽는다(S19 에서 실제로 그랬다). */
@@ -206,14 +210,12 @@ export function Knowledge() {
   const addTag = useMutation({
     mutationFn: (name) => api("/api/knowledge/tags", { method: "POST", body: { name } }),
     onSuccess: () => { invalidateTags(); toast("태그를 추가했습니다."); },
-    onError: (e) => toast(e.message, "error"),
   });
 
   const renameTag = useMutation({
     mutationFn: ({ id, name }) =>
       api(`/api/knowledge/tags/${id}`, { method: "PATCH", body: { name } }),
     onSuccess: () => { invalidateTags(); toast("태그 이름을 고쳤습니다."); },
-    onError: (e) => toast(e.message, "error"),
   });
 
   const removeTag = useMutation({
@@ -226,20 +228,17 @@ export function Knowledge() {
           : "태그를 지웠습니다.",
       );
     },
-    onError: (e) => toast(e.message, "error"),
   });
 
   const addCategory = useMutation({
     mutationFn: (name) => api("/api/knowledge/categories", { method: "POST", body: { name } }),
     onSuccess: () => { invalidateCategories(); toast("분류를 추가했습니다."); },
-    onError: (e) => toast(e.message, "error"),
   });
 
   const renameCategory = useMutation({
     mutationFn: ({ id, name }) =>
       api(`/api/knowledge/categories/${id}`, { method: "PATCH", body: { name } }),
     onSuccess: () => { invalidateCategories(); toast("분류 이름을 고쳤습니다."); },
-    onError: (e) => toast(e.message, "error"),
   });
 
   const removeCategory = useMutation({
@@ -254,13 +253,11 @@ export function Knowledge() {
       /* 지운 분류가 지금 조건이면 조건도 푼다 — 남겨 두면 영원히 0건인 화면이 된다. */
       if (category && category === deletedId) setQuery({ category: null });
     },
-    onError: (e) => toast(e.message, "error"),
   });
 
   const createTemplate = useMutation({
     mutationFn: (body) => api("/api/knowledge/templates", { method: "POST", body }),
     onSuccess: () => { invalidateTemplates(); setTemplateId(null); toast("틀을 만들었습니다."); },
-    onError: (e) => toast(e.message, "error"),
   });
 
   const saveTemplate = useMutation({
@@ -271,7 +268,6 @@ export function Knowledge() {
       setTemplateId(null);
       toast("틀을 고쳤습니다. 이 틀로 이미 만든 문서는 그대로입니다.");
     },
-    onError: (e) => toast(e.message, "error"),
   });
 
   const removeTemplate = useMutation({
@@ -281,7 +277,6 @@ export function Knowledge() {
       setTemplateId(null);
       toast("틀을 지웠습니다. 이 틀로 만든 문서는 그대로 남습니다.");
     },
-    onError: (e) => toast(e.message, "error"),
   });
 
   const createDocument = useMutation({
@@ -291,7 +286,6 @@ export function Knowledge() {
       setNewDoc(null);
       navigate(`/knowledge/${doc.id}`, { state: { from: LIST_KEY } });
     },
-    onError: (e) => toast(e.message, "error"),
   });
 
   const favorite = useMutation({
@@ -301,7 +295,6 @@ export function Knowledge() {
       invalidate();
       qc.invalidateQueries({ queryKey: ["knowledge", "recent"] });
     },
-    onError: (e) => toast(e.message, "error"),
   });
 
   const archive = useMutation({
@@ -310,13 +303,25 @@ export function Knowledge() {
       invalidate();
       toast("문서를 휴지통으로 보냈습니다. 휴지통에서 되살릴 수 있습니다.");
     },
-    onError: (e) => toast(e.message, "error"),
   });
 
   const openDoc = React.useCallback(
     (doc) => navigate(`/knowledge/${doc.id}`, { state: { from: LIST_KEY } }),
     [navigate],
   );
+
+  /* 실패는 토스트가 아니라 **그 자리**의 메시지 박스다(핸드오프 RULES §1 · 계획 표 6). 요청 상태에서 읽으므로
+     다음 시도에 걷히고, 성공하면 다시 서지 않는다(`lib/failure.js`). 문장은 서버가 준 그대로다.
+       · 분류 관리 창의 추가 · 이름 고치기 · 지우기 · 틀 → 그 창 안
+       · 새 문서 만들기 → 그 창의 발 바로 위
+       · 목록 줄의 별 · 휴지통으로 보내기 → 목록 바로 위
+     창은 열 때 지난 실패를 걷는다 — 닫았다 다시 연 창에 옛 오류가 남지 않는다. */
+  const taxonomyMutations = [
+    addTag, renameTag, removeTag, addCategory, renameCategory, removeCategory,
+    createTemplate, saveTemplate, removeTemplate,
+  ];
+  const taxonomyFailure = failureText(...taxonomyMutations.map((m) => [m, null]));
+  const listFailure = failureText([favorite, null], [archive, null]);
 
   const tagRows = tagsQuery.data?.items || [];
   const categoryRows = categoriesQuery.data?.items || [];
@@ -383,18 +388,19 @@ export function Knowledge() {
           <>
             {/* 휴지통은 공용 화면이고 문서 조건으로 열린다 (지시 22.7). */}
             <Button href="#/team-docs/trash?kind=document">휴지통</Button>
-            <Button onClick={() => setTaxonomyOpen(true)}>분류 관리</Button>
+            <Button onClick={() => { taxonomyMutations.forEach((m) => m.reset()); setTaxonomyOpen(true); }}>분류 관리</Button>
             <Button
               variant="primary"
-              onClick={() =>
+              onClick={() => {
+                createDocument.reset();
                 setNewDoc({
                   /* 지금 서 있는 프로젝트가 기본값이다. 「전체」면 비워 둔다 —
                      프로젝트는 **선택**이라 아무거나 골라 주면 안 된다. */
                   title: "",
                   project_id: project === PROJECT_NONE ? "" : project,
                   category_id: "", tags: [], template: "blank",
-                })
-              }
+                });
+              }}
             >
               새 문서
             </Button>
@@ -402,37 +408,25 @@ export function Knowledge() {
         )}
       />
 
-      {summaryRow ? (
-        <MetricStrip
-          ariaLabel="문서 요약"
-          sx={{ mb: 2 }}
-          items={[
-            {
-              key: "total", label: "전체 문서", value: summaryRow.total, primary: true,
-              active: view === VIEW.all,
-              onClick: () => setQuery({ view: null }),
-            },
-            /* 🔴 「최근 수정」이 아니라 「최근 24시간」이다. 예전 타일은 `sort=recent` 만
-               걸어 전체를 정렬만 했다 — 이름은 24시간을 말하는데 목록에는 작년 문서가
-               계속 있었다. 이제 서버가 창을 자른다. */
-            {
-              key: "recent", label: "최근 24시간", value: summaryRow.recent,
-              active: view === VIEW.updated24,
-              onClick: () => setQuery({ view: VIEW.updated24 }),
-            },
-            {
-              key: "favorites", label: "즐겨찾기", value: summaryRow.favorites,
-              active: view === VIEW.favorites,
-              onClick: () => setQuery({ view: VIEW.favorites }),
-            },
-            {
-              key: "drafts", label: "내 초안", value: summaryRow.drafts,
-              active: view === VIEW.drafts,
-              onClick: () => setQuery({ view: VIEW.drafts }),
-            },
-          ]}
-        />
-      ) : null}
+      {/* 보기 전환은 필터 바 위의 세그먼티드다(핸드오프 RULES §0 · 계획 D). 건수는 요약이 오면 붙는다 — 오기 전에는
+          낱말만 선다(0 을 지어내지 않는다).
+          🔴 「최근 24시간」이지 「최근 수정」이 아니다. 예전 타일은 `sort=recent` 만 걸어 전체를 정렬만 했다 —
+          이름은 24시간을 말하는데 목록에는 작년 문서가 계속 있었다. 이제 서버가 창을 자른다. */}
+      <Segmented
+        ariaLabel="문서 보기"
+        value={view}
+        onChange={(next) => setQuery({ view: next || null })}
+        sx={{ mb: 2 }}
+        options={[
+          { value: VIEW.all, label: "전체 문서", count: summaryRow ? summaryRow.total : undefined },
+          ...VIEW_OPTIONS.map((o) => ({
+            ...o,
+            count: summaryRow
+              ? { [VIEW.updated24]: summaryRow.recent, [VIEW.favorites]: summaryRow.favorites, [VIEW.drafts]: summaryRow.drafts }[o.value]
+              : undefined,
+          })),
+        ]}
+      />
 
       <KnowledgeFilterBar
         q={q}
@@ -448,11 +442,14 @@ export function Knowledge() {
         onCommitSearch={commitSearch}
         onQuery={setQuery}
         onClearAll={clearFilters}
-        hasFilter={hasFilter}
+        total={total}
+        conditions={activeConditions}
       />
 
-      {/* 「최근 열람」은 쪽을 안 나눈다 — 사람마다 다르고 길지 않다. */}
-      <ResultLine total={total} conditions={activeConditions} />
+      {/* 조건이 걸리면 결과 수는 필터 바 안 조건 줄이 말한다(ACCEPTANCE D3) — 여기서는 조건이 없을 때의 「전체 N건」만 선다.
+          「최근 열람」은 쪽을 안 나눈다 — 사람마다 다르고 길지 않다. */}
+      {hasFilter ? null : <ResultLine total={total} />}
+      {listFailure ? <Callout tone="danger" compact sx={{ mb: 1.5 }}>{listFailure}</Callout> : null}
 
       {/* 🔴 좌측 레일이 없다. 폴더 축이 화면에서 걷히면서(문서 개편 5번) 레일에 남는
           것은 프로젝트 목록뿐이었는데, 그것은 이미 위 조건 줄의 고르개가 그린다 —
@@ -481,6 +478,8 @@ export function Knowledge() {
                   rowKey={(d) => d.id}
                   onRow={openDoc}
                   loading={documents.isLoading}
+                  /* 제목 · 요약 · 태그가 서는 두 줄 행 — 바닥 76(핸드오프 ACCEPTANCE E1 · J2). */
+                  rowHeight="tall"
                   stickyHeader
                   total={documents.total}
                   /* 판정 기준이 `rows.length` 가 아니라 **전체 건수**다. 받은 행 수로 재면
@@ -520,6 +519,7 @@ export function Knowledge() {
         categories={categoryRows}
         tags={tagRows}
         templates={templateRows}
+        error={taxonomyFailure}
         /* 새 틀은 서버에 없으니 그대로 넘기고, 있는 틀은 **본문이 온 뒤에** 넘긴다 —
            본문 없이 편집 판을 열면 사람이 빈 칸을 보고 저장해 본문을 지운다. */
         editingTemplate={
@@ -575,6 +575,7 @@ export function Knowledge() {
         templates={templateRows}
         categories={categoryRows}
         busy={createDocument.isPending}
+        error={failureText([createDocument, null])}
         onClose={() => setNewDoc(null)}
         onSubmit={(values) => {
           /* 🔴 공간 id 를 **화면이 만들지 않는다.** 프로젝트를 고르면 그 프로젝트로,

@@ -223,8 +223,8 @@ B 단계가 전수 흡수를 끝낸 뒤 남는 자리만 적는다. 형식은 �
 - 세션 만료(401)는 `lib/sessionRedirect.js::expireSession` 하나 — 본문 자리가 `kit.jsx::SessionExpiredOutlet`
   (셸이 감싼다)에서 `ErrorState` 401 갈래로 바뀐 뒤 1.2초 뒤 로그인 화면으로 간다.
 - 예외(토스트 유지): 보호 화면(`Profile` · `WorkBoard` · `Sprint` · `SprintLifecycle`)의 실패 토스트 — 계획 표 5가
-  허용한 치환 목록 밖이다. 문서 목록(`Knowledge.jsx`)은 D, 채팅방(`ChatRoom` · `ChatRooms` ·
-  `ChatPane` · `chat/links.jsx`)은 E 가 옮긴다. 새 티켓은 C 에서 옮겼다(§0-14).
+  허용한 치환 목록 밖이다. 채팅방(`ChatRoom` · `ChatRooms` · `ChatPane` · `chat/links.jsx`)은 E 가 옮긴다.
+  새 티켓은 C(§0-14), 문서 목록은 D(§0-15) 에서 옮겼다.
 
 ## 0-8. 값을 표시하는 어휘 — 배지 · 태그 · 점+낱말 · 건수 칩 (핸드오프 RULES §2 · ACCEPTANCE F4~F7)
 
@@ -376,6 +376,26 @@ B 단계가 전수 흡수를 끝낸 뒤 남는 자리만 적는다. 형식은 �
   저장 실패 상자), `new-ticket-writing-aid-contrast`(4), `new-ticket-assignee-picker`(제목 라벨 규칙),
   `new-ticket-load-failure`(+1 받는 중), `theme-contract`(+2 날짜 칸 두 테마).
   실측 프로브: `kit_measure` `form_field_rows`(같은 줄 입력칸 윗변 · 라벨 줄 1.25rem · 줄 빈틈 · 화면 순서 = DOM 순서).
+
+## 0-15. 문서 목록 (핸드오프 README §B · ACCEPTANCE J2 · 계획 D)
+
+- **보기 전환은 세그먼티드 하나**(`Segmented` 34 / 3 / 28, `ariaLabel="문서 보기"`)다 — 요약 판독 줄 넷(누르면 좁힘)과 필터 줄의
+  「보기」 고르개가 같은 축을 두 자리에서 그리던 것을 합쳤다(O-1). 칸: 전체 문서 · 최근 24시간 · 즐겨찾기 · 내 초안(건수는
+  서버 `workspace_summary` 그대로) · 최근 열람(건수 없음). 필터 바 **위**에 선다(RULES §0). 보기도 조건이라 칩 · 조건 수 ·
+  「필터 지우기」 계약은 그대로다.
+- **필터 바는 한 줄**: 검색 320 → 프로젝트 · 분류 · 태그 · 작성자(칸 안 이름 34) → 빈 공간 → `ToolbarEnd` 정렬. 조건이
+  하나라도 걸리면 실선 뒤 **조건 줄**(`FilterConditionLine` — 「조건 N개, 결과 M건」 → 칩 → 「필터 지우기」)이 필터 바 안에
+  선다(ACCEPTANCE D3). 조건이 없을 때만 목록 위 「전체 N건」(`ResultLine`)이 선다. 줄 끝의 「필터 지우기」 글자 단추
+  (`FilterActions`)는 조건 줄의 지우기로 합쳤다. 1200 에서는 정렬 묶음이 통째로 둘째 줄 끝으로 내려간다.
+- **표 트랙** 별 48 · 제목 남는 폭(바닥 320) · 프로젝트 176 · 분류 148 · 작성자 130 · 최종 수정 132 · 첨부와 댓글 96 · 작업 64,
+  행 바닥 76(`DataTable rowHeight="tall"`). 제목 칸은 제목 · 요약(두 줄 clamp) · 태그(`Tag` 넷 + 「+N」, 남은 태그 이름은
+  「+N」의 `title`). 분류는 **점 + 낱말**(`DotLabel` 중립 — P-22), 작성자 얼굴 22(`UserAvatar xs`), 행 동작 30(`OverflowMenu sm`).
+  좁을 때 접히는 열 순서(첨부와 댓글 → 최종 수정 → 작성자 → 분류)와 안내 한 줄은 그대로다.
+- **실패는 그 자리**(표 6): 분류 관리 창의 추가 · 이름 고치기 · 지우기 · 틀 저장 실패는 그 창 발 위 `Callout`(창을 열 때
+  지난 실패를 걷는다), 새 문서 만들기 실패는 그 창 발 위(프로젝트 상세와 같은 `error` 칸), 목록 줄의 별 · 휴지통으로 보내기
+  실패는 목록 바로 위. 성공 토스트는 그대로다.
+- 시험: `knowledge-list`(보기 탭 · 필터 줄 순서 · 조건 줄 · 두 줄 행 · 태그 넷 + N · 실패 상자 둘),
+  브라우저 게이트 `handoff-d1`(치명 4종 0 · 느린 응답 로딩 표시 · 긴 데이터 넘침 0 · `filter_e2e` 32 조합 통과).
 
 ---
 

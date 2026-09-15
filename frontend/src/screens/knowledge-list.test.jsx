@@ -3,6 +3,8 @@
  *
  * qa-contract-change: 화면이 카드 목록에서 탐색기와 표로 재설계돼(지시 22.4) 조작기 이름과 자리가 전부 바뀌었다. 지키는 성질은 그대로 옮기고 요약·정렬·작성자 축을 더했다.
  *
+ * qa-contract-change: 요약 판독 줄 넷(role=group 「문서 요약」)과 필터 줄의 「보기」 고르개가 세그먼티드 하나(role=tablist 「문서 보기」, 칸마다 건수)로 합쳐져(핸드오프 계획 D · O-1), 요약 수 · 누르면 좁히는 계약을 탭으로 옮기고 필터 줄 순서 · 조건 줄 · 표 행 · 실패 상자 단언을 더한다.
+ *
  * 옛 문서 목록(`TeamDocs.jsx`)의 목록·생성 계약을 이 파일이 이어받는다 (S14 · C2).
  * 살아 있는 것: 조건이 **서버 질의에 실려 나가는가**(화면에서만 거르면 다음 쪽에서
  * 조건이 사라진다) · 조건을 바꾸면 첫 쪽으로 돌아오는가 · 목록 줄이 종류와 태그를
@@ -210,8 +212,8 @@ describe("문서 목록의 묶음 이어 받기", () => {
     renderList();
     await seeRows();
 
-    const strip = await screen.findByRole("group", { name: "문서 요약" });
-    await userEvent.click(within(strip).getByText("즐겨찾기"));
+    const views = await screen.findByRole("tablist", { name: "문서 보기" });
+    await userEvent.click(within(views).getByRole("tab", { name: /^즐겨찾기/ }));
     await waitFor(() =>
       expect(documentCalls().some((p) => p.includes("favorites=true"))).toBe(true));
   });
@@ -225,8 +227,8 @@ describe("문서 목록의 묶음 이어 받기", () => {
       expect(document.querySelector("table[data-virtual-total]").getAttribute("data-virtual-total")).toBe("110");
     });
 
-    const strip = await screen.findByRole("group", { name: "문서 요약" });
-    await userEvent.click(within(strip).getByText("즐겨찾기"));
+    const views = await screen.findByRole("tablist", { name: "문서 보기" });
+    await userEvent.click(within(views).getByRole("tab", { name: /^즐겨찾기/ }));
     await waitFor(() =>
       expect(documentCalls().some((p) => p.includes("favorites=true"))).toBe(true));
     expect(lastDocumentCall()).toContain("offset=0");
@@ -318,27 +320,164 @@ describe("문서 목록의 묶음 이어 받기", () => {
   });
 });
 
-describe("요약 넷", () => {
-  it("서버가 센 수를 그대로 말한다", async () => {
+describe("보기 전환 — 세그먼티드 하나가 요약 넷과 「보기」 고르개를 합친다", () => {
+  it("서버가 센 수를 탭마다 그대로 말한다 — 「최근 열람」은 건수가 없다", async () => {
     renderList();
     await seeRows();
-    const strip = await screen.findByRole("group", { name: "문서 요약" });
-    expect(within(strip).getByText("110")).toBeTruthy();
-    expect(within(strip).getByText("전체 문서")).toBeTruthy();
-    expect(within(strip).getByText("내 초안")).toBeTruthy();
+    const views = await screen.findByRole("tablist", { name: "문서 보기" });
+    await waitFor(() => expect(within(views).getByRole("tab", { name: "전체 문서 110" })).toBeTruthy());
+    const tabs = within(views).getAllByRole("tab").map((t) => t.textContent.replace(/\s+/g, " ").trim());
+    expect(tabs).toEqual(["전체 문서 110", "최근 24시간 4", "즐겨찾기 3", "내 초안 2", "최근 열람"]);
+    // 지금 보기는 「전체 문서」다.
+    expect(within(views).getByRole("tab", { name: "전체 문서 110" })).toHaveAttribute("aria-selected", "true");
+    // 같은 축을 두 자리에서 그리지 않는다 — 필터 줄의 「보기」 고르개와 요약 줄은 없다.
+    expect(screen.queryByRole("group", { name: "문서 요약" })).toBeNull();
+    expect(screen.queryByLabelText("보기")).toBeNull();
   });
 
   it("🔴 누르면 목록이 그 조건으로 좁아진다 — 장식용 숫자를 두지 않는다", async () => {
     renderList();
     await seeRows();
-    const strip = await screen.findByRole("group", { name: "문서 요약" });
+    const views = await screen.findByRole("tablist", { name: "문서 보기" });
 
-    await userEvent.click(within(strip).getByText("내 초안"));
+    await userEvent.click(within(views).getByRole("tab", { name: /^내 초안/ }));
     await waitFor(() => {
       const last = lastDocumentCall();
       expect(last).toContain("mine=true");
       expect(last).toContain("drafts=true");
     });
+    expect(within(views).getByRole("tab", { name: /^내 초안/ })).toHaveAttribute("aria-selected", "true");
+    // 보기도 조건이다 — 조건 줄이 서고 칩으로 풀 수 있다(예전 「보기」 고르개와 같은 계약).
+    const line = document.querySelector("[data-condition-line]");
+    expect(line).toBeTruthy();
+    expect(line.textContent).toContain("조건 1개, 결과");
+    await userEvent.click(within(line).getByRole("button", { name: "필터 지우기" }));
+    await waitFor(() => expect(lastDocumentCall()).not.toContain("drafts=true"));
+  });
+
+  it("「최근 열람」은 탭으로 고르고 쪽을 나누지 않는다", async () => {
+    renderList();
+    await seeRows();
+    const views = await screen.findByRole("tablist", { name: "문서 보기" });
+    await userEvent.click(within(views).getByRole("tab", { name: "최근 열람" }));
+    await waitFor(() => expect(calls.some((p) => p.startsWith("/api/knowledge/recent"))).toBe(true));
+    expect(screen.queryByRole("button", { name: "문서 더 보기" })).toBeNull();
+  });
+});
+
+describe("필터 바 — 한 줄 순서와 조건 줄 (핸드오프 README §3 · ACCEPTANCE D1 · D3)", () => {
+  it("검색 → 프로젝트 · 분류 · 태그 · 작성자 → 오른쪽 끝 정렬 순서로 한 줄에 선다", async () => {
+    renderList();
+    await seeRows();
+    const row = document.querySelector("[data-filter-surface] [data-search-slot]");
+    expect(row).toBeTruthy();
+    const search = screen.getByRole("searchbox", { name: "문서 검색" });
+    const order = [
+      search,
+      screen.getByLabelText("프로젝트"),
+      screen.getByLabelText("분류"),
+      screen.getByLabelText("태그"),
+      screen.getByLabelText("작성자"),
+      screen.getByLabelText("정렬"),
+    ];
+    for (const el of order) expect(row.contains(el), "필터 칸이 한 줄 밖에 섰다").toBe(true);
+    for (let i = 1; i < order.length; i += 1) {
+      expect(order[i - 1].compareDocumentPosition(order[i]) & Node.DOCUMENT_POSITION_FOLLOWING, `${i} 번째 순서`).toBeTruthy();
+    }
+    // 조건이 없으면 조건 줄이 없고, 결과 수는 목록 위 한 줄이 말한다.
+    expect(document.querySelector("[data-condition-line]")).toBeNull();
+    expect(screen.getByText(/전체 110건/)).toBeTruthy();
+  });
+});
+
+describe("문서 표 — 두 줄 행 · 태그 넷 + N · 분류 점 + 낱말 (ACCEPTANCE J2)", () => {
+  it("행은 바닥 76 의 두 줄 행이고, 분류는 점 + 낱말이며, 작업은 작은 단추다", async () => {
+    renderList();
+    await seeRows();
+    const first = screen.getAllByText("문서 0")[0].closest("tr");
+    expect(first).toBeTruthy();
+    const dot = first.querySelector("[data-dot-label]");
+    expect(dot, "분류가 점 + 낱말이 아니다").toBeTruthy();
+    expect(dot).toHaveTextContent("회의록");
+    const more = within(first).getByRole("button", { name: "문서 0 작업" });
+    expect(more.className).toMatch(/MuiIconButton-sizeSmall/);
+    const cell = first.querySelector("td");
+    expect(getComputedStyle(cell).height).toBe("4.75rem");
+  });
+
+  it("태그가 넷을 넘으면 넷만 서고 남은 수를 「+N」 하나가 말한다", async () => {
+    apiMock.mockImplementation((path) => {
+      calls.push(String(path));
+      const base = baseRoutes(path);
+      if (base) return Promise.resolve(base);
+      const page = docsPage(0, 3, 3);
+      page.items[0].tags = ["A", "B", "C", "D", "E", "F"].map((n, i) => ({ id: `t-${i}`, name: n }));
+      return Promise.resolve(page);
+    });
+    renderList();
+    await seeRows();
+    const first = screen.getAllByText("문서 0")[0].closest("tr");
+    const tags = [...first.querySelectorAll(".k-tag")].map((t) => t.textContent);
+    expect(tags).toEqual(["A", "B", "C", "D", "+2"]);
+    expect(first.querySelector(".k-tag:last-child")).toHaveAttribute("title", "E, F");
+  });
+});
+
+describe("실패는 그 자리의 메시지 박스다 (핸드오프 RULES §1 · 계획 표 6)", () => {
+  it("별을 눌러 실패하면 목록 위 상자가 말하고, 다시 눌러 성공하면 걷힌다", async () => {
+    let fail = true;
+    apiMock.mockImplementation((path, opts) => {
+      calls.push(String(path));
+      if (String(path).includes("/favorite")) {
+        if (fail) return Promise.reject(new Error("즐겨찾기를 바꾸지 못했습니다."));
+        return Promise.resolve({ ok: true });
+      }
+      const base = baseRoutes(path);
+      if (base) return Promise.resolve(base);
+      const url = new URL(String(path), "https://x");
+      const offset = Number(url.searchParams.get("offset") || 0);
+      return Promise.resolve(docsPage(offset, Math.min(PAGE, 110 - offset), 110));
+    });
+    renderList();
+    await seeRows();
+    await userEvent.click(screen.getByRole("button", { name: "문서 0 즐겨찾기 해제" }));
+    const box = await screen.findByText("즐겨찾기를 바꾸지 못했습니다.");
+    // 상자는 목록 판보다 앞에 선다 — 토스트처럼 사라지지 않고, 페이지 머리로 가지 않는다.
+    const table = document.querySelector("table");
+    expect(box.compareDocumentPosition(table) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    fail = false;
+    await userEvent.click(screen.getByRole("button", { name: "문서 0 즐겨찾기 해제" }));
+    await waitFor(() => expect(screen.queryByText("즐겨찾기를 바꾸지 못했습니다.")).toBeNull());
+  });
+
+  it("분류 관리에서 추가가 실패하면 그 창 안 상자가 말하고, 창을 닫았다 열면 걷힌다", async () => {
+    authState.role = "system_admin";
+    apiMock.mockImplementation((path, opts) => {
+      calls.push(String(path));
+      if (String(path) === "/api/knowledge/categories" && opts && opts.method === "POST") {
+        return Promise.reject(new Error("같은 이름의 분류가 이미 있습니다."));
+      }
+      const base = baseRoutes(path);
+      if (base) return Promise.resolve(base);
+      const url = new URL(String(path), "https://x");
+      const offset = Number(url.searchParams.get("offset") || 0);
+      return Promise.resolve(docsPage(offset, Math.min(PAGE, 110 - offset), 110));
+    });
+    renderList();
+    await seeRows();
+    await userEvent.click(screen.getByRole("button", { name: "분류 관리" }));
+    let dialog = await screen.findByRole("dialog");
+    await userEvent.type(within(dialog).getByLabelText("새 분류"), "회의 기록");
+    await userEvent.click(within(dialog).getByRole("button", { name: "추가" }));
+    expect(await within(dialog).findByText("같은 이름의 분류가 이미 있습니다.")).toBeTruthy();
+
+    // 발의 「닫기」로 닫는다(머리의 닫기 아이콘과 같은 이름이라 마지막 것을 누른다).
+    const closes = within(dialog).getAllByRole("button", { name: "닫기" });
+    await userEvent.click(closes[closes.length - 1]);
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    await userEvent.click(screen.getByRole("button", { name: "분류 관리" }));
+    dialog = await screen.findByRole("dialog");
+    expect(within(dialog).queryByText("같은 이름의 분류가 이미 있습니다.")).toBeNull();
   });
 });
 
