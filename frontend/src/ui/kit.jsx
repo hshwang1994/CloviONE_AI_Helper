@@ -878,12 +878,24 @@ export function SurfaceReset({ children }) {
 export function Card({ className, children, sx, ...rest }) {
   const nested = useSurfaceDepth() > 0;
   const base = nested ? null : { p: CARD_PADDING };
+  /* 판 발(`ActionFooter placement="card"`)이 판의 마지막 줄이면 발은 **판 바닥**에 선다 (UI 3차 P4).
+     짝 격자(stretch)에서 판이 내용보다 길어지면 발이 판 가운데에 뜨고 아래가 비었다 — 점검의 두 판은 발이 109px 어긋났다.
+     판을 세로 흐름으로 두고 본문을 한 상자로 묶어 남는 높이를 먹게 한다. 본문 상자 안은 예전과 같은 보통 흐름이다. */
+  const items = React.Children.toArray(children);
+  const last = items[items.length - 1];
+  const footed = !nested && React.isValidElement(last) && last.type === ActionFooter && last.props.placement === "card";
+  const layout = footed ? { display: "flex", flexDirection: "column" } : null;
   const merged = typeof sx === "function"
-    ? (theme) => ({ ...base, ...sx(theme) })
-    : { ...base, ...sx };
+    ? (theme) => ({ ...base, ...layout, ...sx(theme) })
+    : { ...base, ...layout, ...sx };
   return (
     <Surface tone="plate" className={className} sx={merged} {...rest}>
-      {children}
+      {footed ? (
+        <>
+          <Box data-card-body="" sx={{ flex: "1 1 auto", minWidth: 0 }}>{items.slice(0, -1)}</Box>
+          {last}
+        </>
+      ) : children}
     </Surface>
   );
 }
@@ -2363,6 +2375,13 @@ export function SelectionBar({ count, unit = "개", clearLabel = "해제", onCle
   );
 }
 
+/* 따라오는 발이 키보드 초점을 가리지 않게(WCAG 2.4.11) — 발이 서 있는 동안만 문서 스크롤 여백 아래를 발 높이 + 8 로 둔다.
+   Tab 으로 아래 요소에 닿으면 브라우저는 그 요소를 화면 아래 끝에 붙여 보여 주는데, 거기에 발이 앉아 있다. 발이 걷히면
+   규칙도 걷힌다. 목록 판 발(`ListFootBar`)과 폼 판 발(`ActionFooter sticky`)이 같이 쓴다. */
+function StickyBottomPadding({ height }) {
+  return <GlobalStyles styles={(theme) => ({ html: { scrollPaddingBottom: `calc(${height} + ${theme.spacing(1)})` } })} />;
+}
+
 /* 목록 판 안쪽 모서리 — 판 테두리(1px) 안에서 머리 · 발 칸이 둥근 모서리를 든다. 판이 `overflow: visible` 이라
    (sticky 머리 · 발이 서려면 그래야 한다) 판이 모서리를 잘라 주지 않는다. */
 const LIST_INNER_RADIUS = `${RADIUS.md - 1}px`;
@@ -2383,9 +2402,7 @@ function ListFootBar({ sentence, notes, selection, hasNext, isFetchingNext, onMo
     {/* 🔴 따라오는 발은 키보드 초점을 가리면 안 된다(WCAG 2.4.11). Tab 으로 아래 행에 닿으면 브라우저는 그 행을 화면 아래
         끝에 붙여 보여 주는데, 거기에 발이 앉아 있다. 발이 서 있는 동안만 문서의 스크롤 여백 아래를 발 높이 + 8 만큼 비워
         초점이 발 위에 서게 한다. 발이 걷히면 규칙도 걷힌다. */}
-    {sticky ? (
-      <GlobalStyles styles={(theme) => ({ html: { scrollPaddingBottom: `calc(${remPx(CONTROL.tableFooter)} + ${theme.spacing(1)})` } })} />
-    ) : null}
+    {sticky ? <StickyBottomPadding height={remPx(CONTROL.tableFooter)} /> : null}
     <Box
       data-list-footer=""
       data-list-footer-sticky={sticky ? "" : undefined}
@@ -3228,12 +3245,16 @@ const MODAL_RADIUS = `${RADIUS.md}px`;
  *
  * `placement`
  *   modal   모달 발 — 좌우 24 · 위아래 16.
- *   card    판 안 마지막 줄 — 판 여백(20)을 거슬러 판 가장자리까지 면을 편다.
+ *   card    판 안 마지막 줄 — 판 여백(20)을 거슬러 판 가장자리까지 면을 편다. 아래 모서리는 판 안쪽 반경을 든다(판이
+ *           넘침을 자르지 않을 때도 모서리가 판을 따른다).
  *   inline  그 밖(서랍 · 판 없는 폼).
+ *
+ * `sticky` — 화면보다 긴 폼에서 확정 단추가 화면 아래에 따라온다(새 티켓 · 조합 계약 C-5). 판이 넘침을 자르면(MUI Card
+ * 뿌리의 `overflow: hidden`) sticky 가 서지 않으므로 부르는 판은 `overflow: visible` 이어야 한다.
  */
 const ActionFooterCtx = React.createContext(false);
 
-export function ActionFooter({ children, extra, placement = "inline", sx }) {
+export function ActionFooter({ children, extra, placement = "inline", sticky = false, sx }) {
   const nested = React.useContext(ActionFooterCtx);
   const row = {
     display: "flex", alignItems: "center", justifyContent: "flex-end",
@@ -3259,9 +3280,19 @@ export function ActionFooter({ children, extra, placement = "inline", sx }) {
       ? { mx: `calc(-1 * ${CARD_PADDING})`, mb: `calc(-1 * ${CARD_PADDING})`, mt: 2, px: CARD_PADDING, py: 1.5 }
       : { px: 2, py: 1.5 };
   const Comp = placement === "modal" ? MuiDialogActions : Box;
+  const corner = placement === "card"
+    ? { borderBottomLeftRadius: LIST_INNER_RADIUS, borderBottomRightRadius: LIST_INNER_RADIUS }
+    : null;
+  const stick = sticky ? { position: "sticky", bottom: 0, zIndex: 2 } : null;
   return (
     <ActionFooterCtx.Provider value>
-      <Comp data-action-footer={placement} sx={{ ...row, ...face, ...pad, ...sx }}>
+      {/* 발 높이 = 페이지 동작 단추 34 + 위아래 여백 12 × 2. */}
+      {sticky ? <StickyBottomPadding height={`calc(${remPx(CONTROL.button)} + 1.5rem)`} /> : null}
+      <Comp
+        data-action-footer={placement}
+        data-action-footer-sticky={sticky ? "" : undefined}
+        sx={{ ...row, ...face, ...pad, ...corner, ...stick, ...sx }}
+      >
         {body}
       </Comp>
     </ActionFooterCtx.Provider>

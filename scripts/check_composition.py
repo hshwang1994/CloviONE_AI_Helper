@@ -60,13 +60,8 @@ WRAPPER_TAGS = {"Card", "ListCard"}
 ROW_BUTTON_TAGS = {"Button", "IconButton"}
 
 # 이 검사를 세운 시점(UI 3차 P0)의 위반. 묶음마다 줄이고 끝에는 비어야 한다.
-PENDING: set[tuple[str, str]] = {
-    # fab-clearance — P4(새 티켓 · FAB 여백)에서 걷는다
-    ("screens/MyTickets.jsx", "fab-clearance"),
-    ("screens/Search.jsx", "fab-clearance"),
-    ("screens/game-room/RoomSidebar.jsx", "fab-clearance"),
-    ("ui/theme.js", "fab-clearance"),
-}
+PENDING: set[tuple[str, str]] = set()
+# P4 에서 마지막 대기 넷(fab-clearance — 새 티켓 · 통합 검색 · 놀이방 사이드바 · 토큰)을 걷었다. 여기는 빈 채로 둔다.
 
 # 조합 규칙마다 보는 파일. 부품을 **구현하는** 곳(`ui/`)은 재료를 쓰는 자리라 화면 규칙을 받지 않는다.
 SCREEN_ROOTS = ("screens/", "app/")

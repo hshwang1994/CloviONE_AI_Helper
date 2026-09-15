@@ -105,6 +105,12 @@ describe("줄 칸 해부 — 종류가 달라도 접두 이름과 값의 자리�
     );
     expect(container.querySelectorAll(".MuiChip-root")).toHaveLength(2);
     expect(container.querySelector("[data-row-value]")).toBeNull();
+    // 칩이 서면 자리표시자(예시 글)를 칩 옆에 겹쳐 세우지 않는다 — 비었을 때만 선다.
+    expect(container.querySelector("input").getAttribute("placeholder")).toBeNull();
+    const empty = outsideRow(
+      <EntityCombobox multiple label="담당자" value={[]} onChange={() => {}} options={OPTIONS} placeholder="예: 김하나" />,
+    );
+    expect(empty.container.querySelector("input").getAttribute("placeholder")).toBe("예: 김하나");
   });
 
   it("태그 고르개도 줄 칸에서는 칩 대신 요약이고, 빈 칸의 「검색 또는 입력」은 안내 표식을 단다", async () => {

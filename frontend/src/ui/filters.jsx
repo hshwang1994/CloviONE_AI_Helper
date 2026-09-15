@@ -649,7 +649,9 @@ export function EntityCombobox({
               ...(ariaLabelledBy ? { "aria-labelledby": ariaLabelledBy } : null),
               ...(ariaDescribedBy ? { "aria-describedby": ariaDescribedBy } : null),
             }}
-            placeholder={current.length && row ? undefined : (placeholder || (row ? rowAllText(label, allLabel) : (allLabel || `${label} 전체`)))}
+            /* 고른 값이 있으면 자리표시자를 겹쳐 세우지 않는다 — 줄 칸(요약)도 폼 칸(칩)도 같다. 폼 칸에서는 「UI QA ⊗ 예: 김하나」처럼
+               예시 글이 고른 사람 칩 옆에 값처럼 섰다(새 티켓 담당자, UI 3차 P4 눈 대조). */
+            placeholder={current.length ? undefined : (placeholder || (row ? rowAllText(label, allLabel) : (allLabel || `${label} 전체`)))}
             sx={row ? undefined : LABEL_ABOVE_SX}
           />
         )}

@@ -1285,4 +1285,3 @@ export const COPY_LIMIT = {
   emptyHelp,
   errorHelp: copyLimitFromCh(ERROR_STATE_MAX_CH),
 };
-export const FAB_CLEARANCE = "5rem";

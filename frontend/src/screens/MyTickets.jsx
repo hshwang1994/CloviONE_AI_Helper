@@ -26,8 +26,8 @@ const BlockEditor = React.lazy(() =>
 );
 import { useRowSelection, selectionColumn } from "../ui/bulkSelect.jsx";
 import { pathText } from "../ui/OrgPath.jsx";
-import { FAB_CLEARANCE, FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, LINE_HEIGHT } from "../ui/theme.js";
-import { BASELINE_TRACKS, CARD_PADDING, FORM_FIELD_CONTAINER, FORM_FIELD_GRID_12, GRID_GAP, fieldSpan } from "../ui/density.js";
+import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, LINE_HEIGHT } from "../ui/theme.js";
+import { BASELINE_TRACKS, CONTENT_PAIR_CONTAINER, FORM_FIELD_CONTAINER, FORM_FIELD_GRID_12, PAGE_FILL_HEIGHT, contentPairTracks, fieldSpan } from "../ui/density.js";
 import { EMPTYABLE_SELECT, EntityCombobox } from "../ui/filters.jsx";
 import { UserPicker } from "../ui/UserPicker.jsx";
 import { useQueryState } from "../lib/useQueryState.js";
@@ -1158,7 +1158,9 @@ function WritingAid({ doc, onInsert }) {
     </Box>
   );
   return (
-    <Card sx={{ display: "grid", gap: 1.75, alignContent: "start" }}>
+    /* 두 판은 화면 아래까지 선다(조합 계약 C-5). 2열에서는 격자의 `stretch` 가 레일을 폼 판 높이에 맞춰 준다.
+       레일에는 바닥 높이를 따로 걸지 않는다 — 1열(레일이 폼 아래)에서 바닥을 걸면 내용보다 긴 빈 판이 선다(1200 실측). */
+    <Card data-page-fill="grow" sx={{ display: "grid", gap: 1.75, alignContent: "start" }}>
       {/* 판 제목과 도움말 한 쌍(`SectionTitle help`) — 문장은 그대로다. */}
       <SectionTitle
         component="h2"
@@ -1184,20 +1186,19 @@ function WritingAid({ doc, onInsert }) {
 }
 
 
-/* '새 티켓' 바깥 2열(폼 + 작성 도움 레일).
- *
- * `stretch` 다. `start` 로 두면 레일이 자기 내용만큼만 높아져 폼 카드와 바닥이 어긋난다 —
- * 사용자가 지적한 Q5("카드 크기가 제각각")가 정확히 그것이고, 여기서 한 번 다시 만들었다가
- * 높이 편차 검사에 잡혔다(474px). */
-/* 트랙은 기준선 `.grid.two` 다. 예전 값 `minmax(0, 1fr) 22rem` 은 폭 자체는 채웠지만
- * 레일이 어느 화면에서나 352px 로 고정이라, 넓은 화면에서 폼만 계속 늘어나고 레일은
- * 얇은 띠로 남았다. 기준선은 둘 다 비율(1.45 : 0.8)로 두고 레일에 280px 하한만 준다. */
 /* 칸마다 도움말 · 오류 줄의 id — 입력이 `aria-describedby` 로 가리키고, 검증에 걸린 칸을 찾을 때도 쓴다. */
 const FIELD_HELP_IDS = { title: "nt-title-help", project_id: "nt-proj-help", est_wd: "nt-wd-help", due: "nt-due-help" };
 
-export const NEW_TICKET_GRID = {
-  display: "grid", gap: GRID_GAP, alignItems: "stretch",
-  gridTemplateColumns: { xs: "1fr", lg: BASELINE_TRACKS.two },
+/* '새 티켓' 바깥 2열(폼 + 작성 도움 레일) — 정본 내용 폭 짝 트랙이다(`density.js::contentPairTracks`, 조합 계약 C-5).
+ *
+ * 예전에는 이 화면이 뷰포트 `lg` 문턱의 사본(`NEW_TICKET_GRID`)을 들고 있었다. 1200 뷰포트에서 본문 칸은 59.5rem 인데
+ * 2열로 서서 폼이 1칸 8줄로 좁고 레일 아래가 비었다. 이제 본문 칸 64rem 이상일 때만 2열이고, 아니면 레일이 폼 아래로 간다.
+ *
+ * `stretch` 다. `start` 로 두면 레일이 자기 내용만큼만 높아져 폼 카드와 바닥이 어긋난다 — 사용자가 지적한 Q5
+ * ("카드 크기가 제각각")가 정확히 그것이다. 두 판은 화면 아래까지 서고(`PAGE_FILL_HEIGHT` 바닥), 폼이 더 길면 판이 자라며
+ * 판 발이 화면 아래에 따라온다. */
+const NEW_TICKET_PLATE = {
+  minHeight: { md: PAGE_FILL_HEIGHT },
 };
 
 /* 이 티켓이 **어디로 공유되는가** (0060 §13).
@@ -1395,14 +1396,17 @@ export function NewTicket() {
            갈라 쓴다) — 여기서 문구를 덧씌우지 않는다. */
         <ErrorState layout="region" error={projectsQ.error || metaQ.error} onRetry={retryLoad} />
       ) : (
-        /* 폼 + 작성 도움 레일 2열(기준 목업과 같은 구조). 좁아지면 레일이 폼 아래로 내려간다 —
+        /* 폼 + 작성 도움 레일 2열(기준 목업과 같은 구조). 본문 칸이 좁으면 레일이 폼 아래로 내려간다 —
            레일을 옆에 억지로 붙여 두면 폼이 짜부라져 정작 쓸 수가 없다. */
-        <Box sx={NEW_TICKET_GRID}>
-        <Card>
+        <Box sx={CONTENT_PAIR_CONTAINER}>
+        <Box sx={contentPairTracks(BASELINE_TRACKS.two)}>
+        {/* 폼 판은 세로 흐름이다 — 편집기 상자가 남는 높이를 채우고(`fill`), 발은 판 아래 끝이다. 발이 긴 폼에서 화면 아래에
+            따라오도록(`ActionFooter sticky`) 판은 넘침을 자르지 않는다(MUI Card 뿌리의 `overflow: hidden` 을 푼다). */}
+        <Card data-page-fill="grow" sx={{ ...NEW_TICKET_PLATE, display: "flex", flexDirection: "column", overflow: "visible" }}>
           {firstLoad ? <Skeleton kind="section" lines={8} /> : (
           /* 폼은 판 전체다 — 발(`ActionFooter card`)이 판 가장자리까지 면을 펴야 하므로 읽기 폭 상한(72rem)은 안쪽 칸들에만 건다. */
-          <Box component="form" onSubmit={(e) => { e.preventDefault(); submit(); }}>
-          <Box sx={{ maxWidth: "72rem" }}>
+          <Box component="form" onSubmit={(e) => { e.preventDefault(); submit(); }} sx={{ display: "flex", flexDirection: "column", flex: "1 1 auto" }}>
+          <Box sx={{ maxWidth: "72rem", display: "flex", flexDirection: "column", flex: "1 1 auto" }}>
             {/* 폼 안 안내는 메시지 박스다(핸드오프 RULES §7) — 문장과 링크는 그대로다. */}
             <Callout sx={{ mb: 2.5 }}>
               간단한 티켓은 여기서 바로 만듭니다. 긴 배경은 <Link href="#/chat" underline="hover">AI 도우미</Link>가 더 정확합니다.
@@ -1552,20 +1556,22 @@ export function NewTicket() {
             <TicketShareScope project={selectedProject} me={me} />
             {/* 폭: 설명 블록은 컨테이너 실측 폭을 따른다(editorContainerSx/editorSurfaceWidthSx, BodyEditor.jsx) —
                 폼의 72rem 상한 안에서 부모 폭을 그대로 따라가고, 아주 넓어졌을 때만(80rem) 한 번 더 멈춘다. */}
-            <Box sx={{ mb: 2.5, ...editorContainerSx("nt-desc-surface") }}>
+            <Box sx={{ mb: 2.5, display: "flex", flexDirection: "column", flex: "1 1 auto", ...editorContainerSx("nt-desc-surface") }}>
               {/* 폭 규칙을 시험이 짚는 자리 — 표시가 아니라 **이름**으로 짚게 한다. */}
-              <Box data-nt-desc="surface" sx={editorSurfaceWidthSx("nt-desc-surface")}>
+              <Box data-nt-desc="surface" sx={{ ...editorSurfaceWidthSx("nt-desc-surface"), display: "flex", flexDirection: "column", flex: "1 1 auto" }}>
                 {/* 칸 이름은 칸 위 라벨이다(`FieldLabel`). `contenteditable` 은 `<label htmlFor>` 의 대상이 될 수 없어
                     편집기가 자기 이름을 든다(`ariaLabel="설명"`) — 화면에 보이는 이 말과 같은 말이다. */}
                 <FieldLabel>설명</FieldLabel>
                 {/* 🔴 **문서와 같은 편집기다.** 예전에는 이 자리만 글자 칩 열한 개짜리 마크다운 편집기였고, 그래서
-                    굵게 · 기울임 · 표 · 이미지를 쓸 수 없었다. 이제 티켓 본문도 문서와 같은 정본을 쓴다. */}
+                    굵게 · 기울임 · 표 · 이미지를 쓸 수 없었다. 이제 티켓 본문도 문서와 같은 정본을 쓴다.
+                    편집기 상자가 폼 판의 남는 높이를 채운다(`fill`) — 짧은 폼에서 판 아래가 비지 않는다. */}
                 <React.Suspense fallback={<Skeleton kind="section" lines={6} />}>
                   <BlockEditor
                     value={form.description_doc}
                     onChange={(v) => set("description_doc", v)}
                     label="설명"
                     ariaLabel="설명"
+                    fill
                   />
                 </React.Suspense>
                 <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>
@@ -1576,10 +1582,10 @@ export function NewTicket() {
             {saveFailure ? <Callout tone="danger" compact>{saveFailure}</Callout> : null}
           </Box>
           {/* 저장은 판 발이다(`ActionFooter card` — 함몰면 + 위 실선, 오른쪽 확정). 취소는 이 화면에 없다(계획 P-24).
-              우하단 마스코트 FAB 이 뜨는 폭에서는 오른쪽을 비운다 — 이 폼은 본문 편집기까지 있어 화면보다 길고,
-              스크롤 중간에서 단추가 FAB 밑으로 들어가 눌리지 않던 함정을 이 저장소가 이미 밟았다(놀이방 '보내기',
-              AI 채팅 '전송'). */}
-          <ActionFooter placement="card" sx={{ pr: { md: `calc(${CARD_PADDING} + ${FAB_CLEARANCE})` } }}>
+              이 폼은 본문 편집기까지 있어 화면보다 길 수 있다 — 발이 화면 아래에 따라와 「티켓 추가」가 늘 보인다(`sticky`).
+              예전에는 우하단 마스코트 FAB 자리를 비우느라 단추가 판 여백보다 80px 안쪽에 섰는데, 그 FAB 은 PA-RC-0020 에서
+              걷혔다 — 단추 오른쪽 끝은 판 여백(20)이다. */}
+          <ActionFooter placement="card" sticky>
             <Button variant="primary" type="submit" loading={create.isPending}>티켓 추가</Button>
           </ActionFooter>
           </Box>
@@ -1589,6 +1595,7 @@ export function NewTicket() {
           doc={form.description_doc}
           onInsert={(sec) => set("description_doc", appendSection(form.description_doc, sec.title))}
         />
+        </Box>
         </Box>
       )}
     </div>

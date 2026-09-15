@@ -8,8 +8,9 @@
   1. **탭 순서**가 시각 순서(위→아래, 좌→우)와 맞는가
   2. 포커스된 요소에 **눈에 보이는 표시**가 있는가(outline / box-shadow / 배경 변화)
   3. **화면 밖 요소로 포커스가 가는가**(보이지 않는 것에 포커스가 서면 사용자는 길을 잃는다)
-     · 화면 안이어도 **따라오는 판에 가려지는가**(WCAG 2.4.11) — 목록 판 발(`data-list-footer`)은 긴 목록에서 화면
-       아래에 붙어 따라온다(UI 3차 조합 계약 C-3). 초점이 선 요소의 가운데 점을 그 발이 덮으면 「가림」으로 센다.
+     · 화면 안이어도 **따라오는 판에 가려지는가**(WCAG 2.4.11) — 목록 판 발(`data-list-footer`)은 긴 목록에서, 폼 판 발
+       (`data-action-footer-sticky`, 새 티켓)은 긴 폼에서 화면 아래에 붙어 따라온다(UI 3차 조합 계약 C-3 · C-5).
+       초점이 선 요소의 가운데 점을 그 발이 덮으면 「가림」으로 센다.
   4. 모달 안에서 포커스가 **갇히는가**(밖으로 새면 배경 요소를 조작하게 된다)
   5. **건너뛰기 링크**(skip to content)가 있는가 — 내비 37항목을 매번 탭으로 지나야 하는지
 """
@@ -50,14 +51,14 @@ ACTIVE = """() => {
   // 그 줄어듦을 「위로 거슬러 올라갔다」로 세면 표 행을 차례로 도는 것만으로 역순이 난다.
   let docX = r.left + window.scrollX, docY = r.top + window.scrollY;
   for (let p = el.parentElement; p; p = p.parentElement) { docX += p.scrollLeft; docY += p.scrollTop; }
-  // 가림 — 초점 요소의 가운데 점을 따라오는 목록 판 발이 덮는가. 초점 요소 자신 · 조상 · 자손이 맞으면 가림이 아니다.
+  // 가림 — 초점 요소의 가운데 점을 따라오는 발(목록 판 발 · 폼 판 발)이 덮는가. 초점 요소 자신 · 조상 · 자손이 맞으면 가림이 아니다.
   let obscured = false, coveredBy = "";
   if (visible) {
     const cx = Math.min(Math.max(r.left + r.width / 2, 0), innerWidth - 1);
     const cy = Math.min(Math.max(r.top + r.height / 2, 0), innerHeight - 1);
     const hit = document.elementFromPoint(cx, cy);
     if (hit && hit !== el && !el.contains(hit) && !hit.contains(el)) {
-      const cover = hit.closest("[data-list-footer]");
+      const cover = hit.closest("[data-list-footer], [data-action-footer-sticky]");
       if (cover && !cover.contains(el)) {
         obscured = true;
         coveredBy = (cover.innerText || "").trim().slice(0, 30);
@@ -93,10 +94,14 @@ def main() -> int:
                     default=["user_me", "admin_users", "user_new-ticket", "user_chat"])
     ap.add_argument("--steps", type=int, default=45)
     ap.add_argument("--auth-dir", default="dist/ui-qa-admin-2")
-    # 알려진 틀린 상태 재현 — 따라오는 발의 스크롤 여백(`kit.jsx::ListFootBar` 의 `scroll-padding-bottom`)을 지운 채로
+    # 알려진 틀린 상태 재현 — 따라오는 발의 스크롤 여백(`kit.jsx::StickyBottomPadding` 의 `scroll-padding-bottom`)을 지운 채로
     # 같은 탭을 눌러 「가림」 측정이 그 결함을 실제로 잡는지 먼저 본다. 제품 판정에는 쓰지 않는다.
     ap.add_argument("--no-scroll-padding", action="store_true")
+    # 뷰포트(기본 1600x1000). 따라오는 폼 판 발은 폼이 화면보다 길 때만 초점을 가릴 수 있다 — 1366x768 · 1200x900 에서 잰다.
+    # 이름이 `--viewport` 면 `local_capture` 의 `--viewports` 가 줄임말로 삼켜 하네스에 닿지 않는다(실측) — 그래서 `--kb-viewport` 다.
+    ap.add_argument("--kb-viewport", default="1600x1000")
     args = ap.parse_args()
+    vw, vh = (int(v) for v in args.kb_viewport.lower().split("x"))
 
     insecure = tls.apply_default_https_context()
     print(tls.describe())
@@ -108,7 +113,7 @@ def main() -> int:
         b = pw.chromium.launch(headless=True)
         s = ensure_session(b, BASE, Path(args.auth_dir), insecure=insecure, log=print)
         ctx = new_context(b, storage_state=s.storage_state, user_id=s.user_id, theme="light",
-                          viewport=Viewport("1600x1000", 1600, 1000), insecure=insecure)
+                          viewport=Viewport(f"{vw}x{vh}", vw, vh), insecure=insecure)
         page = ctx.new_page()
         for rid in args.routes:
             route = BY_ID.get(rid)

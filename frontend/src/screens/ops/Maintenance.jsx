@@ -9,7 +9,7 @@ import { fmtDateTime } from "../../lib/format.js";
 import { useAuth } from "../../app/auth.jsx";
 import { Note } from "../../ui/adminKit.jsx";
 import { SettingVersions } from "../settings/SettingVersions.jsx";
-import { Section, SectionTitle, Card, Badge, Button, Callout, DetailRow, Skeleton, ErrorState, useConfirm, useToast } from "../../ui/kit.jsx";
+import { ActionFooter, Section, SectionTitle, Card, Badge, Button, Callout, DetailRow, Skeleton, ErrorState, useConfirm, useToast } from "../../ui/kit.jsx";
 import { pairTracks } from "../../ui/density.js";
 import { isWriteRole, NO_WRITE_REASON } from "./opsHelpers.js";
 import { failureText } from "../../lib/failure.js";
@@ -195,15 +195,17 @@ export function Maintenance({ embedded = false } = {}) {
                   토글 자체는 누가 언제 켜고 껐는지 볼 곳이 없었다, 백엔드가 config_versions에 이미
                   기록하므로 같은 SettingVersions UI를 maintenance_mode에도 붙인다. */}
               {modeFailure ? <Callout tone="danger" compact sx={{ mt: 2 }}>{modeFailure}</Callout> : null}
-              {/* 작은 단추(30)와 기본 단추(34)가 한 줄에 선다 — 가운데 정렬이 없으면 flex 기본값(stretch)이 작은
-                  단추를 34 로 늘려 같은 이름의 단추가 화면마다 다른 높이로 섰다(kit_measure `variant_height`). */}
-              <Box sx={{ mt: 2, display: "flex", gap: 1, flexWrap: "wrap", justifyContent: "flex-end", alignItems: "center" }}>
-                <Button variant="ghost" size="sm" onClick={() => setShowModeVersions(true)}>변경 기록(켜고 끈 이력)</Button>
+              {/* 판 발이다(`ActionFooter card` — 함몰면 + 위 실선, 확정은 오른쪽 끝 · 조합 계약 C-4). 예전에는 손으로 짠 줄에
+                  글자만 있는 작은 「변경 기록」과 전환 단추가 섞여 섰다 — 카드 발에는 글자 단추(ghost)를 두지 않는다(RULES §3). */}
+              <ActionFooter
+                placement="card"
+                extra={<Button onClick={() => setShowModeVersions(true)}>변경 기록(켜고 끈 이력)</Button>}
+              >
                 <Button variant={on ? "primary" : "danger"} disabled={!canWrite || toggle.isPending} loading={toggle.isPending} onClick={onToggle}
                   aria-describedby={lockedDescribedBy}>
                   {on ? "유지보수 모드 비활성화" : "유지보수 모드 활성화"}
                 </Button>
-              </Box>
+              </ActionFooter>
             </Card>
             <Card>
               <SectionTitle component="h3" title="점검 공지 (사용자에게 표시되는 안내)" />
@@ -247,18 +249,23 @@ export function Maintenance({ embedded = false } = {}) {
               {/* 폼 작업줄 — 앱 공통 우측 정렬. 쓰기 권한이 없어도 버튼을 지우지 않는다:
                   비활성 + 위의 이유 문구(aria-describedby)로 '있지만 지금은 못 누른다'를 그대로 보여 준다.
                   (예전엔 '미리 검증'만 canWrite일 때 렌더돼, 읽기 전용 역할에겐 그 기능의 존재 자체가 사라졌다.) */}
-              <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 1, flexWrap: "wrap", mt: 2 }}>
+              {/* 판 발이다(`ActionFooter card`). 순서는 보조 → 확정이고 「공지 저장」이 오른쪽 끝이다(RULES §7) — 예전에는
+                  저장이 가운데에, 「되돌리기」 · 「버전 기록」(글자 단추)이 그 오른쪽에 섰다. 버전 기록은 이 폼의 값이 아니라 이력을
+                  여는 일이라 발의 왼쪽 칸이다.
+                  다른 설정과 달리 점검 공지는 설정 표에서 제외돼 버전 기록, 롤백이 닿지 않았다, 여기서 같은 UI를 재사용해 제공한다. */}
+              <ActionFooter
+                placement="card"
+                extra={<Button onClick={() => setShowVersions(true)}>버전 기록</Button>}
+              >
                 <Button disabled={!canWrite || dryRunMsg.isPending} loading={dryRunMsg.isPending} onClick={onCheckMsg} aria-describedby={lockedDescribedBy}>
                   미리 검증
                 </Button>
+                {dirty ? <Button disabled={saveMsg.isPending} onClick={() => changeMsg(serverMsg)}>되돌리기</Button> : null}
                 <Button variant="primary" disabled={!canWrite || !dirty || !msg.trim() || saveMsg.isPending} loading={saveMsg.isPending} onClick={() => saveMsg.mutate(msg)}
                   aria-describedby={lockedDescribedBy}>
                   공지 저장
                 </Button>
-                {dirty ? <Button disabled={saveMsg.isPending} onClick={() => changeMsg(serverMsg)}>되돌리기</Button> : null}
-                {/* 다른 설정과 달리 점검 공지는 설정 표에서 제외돼 버전 기록, 롤백이 닿지 않았다, 여기서 같은 UI를 재사용해 제공한다. */}
-                <Button variant="ghost" onClick={() => setShowVersions(true)}>버전 기록</Button>
-              </Box>
+              </ActionFooter>
             </Card>
           </Box>
         </>

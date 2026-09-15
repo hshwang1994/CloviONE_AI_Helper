@@ -6,10 +6,10 @@ import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
 import { failureText } from "../lib/failure.js";
-import { Badge, Button, Callout, Card, ErrorState, FieldLabel, Section, SectionTitle, Skeleton, Tag, TechDetail, useToast } from "../ui/kit.jsx";
+import { ActionFooter, Badge, Button, Callout, Card, ErrorState, FieldLabel, Section, SectionTitle, Skeleton, Tag, TechDetail, useToast } from "../ui/kit.jsx";
 import { kindSx } from "../ui/filters.jsx";
 import { KO_WORD_BREAK } from "../ui/theme.js";
-import { BASELINE_TRACKS, FORM_FIELD_CONTAINER, FORM_FIELD_GRID, pairTracks } from "../ui/density.js";
+import { BASELINE_TRACKS, CONTENT_PAIR_CONTAINER, FORM_FIELD_CONTAINER, FORM_FIELD_GRID, contentPairTracks } from "../ui/density.js";
 
 /* AI(LLM) 관리 (9-5).
  *
@@ -268,8 +268,10 @@ export function LlmConsole({ embedded = false } = {}) {
       </Section>
 
       {/* 폼은 `/new-ticket` 의 모양이다(D-458): 왼쪽 폼 판 + 오른쪽 안내 레일 판. 예전에는 로그인
-          절차가 화면 폭 판 하나를 통째로 차지했고 필드 격자는 사설 상수였다. */}
-      <Box sx={pairTracks(BASELINE_TRACKS.two)}>
+          절차가 화면 폭 판 하나를 통째로 차지했고 필드 격자는 사설 상수였다. 2열은 본문이 받은 폭이 정한다
+          (`contentPairTracks` — 새 티켓과 같은 문턱, 조합 계약 C-5). */}
+      <Box sx={CONTENT_PAIR_CONTAINER}>
+      <Box sx={contentPairTracks(BASELINE_TRACKS.two)}>
         <Card>
           <SectionTitle component="h2" title="설정" />
           <Box sx={FORM_FIELD_CONTAINER}>
@@ -357,15 +359,7 @@ export function LlmConsole({ embedded = false } = {}) {
           {saveFailure || testFailure ? (
             <Callout tone="danger" compact sx={{ mt: 2.5 }}>{saveFailure || testFailure}</Callout>
           ) : null}
-          <Box sx={{ mt: 2.5, display: "flex", gap: 1, flexWrap: "wrap", alignItems: "center" }}>
-            <Button disabled={busy} onClick={() => { setSaveFailure(""); startTest.mutate(); }}>연결 테스트</Button>
-            <Box sx={{ flex: 1 }} />
-            <Button disabled={busy || !draft} onClick={() => setDraft(null)}>되돌리기</Button>
-            <Button variant="primary" disabled={busy || !draft} loading={saving} onClick={saveDraft}>
-              저장
-            </Button>
-          </Box>
-          <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1, ...KO_WORD_BREAK }}>{data.test_mode_note}</Typography>
+          <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 2.5, ...KO_WORD_BREAK }}>{data.test_mode_note}</Typography>
           {jobId && (
             <Box data-testid="llm-test-result" sx={{ mt: 1.5 }}>
               <Badge
@@ -381,6 +375,17 @@ export function LlmConsole({ embedded = false } = {}) {
               )}
             </Box>
           )}
+          {/* 저장은 판 발이다(`ActionFooter card` — 함몰면 + 위 실선, 오른쪽 끝 확정 · 조합 계약 C-4). 예전에는 손으로 짠
+              단추 줄이 판 여백 안에 떠 있었다. 연결 테스트는 설정을 바꾸고 확인하는 한 흐름이라 같은 발의 왼쪽 칸이다. */}
+          <ActionFooter
+            placement="card"
+            extra={<Button disabled={busy} onClick={() => { setSaveFailure(""); startTest.mutate(); }}>연결 테스트</Button>}
+          >
+            <Button disabled={busy || !draft} onClick={() => setDraft(null)}>되돌리기</Button>
+            <Button variant="primary" disabled={busy || !draft} loading={saving} onClick={saveDraft}>
+              저장
+            </Button>
+          </ActionFooter>
         </Card>
 
         {/* 안내 레일 — 서버 절차는 폼이 아니라 곁에 선다(`/new-ticket` 의 작성 도움과 같은 자리). */}
@@ -397,6 +402,7 @@ export function LlmConsole({ embedded = false } = {}) {
             <Callout tone="warn">{data.login && data.login.note}</Callout>
           </Box>
         </Card>
+      </Box>
       </Box>
     </>
   );

@@ -1663,6 +1663,17 @@ PROBE_JS = r"""
       if (el.closest(EXCLUDE) || el.querySelector(EXCLUDE)) continue;
       // 스크롤되는 상자는 '빈' 것이 아니라 '접힌' 것이다.
       if (el.scrollHeight > el.clientHeight + 1) continue;
+      /* 입력 자리가 면의 절반 이상인 상자는 '빈' 것이 아니라 '쓸 자리'다 (UI 3차 P4 정정).
+       *
+       * 새 폼의 빈 편집기 상자(도구 줄 + 본문 바닥 240, 핸드오프 RULES §7)가 그렇다. 여러 줄 입력(`textarea`)은 칠한 면이
+       * `fieldset` 이라 애초에 후보가 안 되고, 같은 자리를 div 상자로 그린 편집기만 잡혔다(새 티켓 1200 1열, 860×283 잉크 15%).
+       * 몫은 입력 자리 하나의 넓이로 잰다. 절반 미만이면 그대로 잰다 — 작은 입력 하나를 품은 큰 빈 판은 여전히 결함이다. */
+      let editShare = 0;
+      for (const host of el.querySelectorAll('[contenteditable="true"], textarea')) {
+        const hr = host.getBoundingClientRect();
+        editShare = Math.max(editShare, (hr.width * hr.height) / Math.max(1, r.width * r.height));
+      }
+      if (editShare >= 0.5) continue;
       const cs = getComputedStyle(el);
       const bg = cs.backgroundColor;
       const painted = ((parseFloat(cs.borderTopWidth) || 0) > 0 && cs.borderTopStyle !== 'none')

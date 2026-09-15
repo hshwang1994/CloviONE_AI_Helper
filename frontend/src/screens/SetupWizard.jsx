@@ -224,7 +224,9 @@ export function SetupWizard() {
       />
       {/* 목록 판 + 요약 레일. 예전에는 요약이 전폭 안내 상자, 목록이 전폭 판이라 1920 에서
           항목 설명 한 줄이 1,500px 를 달렸다. 접으면 레일만 전폭으로 남는다. 레일은 제 내용만큼만
-          선다(`start`) — 목록 높이로 늘리면 잉크 14% 짜리 빈 판이 된다(실측). */}
+          선다(`start`) — 목록 높이로 늘리면 잉크 14% 짜리 빈 판이 된다(실측).
+          2열 문턱은 뷰포트(`pairTracks`)로 둔다 — 내용 폭 짝 트랙(`contentPairTracks`, 새 티켓 · LLM 콘솔)으로 옮기면 1200 에서
+          1열이 되어 「남은 항목」 요약이 목록 아래 1,000px 밖으로 내려가 첫 화면에서 사라졌다(UI 3차 P4 실측). 목록 칸은 543px 에서도 읽힌다. */}
       <Box sx={open ? { ...pairTracks(BASELINE_TRACKS.two), alignItems: "start" } : undefined}>
         {open ? (
           <Card>

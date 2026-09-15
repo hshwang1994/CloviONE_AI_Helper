@@ -5,7 +5,7 @@ import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 
 import {
-  ActionFooter, Button, Callout, ConfirmProvider, CountChip, DataTable, DotLabel, EmptyState, ErrorState,
+  ActionFooter, Button, Callout, Card, ConfirmProvider, CountChip, DataTable, DotLabel, EmptyState, ErrorState,
   FormFieldCell, FIELD_ROWS, ModalFooter, ModalHeader, Segmented, ToastProvider, useConfirm,
 } from "./kit.jsx";
 import { FilterConditionLine, FilterSurface, FilterToggle, ToolbarRow } from "./FilterBar.jsx";
@@ -114,6 +114,33 @@ describe("모달 머리와 발 · ActionFooter", () => {
       <ActionFooter placement="card"><ActionFooter><Button>안쪽</Button></ActionFooter></ActionFooter>,
     );
     expect(container.querySelectorAll("[data-action-footer]")).toHaveLength(1);
+  });
+
+  it("판 발이 마지막 줄인 판은 세로 흐름이고 본문 상자가 남는 높이를 먹는다 — 짝 격자에서 늘어난 판의 발이 바닥에 선다", () => {
+    const { container } = ui(
+      <>
+        <Card data-testid="footed">
+          <p>본문 한 줄</p>
+          <p>본문 두 줄</p>
+          <ActionFooter placement="card"><Button variant="primary">저장</Button></ActionFooter>
+        </Card>
+        <Card data-testid="plain"><p>발 없는 판</p></Card>
+      </>,
+    );
+    const footed = screen.getByTestId("footed");
+    expect(getComputedStyle(footed).display).toBe("flex");
+    expect(getComputedStyle(footed).flexDirection).toBe("column");
+    const body = footed.querySelector(":scope > [data-card-body]");
+    expect(body).not.toBeNull();
+    expect(getComputedStyle(body).flexGrow).toBe("1");
+    expect(body.querySelectorAll("p")).toHaveLength(2);
+    // 발은 본문 상자 밖, 판의 직계 마지막 줄이다 — 판 여백을 거스르는 음수 여백이 판 기준으로 선다.
+    expect(footed.lastElementChild.getAttribute("data-action-footer")).toBe("card");
+    // 발이 없는 판은 예전 그대로다(흐름 · 상자 없음).
+    const plain = screen.getByTestId("plain");
+    expect(getComputedStyle(plain).display).not.toBe("flex");
+    expect(plain.querySelector("[data-card-body]")).toBeNull();
+    expect(container.querySelectorAll("[data-card-body]")).toHaveLength(1);
   });
 
   it("되돌릴 수 없는 확인은 제목 앞에 주의 표지를 달고 **취소**가 기본 포커스다", async () => {

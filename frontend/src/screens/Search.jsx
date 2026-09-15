@@ -11,7 +11,7 @@ import OpenInNewRoundedIcon from "@mui/icons-material/OpenInNewRounded";
 import { api } from "../lib/api.js";
 import { failureText } from "../lib/failure.js";
 import { Button, Callout, Card, CountChip, EmptyState, ErrorState, PageHeader, Skeleton, useConfirm, useToast } from "../ui/kit.jsx";
-import { FAB_CLEARANCE, FONT_SIZE, FONT_WEIGHT } from "../ui/theme.js";
+import { FONT_SIZE, FONT_WEIGHT } from "../ui/theme.js";
 import { isSearchable, normalizeQuery, routeOf, searchApi } from "../lib/search.js";
 import { SearchBox } from "../ui/filters.jsx";
 import { FilterSurface, ResultLine, ToolbarRow } from "../ui/FilterBar.jsx";
@@ -40,17 +40,9 @@ import { OPS_ROLES, WRITE_ROLES } from "./registry/shared.js";
 
 /* 결과 그룹 격자 — 남는 폭은 줄 길이가 아니라 두 번째·세 번째 열로 간다(4K 규칙).
  *
- * `pr`(오른쪽 여백)이 붙어 있는 이유는 순전히 **마스코트 FAB 때문**이다. FAB 은
- * `position:fixed; right:24; bottom:24` 라 문서 흐름 밖에 떠 있고, 셸이 주는 아래 여백은
- * '맨 아래까지 스크롤했을 때'만 도움이 된다. 검색 결과는 목록이 길어서 **어느 스크롤
- * 위치에서든** 오른쪽 열의 결과 줄이 그 모서리에 놓이고, 그 줄은 눌러도 FAB 이 클릭을
- * 가로챈다(QA 하네스의 fab_overlap 이 1366·1920 에서 실제로 잡았다: 5~7% 만 덮여도
- * elementFromPoint 가 FAB 을 돌려준다).
- *
- * 그래서 오른쪽 열이 FAB 의 x 범위에 닿지 않도록 격자 자체를 그만큼 좁힌다. 세로 여백으로는
- * 못 고치는 문제라 가로로 비켜서는 것이 유일한 기하학적 해법이다. 한 열일 때(<lg)는 줄이
- * 화면 폭 전체를 쓰므로 필요 없다. 3840 은 본문 폭 캡 덕에 FAB 이 애초에 본문 밖이지만,
- * 그 폭에서 여백 한 칸은 눈에 띄지 않으므로 분기를 늘리지 않고 그대로 둔다. */
+ * 예전에는 오른쪽 여백(FAB 여백 토큰 5rem)으로 격자를 좁혔다 — 우하단 마스코트 FAB 이 오른쪽 열의 결과 줄을 덮어 클릭을
+ * 가로챘기 때문이다(QA `fab_overlap` 이 1366 · 1920 에서 잡았다). 그 FAB 은 PA-RC-0020 에서 걷혔고(`app/AppShell.jsx`),
+ * 덮을 것이 없는 자리를 비워 두면 오른쪽 열만 80px 좁아진다 — 여백을 걷었다(UI 3차 조합 계약 C-5). */
 /* `display:grid` 가 아니라 **다단(multi-column)** 인 이유: 그룹 카드는 높이가 제각각이다
  * (문서 20건, 티켓 3건). 격자로 깔면 행 높이가 가장 큰 카드에 맞춰지면서 짧은 카드 아래로
  * 화면 절반짜리 빈 공백이 생기고, 다음 카드는 그 아래로 밀려난다 — 1920 캡처에서 실제로
@@ -59,7 +51,6 @@ import { OPS_ROLES, WRITE_ROLES } from "./registry/shared.js";
 const GROUP_GRID = {
   columnCount: { xs: 1, lg: 2, xxl: 3 },
   columnGap: 2.5,
-  pr: { xs: 0, lg: FAB_CLEARANCE },
   "& > *": { breakInside: "avoid", mb: 2.5 },
 };
 
@@ -205,8 +196,9 @@ export function Search() {
         area="통합 검색"
         title={enabled ? `‘${urlQuery}’ 검색 결과` : "통합 검색"}
         description="검색어와 관련된 항목을 유형별로 모아 봅니다."
+        /* 페이지 머리의 동작은 34 다(핸드오프 RULES §3 「페이지 헤더 · 카드 발 · 모달 발 · 필터 바 → 34」). 예전에는 이 머리만 30 이었다. */
         actions={canReindex ? (
-          <Button size="sm" onClick={doReindex} disabled={reindex.isPending} loading={reindex.isPending}>
+          <Button onClick={doReindex} disabled={reindex.isPending} loading={reindex.isPending}>
             지금 재색인
           </Button>
         ) : null}

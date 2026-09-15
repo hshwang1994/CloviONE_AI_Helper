@@ -402,8 +402,11 @@ MEASURE_JS = r"""
     /* 발의 면 색과 **같은 면**에 위 선까지 가진 요소를 센다(발 자신 · 안쪽 · 바로 바깥). 모달 판처럼
        다른 면을 가진 바깥 상자는 발의 주인이 아니다. */
     const faceBg = getComputedStyle(f).backgroundColor;
+    /* 발 안의 단추 · 입력은 면의 주인이 아니다 — 꺼진 보조 단추는 함몰면과 같은 색에 테두리를 든다(LLM 콘솔 「되돌리기」, UI 3차 P4). */
+    const control = (el) => el !== f && el !== f.parentElement && !!el.closest('button, [role="button"], .MuiInputBase-root');
     const owners = [f.parentElement, f, ...f.querySelectorAll('*')]
-      .filter(Boolean).filter((el) => { const s = getComputedStyle(el); return !transparent(s.backgroundColor) && s.backgroundColor === faceBg && px(s.borderTopWidth) >= 1; });
+      .filter(Boolean).filter((el) => !control(el))
+      .filter((el) => { const s = getComputedStyle(el); return !transparent(s.backgroundColor) && s.backgroundColor === faceBg && px(s.borderTopWidth) >= 1; });
     if (owners.length !== 1) fail('footer_owner', { owners: owners.length, text: text(f) });
   }
   for (const o of all('[data-picker-option]')) {
@@ -574,6 +577,10 @@ SELFTEST_HTML = r"""
         <button aria-label="닫기" style="height:30px;width:30px">x</button>
       </div>
       <div class="MuiPopover-paper" style="width:120px;height:40px;border-radius:8px;border:1px solid #ccc"></div>
+      <div data-action-footer="card" style="display:flex;gap:8px;justify-content:flex-end;padding:12px 20px;background:#f5f6fb;border-top:1px solid #e5e8f3">
+        <button class="MuiButton-root MuiButton-sizeMedium" disabled style="height:34px;padding:0 12px;background:#f5f6fb;border:1px solid #dcdfec">되돌리기</button>
+        <button class="MuiButton-root MuiButton-sizeMedium" style="height:34px;padding:0 12px;background:#5b4fd6;color:#fff;border:0">저장</button>
+      </div>
       <div style="width:600px">
         <div data-chat-row="mine" style="display:grid;justify-items:end"><div style="display:flex;max-width:68%"><div data-chat-bubble="mine" style="width:fit-content;padding:10px 14px">짧은 말</div></div></div>
         <div data-chat-composer="" style="border:1px solid #ccc;border-radius:10px;height:60px"></div>
@@ -603,6 +610,9 @@ SELFTEST_HTML = r"""
         <button aria-label="닫기" style="height:34px;width:34px">x</button>
       </div>
       <div class="MuiPopover-paper" style="width:120px;height:40px;border-radius:14px;border:1px solid #ccc"></div>
+      <div style="background:#f5f6fb;border-top:1px solid #e5e8f3;padding:8px">
+        <div data-action-footer="card" style="display:flex;justify-content:flex-end;padding:12px 20px;background:#f5f6fb;border-top:1px solid #e5e8f3"><button class="MuiButton-root MuiButton-sizeMedium" style="height:34px;padding:0 12px">두 겹 발</button></div>
+      </div>
       <div style="width:600px">
         <div data-chat-row="mine" style="display:grid;justify-items:end"><div style="display:flex;max-width:90%"><div data-chat-bubble="mine" style="width:500px;padding:10px 14px">넓게 퍼진 말풍선</div></div></div>
         <div data-chat-composer="" style="border:1px solid #ccc;border-radius:20px;height:60px"></div>
@@ -617,7 +627,7 @@ SELFTEST_HTML = r"""
 SELFTEST_EXPECT_BAD = {
     "button_height": 1, "button_wrap": 1, "badge": 1, "tag": 1, "count_chip": 1,
     "filter_cell": 1, "filter_notched": 1, "search_slot": 1, "form_field_rows": 2, "chat_layout": 2,
-    "modal": 1, "floating_radius": 1,
+    "modal": 1, "floating_radius": 1, "footer_owner": 1,
 }
 
 
@@ -682,8 +692,10 @@ def selftest(args) -> int:
         print("KIT_MEASURE_SELFTEST_FAILED")
         return 1
     c_checked = sum((c_good.get(n) or {}).get("checked", 0) for n in COMPOSITION_CHECKS)
+    # 조합 틀린 견본 수는 **실제로 잡힌 검사 수**로 센다 — 검사 수에서 손으로 빼던 값은 견본이 늘어도 그대로였다.
+    c_caught = sum(1 for n in COMPOSITION_CHECKS if (c_bad.get(n) or {}).get("failed"))
     print(f"KIT_MEASURE_SELFTEST_OK (부품 틀린 견본 {len(SELFTEST_EXPECT_BAD)}종 · 조합 틀린 견본 "
-          f"{len(COMPOSITION_CHECKS) - 1}종 전부 잡음, 맞는 견본 표본 {checked_good} + {c_checked} 오탐 0)")
+          f"{c_caught}종 전부 잡음, 맞는 견본 표본 {checked_good} + {c_checked} 오탐 0)")
     return 0
 
 

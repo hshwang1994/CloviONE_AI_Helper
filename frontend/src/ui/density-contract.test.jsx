@@ -1,4 +1,5 @@
 /* qa-contract-change: 스프린트 회의의 담당자 타일 격자 PEOPLE_GRID 가 없어져 그 열 수를 세던 단정이 사라졌다. 그 자리는 이제 담당자별 남은 WD 막대이고, 「나란히 놓고 비교된다」는 성질은 격자 열 수가 아니라 하나의 축을 공유하는가로 지켜진다 — 아래에서 그 성질을 직접 단정한다(지시 4).
+ * qa-contract-change: 새 티켓 바깥 2열의 화면 사본(MyTickets.jsx::NEW_TICKET_GRID, 뷰포트 lg 문턱)을 걷고 정본 내용 폭 짝 트랙(density.js::contentPairTracks, 본문 칸 64rem 컨테이너 질의 — UI 3차 조합 계약 C-5)으로 옮겼다. 왼쪽 쏠림 방지 계약(모든 트랙 조합에 fr · 고정 px 만의 조합 없음)을 그 부품에서 재고, 컨테이너 질의 안의 트랙까지 읽도록 넓히며 2열 트랙이 기준선 two 와 같은지를 더 잰다.
  * qa-contract-change: 논의 갈래 타일 트랙(DISCUSS_TILE_TRACK)이 사라졌다 — 갈래는 이제 격자 타일이 아니라 칩 한 줄이라(D-484) 「마지막 줄이 꽉 차는가」라는 결함 자체가 없다. 대신 회의 짝 판의 오른쪽 트랙에 바닥(rem)이 생긴 계약을 단정한다 — 그것이 게이지가 손톱만 해지던 결함을 막는 값이다.
  */
 import { describe, it, expect } from "vitest";
@@ -16,10 +17,11 @@ import {
   fixedTileTrack,
   FORM_FIELD_GRID,
   pairTracks,
+  contentPairTracks,
+  CONTENT_PAIR_MIN_REM,
 } from "./density.js";
 import { FONT_SIZE } from "./theme.js";
 import { DETAIL_GRID } from "../screens/Ticket.jsx";
-import { NEW_TICKET_GRID } from "../screens/MyTickets.jsx";
 import { workloadItems } from "../screens/sprint-charts.js";
 import fs from "node:fs";
 import path from "node:path";
@@ -59,10 +61,15 @@ function fills(track) {
 }
 
 /* sx 의 `gridTemplateColumns` 는 문자열이거나 브레이크포인트 객체다. 둘 다 받아
- * (브레이크포인트, 트랙) 목록으로 편다. */
+ * (브레이크포인트, 트랙) 목록으로 편다. 컨테이너 질의(`@container …`) 안에서 트랙을 바꾸는 규칙도 한 조합으로 센다 —
+ * 안 세면 2열 트랙이 고정 px 로 무너져도 기본 1열만 보고 통과한다. */
 function trackEntries(sx) {
   const v = sx.gridTemplateColumns;
-  return typeof v === "string" ? [["(기본)", v]] : Object.entries(v);
+  const base = typeof v === "string" ? [["(기본)", v]] : Object.entries(v);
+  const queried = Object.entries(sx)
+    .filter(([k, rule]) => k.startsWith("@container") && rule && rule.gridTemplateColumns)
+    .map(([k, rule]) => [k, rule.gridTemplateColumns]);
+  return [...base, ...queried];
 }
 
 describe("왼쪽 쏠림 방지 — 상세·폼 격자는 본문 폭을 채운다 (지시 6)", () => {
@@ -72,8 +79,20 @@ describe("왼쪽 쏠림 방지 — 상세·폼 격자는 본문 폭을 채운다
      재는 줄을 남기면 「문서 상세도 확인했다」로 읽힌다. */
   const grids = [
     ["티켓 상세(문서 상세도 같은 격자다)", DETAIL_GRID],
-    ["새 티켓", NEW_TICKET_GRID],
+    ["새 티켓(내용 폭 짝 트랙)", contentPairTracks(BASELINE_TRACKS.two)],
   ];
+
+  it("내용 폭 짝 트랙은 컨테이너 질의 하나로 2열이 되고 그 트랙이 기준선 two 다 — 뷰포트 문턱이 아니다", () => {
+    const sx = contentPairTracks(BASELINE_TRACKS.two);
+    const entries = trackEntries(sx);
+    expect(entries[0]).toEqual(["(기본)", "minmax(0, 1fr)"]);
+    const queried = entries.slice(1);
+    expect(queried).toHaveLength(1);
+    expect(queried[0][0]).toBe(`@container content-pair (min-width: ${CONTENT_PAIR_MIN_REM}rem)`);
+    expect(queried[0][1]).toBe(BASELINE_TRACKS.two);
+    expect(Object.keys(sx).some((k) => k.startsWith("@media"))).toBe(false);
+    expect(sx.alignItems).toBe("stretch");
+  });
 
   it.each(grids)("%s 의 모든 트랙 조합에 fr 이 있다", (name, sx) => {
     const stuck = trackEntries(sx).filter(([, track]) => !fills(track));

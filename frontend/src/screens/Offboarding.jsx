@@ -21,7 +21,7 @@ import { KO_WORD_BREAK } from "../ui/theme.js";
 import { useRowSelection, selectionColumn } from "../ui/bulkSelect.jsx";
 import { FilterBar } from "../ui/FilterBar.jsx";
 import { SearchBox } from "../ui/filters.jsx";
-import { BASELINE_TRACKS, pairTracks } from "../ui/density.js";
+import { BASELINE_TRACKS, CONTENT_PAIR_CONTAINER, contentPairTracks } from "../ui/density.js";
 import { invalidateTicketViews } from "./ticket-views.js";
 import { DateCell } from "../ui/cells.jsx";
 import { useInfiniteList } from "../lib/useInfiniteList.js";
@@ -325,8 +325,9 @@ function OffboardPlan({ preview, onDone, toast }) {
       </Section>
 
       {/* 폼 판 + 보조 레일 — `/new-ticket` 과 같은 모양(D-458). 레일은 «실행하면 무슨 일이
-          일어나는가» 를 고르는 동안 보여 준다(확인 대화와 같은 문장). */}
-      <Box sx={pairTracks(BASELINE_TRACKS.two)}>
+          일어나는가» 를 고르는 동안 보여 준다(확인 대화와 같은 문장). 2열은 본문이 받은 폭이 정한다(`contentPairTracks`). */}
+      <Box sx={CONTENT_PAIR_CONTAINER}>
+      <Box sx={contentPairTracks(BASELINE_TRACKS.two)}>
       <Card>
         <Box sx={{ display: "grid", gap: 2.5 }}>
           {/* 후임은 사람 고르개 정본이다(핸드오프 계획 B-7) — 검색 · 아바타 · 한 줄 32. 예전에는 후보 전원을
@@ -359,11 +360,13 @@ function OffboardPlan({ preview, onDone, toast }) {
             label={<Typography variant="body2">계정 보관(목록에서 감춤)</Typography>} />
         </Box>
         {runFailure ? <Callout tone="danger" compact sx={{ mt: 2 }}>{runFailure}</Callout> : null}
-        <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 2 }}>
+        {/* 실행은 판 발이다(`ActionFooter card` — 함몰면 + 위 실선, 오른쪽 끝 · 조합 계약 C-4). 예전에는 손으로 짠 오른쪽
+            정렬 줄이 판 여백 안에 떠 있었다. 되돌릴 수 있는 일이지만 계정을 끄는 일이라 파괴 단추이고 확인을 받는다. */}
+        <ActionFooter placement="card">
           <Button variant="danger" disabled={busy} loading={busy} onClick={run}>
             오프보딩 실행
           </Button>
-        </Box>
+        </ActionFooter>
       </Card>
       <Card component="aside">
         <SectionTitle component="h2" title="실행하면" />
@@ -373,6 +376,7 @@ function OffboardPlan({ preview, onDone, toast }) {
           ))}
         </Box>
       </Card>
+      </Box>
       </Box>
     </>
   );
@@ -518,12 +522,9 @@ function RunHistory() {
       <Modal open={!!sel} onClose={() => setSel(null)} size="lg"
         title={sel ? (sel.user_name || "오프보딩") + " 실행 상세" : ""}
         footer={sel ? (
+          /* 발 순서는 보조 → 확정이고 확정이 오른쪽 끝이다(핸드오프 RULES §7 · §8). 예전에는 「되돌리기」(채움)가 앞, 「감사
+             로그에서 보기」가 뒤에 서서 확정이 오른쪽 끝이 아니었다. */
           <ActionFooter placement="modal">
-              {!sel.undone_at ? (
-                <Button variant="primary" disabled={busy} loading={busy} onClick={() => undo(sel)}>
-                  되돌리기
-                </Button>
-              ) : null}
               {/* offboarding_run은 감사 로그의 유효한 object_type이고(app/offboarding/router.py)
                   이제 OBJ_ROUTE에도 있다 — 이 화면은 admin/system_admin 전용(navConfig.js
                   SCREEN_ROLES.offboarding)이라 audit 접근 역할의 부분집합이라 별도 role 게이트가
@@ -531,6 +532,11 @@ function RunHistory() {
               <Button href={"#/audit?object_type=offboarding_run&object_id=" + sel.id}>
                 감사 로그에서 보기
               </Button>
+              {!sel.undone_at ? (
+                <Button variant="primary" disabled={busy} loading={busy} onClick={() => undo(sel)}>
+                  되돌리기
+                </Button>
+              ) : null}
             </ActionFooter>
         ) : null}>
         {undoFailure ? <Callout tone="danger" compact sx={{ mb: 2 }}>{undoFailure}</Callout> : null}

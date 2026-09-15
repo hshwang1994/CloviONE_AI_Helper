@@ -7,6 +7,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import { ThemeProvider } from "@mui/material/styles";
 
+/* qa-contract-change: 새 티켓 바깥 2열이 뷰포트 lg(1200) 문턱의 화면 사본(NEW_TICKET_GRID)에서 정본 내용 폭 짝 트랙(본문 칸 64rem 컨테이너 질의, density.js::contentPairTracks — UI 3차 조합 계약 C-5)으로 옮겼다. 「lg 에서 기준선 two」 단언을 「컨테이너 질의로 기준선 two · 뷰포트 @media 0」으로 옮기고, 두 판이 화면 아래까지 서는 표식 · 폼 판 세로 흐름과 넘침 풀기 · 편집기 상자 · 따라오는 판 발 · FAB 여백 없는 발 끝을 더 잰다. 1200 실측 행은 레일 옆 1칸(502px)에서 레일이 폼 아래로 간 1열 본문 폭 12칸(862px)으로 옮기고, 좁은 칸 1칸 판정은 폭 값으로 남긴다. */
 /* qa-contract-change: 새 티켓 칸 격자가 화면 사본(NT_FIELD_GRID 1·2·3열, 제목은 격자 밖 노치 라벨)에서 정본 12칸 격자(density.js::FORM_FIELD_GRID_12 + kit FormFieldCell)로 옮겨(핸드오프 계획 C · 표 8), 열 수 · 칸 차지 · 칸 폭 하한 · 실측표 · 라벨 계약을 새 구조로 옮기고 검증 오류 줄과 저장 실패 상자의 수명 시험을 더한다. */
 
 /* '새 티켓' 폼의 칸 격자가 **뷰포트가 아니라 자기가 놓인 칸의 폭**으로 열 수를 정하는지 본다.
@@ -40,6 +41,7 @@ import { createClovirTheme } from "../ui/theme.js";
 import { BASELINE_TRACKS } from "../ui/density.js";
 
 /* 브라우저 실측(2026-09-15, `kit_measure --routes user_new-ticket` 의 `form_grids` — 격자 폭과 줄마다 칸 폭).
+ * UI 3차 P4 에서 바깥 2열이 내용 폭 짝 트랙이 된 뒤 열 뷰포트를 다시 쟀다(`compose-p4-grids`) — 바뀐 것은 1200 하나다.
  * root 는 styles/root.css 의 루트 폰트사이즈(기본 16px, ≥2200px 18px, ≥3000px 20px)다.
  * 뷰포트 1710 은 격자 폭이 12칸 문턱(50.5rem = 808px)에 반올림으로 걸려(브라우저는 2칸) 표에서 뺐다. */
 const MEASURED = [
@@ -47,7 +49,7 @@ const MEASURED = [
   { viewport: 768, container: 678, root: 16, rows: [[678], [329, 329], [329, 329], [329, 329], [678]] },
   { viewport: 900, container: 562, root: 16, rows: [[562], [271, 271], [271, 271], [271, 271], [562]] },
   { viewport: 1024, container: 686, root: 16, rows: [[686], [333, 333], [333, 333], [333, 333], [686]] },
-  { viewport: 1200, container: 502, root: 16, rows: [[502], [502], [502], [502], [502], [502], [502], [502]] },
+  { viewport: 1200, container: 862, root: 16, rows: [[862], [421, 201, 201], [201, 201, 201, 201]] },
   { viewport: 1366, container: 605, root: 16, rows: [[605], [292, 292], [292, 292], [292, 292], [605]] },
   { viewport: 1536, container: 700, root: 16, rows: [[700], [340, 340], [340, 340], [340, 340], [700]] },
   { viewport: 1920, container: 937, root: 16, rows: [[937], [459, 219, 219], [219, 219, 219, 219]] },
@@ -311,10 +313,15 @@ describe("새 티켓 — 칸 격자는 컨테이너 폭으로 열 수와 칸 차
     expect(rowCounts).toEqual({ 1: 8, 2: 5, 12: 3 });
   });
 
-  it("레일이 붙는 lg(1200)에서는 1칸으로 선다 — 예전 뷰포트 격자는 여기서 한 칸이 223px 였다", async () => {
+  it("좁은 칸(레일 옆 502px)은 1칸으로 서고, 1200 은 레일이 폼 아래로 가서 폼이 본문 폭을 받아 12칸이다", async () => {
     renderNewTicket();
     const { grid } = await fieldGrid();
-    expect(valueAt(columnRules(grid), 502, 16)).toBe(1);
+    const rules = columnRules(grid);
+    // 예전 뷰포트 격자는 1200 레일 옆 칸에서 한 칸이 223px 로 짜부라졌다 — 폭이 좁으면 1칸이 맞다.
+    expect(valueAt(rules, 502, 16)).toBe(1);
+    // 바깥 2열이 본문 칸 64rem 문턱이 된 뒤 1200 뷰포트의 폼 격자는 862px 이고 12칸이다(짧은 칸 201px ≥ 187px 하한).
+    expect(valueAt(rules, 862, 16)).toBe(12);
+    expect(MEASURED.find((m) => m.viewport === 1200).rows[2]).toHaveLength(4);
   });
 
   /* 오탐 방지 — '전부 1열' 로 만들어 놓고 위 검사를 통과시키는 퇴행을 막는다. */
@@ -334,16 +341,78 @@ describe("새 티켓 — 폼과 레일은 그대로다(오탐 방지)", () => {
   /* 2026-08-07: 레일 폭이 `22rem` 고정에서 기준 목업 `.grid.two` 의 비율 트랙으로 바뀌었다.
    * 고정 폭은 폭 자체는 채웠지만 넓은 화면에서 레일만 얇은 띠로 남았고, 무엇보다 이 저장소가
    * 화면마다 손으로 정한 폭이 기준선과 어긋나던 자리다. 값은 `ui/density.js` 한 곳에서 온다. */
-  it("바깥 2열은 lg 에서 기준선 .grid.two 트랙이고 바닥을 stretch 로 맞춘다", async () => {
+  it("바깥 2열은 본문 칸 컨테이너 질의로 기준선 two 트랙이 되고 바닥을 stretch 로 맞춘다 — 뷰포트 문턱이 아니다", async () => {
     renderNewTicket();
     const { grid } = await fieldGrid();
-    const outer = grid.closest("form").parentElement.parentElement;
+    const plate = grid.closest("form").parentElement;
+    const outer = plate.parentElement;
     const rules = rulesFor(outer);
     const base = rules.find((r) => r.cond === "");
     expect(declaration(base, "align-items")).toBe("stretch");
-    const rail = rules.find((r) => /min-width:\s*1200px/.test(r.cond));
-    expect(rail, "lg 에서 레일을 세우는 규칙이 사라졌다").toBeTruthy();
-    expect(declaration(rail, "grid-template-columns")).toBe(BASELINE_TRACKS.two);
+    expect(declaration(base, "grid-template-columns")).toBe("minmax(0, 1fr)");
+    // 2열로 바꾸는 규칙은 컨테이너 질의 하나뿐이고, 뷰포트 @media 는 트랙을 건드리지 않는다.
+    const columnConds = rules.filter((r) => r.cond !== "" && declaration(r, "grid-template-columns"));
+    expect(columnConds).toHaveLength(1);
+    expect(columnConds[0].cond).toBe("@container content-pair (min-width: 64rem)");
+    expect(declaration(columnConds[0], "grid-template-columns")).toBe(BASELINE_TRACKS.two);
+    expect(rules.some((r) => /@media/.test(r.cond) && declaration(r, "grid-template-columns"))).toBe(false);
+    // 질의가 보는 컨테이너는 격자의 부모다(컨테이너 질의는 자기 자신이 아니라 조상 폭을 본다).
+    const containerRule = rulesFor(outer.parentElement).find((r) => r.cond === "");
+    expect(declaration(containerRule, "container-type")).toBe("inline-size");
+    expect(declaration(containerRule, "container-name")).toBe("content-pair");
+  });
+
+  it("두 판은 화면 아래까지 서는 판이고, 폼 판은 세로 흐름에 넘침을 자르지 않는다(따라오는 발이 서야 한다)", async () => {
+    renderNewTicket();
+    const { grid } = await fieldGrid();
+    const plate = grid.closest("form").parentElement;
+    const outer = plate.parentElement;
+    const plates = [...outer.children];
+    expect(plates).toHaveLength(2);
+    // 화면 높이는 두 판의 **바닥**이다(`grow`) — 폼이 더 길면 판이 자라고 발이 따라온다. 채팅방 판은 높이 고정이라 값이 없다.
+    for (const p of plates) expect(p.getAttribute("data-page-fill")).toBe("grow");
+    const cs = getComputedStyle(plate);
+    expect(cs.display).toBe("flex");
+    expect(cs.flexDirection).toBe("column");
+    expect(cs.overflow).toBe("visible");
+    const form = grid.closest("form");
+    expect(getComputedStyle(form).flexGrow).toBe("1");
+    // 바닥 높이는 넓은 화면(md 이상)에서만 건다 — 뷰포트 높이에서 머리 몫을 뺀 값이다.
+    const minRule = rulesFor(plate).find((r) => /@media/.test(r.cond) && declaration(r, "min-height"));
+    expect(minRule, "판 바닥 높이 규칙이 없다").toBeTruthy();
+    // 판 윗변 161px + 본문 열 아래 여백 32px = 193px ≈ 12rem(1920 실측 — 13rem 은 판 아래가 47px 비었다).
+    expect(declaration(minRule, "min-height")).toBe("calc(100vh - 12rem)");
+    // 레일은 바닥 높이를 따로 걸지 않는다 — 2열에서는 격자 stretch 가 폼 판에 맞추고, 1열(레일이 폼 아래)에서는 내용 높이다.
+    const rail = plates.find((p) => p !== plate);
+    expect(rail.textContent).toContain("작성 도움");
+    expect(rulesFor(rail).some((r) => declaration(r, "min-height"))).toBe(false);
+  });
+
+  it("설명 편집기는 상자 하나이고 남는 높이를 채우며, 판 발은 따라오고 오른쪽 끝이 판 여백이다(FAB 여백이 없다)", async () => {
+    renderNewTicket();
+    await fieldGrid();
+    const box = await waitFor(() => {
+      const el = document.querySelector("[data-editor-box]");
+      if (!el) throw new Error("편집기 상자가 아직 없음");
+      return el;
+    });
+    expect(box.querySelector("[data-editor-toolbar]")).toHaveAttribute("role", "toolbar");
+    expect(box.querySelector("[data-editor-toolbar]")).toHaveAttribute("aria-label", "설명 서식");
+    expect(box.querySelector("[data-editor-body] .ProseMirror")).toBeTruthy();
+    expect(getComputedStyle(box).flexGrow).toBe("1");
+    // 되돌리기 · 다시 실행은 도구 줄의 마지막 묶음이다(빈 공간 뒤 오른쪽 끝).
+    const tools = [...box.querySelectorAll("[data-editor-toolbar] button")].map((b) => b.getAttribute("aria-label"));
+    expect(tools.slice(-2)).toEqual(["되돌리기", "다시 실행"]);
+
+    const footer = document.querySelector('[data-action-footer="card"]');
+    expect(footer.hasAttribute("data-action-footer-sticky")).toBe(true);
+    expect(getComputedStyle(footer).position).toBe("sticky");
+    // 발은 판 가장자리까지 편 면이고 오른쪽 안쪽 여백이 판 여백과 같다 — 걷힌 마스코트 FAB 자리를 비우지 않는다.
+    const pr = rulesFor(footer).map((r) => declaration(r, "padding-right")).filter(Boolean);
+    expect(pr.length).toBeGreaterThan(0);
+    // 판 여백(CARD_PADDING 1.25rem) 한 값뿐이다 — 예전 넓은 화면 규칙은 `calc(1.25rem + 5rem)` 이었다.
+    expect(pr.every((v) => v === "1.25rem")).toBe(true);
+    expect(screen.getByRole("button", { name: "티켓 추가" }).closest("[data-action-footer]")).toBe(footer);
   });
 
   it("여덟 칸이 모두 그려지고, 필수를 채워 제출하면 티켓을 만든다", async () => {

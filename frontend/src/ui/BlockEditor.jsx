@@ -42,7 +42,7 @@ import InsertEmoticonRoundedIcon from "@mui/icons-material/InsertEmoticonRounded
 import UndoRoundedIcon from "@mui/icons-material/UndoRounded";
 import RedoRoundedIcon from "@mui/icons-material/RedoRounded";
 import { EmojiPicker } from "./EmojiPicker.jsx";
-import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "./theme.js";
+import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, RADIUS } from "./theme.js";
 
 /* 블록 편집기 — 본문의 정본이 Block JSON 이라는 결정(D-198)의 화면 쪽 절반이다 (S7).
  *
@@ -296,7 +296,10 @@ function LinkPopover({ anchorEl, initialHref, onClose, onSubmit, onRemove }) {
  * `value` 는 서버가 준 Block JSON 이고 `onChange` 는 그것과 같은 모양을 돌려준다.
  * 부르는 쪽이 저장 시점을 정한다 — 여기서 저장을 부르지 않는 이유는 `DragDrop.jsx` 가
  * 낙관적 갱신을 안 하는 이유와 같다: 언제가 진실인지는 부르는 쪽이 알아야 한다. */
-export function BlockEditor({ value, onChange, readOnly = false, label = "본문", ariaLabel, onPickImage }) {
+/* 편집 본문의 바닥(rem) — 핸드오프 RULES §7 「본문 min-height 240」. 루트 16px 에서 240px 이다. */
+const EDITOR_BODY_MIN_REM = 15;
+
+export function BlockEditor({ value, onChange, readOnly = false, label = "본문", ariaLabel, onPickImage, fill = false }) {
   const name = ariaLabel || label;
   const editor = useEditor({
     editable: !readOnly,
@@ -398,43 +401,69 @@ export function BlockEditor({ value, onChange, readOnly = false, label = "본문
 
   if (!editor) return null;
 
+  /* ── 편집기 상자 (핸드오프 RULES §7 · 새 티켓 시안 · UI 3차 조합 계약 C-5) ─────────────────────────────
+   *
+   * 편집 중인 편집기는 **상자 하나**다: 1px 테두리 · 모서리 6 안에 도구 줄(함몰면 + 아래 실선)과 본문(바닥 240)이 붙어
+   * 선다. 예전에는 도구 줄(면 없음) · 구분선 · 테두리 본문이 세 덩어리로 떨어져 판 위에 흩어졌고, 본문이 판 높이를 채울
+   * 방법이 없었다. 새 티켓 · 문서 편집 · 티켓 본문이 같은 상자를 쓴다.
+   *
+   *   도구 줄  30 아이콘 단추 · 묶음 사이 1px 세로선 · 되돌리기와 다시 실행은 오른쪽 끝(빈 공간 뒤)
+   *   본문     바닥 240, 도구 줄 아래 남는 높이를 채울 수 있다(`fill` — 부르는 쪽이 세로 flex 로 둘 때)
+   *
+   * 읽기 전용(`BlockView`)은 상자가 없다 — 본문 글만 그대로 선다. */
+  const history = TOOL_GROUPS.find((g) => g.id === "history");
+  const leading = TOOL_GROUPS.filter((g) => g.id !== "history");
+  const renderTool = (tool) => {
+    const active = isActive(editor, tool.on);
+    return (
+      <Tooltip key={tool.id} title={tool.label}>
+        {/* 아이콘 하나만으로는 스크린리더에 이름이 없다 — `aria-label` 을
+            따로 준다(Tooltip 의 title 은 마우스 사용자를 위한 것일 뿐
+            접근 이름을 자동으로 만들어 주지 않는다). */}
+        <IconButton
+          size="small"
+          type="button"
+          aria-label={tool.label}
+          aria-pressed={tool.on ? active : undefined}
+          onClick={() => tool.run(editor.chain().focus()).run()}
+          sx={toolButtonSx(active)}
+        >
+          <tool.Icon fontSize="small" />
+        </IconButton>
+      </Tooltip>
+    );
+  };
+
   return (
-    <Box>
+    <Box
+      data-editor-box={readOnly ? undefined : ""}
+      sx={readOnly ? undefined : {
+        display: "flex", flexDirection: "column", minWidth: 0,
+        border: 1, borderColor: "divider", borderRadius: `${RADIUS.sm}px`, overflow: "hidden",
+        bgcolor: "background.plate",
+        ...(fill ? { flex: "1 1 auto" } : null),
+      }}
+    >
       {!readOnly && (
         <>
           <Stack
             direction="row"
-            spacing={0.75}
+            spacing={0.25}
             role="toolbar"
             aria-label={`${label} 서식`}
-            sx={{ flexWrap: "wrap", rowGap: 0.75, alignItems: "center", mb: 1 }}
+            data-editor-toolbar=""
+            sx={{
+              flexWrap: "wrap", rowGap: 0.5, alignItems: "center",
+              px: 1, py: 0.75, bgcolor: "background.inset", borderBottom: 1, borderColor: "divider",
+            }}
           >
-            {TOOL_GROUPS.map((group, index) => (
+            {leading.map((group, index) => (
               <React.Fragment key={group.id}>
-                {/* 다섯 묶음을 세로선으로 나눈다 — REAUDIT §15.4 이 이름 붙인 서식·문단·
-                    목록·삽입·실행이다. 첫 묶음 앞에는 안 긋는다. */}
-                {index > 0 ? <Divider orientation="vertical" flexItem sx={{ my: 0.25 }} /> : null}
+                {/* 묶음을 세로선으로 나눈다 — REAUDIT §15.4 이 이름 붙인 서식·문단·목록·삽입이다. 첫 묶음 앞에는 안 긋는다.
+                    실행(되돌리기 · 다시 실행)은 선 대신 빈 공간 뒤 오른쪽 끝에 선다. */}
+                {index > 0 ? <Divider orientation="vertical" flexItem sx={{ my: 0.75, mx: 0.5 }} /> : null}
                 <Stack direction="row" spacing={0.25} aria-label={group.label} sx={{ alignItems: "center" }}>
-                  {group.tools.map((tool) => {
-                    const active = isActive(editor, tool.on);
-                    return (
-                      <Tooltip key={tool.id} title={tool.label}>
-                        {/* 아이콘 하나만으로는 스크린리더에 이름이 없다 — `aria-label` 을
-                            따로 준다(Tooltip 의 title 은 마우스 사용자를 위한 것일 뿐
-                            접근 이름을 자동으로 만들어 주지 않는다). */}
-                        <IconButton
-                          size="small"
-                          type="button"
-                          aria-label={tool.label}
-                          aria-pressed={tool.on ? active : undefined}
-                          onClick={() => tool.run(editor.chain().focus()).run()}
-                          sx={toolButtonSx(active)}
-                        >
-                          <tool.Icon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                    );
-                  })}
+                  {group.tools.map(renderTool)}
                   {group.id === "insert" ? (
                     <>
                       <Tooltip title="링크">
@@ -498,6 +527,15 @@ export function BlockEditor({ value, onChange, readOnly = false, label = "본문
                 </Stack>
               </React.Fragment>
             ))}
+            {history ? (
+              /* 실행 묶음은 줄의 오른쪽 끝이다 — 남는 폭을 먹는 칸 안에서 오른쪽에 붙는다. 빈 공간 칸을 따로 두면 도구 줄이
+                 두 줄로 접힐 때(1366 새 티켓 편집기 605px) 빈 공간은 첫 줄에 남고 실행 묶음만 둘째 줄 왼쪽에 섰다. */
+              <Box sx={{ flex: "1 0 auto", display: "flex", justifyContent: "flex-end" }}>
+                <Stack direction="row" spacing={0.25} aria-label={history.label} sx={{ alignItems: "center" }}>
+                  {history.tools.map(renderTool)}
+                </Stack>
+              </Box>
+            ) : null}
           </Stack>
           <LinkPopover
             anchorEl={linkPopover?.anchorEl}
@@ -555,19 +593,22 @@ export function BlockEditor({ value, onChange, readOnly = false, label = "본문
             }}
             ariaLabel="문서에 넣을 이모지 고르기"
           />
-          <Divider sx={{ mb: 1 }} />
         </>
       )}
       <Box
+        data-editor-body={readOnly ? undefined : ""}
         sx={(theme) => ({
           ...KO_WORD_BREAK,
-          border: readOnly ? "none" : `1px solid ${theme.palette.divider}`,
-          borderRadius: 1,
-          px: readOnly ? 0 : 1.5,
-          py: readOnly ? 0 : 1,
-          minHeight: readOnly ? 0 : "16rem",
+          /* 본문은 상자 안 도구 줄 아래다 — 테두리는 상자가 든다. 바닥 240(`EDITOR_BODY_MIN_REM`)이고, 상자가 남는 높이를
+             받으면(`fill`) 본문이 그만큼 자라 편집 자리가 판 바닥까지 선다. 본문 어디를 눌러도 편집 자리가 잡히게
+             ProseMirror 가 본문 높이를 채운다. */
+          px: readOnly ? 0 : 2,
+          py: readOnly ? 0 : 1.75,
+          minHeight: readOnly ? 0 : `${EDITOR_BODY_MIN_REM}rem`,
+          ...(readOnly ? null : { display: "flex", flexDirection: "column", flex: "1 1 auto" }),
           fontSize: FONT_SIZE.body,
-          "& .ProseMirror": { outline: "none", minHeight: readOnly ? 0 : "14rem" },
+          ...(readOnly ? null : { "& > div": { flex: "1 1 auto", display: "flex", flexDirection: "column" } }),
+          "& .ProseMirror": { outline: "none", ...(readOnly ? { minHeight: 0 } : { flex: "1 1 auto" }) },
           "& .ProseMirror h1, & .ProseMirror h2, & .ProseMirror h3": {
             fontWeight: FONT_WEIGHT.semibold,
             marginBlock: "0.8em 0.4em",

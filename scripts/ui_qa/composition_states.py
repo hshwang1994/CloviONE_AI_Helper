@@ -269,9 +269,69 @@ def st_new_ticket_project_picked(page, base, settle):
     options = page.locator("[role=listbox] [role=option]")
     if options.count() == 0:
         raise StateSkipped("프로젝트 후보가 없다")
-    options.nth(0).click()
+    # 첫 후보는 「프로젝트 선택」(값 없음 자리, `EntityCombobox allLabel`)이다 — 그것을 누르면 아무것도 안 고른 채 「고름」으로 적혔다(P4 눈 대조).
+    index = next((i for i in range(options.count())
+                  if not re.search(r"프로젝트 선택|전체|고르세요", options.nth(i).inner_text() or "")), None)
+    if index is None:
+        raise StateSkipped("고를 프로젝트 후보가 없다(값 없음 자리뿐)")
+    name = (options.nth(index).inner_text() or "").strip()
+    options.nth(index).click()
     page.wait_for_timeout(700)
-    return "프로젝트 고름"
+    shown = box.input_value() if box.evaluate("(el) => el.tagName === 'INPUT'") else (box.inner_text() or "")
+    if not shown or re.search(r"프로젝트 선택", shown):
+        raise StateSkipped("고른 프로젝트가 칸에 서지 않았다")
+    return f"프로젝트 고름({name[:20]})"
+
+
+def st_knowledge_doc_editing(page, base, settle):
+    # 휴지통 밖 문서는 열면 곧바로 편집 중이다(`KnowledgeDoc.jsx` — 읽기 전용은 휴지통 문서뿐) — 누를 것이 없다.
+    from scripts.ui_qa import capture as cap
+
+    doc_id = cap._first_id(_api_json(page, base, "/api/knowledge/documents"))
+    if not doc_id:
+        raise StateSkipped("문서가 없다")
+    _goto(page, base, f"/knowledge/{doc_id}", settle)
+    if _first(page, ["#main-content [data-editor-box]"]) is None:
+        raise StateSkipped("편집기 상자가 서지 않았다(휴지통 문서이거나 편집기 청크 실패)")
+    return "문서 편집 중"
+
+
+def st_ticket_detail_body_editing(page, base, settle):
+    # 「… 수정」은 편집 모드만 연다(`EditableBody.jsx::startEditing` — 서버 요청이 없다). 저장은 누르지 않는다.
+    from scripts.ui_qa import capture as cap
+
+    ticket_id = None
+    for endpoint in ("/api/tickets/mine", "/api/tickets/team?active=false"):
+        ticket_id = cap._first_id(_api_json(page, base, endpoint))
+        if ticket_id:
+            break
+    if not ticket_id:
+        raise StateSkipped("티켓이 없다")
+    _goto(page, base, f"/tickets/{ticket_id}", settle)
+    opener = _first(page, ["#main-content button:has-text('본문 수정')", "#main-content button:has-text('설명 수정')"])
+    if opener is None:
+        raise StateSkipped("본문 「수정」 단추를 못 찾음")
+    _click(opener, "편집을 여는 단추")
+    page.wait_for_timeout(900)
+    if _first(page, ["#main-content [data-editor-box]"]) is None:
+        raise StateSkipped("편집기 상자가 서지 않았다")
+    return "티켓 본문 편집 중"
+
+
+def st_settings_editor_open(page, base, settle):
+    # 행 「수정」은 편집 모달만 연다(`SettingsMain.jsx` → `SettingEditor` — 서버 요청이 없다). 저장 · 미리 검증은 누르지 않는다.
+    page.goto(f"{base.rstrip('/')}/admin#/settings", wait_until="domcontentloaded", timeout=45_000)
+    from scripts.ui_qa import capture as cap
+
+    cap._settle(page, settle_ms=settle, timeout_ms=45_000)
+    opener = _first(page, ["#main-content tbody [data-row-actions] button:has-text('수정')"])
+    if opener is None:
+        raise StateSkipped("설정 행 「수정」을 못 찾음(쓰기 권한이 없거나 표가 비었다)")
+    _click(opener, "편집 모달을 여는 단추")
+    page.wait_for_timeout(700)
+    if _first(page, [".MuiDialog-root [data-action-footer='modal']"]) is None:
+        raise StateSkipped("편집 모달 발이 서지 않았다")
+    return "설정 편집 모달 열림"
 
 
 def _room_of(page, base, kind: str):
@@ -344,6 +404,9 @@ STATES = (
     ("new-ticket.submit-error", "user_new-ticket", st_new_ticket_submit_error, False),
     ("new-ticket.scrolled", "user_new-ticket", st_new_ticket_scrolled, True),
     ("new-ticket.project-picked", "user_new-ticket", st_new_ticket_project_picked, True),
+    ("knowledge-doc.editing", "user_knowledge-doc", st_knowledge_doc_editing, True),
+    ("ticket-detail.body-editing", "user_ticket-detail", st_ticket_detail_body_editing, True),
+    ("settings.editor-open", "admin_settings", st_settings_editor_open, True),
     ("chat.group", "user_chat-room-detail", st_chat_group, True),
     ("chat.direct", "user_chat-room-detail", st_chat_direct, True),
     ("chat.list-search-empty", "user_chat-rooms", st_chat_list_search_empty, True),

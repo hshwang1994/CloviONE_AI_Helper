@@ -408,6 +408,41 @@ CASES: list[dict] = [
         </div>""",
     },
     {
+        "name": "oversized_empty_surface/입력 자리가 채우는 빈 편집기 상자는 안 잡힌다",
+        "assertion": "oversized_empty_surface",
+        "expect": "pass",
+        "why": ("새 폼의 편집기 상자는 비어 있는 것이 기본 상태다 — 도구 줄 아래 본문 바닥 240 이 쓸 자리다(핸드오프 RULES §7). "
+                "같은 자리를 여러 줄 입력으로 그리면 칠한 면이 fieldset 이라 후보가 안 되는데, div 상자로 그린 편집기만 "
+                "«큰 빈 면»으로 잡혔다(UI 3차 P4, 새 티켓 1200 1열)."),
+        "html": """
+        <div style="width:860px;height:283px;background:#fafafe;border:1px solid #ddd;display:flex;flex-direction:column;box-sizing:border-box">
+          <div role="toolbar" style="height:42px;background:#f0f0f6;border-bottom:1px solid #ddd;display:flex;gap:4px;align-items:center;padding:0 8px">
+            <button style="height:30px;width:30px">B</button><button style="height:30px;width:30px">I</button>
+            <button style="height:30px;width:30px">U</button>
+          </div>
+          <div style="flex:1 1 auto;padding:14px 16px;display:flex">
+            <div contenteditable="true" style="flex:1 1 auto;outline:none"><p style="margin:0"><br></p></div>
+          </div>
+        </div>
+        <!-- 검사가 실제로 돌았음을 보이려고 통과하는 판을 하나 둔다(편집기 상자만 두면 잴 것이 없어 skip 이다). -->
+        <div style="width:1400px;height:110px;background:#fff;border:1px solid #ddd;margin-top:24px;
+                    display:flex;align-items:center;gap:16px;padding:0 16px;box-sizing:border-box">
+          <input style="flex:1 1 auto;height:36px" value="검색어">
+          <button style="height:36px">정렬</button>
+        </div>""",
+    },
+    {
+        "name": "oversized_empty_surface/작은 입력 하나를 품은 큰 빈 판은 잡힌다",
+        "assertion": "oversized_empty_surface",
+        "expect": "fail",
+        "why": ("입력 자리 예외는 **면의 절반 이상**을 입력이 채울 때만이다. 큰 판 한구석의 작은 입력은 판을 «쓸 자리»로 "
+                "만들지 않는다 — 예외가 넓게 새면 빈 판이 입력 하나로 숨는다."),
+        "html": """
+        <div style="width:900px;height:420px;background:#fff;border:1px solid #ddd;box-sizing:border-box;padding:16px">
+          <textarea style="width:300px;height:60px"></textarea>
+        </div>""",
+    },
+    {
         "name": "oversized_empty_surface/내용이 폭을 채우는 띠는 안 잡힌다",
         "assertion": "oversized_empty_surface",
         "expect": "pass",

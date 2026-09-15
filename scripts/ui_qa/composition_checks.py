@@ -99,6 +99,8 @@ ROUTE_EXPECT: dict[str, dict] = {
     "user_work-board": {"callerWidths": True, "filterExempt": True, "footerExempt": True},
     "user_sprint": {"callerWidths": True, "filterExempt": True},
     "user_search": {"filterExempt": True},
+    # 결과가 선 통합 검색도 같은 화면이다(`Search.jsx` — 대장 조합 예외: 제출형 검색 줄 + 결과 요약 문장).
+    "user_search-results": {"filterExempt": True},
     "admin_schedules": {"filterExempt": True},
 }
 
@@ -135,6 +137,10 @@ COMPOSITION_JS = r"""
   const inOverlay = (el) => !!el.closest('.MuiDialog-root, .MuiDrawer-root, .MuiPopover-root, .MuiMenu-root, [role=tooltip]');
   const inShell = (el) => !!el.closest('.MuiAppBar-root, #app-sidebar, nav');
   const rootPx = px(getComputedStyle(document.documentElement).fontSize) || 16;
+  /* 계약값 가운데 제품이 rem 으로 그리는 치수(판 여백 · 칸 34 · 행 단추 30 · 머리 표지 16 · 목록 발 44 · 편집기 도구 30 · 본문 240)는 루트 글자
+     크기를 따라 자란다 — 2200px 이상에서 루트가 18 · 20px 이면 판 여백은 22.5 · 25px 다(`styles/root.css`). 계약 숫자는 루트 16px 의
+     값이라 그 비율로 잰다. 간격 · 들여쓰기(MUI spacing px)는 자라지 않으므로 그대로 둔다. */
+  const R = rootPx / 16;
   const toHex = (c) => {
     const m = String(c || '').match(/rgba?\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)/);
     if (!m) return String(c || '').trim().toLowerCase();
@@ -228,7 +234,7 @@ COMPOSITION_JS = r"""
       check('filter_cell_anatomy').checked++;
       const problems = [];
       const br = rect(box);
-      if (!near(br.height, C.filterCell)) problems.push('높이 ' + Math.round(br.height));
+      if (!near(br.height, C.filterCell * R)) problems.push('높이 ' + Math.round(br.height));
       if (box.querySelector('.MuiChip-root')) problems.push('칸 안 칩');
       let prefix = box.querySelector('[data-prefix-label]');
       if (!prefix) {
@@ -333,7 +339,7 @@ COMPOSITION_JS = r"""
     /* 표가 든 판은 여백 0(머리가 가장자리에 붙는다), 표가 없는 판(불러오는 중 · 빈 목록)은 판 여백 20 안에 선다. */
     const stateOnly = !s.querySelector('table');
     if (stateOnly) {
-      if (!near(px(cs.paddingTop), C.cardPadding, 1) || !near(px(cs.paddingLeft), C.cardPadding, 1)) problems.push('빈 · 불러오는 판 여백 ' + cs.paddingTop + '/' + cs.paddingLeft);
+      if (!near(px(cs.paddingTop), C.cardPadding * R, 1) || !near(px(cs.paddingLeft), C.cardPadding * R, 1)) problems.push('빈 · 불러오는 판 여백 ' + cs.paddingTop + '/' + cs.paddingLeft);
     } else if (px(cs.paddingTop) > 0.5 || px(cs.paddingLeft) > 0.5) problems.push('판 여백 ' + cs.paddingTop + '/' + cs.paddingLeft);
     if (cs.overflowY !== 'visible') problems.push('판 overflow ' + cs.overflowY);
     const head = s.querySelector('thead tr');
@@ -352,7 +358,7 @@ COMPOSITION_JS = r"""
     if (foot && shown(foot)) {
       const kids = [...s.children].filter(shown);
       if (kids[kids.length - 1] !== foot) problems.push('발이 판의 마지막 줄이 아님');
-      if (rect(foot).height < C.listFooterMin - tol) problems.push('발 높이 ' + Math.round(rect(foot).height));
+      if (rect(foot).height < C.listFooterMin * R - tol) problems.push('발 높이 ' + Math.round(rect(foot).height));
       if (getComputedStyle(foot).position === 'sticky') {
         const tiny = [...foot.querySelectorAll('*')].find((el) => { const r = rect(el); return r.width <= 1.5 && r.height <= 1.5 && getComputedStyle(el).display !== 'none'; });
         if (tiny) problems.push('sticky 발 안에 무한 스크롤 센티널');
@@ -393,7 +399,7 @@ COMPOSITION_JS = r"""
     const btns = [...td.querySelectorAll('.MuiButton-root, .MuiIconButton-root, [data-row-actions] button')].filter((b, i, arr) => shown(b) && !b.closest('.MuiChip-root') && arr.indexOf(b) === i);
     if (!btns.length) continue;
     check('row_actions').checked++;
-    const bad = btns.filter((b) => !near(rect(b).height, C.rowAction, 1));
+    const bad = btns.filter((b) => !near(rect(b).height, C.rowAction * R, 1));
     if (bad.length) fail('row_actions', { ...where(td), problem: '행 단추 높이', h: [...new Set(bad.map((b) => Math.round(rect(b).height)))] });
     if (btns.length > C.rowActionsPerCell) fail('row_actions', { ...where(td), problem: '한 칸 단추 ' + btns.length });
   }
@@ -412,7 +418,7 @@ COMPOSITION_JS = r"""
     let prevRight = lr ? lr.right : null;
     for (const g of glyphs.slice().sort((a, b) => rect(a).left - rect(b).left)) {
       const gr = rect(g);
-      if (gr.width > C.headGlyphMax + 0.5 || gr.height > C.headGlyphMax + 0.5) problems.push('표지 ' + Math.round(gr.width) + 'px');
+      if (gr.width > C.headGlyphMax * R + 0.5 || gr.height > C.headGlyphMax * R + 0.5) problems.push('표지 ' + Math.round(gr.width) + 'px');
       if (lr && gr.right <= lr.left) {
         if (lr.left - gr.right > C.headGlyphGap + 0.5) problems.push('이름과 ' + Math.round(lr.left - gr.right) + 'px');
         continue;
@@ -433,7 +439,7 @@ COMPOSITION_JS = r"""
     check('footer_alignment').checked++;
     const last = btns.sort((a, b) => rect(b).right - rect(a).right)[0];
     const gap = rect(f).right - rect(last).right;
-    if (!near(gap, C.cardPadding, 1)) fail('footer_alignment', { text: text(last), gap: Math.round(gap), want: C.cardPadding });
+    if (!near(gap, C.cardPadding * R, 1)) fail('footer_alignment', { text: text(last), gap: Math.round(gap), want: C.cardPadding * R });
   }
 
   // ── 편집기 상자 ──────────────────────────────────────────────────────────
@@ -458,13 +464,13 @@ COMPOSITION_JS = r"""
       if (transparent(ts.backgroundColor) || ts.backgroundColor === bs.backgroundColor) problems.push('도구 줄이 함몰면이 아님');
       if (!(px(ts.borderBottomWidth) >= 1)) problems.push('도구 줄 아래 선 없음');
       const tools = [...tb.querySelectorAll('button')].filter(shown);
-      const off = tools.filter((x) => !near(rect(x).height, C.editorTool, 1));
+      const off = tools.filter((x) => !near(rect(x).height, C.editorTool * R, 1));
       if (off.length) problems.push('도구 단추 ' + [...new Set(off.map((x) => Math.round(rect(x).height)))].join(','));
       const redo = tb.querySelector('[aria-label="다시 실행"]');
       if (redo && shown(redo) && !near(rect(redo).right, rect(tb).right - px(ts.paddingRight), 2)) problems.push('다시 실행이 오른쪽 끝이 아님');
     }
     if (!body || !shown(body)) problems.push('본문 없음');
-    else if (rect(body).height < C.editorBodyMin - tol) problems.push('본문 ' + Math.round(rect(body).height));
+    else if (rect(body).height < C.editorBodyMin * R - tol) problems.push('본문 ' + Math.round(rect(body).height));
     if (problems.length) fail('editor_box', { ...where(b), problems });
   }
 
@@ -481,7 +487,12 @@ COMPOSITION_JS = r"""
     check('page_fill').checked++;
     const r = rect(f);
     const gap = innerHeight - r.bottom;
-    if (window.scrollY < 2 && (gap > allowed || gap < -1)) fail('page_fill', { ...where(f), bottomGap: Math.round(gap), allowed: Math.round(allowed) });
+    /* 판이 화면보다 **짧아** 아래 캔버스가 비면 실패다. 넘치는 쪽은 판의 종류가 가른다(P4 교정).
+       `data-page-fill="grow"` — 화면 높이가 **바닥**인 판(새 티켓 폼)이다. 폼이 더 길면 판이 자라고 페이지가 굴러가며 발이 따라온다(`ActionFooter sticky`).
+       그 밖(`data-page-fill=""`) — 화면 높이가 **판 높이**인 판(채팅방)이다. 화면을 넘으면 페이지가 굴러가 입력창이 화면 아래를 벗어난다. */
+    const grows = f.getAttribute('data-page-fill') === 'grow';
+    if (window.scrollY < 2 && gap > allowed) fail('page_fill', { ...where(f), problem: '판 아래 캔버스가 빔', bottomGap: Math.round(gap), allowed: Math.round(allowed) });
+    else if (window.scrollY < 2 && !grows && gap < -1) fail('page_fill', { ...where(f), problem: '높이 고정 판이 화면을 넘음', bottomGap: Math.round(gap) });
   }
 
   // ── 채팅 조합 ────────────────────────────────────────────────────────────
@@ -581,6 +592,7 @@ def selftest_html() -> str:
         <div data-chat-row="theirs">안녕하세요</div>
       </div>
       <div data-chat-dock="" style="border-top:1px solid #dcdfec;padding-top:12px"><div data-chat-composer="" style="border:1px solid #ccc;border-radius:10px;height:48px"></div></div>
+      <div data-page-fill="grow" style="height:120vh;border:1px solid #dcdfec">화면보다 긴 폼 판(바닥 판)</div>
     </div>
     <div id="compose-bad">
       <div data-filter-surface="" style="display:grid;gap:12px;padding-bottom:16px">
@@ -613,6 +625,7 @@ def selftest_html() -> str:
         <div data-chat-row="theirs">안녕하세요</div>
       </div>
       <div data-chat-composer="" style="border:1px solid #ccc;border-radius:10px;height:48px"></div>
+      <div data-page-fill="" style="height:120vh;border:1px solid #dcdfec">화면을 넘는 높이 고정 판</div>
     </div>`;
   document.body.appendChild(box);
   return true;
@@ -624,7 +637,7 @@ def selftest_html() -> str:
 SELFTEST_EXPECT_BAD = {
     "filter_composition": 1, "filter_cell_anatomy": 2, "list_surface": 3, "list_wrapper": 2,
     "primary_budget": 2, "row_actions": 1, "table_head_glyph": 1, "footer_alignment": 1,
-    "editor_box": 1, "chat_composition": 1,
+    "editor_box": 1, "chat_composition": 1, "page_fill": 1,
 }
 
 # 틀린 견본의 실패 사유 안에 반드시 나와야 하는 낱말 — 개수만 맞고 엉뚱한 이유로 걸리는 것을 막는다.
@@ -639,6 +652,7 @@ SELFTEST_EXPECT_REASONS = {
     "footer_alignment": ["100"],
     "editor_box": ["테두리", "도구 줄이 함몰면이 아님", "도구 단추 34", "다시 실행이 오른쪽 끝이 아님", "본문 120"],
     "chat_composition": ["로그 아래 정렬", "날짜선 폭", "입력 도킹 영역 없음"],
+    "page_fill": ["높이 고정 판이 화면을 넘음"],
 }
 
 

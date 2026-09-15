@@ -1,5 +1,4 @@
 import Box from "@mui/material/Box";
-import { FAB_CLEARANCE } from "../../ui/theme.js";
 import { MembersList } from "./MembersList.jsx";
 import { ChatPanel } from "./ChatPanel.jsx";
 
@@ -7,14 +6,14 @@ import { ChatPanel } from "./ChatPanel.jsx";
  * 옮겼다. 넓은 화면에서는 화면 높이에 고정하고 참여자 목록은 상한 높이로 접어(자체 스크롤)
  * 아무리 많아도 채팅을 밀어내지 않게 한다. 채팅이 남는 공간을 꽉 채운다.
  *
- * FAB_CLEARANCE 를 함께 빼지 않으면 레일 맨 아래의 '보내기'가 마스코트 FAB 밑에 깔려 눌리지
- * 않는다(클릭이 FAB에 가로채짐). 실제로 그랬다. */
+ * 예전에는 높이에서 마스코트 FAB 자리(5rem)를 더 뺐다 — 레일 맨 아래 '보내기'가 FAB 밑에 깔려 눌리지 않았다. 그 FAB 은
+ * PA-RC-0020 에서 걷혔으므로 빼던 높이를 레일에 돌려준다(UI 3차 조합 계약 C-5). */
 export function RoomSidebar({ c }) {
   return (
     <Box component="aside" sx={{
       display: "flex", flexDirection: "column", gap: 1.5, minWidth: 0,
       position: { md: "sticky" }, top: { md: 0 },
-      height: { md: `calc(100vh - 14rem - ${FAB_CLEARANCE})` },
+      height: { md: "calc(100vh - 14rem)" },
     }}>
       <MembersList
         members={c.members} room={c.room} you={c.you}

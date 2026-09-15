@@ -314,6 +314,36 @@ export function pairTracks(weight) {
   };
 }
 
+/* ── 내용 폭 짝 트랙 — 주 판 + 보조 레일 (UI 3차 · 조합 계약 C-5) ──────────────────────────────────
+ *
+ * `pairTracks` 는 **뷰포트** `lg`(1200)에서 2열로 선다. 주 판 + 보조 레일 화면(새 티켓 · LLM 콘솔 · 오프보딩 · 초기 설정)
+ * 에서는 그 문턱이 틀렸다: 1200 뷰포트의 본문 칸은 사이드바를 빼면 59.5rem 인데 2열로 서서 폼이 1칸 8줄로 좁고 레일
+ * 아래가 비었다. 2열은 **본문이 받은 폭**이 정한다 — 본문 칸 64rem 이상이면 2열(1366 → 69.9rem), 아니면 1열이고 레일은
+ * 폼 아래로 간다. 사이드바를 접으면 같은 뷰포트에서도 본문 폭을 따라 2열이 된다.
+ *
+ * 🔴 `pairTracks` 자체는 바꾸지 않는다 — 소비처 일곱 중 내 프로필(보호 화면)이 뷰포트 문턱에 레이아웃을 걸고 있다.
+ *
+ * 쓰는 법: 컨테이너 상자(`CONTENT_PAIR_CONTAINER`) 안에 격자(`contentPairTracks(weight)`)를 둔다 — 컨테이너 질의는
+ * 자기 자신이 아니라 조상의 폭을 본다. 1열에서도 두 판은 같은 격자의 두 줄이다(바닥 정렬 규칙 그대로). */
+export const CONTENT_PAIR_MIN_REM = 64;
+export const CONTENT_PAIR_CONTAINER = { containerType: "inline-size", containerName: "content-pair" };
+export function contentPairTracks(weight) {
+  return {
+    display: "grid", gap: GRID_GAP, alignItems: "stretch",
+    gridTemplateColumns: "minmax(0, 1fr)",
+    [`@container content-pair (min-width: ${CONTENT_PAIR_MIN_REM}rem)`]: { gridTemplateColumns: weight },
+  };
+}
+
+/* ── 화면 아래까지 서는 판의 높이 (UI 3차 · 조합 계약 C-5 · C-6) ─────────────────────────────────────
+ *
+ * 새 티켓의 두 판과 채팅방 판은 화면 아래까지 선다 — 짧은 폼 · 짧은 대화에서 판이 내용만큼만 서면 판 아래 캔버스가 비고
+ * 판 발이 화면 가운데 떠 보였다. 값은 뷰포트 높이에서 판 윗변(상단바 + 본문 열 위 여백 + 설명 없는 페이지 머리 = 161px)과
+ * 본문 열 아래 여백(32px)을 뺀 것이다 — 193px ≈ 12rem. 채팅방이 먼저 쓰던 13rem 은 판 아래 캔버스가 47px 비었다(1920 실측
+ * `page_fill`, 허용 40). 부르는 쪽은 넓은 화면(`md` 이상)에서만 건다 — 좁은 화면은 판이 쌓여 흐른다.
+ * 새 티켓은 이 값을 **바닥**(`minHeight`, `data-page-fill="grow"`)으로 쓴다 — 폼이 더 길면 판이 자라고 페이지가 굴러가며, 판 발이 따라온다. */
+export const PAGE_FILL_HEIGHT = "calc(100vh - 12rem)";
+
 /* ── 폼 필드 격자 (D-458) — `/new-ticket` 의 것과 같은 값 ──────────────────
  *
  * 칸이 16rem 보다 좁아지면 값이 잘리기 시작한다. 컨테이너 질의라 폼 판이 레일 옆에서 좁아지면
