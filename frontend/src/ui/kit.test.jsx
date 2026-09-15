@@ -10,8 +10,10 @@ import {
 } from "./kit.jsx";
 import { ThemeModeProvider } from "./ThemeModeProvider.jsx";
 import { StatusKpiTile } from "./StatusKpi.jsx";
+import { createClovirTheme } from "./theme.js";
 
 /* qa-contract-change: 판독 줄(MetricStrip)이 핸드오프 RULES §6(「판독 줄은 쓰지 않는다」)에 따라 걷히고 측정값 타일(StatusKpiTile)이 그 자리를 이어, 판독 칸이 지키던 세 계약(신호를 색만으로 말하지 않는다 · 누를 수 있는 칸만 버튼이고 눌림을 알린다 · 선택은 면이 아니라 선이 말한다)을 타일로 옮긴다. */
+/* qa-contract-change: 보조 · 파괴 단추의 테두리 하한(비텍스트 3:1, R-11)을 핸드오프 README §2 · 다크 모드 절 · ACCEPTANCE K3 의 값(라이트 흰 면 + #DCDFEC · #E6B0AC, 다크 투명 면 + #333B5E · #5F3330)으로 옮긴다. 글자 라벨이 컨트롤을 알리므로 테두리는 1.4.11 대상이 아니고, R-11 이 막던 두 역전(보조가 본문 잉크로 주 행동을 이김 · 파괴가 중립보다 흐림)은 두 테마 계산값으로 계속 막는다. */
 
 /* 키트를 MUI로 갈아끼우면서 계약이 유지되는지 보는 테스트.
  *
@@ -929,13 +931,13 @@ describe("Surface — 면 위계", () => {
   });
 });
 
-/* ── W4 · R-11 — 보조가 주를 이기지 않는다 ────────────────────────────────────
+/* ── 버튼 강도 — 보조 · 파괴 단추의 면과 테두리 (핸드오프 README §2 · 다크 모드 절 · ACCEPTANCE K3) ──────
  *
- * MUI v7 의 `outlined` + `color="inherit"` 은 테두리를 `currentColor` 로 그린다. 이 앱에서
- * 그것은 `text.primary` 이고 판 위 대비가 17.1:1 이라, 전체 버튼의 44%(109 호출부)를
- * 차지하는 보조 버튼이 채운 주 버튼(5.96:1)보다 **2.9배 강했다.** 눈에 보이는 결함이었고
- * 어떤 시험도 그것을 말하지 않았다. */
-describe("버튼 강도 — 보조 테두리", () => {
+ * W4(R-11)는 MUI v7 의 `outlined` + `color="inherit"` 이 테두리를 `currentColor`(본문 잉크, 판 위 17.1:1)로 그려
+ * 전체 버튼의 44% 인 보조 버튼이 채운 주 버튼(5.96:1)보다 **2.9배 강했던** 결함을 잡았다. 핸드오프는 그 테두리를
+ * 옅은 판 경계선으로 정했다 — 라이트 흰 면 + #DCDFEC, 다크 투명 면 + #333B5E, 파괴는 #E6B0AC · #5F3330 테두리에
+ * 붉은 글자. 값은 테마에서 읽고, R-11 이 막던 두 역전은 두 테마의 계산값으로 계속 막는다. */
+describe("버튼 강도 — 보조 · 파괴 단추의 면과 테두리", () => {
   const ratio = (a, b) => {
     const lum = (c) => {
       const [r, g, b2] = c.match(/\d+(\.\d+)?/g).slice(0, 3).map((v) => {
@@ -947,29 +949,63 @@ describe("버튼 강도 — 보조 테두리", () => {
     const [la, lb] = [lum(a), lum(b)];
     return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
   };
+  const rgb = (hex) => {
+    const n = parseInt(hex.replace("#", ""), 16);
+    return `rgb(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255})`;
+  };
+  const paint = (name) => getComputedStyle(screen.getByRole("button", { name }));
+  /* 테마 모드는 `<html data-theme>` 가 정한다(`ThemeModeProvider`) — 렌더 전에 세우고 시험 뒤에 걷는다. */
+  const inMode = (mode, node) => {
+    document.documentElement.setAttribute("data-theme", mode);
+    return ui(node);
+  };
+  afterEach(() => { document.documentElement.removeAttribute("data-theme"); });
 
-  it("보조 버튼 테두리가 본문 잉크가 아니다 — 비텍스트 3:1 은 넘고 주 행동은 안 이긴다", () => {
-    ui(<><Button>보조</Button><Button variant="primary">주</Button></>);
-    const border = getComputedStyle(screen.getByRole("button", { name: "보조" })).borderTopColor;
-    const plate = "rgb(255, 255, 255)";
-    const r = ratio(border, plate);
-    expect(r, `보조 테두리 ${border} on plate = ${r.toFixed(2)}`).toBeGreaterThanOrEqual(3);
+  it("라이트 보조 단추는 흰 면 + 판 경계선이고, 테두리가 주 행동의 면보다 약하다", () => {
+    const t = createClovirTheme("light");
+    inMode("light", <><Button>보조</Button><Button variant="primary">주</Button></>);
+    const plate = rgb(t.palette.background.paper);
+    expect(paint("보조").backgroundColor).toBe(plate);
+    expect(paint("보조").borderTopColor).toBe(rgb(t.palette.divider));
+    const r = ratio(paint("보조").borderTopColor, plate);
     // 예전 값(text.primary #161A2C)은 17.1:1 이었다 — 그 자리로 돌아가면 실패한다.
     expect(r, "보조 테두리가 본문 잉크만큼 강하면 위계가 뒤집힌다").toBeLessThan(8);
+    expect(r, "보조 테두리가 주 행동의 면보다 강하면 위계가 뒤집힌다")
+      .toBeLessThan(ratio(rgb(t.palette.primary.main), plate));
   });
 
-  /* 위 한 줄을 `default` 에만 걸었더니 `danger` 가 MUI 기본값 `alpha(error.main, 0.5)` 에
-   * 남아 판 위 2.48:1 이 됐다 — **되돌릴 수 없는 동작이 그 옆 중립 버튼(4.18:1)보다 흐린
-   * 경계를 갖는** 역전이었다. 독립 검수가 배포 PNG 에서 (217,146,142) 를 직접 찍어 잡았다.
-   * 두 variant 가 같은 하한을 받는다는 것을 여기서 고정한다. */
-  it("파괴적 버튼 테두리도 3:1 을 넘고, 중립 보조보다 약하지 않다", () => {
-    ui(<><Button variant="danger">삭제</Button><Button>보조</Button></>);
-    const px = (name) => getComputedStyle(screen.getByRole("button", { name })).borderTopColor;
-    const plate = "rgb(255, 255, 255)";
-    const danger = ratio(px("삭제"), plate);
-    expect(danger, `파괴 테두리 ${px("삭제")} on plate = ${danger.toFixed(2)}`).toBeGreaterThanOrEqual(3);
-    expect(danger, "파괴적 동작이 중립 보조보다 흐리면 위계가 뒤집힌다")
-      .toBeGreaterThanOrEqual(ratio(px("보조"), plate));
+  it("다크 보조 단추는 흰 면 없이 투명 면 + 강한 경계선이다", () => {
+    const t = createClovirTheme("dark");
+    inMode("dark", <><Button>보조</Button><Button variant="primary">주</Button></>);
+    expect(paint("보조").backgroundColor).toBe("rgba(0, 0, 0, 0)");
+    expect(paint("보조").borderTopColor).toBe(rgb(t.palette.dividerStrong));
+    expect(t.palette.dividerStrong.toUpperCase()).toBe("#333B5E");
+    expect(ratio(paint("보조").borderTopColor, rgb(t.palette.background.paper))).toBeLessThan(8);
+  });
+
+  /* R-11 의 둘째 역전 — `default` 에만 테두리 규칙을 걸었더니 `danger` 가 MUI 기본 `alpha(error.main, 0.5)` 에 남아
+   * **되돌릴 수 없는 동작이 그 옆 중립 버튼보다 흐린 경계를 갖는** 자리가 됐다(독립 검수가 배포 PNG 에서 잡았다).
+   * 핸드오프 값에서도 파괴 테두리는 중립보다 약하지 않다(판 위 라이트 1.88 대 1.33, 다크 1.68 대 1.62). */
+  it.each(["light", "dark"])("%s 파괴 단추는 error.line 테두리 + error.main 글자이고, 중립 보조보다 흐리지 않다", (mode) => {
+    const t = createClovirTheme(mode);
+    inMode(mode, <><Button variant="danger">삭제</Button><Button>보조</Button></>);
+    const plate = rgb(t.palette.background.paper);
+    expect(paint("삭제").borderTopColor).toBe(rgb(t.palette.error.line));
+    expect(paint("삭제").color).toBe(rgb(t.palette.error.main));
+    expect(paint("삭제").backgroundColor).toBe(mode === "dark" ? "rgba(0, 0, 0, 0)" : plate);
+    expect(ratio(paint("삭제").borderTopColor, plate), "파괴적 동작이 중립 보조보다 흐리면 위계가 뒤집힌다")
+      .toBeGreaterThanOrEqual(ratio(paint("보조").borderTopColor, plate));
+  });
+
+  /* 올려 둔 순간의 면과 선 — jsdom 은 `:hover` 를 계산하지 않으므로 emotion 이 낸 규칙에서 읽는다. */
+  it("올려 두면 보조는 함몰면 + 강한 경계선, 파괴는 error.bg 면이 된다", () => {
+    const t = createClovirTheme("light");
+    inMode("light", <><Button>보조</Button><Button variant="danger">삭제</Button></>);
+    const css = [...document.querySelectorAll("style")].map((el) => el.textContent || "").join(" ");
+    const hoverRules = css.match(/:hover\{[^}]*\}/g) || [];
+    const has = (bg, line) => hoverRules.some((rule) => rule.includes(`background-color:${bg}`) && rule.includes(`border-color:${line}`));
+    expect(has(t.palette.background.inset, t.palette.dividerStrong), hoverRules.join(" | ")).toBe(true);
+    expect(has(t.palette.error.bg, t.palette.error.line), hoverRules.join(" | ")).toBe(true);
   });
 
   /* 채운 면은 주 행동과 «확인 대화의 마지막 버튼» 둘뿐이다. `danger` 는 외곽선이다. */

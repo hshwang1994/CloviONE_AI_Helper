@@ -1,11 +1,11 @@
 import React from "react";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 
 import {
-  ActionFooter, Button, Callout, ConfirmProvider, CountChip, DataTable, DotLabel, ErrorState,
+  ActionFooter, Button, Callout, ConfirmProvider, CountChip, DataTable, DotLabel, EmptyState, ErrorState,
   FormFieldCell, FIELD_ROWS, ModalFooter, ModalHeader, Segmented, ToastProvider, useConfirm,
 } from "./kit.jsx";
 import { FilterConditionLine, FilterSurface, FilterToggle, ToolbarRow } from "./FilterBar.jsx";
@@ -334,5 +334,50 @@ describe("칸반 카드 — 점과 낱말 · 발 실선", () => {
     expect(card).not.toBeNull();
     const footer = [...card.querySelectorAll("div")].find((d) => getComputedStyle(d).borderTopWidth === "1px");
     expect(footer, "마감 · WD · 담당자 발 위에 실선이 없다").toBeTruthy();
+  });
+});
+
+/* 다크 모드의 클로비 바탕 (핸드오프 README 다크 모드 절 · RULES §13 · 계획 F).
+ * 빈 상태 · 오류 상태 그림은 밝은 바탕을 기준으로 그린 자산이라 다크에서는 함몰면 위에 놓는다. 치수는 두 모드가
+ * 같아야 하므로 면 · 모서리 · 안쪽 선(그림자)만 칠하고 여백은 그대로다. 라이트와 그림 없는 빈 상태는 칠하지 않는다. */
+describe("다크 모드 — 빈 상태 · 오류 상태 그림의 바탕", () => {
+  /* 테마 모드는 `<html data-theme>` 가 정하고 공급자가 그 속성을 지켜본다 — 렌더 전에 세우고, 시험이 끝난 뒤에 걷는다
+     (렌더 중에 걷으면 공급자가 라이트로 되돌린다). */
+  const inMode = (mode, node) => {
+    document.documentElement.setAttribute("data-theme", mode);
+    return ui(node);
+  };
+  afterEach(() => { document.documentElement.removeAttribute("data-theme"); });
+
+  it("다크에서 그림이 서는 빈 상태는 함몰면 · 모서리 6 · 안쪽 선이고, 여백은 라이트와 같다", () => {
+    const dark = inMode("dark", <EmptyState title="아직 티켓이 없습니다" art="tickets" />);
+    const darkBox = dark.container.querySelector(".k-empty");
+    const darkStyle = getComputedStyle(darkBox);
+    expect(darkStyle.backgroundColor).toBe("rgb(28, 33, 54)");
+    expect(darkStyle.borderRadius).toBe("6px");
+    expect(darkStyle.boxShadow).toContain("inset");
+    const darkPad = [darkStyle.paddingTop, darkStyle.paddingLeft];
+    dark.unmount();
+
+    const light = inMode("light", <EmptyState title="아직 티켓이 없습니다" art="tickets" />);
+    const lightStyle = getComputedStyle(light.container.querySelector(".k-empty"));
+    expect(lightStyle.backgroundColor).not.toBe("rgb(28, 33, 54)");
+    expect(lightStyle.boxShadow === "" || lightStyle.boxShadow === "none").toBe(true);
+    expect([lightStyle.paddingTop, lightStyle.paddingLeft]).toEqual(darkPad);
+  });
+
+  it("그림 없는 빈 상태(조건 0건)는 다크에서도 바탕을 받지 않는다", () => {
+    const { container } = inMode("dark", <EmptyState title="조건에 맞는 항목이 없습니다" />);
+    const st = getComputedStyle(container.querySelector(".k-empty"));
+    expect(st.backgroundColor).not.toBe("rgb(28, 33, 54)");
+    expect(st.boxShadow === "" || st.boxShadow === "none").toBe(true);
+  });
+
+  it("다크에서 그림이 서는 오류 상태도 함몰면 위에 놓이고, 좁은 자리(inline)는 칠하지 않는다", () => {
+    const region = inMode("dark", <ErrorState error={new Error("연결이 끊겼습니다.")} layout="region" />);
+    expect(getComputedStyle(region.container.querySelector(".k-empty")).backgroundColor).toBe("rgb(28, 33, 54)");
+    region.unmount();
+    const inline = inMode("dark", <ErrorState error={new Error("연결이 끊겼습니다.")} layout="inline" />);
+    expect(getComputedStyle(inline.container.querySelector(".k-empty")).backgroundColor).not.toBe("rgb(28, 33, 54)");
   });
 });

@@ -23,7 +23,8 @@
     그 줄을 이은 상태 요약 카드 · 측정값 타일의 치수는 `kit_measure.py` 가 잰다.)
   · 속성 줄(`MetaBar`)이 판을 갖지 않는가, 칸 구분선이 **실제로 그려지는가**
   · 안내(`Callout`)가 메시지 박스 1a 인가 — 함몰면 + 네 면 1px 테두리(핸드오프 RULES §1). `inline` 갈래는 상자가 없다
-  · 보조 버튼 테두리가 본문 잉크가 아닌가, **파괴 버튼 테두리가 3:1 을 넘는가**,
+  · 보조 버튼 테두리가 핸드오프 경계선(라이트 `--color-border` · 다크 `--color-border-strong`)이고 본문 잉크가 아닌가,
+    **파괴 버튼 테두리가 `--color-error-line` 이고 같은 화면의 중립 보조보다 흐리지 않은가**(핸드오프 README §2 · K3),
     채운 error 면이 대화상자 밖에 없는가
   · 잉크 3단의 실제 분리도
 
@@ -106,6 +107,12 @@ SURFACE_JS = r"""
       secondary: root.getPropertyValue('--color-muted').trim(),
       faint: root.getPropertyValue('--color-faint').trim(),
     },
+    theme: document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light',
+    lines: {
+      border: root.getPropertyValue('--color-border').trim(),
+      borderStrong: root.getPropertyValue('--color-border-strong').trim(),
+      errorLine: root.getPropertyValue('--color-error-line').trim(),
+    },
     nestedPlates: [],
     metabars: [],
     callouts: [],
@@ -165,9 +172,13 @@ SURFACE_JS = r"""
   out.plateSample = plate;
   /* 파괴적 동작의 테두리도 **잰다**. 첫 판은 `outlinedError` 를 건너뛰었는데, 바로 그
      자리가 W4 가 채운 빨강에서 외곽선으로 내린 자리다 — 자기가 바꾼 곳을 안 보는
-     프로브였다. 테두리는 비텍스트 경계라 두 종류 다 3:1 이 하한이다. */
+     프로브였다. 값의 계약은 핸드오프 README §2 · K3 다(보조 경계선 · 파괴 `error.line`).
+     눌린 필터 토글(`aria-pressed` · `aria-expanded`)은 선택 상태의 선이라 쉼 상태 표본에서 뺀다.
+     꺼진 단추는 `theme.js` 의 비활성 규칙이 선을 정하므로 뺀다. */
   for (const b of document.querySelectorAll('button.MuiButton-outlined')) {
     if (b.className.includes('outlinedPrimary')) continue;
+    if (b.classList.contains('Mui-disabled')) continue;
+    if (b.getAttribute('aria-pressed') === 'true' || b.getAttribute('aria-expanded') === 'true') continue;
     const s = cs(b);
     const row = {
       borderColor: s.borderTopColor,
@@ -191,6 +202,9 @@ SURFACE_JS = r"""
   const fnt = hexToRgb(out.ink.faint) || out.ink.faint;
   out.ink.separation = ratio(sec, fnt);
   out.ink.faintVsPlate = ratio(fnt, plate);
+  out.lines.border = hexToRgb(out.lines.border) || out.lines.border;
+  out.lines.borderStrong = hexToRgb(out.lines.borderStrong) || out.lines.borderStrong;
+  out.lines.errorLine = hexToRgb(out.lines.errorLine) || out.lines.errorLine;
   return out;
 }
 """
@@ -268,19 +282,29 @@ def verdict(m: dict) -> dict:
             fails.append(f"안내 {i}: 면이 없다 — 메시지 박스 1a 는 함몰면이다")
 
     btn = m.get("buttons") or {}
+    lines = m.get("lines") or {}
+    # 핸드오프 README §2 · 다크 모드 절 · K3 — 보조는 라이트 판 경계선 · 다크 강한 경계선, 파괴는 `error.line`.
+    want_default = lines.get("borderStrong") if m.get("theme") == "dark" else lines.get("border")
+    want_danger = lines.get("errorLine")
+    neutral_max = max((b["vsPlate"] for b in btn.get("defaultOutlined") or [] if b["vsPlate"] is not None), default=None)
     for b in btn.get("defaultOutlined") or []:
         checked += 1
         if b["vsPlate"] is not None and b["vsPlate"] > 8:
             fails.append(f"보조 버튼 «{b['label']}» 테두리 대비 {b['vsPlate']}:1 — "
                          f"본문 잉크(17:1)를 쓰고 있다. 주 행동을 이긴다")
-        if b["vsPlate"] is not None and b["vsPlate"] < 3:
-            fails.append(f"보조 버튼 «{b['label']}» 테두리 대비 {b['vsPlate']}:1 — "
-                         f"비텍스트 3:1 미만이라 경계가 안 보인다")
+        if not want_default:
+            fails.append("보조 버튼 경계선 토큰을 읽지 못했다 — 통과로 넘기지 않는다")
+        elif b["borderColor"] != want_default:
+            fails.append(f"보조 버튼 «{b['label']}» 테두리 {b['borderColor']} — 핸드오프 값 {want_default} 가 아니다")
     for b in btn.get("dangerOutlined") or []:
         checked += 1
-        if b["vsPlate"] is not None and b["vsPlate"] < 3:
-            fails.append(f"파괴 버튼 «{b['label']}» 테두리 대비 {b['vsPlate']}:1 — "
-                         f"비텍스트 3:1 미만이다. 파괴적 동작이 제품에서 가장 약한 경계가 된다")
+        if not want_danger:
+            fails.append("파괴 버튼 경계선 토큰을 읽지 못했다 — 통과로 넘기지 않는다")
+        elif b["borderColor"] != want_danger:
+            fails.append(f"파괴 버튼 «{b['label']}» 테두리 {b['borderColor']} — 핸드오프 값 {want_danger} 가 아니다")
+        if b["vsPlate"] is not None and neutral_max is not None and b["vsPlate"] < neutral_max:
+            fails.append(f"파괴 버튼 «{b['label']}» 테두리 대비 {b['vsPlate']}:1 < 중립 보조 {neutral_max}:1 — "
+                         f"파괴적 동작이 같은 화면에서 더 약한 경계가 된다")
 
     if btn.get("containedErrorOutsideDialog"):
         checked += 1

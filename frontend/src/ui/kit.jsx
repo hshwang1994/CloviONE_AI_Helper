@@ -402,8 +402,8 @@ const BUTTON_VARIANT = {
 };
 /* 핸드오프 어휘의 **Secondary** 는 이 키트의 `default` 다(흰 면 + 테두리). 화면 18곳이
    `variant="secondary"` 로 불렀는데 이 표에 그 이름이 없어 MUI 속성만 기본값으로 떨어지고,
-   아래 `default` 전용 테두리 규칙(`text.faint`)은 못 받았다 — 그 버튼들의 테두리가 R-11 이
-   고친 `currentColor`(17:1)로 서 있었다. 이름을 한 곳에서 풀어 준다. */
+   아래 `default` 전용 면 · 테두리 규칙은 못 받았다 — 그 버튼들의 테두리가 MUI 기본
+   `currentColor`(17:1)로 서 있었다. 이름을 한 곳에서 풀어 준다. */
 const BUTTON_VARIANT_ALIAS = { secondary: "default" };
 /* loading: 라벨을 "처리 중…"으로 바꿔치기하지 않는다(예전 DataScreen/ModalFooter 관행) —
  * 텍스트만 바뀌면 스피너도 없고 버튼 폭도 라벨 길이 따라 흔들린다(DS-04). 라벨은 그대로 두고
@@ -441,32 +441,29 @@ export const Button = React.forwardRef(function Button({ variant: askedVariant =
         whiteSpace: "nowrap",
         flexShrink: truncate ? 1 : 0,
         ...(truncate ? { minWidth: 0, maxWidth: "100%" } : null),
-        /* 보조 버튼의 **테두리가 주 행동보다 강했다** (R-11 실측).
-           MUI v7 의 `outlined` + `color="inherit"` 은 테두리를 `currentColor` 로 그린다
-           (`@mui/material/Button/Button.js`) — 이 앱에서 그것은 `text.primary`(#161A2C) 이고
-           판 위 대비 **17.1:1** 이다. 같은 화면의 채운 primary 가 5.96:1 이니 보조가 주보다
-           2.9배 강했다. 배포본 픽셀로 확인한 상태다(`user_unassigned.png` y=505, x=1787 이
-           단일 #161A2C). 소비처 109곳(전체 버튼의 44%)이 이 variant 다 — 호출부를 하나도
-           안 건드리고 여기 한 줄로 닫는다.
-           테두리는 **비텍스트 경계**라 WCAG 1.4.11 의 3:1 이 기준이다. `text.faint` 는 W4 가
-           AA-large 전용으로 좁힌 잉크이고 네 면에서 3.67~4.95:1 이다 — 경계로 충분하고
-           주 행동을 이기지 않는다. */
+        /* 보조와 파괴 단추의 면 · 테두리는 **핸드오프 값**이다(README §2 · 다크 모드 절 · RULES §3 · ACCEPTANCE K3).
+             보조  라이트 흰 면 + 판 경계선(`divider` #DCDFEC), hover 함몰면 + 강한 경계선(#BCC2D9)
+                   다크   투명 면 + 강한 경계선(`dividerStrong` #333B5E), hover 함몰면(#1C2136)
+             파괴  라이트 흰 면 + `error.line`(#E6B0AC) + `error.main` 글자(#B3261E), hover `error.bg`(#FAEBEC)
+                   다크   투명 면 + `error.line`(#5F3330) + `error.main` 글자(#FF8A80), hover `error.bg`(#2E1A18)
+           예전 규칙(R-11)은 테두리에 비텍스트 3:1 을 걸어 `text.faint` · 불투명 `error.main` 을 썼다. 이 단추들은
+           글자 라벨이 컨트롤을 알린다 — 테두리는 컨트롤을 알아보는 데 필요한 유일한 신호가 아니라 WCAG 1.4.11 의
+           대상이 아니고, 핸드오프가 그 자리를 옅은 경계선으로 정했다. R-11 이 막으려던 두 역전은 그대로 막힌다:
+           MUI 기본 `currentColor`(본문 잉크 17:1)로 돌아가지 않고, 파괴 테두리가 중립 보조보다 흐리지 않다
+           (판 위 라이트 1.88 대 1.33, 다크 1.68 대 1.62 — `kit.test.jsx` 「버튼 강도」가 계산값으로 잰다).
+           꺼진 단추의 면 · 선 · 글자는 `theme.js` 의 `MuiButton` `&.Mui-disabled` 규칙이 이긴다(선택자가 더 구체적이다). */
         ...(variant === "default" ? {
-          borderColor: theme.palette.text.faint,
-          "&:hover": { borderColor: theme.palette.text.secondary },
+          bgcolor: theme.palette.mode === "dark" ? "transparent" : theme.palette.background.paper,
+          borderColor: theme.palette.mode === "dark" ? theme.palette.dividerStrong : theme.palette.divider,
+          "&:hover": { bgcolor: theme.palette.background.inset, borderColor: theme.palette.dividerStrong },
         } : null),
-        /* 파괴적 동작도 **같은 하한을 받는다.** 위 한 줄을 `default` 에만 걸었더니
-           `danger` 는 MUI 기본값 `alpha(error.main, 0.5)` 에 남았고, 그것이 판 위에서
-           light 2.48:1 · dark 2.84:1 이 됐다 — 3:1 미만인 데다 바로 옆 중립 보조
-           버튼(4.18:1)보다 약하다. **제품에서 가장 위험한 동작이 가장 흐린 경계를 갖는
-           역전**이다(독립 검수 실측). 불투명 `error.main` 은 판 위 6.54:1(dark 7.72:1)이라
-           경계로 충분하고, 채운 면은 여전히 주 행동만 갖는다 — 강도 순서는 그대로다.
-           hover 색은 따로 주지 않는다. 이 팔레트의 `error` 는 `{main,bg,line,strong}` 만
-           선언하고 `dark` 는 MUI 가 채워 주는데, 그 값을 실제로 재 보면 **다크에서 대비를
-           깎는다**: light `rgb(125,26,21)` 은 흰 판 위에서 더 강해지지만 dark
-           `rgb(178,96,89)` 은 판 위 7.72 → **3.95:1** 로 내려간다. hover 는 신호가 세지는
-           자리이므로 방향이 반대다. `outlined` 의 기본 hover 배경으로 충분하다. */
-        ...(variant === "danger" ? { borderColor: theme.palette.error.main } : null),
+        ...(variant === "danger" ? {
+          bgcolor: theme.palette.mode === "dark" ? "transparent" : theme.palette.background.paper,
+          borderColor: theme.palette.error.line,
+          /* MUI 도 같은 값을 변수(`--variant-outlinedColor`)로 칠하지만, 글자색이 이 단추 계약의 일부라 여기에 적는다. */
+          color: theme.palette.error.main,
+          "&:hover": { bgcolor: theme.palette.error.bg, borderColor: theme.palette.error.line },
+        } : null),
         ...(typeof sx === "function" ? sx(theme) : sx),
       })}
     >
@@ -1532,6 +1529,20 @@ export function GuidanceBlock({ prerequisite, steps, expected, rule = true, sx }
   );
 }
 
+/* 다크 모드의 클로비 바탕 — 빈 상태 · 오류 상태 그림은 밝은 바탕을 기준으로 그린 자산이라 다크에서는 **함몰면
+   (#1C2136) 위에 그대로 놓는다**(핸드오프 README 다크 모드 절 · RULES §13 · 다크 시안 「빈 상태」, 색 반전 · 필터는 쓰지
+   않는다). 치수는 두 모드가 같아야 하므로(RULES §13) 여백은 그대로 두고 면 · 모서리 · 안쪽 선만 칠한다 — 선은 상자 안쪽
+   그림자라 크기에 들어가지 않는다. 라이트는 칠하지 않는다(공통 컴포넌트 시안의 판 안 빈 상태는 면이 없다).
+   그림이 없는 빈 상태(조건 0건 · 좁은 자리)는 바탕을 받지 않는다 — 이 면은 그림을 위한 것이다. */
+function mascotGroundSx(theme) {
+  if (theme.palette.mode !== "dark") return null;
+  return {
+    bgcolor: "background.inset",
+    borderRadius: `${RADIUS.sm}px`,
+    boxShadow: `inset 0 0 0 1px ${theme.palette.divider}`,
+  };
+}
+
 /** `EmptyState` 가 실제로 받는 prop 전체 — 아래 개발 모드 검사의 정본이다. */
 const EMPTY_STATE_PROPS = [
   "icon", "title", "help", "situation", "prerequisite", "steps", "expected",
@@ -1628,7 +1639,7 @@ export function EmptyState(props) {
       className="k-empty"
       role="status"
       aria-live="polite"
-      sx={{
+      sx={(theme) => ({
         display: "flex", alignItems: "flex-start", gap: compact ? 1.5 : 2.5,
         py: compact ? 2 : 3.5, px: compact ? 1.5 : 2,
         /* page — 남은 높이를 실제로 차지하고 그 안에서 **가운데**에 선다. `minHeight` 는
@@ -1643,7 +1654,8 @@ export function EmptyState(props) {
               ...(card ? { height: "100%", py: 4 } : { py: 6, minHeight: "min(30rem, 60vh)" }),
             }
           : null),
-      }}
+        ...(artSrc ? mascotGroundSx(theme) : null),
+      })}
       data-empty-layout={layout}
     >
       {artSrc ? (
@@ -1823,11 +1835,13 @@ export function ErrorState({ error, onRetry, size, layout = "page" }) {
       className="k-empty"
       role="alert"
       data-error-layout={layout}
-      sx={
-        centered
+      sx={(theme) => ({
+        ...(centered
           ? { display: "grid", justifyItems: "center", textAlign: "center", gap: compact ? 0.75 : 1.5, py: compact ? 2 : { xs: 6, uhd: 14 }, px: compact ? 1.5 : 3 }
-          : { display: "flex", alignItems: "flex-start", gap: compact ? 1.5 : 2.5, py: compact ? 2 : 3.5, px: compact ? 1.5 : 2 }
-      }
+          : { display: "flex", alignItems: "flex-start", gap: compact ? 1.5 : 2.5, py: compact ? 2 : 3.5, px: compact ? 1.5 : 2 }),
+        /* 그림이 서는 오류 상태만 다크 바탕을 받는다(위 `mascotGroundSx`). */
+        ...(!compact ? mascotGroundSx(theme) : null),
+      })}
     >
       {!compact ? (
         <Box

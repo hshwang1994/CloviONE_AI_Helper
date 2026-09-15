@@ -21,7 +21,7 @@ UI 의미 → 정본 컴포넌트/파일 → API · 상태 계약 → 소비처 
 
 | UI 의미 | 정본 | 파일 | 계약 요지 | 소비처 수 | 갤러리 절 | 시험 |
 |---|---|---|---|---|---|---|
-| 페이지 동작 34 · 인라인 30 | `Button` | `ui/kit.jsx` | variant default(=secondary) · primary · ghost · danger · dangerConfirm, `size sm`, 라벨 한 줄 · 안 줄어듦 · `truncate` 만 말줄임 | 81 | 버튼 | `handoff-kit-contract`, `long-text-contract`, `kit.test` |
+| 페이지 동작 34 · 인라인 30 | `Button` | `ui/kit.jsx` | variant default(=secondary) · primary · ghost · danger · dangerConfirm, `size sm`, 라벨 한 줄 · 안 줄어듦 · `truncate` 만 말줄임, 보조 = 라이트 흰 면 + 경계선 · 다크 투명 면 + 강한 경계선, 파괴 = `error.line` 테두리 + `error.main` 글자(§0-17) | 81 | 버튼 | `handoff-kit-contract`, `long-text-contract`, `kit.test` |
 | 알릴 사실(메시지 박스 1a) | `Callout` | `ui/kit.jsx` | 네 톤 같은 면 · 아이콘만 상태, 톤 이름 줄 없음, `compact` · `inline` · `bleed`, error=alert | 38 | 메시지 박스 | `kit.test`, `handoff-kit-contract` |
 | 빈 상태 | `EmptyState` | `ui/kit.jsx` | layout page/card/region/inline, 클로비 page 132/112 · 판 72 · inline 없음(D-485) | 50 | 빈 상태와 오류 | `list-empty-two-faces`, `mascot-size-contract` |
 | 조건 0건 / 자료 0건 | `ListEmptyState` | `ui/kit.jsx` | `filtered` 갈래 소유 | 7 | 이럴 때 이것 | `list-empty-two-faces` |
@@ -427,6 +427,30 @@ B 단계가 전수 흡수를 끝낸 뒤 남는 자리만 적는다. 형식은 �
 - 시험: `chat-bubble`(+2 말풍선 규격), `chatpane`(+2 입력 상자 · 보내기 실패), `chat-message-identity`(내 말 · 이어지는 말 — 계약 이동),
   `chatroom-scroll-layout`(머리 세 묶음 — 계약 이동), `chatroom-manage`(얼굴 스택 — 계약 이동), `chatroom-actions`(+1 머리 동작 실패),
   `chatrooms-two-panels`(신규 4), `chat/links`(+1 복사 실패 한 줄).
+
+## 0-17. 다크 모드 (핸드오프 README 다크 모드 절 · RULES §13 · ACCEPTANCE K1~K5 · 계획 F)
+
+- **K1 원재료 색 0**: A 시작(`4a1e1bfb`) 뒤 바꾼 `frontend/src` 파일 130개(시험 · `theme.js` · `tokens.css` 제외)에서 16진 색은
+  주석과 토큰 정의 파일(`ui/projectTone.js` — `theme.js` 와 같은 부류, 계획 T15)에만 있다.
+- **K3 단추** — 보조와 파괴 단추의 면 · 테두리를 핸드오프 값으로 옮겼다(`kit.jsx::Button`). 보조: 라이트 흰 면 + `divider`
+  #DCDFEC, hover 함몰면 + `dividerStrong` #BCC2D9 / 다크 투명 면 + `dividerStrong` #333B5E, hover 함몰면 #1C2136. 파괴: 라이트 흰 면 +
+  `error.line` #E6B0AC + `error.main` #B3261E, hover `error.bg` #FAEBEC / 다크 투명 면 + #5F3330 + #FF8A80, hover #2E1A18. 비활성은
+  `theme.js` 규칙(함몰면 · `line` · `disabledControlInk` #4B5478) 그대로다.
+  예전 규칙(W4 R-11)은 테두리에 비텍스트 3:1 하한을 걸어 `text.faint` · 불투명 `error.main` 을 썼다. 글자 라벨이 단추를 알리므로
+  테두리는 WCAG 1.4.11 의 대상이 아니고 핸드오프가 옅은 경계선으로 정했다. R-11 이 막던 두 역전은 계속 막는다 — 본문 잉크
+  테두리(17:1)로 돌아가지 않고, 파괴 테두리가 중립보다 흐리지 않다(판 위 라이트 1.88 대 1.33 · 다크 1.68 대 1.62).
+  시험 계약 이동: `kit.test.jsx` 「버튼 강도」(두 테마 계산값), `scripts/ui_qa/kit_e2e.py` 버튼 판정(토큰 값 + 파괴 ≥ 중립).
+- **K4 클로비 바탕** — 빈 상태 · 오류 상태 그림은 밝은 바탕 기준 자산이라 다크에서는 함몰면 위에 놓는다(README 다크 모드 절 ·
+  RULES §13 · 다크 시안 「빈 상태」). `kit.jsx::mascotGroundSx` 가 그림이 서는 `EmptyState` · `ErrorState` 상자에 다크에서만 함몰면 ·
+  모서리 6 · 안쪽 선(그림자)을 칠한다. 여백은 두 모드가 같고(RULES §13 「치수 동일」), 라이트 · 그림 없는 빈 상태 · 좁은 자리는
+  칠하지 않는다. 필터 · 반전은 쓰지 않는다. 시험: `handoff-kit-contract` 「다크 모드 — 빈 상태 · 오류 상태 그림의 바탕」.
+  계획 F 의 표는 「마스코트 필터 0」만 적었고 이 규칙을 빠뜨렸다 — F 실측으로 더했다.
+- **실측 하네스** `scripts/ui_qa/dark_colors.py`(맞는 견본 · 틀린 견본 자기 검사 `--selftest`): 판 면 · 판 테두리 · 함몰면 ·
+  본문/보조 잉크 · 보조/파괴/비활성 단추 · 클로비 `filter` · `mix-blend-mode` · 빈 상태 그림 바탕 · 상태 점과 메시지 박스 아이콘(판 위 3:1) · 내 말풍선
+  글자 대비(4.5:1)를 브라우저 계산값으로 센다. 표본 0 은 「미측정」이다.
+- **예외(하네스가 따로 센다)**: 보호 화면 내 업무량 요약 카드의 「남은 일 · 취소」 범례 점은 비율 막대 조각과 같은 중립 선색
+  (`dividerStrong`, 다크 판 위 1.62:1 · 라이트 1.8:1)이다. 화면이 「색은 완료 하나만」으로 정한 기존 설계이고 점은 `aria-hidden`
+  이라 뜻은 낱말이 나른다. 보호 화면 치환 목록 밖이라 두었다.
 
 ## 1. 신설한 부품
 
