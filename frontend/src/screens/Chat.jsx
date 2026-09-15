@@ -14,7 +14,9 @@ import ContentCopyRoundedIcon from "@mui/icons-material/ContentCopyRounded";
 import MenuRoundedIcon from "@mui/icons-material/MenuRounded";
 import SendRoundedIcon from "@mui/icons-material/SendRounded";
 import { Button, Callout, Card, ErrorState, PageHeader, Skeleton, useConfirm } from "../ui/kit.jsx";
-import { FONT_SIZE, FONT_WEIGHT, RADIUS } from "../ui/theme.js";
+import { FONT_SIZE, FONT_WEIGHT, ICON, RADIUS, remPx } from "../ui/theme.js";
+import { CHAT } from "../ui/chat.js";
+import { PAGE_FILL_HEIGHT } from "../ui/density.js";
 import { useChat } from "./useChat.js";
 import { copyText, dayKeyKST, formatConversationText, mascotMode, structuredCards } from "./chat-helpers.js";
 import { COLUMNS, THREAD_MAX } from "./chat/layout.js";
@@ -167,10 +169,12 @@ export function Chat() {
         title={cid ? activeTitle : "AI 도우미"}
         actions={<Button href="#/ai">문서에서 찾기</Button>}
       />
+      {/* 판 높이는 화면 아래까지 서는 판의 정본 값이다(`PAGE_FILL_HEIGHT` — 채팅방 · 새 티켓과 같은 값, 높이 고정 판). */}
       <Card
+        data-page-fill=""
         sx={{
           p: 0, overflow: "hidden",
-          height: { xs: "calc(100vh - 12rem)", md: "calc(100vh - 13rem)" },
+          height: PAGE_FILL_HEIGHT,
           minHeight: "30rem",
           display: "grid",
         }}
@@ -269,7 +273,7 @@ export function Chat() {
                   {/* 폴링이 일시 실패해도 읽던 메시지를 지우지 않는다, 작은 안내만 띄우고 스레드는 유지. */}
                   {thread.isError ? (
                     <Callout tone="warn" compact sx={{ alignSelf: "center" }}
-                      action={<Button size="sm" variant="ghost" onClick={() => thread.refetch()}>새로고침</Button>}>
+                      action={<Button size="sm" onClick={() => thread.refetch()}>새로고침</Button>}>
                       연결이 잠시 끊겼습니다.
                     </Callout>
                   ) : null}
@@ -300,7 +304,7 @@ export function Chat() {
                       그대로라 재조회 직후 다시 즉시 stalled로 재계산돼 자동 폴링이 재개되지 않는 막다른 길이 된다. */}
                   {stalled ? (
                     <Callout tone="warn" compact sx={{ alignSelf: "flex-start" }}
-                      action={<Button size="sm" variant="ghost" onClick={() => { setResumedAt(Date.now()); thread.refetch(); }}>새로고침</Button>}>
+                      action={<Button size="sm" onClick={() => { setResumedAt(Date.now()); thread.refetch(); }}>새로고침</Button>}>
                       응답이 지연되고 있습니다.
                     </Callout>
                   ) : null}
@@ -313,7 +317,8 @@ export function Chat() {
                 스크롤 영역에 붙이면 컴포저 높이와 무관하게 항상 그 위에 뜬다. */}
             {!stick ? (
               <Box sx={{ position: "sticky", bottom: 0, alignSelf: "flex-end", mt: "auto", pt: 1, zIndex: 5 }}>
-                <Button variant="primary" size="sm" onClick={() => setStick(true)} sx={{ borderRadius: RADIUS.full, boxShadow: 6 }}>
+                {/* 떠 있는 보조 단추다(조합 계약 C-4) — 채움 · 알약 모서리였을 때 보내기보다 먼저 읽혔다. 떠 있는 것의 그림자(overlay)만 든다. */}
+                <Button size="sm" onClick={() => setStick(true)} sx={{ boxShadow: 6 }}>
                   <ArrowDownwardRoundedIcon aria-hidden="true" sx={{ fontSize: "1rem", mr: 0.5 }} />맨 아래로
                 </Button>
               </Box>
@@ -361,13 +366,13 @@ export function Chat() {
                 기대지 않는다). '다시 시도'를 눌러야 컴포저 잠금이 풀린다. */}
             {maintenanceNotice ? (
               <Callout tone="warn" compact
-                action={<Button size="sm" variant="ghost" onClick={() => setMaintenanceNotice(null)}>다시 시도</Button>}>
+                action={<Button size="sm" onClick={() => setMaintenanceNotice(null)}>다시 시도</Button>}>
                 {maintenanceNotice}
               </Callout>
             ) : null}
             {rateLimitNotice ? (
               <Callout tone="warn" compact
-                action={<Button size="sm" variant="ghost" onClick={() => setRateLimitNotice(null)}>닫기</Button>}>
+                action={<Button size="sm" onClick={() => setRateLimitNotice(null)}>닫기</Button>}>
                 {rateLimitNotice}
               </Callout>
             ) : null}
@@ -396,8 +401,9 @@ export function Chat() {
                 <Box component="span" sx={{ flexShrink: 0, height: COMPOSER_LINE, display: "flex", alignItems: "center" }}>
                   <IconButton size="small" aria-label="이미지 첨부" disabled={inputDisabled}
                     onClick={() => fileRef.current && fileRef.current.click()}
-                    sx={{ border: 1, borderColor: "divider", borderRadius: 2.5 }}>
-                    <AttachFileRoundedIcon sx={{ fontSize: FONT_SIZE.pageTitle }} />
+                    sx={{ width: remPx(CHAT.tool), height: remPx(CHAT.tool), border: 1, borderColor: "divider", borderRadius: `${RADIUS.sm}px` }}>
+                    {/* 도구 30 의 글리프는 채팅방 입력 도구와 같은 크기다(예전 1.75rem 글리프 · 모서리 20 은 `CHAT` 토큰 밖이었다). */}
+                    <AttachFileRoundedIcon sx={{ fontSize: remPx(ICON.action) }} />
                   </IconButton>
                 </Box>
               </Tooltip>
@@ -415,7 +421,8 @@ export function Chat() {
                 sx={{
                   flex: 1, minWidth: 0, resize: "none", minHeight: COMPOSER_LINE, maxHeight: "10rem", boxSizing: "border-box",
                   font: "inherit", fontSize: "0.9375rem", lineHeight: 1.5, px: 1.75, py: 1.25,
-                  border: 1, borderColor: "divider", borderRadius: 2.5,
+                  /* 입력 모서리는 채팅 입력 토큰(10)이다 — 채팅방 입력 상자와 같다(예전 `borderRadius: 2.5` 는 테마 배율로 20px 이었다). */
+                  border: 1, borderColor: "divider", borderRadius: `${CHAT.composerRadius}px`,
                   bgcolor: "background.default", color: "text.primary",
                   transition: "border-color .15s ease, box-shadow .15s ease",
                   "&:focus": { outline: "none", borderColor: "primary.main", boxShadow: (t) => `0 0 0 3px ${alpha(t.palette.primary.main, 0.16)}` },

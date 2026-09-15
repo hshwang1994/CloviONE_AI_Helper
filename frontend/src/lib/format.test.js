@@ -8,7 +8,7 @@
  * 몇 시간 밀린 시각이 보이는 결함이었다(불변규칙 §3-7: 표시는 항상 Asia/Seoul).
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { fmtDayLongKo, fmtTimeShort } from "./format.js";
+import { fmtDayLongKo, fmtListStamp, fmtRelative, fmtTimeShort } from "./format.js";
 
 describe("fmtTimeShort — 항상 KST(UTC+9)로 표시한다", () => {
   afterEach(() => { vi.unstubAllEnvs(); });
@@ -57,5 +57,40 @@ describe("fmtDayLongKo", () => {
     expect(fmtDayLongKo(null)).toBe("");
     expect(fmtDayLongKo("")).toBe("");
     expect(fmtDayLongKo("어제")).toBe("어제");
+  });
+});
+
+describe("fmtListStamp — 목록 행 시각(이레 안은 상대, 그 뒤는 짧은 달력일)", () => {
+  afterEach(() => { vi.useRealTimers(); });
+
+  it("이레 안은 상대 시간 형식기와 같은 말을 한다", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-15T03:00:00Z"));
+    expect(fmtListStamp("2026-09-15T02:59:40")).toBe("방금 전");
+    expect(fmtListStamp("2026-09-15T01:00:00")).toBe("2시간 전");
+    expect(fmtListStamp("2026-09-12T03:00:00")).toBe("3일 전");
+    expect(fmtListStamp("2026-09-12T03:00:00")).toBe(fmtRelative("2026-09-12T03:00:00"));
+  });
+
+  it("이레가 넘으면 「M월 D일」(KST 달력일)이고 긴 절대 시각이 아니다", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-15T03:00:00Z"));
+    // UTC 8월 24일 15:30 은 KST 8월 25일 00:30 이다 — 달력일은 KST 로 잰다.
+    expect(fmtListStamp("2026-08-24T15:30:00")).toBe("8월 25일");
+    expect(fmtListStamp("2026-08-24T03:00:00")).toBe("8월 24일");
+    expect(fmtListStamp("2026-08-24T03:00:00")).not.toMatch(/오전|오후|\d{4}\./);
+  });
+
+  it("해가 다르면 해를 붙인다", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-01-10T03:00:00Z"));
+    expect(fmtListStamp("2025-12-20T03:00:00")).toBe("2025년 12월 20일");
+  });
+
+  it("미래 값과 못 읽는 값은 상대 시간 형식기 규칙 그대로다", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-15T03:00:00Z"));
+    expect(fmtListStamp("2026-09-20T03:00:00")).toBe(fmtRelative("2026-09-20T03:00:00"));
+    expect(fmtListStamp("")).toBe("-");
   });
 });

@@ -96,6 +96,45 @@ describe("두 판", () => {
   });
 });
 
+describe("목록 판 머리 · 페이지 머리 동작 · 목록 시각 (조합 계약 C-4 · C-6 · 채팅방 시안)", () => {
+  it("「1:1」 · 「새 그룹」은 페이지 머리의 34 보조 단추이고, 목록 판 머리는 「대화」 + 건수다", async () => {
+    mount("/chat-rooms/r1");
+    await screen.findByRole("heading", { name: "인프라 팀" });
+    const layout = document.querySelector("[data-chat-layout]");
+    const listCard = [...layout.children].find((el) => el.classList.contains("MuiCard-root"));
+    for (const name of ["1:1", "새 그룹"]) {
+      const btn = screen.getByRole("button", { name });
+      // 목록 판 밖(페이지 머리)이고 채움이 아니다 — 이 화면의 채움은 보내기 하나다.
+      expect(listCard.contains(btn), `${name} 가 목록 판 안에 섰다`).toBe(false);
+      expect(layout.contains(btn)).toBe(false);
+      expect(btn.className).not.toMatch(/MuiButton-contained/);
+      expect(btn.className).not.toMatch(/MuiButton-sizeSmall/);
+    }
+    // 머리 건수는 목록이 세우는 방 수다(내 팀 · 전체 없음 + 방 둘).
+    const count = listCard.querySelector("[data-room-count]");
+    expect(count).toHaveTextContent("2");
+    // 판 높이는 화면 아래까지 서는 정본 값이다(높이 고정 판).
+    expect(layout.getAttribute("data-page-fill")).toBe("");
+    expect(emittedCss()).toContain("height:calc(100vh - 12rem)");
+  });
+
+  it("이레가 넘은 마지막 대화 시각은 「M월 D일」 짧은 형식이고 전체 시각은 이름표가 든다", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-09-15T03:00:00Z"));
+    try {
+      mount("/chat-rooms/r1", (url) => (url === "/api/team-chat/rooms"
+        ? Promise.resolve({ ...ROOMS, items: [ROOMS.items[0], { ...ROOMS.items[1], last_at: "2026-08-24T03:00:00" }] })
+        : undefined));
+      const stamp = await screen.findByText("8월 24일");
+      expect(stamp.tagName.toLowerCase()).toBe("time");
+      expect(stamp.getAttribute("title")).toMatch(/2026/);
+      expect(screen.queryByText(/2026\. 8\. 24\./)).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
 describe("창 안의 실패 (핸드오프 RULES §1 — 토스트였다)", () => {
   it("새 그룹 만들기가 실패하면 창 안 상자가 말하고, 창을 닫았다 열면 걷힌다", async () => {
     const user = userEvent.setup();

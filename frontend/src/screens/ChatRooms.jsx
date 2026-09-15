@@ -8,10 +8,10 @@ import { api } from "../lib/api.js";
 import { failureText } from "../lib/failure.js";
 import { Button, Callout, Card, FieldLabel, ListEmptyState, PageHeader, Skeleton, ErrorState, EmptyState, Modal, useConfirm, CountChip, DotLabel } from "../ui/kit.jsx";
 import { SearchBox } from "../ui/filters.jsx";
-import { FONT_SIZE, FONT_WEIGHT } from "../ui/theme.js";
-import { GRID_GAP } from "../ui/density.js";
+import { FONT_SIZE, FONT_WEIGHT, NUMERIC, RADIUS } from "../ui/theme.js";
+import { GRID_GAP, PAGE_FILL_HEIGHT } from "../ui/density.js";
 import { CHAT } from "../ui/chat.js";
-import { fmtRelative } from "../lib/format.js";
+import { fmtDateTime, fmtListStamp } from "../lib/format.js";
 import { PeopleFilter, PersonPickRow, filterPeople } from "./chat/peoplePicker.jsx";
 import { RoomDetailPanel } from "./ChatRoom.jsx";
 
@@ -33,7 +33,8 @@ function RoomRow({ room, onOpen, active }) {
       aria-current={active ? "true" : undefined}
       sx={{
         display: "flex", alignItems: "center", gap: 1.5, width: "100%", textAlign: "left", minWidth: 0,
-        px: 1.5, py: 1.5, border: 0, borderBottom: 1, borderColor: "divider", borderStyle: "solid",
+        /* 판 안 가는 선은 `rule` 하나다(머리 · 검색 줄 · 행 사이 · 방 머리 · 입력 도킹 — 선 토큰 통일, 조합 계약 C-6). */
+        px: 1.5, py: 1.5, border: 0, borderBottom: 1, borderColor: "rule", borderStyle: "solid",
         background: "none", color: "inherit", font: "inherit", cursor: "pointer",
         // 지금 보고 있는 방을 목록에서 표시한다 — 두 판이 나란히 있으니 "어느 것을 보고
         // 있는지" 가 목록에도 보여야 한다. 사이드바 활성 항목과 같은 어휘다: 함몰면 + 왼쪽 레일(핸드오프 계획 E).
@@ -59,7 +60,14 @@ function RoomRow({ room, onOpen, active }) {
         </Typography>
       </Box>
       <Box sx={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 0.5, flexShrink: 0 }}>
-        {room.last_at ? <Typography sx={{ color: "text.secondary", fontSize: FONT_SIZE.caption }}>{fmtRelative(room.last_at)}</Typography> : null}
+        {/* 목록 행 시각은 짧다 — 이레 안은 상대 시간, 그 뒤는 「8월 24일」(`fmtListStamp`). 절대 시각(「2026. 8. 24. 오후 12:00」)은
+            296 목록 칸에서 방 이름보다 길었다. 전체 시각은 `title` 이 든다. */}
+        {room.last_at ? (
+          <Typography component="time" dateTime={room.last_at} title={fmtDateTime(room.last_at)}
+            sx={{ color: "text.secondary", fontSize: FONT_SIZE.caption, whiteSpace: "nowrap", ...NUMERIC }}>
+            {fmtListStamp(room.last_at)}
+          </Typography>
+        ) : null}
         {room.unread > 0 ? (
           <CountChip unread value={room.unread > 99 ? "99+" : room.unread} ariaLabel={`안 읽음 ${room.unread}`} />
         ) : null}
@@ -82,7 +90,8 @@ function useDirectory(enabled) {
 // 모달 안 스크롤 목록(그룹 초대, 1:1 상대) — 목록이 길어도 모달이 화면 밖으로 자라지 않게 한다.
 const PICKER_SX = {
   display: "flex", flexDirection: "column", gap: 0.25, maxHeight: "20rem", overflowY: "auto",
-  border: 1, borderColor: "divider", borderRadius: 2, p: 0.5,
+  /* 모서리는 입력칸 토큰이다(6) — 예전 `borderRadius: 2` 는 테마 배율로 16px 이 되어 창 안에서만 둥글었다. */
+  border: 1, borderColor: "divider", borderRadius: `${RADIUS.sm}px`, p: 0.5,
 };
 
 
@@ -261,6 +270,8 @@ export function ChatRooms() {
   const matches = (r) => !needle || ((r && r.title) || "").toLowerCase().includes(needle);
   const items = needle ? allItems.filter(matches) : allItems;
   const open = (rid) => nav(`/chat-rooms/${rid}`);
+  /* 머리 건수는 목록이 실제로 세우는 방의 수다 — 내 팀 · 전체 채팅 · 나머지(검색으로 거르면 거른 수). */
+  const roomCount = (team && matches(team) ? 1 : 0) + (glob && matches(glob) ? 1 : 0) + items.length;
 
   /* 방을 안 고르고 들어오면 **내 팀 방**을 연다 — 사용자 지적 Q6
    * ("기본으로 만들어진 방은 기본적으로 내 팀임"). 부서가 없으면 전체 채팅으로 떨어진다.
@@ -280,19 +291,22 @@ export function ChatRooms() {
     <Box data-testid="chatroom-list-grid" sx={{ display: "grid", gridTemplateRows: "auto auto 1fr", minHeight: 0, minWidth: 0 }}>
       <Box sx={{
         display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap",
-        px: 2, py: 1.75, borderBottom: 1, borderColor: "divider",
+        px: 2, py: 1.75, borderBottom: 1, borderColor: "rule",
       }}>
-        {/* 판 제목 글자 갈래(1.0625rem/700) — 이름 옆에 건수 칩과 동작이 붙는 판 머리는 `SectionTitle` 대신 글자 갈래만 쓴다
-            (대장 §0-13). 예전 `FONT_SIZE.sectionTitle` 은 `title`(1.1875rem)의 옛 별칭이라 판 제목보다 한 단 컸다. */}
+        {/* 판 제목 글자 갈래(1.0625rem/700) — 이름 옆에 건수가 붙는 판 머리는 `SectionTitle` 대신 글자 갈래만 쓴다(대장 §0-13).
+            머리는 「대화」 + 건수다(채팅방 시안 · 조합 계약 C-6). 「1:1」 · 「새 그룹」은 페이지 머리 동작(34 보조)으로 올렸다 —
+            목록 판 머리에 30 단추 둘이 서면 판 제목보다 먼저 읽히고, 채움(「새 그룹」)이 보내기와 한 화면에서 다퉜다. */}
         <Typography variant="sectionTitle" component="h2">대화</Typography>
+        {!q.isPending && !q.isError ? (
+          <Typography component="span" data-room-count="" sx={{ fontSize: FONT_SIZE.micro, color: "text.secondary", ...NUMERIC }}>
+            {roomCount}
+          </Typography>
+        ) : null}
         {unreadTotal > 0 ? (
           <CountChip unread value={unreadTotal > 99 ? "99+" : unreadTotal} ariaLabel={`안 읽음 ${unreadTotal}`} />
         ) : null}
-        <Box sx={{ flex: 1 }} />
-        <Button size="small" onClick={() => setDirectOpen(true)}>1:1</Button>
-        <Button size="small" variant="primary" onClick={() => setGroupOpen(true)}>새 그룹</Button>
       </Box>
-      <Box sx={{ px: 2, py: 1.25, borderBottom: 1, borderColor: "divider" }}>
+      <Box sx={{ px: 2, py: 1.25, borderBottom: 1, borderColor: "rule" }}>
         {/* 좁은 목록(296)의 검색은 부모 폭을 그대로 쓰는 검색 칸이다(`layout="fill"` — 320 슬롯은 필터 바의
             규칙이다). 목록을 글자마다 바로 거르므로 디바운스하지 않는다(`immediate`). */}
         <SearchBox
@@ -341,16 +355,28 @@ export function ChatRooms() {
 
   return (
     <Box className="c-screen">
-      <PageHeader crumbRoot="팀 공간" area="채팅방" title="채팅방" />
+      {/* 대화를 여는 두 입구는 페이지 머리 동작(34 보조)이다 — 이 화면의 채움은 보내기 하나다(조합 계약 C-4 · 채팅방 시안). */}
+      <PageHeader
+        crumbRoot="팀 공간" area="채팅방" title="채팅방"
+        actions={(
+          <>
+            <Button onClick={() => setDirectOpen(true)}>1:1</Button>
+            <Button onClick={() => setGroupOpen(true)}>새 그룹</Button>
+          </>
+        )}
+      />
       {/* 목록과 대화는 **두 판**이다(핸드오프 RULES §9 · README §C) — 목록 296(`CHAT.listWidth`) / 대화 나머지, 사이는 판 틈.
           좁은 화면에서는 한 판만. 고른 방이 있으면 대화를, 없으면 목록을 보여준다. 화면 아래까지 채운다 — 대화창이 자기
           안에서 스크롤되려면 판에 높이가 있어야 한다. */}
+      {/* 판 높이는 화면 아래까지 서는 판의 정본 값(`PAGE_FILL_HEIGHT`)이다 — 새 티켓 판과 같은 값이고, 여기서는 **판 높이**라
+          (`data-page-fill=""`, 높이 고정) 화면을 넘지 않는다. 예전 13rem 은 판 아래 캔버스가 47px 비었다(1920 실측). */}
       <Box
         data-chat-layout=""
+        data-page-fill=""
         sx={{
           display: "grid", gap: GRID_GAP,
           gridTemplateColumns: { xs: "minmax(0, 1fr)", md: `${CHAT.listWidth} minmax(0, 1fr)` },
-          height: { xs: "auto", md: "calc(100vh - 13rem)" },
+          height: { xs: "auto", md: PAGE_FILL_HEIGHT },
           minHeight: { xs: 0, md: "28rem" },
         }}
       >

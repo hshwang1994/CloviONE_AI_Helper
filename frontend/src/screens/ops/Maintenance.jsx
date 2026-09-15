@@ -169,7 +169,7 @@ export function Maintenance({ embedded = false } = {}) {
           {q.isError ? (
             <Box sx={{ mb: 3 }}>
               {/* 다시 부르는 동작은 본문 속 글자 링크가 아니라 상자의 동작 칸에 선다(메시지 박스 구조). */}
-              <Callout tone="warn" action={<Button size="sm" variant="ghost" onClick={() => q.refetch()}>다시 시도</Button>}>
+              <Callout tone="warn" action={<Button size="sm" onClick={() => q.refetch()}>다시 시도</Button>}>
                 최신 상태를 불러오지 못했습니다. 아래 값은 이전에 불러온 자료입니다.
               </Callout>
             </Box>

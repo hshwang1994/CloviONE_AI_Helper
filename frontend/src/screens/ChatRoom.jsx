@@ -5,10 +5,9 @@ import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
 import { Button, Callout, ErrorState, Skeleton, useToast, useConfirm, Badge } from "../ui/kit.jsx";
-import { FONT_SIZE, FONT_WEIGHT } from "../ui/theme.js";
 import { failureText } from "../lib/failure.js";
 import { ChatPane } from "./ChatPane.jsx";
-import { ManageRoomModal, MemberStrip } from "./ChatRoomMembers.jsx";
+import { ManageRoomModal, MemberFaces, MemberSummary } from "./ChatRoomMembers.jsx";
 
 /* 채팅방 페이지 — 헤더(방 이름·나가기·파하기·숨기기) + 폴링 채팅창(ChatPane). 방 메타는
  * 메시지 조회와 같은 쿼리 키를 써 한 번만 불러온다(react-query 중복 제거).
@@ -133,32 +132,37 @@ export function RoomDetailPanel({ id }) {
        flex:"1 1 auto" 로 나머지 공간만 차지하고, ChatPane 을 감싼 자리만 다시
        flex:"1 1 auto" 로 남는 높이를 ChatPane 에 넘긴다. */
     <Box sx={{ display: "flex", flexDirection: "column", minWidth: 0, minHeight: 0, height: "100%" }}>
-      {/* 방 머리 — 화면 제목(PageHeader)이 아니라 **판 안의 머리**다(핸드오프 RULES §9). 세 묶음이다:
-          ① 제목(1.0625rem/700, 길면 말줄임 + 전체 이름표) + 방 종류 배지 ② 참여자 요약 + 얼굴 스택 ③ 동작 단추(34).
-          폭이 모자라면 **묶음 단위로** 다음 줄로 간다 — 단추 하나만 떨어지거나 제목과 겹치지 않는다. 예전에는 목록 칸의
-          검색줄과 높이를 맞추는 빈 자리가 있었는데, 목록과 대화가 서로 다른 판이 되면서 맞출 경계가 없어졌다. */}
+      {/* 방 머리 — 화면 제목(PageHeader)이 아니라 **판 안의 머리**다(핸드오프 RULES §9 · 채팅방 시안). 세 묶음이다:
+          ① 이름표 두 줄 — 1줄 제목(판 제목 글자 갈래, 길면 말줄임 + 전체 이름표) + 방 종류 배지, 2줄 「참여자 N명, 보는 중 M명」(muted)
+          ② 얼굴 스택 ③ 동작 단추(34). 예전에는 참여자 요약이 제목 줄 오른쪽에 한 줄로 서서 다섯 조각이 한 줄을 다퉜다(UI 3차 조합
+          계약 C-6). 폭이 모자라면 **묶음 단위로** 다음 줄로 간다 — 단추 하나만 떨어지거나 제목과 겹치지 않는다. */}
       <Box
         data-room-head=""
         sx={{
-          flexShrink: 0, display: "flex", alignItems: "center", flexWrap: "wrap", columnGap: 2, rowGap: 1,
+          flexShrink: 0, display: "flex", alignItems: "center", flexWrap: "wrap", columnGap: 1.5, rowGap: 1,
           px: 2.25, py: 1.5, borderBottom: 1, borderColor: "rule", minWidth: 0,
         }}
       >
-        <Box data-room-head-group="title" sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0, flex: "1 1 12rem" }}>
-          <Typography
-            component="h2"
-            title={meta.isPending ? undefined : (room.title || "채팅방")}
-            sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: FONT_SIZE.cardTitle, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
-          >
-            {meta.isPending ? "채팅방" : (room.title || "채팅방")}
-          </Typography>
-          {/* 방 머리는 목록 밖이다 — 정해진 축의 값(방 종류)은 면 있는 배지로 선다(핸드오프 RULES §2 · F4). */}
-          {tag ? <Box component="span" sx={{ display: "inline-flex", flexShrink: 0 }}><Badge value={tag} emphasis="strong" /></Box> : null}
+        <Box data-room-head-group="identity" sx={{ display: "grid", rowGap: 0.25, minWidth: 0, flex: "1 1 12rem" }}>
+          <Box data-room-head-group="title" sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0 }}>
+            {/* 판 제목 글자 갈래(1.0625rem/700) — 목록 판 머리 「대화」와 같은 정의다(예전에는 방 제목만 sx 로 크기 · 굵기를 따로 적었다). */}
+            <Typography
+              component="h2"
+              variant="sectionTitle"
+              title={meta.isPending ? undefined : (room.title || "채팅방")}
+              sx={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+            >
+              {meta.isPending ? "채팅방" : (room.title || "채팅방")}
+            </Typography>
+            {/* 방 머리는 목록 밖이다 — 정해진 축의 값(방 종류)은 면 있는 배지로 선다(핸드오프 RULES §2 · F4). */}
+            {tag ? <Box component="span" sx={{ display: "inline-flex", flexShrink: 0 }}><Badge value={tag} emphasis="strong" /></Box> : null}
+          </Box>
+          {/* 누가 지금 이 대화를 보고 있는지 — 글자로도 말한다(색만으로 전하지 않는다). 전체 채팅은 참여자 행이 없어 그리지 않는다. */}
+          {!meta.isPending && members.length ? <MemberSummary members={members} /> : null}
         </Box>
-        {/* 누가 지금 이 대화를 보고 있는지. 전체 채팅은 참여자 행이 없어 아무것도 그리지 않는다. */}
         {!meta.isPending && members.length ? (
           <Box data-room-head-group="members" sx={{ flex: "0 0 auto", minWidth: 0 }}>
-            <MemberStrip members={members} people={people} />
+            <MemberFaces members={members} people={people} />
           </Box>
         ) : null}
         <Box data-room-head-group="actions" sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "nowrap", flex: "0 0 auto", marginInlineStart: "auto" }}>
@@ -170,8 +174,9 @@ export function RoomDetailPanel({ id }) {
           <Callout tone="danger" compact>{actionFailure}</Callout>
         </Box>
       ) : null}
-      <Box sx={{ display: "flex", flexDirection: "column", flex: "1 1 auto", minHeight: 0, px: { xs: 1.5, sm: 2.25 }, pt: 1, pb: { xs: 1.5, sm: 2 } }}>
-        {meta.isPending ? <Skeleton lines={6} /> : (
+      {/* 본문 칸은 여백을 들지 않는다 — 로그가 좌우 여백을 들고, 입력 도킹 영역의 위 실선이 판 가장자리까지 선다(`ChatPane`). */}
+      <Box sx={{ display: "flex", flexDirection: "column", flex: "1 1 auto", minHeight: 0 }}>
+        {meta.isPending ? <Box sx={{ px: { xs: 1.5, sm: 2.25 }, pt: 2 }}><Skeleton lines={6} /></Box> : (
           /* ChatPane 은 height:"100%" 로 자기 몫을 채우는 컴포넌트라, 그 100% 를 계산할
              기준(정해진 높이를 가진 부모)이 있어야 한다. flex:"1 1 auto" + minHeight:0 로
              이 자리를 만들어 준다. */

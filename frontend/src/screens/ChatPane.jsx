@@ -26,6 +26,7 @@ import { markRoomRead } from "./teamchat-unread.js";
 import { ImageLightbox, useLightbox } from "../ui/ImageLightbox.jsx";
 import { FONT_SIZE, FONT_WEIGHT, ICON, KO_WORD_BREAK, NUMERIC, RADIUS, remPx } from "../ui/theme.js";
 import { UserAvatar } from "../ui/UserAvatar.jsx";
+import { ChatDaySeparator } from "../ui/ChatDaySeparator.jsx";
 import { groupMessages } from "./chat-groups.js";
 
 /* 팀 채팅 핵심 창(폴링 로그 + 입력). 채팅방 화면이 쓴다. 놀이(GameRoom) 폴링 패턴 이식:
@@ -57,9 +58,12 @@ const nextClientId = () => "c" + Date.now() + "-" + (++_cseq);
 // 실제 높이를 정해 주는 자리(방 페이지)에서는 남는 만큼만 채우고, 그런 부모가 없는 자리(홈
 // 위젯, Card는 내용만큼 자란다)에서는 아래 rem 하한까지만 자연스럽게 줄어든다. 상·하한은
 // 여전히 rem이라 루트 폰트사이즈 레버(styles/root.css)를 따라 4K에서 함께 커진다.
+/* `full` 에는 상한이 없다 — 판이 화면 아래까지 서고(`PAGE_FILL_HEIGHT`) 로그가 판의 남는 높이를 다 먹는다(UI 3차 조합 계약 C-6).
+   예전 상한 45rem 은 1920 에서 로그 아래에 빈 띠를 남기고 입력창이 판 가운데로 떠올랐다. 좌우 여백은 로그가 든다 — 입력 도킹
+   영역의 위 실선이 판 가장자리까지 서야 해서 담는 판이 여백을 들지 않는다. */
 const LOG_SX = {
-  full: { flex: "1 1 auto", minHeight: "18.75rem", maxHeight: "45rem" },
-  compact: { height: "18.75rem", minHeight: "12.5rem", maxHeight: "25rem" },
+  full: { flex: "1 1 auto", minHeight: "18.75rem", px: { xs: 2, sm: 2.75 }, pt: 2, pb: 1 },
+  compact: { height: "18.75rem", minHeight: "12.5rem", maxHeight: "25rem", mb: 1.25, px: 0.5, py: 1 },
 };
 
 /* `interval` 은 **대화가 오가는 동안의** 간격이고, `idleMax` 는 아무 말도 없을 때
@@ -173,10 +177,10 @@ export function ChatPane({ roomId, compact = false, interval = 2000, idleMax = 0
 
   const data = q.data || {};
   const msgs = data.messages || [];
-  /* 로그 상자가 아래로 붙이는(`justify-content: flex-end`) 것은 **실제 대화가 있을 때만**
-     맞다. 로딩·오류·빈 방 안내는 상자의 하나뿐인 자식이라, 그 규칙을 그대로 쓰면 안내
-     문구가 화면 맨 아래로 밀려나고 그 위가 통째로 빈다(C15 — 사용자 지적: "채팅방의
-     「메시지 없음」이 맨 아래 붙고 위가 빈다"). 진짜 로그가 있을 때만 아래에서부터 쌓는다. */
+  /* 대화는 **위에서부터** 쌓인다(UI 3차 조합 계약 C-6 — 소유자 결정 「위 정렬 + 입력창 바닥」). 짧은 방은 마지막 말과 입력창
+     사이가 비고, 긴 방은 로그가 넘쳐 스크롤되며 새 말 · 첫 진입에 맨 아래로 굴리는 규칙(아래 effect)은 그대로다. 아래로
+     붙이는(`flex-end`) 것은 `compact`(홈 위젯 — 제품 화면에 붙어 있지 않다)만 남기고, 거기서도 실제 대화가 있을 때만이다
+     (C15 — 빈 방 안내가 맨 아래로 밀려나 위가 통째로 비었다). */
   const hasLog = !q.isPending && msgs.length > 0;
   const you = data.you || {};
   const room = data.room || {};
@@ -297,16 +301,14 @@ export function ChatPane({ roomId, compact = false, interval = 2000, idleMax = 0
     <Box sx={{ display: "flex", flexDirection: "column", minWidth: 0, minHeight: 0, height: "100%" }}>
       <Box
         ref={logRef}
+        data-chat-log=""
+        data-chat-compact={compact ? "" : undefined}
         sx={{
-          // justifyContent:"flex-end" — 메시지가 적어 상자가 다 안 차도 아래(입력창 쪽)에
-          // 붙는다. 기본값(flex-start)이면 내용이 위에 쌓이고 아래가 빈다 — 운영에서 재현된
-          // 증상(대화가 참여자 표시 바로 아래에 붙고 입력창까지 큰 빈 공간이 남음). 내용이
-          // 넘칠 때는 그대로 위쪽이 잘려 스크롤해야 보이고, 아래(최신)는 항상 보인다.
           // 줄 사이 고정 간격을 없앤다 — 줄 자신이 자기 위아래 여백을 갖고(묶음의 첫
           // 줄은 넉넉히, 이어지는 줄은 촘촘히), 그래야 같은 사람의 연속 발언이 한
           // 덩어리로 읽힌다. 고정 `gap` 이 있으면 그 차이가 뭉개진다.
-          display: "flex", flexDirection: "column", justifyContent: hasLog ? "flex-end" : "flex-start", overflowY: "auto",
-          mb: 1.25, px: 0.5, py: 1, minWidth: 0,
+          display: "flex", flexDirection: "column", justifyContent: compact && hasLog ? "flex-end" : "flex-start", overflowY: "auto",
+          minWidth: 0,
           ...(compact ? LOG_SX.compact : LOG_SX.full),
         }}
       >
@@ -333,22 +335,8 @@ export function ChatPane({ roomId, compact = false, interval = 2000, idleMax = 0
               /* 🔴 **날짜 구분선** (지시 17). 시각만 그리면 어제 온 말과 오늘 온 말이
                  같아 보이고, 「금요일에 그거 얘기했잖아」를 확인하려면 스크롤을 세면서
                  올라가야 한다. 날짜는 KST 달력일이다 — 브라우저 로컬로 재면 시계가
-                 어긋난 사람에게만 구분선이 하루 밀린다. 선 · 낱말 규격은 핸드오프 RULES §9(1px 실선 + 0.75rem/600). */
-              return (
-                <Box
-                  key={"day-" + row.day}
-                  role="separator"
-                  aria-label={row.label}
-                  data-day-separator={row.day}
-                  sx={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto minmax(0, 1fr)", alignItems: "center", columnGap: 1.5, my: 1, px: 0.5 }}
-                >
-                  <Box sx={{ height: "1px", bgcolor: "rule" }} />
-                  <Typography sx={{ fontSize: FONT_SIZE.micro, fontWeight: FONT_WEIGHT.semibold, color: "text.secondary", whiteSpace: "nowrap" }}>
-                    {row.label}
-                  </Typography>
-                  <Box sx={{ height: "1px", bgcolor: "rule" }} />
-                </Box>
-              );
+                 어긋난 사람에게만 구분선이 하루 밀린다. 규격 · 폭은 채팅 공통 구분선이 든다(`ui/ChatDaySeparator.jsx`). */
+              return <ChatDaySeparator key={"day-" + row.day} label={row.label} day={row.day} />;
             }
             const m = row.message;
             if (m.kind === "system") {
@@ -536,6 +524,16 @@ export function ChatPane({ roomId, compact = false, interval = 2000, idleMax = 0
             });
           })()}
       </Box>
+      {/* 입력 도킹 영역 — 스레드 아래 1px 실선(`rule`) 위에 입력 상자와 그 바로 위 안내 · 실패 상자가 선다(UI 3차 조합 계약 C-6 ·
+          채팅방 시안). 예전에는 입력 상자가 스레드와 선 없이 판 여백 안에 떠 있어 로그의 끝이 어디인지 보이지 않았다. 판 가장자리까지
+          긋는 선이라 좌우 여백은 도킹 영역이 든다. 입력 영역 하나라(`data-form-scope`) 「보내기」는 이 영역의 채움이다. */}
+      <Box
+        data-chat-dock=""
+        data-form-scope=""
+        sx={compact
+          ? { flexShrink: 0 }
+          : { flexShrink: 0, borderTop: 1, borderColor: "rule", px: { xs: 1.5, sm: 2.25 }, pt: 1.5, pb: { xs: 1.5, sm: 2 } }}
+      >
       {/* 이미 읽던 대화가 있는데 폴링만 실패한 경우 (E-4).
           예전에는 이때도 위 분기가 `note("불러오지 못했습니다.")` 를 그려서 **읽고 있던
           대화 전체가 한 줄로 사라졌다** — 잠깐의 네트워크 끊김이 화면에서는 대화가 지워진
@@ -543,7 +541,7 @@ export function ChatPane({ roomId, compact = false, interval = 2000, idleMax = 0
       {q.isError && msgs.length > 0 ? (
         <Callout
           tone="danger" compact sx={{ mb: 0.75 }}
-          action={<Button size="sm" variant="ghost" onClick={() => q.refetch()}>다시 시도</Button>}
+          action={<Button size="sm" onClick={() => q.refetch()}>다시 시도</Button>}
         >
           새 메시지를 받지 못했습니다. 아래 대화는 마지막으로 받은 내용입니다.
         </Callout>
@@ -611,6 +609,7 @@ export function ChatPane({ roomId, compact = false, interval = 2000, idleMax = 0
             <SendRoundedIcon aria-hidden="true" sx={{ fontSize: remPx(ICON.inline) }} />
           </Button>
         </Box>
+      </Box>
       </Box>
       <Popover
         open={!!emojiAnchor} anchorEl={emojiAnchor} onClose={() => setEmojiAnchor(null)}

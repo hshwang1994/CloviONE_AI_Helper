@@ -1,3 +1,4 @@
+/* qa-contract-change: 채팅방 대화 로그의 정렬이 아래 정렬(flex-end)에서 위 정렬(flex-start, 로그 상한 45rem 걷음)로 옮겼다 — 소유자 결정 「위 정렬 + 입력창 바닥」(UI 3차 조합 계약 C-6). 「full 로그는 flex-end」 단언을 「full 은 flex-start · 상한 없음 · 첫 진입과 새 메시지에 맨 아래로 굴림」으로 옮기고, compact 의 아래 정렬 · 입력 도킹 영역(위 실선 · 입력 영역 표식) · 공통 날짜 구분선 폭을 더 잰다. */
 import React from "react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen, waitFor, act } from "@testing-library/react";
@@ -217,14 +218,19 @@ describe("읽음 처리", () => {
 });
 
 // ── 5. 메시지 로그 정렬 ─────────────────────────────────────────────────────
-// 운영에서 재현된 증상: 메시지가 몇 개뿐이면 대화가 참여자 표시 바로 아래(로그 상단)에
-// 붙고 입력창까지 큰 빈 공간이 남는다. flex 컬럼 로그 상자에 justify-content 가 없으면
-// (기본값 flex-start) 내용이 위에서부터 쌓이기 때문이다 — 정상적인 채팅 UI라면 마지막
-// 메시지가 입력창 바로 위(로그 하단)에 붙어야 한다. jsdom은 실제 레이아웃(높이 등)을
-// 계산하지 않으므로, 여기서는 "아래에서부터 쌓이게 하는 CSS 속성 자체"
-// (justify-content:flex-end)를 가졌는지만 단정한다.
+// 소유자 결정(2026-09-15, UI 3차 조합 계약 C-6): 채팅방 대화는 **위에서부터** 쌓이고 입력창은 판 바닥이다. 짧은 방은
+// 마지막 말과 입력창 사이가 빈다 — 그 빈자리는 결함이 아니라 결정이다. 긴 방은 로그가 넘쳐 스크롤되고, 첫 진입과
+// 새 메시지에서 맨 아래(최신)로 굴리는 규칙은 그대로다. 아래 정렬(flex-end)은 제품 화면에 붙어 있지 않은 `compact`
+// (홈 위젯)만 남는다. jsdom 은 레이아웃을 계산하지 않으므로 CSS 속성과 스크롤 규칙을 단정한다.
+function logBoxOf(container) {
+  const logBox = container.querySelector("[data-chat-log]");
+  expect(logBox, "대화 로그 표식(data-chat-log)이 없다").toBeTruthy();
+  expect(getComputedStyle(logBox).overflowY).toBe("auto");
+  return logBox;
+}
+
 describe("메시지 로그 정렬", () => {
-  it("로그 상자는 justify-content:flex-end 로 메시지를 아래에서부터 쌓는다 — 메시지가 적어도 입력창 쪽(로그 하단)에 붙는다", async () => {
+  it("채팅방 로그는 위에서부터 쌓이고(flex-start) 높이 상한이 없다 — 판의 남는 높이를 로그가 다 먹는다", async () => {
     const { container } = mount(messagesPayload({
       seq: 1,
       messages: [{
@@ -234,27 +240,105 @@ describe("메시지 로그 정렬", () => {
     }));
     await screen.findByText("안녕하세요");
 
-    const logBox = Array.from(container.querySelectorAll("*")).find(
-      (el) => getComputedStyle(el).overflowY === "auto",
-    );
-    expect(logBox, "overflowY:auto 인 로그 상자를 찾지 못했다").toBeTruthy();
+    const logBox = logBoxOf(container);
     const cs = getComputedStyle(logBox);
     expect(cs.display).toBe("flex");
     expect(cs.flexDirection).toBe("column");
-    expect(cs.justifyContent).toBe("flex-end");
+    expect(cs.justifyContent).toBe("flex-start");
+    expect(cs.justifyContent).not.toBe("flex-end");
+    // 예전 상한 45rem 은 넓은 화면에서 로그 아래에 빈 띠를 남기고 입력창을 판 가운데로 띄웠다.
+    expect(cs.maxHeight === "" || cs.maxHeight === "none").toBe(true);
+    expect(cs.flexGrow).toBe("1");
+    expect(logBox.hasAttribute("data-chat-compact")).toBe(false);
   });
 
-  // C15 — 위 규칙(flex-end)을 메시지가 하나도 없을 때도 그대로 쓰면, 로그 상자의 하나뿐인
-  // 자식인 빈 방 안내가 화면 맨 아래로 밀려나고 그 위가 통째로 빈다(실브라우저에서 재현됨).
-  it("메시지가 없을 때는 justify-content:flex-end 를 쓰지 않는다 — 안내가 맨 아래로 밀려나 위가 비면 안 된다", async () => {
+  it("첫 진입에서는 맨 아래(최신)로 굴린다 — 위 정렬이어도 긴 방은 마지막 말이 보인다", async () => {
+    const heights = { scrollHeight: 2000, clientHeight: 400 };
+    const spy = vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockImplementation(function () {
+      return this.hasAttribute && this.hasAttribute("data-chat-log") ? heights.scrollHeight : 0;
+    });
+    const spyC = vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockImplementation(function () {
+      return this.hasAttribute && this.hasAttribute("data-chat-log") ? heights.clientHeight : 0;
+    });
+    try {
+      const { container } = mount(messagesPayload({
+        seq: 2,
+        messages: [1, 2].map((n) => ({
+          seq: n, kind: "text", sender_user_id: "u2", sender_name: "상대",
+          body: "말 " + n, created_at: "2026-08-03T01:02:0" + n, images: [],
+        })),
+      }));
+      await screen.findByText("말 2");
+      const logBox = logBoxOf(container);
+      await waitFor(() => expect(logBox.scrollTop).toBe(2000));
+    } finally {
+      spy.mockRestore();
+      spyC.mockRestore();
+    }
+  });
+
+  // C15 — 빈 방 안내는 로그 상자의 하나뿐인 자식이라 아래로 붙이면 안내가 화면 맨 아래로 밀려나고 위가 통째로 빈다.
+  it("메시지가 없을 때도 flex-end 를 쓰지 않는다 — 안내가 맨 아래로 밀려나 위가 비면 안 된다", async () => {
     const { container } = mount(messagesPayload({ messages: [] }));
     await screen.findByText("아직 메시지가 없습니다");
+    expect(getComputedStyle(logBoxOf(container)).justifyContent).not.toBe("flex-end");
+  });
 
-    const logBox = Array.from(container.querySelectorAll("*")).find(
-      (el) => getComputedStyle(el).overflowY === "auto",
-    );
-    expect(logBox, "overflowY:auto 인 로그 상자를 찾지 못했다").toBeTruthy();
-    expect(getComputedStyle(logBox).justifyContent).not.toBe("flex-end");
+  it("홈 위젯 크기(compact)는 대화가 있을 때만 아래에서부터 쌓는다 — 제품 화면 밖 갈래라 예전 규칙 그대로다", async () => {
+    apiMock.mockImplementation((url) => {
+      if (url.startsWith("/api/team-chat/rooms/r1/messages?")) {
+        return Promise.resolve(messagesPayload({
+          seq: 1,
+          messages: [{ seq: 1, kind: "text", sender_user_id: "u2", sender_name: "상대", body: "위젯 말", created_at: "2026-08-03T01:02:03", images: [] }],
+        }));
+      }
+      return Promise.resolve({ ok: true });
+    });
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
+    const { container } = render(<QueryClientProvider client={qc}><ChatPane roomId="r1" interval={false} compact /></QueryClientProvider>);
+    await screen.findByText("위젯 말");
+    const logBox = logBoxOf(container);
+    expect(logBox.hasAttribute("data-chat-compact")).toBe(true);
+    expect(getComputedStyle(logBox).justifyContent).toBe("flex-end");
+  });
+});
+
+describe("입력 도킹 영역 · 날짜 구분선 (UI 3차 조합 계약 C-6)", () => {
+  it("입력 상자는 스레드 아래 1px 실선(rule) 도킹 영역 안에 서고, 그 영역이 입력 영역 하나다", async () => {
+    const { container } = mount(messagesPayload());
+    const composer = await waitFor(() => {
+      const el = container.querySelector("[data-chat-composer]");
+      if (!el) throw new Error("입력 상자가 아직 없음");
+      return el;
+    });
+    const dock = composer.closest("[data-chat-dock]");
+    expect(dock, "입력 상자가 도킹 영역 밖이다").toBeTruthy();
+    expect(getComputedStyle(dock).borderTopWidth).toBe("1px");
+    expect(getComputedStyle(dock).borderTopStyle).toBe("solid");
+    expect(dock.hasAttribute("data-form-scope")).toBe(true);
+    expect(dock.contains(screen.getByRole("button", { name: "보내기" }))).toBe(true);
+    // 로그와 도킹 영역은 형제다 — 로그 안에 입력이 들어가면 스크롤에 입력이 딸려 간다.
+    expect(container.querySelector("[data-chat-log]").contains(dock)).toBe(false);
+  });
+
+  it("날짜 구분선은 채팅 공통 구분선이고 가운데 28rem 폭에 선다(스레드 전폭이 아니다)", async () => {
+    const { container } = mount(messagesPayload({
+      seq: 2,
+      messages: [
+        { seq: 1, kind: "text", sender_user_id: "u2", sender_name: "상대", body: "어제 말", created_at: "2026-08-02T01:02:03", images: [] },
+        { seq: 2, kind: "text", sender_user_id: "u2", sender_name: "상대", body: "오늘 말", created_at: "2026-08-03T01:02:03", images: [] },
+      ],
+    }));
+    await screen.findByText("오늘 말");
+    const seps = [...container.querySelectorAll("[data-day-separator]")];
+    expect(seps.length).toBe(2);
+    for (const sep of seps) {
+      expect(sep).toHaveAttribute("role", "separator");
+      const cs = getComputedStyle(sep);
+      expect(cs.maxWidth).toBe("28rem");
+      expect(cs.alignSelf).toBe("center");
+    }
+    expect(seps[0].getAttribute("data-day-separator")).toBe("2026-08-02");
   });
 });
 

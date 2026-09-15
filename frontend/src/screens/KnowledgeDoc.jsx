@@ -445,7 +445,7 @@ function Relations({ documentId, relations, backlinks, tickets, onChanged, readO
   return (
     <Section
       title={`관련 문서 ${relations.length}`}
-      action={readOnly ? null : <Button size="small" variant="ghost" onClick={() => { add.reset(); setOpen(true); }}>문서 잇기</Button>}
+      action={readOnly ? null : <Button size="small" onClick={() => { add.reset(); setOpen(true); }}>문서 잇기</Button>}
     >
       <Stack spacing={1}>
         {dropFailure ? <Callout tone="danger" compact>{dropFailure}</Callout> : null}

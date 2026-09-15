@@ -39,4 +39,7 @@ export const CHAT = {
   tool: CONTROL.buttonSm,
   /* 말풍선 밖 시각 글자(0.6875rem) — 본문(0.9375rem)과 이름(0.875rem)보다 두 단 작다. */
   timeText: "0.6875rem",
+  /* 날짜 구분선의 폭(28rem) — 스레드 가운데에 선다(UI 3차 조합 계약 C-6). 스레드 전폭으로 그으면 1920 에서 선 두 줄이
+     말풍선보다 길게 달려 대화를 칸막이로 자른다. 채팅방과 AI 도우미가 같은 구분선(`ui/ChatDaySeparator.jsx`)을 쓴다. */
+  daySeparatorWidth: "28rem",
 };

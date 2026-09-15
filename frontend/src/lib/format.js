@@ -161,6 +161,25 @@ export function fmtRelative(v) {
   return fmtDateTime(v);
 }
 
+/** 목록 행 시각 — 훑는 목록(채팅방 대화 목록)의 짧은 시각 (UI 3차 조합 계약 C-6).
+ *
+ * 이레 안은 `fmtRelative` 그대로(방금 전 · N분 전 · N시간 전 · N일 전)이고, 그 뒤는 KST 달력일 「8월 24일」(`fmtDayKo`)이다.
+ * 해가 다르면 「2025년 8월 24일」로 해를 붙인다 — 같은 해 안에서는 해가 폭만 먹는다. 예전에는 이레가 넘으면 절대 시각
+ * 「2026. 8. 24. 오후 12:00」이 나와 296 목록 칸에서 방 이름보다 길었다. 미래 값은 `fmtRelative` 규칙대로 절대 시각이다.
+ * 이레의 경계는 `fmtRelative` 와 같은 반올림 사다리로 잰다 — 두 형식기가 같은 순간에 서로 다른 말을 하지 않게.
+ */
+export function fmtListStamp(v) {
+  const d = toUTCDate(v);
+  if (!d) return fmtRelative(v);
+  const sec = Math.round((Date.now() - d.getTime()) / 1000);
+  const day = Math.round(Math.round(Math.round(sec / 60) / 60) / 24);
+  if (sec < 0 || day < 7) return fmtRelative(v);
+  const key = kstDayKey(v);
+  const label = fmtDayKo(key);
+  const thisYear = KST_DAY_KEY.format(new Date()).slice(0, 4);
+  return key.slice(0, 4) === thisYear ? label : `${key.slice(0, 4)}년 ${label}`;
+}
+
 /** 달력일(YYYY-MM-DD) → "8월 24일".
  *
  * 화면에 기간을 적을 때 `2026-08-24` 를 그대로 쓰면 읽는 사람이 연·월·일을 매번 다시

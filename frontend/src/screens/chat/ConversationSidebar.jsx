@@ -135,7 +135,9 @@ export function ConversationSidebar({
           boxShadow: { xs: sideOpen ? 8 : 0, xl: 0 },
         }}
       >
-        <Button variant="primary" onClick={() => { clearDraft(); setComposingNew(true); setCid(null); setSideOpen(false); textareaRef.current && textareaRef.current.focus(); }}>
+        {/* 「새 대화」는 보조다(조합 계약 C-4) — 이 화면의 채움은 입력의 「전송」 하나다. 채움이 목록 머리와 입력에 둘 서면 무엇을 먼저
+            할지 화면이 말하지 못한다. */}
+        <Button onClick={() => { clearDraft(); setComposingNew(true); setCid(null); setSideOpen(false); textareaRef.current && textareaRef.current.focus(); }}>
           <AddRoundedIcon aria-hidden="true" sx={{ fontSize: "1.125rem", mr: 0.5 }} />새 대화
         </Button>
         {/* 목록 동작(이름 · 보관 · 삭제)의 실패 — 이 목록 안에 남는다(`useChat::sidebarFailure`). */}

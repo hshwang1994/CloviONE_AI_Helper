@@ -6,7 +6,7 @@ import Typography from "@mui/material/Typography";
 import { alpha } from "@mui/material/styles";
 import { api } from "../lib/api.js";
 import { failureText } from "../lib/failure.js";
-import { Badge, Button, Callout, EmptyState, ErrorState, FieldLabel, Modal, Skeleton, useConfirm, useToast } from "../ui/kit.jsx";
+import { Badge, Button, Callout, EmptyState, ErrorState, FieldLabel, Modal, Skeleton, StatusDot, useConfirm, useToast } from "../ui/kit.jsx";
 import { PeopleFilter, PersonPickRow, filterPeople } from "./chat/peoplePicker.jsx";
 import { FONT_SIZE, FONT_WEIGHT, NUMERIC, RADIUS } from "../ui/theme.js";
 import { CHAT } from "../ui/chat.js";
@@ -39,29 +39,18 @@ import { UserAvatar } from "../ui/UserAvatar.jsx";
  * 포함)을 함께 주므로 `ChatRoom.jsx` 가 그걸 그대로 내려 준다.
  */
 
-function Dot({ online }) {
-  return (
-    <Box
-      component="span" aria-hidden="true"
-      sx={{
-        flexShrink: 0, width: "0.5rem", height: "0.5rem", borderRadius: "50%",
-        bgcolor: online ? "success.main" : "action.disabled",
-      }}
-    />
-  );
-}
-
 /** 참여자 한 줄(사진 + 이름 + 접속 상태 + 방장 표시). 관리 동작은 오른쪽 slot 으로 받는다. */
 function MemberRow({ member, meId, actions, person }) {
   return (
     <Box
       sx={{
         display: "flex", alignItems: "center", gap: 1, minWidth: 0,
-        px: 1, py: 0.75, borderRadius: 1.5,
+        px: 1, py: 0.75, borderRadius: `${RADIUS.sm}px`,
         "&:hover": { bgcolor: (t) => alpha(t.palette.primary.main, 0.06) },
       }}
     >
-      <Dot online={member.online} />
+      {/* 접속 점은 제품 공통 점이다(`StatusDot`) — 이 화면만 지역 점(8px)을 따로 그렸다. 색만으로 전하지 않는다: 줄 끝 글자가 같은 사실을 말한다. */}
+      <StatusDot accent={member.online ? "success.main" : "action.disabled"} />
       <UserAvatar person={person} name={member.name} size="sm" />
       {/* 이름 아래에 소속 한 줄. 방을 만들 때 쓰는 디렉터리는 부서를 보여 주는데 정작
           **만들어진 방의 참여자 목록은 이름만** 보여 줘서, 같은 이름 두 사람을 초대하면
@@ -103,21 +92,35 @@ function MemberRow({ member, meId, actions, person }) {
  */
 const STRIP_NAMES = 8;
 
-export function MemberStrip({ members, people }) {
+/** 방 머리 둘째 줄 — 「참여자 N명, 보는 중 M명」(0.75rem muted). 얼굴 스택과 **따로** 선다(방 머리 두 줄, UI 3차 조합 계약 C-6 ·
+ * 채팅방 시안). 예전에는 글자와 얼굴이 한 묶음(`MemberStrip`)이라 제목 줄 오른쪽에 한 줄로 서서 제목 · 배지 · 요약 · 얼굴 · 단추
+ * 다섯이 한 줄을 다퉜다. */
+export function MemberSummary({ members }) {
+  const rows = members || [];
+  if (!rows.length) return null;
+  const online = rows.filter((m) => m.online).length;
+  return (
+    <Typography
+      data-member-summary=""
+      sx={{ fontSize: FONT_SIZE.micro, color: "text.secondary", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", minWidth: 0 }}
+    >
+      참여자 {rows.length}명, 보는 중 {online}명
+    </Typography>
+  );
+}
+
+/** 방 머리 오른쪽 얼굴 스택 — 동작 단추 앞에 선다. */
+export function MemberFaces({ members, people }) {
   const rows = members || [];
   const dupNames = hasDuplicateNames(rows);
   if (!rows.length) return null;
-  const online = rows.filter((m) => m.online).length;
   const ordered = [...rows].sort((a, b) => (b.online ? 1 : 0) - (a.online ? 1 : 0));
   const shown = ordered.slice(0, STRIP_NAMES);
   const rest = rows.length - shown.length;
   /* 얼굴 둘레의 판 색 선 — 겹친 얼굴끼리의 경계를 가른다(시안의 흰 테두리 2px). 판 면 토큰이라 다크에서도 판 색이다. */
   const ring = (t) => `0 0 0 2px ${t.palette.background.plate}`;
   return (
-    <Box data-member-strip="" sx={{ display: "flex", alignItems: "center", gap: 1.25, minWidth: 0 }}>
-      <Typography sx={{ fontSize: FONT_SIZE.caption, color: "text.secondary", whiteSpace: "nowrap" }}>
-        참여자 {rows.length}명, 보는 중 {online}명
-      </Typography>
+    <Box data-member-faces="" sx={{ display: "flex", alignItems: "center", minWidth: 0 }}>
       <Box role="list" aria-label="참여자" sx={{ display: "flex", alignItems: "center", pl: 0.25 }}>
         {shown.map((m, i) => {
           /* 이름표는 **이름이 겹칠 때만** 소속을 붙인다 — 그때가 이름만으로 못 고르는 유일한 경우다. */
@@ -162,7 +165,8 @@ export function MemberStrip({ members, people }) {
    같은 문제라 두 벌로 두면 한쪽만 고쳐진다). */
 const PICKER_SX = {
   display: "flex", flexDirection: "column", gap: 0.25, maxHeight: "14rem", overflowY: "auto",
-  border: 1, borderColor: "divider", borderRadius: 2, p: 0.5,
+  /* 모서리는 입력칸 토큰이다(6) — 예전 `borderRadius: 2` 는 테마 배율로 16px 이 되어 창 안에서만 둥글었다. */
+  border: 1, borderColor: "divider", borderRadius: `${RADIUS.sm}px`, p: 0.5,
 };
 
 export function ManageRoomModal({ open, onClose, roomId, title, members, meId, people }) {

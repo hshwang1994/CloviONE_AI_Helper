@@ -14,6 +14,7 @@ import ThumbUpOutlinedIcon from "@mui/icons-material/ThumbUpOutlined";
 import ThumbUpRoundedIcon from "@mui/icons-material/ThumbUpRounded";
 import { Button, Tag } from "../../ui/kit.jsx";
 import { CHAT } from "../../ui/chat.js";
+import { ChatDaySeparator } from "../../ui/ChatDaySeparator.jsx";
 import { FONT_SIZE, KO_WORD_BREAK } from "../../ui/theme.js";
 import {
   copyText, fmtDateSep, fmtTime, msgAgeMs, responseTimeLabel, structuredCards,
@@ -250,7 +251,8 @@ export function TypingBubble({ since }) {
   return (
     <Box
       sx={{
-        alignSelf: "flex-start", px: 2, py: 1.5, borderRadius: 3, borderBottomLeftRadius: "0.375rem",
+        /* 입력 중 말풍선도 말풍선 모서리(12)다 — 도우미 말풍선과 같은 모양이어야 「이 자리에 답이 온다」로 읽힌다(예전 24 는 `CHAT` 토큰 밖). */
+        alignSelf: "flex-start", px: 2, py: 1.5, borderRadius: `${CHAT.bubbleRadius}px`, borderEndStartRadius: `${CHAT.bubbleJoinRadius}px`,
         bgcolor: "background.paper", border: 1, borderColor: "divider",
       }}
     >
@@ -287,13 +289,7 @@ export function TypingBubble({ since }) {
 /* 스레드 안 날짜 구분선 — 말풍선 라벨은 시:분만 보여줘 사흘 전 15:23과 오늘 15:23이 구분되지
    않았다. 날짜가 바뀌는 지점에만 가운데 칩을 끼워 넣는다. */
 export function DaySeparator({ at }) {
-  const label = fmtDateSep(at);
-  return (
-    <Box role="separator" aria-label={label} sx={{ display: "flex", alignItems: "center", gap: 1.5, alignSelf: "stretch", my: 0.5 }}>
-      <Box sx={{ flex: 1, height: "1px", bgcolor: "divider" }} />
-      {/* 팀 채팅(`ChatPane`)의 날짜 구분선과 같은 얼굴 — 선 사이의 낱말이다(채팅방 시안). */}
-      <Typography sx={{ fontSize: FONT_SIZE.caption, color: "text.secondary", whiteSpace: "nowrap" }}>{label}</Typography>
-      <Box sx={{ flex: 1, height: "1px", bgcolor: "divider" }} />
-    </Box>
-  );
+  /* 팀 채팅(`ChatPane`)과 **같은 부품**이다(`ui/ChatDaySeparator.jsx` — 선 `rule` · 0.75rem/600 · 가운데 28rem). 예전에는 이 화면만
+     선 색(`divider`)과 글자(0.8125rem)가 달랐다(UI 3차 조합 계약 C-6). */
+  return <ChatDaySeparator label={fmtDateSep(at)} />;
 }
