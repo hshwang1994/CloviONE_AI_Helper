@@ -16,6 +16,10 @@
 `--label` · `--themes` 는 `local_capture` 가 먹는 이름이라 `--measure-label` · `--measure-themes`
 를 쓴다.
 
+`--open-modals` 를 주면 화면마다 여는 단추를 눌러 모달을 차례로 열고(`interact.open_modals` — 파괴 동작은 누르지
+않는다) **열린 모달 안만** 같은 검사로 잰다. 모달 제목 · 닫기 · 모서리 · 발 · 모달 안 단추가 여기서 표본을 얻는다
+(화면만 열어서는 `modal` · `floating_radius` 표본이 0 이다).
+
 ## 판정 규율 (자작 프로브는 양방향으로 틀린다)
 
 - 검사마다 **표본 수(`checked`)** 를 같이 적는다. `--fail-on` 에 건 검사가 표본 0 이면 통과가
@@ -367,7 +371,7 @@ MEASURE_JS = r"""
   }
 
   // ── 모달 · 떠 있는 것 ───────────────────────────────────────────────────
-  for (const d of [...document.querySelectorAll('.MuiDialog-paper')].filter(shown)) {
+  for (const d of [...scope.querySelectorAll('.MuiDialog-paper')].filter(shown)) {
     check('modal').checked++;
     const st = getComputedStyle(d);
     const problems = [];
@@ -382,7 +386,7 @@ MEASURE_JS = r"""
     if (close && !near(hOf(close), C.modal.close)) problems.push('close ' + hOf(close));
     if (problems.length) fail('modal', { title: title ? text(title) : '', problems });
   }
-  for (const p of [...document.querySelectorAll('.MuiPopover-paper, .MuiMenu-paper, .noti-pop, .MuiSnackbarContent-root, .MuiAlert-root.k-toast')].filter(shown)) {
+  for (const p of [...scope.querySelectorAll('.MuiPopover-paper, .MuiMenu-paper, .noti-pop, .MuiSnackbarContent-root, .MuiAlert-root.k-toast')].filter(shown)) {
     check('floating_radius').checked++;
     const r = px(getComputedStyle(p).borderTopLeftRadius);
     if (!near(r, C.floatingRadius, 0.5)) fail('floating_radius', { cls: p.className.toString().slice(0, 60), r });
@@ -559,6 +563,11 @@ SELFTEST_HTML = r"""
       <div style="display:grid;grid-template-columns:repeat(12,minmax(0,1fr));column-gap:20px;row-gap:20px;width:800px">
         ${[12, 6, 3, 3, 3, 3, 3, 3].map((n) => `<div data-form-field="" style="grid-column:span ${n};display:grid;grid-template-rows:20px minmax(36px,auto) auto"><span>칸</span><div style="height:36px;border:1px solid #ccc"></div><div></div></div>`).join('')}
       </div>
+      <div class="MuiDialog-paper" style="width:400px;border-radius:8px;border:1px solid #ccc;padding:8px">
+        <h2 style="margin:0;font-size:17px;font-weight:700">모달 제목</h2>
+        <button aria-label="닫기" style="height:30px;width:30px">x</button>
+      </div>
+      <div class="MuiPopover-paper" style="width:120px;height:40px;border-radius:8px;border:1px solid #ccc"></div>
       <div style="width:600px">
         <div data-chat-row="mine" style="display:grid;justify-items:end"><div style="display:flex;max-width:68%"><div data-chat-bubble="mine" style="width:fit-content;padding:10px 14px">짧은 말</div></div></div>
         <div data-chat-composer="" style="border:1px solid #ccc;border-radius:10px;height:60px"></div>
@@ -583,6 +592,11 @@ SELFTEST_HTML = r"""
         <div data-form-field="" style="display:grid;grid-template-rows:20px minmax(36px,auto) auto"><span>칸</span><div style="height:36px;border:1px solid #ccc"></div><div></div></div>
         <div data-form-field="" style="display:grid;grid-template-rows:28px minmax(36px,auto) auto"><span>어긋난 라벨</span><div style="height:36px;border:1px solid #ccc"></div><div></div></div>
       </div>
+      <div class="MuiDialog-paper" style="width:400px;border-radius:14px;border:1px solid #ccc;padding:8px">
+        <h2 style="margin:0;font-size:19px;font-weight:800">모달 제목</h2>
+        <button aria-label="닫기" style="height:34px;width:34px">x</button>
+      </div>
+      <div class="MuiPopover-paper" style="width:120px;height:40px;border-radius:14px;border:1px solid #ccc"></div>
       <div style="width:600px">
         <div data-chat-row="mine" style="display:grid;justify-items:end"><div style="display:flex;max-width:90%"><div data-chat-bubble="mine" style="width:500px;padding:10px 14px">넓게 퍼진 말풍선</div></div></div>
         <div data-chat-composer="" style="border:1px solid #ccc;border-radius:20px;height:60px"></div>
@@ -597,6 +611,7 @@ SELFTEST_HTML = r"""
 SELFTEST_EXPECT_BAD = {
     "button_height": 1, "button_wrap": 1, "badge": 1, "tag": 1, "count_chip": 1,
     "filter_cell": 1, "filter_notched": 1, "search_slot": 1, "form_field_rows": 2, "chat_layout": 2,
+    "modal": 1, "floating_radius": 1,
 }
 
 
@@ -701,12 +716,29 @@ def measure(args) -> int:
                             page.goto(route.url(base, hashes.get(route.id, route.hash_path)),
                                       wait_until="domcontentloaded", timeout=45_000)
                             cap._settle(page, settle_ms=args.settle_ms, timeout_ms=45_000)
+                            # 마우스를 화면 구석으로 뺀다 — 앞 화면에서 모달을 열던 자리에 포인터가 남으면 그 아래 카드가
+                            # hover 로 떠올라(`translateY(-2px)`) 같은 줄 카드의 윗선 검사가 거짓으로 걸린다(G 실측: 놀이 목록).
+                            page.mouse.move(0, 0)
+                            page.wait_for_timeout(120)
                             result = page.evaluate(MEASURE_JS, {**CONTRACT, "scope": None, "mascotHfrac": hfrac})
                             key = f"{route.id}__{theme}__{viewport.name}"
                             pages[key] = result
                             _merge(total, result, key)
                             fails = [n for n in CHECKS if (result.get(n) or {}).get("failed")]
                             print(f"[measure] {key:<50} " + (", ".join(fails) if fails else "ok"), flush=True)
+                            if args.open_modals:
+                                from scripts.ui_qa import interact
+
+                                def on_open(pg, opener, probe, _key=key):
+                                    got = pg.evaluate(MEASURE_JS, {**CONTRACT, "scope": ".MuiDialog-root", "mascotHfrac": hfrac})
+                                    if isinstance(got, dict) and not got.get("error"):
+                                        where = f"{_key}__modal:{opener}"
+                                        pages[where] = got
+                                        _merge(total, got, where)
+                                        bad = [n for n in CHECKS if (got.get(n) or {}).get("failed")]
+                                        print(f"[measure]   모달 «{opener}» " + (", ".join(bad) if bad else "ok"), flush=True)
+
+                                interact.open_modals(page, limit=6, on_open=on_open)
                     finally:
                         page.close()
                         ctx.close()
@@ -758,6 +790,8 @@ def main() -> int:
     ap.add_argument("--measure-label", default="kit-measure")
     ap.add_argument("--base-url", default=None)
     ap.add_argument("--settle-ms", type=int, default=600)
+    ap.add_argument("--open-modals", action="store_true",
+                    help="화면마다 모달을 열어 열린 모달 안을 잰다(파괴 동작 단추는 누르지 않는다)")
     ap.add_argument("--fail-on", nargs="*", default=None, dest="fail_on")
     ap.add_argument("--selftest", action="store_true")
     args = ap.parse_args()

@@ -460,8 +460,11 @@ function DndCard({ prefs, save, saving }) {
             onChange={(e) => setEnd(e.target.value)}
             disabled={fieldsOff}
           />
+          {/* 단추는 페이지 동작 높이(34)로 서고 윗선을 입력칸(36)과 맞춘다(핸드오프 ACCEPTANCE C1 · RULES §14). 예전
+              `alignSelf: stretch` 는 단추를 입력칸 높이 36 으로 늘려 버튼 높이 집합 {34, 30} 밖에 세웠다(kit_measure
+              `button_height` 실측, 계획 표 5 「발 버튼 정렬」). */}
           <Button
-            sx={{ alignSelf: "stretch" }}
+            sx={{ alignSelf: "start" }}
             disabled={fieldsOff || (start === dnd.quiet_start && end === dnd.quiet_end)}
             onClick={() => save({ quiet_start: start, quiet_end: end })}
           >

@@ -158,11 +158,13 @@ def close_modal(page, timeout_ms: int = 2000) -> str:
     return "닫히지 않음" if _dialog_open(page) else "배경 클릭"
 
 
-def open_modals(page, *, limit: int = 8, settle_ms: int = 420) -> list[dict]:
+def open_modals(page, *, limit: int = 8, settle_ms: int = 420, on_open=None) -> list[dict]:
     """현재 화면에서 열 수 있는 모달을 차례로 열어 검사한다.
 
     각 항목: `{opener, probe, closedBy}`. 아무것도 안 열리면 빈 목록이다 —
     그것도 결과다(그 화면에는 모달이 없다).
+    `on_open(page, opener, probe)` 를 주면 모달이 열려 있는 동안(닫기 전에) 부른다 — 다른 하네스가 열린 모달을
+    자기 방식으로 잰다(`kit_measure --open-modals`). 콜백의 예외는 이 순회를 멈추지 않는다.
     """
     found: list[dict] = []
 
@@ -222,6 +224,11 @@ def open_modals(page, *, limit: int = 8, settle_ms: int = 420) -> list[dict]:
             close_modal(page)
             continue
         seen_titles.add(key)
+        if on_open is not None:
+            try:
+                on_open(page, label, probe)
+            except Exception:  # noqa: BLE001 — 재는 쪽의 실패가 모달을 열어 둔 채 남기지 않게 한다
+                pass
         closed_by = close_modal(page)
         found.append({"opener": label, "probe": probe, "closedBy": closed_by})
         if closed_by == "닫히지 않음":

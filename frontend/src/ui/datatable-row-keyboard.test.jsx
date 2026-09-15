@@ -73,3 +73,15 @@ describe("표 행의 키보드 도달", () => {
     expect(onRow).not.toHaveBeenCalled();
   });
 });
+
+/* 키보드로 닿은 행은 초점 고리가 보인다 — MUI `TableRow` 의 `outline: 0` 이 전역 `:focus-visible` 고리를 지우던 자리다
+ * (핸드오프 G 키보드 실측). jsdom 은 `:focus-visible` 을 계산하지 않으므로 표가 낸 규칙을 읽는다. */
+describe("표 행의 초점 고리", () => {
+  it("표가 `tbody tr:focus-visible` 에 행 안쪽 2px 외곽선 규칙을 낸다", () => {
+    render(<DataTable columns={COLS} rows={ROWS} rowKey={(r) => r.id} onRow={() => {}} />);
+    const css = [...document.querySelectorAll("style")].map((el) => el.textContent || "").join(" ");
+    const rule = (css.match(/tbody tr:focus-visible\{[^}]*\}/) || [""])[0];
+    expect(rule, css.slice(0, 200)).toContain("outline:2px solid");
+    expect(rule).toContain("outline-offset:-2px");
+  });
+});

@@ -15072,3 +15072,21 @@ A 가 함께 정본으로 세운 계약(소비처 전환은 B 가 한다):
 QA 도구: `scripts/ui_qa/kit_measure.py`(부품 계약 실측, 자기검증 틀린 견본 8종) ·
 `scripts/ui_qa/geometry_diff.py`(보호 화면 뼈대 전후 비교) · `scripts/check_kit_consumers.py`(정본
 wrapper 가 있는 MUI 원재료의 화면 직접 사용). 대비 프로브는 비활성 조작기 글자를 WCAG 1.4.3 대로 뺀다.
+
+### D-487. 보조 · 파괴 단추의 테두리는 핸드오프 경계선이다 — R-11 의 3:1 하한을 걷는다 (핸드오프 F)
+
+W4(R-11 · F-W1R-04)는 MUI `outlined` + `color="inherit"` 이 본문 잉크(판 위 17.1:1)로 그리던 보조 테두리를
+`text.faint`(3:1 이상)로, 파괴 테두리를 불투명 `error.main` 으로 올렸다. 핸드오프(README §2 · 다크 모드 절 ·
+RULES §3 · §13 · ACCEPTANCE K3)는 그 자리를 옅은 경계선으로 정한다. 정본 순서(D-486)대로 문서 값을 쓴다.
+
+| 단추 | 라이트 | 다크 |
+|---|---|---|
+| 보조(`default` = `secondary`) | 흰 면 + `divider` #DCDFEC, 올리면 함몰면 + #BCC2D9 | 투명 면 + `dividerStrong` #333B5E, 올리면 함몰면 #1C2136 |
+| 파괴(`danger`) | 흰 면 + `error.line` #E6B0AC + `error.main` 글자 #B3261E, 올리면 `error.bg` #FAEBEC | 투명 면 + #5F3330 + #FF8A80, 올리면 #2E1A18 |
+
+- 글자 라벨이 단추를 알리므로 테두리는 WCAG 1.4.11 의 대상이 아니다. R-11 이 막던 두 역전은 계속 막는다 — 본문 잉크
+  테두리로 돌아가지 않고(판 위 8:1 미만), 파괴 테두리가 같은 화면의 중립 보조보다 흐리지 않다(판 위 라이트 1.88 대
+  1.33 · 다크 1.68 대 1.62). `kit.test` 「버튼 강도」와 `kit_e2e` 버튼 판정이 두 테마 계산값으로 잰다.
+- 비활성 단추는 `theme.js` 규칙(함몰면 · `line` · `disabledControlInk`)이 그대로 이긴다.
+- 같은 회차에서 다크의 클로비 바탕을 정했다: 빈 상태 · 오류 상태 그림은 밝은 바탕 기준 자산이라 다크에서는 함몰면
+  위에 놓는다(`kit.jsx::mascotGroundSx` — 면 · 모서리 6 · 안쪽 선만, 치수는 두 모드 동일, 필터 · 반전 없음).

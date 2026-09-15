@@ -75,7 +75,11 @@ describe("두 판", () => {
     expect(layout).toBeTruthy();
     const cards = [...layout.children].filter((el) => el.classList.contains("MuiCard-root"));
     expect(cards).toHaveLength(2);
-    expect(within(cards[0]).getByRole("heading", { name: "대화" })).toBeInTheDocument();
+    const listHeading = within(cards[0]).getByRole("heading", { name: "대화" });
+    expect(listHeading).toBeInTheDocument();
+    // 목록 판 머리는 판 제목 글자 갈래다(1.0625rem/700 — 대장 §0-13). 옛 `FONT_SIZE.sectionTitle`(1.1875rem)로 돌아가면 깨진다.
+    expect(getComputedStyle(listHeading).fontSize).toBe("1.0625rem");
+    expect(String(getComputedStyle(listHeading).fontWeight)).toBe("700");
     expect(within(cards[1]).getByRole("heading", { name: "인프라 팀" })).toBeInTheDocument();
     expect(emittedCss()).toContain(`grid-template-columns:${CHAT.listWidth} minmax(0, 1fr)`);
     expect(CHAT.listWidth).toBe("18.5rem");

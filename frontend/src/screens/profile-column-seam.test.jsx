@@ -159,3 +159,17 @@ describe("내 프로필 — 신원 머리는 전폭이고 설정은 한 줄에�
     expect(empty.querySelectorAll(".MuiCard-root")).toHaveLength(0);
   });
 });
+
+/* 조용시간의 저장 단추는 페이지 동작 높이(34)다 — 입력칸(36) 높이로 늘어나지 않고 윗선만 맞춘다
+ * (핸드오프 ACCEPTANCE C1 · RULES §14, 계획 표 5 「발 버튼 정렬」). 예전에는 `alignSelf: stretch` 로 36 에 섰다. */
+describe("내 프로필 — 조용시간 저장 단추", () => {
+  it("저장 단추는 격자 칸에 늘어나지 않고 위에 붙는 기본 단추다", async () => {
+    const { container } = renderProfile();
+    await waitFor(() => expect(container.querySelectorAll(".MuiCard-root").length).toBeGreaterThanOrEqual(5));
+    const save = [...container.querySelectorAll("button")].find((b) => b.textContent.trim() === "시간 저장");
+    expect(save).toBeTruthy();
+    expect(save.className).toContain("MuiButton-sizeMedium");
+    expect(getComputedStyle(save).alignSelf).toBe("start");
+    expect(getComputedStyle(save).alignSelf).not.toBe("stretch");
+  });
+});

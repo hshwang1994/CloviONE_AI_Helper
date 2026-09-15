@@ -2770,6 +2770,14 @@ export function DataTable({ columns, rows, rowKey, onRow, rowHref, rowSelected, 
           /* hover 와 선택이 **같은 한 단계**다. 색 테두리로 고른 행을 두르지 않는다 —
              표 안에서 색 테두리는 열 경계와 싸운다. */
           "& tbody tr.Mui-selected, & tbody tr.Mui-selected:hover": { bgcolor: "background.inset" },
+          /* 키보드로 닿은 행의 초점 고리. MUI `TableRow` 는 뿌리에 `outline: 0` 을 걸어 전역 `:focus-visible` 고리를
+             지운다(특이도가 같고 부품 규칙이 나중에 들어간다) — `onRow` 가 있는 행은 Tab 으로 닿고 Enter 로 여는데 초점이
+             보이지 않았다(핸드오프 G 키보드 실측: 작업 큐 · 게시판 행의 계산 외곽선 `none 0px`). 고리는 행 안쪽에 그려
+             가로로 굴러가는 표 상자에 잘리지 않게 한다. */
+          "& tbody tr:focus-visible": (t) => ({
+            outline: `2px solid var(--clovir-focus-ring, ${t.palette.focusRing})`,
+            outlineOffset: -2,
+          }),
         }}
       >
         <TableColGroup columns={wideCols} />

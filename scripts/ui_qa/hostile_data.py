@@ -9,6 +9,12 @@
   weird   : RTL(히브리) · 이모지 · 결합 문자 · 제로폭 공백 · `<script>` 문자열(이스케이프 확인)
 
 보는 것: 가로 넘침 · 잘림(overflow:hidden) · 세로 붕괴 · 렌더 시간 · JS 예외.
+
+**넘침은 화면 밖으로 실제로 보이는 것만 센다.** 요소가 뷰포트 오른쪽을 넘어도 그 요소를 품은 조상이 가로로
+굴리거나 자르고(`overflow-x` 가 auto · scroll · hidden · clip) 그 조상이 뷰포트 안에 서 있으면, 넘친 부분은 그 상자
+안에서 굴러가거나 잘린다 — 1200 폭의 넓은 표가 제 상자 안에서 가로로 굴러가는 것이 그렇다(핸드오프 ACCEPTANCE E5).
+그런 요소는 `contained` 로 따로 센다. 페이지 전체의 가로 넘침은 `문서폭`(scrollWidth 대 뷰포트)이 말한다.
+`--selftest` 가 맞는 견본(굴리는 상자 안의 긴 줄)과 틀린 견본(보이는 상자 밖으로 나간 긴 줄)으로 이 판정을 먼저 본다.
 """
 
 from __future__ import annotations
@@ -41,13 +47,25 @@ WEIRD = ("עברית RTL 🇰🇷 ""👨‍👩‍👧 é́ ""zero​width <scr
 PROBE = """() => {
   const root = document.querySelector('#main-content') || document.body;
   const vw = innerWidth;
-  const over = [], clipped = [], collapsed = [], truncated = [];
+  const over = [], clipped = [], collapsed = [], truncated = [], contained = [];
+  /* 넘친 요소를 품고 가로로 굴리거나 자르는 조상이 뷰포트 안에 서 있는가 — 그러면 넘친 부분은 보이지 않는다. */
+  /* 자르는 조상이 여럿이면 끝까지 올라간다 — 표 칸(`overflow:hidden`)은 가로로 굴러가는 표 안에서 스스로 뷰포트 밖에
+     서 있을 수 있고, 그 칸을 품은 표 상자가 뷰포트 안에서 굴린다(1366 · 1200 의 내 티켓 표). */
+  const boxedIn = (el) => {
+    for (let a = el.parentElement; a && a !== document.documentElement; a = a.parentElement) {
+      const ox = getComputedStyle(a).overflowX;
+      if ((ox === 'auto' || ox === 'scroll' || ox === 'hidden' || ox === 'clip') && a.getBoundingClientRect().right <= vw + 2) {
+        return true;
+      }
+    }
+    return false;
+  };
   root.querySelectorAll('*').forEach(el => {
     const r = el.getBoundingClientRect();
     if (r.width < 2 || r.height < 2) return;
     if (r.right > vw + 2) {
       const t = (el.innerText || '').trim().slice(0, 30);
-      if (t) over.push({ tag: el.tagName.toLowerCase(), right: Math.round(r.right), text: t });
+      if (t) (boxedIn(el) ? contained : over).push({ tag: el.tagName.toLowerCase(), right: Math.round(r.right), text: t });
     }
     const st = getComputedStyle(el);
     if (st.overflow === 'hidden' || st.overflowX === 'hidden') {
@@ -74,7 +92,7 @@ PROBE = """() => {
   });
   const dedupe = (a) => { const s = new Set(), o = []; for (const x of a) {
       const k = x.tag + '|' + (x.text || ''); if (!s.has(k)) { s.add(k); o.push(x); } } return o; };
-  return { overflow: dedupe(over).slice(0, 8), clipped: dedupe(clipped).slice(0, 8), truncated: dedupe(truncated).slice(0, 8),
+  return { overflow: dedupe(over).slice(0, 8), contained: dedupe(contained).length, clipped: dedupe(clipped).slice(0, 8), truncated: dedupe(truncated).slice(0, 8),
            collapsed: dedupe(collapsed).slice(0, 8),
            bodyScrollW: document.documentElement.scrollWidth, vw,
            rows: root.querySelectorAll('tbody tr').length };
@@ -117,6 +135,53 @@ def transform(payload, mode: str):
     return out
 
 
+SELFTEST_HTML = r"""() => {
+  const long = '긴줄'.repeat(400);
+  const host = document.createElement('div');
+  host.id = 'hostile-selftest';
+  host.style.cssText = 'position:absolute;left:0;top:0;width:600px;z-index:99999;background:#fff';
+  host.innerHTML = `
+    <div id="good"><div style="width:560px;overflow-x:auto"><span style="white-space:nowrap">${long}</span><div style="width:3000px;overflow:hidden;white-space:nowrap">${long}</div></div></div>
+    <div id="bad"><div style="width:560px"><span style="white-space:nowrap">${long}</span></div></div>`;
+  (document.querySelector('#main-content') || document.body).appendChild(host);
+}"""
+
+
+def selftest(base: str, insecure: bool, auth_dir: str) -> int:
+    """맞는 견본(굴리는 상자 안)은 넘침으로 안 세고, 틀린 견본(보이는 상자 밖)은 센다."""
+    from playwright.sync_api import sync_playwright
+
+    route = BY_ID["user_kit"]
+    with sync_playwright() as pw:
+        b = pw.chromium.launch(headless=True)
+        s = ensure_session(b, base, Path(auth_dir), insecure=insecure, log=print)
+        ctx = new_context(b, storage_state=s.storage_state, user_id=s.user_id, theme="light",
+                          viewport=Viewport("1920x1080", 1920, 1080), insecure=insecure)
+        page = ctx.new_page()
+        page.goto(f"{base}{route.shell}#{route.hash_path}", wait_until="domcontentloaded", timeout=45_000)
+        page.wait_for_timeout(1500)
+        page.evaluate(SELFTEST_HTML)
+        page.evaluate("() => { document.querySelector('#hostile-selftest #bad').style.display = 'none'; }")
+        good = page.evaluate(PROBE)
+        page.evaluate("() => { const h = document.querySelector('#hostile-selftest'); h.querySelector('#bad').style.display = ''; h.querySelector('#good').style.display = 'none'; }")
+        bad = page.evaluate(PROBE)
+        ctx.close()
+        b.close()
+    good_hit = [o for o in good["overflow"] if "긴줄" in o["text"]]
+    bad_hit = [o for o in bad["overflow"] if "긴줄" in o["text"]]
+    problems = []
+    if good_hit:
+        problems.append(f"굴리는 상자 안의 긴 줄을 넘침으로 셌다: {good_hit[:1]}")
+    if not good.get("contained"):
+        problems.append("굴리는 상자 안의 긴 줄을 contained 로도 세지 않았다")
+    if not bad_hit:
+        problems.append("보이는 상자 밖으로 나간 긴 줄을 못 잡았다")
+    for line in problems:
+        print("[SELFTEST] " + line)
+    print("HOSTILE_PROBE_SELFTEST_" + ("FAILED" if problems else "OK"))
+    return 1 if problems else 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--routes", nargs="*",
@@ -131,8 +196,12 @@ def main() -> int:
                     help="`WxH` 목록. R-90 은 긴 값을 FHD/QHD/4K 와 Zoom 3단계에서 보라고 "
                          "요구한다 — 4K 패널의 브라우저 확대 100/125/150%% 는 CSS 폭 "
                          "3840/3072/2560 과 같으므로 그 셋이 곧 Zoom 사다리다")
+    ap.add_argument("--selftest", action="store_true",
+                    help="넘침 판정을 맞는 견본 · 틀린 견본으로 먼저 본다(제품 판정 전에)")
     args = ap.parse_args()
     base = args.base_url
+    if args.selftest:
+        return selftest(base, tls.apply_default_https_context(), args.auth_dir)
     views = []
     for name in args.viewports:
         w, _, h = name.partition("x")
@@ -183,7 +252,7 @@ def main() -> int:
                 got.update({"seconds": elapsed, "page_errors": errs[:3], "viewport": view.name})
                 report[f"{mode}/{view.name}/{rid}"] = got
                 print(f"{mode:<7}{view.name:<10}{rid:<20}행={got['rows']:<4}"
-                      f"넘침={len(got['overflow'])} "
+                      f"넘침={len(got['overflow'])} 상자안={got.get('contained', 0)} "
                       f"잘림={len(got['clipped'])} 말줄임={len(got.get('truncated') or [])} 세로붕괴={len(got['collapsed'])} "
                       f"문서폭={got['bodyScrollW']}/{got['vw']} {elapsed}s err={len(errs)}",
                       flush=True)

@@ -282,7 +282,9 @@ export function ChatRooms() {
         display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap",
         px: 2, py: 1.75, borderBottom: 1, borderColor: "divider",
       }}>
-        <Typography component="h2" sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: FONT_SIZE.sectionTitle }}>대화</Typography>
+        {/* 판 제목 글자 갈래(1.0625rem/700) — 이름 옆에 건수 칩과 동작이 붙는 판 머리는 `SectionTitle` 대신 글자 갈래만 쓴다
+            (대장 §0-13). 예전 `FONT_SIZE.sectionTitle` 은 `title`(1.1875rem)의 옛 별칭이라 판 제목보다 한 단 컸다. */}
+        <Typography variant="sectionTitle" component="h2">대화</Typography>
         {unreadTotal > 0 ? (
           <CountChip unread value={unreadTotal > 99 ? "99+" : unreadTotal} ariaLabel={`안 읽음 ${unreadTotal}`} />
         ) : null}
