@@ -2,13 +2,10 @@ import React, { useState } from "react";
 import Box from "@mui/material/Box";
 import MenuItem from "@mui/material/MenuItem";
 import TextField from "@mui/material/TextField";
-import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
 import { expireSession } from "../lib/sessionRedirect.js";
 import { Badge, Button, DataTable, Modal, Callout, useConfirm, useToast, ActionFooter, FieldLabel } from "../ui/kit.jsx";
-import { FONT_WEIGHT } from "../ui/theme.js";
 import { Note } from "../ui/adminKit.jsx";
-import { ToolbarRow } from "../ui/FilterBar.jsx";
 import { FilterRowContext, FilterSelect, PrefixLabel, kindSx } from "../ui/filters.jsx";
 
 const ASSIGN_OPTIONS = [
@@ -52,16 +49,23 @@ const SAMPLE_CSV = "이메일,이름,역할,부서,직책\nhong@example.com,홍�
 // 겹치지 않는 이 상수를 써서 '아직 아무것도 고르지 않음'과 '없음을 일부러 고름'을 구분한다.
 const UNASSIGNED_VALUE = "__unset__";
 
-/* 선택 바 — 몇 명을 골랐는지와 그들에게 할 수 있는 일. 선택이 없으면 아무것도 그리지 않는다. */
-export function BulkBar({ selection, deptOptions, titleOptions, onDone }) {
+/* 선택한 사용자에게 할 수 있는 일 — 목록 판 발의 선택 묶음이 그린다(`DataTable selection`, 조합 계약 C-3).
+ *
+ * 예전에는 이 줄(`BulkBar`)이 필터 바와 목록 사이에 따로 섰다 — 고른 행과 그 행에 할 일이 판 밖 두 줄로 갈라졌고, 긴
+ * 목록을 내려가며 고르면 동작이 화면 위에 남았다. 이제 선택 묶음(「N명 선택」 · 일괄 동작 · 일괄 지정 · 「선택 해제」)은
+ * 목록 판 안 마지막 줄이다. 일괄 동작은 30 이고, 채움(「적용」)은 이 묶음 **안에서만** 하나다.
+ *
+ * 돌려주는 것:
+ *   selection  `DataTable selection` 에 그대로 넘기는 값
+ *   notice     일괄 작업의 실패와 일부 실패 — 선택을 비운 뒤에도 남아 말한다(발은 선택이 없으면 오른쪽이 비므로
+ *              이 줄은 목록 위에 따로 선다). 다음 작업을 누르면 걷힌다. */
+export function useUserBulk({ selection, deptOptions, titleOptions, onDone }) {
   const [busy, setBusy] = useState(null);
   const [assign, setAssign] = useState({ action: "", value: UNASSIGNED_VALUE });
   const confirm = useConfirm();
   const toast = useToast();
-  /* 일괄 작업의 실패와 일부 실패 — 선택을 비운 뒤에도 이 줄이 남아 말한다. 다음 작업을 누르면 걷힌다. */
   const [notice, setNotice] = useState("");
   const ids = Array.from(selection.selected);
-  if (!ids.length && !notice) return null;
 
   // danger — 호출자가 그 작업의 실제 위험도를 넘긴다(BULK_ACTIONS의 danger 속성, 또는 지정 작업은 false).
   // 예전엔 여기서 무조건 true였다: 활성화·보관 복구·잠금 해제·부서/직책 지정처럼 되돌리기 쉬운 작업까지
@@ -97,30 +101,19 @@ export function BulkBar({ selection, deptOptions, titleOptions, onDone }) {
   const assignConfirmMsg = assign.action === "set_department"
     ? `선택한 계정의 부서를 "${chosenLabel ? chosenLabel.label : ""}"(으)로 일괄 변경할까요?`
     : `선택한 계정의 직책을 "${chosenLabel ? chosenLabel.label : ""}"(으)로 일괄 변경할까요?`;
-  return (
-    /* 판이 아니다 — 탐색 줄(`FilterSurface`)과 같은 규칙으로 캔버스 위에 두 줄로 선다.
-       예전에는 이 줄이 흰 판 하나를 통째로 차지해 필터(판 없음)와 목록(판) 사이에 세 번째
-       표면이 끼었다. 선택이 있을 때만 나타나는 독립 블록이라 h2 로 구획한다(SEM-02 · PA-F-031,
-       시각은 그대로 .sr-only). */
-    <Box sx={{ display: "grid", gap: 1.5, mb: 2.5 }}>
-      {notice ? <Callout tone="danger" compact>{notice}</Callout> : null}
-      {ids.length ? (<>
-      <Typography component="h2" className="sr-only">일괄 작업</Typography>
-      <ToolbarRow sx={{ gap: 1 }}>
-        <Typography variant="body2" sx={{ fontWeight: FONT_WEIGHT.semibold }}>{ids.length}명 선택</Typography>
-        {BULK_ACTIONS.map((a) => (
-          <Button key={a.value} size="sm" variant={a.danger ? "danger" : "default"} disabled={!!busy}
-            loading={busy === a.value}
-            onClick={() => apply(a.value, null, a.confirm, a.danger)}>
-            {a.label}
-          </Button>
-        ))}
-        <Button size="sm" variant="ghost" onClick={selection.clear}>선택 해제</Button>
-      </ToolbarRow>
-      {/* 일괄 지정 줄의 두 칸은 도구 줄의 **줄 칸**이다(34 · 칸 안 이름) — 노치 라벨이 떠 있으면 옆 단추와
-          윗선이 어긋났다(핸드오프 RULES §3 · §7). */}
+
+  const actions = ids.length ? (
+    <>
+      {BULK_ACTIONS.map((a) => (
+        <Button key={a.value} size="sm" variant={a.danger ? "danger" : "default"} disabled={!!busy}
+          loading={busy === a.value}
+          onClick={() => apply(a.value, null, a.confirm, a.danger)}>
+          {a.label}
+        </Button>
+      ))}
+      {/* 일괄 지정의 두 칸은 줄 칸이다(34 · 칸 안 이름) — 노치 라벨이 떠 있으면 옆 단추와 윗선이 어긋났다
+          (핸드오프 RULES §3 · §7). */}
       <FilterRowContext.Provider value>
-      <ToolbarRow sx={{ gap: 1 }}>
         <FilterSelect
           label="일괄 지정" value={assign.action} options={ASSIGN_OPTIONS} allLabel="지정 안 함"
           onChange={(v) => setAssign({ action: v, value: UNASSIGNED_VALUE })}
@@ -150,17 +143,20 @@ export function BulkBar({ selection, deptOptions, titleOptions, onDone }) {
             {(assignOptions || []).map((o) => <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>)}
           </TextField>
         ) : null}
-        {assign.action ? (
-          <Button size="sm" variant="primary" disabled={!!busy || assign.value === UNASSIGNED_VALUE}
-            onClick={() => apply(assign.action, assign.value, assignConfirmMsg, false)}>
-            적용
-          </Button>
-        ) : null}
-      </ToolbarRow>
       </FilterRowContext.Provider>
-      </>) : null}
-    </Box>
-  );
+      {assign.action ? (
+        <Button size="sm" variant="primary" disabled={!!busy || assign.value === UNASSIGNED_VALUE}
+          onClick={() => apply(assign.action, assign.value, assignConfirmMsg, false)}>
+          적용
+        </Button>
+      ) : null}
+    </>
+  ) : null;
+
+  return {
+    selection: { count: ids.length, unit: "명", clearLabel: "선택 해제", onClear: selection.clear, actions },
+    notice: notice ? <Callout tone="danger" compact sx={{ mb: 2 }}>{notice}</Callout> : null,
+  };
 }
 
 /* CSV 도구 — 내보내기는 지금 걸린 필터 그대로, 가져오기는 미리보기가 먼저다. */
@@ -186,7 +182,7 @@ export function ImportModal({ onClose, onImported }) {
   const [text, setText] = useState("");
   const [preview, setPreview] = useState(null);
   // 불리언 하나가 아니라 '어느 작업이 진행 중인가'를 담는다("preview" | "create" | null) — 위
-  // BulkBar의 busy===a.value 관례와 같다. 불리언 하나를 두 버튼(미리 보기/만들기)이 공유하면,
+  // useUserBulk의 busy===a.value 관례와 같다. 불리언 하나를 두 버튼(미리 보기/만들기)이 공유하면,
   // '만들기'를 눌러도 실행되지 않는 '미리 보기' 버튼이 "확인 중…"으로 바뀌고, 정작 요청이
   // 나가는 '만들기' 버튼에는 아무 진행 표시도 없어 사용자에게 엉뚱한 동작이 진행 중이라고
   // 말하는 셈이었다.

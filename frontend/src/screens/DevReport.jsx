@@ -6,7 +6,7 @@ import { useTheme } from "@mui/material/styles";
 import { api } from "../lib/api.js";
 import { useQueryState } from "../lib/useQueryState.js";
 import {
-  PageHeader, Card, ListCard, Badge, Button, Callout, Skeleton, EmptyState, ErrorState, DataTable,
+  PageHeader, Card, Badge, Button, Callout, Skeleton, EmptyState, ErrorState, DataTable,
   Section, SectionTitle,
 } from "../ui/kit.jsx";
 import { StatusSummaryCard } from "../ui/StatusKpi.jsx";
@@ -97,9 +97,10 @@ function Zed({ children }) {
 }
 function zed(v) { return v ? String(v) : <Zed>0</Zed>; }
 
-/* 표 판 — 다른 목록 화면과 같은 `ListCard` 다. 가로 스크롤은 표 자신의 상자 안에서만
- * 일어난다(페이지 전체가 가로로 밀리면 4K QA의 horizontal_overflow에 걸린다). min-width는
- * rem이라 4K에서 함께 커진다. 예전에는 이 화면만 테두리·모서리를 손으로 적은 자기 상자였다.
+/* 표 자리 — 판은 표가 그린다(`DataTable placement="surface"`, 조합 계약 C-3). 이 상자는 판이 아니라 표의 바닥 폭과
+ * 인쇄 규칙만 준다. 가로 스크롤은 표 자신의 상자 안에서만 일어난다(페이지 전체가 가로로 밀리면 4K QA의
+ * horizontal_overflow에 걸린다). min-width는 rem이라 4K에서 함께 커진다. 예전에는 이 화면만 테두리·모서리를 손으로
+ * 적은 자기 상자였고, 그다음에는 `ListCard` 안에 한 번 더 굴러가는 상자를 두었다.
  *
  * **이 상자는 표를 직접 그리지 않는다.** 예전에는 여기서 `<Table>` 을 열고 화면이
  * `<Th>`·`<TableCell>` 을 손으로 적었다 — 그래서 이 화면의 열 폭·정렬·자릿수 규칙이
@@ -111,9 +112,9 @@ function TableWrap({ minWidth = "45rem", children }) {
   return (
     /* `minWidth: 0` — 격자 칸(1fr = minmax(auto, 1fr)) 안에서 판이 표의 고유 폭까지 늘어나 1366 에서
        페이지가 가로로 밀렸다(실측: 판 오른쪽 끝 1466px). 판이 줄어들 수 있어야 안쪽 상자가 굴린다. */
-    <ListCard sx={{ minWidth: 0, "& table": { minWidth }, "@media print": { boxShadow: "none" } }}>
-      <Box sx={{ overflowX: "auto", "@media print": { overflow: "visible" } }}>{children}</Box>
-    </ListCard>
+    <Box sx={{ minWidth: 0, "& table": { minWidth }, "@media print": { "& .MuiTableContainer-root": { overflow: "visible" } } }}>
+      {children}
+    </Box>
   );
 }
 
@@ -345,7 +346,8 @@ export function DevReport() {
                  것으로 읽는다. 접힐 때는 판이 **내용만큼만** 서게 한다. */
               <Box sx={{ display: "grid", gap: 2, alignItems: "start", gridTemplateColumns: { xs: "1fr", xxl: "minmax(0,1fr) minmax(0,26rem)" } }}>
                 <TableWrap minWidth="52rem">
-                  <DataTable columns={DEV_SUMMARY_COLUMNS} rows={devs} rowKey={(d) => d.name} />
+                  {/* 집계 표라 「받았다」는 건수를 말하지 않는다(`list={false}`) — 행은 받은 목록이 아니라 사람별 합이다. */}
+                  <DataTable placement="surface" list={false} columns={DEV_SUMMARY_COLUMNS} rows={devs} rowKey={(d) => d.name} />
                 </TableWrap>
                 <Card sx={{ justifySelf: "start", width: { xs: "min(100%, 30rem)", xxl: "100%" } }}>
                   <SectionTitle component="h3" title="팀 상태 구성" />
@@ -375,7 +377,7 @@ export function DevReport() {
                 비교가 필요하면 표의 그 열을 세로로 훑는 것이 정확하고, 표는 그 옆에 여덟
                 열을 더 준다. */}
             <TableWrap minWidth="52rem">
-              <DataTable columns={DEV_WORKLOAD_COLUMNS} rows={devs} rowKey={(d) => d.name} />
+              <DataTable placement="surface" list={false} columns={DEV_WORKLOAD_COLUMNS} rows={devs} rowKey={(d) => d.name} />
             </TableWrap>
           </Section>
 
@@ -392,6 +394,7 @@ export function DevReport() {
                  넘어온 뒤로 그 주소가 여는 것은 우리가 더 이상 쓰지 않는 낡은 사본이다. */
               <TableWrap minWidth="56rem">
                 <DataTable
+                  placement="surface"
                   columns={DEV_TICKET_COLUMNS}
                   rows={detailRows}
                   rowKey={(t) => t._dev + ":" + (t.tid || t.title) + ":" + t.status}

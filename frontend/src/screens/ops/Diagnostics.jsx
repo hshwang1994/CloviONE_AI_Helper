@@ -264,7 +264,10 @@ export function Diagnostics() {
                   )}
                   {/* 채웠는지 · 무엇을 · 안 채우면 무슨 일이 벌어지는지 세 열은 표다(계획 B-5). 상태는 표 안이라
                       점 + 낱말로 선다(글자가 남는다 — 색만으로 구분하지 않는다). */}
+                  {/* 목록 판 — 판이 곧 표 상자다(조합 계약 C-3). 점검표라 발에 받은 건수를 세우지 않는다. */}
                   <DataTable
+                    placement="surface"
+                    list={false}
                     columns={[
                       { key: "state", label: "상태", type: "status",
                         render: (item) => <Badge value={item.state === "set" ? "설정됨" : "설정 안 됨"} kind={item.state === "set" ? "ok" : "warn"} /> },

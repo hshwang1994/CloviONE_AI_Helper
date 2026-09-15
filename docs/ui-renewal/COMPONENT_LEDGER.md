@@ -24,17 +24,20 @@ UI 의미 → 정본 컴포넌트/파일 → API · 상태 계약 → 소비처 
 | 페이지 동작 34 · 인라인 30 | `Button` | `ui/kit.jsx` | variant default(=secondary) · primary · ghost · danger · dangerConfirm, `size sm`, 라벨 한 줄 · 안 줄어듦 · `truncate` 만 말줄임, 보조 = 라이트 흰 면 + 경계선 · 다크 투명 면 + 강한 경계선, 파괴 = `error.line` 테두리 + `error.main` 글자(§0-17) | 83 | 버튼 | `handoff-kit-contract`, `long-text-contract`, `kit.test` |
 | 알릴 사실(메시지 박스 1a) | `Callout` | `ui/kit.jsx` | 네 톤 같은 면 · 아이콘만 상태, 톤 이름 줄 없음, `compact` · `inline` · `bleed`, error=alert | 63 | 메시지 박스 | `kit.test`, `handoff-kit-contract` |
 | 빈 상태 | `EmptyState` | `ui/kit.jsx` | layout page/card/region/inline, 클로비 page 132/112 · 판 72 · inline 없음(D-485) | 58 | 빈 상태와 오류 | `list-empty-two-faces`, `mascot-size-contract` |
-| 조건 0건 / 자료 0건 | `ListEmptyState` | `ui/kit.jsx` | `filtered` 갈래 소유 | 7 | 이럴 때 이것 | `list-empty-two-faces` |
+| 조건 0건 / 자료 0건 | `ListEmptyState` | `ui/kit.jsx` | `filtered` 갈래 소유, 조건 지우기는 30 보조(§0-18 목록 판) | 7 | 이럴 때 이것 | `list-empty-two-faces` |
 | 오류 상태 | `ErrorState` | `ui/kit.jsx` | layout 별 클로비(errorPage/errorRegion), 아이콘, 판 안 동작 30, 모르는 size/layout DEV 중지 | 61 | 빈 상태와 오류 | `kit.test`, `handoff-kit-contract` |
 | 로딩 | `Skeleton` | `ui/kit.jsx` | kind section/table/chart/page | 61 | 빈 상태와 오류 | `skeleton-shapes` |
 | 정해진 값(목록 밖) | `Badge` | `ui/kit.jsx` | 22 · 좌우 8 · R4 · 600 · 점 없음, 표 문맥에서는 점 + 낱말 | 53 | 배지와 태그와 점과 칩 | `badge-vs-tag` |
 | 사람이 붙인 낱말 | `Tag` | `ui/kit.jsx` | 22 · R6 · 400 · 흰 면 + 테두리, 한 줄 말줄임 | 9 | 배지와 태그와 점과 칩 | `badge-vs-tag`, `long-text-contract` |
-| 점 + 낱말(표 · 칸반 · 목록 행) | `DotLabel` | `ui/kit.jsx` | 7px 점 aria-hidden, 한 줄 · title | 6 | 배지와 태그와 점과 칩 | `handoff-kit-contract` |
+| 점 + 낱말(표 · 칸반 · 목록 행) | `DotLabel` | `ui/kit.jsx` | 7px 점 aria-hidden, 한 줄 · title, `size="caption"`(목록 행 · 카드 안 작은 글자 — 화면별 글자 덮어쓰기 대신) | 8 | 배지와 태그와 점과 칩 | `handoff-kit-contract` |
 | 건수 미니 칩 | `CountChip` | `ui/kit.jsx` | 20 한 값, `compact` 18, `unread` Primary | 6 | 배지와 태그와 점과 칩 | `handoff-kit-contract` |
 | 보기 전환 | `Segmented` | `ui/kit.jsx` | 34 = 28 + 3×2(선은 안쪽 그림자), roving tabindex + 화살표/Home/End | 8 | 세그먼티드 | `kit.test`, `handoff-kit-contract` |
-| 데이터 표 | `DataTable` | `ui/kit.jsx` | 머리 40 · 행 ≥48 · `rowHeight=tall` ≥76 · 묶음 36 · 발 44, 제목만 왼쪽(머리 = 행), 빈 표 = EmptyState region | 25 | 데이터 표 | `column-types`, `datatable-*` |
+| 데이터 표 | `DataTable` | `ui/kit.jsx` | 머리 40 · 행 ≥48 · `rowHeight=tall` ≥76 · 묶음 36 · 발 44, 제목만 왼쪽(머리 = 행), 빈 표 = EmptyState region, `placement` surface/card/plain · `list` · `selection` · `note`(§0-18 목록 판) | 25 | 데이터 표, 목록 화면 조합 | `column-types`, `datatable-*`, `list-surface` |
 | 판 | `Card` | `ui/kit.jsx` | 여백 20, 판 안의 판은 여백까지 사라짐 | 54 | 모든 절 | `density-contract` |
-| 목록 판 | `ListCard` | `ui/kit.jsx` | 자기 안을 자르지 않음(sticky 머리) | 14 | — | `kit.test` |
+| 표가 아닌 목록의 판 | `ListCard` | `ui/kit.jsx` | 자기 안을 자르지 않음(판 안 고정 머리). 표를 담는 목록은 쓰지 않는다 — `DataTable placement="surface"` | 1 | — | `kit.test` |
+| 행 동작 | `RowActions` | `ui/kit.jsx` | ≤2 → 30 보조/파괴 단추(채움 없음), >2 → `OverflowMenu sm` 하나, `icon` 항목은 30 아이콘 단추, `data-row-actions` | 7 | 데이터 표, 목록 화면 조합 | `row-actions` |
+| 제목 칸 | `TitleCell` | `ui/kit.jsx` | 링크색 `primary.dark` 600 한 줄 · 말줄임 · title, `onOpen` 단추 · `href` 앵커 · `link` 색만 · 셋 다 없으면 잉크 | 5 | 목록 화면 조합 | `list-surface`, `theme-link-contrast` |
+| 선택 묶음 | `SelectionBar`(별칭 `BulkActions`) | `ui/kit.jsx`, `ui/bulkSelect.jsx` | role=toolbar 「일괄 작업」, 「N{단위} 선택」 · 일괄 동작 30 · 「해제」, 선택 0 이면 안 그림, `data-list-selection`(채움 하나는 이 묶음 몫) | 0(표가 그린다) | 목록 화면 조합 | `bulk-actions-toolbar-role`, `list-surface` |
 | 구획 제목 | `SectionTitle` | `ui/kit.jsx` | 1.0625rem/700 + 설명 | 22 | 모든 절 | `heading-order` |
 | 모달 | `Modal` | `ui/kit.jsx` | 제목 17/700 · 닫기 30 · 모서리 8 · 발 ActionFooter, `tone=danger` 표지 | 23 | 팝오버와 모달 | `modal-*`, `handoff-kit-contract` |
 | 폼 모달 | `FormModal` | `ui/kit.jsx` | Modal + FormField | 11 | — | `form-*` |
@@ -279,7 +282,8 @@ B 단계가 전수 흡수를 끝낸 뒤 남는 자리만 적는다. 형식은 �
   걷었다. 프로젝트 WBS 의 「트리에 넣지 못한 작업」 → `DataTable`(작업 · 이유). 문장 열은 `overflow: "word"` 로
   줄을 바꾼다(말줄임으로 이유가 잘리지 않게).
 - `DataTable empty="…"` 문자열은 A 에서 표가 스스로 `EmptyState region` 을 세우게 됐다 — 호출부를 바꿀 것이 없다
-  (조직 정합성 관리자 표. 프로젝트 목록 · 휴지통은 0건이면 표 앞의 빈 상태 갈래가 먼저 선다).
+  (조직 정합성 관리자 표). UI 3차부터 목록 화면의 빈 상태는 `emptyState` 로 표에 넘겨 목록 판 안(여백 20)에 선다(프로젝트 · 휴지통 ·
+  게시판 · 사용자 · 문서 · DataScreen 조건 0건). 조건 없이 화면 전체가 빈 자리만 판 밖 page 빈 상태다(§0-18 목록 판 조합).
 - **남긴 격자**(표 모양이지만 표가 아닌 것): 작업 보드 백로그(계획 P-17 · D-473 — 끌어 옮기기 · 가상 목록 · 카드 줄),
   프로젝트 WBS 나무 줄(들여쓰기 트리), 예약 달력(달력 격자 `role=grid`), 게임 대진표, 채팅 방 목록 행.
 - **행 초점 고리(G)**: `onRow` 가 있는 행은 Tab 으로 닿고 Enter 로 여는데, MUI `TableRow` 가 뿌리에 `outline: 0` 을 걸어 전역
@@ -496,6 +500,40 @@ B 단계가 전수 흡수를 끝낸 뒤 남는 자리만 적는다. 형식은 �
   날짜시각 18rem)이고 줄의 남는 폭을 먹지 않는다.
 - 갤러리 「검색과 필터 바」 절의 견본 셋이 조합 부품 그대로다(조건 없음 한 줄 · 조건 여럿 + 다중 선택 요약 · 1200 좁은 판).
 
+### 목록 판 조합 (C-3 · C-4)
+
+- **`DataTable placement` 가 표의 자리를 정한다.** `surface` = 목록 화면의 주 목록: 판이 곧 표 상자(여백 0 · 1px 테두리 · 모서리 8,
+  `data-list-surface`)이고 머리 40 이 판 윗변 · 좌우 가장자리에 붙는다. 머리 면은 고정 머리여도 함몰면이다(예전에는 고정 머리를 켠 표만
+  흰 줄). `card` = 제목 있는 판 안 보조 표: 좌우를 판 여백만큼 거슬러 가장자리까지 편다(아래는 판 여백으로 둔다 — 음수 아래 여백은 뒤 줄을
+  끌어올려 겹친다). `plain`(기본) = 모달 · 서랍 · 보호 화면(홈 · 내 업무량)의 표, 판을 그리지 않는다.
+- **발(`data-list-footer`, 최소 44)은 판 안 마지막 줄이고 표 상자 밖이다** — 넓은 표를 가로로 굴려도 제자리다. 왼쪽 = 받은 건수 문장
+  (`list` 가 있으면 그 수, 없으면 받은 행 수, 두 줄 미만이면 안 그림) · 숨긴 열 안내 · 뺀 열 안내 · `note`, 오른쪽 = 선택 묶음
+  (`SelectionBar`) · 「더 보기」(30 보조). 그릴 것이 없으면 발이 없다. `note` 만 주면 그 문장이 발 문장이다(프로젝트 문서 「총 N건 가운데 …」 ·
+  오프보딩 대상 「N명 중 M명을 보여 줍니다」). `list={false}` 는 건수를 말하지 않는 목록이다(대시보드 최근 변경 · 작업 큐 최근 오류 같은
+  미리보기, 개발 리포트 집계 표, 진단 설치처 점검표).
+- **surface 발은 긴 목록에서 화면 아래에 따라온다**(`position: sticky; bottom: 0`). 그래서 무한 스크롤 센티널은 발 안이 아니라 표 끝 흐름에
+  선다(`data-list-sentinel` — 발 안에 두면 늘 보이는 자리라 자동 로딩이 멈추지 않는다). 발이 서 있는 동안 문서 스크롤 여백 아래를 발 높이 + 8
+  만큼 비워 Tab 초점이 발에 가리지 않는다(`GlobalStyles scroll-padding-bottom`, keyboard 하네스 「가림」 0). 전체 쪽 캡처(fullPage)는 뷰포트를
+  늘리지 않아 따라오는 발이 첫 화면 아래 끝 자리에 찍힌다 — 스크린샷의 그 겹침은 캡처 방식이고, 목록 끝의 제자리는 비어 보인다.
+- **논리는 `listFooter.js::useListFooter` 한 벌이다** — 센티널 · 무성장 가드 · 자동 상한 · 받은 건수 문장. 판 밖 목록의 옛 모양
+  `ListFooter` 도 같은 논리를 쓴다(작업 보드 백로그 · 내 활동 · 서랍 안 하위 목록).
+- **행 동작은 `RowActions` 다(C-4)** — 30 보조/파괴, 셋 이상이면 「더 보기」 하나. 「나에게 배정」(미할당) · 「복원」(휴지통) · 「승인」(승인)이
+  행마다 채움이던 것을 걷었다. 조건 0건의 지우기(`ListEmptyState` · 사용자 · DataScreen)와 빈 목록의 만들기(사용자 · 프로젝트 문서)도 30
+  보조다 — 화면의 채움은 머리 동작 하나다. 일괄 동작의 채움(사용자 「적용」)은 선택 묶음 안 하나다.
+- **제목 칸은 `TitleCell` 이다** — 티켓 · 휴지통(문서는 새 탭 앵커) · 게시판 · 프로젝트 · 프로젝트 문서. 이름 열이 제목인 관리 표는 그 열을
+  `type: "title"` 로 둔다(설정 「항목명」). 게시판 카테고리 · 고정 표지와 설정 「재시작 필요」는 표 안 점 + 낱말(`DotLabel`)이다.
+- **머리 표지(`TableHeaderCell`)**: 정렬 표지는 정렬 단추 안 이름 뒤 4px 의 16 글리프(↕ → ↑/↓), 필터 표지는 조건이 걸리는 열에만 서는 표지
+  폭 단추(누르는 높이 30). 활성 열은 이름이 잉크, 표지가 `primary.dark` 다. 둘째 표지는 앞 표지에서 잰다(`table_head_glyph` 사슬).
+- 소비처 surface: 내 티켓 · 미할당(설명 → 머리 description, 일괄 → 발) · 팀 티켓 · 프로젝트 티켓 · 문서 · 게시판 · 아이디어 · DataScreen
+  (registry 화면 전부, 조건 없이 정말 빈 화면만 page 빈 상태) · 프로젝트 · 사용자(일괄 줄 → 발 선택 묶음, 실패 줄은 목록 위) · 휴지통 ·
+  승인 · 오프보딩(대상 · 보유 티켓 · 실행 결과 · 실행 이력) · 프로젝트 문서 · 설정 · 저장소 · 대시보드 최근 변경 · 조직 정합성 관리자 범위 ·
+  메일 실패 · 개발 리포트 셋 · 진단 설치처 · 작업 큐 최근 오류. card(3): 조직 정합성 항목 · WBS 미배치 · 갤러리 데이터 표 절.
+  plain: 모달 · 서랍 표(설정 버전 기록은 판을 걷었다) · 홈 · 내 업무량 · 스프린트 회의(보호).
+- **남긴 자리**: 조직 정합성 항목의 소속 지정 줄은 발의 선택 묶음이 아니다 — 선택 0건에도 서는 지정 폼이고, 적용한 뒤 선택을 비워도 건너뛴
+  사람을 말하는 상자를 들고 있어야 한다(R5-04 · `integrity.test`). 선택이 없으면 비는 발 오른쪽 칸과 뜻이 달라 판 안 표 아래 줄로 둔다.
+- 갤러리 「목록 화면 조합」 절(판이 아닌 절 — 목록 판이 판 안의 판이 되지 않게)이 필터 바 + 목록 판(선택 한 줄 · 머리 표지 · 행 동작 둘 ·
+  발)의 맞는 견본이고, 「데이터 표」 절이 판 안 보조 표(card) 견본이다.
+
 ### 조합 예외 — 낱개 부품을 화면이 직접 조립하는 자리
 
 형식은 `scripts/check_composition.py` 가 읽는다(`| 파일 | 조합 규칙 | 이유 | 대체 불가 근거 |`). 적혀 있는데 더는 안 걸리면 죽은 예외로 실패한다.
@@ -507,12 +545,19 @@ B 단계가 전수 흡수를 끝낸 뒤 남는 자리만 적는다. 형식은 �
 | `screens/Search.jsx` | `filter-parts` | 통합 검색의 제출형 검색 줄과 결과 요약 문장(`ResultLine text`) | 조건을 거는 목록이 아니라 제출해야 결과가 서는 검색이라 조건 줄 · 칩이 없다 |
 | `screens/SchedulerCalendar.jsx` | `filter-parts` | 예약 달력 도구 줄(구간 이동 · 보기) | 달력 격자의 이동 도구라 조건 칸이 없다 |
 | `screens/dev/KitGallery.jsx` | `filter-parts` | 「이럴 때 이것」 절의 필터 칩 · 상태 칩 나란히 견본(`FilterConditionLine` 낱개) | 갤러리는 정본 부품을 낱개로 세워 어휘를 대조하는 카탈로그다 — 조합 견본은 「검색과 필터 바」 절이 `FilterBar` 로 세운다 |
-| `screens/UsersBulk.jsx` | `filter-parts` | 사용자 일괄 지정 줄(줄 칸 모양의 값 칸 + 적용) | 필터가 아니라 선택한 행에 거는 일괄 동작 줄이다 — 목록 판 발의 선택 영역으로 옮기는 것은 목록 판(C-3)이 맡는다 |
+| `screens/WorkBoard.jsx` | `list-footer` | 작업 보드 백로그의 목록 끝 줄(`ListFooter`) | 보호 화면이고 백로그는 표가 아니라 끌어 옮기는 카드 줄 가상 목록이다(D-473) — 목록 판(`DataTable`)에 담을 표가 없다 |
+| `screens/Activity.jsx` | `list-footer` | 내 활동의 날짜 묶음 목록 끝 줄(`ListFooter`) | 표가 아니라 날짜 머리(고정)와 활동 행을 쌓는 목록이다 — 목록 판 발은 표의 발이다 |
+| `screens/Home.jsx` | `card-wrapped-table` | 홈 「내 할 일」 판 안의 핵심 열 표(`placement` plain) | 보호 화면 — 판의 탭 · 제목 · 높이 예산이 레이아웃이라 공통 부품 치환만 한다. 판 안 보조 표로 가장자리까지 펴면 보호 화면 기하가 바뀐다 |
+| `screens/MyStats.jsx` | `card-wrapped-table` | 내 업무량 판 안의 표(`placement` plain) | 보호 화면 · 홈과 같은 이유 |
+| `screens/knowledge/documentColumns.jsx` | `table-tag` | 문서 목록 제목 칸의 문서 태그(최대 넷 + 「+N」) | 태그는 사람이 붙인 낱말이라 흰 면 + 1px 테두리의 `Tag` 다(핸드오프 RULES §2 · 문서 시안 표 안 태그 · ACCEPTANCE J2). 표 안 점 + 낱말은 정해진 축 값의 규칙이다 |
+| `screens/ProjectDocuments.jsx` | `table-tag` | 프로젝트 문서 탭 제목 칸의 문서 태그 | 문서 목록과 같은 이유 |
+| `screens/dev/KitGallery.jsx` | `table-tag` | 데이터 표 절 문서 견본의 태그 | 문서 목록 조합 그대로를 세운 견본이다 — 문서 목록과 같은 이유 |
 
 ## 1. 신설한 부품
 
 ### `DataTable` 의 표 3종 (묶음 머리행 · 발 줄 · 높이)
-- **파일**: `frontend/src/ui/kit.jsx` (`GroupHeaderRow` · `GroupHeaderMeta` · `TableFooterRow`)
+- **파일**: `frontend/src/ui/kit.jsx` (`GroupHeaderRow` · `GroupHeaderMeta` · 발은 UI 3차에서 표 안 `TableFooterRow` 를 걷고 판 안
+  마지막 줄 `ListFootBar` 로 옮겼다 — §0-18 목록 판 조합)
 - **대체**: `MyTickets.jsx::GroupedTickets` 의 자체 12열 표, `DevReport.jsx` 의 담당자 구분 행 표
 - **소비 화면**: 내 티켓 · 팀 티켓 · 개발 리포트 · 문서 · 작업 보드(백로그 제외) · 부품 갤러리
 - **규약값**: 머리 `CONTROL.tableHead` 40 · 행 `CONTROL.tableRow` 48 · 묶음 머리 36 ·

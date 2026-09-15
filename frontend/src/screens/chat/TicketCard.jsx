@@ -89,7 +89,7 @@ export function TicketCard({ t, index, onChoose, isTicket = true, sending }) {
             {/* 프로젝트는 그 프로젝트 색의 점 + 이름이다 — 같은 프로젝트가 어디서나 같은 색 점을 갖는다
                 (`ui/projectTone.js`). */}
             {(showAllProjects ? projects : projects.slice(0, 3)).map((p, i) => (
-              <DotLabel key={i} label={String(p)} tone={projectToneColor(p)} sx={{ fontSize: FONT_SIZE.caption }} />
+              <DotLabel key={i} label={String(p)} tone={projectToneColor(p)} size="caption" />
             ))}
             {/* 예전엔 4개 이상이면 나머지가 아무 표시 없이 조용히 잘렸다 — choices의 '+N개 더 보기'와
                 같은 패턴으로, 숨겨진 개수를 알리고 눌러서 펼칠 수 있게 한다. */}

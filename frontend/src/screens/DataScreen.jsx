@@ -9,7 +9,7 @@ import Box from "@mui/material/Box";
 import MenuItem from "@mui/material/MenuItem";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
-import { ActionFooter, PageHeader, Card, Button, DataTable, DetailGrid, DetailRow, FormDrawer, ListCard, Modal, OverflowMenu, Skeleton, EmptyState, ErrorState, Callout, useConfirm, useToast } from "../ui/kit.jsx";
+import { ActionFooter, PageHeader, Card, Button, DataTable, DetailGrid, DetailRow, FormDrawer, Modal, OverflowMenu, Skeleton, EmptyState, ErrorState, Callout, useConfirm, useToast } from "../ui/kit.jsx";
 import { StatusSummaryCard } from "../ui/StatusKpi.jsx";
 import { SummaryView } from "./data-screen/SummaryView.jsx";
 /* 검색 입력은 `ui/filters.jsx` 의 `SearchBox` 다 — **자기 상태를 자기가 든다**(PF4).
@@ -22,7 +22,6 @@ import { DateField } from "../ui/DateField.jsx";
 /* 탐색 줄 — 필터 바 조합 부품(ui/FilterBar.jsx). **판이 아니다**(지시 80).
    폭은 격자 트랙이 아니라 컨트롤의 종류가 정한다(C2 «폭 배분»). */
 import { FILTER_GROUP_ORDER, FilterBar, filterGroupOf } from "../ui/FilterBar.jsx";
-import { ListFooter } from "../ui/InfiniteScroll.jsx";
 import { CHUNK, useInfiniteList, useResetScrollOnKeyChange } from "../lib/useInfiniteList.js";
 import { SavedViews } from "../ui/SavedViews.jsx";
 /* 탭 그릇 안에서 머리 동작을 그릇의 머리로 보낸다(D-454). 그릇이 없으면 제자리에 그린다. */
@@ -1207,19 +1206,17 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
   // 같은 게이트를 봐야 한쪽에만 나오는 일이 없다. 주 머리 동작의 `when(ctx)` 도 같은 맥락
   // (`headerActionCtx`)으로 본다 — 머리에 없는 단추를 안내가 가리키지 않게 (P-88).
   const canOnboard = canOnboardFor(config, role, headerActionCtx);
-  /* 목록 끝 줄 — 받은 건수와 「더 보기」. 두 자리에서 쓴다: 목록 카드 안, 그리고
-     clientFilter 로 지금 받아 둔 것이 통째로 걸러진 빈 상태(더 받으면 일치 항목이 나올 수 있다).
+  /* 목록 끝 줄 — 받은 건수와 「더 보기」. 목록 판 안 발이 그린다(`DataTable list`, 조합 계약 C-3). clientFilter 로
+     지금 받아 둔 것이 통째로 걸러져 비어도 판 안에 「더 보기」가 남는다(더 받으면 일치 항목이 나올 수 있다).
      🔴 「몇 건을 받았는가」는 **서버가 준 원본**(`items`)으로 센다 — clientFilter 로 걸러진
      `filtered` 로 세면 걸러진 화면에서 「더 보기」가 조용히 꺼진다(옛 페이저가 겪은 결함). */
-  const listFooter = config.paginated ? (
-    <ListFooter
-      total={total}
-      loaded={items.length}
-      hasNext={list.hasNext}
-      isFetchingNext={list.isFetchingNext}
-      onMore={list.fetchNext}
-    />
-  ) : null;
+  const listSpec = config.paginated ? {
+    total,
+    loaded: items.length,
+    hasNext: list.hasNext,
+    isFetchingNext: list.isFetchingNext,
+    onMore: list.fetchNext,
+  } : undefined;
   /* VIS-117 이 「목록 위에도 페이저를 하나 더」로 고쳤던 것 — 100행짜리 화면에서 다음 쪽으로
      넘기려고 매번 6,186px 를 굴러 내려가야 했다 — 은 이제 결함 자체가 없다. 굴러 내려가는 그
      행동이 곧 다음 묶음을 부른다. 그래서 위쪽 조작기를 두지 않는다. */
@@ -1436,37 +1433,21 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
       {/* SEM-02: 로딩·오류·빈 상태·정상 목록 네 갈래 전부를 아우르는 자리에 한 번만 둔다
           (갈래마다 넣으면 하나는 반드시 빠뜨린다). */}
       <Typography component={config.compact ? "h3" : "h2"} className="sr-only">목록</Typography>
-      {query.isLoading ? (
-        /* 표가 들어올 자리에는 표 모양을 그린다 (지시 20). 회색 줄 다섯 개는 "곧 목록이 온다"가
-           아니라 "무언가 온다"라는 뜻이고, 실제 표가 도착하면 배치가 통째로 튄다. */
-        <ListCard><DataTable columns={columns} rows={[]} loading /></ListCard>
-      ) : query.isError ? (
+      {query.isError ? (
         <ErrorState layout="region" error={query.error} onRetry={() => query.refetch()} />
-      ) : filtered.length === 0 ? (
-        <>
-        {(q || hasFilter) ? (
-          /* 목록 화면에서 이 상태는 **화면 전체**다 — 표도 Pager 도 없다. 그래서 가운데
-             구성으로 선다(`kit.jsx::EmptyState` 의 `layout`). 판 안의 빈 칸과 같은 부품을
-             쓰되 자리가 다르면 다르게 그린다. */
-          <EmptyState layout="page" title="검색 결과가 없습니다" art="search"
-            help="조건에 맞는 항목이 없습니다. 검색어나 필터를 지워보세요."
-            action={<Button variant="primary" onClick={() => { setQ(""); setFilters({}); }}>검색, 필터 지우기</Button>} />
-        ) : (
-          <EmptyState layout="page" title={config.emptyTitle || "표시할 항목이 없습니다"}
-            help={typeof config.emptyHelp === "function" ? config.emptyHelp(role, createBtn) : config.emptyHelp}
-            // situation 은 '추가'·'활성화' 같은 쓰기 전용 버튼을 가리킨다 — 그 CTA 를 볼 수 있는
-            // role(canOnboard)에만 보여준다. 준비물·절차·기대 결과는 빈 상태가 아니라 제목 옆
-            // `?` 도움말이 든다(D-456, `screenHelp.jsx`) — 빈 상태는 제목 + 한 문장 + 동작이다.
-            situation={canOnboard ? config.emptySituation : undefined}
-            relatedLink={config.emptyRelatedLink}
-            action={createBtn} />
-        )}
-        {/* paginated+clientFilter 화면에서 현재 페이지가 필터로 통째로 비어도, 다른 페이지에 일치
-         * 항목이 있을 수 있으므로 페이저를 남긴다(위 경고 Callout과 짝을 이룬다). */}
-        {config.paginated && clientFilterDefs.length ? <ListCard>{listFooter}</ListCard> : null}
-        </>
+      ) : !query.isLoading && filtered.length === 0 && !(q || hasFilter) ? (
+        /* 조건 없이 정말 비었다 — 목록 화면 **전체**가 빈 상태라 가운데 구성이다(`kit.jsx::EmptyState` 의 `layout`,
+           핸드오프 RULES §1 「화면 전체가 비었다」). 판을 그리지 않는다 — 담을 목록이 없다. */
+        <EmptyState layout="page" title={config.emptyTitle || "표시할 항목이 없습니다"}
+          help={typeof config.emptyHelp === "function" ? config.emptyHelp(role, createBtn) : config.emptyHelp}
+          // situation 은 '추가'·'활성화' 같은 쓰기 전용 버튼을 가리킨다 — 그 CTA 를 볼 수 있는
+          // role(canOnboard)에만 보여준다. 준비물·절차·기대 결과는 빈 상태가 아니라 제목 옆
+          // `?` 도움말이 든다(D-456, `screenHelp.jsx`) — 빈 상태는 제목 + 한 문장 + 동작이다.
+          situation={canOnboard ? config.emptySituation : undefined}
+          relatedLink={config.emptyRelatedLink}
+          action={createBtn} />
       ) : (
-        <ListCard>
+        <>
           {/* 표에게 **자기 질의 계약**을 알려 준다 (R-91). 이것 없이는 표가 어떤 열도
               없애지 않는다 — 서버가 페이지를 자르는 목록에서 이번 페이지의 값이 우연히
               같다고 열을 빼면, 페이지를 넘길 때마다 열이 생겼다 사라진다.
@@ -1476,7 +1457,19 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
               화면마다 다른 사실이라 registry 가 스스로 선언해야 하고, 그 선언은 아직 없다.
               추측으로 채우면 그 순간 이 계약이 뜻을 잃는다. */}
           <DataTable
+            /* 목록 판 — 불러오는 중(표 모양, 지시 20) · 조건 0건 · 행 · 발이 한 판 안이다(조합 계약 C-3). */
+            placement="surface"
+            loading={query.isLoading}
             columns={tableColumns} rows={filtered} onRow={setSel} total={total}
+            list={listSpec}
+            /* 조건 때문에 0건 — 판 안 빈 칸(region)이고 조건을 지우는 동작은 30 보조 단추다. 화면의 채움은 머리의 만들기
+               하나다(핸드오프 RULES §1 「30px 조건 지우기」 · 조합 계약 C-4). 조건 문제라 그림을 두지 않는다. paginated +
+               clientFilter 화면에서 이 쪽이 통째로 걸러져도 판 안 「더 보기」가 남는다(위 경고 Callout 과 짝을 이룬다). */
+            emptyState={(
+              <EmptyState layout="region" title="검색 결과가 없습니다"
+                help="조건에 맞는 항목이 없습니다. 검색어나 필터를 지워보세요."
+                action={<Button size="sm" onClick={() => { setQ(""); setFilters({}); }}>검색, 필터 지우기</Button>} />
+            )}
             /* 목록 화면은 **전부** 열 이름을 고정한다. 예전에는 registry 가 화면마다 켰고
                (실제로 켠 것은 감사 로그 하나였다) 그나마도 안 돌았다 — 표를 감싼 판의
                `overflow:hidden` 이 sticky 의 스크롤 창이 되어 열 이름이 그 판 안에 붙박였다
@@ -1498,8 +1491,7 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
                `stickyHeader` 와의 상호배타는 없어졌다 — 둘 다 윈도를 스크롤 창으로 본다. */
             virtualize={(total ?? filtered.length) > 60 ? {} : undefined}
           />
-          {listFooter}
-        </ListCard>
+        </>
       )}
       {/* 상세는 넓은(lg) 폭 — 액션 버튼이 많은 화면(러너 등)에서 좁은(md) 폭이면 푸터 버튼이 3줄로
           접혀 화면 맨 아래 뭉치가 됐다. lg 폭 + 작은 버튼으로 한두 줄에 담아 깔끔하게 만든다.

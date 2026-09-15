@@ -13,6 +13,7 @@ import { StatusKpiTile } from "./StatusKpi.jsx";
 import { createClovirTheme } from "./theme.js";
 
 /* qa-contract-change: 판독 줄(MetricStrip)이 핸드오프 RULES §6(「판독 줄은 쓰지 않는다」)에 따라 걷히고 측정값 타일(StatusKpiTile)이 그 자리를 이어, 판독 칸이 지키던 세 계약(신호를 색만으로 말하지 않는다 · 누를 수 있는 칸만 버튼이고 눌림을 알린다 · 선택은 면이 아니라 선이 말한다)을 타일로 옮긴다. */
+/* qa-contract-change: 표 발 줄을 표 안 `tfoot` 행(`footer` prop, 화면 소비처 0)에서 목록 판 안 마지막 줄(`DataTable placement · list · selection`, UI 3차 조합 계약 C-3)로 옮긴다. 「몇 건 중 몇 건 + 오른쪽 일괄 동작」은 선택 묶음(role=toolbar)과 받은 건수 문장으로, 「total 을 모르면 숫자를 지어내지 않는다」는 받은 건수만 말하는 문장으로 옮기고 발이 표 상자 밖 · 판 안인지를 더 잰다. */
 /* qa-contract-change: 보조 · 파괴 단추의 테두리 하한(비텍스트 3:1, R-11)을 핸드오프 README §2 · 다크 모드 절 · ACCEPTANCE K3 의 값(라이트 흰 면 + #DCDFEC · #E6B0AC, 다크 투명 면 + #333B5E · #5F3330)으로 옮긴다. 글자 라벨이 컨트롤을 알리므로 테두리는 1.4.11 대상이 아니고, R-11 이 막던 두 역전(보조가 본문 잉크로 주 행동을 이김 · 파괴가 중립보다 흐림)은 두 테마 계산값으로 계속 막는다. */
 
 /* 키트를 MUI로 갈아끼우면서 계약이 유지되는지 보는 테스트.
@@ -428,20 +429,36 @@ describe("DataTable", () => {
     });
 
     it("발 줄은 몇 건 중 몇 건인지 말하고 일괄 동작을 오른쪽에 둔다", () => {
-      ui(
+      const { container } = ui(
         <DataTable
-          columns={gcols} rows={grows} rowKey={(r) => r.id} total={520}
-          footer={{ actions: <button type="button">내보내기</button> }}
+          placement="surface"
+          columns={gcols} rows={grows} rowKey={(r) => r.id}
+          list={{ total: 520, loaded: 3, hasNext: true, onMore: () => {} }}
+          selection={{ count: 2, onClear: () => {}, actions: <button type="button">내보내기</button> }}
         />,
       );
       expect(screen.getByText("520건 중 3건을 받았습니다.")).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: "내보내기" })).toBeInTheDocument();
+      const toolbar = screen.getByRole("toolbar", { name: "일괄 작업" });
+      expect(within(toolbar).getByRole("button", { name: "내보내기" })).toBeInTheDocument();
+      expect(toolbar).toHaveTextContent("2개 선택");
+      // 발은 표 안 행이 아니다 — 가로로 굴러가는 표 상자 밖, 판 안 마지막 줄이다.
+      expect(container.querySelector("tfoot")).toBeNull();
+      const foot = container.querySelector("[data-list-footer]");
+      expect(foot.closest(".MuiTableContainer-root")).toBeNull();
+      expect(foot.parentElement).toBe(container.querySelector("[data-list-surface]"));
+      expect(foot.parentElement.lastElementChild).toBe(foot);
+      // 일괄 동작이 문장보다 뒤(오른쪽)에 선다.
+      expect(screen.getByText("520건 중 3건을 받았습니다.").compareDocumentPosition(toolbar) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });
 
-    it("total 을 모르면 발 줄이 숫자를 지어내지 않는다", () => {
-      const { container } = ui(<DataTable columns={gcols} rows={grows} rowKey={(r) => r.id} footer />);
-      expect(container.querySelector("tfoot")).toBeTruthy();
-      expect(container.querySelector("tfoot").textContent).toBe("");
+    it("total 을 모르면 발 줄이 숫자를 지어내지 않는다 — 받은 건수만 말한다", () => {
+      const { container } = ui(
+        <DataTable placement="surface" columns={gcols} rows={grows} rowKey={(r) => r.id} list={{ total: null, loaded: 3 }} />,
+      );
+      const foot = container.querySelector("[data-list-footer]");
+      expect(foot).toBeTruthy();
+      expect(foot.textContent).toBe("3건을 받았습니다.");
+      expect(foot.textContent).not.toMatch(/중/);
     });
 
     it("고른 행만 선택 표시를 갖는다", () => {

@@ -6,12 +6,11 @@ import { api } from "../lib/api.js";
 import { actionKo, fmtDateTime } from "../lib/format.js";
 import { failureText } from "../lib/failure.js";
 import {
-  Badge, Button, Callout, Card, DataTable, EmptyState, ErrorState, PageHeader, useConfirm, useToast,
+  Badge, Callout, DataTable, EmptyState, ErrorState, PageHeader, RowActions, useConfirm, useToast,
   Segmented,
 } from "../ui/kit.jsx";
 import { OrgPath } from "../ui/OrgPath.jsx";
 import { DateCell } from "../ui/cells.jsx";
-import { ListFooter } from "../ui/InfiniteScroll.jsx";
 import { useInfiniteList } from "../lib/useInfiniteList.js";
 import { useQueryState } from "../lib/useQueryState.js";
 import { celebrateIfCleared } from "../ui/celebrate.js";
@@ -225,13 +224,15 @@ export function MyApprovals() {
             </Typography>
           );
         }
+        /* 행 동작은 `RowActions` 다 — 「승인」은 30 보조, 「거절」은 파괴 단추다. 결재 한 건은 확인 창을 거치므로 행마다
+           채움을 세울 이유가 없다(조합 계약 C-4). */
         return (
-          <Box sx={{ display: "flex", gap: 1 }}>
-            <Button size="sm" variant="primary" disabled={decide.isPending}
-              onClick={() => askAndDecide(r, true)}>승인</Button>
-            <Button size="sm" variant="danger" disabled={decide.isPending}
-              onClick={() => askAndDecide(r, false)}>거절</Button>
-          </Box>
+          <RowActions
+            actions={[
+              { key: "approve", label: "승인", disabled: decide.isPending, onClick: () => askAndDecide(r, true) },
+              { key: "reject", label: "거절", variant: "danger", disabled: decide.isPending, onClick: () => askAndDecide(r, false) },
+            ]}
+          />
         );
       },
     });
@@ -252,7 +253,7 @@ export function MyApprovals() {
 
       {q.isError ? <ErrorState layout="region" error={q.error} onRetry={() => q.refetch()} /> : null}
       {decideFailure ? <Callout tone="danger" compact sx={{ mb: 2 }}>{decideFailure}</Callout> : null}
-      {!q.first && !q.isError ? <Card>{/* 표가 들어올 자리에는 표 모양을 그린다 (지시 20) - 빈 목록과 아직 안 온 목록은 다른 사실이다. */}<DataTable columns={columns} rows={[]} loading /></Card> : null}
+      {!q.first && !q.isError ? <DataTable placement="surface" columns={columns} rows={[]} loading /> : null}
 
       {data && box === "todo" && !canDecide ? (
         <EmptyState
@@ -270,14 +271,16 @@ export function MyApprovals() {
           /* 세 칸 전부 화면 전체가 비는 자리다 — 탭 아래에 이 상태밖에 없다. */
           <EmptyState layout="page" title={current.empty} help={current.emptyHelp} art="success" />
         ) : (
-          <Card>
-            <DataTable columns={columns} rows={q.rows} rowKey={(r) => r.id} total={q.total} />
-            <ListFooter
-              total={q.total} loaded={q.loaded}
-              hasNext={q.hasNext} isFetchingNext={q.isFetchingNext} onMore={q.fetchNext}
-              moreLabel="결재 더 보기"
-            />
-          </Card>
+          /* 목록 판 — 받은 건수와 「결재 더 보기」는 판 안 발이다(조합 계약 C-3). */
+          <DataTable
+            placement="surface"
+            columns={columns} rows={q.rows} rowKey={(r) => r.id} total={q.total}
+            list={{
+              total: q.total, loaded: q.loaded,
+              hasNext: q.hasNext, isFetchingNext: q.isFetchingNext, onMore: q.fetchNext,
+              moreLabel: "결재 더 보기",
+            }}
+          />
         )
       ) : null}
     </Box>

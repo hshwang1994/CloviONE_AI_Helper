@@ -4,7 +4,6 @@ import { useNavigate } from "react-router-dom";
 import Box from "@mui/material/Box";
 import Checkbox from "@mui/material/Checkbox";
 import FormControlLabel from "@mui/material/FormControlLabel";
-import IconButton from "@mui/material/IconButton";
 import Link from "@mui/material/Link";
 import MenuItem from "@mui/material/MenuItem";
 import Stack from "@mui/material/Stack";
@@ -12,7 +11,7 @@ import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import { api } from "../lib/api.js";
-import { Card, Badge, DataTable, EmptyState, ErrorState, Skeleton, Callout, PageHeader, Modal, ModalFooter, Button, useToast, useConfirm, FieldLabel, FormFieldCell, ActionFooter, SectionTitle } from "../ui/kit.jsx";
+import { Card, Badge, DataTable, EmptyState, ErrorState, Skeleton, Callout, PageHeader, Modal, ModalFooter, Button, useToast, useConfirm, FieldLabel, FormFieldCell, ActionFooter, SectionTitle, RowActions, TitleCell } from "../ui/kit.jsx";
 import { DateField } from "../ui/DateField.jsx";
 import { PersonLine } from "../ui/UserAvatar.jsx";
 import { priorityKo, priorityKind } from "../lib/priority.js";
@@ -25,7 +24,7 @@ import { appendSection, docHasHeading, docIsEmpty } from "../lib/docText.js";
 const BlockEditor = React.lazy(() =>
   import("../ui/BlockEditor.jsx").then((m) => ({ default: m.BlockEditor })),
 );
-import { useRowSelection, selectionColumn, BulkActions } from "../ui/bulkSelect.jsx";
+import { useRowSelection, selectionColumn } from "../ui/bulkSelect.jsx";
 import { pathText } from "../ui/OrgPath.jsx";
 import { FAB_CLEARANCE, FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, LINE_HEIGHT } from "../ui/theme.js";
 import { BASELINE_TRACKS, CARD_PADDING, FORM_FIELD_CONTAINER, FORM_FIELD_GRID_12, GRID_GAP, fieldSpan } from "../ui/density.js";
@@ -33,7 +32,6 @@ import { EMPTYABLE_SELECT, EntityCombobox } from "../ui/filters.jsx";
 import { UserPicker } from "../ui/UserPicker.jsx";
 import { useQueryState } from "../lib/useQueryState.js";
 import { TICKET_AUTO_MAX_ROWS, eligibleProjects, useAssigneeOptions, useTicketList, useTicketMeta, useTicketProjects, useWorkStatuses, statusOptions, ticketProjectId, ticketRows } from "./ticket-options.js";
-import { ListFooter } from "../ui/InfiniteScroll.jsx";
 import { invalidateTicketViews } from "./ticket-views.js";
 import { useCelebrateOnCleared, celebrateIfCompleted, doneStatusKeys } from "../ui/celebrate.js";
 import { bulkFailureNote, fmtDateTime } from "../lib/format.js";
@@ -123,36 +121,13 @@ function openTicket(nav, from) {
   return (t) => nav(ticketPath(t), { state: { from } });
 }
 
-function TitleCell({ t, onOpen }) {
-  // 제목(이름)을 눌러야 상세로 간다 — 행 전체 클릭은 없앤다(체크박스 오클릭으로 상세 이동하던 불편 제거).
-  // t.id가 없으면 링크로 만들지 않는다 — 스프린트 화면의 담당자별 목록은 서버가 아직 앱 티켓 id를
-  // 주지 않는 행(reports의 _ticket_detail)을 섞어 받을 수 있는데, 그걸 링크로 그리면 '/tickets/undefined'
-  // 라는 없는 경로로 보내게 된다(눌리는데 아무 데도 못 가는 링크보다 링크가 없는 편이 정직하다).
-  // 링크는 강조색으로 그린다. 예전(.k-title-link)은 color:inherit + hover 밑줄이라 마우스를 올리기
-  // 전까지 본문 텍스트와 구분되지 않았고, 스프린트 화면처럼 '링크인 제목'과 '링크 아닌 제목'이 한
-  // 표에 섞이면 어느 쪽을 눌러야 하는지 알 방법이 아예 없다.
-  if (onOpen && t.id) {
-    return (
-      <Link
-        component="button"
-        type="button"
-        underline="hover"
-        onClick={() => onOpen(t)}
-        // QAH-03(2026-08-11 하네스 실측): color="primary.main"을 sx로 직접 주면 MuiLink의
-        // 공유 styleOverrides(primary.dark=primaryStrong, 대비 보강)를 inline sx가 덮어써
-        // 버린다 — 다크 표면에서 3.76:1로 AA(4.5) 미달이었다. 강조색으로 그리려는 의도는
-        // 그대로 두고 값만 대비가 검증된 alias로 바꾼다.
-        sx={{
-          font: "inherit", fontWeight: FONT_WEIGHT.semibold, textAlign: "left", color: "primary.dark",
-          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "100%", display: "block",
-        }}
-        title={t.title || "제목 없음"}
-      >
-        {t.title || "제목 없음"}
-      </Link>
-    );
-  }
-  return <Box component="span" sx={{ fontWeight: FONT_WEIGHT.semibold, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "block" }} title={t.title || "제목 없음"}>{t.title || "제목 없음"}</Box>;
+// 제목(이름)을 눌러야 상세로 간다 — 행 전체 클릭은 없앤다(체크박스 오클릭으로 상세 이동하던 불편 제거).
+// t.id가 없으면 링크로 만들지 않는다 — 스프린트 화면의 담당자별 목록은 서버가 아직 앱 티켓 id를
+// 주지 않는 행(reports의 _ticket_detail)을 섞어 받을 수 있는데, 그걸 링크로 그리면 '/tickets/undefined'
+// 라는 없는 경로로 보내게 된다(눌리는데 아무 데도 못 가는 링크보다 링크가 없는 편이 정직하다).
+// 모양(링크색 600 · 말줄임 · title)은 kit 의 `TitleCell` 이 갖는다 — 게시판 · 휴지통 · 프로젝트 표와 같은 제목 칸이다.
+function ticketTitleCell(t, onOpen) {
+  return <TitleCell title={t.title} onOpen={onOpen && t.id ? () => onOpen(t) : undefined} />;
 }
 
 // 목록 표 — 티켓/제목/상태/우선순위/난이도/예상WD/마감. 숫자·날짜는 우측 정렬.
@@ -196,7 +171,7 @@ export function ticketColumns({ showAssignee, onEdit, onClaim, onOpen, compact, 
     // rowName: 이 표에서 행을 구별하는 값은 제목이다(ui/rowName.js). 선택 체크박스와 상세
     // 열기 버튼이 이 값을 접근 이름에 쓴다 — 없으면 스무 행이 전부 "이 항목 선택"으로 읽힌다.
     { key: "title", label: "제목", type: "title", minWidth: compact ? "11rem" : "16rem", sortable: true, rowName: (t) => t.title || "제목 없음",
-      render: (t) => <TitleCell t={t} onOpen={onOpen} /> },
+      render: (t) => ticketTitleCell(t, onOpen) },
     { key: "status", label: "상태", type: "status", width: "7.5rem", sortable: true, filter: { kind: "enum", field: "status" },
       render: (t) => (t.status
         ? (
@@ -290,18 +265,18 @@ export function ticketColumns({ showAssignee, onEdit, onClaim, onOpen, compact, 
       key: "_actions", label: "", type: "actions",
       width: onClaim ? "13rem" : compact ? "3.5rem" : "6rem",
       nowrap: true,
+      /* 행 동작은 `RowActions` 다 — 30 보조 단추이고 채움이 없다(조합 계약 C-4). 「나에게 배정」이 행마다 채움이었을 때
+         미할당 목록 한 화면에 채움이 스무 개 섰다. 좁은 열(홈의 핵심 열 표)에서 수정은 글자 대신 아이콘이고 이름은
+         `aria-label` 이 든다. */
       render: (t) => (
-        <Stack direction="row" gap={1} justifyContent="flex-end" sx={{ flexWrap: "nowrap" }}>
-          {onClaim ? <Button size="sm" variant="primary" onClick={() => onClaim(t)}>나에게 배정</Button> : null}
-          {onEdit ? (
-            compact
-              /* 좁은 열에서는 글자 대신 아이콘. aria-label 로 이름은 그대로 남는다. */
-              ? <IconButton size="small" aria-label={"수정: " + (t.title || "제목 없음")} onClick={() => onEdit(t)}>
-                  <EditOutlinedIcon fontSize="small" />
-                </IconButton>
-              : <Button size="sm" onClick={() => onEdit(t)}>수정</Button>
-          ) : null}
-        </Stack>
+        <RowActions
+          actions={[
+            onClaim ? { key: "claim", label: "나에게 배정", onClick: () => onClaim(t) } : null,
+            onEdit ? (compact
+              ? { key: "edit", label: "수정", ariaLabel: "수정: " + (t.title || "제목 없음"), icon: <EditOutlinedIcon fontSize="small" />, onClick: () => onEdit(t) }
+              : { key: "edit", label: "수정", onClick: () => onEdit(t) }) : null,
+          ]}
+        />
       ),
     });
   }
@@ -362,7 +337,7 @@ function groupedRowKey(t, i) {
  *
  * 남는 일은 셋뿐이다: 어떤 기준으로 묶을지 정하고, 행을 그 순서로 펴고, 티켓 도메인의 조건
  * 조회(`columnFilterValue` — 기간·범위는 한 필드가 아니라 두 칸에 흩어져 산다)를 표에 건넨다. */
-export function GroupedTickets({ rows, columns, empty, emptyHelp, emptyState, groupBy, collapsible, sort, onSort, filters, onFilter, filterOptions, entityOptions }) {
+export function GroupedTickets({ rows, columns, empty, emptyHelp, emptyState, groupBy, collapsible, sort, onSort, filters, onFilter, filterOptions, entityOptions, placement, list, selection, note }) {
   const safeRows = Array.isArray(rows) ? rows : [];
   const grouper = groupBy || groupByProject;
 
@@ -394,6 +369,11 @@ export function GroupedTickets({ rows, columns, empty, emptyHelp, emptyState, gr
       onFilter={onFilter}
       filterOptions={filterOptions}
       entityOptions={entityOptions}
+      /* 목록 판 · 발(받은 건수 · 「더 보기」 · 선택 묶음)은 표가 그린다 — 이 부품은 넘기기만 한다(조합 계약 C-3). */
+      placement={placement}
+      list={list}
+      selection={selection}
+      note={note}
     />
   );
 }
@@ -842,8 +822,12 @@ export function MyTickets() {
   // 보이는 티켓이 바뀌면(필터·페이지) 선택을 비운다 — 숨겨진 항목이 선택된 채 남지 않게.
   React.useEffect(() => { sel.clear(); }, [qs]); // eslint-disable-line react-hooks/exhaustive-deps
   const clearFilters = () => setFilters(resetListFilters(SELF_FILTER_FIELDS));
-  const headerActions = (
-    <BulkActions count={sel.selected.size} onClear={sel.clear}>
+  /* 고른 티켓에 할 일은 목록 판 발의 선택 묶음이다(조합 계약 C-3). 예전에는 화면 머리 동작 자리에 나타났다 사라져, 긴
+     목록을 내려가며 고르면 단추가 화면 밖에 있었다. */
+  const selection = {
+    count: sel.selected.size,
+    onClear: sel.clear,
+    actions: (
       <Button size="sm" variant="danger" disabled={bulk.isPending}
               /* 확인을 받는다 (E1). 예전에는 누르는 순간 선택 전부가 휴지통으로 갔다 —
                  같은 화면군의 `Trash.jsx` 는 확인을 받는데 여기만 규칙이 갈려 있었다.
@@ -854,11 +838,11 @@ export function MyTickets() {
                   { danger: true, title: "선택 삭제", confirmLabel: `${n}건 삭제` }))) return;
                 bulk.mutate([...sel.selected]);
               }}>선택 삭제</Button>
-    </BulkActions>
-  );
+    ),
+  };
   return (
     <div className="c-screen">
-      <PageHeader crumbRoot="내 업무" area="내 티켓" title="내 티켓" actions={headerActions} />
+      <PageHeader crumbRoot="내 업무" area="내 티켓" title="내 티켓" />
       {q.isLoading ? <Card><Skeleton /></Card>
         : q.isError ? <ErrorState layout="region" error={q.error} onRetry={() => q.refetch()} />
         : (() => {
@@ -888,33 +872,33 @@ export function MyTickets() {
               />
               {listActionNotice(bulk, null)}
               <Typography component="h2" className="sr-only">목록</Typography>
-              <Card>
-                <GroupedTickets
-                  rows={rows} columns={cols}
-                  sort={ticketSortOf(filters)}
-                  onSort={(key) => setFilters(nextTicketSort(filters, key))}
-                  filters={filters}
-                  onFilter={(field, next) => setFilters(applyColumnFilter(field, next))}
-                  filterOptions={colOpts.filterOptions}
-                  emptyState={
-                    <TicketEmptyState
-                      filtered={hasTicketFilter(filters, SELF_FILTER_FIELDS)}
-                      onClear={clearFilters}
-                      title="담당한 티켓이 없습니다"
-                      help="나에게 배정된 티켓이 아직 없습니다. ‘미할당 티켓’에서 맡을 일을 고를 수 있습니다."
-                    />
-                  }
-                />
-                <ListFooter
-                  total={q.total} loaded={q.loaded}
-                  hasNext={q.hasNext} isFetchingNext={q.isFetchingNext} onMore={q.fetchNext}
-                  moreLabel="티켓 더 보기"
+              <GroupedTickets
+                placement="surface"
+                rows={rows} columns={cols}
+                sort={ticketSortOf(filters)}
+                onSort={(key) => setFilters(nextTicketSort(filters, key))}
+                filters={filters}
+                onFilter={(field, next) => setFilters(applyColumnFilter(field, next))}
+                filterOptions={colOpts.filterOptions}
+                emptyState={
+                  <TicketEmptyState
+                    filtered={hasTicketFilter(filters, SELF_FILTER_FIELDS)}
+                    onClear={clearFilters}
+                    title="담당한 티켓이 없습니다"
+                    help="나에게 배정된 티켓이 아직 없습니다. ‘미할당 티켓’에서 맡을 일을 고를 수 있습니다."
+                  />
+                }
+                list={{
+                  total: q.total, loaded: q.loaded,
+                  hasNext: q.hasNext, isFetchingNext: q.isFetchingNext, onMore: q.fetchNext,
+                  moreLabel: "티켓 더 보기",
                   /* 이 표는 가상화가 없다(D-354 · D-361) — 받은 행 전부가 DOM 에 남는다.
                      그래서 **자동 로딩에만** 상한을 둔다. 「더 보기」로는 계속 받을 수 있고,
                      끝 줄이 「N건 중 M건」을 계속 말한다 — 감추는 것은 없다. */
-                  autoMaxRows={TICKET_AUTO_MAX_ROWS}
-                />
-              </Card>
+                  autoMaxRows: TICKET_AUTO_MAX_ROWS,
+                }}
+                selection={selection}
+              />
             </>
           );
         })()}
@@ -944,8 +928,10 @@ export function Unassigned() {
   const bulk = useBulkTrash("/api/tickets/trash-bulk", qc, toast, () => { sel.clear(); q.refetch(); });
   React.useEffect(() => { sel.clear(); }, [qs]); // eslint-disable-line react-hooks/exhaustive-deps
   const clearFilters = () => setFilters(resetListFilters(SELF_FILTER_FIELDS));
-  const headerActions = (
-    <BulkActions count={sel.selected.size} onClear={sel.clear}>
+  const selection = {
+    count: sel.selected.size,
+    onClear: sel.clear,
+    actions: (
       <Button size="sm" variant="danger" disabled={bulk.isPending}
               /* 확인을 받는다 (E1). 예전에는 누르는 순간 선택 전부가 휴지통으로 갔다 —
                  같은 화면군의 `Trash.jsx` 는 확인을 받는데 여기만 규칙이 갈려 있었다.
@@ -956,11 +942,15 @@ export function Unassigned() {
                   { danger: true, title: "선택 삭제", confirmLabel: `${n}건 삭제` }))) return;
                 bulk.mutate([...sel.selected]);
               }}>선택 삭제</Button>
-    </BulkActions>
-  );
+    ),
+  };
   return (
     <div className="c-screen">
-      <PageHeader crumbRoot="내 업무" area="미할당 티켓" title="미할당 티켓" actions={headerActions} />
+      {/* 화면 설명은 페이지 머리의 한 줄이다(조합 계약 C-3). 예전에는 목록 판 안 표 위에 서서 머리 줄을 판 윗변에서 밀어냈다. */}
+      <PageHeader
+        crumbRoot="내 업무" area="미할당 티켓" title="미할당 티켓"
+        description="담당자 없는 활성 티켓입니다. ‘나에게 배정’ 또는 ‘수정’으로 지정하세요."
+      />
       {q.isLoading ? <Card><Skeleton /></Card>
         : q.isError ? <ErrorState layout="region" error={q.error} onRetry={() => q.refetch()} />
         : (() => {
@@ -976,33 +966,30 @@ export function Unassigned() {
               {/* 여기 미러 신선도 안내가 있었다. 위 목록과 같은 이유로 걷었다(S14). */}
               <TicketFilterBar fields={SELF_FILTER_FIELDS} value={filters} onChange={setFilters} total={q.total} onClear={clearFilters} />
               {listActionNotice(bulk, claim)}
-              <Card>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                  담당자 없는 활성 티켓입니다. ‘나에게 배정’ 또는 ‘수정’으로 지정하세요.
-                </Typography>
-                <GroupedTickets
-                  rows={rows} columns={cols}
-                  sort={ticketSortOf(filters)}
-                  onSort={(key) => setFilters(nextTicketSort(filters, key))}
-                  filters={filters}
-                  onFilter={(field, next) => setFilters(applyColumnFilter(field, next))}
-                  filterOptions={colOpts.filterOptions}
-                  emptyState={
-                    <TicketEmptyState
-                      filtered={hasTicketFilter(filters, SELF_FILTER_FIELDS)}
-                      onClear={clearFilters}
-                      title="담당자 없는 티켓이 없습니다"
-                      help="모든 활성 티켓에 담당자가 지정되어 있습니다."
-                    />
-                  }
-                />
-                <ListFooter
-                  total={q.total} loaded={q.loaded}
-                  hasNext={q.hasNext} isFetchingNext={q.isFetchingNext} onMore={q.fetchNext}
-                  moreLabel="티켓 더 보기"
-                  autoMaxRows={TICKET_AUTO_MAX_ROWS}
-                />
-              </Card>
+              <GroupedTickets
+                placement="surface"
+                rows={rows} columns={cols}
+                sort={ticketSortOf(filters)}
+                onSort={(key) => setFilters(nextTicketSort(filters, key))}
+                filters={filters}
+                onFilter={(field, next) => setFilters(applyColumnFilter(field, next))}
+                filterOptions={colOpts.filterOptions}
+                emptyState={
+                  <TicketEmptyState
+                    filtered={hasTicketFilter(filters, SELF_FILTER_FIELDS)}
+                    onClear={clearFilters}
+                    title="담당자 없는 티켓이 없습니다"
+                    help="모든 활성 티켓에 담당자가 지정되어 있습니다."
+                  />
+                }
+                list={{
+                  total: q.total, loaded: q.loaded,
+                  hasNext: q.hasNext, isFetchingNext: q.isFetchingNext, onMore: q.fetchNext,
+                  moreLabel: "티켓 더 보기",
+                  autoMaxRows: TICKET_AUTO_MAX_ROWS,
+                }}
+                selection={selection}
+              />
             </>
           );
         })()}

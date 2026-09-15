@@ -5,7 +5,7 @@ import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
 import { failureText } from "../lib/failure.js";
 import {
-  Badge, Button, Callout, DataTable, EmptyState, ErrorState, FormModal, ListCard, OverflowMenu, Skeleton, useConfirm, useToast,
+  Badge, Button, Callout, DataTable, EmptyState, ErrorState, FormModal, RowActions, useConfirm, useToast,
 } from "../ui/kit.jsx";
 import { HeaderActions } from "../ui/HeaderSlot.jsx";
 import { fmtBytes } from "./registry/shared.js";
@@ -222,10 +222,12 @@ export function StorageProviders({ embedded = false }) {
     { key: "capacity", label: "사용량", type: "number",
       help: "이 경로가 올라앉은 파일시스템의 사용량과 전체 용량입니다.",
       render: capacityText },
+    /* 행 동작은 `RowActions` 다 — 셋이라 30 「더 보기」 하나로 접힌다(핸드오프 RULES §5 · 조합 계약 C-4). 예전에는 34
+       아이콘 단추가 행 높이를 밀었다. */
     { key: "_actions", label: "", type: "actions", render: (r) => (
-      <OverflowMenu
+      <RowActions
         ariaLabel={r.name + " 작업"}
-        items={[
+        actions={[
           { key: "probe", label: "지금 확인", disabled: busy, onClick: () => probe.mutate(r.id) },
           { key: "edit", label: "수정", disabled: busy, onClick: () => { setConflicted(false); setEditing(r); } },
           {
@@ -233,7 +235,7 @@ export function StorageProviders({ embedded = false }) {
             label: r.enabled ? "사용 안 함으로" : "사용으로",
             // 운영 저장소를 끄면 업로드가 그 순간부터 실패한다 — 확인 문구가 그 파급을
             // 말해야 한다(연동 비활성화와 같은 관용).
-            tone: r.enabled ? "danger" : undefined,
+            variant: r.enabled ? "danger" : undefined,
             disabled: busy,
             onClick: async () => {
               const ok = await confirm(
@@ -262,7 +264,7 @@ export function StorageProviders({ embedded = false }) {
     <>
 
       {query.isLoading ? (
-        <Skeleton kind="table" rows={3} cols={6} />
+        <DataTable placement="surface" columns={columns} rows={[]} loading />
       ) : query.isError ? (
         <ErrorState layout="region" error={query.error} onRetry={() => query.refetch()} />
       ) : (
@@ -300,9 +302,10 @@ export function StorageProviders({ embedded = false }) {
                 </HeaderActions>
               ) : null}
 
-              <ListCard sx={{ mt: 2 }}>
-                <DataTable columns={columns} rows={rows} rowKey={(r) => r.id} />
-              </ListCard>
+              {/* 목록 판 — 판이 곧 표 상자다(조합 계약 C-3). */}
+              <Box sx={{ mt: 2 }}>
+                <DataTable placement="surface" columns={columns} rows={rows} rowKey={(r) => r.id} />
+              </Box>
               {rowFailure ? <Callout tone="danger" compact>{rowFailure}</Callout> : null}
 
               {probed ? (

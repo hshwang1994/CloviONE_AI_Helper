@@ -4,7 +4,7 @@ import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import { api } from "../../lib/api.js";
 import { fmtDateTime } from "../../lib/format.js";
-import { Card, Button, Callout, DataTable, Modal, EmptyState, ErrorState, useConfirm, useToast, ActionFooter } from "../../ui/kit.jsx";
+import { Button, Callout, DataTable, Modal, EmptyState, ErrorState, RowActions, useConfirm, useToast, ActionFooter } from "../../ui/kit.jsx";
 import { summarizeSetting, securityDowngradeWarning, displayValue } from "./settingsRegistry.js";
 import { DateCell } from "../../ui/cells.jsx";
 
@@ -66,7 +66,12 @@ export function SettingVersions({ settingKey, label, canWrite, onClose, onRolled
     render: (r) => {
       const snapshotValue = r.snapshot ? r.snapshot.value : undefined;
       const warnMsg = currentSetting ? securityDowngradeWarning(currentSetting, snapshotValue) : null;
-      return <Button variant={warnMsg ? "danger" : "default"} size="sm" disabled={roll.isPending} onClick={() => doRollback(r.version, snapshotValue)}>이 버전으로 롤백</Button>;
+      /* 행 동작은 `RowActions` 다(30, 조합 계약 C-4). */
+      return (
+        <RowActions
+          actions={[{ key: "roll", label: "이 버전으로 롤백", variant: warnMsg ? "danger" : "default", disabled: roll.isPending, onClick: () => doRollback(r.version, snapshotValue) }]}
+        />
+      );
     },
   });
 
@@ -87,7 +92,8 @@ export function SettingVersions({ settingKey, label, canWrite, onClose, onRolled
       {vq.isLoading ? <DataTable columns={columns} rows={[]} loading />
         : vq.isError ? <ErrorState layout="region" error={vq.error} onRetry={() => vq.refetch()} />
         : items.length === 0 ? <EmptyState title="버전 기록이 없습니다" help="이 설정을 아직 변경한 적이 없습니다." />
-        : <Card><DataTable columns={columns} rows={items} rowKey={(r) => r.version} /></Card>}
+        /* 모달 안 표는 판을 새로 그리지 않는다(`placement` 기본 plain, 조합 계약 C-3) — 모달 판이 이미 경계다. */
+        : <DataTable columns={columns} rows={items} rowKey={(r) => r.version} />}
     </Modal>
   );
 }

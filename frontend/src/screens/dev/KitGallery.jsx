@@ -10,8 +10,9 @@ import Typography from "@mui/material/Typography";
 import {
   ActionFooter, Badge, Button, Callout, Card, CountChip, DataTable, DotLabel, EmptyState, ErrorState,
   FieldLabel, FlatBadgeSurface, FormFieldCell, ModalBody, ModalFooter, ModalHeader, OverflowMenu,
-  PageHeader, SectionTitle, Segmented, Skeleton, Surface, SurfaceReset, Tag, overflowMenuItems, useToast,
+  PageHeader, RowActions, SectionTitle, Segmented, Skeleton, Surface, SurfaceReset, Tag, TitleCell, overflowMenuItems, useToast,
 } from "../../ui/kit.jsx";
+import { selectionColumn } from "../../ui/bulkSelect.jsx";
 import { FilterBar, FilterConditionLine, FilterToggle } from "../../ui/FilterBar.jsx";
 import { EntityCombobox, FilterSelect, SearchBox } from "../../ui/filters.jsx";
 import { UserPicker } from "../../ui/UserPicker.jsx";
@@ -196,8 +197,33 @@ const DOC_COLUMNS = [
     ),
   },
   { key: "updated", label: "최종 수정", type: "date" },
-  { key: "act", label: "작업", type: "actions", render: () => <Button size="sm">열기</Button> },
+  { key: "act", label: "작업", type: "actions", render: () => <RowActions actions={[{ key: "open", label: "열기", onClick: () => {} }]} /> },
 ];
+
+/* 목록 화면 조합 견본의 티켓 셋 ([2] · 조합 계약 C-3) — 머리 표지(정렬 · 필터) · 선택 · 행 동작 둘을 한 표에 세운다. */
+const LIST_TICKETS = [
+  { id: "t1", key: "HRXPZY-189", title: "자원 등록 화면 예외 처리와 재시도 안내", status: "진행 중", tone: "info", priority: "높음", ptone: "warn", due: "2026-09-18", created: "2026-09-12 10:20" },
+  { id: "t2", key: "HRXPZY-192", title: "배포 전 점검 목록 정리", status: "진행 중", tone: "info", priority: "보통", ptone: "neutral", due: "2026-09-20", created: "2026-09-11 16:05" },
+  { id: "t3", key: "KTGMGW-41", title: "백업 복원 리허설 결과 공유", status: "진행 중", tone: "info", priority: "낮음", ptone: "neutral", due: "2026-09-24", created: "2026-09-10 09:40" },
+];
+
+function listTicketColumns(pick) {
+  return [
+    selectionColumn(pick, LIST_TICKETS.map((t) => t.id)),
+    { key: "key", label: "티켓", type: "identifier", sortable: true, nowrap: true, width: "9rem" },
+    { key: "title", label: "제목", type: "title", sortable: true, rowName: (t) => t.title, render: (t) => <TitleCell title={t.title} onOpen={() => {}} /> },
+    { key: "status", label: "상태", type: "status", sortable: true, filter: { kind: "enum", field: "status" }, render: (t) => <DotLabel label={t.status} tone={t.tone} /> },
+    { key: "priority", label: "우선순위", type: "status", sortable: true, render: (t) => <DotLabel label={t.priority} tone={t.ptone} /> },
+    { key: "due", label: "마감", type: "date" },
+    { key: "created", label: "생성 일자", type: "datetime", sortable: true },
+    {
+      key: "_actions", label: "작업", type: "actions", width: "13rem",
+      render: () => (
+        <RowActions actions={[{ key: "claim", label: "나에게 배정", onClick: () => {} }, { key: "edit", label: "수정", onClick: () => {} }]} />
+      ),
+    },
+  ];
+}
 
 /* 칸반 카드 견본 둘 ([4]) — 지연이 걸린 카드와 담당자가 없는 카드. */
 const BOARD_CARDS = [
@@ -225,6 +251,15 @@ export function KitGallery() {
   const [projects, setProjects] = React.useState(["p1", "p3"]);
   const [assignee, setAssignee] = React.useState("u-other-1");
   const [notify, setNotify] = React.useState(true);
+  /* 목록 화면 조합 견본의 선택 — 한 줄을 고른 채 시작해 발의 선택 묶음이 서 있는 상태를 보인다. `useRowSelection` 은
+     빈 선택으로 시작하므로 같은 모양(selected · toggle · setAll · clear)을 여기서 한 번 짓는다. */
+  const [picked, setPicked] = React.useState(() => new Set(["t2"]));
+  const pick = React.useMemo(() => ({
+    selected: picked,
+    toggle: (id) => setPicked((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; }),
+    setAll: (ids, on) => setPicked((s) => { const n = new Set(s); (ids || []).forEach((id) => { if (on) n.add(id); else n.delete(id); }); return n; }),
+    clear: () => setPicked(new Set()),
+  }), [picked]);
 
   return (
     <div className="c-screen">
@@ -517,20 +552,77 @@ export function KitGallery() {
           title="데이터 표"
           help="제목 열만 왼쪽이고 나머지는 가운데이며 머리와 행이 같습니다. 두 줄 행의 바닥은 76이고, 표 안의 분류는 점과 낱말입니다."
           parts={[
-            { name: "DataTable rowHeight=tall", path: "ui/kit.jsx", ledger: "DataTable" },
+            { name: "DataTable placement=card, rowHeight=tall", path: "ui/kit.jsx", ledger: "DataTable" },
             { name: "COLUMN_TYPES / headerAlignOf", path: "ui/columnTypes.js", ledger: "DataTable" },
-            { name: "CountChip / DotLabel / Tag", path: "ui/kit.jsx" },
+            { name: "CountChip / DotLabel / Tag / RowActions", path: "ui/kit.jsx" },
           ]}
         >
-          <DataTable
-            columns={DOC_COLUMNS}
-            rows={DOC_ROWS}
-            rowKey={(r) => r.id}
-            groupOf={(r) => r.project}
-            rowHeight="tall"
-            total={3}
-          />
+          {/* 판 안 보조 표 — 이 절이 판이라 표는 판을 새로 그리지 않고 머리 · 발을 판 가장자리까지 편다(조합 계약 C-3). 발은
+              왼쪽 받은 건수, 오른쪽 「더 보기」(30 보조)다. */}
+          <Sample label="판 안 보조 표, 머리와 발이 판 가장자리까지 섭니다">
+            {/* 표는 이 상자 밖으로 판 여백만큼 편다 — 상자가 이름표와 같은 폭을 지켜 견본 격자의 두 칸이 같은 폭으로 선다. */}
+            <Box sx={{ minWidth: 0 }}>
+              <DataTable
+                placement="card"
+                columns={DOC_COLUMNS}
+                rows={DOC_ROWS}
+                rowKey={(r) => r.id}
+                groupOf={(r) => r.project}
+                rowHeight="tall"
+                list={{ total: 520, loaded: 3, hasNext: true, onMore: () => {}, moreLabel: "더 보기" }}
+              />
+            </Box>
+          </Sample>
         </GallerySection>
+
+        {/* ── 8-1. 목록 화면 조합 [2] ─────────────────────────────── */}
+        {/* 판이 아니다 — 목록 화면이 캔버스 위에 세우는 조합 그대로다: 필터 바 → 목록 판. 이 절이 판이면 목록 판이 판 안의 판이
+            되어 테두리가 사라진다(`Surface` 깊이 규칙). 실브라우저 조합 검사의 맞는 견본이다. */}
+        <Box component="section" id="kit-list-composition" data-gallery-composition="" sx={{ display: "grid", rowGap: 2, minWidth: 0 }}>
+          <SectionTitle
+            component="h2"
+            sx={{ mb: 0 }}
+            title="목록 화면 조합"
+            help="필터 바 아래 목록 판이 섭니다. 판이 곧 표 상자라 머리 줄이 판 가장자리에 붙고, 받은 건수와 선택 묶음과 더 보기는 판 안 마지막 줄입니다."
+          />
+          <FilterBar
+            search={<SearchBox value="배포" onSearch={() => {}} placeholder="티켓 제목, 이름 검색" ariaLabel="목록 조합 견본 검색" />}
+            end={<FilterToggle pressed={false} onClick={() => {}}>내 티켓만</FilterToggle>}
+            conditions={{
+              chips: [
+                { key: "q", label: "검색: 배포", onDelete: () => {} },
+                { key: "status", label: "상태: 진행 중", onDelete: () => {} },
+              ],
+              total: 14,
+              onClearAll: () => {},
+              clearLabel: "필터 초기화",
+            }}
+          >
+            <FilterSelect label="상태" value="진행 중" onChange={() => {}} options={["계획", "진행 중", "검증"]} />
+          </FilterBar>
+          <DataTable
+            placement="surface"
+            columns={listTicketColumns(pick)}
+            rows={LIST_TICKETS}
+            rowKey={(t) => t.id}
+            rowSelected={(t) => pick.selected.has(t.id)}
+            sort={{ key: "created", dir: "desc" }}
+            onSort={() => {}}
+            filters={{ status: ["진행 중"] }}
+            onFilter={() => {}}
+            list={{ total: 14, loaded: 3, hasNext: true, onMore: () => {}, moreLabel: "티켓 더 보기" }}
+            selection={{
+              count: pick.selected.size,
+              onClear: pick.clear,
+              actions: (
+                <>
+                  <Button size="sm">담당자 지정</Button>
+                  <Button size="sm" variant="danger">삭제</Button>
+                </>
+              ),
+            }}
+          />
+        </Box>
 
         {/* ── 9. 배지 · 태그 · 점 · 칩 [5] ───────────────────────── */}
         <GallerySection

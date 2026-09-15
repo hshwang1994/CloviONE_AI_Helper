@@ -7,11 +7,11 @@ import Typography from "@mui/material/Typography";
 import { HeaderActions } from "../ui/HeaderSlot.jsx";
 import { api } from "../lib/api.js";
 import {
-  Button, Card, DataTable, EmptyState, ErrorState, Skeleton, useToast,
+  Button, Card, DataTable, EmptyState, ErrorState, Skeleton, TitleCell, useToast,
   Tag,
 } from "../ui/kit.jsx";
 import { UserAvatar } from "../ui/UserAvatar.jsx";
-import { FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
+import { KO_WORD_BREAK } from "../ui/theme.js";
 import { fmtDateTimeCompact } from "../lib/format.js";
 import { failureText } from "../lib/failure.js";
 import { NewDocumentModal } from "./knowledge/NewDocumentModal.jsx";
@@ -76,9 +76,8 @@ export function ProjectDocuments({ projectId, projectName = "" }) {
       key: "title", label: "제목", type: "title", minWidth: "16rem", rowName: (d) => d.title,
       render: (doc) => (
         <Box sx={{ display: "grid", gap: 0.25, minWidth: 0 }}>
-          <Typography sx={{ fontWeight: FONT_WEIGHT.semibold, ...KO_WORD_BREAK }}>
-            {doc.title}
-          </Typography>
+          {/* 제목은 행을 여는 이름이라 링크색 600 이다(`TitleCell`, 조합 계약 C-3). */}
+          <TitleCell title={doc.title} link />
           {/* 분류는 보조 글자다(§11.3) — 분류가 없는 이관 문서만 옛 doc_type 이 보인다. */}
           {doc.category?.name || doc.doc_type ? (
             <Typography variant="caption" color="text.secondary" sx={KO_WORD_BREAK}>
@@ -134,23 +133,24 @@ export function ProjectDocuments({ projectId, projectName = "" }) {
       >
         <Button variant="primary" onClick={() => { createDocument.reset(); setNewDoc(true); }}>새 문서</Button>
       </HeaderActions>
-      {rows.length === 0 ? (
-        <EmptyState
-          title="이 프로젝트에 문서가 아직 없습니다."
-          help="회의록이나 설계 문서를 여기에 모아 두면 프로젝트 안에서 바로 찾을 수 있습니다."
-          action={<Button variant="primary" onClick={() => { createDocument.reset(); setNewDoc(true); }}>이 프로젝트 문서 추가</Button>}
-        />
-      ) : (
-        <Card>
-          <DataTable columns={columns} rows={rows} rowKey={(d) => d.id} onRow={openDoc} />
-          {/* 화면이 쓰던 결과 문장이다(계획 P-21) — 상한을 넘긴 프로젝트의 문서가 조용히 사라지지 않게 목록 끝에 선다. */}
-          <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1.5 }}>
-            {hidden
-              ? "총 " + total + "건 가운데 " + rows.length + "건을 보여 줍니다. 나머지는 문서 화면에서 찾을 수 있습니다."
-              : "총 " + total + "건"}
-          </Typography>
-        </Card>
-      )}
+      {/* 목록 판 — 빈 목록 · 행 · 발이 한 판 안이다(조합 계약 C-3). 화면이 쓰던 결과 문장(계획 P-21)이 발 문장이다 —
+          상한을 넘긴 프로젝트의 문서가 조용히 사라지지 않게 목록 끝에 선다. */}
+      <DataTable
+        placement="surface"
+        columns={columns} rows={rows} rowKey={(d) => d.id} onRow={openDoc}
+        emptyState={(
+          /* 만드는 단추는 30 보조다 — 탭 머리의 「새 문서」가 이 화면의 채움 하나다(핸드오프 RULES §1 · §3). */
+          <EmptyState
+            layout="region"
+            title="이 프로젝트에 문서가 아직 없습니다."
+            help="회의록이나 설계 문서를 여기에 모아 두면 프로젝트 안에서 바로 찾을 수 있습니다."
+            action={<Button size="sm" onClick={() => { createDocument.reset(); setNewDoc(true); }}>이 프로젝트 문서 추가</Button>}
+          />
+        )}
+        note={hidden
+          ? "총 " + total + "건 가운데 " + rows.length + "건을 보여 줍니다. 나머지는 문서 화면에서 찾을 수 있습니다."
+          : "총 " + total + "건"}
+      />
       <NewDocumentModal
         open={newDoc}
         initial={EMPTY_DOC}

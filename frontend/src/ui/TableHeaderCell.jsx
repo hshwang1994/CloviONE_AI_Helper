@@ -2,8 +2,11 @@ import React from "react";
 import Box from "@mui/material/Box";
 import IconButton from "@mui/material/IconButton";
 import TableCell from "@mui/material/TableCell";
+import ArrowDownwardRoundedIcon from "@mui/icons-material/ArrowDownwardRounded";
+import ArrowUpwardRoundedIcon from "@mui/icons-material/ArrowUpwardRounded";
 import FilterListRoundedIcon from "@mui/icons-material/FilterListRounded";
-import { CONTROL, FONT_SIZE, remPx } from "./theme.js";
+import HeightRoundedIcon from "@mui/icons-material/HeightRounded";
+import { CONTROL, ICON, RADIUS, remPx } from "./theme.js";
 import { headerAlignOf } from "./columnTypes.js";
 import { ColumnFilterPopover } from "./columnFilter.jsx";
 
@@ -15,28 +18,45 @@ import { ColumnFilterPopover } from "./columnFilter.jsx";
  * 쪽으로 옮긴다. */
 const LABEL_SX = { whiteSpace: "nowrap", lineHeight: 1.5 };
 
-/* 🔴 머리글 칸의 두 조작기는 **같은 높이**로 선다 (S22 · `control_baseline_mismatch`).
+/* ── 머리 칸 표지 — 정렬 · 필터 (핸드오프 README §4 · 공통 컴포넌트 시안 데이터 표 · UI 3차 조합 계약 C-3) ────
  *
- * 정렬 단추는 글자 줄 높이 그대로였고 필터 단추는 MUI `IconButton size="small"` 의 자기
- * 높이를 썼다 — 같은 줄에 선 같은 종류(버튼) 둘이 6px 어긋났고, 실측에서 「내 티켓」·
- * 「팀 티켓」·「미할당 티켓」 세 화면이 그 하나 때문에 42페이지에서 실패했다.
+ * 표지는 **이름 옆 4px 에 붙는 글리프**다. 크기는 글 옆 표지 슬롯(`ICON.mark`)이고, 활성 열은 이름이 잉크로 서고 표지가
+ * 강조색(`primary.dark`)이다. 정렬 표지는 정렬할 수 있는 열에 **항상** 서고(↕ → ↑ / ↓), 필터 표지는 조건이 걸릴 수 있는
+ * 열에만 선다.
  *
- * 높이는 `CONTROL.tableCellDense`(30, 작은 단추와 같은 값) 다. 이 토큰은 **표 안의 조작기**를 위해 이미 있었고
- * (theme.js 주석: 「배선은 W6 이 한다」) 여기가 그 배선이다 — 새 리터럴을 만들지 않는다.
+ * 예전에는 정렬 표지가 글자 화살표(「↕」, 35% 불투명)였고 필터는 30px 아이콘 단추라, 필터 글리프가 칸 안에서 이름과
+ * 떨어져 따로 선 조작기로 읽혔다(단추 상자 가운데에 선 글리프가 이름에서 12px 밖). 지금 필터 단추는 **글리프를 감싸는
+ * 폭**(표지 + 4)이고 누르는 높이만 30 이다 — 손가락 목표는 테마의 `::after` 가 상자 밖에서 넓힌다(WCAG 2.2 Target Size).
  *
- * 아이콘 단추 쪽은 `minHeight` 만으로는 안 줄어든다 — 테마가 `MuiIconButton.root` 에 34 를
- * 이미 걸어 두었기 때문이다. 그래서 그쪽만 `height` 로 못 박는다. **손가락 목표는 안
- * 줄어든다**: 테마의 `::after` 가 40px 를 상자 밖에서 잡는다(WCAG 2.2 Target Size). */
+ * 🔴 머리글 칸의 두 조작기는 **같은 높이**로 선다 (S22 · `control_baseline_mismatch`). 높이는
+ * `CONTROL.tableCellDense`(30, 작은 단추와 같은 값)다. 테마가 `MuiIconButton.root` 에 34 를 걸어 두었으므로 필터 단추는
+ * `height` 로 못 박는다. */
 const HEADER_CONTROL_SX = { minHeight: remPx(CONTROL.tableCellDense) };
-const HEADER_ICON_SX = {
+const GLYPH_SX = { fontSize: remPx(ICON.mark), flexShrink: 0, display: "block" };
+const FILTER_BUTTON_SX = {
   minHeight: remPx(CONTROL.tableCellDense),
-  minWidth: remPx(CONTROL.tableCellDense),
   height: remPx(CONTROL.tableCellDense),
-  width: remPx(CONTROL.tableCellDense),
+  minWidth: remPx(ICON.mark + 4),
+  width: remPx(ICON.mark + 4),
+  p: 0,
+  borderRadius: `${RADIUS.sm}px`,
 };
 
+/* 정렬 표지. 방향이 없으면(정렬할 수 있지만 지금 그 축이 아니면) ↕ 이고 흐린 잉크, 지금 축이면 방향 화살표에 강조색이다.
+   글리프는 뜻을 말하지 않는다 — 방향은 칸의 `aria-sort` 가 말한다(`aria-hidden`). */
+function SortGlyph({ dir, active }) {
+  const Glyph = dir === "desc" ? ArrowDownwardRoundedIcon : dir === "asc" ? ArrowUpwardRoundedIcon : HeightRoundedIcon;
+  return (
+    <Glyph
+      aria-hidden="true"
+      data-head-glyph="sort"
+      sx={{ ...GLYPH_SX, color: active ? "primary.dark" : "text.secondary" }}
+    />
+  );
+}
+
 /* DataTable 과 GroupedTickets 가 같이 쓰는 머리글 칸.
- * 정렬 화살표는 onSort 가 있을 때만, 필터 단추는 onFilter 가 있을 때만 그린다.
+ * 정렬 표지는 onSort 가 있을 때만, 필터 단추는 onFilter 가 있을 때만 그린다.
  * 호출부가 안 넘기면 예전 머리글과 같다. */
 
 /* 🔴 머리글은 **이름+조작기를 한 덩어리로** 칸 가운데에 둔다 (지시 6 · 13).
@@ -45,7 +65,9 @@ const HEADER_ICON_SX = {
  * 옆 칸 위로 글자가 겹쳤다. `table-layout:fixed` 에서 「예상 WD」 칸은 4rem 인데, 왼쪽
  * 저울추와 오른쪽 화살표가 같은 폭을 요구하면 이름 자리가 사라져 두 줄이 한 줄 위에
  * 그려진다. 이름과 화살표를 한 flex 로 묶으면 칸이 모자랄 때도 한 덩어리로 잘리고,
- * 옆 머리글과 겹치지 않는다. 몸통 칸의 정렬은 여전히 안 받는다. */
+ * 옆 머리글과 겹치지 않는다. 몸통 칸의 정렬은 여전히 안 받는다.
+ *
+ * 간격: 정렬 단추 안 이름 → 표지 4, 줄 안 이름(또는 정렬 단추) → 필터 단추 2 + 단추 안쪽 2 = 표지 사이 4. */
 const HEADER_ROW_SX = {
   display: "flex",
   alignItems: "center",
@@ -85,7 +107,7 @@ export function TableHeaderCell({
           `min-width` 를 스스로 0으로 낮추지 않는다 — `table-layout:auto` 표에서는 칸이
           자기 내용 폭을 그대로 요구하면 그 요구가 열 폭 계산에 들어가 **열 자체가 넓어진다**
           (박스가 내용보다 좁아지는 그 순간이 없으니, S19 가 겪은 "박스는 좁은데 글자만
-          삐져나온다"도 다시 생기지 않는다). 정렬 화살표·필터 단추는 여전히 `flexShrink:0`
+          삐져나온다"도 다시 생기지 않는다). 정렬 표지·필터 단추는 여전히 `flexShrink:0`
           로 따로 보호된다. */}
       <Box sx={align === "left" ? { ...HEADER_ROW_SX, justifyContent: "flex-start" } : HEADER_ROW_SX}>
         {sortable ? (
@@ -94,8 +116,8 @@ export function TableHeaderCell({
             type="button"
             onClick={() => onSort(c.key)}
             sx={{
-              font: "inherit", color: "inherit", border: 0, background: "none", p: 0,
-              display: "inline-flex", alignItems: "center", cursor: "pointer",
+              font: "inherit", color: active ? "text.primary" : "inherit", border: 0, background: "none", p: 0,
+              display: "inline-flex", alignItems: "center", gap: 0.5, cursor: "pointer",
               whiteSpace: "nowrap", flexShrink: 0,
               ...HEADER_CONTROL_SX,
               "&:hover": { color: "text.primary" },
@@ -103,22 +125,18 @@ export function TableHeaderCell({
             }}
           >
             <Box component="span" sx={LABEL_SX}>{c.label}</Box>
+            <SortGlyph dir={dir} active={active} />
           </Box>
         ) : (c.label ? <Box component="span" sx={LABEL_SX}>{c.label}</Box> : null)}
-        {sortable ? (
-          <Box component="span" aria-hidden="true" sx={{ flexShrink: 0, fontSize: FONT_SIZE.caption, opacity: active ? 1 : 0.35 }}>
-            {dir === "desc" ? "\u2193" : dir === "asc" ? "\u2191" : "\u2195"}
-          </Box>
-        ) : null}
         {filterable ? (
           <IconButton
             size="small"
             aria-label={`${c.label || "열"} 필터`}
             aria-pressed={filtered}
             onClick={(e) => setAnchor(e.currentTarget)}
-            sx={{ flexShrink: 0, color: filtered ? "primary.main" : "text.secondary", ...HEADER_ICON_SX }}
+            sx={{ flexShrink: 0, color: filtered ? "primary.dark" : "text.secondary", ...FILTER_BUTTON_SX }}
           >
-            <FilterListRoundedIcon fontSize="inherit" />
+            <FilterListRoundedIcon data-head-glyph="filter" sx={GLYPH_SX} />
           </IconButton>
         ) : null}
       </Box>

@@ -8,7 +8,6 @@ import { ticketColumns, GroupedTickets, TicketEditModal, ticketConnState, useInl
 import { useTicketSignals } from "../lib/ticketSignals.js";
 import { useListMemory } from "../lib/listReturn.js";
 import { TICKET_AUTO_MAX_ROWS, useAssigneeOptions, useTicketList, useTicketMeta } from "./ticket-options.js";
-import { ListFooter } from "../ui/InfiniteScroll.jsx";
 import {
   TicketEmptyState, TicketFilterBar, applyColumnFilter, clearTicketFilters, hasTicketFilter,
   nextTicketSort, ticketFilterSpec, ticketQueryParams, ticketSortOf, TICKET_LIST_EXTRA,
@@ -143,35 +142,34 @@ export function TeamTickets() {
                 total={q.total} scope={scopeControls} chips={deptChips} end={activeToggle}
                 onClear={() => setFilters({ ...clearTicketFilters(TEAM_FIELDS), dept: "", ...TICKET_LIST_EXTRA, active: filters.active })}
               />
-              <Card>
-                <GroupedTickets
-                  rows={rows} columns={cols} groupBy={groupByAssignee}
-                  sort={ticketSortOf(filters)}
-                  onSort={(key) => setFilters(nextTicketSort(filters, key))}
-                  filters={filters}
-                  onFilter={(field, next) => setFilters(applyColumnFilter(field, next))}
-                  filterOptions={colFilterOptions}
-                  entityOptions={colEntityOptions}
-                  emptyState={
-                    <TicketEmptyState
-                      filtered={hasTicketFilter(filters, TEAM_FIELDS) || !!filters.dept}
-                      onClear={() => setFilters({ ...clearTicketFilters(TEAM_FIELDS), dept: "", ...TICKET_LIST_EXTRA, active: true })}
-                      title="팀 티켓이 없습니다"
-                      help={filters.active
-                        ? "지금 진행 중인 팀 티켓이 없습니다. ‘완료, 취소 포함’을 켜면 끝난 티켓까지 봅니다."
-                        : "이 팀에 티켓이 없습니다."}
-                    />
-                  }
-                />
-                <ListFooter
-                  total={q.total} loaded={q.loaded}
-                  hasNext={q.hasNext} isFetchingNext={q.isFetchingNext} onMore={q.fetchNext}
-                  moreLabel="티켓 더 보기"
+              <GroupedTickets
+                placement="surface"
+                rows={rows} columns={cols} groupBy={groupByAssignee}
+                sort={ticketSortOf(filters)}
+                onSort={(key) => setFilters(nextTicketSort(filters, key))}
+                filters={filters}
+                onFilter={(field, next) => setFilters(applyColumnFilter(field, next))}
+                filterOptions={colFilterOptions}
+                entityOptions={colEntityOptions}
+                emptyState={
+                  <TicketEmptyState
+                    filtered={hasTicketFilter(filters, TEAM_FIELDS) || !!filters.dept}
+                    onClear={() => setFilters({ ...clearTicketFilters(TEAM_FIELDS), dept: "", ...TICKET_LIST_EXTRA, active: true })}
+                    title="팀 티켓이 없습니다"
+                    help={filters.active
+                      ? "지금 진행 중인 팀 티켓이 없습니다. ‘완료, 취소 포함’을 켜면 끝난 티켓까지 봅니다."
+                      : "이 팀에 티켓이 없습니다."}
+                  />
+                }
+                list={{
+                  total: q.total, loaded: q.loaded,
+                  hasNext: q.hasNext, isFetchingNext: q.isFetchingNext, onMore: q.fetchNext,
+                  moreLabel: "티켓 더 보기",
                   /* 담당자별로 묶은 이 표는 가상화가 없다(D-354 · D-361) — 자동 로딩에만
                      상한을 두고, 「더 보기」로는 계속 받는다. */
-                  autoMaxRows={TICKET_AUTO_MAX_ROWS}
-                />
-              </Card>
+                  autoMaxRows: TICKET_AUTO_MAX_ROWS,
+                }}
+              />
             </>
           );
         })()}

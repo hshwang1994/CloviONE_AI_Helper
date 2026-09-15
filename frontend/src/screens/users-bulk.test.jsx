@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import "@testing-library/jest-dom/vitest";
 
+/* qa-contract-change: 사용자 일괄 작업 줄을 필터 바와 목록 사이의 따로 선 구획(sr-only h2 「일괄 작업」)에서 목록 판 발의 선택 묶음(role=toolbar 「일괄 작업」, UI 3차 조합 계약 C-3)으로 옮긴다. 다른 목록(내 티켓 · 휴지통)의 선택 묶음과 같은 부품이 되어 제목 계층은 필터 · 목록 둘로 남고, 선택 묶음이 발 안에 서는지 · 「3명 선택」 · 일괄 동작 · 「선택 해제」를 드는지를 더 잰다. */
 /* 사용자 대량 작업 + CSV (PLAN Phase 6).
  *
  * 못박는 것:
@@ -106,13 +107,24 @@ describe("제목 계층 — 필터·일괄 작업·목록 구획 (SEM-02, PA-F-0
     expect(h2s).toEqual(["필터", "목록"]);
   });
 
-  it("선택하면 필터·일괄 작업·목록 순으로 h2 셋이 된다", async () => {
+  it("선택하면 일괄 작업은 목록 판 발 안의 toolbar 로 선다 — 제목 계층은 필터 · 목록 둘 그대로다", async () => {
     const user = userEvent.setup();
     renderUsers();
     await selectAll(user);
 
     const h2s = screen.getAllByRole("heading", { level: 2 }).map((el) => el.textContent);
-    expect(h2s).toEqual(["필터", "일괄 작업", "목록"]);
+    expect(h2s).toEqual(["필터", "목록"]);
+    const toolbar = screen.getByRole("toolbar", { name: "일괄 작업" });
+    // 목록 판 발 안이다 — 필터 바와 목록 사이에 따로 선 줄이 아니다.
+    const foot = toolbar.closest("[data-list-footer]");
+    expect(foot).not.toBeNull();
+    expect(foot.closest("[data-list-surface]")).not.toBeNull();
+    expect(toolbar).toHaveTextContent("3명 선택");
+    for (const name of ["비활성화", "활성화", "보관", "보관 복구", "잠금 해제", "세션 해제", "선택 해제"]) {
+      expect(within(toolbar).getByRole("button", { name })).toBeInTheDocument();
+    }
+    // 일괄 동작은 30 단추다 — 머리의 34 단추와 다른 자리다.
+    expect(within(toolbar).getByRole("button", { name: "비활성화" }).className).toContain("MuiButton-sizeSmall");
   });
 });
 

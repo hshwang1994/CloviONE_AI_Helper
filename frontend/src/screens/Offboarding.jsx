@@ -12,7 +12,7 @@ import { fmtDateTime } from "../lib/format.js";
 import { maxLengthFor } from "../lib/fieldLimits.js";
 import {
   ListEmptyState,
-  PageHeader, Card, ListCard, Badge, Button, DataTable, DetailGrid, DetailRow, Modal, Skeleton,
+  PageHeader, Card, Badge, Button, DataTable, DetailGrid, DetailRow, Modal, Skeleton,
   Section, SectionTitle, EmptyState, ErrorState, Callout, useConfirm, useToast,
   ActionFooter,
   FieldLabel,
@@ -24,7 +24,6 @@ import { SearchBox } from "../ui/filters.jsx";
 import { BASELINE_TRACKS, pairTracks } from "../ui/density.js";
 import { invalidateTicketViews } from "./ticket-views.js";
 import { DateCell } from "../ui/cells.jsx";
-import { ListFooter } from "../ui/InfiniteScroll.jsx";
 import { useInfiniteList } from "../lib/useInfiniteList.js";
 
 /* 오프보딩 (PLAN Phase 6 — 관리자 백로그 최우선 항목)
@@ -164,39 +163,35 @@ function TargetPicker({ q, setQ, query, onPick }) {
           unit: "명",
         }}
       />
-      {query.isLoading ? (
-        <Card><Skeleton lines={5} /></Card>
-      ) : query.isError ? (
+      {query.isError ? (
         <ErrorState layout="region" error={query.error} onRetry={() => query.refetch()} />
-      ) : items.length === 0 ? (
-        /* 조건이 없는데 조건 탓을 하지 않는다 (C1 · W5). 예전에는 검색어가 비어 있어도
-           언제나 「조건에 해당하는 사용자가 없습니다」라고 말했다 — 신규 설치에서 이 문장은
-           있지도 않은 조건을 찾아 헤매게 한다. */
-        <ListEmptyState
-          filtered={!!String(q || "").trim()}
-          onClear={() => setQ("")}
-          clearLabel="검색어 지우기"
-          filteredTitle="조건에 해당하는 사용자가 없습니다"
-          filteredHelp="검색어를 지우거나 다른 이름으로 찾아보세요."
-          art="search"
-          title="대상 사용자가 없습니다"
-          help="퇴사 처리 대상이 될 계정이 아직 없습니다."
-        />
       ) : (
-        <>
-          <ListCard>
-            <DataTable columns={columns} rows={items} rowKey={(r) => r.id} onRow={(r) => onPick(r.id)} />
-            {/* UB-40: 이 화면은 "그 사람을 찾아 실행"이 목적인데, 목록이 사용자 21명(현재는
-                더 늘었을 수 있다)부터 page_size=20으로 조용히 잘렸다 — 총건수도 잘림 경고도
-                없어 찾는 사람이 20번째 밖에 있으면 검색창을 쓰라는 단서조차 없었다.
-                Search.jsx의 ResultGroup과 같은 관용을 재사용한다. */}
-            {total != null && total > items.length ? (
-              <Typography variant="caption" color="text.secondary" sx={{ display: "block", p: 2, pt: 0 }}>
-                {total}명 중 {items.length}명을 보여 줍니다. 검색어로 좁혀 보세요.
-              </Typography>
-            ) : null}
-          </ListCard>
-        </>
+        /* 목록 판 — 불러오는 중 · 빈 목록 · 행 · 발이 한 판 안이다(조합 계약 C-3). */
+        <DataTable
+          placement="surface"
+          loading={query.isLoading}
+          columns={columns} rows={items} rowKey={(r) => r.id} onRow={(r) => onPick(r.id)}
+          emptyState={(
+            /* 조건이 없는데 조건 탓을 하지 않는다 (C1 · W5). 예전에는 검색어가 비어 있어도
+               언제나 「조건에 해당하는 사용자가 없습니다」라고 말했다 — 신규 설치에서 이 문장은
+               있지도 않은 조건을 찾아 헤매게 한다. */
+            <ListEmptyState
+              filtered={!!String(q || "").trim()}
+              onClear={() => setQ("")}
+              clearLabel="검색어 지우기"
+              filteredTitle="조건에 해당하는 사용자가 없습니다"
+              filteredHelp="검색어를 지우거나 다른 이름으로 찾아보세요."
+              art="search"
+              title="대상 사용자가 없습니다"
+              help="퇴사 처리 대상이 될 계정이 아직 없습니다."
+            />
+          )}
+          /* UB-40: 이 화면은 "그 사람을 찾아 실행"이 목적인데, 목록이 사용자 21명(현재는
+             더 늘었을 수 있다)부터 page_size=20으로 조용히 잘렸다 — 총건수도 잘림 경고도
+             없어 찾는 사람이 20번째 밖에 있으면 검색창을 쓰라는 단서조차 없었다.
+             Search.jsx의 ResultGroup과 같은 관용을 재사용한다. 이 문장이 목록 판 발의 문장이다. */
+          note={total != null && total > items.length ? `${total}명 중 ${items.length}명을 보여 줍니다. 검색어로 좁혀 보세요.` : undefined}
+        />
       )}
     </>
   );
@@ -323,9 +318,7 @@ function OffboardPlan({ preview, onDone, toast }) {
 
       <Section titleAs="h2" title={`보유 티켓 ${tickets.length}건, 선택 ${chosen.length}건`}>
         {tickets.length ? (
-          <ListCard>
-            <DataTable columns={columns} rows={tickets} rowKey={(t) => t.id} />
-          </ListCard>
+          <DataTable placement="surface" columns={columns} rows={tickets} rowKey={(t) => t.id} />
         ) : (
           <EmptyState size="compact" title="옮길 티켓이 없습니다" help="계정 처리만 진행합니다." />
         )}
@@ -405,9 +398,9 @@ function RunResult({ result }) {
         {" "}아래 ‘실행 이력’에서 되돌릴 수 있습니다.
       </Callout>
       {moves.length ? (
-        <ListCard sx={{ mt: 2 }}>
-          <DataTable columns={MOVE_COLUMNS} rows={moves} rowKey={(m) => m.id} />
-        </ListCard>
+        <Box sx={{ mt: 2 }}>
+          <DataTable placement="surface" columns={MOVE_COLUMNS} rows={moves} rowKey={(m) => m.id} />
+        </Box>
       ) : null}
     </Section>
   );
@@ -497,25 +490,29 @@ function RunHistory() {
 
   return (
     <Section titleAs="h2" title="실행 이력" sx={{ mt: 3 }}>
-      {query.isLoading ? (
-        <Card><Skeleton lines={3} /></Card>
-      ) : query.isError ? (
+      {query.isError ? (
         <ErrorState layout="region" error={query.error} onRetry={() => query.refetch()} />
-      ) : items.length === 0 ? (
-        <EmptyState title="아직 실행한 오프보딩이 없습니다"
-          help="위에서 대상을 고르고 실행하면 여기에 기록이 남고, 그 자리에서 되돌릴 수 있습니다." />
       ) : (
-        <ListCard>
-          {undoPartial ? <Callout tone="danger" compact sx={{ mb: 1.5 }}>{undoPartial}</Callout> : null}
-          <DataTable columns={columns} rows={items} rowKey={(r) => r.id} onRow={(r) => { setUndoFailure(""); setSel(r); }} total={total} />
+        <>
+          {/* 되돌리기의 일부 실패는 목록 위 상자가 말한다 — 목록 판 안 표 위에 서면 머리 줄을 판 윗변에서 밀어낸다. */}
+          {undoPartial && items.length ? <Callout tone="danger" compact sx={{ mb: 1.5 }}>{undoPartial}</Callout> : null}
           {/* 감사 이력은 지워지지 않고 계속 쌓인다 — 굴리면 이어 받는다(손으로 그린 페이저가
-              여기 있었다, 이제 목록 끝 줄 하나를 다른 화면과 함께 쓴다). */}
-          <ListFooter
-            total={total} loaded={query.loaded}
-            hasNext={query.hasNext} isFetchingNext={query.isFetchingNext} onMore={query.fetchNext}
-            moreLabel="실행 이력 더 보기"
+              여기 있었다, 이제 목록 판 발 하나를 다른 화면과 함께 쓴다 · 조합 계약 C-3). */}
+          <DataTable
+            placement="surface"
+            loading={query.isLoading}
+            columns={columns} rows={items} rowKey={(r) => r.id} onRow={(r) => { setUndoFailure(""); setSel(r); }} total={total}
+            emptyState={(
+              <EmptyState layout="region" title="아직 실행한 오프보딩이 없습니다"
+                help="위에서 대상을 고르고 실행하면 여기에 기록이 남고, 그 자리에서 되돌릴 수 있습니다." />
+            )}
+            list={{
+              total, loaded: query.loaded,
+              hasNext: query.hasNext, isFetchingNext: query.isFetchingNext, onMore: query.fetchNext,
+              moreLabel: "실행 이력 더 보기",
+            }}
           />
-        </ListCard>
+        </>
       )}
 
       <Modal open={!!sel} onClose={() => setSel(null)} size="lg"

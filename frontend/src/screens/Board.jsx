@@ -13,15 +13,14 @@ import {
   Badge,
   Button,
   Callout,
-  Card,
   DataTable,
+  DotLabel,
   EmptyState,
   ErrorState,
-  ListCard,
   Modal,
   ModalFooter,
   PageHeader,
-  Tag,
+  TitleCell,
   useConfirm,
   useToast,
   FieldLabel,
@@ -35,7 +34,6 @@ import { useQueryState } from "../lib/useQueryState.js";
 import { FilterSelect, SearchBox } from "../ui/filters.jsx";
 import { FilterBar } from "../ui/FilterBar.jsx";
 import { DateCell } from "../ui/cells.jsx";
-import { ListFooter } from "../ui/InfiniteScroll.jsx";
 import { useInfiniteList } from "../lib/useInfiniteList.js";
 
 /* 게시판 목록 (팀 공간 §18). 순수 내부 기능 — 외부 호출 없음. 카테고리 필터·검색·정렬은
@@ -469,9 +467,11 @@ function BoardScreen({ kind = "free" }) {
       openLabel: (p) => "상세 보기: " + (p.title || ""),
       render: (p) => (
         <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, minWidth: 0 }}>
-          {/* 고정은 상태가 아니라 이 글의 속성이다 — 색 등급을 매기지 않는다(지시 11). */}
-          {p.is_pinned ? <Tag label="고정" /> : null}
-          <Box component="span" sx={{ fontWeight: FONT_WEIGHT.semibold, overflow: "hidden", textOverflow: "ellipsis" }}>{p.title}</Box>
+          {/* 고정은 상태가 아니라 이 글의 속성이다 — 색 등급을 매기지 않는다(지시 11). 표 안 표지는 면 없는
+              점 + 낱말이다(핸드오프 RULES §2 · 조합 계약 C-3). */}
+          {p.is_pinned ? <DotLabel label="고정" sx={{ flexShrink: 0 }} /> : null}
+          {/* 제목은 행을 여는 이름이라 링크색이다 — 티켓 · 휴지통 · 프로젝트 표와 같은 제목 칸(`TitleCell`). */}
+          <TitleCell title={p.title} link sx={{ minWidth: 0 }} />
           {p.comment_count > 0 ? (
             <Box component="span" sx={{ color: "primary.dark", fontWeight: FONT_WEIGHT.bold, fontSize: FONT_SIZE.bodySm, flexShrink: 0 }}>
               [{p.comment_count}]
@@ -480,7 +480,9 @@ function BoardScreen({ kind = "free" }) {
         </Box>
       ),
     },
-    { key: "category", label: "카테고리", type: "enum", hideNarrow: true, render: (p) => <Tag label={p.category} /> },
+    /* 카테고리는 정해진 축의 값이라 표 안에서는 점 + 낱말이다 — 면 있는 태그가 행마다 서면 어디가 중요한지 사라진다
+       (핸드오프 RULES §2 · ACCEPTANCE F7). */
+    { key: "category", label: "카테고리", type: "enum", hideNarrow: true, render: (p) => <DotLabel label={p.category} /> },
     /* 🔴 상태 열은 **아이디어일 때만** 붙는다. 자유게시글에 상태 배지를 그리면
        "이 글은 검토중"이라는 뜻 없는 말이 되고, 서버가 실수로 값을 실어 보내는 날
        (`idea_status` 가 응답에 남는 경우) 그대로 화면에 나온다. 그래서 값이 아니라
@@ -589,51 +591,49 @@ function BoardScreen({ kind = "free" }) {
       <Typography component="h2" className="sr-only">목록</Typography>
       {list.isError ? (
         <ErrorState layout="region" error={list.error} onRetry={() => list.refetch()} />
-      ) : list.isLoading ? (
-        <Card>{/* 표가 들어올 자리에는 표 모양을 그린다 (지시 20) - 빈 목록과 아직 안 온 목록은 다른 사실이다. */}<DataTable columns={columns} rows={[]} loading /></Card>
-      ) : items.length === 0 ? (
-        hasFilter ? (
-          /* 조건 때문에 0건 — 판 안 빈 상태(region)이고 그림이 없다(조건 문제라서). 조건을 지우는 동작은
-             30 단추다 — 화면의 채운 단추는 머리의 「글쓰기」 하나다(핸드오프 RULES §1 · §3). */
-          <EmptyState
-            layout="region"
-            title="검색 결과가 없습니다"
-            help="조건에 맞는 게시글이 없습니다. 검색어를 지우거나 카테고리를 ‘전체’로 되돌려 보세요."
-            action={<Button size="sm" onClick={clearFilters}>검색, 카테고리 지우기</Button>}
-          />
-        ) : (
-          /* 🔴 여기에 «글쓰기» 를 다시 두지 않는다 (S19) — 상단 행동과 같은 일이다.
-             `copy.emptyHelp` 가 그 버튼을 이름으로 가리킨다. 조건 때문에 0건인 위쪽
-             갈래는 다르다: «조건 지우기» 는 상단에 없는 **다른 행동**이라 CTA 를 갖는다. */
-          <EmptyState
-            layout="region"
-            art="board"
-            title={copy.empty}
-            help={copy.emptyHelp}
-          />
-        )
       ) : (
-        <ListCard>
-          <DataTable
-            columns={columns}
-            rows={items}
-            rowKey={(p) => p.id}
-            ellipsis
-            sort={{ key: boardSortKey, dir: "desc" }}
-            onSort={onBoardSort}
-            /* 어디서 왔는지를 남긴다 — 상세의 「목록」이 그 목록의 **그 상태**로
-               돌아가는 근거다(`lib/listReturn.js`). 두 게시판이 상세를 공유하므로
-               이 값이 없으면 제안 글에서 자유게시판으로 떨어진다. */
-            onRow={(p) => nav(copy.route + p.id, { state: { from: isIdea ? "/ideas" : "/board" } })}
-          />
-          {/* 서버가 자른 목록에는 더 받을 길이 있어야 한다 — 없으면 위 결과 줄이 말하는
-              건수의 대부분이 열 수 없는 숫자가 된다. */}
-          <ListFooter
-            total={list.total} loaded={list.loaded}
-            hasNext={list.hasNext} isFetchingNext={list.isFetchingNext} onMore={list.fetchNext}
-            moreLabel="글 더 보기"
-          />
-        </ListCard>
+        /* 목록 판 — 불러오는 중(표 모양) · 빈 목록 · 행 · 발이 모두 한 판 안이다(조합 계약 C-3). */
+        <DataTable
+          placement="surface"
+          columns={columns}
+          rows={items}
+          rowKey={(p) => p.id}
+          /* 표가 들어올 자리에는 표 모양을 그린다 (지시 20) - 빈 목록과 아직 안 온 목록은 다른 사실이다. */
+          loading={list.isLoading}
+          emptyState={hasFilter ? (
+            /* 조건 때문에 0건 — 판 안 빈 상태(region)이고 그림이 없다(조건 문제라서). 조건을 지우는 동작은
+               30 단추다 — 화면의 채운 단추는 머리의 「글쓰기」 하나다(핸드오프 RULES §1 · §3). */
+            <EmptyState
+              layout="region"
+              title="검색 결과가 없습니다"
+              help="조건에 맞는 게시글이 없습니다. 검색어를 지우거나 카테고리를 ‘전체’로 되돌려 보세요."
+              action={<Button size="sm" onClick={clearFilters}>검색, 카테고리 지우기</Button>}
+            />
+          ) : (
+            /* 🔴 여기에 «글쓰기» 를 다시 두지 않는다 (S19) — 상단 행동과 같은 일이다.
+               `copy.emptyHelp` 가 그 버튼을 이름으로 가리킨다. 조건 때문에 0건인 위쪽
+               갈래는 다르다: «조건 지우기» 는 상단에 없는 **다른 행동**이라 CTA 를 갖는다. */
+            <EmptyState
+              layout="region"
+              art="board"
+              title={copy.empty}
+              help={copy.emptyHelp}
+            />
+          )}
+          ellipsis
+          sort={{ key: boardSortKey, dir: "desc" }}
+          onSort={onBoardSort}
+          /* 어디서 왔는지를 남긴다 — 상세의 「목록」이 그 목록의 **그 상태**로
+             돌아가는 근거다(`lib/listReturn.js`). 두 게시판이 상세를 공유하므로
+             이 값이 없으면 제안 글에서 자유게시판으로 떨어진다. */
+          onRow={(p) => nav(copy.route + p.id, { state: { from: isIdea ? "/ideas" : "/board" } })}
+          /* 서버가 자른 목록에는 더 받을 길이 있어야 한다 — 없으면 건수의 대부분이 열 수 없는 숫자가 된다. */
+          list={{
+            total: list.total, loaded: list.loaded,
+            hasNext: list.hasNext, isFetchingNext: list.isFetchingNext, onMore: list.fetchNext,
+            moreLabel: "글 더 보기",
+          }}
+        />
       )}
 
       <PostFormModal

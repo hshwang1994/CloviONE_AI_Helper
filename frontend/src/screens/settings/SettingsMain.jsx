@@ -5,7 +5,7 @@ import Typography from "@mui/material/Typography";
 import { api } from "../../lib/api.js";
 import { useAuth } from "../../app/auth.jsx";
 import { useQueryState } from "../../lib/useQueryState.js";
-import { ListCard, Badge, Button, DataTable, EmptyState, ErrorState, Tag, useToast } from "../../ui/kit.jsx";
+import { Badge, Button, DataTable, DotLabel, EmptyState, ErrorState, RowActions, useToast } from "../../ui/kit.jsx";
 import { FilterBar, FilterToggle } from "../../ui/FilterBar.jsx";
 import {
   SETTING_LABELS, settingLabel, WRITE_ROLES, MAINTENANCE_KEYS, DEDICATED_SCREEN_KEYS,
@@ -105,8 +105,10 @@ export function Settings({ embedded = false } = {}) {
    * 줄어 11행 중 8행이 잘렸다(예: "계정 추가 허용 도메인" 141px 필요) — identifier:true로
    * 최소 폭만 준다(minWidth는 바닥값이지 다른 열처럼 고정 width가 아니라서 위 함정을
    * 다시 밟지 않는다 — '설명'은 여전히 자유롭게 auto 레이아웃 대로 남는 공간을 가져간다). */
+  /* 「항목명」은 이 표의 제목 열이다 — 제목 열만 왼쪽이고 나머지는 가운데다(핸드오프 RULES §5 · 조합 계약 C-3). 바닥 폭
+     10rem 은 그대로다(PA-RC-0037). */
   const columns = [
-    { key: "label", label: "항목명", identifier: true, minWidth: "10rem" },
+    { key: "label", label: "항목명", type: "title", minWidth: "10rem" },
     // PA-RC-0022: 백엔드 키는 기본 숨김이다 — showKey가 꺼져 있으면 이 열 자체를 안 만든다
     // (렌더는 하고 CSS로 숨기지 않는다, 스크린리더가 안 쓰는 열까지 훑지 않게).
     ...(showKey ? [{ key: "key", label: "키", render: (r) => <Typography component="span" variant="caption" color="text.secondary">{r.key}</Typography> }] : []),
@@ -122,7 +124,8 @@ export function Settings({ embedded = false } = {}) {
     { key: "is_default", label: "적용 상태", type: "status", nowrap: true, render: (r) => (
       <Box sx={{ display: "flex", gap: 0.75, alignItems: "center", flexWrap: "wrap" }}>
         {r.is_default ? null : <Badge value="수정됨" kind="info" />}
-        {r.restart_required ? <Tag label="재시작 필요" tone="warn" /> : null}
+        {/* 표 안 표지는 면 없는 점 + 낱말이다(핸드오프 RULES §2 · ACCEPTANCE F7). */}
+        {r.restart_required ? <DotLabel label="재시작 필요" tone="warn" /> : null}
       </Box>
     ) },
     // VIS-55: 백엔드 description이 라벨과 같은 말로 시작하는 항목이 여럿이다(예: "대화 보존
@@ -145,7 +148,8 @@ export function Settings({ embedded = false } = {}) {
      * (프런트 표시일 뿐 판단은 서버가 한다 — 불변규칙 §5). */
     { key: "_edit", label: "", type: "actions", render: (r) => (
       canWrite
-        ? <Button size="sm" onClick={(e) => { e.stopPropagation(); setSel(r); }}>수정</Button>
+        /* 행 동작은 `RowActions` 다(30 보조, 조합 계약 C-4). 표는 단추에서 시작한 클릭을 행 열기로 번지게 하지 않는다. */
+        ? <RowActions actions={[{ key: "edit", label: "수정", onClick: () => setSel(r) }]} />
         : <Typography component="span" variant="caption" color="text.secondary">읽기 전용</Typography>
     ) },
   ];
@@ -157,13 +161,13 @@ export function Settings({ embedded = false } = {}) {
      두 번 붙는다. */
   return (
     <>
-      {q.isLoading ? <ListCard>{/* 표가 들어올 자리에는 표 모양을 그린다 (지시 20) - 빈 목록과 아직 안 온 목록은 다른 사실이다. */}<DataTable columns={columns} rows={[]} loading /></ListCard>
+      {q.isLoading ? <DataTable placement="surface" columns={columns} rows={[]} loading />
         : q.isError ? <ErrorState layout="region" error={q.error} onRetry={() => q.refetch()} />
         /* effective_settings()는 항상 REGISTRY의 모든 키를 반환하므로 정상 경로에선 도달하지 않는다.
            응답이 비정상(빈 형태)일 때를 위한 방어적 폴백으로만 남긴다. */
         /* effective_settings()가 항상 전 키를 돌려주므로 이 빈 상태는 비정상 응답에서만 뜬다 -
            막다른 안내 대신 원인(비어 있음)과 다시 불러오기 경로를 준다(오류에 가깝게 취급). */
-        : rows.length === 0 ? <EmptyState title="설정을 표시할 수 없습니다" help="설정을 불러왔지만 항목이 비어 있습니다. 일시적인 문제일 수 있습니다." action={<Button onClick={() => q.refetch()}>다시 불러오기</Button>} />
+        : rows.length === 0 ? <EmptyState title="설정을 표시할 수 없습니다" help="설정을 불러왔지만 항목이 비어 있습니다. 일시적인 문제일 수 있습니다." action={<Button size="sm" onClick={() => q.refetch()}>다시 불러오기</Button>} />
         : <>
             {/* 기술 정보 토글 (지시 36). 원시 설정 키는 운영·장애 분석에 필요한 값이지만
                 일반 사용자 언어가 아니다 — 기본은 숨기고 필요할 때 꺼내 본다. */}
@@ -172,9 +176,8 @@ export function Settings({ embedded = false } = {}) {
             <FilterBar
               end={<FilterToggle pressed={showKey} onClick={() => setShowKey(!showKey)}>기술 정보(설정 키) 보기</FilterToggle>}
             />
-            {/* 목록을 담는 판은 `ListCard` 다(다른 목록 화면과 같은 판 — 열 이름 고정이 판 안에
-                갇히지 않는다). */}
-            <ListCard sx={{ mb: 2.5 }}><DataTable columns={columns} rows={rows} rowKey={(r) => r.key} onRow={setSel} /></ListCard>
+            {/* 목록 판 — 다른 목록 화면과 같은 판이다(판이 곧 표 상자 · 발은 판 안, 조합 계약 C-3). */}
+            <DataTable placement="surface" columns={columns} rows={rows} rowKey={(r) => r.key} onRow={setSel} />
           </>}
       <SettingEditor setting={sel} canWrite={canWrite} onClose={() => setSel(null)}
         onSaved={(res) => {

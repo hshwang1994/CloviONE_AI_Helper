@@ -6,7 +6,6 @@ import { GroupedTickets, TicketEditModal, ticketColumns, ticketConnState, useInl
 import { useTicketSignals } from "../lib/ticketSignals.js";
 import { groupByAssignee } from "./TeamTickets.jsx";
 import { TICKET_AUTO_MAX_ROWS, useTicketList } from "./ticket-options.js";
-import { ListFooter } from "../ui/InfiniteScroll.jsx";
 
 /* 프로젝트에 걸린 티켓 — **기존 팀 티켓 목록을 그대로 재사용**한다.
  *
@@ -93,25 +92,24 @@ function ProjectTicketList({ pageId }) {
     {/* 「완료, 취소 포함」은 보기 방식이라 필터 바 오른쪽 끝 묶음이다(조합 계약 C-1). 건수는 목록 끝 줄이 말한다 —
         목록 위 단독 결과 줄을 두지 않는다. */}
     <FilterBar end={activeToggle} />
-    <Card>
-      <GroupedTickets
-        rows={rows} columns={cols} groupBy={groupByAssignee}
-        emptyState={
-          <EmptyState
-            art="tickets"
-            title="이 프로젝트에 걸린 티켓이 없습니다"
-            help="티켓을 만들 때 이 프로젝트를 고르면 여기에 모입니다."
-          />
-        }
-      />
-      <ListFooter
-        total={q.total} loaded={q.loaded}
-        hasNext={q.hasNext} isFetchingNext={q.isFetchingNext} onMore={q.fetchNext}
-        moreLabel="티켓 더 보기"
-        autoMaxRows={TICKET_AUTO_MAX_ROWS}
-      />
-      <TicketEditModal ticket={editing} open={!!editing} onClose={() => setEditing(null)} />
-    </Card>
+    <GroupedTickets
+      placement="surface"
+      rows={rows} columns={cols} groupBy={groupByAssignee}
+      emptyState={
+        <EmptyState
+          art="tickets"
+          title="이 프로젝트에 걸린 티켓이 없습니다"
+          help="티켓을 만들 때 이 프로젝트를 고르면 여기에 모입니다."
+        />
+      }
+      list={{
+        total: q.total, loaded: q.loaded,
+        hasNext: q.hasNext, isFetchingNext: q.isFetchingNext, onMore: q.fetchNext,
+        moreLabel: "티켓 더 보기",
+        autoMaxRows: TICKET_AUTO_MAX_ROWS,
+      }}
+    />
+    <TicketEditModal ticket={editing} open={!!editing} onClose={() => setEditing(null)} />
     </>
   );
 }

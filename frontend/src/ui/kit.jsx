@@ -14,7 +14,6 @@ import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
-import TableFooter from "@mui/material/TableFooter";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import useMediaQuery from "@mui/material/useMediaQuery";
@@ -39,6 +38,7 @@ import CheckCircleOutlineRoundedIcon from "@mui/icons-material/CheckCircleOutlin
 import WarningAmberRoundedIcon from "@mui/icons-material/WarningAmberRounded";
 import ErrorOutlineRoundedIcon from "@mui/icons-material/ErrorOutlineRounded";
 import Collapse from "@mui/material/Collapse";
+import GlobalStyles from "@mui/material/GlobalStyles";
 import { ART } from "../lib/assets.js";
 import { MASCOT_PLACE, mascotBoxSx } from "./Mascot.jsx";
 import { maxLengthFor } from "../lib/fieldLimits.js";
@@ -51,6 +51,7 @@ import { EntityCombobox } from "./filters.jsx";
 import { TableHeaderCell } from "./TableHeaderCell.jsx";
 import { DateField } from "./DateField.jsx";
 import { VirtualTableBody, WindowVirtualTableBody, useScrollMargin } from "./VirtualRows.jsx";
+import { useListFooter } from "./listFooter.js";
 import { SESSION_EXPIRED_ERROR, expireSession, isSessionExpired, loginUrl, subscribeSessionExpired } from "../lib/sessionRedirect.js";
 
 /* ClovirONE 공통 UI 키트 — 카드/배지/버튼/상태/빈 화면/스켈레톤을 한 규칙으로 그린다.
@@ -320,8 +321,11 @@ export function StatusDot({ accent }) {
  *
  * `tone` 은 키트 톤(`ok` · `danger` · `warn` · `info` · `neutral` · 분류 톤)이다. 위험(`danger`)은
  * 필요하면 `strong` 으로 낱말을 600 으로 세운다 — 배지로 키우지 않는다.
- * 긴 낱말은 한 줄에서 말줄임되고 전체는 `title` 이 든다. */
-export function DotLabel({ label, tone = "neutral", strong = false, title, sx, ...rest }) {
+ * 긴 낱말은 한 줄에서 말줄임되고 전체는 `title` 이 든다.
+ *
+ * `size="caption"` — 목록 행 · 칸반 카드 안의 작은 글자(0.8125rem) 자리. 예전에는 화면마다 `sx` 로 글자 크기를
+ * 덮어썼다(채팅 방 목록 · 대화 속 티켓 카드). 크기는 부품이 갖고 화면은 이름만 고른다. */
+export function DotLabel({ label, tone = "neutral", strong = false, size, title, sx, ...rest }) {
   const accent = tone === "neutral" ? "text.faint" : (TONE_ACCENT[tone] || tone);
   return (
     <Box
@@ -334,6 +338,7 @@ export function DotLabel({ label, tone = "neutral", strong = false, title, sx, .
         display: "inline-flex", alignItems: "center", gap: 0.75, minWidth: 0, maxWidth: "100%",
         whiteSpace: "nowrap", verticalAlign: "middle",
         fontWeight: strong ? FONT_WEIGHT.semibold : "inherit",
+        ...(size === "caption" ? { fontSize: FONT_SIZE.caption } : null),
         ...sx,
       }}
     >
@@ -894,11 +899,12 @@ export function Card({ className, children, sx, ...rest }) {
  * 이유는 속성만 재는 검사에는 `position: sticky` 가 그대로 보이기 때문이다(D-347 이 같은
  * 부류를 «속성은 sticky 인데 굴리면 열 이름이 사라진다» 로 이미 한 번 적었다).
  *
- * 가로 넘침은 이 판이 아니라 표 안의 `TableContainer` 가 맡는다(`DataTable` 참고). 그리고
- * `.c-list-card` 의 안쪽 여백(6px 8px)이 있어 둥근 모서리에 표가 닿지도 않는다 — 즉 자를
- * 이유가 애초에 없었다.
+ * 가로 넘침은 이 판이 아니라 표 안의 `TableContainer` 가 맡는다(`DataTable` 참고). 예전 주석은 「`.c-list-card` 의
+ * 안쪽 여백(6px 8px)이 있어 둥근 모서리에 표가 닿지 않는다」고 했는데, 그 CSS 는 `Card` 의 sx 여백(20)에 늘 져서
+ * 한 번도 그려지지 않았다 — 규칙은 걷었다(UI 3차 P3).
  *
- * 지역 규칙이 화면마다 흩어지지 않게 이름을 하나 준다. 목록을 담는 판은 전부 이것을 쓴다. */
+ * **표를 담는 목록은 이 판을 쓰지 않는다** — `DataTable placement="surface"` 가 판을 그린다(조합 계약 C-3). 이 판이
+ * 남는 자리는 표가 아닌 목록(내 활동의 날짜 묶음처럼 판 안에 고정 머리를 두는 목록)이다. */
 export function ListCard({ className, children, sx, ...rest }) {
   const merged = typeof sx === "function"
     ? (theme) => ({ overflow: "visible", ...sx(theme) })
@@ -1481,7 +1487,9 @@ export function ListEmptyState({
       title={filteredTitle || "조건에 맞는 항목이 없습니다"}
       /* 「없다」로 끝내지 않는다 — 무엇을 하면 되는지까지가 빈 상태다(지시 18). */
       help={filteredHelp || "지금 걸린 조건에 맞는 항목이 없습니다. 조건을 지우면 전체를 볼 수 있습니다."}
-      action={onClear ? <Button variant="primary" onClick={onClear}>{clearLabel}</Button> : null}
+      /* 조건 0건의 지우기는 **30 보조 단추**다(RULES §1 「30px 조건 지우기」 · 조합 계약 C-4). 채움이었을 때 문서 ·
+         프로젝트 · DataScreen 은 머리의 「새 문서」 같은 채움과 한 화면에 채움 둘을 세웠다. */
+      action={onClear ? <Button size="sm" onClick={onClear}>{clearLabel}</Button> : null}
     />
   );
 }
@@ -2112,11 +2120,18 @@ export function useFittedColumns(columns, boxEl) {
  * 행이 안 열리는 표(`onRow` 를 안 주는 화면 — 휴지통이 그렇다)에서 사용자는 열 방법을
  * 찾다가 못 찾는다. 안내가 없는 것보다 **없는 길을 가리키는 안내**가 더 나쁘다.
  * 열 수 없으면 그 자리에는 창을 넓히라고 말한다 — 그것이 그 표에서 실제로 되는 일이다. */
-export function HiddenColumnsNote({ columns, openable = false }) {
+export function HiddenColumnsNote({ columns, openable = false, inline = false }) {
   const names = (columns || []).map((c) => c.label).filter(Boolean);
   if (!names.length) return null;
+  /* `inline` — 목록 판 발 안에서 건수 문장 옆에 한 토막으로 선다(조합 계약 C-3). 판 없는 표(모달 · 서랍)는
+     예전처럼 표 위 한 줄이다. */
   return (
-    <Typography variant="caption" color="text.secondary" sx={{ display: "block", px: 2, pt: 1.5 }}>
+    <Typography
+      variant="caption"
+      color="text.secondary"
+      data-hidden-columns={inline ? "" : undefined}
+      sx={inline ? { display: "inline" } : { display: "block", px: 2, pt: 1.5 }}
+    >
       칸이 좁아 {names.join(", ")} 열을 숨겼습니다.{" "}
       {openable ? "행을 열면 전체 정보를 볼 수 있습니다." : "창을 넓히면 다시 보입니다."}
     </Typography>
@@ -2320,41 +2335,210 @@ function GroupHeaderMeta({ group }) {
   );
 }
 
-/* 발 줄 — 왼쪽은 「몇 건 중 몇 건을 받았나」, 오른쪽은 지금 고른 것에 할 수 있는 일.
+/* ── 선택 묶음 — 「N개 선택」 · 일괄 동작 · 「해제」 (핸드오프 README §4 · RULES §5 · 조합 계약 C-3) ─────────
  *
- * 이 문장을 표가 직접 만든다. 예전에는 화면마다 목록 아래에 자기 문장을 따로 뒀고, 그래서
- * 같은 뜻을 「50건 표시 중」·「총 520건」·아무 말 없음 세 가지로 말했다. 표는 자기가 몇 행을
- * 그렸는지와 `total` 을 이미 알고 있으므로 그 둘을 아는 자리가 문장도 갖는다.
- * `total` 을 모르면 왼쪽을 비운다 — 모르는 숫자를 지어내지 않는다. */
-function TableFooterRow({ note, actions, shown, total, colSpan }) {
-  const text = note !== undefined
-    ? note
-    : (total != null ? `${total}건 중 ${shown}건을 받았습니다.` : null);
+ * 목록 판 발의 오른쪽 칸이다. 예전에는 같은 묶음(`bulkSelect.jsx::BulkActions`)이 `PageHeader` 의 동작 자리에
+ * 나타났다 사라졌고(내 티켓 · 미할당 · 휴지통), 사용자 화면은 목록 위에 따로 막대를 세웠다. 고른 행과 그 행에 할
+ * 일이 화면 맨 위와 표 끝으로 갈라져, 긴 목록을 내려가며 고르면 동작이 화면 밖에 있었다.
+ *
+ * 역할은 `toolbar` 다(SEM-02) — 제목 계층이 아니라 상태에 따라 나타나는 컨트롤 묶음이라 스크린리더가 「일괄 작업」
+ * 으로 식별하고 건너뛸 수 있게 한다. 선택이 없으면 아무것도 그리지 않는다(발의 오른쪽은 비운다). 일괄 동작은 30 이고
+ * 채움이 필요하면 이 묶음 **안에서만** 하나다(`data-list-selection` — 화면 채움 수에 안 센다). */
+export function SelectionBar({ count, unit = "개", clearLabel = "해제", onClear, children, sx }) {
+  if (!count) return null;
   return (
-    <TableRow>
-      <TableCell
-        colSpan={colSpan}
-        sx={{
-          height: remPx(CONTROL.tableFooter),
-          py: 0,
-          borderTop: (t) => `1px solid ${t.palette.divider}`,
-          borderBottom: 0,
-          background: "background.inset",
-        }}
-      >
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, minWidth: 0 }}>
-          {text != null ? (
-            <Box component="span" sx={{ fontSize: FONT_SIZE.caption, color: "text.secondary", ...NUMERIC }}>{text}</Box>
-          ) : null}
-          <Box sx={{ flex: 1 }} />
-          {actions}
-        </Box>
-      </TableCell>
-    </TableRow>
+    <Box
+      data-list-selection=""
+      role="toolbar"
+      aria-label="일괄 작업"
+      sx={{ display: "inline-flex", alignItems: "center", flexWrap: "wrap", gap: 1, minWidth: 0, ...sx }}
+    >
+      {/* 단위는 목록이 센다 — 사람 목록은 「명」이다. 문구는 화면이 원래 쓰던 낱말 그대로다. */}
+      <Typography component="span" variant="caption" color="text.secondary" sx={{ ...NUMERIC, whiteSpace: "nowrap" }}>
+        {`${count}${unit} 선택`}
+      </Typography>
+      {children}
+      {onClear ? <Button size="sm" variant="ghost" onClick={onClear}>{clearLabel}</Button> : null}
+    </Box>
   );
 }
 
-export function DataTable({ columns, rows, rowKey, onRow, rowHref, rowSelected, groupOf, groupCollapsible, footer, empty, emptyState, ellipsis, stickyHeader, loading, sort, onSort, resultScope, filters, filterValueOf, onFilter, filterOptions, entityOptions, virtualize, total, rowHeight }) {
+/* 목록 판 안쪽 모서리 — 판 테두리(1px) 안에서 머리 · 발 칸이 둥근 모서리를 든다. 판이 `overflow: visible` 이라
+   (sticky 머리 · 발이 서려면 그래야 한다) 판이 모서리를 잘라 주지 않는다. */
+const LIST_INNER_RADIUS = `${RADIUS.md - 1}px`;
+
+/* ── 목록 판 발 — 판 안 마지막 줄 (핸드오프 README §4 「발 줄 44px」 · RULES §5 · 조합 계약 C-3) ──────────────
+ *
+ * 왼쪽은 이 목록에 대해 **말하는 것**: 받은 건수 문장 · 숨긴 열 안내 · 뺀 열 안내 · 화면이 덧붙이는 한 줄.
+ * 오른쪽은 **누르는 것**: 선택 묶음 · 「더 보기」(30 보조).
+ *
+ * 예전에는 받은 건수와 「더 보기」가 표 **밖** 가운데 상자(`ListFooter`)였고, 숨긴 열 안내는 표 **위**, 일괄 동작은
+ * 화면 머리였다 — 한 목록의 끝을 말하는 것 넷이 세 자리에 흩어져 있었다. 이제 한 줄이다.
+ *
+ * `sticky` — 목록 판(surface)에서는 긴 목록을 내려가도 발이 화면 아래에 따라온다(`bottom: 0`). 그래서 이 줄 안에
+ * 무한 스크롤 센티널을 두지 않는다 — 센티널은 표 끝 흐름에 선다(`listFooter.js` 머리 주석). */
+function ListFootBar({ sentence, notes, selection, hasNext, isFetchingNext, onMore, moreLabel = "더 보기", sticky = false, rounded = false }) {
+  return (
+    <>
+    {/* 🔴 따라오는 발은 키보드 초점을 가리면 안 된다(WCAG 2.4.11). Tab 으로 아래 행에 닿으면 브라우저는 그 행을 화면 아래
+        끝에 붙여 보여 주는데, 거기에 발이 앉아 있다. 발이 서 있는 동안만 문서의 스크롤 여백 아래를 발 높이 + 8 만큼 비워
+        초점이 발 위에 서게 한다. 발이 걷히면 규칙도 걷힌다. */}
+    {sticky ? (
+      <GlobalStyles styles={(theme) => ({ html: { scrollPaddingBottom: `calc(${remPx(CONTROL.tableFooter)} + ${theme.spacing(1)})` } })} />
+    ) : null}
+    <Box
+      data-list-footer=""
+      data-list-footer-sticky={sticky ? "" : undefined}
+      sx={{
+        display: "flex", alignItems: "center", flexWrap: "wrap", columnGap: 1.5, rowGap: 0.5,
+        minHeight: remPx(CONTROL.tableFooter), boxSizing: "border-box", px: 2, py: 0.75,
+        borderTop: 1, borderColor: "divider", bgcolor: "background.plate",
+        ...(sticky ? { position: "sticky", bottom: 0, zIndex: 2 } : null),
+        ...(rounded ? { borderBottomLeftRadius: LIST_INNER_RADIUS, borderBottomRightRadius: LIST_INNER_RADIUS } : null),
+      }}
+    >
+      <Box sx={{ display: "flex", alignItems: "center", flexWrap: "wrap", columnGap: 1.5, rowGap: 0.25, minWidth: 0, flex: "1 1 auto" }}>
+        {/* 묶음이 붙을 때마다 이 숫자가 다시 낭독된다. **포커스는 안 옮긴다** — 굴리던 자리를 화면이 빼앗지 않는다. */}
+        {sentence ? (
+          <Typography component="span" variant="caption" color="text.secondary" aria-live="polite" sx={NUMERIC}>
+            {sentence}
+          </Typography>
+        ) : null}
+        {notes}
+      </Box>
+      {selection}
+      {hasNext ? <Button size="sm" loading={isFetchingNext} onClick={onMore}>{moreLabel}</Button> : null}
+    </Box>
+    </>
+  );
+}
+
+/* ── 제목 칸 — 행을 여는 이름 (핸드오프 RULES §5 · 조합 계약 C-3) ────────────────────────────────────────
+ *
+ * 링크색(`primary.dark`) 600 한 줄, 넘치면 말줄임 + `title`. 예전에는 티켓 표만 이 모양이었고(`MyTickets.jsx` 의 지역
+ * 부품), 게시판 · 휴지통 · 프로젝트 표의 제목은 잉크 글자라 **어느 것을 눌러야 열리는지** 표마다 달랐다.
+ *
+ *   onOpen  주면 진짜 단추(`Link component="button"`)다. 행 전체 클릭이 없는 표에서 여는 길이다
+ *   href    주면 진짜 링크(`<a>`)다 — 새 탭으로 여는 자리(휴지통의 문서: 고른 줄과 일괄 선택을 들고 있는 표라 같은 탭에서
+ *           나갔다 오면 선택이 사라진다). `target` · `rel` 을 함께 받는다
+ *   link    `onOpen` · `href` 없이 링크색만 — 표가 행에 `<a href>` 를 이미 걸어 둔 자리(`DataTable rowHref`)
+ *   셋 다 없으면 잉크 600 이다 — 열리지 않는 이름을 링크처럼 칠하지 않는다.
+ *
+ * QAH-03: 색을 `primary.main` 으로 주면 `MuiLink` 의 대비 보강(`primary.dark`)을 inline sx 가 덮어 다크 면에서 AA 에
+ * 못 미쳤다. 값은 대비가 검증된 별칭이다. */
+export function TitleCell({ title, fallback = "제목 없음", onOpen, href, target, rel, link = false, children, sx }) {
+  const text = title || fallback;
+  const base = {
+    fontWeight: FONT_WEIGHT.semibold, textAlign: "left", display: "block", maxWidth: "100%",
+    overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+  };
+  if (href) {
+    return (
+      <Link href={href} target={target} rel={rel} underline="hover" data-title-cell="anchor" title={text} sx={{ ...base, color: "primary.dark", ...sx }}>
+        {children || text}
+      </Link>
+    );
+  }
+  if (onOpen) {
+    return (
+      <Link
+        component="button"
+        type="button"
+        underline="hover"
+        data-title-cell="button"
+        onClick={onOpen}
+        title={text}
+        sx={{ font: "inherit", ...base, color: "primary.dark", ...sx }}
+      >
+        {children || text}
+      </Link>
+    );
+  }
+  return (
+    <Box component="span" data-title-cell={link ? "link" : "text"} title={text} sx={{ ...base, ...(link ? { color: "primary.dark" } : null), ...sx }}>
+      {children || text}
+    </Box>
+  );
+}
+
+/* ── 행 동작 — 표 행 안의 단추 묶음 (핸드오프 RULES §5 「행 안 동작은 30px, 둘을 넘으면 더 보기 하나」 · 조합 계약 C-4) ──
+ *
+ * `actions`: `[{ key, label, onClick, variant: "default" | "danger", disabled, loading, ariaLabel, icon }]`
+ *
+ * - 둘 이하면 30 단추로 선다. **채움은 없다** — 「나에게 배정」「복원」「승인」이 행마다 채움이었을 때 목록 한 화면에
+ *   채움이 스무 개 섰고, 화면의 할 일(머리의 채움 하나)이 어디인지 사라졌다. `variant` 는 보조(default)와 파괴(danger)
+ *   둘뿐이고, 다른 값은 보조로 선다.
+ * - 셋 이상이면 「더 보기」(`OverflowMenu size="sm"`) 하나로 접는다. 파괴 항목은 메뉴 안에서 실선으로 갈린다.
+ * - `icon` 을 준 항목은 30 아이콘 단추다(좁은 열 — 홈의 핵심 열 표). 이름은 `ariaLabel` 이 든다.
+ *
+ * `data-row-actions` 는 실브라우저 조합 검사(`row_actions`)가 행 동작을 찾는 표식이다. */
+export function RowActions({ actions, ariaLabel = "행 작업 더 보기", max = 2 }) {
+  const list = (actions || []).filter(Boolean);
+  if (!list.length) return null;
+  const wrap = { display: "inline-flex", alignItems: "center", gap: 1, flexWrap: "nowrap", verticalAlign: "middle" };
+  if (list.length > max) {
+    return (
+      <Box data-row-actions="" sx={wrap}>
+        <OverflowMenu
+          size="sm"
+          ariaLabel={ariaLabel}
+          items={list.map((a, i) => ({
+            key: a.key || a.label || i, label: a.label, onClick: a.onClick, disabled: a.disabled,
+            tone: a.variant === "danger" ? "danger" : undefined,
+          }))}
+        />
+      </Box>
+    );
+  }
+  return (
+    <Box data-row-actions="" sx={wrap}>
+      {list.map((a, i) => (a.icon ? (
+        <IconButton
+          key={a.key || a.label || i}
+          size="small"
+          aria-label={a.ariaLabel || a.label}
+          disabled={a.disabled}
+          onClick={a.onClick}
+        >
+          {a.icon}
+        </IconButton>
+      ) : (
+        <Button
+          key={a.key || a.label || i}
+          size="sm"
+          variant={a.variant === "danger" ? "danger" : "default"}
+          disabled={a.disabled}
+          loading={a.loading}
+          aria-label={a.ariaLabel}
+          onClick={a.onClick}
+        >
+          {a.label}
+        </Button>
+      )))}
+    </Box>
+  );
+}
+
+/* ── 표의 자리 — `placement` (UI 3차 · 조합 계약 C-3) ────────────────────────────────────────────────
+ *
+ *   surface  목록 화면의 주 목록. **판 = 표 상자**다 — 판 여백 0, 머리 40 이 판 윗변 · 좌우 가장자리에 붙고, 발(최소 44)이
+ *            판 안 마지막 줄이며 긴 목록에서 화면 아래에 따라온다(sticky). 빈 상태 · 불러오는 중은 판 안 여백 20 이다.
+ *   card     제목 있는 판(`Card`) 안의 보조 표. 머리 · 발이 판 여백을 거슬러 판 가장자리까지 편다(`ActionFooter card` 와
+ *            같은 규칙). 발은 따라오지 않는다.
+ *   plain    (기본) 모달 · 서랍 · 보호 화면(홈 · 내 업무량)의 표. 예전 모양 그대로다 — 판을 그리지 않는다.
+ *
+ * 예전에는 표에 판 계약이 없었다. 주 목록 스무 곳이 `Card`(여백 20)/`ListCard` 로 감싸 머리 줄이 판 가장자리에서
+ * 떨어졌고, 받은 건수와 「더 보기」는 판 밖 가운데, 숨긴 열 안내는 표 위, 일괄 동작은 화면 머리에 섰다. 부품은 전부
+ * 정본인데 조합이 화면마다 달랐다. 이제 표가 자기 자리를 안다.
+ *
+ * 발에 들어가는 것:
+ *   list       `{ total, loaded, hasNext, isFetchingNext, onMore, moreLabel, unit, autoMaxRows, root }` — 쪽을 나눠 받는
+ *              목록. 받은 건수 문장 · 「더 보기」 · 자동 로딩(센티널은 표 끝 흐름). 판이 있는 표에서 안 주면 받은 행
+ *              수로 같은 문장을 쓴다(두 줄 미만이면 안 그린다).
+ *   selection  `{ count, onClear, actions }` — 고른 행에 할 일(`SelectionBar`).
+ *   note       발 왼쪽에 덧붙는 한 토막(프로젝트 문서의 「총 N건 가운데 …」 같은 결과 문장).
+ * 발에 그릴 것이 하나도 없으면 발 줄 자체를 안 그린다. */
+export function DataTable({ columns, rows, rowKey, onRow, rowHref, rowSelected, groupOf, groupCollapsible, empty, emptyState, ellipsis, stickyHeader, loading, sort, onSort, resultScope, filters, filterValueOf, onFilter, filterOptions, entityOptions, virtualize, total, rowHeight, placement = "plain", list, selection, note }) {
   // §15.1 재검수 — `VirtualTableBody` 는 스크롤 창을 스스로 안 만든다(문서 전체가 표
   // 흐름을 지키게, `VirtualRows`와 다른 이유는 그 부품 docblock 참고). 이 상자가 그 창
   // 이다 — `virtualize` 를 안 쓰면 아무도 안 읽는다(회귀 0).
@@ -2466,18 +2650,105 @@ export function DataTable({ columns, rows, rowKey, onRow, rowHref, rowSelected, 
   // 값 자체는 행을 열면(onRow) 상세에서 그대로 보인다 — 여기서는 "더 있다"는 사실만 알린다.
   const hiddenCols = fit.hidden;
 
+  /* 판이 있는 표(surface · card)는 발이 표의 일부다. 쪽을 나누는 목록은 `list` 가, 전량 목록은 받은 행 수가 건수를
+     말한다. 판 없는 표(plain)는 `list` 를 줄 때만 발을 그린다 — 모달 · 서랍 · 보호 화면의 표가 조용히 바뀌지 않게. */
+  const framed = placement === "surface" || placement === "card";
+  /* 결과 문장을 스스로 가진 목록(프로젝트 문서의 「총 N건 가운데 …」 · 오프보딩 대상의 「N명 중 M명을 보여 줍니다」)은
+     `note` 가 발 문장이다 — 쪽을 나누지 않는 목록에 받은 행 수 문장을 한 번 더 세우지 않는다. */
+  /* `list={false}` — 서버가 앞 몇 건만 잘라 주는 미리보기 목록(대시보드 「최근 주요 변경」 · 「전체 보기」로 넘기는 판)은
+     건수를 말하지 않는다. 「5건 중 5건」은 그 목록에서 사실이 아니다. */
+  const footSpec = list === false ? null : (list
+    || (framed && !note ? { total: total != null ? total : safeRows.length, loaded: safeRows.length } : null));
+  const foot = useListFooter(footSpec || { enabled: false });
+  const selectionBar = selection && selection.count
+    ? (
+      <SelectionBar count={selection.count} unit={selection.unit} clearLabel={selection.clearLabel} onClear={selection.onClear}>
+        {selection.actions}
+      </SelectionBar>
+    )
+    : null;
+  const footNotes = [];
+  if (framed && hiddenCols.length) {
+    footNotes.push(<HiddenColumnsNote key="hidden" inline columns={hiddenCols} openable={!!onRow || !!rowHref} />);
+  }
+  if (framed && collapse.caption) {
+    footNotes.push(
+      <Typography key="collapsed" component="span" variant="caption" color="text.secondary" data-collapsed-columns={dropped.join(",")}>
+        {collapse.caption}
+      </Typography>,
+    );
+  }
+  if (note) {
+    footNotes.push(
+      <Typography key="note" component="span" variant="caption" color="text.secondary" data-list-note="">{note}</Typography>,
+    );
+  }
+  const hasFoot = !!(foot.sentence || footNotes.length || selectionBar || foot.hasNext);
+  const footBar = (sticky) => (hasFoot ? (
+    <ListFootBar
+      sentence={foot.sentence}
+      notes={footNotes}
+      selection={selectionBar}
+      hasNext={foot.hasNext}
+      isFetchingNext={foot.isFetchingNext}
+      onMore={foot.more}
+      moreLabel={list && list.moreLabel}
+      sticky={sticky}
+      rounded={placement === "surface"}
+    />
+  ) : null);
+  /* 자동 로딩 센티널 — 표 끝 **흐름**에 선다(발 안이 아니다, `listFooter.js` 머리 주석). 1px 을 위로 겹쳐 자리를 안
+     먹는다. 🔴 `height: 1` 이 아니라 `"1px"` 이다 — MUI sx 는 1 이하 숫자를 백분율로 옮긴다. */
+  const sentinel = foot.hasNext ? (
+    <Box ref={foot.sentinelRef} aria-hidden="true" data-list-sentinel="" sx={{ height: "1px", mt: "-1px", pointerEvents: "none" }} />
+  ) : null;
+  /* 판 — surface 는 표 상자 자체, card 는 판 여백을 거슬러 가장자리까지 편 띠. `state` 가 있으면(불러오는 중 · 빈 목록)
+     안에 표가 없으므로 판 여백 20 안에 선다. */
+  const frame = (children, state) => {
+    if (placement === "surface") {
+      return (
+        <Surface
+          tone="plate"
+          data-list-surface=""
+          data-table-placement="surface"
+          data-list-state={state}
+          sx={{ p: state ? CARD_PADDING : 0, overflow: "visible", minWidth: 0 }}
+        >
+          {children}
+        </Surface>
+      );
+    }
+    if (placement === "card") {
+      return (
+        <Box
+          data-table-placement="card"
+          data-list-state={state}
+          /* 좌우만 판 여백을 거스른다. 아래를 함께 거스르면(`:last-child` 음수 여백) 표를 감싼 상자 뒤에 오는 줄을 20px
+             끌어올려 겹친다 — 판 아래 여백은 판의 것으로 둔다. */
+          sx={state ? { minWidth: 0 } : { minWidth: 0, mx: `calc(-1 * ${CARD_PADDING})` }}
+        >
+          {children}
+        </Box>
+      );
+    }
+    return state ? children : <Box data-table-placement="plain" sx={{ minWidth: 0 }}>{children}</Box>;
+  };
+
   /* 로딩 모양을 표가 스스로 안다 (지시 20). 호출부가 각자 `<Skeleton lines={6} />` 을 두면
      열 수도 행 높이도 표와 다르고, 무엇보다 **빈 목록과 아직 안 온 목록이 같아 보인다** -
      "없다"와 "아직 모른다"는 다른 사실이다. */
-  if (loading) return <Skeleton kind="table" cols={wideCols.length || baseCols.length} />;
+  if (loading) return frame(<Skeleton kind="table" cols={wideCols.length || baseCols.length} />, "loading");
 
   if (safeRows.length === 0) {
     /* 「정말 없다」와 「필터 때문에 없다」는 다른 사실이고, 그 판정은 필터를 든 화면이
        안다 — `emptyState` 를 주면 그것을 그대로 그린다. 안 주면 예전의 한 줄이다. */
-    if (emptyState) return emptyState;
+    /* 이 묶음이 통째로 걸러져 비었는데 서버에 더 있으면 「더 보기」는 남긴다 — 키보드 · 스크린리더 사용자는 무한 스크롤에
+       닿을 수 없다. */
+    const emptyFoot = foot.hasNext ? <>{sentinel}{footBar(false)}</> : null;
+    if (emptyState) return frame(<>{emptyState}{emptyFoot}</>, "empty");
     /* 안 주면 **빈 상태 부품**이 선다 — 판 안의 빈 목록은 왼쪽 · 위 정렬(region)이다(핸드오프
        RULES §1 · ACCEPTANCE I1). 예전에는 가운데 정렬 회색 문장 한 줄을 표가 손으로 그렸다. */
-    return <EmptyState layout="region" size="compact" title={empty || "표시할 항목이 없습니다."} />;
+    return frame(<><EmptyState layout="region" size="compact" title={empty || "표시할 항목이 없습니다."} />{emptyFoot}</>, "empty");
   }
 
   /* 행을 묶음 순서로 훑어 «머리행이 설 자리»를 찾는다 — 표와 카드가 **같은 계산**을 본다.
@@ -2593,6 +2864,9 @@ export function DataTable({ columns, rows, rowKey, onRow, rowHref, rowSelected, 
           return <React.Fragment key={`clv-grouped:${opening.key}`}>{heading}{card}</React.Fragment>;
         })}
       </Stack>
+      {/* 카드 뷰에도 목록의 끝은 있다 — 받은 건수 · 「더 보기」 · 선택 묶음. 판이 없는 카드 목록이라 따라오지 않는다. */}
+      {sentinel}
+      {hasFoot ? <Box data-table-placement={placement} sx={{ mt: 1.5 }}>{footBar(false)}</Box> : null}
       </FlatBadgeSurface>
     );
   }
@@ -2709,10 +2983,12 @@ export function DataTable({ columns, rows, rowKey, onRow, rowHref, rowSelected, 
     /* 🔴 표 안에서는 배지가 면을 갖지 않는다 (확정 규약 §9). 규칙을 호출부 106곳의 기억에
        맡기지 않고 **그릇이 선언한다** — 새 열을 더하는 사람이 이 규칙을 몰라도 지켜진다. */
     <FlatBadgeSurface>
-      <HiddenColumnsNote columns={hiddenCols} openable={!!onRow || !!rowHref} />
+      {frame(<>
+      {/* 판이 있는 표는 이 두 안내를 발에 둔다(위 `footNotes`). 판 없는 표(모달 · 서랍)만 예전처럼 표 위 한 줄이다. */}
+      {framed ? null : <HiddenColumnsNote columns={hiddenCols} openable={!!onRow || !!rowHref} />}
       {/* 뺀 열은 **한 번 적는다** (R-91). 열이 조용히 사라지면 사용자는 그 값을 못 봤다는
           사실조차 모른다 — 무엇이 왜 없는지를 표가 직접 말한다. */}
-      {collapse.caption ? (
+      {!framed && collapse.caption ? (
         <Typography variant="caption" color="text.secondary" sx={{ display: "block", px: 2, pt: 1.5 }} data-collapsed-columns={dropped.join(",")}>
           {collapse.caption}
         </Typography>
@@ -2740,11 +3016,20 @@ export function DataTable({ columns, rows, rowKey, onRow, rowHref, rowSelected, 
           같은 선언을 쓴다. */}
       <TableContainer
         ref={setScrollEl}
-        sx={virtualBox
-          ? { maxHeight: virtualize.height || "32rem", overflowY: "auto", ...SCROLL_BOX_STICKY_TOP }
-          : ((stickyHeader || virtualWindow) && !xOverflow
-            ? { overflowX: "visible", overflowY: "visible" }
-            : SCROLL_BOX_STICKY_TOP)}
+        sx={{
+          ...(virtualBox
+            ? { maxHeight: virtualize.height || "32rem", overflowY: "auto", ...SCROLL_BOX_STICKY_TOP }
+            : ((stickyHeader || virtualWindow) && !xOverflow
+              ? { overflowX: "visible", overflowY: "visible" }
+              : SCROLL_BOX_STICKY_TOP)),
+          /* 목록 판 안쪽 모서리 — 굴러가는 상자는 자기 모서리로 머리 면 · 마지막 행 hover 면을 자른다. 넘김을 고른
+             갈래(sticky 머리)는 자르지 않으므로 아래 머리 칸 모서리가 같은 일을 한다. */
+          ...(placement === "surface" ? {
+            borderTopLeftRadius: LIST_INNER_RADIUS,
+            borderTopRightRadius: LIST_INNER_RADIUS,
+            ...(hasFoot ? null : { borderBottomLeftRadius: LIST_INNER_RADIUS, borderBottomRightRadius: LIST_INNER_RADIUS }),
+          } : null),
+        }}
       >
       {/* 표 리듬 (지시 10) — 세로 괘선이 없고, 행 사이는 실선 하나로만 나눈다. 마지막 행의
           아래 선은 지운다(판의 테두리와 겹쳐 두 줄로 보인다). 행 추적은 괘선이 아니라
@@ -2778,6 +3063,10 @@ export function DataTable({ columns, rows, rowKey, onRow, rowHref, rowSelected, 
             outline: `2px solid var(--clovir-focus-ring, ${t.palette.focusRing})`,
             outlineOffset: -2,
           }),
+          ...(placement === "surface" ? {
+            "& thead tr:first-of-type th:first-of-type": { borderTopLeftRadius: LIST_INNER_RADIUS },
+            "& thead tr:first-of-type th:last-of-type": { borderTopRightRadius: LIST_INNER_RADIUS },
+          } : null),
         }}
       >
         <TableColGroup columns={wideCols} />
@@ -2815,8 +3104,11 @@ export function DataTable({ columns, rows, rowKey, onRow, rowHref, rowSelected, 
                      그래서 MUI 가 붙이는 `top: 0` 은 «뷰포트 맨 위» 이고, 거기에는
                      `position: fixed` 인 AppBar 가 이미 앉아 있다 — 열 이름을 보려고 켠
                      sticky 가 열 이름을 가린다. 값은 리터럴이 아니라 셸과 같은 토큰이다
-                     (`theme.js::APPBAR_HEIGHT` · `stickyTopSx`). */
-                  ...(stickyHeader ? { bgcolor: "background.paper", ...stickyTopSx() } : null),
+                     (`theme.js::APPBAR_HEIGHT` · `stickyTopSx`).
+                     면은 **고정이어도 함몰면**이다(핸드오프 README §4 「머리 줄 배경 #F5F6FB」). 예전에는 굴러가는 행이
+                     비치지 않게 판 면(`background.paper`)으로 덮어, 고정 머리를 켠 표(사용자 · 감사 · 문서)만 머리가
+                     흰 줄로 섰다. 함몰면도 불투명 토큰이라 행이 비치지 않는다. */
+                  ...(stickyHeader ? { bgcolor: "background.inset", ...stickyTopSx() } : null),
                 }}
               />
             ))}
@@ -2845,19 +3137,12 @@ export function DataTable({ columns, rows, rowKey, onRow, rowHref, rowSelected, 
             />
           ) : renderBodyRows()}
         </TableBody>
-        {footer ? (
-          <TableFooter>
-            <TableFooterRow
-              note={footer === true ? undefined : footer.note}
-              actions={footer === true ? null : footer.actions}
-              shown={safeRows.length}
-              total={total}
-              colSpan={wideCols.length}
-            />
-          </TableFooter>
-        ) : null}
       </Table>
       </TableContainer>
+      {/* 발은 가로로 굴러가는 표 상자 **밖**, 판 안 마지막 줄이다 — 넓은 표를 가로로 굴려도 건수와 「더 보기」가 제자리다. */}
+      {sentinel}
+      {footBar(placement === "surface")}
+      </>)}
     </FlatBadgeSurface>
   );
 }

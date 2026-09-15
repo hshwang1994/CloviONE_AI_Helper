@@ -2,11 +2,9 @@
    툴바 판(.c-toolbar-card/.c-toolbar-row/.c-toolbar-toggle)과 키/값 줄(.c-kv*)은 걷었다 —
    탐색 줄은 `ui/FilterBar.jsx`, 키/값 줄은 `kit.jsx::DetailRow` 가 그린다(D-455 · D-457). */
 
-/* 다중선택 — 좁은 체크박스 열, 헤더에 두는 깔끔한 일괄 동작, 제목 링크 버튼 */
+/* 다중선택 — 좁은 체크박스 열. 일괄 동작 묶음(옛 .k-bulkactions)은 목록 판 발의 선택 묶음(`kit.jsx::SelectionBar`)이
+   그리고, 목록 판의 옛 안쪽 여백(.c-list-card)은 Card sx 에 늘 져서 한 번도 그려지지 않은 규칙이라 걷었다(UI 3차 P3). */
 .k-selbox { width: 16px; height: 16px; cursor: pointer; accent-color: var(--color-primary); margin: 0; vertical-align: middle; }
-.k-bulkactions { display: inline-flex; align-items: center; gap: var(--space-sm, 8px); margin-right: var(--space-sm, 8px); }
-.k-bulkactions-count { font-size: var(--font-size-sm, 13px); color: var(--color-muted); font-variant-numeric: tabular-nums; }
-.c-list-card { padding: 6px 8px; }
 /* 원문 블록 — `data-screen/JsonBlock.jsx` 와 같은 값(글자 bodySm, 줄간격 1.6). */
 .c-detail-json { margin: 0; white-space: pre-wrap; word-break: break-word; font-size: var(--font-size-sm, 0.875rem); line-height: 1.6; background: var(--color-bg); padding: var(--space-sm, 10px) var(--space-md, 12px); border-radius: var(--radius-sm, 6px); max-height: 320px; overflow: auto; }
 /* '복사를 지원하지 않는 환경' 폴백은 이 값을 직접 선택해 복사하라고 안내한다 — UUID는 하이픈이

@@ -61,7 +61,11 @@ export function JobQueuePanel({ jobs24, jobErrors, errorDist, nav }) {
               {/* 시각 · 내용 · 작업 종류 세 열은 표다 — 손으로 짠 줄 격자(`LogList`)가 열 정렬 · 머리 · 좁은
                   화면 접기를 따로 가졌다(계획 B-5). 이 목록은 60초마다 자동 재수집돼 순서가 바뀔 수 있어
                   index 대신 안정적인 합성 키를 쓴다(잡 id가 번들에 없어 시각+타입+인덱스로 최대한 안정화). */}
+              {/* 목록 판 — 판이 곧 표 상자다(조합 계약 C-3). 최근 몇 건의 미리보기라 발에 건수를 세우지 않는다(「작업 큐에서
+                  보기」가 전체로 넘긴다). */}
               <DataTable
+                placement="surface"
+                list={false}
                 columns={[
                   { key: "at", label: "시각", type: "datetime", render: (e) => fmtDateTime(e.at) },
                   { key: "error", label: "오류", type: "title", render: (e) => e.error || "-" },

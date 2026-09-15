@@ -8,7 +8,7 @@ import { api } from "../lib/api.js";
 import { fmtDateTime, actionKo, objKo } from "../lib/format.js";
 import { useAuth } from "../app/auth.jsx";
 import { canReach } from "../app/navConfig.js";
-import { PageHeader, Card, ListCard, DataTable, Badge, Section, Skeleton, EmptyState, ErrorState, Button, Callout, SubGroup, Surface, useToast } from "../ui/kit.jsx";
+import { PageHeader, Card, DataTable, Badge, Section, Skeleton, EmptyState, ErrorState, Button, Callout, SubGroup, Surface, useToast } from "../ui/kit.jsx";
 import { CARD_PADDING } from "../ui/density.js";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
 import { StatusList, StatusTile, Note } from "../ui/adminKit.jsx";
@@ -843,8 +843,11 @@ function RecentChanges({ rows, role, nav, revealedId, onCopyId }) {
           자릿수 규칙이 다른 표와 따로 살았다. 열 정의만 남기고 그리기는 `DataTable` 이 한다.
           행 key 는 안정 키다 — 30초 폴링마다 새 항목이 앞에 붙으므로 index 는 행을 위치로
           재사용해 어긋난다. 대상 ID 의 복사·펼침(`c-id-selectable`)은 대상 칸 안에 그대로다. */}
-      <ListCard>
-        <DataTable
+      {/* 목록 판 — 판이 곧 표 상자다(조합 계약 C-3). 서버가 앞 몇 건만 주는 미리보기라 발에 건수를 세우지 않는다
+          (「전체 보기」가 전체로 넘긴다). */}
+      <DataTable
+          placement="surface"
+          list={false}
           rows={rows}
           rowKey={(a) => a.created_at + "|" + (a.object_id || "") + "|" + a.action}
           columns={[
@@ -885,7 +888,6 @@ function RecentChanges({ rows, role, nav, revealedId, onCopyId }) {
             { key: "actor", label: "실행자", type: "name", render: (a) => a.actor || "시스템" },
           ]}
         />
-      </ListCard>
     </Section>
   );
 }

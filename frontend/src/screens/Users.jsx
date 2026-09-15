@@ -12,13 +12,12 @@ import { expireSession } from "../lib/sessionRedirect.js";
 import { diffFields } from "../lib/diffFields.js";
 import { fmtDateTime, shortUA } from "../lib/format.js";
 import { useAuth } from "../app/auth.jsx";
-import { PageHeader, Card, ListCard, Badge, Button, DataTable, DetailGrid, DetailRow, FormModal, Modal, OverflowMenu, Skeleton, EmptyState, ErrorState, Callout, useConfirm, useToast, ActionFooter } from "../ui/kit.jsx";
+import { PageHeader, Badge, Button, DataTable, DetailGrid, DetailRow, FormModal, Modal, OverflowMenu, EmptyState, ErrorState, Callout, useConfirm, useToast, ActionFooter } from "../ui/kit.jsx";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
 import { useRowSelection, selectionColumn } from "../ui/bulkSelect.jsx";
 import { FilterBar, FilterToggle } from "../ui/FilterBar.jsx";
-import { ListFooter } from "../ui/InfiniteScroll.jsx";
 import { useInfiniteList } from "../lib/useInfiniteList.js";
-import { BulkBar, CsvTools } from "./UsersBulk.jsx";
+import { CsvTools, useUserBulk } from "./UsersBulk.jsx";
 import { buildViewQuery, hashQuery, withHashQuery } from "./datascreen-view.js";
 import { DateCell } from "../ui/cells.jsx";
 import { toggleSort } from "../ui/TableHeaderCell.jsx";
@@ -510,6 +509,8 @@ export function Users() {
     qc.invalidateQueries({ queryKey: ["org-tree"] });
   };
   const total = query.total;
+  /* 고른 사용자에게 할 일 — 목록 판 발의 선택 묶음과, 선택을 비운 뒤에도 남는 실패 줄(`UsersBulk.jsx::useUserBulk`). */
+  const bulk = useUserBulk({ selection, deptOptions: dept.options, titleOptions: title.options, onDone: refresh });
 
   /* 열 폭은 브라우저 auto 레이아웃에 맡긴다 — 8개 열에 고정 폭(rem)을 주면 요청 폭 합이 1366px
    * 사내 장비의 가용 폭을 넘겨, 이메일·이름·날짜가 단어 중간에서 꺾여 3줄로 접혔다(설정 표에서는
@@ -750,27 +751,11 @@ export function Users() {
           </Callout>
         </Box>
       ) : null}
-      <BulkBar selection={selection} onDone={refresh}
-        deptOptions={dept.options} titleOptions={title.options} />
+      {bulk.notice}
 
       <Typography component="h2" className="sr-only">목록</Typography>
-      {query.isLoading ? (
-        <Card><Skeleton lines={5} /></Card>
-      ) : query.isError ? (
+      {query.isError ? (
         <ErrorState layout="region" error={query.error} onRetry={() => query.refetch()} />
-      ) : items.length === 0 ? (
-        showArchived ? (
-          // 보관함을 보는 중엔 내용 필터만 지운다(clearContentFilters), clearFilters를 쓰면
-          // showArchived까지 꺼져 조용히 보관함 밖으로 밀려난다(툴바의 동일 버튼과 같은 이유, 위 참고).
-          <EmptyState title="보관된 계정이 없습니다" help="보관한 계정이 여기에 표시됩니다."
-            action={hasContentFilter ? <Button onClick={clearContentFilters}>필터 지우기</Button> : <Button onClick={() => setShowArchived(false)}>보관함 나가기</Button>} />
-        ) : hasFilter ? (
-          <EmptyState art="search" title="조건에 해당하는 사용자가 없습니다" help="검색어나 필터를 지우고 다시 확인하세요."
-            action={<Button onClick={clearFilters}>필터 지우기</Button>} />
-        ) : (
-          <EmptyState title="사용자가 없습니다" help="'사용자 추가'로 새 계정을 만드세요."
-            action={<Button variant="primary" onClick={() => setCreating(true)}>사용자 추가</Button>} />
-        )
       ) : (
         <>
         {/* 보관함을 보는 중엔 목록이 채워져 있으면 상단에 지속 배너를 띄운다, 툴바의 작은 체크박스
@@ -781,29 +766,42 @@ export function Users() {
             「부서 미지정」 타일(11명)을 눌러 이 상자를 켜면 목록이 9건으로 줄어드는데,
             그때 배너가 「포함해 보고 있습니다」라고 하면 관리자는 사라진 2명을 사고로 읽는다.
             수를 여기 적지 않는 이유는 그것이 데이터라서다 — 세는 일은 목록이 한다. */}
-        {showArchived ? <Box sx={{ mb: 2.5 }}><Callout tone="info">보관된 계정만 보고 있습니다. 사용 중인 계정을 다시 보려면 ‘보관된 계정 보기’를 끄세요.</Callout></Box> : null}
-        {/* 🔴 목록을 담는 판은 `ListCard` 다. 맨 `Card` 는 MUI `Card` 라 root 가
-            `overflow: hidden` 이고, 그 조상은 `position: sticky` 의 스크롤 컨테이너가
-            된다 — 열 이름이 이 판 안에 붙박여 페이지를 굴려도 안 따라온다.
-            `ListCard` 는 그 함정을 피하려고 있는 이름이다(`ui/kit.jsx`). */}
-        <ListCard>
-          <DataTable
-            stickyHeader
-            columns={columns} rows={items} rowKey={(r) => r.id} onRow={setSel}
-            sort={{ key: sortKey, dir: sortOrder }}
-            onSort={(key) => {
-              const next = toggleSort({ key: sortKey, dir: sortOrder }, key, key === "created_at" ? "desc" : "asc");
-              setSortKey(next.key);
-              setSortOrder(next.dir);
-            }}
-          />
-          {/* 손으로 그린 페이저가 여기 있었다 — 이제 목록 끝 줄 하나를 다른 화면과 함께 쓴다. */}
-          <ListFooter
-            total={total} loaded={query.loaded}
-            hasNext={query.hasNext} isFetchingNext={query.isFetchingNext} onMore={query.fetchNext}
-            unit="명" moreLabel="사용자 더 보기"
-          />
-        </ListCard>
+        {showArchived && items.length > 0 ? <Box sx={{ mb: 2.5 }}><Callout tone="info">보관된 계정만 보고 있습니다. 사용 중인 계정을 다시 보려면 ‘보관된 계정 보기’를 끄세요.</Callout></Box> : null}
+        {/* 목록 판 — 불러오는 중 · 빈 목록 · 행 · 발(받은 건수 · 「사용자 더 보기」 · 선택 묶음)이 한 판 안이다(조합 계약 C-3).
+            판은 넘침을 자르지 않아 고정 열 이름이 페이지를 따라온다. 손으로 그린 페이저와 목록 위 일괄 작업 줄이
+            여기 있었다 — 이제 목록 판 발 하나를 다른 화면과 함께 쓴다. */}
+        <DataTable
+          placement="surface"
+          stickyHeader
+          loading={query.isLoading}
+          columns={columns} rows={items} rowKey={(r) => r.id} onRow={setSel}
+          sort={{ key: sortKey, dir: sortOrder }}
+          onSort={(key) => {
+            const next = toggleSort({ key: sortKey, dir: sortOrder }, key, key === "created_at" ? "desc" : "asc");
+            setSortKey(next.key);
+            setSortOrder(next.dir);
+          }}
+          emptyState={showArchived ? (
+            // 보관함을 보는 중엔 내용 필터만 지운다(clearContentFilters), clearFilters를 쓰면
+            // showArchived까지 꺼져 조용히 보관함 밖으로 밀려난다(툴바의 동일 버튼과 같은 이유, 위 참고).
+            <EmptyState layout="region" title="보관된 계정이 없습니다" help="보관한 계정이 여기에 표시됩니다."
+              action={hasContentFilter ? <Button size="sm" onClick={clearContentFilters}>필터 지우기</Button> : <Button size="sm" onClick={() => setShowArchived(false)}>보관함 나가기</Button>} />
+          ) : hasFilter ? (
+            /* 조건 0건의 지우기는 30 보조 단추다(핸드오프 RULES §1 · 조합 계약 C-4). */
+            <EmptyState layout="region" art="search" title="조건에 해당하는 사용자가 없습니다" help="검색어나 필터를 지우고 다시 확인하세요."
+              action={<Button size="sm" onClick={clearFilters}>필터 지우기</Button>} />
+          ) : (
+            /* 만드는 단추는 30 이고 채움이 아니다 — 화면의 채움은 머리의 「사용자 추가」 하나다(RULES §1 · §3). */
+            <EmptyState layout="region" title="사용자가 없습니다" help="'사용자 추가'로 새 계정을 만드세요."
+              action={<Button size="sm" onClick={() => setCreating(true)}>사용자 추가</Button>} />
+          )}
+          list={{
+            total, loaded: query.loaded,
+            hasNext: query.hasNext, isFetchingNext: query.isFetchingNext, onMore: query.fetchNext,
+            unit: "명", moreLabel: "사용자 더 보기",
+          }}
+          selection={bulk.selection}
+        />
         </>
       )}
 

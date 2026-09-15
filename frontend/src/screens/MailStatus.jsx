@@ -5,7 +5,7 @@ import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
 import { failureText } from "../lib/failure.js";
 import {
-  Badge, Button, Callout, DataTable, EmptyState, ErrorState, ListCard, MetaBar, PageHeader, Section, Skeleton, TechDetail, useConfirm, useToast,
+  Badge, Button, Callout, DataTable, EmptyState, ErrorState, MetaBar, PageHeader, Section, Skeleton, TechDetail, useConfirm, useToast,
 } from "../ui/kit.jsx";
 import { StatusSummaryCard } from "../ui/StatusKpi.jsx";
 import { DateCell, NumberCell } from "../ui/cells.jsx";
@@ -204,9 +204,7 @@ export function MailStatus() {
           빈 상태다(성공 그림) — 실패가 없다는 것은 이 화면의 좋은 소식이다. */}
       <Section titleAs="h2" title="최근 실패" sx={{ mt: 3, mb: 0 }}>
         {failures.length ? (
-          <ListCard>
-            <DataTable columns={FAILURE_COLUMNS} rows={failures} rowKey={(r) => r.id} />
-          </ListCard>
+          <DataTable placement="surface" columns={FAILURE_COLUMNS} rows={failures} rowKey={(r) => r.id} />
         ) : (
           <EmptyState art="success" title="최근 실패한 메일이 없습니다" />
         )}

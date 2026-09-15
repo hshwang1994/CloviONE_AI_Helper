@@ -182,9 +182,13 @@ export function ProjectWbs({ data }) {
           <Note sx={{ mt: 0 }}>
             아래 작업은 트리에 넣지 못했지만 위의 진행률에는 들어 있습니다. 빼면 상위 작업 설정 하나에 진행률이 통째로 흔들립니다.
           </Note>
-          {/* 작업 · 이유 두 열은 표다(계획 B-5) — 작업과 이유를 한 줄씩 쌓던 손 목록을 옮겼다. 이유 문장은 줄을 바꾼다. */}
+          {/* 작업 · 이유 두 열은 표다(계획 B-5) — 작업과 이유를 한 줄씩 쌓던 손 목록을 옮겼다. 이유 문장은 줄을 바꾼다.
+              제목 있는 판 안 보조 표라 머리가 판 여백을 거슬러 가장자리까지 편다(`placement="card"`, 조합 계약 C-3). 건수는
+              판 제목이 말한다. */}
           <Box sx={{ mt: 1.5 }}>
             <DataTable
+              placement="card"
+              list={false}
               columns={[
                 { key: "title", label: "작업", type: "title", render: (u) => u.title || "제목 없음" },
                 { key: "reason", label: "이유", type: "text", overflow: OVERFLOW.word,

@@ -11,7 +11,6 @@ import {
   DataTable,
   ErrorState,
   FormModal,
-  ListCard,
   ListEmptyState,
   PageHeader,
   Segmented,
@@ -20,7 +19,6 @@ import {
   useToast,
 } from "../ui/kit.jsx";
 import { failureText } from "../lib/failure.js";
-import { ListFooter } from "../ui/InfiniteScroll.jsx";
 import { useResetScrollOnKeyChange } from "../lib/useInfiniteList.js";
 import { useListMemory } from "../lib/listReturn.js";
 import { SPACES_KEY, useKnowledgeSpaces } from "../lib/knowledgeSpaces.js";
@@ -453,8 +451,16 @@ export function Knowledge() {
           {documents.isError ? (
             <ErrorState layout="region" error={documents.error} onRetry={() => documents.refetch()} />
           ) : (
-            <ListCard>
-              {!documents.isLoading && rows.length === 0 ? (
+            /* 목록 판 — 판이 곧 표 상자이고 받은 건수와 「문서 더 보기」는 판 안 발이다(조합 계약 C-3). 「최근 열람」은
+               쪽을 안 나누므로 받은 행 수로 같은 문장을 쓴다. */
+            <DataTable
+              placement="surface"
+              columns={columns}
+              rows={rows}
+              rowKey={(d) => d.id}
+              onRow={openDoc}
+              loading={documents.isLoading}
+              emptyState={(
                 <ListEmptyState
                   filtered={hasFilter}
                   onClear={clearFilters}
@@ -464,34 +470,24 @@ export function Knowledge() {
                   title="문서가 아직 없습니다."
                   help="위의 새 문서로 만들면 이 목록에 나타납니다."
                 />
-              ) : (
-                <DataTable
-                  columns={columns}
-                  rows={rows}
-                  rowKey={(d) => d.id}
-                  onRow={openDoc}
-                  loading={documents.isLoading}
-                  /* 제목 · 요약 · 태그가 서는 두 줄 행 — 바닥 76(핸드오프 ACCEPTANCE E1 · J2). */
-                  rowHeight="tall"
-                  stickyHeader
-                  total={documents.total}
-                  /* 판정 기준이 `rows.length` 가 아니라 **전체 건수**다. 받은 행 수로 재면
-                     묶음이 붙다가 60을 넘는 순간 가상화가 켜지면서 `<tbody>` 가 통째로
-                     다시 마운트된다 — 굴리던 자리가 튄다. */
-                  virtualize={(documents.total ?? rows.length) > 60 ? {} : undefined}
-                />
               )}
-              {!documents.isLoading && !documents.isError && !listed ? (
-                <ListFooter
-                  total={documents.total}
-                  loaded={documents.loaded}
-                  hasNext={documents.hasNext}
-                  isFetchingNext={documents.isFetchingNext}
-                  onMore={documents.fetchNext}
-                  moreLabel="문서 더 보기"
-                />
-              ) : null}
-          </ListCard>
+              /* 제목 · 요약 · 태그가 서는 두 줄 행 — 바닥 76(핸드오프 ACCEPTANCE E1 · J2). */
+              rowHeight="tall"
+              stickyHeader
+              total={documents.total}
+              /* 판정 기준이 `rows.length` 가 아니라 **전체 건수**다. 받은 행 수로 재면
+                 묶음이 붙다가 60을 넘는 순간 가상화가 켜지면서 `<tbody>` 가 통째로
+                 다시 마운트된다 — 굴리던 자리가 튄다. */
+              virtualize={(documents.total ?? rows.length) > 60 ? {} : undefined}
+              list={listed ? undefined : {
+                total: documents.total,
+                loaded: documents.loaded,
+                hasNext: documents.hasNext,
+                isFetchingNext: documents.isFetchingNext,
+                onMore: documents.fetchNext,
+                moreLabel: "문서 더 보기",
+              }}
+            />
         )}
       </Box>
 

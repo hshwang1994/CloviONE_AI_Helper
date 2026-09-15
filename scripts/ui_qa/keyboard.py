@@ -8,6 +8,8 @@
   1. **탭 순서**가 시각 순서(위→아래, 좌→우)와 맞는가
   2. 포커스된 요소에 **눈에 보이는 표시**가 있는가(outline / box-shadow / 배경 변화)
   3. **화면 밖 요소로 포커스가 가는가**(보이지 않는 것에 포커스가 서면 사용자는 길을 잃는다)
+     · 화면 안이어도 **따라오는 판에 가려지는가**(WCAG 2.4.11) — 목록 판 발(`data-list-footer`)은 긴 목록에서 화면
+       아래에 붙어 따라온다(UI 3차 조합 계약 C-3). 초점이 선 요소의 가운데 점을 그 발이 덮으면 「가림」으로 센다.
   4. 모달 안에서 포커스가 **갇히는가**(밖으로 새면 배경 요소를 조작하게 된다)
   5. **건너뛰기 링크**(skip to content)가 있는가 — 내비 37항목을 매번 탭으로 지나야 하는지
 """
@@ -48,7 +50,22 @@ ACTIVE = """() => {
   // 그 줄어듦을 「위로 거슬러 올라갔다」로 세면 표 행을 차례로 도는 것만으로 역순이 난다.
   let docX = r.left + window.scrollX, docY = r.top + window.scrollY;
   for (let p = el.parentElement; p; p = p.parentElement) { docX += p.scrollLeft; docY += p.scrollTop; }
+  // 가림 — 초점 요소의 가운데 점을 따라오는 목록 판 발이 덮는가. 초점 요소 자신 · 조상 · 자손이 맞으면 가림이 아니다.
+  let obscured = false, coveredBy = "";
+  if (visible) {
+    const cx = Math.min(Math.max(r.left + r.width / 2, 0), innerWidth - 1);
+    const cy = Math.min(Math.max(r.top + r.height / 2, 0), innerHeight - 1);
+    const hit = document.elementFromPoint(cx, cy);
+    if (hit && hit !== el && !el.contains(hit) && !hit.contains(el)) {
+      const cover = hit.closest("[data-list-footer]");
+      if (cover && !cover.contains(el)) {
+        obscured = true;
+        coveredBy = (cover.innerText || "").trim().slice(0, 30);
+      }
+    }
+  }
   return {
+    obscured, coveredBy,
     tag: el.tagName.toLowerCase(),
     role: el.getAttribute("role") || "",
     text: (el.innerText || el.value || el.getAttribute("aria-label") || "").trim().slice(0, 34),
@@ -62,12 +79,23 @@ ACTIVE = """() => {
 }"""
 
 
+def _kinds(stops: list[dict]) -> dict[str, int]:
+    out: dict[str, int] = {}
+    for s_ in stops:
+        key = s_["tag"] + ("[" + s_["role"] + "]" if s_.get("role") else "")
+        out[key] = out.get(key, 0) + 1
+    return out
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--routes", nargs="*",
                     default=["user_me", "admin_users", "user_new-ticket", "user_chat"])
     ap.add_argument("--steps", type=int, default=45)
     ap.add_argument("--auth-dir", default="dist/ui-qa-admin-2")
+    # 알려진 틀린 상태 재현 — 따라오는 발의 스크롤 여백(`kit.jsx::ListFootBar` 의 `scroll-padding-bottom`)을 지운 채로
+    # 같은 탭을 눌러 「가림」 측정이 그 결함을 실제로 잡는지 먼저 본다. 제품 판정에는 쓰지 않는다.
+    ap.add_argument("--no-scroll-padding", action="store_true")
     args = ap.parse_args()
 
     insecure = tls.apply_default_https_context()
@@ -89,6 +117,8 @@ def main() -> int:
             page.goto(f"{BASE}{route.shell}#{route.hash_path}",
                       wait_until="domcontentloaded", timeout=45_000)
             page.wait_for_timeout(2500)
+            if args.no_scroll_padding:
+                page.add_style_tag(content="html { scroll-padding-bottom: 0 !important; }")
             page.evaluate("() => { document.body.focus(); if (document.activeElement) "
                           "document.activeElement.blur(); }")
 
@@ -101,6 +131,7 @@ def main() -> int:
             real = [s_ for s_ in stops if not s_.get("none")]
             no_marker = [s_ for s_ in real if not s_["hasOutline"] and not s_["hasShadow"]]
             offscreen = [s_ for s_ in real if not s_["visible"]]
+            obscured = [s_ for s_ in real if s_.get("obscured")]
             # 시각 순서 위반: 다음 정지점이 이전보다 y 가 30px 이상 위로 올라가고 x 도 왼쪽이면.
             # 비교는 문서 좌표로 한다(스크롤로 생긴 화면 좌표 변화는 순서 위반이 아니다).
             backwards = 0
@@ -129,14 +160,16 @@ def main() -> int:
 
             report[rid] = {
                 "stops": len(real), "no_focus_marker": len(no_marker),
-                "offscreen_focus": len(offscreen), "backwards_jumps": backwards,
+                "offscreen_focus": len(offscreen), "obscured_focus": len(obscured), "backwards_jumps": backwards,
                 "tabs_to_main": main_at, "skip_links": skip,
-                "no_marker_samples": no_marker[:4], "offscreen_samples": offscreen[:4],
+                "no_marker_samples": no_marker[:4], "offscreen_samples": offscreen[:4], "obscured_samples": obscured[:4],
+                # 표본 넷만으로는 어느 종류가 표시를 잃었는지 모른다 — 종류별 수를 함께 남긴다.
+                "no_marker_kinds": _kinds(no_marker),
                 "backwards_samples": backwards_samples[:6],
                 "first8": [f"{x['tag']}«{x['text'][:16]}»" for x in real[:8]],
             }
             print(f"{rid:<18} 정지점={len(real):<3} 표시없음={len(no_marker):<3} "
-                  f"화면밖={len(offscreen):<3} 역순={backwards:<3} "
+                  f"화면밖={len(offscreen):<3} 가림={len(obscured):<3} 역순={backwards:<3} "
                   f"본문까지={main_at} 건너뛰기링크={skip or '없음'}", flush=True)
         ctx.close()
         b.close()

@@ -1,23 +1,20 @@
 import React, { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import Box from "@mui/material/Box";
-import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import WarningAmberRoundedIcon from "@mui/icons-material/WarningAmberRounded";
 import { api } from "../lib/api.js";
-import Link from "@mui/material/Link";
 import {
-  Badge, Button, Callout, Card, DataTable, EmptyState, ErrorState, ListCard, ListEmptyState,
-  Modal, PageHeader, Skeleton, useConfirm, useToast,
+  Badge, Button, Callout, DataTable, EmptyState, ErrorState, ListEmptyState,
+  Modal, PageHeader, RowActions, Skeleton, TitleCell, useConfirm, useToast,
   Segmented,
 } from "../ui/kit.jsx";
-import { ListFooter } from "../ui/InfiniteScroll.jsx";
 import { DocBody } from "../ui/DocBody.jsx";
 import { toggleSort } from "../ui/TableHeaderCell.jsx";
 import { bulkFailureNote, objectParticle, toUTCDate } from "../lib/format.js";
 import { failureText, latestMutation } from "../lib/failure.js";
 import { useQueryState } from "../lib/useQueryState.js";
-import { useRowSelection, selectionColumn, BulkActions } from "../ui/bulkSelect.jsx";
+import { useRowSelection, selectionColumn } from "../ui/bulkSelect.jsx";
 import { invalidateTicketViews } from "./ticket-views.js";
 import { invalidateDocumentViews } from "./document-views.js";
 import { DateCell } from "../ui/cells.jsx";
@@ -323,22 +320,17 @@ export function Trash() {
        * 있어 열 화면이 없다 — 없는 링크를 만들지 않고, 대신 읽기 전용 경로를 연다. */
       render: (r) => {
         const id = docIdOf(r);
-        const title = r.title || "제목 없음";
         return (
           <Box sx={{ minWidth: 0 }}>
             {/* 🔴 잘림을 **제목 줄 자신**이 든다. 표의 한 줄 래퍼(`ELLIPSIS_CELL_SX`)는
                 셀의 **직계 인라인 내용**에만 「…」를 붙이는데, 발췌를 넣으면서 이 칸이
                 블록 하나를 돌려주게 됐다 — 그러면 긴 제목이 「…」 없이 그냥 잘린다. */}
+            {/* 제목 칸의 모양(링크색 600 · 한 줄 말줄임 · title)은 kit 의 `TitleCell` 이 갖는다 — 티켓 · 게시판 · 프로젝트
+                표와 같은 제목 칸이다(조합 계약 C-3). */}
             {id ? (
-              <Link href={`#/knowledge/${id}`} target="_blank" rel="noreferrer" sx={ONE_LINE}>
-                {title}
-              </Link>
+              <TitleCell title={r.title} href={`#/knowledge/${id}`} target="_blank" rel="noreferrer" />
             ) : (
-              <Link component="button" type="button" underline="hover" align="left"
-                onClick={() => setPreview(r)}
-                sx={{ font: "inherit", color: "primary.main", textAlign: "left", ...ONE_LINE }}>
-                {title}
-              </Link>
+              <TitleCell title={r.title} onOpen={() => setPreview(r)} />
             )}
             {/* 본문 첫머리. 서버가 이미 계산해 두고 버리던 값이다(`list_page_extras`). */}
             {r.excerpt ? (
@@ -386,29 +378,41 @@ export function Trash() {
          내용만 `flex-end` 라 권한 없는 줄의 「권한 없음」과 좌우가 어긋났다 — 한 축으로 모은다.
          폭도 14rem 이었다: 실제 내용은 단추 둘 + 간격 + 셀 여백으로 11.75rem 이다. */
       key: "_actions", label: "작업", type: "actions", minWidth: "11.5rem",
+      /* 행 동작은 `RowActions` 다 — 「복원」은 30 보조, 「영구 삭제」는 파괴 단추다. 「복원」이 행마다 채움이었을 때
+         휴지통 한 화면에 채움이 스무 개 섰다(조합 계약 C-4). */
       render: (r) => (r.can_manage ? (
-        <Stack direction="row" gap={1} justifyContent="center">
-          <Button size="sm" variant="primary" disabled={restore.isPending} onClick={() => restore.mutate(r)}>복원</Button>
-          <Button size="sm" variant="danger" disabled={purge.isPending}
-            onClick={async () => {
-              const trashName = r.title || "제목 없음";
-              const ok = await confirm(
-                `‘${trashName}’${objectParticle(trashName)} 지금 영구 삭제하면 댓글과 첨부까지 함께 지워지고 되돌릴 수 없습니다. 계속할까요?`,
-                { title: "영구 삭제", confirmLabel: "영구 삭제", danger: true });
-              if (ok) purge.mutate(r);
-            }}>영구 삭제</Button>
-        </Stack>
+        <RowActions
+          actions={[
+            { key: "restore", label: "복원", disabled: restore.isPending, onClick: () => restore.mutate(r) },
+            {
+              key: "purge", label: "영구 삭제", variant: "danger", disabled: purge.isPending,
+              onClick: async () => {
+                const trashName = r.title || "제목 없음";
+                const ok = await confirm(
+                  `‘${trashName}’${objectParticle(trashName)} 지금 영구 삭제하면 댓글과 첨부까지 함께 지워지고 되돌릴 수 없습니다. 계속할까요?`,
+                  { title: "영구 삭제", confirmLabel: "영구 삭제", danger: true });
+                if (ok) purge.mutate(r);
+              },
+            },
+          ]}
+        />
       ) : <Typography variant="body2" color="text.secondary">권한 없음</Typography>),
     },
   ];
 
-  const headerActions = (
-    <BulkActions count={chosen.length} onClear={sel.clear}>
-      <Button size="sm" variant="primary" disabled={bulkRestore.isPending}
-        onClick={() => bulkRestore.mutate(chosen)}>선택 복원</Button>
-      <Button size="sm" variant="danger" disabled={bulkPurge.isPending} onClick={purgeSelected}>선택 영구 삭제</Button>
-    </BulkActions>
-  );
+  /* 고른 항목에 할 일은 목록 판 발의 선택 묶음이다(조합 계약 C-3). 예전에는 화면 머리 동작 자리에 나타났다 사라졌다.
+     「선택 복원」은 행의 「복원」과 같은 보조 단추다 — 되돌리는 일이라 파괴도 채움도 아니다. */
+  const selection = {
+    count: chosen.length,
+    onClear: sel.clear,
+    actions: (
+      <>
+        <Button size="sm" disabled={bulkRestore.isPending}
+          onClick={() => bulkRestore.mutate(chosen)}>선택 복원</Button>
+        <Button size="sm" variant="danger" disabled={bulkPurge.isPending} onClick={purgeSelected}>선택 영구 삭제</Button>
+      </>
+    ),
+  };
 
   const urgent = counts ? counts.urgent : urgentCount(items);
   /* 조건이 걸려 0건인 것과 휴지통이 정말 빈 것은 다른 사실이다. 앞은 조건을 풀 자리를
@@ -457,7 +461,7 @@ export function Trash() {
           "문서"를 계속 하드코딩하면 PA-RC-0031이 그 그룹 이름을 바꿀 때 부모만 따라가고 이
           자식은 옛 이름에 남아 갈라진다. */}
       <PageHeader
-        area="휴지통" title="휴지통" actions={headerActions}
+        area="휴지통" title="휴지통"
         description={
           docAuto
             ? `삭제한 티켓은 ${days}일, 문서는 ${docDays}일 동안 보관합니다. 그 전에 복원하면 원래 목록으로 돌아옵니다. 기간이 지나면 문서는 영구 삭제됩니다.`
@@ -467,7 +471,7 @@ export function Trash() {
       {trashNotice ? <Callout tone={trashNotice.tone} compact sx={{ mb: 2 }}>{trashNotice.text}</Callout> : null}
 
       {q.isError ? <ErrorState layout="region" error={q.error} onRetry={() => q.refetch()} />
-        : q.isPending ? <Card>{/* 표가 들어올 자리에는 표 모양을 그린다 (지시 20) - 빈 목록과 아직 안 온 목록은 다른 사실이다. */}<DataTable columns={columns} rows={[]} loading /></Card>
+        : q.isPending ? <DataTable placement="surface" columns={columns} rows={[]} loading />
         : empty && !filtered ? (
           /* 자산(empty-trash.png)이 처음부터 있었는데 어디에도 연결돼 있지 않았다.
              정말 0건이면 탭 줄도 안 그린다 — 「전체 0 / 티켓 0 / 문서 0」은 소음이다. */
@@ -482,36 +486,37 @@ export function Trash() {
         ) : (
           <>
             {tabs}
-            {empty ? (
-              /* 조건 때문에 비었다 — 조건을 풀 자리를 함께 준다. 탭 줄은 위에 그대로 있다. */
-              <ListEmptyState
-                layout="page" filtered onClear={() => setState({ kind: "" })} clearLabel="전체 보기"
-                filteredTitle="이 종류에는 항목이 없습니다"
-                filteredHelp="지금 고른 종류의 항목이 휴지통에 없습니다. 전체를 보면 다른 종류가 있는지 알 수 있습니다."
-              />
-            ) : (
-              <ListCard>
-                <DataTable columns={columns} rows={items} rowKey={(r) => r.id} ellipsis
-                  sort={sort}
-                  onSort={(key) => {
-                    const next = toggleSort(sort, key, SORT_DEFAULT_DIR[key] || "asc");
-                    setState({ sort: next.key, dir: next.dir });
-                  }}
-                  empty="휴지통이 비어 있습니다." />
-                {/* 🔴 여기만 **자동 로딩을 안 켠다**(`autoMaxRows={0}`) — 문서화된 예외다.
-                    `/api/trash` 는 티켓과 문서 **두 원천을 각각 상한으로 받아 합쳐** 정렬한다
-                    (`app/trash/router.py`). offset 이 없고, 얹으면 두 원천 사이 경계에서 항목이
-                    중복·누락된다. 그래서 이 화면은 「상한을 키워 처음부터 다시 받는」 관용을
-                    **의도적으로** 유지하고(`Trash.jsx` 머리말), 굴릴 때마다 100→200→300 을 연달아
-                    다시 받는 일이 없게 단추로만 받는다. 문구는 다른 목록과 같은 부품이 낸다. */}
-                <ListFooter
-                  total={total} loaded={items.length}
-                  hasNext={hasMore} isFetchingNext={fetchingNext} onMore={loadMore}
-                  autoMaxRows={0}
-                  moreLabel="휴지통 더 보기"
+            {/* 목록 판 — 조건 때문에 빈 목록 · 행 · 발(받은 건수 · 「휴지통 더 보기」 · 선택 묶음)이 한 판 안이다(조합 계약 C-3). */}
+            <DataTable
+              placement="surface"
+              columns={columns} rows={items} rowKey={(r) => r.id} ellipsis
+              sort={sort}
+              onSort={(key) => {
+                const next = toggleSort(sort, key, SORT_DEFAULT_DIR[key] || "asc");
+                setState({ sort: next.key, dir: next.dir });
+              }}
+              emptyState={(
+                /* 조건 때문에 비었다 — 조건을 풀 자리를 함께 준다. 탭 줄은 위에 그대로 있다. 판 안 빈 칸이라 region 이다. */
+                <ListEmptyState
+                  layout="region" filtered onClear={() => setState({ kind: "" })} clearLabel="전체 보기"
+                  filteredTitle="이 종류에는 항목이 없습니다"
+                  filteredHelp="지금 고른 종류의 항목이 휴지통에 없습니다. 전체를 보면 다른 종류가 있는지 알 수 있습니다."
                 />
-              </ListCard>
-            )}
+              )}
+              /* 🔴 여기만 **자동 로딩을 안 켠다**(`autoMaxRows: 0`) — 문서화된 예외다.
+                 `/api/trash` 는 티켓과 문서 **두 원천을 각각 상한으로 받아 합쳐** 정렬한다
+                 (`app/trash/router.py`). offset 이 없고, 얹으면 두 원천 사이 경계에서 항목이
+                 중복·누락된다. 그래서 이 화면은 「상한을 키워 처음부터 다시 받는」 관용을
+                 **의도적으로** 유지하고(`Trash.jsx` 머리말), 굴릴 때마다 100→200→300 을 연달아
+                 다시 받는 일이 없게 단추로만 받는다. 문구는 다른 목록과 같은 부품이 낸다. */
+              list={{
+                total, loaded: items.length,
+                hasNext: hasMore, isFetchingNext: fetchingNext, onMore: loadMore,
+                autoMaxRows: 0,
+                moreLabel: "휴지통 더 보기",
+              }}
+              selection={selection}
+            />
           </>
         )}
 

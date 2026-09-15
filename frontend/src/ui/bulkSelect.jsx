@@ -1,7 +1,7 @@
 import React from "react";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
-import { Button } from "./kit.jsx";
+import { SelectionBar } from "./kit.jsx";
 
 /* 목록 다중선택 + 일괄 삭제 공용. 체크박스는 클릭이 행 클릭(상세 이동)으로 번지지 않게 막는다.
  * 표에 '선택' 열 하나를 추가하고(BulkBar와 함께) 부모가 선택 상태를 들고 있으면 된다. */
@@ -85,18 +85,13 @@ export function selectionColumn(selection, ids, { eligible } = {}) {
   };
 }
 
-// 선택된 개수 + 동작 버튼(들)을 헤더 액션에 놓기 위한 래퍼. children 은 <Button>들.
-// SEM-02(PA-F-031): PageHeader의 h1과 같은 줄에 나타났다 사라지는 임시 툴바라 h2로
-// 구획하기는 어색하다(제목 계층이 아니라 상태에 따라 나타나는 컨트롤 묶음이다) - 대신
-// role="toolbar"+aria-label로 스크린리더가 이 묶음을 "일괄 작업"으로 식별하고 건너뛸 수
-// 있게 한다. 시각 스타일은 그대로다(k-bulkactions 클래스 유지).
+// 선택된 개수 + 동작 버튼(들). children 은 <Button>들.
+// SEM-02(PA-F-031): 제목 계층이 아니라 상태에 따라 나타나는 컨트롤 묶음이라 role="toolbar"+aria-label 로
+// 스크린리더가 이 묶음을 "일괄 작업"으로 식별하고 건너뛸 수 있게 한다.
+//
+// UI 3차(조합 계약 C-3): 이 묶음은 이제 **목록 판 발의 오른쪽 칸**이다(`DataTable selection` → `kit.jsx::SelectionBar`).
+// 예전에는 `PageHeader` 동작 자리에 나타났다 사라졌고 모양은 `styles/screens.css` 의 `.k-bulkactions` 가 그렸다.
+// 이 이름은 같은 부품을 부르는 별칭으로 남긴다 — 묶음의 모양이 두 벌이 되지 않게 구현은 kit 하나다.
 export function BulkActions({ count, onClear, children }) {
-  if (!count) return null;
-  return (
-    <span className="k-bulkactions" role="toolbar" aria-label="일괄 작업">
-      <span className="k-bulkactions-count">{count}개 선택</span>
-      {children}
-      <Button size="sm" variant="ghost" onClick={onClear}>해제</Button>
-    </span>
-  );
+  return <SelectionBar count={count} onClear={onClear}>{children}</SelectionBar>;
 }

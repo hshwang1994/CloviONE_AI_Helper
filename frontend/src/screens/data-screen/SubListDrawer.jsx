@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "../../lib/api.js";
 import { useAuth } from "../../app/auth.jsx";
 import Typography from "@mui/material/Typography";
-import { Callout, Button, DataTable, Modal, EmptyState, ErrorState, useConfirm, useToast, ActionFooter } from "../../ui/kit.jsx";
+import { Callout, Button, DataTable, Modal, EmptyState, ErrorState, RowActions, useConfirm, useToast, ActionFooter } from "../../ui/kit.jsx";
 import { DateField } from "../../ui/DateField.jsx";
 import { DebouncedTextField, FilterSelect, normalizeOptions } from "../../ui/filters.jsx";
 import { FilterBar } from "../../ui/FilterBar.jsx";
@@ -96,12 +96,27 @@ export function SubListDrawer({ view, onClose, onActed }) {
           const hint = sl.actionHint(r, row);
           if (hint) return <span>{hint}</span>;
         }
-        return <>{visible.map((ra, i) => {
-          const key = subRowKey(r) + ":" + ra.label;
-          // 클릭한 그 버튼만 라벨이 '처리 중…'으로 바뀐다(disabled는 중복 제출 방지를 위해 전체에
-          // 걸지만, 라벨은 실제로 진행 중인 액션 하나만, 부모 drawer의 busyKey와 동일한 패턴).
-          return <Button key={i} size="sm" variant={ra.variant || "default"} disabled={subBusy} loading={subBusyKey === key} onClick={() => act(ra, r, key)}>{ra.label}</Button>;
-        })}</>;
+        /* 행 동작은 `RowActions` 다 — 둘 이하면 30 단추, 셋 이상이면 「더 보기」 하나로 접힌다(핸드오프 RULES §5 ·
+           조합 계약 C-4). 채움은 행 안에 서지 않는다(registry 가 `variant: "primary"` 를 주어도 보조로 선다).
+           클릭한 그 동작만 진행 중을 말한다(disabled는 중복 제출 방지를 위해 전체에 걸지만, 표시는 실제로 진행 중인
+           액션 하나만 — 부모 drawer의 busyKey와 동일한 패턴). 메뉴로 접힌 항목은 라벨이 「처리 중…」으로 바뀐다. */
+        const folded = visible.length > 2;
+        return (
+          <RowActions
+            ariaLabel={(sl.title || a.label || "하위 목록") + " 작업 더 보기"}
+            actions={visible.map((ra) => {
+              const key = subRowKey(r) + ":" + ra.label;
+              return {
+                key,
+                label: folded && subBusyKey === key ? "처리 중…" : ra.label,
+                variant: ra.variant === "danger" ? "danger" : "default",
+                disabled: subBusy,
+                loading: subBusyKey === key,
+                onClick: () => act(ra, r, key),
+              };
+            })}
+          />
+        );
       } }]
     : sl.columns;
   return (

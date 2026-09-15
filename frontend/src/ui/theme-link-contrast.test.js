@@ -1,5 +1,6 @@
 /* qa-contract-change: 옛 문서 목록(TeamDocs.jsx)의 제목 링크 hover 두 자리를 걷었다. 그 화면이 S14 에서 사라졌고 없는 파일을 readFileSync 하면 이 파일 전체가 죽는다. 계약(본문 링크의 raw .main 은 대비 보강 색을 쓴다)과 남은 세 자리·모든 accent 조합의 계산 대비는 그대로다.
  * qa-contract-change: 판독 줄(MetricStrip)이 걷혀(핸드오프 RULES §6) 그 칸의 「주의」/「위험」 표지가 없어졌다. 같은 계약(심각도 낱말은 대비 보강 잉크 `.strong` 을 쓰고 좁은 칸에서 세로로 무너지지 않는다)을 지금 그 낱말을 나르는 배지(Badge)의 소스에서 잰다.
+ * qa-contract-change: 티켓 표의 지역 제목 칸(MyTickets.jsx::TitleCell)이 kit 의 정본 `TitleCell` 로 올라갔다(UI 3차 조합 계약 C-3 — 게시판 · 휴지통 · 프로젝트 · 문서 표가 같은 제목 칸을 쓴다). QAH-03 계약(제목 링크는 대비 보강 색 primary.dark 이고 raw primary.main 을 inline sx 로 박지 않는다)을 kit 정의의 세 갈래(단추 · 앵커 · 링크색만)와 소비처 둘(티켓 · 휴지통)에서 잰다.
  * qa-contract-change: 사이드바 안 읽음 배지(NavBadge)와 AI 도우미 시작 예시(QuickPrompts)가 정본 부품(건수 칩 unread · 작은 단추)으로 옮겨졌다(핸드오프 계획 B-3). 두 자리의 손 색 단언을 「정본 부품을 쓴다 · 흰 글자나 raw .main 글자를 손으로 칠하지 않는다」로 옮기고, 건수 칩 unread 의 글자와 면 대비를 모든 모드 · accent 조합으로 더 잰다.
  */
 import { readFileSync } from "node:fs";
@@ -293,17 +294,25 @@ describe("QAH-02(2026-08-11 하네스 실측) — 심각도 배지가 좁은 칸
   });
 });
 
-describe("QAH-03 — MyTickets TitleCell 링크가 inline sx로 대비 보강 색을 덮어쓰지 않는다", () => {
-  it("TitleCell이 실제로 primary.dark를 쓴다(원래 버그는 primary.main을 inline sx로 직접 박아 MuiLink의 공유 대비 보강을 덮어썼다)", () => {
-    const src = readFileSync(
-      path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "screens", "MyTickets.jsx"),
-      "utf-8",
-    );
-    const start = src.indexOf("function TitleCell");
+describe("QAH-03 — 제목 칸 링크가 inline sx로 대비 보강 색을 덮어쓰지 않는다", () => {
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  it("kit TitleCell의 링크 갈래 셋(단추 · 앵커 · 링크색만)이 전부 primary.dark를 쓴다(원래 버그는 primary.main을 inline sx로 직접 박아 MuiLink의 공유 대비 보강을 덮어썼다)", () => {
+    const src = readFileSync(path.join(here, "kit.jsx"), "utf-8");
+    const start = src.indexOf("export function TitleCell");
     expect(start, "TitleCell 정의를 못 찾았다").toBeGreaterThan(-1);
-    const block = src.slice(start, start + 1400);
-    expect(block).toMatch(/color:\s*"primary\.dark"/);
-    expect(block).not.toMatch(/color:\s*"primary\.main"/);
+    const end = src.indexOf("\n}\n", start);
+    const block = src.slice(start, end);
+    expect(block.match(/color:\s*"primary\.dark"/g) || []).toHaveLength(3);
+    expect(block).not.toMatch(/primary\.main/);
+  });
+
+  it("티켓 표와 휴지통 표는 제목 칸을 kit 부품으로 그리고 raw primary.main 을 손으로 칠하지 않는다", () => {
+    for (const file of ["MyTickets.jsx", "Trash.jsx"]) {
+      const src = readFileSync(path.join(here, "..", "screens", file), "utf-8");
+      expect(src, file).toMatch(/import \{[^}]*\bTitleCell\b[^}]*\} from "\.\.\/ui\/kit\.jsx"/);
+      expect(src, file).not.toMatch(/function TitleCell/);
+      expect(src, file).not.toMatch(/color:\s*"primary\.main"/);
+    }
   });
 });
 

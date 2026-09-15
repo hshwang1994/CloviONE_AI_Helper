@@ -52,7 +52,7 @@ function RoomRow({ room, onOpen, active }) {
             {room.title}
           </Typography>
           {/* 목록 행 안의 방 종류는 점 + 낱말이다(핸드오프 RULES §2) — 면 칩이 행마다 서면 제목보다 먼저 읽힌다. */}
-          <DotLabel label={tag} sx={{ flexShrink: 0, fontSize: FONT_SIZE.caption, color: "text.secondary" }} />
+          <DotLabel label={tag} size="caption" sx={{ flexShrink: 0, color: "text.secondary" }} />
         </Box>
         <Typography sx={{ color: "text.secondary", fontSize: FONT_SIZE.bodySm, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {room.last_preview || "새 채팅방"}

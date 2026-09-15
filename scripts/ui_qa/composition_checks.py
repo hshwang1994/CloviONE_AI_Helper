@@ -81,6 +81,7 @@ ROUTE_EXPECT: dict[str, dict] = {
     "user_team-tickets": {"listSurface": True},
     "user_knowledge": {"listSurface": True},
     "user_board": {"listSurface": True},
+    "user_ideas": {"listSurface": True},
     "user_projects": {"listSurface": True},
     "user_team-docs-trash": {"listSurface": True},
     "user_my-approvals": {"listSurface": True},
@@ -88,6 +89,9 @@ ROUTE_EXPECT: dict[str, dict] = {
     "admin_audit": {"listSurface": True},
     "admin_jobs": {"listSurface": True},
     "admin_offboarding": {"listSurface": True},
+    "admin_settings": {"listSurface": True},
+    # 내 활동은 표가 아니라 날짜 묶음 목록이라 끝 줄이 목록 판 밖이다(대장 조합 예외).
+    "user_activity": {"footerExempt": True},
     "user_new-ticket": {"editorBox": True, "pageFill": True},
     "user_chat-rooms": {"chat": True, "pageFill": True},
     "user_chat-room-detail": {"chat": True, "pageFill": True},
@@ -306,7 +310,10 @@ COMPOSITION_JS = r"""
   if (E.listSurface) {
     check('list_surface').checked++;
     const main = tables.slice().sort((a, b) => (rect(b).width * rect(b).height) - (rect(a).width * rect(a).height))[0];
-    if (!main && !listSurfaces.length) fail('list_surface', { problem: '주 목록을 찾지 못함' });
+    /* 화면 전체가 빈 상태(`EmptyState layout="page"`)면 목록이 없는 것이 맞다 — 담을 목록이 없는 화면에 판을 요구하지 않는다
+       (핸드오프 RULES §1 「화면 전체가 비었다」). */
+    const pageEmpty = !!root.querySelector('[data-empty-layout="page"]');
+    if (!main && !listSurfaces.length && !pageEmpty) fail('list_surface', { problem: '주 목록을 찾지 못함' });
     else if (main && !main.closest('[data-list-surface]')) {
       const plate = plateOf(main);
       const head = main.querySelector('thead tr');
@@ -323,7 +330,11 @@ COMPOSITION_JS = r"""
     const sr = rect(s);
     const cs = getComputedStyle(s);
     const bw = px(cs.borderTopWidth);
-    if (px(cs.paddingTop) > 0.5 || px(cs.paddingLeft) > 0.5) problems.push('판 여백 ' + cs.paddingTop + '/' + cs.paddingLeft);
+    /* 표가 든 판은 여백 0(머리가 가장자리에 붙는다), 표가 없는 판(불러오는 중 · 빈 목록)은 판 여백 20 안에 선다. */
+    const stateOnly = !s.querySelector('table');
+    if (stateOnly) {
+      if (!near(px(cs.paddingTop), C.cardPadding, 1) || !near(px(cs.paddingLeft), C.cardPadding, 1)) problems.push('빈 · 불러오는 판 여백 ' + cs.paddingTop + '/' + cs.paddingLeft);
+    } else if (px(cs.paddingTop) > 0.5 || px(cs.paddingLeft) > 0.5) problems.push('판 여백 ' + cs.paddingTop + '/' + cs.paddingLeft);
     if (cs.overflowY !== 'visible') problems.push('판 overflow ' + cs.overflowY);
     const head = s.querySelector('thead tr');
     if (head && shown(head)) {
@@ -351,7 +362,8 @@ COMPOSITION_JS = r"""
   }
   if (!E.footerExempt) {
     for (const f of all('[data-list-footer]')) {
-      if (inOverlay(f) || f.closest('[data-list-surface]')) continue;
+      /* 판 안 보조 표(`placement="card"`)의 발은 그 판의 마지막 줄이다 — 목록 판이 아니어도 판 밖이 아니다. */
+      if (inOverlay(f) || f.closest('[data-list-surface], [data-table-placement="card"]')) continue;
       check('list_surface').checked++;
       fail('list_surface', { ...where(f), problem: '목록 발이 판 밖' });
     }
@@ -394,14 +406,22 @@ COMPOSITION_JS = r"""
     const label = [...th.querySelectorAll('span')].find((sp) => sp.children.length === 0 && (sp.textContent || '').trim().length > 1 && shown(sp));
     check('table_head_glyph').checked++;
     const problems = [];
-    for (const g of glyphs) {
+    /* 표지는 **사슬**로 붙는다 — 이름 → 정렬 표지 → 필터 표지. 둘째 표지의 간격은 이름이 아니라 바로 앞 표지에서 잰다
+       (이름에서 재면 정렬 · 필터를 함께 가진 열은 늘 멀다고 나온다). */
+    const lr = label ? rect(label) : null;
+    let prevRight = lr ? lr.right : null;
+    for (const g of glyphs.slice().sort((a, b) => rect(a).left - rect(b).left)) {
       const gr = rect(g);
       if (gr.width > C.headGlyphMax + 0.5 || gr.height > C.headGlyphMax + 0.5) problems.push('표지 ' + Math.round(gr.width) + 'px');
-      if (label) {
-        const lr = rect(label);
-        const gap = gr.left >= lr.right ? gr.left - lr.right : lr.left - gr.right;
-        if (gap > C.headGlyphGap + 0.5) problems.push('이름과 ' + Math.round(gap) + 'px');
+      if (lr && gr.right <= lr.left) {
+        if (lr.left - gr.right > C.headGlyphGap + 0.5) problems.push('이름과 ' + Math.round(lr.left - gr.right) + 'px');
+        continue;
       }
+      if (prevRight != null) {
+        const gap = gr.left - prevRight;
+        if (gap > C.headGlyphGap + 0.5) problems.push((prevRight === (lr && lr.right) ? '이름과 ' : '앞 표지와 ') + Math.round(gap) + 'px');
+      }
+      prevRight = gr.right;
     }
     if (problems.length) fail('table_head_glyph', { text: text(th), problems: [...new Set(problems)].slice(0, 4) });
   }
@@ -548,7 +568,9 @@ def selftest_html() -> str:
           <button data-filter-clear="" style="height:30px;border:0;background:none">필터 지우기</button>
         </div>
       </div>
-      ${table('surface', true, 0, true, false, '<svg width="12" height="12" style="margin-left:4px"></svg>', false)}
+      ${table('surface', true, 0, true, false, '<svg width="12" height="12" style="margin-left:4px"></svg><svg width="12" height="12" style="margin-left:4px"></svg>', false)}
+      <div data-list-surface="" data-table-placement="surface" data-list-state="empty" style="background:#fff;border:1px solid #dcdfec;border-radius:8px;padding:20px;overflow:visible"><div>조건에 맞는 항목이 없습니다</div></div>
+      <div class="MuiCard-root" style="background:#fff;border:1px solid #dcdfec;border-radius:8px;padding:20px"><div data-table-placement="card" style="margin:0 -20px"><div class="MuiTableContainer-root"><table class="MuiTable-root" style="width:100%;border-collapse:collapse"><thead><tr style="height:40px"><th style="background:#f5f6fb">이름</th></tr></thead><tbody><tr style="height:48px"><td>항목</td></tr></tbody></table></div><div data-list-footer="" style="height:44px;border-top:1px solid #dcdfec">2건 중 2건을 받았습니다.</div></div></div>
       <div data-action-footer="card" style="display:flex;justify-content:flex-end;padding:12px 20px;background:#f5f6fb;border-top:1px solid #e5e8f3"><button style="height:34px">티켓 추가</button></div>
       <div data-editor-box="" style="border:1px solid #dcdfec;border-radius:6px">
         <div data-editor-toolbar="" style="display:flex;background:#f5f6fb;border-bottom:1px solid #dcdfec;padding:0 4px"><button aria-label="굵게" style="height:30px;width:30px"></button><span style="flex:1"></span><button aria-label="되돌리기" style="height:30px;width:30px"></button><button aria-label="다시 실행" style="height:30px;width:30px"></button></div>
@@ -574,9 +596,10 @@ def selftest_html() -> str:
       <div><span class="MuiChip-root" style="display:inline-flex;height:26px">종료 제외(기본값)</span></div>
       <div data-result-line="">조건 1개, 결과 14건</div>
       <div class="MuiCard-root" style="background:#fff;border:1px solid #dcdfec;border-radius:8px;padding:20px">
-        ${table('surface', true, 0, false, false, '<button style="height:30px;width:30px;margin-left:10px"><svg width="20" height="20"></svg></button>', true)}
+        ${table('surface', true, 0, false, false, '<button style="height:30px;width:30px;margin-left:10px"><svg width="20" height="20"></svg></button><svg width="12" height="12" style="margin-left:12px"></svg>', true)}
       </div>
       ${table('surface', true, 0, true, true, '', false)}
+      <div data-list-surface="" data-table-placement="surface" data-list-state="empty" style="background:#fff;border:1px solid #dcdfec;border-radius:8px;padding:0;overflow:visible"><div>여백 없는 빈 판</div></div>
       <table class="MuiTable-root"><thead><tr><th>이름</th></tr></thead><tbody><tr><td>표식 없음</td></tr></tbody></table>
       <div data-action-footer="card" style="display:flex;justify-content:flex-end;padding:12px 100px 12px 20px"><button style="height:34px">티켓 추가</button></div>
       <button class="MuiButton-root MuiButton-containedPrimary" style="height:34px">새 그룹</button>
@@ -599,7 +622,7 @@ def selftest_html() -> str:
 
 # 틀린 견본이 반드시 걸려야 하는 검사와 기대 최소 실패 수.
 SELFTEST_EXPECT_BAD = {
-    "filter_composition": 1, "filter_cell_anatomy": 2, "list_surface": 2, "list_wrapper": 2,
+    "filter_composition": 1, "filter_cell_anatomy": 2, "list_surface": 3, "list_wrapper": 2,
     "primary_budget": 2, "row_actions": 1, "table_head_glyph": 1, "footer_alignment": 1,
     "editor_box": 1, "chat_composition": 1,
 }
@@ -608,11 +631,11 @@ SELFTEST_EXPECT_BAD = {
 SELFTEST_EXPECT_REASONS = {
     "filter_composition": ["면 밖 결과 줄", "면 밖 조건 칩", "줄 끝 지우기", "아래 실선 없음", "검색 줄에 자리가 있는데"],
     "filter_cell_anatomy": ["칸 안 칩", "접두 들여쓰기", "접두-값 간격", "값 굵기", "폭 "],
-    "list_surface": ["목록 발이 판 밖", "sticky 발 안에 무한 스크롤 센티널"],
+    "list_surface": ["목록 발이 판 밖", "sticky 발 안에 무한 스크롤 센티널", "빈 · 불러오는 판 여백"],
     "list_wrapper": ["표 판 계약 표식 없음", "여백 판이 한 번 더 감쌈"],
     "primary_budget": ["화면 채움", "행 안 채움"],
     "row_actions": ["한 칸 단추"],
-    "table_head_glyph": ["표지 20px", "이름과"],
+    "table_head_glyph": ["표지 20px", "이름과", "앞 표지와"],
     "footer_alignment": ["100"],
     "editor_box": ["테두리", "도구 줄이 함몰면이 아님", "도구 단추 34", "다시 실행이 오른쪽 끝이 아님", "본문 120"],
     "chat_composition": ["로그 아래 정렬", "날짜선 폭", "입력 도킹 영역 없음"],

@@ -6,10 +6,9 @@ import Typography from "@mui/material/Typography";
 import {
   ListEmptyState,
   Badge, Button, Callout, Card, DataTable, EmptyState, ErrorState, FormModal,
-  ListCard, PageHeader, Skeleton, useToast,
+  PageHeader, Skeleton, TitleCell, useToast,
 } from "../ui/kit.jsx";
 import { StatusSummaryCard } from "../ui/StatusKpi.jsx";
-import { ListFooter } from "../ui/InfiniteScroll.jsx";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
 import { useAuth } from "../app/auth.jsx";
 import { useQueryState } from "../lib/useQueryState.js";
@@ -325,11 +324,11 @@ function columns(deptNames) {
       key: "name", label: "이름", type: "title", minWidth: "12rem", sortable: true,
       // 표의 어느 열이 '이 행이 무엇인가' 를 말하는지 알려 준다(kit.jsx::rowOpenLabel).
       rowName: (p) => p.name,
+      /* 이름은 행을 여는 제목 칸이다 — 링크색 600 한 줄(`TitleCell`, 조합 계약 C-3). 행에 `<a href>` 가 걸려 있어 색만
+         링크다. 코드는 그 아래 작은 글자다. */
       render: (p) => (
         <Box sx={{ display: "grid", gap: 0.25, minWidth: 0 }}>
-          <Typography sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: FONT_SIZE.body, ...KO_WORD_BREAK }}>
-            {p.name || "이름 없음"}
-          </Typography>
+          <TitleCell title={p.name} fallback="이름 없음" link sx={{ fontSize: FONT_SIZE.body }} />
           {p.code ? (
             <Typography variant="caption" color="text.secondary">{p.code}</Typography>
           ) : null}
@@ -529,55 +528,49 @@ export function Projects() {
         />
       </FilterBar>
 
-      {q.isLoading ? <Card>{/* 표가 들어올 자리에는 표 모양을 그린다 (지시 20) - 빈 목록과 아직 안 온 목록은 다른 사실이다. */}<DataTable columns={cols} rows={[]} loading /></Card>
-        : q.isError ? <ErrorState layout="region" error={q.error} onRetry={() => q.refetch()} />
-        : items.length === 0 ? (
-          <Card>
-            {/* «정말 없다» 와 «조건 때문에 0건» 을 가른다 (C1 · W5).
-                예전에는 `filters.archived` 로만 갈라져서, 부서나 검색어로 0건이 된 화면도
-                「프로젝트가 없습니다」라고 말했다 — 게다가 그 조건을 그 자리에서 풀 수단이
-                없었다. 조건이 하나라도 걸려 있으면 그 사실을 말하고 지울 길을 준다. */}
-            <ListEmptyState
-              filtered={hasProjectFilter}
-              onClear={clearProjectFilters}
-              filteredTitle="조건에 맞는 프로젝트가 없습니다"
-              filteredHelp="지금 걸린 조건(검색어, 부서, 상태)에 맞는 프로젝트가 없습니다. 조건을 지우면 전체를 볼 수 있습니다."
-              art="tickets"
-              title="프로젝트가 없습니다"
-              situation={filters.archived ? undefined : "지금 진행 중인 프로젝트가 없거나, 있는 프로젝트가 전부 보관돼 있습니다."}
-              help={filters.archived
-                ? "보관한 것까지 포함해도 볼 수 있는 프로젝트가 없습니다."
-                : "보관한 프로젝트까지 보려면 위의 스위치를 켜세요."}
-            />
-          </Card>
-        ) : (
-          <>
-            {/* `overflow: hidden` 을 손으로 박으면 `stickyHeader` 가 죽는다 — 그 판이
-                스크롤 컨테이너가 되어 열 이름이 판 안에 붙박인다. 목록 판은 `ListCard` 다. */}
-            <ListCard sx={{ p: 0 }}>
-              <DataTable
-                stickyHeader
-                columns={cols} rows={items} rowKey={(p) => p.id} onRow={open}
-                // HashRouter다 — 실제 `href` 는 `#` 이 붙어야 새 탭에서 이 라우트로 실제
-                // 도착한다(순수 클릭은 `open`/`nav()` 가 처리해 이 값을 안 본다).
-                rowHref={(p) => "#/projects/" + p.id}
-                empty="표시할 프로젝트가 없습니다."
-                sort={{ key: filters.sort, dir: filters.order }}
-                onSort={(key) => {
-                  const next = toggleSort({ key: filters.sort, dir: filters.order }, key, key === "created_at" ? "desc" : "asc");
-                  setFilters({ sort: next.key, order: next.dir });
-                }}
+      {q.isError ? <ErrorState layout="region" error={q.error} onRetry={() => q.refetch()} />
+        : (
+          /* 목록 판 — 불러오는 중(표 모양, 지시 20) · 빈 목록 · 행 · 발(받은 건수 · 「프로젝트 더 보기」)이 한 판 안이다
+             (조합 계약 C-3). 예전에는 이 화면만 `ListCard p:0` 로 판을 따로 맞췄고 발은 판 밖이었다.
+             여기 「이관할 때 이 프로젝트에서 문제가 있었습니다」 배너가 있었다. 얼어붙은 이관 흔적 컬럼을 읽던 것이라
+             관리자에게 문의해도 없앨 방법이 없었다. 서버도 그 필드를 걷었다(S14). */
+          <DataTable
+            placement="surface"
+            stickyHeader
+            loading={q.isLoading}
+            columns={cols} rows={items} rowKey={(p) => p.id} onRow={open}
+            // HashRouter다 — 실제 `href` 는 `#` 이 붙어야 새 탭에서 이 라우트로 실제
+            // 도착한다(순수 클릭은 `open`/`nav()` 가 처리해 이 값을 안 본다).
+            rowHref={(p) => "#/projects/" + p.id}
+            emptyState={(
+              /* «정말 없다» 와 «조건 때문에 0건» 을 가른다 (C1 · W5).
+                 예전에는 `filters.archived` 로만 갈라져서, 부서나 검색어로 0건이 된 화면도
+                 「프로젝트가 없습니다」라고 말했다 — 게다가 그 조건을 그 자리에서 풀 수단이
+                 없었다. 조건이 하나라도 걸려 있으면 그 사실을 말하고 지울 길을 준다. */
+              <ListEmptyState
+                filtered={hasProjectFilter}
+                onClear={clearProjectFilters}
+                filteredTitle="조건에 맞는 프로젝트가 없습니다"
+                filteredHelp="지금 걸린 조건(검색어, 부서, 상태)에 맞는 프로젝트가 없습니다. 조건을 지우면 전체를 볼 수 있습니다."
+                art="tickets"
+                title="프로젝트가 없습니다"
+                situation={filters.archived ? undefined : "지금 진행 중인 프로젝트가 없거나, 있는 프로젝트가 전부 보관돼 있습니다."}
+                help={filters.archived
+                  ? "보관한 것까지 포함해도 볼 수 있는 프로젝트가 없습니다."
+                  : "보관한 프로젝트까지 보려면 위의 스위치를 켜세요."}
               />
-            </ListCard>
-            {/* 여기 「이관할 때 이 프로젝트에서 문제가 있었습니다」 배너가 있었다. 얼어붙은
-                이관 흔적 컬럼을 읽던 것이라 관리자에게 문의해도 없앨 방법이 없었다.
-                서버도 그 필드를 걷었다(S14). */}
-            <ListFooter
-              total={q.total} loaded={q.loaded}
-              hasNext={q.hasNext} isFetchingNext={q.isFetchingNext} onMore={q.fetchNext}
-              moreLabel="프로젝트 더 보기"
-            />
-          </>
+            )}
+            sort={{ key: filters.sort, dir: filters.order }}
+            onSort={(key) => {
+              const next = toggleSort({ key: filters.sort, dir: filters.order }, key, key === "created_at" ? "desc" : "asc");
+              setFilters({ sort: next.key, order: next.dir });
+            }}
+            list={{
+              total: q.total, loaded: q.loaded,
+              hasNext: q.hasNext, isFetchingNext: q.isFetchingNext, onMore: q.fetchNext,
+              moreLabel: "프로젝트 더 보기",
+            }}
+          />
         )}
 
       <FormModal

@@ -61,61 +61,11 @@ ROW_BUTTON_TAGS = {"Button", "IconButton"}
 
 # 이 검사를 세운 시점(UI 3차 P0)의 위반. 묶음마다 줄이고 끝에는 비어야 한다.
 PENDING: set[tuple[str, str]] = {
-    # card-wrapped-table
-    ("screens/Board.jsx", "card-wrapped-table"),
-    ("screens/Dashboard.jsx", "card-wrapped-table"),
-    ("screens/DataScreen.jsx", "card-wrapped-table"),
-    ("screens/Home.jsx", "card-wrapped-table"),
-    ("screens/Integrity.jsx", "card-wrapped-table"),
-    ("screens/Knowledge.jsx", "card-wrapped-table"),
-    ("screens/MailStatus.jsx", "card-wrapped-table"),
-    ("screens/MyApprovals.jsx", "card-wrapped-table"),
-    ("screens/MyStats.jsx", "card-wrapped-table"),
-    ("screens/MyTickets.jsx", "card-wrapped-table"),
-    ("screens/Offboarding.jsx", "card-wrapped-table"),
-    ("screens/ProjectDocuments.jsx", "card-wrapped-table"),
-    ("screens/ProjectTickets.jsx", "card-wrapped-table"),
-    ("screens/ProjectWbs.jsx", "card-wrapped-table"),
-    ("screens/Projects.jsx", "card-wrapped-table"),
-    ("screens/StorageProviders.jsx", "card-wrapped-table"),
-    ("screens/TeamTickets.jsx", "card-wrapped-table"),
-    ("screens/Trash.jsx", "card-wrapped-table"),
-    ("screens/Users.jsx", "card-wrapped-table"),
-    ("screens/settings/SettingVersions.jsx", "card-wrapped-table"),
-    ("screens/settings/SettingsMain.jsx", "card-wrapped-table"),
-    # fab-clearance
+    # fab-clearance — P4(새 티켓 · FAB 여백)에서 걷는다
     ("screens/MyTickets.jsx", "fab-clearance"),
     ("screens/Search.jsx", "fab-clearance"),
     ("screens/game-room/RoomSidebar.jsx", "fab-clearance"),
     ("ui/theme.js", "fab-clearance"),
-    # list-footer
-    ("screens/Activity.jsx", "list-footer"),
-    ("screens/Board.jsx", "list-footer"),
-    ("screens/DataScreen.jsx", "list-footer"),
-    ("screens/Knowledge.jsx", "list-footer"),
-    ("screens/MyApprovals.jsx", "list-footer"),
-    ("screens/MyTickets.jsx", "list-footer"),
-    ("screens/Offboarding.jsx", "list-footer"),
-    ("screens/ProjectTickets.jsx", "list-footer"),
-    ("screens/Projects.jsx", "list-footer"),
-    ("screens/TeamTickets.jsx", "list-footer"),
-    ("screens/Trash.jsx", "list-footer"),
-    ("screens/Users.jsx", "list-footer"),
-    ("screens/WorkBoard.jsx", "list-footer"),
-    # row-button
-    ("screens/MyApprovals.jsx", "row-button"),
-    ("screens/MyTickets.jsx", "row-button"),
-    ("screens/Trash.jsx", "row-button"),
-    ("screens/data-screen/SubListDrawer.jsx", "row-button"),
-    ("screens/dev/KitGallery.jsx", "row-button"),
-    ("screens/settings/SettingVersions.jsx", "row-button"),
-    ("screens/settings/SettingsMain.jsx", "row-button"),
-    # table-tag
-    ("screens/Board.jsx", "table-tag"),
-    ("screens/ProjectDocuments.jsx", "table-tag"),
-    ("screens/dev/KitGallery.jsx", "table-tag"),
-    ("screens/knowledge/documentColumns.jsx", "table-tag"),
-    ("screens/settings/SettingsMain.jsx", "table-tag"),
 }
 
 # 조합 규칙마다 보는 파일. 부품을 **구현하는** 곳(`ui/`)은 재료를 쓰는 자리라 화면 규칙을 받지 않는다.

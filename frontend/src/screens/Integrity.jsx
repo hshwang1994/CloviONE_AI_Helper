@@ -8,7 +8,7 @@ import { failureText } from "../lib/failure.js";
 import { CONSOLE_WRITE_ROLES } from "../lib/roles.js";
 import { useAuth } from "../app/auth.jsx";
 import {
-  Button, Callout, Card, CountChip, DataTable, ErrorState, ListCard, PageHeader,
+  Button, Callout, Card, CountChip, DataTable, ErrorState, PageHeader,
   Section, SectionTitle, Skeleton, useToast,
 } from "../ui/kit.jsx";
 import { StatusSummaryCard } from "../ui/StatusKpi.jsx";
@@ -64,14 +64,19 @@ function Findings({ finding, onFix }) {
         action={<CountChip value={`${finding.count}건`} />}
       />
       <Callout tone="info" variant="inline">{finding.remedy}</Callout>
-      {finding.count > finding.items.length ? (
-        <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1 }}>
-          전체 {finding.count}건 중 {finding.items.length}건만 표에 보입니다. 나머지는 정리한
-          뒤 다시 열면 이어서 나타납니다.
-        </Typography>
-      ) : null}
+      {/* 판 안 보조 표 — 머리 · 발이 판 여백을 거슬러 판 가장자리까지 편다(`placement="card"`, 조합 계약 C-3). 건수는 제목
+          옆 칩이 말하므로 발은 잘린 목록일 때만 선다 — 그 문장이 발 문장이다.
+          소속 지정 줄은 발의 선택 묶음이 아니다: 선택이 0건이어도 서는 지정 폼이고, 적용한 뒤 선택을 비워도 건너뛴 사람을
+          말하는 상자를 들고 있어야 한다(R5-04). 선택이 없으면 비는 발 오른쪽 칸과 뜻이 다르다. */}
       <Box sx={{ mt: 1.5 }}>
-        <DataTable columns={columns} rows={finding.items} rowKey={(r) => r.id} />
+        <DataTable
+          placement="card"
+          list={false}
+          columns={columns} rows={finding.items} rowKey={(r) => r.id}
+          note={finding.count > finding.items.length
+            ? `전체 ${finding.count}건 중 ${finding.items.length}건만 표에 보입니다. 나머지는 정리한 뒤 다시 열면 이어서 나타납니다.`
+            : undefined}
+        />
       </Box>
       {finding.fixable_here ? (
         <Box sx={{ mt: 1.5, display: "flex", gap: 1, alignItems: "center", flexWrap: "wrap" }}>
@@ -261,8 +266,9 @@ export function Integrity() {
             }))}
             sx={{ mb: 2 }}
           />
-          <ListCard>
-            <DataTable
+          {/* 목록 판 — 판이 곧 표 상자다(조합 계약 C-3). */}
+          <DataTable
+              placement="surface"
               columns={[
                 { key: "display_name", label: "이름", identifier: true },
                 { key: "role", label: "역할", nowrap: true },
@@ -282,7 +288,6 @@ export function Integrity() {
               rowKey={(r) => r.id}
               empty="관리자 계정이 없습니다."
             />
-          </ListCard>
         </Section>
       </Box>
     </Box>
