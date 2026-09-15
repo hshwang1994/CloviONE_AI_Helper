@@ -15,14 +15,14 @@ import { useAuth } from "../app/auth.jsx";
 import { PageHeader, Card, ListCard, Badge, Button, DataTable, DetailGrid, DetailRow, FormModal, Modal, OverflowMenu, Skeleton, EmptyState, ErrorState, Callout, useConfirm, useToast, ActionFooter } from "../ui/kit.jsx";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
 import { useRowSelection, selectionColumn } from "../ui/bulkSelect.jsx";
-import { FilterActions, FilterRow, FilterSurface, FilterToggle, ResultLine, ToolbarRow } from "../ui/FilterBar.jsx";
+import { FilterBar, FilterToggle } from "../ui/FilterBar.jsx";
 import { ListFooter } from "../ui/InfiniteScroll.jsx";
 import { useInfiniteList } from "../lib/useInfiniteList.js";
 import { BulkBar, CsvTools } from "./UsersBulk.jsx";
 import { buildViewQuery, hashQuery, withHashQuery } from "./datascreen-view.js";
 import { DateCell } from "../ui/cells.jsx";
 import { toggleSort } from "../ui/TableHeaderCell.jsx";
-import { FilterSelect, SearchBox } from "../ui/filters.jsx";
+import { FilterSelect, SearchBox, unmatchedLabel } from "../ui/filters.jsx";
 
 // PA-RC-0013: /users만 검색·필터·페이지를 URL에 안 실어서 새로고침·공유에 견디지 못했다
 // (대조군 /team-docs·/board·/team-tickets·/audit은 이미 견딘다). DataScreen.jsx가 이미 쓰는
@@ -691,48 +691,51 @@ export function Users() {
           SEM-02(PA-F-031): h1 하나뿐이라 필터·목록이 스크린리더 제목 탐색에서 구획 없는 한
           덩어리였다. 시각은 그대로(.sr-only), 다른 목록 화면과 같은 패턴. */}
       <Typography component="h2" className="sr-only">필터</Typography>
-      {/* 판이 아니다 — 지시 80. 컨트롤 다섯 개를 페이지 폭 흰 사각형에 담으면 오른쪽
-          절반이 빈다. */}
-      <FilterSurface>
-        <ToolbarRow>
-          {/* 공용 `SearchBox` 를 쓴다 — 예전에는 이 화면만 손으로 만든 검색창이었고,
-              디바운스도 없이 글자마다 질의가 나갔다(토큰 `DEBOUNCE_MS.filter` 미사용). */}
+      {/* 판이 아니다 — 지시 80. 검색 · 역할 · 활성 · 잠김이 한 줄에 서고 「보관된 계정 보기」는 보기 방식이라 그 줄 오른쪽
+          끝이다(조합 계약 C-1). 예전에는 검색만 한 줄을 쓰고 필터가 다음 줄로 내려갔고, 결과 수는 면 밖 한 줄이 말했다.
+          걸린 조건(조직 콘솔에서 넘어온 부서 조건 포함)은 모두 조건 줄의 칩이다. */}
+      <FilterBar
+        search={(
+          /* 공용 `SearchBox` 를 쓴다 — 예전에는 이 화면만 손으로 만든 검색창이었고, 디바운스도 없이 글자마다 질의가 나갔다. */
           <SearchBox
             value={q}
             onSearch={setQ}
             placeholder="이메일 또는 이름 검색"
             ariaLabel="사용자 검색"
           />
-        </ToolbarRow>
-        <FilterRow>
-          <FilterSelect label="역할" value={roleFilter} onChange={setRoleFilter} options={ROLE_OPTS} allLabel="역할: 전체" />
-          <FilterSelect
-            label="활성" value={activeFilter} onChange={setActiveFilter} allLabel="활성: 전체"
-            options={[{ value: "true", label: "활성" }, { value: "false", label: "비활성" }]}
-          />
-          <FilterSelect
-            label="잠김" value={lockedFilter} onChange={setLockedFilter} allLabel="잠김: 전체"
-            options={[{ value: "true", label: "지금 잠김" }, { value: "false", label: "잠기지 않음" }]}
-          />
-          {/* 필터 바의 켬/끔은 스위치가 아니라 34 중립 단추다 — 켜져 있을 때만 눌린 면이다(핸드오프 RULES §3 · 계획 P-14). */}
-          <FilterToggle pressed={showArchived} onClick={() => setShowArchived(!showArchived)}>보관된 계정 보기</FilterToggle>
-          {hasContentFilter ? (
-            <FilterActions>
-              <Button variant="ghost" size="sm" onClick={clearContentFilters}>필터 지우기</Button>
-            </FilterActions>
-          ) : null}
-        </FilterRow>
-      </FilterSurface>
-      {/* keepPreviousData라 검색, 필터를 바꿔도 표는 그대로 있어(깜빡임 방지) 타자/필터 조작이 씹혔다고
-          오인하기 쉽다, isLoading(최초 로딩)과 별개로, 백그라운드 재조회 중임을 결과 줄에 알린다. */}
-      {query.first ? (
-        <ResultLine
-          total={total != null ? total : items.length}
-          conditions={[q, roleFilter, activeFilter, lockedFilter, showArchived ? "archived" : "", deptFilter].filter(Boolean)}
-          action={query.isFetching && !query.isLoading ? (
-            <Typography variant="caption" color="text.secondary" role="status" aria-live="polite">불러오는 중…</Typography>
-          ) : null}
+        )}
+        /* 필터 바의 켬/끔은 스위치가 아니라 34 중립 단추다 — 켜져 있을 때만 눌린 면이다(핸드오프 RULES §3 · 계획 P-14). */
+        end={<FilterToggle pressed={showArchived} onClick={() => setShowArchived(!showArchived)}>보관된 계정 보기</FilterToggle>}
+        conditions={{
+          chips: [
+            q ? { key: "q", label: `검색: ${q}`, onDelete: () => setQ("") } : null,
+            roleFilter ? { key: "role", label: `역할: ${(ROLE_OPTS.find((o) => o.value === roleFilter) || {}).label || roleFilter}`, onDelete: () => setRoleFilter("") } : null,
+            activeFilter ? { key: "active", label: `활성: ${activeFilter === "true" ? "활성" : "비활성"}`, onDelete: () => setActiveFilter("") } : null,
+            lockedFilter ? { key: "locked", label: `잠김: ${lockedFilter === "true" ? "지금 잠김" : "잠기지 않음"}`, onDelete: () => setLockedFilter("") } : null,
+            deptFilter ? { key: "dept", label: `부서: ${deptFilter === NO_DEPARTMENT ? "미지정" : (deptFilterName || unmatchedLabel(deptFilter, false))}`, onDelete: () => setDeptFilter("") } : null,
+            /* 칩 낱말은 켬/끔 단추 낱말(「보관된 계정 보기」)과 다르다 — 같은 이름의 누를 것이 둘이면 낭독기가 가르지 못한다. */
+            showArchived ? { key: "archived", label: "보관된 계정만", onDelete: () => setShowArchived(false) } : null,
+          ].filter(Boolean),
+          total: query.first ? (total != null ? total : items.length) : null,
+          /* 보관함을 보는 중엔 내용 필터만 지운다 — 보관함 밖으로 조용히 밀려나지 않게(아래 빈 상태와 같은 이유). */
+          onClearAll: hasContentFilter ? clearContentFilters : null,
+          clearLabel: "필터 지우기",
+        }}
+      >
+        <FilterSelect label="역할" value={roleFilter} onChange={setRoleFilter} options={ROLE_OPTS} allLabel="역할: 전체" />
+        <FilterSelect
+          label="활성" value={activeFilter} onChange={setActiveFilter} allLabel="활성: 전체"
+          options={[{ value: "true", label: "활성" }, { value: "false", label: "비활성" }]}
         />
+        <FilterSelect
+          label="잠김" value={lockedFilter} onChange={setLockedFilter} allLabel="잠김: 전체"
+          options={[{ value: "true", label: "지금 잠김" }, { value: "false", label: "잠기지 않음" }]}
+        />
+      </FilterBar>
+      {/* keepPreviousData 라 검색 · 필터를 바꿔도 표는 그대로 있어(깜빡임 방지) 조작이 씹혔다고 오인하기 쉽다 —
+          최초 로딩과 별개로 백그라운드 재조회 중임을 알린다. */}
+      {query.first && query.isFetching && !query.isLoading ? (
+        <Typography variant="caption" color="text.secondary" role="status" aria-live="polite" sx={{ display: "block", mb: 1 }}>불러오는 중…</Typography>
       ) : null}
 
       {deptFilter ? (

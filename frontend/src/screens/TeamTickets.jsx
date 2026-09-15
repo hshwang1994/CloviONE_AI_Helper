@@ -2,7 +2,7 @@ import React from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, Callout, ErrorState, PageHeader, Skeleton } from "../ui/kit.jsx";
 import { useQueryState } from "../lib/useQueryState.js";
-import { DepartmentFilter } from "../ui/filters.jsx";
+import { DepartmentFilter, unmatchedLabel } from "../ui/filters.jsx";
 import { FilterToggle } from "../ui/FilterBar.jsx";
 import { ticketColumns, GroupedTickets, TicketEditModal, ticketConnState, useInlineStatusEdit } from "./MyTickets.jsx";
 import { useTicketSignals } from "../lib/ticketSignals.js";
@@ -97,16 +97,22 @@ export function TeamTickets() {
   /* 부서 후보는 **목록 응답이** 들고 온다(서버가 계산한 내 조회 범위). 별도 질의를 만들지
      않는 이유: 목록과 후보가 다른 시점의 범위를 말하면 고를 수는 있는데 결과가 비는 상자가
      생긴다. */
-  /* 부서는 **scope** 다 — 줄의 맨 앞(C2 그룹 순서). 「활성만」 토글은 조건이 아니라 보기
-     방식이라 흐름 끝에 남는다. 예전에는 둘을 한 덩어리로 넘겨 부서가 기한 뒤에 섰다. */
+  /* 부서는 **scope** 다 — 줄의 맨 앞(C2 그룹 순서). 「완료, 취소 포함」은 조건이 아니라 보기
+     방식이라 필터 바 오른쪽 끝(`end`)에 선다. 칸 폭은 줄 칸 표(13rem)가 정한다 — 이 화면만의 폭을 두지 않는다. */
   const scopeControls = (
     <DepartmentFilter
       departments={q.first && q.first.departments}
       value={filters.dept}
       onChange={(v) => setFilters({ dept: v })}
-      sx={{ minWidth: "16rem" }}
     />
   );
+  /* 부서 조건도 칩을 가진다 — 모든 조건은 칩이 있고 조건 수는 칩 수다(조합 계약 C-1). 이름은 칸과 같은 경로다. */
+  const deptOption = ((q.first && q.first.departments && q.first.departments.options) || []).find((o) => o.id === filters.dept);
+  const deptChips = filters.dept ? [{
+    key: "dept",
+    label: `부서: ${deptOption ? ((deptOption.path || []).map((n) => n.name).join(" › ") || deptOption.name) : unmatchedLabel(filters.dept, !q.first)}`,
+    onDelete: () => setFilters({ dept: "" }),
+  }] : [];
 
   return (
     <div className="c-screen">
@@ -134,7 +140,7 @@ export function TeamTickets() {
                   티켓 표가 이 서버의 정본이라 낡을 것이 없다(S14). */}
               <TicketFilterBar
                 fields={TEAM_FIELDS} value={filters} onChange={setFilters}
-                total={q.total} scope={scopeControls} extra={activeToggle}
+                total={q.total} scope={scopeControls} chips={deptChips} end={activeToggle}
                 onClear={() => setFilters({ ...clearTicketFilters(TEAM_FIELDS), dept: "", ...TICKET_LIST_EXTRA, active: filters.active })}
               />
               <Card>

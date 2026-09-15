@@ -1,3 +1,4 @@
+/* qa-contract-change: UI 3차 조합 계약 C-1 — 목록 위 단독 결과 줄(「전체 N건」)을 걷어 결과 수를 필터 면 안 조건 줄과 목록 끝 줄이 말하게 됐다. 건수 단언을 끝 줄 문장으로 옮기고 단독 줄이 되살아나지 않음을 더한다. */
 import React from "react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
@@ -250,8 +251,10 @@ describe("묶음 이어 받기", () => {
     });
     renderBoard();
     expect(await screen.findByText("글 0")).toBeInTheDocument();
-    // 결과 줄이 말하는 45건이 실제로 닿을 수 있는 숫자인가.
-    expect(screen.getByText("전체 45건")).toBeInTheDocument();
+    // 목록 끝 줄이 말하는 45건이 실제로 닿을 수 있는 숫자인가. 목록 위 단독 결과 줄은 없다(조합 계약 C-1).
+    expect(screen.queryByText("전체 45건")).toBeNull();
+    expect(document.querySelector("[data-result-line]")).toBeNull();
+    expect(document.querySelector("[data-condition-line]")).toBeNull();
     expect(screen.getByText("45건 중 20건을 받았습니다.")).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: "글 더 보기" }));

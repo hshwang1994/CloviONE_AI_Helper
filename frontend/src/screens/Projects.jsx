@@ -13,9 +13,8 @@ import { ListFooter } from "../ui/InfiniteScroll.jsx";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
 import { useAuth } from "../app/auth.jsx";
 import { useQueryState } from "../lib/useQueryState.js";
-import { DepartmentFilter, FilterSelect } from "../ui/filters.jsx";
-import { FilterActions, FilterRow, FilterSurface, FilterToggle, ResultLine, ToolbarRow } from "../ui/FilterBar.jsx";
-import { SearchBox } from "../ui/filters.jsx";
+import { DepartmentFilter, FilterSelect, SearchBox, unmatchedLabel } from "../ui/filters.jsx";
+import { FilterBar, FilterToggle } from "../ui/FilterBar.jsx";
 import { BarSeries } from "../ui/charts/BarSeries.jsx";
 import { Gauge } from "../ui/charts/Gauge.jsx";
 import { ProgressBar } from "../ui/charts/ProgressBar.jsx";
@@ -413,13 +412,6 @@ export function Projects() {
     () => setFilters(clearedProjectFilters()),
     [setFilters]
   );
-  /* 결과 줄이 세는 것은 «지금 걸린 조건» 이다 — 기본값과 다른 축만 센다. */
-  const activeProjectConditions = React.useMemo(
-    () => PROJECT_FILTER_KEYS.filter(
-      (k) => filters[k] !== PROJECT_SPEC[k] && filters[k] !== "" && filters[k] != null
-    ),
-    [filters]
-  );
   /* 검색어 확정은 `SearchBox` 가 디바운스해서 부른다. **참조가 고정**돼야 한다 —
      매 렌더마다 새로 만들면 React.memo 가 깨져 글자마다 목록이 다시 그려진다. */
   const commitSearch = React.useCallback((next) => setFilters({ q: next }), [setFilters]);
@@ -459,6 +451,16 @@ export function Projects() {
     [deptNamesFromList, deptNames],
   );
   const cols = React.useMemo(() => columns(names), [names]);
+  /* 조건 칩 — 조건을 세는 축(`PROJECT_FILTER_KEYS`)마다 하나다. 요약 카드로 켠 조건도 칩으로 풀 수 있다(조합 계약 C-1). */
+  const projectChips = [
+    filters.q ? { key: "q", label: `검색: ${filters.q}`, onDelete: () => setFilters({ q: "" }) } : null,
+    filters.dept ? { key: "dept", label: `부서: ${names[filters.dept] || unmatchedLabel(filters.dept, !q.first)}`, onDelete: () => setFilters({ dept: "" }) } : null,
+    filters.status ? { key: "status", label: `상태: ${PROJECT_STATUS_KO[filters.status] || filters.status}`, onDelete: () => setFilters({ status: "" }) } : null,
+    filters.trouble ? { key: "trouble", label: "Health 하위", onDelete: () => setFilters({ trouble: false }) } : null,
+    filters.overdue ? { key: "overdue", label: "지연 마일스톤", onDelete: () => setFilters({ overdue: false }) } : null,
+    /* 칩 낱말은 켬/끔 단추 낱말과 다르게 「이름: 값」이다 — 같은 이름의 누를 것이 둘이면 낭독기가 가르지 못한다. */
+    filters.archived ? { key: "archived", label: "보관한 프로젝트: 포함", onDelete: () => setFilters({ archived: false }) } : null,
+  ].filter(Boolean);
 
   async function submitCreate(body) {
     const created = await create.mutateAsync(body);
@@ -486,50 +488,46 @@ export function Projects() {
         onFilter={(patch) => setFilters(patch)}
       />
 
-      {/* 탐색 줄은 **판이 아니다** (지시 80 · W5). 이 화면만 `c-toolbar-card` 를 달고 남아
-          있었다 — 독립 검수 실측: 1920 에서 잉크 폭 비 0.355, 3840 에서 0.234 로, W5 가
-          「없앴다」고 적은 `/policies` 판(0.43)보다 오히려 나빴다. 나머지 넷과 같은 부품을 쓴다:
-          scope(부서)가 먼저, 보기 방식(보관 포함)은 흐름 끝, 건수는 필터와 목록 **사이**. */}
-      <FilterSurface>
-        {/* 탐색 줄의 구조가 티켓·게시판과 **같다** (지시 2 · 8): 위 줄이 「무엇을
-            찾는가」(검색), 아래 줄이 「무엇으로 좁히는가」(부서·보관). 예전에는 이 화면만
-            검색이 아예 없어서, 프로젝트가 스무 개를 넘으면 이름을 눈으로 훑어야 했다. */}
-        <ToolbarRow>
+      {/* 탐색 줄은 **판이 아니다** (지시 80 · W5). 검색 · 부서 · 상태가 한 줄에 서고 「보관한 프로젝트 포함」은 보기 방식이라
+          그 줄 오른쪽 끝이다(조합 계약 C-1). 예전에는 검색만 한 줄을 쓰고 부서 · 상태가 다음 줄로 내려갔고, 결과 수는 면 밖
+          한 줄이 말했다. 걸린 조건(요약 카드를 눌러 켠 「Health 하위」 · 「지연 마일스톤」 포함)은 모두 조건 줄의 칩이다. */}
+      <FilterBar
+        search={(
           <SearchBox
             value={filters.q}
             onSearch={commitSearch}
             placeholder="프로젝트 이름, 코드 검색"
             ariaLabel="프로젝트 검색"
           />
-        </ToolbarRow>
-        <FilterRow>
-          {/* 후보는 이 응답이 들고 온다 — 서버가 계산한 내 조회 범위다. */}
-          <DepartmentFilter
-            departments={data.departments}
-            value={filters.dept}
-            onChange={(v) => setFilters({ dept: v })}
-          />
-          {/* 요약 타일과 **같은 상태 축**(`filters.status`)이다 — 타일은 훑다가 누르는
-              입구이고, 이 고르개는 조건을 걸러고 온 사람의 입구다. 타일과 같은 배타
-              규칙을 따른다(상태를 걸면 주의·지연 조건은 푼다). */}
-          <FilterSelect
-            label="상태"
-            value={filters.status}
-            onChange={(v) => setFilters({ status: v, trouble: false, overdue: false })}
-            options={PROJECT_STATUS_OPTIONS}
-          />
-          {/* 필터 바의 켬/끔은 스위치가 아니라 34 중립 단추다 — 켜져 있을 때만 눌린 면이다(핸드오프 RULES §3 · 계획 P-14). */}
+        )}
+        /* 필터 바의 켬/끔은 스위치가 아니라 34 중립 단추다 — 켜져 있을 때만 눌린 면이다(핸드오프 RULES §3 · 계획 P-14). */
+        end={(
           <FilterToggle pressed={!!filters.archived} onClick={() => setFilters({ archived: !filters.archived })}>
             보관한 프로젝트 포함
           </FilterToggle>
-          {hasProjectFilter ? (
-            <FilterActions>
-              <Button variant="ghost" size="sm" onClick={clearProjectFilters}>필터 지우기</Button>
-            </FilterActions>
-          ) : null}
-        </FilterRow>
-      </FilterSurface>
-      <ResultLine total={data.total} conditions={activeProjectConditions} />
+        )}
+        conditions={{
+          chips: projectChips,
+          total: q.first ? data.total : null,
+          onClearAll: hasProjectFilter ? clearProjectFilters : null,
+          clearLabel: "필터 지우기",
+        }}
+      >
+        {/* 후보는 이 응답이 들고 온다 — 서버가 계산한 내 조회 범위다. */}
+        <DepartmentFilter
+          departments={data.departments}
+          value={filters.dept}
+          onChange={(v) => setFilters({ dept: v })}
+        />
+        {/* 요약 카드와 **같은 상태 축**(`filters.status`)이다 — 카드는 훑다가 누르는 입구이고, 이 고르개는 조건을 걸러
+            온 사람의 입구다. 카드와 같은 배타 규칙을 따른다(상태를 걸면 주의 · 지연 조건은 푼다). */}
+        <FilterSelect
+          label="상태"
+          value={filters.status}
+          onChange={(v) => setFilters({ status: v, trouble: false, overdue: false })}
+          options={PROJECT_STATUS_OPTIONS}
+        />
+      </FilterBar>
 
       {q.isLoading ? <Card>{/* 표가 들어올 자리에는 표 모양을 그린다 (지시 20) - 빈 목록과 아직 안 온 목록은 다른 사실이다. */}<DataTable columns={cols} rows={[]} loading /></Card>
         : q.isError ? <ErrorState layout="region" error={q.error} onRetry={() => q.refetch()} />

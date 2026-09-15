@@ -72,7 +72,9 @@ export const ROW_KIND = {
   search: CONTROL_KIND.search,
   entity: { flex: "0 0 13rem", width: "13rem", minWidth: 0, maxWidth: "100%" },
   enum: { flex: "0 0 auto", minWidth: "8rem", maxWidth: "13rem" },
-  text: { flex: "0 0 11rem", width: "11rem", minWidth: 0, maxWidth: "100%" },
+  /* 자유 입력은 **값 자리 6rem + 이름**이다 — 이름이 긴 칸(감사 「작업(정확히, 예: user.update)」)을 11rem 에 가두면 이름이
+     칸을 다 먹어 친 글자가 안 보인다. 짧은 이름은 11rem 바닥에 선다. */
+  text: { flex: "0 0 auto", minWidth: "11rem", maxWidth: "min(24rem, 100%)", "& .MuiInputBase-input": { width: "6rem", minWidth: 0 } },
   date: { flex: "0 0 11rem", width: "11rem", minWidth: 0, maxWidth: "100%" },
   datetime: { flex: "0 0 18rem", width: "18rem", minWidth: 0, maxWidth: "100%" },
   number: CONTROL_KIND.number,

@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
-import { ResultLine } from "../ui/FilterBar.jsx";
+import { HeaderActions } from "../ui/HeaderSlot.jsx";
 import { api } from "../lib/api.js";
 import {
   Button, Card, DataTable, EmptyState, ErrorState, Skeleton, useToast,
@@ -123,19 +123,17 @@ export function ProjectDocuments({ projectId, projectName = "" }) {
 
   return (
     <Stack spacing={2}>
-      {/* 결과 줄 — 화면이 쓰던 문장을 그대로 세우고(계획 P-21), 이 탭의 주 행동이 같은 줄 끝에 선다. */}
-      <ResultLine
-        total={total}
-        text={hidden
-          ? "총 " + total + "건 가운데 " + rows.length + "건을 보여 줍니다. 나머지는 문서 화면에서 찾을 수 있습니다."
-          : "총 " + total + "건"}
-        action={
-          <Button variant="primary" sx={{ marginInlineStart: "auto" }} onClick={() => { createDocument.reset(); setNewDoc(true); }}>
-            새 문서
-          </Button>
-        }
-        sx={{ alignItems: "center", mb: 0 }}
-      />
+      {/* 이 탭의 주 행동은 탭 그릇의 머리 오른쪽에 선다(D-454) — 단독 화면이 `PageHeader actions` 에 두는 자리와 같다.
+          그릇이 없는 자리(시험 · 단독 임베드)에서는 목록 위 오른쪽에 그린다. 건수 문장은 목록 끝 줄의 것이다(조합 계약 C-1). */}
+      <HeaderActions
+        fallback={(
+          <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
+            <Button variant="primary" onClick={() => { createDocument.reset(); setNewDoc(true); }}>새 문서</Button>
+          </Box>
+        )}
+      >
+        <Button variant="primary" onClick={() => { createDocument.reset(); setNewDoc(true); }}>새 문서</Button>
+      </HeaderActions>
       {rows.length === 0 ? (
         <EmptyState
           title="이 프로젝트에 문서가 아직 없습니다."
@@ -145,6 +143,12 @@ export function ProjectDocuments({ projectId, projectName = "" }) {
       ) : (
         <Card>
           <DataTable columns={columns} rows={rows} rowKey={(d) => d.id} onRow={openDoc} />
+          {/* 화면이 쓰던 결과 문장이다(계획 P-21) — 상한을 넘긴 프로젝트의 문서가 조용히 사라지지 않게 목록 끝에 선다. */}
+          <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1.5 }}>
+            {hidden
+              ? "총 " + total + "건 가운데 " + rows.length + "건을 보여 줍니다. 나머지는 문서 화면에서 찾을 수 있습니다."
+              : "총 " + total + "건"}
+          </Typography>
         </Card>
       )}
       <NewDocumentModal

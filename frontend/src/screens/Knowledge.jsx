@@ -19,7 +19,6 @@ import {
   useConfirm,
   useToast,
 } from "../ui/kit.jsx";
-import { ResultLine } from "../ui/FilterBar.jsx";
 import { failureText } from "../lib/failure.js";
 import { ListFooter } from "../ui/InfiniteScroll.jsx";
 import { useResetScrollOnKeyChange } from "../lib/useInfiniteList.js";
@@ -360,20 +359,15 @@ export function Knowledge() {
      나타납니다」를 보여 주면 할 수 있는 일을 없다고 말하는 것이 된다. 목록이 비었을 때의
      안내는 아래 `ListEmptyState` 하나가 맡는다. */
 
-  /* 「필터 지우기」가 지우는 축 = 조건을 세는 축 (D-388). 한 목록에서 관리한다.
-     프로젝트(공간)는 여기 없다 — 그것은 조건이 아니라 **지금 서 있는 자리**다(좌측
-     내비가 그 상태를 그린다). 공간이 하나뿐인 설치는 화면이 스스로 그 공간을 여는데,
-     그것을 조건으로 세면 아무것도 안 건 사람에게 「조건 1개」가 보인다. */
-  const activeConditions = [
-    q ? "검색어" : "",
-    view ? "보기" : "",
-    category ? "분류" : "",
-    tags.length ? "태그" : "",
-    author ? "작성자" : "",
-  ].filter(Boolean);
-  const hasFilter = activeConditions.length > 0;
+  /* 「필터 지우기」가 지우는 축 = 칩이 서는 축 (D-388 · 조합 계약 C-1). 한 목록에서 관리한다.
+     프로젝트는 **사람이 고른 자리일 때만** 조건이다 — 프로젝트가 하나뿐인 설치는 화면이 스스로 그
+     프로젝트를 여는데, 그것을 조건으로 세면 아무것도 안 건 사람에게 「조건 1개」가 보인다. */
+  const projectIsCondition = !!project
+    && !(projectEntries.length === 1 && project === projectEntries[0].value);
+  const hasFilter = !!(q || view || category || tags.length || author || projectIsCondition);
   const clearFilters = () => setQuery({
     q: null, view: null, category: null, tags: [], author: null,
+    ...(projectIsCondition ? { project: null } : {}),
   });
 
   return (
@@ -432,6 +426,7 @@ export function Knowledge() {
         q={q}
         view={view}
         project={project}
+        projectIsCondition={projectIsCondition}
         tags={tags}
         category={category}
         author={author}
@@ -443,12 +438,10 @@ export function Knowledge() {
         onQuery={setQuery}
         onClearAll={clearFilters}
         total={total}
-        conditions={activeConditions}
       />
 
-      {/* 조건이 걸리면 결과 수는 필터 바 안 조건 줄이 말한다(ACCEPTANCE D3) — 여기서는 조건이 없을 때의 「전체 N건」만 선다.
-          「최근 열람」은 쪽을 안 나눈다 — 사람마다 다르고 길지 않다. */}
-      {hasFilter ? null : <ResultLine total={total} />}
+      {/* 결과 수는 조건이 걸리면 필터 바 안 조건 줄이, 늘 목록 판 발이 말한다 — 목록 위 단독 「전체 N건」 줄은 없다
+          (조합 계약 C-1). 「최근 열람」은 쪽을 안 나눈다 — 사람마다 다르고 길지 않다. */}
       {listFailure ? <Callout tone="danger" compact sx={{ mb: 1.5 }}>{listFailure}</Callout> : null}
 
       {/* 🔴 좌측 레일이 없다. 폴더 축이 화면에서 걷히면서(문서 개편 5번) 레일에 남는

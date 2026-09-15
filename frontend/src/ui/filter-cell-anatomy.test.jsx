@@ -171,7 +171,9 @@ describe("팀 고르개의 빈 글자", () => {
 describe("줄 칸 폭 — 늘어나지 않는다", () => {
   it("줄 칸이면 종류 표(ROW_KIND)를 쓰고, 줄 밖이면 흐름 치수(CONTROL_KIND)를 그대로 쓴다", () => {
     expect(kindSx("entity", undefined, undefined, true)).toMatchObject({ flex: "0 0 13rem", width: "13rem" });
-    expect(kindSx("text", undefined, undefined, true)).toMatchObject({ flex: "0 0 11rem", width: "11rem" });
+    expect(kindSx("text", undefined, undefined, true)).toMatchObject({ flex: "0 0 auto", minWidth: "11rem", maxWidth: "min(24rem, 100%)" });
+    // 자유 입력의 값 자리는 6rem 이다 — 이름이 길어도 친 글자가 보인다.
+    expect(kindSx("text", undefined, undefined, true)["& .MuiInputBase-input"]).toMatchObject({ width: "6rem" });
     expect(kindSx("date", undefined, undefined, true)).toMatchObject({ flex: "0 0 11rem", width: "11rem" });
     expect(kindSx("datetime", undefined, undefined, true)).toMatchObject({ flex: "0 0 18rem", width: "18rem" });
     expect(kindSx("enum", undefined, undefined, true)).toMatchObject({ flex: "0 0 auto", minWidth: "8rem", maxWidth: "13rem" });

@@ -222,22 +222,6 @@ export function ResultLine({ total, unit = "건", conditions, action, text, sx }
   );
 }
 
-/* 지금 걸린 조건을 Chip 으로 보여 주고 하나씩 뗄 수 있게 한다.
- * 숨은 기본 조건은 여기에 안 넣는다 — 넣은 것만 사용자가 본 조건이다. */
-/* 🔴 조건 줄의 **모든 조작기가 한 높이로 선다** (S22 · `control_baseline_mismatch`).
- *
- * 이 줄에는 세 종류가 섞인다: 조건 칩(`Chip size="small"`) · 「필터 초기화」 · 화면이
- * 넘기는 `extraAction`(「전체 보기」 같은 글자 단추). 칩은 토큰 높이로 서는데 글자 단추는
- * 자기 줄 높이라, 4K 레버가 루트 폰트사이즈를 올리면 둘이 갈렸다 — `/my-tickets` 3840 에서
- * 다섯 컨트롤이 5.5px 어긋났다. 좁은 화면에서는 우연히 같아서 아무도 못 봤다.
- *
- * 줄이 자기 높이를 주는 것만으로는 모자란다 — 프로브가 재는 것은 **버튼 요소 자신**이라
- * 감싼 상자의 높이는 그 판정에 안 들어간다(실측으로 확인했다). 그래서 이 값을 내보내
- * `extraAction` 을 만드는 화면이 **그 버튼에 직접** 얹게 한다. */
-export const CHIP_ROW_CONTROL = {
-  display: "inline-flex", alignItems: "center", minHeight: remPx(CONTROL.buttonSm),
-};
-
 /* 조건 칩의 얼굴 — **알약이고 옅은 브랜드 면이다** (확정 규약 · 갤러리 대조 D-4).
  *
  * MUI `Chip` 기본은 중립 회색 필이다. 그 얼굴로는 이 줄의 칩이 바로 위 태그(`Tag`)와
@@ -249,14 +233,12 @@ export const CHIP_ROW_CONTROL = {
  * 10% 섞은 값이고 `primary.dark` 는 그 강조색의 진한 잉크다 — 사용자가 강조색을 바꾸면
  * 둘이 함께 따라간다. 고정 hex 를 쓰면 보라 이외의 강조색에서 칩만 보라로 남는다.
  *
- * 높이는 옆의 「필터 초기화」(30, `CHIP_ROW_CONTROL`)와 **일부러 다르다.** 칩은 지금 걸린
- * 조건을 말하는 표지이고 그 옆은 누르는 단추다 — 한 높이로 세우면 셋이 한 종류로 읽힌다.
- * 줄이 `align-items: center` 라 두 높이가 한 축에 선다. */
+ * 높이는 옆의 「필터 초기화」(30)와 **일부러 다르다.** 칩은 지금 걸린 조건을 말하는 표지이고 그 옆은
+ * 누르는 단추다 — 한 높이로 세우면 셋이 한 종류로 읽힌다. 줄이 `align-items: center` 라 두 높이가 한 축에 선다. */
 const CONDITION_CHIP_SX = {
   height: remPx(CONTROL.chip),
   /* `px` 를 붙인다 — MUI 의 `borderRadius` 시스템 prop 은 **맨 숫자에 `shape.borderRadius`
-     를 곱한다.** `RADIUS.full`(999)을 그대로 주면 `7992px` 가 나간다. 브라우저가 알아서
-     높이의 절반으로 잘라 주니 화면은 맞지만, 선언된 값이 계약과 달라진다. */
+     를 곱한다.** `RADIUS.full`(999)을 그대로 주면 `7992px` 가 나간다. */
   borderRadius: `${RADIUS.full}px`,
   bgcolor: "primary.light",
   color: "primary.dark",
@@ -264,6 +246,8 @@ const CONDITION_CHIP_SX = {
   borderColor: "divider",
   fontSize: FONT_SIZE.caption,
   fontWeight: FONT_WEIGHT.semibold,
+  maxWidth: "100%",
+  "& .MuiChip-label": { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
   "& .MuiChip-deleteIcon": {
     color: "inherit",
     opacity: 0.7,
@@ -271,73 +255,93 @@ const CONDITION_CHIP_SX = {
   },
 };
 
-function ConditionChips({ chips, onClearAll, clearLabel, extraAction }) {
-  return (
-    <>
-      {chips.map((chip) => (
-        <Chip
-          key={chip.key}
-          size="small"
-          label={chip.label}
-          onDelete={chip.onDelete}
-          /* 긴 조건값은 한 칩 안에서 말줄임되고 전체 값은 `title` 이 든다(§0-3). */
-          title={typeof chip.label === "string" ? chip.label : undefined}
-          sx={{ ...CONDITION_CHIP_SX, maxWidth: "100%", "& .MuiChip-label": { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }}
-        />
-      ))}
-      {onClearAll ? (
-        <Typography
-          component="button"
-          type="button"
-          variant="body2"
-          onClick={onClearAll}
-          sx={{
-            border: 0, background: "none", cursor: "pointer", color: "primary.main", font: "inherit",
-            ...CHIP_ROW_CONTROL,
-            "&:focus-visible": (t) => ({ outline: `2px solid ${t.palette.focusRing}`, outlineOffset: 2 }),
-          }}
-        >
-          {clearLabel}
-        </Typography>
-      ) : null}
-      {extraAction ? <Box sx={CHIP_ROW_CONTROL}>{extraAction}</Box> : null}
-    </>
-  );
-}
+/* 조건 줄의 글자 단추(지우기 · 「전체 보기」) — 목록 안 부수 동작이라 ghost 30 이고 링크 잉크로 선다(RULES §3). */
+const CONDITION_ACTION_SX = { color: "primary.dark" };
 
-export function FilterChips({ items, onClearAll, clearLabel = "필터 초기화", extraAction }) {
-  const chips = Array.isArray(items) ? items.filter((c) => c && c.label) : [];
-  if (!chips.length && !extraAction) return null;
-  return (
-    <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap", mb: 1.5 }}>
-      <ConditionChips chips={chips} onClearAll={onClearAll} clearLabel={clearLabel} extraAction={extraAction} />
-    </Box>
-  );
-}
-
-/* ── 조건 줄 — 필터 바의 **두 번째 줄** (핸드오프 README §3 · ACCEPTANCE D3) ─────────────────
+/* ── 조건 줄 — 필터 바의 **두 번째 줄** (핸드오프 README §3 · ACCEPTANCE D3 · UI 3차 조합 계약 C-1) ─────
  *
- * 조건이 하나라도 걸리면 `FilterSurface` 안, 컨트롤 줄 아래에 위 1px 실선을 긋고 한 줄로 선다:
- * 「조건 N개, 결과 M건」 → 조건 칩 → 지우기. 조건이 없으면 **그리지 않는다** — 그때 결과 수는
- * 표 위의 `ResultLine`(「전체 M건」)이 말한다. 예전에는 결과 문장과 칩이 필터 판 **밖**에 따로
- * 두 줄로 서서, 「이 칩이 위의 어느 컨트롤에서 왔나」와 「이 숫자가 무엇의 결과인가」가 공간으로
- * 이어지지 않았다.
+ * 조건 칩이 하나라도 있으면 필터 면 **안**, 컨트롤 줄 아래에 위 1px 실선을 긋고 한 줄로 선다:
+ * 「조건 N개, 결과 M건」 → 조건 칩 → 지우기 → 덧붙는 글자 단추(「전체 보기」). 칩이 없으면 **그리지 않는다.**
  *
- * `conditions` 를 주면 그 수로 「조건 N개」를 센다(칩으로 안 보이는 조건이 있는 화면). */
-export function FilterConditionLine({ total, unit = "건", chips, conditions, onClearAll, clearLabel = "필터 초기화", extraAction }) {
+ * **N 은 칩 수다.** 예전에는 화면이 조건 수를 따로 세서 넘겼다 — 문서 · 게시판은 검색어를 조건으로 세면서
+ * 칩은 안 그렸고(「조건 2개」 옆에 칩 하나), 태그 셋을 조건 하나로 셌다. 세는 것과 보이는 것이 한 목록이면
+ * 둘이 갈라질 자리가 없다. 조건이 아닌데 칩이 필요한 것은 없다 — 모든 조건은 칩을 가진다.
+ *
+ * 결과 수의 자리는 여기와 목록 판 발 둘뿐이다. 목록 위 단독 「전체 N건」 줄은 걷었다 — 발의
+ * 「N건 중 M건을 받았습니다.」가 같은 수를 말한다. */
+export function FilterConditionLine({ total, unit = "건", chips, onClearAll, clearLabel = "필터 초기화", extraAction }) {
   const list = Array.isArray(chips) ? chips.filter((c) => c && c.label) : [];
-  const count = Array.isArray(conditions) ? conditions.filter(Boolean).length : list.length;
-  if (!count) return null;
+  if (!list.length) return null;
   return (
     <Box
       data-condition-line=""
       sx={{ display: "flex", alignItems: "center", flexWrap: "wrap", columnGap: 1, rowGap: 1, pt: 1.5, borderTop: 1, borderColor: "rule" }}
     >
-      <Typography variant="body2" color="text.secondary" aria-live="polite" sx={{ marginInlineEnd: 0.5, whiteSpace: "nowrap" }}>
-        {total == null ? "세는 중…" : `조건 ${count}개, 결과 ${total.toLocaleString("ko-KR")}${unit}`}
+      <Typography
+        data-condition-count=""
+        variant="body2"
+        color="text.secondary"
+        aria-live="polite"
+        sx={{ marginInlineEnd: 0.5, whiteSpace: "nowrap" }}
+      >
+        {total == null ? "세는 중…" : `조건 ${list.length}개, 결과 ${total.toLocaleString("ko-KR")}${unit}`}
       </Typography>
-      <ConditionChips chips={list} onClearAll={onClearAll} clearLabel={clearLabel} extraAction={extraAction} />
+      {list.map((chip) => (
+        <Chip
+          key={chip.key}
+          data-condition-chip=""
+          size="small"
+          label={chip.label}
+          onDelete={chip.onDelete}
+          /* 긴 조건값은 한 칩 안에서 말줄임되고 전체 값은 `title` 이 든다(§0-3). */
+          title={typeof chip.label === "string" ? chip.label : undefined}
+          sx={CONDITION_CHIP_SX}
+        />
+      ))}
+      {onClearAll ? (
+        <Button data-filter-clear="" variant="ghost" size="sm" onClick={onClearAll} sx={CONDITION_ACTION_SX}>
+          {clearLabel}
+        </Button>
+      ) : null}
+      {extraAction ? (
+        <Button variant="ghost" size="sm" onClick={extraAction.onClick} sx={CONDITION_ACTION_SX}>
+          {extraAction.label}
+        </Button>
+      ) : null}
     </Box>
+  );
+}
+
+/* ── 필터 바 — 목록 화면의 탐색 줄 **한 벌** (UI 3차 · 조합 계약 C-1) ─────────────────────────────
+ *
+ * 예전에는 이 파일이 낱개(`FilterSurface` · `ToolbarRow` · `FilterRow` · `ToolbarEnd` · `FilterActions` ·
+ * `FilterChips` · `ResultLine` · `FilterConditionLine`)만 내보냈고 목록 화면 열여섯 곳이 제각각 조립했다.
+ * 티켓 · 게시판은 칩 줄과 결과 줄을 면 **밖**에 두 줄로 세웠고, DataScreen · 사용자 · 프로젝트 · 조직은
+ * 검색만 한 줄을 쓰고 필터를 다음 줄로 내렸고(1920 에서도 두 줄), 「필터 지우기」는 줄 끝 동작 묶음에서
+ * 화면마다 다른 크기로 섰다. 부품은 전부 정본인데 조합이 화면마다 달랐다.
+ *
+ * 이 부품이 조합을 정한다: 한 줄 = 검색(20rem 슬롯) → 내용 필터 칸 → 빈 공간 → `end`(정렬 · 보기 · 켬/끔 ·
+ * 저장된 뷰), 아래 1px 실선. 조건 칩이 하나라도 있으면 같은 면 안 둘째 줄이 조건 줄이다. 좁아지면 순서를
+ * 지킨 채 줄바꿈하고 `end` 는 묶음째 내려간다. 화면은 칸과 칩만 넘긴다.
+ *
+ *   search      `SearchBox` 하나(없으면 생략)
+ *   children    내용 필터 칸(순서는 `FILTER_GROUP_ORDER`)
+ *   end         오른쪽 끝 묶음
+ *   conditions  `{ chips, total, unit, onClearAll, clearLabel, extraAction: { label, onClick } }`
+ *   divider     아래 실선. 서랍 안 필터처럼 목록과 가를 선이 필요 없는 자리만 `false`
+ *
+ * 낱개 부품은 이 조합 안에서만 쓴다. 대장 예외(`docs/ui-renewal/COMPONENT_LEDGER.md` 「조합 예외」)만 낱개를
+ * 직접 조립한다 — `scripts/check_composition.py` 가 그 표와 대조한다. */
+export function FilterBar({ search, children, end, conditions, divider = true, sx, ...rest }) {
+  return (
+    <FilterSurface divider={divider} sx={sx} data-filter-bar="" {...rest}>
+      <FilterRow>
+        {search || null}
+        {children}
+        {end ? <ToolbarEnd>{end}</ToolbarEnd> : null}
+      </FilterRow>
+      {conditions ? <FilterConditionLine {...conditions} /> : null}
+    </FilterSurface>
   );
 }
 

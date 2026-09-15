@@ -6,6 +6,8 @@
 - `scripts/ui_qa/composition_checks.py` — 실브라우저 조합 검사의 표(검사 이름 · 경로 기대 · 자기검증 기대)가
   서로 어긋나지 않는가. 브라우저 없이 볼 수 있는 부분만 여기서 고정한다(실측 자기검증은
   `local_capture --harness kit_measure --selftest`).
+
+qa-contract-change: 줄 칸 자유 입력 폭을 고정 11rem 에서 「이름 + 값 자리 6rem, 11rem 바닥 · 24rem 상한」으로 옮긴다. 감사 로그 「작업(정확히, 예: user.update)」 칸이 11rem 에서 이름만으로 칸을 다 먹어 친 글자가 안 보이던 것을 캡처 눈 대조로 찾았다. 표의 상한 18 은 자유 입력만 24 로 풀고, 나머지 종류 값과 프런트 ROW_KIND 와의 일치를 새로 고정한다.
 """
 
 from __future__ import annotations
@@ -135,8 +137,29 @@ def test_browser_composition_tables_agree():
     for rid, flags in cc.ROUTE_EXPECT.items():
         assert set(flags) <= allowed, (rid, flags)
     # 줄 칸 폭 표 — 최솟값이 최댓값을 넘지 않고, 늘어나는 종류가 없다(검색 슬롯은 이 표 밖이다).
-    for kind, (lo, hi) in cc.COMPOSITION_CONTRACT["rowKind"].items():
-        assert 0 < lo <= hi <= 18, kind
+    # 고정 폭 종류는 18rem 을 넘지 않는다. 자유 입력만 이름 길이를 따라 11~24rem 사이에 선다(값 자리 6rem).
+    row_kind = cc.COMPOSITION_CONTRACT["rowKind"]
+    assert set(row_kind) == {"entity", "tag", "enum", "text", "date", "datetime"}
+    for kind, (lo, hi) in row_kind.items():
+        assert 0 < lo <= hi, kind
+        if kind != "text":
+            assert hi <= 18, kind
+    assert row_kind["entity"] == [13, 13] and row_kind["tag"] == [13, 13]
+    assert row_kind["enum"] == [8, 13]
+    assert row_kind["date"] == [11, 11] and row_kind["datetime"] == [18, 18]
+    assert row_kind["text"] == [11, 24]
+    # 브라우저 검사의 표와 프런트 ROW_KIND 가 같은 수를 말한다 — 한쪽만 옮기면 여기서 멈춘다.
+    filters_src = (ROOT / "frontend" / "src" / "ui" / "filters.jsx").read_text(encoding="utf-8")
+    # 흐름 치수 표(CONTROL_KIND)에도 `text:` 가 있다 — 줄 칸 표(ROW_KIND) 블록만 본다.
+    start = filters_src.index("export const ROW_KIND = {")
+    filters_src = filters_src[start : filters_src.index("\n};", start)]
+    text_line = next(line for line in filters_src.splitlines() if line.strip().startswith("text: {"))
+    assert 'minWidth: "11rem"' in text_line and 'maxWidth: "min(24rem, 100%)"' in text_line, text_line
+    assert 'width: "6rem"' in text_line and 'flex: "0 0 auto"' in text_line, text_line
+    assert 'entity: { flex: "0 0 13rem", width: "13rem"' in filters_src
+    assert 'date: { flex: "0 0 11rem", width: "11rem"' in filters_src
+    assert 'datetime: { flex: "0 0 18rem", width: "18rem"' in filters_src
+    assert 'enum: { flex: "0 0 auto", minWidth: "8rem", maxWidth: "13rem" }' in filters_src
     assert cc.COMPOSITION_CONTRACT["filterCell"] == 34
     assert cc.COMPOSITION_CONTRACT["prefixInset"] == 14 and cc.COMPOSITION_CONTRACT["prefixGap"] == 6
     assert cc.COMPOSITION_CONTRACT["rowAction"] == 30 and cc.COMPOSITION_CONTRACT["cardPadding"] == 20

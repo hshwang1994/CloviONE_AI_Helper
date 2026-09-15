@@ -17,11 +17,11 @@ import { SummaryView } from "./data-screen/SummaryView.jsx";
  * 예전에는 그 부품이 이 파일 안에 있었다. 사용자 콘솔의 티켓·문서 목록도 같은 것이 필요해
  * 지면서 올렸다: 같은 뜻의 검색창이 세 벌이면 한쪽만 고쳐지는 날이 오고, 그때 증상은
  * "이 화면 검색만 느리다" 라서 원인이 안 보인다. */
-import { DebouncedTextField, EMPTYABLE_SELECT, EntityCombobox, FilterSelect, SearchBox, kindSx } from "../ui/filters.jsx";
+import { DebouncedTextField, EMPTYABLE_SELECT, EntityCombobox, FilterSelect, SearchBox, kindSx, normalizeOptions, unmatchedLabel } from "../ui/filters.jsx";
 import { DateField } from "../ui/DateField.jsx";
-/* 탐색 줄 — TicketFilterBar.jsx 와 공유(ui/FilterBar.jsx). **판이 아니다**(지시 80).
+/* 탐색 줄 — 필터 바 조합 부품(ui/FilterBar.jsx). **판이 아니다**(지시 80).
    폭은 격자 트랙이 아니라 컨트롤의 종류가 정한다(C2 «폭 배분»). */
-import { FILTER_GROUP_ORDER, FilterActions, FilterRow, FilterSurface, ResultLine, ToolbarEnd, ToolbarRow, filterGroupOf } from "../ui/FilterBar.jsx";
+import { FILTER_GROUP_ORDER, FilterBar, filterGroupOf } from "../ui/FilterBar.jsx";
 import { ListFooter } from "../ui/InfiniteScroll.jsx";
 import { CHUNK, useInfiniteList, useResetScrollOnKeyChange } from "../lib/useInfiniteList.js";
 import { SavedViews } from "../ui/SavedViews.jsx";
@@ -1074,9 +1074,8 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
      C2 는 그런 화면을 «검색만 있는 Toolbar» 로 규정한다. 판단은 화면마다 다르므로
      숫자를 기계 적용하지 않고 registry 가 `smallSet` 한 줄로 선언한다(R-88). */
   const showSavedViews = !config.smallSet && !inSplitView;
-  /* 검색창이 있으면 도구 줄 끝(「어떻게 볼지」 묶음), 없으면 조건 줄 끝에 선다 — 도구 줄에
-     저장된 뷰 하나만 남기면 그것이 곧 고아 줄이다(D-455). */
-  const savedViewsInFilterRow = showSavedViews && !showSearch && orderedFilters.length > 0;
+  /* 저장된 뷰는 검색창이 있든 없든 필터 바 한 줄의 오른쪽 끝 묶음이다 — 도구 줄과 조건 줄을 나누던 때
+     (D-455)처럼 자리가 둘로 갈리지 않는다(조합 계약 C-1). */
   const savedViewsControl = showSavedViews ? (
     <SavedViews
       screenKey={config.key}
@@ -1091,10 +1090,25 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
      결과 줄은 «이 조건에 몇 건인가» 를 말한다. 한 페이지짜리 목록에서 Pager 가 사라져도
      건수는 남아야 한다. */
   const resultTotal = total != null ? total : filtered.length;
-  const activeFilterKeys = React.useMemo(
-    () => (q ? ["q"] : []).concat(Object.keys(filters).filter((k) => filters[k] != null && filters[k] !== "")),
-    [q, filters],
-  );
+  /* 조건 칩 — **모든 조건은 칩을 가진다**(조합 계약 C-1). 검색어도, registry 가 준 기본값(승인 대기 · 게시됨)도
+     조건이다: 기본값도 결과를 좁히고 `hasFilter` 가 그것을 센다(PA-RC-0038). 칩의 낱말은 칸이 보이는 낱말과
+     같다 — 「이름: 값」, 값은 후보의 이름(없으면 식별자를 드러내지 않는 낱말). 조건 수는 칩 수다. */
+  const filterChips = React.useMemo(() => {
+    const chips = [];
+    if (q) chips.push({ key: "q", label: `검색: ${q}`, onDelete: () => setQ("") });
+    for (const f of orderedFilters) {
+      const v = filters[f.key];
+      if (v == null || v === "") continue;
+      const options = normalizeOptions(f.options || []);
+      const hit = options.find((o) => String(o.value) === String(v));
+      const shown = hit
+        ? hit.label
+        : (f.type === "datetime-local" ? String(v).replace("T", " ") : unmatchedLabel(v, !!f.loading));
+      chips.push({ key: f.key, label: `${f.label}: ${shown}`, onDelete: () => setFilter(f.key, "") });
+    }
+    return chips;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [q, filters, orderedFilters]);
   // 빈 화면 CTA: config.create 우선, 없으면 headerActions 중 primary로 표시된 '생성 성격' 작업만.
   // (headerActions[0]을 무조건 CTA로 쓰면 '복원 안내'·'모두 읽음' 같은 비생성 작업이 잘못 노출된다.)
   // role 게이트를 통과한 헤더 작업만 노출한다(권한 없는 버튼이 403 데드엔드가 되지 않도록).
@@ -1317,151 +1331,105 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
         ) : null
       ) : null}
       {showToolbar ? (
-        /* 탐색 줄 — **판이 아니다**(지시 80). 예전에는 이 자리가
-         * `<Card className="c-toolbar-card">` 였고, 그 판이 페이지 폭을 차지하면서 컨트롤은
-         * 왼쪽 절반만 썼다(`/policies` 실측 1610×108 · 잉크 폭 비 0.43). 필터는 자기
-         * 생명주기를 가진 경계 객체가 아니므로 PLAN «구획별 판정 체크리스트» ⑥ —
-         * 컨테이너 없음 — 에 해당한다.
-         * SEM-02(PA-F-031): DataScreen이 registry.js 기반 목록 화면(/jobs·/audit·/prompts·
-         * /notifications 등) 다수가 공유하는 셸이라, 여기 한 번 h2를 더하면 그 전부가
-         * 한꺼번에 해결된다. 시각은 그대로(.sr-only) — PageHeader가 compact(h2)로 쓰이는
-         * 자리에선 한 단계 낮춰 h3을 쓴다(같은 화면에 h2가 둘 나란히 있는 것처럼 안 보이게). */
-        <FilterSurface>
+        /* 탐색 줄 — **판이 아니다**(지시 80). 검색과 필터가 한 줄에 서고 저장된 뷰가 그 줄 오른쪽 끝이다(조합 계약 C-1).
+         * 예전에는 검색만 한 줄을 쓰고 필터를 다음 줄로 내렸다(1920 에서도 두 줄) — 도구 줄과 조건 줄이 한 질문을
+         * 둘로 나눠 답했다. 걸린 조건은 같은 면 안 조건 줄이 칩으로 말하고, 「필터 지우기」는 그 줄의 것이다.
+         * SEM-02(PA-F-031): DataScreen 이 registry 목록 화면 다수가 공유하는 셸이라 여기 한 번 제목을 더하면 그 전부가
+         * 한꺼번에 해결된다. 시각은 그대로(.sr-only) — PageHeader 가 compact(h2)로 쓰이는 자리에선 한 단계 낮춘다. */
+        <>
           <Typography component={config.compact ? "h3" : "h2"} className="sr-only">필터</Typography>
-          {showSearch ? (
-            <ToolbarRow>
-              {showSearch ? (
-                <SearchBox
-                  value={q}
-                  onSearch={commitSearch}
-                  placeholder={config.searchPlaceholder || "검색"}
-                  ariaLabel={config.searchPlaceholder || (config.title + " 검색")}
-                />
-              ) : null}
-              {/* 저장된 뷰는 «어떻게 볼지» 쪽이다 — 조건 칸이 아니라 도구 줄 끝에 붙는다.
-                  후보가 몇 줄 안 되는 화면에는 아예 그리지 않는다(C2: 유한집합 화면은
-                  검색만 있는 Toolbar). 판단 근거는 registry 의 `smallSet` 한 줄이다. */}
-              {showSavedViews ? <ToolbarEnd>{savedViewsControl}</ToolbarEnd> : null}
-            </ToolbarRow>
-          ) : null}
-          {orderedFilters.length ? (
-            <FilterRow>
-              {orderedFilters.map((f) => {
-                // `key` 는 spread 에 섞지 않는다 — React 가 spread 안의 key 를 경고하고
-                // (「A props object containing a "key" prop is being spread」) 개발 콘솔이 매
-                // 필터 줄마다 그 경고를 냈다. 키는 요소에 직접 준다.
-                const common = {
-                  label: f.label,
-                  value: filters[f.key] || "",
-                  onChange: (v) => setFilter(f.key, v),
-                };
-                /* Entity(프로젝트·사용자·워크플로처럼 **데이터가 쌓이는 만큼 후보가 자라는**
-                   축)는 검색형 Combobox 다. 닫힌 열거형(상태·유형)은 select 그대로다 —
-                   R-5 가 "모든 Select 를 무조건 검색형으로 바꾸지 않는다" 고 못박는다. */
-                if (f.kind === "entity") {
-                  return (
-                    <EntityCombobox
-                      key={f.key}
-                      {...common}
-                      loading={f.loading}
-                      options={f.options || []}
-                      /* 후보를 못 받은 축은 빈 상자가 아니라 이유를 단다 (R7-05). */
-                      helperText={f.helperText}
-                    />
-                  );
-                }
-                if (f.type === "select") {
-                  return (
-                    <FilterSelect
-                      key={f.key}
-                      {...common}
-                      options={f.options || []}
-                      /* 어법은 **한 벌**이다 — 같은 줄에 「연결된 스케줄 전체」와 「유형: 전체」가
-                         나란히 서면 두 부품이 서로 다른 제품에서 온 것처럼 읽힌다. 부품 기본값
-                         (`${label} 전체`)이 정본이라 여기서는 대개 아무것도 덮어쓰지 않는다.
-
-                         예외는 **「전체」가 서버에 없는 축**이다. 감사 이상 징후의 기간이 그렇다:
-                         서버는 언제나 창을 두고 세고(`app/audit/anomalies.py`), 값을 안 보내면
-                         기본 24시간으로 답한다. 그런데 화면은 그 빈 값을 「기간 전체」라고 불렀다
-                         — 관리자가 그것을 고르고 0건을 보면 「징후가 없다」로 읽지만 실제로는
-                         하루만 본 것이다(2026-09-06 배포 환경에서 요청에 `window_hours` 가
-                         빠지는 것을 확인했다). 그런 축은 registry 가 빈 값의 이름을 직접 준다. */
-                      allLabel={f.allLabel}
-                    />
-                  );
-                }
-                if (f.type === "date") {
-                  // REAUDIT §15.5 — 기간 필터도 적용 대상이다. `common.onChange` 는 이미 값
-                  // 하나만 받는 계약이라(이벤트가 아니다) `DateField` 와 그대로 맞는다.
-                  return (
-                    <DateField
-                      key={f.key}
-                      {...common} id={f.key} size="small"
-                      data-filter-kind="date"
-                      sx={kindSx("date")}
-                    />
-                  );
-                }
-                if (f.type === "datetime-local") {
-                  // 날짜만 다루는 `DateField` 와 계약이 다르다(시각 포함, KST 경계) — 순수
-                  // 달력일이 아니라서 그 부품을 그대로 못 쓴다. 브라우저는 datetime 입력의
-                  // placeholder를 무시한다 — 칸 안 이름(접두)이 나란히 놓인 시작/종료 두 칸을 가른다.
-                  // 필터 바의 다른 칸과 같은 34 칸이고, 확정은 다른 자유 입력 조건처럼 디바운스된다.
-                  // 폭은 날짜(11rem)가 아니라 날짜시각(18rem) 칸이다 — 「YYYY. MM. DD. 오후 --:--」가 들어가야 한다.
-                  return (
-                    <DebouncedTextField
-                      key={f.key} type={f.type} kind="datetime" label={f.label}
-                      value={filters[f.key] || ""}
-                      onCommit={(v) => setFilter(f.key, v)}
-                    />
-                  );
-                }
-                /* 🔴 `datalistFrom` 갈래도 **없앴다** — 같은 이유다.
-                 *
-                 * 「이미 불러온 목록에서 뽑은 값으로 자동완성」은 서버가 목록을 자르는 화면에서
-                 * 「지금 받아 둔 것 안에 있는 값」만 제안한다. 사용자는 그것을 「이 시스템에
-                 * 있는 값이 이게 전부」로 읽는다 — 이 작업이 시작된 바로 그 증상이다.
-                 * 통제 어휘인 축(프롬프트·정책 이름)은 `optionsFromRefList` 로 전량을 받고,
-                 * 열린 네임스페이스인 축(감사 action)은 `freeTextReason` 으로 왜 후보가 없는지
-                 * 말한다. `registry-filter-axes.test.js` 가 이 갈래의 부활을 막는다. */
-                /* 라벨은 **항상 바깥/위**이고(C2), 타자는 **디바운스**된다 — 둘 다 이 부품이 든다.
-                   예전에는 이 갈래만 맨 `TextField` 라 ① `shrink` 를 빠뜨려 값이 비면 라벨이
-                   입력 자리로 내려앉았고(옆 select 와 기준선이 어긋난다) ② 서버 필터인 키는
-                   타자 한 글자마다 API 를 불렀다(F-W5D-115). */
+          <FilterBar
+            search={showSearch ? (
+              <SearchBox
+                value={q}
+                onSearch={commitSearch}
+                placeholder={config.searchPlaceholder || "검색"}
+                ariaLabel={config.searchPlaceholder || (config.title + " 검색")}
+              />
+            ) : null}
+            /* 저장된 뷰는 «어떻게 볼지» 쪽이다 — 조건 칸이 아니라 줄 끝 묶음에 붙는다. 후보가 몇 줄 안 되는 화면에는
+               아예 그리지 않는다(C2 · registry 의 `smallSet`). */
+            end={savedViewsControl}
+            conditions={{
+              chips: filterChips,
+              total: !query.isLoading && !query.isError ? resultTotal : null,
+              /* 필터가 여러 개 걸려 있을 때 하나씩 지우지 않고 한 번에 지운다. */
+              onClearAll: (q || hasFilter) ? () => { setQ(""); setFilters({}); } : null,
+              clearLabel: "필터 지우기",
+            }}
+          >
+            {orderedFilters.map((f) => {
+              // `key` 는 spread 에 섞지 않는다 — React 가 spread 안의 key 를 경고한다. 키는 요소에 직접 준다.
+              const common = {
+                label: f.label,
+                value: filters[f.key] || "",
+                onChange: (v) => setFilter(f.key, v),
+              };
+              /* Entity(프로젝트·사용자·워크플로처럼 **데이터가 쌓이는 만큼 후보가 자라는** 축)는 검색형 Combobox 다.
+                 닫힌 열거형(상태·유형)은 select 그대로다 — R-5 가 "모든 Select 를 무조건 검색형으로 바꾸지 않는다" 고 못박는다. */
+              if (f.kind === "entity") {
                 return (
-                  <DebouncedTextField
+                  <EntityCombobox
                     key={f.key}
-                    label={f.label}
-                    value={filters[f.key] || ""}
-                    onCommit={(v) => setFilter(f.key, v)}
-                    freeTextReason={f.freeTextReason}
+                    {...common}
+                    loading={f.loading}
+                    options={f.options || []}
+                    /* 후보를 못 받은 축은 빈 상자가 아니라 이유를 단다 (R7-05). */
+                    helperText={f.helperText}
                   />
                 );
-              })}
-              {/* 필터가 여러 개 걸려 있을 때 하나씩 지우지 않고 한 번에 지운다. 예전엔 이 초기화가
-               * 결과 0건일 때만 있어, 0건은 아니지만 기대와 다른 결과일 때 되돌릴 방법이 없었다.
-               * **격자 칸이 아니다** — 되돌리기는 조건이 아니라 동작이다(지시 76). */}
-              {(q || hasFilter || savedViewsInFilterRow) ? (
-                <FilterActions>
-                  {(q || hasFilter) ? (
-                    /* 이웃(「저장된 뷰」)이 기본 크기라 이 단추도 기본 크기다 — 한 줄에 높이는 하나(C2).
-                       `size="sm"` 이던 동안 2560 에서 4.5px 갈렸다(실측 `control_baseline_mismatch`). */
-                    <Button variant="ghost" onClick={() => { setQ(""); setFilters({}); }}>필터 지우기</Button>
-                  ) : null}
-                  {/* 검색창이 없는 화면에서는 「저장된 뷰」가 이 줄 끝에 선다 — 예전에는 도구
-                      줄에 혼자 남아 오른쪽에 고아 줄을 만들었다(D-455). */}
-                  {savedViewsInFilterRow ? savedViewsControl : null}
-                </FilterActions>
-              ) : null}
-            </FilterRow>
-          ) : null}
-        </FilterSurface>
+              }
+              if (f.type === "select") {
+                return (
+                  <FilterSelect
+                    key={f.key}
+                    {...common}
+                    options={f.options || []}
+                    /* 어법은 **한 벌**이다. 예외는 **「전체」가 서버에 없는 축**이다(감사 이상 징후의 기간 — 서버는
+                       언제나 창을 두고 센다). 그런 축은 registry 가 빈 값의 이름을 직접 준다. */
+                    allLabel={f.allLabel}
+                  />
+                );
+              }
+              if (f.type === "date") {
+                // REAUDIT §15.5 — 기간 필터도 적용 대상이다. `common.onChange` 는 값 하나만 받는 계약이라 `DateField` 와 맞는다.
+                return (
+                  <DateField
+                    key={f.key}
+                    {...common} id={f.key} size="small"
+                    data-filter-kind="date"
+                    sx={kindSx("date")}
+                  />
+                );
+              }
+              if (f.type === "datetime-local") {
+                // 날짜만 다루는 `DateField` 와 계약이 다르다(시각 포함, KST 경계). 브라우저는 datetime 입력의 placeholder 를
+                // 무시한다 — 칸 안 이름(접두)이 나란히 놓인 시작/종료 두 칸을 가른다. 폭은 날짜시각(18rem) 칸이다.
+                return (
+                  <DebouncedTextField
+                    key={f.key} type={f.type} kind="datetime" label={f.label}
+                    value={filters[f.key] || ""}
+                    onCommit={(v) => setFilter(f.key, v)}
+                  />
+                );
+              }
+              /* 🔴 `datalistFrom` 갈래는 없앴다 — 서버가 목록을 자르는 화면에서 「받아 둔 것 안의 값」만 제안하면
+               * 사용자는 그것을 「이 시스템에 있는 값이 이게 전부」로 읽는다. `registry-filter-axes.test.js` 가 부활을 막는다.
+               * 라벨은 **항상 칸 안**이고 타자는 **디바운스**된다 — 둘 다 이 부품이 든다(F-W5D-115). */
+              return (
+                <DebouncedTextField
+                  key={f.key}
+                  label={f.label}
+                  value={filters[f.key] || ""}
+                  onCommit={(v) => setFilter(f.key, v)}
+                  freeTextReason={f.freeTextReason}
+                />
+              );
+            })}
+          </FilterBar>
+        </>
       ) : null}
-      {/* 결과 줄 — 필터와 목록 **사이**에 둬야 "이 조건에 대한 결과"라는 관계가 보인다.
-          예전에는 이 숫자가 Pager 안에만 있어서 한 페이지짜리 목록에서는 통째로 사라졌다. */}
-      {showToolbar && !query.isLoading && !query.isError ? (
-        <ResultLine total={resultTotal} conditions={activeFilterKeys} />
-      ) : null}
+      {/* 결과 수는 조건이 걸리면 필터 바 안 조건 줄이, 늘 목록 판 발이 말한다 — 목록 위 단독 결과 줄은 없다(조합 계약 C-1). */}
       {actionNotice && (actionNotice.where === "list" || !sel) ? (
         <Callout tone={actionNotice.tone} compact sx={{ mb: 2 }}>{actionNotice.text}</Callout>
       ) : null}

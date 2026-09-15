@@ -1,3 +1,4 @@
+/* qa-contract-change: UI 3차 조합 계약 C-1 — 결과 수와 필터 지우기가 면 밖 결과 줄과 줄 끝 동작 묶음에서 필터 면 안 조건 줄로 옮겼다. 자리 단언을 조건 줄로 옮기고 조건 수 = 칩 수와 면의 마지막 줄 단언을 더한다. */
 /* qa-contract-replaced-by: frontend/src/ui/filter-bar-grid.test.jsx
  * qa-contract-change: 필터 줄의 폭 계약이 «격자 트랙 상한»에서 «컨트롤 종류별 폭»으로
  * 바뀌었다. 옛 시험이 지키던 불변식(필터가 적을 때 폭만 넓어지지 않는다)은 그대로 살아
@@ -164,24 +165,31 @@ describe("TicketFilterBar — 공유 탐색 줄 계약을 실제로 쓴다", () 
     expect(container.querySelector(".c-toolbar-card")).toBeNull();
   });
 
-  it("건수는 필터와 목록 사이의 결과 줄에 있고 조건 수를 함께 말한다", async () => {
+  it("건수는 필터 면 안 조건 줄에 있고 조건 수 = 칩 수로 말한다", async () => {
     const { container } = renderBar(["status"], { status: "완료" });
     await screen.findByRole("combobox", { name: "상태" });
-    const line = container.querySelector("[data-result-line]");
+    // 면 밖 결과 줄은 없다(조합 계약 C-1).
+    expect(container.querySelector("[data-result-line]")).toBeNull();
+    const surface = container.querySelector("[data-filter-surface]");
+    const line = surface.querySelector("[data-condition-line]");
     expect(line).toBeTruthy();
-    expect(line.textContent).toContain("조건 1개, 결과");
-    expect(line.textContent).toContain("7건");
+    expect(line.querySelector("[data-condition-count]").textContent).toBe("조건 1개, 결과 7건");
+    expect(line.querySelectorAll("[data-condition-chip]")).toHaveLength(1);
+    // 조건 줄은 면의 마지막 줄이다.
+    expect(surface.lastElementChild).toBe(line);
   });
 
-  it("«필터 지우기» 는 조건 칸이 아니라 동작 묶음 안의 텍스트 버튼이다", async () => {
+  it("«필터 지우기» 는 조건 칸이 아니라 조건 줄 안의 글자 단추다", async () => {
     const { container } = renderBar(["status"], { status: "완료" });
     const clear = await screen.findByRole("button", { name: "필터 지우기" });
-    // 동작 묶음 안에 있다(필터와 같은 흐름 칸이 아니다).
-    expect(clear.closest("[data-filter-actions]")).toBeTruthy();
+    // 조건 줄 안에 있다 — 필터 칸 흐름 끝의 동작 묶음이 아니다.
+    expect(clear.closest("[data-condition-line]")).toBeTruthy();
+    expect(clear.hasAttribute("data-filter-clear")).toBe(true);
+    expect(clear.closest("[data-filter-row]")).toBeNull();
     // 그리고 테두리 있는 상자가 아니다 — `/policies` 에서 지우려는 필터보다 넓은 255px
     // 테두리 상자였던 것이 지시 76 이 지목한 상태다.
     expect(clear.className).toContain("MuiButton-text");
-    expect(container.querySelector("[data-filter-actions]")).toBeTruthy();
+    expect(container.querySelector("[data-filter-actions]")).toBeNull();
   });
 
   it("조건이 없으면 «필터 지우기» 자체가 없다 — 아무 일도 안 하는 버튼을 두지 않는다", async () => {

@@ -1,3 +1,4 @@
+/* qa-contract-change: UI 3차 조합 계약 C-1 — 사람이 고른 프로젝트도 조건이라 칩을 갖고(조건 수 = 칩 수), 목록 위 단독 「전체 N건」 줄을 걷었다. 결과 수 단언을 조건 줄로 옮기고 칩 목록 · 지우기가 프로젝트까지 푸는지 · 정렬 자리를 더한다. */
 /* qa-contract-replaced-by: frontend/src/screens/teamdocs-view.test.jsx
  * qa-contract-replaced-by: frontend/src/screens/doc-create-form.test.jsx
  *
@@ -173,9 +174,11 @@ describe("문서 목록의 묶음 이어 받기", () => {
     renderList();
     await seeRows();
 
-    /* 「이 조건에 몇 건인가」는 결과 줄이, 「그중 몇 건을 받았는가」는 목록 끝 줄이 말한다.
-       예전에는 뒤엣것이 페이저 안에만 있어서 한 쪽짜리 목록에서는 통째로 사라졌다. */
-    expect(await screen.findByText(/전체 110건/)).toBeTruthy();
+    /* 「이 조건에 몇 건인가」는 필터 면 안 조건 줄이, 「그중 몇 건을 받았는가」는 목록 끝 줄이 말한다. 목록 위 단독
+       「전체 N건」 줄은 없다(조합 계약 C-1). 이 화면은 「프로젝트 미지정」을 고른 채 열리므로 조건이 하나다. */
+    await waitFor(() => expect(document.querySelector("[data-condition-count]")).not.toBeNull());
+    expect(document.querySelector("[data-condition-count]").textContent).toBe("조건 1개, 결과 110건");
+    expect(screen.queryByText(/전체 110건/)).toBeNull();
     expect(documentCalls()[0]).toContain(`limit=${PAGE}`);
     expect(documentCalls()[0]).toContain("offset=0");
     expect(await screen.findByText(`110건 중 ${PAGE}건을 받았습니다.`)).toBeTruthy();
@@ -347,12 +350,17 @@ describe("보기 전환 — 세그먼티드 하나가 요약 넷과 「보기」
       expect(last).toContain("drafts=true");
     });
     expect(within(views).getByRole("tab", { name: /^내 초안/ })).toHaveAttribute("aria-selected", "true");
-    // 보기도 조건이다 — 조건 줄이 서고 칩으로 풀 수 있다(예전 「보기」 고르개와 같은 계약).
+    // 보기도 조건이다 — 조건 줄이 서고 칩으로 풀 수 있다(예전 「보기」 고르개와 같은 계약). 사람이 고른 프로젝트(미지정)도
+    // 조건이라 칩이 둘이고 조건 수는 칩 수다(조합 계약 C-1).
     const line = document.querySelector("[data-condition-line]");
     expect(line).toBeTruthy();
-    expect(line.textContent).toContain("조건 1개, 결과");
+    expect(line.textContent).toContain("조건 2개, 결과");
+    const chipNames = [...line.querySelectorAll("[data-condition-chip]")].map((c) => c.textContent);
+    expect(chipNames).toEqual(["보기: 내 초안", "프로젝트: 프로젝트 미지정"]);
     await userEvent.click(within(line).getByRole("button", { name: "필터 지우기" }));
     await waitFor(() => expect(lastDocumentCall()).not.toContain("drafts=true"));
+    // 지우기는 칩이 선 축을 전부 지운다 — 프로젝트 조건도 풀린다.
+    await waitFor(() => expect(lastDocumentCall()).not.toContain("project_id=none"));
   });
 
   it("「최근 열람」은 탭으로 고르고 쪽을 나누지 않는다", async () => {
@@ -384,9 +392,16 @@ describe("필터 바 — 한 줄 순서와 조건 줄 (핸드오프 README §3 �
     for (let i = 1; i < order.length; i += 1) {
       expect(order[i - 1].compareDocumentPosition(order[i]) & Node.DOCUMENT_POSITION_FOLLOWING, `${i} 번째 순서`).toBeTruthy();
     }
-    // 조건이 없으면 조건 줄이 없고, 결과 수는 목록 위 한 줄이 말한다.
-    expect(document.querySelector("[data-condition-line]")).toBeNull();
-    expect(screen.getByText(/전체 110건/)).toBeTruthy();
+    // 걸린 조건은 고른 프로젝트 하나다 — 조건 줄이 필터 면 안 마지막 줄에 서고, 목록 위 단독 결과 줄은 없다(조합 계약 C-1).
+    const surface = document.querySelector("[data-filter-surface]");
+    const line = surface.querySelector("[data-condition-line]");
+    expect(line).not.toBeNull();
+    expect(surface.lastElementChild).toBe(line);
+    expect(line.querySelector("[data-condition-count]").textContent).toBe("조건 1개, 결과 110건");
+    expect([...line.querySelectorAll("[data-condition-chip]")].map((c) => c.textContent)).toEqual(["프로젝트: 프로젝트 미지정"]);
+    expect(screen.queryByText(/전체 110건/)).toBeNull();
+    // 정렬은 오른쪽 끝 묶음이라 칸 흐름의 마지막이다.
+    expect(row.lastElementChild.contains(screen.getByLabelText("정렬"))).toBe(true);
   });
 });
 

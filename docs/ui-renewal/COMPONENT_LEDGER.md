@@ -163,7 +163,7 @@ UI 의미 → 정본 컴포넌트/파일 → API · 상태 계약 → 소비처 
 |---|---|
 | `Button` | kit `Button` |
 | `Alert` | `Callout`(kit 안 폼 오류 줄 · 토스트 알맹이만 예외) |
-| `Chip` | `Badge` · `Tag` · `CountChip` · `FilterChips`(Autocomplete `renderTags` 칩은 `TagPicker` 가 호스트) |
+| `Chip` | `Badge` · `Tag` · `CountChip` · `FilterConditionLine` 조건 칩(Autocomplete `renderTags` 칩은 `TagPicker` 가 호스트 — 필터 바 줄 칸에서는 칩 대신 `RowSummary`) |
 | `Dialog` · `DialogTitle` · `DialogContent` · `DialogActions` | `Modal` · `FormModal` · `useConfirm` |
 | `Menu` · `MenuList` | `OverflowMenu` · `overflowMenuItems`(`TextField select` 안의 `MenuItem` 은 B) |
 | `Tabs` · `Tab` | 보기 전환 `Segmented`, 페이지 탭 `TabShell` |
@@ -186,7 +186,7 @@ B 단계가 전수 흡수를 끝낸 뒤 남는 자리만 적는다. 형식은 �
 
 | 파일 | 원재료 | 이유 | 대체 불가 근거 |
 |---|---|---|---|
-| `ui/FilterBar.jsx` | `Chip` | `FilterChips` 조건 칩의 알맹이 | 정본 부품 자신이다 |
+| `ui/FilterBar.jsx` | `Chip` | `FilterConditionLine` 조건 칩의 알맹이 | 정본 부품 자신이다 |
 | `ui/TagPicker.jsx` | `Chip` | Autocomplete `renderTags` 선택 칩 | MUI Autocomplete 가 지우기 · 키보드 이동을 그 칩에 건다 |
 | `screens/AiWorkspace.jsx` | `Chip` | 인용 번호(1, 2 …) | 건수도 사람이 붙인 낱말도 아닌 순번 표지다(계획 표 2) |
 | `screens/Board.jsx` | `Chip` | 이모지 반응 토글(`aria-pressed` + 누른 수) | 누르면 켜고 끄는 반응이고 높이는 작은 단추(30)에 맞췄다(계획 표 2) |
@@ -266,8 +266,8 @@ B 단계가 전수 흡수를 끝낸 뒤 남는 자리만 적는다. 형식은 �
   완료와 취소 보기/감추기(보호 화면 — 같은 라벨 · 같은 눌림 상태).
 - **검색 칸** — 통합 검색은 필터 바의 검색 슬롯(320)에 제출 단추가 붙는다(`SearchBox immediate`: 제출형이라 글자마다
   값을 부모가 든다). 채팅방 목록(296)은 `SearchBox layout="fill" immediate`.
-- **결과 줄** — 화면이 쓰던 문장을 `ResultLine text` 로 그대로 세운다(계획 P-21): 통합 검색 · 프로젝트 문서 탭 ·
-  프로젝트 티켓 탭(켬/끔 단추가 같은 줄 끝). 실제 손 결과 줄은 셋이었다(계획의 「7」은 조사 시점 추정).
+- **결과 줄** — UI 3차에서 목록 위 단독 결과 줄을 걷었다(§0-18). 화면이 쓰던 결과 문장은 목록 끝 줄로 옮겼고(프로젝트
+  문서 탭 「총 N건 가운데 …」), 통합 검색의 결과 요약만 `ResultLine text` 로 남는다(조합 예외).
 - 내 활동의 종류 고르기는 판 안 토글 단추 묶음에서 필터 바 위 `Segmented` 로 옮겼다(B-7 과 같은 줄).
 - **남긴 자리**: `DateField`(MUI X 날짜 고르개)는 줄 칸 모양이 없다 — 지금 날짜 조건을 쓰는 목록 · 서랍이 없어(registry
   `type: "date"` 소비처 0) 부품을 넓히지 않았다. 사용자 일괄 지정 줄(`UsersBulk`)은 필터가 아니라 일괄 동작 줄이고
@@ -470,6 +470,44 @@ B 단계가 전수 흡수를 끝낸 뒤 남는 자리만 적는다. 형식은 �
 - **예외(하네스가 따로 센다)**: 보호 화면 내 업무량 요약 카드의 「남은 일 · 취소」 범례 점은 비율 막대 조각과 같은 중립 선색
   (`dividerStrong`, 다크 판 위 1.62:1 · 라이트 1.8:1)이다. 화면이 「색은 완료 하나만」으로 정한 기존 설계이고 점은 `aria-hidden`
   이라 뜻은 낱말이 나른다. 보호 화면 치환 목록 밖이라 두었다.
+
+## 0-18. 조합 — 부품 사이의 관계 (UI 3차 · 조합 계약 C-1 ~ C-7 · D-488 ~ D-494)
+
+부품 치수가 전부 맞아도 조합이 화면마다 다르면 제품은 갤러리와 다르게 읽힌다. 이 절은 **부품 사이의 관계**를 적는다.
+실측 잣대는 `scripts/ui_qa/composition_checks.py`(브라우저 · 11종)와 `scripts/check_composition.py`(소스 · 6규칙)다.
+
+### 필터 바 조합 (C-1 · C-2)
+
+- **`FilterBar`(`ui/FilterBar.jsx`)가 목록 화면 탐색 줄의 한 벌이다.** 한 줄 = 검색(20rem 슬롯) → 내용 필터 칸 → 빈 공간 →
+  `end`(정렬 · 보기 · 켬/끔 · 저장된 뷰), 아래 1px 실선. 조건 칩이 하나라도 있으면 같은 면 안 둘째 줄이 `FilterConditionLine` 이다:
+  「조건 N개, 결과 M건」(N = 칩 수) → 칩(`data-condition-chip`) → 지우기(`data-filter-clear`, 기존 낱말) → 덧붙는 글자 단추(「전체 보기」).
+- **모든 조건은 칩을 가진다.** 검색어 · 요약 카드로 켠 조건(프로젝트 「Health 하위」 · 「지연 마일스톤」) · 밖에서 넘어온 조건
+  (팀 티켓 부서 · 사용자 부서) · registry 기본값(승인 대기 · 게시됨)도 칩이다. 문서의 프로젝트는 사람이 고른 자리일 때만 조건이다
+  (프로젝트가 하나뿐인 조직에서 화면이 스스로 연 자리는 조건이 아니다 — D-388 을 잇는다).
+- **목록 위 단독 「전체 N건」 줄 · 면 밖 칩 줄 · 줄 끝 `FilterActions` 지우기를 걷었다.** 결과 수는 조건이 걸리면 조건 줄이,
+  늘 목록 판 발(「N건 중 M건을 받았습니다.」)이 말한다.
+- 소비처(16): `TicketFilterBar`(내 티켓 · 미할당 · 팀 티켓 — 「완료, 취소 포함」은 `end`) · `KnowledgeFilterBar` · 게시판 · 아이디어 ·
+  `DataScreen`(registry 19 화면, 저장된 뷰는 늘 `end`) · 하위 목록 서랍(`divider=false`) · 프로젝트 · 사용자 · 조직 콘솔 · 오프보딩 대상 ·
+  개발자 리포트(인쇄는 `end`) · 설정(기술 정보 보기 `end`) · 프로젝트 티켓 탭(`end`). 내 활동의 종류 고르기는 칸이 없는 줄이라
+  필터 바 없이 `Segmented` 하나로 선다. 프로젝트 문서 탭의 「새 문서」는 탭 그릇 머리(`HeaderActions`)로 올렸다.
+- **칸 해부 하나(C-2)**: 셀렉트 · 자동완성 단일/다중 · 자유 입력 · 태그 모두 34 칸, 접두 이름 들여쓰기 14 · 접두-값 6 · 값 잉크 600
+  (`data-prefix-label` · `data-row-value`). 다중 선택은 칸 안 칩 대신 `RowSummary` 한 줄 요약. 폭은 `ROW_KIND`(Entity · 태그 13rem ·
+  열거 8~13rem · 자유 입력 = 이름 + 값 자리 6rem(11rem 바닥, 24rem 상한 — 이름이 긴 감사 「작업」 칸에서 친 글자가 보이게) · 날짜 11rem ·
+  날짜시각 18rem)이고 줄의 남는 폭을 먹지 않는다.
+- 갤러리 「검색과 필터 바」 절의 견본 셋이 조합 부품 그대로다(조건 없음 한 줄 · 조건 여럿 + 다중 선택 요약 · 1200 좁은 판).
+
+### 조합 예외 — 낱개 부품을 화면이 직접 조립하는 자리
+
+형식은 `scripts/check_composition.py` 가 읽는다(`| 파일 | 조합 규칙 | 이유 | 대체 불가 근거 |`). 적혀 있는데 더는 안 걸리면 죽은 예외로 실패한다.
+
+| 파일 | 조합 규칙 | 이유 | 대체 불가 근거 |
+|---|---|---|---|
+| `screens/WorkBoard.jsx` | `filter-parts` | 작업 보드 두 줄 필터(팀 · 회차 · 프로젝트 · 담당자 / 검색 · 우선순위 · 난이도 · 신호) | 보호 화면이고 두 줄 필터는 D-484 결정이다 — 칸 해부만 공통 부품으로 받는다 |
+| `screens/Sprint.jsx` | `filter-parts` | 스프린트 회의 두 줄 필터(팀 · 회차) | 보호 화면 · D-484 와 같은 이유 |
+| `screens/Search.jsx` | `filter-parts` | 통합 검색의 제출형 검색 줄과 결과 요약 문장(`ResultLine text`) | 조건을 거는 목록이 아니라 제출해야 결과가 서는 검색이라 조건 줄 · 칩이 없다 |
+| `screens/SchedulerCalendar.jsx` | `filter-parts` | 예약 달력 도구 줄(구간 이동 · 보기) | 달력 격자의 이동 도구라 조건 칸이 없다 |
+| `screens/dev/KitGallery.jsx` | `filter-parts` | 「이럴 때 이것」 절의 필터 칩 · 상태 칩 나란히 견본(`FilterConditionLine` 낱개) | 갤러리는 정본 부품을 낱개로 세워 어휘를 대조하는 카탈로그다 — 조합 견본은 「검색과 필터 바」 절이 `FilterBar` 로 세운다 |
+| `screens/UsersBulk.jsx` | `filter-parts` | 사용자 일괄 지정 줄(줄 칸 모양의 값 칸 + 적용) | 필터가 아니라 선택한 행에 거는 일괄 동작 줄이다 — 목록 판 발의 선택 영역으로 옮기는 것은 목록 판(C-3)이 맡는다 |
 
 ## 1. 신설한 부품
 

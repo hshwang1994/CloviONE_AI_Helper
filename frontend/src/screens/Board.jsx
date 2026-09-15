@@ -33,7 +33,7 @@ import { ideaStatusKind } from "../lib/badges.js";
 import { buildPostsQuery, reactionMap } from "./board-helpers.js";
 import { useQueryState } from "../lib/useQueryState.js";
 import { FilterSelect, SearchBox } from "../ui/filters.jsx";
-import { FilterChips, FilterRow, FilterSurface, ResultLine, ToolbarEnd, ToolbarRow } from "../ui/FilterBar.jsx";
+import { FilterBar } from "../ui/FilterBar.jsx";
 import { DateCell } from "../ui/cells.jsx";
 import { ListFooter } from "../ui/InfiniteScroll.jsx";
 import { useInfiniteList } from "../lib/useInfiniteList.js";
@@ -540,62 +540,51 @@ function BoardScreen({ kind = "free" }) {
       {/* SEM-02(PA-F-031): h1 하나뿐이라 필터·목록이 스크린리더 제목 탐색에서 구획 없는
           한 덩어리였다. 시각은 그대로(.sr-only), DataScreen.jsx/TeamDocs.jsx와 같은 패턴. */}
       <Typography component="h2" className="sr-only">필터</Typography>
-      {/* 판이 아니다 — 지시 80이 이 화면을 이름으로 지목했다("Control 은 화면 좌측 일부만
-          사용하지만 Container 는 Page 전체 폭"). 그리고 정렬 select 가 혼자 두 번째 줄에
-          떨어져 있던 것(지시 76이 역시 이 화면을 이름으로 지목했다)의 원인은 배치가 아니라
-          `SearchBox` 의 기본 인자였다 — `sx={undefined}` 가 기본값을 되살려 검색창이 2칸을
-          먹었다. 부품에서 고쳤으므로 여기서는 그냥 «검색은 도구 줄, 정렬은 그 줄 오른쪽 끝,
-          분류 칩은 내용 필터 줄» 이라는 원래 뜻대로 놓는다. */}
-      <FilterSurface>
-        <ToolbarRow>
+      {/* 판이 아니다 — 지시 80. 검색 · 카테고리 · 상태가 한 줄에 서고 정렬이 그 줄 오른쪽 끝이다(조합 계약 C-1).
+          예전에는 검색만 한 줄을 쓰고 분류 칸이 다음 줄로 내려갔고, 걸린 조건의 칩과 결과 줄이 면 밖에 두 줄로 섰다.
+          카테고리 · 상태는 칩 토글이 아니라 이름이 칸 안에 선 선택이다(계획 P-20 · 핸드오프 RULES §3). 걸린 조건은 조건
+          줄의 칩이 말하고 하나씩 뗄 수 있다 — 검색어도 조건이라 칩을 가진다. */}
+      <FilterBar
+        search={(
           <SearchBox
             value={q}
             onSearch={commitSearch}
             placeholder="제목, 내용, 작성자 검색"
             ariaLabel="검색"
           />
-          {/* 정렬은 「어떻게 볼지」라 줄 오른쪽 끝의 칸이다 — 이름이 칸 안에 서는 34 칸이고, 「전체」가 답이
-              아닌 축이라 빈 항목이 없다(핸드오프 README §3). */}
-          <ToolbarEnd>
-            <FilterSelect
-              label="정렬" value={sort} noAllOption
-              onChange={(v) => setQuery({ sort: v })}
-              options={SORTS.map(([v, label]) => ({ value: v, label }))}
-            />
-          </ToolbarEnd>
-        </ToolbarRow>
-        {/* 카테고리 · 상태는 칩 토글 줄이 아니라 이름이 칸 안에 선 선택이다(계획 P-20 · 핸드오프 RULES §3).
-            칩 토글은 분류 수만큼 조작기가 늘어나고, 필터 바의 다른 칸(34 · 칸 안 이름)과 어휘가 갈렸다.
-            걸린 조건은 아래 조건 칩이 말하고 하나씩 뗄 수 있다. */}
-        <FilterRow>
+        )}
+        /* 정렬은 「어떻게 볼지」라 줄 오른쪽 끝의 칸이다 — 「전체」가 답이 아닌 축이라 빈 항목이 없다(핸드오프 README §3). */
+        end={(
           <FilterSelect
-            label="카테고리" value={category} allLabel="전체"
-            onChange={(v) => setQuery({ category: v })}
-            options={categories}
+            label="정렬" value={sort} noAllOption
+            onChange={(v) => setQuery({ sort: v })}
+            options={SORTS.map(([v, label]) => ({ value: v, label }))}
           />
-          {statuses.length > 0 ? (
-            <FilterSelect
-              label="상태" value={status} allLabel="전체 상태"
-              onChange={(v) => setQuery({ status: v })}
-              options={statuses}
-            />
-          ) : null}
-        </FilterRow>
-      </FilterSurface>
-      <FilterChips
-        items={[
-          category ? { key: "category", label: `카테고리: ${category}`, onDelete: () => setQuery({ category: "" }) } : null,
-          status ? { key: "status", label: `상태: ${status}`, onDelete: () => setQuery({ status: "" }) } : null,
-        ]}
-        onClearAll={category && status ? () => setQuery({ category: "", status: "" }) : null}
-        clearLabel="필터 지우기"
-      />
-      {list.first ? (
-        <ResultLine
-          total={list.total != null ? list.total : items.length}
-          conditions={[q, category, status].filter(Boolean)}
+        )}
+        conditions={{
+          chips: [
+            q ? { key: "q", label: `검색: ${q}`, onDelete: () => setQuery({ q: "" }) } : null,
+            category ? { key: "category", label: `카테고리: ${category}`, onDelete: () => setQuery({ category: "" }) } : null,
+            status ? { key: "status", label: `상태: ${status}`, onDelete: () => setQuery({ status: "" }) } : null,
+          ].filter(Boolean),
+          total: list.first ? (list.total != null ? list.total : items.length) : null,
+          onClearAll: [q, category, status].filter(Boolean).length > 1 ? clearFilters : null,
+          clearLabel: "필터 지우기",
+        }}
+      >
+        <FilterSelect
+          label="카테고리" value={category} allLabel="전체"
+          onChange={(v) => setQuery({ category: v })}
+          options={categories}
         />
-      ) : null}
+        {statuses.length > 0 ? (
+          <FilterSelect
+            label="상태" value={status} allLabel="전체 상태"
+            onChange={(v) => setQuery({ status: v })}
+            options={statuses}
+          />
+        ) : null}
+      </FilterBar>
 
       <Typography component="h2" className="sr-only">목록</Typography>
       {list.isError ? (

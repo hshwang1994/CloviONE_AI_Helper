@@ -12,7 +12,6 @@ import {
   Segmented,
 } from "../ui/kit.jsx";
 import { ListFooter } from "../ui/InfiniteScroll.jsx";
-import { FilterSurface, ToolbarRow } from "../ui/FilterBar.jsx";
 import { useInfiniteList } from "../lib/useInfiniteList.js";
 import { FONT_WEIGHT, KO_WORD_BREAK, stickyTopSx } from "../ui/theme.js";
 
@@ -120,13 +119,10 @@ export function Activity() {
     <div className="c-screen">
       <PageHeader area="내 정보" title="내 활동" crumbRoot="" />
 
-      {/* 종류 고르기는 필터 바 위의 보기 전환이다 — 판(Card) 안의 토글 단추 묶음이 아니라 세그먼티드(34)이고,
-          화살표 · Home · End 로 옮긴다(핸드오프 RULES §3 · 계획 B-4 · B-7). */}
-      <FilterSurface>
-        <ToolbarRow>
-          <Segmented ariaLabel="활동 종류" value={kind} onChange={setKind} options={KINDS} />
-        </ToolbarRow>
-      </FilterSurface>
+      {/* 종류 고르기는 보기 전환이다 — 판(Card) 안의 토글 단추 묶음이 아니라 세그먼티드(34)이고, 화살표 · Home · End 로
+          옮긴다(핸드오프 RULES §3 · 계획 B-4 · B-7). 이 화면에는 검색도 조건 칸도 없어 필터 바를 세우지 않는다 —
+          세그먼티드 하나를 필터 면으로 감싸면 칸 없는 줄과 실선만 남는다(문서 목록의 보기 전환과 같은 자리 · 조합 계약 C-1). */}
+      <Segmented ariaLabel="활동 종류" value={kind} onChange={setKind} options={KINDS} sx={{ mb: 2 }} />
 
       {q.isLoading ? (
         <Card><Skeleton lines={8} /></Card>

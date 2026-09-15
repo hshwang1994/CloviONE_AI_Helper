@@ -1,13 +1,13 @@
 import React from "react";
-import Typography from "@mui/material/Typography";
 import { Button, EmptyState } from "../ui/kit.jsx";
 import { DebouncedTextField, EntityCombobox, FilterSelect, SearchBox } from "../ui/filters.jsx";
-import { CHIP_ROW_CONTROL, FilterActions, FilterChips, FilterRow, FilterSurface, ResultLine } from "../ui/FilterBar.jsx";
+import { FilterBar } from "../ui/FilterBar.jsx";
 import { priorityKo } from "../lib/priority.js";
 import { affiliation, needsOrg } from "../lib/people.js";
 import { useAssigneeOptions, useTicketMeta, useTicketProjects, statusOptions } from "./ticket-options.js";
 
-/* 티켓 목록 화면 네 곳(내 티켓·미할당·팀 티켓·스프린트)이 함께 쓰는 필터 줄.
+/* 티켓 목록 화면 셋(내 티켓·미할당·팀 티켓)이 함께 쓰는 필터 줄. 스프린트 회의는 자기 두 줄 필터를
+ * 쓰고 여기서는 조건 판정(`matchesTicketFilters` · `SPRINT_FIELDS`)만 가져간다.
  *
  * ## 왜 하나로 모았나
  *
@@ -278,7 +278,8 @@ export function TicketEmptyState({ filtered, onClear, title, help }) {
         art="search"
         title="조건에 맞는 티켓이 없습니다"
         help="지금 걸린 필터에 맞는 티켓이 없습니다. 검색어나 필터를 지우면 더 많은 티켓이 보입니다."
-        action={onClear ? <Button variant="primary" onClick={onClear}>필터 지우기</Button> : null}
+        /* 조건 0건의 지우기는 30 보조 단추다 — 화면의 채움은 머리 동작 하나다(RULES §1 · §3, 조합 계약 C-4). */
+        action={onClear ? <Button size="sm" onClick={onClear}>필터 지우기</Button> : null}
       />
     );
   }
@@ -301,8 +302,11 @@ function assigneeOptions(rows) {
  * 정한다: scope(부서) → entity → …」라고 적어 둔 것을 같은 파일이 39줄 뒤에서 어겼다.
  * 실측: 부서가 세 번째 줄에 혼자 섰다. 축의 순서는 **부품이** 지켜야 한다 — 호출부에
  * 맡기면 화면마다 갈린다. */
+/* `end` — 오른쪽 끝 묶음(팀 티켓의 「완료, 취소 포함」). 조건이 아니라 보기 방식이라 칸 흐름 끝이 아니라
+   필터 바의 `end` 에 선다. `chips` — 이 부품 밖에서 거는 조건(팀 티켓의 부서)의 칩. 모든 조건은 칩을 가진다
+   (조합 계약 C-1). */
 export function TicketFilterBar({
-  fields, value, onChange, total, scope, extra, onClear,
+  fields, value, onChange, total, scope, end, chips: outerChips, onClear,
   defaultStatusKeys, allStatus, onShowAll, resetLabel = "필터 지우기",
 }) {
   const wantMeta = fields.some((f) => META_FIELDS.includes(f));
@@ -397,110 +401,78 @@ export function TicketFilterBar({
     pushChip("act_wd", `실제 WD: ${value.act_wd_min || "…"} ~ ${value.act_wd_max || "…"}`, () => onChange({ act_wd_min: "", act_wd_max: "" }));
   }
 
-  const resultConditions = [
-    ...activeConditions(value, fields),
-    ...(usingDefaultStatus ? ["status"] : []),
-    ...(RANGE_KEYS.some((key) => value[key]) ? ["range"] : []),
-  ];
+  /* 밖에서 건 조건(부서 · scope)의 칩은 줄 순서처럼 맨 앞이다. */
+  chips.unshift(...(Array.isArray(outerChips) ? outerChips : []).filter((chip) => chip && chip.label));
 
   return (
-    <>
-      {/* 판이 아니다 — 지시 80. 컨트롤 다섯 개를 페이지 폭 흰 사각형에 담으면 오른쪽
-          대부분이 빈다. 목록과의 경계는 아래 실선과 결과 줄이 만든다. */}
-      <FilterSurface>
-        {/* C4 재검수 — 검색 상자 하나만 있는 줄을 따로 두지 않는다. `SearchBox` 는
-            `filters.jsx::CONTROL_KIND.search` 로 이미 "이 줄에서 늘어나되 32rem 까지만"
-            폭을 스스로 든다 — 다른 필터와 같은 흐름 줄에 있어도 자기 몫만 차지한다.
-            순서는 C2 가 정한다: scope(부서) → entity(프로젝트·담당자) → 분류 → 상태 → 기간.
-            검색은 '무엇을 찾는가'라 scope 보다도 앞, 흐름의 맨 앞에 선다. */}
-        <FilterRow>
-          {show("q") ? (
-            <SearchBox
-              value={value.q}
-              onSearch={commitSearch}
-              placeholder="제목 검색"
-              ariaLabel={LABELS.q}
-            />
-          ) : null}
-          {/* scope 가 먼저다 — 「어느 범위를 볼 것인가」는 나머지 조건의 전제다. */}
-          {scope}
-          {show("project_id") ? (
-            <EntityCombobox
-              multiple
-              label={LABELS.project_id}
-              value={asList(value.project_id)}
-              onChange={set("project_id")}
-              loading={projectsQ.isLoading}
-              options={projectOpts}
-            />
-          ) : null}
-          {show("assignee_user_id") ? (
-            <EntityCombobox
-              multiple
-              label={LABELS.assignee_user_id}
-              value={asList(value.assignee_user_id)}
-              onChange={set("assignee_user_id")}
-              loading={assigneesQ.isLoading}
-              options={peopleOpts}
-            />
-          ) : null}
-          {show("category") ? (
-            <DebouncedTextField label={LABELS.category} value={value.category} onCommit={commitCategory} />
-          ) : null}
-          {show("status") ? (
-            <FilterSelect
-              multiple
-              label={LABELS.status}
-              value={asList(value.status)}
-              onChange={set("status")}
-              options={statusOpts}
-              allLabel={usingDefaultStatus ? "종료 제외" : undefined}
-            />
-          ) : null}
-          {show("priority") ? (
-            <FilterSelect
-              multiple
-              label={LABELS.priority} value={asList(value.priority)} onChange={set("priority")}
-              options={priorityOpts}
-            />
-          ) : null}
-          {show("difficulty") ? (
-            <FilterSelect multiple label={LABELS.difficulty} value={asList(value.difficulty)} onChange={set("difficulty")} options={difficultyOpts} />
-          ) : null}
-          {show("due") ? (
-            <FilterSelect label={LABELS.due} value={value.due} onChange={set("due")} options={DUE_OPTIONS} kind="date" />
-          ) : null}
-          {extra}
-          {filtered && !atDefault ? (
-            <FilterActions>
-              <Button variant="ghost" size="sm" onClick={clear}>{resetLabel}</Button>
-            </FilterActions>
-          ) : null}
-        </FilterRow>
-      </FilterSurface>
-      <FilterChips
-        items={chips}
-        extraAction={onShowAll && !allStatus ? (
-          <Typography
-            component="button"
-            type="button"
-            variant="body2"
-            onClick={onShowAll}
-            sx={{
-              border: 0, background: "none", cursor: "pointer", color: "text.secondary", font: "inherit",
-              /* 조건 줄의 컨트롤은 한 높이로 선다 (S22 — `FilterBar.jsx::CHIP_ROW_CONTROL`).
-                 이 값이 없으면 이 글자 단추만 자기 줄 높이로 서서, 4K 레버가 루트 폰트를
-                 올리는 순간 옆의 조건 칩과 5.5px 어긋난다(`/my-tickets` 3840 실측). */
-              ...CHIP_ROW_CONTROL,
-              "&:focus-visible": (t) => ({ outline: `2px solid ${t.palette.focusRing}`, outlineOffset: 2 }),
-            }}
-          >
-            전체 보기
-          </Typography>
-        ) : null}
-      />
-      {/* 건수는 «이 조건에 대한 결과» 라는 관계가 보이는 자리에 둔다 — 필터와 목록 사이. */}
-      {total != null ? <ResultLine total={total} conditions={resultConditions} /> : null}
-    </>
+    /* 판이 아니다 — 지시 80. 목록과의 경계는 아래 실선이 만들고, 걸린 조건과 결과 수는 같은 면 안 둘째 줄
+       (조건 줄)이 말한다. 순서는 C2 가 정한다: 검색 → scope(부서) → entity(프로젝트·담당자) → 분류 → 상태 → 기간. */
+    <FilterBar
+      search={show("q") ? (
+        <SearchBox
+          value={value.q}
+          onSearch={commitSearch}
+          placeholder="제목 검색"
+          ariaLabel={LABELS.q}
+        />
+      ) : null}
+      end={end}
+      conditions={{
+        chips,
+        total,
+        onClearAll: filtered && !atDefault ? clear : null,
+        clearLabel: resetLabel,
+        extraAction: onShowAll && !allStatus ? { label: "전체 보기", onClick: onShowAll } : null,
+      }}
+    >
+      {/* scope 가 먼저다 — 「어느 범위를 볼 것인가」는 나머지 조건의 전제다. */}
+      {scope}
+      {show("project_id") ? (
+        <EntityCombobox
+          multiple
+          label={LABELS.project_id}
+          value={asList(value.project_id)}
+          onChange={set("project_id")}
+          loading={projectsQ.isLoading}
+          options={projectOpts}
+        />
+      ) : null}
+      {show("assignee_user_id") ? (
+        <EntityCombobox
+          multiple
+          label={LABELS.assignee_user_id}
+          value={asList(value.assignee_user_id)}
+          onChange={set("assignee_user_id")}
+          loading={assigneesQ.isLoading}
+          options={peopleOpts}
+        />
+      ) : null}
+      {show("category") ? (
+        <DebouncedTextField label={LABELS.category} value={value.category} onCommit={commitCategory} />
+      ) : null}
+      {show("status") ? (
+        <FilterSelect
+          multiple
+          label={LABELS.status}
+          value={asList(value.status)}
+          onChange={set("status")}
+          options={statusOpts}
+          allLabel={usingDefaultStatus ? "종료 제외" : undefined}
+        />
+      ) : null}
+      {show("priority") ? (
+        <FilterSelect
+          multiple
+          label={LABELS.priority} value={asList(value.priority)} onChange={set("priority")}
+          options={priorityOpts}
+        />
+      ) : null}
+      {show("difficulty") ? (
+        <FilterSelect multiple label={LABELS.difficulty} value={asList(value.difficulty)} onChange={set("difficulty")} options={difficultyOpts} />
+      ) : null}
+      {show("due") ? (
+        <FilterSelect label={LABELS.due} value={value.due} onChange={set("due")} options={DUE_OPTIONS} kind="date" />
+      ) : null}
+    </FilterBar>
   );
 }

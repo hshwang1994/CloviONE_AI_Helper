@@ -1,3 +1,4 @@
+/* qa-contract-change: UI 3차 조합 계약 C-1 — 필터 바가 한 줄 조합 부품이 되어 저장된 뷰가 검색창 유무와 무관하게 줄 오른쪽 끝 묶음에 선다. 두 갈래 자리 단언을 한 자리 단언으로 옮기고 한 줄임을 더 단언한다. */
 import React from "react";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
@@ -224,24 +225,35 @@ describe("저장된 뷰", () => {
   });
 });
 
-/* 「저장된 뷰」는 「어떻게 볼지」 묶음이다(D-455). 검색창이 있으면 도구 줄 끝, 없으면 조건 줄
-   끝 — 예전에는 검색창이 없는 화면에서 도구 줄에 혼자 남아 오른쪽에 고아 줄을 만들었다. */
-describe("저장된 뷰의 자리 (D-455)", () => {
-  it("검색창이 없는 화면에서는 조건 줄 끝에 선다 — 도구 줄에 혼자 남지 않는다", async () => {
+/* 「저장된 뷰」는 「어떻게 볼지」 묶음이다(D-455). 검색창이 있든 없든 필터 바 **한 줄**의 오른쪽 끝 묶음에 선다
+   (조합 계약 C-1) — 예전에는 검색창이 있으면 도구 줄 끝, 없으면 조건 줄 끝의 동작 묶음이라 자리가 둘로 갈렸고,
+   검색창이 없는 화면에서는 도구 줄에 혼자 남아 고아 줄을 만들었다. */
+describe("저장된 뷰의 자리 (D-455 · 조합 계약 C-1)", () => {
+  it("검색창이 없는 화면에서도 필터 줄 오른쪽 끝 묶음에 선다 — 도구 줄에 혼자 남지 않는다", async () => {
     apiMock.mockImplementation(routeApi());
     renderScreen({ ...CONFIG, paginated: true });
     const btn = await screen.findByRole("button", { name: /저장된 뷰/ });
     expect(screen.queryByRole("searchbox")).toBeNull();
-    expect(btn.closest("[data-filter-actions]")).not.toBeNull();
-    expect(btn.closest("[data-filter-row]")).not.toBeNull();
+    expect(btn.closest("[data-filter-actions]")).toBeNull();
+    const row = btn.closest("[data-filter-row]");
+    expect(row).not.toBeNull();
+    // 오른쪽 끝 묶음은 줄의 마지막 칸이다.
+    expect(row.lastElementChild.contains(btn)).toBe(true);
+    expect(document.querySelectorAll("[data-filter-surface] [data-filter-row]")).toHaveLength(1);
   });
 
-  it("검색창이 있으면 도구 줄 끝에 그대로 선다 — 반례", async () => {
+  it("검색창이 있어도 같은 자리다 — 검색 · 필터 · 저장된 뷰가 한 줄에 선다", async () => {
     apiMock.mockImplementation(routeApi());
     renderScreen(CONFIG);
     const btn = await screen.findByRole("button", { name: /저장된 뷰/ });
-    expect(screen.getByRole("searchbox")).toBeInTheDocument();
+    const search = screen.getByRole("searchbox");
+    expect(search).toBeInTheDocument();
     expect(btn.closest("[data-filter-actions]")).toBeNull();
-    expect(btn.closest("[data-filter-row]")).toBeNull();
+    const row = btn.closest("[data-filter-row]");
+    expect(row).not.toBeNull();
+    expect(row.contains(search)).toBe(true);
+    expect(row.lastElementChild.contains(btn)).toBe(true);
+    // 도구 줄과 조건 줄로 나뉘지 않는다.
+    expect(document.querySelectorAll("[data-filter-surface] [data-search-slot]")).toHaveLength(1);
   });
 });

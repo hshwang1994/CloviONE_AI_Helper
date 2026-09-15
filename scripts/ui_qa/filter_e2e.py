@@ -14,11 +14,11 @@ W5 가 바꾼 것 중 셋은 jsdom 이 원리적으로 말할 수 없다.
 ## 이 모듈이 재는 계약
 
   · 탐색 줄이 **칠해진 면이 아닌가**(배경·네 변 테두리 없음), 아래 실선 하나로 갈리는가
-  · 컨트롤 폭이 **종류를 따르는가** — 같은 줄의 Entity 폭 > 닫힌 열거형 폭
+  · 컨트롤 폭이 **종류 표를 따르는가** — Entity 는 13rem 고정, 닫힌 열거형은 8~13rem 내용 폭(UI 3차 · 조합 계약 C-2)
   · **고아 줄이 없는가** — 컨트롤 하나가 줄의 절반 넘게 비우면서 왼쪽에서 시작하는 자리
   · 한 줄 안 컨트롤 **높이가 하나인가**(같은 종류끼리 4px 이내)
-  · 「필터 지우기」가 **테두리 상자가 아닌가**, 동작 묶음 안에 있는가
-  · **결과 줄이 필터와 목록 사이에** 있는가 (y 좌표로 확인)
+  · 걸린 조건 · 결과 수 · 「필터 지우기」가 **필터 면 안 조건 줄에만** 있는가 — 면 밖 결과 줄 · 줄 끝 동작 묶음의
+    지우기는 옛 조합이다(UI 3차 · 조합 계약 C-1, `composition_checks.py::filter_composition` 과 같은 계약)
   · Entity Combobox 를 **키보드만으로** 열고·거르고·고를 수 있는가, 그리고 그 선택이
     주소(`project_id=`)와 **서버 질의**까지 닿는가
   · 좁은 화면(390)에서 가로 넘침 없이 접히는가
@@ -156,43 +156,46 @@ MEASURE_JS = r"""() => {
   if (out.orphans.length) out.fails.push('고아 줄 ' + out.orphans.length + '자리');
   if (out.heightSpreads.length) out.fails.push('한 줄 안 높이 차 ' + JSON.stringify(out.heightSpreads));
 
-  // 폭이 의미를 따르는가 — Entity 가 닫힌 열거형보다 넓다.
-  if (out.kindWidths.entity && out.kindWidths.enum) {
+  // 폭이 종류 표를 따르는가 — Entity 13rem 고정, 닫힌 열거형 8~13rem(늘어나지 않는다).
+  const rootPx = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+  if (out.kindWidths.entity) {
     out.checked++;
-    if (out.kindWidths.entity <= out.kindWidths.enum) {
-      out.fails.push('Entity 폭이 닫힌 열거형보다 넓지 않다: ' + JSON.stringify(out.kindWidths));
-    }
+    const rem = out.kindWidths.entity / rootPx;
+    if (Math.abs(rem - 13) > 0.1) out.fails.push('Entity 칸 폭이 13rem 이 아니다: ' + rem.toFixed(2) + 'rem');
+  }
+  if (out.kindWidths.enum) {
+    out.checked++;
+    const rem = out.kindWidths.enum / rootPx;
+    if (rem > 13.1) out.fails.push('열거형 칸이 13rem 을 넘는다: ' + rem.toFixed(2) + 'rem');
   }
 
-  // 「필터 지우기」 — 테두리 상자가 아니고 동작 묶음 안에 있다.
-  const actions = main.querySelector('[data-filter-actions]');
-  out.hasActions = !!actions;
-  if (actions) {
-    const btn = actions.querySelector('button');
-    if (btn) {
-      out.checked++;
-      const bcs = getComputedStyle(btn);
+  // 옛 조합이 남아 있지 않은가 — 면 밖 결과 줄 · 줄 끝 동작 묶음의 지우기.
+  out.checked++;
+  if (main.querySelector('[data-result-line]')) out.fails.push('면 밖 결과 줄이 남아 있다');
+  const actions = surface.querySelector('[data-filter-actions]');
+  if (actions && [...actions.querySelectorAll('button')].some((b) => /지우기|초기화/.test(b.textContent || ''))) {
+    out.fails.push('지우기가 줄 끝 동작 묶음에 있다(조건 줄 밖)');
+  }
+
+  // 조건 줄 — 있으면 면 안 마지막 줄이고, 조건 수 = 칩 수, 지우기는 테두리 상자가 아닌 글자 단추다.
+  const cline = surface.querySelector('[data-condition-line]');
+  out.hasConditionLine = !!cline;
+  if (cline) {
+    out.checked++;
+    const count = cline.querySelector('[data-condition-count]');
+    const chips = cline.querySelectorAll('[data-condition-chip]').length;
+    out.conditionText = count ? (count.innerText || '').trim().slice(0, 40) : '';
+    const m = out.conditionText.match(/조건\s*([\d,]+)\s*개/);
+    if (!m) out.fails.push('조건 줄에 「조건 N개, 결과 M건」이 없다');
+    else if (Number(m[1].replace(/,/g, '')) !== chips) out.fails.push('조건 수 ' + m[1] + ' ≠ 칩 ' + chips);
+    const clear = cline.querySelector('[data-filter-clear]');
+    if (clear) {
+      const bcs = getComputedStyle(clear);
       out.resetBorder = bcs.borderTopStyle + ' ' + bcs.borderTopWidth;
-      if (bcs.borderTopStyle !== 'none' && parseFloat(bcs.borderTopWidth) > 0) {
-        out.fails.push('되돌리기가 테두리 상자다: ' + out.resetBorder);
-      }
+      if (bcs.borderTopStyle !== 'none' && parseFloat(bcs.borderTopWidth) > 0) out.fails.push('지우기가 테두리 상자다: ' + out.resetBorder);
     }
-  }
-
-  // 결과 줄이 필터와 목록 **사이**에 있는가.
-  const line = main.querySelector('[data-result-line]');
-  out.hasResultLine = !!line;
-  if (line) {
-    out.checked++;
-    const lr = line.getBoundingClientRect();
-    const sr = surface.getBoundingClientRect();
-    out.resultLineText = (line.innerText || '').trim().slice(0, 40);
-    if (lr.top < sr.bottom - 2) out.fails.push('결과 줄이 탐색 줄보다 위에 있다');
-    const table = main.querySelector('table, [data-list-root]');
-    if (table) {
-      const tr = table.getBoundingClientRect();
-      if (tr.top > 0 && lr.top > tr.top + 2) out.fails.push('결과 줄이 목록보다 아래에 있다');
-    }
+    const kids = [...surface.children].filter((k) => k.getBoundingClientRect().height > 0);
+    if (kids[kids.length - 1] !== cline) out.fails.push('조건 줄이 면의 마지막 줄이 아니다');
   }
 
   out.docOverflow = document.documentElement.scrollWidth - document.documentElement.clientWidth;
@@ -291,10 +294,10 @@ def keyboard_flow(page, base: str, out: Path) -> dict:
     chain["api_request"] = (hit[0].split("?")[-1][:120] if hit else "")
     if not hit:
         fails.append("고른 조건이 서버 질의에 실리지 않는다 (요청 %d건 관측)" % len(calls))
-    line = page.query_selector('[data-result-line]')
+    line = page.query_selector('[data-filter-surface] [data-condition-line] [data-condition-count]')
     chain["rendered"] = (line.inner_text().strip()[:40] if line else "")
     if not line:
-        fails.append("결과 줄이 없다 — 조건과 결과의 관계를 화면이 말하지 않는다")
+        fails.append("조건 줄이 없다 — 조건과 결과의 관계를 필터 면 안에서 말하지 않는다")
     shot = _shot(page, out, "keyboard-after-enter")
 
     # Escape 로 닫아도 고른 값이 유지되는가.

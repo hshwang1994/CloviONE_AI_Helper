@@ -50,7 +50,7 @@ COMPOSITION_CONTRACT = {
         "entity": [13, 13],
         "tag": [13, 13],
         "enum": [8, 13],
-        "text": [11, 11],
+        "text": [11, 24],
         "date": [11, 11],
         "datetime": [18, 18],
     },

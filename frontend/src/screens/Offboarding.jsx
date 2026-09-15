@@ -19,7 +19,7 @@ import {
 } from "../ui/kit.jsx";
 import { KO_WORD_BREAK } from "../ui/theme.js";
 import { useRowSelection, selectionColumn } from "../ui/bulkSelect.jsx";
-import { FilterSurface, ToolbarRow, ResultLine } from "../ui/FilterBar.jsx";
+import { FilterBar } from "../ui/FilterBar.jsx";
 import { SearchBox } from "../ui/filters.jsx";
 import { BASELINE_TRACKS, pairTracks } from "../ui/density.js";
 import { invalidateTicketViews } from "./ticket-views.js";
@@ -153,14 +153,17 @@ function TargetPicker({ q, setQ, query, onPick }) {
   ];
   return (
     <>
-      {/* 탐색 줄은 판이 아니다 — 사용자 목록·티켓 목록과 같은 `FilterSurface` 위 `SearchBox` 다.
-          예전에는 검색창 하나가 전폭 흰 판을 차지했고(글자마다 질의가 나가는 맨 TextField),
-          아래 목록 판과 표면이 둘이었다. */}
-      <FilterSurface>
-        <ToolbarRow>
-          <SearchBox value={q} onSearch={setQ} placeholder="이메일 또는 이름으로 검색" ariaLabel="오프보딩 대상 검색" />
-        </ToolbarRow>
-      </FilterSurface>
+      {/* 탐색 줄은 판이 아니다 — 사용자 목록 · 티켓 목록과 같은 필터 바다. 예전에는 검색창 하나가 전폭 흰 판을
+          차지했고(글자마다 질의가 나가는 맨 TextField), 아래 목록 판과 표면이 둘이었다. 검색어는 조건이라 칩을 갖고,
+          그 조건의 결과 수는 같은 면 안 조건 줄이 말한다(조합 계약 C-1). */}
+      <FilterBar
+        search={<SearchBox value={q} onSearch={setQ} placeholder="이메일 또는 이름으로 검색" ariaLabel="오프보딩 대상 검색" />}
+        conditions={{
+          chips: q ? [{ key: "q", label: `검색: ${q}`, onDelete: () => setQ("") }] : [],
+          total: query.data ? (total != null ? total : items.length) : null,
+          unit: "명",
+        }}
+      />
       {query.isLoading ? (
         <Card><Skeleton lines={5} /></Card>
       ) : query.isError ? (
@@ -181,7 +184,6 @@ function TargetPicker({ q, setQ, query, onPick }) {
         />
       ) : (
         <>
-          <ResultLine total={total != null ? total : items.length} unit="명" conditions={[q].filter(Boolean)} />
           <ListCard>
             <DataTable columns={columns} rows={items} rowKey={(r) => r.id} onRow={(r) => onPick(r.id)} />
             {/* UB-40: 이 화면은 "그 사람을 찾아 실행"이 목적인데, 목록이 사용자 21명(현재는

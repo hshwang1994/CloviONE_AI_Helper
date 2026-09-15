@@ -1,7 +1,7 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import { Callout, Card, EmptyState, ErrorState, Skeleton } from "../ui/kit.jsx";
-import { FilterToggle, ResultLine } from "../ui/FilterBar.jsx";
+import { FilterBar, FilterToggle } from "../ui/FilterBar.jsx";
 import { GroupedTickets, TicketEditModal, ticketColumns, ticketConnState, useInlineStatusEdit } from "./MyTickets.jsx";
 import { useTicketSignals } from "../lib/ticketSignals.js";
 import { groupByAssignee } from "./TeamTickets.jsx";
@@ -89,15 +89,11 @@ function ProjectTicketList({ pageId }) {
   });
 
   return (
+    <>
+    {/* 「완료, 취소 포함」은 보기 방식이라 필터 바 오른쪽 끝 묶음이다(조합 계약 C-1). 건수는 목록 끝 줄이 말한다 —
+        목록 위 단독 결과 줄을 두지 않는다. */}
+    <FilterBar end={activeToggle} />
     <Card>
-      {/* 건수는 결과 줄이 말한다 — 화면이 쓰던 문장(「총 N건」)을 그대로 세우고, 켬/끔 단추가 같은 줄 끝에
-          선다(계획 P-21). */}
-      <ResultLine
-        total={q.total != null ? q.total : rows.length}
-        text={`총 ${q.total != null ? q.total : rows.length}건`}
-        action={activeToggle}
-        sx={{ alignItems: "center" }}
-      />
       <GroupedTickets
         rows={rows} columns={cols} groupBy={groupByAssignee}
         emptyState={
@@ -116,6 +112,7 @@ function ProjectTicketList({ pageId }) {
       />
       <TicketEditModal ticket={editing} open={!!editing} onClose={() => setEditing(null)} />
     </Card>
+    </>
   );
 }
 

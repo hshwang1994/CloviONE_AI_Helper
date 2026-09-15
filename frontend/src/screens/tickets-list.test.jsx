@@ -1,3 +1,4 @@
+/* qa-contract-change: UI 3차 조합 계약 C-1 — 목록 위 단독 결과 줄(「전체 N건」)을 걷어 결과 수를 필터 면 안 조건 줄과 목록 끝 줄이 말하게 됐다. 건수 단언을 끝 줄 문장으로 옮기고 단독 줄이 되살아나지 않음을 더한다. */
 import React from "react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
@@ -116,8 +117,12 @@ describe("내 티켓 — 목록", () => {
     // 프로젝트별 그룹 머리행.
     expect(screen.getByText("인프라")).toBeInTheDocument();
     expect(screen.getByText("리포트")).toBeInTheDocument();
-    // 건수 줄은 이제 **조건과의 관계**를 말한다 (C2) — 조건이 없으면 "전체 N건".
-    expect(screen.getByText("전체 2건")).toBeInTheDocument();
+    // 건수는 조건과의 관계로 말한다 (C2) — 조건이 없으면 조건 줄이 없고, 목록 위 단독 「전체 N건」 줄도 없다. 받은 수는
+    // 목록 끝 줄이 말한다(조합 계약 C-1).
+    expect(screen.queryByText("전체 2건")).toBeNull();
+    expect(document.querySelector("[data-filter-surface] [data-condition-line]")).toBeNull();
+    expect(document.querySelector("[data-result-line]")).toBeNull();
+    expect(screen.getByText("2건 중 2건을 받았습니다.")).toBeInTheDocument();
   });
 
   it("SEM-02: h1 하나뿐이던 화면에 필터·목록 구획용 h2가 있다(시각적으로는 안 보임)", async () => {

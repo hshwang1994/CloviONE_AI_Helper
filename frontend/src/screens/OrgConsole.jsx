@@ -7,9 +7,7 @@ import {
   Button, Card, EmptyState, PageHeader, Skeleton,
 } from "../ui/kit.jsx";
 import { StatusKpiStrip } from "../ui/StatusKpi.jsx";
-import {
-  FilterActions, FilterRow, FilterSurface, ResultLine, ToolbarRow,
-} from "../ui/FilterBar.jsx";
+import { FilterBar } from "../ui/FilterBar.jsx";
 import { FilterSelect, SearchBox } from "../ui/filters.jsx";
 import { useOrgTreeQuery, useOrganizations } from "./org/orgQueries.js";
 import { OrgDetailPanel } from "./org/OrgDetailPanel.jsx";
@@ -130,7 +128,11 @@ export function OrgConsole() {
   const isGlobalAdmin = !mgmt.kind || mgmt.kind === "global";
 
   const hasFilter = Boolean(q || active);
-  const conditions = [q ? "검색어" : "", active ? "사용 여부" : ""].filter(Boolean);
+  /* 조건 칩 — 조건마다 하나이고 조건 수는 칩 수다(조합 계약 C-1). */
+  const conditionChips = [
+    q ? { key: "q", label: `검색: ${q}`, onDelete: () => setCondition({ q: "" }) } : null,
+    active ? { key: "active", label: `사용: ${active === "true" ? "사용 중" : "미사용"}`, onDelete: () => setCondition({ active: "" }) } : null,
+  ].filter(Boolean);
 
   return (
     <div className="c-screen">
@@ -164,36 +166,35 @@ export function OrgConsole() {
         ]}
       />
 
-      <FilterSurface>
-        <ToolbarRow>
+      {/* 검색과 「사용」이 한 줄이다(조합 계약 C-1). 걸린 조건과 그 조건의 부서 수는 같은 면 안 조건 줄이 말한다 —
+          조건이 없을 때의 전체 수는 바로 위 요약 줄(「부서」)이 이미 말하므로 단독 결과 줄을 두지 않는다. */}
+      <FilterBar
+        search={(
           <SearchBox
             value={q}
             onSearch={commitSearch}
             placeholder="조직 또는 부서를 이름이나 식별자로 검색"
             ariaLabel="조직도 검색"
           />
-        </ToolbarRow>
-        <FilterRow>
-          <FilterSelect
-            label="사용"
-            value={active}
-            onChange={(v) => setCondition({ active: v || "" })}
-            options={[
-              { value: "true", label: "사용 중" },
-              { value: "false", label: "미사용" },
-            ]}
-          />
-          {hasFilter ? (
-            <FilterActions>
-              <Button variant="ghost" size="sm" onClick={() => setCondition({ q: "", active: "" })}>
-                필터 지우기
-              </Button>
-            </FilterActions>
-          ) : null}
-        </FilterRow>
-      </FilterSurface>
-
-      <ResultLine total={visibleDeptCount} unit="개 부서" conditions={conditions} />
+        )}
+        conditions={{
+          chips: conditionChips,
+          total: visibleDeptCount,
+          unit: "개 부서",
+          onClearAll: hasFilter ? () => setCondition({ q: "", active: "" }) : null,
+          clearLabel: "필터 지우기",
+        }}
+      >
+        <FilterSelect
+          label="사용"
+          value={active}
+          onChange={(v) => setCondition({ active: v || "" })}
+          options={[
+            { value: "true", label: "사용 중" },
+            { value: "false", label: "미사용" },
+          ]}
+        />
+      </FilterBar>
 
       {/* 좌측 레일 + 목록의 표준 트랙(density.js LIST_RAIL_GRID) — 문서 작업공간과 같은
           한 벌이다. 손으로 짠 값(20~26rem·gap20px)이 화면마다 달랐던 자리다. */}

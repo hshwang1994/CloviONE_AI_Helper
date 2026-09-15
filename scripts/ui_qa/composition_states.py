@@ -121,12 +121,21 @@ def _pick_combobox(page, label: str, skip_all: bool = True) -> None:
     if options.count() == 0:
         raise StateSkipped(f"«{label}» 후보가 없다")
     index = 0
-    if skip_all and options.count() > 1 and re.search(r"전체|고르세요", options.nth(0).inner_text() or ""):
+    if skip_all and re.search(r"전체|고르세요", options.nth(0).inner_text() or ""):
+        if options.count() < 2:
+            raise StateSkipped(f"«{label}» 에 고를 후보가 없다(「전체」뿐)")
         index = 1
     options.nth(index).click()
-    page.wait_for_timeout(700)
+    page.wait_for_timeout(900)
     page.keyboard.press("Escape")
     page.wait_for_timeout(250)
+    # 고른 값이 칸에 섰는지 확인한다 — 조용히 안 먹은 고르기를 「그 상태를 만들었다」로 적지 않는다.
+    picked = page.evaluate(
+        """(name) => { const i = document.querySelector(`#main-content input[aria-label='${name}']`);
+           if (!i) return false; const box = i.closest('.MuiInputBase-root');
+           return !!(i.value || (box && box.querySelector('[data-row-value]'))); }""", label)
+    if not picked:
+        raise StateSkipped(f"«{label}» 고른 값이 칸에 서지 않았다")
 
 
 # ── 상태 정의 ───────────────────────────────────────────────────────────────
@@ -188,9 +197,11 @@ def st_knowledge_default(page, base, settle):
 
 def st_knowledge_tag_author(page, base, settle):
     _goto(page, base, "/knowledge", settle)
+    # 조건 둘 — 프로젝트(사람이 고른 자리)와 태그(다중 선택 요약). 로컬 씨앗의 문서에는 작성자 후보가 없어
+    # (목록 응답의 `authors` 가 비어 있다) 작성자 대신 프로젝트를 고른다. 이름은 옛 상태 이름을 그대로 둔다.
+    _pick_combobox(page, "프로젝트")
     _pick_combobox(page, "태그", skip_all=False)
-    _pick_combobox(page, "작성자")
-    return "태그 + 작성자"
+    return "프로젝트 + 태그"
 
 
 def st_knowledge_sort_menu(page, base, settle):

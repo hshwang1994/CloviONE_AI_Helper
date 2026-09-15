@@ -10,7 +10,7 @@ import {
   Section, SectionTitle,
 } from "../ui/kit.jsx";
 import { StatusSummaryCard } from "../ui/StatusKpi.jsx";
-import { FilterActions, FilterRow, FilterSurface } from "../ui/FilterBar.jsx";
+import { FilterBar } from "../ui/FilterBar.jsx";
 import { FilterSelect } from "../ui/filters.jsx";
 import { FONT_WEIGHT, KO_WORD_BREAK, PROSE_MAX_WIDTH } from "../ui/theme.js";
 import { Donut } from "../ui/charts/Donut.jsx";
@@ -260,30 +260,26 @@ export function DevReport() {
         help="마감일이 선택한 달인 티켓을 담당자별로 집계합니다. 각자 얼마나 일했는지는 완료 건수와 예상 WD로 보고, 지금 안고 있는 부담과 위험은 진행 중 업무와 지연으로 함께 봅니다. 예상 WD와 난이도는 티켓 내용을 바탕으로 추정한 값이고, 실제 WD는 완료한 담당자가 입력합니다."
         actions={<Button variant="primary" onClick={() => query.refetch()}>새로고침</Button>} />
 
-      {/* 🔴 이 줄은 테두리 있는 판이었고, 그 판이 1606×68 에 잉크 18% 로 서 있었다(P-42 ②).
-          작은 컨트롤 셋을 화면 폭짜리 상자에 담으면 그 상자는 자기 폭을 설명하지 못한다.
-          조건 줄은 이 저장소에 이미 계약이 있다 — `FilterSurface` 는 테두리 없는 격자에
-          아래 구분선 하나이고(`ui/FilterBar.jsx`), 되돌리는 일이 아니라 **동작**인 인쇄는
-          `FilterActions` 로 줄 끝에 붙는다. 화면마다 다른 조건 줄을 만들지 않는다. */}
-      <FilterSurface sx={{ "@media print": { display: "none" } }}>
-        <FilterRow>
-          {/* 연도 · 월은 필터 바의 칸이다 — 이름이 칸 안에 서는 34 칸이고(핸드오프 README §3), 「전체」가
-              답이 아닌 축이라 빈 항목이 없다. */}
-          <FilterSelect
-            label="연도" value={period.slice(0, 4)} noAllOption
-            onChange={(v) => setPeriod(v + "-" + period.slice(5, 7))}
-            options={yearOptions(5).map((y) => ({ value: String(y), label: y + "년" }))}
-          />
-          <FilterSelect
-            label="월" value={period.slice(5, 7)} noAllOption
-            onChange={(v) => setPeriod(period.slice(0, 4) + "-" + v)}
-            options={MONTH_VALUES.map((m) => ({ value: m, label: parseInt(m, 10) + "월" }))}
-          />
-          <FilterActions>
-            <Button onClick={() => window.print()}>인쇄하거나 PDF로 저장</Button>
-          </FilterActions>
-        </FilterRow>
-      </FilterSurface>
+      {/* 🔴 이 줄은 테두리 있는 판이었고, 그 판이 1606×68 에 잉크 18% 로 서 있었다(P-42 ②). 작은 컨트롤 셋을
+          화면 폭짜리 상자에 담으면 그 상자는 자기 폭을 설명하지 못한다. 조건 줄은 필터 바 한 벌이다 — 연도 · 월이
+          칸이고, 되돌리는 일이 아니라 **동작**인 인쇄는 그 줄 오른쪽 끝 묶음이다(조합 계약 C-1). */}
+      <FilterBar
+        sx={{ "@media print": { display: "none" } }}
+        end={<Button onClick={() => window.print()}>인쇄하거나 PDF로 저장</Button>}
+      >
+        {/* 연도 · 월은 필터 바의 칸이다 — 이름이 칸 안에 서는 34 칸이고(핸드오프 README §3), 「전체」가
+            답이 아닌 축이라 빈 항목이 없다. 기간은 늘 걸려 있는 문맥이라 지울 조건 칩이 없다. */}
+        <FilterSelect
+          label="연도" value={period.slice(0, 4)} noAllOption
+          onChange={(v) => setPeriod(v + "-" + period.slice(5, 7))}
+          options={yearOptions(5).map((y) => ({ value: String(y), label: y + "년" }))}
+        />
+        <FilterSelect
+          label="월" value={period.slice(5, 7)} noAllOption
+          onChange={(v) => setPeriod(period.slice(0, 4) + "-" + v)}
+          options={MONTH_VALUES.map((m) => ({ value: m, label: parseInt(m, 10) + "월" }))}
+        />
+      </FilterBar>
 
       {query.isLoading ? (
         <Card><Skeleton kind="chart" /></Card>

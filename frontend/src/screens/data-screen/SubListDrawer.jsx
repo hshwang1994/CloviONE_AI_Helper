@@ -5,8 +5,8 @@ import { useAuth } from "../../app/auth.jsx";
 import Typography from "@mui/material/Typography";
 import { Callout, Button, DataTable, Modal, EmptyState, ErrorState, useConfirm, useToast, ActionFooter } from "../../ui/kit.jsx";
 import { DateField } from "../../ui/DateField.jsx";
-import { DebouncedTextField, FilterSelect } from "../../ui/filters.jsx";
-import { FilterRow, FilterSurface } from "../../ui/FilterBar.jsx";
+import { DebouncedTextField, FilterSelect, normalizeOptions } from "../../ui/filters.jsx";
+import { FilterBar } from "../../ui/FilterBar.jsx";
 import { handleApiError } from "./apiError.js";
 import { JsonBlock } from "./JsonBlock.jsx";
 import { ListFooter } from "../../ui/InfiniteScroll.jsx";
@@ -117,10 +117,20 @@ export function SubListDrawer({ view, onClose, onActed }) {
           없었다** — 라벨과 입력이 스타일 없이 그대로 떴다. 이제 MUI TextField 가 라벨·테두리·
           포커스 링을 전부 갖고 오므로 그 죽은 클래스도 함께 사라진다. */}
       {(sl.filters || []).length ? (
-        /* 서랍 안의 조건 줄도 필터 바다 — 부모 목록과 같은 칸(34 · 칸 안 이름)으로 선다(핸드오프 README §3).
-           날짜 갈래는 지금 쓰는 하위 목록이 없다(대장 §0-9). */
-        <FilterSurface divider={false}>
-          <FilterRow>
+        /* 서랍 안의 조건 줄도 필터 바다 — 부모 목록과 같은 칸(34 · 칸 안 이름)과 같은 조건 줄(칩 · 지우기)로 선다(핸드오프
+           README §3 · 조합 계약 C-1). 대화상자 안이라 목록과 가를 실선은 긋지 않는다. 날짜 갈래는 지금 쓰는 하위 목록이 없다(대장 §0-9). */
+        <FilterBar
+          divider={false}
+          conditions={{
+            chips: (sl.filters || []).filter((f) => subFilters[f.key]).map((f) => {
+              const hit = normalizeOptions(f.options || []).find((o) => String(o.value) === String(subFilters[f.key]));
+              return { key: f.key, label: `${f.label}: ${hit ? hit.label : subFilters[f.key]}`, onDelete: () => setSubFilter(f.key, "") };
+            }),
+            total: q.isLoading || q.isError ? null : (total != null ? total : rows.length),
+            onClearAll: Object.values(subFilters).filter(Boolean).length > 1 ? () => setSubFilters({}) : null,
+            clearLabel: "필터 지우기",
+          }}
+        >
             {(sl.filters).map((f) => f.type === "date" ? (
               <DateField
                 key={f.key} id={f.key} size="small" label={f.label}
@@ -139,8 +149,7 @@ export function SubListDrawer({ view, onClose, onActed }) {
                 options={f.options || []}
               />
             ))}
-          </FilterRow>
-        </FilterSurface>
+        </FilterBar>
       ) : null}
       {/* 부모 목록의 capWarning Callout과 동일한 경고 — 이 하위 목록도 백엔드가 페이지당 최대 500건을
        * 반환한다(app/prompts/router.py). paginated가 아니면(전체를 한 번에 받는 하위 목록) 500건에

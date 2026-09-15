@@ -12,9 +12,7 @@ import {
   FieldLabel, FlatBadgeSurface, FormFieldCell, ModalBody, ModalFooter, ModalHeader, OverflowMenu,
   PageHeader, SectionTitle, Segmented, Skeleton, Surface, SurfaceReset, Tag, overflowMenuItems, useToast,
 } from "../../ui/kit.jsx";
-import {
-  FilterConditionLine, FilterSurface, FilterToggle, ResultLine, ToolbarEnd, ToolbarRow,
-} from "../../ui/FilterBar.jsx";
+import { FilterBar, FilterConditionLine, FilterToggle } from "../../ui/FilterBar.jsx";
 import { EntityCombobox, FilterSelect, SearchBox } from "../../ui/filters.jsx";
 import { UserPicker } from "../../ui/UserPicker.jsx";
 import { StatusChip, StatusKpiStrip, StatusSummaryCard } from "../../ui/StatusKpi.jsx";
@@ -224,6 +222,7 @@ export function KitGallery() {
   const [advanced, setAdvanced] = React.useState(true);
   const [status, setStatus] = React.useState("plan");
   const [project, setProject] = React.useState("");
+  const [projects, setProjects] = React.useState(["p1", "p3"]);
   const [assignee, setAssignee] = React.useState("u-other-1");
   const [notify, setNotify] = React.useState(true);
 
@@ -284,58 +283,84 @@ export function KitGallery() {
         </GallerySection>
 
         {/* ── 3. 검색과 필터 바 [1] ───────────────────────────────── */}
+        {/* 견본 셋이 **조합 부품 하나**(`FilterBar`)다 — 낱개 부품을 여기서 조립하지 않는다(조합 계약 C-1). 목록 화면이
+            쓰는 모양 그대로다: 조건이 없으면 한 줄, 조건이 걸리면 같은 면 안 둘째 줄, 좁은 판에서는 오른쪽 묶음이 통째로 내려간다. */}
         <GallerySection
           id="kit-filter-bar"
           title="검색과 필터 바"
-          help="한 줄 순서는 검색 320, 필터 칸, 빈 공간, 오른쪽 끝의 토글입니다. 칸 이름은 칸 안에 서고, 조건이 걸리면 실선 아래 둘째 줄이 섭니다."
+          help="한 줄 순서는 검색 320, 필터 칸, 빈 공간, 오른쪽 끝 묶음입니다. 칸 이름은 칸 안에 서고, 조건이 걸리면 실선 아래 둘째 줄에 조건 수와 칩과 지우기가 섭니다."
           parts={[
-            { name: "FilterSurface / ToolbarRow / ToolbarEnd", path: "ui/FilterBar.jsx", ledger: "FilterBar" },
+            { name: "FilterBar", path: "ui/FilterBar.jsx", ledger: "FilterBar" },
             { name: "FilterConditionLine / FilterToggle", path: "ui/FilterBar.jsx", ledger: "FilterBar" },
-            { name: "SearchBox / FilterSelect / EntityCombobox", path: "ui/filters.jsx", ledger: "필터 칸" },
+            { name: "SearchBox / FilterSelect / EntityCombobox / RowSummary", path: "ui/filters.jsx", ledger: "필터 칸" },
           ]}
         >
-          <Sample label="넓은 화면">
-            <FilterSurface>
-              <ToolbarRow>
-                <SearchBox value="" onSearch={() => {}} placeholder="티켓 제목, 이름 검색" ariaLabel="티켓 검색" />
-                <EntityCombobox
-                  label="프로젝트" value={project} onChange={setProject}
-                  options={[{ value: "p1", label: "포털 개편" }, { value: "p2", label: "인프라 정비" }]}
-                />
-                <FilterSelect
-                  label="상태" value={status} onChange={setStatus}
-                  options={[{ value: "plan", label: "계획" }, { value: "doing", label: "진행 중" }]}
-                />
-                <FilterSelect label="우선순위" value="" onChange={() => {}} options={["높음", "보통", "낮음"]} />
-                <ToolbarEnd>
+          <Sample label="조건이 없는 한 줄">
+            <FilterBar
+              search={<SearchBox value="" onSearch={() => {}} placeholder="티켓 제목, 이름 검색" ariaLabel="조건 없는 티켓 검색" />}
+              end={<FilterToggle expanded={false} onClick={() => {}}>상세 필터</FilterToggle>}
+              conditions={{ chips: [], total: 21 }}
+            >
+              <EntityCombobox
+                label="프로젝트" value={project} onChange={setProject}
+                options={[{ value: "p1", label: "포털 개편" }, { value: "p2", label: "인프라 정비" }]}
+              />
+              <FilterSelect label="상태" value="" onChange={() => {}} options={["계획", "진행 중"]} />
+              <FilterSelect label="우선순위" value="" onChange={() => {}} options={["높음", "보통", "낮음"]} />
+            </FilterBar>
+          </Sample>
+          <Sample label="조건 여럿, 다중 선택은 칸 안 한 줄 요약이고 칩은 조건 줄에 섭니다">
+            <FilterBar
+              search={<SearchBox value="배포" onSearch={() => {}} placeholder="티켓 제목, 이름 검색" ariaLabel="조건 있는 티켓 검색" />}
+              end={(
+                <>
                   <FilterToggle pressed={mine} onClick={() => setMine((v) => !v)}>내 티켓만</FilterToggle>
                   <FilterToggle expanded={advanced} onClick={() => setAdvanced((v) => !v)}>상세 필터</FilterToggle>
-                </ToolbarEnd>
-              </ToolbarRow>
-              <FilterConditionLine
-                total={21}
-                chips={[
-                  { key: "status", label: "상태 계획", onDelete: () => {} },
-                  { key: "mine", label: "내 티켓만", onDelete: () => {} },
+                </>
+              )}
+              conditions={{
+                chips: [
+                  { key: "q", label: "검색: 배포", onDelete: () => {} },
+                  { key: "p1", label: "프로젝트: ClovirAssist 플랫폼 전환 및 자체 데이터 이관", onDelete: () => {} },
+                  { key: "p3", label: "프로젝트: 포털 개편", onDelete: () => {} },
+                  { key: "status", label: "상태: 계획", onDelete: () => {} },
+                ],
+                total: 21,
+                onClearAll: () => {},
+                clearLabel: "필터 초기화",
+                extraAction: { label: "전체 보기", onClick: () => {} },
+              }}
+            >
+              <EntityCombobox
+                multiple label="프로젝트" value={projects} onChange={setProjects}
+                options={[
+                  { value: "p1", label: "ClovirAssist 플랫폼 전환 및 자체 데이터 이관" },
+                  { value: "p2", label: "인프라 정비" },
+                  { value: "p3", label: "포털 개편" },
                 ]}
-                onClearAll={() => {}}
               />
-            </FilterSurface>
-            <ResultLine total={21} />
+              <FilterSelect
+                label="상태" value={status} onChange={setStatus}
+                options={[{ value: "plan", label: "계획" }, { value: "doing", label: "진행 중" }]}
+              />
+              <FilterSelect label="우선순위" value="" onChange={() => {}} options={["높음", "보통", "낮음"]} />
+            </FilterBar>
           </Sample>
-          <Sample label="1200 폭의 좁은 판, 오른쪽 묶음이 통째로 다음 줄로 내려갑니다">
+          <Sample label="1200 폭의 좁은 판, 순서를 지킨 채 줄이 바뀌고 오른쪽 묶음이 통째로 내려갑니다">
             <Box sx={{ maxWidth: "44rem", border: 1, borderColor: "divider", borderRadius: `${RADIUS.md}px`, p: 2 }}>
-              <FilterSurface divider={false} sx={{ mb: 0 }}>
-                <ToolbarRow>
-                  <SearchBox value="" onSearch={() => {}} placeholder="티켓 제목, 이름 검색" ariaLabel="좁은 판 티켓 검색" />
-                  <FilterSelect label="상태" value="" onChange={() => {}} options={["계획", "진행 중"]} />
-                  <FilterSelect label="난이도" value="" onChange={() => {}} options={["상", "중", "하"]} />
-                  <ToolbarEnd>
+              <FilterBar
+                sx={{ mb: 0 }}
+                search={<SearchBox value="" onSearch={() => {}} placeholder="티켓 제목, 이름 검색" ariaLabel="좁은 판 티켓 검색" />}
+                end={(
+                  <>
                     <FilterToggle pressed={false} onClick={() => {}}>내 티켓만</FilterToggle>
                     <FilterToggle expanded={false} onClick={() => {}}>상세 필터</FilterToggle>
-                  </ToolbarEnd>
-                </ToolbarRow>
-              </FilterSurface>
+                  </>
+                )}
+              >
+                <FilterSelect label="상태" value="" onChange={() => {}} options={["계획", "진행 중"]} />
+                <FilterSelect label="난이도" value="" onChange={() => {}} options={["상", "중", "하"]} />
+              </FilterBar>
             </Box>
           </Sample>
         </GallerySection>
@@ -857,12 +882,10 @@ export function KitGallery() {
               </Box>
             </Sample>
             <Sample label="필터 칸의 긴 값">
-              <FilterSurface divider={false} sx={{ mb: 0, maxWidth: "40rem" }}>
-                <ToolbarRow>
-                  <EntityCombobox label="프로젝트" value="p-long" onChange={() => {}} options={[{ value: "p-long", label: `P. ${LONG_TITLE}` }]} />
-                  <FilterSelect label="분류" value="k" onChange={() => {}} options={[{ value: "k", label: LONG_TITLE }]} />
-                </ToolbarRow>
-              </FilterSurface>
+              <FilterBar sx={{ mb: 0, maxWidth: "40rem" }}>
+                <EntityCombobox label="프로젝트" value="p-long" onChange={() => {}} options={[{ value: "p-long", label: `P. ${LONG_TITLE}` }]} />
+                <FilterSelect label="분류" value="k" onChange={() => {}} options={[{ value: "k", label: LONG_TITLE }]} />
+              </FilterBar>
             </Sample>
             <Sample label="메시지 박스와 오류 문장">
               <Callout tone="danger" detail={LONG_URL}>{`${LONG_TITLE}을 저장하지 못했습니다. 잠시 뒤 다시 시도해 주세요.`}</Callout>
