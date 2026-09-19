@@ -392,6 +392,19 @@ def expand_for_full_capture(page, viewport: Viewport) -> int | None:
     return target
 
 
+def split_expected_console(route: Route, messages: list[str]) -> tuple[list[str], list[str]]:
+    """콘솔 오류를 (이 화면이 일부러 내는 줄, 판정에 세는 줄) 로 가른다 — `Route.expected_console` 정규식 기준.
+
+    기대 줄은 없어지지 않는다 — 결과 기록(`expected_console`)에 남는다. 정규식이 없는 화면은 전부 센다.
+    """
+    patterns = [re.compile(pattern) for pattern in (route.expected_console or ())]
+    if not patterns:
+        return [], list(messages)
+    expected = [m for m in messages if any(p.search(m) for p in patterns)]
+    counted = [m for m in messages if not any(p.search(m) for p in patterns)]
+    return expected, counted
+
+
 def capture_route(page, *, base_url: str, route: Route, hash_path: str, theme: str,
                   viewport: Viewport, out_root: Path, full_page: bool = True,
                   settle_ms: int = DEFAULT_SETTLE_MS, timeout_ms: int = DEFAULT_NAV_TIMEOUT_MS,
@@ -474,9 +487,14 @@ def capture_route(page, *, base_url: str, route: Route, hash_path: str, theme: s
         "empty_title": probe.get("emptyTitle"),
         "still_loading": probe.get("stillLoading"),
     }
+    # 이 화면이 일부러 내는 콘솔 줄(`Route.expected_console` — 음성 경로의 404)은 기록에 남기고 판정에서만 뺀다.
+    # 맞지 않는 줄은 그대로 `console_errors` 다(UI 3차 P7).
+    expected_hits, counted_console = split_expected_console(route, console_errors)
+    if expected_hits:
+        record["expected_console"] = expected_hits
     record["assertions"] = assertions.classify(
         probe, expected_theme=theme, viewport_width=viewport.width,
-        final_url=page.url, console_errors=console_errors, page_errors=page_errors,
+        final_url=page.url, console_errors=counted_console, page_errors=page_errors,
         ignores=ignores, public=route.is_public,
     )
 

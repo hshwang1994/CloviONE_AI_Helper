@@ -106,6 +106,67 @@ def test_strings_regex_and_jsx_text_do_not_open_elements():
     assert _rules(mod, "screens/A.jsx", text) == []
 
 
+def test_ghost_button_in_message_box_footer_and_plate_head_is_caught():
+    """글자 단추(ghost)는 메시지 박스 · 발 · 판 머리 · 페이지 머리 동작의 자리가 아니다(RULES §1 · §3 · §8, 조합 계약 C-4)."""
+    mod = _load()
+    ghost = '<Button size="sm" variant="ghost" onClick={go}>닫기</Button>'
+    cases = {
+        "메시지 박스 동작": 'export const A = () => <Callout tone="warn" action={' + ghost + '}>안내</Callout>;\n',
+        "메시지 박스 본문": 'export const A = () => <Callout tone="info"><KitButton size="sm" variant="ghost" href={h}>자세히 보기</KitButton></Callout>;\n',
+        "판 머리 동작": 'export const A = () => <SectionTitle title="첨부" action={' + ghost + '} />;\n',
+        "판 머리(Section)": 'export const A = () => <Section title="첨부" action={' + ghost + '}><Box /></Section>;\n',
+        "모달 발": 'export const A = () => <Modal open title="t" footer={<Button variant={"ghost"}>닫기</Button>}>몸</Modal>;\n',
+        "카드 발": 'export const A = () => <Card><ActionFooter placement="card">' + ghost + '</ActionFooter></Card>;\n',
+        "페이지 머리 동작": 'export const A = () => <PageHeader title="t" actions={' + ghost + '} />;\n',
+    }
+    for label, text in cases.items():
+        assert _rules(mod, "screens/A.jsx", text) == ["ghost-slot"], label
+    # app/ 셸 부품도 화면 규칙을 받는다(알림함 · 상태 알림 · AI 도우미 서랍).
+    assert _rules(mod, "app/StatusNotices.jsx", cases["메시지 박스 동작"]) == ["ghost-slot"]
+
+
+def test_ghost_button_inside_lists_and_modal_body_passes():
+    """목록 안 부수 동작(첨부 줄 「떼기」 · 전체 보기)과 모달 몸 · 판 자식의 글자 단추는 자리 규칙 밖이다."""
+    mod = _load()
+    text = (
+        "export const A = () => (\n"
+        '  <Section title="첨부" action={<Button size="small">파일 올리기</Button>}>\n'
+        '    <Stack><Button size="small" variant="ghost" onClick={drop}>떼기</Button></Stack>\n'
+        '    <Modal open title="t" footer={<Button>닫기</Button>}><Button size="sm" variant="ghost">전체 보기</Button></Modal>\n'
+        '    <Callout tone="info" action={<Button size="sm" startIcon={<Glyph variant="ghost" />}>자세히</Button>}>안내</Callout>\n'
+        "  </Section>\n"
+        ");\n"
+    )
+    assert _rules(mod, "screens/A.jsx", text) == []
+
+
+def test_jsx_after_block_or_line_comment_is_still_read():
+    """`return ( /* 설명 */ <Callout …` 의 요소를 주석 끝 글자 뒤로 읽어 놓치지 않는다 — 알림함 · 상태 알림 · 하위 목록 창이 그 자리였다."""
+    mod = _load()
+    block = (
+        "export function A() {\n"
+        "  return (\n"
+        "    /* 설명 한 줄 */\n"
+        "    /* 설명 두 줄 */\n"
+        "    <ListFooter total={1} loaded={1} />\n"
+        "  );\n"
+        "}\n"
+    )
+    line = (
+        "export function A() {\n"
+        "  return cond\n"
+        "    ? (\n"
+        "      // 한 줄 설명\n"
+        "      <ListFooter total={1} loaded={1} />\n"
+        "    ) : null;\n"
+        "}\n"
+    )
+    assert _rules(mod, "screens/A.jsx", block) == ["list-footer"]
+    assert _rules(mod, "screens/A.jsx", line) == ["list-footer"]
+    # 주석 안의 태그 글자는 여전히 요소가 아니다.
+    assert _rules(mod, "screens/A.jsx", "/* <ListFooter /> */\nexport const A = 1;\n") == []
+
+
 def test_ledger_exception_and_dead_exception(tmp_path):
     mod = _load()
     src = tmp_path / "src" / "screens"

@@ -606,6 +606,17 @@ def main(argv: list[str] | None = None) -> int:
                             for route in group:
                                 index += 1
                                 hash_path = detail_hashes.get(route.id, route.hash_path)
+                                if route.rediscover and route.is_detail:
+                                    # 실행 도중 사라질 수 있는 대상(놀이방)은 묶음마다 다시 찾는다(`Route.rediscover`).
+                                    fresh, note = capture.discover_detail_hash(context, args.base_url, route, log=_log)
+                                    if fresh:
+                                        if fresh != hash_path:
+                                            _log(f"[capture] {route.id}: 다시 찾음 — {note}")
+                                        hash_path = fresh
+                                    else:
+                                        notes.append(f"{route.id} ({route.label}) {theme} {viewport.name} 건너뜀 — 다시 찾기 실패: {note}")
+                                        _log(f"[capture] {route.id}: SKIP — 다시 찾기 실패: {note}")
+                                        continue
                                 record = capture.capture_route(
                                     page, base_url=args.base_url, route=route,
                                     hash_path=hash_path, theme=theme, viewport=viewport,

@@ -117,6 +117,19 @@ def _user_exists(email: str) -> bool:
     return _run_cli(["show", "--email", email]).returncode == 0
 
 
+# 원격 QA 계정 도우미(서버의 ~/qa-user-cli.sh) — 비밀이 없다. 환경 파일을 셸 안에서 한 줄씩 export 하고(`deploy/install.sh::export_env_file`
+# 와 같은 규칙) 서비스 계정으로 `user_cli` 를 부른다. 값이 명령행 · `ps` 에 오르지 않는다(UI 3차 P7).
+QA_USER_CLI_HELPER = (
+    "       while IFS= read -r line || [ -n \"$line\" ]; do\n"
+    "         line=\"${line%$'\\r'}\"; case \"$line\" in ''|'#'*) continue;; esac\n"
+    "         case \"$line\" in *=*) ;; *) continue;; esac\n"
+    "         key=\"${line%%=*}\"; val=\"${line#*=}\"; case \"$key\" in *[!A-Za-z0-9_]*) continue;; esac\n"
+    "         export \"$key=$val\"\n"
+    "       done </etc/clovirassist/clovirassist.env\n"
+    "       cd /opt/clovirassist && exec runuser -u clovirassist --preserve-environment -- venv/bin/python -m app.cli.user_cli \"$@\"\n"
+)
+
+
 def is_local_target(base_url: str) -> bool:
     """겨누는 서버가 **이 저장소의 DB 를 쓰는** 로컬 서버인가."""
     host = (urlsplit(base_url).hostname or "").lower()
@@ -140,17 +153,16 @@ def _provision(email: str, initial_password: str, log, *, base_url: str, role: s
     if not is_local_target(base_url):
         raise AuthError(
             f"원격 대상({base_url})에는 계정을 만들 수 없습니다 — `user_cli` 는 로컬 DB 만 고칩니다.\n"
-            f"서버에서 직접 실행하세요:\n"
-            # 🔴 이 안내가 **옛 slug** 를 부르고 있었다(`clovirone-web` ·
-            # `/opt/clovirone-web-assistant`). S3·S4 가 제품 정체성을 옮긴 뒤로 그 경로는
-            # 서버에 없다 — 안내를 그대로 따라 하면 «그런 사용자가 없습니다» 로 끝난다.
-            # 실행 자리는 `/opt/clovirassist` 이고, `user_cli` 는 서비스 환경(DATABASE_URL 등)
-            # 없이는 DB 에 못 붙으므로 그것까지 함께 적는다.
-            f"  ssh <server> \"cd /opt/clovirassist && sudo -u clovirassist \\\n"
-            f"    env \\$(sudo grep -E '^(DATABASE_URL|APP_ENV|SECRETS_DIR|DATA_DIR)=' \\\n"
-            f"      /etc/clovirassist/clovirassist.env | tr '\\\\n' ' ') \\\n"
-            f"    venv/bin/python -m app.cli.user_cli passwd --email {email}\"\n"
-            f"  (비밀번호는 stdin 으로만 넘어간다. 계정이 보관 상태면 먼저 `unarchive` 다.)\n"
+            f"서버에서 직접 실행하세요. 서비스 환경 값(DATABASE_URL 의 비밀번호 등)을 **명령행에 싣지 않는** 형태여야 합니다:\n"
+            # 🔴 예전 안내는 `env $(sudo grep … DATABASE_URL …)` 였다 — 환경 파일의 값이 원격 명령행으로 펼쳐져 `ps` 와 셸 기록에
+            # 비밀번호가 올랐다(UI 3차 P7 교정 5). 설치 스크립트의 `run_as_app`(`deploy/install.sh`)과 같은 형태 — 셸 **안에서** 환경
+            # 파일을 한 줄씩 export 하고 `runuser --preserve-environment` 로 서비스 계정에 넘긴다 — 를 비밀 없는 도우미로 둔다.
+            f"  1) 아래 내용을 서버의 ~/qa-user-cli.sh 로 저장합니다(비밀이 없는 파일이다):\n"
+            f"{QA_USER_CLI_HELPER}"
+            f"  2) 계정이 보관 상태면 먼저 풀고 비밀번호를 정합니다. sudo 비밀번호와 새 비밀번호는 stdin 으로만 넘깁니다:\n"
+            f"       ssh <server> \"sudo -S -p '' bash ~/qa-user-cli.sh unarchive --email {email}\"\n"
+            f"       ssh <server> \"sudo -S -p '' bash ~/qa-user-cli.sh passwd --email {email}\"\n"
+            f"  3) 끝나면 ~/qa-user-cli.sh 를 지우고 계정은 `archive` 로 되돌립니다.\n"
             f"그런 다음 UI_QA_EMAIL / UI_QA_PASSWORD 로 다시 실행하세요."
         )
     if _user_exists(email):

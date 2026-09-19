@@ -22,7 +22,7 @@ from __future__ import annotations
 import pytest
 
 from scripts.ui_qa import assertions
-from scripts.ui_qa.capture import discover_detail_hash
+from scripts.ui_qa.capture import discover_detail_hash, split_expected_console
 from scripts.ui_qa.routes import BY_ID, Route
 from scripts.ui_qa.run import check_marker
 
@@ -266,3 +266,63 @@ def test_unseen_findings_are_kept():
     covered = {("b", "light", "1920x1080")}
     merged = keep_unseen_findings(prior, current, covered)
     assert {row["id"] for row in merged} == {"old", "new"}
+
+
+# ── 기대한 콘솔 줄(음성 경로)과 다시 찾는 상세 화면 — UI 3차 P7 ─────────────────────────
+
+CHROMIUM_404 = "Failed to load resource: the server responded with a status of 404 (Not Found)"
+
+
+def test_expected_console_is_recorded_apart_but_only_for_its_own_pattern() -> None:
+    """옛 문서 주소(없는 id)의 404 한 줄은 기대한 줄로 따로 남고, 다른 오류는 그대로 센다."""
+    route = BY_ID["user_legacy-doc-redirect"]
+    messages = [
+        CHROMIUM_404,
+        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+        "TypeError: x is undefined",
+    ]
+    expected, counted = split_expected_console(route, messages)
+    assert expected == [CHROMIUM_404]
+    assert counted == messages[1:]
+    # 기대 줄을 없애지 않는다 — 두 목록의 합이 원래 목록이다.
+    assert sorted(expected + counted) == sorted(messages)
+
+
+def test_routes_without_expected_console_count_every_line() -> None:
+    route = BY_ID["user_my-tickets"]
+    assert route.expected_console == ()
+    expected, counted = split_expected_console(route, [CHROMIUM_404])
+    assert expected == []
+    assert counted == [CHROMIUM_404]
+
+
+def test_expected_console_stays_on_negative_paths_only() -> None:
+    """기대 줄은 음성 경로에만 둔다 — 조용히 넓어지면 진짜 404 가 가려진다."""
+    with_expected = sorted(r.id for r in BY_ID.values() if r.expected_console)
+    assert with_expected == ["user_legacy-doc-redirect"]
+
+
+def test_game_room_is_rediscovered_per_capture_pass() -> None:
+    """놀이방은 긴 실행 도중 유령 방 정리로 닫힐 수 있어 묶음마다 id 를 다시 찾는다."""
+    route = BY_ID["user_game-room"]
+    assert route.is_detail
+    assert route.rediscover is True
+    assert sorted(r.id for r in BY_ID.values() if r.rediscover) == ["user_game-room"]
+
+
+def test_remote_account_guidance_keeps_secrets_off_the_command_line() -> None:
+    """원격 QA 계정 안내는 환경 값을 명령행으로 펼치지 않는다 — 예전 `env $(sudo grep … DATABASE_URL …)` 는 비밀번호를 `ps` 에 올렸다."""
+    from scripts.ui_qa import auth
+
+    with pytest.raises(auth.AuthError) as caught:
+        auth._provision("ui-qa@example.test", "unused", lambda *_: None,
+                        base_url="https://clovirassist.gooddi.lab", role="admin")
+    message = str(caught.value)
+    assert "env $(" not in message and "env \\$(" not in message
+    assert "grep -E '^(DATABASE_URL" not in message
+    # 셸 안에서 환경 파일을 읽어 서비스 계정에 넘기는 형태(`deploy/install.sh::run_as_app`)다.
+    assert "--preserve-environment" in message
+    assert "done </etc/clovirassist/clovirassist.env" in message
+    # sudo 비밀번호와 새 비밀번호는 stdin 으로만 간다.
+    assert "sudo -S -p '' bash ~/qa-user-cli.sh passwd --email ui-qa@example.test" in message
+    assert "echo" not in message

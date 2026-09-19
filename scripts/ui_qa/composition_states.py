@@ -389,6 +389,69 @@ def st_settings_editor_open(page, base, settle):
     return "설정 편집 모달 열림"
 
 
+def st_scheduler_run_detail(page, base, settle):
+    """예약 달력 실행 상세 창(실패한 실행) — 서버에는 아무것도 쓰지 않는다.
+
+    로컬 씨앗의 달력에는 예정(planned)만 있고 실제 실행 기록이 없어 재시도 · 작업 큐 동작이 서는 창을 열 수 없고, 실행을 만드는 것은
+    쓰기다. 그래서 이 페이지의 달력 응답에만 오늘 실패한 실행 하나를 얹고(켜진 일정이 없으면 일정도 하나) 그 점을 눌러 창을 연다
+    (재시도 · 취소는 누르지 않는다). 가로채기는 이 상태의 페이지에만 걸린다.
+    """
+    import datetime as dt
+
+    from scripts.ui_qa import capture as cap
+
+    # 점의 글자에 누르지 않는 낱말(「실행」 같은 것)이 들면 `_click` 이 상태를 건너뛴다 — 이름은 그 낱말을 피한다.
+    name = "UI QA 점검 일정"
+
+    def shape(route):
+        response = route.fetch()
+        try:
+            body = response.json()
+        except Exception:  # noqa: BLE001
+            route.fulfill(response=response)
+            return
+        if isinstance(body, dict):
+            # 서버는 naive UTC 로 준다 — KST 오늘 09:00 이 UTC 오늘 00:00 이다.
+            today = dt.datetime.now(dt.timezone(dt.timedelta(hours=9))).strftime("%Y-%m-%d")
+            body["items"] = list(body.get("items") or []) + [{
+                "kind": "run", "schedule_id": "ui-qa-schedule", "schedule_name": name, "occurs_at": f"{today}T00:00:00",
+                "status": "failed", "run_id": "ui-qa-run", "error_message": "대상 서비스가 500 을 돌려주었습니다.",
+            }]
+            schedules = list(body.get("schedules") or [])
+            if not any(s.get("enabled") for s in schedules if isinstance(s, dict)):
+                schedules.append({"id": "ui-qa-schedule", "name": name, "enabled": True, "timezone": "Asia/Seoul"})
+            body["schedules"] = schedules
+        route.fulfill(response=response, json=body)
+
+    page.route("**/api/admin/schedules/calendar*", shape)
+    page.goto(f"{base.rstrip('/')}/admin#/scheduler-calendar", wait_until="domcontentloaded", timeout=45_000)
+    cap._settle(page, settle_ms=settle, timeout_ms=45_000)
+    dot = _first(page, [f"#main-content button[title*='{name}']"])
+    if dot is None:
+        raise StateSkipped("얹은 실행의 점을 못 찾음(달력이 서지 않았다)")
+    _click(dot, "실행 점")
+    page.wait_for_timeout(600)
+    if _first(page, [".MuiDialog-root [data-action-footer='modal']"]) is None:
+        raise StateSkipped("실행 상세 창 발이 서지 않았다")
+    return "실행 상세 창(응답 표식 · 실패한 실행)"
+
+
+def st_chat_manage_open(page, base, settle):
+    # 방장인 그룹 방의 「관리」는 창만 연다(`ChatRoomMembers.jsx::ManageRoomModal` — 저장 · 초대는 누르지 않는다).
+    rid = _room_of(page, base, "group")
+    if not rid:
+        raise StateSkipped("그룹 방이 없다")
+    _goto(page, base, f"/chat-rooms/{rid}", settle)
+    opener = _first(page, ["#main-content [data-room-head] button:has-text('관리')", "#main-content button:text-is('관리')"])
+    if opener is None:
+        raise StateSkipped("「관리」가 없다(방장이 아니다)")
+    _click(opener, "관리 창을 여는 단추")
+    page.wait_for_timeout(800)
+    if _first(page, [".MuiDialog-root [data-form-scope]"]) is None:
+        raise StateSkipped("관리 창의 입력 영역이 서지 않았다")
+    return "채팅방 관리 창"
+
+
 def _room_of(page, base, kind: str):
     payload = _api_json(page, base, "/api/team-chat/rooms") or {}
     # 응답은 `{"items": [...], "team": {...}, "global": {...}}` 다(`app/team_chat/router.py::list_rooms`).
@@ -467,6 +530,8 @@ STATES = (
     ("chat.group", "user_chat-room-detail", st_chat_group, True),
     ("chat.direct", "user_chat-room-detail", st_chat_direct, True),
     ("chat.list-search-empty", "user_chat-rooms", st_chat_list_search_empty, True),
+    ("chat.manage-open", "user_chat-room-detail", st_chat_manage_open, True),
+    ("scheduler-calendar.run-detail", "admin_scheduler-calendar", st_scheduler_run_detail, True),
     ("users.selected", "admin_users", st_users_selected, True),
     ("trash.selected", "user_team-docs-trash", st_trash_selected, True),
 )

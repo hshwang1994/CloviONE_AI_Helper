@@ -14,6 +14,9 @@
     card-wrapped-table  `<DataTable` · `<GroupedTickets` 를 `<Card` · `<ListCard` 안에 둔다(`placement="card"` 가 아닌데)
     row-button          열 `render` 안에 `<Button` · `<IconButton` 을 `RowActions` 밖에서 직접 그린다
     table-tag           열 `render` 안에 면 있는 `<Tag` 를 그린다(표 안 정해진 축 값은 `DotLabel`)
+    ghost-slot          글자 단추(`variant="ghost"`)를 메시지 박스(`<Callout`) · 발(`<ActionFooter` · `<ModalFooter` · 모달
+                        `footer=`) · 판 머리 동작(`<SectionTitle` · `<Section` 의 `action=`) · 페이지 머리 동작(`actions=`)에 둔다
+                        — 그 자리는 30 · 34 보조다. 글자 단추는 목록 안 부수 동작(조건 지우기 · 더 보기 · 댓글 줄 동작)의 자리다
 
 ## 예외와 대기 목록
 
@@ -48,6 +51,7 @@ RULES = {
     "card-wrapped-table": "목록 표를 여백 판으로 한 번 더 감싼다 — `DataTable placement`",
     "row-button": "열 render 안에 단추를 직접 그린다 — `RowActions`",
     "table-tag": "표 칸 안에 면 있는 Tag 를 그린다 — `DotLabel`",
+    "ghost-slot": "메시지 박스 · 발 · 판 머리 · 페이지 머리 동작에 글자 단추를 둔다 — 30 · 34 보조",
 }
 
 FILTER_PARTS = {
@@ -58,6 +62,21 @@ FILTERBAR_IMPORT = re.compile(r"""import\s*\{([^}]*)\}\s*from\s*["'][./]*(?:ui/)
 TABLE_TAGS = {"DataTable", "GroupedTickets"}
 WRAPPER_TAGS = {"Card", "ListCard"}
 ROW_BUTTON_TAGS = {"Button", "IconButton"}
+# 글자 단추가 서면 안 되는 자리(핸드오프 RULES §1 · §3 · §8 · 조합 계약 C-4). 요소 이름은 그 요소의 속성 · 자식 전체,
+# `이름@속성` 은 그 속성 식 안만이다 — `<Section>` 의 자식(첨부 줄 「떼기」 같은 목록 안 부수 동작)은 자리가 아니다.
+GHOST_BUTTON_TAGS = {"Button", "KitButton"}
+GHOST_VARIANT = re.compile(r"""\bvariant\s*=\s*\{?\s*["']ghost["']""")
+GHOST_SLOTS = {
+    "Callout": "메시지 박스",
+    "ActionFooter": "발",
+    "ModalFooter": "모달 발",
+    "Modal@footer": "모달 발",
+    "FormModal@footer": "모달 발",
+    "SectionTitle@action": "판 머리 동작",
+    "Section@action": "판 머리 동작",
+    "PageHeader@actions": "페이지 머리 동작",
+}
+_ATTR_BEFORE_BRACE = re.compile(r"([A-Za-z_$][\w$-]*)\s*=\s*$")
 
 # 이 검사를 세운 시점(UI 3차 P0)의 위반. 묶음마다 줄이고 끝에는 비어야 한다.
 PENDING: set[tuple[str, str]] = set()
@@ -94,9 +113,23 @@ def _skip_string(text: str, i: int) -> int:
 
 
 def _prev_significant(text: str, i: int) -> str:
+    """`i` 앞의 뜻 있는 낱말 · 글자. 사이의 빈칸과 주석은 건너뛴다 — `return ( /* 설명 */ <Callout …` 의 요소를
+    주석 끝 글자(`/`) 뒤로 읽어 JSX 가 아니라고 놓치던 자리다(UI 3차 P7 — 알림함 · 상태 알림의 메시지 박스)."""
     j = i - 1
-    while j >= 0 and text[j] in " \t\r\n":
-        j -= 1
+    while j >= 0:
+        while j >= 0 and text[j] in " \t\r\n":
+            j -= 1
+        if j >= 1 and text[j] == "/" and text[j - 1] == "*":
+            open_at = text.rfind("/*", 0, j - 1)
+            if open_at < 0:
+                break
+            j = open_at - 1
+            continue
+        line_start = text.rfind("\n", 0, j + 1) + 1
+        if text[line_start:j + 1].lstrip().startswith("//"):
+            j = line_start - 1
+            continue
+        break
     if j < 0:
         return ""
     if text[j].isalpha():
@@ -127,7 +160,10 @@ def _scan_tag(text: str, i: int, events, renders, ancestors) -> tuple[int, str |
             j = _skip_string(text, j)
             continue
         if ch == "{":
-            j = _scan_js(text, j + 1, stop="}", events=events, renders=renders, ancestors=ancestors + ([name] if name else []))
+            # 속성 식이면 요소 이름 뒤에 `이름@속성` 을 하나 더 얹는다 — 기존 규칙은 요소 이름만 보므로 판정이 같다.
+            attr = _ATTR_BEFORE_BRACE.search(text, start, j)
+            scope = ([name] + ([f"{name}@{attr.group(1)}"] if attr else [])) if name else []
+            j = _scan_js(text, j + 1, stop="}", events=events, renders=renders, ancestors=ancestors + scope)
             continue
         if text.startswith("/>", j):
             if events is not None and name:
@@ -297,7 +333,30 @@ def scan_file(rel: str, text: str) -> list[tuple[str, int, str]]:
             hits.append(("row-button", line_of(pos), f"<{name}> in render"))
         if in_render and name == "Tag":
             hits.append(("table-tag", line_of(pos), "<Tag> in render"))
+        if name in GHOST_BUTTON_TAGS and GHOST_VARIANT.search(_own_attrs(tag)):
+            slot = next((GHOST_SLOTS[a] for a in reversed(ancestors) if a in GHOST_SLOTS), None)
+            if slot:
+                hits.append(("ghost-slot", line_of(pos), f"<{name} variant=ghost> in {slot}"))
     return hits
+
+
+_BRACED_LITERAL = re.compile(r"""=\s*\{\s*(["'][^"'{}]*["'])\s*\}""")
+
+
+def _own_attrs(tag: str) -> str:
+    """여는 태그에서 **자기 속성**만 남긴다 — 속성 식 안에 든 다른 요소의 `variant` 를 제 것으로 읽지 않게 `{…}` 를 비운다.
+    글자 하나만 든 식(`variant={"ghost"}`)은 먼저 따옴표 값으로 푼다."""
+    out, depth = [], 0
+    for ch in _BRACED_LITERAL.sub(r"=\1", tag):
+        if ch == "{":
+            depth += 1
+            continue
+        if ch == "}":
+            depth = max(0, depth - 1)
+            continue
+        if depth == 0:
+            out.append(ch)
+    return "".join(out)
 
 
 def scan(src: Path, ledger: Path, pending: set[tuple[str, str]]):
@@ -330,7 +389,28 @@ def selftest() -> int:
         "  return (<>\n"
         "    <ListCard sx={{ p: 0 }}><DataTable columns={cols} rows={[]} /></ListCard>\n"
         "    <ListFooter total={1} loaded={1} />\n"
+        '    <Callout tone="warn" action={<Button size="sm" variant="ghost" onClick={retry}>다시 시도</Button>}>안내</Callout>\n'
         "  </>);\n"
+        "}\n"
+    )
+    # 글자 단추 자리 — 틀린 자리마다 따로 잡히는지 본다(메시지 박스 · 판 머리 동작 · 모달 발 · 발 부품).
+    bad_ghosts = (
+        "export function BadGhosts() {\n"
+        "  return (<>\n"
+        '    <SectionTitle title="첨부" action={<Button size="small" variant="ghost">파일 올리기</Button>} />\n'
+        '    <Modal open title="실행" footer={<Button variant={"ghost"}>닫기</Button>}>몸</Modal>\n'
+        '    <Card><ActionFooter placement="card"><KitButton variant="ghost">취소</KitButton></ActionFooter></Card>\n'
+        "  </>);\n"
+        "}\n"
+    )
+    good_ghosts = (
+        "export function GoodGhosts() {\n"
+        '  return (<Section title="첨부" action={<Button size="small">파일 올리기</Button>}>\n'
+        '    <Stack><Button size="small" variant="ghost" onClick={drop}>떼기</Button></Stack>\n'
+        '    <Callout tone="warn" action={<Button size="sm" onClick={retry}>다시 시도</Button>}>안내</Callout>\n'
+        '    <Callout tone="info" action={<Button size="sm" startIcon={<Icon variant="ghost" />}>자세히</Button>}>속성 식 안의 다른 요소</Callout>\n'
+        '    <Modal open title="관리" footer={<Button>닫기</Button>}><Button size="sm" variant="ghost">전체 보기</Button></Modal>\n'
+        "  </Section>);\n"
         "}\n"
     )
     good_screen = (
@@ -355,6 +435,10 @@ def selftest() -> int:
         (src / "Bad.jsx").write_text(bad_screen, encoding="utf-8")
         (src / "Good.jsx").write_text(good_screen, encoding="utf-8")
         (src / "Gone.jsx").write_text("export const Gone = 1;\n", encoding="utf-8")
+        (src / "BadGhosts.jsx").write_text(bad_ghosts, encoding="utf-8")
+        (src / "GoodGhosts.jsx").write_text(good_ghosts, encoding="utf-8")
+        ghost_hits = scan_file("screens/BadGhosts.jsx", bad_ghosts)
+        good_ghost_hits = scan_file("screens/GoodGhosts.jsx", good_ghosts)
         ledger = root / "ledger.md"
         ledger.write_text(
             "| 파일 | 조합 규칙 | 이유 | 대체 불가 근거 |\n|---|---|---|---|\n"
@@ -364,9 +448,14 @@ def selftest() -> int:
     for rule in RULES:
         if rule not in bad_rules:
             problems.append(f"Known Bad 를 못 잡음: {rule}")
-    good_hits = [v for (rel, _rule), v in new.items() if rel == "screens/Good.jsx"]
+    good_hits = [v for (rel, _rule), v in new.items() if rel in ("screens/Good.jsx", "screens/GoodGhosts.jsx")]
     if good_hits:
         problems.append(f"Known Good 을 잘못 잡음: {good_hits}")
+    ghost_slots = sorted(what.split(" in ", 1)[1] for rule, _line, what in ghost_hits if rule == "ghost-slot")
+    if ghost_slots != ["모달 발", "발", "판 머리 동작"]:
+        problems.append(f"글자 단추 자리 셋(판 머리 동작 · 모달 발 · 카드 발)을 따로 못 잡음: {ghost_slots}")
+    if good_ghost_hits:
+        problems.append(f"글자 단추의 맞는 자리(목록 안 · 모달 몸 · 속성 식 안 다른 요소)를 잘못 잡음: {good_ghost_hits}")
     if ("screens/Nowhere.jsx", "row-button") not in stale:
         problems.append("stale 대기 항목을 못 잡음")
     if ("screens/Gone.jsx", "list-footer") not in dead:

@@ -88,6 +88,15 @@ class Route:
     # 경로를 보고 짐작하면 그 짐작은 한쪽이 바뀌는 날 조용히 어긋난다 — `surface_id` 를
     # 명시하는 것과 같은 이유다.
     source_path: str = ""
+    # 이 화면이 **일부러** 내는 콘솔 오류(정규식). 음성 경로(없는 id 로 찾기)는 브라우저가 실패한 요청을
+    # 「Failed to load resource … 404」로 적는다 — 화면은 그 404 를 받아 「못 찾음」을 말하는 것이 계약이다.
+    # 맞는 줄은 기록(`expected_console`)에 남기고 `console_errors` 판정에서만 뺀다(UI 3차 P7). 여기 없는 줄은
+    # 그대로 치명이다 — 화면 전체를 끄는 무시 목록(`--ignore-console`)과 다르다.
+    expected_console: tuple[str, ...] = field(default_factory=tuple)
+    # 실행 도중 대상이 사라질 수 있는 상세 화면 — 테마 · 뷰포트 묶음마다 id 를 **다시** 찾는다(UI 3차 P7).
+    # 놀이방은 오래 비어 있으면 서버의 유령 방 정리가 닫는다. 실행 시작에 한 번 찾은 방은 한 시간짜리 전 경로
+    # 캡처의 뒤쪽 묶음에서 닫힌 방이 되어 404 콘솔 오류로 찍혔다(긴 캡처의 알려진 오류 둘 중 하나).
+    rediscover: bool = False
 
     @property
     def is_alias(self) -> bool:
@@ -198,8 +207,11 @@ USER_ROUTES: tuple[Route, ...] = (
     # 같은 그림이 두 이름으로 들어오고, 옛 page id 는 S14 가 legacy 층을 내린 뒤로 새로
     # 생기지 않는다 — 이 주소에만 있는 얼굴은 «못 찾았고 그 이유를 말한다» 쪽이다.
     # 그래서 존재할 수 없는 id 를 고정으로 준다(무작위가 아니라 고정이라 매번 같은 그림이다).
+    # 옛 page id 로 지금 문서를 묻는 요청(`GET /api/knowledge/documents/by-legacy/<id>`)이 404 를 받는 것이 이 얼굴이다 —
+    # 브라우저가 적는 그 한 줄은 기대한 콘솔 줄이다(UI 3차 P7, 단독 실행 네트워크 기록으로 확인).
     _u("user_legacy-doc-redirect", "/team-docs/00000000-0000-0000-0000-000000000000",
-       "옛 문서 주소 — 못 찾음", source_path="/team-docs/:pageId"),
+       "옛 문서 주소 — 못 찾음", source_path="/team-docs/:pageId",
+       expected_console=(r"^Failed to load resource: the server responded with a status of 404 \(Not Found\)$",)),
     _u("user_knowledge", "/knowledge", "문서"),
     _u("user_knowledge-doc", "/knowledge", "문서 상세",
        hash_template="/knowledge/{id}", discover=("/api/knowledge/documents",)),
@@ -221,7 +233,7 @@ USER_ROUTES: tuple[Route, ...] = (
     _u("user_search-empty", "/search?q=존재하지않는검색어zz", "통합 검색 — 결과 없음"),
     _u("user_games", "/games", "놀이"),
     _u("user_game-room", "/games", "놀이방",
-       hash_template="/games/{id}", discover=("/api/games/rooms",)),
+       hash_template="/games/{id}", discover=("/api/games/rooms",), rediscover=True),
     # 내 정보(계획서 Phase 6 사용자 백로그) — 프로필 셀프서비스·업무량 통계·활동 피드.
     # 셋 다 `USER_SEG_PATHS` 에 들어 있어 사용자 셸에서 열린다(navConfig.js).
     _u("user_profile", "/profile", "내 프로필"),
