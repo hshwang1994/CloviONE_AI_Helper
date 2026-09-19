@@ -84,6 +84,18 @@ def _click(locator, what: str) -> None:
     locator.click()
 
 
+def _shot_ref(shot: Path) -> str:
+    """스크린샷 경로를 기록 문자열로. 저장소 밖(또는 상대 `--out-root`)이어도 죽지 않는다.
+
+    `relative_to` 는 저장소 밖 경로에서 `ValueError` 를 던진다 — 원격 실행(`--out-root dist/ui-qa-remote`)에서
+    그 예외가 스크린샷을 찍은 **뒤** 터져 상태마다 「ERROR」로 적히고 조합 측정이 통째로 건너뛰어졌다(UI 3차 P8 실측).
+    """
+    try:
+        return str(shot.resolve().relative_to(REPO_ROOT)).replace("\\", "/")
+    except ValueError:
+        return str(shot.resolve()).replace("\\", "/")
+
+
 def _api_json(page, base: str, path: str):
     try:
         response = page.context.request.get(f"{base.rstrip('/')}{path}", timeout=15_000)
@@ -545,7 +557,7 @@ def run(args) -> int:
     from scripts.ui_qa.kit_measure import CONTRACT, MEASURE_JS, _mascot_hfrac
 
     base = (args.base_url or cap.DEFAULT_BASE_URL).rstrip("/")
-    insecure = tls.apply_default_https_context()
+    insecure = tls.apply_default_https_context(cli_insecure=bool(getattr(args, "insecure", False)))
     out_root = Path(args.out_root) if args.out_root else OUT_BASE
     out_dir = out_root / args.states_label
     shots = out_dir / "states"
@@ -576,7 +588,7 @@ def run(args) -> int:
                                 shot = shots / theme / viewport.name / f"{name}.png"
                                 shot.parent.mkdir(parents=True, exist_ok=True)
                                 page.screenshot(path=str(shot), full_page=False)
-                                record["shot"] = str(shot.relative_to(REPO_ROOT)).replace("\\", "/")
+                                record["shot"] = _shot_ref(shot)
                                 composed = page.evaluate(COMPOSITION_JS, {**COMPOSITION_CONTRACT, "scope": None,
                                                                           "expect": expect_for(route_id)})
                                 parts = page.evaluate(MEASURE_JS, {**CONTRACT, "scope": None, "mascotHfrac": hfrac})
@@ -645,6 +657,10 @@ def main() -> int:
     ap.add_argument("--base-url", default=None)
     ap.add_argument("--settle-ms", type=int, default=600)
     ap.add_argument("--remote-safe", action="store_true", help="쓰기가 생길 수 있는 상태를 건너뛴다")
+    # 자체서명 설치처를 겨눌 때 필요하다(`run.py --insecure` 와 같은 스위치). 브라우저는 운영체제 신뢰 저장소로 그 인증서를
+    # 받아들이지만 Playwright 의 API 요청 컨텍스트(Node)는 거부한다 — 로그인은 되고 `/api/me` 만 막혀 「인증을 인정하지
+    # 않습니다」로 끝났다(UI 3차 P8 실측). `UI_QA_TLS_VERIFY=0` 과 같은 자리를 연다.
+    ap.add_argument("--insecure", action="store_true", help="자체서명 인증서를 신뢰한다(설치처를 겨눌 때)")
     ap.add_argument("--out-root", default=None)
     ap.add_argument("--auth-dir", default=None)
     ap.add_argument("--fail-on", nargs="*", default=None)

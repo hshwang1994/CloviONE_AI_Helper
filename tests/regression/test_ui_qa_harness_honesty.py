@@ -19,6 +19,9 @@
 
 from __future__ import annotations
 
+import tempfile
+from pathlib import Path
+
 import pytest
 
 from scripts.ui_qa import assertions
@@ -326,3 +329,35 @@ def test_remote_account_guidance_keeps_secrets_off_the_command_line() -> None:
     # sudo 비밀번호와 새 비밀번호는 stdin 으로만 간다.
     assert "sudo -S -p '' bash ~/qa-user-cli.sh passwd --email ui-qa@example.test" in message
     assert "echo" not in message
+def test_states_shot_ref_survives_paths_outside_the_repo():
+    """원격 실행(`--out-root dist/ui-qa-remote` 같은 상대 경로 · 저장소 밖 경로)에서도 기록이 죽지 않는다.
+
+    `relative_to` 는 저장소 밖 경로에서 ValueError 를 던졌고, 그 예외가 스크린샷을 찍은 뒤 터져 상태마다 「ERROR」로
+    적히고 조합 측정이 통째로 건너뛰어졌다(UI 3차 P8 실측).
+    """
+    from scripts.ui_qa.composition_states import REPO_ROOT, _shot_ref
+
+    inside = REPO_ROOT / "dist" / "ui-qa" / "x" / "states" / "light" / "1920x1080" / "a.png"
+    assert _shot_ref(inside) == "dist/ui-qa/x/states/light/1920x1080/a.png"
+    outside = Path(tempfile.gettempdir()) / "ui-qa-remote" / "states" / "b.png"
+    ref = _shot_ref(outside)
+    assert ref.endswith("/b.png") and "\\" not in ref
+
+
+def test_states_accepts_insecure_flag_like_run():
+    """자체서명 설치처를 겨누는 스위치가 상태 하네스에도 있다.
+
+    브라우저는 운영체제 신뢰 저장소로 랩 인증서를 받아들이지만 Playwright 의 API 요청 컨텍스트(Node)는 거부해,
+    로그인은 되고 `/api/me` 만 막혔다(UI 3차 P8 실측).
+    """
+    import argparse
+    import inspect
+
+    from scripts.ui_qa import composition_states as cs
+
+    src = inspect.getsource(cs.main)
+    assert '"--insecure"' in src, "상태 하네스에 --insecure 가 없다"
+    assert "cli_insecure=bool(getattr(args, \"insecure\", False))" in inspect.getsource(cs.run)
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--insecure", action="store_true")
+    assert ap.parse_args(["--insecure"]).insecure is True
