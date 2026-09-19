@@ -17,7 +17,7 @@
   보호 화면 다섯은 공통 부품 치환만, 문구 · 기능 · 권한 · 흐름 · 백엔드 계약 변경 0, 시험 삭제 0. 사용자 결정: 채팅 「위 정렬 + 입력창 바닥」.
 - branch: `ui/mui-migration`
 - last_stable_commit: **`eec4886c`** — 이번 회차도 안 옮긴다.
-- deployed: **`2c8915e5`** — P8 배포 직전 상태다(서버 번들 `index.BON2Swm9.js` 200).
+- deployed: **`3dfc8ef7`** → 이 커밋으로 다시 올린다(배포 revision = 최종 커밋). 스냅샷 `/var/backups/clovirassist/20260919-110941`.
 - verification: 아래 「이번 회차가 잰 것」.
 - capture: 전량 정본은 **`s22-final`** 그대로다(D-306). 이 회차의 전 화면 캡처는 `compose-before`(기준) · `compose-final3`(최종 번들)이고
   Acceptance 정본을 옮기지 않는다.
@@ -36,10 +36,10 @@
 | P4 | `966f4b97` | 내용 폭 짝 트랙 · `PAGE_FILL_HEIGHT` · `ActionFooter sticky` · 편집기 상자 · FAB 여백 걷음(PENDING 0) |
 | P5 | `9e4b6ede` | 문서 마무리 — 제목 칸 · 복원 보조 · 분류 관리 창 발 하나 · 본문 수정 판 발 · 입력 영역 표식 |
 | P6 | `32b48102` | 채팅 — 위 정렬 · 도킹 선 · 머리 두 줄 · 짧은 목록 시각 · 공통 날짜 구분선 · AI 도우미 토큰 |
-| P7 | `f056188a` · `387db1d9` · 이 커밋 | 글자 단추 자리 · 예약 달력 창 발 · 채팅방 관리 입력 영역 · 조직 판 머리 · 빈 화면 만들기 단추 / 하네스(기대 콘솔 줄 · 놀이방 다시 찾기 · 원격 계정 안내 · 소스 규칙 `ghost-slot`) / 결정 · 대장 · 전체 회귀 |
+| P7 · P8 | `f056188a` · `387db1d9` · `3dfc8ef7` · `0d5740aa` · 이 커밋 | 글자 단추 자리 · 예약 달력 창 발 · 채팅방 관리 입력 영역 · 조직 판 머리 · 빈 화면 만들기 단추 / 하네스(기대 콘솔 줄 · 놀이방 다시 찾기 · 원격 계정 안내 · 소스 규칙 `ghost-slot`) / 결정 · 대장 · 전체 회귀 / 원격 하네스 두 자리(저장소 밖 경로 · 자체서명) / 배포와 배포 후 검증 기록 |
 
 정본 대장은 `docs/ui-renewal/COMPONENT_LEDGER.md`(§0-18 조합 · 글자 단추 자리 · 조합 예외 표), 계획과 실측 차이는 정본 계획의
-「8. 실측으로 고친 것」(1~60)이다.
+「8. 실측으로 고친 것」(1~63)이다.
 
 ## 이번 회차가 잰 것
 
@@ -63,6 +63,15 @@
 - **긴 데이터** `hostile_data` long · many · weird × 1366 · 1200 = 486쪽: 세로 붕괴 0 · JS 오류 0. 넘침 51쪽은 전부 형식 칸에 200자 ·
   RTL · 이모지를 넣은 인공 값이다(기준과 같은 칸만 견주면 43 → 36쪽으로 줄었다).
 - **흐름 e2e** `FILTER_E2E_OK`(면 32 · 흐름 1) · `KIT_SURFACES OK`(40/40 · 판 안의 판 0).
+- **배포** `bash scripts/deploy-upgrade.sh` 의 단계를 나눠 돌렸다(자동 모드가 한 덩어리 실행을 막는다 — `git archive` → scp → 풀기 →
+  `install.sh upgrade --source local --yes`, sudo 비밀번호는 stdin). `UPGRADE_OK` · 스냅샷 `/var/backups/clovirassist/20260919-110941` ·
+  설치기 `VERIFY_OK`(서비스 · TLS · alembic head 0029 · 확장). `verify_deploy.sh` 는 `DEPLOY_VERIFY_OK`(정적 자산 52/52 새 번들,
+  새 라우트 401, CSP 새 정책)이고 새 번들 `index.CARoMs1g.js` 200 · 옛 번들 404 다.
+- **배포 후 원격 검증**(설치처 · QA 계정) — 캡처 28 route × 3 뷰포트 × 2 테마 = 168쪽 치명 0(기대 콘솔 줄 6은 옛 문서 주소),
+  상태 하네스 156건 실패 0(못 만든 36은 계정에 방 · 티켓이 없어서), 조합 측정 162쪽 실패는 홈의 빈 계정 상태 둘뿐이다.
+  채팅방 상세 · 놀이방은 QA 계정에 방이 0건이라 건너뛰었다(원격에서 쓰기를 만들지 않는다).
+- **404 판정 증거** — 옛 문서 주소는 설치처에서 `/api/knowledge/documents/by-legacy/<없는 id>` 404 를 받고 화면이 「옛 주소가 가리키는
+  문서를 찾지 못했습니다.」를 말한다. 놀이방은 살아 있는 방이 정상으로 열리고, 없는 id 만 `/state` 404 뒤 목록으로 돌아간다.
 
 ## 이번 회차가 **안 고친** 것 — 그리고 그 이유
 
@@ -79,6 +88,8 @@
 - **`.c-screen > .k-callout` 16px** · **표 행 체크박스 16px** · **`DateField` 줄 갈래 휴면** · **새 문서 · 아바타 고르기 취소의 dirty 확인** ·
   **회차 닫기 확인의 기본 초점** — 이유는 대장 §0-18 「글자 단추 자리 · 조사 부록 발견 처리」에 적었다.
 - **QA 경로표의 걷힌 화면** — `admin_integrations` · `admin_integration-detail` 은 404 를 연다(화면은 전에 걷혔다).
+- **홈(`/me`)의 빈 계정 상태** — 판 빈 상태가 가운데 정렬이고 채움이 둘(새 티켓 · 미할당 티켓 보기)이다. 배포된 설치처의 빈 QA 계정에서
+  처음 드러났고 홈은 보호 화면이라 이번 회차 범위 밖이다(대장 §0-18).
 
 ## 🔴 운영이 PostgreSQL 위에서 돈다
 
@@ -109,10 +120,9 @@
 
 ## 다음 시작점
 
-1. **배포**: `bash scripts/deploy-upgrade.sh` → `UPGRADE_OK` 줄과 스냅샷 경로 확인 → `BASE=https://clovirassist.gooddi.lab bash scripts/verify_deploy.sh`.
-   되돌리기 두 길: `bash scripts/deploy-upgrade.sh 2c8915e5`(코드만) · 서버에서 `sudo bash /opt/clovirassist/deploy/install.sh rollback --target <스냅샷>`.
-2. 배포 뒤 원격 QA 계정을 열어(`scripts/ui_qa/auth.py::QA_USER_CLI_HELPER` 형태의 도우미 · sudo 와 비밀번호는 stdin) 핵심 · 대표 · 보호 화면을
-   3 뷰포트 × 2 테마로 다시 찍고 로컬 `compose-final3` 과 대조한 뒤 계정을 `archive` 로 되돌린다.
+1. 되돌려야 하면 두 길이다: `bash scripts/deploy-upgrade.sh 2c8915e5`(코드만 · 마이그레이션 없음) · 서버에서
+   `sudo bash /opt/clovirassist/deploy/install.sh rollback --target /var/backups/clovirassist/20260919-110941`.
+2. 보호 화면 회차를 열면 홈(`/me`)의 빈 계정 상태(가운데 정렬 · 채움 둘)를 조합 계약 C-4 로 맞춘다.
 3. 실환경 세 화면(작업 보드 · 스프린트 회의 · 티켓 상세)은 **로그인한 브라우저**로 눌러 본다 — 지난 회차가 남긴 확인이다.
    `/api/admin/integrity` 가 「팀 미정 회차 1」을 센다.
 4. 다음 릴리스에 P-94(`0030`, `sprints.project_id` 삭제).
