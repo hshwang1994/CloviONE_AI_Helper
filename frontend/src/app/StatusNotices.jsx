@@ -235,13 +235,14 @@ export function NoticeRow({ notice, onDismiss }) {
        닫을 수 있는 것인지는 서버가 정한다. */
     /* 제목 앞의 톤 낱말(「안내:」 「주의:」 「장애:」)을 걷었다(핸드오프 D-11 — 톤 이름 줄 금지).
        상태는 아이콘의 모양과 그 접근 이름이 말한다. 줄들이 한 기둥으로 이어지는 띠라 `bleed` 갈래다. */
+    /* 상자의 동작(닫기 · 자세히 보기)은 30 보조다 — 글자 단추는 목록 안 부수 동작의 자리다(핸드오프 RULES §3 · 조합 계약 C-4). */
     <Callout
       role="listitem"
       tone={NOTICE_TONE[notice.level] || "info"}
       variant="bleed"
       title={notice.message}
       action={dismissible ? (
-        <KitButton size="sm" variant="ghost" onClick={() => onDismiss(notice)}>닫기</KitButton>
+        <KitButton size="sm" onClick={() => onDismiss(notice)}>닫기</KitButton>
       ) : null}
     >
       <Box sx={{ display: "grid", gap: 0.5 }}>
@@ -253,7 +254,7 @@ export function NoticeRow({ notice, onDismiss }) {
         ) : null}
         {notice.href ? (
           <Box>
-            <KitButton size="sm" variant="ghost" href={notice.href}>
+            <KitButton size="sm" href={notice.href}>
               {notice.hrefLabel || "자세히 보기"}
             </KitButton>
           </Box>
@@ -344,7 +345,7 @@ export function CriticalStatusLine({ notices }) {
       variant="bleed"
       role="status"
       action={first.kind === "sync" ? (
-        <KitButton size="sm" variant="ghost" onClick={() => dismiss(first)}>닫기</KitButton>
+        <KitButton size="sm" onClick={() => dismiss(first)}>닫기</KitButton>
       ) : null}
     >
       {first.message}{extra > 0 ? ` (그 외 장애 ${extra}건, 우측 상단 칩에서 확인)` : ""}

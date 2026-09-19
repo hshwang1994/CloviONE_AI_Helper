@@ -54,8 +54,9 @@ import { setItemTitle } from "../app/documentTitle.js";
  * 레일이 생기는 이유: 4K에서 남는 폭을 글줄 길이로 쓰면 안 된다(§ PROSE_MAX_WIDTH). 티켓 카드는
  * 원래 말풍선 안에 끼어 스레드를 밀어내고 있었다 — 폭이 남을 때만 그것을 옆으로 꺼낸다.
  *
- * 이 화면은 앱 셸에서 유일하게 'flush'로 그려진다(app/AppShell.jsx가 pathname==="/chat"만
- * 특별 취급한다). 즉 높이와 스크롤은 이 화면이 직접 소유한다 — 바깥이 잡아 주지 않는다.
+ * 이 화면도 다른 화면과 같은 `c-screen` + `PageHeader` 위의 판이다 — 셸의 'flush' 예외는 걷혔고(app/AppShell.jsx 는
+ * `/chat` 에서 마스코트 단추만 감춘다), 판은 높이 고정(`PAGE_FILL_HEIGHT`)이다. 그래서 판 안의 높이와 스크롤은
+ * 이 화면이 직접 소유한다 — 바깥 문서가 잡아 주지 않는다.
  * 스크롤 소유자는 **정확히 셋**이다: 대화 목록(사이드바 안 목록 칸), 스레드 본문(bodyRef),
  * 결과 레일. 셋은 서로 형제이지 서로의 안에 있지 않다 — 하나를 스크롤해도 다른 것이 같이
  * 움직이거나, 옛 목록을 보려고 두 스크롤바를 번갈아 만질 일이 없다(K-H3).
@@ -198,7 +199,7 @@ export function Chat() {
         failure={ch.sidebarFailure}
       />
 
-      {/* 스레드 열 — 높이와 스크롤은 이 화면이 직접 소유한다(셸이 flush로 넘긴다). */}
+      {/* 스레드 열 — 높이와 스크롤은 이 화면이 직접 소유한다(판이 높이 고정이다). */}
       <Box
         component="section"
         {...(sideOpen && listIsDrawer ? { inert: "", "aria-hidden": "true" } : {})}

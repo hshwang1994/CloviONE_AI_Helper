@@ -311,6 +311,42 @@ describe("빈 상태는 '데이터 없음'과 '검색 결과 없음'을 구분�
     // 빈 상태 안의 CTA. 툴바에도 '필터 지우기'가 함께 떠 있으므로 이름을 정확히 지정한다.
     expect(screen.getByRole("button", { name: "검색, 필터 지우기" })).toBeInTheDocument();
   });
+
+  /* 조합 계약 C-4 — 정말 빈 화면에서도 화면의 채움은 머리 동작 하나다. 빈 상태의 만드는 단추는 같은 일을 하는 30 보조다
+     (핸드오프 RULES §1 「제목 + 만드는 버튼 30px」). 예전에는 머리와 빈 상태에 같은 이름의 채움이 둘 섰다(대리 보기 실측). */
+  const isContained = (el) => [...el.classList].some((c) => /^MuiButton-contained[A-Z]/.test(c));
+
+  it("정말 빈 화면: 머리의 '추가'만 채움이고 빈 상태의 '추가'는 30 보조다", async () => {
+    apiMock.mockResolvedValue({ items: [], total: 0 });
+    const { container } = renderScreen({
+      ...BASE_CONFIG,
+      key: "prompts",
+      emptyTitle: "프롬프트가 없습니다",
+      create: { roles: ["system_admin"], fields: [{ name: "name", label: "이름", type: "text", required: true }] },
+    });
+    expect(await screen.findByRole("heading", { name: "프롬프트가 없습니다" })).toBeInTheDocument();
+    const adds = screen.getAllByRole("button", { name: "추가" });
+    expect(adds).toHaveLength(2);
+    const filled = Array.from(container.querySelectorAll("button")).filter(isContained);
+    expect(filled.map((b) => b.textContent)).toEqual(["추가"]);
+    const emptyAdd = adds.find((b) => !isContained(b));
+    expect(emptyAdd).not.toBeUndefined();
+    expect([...emptyAdd.classList].some((c) => /^MuiButton-sizeSmall/.test(c))).toBe(true);
+  });
+
+  it("정말 빈 화면: 머리의 주 동작(primary 머리 액션)도 빈 상태에서는 30 보조로 한 번 더 선다", async () => {
+    apiMock.mockResolvedValue({ items: [], total: 0 });
+    const { container } = renderScreen({
+      ...BASE_CONFIG,
+      key: "impersonation",
+      emptyTitle: "대리 보기 기록이 없습니다",
+      headerActions: [{ label: "대리 보기 시작", variant: "primary", primary: true, path: () => "/x" }],
+    });
+    expect(await screen.findByRole("heading", { name: "대리 보기 기록이 없습니다" })).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "대리 보기 시작" })).toHaveLength(2);
+    const filled = Array.from(container.querySelectorAll("button")).filter(isContained);
+    expect(filled.map((b) => b.textContent)).toEqual(["대리 보기 시작"]);
+  });
 });
 
 describe("요약 줄 — 카드 수와 무관하게 빈 칸이 안 생긴다 (VIS-119/137/151)", () => {

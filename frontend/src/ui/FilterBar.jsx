@@ -174,10 +174,11 @@ export function FilterActions({ children, sx }) {
       data-filter-actions=""
       /* 줄이 위로 맞춰졌으므로(FilterRow) 이 묶음은 **자기 안에서** 입력칸 높이만큼의
          띠를 만들고 그 가운데에 선다 — 그래야 설명이 달린 줄에서도 단추가 입력칸과
-         같은 눈높이에 있다. */
+         같은 눈높이에 있다. 띠 높이는 필터 칸과 같은 rem 34 다 — 예전의 px 36 은 칸보다 2px 높았고
+         루트 글자 18 · 20px(2560 · 3840)에서는 rem 칸보다 낮아져 단추가 칸 가운데에서 비켜 섰다. */
       sx={{
         display: "flex", alignItems: "center", gap: 1, marginInlineStart: "auto",
-        alignSelf: "flex-start", minHeight: `${CONTROL.input}px`, ...sx,
+        alignSelf: "flex-start", minHeight: remPx(CONTROL.button), ...sx,
       }}
     >
       {children}

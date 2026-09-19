@@ -12,7 +12,8 @@ import {
   TeamSelect, kindSx, rowAllText,
 } from "./filters.jsx";
 import { TagPicker } from "./TagPicker.jsx";
-import { createClovirTheme } from "./theme.js";
+import { FilterActions } from "./FilterBar.jsx";
+import { CONTROL, createClovirTheme, remPx } from "./theme.js";
 
 /* 필터 바 줄 칸의 해부는 **종류와 무관하게 하나다** (UI 3차 · 조합 계약 C-2).
  *
@@ -203,5 +204,17 @@ describe("다중 선택 요약이 실제 선택과 같은 순서다", () => {
   it("고른 순서를 지킨다", () => {
     render(<RowSummary names={["나", "가", "다"]} />);
     expect(screen.getByText("나, 가, 다").getAttribute("title")).toBe("나, 가, 다");
+  });
+});
+
+describe("줄 끝 동작 묶음의 띠 — 필터 칸과 같은 rem 34", () => {
+  it("FilterActions 띠의 바닥 높이는 필터 칸(CONTROL.button)과 같은 rem 값이다 — px 36 이 아니다", () => {
+    const { container } = outsideRow(<FilterActions><button type="button">필터 초기화</button></FilterActions>);
+    const band = container.querySelector("[data-filter-actions]");
+    const want = remPx(CONTROL.button);
+    expect(want).toBe("2.125rem");
+    expect(getComputedStyle(band).minHeight).toBe(want);
+    // 칸 높이와 같은 토큰이다 — 칸 규칙(`filters.jsx` 줄 칸 34)과 따로 놀지 않는다.
+    expect(getComputedStyle(band).minHeight).not.toBe(`${CONTROL.input}px`);
   });
 });

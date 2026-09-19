@@ -7,7 +7,8 @@ import { affiliation, needsOrg } from "../lib/people.js";
 import { useAssigneeOptions, useTicketMeta, useTicketProjects, statusOptions } from "./ticket-options.js";
 
 /* 티켓 목록 화면 셋(내 티켓·미할당·팀 티켓)이 함께 쓰는 필터 줄. 스프린트 회의는 자기 두 줄 필터를
- * 쓰고 여기서는 조건 판정(`matchesTicketFilters` · `SPRINT_FIELDS`)만 가져간다.
+ * 쓰고 여기서 아무것도 가져가지 않는다(18c67683 뒤로). 아래 조건 판정(`matchesTicketFilters` · `SPRINT_FIELDS`)은
+ * 그때부터 화면 소비처가 없고, `ticket-filters.test.jsx` 가 그 한 쌍의 계약을 고정한다(UI 3차 조사 부록에서 확인).
  *
  * ## 왜 하나로 모았나
  *
@@ -23,8 +24,8 @@ import { useAssigneeOptions, useTicketMeta, useTicketProjects, statusOptions } f
  * 그래서 이 부품은 값만 들고 있고 거르지 않는다. 클라이언트에서 거르면 서버가 자른 한
  * 페이지(기본 20건) 안에서만 걸러져, 사용자는 "필터를 걸었더니 티켓이 사라졌다"를 겪는다.
  *
- * 예외는 스프린트다. 그 화면은 `/api/sprint/summary` 가 그 주치를 **전량** 주므로 페이지가
- * 없고, 거기서는 `matchesTicketFilters` 로 화면이 직접 거르는 것이 정직하다.
+ * 예외는 스프린트였다. 그 화면은 `/api/sprint/summary` 가 그 주치를 **전량** 주므로 페이지가
+ * 없어 `matchesTicketFilters` 로 화면이 직접 걸렀다 — 지금의 스프린트 회의는 그 판정을 쓰지 않는다(위 머리 주석).
  *
  * ## 화면마다 조건이 다른 이유
  *

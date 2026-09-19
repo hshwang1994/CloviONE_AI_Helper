@@ -629,11 +629,11 @@ export function NotificationBell({ isUser, consoleUser, notices }) {
               다시 부르는 것도 실패한 질의 하나뿐이다(멀쩡한 목록을 다시 받을 이유가 없다). */}
           {otherListError && !listPending && !listError ? (
             /* 부분 실패는 메시지 박스(주의)다 — 나머지 목록은 멀쩡하므로 오류가 아니라 주의이고,
-               다시 부르는 동작은 상자의 오른쪽 칸에 선다. */
+               다시 부르는 동작은 상자의 오른쪽 칸에 선다(30 보조 — 조합 계약 C-4, 글자 단추가 아니다). */
             <Callout
               tone="warn" compact
               sx={{ mx: 1.5, my: 1, flexShrink: 0 }}
-              action={<Button size="sm" variant="ghost" onClick={() => listOther.refetch()}>다시 불러오기</Button>}
+              action={<Button size="sm" onClick={() => listOther.refetch()}>다시 불러오기</Button>}
             >
               {audienceLabel(otherAudience)} 알림을 불러오지 못했습니다.
             </Callout>

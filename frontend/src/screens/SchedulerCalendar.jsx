@@ -17,7 +17,7 @@ import { OPS_ROLES } from "./registry/shared.js";
 import { EntityCombobox } from "../ui/filters.jsx";
 import { FilterSurface, ToolbarEnd, ToolbarRow } from "../ui/FilterBar.jsx";
 import {
-  Card, Callout, Button, Skeleton,
+  ActionFooter, Card, Callout, Button, Skeleton,
   EmptyState, ErrorState, Modal, DataTable, useConfirm, useToast,
 } from "../ui/kit.jsx";
 import { StatusSummaryCard } from "../ui/StatusKpi.jsx";
@@ -425,6 +425,47 @@ export function SchedulerCalendar({ embedded = false } = {}) {
         onClose={() => setSelected(null)}
         title={selected ? (selected.schedule_name || "실행") : ""}
         size="sm"
+        footer={selected ? (
+          /* 동작은 모달 발 하나에 선다(핸드오프 RULES §8 · 조합 계약 C-4). 예전에는 몸 안 단추 줄이라 발이 없었고, 실패한 실행에서
+             「재시도」 · 「이 일정 열기」가 둘 다 채움, 「닫기」가 글자 단추였다. 옮겨 가는 동작은 왼쪽 칸 보조, 오른쪽은 닫기(보조) →
+             확정(재시도 채움 · 실행 취소 파괴 보조) 순서다. 확정은 실행 상태 · 권한에 따라 하나만 선다. */
+          <ActionFooter
+            extra={(
+              <>
+                <Button
+                  onClick={() => { const id = selected.schedule_id; setSelected(null); window.location.hash = "#/schedules?id=" + encodeURIComponent(id || ""); }}
+                >
+                  이 일정 열기
+                </Button>
+                {/* 실제 실행(run_id가 있는)만 처리한 작업이 있다 — 예정(planned)은 아직 실행 자체가
+                    없어 갈 작업이 없다(FN-13/IA-02 반대 방향, jobs.onQuery의 schedule_run_id 필터가 소비). */}
+                {selected.kind !== "planned" && selected.run_id ? (
+                  <Button
+                    onClick={() => { const id = selected.run_id; setSelected(null); window.location.hash = "#/jobs?schedule_run_id=" + encodeURIComponent(id); }}
+                  >
+                    작업 큐에서 보기
+                  </Button>
+                ) : null}
+              </>
+            )}
+          >
+            <Button onClick={() => setSelected(null)}>닫기</Button>
+            {/* 실제 실행(kind="run")이 실패했을 때만 재시도할 수 있다 — 예정(planned)은 아직
+                실행 자체가 없어 재시도할 대상이 없고, 성공/대기/실행 중은 백엔드가 409 로
+                거절한다(RUN_FAILED 만 허용, app/schedules/router.py retry_run). */}
+            {selected.kind !== "planned" && selected.status === "failed" && canOps ? (
+              <Button variant="primary" onClick={retrySelectedRun} disabled={retryRun.isPending} loading={retryRun.isPending}>
+                재시도
+              </Button>
+            ) : null}
+            {/* 대기/실행 중인 실행만 취소할 수 있다(백엔드 cancel_run 이 RUN_QUEUED/RUN_RUNNING 만 허용). */}
+            {selected.kind !== "planned" && (selected.status === "queued" || selected.status === "running") && canOps ? (
+              <Button variant="danger" onClick={cancelSelectedRun} disabled={cancelRun.isPending} loading={cancelRun.isPending}>
+                취소
+              </Button>
+            ) : null}
+          </ActionFooter>
+        ) : null}
       >
         {selected && runFailure ? <Callout tone="danger" compact sx={{ mb: 2 }}>{runFailure}</Callout> : null}
         {selected ? (
@@ -443,38 +484,6 @@ export function SchedulerCalendar({ embedded = false } = {}) {
             ]}
           />
         ) : null}
-        <Box sx={{ mt: 2, display: "flex", gap: 1, flexWrap: "wrap" }}>
-          {/* 실제 실행(kind="run")이 실패했을 때만 재시도할 수 있다 — 예정(planned)은 아직
-              실행 자체가 없어 재시도할 대상이 없고, 성공/대기/실행 중은 백엔드가 409 로
-              거절한다(RUN_FAILED 만 허용, app/schedules/router.py retry_run). */}
-          {selected && selected.kind !== "planned" && selected.status === "failed" && canOps ? (
-            <Button variant="primary" onClick={retrySelectedRun} disabled={retryRun.isPending} loading={retryRun.isPending}>
-              재시도
-            </Button>
-          ) : null}
-          {/* 대기/실행 중인 실행만 취소할 수 있다(백엔드 cancel_run 이 RUN_QUEUED/RUN_RUNNING 만 허용). */}
-          {selected && selected.kind !== "planned" && (selected.status === "queued" || selected.status === "running") && canOps ? (
-            <Button variant="danger" onClick={cancelSelectedRun} disabled={cancelRun.isPending} loading={cancelRun.isPending}>
-              취소
-            </Button>
-          ) : null}
-          <Button
-            variant="primary"
-            onClick={() => { const id = selected && selected.schedule_id; setSelected(null); window.location.hash = "#/schedules?id=" + encodeURIComponent(id || ""); }}
-          >
-            이 일정 열기
-          </Button>
-          {/* 실제 실행(run_id가 있는)만 처리한 작업이 있다 — 예정(planned)은 아직 실행 자체가
-              없어 갈 작업이 없다(FN-13/IA-02 반대 방향, jobs.onQuery의 schedule_run_id 필터가 소비). */}
-          {selected && selected.kind !== "planned" && selected.run_id ? (
-            <Button
-              onClick={() => { const id = selected.run_id; setSelected(null); window.location.hash = "#/jobs?schedule_run_id=" + encodeURIComponent(id); }}
-            >
-              작업 큐에서 보기
-            </Button>
-          ) : null}
-          <Button variant="ghost" onClick={() => setSelected(null)}>닫기</Button>
-        </Box>
       </Modal>
     </>
   );

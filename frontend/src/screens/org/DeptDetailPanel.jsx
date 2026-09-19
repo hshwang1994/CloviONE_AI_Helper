@@ -183,12 +183,14 @@ export function DeptDetailPanel({ deptId, treeRow }) {
         {row.cycle ? <Badge value="상위 관계 오류" kind="danger" /> : null}
         <Box sx={{ flex: 1 }} />
         {/* 이 부서로 가는 두 링크는 **동작 줄**에 있다 — 예전에는 카드 맨 아래에서
-            「부서 ID」와 좌우로 갈라져 있었다(조직 판과 같은 자리, 같은 이유). */}
-        <Button size="sm" variant="ghost"
+            「부서 ID」와 좌우로 갈라져 있었다(조직 판과 같은 자리, 같은 이유).
+            판 머리 동작은 전부 30 보조다 — 글자 단추 링크도, 「수정」도 채움이 아니다. 화면의 채움은 페이지 머리
+            「부서 추가」 하나다(조합 계약 C-4 · UI 3차 P7 kit_measure `primary_budget` 실측: 「부서 추가」 + 「수정」). */}
+        <Button size="sm"
                 href={"#/audit?object_type=department&object_id=" + deptId}>
           감사 로그에서 보기
         </Button>
-        <Button size="sm" variant="ghost"
+        <Button size="sm"
                 href={"#/users?department_id=" + encodeURIComponent(deptId)}>
           사용자 화면에서 보기
         </Button>
@@ -202,7 +204,7 @@ export function DeptDetailPanel({ deptId, treeRow }) {
             삭제
           </Button>
         ) : null}
-        <Button size="sm" variant="primary" onClick={() => setEditing(true)}>수정</Button>
+        <Button size="sm" onClick={() => setEditing(true)}>수정</Button>
       </Box>
 
       <StatusKpiStrip

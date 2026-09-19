@@ -269,9 +269,10 @@ function Attachments({ documentId, items, onChanged, readOnly = false }) {
     <Section
       title={`첨부 ${items.length}`}
       /* 휴지통 문서에는 올릴 자리를 안 만든다 — 서버가 404 로 막으므로 단추는 언제나
-         실패하고, 사용자는 파일을 고르고 나서야 그것을 안다. */
+         실패하고, 사용자는 파일을 고르고 나서야 그것을 안다.
+         판 머리 동작은 30 보조다(「문서 잇기」와 같다 — 조합 계약 C-4, 판 머리에 글자 단추를 두지 않는다). */
       action={readOnly ? null : (
-        <Button size="small" variant="ghost" onClick={() => inputRef.current?.click()}>
+        <Button size="small" onClick={() => inputRef.current?.click()}>
           파일 올리기
         </Button>
       )}

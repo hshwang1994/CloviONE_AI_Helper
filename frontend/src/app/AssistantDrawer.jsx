@@ -264,16 +264,16 @@ export function AssistantDrawer({ open, onClose }) {
         {/* AI-29: 429/503로 잠기면 예전엔 안내도 해제 버튼도 전체화면(Chat.jsx)에만 있었다 —
             드로어는 keepMounted라 페이지를 옮겨도 useChat 인스턴스가 안 바뀌어(같은 값을
             공유하는 게 아니라 각자 별도 인스턴스라 서로 안 풀린다) 새로고침 말고는 풀 방법이
-            없었다. 같은 배너 + 해제 버튼을 드로어에도 그대로 둔다. */}
+            없었다. 같은 배너 + 해제 버튼을 드로어에도 그대로 둔다. 상자의 동작은 30 보조다(조합 계약 C-4 · 전체 화면과 같다). */}
         {chat.maintenanceNotice ? (
           <Callout tone="warn" compact
-            action={<Button size="sm" variant="ghost" onClick={() => chat.setMaintenanceNotice(null)}>다시 시도</Button>}>
+            action={<Button size="sm" onClick={() => chat.setMaintenanceNotice(null)}>다시 시도</Button>}>
             {chat.maintenanceNotice}
           </Callout>
         ) : null}
         {chat.rateLimitNotice ? (
           <Callout tone="warn" compact
-            action={<Button size="sm" variant="ghost" onClick={() => chat.setRateLimitNotice(null)}>닫기</Button>}>
+            action={<Button size="sm" onClick={() => chat.setRateLimitNotice(null)}>닫기</Button>}>
             {chat.rateLimitNotice}
           </Callout>
         ) : null}

@@ -1128,9 +1128,11 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
   // 헤더 액션, CTA도 드로어 액션과 동일하게 busy로 막는다(중복 클릭, 느린 동기 호출 방지) -
   // 예전엔 드로어 footer 버튼만 막혀 '+ 백업 실행', '자동 동기화', '+ 문서 생성', '지금 실행' 등은
   // 진행 중에도 계속 눌러 중복 제출을 낼 수 있었다.
-  const createBtn = showCreate
-    ? <Button variant="primary" disabled={busy} onClick={() => setCreating(true)}>{config.createLabel || "추가"}</Button>
-    : (primaryHeaderAction ? <Button variant="primary" disabled={busy} loading={busyKey === "h-primary"} onClick={() => runHeaderAction(primaryHeaderAction, "h-primary")}>{primaryHeaderAction.label}</Button> : null);
+  /* 정말 빈 화면의 만드는 단추 — 머리의 같은 동작과 **같은 일을 하는 30 보조**다(조합 계약 C-4 · 핸드오프 RULES §1 「제목 + 만드는
+     버튼 30px」). 예전에는 머리와 빈 상태에 같은 이름의 채움이 둘 서서 화면 채움이 둘이었다(대리 보기 「대리 보기 시작」 실측). */
+  const emptyAction = showCreate
+    ? <Button size="sm" disabled={busy} onClick={() => setCreating(true)}>{config.createLabel || "추가"}</Button>
+    : (primaryHeaderAction ? <Button size="sm" disabled={busy} loading={busyKey === "h-primary"} onClick={() => runHeaderAction(primaryHeaderAction, "h-primary")}>{primaryHeaderAction.label}</Button> : null);
   /* 머리 액션도 같은 규칙이다 — 주 동작(추가)이 primary 이고, 위험한 것은 그 옆에 나란히
    * 두지 않는다. 예전에는 registry 의 `variant:"danger"` 머리 액션(예: '전체 삭제')이
    * '추가' 바로 왼쪽에 같은 크기로 앉았다. */
@@ -1439,13 +1441,13 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
         /* 조건 없이 정말 비었다 — 목록 화면 **전체**가 빈 상태라 가운데 구성이다(`kit.jsx::EmptyState` 의 `layout`,
            핸드오프 RULES §1 「화면 전체가 비었다」). 판을 그리지 않는다 — 담을 목록이 없다. */
         <EmptyState layout="page" title={config.emptyTitle || "표시할 항목이 없습니다"}
-          help={typeof config.emptyHelp === "function" ? config.emptyHelp(role, createBtn) : config.emptyHelp}
+          help={typeof config.emptyHelp === "function" ? config.emptyHelp(role, emptyAction) : config.emptyHelp}
           // situation 은 '추가'·'활성화' 같은 쓰기 전용 버튼을 가리킨다 — 그 CTA 를 볼 수 있는
           // role(canOnboard)에만 보여준다. 준비물·절차·기대 결과는 빈 상태가 아니라 제목 옆
           // `?` 도움말이 든다(D-456, `screenHelp.jsx`) — 빈 상태는 제목 + 한 문장 + 동작이다.
           situation={canOnboard ? config.emptySituation : undefined}
           relatedLink={config.emptyRelatedLink}
-          action={createBtn} />
+          action={emptyAction} />
       ) : (
         <>
           {/* 표에게 **자기 질의 계약**을 알려 준다 (R-91). 이것 없이는 표가 어떤 열도

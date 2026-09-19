@@ -51,7 +51,8 @@ export function selectionColumn(selection, ids, { eligible } = {}) {
        무엇보다 「행 동작·선택 열은 자르지 않는다」는 가드(`kit.jsx::columnShouldTruncate`)가
        이 열을 못 알아봤다 — 표에 `ellipsis` 를 건 화면에서 체크박스 칸이 `maxWidth: 0` 짜리
        자르기 갈래로 갔다. 폭·정렬은 아래 명시값이 그대로 이긴다(호출부 우선, columnTypes.js). */
-    key: "_sel", type: "select", align: "center", className: "k-col-check", width: "3.5rem",
+    /* `className: "k-col-check"` 가 있었다 — `DataTable` 은 열의 className 을 읽지 않고 그 이름의 CSS 도 없어 걷었다(UI 3차 조사 부록). */
+    key: "_sel", type: "select", align: "center", width: "3.5rem",
     // 이 열은 행을 구별하는 값의 출처가 아니다. 선택 열은 거의 항상 columns[0] 이라, 걸러
     // 내지 않으면 '첫 열' 폴백이 체크박스 열을 집어 이름이 통째로 비어 버린다.
     rowName: false,

@@ -78,19 +78,21 @@ function useBulkTrash(path, qc, toast, onDone) {
 
 /* 목록 동작(일괄 삭제 · 나에게 배정)의 결과 중 **남아야 하는 것** — 실패와 일부 건너뜀.
  * 가장 나중에 보낸 동작 하나만 말한다(`lib/failure.js`): 다음 동작을 누르면 걷히고, 그 동작이
- * 성공하면 다시 서지 않는다. 문구는 토스트 때와 같다. */
+ * 성공하면 다시 서지 않는다. 문구는 토스트 때와 같다.
+ * 상자는 `c-screen` 의 직계 자식이라 아래 간격은 화면 리듬 규칙(`styles/screens.css` 의 `.c-screen > .k-callout` 16px)이
+ * 정한다. 예전의 `sx mb` 12px 은 그 규칙에 늘 져서 한 번도 그려지지 않았다(UI 3차 조사 부록) — 걷었다. */
 function listActionNotice(bulk, claim) {
   const failure = failureText(
     [bulk, "삭제하지 못했습니다. 다시 시도해 주세요."],
     [claim, "배정하지 못했습니다. 잠시 후 다시 시도해 주세요."],
   );
-  if (failure) return <Callout tone="danger" compact sx={{ mb: 1.5 }}>{failure}</Callout>;
+  if (failure) return <Callout tone="danger" compact>{failure}</Callout>;
   const last = latestMutation(bulk, claim);
   const res = last === bulk && bulk.isSuccess ? bulk.data : null;
   const failed = (res && res.failed) || [];
   if (!failed.length) return null;
   return (
-    <Callout tone="warn" compact sx={{ mb: 1.5 }}>
+    <Callout tone="warn" compact>
       {`${(res.trashed || []).length}건을 휴지통으로 옮겼습니다.` + bulkFailureNote(failed)}
     </Callout>
   );

@@ -266,7 +266,9 @@ export function ManageRoomModal({ open, onClose, roomId, title, members, meId, p
   return (
     <Modal open={open} onClose={onClose} title="채팅방 관리" size="md" dirty={dirty} footer={<Button onClick={requestClose}>닫기</Button>}>
       {manageFailure ? <Callout tone="danger" compact sx={{ mb: 2 }}>{manageFailure}</Callout> : null}
-      <Box component="section" sx={{ mb: 3 }}>
+      {/* 이 창은 따로 확정하는 입력 영역 둘이다(`data-form-scope`) — 이름 「저장」과 「초대」는 각 영역의 채움이라 창 안 채움 둘이
+          한 확정을 다투는 것이 아니다(조합 계약 C-4 · 댓글 쓰는 칸과 같은 규칙). 창 발은 닫기 하나다. */}
+      <Box component="section" data-form-scope="" sx={{ mb: 3 }}>
         <FieldLabel htmlFor="tc-rename">방 이름</FieldLabel>
         <Box sx={{ display: "flex", gap: 1, alignItems: "center", flexWrap: "wrap" }}>
           {/* maxLength는 서버(app/team_chat/schemas.py::MAX_TITLE)와 같은 값이어야 한다 — 여기가
@@ -304,7 +306,7 @@ export function ManageRoomModal({ open, onClose, roomId, title, members, meId, p
         </Typography>
       </Box>
 
-      <Box component="section">
+      <Box component="section" data-form-scope="">
         <Typography component="h3" sx={{ mb: 0.75, fontSize: FONT_SIZE.bodySm, fontWeight: FONT_WEIGHT.bold }}>초대하기</Typography>
         {dir.isPending ? <Skeleton lines={3} />
           : dir.isError ? <ErrorState layout="region" error={dir.error} onRetry={() => dir.refetch()} />

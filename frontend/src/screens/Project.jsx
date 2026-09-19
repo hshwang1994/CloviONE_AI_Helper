@@ -244,9 +244,11 @@ function Overview({
               {canWrite ? <Button size="sm" onClick={onEdit}>수정</Button> : null}
               {/* FN-04: 화면엔 "보관됨" 배지·"보관한 프로젝트 포함" 체크박스가 있는데 정작
                   그 상태로 보내는 버튼이 없었다 — 보관은 되돌릴 API가 없어(project-queries.js
-                  주석 참조) 이미 보관된 프로젝트에는 버튼을 다시 안 그린다. */}
+                  주석 참조) 이미 보관된 프로젝트에는 버튼을 다시 안 그린다.
+                  되돌릴 수 없는 일이라 판 머리의 파괴 보조(흰 면 + 붉은 테두리)다 — 확인 창이 따른다(핸드오프 RULES §3,
+                  registry 의 「보관」과 같은 갈래). 판 머리에 글자 단추를 두지 않는다(조합 계약 C-4). */}
               {canWrite && !p.archived_at ? (
-                <Button size="sm" variant="ghost" disabled={archiving} onClick={onArchive}>보관</Button>
+                <Button size="sm" variant="danger" disabled={archiving} onClick={onArchive}>보관</Button>
               ) : null}
             </Stack>
           )}

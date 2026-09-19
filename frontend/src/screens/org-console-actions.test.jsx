@@ -8,6 +8,8 @@ import "@testing-library/jest-dom/vitest";
 
 /* qa-contract-change: 부서 삭제 가능 여부의 판정 근거가 화면의 자체 계산(user_count)에서 서버 응답의 delete_precheck 로 옮겨졌다(org-02·xc-01) — 표본에 그 필드를 실어 같은 성질을 새 계약으로 다시 잰다. 단언은 하나도 걷지 않았다.
  *
+ * qa-contract-change: UI 3차 조합 계약 C-4 로 「상세 판의 채움은 「수정」 하나」가 「화면의 채움은 페이지 머리 「부서 추가」 하나이고 판 머리 동작(수정 · 링크 · 활성/비활성 · 삭제)은 30 보조」로 옮겨졌다. kit_measure primary_budget 이 「부서 추가」 + 「수정」 채움 둘을 잡았다. 판 안 채움 0 · 「수정」 보조 · 화면 채움 하나 · 판 머리 글자 단추 0 을 단언으로 더한다.
+ *
  * 조직 콘솔의 **행동** — 확인 문구와 게이트 (admin-uiux 에서 이관 · 재설계 후 정본).
  *
  * 1) 조직 비활성화 확인 문구는 이 버튼이 실제로 하는 일을 말한다: 몇 명이 **지금 즉시
@@ -16,7 +18,8 @@ import "@testing-library/jest-dom/vitest";
  * 2) 부서 비활성화도 인원수를 말한다 — 0명과 200명이 같은 경고를 받지 않는다.
  * 3) 서버가 막는 부서에는 삭제 버튼 자체가 없다 — 눌러도 항상 409 인 버튼을 그리지 않는다.
  *    그 판정은 상세 응답의 `delete_precheck` 다(app/org/service.py::delete_precheck).
- * 4) 상세 판의 primary 는 「수정」 하나다(화면/판당 primary 하나 원칙).
+ * 4) 화면의 채움(primary)은 페이지 머리 「부서 추가」 하나다. 상세 판 머리의 동작(수정 · 옮겨 가는 링크 · 활성/비활성 · 삭제)은
+ *    30 보조이고 글자 단추가 아니다(UI 3차 조합 계약 C-4).
  */
 
 const apiMock = vi.fn();
@@ -182,17 +185,35 @@ describe("부서 액션", () => {
     expect(await screen.findByText(/참조하는 프로젝트 2건/, {}, WAIT)).toBeInTheDocument();
   });
 
-  /* PA-RC-0023 이관(옛 admin-uiux) — 화면/판당 채운(primary) 버튼은 정확히 하나여야 한다.
-     부서 상세 판에는 활성·비활성/삭제/수정이 함께 서는데 「수정」만 primary 다. */
-  it("상세 판의 채운 버튼은 '수정' 하나다(판당 primary 1개)", async () => {
+  /* PA-RC-0023 이관(옛 admin-uiux) → UI 3차 조합 계약 C-4 — 화면의 채운(primary) 버튼은 정확히 하나다.
+     부서 상세 판에는 링크 둘 · 활성/비활성 · 삭제 · 수정이 함께 서는데, 그 판 머리 동작은 전부 30 보조이고 화면의 채움은
+     페이지 머리 「부서 추가」다. 예전에는 판의 「수정」도 채움이라 화면 채움이 둘이었다(kit_measure primary_budget 실측). */
+  const isContained = (el) => [...el.classList].some((c) => /^MuiButton-contained[A-Z]/.test(c));
+  const isText = (el) => [...el.classList].some((c) => /^MuiButton-text/.test(c));
+
+  it("상세 판에는 채운 버튼이 없고 '수정'은 보조다 — 화면의 채움은 머리 '부서 추가' 하나다", async () => {
+    mockApi();
+    const { container } = renderAt("/departments/dep-sales");
+    const p2 = await screen.findByTestId("org-console-panel", {}, WAIT);
+    await within(p2).findByRole("heading", { name: "영업팀" }, WAIT);
+    const panelButtons = Array.from(p2.querySelectorAll("button, a.MuiButton-root"));
+    expect(panelButtons.filter(isContained)).toHaveLength(0);
+    const edit = within(p2).getByRole("button", { name: "수정" });
+    expect(isContained(edit)).toBe(false);
+    expect([...edit.classList].some((c) => /^MuiButton-outlined/.test(c))).toBe(true);
+    const screenFilled = Array.from(container.querySelectorAll("button")).filter(isContained);
+    expect(screenFilled.map((el) => el.textContent)).toEqual(["부서 추가"]);
+  });
+
+  it("판 머리의 옮겨 가는 링크는 글자 단추가 아니라 30 보조다", async () => {
     mockApi();
     renderAt("/departments/dep-sales");
     const p2 = await screen.findByTestId("org-console-panel", {}, WAIT);
-    await within(p2).findByRole("heading", { name: "영업팀" }, WAIT);
-    const contained = Array.from(p2.querySelectorAll("button")).filter((el) =>
-      [...el.classList].some((c) => /^MuiButton-contained[A-Z]/.test(c)));
-    expect(contained).toHaveLength(1);
-    expect(contained[0]).toHaveTextContent("수정");
+    for (const name of ["감사 로그에서 보기", "사용자 화면에서 보기"]) {
+      const link = await within(p2).findByRole("link", { name }, WAIT);
+      expect(isText(link)).toBe(false);
+      expect([...link.classList].some((c) => /^MuiButton-outlined/.test(c))).toBe(true);
+    }
   });
 
   it("감사 로그 딥링크가 그 부서를 가리킨다", async () => {

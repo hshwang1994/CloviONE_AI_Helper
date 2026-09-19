@@ -109,7 +109,9 @@ export function OrgDetailPanel({ org, treeRow, deptRows = [], onOpenDept }) {
         <Badge value="조직" kind="info" />
         <Badge value={active ? "사용 중" : "미사용"} kind={active ? "ok" : "warn"} />
         <Box sx={{ flex: 1 }} />
-        <Button size="sm" variant="ghost"
+        {/* 판 머리 동작은 전부 30 보조다 — 링크 · 활성/비활성 · 「수정」 모두 채움이 아니다. 화면의 채움은 페이지 머리 「부서 추가」
+            하나다(조합 계약 C-4 · 부서 판과 같다). */}
+        <Button size="sm"
                 href={"#/audit?object_type=organization&object_id=" + org.id}>
           감사 로그에서 보기
         </Button>
@@ -119,7 +121,7 @@ export function OrgDetailPanel({ org, treeRow, deptRows = [], onOpenDept }) {
             {active ? "비활성화" : "활성화"}
           </Button>
         )}
-        <Button size="sm" variant="primary" onClick={() => setEditing(true)}>수정</Button>
+        <Button size="sm" onClick={() => setEditing(true)}>수정</Button>
       </Box>
 
       <StatusKpiStrip

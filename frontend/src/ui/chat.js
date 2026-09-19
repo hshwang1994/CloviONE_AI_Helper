@@ -13,8 +13,9 @@
  * ## 소비처
  *
  *   채팅방(`/chat-rooms`)   전부(`ChatRooms` 목록 폭 · `ChatRoom` 머리 스택 · `ChatPane` 말풍선 · 입력)
- *   AI 도우미(`/chat`)       `bubbleRadius` · `tool` · `avatar` 만(P-26 — 열 폭과 말풍선 최대
- *                            폭은 그 화면의 계약이다)
+ *   AI 도우미(`/chat`)       `bubbleRadius` · `bubbleJoinRadius` · `composerRadius` · `tool` 과 공통 날짜
+ *                            구분선(`ChatDaySeparator` 의 `daySeparatorWidth`)만 쓴다(P-26 · UI 3차 C-6 — 열 폭과
+ *                            말풍선 최대 폭은 그 화면의 계약이다)
  *   부품 갤러리              「채팅 규격」 절
  */
 import { CONTROL, RADIUS } from "./theme.js";

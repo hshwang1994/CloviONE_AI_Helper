@@ -1,6 +1,6 @@
 import React from "react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
@@ -305,5 +305,55 @@ describe("실행 상세 → 작업 큐로 가는 크로스링크 (FN-13/IA-02 �
     await userEvent.click(dot);
     await screen.findByRole("dialog");
     expect(screen.queryByRole("button", { name: "작업 큐에서 보기" })).not.toBeInTheDocument();
+  });
+});
+
+describe("실행 상세의 동작은 모달 발 하나에 선다 (조합 계약 C-4 · 핸드오프 RULES §8)", () => {
+  const todayKst = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(new Date());
+
+  async function openRun(status, runId = "r-1") {
+    mockApi(() => Promise.resolve(body({
+      items: [{ kind: status ? "run" : "planned", schedule_id: "s-1", schedule_name: "매일 리포트",
+        occurs_at: `${todayKst}T00:00:00`, status, run_id: runId, error_message: status === "failed" ? "대상 서비스 500" : null }],
+    })));
+    renderCalendar();
+    await userEvent.click(await screen.findByTitle(/매일 리포트/));
+    const dialog = await screen.findByRole("dialog");
+    const footer = dialog.querySelector('[data-action-footer="modal"]');
+    expect(footer).not.toBeNull();
+    return footer;
+  }
+
+  it("실패한 실행: 옮겨 가는 동작 둘은 왼쪽 칸 보조, 오른쪽 끝은 닫기 → 재시도(채움 하나)이고 글자 단추가 없다", async () => {
+    const footer = await openRun("failed");
+    await within(footer).findByRole("button", { name: "재시도" });
+    const order = [...footer.querySelectorAll("button")].map((b) => b.textContent);
+    expect(order).toEqual(["이 일정 열기", "작업 큐에서 보기", "닫기", "재시도"]);
+    const filled = footer.querySelectorAll(".MuiButton-contained");
+    expect(filled).toHaveLength(1);
+    expect(filled[0].textContent).toBe("재시도");
+    expect(footer.querySelectorAll(".MuiButton-text")).toHaveLength(0);
+    expect(within(footer).getByRole("button", { name: "이 일정 열기" }).className).not.toMatch(/MuiButton-contained/);
+  });
+
+  it("대기 중인 실행: 확정 자리는 실행 취소(파괴 보조)이고 채움이 없다", async () => {
+    const footer = await openRun("queued");
+    await within(footer).findByRole("button", { name: "취소" });
+    const order = [...footer.querySelectorAll("button")].map((b) => b.textContent);
+    expect(order).toEqual(["이 일정 열기", "작업 큐에서 보기", "닫기", "취소"]);
+    expect(footer.querySelectorAll(".MuiButton-contained")).toHaveLength(0);
+    expect(within(footer).getByRole("button", { name: "취소" }).className).toMatch(/MuiButton-outlinedError/);
+  });
+
+  it("예정: 발에는 이 일정 열기와 닫기만 서고, 몸 안에는 단추가 없다", async () => {
+    const footer = await openRun(null, null);
+    const order = [...footer.querySelectorAll("button")].map((b) => b.textContent);
+    expect(order).toEqual(["이 일정 열기", "닫기"]);
+    const dialog = screen.getByRole("dialog");
+    // 발 밖의 단추는 모달 머리의 닫기(아이콘 30) 하나뿐이다 — 몸 안 단추 줄이 없다.
+    const outside = [...dialog.querySelectorAll("button")].filter((b) => !footer.contains(b));
+    expect(outside.map((b) => b.getAttribute("aria-label") || b.textContent)).toEqual(["닫기"]);
   });
 });
