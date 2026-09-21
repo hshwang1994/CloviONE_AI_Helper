@@ -22,7 +22,7 @@ import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded";
 import LightModeRoundedIcon from "@mui/icons-material/LightModeRounded";
 import DarkModeRoundedIcon from "@mui/icons-material/DarkModeRounded";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api.js";
 import { useAuth } from "./auth.jsx";
@@ -40,6 +40,7 @@ import { MascotTopButton } from "../ui/Mascot.jsx";
 import { useDocumentTitle, brand, setBrand } from "./documentTitle.js";
 import { useRouteAnnounce } from "./routeAnnounce.js";
 import { recordNavVisit } from "../lib/recentNav.js";
+import { useEntryLinkClick, useEntryNavigate } from "./navEntry.jsx";
 import { Button as KitButton, Card, CountChip, CrumbRootProvider, ErrorState, SessionExpiredOutlet, Skeleton } from "../ui/kit.jsx";
 import { Banners } from "./Banners.jsx";
 import { useStatusNotices } from "./StatusNotices.jsx";
@@ -251,6 +252,8 @@ function filterNavByRole(nav, role) {
  * 좁힌다(groups는 이미 filterNavByRole을 거친 뒤라 role 밖 항목은 애초에 여기 없다). */
 function SidebarNav({ groups, activePath, onNavigate, userId, showFilter, groupsOpenByDefault }) {
   const badges = useNavBadges();
+  // 지금 화면과 같은 항목을 다시 누르면 새 진입이다 — 두 번 누른 끝 상태가 한 번 누른 끝 상태와 같다.
+  const entryClick = useEntryLinkClick();
   const [collapsed, setCollapsed] = React.useState(() => getStoredCollapsed(userId));
 
   /* `userId` 가 **마운트 뒤에 바뀌면** 그 계정의 접힘 기록을 다시 읽는다.
@@ -331,7 +334,13 @@ function SidebarNav({ groups, activePath, onNavigate, userId, showFilter, groups
     (name) => (collapsed[name] === undefined ? !openByDefault : collapsed[name] === true),
     [collapsed, openByDefault],
   );
-  const toggle = (name) => setCollapsed((c) => {
+  const toggle = (name) => {
+    /* 붙잡아 편 그룹(아래 `heldOpen`)의 머리를 누르면 **닫는다** — 보이는 것이 열림이니 누른 뜻은
+       닫기다. 기록은 원래 접힘 그대로라 따로 쓸 것이 없다. */
+    if (name === heldOpen) { setHeldOpen(null); return; }
+    toggleRecorded(name);
+  };
+  const toggleRecorded = (name) => setCollapsed((c) => {
     const wasCollapsed = c[name] === undefined ? !openByDefault : c[name] === true;
     const next = { ...c, [name]: !wasCollapsed };
     try { window.localStorage.setItem(navCollapseKey(userId), JSON.stringify(next)); } catch (e) { /* ignore */ }
@@ -353,6 +362,45 @@ function SidebarNav({ groups, activePath, onNavigate, userId, showFilter, groups
    * (독립 재검증이 배포본에서 그 경로를 실제로 밟았다). 자동으로 접힌 그룹은 활성일 때
    * `groupActive` 가 렌더 시점에 이미 펼쳐 주므로 저장할 것이 애초에 없다. */
   const activeGroup = groups.find((g) => g.items.some((it) => it.to === activePath));
+
+  /* 🔴 **누른 자리 아래의 줄이 움직이지 않는다** (더블클릭 조사, 2026-09-21).
+   *
+   * 목록이 한 화면에 안 들어가는 폭(1366×768 · 관리자 콘솔은 언제나)에서는 그룹이 접힘 기본이고
+   * 활성 그룹만 강제로 펴진다(`groupActive`). 그래서 다른 그룹의 항목을 누르는 순간 방금까지
+   * 활성이던 그룹이 약 0.3초에 걸쳐 접히며 아래 줄이 전부 위로 밀렸다 — 더블클릭의 둘째 클릭이
+   * 사용자가 누른 적 없는 **다른 메뉴나 그룹 머리**에 떨어졌다. 운영 로그에도 작업 보드 요청과 같은
+   * 초에 스프린트 회의 요청이 찍혀 있었다.
+   *
+   * 활성이라서만 펴져 있던 그룹은 **포인터가 레일을 떠날 때까지** 편 채로 둔다(키보드 이동은 초점이
+   * 레일을 떠날 때까지). 레일 밖에서 접히면 아무도 그 자리를 누르고 있지 않다. 이 붙잡기는 화면의
+   * 형편이라 localStorage 에는 쓰지 않는다(위 `isCollapsed` 주석과 같은 이유). */
+  const activeGroupName = activeGroup ? activeGroup.group : null;
+  const [heldOpen, setHeldOpen] = React.useState(null);
+  const prevActiveGroup = React.useRef(activeGroupName);
+  const pointerInside = React.useRef(false);
+  React.useEffect(() => {
+    const prev = prevActiveGroup.current;
+    prevActiveGroup.current = activeGroupName;
+    if (prev && prev !== activeGroupName && isCollapsed(prev) && (pointerInside.current || document.activeElement?.closest?.("[data-nav-rail]"))) {
+      setHeldOpen(prev);
+    }
+  }, [activeGroupName, isCollapsed]);
+  const release = React.useCallback(() => setHeldOpen(null), []);
+  /* 포인터가 레일 안에 있는가는 **브라우저의 pointerenter · pointerleave** 로 잰다. React 의
+     onPointerLeave 는 pointerout 의 relatedTarget 으로 흉내 낸 것이라, 레일 안 항목 사이를 옮겨
+     다니는 것까지 「떠났다」로 읽는 환경이 있다(붙잡기가 클릭마다 풀렸다). */
+  React.useEffect(() => {
+    const el = listRef.current;
+    if (!el) return undefined;
+    const onEnter = () => { pointerInside.current = true; };
+    const onLeave = () => { pointerInside.current = false; setHeldOpen(null); };
+    el.addEventListener("pointerenter", onEnter);
+    el.addEventListener("pointerleave", onLeave);
+    return () => {
+      el.removeEventListener("pointerenter", onEnter);
+      el.removeEventListener("pointerleave", onLeave);
+    };
+  }, []);
   React.useEffect(() => {
     if (!activeGroup || collapsed[activeGroup.group] !== true) return;
     setCollapsed((c) => {
@@ -412,7 +460,7 @@ function SidebarNav({ groups, activePath, onNavigate, userId, showFilter, groups
             size="small"
             fullWidth
             value={filterQuery}
-            onChange={(e) => setFilterQuery(e.target.value)}
+            onChange={(e) => { setFilterQuery(e.target.value); release(); }}
             placeholder="메뉴 찾기"
             inputProps={{ "aria-label": "메뉴 찾기" }}
             InputProps={{
@@ -446,6 +494,10 @@ function SidebarNav({ groups, activePath, onNavigate, userId, showFilter, groups
       <List
         component="nav"
         ref={listRef}
+        data-nav-rail=""
+        onBlur={(e) => {
+          if (!pointerInside.current && !e.currentTarget.contains(e.relatedTarget)) release();
+        }}
         sx={{
           /* 좌우 여백 0 — 행이 하우징 **가장자리까지** 간다. 여백을 여기 두면 활성 레일이
              목록 안쪽 12px 에 떠 있는 조각이 되고, 행 채움도 하우징과 사이에 틈을 남긴다.
@@ -472,7 +524,7 @@ function SidebarNav({ groups, activePath, onNavigate, userId, showFilter, groups
         // `collapsed[g.group] === false`(사용자가 실제로 편 적이 있어 명시적으로 기록됨)일
         // 때만 접힘 기록 없이도 펼치고, 그 외(기록 없음 포함)엔 접힘이 기본값이다 — 활성
         // 그룹은 `groupActive`가 여전히 강제로 편다.
-        const isOpen = filtering || groupActive || !isCollapsed(g.group);
+        const isOpen = filtering || groupActive || heldOpen === g.group || !isCollapsed(g.group);
         const GroupIcon = g.icon;
         const itemsId = "nav-group-" + g.group;
         return (
@@ -522,7 +574,7 @@ function SidebarNav({ groups, activePath, onNavigate, userId, showFilter, groups
                       ref={active ? activeItemRef : undefined}
                       component={Link}
                       to={it.to}
-                      onClick={onNavigate}
+                      onClick={(e) => { entryClick(e, it.to); if (onNavigate) onNavigate(e); }}
                       aria-current={active ? "page" : undefined}
                       selected={active}
                       sx={{
@@ -648,7 +700,8 @@ export function AppShell({
   const theme = useTheme();
   const auth = useAuth();
   const loc = useLocation();
-  const navigate = useNavigate();
+  // 콘솔 전환 · 상단 로고도 셸 이동이다 — 지금 화면과 같은 곳이면 새 진입이다(`navEntry.jsx`).
+  const enter = useEntryNavigate();
   // 탭 제목을 화면마다 다르게 — 정적 <title> 하나뿐이라 어느 탭이 무엇인지 구분이 안 됐다.
   useDocumentTitle(loc.pathname);
   /* 화면이 바뀌면 포커스를 본문으로 옮기고 그 사실을 한 줄 알린다 (Z14).
@@ -791,7 +844,7 @@ export function AppShell({
         <>
           {/* 트리 위에 둔다 — 이 스위치가 고르는 것이 바로 아래 트리다(P2). */}
           {!isUser && !minimal ? (
-            <ConsoleSwitch userSeg={userSeg} onNavigate={(to) => { onCloseNav(); navigate(to); }} />
+            <ConsoleSwitch userSeg={userSeg} onNavigate={(to) => { onCloseNav(); enter(to); }} />
           ) : null}
           {/* 두 축 모두 **지금 어느 콘솔인가**로 정한다. `isUser`(역할)로 정하면 관리자가
               사용자 세그먼트에 들어갔을 때 20항목짜리 사용자 트리 위에 관리자용 메뉴 필터가
@@ -902,7 +955,7 @@ export function AppShell({
               그래서 검색 막대는 이 칸 **다음**에서 시작한다. 좁은 화면(사이드바가 서랍으로
               접힘)에서는 그 열 자체가 없으므로 폭을 풀어 준다. */}
           <TopBrand
-            onClick={() => { if (minimal) { redirectToLogin(); } else { navigate(homeUser ? "/me" : "/dashboard"); } }}
+            onClick={() => { if (minimal) { redirectToLogin(); } else { enter(homeUser ? "/me" : "/dashboard"); } }}
             label={minimal ? "로그인 화면으로" : "홈으로"}
             width={isNarrow ? undefined : DRAWER_WIDTH}
           />
@@ -1109,12 +1162,65 @@ export function AppShell({
   );
 }
 
-/* 셸 안에서 쓰는 오류 표시 — 라우트가 크래시해도 사이드바·상단바는 살아 이동할 수 있게 한다. */
-export function ShellErrorFallback() {
+/* 화면 코드를 담은 파일을 못 받았는가 — 지연 로딩 청크 실패. 브라우저마다 문장이 다르다
+ * (Chromium 「Failed to fetch dynamically imported module」 · Firefox 「error loading dynamically
+ * imported module」 · Safari 「Importing a module script failed」 · Vite 의 CSS 미리 받기 실패).
+ * 배포가 옛 파일을 지운 뒤 열려 있던 탭이 다음 화면으로 갈 때 이렇게 된다 — 운영 로그에 배포 날마다
+ * 옛 `index.*.js` 404 가 찍혀 있다. */
+export function isChunkLoadError(error) {
+  const text = `${(error && error.name) || ""} ${(error && error.message) || ""}`;
+  return /dynamically imported module|Importing a module script failed|ChunkLoadError|Loading chunk|Unable to preload CSS/i.test(text);
+}
+
+/** 지금 도는 번들 이름 — 문의할 때 「어느 빌드였나」를 말하는 유일한 단서다. */
+function runningBundle() {
+  const el = typeof document !== "undefined"
+    ? document.querySelector('script[type="module"][src*="/assets/index."]') : null;
+  const src = el && el.getAttribute("src");
+  return src ? src.split("/").pop() : "알 수 없음";
+}
+
+/** 오류를 옮겨 적을 수 있는 몇 줄 — 예외 · 첫 스택 · 화면 부품 경로 · 주소 · 빌드 · 시각. */
+export function crashDetail(error, componentStack) {
+  const lines = [`${(error && error.name) || "Error"}: ${(error && error.message) || String(error)}`];
+  if (error && error.stack) {
+    lines.push(...String(error.stack).split("\n").slice(1, 5).map((line) => line.trim()).filter(Boolean));
+  }
+  if (componentStack) {
+    const parts = String(componentStack).trim().split("\n").slice(0, 5).map((line) => line.trim()).filter(Boolean);
+    if (parts.length) lines.push(`부품: ${parts.join(" < ")}`);
+  }
+  if (typeof window !== "undefined") lines.push(`주소: ${window.location.hash || "#/"}`);
+  lines.push(`빌드: ${runningBundle()}`);
+  lines.push(`시각: ${new Date().toISOString()}`);
+  return lines.join("\n");
+}
+
+/* 셸 안에서 쓰는 오류 표시 — 라우트가 크래시해도 사이드바·상단바는 살아 이동할 수 있게 한다.
+ *
+ * 🔴 예전에는 새로고침 단추 하나와 「500」 팻말 그림뿐이었다. 서버와 무관한 화면 예외가 사용자에게
+ * 「서버 오류」로 보였고, 새로고침 말고는 할 수 있는 일이 없었으며, 무엇이 던져졌는지 아무 데도
+ * 남지 않았다. 지금은 셋으로 가른다: 다시 시도(경계를 되감아 같은 화면을 다시 그린다) · 새로고침 ·
+ * 복사할 수 있는 기술 정보. 청크를 못 받은 것은 새 버전이 배포된 것이라 새로고침만 준다.
+ * 같은 메뉴를 다시 누르는 것도 이 경계를 되감는다(`navEntry.jsx`). */
+export function ShellErrorFallback({ error, componentStack, onReset }) {
+  const reload = () => window.location.reload();
+  const detail = crashDetail(error, componentStack);
+  if (isChunkLoadError(error)) {
+    return (
+      <Box data-error-boundary="chunk">
+        <ErrorState error={{ kind: "chunk", message: "새로고침하면 새 버전의 화면이 열립니다.", detail }} onRetry={reload} />
+      </Box>
+    );
+  }
   return (
-    <ErrorState
-      error={{ message: "화면을 표시하는 중 문제가 발생했습니다. 새로고침해 주세요." }}
-      onRetry={() => window.location.reload()}
-    />
+    <Box data-error-boundary="render">
+      <ErrorState
+        error={{ kind: "render", message: "다시 시도해도 같으면 새로고침해 주세요.", detail }}
+        onRetry={onReset || reload}
+        retryLabel={onReset ? "다시 시도" : "새로고침"}
+        secondaryAction={onReset ? <KitButton size="sm" onClick={reload}>새로고침</KitButton> : null}
+      />
+    </Box>
   );
 }

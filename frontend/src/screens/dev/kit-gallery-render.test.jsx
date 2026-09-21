@@ -32,7 +32,8 @@ describe("부품 갤러리", () => {
     for (const title of ["버튼", "검색과 필터 바", "세그먼티드", "데이터 표", "배지와 태그와 점과 칩", "폼 필드"]) {
       expect(screen.getByRole("heading", { level: 2, name: title })).toBeInTheDocument();
     }
-    expect(screen.queryByText("화면을 표시하는 중 문제가 발생했습니다. 새로고침해 주세요.")).toBeNull();
+    expect(screen.queryByText("화면을 표시하지 못했습니다")).toBeNull();
+    expect(document.querySelector("[data-error-boundary]")).toBeNull();
     // 필터 바 절은 조합 부품 셋이다 — 견본마다 필터 면이 하나다.
     const filterSection = document.getElementById("kit-filter-bar");
     expect(filterSection.querySelectorAll("[data-filter-bar]")).toHaveLength(3);

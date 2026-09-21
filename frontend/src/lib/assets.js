@@ -64,7 +64,13 @@ export const ART = {
   notify: `${BRAND}/empty-states/empty-notify.png`,
   search: `${BRAND}/empty-states/empty-search.png`,
   notFound: `${BRAND}/empty-states/state-404.png`,
+  /* 「500」 팻말은 **서버가 정말 5xx 를 냈을 때만** 쓴다. 화면 코드의 예외나 알 수 없는 실패에
+     500 을 붙이면 사용자는 서버가 고장 났다고 믿고, 서버 로그에는 아무것도 없다(2026-09-21). */
   serverError: `${BRAND}/empty-states/state-500.png`,
+  /* 잠깐 기다리면 풀리는 실패(요청 제한 · 새 버전 배포)와 원인이 서버 밖인 실패(화면 예외 ·
+     이상한 응답). 둘 다 여백을 잰 마스코트 포즈라 크기 계약(`mascotBounds.js`)을 그대로 따른다. */
+  wait: MASCOT.think,
+  trouble: MASCOT.error,
   noPermission: `${BRAND}/empty-states/state-no-permission.png`,
   sessionExpired: `${BRAND}/empty-states/state-session-expired.png`,
   offline: `${BRAND}/empty-states/state-offline.png`,

@@ -15,9 +15,10 @@ import ArrowForwardRoundedIcon from "@mui/icons-material/ArrowForwardRounded";
 import SearchOffRoundedIcon from "@mui/icons-material/SearchOffRounded";
 import ErrorOutlineRoundedIcon from "@mui/icons-material/ErrorOutlineRounded";
 import KeyboardReturnRoundedIcon from "@mui/icons-material/KeyboardReturnRounded";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import { foldText, includesFolded, isSearchable, normalizeQuery, routeOf, searchApi, searchResultsPath } from "../lib/search.js";
 import { readRecentNav } from "../lib/recentNav.js";
+import { useEntryNavigate } from "./navEntry.jsx";
 import { navIcon } from "./navIcons.js";
 import { Callout, EmptyState } from "../ui/kit.jsx";
 import { DEBOUNCE_MS, FONT_SIZE, FONT_WEIGHT, ICON, KO_WORD_BREAK, RADIUS, remPx } from "../ui/theme.js";
@@ -79,7 +80,8 @@ export function useDebounced(value, delay = PALETTE_DEBOUNCE_MS) {
 
 export function CommandPalette({ open, onClose, groups }) {
   const [q, setQ] = React.useState("");
-  const navigate = useNavigate();
+  /* 셸 이동 규칙(`navEntry.jsx`) — 지금 화면의 메뉴를 고르면 사이드바에서 누른 것과 같이 새로 들어온다. */
+  const navigate = useEntryNavigate();
   const loc = useLocation();
   const inputRef = React.useRef(null);
   const debounced = useDebounced(q);

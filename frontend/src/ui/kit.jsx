@@ -1750,7 +1750,13 @@ const RATE_LIMIT_COUNTDOWN_MAX_S = 300;
  * 적는다. */
 const ERROR_STATE_LAYOUTS = ["page", "card", "region", "inline"];
 
-export function ErrorState({ error, onRetry, size, layout = "page" }) {
+/* `error.kind` 두 갈래는 **요청 실패가 아니라 화면 실패**다(셸의 본문 경계가 준다 — `App.jsx`).
+ *   render  화면을 그리는 코드가 예외를 던졌다. 서버와 무관하다
+ *   chunk   화면 코드를 담은 파일을 못 받았다. 거의 언제나 **그 사이 새 버전이 배포**돼 옛 파일이
+ *           사라진 경우다 — 다시 시도가 아니라 새로고침이 답이다
+ * `secondaryAction` — 주 동작 옆의 보조 동작 하나(렌더 실패의 「새로고침」).
+ * `retryLabel` — 「다시 시도」가 실제로 하는 일이 다를 때의 이름(되감을 수 없는 셸 경계는 「새로고침」). */
+export function ErrorState({ error, onRetry, size, layout = "page", secondaryAction, retryLabel = "다시 시도" }) {
   /* 모르는 크기 · 자리는 개발 모드에서 멈춘다 — `size="sm"` 은 조용히 전면 오류 크기로 떨어져
      판 안에서 96px 여백의 가운데 오류가 섰다(`EmptyState` 의 모르는 prop 검사와 같은 규율). */
   if (import.meta.env.DEV) {
@@ -1771,6 +1777,9 @@ export function ErrorState({ error, onRetry, size, layout = "page" }) {
   const isForbidden = status === 403;
   const isGone = status === 404;
   const isOffline = kind === "network";
+  const isRender = kind === "render";
+  const isChunk = kind === "chunk";
+  const isServer = typeof status === "number" && status >= 500;
   // password_change_required는 403이지만 '권한 부족'이 아니라 '본인이 비번을 안 바꿔서' 막힌
   // 것이다 — 일반 권한부족 문구로 뭉개면 정반대로 오해하게 만든다.
   const isPwChange = isForbidden && code === "password_change_required";
@@ -1802,6 +1811,8 @@ export function ErrorState({ error, onRetry, size, layout = "page" }) {
     : isGone ? "찾을 수 없습니다"
     : isOffline ? "서버에 연결하지 못했습니다"
     : isRateLimited ? "요청이 너무 잦습니다"
+    : isChunk ? "새 버전이 배포됐습니다"
+    : isRender ? "화면을 표시하지 못했습니다"
     : "불러오지 못했습니다";
   const help = isPwChange ? msg
     : isForbidden ? "이 항목에 접근할 권한이 없습니다. 관리자에게 문의하세요."
@@ -1810,13 +1821,19 @@ export function ErrorState({ error, onRetry, size, layout = "page" }) {
     : isRateLimited && waitSeconds
       ? `약 ${Math.ceil(waitSeconds)}초 뒤에 다시 시도할 수 있습니다.`
     : isRateLimited ? "짧은 시간에 요청이 몰렸습니다. 잠시 기다렸다가 다시 시도해 주세요."
+    : isChunk ? "새로고침하면 새 버전의 화면이 열립니다."
     : msg;
-  // 상태마다 다른 그림을 준다 — 자산 12종이 있는데 한 곳도 연결돼 있지 않았다.
+  /* 상태마다 다른 그림을 준다. 🔴 **「500」 팻말 그림은 서버가 정말 5xx 를 냈을 때만이다.**
+     예전에는 401 · 403 · 404 · 연결 끊김이 아닌 실패가 전부 이 그림이라, 화면 코드의 예외 ·
+     요청 제한(429) · 프록시의 이상한 응답까지 사용자에게 「서버 오류 500」으로 보였다 — 서버
+     로그에 500 이 한 건도 없는데 사용자는 「두 번 누르면 500 이 난다」고 말했다(2026-09-21). */
   const art = isAuth ? "sessionExpired"
     : isForbidden ? "noPermission"
     : isGone ? "notFound"
     : isOffline ? "offline"
-    : "serverError";
+    : isServer ? "serverError"
+    : (isRateLimited || isChunk) ? "wait"
+    : "trouble";
   const artSrc = ART[art];
   /* 그림 크기는 자리의 계층이 정한다 — 화면 전체가 실패하면 `errorPage`(132, 짧은 화면 112),
      판 하나가 실패하면 `errorRegion`(72). 예전에는 자리와 무관하게 112 한 값이었다. */
@@ -1828,7 +1845,22 @@ export function ErrorState({ error, onRetry, size, layout = "page" }) {
   /* 기술 정보는 접어 둔다. 화면에 보이는 `help` 는 **사람에게 할 말**이고 서버가 준 원문은
      그것과 다르다 — 「NetworkError: Failed to fetch」 를 제목 아래 그대로 올리면 안내가 아니고,
      지우면 문제를 옮겨 적을 수가 없다. 메시지 박스의 `detail` 과 **같은 부품**을 쓴다. */
-  const tech = [
+  /* 화면 실패는 호출부가 옮겨 적을 문장을 따로 준다(`error.detail` — 예외 이름 · 첫 스택 몇 줄 ·
+     주소 · 빌드 · 시각). 그 문장이 문의할 때 넘겨줄 전부다. */
+  const detailText = error && typeof error.detail === "string" ? error.detail : "";
+  const tech = detailText ? (
+    /* 여러 줄 그대로 · 긴 줄은 이 상자 안에서만 굴린다 · 한 번에 골라 복사할 수 있다. */
+    <Box
+      component="pre" data-error-detail=""
+      sx={{
+        m: 0, maxWidth: `${ERROR_STATE_MAX_CH + 20}ch`, maxHeight: "12rem", overflow: "auto",
+        whiteSpace: "pre-wrap", wordBreak: "break-all", textAlign: "left", userSelect: "all",
+        fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: FONT_SIZE.caption,
+      }}
+    >
+      {detailText}
+    </Box>
+  ) : [
     status ? `HTTP ${status}` : null,
     code ? `code ${code}` : null,
     msg && msg !== help ? msg : null,
@@ -1844,8 +1876,10 @@ export function ErrorState({ error, onRetry, size, layout = "page" }) {
     : isPwChange ? <Button variant={actionVariant} size="sm" href="/change-password">비밀번호 변경하기</Button>
     // 403/404는 재시도해도 소용없지만 아무 동작도 없으면 막다른 길이다.
     : (isForbidden || isGone) ? <Button variant={actionVariant} size="sm" href="#/">홈으로</Button>
+    // 새 버전이 배포된 것은 다시 시도로 안 풀린다 — 새 파일을 받는 새로고침이 그 자리의 동작이다.
+    : isChunk ? (onRetry ? <Button variant={actionVariant} size="sm" onClick={onRetry}>새로고침</Button> : null)
     // 429 대기 중에는 버튼을 잠근다 — 눌리는 「다시 시도」는 제한을 스스로 연장시킨다.
-    : (!noRetry && onRetry ? <Button variant={actionVariant} size="sm" onClick={onRetry} disabled={cooling}>다시 시도</Button> : null);
+    : (!noRetry && onRetry ? <Button variant={actionVariant} size="sm" onClick={onRetry} disabled={cooling}>{retryLabel}</Button> : null);
 
   // role="alert"로 오류 전환을 즉시 낭독한다. 제목은 heading으로.
   return (
@@ -1886,9 +1920,10 @@ export function ErrorState({ error, onRetry, size, layout = "page" }) {
         </Box>
         {/* 칸 폭은 ERROR_STATE_MAX_CH. 문구 한도는 COPY_LIMIT.errorHelp. */}
         <Typography variant="body2" color="text.secondary" sx={{ maxWidth: `${ERROR_STATE_MAX_CH}ch`, fontSize: compact ? FONT_SIZE.bodySm : undefined }}>{help}</Typography>
-        {action || tech ? (
+        {action || secondaryAction || tech ? (
           <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap", justifyContent: centered ? "center" : "flex-start", mt: compact ? 0 : 0.25 }}>
             {action}
+            {secondaryAction || null}
             <TechDetail>{tech || null}</TechDetail>
           </Box>
         ) : null}

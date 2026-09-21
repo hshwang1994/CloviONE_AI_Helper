@@ -5,6 +5,7 @@ import { Skeleton } from "../ui/kit.jsx";
 import { AppShell, ShellErrorFallback } from "./AppShell.jsx";
 import { LoginHandoff } from "./LoginHandoff.jsx";
 import { useImpersonation } from "./Banners.jsx";
+import { NavEntryProvider, useNavEntry } from "./navEntry.jsx";
 
 /* 두 콘솔은 각각 별도 청크다. 사용자 콘솔만 쓰는 사람은 관리자 화면 20여 개를 받지 않는다. */
 const AdminRoutes = React.lazy(() => import("./AdminRoutes.jsx"));
@@ -69,17 +70,33 @@ export function shouldForcePasswordChange({ mustChange, impersonationKnown, impe
 applyBootTheme();
 
 /* 에러 경계 — 화면 렌더 중 예외가 나도 전체 SPA가 흰 화면으로 죽지 않게 한다.
- * 라우트별로 key를 주어 경로가 바뀌면 리셋된다. */
-class ErrorBoundary extends React.Component {
-  constructor(props) { super(props); this.state = { err: null }; }
+ * 본문 경계의 key 는 `경로:진입 번호` 다 — 다른 경로로 가거나 **같은 메뉴를 다시 누르면**
+ * 리셋된다(`navEntry.jsx`). 폴백의 「다시 시도」는 경계를 되감아 같은 화면을 다시 그린다. */
+export class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { err: null, componentStack: null };
+    this.reset = this.reset.bind(this);
+  }
   static getDerivedStateFromError(err) { return { err }; }
   // 예전엔 캐치는 됐지만 아무 데도 기록되지 않아(console.error조차 없이) 원인 스택이 조용히
-  // 삼켜졌다. 이 경계가 앱의 유일한 크래시 포착 지점이다.
+  // 삼켜졌다. 이 경계가 앱의 유일한 크래시 포착 지점이다. 부품 경로는 폴백의 기술 정보에도 싣는다 —
+  // 사용자가 옮겨 적어 줄 수 있어야 다음 발생에서 원인을 짚는다.
   componentDidCatch(error, info) {
     console.error("[ErrorBoundary]", error, info && info.componentStack);
+    this.setState({ componentStack: (info && info.componentStack) || null });
   }
+  reset() { this.setState({ err: null, componentStack: null }); }
   render() {
-    if (this.state.err) return <ShellErrorFallback />;
+    if (this.state.err) {
+      return (
+        <ShellErrorFallback
+          error={this.state.err}
+          componentStack={this.state.componentStack}
+          onReset={this.props.resettable ? this.reset : null}
+        />
+      );
+    }
     return this.props.children;
   }
 }
@@ -130,6 +147,9 @@ function Layout() {
     }
   }, [mustChange, impersonationKnown, impersonating]);
 
+  // 같은 메뉴를 다시 누르면 올라가는 번호 — 본문 경계의 키에 들어가 화면이 새로 마운트된다.
+  const entry = useNavEntry();
+
   // 사용자 세그먼트 여부(관리자군이 상단 '사용자' 탭에 있는지). role=user 는 항상 사용자 콘솔.
   const userSeg = inUserSegment(loc.pathname);
   const showMenu = !auth.isError && !auth.isLoading;
@@ -157,8 +177,9 @@ function Layout() {
         showMenu={showMenu}
       >
         {/* 오류 경계를 본문에만 두고 경로별로 리셋한다 — 한 화면이 크래시해도 사이드바·상단바는
-            살아 이동 가능하다. */}
-        <ErrorBoundary key={loc.pathname}>
+            살아 이동 가능하다. 키에 진입 번호가 들어간다: 같은 메뉴를 다시 누르면 화면이 새로
+            마운트되어, 두 번 누른 끝 상태가 한 번 누른 끝 상태와 같다(`navEntry.jsx`). */}
+        <ErrorBoundary key={`${loc.pathname}:${entry}`} resettable>
           <React.Suspense fallback={<Skeleton kind="page" lines={4} />}>
             {useUserConsole ? <UserRoutes /> : <AdminRoutes />}
           </React.Suspense>
@@ -175,7 +196,9 @@ export function App() {
     <AuthProvider>
       <HashRouter>
         <ErrorBoundary>
-          <Layout />
+          <NavEntryProvider>
+            <Layout />
+          </NavEntryProvider>
         </ErrorBoundary>
       </HashRouter>
     </AuthProvider>
