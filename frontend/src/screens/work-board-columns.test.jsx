@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 
 /* qa-contract-change: 작업 보드 상단의 상태·신호 요약 카드가 사라졌다(D-484 — 판이 집계 카드보다 먼저 선다). 「타일을 누르면 열로 데려간다」·「요약은 자르기 전 값」 단정은 그 카드와 함께 걷고, 대신 새 계약 셋을 단정한다: 카드를 누르면 상세가 아니라 **미리보기**가 열리고(D-483), 「티켓 상세 보기」만 상세로 가며 뒤로가기 한 번에 미리보기 없는 판으로 돌아온다, 회차 선택기 이름은 「회차」다(D-482), 「티켓 추가」 링크가 팀 문맥을 싣는다. 단언 수는 늘었다.
+ * qa-contract-change: 줄 끝 「필터 초기화」 단추가 없어졌다(D-497 — 데이터 필터는 티켓 목록과 같은 필터 바 한 줄이고, 지우기는 조건이 있을 때 조건 줄의 「필터 지우기」다). 「조건은 항상 보인다」 단정은 그 단추 대신 필터 바가 펴진 채 검색 · 프로젝트 · 담당자 · 우선순위 · 난이도 · 신호 칸을 한 줄에 세우는지로 잰다. 단언 수는 늘었다.
  *
  * 판이 **어휘가 정한 자리**대로 서는가 (지시 5 · D-349).
  *
@@ -198,7 +199,17 @@ describe("작업 보드의 열", () => {
     expect(screen.queryByRole("group", { name: "신호별 티켓 수" })).toBeNull();
     // 「상세 필터」 접이도 없다 — 조건은 항상 보인다.
     expect(screen.queryByRole("button", { name: /상세 필터/ })).toBeNull();
-    expect(screen.getByRole("button", { name: "필터 초기화" })).toBeTruthy();
+    /* 조건 칸이 펴진 채 한 줄에 선다 — 검색 → 프로젝트 → 담당자 → 우선순위 → 난이도 → 신호(D-497). */
+    const bar = document.querySelector("[data-filter-bar]");
+    expect(bar, "데이터 필터 바가 없다").not.toBeNull();
+    expect(bar.querySelectorAll("[data-filter-row]")).toHaveLength(1);
+    expect(within(bar).getByRole("searchbox", { name: "검색어" })).toBeInTheDocument();
+    const names = [...bar.querySelectorAll("[data-filter-row] [data-prefix-label]")].map((el) => el.textContent);
+    expect(names).toEqual(["프로젝트", "담당자", "우선순위", "난이도", "신호"]);
+    // 줄 끝 「필터 초기화」는 없다 — 지우기는 조건이 있을 때 조건 줄의 「필터 지우기」다(C-1).
+    expect(screen.queryByRole("button", { name: "필터 초기화" })).toBeNull();
+    expect(bar.querySelector("[data-filter-actions]")).toBeNull();
+    expect(bar.querySelector("[data-condition-line]")).toBeNull();
   });
 
   it("🔴 카드를 누르면 상세가 아니라 미리보기가 열린다 — 팀·회차는 주소에 그대로다(D-483)", async () => {

@@ -289,17 +289,9 @@ export function SprintLifecycle({ sprint, sprints, size = "sm", onDeleted, canPl
   if (!canPlan) return null;
 
   return (
+    /* 순서는 보조 → 더 보기 → 주 동작이다(D-501) — 채움(「회차 열기」)은 오른쪽 끝이다. 작업 보드는 이 묶음을 페이지 머리
+       동작의 끝에 두므로, 채움이 「더 보기」 앞에 서면 머리의 채움이 오른쪽 끝이 아니게 된다. 「회차 닫기」는 보조라 앞이다. */
     <>
-      {sprint.state === "planned" ? (
-        <Button
-          variant="primary"
-          size={size}
-          loading={open.isPending}
-          onClick={() => open.mutate(sprint.id)}
-        >
-          회차 열기
-        </Button>
-      ) : null}
       {sprint.state === "active" ? (
         <Button variant="secondary" size={size} onClick={() => setClosing(true)}>
           회차 닫기
@@ -327,6 +319,16 @@ export function SprintLifecycle({ sprint, sprints, size = "sm", onDeleted, canPl
             : null,
         ]}
       />
+      {sprint.state === "planned" ? (
+        <Button
+          variant="primary"
+          size={size}
+          loading={open.isPending}
+          onClick={() => open.mutate(sprint.id)}
+        >
+          회차 열기
+        </Button>
+      ) : null}
       <FormModal
         open={editing}
         title="회차 수정"

@@ -1,19 +1,22 @@
 import React from "react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 
 /* 작업 보드의 **팀 문맥** (D-482).
  *
+ * qa-contract-change: 데이터 조건이 티켓 목록과 같은 필터 바로 옮겨 가 프로젝트 주소 키가 `project` 에서 여러 값인 `project_id` 로 바뀌었고, 줄 끝 「필터 초기화」가 조건 줄의 「필터 지우기」가 됐다(D-497). 「내 티켓만」은 이제 보기 옵션이라 지우기가 건드리지 않는다 — 넷째 단정은 팀 · 회차에 더해 「내 티켓만」과 보류 펴기까지 남는지 잰다. 단언 수는 늘었다.
+ *
  * 문맥은 팀 → 회차 → 프로젝트 순서다. 이 파일이 지키는 것:
  *  1) 팀 후보가 둘 이상이고 기본 팀이 없으면 화면이 고르라고 말한다 — 「전체 팀」 판은 없다.
  *  2) 팀을 바꾸면 회차·프로젝트가 비워지고 그 팀의 회차 목록을 새로 읽는다.
  *  3) 프로젝트를 바꿔도 팀·회차·회차 목록은 그대로다 — 프로젝트는 필터다.
- *  4) 「필터 초기화」는 팀·회차·탭을 건드리지 않는다.
+ *  4) 「필터 지우기」는 데이터 조건만 걷는다 — 팀·회차·탭·보기 옵션(내 티켓만 · 보류 펴기)은 그대로다.
  *  5) 편성 단추는 팀의 관리 범위(`manageable`)를 따른다 — 역할만으로는 안 선다.
- *  6) 「스프린트 회의」·「티켓 추가」 링크가 팀 문맥을 싣는다. */
+ *  6) 「스프린트 회의」·「티켓 추가」 링크가 팀 문맥을 싣는다.
+ *  7) 머리 동작의 순서는 보조 → 더 보기 → 주 동작이다(D-501) — 예정 회차의 「회차 열기」가 머리의 마지막 단추다. */
 
 const apiMock = vi.fn();
 vi.mock("../lib/api.js", () => ({ api: (...args) => apiMock(...args), setCsrf: () => {} }));
@@ -108,12 +111,14 @@ describe("작업 보드의 팀 문맥", () => {
 
   it("🔴 팀을 바꾸면 회차와 프로젝트가 비워지고 그 팀의 열린 회차가 다시 선다", async () => {
     apiMock.mockImplementation(stub({ defaultTeam: "d-a" }));
-    renderBoard("/work-board?team=d-a&sprint=sp-a&project=p-a");
+    renderBoard("/work-board?team=d-a&sprint=sp-a&project_id=p-a");
     await waitFor(() => expect(calls("/api/work/board?").length).toBe(1));
+    // 판 질의가 그 프로젝트 조건을 싣고 있었다 — 아래에서 팀을 바꾸면 이 조건이 사라져야 한다.
+    expect(new URLSearchParams(calls("/api/work/board?")[0].split("?")[1]).getAll("project_id")).toEqual(["p-a"]);
     await userEvent.click(await screen.findByRole("combobox", { name: /^팀/ }));
     await userEvent.click(await screen.findByRole("option", { name: "B팀" }));
     await waitFor(() => expect(screen.getByTestId("here").textContent).toContain("team=d-b"));
-    expect(screen.getByTestId("here").textContent).not.toContain("project=p-a");
+    expect(screen.getByTestId("here").textContent).not.toContain("project_id=");
     // B 팀의 열린 회차가 자동으로 선다 — A 팀의 회차 id 가 남지 않는다.
     await waitFor(() => expect(screen.getByTestId("here").textContent).toContain("sprint=sp-b"));
     expect(screen.getByTestId("here").textContent).not.toContain("sp-a");
@@ -128,18 +133,27 @@ describe("작업 보드의 팀 문맥", () => {
     // 후보는 이 팀의 프로젝트뿐이다.
     expect(screen.queryByRole("option", { name: "B 프로젝트" })).toBeNull();
     await userEvent.click(await screen.findByRole("option", { name: "A 프로젝트" }));
-    await waitFor(() => expect(screen.getByTestId("here").textContent).toContain("project=p-a"));
+    await waitFor(() => expect(screen.getByTestId("here").textContent).toContain("project_id=p-a"));
     expect(screen.getByTestId("here").textContent).toContain("team=d-a");
     expect(screen.getByTestId("here").textContent).toContain("sprint=sp-a");
     expect(calls("/api/work/sprints").length).toBe(sprintsBefore);
   });
 
-  it("「필터 초기화」는 팀·회차를 건드리지 않는다", async () => {
+  it("「필터 지우기」는 데이터 조건만 걷는다 — 팀·회차·「내 티켓만」·보류 펴기는 그대로다", async () => {
     apiMock.mockImplementation(stub({ defaultTeam: "d-a" }));
-    renderBoard("/work-board?team=d-a&sprint=sp-a&project=p-a&q=x&mine=1");
+    renderBoard("/work-board?team=d-a&sprint=sp-a&project_id=p-a&q=x&mine=1&hold=1");
     await waitFor(() => expect(calls("/api/work/board?").length).toBe(1));
-    await userEvent.click(screen.getByRole("button", { name: "필터 초기화" }));
-    await waitFor(() => expect(screen.getByTestId("here").textContent).toBe("/work-board?team=d-a&sprint=sp-a"));
+    // 조건 줄에 조건 둘(프로젝트 · 검색어)이 칩으로 서고, 보기 옵션인 「내 티켓만」은 칩이 아니다.
+    const line = await waitFor(() => {
+      const el = document.querySelector("[data-condition-line]");
+      expect(el).not.toBeNull();
+      return el;
+    });
+    const chips = [...line.querySelectorAll("[data-condition-chip]")].map((c) => c.textContent);
+    expect(chips).toEqual(["프로젝트: A 프로젝트", "검색: x"]);
+    await userEvent.click(within(line).getByRole("button", { name: "필터 지우기" }));
+    await waitFor(() => expect(screen.getByTestId("here").textContent).toBe("/work-board?team=d-a&sprint=sp-a&mine=1&hold=1"));
+    expect(document.querySelector("[data-condition-line]")).toBeNull();
   });
 
   it("🔴 편성 단추는 팀의 관리 범위를 따른다 — B 팀(관리 밖)에서는 서지 않는다", async () => {
@@ -159,5 +173,28 @@ describe("작업 보드의 팀 문맥", () => {
     expect(screen.queryByRole("button", { name: "회차 닫기" })).toBeNull();
     // 「티켓 추가」는 회차를 싣지 않는다 — 담을 권한이 없다.
     expect(screen.getByRole("link", { name: "티켓 추가" }).getAttribute("href")).not.toContain("sprint=");
+  });
+
+  it("🔴 머리 동작의 채움은 오른쪽 끝이다 — 예정 회차면 「회차 열기」가 「더 보기」 뒤 마지막이고, 진행 회차면 채움이 없다", async () => {
+    const PLANNED = [{ id: "sp-p", name: "9-3", department_id: "d-a", starts_on: "2026-09-29", ends_on: "2026-10-06", state: "planned", active: false }];
+    const base = stub({ defaultTeam: "d-a" });
+    apiMock.mockImplementation((path) => (String(path).startsWith("/api/work/sprints")
+      ? Promise.resolve({ sprints: [...SPRINTS_A, ...PLANNED], team: { selected: "d-a", options: OPTIONS, manageable: true } })
+      : base(path)));
+    const { unmount } = renderBoard("/work-board?team=d-a&sprint=sp-p");
+    const open = await screen.findByRole("button", { name: "회차 열기" });
+    const names = (el) => [...el.parentElement.querySelectorAll("a, button")]
+      .map((b) => b.getAttribute("aria-label") || b.textContent.trim());
+    expect(names(open)).toEqual(["티켓 추가", "스프린트 회의", "회차 추가", "회차 관리", "회차 열기"]);
+    // 채움은 하나다 — 회차가 있으면 「회차 추가」는 보조다.
+    expect(open.className).toMatch(/containedPrimary/);
+    expect(screen.getByRole("button", { name: "회차 추가" }).className).not.toMatch(/containedPrimary/);
+    unmount();
+
+    // 진행 중인 회차 — 「회차 닫기」는 보조라 「더 보기」 앞이고 채움은 없다.
+    renderBoard("/work-board?team=d-a&sprint=sp-a");
+    const close = await screen.findByRole("button", { name: "회차 닫기" });
+    expect(names(close)).toEqual(["티켓 추가", "스프린트 회의", "회차 추가", "회차 닫기", "회차 관리"]);
+    expect(close.parentElement.querySelector(".MuiButton-containedPrimary")).toBeNull();
   });
 });

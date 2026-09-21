@@ -1,17 +1,28 @@
 import React from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { Callout, Card, EmptyState, ErrorState, Skeleton } from "../ui/kit.jsx";
-import { FilterBar, FilterToggle } from "../ui/FilterBar.jsx";
+import { FilterToggle } from "../ui/FilterBar.jsx";
 import { GroupedTickets, TicketEditModal, ticketColumns, ticketConnState, useInlineStatusEdit } from "./MyTickets.jsx";
 import { useTicketSignals } from "../lib/ticketSignals.js";
+import { useQueryState } from "../lib/useQueryState.js";
+import { priorityKo } from "../lib/priority.js";
 import { groupByAssignee } from "./TeamTickets.jsx";
-import { TICKET_AUTO_MAX_ROWS, useTicketList } from "./ticket-options.js";
+import { TICKET_AUTO_MAX_ROWS, useAssigneeOptions, useTicketList, useTicketMeta } from "./ticket-options.js";
+import {
+  TICKET_LIST_EXTRA, TICKET_RANGE_KEYS, TicketEmptyState, TicketFilterBar, applyColumnFilter, clearTicketFilters,
+  hasTicketFilter, nextTicketSort, ticketAssigneeOptions, ticketFilterSpec, ticketQueryParams, ticketSortOf,
+} from "./TicketFilterBar.jsx";
 
 /* 프로젝트에 걸린 티켓 — **기존 팀 티켓 목록을 그대로 재사용**한다.
  *
  * 여기서 새 목록 화면을 만들지 않는다. 티켓 한 줄이 어떤 열을 갖고 어떻게 묶이는지는 이미
  * 네 화면(내 티켓, 미할당, 팀 티켓, 스프린트)이 같은 부품으로 정해 두었다. 한 벌 더 만들면
  * 열 하나를 고칠 때 이 화면만 안 고쳐지고, 그러면 같은 티켓이 화면마다 달라 보인다.
+ *
+ * 같은 부품을 쓰면서 **배선이 빠져 있었다** — 열은 정렬 표지와 머리 필터를 선언하는데(`ticketColumns`) 이 탭만 그 둘을
+ * 받지 않아 머리가 눌리지 않았고, 필터 바는 「완료, 취소 포함」 한 칸짜리 줄이었다. 이제 팀 티켓과 같은 배선이다: 조건 ·
+ * 정렬은 주소에 두고(`useQueryState`), 필터 바 칸과 머리 필터가 같은 상태이며, 서버가 건다(`/api/tickets/team` 의
+ * `TicketListQuery` 가 정렬 · 여러 값 조건 · 범위를 받는다).
  *
  * ## 조건은 서버가 건다
  *
@@ -27,22 +38,37 @@ import { TICKET_AUTO_MAX_ROWS, useTicketList } from "./ticket-options.js";
  * 조건 없이 부르는 일은 여전히 없다. `project.id` 는 이 화면이 열려 있는 한 항상 있다.
  */
 
+/* 이 탭의 조건 — 팀 티켓의 조건에서 프로젝트를 뺀 것이다. 프로젝트는 조건이 아니라 이 탭의 문맥이다(탭이 곧 그
+ * 프로젝트다). 담당자 후보는 이 프로젝트에 닿는 사람으로 서버가 좁혀 준다. */
+const PROJECT_TICKET_FIELDS = ["q", "status", "priority", "difficulty", "assignee_user_id", "due", "category"];
+/* `active` 는 조건이 아니라 목록의 범위다(팀 티켓의 `active` 와 같은 자리 · 같은 기본값) — 기본이 참(활성만)이라 꺼졌을 때만
+ * 주소에 실린다. 주소 키는 프로젝트 상세의 탭 키(`tab` · `week`)와 겹치지 않는다. */
+const PROJECT_TICKET_SPEC = ticketFilterSpec(PROJECT_TICKET_FIELDS, { ...TICKET_LIST_EXTRA, active: true });
+/* 빈 목록이 「조건 때문」인지 가르는 키 — 칸의 조건에 머리 필터의 범위를 더한다. */
+const PROJECT_TICKET_FILTER_KEYS = [...PROJECT_TICKET_FIELDS, ...TICKET_RANGE_KEYS];
+
 /* 이 티켓을 열고 「목록」을 누르면 **여기로** 돌아온다 (지시 19 · `lib/listReturn.js`).
  *
  * 한때 `"/projects"` 를 넘겼다. 그 값은 목록 → 상세로 들어갈 때 목록이 자기를 가리키라고
  * 쓰는 것이고, 여기는 목록이 아니라 **상세 안의 탭**이다 — 그래서 프로젝트 안에서 티켓
  * 하나를 열어 본 사람이 「목록」을 누르면 읽던 프로젝트가 통째로 사라지고 프로젝트 목록
- * 으로 떨어졌다. 탭까지 실어 보낸다: 티켓 탭에서 나갔으면 티켓 탭으로 돌아온다.
+ * 으로 떨어졌다. 탭까지 실어 보낸다: 티켓 탭에서 나갔으면 티켓 탭으로 돌아온다. 걸어 둔 조건 ·
+ * 정렬도 지금 주소 그대로 실어 보낸다 — 조건이 주소에 있으므로 주소가 곧 돌아올 자리다.
  * (`ProjectDocuments.jsx` 가 이미 이렇게 하고 있었다 — 세 탭 중 하나만 맞았다.) */
-function backToProject(projectId, tab) {
-  return "/projects/" + encodeURIComponent(projectId) + "?tab=" + tab;
+function backToProject(projectId, search) {
+  const params = new URLSearchParams(search || "");
+  params.set("tab", "tickets");
+  return "/projects/" + encodeURIComponent(projectId) + "?" + params.toString();
 }
 
 function ProjectTicketList({ pageId }) {
   const nav = useNavigate();
+  const loc = useLocation();
   const signalsOf = useTicketSignals();
   const statusEdit = useInlineStatusEdit();
   const [editing, setEditing] = React.useState(null);
+  const [filters, setFilters] = useQueryState(PROJECT_TICKET_SPEC);
+
   // 팀 티켓 화면과 같은 기본값(활성만) — 다른 이유는 팀 티켓의 activeToggle 주석과 같다:
   // 완료·취소까지 항상 섞으면 "지금 할 일"을 찾는 화면이 끝난 일로 덮인다.
   //
@@ -50,19 +76,33 @@ function ProjectTicketList({ pageId }) {
   // 아예 안 보냈다 — 그러면 완료·취소 티켓은 이 탭에서 영영 볼 방법이 없는데도 "총 N건"이
   // 마치 이 프로젝트의 전체 티켓 수인 것처럼 보였다(팀 티켓엔 있는 '완료, 취소 포함' 스위치가
   // 여기만 없었다 — 같은 목록 부품을 재사용한다고 적어 놓고 실제로는 그 기능만 빠져 있었다).
-  const [includeDone, setIncludeDone] = React.useState(false);
-
-  const params = new URLSearchParams();
-  params.set("project_id", pageId);
-  params.set("active", includeDone ? "false" : "true");
-  const q = useTicketList("/api/tickets/team", params.toString());
-
-  /* 범위(완료·취소 포함)를 바꾸면 받아 둔 묶음은 질의 키가 바뀌며 함께 버려진다 —
+  const qs = ticketQueryParams(filters, PROJECT_TICKET_FIELDS, {
+    project_id: pageId,
+    active: filters.active ? "true" : "false",
+  }).toString();
+  /* 범위(완료·취소 포함)나 조건을 바꾸면 받아 둔 묶음은 질의 키가 바뀌며 함께 버려진다 —
      되돌릴 쪽 번호가 없다. */
-  const toggleIncludeDone = (checked) => { setIncludeDone(checked); };
+  const q = useTicketList("/api/tickets/team", qs);
+  const metaQ = useTicketMeta(true);
+  const assigneesQ = useAssigneeOptions(true, pageId);
+  const meta = metaQ.data || {};
+  const colFilterOptions = {
+    status: meta.statuses || [],
+    priority: (meta.priorities || []).map((p) => ({ value: p, label: priorityKo(p) })),
+    difficulty: meta.difficulties || [],
+  };
+  // 담당자 후보는 이 프로젝트에 닿는 사람이다 — 필터 바가 따로 받는 조직 전체 후보 대신 이 목록을 쓴다.
+  const assigneeCandidates = {
+    assignee_user_id: {
+      items: ticketAssigneeOptions(assigneesQ.data && assigneesQ.data.assignees),
+      loading: assigneesQ.isLoading,
+    },
+  };
+  const clearFilters = () => setFilters({ ...clearTicketFilters(PROJECT_TICKET_FIELDS), ...TICKET_LIST_EXTRA, active: filters.active });
+
   // 필터 바의 켬/끔은 스위치가 아니라 34 중립 단추다 — 켜져 있을 때만 눌린 면이다(핸드오프 RULES §3 · 계획 P-14).
   const activeToggle = (
-    <FilterToggle pressed={includeDone} onClick={() => toggleIncludeDone(!includeDone)}>
+    <FilterToggle pressed={!filters.active} onClick={() => setFilters({ active: !filters.active })}>
       완료, 취소 포함
     </FilterToggle>
   );
@@ -82,22 +122,33 @@ function ProjectTicketList({ pageId }) {
   const rows = q.rows;
   const cols = ticketColumns({
     onEdit: setEditing,
-    onOpen: (t) => nav("/tickets/" + t.id, { state: { from: backToProject(pageId, "tickets") } }),
+    onOpen: (t) => nav("/tickets/" + t.id, { state: { from: backToProject(pageId, loc.search) } }),
     signalsOf,
     statusEdit,
   });
 
   return (
     <>
-    {/* 「완료, 취소 포함」은 보기 방식이라 필터 바 오른쪽 끝 묶음이다(조합 계약 C-1). 건수는 목록 끝 줄이 말한다 —
-        목록 위 단독 결과 줄을 두지 않는다. */}
-    <FilterBar end={activeToggle} />
+    {/* 팀 티켓과 같은 필터 바다 — 검색 → 조건 칸 → 오른쪽 끝 「완료, 취소 포함」(보기 방식이라 칸 흐름 끝이 아니라 `end`,
+        조합 계약 C-1). 조건이 있으면 같은 면 안 둘째 줄이 조건 칩 · 결과 수 · 「필터 지우기」다. */}
+    <TicketFilterBar
+      fields={PROJECT_TICKET_FIELDS} value={filters} onChange={setFilters}
+      total={q.total} end={activeToggle}
+      options={assigneeCandidates}
+      onClear={clearFilters}
+    />
     <GroupedTickets
       placement="surface"
       rows={rows} columns={cols} groupBy={groupByAssignee}
+      sort={ticketSortOf(filters)}
+      onSort={(key) => setFilters(nextTicketSort(filters, key))}
+      filters={filters}
+      onFilter={(field, next) => setFilters(applyColumnFilter(field, next))}
+      filterOptions={colFilterOptions}
       emptyState={
-        <EmptyState
-          art="tickets"
+        <TicketEmptyState
+          filtered={hasTicketFilter(filters, PROJECT_TICKET_FILTER_KEYS)}
+          onClear={clearFilters}
           title="이 프로젝트에 걸린 티켓이 없습니다"
           help="티켓을 만들 때 이 프로젝트를 고르면 여기에 모입니다."
         />

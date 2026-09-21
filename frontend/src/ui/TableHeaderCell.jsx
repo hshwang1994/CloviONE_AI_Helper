@@ -57,7 +57,12 @@ function SortGlyph({ dir, active }) {
 
 /* DataTable 과 GroupedTickets 가 같이 쓰는 머리글 칸.
  * 정렬 표지는 onSort 가 있을 때만, 필터 단추는 onFilter 가 있을 때만 그린다.
- * 호출부가 안 넘기면 예전 머리글과 같다. */
+ * 호출부가 안 넘기면 예전 머리글과 같다.
+ *
+ * 칸의 **안쪽**(이름 · 정렬 단추 · 정렬 표지 · 필터 단추 · 필터 팝오버)은 `HeaderCellContent` 한 벌이다. 표 머리는
+ * 그것을 `TableCell` 로 감싸고(`TableHeaderCell`), 표가 아닌 격자 머리는 `role="columnheader"` 상자로 감싼다
+ * (`GridHeaderCell.jsx` — 끌어 옮기는 작업 보드 백로그, D-497). 머리 칸의 조작을 두 벌로 만들지 않는다 — 격자만
+ * 다른 정렬 단추 · 다른 필터 창을 가지면 같은 열 이름이 화면마다 다른 조작기로 읽힌다. */
 
 /* 🔴 머리글은 **이름+조작기를 한 덩어리로** 칸 가운데에 둔다 (지시 6 · 13).
  *
@@ -78,29 +83,41 @@ const HEADER_ROW_SX = {
   whiteSpace: "nowrap",
 };
 
-export function TableHeaderCell({
-  column, sort, onSort, filterValue, onFilter, filterOptions, entityOptions, cellSx, colRole,
-}) {
+/** 머리 칸 하나의 정렬 상태 — 표 머리와 격자 머리가 같은 판정으로 `aria-sort` 를 단다. */
+export function headerSortOf(column, sort, onSort) {
   const c = column || {};
   const sortable = !!(c.sortable && onSort);
-  const filterable = !!(c.filter && onFilter);
-  const active = sortable && sort && sort.key === c.key;
+  const active = sortable && !!sort && sort.key === c.key;
   const dir = active ? sort.dir : null;
+  return {
+    sortable,
+    active,
+    dir,
+    ariaSort: sortable ? (dir === "asc" ? "ascending" : dir === "desc" ? "descending" : "none") : undefined,
+  };
+}
+
+/** 머리 칸의 `title` — 이름이 잘렸을 때 전체를 볼 길이다. 본문 칸이 `title` 로 하는 것과 같고, 도움말이 있으면 그것이
+ *  이긴다(그쪽이 더 많은 것을 말한다). */
+export function headerTitleOf(column) {
+  const c = column || {};
+  return c.help || (typeof c.label === "string" ? c.label : undefined);
+}
+
+/* 머리 칸의 안쪽 한 벌 — 이름 · 정렬 단추 · 정렬 표지 · 필터 단추 · 필터 팝오버. 감싸는 칸(`TableCell` · 격자 칸)은
+   부르는 쪽이 그리고, 칸의 `aria-sort` · `title` 은 `headerSortOf` · `headerTitleOf` 가 같은 값을 준다. */
+export function HeaderCellContent({
+  column, sort, onSort, filterValue, onFilter, filterOptions, entityOptions,
+}) {
+  const c = column || {};
+  const { sortable, active, dir } = headerSortOf(c, sort, onSort);
+  const filterable = !!(c.filter && onFilter);
   const [anchor, setAnchor] = React.useState(null);
   const filtered = hasFilterValue(filterValue);
   const align = headerAlignOf(c);
 
   return (
-    <TableCell
-      scope="col"
-      align={align}
-      data-col-role={colRole}
-      /* 이름이 잘렸을 때 전체를 볼 길 — 본문 칸이 `title` 로 하는 것과 같다.
-         도움말이 있으면 그것이 이긴다(그쪽이 더 많은 것을 말한다). */
-      title={c.help || (typeof c.label === "string" ? c.label : undefined)}
-      aria-sort={sortable ? (dir === "asc" ? "ascending" : dir === "desc" ? "descending" : "none") : undefined}
-      sx={cellSx}
-    >
+    <>
       {/* 🔴 머리글이 잘리지 않는다 (S19 → A4 재검수로 계약이 바뀌었다).
           예전 해법은 `overflow:hidden` 으로 이름을 자르는 것이었다 — 그런데 그 잘림 자체가
           실측된 결함이 됐다(「예상 WD」 client 40 / scroll 49). 지금은 이름·버튼 모두
@@ -152,6 +169,34 @@ export function TableHeaderCell({
           entityOptions={entityOptions}
         />
       ) : null}
+    </>
+  );
+}
+
+export function TableHeaderCell({
+  column, sort, onSort, filterValue, onFilter, filterOptions, entityOptions, cellSx, colRole,
+}) {
+  const c = column || {};
+  const { ariaSort } = headerSortOf(c, sort, onSort);
+
+  return (
+    <TableCell
+      scope="col"
+      align={headerAlignOf(c)}
+      data-col-role={colRole}
+      title={headerTitleOf(c)}
+      aria-sort={ariaSort}
+      sx={cellSx}
+    >
+      <HeaderCellContent
+        column={c}
+        sort={sort}
+        onSort={onSort}
+        filterValue={filterValue}
+        onFilter={onFilter}
+        filterOptions={filterOptions}
+        entityOptions={entityOptions}
+      />
     </TableCell>
   );
 }

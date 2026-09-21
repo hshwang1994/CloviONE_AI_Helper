@@ -9,13 +9,15 @@
                          조건 수 = 칩 수인가, 아래 실선이 있는가, 한 줄에 설 자리가 있는데 검색 혼자 줄을 쓰지 않는가
     filter_cell_anatomy  칸 종류가 달라도 접두 이름 들여쓰기 · 접두-값 간격 · 세로 중심 · 값 굵기가 같은가,
                          다중 선택이 칸 안에 칩을 그려 높이를 풀지 않는가, 칸 폭이 종류 표를 따르는가
-                         (wide Entity 칸은 필터 면의 폭이 고른 계단인가)
+                         (wide Entity 칸은 필터 면의 폭이 고른 계단인가). 문맥 줄(`[data-context-bar]` — 작업 보드 ·
+                         스프린트 회의의 팀 · 회차)의 칸도 같은 칸이라 함께 잰다
     list_surface         주 목록이 목록 판(surface)인가, 머리 줄이 판 윗변 · 좌우 가장자리에 붙는가,
                          발이 판 안 마지막 줄인가, sticky 발 안에 무한 스크롤 센티널이 없는가
     list_wrapper         표마다 판 계약 표식이 있는가, 목록 판을 여백 판이 한 번 더 감싸지 않는가
     primary_budget       모달 밖 화면의 채움 단추가 하나 이하인가(입력 영역 · 카드 발 · 선택 발은 자기 몫), 행 안 채움 0
     row_actions          행 안 단추가 30 이고 칸마다 둘 이하인가
-    table_head_glyph     머리 칸의 정렬 · 필터 표지가 16 이하이고 이름 옆 6 이내에 붙는가
+    table_head_glyph     머리 칸의 정렬 · 필터 표지가 16 이하이고 이름 옆 6 이내에 붙는가(표 머리 `thead th` 와 격자 머리
+                         `[role=columnheader]` — 작업 보드 백로그)
     footer_alignment     카드 발의 끝 단추 오른쪽이 판 여백(20)에 맞는가
     editor_box           편집기가 상자 하나(도구 줄 함몰면 + 아래 선 · 도구 30 · 다시 실행 오른쪽 끝 · 본문 240 이상)인가
     page_fill            화면 아래까지 서야 하는 판이 화면 아래까지 서는가
@@ -79,9 +81,10 @@ COMPOSITION_CONTRACT = {
 #   pageFill     화면 아래까지 서는 판이 있어야 한다
 #   chat         대화 로그가 있어야 한다
 #   skipBudget   채움 단추 수를 세지 않는다(갤러리는 견본을 나란히 세우는 카탈로그다)
-#   callerWidths 필터 칸 폭은 호출부가 정한다(보호 화면 두 줄 필터 — D-484)
-#   filterExempt 필터 줄 조합 검사를 하지 않는다(대장 예외 — 제출형 검색 · 달력 도구 줄 · 보호 화면). 칸 해부는 잰다
-#   footerExempt 목록 판 밖 `ListFooter` 를 허용한다(보호 화면 백로그)
+#   filterExempt 필터 줄 조합 검사를 하지 않는다(대장 예외 — 제출형 검색 · 달력 도구 줄). 칸 해부는 잰다
+#   footerExempt 목록 판 밖 `ListFooter` 를 허용한다(대장 예외 — 끌어 옮기는 백로그 · 날짜 묶음 목록)
+# 작업 보드 · 스프린트 회의는 예전에 칸 폭 면제(호출부 폭)와 필터 줄 면제를 받았다(D-484 ② 두 줄 필터). 이제 필터 바와
+# 문맥 줄 부품을 써서 둘 다 없다(D-497).
 ROUTE_EXPECT: dict[str, dict] = {
     "user_my-tickets": {"listSurface": True},
     "user_unassigned": {"listSurface": True},
@@ -103,8 +106,8 @@ ROUTE_EXPECT: dict[str, dict] = {
     "user_chat-rooms": {"chat": True, "pageFill": True},
     "user_chat-room-detail": {"chat": True, "pageFill": True},
     "user_kit": {"skipBudget": True},
-    "user_work-board": {"callerWidths": True, "filterExempt": True, "footerExempt": True},
-    "user_sprint": {"callerWidths": True, "filterExempt": True},
+    # 작업 보드 백로그는 표가 아니라 끌어 옮기는 가상 목록이라 끝 줄이 목록 판 밖이다(대장 조합 예외).
+    "user_work-board": {"footerExempt": True},
     "user_search": {"filterExempt": True},
     # 결과가 선 통합 검색도 같은 화면이다(`Search.jsx` — 대장 조합 예외: 제출형 검색 줄 + 결과 요약 문장).
     "user_search-results": {"filterExempt": True},
@@ -231,9 +234,10 @@ COMPOSITION_JS = r"""
 
   // ── 필터 칸 해부 ─────────────────────────────────────────────────────────
   out.filter_cell_kinds = {};
-  /* 칸 해부는 조합 예외 화면(보호 화면 두 줄 필터 · 통합 검색)에서도 잰다 — 예외는 줄의 조합이지 칸 모양이 아니다. */
+  /* 칸 해부는 조합 예외 화면(통합 검색 · 달력 도구 줄)에서도 잰다 — 예외는 줄의 조합이지 칸 모양이 아니다. 문맥 줄
+     (`[data-context-bar]`)의 칸도 필터 칸과 같은 줄 칸이라 같이 잰다 — 그 줄은 필터 면이 아니라 위 조합 검사는 받지 않는다. */
   {
-    for (const cell of all('[data-filter-surface] [data-filter-kind]')) {
+    for (const cell of all('[data-filter-surface] [data-filter-kind], [data-context-bar] [data-filter-kind]')) {
       const kind = cell.getAttribute('data-filter-kind');
       if (kind === 'search' || kind === 'toggle' || kind === 'number' || cell.closest('[data-condition-line]')) continue;
       const box = cell.querySelector('.MuiInputBase-root');
@@ -289,13 +293,14 @@ COMPOSITION_JS = r"""
       /* 크기가 있는 종류(Entity)는 `data-filter-size="wide"` 이면 wide 표를 본다. */
       const wideKey = cell.getAttribute('data-filter-size') === 'wide' && C.rowKind[kind + 'Wide'] ? kind + 'Wide' : '';
       const want = C.rowKind[wideKey || kind];
-      if (want && !E.callerWidths) {
+      if (want) {
         const w = rect(cell).width / rootPx;
         if (w < want[0] - 0.07 || w > want[1] + 0.07) problems.push('폭 ' + w.toFixed(2) + 'rem');
         else if (wideKey) {
           /* wide 칸은 **필터 면의 폭**이 계단을 고른다(컨테이너 질의는 면의 내용 상자를 잰다). 범위 안이어도 면에 맞지 않는
-             계단이면 실패다 — 컨테이너가 안 걸려 1920 에서도 13rem 에 머무는 칸이 이 자리에서 잡힌다. */
-          const surface = cell.closest('[data-filter-surface]');
+             계단이면 실패다 — 컨테이너가 안 걸려 1920 에서도 13rem 에 머무는 칸이 이 자리에서 잡힌다. 문맥 줄의 칸은 그 줄이
+             같은 이름의 크기 컨테이너다. */
+          const surface = cell.closest('[data-filter-surface], [data-context-bar]');
           const ss = getComputedStyle(surface);
           const inner = (rect(surface).width - px(ss.paddingLeft) - px(ss.paddingRight)
             - px(ss.borderLeftWidth) - px(ss.borderRightWidth)) / rootPx;
@@ -425,7 +430,9 @@ COMPOSITION_JS = r"""
   }
 
   // ── 머리 칸 표지 ─────────────────────────────────────────────────────────
-  for (const th of all('thead th')) {
+  /* 표 머리(`thead th`)와 격자 머리(`[role=columnheader]` — 작업 보드 백로그)가 같은 머리 칸 부품을 쓴다. MUI 표 칸은 역할을
+     속성으로 달지 않으므로 둘이 겹치지 않지만, 겹쳐도 한 번만 잰다. */
+  for (const th of [...new Set(all('thead th, [role=columnheader]'))]) {
     if (inOverlay(th)) continue;
     const glyphs = [...th.querySelectorAll('svg, [data-head-glyph]')].filter(shown);
     if (!glyphs.length) continue;
@@ -595,6 +602,19 @@ def selftest_html() -> str:
         </div>
       </div>
     </div>`;
+  /* 문맥 줄(작업 보드 · 스프린트 회의의 팀 · 회차)의 wide 칸 — 필터 면이 아니어도 같은 칸이라 같은 해부 · 같은 계단으로 잰다.
+     줄이 계단의 크기 컨테이너다. 틀린 견본은 100rem 줄에서 13rem 에 머문 칸이다. */
+  const wideContext = (barPx, cellPx) => `
+    <div style="width:0;overflow:visible">
+      <div data-context-bar="" style="width:${barPx}px;display:flex;flex-wrap:wrap;align-items:center;gap:12px">
+        ${cell('entity', cellPx, 14, 6, 600, false, 'wide')}
+      </div>
+    </div>`;
+  /* 격자 머리 칸(`role="columnheader"` — 끌어 옮기는 백로그 머리). 표지가 이름 옆 4px 이면 맞고, 14px 떨어지면 틀리다. */
+  const gridHead = (label, glyphGap) => `
+    <div role="row" style="display:flex;gap:8px;height:40px;align-items:center;background:#f5f6fb">
+      <div role="columnheader" style="display:flex;align-items:center;justify-content:center;width:120px"><span>${label}</span><svg width="12" height="12" style="margin-left:${glyphGap}px"></svg></div>
+    </div>`;
   box.innerHTML = `
     <div id="compose-good">
       <div data-filter-surface="" style="display:grid;gap:12px;padding-bottom:16px;border-bottom:1px solid #dcdfec">
@@ -613,6 +633,8 @@ def selftest_html() -> str:
       </div>
       ${wideSurface(1600, 320)}
       ${wideSurface(1300, 256)}
+      ${wideContext(1600, 320)}
+      ${gridHead('우선순위', 4)}
       ${table('surface', true, 0, true, false, '<svg width="12" height="12" style="margin-left:4px"></svg><svg width="12" height="12" style="margin-left:4px"></svg>', false)}
       <div data-list-surface="" data-table-placement="surface" data-list-state="empty" style="background:#fff;border:1px solid #dcdfec;border-radius:8px;padding:20px;overflow:visible"><div>조건에 맞는 항목이 없습니다</div></div>
       <div class="MuiCard-root" style="background:#fff;border:1px solid #dcdfec;border-radius:8px;padding:20px"><div data-table-placement="card" style="margin:0 -20px"><div class="MuiTableContainer-root"><table class="MuiTable-root" style="width:100%;border-collapse:collapse"><thead><tr style="height:40px"><th style="background:#f5f6fb">이름</th></tr></thead><tbody><tr style="height:48px"><td>항목</td></tr></tbody></table></div><div data-list-footer="" style="height:44px;border-top:1px solid #dcdfec">2건 중 2건을 받았습니다.</div></div></div>
@@ -661,6 +683,8 @@ def selftest_html() -> str:
       <div data-chat-composer="" style="border:1px solid #ccc;border-radius:10px;height:48px"></div>
       <div data-page-fill="" style="height:120vh;border:1px solid #dcdfec">화면을 넘는 높이 고정 판</div>
       ${wideSurface(1600, 208)}
+      ${wideContext(1600, 208)}
+      ${gridHead('난이도', 14)}
     </div>`;
   document.body.appendChild(box);
   return true;
@@ -668,10 +692,11 @@ def selftest_html() -> str:
 """
 
 
-# 틀린 견본이 반드시 걸려야 하는 검사와 기대 최소 실패 수.
+# 틀린 견본이 반드시 걸려야 하는 검사와 기대 최소 실패 수. 칸 해부의 넷째는 문맥 줄의 wide 칸, 머리 표지의 둘째는 격자
+# 머리 칸이다 — 선택자가 그 자리를 안 보면 수가 모자라 실패한다.
 SELFTEST_EXPECT_BAD = {
-    "filter_composition": 1, "filter_cell_anatomy": 3, "list_surface": 3, "list_wrapper": 2,
-    "primary_budget": 2, "row_actions": 1, "table_head_glyph": 1, "footer_alignment": 1,
+    "filter_composition": 1, "filter_cell_anatomy": 4, "list_surface": 3, "list_wrapper": 2,
+    "primary_budget": 2, "row_actions": 1, "table_head_glyph": 2, "footer_alignment": 1,
     "editor_box": 1, "chat_composition": 1, "page_fill": 1,
 }
 

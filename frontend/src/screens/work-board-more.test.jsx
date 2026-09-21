@@ -7,6 +7,8 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 
 /* 열의 「더 보기」 — **첫 쪽과 같은 조건**이 다음 쪽에도 실린다(§8.5).
  *
+ * qa-contract-change: 판의 조건이 티켓 목록과 같은 여러 값 상태가 됐다(D-497) — 프로젝트 · 담당자 주소 키가 `project_id` · `assignee_user_id` 이고 프로젝트 · 담당자 · 우선순위 · 난이도는 키를 되풀이해 싣는다. 예상 WD 범위(`est_wd_min` · `est_wd_max`)도 판 · 열이 같이 받는다. 「더 보기」 단정은 한 값 `get` 에 더해 되풀이한 값 전부(`getAll`)와 판 질의와 열 질의의 조건이 글자까지 같은지를 잰다. 「내 티켓만」이 켜지면 담당자 조건 대신 `mine` 이 실리는 것도 새로 잰다.
+ *
  * 🔴 이 파일이 태어난 이유: 예전 `loadMoreColumn` 은 선언된 적 없는 변수를 참조해
  * **누르는 즉시 ReferenceError** 였고(열 50건 초과는 다음 쪽을 영영 못 받았다), 설령
  * 고쳐도 검색·부서·우선순위·난이도·신호를 안 실어 서버 계약(`app/work/router.py` —
@@ -142,6 +144,57 @@ describe("열의 「더 보기」", () => {
     // 받은 다음 쪽이 실제로 열에 붙는다 — 오류 토스트가 아니라.
     await screen.findByText("다음 쪽의 일");
     expect(screen.queryByText(/더 받아오지 못했습니다/)).toBeNull();
+  });
+
+  it("🔴 여러 값 조건은 키를 되풀이해 싣고, 판과 다음 쪽이 같은 조건이다 — 프로젝트 · 담당자 · 우선순위 · 난이도 · 예상 범위", async () => {
+    stubApi({ column: { cards: [], next_cursor: null } });
+    renderBoard(
+      "/work-board?team=d-1&sprint=sp-1"
+      + "&project_id=p-1&project_id=p-2&assignee_user_id=u-1&assignee_user_id=u-2"
+      + "&priority=%EB%86%92%EC%9D%8C&priority=%EA%B8%B4%EA%B8%89&difficulty=%EC%83%81&difficulty=%ED%95%98"
+      + "&est_wd_min=1&est_wd_max=3"
+    );
+    await userEvent.click(await screen.findByRole("button", { name: "더 보기" }));
+    await waitFor(() => expect(columnCalls().length).toBe(1));
+    const boardCalls = apiMock.mock.calls.map(([p]) => String(p)).filter((p) => p.startsWith("/api/work/board?"));
+    expect(boardCalls).toHaveLength(1);
+    const first = new URLSearchParams(boardCalls[0].split("?")[1]);
+    const next = new URLSearchParams(columnCalls()[0].split("?")[1]);
+    for (const params of [first, next]) {
+      expect(params.getAll("project_id")).toEqual(["p-1", "p-2"]);
+      expect(params.getAll("assignee_user_id")).toEqual(["u-1", "u-2"]);
+      expect(params.getAll("priority")).toEqual(["높음", "긴급"]);
+      expect(params.getAll("difficulty")).toEqual(["상", "하"]);
+      expect(params.get("est_wd_min")).toBe("1");
+      expect(params.get("est_wd_max")).toBe("3");
+      expect(params.get("department_id")).toBe("d-1");
+      // 옛 한 값 키와 판이 받지 않는 정렬은 싣지 않는다.
+      expect(params.get("project")).toBeNull();
+      expect(params.get("assignee")).toBeNull();
+      expect(params.get("sort")).toBeNull();
+      expect(params.get("mine")).toBeNull();
+    }
+    // 조건 부분은 글자까지 같다 — 다른 것은 쪽 · 범위 값뿐이다.
+    const conditions = (params) => {
+      const copy = new URLSearchParams(params);
+      for (const key of ["cursor", "limit", "column_page_size"]) copy.delete(key);
+      return copy.toString();
+    };
+    expect(conditions(next)).toBe(conditions(first));
+  });
+
+  it("🔴 「내 티켓만」이 켜지면 담당자 조건은 싣지 않고 mine 을 싣는다 — 판과 다음 쪽이 같다", async () => {
+    stubApi({ column: { cards: [], next_cursor: null } });
+    renderBoard("/work-board?team=d-1&sprint=sp-1&assignee_user_id=u-1&mine=1");
+    await userEvent.click(await screen.findByRole("button", { name: "더 보기" }));
+    await waitFor(() => expect(columnCalls().length).toBe(1));
+    const next = new URLSearchParams(columnCalls()[0].split("?")[1]);
+    expect(next.get("mine")).toBe("true");
+    expect(next.getAll("assignee_user_id")).toEqual([]);
+    const boardCall = apiMock.mock.calls.map(([p]) => String(p)).find((p) => p.startsWith("/api/work/board?"));
+    const first = new URLSearchParams(boardCall.split("?")[1]);
+    expect(first.get("mine")).toBe("true");
+    expect(first.getAll("assignee_user_id")).toEqual([]);
   });
 
   it("첫 쪽과 겹치는 카드는 한 번만 그린다 — 재조회 뒤의 확장분 중복", async () => {

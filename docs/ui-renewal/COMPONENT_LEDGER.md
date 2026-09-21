@@ -638,15 +638,12 @@ B 단계가 전수 흡수를 끝낸 뒤 남는 자리만 적는다. 형식은 �
 
 | 파일 | 조합 규칙 | 이유 | 대체 불가 근거 |
 |---|---|---|---|
-| `screens/WorkBoard.jsx` | `filter-parts` | 작업 보드 두 줄 필터(팀 · 회차 · 프로젝트 · 담당자 / 검색 · 우선순위 · 난이도 · 신호) | 보호 화면이고 두 줄 필터는 D-484 결정이다 — 칸 해부만 공통 부품으로 받는다 |
-| `screens/Sprint.jsx` | `filter-parts` | 스프린트 회의 두 줄 필터(팀 · 회차) | 보호 화면 · D-484 와 같은 이유 |
 | `screens/Search.jsx` | `filter-parts` | 통합 검색의 제출형 검색 줄과 결과 요약 문장(`ResultLine text`) | 조건을 거는 목록이 아니라 제출해야 결과가 서는 검색이라 조건 줄 · 칩이 없다 |
 | `screens/SchedulerCalendar.jsx` | `filter-parts` | 예약 달력 도구 줄(구간 이동 · 보기) | 달력 격자의 이동 도구라 조건 칸이 없다 |
 | `screens/dev/KitGallery.jsx` | `filter-parts` | 「이럴 때 이것」 절의 필터 칩 · 상태 칩 나란히 견본(`FilterConditionLine` 낱개) | 갤러리는 정본 부품을 낱개로 세워 어휘를 대조하는 카탈로그다 — 조합 견본은 「검색과 필터 바」 절이 `FilterBar` 로 세운다 |
-| `screens/WorkBoard.jsx` | `list-footer` | 작업 보드 백로그의 목록 끝 줄(`ListFooter`) | 보호 화면이고 백로그는 표가 아니라 끌어 옮기는 카드 줄 가상 목록이다(D-473) — 목록 판(`DataTable`)에 담을 표가 없다 |
+| `screens/WorkBoard.jsx` | `list-footer` | 작업 보드 백로그의 목록 끝 줄(`ListFooter`) | 백로그는 표가 아니라 끌어 옮기는 카드 줄 가상 목록이다(D-473) — 목록 판(`DataTable`)에 담을 표가 없다 |
 | `screens/Activity.jsx` | `list-footer` | 내 활동의 날짜 묶음 목록 끝 줄(`ListFooter`) | 표가 아니라 날짜 머리(고정)와 활동 행을 쌓는 목록이다 — 목록 판 발은 표의 발이다 |
 | `screens/data-screen/SubListDrawer.jsx` | `list-footer` | 하위 목록 창(모달 본문)의 목록 끝 줄(`ListFooter root="auto"`) | 모달 본문이 스크롤 창이라 센티널의 root 를 그 본문으로 넘기는 자리이고, 모달 안 표는 판이 없는 `plain` 이다 — 목록 판 발은 판의 마지막 줄이다. 검사기가 주석 뒤 JSX 를 못 읽어 P0 ~ P6 동안 보이지 않던 자리다(P7 에서 훑개를 고치며 드러났다) |
-| `screens/WorkBoard.jsx` | `ghost-slot` | 페이지 머리 동작 끝의 「스프린트 회의」 이동 단추(글자 단추 · 링크) | 보호 화면이다 — 공통 부품 치환만 허용되고, 머리 동작(티켓 추가 · 회차 한 바퀴 · 회차 추가) 뒤 이동 링크의 무게는 D-484 머리 배치다 |
 | `screens/Home.jsx` | `card-wrapped-table` | 홈 「내 할 일」 판 안의 핵심 열 표(`placement` plain) | 보호 화면 — 판의 탭 · 제목 · 높이 예산이 레이아웃이라 공통 부품 치환만 한다. 판 안 보조 표로 가장자리까지 펴면 보호 화면 기하가 바뀐다 |
 | `screens/MyStats.jsx` | `card-wrapped-table` | 내 업무량 판 안의 표(`placement` plain) | 보호 화면 · 홈과 같은 이유 |
 | `screens/knowledge/documentColumns.jsx` | `table-tag` | 문서 목록 제목 칸의 문서 태그(최대 넷 + 「+N」) | 태그는 사람이 붙인 낱말이라 흰 면 + 1px 테두리의 `Tag` 다(핸드오프 RULES §2 · 문서 시안 표 안 태그 · ACCEPTANCE J2). 표 안 점 + 낱말은 정해진 축 값의 규칙이다 |

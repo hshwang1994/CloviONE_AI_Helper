@@ -23,7 +23,7 @@ import {
   SectionTitle,
   FieldLabel,
 } from "../ui/kit.jsx";
-import { FilterRow, FilterSurface } from "../ui/FilterBar.jsx";
+import { ContextBar } from "../ui/ContextBar.jsx";
 import { EntityCombobox, FilterSelect, TeamSelect } from "../ui/filters.jsx";
 import { BarSeries } from "../ui/charts/BarSeries.jsx";
 import { LineSeries } from "../ui/charts/LineSeries.jsx";
@@ -354,10 +354,14 @@ export function Sprint() {
   const teamSettled = !!teamId || (sprints.isSuccess && !(team && team.selected));
 
   /* 회차를 안 골랐으면 **열려 있는 회차**를 고른다. 「한 번만」은 **팀 단위**다 — 팀을
-     바꾸면 재자동선택이 돌고, 같은 팀에서 사용자가 손으로 비운 선택은 다시 덮지 않는다. */
+     바꾸면 재자동선택이 돌고, 같은 팀에서 사용자가 손으로 비운 선택은 다시 덮지 않는다.
+     팀이 비면(같은 메뉴를 다시 눌러 주소의 질의가 비었다) 다시 무장한다 — 팀이 다시 서면 그 팀의 열린 회차가 다시 선다.
+     셸이 같은 메뉴 재클릭을 새 진입으로 다시 마운트하지만(`app/navEntry.jsx`, D-498) 이 화면은 그것에 기대지 않는다
+     (작업 보드와 같은 규칙). */
   const autoFor = React.useRef(state.sprint ? teamId : null);
   React.useEffect(() => {
-    if (!teamSettled || !teamId) return;
+    if (!teamId) { autoFor.current = null; return; }
+    if (!teamSettled) return;
     if (sprintId) { autoFor.current = teamId; return; }
     if (sprints.isLoading || autoFor.current === teamId) return;
     autoFor.current = teamId;
@@ -539,31 +543,29 @@ export function Sprint() {
           + "다 되면 「회차 닫기」로 안 끝난 일을 다음 회차로 넘깁니다."}
       />
 
-      <FilterSurface>
-        <FilterRow>
-          <TeamSelect
-            team={team}
-            value={teamId}
-            onChange={changeTeam}
-            loading={sprints.isLoading}
-            sx={{ minWidth: "14rem" }}
-          />
-          <EntityCombobox
-            label="회차"
-            value={sprintId}
-            onChange={(next) => setState({ sprint: next || "", discuss: "" })}
-            loading={sprints.isLoading}
-            disabled={!teamId}
-            options={sprintRows.map((s) => ({
-              value: s.id,
-              label: `${s.name} (${sprintStateLabel(s)})`,
-              secondary: `${s.starts_on} ~ ${s.ends_on}`,
-            }))}
-            allLabel="고르세요"
-            sx={{ minWidth: "16rem" }}
-          />
-        </FilterRow>
-      </FilterSurface>
+      {/* 문맥 줄 — 어느 팀의 어느 회차를 리뷰하는가. 작업 보드와 같은 부품이고 같은 칸이다(팀 · 회차 모두 값이 긴 축이라
+          wide 칸, D-497). 조건 줄이 없다 — 이 둘은 목록을 좁히는 조건이 아니라 회의의 문맥이다. */}
+      <ContextBar
+        context={(
+          <>
+            <TeamSelect team={team} value={teamId} onChange={changeTeam} loading={sprints.isLoading} />
+            <EntityCombobox
+              size="wide"
+              label="회차"
+              value={sprintId}
+              onChange={(next) => setState({ sprint: next || "", discuss: "" })}
+              loading={sprints.isLoading}
+              disabled={!teamId}
+              options={sprintRows.map((s) => ({
+                value: s.id,
+                label: `${s.name} (${sprintStateLabel(s)})`,
+                secondary: `${s.starts_on} ~ ${s.ends_on}`,
+              }))}
+              allLabel="고르세요"
+            />
+          </>
+        )}
+      />
 
       {meeting.isLoading || (sprints.isLoading && !sprintId) ? (
         <Stack spacing={2}>

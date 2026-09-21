@@ -1,14 +1,17 @@
 import React from "react";
+import Box from "@mui/material/Box";
 import { Button, EmptyState } from "../ui/kit.jsx";
-import { DebouncedTextField, EntityCombobox, FilterSelect, SearchBox } from "../ui/filters.jsx";
+import { DebouncedTextField, EntityCombobox, FilterSelect, SearchBox, unmatchedLabel } from "../ui/filters.jsx";
 import { FilterBar } from "../ui/FilterBar.jsx";
 import { priorityKo } from "../lib/priority.js";
 import { affiliation, needsOrg } from "../lib/people.js";
 import { includesFolded } from "../lib/search.js";
+import { SIGNALS, SIGNAL_ORDER } from "../lib/ticketSignals.js";
 import { useAssigneeOptions, useTicketMeta, useTicketProjects, statusOptions } from "./ticket-options.js";
 
-/* 티켓 목록 화면 셋(내 티켓·미할당·팀 티켓)이 함께 쓰는 필터 줄. 스프린트 회의는 자기 두 줄 필터를
- * 쓰고 여기서 아무것도 가져가지 않는다(18c67683 뒤로). 아래 조건 판정(`matchesTicketFilters` · `SPRINT_FIELDS`)은
+/* 티켓 목록 화면 셋(내 티켓·미할당·팀 티켓)과 프로젝트의 티켓 탭 · 작업 보드가 함께 쓰는 필터 줄이다. 작업 보드는
+ * 팀 · 회차를 이 줄이 아니라 문맥 줄(`ui/ContextBar.jsx`)에 두고 데이터 조건만 여기서 받는다(D-497). 스프린트 회의는 이
+ * 줄을 쓰지 않는다(18c67683 뒤로). 아래 조건 판정(`matchesTicketFilters` · `SPRINT_FIELDS`)은
  * 그때부터 화면 소비처가 없고, `ticket-filters.test.jsx` 가 그 한 쌍의 계약을 고정한다(UI 3차 조사 부록에서 확인).
  *
  * ## 왜 하나로 모았나
@@ -44,11 +47,16 @@ export const DUE_OPTIONS = [
   { value: "next_week", label: "다음 주" },
 ];
 
+/* 신호(차단 · 지연 · 이슈)는 진행 상태와 직교하는 축이다. 서버 계약(`signal`)이 값 하나라 고르는 칸도 하나만 고른다.
+ * 이름과 순서는 공용 표(`lib/ticketSignals.js`)에서 온다 — 카드의 표식과 같은 낱말이다. */
+export const SIGNAL_OPTIONS = SIGNAL_ORDER.map((key) => ({ value: key, label: SIGNALS[key].label }));
+
 const LABELS = {
   project_id: "프로젝트",
   status: "상태",
   priority: "우선순위",
   difficulty: "난이도",
+  signal: "신호",
   assignee_user_id: "담당자",
   due: "기한",
   category: "대분류",
@@ -58,6 +66,10 @@ const LABELS = {
 const META_FIELDS = ["status", "priority", "difficulty"];
 const MULTI_FIELDS = ["status", "priority", "difficulty", "project_id", "assignee_user_id"];
 const RANGE_KEYS = ["created_from", "created_to", "est_wd_min", "est_wd_max", "act_wd_min", "act_wd_max"];
+
+/** 머리 필터가 거는 범위 조건의 주소 키(생성일 · 예상 WD · 실제 WD). 칸이 아니라 머리 필터가 거는 조건이라 `fields` 에
+ *  없다 — 빈 목록이 「조건 때문」인지 가를 때는 이 키도 함께 본다. */
+export const TICKET_RANGE_KEYS = RANGE_KEYS;
 
 /* 필터가 아닌 상태 한 벌. **쪽 번호는 여기 없다** — 목록은 쪽을 넘기지 않고 묶음을 이어
    받는다(`ticket-options.js::useTicketList`). 정렬은 조건이라 남는다(서버로 나간다). */
@@ -188,20 +200,26 @@ function appendQueryValue(p, key, v) {
   if (v) p.set(key, String(v));
 }
 
+/** 티켓 목록의 기본 정렬 — 이 값이면 정렬을 질의에 싣지 않는다. */
+export const TICKET_SORT_DEFAULT = { sort: TICKET_LIST_EXTRA.sort, order: TICKET_LIST_EXTRA.order };
+
 /** 화면 상태 → 서버 질의 파라미터. 빈 값은 보내지 않는다(서버는 빈 문자열을 조건 없음으로 읽지만, 주소가 지저분해진다). */
 /** 화면 상태 → 서버 **조건**. 쪽 파라미터는 여기서 안 붙인다 — 그것은 「무엇을 거를까」가
  * 아니라 「얼마씩 받을까」이고, 목록 훅이 묶음마다 스스로 붙인다
  * (`ticket-options.js::useTicketList`). 두 관심사를 한 함수가 들면 조건이 같은데 질의
- * 문자열만 다른 캐시 키가 생긴다. */
-export function ticketQueryParams(state, fields, extra) {
+ * 문자열만 다른 캐시 키가 생긴다.
+ *
+ * `sortDefault` — 이 목록의 기본 정렬이다. 기본과 같으면 정렬을 싣지 않는다. 티켓 목록은 생성일 내림차순이고, 작업 보드
+ * 백로그는 끌어 옮긴 순서(`rank` 오름차순)다. 정렬이 없는 목록(판 · 열)은 상태에서 `sort` 를 비워 넘긴다. */
+export function ticketQueryParams(state, fields, extra, sortDefault = TICKET_SORT_DEFAULT) {
   const p = extra instanceof URLSearchParams ? extra : new URLSearchParams(extra || "");
   for (const key of fields) appendQueryValue(p, key, state[key]);
   for (const key of RANGE_KEYS) {
     if (state[key]) p.set(key, String(state[key]));
   }
-  if (state.sort && (state.sort !== "created_at" || state.order !== "desc")) {
+  if (state.sort && (state.sort !== sortDefault.sort || state.order !== sortDefault.order)) {
     p.set("sort", String(state.sort));
-    p.set("order", String(state.order || "desc"));
+    p.set("order", String(state.order || sortDefault.order));
   }
   return p;
 }
@@ -289,13 +307,29 @@ export function TicketEmptyState({ filtered, onClear, title, help }) {
   return <EmptyState art="tickets" title={title || "표시할 티켓이 없습니다"} help={help} />;
 }
 
-function assigneeOptions(rows) {
+/** 담당자 후보 행(`/api/tickets/assignees`) → 칸 후보. 동명이인을 가르려고 소속을 괄호로 붙인다. 필터 줄 밖에서 같은
+ *  후보를 쓰는 자리(작업 보드의 머리 필터 · 후보 덮어쓰기)도 이 함수로 만들어 칸 · 칩 · 머리 필터가 같은 이름을 쓴다. */
+export function ticketAssigneeOptions(rows) {
   const list = Array.isArray(rows) ? rows : [];
   const withOrg = needsOrg(list);
   return list.map((c) => {
     const aff = affiliation(c, { withOrg });
     return { value: c.user_id, label: aff ? `${c.display_name} (${aff})` : c.display_name };
   });
+}
+
+/* 쓰지 않는 조건 칸 — 칸은 제자리에 서되 꺼져 있고, 왜 꺼졌는지를 마우스(`title`)와 낭독기(`aria-describedby`)에 같은
+   문장으로 준다. 감싸개는 상자를 만들지 않아(`display: contents`) 칸이 여전히 줄의 직계 칸처럼 선다 — 칸 폭과 칸
+   해부가 그대로다. 이유가 없으면 감싸지 않는다. */
+function OffCell({ reason, children }) {
+  const id = React.useId();
+  if (!reason) return children(undefined);
+  return (
+    <Box data-filter-off="" title={reason} sx={{ display: "contents" }}>
+      {children(id)}
+      <span id={id} className="sr-only">{reason}</span>
+    </Box>
+  );
 }
 
 /* `scope` 와 `extra` 를 나눠 받는 이유 (W5 재정정 — 독립 검수가 잡았다).
@@ -307,21 +341,41 @@ function assigneeOptions(rows) {
  * 맡기면 화면마다 갈린다. */
 /* `end` — 오른쪽 끝 묶음(팀 티켓의 「완료, 취소 포함」). 조건이 아니라 보기 방식이라 칸 흐름 끝이 아니라
    필터 바의 `end` 에 선다. `chips` — 이 부품 밖에서 거는 조건(팀 티켓의 부서)의 칩. 모든 조건은 칩을 가진다
-   (조합 계약 C-1). */
+   (조합 계약 C-1).
+   `tailChips` — 이 부품의 칩 **뒤에** 서는 칩(작업 보드 백로그의 「정렬: 마감 ↑」). 정렬은 줄의 맨 끝 축이라 칩도 끝에 선다.
+   칩이 있으면 「필터 지우기」도 선다 — 지우기는 조건 줄에 보이는 것을 전부 걷는다.
+
+   아래 둘은 선택 prop 이다. 안 주면 티켓 목록 셋과 같다.
+   `options` — 칸 후보 덮어쓰기. `{ project_id: { items, loading }, assignee_user_id: { items, loading } }` 이고 `items` 는
+   `{ value, label }` 목록이다. 작업 보드는 프로젝트를 팀의 것으로, 담당자를 고른 프로젝트에 닿는 사람으로 좁혀 넘긴다.
+   덮어쓴 축은 이 부품이 후보를 따로 받지 않는다.
+   `disabled` — 지금 쓰지 않는 조건의 이유 `{ [필드]: 문장 }`. 그 칸은 꺼진 채 제자리에 서고(`title` 과 낭독 설명이 그
+   문장이다), 그 조건의 칩은 서지 않고 조건 수에서도 빠진다. 값은 주소에 남는다 — 이유가 걷히면 조건이 돌아온다. */
 export function TicketFilterBar({
-  fields, value, onChange, total, scope, end, chips: outerChips, onClear,
-  defaultStatusKeys, allStatus, onShowAll, resetLabel = "필터 지우기",
+  fields, value, onChange, total, scope, end, chips: outerChips, tailChips, onClear,
+  defaultStatusKeys, allStatus, onShowAll, resetLabel = "필터 지우기", options, disabled,
 }) {
+  const projectOverride = options && options.project_id;
+  const assigneeOverride = options && options.assignee_user_id;
   const wantMeta = fields.some((f) => META_FIELDS.includes(f));
   const metaQ = useTicketMeta(wantMeta);
-  const projectsQ = useTicketProjects(fields.includes("project_id"));
-  const assigneesQ = useAssigneeOptions(fields.includes("assignee_user_id"));
+  const projectsQ = useTicketProjects(fields.includes("project_id") && !projectOverride);
+  const assigneesQ = useAssigneeOptions(fields.includes("assignee_user_id") && !assigneeOverride);
   const meta = metaQ.data || {};
-  const projectOpts = ((projectsQ.data && projectsQ.data.projects) || []).map((p) => ({ value: p.id, label: p.name || "(제목 없음)" }));
-  const peopleOpts = assigneeOptions(assigneesQ.data && assigneesQ.data.assignees);
+  const projectOpts = projectOverride
+    ? (projectOverride.items || [])
+    : ((projectsQ.data && projectsQ.data.projects) || []).map((p) => ({ value: p.id, label: p.name || "(제목 없음)" }));
+  const projectsLoading = projectOverride ? !!projectOverride.loading : projectsQ.isLoading;
+  const peopleOpts = assigneeOverride
+    ? (assigneeOverride.items || [])
+    : ticketAssigneeOptions(assigneesQ.data && assigneesQ.data.assignees);
+  const peopleLoading = assigneeOverride ? !!assigneeOverride.loading : assigneesQ.isLoading;
   const statusOpts = statusOptions(meta.statuses);
   const priorityOpts = (meta.priorities || []).map((p) => ({ value: p, label: priorityKo(p) }));
   const difficultyOpts = meta.difficulties || [];
+  /* 지금 쓰지 않는 조건(`disabled`)은 칩 · 조건 수 · 지우기 판정에서 빠진다. */
+  const off = (key) => !!(disabled && disabled[key]);
+  const liveFields = fields.filter((key) => !off(key));
 
   /* 참조가 고정돼야 한다. 검색 입력은 `React.memo` 로 감싼 부품이라, 매 렌더마다 새 함수를
      주면 메모가 매번 깨지고 디바운스 타이머가 다시 시작된다. */
@@ -330,9 +384,9 @@ export function TicketFilterBar({
 
   const usingDefaultStatus = !!(defaultStatusKeys && defaultStatusKeys.length) && !allStatus && !isFilled(value.status);
   const effectiveStatus = usingDefaultStatus ? defaultStatusKeys : asList(value.status);
-  const filtered = hasTicketFilter(value, fields) || usingDefaultStatus || !!allStatus
+  const filtered = hasTicketFilter(value, liveFields) || usingDefaultStatus || !!allStatus
     || RANGE_KEYS.some((key) => !!value[key]);
-  const atDefault = !hasTicketFilter(value, fields) && !allStatus && RANGE_KEYS.every((key) => !value[key]);
+  const atDefault = !hasTicketFilter(value, liveFields) && !allStatus && RANGE_KEYS.every((key) => !value[key]);
   const clear = React.useCallback(() => {
     if (onClear) { onClear(); return; }
     onChange(clearTicketFilters(fields));
@@ -344,6 +398,12 @@ export function TicketFilterBar({
     const hit = (Array.isArray(opts) ? opts : []).find((o) => String(typeof o === "string" ? o : o.value) === String(v));
     if (!hit) return String(v);
     return typeof hit === "string" ? hit : hit.label;
+  };
+  /* 사람 · 프로젝트는 값이 식별자다 — 후보에 없는 값(좁힌 후보 밖 · 아직 오는 중)을 칩에 그대로 쓰면 UUID 가 화면에
+     선다. 칸의 요약과 같은 규칙(`filters.jsx::unmatchedLabel`)으로 사람이 읽을 낱말을 쓴다. */
+  const entityLabel = (opts, v, loading) => {
+    const hit = (Array.isArray(opts) ? opts : []).find((o) => String(o.value) === String(v));
+    return hit ? hit.label : unmatchedLabel(v, loading);
   };
 
   const chips = [];
@@ -375,14 +435,17 @@ export function TicketFilterBar({
       pushChip(`difficulty:${v}`, `난이도: ${v}`, () => onChange({ difficulty: asList(value.difficulty).filter((x) => x !== v) }));
     }
   }
-  if (show("project_id") && isFilled(value.project_id)) {
+  if (show("signal") && value.signal) {
+    pushChip("signal", `${LABELS.signal}: ${optionLabel(SIGNAL_OPTIONS, value.signal)}`, () => onChange({ signal: "" }));
+  }
+  if (show("project_id") && !off("project_id") && isFilled(value.project_id)) {
     for (const v of asList(value.project_id)) {
-      pushChip(`project:${v}`, `프로젝트: ${optionLabel(projectOpts, v)}`, () => onChange({ project_id: asList(value.project_id).filter((x) => x !== v) }));
+      pushChip(`project:${v}`, `프로젝트: ${entityLabel(projectOpts, v, projectsLoading)}`, () => onChange({ project_id: asList(value.project_id).filter((x) => x !== v) }));
     }
   }
-  if (show("assignee_user_id") && isFilled(value.assignee_user_id)) {
+  if (show("assignee_user_id") && !off("assignee_user_id") && isFilled(value.assignee_user_id)) {
     for (const v of asList(value.assignee_user_id)) {
-      pushChip(`assignee:${v}`, `담당자: ${optionLabel(peopleOpts, v)}`, () => onChange({ assignee_user_id: asList(value.assignee_user_id).filter((x) => x !== v) }));
+      pushChip(`assignee:${v}`, `담당자: ${entityLabel(peopleOpts, v, peopleLoading)}`, () => onChange({ assignee_user_id: asList(value.assignee_user_id).filter((x) => x !== v) }));
     }
   }
   if (show("due") && value.due) {
@@ -404,8 +467,10 @@ export function TicketFilterBar({
     pushChip("act_wd", `실제 WD: ${value.act_wd_min || "…"} ~ ${value.act_wd_max || "…"}`, () => onChange({ act_wd_min: "", act_wd_max: "" }));
   }
 
-  /* 밖에서 건 조건(부서 · scope)의 칩은 줄 순서처럼 맨 앞이다. */
+  /* 밖에서 건 조건(부서 · scope)의 칩은 줄 순서처럼 맨 앞이다. 정렬처럼 줄 끝 축의 칩(`tailChips`)은 맨 뒤다. */
   chips.unshift(...(Array.isArray(outerChips) ? outerChips : []).filter((chip) => chip && chip.label));
+  const tail = (Array.isArray(tailChips) ? tailChips : []).filter((chip) => chip && chip.label);
+  chips.push(...tail);
 
   return (
     /* 판이 아니다 — 지시 80. 목록과의 경계는 아래 실선이 만들고, 걸린 조건과 결과 수는 같은 면 안 둘째 줄
@@ -415,7 +480,7 @@ export function TicketFilterBar({
         <SearchBox
           value={value.q}
           onSearch={commitSearch}
-          /* 서버가 제목과 티켓 이름(`ABCDEF-37`)을 함께 본다 — 작업 보드 검색창과 같은 말이다. */
+          /* 서버가 제목과 티켓 이름(`ABCDEF-37`)을 함께 본다 — 티켓 목록 셋과 작업 보드가 이 한 칸을 쓴다. */
           placeholder="티켓 제목, 이름 검색"
           ariaLabel={LABELS.q}
         />
@@ -424,7 +489,7 @@ export function TicketFilterBar({
       conditions={{
         chips,
         total,
-        onClearAll: filtered && !atDefault ? clear : null,
+        onClearAll: (filtered && !atDefault) || tail.length ? clear : null,
         clearLabel: resetLabel,
         extraAction: onShowAll && !allStatus ? { label: "전체 보기", onClick: onShowAll } : null,
       }}
@@ -433,26 +498,39 @@ export function TicketFilterBar({
       {scope}
       {/* 프로젝트는 값이 긴 축이라 wide 칸이다 — 면이 넓으면 고른 이름이 더 보인다(`filters.jsx::ROW_KIND.entityWide`). 담당자는
           사람이라 기본 칸이다. */}
+      {/* `disabled` 는 이 두 Entity 칸만 받는다 — 칸이 이유 문장을 낭독 설명(`ariaDescribedBy`)으로 이을 수 있는 자리다. */}
       {show("project_id") ? (
-        <EntityCombobox
-          multiple
-          size="wide"
-          label={LABELS.project_id}
-          value={asList(value.project_id)}
-          onChange={set("project_id")}
-          loading={projectsQ.isLoading}
-          options={projectOpts}
-        />
+        <OffCell reason={disabled && disabled.project_id}>
+          {(describedBy) => (
+            <EntityCombobox
+              multiple
+              size="wide"
+              label={LABELS.project_id}
+              value={asList(value.project_id)}
+              onChange={set("project_id")}
+              loading={projectsLoading}
+              options={projectOpts}
+              disabled={off("project_id")}
+              ariaDescribedBy={describedBy}
+            />
+          )}
+        </OffCell>
       ) : null}
       {show("assignee_user_id") ? (
-        <EntityCombobox
-          multiple
-          label={LABELS.assignee_user_id}
-          value={asList(value.assignee_user_id)}
-          onChange={set("assignee_user_id")}
-          loading={assigneesQ.isLoading}
-          options={peopleOpts}
-        />
+        <OffCell reason={disabled && disabled.assignee_user_id}>
+          {(describedBy) => (
+            <EntityCombobox
+              multiple
+              label={LABELS.assignee_user_id}
+              value={asList(value.assignee_user_id)}
+              onChange={set("assignee_user_id")}
+              loading={peopleLoading}
+              options={peopleOpts}
+              disabled={off("assignee_user_id")}
+              ariaDescribedBy={describedBy}
+            />
+          )}
+        </OffCell>
       ) : null}
       {show("category") ? (
         <DebouncedTextField label={LABELS.category} value={value.category} onCommit={commitCategory} />
@@ -476,6 +554,10 @@ export function TicketFilterBar({
       ) : null}
       {show("difficulty") ? (
         <FilterSelect multiple label={LABELS.difficulty} value={asList(value.difficulty)} onChange={set("difficulty")} options={difficultyOpts} />
+      ) : null}
+      {/* 신호는 분류 축 끝이다(난이도 뒤) — 값 하나만 고른다. */}
+      {show("signal") ? (
+        <FilterSelect label={LABELS.signal} value={value.signal || ""} onChange={set("signal")} options={SIGNAL_OPTIONS} />
       ) : null}
       {/* 기한은 날짜 칸이 아니라 세 낱말(지연 · 이번 주 · 다음 주)의 열거다 — 열거 칸 폭(내용만큼, 8~13rem)으로 선다. 예전에는
           `kind="date"` 라 날짜 위젯 폭(11rem)을 받아 열거 칸의 바닥(8rem)보다 3rem 넓게 섰다. */}
