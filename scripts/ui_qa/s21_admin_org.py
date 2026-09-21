@@ -387,19 +387,41 @@ def _dept_id(r) -> str:
     return items[0]["id"]
 
 
+# 부서 상세는 모달이 아니라 조직 콘솔의 **오른쪽 판**이다(OrgConsole — 선택이 곧 주소). 판이 제목(h2)을
+# 세웠으면 열린 것이다. 판의 글은 판 안에서만 읽는다 — 본문 앞머리(`main_text`)는 페이지 머리와 왼쪽
+# 트리가 먼저 차지해 판에 닿기 전에 잘린다.
+PANEL = '[data-testid="org-console-panel"]'
+
+
+def _panel_title(r) -> str:
+    heading = r.page.locator(PANEL + " h2")
+    if not heading.count():
+        return ""
+    return " ".join((heading.first.inner_text() or "").split())
+
+
+def _panel_says(r, limit: int = 300) -> str:
+    panel = r.page.locator(PANEL)
+    if not panel.count():
+        return ""
+    return " ".join((panel.first.inner_text() or "").split())[:limit]
+
+
 def _dept_detail_open(r, ctx):
     did = _dept_id(r)
     ctx["dept_id"] = did
     r.goto("/departments/%s" % did, shell=ADMIN)
     r.settle(2000)
-    opened = open_dialogs(r)
-    text = dialog_says(r, 300) if opened else r.main_text(260)
+    dialogs = open_dialogs(r)
+    title = _panel_title(r)
+    opened = bool(dialogs or title)
+    text = dialog_says(r, 300) if dialogs else _panel_says(r, 260)
     return {"ui_action": "/departments/{id} 주소로 상세를 곧바로 연다",
             "url_state": r.hash_of(),
-            "observed": {"id": did, "dialogs": opened, "detail": text[:260]},
+            "observed": {"id": did, "dialogs": dialogs, "panel_title": title, "detail": text[:260]},
             "rendered": "상세 «%s»" % text[:190],
             "expected": {"source": "derived-check",
-                         "rule": "주소의 :id 로 단건을 조회해 상세를 자동으로 연다",
+                         "rule": "주소의 :id 로 단건을 조회해 상세를 자동으로 연다(오른쪽 판의 제목이 선다)",
                          "opened": opened},
             "failed": None if opened else "주소로 열었는데 상세가 안 뜬다"}
 
@@ -409,10 +431,11 @@ flow("FF-0560", "admin_departments-id", "deep_link", "주소의 :id 로 부서 �
 
 
 def _dept_detail_fields(r, ctx):
-    if not open_dialogs(r):
+    if not (open_dialogs(r) or _panel_title(r)):
         _dept_detail_open(r, ctx)
-    text = dialog_says(r, 500)
-    want = ("부서", "조직")
+    text = dialog_says(r, 500) or _panel_says(r, 500)
+    # 조직은 판 머리 둘째 줄의 전체 경로 첫 칸이다(「조직」 이름표가 따로 없다) — 이름표로 선 칸만 찾는다.
+    want = ("부서 ID", "하위 부서")
     missing = [w for w in want if w not in text]
     return {"ui_action": "상세의 라벨/값 격자를 읽는다",
             "observed": {"detail": text[:400], "missing": missing},

@@ -5,101 +5,74 @@ import Link from "@mui/material/Link";
 import Typography from "@mui/material/Typography";
 import { api } from "../../lib/api.js";
 import {
-  Badge, Button, Card, ErrorState, Section, Skeleton, TechDetail, FlatBadgeSurface,
+  Badge, Button, Card, DetailGrid, DetailRow, ErrorState, OverflowMenu, Section, Skeleton, TechDetail,
   useConfirm, useToast,
 } from "../../ui/kit.jsx";
-import { StatusKpiStrip } from "../../ui/StatusKpi.jsx";
-import { UserAvatar } from "../../ui/UserAvatar.jsx";
+import { OrgPath, PATH_SEP } from "../../ui/OrgPath.jsx";
 import { handleApiError } from "../data-screen/apiError.js";
-import { KO_WORD_BREAK, PROSE_MAX_WIDTH } from "../../ui/theme.js";
+import { FONT_SIZE, KO_WORD_BREAK } from "../../ui/theme.js";
 import { useDepartmentItem, useDepartmentPeople, useInvalidateOrgCaches } from "./orgQueries.js";
-import { DeptEditModal } from "./orgModals.jsx";
+import { DeptCreateModal, DeptEditModal } from "./orgModals.jsx";
+import { OrgPeopleSection } from "./OrgPeopleGrid.jsx";
+import { INFO_GRID_SX, INFO_WIDE_ROW, OrgPanelHead } from "./OrgPanelHead.jsx";
 
-/* 부서 상세 판 — 트리에서 부서를 고르면 오른쪽이 이것으로 반응한다.
+/* 부서 상세 판 — 트리에서 부서를 고르면 오른쪽이 이것으로 반응한다. **고른 부서 하나를 관리하는 자리**다.
  *
- * 옛 화면의 「소속 인원」은 **셋째 판**이었고 1920 미만에서는 통째로 사라졌다 — 1366 노트북
- * 관리자는 그 판이 있는 줄도 몰랐다. 인원은 부서의 사실이므로 부서 상세 안의 절로 들어와
- * **모든 폭에서** 보인다.
+ * ## 무엇을 걷었나
  *
- * 목록을 다시 만들지 않는다. 여기서 보여 주는 것은 여덟까지고, 그보다 많으면 그 조건이
- * 걸린 사용자 화면으로 보낸다 — 같은 목록을 두 화면이 각자 그리면 언젠가 다른 답을 한다. */
+ * 옛 판은 같은 사실을 여러 번 말했다: 요약 타일 셋(소속 인원 · 하위 부서 · 하위 포함 인원 — 트리 줄의
+ * 부제와 같은 수), 「조직」 · 「전체 경로」 · 「상위 부서」 세 줄(한 경로를 세 번), 그리고 판 폭만큼
+ * 늘어난 인원 목록. 지금은:
+ *
+ *   머리   이름 · 상태 + 둘째 줄의 전체 경로(`OrgPath`) + 동작 묶음 하나
+ *   구성원 「구성원 N명」 — 이 부서에 직접 속한 사람(보관 계정 제외). 가지 전체의 수는 트리 줄이 든다.
+ *   정보   하위 부서 수 · 부서 ID · 상위 관계 오류 · 미사용 안내 · 삭제 판정
+ *
+ * ## 동작은 대상 옆에
+ *
+ * 「하위 부서 추가」가 이 판의 주 동작이다(화면의 채움은 이것 하나 — 조직 판에서는 「부서 추가」).
+ * 창은 이 부서를 상위로, 이 부서의 조직을 고정한 채 열린다. 미사용 부서에서는 숨긴다 — 서버가 미사용
+ * 부서를 새 상위로 받지 않는다(xb-08). 「수정」은 30 보조, 나머지(감사 로그 · 사용자 화면 · 활성/비활성 ·
+ * 삭제)는 「더 보기」 메뉴에 든다. 파괴적 항목은 메뉴가 실선으로 갈라 둔다. */
 
-const PEOPLE_PREVIEW = 8;
-
-/* 조직 판(`OrgDetailPanel`)과 **같은 규칙**이다 — 두 판이 나란히 쓰이는 화면에서 한쪽만
-   다른 밀도를 가지면 그 차이가 정보의 차이로 읽힌다. 값 칸에 상한을 두고, 넓은 판에서는
-   사실 목록을 두 줄기로 나눈다. */
-function MetaRow({ label, children, span = false }) {
-  return (
-    <Box
-      sx={{
-        display: "grid", gridTemplateColumns: "7rem minmax(0, 1fr)", gap: 1, py: 0.5,
-        ...(span ? { gridColumn: { lg: "1 / -1" } } : null),
-      }}
-    >
-      <Typography variant="body2" color="text.secondary">{label}</Typography>
-      <Typography variant="body2" component="div" sx={{ ...KO_WORD_BREAK, maxWidth: PROSE_MAX_WIDTH }}>
-        {children}
-      </Typography>
-    </Box>
-  );
+/* 막는 갈래 중 **갈 곳이 있는** 것 — 삭제 판정 문장 옆에 그 자리로 가는 링크를 단다. 나머지 갈래
+ * (하위 부서 · 프로젝트 · 지식 공간 · 관리 범위)는 이 콘솔 안에 거르는 자리가 없거나(하위 부서는 바로 왼쪽
+ * 트리가 그 목록이다) 다른 콘솔의 화면이라 링크를 만들지 않는다. */
+function blockerLinks(precheck, deptId) {
+  const blockers = (precheck && !precheck.deletable && precheck.blockers) || [];
+  const users = blockers.find((b) => b.kind === "users");
+  if (!users) return [];
+  const base = "#/users?department_id=" + encodeURIComponent(deptId);
+  const links = [{ key: "users", label: "소속 사용자 보기", href: base }];
+  if (users.archived_count) links.push({ key: "archived", label: "보관된 계정 보기", href: base + "&archived=true" });
+  return links;
 }
 
-const META_GRID = {
-  display: "grid",
-  columnGap: 3,
-  gridTemplateColumns: { xs: "1fr", lg: "repeat(2, minmax(0, 1fr))" },
-};
-
-function PeopleSection({ departmentId }) {
-  const q = useDepartmentPeople(departmentId);
-  const items = (q.data && q.data.items) || [];
-  const total = q.data && q.data.total != null ? q.data.total : items.length;
-
-  return (
-    <Section title={"소속 인원" + (q.isPending ? "" : " " + total + "명")}>
-      {q.isPending ? <Skeleton lines={3} /> : null}
-      {q.isError ? <ErrorState error={q.error} onRetry={() => q.refetch()} layout="region" size="compact" /> : null}
-      {!q.isPending && !q.isError && items.length === 0 ? (
-        <Typography variant="body2" color="text.secondary" sx={KO_WORD_BREAK}>
-          이 부서에 배치된 사람이 없습니다. 사용자 화면에서 부서를 지정하면 여기에 나타납니다.
-        </Typography>
-      ) : null}
-      {items.length ? (
-        <FlatBadgeSurface>
-        <Box component="ul" sx={{ listStyle: "none", m: 0, p: 0, display: "grid", gap: 1 }}>
-          {items.slice(0, PEOPLE_PREVIEW).map((u) => (
-            <Box component="li" key={u.id}
-                 sx={{ display: "flex", gap: 1, alignItems: "center", minWidth: 0 }}>
-              <UserAvatar person={u} size="sm" />
-              <Link href={"#/users/" + u.id} underline="hover"
-                    sx={{ minWidth: 0, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {u.display_name || u.email}
-              </Link>
-              <Badge value={u.title || u.role} />
-            </Box>
-          ))}
-        </Box>
-        </FlatBadgeSurface>
-      ) : null}
-      {total > PEOPLE_PREVIEW ? (
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5 }}>
-          {PEOPLE_PREVIEW}명만 표시했습니다.{" "}
-          <Link href={"#/users?department_id=" + encodeURIComponent(departmentId)} underline="hover">
-            사용자 화면에서 {total}명 모두 보기
-          </Link>
-        </Typography>
-      ) : null}
-    </Section>
-  );
+/* 이 부서까지의 경로(조상만) — 트리 행의 부모 사슬을 따라 올라간다. 고리가 있으면(상위 관계 오류) 한 바퀴
+ * 돌기 전에 멈춘다. 트리가 아직 없으면 빈 경로라 조직 이름만 선다. */
+export function ancestorsOf(rows, id) {
+  const byId = new Map((rows || []).map((r) => [r.id, r]));
+  const out = [];
+  const seen = new Set([id]);
+  let cur = byId.get(id);
+  while (cur && cur.parent_id && !seen.has(cur.parent_id)) {
+    seen.add(cur.parent_id);
+    const parent = byId.get(cur.parent_id);
+    if (!parent) break;
+    out.unshift({ id: parent.id, name: parent.name });
+    cur = parent;
+  }
+  return out;
 }
 
-export function DeptDetailPanel({ deptId, treeRow }) {
+export function DeptDetailPanel({ deptId, treeRow, treeRows = [], headingRef, onCreated, onDeleted }) {
   const toast = useToast();
   const confirm = useConfirm();
   const invalidate = useInvalidateOrgCaches();
   const item = useDepartmentItem(deptId);
+  const people = useDepartmentPeople(deptId);
   const [editing, setEditing] = React.useState(false);
+  const [adding, setAdding] = React.useState(false);
 
   const setActive = useMutation({
     mutationFn: (nextActive) =>
@@ -113,7 +86,13 @@ export function DeptDetailPanel({ deptId, treeRow }) {
 
   const removeDept = useMutation({
     mutationFn: () => api("/api/admin/departments/" + deptId, { method: "DELETE" }),
-    onSuccess: () => { invalidate(); toast("삭제했습니다."); },
+    onSuccess: () => {
+      invalidate();
+      toast("삭제했습니다.");
+      /* 지운 부서의 판에 남으면 곧바로 「찾을 수 없습니다」가 선다 — 그 부서가 있던 자리(상위 부서, 없으면
+         조직)로 옮겨 간다. */
+      if (onDeleted) onDeleted(item.data || {});
+    },
     /* 서버가 409 로 「무엇이 몇 건」과 대안을 말한다(app/org/service.py::dependents) —
        그 문장을 그대로 보여 준다. */
     onError: (e) => handleApiError(e, toast),
@@ -150,6 +129,7 @@ export function DeptDetailPanel({ deptId, treeRow }) {
   const detachSummary = ((precheck && precheck.detachables) || [])
     .map((d) => d.label + " " + d.count + "건")
     .join(", ");
+  const links = blockerLinks(precheck, deptId);
 
   const deactivate = async () => {
     const ok = await confirm(
@@ -173,84 +153,118 @@ export function DeptDetailPanel({ deptId, treeRow }) {
     if (ok) removeDept.mutate();
   };
 
-  return (
-    <Card sx={{ display: "grid", gap: 2, alignContent: "start" }}>
-      <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
-        <Typography component="h2" variant="sectionTitle" sx={{ ...KO_WORD_BREAK, minWidth: 0 }}>
-          {dept.name}
-        </Typography>
-        <Badge value={dept.active ? "사용 중" : "미사용"} kind={dept.active ? "ok" : "warn"} />
-        {row.cycle ? <Badge value="상위 관계 오류" kind="danger" /> : null}
-        <Box sx={{ flex: 1 }} />
-        {/* 이 부서로 가는 두 링크는 **동작 줄**에 있다 — 예전에는 카드 맨 아래에서
-            「부서 ID」와 좌우로 갈라져 있었다(조직 판과 같은 자리, 같은 이유).
-            판 머리 동작은 전부 30 보조다 — 글자 단추 링크도, 「수정」도 채움이 아니다. 화면의 채움은 페이지 머리
-            「부서 추가」 하나다(조합 계약 C-4 · UI 3차 P7 kit_measure `primary_budget` 실측: 「부서 추가」 + 「수정」). */}
-        <Button size="sm"
-                href={"#/audit?object_type=department&object_id=" + deptId}>
-          감사 로그에서 보기
-        </Button>
-        <Button size="sm"
-                href={"#/users?department_id=" + encodeURIComponent(deptId)}>
-          사용자 화면에서 보기
-        </Button>
-        {dept.active
-          ? <Button size="sm" variant="danger" onClick={deactivate} loading={setActive.isPending}>비활성화</Button>
-          : <Button size="sm" onClick={() => setActive.mutate(true)} loading={setActive.isPending}>활성화</Button>}
-        {/* 서버가 막는 부서는 삭제가 항상 409 다 — 눌러도 실패하는 단추를 애초에 안
-            그린다(대신 삭제 안내가 서버의 이유를 그대로 말한다). */}
-        {deletable ? (
-          <Button size="sm" variant="danger" onClick={removeConfirm} loading={removeDept.isPending}>
-            삭제
-          </Button>
-        ) : null}
-        <Button size="sm" onClick={() => setEditing(true)}>수정</Button>
-      </Box>
+  const usersHref = "#/users?department_id=" + encodeURIComponent(deptId);
+  /* 「더 보기」 — 옮겨 가는 링크 둘, 그 뒤로 상태를 바꾸는 일. 서버가 막는 부서는 삭제가 항상 409 라
+     눌러도 실패하는 항목을 애초에 안 세운다(대신 정보의 「삭제」 줄이 서버의 이유를 그대로 말한다). */
+  const menu = [
+    { key: "audit", label: "감사 로그에서 보기", href: "#/audit?object_type=department&object_id=" + deptId },
+    { key: "users", label: "사용자 화면에서 보기", href: usersHref },
+    dept.active
+      ? { key: "deactivate", label: "비활성화", tone: "danger", disabled: setActive.isPending, onClick: deactivate }
+      : { key: "activate", label: "활성화", disabled: setActive.isPending, onClick: () => setActive.mutate(true) },
+    deletable
+      ? { key: "delete", label: "삭제", tone: "danger", disabled: removeDept.isPending, onClick: removeConfirm }
+      : null,
+  ];
 
-      <StatusKpiStrip
-        ariaLabel={dept.name + " 요약"}
-        items={[
-          { key: "members", label: "소속 인원", value: userCount, note: "보관 계정 포함" },
-          { key: "children", label: "하위 부서", value: childCount },
-          {
-            key: "subtree", label: "하위 포함 인원",
-            value: row.subtree_user_count != null ? row.subtree_user_count : userCount,
-          },
-        ]}
+  const ancestors = ancestorsOf(treeRows, deptId);
+  const pathLine = [dept.org_name, ...ancestors.map((n) => n.name)].filter(Boolean).join(PATH_SEP);
+
+  const deleteSentence = deletable
+    ? (detachSummary
+      ? "이 부서는 지금 삭제할 수 있습니다. 삭제하면 " + detachSummary + "은 부서 연결만 끊고 그대로 남습니다."
+      : "이 부서는 지금 삭제할 수 있습니다.")
+    : (precheck && precheck.reason);
+
+  return (
+    <Card sx={{ display: "grid", gap: 3, alignContent: "start" }}>
+      <OrgPanelHead
+        title={dept.name}
+        headingRef={headingRef}
+        badges={(
+          <>
+            <Badge value={dept.active ? "사용 중" : "미사용"} kind={dept.active ? "ok" : "warn"} />
+            {row.cycle ? <Badge value="상위 관계 오류" kind="danger" /> : null}
+          </>
+        )}
+        /* 조직 · 전체 경로 · 상위 부서 세 줄이 말하던 것을 한 줄로 — 이 부서가 **어디에** 있는가. 경로는 한 줄로
+           읽혀야 뜻이 있어 좁으면 말줄임이 되고, 전체는 `title` 이 든다. */
+        identity={(
+          <Box title={pathLine || undefined} sx={{ minWidth: 0 }}>
+            <OrgPath
+              variant="full"
+              org={dept.org_name ? { name: dept.org_name } : null}
+              path={ancestors}
+              sx={{ fontSize: FONT_SIZE.bodySm }}
+            />
+          </Box>
+        )}
+        actionsLabel={dept.name + " 작업"}
+        /* 동작 순서는 제품의 머리 규칙과 같다 — 보조(수정) → 더 보기 → 채움(하위 부서 추가)이 오른쪽 끝이다(D-501). */
+        actions={(
+          <>
+            <Button size="sm" onClick={() => setEditing(true)}>수정</Button>
+            <OverflowMenu size="sm" ariaLabel={dept.name + " 작업 더 보기"} items={menu} />
+            {dept.active ? (
+              <Button size="sm" variant="primary" onClick={() => setAdding(true)}>하위 부서 추가</Button>
+            ) : null}
+          </>
+        )}
+      />
+
+      <OrgPeopleSection
+        label="구성원"
+        query={people}
+        recorded={userCount}
+        listHref={usersHref}
+        emptyText="이 부서에 배치된 사람이 없습니다. 사용자 화면에서 부서를 지정하면 여기에 나타납니다."
       />
 
       <Section title="정보" sx={{ mb: 0 }}>
-        <Box sx={META_GRID}>
-          <MetaRow label="조직">{dept.org_name || "-"}</MetaRow>
-          <MetaRow label="전체 경로">{row.path || dept.name}</MetaRow>
-          <MetaRow label="상위 부서">{row.parent_name || "(최상위)"}</MetaRow>
-          <MetaRow label="부서 ID">
+        <DetailGrid sx={INFO_GRID_SX}>
+          <DetailRow label="하위 부서">{childCount ? childCount + "개" : "없음"}</DetailRow>
+          <DetailRow label="부서 ID">
             <TechDetail label="식별자 보기">{deptId}</TechDetail>
-          </MetaRow>
+          </DetailRow>
           {row.cycle ? (
-            <MetaRow label="상위 관계 오류" span>
+            <DetailRow label="상위 관계 오류" sx={INFO_WIDE_ROW}>
               이 부서는 상위 관계가 고리를 이루고 있어 최상위로 끌어올려 표시했습니다.
               ‘수정’에서 상위 부서를 다시 지정하세요.
-            </MetaRow>
+            </DetailRow>
+          ) : null}
+          {/* 「하위 부서 추가」가 사라진 자리 대신 이 줄이 이유와 푸는 길을 말한다. */}
+          {!dept.active ? (
+            <DetailRow label="하위 부서 추가" sx={INFO_WIDE_ROW}>
+              미사용 부서에는 하위 부서를 만들 수 없습니다. 먼저 활성화하세요.
+            </DetailRow>
           ) : null}
           {/* 판정을 못 받았으면(아직 그 필드를 안 싣는 서버) 아무 말도 하지 않는다 —
               모르는 상태에서 「지금 삭제할 수 있습니다」라고 적는 것이 이 결함이었다. */}
           {precheck ? (
-            <MetaRow label="삭제 안내" span>
-              {deletable
-                ? (detachSummary
-                  ? "이 부서는 지금 삭제할 수 있습니다. 삭제하면 " + detachSummary
-                    + "은 부서 연결만 끊고 그대로 남습니다."
-                  : "이 부서는 지금 삭제할 수 있습니다.")
-                : precheck.reason}
-            </MetaRow>
+            <DetailRow label="삭제" sx={INFO_WIDE_ROW}>
+              <Typography variant="body2" component="p" sx={{ m: 0, ...KO_WORD_BREAK }}>{deleteSentence}</Typography>
+              {links.length ? (
+                <Box sx={{ display: "flex", flexWrap: "wrap", columnGap: 2, rowGap: 0.5, mt: 0.75 }}>
+                  {links.map((l) => (
+                    <Link key={l.key} href={l.href} underline="hover" variant="body2">{l.label}</Link>
+                  ))}
+                </Box>
+              ) : null}
+            </DetailRow>
           ) : null}
-        </Box>
+        </DetailGrid>
       </Section>
 
-      <PeopleSection departmentId={deptId} />
-
       <DeptEditModal open={editing} dept={dept} onClose={() => setEditing(false)} />
+      <DeptCreateModal
+        open={adding}
+        onClose={() => setAdding(false)}
+        fixedOrgId={dept.org_id || ""}
+        defaultParentId={dept.id || deptId}
+        defaultParentLabel={dept.name}
+        title={dept.name + "에 하위 부서 추가"}
+        onCreated={onCreated}
+      />
     </Card>
   );
 }

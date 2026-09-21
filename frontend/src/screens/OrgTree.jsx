@@ -7,9 +7,11 @@ import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded";
 import { Badge, Card, ErrorState, FlatBadgeSurface, ListEmptyState, Skeleton } from "../ui/kit.jsx";
 import { useOrgTreeQuery } from "./org/orgQueries.js";
 import { foldText, includesFolded } from "../lib/search.js";
-import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
+import {
+  APPBAR_HEIGHT, BREAKPOINTS, FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, NUMERIC, STICKY_TOP_VAR, stickyTopSx,
+} from "../ui/theme.js";
 
-/* 조직도 트리 — 조직 콘솔(OrgConsole.jsx)의 왼쪽 1/3.
+/* 조직도 트리 — 조직 콘솔(OrgConsole.jsx)의 왼쪽 레일. **탐색하는 자리**다.
  *
  * ## 왜 표가 아니라 트리인가
  *
@@ -21,11 +23,20 @@ import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
  * 여기서는 실제 트리로 그린다. 중첩 `role="group"` + `aria-level` 로 계층을 알리고,
  * 세로 줄기와 가로 갈래(아래 CONNECTORS)로 눈에도 이어 준다.
  *
- * ## 상태는 위에서 온다
+ * ## 줄마다 수는 하나다 (D-500)
  *
- * 검색어와 사용 여부는 화면 상단 탐색 줄(OrgConsole)이 들고, 이 판은 prop 으로 받아
- * 그리기만 한다. 질의는 `org/orgQueries.js` 한 벌이다 — 옛 registry 조각(org-tree)은
- * 걷혔고, 그 설정이 들던 사실 중 이 판이 쓰는 것(검색 축·빈 상태 문구)은 여기가 정본이다.
+ * 예전 줄은 부제 한 줄에 수를 셋까지 적었다(조직: 구성원 · 부서 · 부서 미지정, 부서: 소속 · 하위 부서 ·
+ * 하위 포함). 같은 수가 페이지 요약 타일과 상세 판 타일에 또 서서, 한 화면이 같은 사실을 세 번 말했다.
+ * 지금 줄의 수는 **가지 전체의 구성원**(`subtree_user_count`) 하나다 — 가지를 따라 더하면 맞는 수이고,
+ * 이 수의 자리는 여기뿐이다. 직접 구성원은 상세 판의 절 제목이, 하위 부서 수는 상세 판의 정보 줄이
+ * 말한다. 부서 미지정 인원은 수 없이 경고 배지로만 선다(수는 조직 상세의 「부서 미지정 N명」 절이 든다).
+ *
+ * ## 검색과 「사용」은 이 판 머리가 든다
+ *
+ * 둘 다 트리만 거르는 조건이라 트리 판 안에 선다(`header` 슬롯 — 채팅방 목록 판과 같은 자리 규칙).
+ * 상태 자체는 화면(OrgConsole)이 주소에 들고, 이 판은 prop 으로 받아 그리기만 한다. 질의는
+ * `org/orgQueries.js` 한 벌이다 — 옛 registry 조각(org-tree)은 걷혔고, 그 설정이 들던 사실 중 이 판이
+ * 쓰는 것(검색 축·빈 상태 문구)은 여기가 정본이다.
  */
 
 /* 검색이 보는 축 — 이름과 경로에 더해 **식별자(slug)** 까지다. 옛 registry 설정이 이 축을
@@ -93,24 +104,25 @@ const CONNECTORS = {
   },
 };
 
-/* 노드 한 줄의 요약. 조직과 부서는 **세는 규칙이 다르다**(app/org/tree.py):
- * 조직의 user_count 는 '부서가 지정되지 않은 사람'이고 부서의 user_count 는 '직접 소속'이다.
- * 같은 라벨로 적으면 두 숫자가 같은 뜻으로 읽혀 오해가 된다. */
-function summaryOf(row, isOrg) {
-  const bits = [];
-  if (isOrg) {
-    bits.push("구성원 " + (row.subtree_user_count || 0) + "명");
-    if (row.child_count) bits.push("부서 " + row.child_count + "개");
-    // 0 이 아니면 그 자체가 관리자가 알아야 할 사실이다(어디에도 안 속한 계정).
-    if (row.user_count) bits.push("부서 미지정 " + row.user_count + "명");
-  } else {
-    bits.push("소속 " + (row.user_count || 0) + "명");
-    if (row.child_count) bits.push("하위 부서 " + row.child_count + "개");
-    if (row.subtree_user_count != null && row.subtree_user_count !== row.user_count) {
-      bits.push("하위 포함 " + row.subtree_user_count + "명");
-    }
-  }
-  return bits.join(", ");
+/* 줄의 수 — **가지 전체의 구성원**이다(app/org/tree.py). 조직 줄은 그 조직의 모든 사람(부서 미지정
+ * 포함), 부서 줄은 그 부서와 아래 부서 전부의 직접 소속 합이라, 가지를 따라 더하면 맞는다. 둘 다
+ * 보관된 계정도 센다 — 상세 판의 사람 목록은 보관된 계정을 빼고 그 차이를 목록 아래에서 말한다.
+ * 이 수를 모르는 옛 응답이면 직접 소속으로 떨어진다. */
+function branchCount(row) {
+  if (row.subtree_user_count != null) return row.subtree_user_count;
+  return row.user_count || 0;
+}
+
+/* 상태 배지 — 조직 · 미사용 · 상위 관계 오류, 그리고 부서가 지정되지 않은 사람이 있는 조직의 경고.
+ * 조직의 `user_count` 가 곧 부서 미지정 인원이다. 0 이 아니면 관리자가 알아야 할 사실이라 서지만
+ * 수는 달지 않는다 — 그 수의 자리는 조직 상세의 「부서 미지정 N명」 절 하나다. */
+function stateBadges(row, isOrg) {
+  const out = [];
+  if (isOrg) out.push(<Badge key="org" value="조직" kind="info" />);
+  if (row.active === false) out.push(<Badge key="inactive" value="미사용" kind="warn" />);
+  if (row.cycle) out.push(<Badge key="cycle" value="상위 관계 오류" kind="danger" />);
+  if (isOrg && row.user_count) out.push(<Badge key="unassigned" value="부서 미지정" kind="warn" />);
+  return out;
 }
 
 function TreeNode({ node, level, selectedId, onSelect, collapsed, onToggle, tabbableId }) {
@@ -119,13 +131,19 @@ function TreeNode({ node, level, selectedId, onSelect, collapsed, onToggle, tabb
   const hasKids = node.children.length > 0;
   const open = hasKids && !collapsed[row.id];
   const selected = selectedId === row.id;
+  const badges = stateBadges(row, isOrg);
+  const baseId = React.useId();
+  const countId = baseId + "-count";
+  const stateId = baseId + "-state";
   return (
     <Box
       component="li"
       role="treeitem"
       /* 이름을 명시한다 — 이름을 내용에서 뽑게 두면 자식 노드의 이름과 인원수까지 딸려 들어와
-         "영업팀 소속 4명 국내영업 소속 2명"이 이 노드의 이름이 된다(중첩 트리의 함정). */
+         "영업팀 4명 국내영업 2명"이 이 노드의 이름이 된다(중첩 트리의 함정). 배지와 수는 이름이
+         아니라 설명으로 붙는다(`aria-describedby`) — 자식 줄의 배지 · 수는 딸려 오지 않는다. */
       aria-label={row.name}
+      aria-describedby={badges.length ? `${stateId} ${countId}` : countId}
       aria-level={level}
       aria-selected={selected}
       aria-expanded={hasKids ? open : undefined}
@@ -171,8 +189,10 @@ function TreeNode({ node, level, selectedId, onSelect, collapsed, onToggle, tabb
            li(treeitem)에 있어서, 선언이 없으면 브랜드 검사가 잉크 없는 li 를 집는다
            (`scripts/ui_qa/brand.py` 의 selected_state 첫 선택자가 이 선언이다). */
         data-brand-role={selected ? "selected-state" : undefined}
+        /* 한 줄이다 — 이름 · 배지가 왼쪽, 수가 오른쪽 끝. 부제 줄이 걷혀 가운데 맞춤이 꺾쇠 · 이름 · 수를
+           한 눈높이에 세운다(배지가 넘쳐 줄이 둘이 되면 그 두 줄의 가운데에 선다). */
         sx={{
-          display: "flex", alignItems: "flex-start", gap: 0.5, cursor: "pointer",
+          display: "flex", alignItems: "center", gap: 0.5, cursor: "pointer",
           px: 1, py: 0.75, borderRadius: 1.5, minWidth: 0,
           border: 1,
           borderColor: selected ? "primary.main" : "transparent",
@@ -188,7 +208,7 @@ function TreeNode({ node, level, selectedId, onSelect, collapsed, onToggle, tabb
             size="small" edge={false}
             aria-label={(open ? "접기: " : "펼치기: ") + row.name}
             onClick={(e) => { e.stopPropagation(); onToggle(row.id); }}
-            sx={{ p: 0.25, mt: "-0.125rem" }}
+            sx={{ p: 0.25 }}
           >
             {open ? <ExpandMoreRoundedIcon fontSize="small" /> : <ChevronRightRoundedIcon fontSize="small" />}
           </IconButton>
@@ -196,22 +216,29 @@ function TreeNode({ node, level, selectedId, onSelect, collapsed, onToggle, tabb
           // 꺾쇠가 없는 줄도 같은 자리에서 이름이 시작해야 세로로 줄이 맞는다.
           <Box aria-hidden="true" sx={{ width: "1.5rem", flexShrink: 0 }} />
         )}
-        <Box sx={{ minWidth: 0, flex: 1 }}>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, flexWrap: "wrap" }}>
-            <Typography
-              component="span"
-              sx={{ fontWeight: isOrg ? FONT_WEIGHT.extrabold : FONT_WEIGHT.semibold, fontSize: FONT_SIZE.body, ...KO_WORD_BREAK }}
-            >
-              {row.name}
-            </Typography>
-            {isOrg ? <Badge value="조직" kind="info" /> : null}
-            {row.active === false ? <Badge value="미사용" kind="warn" /> : null}
-            {row.cycle ? <Badge value="상위 관계 오류" kind="danger" /> : null}
-          </Box>
-          <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
-            {summaryOf(row, isOrg)}
+        <Box sx={{ minWidth: 0, flex: 1, display: "flex", alignItems: "center", gap: 0.75, flexWrap: "wrap" }}>
+          <Typography
+            component="span"
+            sx={{ fontWeight: isOrg ? FONT_WEIGHT.extrabold : FONT_WEIGHT.semibold, fontSize: FONT_SIZE.body, ...KO_WORD_BREAK }}
+          >
+            {row.name}
           </Typography>
+          {badges.length ? (
+            <Box component="span" id={stateId} sx={{ display: "inline-flex", alignItems: "center", gap: 0.75, flexWrap: "wrap" }}>
+              {badges}
+            </Box>
+          ) : null}
         </Box>
+        {/* 수는 오른쪽 끝에 고정폭 숫자로 선다 — 위아래 줄의 자릿수가 한 세로줄에 맞는다. 화면에는 「6명」,
+            스크린리더에는 「구성원 6명」이다(`aria-describedby`). */}
+        <Typography
+          component="span"
+          id={countId}
+          sx={{ ...NUMERIC, flexShrink: 0, whiteSpace: "nowrap", pl: 1, fontSize: FONT_SIZE.bodySm, color: "text.secondary" }}
+        >
+          <span className="sr-only">구성원 </span>
+          {branchCount(row)}명
+        </Typography>
       </Box>
       {open ? (
         <Box component="ul" role="group" sx={{ listStyle: "none", m: 0, p: 0, pl: "0.55rem" }}>
@@ -233,10 +260,33 @@ function TreeNode({ node, level, selectedId, onSelect, collapsed, onToggle, tabb
   );
 }
 
-export function OrgTree({ selectedId, onSelect, search = "", active = "", onClearSearch }) {
-  /* 검색과 사용 여부는 이제 **화면 상단 탐색 줄**이 든다(OrgConsole) — 이 판은 그 상태를
-     prop 으로 받아 그리기만 한다. 검색 상자가 판 안에 있으면 다른 목록 화면과 자리가
-     달라지고, 같은 화면에 검색이 두 곳이던 옛 결함으로 돌아간다. */
+/* 레일 판의 붙박이 — **두 칸 배치(lg 이상)에서만** 뜻이 있다. 상세 판이 길어져 창을 굴려도 트리는
+ * 고정 머리 바로 아래에 남는다.
+ *
+ * 🔴 예전에는 `top: 0` 이었다. 윈도가 굴러가는 화면에서 그 자리는 **고정 머리(AppBar) 뒤**라 판 윗부분이
+ * 머리에 가려졌다 — 표의 고정 열 이름이 겪던 것과 같은 결함이고, 답도 같다(`theme.js::stickyTopSx`).
+ * 판 높이는 창 높이에서 머리와 위아래 여백을 뺀 만큼이 상한이고, 넘치는 트리는 판 **안에서** 굴러간다 —
+ * 판이 창보다 크면 붙박인 판의 아래쪽이 끝까지 안 보인다. 한 칸 배치에서는 레일이 상세 판 위에 먼저
+ * 서므로 붙박이지 않는다(붙박이면 상세 판을 덮는다). */
+const RAIL_GAP_PX = 16;
+function railCardSx() {
+  const top = stickyTopSx(RAIL_GAP_PX);
+  const maxAt = (h) => `calc(100vh - var(${STICKY_TOP_VAR}, ${h}px) - ${RAIL_GAP_PX * 2}px)`;
+  const xxl = `@media (min-width:${BREAKPOINTS.xxl}px)`;
+  const uhd = `@media (min-width:${BREAKPOINTS.uhd}px)`;
+  return {
+    display: "flex", flexDirection: "column", minHeight: 0,
+    position: { lg: "sticky" },
+    top: top.top,
+    maxHeight: maxAt(APPBAR_HEIGHT.xs),
+    [xxl]: { ...top[xxl], maxHeight: maxAt(APPBAR_HEIGHT.xxl) },
+    [uhd]: { ...top[uhd], maxHeight: maxAt(APPBAR_HEIGHT.uhd) },
+  };
+}
+
+export function OrgTree({ selectedId, onSelect, search = "", active = "", onClearSearch, header = null }) {
+  /* 검색과 사용 여부의 **상태**는 화면(OrgConsole)이 주소에 든다. 그 조작기는 이 판 머리(`header`)에
+     선다 — 트리만 거르는 조건이라 트리 판 안이 제자리다. 이 판은 상태를 prop 으로 받아 그리기만 한다. */
   const [collapsed, setCollapsed] = useState({});
   const toggle = React.useCallback((id) => setCollapsed((s) => ({ ...s, [id]: !s[id] })), []);
 
@@ -252,15 +302,15 @@ export function OrgTree({ selectedId, onSelect, search = "", active = "", onClea
   const tabbableId = selectedId || (nodes[0] && nodes[0].row.id);
 
   return (
-    <Card sx={{ position: "sticky", top: 0 }}>
-      {/* 검색 상자는 이 판에 없다 — 상단 탐색 줄(OrgConsole)이 든다. 다른 목록 화면과
-       * 같은 자리에 조건이 서고, 같은 화면에 검색이 두 곳이던 옛 결함으로 안 돌아간다. */}
+    <Card sx={railCardSx()}>
+      {/* 판 머리 — 검색 · 「사용」 · 조건 줄(OrgConsole 이 준다). 트리가 판 안에서 굴러가도 이 줄은 제자리다. */}
+      {header}
       {query.isLoading ? (
         <Skeleton lines={5} />
       ) : query.isError ? (
         <ErrorState layout="region" error={query.error} onRetry={() => query.refetch()} />
       ) : nodes.length === 0 ? (
-        /* 조건을 푸는 길을 함께 준다 (C1 · W5) — 조건은 위 탐색 줄이 들지만, 0건의 이유와
+        /* 조건을 푸는 길을 함께 준다 (C1 · W5) — 조건은 바로 위 판 머리가 들지만, 0건의 이유와
            푸는 단추는 빈 자리 곁에 서야 한다. */
         <ListEmptyState
           filtered={!!search}
@@ -269,7 +319,7 @@ export function OrgTree({ selectedId, onSelect, search = "", active = "", onClea
           filteredTitle="검색 결과가 없습니다"
           filteredHelp="조직 또는 부서 이름의 일부로 다시 찾아보세요."
           title="추가된 부서가 없습니다"
-          help="‘부서 추가’로 부서를 추가하고 상위 부서를 지정하면 여기에 계층으로 표시됩니다."
+          help="조직을 고른 뒤 ‘부서 추가’로 부서를 만들면 여기에 계층으로 표시됩니다."
         />
       ) : (
         <FlatBadgeSurface>
@@ -277,7 +327,9 @@ export function OrgTree({ selectedId, onSelect, search = "", active = "", onClea
           component="ul"
           role="tree"
           aria-label="조직도"
-          sx={{ listStyle: "none", m: 0, p: 0, maxHeight: "70vh", overflowY: "auto", overflowX: "hidden" }}
+          /* 판 높이의 남는 만큼을 먹고 넘치면 **여기서** 굴러간다(위 `railCardSx`). 초점이 옮겨 간 줄은
+             브라우저가 이 칸 안으로 굴려 보인다. */
+          sx={{ listStyle: "none", m: 0, p: 0, flex: "1 1 auto", minHeight: 0, overflowY: "auto", overflowX: "hidden" }}
         >
           {nodes.map((n) => (
             <TreeNode

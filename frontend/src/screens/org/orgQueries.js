@@ -44,12 +44,26 @@ export function useDepartmentItem(id) {
   });
 }
 
-/** 부서의 소속 인원. 뿌리가 `users` 인 이유는 파일 머리 주석에 있다. */
+/** 부서의 소속 인원(보관된 계정은 서버가 뺀다). 뿌리가 `users` 인 이유는 파일 머리 주석에 있다. */
 export function useDepartmentPeople(id) {
   return useQuery({
     queryKey: ["users", "by-department", id],
     queryFn: () => api("/api/admin/users?department_id=" + encodeURIComponent(id)),
     enabled: Boolean(id),
+    retry: false,
+  });
+}
+
+/** 부서가 지정되지 않은 사람. `department_id=none` 은 서버 센티널이다(P-61).
+ *
+ * 🔴 이 목록은 **조직으로 좁혀지지 않는다** — 사용자 목록 API 에 조직 조건이 없어서, 조직이
+ * 둘 이상 보이는 관리자에게는 모든 조직의 미지정 인원이 섞여 온다. 그래서 부르는 쪽이 보이는
+ * 조직이 하나일 때만 켠다(`enabled`). 키 뿌리가 `users` 인 이유는 파일 머리 주석에 있다. */
+export function useUnassignedPeople({ enabled = true } = {}) {
+  return useQuery({
+    queryKey: ["users", "by-department", "none"],
+    queryFn: () => api("/api/admin/users?department_id=none"),
+    enabled: Boolean(enabled),
     retry: false,
   });
 }

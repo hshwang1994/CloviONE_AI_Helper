@@ -1,44 +1,53 @@
 import React from "react";
-import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import Box from "@mui/material/Box";
 import { useAuth } from "../app/auth.jsx";
 import { OrgTree, isOrgRow, nestRows, pruneTree } from "./OrgTree.jsx";
 import {
   Button, Card, EmptyState, PageHeader, Skeleton,
 } from "../ui/kit.jsx";
-import { StatusKpiStrip } from "../ui/StatusKpi.jsx";
 import { FilterBar } from "../ui/FilterBar.jsx";
 import { FilterSelect, SearchBox } from "../ui/filters.jsx";
 import { useOrgTreeQuery, useOrganizations } from "./org/orgQueries.js";
 import { OrgDetailPanel } from "./org/OrgDetailPanel.jsx";
 import { DeptDetailPanel } from "./org/DeptDetailPanel.jsx";
-import { DeptCreateModal, OrgCreateModal } from "./org/orgModals.jsx";
+import { OrgCreateModal } from "./org/orgModals.jsx";
 import { LIST_RAIL_GRID } from "../ui/density.js";
+import { APPBAR_HEIGHT, BREAKPOINTS, STICKY_TOP_VAR } from "../ui/theme.js";
 
 /* 조직 콘솔 — 조직 관리, 부서 관리, 조직도가 **한 화면**이다.
  *
- * ## 무엇을 바꿨나
+ * ## 이 화면이 먼저 말하는 것 (D-500)
  *
- * 옛 화면은 3판(트리 | 전체 표 DataScreen | 인원)이었다. 트리를 눌러도 오른쪽에는 상세가
- * 아니라 같은 자료의 **전체 표**가 다시 섰고(계획서가 «우측 pane 이 트리 선택에 상세로
- * 반응하지 않는다»로 지목), PageHeader 가 화면에 둘, 검색은 왼쪽 판 안, 셋째 판(인원)은
- * 1920 미만에서 통째로 사라졌다. 가장 값진 숫자(부서 미지정 N명)는 12px 회색 부제였다.
+ * 「왼쪽에서 조직 · 부서 계층을 탐색하고, 오른쪽에서 고른 대상 하나를 관리한다.」 셋의 역할이 갈린다:
  *
- * 지금은 다른 화면과 같은 골격이다:
+ *   페이지 머리  제목 · 도움말 + 선택과 무관한 유일한 동작 「조직 추가」(전체 관리자만)
+ *   왼쪽 레일    탐색 — 판 머리에 검색 · 「사용」 · 조건 줄, 줄마다 이름 · 상태 배지 · 가지 인원 하나
+ *   오른쪽 판    관리 — 고른 조직이나 부서의 이름 · 정체 · 동작 묶음, 그 아래 사람과 정보
  *
- *   PageHeader(하나) → 요약 타일(부서 미지정을 타일로) → 전폭 탐색 줄(검색·사용 여부)
- *   → 건수 줄 → [트리 | **선택 반응형 상세 판**]
+ * ## 무엇을 걷었나
  *
- * 상세 판이 조직/부서의 사실·조작·소속 인원을 전부 든다 — 인원 판이 따로 없으니 모든
- * 폭에서 보인다. 표는 없앴다: 트리가 이미 전체 목록이고, 같은 화면에 같은 자료의 표를
- * 한 벌 더 세우는 것이 옛 화면의 소음이었다.
+ * 예전에는 같은 수가 세 그릇에 되풀이됐다 — 페이지 요약 타일 넷(조직 · 부서 · 구성원 · 부서 미지정), 트리 줄
+ * 부제(구성원 · 부서 · 부서 미지정 / 소속 · 하위 부서 · 하위 포함), 상세 판의 요약 타일 셋과 「포함 관계」 줄.
+ * 화면은 넓은데 정보는 한 벌이었고, 둘은 세는 법이 달라 서로 어긋나기까지 했다. 전체 합계는 어떤 결정에도
+ * 쓰이지 않는다(D-484 가 작업 보드 요약을 걷은 것과 같은 판단). 지금 수는 **한 곳에만** 선다: 가지 인원은
+ * 트리 줄, 직접 구성원은 부서 판의 「구성원 N명」, 부서 미지정은 조직 판의 「부서 미지정 N명」, 하위 부서 ·
+ * 부서 수는 정보 줄, 보관 계정은 사람 목록 아래 한 줄.
+ *
+ * 「부서 추가」는 페이지 머리에 있어서 어느 조직의 일인지 자리로 드러나지 않았고, 창이 조직을 다시 물었다.
+ * 지금은 조직 판의 「부서 추가」와 부서 판의 「하위 부서 추가」가 조직을 고정하고 상위 부서를 미리 채운 채
+ * 창을 연다. 이 화면의 채움(주 동작)은 그 단추 하나다.
  *
  * ## 선택은 주소다
  *
  * 부서 = `/departments/:id`(D-104 — 관리자 상세도 진짜 주소를 가진다), 조직 =
  * `/organizations?org=<id>`. 새로고침·공유에서 선택이 살아남는다. 아무것도 안 골랐으면
  * **첫 조직을 암묵으로** 보여 주되 주소는 안 바꾼다 — 빈 오른쪽 판은 화면 절반이 죽은
- * 상태고, 트리의 뿌리가 조직이라 방향(위→아래)이 맞다.
+ * 상태고, 트리의 뿌리가 조직이라 방향(위→아래)이 맞다. 만들고 나면 새 항목으로 옮겨 간다.
+ *
+ * 한 칸 배치(lg 미만)에서는 레일이 판 위에 먼저 선다. 거기서 트리를 고르면 판을 화면 안으로 옮기고
+ * 초점을 판 제목에 둔다 — 안 그러면 고른 결과가 화면 밖에서 바뀐다. 이 의도는 주소 이동의 `state` 로
+ * 넘긴다: 경로가 바뀌면 본문 경계가 화면을 새로 마운트하므로(App.jsx) 이 컴포넌트의 상태로는 못 넘긴다.
  *
  * ## 검색은 클라이언트, 사용 여부는 서버
  *
@@ -46,8 +55,33 @@ import { LIST_RAIL_GRID } from "../ui/density.js";
  * 없다(조상 보존은 `pruneTree`). 사용 여부는 서버 필터다 — 걸러진 부모의 고아 처리를
  * 서버가 안다(app/org/tree.py). */
 
+const NARROW_QUERY = `(max-width:${BREAKPOINTS.lg - 0.05}px)`;
+function isNarrowLayout() {
+  try {
+    return typeof window !== "undefined" && typeof window.matchMedia === "function"
+      && window.matchMedia(NARROW_QUERY).matches;
+  } catch (e) {
+    return false;
+  }
+}
+
+/* 판을 화면 안으로 옮기고 제목에 초점을 둔다. 부드러운 굴림을 쓰지 않는다 — 움직임 없이 곧바로 옮기므로
+   동작 줄이기 설정과 부딪히지 않는다(제품은 그 신호를 읽지 않는다, `ui/motion.js`). 판의 `scroll-margin-top`
+   이 고정 머리만큼 비켜 선다. */
+function revealPanel(heading) {
+  const panel = heading.closest('[data-testid="org-console-panel"]') || heading;
+  if (typeof panel.scrollIntoView === "function") panel.scrollIntoView({ block: "start" });
+  heading.focus({ preventScroll: true });
+}
+
+const PANEL_SX = {
+  minWidth: 0,
+  scrollMarginTop: `calc(var(${STICKY_TOP_VAR}, ${APPBAR_HEIGHT.xs}px) + 16px)`,
+};
+
 export function OrgConsole() {
   const navigate = useNavigate();
+  const location = useLocation();
   const routeParams = useParams();
   const [search, setSearchParams] = useSearchParams();
   const auth = useAuth();
@@ -72,26 +106,19 @@ export function OrgConsole() {
     [search],
   );
 
-  /* 표시용 트리는 사용 여부 조건을 따르고, 요약 타일은 **무필터** 트리로 센다 — 필터가
-     걸린 트리로 합산하면 「미사용 포함」을 고르는 순간 조직의 구성원 수가 흔들린다.
-     react-query 캐시가 같은 키를 물릴 때 왕복을 상쇄한다. */
+  /* 표시용 트리는 사용 여부 조건을 따르고(레일이 그린다), 상세 판이 읽는 행 · 경로 · 첫 조직은 **무필터**
+     트리에서 온다 — 「미사용」을 골라도 고른 부서의 경로와 조직이 흔들리지 않는다. react-query 캐시가 같은
+     키를 물릴 때 왕복을 상쇄한다. */
   const displayTree = useOrgTreeQuery(active);
   const fullTree = useOrgTreeQuery("");
   const organizations = useOrganizations();
 
   const [orgForm, setOrgForm] = React.useState(false);
-  const [deptForm, setDeptForm] = React.useState(false);
 
   const fullRows = (fullTree.data && fullTree.data.items) || [];
   const orgRows = fullRows.filter(isOrgRow);
-  const metric = {
-    orgs: orgRows.length,
-    depts: fullRows.length - orgRows.length,
-    members: orgRows.reduce((sum, r) => sum + (r.subtree_user_count || 0), 0),
-    unassigned: orgRows.reduce((sum, r) => sum + (r.user_count || 0), 0),
-  };
 
-  /* 건수 줄 — 지금 조건으로 트리에 **보이는 부서 수**다(조직 행은 부서가 아니다).
+  /* 조건 줄의 결과 수 — 지금 조건으로 트리에 **보이는 부서 수**다(조직 행은 부서가 아니다).
      검색의 조상 보존 규칙(pruneTree)과 같은 판정을 쓴다. */
   const displayRows = (displayTree.data && displayTree.data.items) || [];
   const visibleDeptCount = React.useMemo(() => {
@@ -109,18 +136,45 @@ export function OrgConsole() {
     : null;
   const selectedTreeId = deptId || selectedOrgId || null;
 
-  const selectRow = (row) => {
+  const goTo = (target, { reveal = false } = {}) => {
     const qs = new URLSearchParams();
     if (q) qs.set("q", q);
     if (active) qs.set("active", active);
-    if (isOrgRow(row)) {
-      qs.set("org", row.id);
-      navigate({ pathname: "/organizations", search: "?" + qs.toString() });
+    const state = reveal ? { orgPanelReveal: true } : undefined;
+    if (target.kind === "organization") {
+      qs.set("org", target.id);
+      navigate({ pathname: "/organizations", search: "?" + qs.toString() }, { state });
     } else {
       const tail = qs.toString();
-      navigate({ pathname: "/departments/" + row.id, search: tail ? "?" + tail : "" });
+      navigate({ pathname: "/departments/" + target.id, search: tail ? "?" + tail : "" }, { state });
     }
   };
+  const selectRow = (row) => goTo(
+    { id: row.id, kind: isOrgRow(row) ? "organization" : "department" },
+    { reveal: isNarrowLayout() },
+  );
+  /* 만든 뒤에는 그 항목으로 옮겨 간다 — 응답이 `{organization}` · `{department}` 봉투다. */
+  const openCreated = (kind) => (made) => {
+    const created = made && (made[kind] || made);
+    if (created && created.id) goTo({ id: created.id, kind });
+  };
+  /* 부서를 지운 뒤에는 그 부서가 있던 자리 — 상위 부서, 없으면 그 조직 — 로 옮겨 간다. */
+  const leaveDeleted = (dept) => {
+    if (dept.parent_id) goTo({ id: dept.parent_id, kind: "department" });
+    else if (dept.org_id) goTo({ id: dept.org_id, kind: "organization" });
+    else navigate({ pathname: "/organizations" });
+  };
+
+  /* 한 칸 배치에서 고른 결과로 판을 옮긴다(위 머리 주석). 제목이 그려지는 순간 한 번 — 부서 판은 상세를
+     받은 뒤에 제목이 선다. 경로 이동의 초점 옮기기(`app/routeAnnounce.js` — 본문으로 보낸다)가 같은 커밋의
+     뒤에서 돌므로 한 박자 늦춰 그 뒤에 둔다. */
+  const wantsReveal = Boolean(location.state && location.state.orgPanelReveal);
+  const revealedKey = React.useRef(null);
+  const headingRef = React.useCallback((el) => {
+    if (!el || !wantsReveal || revealedKey.current === location.key) return;
+    revealedKey.current = location.key;
+    window.setTimeout(() => { if (el.isConnected) revealPanel(el); }, 0);
+  }, [wantsReveal, location.key]);
 
   const mgmt = (auth.data && auth.data.management) || {};
   /* 조직 생성은 서버가 전역 관리자만 허용한다(app/org/router.py 403). 여기서 감추는 것은
@@ -134,94 +188,100 @@ export function OrgConsole() {
     active ? { key: "active", label: `사용: ${active === "true" ? "사용 중" : "미사용"}`, onDelete: () => setCondition({ active: "" }) } : null,
   ].filter(Boolean);
 
+  /* 레일 판 머리 — 검색과 「사용」이 트리만 거르므로 트리 판 안에 선다(조합 계약 C-1 의 필터 바 그대로).
+     22rem 레일에서는 검색이 줄을 다 쓰고 「사용」이 다음 줄로 접힌다. 걸린 조건과 그 조건의 부서 수는 같은 면
+     안 조건 줄이 말한다 — 조건이 없을 때의 전체 수는 어디에도 따로 세우지 않는다(결정에 안 쓰인다). */
+  const filterBar = (
+    <FilterBar
+      /* 자리표시 글은 22rem 레일의 검색 칸 안에 다 들어가야 한다 — 무엇을 찾는지는 칸의 이름(「조직도 검색」)과
+         바로 아래 트리가 말한다. */
+      search={(
+        <SearchBox
+          value={q}
+          onSearch={commitSearch}
+          placeholder="이름이나 식별자로 검색"
+          ariaLabel="조직도 검색"
+        />
+      )}
+      conditions={{
+        chips: conditionChips,
+        total: visibleDeptCount,
+        unit: "개 부서",
+        onClearAll: hasFilter ? () => setCondition({ q: "", active: "" }) : null,
+        clearLabel: "필터 지우기",
+      }}
+    >
+      <FilterSelect
+        label="사용"
+        value={active}
+        onChange={(v) => setCondition({ active: v || "" })}
+        options={[
+          { value: "true", label: "사용 중" },
+          { value: "false", label: "미사용" },
+        ]}
+      />
+    </FilterBar>
+  );
+
   return (
     <div className="c-screen">
       <PageHeader
         area="사용자와 권한"
         title="조직 관리"
-        description="조직도를 보면서 같은 화면에서 조직과 부서를 관리합니다."
-        actions={(
+        description="조직도에서 조직이나 부서를 고르고 그 자리에서 관리합니다."
+        help={(
           <>
-            {isGlobalAdmin ? (
-              <Button onClick={() => setOrgForm(true)}>조직 추가</Button>
-            ) : null}
-            <Button variant="primary" onClick={() => setDeptForm(true)}>부서 추가</Button>
+            왼쪽 조직도에서 조직이나 부서를 고르면 오른쪽 판에서 그 대상을 관리합니다. 조직도 줄의 수는 그 조직이나
+            부서에 속한 사람을 하위 부서까지 모두 센 수이고, 보관된 계정도 함께 셉니다. 부서가 지정되지 않은 사람이
+            있는 조직에는 ‘부서 미지정’ 표시가 붙습니다. 부서는 고른 조직이나 부서의 판에서 추가합니다.
           </>
         )}
+        actions={isGlobalAdmin ? (
+          <Button onClick={() => setOrgForm(true)}>조직 추가</Button>
+        ) : null}
       />
-
-      <StatusKpiStrip
-        ariaLabel="조직 요약"
-        sx={{ mb: 2 }}
-        items={[
-          { key: "orgs", label: "조직", value: metric.orgs },
-          { key: "depts", label: "부서", value: metric.depts },
-          { key: "members", label: "구성원", value: metric.members },
-          /* 계획서가 이 화면에서 가장 값진 숫자로 꼽은 값(E18) — 어디에도 안 속한 계정.
-             12px 회색 부제로 눕던 것을 타일로 세운다. 0 이면 조용한 0 이다. */
-          {
-            key: "unassigned", label: "부서 미지정", value: metric.unassigned,
-            primary: metric.unassigned > 0,
-          },
-        ]}
-      />
-
-      {/* 검색과 「사용」이 한 줄이다(조합 계약 C-1). 걸린 조건과 그 조건의 부서 수는 같은 면 안 조건 줄이 말한다 —
-          조건이 없을 때의 전체 수는 바로 위 요약 줄(「부서」)이 이미 말하므로 단독 결과 줄을 두지 않는다. */}
-      <FilterBar
-        search={(
-          <SearchBox
-            value={q}
-            onSearch={commitSearch}
-            placeholder="조직 또는 부서를 이름이나 식별자로 검색"
-            ariaLabel="조직도 검색"
-          />
-        )}
-        conditions={{
-          chips: conditionChips,
-          total: visibleDeptCount,
-          unit: "개 부서",
-          onClearAll: hasFilter ? () => setCondition({ q: "", active: "" }) : null,
-          clearLabel: "필터 지우기",
-        }}
-      >
-        <FilterSelect
-          label="사용"
-          value={active}
-          onChange={(v) => setCondition({ active: v || "" })}
-          options={[
-            { value: "true", label: "사용 중" },
-            { value: "false", label: "미사용" },
-          ]}
-        />
-      </FilterBar>
 
       {/* 좌측 레일 + 목록의 표준 트랙(density.js LIST_RAIL_GRID) — 문서 작업공간과 같은
-          한 벌이다. 손으로 짠 값(20~26rem·gap20px)이 화면마다 달랐던 자리다. */}
+          한 벌이다. 손으로 짠 값(20~26rem·gap20px)이 화면마다 달랐던 자리다.
+          레일 칸은 두 칸 배치에서 줄 높이만큼 늘어난다 — 그래야 그 안의 판이 붙박인 채 따라온다(OrgTree
+          `railCardSx`). 칸이 판 높이로 줄어 있으면 붙박이가 움직일 자리가 없다. */}
       <Box sx={LIST_RAIL_GRID}>
-        <Box data-testid="org-console-tree">
+        <Box data-testid="org-console-tree" sx={{ minWidth: 0, alignSelf: { lg: "stretch" } }}>
           <OrgTree
             selectedId={selectedTreeId}
             onSelect={selectRow}
             search={q}
             active={active}
             onClearSearch={() => setCondition({ q: "" })}
+            header={filterBar}
           />
         </Box>
-        <Box data-testid="org-console-panel" sx={{ minWidth: 0 }}>
+        <Box data-testid="org-console-panel" sx={PANEL_SX}>
+          {/* 판은 고른 대상마다 새로 선다(`key`) — 화면은 고를 때 다시 마운트되지 않으므로(`navEntry.jsx::screenKeyOf`), 판이
+              든 순간 상태(수정 · 추가 대화상자가 열려 있는가)가 다른 대상으로 따라가지 않게 한다. */}
           {deptId ? (
-            <DeptDetailPanel deptId={deptId} treeRow={selectedDeptRow} />
+            <DeptDetailPanel
+              key={deptId}
+              deptId={deptId}
+              treeRow={selectedDeptRow}
+              treeRows={fullRows}
+              headingRef={headingRef}
+              onCreated={openCreated("department")}
+              onDeleted={leaveDeleted}
+            />
           ) : selectedOrgId ? (
-            organizations.isPending || fullTree.isLoading ? (
+            /* 방금 만든 조직은 목록을 다시 받는 동안 아직 없다 — 그 사이 「찾지 못했습니다」를 세우지 않는다. */
+            organizations.isPending || fullTree.isLoading || (!selectedOrg && organizations.isFetching) ? (
               <Card><Skeleton lines={6} /></Card>
             ) : selectedOrg ? (
               <OrgDetailPanel
+                key={selectedOrgId}
                 org={selectedOrg}
                 treeRow={orgRows.find((r) => r.id === selectedOrgId) || null}
-                /* 이미 받아 둔 트리에서 이 조직의 부서만 걸러 넘긴다 — 상세 판이 스스로
-                   또 묻지 않는다(같은 자료를 두 번 받으면 한쪽만 최신인 자리가 생긴다). */
-                deptRows={fullRows.filter((r) => !isOrgRow(r) && r.org_id === selectedOrgId)}
-                onOpenDept={selectRow}
+                /* 부서 미지정 명단은 조직으로 안 좁혀진다 — 보이는 조직이 하나일 때만 명단을 그린다. */
+                singleOrg={orgRows.length === 1}
+                headingRef={headingRef}
+                onCreated={openCreated("department")}
               />
             ) : (
               <Card>
@@ -237,19 +297,14 @@ export function OrgConsole() {
               <EmptyState
                 layout="card"
                 title="왼쪽에서 조직이나 부서를 고릅니다."
-                help="고른 항목의 정보와 소속 인원이 여기에 나타납니다."
+                help="고른 항목의 정보와 구성원이 여기에 나타납니다."
               />
             </Card>
           )}
         </Box>
       </Box>
 
-      <OrgCreateModal open={orgForm} onClose={() => setOrgForm(false)} />
-      <DeptCreateModal
-        open={deptForm}
-        onClose={() => setDeptForm(false)}
-        canPickOrg={isGlobalAdmin}
-      />
+      <OrgCreateModal open={orgForm} onClose={() => setOrgForm(false)} onCreated={openCreated("organization")} />
     </div>
   );
 }

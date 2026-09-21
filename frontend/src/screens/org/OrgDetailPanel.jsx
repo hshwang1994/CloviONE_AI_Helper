@@ -1,65 +1,49 @@
 import React from "react";
 import { useMutation } from "@tanstack/react-query";
 import Box from "@mui/material/Box";
-import Link from "@mui/material/Link";
-import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { api } from "../../lib/api.js";
 import { useAuth } from "../../app/auth.jsx";
 import {
-  Badge, Button, Card, Section, TechDetail, useConfirm, useToast,
+  Badge, Button, Card, DetailGrid, DetailRow, OverflowMenu, Section, TechDetail, useConfirm, useToast,
 } from "../../ui/kit.jsx";
-import { StatusKpiStrip } from "../../ui/StatusKpi.jsx";
 import { handleApiError } from "../data-screen/apiError.js";
-import { FONT_SIZE, KO_WORD_BREAK, PROSE_MAX_WIDTH } from "../../ui/theme.js";
-import { useInvalidateOrgCaches } from "./orgQueries.js";
-import { OrgEditModal } from "./orgModals.jsx";
+import { FONT_SIZE, KO_WORD_BREAK } from "../../ui/theme.js";
+import { useInvalidateOrgCaches, useUnassignedPeople } from "./orgQueries.js";
+import { DeptCreateModal, OrgEditModal } from "./orgModals.jsx";
+import { OrgPeopleSection } from "./OrgPeopleGrid.jsx";
+import { INFO_GRID_SX, INFO_WIDE_ROW, OrgPanelHead } from "./OrgPanelHead.jsx";
 
-/* 조직 상세 판 — 트리에서 조직을 고르면 오른쪽이 이것으로 반응한다.
+/* 조직 상세 판 — 트리에서 조직을 고르면 오른쪽이 이것으로 반응한다. **고른 조직 하나를 관리하는 자리**다.
  *
- * 옛 화면의 오른쪽은 조직 **전체 표**(1행짜리 DataScreen)였다 — 트리를 눌러도 상세가
- * 아니라 같은 목록이 다시 섰고, 계획서가 그것을 이 화면의 결함으로 지목했다(«우측 pane 이
- * 트리 선택에 상세로 반응하지 않는다»). 지금은 고른 조직 하나의 사실과 그 조직에 할 수
- * 있는 일이 선다.
+ * ## 무엇을 걷었나
+ *
+ * 옛 판은 요약 타일 셋(부서 · 사용자 · 부서 미지정), 같은 수를 문장으로 되풀이한 「포함 관계」 줄, 그리고
+ * 트리를 한 번 더 그린 「부서 N개」 두 줄기 목록을 들었다. 페이지 머리의 요약 타일 넷까지 더하면 한 화면이
+ * 부서 수를 다섯 번, 구성원 수를 네 번 말했다. 지금은:
+ *
+ *   머리        이름 · 조직 · 상태 + 둘째 줄의 식별자 + 동작 묶음 하나
+ *   부서 미지정  그런 사람이 있을 때만 「부서 미지정 N명」 절 — 수만이 아니라 그 사람들을 보여 준다
+ *   정보        부서 수 · 조직 ID · 삭제 안내 · 비활성화 안내 · 변경 권한 안내
+ *
+ * 조직 전체의 구성원 수는 트리의 조직 줄이 말한다. 부서 목록은 트리가 그 목록이다.
+ *
+ * ## 조직을 바꾸는 권한은 서버가 말한다(`can_edit`)
+ *
+ * 조직 이름 · 상태 PATCH 는 전체 관리자만 통과한다(`require_global_management`). 서버가 그 답을 조직 응답에
+ * 싣는데(`app/org/router.py::_org_view`) 아무 화면도 안 읽어서, 범위 관리자가 「수정」을 눌러 저장할 때가
+ * 되어서야 403 을 봤다. 이제 그 값이 「수정」과 활성/비활성을 연다. 값을 모르는 옛 응답이면 이 화면이 이미
+ * 쓰는 전역 판정(`management.kind`)으로 떨어진다.
  *
  * 조직에 삭제가 없는 것은 서버 계약이다 — 사용자와 부서가 org_id 로 이 행을 가리키고
  * 있어 지우면 그 참조가 통째로 끊긴다. 대신 「비활성화」가 새 사용을 막는다. */
-
-/* 사실 한 줄. `span` 을 주면 두 칸을 다 쓴다(긴 산문 안내가 그렇다).
- *
- * 🔴 값 칸에 상한이 없었다. 이 판은 1920 에서 1,060px 인데 「default」 일곱 글자가 그중
- * 950px 를 배정받아, 네 줄이 카드 왼쪽 위에만 붙고 나머지가 통째로 빈 띠였다. 값 칸은
- * 읽을 수 있는 폭까지만 받는다. */
-function MetaRow({ label, children, span = false }) {
-  return (
-    <Box
-      sx={{
-        display: "grid", gridTemplateColumns: "7rem minmax(0, 1fr)", gap: 1, py: 0.5,
-        ...(span ? { gridColumn: { lg: "1 / -1" } } : null),
-      }}
-    >
-      <Typography variant="body2" color="text.secondary">{label}</Typography>
-      <Typography variant="body2" component="div" sx={{ ...KO_WORD_BREAK, maxWidth: PROSE_MAX_WIDTH }}>
-        {children}
-      </Typography>
-    </Box>
-  );
-}
-
-/* 사실 목록. 넓은 판에서는 두 줄기로 나눠 **폭을 실제로 쓴다** — 한 줄기로 두면 값이 짧은
-   줄 넷이 카드 왼쪽에만 쌓이고 오른쪽 절반이 빈다. */
-const META_GRID = {
-  display: "grid",
-  columnGap: 3,
-  gridTemplateColumns: { xs: "1fr", lg: "repeat(2, minmax(0, 1fr))" },
-};
-
-export function OrgDetailPanel({ org, treeRow, deptRows = [], onOpenDept }) {
+export function OrgDetailPanel({ org, treeRow, singleOrg = false, headingRef, onCreated }) {
   const toast = useToast();
   const confirm = useConfirm();
   const invalidate = useInvalidateOrgCaches();
   const auth = useAuth();
   const [editing, setEditing] = React.useState(false);
+  const [adding, setAdding] = React.useState(false);
 
   const setStatus = useMutation({
     mutationFn: (status) =>
@@ -72,7 +56,15 @@ export function OrgDetailPanel({ org, treeRow, deptRows = [], onOpenDept }) {
   });
 
   const active = org.status === "active";
-  const unassigned = treeRow ? treeRow.user_count || 0 : null;
+  /* 조직 줄의 `user_count` 가 곧 부서가 지정되지 않은 사람이다(app/org/tree.py — 보관된 계정 포함). */
+  const unassigned = treeRow ? treeRow.user_count || 0 : 0;
+  /* 부서 미지정 명단은 **조직으로 좁혀지지 않는다**(`useUnassignedPeople`) — 보이는 조직이 하나일 때만
+     받아 그린다. 여럿이면 수와 사용자 화면 링크만 둔다. */
+  const people = useUnassignedPeople({ enabled: singleOrg && unassigned > 0 });
+
+  const actor = auth.data || {};
+  const mgmt = actor.management || {};
+  const canEdit = typeof org.can_edit === "boolean" ? org.can_edit : (!mgmt.kind || mgmt.kind === "global");
 
   /* 🔴 **자기 조직 정지는 시스템 관리자만 할 수 있다**(org-09).
    *
@@ -83,8 +75,7 @@ export function OrgDetailPanel({ org, treeRow, deptRows = [], onOpenDept }) {
    * 같은 콘솔이 「조직 추가」에 대해서는 이미 이 규칙을 쓴다(OrgConsole.jsx).
    *
    * 남의 조직 정지는 그대로 둔다 — 자기 세션이 안 끊기므로 서버도 막지 않는다. 활성화도
-   * 그대로다(정지를 푸는 것은 이 함수의 대상이 아니다). */
-  const actor = auth.data || {};
+   * 그대로다(정지를 푸는 것은 이 함수의 대상이 아니다). 둘 다 `can_edit` 가 먼저다. */
   const canSuspend = actor.role === "system_admin" || actor.org_id !== org.id;
 
   const suspend = async () => {
@@ -100,138 +91,97 @@ export function OrgDetailPanel({ org, treeRow, deptRows = [], onOpenDept }) {
     if (ok) setStatus.mutate("suspended");
   };
 
-  return (
-    <Card sx={{ display: "grid", gap: 2, alignContent: "start" }}>
-      <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
-        <Typography component="h2" variant="sectionTitle" sx={{ ...KO_WORD_BREAK, minWidth: 0 }}>
-          {org.name}
-        </Typography>
-        <Badge value="조직" kind="info" />
-        <Badge value={active ? "사용 중" : "미사용"} kind={active ? "ok" : "warn"} />
-        <Box sx={{ flex: 1 }} />
-        {/* 판 머리 동작은 전부 30 보조다 — 링크 · 활성/비활성 · 「수정」 모두 채움이 아니다. 화면의 채움은 페이지 머리 「부서 추가」
-            하나다(조합 계약 C-4 · 부서 판과 같다). */}
-        <Button size="sm"
-                href={"#/audit?object_type=organization&object_id=" + org.id}>
-          감사 로그에서 보기
-        </Button>
-        {active && !canSuspend ? null : (
-          <Button size="sm" onClick={active ? suspend : () => setStatus.mutate("active")}
-                  variant={active ? "danger" : "default"} loading={setStatus.isPending}>
-            {active ? "비활성화" : "활성화"}
-          </Button>
-        )}
-        <Button size="sm" onClick={() => setEditing(true)}>수정</Button>
-      </Box>
+  const statusItem = !canEdit ? null
+    : active
+      ? (canSuspend
+        ? { key: "suspend", label: "비활성화", tone: "danger", disabled: setStatus.isPending, onClick: suspend }
+        : null)
+      : { key: "activate", label: "활성화", disabled: setStatus.isPending, onClick: () => setStatus.mutate("active") };
+  const menu = [
+    { key: "audit", label: "감사 로그에서 보기", href: "#/audit?object_type=organization&object_id=" + org.id },
+    statusItem,
+  ];
+  const departmentCount = org.department_count || 0;
 
-      <StatusKpiStrip
-        ariaLabel={org.name + " 요약"}
-        items={[
-          { key: "departments", label: "부서", value: org.department_count ?? 0 },
-          { key: "users", label: "사용자", value: org.user_count ?? 0 },
-          /* 계획서가 이 화면에서 가장 값진 숫자로 꼽은 값 — 어디에도 안 속한 계정 수다.
-             12px 회색 부제로 눕혀 두던 것을 요약 타일로 세운다. 0 이면 조용히 0 이다. */
-          {
-            key: "unassigned", label: "부서 미지정", value: unassigned ?? "-",
-            primary: (unassigned || 0) > 0,
-          },
-        ]}
+  return (
+    <Card sx={{ display: "grid", gap: 3, alignContent: "start" }}>
+      <OrgPanelHead
+        title={org.name}
+        headingRef={headingRef}
+        badges={(
+          <>
+            <Badge value="조직" kind="info" />
+            <Badge value={active ? "사용 중" : "미사용"} kind={active ? "ok" : "warn"} />
+          </>
+        )}
+        /* 조직의 정체는 식별자다 — 부서 판의 둘째 줄(전체 경로)과 같은 자리다. 정보 절에서 한 번 더 말하지 않는다. */
+        identity={(
+          <Typography component="p" sx={{ m: 0, fontSize: FONT_SIZE.bodySm, color: "text.secondary", ...KO_WORD_BREAK }}>
+            식별자{" "}
+            <Box component="span" sx={{ color: "text.primary" }}>{org.slug}</Box>
+          </Typography>
+        )}
+        actionsLabel={org.name + " 작업"}
+        /* 동작 순서는 제품의 머리 규칙과 같다 — 보조(수정) → 더 보기 → 채움(부서 추가)이 오른쪽 끝이다(D-501). */
+        actions={(
+          <>
+            {canEdit ? <Button size="sm" onClick={() => setEditing(true)}>수정</Button> : null}
+            <OverflowMenu size="sm" ariaLabel={org.name + " 작업 더 보기"} items={menu} />
+            <Button size="sm" variant="primary" onClick={() => setAdding(true)}>부서 추가</Button>
+          </>
+        )}
       />
 
-      {/* 🔴 예전에는 「조직 ID」가 카드 **오른쪽 아래 구석**에, 「감사 로그에서 보기」가
-          왼쪽 아래 구석에 떨어져 있었다(둘 사이를 `flex:1` 스페이서가 1,000px 벌렸다).
-          조직 ID 는 이 조직의 **사실**이므로 사실 목록 안에 있고, 감사 로그로 가는 것은
-          이 조직에 하는 **일**이므로 위 동작 줄에 있다. */}
-      {/* 카드의 마지막 절이라 아래 여백을 안 남긴다 — `Section` 기본 `mb` 가 카드 밑에
-          빈 띠로 남는다. */}
-      <Section title="정보">
-        <Box sx={META_GRID}>
-          <MetaRow label="식별자">{org.slug}</MetaRow>
-          <MetaRow label="포함 관계">
-            {"부서 " + (org.department_count || 0) + "개, 사용자 " + (org.user_count || 0) + "명"}
-          </MetaRow>
-          {unassigned ? (
-            <MetaRow label="부서 미지정">
-              {/* `department_id=none` 은 서버 센티널이다(P-61) — 사용자 화면이 그 사람들만
-                  거른 목록을 연다. 예전에는 필터 없는 전체 목록으로 보내 숫자만 말했다. */}
-              <Link href="#/users?department_id=none" underline="hover">
-                {"부서가 지정되지 않은 사용자 " + unassigned + "명을 사용자 화면에서 확인합니다."}
-              </Link>
-            </MetaRow>
-          ) : null}
-          <MetaRow label="조직 ID">
+      {unassigned > 0 ? (
+        <OrgPeopleSection
+          label="부서 미지정"
+          count={unassigned}
+          query={singleOrg ? people : null}
+          recorded={unassigned}
+          /* `department_id=none` 은 서버 센티널이다(P-61) — 사용자 화면이 그 사람들만 거른 목록을 연다. */
+          listHref="#/users?department_id=none"
+          emptyText="지금 쓰는 계정 중에는 부서가 없는 사람이 없습니다."
+          note={(
+            <Typography variant="body2" color="text.secondary" sx={KO_WORD_BREAK}>
+              사용자 화면은 다른 조직에서 부서가 없는 사람도 함께 보여 줍니다.
+            </Typography>
+          )}
+        />
+      ) : null}
+
+      <Section title="정보" sx={{ mb: 0 }}>
+        <DetailGrid sx={INFO_GRID_SX}>
+          <DetailRow label="부서">{departmentCount ? departmentCount + "개" : "없음"}</DetailRow>
+          <DetailRow label="조직 ID">
             <TechDetail label="식별자 보기">{org.id}</TechDetail>
-          </MetaRow>
-          <MetaRow label="삭제 안내" span>
+          </DetailRow>
+          <DetailRow label="삭제" sx={INFO_WIDE_ROW}>
             조직은 지울 수 없습니다. 사용자와 부서가 이 조직을 가리키고 있어 지우면 그 연결이
             끊깁니다. 대신 비활성화로 새 사용을 막으세요.
-          </MetaRow>
-          {/* 버튼이 사라진 자리 대신 이 줄이 이유를 말한다 — 부서 판이 삭제에 대해 이미
-              쓰는 규칙과 같다. */}
-          {active && !canSuspend ? (
-            <MetaRow label="비활성화 안내" span>
+          </DetailRow>
+          {/* 메뉴에서 사라진 항목 대신 이 줄들이 이유를 말한다 — 부서 판이 삭제에 대해 쓰는 규칙과 같다. */}
+          {canEdit && active && !canSuspend ? (
+            <DetailRow label="비활성화" sx={INFO_WIDE_ROW}>
               자기 조직 비활성화는 시스템 관리자만 할 수 있습니다. 비활성화하면 소속 사용자가
               모두 즉시 로그아웃되어, 되돌릴 사람이 이 조직 안에 남지 않기 때문입니다.
-            </MetaRow>
+            </DetailRow>
           ) : null}
-        </Box>
-      </Section>
-
-      {/* 🔴 이 판은 사실 다섯 줄뿐이라 **비어 있는 것이 정상이 아니라 결함**이었다 —
-          1,080px 짜리 판에 500px 짜리 내용을 놓고 나머지를 빈칸으로 뒀다. 이 조직에서
-          가장 값진 내용은 **그 안에 뭐가 있는가**이고, 그 자료는 이미 받아 둔 트리에
-          들어 있다(부서 판이 소속 인원 목록을 드는 것과 같은 자리·같은 이유).
-          넓은 화면에서는 두 줄기로 세워 폭을 내용으로 채운다. */}
-      <Section title={`부서 ${deptRows.length}개`} sx={{ mb: 0 }}>
-        {deptRows.length === 0 ? (
-          <Typography variant="body2" color="text.secondary" sx={KO_WORD_BREAK}>
-            이 조직에는 아직 부서가 없습니다. 위의 ‘부서 추가’로 만들 수 있습니다.
-          </Typography>
-        ) : (
-          <Box
-            component="ul"
-            sx={{
-              listStyle: "none", m: 0, p: 0, display: "grid", columnGap: 3, rowGap: 0.5,
-              gridTemplateColumns: { xs: "1fr", lg: "repeat(2, minmax(0, 1fr))" },
-            }}
-          >
-            {deptRows.map((row) => (
-              <Box
-                component="li"
-                key={row.id}
-                sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0, py: 0.5 }}
-              >
-                {/* 계층은 들여쓰기가 말한다 — 트리와 같은 깊이를 쓴다. */}
-                <Box sx={{ width: `${Math.max(0, (row.depth || 1) - 1) * 1.1}rem`, flexShrink: 0 }} />
-                {/* 🔴 이름을 `flex:1` 로 늘리지 않는다. 늘리면 짧은 부서명과 인원수가 열
-                    양 끝으로 벌어져 가운데가 통째로 빈다 — 이 판이 원래 앓던 병이다.
-                    이름은 제 길이만큼만 쓰고 인원수가 바로 뒤에 붙는다. 긴 이름은
-                    말줄임으로 잘린다. */}
-                <Link
-                  component="button"
-                  type="button"
-                  underline="hover"
-                  onClick={() => (onOpenDept ? onOpenDept(row) : undefined)}
-                  sx={{
-                    minWidth: 0, textAlign: "left", font: "inherit", fontSize: FONT_SIZE.bodySm,
-                    overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                  }}
-                >
-                  {row.name}
-                </Link>
-                {row.active ? null : <Badge value="미사용" kind="warn" />}
-                <Typography variant="caption" color="text.secondary" sx={{ flexShrink: 0 }}>
-                  {`소속 ${row.user_count || 0}명`}
-                  {row.child_count ? `, 하위 ${row.child_count}개` : ""}
-                </Typography>
-                <Box sx={{ flex: 1 }} />
-              </Box>
-            ))}
-          </Box>
-        )}
+          {!canEdit ? (
+            <DetailRow label="변경 권한" sx={INFO_WIDE_ROW}>
+              조직 이름과 상태는 전체 관리자만 바꿀 수 있습니다.
+            </DetailRow>
+          ) : null}
+        </DetailGrid>
       </Section>
 
       <OrgEditModal open={editing} org={org} onClose={() => setEditing(false)} />
+      <DeptCreateModal
+        open={adding}
+        onClose={() => setAdding(false)}
+        fixedOrgId={org.id}
+        title={org.name + "에 부서 추가"}
+        onCreated={onCreated}
+      />
     </Card>
   );
 }

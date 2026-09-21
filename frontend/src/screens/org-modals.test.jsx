@@ -3,13 +3,15 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen, within, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import "@testing-library/jest-dom/vitest";
 
-/* 조직 콘솔의 폼 모달 — 만든 값이 그대로 실려 나가고, 수정은 바뀐 것만 보낸다.
+/* qa-contract-change: 조직 관리 IA 재설계(P6)로 부서 추가가 페이지 머리에서 조직 판의 「부서 추가」로 옮겨 갔고, 창이 그 조직을 고정해 조직 칸 없이 열린다(요청에는 org_id 가 실린다). 조직 칸 단언을 「조직 칸이 없고 org_id 가 실린다」로 바꾸고, 만든 뒤 새 항목으로 옮겨 가는 단언을 더했다. 수정의 diff 단언은 그대로다.
  *
- * 1) 조직 추가는 **전역 관리자만** 본다(서버가 403 으로 막는 것과 같은 선 — 감춤은 안내다).
- * 2) 부서 추가의 상위 후보는 조건 무관 전량이고, 비우면 최상위(null)로 나간다.
+ * 조직 콘솔의 폼 모달 — 만든 값이 그대로 실려 나가고, 수정은 바뀐 것만 보낸다.
+ *
+ * 1) 조직 추가는 **전역 관리자만** 본다(서버가 403 으로 막는 것과 같은 선 — 감춤은 안내다). 만들면 그 조직으로 간다.
+ * 2) 부서 추가는 고른 조직의 판에서 연다 — 상위 후보는 그 조직의 사용 중인 부서이고, 비우면 최상위(null)로 나간다.
  * 3) 수정은 diff 만 PATCH 한다 — 무변경 저장은 요청 없이 「변경된 내용이 없습니다.」
  * 4) 부서 수정의 상위 후보에서 자기 자신은 빠진다.
  */
@@ -66,12 +68,18 @@ function mockApi() {
   });
 }
 
+function LocationProbe() {
+  const location = useLocation();
+  return <div data-testid="location-probe">{location.pathname + location.search}</div>;
+}
+
 function renderAt(path = "/organizations") {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
       <ThemeModeProvider><ToastProvider><ConfirmProvider>
         <MemoryRouter initialEntries={[path]}>
+          <LocationProbe />
           <Routes>
             <Route path="/organizations" element={<OrgConsole />} />
             <Route path="/departments/:id" element={<OrgConsole />} />
@@ -84,11 +92,12 @@ function renderAt(path = "/organizations") {
 
 const WAIT = { timeout: 8000 };
 vi.setConfig({ testTimeout: 20000 });
+const panel = () => screen.getByTestId("org-console-panel");
 
 beforeEach(() => { apiMock.mockReset(); authState.kind = "global"; });
 
 describe("조직 추가", () => {
-  it("전역 관리자에게만 입구가 보이고, 이름과 식별자가 그대로 실려 나간다", async () => {
+  it("전역 관리자에게만 입구가 보이고, 이름과 식별자가 그대로 실려 나가며, 만든 조직으로 옮겨 간다", async () => {
     mockApi();
     renderAt();
     await userEvent.click(await screen.findByRole("button", { name: "조직 추가" }, WAIT));
@@ -102,31 +111,33 @@ describe("조직 추가", () => {
       expect(post, "조직 생성 요청이 안 나갔다").toBeTruthy();
       expect(post[1].body).toEqual({ name: "새회사", slug: "new-co" });
     }, WAIT);
+    await waitFor(() => expect(screen.getByTestId("location-probe").textContent)
+      .toBe("/organizations?org=made-1"), WAIT);
   });
 
-  it("부서 범위 관리자에게는 입구가 없다(서버 403 과 같은 선의 안내)", async () => {
+  it("부서 범위 관리자에게는 입구가 없다(서버 403 과 같은 선의 안내) — 부서 추가는 조직 판에 그대로 있다", async () => {
     authState.kind = "dept";
     mockApi();
     renderAt();
     await screen.findByTestId("org-console-tree", {}, WAIT);
+    await within(panel()).findByRole("heading", { name: "클로비원" }, WAIT);
     expect(screen.queryByRole("button", { name: "조직 추가" })).toBeNull();
-    expect(screen.getByRole("button", { name: "부서 추가" })).toBeInTheDocument();
+    expect(within(panel()).getByRole("button", { name: "부서 추가" })).toBeInTheDocument();
   });
 });
 
 describe("부서 추가", () => {
-  it("상위 후보는 전량이고, 비우면 최상위(null)로 나간다 — 조직 칸은 조직이 둘일 때 선다", async () => {
+  it("상위 후보는 그 조직의 부서이고, 비우면 최상위(null)로 나간다 — 조직 칸 없이 org_id 가 실린다", async () => {
     mockApi();
     renderAt();
-    await userEvent.click(await screen.findByRole("button", { name: "부서 추가" }, WAIT));
-    const dlg = await screen.findByRole("dialog", {}, WAIT);
-    // 후보 전량 — 지금 화면 조건과 무관하게 두 부서가 다 선다.
+    await userEvent.click(await within(panel()).findByRole("button", { name: "부서 추가" }, WAIT));
+    const dlg = await screen.findByRole("dialog", { name: "클로비원에 부서 추가" }, WAIT);
     await userEvent.click(within(dlg).getByLabelText(/상위 부서/));
     expect(await screen.findByRole("option", { name: "영업팀" }, WAIT)).toBeInTheDocument();
     expect(screen.getByRole("option", { name: "개발팀" })).toBeInTheDocument();
     await userEvent.click(screen.getByRole("option", { name: "(최상위)" }));
-    // 전역 관리자 + 조직 둘 — 조직 칸이 선다.
-    expect(within(dlg).getByLabelText(/조직/)).toBeInTheDocument();
+    // 조직은 누른 자리(조직 판)가 이미 정했다 — 다시 묻는 칸이 없다.
+    expect(within(dlg).queryByLabelText(/^조직/)).toBeNull();
 
     await userEvent.type(within(dlg).getByLabelText(/부서 이름/), "품질팀");
     await userEvent.click(within(dlg).getByRole("button", { name: "추가" }));
@@ -136,6 +147,7 @@ describe("부서 추가", () => {
       expect(post, "부서 생성 요청이 안 나갔다").toBeTruthy();
       expect(post[1].body.name).toBe("품질팀");
       expect(post[1].body.parent_id ?? null).toBeNull();
+      expect(post[1].body.org_id).toBe("org-1");
     }, WAIT);
   });
 });
@@ -144,8 +156,8 @@ describe("수정은 바뀐 것만 보낸다(diff)", () => {
   it("무변경 저장은 요청 없이 「변경된 내용이 없습니다.」", async () => {
     mockApi();
     renderAt();
-    const panel = await screen.findByTestId("org-console-panel", {}, WAIT);
-    await userEvent.click(await within(panel).findByRole("button", { name: "수정" }, WAIT));
+    const p = await screen.findByTestId("org-console-panel", {}, WAIT);
+    await userEvent.click(await within(p).findByRole("button", { name: "수정" }, WAIT));
     const dlg = await screen.findByRole("dialog", {}, WAIT);
     await userEvent.click(within(dlg).getByRole("button", { name: "저장" }));
     expect(await screen.findByText("변경된 내용이 없습니다.", {}, WAIT)).toBeInTheDocument();
@@ -155,16 +167,16 @@ describe("수정은 바뀐 것만 보낸다(diff)", () => {
   it("조직 이름을 바꾸면 그 필드만 PATCH 로 나간다", async () => {
     mockApi();
     renderAt();
-    const panel = await screen.findByTestId("org-console-panel", {}, WAIT);
-    await userEvent.click(await within(panel).findByRole("button", { name: "수정" }, WAIT));
+    const p = await screen.findByTestId("org-console-panel", {}, WAIT);
+    await userEvent.click(await within(p).findByRole("button", { name: "수정" }, WAIT));
     const dlg = await screen.findByRole("dialog", {}, WAIT);
     const box = within(dlg).getByLabelText(/조직 이름/);
     await userEvent.clear(box);
     await userEvent.type(box, "클로비원 주식회사");
     await userEvent.click(within(dlg).getByRole("button", { name: "저장" }));
     await waitFor(() => {
-      const patch = apiMock.mock.calls.find(([p, o]) =>
-        String(p) === "/api/admin/organizations/org-1" && o && o.method === "PATCH");
+      const patch = apiMock.mock.calls.find(([p2, o]) =>
+        String(p2) === "/api/admin/organizations/org-1" && o && o.method === "PATCH");
       expect(patch, "수정 요청이 안 나갔다").toBeTruthy();
       expect(patch[1].body).toEqual({ name: "클로비원 주식회사" });
     }, WAIT);
@@ -173,8 +185,8 @@ describe("수정은 바뀐 것만 보낸다(diff)", () => {
   it("부서 수정의 상위 후보에서 자기 자신은 빠진다", async () => {
     mockApi();
     renderAt("/departments/dep-sales");
-    const panel = await screen.findByTestId("org-console-panel", {}, WAIT);
-    await userEvent.click(await within(panel).findByRole("button", { name: "수정" }, WAIT));
+    const p = await screen.findByTestId("org-console-panel", {}, WAIT);
+    await userEvent.click(await within(p).findByRole("button", { name: "수정" }, WAIT));
     const dlg = await screen.findByRole("dialog", {}, WAIT);
     await userEvent.click(within(dlg).getByLabelText(/상위 부서/));
     expect(await screen.findByRole("option", { name: "개발팀" }, WAIT)).toBeInTheDocument();

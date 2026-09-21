@@ -6,7 +6,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import "@testing-library/jest-dom/vitest";
 
-/* 부서 상세의 **삭제 안내와 확인 문구가 서버 판정과 같은 말을 하는가**(org-02 · xc-01 · xc-04).
+/* qa-contract-change: 조직 관리 IA 재설계(P6)로 부서 삭제가 판 머리 단추에서 「더 보기」 메뉴 항목으로 옮겨 갔고, 막힌 이유 문장 옆에 막는 것(소속 사용자 · 보관된 계정)으로 가는 링크가 붙었다 — 단추 단언을 메뉴 항목 단언으로 옮기고 링크 주소 단언을 더했다. 서버 이유 문장은 한 글자도 바뀌지 않는다.
+ *
+ * 부서 상세의 **삭제 안내와 확인 문구가 서버 판정과 같은 말을 하는가**(org-02 · xc-01 · xc-04).
  *
  * 실측(2026-09-06 · 자기 서버): 하위 부서 하나를 가진 부서의 상세 판이 「삭제하면 하위 부서
  * 1개가 최상위 부서로 올라갑니다」라고 적고 삭제 단추를 세웠다. 확인 창은 「되돌릴 수
@@ -17,7 +19,7 @@ import "@testing-library/jest-dom/vitest";
  *
  * 그래서 여기서 지키는 성질은 「화면이 스스로 세지 않는다」다. 판정도 문장도 상세 응답의
  * `delete_precheck` 에서 오고(app/org/service.py), 화면은 그것을 그리기만 한다. 표본은
- * 서버가 실제로 싣는 모양 그대로다.
+ * 서버가 실제로 싣는 모양 그대로다. 막는 갈래 중 이 콘솔에 **갈 곳이 있는 것**(소속 사용자)만 링크를 단다.
  */
 
 const apiMock = vi.fn();
@@ -36,7 +38,7 @@ const AT = "2026-01-02T03:04:05Z";
 
 const TREE = [
   { id: "org-1", kind: "organization", name: "클로비원", depth: 0, path: "클로비원",
-    active: true, user_count: 0, child_count: 4, subtree_user_count: 0, created_at: AT },
+    active: true, user_count: 0, child_count: 5, subtree_user_count: 3, created_at: AT },
   { id: "dep-parent", kind: "department", name: "본부", depth: 1, path: "클로비원 › 본부",
     org_id: "org-1", active: true, user_count: 0, child_count: 1, subtree_user_count: 0, created_at: AT },
   { id: "dep-free", kind: "department", name: "빈부서", depth: 1, path: "클로비원 › 빈부서",
@@ -46,17 +48,19 @@ const TREE = [
   { id: "dep-archived", kind: "department", name: "보관프로젝트부서", depth: 1,
     path: "클로비원 › 보관프로젝트부서", org_id: "org-1", active: true, user_count: 0,
     child_count: 0, subtree_user_count: 0, created_at: AT },
+  { id: "dep-people", kind: "department", name: "사람있는부서", depth: 1, path: "클로비원 › 사람있는부서",
+    org_id: "org-1", active: true, user_count: 3, child_count: 0, subtree_user_count: 3, created_at: AT },
 ];
 
 const ORGS = [{ id: "org-1", name: "클로비원", slug: "clovirone", status: "active",
-  department_count: 4, user_count: 0, created_at: AT }];
+  department_count: 5, user_count: 3, created_at: AT }];
 
 const base = (id, name, extra) => ({
   id, name, active: true, parent_id: null, org_id: "org-1", org_name: "클로비원",
   user_count: 0, created_at: AT, ...extra,
 });
 
-/* 서버가 실제로 내는 네 가지 답. 문장은 `app/org/service.py::_blocked_message` 와
+/* 서버가 실제로 내는 다섯 가지 답. 문장은 `app/org/service.py::_blocked_message` 와
    `detached_message` 가 만드는 그대로다 — 409 와 같은 함수라 눌러 보기 전과 뒤가 같은 말이다. */
 const DEPT_ITEMS = {
   // 하위 부서가 막는다 — 예전 화면이 「최상위로 올라갑니다」라고 약속하던 바로 그 경우다.
@@ -99,6 +103,20 @@ const DEPT_ITEMS = {
         + " 그대로 유지됩니다.",
     },
   }),
+  // 사람이 막는다 — 그중 한 명은 보관된 계정이라 사용자 목록 기본 화면에 안 보인다(org-08).
+  "dep-people": base("dep-people", "사람있는부서", {
+    user_count: 3,
+    child_department_count: 0,
+    delete_precheck: {
+      deletable: false,
+      blockers: [{ kind: "users", label: "소속 사용자", count: 3, archived_count: 1 }],
+      detachables: [],
+      reason: "이 부서에 소속 사용자 3명이 연결되어 있어 삭제할 수 없습니다."
+        + " 그중 보관된 계정 1명은 목록에 보이지 않으니 보관함을 함께 확인해 주세요."
+        + " 먼저 다른 부서로 옮기거나, '비활성'으로 두면 새로 고를 수는 없지만 기존 연결은"
+        + " 그대로 유지됩니다.",
+    },
+  }),
 };
 
 function mockApi() {
@@ -123,7 +141,10 @@ function renderDept(id) {
     <QueryClientProvider client={qc}>
       <ThemeModeProvider><ToastProvider><ConfirmProvider>
         <MemoryRouter initialEntries={["/departments/" + id]}>
-          <Routes><Route path="/departments/:id" element={<OrgConsole />} /></Routes>
+          <Routes>
+            <Route path="/departments/:id" element={<OrgConsole />} />
+            <Route path="/organizations" element={<OrgConsole />} />
+          </Routes>
         </MemoryRouter>
       </ConfirmProvider></ToastProvider></ThemeModeProvider>
     </QueryClientProvider>,
@@ -141,32 +162,61 @@ async function openPanel(id, name) {
     .findByRole("heading", { name }, WAIT);
 }
 
+/** 「더 보기」를 열어 항목 이름을 읽는다. `keepOpen` 이면 열린 메뉴를 돌려준다(항목을 누를 때). */
+async function openMenu(name, { keepOpen = false } = {}) {
+  await userEvent.click(within(panel()).getByRole("button", { name: `${name} 작업 더 보기` }));
+  const menu = await screen.findByRole("menu", {}, WAIT);
+  if (keepOpen) return menu;
+  const names = within(menu).getAllByRole("menuitem").map((m) => m.textContent);
+  await userEvent.keyboard("{Escape}");
+  await waitFor(() => expect(screen.queryByRole("menu")).toBeNull(), WAIT);
+  return names;
+}
+
 describe("서버가 막는 부서", () => {
   beforeEach(() => { apiMock.mockReset(); });
 
-  it("하위 부서가 있으면 삭제 단추가 없고, 안내는 서버가 낸 이유를 그대로 말한다", async () => {
+  it("하위 부서가 있으면 메뉴에 삭제가 없고, 안내는 서버가 낸 이유를 그대로 말한다", async () => {
     await openPanel("dep-parent", "본부");
+    expect(await openMenu("본부")).not.toContain("삭제");
     expect(within(panel()).queryByRole("button", { name: "삭제" })).toBeNull();
     expect(within(panel()).getByText(DEPT_ITEMS["dep-parent"].delete_precheck.reason))
       .toBeInTheDocument();
     // 🔴 서버와 정반대였던 약속은 화면 어디에도 없다 — 이것이 이 시험의 핵심이다.
     expect(panel().textContent).not.toContain("최상위 부서로 올라갑니다");
+    // 하위 부서는 바로 왼쪽 트리가 그 목록이다 — 따로 갈 곳이 없어 링크를 만들지 않는다.
+    expect(within(panel()).queryByRole("link", { name: "소속 사용자 보기" })).toBeNull();
   });
 
   it("보관되어 목록에 안 보이는 것이 막고 있으면 그 사실까지 말한다(xc-04)", async () => {
     await openPanel("dep-archived", "보관프로젝트부서");
-    expect(within(panel()).queryByRole("button", { name: "삭제" })).toBeNull();
+    expect(await openMenu("보관프로젝트부서")).not.toContain("삭제");
     expect(panel().textContent).toContain("보관된 프로젝트 1건은 목록에 보이지 않으니");
+    expect(within(panel()).getByText(DEPT_ITEMS["dep-archived"].delete_precheck.reason))
+      .toBeInTheDocument();
+  });
+
+  it("사람이 막으면 이유 문장 옆에 그 사람들 · 보관된 계정으로 가는 링크가 선다", async () => {
+    await openPanel("dep-people", "사람있는부서");
+    expect(await openMenu("사람있는부서")).not.toContain("삭제");
+    expect(within(panel()).getByText(DEPT_ITEMS["dep-people"].delete_precheck.reason))
+      .toBeInTheDocument();
+    expect(within(panel()).getByRole("link", { name: "소속 사용자 보기" }).getAttribute("href"))
+      .toBe("#/users?department_id=dep-people");
+    expect(within(panel()).getByRole("link", { name: "보관된 계정 보기" }).getAttribute("href"))
+      .toBe("#/users?department_id=dep-people&archived=true");
   });
 });
 
 describe("서버가 막지 않는 부서(반례)", () => {
   beforeEach(() => { apiMock.mockReset(); });
 
-  it("아무것도 안 매달렸으면 삭제할 수 있고, 확인 뒤 DELETE 가 나간다", async () => {
+  it("아무것도 안 매달렸으면 메뉴에서 삭제할 수 있고, 확인 뒤 DELETE 가 나간다", async () => {
     await openPanel("dep-free", "빈부서");
     expect(within(panel()).getByText("이 부서는 지금 삭제할 수 있습니다.")).toBeInTheDocument();
-    await userEvent.click(within(panel()).getByRole("button", { name: "삭제" }));
+    expect(within(panel()).queryByRole("link", { name: "소속 사용자 보기" })).toBeNull();
+    const menu = await openMenu("빈부서", { keepOpen: true });
+    await userEvent.click(within(menu).getByRole("menuitem", { name: "삭제" }));
     const dialogs = await screen.findAllByRole("dialog", {}, WAIT);
     const dlg = dialogs[dialogs.length - 1];
     expect(dlg.textContent).toContain("이 부서를 지울까요? 되돌릴 수 없습니다.");
@@ -182,7 +232,8 @@ describe("서버가 막지 않는 부서(반례)", () => {
     expect(within(panel()).getByText(
       "이 부서는 지금 삭제할 수 있습니다. 삭제하면 팀 채팅방 1건은 부서 연결만 끊고 그대로 남습니다.",
     )).toBeInTheDocument();
-    await userEvent.click(within(panel()).getByRole("button", { name: "삭제" }));
+    const menu = await openMenu("방있는부서", { keepOpen: true });
+    await userEvent.click(within(menu).getByRole("menuitem", { name: "삭제" }));
     const dialogs = await screen.findAllByRole("dialog", {}, WAIT);
     const dlg = dialogs[dialogs.length - 1];
     expect(dlg.textContent).toContain(

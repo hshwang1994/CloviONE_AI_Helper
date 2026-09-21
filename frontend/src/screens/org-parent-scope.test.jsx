@@ -6,8 +6,10 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import "@testing-library/jest-dom/vitest";
 
-/* 부서 폼의 **상위 부서 후보는 그 부서가 들어갈 조직의 부서뿐이다**(org-03), 그리고
- * **정지된 조직은 후보 라벨이 그 상태를 말한다**(org-17).
+/* qa-contract-change: 조직 관리 IA 재설계(P6)로 부서 추가 창의 조직 칸이 없어졌다 — 조직은 창을 연 자리(조직 판 · 부서 판)가 고정한다. 「조직 칸을 바꾸면 후보가 따라간다」 단언을 「A 조직에서 열면 A 의 부서만, B 조직의 부서에서 열면 B 의 부서만」으로 옮기고, 정지된 조직의 상태 표시(org-17)를 조직 후보 라벨에서 창의 안내로 옮겼다. 미사용 부서를 후보에서 빼는 단언(xb-08)을 더했다.
+ *
+ * 부서 폼의 **상위 부서 후보는 그 부서가 들어갈 조직의 부서뿐이다**(org-03), 그리고
+ * **정지된 조직에 부서를 만들 때는 창이 그 상태를 말한다**(org-17).
  *
  * 실측(2026-09-06 · 자기 서버, 조직 넷): 「부서 추가」의 상위 후보에 다른 조직의 부서
  * (P11타조직부서)가 그대로 서 있었고, 그것을 고르고 조직을 굿모닝아이텍으로 두면
@@ -17,7 +19,8 @@ import "@testing-library/jest-dom/vitest";
  * 섞여 있었다.
  *
  * 반례를 함께 잰다: 같은 조직의 부서는 그대로 후보이고 고른 값이 그대로 실려 나간다.
- * 후보를 조건에 따라 좁히는 것과, **없는 조합을 권하지 않는 것**은 다른 일이다.
+ * 후보를 조건에 따라 좁히는 것과, **없는 조합을 권하지 않는 것**은 다른 일이다. 미사용 부서도 새 상위가 될 수
+ * 없다(xb-08) — 다만 수정 창에서 **지금** 상위 부서가 미사용이면 그 값은 후보에 남는다.
  */
 
 const apiMock = vi.fn();
@@ -35,25 +38,50 @@ import { ThemeModeProvider } from "../ui/ThemeModeProvider.jsx";
 const AT = "2026-01-02T03:04:05Z";
 const TREE = [
   { id: "org-1", kind: "organization", name: "클로비원", depth: 0, path: "클로비원",
-    active: true, user_count: 0, child_count: 1, subtree_user_count: 4, created_at: AT },
+    active: true, user_count: 0, child_count: 3, subtree_user_count: 7, created_at: AT },
   { id: "dep-sales", kind: "department", name: "영업팀", depth: 1, path: "클로비원 › 영업팀",
     org_id: "org-1", active: true, user_count: 4, child_count: 0, subtree_user_count: 4, created_at: AT },
+  { id: "dep-dev", kind: "department", name: "개발팀", depth: 1, path: "클로비원 › 개발팀",
+    org_id: "org-1", active: true, user_count: 3, child_count: 0, subtree_user_count: 3, created_at: AT },
+  { id: "dep-old", kind: "department", name: "옛본부", depth: 1, path: "클로비원 › 옛본부",
+    org_id: "org-1", active: false, user_count: 0, child_count: 1, subtree_user_count: 0, created_at: AT },
+  { id: "dep-kid", kind: "department", name: "남은팀", depth: 2, path: "클로비원 › 옛본부 › 남은팀",
+    parent_id: "dep-old", org_id: "org-1", active: true, user_count: 0, child_count: 0,
+    subtree_user_count: 0, created_at: AT },
+  { id: "org-2", kind: "organization", name: "자회사", depth: 0, path: "자회사",
+    active: true, user_count: 0, child_count: 1, subtree_user_count: 1, created_at: AT },
+  { id: "dep-sub", kind: "department", name: "자회사기획팀", depth: 1, path: "자회사 › 자회사기획팀",
+    org_id: "org-2", active: true, user_count: 1, child_count: 0, subtree_user_count: 1, created_at: AT },
+  { id: "org-3", kind: "organization", name: "묵은회사", depth: 0, path: "묵은회사",
+    active: false, user_count: 0, child_count: 0, subtree_user_count: 0, created_at: AT },
 ];
 const ORGS = [
   { id: "org-1", name: "클로비원", slug: "clovirone", status: "active",
-    department_count: 2, user_count: 4, created_at: AT },
+    department_count: 4, user_count: 7, created_at: AT },
   { id: "org-2", name: "자회사", slug: "subsidiary", status: "active",
-    department_count: 1, user_count: 0, created_at: AT },
+    department_count: 1, user_count: 1, created_at: AT },
   { id: "org-3", name: "묵은회사", slug: "old-co", status: "suspended",
     department_count: 0, user_count: 0, created_at: AT },
 ];
 /* 조직마다 부서가 있어야 「좁혀졌다」를 실제로 잴 수 있다 — 전부 한 조직이면 좁히는 코드가
-   없어도 이 시험이 우연히 통과한다. */
+   없어도 이 시험이 우연히 통과한다. 미사용 부서(옛본부)도 하나 둔다. */
 const DEPTS = [
   { id: "dep-sales", name: "영업팀", org_id: "org-1", active: true, user_count: 4, created_at: AT },
   { id: "dep-dev", name: "개발팀", org_id: "org-1", active: true, user_count: 3, created_at: AT },
+  { id: "dep-old", name: "옛본부", org_id: "org-1", active: false, user_count: 0, created_at: AT },
+  { id: "dep-kid", name: "남은팀", org_id: "org-1", active: true, user_count: 0, created_at: AT },
   { id: "dep-sub", name: "자회사기획팀", org_id: "org-2", active: true, user_count: 1, created_at: AT },
 ];
+const item = (row, org, extra) => ({
+  id: row.id, name: row.name, active: row.active, parent_id: null, org_id: row.org_id,
+  org_name: org, user_count: row.user_count, child_department_count: 0, created_at: AT,
+  delete_precheck: { deletable: true, blockers: [], detachables: [], reason: null }, ...extra,
+});
+const DEPT_ITEMS = {
+  "dep-sales": item(DEPTS[0], "클로비원"),
+  "dep-kid": item(DEPTS[3], "클로비원", { parent_id: "dep-old" }),
+  "dep-sub": item(DEPTS[4], "자회사"),
+};
 
 function mockApi() {
   apiMock.mockImplementation((url, options) => {
@@ -62,14 +90,8 @@ function mockApi() {
     if (options && options.method === "PATCH") return Promise.resolve({ ok: true });
     if (u.startsWith("/api/admin/departments/tree")) return Promise.resolve({ items: TREE });
     if (u.startsWith("/api/admin/organizations")) return Promise.resolve({ items: ORGS });
-    const single = u.match(/^\/api\/admin\/departments\/([a-z-]+)$/);
-    if (single) {
-      return Promise.resolve({ department: {
-        id: single[1], name: "영업팀", active: true, parent_id: null, org_id: "org-1",
-        org_name: "클로비원", user_count: 4, child_department_count: 0, created_at: AT,
-        delete_precheck: { deletable: true, blockers: [], detachables: [], reason: null },
-      } });
-    }
+    const single = u.match(/^\/api\/admin\/departments\/([a-z0-9-]+)$/);
+    if (single) return Promise.resolve({ department: DEPT_ITEMS[single[1]] || null });
     if (u.startsWith("/api/admin/departments")) return Promise.resolve({ items: DEPTS });
     if (u.startsWith("/api/admin/users")) return Promise.resolve({ items: [], total: 0 });
     return Promise.resolve({ items: [] });
@@ -105,81 +127,111 @@ async function optionNames(dlg, label) {
   return names;
 }
 
-async function openCreate() {
+/** 판(조직 판이면 「부서 추가」, 부서 판이면 「하위 부서 추가」)에서 부서 추가 창을 연다. */
+async function openCreate(path, heading, opener, title) {
   mockApi();
-  renderAt();
-  await userEvent.click(await screen.findByRole("button", { name: "부서 추가" }, WAIT));
-  return screen.findByRole("dialog", {}, WAIT);
+  renderAt(path);
+  const panel = await screen.findByTestId("org-console-panel", {}, WAIT);
+  await within(panel).findByRole("heading", { name: heading }, WAIT);
+  await userEvent.click(within(panel).getByRole("button", { name: opener }));
+  return screen.findByRole("dialog", { name: title }, WAIT);
+}
+
+function lastPost() {
+  return apiMock.mock.calls.find(([p, o]) =>
+    String(p) === "/api/admin/departments" && o && o.method === "POST");
 }
 
 beforeEach(() => { apiMock.mockReset(); });
 
-describe("부서 추가의 상위 부서 후보", () => {
-  it("조직 칸을 비우면 내 조직의 부서만 후보다 — 남의 조직 부서는 없다", async () => {
-    const dlg = await openCreate();
+describe("부서 추가의 상위 부서 후보 — 창을 연 조직의 부서뿐이다", () => {
+  it("조직 A 의 판에서 열면 A 의 사용 중인 부서만 후보다 — 남의 조직 부서 · 미사용 부서는 없다", async () => {
+    const dlg = await openCreate("/organizations?org=org-1", "클로비원", "부서 추가", "클로비원에 부서 추가");
     const names = await optionNames(dlg, /상위 부서/);
-    expect(names).toEqual(["(최상위)", "영업팀", "개발팀"]);
+    expect(names).toEqual(["(최상위)", "영업팀", "개발팀", "남은팀"]);
+    expect(names).not.toContain("자회사기획팀");
+    expect(names).not.toContain("옛본부");
+    // 조직은 창을 연 자리가 정했다 — 다시 묻는 칸이 없다.
+    expect(within(dlg).queryByLabelText(/^조직/)).toBeNull();
   });
 
-  it("조직을 바꾸면 후보도 그 조직 것으로 바뀐다(반례: 그 조직 부서는 남는다)", async () => {
-    const dlg = await openCreate();
-    await userEvent.click(within(dlg).getByLabelText(/^조직/));
-    await userEvent.click(await screen.findByRole("option", { name: "자회사" }, WAIT));
-    const names = await optionNames(dlg, /상위 부서/);
-    expect(names).toEqual(["(최상위)", "자회사기획팀"]);
-  });
-
-  it("먼저 고른 상위 부서가 조직을 바꿔 후보 밖이 되면 요청에 안 실린다", async () => {
-    const dlg = await openCreate();
-    // 내 조직의 부서를 고른다 — 이때는 유효한 조합이다.
-    await userEvent.click(within(dlg).getByLabelText(/상위 부서/));
-    await userEvent.click(await screen.findByRole("option", { name: "영업팀" }, WAIT));
-    // 조직을 자회사로 바꾸면 그 조합은 서버가 422 로 거절하는 조합이 된다.
-    await userEvent.click(within(dlg).getByLabelText(/^조직/));
-    await userEvent.click(await screen.findByRole("option", { name: "자회사" }, WAIT));
-
+  it("조직 B 의 판에서 열면 B 의 부서만 후보이고, 요청에 B 가 실린다(반례: 그 조직 부서는 남는다)", async () => {
+    const dlg = await openCreate("/organizations?org=org-2", "자회사", "부서 추가", "자회사에 부서 추가");
+    expect(await optionNames(dlg, /상위 부서/)).toEqual(["(최상위)", "자회사기획팀"]);
     await userEvent.type(within(dlg).getByLabelText(/부서 이름/), "품질팀");
     await userEvent.click(within(dlg).getByRole("button", { name: "추가" }));
     await waitFor(() => {
-      const post = apiMock.mock.calls.find(([p, o]) =>
-        String(p) === "/api/admin/departments" && o && o.method === "POST");
+      const post = lastPost();
       expect(post, "부서 생성 요청이 안 나갔다").toBeTruthy();
       expect(post[1].body.parent_id).toBeNull();
       expect(post[1].body.org_id).toBe("org-2");
     }, WAIT);
   });
 
+  it("조직 B 의 부서 판에서 「하위 부서 추가」를 열면 후보는 B 의 것이고 그 부서가 미리 골라져 있다", async () => {
+    const dlg = await openCreate(
+      "/departments/dep-sub", "자회사기획팀", "하위 부서 추가", "자회사기획팀에 하위 부서 추가",
+    );
+    await waitFor(() => expect(within(dlg).getByLabelText(/상위 부서/)).toHaveTextContent("자회사기획팀"), WAIT);
+    expect(await optionNames(dlg, /상위 부서/)).toEqual(["(최상위)", "자회사기획팀"]);
+    await userEvent.type(within(dlg).getByLabelText(/부서 이름/), "기획1팀");
+    await userEvent.click(within(dlg).getByRole("button", { name: "추가" }));
+    await waitFor(() => {
+      const post = lastPost();
+      expect(post, "부서 생성 요청이 안 나갔다").toBeTruthy();
+      expect(post[1].body).toEqual({ name: "기획1팀", parent_id: "dep-sub", org_id: "org-2" });
+    }, WAIT);
+  });
+
   it("같은 조직 안에서 고른 상위 부서는 그대로 실려 나간다(반례)", async () => {
-    const dlg = await openCreate();
+    const dlg = await openCreate("/organizations?org=org-1", "클로비원", "부서 추가", "클로비원에 부서 추가");
     await userEvent.click(within(dlg).getByLabelText(/상위 부서/));
     await userEvent.click(await screen.findByRole("option", { name: "개발팀" }, WAIT));
     await userEvent.type(within(dlg).getByLabelText(/부서 이름/), "품질팀");
     await userEvent.click(within(dlg).getByRole("button", { name: "추가" }));
     await waitFor(() => {
-      const post = apiMock.mock.calls.find(([p, o]) =>
-        String(p) === "/api/admin/departments" && o && o.method === "POST");
+      const post = lastPost();
       expect(post, "부서 생성 요청이 안 나갔다").toBeTruthy();
       expect(post[1].body.parent_id).toBe("dep-dev");
+      expect(post[1].body.org_id).toBe("org-1");
     }, WAIT);
   });
 });
 
 describe("부서 수정의 상위 부서 후보", () => {
-  it("이 부서가 속한 조직의 부서만 후보다(자기 자신은 여전히 빠진다)", async () => {
+  it("이 부서가 속한 조직의 사용 중인 부서만 후보다(자기 자신은 여전히 빠진다)", async () => {
     mockApi();
     renderAt("/departments/dep-sales");
     const panel = await screen.findByTestId("org-console-panel", {}, WAIT);
     await userEvent.click(await within(panel).findByRole("button", { name: "수정" }, WAIT));
     const dlg = await screen.findByRole("dialog", {}, WAIT);
     const names = await optionNames(dlg, /상위 부서/);
-    expect(names).toEqual(["(최상위)", "개발팀"]);
+    expect(names).toEqual(["(최상위)", "개발팀", "남은팀"]);
+    expect(names).not.toContain("옛본부");
+  });
+
+  it("지금 상위 부서가 미사용이면 그 값은 후보에 남는다 — 이름만 고치는 창이 지금 값을 잃지 않는다", async () => {
+    mockApi();
+    renderAt("/departments/dep-kid");
+    const panel = await screen.findByTestId("org-console-panel", {}, WAIT);
+    await userEvent.click(await within(panel).findByRole("button", { name: "수정" }, WAIT));
+    const dlg = await screen.findByRole("dialog", {}, WAIT);
+    expect(within(dlg).getByLabelText(/상위 부서/)).toHaveTextContent("옛본부");
+    expect(await optionNames(dlg, /상위 부서/)).toEqual(["(최상위)", "영업팀", "개발팀", "옛본부"]);
   });
 });
 
-describe("조직 후보의 라벨", () => {
-  it("정지된 조직은 그 상태를 달고 선다 — 활성 조직은 이름 그대로다(org-17)", async () => {
-    const dlg = await openCreate();
-    const names = await optionNames(dlg, /^조직/);
-    expect(names).toEqual(["선택 안 함", "클로비원", "자회사", "묵은회사 (미사용)"]);
+describe("정지된 조직에 부서를 만들 때", () => {
+  it("창이 그 조직의 미사용 상태를 말한다 — 활성 조직의 창은 평소 안내 그대로다(org-17)", async () => {
+    const dlg = await openCreate("/organizations?org=org-3", "묵은회사", "부서 추가", "묵은회사에 부서 추가");
+    expect(dlg.textContent).toContain("이 조직은 미사용 상태라 여기에 만든 부서는 조직을 다시 활성화할 때까지 아무도 쓸 수 없습니다.");
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull(), WAIT);
+  });
+
+  it("활성 조직의 창에는 미사용 안내가 없다(반례)", async () => {
+    const dlg = await openCreate("/organizations?org=org-2", "자회사", "부서 추가", "자회사에 부서 추가");
+    expect(dlg.textContent).not.toContain("미사용 상태");
+    expect(dlg.textContent).toContain("사용자 폼의 '부서' 목록에 바로 나타납니다.");
   });
 });

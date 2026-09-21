@@ -1,4 +1,6 @@
-/* qa-contract-change: 부서 화면이 registry/DataScreen 을 떠나 조직 콘솔의 상세 판과 자체 모달(screens/org/)이 됐다 — /departments 세 케이스를 그 경로(OrgConsole 렌더 + 헤더 부서 추가·상세 판 수정·삭제)로 옮겨 같은 세 문장을 계속 못박는다. */
+/* qa-contract-change: 조직 관리 IA 재설계(P6)로 부서 추가의 입구가 페이지 머리에서 부서 판의 「하위 부서 추가」로, 삭제가 판 머리 단추에서 「더 보기」 메뉴 항목으로 옮겨 갔다 — 같은 세 문장(추가 · 저장 · 삭제)을 새 입구에서 계속 못박는다.
+ *
+ * qa-contract-change: 부서 화면이 registry/DataScreen 을 떠나 조직 콘솔의 상세 판과 자체 모달(screens/org/)이 됐다 — /departments 세 케이스를 그 경로(OrgConsole 렌더 + 헤더 부서 추가·상세 판 수정·삭제)로 옮겨 같은 세 문장을 계속 못박는다. */
 import React from "react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen, within, waitFor } from "@testing-library/react";
@@ -67,6 +69,8 @@ function renderOrgConsoleAt(path) {
             <MemoryRouter initialEntries={[path]}>
               <Routes>
                 <Route path="/departments/:id" element={<OrgConsole />} />
+                {/* 부서를 지우면 그 부서가 있던 조직으로 옮겨 간다 — 그 주소도 같은 화면이다. */}
+                <Route path="/organizations" element={<OrgConsole />} />
               </Routes>
             </MemoryRouter>
           </ConfirmProvider>
@@ -130,8 +134,9 @@ describe("부서 — 추가·수정·삭제가 전부 문장형이다 (조직 �
     mockDepartments();
     const user = userEvent.setup();
     renderOrgConsoleAt("/departments/d1");
-    await user.click(await screen.findByRole("button", { name: "부서 추가" }, WAIT_ORG));
-    const dialog = await screen.findByRole("dialog", { name: "부서 추가" });
+    const panel = await screen.findByTestId("org-console-panel", {}, WAIT_ORG);
+    await user.click(await within(panel).findByRole("button", { name: "하위 부서 추가" }, WAIT_ORG));
+    const dialog = await screen.findByRole("dialog", { name: "기존부서에 하위 부서 추가" });
     await user.type(within(dialog).getByLabelText(/부서 이름/), "새부서");
     await user.click(within(dialog).getByRole("button", { name: "추가" }));
 
@@ -159,7 +164,10 @@ describe("부서 — 추가·수정·삭제가 전부 문장형이다 (조직 �
     const user = userEvent.setup();
     renderOrgConsoleAt("/departments/d1");
     const panel = await screen.findByTestId("org-console-panel", {}, WAIT_ORG);
-    await user.click(await within(panel).findByRole("button", { name: "삭제" }, WAIT_ORG));
+    // 삭제는 파괴적 동작이라 「더 보기」 메뉴의 항목이다.
+    await user.click(await within(panel).findByRole("button", { name: "기존부서 작업 더 보기" }, WAIT_ORG));
+    const menu = await screen.findByRole("menu", {}, WAIT_ORG);
+    await user.click(within(menu).getByRole("menuitem", { name: "삭제" }));
 
     const dialogs = await screen.findAllByRole("dialog", {}, WAIT_ORG);
     await user.click(within(dialogs[dialogs.length - 1]).getByRole("button", { name: "삭제" }));
