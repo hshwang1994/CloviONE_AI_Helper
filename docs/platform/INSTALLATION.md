@@ -19,6 +19,10 @@ sudo /opt/clovirassist/deploy/install.sh install \
      --dns-name clovirassist.gooddi.lab --bind-ip <IP>
 ```
 
+설치처 앞에 역방향 프록시(로드밸런서 · 사내 게이트웨이)가 있으면 그 주소를 `--upstream-proxy <ip[,cidr…]>` 로 함께 준다.
+안 주면 nginx 의 속도 제한이 그 프록시 주소 하나에 걸려 **사용자 전원이 한 예산을 나눈다**(근거와 실측은
+`docs/NGINX_AND_CAPACITY.md`). 한 번 주면 manifest 가 기억하므로 업그레이드 때 다시 줄 필요가 없고, `none` 을 주면 지운다.
+
 **사용자가 손으로 만드는 디렉터리도, 복사하는 파일도 없다.** `git clone` 이 `/opt/clovirassist` 를
 만들고, 그 안의 `deploy/install.sh` 가 나머지 전부(`/etc/clovirassist` · `/var/lib/clovirassist` ·
 `/var/backups/clovirassist` · venv · systemd · nginx · TLS)를 만든다.
@@ -76,7 +80,7 @@ sudo /opt/clovirassist/deploy/install.sh install --source bundle \
 `build-bundle.sh` 를 승계한다.
 
 설치본에는 `installed_manifest.json`(source kind · git remote · ref · commit · VERSION ·
-alembic head · PG/extension 버전 · 설치 시각 · Stage 결과)을 남긴다.
+alembic head · PG/extension 버전 · DNS 이름 · 바인드 주소 · 앞단 프록시 목록 · 설치 시각 · Stage 결과)을 남긴다.
 
 ---
 
@@ -119,7 +123,7 @@ sudo /opt/clovirassist/deploy/install.sh <subcommand> [options]
 | 13 | systemd unit 생성/설치 | **지금 여섯**: `clovirassist-web` · `-worker` · `-worker-conversational` · `-scheduler` · `-index` · `-privhelper`. `-index` 는 S9 이 넣었다(P-18 · D-257). 소스에 레인이 있는데 유닛이 없으면 이 Stage 가 막는다 | |
 | 14 | `systemctl enable` + 의존 순서 | §6 | |
 | 15 | **TLS** | 인증서 존재 확인 또는 자체 서명 생성. **CN/SAN = `--dns-name`**. 있으면 SAN 이 그 이름을 담는지까지 본다(있다 ≠ 맞다) | |
-| 16 | nginx | 템플릿 치환 + **미치환 플레이스홀더 거부** + `nginx -t` + `server_name` 중복 검사 | |
+| 16 | nginx | 템플릿 치환 + **미치환 플레이스홀더 거부** + 앞단 프록시 신뢰 목록(`/etc/clovirassist/nginx/realip.conf`, `--upstream-proxy`) + `nginx -t` + `server_name` 중복 검사 | 목록을 줬는데 nginx 에 realip 모듈이 없으면 멈춘다 |
 | 17 | 기동 + **Health Check** | 순서대로 기동 후 `/healthz` `/readyz` + DB + Storage + AI probe | 어느 컴포넌트가 왜 실패했는지 표시 |
 | 18 | 설치 검증 | **`install.sh verify` 를 그대로 실행**하고 `installed_manifest.json` 을 확정한다. 옛 `validate-clovirone-web-assistant.sh` 는 부르지 않는다 — 옛 slug 설치 전용이고 n8n 활성 단언이 박혀 있어 S14 가 지웠다(§9). 새 설치의 검증 정본은 `verify` 하나다 | |
 
@@ -161,7 +165,7 @@ Stage 9 가 `0029` 를 지날 때 **데이터가 스스로 정하지 못하는 �
   닫힌 회차는 기록이라 그대로 둔다. 열린 회차의 팀 어긋난 티켓은 `open_sprint_tickets_off_team` 이 센다.
 - **되돌리기**: `alembic downgrade 0028_document_legacy_author`. `project_id` 칼럼·FK·인덱스는
   0029 가 지우지 않고 값도 그대로라, 옛 인덱스 둘을 복원하고 `department_id` 를 지우면 이전
-  앱이 그대로 돈다. `project_id` 는 다음 릴리스의 `0030` 이 걷는다(BACKLOG P-94) — 그 전까지는
+  앱이 그대로 돈다. `project_id` 는 다음 릴리스의 `0031` 이 걷는다(BACKLOG P-94) — 그 전까지는
   롤백이 데이터 손실 없이 된다.
 
 **설치 Version 확인**: `deploy/install.sh version` → VERSION · git ref/commit · alembic head ·

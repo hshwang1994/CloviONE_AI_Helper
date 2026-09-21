@@ -880,3 +880,82 @@ def test_extensions_land_in_template1_so_a_backup_can_be_restored():
     )
     # 제품 DB 쪽도 그대로 있어야 한다. template1 만 넣고 제품 DB 를 빠뜨리면 앱이 못 뜬다.
     assert 'psql -v ON_ERROR_STOP=1 -d "$PG_DB" -tAc "create extension if not exists $ext"' in text
+
+
+# ── 앞단 프록시 뒤의 실제 사용자 주소 (2026-09-21) ────────────────────────────
+#
+# nginx 속도 제한의 키가 `$binary_remote_addr` 인데 설치처 사용자 대부분이 앞단 역방향 프록시
+# 하나를 지나 들어왔다. 그러면 사용자 전원이 20r/s 한 예산을 나누고, 같은 프록시를 지나는
+# 스캐너가 하루 1만 건의 429 를 만든 날 실제 사용자 요청도 429 를 맞았다. 랩 서버에서 같은
+# 설정으로 잰 결과: 목록이 없으면 두 번째 사용자가 70건 중 1건만 통과했고, 프록시를 믿게 하자
+# 두 사용자가 각자 41건씩 통과했다. **제한값은 그대로이고 키만 실제 사용자로 돌아온다.**
+
+CONF = ROOT / "deploy" / "nginx" / "clovirassist.conf"
+
+
+def _tls_server_block(conf: str) -> str:
+    """`listen …:443` 가 든 server 블록 본문. 없으면 실패다 — 블록 이름이 바뀌면 아래 검사가 헛돈다."""
+    marker = "listen __BIND_IP__:443"
+    assert marker in conf, "443 server 블록을 못 찾았다"
+    start = conf.rfind("server {", 0, conf.index(marker))
+    assert start >= 0, "443 listen 앞에 server 블록 시작이 없다"
+    return conf[start:]
+
+
+def test_the_vhost_reads_the_proxy_list_before_it_rate_limits():
+    block = _tls_server_block(_text(CONF))
+    include = "include /etc/clovirassist/nginx/realip*.conf;"
+    assert include in block, "443 server 블록이 앞단 프록시 목록을 읽지 않는다 — 속도 제한이 프록시 주소에 걸린다"
+    # 목록은 glob 으로 읽는다. 파일 하나를 정확히 가리키면 그 파일이 없는 설치처(옛 스냅샷으로 되돌린 곳 등)에서
+    # `nginx -t` 가 죽는다.
+    assert "*" in include
+    assert block.index(include) < block.index("location / {"), "속도 제한을 거는 location 보다 뒤에서 읽는다"
+
+
+def test_the_installer_writes_the_proxy_list_before_nginx_t():
+    body = _body(_text(INSTALL), "stage_16_nginx() {")
+    body = body.split("\n}\n", 1)[0]
+    assert 'realip.conf' in body, "Stage 16 이 앞단 프록시 목록 파일을 안 쓴다"
+    assert body.index('>"$ETC_DIR/nginx/realip.conf"') < body.index("if ! nginx -t"), "목록을 nginx -t 뒤에 쓴다 — 검사가 옛 목록을 본다"
+    for line in ("set_real_ip_from", "real_ip_header X-Forwarded-For;", "real_ip_recursive on;"):
+        assert line in body, f"목록 파일에 {line} 가 없다"
+    assert "http_realip_module" in body, "realip 모듈이 없는 nginx 에서 조용히 무시된 채 통과한다"
+
+
+def test_the_installer_remembers_the_proxy_list_and_can_clear_it():
+    text = _text(INSTALL)
+    assert '--upstream-proxy)' in text, "설치 옵션 --upstream-proxy 가 없다"
+    assert '"upstream_proxies"' in _body(text, "write_manifest() {"), "manifest 가 앞단 프록시 목록을 안 적는다"
+    resolve = _body(text, "resolve_upstream_proxies() {").split("\n}\n", 1)[0]
+    assert "jq_get upstream_proxies" in resolve, "재실행이 manifest 의 목록을 안 읽는다 — 업그레이드가 조용히 목록을 비운다"
+    assert '"none"' in resolve, "기록된 목록을 지울 길(none)이 없다"
+    dispatch = text.split('case "$SUBCOMMAND" in\n  preflight)', 1)[1]
+    for sub in ("install)", "upgrade)"):
+        part = dispatch.split(sub, 1)[1].split(";;", 1)[0]
+        assert "resolve_upstream_proxies" in part, f"{sub} 가 앞단 프록시 목록을 정하지 않는다"
+
+
+@pytest.mark.skipif(not __import__("shutil").which("bash") and not pathlib.Path(r"C:\Program Files\Git\bin\bash.exe").exists(),
+                    reason="bash 없음 — 셸 함수를 실행할 수 없다")
+@pytest.mark.parametrize(
+    ("value", "ok"),
+    [
+        ("10.100.64.96", True), ("10.0.1.0/24", True), ("fd00::1", True), ("fd00::/64", True),
+        # 「모든 주소를 믿는다」는 누구나 X-Forwarded-For 로 자기 주소를 꾸미게 한다.
+        ("0.0.0.0/0", False), ("::/0", False),
+        ("10.0.0.0/33", False), ("256.1.1.1", False), ("10.1.1", False), ("10.0.0.1/", False),
+        ("10.0.0.1;evil", False), ("abc", False),
+    ],
+)
+def test_the_proxy_validator_takes_only_real_addresses(value, ok):
+    import shutil
+    import subprocess
+
+    bash = shutil.which("bash") or r"C:\Program Files\Git\bin\bash.exe"
+    text = _text(INSTALL)
+    func = "upstream_proxy_ok() {" + text.split("upstream_proxy_ok() {", 1)[1].split("\n}\n", 1)[0] + "\n}\n"
+    result = subprocess.run(
+        [bash, "-c", func + 'upstream_proxy_ok "$1"', "check", value],
+        capture_output=True, text=True, encoding="utf-8",
+    )
+    assert (result.returncode == 0) is ok, f"{value!r}: 기대 {'통과' if ok else '거절'}, 종료 코드 {result.returncode}"

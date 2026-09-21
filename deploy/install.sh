@@ -89,6 +89,11 @@ PG_MIN_CONNECTIONS=120
 # 만들고 없는 주소에 바인딩한다. 무엇이 잘못됐는지 아무 데도 안 뜨는 종류의 실패다.
 DNS_NAME="${DNS_NAME:-}"
 BIND_IP="${BIND_IP:-}"
+# 앞단 역방향 프록시(쉼표 구분 IP · CIDR). 비우면 연결한 주소가 곧 사용자 주소다.
+# 있는데 비워 두면 nginx 의 속도 제한이 **프록시 주소 하나**에 걸려 사용자 전원이 한 예산을
+# 나눈다 — 같은 프록시를 지나는 스캐너가 하루 1만 건의 429 를 만들던 날 실제 사용자 요청도
+# 429 를 맞았다(2026-09-21 실측, docs/NGINX_AND_CAPACITY.md). `none` 은 기록된 값을 지운다.
+UPSTREAM_PROXIES="${UPSTREAM_PROXIES:-}"
 
 SOURCE_KIND=""            # git | bundle | local
 GIT_REMOTE="${GIT_REMOTE:-}"
@@ -300,6 +305,9 @@ ClovirAssist 설치 진입점
 옵션
   --dns-name <name>     설치처 호스트명. 인증서 CN/SAN 과 nginx server_name 이 이 값이다
   --bind-ip <ip>        nginx 가 묶일 주소
+  --upstream-proxy <ip[,cidr…]>
+                        앞단 역방향 프록시 주소. nginx 가 그 뒤의 실제 사용자 주소로 속도 제한을
+                        건다. 한 번 주면 manifest 가 기억하고, none 을 주면 지운다
   --source git|bundle|local
   --git-remote <url>    제품 기준 Source. 기본은 기존 설치의 manifest 값
   --ref <tag>           고정할 tag. 브랜치 추적은 하지 않는다
@@ -326,6 +334,7 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --dns-name) DNS_NAME="${2:-}"; shift 2 ;;
     --bind-ip) BIND_IP="${2:-}"; shift 2 ;;
+    --upstream-proxy) UPSTREAM_PROXIES="${2:-}"; shift 2 ;;
     --source) SOURCE_KIND="${2:-}"; shift 2 ;;
     --git-remote) GIT_REMOTE="${2:-}"; shift 2 ;;
     --ref) GIT_REF="${2:-}"; shift 2 ;;
@@ -382,6 +391,15 @@ stage_0_preflight() {
   esac
   if [ -n "$BIND_IP" ] && ! ip -o addr show 2>/dev/null | grep -qw "$BIND_IP"; then
     fail "--bind-ip $BIND_IP 가 이 서버의 주소가 아닙니다" "ip -o addr 로 실제 주소를 확인하십시오. nginx 는 없는 주소에 조용히 바인딩 실패합니다" 11 || return $?
+  fi
+  # 앞단 프록시 목록은 nginx 설정에 그대로 들어간다 — 주소가 아닌 글자나 「모든 주소」(/0)를
+  # 받으면 누구나 X-Forwarded-For 로 자기 주소를 꾸며 속도 제한과 로그인 제한을 피한다.
+  if [ -n "$UPSTREAM_PROXIES" ]; then
+    local _proxy
+    for _proxy in ${UPSTREAM_PROXIES//,/ }; do
+      upstream_proxy_ok "$_proxy" || fail "--upstream-proxy 의 $_proxy 를 주소로 읽을 수 없습니다" \
+        "IP 나 CIDR 을 쉼표로 이어 주십시오(예: 10.0.0.5,10.0.1.0/24). 모든 주소를 믿는 /0 은 받지 않습니다" 11 || return $?
+    done
   fi
   # 이름이 안 풀려도 설치는 된다(설치처가 나중에 DNS 를 넣는 경우가 있다). 다만 **말은 한다** —
   # S3 이 죽은 이름을 들고 있던 APP_BASE_URL 로 알림 링크가 전부 깨져 있던 것을 찾았다.
@@ -1156,8 +1174,61 @@ stage_15_tls() {
 # `cannot load certificate … BIO_new_file() failed` 로 죽는다. LXD 리허설이 정확히 그렇게
 # 멈췄고, 사양을 실제와 맞게 정정했다(CLAUDE.md 머리말 — 문서와 Runtime 이 충돌하면 실제를 따른다).
 # ═════════════════════════════════════════════════════════════════════════════
+# 앞단 프록시 한 칸이 주소로 읽히는가(IPv4 · IPv6 · CIDR). 접두 길이 0 은 「모든 주소를 믿는다」라 거절한다.
+upstream_proxy_ok() {
+  local p="$1" addr prefix="" octet
+  case "$p" in
+    */*)
+      addr="${p%/*}"; prefix="${p#*/}"
+      case "$prefix" in ''|*[!0-9]*) return 1 ;; esac
+      [ "$prefix" -ge 1 ] || return 1
+      ;;
+    *) addr="$p" ;;
+  esac
+  case "$addr" in
+    *:*)
+      printf '%s' "$addr" | grep -Eq '^[0-9A-Fa-f:]+$' || return 1
+      [ -z "$prefix" ] || [ "$prefix" -le 128 ] || return 1
+      ;;
+    *)
+      printf '%s' "$addr" | grep -Eq '^([0-9]{1,3}\.){3}[0-9]{1,3}$' || return 1
+      for octet in ${addr//./ }; do [ "$octet" -le 255 ] || return 1; done
+      [ -z "$prefix" ] || [ "$prefix" -le 32 ] || return 1
+      ;;
+  esac
+  return 0
+}
+
+# install · upgrade 가 앞단 프록시 목록을 정한다 — 주지 않았으면 manifest 가 기억한 값이고,
+# `none` 은 기억한 값을 지운다. 재실행이 조용히 목록을 비우면 그날부터 다시 모두가 한 예산이다.
+resolve_upstream_proxies() {
+  [ -n "$UPSTREAM_PROXIES" ] || UPSTREAM_PROXIES="$(jq_get upstream_proxies)"
+  [ "$UPSTREAM_PROXIES" = "none" ] && UPSTREAM_PROXIES=""
+  UPSTREAM_PROXIES="${UPSTREAM_PROXIES// /}"
+  return 0
+}
+
 stage_16_nginx() {
   local site="/etc/nginx/sites-available/$NGINX_SITE"
+  # 앞단 프록시 신뢰 목록을 먼저 쓴다. vhost 는 이 파일을 `include …/realip*.conf` 로 읽는다 —
+  # glob 이라 파일이 없어도 `nginx -t` 가 통과하고, 목록이 비면 주석만 든 파일이라 지금과 같다.
+  if [ -n "$UPSTREAM_PROXIES" ] && ! nginx -V 2>&1 | grep -q 'http_realip_module'; then
+    fail "nginx 에 realip 모듈이 없습니다" "배포판 nginx 를 쓰거나 --upstream-proxy none 으로 목록을 지우십시오" 35 || return $?
+  fi
+  install -d -o root -g root -m 0755 "$ETC_DIR/nginx"
+  {
+    echo "# ClovirAssist 앞단 프록시 신뢰 목록이다. deploy/install.sh 의 Stage 16 이 매번 다시 쓰므로 손으로 고치지 않는다."
+    if [ -n "$UPSTREAM_PROXIES" ]; then
+      local _proxy
+      for _proxy in ${UPSTREAM_PROXIES//,/ }; do echo "set_real_ip_from $_proxy;"; done
+      echo "real_ip_header X-Forwarded-For;"
+      echo "real_ip_recursive on;"
+    else
+      echo "# 앞단 프록시가 없다. 연결한 주소가 곧 사용자 주소다(--upstream-proxy 로 바꾼다)."
+    fi
+  } >"$ETC_DIR/nginx/realip.conf"
+  chmod 0644 "$ETC_DIR/nginx/realip.conf"
+
   sed -e "s/__BIND_IP__/$BIND_IP/g" -e "s/__DNS_NAME__/$DNS_NAME/g" \
     "$APP_DIR/deploy/nginx/$SLUG.conf" >"$site"
   # 치환이 남았으면 잘못된 vhost 를 nginx 에 물리지 않는다 — `nginx -t` 는 이걸 못 잡는다.
@@ -1267,6 +1338,7 @@ write_manifest() {
     printf '  "extensions": %s,\n' "$(json_str "$extver")"
     printf '  "dns_name": %s,\n' "$(json_str "$DNS_NAME")"
     printf '  "bind_ip": %s,\n' "$(json_str "$BIND_IP")"
+    printf '  "upstream_proxies": %s,\n' "$(json_str "$UPSTREAM_PROXIES")"
     printf '  "installed_at": %s,\n' "$(json_str "$(date -Is)")"
     printf '  "installer_log": %s,\n' "$(json_str "$LOG")"
     printf '  "stages": [%s]\n' "$joined"
@@ -1318,6 +1390,13 @@ do_verify() {
 
   local nsrv; nsrv="$(nginx -T 2>/dev/null | grep -cE "^[[:space:]]*server_name[[:space:]].*\b$DNS_NAME\b" || true)"
   vchk "server_name 블록이 :80·:443 둘뿐(현재 ${nsrv:-0})" "[ '${nsrv:-0}' = 2 ]"
+
+  # 앞단 프록시를 기록해 둔 설치처는 nginx 가 그 목록을 실제로 읽고 있어야 한다 — 파일만 있고 vhost 가
+  # 안 읽으면 속도 제한이 다시 프록시 주소 하나에 걸린다.
+  local proxies; proxies="$(jq_get upstream_proxies)"
+  if [ -n "$proxies" ]; then
+    vchk "nginx 가 앞단 프록시 목록을 읽는다($proxies)" "nginx -T 2>/dev/null | grep -q 'set_real_ip_from'"
+  fi
 
   vchk "실패한 제품 유닛이 없다" "[ -z \"\$(systemctl --failed --plain --no-legend 2>/dev/null | grep $SLUG)\" ]"
 
@@ -1669,12 +1748,14 @@ run_all_stages() {
 case "$SUBCOMMAND" in
   preflight)
     open_log
+    resolve_upstream_proxies
     run_stage 0 PREFLIGHT stage_0_preflight
     say "PREFLIGHT_OK"
     ;;
   install)
     open_log
-    log "=== install 시작 (dns=$DNS_NAME bind=$BIND_IP source=${SOURCE_KIND:-auto}) ==="
+    resolve_upstream_proxies
+    log "=== install 시작 (dns=$DNS_NAME bind=$BIND_IP proxies=${UPSTREAM_PROXIES:-없음} source=${SOURCE_KIND:-auto}) ==="
     # 기존 설치 위에 다시 도는 install 은 되돌릴 지점을 먼저 만든다.
     if [ -f "$ENV_FILE" ] || legacy_present; then
       take_snapshot; say "스냅샷: $SNAPSHOT_DIR"
@@ -1690,7 +1771,8 @@ case "$SUBCOMMAND" in
     [ -n "$GIT_REMOTE" ] || GIT_REMOTE="$(jq_get git_remote)"
     [ -n "$DNS_NAME" ] || DNS_NAME="$(jq_get dns_name)"
     [ -n "$BIND_IP" ] || BIND_IP="$(jq_get bind_ip)"
-    log "=== upgrade 시작 (ref=${GIT_REF:-<현재>} remote=${GIT_REMOTE:-<현재>}) ==="
+    resolve_upstream_proxies
+    log "=== upgrade 시작 (ref=${GIT_REF:-<현재>} remote=${GIT_REMOTE:-<현재>} proxies=${UPSTREAM_PROXIES:-없음}) ==="
     take_snapshot; say "스냅샷: $SNAPSHOT_DIR"
     say "  실패하면 되돌리기: $SCRIPT_PATH rollback --target $SNAPSHOT_DIR"
     if [ -n "$GIT_REF" ] && [ -d "$APP_DIR/.git" ]; then

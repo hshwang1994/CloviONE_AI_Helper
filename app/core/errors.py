@@ -15,11 +15,17 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import ValidationError as PydanticValidationError
+from sqlalchemy.exc import IntegrityError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from app.core.db import is_unique_violation
 from app.core.urls import safe_next_path
 
 logger = logging.getLogger("app.errors")
+
+# 라우트가 놓친 유니크 경합(같은 요청 두 번 · 같은 이름 동시 생성)이 사용자에게 가는 문장.
+# 「이미 처리됐다」가 아니라 「이미 있다」다 — 다른 사람이 같은 이름을 먼저 만든 경우에도 참이다.
+DUPLICATE_WRITE_MESSAGE = "같은 항목이 이미 있어 저장하지 않았습니다. 화면을 새로 고쳐 확인해 주세요."
 
 
 # PA-RC-0014: Pydantic 검증 실패가 영문 그대로 사용자에게 나갔다("Invalid request data
@@ -368,6 +374,32 @@ def register_error_handlers(app: FastAPI) -> None:
             message="입력값을 확인해 주세요.",
             status_code=422,
             details=details,
+        )
+
+    @app.exception_handler(IntegrityError)
+    async def _integrity_error(request: Request, exc: IntegrityError):
+        # **유니크 위반만** 409 다. 같은 요청이 두 번 들어와(더블클릭 · Enter 연타 · 두 사람이
+        # 같은 이름을 동시에) 둘째가 이미 들어간 행에 부딪힌 것이다 — 사용자에게는 서버 오류가
+        # 아니라 「이미 있다」는 사실이다. 라우트가 그 경합을 스스로 사람의 말로 옮긴 자리는
+        # 여기까지 안 온다(`ConflictError`). 여기 온 것은 라우트가 놓친 경합이라, 제약 이름을
+        # 경고로 남겨 원인이 로그에서 사라지지 않게 한다(D-191 의 이유 그대로).
+        #
+        # FK · NOT NULL · CHECK 위반은 데이터 버그라 지금처럼 500 이다 — 그것까지 409 로
+        # 접으면 「경합이 잦다」로 보이는 버그가 된다(`app/core/db.py` 충돌 분류).
+        if not is_unique_violation(exc):
+            return await unhandled_error_response(request, exc)
+        orig = getattr(exc, "orig", None)
+        constraint = getattr(getattr(orig, "diag", None), "constraint_name", None)
+        logger.warning(
+            "unique violation reached the request boundary request_id=%s constraint=%s",
+            getattr(request.state, "request_id", None),
+            constraint,
+        )
+        return error_response(
+            request,
+            code="conflict",
+            message=DUPLICATE_WRITE_MESSAGE,
+            status_code=409,
         )
 
     @app.exception_handler(Exception)

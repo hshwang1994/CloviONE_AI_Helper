@@ -34,6 +34,8 @@ import uuid
 from dataclasses import dataclass
 from typing import Any
 
+from app.core.errors import ValidationAppError
+
 __all__ = [
     "EMPTY_DOC",
     "BlockError",
@@ -51,8 +53,17 @@ __all__ = [
 ]
 
 
-class BlockError(ValueError):
-    """본문의 모양이 틀렸다. 길어서가 아니라 **읽을 수 없어서**다."""
+class BlockError(ValidationAppError, ValueError):
+    """본문의 모양이 틀렸다. 길어서가 아니라 **읽을 수 없어서**다.
+
+    **사용자 입력 오류라 422 다.** 예전에는 `ValueError` 만 이어받아서, 호출부마다 손으로
+    `ValidationAppError` 로 옮겨야 했다(문서 판 · 템플릿 · 티켓 본문 저장). 새 티켓 **만들기**
+    경로가 그 한 줄을 빠뜨렸고, 붙여 넣은 그림의 주소가 `cid:` 인 본문 하나가 처리 안 된 500 으로
+    나갔다(운영 로그 2026-09-16, 다섯 번 재시도). 예외 자체가 오류 계층에 들어오면 새 경로가 생겨도
+    같은 구멍이 다시 열리지 않는다. `ValueError` 도 계속 이어받는다 — 그 이름으로 잡는 옛 자리가
+    그대로 동작해야 한다."""
+
+    default_message = "본문 형식을 읽을 수 없습니다. 붙여 넣은 내용을 확인해 주세요."
 
 
 # ── 스키마 ───────────────────────────────────────────────────────────────────
