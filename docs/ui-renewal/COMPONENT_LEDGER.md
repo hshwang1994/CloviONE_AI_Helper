@@ -21,58 +21,61 @@ UI 의미 → 정본 컴포넌트/파일 → API · 상태 계약 → 소비처 
 
 | UI 의미 | 정본 | 파일 | 계약 요지 | 소비처 수 | 갤러리 절 | 시험 |
 |---|---|---|---|---|---|---|
-| 페이지 동작 34 · 인라인 30 | `Button` | `ui/kit.jsx` | variant default(=secondary) · primary · ghost · danger · dangerConfirm, `size sm`, 라벨 한 줄 · 안 줄어듦 · `truncate` 만 말줄임, 보조 = 라이트 흰 면 + 경계선 · 다크 투명 면 + 강한 경계선, 파괴 = `error.line` 테두리 + `error.main` 글자(§0-17) | 83 | 버튼 | `handoff-kit-contract`, `long-text-contract`, `kit.test` |
+| 페이지 동작 34 · 인라인 30 | `Button` | `ui/kit.jsx` | variant default(=secondary) · primary · ghost · danger · dangerConfirm, `size sm`, 라벨 한 줄 · 안 줄어듦 · `truncate` 만 말줄임, 보조 = 라이트 흰 면 + 경계선 · 다크 투명 면 + 강한 경계선, 파괴 = `error.line` 테두리 + `error.main` 글자(§0-17) | 78 | 버튼 | `handoff-kit-contract`, `long-text-contract`, `kit.test` |
 | 알릴 사실(메시지 박스 1a) | `Callout` | `ui/kit.jsx` | 네 톤 같은 면 · 아이콘만 상태, 톤 이름 줄 없음, `compact` · `inline` · `bleed`, error=alert | 63 | 메시지 박스 | `kit.test`, `handoff-kit-contract` |
 | 빈 상태 | `EmptyState` | `ui/kit.jsx` | layout page/card/region/inline, 클로비 page 132/112 · 판 72 · inline 없음(D-485) | 58 | 빈 상태와 오류 | `list-empty-two-faces`, `mascot-size-contract` |
 | 조건 0건 / 자료 0건 | `ListEmptyState` | `ui/kit.jsx` | `filtered` 갈래 소유, 조건 지우기는 30 보조(§0-18 목록 판) | 7 | 이럴 때 이것 | `list-empty-two-faces` |
-| 오류 상태 | `ErrorState` | `ui/kit.jsx` | layout 별 클로비(errorPage/errorRegion), 아이콘, 판 안 동작 30, 모르는 size/layout DEV 중지 | 61 | 빈 상태와 오류 | `kit.test`, `handoff-kit-contract` |
-| 로딩 | `Skeleton` | `ui/kit.jsx` | kind section/table/chart/page | 61 | 빈 상태와 오류 | `skeleton-shapes` |
-| 정해진 값(목록 밖) | `Badge` | `ui/kit.jsx` | 22 · 좌우 8 · R4 · 600 · 점 없음, 표 문맥에서는 점 + 낱말 | 53 | 배지와 태그와 점과 칩 | `badge-vs-tag` |
-| 사람이 붙인 낱말 | `Tag` | `ui/kit.jsx` | 22 · R6 · 400 · 흰 면 + 테두리, 한 줄 말줄임 | 9 | 배지와 태그와 점과 칩 | `badge-vs-tag`, `long-text-contract` |
+| 오류 상태 | `ErrorState` | `ui/kit.jsx` | layout 별 클로비(errorPage/errorRegion), 아이콘, 판 안 동작 30, 모르는 size/layout DEV 중지. 그림은 실패의 종류다 — 「500」 팻말은 status ≥ 500 만, 429 · 새 버전 배포(청크)는 기다리는 그림, 그 밖은 오류 그림. `kind` render/chunk · 복사할 기술 정보 `detail` · `secondaryAction` · `retryLabel`(D-498) | 62 | 빈 상태와 오류 | `kit.test`, `handoff-kit-contract` |
+| 로딩 | `Skeleton` | `ui/kit.jsx` | kind section/table/chart/page | 60 | 빈 상태와 오류 | `skeleton-shapes` |
+| 정해진 값(목록 밖) | `Badge` | `ui/kit.jsx` | 22 · 좌우 8 · R4 · 600 · 점 없음, 표 문맥에서는 점 + 낱말 | 51 | 배지와 태그와 점과 칩 | `badge-vs-tag` |
+| 사람이 붙인 낱말 | `Tag` | `ui/kit.jsx` | 22 · R6 · 400 · 흰 면 + 테두리, 한 줄 말줄임 | 7 | 배지와 태그와 점과 칩 | `badge-vs-tag`, `long-text-contract` |
 | 점 + 낱말(표 · 칸반 · 목록 행) | `DotLabel` | `ui/kit.jsx` | 7px 점 aria-hidden, 한 줄 · title, `size="caption"`(목록 행 · 카드 안 작은 글자 — 화면별 글자 덮어쓰기 대신) | 8 | 배지와 태그와 점과 칩 | `handoff-kit-contract` |
 | 건수 미니 칩 | `CountChip` | `ui/kit.jsx` | 20 한 값, `compact` 18, `unread` Primary | 6 | 배지와 태그와 점과 칩 | `handoff-kit-contract` |
 | 보기 전환 | `Segmented` | `ui/kit.jsx` | 34 = 28 + 3×2(선은 안쪽 그림자), roving tabindex + 화살표/Home/End | 8 | 세그먼티드 | `kit.test`, `handoff-kit-contract` |
 | 데이터 표 | `DataTable` | `ui/kit.jsx` | 머리 40 · 행 ≥48 · `rowHeight=tall` ≥76 · 묶음 36 · 발 44, 제목만 왼쪽(머리 = 행), 빈 표 = EmptyState region, `placement` surface/card/plain · `list` · `selection` · `note`(§0-18 목록 판) | 25 | 데이터 표, 목록 화면 조합 | `column-types`, `datatable-*`, `list-surface` |
-| 판 | `Card` | `ui/kit.jsx` | 여백 20, 판 안의 판은 여백까지 사라짐 | 54 | 모든 절 | `density-contract` |
+| 격자 머리 칸 | `GridHeaderCell` | `ui/GridHeaderCell.jsx` | `role=columnheader` · `aria-sort`, 안쪽은 표 머리와 같은 `HeaderCellContent`(이름 · 정렬 단추 · 머리 필터, `TableHeaderCell.jsx`) — 새 UX 없음(D-497) | 1 | — | `grid-header-cell` |
+| 판 | `Card` | `ui/kit.jsx` | 여백 20, 판 안의 판은 여백까지 사라짐 | 49 | 모든 절 | `density-contract` |
 | 표가 아닌 목록의 판 | `ListCard` | `ui/kit.jsx` | 자기 안을 자르지 않음(판 안 고정 머리). 표를 담는 목록은 쓰지 않는다 — `DataTable placement="surface"` | 1 | — | `kit.test` |
-| 행 동작 | `RowActions` | `ui/kit.jsx` | ≤2 → 30 보조/파괴 단추(채움 없음), >2 → `OverflowMenu sm` 하나, `icon` 항목은 30 아이콘 단추, `data-row-actions` | 7 | 데이터 표, 목록 화면 조합 | `row-actions` |
-| 제목 칸 | `TitleCell` | `ui/kit.jsx` | 링크색 `primary.dark` 600 한 줄 · 말줄임 · title, `onOpen` 단추 · `href` 앵커 · `link` 색만 · 셋 다 없으면 잉크 | 5 | 목록 화면 조합 | `list-surface`, `theme-link-contrast` |
+| 행 동작 | `RowActions` | `ui/kit.jsx` | ≤2 → 30 보조/파괴 단추(채움 없음), >2 → `OverflowMenu sm` 하나, `icon` 항목은 30 아이콘 단추, `data-row-actions` | 8 | 데이터 표, 목록 화면 조합 | `row-actions` |
+| 제목 칸 | `TitleCell` | `ui/kit.jsx` | 링크색 `primary.dark` 600 한 줄 · 말줄임 · title, `onOpen` 단추 · `href` 앵커 · `link` 색만 · 셋 다 없으면 잉크 | 6 | 목록 화면 조합 | `list-surface`, `theme-link-contrast` |
 | 선택 묶음 | `SelectionBar`(별칭 `BulkActions`) | `ui/kit.jsx`, `ui/bulkSelect.jsx` | role=toolbar 「일괄 작업」, 「N{단위} 선택」 · 일괄 동작 30 · 「해제」, 선택 0 이면 안 그림, `data-list-selection`(채움 하나는 이 묶음 몫) | 0(표가 그린다) | 목록 화면 조합 | `bulk-actions-toolbar-role`, `list-surface` |
 | 구획 제목 | `SectionTitle` | `ui/kit.jsx` | 1.0625rem/700 + 설명 | 22 | 모든 절 | `heading-order` |
 | 모달 | `Modal` | `ui/kit.jsx` | 제목 17/700 · 닫기 30 · 모서리 8 · 발 ActionFooter, `tone=danger` 표지 | 23 | 팝오버와 모달 | `modal-*`, `handoff-kit-contract` |
-| 폼 모달 | `FormModal` | `ui/kit.jsx` | Modal + FormField | 11 | — | `form-*` |
-| 카드 발 · 모달 발 | `ActionFooter` | `ui/kit.jsx` | 함몰면 + 위 실선, 오른쪽 정렬 gap 8, `extra` 왼쪽, 주인 하나(`data-action-footer`) | 10 | 팝오버와 모달, 폼 필드 | `handoff-kit-contract` |
+| 폼 모달 | `FormModal` | `ui/kit.jsx` | Modal + FormField. 진행 중인 제출은 동기 ref 로 버린다 — 숨은 제출 단추(`sr-only`)의 Enter 연타가 두 번 제출하던 자리(D-498) | 11 | — | `form-*` |
+| 카드 발 · 모달 발 | `ActionFooter` | `ui/kit.jsx` | 함몰면 + 위 실선, 오른쪽 정렬 gap 8, `extra` 왼쪽, 주인 하나(`data-action-footer`) | 15 | 팝오버와 모달, 폼 필드 | `handoff-kit-contract` |
 | 확인 대화 | `useConfirm` | `ui/kit.jsx` | danger 는 표지 + 취소 기본 포커스 + dangerConfirm | 40 | 팝오버와 모달 | `handoff-kit-contract`, `kit.test` |
-| 토스트 | `useToast` | `ui/kit.jsx` | 성공 · 정보만, 잉크 면(다크 함몰면), 모서리 8 | 50 | 빈 상태와 오류 | `toast-announce` |
+| 토스트 | `useToast` | `ui/kit.jsx` | 성공 · 정보만, 잉크 면(다크 함몰면), 모서리 8 | 51 | 빈 상태와 오류 | `toast-announce` |
 | 팝오버 동작 목록 | `overflowMenuItems` | `ui/kit.jsx` | 32 항목, 파괴적만 error 글자 + 위 선 | 3 | 팝오버와 모달 | `kit.test` |
 | 폼 칸 | `FormFieldCell` | `ui/kit.jsx` | 라벨 20 · 필드 36(바닥 — 칩이 접히면 자란다) · 도움말 auto, 오류가 도움말 자리 | 1 | 폼 필드 | `handoff-kit-contract`, `new-ticket-layout` |
 | 속성 줄 | `MetaBar` | `ui/kit.jsx` | 키/값 | 5 | — | `metabar-hierarchy` |
 | 페이지 머리 | `PageHeader` | `ui/kit.jsx` | 제목 28/700 + 설명 + 동작 34 | 34 | 머리 | `page-header-*` |
-| 필터 바 그릇 | `FilterSurface` | `ui/FilterBar.jsx` | 판 없음 · 아래 실선 · 줄 칸 문맥 제공 | 16 | 검색과 필터 바 | `filter-row-width`, `handoff-kit-contract` |
-| 필터 바 도구 줄 | `ToolbarRow` | `ui/FilterBar.jsx` | 검색 슬롯 320(직계), 좁으면 100% | 12 | 검색과 필터 바 | `handoff-kit-contract` |
-| 필터 바 내용 줄 | `FilterRow` | `ui/FilterBar.jsx` | 검색 슬롯 320(직계), 위 정렬 | 10 | 검색과 필터 바 | `filter-row-width` |
-| 필터 바 오른쪽 묶음 | `ToolbarEnd` | `ui/FilterBar.jsx` | 통째로 줄바꿈(nowrap · 안 줄어듦) | 5 | 검색과 필터 바 | — |
-| 결과 수 | `ResultLine` | `ui/FilterBar.jsx` | 「전체 N건」(조건 없을 때) | 11 | 검색과 필터 바 | `filter-row-width` |
-| 조건 칩 줄 | `FilterChips` | `ui/FilterBar.jsx` | 26 · 알약 · 틴트 · X | 2 | 검색과 필터 바 | `filter-row-width` |
-| 조건 줄(둘째 줄) | `FilterConditionLine` | `ui/FilterBar.jsx` | 조건이 있을 때만 · 위 실선 · 「조건 N개, 결과 M건」 | 1 | 검색과 필터 바 | `handoff-kit-contract` |
-| 필터 켬/끔 · 패널 열기 | `FilterToggle` | `ui/FilterBar.jsx` | 34 버튼, aria-pressed / aria-expanded, 눌림만 함몰면 | 6 | 검색과 필터 바 | `handoff-kit-contract` |
-| 검색창 | `SearchBox` | `ui/filters.jsx` | 줄 칸 34, `layout=fill` 100% | 12 | 검색과 필터 바 | `handoff-kit-contract` |
-| 닫힌 축 셀렉트 | `FilterSelect` | `ui/filters.jsx` | 줄 칸 34 + 접두 이름, 값 한 줄 · title | 14 | 검색과 필터 바 | `filter-form-layout`, `long-text-contract` |
-| 늘어나는 축 고르개 | `EntityCombobox` | `ui/filters.jsx` | 줄 칸 34 + 접두 이름, 목록은 PickerOption, `myId` 맨 위 | 13 | 검색과 필터 바, 팝오버와 모달 | `entity-combobox*` |
+| 필터 바 그릇 | `FilterSurface` | `ui/FilterBar.jsx` | 판 없음 · 아래 실선 · 줄 칸 문맥 제공 · 이름 붙은 크기 컨테이너(wide 칸 계단의 기준 — 내용 폭으로 줄어드는 자리에 두지 않는다, D-496) | 2 | 검색과 필터 바 | `filter-row-width`, `handoff-kit-contract` |
+| 필터 바 도구 줄 | `ToolbarRow` | `ui/FilterBar.jsx` | 검색 슬롯 320(직계), 좁으면 100% | 2 | 검색과 필터 바 | `handoff-kit-contract` |
+| 필터 바 내용 줄 | `FilterRow` | `ui/FilterBar.jsx` | 검색 슬롯 320(직계), 위 정렬 | 0 | 검색과 필터 바 | `filter-row-width` |
+| 필터 바 오른쪽 묶음 | `ToolbarEnd` | `ui/FilterBar.jsx` | 통째로 줄바꿈(nowrap · 안 줄어듦) | 1 | 검색과 필터 바 | — |
+| 결과 수 | `ResultLine` | `ui/FilterBar.jsx` | 「전체 N건」(조건 없을 때) | 1 | 검색과 필터 바 | `filter-row-width` |
+| 조건 칩 줄 | `FilterChips` | `ui/FilterBar.jsx` | 26 · 알약 · 틴트 · X | 0 | 검색과 필터 바 | `filter-row-width` |
+| 조건 줄(둘째 줄) | `FilterConditionLine` | `ui/FilterBar.jsx` | 조건이 있을 때만 · 위 실선 · 「조건 N개, 결과 M건」 | 0 | 검색과 필터 바 | `handoff-kit-contract` |
+| 문맥 · 보기 줄 | `ContextBar` | `ui/ContextBar.jsx` | 「어느 판 · 어떻게 그리는가」 줄 — 문맥 칸(팀 · 회차 wide) · 보기 전환 · 「보기 옵션」 묶음(`role=group`), 줄 칸 문맥 · 크기 컨테이너, 검색 칸 · 조건 줄 없음, 필터 지우기가 안 건드린다(D-497) | 2 | — | `context-bar` |
+| 필터 켬/끔 · 패널 열기 | `FilterToggle` | `ui/FilterBar.jsx` | 34 버튼, aria-pressed / aria-expanded, 눌림만 함몰면 | 7 | 검색과 필터 바 | `handoff-kit-contract` |
+| 검색창 | `SearchBox` | `ui/filters.jsx` | 줄 칸 34, `layout=fill` 100% | 11 | 검색과 필터 바 | `handoff-kit-contract` |
+| 닫힌 축 셀렉트 | `FilterSelect` | `ui/filters.jsx` | 줄 칸 34 + 접두 이름, 값 한 줄 · title | 13 | 검색과 필터 바 | `filter-form-layout`, `long-text-contract` |
+| 늘어나는 축 고르개 | `EntityCombobox` | `ui/filters.jsx` | 줄 칸 34 + 접두 이름, 목록은 PickerOption, `myId` 맨 위. `size="wide"` 는 필터 면 폭 계단 20 · 16 · 13rem(D-496). 후보 거르기는 이름 · 보조 글자를 검색 접기로 칸마다(D-495) | 13 | 검색과 필터 바, 팝오버와 모달 | `entity-combobox*` |
 | 자유 입력 필터 | `DebouncedTextField` | `ui/filters.jsx` | 줄 칸 34 + 접두 이름 | 4 | — | `filters.test` |
-| 부서 필터 | `DepartmentFilter` | `ui/filters.jsx` | 경로 라벨 | 2 | — | `department-filter` |
-| 회차 팀 문맥 | `TeamSelect` | `ui/filters.jsx` | 「전체」 없음, 후보 < 2 면 안 그림 | 2 | — | `work-board-team-context` |
+| 부서 필터 | `DepartmentFilter` | `ui/filters.jsx` | 경로 라벨 · wide 칸이 기본(D-496) | 2 | — | `department-filter` |
+| 회차 팀 문맥 | `TeamSelect` | `ui/filters.jsx` | 「전체」 없음, 후보 < 2 면 안 그림 · wide 칸이 기본(D-496) | 2 | — | `work-board-team-context` |
 | 검색 팝오버 항목 | `PickerOption` | `ui/filters.jsx` | 32 한 줄 · 체크 · title | 2 | 팝오버와 모달 | `handoff-kit-contract` |
 | 사람 고르기 | `UserPicker` | `ui/UserPicker.jsx` | 아바타 22 + 이름 + 소속, (나) 표시 | 2 | 팝오버와 모달 | `pickers.test` |
 | 프로젝트 고르기 | `ProjectPicker` | `ui/ProjectPicker.jsx` | 코드 보조 | 2 | — | `pickers.test` |
 | 태그 고르기 | `TagPicker` | `ui/TagPicker.jsx` | renderTags 칩(원재료 호스트) | 3 | — | `tag-picker*` |
-| 상태 요약 | `StatusSummaryCard` | `ui/StatusKpi.jsx` | 카드 하나 · 비율 바는 total 일 때만 · 값 하나 갈래 | 11 | 상태 요약 | `status-summary-card`, `handoff-kit-contract` |
-| 독립 측정값 줄 | `StatusKpiStrip` | `ui/StatusKpi.jsx` | `note` 캡션 | 7 | 상태 요약 | `status-kpi-note` |
+| 상태 요약 | `StatusSummaryCard` | `ui/StatusKpi.jsx` | 카드 하나 · 비율 바는 total 일 때만 · 값 하나 갈래. 제목 · 전체 · 도움말 · 동작이 없으면 머리 줄을 안 세우고, 전체 0 에 누를 칩 · 위험 · 동작이 없으면 안 선다. 위험 칩은 글자 값도 받는다(D-501) | 10 | 상태 요약 | `status-summary-card`, `handoff-kit-contract` |
+| 독립 측정값 줄 | `StatusKpiStrip` | `ui/StatusKpi.jsx` | `note` 캡션 · 값이 null 인 항목은 빠진다(D-501) | 4 | 상태 요약 | `status-kpi-note` |
 | 칸반 카드 | `TicketFace` | `ui/TicketFace.jsx` | 12/14 · 줄 8 · 발 위 실선, 우선순위와 신호 점 + 낱말 | 2 | 칸반 카드 | `ticket-signals`, `handoff-kit-contract` |
 | 신호 표시 | `TicketSignals` | `ui/TicketSignals.jsx` | 기본 dot, 상세 머리 pill, 좁은 표 칸 mark | 4 | 칸반 카드 | `ticket-signals` |
-| 사람 얼굴 | `UserAvatar` | `ui/UserAvatar.jsx` | xs 22 · inline 20 · sm 24 · md 30 · lg 40 · xl 72 | 12 | 데이터 표 | — |
-| 사람 한 줄 | `PersonLine` | `ui/UserAvatar.jsx` | 얼굴 + 이름 말줄임 | 3 | — | — |
-| 페이지 탭 | `TabShell` | `ui/TabShell.jsx` | 라우트 탭 | 3 | — | `settings-shell` |
+| 사람 얼굴 | `UserAvatar` | `ui/UserAvatar.jsx` | xs 22 · inline 20 · sm 24 · md 30 · lg 40 · xl 72 | 11 | 데이터 표 | — |
+| 참여자 한 줄 | `MemberRow` | `screens/ChatRoomMembers.jsx` | 접속 점 · 사진 · 이름((나) · 보관됨) · 직급 · 부서 경로 · 방장 배지 · 접속 상태 한 벌 — 명단 팝오버(동작 없음)와 관리 창(동작 칸)이 같이 쓴다(D-502) | 0(같은 파일 둘) | — | `chatroom-members-popover` |
+| 사람 한 줄 | `PersonLine` | `ui/UserAvatar.jsx` | 얼굴 + 이름 말줄임 | 4 | — | — |
+| 페이지 탭 | `TabShell` | `ui/TabShell.jsx` | 라우트 탭 · 탭 순서는 정의 순서 그대로, 옛 주소는 열리는 탭만 바꾼다(`defaultTab`, D-501) | 3 | — | `settings-shell` |
 | 설정 줄 | `SettingRow` | `ui/adminKit.jsx` | `compact` 한 줄 | 3 | 조작기의 상태 | — |
 | 상태 줄 목록 | `StatusList` | `ui/adminKit.jsx` | 이름 + 슬롯 | 4 | — | — |
 | 회의 갈래 칩 | `DiscussBucketRow` | `ui/DiscussBucket.jsx` | 알약 + StatusDot, tablist · roving tabindex | 1 | — | `sprint-meeting` |
@@ -80,34 +83,34 @@ UI 의미 → 정본 컴포넌트/파일 → API · 상태 계약 → 소비처 
 
 소비처 파일 목록:
 
-- `Button`: `app/AdminRoutes.jsx`, `app/AppShell.jsx`, `app/AssistantDrawer.jsx`, `app/Banners.jsx`, `app/NotificationBell.jsx`, `app/StatusNotices.jsx`, `app/TopBrand.jsx`, `app/Tour.jsx`, `app/UserMenu.jsx`, `app/UserRoutes.jsx`, `screens/Activity.jsx`, `screens/AiWorkspace.jsx`, `screens/AssistantPanel.jsx`, `screens/Board.jsx`, `screens/BoardPost.jsx`, `screens/Chat.jsx`, `screens/ChatPane.jsx`, `screens/ChatRoom.jsx`, `screens/ChatRoomMembers.jsx`, `screens/ChatRooms.jsx`, `screens/CommentThread.jsx`, `screens/Dashboard.jsx`, `screens/DataScreen.jsx`, `screens/DevReport.jsx`, `screens/GameRoom.jsx`, `screens/Games.jsx`, `screens/Home.jsx`, `screens/Integrity.jsx`, `screens/Knowledge.jsx`, `screens/KnowledgeDoc.jsx`, `screens/LegacyDocRedirect.jsx`, `screens/LlmConsole.jsx`, `screens/MailStatus.jsx`, `screens/MyApprovals.jsx`, `screens/MyStats.jsx`, `screens/MyTickets.jsx`, `screens/Offboarding.jsx`, `screens/OrgConsole.jsx`, `screens/Profile.jsx`, `screens/Project.jsx`, `screens/ProjectDocuments.jsx`, `screens/ProjectWeekly.jsx`, `screens/Projects.jsx`, `screens/SchedulerCalendar.jsx`, `screens/Search.jsx`, `screens/SetupWizard.jsx`, `screens/Sprint.jsx`, `screens/SprintLifecycle.jsx`, `screens/StorageProviders.jsx`, `screens/SystemOps.jsx`, `screens/Ticket.jsx`, `screens/TicketAttachments.jsx`, `screens/TicketFilterBar.jsx`, `screens/TicketPeek.jsx`, `screens/Trash.jsx`, `screens/Users.jsx`, `screens/UsersBulk.jsx`, `screens/WorkBoard.jsx`, `screens/chat/ConversationSidebar.jsx`, `screens/chat/MessageThread.jsx`, `screens/chat/TicketCard.jsx`, `screens/chat/WelcomeStatus.jsx`, `screens/data-screen/SubListDrawer.jsx`, `screens/game-room/ChatPanel.jsx`, `screens/game-room/GameStage.jsx`, `screens/knowledge/TaxonomyManager.jsx`, `screens/ops/DiagnosticActions.jsx`, `screens/ops/Maintenance.jsx`, `screens/org/DeptDetailPanel.jsx`, `screens/org/OrgDetailPanel.jsx`, `screens/settings/SettingEditor.jsx`, `screens/settings/SettingVersions.jsx`, `screens/settings/SettingsMain.jsx`, `screens/settings/StructuredObjectFields.jsx`, `ui/BlockEditor.jsx`, `ui/DefaultAvatarPicker.jsx`, `ui/EditableBody.jsx`, `ui/FilterBar.jsx`, `ui/InfiniteScroll.jsx`, `ui/SavedViews.jsx`, `ui/TabShell.jsx`, `ui/bulkSelect.jsx`, `ui/columnFilter.jsx`
+- `Button`: `app/AdminRoutes.jsx`, `app/AppShell.jsx`, `app/AssistantDrawer.jsx`, `app/Banners.jsx`, `app/NotificationBell.jsx`, `app/StatusNotices.jsx`, `app/Tour.jsx`, `app/UserRoutes.jsx`, `screens/Activity.jsx`, `screens/AiWorkspace.jsx`, `screens/AssistantPanel.jsx`, `screens/Board.jsx`, `screens/BoardPost.jsx`, `screens/Chat.jsx`, `screens/ChatPane.jsx`, `screens/ChatRoom.jsx`, `screens/ChatRoomMembers.jsx`, `screens/ChatRooms.jsx`, `screens/CommentThread.jsx`, `screens/Dashboard.jsx`, `screens/DataScreen.jsx`, `screens/DevReport.jsx`, `screens/GameRoom.jsx`, `screens/Games.jsx`, `screens/Home.jsx`, `screens/Integrity.jsx`, `screens/Knowledge.jsx`, `screens/KnowledgeDoc.jsx`, `screens/LegacyDocRedirect.jsx`, `screens/LlmConsole.jsx`, `screens/MailStatus.jsx`, `screens/MyStats.jsx`, `screens/MyTickets.jsx`, `screens/Offboarding.jsx`, `screens/OrgConsole.jsx`, `screens/Profile.jsx`, `screens/Project.jsx`, `screens/ProjectDocuments.jsx`, `screens/ProjectWeekly.jsx`, `screens/Projects.jsx`, `screens/SchedulerCalendar.jsx`, `screens/Search.jsx`, `screens/SetupWizard.jsx`, `screens/Sprint.jsx`, `screens/SprintLifecycle.jsx`, `screens/StorageProviders.jsx`, `screens/SystemOps.jsx`, `screens/Ticket.jsx`, `screens/TicketAttachments.jsx`, `screens/TicketFilterBar.jsx`, `screens/TicketPeek.jsx`, `screens/Trash.jsx`, `screens/Users.jsx`, `screens/UsersBulk.jsx`, `screens/WorkBoard.jsx`, `screens/chat/ConversationSidebar.jsx`, `screens/chat/MessageThread.jsx`, `screens/chat/TicketCard.jsx`, `screens/chat/WelcomeStatus.jsx`, `screens/data-screen/SubListDrawer.jsx`, `screens/game-room/ChatPanel.jsx`, `screens/game-room/GameStage.jsx`, `screens/knowledge/TaxonomyManager.jsx`, `screens/ops/DiagnosticActions.jsx`, `screens/ops/Maintenance.jsx`, `screens/org/DeptDetailPanel.jsx`, `screens/org/OrgDetailPanel.jsx`, `screens/settings/SettingEditor.jsx`, `screens/settings/SettingVersions.jsx`, `screens/settings/SettingsMain.jsx`, `screens/settings/StructuredObjectFields.jsx`, `ui/BlockEditor.jsx`, `ui/DefaultAvatarPicker.jsx`, `ui/EditableBody.jsx`, `ui/FilterBar.jsx`, `ui/InfiniteScroll.jsx`, `ui/SavedViews.jsx`, `ui/TabShell.jsx`
 - `Callout`: `app/AssistantDrawer.jsx`, `app/Banners.jsx`, `app/CommandPalette.jsx`, `app/NotificationBell.jsx`, `app/ScopeBar.jsx`, `app/StatusNotices.jsx`, `app/UserMenu.jsx`, `screens/AiWorkspace.jsx`, `screens/Board.jsx`, `screens/BoardPost.jsx`, `screens/Chat.jsx`, `screens/ChatPane.jsx`, `screens/ChatRoom.jsx`, `screens/ChatRoomMembers.jsx`, `screens/ChatRooms.jsx`, `screens/CommentThread.jsx`, `screens/Dashboard.jsx`, `screens/DataScreen.jsx`, `screens/DevReport.jsx`, `screens/GameRoom.jsx`, `screens/Games.jsx`, `screens/Home.jsx`, `screens/Integrity.jsx`, `screens/Knowledge.jsx`, `screens/KnowledgeDoc.jsx`, `screens/LlmConsole.jsx`, `screens/MailStatus.jsx`, `screens/MyApprovals.jsx`, `screens/MyStats.jsx`, `screens/MyTickets.jsx`, `screens/Offboarding.jsx`, `screens/Profile.jsx`, `screens/Project.jsx`, `screens/ProjectTickets.jsx`, `screens/ProjectWeekly.jsx`, `screens/Projects.jsx`, `screens/SchedulerCalendar.jsx`, `screens/Search.jsx`, `screens/SetupWizard.jsx`, `screens/StorageProviders.jsx`, `screens/SystemOps.jsx`, `screens/TeamTickets.jsx`, `screens/Ticket.jsx`, `screens/TicketAttachments.jsx`, `screens/TicketPeek.jsx`, `screens/Trash.jsx`, `screens/Users.jsx`, `screens/UsersBulk.jsx`, `screens/WorkBoard.jsx`, `screens/chat/ConversationSidebar.jsx`, `screens/data-screen/SubListDrawer.jsx`, `screens/game-room/ChatPanel.jsx`, `screens/knowledge/NewDocumentModal.jsx`, `screens/knowledge/TaxonomyManager.jsx`, `screens/ops/Diagnostics.jsx`, `screens/ops/Maintenance.jsx`, `screens/ops/ServiceStatusPanel.jsx`, `screens/settings/SettingEditor.jsx`, `screens/settings/SettingVersions.jsx`, `screens/settings/StructuredObjectFields.jsx`, `ui/DocBody.jsx`, `ui/EditableBody.jsx`, `ui/SavedViews.jsx`
 - `EmptyState`: `app/AdminRoutes.jsx`, `app/AssistantDrawer.jsx`, `app/CommandPalette.jsx`, `app/NotificationBell.jsx`, `app/StatusNotices.jsx`, `app/UserRoutes.jsx`, `screens/Activity.jsx`, `screens/AiWorkspace.jsx`, `screens/AssistantPanel.jsx`, `screens/Board.jsx`, `screens/ChatPane.jsx`, `screens/ChatRoomMembers.jsx`, `screens/ChatRooms.jsx`, `screens/Dashboard.jsx`, `screens/DataScreen.jsx`, `screens/DevReport.jsx`, `screens/Games.jsx`, `screens/Home.jsx`, `screens/KnowledgeDoc.jsx`, `screens/LegacyDocRedirect.jsx`, `screens/MailStatus.jsx`, `screens/MyApprovals.jsx`, `screens/MyStats.jsx`, `screens/MyTickets.jsx`, `screens/Offboarding.jsx`, `screens/OrgConsole.jsx`, `screens/Profile.jsx`, `screens/Project.jsx`, `screens/ProjectDocuments.jsx`, `screens/ProjectMetrics.jsx`, `screens/ProjectTickets.jsx`, `screens/ProjectWbs.jsx`, `screens/ProjectWeekly.jsx`, `screens/Projects.jsx`, `screens/SchedulerCalendar.jsx`, `screens/Search.jsx`, `screens/SetupWizard.jsx`, `screens/Sprint.jsx`, `screens/StorageProviders.jsx`, `screens/SystemOps.jsx`, `screens/Ticket.jsx`, `screens/TicketAttachments.jsx`, `screens/TicketFilterBar.jsx`, `screens/TicketHistory.jsx`, `screens/Trash.jsx`, `screens/Users.jsx`, `screens/WorkBoard.jsx`, `screens/chat/ConversationSidebar.jsx`, `screens/chat/ResultsRail.jsx`, `screens/chat/WelcomeStatus.jsx`, `screens/data-screen/SubListDrawer.jsx`, `screens/game-room/ChatPanel.jsx`, `screens/ops/Diagnostics.jsx`, `screens/ops/JobQueuePanel.jsx`, `screens/settings/SettingVersions.jsx`, `screens/settings/SettingsMain.jsx`, `ui/DocBody.jsx`, `ui/TabShell.jsx`
 - `ListEmptyState`: `screens/ChatRooms.jsx`, `screens/Knowledge.jsx`, `screens/Offboarding.jsx`, `screens/OrgTree.jsx`, `screens/Projects.jsx`, `screens/Trash.jsx`, `screens/chat/ConversationSidebar.jsx`
-- `ErrorState`: `app/AdminRoutes.jsx`, `app/AppShell.jsx`, `app/NotificationBell.jsx`, `app/UserRoutes.jsx`, `screens/Activity.jsx`, `screens/AiWorkspace.jsx`, `screens/AssistantPanel.jsx`, `screens/Board.jsx`, `screens/BoardPost.jsx`, `screens/Chat.jsx`, `screens/ChatPane.jsx`, `screens/ChatRoom.jsx`, `screens/ChatRoomMembers.jsx`, `screens/ChatRooms.jsx`, `screens/CommentThread.jsx`, `screens/Dashboard.jsx`, `screens/DataScreen.jsx`, `screens/DevReport.jsx`, `screens/GameRoom.jsx`, `screens/Games.jsx`, `screens/Home.jsx`, `screens/Integrity.jsx`, `screens/Knowledge.jsx`, `screens/KnowledgeDoc.jsx`, `screens/LegacyDocRedirect.jsx`, `screens/LlmConsole.jsx`, `screens/MailStatus.jsx`, `screens/MyApprovals.jsx`, `screens/MyStats.jsx`, `screens/MyTickets.jsx`, `screens/Offboarding.jsx`, `screens/OrgTree.jsx`, `screens/Profile.jsx`, `screens/Project.jsx`, `screens/ProjectDocuments.jsx`, `screens/ProjectTickets.jsx`, `screens/ProjectWeekly.jsx`, `screens/Projects.jsx`, `screens/SchedulerCalendar.jsx`, `screens/Search.jsx`, `screens/SetupWizard.jsx`, `screens/Sprint.jsx`, `screens/StorageProviders.jsx`, `screens/SystemOps.jsx`, `screens/TeamChatWidget.jsx`, `screens/TeamTickets.jsx`, `screens/Ticket.jsx`, `screens/TicketHistory.jsx`, `screens/TicketPeek.jsx`, `screens/Trash.jsx`, `screens/Users.jsx`, `screens/WorkBoard.jsx`, `screens/WorkSummary.jsx`, `screens/chat/ConversationSidebar.jsx`, `screens/data-screen/SubListDrawer.jsx`, `screens/ops/Diagnostics.jsx`, `screens/ops/Maintenance.jsx`, `screens/org/DeptDetailPanel.jsx`, `screens/settings/SettingVersions.jsx`, `screens/settings/SettingsMain.jsx`, `ui/TabShell.jsx`
-- `Skeleton`: `app/AdminRoutes.jsx`, `app/App.jsx`, `app/AppShell.jsx`, `app/AssistantDrawer.jsx`, `app/NotificationBell.jsx`, `app/UserRoutes.jsx`, `screens/Activity.jsx`, `screens/AiWorkspace.jsx`, `screens/AssistantPanel.jsx`, `screens/BoardPost.jsx`, `screens/Chat.jsx`, `screens/ChatPane.jsx`, `screens/ChatRoom.jsx`, `screens/ChatRoomMembers.jsx`, `screens/ChatRooms.jsx`, `screens/CommentThread.jsx`, `screens/Dashboard.jsx`, `screens/DataScreen.jsx`, `screens/DevReport.jsx`, `screens/GameRoom.jsx`, `screens/Games.jsx`, `screens/Home.jsx`, `screens/Integrity.jsx`, `screens/Knowledge.jsx`, `screens/KnowledgeDoc.jsx`, `screens/LegacyDocRedirect.jsx`, `screens/LlmConsole.jsx`, `screens/MailStatus.jsx`, `screens/MyStats.jsx`, `screens/MyTickets.jsx`, `screens/Offboarding.jsx`, `screens/OrgConsole.jsx`, `screens/OrgTree.jsx`, `screens/Profile.jsx`, `screens/Project.jsx`, `screens/ProjectDocuments.jsx`, `screens/ProjectMetrics.jsx`, `screens/ProjectTickets.jsx`, `screens/ProjectWeekly.jsx`, `screens/Projects.jsx`, `screens/SchedulerCalendar.jsx`, `screens/Search.jsx`, `screens/SetupWizard.jsx`, `screens/Sprint.jsx`, `screens/StorageProviders.jsx`, `screens/SystemOps.jsx`, `screens/TeamChatWidget.jsx`, `screens/TeamTickets.jsx`, `screens/Ticket.jsx`, `screens/TicketHistory.jsx`, `screens/TicketPeek.jsx`, `screens/Trash.jsx`, `screens/Users.jsx`, `screens/WorkBoard.jsx`, `screens/WorkSummary.jsx`, `screens/chat/ConversationSidebar.jsx`, `screens/ops/Diagnostics.jsx`, `screens/ops/Maintenance.jsx`, `screens/org/DeptDetailPanel.jsx`, `ui/EditableBody.jsx`, `ui/TabShell.jsx`
-- `Badge`: `app/NotificationBell.jsx`, `screens/Activity.jsx`, `screens/AssistantPanel.jsx`, `screens/Board.jsx`, `screens/BoardPost.jsx`, `screens/ChatRoom.jsx`, `screens/ChatRoomMembers.jsx`, `screens/Dashboard.jsx`, `screens/DevReport.jsx`, `screens/GameRoom.jsx`, `screens/Games.jsx`, `screens/Home.jsx`, `screens/KnowledgeDoc.jsx`, `screens/LlmConsole.jsx`, `screens/MailStatus.jsx`, `screens/MyApprovals.jsx`, `screens/MyTickets.jsx`, `screens/Offboarding.jsx`, `screens/OrgTree.jsx`, `screens/Profile.jsx`, `screens/Project.jsx`, `screens/ProjectWbs.jsx`, `screens/ProjectWeekly.jsx`, `screens/Projects.jsx`, `screens/SetupWizard.jsx`, `screens/Sprint.jsx`, `screens/SprintLifecycle.jsx`, `screens/StorageProviders.jsx`, `screens/SystemOps.jsx`, `screens/Trash.jsx`, `screens/Users.jsx`, `screens/UsersBulk.jsx`, `screens/WorkBoard.jsx`, `screens/chat/ConversationSidebar.jsx`, `screens/chat/TicketCard.jsx`, `screens/data-screen/SummaryView.jsx`, `screens/data-screen/columnHelpers.jsx`, `screens/game-room/MembersList.jsx`, `screens/game-room/RpsViews.jsx`, `screens/ops/Diagnostics.jsx`, `screens/ops/Maintenance.jsx`, `screens/ops/ServiceStatusPanel.jsx`, `screens/org/DeptDetailPanel.jsx`, `screens/org/OrgDetailPanel.jsx`, `screens/registry/authoring.js`, `screens/registry/governance.js`, `screens/registry/notifications.js`, `screens/registry/platform.js`, `screens/settings/SettingsMain.jsx`, `screens/ticket-meta.jsx`, `ui/SavedViews.jsx`, `ui/adminKit.jsx`, `ui/charts/BarSeries.jsx`
-- `Tag`: `screens/Board.jsx`, `screens/BoardPost.jsx`, `screens/KnowledgeDoc.jsx`, `screens/LlmConsole.jsx`, `screens/ProjectDocuments.jsx`, `screens/chat/MessageThread.jsx`, `screens/knowledge/documentColumns.jsx`, `screens/settings/SettingsMain.jsx`, `screens/settings/StructuredObjectFields.jsx`
-- `DotLabel`: `screens/ChatRooms.jsx`, `screens/SetupWizard.jsx`, `screens/chat/TicketCard.jsx`, `screens/knowledge/documentColumns.jsx`, `ui/TicketFace.jsx`, `ui/TicketSignals.jsx`
+- `ErrorState`: `app/AdminRoutes.jsx`, `app/AppShell.jsx`, `app/NotificationBell.jsx`, `app/UserRoutes.jsx`, `screens/Activity.jsx`, `screens/AiWorkspace.jsx`, `screens/AssistantPanel.jsx`, `screens/Board.jsx`, `screens/BoardPost.jsx`, `screens/Chat.jsx`, `screens/ChatPane.jsx`, `screens/ChatRoom.jsx`, `screens/ChatRoomMembers.jsx`, `screens/ChatRooms.jsx`, `screens/CommentThread.jsx`, `screens/Dashboard.jsx`, `screens/DataScreen.jsx`, `screens/DevReport.jsx`, `screens/GameRoom.jsx`, `screens/Games.jsx`, `screens/Home.jsx`, `screens/Integrity.jsx`, `screens/Knowledge.jsx`, `screens/KnowledgeDoc.jsx`, `screens/LegacyDocRedirect.jsx`, `screens/LlmConsole.jsx`, `screens/MailStatus.jsx`, `screens/MyApprovals.jsx`, `screens/MyStats.jsx`, `screens/MyTickets.jsx`, `screens/Offboarding.jsx`, `screens/OrgTree.jsx`, `screens/Profile.jsx`, `screens/Project.jsx`, `screens/ProjectDocuments.jsx`, `screens/ProjectTickets.jsx`, `screens/ProjectWeekly.jsx`, `screens/Projects.jsx`, `screens/SchedulerCalendar.jsx`, `screens/Search.jsx`, `screens/SetupWizard.jsx`, `screens/Sprint.jsx`, `screens/StorageProviders.jsx`, `screens/SystemOps.jsx`, `screens/TeamChatWidget.jsx`, `screens/TeamTickets.jsx`, `screens/Ticket.jsx`, `screens/TicketHistory.jsx`, `screens/TicketPeek.jsx`, `screens/Trash.jsx`, `screens/Users.jsx`, `screens/WorkBoard.jsx`, `screens/WorkSummary.jsx`, `screens/chat/ConversationSidebar.jsx`, `screens/data-screen/SubListDrawer.jsx`, `screens/ops/Diagnostics.jsx`, `screens/ops/Maintenance.jsx`, `screens/org/DeptDetailPanel.jsx`, `screens/org/OrgPeopleGrid.jsx`, `screens/settings/SettingVersions.jsx`, `screens/settings/SettingsMain.jsx`, `ui/TabShell.jsx`
+- `Skeleton`: `app/AdminRoutes.jsx`, `app/App.jsx`, `app/AppShell.jsx`, `app/AssistantDrawer.jsx`, `app/NotificationBell.jsx`, `app/UserRoutes.jsx`, `screens/Activity.jsx`, `screens/AiWorkspace.jsx`, `screens/AssistantPanel.jsx`, `screens/BoardPost.jsx`, `screens/Chat.jsx`, `screens/ChatPane.jsx`, `screens/ChatRoom.jsx`, `screens/ChatRoomMembers.jsx`, `screens/ChatRooms.jsx`, `screens/CommentThread.jsx`, `screens/Dashboard.jsx`, `screens/DataScreen.jsx`, `screens/DevReport.jsx`, `screens/GameRoom.jsx`, `screens/Games.jsx`, `screens/Home.jsx`, `screens/Integrity.jsx`, `screens/Knowledge.jsx`, `screens/KnowledgeDoc.jsx`, `screens/LegacyDocRedirect.jsx`, `screens/LlmConsole.jsx`, `screens/MailStatus.jsx`, `screens/MyStats.jsx`, `screens/MyTickets.jsx`, `screens/Offboarding.jsx`, `screens/OrgConsole.jsx`, `screens/OrgTree.jsx`, `screens/Profile.jsx`, `screens/Project.jsx`, `screens/ProjectDocuments.jsx`, `screens/ProjectMetrics.jsx`, `screens/ProjectTickets.jsx`, `screens/ProjectWeekly.jsx`, `screens/Projects.jsx`, `screens/SchedulerCalendar.jsx`, `screens/Search.jsx`, `screens/SetupWizard.jsx`, `screens/Sprint.jsx`, `screens/SystemOps.jsx`, `screens/TeamChatWidget.jsx`, `screens/TeamTickets.jsx`, `screens/Ticket.jsx`, `screens/TicketHistory.jsx`, `screens/TicketPeek.jsx`, `screens/Trash.jsx`, `screens/WorkBoard.jsx`, `screens/WorkSummary.jsx`, `screens/chat/ConversationSidebar.jsx`, `screens/ops/Diagnostics.jsx`, `screens/ops/Maintenance.jsx`, `screens/org/DeptDetailPanel.jsx`, `screens/org/OrgPeopleGrid.jsx`, `ui/EditableBody.jsx`, `ui/TabShell.jsx`
+- `Badge`: `screens/Activity.jsx`, `screens/AssistantPanel.jsx`, `screens/Board.jsx`, `screens/BoardPost.jsx`, `screens/ChatRoom.jsx`, `screens/ChatRoomMembers.jsx`, `screens/Dashboard.jsx`, `screens/DevReport.jsx`, `screens/GameRoom.jsx`, `screens/Games.jsx`, `screens/Home.jsx`, `screens/KnowledgeDoc.jsx`, `screens/LlmConsole.jsx`, `screens/MailStatus.jsx`, `screens/MyApprovals.jsx`, `screens/MyTickets.jsx`, `screens/Offboarding.jsx`, `screens/OrgTree.jsx`, `screens/Profile.jsx`, `screens/Project.jsx`, `screens/ProjectWbs.jsx`, `screens/ProjectWeekly.jsx`, `screens/Projects.jsx`, `screens/SetupWizard.jsx`, `screens/Sprint.jsx`, `screens/SprintLifecycle.jsx`, `screens/StorageProviders.jsx`, `screens/SystemOps.jsx`, `screens/Trash.jsx`, `screens/Users.jsx`, `screens/UsersBulk.jsx`, `screens/WorkBoard.jsx`, `screens/chat/ConversationSidebar.jsx`, `screens/chat/TicketCard.jsx`, `screens/data-screen/SummaryView.jsx`, `screens/data-screen/columnHelpers.jsx`, `screens/game-room/MembersList.jsx`, `screens/game-room/RpsViews.jsx`, `screens/ops/Diagnostics.jsx`, `screens/ops/Maintenance.jsx`, `screens/ops/ServiceStatusPanel.jsx`, `screens/org/DeptDetailPanel.jsx`, `screens/org/OrgDetailPanel.jsx`, `screens/registry/authoring.js`, `screens/registry/governance.js`, `screens/registry/notifications.js`, `screens/registry/platform.js`, `screens/settings/SettingsMain.jsx`, `screens/ticket-meta.jsx`, `ui/adminKit.jsx`, `ui/charts/BarSeries.jsx`
+- `Tag`: `screens/BoardPost.jsx`, `screens/KnowledgeDoc.jsx`, `screens/LlmConsole.jsx`, `screens/ProjectDocuments.jsx`, `screens/chat/MessageThread.jsx`, `screens/knowledge/documentColumns.jsx`, `screens/settings/StructuredObjectFields.jsx`
+- `DotLabel`: `screens/Board.jsx`, `screens/ChatRooms.jsx`, `screens/SetupWizard.jsx`, `screens/chat/TicketCard.jsx`, `screens/knowledge/documentColumns.jsx`, `screens/settings/SettingsMain.jsx`, `ui/TicketFace.jsx`, `ui/TicketSignals.jsx`
 - `Segmented`: `screens/Activity.jsx`, `screens/AssistantPanel.jsx`, `screens/Knowledge.jsx`, `screens/MyApprovals.jsx`, `screens/MyStats.jsx`, `screens/Trash.jsx`, `screens/WorkBoard.jsx`, `screens/knowledge/TaxonomyManager.jsx`
 - `DataTable`: `screens/Board.jsx`, `screens/Dashboard.jsx`, `screens/DataScreen.jsx`, `screens/DevReport.jsx`, `screens/Home.jsx`, `screens/Integrity.jsx`, `screens/Knowledge.jsx`, `screens/MailStatus.jsx`, `screens/MyApprovals.jsx`, `screens/MyStats.jsx`, `screens/MyTickets.jsx`, `screens/Offboarding.jsx`, `screens/ProjectDocuments.jsx`, `screens/ProjectWbs.jsx`, `screens/Projects.jsx`, `screens/SchedulerCalendar.jsx`, `screens/StorageProviders.jsx`, `screens/Trash.jsx`, `screens/Users.jsx`, `screens/UsersBulk.jsx`, `screens/data-screen/SubListDrawer.jsx`, `screens/ops/Diagnostics.jsx`, `screens/ops/JobQueuePanel.jsx`, `screens/settings/SettingVersions.jsx`, `screens/settings/SettingsMain.jsx`
-- `Card`: `app/AdminRoutes.jsx`, `app/AppShell.jsx`, `screens/Activity.jsx`, `screens/AiWorkspace.jsx`, `screens/AssistantPanel.jsx`, `screens/Board.jsx`, `screens/BoardPost.jsx`, `screens/Chat.jsx`, `screens/ChatRooms.jsx`, `screens/CommentThread.jsx`, `screens/Dashboard.jsx`, `screens/DataScreen.jsx`, `screens/DevReport.jsx`, `screens/GameRoom.jsx`, `screens/Games.jsx`, `screens/Home.jsx`, `screens/Integrity.jsx`, `screens/KnowledgeDoc.jsx`, `screens/LlmConsole.jsx`, `screens/MyApprovals.jsx`, `screens/MyStats.jsx`, `screens/MyTickets.jsx`, `screens/Offboarding.jsx`, `screens/OrgConsole.jsx`, `screens/OrgTree.jsx`, `screens/Profile.jsx`, `screens/Project.jsx`, `screens/ProjectDocuments.jsx`, `screens/ProjectTickets.jsx`, `screens/ProjectWbs.jsx`, `screens/ProjectWeekly.jsx`, `screens/Projects.jsx`, `screens/SchedulerCalendar.jsx`, `screens/Search.jsx`, `screens/SetupWizard.jsx`, `screens/Sprint.jsx`, `screens/SystemOps.jsx`, `screens/TeamChatWidget.jsx`, `screens/TeamTickets.jsx`, `screens/Ticket.jsx`, `screens/TicketAttachments.jsx`, `screens/TicketHistory.jsx`, `screens/Trash.jsx`, `screens/Users.jsx`, `screens/WorkBoard.jsx`, `screens/game-room/ChatPanel.jsx`, `screens/game-room/MembersList.jsx`, `screens/ops/Maintenance.jsx`, `screens/org/DeptDetailPanel.jsx`, `screens/org/OrgDetailPanel.jsx`, `screens/settings/AccentPicker.jsx`, `screens/settings/SettingVersions.jsx`, `ui/TabShell.jsx`, `ui/TicketFace.jsx`
-- `ListCard`: `screens/Activity.jsx`, `screens/Board.jsx`, `screens/Dashboard.jsx`, `screens/DataScreen.jsx`, `screens/DevReport.jsx`, `screens/Integrity.jsx`, `screens/Knowledge.jsx`, `screens/MailStatus.jsx`, `screens/Offboarding.jsx`, `screens/Projects.jsx`, `screens/StorageProviders.jsx`, `screens/Trash.jsx`, `screens/Users.jsx`, `screens/settings/SettingsMain.jsx`
+- `Card`: `app/AdminRoutes.jsx`, `app/AppShell.jsx`, `screens/Activity.jsx`, `screens/AiWorkspace.jsx`, `screens/AssistantPanel.jsx`, `screens/BoardPost.jsx`, `screens/Chat.jsx`, `screens/ChatRooms.jsx`, `screens/CommentThread.jsx`, `screens/Dashboard.jsx`, `screens/DataScreen.jsx`, `screens/DevReport.jsx`, `screens/GameRoom.jsx`, `screens/Games.jsx`, `screens/Home.jsx`, `screens/Integrity.jsx`, `screens/KnowledgeDoc.jsx`, `screens/LlmConsole.jsx`, `screens/MyStats.jsx`, `screens/MyTickets.jsx`, `screens/Offboarding.jsx`, `screens/OrgConsole.jsx`, `screens/OrgTree.jsx`, `screens/Profile.jsx`, `screens/Project.jsx`, `screens/ProjectDocuments.jsx`, `screens/ProjectTickets.jsx`, `screens/ProjectWbs.jsx`, `screens/ProjectWeekly.jsx`, `screens/Projects.jsx`, `screens/SchedulerCalendar.jsx`, `screens/Search.jsx`, `screens/SetupWizard.jsx`, `screens/Sprint.jsx`, `screens/SystemOps.jsx`, `screens/TeamChatWidget.jsx`, `screens/TeamTickets.jsx`, `screens/Ticket.jsx`, `screens/TicketAttachments.jsx`, `screens/TicketHistory.jsx`, `screens/WorkBoard.jsx`, `screens/game-room/ChatPanel.jsx`, `screens/game-room/MembersList.jsx`, `screens/ops/Maintenance.jsx`, `screens/org/DeptDetailPanel.jsx`, `screens/org/OrgDetailPanel.jsx`, `screens/settings/AccentPicker.jsx`, `ui/TabShell.jsx`, `ui/TicketFace.jsx`
+- `ListCard`: `screens/Activity.jsx`
 - `SectionTitle`: `screens/AssistantPanel.jsx`, `screens/BoardPost.jsx`, `screens/CommentThread.jsx`, `screens/DevReport.jsx`, `screens/Home.jsx`, `screens/Integrity.jsx`, `screens/LlmConsole.jsx`, `screens/MyStats.jsx`, `screens/MyTickets.jsx`, `screens/Offboarding.jsx`, `screens/Profile.jsx`, `screens/Project.jsx`, `screens/ProjectWbs.jsx`, `screens/ProjectWeekly.jsx`, `screens/Sprint.jsx`, `screens/TicketAttachments.jsx`, `screens/TicketHistory.jsx`, `screens/TicketPeek.jsx`, `screens/ops/Maintenance.jsx`, `screens/settings/AccentPicker.jsx`, `ui/EditableBody.jsx`, `ui/adminKit.jsx`
 - `Modal`: `app/Tour.jsx`, `screens/Board.jsx`, `screens/ChatRoomMembers.jsx`, `screens/ChatRooms.jsx`, `screens/DataScreen.jsx`, `screens/Games.jsx`, `screens/KnowledgeDoc.jsx`, `screens/MyTickets.jsx`, `screens/Offboarding.jsx`, `screens/SchedulerCalendar.jsx`, `screens/SprintLifecycle.jsx`, `screens/TicketPeek.jsx`, `screens/Trash.jsx`, `screens/Users.jsx`, `screens/UsersBulk.jsx`, `screens/data-screen/SubListDrawer.jsx`, `screens/knowledge/NewDocumentModal.jsx`, `screens/knowledge/TaxonomyManager.jsx`, `screens/settings/SettingEditor.jsx`, `screens/settings/SettingVersions.jsx`, `ui/AvatarCropDialog.jsx`, `ui/DefaultAvatarPicker.jsx`, `ui/SavedViews.jsx`
 - `FormModal`: `screens/AiWorkspace.jsx`, `screens/Knowledge.jsx`, `screens/Project.jsx`, `screens/Projects.jsx`, `screens/Sprint.jsx`, `screens/SprintLifecycle.jsx`, `screens/StorageProviders.jsx`, `screens/SystemOps.jsx`, `screens/Users.jsx`, `screens/WorkBoard.jsx`, `screens/org/orgModals.jsx`
 - `useConfirm`: `app/NotificationBell.jsx`, `screens/Board.jsx`, `screens/BoardPost.jsx`, `screens/Chat.jsx`, `screens/ChatPane.jsx`, `screens/ChatRoom.jsx`, `screens/ChatRoomMembers.jsx`, `screens/ChatRooms.jsx`, `screens/CommentThread.jsx`, `screens/DataScreen.jsx`, `screens/Games.jsx`, `screens/Knowledge.jsx`, `screens/KnowledgeDoc.jsx`, `screens/MailStatus.jsx`, `screens/MyApprovals.jsx`, `screens/MyTickets.jsx`, `screens/Offboarding.jsx`, `screens/Profile.jsx`, `screens/Project.jsx`, `screens/SchedulerCalendar.jsx`, `screens/Search.jsx`, `screens/Sprint.jsx`, `screens/SprintLifecycle.jsx`, `screens/StorageProviders.jsx`, `screens/SystemOps.jsx`, `screens/Ticket.jsx`, `screens/TicketAttachments.jsx`, `screens/Trash.jsx`, `screens/Users.jsx`, `screens/UsersBulk.jsx`, `screens/data-screen/SubListDrawer.jsx`, `screens/game-room/useGameRoomController.js`, `screens/ops/Maintenance.jsx`, `screens/org/DeptDetailPanel.jsx`, `screens/org/OrgDetailPanel.jsx`, `screens/settings/SettingEditor.jsx`, `screens/settings/SettingVersions.jsx`, `screens/useChat.js`, `ui/EditableBody.jsx`, `ui/SavedViews.jsx`
-- `useToast`: `app/NotificationBell.jsx`, `screens/AiWorkspace.jsx`, `screens/AssistantPanel.jsx`, `screens/Board.jsx`, `screens/BoardPost.jsx`, `screens/ChatRoom.jsx`, `screens/ChatRoomMembers.jsx`, `screens/CommentThread.jsx`, `screens/Dashboard.jsx`, `screens/DataScreen.jsx`, `screens/Games.jsx`, `screens/Integrity.jsx`, `screens/Knowledge.jsx`, `screens/KnowledgeDoc.jsx`, `screens/LlmConsole.jsx`, `screens/MailStatus.jsx`, `screens/MyApprovals.jsx`, `screens/MyTickets.jsx`, `screens/Offboarding.jsx`, `screens/Profile.jsx`, `screens/Project.jsx`, `screens/ProjectDocuments.jsx`, `screens/ProjectWeekly.jsx`, `screens/Projects.jsx`, `screens/SchedulerCalendar.jsx`, `screens/Search.jsx`, `screens/Sprint.jsx`, `screens/SprintLifecycle.jsx`, `screens/StorageProviders.jsx`, `screens/SystemOps.jsx`, `screens/Ticket.jsx`, `screens/TicketAttachments.jsx`, `screens/Trash.jsx`, `screens/Users.jsx`, `screens/UsersBulk.jsx`, `screens/WorkBoard.jsx`, `screens/chat/links.jsx`, `screens/data-screen/SubListDrawer.jsx`, `screens/game-room/useGameRoomController.js`, `screens/ops/Diagnostics.jsx`, `screens/ops/Maintenance.jsx`, `screens/ops/ServiceStatusPanel.jsx`, `screens/org/DeptDetailPanel.jsx`, `screens/org/OrgDetailPanel.jsx`, `screens/org/orgModals.jsx`, `screens/settings/SettingVersions.jsx`, `screens/settings/SettingsMain.jsx`, `screens/useChat.js`, `ui/EditableBody.jsx`, `ui/SavedViews.jsx`
+- `useToast`: `app/NotificationBell.jsx`, `screens/AiWorkspace.jsx`, `screens/AssistantPanel.jsx`, `screens/Board.jsx`, `screens/BoardPost.jsx`, `screens/ChatRoom.jsx`, `screens/ChatRoomMembers.jsx`, `screens/CommentThread.jsx`, `screens/Dashboard.jsx`, `screens/DataScreen.jsx`, `screens/Games.jsx`, `screens/Integrity.jsx`, `screens/Knowledge.jsx`, `screens/KnowledgeDoc.jsx`, `screens/LlmConsole.jsx`, `screens/MailStatus.jsx`, `screens/MyApprovals.jsx`, `screens/MyTickets.jsx`, `screens/Offboarding.jsx`, `screens/Profile.jsx`, `screens/Project.jsx`, `screens/ProjectDocuments.jsx`, `screens/ProjectWeekly.jsx`, `screens/Projects.jsx`, `screens/SchedulerCalendar.jsx`, `screens/Search.jsx`, `screens/Sprint.jsx`, `screens/SprintLifecycle.jsx`, `screens/StorageProviders.jsx`, `screens/SystemOps.jsx`, `screens/Ticket.jsx`, `screens/TicketAttachments.jsx`, `screens/Trash.jsx`, `screens/Users.jsx`, `screens/UsersBulk.jsx`, `screens/WorkBoard.jsx`, `screens/chat/links.jsx`, `screens/data-screen/SubListDrawer.jsx`, `screens/game-room/useGameRoomController.js`, `screens/ops/Diagnostics.jsx`, `screens/ops/Maintenance.jsx`, `screens/ops/ServiceStatusPanel.jsx`, `screens/org/DeptDetailPanel.jsx`, `screens/org/OrgDetailPanel.jsx`, `screens/org/orgModals.jsx`, `screens/settings/SettingVersions.jsx`, `screens/settings/SettingsMain.jsx`, `screens/useChat.js`, `ui/BlockEditor.jsx`, `ui/EditableBody.jsx`, `ui/SavedViews.jsx`
 - `MetaBar`: `screens/KnowledgeDoc.jsx`, `screens/MailStatus.jsx`, `screens/Ticket.jsx`, `screens/TicketPeek.jsx`, `screens/data-screen/SummaryView.jsx`
 - `PageHeader`: `screens/Activity.jsx`, `screens/AiWorkspace.jsx`, `screens/Board.jsx`, `screens/BoardPost.jsx`, `screens/Chat.jsx`, `screens/ChatRooms.jsx`, `screens/Dashboard.jsx`, `screens/DataScreen.jsx`, `screens/DevReport.jsx`, `screens/GameRoom.jsx`, `screens/Games.jsx`, `screens/Home.jsx`, `screens/Integrity.jsx`, `screens/Knowledge.jsx`, `screens/KnowledgeDoc.jsx`, `screens/MailStatus.jsx`, `screens/MyApprovals.jsx`, `screens/MyStats.jsx`, `screens/MyTickets.jsx`, `screens/Offboarding.jsx`, `screens/OrgConsole.jsx`, `screens/Profile.jsx`, `screens/Project.jsx`, `screens/Projects.jsx`, `screens/Search.jsx`, `screens/SetupWizard.jsx`, `screens/Sprint.jsx`, `screens/TeamTickets.jsx`, `screens/Ticket.jsx`, `screens/Trash.jsx`, `screens/Users.jsx`, `screens/WorkBoard.jsx`, `screens/ops/Diagnostics.jsx`, `ui/TabShell.jsx`
-- `FilterSurface`: `screens/Activity.jsx`, `screens/Board.jsx`, `screens/DataScreen.jsx`, `screens/DevReport.jsx`, `screens/Offboarding.jsx`, `screens/OrgConsole.jsx`, `screens/Projects.jsx`, `screens/SchedulerCalendar.jsx`, `screens/Search.jsx`, `screens/Sprint.jsx`, `screens/TicketFilterBar.jsx`, `screens/Users.jsx`, `screens/WorkBoard.jsx`, `screens/data-screen/SubListDrawer.jsx`, `screens/knowledge/KnowledgeFilterBar.jsx`, `screens/settings/SettingsMain.jsx`
-- `ToolbarRow`: `screens/Activity.jsx`, `screens/Board.jsx`, `screens/DataScreen.jsx`, `screens/Offboarding.jsx`, `screens/OrgConsole.jsx`, `screens/Projects.jsx`, `screens/SchedulerCalendar.jsx`, `screens/Search.jsx`, `screens/Users.jsx`, `screens/UsersBulk.jsx`, `screens/knowledge/KnowledgeFilterBar.jsx`, `screens/settings/SettingsMain.jsx`
-- `FilterRow`: `screens/Board.jsx`, `screens/DataScreen.jsx`, `screens/DevReport.jsx`, `screens/OrgConsole.jsx`, `screens/Projects.jsx`, `screens/Sprint.jsx`, `screens/TicketFilterBar.jsx`, `screens/Users.jsx`, `screens/WorkBoard.jsx`, `screens/data-screen/SubListDrawer.jsx`
-- `ToolbarEnd`: `screens/Board.jsx`, `screens/DataScreen.jsx`, `screens/SchedulerCalendar.jsx`, `screens/knowledge/KnowledgeFilterBar.jsx`, `screens/settings/SettingsMain.jsx`
-- `ResultLine`: `screens/Board.jsx`, `screens/DataScreen.jsx`, `screens/Knowledge.jsx`, `screens/Offboarding.jsx`, `screens/OrgConsole.jsx`, `screens/ProjectDocuments.jsx`, `screens/ProjectTickets.jsx`, `screens/Projects.jsx`, `screens/Search.jsx`, `screens/TicketFilterBar.jsx`, `screens/Users.jsx`
-- `FilterChips`: `screens/Board.jsx`, `screens/TicketFilterBar.jsx`
-- `SearchBox`: `screens/Board.jsx`, `screens/ChatRooms.jsx`, `screens/DataScreen.jsx`, `screens/Offboarding.jsx`, `screens/OrgConsole.jsx`, `screens/Projects.jsx`, `screens/Search.jsx`, `screens/TicketFilterBar.jsx`, `screens/Users.jsx`, `screens/WorkBoard.jsx`, `screens/chat/ConversationSidebar.jsx`, `screens/knowledge/KnowledgeFilterBar.jsx`
-- `FilterSelect`: `screens/Board.jsx`, `screens/DataScreen.jsx`, `screens/DevReport.jsx`, `screens/OrgConsole.jsx`, `screens/Projects.jsx`, `screens/Sprint.jsx`, `screens/SprintLifecycle.jsx`, `screens/TicketFilterBar.jsx`, `screens/Users.jsx`, `screens/UsersBulk.jsx`, `screens/WorkBoard.jsx`, `screens/data-screen/SubListDrawer.jsx`, `screens/knowledge/KnowledgeFilterBar.jsx`, `ui/columnFilter.jsx`
+- `FilterSurface`: `screens/SchedulerCalendar.jsx`, `screens/Search.jsx`
+- `ToolbarRow`: `screens/SchedulerCalendar.jsx`, `screens/Search.jsx`
+- `FilterRow`: 
+- `ToolbarEnd`: `screens/SchedulerCalendar.jsx`
+- `ResultLine`: `screens/Search.jsx`
+- `FilterChips`: 
+- `SearchBox`: `screens/Board.jsx`, `screens/ChatRooms.jsx`, `screens/DataScreen.jsx`, `screens/Offboarding.jsx`, `screens/OrgConsole.jsx`, `screens/Projects.jsx`, `screens/Search.jsx`, `screens/TicketFilterBar.jsx`, `screens/Users.jsx`, `screens/chat/ConversationSidebar.jsx`, `screens/knowledge/KnowledgeFilterBar.jsx`
+- `FilterSelect`: `screens/Board.jsx`, `screens/DataScreen.jsx`, `screens/DevReport.jsx`, `screens/OrgConsole.jsx`, `screens/Projects.jsx`, `screens/Sprint.jsx`, `screens/SprintLifecycle.jsx`, `screens/TicketFilterBar.jsx`, `screens/Users.jsx`, `screens/UsersBulk.jsx`, `screens/data-screen/SubListDrawer.jsx`, `screens/knowledge/KnowledgeFilterBar.jsx`, `ui/columnFilter.jsx`
 - `EntityCombobox`: `screens/DataScreen.jsx`, `screens/Integrity.jsx`, `screens/MyTickets.jsx`, `screens/Project.jsx`, `screens/SchedulerCalendar.jsx`, `screens/Sprint.jsx`, `screens/TicketFilterBar.jsx`, `screens/WorkBoard.jsx`, `screens/knowledge/KnowledgeFilterBar.jsx`, `ui/ProjectPicker.jsx`, `ui/UserPicker.jsx`, `ui/columnFilter.jsx`, `ui/kit.jsx`
 - `DebouncedTextField`: `screens/DataScreen.jsx`, `screens/TicketFilterBar.jsx`, `screens/data-screen/SubListDrawer.jsx`, `ui/columnFilter.jsx`
 - `DepartmentFilter`: `screens/Projects.jsx`, `screens/TeamTickets.jsx`
@@ -115,23 +118,25 @@ UI 의미 → 정본 컴포넌트/파일 → API · 상태 계약 → 소비처 
 - `PickerOption`: `screens/chat/peoplePicker.jsx`, `ui/UserPicker.jsx`
 - `ProjectPicker`: `screens/KnowledgeDoc.jsx`, `screens/knowledge/NewDocumentModal.jsx`
 - `TagPicker`: `screens/KnowledgeDoc.jsx`, `screens/knowledge/KnowledgeFilterBar.jsx`, `screens/knowledge/NewDocumentModal.jsx`
-- `StatusSummaryCard`: `screens/DataScreen.jsx`, `screens/DevReport.jsx`, `screens/Home.jsx`, `screens/Integrity.jsx`, `screens/MailStatus.jsx`, `screens/MyStats.jsx`, `screens/Projects.jsx`, `screens/SchedulerCalendar.jsx`, `screens/SetupWizard.jsx`, `screens/data-screen/SummaryView.jsx`, `screens/ops/Diagnostics.jsx`
-- `StatusKpiStrip`: `screens/OrgConsole.jsx`, `screens/Sprint.jsx`, `screens/data-screen/SummaryView.jsx`, `screens/ops/JobQueuePanel.jsx`, `screens/ops/ServiceStatusPanel.jsx`, `screens/org/DeptDetailPanel.jsx`, `screens/org/OrgDetailPanel.jsx`
+- `StatusSummaryCard`: `screens/DevReport.jsx`, `screens/Home.jsx`, `screens/Integrity.jsx`, `screens/MailStatus.jsx`, `screens/MyStats.jsx`, `screens/Projects.jsx`, `screens/SchedulerCalendar.jsx`, `screens/SetupWizard.jsx`, `screens/data-screen/SummaryView.jsx`, `screens/ops/Diagnostics.jsx`
+- `StatusKpiStrip`: `screens/Sprint.jsx`, `screens/data-screen/SummaryView.jsx`, `screens/ops/JobQueuePanel.jsx`, `screens/ops/ServiceStatusPanel.jsx`
 - `TicketFace`: `screens/Sprint.jsx`, `screens/WorkBoard.jsx`
 - `TicketSignals`: `screens/MyTickets.jsx`, `screens/WorkBoard.jsx`, `screens/ticket-meta.jsx`, `ui/TicketFace.jsx`
-- `UserAvatar`: `app/UserMenu.jsx`, `screens/Board.jsx`, `screens/ChatPane.jsx`, `screens/ChatRoomMembers.jsx`, `screens/KnowledgeDoc.jsx`, `screens/Profile.jsx`, `screens/ProjectDocuments.jsx`, `screens/Sprint.jsx`, `screens/chat/peoplePicker.jsx`, `screens/knowledge/documentColumns.jsx`, `screens/org/DeptDetailPanel.jsx`, `ui/UserPicker.jsx`
-- `PersonLine`: `screens/MyTickets.jsx`, `screens/ticket-meta.jsx`, `ui/TicketFace.jsx`
+- `UserAvatar`: `app/UserMenu.jsx`, `screens/Board.jsx`, `screens/ChatPane.jsx`, `screens/ChatRoomMembers.jsx`, `screens/KnowledgeDoc.jsx`, `screens/Profile.jsx`, `screens/ProjectDocuments.jsx`, `screens/Sprint.jsx`, `screens/chat/peoplePicker.jsx`, `screens/knowledge/documentColumns.jsx`, `ui/UserPicker.jsx`
+- `PersonLine`: `screens/MyTickets.jsx`, `screens/org/OrgPeopleGrid.jsx`, `screens/ticket-meta.jsx`, `ui/TicketFace.jsx`
 - `TabShell`: `app/AdminRoutes.jsx`, `screens/Project.jsx`, `screens/settings/SettingsShell.jsx`
 - `SettingRow`: `screens/Integrity.jsx`, `screens/Profile.jsx`, `screens/SystemOps.jsx`
 - `StatusList`: `screens/Dashboard.jsx`, `screens/WorkSummary.jsx`, `screens/ops/Diagnostics.jsx`, `screens/ops/ServiceStatusPanel.jsx`
 - `DiscussBucketRow`: `screens/Sprint.jsx`
 - `TicketPeek`: `screens/Sprint.jsx`, `screens/WorkBoard.jsx`
 - `CountChip`: `app/AppShell.jsx`, `app/StatusNotices.jsx`, `screens/ChatRooms.jsx`, `screens/Integrity.jsx`, `screens/Search.jsx`, `screens/Sprint.jsx`
-- `ActionFooter`: `app/Tour.jsx`, `screens/DataScreen.jsx`, `screens/MyTickets.jsx`, `screens/Offboarding.jsx`, `screens/TicketPeek.jsx`, `screens/Users.jsx`, `screens/UsersBulk.jsx`, `screens/data-screen/SubListDrawer.jsx`, `screens/settings/SettingEditor.jsx`, `screens/settings/SettingVersions.jsx`
+- `ActionFooter`: `app/Tour.jsx`, `screens/DataScreen.jsx`, `screens/LlmConsole.jsx`, `screens/MyTickets.jsx`, `screens/Offboarding.jsx`, `screens/SchedulerCalendar.jsx`, `screens/TicketPeek.jsx`, `screens/Users.jsx`, `screens/UsersBulk.jsx`, `screens/data-screen/SubListDrawer.jsx`, `screens/knowledge/TaxonomyManager.jsx`, `screens/ops/Maintenance.jsx`, `screens/settings/SettingEditor.jsx`, `screens/settings/SettingVersions.jsx`, `ui/EditableBody.jsx`
 - `overflowMenuItems`: `app/UserMenu.jsx`, `screens/ChatPane.jsx`, `ui/SavedViews.jsx`
 - `FormFieldCell`: `screens/MyTickets.jsx`
-- `FilterConditionLine`: `screens/knowledge/KnowledgeFilterBar.jsx`
-- `FilterToggle`: `screens/ProjectTickets.jsx`, `screens/Projects.jsx`, `screens/TeamTickets.jsx`, `screens/Users.jsx`, `screens/WorkBoard.jsx`, `screens/settings/SettingsMain.jsx`
+- `FilterConditionLine`: 
+- `ContextBar`: `screens/Sprint.jsx`, `screens/WorkBoard.jsx`
+- `GridHeaderCell`: `screens/WorkBoard.jsx`
+- `FilterToggle`: `screens/DataScreen.jsx`, `screens/ProjectTickets.jsx`, `screens/Projects.jsx`, `screens/TeamTickets.jsx`, `screens/Users.jsx`, `screens/WorkBoard.jsx`, `screens/settings/SettingsMain.jsx`
 - `UserPicker`: `screens/MyTickets.jsx`, `screens/Offboarding.jsx`
 
 ---
@@ -266,8 +271,11 @@ B 단계가 전수 흡수를 끝낸 뒤 남는 자리만 적는다. 형식은 �
   `FilterSelect` · `DebouncedTextField` 로 선다. 「전체」가 답이 아닌 축(정렬 · 연도 · 월)은 `FilterSelect noAllOption`.
   문서 목록의 태그 고르개(`TagPicker`)도 줄 안에서는 같은 칸이다(`useRowCell` · `PrefixLabel` 을 `filters.jsx` 와 같이 쓴다).
 - **켬/끔은 `FilterToggle`(34 중립 단추, `aria-pressed`)** — 보관한 프로젝트 포함 · 완료, 취소 포함(팀 티켓 ·
-  프로젝트 티켓 탭) · 보관된 계정 보기 · 기술 정보(설정 키) 보기 · 작업 보드의 내 티켓만 · 보류 펴기/접기 ·
-  완료와 취소 보기/감추기(보호 화면 — 같은 라벨 · 같은 눌림 상태).
+  프로젝트 티켓 탭) · 보관된 계정 보기 · 기술 정보(설정 키) 보기 · 알림 목록의 「안 읽음만 보기 N」(registry `type: "toggle"` —
+  전폭 한 숫자 카드였다, D-501). 작업 보드의 내 티켓만 · 보류 펴기/접기 · 완료와 취소 보기/감추기는 데이터 조건이 아니라 **보기 옵션**이라
+  필터 바가 아니라 `ContextBar` 의 「보기 옵션」 묶음에 선다 — 칩이 없고 「필터 지우기」가 건드리지 않는다(D-497).
+- **칸 크기(D-496)**: Entity 칸은 기본(13rem)과 wide(프로젝트 · 부서와 팀의 경로 · 회차 · 문서 공간 · 연결된 스케줄)다. wide 칸은 필터 면의
+  폭(컨테이너 질의)을 보고 96rem 이상 20rem · 76rem 이상 16rem · 그 밖 13rem 으로 선다 — 계단이지 늘어남이 아니고 줄의 남는 폭을 먹지 않는다.
 - **검색 칸** — 통합 검색은 필터 바의 검색 슬롯(320)에 제출 단추가 붙는다(`SearchBox immediate`: 제출형이라 글자마다
   값을 부모가 든다). 채팅방 목록(296)은 `SearchBox layout="fill" immediate`.
 - **결과 줄** — UI 3차에서 목록 위 단독 결과 줄을 걷었다(§0-18). 화면이 쓰던 결과 문장은 목록 끝 줄로 옮겼고(프로젝트
@@ -285,7 +293,11 @@ B 단계가 전수 흡수를 끝낸 뒤 남는 자리만 적는다. 형식은 �
 - `DataTable empty="…"` 문자열은 A 에서 표가 스스로 `EmptyState region` 을 세우게 됐다 — 호출부를 바꿀 것이 없다
   (조직 정합성 관리자 표). UI 3차부터 목록 화면의 빈 상태는 `emptyState` 로 표에 넘겨 목록 판 안(여백 20)에 선다(프로젝트 · 휴지통 ·
   게시판 · 사용자 · 문서 · DataScreen 조건 0건). 조건 없이 화면 전체가 빈 자리만 판 밖 page 빈 상태다(§0-18 목록 판 조합).
-- **남긴 격자**(표 모양이지만 표가 아닌 것): 작업 보드 백로그(계획 P-17 · D-473 — 끌어 옮기기 · 가상 목록 · 카드 줄),
+- **남는 폭의 주인(D-501)**: 폭을 적지 않은 `title` 과 `grow` 산문 열이 남는 폭을 갖고, 그런 열이 없으면 마지막 `text` 열이 갖는다
+  (`columnTypes.js::assignLeftoverWidth` — `planNarrowColumns` 안이라 DataTable · GroupedTickets 가 같은 규칙). 폭을 적은 제목(설정 「항목명」
+  13rem)은 그 폭을 지키고 남는 폭은 설명 · 오류 같은 산문 열이 갖는다. 정렬(D-471)은 그대로다.
+- **남긴 격자**(표 모양이지만 표가 아닌 것): 작업 보드 백로그(계획 P-17 · D-473 — 끌어 옮기기 · 가상 목록 · 카드 줄 — 머리는 표 머리와 같은
+  칸 `GridHeaderCell` 이고 정렬 · 머리 필터가 티켓 그리드와 같은 주소 상태다, D-497),
   프로젝트 WBS 나무 줄(들여쓰기 트리), 예약 달력(달력 격자 `role=grid`), 게임 대진표, 채팅 방 목록 행.
 - **행 초점 고리(G)**: `onRow` 가 있는 행은 Tab 으로 닿고 Enter 로 여는데, MUI `TableRow` 가 뿌리에 `outline: 0` 을 걸어 전역
   `:focus-visible` 고리를 지우고 있었다(계산 외곽선 `none 0px`). 표가 `tbody tr:focus-visible` 에 행 안쪽 2px 고리를 건다 —
@@ -416,8 +428,9 @@ B 단계가 전수 흡수를 끝낸 뒤 남는 자리만 적는다. 형식은 �
   선다(ACCEPTANCE D3). 목록 위 단독 「전체 N건」 줄은 없다 — UI 3차 C-1 이 걷었고(조건이 없을 때의 결과 수는 목록 판 발 「N건 중 M건을
   받았습니다.」가 말한다), 그래서 D3 이 「부분」이던 자리(조건 없는 화면의 면 밖 결과 줄)가 풀렸다. 줄 끝의 「필터 지우기」 글자 단추
   (`FilterActions`)는 조건 줄의 지우기로 합쳤다. 1920 은 한 줄이고, **1366 · 1200 은 두 줄로 접힌다** — 칸 폭 표(`ROW_KIND`: 검색 320 ·
-  프로젝트 13rem · 분류 8~13rem · 태그 13rem · 작성자 13rem)의 합이 1,120px 이라 본문 1,070 · 904px 에 한 줄로 못 선다. 넘친 칸(작성자)이
-  둘째 줄 왼쪽, 정렬 묶음이 둘째 줄 오른쪽 끝이다(UI 3차 P5 판단 — 칸 폭 계약을 흔들어 한 줄로 욱여넣지 않는다).
+  프로젝트 wide(면 폭 계단 13 · 16 · 20rem, D-496) · 분류 8~13rem · 태그 13rem · 작성자 13rem)의 합이 1366 에서 1,120px 이라 본문 1,070 · 904px 에
+  한 줄로 못 선다. 넘친 칸(작성자)이 둘째 줄 왼쪽, 정렬 묶음이 둘째 줄 오른쪽 끝이다(UI 3차 P5 판단 — 칸 폭 계약을 흔들어 한 줄로 욱여넣지
+  않는다). 1600 은 프로젝트 칸이 16rem 이 되어 정렬 묶음만 둘째 줄 오른쪽 끝으로 내려간다(1,324 대 1,288px — 끝 묶음 규칙이 허용한다).
 - **표 트랙** 별 48 · 제목 남는 폭(바닥 320) · 프로젝트 176 · 분류 148 · 작성자 130 · 최종 수정 132 · 첨부와 댓글 96 · 작업 64,
   행 바닥 76(`DataTable rowHeight="tall"`). 제목 칸은 제목 · 요약(두 줄 clamp) · 태그(`Tag` 넷 + 「+N」, 남은 태그 이름은
   「+N」의 `title`). 제목은 표 공통 제목 칸 `TitleCell link`(링크색 600 한 줄 · 말줄임 + `title`, UI 3차 P5)이고 행 열기는 표가 든다. 분류는 **점 + 낱말**(`DotLabel` 중립 — P-22), 작성자 얼굴 22(`UserAvatar xs`), 행 동작 30(`OverflowMenu sm`).
@@ -443,10 +456,14 @@ B 단계가 전수 흡수를 끝낸 뒤 남는 자리만 적는다. 형식은 �
   `SearchBox fill`(B-4).
 - **방 머리 세 묶음**(`[data-room-head]`, UI 3차 C-6 에서 두 줄 이름표로): ① 이름표 — 1줄 제목(판 제목 글자 갈래 `sectionTitle`, 말줄임 +
   전체 이름표) + 종류 배지, 2줄 「참여자 N명, 보는 중 M명」(0.75rem muted, 문구 그대로 · `MemberSummary`) ② 얼굴 스택(`MemberFaces` — 26 · −8,
-  둘레 판 색 2px, 최대 8 + 「+N」 — 이름표 「외 N명」) ③ 동작 단추 34(관리 · 숨기기 · 나가기 · 방 파하기, 서버 플래그 그대로). 예전에는 요약이
+  둘레 판 색 2px, 최대 8 + 「+N」 — 이름표 「외 N명」, 순서는 명단과 같다) ③ 동작 단추 34(관리 · 숨기기 · 나가기 · 방 파하기, 서버 플래그 그대로). 예전에는 요약이
   제목 줄 오른쪽에 한 줄로 서서 다섯 조각이 한 줄을 다퉜다. 줄은 묶음 단위로 접히고 동작 묶음 안은 접히지 않는다. 얼굴마다 이름과
-  접속 상태(「이 대화 보는 중」 · 「자리 비움」)를 이름표로 든다 — 예전 한 줄의 이름 · 접속 점이 들던 사실이다. 목록 검색줄과
+  접속 상태(「이 대화 보는 중」 · 「방해금지」 · 「자리 비움」)를 이름표로 든다 — 예전 한 줄의 이름 · 접속 점이 들던 사실이다. 목록 검색줄과
   높이를 맞추던 빈 자리는 판이 둘로 갈리며 걷었다.
+- **참여자 명단(D-502)**: 요약 글자가 진짜 단추(`aria-haspopup="dialog"`)이고 얼굴 스택을 눌러도 같은 팝오버(`MemberRoster`)가 열린다 —
+  방에 든 누구나 연다(예전에는 방장 전용 관리 창에만 있었다). 팝오버 `role="dialog"` 「참여자 N명」 · 폭 min(22rem, 화면 - 2rem) · 높이
+  min(30rem, 70vh) 안 스크롤, Esc · 바깥 클릭이면 요약 단추로 초점이 돌아온다. 여덟 명을 넘으면 「이름, 부서로 좁히기」. 줄은 `MemberRow`
+  한 벌(관리 창도 같은 줄에 동작 칸을 붙인다). 전체 채팅은 서버에 명단이 없어 단추가 없다.
 - **스레드**(`ChatPane`): 상대는 왼쪽 — 묶음 첫 줄에 얼굴 34 · 이름 700 · 소속 muted, 함몰면 + 테두리 말풍선(모서리 12, 묶음 첫
   말풍선의 시작 모서리 4). 나는 오른쪽 — Primary 면 흰 글자(`ChatBubbleText mine`), 얼굴 · 이름 없음, 묶음 마지막 말풍선의 끝
   모서리 4. 말풍선은 `fit-content` 이고 묶음은 줄 폭 68% 에서 멈춘다. 시각은 말풍선 밖 0.6875rem(`CHAT.timeText`, 전체 시각
@@ -503,7 +520,7 @@ B 단계가 전수 흡수를 끝낸 뒤 남는 자리만 적는다. 형식은 �
 ## 0-18. 조합 — 부품 사이의 관계 (UI 3차 · 조합 계약 C-1 ~ C-7 · D-488 ~ D-494)
 
 부품 치수가 전부 맞아도 조합이 화면마다 다르면 제품은 갤러리와 다르게 읽힌다. 이 절은 **부품 사이의 관계**를 적는다.
-실측 잣대는 `scripts/ui_qa/composition_checks.py`(브라우저 · 11종)와 `scripts/check_composition.py`(소스 · 7규칙)다.
+실측 잣대는 `scripts/ui_qa/composition_checks.py`(브라우저 · 11종)와 `scripts/check_composition.py`(소스 · 8규칙 — `primary-last` 가 더해졌다, D-501)다.
 
 ### 필터 바 조합 (C-1 · C-2)
 
@@ -515,15 +532,18 @@ B 단계가 전수 흡수를 끝낸 뒤 남는 자리만 적는다. 형식은 �
   (프로젝트가 하나뿐인 조직에서 화면이 스스로 연 자리는 조건이 아니다 — D-388 을 잇는다).
 - **목록 위 단독 「전체 N건」 줄 · 면 밖 칩 줄 · 줄 끝 `FilterActions` 지우기를 걷었다.** 결과 수는 조건이 걸리면 조건 줄이,
   늘 목록 판 발(「N건 중 M건을 받았습니다.」)이 말한다.
-- 소비처(16): `TicketFilterBar`(내 티켓 · 미할당 · 팀 티켓 — 「완료, 취소 포함」은 `end`) · `KnowledgeFilterBar` · 게시판 · 아이디어 ·
-  `DataScreen`(registry 19 화면, 저장된 뷰는 늘 `end`) · 하위 목록 서랍(`divider=false`) · 프로젝트 · 사용자 · 조직 콘솔 · 오프보딩 대상 ·
-  개발자 리포트(인쇄는 `end`) · 설정(기술 정보 보기 `end`) · 프로젝트 티켓 탭(`end`). 내 활동의 종류 고르기는 칸이 없는 줄이라
+- 소비처: `TicketFilterBar`(내 티켓 · 미할당 · 팀 티켓 · 프로젝트 티켓 탭 — 「완료, 취소 포함」은 `end` · 작업 보드 — 보기 옵션은 위
+  `ContextBar`, D-497) · `KnowledgeFilterBar` · 게시판 · 아이디어 · `DataScreen`(registry 19 화면, 켬/끔 조건과 저장된 뷰는 `end`) ·
+  하위 목록 서랍(`divider=false`) · 프로젝트 · 사용자 · 조직 콘솔(레일 판 안, D-500) · 오프보딩 대상 · 개발자 리포트(인쇄는 `end`).
+  작업 보드 · 스프린트 회의의 팀 · 회차는 필터가 아니라 문맥이라 `ContextBar` 에 선다. 내 활동의 종류 고르기는 칸이 없는 줄이라
   필터 바 없이 `Segmented` 하나로 선다. 프로젝트 문서 탭의 「새 문서」는 탭 그릇 머리(`HeaderActions`)로 올렸다.
 - **칸 해부 하나(C-2)**: 셀렉트 · 자동완성 단일/다중 · 자유 입력 · 태그 모두 34 칸, 접두 이름 들여쓰기 14 · 접두-값 6 · 값 잉크 600
-  (`data-prefix-label` · `data-row-value`). 다중 선택은 칸 안 칩 대신 `RowSummary` 한 줄 요약. 폭은 `ROW_KIND`(Entity · 태그 13rem ·
-  열거 8~13rem · 자유 입력 = 이름 + 값 자리 6rem(11rem 바닥, 24rem 상한 — 이름이 긴 감사 「작업」 칸에서 친 글자가 보이게) · 날짜 11rem ·
-  날짜시각 18rem)이고 줄의 남는 폭을 먹지 않는다.
-- 갤러리 「검색과 필터 바」 절의 견본 셋이 조합 부품 그대로다(조건 없음 한 줄 · 조건 여럿 + 다중 선택 요약 · 1200 좁은 판).
+  (`data-prefix-label` · `data-row-value`). 다중 선택은 칸 안 칩 대신 `RowSummary` 한 줄 요약. 폭은 `ROW_KIND`(Entity 기본 · 태그 13rem ·
+  Entity wide = 필터 면 폭 96rem 이상 20rem · 76rem 이상 16rem · 그 밖 13rem · 열거 8~13rem · 자유 입력 = 이름 + 값 자리 6rem(11rem 바닥, 24rem
+  상한 — 이름이 긴 감사 「작업」 칸에서 친 글자가 보이게) · 날짜 11rem · 날짜시각 18rem)이고 줄의 남는 폭을 먹지 않는다(D-496). 「기한」은 세 낱말
+  열거라 열거 칸이다.
+- 갤러리 「검색과 필터 바」 절의 견본 셋이 조합 부품 그대로다(조건 없음 한 줄 · 조건 여럿 + 다중 선택 요약 · 1200 좁은 판). 프로젝트 칸은
+  wide 이고 둘째 견본이 긴 값을 든다(D-496).
 
 ### 목록 판 조합 (C-3 · C-4)
 
@@ -546,9 +566,12 @@ B 단계가 전수 흡수를 끝낸 뒤 남는 자리만 적는다. 형식은 �
   행마다 채움이던 것을 걷었다. 조건 0건의 지우기(`ListEmptyState` · 사용자 · DataScreen)와 빈 목록의 만들기(사용자 · 프로젝트 문서)도 30
   보조다 — 화면의 채움은 머리 동작 하나다. 일괄 동작의 채움(사용자 「적용」)은 선택 묶음 안 하나다.
 - **제목 칸은 `TitleCell` 이다** — 티켓 · 휴지통(문서는 새 탭 앵커) · 게시판 · 프로젝트 · 프로젝트 문서. 이름 열이 제목인 관리 표는 그 열을
-  `type: "title"` 로 둔다(설정 「항목명」). 게시판 카테고리 · 고정 표지와 설정 「재시작 필요」는 표 안 점 + 낱말(`DotLabel`)이다.
+  `type: "title"` 로 둔다(설정 「항목명」 · 권한 매트릭스 「할 수 있는 일」 · 직책 이름 · 관리 알림 · 공지 배너 · 메일 발송의 「제목」 —
+  「제목」이라 적힌 열은 `check_column_types.py` 가 title 을 요구한다, D-501). 폭을 적은 제목(설정 「항목명」 13rem)은 그 폭을 지키고 남는 폭은
+  산문 열이 갖는다(§0-10). 게시판 카테고리 · 고정 표지와 설정 「재시작 필요」는 표 안 점 + 낱말(`DotLabel`)이다.
 - **머리 표지(`TableHeaderCell`)**: 정렬 표지는 정렬 단추 안 이름 뒤 4px 의 16 글리프(↕ → ↑/↓), 필터 표지는 조건이 걸리는 열에만 서는 표지
-  폭 단추(누르는 높이 30). 활성 열은 이름이 잉크, 표지가 `primary.dark` 다. 둘째 표지는 앞 표지에서 잰다(`table_head_glyph` 사슬).
+  폭 단추(누르는 높이 30). 활성 열은 이름이 잉크, 표지가 `primary.dark` 다. 둘째 표지는 앞 표지에서 잰다(`table_head_glyph` 사슬). 표가 아닌
+  격자의 머리(`GridHeaderCell` — 작업 보드 백로그)도 같은 안쪽(`HeaderCellContent`)이라 표지 · 사슬이 같다(D-497).
 - 소비처 surface: 내 티켓 · 미할당(설명 → 머리 description, 일괄 → 발) · 팀 티켓 · 프로젝트 티켓 · 문서 · 게시판 · 아이디어 · DataScreen
   (registry 화면 전부, 조건 없이 정말 빈 화면만 page 빈 상태) · 프로젝트 · 사용자(일괄 줄 → 발 선택 묶음, 실패 줄은 목록 위) · 휴지통 ·
   승인 · 오프보딩(대상 · 보유 티켓 · 실행 결과 · 실행 이력) · 프로젝트 문서 · 설정 · 저장소 · 대시보드 최근 변경 · 조직 정합성 관리자 범위 ·
@@ -606,8 +629,9 @@ B 단계가 전수 흡수를 끝낸 뒤 남는 자리만 적는다. 형식은 �
 - **채팅방 관리 창** — 이름 구획과 초대 구획이 따로 확정하는 입력 영역이라 표식(`data-form-scope`)을 하나씩 든다. 채움은 영역마다 하나(「저장」 ·
   「초대」)이고 창 발은 닫기(보조) 하나다.
 - **조직 관리 상세 판 머리** — 조직 · 부서 판의 「수정」이 채움이라 페이지 머리 「부서 추가」와 화면 채움이 둘이었다(P3 에 넘긴 실측이 남아 있었고,
-  P7 전 경로 `kit_measure` 가 조직 관리 · 부서 · 부서 상세 · 조직도 네 경로에서 다시 잡았다). 판 머리 동작(옮겨 가는 링크 · 활성/비활성 · 삭제 ·
-  수정)은 전부 30 보조다 — 링크의 글자 단추도 걷었다.
+  P7 전 경로 `kit_measure` 가 조직 관리 · 부서 · 부서 상세 · 조직도 네 경로에서 다시 잡았다). **지금은 D-500**: 판 머리는 고른 대상의 동작 묶음
+  하나 — 「수정」(30 보조, 서버 `can_edit`) → 「더 보기」(감사 로그 · 사용자 화면 · 비활성화/활성화 · 삭제) → 채움 「부서 추가」 · 「하위 부서 추가」가
+  오른쪽 끝이고 화면의 하나뿐인 채움이다. 페이지 머리에는 선택과 무관한 「조직 추가」(보조)만 선다. 링크의 글자 단추는 그대로 걷혀 있다.
 - **DataScreen 정말 빈 화면의 만드는 단추** — 머리의 주 동작(「추가」 또는 `primary` 머리 액션)과 같은 일을 하는 30 보조다. 예전에는 같은 이름의
   채움이 머리와 빈 상태에 둘 섰다(대리 보기 「대리 보기 시작」 — registry 화면 중 씨앗이 빈 화면이 잡혔다).
 - **죽은 코드 · 옛 주석**: `selectionColumn` 의 `className: "k-col-check"`(읽는 곳과 CSS 가 없다), 내 티켓 · 미할당 목록 동작 상자의 `sx mb`
@@ -624,7 +648,8 @@ B 단계가 전수 흡수를 끝낸 뒤 남는 자리만 적는다. 형식은 �
   - 날짜 필터 `DateField` 의 줄 모양 갈래는 registry 소비처가 0 이다(하위 목록 창만 쓴다). 소비처가 생기면 `filter_cell_anatomy` 가 잰다.
   - `editorSurfaceWidthSx` 80rem 상한은 본문 72rem 안에서 걸리지 않는다 — 넓은 본문 칸이 생길 때의 안전 상한이라 둔다.
   - 새 문서 · 기본 아바타 고르기 창의 취소가 dirty 확인을 건너뛴다 — 흐름 변경이라 조합 회차 범위 밖이다.
-  - 회차 닫기 확인 창에 `dangerConfirm` · 취소 기본 초점이 없다 — 보호 화면(작업 보드 · 스프린트 회의)의 확인 창이라 기록만 한다.
+  - 회차 닫기 확인 창에 `dangerConfirm` · 취소 기본 초점이 없다 — 작업 보드 · 스프린트 회의의 확인 창이고, 작업 보드를 고친 회차(D-497)의 범위
+    (상단 · 백로그 머리) 밖이라 기록만 한다.
   - `TicketFilterBar.jsx::matchesTicketFilters` · `SPRINT_FIELDS` 는 스프린트 회의가 두 줄 필터로 옮긴 뒤(18c67683) 화면 소비처가 없다 —
     `ticket-filters.test.jsx` 가 한 쌍의 계약을 고정하고 있어 시험과 함께 걷는 일은 이 회차에서 하지 않는다.
   - **홈(`/me`)의 빈 계정 상태** — 티켓이 하나도 없는 계정에서 「오늘 마감 0건」 판의 빈 상태가 판 가운데 정렬이고(`empty_layout`),
@@ -651,6 +676,33 @@ B 단계가 전수 흡수를 끝낸 뒤 남는 자리만 적는다. 형식은 �
 | `screens/dev/KitGallery.jsx` | `table-tag` | 데이터 표 절 문서 견본의 태그 | 문서 목록 조합 그대로를 세운 견본이다 — 문서 목록과 같은 이유 |
 
 ## 1. 신설한 부품
+
+### `ContextBar` (2026-09-21, D-497)
+- **파일**: `frontend/src/ui/ContextBar.jsx`
+- **대체**: 작업 보드의 두 줄 필터(팀 · 회차 · 프로젝트 · 담당자 / 검색 · 우선순위 · 난이도 · 신호)에 섞여 있던 문맥 · 보기 옵션, 스프린트 회의의 낱개 줄
+- **소비 화면**: 작업 보드 · 스프린트 회의
+- **규약값**: `data-context-bar`, 문맥 칸은 필터 바와 같은 34 줄 칸(`FilterRowContext`), 칸 사이 12, 보기 전환 뒤 「보기 옵션」 묶음(`role=group`,
+  눈에 보이는 이름 caption + `aria-label`, 묶음째 줄바꿈). 크기 컨테이너라 wide 칸이 필터 면과 같은 계단으로 선다. 검색 칸 · 조건 줄이 없다
+
+### `GridHeaderCell` · `HeaderCellContent` (2026-09-21, D-497)
+- **파일**: `frontend/src/ui/GridHeaderCell.jsx` · 안쪽 `frontend/src/ui/TableHeaderCell.jsx::HeaderCellContent`
+- **대체**: 작업 보드 백로그의 가운데 정렬 글자 머리(정렬 · 필터 없음)
+- **소비 화면**: 작업 보드 백로그(표 머리 `TableHeaderCell` 은 같은 안쪽을 감싼다)
+- **규약값**: `role="columnheader"` · `aria-sort`, 이름 + 정렬 단추 + 필터 표지 + `ColumnFilterPopover` 는 표 머리와 한 벌(안쪽 마크업이 같은지 시험이 잰다)
+
+### `useGuardedMutation` (2026-09-21, D-498)
+- **파일**: `frontend/src/lib/useGuardedMutation.js`
+- **대체**: 키보드 처리기 · 꺼지지 않는 단추에서 `mutate()` 를 바로 부르던 자리(새 티켓 · 티켓 편집 · 나에게 배정 · 채팅 보내기 · 대화 이름 바꾸기와 보관 ·
+  놀이방 채팅 · 문서 태그/분류 추가 · 즐겨찾기 · 문서 연결 끊기)
+- **규약값**: `useMutation` 과 같은 값을 돌려준다. 같은 변수(안정 키 또는 `key(vars)`)의 요청이 진행 중이면 버리고 `mutateAsync` 는 진행 중인 약속을 준다.
+  다른 변수는 통과하고 끝나면(성공 · 실패) 풀린다. 폼 창은 `FormModal` 의 동기 ref 가 같은 일을 한다
+
+### `MemberRow` · `MemberRoster` · `useMemberRoster` (2026-09-21, D-502)
+- **파일**: `frontend/src/screens/ChatRoomMembers.jsx`
+- **대체**: 방장 전용 관리 창에만 있던 참여자 목록(일반 참여자 · 1:1 · 내 팀 방에는 명단이 없었다)
+- **소비 화면**: 채팅방 상세(명단 팝오버 · 관리 창)
+- **규약값**: 줄 = `StatusDot` · 아바타 sm · 이름((나) · 보관됨) · 직급 · 부서 경로(`PersonWithOrg`, 조직이 섞이면 `OrgPath variant="leaf"`) · 방장 배지 ·
+  접속 상태 글자. 팝오버 폭 min(22rem, 100vw - 2rem) · 높이 min(30rem, 70vh), 여덟 명 초과면 `PeopleFilter`. 순서 보는 중 → 방해금지 → 자리 비움 → 이름
 
 ### `DataTable` 의 표 3종 (묶음 머리행 · 발 줄 · 높이)
 - **파일**: `frontend/src/ui/kit.jsx` (`GroupHeaderRow` · `GroupHeaderMeta` · 발은 UI 3차에서 표 안 `TableFooterRow` 를 걷고 판 안
@@ -700,7 +752,7 @@ B 단계가 전수 흡수를 끝낸 뒤 남는 자리만 적는다. 형식은 �
 - **파일**: `frontend/src/ui/filters.jsx`
 - **대체**: 작업 보드의 부서 필터(`DepartmentFilter`) 자리 — 필터가 아니라 **문맥**이다
 - **소비 화면**: 작업 보드 · 스프린트 회의
-- **규약값**: `EntityCombobox` · 라벨 「팀」 · 「전체」 없음 · 후보 < 2 면 안 그린다 · 라벨은 경로
+- **규약값**: `EntityCombobox` · 라벨 「팀」 · 「전체」 없음 · 후보 < 2 면 안 그린다 · 라벨은 경로 · wide 칸이 기본(D-496) · 줄은 `ContextBar`(D-497)
 
 ### `DiscussBucket` 칩 (2026-09-14, D-484)
 - **파일**: `frontend/src/ui/DiscussBucket.jsx`
