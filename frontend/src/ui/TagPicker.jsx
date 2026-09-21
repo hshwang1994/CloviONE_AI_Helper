@@ -1,5 +1,5 @@
 import React from "react";
-import Autocomplete, { createFilterOptions } from "@mui/material/Autocomplete";
+import Autocomplete from "@mui/material/Autocomplete";
 import Box from "@mui/material/Box";
 import Chip from "@mui/material/Chip";
 import TextField from "@mui/material/TextField";
@@ -7,6 +7,7 @@ import Typography from "@mui/material/Typography";
 import { useQuery } from "@tanstack/react-query";
 
 import { api } from "../lib/api.js";
+import { foldedFilterOptions, splitWords } from "../lib/search.js";
 import { FILTER_LISTBOX_SX, LABEL_ABOVE_SX, PrefixLabel, RowSummary, kindSx, useRowCell } from "./filters.jsx";
 
 /* 태그 고르개 — 검색 · 다중 선택 · 새 태그 생성 · 사용 문서 수 (§15.3).
@@ -21,7 +22,23 @@ import { FILTER_LISTBOX_SX, LABEL_ABOVE_SX, PrefixLabel, RowSummary, kindSx, use
  * 검색·키보드·Listbox 스타일은 `filters.jsx` 의 상수를 그대로 가져와 다른 고르개와
  * 같은 결을 유지한다.
  */
-const filter = createFilterOptions();
+/* 목록 거르기는 **검색**이다 — 다른 고르개와 같은 접기로 본다(`lib/search.js`). 「현황제외」를 치면 「현황 제외」
+   태그도 목록에 서서, 비슷한 태그가 이미 있다는 것이 새로 만들기 전에 보인다. */
+const filter = foldedFilterOptions();
+
+/* 「추가」 후보를 세울지는 **정체성**으로 가른다 — 서버 `app/knowledge/tags.py::slugify` 와 같은 규칙이다(NFKC →
+ * 앞뒤 공백 제거 → casefold → 이어진 공백 한 칸). 서버가 같은 태그로 볼 이름이면 「추가」를 세우지 않는다.
+ *
+ * 검색 접기(`foldText`)로 가르지 않는다. 접기는 공백을 **지워서** 「현황 제외」와 「현황제외」가 서로를 찾게 하지만,
+ * 서버는 둘을 다른 태그로 둔다(slug 에 유일 제약이 있다). 접기로 가르면 새 태그 「현황제외」를 만들 길이 사라진다.
+ *
+ * JS 에는 casefold 가 없어서 소문자로 내린 뒤 casefold 와 갈리는 글자 둘(ß → ss, ς → σ)을 손으로 맞춘다. 체로키 문자 ·
+ * 이오타 아래 첨자가 붙은 그리스 문자처럼 casefold 만 다르게 접는 드문 글자는 맞추지 않는다 — 그 이름에서 화면이
+ * 「추가」를 세워도 서버가 있는 태그를 찾아 쓰므로(`tags.ensure`) 태그가 둘로 갈리지 않는다. */
+export function tagSlug(name) {
+  const lowered = String(name ?? "").normalize("NFKC").toLowerCase().replace(/\u00DF/g, "ss").replace(/\u03C2/g, "\u03C3");
+  return splitWords(lowered).join(" ");
+}
 
 export function useKnowledgeTags() {
   return useQuery({ queryKey: ["knowledge", "tags"], queryFn: () => api("/api/knowledge/tags") });
@@ -63,11 +80,11 @@ export function TagPicker({
       filterOptions={(opts, params) => {
         const filtered = filter(opts, params);
         const input = params.inputValue.trim();
-        const exists = input && opts.some((o) => o.name.toLowerCase() === input.toLowerCase());
-        if (input && !exists) {
-          filtered.push({ name: input, document_count: null, _create: true });
-        }
-        return filtered;
+        const slug = tagSlug(input);
+        const exists = !slug || opts.some((o) => tagSlug(o.name) === slug);
+        return input && !exists
+          ? [...filtered, { name: input, document_count: null, _create: true }]
+          : filtered;
       }}
       getOptionLabel={(o) => (typeof o === "string" ? o : o.name)}
       isOptionEqualToValue={(a, b) => a.name === b.name}

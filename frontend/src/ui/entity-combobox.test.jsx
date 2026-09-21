@@ -69,6 +69,64 @@ describe("EntityCombobox", () => {
     for (const o of options) expect(o.textContent).toContain("인프라팀");
   });
 
+  /* 후보 거르기는 서버 검색과 같은 접기다(`lib/search.js`). MUI 기본 필터는 대소문자만 가리지 않았고, 이름 쪽 공백과
+     전각 표기는 그대로 봐서 「이천증설」로 「이천 증설」을 못 찾았다. */
+  it("공백 · 대소문자 · 전각 표기가 달라도 같은 후보가 남는다", async () => {
+    const user = userEvent.setup();
+    renderBox();
+    const input = screen.getByRole("combobox", { name: "프로젝트" });
+    await user.click(input);
+
+    for (const typed of ["이천증설", "이천  증설", " 이천 증설 "]) {
+      await user.clear(input);
+      await user.type(input, typed);
+      const options = await screen.findAllByRole("option");
+      expect(options.map((o) => o.textContent), typed).toHaveLength(1);
+      expect(options[0].textContent).toContain("이천 증설");
+    }
+    for (const typed of ["clovirone", "CLOVIRONE", "ｃｌｏｖｉｒ ＯＮＥ"]) {
+      await user.clear(input);
+      await user.type(input, typed);
+      const options = await screen.findAllByRole("option");
+      expect(options.map((o) => o.textContent), typed).toHaveLength(1);
+      expect(options[0].textContent).toContain("ClovirONE 2.0");
+    }
+    await user.clear(input);
+    await user.type(input, "sk 하이 닉스");
+    expect(await screen.findAllByRole("option")).toHaveLength(2);
+  });
+
+  it("보조 글자로도 찾는다 — 목록 줄이 함께 보여 주는 글자다", async () => {
+    const user = userEvent.setup();
+    renderBox();
+    const input = screen.getByRole("combobox", { name: "프로젝트" });
+    await user.click(input);
+    await user.clear(input);
+    await user.type(input, "제품 팀");
+    const options = await screen.findAllByRole("option");
+    expect(options).toHaveLength(1);
+    expect(options[0].textContent).toContain("굿모닝아이텍");
+    // 이름과 보조 글자를 이어 붙인 자리는 걸리지 않는다 — 칸마다 따로 본다.
+    await user.clear(input);
+    await user.type(input, "2.0제품팀");
+    expect(await screen.findByText("일치하는 항목이 없습니다")).toBeTruthy();
+  });
+
+  it("다중 선택도 같은 규칙으로 거른다", async () => {
+    const user = userEvent.setup();
+    renderBox({ multiple: true, value: [] });
+    const input = screen.getByRole("combobox", { name: "프로젝트" });
+    await user.click(input);
+    await user.type(input, "인프라팀");
+    const options = await screen.findAllByRole("option");
+    expect(options.map((o) => o.textContent.includes("하이닉스"))).toEqual([true, true]);
+    await user.clear(input);
+    await user.type(input, "ClovirONE2.0");
+    const one = await screen.findAllByRole("option");
+    expect(one).toHaveLength(1);
+    expect(one[0].textContent).toContain("굿모닝아이텍");
+  });
+
   it("키보드만으로 고를 수 있다 (ARIA 1.2 combobox)", async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();

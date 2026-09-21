@@ -4,6 +4,7 @@ import { DebouncedTextField, EntityCombobox, FilterSelect, SearchBox } from "../
 import { FilterBar } from "../ui/FilterBar.jsx";
 import { priorityKo } from "../lib/priority.js";
 import { affiliation, needsOrg } from "../lib/people.js";
+import { includesFolded } from "../lib/search.js";
 import { useAssigneeOptions, useTicketMeta, useTicketProjects, statusOptions } from "./ticket-options.js";
 
 /* 티켓 목록 화면 셋(내 티켓·미할당·팀 티켓)이 함께 쓰는 필터 줄. 스프린트 회의는 자기 두 줄 필터를
@@ -242,8 +243,9 @@ export function matchesTicketFilters(ticket, state, fields) {
     const wantList = Array.isArray(raw) ? raw.filter(Boolean) : (raw ? [raw] : []);
     if (!wantList.length) continue;
     if (key === "q") {
-      const q = String(wantList[0]).toLowerCase();
-      if (!String(ticket.title || "").toLowerCase().includes(q)) return false;
+      /* 제목과 이름(`key` — 예: `ABCDEF-37`)을 칸마다 따로 본다. 서버의 티켓 목록 검색과 같은 뜻이고(제목 또는 이름),
+         대조도 서버와 같은 접기다(`lib/search.js`) — 공백 · 대소문자 · 전각 표기가 결과를 바꾸지 않는다. */
+      if (!includesFolded([ticket.title, ticket.key], wantList[0])) return false;
       continue;
     }
     const multi = CLIENT_JUDGED_MULTI[key];
@@ -413,7 +415,8 @@ export function TicketFilterBar({
         <SearchBox
           value={value.q}
           onSearch={commitSearch}
-          placeholder="제목 검색"
+          /* 서버가 제목과 티켓 이름(`ABCDEF-37`)을 함께 본다 — 작업 보드 검색창과 같은 말이다. */
+          placeholder="티켓 제목, 이름 검색"
           ariaLabel={LABELS.q}
         />
       ) : null}

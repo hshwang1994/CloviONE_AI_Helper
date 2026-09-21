@@ -266,6 +266,56 @@ describe("내 티켓 — 검색 입력", () => {
     await waitFor(() => expect(lastListQuery("/api/tickets/mine").get("q")).toBe("배포"), { timeout: 2000 });
     expect(addrParam("q")).toBe("배포");
   });
+
+  it("검색창은 제목과 티켓 이름을 함께 찾는다고 말한다 — 서버가 둘 다 본다", async () => {
+    renderScreen(MyTickets, "/my-tickets");
+    await screen.findByText("티켓 1");
+    expect(screen.getByRole("searchbox", { name: "검색어" }).getAttribute("placeholder")).toBe("티켓 제목, 이름 검색");
+  });
+
+  /* 확정하는 값은 검색어의 표시 모양이다(`lib/search.js::normalizeQuery`). 주소와 서버 질의에는 다듬은 값이 서고,
+     입력 상자에는 친 글자가 그대로 남는다 — 치는 도중에 끝 공백이 사라지면 다음 낱말이 앞 낱말에 붙는다. */
+  it("앞뒤 · 연속 공백은 주소와 서버 질의에서 한 칸으로 접히고, 입력 상자는 친 글자 그대로다", async () => {
+    renderScreen(MyTickets, "/my-tickets");
+    await screen.findByText("티켓 1");
+    const box = screen.getByRole("searchbox", { name: "검색어" });
+
+    fireEvent.change(box, { target: { value: "  배포   자동화 " } });
+    await waitFor(() => expect(lastListQuery("/api/tickets/mine").get("q")).toBe("배포 자동화"), { timeout: 2000 });
+    expect(addrParam("q")).toBe("배포 자동화");
+    expect(box.value).toBe("  배포   자동화 ");
+  });
+
+  it("끝에 공백 하나를 더 쳐도 새 검색이 아니다 — 요청이 다시 안 나가고 입력도 안 바뀐다", async () => {
+    renderScreen(MyTickets, "/my-tickets");
+    await screen.findByText("티켓 1");
+    const box = screen.getByRole("searchbox", { name: "검색어" });
+
+    fireEvent.change(box, { target: { value: "배포" } });
+    await waitFor(() => expect(lastListQuery("/api/tickets/mine").get("q")).toBe("배포"), { timeout: 2000 });
+    const sentBefore = apiMock.mock.calls.filter(([p]) => String(p).startsWith("/api/tickets/mine")).length;
+
+    fireEvent.change(box, { target: { value: "배포 " } });
+    // 디바운스보다 넉넉히 기다린다 — 그 사이에 확정이 일어났다면 요청이 하나 더 나갔을 것이다.
+    await new Promise((r) => setTimeout(r, 800));
+    const sentAfter = apiMock.mock.calls.filter(([p]) => String(p).startsWith("/api/tickets/mine")).length;
+    expect(sentAfter).toBe(sentBefore);
+    expect(addrParam("q")).toBe("배포");
+    expect(box.value).toBe("배포 ");
+
+    // 공백 뒤에 낱말을 이어 치면 그때 새 검색이 된다 — 끝 공백이 먹혔다면 「배포자동화」가 됐을 것이다.
+    fireEvent.change(box, { target: { value: "배포 자동화" } });
+    await waitFor(() => expect(lastListQuery("/api/tickets/mine").get("q")).toBe("배포 자동화"), { timeout: 2000 });
+  });
+
+  it("공백만 친 검색어는 조건이 아니다 — 주소에 q 가 서지 않는다", async () => {
+    renderScreen(MyTickets, "/my-tickets");
+    await screen.findByText("티켓 1");
+    fireEvent.change(screen.getByRole("searchbox", { name: "검색어" }), { target: { value: "   " } });
+    await new Promise((r) => setTimeout(r, 800));
+    expect(addrParam("q")).toBeNull();
+    expect(lastListQuery("/api/tickets/mine").get("q")).toBeNull();
+  });
 });
 
 describe("빈 목록의 두 가지 뜻", () => {
@@ -389,6 +439,24 @@ describe("스프린트 — 화면이 직접 거르는 조건", () => {
   it("자체 DB 에서 만든 티켓은 옛 축이 아예 비어 있어도 걸린다", () => {
     const native = { ...row, project_uid: "9c1e-portal-uuid", project_ids: [] };
     expect(matchesTicketFilters(native, { project_id: "9c1e-portal-uuid" }, SPRINT_FIELDS)).toBe(true);
+  });
+
+  /* 검색어의 뜻은 서버 목록 검색과 같다 — 제목 또는 티켓 이름(`key`)이고, 대조는 서버와 같은 접기다(`lib/search.js`).
+     칸을 이어 붙여 보지 않으므로 제목 끝과 이름을 붙인 글자는 걸리지 않는다. */
+  it("검색어는 제목과 티켓 이름을 칸마다 보고, 공백 · 대소문자 · 전각 표기를 가리지 않는다", () => {
+    const keyed = { ...row, key: "ABCDEF-37" };
+    for (const q of ["ABCDEF-37", "abcdef-37", "ＡＢＣＤＥＦ－３７", " abcdef - 37 "]) {
+      expect(matchesTicketFilters(keyed, { q }, SPRINT_FIELDS), q).toBe(true);
+    }
+    for (const q of ["배포 자동화", "배포자동화", "  배포   자동화 ", "배포\u{3000}자동화"]) {
+      expect(matchesTicketFilters(keyed, { q }, SPRINT_FIELDS), q).toBe(true);
+    }
+    expect(matchesTicketFilters(keyed, { q: "GHIJKL-1" }, SPRINT_FIELDS)).toBe(false);
+    expect(matchesTicketFilters(keyed, { q: "자동화ABCDEF" }, SPRINT_FIELDS)).toBe(false);
+    // 이름(`key`)이 없는 티켓은 제목으로만 걸린다.
+    expect(matchesTicketFilters(row, { q: "ABCDEF" }, SPRINT_FIELDS)).toBe(false);
+    // 접으면 빈 검색어는 조건이 아니다.
+    expect(matchesTicketFilters(keyed, { q: "   " }, SPRINT_FIELDS)).toBe(true);
   });
 
   it("판단할 수 없는 조건은 조용히 넘기지 않고 소리를 낸다", () => {

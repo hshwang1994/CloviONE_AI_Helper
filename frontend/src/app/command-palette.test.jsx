@@ -43,7 +43,7 @@ const SERVER_RESULT = {
   ],
 };
 
-function renderPalette() {
+function renderPalette(groups = NAV_GROUPS) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const onClose = vi.fn();
   const utils = render(
@@ -51,7 +51,7 @@ function renderPalette() {
       <ThemeModeProvider>
         <MemoryRouter initialEntries={["/me"]}>
           <Routes>
-            <Route path="/me" element={<CommandPalette open onClose={onClose} groups={NAV_GROUPS} />} />
+            <Route path="/me" element={<CommandPalette open onClose={onClose} groups={groups} />} />
             <Route path="/tickets/:id" element={<div>티켓 상세 화면</div>} />
             <Route path="/search" element={<div>검색 결과 화면</div>} />
           </Routes>
@@ -175,6 +175,35 @@ describe("명령 팔레트", () => {
   it("메뉴 검색은 서버 없이 즉시 걸러진다", async () => {
     renderPalette();
     await userEvent.type(screen.getByRole("textbox", { name: "통합 검색" }), "새 티켓");
+    expect(screen.getByText("새 티켓")).toBeInTheDocument();
+    expect(screen.queryByText("문서")).not.toBeInTheDocument();
+  });
+
+  /* 메뉴 검색도 서버 검색과 같은 접기다(`lib/search.js`) — 레일 필터(`filterGroupsByQuery`)와 같은 규칙이라
+     레일에서 찾은 메뉴를 팔레트에서 못 찾는 일이 없다. */
+  it("메뉴 검색은 공백 · 대소문자 · 전각 표기를 가리지 않는다", async () => {
+    renderPalette([
+      { group: "내 업무", items: [{ to: "/my-tickets", label: "내 티켓" }, { to: "/new-ticket", label: "새 티켓" }] },
+      { group: "설정", items: [{ to: "/ai-settings", label: "AI 설정" }] },
+    ]);
+    const input = screen.getByRole("textbox", { name: "통합 검색" });
+
+    await userEvent.type(input, "새티켓");
+    expect(screen.getByText("새 티켓")).toBeInTheDocument();
+    expect(screen.queryByText("내 티켓")).not.toBeInTheDocument();
+
+    for (const q of ["ai설정", "AI  설정", "ＡＩ설정"]) {
+      await userEvent.clear(input);
+      await userEvent.type(input, q);
+      expect(screen.getByText("AI 설정"), q).toBeInTheDocument();
+      expect(screen.queryByText("새 티켓"), q).not.toBeInTheDocument();
+    }
+  });
+
+  it("그룹 이름을 붙여 쳐도 그 그룹의 메뉴가 나온다", async () => {
+    renderPalette();
+    await userEvent.type(screen.getByRole("textbox", { name: "통합 검색" }), "내업무");
+    expect(screen.getByText("내 티켓")).toBeInTheDocument();
     expect(screen.getByText("새 티켓")).toBeInTheDocument();
     expect(screen.queryByText("문서")).not.toBeInTheDocument();
   });

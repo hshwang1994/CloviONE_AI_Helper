@@ -16,7 +16,7 @@ import SearchOffRoundedIcon from "@mui/icons-material/SearchOffRounded";
 import ErrorOutlineRoundedIcon from "@mui/icons-material/ErrorOutlineRounded";
 import KeyboardReturnRoundedIcon from "@mui/icons-material/KeyboardReturnRounded";
 import { useLocation, useNavigate } from "react-router-dom";
-import { isSearchable, normalizeQuery, routeOf, searchApi, searchResultsPath } from "../lib/search.js";
+import { foldText, includesFolded, isSearchable, normalizeQuery, routeOf, searchApi, searchResultsPath } from "../lib/search.js";
 import { readRecentNav } from "../lib/recentNav.js";
 import { navIcon } from "./navIcons.js";
 import { Callout, EmptyState } from "../ui/kit.jsx";
@@ -67,10 +67,6 @@ const KIND_ICON = {
   user: "profile",
 };
 
-function normalize(s) {
-  return String(s || "").toLowerCase().replace(/\s+/g, "");
-}
-
 /* 입력이 멎은 뒤에만 값을 흘려보낸다. 서버 검색 전용이고, 메뉴 검색은 로컬이라 즉시 반응한다. */
 export function useDebounced(value, delay = PALETTE_DEBOUNCE_MS) {
   const [settled, setSettled] = React.useState(value);
@@ -90,9 +86,10 @@ export function CommandPalette({ open, onClose, groups }) {
 
   React.useEffect(() => { if (open) setQ(""); }, [open]);
 
-  // 메뉴(로컬) — 즉시.
+  /* 메뉴(로컬) — 즉시. 대조는 서버 검색과 같은 접기다(`lib/search.js::foldText`) — 공백 · 대소문자 · 전각 표기가
+     달라도 같은 메뉴가 걸리고, 공백이나 제로폭 문자만 친 입력은 빈 질의다. */
   const navResults = React.useMemo(() => {
-    const needle = normalize(q);
+    const needle = foldText(q);
     if (!needle) {
       // SRCH-04 — 빈 질의에서 지금 콘솔의 메뉴 전부를 다시 나열하지 않는다(사이드바가
       // 바로 옆에 열려 있는데 같은 목록을 모달로 한 번 더 보여 주는 셈이었다). 실제로
@@ -116,7 +113,7 @@ export function CommandPalette({ open, onClose, groups }) {
         group: g.group,
         // 랜드마크 글리프를 함께 나른다 — 아래 `sections` 가 결과 줄 앞에 그것을 놓는다.
         icon: g.icon,
-        items: g.items.filter((it) => normalize(it.label).includes(needle) || normalize(g.group).includes(needle)),
+        items: g.items.filter((it) => includesFolded([it.label, g.group], q)),
       }))
       .filter((g) => g.items.length);
   }, [groups, q, loc.pathname]);

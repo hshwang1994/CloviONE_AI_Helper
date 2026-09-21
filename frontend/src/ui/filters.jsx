@@ -8,6 +8,7 @@ import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import CheckRoundedIcon from "@mui/icons-material/CheckRounded";
+import { foldedFilterOptions, normalizeQuery } from "../lib/search.js";
 import { CONTROL, DEBOUNCE_MS, FONT_SIZE, FONT_WEIGHT, ICON, remPx } from "./theme.js";
 
 /* 목록 화면들이 함께 쓰는 필터 입력 부품.
@@ -339,8 +340,14 @@ const SELECT_MENU = { MenuProps: { PaperProps: { sx: FILTER_LISTBOX_SX } } };
  * `value` 는 바깥에서 값이 바뀌는 경우(저장된 뷰 부르기, 필터 지우기, 뒤로가기)를 위한
  * 것이다. 그때는 `onCommit` 을 부르지 않는다 — 부르면 복원한 페이지 번호를 1로 되돌려,
  * 사용자가 링크를 열었는데 다른 화면을 보게 된다.
+ *
+ * `normalize` 는 확정하는 값의 모양이다(검색창은 `normalizeQuery`). 주면 **다듬은 값끼리** 견주고 다듬은 값을
+ * 확정한다. 「회의」를 확정한 뒤 끝에 공백 하나를 더 쳐도 조건이 바뀌지 않았으므로 다시 확정하지 않는다.
+ * 입력 상자의 글자는 건드리지 않는다 — 방금 확정한 값이 `value` 로 돌아오는 것은 자기가 보낸 값의 메아리라서
+ * 초안을 다시 쓰지 않는다. 그때 초안을 다시 쓰면 치는 도중에 끝 공백이 사라져 다음 낱말이 앞 낱말에 붙는다.
+ * 주지 않으면(자유 입력 필터) 친 값을 그대로 견주고 그대로 확정한다.
  */
-export function useDebouncedCommit(value, onCommit, delay = FILTER_DEBOUNCE_MS) {
+export function useDebouncedCommit(value, onCommit, delay = FILTER_DEBOUNCE_MS, normalize = keepAsTyped) {
   const [draft, setDraft] = React.useState(value);
   const committed = React.useRef(value);
 
@@ -351,12 +358,18 @@ export function useDebouncedCommit(value, onCommit, delay = FILTER_DEBOUNCE_MS) 
   }, [value]);
 
   React.useEffect(() => {
-    if (draft === committed.current) return undefined;
-    const t = setTimeout(() => { committed.current = draft; onCommit(draft); }, delay);
+    const next = normalize(draft);
+    if (next === normalize(committed.current)) return undefined;
+    const t = setTimeout(() => { committed.current = next; onCommit(next); }, delay);
     return () => clearTimeout(t);
-  }, [draft, onCommit, delay]);
+  }, [draft, onCommit, delay, normalize]);
 
   return [draft, setDraft];
+}
+
+/** `useDebouncedCommit` 의 기본 모양 — 친 값 그대로다. 모듈 최상위에 두어 참조가 렌더마다 안 바뀐다. */
+function keepAsTyped(value) {
+  return value;
 }
 
 /* 검색창. `type="search"` 라 스크린리더·검사 모두 searchbox 로 잡는다.
@@ -372,7 +385,9 @@ export function useDebouncedCommit(value, onCommit, delay = FILTER_DEBOUNCE_MS) 
 export const SearchBox = React.memo(function SearchBox({
   value, placeholder, ariaLabel, onSearch, sx, layout, immediate = false,
 }) {
-  const debounced = useDebouncedCommit(value, onSearch);
+  /* 확정하는 값은 화면 · 주소의 검색어 모양(`normalizeQuery`)이다 — 앞뒤 · 연속 공백만 다른 입력은 새 검색이 아니다.
+     입력 상자에는 친 글자가 그대로 남는다(`useDebouncedCommit` 머리 주석). */
+  const debounced = useDebouncedCommit(value, onSearch, FILTER_DEBOUNCE_MS, normalizeQuery);
   /* `immediate` — **제출형 검색**(통합 검색)은 부모가 글자마다 값을 들고 Enter · 「검색」 단추가
      확정한다. 디바운스로 확정하면 Enter 를 누른 순간 부모 값이 아직 옛 글자일 수 있다. */
   const [draft, setDraft] = immediate ? [value, onSearch] : debounced;
@@ -551,6 +566,14 @@ export function normalizeOptions(options) {
   ).filter(Boolean);
 }
 
+/* 후보의 이름. 입력 상자의 글자와 후보 거르기가 같은 값을 쓴다. */
+const optionLabelOf = (o) => (o && o.label != null ? String(o.label) : "");
+
+/* 후보 거르기 — 이름과 보조 글자(소속 · 코드 · 기간)를 칸마다 따로, 서버와 같은 접기로 본다(`lib/search.js`).
+   보조 글자도 보는 이유는 목록 줄이 그 글자를 함께 보여 주기 때문이다. 보이는 글자로 찾을 수 있어야 하므로 프로젝트는
+   코드로도, 사람은 소속으로도 찾는다. 공백 · 대소문자 · 전각 표기가 달라도 같은 후보가 남는다. */
+const ENTITY_FILTER = foldedFilterOptions({ stringify: (o) => [optionLabelOf(o), o && o.secondary] });
+
 /* ── Entity Selector — 검색형 Combobox (R-5 · C2 · 지시 0-2.17) ──────────────
  *
  * **`FilterSelect` 와 무엇이 다른가.** `FilterSelect` 는 값 집합이 **닫힌** 축 전용이다
@@ -614,7 +637,8 @@ export function EntityCombobox({
         options={list}
         value={current}
         onChange={(e, next) => onChange((next || []).map((o) => o.value).filter((v) => v !== "" && v != null))}
-        getOptionLabel={(o) => (o && o.label != null ? String(o.label) : "")}
+        getOptionLabel={optionLabelOf}
+        filterOptions={ENTITY_FILTER}
         isOptionEqualToValue={(a, b) => String(a.value) === String(b.value)}
         noOptionsText={noOptionsText}
         loadingText="불러오는 중…"
@@ -692,7 +716,8 @@ export function EntityCombobox({
       options={withAll}
       value={current}
       onChange={(e, next) => onChange(next ? next.value : "")}
-      getOptionLabel={(o) => (o && o.label != null ? String(o.label) : "")}
+      getOptionLabel={optionLabelOf}
+      filterOptions={ENTITY_FILTER}
       isOptionEqualToValue={(a, b) => String(a.value) === String(b.value)}
       noOptionsText={noOptionsText}
       loadingText="불러오는 중…"

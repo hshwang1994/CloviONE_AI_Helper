@@ -3,6 +3,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { api } from "../lib/api.js";
 import { failureText, latestMutation } from "../lib/failure.js";
+import { normalizeQuery } from "../lib/search.js";
 import { useConfirm, useToast } from "../ui/kit.jsx";
 import {
   STALL_MS, CHAT_LAST_CONV_KEY, LIST_DRAWER_MEDIA,
@@ -98,9 +99,11 @@ export function useChat({ pasteEnabled = true, screenContext = null, dataEnabled
 
   // AI-38: 대화 본문 검색. 제목은 ConversationSidebar가 이미 불러온 목록에서 즉시(클라이언트
   // 측) 거르지만, 본문은 서버만 안다 — 타이핑마다 왕복하지 않도록 300ms 지나서야 반영한다.
+  // 서버로 보내는 값은 검색어의 표시 모양이다(`normalizeQuery` — 앞뒤 · 연속 공백과 조합형 한글을 다듬는다).
+  // 공백 하나만 더 친 입력은 같은 검색이라 질의 키가 안 바뀌고 요청도 다시 안 나간다.
   const [debouncedQ, setDebouncedQ] = useState("");
   useEffect(() => {
-    const t = setTimeout(() => setDebouncedQ(convFilter.trim()), 300);
+    const t = setTimeout(() => setDebouncedQ(normalizeQuery(convFilter)), 300);
     return () => clearTimeout(t);
   }, [convFilter]);
   // AI-18: 필터·보관 토글이 바뀌면 이전 "더 보기"로 늘려둔 상한을 새 맥락까지 끌고 가지

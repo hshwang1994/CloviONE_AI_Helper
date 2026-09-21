@@ -1,0 +1,414 @@
+{
+  "about": "Shared parity corpus for the search fold rule (D-495). Python app/core/search_text.py::fold, SQL search_fold() and frontend lib/search.js::foldText must return `fold` for every `input`. Cases with sql=false carry characters PostgreSQL text cannot hold.",
+  "rule": "NFKC -> U+0130 to i -> lower -> U+03C2 to U+03C3 -> delete 0009 000A 000B 000C 000D 001C 001D 001E 001F 0020 0085 00A0 00AD 1680 2028 2029 200B 200C 200D 200E 200F 2060 FEFF and U+0000",
+  "fold": [
+    {
+      "name": "spaced Korean",
+      "input": "\ud604\ud669 \uc81c\uc678",
+      "fold": "\ud604\ud669\uc81c\uc678",
+      "sql": true
+    },
+    {
+      "name": "joined Korean",
+      "input": "\ud604\ud669\uc81c\uc678",
+      "fold": "\ud604\ud669\uc81c\uc678",
+      "sql": true
+    },
+    {
+      "name": "padded and repeated spaces",
+      "input": "  \ud604\ud669   \uc81c\uc678 ",
+      "fold": "\ud604\ud669\uc81c\uc678",
+      "sql": true
+    },
+    {
+      "name": "mixed case",
+      "input": "ClovirONE",
+      "fold": "clovirone",
+      "sql": true
+    },
+    {
+      "name": "lower case",
+      "input": "clovirone",
+      "fold": "clovirone",
+      "sql": true
+    },
+    {
+      "name": "upper case",
+      "input": "CLOVIRONE",
+      "fold": "clovirone",
+      "sql": true
+    },
+    {
+      "name": "full-width latin",
+      "input": "\uff23\uff4c\uff4f\uff56\uff49\uff52\uff2f\uff2e\uff25",
+      "fold": "clovirone",
+      "sql": true
+    },
+    {
+      "name": "full-width digits",
+      "input": "\uff11\uff12\uff13",
+      "fold": "123",
+      "sql": true
+    },
+    {
+      "name": "full-width words with ideographic space",
+      "input": "\uff21\uff22\uff23\u3000\uff24\uff25\uff26",
+      "fold": "abcdef",
+      "sql": true
+    },
+    {
+      "name": "NFD hangul",
+      "input": "\u1112\u1167\u11ab\u1112\u116a\u11bc \uc81c\uc678",
+      "fold": "\ud604\ud669\uc81c\uc678",
+      "sql": true
+    },
+    {
+      "name": "no-break space",
+      "input": "\ud604\ud669\u00a0\uc81c\uc678",
+      "fold": "\ud604\ud669\uc81c\uc678",
+      "sql": true
+    },
+    {
+      "name": "ideographic space",
+      "input": "\ud604\ud669\u3000\uc81c\uc678",
+      "fold": "\ud604\ud669\uc81c\uc678",
+      "sql": true
+    },
+    {
+      "name": "tab and newline",
+      "input": "\ud604\ud669\t\n\uc81c\uc678",
+      "fold": "\ud604\ud669\uc81c\uc678",
+      "sql": true
+    },
+    {
+      "name": "vertical tab and form feed",
+      "input": "a\u000bb\fc",
+      "fold": "abc",
+      "sql": true
+    },
+    {
+      "name": "carriage return",
+      "input": "a\r\nb",
+      "fold": "ab",
+      "sql": true
+    },
+    {
+      "name": "information separators",
+      "input": "a\u001cb\u001dc\u001ed\u001fe",
+      "fold": "abcde",
+      "sql": true
+    },
+    {
+      "name": "zero width space",
+      "input": "\ud604\ud669\u200b\uc81c\uc678",
+      "fold": "\ud604\ud669\uc81c\uc678",
+      "sql": true
+    },
+    {
+      "name": "zero width joiners",
+      "input": "a\u200cb\u200dc",
+      "fold": "abc",
+      "sql": true
+    },
+    {
+      "name": "byte order mark",
+      "input": "\ufeffClovir",
+      "fold": "clovir",
+      "sql": true
+    },
+    {
+      "name": "next line",
+      "input": "a\u0085b",
+      "fold": "ab",
+      "sql": true
+    },
+    {
+      "name": "line and paragraph separators",
+      "input": "a\u2028b\u2029c",
+      "fold": "abc",
+      "sql": true
+    },
+    {
+      "name": "soft hyphen",
+      "input": "co\u00adop",
+      "fold": "coop",
+      "sql": true
+    },
+    {
+      "name": "word joiner",
+      "input": "a\u2060b",
+      "fold": "ab",
+      "sql": true
+    },
+    {
+      "name": "direction marks",
+      "input": "a\u200eb\u200fc",
+      "fold": "abc",
+      "sql": true
+    },
+    {
+      "name": "en and em spaces",
+      "input": "a\u2002b\u2003c\u2009d",
+      "fold": "abcd",
+      "sql": true
+    },
+    {
+      "name": "narrow no-break space",
+      "input": "a\u202fb",
+      "fold": "ab",
+      "sql": true
+    },
+    {
+      "name": "ogham space mark",
+      "input": "a\u1680b",
+      "fold": "ab",
+      "sql": true
+    },
+    {
+      "name": "sharp s",
+      "input": "Stra\u00dfe",
+      "fold": "stra\u00dfe",
+      "sql": true
+    },
+    {
+      "name": "capital sharp s",
+      "input": "STRA\u1e9eE",
+      "fold": "stra\u00dfe",
+      "sql": true
+    },
+    {
+      "name": "dotted capital I",
+      "input": "\u0130stanbul",
+      "fold": "istanbul",
+      "sql": true
+    },
+    {
+      "name": "dotless small i",
+      "input": "\u0131l\u0131k",
+      "fold": "\u0131l\u0131k",
+      "sql": true
+    },
+    {
+      "name": "final sigma at end",
+      "input": "\u039f\u0394\u039f\u03a3",
+      "fold": "\u03bf\u03b4\u03bf\u03c3",
+      "sql": true
+    },
+    {
+      "name": "final sigma before space",
+      "input": "\u0391\u03a3 \u0392",
+      "fold": "\u03b1\u03c3\u03b2",
+      "sql": true
+    },
+    {
+      "name": "sigma inside word",
+      "input": "\u0391\u03a3\u0392",
+      "fold": "\u03b1\u03c3\u03b2",
+      "sql": true
+    },
+    {
+      "name": "kelvin sign",
+      "input": "\u212a",
+      "fold": "k",
+      "sql": true
+    },
+    {
+      "name": "ohm sign",
+      "input": "\u2126",
+      "fold": "\u03c9",
+      "sql": true
+    },
+    {
+      "name": "micro sign",
+      "input": "\u00b5",
+      "fold": "\u03bc",
+      "sql": true
+    },
+    {
+      "name": "fi ligature",
+      "input": "\ufb01le",
+      "fold": "file",
+      "sql": true
+    },
+    {
+      "name": "circled digit",
+      "input": "\u2460",
+      "fold": "1",
+      "sql": true
+    },
+    {
+      "name": "parenthesized ideograph",
+      "input": "\u3231",
+      "fold": "(\u682a)",
+      "sql": true
+    },
+    {
+      "name": "parenthesized hangul",
+      "input": "\u321c",
+      "fold": "(\uc8fc)",
+      "sql": true
+    },
+    {
+      "name": "DZ caron digraph",
+      "input": "\u01c4",
+      "fold": "d\u017e",
+      "sql": true
+    },
+    {
+      "name": "half-width katakana",
+      "input": "\uff76\uff80\uff76\uff85",
+      "fold": "\u30ab\u30bf\u30ab\u30ca",
+      "sql": true
+    },
+    {
+      "name": "compatibility jamo",
+      "input": "\u3131\u314f",
+      "fold": "\uac00",
+      "sql": true
+    },
+    {
+      "name": "roman numeral",
+      "input": "\u216b",
+      "fold": "xii",
+      "sql": true
+    },
+    {
+      "name": "superscript two",
+      "input": "x\u00b2",
+      "fold": "x2",
+      "sql": true
+    },
+    {
+      "name": "composed accent",
+      "input": "\u00c9lan",
+      "fold": "\u00e9lan",
+      "sql": true
+    },
+    {
+      "name": "combining accent",
+      "input": "E\u0301lan",
+      "fold": "\u00e9lan",
+      "sql": true
+    },
+    {
+      "name": "cyrillic",
+      "input": "\u041f\u0420\u0418\u0412\u0415\u0422",
+      "fold": "\u043f\u0440\u0438\u0432\u0435\u0442",
+      "sql": true
+    },
+    {
+      "name": "emoji with space",
+      "input": "\ud83d\udc4d \uc88b\uc544\uc694",
+      "fold": "\ud83d\udc4d\uc88b\uc544\uc694",
+      "sql": true
+    },
+    {
+      "name": "emoji zwj sequence",
+      "input": "\ud83d\udc68\u200d\ud83d\udc69",
+      "fold": "\ud83d\udc68\ud83d\udc69",
+      "sql": true
+    },
+    {
+      "name": "mixed latin and hangul",
+      "input": "Clovir ONE \ud604\ud669",
+      "fold": "clovirone\ud604\ud669",
+      "sql": true
+    },
+    {
+      "name": "percent",
+      "input": "%",
+      "fold": "%",
+      "sql": true
+    },
+    {
+      "name": "underscore",
+      "input": "_",
+      "fold": "_",
+      "sql": true
+    },
+    {
+      "name": "backslash",
+      "input": "\\",
+      "fold": "\\",
+      "sql": true
+    },
+    {
+      "name": "like metacharacters together",
+      "input": "A%b_C\\d",
+      "fold": "a%b_c\\d",
+      "sql": true
+    },
+    {
+      "name": "empty",
+      "input": "",
+      "fold": "",
+      "sql": true
+    },
+    {
+      "name": "only spaces",
+      "input": "   ",
+      "fold": "",
+      "sql": true
+    },
+    {
+      "name": "only zero width space",
+      "input": "\u200b",
+      "fold": "",
+      "sql": true
+    },
+    {
+      "name": "only ideographic spaces",
+      "input": "\u3000\u3000",
+      "fold": "",
+      "sql": true
+    },
+    {
+      "name": "nul",
+      "input": "a\u0000b",
+      "fold": "ab",
+      "sql": false
+    }
+  ],
+  "display": [
+    {
+      "name": "padded and repeated spaces",
+      "input": "  \ud604\ud669   \uc81c\uc678 ",
+      "display": "\ud604\ud669 \uc81c\uc678"
+    },
+    {
+      "name": "tab and newline",
+      "input": "\ud604\ud669\t\n\uc81c\uc678",
+      "display": "\ud604\ud669 \uc81c\uc678"
+    },
+    {
+      "name": "no-break space",
+      "input": "\ud604\ud669\u00a0\uc81c\uc678",
+      "display": "\ud604\ud669 \uc81c\uc678"
+    },
+    {
+      "name": "ideographic space",
+      "input": "\ud604\ud669\u3000\uc81c\uc678",
+      "display": "\ud604\ud669 \uc81c\uc678"
+    },
+    {
+      "name": "NFD hangul",
+      "input": "\u1112\u1167\u11ab\u1112\u116a\u11bc \uc81c\uc678",
+      "display": "\ud604\ud669 \uc81c\uc678"
+    },
+    {
+      "name": "mixed case kept",
+      "input": "  ClovirONE  ",
+      "display": "ClovirONE"
+    },
+    {
+      "name": "cap at 100",
+      "input": "\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00",
+      "display": "\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00\uac00"
+    },
+    {
+      "name": "empty",
+      "input": "",
+      "display": ""
+    }
+  ]
+}

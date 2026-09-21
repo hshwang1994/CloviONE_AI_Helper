@@ -43,6 +43,48 @@ describe("filterPeople — 이름으로도 이메일로도 찾는다", () => {
   });
 });
 
+/* 목록 줄은 이름 옆에 부서 · 직급을 함께 보여 준다(`affiliation`). 보이는 글자로 찾을 수 있어야 하고, 대조는 서버 검색과
+ * 같은 접기다(`lib/search.js`) — 공백 · 대소문자 · 전각 표기가 결과를 바꾸지 않는다. */
+const STAFF = [
+  { user_id: "u1", display_name: "김담당", email: "kim@example.com", dept: "플랫폼 개발팀", title: "책임" },
+  { user_id: "u2", display_name: "이설계", email: "lee@example.com", dept: "디자인팀", title: "팀장" },
+  { user_id: "u3", name: "Park Woon", email: "park@corp.co.kr", dept: "ClovirONE 운영", title: "매니저" },
+];
+const ids = (list) => list.map((u) => u.user_id);
+
+describe("filterPeople — 부서 · 직급으로도 찾고, 공백 · 대소문자 · 전각 표기를 가리지 않는다", () => {
+  it("🔴 부서의 일부로 좁힌다", () => {
+    expect(ids(filterPeople(STAFF, "개발팀"))).toEqual(["u1"]);
+    expect(ids(filterPeople(STAFF, "디자인"))).toEqual(["u2"]);
+  });
+
+  it("🔴 직급으로도 좁힌다", () => {
+    expect(ids(filterPeople(STAFF, "팀장"))).toEqual(["u2"]);
+    expect(ids(filterPeople(STAFF, "매니저"))).toEqual(["u3"]);
+  });
+
+  it("공백을 붙이든 띄우든 같은 사람이 남는다 — 부서 이름 쪽 공백도 접는다", () => {
+    for (const q of ["플랫폼개발", "플랫폼 개발", " 플랫폼   개발 ", "플랫폼\u{3000}개발"]) {
+      expect(ids(filterPeople(STAFF, q)), q).toEqual(["u1"]);
+    }
+  });
+
+  it("대소문자 · 전각 표기가 달라도 같은 사람이 남는다", () => {
+    for (const q of ["clovirone", "CLOVIRONE", "ＣｌｏｖｉｒＯＮＥ", "park woon", "PARKWOON"]) {
+      expect(ids(filterPeople(STAFF, q)), q).toEqual(["u3"]);
+    }
+  });
+
+  it("칸을 이어 붙여 찾지 않는다 — 이름 끝과 부서 머리를 붙인 글자는 안 걸린다", () => {
+    expect(filterPeople(STAFF, "담당플랫폼")).toEqual([]);
+  });
+
+  it("공백 · 제로폭 문자만 친 조건은 조건이 아니다", () => {
+    expect(filterPeople(STAFF, "\u{3000}")).toHaveLength(3);
+    expect(filterPeople(STAFF, "\u{200B}")).toHaveLength(3);
+  });
+});
+
 describe("PeopleFilter — 조건과 결과의 관계를 말한다", () => {
   it("🔴 조건이 없으면 건수 줄을 그리지 않는다 — 「전체 12명 / 12명」은 소음이다", () => {
     render(<PeopleFilter value="" onChange={() => {}} count={12} total={12} />);

@@ -10,6 +10,7 @@ import SmartToyOutlinedIcon from "@mui/icons-material/SmartToyOutlined";
 import PersonOutlineRoundedIcon from "@mui/icons-material/PersonOutlineRounded";
 import { NAV_BREAKPOINT } from "../ui/theme.js";
 import { CONSOLE_WRITE_ROLES } from "../lib/roles.js";
+import { foldText, includesFolded } from "../lib/search.js";
 
 /* 사이드바 구조와 라우트 권한 표.
  *
@@ -518,16 +519,18 @@ export function navWithFeatures(nav, features) {
  * 좁혀진다"). navWithFeatures와 같은 모양(map으로 items 거르고 빈 그룹은 filter로 뺀다) —
  * 필터도 "메뉴를 좁힌다"는 점에서 같은 종류의 변환이라 새 자료구조를 만들지 않는다.
  * 그룹 이름 자체가 질의와 맞으면(예: "감사") 그 그룹의 항목은 다 남긴다 — 사람이 그룹명을
- * 치면 "그 묶음을 보여줘"라는 뜻이지 그룹명이 항목 라벨에 포함된 것을 찾는 게 아니다. */
+ * 치면 "그 묶음을 보여줘"라는 뜻이지 그룹명이 항목 라벨에 포함된 것을 찾는 게 아니다.
+ *
+ * 대조는 검색 접기다(`lib/search.js`) — 「AI관리」와 「ai 관리」가 「AI 관리」를 똑같이 찾는다. 명령 팔레트의 메뉴 검색과
+ * 같은 규칙이라, 레일에서 찾은 메뉴를 팔레트에서 못 찾는 일이 없다. */
 export function filterGroupsByQuery(nav, query) {
-  const q = (query || "").trim().toLowerCase();
-  if (!q) return nav;
+  if (!foldText(query)) return nav;
   return nav
     .map((group) => {
-      const groupMatches = group.group.toLowerCase().includes(q);
+      const groupMatches = includesFolded(group.group, query);
       const items = groupMatches
         ? group.items
-        : (group.items || []).filter((i) => i.label.toLowerCase().includes(q));
+        : (group.items || []).filter((i) => includesFolded(i.label, query));
       return { ...group, items };
     })
     .filter((group) => group.items.length > 0);

@@ -6,6 +6,7 @@ import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
 import { failureText } from "../lib/failure.js";
+import { foldText, includesFolded } from "../lib/search.js";
 import { Button, Callout, Card, FieldLabel, ListEmptyState, PageHeader, Skeleton, ErrorState, EmptyState, Modal, useConfirm, CountChip, DotLabel } from "../ui/kit.jsx";
 import { SearchBox } from "../ui/filters.jsx";
 import { FONT_SIZE, FONT_WEIGHT, NUMERIC, RADIUS } from "../ui/theme.js";
@@ -262,12 +263,13 @@ export function ChatRooms() {
   const team = q.data && q.data.team;      // 내 팀 방(Q6) — 서버가 부서 기준으로 보장한다
   const glob = q.data && q.data.global;
   const allItems = (q.data && q.data.items) || [];
-  const needle = roomQuery.trim().toLowerCase();
+  const needle = foldText(roomQuery);
   /* 거르는 값은 **행에 실제로 그려지는 값**이어야 한다(RoomRow 의 `room.title`).
      예전에는 `r.name` 을 봤는데 서버 응답에 그런 키가 없다(router.py 의 `_room_title` 이
      `title` 로 내려 준다) — 한 글자만 쳐도 모든 방이 undefined 와 비교돼 목록이 통째로
-     비었고, 화면에는 이름이 멀쩡히 보이던 터라 "채팅방이 깨졌다" 로 읽혔다. */
-  const matches = (r) => !needle || ((r && r.title) || "").toLowerCase().includes(needle);
+     비었고, 화면에는 이름이 멀쩡히 보이던 터라 "채팅방이 깨졌다" 로 읽혔다.
+     대조는 검색 접기다(`lib/search.js`) — 공백 · 대소문자 · 전각 표기가 달라도 같은 방이 남는다. */
+  const matches = (r) => includesFolded(r && r.title, roomQuery);
   const items = needle ? allItems.filter(matches) : allItems;
   const open = (rid) => nav(`/chat-rooms/${rid}`);
   /* 머리 건수는 목록이 실제로 세우는 방의 수다 — 내 팀 · 전체 채팅 · 나머지(검색으로 거르면 거른 수). */

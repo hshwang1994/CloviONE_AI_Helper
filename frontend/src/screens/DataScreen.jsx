@@ -4,6 +4,7 @@ import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { api } from "../lib/api.js";
 import { diffFields } from "../lib/diffFields.js";
 import { kstLocalToApi } from "../lib/format.js";
+import { includesFolded } from "../lib/search.js";
 import { useAuth } from "../app/auth.jsx";
 import Box from "@mui/material/Box";
 import MenuItem from "@mui/material/MenuItem";
@@ -945,12 +946,14 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
   //  JSON.stringify로 걸러, 서버가 매칭한 행이 화면에서 사라지고 '총 N건'과 어긋났다.)
   // config.searchFields — 클라이언트 검색을 특정 필드만으로 좁힌다(기본은 JSON.stringify(row) 전체,
   // raw UUID·ISO 타임스탬프까지 매칭 대상이 되어 화면에 보이는 값과 무관한 매칭/오탐이 났다).
+  // 대조는 서버 검색과 같은 접기다(`lib/search.js::includesFolded`) — 검색어와 행 값을 같은 규칙으로 접으므로
+  // 공백 · 대소문자 · 전각 표기가 결과를 바꾸지 않는다. 필드는 칸마다 따로 본다(서버가 열을 OR 로 보는 것과 같다).
   const searchText = (r) => config.searchFields
-    ? config.searchFields.map((k) => (r[k] == null ? "" : String(r[k]))).join(" ")
+    ? config.searchFields.map((k) => (r[k] == null ? "" : String(r[k])))
     : JSON.stringify(r);
   const searched = config.paginated
-    ? ((config.searchable || !q) ? items : items.filter((r) => searchText(r).toLowerCase().includes(q.toLowerCase())))
-    : (config.searchable ? items : items.filter((r) => !q || searchText(r).toLowerCase().includes(q.toLowerCase())));
+    ? ((config.searchable || !q) ? items : items.filter((r) => includesFolded(searchText(r), q)))
+    : (config.searchable ? items : items.filter((r) => !q || includesFolded(searchText(r), q)));
   // clientFilter 필터(위 buildUrl 주석 참고) — 서버로 보내지 않았으니 여기서 직접 값을 비교해 거른다.
   const filteredRows = clientFilterDefs.length
     ? searched.filter((r) => clientFilterDefs.every((f) => { const v = filters[f.key]; return !v || String(r[f.key]) === v; }))

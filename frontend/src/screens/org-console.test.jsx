@@ -29,7 +29,7 @@ vi.mock("../app/auth.jsx", () => ({
 }));
 
 import { OrgConsole } from "./OrgConsole.jsx";
-import { nestRows } from "./OrgTree.jsx";
+import { nestRows, pruneTree } from "./OrgTree.jsx";
 import { ConfirmProvider, ToastProvider } from "../ui/kit.jsx";
 import { ThemeModeProvider } from "../ui/ThemeModeProvider.jsx";
 
@@ -153,6 +153,39 @@ describe("트리 접기(nestRows)", () => {
     ]);
     expect(roots.map((r) => r.row.id)).toEqual(["a", "c"]);
     expect(roots[0].children.map((r) => r.row.id)).toEqual(["b"]);
+  });
+});
+
+/* 트리 검색(pruneTree)은 서버 검색과 같은 접기다(`lib/search.js`) — 공백 · 대소문자 · 전각 표기가 결과를 바꾸지 않고,
+ * 맞는 노드의 조상은 그대로 남는다. */
+describe("트리 검색(pruneTree) — 공백 · 대소문자 · 전각 표기를 가리지 않는다", () => {
+  const ids = (nodes) => nodes.flatMap((n) => [n.row.id, ...ids(n.children)]);
+  const SLUGGED = [
+    { id: "org-9", kind: "organization", name: "클로비원", slug: "clovirone", depth: 0, path: "클로비원" },
+    { id: "dep-pd", kind: "department", name: "플랫폼 개발팀", depth: 1, path: "클로비원 › 플랫폼 개발팀" },
+    { id: "dep-qa", kind: "department", name: "품질팀", depth: 1, path: "클로비원 › 품질팀" },
+  ];
+
+  it("부서 이름을 붙여 치든 띄워 치든 같은 가지가 남고, 조상도 남는다", () => {
+    for (const q of ["국내영업", "국내 영업", " 국내  영업 ", "국내\u{3000}영업"]) {
+      expect(ids(pruneTree(nestRows(TREE), q)), q).toEqual(["org-1", "dep-sales", "dep-sales-kr"]);
+    }
+    for (const q of ["플랫폼개발", "플랫폼 개발팀"]) {
+      expect(ids(pruneTree(nestRows(SLUGGED), q)), q).toEqual(["org-9", "dep-pd"]);
+    }
+  });
+
+  it("식별자는 대소문자 · 전각 표기를 가리지 않는다", () => {
+    for (const q of ["CLOVIRONE", "ClovirONE", "ｃｌｏｖｉｒｏｎｅ"]) {
+      expect(ids(pruneTree(nestRows(SLUGGED), q)), q).toEqual(["org-9"]);
+    }
+  });
+
+  it("맞는 것이 없으면 빈 트리이고, 공백만 친 검색어는 트리를 그대로 둔다", () => {
+    expect(pruneTree(nestRows(TREE), "없는부서")).toEqual([]);
+    const roots = nestRows(TREE);
+    expect(pruneTree(roots, "   ")).toBe(roots);
+    expect(pruneTree(roots, "\u{200B}")).toBe(roots);
   });
 });
 

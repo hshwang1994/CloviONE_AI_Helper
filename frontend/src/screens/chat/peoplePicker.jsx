@@ -5,6 +5,7 @@ import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { alpha } from "@mui/material/styles";
 import { affiliation } from "../../lib/people.js";
+import { foldText, includesFolded } from "../../lib/search.js";
 import { PickerOption } from "../../ui/filters.jsx";
 import { UserAvatar } from "../../ui/UserAvatar.jsx";
 import { FONT_SIZE } from "../../ui/theme.js";
@@ -105,12 +106,12 @@ export function PersonPickRow({ person, checked, onToggle, onPick, disabled }) {
   );
 }
 
-/** 이름·이메일 어느 쪽으로 쳐도 걸린다 — 사람을 찾는 두 가지 방법이다. */
+/** 이름 · 이메일 · 부서 · 직급 어느 쪽으로 쳐도 걸린다.
+ *
+ * 이름과 이메일은 사람을 찾는 두 가지 방법이고, 부서와 직급은 목록 줄이 이름 옆에 함께 보여 주는 글자다(`affiliation`).
+ * 보이는 글자로 찾을 수 있어야 하므로 「개발팀」으로도, 「팀장」으로도 좁힌다. 대조는 검색 접기이고(`lib/search.js`)
+ * 칸마다 따로 본다 — 공백 · 대소문자 · 전각 표기가 달라도 같은 사람이 남는다. */
 export function filterPeople(users, q) {
-  const s = String(q || "").trim().toLowerCase();
-  if (!s) return users || [];
-  return (users || []).filter((u) => {
-    const hay = [u.display_name, u.name, u.email, u.user_id].filter(Boolean).join(" ").toLowerCase();
-    return hay.indexOf(s) >= 0;
-  });
+  if (!foldText(q)) return users || [];
+  return (users || []).filter((u) => includesFolded([u.display_name, u.name, u.email, u.user_id, u.dept, u.title], q));
 }

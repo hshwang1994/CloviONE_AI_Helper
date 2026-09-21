@@ -6,6 +6,7 @@ import ChevronRightRoundedIcon from "@mui/icons-material/ChevronRightRounded";
 import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded";
 import { Badge, Card, ErrorState, FlatBadgeSurface, ListEmptyState, Skeleton } from "../ui/kit.jsx";
 import { useOrgTreeQuery } from "./org/orgQueries.js";
+import { foldText, includesFolded } from "../lib/search.js";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
 
 /* 조직도 트리 — 조직 콘솔(OrgConsole.jsx)의 왼쪽 1/3.
@@ -57,15 +58,17 @@ export function nestRows(rows) {
   return roots;
 }
 
-/** 검색어에 맞는 노드와 **그 조상**만 남긴다. 조상을 지우면 어디 소속인지 알 수 없게 된다. */
+/** 검색어에 맞는 노드와 **그 조상**만 남긴다. 조상을 지우면 어디 소속인지 알 수 없게 된다.
+ *
+ * 대조는 검색 접기다(`lib/search.js`) — 「플랫폼 개발팀」과 「플랫폼개발팀」, 「ClovirONE」과 「clovirone」이 같은
+ * 노드를 찾는다. 축(이름 · 경로 · 식별자)은 칸마다 따로 본다. */
 export function pruneTree(nodes, term) {
-  const needle = String(term || "").trim().toLowerCase();
-  if (!needle) return nodes;
+  if (!foldText(term)) return nodes;
   const fields = SEARCH_FIELDS;
   const walk = (list) => list.reduce((out, node) => {
     const kids = walk(node.children);
-    const hay = fields.map((k) => (node.row[k] == null ? "" : String(node.row[k]))).join(" ").toLowerCase();
-    if (hay.includes(needle) || kids.length) out.push({ ...node, children: kids });
+    const hay = fields.map((k) => node.row[k]);
+    if (includesFolded(hay, term) || kids.length) out.push({ ...node, children: kids });
     return out;
   }, []);
   return walk(nodes);

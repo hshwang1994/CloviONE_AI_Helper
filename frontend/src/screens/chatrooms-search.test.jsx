@@ -27,6 +27,7 @@ const ROOMS = {
   items: [
     { id: "r1", kind: "group", title: "인프라 팀", member_count: 4, unread: 0, last_preview: "", last_at: null },
     { id: "r2", kind: "group", title: "디자인 회의", member_count: 3, unread: 0, last_preview: "", last_at: null },
+    { id: "r3", kind: "group", title: "ClovirONE 운영", member_count: 5, unread: 0, last_preview: "", last_at: null },
   ],
   unread_total: 0,
 };
@@ -68,6 +69,48 @@ describe("채팅방 검색", () => {
 
     await waitFor(() => expect(screen.queryByText("디자인 회의")).not.toBeInTheDocument());
     expect(screen.getByText("인프라 팀")).toBeInTheDocument();
+  });
+
+  /* 검색 접기(`lib/search.js`) — 질의와 방 이름을 같은 규칙으로 접는다. 공백 · 대소문자 · 전각 표기가 결과를 바꾸면
+     「인프라 팀」 방을 「인프라팀」으로 쳤을 때 목록이 비고, 사용자는 방이 없다고 읽는다. */
+  it("공백을 붙이든 띄우든 같은 방이 남는다 — 방 이름 쪽 공백도 접는다", async () => {
+    const user = userEvent.setup();
+    mount();
+    expect(await screen.findByText("인프라 팀")).toBeInTheDocument();
+    const box = screen.getByLabelText("채팅방 이름으로 거르기");
+
+    for (const typed of ["인프라팀", " 인프라   팀 "]) {
+      await user.clear(box);
+      await user.type(box, typed);
+      await waitFor(() => expect(screen.queryByText("디자인 회의")).not.toBeInTheDocument());
+      expect(screen.getByText("인프라 팀"), typed).toBeInTheDocument();
+      expect(screen.queryByText("ClovirONE 운영"), typed).not.toBeInTheDocument();
+    }
+  });
+
+  it("대소문자 · 전각 표기가 달라도 같은 방이 남는다", async () => {
+    const user = userEvent.setup();
+    mount();
+    expect(await screen.findByText("ClovirONE 운영")).toBeInTheDocument();
+    const box = screen.getByLabelText("채팅방 이름으로 거르기");
+
+    for (const typed of ["clovirone", "CLOVIRONE", "ＣｌｏｖｉｒＯＮＥ", "clovir one 운영"]) {
+      await user.clear(box);
+      await user.type(box, typed);
+      await waitFor(() => expect(screen.queryByText("인프라 팀")).not.toBeInTheDocument());
+      expect(screen.getByText("ClovirONE 운영"), typed).toBeInTheDocument();
+    }
+  });
+
+  it("공백만 친 검색어는 조건이 아니다 — 방이 전부 남고 「맞는 방이 없다」고 말하지 않는다", async () => {
+    const user = userEvent.setup();
+    mount();
+    expect(await screen.findByText("인프라 팀")).toBeInTheDocument();
+    await user.type(screen.getByLabelText("채팅방 이름으로 거르기"), "   ");
+    expect(screen.getByText("인프라 팀")).toBeInTheDocument();
+    expect(screen.getByText("디자인 회의")).toBeInTheDocument();
+    expect(screen.getByText("ClovirONE 운영")).toBeInTheDocument();
+    expect(screen.queryByText("검색과 맞는 채팅방이 없습니다")).not.toBeInTheDocument();
   });
 });
 

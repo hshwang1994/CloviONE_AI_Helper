@@ -24,6 +24,24 @@ describe("레일 내비 필터", () => {
     expect(filterGroupsByQuery(nav, "AI").flatMap((g) => g.items)).toHaveLength(1);
   });
 
+  it("공백 · 대소문자 · 전각 표기가 달라도 같은 메뉴가 남는다 (검색 접기)", () => {
+    const nav = [
+      { group: "테스트", items: [{ to: "/x", label: "AI 관리" }, { to: "/y", label: "현황 제외 보고" }] },
+    ];
+    const hits = (q) => filterGroupsByQuery(nav, q).flatMap((g) => g.items.map((i) => i.to));
+    for (const q of ["AI관리", "ai 관리", " AI  관리 ", "ＡＩ 관리", "ai\u{3000}관리"]) {
+      expect(hits(q), q).toEqual(["/x"]);
+    }
+    // 대상 쪽 공백도 접는다 — 라벨의 「현황 제외」를 붙여 쳐도 찾는다.
+    expect(hits("현황제외")).toEqual(["/y"]);
+    expect(hits("현황 제외")).toEqual(["/y"]);
+  });
+
+  it("공백 · 제로폭 문자만 친 질의는 빈 질의다 — 원본 그대로 돌려준다", () => {
+    expect(filterGroupsByQuery(NAV, "\u{3000}")).toBe(NAV);
+    expect(filterGroupsByQuery(NAV, "\u{200B}")).toBe(NAV);
+  });
+
   it("맞는 항목이 하나도 없는 그룹은 통째로 사라진다(빈 헤더로 안 남는다)", () => {
     const out = filterGroupsByQuery(NAV, "존재하지않는질의그것도아주긴");
     expect(out).toEqual([]);
