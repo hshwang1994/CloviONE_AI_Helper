@@ -200,6 +200,14 @@ describe("명령 팔레트", () => {
     }
   });
 
+  it("공백만 친 입력은 빈 질의다 — 「결과 없음」이 아니라 안내가 선다", async () => {
+    renderPalette();
+    await userEvent.type(screen.getByRole("textbox", { name: "통합 검색" }), "   ");
+    expect(screen.getByText("무엇을 찾으시나요?")).toBeInTheDocument();
+    expect(screen.queryByText("검색 결과 없음")).toBeNull();
+    expect(apiMock).not.toHaveBeenCalled();
+  });
+
   it("그룹 이름을 붙여 쳐도 그 그룹의 메뉴가 나온다", async () => {
     renderPalette();
     await userEvent.type(screen.getByRole("textbox", { name: "통합 검색" }), "내업무");

@@ -281,7 +281,8 @@ export function CommandPalette({ open, onClose, groups }) {
              0.3초 안에 훑는 화면이라 그 구분이 글자에만 있으면 없는 것과 같다.
              빈 자리를 키우지 않는다: 아이콘 하나 + 제목 + 도움말 한 줄로 세로 리듬만 준다
              (지시 15 «Empty State 는 완성된 구획이지 큰 여백이 아니다»). */
-          <PaletteMessage state={!q ? "prompt" : busy ? "busy" : failed ? "error" : "empty"} />
+          /* 안내와 「결과 없음」도 접은 질의로 가른다 — 공백만 친 입력은 빈 질의라 안내가 선다(메뉴 대조와 같은 판정). */
+          <PaletteMessage state={!foldText(q) ? "prompt" : busy ? "busy" : failed ? "error" : "empty"} />
         ) : (
           <List dense disablePadding sx={{ py: 0.5 }}>
             {sections.map((section) => (
