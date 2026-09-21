@@ -108,6 +108,27 @@ describe("사이드바 — 누른 자리 아래의 줄이 움직이지 않는다
     expect(stored["운영"]).not.toBe(false);
   });
 
+  /* 🔴 붙잡기가 한 박자 늦으면 줄이 **잠깐** 밀렸다가 돌아온다. 고친 빌드를 재현 하네스로 재자 Firefox 1920 관리자 콘솔에서
+     첫 클릭 뒤 0.15~0.3초 동안 누른 자리의 항목이 사라졌다(효과에서 붙잡아, 옛 그룹이 한 번 접힌 채 커밋됐다). 여기서는 머리의
+     `aria-expanded` 가 그 사이 한 번이라도 거짓이 됐는지를 변경 기록으로 본다 — 끝 상태만 보면 그 한 박자가 안 보인다. */
+  it("🔴 붙잡기는 커밋 전에 정해진다 — 옛 그룹이 한 번이라도 접힌 채 그려지지 않는다", async () => {
+    const user = userEvent.setup();
+    renderShell("/jobs");
+    const nav = await screen.findByRole("navigation");
+    fireEvent.pointerEnter(nav);
+    await user.click(groupHeader(nav, "설정"));
+    const head = groupHeader(nav, "운영");
+    const flips = [];
+    const mo = new MutationObserver((records) => { for (const r of records) flips.push(r.oldValue); });
+    mo.observe(head, { attributes: true, attributeFilter: ["aria-expanded"], attributeOldValue: true });
+    await user.click(within(nav).getByRole("link", { name: "초기 설정" }));
+    for (const r of mo.takeRecords()) flips.push(r.oldValue);
+    mo.disconnect();
+    expect(screen.getByTestId("where")).toHaveTextContent("/setup");
+    expect(flips).toEqual([]);
+    expect(head).toHaveAttribute("aria-expanded", "true");
+  });
+
   it("붙잡아 편 그룹의 머리를 누르면 닫힌다", async () => {
     const user = userEvent.setup();
     renderShell("/jobs");

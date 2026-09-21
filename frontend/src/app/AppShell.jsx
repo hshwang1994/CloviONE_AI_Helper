@@ -376,15 +376,19 @@ function SidebarNav({ groups, activePath, onNavigate, userId, showFilter, groups
    * 형편이라 localStorage 에는 쓰지 않는다(위 `isCollapsed` 주석과 같은 이유). */
   const activeGroupName = activeGroup ? activeGroup.group : null;
   const [heldOpen, setHeldOpen] = React.useState(null);
-  const prevActiveGroup = React.useRef(activeGroupName);
+  const [seenActiveGroup, setSeenActiveGroup] = React.useState(activeGroupName);
   const pointerInside = React.useRef(false);
-  React.useEffect(() => {
-    const prev = prevActiveGroup.current;
-    prevActiveGroup.current = activeGroupName;
-    if (prev && prev !== activeGroupName && isCollapsed(prev) && (pointerInside.current || document.activeElement?.closest?.("[data-nav-rail]"))) {
-      setHeldOpen(prev);
+  /* 붙잡기는 **활성 그룹이 바뀌는 바로 그 렌더**에서 정한다(렌더 중 상태 고치기 — React 가 커밋 전에 다시 그린다).
+     효과(useEffect)에서 정하면 옛 그룹이 한 번 접힌 채 커밋되고 접힘 전환이 시작됐다가 되돌아간다. 주소 갱신은 라우터의
+     전환(transition)이라 그 효과가 그리기 전에 돌지 않아서, Firefox 는 그 사이의 접힘을 실제로 그렸다 — 누른 자리의 줄이
+     0.15~0.3초 밀렸다가 돌아왔다(재현 하네스, 고친 빌드 관리자 콘솔 1920, 2026-09-21). */
+  if (seenActiveGroup !== activeGroupName) {
+    setSeenActiveGroup(activeGroupName);
+    const railHasFocus = typeof document !== "undefined" && !!document.activeElement?.closest?.("[data-nav-rail]");
+    if (seenActiveGroup && isCollapsed(seenActiveGroup) && (pointerInside.current || railHasFocus)) {
+      setHeldOpen(seenActiveGroup);
     }
-  }, [activeGroupName, isCollapsed]);
+  }
   const release = React.useCallback(() => setHeldOpen(null), []);
   /* 포인터가 레일 안에 있는가는 **브라우저의 pointerenter · pointerleave** 로 잰다. React 의
      onPointerLeave 는 pointerout 의 relatedTarget 으로 흉내 낸 것이라, 레일 안 항목 사이를 옮겨
