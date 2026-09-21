@@ -29,19 +29,21 @@ import { labelForPath } from "./documentTitle.js";
  * 이름의 출처는 navConfig(documentTitle.js) 다 — 탭 제목과 같은 표를 쓴다. 여기에 경로→이름
  * 표를 따로 두면 메뉴 이름을 바꿀 때 한쪽만 고치게 된다.
  */
-export function useRouteAnnounce(pathname) {
+export function useRouteAnnounce(pathname, screenKey = pathname) {
   const [message, setMessage] = React.useState("");
-  // 첫 렌더의 경로를 '이미 본 것'으로 두면 진입 알림이 저절로 빠진다.
-  const seen = React.useRef(pathname);
+  // 첫 렌더의 화면을 '이미 본 것'으로 두면 진입 알림이 저절로 빠진다.
+  const seen = React.useRef(screenKey);
 
+  /* 판정은 경로가 아니라 **화면**으로 한다(`navEntry.jsx::screenKeyOf`). 조직 관리에서 부서를 고르거나 사용자 목록에서
+     한 사람을 여는 것은 같은 화면 안의 선택이다 — 그때 초점을 본문 맨 앞으로 옮기면 조직도에서 방금 누른 자리를 잃는다. */
   React.useEffect(() => {
-    if (seen.current === pathname) return;
-    seen.current = pathname;
+    if (seen.current === screenKey) return;
+    seen.current = screenKey;
     const main = typeof document === "undefined" ? null : document.getElementById("main-content");
     if (main && typeof main.focus === "function") main.focus();
     const label = labelForPath(pathname);
     setMessage(label ? `${label} 화면으로 이동했습니다.` : "화면을 이동했습니다.");
-  }, [pathname]);
+  }, [screenKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return message;
 }

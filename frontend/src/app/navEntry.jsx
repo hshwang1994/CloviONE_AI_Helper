@@ -39,6 +39,31 @@ export function useNavEntry() {
   return React.useContext(NavEntryContext).entry;
 }
 
+/* ── 화면 한 벌이 그리는 경로 묶음 ─────────────────────────────────────────────────────────────
+ *
+ * 목록과 상세를 한 화면에 두고 주소에 고른 것만 싣는 화면이 있다. 사용자 관리(`/users` · `/users/:id`), 조직 관리
+ * (`/organizations` · `/org-tree` · `/departments` · `/departments/:id`), 채팅방(`/chat-rooms` · `/chat-rooms/:id`)이다.
+ * 라우트는 두 주소에 **같은 element** 를 걸어 인스턴스를 지키도록 만들어져 있다(`AdminRoutes.jsx` PA-RC-0024 ·
+ * `UserRoutes.jsx` S1 주석).
+ *
+ * 🔴 그런데 본문 경계의 키가 경로(pathname)라서 그 의도가 처음부터 한 번도 서지 않았다. 부서 하나를 고를 때마다 화면
+ * 전체가 다시 마운트돼 조직도의 펼침 · 스크롤과 초점을 잃었고(조직 관리 재설계 회차가 짚었다, 2026-09-21), 사용자 목록 ·
+ * 채팅방 목록도 같았다. 경계의 키는 경로가 아니라 **화면**이어야 한다 — 이 표가 그 묶음이다. 묶음 안에서 주소만 바뀌는
+ * 이동은 화면 안의 선택이라 다시 마운트하지 않고, 화면 이동 알림(`routeAnnounce.js`)도 초점을 본문으로 빼앗지 않는다.
+ * 묶음에 없는 경로는 지금처럼 경로가 곧 화면이다. */
+const SCREEN_FAMILIES = [
+  { key: "screen:users", test: /^\/users(\/[^/]+)?$/ },
+  { key: "screen:org-console", test: /^\/(organizations|org-tree|departments(\/[^/]+)?)$/ },
+  { key: "screen:chat-rooms", test: /^\/chat-rooms(\/[^/]+)?$/ },
+];
+
+/** 이 경로를 그리는 화면의 열쇠 — 묶음에 들면 묶음 이름, 아니면 경로 그대로다. 본문 경계의 키가 쓴다. */
+export function screenKeyOf(pathname) {
+  const path = String(pathname || "");
+  const family = SCREEN_FAMILIES.find((f) => f.test.test(path));
+  return family ? family.key : path;
+}
+
 /** 이동 대상의 경로 부분. 질의 · 해시는 뗀다. */
 export function targetPathname(to) {
   if (to && typeof to === "object") return to.pathname || "";
@@ -71,15 +96,24 @@ export function isModifiedClick(event) {
 }
 
 /** 셸 이동 함수. 재진입(`isReentry`)이면 새 진입(`replace` + 진입 번호), 아니면 평범한 이동이다.
- *  돌려주는 값은 새 진입이었는가다(시험과 호출부의 기록용). */
+ *  돌려주는 값은 새 진입이었는가다(시험과 호출부의 기록용).
+ *
+ * 🔴 **진입 번호와 주소는 한 번에 그려져야 한다.** 라우터는 주소 갱신을 `startTransition` 으로 감싼다(React Router 7 의
+ * HashRouter · MemoryRouter). 번호만 급한 갱신으로 올리면 React 가 그것을 먼저 그려서, 새로 마운트된 화면이 **옛 주소**
+ * (`?team=A&sprint=S`)를 보고 한 번 선다. 「진입 때 한 번」 상태는 마운트 때의 주소로 무장하므로(작업 보드의
+ * `autoSelectedFor`, 스프린트 회의의 `autoFor`) 그 한 번에 「이미 골랐다」가 박히고, 한 박자 뒤 비워진 주소가 와도 회차를
+ * 다시 고르지 않았다. 고친 빌드를 재현 하네스로 잰 결과가 그것이었다(작업 보드 · 스프린트 회의 72건이 `?team=A` 에서 멈춤,
+ * 2026-09-21). 번호를 같은 전환 안에서 올리면 번호와 주소가 같은 렌더에 들어가 새 화면은 처음부터 새 주소를 본다. */
 export function useEntryNavigate() {
   const navigate = useNavigate();
   const loc = useLocation();
   const { bump } = React.useContext(NavEntryContext);
   return React.useCallback((to, options) => {
     if (isReentry(to, loc)) {
-      bump();
-      navigate(to, { ...(options || null), replace: true });
+      React.startTransition(() => {
+        bump();
+        navigate(to, { ...(options || null), replace: true });
+      });
       return true;
     }
     navigate(to, options);

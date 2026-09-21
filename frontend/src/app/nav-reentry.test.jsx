@@ -45,15 +45,21 @@ function setMatchMedia() {
 let mounts = 0;
 
 /* 작업 보드의 「진입 때 한 번」 자동 선택을 그대로 흉내 낸 화면 — 팀이 없으면 팀을, 회차가 없고
-   아직 한 번도 안 골랐으면 회차를 고른다. 두 번째부터는 사용자가 비운 회차를 다시 덮지 않는다. */
+   아직 한 번도 안 골랐으면 회차를 고른다. 두 번째부터는 사용자가 비운 회차를 다시 덮지 않는다.
+
+   🔴 무장 여부는 **마운트할 때의 주소**가 정한다 — 실제 화면과 같다(`WorkBoard.jsx::autoSelectedFor` 가
+   `useRef(state.sprint ? teamId : null)`, `Sprint.jsx::autoFor` 도 같은 모양). 주소에 회차가 이미 있으면 그 팀은
+   「골랐다」로 치고 다시 고르지 않는다. 그래서 새 인스턴스가 **옛 주소를 보고 먼저 한 번 그려지면** 자동 선택이
+   막힌다 — 재진입 번호만 급한 갱신으로 올리고 주소는 라우터의 전환(transition)으로 늦게 오면 정확히 그렇게 된다
+   (2026-09-21 고친 빌드 실측: 작업 보드 · 스프린트 회의가 두 번 누르면 `?team=A` 에서 멈췄다). */
 function OneShotScreen() {
   const [params, setParams] = useSearchParams();
-  const armed = React.useRef(true);
+  const autoSelectedFor = React.useRef(params.get("sprint") ? params.get("team") : null);
   React.useEffect(() => { mounts += 1; }, []);
   React.useEffect(() => {
     if (!params.get("team")) { setParams({ team: "t1" }, { replace: true }); return; }
-    if (!params.get("sprint") && armed.current) {
-      armed.current = false;
+    if (!params.get("sprint") && autoSelectedFor.current !== params.get("team")) {
+      autoSelectedFor.current = params.get("team");
       setParams({ team: params.get("team"), sprint: "s-open" }, { replace: true });
     }
   }, [params, setParams]);

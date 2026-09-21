@@ -389,6 +389,11 @@ export function Users() {
   // 한 번에 처리하는 것이 이 기능의 목적이기 때문이다(서버는 id 목록만 본다).
   const selection = useRowSelection();
   const [sel, setSel] = useState(null);
+  /* 상세 창의 열쇠 — **다른 사람으로 바뀔 때만** 바뀐다. 화면은 사람을 열 때 다시 마운트되지 않으므로(`navEntry.jsx::
+     screenKeyOf`), 창 안의 순간 상태(작업 알림 · 복사 표시 · 진행 중 표시)가 뒤로 가기로 넘어간 다음 사람에게 따라가지 않게
+     한다. 닫힐 때는 마지막으로 연 사람의 열쇠를 그대로 둔다 — 같은 창이 닫혀야 닫힘 전환이 그려진다. */
+  const detailKey = React.useRef("");
+  if (sel && sel.id != null && String(sel.id) !== detailKey.current) detailKey.current = String(sel.id);
   // PA-RC-0033: :id 라우트로 들어왔는데 그 사용자가 없으면(삭제됨/권한 밖) 예전엔 토스트 하나만
   // 뜨고 몇 초 뒤 사라지면 화면엔 흔적이 남지 않았다 — sel과 별개로 들고 있다가 아래 UserDetail의
   // Modal 자리에 기존 ErrorState를 그린다(DataScreen.jsx와 같은 계약, 새 컴포넌트 없음).
@@ -806,8 +811,8 @@ export function Users() {
       )}
 
       {/* 작업 후 드로어를 닫지 않는다, 상세는 자체 useQuery로 서버 최신 상태를 다시 불러
-          결과(활성/잠금/세션 수 변화)를 그 자리에서 보여준다. */}
-      <UserDetail user={sel} notFound={routeIdNotFound}
+          결과(활성/잠금/세션 수 변화)를 그 자리에서 보여준다. 창은 다른 사람으로 바뀔 때만 새로 선다(`detailKey`). */}
+      <UserDetail key={detailKey.current} user={sel} notFound={routeIdNotFound}
         onClose={() => {
           // PA-RC-0033: 없는 id 오류는 sel이 애초에 null이라 위 "반대 방향" 효과(sel 변화 감지)가
           // 안 걸린다 — 여기서 직접 목록 주소로 되돌린다(같은 element라 목록 인스턴스는 그대로,

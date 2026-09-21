@@ -5,7 +5,7 @@ import { Skeleton } from "../ui/kit.jsx";
 import { AppShell, ShellErrorFallback } from "./AppShell.jsx";
 import { LoginHandoff } from "./LoginHandoff.jsx";
 import { useImpersonation } from "./Banners.jsx";
-import { NavEntryProvider, useNavEntry } from "./navEntry.jsx";
+import { NavEntryProvider, screenKeyOf, useNavEntry } from "./navEntry.jsx";
 
 /* 두 콘솔은 각각 별도 청크다. 사용자 콘솔만 쓰는 사람은 관리자 화면 20여 개를 받지 않는다. */
 const AdminRoutes = React.lazy(() => import("./AdminRoutes.jsx"));
@@ -176,10 +176,11 @@ function Layout() {
         minimal={auth.isError}
         showMenu={showMenu}
       >
-        {/* 오류 경계를 본문에만 두고 경로별로 리셋한다 — 한 화면이 크래시해도 사이드바·상단바는
-            살아 이동 가능하다. 키에 진입 번호가 들어간다: 같은 메뉴를 다시 누르면 화면이 새로
-            마운트되어, 두 번 누른 끝 상태가 한 번 누른 끝 상태와 같다(`navEntry.jsx`). */}
-        <ErrorBoundary key={`${loc.pathname}:${entry}`} resettable>
+        {/* 오류 경계를 본문에만 두고 화면별로 리셋한다 — 한 화면이 크래시해도 사이드바·상단바는
+            살아 이동 가능하다. 키는 경로가 아니라 **화면**이다(`navEntry.jsx::screenKeyOf`) — 목록과 상세를 한
+            화면에 둔 곳(조직 관리 · 사용자 · 채팅방)은 고를 때마다 다시 마운트되지 않는다. 키에 진입 번호가
+            들어간다: 같은 메뉴를 다시 누르면 화면이 새로 마운트되어, 두 번 누른 끝 상태가 한 번 누른 끝 상태와 같다. */}
+        <ErrorBoundary key={`${screenKeyOf(loc.pathname)}:${entry}`} resettable>
           <React.Suspense fallback={<Skeleton kind="page" lines={4} />}>
             {useUserConsole ? <UserRoutes /> : <AdminRoutes />}
           </React.Suspense>
