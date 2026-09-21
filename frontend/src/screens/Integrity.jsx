@@ -15,10 +15,7 @@ import { SettingRow } from "../ui/adminKit.jsx";
 import { selectionColumn, useRowSelection } from "../ui/bulkSelect.jsx";
 import { OrgPath } from "../ui/OrgPath.jsx";
 import { FONT_WEIGHT } from "../ui/theme.js";
-import { GRID_GAP, pairTracks } from "../ui/density.js";
-
-/* 정리할 항목 : 관리자 범위 — 회의 화면의 2:1 보다 오른쪽을 조금 넓게 둔다(세 열 표가 든다). */
-const ADMIN_SCOPE_PAIR = "minmax(0, 1.6fr) minmax(0, 1fr)";
+import { GRID_GAP } from "../ui/density.js";
 
 /* 조직 정합성 진단 — **닫아 버린 것을 사람에게 보여 주는 화면** (0060 §41).
  *
@@ -226,10 +223,11 @@ export function Integrity() {
         </Callout>
       )}
 
-      {/* 왼쪽이 정리할 항목, 오른쪽이 관리자 범위 — 예전에는 둘이 세로로 이어져 관리자 범위
-          표를 보려면 판 여섯을 지나야 했다. 짝은 **xl 부터**다: 1366 에서 세 열짜리 표를 3분의 1
-          폭에 넣으면 「관리 범위」 열이 잘린다(실측). 그 아래에서는 한 열로 선다. */}
-      <Box sx={{ mt: 2.5, ...pairTracks(ADMIN_SCOPE_PAIR), gridTemplateColumns: { xs: "minmax(0, 1fr)", xl: ADMIN_SCOPE_PAIR } }}>
+      {/* 두 구획은 **위아래로 이어진다** — 정리할 항목 다음에 관리자 범위다(사용자 지시, 2026-09-21).
+          여기 1.6 : 1 짝 격자가 있었는데, 두 구획은 서로 견주는 값이 아니라 **차례로 읽는 것**이고
+          오른쪽 판은 세 열짜리 표를 3분의 1 폭에 넣느라 「관리 범위」 열이 좁았다. 전폭으로 두면 표가
+          제 폭을 쓰고 화면 폭에 따라 배치가 갈리지 않는다. */}
+      <Box sx={{ mt: 2.5, display: "grid", gap: GRID_GAP, gridTemplateColumns: "minmax(0, 1fr)" }}>
         <Section titleAs="h2" title="정리할 항목" rule sx={{ mb: 0 }}>
           {open.length ? (
             <Box sx={{ display: "grid", gap: GRID_GAP, mb: clear.length ? GRID_GAP : 0 }}>

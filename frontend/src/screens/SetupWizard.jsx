@@ -10,7 +10,7 @@ import {
   DotLabel, SectionTitle,
 } from "../ui/kit.jsx";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
-import { BASELINE_TRACKS, pairTracks } from "../ui/density.js";
+import { GRID_GAP } from "../ui/density.js";
 
 /* 최초 실행 셋업 마법사 (9-3, P3).
  *
@@ -179,17 +179,21 @@ export function setupProgressText(data) {
   return rest.length ? `${head} ${rest.join(", ")} 남았습니다.` : head;
 }
 
-/* 레일 — **지금 할 차례**. 목록 옆 보조 레일에 선다(`/new-ticket` 의 폼 + 레일 모양, D-458).
+/* **지금 할 차례** 판 — 목록 위에 전폭으로 선다(사용자 지시, 2026-09-21. 그 전에는 목록 옆 레일이었다).
  *
- * 다음 항목의 할 일과 그것을 고치는 화면으로 가는 단추가 이 화면의 주 동작이다(D-501 — 채움은 화면당 하나). 그 아래 진행 한
- * 문장이 선다. 목록을 접어도 이 레일은 남는다 — 한 번 닫으면 다시 못 보는 마법사는 설정을 미룬 사람에게 도움이 안 된다.
- * 다 끝나면 할 차례가 없으므로 끝났다는 문장 하나만 선다. */
+ * 다음 항목의 할 일과 그것을 고치는 화면으로 가는 단추가 이 화면의 주 동작이다(D-501 — 채움은 화면당 하나). 목록을 접어도
+ * 이 판은 남는다 — 한 번 닫으면 다시 못 보는 마법사는 설정을 미룬 사람에게 도움이 안 된다. 다 끝나면 할 차례가 없으므로
+ * 끝났다는 문장 하나만 선다.
+ *
+ * 전폭이 되면서 **글과 단추가 한 줄**이다 — 할 일 문장이 왼쪽에서 폭을 쓰고 단추가 오른쪽 끝에 선다(메일 발송의 안내 상자와
+ * 같은 어휘). 레일이던 때처럼 단추를 문장 아래 두면 1920 에서 오른쪽 1,200px 가 빈다(실측). 좁아지면 줄이 접혀 단추가
+ * 문장 아래로 내려간다. 읽는 순서(항목 → 할 일 → 단추)는 어느 폭에서나 같다. */
 function NowRail({ data }) {
   const items = data.items || [];
   const next = data.complete ? null : items.find((i) => i.key === data.next_key) || null;
   const link = next ? SETUP_LINKS[next.key] : null;
   return (
-    <Box data-testid="setup-summary" sx={{ display: "grid", gap: 1.5, justifyItems: "start" }}>
+    <Box data-testid="setup-summary" sx={{ display: "grid", gap: 1.5, justifyItems: "stretch" }}>
       {data.complete ? (
         <Callout tone="success">
           초기 설정 항목이 모두 끝났습니다. 목록은 그대로 두어 언제든 다시 확인할 수 있습니다.
@@ -199,11 +203,17 @@ function NowRail({ data }) {
           {next ? (
             <>
               <SectionTitle component="h2" title="지금 할 차례" sx={{ mb: 0 }} />
-              <Box data-setup-now={next.key} sx={{ display: "grid", gap: 0.5 }}>
-                <Typography variant="body1" sx={{ fontWeight: FONT_WEIGHT.semibold, ...KO_WORD_BREAK }}>{next.label}</Typography>
-                <NextStep item={next} />
+              <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 2 }}>
+                <Box data-setup-now={next.key} sx={{ display: "grid", gap: 0.5, flex: "1 1 20rem", minWidth: 0 }}>
+                  <Typography variant="body1" sx={{ fontWeight: FONT_WEIGHT.semibold, ...KO_WORD_BREAK }}>{next.label}</Typography>
+                  <NextStep item={next} />
+                </Box>
+                {link ? (
+                  <Box sx={{ flex: "0 0 auto" }}>
+                    <Button variant="primary" href={link.href}>{link.label}</Button>
+                  </Box>
+                ) : null}
               </Box>
-              {link ? <Button variant="primary" href={link.href}>{link.label}</Button> : null}
             </>
           ) : null}
           <Typography variant="body2" color="text.secondary" sx={KO_WORD_BREAK}>{setupProgressText(data)}</Typography>
@@ -274,19 +284,16 @@ export function SetupWizard() {
           </Button>
         }
       />
-      {/* 목록 판 + 「지금 할 차례」 레일. 예전에는 요약이 전폭 안내 상자, 목록이 전폭 판이라 1920 에서
-          항목 설명 한 줄이 1,500px 를 달렸다. 접으면 레일만 전폭으로 남는다. 레일은 제 내용만큼만
-          선다(`start`) — 목록 높이로 늘리면 잉크 14% 짜리 빈 판이 된다(실측).
-          2열 문턱은 뷰포트(`pairTracks`)로 둔다 — 내용 폭 짝 트랙(`contentPairTracks`, 새 티켓 · LLM 콘솔)으로 옮기면 1200 에서
-          1열이 되어 레일이 목록 아래 1,000px 밖으로 내려가 첫 화면에서 사라졌다(UI 3차 P4 실측). 목록 칸은 543px 에서도 읽힌다.
-          **레일이 문서 순서의 앞이다**(D-501 — 머리 → 지금 할 일 → 목록). 1열로 접히는 좁은 화면에서도 할 차례가 목록 위에
-          서고, 낭독기도 그 순서로 읽는다. 2열에서는 격자 자리(`gridColumn`)로 오른쪽에 둔다. */}
-      <Box sx={open ? { ...pairTracks(BASELINE_TRACKS.two), alignItems: "start" } : undefined}>
-        <Card component="aside" aria-label="초기 설정 진행" sx={open ? { gridColumn: { lg: 2 }, gridRow: { lg: 1 } } : undefined}>
+      {/* 두 판은 **위아래로 이어진다** — 「지금 할 차례」가 위, 목록이 아래다(사용자 지시, 2026-09-21).
+          여기 주 판 + 곁열 2열 격자가 있었는데, 지금 할 일과 전체 목록은 나란히 견주는 값이 아니라
+          차례로 읽는 것이다. 화면 폭에 따라 배치가 갈리지 않고 어느 폭에서나 같은 순서로 읽힌다
+          (D-501 — 머리 → 지금 할 일 → 목록). 판은 제 내용만큼만 선다. */}
+      <Box sx={{ display: "grid", gap: GRID_GAP, gridTemplateColumns: "minmax(0, 1fr)", alignItems: "start" }}>
+        <Card component="aside" aria-label="초기 설정 진행">
           <NowRail data={data} />
         </Card>
         {open ? (
-          <Card sx={{ gridColumn: { lg: 1 }, gridRow: { lg: 1 } }}>
+          <Card>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 1, ...KO_WORD_BREAK }}>
               아래 순서는 의존 순서입니다. 앞 항목이 끝나야 뒤 항목이 실제로 동작합니다.
             </Typography>
