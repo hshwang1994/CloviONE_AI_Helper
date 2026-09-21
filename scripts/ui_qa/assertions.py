@@ -1822,6 +1822,13 @@ PROBE_JS = r"""
             const label = ((b.textContent || '') + ' ' + (b.getAttribute('aria-label') || '')).trim();
             if (!/다음|더\s*보기|next|more/i.test(label)) continue;
             if (b.disabled || b.getAttribute('aria-disabled') === 'true') continue;
+            /* **메뉴를 여는 단추는 쪽 넘김이 아니다** (2026-09-21 정정).
+               행 · 상세의 넘침 메뉴는 이름이 「… 작업 더 보기」다(`OverflowMenu`). 그것을 쪽 넘김으로
+               세면 「보여 줄 것이 더 있는데 공간을 안 쓴다」가 되어, 내용이 짧아 아래가 비는 화면이
+               전부 굶주림으로 잡힌다 — 조직 관리가 그렇게 잡혔다(줄바꿈 0 · 말줄임 0 · 안쪽 스크롤 0
+               인데 「더 보기」 메뉴 하나 때문에 실패). 쪽 넘김은 메뉴를 열지 않는다. */
+            const pop = (b.getAttribute('aria-haspopup') || '').toLowerCase();
+            if (pop && pop !== 'false') continue;
             demand.pager++;
             break;
           }

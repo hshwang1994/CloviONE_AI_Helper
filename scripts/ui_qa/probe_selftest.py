@@ -93,6 +93,26 @@ CASES: list[dict] = [
         </div>""",
     },
     {
+        "name": "dead_blank_region/쪽 넘김이 남았는데 아래가 비면 잡힌다",
+        "assertion": "dead_blank_region",
+        "expect": "fail",
+        "why": ("받을 것이 더 있는데(「더 보기」) 화면 아래를 안 쓰는 상태 — 이 검사가 잡으려는 "
+                "결함이다."),
+        "html": """
+        <div style="height:180px;background:#eee">목록 세 줄</div>
+        <button type="button">더 보기</button>""",
+    },
+    {
+        "name": "dead_blank_region/메뉴를 여는 「더 보기」는 쪽 넘김이 아니다",
+        "assertion": "dead_blank_region",
+        "expect": "pass",
+        "why": ("행 · 상세의 넘침 메뉴 이름이 「… 작업 더 보기」다(`OverflowMenu`). 그것을 쪽 넘김으로 "
+                "세면 내용이 짧아 아래가 비는 화면이 전부 굶주림이 된다 — 조직 관리가 그렇게 잡혔다."),
+        "html": """
+        <div style="height:180px;background:#eee">목록 세 줄</div>
+        <button type="button" aria-haspopup="menu" aria-label="서비스운영팀 작업 더 보기">⋯</button>""",
+    },
+    {
         "name": "control_baseline_mismatch/글자 그대로인 단추는 34 단추와 짝지어지지 않는다",
         "assertion": "control_baseline_mismatch",
         "expect": "pass",
