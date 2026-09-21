@@ -1,7 +1,8 @@
 import React from "react";
 import Box from "@mui/material/Box";
 import Divider from "@mui/material/Divider";
-import { Button as KitButton, FieldLabel } from "./kit.jsx";
+import { Button as KitButton, FieldLabel, useToast } from "./kit.jsx";
+import { isEmbeddableImageSrc } from "../lib/safeUrl.js";
 import IconButton from "@mui/material/IconButton";
 import Popover from "@mui/material/Popover";
 import Stack from "@mui/material/Stack";
@@ -137,6 +138,29 @@ const Mention = Node.create({
     return `@${node.attrs.label || node.attrs.id}`;
   },
 });
+
+/* 그림 — 서버가 받는 주소의 그림만 읽는다(`lib/safeUrl.js::isEmbeddableImageSrc`).
+ *
+ * 🔴 메일이나 문서 편집기에서 본문을 복사해 붙여 넣으면 그림이 `cid:` · `file:` · `blob:` 주소를 들고 온다. 그 주소는
+ * 이 제품 밖에서만 열려서 서버가 저장을 거절한다(422). 예전에는 편집기가 그 그림을 그대로 받아, 사용자는 깨진 그림
+ * 상자를 본 채로 저장하다 실패했다(2026-09-16, 새 티켓에서 다섯 번). 기본 확장은 `data:` 만 걸렀다(`allowBase64`).
+ * 읽는 규칙에서 거르면 붙여넣기 · 끌어 놓기 · HTML 로 채우기가 모두 같은 판정을 받는다. */
+export const SafeImage = Image.extend({
+  parseHTML() {
+    return [{ tag: "img[src]", getAttrs: (el) => (isEmbeddableImageSrc(el.getAttribute("src")) ? null : false) }];
+  },
+});
+
+/** 붙여 넣은 HTML 에서 본문에 넣을 수 없는 그림을 걷는다. 걷은 것이 없으면 받은 글자를 그대로 돌려준다.
+ *  `dropped` 는 걷은 그림의 수다 — 편집기가 그 수로 한 번 알린다. */
+export function dropUnembeddableImages(html) {
+  if (typeof html !== "string" || !/<img\b/i.test(html) || typeof DOMParser === "undefined") return { html, dropped: 0 };
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  const bad = [...doc.querySelectorAll("img")].filter((img) => !isEmbeddableImageSrc(img.getAttribute("src")));
+  if (!bad.length) return { html, dropped: 0 };
+  for (const img of bad) img.remove();
+  return { html: doc.body.innerHTML, dropped: bad.length };
+}
 
 export const EMPTY_DOC = { type: "doc", content: [] };
 
@@ -301,6 +325,10 @@ const EDITOR_BODY_MIN_REM = 15;
 
 export function BlockEditor({ value, onChange, readOnly = false, label = "본문", ariaLabel, onPickImage, fill = false }) {
   const name = ariaLabel || label;
+  /* 편집기 설정은 처음 한 번 만들어지므로 알림 함수는 ref 로 넘긴다 — 붙여넣기 때 지금의 함수를 부른다. */
+  const toast = useToast();
+  const toastRef = React.useRef(toast);
+  toastRef.current = toast;
   const editor = useEditor({
     editable: !readOnly,
     /* 🔴 편집 영역의 **접근 이름**은 contenteditable 자신이 들어야 한다.
@@ -315,6 +343,15 @@ export function BlockEditor({ value, onChange, readOnly = false, label = "본문
         role: "textbox",
         "aria-label": name,
         "aria-multiline": "true",
+      },
+      /* 붙여 넣은 그림 중 본문에 넣을 수 없는 것을 먼저 걷고, 걷었으면 한 번 알린다(`SafeImage` 머리 주석).
+         말없이 버리면 사용자는 그림이 왜 사라졌는지 모른다. */
+      transformPastedHTML: (html) => {
+        const { html: kept, dropped } = dropUnembeddableImages(html);
+        if (dropped) {
+          toastRef.current(`붙여 넣은 그림 ${dropped}개는 본문에 넣지 못했습니다. 웹 주소로 열리는 그림만 넣을 수 있습니다.`, "warn");
+        }
+        return kept;
       },
     },
     extensions: [
@@ -358,7 +395,7 @@ export function BlockEditor({ value, onChange, readOnly = false, label = "본문
        *
        * 표는 크기 조절을 안 켠다. 지금 필요한 것은 **원본 표가 보이는 것**이고, 열 너비
        * 손잡이는 편집 기능이라 읽기 전용 화면에 아무것도 더하지 않는다. */
-      Image.configure({ inline: false, allowBase64: false }),
+      SafeImage.configure({ inline: false, allowBase64: false }),
       Table.configure({ resizable: false }),
       TableRow,
       TableHeader,

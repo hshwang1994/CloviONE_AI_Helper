@@ -22,3 +22,20 @@ export function safeExternal(url) {
   const cleaned = url.replace(LEADING_JUNK, "").trim();
   return ALLOWED.test(cleaned) ? cleaned : null;
 }
+
+/* 본문 그림 주소로 받는 스킴. 서버 `app/knowledge/blocks.py::SAFE_IMAGE_SCHEMES` 와 같은 목록이다. */
+const IMAGE_SCHEMES = new Set(["http", "https"]);
+const SCHEME = /^([a-zA-Z][a-zA-Z0-9+.-]*):/;
+
+/** 본문에 넣을 수 있는 그림 주소인가 — 서버 `_safe_href(…, schemes=SAFE_IMAGE_SCHEMES)` 와 같은 판정이다.
+ *
+ * http(s) 이거나 스킴이 없는 상대 주소(`/api/…`)만 받는다. 메일 · 문서 편집기에서 붙여 넣은 그림은 `cid:` · `file:` ·
+ * `blob:` 주소를 들고 오는데, 그 주소는 이 제품 밖에서만 열려 서버가 저장을 거절한다. 서버처럼 제어문자와 공백 앞의
+ * 글자를 먼저 지우고 본다 — `java\tscript:` 같은 값을 브라우저가 스킴으로 읽기 때문이다. */
+export function isEmbeddableImageSrc(src) {
+  if (typeof src !== "string") return false;
+  const cleaned = Array.from(src).filter((ch) => ch.codePointAt(0) > 0x20 || ch === " ").join("").trim();
+  if (!cleaned) return false;
+  const match = SCHEME.exec(cleaned);
+  return !match || IMAGE_SCHEMES.has(match[1].toLowerCase());
+}
