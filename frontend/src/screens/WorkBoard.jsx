@@ -45,6 +45,7 @@ import { TicketSignals } from "../ui/TicketSignals.jsx";
 import { TicketFace, TicketPeople } from "../ui/TicketFace.jsx";
 import { LANE_SURFACE } from "../ui/density.js";
 import { useQueryState } from "../lib/useQueryState.js";
+import { useGuardedMutation } from "../lib/useGuardedMutation.js";
 import { celebrateIfCompletedCategory } from "../ui/celebrate.js";
 import { pickOpenSprint } from "./sprint-charts.js";
 
@@ -336,7 +337,9 @@ function EmptyCell() {
   );
 }
 
-function BacklogRow({ card, onOpen, signals, onAddToSprint, canAdd, onQuickEdit, onMoveToTop, onMoveToBottom, sorted }) {
+/* `busy` 는 이동이 반영되는 동안(요청 · 재조회)이고, `adding` 은 **이 줄의** 「회차에 담기」가 가는 중이라는 뜻이다.
+   그동안 단추는 꺼지고 담는 줄의 단추는 진행 중을 말한다 — 끌기가 같은 동안 꺼지는 것과 같은 규칙이다. */
+function BacklogRow({ card, onOpen, signals, onAddToSprint, canAdd, busy = false, adding = false, onQuickEdit, onMoveToTop, onMoveToBottom, sorted }) {
   return (
     /* 백로그는 표 모양의 목록이다 — 우선순위 「긴급」도 면 없이 점 + 낱말로 선다(RULES §2). */
     <FlatBadgeSurface>
@@ -394,6 +397,8 @@ function BacklogRow({ card, onOpen, signals, onAddToSprint, canAdd, onQuickEdit,
           <Button
             variant="secondary"
             size="sm"
+            disabled={busy}
+            loading={adding}
             onClick={() => onAddToSprint(card)}
           >
             회차에 담기
@@ -633,7 +638,10 @@ function WorkBoardScreen() {
       toast((e && e.message) || "회차를 추가하지 못했습니다. 다시 시도해 주세요.", "error"),
   });
 
-  const move = useMutation({
+  /* 같은 이동은 끝나기 전에 한 번만 나간다(`useGuardedMutation`). 이동은 카드의 `base_version` 을 싣는데, 같은 요청이
+     두 번 나가면 둘째가 첫째가 올린 판을 모르고 409(「다른 사람이 먼저 이 티켓을 옮겼습니다」)로 끝났다 — 백로그 줄의
+     「회차에 담기」를 두 번 누른 사람이 자기 클릭 때문에 그 문장을 봤다. */
+  const move = useGuardedMutation({
     mutationFn: ({ id, body }) =>
       api(`/api/work/board/${encodeURIComponent(id)}/move`, { method: "POST", body }),
     onSuccess: (data, variables) => {
@@ -899,6 +907,10 @@ function WorkBoardScreen() {
   const active = tab === TAB_BOARD ? board : backlog;
   const moveBusy =
     move.isPending || (tab === TAB_BOARD ? board.isFetching : backlog.isFetching);
+  /* 지금 회차에 담는 중인 카드 — 그 줄의 「회차에 담기」가 진행 중을 말한다. */
+  const addingId =
+    move.isPending && move.variables && move.variables.body && move.variables.body.set_sprint
+      && move.variables.body.sprint_id ? move.variables.id : null;
   const projectRows = React.useMemo(
     () => eligibleProjects((projects.data && projects.data.projects) || [], teamId),
     [projects.data, teamId],
@@ -1345,6 +1357,8 @@ function WorkBoardScreen() {
                                골랐을 때만. 백로그의 티켓은 전부 이 팀의 것이라 프로젝트를
                                다시 견주지 않는다. 서버 검증은 그대로 정본이다. */
                             canAdd={canPlan && sprintOpen && !!(sprint && sprint.department_id)}
+                            busy={moveBusy}
+                            adding={addingId === card.id}
                             onQuickEdit={(c) => setEditing(asTicket(c))}
                             onMoveToTop={(c) => movePosition(c, "top")}
                             onMoveToBottom={(c) => movePosition(c, "bottom")}

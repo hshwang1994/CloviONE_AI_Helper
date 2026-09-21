@@ -23,8 +23,10 @@ from __future__ import annotations
 from datetime import datetime
 
 from sqlalchemy import select, text as sa_text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.core.db import is_unique_violation
 from app.core.errors import ConflictError, ValidationAppError
 from app.core.models_base import utcnow
 from app.work.models import (
@@ -46,6 +48,9 @@ FORWARD_LABEL: dict[str, str] = {
     REL_BLOCKS: "후속 작업",
     REL_RELATES_TO: "관련 작업",
 }
+
+#: 하위 작업의 상위는 하나다(`uq_trel_single_parent`). 사전 검사와 경합에서 진 삽입이 같은 문장을 쓴다.
+PARENT_TAKEN = "이 티켓에는 이미 상위 작업이 있습니다. 먼저 해제한 뒤 다시 지정해 주세요."
 
 
 def _ordered(from_id: str, to_id: str, kind: str) -> tuple[str, str]:
@@ -111,17 +116,9 @@ def add(
             )
         ).scalar_one_or_none()
         if current is not None and current.to_ticket_id != right:
-            raise ConflictError(
-                "이 티켓에는 이미 상위 작업이 있습니다. 먼저 해제한 뒤 다시 지정해 주세요."
-            )
+            raise ConflictError(PARENT_TAKEN)
 
-    existing = db.execute(
-        select(TicketRelation).where(
-            TicketRelation.from_ticket_id == left,
-            TicketRelation.to_ticket_id == right,
-            TicketRelation.kind == kind,
-        )
-    ).scalar_one_or_none()
+    existing = _edge(db, left, right, kind)
     if existing is not None:
         return existing
 
@@ -129,9 +126,36 @@ def add(
         from_ticket_id=left, to_ticket_id=right, kind=kind,
         created_by=actor_id, created_at=now or utcnow(),
     )
-    db.add(row)
-    db.flush()
+    # **동시에 온 같은 요청도 재실행이다.** 위 확인과 이 삽입 사이는 잠기지 않은 창이라, 같은 관계를 두 요청이
+    # 함께 넣으면 늦은 쪽이 유일 인덱스(`uq_trel_edge` — 하위 작업이면 `uq_trel_single_parent` 도)에 부딪힌다.
+    # 예전에는 그 위반이 요청 경계까지 가서 일반 문장의 409 가 됐다. 이제 먼저 들어간 행을 다시 읽는다 — 같은
+    # 관계면 그것이 답이고(재실행 안전), 같은 티켓에 다른 상위 작업이 먼저 들어갔으면 위 사전 검사와 같은 말로
+    # 거절한다.
+    try:
+        with db.begin_nested():
+            db.add(row)
+            db.flush()
+    except IntegrityError as exc:
+        if not (
+            is_unique_violation(exc, constraint="uq_trel_edge")
+            or is_unique_violation(exc, constraint="uq_trel_single_parent")
+        ):
+            raise
+        winner = _edge(db, left, right, kind)
+        if winner is not None:
+            return winner
+        raise ConflictError(PARENT_TAKEN) from None
     return row
+
+
+def _edge(db: Session, left: str, right: str, kind: str) -> TicketRelation | None:
+    return db.execute(
+        select(TicketRelation).where(
+            TicketRelation.from_ticket_id == left,
+            TicketRelation.to_ticket_id == right,
+            TicketRelation.kind == kind,
+        )
+    ).scalar_one_or_none()
 
 
 def remove(db: Session, *, from_ticket_id: str, to_ticket_id: str, kind: str) -> bool:

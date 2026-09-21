@@ -37,9 +37,16 @@ from app.core.errors import AppError
 
 
 class ClaimInProgressError(AppError):
+    """이 티켓의 배정이 이미 진행 중이다.
+
+    문장은 **누가** 진행 중인지 말하지 않는다. 잠금은 티켓만 알고 사람은 모르는데, 같은 사람의 더블클릭도 여기
+    걸린다 — 예전 문장(「다른 사람이 지금 이 티켓을 배정하고 있습니다」)은 그 사람에게 자기 클릭을 남의 경합으로
+    읽게 했다(P4). 무엇을 하면 되는지(목록을 새로 고쳐 누가 담당이 됐는지 본다)만 말한다.
+    """
+
     status_code = 409
     code = "claim_in_progress"
-    default_message = "다른 사람이 지금 이 티켓을 배정하고 있습니다. 잠시 후 다시 시도해 주세요."
+    default_message = "이 티켓의 배정이 이미 진행 중입니다. 잠시 후 목록을 새로 고쳐 확인해 주세요."
 
 
 class claim_guard:

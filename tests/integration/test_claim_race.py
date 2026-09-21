@@ -141,6 +141,43 @@ def test_two_people_claiming_at_once_do_not_both_win(app, world):
     assert len(repo.writes) == 1, f"소스에 두 번 썼다: {repo.writes}"
 
 
+def test_the_same_person_claiming_twice_at_once_is_not_told_it_was_someone_else(app, world):
+    """🔴 같은 사람의 더블클릭도 잠금에 걸린다(잠금은 티켓만 알고 사람은 모른다). 그때 문장이 「다른 사람이」라고
+    말하면 자기 클릭을 남의 경합으로 읽는다 — 진 요청의 409 문장은 누가 진행 중인지 말하지 않는다(P4)."""
+    from app.tickets import service
+    from app.tickets.claim_lock import ClaimInProgressError
+
+    first, _second = world
+    gate = threading.Event()
+    repo = _SlowRepo(gate)
+    outcomes: dict[int, object] = {}
+
+    def claim(index: int) -> None:
+        with app.state.session_factory() as session:
+            merged = session.get(type(first), first.id)
+            try:
+                service.claim_ticket(
+                    session, None, app.state.settings, merged,
+                    page_id=PAGE, now=datetime(2026, 8, 6, 9, 0, 0), repo=repo,
+                )
+                outcomes[index] = "ok"
+            except Exception as exc:  # noqa: BLE001 - 무엇이 났는지 보려고 담는다
+                outcomes[index] = exc
+
+    threads = [threading.Thread(target=claim, args=(i,)) for i in range(2)]
+    for t in threads:
+        t.start()
+    threading.Timer(0.2, gate.set).start()
+    for t in threads:
+        t.join(timeout=10)
+
+    assert list(outcomes.values()).count("ok") == 1, outcomes
+    lost = [v for v in outcomes.values() if v != "ok"]
+    assert len(lost) == 1 and isinstance(lost[0], ClaimInProgressError), outcomes
+    assert "다른 사람" not in lost[0].message, lost[0].message
+    assert lost[0].message == ClaimInProgressError.default_message
+
+
 def test_the_winner_actually_owns_the_ticket(app, world):
     """오탐 방지 - 막느라 아무도 못 잡게 되면 그건 기능 고장이다."""
     first, _second = world

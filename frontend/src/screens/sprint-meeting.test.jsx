@@ -1,6 +1,6 @@
 import React from "react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { configure, render, screen, waitFor, within } from "@testing-library/react";
+import { act, configure, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
@@ -294,6 +294,31 @@ describe("스프린트 회의", () => {
       ).toBe(true)
     );
     await waitFor(() => expect(readSessionDraft("cv.meetingDraft.v1:sp-now")).toBeUndefined());
+  });
+
+  it("「내용」 칸의 제출이 같은 틱에 두 번 와도 회의록은 한 번만 적힌다 (P4)", async () => {
+    /* 회의록은 Enter(폼 제출)로도 적힌다. 예전에는 그 제출에 진행 중 가드가 없고 「적기」가 꺼지는 것은 다음 렌더의
+       일이라, 그 전에 온 둘째 제출이 같은 기록을 한 번 더 남겼다. 응답을 붙잡아 그 창을 연다. */
+    const posted = [];
+    apiMock.mockImplementation((path, opts) => {
+      if (String(path) === "/api/work/sprints/sp-now/decisions" && opts && opts.method === "POST") {
+        posted.push(opts.body);
+        return new Promise(() => {});
+      }
+      return stub(path, opts);
+    });
+    renderSprint();
+    const body = await screen.findByLabelText("내용");
+    await userEvent.type(body, "배포 창을 목요일로 옮깁니다.");
+    const form = body.closest("form");
+    act(() => {
+      fireEvent.submit(form);
+      fireEvent.submit(form);
+    });
+    await waitFor(() => expect(posted).toHaveLength(1));
+    await act(async () => {});
+    expect(posted).toHaveLength(1);
+    expect(posted[0]).toMatchObject({ kind: "decision", body: "배포 창을 목요일로 옮깁니다." });
   });
 
   it("🔴 적다 만 회의록은 화면을 떠났다 와도 그 회차에 남는다(D-483)", async () => {

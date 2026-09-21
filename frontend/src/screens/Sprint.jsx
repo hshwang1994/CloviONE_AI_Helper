@@ -40,6 +40,7 @@ import { sprintFields, teamLabelOf } from "./sprint-fields.js";
 import { useQueryState } from "../lib/useQueryState.js";
 import { useListMemory } from "../lib/listReturn.js";
 import { useSessionDraft } from "../lib/useSessionDraft.js";
+import { useGuardedMutation } from "../lib/useGuardedMutation.js";
 import { eligibleProjects, useAssigneeOptions, useTicketProjects } from "./ticket-options.js";
 import { useAuth } from "../app/auth.jsx";
 import { SIGNALS, useTicketSignals } from "../lib/ticketSignals.js";
@@ -459,7 +460,10 @@ export function Sprint() {
     [qc, meetingKey]
   );
 
-  const addDecision = useMutation({
+  /* 회의록은 「내용」 칸의 Enter 로도 적힌다(`DecisionComposer` 의 폼 제출). 그 제출에는 진행 중 가드가 없고 「적기」가
+     꺼지는 것은 다음 렌더의 일이라, 그 전에 온 둘째 제출이 같은 기록을 한 번 더 남겼다. 같은 기록은 끝나기 전에 한 번만
+     보낸다(`useGuardedMutation`). */
+  const addDecision = useGuardedMutation({
     mutationFn: (payload) =>
       api(`/api/work/sprints/${encodeURIComponent(sprintId)}/decisions`, {
         method: "POST",

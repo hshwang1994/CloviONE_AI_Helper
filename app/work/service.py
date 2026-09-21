@@ -35,7 +35,8 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import false, func, or_, select
+from sqlalchemy import delete, false, func, or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.authz.permissions import PROJECT_WRITE
@@ -46,6 +47,7 @@ from app.authz.visibility import (
     effective_visibility_clause,
 )
 from app.core.dates import iso_date, parse_date
+from app.core.db import is_unique_violation
 from app.core.errors import ConflictError, ForbiddenError, NotFoundError, ValidationAppError
 from app.core.models_base import NAMES_SEP, split_names, utcnow
 from app.core.org_tree import DeptTree
@@ -1344,6 +1346,18 @@ def list_sprints(
     return [_sprint_view(s, today=today) for s in rows]
 
 
+#: 같은 팀에 같은 이름의 회차가 있을 때의 답. 사전 검사(`_ensure_name_free`)와 경합에서 진 쓰기
+#: (`_sprint_race_conflict`)가 **같은 문장**을 쓴다 — 조금 늦게 온 요청과 동시에 온 요청이 같은 답을 받는다.
+SPRINT_NAME_TAKEN = "이 팀에 같은 이름의 회차가 이미 있습니다."
+
+
+def _active_taken_message(name: str | None) -> str:
+    """팀에 열린 회차가 이미 있을 때의 답. 그 회차의 이름을 대야 무엇을 닫으면 되는지 안다."""
+    if name:
+        return f"이미 «{name}» 회차가 열려 있습니다. 먼저 닫아 주세요."
+    return "이 팀에는 이미 열린 회차가 있습니다. 먼저 닫아 주세요."
+
+
 def _ensure_name_free(db: Session, *, org_id, department_id, name: str, except_id=None) -> None:
     """이름은 팀 안에서 유일하다. 제약 이름(`uq_sprints_name`)만 보고 무엇이 문제인지
     아는 사람은 없으므로 여기서 먼저 사람의 말로 거절한다."""
@@ -1355,7 +1369,7 @@ def _ensure_name_free(db: Session, *, org_id, department_id, name: str, except_i
     if except_id:
         stmt = stmt.where(Sprint.id != except_id)
     if db.execute(stmt).first() is not None:
-        raise ConflictError("이 팀에 같은 이름의 회차가 이미 있습니다.")
+        raise ConflictError(SPRINT_NAME_TAKEN)
 
 
 def _ensure_no_other_active(db: Session, sprint: Sprint) -> None:
@@ -1366,7 +1380,33 @@ def _ensure_no_other_active(db: Session, sprint: Sprint) -> None:
         )
     ).scalars().first()
     if conflict is not None:
-        raise ConflictError(f"이미 «{conflict.name}» 회차가 열려 있습니다. 먼저 닫아 주세요.")
+        raise ConflictError(_active_taken_message(conflict.name))
+
+
+def _sprint_race_conflict(
+    db: Session, exc: IntegrityError, *, org_id, department_id, except_id=None,
+) -> ConflictError | None:
+    """**동시에 온 같은 쓰기**가 부딪힌 유일 인덱스를 사전 검사와 같은 문장으로 옮긴다. 다른 위반이면 `None`.
+
+    `_ensure_name_free` · `_ensure_no_other_active` 는 읽고 나서 쓴다. 그 사이는 잠기지 않은 창이라, 같은 요청
+    둘(더블클릭 · 두 사람이 같은 이름을 동시에)이 둘 다 검사를 지나고 늦은 쓰기가 유일 인덱스(`uq_sprints_name` ·
+    `uq_sprints_active`)에 부딪힌다. 예전에는 그 위반이 요청 경계의 안전망(`app/core/errors.py` 의 일반 문장 409)까지
+    갔다. 부르는 쪽은 쓰기를 SAVEPOINT 로 감싸고, 되감긴 **뒤에** 이 함수를 부른다 — 되감지 않은 세션은 다음 질의를
+    받지 못한다. 다른 무결성 오류(FK · CHECK)는 경합이 아니라 데이터 결함이라 옮기지 않는다.
+    """
+    if is_unique_violation(exc, constraint="uq_sprints_name"):
+        return ConflictError(SPRINT_NAME_TAKEN)
+    if is_unique_violation(exc, constraint="uq_sprints_active"):
+        # 늦은 쪽이 부딪힌 행은 이미 커밋됐다(PG 는 앞선 트랜잭션이 끝난 뒤에야 위반을 알린다) — 이름을 읽을 수 있다.
+        winner = select(Sprint.name).where(Sprint.state == SPRINT_ACTIVE, Sprint.org_id == org_id)
+        winner = winner.where(
+            Sprint.department_id == department_id if department_id is not None
+            else Sprint.department_id.is_(None)
+        )
+        if except_id:
+            winner = winner.where(Sprint.id != except_id)
+        return ConflictError(_active_taken_message(db.execute(winner.limit(1)).scalar_one_or_none()))
+    return None
 
 
 def create_sprint(
@@ -1412,8 +1452,15 @@ def create_sprint(
         starts_on=first, ends_on=last, state=SPRINT_PLANNED, goal=(goal or None),
         created_at=now or utcnow(), updated_at=now or utcnow(),
     )
-    db.add(row)
-    db.flush()
+    try:
+        with db.begin_nested():
+            db.add(row)
+            db.flush()
+    except IntegrityError as exc:
+        conflict = _sprint_race_conflict(db, exc, org_id=org_id, department_id=department_id)
+        if conflict is None:
+            raise
+        raise conflict from None
     return _sprint_view(row)
 
 
@@ -1443,9 +1490,22 @@ def set_sprint_state(
         if sprint.department_id is None:
             raise ValidationAppError("팀이 정해지지 않은 회차는 열 수 없습니다. 먼저 회차의 팀을 정해 주세요.")
         _ensure_no_other_active(db, sprint)
-    sprint.state = state
-    sprint.updated_at = now or utcnow()
-    db.flush()
+    org_id, department_id, sprint_id = sprint.org_id, sprint.department_id, sprint.id
+    # 바꾸는 일은 SAVEPOINT **안에서** 한다. `begin_nested()` 는 열기 전에 밀린 변경을 먼저 내보내므로, 밖에서 바꿔
+    # 두면 그 쓰기가 SAVEPOINT 밖에서 인덱스에 부딪혀 트랜잭션째 못 쓰게 된다 — 실측으로는 그 세션에 이긴 회차의
+    # 이름을 묻다가 5xx 가 났다(`tests/integration/test_sprint_open_race.py`).
+    try:
+        with db.begin_nested():
+            sprint.state = state
+            sprint.updated_at = now or utcnow()
+            db.flush()
+    except IntegrityError as exc:
+        conflict = _sprint_race_conflict(
+            db, exc, org_id=org_id, department_id=department_id, except_id=sprint_id,
+        )
+        if conflict is None:
+            raise
+        raise conflict from None
     return _sprint_view(sprint)
 
 
@@ -1480,37 +1540,49 @@ def update_sprint(
             if team["principal"].tree.org_of(target) != sprint.org_id:
                 raise ValidationAppError("다른 조직의 팀에는 이 회차를 둘 수 없습니다.")
             team_after = target
-    if "name" in changes:
-        label = (changes.get("name") or "").strip()
-        if not label:
-            raise ValidationAppError("회차 이름을 입력해 주세요.")
-        if label != sprint.name or team_after != sprint.department_id:
-            _ensure_name_free(
-                db, org_id=sprint.org_id, department_id=team_after, name=label, except_id=sprint.id,
-            )
-        sprint.name = label
-    elif team_after != sprint.department_id:
-        _ensure_name_free(
-            db, org_id=sprint.org_id, department_id=team_after, name=sprint.name, except_id=sprint.id,
+    org_id, own_id = sprint.org_id, sprint.id
+    # 바꾸는 일은 SAVEPOINT **안에서** 한다(`set_sprint_state` 와 같은 이유) — 이름 · 팀을 바꾸는 사이 같은 이름이나
+    # 같은 팀의 활성 회차가 먼저 커밋되면, 그 위반을 되감고 사전 검사와 같은 문장으로 답한다.
+    try:
+        with db.begin_nested():
+            if "name" in changes:
+                label = (changes.get("name") or "").strip()
+                if not label:
+                    raise ValidationAppError("회차 이름을 입력해 주세요.")
+                if label != sprint.name or team_after != sprint.department_id:
+                    _ensure_name_free(
+                        db, org_id=sprint.org_id, department_id=team_after, name=label, except_id=sprint.id,
+                    )
+                sprint.name = label
+            elif team_after != sprint.department_id:
+                _ensure_name_free(
+                    db, org_id=sprint.org_id, department_id=team_after, name=sprint.name, except_id=sprint.id,
+                )
+            if team_after != sprint.department_id:
+                sprint.department_id = team_after
+                if sprint.state == SPRINT_ACTIVE:
+                    _ensure_no_other_active(db, sprint)
+            if "starts_on" in changes or "ends_on" in changes:
+                first = parse_date(changes["starts_on"]) if "starts_on" in changes else sprint.starts_on
+                last = parse_date(changes["ends_on"]) if "ends_on" in changes else sprint.ends_on
+                # create 와 같은 규칙 — 반쪽만 보내도 합성해서 다시 검증한다.
+                if first is None or last is None:
+                    raise ValidationAppError("회차 기간은 달력에 있는 날짜(YYYY-MM-DD)여야 합니다.")
+                if first >= last:
+                    raise ValidationAppError("회차 기간은 시작일이 종료일보다 앞이어야 합니다.")
+                sprint.starts_on = first
+                sprint.ends_on = last
+            if "goal" in changes:
+                sprint.goal = changes.get("goal") or None
+            sprint.updated_at = now or utcnow()
+            db.flush()
+    except IntegrityError as exc:
+        conflict = _sprint_race_conflict(
+            db, exc, org_id=org_id, department_id=team_after, except_id=own_id,
         )
-    if team_after != sprint.department_id:
-        sprint.department_id = team_after
-        if sprint.state == SPRINT_ACTIVE:
-            _ensure_no_other_active(db, sprint)
-    if "starts_on" in changes or "ends_on" in changes:
-        first = parse_date(changes["starts_on"]) if "starts_on" in changes else sprint.starts_on
-        last = parse_date(changes["ends_on"]) if "ends_on" in changes else sprint.ends_on
-        # create 와 같은 규칙 — 반쪽만 보내도 합성해서 다시 검증한다.
-        if first is None or last is None:
-            raise ValidationAppError("회차 기간은 달력에 있는 날짜(YYYY-MM-DD)여야 합니다.")
-        if first >= last:
-            raise ValidationAppError("회차 기간은 시작일이 종료일보다 앞이어야 합니다.")
-        sprint.starts_on = first
-        sprint.ends_on = last
-    if "goal" in changes:
-        sprint.goal = changes.get("goal") or None
-    sprint.updated_at = now or utcnow()
-    db.flush()
+        if conflict is None:
+            raise
+        raise conflict from None
     return _sprint_view(sprint)
 
 
@@ -1589,25 +1661,43 @@ def ticket_detail_extras(db: Session, ticket: Ticket) -> dict:
     }
 
 
+#: 관찰자 표의 기본 키 이름. 제약 이름을 준 적이 없어 PostgreSQL 의 기본 이름(`<표>_pkey`)이다.
+WATCHER_PK = "ticket_watchers_pkey"
+
+
 def watch(
     db: Session, *, ticket_id: str, user_id: str, watching: bool,
     now: datetime | None = None,
 ) -> bool:
-    """관찰자를 켜고 끈다. 이미 그 상태면 아무것도 안 한다(재실행 안전)."""
-    existing = db.get(TicketWatcher, {"ticket_id": ticket_id, "user_id": user_id})
-    if watching and existing is None:
-        db.add(
-            TicketWatcher(
-                ticket_id=ticket_id, user_id=user_id, created_at=now or utcnow()
+    """관찰자를 켜고 끈다. 이미 그 상태면 아무것도 안 한다(재실행 안전).
+
+    **동시에 온 같은 요청도 재실행이다.** 켜기는 넣어 보고 기본 키에 지면 남이 방금 켠 것이라 바뀐 것이 없다
+    (`False`). 예전에는 그 위반이 요청 경계까지 가서 「같은 항목이 이미 있어」 409 가 됐다 — 관찰하기를 두 번 누른
+    사람에게 오류를 보인 셈이다. 끄기는 행 하나를 지우는 문장 하나라, 먼저 지운 쪽만 바뀐 것이고(`True`) 늦은
+    쪽은 지울 것이 없다(`False`). 예전의 ORM 객체 삭제는 동시에 끈 요청 모두에 「바뀌었다」고 답했다.
+    """
+    if not watching:
+        gone = db.execute(
+            delete(TicketWatcher).where(
+                TicketWatcher.ticket_id == ticket_id, TicketWatcher.user_id == user_id,
             )
         )
-        db.flush()
-        return True
-    if not watching and existing is not None:
-        db.delete(existing)
-        db.flush()
-        return True
-    return False
+        return bool(gone.rowcount)
+    if db.get(TicketWatcher, {"ticket_id": ticket_id, "user_id": user_id}) is not None:
+        return False
+    try:
+        with db.begin_nested():
+            db.add(
+                TicketWatcher(
+                    ticket_id=ticket_id, user_id=user_id, created_at=now or utcnow()
+                )
+            )
+            db.flush()
+    except IntegrityError as exc:
+        if not is_unique_violation(exc, constraint=WATCHER_PK):
+            raise
+        return False
+    return True
 
 
 def close_sprint_and_carry_over(

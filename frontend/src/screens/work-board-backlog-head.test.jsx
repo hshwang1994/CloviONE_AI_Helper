@@ -1,6 +1,6 @@
 import React from "react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
@@ -309,5 +309,33 @@ describe("백로그 「맨 위로」의 위치 조건", () => {
     expect(moveBody().to_position).toBe("bottom");
     expect(moveBody().position_mine).toBe(true);
     expect(moveBody().position_assignee_user_id).toBeNull();
+  });
+});
+
+describe("백로그 「회차에 담기」 — 같은 담기는 한 번만 나간다 (P4)", () => {
+  beforeEach(() => { apiMock.mockReset(); });
+
+  it("같은 틱에 두 번 눌러도 이동 요청은 한 번이고, 담는 동안 단추가 꺼진다", async () => {
+    /* 담기는 카드의 base_version 을 싣는다. 예전에는 단추가 안 꺼져 둘째 요청이 첫째가 올린 판을 모른 채 나가
+       409(「다른 사람이 먼저 이 티켓을 옮겼습니다」)로 끝났다. 응답을 붙잡아 그 창을 연다. */
+    const moves = [];
+    apiMock.mockImplementation((path, opts) => {
+      if (String(path).includes("/move") && opts && opts.method === "POST") {
+        moves.push(opts.body);
+        return new Promise(() => {});
+      }
+      return stub(path, opts);
+    });
+    renderBacklog();
+    const row = await rowsShown();
+    const add = within(row).getByRole("button", { name: "회차에 담기" });
+    act(() => {
+      fireEvent.click(add);
+      fireEvent.click(add);
+    });
+    await waitFor(() => expect(moves).toHaveLength(1));
+    await act(async () => {});
+    expect(moves).toEqual([{ sprint_id: "sp-a", set_sprint: true, base_version: 4 }]);
+    expect(within(row).getByRole("button", { name: "회차에 담기" })).toBeDisabled();
   });
 });
