@@ -3,6 +3,8 @@
    폭 12rem 을 주고 **남는 폭은 「항목명」이 가져간다**. 그래서 사라진 단언 하나(`width: ""`)는
    약화가 아니라 **대상 소멸**이다: fixed 배치에서 그 열은 이제 폭을 갖는다. 남은 단언이 새
    계약(12rem)을 그대로 잰다. */
+/* qa-contract-change: 남는 폭의 주인이 「항목명」에서 「현재 값」 · 「설명」으로 옮긴다(D-501). 제목 열은 폭을 안 적으면 남는 폭을 다 먹어 열네 글자짜리
+   항목명이 1,000px 칸을 차지했고 설명은 스무 글자에서 잘렸다. 항목명은 13rem 을 적고 두 산문 열이 `grow` 로 남는 폭을 나눈다 — 바닥 폭 단언 둘은 그대로다. */
 import React from "react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
@@ -69,10 +71,24 @@ describe("설정 표 — '항목명' 열의 최소 폭 (PA-RC-0037)", () => {
     expect(header).toHaveStyle({ minWidth: "10rem" });
   });
 
-  it("'설명' 열은 식별자·동작 열이 아니라 설명(text) 바닥 폭을 받는다 — 남는 폭은 항목명이 지킨다(DS-06)", async () => {
+  it("'설명' 열은 식별자·동작 열이 아니라 설명(text) 바닥 폭을 받는다(DS-06)", async () => {
     renderSettings();
     const header = await screen.findByRole("columnheader", { name: "설명" });
     expect(header).toHaveStyle({ minWidth: "12rem" });
+  });
+
+  it("남는 폭은 「현재 값」과 「설명」이 나눈다 — 항목명은 적힌 폭을 지킨다 (D-501)", async () => {
+    const { container } = renderSettings();
+    await screen.findByRole("columnheader", { name: "설명" });
+    const heads = screen.getAllByRole("columnheader").map((h) => h.textContent);
+    const widths = [...container.querySelectorAll("colgroup col")].map((c) => c.style.width);
+    const widthOf = (label) => widths[heads.indexOf(label)];
+    expect(widthOf("항목명")).toBe("13rem");
+    // 폭을 받지 않은 열이 남는 폭을 먹는다 — 두 산문 열이다.
+    expect(widthOf("현재 값")).toBe("");
+    expect(widthOf("설명")).toBe("");
+    // 반례 — 짧은 값 열은 자기 바닥 폭 그대로다(남는 폭을 나눠 갖지 않는다).
+    expect(widthOf("적용 상태")).toBe("7.5rem");
   });
 });
 

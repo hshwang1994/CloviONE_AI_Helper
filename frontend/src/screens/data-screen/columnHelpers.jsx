@@ -6,7 +6,10 @@ import { DateCell } from "../../ui/cells.jsx";
 import { JsonBlock } from "./JsonBlock.jsx";
 
 // 열/필드 렌더 헬퍼 — registry에서 사용.
-export const badgeCol = (key, label) => ({ key, label, type: "status", render: (r) => <Badge value={r[key]} /> });
+/* 값이 비었는지(`isEmpty`)는 그림을 그리는 헬퍼가 스스로 말한다 — 상세는 빈 줄을 「값 없음」 한 줄로 접는데
+   (`detailFields.js::partitionDetailFields`, D-501), 배지 · 시각 칸은 그린 결과가 요소라 글자로 판단할 수 없다. */
+const blankOf = (key) => (r) => r[key] == null || r[key] === "";
+export const badgeCol = (key, label) => ({ key, label, type: "status", isEmpty: blankOf(key), render: (r) => <Badge value={r[key]} /> });
 export const mapCol = (key, label, map) => ({ key, label, type: "enum", render: (r) => map[r[key]] || (r[key] == null ? "-" : String(r[key])) });
 /* 표의 날짜는 한 줄로 고정한다 — 접히면 행 높이가 들쭉날쭉해 세로로 훑을 수 없다(지시 16).
  *
@@ -23,7 +26,7 @@ export const mapCol = (key, label, map) => ({ key, label, type: "enum", render: 
  * 그래서 글자가 **칸 밖으로, 표 밖으로 그대로 나갔다**: `/projects` 1920 실측에서
  * 마지막 열의 «2026-09-01 23:30» 이 표 오른쪽 테두리를 8px 넘어 그려졌다. */
 export const dateCol = (key, label) => ({
-  key, label, type: "datetime", sortable: true, sortValue: (r) => r[key],
+  key, label, type: "datetime", sortable: true, sortValue: (r) => r[key], isEmpty: blankOf(key),
   render: (r) => <DateCell value={r[key]} />,
 });
 // 사용 여부(boolean) → 도메인 어휘 배지('사용 중'/'미사용'). 일반 badgeCol의 '예/아니오'는

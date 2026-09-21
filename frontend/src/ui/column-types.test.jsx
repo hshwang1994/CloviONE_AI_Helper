@@ -17,7 +17,7 @@ import { render, screen } from "@testing-library/react";
  * 제목 열 머리글 단언이 alignCenter 에서 alignLeft 로 옮겼고, 머리와 몸이 열마다 같은 축인지 단언을 더했다.
  */
 
-import { COLUMN_TYPES, planColumnCollapse, resolveColumn, tableMinWidth } from "./columnTypes.js";
+import { COLUMN_TYPES, assignLeftoverWidth, columnLayoutWidth, planColumnCollapse, planNarrowColumns, resolveColumn, tableMinWidth } from "./columnTypes.js";
 import { DataTable, tableLayoutSx } from "./kit.jsx";
 import { ThemeModeProvider } from "./ThemeModeProvider.jsx";
 
@@ -82,6 +82,92 @@ describe("표는 바닥 아래로 줄지 않는다 — 대신 가로로 민다",
     expect(table).toBeTruthy();
     expect(table.style.minWidth || getComputedStyle(table).minWidth)
       .toContain("16rem");
+  });
+});
+
+/* ── 남는 폭의 주인 (D-501) ──────────────────────────────────────────────────
+ *
+ * 제목 열이 없는 표에서는 브라우저가 남는 폭을 **모든 열에 비례로** 나눴다. 기능 플래그의 「설명」은
+ * 스무 글자 남짓에서 잘렸는데 「현재」 · 「기본값」 같은 짧은 값 열은 두 배로 늘어 빈칸만 넓었다. 설정의
+ * 「항목명」은 거꾸로 제목 열이라 1,000px 을 먹고 옆 「설명」이 잘렸다. 남는 폭은 읽는 열의 것이다.
+ */
+describe("남는 폭은 읽는 열이 갖는다 (D-501)", () => {
+  const colWidths = (container) => [...container.querySelectorAll("colgroup col")].map((c) => c.style.width);
+
+  it("`grow` 열은 폭을 받지 않고 남는 폭을 먹는다 — 바닥은 자기 minWidth 다", () => {
+    const prose = { key: "d", label: "설명", type: "text", grow: true };
+    expect(columnLayoutWidth(prose)).toBeUndefined();
+    // 폭을 안 받아도 표 바닥에는 자기 몫(12rem)을 낸다 — 안 내면 좁은 칸에서 설명이 0 이 된다.
+    expect(tableMinWidth([{ key: "n", type: "count" }, prose])).toBe("calc(6rem + 12rem)");
+  });
+
+  it("제목 열은 폭을 안 적으면 남는 폭을 먹고, 적으면 그 폭을 지킨다", () => {
+    expect(columnLayoutWidth({ key: "t", label: "제목", type: "title" })).toBeUndefined();
+    expect(columnLayoutWidth({ key: "t", label: "항목명", type: "title", width: "14rem" })).toBe("14rem");
+  });
+
+  it("남는 폭을 먹는 열이 없으면 **마지막 산문 열**이 먹는다", () => {
+    const cols = [
+      { key: "name", label: "플래그", type: "identifier" },
+      { key: "why", label: "사유", type: "text" },
+      { key: "value", label: "현재", type: "enum" },
+      { key: "desc", label: "설명", type: "text" },
+    ];
+    const got = assignLeftoverWidth(cols);
+    expect(got.map((c) => !!c.grow)).toEqual([false, false, false, true]);
+    // 원본 열 정의는 건드리지 않는다 — registry 의 선언이 다음 렌더에 오염되지 않는다.
+    expect(cols[3].grow).toBeUndefined();
+  });
+
+  it("반례 — 제목 열이 폭을 먹으면 산문 열은 자라지 않는다(같은 배열을 그대로 돌려준다)", () => {
+    const cols = [{ key: "t", label: "제목", type: "title" }, { key: "d", label: "설명", type: "text" }];
+    expect(assignLeftoverWidth(cols)).toBe(cols);
+  });
+
+  it("반례 — 폭을 적은 산문 열과 산문이 아닌 열은 고르지 않는다", () => {
+    const pinned = [{ key: "a", label: "상태", type: "status" }, { key: "d", label: "설명", type: "text", width: "20rem" }];
+    expect(assignLeftoverWidth(pinned)).toBe(pinned);
+    const noProse = [{ key: "a", label: "상태", type: "status" }, { key: "n", label: "건수", type: "count" }];
+    expect(assignLeftoverWidth(noProse)).toBe(noProse);
+  });
+
+  it("좁은 칸에서 산문 열이 빠지면 그 폭은 남은 산문 열의 것이다", () => {
+    const cols = [
+      { key: "a", label: "오류", type: "text" },
+      { key: "b", label: "메모", type: "text", hideNarrow: true },
+    ];
+    const plan = planNarrowColumns(cols, 250, 16);
+    expect(plan.hidden.map((c) => c.key)).toEqual(["b"]);
+    expect(plan.shown.map((c) => [c.key, !!c.grow])).toEqual([["a", true]]);
+  });
+
+  it("🔴 그려진 표에서 산문 열의 `<col>` 만 폭이 비고 나머지는 자기 바닥 폭을 든다", () => {
+    const { container } = draw(<DataTable
+      columns={[
+        { key: "name", label: "플래그", type: "identifier" },
+        { key: "value", label: "현재", type: "enum" },
+        { key: "desc", label: "설명", type: "text" },
+      ]}
+      rows={[{ name: "board_enabled", value: "활성", desc: "자유게시판 모듈입니다." }]}
+      rowKey={(r) => r.name}
+    />);
+    expect(colWidths(container)).toEqual(["12.5rem", "6.5rem", ""]);
+    // 머리 칸도 같은 폭을 말한다 — `<col>` 과 머리 칸이 갈리면 브라우저마다 다른 폭이 선다.
+    expect(getComputedStyle(screen.getByText("현재").closest("th")).width).toBe("6.5rem");
+    expect(getComputedStyle(screen.getByText("설명").closest("th")).width).not.toBe("12rem");
+  });
+
+  it("🔴 폭을 적은 제목 열은 그 폭으로 그려지고 산문 열이 남는 폭을 먹는다(설정 「항목명」)", () => {
+    const { container } = draw(<DataTable
+      columns={[
+        { key: "label", label: "항목명", type: "title", width: "15rem", minWidth: "10rem" },
+        { key: "value", label: "현재 값", type: "text" },
+        { key: "desc", label: "설명", type: "text" },
+      ]}
+      rows={[{ label: "대화 보존 기간(일)", value: "90일", desc: "초과 시 백그라운드 작업이 정리합니다." }]}
+      rowKey={(r) => r.label}
+    />);
+    expect(colWidths(container)).toEqual(["15rem", "12rem", ""]);
   });
 });
 

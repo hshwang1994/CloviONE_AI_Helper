@@ -228,9 +228,8 @@ export const AUTHORING_SCREENS = {
     actions: [
       { label: "이 프롬프트 버전 보기", navigate: (r) => "#/prompts?name=" + encodeURIComponent(r.name) },
     ],
-    headerActions: [
-      { label: "정책 사용 통계", navigate: () => "#/policy-usage" },
-    ],
+    /* 「정책 사용 통계」 머리 단추를 걷었다(D-501) — 이 화면은 언제나 「AI 사용 통계」 그릇의 탭이라 바로 옆
+       「정책」 탭이 같은 곳으로 간다. */
   },
   "policy-usage": {
     key: "policy-usage", area: "AI", title: "정책 사용 통계",
@@ -258,8 +257,7 @@ export const AUTHORING_SCREENS = {
     actions: [
       { label: "이 정책 버전 보기", navigate: (r) => "#/policies?name=" + encodeURIComponent(r.name) },
     ],
-    headerActions: [
-      { label: "프롬프트 사용 통계", navigate: () => "#/prompt-usage" },
-    ],
+    /* 「프롬프트 사용 통계」 머리 단추를 걷었다(D-501) — 이 화면은 언제나 「AI 사용 통계」 그릇의 탭이라 바로 옆
+       「프롬프트」 탭이 같은 곳으로 간다. */
   },
 };

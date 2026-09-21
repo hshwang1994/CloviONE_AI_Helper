@@ -168,6 +168,58 @@ def test_jsx_after_block_or_line_comment_is_still_read():
     assert _rules(mod, "screens/A.jsx", "/* <ListFooter /> */\nexport const A = 1;\n") == []
 
 
+def test_primary_is_the_last_page_header_action():
+    """페이지 머리 동작의 채움은 오른쪽 끝이다(D-501) — 보조 → 더 보기 → 주 동작."""
+    mod = _load()
+    first = 'export const A = () => <PageHeader title="진단" actions={<><Button variant="primary">진단 수집</Button><Button>복사</Button></>} />;\n'
+    last = ('export const A = () => <PageHeader title="백업" actions={<><Button>복원 안내</Button><OverflowMenu items={[]} />'
+            '<Button variant="primary">백업 실행</Button></>} />;\n')
+    assert _rules(mod, "screens/A.jsx", first) == ["primary-last"]
+    assert _rules(mod, "screens/A.jsx", last) == []
+    # 머리 밖(본문)의 단추 순서는 이 규칙의 일이 아니다.
+    body = 'export const A = () => <Box><Button variant="primary">저장</Button><Button>취소</Button></Box>;\n'
+    assert _rules(mod, "screens/A.jsx", body) == []
+
+
+def test_primary_last_compares_one_branch_at_a_time():
+    """삼항의 두 갈래는 각자 한 묶음이다 — 휴지통 문서의 머리와 살아 있는 문서의 머리를 섞지 않는다."""
+    mod = _load()
+    good = ('export const A = () => <PageHeader title="t" actions={off ? (<><Button>이력</Button><Button variant="primary">복원</Button></>)'
+            ' : (<><Button>이동</Button><Button variant="primary">저장</Button></>)} />;\n')
+    bad = ('export const A = () => <PageHeader title="t" actions={off ? (<>{can ? <Button variant="primary">복원</Button> : null}'
+           '<Button>목록으로</Button></>) : (<><Button variant="primary">저장</Button></>)} />;\n')
+    assert _rules(mod, "screens/A.jsx", good) == []
+    # 조건부 채움 뒤에 늘 서는 단추가 있으면 둘이 함께 서는 날이 있다.
+    assert _rules(mod, "screens/A.jsx", bad) == ["primary-last"]
+    # 반례 — 조건부 채움 뒤의 조건부 단추는 함께 서지 않는 갈래일 수 있어 판정하지 않는다(회차 열기 · 회차 닫기).
+    exclusive = ('export const A = () => <PageHeader title="t" actions={<>{planned ? <Button variant="primary">회차 열기</Button> : null}'
+                 '{active ? <Button>회차 닫기</Button> : null}</>} />;\n')
+    assert _rules(mod, "screens/A.jsx", exclusive) == []
+
+
+def test_primary_last_follows_header_actions_into_their_component(tmp_path):
+    """머리 동작을 옆 부품으로 뺀 자리(진단 `DiagnosticActions`)도 본다 — 쓰는 화면과 정의한 파일이 달라도."""
+    mod = _load()
+    src = tmp_path / "src" / "screens"
+    src.mkdir(parents=True)
+    (src / "Page.jsx").write_text(
+        'export const Page = () => <PageHeader title="진단" actions={<HeadParts onRun={run} />} />;\n', encoding="utf-8")
+    (src / "HeadParts.jsx").write_text(
+        "export function HeadParts({ onRun }) {\n"
+        '  return (<><Button variant="primary" onClick={onRun}>진단 수집</Button>{text ? <Button>복사</Button> : null}</>);\n'
+        "}\n"
+        "export function Unused() {\n"
+        '  return (<><Button variant="primary">머리 밖</Button><Button>보조</Button></>);\n'
+        "}\n", encoding="utf-8")
+    ledger = tmp_path / "ledger.md"
+    ledger.write_text("", encoding="utf-8")
+    new, _waiting, _stale, _dead = mod.scan(tmp_path / "src", ledger, set())
+    hits = new.get(("screens/HeadParts.jsx", "primary-last"), [])
+    assert len(hits) == 1 and "HeadParts(머리 동작 부품)" in hits[0], hits
+    # 머리 식 안에 서지 않는 부품(`Unused`)은 묶지 않는다.
+    assert not any("Unused" in h for h in hits)
+
+
 def test_ledger_exception_and_dead_exception(tmp_path):
     mod = _load()
     src = tmp_path / "src" / "screens"

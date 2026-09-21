@@ -26,7 +26,7 @@ vi.mock("./auth.jsx", () => ({
   useAuth: () => ({ data: { role: mockRole, id: "a1" }, isLoading: false, isError: false }),
 }));
 
-import AdminRoutes from "./AdminRoutes.jsx";
+import AdminRoutes, { TAB_GROUPS } from "./AdminRoutes.jsx";
 import { SCREEN_ROLES } from "./navConfig.js";
 import { ConfirmProvider, ToastProvider } from "../ui/kit.jsx";
 import { ThemeModeProvider } from "../ui/ThemeModeProvider.jsx";
@@ -75,6 +75,58 @@ describe("옛 주소가 죽지 않는다", () => {
     renderAt(hostPath);
     const tab = await screen.findByRole("tab", { name: tabLabel }, { timeout: 5000 });
     expect(tab).toHaveAttribute("aria-selected", "false");
+  });
+});
+
+/* 🔴 탭 순서는 들어온 주소와 무관하다 (D-501).
+ *
+ * 옛 주소로 들어오면 그 탭을 맨 앞으로 옮겨 기본 탭으로 삼던 때가 있었다 — `/restore-drills` 는 [복구 리허설|백업],
+ * `/backup` 은 [백업|복구 리허설]이었다. 같은 그릇이 들어온 길에 따라 탭 자리가 바뀌면 사람은 탭을 자리로 기억할 수
+ * 없다. 옛 주소가 바꾸는 것은 **켜질 탭** 하나뿐이다(위 「옛 주소가 죽지 않는다」가 그 절반을 지킨다). */
+describe("탭 순서는 들어온 주소와 무관하다 (D-501)", () => {
+  const tabOrder = async (path, anyLabel) => {
+    await screen.findByRole("tab", { name: anyLabel }, { timeout: 5000 });
+    return screen.getAllByRole("tab").map((t) => t.textContent);
+  };
+
+  it.each(MERGED)("%s 와 %s 가 같은 순서로 탭을 세운다", async (oldPath, hostPath, tabLabel) => {
+    const viaOld = renderAt(oldPath);
+    const fromOld = await tabOrder(oldPath, tabLabel);
+    viaOld.unmount();
+    renderAt(hostPath);
+    const fromHost = await tabOrder(hostPath, tabLabel);
+    expect(fromOld).toEqual(fromHost);
+    // 순서의 정본은 그릇 정의다 — 대표 탭이 언제나 맨 앞이다.
+    const group = TAB_GROUPS.find((g) => g.path === hostPath);
+    expect(fromHost).toEqual(group.tabs.map((t) => t.label));
+  });
+});
+
+/* 형제 탭과 같은 곳으로 가는 머리 단추는 두지 않는다 (D-501).
+ *
+ * 탭 그릇 안의 목록 화면에 「이상 징후 보기」 · 「감사 로그 전체」 · 「백업 목록」 · 「정책 사용 통계」 · 「프롬프트
+ * 사용 통계」 머리 단추가 있었다. 전부 바로 옆 탭이 이미 가는 곳이다 — 한 이동이 두 자리에 있으면 둘 중 무엇을
+ * 눌러야 하는지를 사람이 따져야 한다. 그릇 정의(`TAB_GROUPS`)와 registry 를 맞대 보고, 새로 생겨도 여기서 멈춘다. */
+describe("형제 탭을 가리키는 머리 단추가 없다 (D-501)", () => {
+  it("탭 그릇 안 화면의 머리 이동이 형제 탭의 주소를 가리키지 않는다", () => {
+    const bad = [];
+    for (const g of TAB_GROUPS) {
+      const siblingPaths = new Set([g.path, ...g.tabs.map((t) => "/" + t.key)]);
+      for (const t of g.tabs) {
+        const cfg = REGISTRY[t.key];
+        for (const a of (cfg && cfg.headerActions) || []) {
+          if (typeof a.navigate !== "function") continue;
+          const target = String(a.navigate()).replace(/^#/, "").split("?")[0];
+          if (siblingPaths.has(target)) bad.push(`${t.key}: 「${a.label}」 → ${target}`);
+        }
+      }
+    }
+    expect(bad, bad.join("\n")).toEqual([]);
+  });
+
+  it("반례 — 그릇 밖으로 가는 머리 이동(백업 일정 설정)은 그대로 선다", () => {
+    const labels = (REGISTRY["restore-drills"].headerActions || []).map((a) => a.label);
+    expect(labels).toEqual(["백업 일정 설정"]);
   });
 });
 

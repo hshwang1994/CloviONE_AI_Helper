@@ -75,7 +75,10 @@ function notificationsScreen({ key, audience, area, title, help, emptyHelp }) {
     // 사람의 이 화면이 빈 목록 위에 「안 읽음 3」을 띄웠다.
     unreadCountKey: "unread",
     // 안 읽은 알림만 골라 보는 트리아지(백엔드 unread_only 쿼리).
-    filters: [{ key: "unread_only", type: "select", label: "읽음 상태", options: opt([["true", "안 읽음만"]]) }],
+    /* 켬/끔 하나라 셀렉트가 아니라 필터 바 끝의 켬/끔 단추다(`type: "toggle"`, D-501). 안 읽음 수는 이 단추가
+       든다(「안 읽음만 보기 N」) — 예전에는 그 수 하나를 전폭 카드가 따로 들고, 같은 뜻의 「읽음 상태」 셀렉트가
+       그 아래 줄에 섰다. 한 사실이 두 그릇에 있었다. 조건 칩 · 주소 · 저장된 뷰는 예전과 같은 키를 쓴다. */
+    filters: [{ key: "unread_only", type: "toggle", label: "읽음 상태", toggleLabel: "안 읽음만 보기", countKey: "unread", options: opt([["true", "안 읽음만"]]) }],
     /* 정렬을 서버로 넘긴다. 「대상」이 없는 이유: 이 화면은 그 값을 주소에 박아 한 값으로
        고정하므로(내 업무 / 관리) 정렬해 봐야 한 값이다. */
     serverSort: { keys: ["created_at", "read_at", "type", "title"], default: { key: "created_at", dir: "desc" } },
@@ -85,7 +88,9 @@ function notificationsScreen({ key, audience, area, title, help, emptyHelp }) {
     // RG-03: 서버는 이 유형을 사용자가 뮤트했는지(muted) 이미 내려주고 있었다(app/notifications/
     // router.py::_view — "목록에서 빼지 않고 표시만 한다"는 그 필드의 존재 이유 자체가 화면에
     // 보여야 성립하는 계약인데, 열이 없어 뮤트해 놓고도 왜 계속 오는지 알 길이 없었다.
-    columns: [{ ...col("title", "제목"), identifier: true, sortable: true }, { ...mapCol("type", "유형", TYPE_KO), sortable: true }, { ...readCol("read_at", "읽음"), sortable: true }, dateCol("created_at", "시각"),
+    // 「제목」은 그 행의 제목 열이다(D-501) — 홀로 왼쪽에 서고 남는 폭을 갖는다. 예전 `identifier` 는
+    // 가운데 정렬에 옆 열과 같은 폭이었다.
+    columns: [{ ...col("title", "제목", "title"), sortable: true }, { ...mapCol("type", "유형", TYPE_KO), sortable: true }, { ...readCol("read_at", "읽음"), sortable: true }, dateCol("created_at", "시각"),
       // 이 파일은 .js라 JSX 대신 React.createElement를 직접 쓴다(integrations.js와 같은
       // 이유 — 빌드 설정이 .jsx/.tsx에만 JSX 변환을 적용한다).
       { key: "muted", label: "뮤트 유형", type: "enum", render: (r) => r.muted

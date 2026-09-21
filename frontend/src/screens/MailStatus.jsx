@@ -90,18 +90,23 @@ function FailureReason({ row }) {
   );
 }
 
+/* 「제목」은 그 메일의 제목 열이다(D-501) — 홀로 왼쪽에 서고, 남는 폭은 제목과 「원인」(산문, `grow`)이 나눈다.
+   제목 열이 남는 폭을 먹기 시작하면 나머지 열은 자기 바닥 폭으로 선다. 그래서 타입이 없던 넷(4.5rem 바닥)에
+   값이 한 줄로 서는 타입을 함께 준다 — 안 주면 「받는 사람」의 주소와 머리 이름이 72px 칸에서 잘리고,
+   「발송 불가(설정 없음)」 표지가 옆 칸 위로 넘친다. 바닥 합이 1366 화면의 목록 폭보다 조금 넓어서
+   그 폭에서는 「시도」가 숨는다(`hideNarrow`, 발이 그 사실을 말한다). */
 const FAILURE_COLUMNS = [
-  { key: "kind_label", label: "종류" },
-  { key: "to_email", label: "받는 사람" },
-  { key: "subject", label: "제목" },
+  { key: "kind_label", label: "종류", type: "enum", minWidth: "8rem" },
+  { key: "to_email", label: "받는 사람", type: "name", minWidth: "10rem" },
+  { key: "subject", label: "제목", type: "title", minWidth: "12rem" },
   {
-    key: "status_label", label: "상태",
+    key: "status_label", label: "상태", type: "status", minWidth: "10.5rem",
     render: (r) => <Badge value={r.status_label} kind={r.status === "unconfigured" ? "warn" : "danger"} />,
   },
-  { key: "attempt_count", label: "시도", hideNarrow: true, render: (r) => <NumberCell value={r.attempt_count} unit="회" /> },
+  { key: "attempt_count", label: "시도", type: "count", hideNarrow: true, render: (r) => <NumberCell value={r.attempt_count} unit="회" /> },
   /* 산문이라 `text` 다. 타입이 없으면 말줄임이 안 걸려 실패 사유가 여러 줄로 접히고,
      가운데 정렬에서 접힌 줄은 양쪽 모서리가 다 들쭉날쭉해진다(`columnShouldTruncate`). */
-  { key: "reason", label: "원인", type: "text", render: (r) => <FailureReason row={r} /> },
+  { key: "reason", label: "원인", type: "text", grow: true, render: (r) => <FailureReason row={r} /> },
   { key: "created_at", label: "발생", type: "datetime", render: (r) => <DateCell value={r.created_at} /> },
 ];
 

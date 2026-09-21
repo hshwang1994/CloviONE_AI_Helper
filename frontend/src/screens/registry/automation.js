@@ -263,10 +263,13 @@ export const AUTOMATION_SCREENS = {
     summary: {
       endpoint: "/api/admin/jobs/stats",
       poll: true,   // 대기/실행/실패 카운트도 목록과 함께 주기적으로 갱신(정체를 실시간 감지).
-      /* 큐 상태 다섯이 구성(칩)이고, 실행 가능 · 최근 24시간 실패가 그 위의 신호, 평균 처리 시간 · 가장 오래된
-         대기가 구성에 들지 않는 측정값이다(계획 표 7). 실행 가능은 대기의 부분집합이라 전체 합을 내지 않는다
-         (겹치는 축엔 비율 없음, D-475). */
+      /* 큐 상태 다섯이 구성(칩)이고 그 다섯은 서로 겹치지 않는다 — 합이 전체라 비율 바를 그린다(D-475 의 「겹치는
+         축엔 비율 없음」은 칩 사이가 겹칠 때의 규칙이다). 실행 가능 · 최근 24시간 실패 · 가장 오래된 대기가 그 위의
+         신호이고, 평균 처리 시간이 구성에 들지 않는 측정값(카드 아래 한 줄)이다(계획 표 7 · D-501).
+         전체를 안 주던 때는 카드 머리 줄이 비어 오른쪽 끝에 「실행 가능 7」만 떠 있었다. */
       kind: "status",
+      total: (s) => ["queued", "running", "failed", "succeeded", "cancelled"]
+        .reduce((sum, k) => sum + (Number(s && s[k]) || 0), 0),
       // (s, {setFilter}) — Dashboard.jsx/Ops.jsx는 이미 이 화면 바깥에서 동일한 카운트 데이터로
       // onClick 드릴다운을 건다(Ops.jsx 주석: '문제를 보여주기만 하고 조치할 방법이 없는 죽은
       // 타일'을 피하려는 목적) — 정작 이 화면 자신의 요약 판독은 그 드릴다운이 없어 같은 데이터를
@@ -278,7 +281,11 @@ export const AUTOMATION_SCREENS = {
           // '실행 가능(ready)'은 status 값이 아니라 대기 중 행 중 available_at이 이미 지난 부분집합의
           // 계산값이다(백엔드에 그 자체의 status 필터가 없다) — '대기'와 동일하게 좁혀 준 뒤 목록의
           // '대기' 열(지연 표시)에서 직접 훑게 한다(전혀 드릴다운이 없는 것보다는 낫다).
-          { value: s.ready != null ? s.ready : 0, label: "실행 가능(ready)", role: "risk", kind: s.ready > 0 ? "warn" : undefined, onClick: () => ctx.setFilter("status", "queued") },
+          // 대기와 **같은 수**면 서지 않는다 — 「대기 7」 옆 「실행 가능 7」은 같은 사실을 두 번 말하고,
+          // 누르면 같은 조건으로 간다(D-501). 예정 시각이 아직 안 온 대기가 있을 때만 새 사실이다.
+          ...(s.ready != null && s.ready !== s.queued
+            ? [{ value: s.ready, label: "실행 가능(ready)", role: "risk", kind: s.ready > 0 ? "warn" : undefined, onClick: () => ctx.setFilter("status", "queued") }]
+            : []),
           { value: s.failed != null ? s.failed : 0, label: "실패", kind: s.failed > 0 ? "danger" : undefined, onClick: () => ctx.setFilter("status", "failed") },
           { value: s.succeeded != null ? s.succeeded : 0, label: "완료", kind: "ok", onClick: () => ctx.setFilter("status", "succeeded") },
           { value: s.cancelled != null ? s.cancelled : 0, label: "취소됨", kind: "neutral", onClick: () => ctx.setFilter("status", "cancelled") },
@@ -291,6 +298,8 @@ export const AUTOMATION_SCREENS = {
             value: s.recent_failed_24h != null ? s.recent_failed_24h : 0, label: "최근 24시간 실패", role: "risk",
             kind: s.recent_failed_24h > 0 ? "danger" : undefined, onClick: () => ctx.setFilter("status", "failed"),
           },
+          /* 구성에 들지 않는 측정값 — 카드 아래 정의 목록 한 줄이다(D-501). 잴 성공 이력이 없으면 null 이고
+             그 줄에 서지 않는다(0초로 지어내지 않는다). */
           {
             value: s.avg_processing_seconds_24h == null ? null : (
               s.avg_processing_seconds_24h < 60
@@ -306,10 +315,14 @@ export const AUTOMATION_SCREENS = {
           const t = new Date(iso).getTime();
           if (!Number.isNaN(t)) {
             const m = Math.floor(Math.max(0, Date.now() - t) / 60000);
-            const age = m < 1 ? "<1분" : (m < 60 ? m + "분" : Math.floor(m / 60) + "시간 " + (m % 60) + "분");
+            const age = m < 60 ? m + "분" : Math.floor(m / 60) + "시간 " + (m % 60) + "분";
             // 다른 타일과 달리 이 '가장 오래된 대기' 카드만 드릴다운이 없어(백로그로 빨갛게 물들어도
             // 눌러도 아무 일이 없었다) — 인접한 '실행 가능(ready)' 타일과 같은 대기 큐로 좁혀 준다.
-            cards.push({ value: age, label: "가장 오래된 대기", role: "measure", kind: m >= 10 ? "danger" : (m >= 1 ? "warn" : undefined), onClick: () => ctx.setFilter("status", "queued") });
+            // **신호다** — 반폭 판에 큰 글자로 섰는데(622시간 38분) 그 값이 뜻하는 것은 「큐가 멈췄다」다. 카드 머리의
+            // 경보 칩으로 선다(D-501). 1분이 안 된 대기는 정상 흐름이라 칩을 세우지 않는다(대기 칩이 그 수를 말한다).
+            if (m >= 1) {
+              cards.push({ value: age, label: "가장 오래된 대기", role: "risk", kind: m >= 10 ? "danger" : "warn", onClick: () => ctx.setFilter("status", "queued") });
+            }
           }
         }
         return cards;
@@ -327,9 +340,12 @@ export const AUTOMATION_SCREENS = {
          W5: 셋 중 **전역 목록이 있는 둘**은 이름으로 고르게 바꾼다 — 사람이 UUID 를
          외워서 붙여넣는 것은 검색 기능이 아니다(R-5). 「실행 건 ID」는 일정 하나에
          종속된 값이라 전역 후보 목록이 없다 — 그 자리는 자유 텍스트로 남기고, 실제로
-         쓰는 경로는 일정 상세의 크로스링크다. */
-      { key: "schedule_id", type: "select", kind: "entity", label: "연결된 스케줄", optionsFromRefList: "schedules" },
-      { key: "schedule_run_id", type: "text", label: "실행 건 ID",
+         쓰는 경로는 일정 상세의 크로스링크다.
+         두 칸은 줄의 **뒤**에 선다(`group: "other"`, D-501). 큐를 훑는 사람이 먼저 고르는 것은 유형과 상태이고,
+         이 둘은 대개 일정 화면의 링크가 채워 주는 좁히기다 — 그룹 순서(entity → 분류 → 상태)대로 두면 줄 맨
+         앞이 「연결된 스케줄」 · 「실행 건 ID」였고 「상태」가 맨 끝이었다. */
+      { key: "schedule_id", type: "select", kind: "entity", label: "연결된 스케줄", optionsFromRefList: "schedules", group: "other" },
+      { key: "schedule_run_id", type: "text", label: "실행 건 ID", group: "other",
         freeTextReason: "일정 하나에 종속된 값이라 전역 후보 목록이 없다. 실제 경로는 일정 상세의 크로스링크다." },
     ],
     // SEM-01: 첫 열(생성 시각)이 dateCol(render 있음)이라 표식 없이는 100건이 전부 "상세
@@ -342,7 +358,9 @@ export const AUTOMATION_SCREENS = {
     serverSort: { keys: ["created_at", "available_at", "started_at", "finished_at", "status", "job_type", "attempt_count"], default: { key: "created_at", dir: "desc" } },
     columns: [{ ...dateCol("created_at", "생성"), rowName: (r) => (JOB_TYPE[r.job_type] || r.job_type) + " / " + fmtDateTimeCompact(r.created_at) }, { ...mapCol("job_type", "유형", JOB_TYPE), sortable: true }, { ...badgeCol("status", "상태"), sortable: true },
       // 대기 중인데 실행 예정 시각이 이미 지났으면 지연(백로그) 신호 — 워커 정체를 이 화면에서 바로 감지.
-      { key: "available_at", label: "대기", type: "count", render: (r) => {
+      // 값이 「지연 622시간 38분」처럼 길다 — 남는 폭은 「오류」가 가져가므로(D-501) 이 열은 그 값이 한 줄로 서는
+      // 바닥을 스스로 든다. 개수 바닥(6rem)이면 값이 옆 칸 위로 넘친다.
+      { key: "available_at", label: "대기", type: "count", minWidth: "10rem", render: (r) => {
         if (r.status !== "queued" || !r.available_at) return "-";
         const s = String(r.available_at); const iso = /[zZ]$|[+-]\d\d:?\d\d$/.test(s) ? s : s + "Z";
         const t = new Date(iso).getTime(); if (Number.isNaN(t)) return "-";

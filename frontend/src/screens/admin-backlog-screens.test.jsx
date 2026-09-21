@@ -6,6 +6,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import "@testing-library/jest-dom/vitest";
 
+/* qa-contract-change: 감사 로그 머리의 「이상 징후 보기」 단추를 걷었다(D-501) — 두 화면은 한 그릇(`/audit`)의 형제 탭이라 바로 옆 탭이 같은 곳으로
+   간다. 「그 단추가 있다」 · 「머리 이동이 이상 징후를 가리킨다」 두 단언은 「그릇 안에서 두 탭이 짝이다 · 머리에 그 단추가 없다」로 옮겼다. */
 /* 관리자 백로그 잔여 화면(PLAN Phase 6) — registry.js 설정으로만 만든 여덟 화면.
  *
  * 설정으로 만든 화면은 "코드를 안 썼으니 안전하다"가 성립하지 않는다. 오히려 오타 하나가
@@ -24,6 +26,7 @@ vi.mock("../app/auth.jsx", () => ({
 
 import { DataScreen } from "./DataScreen.jsx";
 import { REGISTRY } from "./registry.js";
+import { TAB_GROUPS } from "../app/AdminRoutes.jsx";
 import { ConfirmProvider, ToastProvider } from "../ui/kit.jsx";
 import { ThemeModeProvider } from "../ui/ThemeModeProvider.jsx";
 // 표의 시각은 압축 표기다(DateCell 과 같은 형식기) — ops-14 로 registry 의 손글 render 도
@@ -292,7 +295,8 @@ describe("감사 로그 — 내보내기 · 이상 징후 연결", () => {
     apiMock.mockImplementation(() => Promise.resolve({ items: [], total: 0, page_size: 100 }));
     renderScreen("audit");
     expect(await screen.findByRole("button", { name: "CSV 내보내기" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "이상 징후 보기" })).toBeInTheDocument();
+    // 이상 징후로 가는 길은 그릇의 형제 탭이다 — 같은 이동을 머리 단추로 한 번 더 세우지 않는다(D-501).
+    expect(screen.queryByRole("button", { name: "이상 징후 보기" })).toBeNull();
   });
 
   it("내보내기 주소가 필터는 남기고 page/page_size 는 뺀다", () => {
@@ -305,7 +309,13 @@ describe("감사 로그 — 내보내기 · 이상 징후 연결", () => {
     expect(action.download("")).toBe("/api/admin/audit/export.csv");
   });
 
-  it("감사 화면에서 이상 징후 화면으로 갈 수 있다", () => {
-    expect(REGISTRY.audit.headerActions.some((a) => a.navigate && a.navigate() === "#/audit-anomalies")).toBe(true);
+  it("감사 화면에서 이상 징후 화면으로 갈 수 있다 — 한 그릇의 형제 탭이다", () => {
+    const group = TAB_GROUPS.find((g) => g.path === "/audit");
+    expect(group.tabs.map((t) => t.key)).toEqual(["audit", "audit-anomalies"]);
+    // 그 길을 머리 단추로 한 번 더 내지 않는다 — 두 화면 어느 쪽에서도.
+    for (const key of ["audit", "audit-anomalies"]) {
+      const sibling = (REGISTRY[key].headerActions || []).filter((a) => a.navigate && /^#\/audit(-anomalies)?(\?|$)/.test(a.navigate()));
+      expect(sibling.map((a) => a.label), key).toEqual([]);
+    }
   });
 });

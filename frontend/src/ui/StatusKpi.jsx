@@ -128,7 +128,9 @@ const KO_KEEP = { wordBreak: "keep-all", overflowWrap: "break-word" };
  * 다른 화면으로 간다(작업 보드의 그 조건으로).
  */
 export function StatusKpiStrip({ items, ariaLabel, revealKey, sx, value, onSelect, note }) {
-  const list = (items || []).filter(Boolean);
+  /* 값이 없는 칸은 서지 않는다(D-501) — 「평균 처리 시간(24h)」이 잴 이력이 없을 때 숫자 없이 이름만 든
+     판으로 섰다. 모르는 값을 말해야 하는 칸은 호출부가 `-` 를 값으로 준다(값이 있는 칸이다). */
+  const list = (items || []).filter((it) => it && it.value != null);
   const shown = useRevealOnce(revealKey == null ? null : String(revealKey));
   if (!list.length) return null;
 
@@ -387,7 +389,9 @@ export function StatusSummaryCard({
    * 값이 `null` 인 항목은 **0 이 아니라 「모른다」** 다(티켓 원본과 끊겼을 때). 0건으로
    * 접으면 없는 사실을 만든다 — 따로 세우고 `-` 로 표시한다. */
   const sum = Number(total);
-  const whole = Number.isFinite(sum) && sum > 0 ? sum : 0;
+  /* 전체를 **말했는가**. `Number(null)` 은 0 이라 숫자 검사만으로는 「안 줬다」와 「0 이다」가 갈리지 않는다. */
+  const hasTotal = total != null && total !== "" && Number.isFinite(sum);
+  const whole = hasTotal && sum > 0 ? sum : 0;
   const unknown = list.filter((it) => it.value == null);
   const known = list.filter((it) => it.value != null);
   const selectable = typeof onSelect === "function";
@@ -404,8 +408,18 @@ export function StatusSummaryCard({
   const empty = known.filter((it) => it.n === 0 && !pressableAt(it));
   const riskSelectable = typeof onRiskSelect === "function";
 
-  /* 위험 요약. 값이 0 인 신호는 안 세운다(누를 것이 없는 단추다). */
-  const shownRisks = riskList.filter((it) => it.n > 0);
+  /* 위험 요약. 값이 0 인 신호는 안 세운다(누를 것이 없는 단추다).
+     값이 **글자**인 신호는 그 글자가 곧 값이다 — 「가장 오래된 대기 622시간 38분」은 숫자로 읽으면 0 이라
+     예전에는 소리 없이 빠졌다. 모른다는 뜻의 `-` 와 빈 글자는 여전히 세우지 않는다. */
+  const wordValue = (v) => typeof v === "string" && v.trim() !== "" && v.trim() !== "-" && !Number.isFinite(Number(v));
+  const shownRisks = riskList.filter((it) => it.n > 0 || wordValue(it.value));
+
+  /* 그릇은 값이 있어야 선다(D-501). 전체가 0 이고 누를 칩도 · 경보도 · 옆 동작도 없으면 이 카드는
+     「없다」를 판 하나로 말한다 — 그 사실은 목록이나 빈 상태가 이미 말한다. 누를 수 있는 칩이 하나라도
+     있으면 선다(「0건」을 눌러 그 조건을 확인하는 길은 막지 않는다). */
+  const anyPressable = list.some(pressableAt) || riskList.some((it) => typeof it.onClick === "function")
+    || (riskSelectable && riskList.some((it) => it.key != null));
+  if (hasTotal && sum === 0 && !unknown.length && !anyPressable && !shownRisks.length && !action) return null;
   const riskChip = (it) => (
     <StatusChip
       key={it.key || it.label}
@@ -427,8 +441,13 @@ export function StatusSummaryCard({
    *
    * 그림이 있으면 그림이 그 자리를 갖고 위험 칩은 아래 상태 칩 줄로 내려간다. 거기서도
    * 섞이지 않는 이유는 **구분 간격**이다 — 부분 셋과 위험 사이가 칩 사이 간격보다 넓어서
-   * 같은 줄에 있어도 두 묶음으로 읽힌다. */
-  const risksInHeader = !action;
+   * 같은 줄에 있어도 두 묶음으로 읽힌다.
+   *
+   * 머리 줄은 **말할 것이 있을 때만** 선다(D-501). 제목 · 전체 · 설명 · 그림이 다 없으면 머리 줄의 왼쪽이
+   * 비고 오른쪽 끝에 위험 칩 하나만 떠, 카드가 칩 줄보다 두 배 높은 빈 판이 됐다(작업 큐 「실행 가능 7」).
+   * 그때 위험 칩은 칩 줄의 뒤 묶음으로 선다. */
+  const hasHead = !!title || hasTotal || !!help || !!action;
+  const risksInHeader = hasHead && !action;
 
   return (
     <Box
@@ -456,33 +475,35 @@ export function StatusSummaryCard({
           오른쪽을 한 덩어리로 묶으면 접힐 때도 그 둘이 함께 내려간다.
           세로 정렬이 `center` 인 이유: 오른쪽 덩어리는 글이 아니라 그림이라 글자 기준선
           (`baseline`)에 걸 것이 없다 — 걸면 링이 위로 떠서 아래 칩 줄과 겹친다. */}
-      <Box sx={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 1.5 }}>
-        <Box sx={{ display: "flex", alignItems: "baseline", flexWrap: "wrap", gap: 1, minWidth: 0 }}>
-          {title ? (
-            <Typography component="span" sx={{ fontSize: FONT_SIZE.body, fontWeight: FONT_WEIGHT.bold, ...KO_KEEP }}>
-              {title}
-            </Typography>
-          ) : null}
-          {Number.isFinite(sum) ? (
-            <Box component="span" data-summary-total="" sx={{ display: "contents" }}>
-              <Typography component="span" data-readout="value" sx={{ fontSize: FONT_SIZE.pageTitle, fontWeight: FONT_WEIGHT.bold, lineHeight: 1, ...NUMERIC }}>
-                {total}
+      {hasHead ? (
+        <Box sx={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 1.5 }} data-summary-head="">
+          <Box sx={{ display: "flex", alignItems: "baseline", flexWrap: "wrap", gap: 1, minWidth: 0 }}>
+            {title ? (
+              <Typography component="span" sx={{ fontSize: FONT_SIZE.body, fontWeight: FONT_WEIGHT.bold, ...KO_KEEP }}>
+                {title}
               </Typography>
-              <Typography component="span" data-readout="label" sx={{ fontSize: FONT_SIZE.bodySm, fontWeight: FONT_WEIGHT.semibold }}>
-                {totalLabel}
-              </Typography>
-            </Box>
-          ) : null}
-          {help ? (
-            <Typography component="span" variant="caption" color="text.secondary" sx={{ ...KO_KEEP }}>{help}</Typography>
-          ) : null}
+            ) : null}
+            {hasTotal ? (
+              <Box component="span" data-summary-total="" sx={{ display: "contents" }}>
+                <Typography component="span" data-readout="value" sx={{ fontSize: FONT_SIZE.pageTitle, fontWeight: FONT_WEIGHT.bold, lineHeight: 1, ...NUMERIC }}>
+                  {total}
+                </Typography>
+                <Typography component="span" data-readout="label" sx={{ fontSize: FONT_SIZE.bodySm, fontWeight: FONT_WEIGHT.semibold }}>
+                  {totalLabel}
+                </Typography>
+              </Box>
+            ) : null}
+            {help ? (
+              <Typography component="span" variant="caption" color="text.secondary" sx={{ ...KO_KEEP }}>{help}</Typography>
+            ) : null}
+          </Box>
+          <Box sx={{ flex: 1 }} />
+          <Box sx={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 1.25, minWidth: 0 }}>
+            {risksInHeader ? shownRisks.map(riskChip) : null}
+            {action}
+          </Box>
         </Box>
-        <Box sx={{ flex: 1 }} />
-        <Box sx={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 1.25, minWidth: 0 }}>
-          {risksInHeader ? shownRisks.map(riskChip) : null}
-          {action}
-        </Box>
-      </Box>
+      ) : null}
       <RatioBar parts={filled.filter((it) => it.n > 0)} total={whole} />
       {/* 칩 줄은 **두 묶음**이다. 묶음 안은 8px, 묶음 사이는 12px — 그 한 단 차이가
           「전체를 나눈 부분」과 「그중 위태로운 것」의 경계다. */}

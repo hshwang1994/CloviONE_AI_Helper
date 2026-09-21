@@ -2,6 +2,9 @@ import { describe, it, expect } from "vitest";
 
 import { REGISTRY } from "./registry.js";
 
+/* qa-contract-change: 관리자 표 규칙(D-501)으로 「제목」 · 「직책 이름」처럼 그 행의 이름인 열은 `identifier` 가 아니라 `type: "title"` 이다 — 제목 열은
+   행을 식별하는 열(`COLUMN_TYPES.title.identifying`)이고 폭 보호도 더 세다(바닥 16rem, 남는 폭을 갖는다). 그래서 (1)이 세는 것을 「identifier:true 또는
+   제목 열」로 넓힌다. 공지 배너 · 직책 관리가 그 이사를 했고, (2)의 두 화면 판정은 그대로다. */
 /* PA-RC-0029/0036/0037 후속 — 배경 감사가 발견한 것: `identifier` 열 최소 폭 메커니즘
  * (kit.jsx::colMinWidth, D-128)은 만들어졌지만 세 화면(Users/Offboarding/SettingsMain)에만
  * 적용됐다. REGISTRY의 나머지 화면 대다수가 "행을 식별하는 열이 이름·이메일인데 폭 보호가
@@ -19,6 +22,10 @@ describe("REGISTRY 화면의 identifier 열 적용 범위 (PA-RC-0029 후속 롤
   function identifierKeys(config) {
     return (config.columns || []).filter((c) => c.identifier).map((c) => c.key);
   }
+  /* 행을 식별하는 열 — 옛 `identifier:true` 플래그이거나 제목 열(D-501). */
+  function rowIdentifyingKeys(config) {
+    return (config.columns || []).filter((c) => c.identifier || c.type === "title").map((c) => c.key);
+  }
 
   const shouldHaveIdentifier = [
     "users", "offboarding", // 기존(D-128) — Users.jsx/Offboarding.jsx는 REGISTRY 밖 별도 컴포넌트라
@@ -31,8 +38,15 @@ describe("REGISTRY 화면의 identifier 열 적용 범위 (PA-RC-0029 후속 롤
     "notifications", "announcements", "feature-flags", "ai-quotas",
   ].filter((k) => REGISTRY[k]); // users/offboarding처럼 REGISTRY에 없는 키는 걸러낸다.
 
-  it.each(shouldHaveIdentifier)("%s는 identifier:true 열을 적어도 하나 갖는다", (key) => {
-    expect(identifierKeys(REGISTRY[key]).length, `${key}에 identifier:true 열이 없다`).toBeGreaterThan(0);
+  it.each(shouldHaveIdentifier)("%s는 행을 식별하는 열(identifier:true 또는 제목 열)을 적어도 하나 갖는다", (key) => {
+    expect(rowIdentifyingKeys(REGISTRY[key]).length, `${key}에 행을 식별하는 열이 없다`).toBeGreaterThan(0);
+  });
+
+  it("제목 열로 옮긴 화면은 그 열이 정말 제목 열이다 — 폭 보호를 잃지 않았다", () => {
+    for (const key of ["announcements", "job-titles", "admin-notifications"]) {
+      const titles = (REGISTRY[key].columns || []).filter((c) => c.type === "title");
+      expect(titles.length, `${key}의 제목 열`).toBe(1);
+    }
   });
 
   it("audit·jobs는 identifier를 안 쓴다 — PA-RC-0029가 실측으로 '잘림 0, 건드리지 않는다'로 확정한 화면이다", () => {

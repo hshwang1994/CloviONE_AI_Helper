@@ -82,6 +82,46 @@ describe("머리의 주 동작", () => {
   });
 });
 
+/* 🔴 **채움은 머리 동작의 오른쪽 끝이다** (D-501). 순서는 보조 → 「더 보기」 → 주 동작이다.
+ *
+ * 예전에는 선언 순서 그대로 그렸다 — 백업 화면이 [복원 안내][백업 실행][백업 일정 설정]으로 서서 채움이 가운데에
+ * 끼었다. 눈은 머리의 오른쪽 끝에서 그 화면의 일을 찾는다(사용자 화면의 「새 티켓」 · 「새 문서」가 그 자리다). */
+const ORDER_CONFIG = {
+  ...CONFIG,
+  headerActions: [
+    { label: "복원 안내", method: "GET", path: () => "/api/admin/backups/restore-instructions" },
+    { label: "백업 실행", variant: "primary", primary: true, path: () => "/api/admin/backups", confirm: "지금 백업할까요?" },
+    { label: "백업 일정 설정", navigate: () => "#/settings?setting=backup_schedule" },
+    { label: "전부 지우기", variant: "danger", path: () => "/x", confirm: "정말요?" },
+  ],
+};
+
+describe("머리 동작 순서 — 채움은 오른쪽 끝이다 (D-501)", () => {
+  const headButtons = (container) => {
+    const head = container.querySelector(".k-page-head");
+    return [...head.querySelectorAll("button")].map((b) => b.getAttribute("aria-label") || b.textContent);
+  };
+
+  it("보조 → 더 보기 → 주 동작 순서로 선다 — 선언 순서가 채움을 가운데에 두지 않는다", async () => {
+    const { container } = renderScreen(ORDER_CONFIG);
+    await screen.findByText("백업 하나");
+    const names = headButtons(container).filter((n) => ["복원 안내", "백업 일정 설정", "백업 화면 작업 더 보기", "백업 실행"].includes(n));
+    expect(names).toEqual(["복원 안내", "백업 일정 설정", "백업 화면 작업 더 보기", "백업 실행"]);
+  });
+
+  it("「추가」가 있는 화면도 같다 — 만드는 채움이 끝이다", async () => {
+    const { container } = renderScreen({
+      ...CONFIG,
+      headerActions: [{ label: "복원 안내", method: "GET", path: () => "/x" }],
+      create: { fields: [{ name: "name", label: "이름", type: "text" }] },
+      createLabel: "백업 추가",
+    });
+    await screen.findByText("백업 하나");
+    const names = headButtons(container).filter((n) => ["복원 안내", "백업 추가"].includes(n));
+    expect(names).toEqual(["복원 안내", "백업 추가"]);
+  });
+});
+
 /* 주 동작에 `when(ctx)` 가 걸린 화면 — 관리 알림의 「모두 읽음」 모양이다. 읽을 것이 있으면
  * 머리에 버튼으로 서고(넘침 메뉴가 아니다), 없으면 아예 없다. 예전에는 `primary` 선언이
  * 빠져 있어 확인 문구 때문에 «...» 메뉴 안 위험 항목으로 들어가 있었다. */

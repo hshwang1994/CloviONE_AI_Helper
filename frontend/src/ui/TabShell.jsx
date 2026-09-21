@@ -37,6 +37,10 @@ import { HeaderActionsHost, HeaderActionsProvider, useHeaderActionsSlot } from "
  *    `PageHeader` 의 오른쪽에 선다 — 단독 화면과 같은 자리다. 탭과 상관없는 화면 전체의
  *    동작(프로젝트 상세의 「엑셀 내보내기」 · 「목록」)은 `actions` 로 넘긴다 — 포털을 거치지
  *    않으므로 첫 그림부터 제자리에 선다.
+ * 7. **탭 순서는 들어온 주소와 무관하다** (D-501). 주소가 `?tab=` 없이 그릇을 열 때 켜질 탭은
+ *    `defaultTab` 이 정하고, 탭 줄은 언제나 정의 순서다. 예전에는 옛 주소(`/restore-drills`)로 들어오면
+ *    그 탭을 앞으로 옮겨 기본 탭으로 삼았다 — 같은 그릇이 들어온 길에 따라 [복구 리허설|백업]과
+ *    [백업|복구 리허설]로 서서, 사람은 탭의 자리로 화면을 기억할 수 없었다.
  *
  * ## 쓰는 법
  *
@@ -61,10 +65,11 @@ export function TabShell(props) {
 }
 
 function TabShellBody({
-  area, title, crumbRoot, tabs, ariaLabel, deniedHelp, idPrefix = "tabshell", actions, children,
+  area, title, crumbRoot, tabs, ariaLabel, deniedHelp, idPrefix = "tabshell", actions, children, defaultTab,
 }) {
   const defs = (tabs || []).filter(Boolean);
-  const defaultKey = defs.length ? defs[0].key : "";
+  /* 주소에 `?tab=` 이 없을 때 켜지는 탭. 모르는 키를 주면 첫 탭이다 — 조립 실수가 빈 그릇이 되지 않게. */
+  const defaultKey = defs.some((t) => t.key === defaultTab) ? defaultTab : (defs.length ? defs[0].key : "");
   /* `spec` 은 모듈 상수여야 메모가 안 깨진다(useQueryState 주석) — 화면마다 기본 탭이
      다르므로 여기서 만들되 기본 탭 값에만 의존하게 고정한다. */
   const spec = React.useMemo(() => ({ tab: defaultKey }), [defaultKey]);

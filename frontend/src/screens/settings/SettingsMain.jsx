@@ -106,13 +106,16 @@ export function Settings({ embedded = false } = {}) {
    * 최소 폭만 준다(minWidth는 바닥값이지 다른 열처럼 고정 width가 아니라서 위 함정을
    * 다시 밟지 않는다 — '설명'은 여전히 자유롭게 auto 레이아웃 대로 남는 공간을 가져간다). */
   /* 「항목명」은 이 표의 제목 열이다 — 제목 열만 왼쪽이고 나머지는 가운데다(핸드오프 RULES §5 · 조합 계약 C-3). 바닥 폭
-     10rem 은 그대로다(PA-RC-0037). */
+     10rem 은 그대로다(PA-RC-0037).
+     **남는 폭은 읽는 산문의 것이다(D-501).** 제목 열은 폭을 안 적으면 남는 폭을 다 먹는다 — 여기서는 열네 글자짜리
+     항목명이 1,000px 칸을 차지하고 옆 「설명」은 스무 글자에서 잘렸다. 항목명은 가장 긴 이름(「문서 휴지통 자동 영구
+     삭제」)이 한 줄로 서는 폭을 적고, 남는 폭은 「현재 값」과 「설명」이 나눈다(`grow`). */
   const columns = [
-    { key: "label", label: "항목명", type: "title", minWidth: "10rem" },
+    { key: "label", label: "항목명", type: "title", width: "13rem", minWidth: "10rem" },
     // PA-RC-0022: 백엔드 키는 기본 숨김이다 — showKey가 꺼져 있으면 이 열 자체를 안 만든다
     // (렌더는 하고 CSS로 숨기지 않는다, 스크린리더가 안 쓰는 열까지 훑지 않게).
     ...(showKey ? [{ key: "key", label: "키", render: (r) => <Typography component="span" variant="caption" color="text.secondary">{r.key}</Typography> }] : []),
-    { key: "value", label: "현재 값", type: "text", render: (r) => summarizeSetting(r.key, r.value) || displayValue(r.value) },
+    { key: "value", label: "현재 값", type: "text", grow: true, render: (r) => summarizeSetting(r.key, r.value) || displayValue(r.value) },
     /* 적용 상태 (지시 45). 두 가지를 말한다.
      *
      *  - **수정됨** — 기본값에서 벗어났다. 기본값 그대로면 배지가 아예 없다(PA-RC-0022:
@@ -133,7 +136,7 @@ export function Settings({ embedded = false } = {}) {
     // 반복해 가로 공간만 먹었다. 그 앞부분이 라벨 그대로면 벗겨내고 나머지만 보여준다(라벨
     // 자체를 여기서 다시 만들지 않고 실제 렌더된 r.label과 대조 — 두 소스가 갈리면 이 열이
     // 조용히 잘못 벗겨내는 대신 원문을 그대로 보여주게 안전한 쪽으로 둔다).
-    { key: "description", label: "설명", type: "text", render: (r) => {
+    { key: "description", label: "설명", type: "text", grow: true, render: (r) => {
       const desc = r.description;
       if (!desc) return "-";
       if (desc.startsWith(r.label)) {

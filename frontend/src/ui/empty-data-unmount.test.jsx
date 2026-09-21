@@ -99,6 +99,21 @@ describe("측정값 줄은 항목이 없으면 그릇을 남기지 않는다 (�
     expect(screen.getByRole("group", { name: "지표" })).toBeInTheDocument();
     expect(screen.getByText("오늘 마감")).toBeInTheDocument();
   });
+
+  it("값이 없는 칸(null · undefined)은 서지 않는다 — 이름만 든 판을 남기지 않는다 (D-501)", () => {
+    /* 작업 큐의 「평균 처리 시간(24h)」은 잴 이력이 없을 때 숫자 없이 이름만 든 반폭 판으로 섰다. 모르는 값을 말해야
+       하는 칸은 호출부가 `-` 를 값으로 준다 — 그 칸은 값이 있는 칸이다(반례). */
+    render(ui(<StatusKpiStrip ariaLabel="지표" items={[
+      { key: "a", label: "평균 처리 시간(24h)", value: null },
+      { key: "b", label: "처리 요청", value: undefined },
+      { key: "c", label: "성공률", value: "-" },
+    ]} />));
+    const group = screen.getByRole("group", { name: "지표" });
+    expect(group.children).toHaveLength(1);
+    expect(screen.queryByText("평균 처리 시간(24h)")).toBeNull();
+    expect(screen.queryByText("처리 요청")).toBeNull();
+    expect(screen.getByText("성공률")).toBeInTheDocument();
+  });
 });
 
 // ── 표와 페이저 ────────────────────────────────────────────────────────────

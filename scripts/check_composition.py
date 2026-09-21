@@ -17,6 +17,8 @@
     ghost-slot          글자 단추(`variant="ghost"`)를 메시지 박스(`<Callout`) · 발(`<ActionFooter` · `<ModalFooter` · 모달
                         `footer=`) · 판 머리 동작(`<SectionTitle` · `<Section` 의 `action=`) · 페이지 머리 동작(`actions=`)에 둔다
                         — 그 자리는 30 · 34 보조다. 글자 단추는 목록 안 부수 동작(조건 지우기 · 더 보기 · 댓글 줄 동작)의 자리다
+    primary-last        페이지 머리 동작(`<PageHeader actions=…>`)에서 채움 단추(`variant="primary"`) 뒤에 단추가 또 선다 — 순서는
+                        보조 → 더 보기 → 주 동작이고 채움은 오른쪽 끝이다(D-501). 한 머리 안의 단추끼리만 비교한다
 
 ## 예외와 대기 목록
 
@@ -52,6 +54,7 @@ RULES = {
     "row-button": "열 render 안에 단추를 직접 그린다 — `RowActions`",
     "table-tag": "표 칸 안에 면 있는 Tag 를 그린다 — `DotLabel`",
     "ghost-slot": "메시지 박스 · 발 · 판 머리 · 페이지 머리 동작에 글자 단추를 둔다 — 30 · 34 보조",
+    "primary-last": "페이지 머리 동작의 채움 단추 뒤에 단추가 또 선다 — 채움은 오른쪽 끝이다(D-501)",
 }
 
 FILTER_PARTS = {
@@ -66,6 +69,10 @@ ROW_BUTTON_TAGS = {"Button", "IconButton"}
 # `이름@속성` 은 그 속성 식 안만이다 — `<Section>` 의 자식(첨부 줄 「떼기」 같은 목록 안 부수 동작)은 자리가 아니다.
 GHOST_BUTTON_TAGS = {"Button", "KitButton"}
 GHOST_VARIANT = re.compile(r"""\bvariant\s*=\s*\{?\s*["']ghost["']""")
+PRIMARY_VARIANT = re.compile(r"""\bvariant\s*=\s*\{?\s*["']primary["']""")
+# 채움 단추가 오른쪽 끝이어야 하는 자리. 속성 식 하나가 한 묶음이다 — 한 파일의 두 머리를 섞지 않게 식이 열린 자리를
+# 이름 뒤에 붙인다(`PageHeader@actions#123`).
+PRIMARY_LAST_SLOT = "PageHeader@actions#"
 GHOST_SLOTS = {
     "Callout": "메시지 박스",
     "ActionFooter": "발",
@@ -162,7 +169,8 @@ def _scan_tag(text: str, i: int, events, renders, ancestors) -> tuple[int, str |
         if ch == "{":
             # 속성 식이면 요소 이름 뒤에 `이름@속성` 을 하나 더 얹는다 — 기존 규칙은 요소 이름만 보므로 판정이 같다.
             attr = _ATTR_BEFORE_BRACE.search(text, start, j)
-            scope = ([name] + ([f"{name}@{attr.group(1)}"] if attr else [])) if name else []
+            # 셋째 이름(`이름@속성#자리`)은 **그 식 하나**를 가리킨다 — 같은 파일의 머리 둘을 한 묶음으로 세지 않게.
+            scope = ([name] + ([f"{name}@{attr.group(1)}", f"{name}@{attr.group(1)}#{j}"] if attr else [])) if name else []
             j = _scan_js(text, j + 1, stop="}", events=events, renders=renders, ancestors=ancestors + scope)
             continue
         if text.startswith("/>", j):
@@ -177,6 +185,13 @@ def _scan_tag(text: str, i: int, events, renders, ancestors) -> tuple[int, str |
     return j, None
 
 
+def _opened_scope(opened: str, at: int) -> list[str]:
+    """자식을 읽을 때 조상에 얹는 이름. 요소 이름(예전 그대로) 뒤에 **그 요소 하나**를 가리키는 표식(`이름#자리`,
+    조각은 `<>#자리`)을 하나 더 얹는다 — 기존 규칙은 이름만 보므로 판정이 같다. `primary-last` 가 같은 머리 안의
+    두 갈래(`cond ? <>…</> : <>…</>`)를 가르는 데 쓴다."""
+    return ([opened] if opened else []) + [f"{opened or '<>'}#{at}"]
+
+
 def _in_render(renders, pos: int) -> bool:
     return bool(renders) and any(r[0] <= pos and (r[1] is None or pos < r[1]) for r in renders)
 
@@ -188,12 +203,14 @@ def _scan_children(text: str, i: int, name: str, events, renders, ancestors) -> 
             return (end + 1) if end >= 0 else len(text)
         ch = text[i]
         if ch == "{":
-            i = _scan_js(text, i + 1, stop="}", events=events, renders=renders, ancestors=ancestors)
+            # 자식 자리의 식에 든 요소는 조건부이거나 여럿이다 — `{}#자리` 표식이 그 사실을 조상에 남긴다(`primary-last`).
+            i = _scan_js(text, i + 1, stop="}", events=events, renders=renders, ancestors=ancestors + [f"{{}}#{i}"])
             continue
         if ch == "<" and i + 1 < len(text) and (text[i + 1].isalpha() or text[i + 1] == ">"):
+            at = i
             i, opened = _scan_tag(text, i, events, renders, ancestors)
             if opened is not None:
-                i = _scan_children(text, i, opened, events, renders, ancestors + ([opened] if opened else []))
+                i = _scan_children(text, i, opened, events, renders, ancestors + _opened_scope(opened, at))
             continue
         i += 1
     return i
@@ -232,9 +249,10 @@ def _scan_js(text: str, i: int, stop: str | None, events, renders, ancestors) ->
             i = j + 1
             continue
         if ch == "<" and _jsx_can_start(text, i):
+            at = i
             i, opened = _scan_tag(text, i, events, renders, ancestors)
             if opened is not None:
-                i = _scan_children(text, i, opened, events, renders, ancestors + ([opened] if opened else []))
+                i = _scan_children(text, i, opened, events, renders, ancestors + _opened_scope(opened, at))
             continue
         if renders is not None and text.startswith("render", i) and not (i and (text[i - 1].isalnum() or text[i - 1] in "_$.")):
             m = re.match(r"render\s*:", text[i:])
@@ -321,7 +339,14 @@ def scan_file(rel: str, text: str) -> list[tuple[str, int, str]]:
             hits.append(("filter-parts", line_of(m.start()), ", ".join(parts)))
     if "<" not in text:
         return hits
+    header_groups: dict[str, list[tuple[int, str, bool, bool]]] = {}
     for pos, name, ancestors, tag, in_render in jsx_events(text):
+        if name in GHOST_BUTTON_TAGS:
+            group = _header_group(ancestors)
+            if group:
+                key, conditional = group
+                header_groups.setdefault(key, []).append(
+                    (pos, name, bool(PRIMARY_VARIANT.search(_own_attrs(tag))), conditional))
         if name == "ListFooter":
             hits.append(("list-footer", line_of(pos), "<ListFooter>"))
         if name in TABLE_TAGS:
@@ -337,6 +362,78 @@ def scan_file(rel: str, text: str) -> list[tuple[str, int, str]]:
             slot = next((GHOST_SLOTS[a] for a in reversed(ancestors) if a in GHOST_SLOTS), None)
             if slot:
                 hits.append(("ghost-slot", line_of(pos), f"<{name} variant=ghost> in {slot}"))
+    hits.extend(_primary_last_hits(header_groups.values(), line_of, ""))
+    return hits
+
+
+def _header_group(ancestors) -> tuple[str, bool] | None:
+    """페이지 머리 동작 안 단추의 (묶음 열쇠, 조건부인가). 머리 밖이면 None.
+
+    열쇠는 그 머리 식 하나 + 식 안 **바깥** 조각 · 요소다 — 삼항의 두 갈래(`cond ? <>…</> : <>…</>`)가 각자 한 묶음이다.
+    조건부는 그 바깥 그릇 아래에 자식 식(`{cond ? … : null}`)을 지나 선 단추다."""
+    idx = max((i for i, a in enumerate(ancestors) if a.startswith(PRIMARY_LAST_SLOT)), default=-1)
+    if idx < 0:
+        return None
+    rest = ancestors[idx + 1:]
+    anchor = next((j for j, a in enumerate(rest) if "#" in a and not a.startswith("{}#")), None)
+    key = ancestors[idx] + "|" + (rest[anchor] if anchor is not None else "")
+    after = rest[anchor + 1:] if anchor is not None else rest
+    return key, any(a.startswith("{}#") for a in after)
+
+
+def _primary_last_hits(groups, line_of, where: str) -> list[tuple[str, int, str]]:
+    """채움 뒤에 단추가 서는가. 단추마다 (자리, 이름, 채움인가, 조건부인가)다.
+
+    조건부 채움 뒤의 조건부 단추는 **판정하지 않는다** — `state === "planned"` 의 「회차 열기」와 `state === "active"` 의
+    「회차 닫기」처럼 함께 서지 않는 갈래일 수 있고, 소스만으로는 그것을 가를 수 없다. 채움이 늘 서거나(조건 없음) 뒤의
+    단추가 늘 서면 둘이 함께 서는 날이 반드시 있으므로 잡는다(진단 「진단 수집」 뒤의 「복사」 · 「JSON 다운로드」)."""
+    out = []
+    for buttons in groups:
+        for i, (pos, name, primary, conditional) in enumerate(buttons):
+            if not primary:
+                continue
+            after = buttons[i + 1:]
+            clash = [b for b in after if not (conditional and b[3])]
+            if clash:
+                out.append(("primary-last", line_of(pos), f"<{name} variant=primary>{where} 뒤에 단추 {len(clash)}개"))
+    return out
+
+
+# ── 머리 동작을 옆 부품으로 뺀 자리 ─────────────────────────────────────────────
+# 진단의 머리 동작은 `DiagnosticActions` 가 그린다 — `<PageHeader actions={<DiagnosticActions …/>}>`. 단추가 머리 식 안에
+# 글자로 없으므로 파일 하나만 보면 안 보인다. 머리 식 안에 선 부품 이름을 모든 화면 파일에서 모은 뒤, 그 이름을 정의한
+# 파일에서 그 부품 본문의 단추를 한 묶음으로 본다(부품 하나 = 머리 하나).
+_COMPONENT_DEF = r"(?:^|\n)(?:export\s+)?(?:default\s+)?(?:function\s+{name}\s*\(|const\s+{name}\s*=)"
+_COMPONENT_END = re.compile(r"\n(?:\}|\);|\};)[ \t]*(?:\n|$)")
+
+
+def header_component_names(text: str) -> set[str]:
+    """페이지 머리 식 안에 선 부품 이름(단추 · 메뉴 말고, 대문자로 시작하는 것)."""
+    names = set()
+    for _pos, name, ancestors, _tag, _in_render in jsx_events(text):
+        if name and name[0].isupper() and "." not in name and name not in GHOST_BUTTON_TAGS and _header_group(ancestors):
+            names.add(name)
+    return names
+
+
+def header_component_hits(text: str, names: set[str]) -> list[tuple[str, int, str]]:
+    """이 파일이 정의한 머리 동작 부품의 본문에서 채움이 끝이 아닌가."""
+    spans = []
+    for name in sorted(names):
+        m = re.search(_COMPONENT_DEF.format(name=re.escape(name)), text)
+        if not m:
+            continue
+        end = _COMPONENT_END.search(text, m.end())
+        spans.append((name, m.start(), end.end() if end else len(text)))
+    if not spans:
+        return []
+    line_of = lambda pos: text.count("\n", 0, pos) + 1  # noqa: E731
+    events = jsx_events(text)
+    hits = []
+    for name, start, end in spans:
+        buttons = [(pos, n, bool(PRIMARY_VARIANT.search(_own_attrs(tag))), any(a.startswith("{}#") for a in anc))
+                   for pos, n, anc, tag, _r in events if start <= pos < end and n in GHOST_BUTTON_TAGS]
+        hits.extend(_primary_last_hits([buttons], line_of, f" in {name}(머리 동작 부품)"))
     return hits
 
 
@@ -362,12 +459,21 @@ def _own_attrs(tag: str) -> str:
 def scan(src: Path, ledger: Path, pending: set[tuple[str, str]]):
     exceptions = read_exceptions(ledger)
     found: dict[tuple[str, str], list[str]] = {}
+    texts: dict[str, str] = {}
     for path in sorted(src.rglob("*")):
         if path.suffix not in (".js", ".jsx") or ".test." in path.name:
             continue
         rel = path.relative_to(src).as_posix()
         text = path.read_text(encoding="utf-8")
+        texts[rel] = text
         for rule, line, what in scan_file(rel, text):
+            found.setdefault((rel, rule), []).append(f"{rel}:{line} {what}")
+    screen_texts = {rel: text for rel, text in texts.items() if rel.startswith(SCREEN_ROOTS) and "<" in text}
+    header_parts = set()
+    for text in screen_texts.values():
+        header_parts |= header_component_names(text)
+    for rel, text in screen_texts.items():
+        for rule, line, what in header_component_hits(text, header_parts):
             found.setdefault((rel, rule), []).append(f"{rel}:{line} {what}")
     new = {k: v for k, v in found.items() if k not in pending and k not in exceptions}
     stale = sorted(k for k in pending if k not in found)
@@ -390,6 +496,7 @@ def selftest() -> int:
         "    <ListCard sx={{ p: 0 }}><DataTable columns={cols} rows={[]} /></ListCard>\n"
         "    <ListFooter total={1} loaded={1} />\n"
         '    <Callout tone="warn" action={<Button size="sm" variant="ghost" onClick={retry}>다시 시도</Button>}>안내</Callout>\n'
+        '    <PageHeader title="진단" actions={<><Button variant="primary" onClick={run}>진단 수집</Button><Button onClick={copy}>복사</Button></>} />\n'
         "  </>);\n"
         "}\n"
     )
@@ -425,6 +532,15 @@ def selftest() -> int:
         "export function Good() {\n"
         '  return (<Card><DataTable placement="card" columns={cols} rows={[]} /></Card>);\n'
         "}\n"
+        "export function GoodHeads() {\n"
+        '  return (<>\n'
+        '    <PageHeader title="백업" actions={<><Button onClick={guide}>복원 안내</Button><OverflowMenu items={[]} /><Button variant="primary" onClick={run}>백업 실행</Button></>} />\n'
+        '    <PageHeader title="둘째 머리" actions={<Button onClick={copy}>복사</Button>} />\n'
+        '    <PageHeader title="갈래" actions={off ? (<><Button>이력</Button><Button variant="primary">복원</Button></>) : (<><Button>이동</Button><Button variant="primary">저장</Button></>)} />\n'
+        '    <PageHeader title="부품" actions={<GoodHeadParts onRun={run} />} />\n'
+        '    <Box><Button variant="primary">본문 채움</Button><Button>본문 보조</Button></Box>\n'
+        "  </>);\n"
+        "}\n"
         "export const X = () => <DataTable placement=\"surface\" columns={cols} rows={[]} list={{}} />;\n"
     )
     problems = []
@@ -437,6 +553,19 @@ def selftest() -> int:
         (src / "Gone.jsx").write_text("export const Gone = 1;\n", encoding="utf-8")
         (src / "BadGhosts.jsx").write_text(bad_ghosts, encoding="utf-8")
         (src / "GoodGhosts.jsx").write_text(good_ghosts, encoding="utf-8")
+        # 머리 동작을 옆 부품으로 뺀 자리 — 진단의 `DiagnosticActions` 모양. 쓰는 화면과 정의한 파일이 다르다.
+        (src / "UsesHeadParts.jsx").write_text(
+            'export const Page = () => <PageHeader title="진단" actions={<><Stamp /><BadHeadParts onRun={run} /><Lifecycle state={s} /></>} />;' + "\n", encoding="utf-8")
+        (src / "HeadParts.jsx").write_text(
+            "export function BadHeadParts({ onRun }) {" + "\n"
+            + "  return (<><Button variant=\"primary\" onClick={onRun}>진단 수집</Button>{copy ? <Button>복사</Button> : null}</>);" + "\n"
+            + "}" + "\n"
+            + "export function GoodHeadParts({ onRun }) {" + "\n"
+            + "  return (<><Button>복사</Button><Button variant=\"primary\" onClick={onRun}>진단 수집</Button></>);" + "\n"
+            + "}" + "\n"
+            + "export function Lifecycle({ state }) {" + "\n"
+            + "  return (<>{state === \"planned\" ? <Button variant=\"primary\">회차 열기</Button> : null}{state === \"active\" ? <Button>회차 닫기</Button> : null}</>);" + "\n"
+            + "}" + "\n", encoding="utf-8")
         ghost_hits = scan_file("screens/BadGhosts.jsx", bad_ghosts)
         good_ghost_hits = scan_file("screens/GoodGhosts.jsx", good_ghosts)
         ledger = root / "ledger.md"
@@ -460,6 +589,9 @@ def selftest() -> int:
         problems.append("stale 대기 항목을 못 잡음")
     if ("screens/Gone.jsx", "list-footer") not in dead:
         problems.append("죽은 예외를 못 잡음")
+    part_hits = new.get(("screens/HeadParts.jsx", "primary-last"), [])
+    if len(part_hits) != 1 or "BadHeadParts" not in part_hits[0]:
+        problems.append(f"옆 부품으로 뺀 머리 동작의 채움 앞자리를 한 번만 잡지 못함: {part_hits}")
     if problems:
         for p in problems:
             print("[SELFTEST] " + p)

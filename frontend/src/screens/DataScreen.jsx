@@ -11,7 +11,6 @@ import MenuItem from "@mui/material/MenuItem";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { ActionFooter, PageHeader, Card, Button, DataTable, DetailGrid, DetailRow, FormDrawer, Modal, OverflowMenu, Skeleton, EmptyState, ErrorState, Callout, useConfirm, useToast } from "../ui/kit.jsx";
-import { StatusSummaryCard } from "../ui/StatusKpi.jsx";
 import { SummaryView } from "./data-screen/SummaryView.jsx";
 /* 검색 입력은 `ui/filters.jsx` 의 `SearchBox` 다 — **자기 상태를 자기가 든다**(PF4).
  *
@@ -22,7 +21,7 @@ import { DebouncedTextField, EMPTYABLE_SELECT, EntityCombobox, FilterSelect, Sea
 import { DateField } from "../ui/DateField.jsx";
 /* 탐색 줄 — 필터 바 조합 부품(ui/FilterBar.jsx). **판이 아니다**(지시 80).
    폭은 격자 트랙이 아니라 컨트롤의 종류가 정한다(C2 «폭 배분»). */
-import { FILTER_GROUP_ORDER, FilterBar, entitySizeOf, filterGroupOf } from "../ui/FilterBar.jsx";
+import { FILTER_GROUP_ORDER, FilterBar, FilterToggle, entitySizeOf, filterGroupOf } from "../ui/FilterBar.jsx";
 import { CHUNK, useInfiniteList, useResetScrollOnKeyChange } from "../lib/useInfiniteList.js";
 import { SavedViews } from "../ui/SavedViews.jsx";
 /* 탭 그릇 안에서 머리 동작을 그릇의 머리로 보낸다(D-454). 그릇이 없으면 제자리에 그린다. */
@@ -37,7 +36,7 @@ import { JsonBlock } from "./data-screen/JsonBlock.jsx";
 import { CROSS_SCREEN_KEYS } from "./data-screen/crossScreenKeys.js";
 import { handleApiError } from "./data-screen/apiError.js";
 import { expireSession } from "../lib/sessionRedirect.js";
-import { mergeDetailFields, detailTitle } from "./data-screen/detailFields.js";
+import { EMPTY_DETAIL_LABEL, mergeDetailFields, detailTitle, partitionDetailFields } from "./data-screen/detailFields.js";
 import { SubListDrawer } from "./data-screen/SubListDrawer.jsx";
 import { successMessageFor } from "./data-screen/successMessages.js";
 
@@ -49,6 +48,27 @@ export {
   jsonField, objectField, listField, previewField,
 } from "./data-screen/columnHelpers.jsx";
 
+
+/* 상세의 줄들 — 값이 있는 줄은 차례대로 서고, 빈 줄은 마지막 한 줄 「값 없음」이 이름만 나열한다(D-501).
+ * 무엇이 빈 줄인지는 `detailFields.js::partitionDetailFields` 가 정한다. */
+function detailRowsOf(fields, row) {
+  const { filled, empty } = partitionDetailFields(fields, row);
+  const rows = filled.map(({ field, value }, i) => (
+    <DetailRow key={field.key || "d" + i} label={field.label}>{value}</DetailRow>
+  ));
+  if (empty.length) {
+    rows.push(
+      <DetailRow key="__empty" label={EMPTY_DETAIL_LABEL}>
+        <Box component="span" data-detail-empty="" sx={{ color: "text.secondary" }}>
+          {empty.map((field, i) => (
+            <React.Fragment key={field.key || "e" + i}>{i ? ", " : null}{field.label}</React.Fragment>
+          ))}
+        </Box>
+      </DetailRow>,
+    );
+  }
+  return rows;
+}
 
 /* 설정 주도 목록 화면 — 여러 관리자 화면이 같은 읽기+상세+생성/수정/작업 패턴을 공유한다(§23).
  * 각 화면은 registry.js의 config만 다르다. 행 클릭 → 상세 모달(열 + config.detailFields 전체 필드).
@@ -1086,6 +1106,21 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
       onApply={applyView}
     />
   ) : null;
+  /* 켬/끔 조건(`type: "toggle"`)은 칸이 아니라 필터 바 끝의 켬/끔 단추다(D-501 · 조합 계약 C-1 — 「내 티켓만」과 같은
+     어휘). 값은 다른 필터와 같은 키로 주소 · 칩 · 저장된 뷰에 실린다 — 켜면 첫 후보의 값(「안 읽음만」 = `true`)을
+     걸고, 끄면 지운다. `countKey` 를 주면 목록 응답의 그 수를 단추 이름 뒤에 붙인다(「안 읽음만 보기 6」). */
+  const toggleFilters = orderedFilters.filter((f) => f.type === "toggle");
+  const toggleControls = toggleFilters.map((f) => {
+    const onValue = f.onValue != null ? String(f.onValue) : String((normalizeOptions(f.options || [])[0] || { value: "true" }).value);
+    const pressed = String(filters[f.key] || "") === onValue;
+    const count = f.countKey && query.data && query.data[f.countKey] != null ? query.data[f.countKey] : null;
+    return (
+      <FilterToggle key={f.key} pressed={pressed} onClick={() => setFilter(f.key, pressed ? "" : onValue)}>
+        {(f.toggleLabel || f.label) + (count != null ? " " + count : "")}
+      </FilterToggle>
+    );
+  });
+  const filterBarEnd = toggleControls.length || savedViewsControl ? <>{toggleControls}{savedViewsControl}</> : null;
 
   /* 결과 건수 — 서버가 total 을 주면 그것이 정본이고, 안 주는 화면은 지금 그려지는 행 수다.
      Pager 안의 «총 N건» 과 같은 값이지만 자리가 다르다: Pager 는 «어디쯤인가» 를 말하고
@@ -1150,16 +1185,24 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
    * 한 번 뜨는 것은 되돌릴 수 없는 파괴가 아니라 이 화면이 하라고 있는 일이다.
    * `primary` 를 선언한 액션은 언제나 머리에 선다 — 확인 대화는 그대로 뜬다. */
   const isRiskyHeader = (a) => !a.primary && (a.variant === "danger" || !!a.confirm);
-  const inlineHeaderActions = visibleHeaderActions.filter((a) => !isRiskyHeader(a));
+  /* 🔴 **채움은 머리 동작의 오른쪽 끝이다** (D-501 · 조합 계약 C-4). 순서는 보조 → 「더 보기」 → 주 동작이다.
+   *
+   * 예전에는 선언 순서 그대로 그렸다 — 백업 화면이 [복원 안내][백업 실행][백업 일정 설정]으로 서서 채움이 가운데에
+   * 끼었고, 「추가」가 있는 화면만 주 동작이 끝이었다. 눈은 머리의 오른쪽 끝에서 이 화면의 일을 찾는다(사용자 화면의
+   * 「새 티켓」 · 「새 문서」가 그 자리다). 선언 순서는 같은 무게의 단추 사이에서만 뜻이 있다. */
+  const isPrimaryHeader = (a) => !isRiskyHeader(a) && (!!a.primary || a.variant === "primary");
+  const inlineHeaderActions = visibleHeaderActions.filter((a) => !isRiskyHeader(a) && !isPrimaryHeader(a));
   const overflowHeaderActions = visibleHeaderActions.filter(isRiskyHeader);
+  const primaryHeaderActions = visibleHeaderActions.filter(isPrimaryHeader);
   const headerKeyOf = (a) => "h" + visibleHeaderActions.indexOf(a);
+  const headerButton = (a) => (
+    <Button key={headerKeyOf(a)} variant={a.variant || "default"} disabled={busy}
+      loading={busyKey === headerKeyOf(a)}
+      onClick={() => runHeaderAction(a, headerKeyOf(a))}>{a.label}</Button>
+  );
   const headerActions = (
     <>
-      {inlineHeaderActions.map((a) => (
-        <Button key={headerKeyOf(a)} variant={a.variant || "default"} disabled={busy}
-          loading={busyKey === headerKeyOf(a)}
-          onClick={() => runHeaderAction(a, headerKeyOf(a))}>{a.label}</Button>
-      ))}
+      {inlineHeaderActions.map(headerButton)}
       <OverflowMenu
         ariaLabel={config.title + " 화면 작업 더 보기"}
         items={overflowHeaderActions.map((a) => ({
@@ -1170,6 +1213,7 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
           onClick: () => runHeaderAction(a, headerKeyOf(a)),
         }))}
       />
+      {primaryHeaderActions.map(headerButton)}
       {showCreate ? <Button variant="primary" disabled={busy} onClick={() => setCreating(true)}>{config.createLabel || "추가"}</Button> : null}
     </>
   );
@@ -1283,16 +1327,18 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
       {config.paginated && clientFilterDefs.length ? (
         <Callout tone="warn">{"‘" + clientFilterDefs.map((f) => f.label).join("’, ‘") + "’ 필터는 지금 보고 있는 페이지에만 적용됩니다. 다른 페이지의 일치 항목은 ‘다음’으로 페이지를 넘겨 확인하세요."}</Callout>
       ) : null}
-      {/* 목록 응답에 이미 실려 오는 카운트(예: 알림의 unread)를 별도 요약 엔드포인트 없이 바로 보여준다. */}
-      {config.unreadCountKey && query.data && query.data[config.unreadCountKey] != null ? (
-        /* 값 하나는 큰 숫자 하나다 — 상태 요약 카드의 값 하나 갈래(계획 P-30 · 핸드오프 RULES §10). */
-        <StatusSummaryCard
-          ariaLabel="안 읽음"
-          sx={{ mb: 2.5 }}
-          total={query.data[config.unreadCountKey]}
-          totalLabel="안 읽음"
-          totalKind={query.data[config.unreadCountKey] > 0 ? "warn" : undefined}
-        />
+      {/* 🔴 목록 응답에 실려 오는 안 읽음 수(`unreadCountKey`)를 여기서 전폭 카드로 그렸다 — 숫자 하나에 판 하나가
+          목록 위를 가로질렀고, 같은 뜻의 「읽음 상태」 셀렉트가 그 아래 줄에 따로 섰다. 이제 그 수는 필터 바 끝의
+          켬/끔 단추가 든다(「안 읽음만 보기 N」, `type: "toggle"` 필터 — D-501). 머리 동작의 `when(ctx)` 는 그 수를
+          그대로 받는다(`headerActionCtx.unreadCount`). */}
+      {config.summary && summaryQuery.data && config.summary.notes ? (
+        /* 🔴 **경고는 개수가 아니라 문장이다** (2026-09-01). 요약 줄은 「N건」밖에 못 말하는데, 이 자리에 오는
+           것들(「백업이 앱과 같은 디스크에만 있습니다」)은 읽는 순간 할 일이 정해지는 문장이라 세어 봐야 아무 소용이
+           없다. 화면이 `notes(data)` 로 문장 목록을 주면 그대로 낸다. 빈 배열이면 아무것도 안 그린다.
+           자리는 요약 **위**다(D-501) — 「지금 할 일」이 먼저 읽히고, 그 뒤에 요약이 선다. */
+        config.summary.notes(summaryQuery.data).map((note, i) => (
+          <Callout key={i} tone="warn">{note}</Callout>
+        ))
       ) : null}
       {config.summary ? (
         summaryQuery.isLoading ? (
@@ -1313,23 +1359,14 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
             <Callout tone="danger">요약 통계를 불러오지 못했습니다. <Button size="sm" onClick={() => summaryQuery.refetch()}>다시 시도</Button></Callout>
           )
         ) : summaryQuery.data ? (
-          <>
-            {/* 요약의 그릇은 데이터의 뜻이 정한다 — `summary.kind`(상태 구성 · 측정값 · 속성, 계획 표 7). */}
-            <SummaryView
-              summary={config.summary}
-              data={summaryQuery.data}
-              ctx={{ setFilter }}
-              sx={{ mb: config.summary.notes ? 1.5 : 2.5 }}
-            />
-            {/* 🔴 **경고는 개수가 아니라 문장이다** (2026-09-01). 요약 줄은 「N건」밖에 못
-                말하는데, 이 자리에 오는 것들(「백업이 앱과 같은 디스크에만 있습니다」)은
-                읽는 순간 할 일이 정해지는 문장이라 세어 봐야 아무 소용이 없다. 화면이
-                `notes(data)` 로 문장 목록을 주면 그대로 낸다. 빈 배열이면 아무것도 안 그린다 —
-                할 말이 없을 때 빈 상자를 남기지 않는다. */}
-            {(config.summary.notes ? config.summary.notes(summaryQuery.data) : []).map((note, i) => (
-              <Callout key={i} tone="warn">{note}</Callout>
-            ))}
-          </>
+          /* 요약의 그릇은 데이터의 뜻이 정한다 — `summary.kind`(상태 구성 · 측정값 · 속성, 계획 표 7). 경고 문장은
+             위에서 먼저 섰다. */
+          <SummaryView
+            summary={config.summary}
+            data={summaryQuery.data}
+            ctx={{ setFilter }}
+            sx={{ mb: 2.5 }}
+          />
         ) : null
       ) : null}
       {showToolbar ? (
@@ -1350,8 +1387,8 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
               />
             ) : null}
             /* 저장된 뷰는 «어떻게 볼지» 쪽이다 — 조건 칸이 아니라 줄 끝 묶음에 붙는다. 후보가 몇 줄 안 되는 화면에는
-               아예 그리지 않는다(C2 · registry 의 `smallSet`). */
-            end={savedViewsControl}
+               아예 그리지 않는다(C2 · registry 의 `smallSet`). 켬/끔 단추가 그 앞에 선다. */
+            end={filterBarEnd}
             conditions={{
               chips: filterChips,
               total: !query.isLoading && !query.isError ? resultTotal : null,
@@ -1360,7 +1397,7 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
               clearLabel: "필터 지우기",
             }}
           >
-            {orderedFilters.map((f) => {
+            {orderedFilters.filter((f) => f.type !== "toggle").map((f) => {
               // `key` 는 spread 에 섞지 않는다 — React 가 spread 안의 key 를 경고한다. 키는 요소에 직접 준다.
               const common = {
                 label: f.label,
@@ -1560,11 +1597,7 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
         ) : null}
         {sel ? (
           <DetailGrid>
-            {mergeDetailFields(config, columns).map((c, i) => (
-              <DetailRow key={c.key || "d" + i} label={c.label}>
-                {c.render ? c.render(sel) : (sel[c.key] == null || sel[c.key] === "" ? "-" : String(sel[c.key]))}
-              </DetailRow>
-            ))}
+            {detailRowsOf(mergeDetailFields(config, columns), sel)}
           </DetailGrid>
         ) : routeIdNotFound ? (
           <ErrorState layout="region" error={{ status: 404 }} />

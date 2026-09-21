@@ -120,7 +120,9 @@ export const PLATFORM_SCREENS = {
       const i = Math.max(s.lastIndexOf("/"), s.lastIndexOf("\\"));
       return i >= 0 ? s.slice(i + 1) : s;
     } }, badgeCol("status", "상태"), { key: "size_bytes", label: "크기", type: "number", render: (r) => fmtBytes(r.size_bytes) },
-      { key: "path", label: "파일", type: "text", render: (r) => { const p = r.path; if (p == null || p === "") return "-"; const s = String(p); const i = Math.max(s.lastIndexOf("/"), s.lastIndexOf("\\")); return i >= 0 ? s.slice(i + 1) : s; } },
+      // 파일 이름은 산문이 아니라 토큰이다 — `identifier` 다. 산문(`text`)으로 두면 제목이 없는 이 표에서
+      // 남는 폭을 가져가(D-501) 「db.dump」 하나가 1,000px 칸 가운데에 떠 있게 된다.
+      { key: "path", label: "파일", type: "identifier", render: (r) => { const p = r.path; if (p == null || p === "") return "-"; const s = String(p); const i = Math.max(s.lastIndexOf("/"), s.lastIndexOf("\\")); return i >= 0 ? s.slice(i + 1) : s; } },
       // 「성공한 백업」과 「지금 되돌릴 수 있는 백업」은 다르다. 내려받고 서버에서 지운
       // 백업은 전자이지 후자가 아니고, 그 차이가 목록에서 보여야 한다.
       // 🔴 `type:"text"` 였다. 이 칸에 들어가는 것은 산문이 아니라 **배지**인데, `text` 는
@@ -265,15 +267,18 @@ export const PLATFORM_SCREENS = {
       { key: "_head", label: "스키마", type: "enum", render: (r) => (r.summary && r.summary.alembic_head) || "-" },
       // SEM-01: 첫 열(결과 배지)이 render라 표식 없이는 전부 "상세 보기"였다 — 원본 백업
       // 이름(검색 대상과 동일한 필드) + 시작 시각으로 실제로 구별되는 이름을 만든다.
-      { ...truncateCol("source_label", "원본", 50), rowName: (r) => (r.source_label || "리허설") + " / " + fmtDateTimeCompact(r.started_at) },
+      // 원본은 백업 세트 이름(「20260823-020000」)이라 토큰이다 — `identifier` 로 둔다. 산문으로 두면 남는
+      // 폭을 가져간다(D-501, 백업 「파일」과 같은 이유).
+      { ...truncateCol("source_label", "원본", 50), type: "identifier", rowName: (r) => (r.source_label || "리허설") + " / " + fmtDateTimeCompact(r.started_at) },
     ],
     detailFields: [
       field("id", "기록 ID"),
       { key: "failures", label: "실패한 단계", render: (r) => (r.failures || []).join(", ") || "없음" },
       { key: "_summary", label: "요약", render: (r) => JSON.stringify(r.summary || {}) },
     ],
+    /* 「백업 목록」 머리 단추를 걷었다(D-501) — 이 화면은 언제나 「백업」 그릇의 탭이라 바로 옆 「백업」 탭이 같은
+       곳으로 간다. 같은 이동이 두 자리에 있으면 둘 중 무엇을 눌러야 하는지를 사람이 따져야 한다. */
     headerActions: [
-      { label: "백업 목록", navigate: () => "#/backup" },
       // 설정 표 스무 줄 앞에 내려놓지 않는다 — 보내는 쪽이 어느 줄인지 이미 알고 있다.
       { label: "백업 일정 설정", roles: WRITE_ROLES, navigate: () => "#/settings?setting=backup_schedule" },
     ],
@@ -298,13 +303,15 @@ export const PLATFORM_SCREENS = {
     /* 「중요도」로 정렬하면 서버가 **심각도 순**으로 센다(가나다순이면 긴급이 안내보다
        앞에 서서 뜻이 뒤집힌다 — `app/announcements/router.py::_level_rank`). */
     serverSort: { keys: ["created_at", "updated_at", "title", "starts_at", "ends_at", "active", "level"], default: { key: "created_at", dir: "desc" } },
+    /* 「제목」은 그 행의 제목 열이다(D-501) — 홀로 왼쪽에 서고 남는 폭을 갖는다. 「대상」의 「관리자군에게만」은
+       일곱 글자라 닫힌 집합 바닥(6.5rem)에서 잘린다 — 그 값이 한 줄로 서는 바닥을 준다. */
     columns: [
-      { ...col("title", "제목"), identifier: true, sortable: true },
+      { ...col("title", "제목", "title"), sortable: true },
       { key: "level", label: "중요도", type: "status", sortable: true, render: (r) => React.createElement(Badge, {
         value: ({ info: "안내", warning: "주의", critical: "긴급" })[r.level] || r.level,
         kind: r.level === "critical" ? "danger" : r.level === "warning" ? "warn" : "info",
       }) },
-      mapCol("audience", "대상", { all: "모든 사용자", admin: "관리자군에게만" }),
+      { ...mapCol("audience", "대상", { all: "모든 사용자", admin: "관리자군에게만" }), minWidth: "8.5rem" },
       activeCol("사용"),
       dateCol("starts_at", "시작"), dateCol("ends_at", "종료"),
     ],
@@ -364,7 +371,7 @@ export const PLATFORM_SCREENS = {
     // 상한에 걸렸는지는 안 말한다(그건 아래 표의 각 행 '현재 사용' 대 '상한' 비교, 또는
     // 상세의 '상태' 필드로 본다). 존재하지 않는 기능을 광고하던 문장을 지운다 — 나머지
     // 문장이 이미 카드/표의 실제 의미를 정확히 설명한다.
-    help: "AI 호출을 사용자, 기간별로 제한합니다. 사용자별 상한이 전체 상한보다 우선하고, 상한 행이 하나도 없으면 제한이 없습니다. 취소되거나 실패한 호출은 세지 않습니다. 위 요약 카드는 조직 전체 합계이고, 아래 표의 ‘현재 사용’은 그 행(전체 범위면 가장 많이 쓴 사람 1인, 사용자 범위면 그 1인)의 값입니다. 두 숫자는 서로 다른 것을 셉니다.",
+    help: "AI 호출을 사용자, 기간별로 제한합니다. 사용자별 상한이 전체 상한보다 우선하고, 상한 행이 하나도 없으면 제한이 없습니다. 취소되거나 실패한 호출은 세지 않습니다. 위 요약 줄은 조직 전체 합계이고, 아래 표의 ‘현재 사용’은 그 행(전체 범위면 가장 많이 쓴 사람 1인, 사용자 범위면 그 1인)의 값입니다. 두 숫자는 서로 다른 것을 셉니다.",
     emptyTitle: "설정된 상한이 없습니다",
     emptyHelp: writerEmptyHelp("‘+ 상한 추가’로 하루 또는 한 달 상한을 정하세요. 아무것도 없으면 제한이 없습니다.", "상한은 관리자가 설정합니다."),
     emptySituation: "AI 호출 비용에 상한이 없어, 한 사람이 많이 써도 알아챌 방법이 없습니다.",
@@ -384,8 +391,10 @@ export const PLATFORM_SCREENS = {
     searchPlaceholder: "대상 이름, 이메일, 메모로 검색",
     // FN-05 — GET /ai-quotas/usage(app/quotas/router.py)는 처음부터 있었는데 부르는 화면이
     // 없어 죽어 있었다(UB-25와 같은 결함). 아래 행별 "현재 사용" 열은 최다 사용자 1인 또는
-    // 특정 사용자 1인의 값이라 "오늘 전체 몇 번 썼나"에는 답을 못한다 — 그건 이 요약 카드가
+    // 특정 사용자 1인의 값이라 "오늘 전체 몇 번 썼나"에는 답을 못한다 — 그건 이 요약이
     // 준다(같은 화면 안에 서로 다른 두 숫자가 있다는 것을 help 문구에도 적어 둔다).
+    // 값 둘은 판이 아니라 속성 줄 한 줄이다(D-501) — 「0」 하나씩을 든 800px 판 둘이었다. 누를 수도 없고
+    // 경보도 아닌 값이라 판을 세울 이유가 없다(`SummaryView` 의 둘 이하 규칙).
     summary: {
       endpoint: "/api/admin/ai-quotas/usage",
       cards: (data) => {
@@ -467,12 +476,16 @@ export const PLATFORM_SCREENS = {
     // 추가하고, '현재' 열이 기본값과 어긋나면(위험 신호) warn 톤으로 눈에 띄게 한다 —
     // 어긋남 자체가 잘못은 아니다(의도적으로 바꿨을 수 있다), 그래도 훑어보다 놓치면 안 되는
     // 상태라는 점은 다른 warn 톤 사용처(activeCol 등)와 같은 이유다.
+    /* 남는 폭은 「설명」이 갖는다(D-501 — 제목이 없는 표에서는 마지막 산문 열). 예전에는 여섯 열이 비례로 나눠
+       「설명」이 70자 말줄임보다 먼저 칸에서 잘렸고, 「현재」 · 「기본값」은 짧은 표지 하나에 250px 을 썼다. 대신 나머지
+       열이 자기 바닥 폭으로 서므로, 값이 긴 둘은 그 값이 한 줄로 서는 바닥을 든다 — 가장 긴 플래그 이름
+       (`limited_service_actions_enabled`)과 「없음(읽는 코드 없음)」이다. */
     columns: [
-      { ...col("name", "플래그"), identifier: true },
+      { ...col("name", "플래그"), identifier: true, minWidth: "16rem" },
       { key: "value", label: "현재", type: "enum", render: (r) => React.createElement(Badge, { value: r.value ? "활성" : "비활성", kind: r.value === r.default ? (r.value ? "ok" : "neutral") : "warn" }) },
       { key: "default", label: "기본값", type: "enum", render: (r) => React.createElement(Badge, { value: r.default ? "활성" : "비활성", kind: "neutral" }) },
       mapCol("owner", "값의 주인", { file: "파일", db: "설정 화면" }),
-      { key: "has_consumer", label: "실제 효과", type: "enum", render: (r) => r.has_consumer ? "있음" : "없음(읽는 코드 없음)" },
+      { key: "has_consumer", label: "실제 효과", type: "enum", minWidth: "11rem", render: (r) => r.has_consumer ? "있음" : "없음(읽는 코드 없음)" },
       truncateCol("description", "설명", 70),
     ],
     // description은 이미 목록 열이지만 그 열은 truncateCol(70자 말줄임, hover title로만 전체 확인)이다

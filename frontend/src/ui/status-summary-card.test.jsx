@@ -158,6 +158,86 @@ describe("상태 요약 카드", () => {
     expect(container.querySelector("[data-ratio-bar]")).toBeNull();
   });
 
+  /* ── 그릇은 값이 있어야 선다 (D-501) ─────────────────────────────────────────
+     작업 큐 요약은 머리 줄에 말할 것이 없는데도 머리 줄을 세워, 오른쪽 끝에 「실행 가능 7」 하나만 뜬 두 배 높이의
+     빈 판이었다. 메일 발송은 「0 전체」에 「…0건」 칩 하나를 든 판이었다. 경보 「가장 오래된 대기 622시간」은 숫자로
+     읽으면 0 이라 소리 없이 빠졌다. */
+  it("제목 · 전체 · 설명 · 그림이 없으면 머리 줄을 세우지 않고 신호는 칩 줄의 뒤 묶음에 선다", () => {
+    const { container } = withTheme(
+      <StatusSummaryCard
+        ariaLabel="큐"
+        items={[{ key: "q", label: "대기", value: "7", onClick: () => {} }]}
+        risks={[{ key: "r", label: "실행 가능(ready)", value: "5", onClick: () => {} }]}
+      />,
+    );
+    expect(container.querySelector("[data-summary-head]")).toBeNull();
+    const risks = container.querySelector('[data-chip-group="risks"]');
+    expect(risks).not.toBeNull();
+    expect(within(risks).getByRole("button", { name: "실행 가능(ready) 5" })).toBeInTheDocument();
+  });
+
+  it("반례 — 전체를 주면 머리 줄이 서고 신호는 그 오른쪽이다", () => {
+    const { container } = withTheme(
+      <StatusSummaryCard
+        ariaLabel="큐" total="12"
+        items={[{ key: "q", label: "대기", value: "7" }, { key: "d", label: "완료", value: "5" }]}
+        risks={[{ key: "r", label: "실행 가능(ready)", value: "5" }]}
+      />,
+    );
+    const head = container.querySelector("[data-summary-head]");
+    expect(head).not.toBeNull();
+    expect(within(head).getByText("실행 가능(ready)")).toBeInTheDocument();
+    expect(container.querySelector('[data-chip-group="risks"]')).toBeNull();
+  });
+
+  it("글자 값의 신호는 그 글자가 값이다 — 「622시간 38분」이 빠지지 않는다", () => {
+    withTheme(
+      <StatusSummaryCard
+        ariaLabel="큐" total="7"
+        items={[{ key: "q", label: "대기", value: "7" }]}
+        risks={[
+          { key: "age", label: "가장 오래된 대기", value: "622시간 38분" },
+          { key: "none", label: "모름", value: "-" },
+          { key: "zero", label: "영", value: "0" },
+        ]}
+      />,
+    );
+    expect(screen.getByText("622시간 38분")).toBeInTheDocument();
+    // 모른다(`-`)와 0 은 여전히 세우지 않는다.
+    expect(screen.queryByText("모름")).toBeNull();
+    expect(screen.queryByText("영")).toBeNull();
+  });
+
+  it("전체가 0 이고 누를 칩도 경보도 없으면 카드가 서지 않는다", () => {
+    const { container } = withTheme(
+      <StatusSummaryCard ariaLabel="발송 현황" total={0} items={[{ key: "a", label: "발송 실패", value: 0 }]} />,
+    );
+    expect(container.querySelector('[role="group"]')).toBeNull();
+    expect(container.textContent).toBe("");
+  });
+
+  it("반례 — 전체가 0 이어도 누를 칩이 있으면 선다(「0건」을 눌러 그 조건을 확인하는 길)", () => {
+    withTheme(
+      <StatusSummaryCard ariaLabel="구성" total={0} items={[{ key: "a", label: "진행", value: 0 }]} onSelect={() => {}} />,
+    );
+    expect(screen.getByRole("group", { name: "구성" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "진행 0" })).toBeInTheDocument();
+  });
+
+  it("측정값 한 줄(notes)은 칩 줄 아래 정의 목록이다 — 이름과 값이 한 짝이다", () => {
+    const { container } = withTheme(
+      <StatusSummaryCard
+        ariaLabel="큐" total="7"
+        items={[{ key: "q", label: "대기", value: "7" }]}
+        notes={[{ key: "avg", label: "평균 처리 시간(24h)", text: "12.3초" }]}
+      />,
+    );
+    const dl = container.querySelector("[data-summary-notes]");
+    expect(dl).not.toBeNull();
+    expect(within(dl).getByText("평균 처리 시간(24h)").tagName).toBe("DT");
+    expect(within(dl).getByText("12.3초").tagName).toBe("DD");
+  });
+
   it("값이 null 인 항목은 0 이 아니라 「모른다」다 — 0건으로 접지 않는다", () => {
     withTheme(
       <StatusSummaryCard

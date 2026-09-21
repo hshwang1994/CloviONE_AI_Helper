@@ -32,8 +32,11 @@ export const ORG_SCREENS = {
     filters: ACTIVE_FILTER,
     // usage_count(보유 인원)는 보관(soft-delete)된 사용자도 센다(부서와 동일한 계산 — app/org/service.py).
     // 라벨은 부서 화면과 다르게 '보유'를 쓴다 — 직책은 사람이 '보유'하는 것이지 '소속'되는 게 아니다.
-    columns: [{ ...col("name", "직책 이름"), identifier: true }, activeCol("사용"),
-      { ...col("user_count", "보유 인원(보관 포함)"), type: "count" }, dateCol("created_at", "생성 일자")],
+    // 「직책 이름」이 그 행의 이름이라 제목 열이다(D-501) — 홀로 왼쪽에 서고 남는 폭을 갖는다. 예전에는 네 열이
+    // 1,600px 을 똑같이 나눠 「선임」 두 글자가 400px 칸 가운데에 떠 있었다. 남는 폭을 제목이 가져가면 나머지는
+    // 자기 바닥으로 서므로, 머리 이름이 긴 「보유 인원(보관 포함)」은 그 이름이 한 줄로 서는 바닥을 든다.
+    columns: [col("name", "직책 이름", "title"), activeCol("사용"),
+      { ...col("user_count", "보유 인원(보관 포함)"), type: "count", minWidth: "10rem" }, dateCol("created_at", "생성 일자")],
     // 삭제 버튼은 소속 인원>0이면 아래 actions에서 통째로 숨겨진다(부서와 동일한 이유) — 상세에 이유를 남긴다.
     detailFields: [field("id", "직책 ID"),
       { key: "_delete_note", label: "삭제 안내", render: (r) => r.user_count ? "사용 중인 직책(보유 인원 " + r.user_count + "명, 보관 계정 포함)은 삭제할 수 없습니다. 대신 ‘비활성화’를 이용하세요." : "-" }],

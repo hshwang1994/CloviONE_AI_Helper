@@ -29,15 +29,49 @@
 /** auto 배치 표에서 「내용 폭만큼」을 뜻하는 값. 위 주석 참고. */
 export const SHRINK = "1%";
 
-/** `table-layout:fixed` 에서 열 하나의 폭. `title` 은 남는 폭을 먹는다(undefined).
- *  `SHRINK`(`1%`)는 fixed 배치에서 망가지므로 **바닥 minWidth** 를 쓴다. */
+/** `table-layout:fixed` 에서 열 하나의 폭. undefined 는 「남는 폭을 먹는다」는 뜻이다.
+ *  `SHRINK`(`1%`)는 fixed 배치에서 망가지므로 **바닥 minWidth** 를 쓴다.
+ *
+ *  남는 폭을 먹는 열은 둘이다(D-501). `grow: true` 를 단 산문 열과, 폭을 적지 않은 `title` 이다.
+ *  `title` 이라도 호출부가 `width` 를 적었으면 그 폭을 지킨다 — 「26-08」처럼 값이 짧은 제목 열이나
+ *  설정 「항목명」은 남는 폭을 가져도 빈칸만 는다. 그 폭은 옆의 산문 열(설명 · 오류)이 가져야 읽힌다. */
 export function columnLayoutWidth(col) {
-  const s = resolveColumn(col);
-  if (s.type === "title") return undefined;
   const c = col || {};
+  const s = resolveColumn(c);
+  if (c.grow) return undefined;
+  if (s.type === "title" && c.width == null) return undefined;
   const explicit = c.width != null ? c.width : s.width;
   if (explicit && explicit !== SHRINK) return explicit;
   return s.minWidth;
+}
+
+/* ── 남는 폭의 주인 (D-501) ─────────────────────────────────────────────────
+ *
+ * `table-layout: fixed` 에서 남는 폭은 폭을 안 받은 열이 나눠 갖는다. 그런 열이 하나도 없으면
+ * 브라우저가 **모든 열에 비례로** 나눈다 — 관리자 목록 열아홉이 전부 그 모양이었다. 제목 열이 없는
+ * 표에서 「설명」 · 「오류」 같은 산문 열은 바닥 12rem 의 두 배쯤을 받고 스무 글자 남짓에서 잘렸고,
+ * 「상태」 · 「시도」 같은 짧은 값 열도 똑같이 두 배로 늘어 빈칸만 넓어졌다(기능 플래그 「설명」, 작업 큐
+ * 「오류」 실측).
+ *
+ * 그래서 남는 폭을 먹는 열이 없는 표에서는 **마지막 산문 열(`type: "text"`)** 이 그 폭을 갖는다. 뒤에
+ * 선 산문 열을 고르는 이유는 표가 왼쪽에서 오른쪽으로 중요도가 낮아지게 적히고(`planNarrowColumns`),
+ * 긴 설명은 대개 끝에 서기 때문이다. 호출부가 `width` 를 적은 산문 열은 고르지 않는다 — 그 폭은
+ * 호출부의 결정이다(열 접기가 「우연히 같다」로 줄인 열도 `width` 를 받는다). 산문 열이 없으면 예전처럼
+ * 브라우저가 비례로 나눈다. 정렬(D-471)은 바꾸지 않는다 — 폭의 주인만 정한다.
+ *
+ * 열 목록이 그대로면 **같은 배열**을 돌려준다. 호출부의 메모(`useMemo`)가 깨지지 않게 한다. */
+export function assignLeftoverWidth(columns) {
+  const cols = columns || [];
+  if (!cols.length || cols.some((c) => c && columnLayoutWidth(c) === undefined)) return cols;
+  let at = -1;
+  for (let i = cols.length - 1; i >= 0; i -= 1) {
+    const c = cols[i];
+    if (c && c.width == null && resolveColumn(c).type === "text") { at = i; break; }
+  }
+  if (at < 0) return cols;
+  const out = cols.slice();
+  out[at] = { ...cols[at], grow: true };
+  return out;
 }
 
 /* 이 표가 **줄어들 수 있는 바닥 폭** — 모든 열이 자기 폭을 지킬 때의 합.
@@ -133,10 +167,14 @@ export function tableFloorPx(columns, rootPx) {
  * 읽으면 열마다 우선순위 숫자를 손으로 매길 필요가 없다.
  *
  * 폭을 아직 못 쟀으면(`availablePx` 가 없다 — 첫 그림) **아무 것도 안 뺀다.** 열이
- * 사라졌다 돌아오는 것보다 한 프레임 넘치는 편이 낫다. */
+ * 사라졌다 돌아오는 것보다 한 프레임 넘치는 편이 낫다.
+ *
+ * 돌려주는 `shown` 은 **그릴 열 그대로**이고, 남는 폭의 주인까지 정해져 있다(`assignLeftoverWidth`).
+ * 주인은 빼고 남은 열 가운데서 고른다 — 산문 열이 좁은 칸에서 빠지면 그 폭은 다음 산문 열의 것이다.
+ * `DataTable` 과 `GroupedTickets` 가 이 한 함수로 열을 정하므로 두 표가 같은 규칙을 본다. */
 export function planNarrowColumns(columns, availablePx, rootPx) {
   const cols = (columns || []).filter(Boolean);
-  const empty = { shown: cols, hidden: [] };
+  const empty = { shown: assignLeftoverWidth(cols), hidden: [] };
   if (!(availablePx > 0)) return empty;
   let floor = tableFloorPx(cols, rootPx);
   if (floor <= availablePx) return empty;
@@ -152,7 +190,7 @@ export function planNarrowColumns(columns, availablePx, rootPx) {
   }
   // 뺀 순서(뒤→앞)가 아니라 **표에 적힌 순서**로 알린다 — 사용자가 읽는 순서다.
   hidden.reverse();
-  return { shown, hidden };
+  return { shown: assignLeftoverWidth(shown), hidden };
 }
 
 /** 지금 루트 폰트사이즈(px). 4K 에서 커진다(`styles/root.css`). */
@@ -229,7 +267,7 @@ export function headerAlignOf(column) {
  * 결함으로 적어 두었다. 열마다 축이 둘이면 눈이 표를 한 덩어리로 못 읽는다.
  *
  * 제목만 남긴 이유는 그 열이 다른 열과 성질이 다르기 때문이다. 표당 하나뿐이고
- * (`SINGLETON_TYPES`), 남는 폭을 전부 갖고, 값이 길어 실제로 칸을 채운다 — 가운데에
+ * (`SINGLETON_TYPES`), 대개 남는 폭을 갖고, 값이 길어 실제로 칸을 채운다 — 가운데에
  * 두면 행마다 시작점이 크게 흔들린다. 나머지 열은 값이 짧아 그 흔들림이 작다
  * (기본 폭 9rem 이름 열 실측 16px).
  *
@@ -243,17 +281,20 @@ export function headerAlignOf(column) {
  * 걸리므로(`columnShouldTruncate`) 전체를 볼 길은 `title` 속성과 상세로 남는다.
  */
 export const COLUMN_TYPES = {
-  /* 표당 **하나**다. 그 행이 무엇인지 말하는 열이고, 폭 경쟁에서 가장 세다. */
+  /* 표당 **하나**다. 그 행이 무엇인지 말하는 열이고, 폭 경쟁에서 가장 세다 — 호출부가 `width` 를
+     적지 않으면 남는 폭을 갖는다(`columnLayoutWidth`). */
   title: { align: "left", numeric: false, minWidth: "16rem", overflow: OVERFLOW.word, identifying: true },
   /* 사람·프로젝트·조직 이름. 제목보다 짧고 한 줄로 읽힌다.
      **폭 경쟁에 나서지 않는다**(`width: SHRINK`). 이름은 길어야 스무 글자인데 이 열이
      `title` 과 함께 남는 폭을 나눠 가지면 둘이 반씩 갖는다 — 게시판에서 「작성자」가
      740px 로 서고 제목이 같은 폭에서 잘렸다(S19 실측). 폭이 더 필요하면 그 화면이
-     `minWidth` 로 바닥을 올린다. 남는 폭을 갖는 열은 표당 하나(`title`)다. */
+     `minWidth` 로 바닥을 올린다. 남는 폭은 읽는 열(제목, 그다음 산문)의 것이다(D-501). */
   name: { align: "center", numeric: false, width: SHRINK, minWidth: "9rem", overflow: OVERFLOW.ellipsis, identifying: true },
-  /* 이메일·코드·UUID·티켓번호. 글자 단위로 끊어도 되는 유일한 부류다. */
+  /* 이메일·코드·UUID·티켓번호. 글자 단위로 끊어도 되는 유일한 부류다. 파일 이름 · 백업 이름처럼
+     낱말이 아니라 토큰인 값도 이 부류다 — 산문(`text`)으로 적으면 남는 폭을 가져간다. */
   identifier: { align: "center", numeric: true, minWidth: IDENTIFIER_COL_MIN_WIDTH, overflow: OVERFLOW.anywhere, identifying: true },
-  /* 설명·오류 원문. 폭 경쟁에서 가장 약하고, 전 행이 비면 수축 후보다(§collapse). */
+  /* 설명·오류 원문. 전 행이 비면 수축 후보다(§collapse). 남는 폭을 먹는 열이 없는 표에서는
+     마지막 산문 열이 그 폭을 갖는다(`assignLeftoverWidth`) — 읽어야 하는 글이 잘리는 자리다. */
   text: { align: "center", numeric: false, minWidth: "12rem", overflow: OVERFLOW.ellipsis, collapsible: true },
   /* 상태 배지. 머리글이 「우선순위」처럼 네 글자면 5rem 으로는 정렬 화살표와 겹친다. */
   status: { align: "center", numeric: false, width: SHRINK, minWidth: "7.5rem", overflow: OVERFLOW.nowrap },

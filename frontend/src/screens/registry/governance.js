@@ -263,7 +263,8 @@ export const GOVERNANCE_SCREENS = {
         const kept = qs.split("&").filter((kv) => kv && !/^page(_size)?=/.test(kv)).join("&");
         return "/api/admin/audit/export.csv" + (kept ? "?" + kept : "");
       } },
-      { label: "이상 징후 보기", navigate: () => "#/audit-anomalies" },
+      /* 「이상 징후 보기」 머리 단추를 걷었다(D-501) — 이 화면은 언제나 「감사 로그」 그릇의 탭이라 바로 옆
+         「이상 징후」 탭이 같은 곳으로 간다. */
     ],
     emptyTitle: "감사 기록이 없습니다", emptyHelp: "사용자, 설정, 연동 등에 변경이 생기면 누가 무엇을 언제 바꿨는지 여기에 기록됩니다.",
     // 다른 화면(예: 사용자 상세의 '감사 로그에서 보기')에서 넘어온 ?object_type=&object_id= 쿼리를
@@ -357,7 +358,9 @@ export const GOVERNANCE_SCREENS = {
     columns: [{ ...dateCol("created_at", "시각"), rowName: (r) => actionKo(r.action) + " / " + (r.actor_name || r.actor_email || (r.user_id ? r.user_id : "시스템")) + " / " + fmtDateTimeCompact(r.created_at) }, { ...actionCol("action", "작업"), sortable: true }, { ...objCol("object_type", "대상"), sortable: true },
       // object_type/action/actor로만 필터해도(대상 ID로 좁히지 않으면) 같은 유형·같은 작업·같은
       // 행위자의 여러 행이 목록에서 서로 구별되지 않았다 — 대상 ID를 목록에 바로 노출한다.
-      truncateCol("object_id", "대상 ID", 24),
+      // UUID 는 산문이 아니라 토큰이라 `identifier` 다. 산문(`text`)으로 두면 제목이 없는 이 표에서 남는 폭을
+      // 가져가고(D-501) 「작업」 · 「대상」이 바닥 폭으로 줄어 「board_post, 추가」가 잘린다.
+      { ...truncateCol("object_id", "대상 ID", 24), type: "identifier" },
       { ...badgeCol("result", "결과"), sortable: true },
       { key: "user_id", label: "행위자", type: "name", render: (r) => r.actor_name || r.actor_email || (r.user_id ? r.user_id : "시스템") }],
     // '무엇을 바꿨는지'(before→after)와 포렌식 필드(기록 ID·행위자·대상 ID·IP·요청 ID)를 상세에서 본다.
@@ -421,10 +424,12 @@ export const GOVERNANCE_SCREENS = {
         value: ({ high: "높음", medium: "보통", low: "낮음" })[r.severity] || r.severity,
         kind: r.severity === "high" ? "danger" : r.severity === "medium" ? "warn" : "info",
       }) },
-      mapCol("kind", "유형", {
+      /* 「요약」(산문)이 남는 폭을 갖는다(D-501) — 이 열은 자기 바닥으로 서므로 가장 긴 값(「권한, 계정 변경」 ·
+         「처음 하는 동작」)이 한 줄로 서는 바닥을 든다. */
+      { ...mapCol("kind", "유형", {
         failure_burst: "실패 급증", volume_spike: "동작 급증", off_hours: "심야 변경",
         critical_action: "권한, 계정 변경", new_actor_action: "처음 하는 동작",
-      }),
+      }), minWidth: "8.5rem" },
       { key: "actor_name", label: "행위자", type: "name", identifier: true, render: (r) => r.actor_name || r.actor_id || "시스템" },
       /* SEM-01: 첫 열(중요도)이 render라 표식 없이는 전부 "상세 보기"였다 — 처음엔 서버가
        * 만들어 주는 요약 문장(title)을 그대로 rowName으로 썼는데(app/audit/anomalies.py의
@@ -449,9 +454,8 @@ export const GOVERNANCE_SCREENS = {
       { label: "이 사람의 감사 로그", roles: ["admin", "system_admin", "auditor"], when: (r) => !!r.actor_id, navigate: (r) => "#/audit?user_id=" + encodeURIComponent(r.actor_id) },
       { label: "실패만 보기", roles: ["admin", "system_admin", "auditor"], when: (r) => r.kind === "failure_burst" && !!r.actor_id, navigate: (r) => "#/audit?user_id=" + encodeURIComponent(r.actor_id) + "&result=failure" },
     ],
-    headerActions: [
-      { label: "감사 로그 전체", roles: ["admin", "system_admin", "auditor"], navigate: () => "#/audit" },
-    ],
+    /* 「감사 로그 전체」 머리 단추를 걷었다(D-501) — 이 화면은 언제나 「감사 로그」 그릇의 탭이라 바로 옆
+       「감사 로그」 탭이 같은 곳으로 간다. 행마다 그 사람의 감사 로그로 가는 길은 위 동작 둘이 든다. */
   },
   rbac: {
     /* C2 «Filter Surface 가 정당한가» — 이 화면은 **행 수가 유한하고 작다**(정책 2 ·
@@ -469,11 +473,15 @@ export const GOVERNANCE_SCREENS = {
     emptyTitle: "권한 정의를 불러오지 못했습니다", emptyHelp: "잠시 후 다시 시도해 주세요.",
     // 열이 곧 역할이라 서버 응답에서 만든다 — 여기에 역할 배열을 적으면 두 벌이 되고,
     // 백엔드에서 규칙을 고쳐도 이 표만 옛 열을 계속 보여 준다(tests/security/test_rbac_matrix.py가 고정).
+    /* 「할 수 있는 일」이 그 행의 이름이라 제목 열이다(D-501) — 홀로 왼쪽에 서고 남는 폭을 갖는다. 예전에는 타입이
+       없는 일곱 열이 1,600px 을 똑같이 나눠 「운영 동작(실행, 재시도, 헬스체크, …」가 잘렸다. 역할 열은 「허용」
+       표지 하나라 상태 열의 바닥이면 머리 이름(「시스템 관리자」)까지 한 줄로 선다. */
     columnsFrom: (data) => [
-      col("capability", "할 수 있는 일"),
-      col("area", "영역"),
+      col("capability", "할 수 있는 일", "title"),
+      col("area", "영역", "enum"),
       ...((data && data.roles) || []).map((role) => ({
         key: "role_" + role.value,
+        type: "status",
         // 범위(scope)가 걸리는 열에만, 서버가 실제로 돌려준 scopes(app/core/authz.py
         // SCOPE_LABELS)로 툴팁을 붙인다 — 어느 역할인지도 data.scoped_role 로 서버가 알려준다
         // (역할 이름을 여기 손으로 적으면 tests/security/test_rbac_matrix.py 가 잡는다).

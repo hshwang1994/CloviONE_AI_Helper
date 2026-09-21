@@ -21,6 +21,9 @@ import "@testing-library/jest-dom/vitest";
  *
  * qa-contract-change: 요약이 판독 줄(MetricStrip) 대신 뜻에 맞는 그릇(summary.kind — KPI 타일 줄 · 상태 요약 카드 · 속성 줄)으로 선다(계획 B-6, 표 7).
  * 요약 줄 구조 단언을 KPI 타일 줄 한 묶음과 칸 수로, 안 읽음 한 칸을 큰 숫자 카드로 옮기고, 옛 판독 줄이 남지 않았다는 단언을 더한다.
+ *
+ * qa-contract-change: 안 읽음 수는 전폭 큰 숫자 카드가 아니라 필터 바 끝의 켬/끔 단추 「안 읽음만 보기 N」이 든다(D-501 — 숫자 하나에 판을 세우지
+ * 않고, 같은 뜻의 셀렉트와 카드가 두 자리에 있던 것을 하나로). 값 하나 카드 두 단언은 그 단추의 이름 · 눌림 · 서버 조건 · 칩 단언으로 옮겼다.
  */
 
 const apiMock = vi.fn();
@@ -400,25 +403,44 @@ describe("요약 줄 — 카드 수와 무관하게 빈 칸이 안 생긴다 (VI
     expect(document.querySelectorAll(".k-metrics, .k-readout")).toHaveLength(0);
   });
 
-  it("unreadCountKey 한 값은 큰 숫자 하나로 선다(값 하나 갈래)", async () => {
-    apiMock.mockResolvedValue({ items: [], total: 0, unread_count: 3 });
-    renderScreen({ ...BASE_CONFIG, unreadCountKey: "unread_count" });
-    const label = await screen.findByText("안 읽음");
+  /* 안 읽음 수는 필터 바 끝의 켬/끔 단추가 든다 (D-501). 예전에는 그 수 하나를 전폭 카드가 따로 들고, 같은 뜻의
+     「읽음 상태」 셀렉트가 그 아래 줄에 섰다 — 한 사실이 두 그릇에 있었다. */
+  const UNREAD_TOGGLE = {
+    key: "unread_only", type: "toggle", label: "읽음 상태", toggleLabel: "안 읽음만 보기",
+    countKey: "unread_count", options: [{ value: "true", label: "안 읽음만" }],
+  };
 
-    const plate = label.closest("[data-summary-single]");
-    expect(plate, "값 하나 카드 안에 있어야 한다").not.toBeNull();
-    expect(within(plate).getByText("3")).toBeInTheDocument();
-    expect(plate.querySelector('[data-ratio-bar]'), "값 하나에는 비율 바가 없다").toBeNull();
-    // 안 읽음이 남아 있으면 주의다 — 판독 줄의 톤 색 대신 이름 앞 점이 말한다(숫자는 잉크색).
-    expect(label.querySelector("[data-status-dot]"), "안 읽음이 남았는데 주의 점이 없다").not.toBeNull();
+  it("안 읽음 수는 켬/끔 단추의 이름이 든다 — 전폭 카드도 셀렉트도 없다", async () => {
+    apiMock.mockResolvedValue({ items: [{ id: "n1", action: "알림", actor: "a" }], total: 1, unread_count: 3 });
+    const { container } = renderScreen({ ...BASE_CONFIG, unreadCountKey: "unread_count", filters: [UNREAD_TOGGLE] });
+    const toggle = await screen.findByRole("button", { name: "안 읽음만 보기 3" });
+    expect(toggle).toHaveAttribute("aria-pressed", "false");
+    expect(toggle.getAttribute("data-filter-toggle")).toBe("toggle");
+    // 단추는 필터 바 줄 끝 묶음에 선다 — 조건 칸이 아니다.
+    expect(toggle.closest("[data-filter-bar]")).not.toBeNull();
+    expect(container.querySelector("[data-summary-single]")).toBeNull();
+    expect(screen.queryByRole("combobox", { name: /읽음 상태/ })).toBeNull();
   });
 
-  it("안 읽음이 0 이면 주의 점을 그리지 않는다", async () => {
-    apiMock.mockResolvedValue({ items: [], total: 0, unread_count: 0 });
-    renderScreen({ ...BASE_CONFIG, unreadCountKey: "unread_count" });
-    const label = await screen.findByText("안 읽음");
-    expect(label.closest("[data-summary-single]")).not.toBeNull();
-    expect(label.querySelector("[data-status-dot]")).toBeNull();
+  it("누르면 그 조건이 서버로 가고 조건 칩이 그 사실을 말한다 — 다시 누르면 풀린다", async () => {
+    apiMock.mockResolvedValue({ items: [{ id: "n1", action: "알림", actor: "a" }], total: 1, unread_count: 3 });
+    const user = userEvent.setup();
+    renderScreen({ ...BASE_CONFIG, unreadCountKey: "unread_count", filters: [UNREAD_TOGGLE] });
+    await user.click(await screen.findByRole("button", { name: "안 읽음만 보기 3" }));
+    await waitFor(() => {
+      expect(apiMock.mock.calls.some(([u]) => String(u).includes("unread_only=true"))).toBe(true);
+    });
+    expect(screen.getByRole("button", { name: "안 읽음만 보기 3" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByText("읽음 상태: 안 읽음만")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "안 읽음만 보기 3" }));
+    expect(screen.getByRole("button", { name: "안 읽음만 보기 3" })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.queryByText("읽음 상태: 안 읽음만")).toBeNull();
+  });
+
+  it("반례 — 셀 수를 말하지 않는 켬/끔 조건은 이름만 든다", async () => {
+    apiMock.mockResolvedValue({ items: [{ id: "n1", action: "알림", actor: "a" }], total: 1, unread_count: 3 });
+    renderScreen({ ...BASE_CONFIG, filters: [{ ...UNREAD_TOGGLE, countKey: undefined }] });
+    expect(await screen.findByRole("button", { name: "안 읽음만 보기" })).toHaveAttribute("aria-pressed", "false");
   });
 });
 

@@ -269,13 +269,16 @@ function AdminRoutes() {
         {registry && TAB_GROUPS.flatMap((g) => {
           const roles = SCREEN_ROLES[g.tabs[0].key];
           if (!sameRoles(g.tabs)) return [];   // 조립 실수를 화면에 내보내지 않는다
+          /* 옛 주소는 **켜질 탭만** 바꾼다(`defaultTab`) — 탭 줄은 언제나 정의 순서다(D-501). 예전에는 그 탭을
+             맨 앞으로 옮겨 기본 탭으로 삼아, 같은 그릇이 들어온 길에 따라 탭 순서가 뒤집혔다
+             (`/restore-drills` → [복구 리허설|백업], `/scheduler-calendar` → [달력|목록]). */
           const shellFor = (firstKey) => {
-            const ordered = [...g.tabs].sort((a, b) => (a.key === firstKey ? -1 : b.key === firstKey ? 1 : 0));
             return (
               <RequireRole roles={roles} help={SCREEN_ROLE_HELP[g.tabs[0].key]}>
                 <TabShell
                   area={g.area} title={g.title} idPrefix={g.path.slice(1)}
-                  tabs={ordered.map((t) => ({
+                  defaultTab={firstKey}
+                  tabs={g.tabs.map((t) => ({
                     key: t.key,
                     label: t.label,
                     /* 도움말은 그릇이 `?` 로 그린다(D-453) — 목록 탭은 registry 의 문장 + 절차

@@ -17,6 +17,41 @@ export function mergeDetailFields(config, columns) {
   return merged;
 }
 
+/* ── 상세의 빈 값은 한 줄이다 (D-501) ─────────────────────────────────────────
+ *
+ * 작업 큐의 상세는 열여덟 줄 중 열 줄이 「-」였다(대기 중인 작업이라 시작 · 종료 · 소요 시간 · 오류가 아직 없다).
+ * 값이 없는 줄이 값이 있는 줄 사이에 끼어 있으면 눈은 「-」 열 개를 다 지나야 읽을 것을 찾는다. 끝남 · 0 · 없음은
+ * 한 줄이고, 값이 있는 것만 펼친다 — 빈 줄들은 마지막 한 줄 「값 없음」이 이름만 나열한다(무엇이 비었는지는 남는다).
+ *
+ * 무엇이 「없음」인가: 그린 값이 비었거나 `-` 이면 없음이다(`render` 가 없다고 말하는 관례가 `-` 다). 그린 값이
+ * 그림(`DateCell` · `Badge`)이라 글자로 판단할 수 없는 필드는 스스로 `isEmpty(row)` 를 든다(`columnHelpers.jsx`). */
+export const EMPTY_DETAIL_LABEL = "값 없음";
+
+/** 상세 한 줄에 그릴 값 — 표 칸과 같은 규칙(`render` 가 이기고, 없으면 원시 값 · 빈 값은 `-`). */
+export function detailValueOf(field, row) {
+  if (field.render) return field.render(row);
+  const v = row[field.key];
+  return v == null || v === "" ? "-" : String(v);
+}
+
+/** 이 줄이 「값 없음」으로 접히는가. */
+export function isEmptyDetailValue(field, row, value) {
+  if (typeof field.isEmpty === "function") return !!field.isEmpty(row);
+  return value == null || value === false || value === "" || value === "-";
+}
+
+/** 필드를 값이 있는 줄(그린 값과 함께)과 빈 줄로 가른다. 순서는 그대로다. */
+export function partitionDetailFields(fields, row) {
+  const filled = [];
+  const empty = [];
+  for (const field of fields || []) {
+    const value = detailValueOf(field, row);
+    if (isEmptyDetailValue(field, row, value)) empty.push(field);
+    else filled.push({ field, value });
+  }
+  return { filled, empty };
+}
+
 export function detailTitle(row, columns) {
   const cols = columns || [];
   // SEM-01의 rowOpenLabel(kit.jsx)과 같은 기준을 쓴다 — 열 정의가 rowName을 선언했으면(등록

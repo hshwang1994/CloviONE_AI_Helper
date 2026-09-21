@@ -890,15 +890,16 @@ export function KnowledgeDoc() {
              할 수 없는 일이라(서버가 404 로 막는다) 그려 두면 눌러 보고서야 알게 된다.
              특히 「휴지통으로 보내기」는 **이미 그 안에 있는 문서**에 대한 제안이었다. */
           <>
+            <Button onClick={() => setHistory((v) => !v)}>
+              {history ? "이력 닫기" : `이력 ${versionRows.length}`}
+            </Button>
+            <Button onClick={() => navigate(backTo)}>목록으로</Button>
+            {/* 채움은 머리 동작의 오른쪽 끝이다(D-501) — 살아 있는 문서의 「저장」과 같은 자리다. */}
             {canRestore ? (
               <Button variant="primary" loading={unarchive.isPending} onClick={() => unarchive.mutate()}>
                 복원
               </Button>
             ) : null}
-            <Button onClick={() => setHistory((v) => !v)}>
-              {history ? "이력 닫기" : `이력 ${versionRows.length}`}
-            </Button>
-            <Button onClick={() => navigate(backTo)}>목록으로</Button>
           </>
         ) : (
           <>
