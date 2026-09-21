@@ -1,3 +1,4 @@
+/* qa-contract-change: 실패 작업 경보의 단추가 「작업 큐 열기」에서 목적지를 말하는 「실패 작업 보기」가 됐다(실패로 거른 작업 큐로 간다). 권한 노출 판정은 그대로다. */
 /* qa-contract-change: S11 이 대시보드의 «활성 워크플로» 타일을 걷어냈다(그 화면이 없어졌다). 줄어든 단언 하나가 정확히 그 타일이고, 나머지 지표 넷의 단언은 그대로다 — 값도 형태도 안 바뀌었다. */
 import React from "react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
@@ -257,7 +258,7 @@ describe("대시보드 — 조치 버튼의 권한 노출(PA-RC-0018 acceptance 
     expect(btn).toBeDisabled();
     // 작업 큐 읽기는 감사자에게 열렸다(app/jobs/router.py) — 실패 작업 경보는 큐로 간다.
     expect(screen.queryByText(/실패 작업.*관리자 문의/)).toBeNull();
-    expect(screen.getByRole("button", { name: "작업 큐 열기" })).not.toBeDisabled();
+    expect(screen.getByRole("button", { name: "실패 작업 보기" })).not.toBeDisabled();
   });
 
   it("작업 큐에 갈 수 있는 역할(operator)에게는 같은 경보 버튼이 활성이다", async () => {
@@ -266,7 +267,7 @@ describe("대시보드 — 조치 버튼의 권한 노출(PA-RC-0018 acceptance 
     renderDashboard();
 
     expect(await screen.findByText("지금 상태")).toBeInTheDocument();
-    const btn = screen.getByRole("button", { name: "작업 큐 열기" });
+    const btn = screen.getByRole("button", { name: "실패 작업 보기" });
     expect(btn).not.toBeDisabled();
   });
 });

@@ -120,6 +120,9 @@ export function dashboardNav(role) {
    `canGo("/settings")` 는 더 넓은 집합을 허용하므로 그것만 보고 링크를 걸면 눌러서 들어간
    사람이 그 탭을 못 본다 — 백업 경보가 역할을 직접 보는 것과 같은 이유다. */
 const STORAGE_TO = "/settings?tab=storage";
+/* 작업 큐를 상태로 걸러 여는 주소 — 경보 행의 목적지이자 단추 이름의 열쇠다(`ACTION_LABEL`). */
+const JOBS_FAILED_TO = "/jobs?status=failed";
+const JOBS_QUEUED_TO = "/jobs?status=queued";
 const storageTarget = (role) => (role === "system_admin" ? STORAGE_TO : undefined);
 
 /* 운영자가 지금 확인해야 할 것 — **조치가 필요한 항목만** 담는다.
@@ -142,8 +145,10 @@ export function buildAlerts(d, role) {
   // 다른 경보들의 원인이 이것일 수 있다(작업이 안 쌓이는 이유 등).
   // `/maintenance` 는 `/settings?tab=policy` 로 접힌 옛 주소다 — 링크는 실제 목적지를 가리킨다.
   if (d.maintenance) alerts.push({ src: "maintenance", label: "유지보수 모드", value: "활성", kind: "danger", to: canGo("/settings", role) ? "/settings?tab=policy" : undefined });
-  if (jobs.failed_open) alerts.push({ src: "job:failed", label: "실패 작업" + failedOpenAgeLabel(jobs) + jobsNote, value: fmtNum(jobs.failed_open), kind: "danger", to: jobsTo });
-  if (jobs.queued) alerts.push({ src: "job:queued", label: "대기 작업" + jobsNote, value: fmtNum(jobs.queued), kind: "warn", to: jobsTo });
+  /* 실패 · 대기 경보는 작업 큐를 **그 상태로 걸러서** 연다. 둘 다 맨 `/jobs` 로 보내면 같은 이름(「작업 큐 열기」)의 단추가
+     두 줄에 서고, 누른 사람은 전체 목록에서 그 작업을 다시 찾아야 했다. 작업 큐는 주소의 `status` 를 필터로 읽는다. */
+  if (jobs.failed_open) alerts.push({ src: "job:failed", label: "실패 작업" + failedOpenAgeLabel(jobs) + jobsNote, value: fmtNum(jobs.failed_open), kind: "danger", to: jobsTo && JOBS_FAILED_TO });
+  if (jobs.queued) alerts.push({ src: "job:queued", label: "대기 작업" + jobsNote, value: fmtNum(jobs.queued), kind: "warn", to: jobsTo && JOBS_QUEUED_TO });
   // success_rate_pct의 분모는 최근 24시간에 '종료된'(성공+실패+취소) 작업만이다 — 접수만
   // 몰린 순간에는 이 값이 영향받지 않는다. headlineStats의 80/95 경계와 맞춘다.
   if (jobs.success_rate_pct != null && jobs.total > 0 && jobs.success_rate_pct < 80)
@@ -311,6 +316,8 @@ const ACTION_LABEL = {
   "/settings?tab=policy": "유지보수 설정 열기",
   [STORAGE_TO]: "파일 저장소 열기",
   "/jobs": "작업 큐 열기",
+  [JOBS_FAILED_TO]: "실패 작업 보기",
+  [JOBS_QUEUED_TO]: "대기 작업 보기",
   "/diagnostics": "진단 열기",
   "/backup": "백업 관리로 이동",
 };

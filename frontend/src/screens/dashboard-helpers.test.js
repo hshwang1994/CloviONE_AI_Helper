@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+/* qa-contract-change: 실패 · 대기 작업 경보의 목적지가 맨 `/jobs` 에서 그 상태로 거른 작업 큐(`/jobs?status=failed|queued`)로 바뀌었다. 두 줄이 같은 이름의 단추로 같은 곳에 가던 결함을 고친 것이고, 권한 판정(jobsTo)은 그대로다. */
 /* 링크 활성화 판정의 정본은 `app/navConfig.js` 한 곳이다 — 예전에는 Dashboard.jsx 가
    자기 표를 들고 있었고 그 표가 정본과 갈라져 있었다(아래 describe 참고, 지시 21). */
 import { canReach as canGo } from "../app/navConfig.js";
@@ -212,8 +213,8 @@ describe("buildAlerts — 조치 대기 목록의 값(원본 로직 그대로)",
 
   it("실패 작업은 danger, 대기 작업은 warn이다", () => {
     const a = buildAlerts({ jobs_24h: { failed_open: 5, queued: 2 } }, "admin");
-    expect(a.find((x) => x.src === "job:failed")).toMatchObject({ value: "5", kind: "danger", to: "/jobs" });
-    expect(a.find((x) => x.src === "job:queued")).toMatchObject({ value: "2", kind: "warn", to: "/jobs" });
+    expect(a.find((x) => x.src === "job:failed")).toMatchObject({ value: "5", kind: "danger", to: "/jobs?status=failed" });
+    expect(a.find((x) => x.src === "job:queued")).toMatchObject({ value: "2", kind: "warn", to: "/jobs?status=queued" });
   });
 
   it("성공률은 80/95% 경계로 danger/warn/무경보가 갈린다(끝난 작업이 있을 때만)", () => {
