@@ -150,6 +150,15 @@ describe("프로젝트 후보 질의 — 서버가 받아 주는 요청인가", 
     );
   });
 
+  it("필터 줄의 프로젝트 칸은 wide 이고 작성자 칸은 기본 칸이다 — 프로젝트 이름은 값이 긴 축이다", async () => {
+    renderScreen();
+    const project = (await screen.findByRole("combobox", { name: /프로젝트/ })).closest("[data-filter-kind]");
+    expect(project.getAttribute("data-filter-size")).toBe("wide");
+    const author = screen.getByRole("combobox", { name: "작성자" }).closest("[data-filter-kind]");
+    expect(author.getAttribute("data-filter-kind")).toBe("entity");
+    expect(author.hasAttribute("data-filter-size")).toBe(false);
+  });
+
   it("자리가 여럿이면 진입하자마자 「프로젝트 미지정」으로 접히지 않는다", async () => {
     renderScreen("/knowledge");
     await screen.findByRole("combobox", { name: /프로젝트/ });

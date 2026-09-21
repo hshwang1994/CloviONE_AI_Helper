@@ -323,7 +323,7 @@ export function KitGallery() {
         <GallerySection
           id="kit-filter-bar"
           title="검색과 필터 바"
-          help="한 줄 순서는 검색 320, 필터 칸, 빈 공간, 오른쪽 끝 묶음입니다. 칸 이름은 칸 안에 서고, 조건이 걸리면 실선 아래 둘째 줄에 조건 수와 칩과 지우기가 섭니다."
+          help="한 줄 순서는 검색 320, 필터 칸, 빈 공간, 오른쪽 끝 묶음입니다. 칸 이름은 칸 안에 서고, 조건이 걸리면 실선 아래 둘째 줄에 조건 수와 칩과 지우기가 섭니다. 프로젝트처럼 값이 긴 칸은 필터 면이 넓으면 더 넓게 섭니다."
           parts={[
             { name: "FilterBar", path: "ui/FilterBar.jsx", ledger: "FilterBar" },
             { name: "FilterConditionLine / FilterToggle", path: "ui/FilterBar.jsx", ledger: "FilterBar" },
@@ -336,7 +336,9 @@ export function KitGallery() {
               end={<FilterToggle expanded={false} onClick={() => {}}>상세 필터</FilterToggle>}
               conditions={{ chips: [], total: 21 }}
             >
+              {/* 프로젝트는 값이 긴 축이라 wide 칸이다 — 필터 면의 폭을 따라 13 · 16 · 20rem 으로 선다(`ROW_KIND.entityWide`). */}
               <EntityCombobox
+                size="wide"
                 label="프로젝트" value={project} onChange={setProject}
                 options={[{ value: "p1", label: "포털 개편" }, { value: "p2", label: "인프라 정비" }]}
               />
@@ -366,8 +368,9 @@ export function KitGallery() {
                 extraAction: { label: "전체 보기", onClick: () => {} },
               }}
             >
+              {/* 긴 값이 선 wide 칸의 견본이다 — 1920 에서는 20rem 칸에 고른 이름이 더 보이고, 잘린 뒤에도 전체 이름은 `title` 이 든다. */}
               <EntityCombobox
-                multiple label="프로젝트" value={projects} onChange={setProjects}
+                multiple size="wide" label="프로젝트" value={projects} onChange={setProjects}
                 options={[
                   { value: "p1", label: "ClovirAssist 플랫폼 전환 및 자체 데이터 이관" },
                   { value: "p2", label: "인프라 정비" },
@@ -974,8 +977,9 @@ export function KitGallery() {
               </Box>
             </Sample>
             <Sample label="필터 칸의 긴 값">
+              {/* 면이 40rem 이라 wide 칸도 바닥 계단(13rem)에 선다 — 좁은 면에서는 말줄임과 `title` 이 값을 지킨다. */}
               <FilterBar sx={{ mb: 0, maxWidth: "40rem" }}>
-                <EntityCombobox label="프로젝트" value="p-long" onChange={() => {}} options={[{ value: "p-long", label: `P. ${LONG_TITLE}` }]} />
+                <EntityCombobox size="wide" label="프로젝트" value="p-long" onChange={() => {}} options={[{ value: "p-long", label: `P. ${LONG_TITLE}` }]} />
                 <FilterSelect label="분류" value="k" onChange={() => {}} options={[{ value: "k", label: LONG_TITLE }]} />
               </FilterBar>
             </Sample>

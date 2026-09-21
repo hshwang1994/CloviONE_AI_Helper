@@ -27,7 +27,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 const apiMock = vi.fn();
 vi.mock("../lib/api.js", () => ({ api: (...args) => apiMock(...args), setCsrf: () => {} }));
 
-import { FilterRow, FilterSurface, filterGroupOf, FILTER_GROUP_ORDER } from "./FilterBar.jsx";
+import { FilterRow, FilterSurface, entitySizeOf, filterGroupOf, FILTER_GROUP_ORDER } from "./FilterBar.jsx";
 import { CONTROL_KIND, kindSx } from "./filters.jsx";
 import { createClovirTheme } from "./theme.js";
 import { TicketFilterBar } from "../screens/TicketFilterBar.jsx";
@@ -131,6 +131,24 @@ describe("필터 축의 그룹 순서는 한 곳에서 정한다 (C2 «그룹 �
   });
 });
 
+describe("Entity 칸의 크기는 축이 정한다 — 값이 긴 축은 wide 다", () => {
+  it("프로젝트 · 부서 · 팀 · 문서 공간 · 회차 · 일정 키는 wide 이고, 사람과 이름 축은 기본 칸이다", () => {
+    for (const key of ["project_id", "dept", "department_id", "team_id", "space_id", "sprint_id", "schedule_id"]) {
+      expect(entitySizeOf({ key, kind: "entity" }), key).toBe("wide");
+    }
+    for (const key of ["user_id", "requested_by", "actor_user_id", "target_user_id", "name", "assignee_user_id"]) {
+      expect(entitySizeOf({ key, kind: "entity" }), key).toBe("default");
+    }
+  });
+
+  it("선언이 크기를 말하면 그것이 이기고, 모르는 값은 무시한다", () => {
+    expect(entitySizeOf({ key: "user_id", size: "wide" })).toBe("wide");
+    expect(entitySizeOf({ key: "project_id", size: "default" })).toBe("default");
+    expect(entitySizeOf({ key: "project_id", size: "huge" })).toBe("wide");
+    expect(entitySizeOf(null)).toBe("default");
+  });
+});
+
 /* TicketFilterBar.jsx 가 실제로 이 공유 계약을 쓰는지 — 화면 두 곳(TicketFilterBar,
  * DataScreen)이 각자 격자를 복제하던 것을 하나로 모은 것이므로, 부품 자체 검사만으로는
  * "실제 화면이 그것을 쓴다"를 보장하지 못한다. */
@@ -196,5 +214,18 @@ describe("TicketFilterBar — 공유 탐색 줄 계약을 실제로 쓴다", () 
     renderBar(["status"], { status: "" });
     await screen.findByRole("combobox", { name: "상태" });
     expect(screen.queryByRole("button", { name: "필터 지우기" })).toBeNull();
+  });
+
+  it("칸 폭은 축의 뜻을 따른다 — 프로젝트는 wide, 담당자는 기본 Entity, 기한은 날짜가 아니라 열거 칸이다", async () => {
+    renderBar(["project_id", "assignee_user_id", "due"], { project_id: [], assignee_user_id: [], due: "" });
+    const cellOf = async (name) => (await screen.findByRole("combobox", { name })).closest("[data-filter-kind]");
+    const project = await cellOf("프로젝트");
+    expect(project.getAttribute("data-filter-kind")).toBe("entity");
+    expect(project.getAttribute("data-filter-size")).toBe("wide");
+    const assignee = await cellOf("담당자");
+    expect(assignee.getAttribute("data-filter-kind")).toBe("entity");
+    expect(assignee.hasAttribute("data-filter-size")).toBe(false);
+    // 「기한」은 지연 · 이번 주 · 다음 주 세 낱말의 열거다 — 날짜 위젯 폭(11rem)을 받지 않는다.
+    expect((await cellOf("기한")).getAttribute("data-filter-kind")).toBe("enum");
   });
 });

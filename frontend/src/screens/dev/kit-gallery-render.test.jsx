@@ -38,6 +38,10 @@ describe("부품 갤러리", () => {
     const filterSection = document.getElementById("kit-filter-bar");
     expect(filterSection.querySelectorAll("[data-filter-bar]")).toHaveLength(3);
     expect(filterSection.querySelectorAll("[data-condition-line]")).toHaveLength(1);
+    // 프로젝트 칸은 wide 다 — 긴 값이 선 견본이 있고, 잘려도 전체 이름은 title 이 든다.
+    const wide = [...filterSection.querySelectorAll('[data-filter-size="wide"]')];
+    expect(wide).toHaveLength(2);
+    expect(wide[1].querySelector("[data-row-value]").getAttribute("title")).toBe("ClovirAssist 플랫폼 전환 및 자체 데이터 이관, 포털 개편");
     const referenceErrors = errors.mock.calls.filter((args) => String(args[0] && (args[0].stack || args[0])).includes("ReferenceError"));
     expect(referenceErrors).toHaveLength(0);
     errors.mockRestore();

@@ -68,10 +68,30 @@ export const CONTROL_KIND = {
  * `title` 이 든다.
  *
  * 검색은 이 표 밖이다 — 줄의 검색 슬롯(20rem)이 정한다(`FilterBar.jsx::searchSlotSx`). 호출부가 `sx` 로 폭을
- * 말하면 그 값이 이긴다(작업 보드 · 스프린트 회의의 두 줄 필터 — D-484). */
+ * 말하면 그 값이 이긴다(작업 보드 · 스프린트 회의의 두 줄 필터 — D-484).
+ *
+ * 🔴 **Entity 칸은 크기가 둘이다 — 기본(`entity`)과 `wide`(`entityWide`).** 종류마다 폭을 하나만 두면 값이 긴 축이 잘린다.
+ * 1920 팀 티켓의 프로젝트 칸은 208px 이라 이름 뒤의 값 자리가 100px 이 안 됐고, 앞부분이 같은 프로젝트끼리는 잘린 뒤 서로
+ * 구분되지 않았다. 사람처럼 값이 짧은 축은 기본 13rem 이다. 프로젝트 · 부서와 팀의 경로 · 회차 · 문서 공간 · 연결된 스케줄은
+ * `wide` 다(`EntityCombobox size="wide"`).
+ *
+ * wide 칸은 **필터 면의 폭**을 보고 세 계단으로 선다. 뷰포트가 아니라 면이 기준이다(`FILTER_SURFACE_CONTAINER`). 면이 96rem
+ * 이상이면 20rem, 76rem 이상이면 16rem, 그보다 좁으면 기본과 같은 13rem 이다. 그래서 1366(면 1,070px)에서는 줄바꿈이 예전과
+ * 같고 1600(1,288px)은 16rem, 1920(1,608px)은 20rem 이다. 계단은 늘어남이 아니다 — 면의 폭이 같으면 어느 줄에 서든 칸의 폭이
+ * 같고, 칸은 줄의 남는 폭을 먹지 않는다(C-2 그대로).
+ *
+ * 계단은 폭을 직접 말하지 않고 사용자 정의 속성(`--filter-wide`) 하나만 바꾼다. 컨테이너 질의 규칙은 평범한 규칙보다 뒤에
+ * 실리므로 계단이 `flex` · `width` 를 직접 말하면 호출부 `sx` 의 폭까지 덮는다. 값 하나만 바꾸면 폭을 말하는 호출부가 여전히
+ * 이긴다. */
 export const ROW_KIND = {
   search: CONTROL_KIND.search,
   entity: { flex: "0 0 13rem", width: "13rem", minWidth: 0, maxWidth: "100%" },
+  entityWide: {
+    "--filter-wide": "13rem",
+    flex: "0 0 var(--filter-wide)", width: "var(--filter-wide)", minWidth: 0, maxWidth: "100%",
+    "@container filter-surface (min-width: 76rem)": { "--filter-wide": "16rem" },
+    "@container filter-surface (min-width: 96rem)": { "--filter-wide": "20rem" },
+  },
   enum: { flex: "0 0 auto", minWidth: "8rem", maxWidth: "13rem" },
   /* 자유 입력은 **값 자리 6rem + 이름**이다 — 이름이 긴 칸(감사 「작업(정확히, 예: user.update)」)을 11rem 에 가두면 이름이
      칸을 다 먹어 친 글자가 안 보인다. 짧은 이름은 11rem 바닥에 선다. */
@@ -81,6 +101,11 @@ export const ROW_KIND = {
   number: CONTROL_KIND.number,
   toggle: CONTROL_KIND.toggle,
 };
+
+/** 필터 면을 **크기 컨테이너**로 여는 선언. `FilterBar.jsx::FilterSurface` 가 깔고, 위 `ROW_KIND.entityWide` 의 계단이
+ * 이 이름으로 면의 폭을 묻는다. 이름을 붙이는 이유는 면 안에 다른 크기 컨테이너가 생겨도 계단이 그쪽을 보지 않게 하려는
+ * 것이다(`density.js::CONTENT_PAIR_CONTAINER` 와 같은 관례). */
+export const FILTER_SURFACE_CONTAINER = { containerType: "inline-size", containerName: "filter-surface" };
 
 /** 폼 칸으로 설 때의 치수 — **줄 치수를 통째로 무효로 만든다.**
  *
@@ -225,10 +250,13 @@ export function withLabelAbove(sx) {
   return { ...LABEL_ABOVE_SX, ...sx };
 }
 
-export function kindSx(kind, sx, layout, row = false) {
+/* `size` — 줄 칸의 크기. `"wide"` 는 그 종류에 wide 치수(`ROW_KIND.entityWide`)가 있을 때만 뜻이 있고, 줄 밖(흐름 치수 ·
+   폼 치수)에서는 쓰지 않는다. */
+export function kindSx(kind, sx, layout, row = false, size) {
+  const rowSpec = (size === "wide" && ROW_KIND[`${kind}Wide`]) || ROW_KIND[kind];
   const base = layout === "form" || layout === "fill"
     ? FORM_FIELD_SX
-    : (row ? (ROW_KIND[kind] || CONTROL_KIND[kind] || null) : (CONTROL_KIND[kind] || null));
+    : (row ? (rowSpec || CONTROL_KIND[kind] || null) : (CONTROL_KIND[kind] || null));
   /* 검색창은 친 글자라 값 굵기(600)를 받지 않는다 — 이름표가 없는 칸이다. */
   const extra = row === "search" ? ROW_SEARCH_SX : row ? ROW_CELL_SX : null;
   if (!base && !extra) return sx;
@@ -591,17 +619,23 @@ const ENTITY_FILTER = foldedFilterOptions({ stringify: (o) => [optionLabelOf(o),
  *      끼워 넣는다(`FilterSelect` 와 같은 규율).
  *   ⑤ **키보드.** MUI Autocomplete 가 ARIA 1.2 combobox 시맨틱·화살표·Home/End·Escape 를
  *      내장한다. 새 의존성이 아니다 — 이미 `MyTickets.jsx` 의 담당자 선택이 쓰고 있다.
+ *
+ * `size="wide"` 는 값이 긴 축(프로젝트 · 부서와 팀의 경로 · 회차 · 문서 공간 · 연결된 스케줄)의 줄 칸이다. 폭은 필터 면이
+ * 정한다(`ROW_KIND.entityWide`). 사람처럼 값이 짧은 축은 주지 않는다.
  */
 export function EntityCombobox({
   label, value, onChange, options, loading, disabled, sx, kind = "entity", id,
   placeholder, allLabel, noOptionsText = "일치하는 항목이 없습니다", required, helperText,
   ariaLabelledBy, ariaDescribedBy, hideLabel, multiple = false, renderOption, noAllOption = false, layout, myId,
-  open, disablePortal,
+  open, disablePortal, size,
 }) {
   const list = mineFirst(normalizeOptions(options), myId);
   /* 필터 바 줄 칸이면 이름이 칸 안 접두로 선다(위 `FilterRowContext`). 이름을 밖에서 그리는 폼
      자리(`hideLabel` · `ariaLabelledBy`)는 줄 칸이 아니다. */
   const row = useRowCell(layout) && !hideLabel && !ariaLabelledBy;
+  /* 크기는 줄 칸에서만 뜻이 있다 — 폼 칸은 부모 폭을 그대로 쓴다. 칸 뿌리의 `data-filter-size` 는 실브라우저 잣대
+     (`composition_checks.py` · `filter_e2e.py`)가 기본 칸과 wide 칸의 폭 계약을 가르는 표식이다. */
+  const cellSize = row && size === "wide" ? "wide" : undefined;
   // 기본 렌더(라벨 + 보조줄)는 그대로 두고, 부르는 쪽이 다른 그림(아바타 등)이 필요하면
   // 이것 하나로 갈아 끼운다 — §15.3 의 UserPicker 가 이 자리를 쓴다.
   const renderRow = renderOption || ((props, o, state) => (
@@ -643,7 +677,8 @@ export function EntityCombobox({
         noOptionsText={noOptionsText}
         loadingText="불러오는 중…"
         data-filter-kind={kind}
-        sx={kindSx(kind, sx, layout, row)}
+        data-filter-size={cellSize}
+        sx={kindSx(kind, sx, layout, row, cellSize)}
         ListboxProps={{ sx: FILTER_LISTBOX_SX }}
         renderOption={renderRow}
         renderTags={row
@@ -722,7 +757,8 @@ export function EntityCombobox({
       noOptionsText={noOptionsText}
       loadingText="불러오는 중…"
       data-filter-kind={kind}
-      sx={kindSx(kind, sx, layout, row)}
+      data-filter-size={cellSize}
+      sx={kindSx(kind, sx, layout, row, cellSize)}
       ListboxProps={{ sx: FILTER_LISTBOX_SX }}
       renderOption={renderRow}
       renderInput={(params) => {
@@ -797,8 +833,10 @@ export function EntityCombobox({
  * (`team.options` — 회차를 볼 수 있는 팀)만이고, 화면이 스스로 조직도를 훑어 만들지 않는다.
  *
  * 후보가 하나뿐이면 아무것도 안 그린다 — 선택지가 하나인 선택기는 정보가 아니라 소음이다.
- * 그때도 문맥은 주소(`team`)에 있다. */
-export function TeamSelect({ team, value, onChange, label = "팀", sx, loading }) {
+ * 그때도 문맥은 주소(`team`)에 있다.
+ *
+ * 칸은 wide 가 기본이다 — 이름이 「플랫폼본부 › 플랫폼개발팀」 같은 경로라 값이 긴 축이다(`ROW_KIND.entityWide`). */
+export function TeamSelect({ team, value, onChange, label = "팀", sx, loading, size = "wide" }) {
   const options = (team && team.options) || [];
   /* 줄 칸에는 이름(「팀」)이 칸 안 접두로 이미 선다 — 빈 글자는 회차 칸과 같은 「고르세요」다. 폼 자리는
      이름이 칸 위라 빈 글자가 스스로 무엇을 고르는지 말한다(「팀을 고르세요」). */
@@ -813,6 +851,7 @@ export function TeamSelect({ team, value, onChange, label = "팀", sx, loading }
       noAllOption
       allLabel={row ? "고르세요" : "팀을 고르세요"}
       sx={sx}
+      size={size}
       options={options.map((o) => ({
         value: o.id,
         label: (o.path || []).map((n) => n.name).join(" › ") || o.name,
@@ -821,14 +860,14 @@ export function TeamSelect({ team, value, onChange, label = "팀", sx, loading }
   );
 }
 
-export function DepartmentFilter({ departments, value, onChange, label = "부서", sx }) {
+export function DepartmentFilter({ departments, value, onChange, label = "부서", sx, size = "wide" }) {
   const options = (departments && departments.options) || [];
   if (options.length < 2) return null;
   /* 부서는 **Entity** 다 — 조직이 자라면 후보도 자란다. 그리고 이 축의 라벨은 경로라서
      제품에서 가장 긴 값 축에 속한다("브로드컴사업본부 › ClovirONE팀"). 닫힌 열거형용
      `FilterSelect` 로 그리면 그 경로가 255px 트랙 안에서 잘리고, 잘린 뒤에는 같은 본부의
      팀들이 서로 구분되지 않는다. 이름은 **보조 식별자**로 함께 낸다 — 조직 개편으로 같은
-     이름이 다른 자리에 생기면 경로만이 둘을 가른다. */
+     이름이 다른 자리에 생기면 경로만이 둘을 가른다. 같은 이유로 칸은 wide 가 기본이다(`ROW_KIND.entityWide`). */
   return (
     <EntityCombobox
       label={label}
@@ -836,6 +875,7 @@ export function DepartmentFilter({ departments, value, onChange, label = "부서
       onChange={onChange}
       allLabel="내 범위 전체"
       sx={sx}
+      size={size}
       options={options.map((o) => ({
         value: o.id,
         label: (o.path || []).map((n) => n.name).join(" › ") || o.name,

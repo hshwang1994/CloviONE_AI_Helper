@@ -14,7 +14,9 @@ W5 가 바꾼 것 중 셋은 jsdom 이 원리적으로 말할 수 없다.
 ## 이 모듈이 재는 계약
 
   · 탐색 줄이 **칠해진 면이 아닌가**(배경·네 변 테두리 없음), 아래 실선 하나로 갈리는가
-  · 컨트롤 폭이 **종류 표를 따르는가** — Entity 는 13rem 고정, 닫힌 열거형은 8~13rem 내용 폭(UI 3차 · 조합 계약 C-2)
+  · 컨트롤 폭이 **종류 표를 따르는가** — Entity 는 13rem 고정, 값이 긴 축의 wide Entity(`data-filter-size="wide"`)는
+    필터 면 폭을 따라 13~20rem, 닫힌 열거형은 8~13rem 내용 폭(UI 3차 · 조합 계약 C-2). wide 칸이 면에 맞는 계단인지는
+    `composition_checks.py::filter_cell_anatomy` 가 잰다
   · **고아 줄이 없는가** — 컨트롤 하나가 줄의 절반 넘게 비우면서 왼쪽에서 시작하는 자리
   · 한 줄 안 컨트롤 **높이가 하나인가**(같은 종류끼리 4px 이내)
   · 걸린 조건 · 결과 수 · 「필터 지우기」가 **필터 면 안 조건 줄에만** 있는가 — 면 밖 결과 줄 · 줄 끝 동작 묶음의
@@ -47,11 +49,13 @@ from scripts.ui_qa import tls  # noqa: E402
 
 OUT_DEFAULT = REPO_ROOT / "dist" / "ui-qa" / "w5-filter-e2e"
 
-# 탐색 줄이 있는 화면 넷. **서로 다른 렌더 경로**를 하나씩 고른다 —
+# 탐색 줄이 있는 화면 다섯. **서로 다른 렌더 경로**를 하나씩 고른다 —
 # 티켓 필터 바 · 설정 주도(DataScreen) · 손수 만든 목록(문서) · 도구 줄만 있는 화면(Board).
-# 한 경로만 재면 "그 화면은 고쳤다" 밖에 말하지 못한다.
+# 한 경로만 재면 "그 화면은 고쳤다" 밖에 말하지 못한다. 티켓 필터 바는 둘이다 — 팀 티켓은 칸이 가장 많은 필터 바라
+# (wide 칸인 부서 · 프로젝트에 칸 일곱과 오른쪽 끝 켬/끔) 줄바꿈이 폭마다 달라지므로 고아 줄을 재는 표본으로 따로 둔다.
 ROUTES = [
     ("my-tickets", "/my-tickets"),
+    ("team-tickets", "/team-tickets"),
     ("policies", "/policies"),
     # 문서는 `/knowledge` 다 (S14 · C2). 옛 `/team-docs` 는 그쪽으로 가는 리다이렉트라,
     # 그대로 두면 이 하네스가 **도착지 화면을 찍고 옛 이름으로 기록**한다 — 어느 화면을
@@ -88,7 +92,7 @@ MEASURE_JS = r"""() => {
     for (const k of row.children) {
       const b = k.getBoundingClientRect();
       if (b.width < 1 || b.height < 1) continue;
-      kids.push({ el: k, r: b, kind: k.getAttribute('data-filter-kind') || '' });
+      kids.push({ el: k, r: b, kind: k.getAttribute('data-filter-kind') || '', wide: k.getAttribute('data-filter-size') === 'wide' });
     }
     kids.sort((a, b2) => (a.r.top - b2.r.top) || (a.r.left - b2.r.left));
     const lines = [];
@@ -143,7 +147,9 @@ MEASURE_JS = r"""() => {
         const kind = it.kind || 'other';
         (byKind[kind] = byKind[kind] || []).push(b.height);
         if (it.kind) {
-          out.kindWidths[it.kind] = Math.max(out.kindWidths[it.kind] || 0, Math.round(b.width));
+          /* wide Entity 칸은 따로 센다 — 기본 칸(13rem 고정)과 폭 계약이 다르다. */
+          const key = it.kind + (it.wide ? 'Wide' : '');
+          out.kindWidths[key] = Math.max(out.kindWidths[key] || 0, Math.round(b.width));
         }
       }
       for (const [kind, hs] of Object.entries(byKind)) {
@@ -156,12 +162,17 @@ MEASURE_JS = r"""() => {
   if (out.orphans.length) out.fails.push('고아 줄 ' + out.orphans.length + '자리');
   if (out.heightSpreads.length) out.fails.push('한 줄 안 높이 차 ' + JSON.stringify(out.heightSpreads));
 
-  // 폭이 종류 표를 따르는가 — Entity 13rem 고정, 닫힌 열거형 8~13rem(늘어나지 않는다).
+  // 폭이 종류 표를 따르는가 — Entity 13rem 고정, wide Entity 13~20rem(면 폭의 계단), 닫힌 열거형 8~13rem(늘어나지 않는다).
   const rootPx = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
   if (out.kindWidths.entity) {
     out.checked++;
     const rem = out.kindWidths.entity / rootPx;
     if (Math.abs(rem - 13) > 0.1) out.fails.push('Entity 칸 폭이 13rem 이 아니다: ' + rem.toFixed(2) + 'rem');
+  }
+  if (out.kindWidths.entityWide) {
+    out.checked++;
+    const rem = out.kindWidths.entityWide / rootPx;
+    if (rem < 12.9 || rem > 20.1) out.fails.push('wide Entity 칸 폭이 13~20rem 밖이다: ' + rem.toFixed(2) + 'rem');
   }
   if (out.kindWidths.enum) {
     out.checked++;
@@ -345,9 +356,10 @@ def main() -> int:
         sess = ensure_session(browser, base, REPO_ROOT / "dist" / "ui-qa",
                               insecure=args.insecure, log=print)
 
-        # 좁은 화면을 포함한다 — 줄바꿈은 폭에서만 정해진다.
+        # 좁은 화면을 포함한다 — 줄바꿈은 폭에서만 정해진다. 1600 은 wide 칸이 가운데 계단(16rem)에 서는 폭이다.
         for vp in (Viewport("390x844", 390, 844), Viewport("1366x768", 1366, 768),
-                   Viewport("1920x1080", 1920, 1080), Viewport("3840x2160", 3840, 2160)):
+                   Viewport("1600x900", 1600, 900), Viewport("1920x1080", 1920, 1080),
+                   Viewport("3840x2160", 3840, 2160)):
             for theme in ("light", "dark"):
                 ctx = new_context(browser, storage_state=sess.storage_state,
                                   user_id=sess.user_id, theme=theme, viewport=vp,

@@ -22,7 +22,7 @@ import { DebouncedTextField, EMPTYABLE_SELECT, EntityCombobox, FilterSelect, Sea
 import { DateField } from "../ui/DateField.jsx";
 /* 탐색 줄 — 필터 바 조합 부품(ui/FilterBar.jsx). **판이 아니다**(지시 80).
    폭은 격자 트랙이 아니라 컨트롤의 종류가 정한다(C2 «폭 배분»). */
-import { FILTER_GROUP_ORDER, FilterBar, filterGroupOf } from "../ui/FilterBar.jsx";
+import { FILTER_GROUP_ORDER, FilterBar, entitySizeOf, filterGroupOf } from "../ui/FilterBar.jsx";
 import { CHUNK, useInfiniteList, useResetScrollOnKeyChange } from "../lib/useInfiniteList.js";
 import { SavedViews } from "../ui/SavedViews.jsx";
 /* 탭 그릇 안에서 머리 동작을 그릇의 머리로 보낸다(D-454). 그릇이 없으면 제자리에 그린다. */
@@ -1368,12 +1368,14 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
                 onChange: (v) => setFilter(f.key, v),
               };
               /* Entity(프로젝트·사용자·워크플로처럼 **데이터가 쌓이는 만큼 후보가 자라는** 축)는 검색형 Combobox 다.
-                 닫힌 열거형(상태·유형)은 select 그대로다 — R-5 가 "모든 Select 를 무조건 검색형으로 바꾸지 않는다" 고 못박는다. */
+                 닫힌 열거형(상태·유형)은 select 그대로다 — R-5 가 "모든 Select 를 무조건 검색형으로 바꾸지 않는다" 고 못박는다.
+                 칸 크기는 축이 정한다 — 값이 긴 축(연결된 스케줄 · 부서 · 프로젝트)은 wide 다(`FilterBar.jsx::entitySizeOf`). */
               if (f.kind === "entity") {
                 return (
                   <EntityCombobox
                     key={f.key}
                     {...common}
+                    size={entitySizeOf(f)}
                     loading={f.loading}
                     options={f.options || []}
                     /* 후보를 못 받은 축은 빈 상자가 아니라 이유를 단다 (R7-05). */

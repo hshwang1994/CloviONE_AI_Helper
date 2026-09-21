@@ -431,9 +431,12 @@ export function TicketFilterBar({
     >
       {/* scope 가 먼저다 — 「어느 범위를 볼 것인가」는 나머지 조건의 전제다. */}
       {scope}
+      {/* 프로젝트는 값이 긴 축이라 wide 칸이다 — 면이 넓으면 고른 이름이 더 보인다(`filters.jsx::ROW_KIND.entityWide`). 담당자는
+          사람이라 기본 칸이다. */}
       {show("project_id") ? (
         <EntityCombobox
           multiple
+          size="wide"
           label={LABELS.project_id}
           value={asList(value.project_id)}
           onChange={set("project_id")}
@@ -474,8 +477,10 @@ export function TicketFilterBar({
       {show("difficulty") ? (
         <FilterSelect multiple label={LABELS.difficulty} value={asList(value.difficulty)} onChange={set("difficulty")} options={difficultyOpts} />
       ) : null}
+      {/* 기한은 날짜 칸이 아니라 세 낱말(지연 · 이번 주 · 다음 주)의 열거다 — 열거 칸 폭(내용만큼, 8~13rem)으로 선다. 예전에는
+          `kind="date"` 라 날짜 위젯 폭(11rem)을 받아 열거 칸의 바닥(8rem)보다 3rem 넓게 섰다. */}
       {show("due") ? (
-        <FilterSelect label={LABELS.due} value={value.due} onChange={set("due")} options={DUE_OPTIONS} kind="date" />
+        <FilterSelect label={LABELS.due} value={value.due} onChange={set("due")} options={DUE_OPTIONS} />
       ) : null}
     </FilterBar>
   );

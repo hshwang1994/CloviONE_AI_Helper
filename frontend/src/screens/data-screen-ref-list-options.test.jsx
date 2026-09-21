@@ -128,6 +128,49 @@ describe("config.refLists — 다른 화면의 리소스를 이름 붙은 select
   });
 });
 
+describe("참조 목록 필터 칸의 크기 — 값이 긴 축은 wide 다", () => {
+  /* 참조 목록으로 후보를 받는 필터는 Entity 칸이 된다(`DataScreen.jsx::orderedFilters`). 그 칸의 크기는 축이 정한다 —
+     작업 큐의 「연결된 스케줄」처럼 이름이 긴 축은 wide 이고, 사람 축은 기본 칸이다(`FilterBar.jsx::entitySizeOf`). */
+  it("스케줄 축은 wide 칸, 사람 축은 기본 칸으로 선다", async () => {
+    apiMock.mockReset();
+    apiMock.mockImplementation((url) => {
+      if (String(url).startsWith("/api/admin/schedules")) {
+        return Promise.resolve({ items: [{ id: "sc-1", name: "매일 새벽 백업과 보관 기간이 지난 첨부 정리", enabled: true }] });
+      }
+      if (String(url).startsWith("/api/admin/people")) {
+        return Promise.resolve({ items: [{ user_id: "u-1", display_name: "김하나" }] });
+      }
+      return Promise.resolve({ items: [], page: 1, page_size: 20, total: 0 });
+    });
+    const cfg = {
+      key: "x-entity-size",
+      title: "칸 크기 시험",
+      endpoint: "/api/admin/x-entity-size",
+      refLists: [{ key: "schedules", endpoint: "/api/admin/schedules" }, { key: "people", endpoint: "/api/admin/people" }],
+      columns: [{ key: "name", label: "이름" }],
+      detailFields: [],
+      filters: [
+        { key: "user_id", type: "select", kind: "entity", label: "행위자", optionsFromRefList: "people" },
+        { key: "schedule_id", type: "select", kind: "entity", label: "연결된 스케줄", optionsFromRefList: "schedules" },
+      ],
+    };
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={qc}>
+        <ThemeModeProvider><ToastProvider><ConfirmProvider>
+          <MemoryRouter><DataScreen config={cfg} /></MemoryRouter>
+        </ConfirmProvider></ToastProvider></ThemeModeProvider>
+      </QueryClientProvider>,
+    );
+    const schedule = (await screen.findByRole("combobox", { name: "연결된 스케줄" })).closest("[data-filter-kind]");
+    const actor = screen.getByRole("combobox", { name: "행위자" }).closest("[data-filter-kind]");
+    expect(schedule.getAttribute("data-filter-kind")).toBe("entity");
+    expect(schedule.getAttribute("data-filter-size")).toBe("wide");
+    expect(actor.getAttribute("data-filter-kind")).toBe("entity");
+    expect(actor.hasAttribute("data-filter-size")).toBe(false);
+  });
+});
+
 describe("USE-04 계약 — 실제 화면 설정에 실제로 걸려 있다", () => {
   /* S11 이 문서 생성·워크플로 화면을 걷어내면서 이 계약을 쓰는 화면이 하나 남았다:
      작업 큐의 '연결된 스케줄' 필터. 배선 자체(refLists + optionsFromRefList)는 위

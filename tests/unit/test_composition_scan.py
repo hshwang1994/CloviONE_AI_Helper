@@ -8,6 +8,7 @@
   `local_capture --harness kit_measure --selftest`).
 
 qa-contract-change: 줄 칸 자유 입력 폭을 고정 11rem 에서 「이름 + 값 자리 6rem, 11rem 바닥 · 24rem 상한」으로 옮긴다. 감사 로그 「작업(정확히, 예: user.update)」 칸이 11rem 에서 이름만으로 칸을 다 먹어 친 글자가 안 보이던 것을 캡처 눈 대조로 찾았다. 표의 상한 18 은 자유 입력만 24 로 풀고, 나머지 종류 값과 프런트 ROW_KIND 와의 일치를 새로 고정한다.
+qa-contract-change: 줄 칸 Entity 폭을 「13rem 하나」에서 「기본 13rem, 값이 긴 축의 wide 칸은 필터 면 폭의 계단 13 · 16 · 20rem」으로 옮긴다. 1920 팀 티켓의 프로젝트 칸이 208px 이라 긴 이름이 앞에서 잘렸다. 표에 `entityWide` [13, 20] 과 계단 표 `entityWideSteps` 를 더하고 고정 폭 18rem 상한에서 wide 칸을 뺀다. 프런트 `ROW_KIND.entityWide` 의 컨테이너 질의 · 면의 크기 컨테이너 선언과 같은 수를 말하는지 새로 대조한다.
 """
 
 from __future__ import annotations
@@ -198,22 +199,33 @@ def test_browser_composition_tables_agree():
     for rid, flags in cc.ROUTE_EXPECT.items():
         assert set(flags) <= allowed, (rid, flags)
     # 줄 칸 폭 표 — 최솟값이 최댓값을 넘지 않고, 늘어나는 종류가 없다(검색 슬롯은 이 표 밖이다).
-    # 고정 폭 종류는 18rem 을 넘지 않는다. 자유 입력만 이름 길이를 따라 11~24rem 사이에 선다(값 자리 6rem).
+    # 고정 폭 종류는 18rem 을 넘지 않는다. 자유 입력은 이름 길이를 따라 11~24rem 사이에 서고(값 자리 6rem),
+    # wide Entity 는 필터 면 폭의 계단이라 13~20rem 사이에 선다.
     row_kind = cc.COMPOSITION_CONTRACT["rowKind"]
-    assert set(row_kind) == {"entity", "tag", "enum", "text", "date", "datetime"}
+    assert set(row_kind) == {"entity", "entityWide", "tag", "enum", "text", "date", "datetime"}
     for kind, (lo, hi) in row_kind.items():
         assert 0 < lo <= hi, kind
-        if kind != "text":
+        if kind not in ("text", "entityWide"):
             assert hi <= 18, kind
     assert row_kind["entity"] == [13, 13] and row_kind["tag"] == [13, 13]
+    assert row_kind["entityWide"] == [13, 20]
     assert row_kind["enum"] == [8, 13]
     assert row_kind["date"] == [11, 11] and row_kind["datetime"] == [18, 18]
     assert row_kind["text"] == [11, 24]
+    # wide 계단 — 큰 계단부터 적는다. 면이 넓을수록 칸이 넓고, 가장 넓은 계단이 표의 상한이며, 계단 밖(좁은 면)은 기본 칸과
+    # 같은 바닥이다. 그래서 1366(면 1,070px = 66.9rem)은 13rem 그대로다.
+    steps = cc.COMPOSITION_CONTRACT["entityWideSteps"]
+    assert steps == [[96, 20], [76, 16]]
+    assert steps == sorted(steps, reverse=True)
+    assert steps[0][1] == row_kind["entityWide"][1]
+    assert row_kind["entityWide"][0] == row_kind["entity"][0]
+    assert all(row_kind["entityWide"][0] < cell_rem for _surface_rem, cell_rem in steps)
+    assert 1070 / 16 < steps[-1][0], "1366 의 필터 면이 wide 계단에 걸리면 기존 줄바꿈이 바뀐다"
     # 브라우저 검사의 표와 프런트 ROW_KIND 가 같은 수를 말한다 — 한쪽만 옮기면 여기서 멈춘다.
-    filters_src = (ROOT / "frontend" / "src" / "ui" / "filters.jsx").read_text(encoding="utf-8")
+    whole_src = (ROOT / "frontend" / "src" / "ui" / "filters.jsx").read_text(encoding="utf-8")
     # 흐름 치수 표(CONTROL_KIND)에도 `text:` 가 있다 — 줄 칸 표(ROW_KIND) 블록만 본다.
-    start = filters_src.index("export const ROW_KIND = {")
-    filters_src = filters_src[start : filters_src.index("\n};", start)]
+    start = whole_src.index("export const ROW_KIND = {")
+    filters_src = whole_src[start : whole_src.index("\n};", start)]
     text_line = next(line for line in filters_src.splitlines() if line.strip().startswith("text: {"))
     assert 'minWidth: "11rem"' in text_line and 'maxWidth: "min(24rem, 100%)"' in text_line, text_line
     assert 'width: "6rem"' in text_line and 'flex: "0 0 auto"' in text_line, text_line
@@ -221,6 +233,21 @@ def test_browser_composition_tables_agree():
     assert 'date: { flex: "0 0 11rem", width: "11rem"' in filters_src
     assert 'datetime: { flex: "0 0 18rem", width: "18rem"' in filters_src
     assert 'enum: { flex: "0 0 auto", minWidth: "8rem", maxWidth: "13rem" }' in filters_src
+    # wide 칸 — 바닥은 기본 칸과 같은 13rem 이고, 계단은 필터 면(이름 붙은 크기 컨테이너)의 폭을 묻는다. 폭은 사용자 정의 속성
+    # 하나로 말한다(계단이 `width` 를 직접 말하면 호출부 sx 의 폭까지 덮는다).
+    wide_start = filters_src.index("entityWide: {")
+    wide_block = filters_src[wide_start : filters_src.index("\n  },", wide_start)]
+    assert '"--filter-wide": "13rem"' in wide_block, wide_block
+    assert 'flex: "0 0 var(--filter-wide)", width: "var(--filter-wide)"' in wide_block, wide_block
+    for surface_rem, cell_rem in sorted(steps):
+        rule = f'"@container filter-surface (min-width: {surface_rem}rem)": {{ "--filter-wide": "{cell_rem}rem" }}'
+        assert rule in wide_block, rule
+    assert wide_block.index("min-width: 76rem") < wide_block.index("min-width: 96rem"), "넓은 계단이 뒤에 실려야 이긴다"
+    assert 'export const FILTER_SURFACE_CONTAINER = { containerType: "inline-size", containerName: "filter-surface" };' in whole_src
+    bar_src = (ROOT / "frontend" / "src" / "ui" / "FilterBar.jsx").read_text(encoding="utf-8")
+    surface_at = bar_src.index("export function FilterSurface(")
+    surface_fn = bar_src[surface_at : bar_src.index("export function", surface_at + 1)]
+    assert "...FILTER_SURFACE_CONTAINER," in surface_fn, "필터 면이 크기 컨테이너를 열지 않으면 wide 계단이 늘 바닥에 머문다"
     assert cc.COMPOSITION_CONTRACT["filterCell"] == 34
     assert cc.COMPOSITION_CONTRACT["prefixInset"] == 14 and cc.COMPOSITION_CONTRACT["prefixGap"] == 6
     assert cc.COMPOSITION_CONTRACT["rowAction"] == 30 and cc.COMPOSITION_CONTRACT["cardPadding"] == 20

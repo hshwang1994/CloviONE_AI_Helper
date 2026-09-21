@@ -65,8 +65,10 @@ export function KnowledgeFilterBar({
       )}
       conditions={{ chips, total, onClearAll, clearLabel: "필터 지우기" }}
     >
-      {/* 축의 이름은 **프로젝트**다(D-415). 값 · 주소 · 서버 파라미터(`?project=`, `project_id`, `"none"`)는 그대로다. */}
+      {/* 축의 이름은 **프로젝트**다(D-415). 값 · 주소 · 서버 파라미터(`?project=`, `project_id`, `"none"`)는 그대로다.
+          프로젝트는 값이 긴 축이라 wide 칸이다(`filters.jsx::ROW_KIND.entityWide`). 작성자는 사람이라 기본 칸이다. */}
       <EntityCombobox
+        size="wide"
         label="프로젝트"
         allLabel="전체"
         value={project}

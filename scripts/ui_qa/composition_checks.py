@@ -9,6 +9,7 @@
                          조건 수 = 칩 수인가, 아래 실선이 있는가, 한 줄에 설 자리가 있는데 검색 혼자 줄을 쓰지 않는가
     filter_cell_anatomy  칸 종류가 달라도 접두 이름 들여쓰기 · 접두-값 간격 · 세로 중심 · 값 굵기가 같은가,
                          다중 선택이 칸 안에 칩을 그려 높이를 풀지 않는가, 칸 폭이 종류 표를 따르는가
+                         (wide Entity 칸은 필터 면의 폭이 고른 계단인가)
     list_surface         주 목록이 목록 판(surface)인가, 머리 줄이 판 윗변 · 좌우 가장자리에 붙는가,
                          발이 판 안 마지막 줄인가, sticky 발 안에 무한 스크롤 센티널이 없는가
     list_wrapper         표마다 판 계약 표식이 있는가, 목록 판을 여백 판이 한 번 더 감싸지 않는가
@@ -46,14 +47,20 @@ COMPOSITION_CONTRACT = {
     "prefixInset": 14,
     "prefixGap": 6,
     # 줄 칸 폭(rem). 늘어나지 않는다 — 최솟값 = 최댓값인 종류는 고정 폭이다.
+    # `entityWide` 는 `data-filter-size="wide"` 인 Entity 칸이다(프로젝트 · 부서와 팀의 경로 · 회차 · 문서 공간 · 연결된 스케줄).
+    # 범위 안의 어느 값이 맞는지는 아래 계단이 정한다.
     "rowKind": {
         "entity": [13, 13],
+        "entityWide": [13, 20],
         "tag": [13, 13],
         "enum": [8, 13],
         "text": [11, 24],
         "date": [11, 11],
         "datetime": [18, 18],
     },
+    # wide Entity 칸의 계단 — [필터 면 내용 폭 rem 이상, 칸 폭 rem], 큰 계단부터. 어느 계단에도 못 미치면 `rowKind` 바닥(13)이다.
+    # 프런트 `filters.jsx::ROW_KIND.entityWide` 의 컨테이너 질의와 같은 수다(`test_composition_scan.py` 가 대조한다).
+    "entityWideSteps": [[96, 20], [76, 16]],
     "rowAction": 30,
     "rowActionsPerCell": 2,
     "headGlyphMax": 16,
@@ -279,10 +286,23 @@ COMPOSITION_JS = r"""
           if (valueInfo.opacity < 0.99) problems.push('값 흐림 ' + valueInfo.opacity);
         } else problems.push('값 자리 없음');
       } else problems.push('칸 안 접두 이름 없음');
-      const want = C.rowKind[kind];
+      /* 크기가 있는 종류(Entity)는 `data-filter-size="wide"` 이면 wide 표를 본다. */
+      const wideKey = cell.getAttribute('data-filter-size') === 'wide' && C.rowKind[kind + 'Wide'] ? kind + 'Wide' : '';
+      const want = C.rowKind[wideKey || kind];
       if (want && !E.callerWidths) {
         const w = rect(cell).width / rootPx;
         if (w < want[0] - 0.07 || w > want[1] + 0.07) problems.push('폭 ' + w.toFixed(2) + 'rem');
+        else if (wideKey) {
+          /* wide 칸은 **필터 면의 폭**이 계단을 고른다(컨테이너 질의는 면의 내용 상자를 잰다). 범위 안이어도 면에 맞지 않는
+             계단이면 실패다 — 컨테이너가 안 걸려 1920 에서도 13rem 에 머무는 칸이 이 자리에서 잡힌다. */
+          const surface = cell.closest('[data-filter-surface]');
+          const ss = getComputedStyle(surface);
+          const inner = (rect(surface).width - px(ss.paddingLeft) - px(ss.paddingRight)
+            - px(ss.borderLeftWidth) - px(ss.borderRightWidth)) / rootPx;
+          const step = (C.entityWideSteps || []).find((s) => inner >= s[0] - 0.01);
+          const stepRem = step ? step[1] : want[0];
+          if (Math.abs(w - stepRem) > 0.07) problems.push('wide 계단 ' + w.toFixed(2) + 'rem, 면 ' + inner.toFixed(1) + 'rem 이면 ' + stepRem + 'rem');
+        }
       }
       if (problems.length) fail('filter_cell_anatomy', { ...where(cell), kind, problems: problems.slice(0, 6) });
     }
@@ -546,8 +566,8 @@ def selftest_html() -> str:
   const box = document.createElement('div');
   box.id = 'compose-selftest';
   box.style.cssText = 'position:absolute;left:0;top:0;width:1200px;background:#fff;z-index:99999;padding:16px;display:grid;gap:16px;font-size:14px';
-  const cell = (kind, width, inset, gap, weight, chip) => `
-    <div data-filter-kind="${kind}" style="width:${width}px;flex:0 0 auto">
+  const cell = (kind, width, inset, gap, weight, chip, size) => `
+    <div data-filter-kind="${kind}"${size ? ` data-filter-size="${size}"` : ''} style="width:${width}px;flex:0 0 auto">
       <div class="MuiInputBase-root" style="display:flex;align-items:center;height:${chip ? 44 : 34}px;padding-left:${inset}px;box-shadow:inset 0 0 0 1px #ccc;box-sizing:border-box">
         <span data-prefix-label="" style="color:#666;white-space:nowrap">상태</span>
         ${chip ? '<span class="MuiChip-root" style="display:inline-flex;height:24px;margin-left:6px">칩</span>' : `<span data-row-value="" style="margin-left:${gap}px;font-weight:${weight}">전체</span>`}
@@ -564,6 +584,17 @@ def selftest_html() -> str:
       ${footInside ? `<div data-list-footer="" style="height:44px;${stickyFoot ? 'position:sticky;bottom:0;' : ''}background:#f5f6fb"><span>2건 중 2건을 받았습니다.</span>${stickyFoot ? '<i style="display:block;width:1px;height:1px"></i>' : ''}</div>` : ''}
     </div>
     ${footInside ? '' : '<div data-list-footer="" style="height:44px;text-align:center">2건 중 2건을 받았습니다.</div>'}`;
+  /* wide Entity 칸 하나가 선 면. 면의 폭이 계단을 고른다 — 루트 16px 에서 1600px 는 100rem 이라 20rem, 1300px 는 81.25rem 이라
+     16rem 이다. 틀린 견본은 100rem 면에서 13rem 에 머문 칸이다(컨테이너가 안 걸린 상태). 면을 폭 0 상자에 담는다 — 1200 상자보다
+     넓은 면이 견본 격자의 열을 넓혀 옆 견본의 면 폭까지 바꾸지 않게 한다. */
+  const wideSurface = (surfacePx, cellPx) => `
+    <div style="width:0;overflow:visible">
+      <div data-filter-surface="" style="width:${surfacePx}px;display:grid;gap:12px;padding-bottom:16px;border-bottom:1px solid #dcdfec">
+        <div data-filter-row="" data-search-slot="" style="display:flex;flex-wrap:wrap;gap:12px;width:100%">
+          ${cell('entity', cellPx, 14, 6, 600, false, 'wide')}
+        </div>
+      </div>
+    </div>`;
   box.innerHTML = `
     <div id="compose-good">
       <div data-filter-surface="" style="display:grid;gap:12px;padding-bottom:16px;border-bottom:1px solid #dcdfec">
@@ -571,6 +602,7 @@ def selftest_html() -> str:
           <div data-filter-kind="search" style="width:320px;height:34px;border:1px solid #ccc"></div>
           ${cell('enum', 160, 14, 6, 600, false)}
           ${cell('entity', 208, 14, 6, 600, false)}
+          ${cell('entity', 208, 14, 6, 600, false, 'wide')}
         </div>
         <div data-condition-line="" style="display:flex;gap:8px;padding-top:12px;border-top:1px solid #e5e8f3">
           <span>조건 2개, 결과 5건</span>
@@ -579,6 +611,8 @@ def selftest_html() -> str:
           <button data-filter-clear="" style="height:30px;border:0;background:none">필터 지우기</button>
         </div>
       </div>
+      ${wideSurface(1600, 320)}
+      ${wideSurface(1300, 256)}
       ${table('surface', true, 0, true, false, '<svg width="12" height="12" style="margin-left:4px"></svg><svg width="12" height="12" style="margin-left:4px"></svg>', false)}
       <div data-list-surface="" data-table-placement="surface" data-list-state="empty" style="background:#fff;border:1px solid #dcdfec;border-radius:8px;padding:20px;overflow:visible"><div>조건에 맞는 항목이 없습니다</div></div>
       <div class="MuiCard-root" style="background:#fff;border:1px solid #dcdfec;border-radius:8px;padding:20px"><div data-table-placement="card" style="margin:0 -20px"><div class="MuiTableContainer-root"><table class="MuiTable-root" style="width:100%;border-collapse:collapse"><thead><tr style="height:40px"><th style="background:#f5f6fb">이름</th></tr></thead><tbody><tr style="height:48px"><td>항목</td></tr></tbody></table></div><div data-list-footer="" style="height:44px;border-top:1px solid #dcdfec">2건 중 2건을 받았습니다.</div></div></div>
@@ -626,6 +660,7 @@ def selftest_html() -> str:
       </div>
       <div data-chat-composer="" style="border:1px solid #ccc;border-radius:10px;height:48px"></div>
       <div data-page-fill="" style="height:120vh;border:1px solid #dcdfec">화면을 넘는 높이 고정 판</div>
+      ${wideSurface(1600, 208)}
     </div>`;
   document.body.appendChild(box);
   return true;
@@ -635,7 +670,7 @@ def selftest_html() -> str:
 
 # 틀린 견본이 반드시 걸려야 하는 검사와 기대 최소 실패 수.
 SELFTEST_EXPECT_BAD = {
-    "filter_composition": 1, "filter_cell_anatomy": 2, "list_surface": 3, "list_wrapper": 2,
+    "filter_composition": 1, "filter_cell_anatomy": 3, "list_surface": 3, "list_wrapper": 2,
     "primary_budget": 2, "row_actions": 1, "table_head_glyph": 1, "footer_alignment": 1,
     "editor_box": 1, "chat_composition": 1, "page_fill": 1,
 }
@@ -643,7 +678,7 @@ SELFTEST_EXPECT_BAD = {
 # 틀린 견본의 실패 사유 안에 반드시 나와야 하는 낱말 — 개수만 맞고 엉뚱한 이유로 걸리는 것을 막는다.
 SELFTEST_EXPECT_REASONS = {
     "filter_composition": ["면 밖 결과 줄", "면 밖 조건 칩", "줄 끝 지우기", "아래 실선 없음", "검색 줄에 자리가 있는데"],
-    "filter_cell_anatomy": ["칸 안 칩", "접두 들여쓰기", "접두-값 간격", "값 굵기", "폭 "],
+    "filter_cell_anatomy": ["칸 안 칩", "접두 들여쓰기", "접두-값 간격", "값 굵기", "폭 ", "wide 계단"],
     "list_surface": ["목록 발이 판 밖", "sticky 발 안에 무한 스크롤 센티널", "빈 · 불러오는 판 여백"],
     "list_wrapper": ["표 판 계약 표식 없음", "여백 판이 한 번 더 감쌈"],
     "primary_budget": ["화면 채움", "행 안 채움"],

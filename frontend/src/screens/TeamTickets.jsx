@@ -97,7 +97,8 @@ export function TeamTickets() {
      않는 이유: 목록과 후보가 다른 시점의 범위를 말하면 고를 수는 있는데 결과가 비는 상자가
      생긴다. */
   /* 부서는 **scope** 다 — 줄의 맨 앞(C2 그룹 순서). 「완료, 취소 포함」은 조건이 아니라 보기
-     방식이라 필터 바 오른쪽 끝(`end`)에 선다. 칸 폭은 줄 칸 표(13rem)가 정한다 — 이 화면만의 폭을 두지 않는다. */
+     방식이라 필터 바 오른쪽 끝(`end`)에 선다. 칸 폭은 줄 칸 표가 정한다 — 부서는 경로라 wide 칸이고(`DepartmentFilter` 기본),
+     이 화면만의 폭을 두지 않는다. */
   const scopeControls = (
     <DepartmentFilter
       departments={q.first && q.first.departments}

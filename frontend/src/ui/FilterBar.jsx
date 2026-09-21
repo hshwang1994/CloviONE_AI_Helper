@@ -3,7 +3,7 @@ import Box from "@mui/material/Box";
 import Chip from "@mui/material/Chip";
 import Typography from "@mui/material/Typography";
 import { Button } from "./kit.jsx";
-import { FilterRowContext } from "./filters.jsx";
+import { FILTER_SURFACE_CONTAINER, FilterRowContext } from "./filters.jsx";
 import { BREAKPOINTS, CONTROL, FONT_SIZE, FONT_WEIGHT, RADIUS, remPx } from "./theme.js";
 
 /* 탐색 줄 — 목록 화면의 «어떻게 볼지»(도구)와 «무엇을 볼지»(필터)를 담는 자리.
@@ -60,6 +60,19 @@ export function filterGroupOf(f) {
   return "other";
 }
 
+/* ── Entity 칸의 크기 — 값이 긴 축은 `wide` 다 (`filters.jsx::ROW_KIND.entityWide`) ─────────────
+ *
+ * 프로젝트 · 부서 · 팀 · 문서 공간 · 회차 · 일정은 값이 길다(경로이거나 긴 이름이다). 사람 · 이름 축은 짧다. registry 선언이
+ * `size` 를 주면 그것이 이기고, 안 주면 키 이름이 정한다 — 그룹 순서(`filterGroupOf`)와 같은 방식이다. */
+const WIDE_ENTITY_KEY = /project|dept|department|team|space|sprint|schedule/i;
+
+/** 필터 정의 하나의 Entity 칸 크기(`"wide"` · `"default"`). `EntityCombobox size` 로 넘긴다. */
+export function entitySizeOf(f) {
+  if (!f) return "default";
+  if (f.size === "wide" || f.size === "default") return f.size;
+  return WIDE_ENTITY_KEY.test(String(f.key || "")) ? "wide" : "default";
+}
+
 /** 탐색 줄 전체를 감싸는 자리. **판이 아니다** — 캔버스 위에 놓이고 아래로 목록과 갈린다. */
 export function FilterSurface({ children, divider = true, sx, ...rest }) {
   return (
@@ -69,6 +82,11 @@ export function FilterSurface({ children, divider = true, sx, ...rest }) {
         display: "grid",
         gap: 1.5,
         mb: 2,
+        /* 이 면이 줄 칸 크기의 기준이다 — wide Entity 칸이 면의 폭을 보고 계단을 고른다(`filters.jsx::ROW_KIND.entityWide`).
+           크기 격리(`inline-size`)는 면의 폭을 내용과 떼어 놓는다. 면은 언제나 부모 폭을 다 쓰는 블록이라 그 격리가 면의 폭을
+           바꾸지 않는다(목록 화면 · 탭 판 · 서랍 · 대화상자 모두 그렇다). 내용 폭으로 줄어드는 자리(`fit-content`, 가로 flex 의
+           `0 0 auto` 칸)에 면을 두면 폭이 0 이 되므로 그런 자리에는 두지 않는다. */
+        ...FILTER_SURFACE_CONTAINER,
         ...(divider ? { pb: 2, borderBottom: 1, borderColor: "divider" } : null),
         ...sx,
       }}
