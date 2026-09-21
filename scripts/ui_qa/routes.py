@@ -299,7 +299,6 @@ ADMIN_ROUTES: tuple[Route, ...] = (
     _a("admin_dev-report", "/dev-report", "개발자 월간 리포트", "auditor",
        ("admin", "system_admin", "auditor")),
     # REGISTRY keys — "/" + key, gated by SCREEN_ROLES when listed there.
-    _a("admin_integrations", "/integrations", "외부 연동"),
     _a("admin_prompts", "/prompts", "프롬프트"),
     _a("admin_policies", "/policies", "정책"),
     _a("admin_schedules", "/schedules", "실행 일정(스케줄)"),
@@ -330,8 +329,6 @@ ADMIN_ROUTES: tuple[Route, ...] = (
     # on the same hash route — registry.js declares them as
     # ``onQuery: (p) => p.id ? { open: "select", id: p.id } : null`` and
     # ``OBJ_ID_PARAM`` names the parameter per object type (id / job_id / user_id).
-    _a("admin_integration-detail", "/integrations", "외부 연동 상세",
-       hash_template="/integrations?id={id}", discover=("/api/admin/integrations",)),
     _a("admin_job-detail", "/jobs", "작업 상세", "operator",
        ("operator", "admin", "system_admin", "auditor"),
        hash_template="/jobs?job_id={id}", discover=("/api/admin/jobs",)),
@@ -485,7 +482,8 @@ BY_ID = {r.id: r for r in ALL_ROUTES + ALIAS_ROUTES}
 
 # A small, cheap smoke set: one user-console screen, one DataScreen-driven admin
 # screen, one detail view. Used by ``run.py --routes smoke``.
-SMOKE_IDS = ("public_login", "user_my-tickets", "admin_audit", "admin_integration-detail")
+# 상세 하나는 작업 상세다 — 예전의 외부 연동 상세는 S11 이 그 화면을 걷은 뒤 404 를 열고 있었다.
+SMOKE_IDS = ("public_login", "user_my-tickets", "admin_audit", "admin_job-detail")
 
 
 def resolve(selectors: Iterable[str] | None) -> list[Route]:

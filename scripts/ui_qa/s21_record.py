@@ -68,6 +68,7 @@ RETIRED_SURFACES = {
     "admin_runners": "S11 — 외부 러너를 걷었다",
     "admin_templates": "S11 — 템플릿 바인딩을 걷었다",
     "admin_workflows": "S11 — n8n 워크플로를 걷었다",
+    "admin_integrations": "S11 — 외부 연동 화면을 걷었다",
 }
 RETIRED_FLOWS = {
     "FF-0118": "S15 — 사용자 화면의 수동 동기화를 걷었다(미러가 없다)",

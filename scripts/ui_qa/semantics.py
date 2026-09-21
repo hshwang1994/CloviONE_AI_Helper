@@ -104,7 +104,7 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--routes", nargs="*", default=[
         "user_me", "admin_users", "user_my-tickets", "user_chat",
-        "admin_jobs", "user_new-ticket", "admin_integrations", "user_team-docs"])
+        "admin_jobs", "user_new-ticket", "admin_audit", "user_team-docs"])
     ap.add_argument("--auth-dir", default="dist/ui-qa-admin-2")
     args = ap.parse_args()
 
