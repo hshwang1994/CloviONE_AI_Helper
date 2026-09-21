@@ -3716,6 +3716,11 @@ export function FormModal({ open, title, fields, initial, submitLabel, onSubmit,
   const [err, setErr] = React.useState("");
   const [errField, setErrField] = React.useState(null);
   const [busy, setBusy] = React.useState(false);
+  /* 제출이 진행 중인지는 **동기 ref** 가 먼저 안다. `busy` 는 다음 렌더에야 발의 단추를 끄는데,
+     Enter 는 그 단추가 아니라 폼 안의 숨은 제출 단추(아래 `sr-only`)를 누르고 그 단추는 꺼지지
+     않는다. 그래서 Enter 를 빠르게 두 번 치면 `submit()` 이 두 번 돌아 같은 행이 둘 생기거나 둘째가
+     「이미 있습니다」로 실패했다. 이 ref 가 서 있는 동안의 제출은 버린다. */
+  const submitting = React.useRef(false);
   const initialRef = React.useRef({});   // 열릴 때의 값 스냅샷 — 더티(변경) 판정 기준.
   const confirm = useConfirm();
   const toast = useToast();
@@ -3810,6 +3815,7 @@ export function FormModal({ open, title, fields, initial, submitLabel, onSubmit,
   const fail = (name, message) => { setErrField(name); setErr(message); };
 
   async function submit() {
+    if (submitting.current) return;   // 같은 제출이 아직 끝나지 않았다(위 `submitting` 주석).
     setErr(""); setErrField(null);
     const body = {};
     for (const f of shownFields) {
@@ -3851,6 +3857,7 @@ export function FormModal({ open, title, fields, initial, submitLabel, onSubmit,
         else if (hadValue) body[f.name] = null;
       }
     }
+    submitting.current = true;
     setBusy(true);
     try { await onSubmit(body); }
     catch (e) {
@@ -3858,8 +3865,9 @@ export function FormModal({ open, title, fields, initial, submitLabel, onSubmit,
       // 자신이 방금 입력한 내용이 왜 저장되지 않는지 모른 채 이 모달 안에 막힌다.
       if (e && e.status === 401) {
         expireSession();
-        return; // busy=true로 남겨 재제출을 막는다 — 곧 페이지가 이동한다.
+        return; // busy=true·submitting 을 남겨 재제출을 막는다 — 곧 페이지가 이동한다.
       }
+      submitting.current = false;
       // UX-40: details({loc,msg} 배열, 예: 비밀번호 정책 위반) 합치는 로직은 lib/api.js의
       // api()로 옮겼다 — e.message가 이제 이미 합쳐진 문구다(모든 호출부가 공짜로 받는다).
       // 여기서 다시 합치면 details가 중복으로 붙는다.
@@ -3873,6 +3881,7 @@ export function FormModal({ open, title, fields, initial, submitLabel, onSubmit,
       if (badField) { fail(badField, e.message || "저장하지 못했습니다. 다시 시도해 주세요."); setBusy(false); return; }
       setErr(e.message || "저장하지 못했습니다. 다시 시도해 주세요."); setBusy(false); return;
     }
+    submitting.current = false;
     setBusy(false);
   }
 

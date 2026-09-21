@@ -146,3 +146,85 @@ def test_a_failed_action_is_still_audited(client, login_as, db, missing_helper):
     ).scalars().all()
     assert rows, "실패한 시스템 변경이 감사에 남지 않았다"
     assert rows[-1].result == "failure", rows[-1].result
+
+
+# ── 규약 오류는 500 이 아니다 (P4 · B-3) ─────────────────────────────────────
+#
+# `ProtocolError` 는 AppError 가 아니다. 웹 쪽에서 그것을 던지는 자리는 요청을 싸는 순간
+# (`encode_request` — 인증서처럼 큰 값이 상한을 넘을 때)과 헬퍼의 답을 푸는 순간
+# (`decode_response` — 답이 우리 규약이 아닐 때) 둘이고, 둘 다 `SysopsClient.call` 이 잡아
+# 「도우미를 못 썼다」는 답으로 접는다. 여기서는 가짜 도우미가 아니라 **진짜 클라이언트**를
+# 지나게 해서 그 접기가 실제 요청 경로에 있다는 것을 본다(`tests/unit/test_domain_exceptions_are_handled.py`
+# 의 분류가 이 두 시험을 근거로 댄다).
+
+
+class _GarbledSocket:
+    """연결은 되는데 규약이 아닌 한 줄을 돌려주는 도우미."""
+
+    def __init__(self, *_args):
+        self._sent = False
+
+    def settimeout(self, _seconds):
+        pass
+
+    def connect(self, _path):
+        pass
+
+    def sendall(self, _payload):
+        pass
+
+    def recv(self, _size):
+        if self._sent:
+            return b""
+        self._sent = True
+        return b"<html>not the protocol</html>\n"
+
+    def close(self):
+        pass
+
+
+def _real_client(client, monkeypatch, *, socket_module=None):
+    """앱에 가짜를 꽂지 않는다 — 라우터가 기본 `SysopsClient()` 를 만든다."""
+    import app.sysops.client as client_mod
+
+    client.app.state.sysops_client = None
+    # Windows 개발 머신에는 AF_UNIX 가 없어 규약까지 가기 전에 「이 운영체제에서는 …」로 끝난다.
+    monkeypatch.setattr(client_mod, "_AF_UNIX", object())
+    if socket_module is not None:
+        monkeypatch.setattr(client_mod, "socket", socket_module)
+
+
+def test_an_oversized_request_is_a_failed_reply_not_a_500(client, login_as, monkeypatch):
+    from app.sysops.protocol import MAX_MESSAGE_BYTES
+
+    _real_client(client, monkeypatch)
+    csrf = login_as("system_admin")
+    r = client.post(
+        "/api/admin/system/cert.install",
+        json={"params": {"certificate": "A" * (MAX_MESSAGE_BYTES + 1), "private_key": "K"}},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["ok"] is False and body["available"] is False, body
+    assert body["detail"] == "요청이 너무 큽니다.", body["detail"]
+
+
+def test_a_garbled_helper_reply_is_a_failed_reply_not_a_500(client, login_as, monkeypatch):
+    import socket as real_socket
+    from types import SimpleNamespace
+
+    fake_socket = SimpleNamespace(
+        socket=_GarbledSocket, SOCK_STREAM=real_socket.SOCK_STREAM, timeout=real_socket.timeout,
+    )
+    _real_client(client, monkeypatch, socket_module=fake_socket)
+    csrf = login_as("system_admin")
+    r = client.post(
+        "/api/admin/system/timezone.set",
+        json={"params": {"timezone": "Asia/Seoul"}},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["ok"] is False and body["available"] is False, body
+    assert body["detail"] == "응답을 해석할 수 없습니다.", body["detail"]

@@ -1,6 +1,6 @@
 import React from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
@@ -61,12 +61,26 @@ function renderFlow() {
   );
 }
 
-async function fillAndSubmit(user) {
-  await user.type(await screen.findByLabelText(/제목/), "서버 등록 IP 중복 방지");
+/* 제목 칸은 id 로 짚는다 — 지연 로드한 편집기가 이미 떠 있으면 도구 줄의 「제목1」 · 「제목2」도 /제목/ 에 걸린다
+   (같은 파일의 앞 시험이 편집기 조각을 받아 둔 뒤에 도는 시험에서 그렇다). */
+async function findTitle() {
+  return waitFor(() => {
+    const el = document.getElementById("nt-title");
+    expect(el).toBeTruthy();
+    return el;
+  });
+}
+
+async function fillForm(user) {
+  await user.type(await findTitle(), "서버 등록 IP 중복 방지");
   await user.click(screen.getByRole("combobox", { name: /프로젝트/ }));
   await user.click(await screen.findByRole("option", { name: "인프라" }));
   await user.type(screen.getByLabelText(/예상 WD/), "2");
   await fillDateField(user, /마감일/, "2026-09-30");
+}
+
+async function fillAndSubmit(user) {
+  await fillForm(user);
   /* 「티켓 추가」는 폼이 유효해지기 전까지 **비활성**이다(담당자 후보가 서버에서 오는 것을
      기다린다). 바로 누르면 부하가 걸린 실행에서 비활성 단추를 누르게 되고, 그때 나오는 것은
      이 시험이 재려는 결함이 아니라 「아직 못 누른다」다. 눌릴 때까지 기다렸다가 누른다. */
@@ -87,6 +101,41 @@ describe("새 티켓 — 만든 뒤", () => {
   /* 이 하나는 새 티켓 폼 전체를 그리고 두 번의 `userEvent` 타이핑을 지난다 — 단독 실행에서
      2.2초다. 기본 5초는 병렬 실행(`verify.py`)에서 실제로 넘겼다. 느린 시험이라 늘리는
      것이지 불안정한 시험을 덮는 것이 아니다. */
+  }, 20000);
+});
+
+describe("새 티켓 — 같은 제출을 두 번 보내지 않는다 (P4)", () => {
+  it("제목 칸의 Enter 연타와 같은 틱의 두 제출이 와도 티켓은 한 번만 만든다", async () => {
+    /* 만들기 요청이 끝나기 전의 창을 연다 — 응답을 붙잡아 둔다. 예전에는 `submit()` 에 진행 중 가드가 없어서
+       「티켓 추가」가 꺼지기 전에 도착한 둘째 제출이 같은 티켓을 한 번 더 만들었다. */
+    let release;
+    const held = new Promise((resolve) => { release = resolve; });
+    const base = apiMock.getMockImplementation();
+    apiMock.mockImplementation((path, opts) => {
+      if (String(path) === "/api/tickets" && opts && opts.method === "POST") return held;
+      return base(path, opts);
+    });
+    const user = userEvent.setup();
+    renderFlow();
+    await fillForm(user);
+    await waitFor(() => expect(screen.getByRole("button", { name: "티켓 추가" })).not.toBeDisabled());
+
+    const title = await findTitle();
+    const form = title.closest("form");
+    act(() => {
+      fireEvent.submit(form);
+      fireEvent.submit(form);
+    });
+    await user.click(title);
+    await user.keyboard("{Enter}{Enter}");
+
+    const creates = () => apiMock.mock.calls.filter(
+      ([p, o]) => String(p) === "/api/tickets" && o && o.method === "POST",
+    );
+    expect(creates()).toHaveLength(1);
+    await act(async () => { release({ configured: true, ok: true, ticket: { id: "t-99" } }); });
+    expect(await screen.findByText("티켓 상세 자리")).toBeInTheDocument();
+    expect(creates()).toHaveLength(1);
   }, 20000);
 });
 

@@ -47,6 +47,7 @@ import { SIGNALS, useTicketSignals } from "../lib/ticketSignals.js";
 const BLOCKED_REASON_MAX = 500;
 import { useListMemory } from "../lib/listReturn.js";
 import { failureText, latestMutation } from "../lib/failure.js";
+import { useGuardedMutation } from "../lib/useGuardedMutation.js";
 
 /* `EMPTYABLE_SELECT` 는 이제 ui/filters.jsx 가 정본이다(필터 select 와 편집 폼 select 가
  * 같은 함정을 밟는다). 여기서 다시 내보내는 이유는 팀 티켓 화면이 예전부터 이 경로로
@@ -140,7 +141,11 @@ function ticketTitleCell(t, onOpen) {
 // 좁은 열 안에 표가 들어갈 때 쓴다. 전체 열을 그대로 넣으면 1366 화면에서 마감·편집이 잘려
 // 나가 가로로 긁어야 보인다 — 실제 캡처에서 그 상태였다. 난이도·예상 WD 는 '오늘 뭘 할까'를
 // 정하는 데 필요 없고, 편집은 글자 대신 아이콘 버튼으로 줄여 자리를 아낀다.
-export function ticketColumns({ showAssignee, onEdit, onClaim, onOpen, compact, filterAssignee, signalsOf, statusEdit } = {}) {
+//
+// claimingId: 「나에게 배정」이 진행 중인 티켓의 id 다. 그동안 그 줄의 단추는 진행 중을 말하고, 모든 줄의
+// 배정 단추가 꺼진다(휴지통의 복원 단추와 같은 규칙). 예전에는 단추가 안 꺼져 더블클릭의 둘째 요청이 첫 요청의
+// 배정 잠금에 걸렸고, 사용자는 「다른 사람이 지금 이 티켓을 배정하고 있습니다」라는 거짓 문장을 봤다.
+export function ticketColumns({ showAssignee, onEdit, onClaim, claimingId = null, onOpen, compact, filterAssignee, signalsOf, statusEdit } = {}) {
   /* `signalsOf` 는 티켓 하나의 **켜져 있는 신호**를 돌려주는 함수다
    * (`lib/ticketSignals.js::useTicketSignals`). 화면이 주지 않으면 신호를 안 그린다 —
    * 어휘 질의가 아직 안 왔거나 시험이 표만 볼 때가 그 경우이고, 그때 빈 알약을 그리면
@@ -273,7 +278,11 @@ export function ticketColumns({ showAssignee, onEdit, onClaim, onOpen, compact, 
       render: (t) => (
         <RowActions
           actions={[
-            onClaim ? { key: "claim", label: "나에게 배정", onClick: () => onClaim(t) } : null,
+            onClaim ? {
+              key: "claim", label: "나에게 배정",
+              disabled: claimingId != null, loading: claimingId === t.id,
+              onClick: () => onClaim(t),
+            } : null,
             onEdit ? (compact
               ? { key: "edit", label: "수정", ariaLabel: "수정: " + (t.title || "제목 없음"), icon: <EditOutlinedIcon fontSize="small" />, onClick: () => onEdit(t) }
               : { key: "edit", label: "수정", onClick: () => onEdit(t) }) : null,
@@ -478,7 +487,10 @@ export function TicketEditModal({ ticket, open, onClose, projectScope }) {
       blockedReason: ticket.blocked_reason || "",
     });
   }, [open, ticket]);
-  const m = useMutation({
+  /* 같은 고침은 끝나기 전에 한 번만 나간다(`useGuardedMutation`). 이 폼은 Enter 로 제출되는데 그 Enter 는 발의
+     「저장」이 아니라 폼 안의 숨은 제출 단추를 누르고, 그 단추는 저장 중에도 꺼지지 않는다 — 예전에는 Enter 두 번이
+     같은 PATCH 두 번이었다. */
+  const m = useGuardedMutation({
     mutationFn: (changes) => api(`/api/tickets/${ticket.id}`, { method: "PATCH", body: changes }),
     /* 이 모달은 홈·스프린트·프로젝트 티켓 등 **여러 화면에 얹혀 있다.** 그래서 무효화 대상을
      * 여기서 정하면 안 된다 — 얹히는 화면이 늘 때마다 빠뜨린다(실제로 홈·스프린트가 빠져 있었다).
@@ -698,10 +710,12 @@ export function TicketEditModal({ ticket, open, onClose, projectScope }) {
 }
 
 // 미할당 티켓을 '나에게 배정'하는 뮤테이션 — 성공 시 목록을 다시 불러온다.
+// 같은 티켓의 배정은 끝나기 전에 한 번만 나간다. 둘째 요청은 서버의 배정 잠금(`claim_lock.py`)에 걸려
+// 409 로 끝나는데, 그 문장은 남이 배정 중이라고 말해서 자기 더블클릭을 남의 경합으로 읽게 한다.
 export function useClaim() {
   const qc = useQueryClient();
   const toast = useToast();
-  return useMutation({
+  return useGuardedMutation({
     mutationFn: (id) => api(`/api/tickets/${id}/claim`, { method: "POST" }),
     onSuccess: () => { toast("나에게 배정했습니다.", "success"); invalidateTicketViews(qc); },
   });
@@ -962,7 +976,11 @@ export function Unassigned() {
           if (conn) return conn;
           const rows = q.rows;
           const cols = [selectionColumn(sel, rows.map((r) => r.id)),
-            ...ticketColumns({ onEdit: setEditing, onClaim: (t) => claim.mutate(t.id), signalsOf, onOpen: openTicket(nav, "/unassigned") })];
+            ...ticketColumns({
+              onEdit: setEditing, onClaim: (t) => claim.mutate(t.id),
+              claimingId: claim.isPending ? claim.variables : null,
+              signalsOf, onOpen: openTicket(nav, "/unassigned"),
+            })];
           return (
             <>
               {/* 여기 미러 신선도 안내가 있었다. 위 목록과 같은 이유로 걷었다(S14). */}
@@ -1299,7 +1317,9 @@ export function NewTicket() {
     }
   }, [metaQ.data]);
 
-  const create = useMutation({
+  /* 같은 티켓은 끝나기 전에 한 번만 만든다(`useGuardedMutation`). 「티켓 추가」는 저장 중에 꺼지지만 그 끄기는
+     다음 렌더의 일이고, `submit()` 에는 진행 중 가드가 없었다 — 제목 칸의 Enter 연타가 같은 티켓 둘이었다. */
+  const create = useGuardedMutation({
     mutationFn: (body) => api("/api/tickets", { method: "POST", body }),
     // 회차 맥락에서 왔으면 그 판으로 돌아간다. 만든 티켓이 안 보이는 화면으로 튕기면
     // 사용자는 방금 만든 것이 어디 갔는지 확인할 방법이 없다.

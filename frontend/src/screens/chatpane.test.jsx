@@ -1,7 +1,7 @@
 /* qa-contract-change: 채팅방 대화 로그의 정렬이 아래 정렬(flex-end)에서 위 정렬(flex-start, 로그 상한 45rem 걷음)로 옮겼다 — 소유자 결정 「위 정렬 + 입력창 바닥」(UI 3차 조합 계약 C-6). 「full 로그는 flex-end」 단언을 「full 은 flex-start · 상한 없음 · 첫 진입과 새 메시지에 맨 아래로 굴림」으로 옮기고, compact 의 아래 정렬 · 입력 도킹 영역(위 실선 · 입력 영역 표식) · 공통 날짜 구분선 폭을 더 잰다. */
 import React from "react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen, waitFor, act } from "@testing-library/react";
+import { render, screen, waitFor, act, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import "@testing-library/jest-dom/vitest";
@@ -385,5 +385,57 @@ describe("입력 상자", () => {
     fail = false;
     await user.click(screen.getByRole("button", { name: "보내기" }));
     await waitFor(() => expect(screen.queryByText("이 방에는 지금 보낼 수 없습니다.")).toBeNull());
+  });
+});
+
+// ── 7. 같은 말을 두 번 보내지 않는다 (P4 — Enter 연타 · 붙여넣기 연타) ─────────────────────
+
+describe("중복 전송", () => {
+  /* 보내기는 Enter 처리기가 직접 부른다. 그 처리기가 보는 `send.isPending` 은 지난 렌더의 값이라, 화면이 다시
+     그려지기 전에 온 둘째 Enter 는 같은 말을 한 번 더 보냈다(요청마다 새 client_message_id 라 서버도 둘을 다른 말로
+     받는다). 응답을 붙잡아 그 창을 열고, 같은 틱에 Enter 를 두 번 보낸다. */
+  function mountHeld() {
+    const held = { messages: [], images: [] };
+    apiMock.mockImplementation((url, opts) => {
+      if (url.startsWith("/api/team-chat/rooms/r1/messages?")) return Promise.resolve(messagesPayload());
+      if (url === "/api/team-chat/rooms/r1/messages" && opts && opts.method === "POST") {
+        held.messages.push(opts.body);
+        return new Promise(() => {});
+      }
+      if (url === "/api/team-chat/rooms/r1/images" && opts && opts.method === "POST") {
+        held.images.push(opts.body);
+        return new Promise(() => {});
+      }
+      return Promise.resolve({ ok: true });
+    });
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity }, mutations: { retry: false } } });
+    render(<QueryClientProvider client={qc}><ChatPane roomId="r1" interval={false} /></QueryClientProvider>);
+    return held;
+  }
+
+  it("같은 틱에 Enter 가 두 번 와도 같은 글은 한 번만 나간다", async () => {
+    const held = mountHeld();
+    const input = await screen.findByRole("textbox", { name: "메시지 입력" });
+    fireEvent.change(input, { target: { value: "회의 10분 뒤에 시작합니다" } });
+    act(() => {
+      fireEvent.keyDown(input, { key: "Enter" });
+      fireEvent.keyDown(input, { key: "Enter" });
+    });
+    await waitFor(() => expect(held.messages).toHaveLength(1));
+    await act(async () => {});
+    expect(held.messages).toHaveLength(1);
+    expect(held.messages[0].body).toBe("회의 10분 뒤에 시작합니다");
+  });
+
+  it("그림을 빠르게 두 번 붙여넣어도 올리는 요청은 한 번이다", async () => {
+    const held = mountHeld();
+    const input = await screen.findByRole("textbox", { name: "메시지 입력" });
+    act(() => {
+      input.dispatchEvent(pasteEvent([imageItem()]));
+      input.dispatchEvent(pasteEvent([imageItem()]));
+    });
+    await waitFor(() => expect(held.images).toHaveLength(1));
+    await act(async () => {});
+    expect(held.images).toHaveLength(1);
   });
 });

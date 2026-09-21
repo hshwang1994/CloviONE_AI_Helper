@@ -10,6 +10,7 @@ import Typography from "@mui/material/Typography";
 import StarRoundedIcon from "@mui/icons-material/StarRounded";
 import StarOutlineRoundedIcon from "@mui/icons-material/StarOutlineRounded";
 import { api } from "../lib/api.js";
+import { useGuardedMutation } from "../lib/useGuardedMutation.js";
 import {
   Badge,
   Button,
@@ -432,7 +433,9 @@ function Relations({ documentId, relations, backlinks, tickets, onChanged, readO
     onSuccess: () => { onChanged(); setOpen(false); setTarget(""); toast("문서를 이었습니다."); },
   });
 
-  const drop = useMutation({
+  /* 끊기는 줄마다 선 「삭제」 단추다. 예전에는 끊는 동안에도 단추가 살아 있어 두 번 누르면 같은 DELETE 가 두 번
+     나가고 「연결을 끊었습니다」가 두 번 떴다. 같은 연결은 끝나기 전에 한 번만 끊고, 그동안 단추를 끈다. */
+  const drop = useGuardedMutation({
     mutationFn: (body) =>
       api(`/api/knowledge/documents/${documentId}/relations`, { method: "DELETE", body }),
     onSuccess: () => { onChanged(); toast("연결을 끊었습니다."); },
@@ -461,6 +464,7 @@ function Relations({ documentId, relations, backlinks, tickets, onChanged, readO
             <Button
               size="small"
               variant="ghost"
+              disabled={drop.isPending}
               onClick={() => drop.mutate({ to_document_id: rel.document_id, kind: rel.kind })}
             >
               삭제

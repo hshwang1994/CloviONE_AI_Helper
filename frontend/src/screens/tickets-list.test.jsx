@@ -1,7 +1,7 @@
 /* qa-contract-change: UI 3차 조합 계약 C-1 — 목록 위 단독 결과 줄(「전체 N건」)을 걷어 결과 수를 필터 면 안 조건 줄과 목록 끝 줄이 말하게 됐다. 건수 단언을 끝 줄 문장으로 옮기고 단독 줄이 되살아나지 않음을 더한다. */
 import React from "react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Routes, Route, useParams } from "react-router-dom";
@@ -225,5 +225,50 @@ describe("내 티켓/미할당 — 미러 안내가 없다", () => {
     expect(screen.queryByText(/마지막 정상 데이터를 보고 있습니다/)).toBeNull();
     expect(screen.queryByText(/최근 동기화에 실패했습니다/)).toBeNull();
     expect(screen.queryByRole("button", { name: "지금 동기화" })).toBeNull();
+  });
+
+  it("미할당: 「나에게 배정」을 두 번 눌러도 배정 요청은 한 번이고, 그동안 단추가 꺼진다 (P4)", async () => {
+    /* 예전에는 단추가 안 꺼져 더블클릭의 둘째 요청이 첫 요청의 배정 잠금에 걸렸다 — 사용자는 자기
+       더블클릭 때문에 「다른 사람이 지금 이 티켓을 배정하고 있습니다」를 봤다. 응답을 붙잡아 그 창을 연다. */
+    const claims = [];
+    let release;
+    const held = new Promise((resolve) => { release = resolve; });
+    apiMock.mockImplementation((path, options) => {
+      const p = String(path);
+      if (p.startsWith("/api/tickets/meta")) return Promise.resolve(META);
+      if (p.startsWith("/api/tickets/unassigned")) {
+        return Promise.resolve({
+          configured: true, ok: true, page: 1, page_size: 20, total: 1,
+          items: [{ id: "t-9", tid: 9, title: "담당자 없는 일", status: "진행", project: "인프라", due: "2026-08-20", assignee_names: [] }],
+        });
+      }
+      if (p === "/api/tickets/t-9/claim" && options && options.method === "POST") {
+        claims.push(p);
+        return held;
+      }
+      return Promise.resolve({});
+    });
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={qc}>
+        <MemoryRouter initialEntries={["/unassigned"]}>
+          <Routes><Route path="/unassigned" element={<Unassigned />} /></Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    const claim = await screen.findByRole("button", { name: "나에게 배정" });
+    // 같은 틱의 두 클릭 — 단추가 다시 그려져 꺼지기 전의 창이다.
+    act(() => {
+      fireEvent.click(claim);
+      fireEvent.click(claim);
+    });
+    // 요청 함수는 TanStack 이 마이크로태스크 뒤에 부른다 — 그 뒤까지 흘려보내고 센다.
+    await waitFor(() => expect(claims).toHaveLength(1));
+    await act(async () => {});
+    expect(claims).toHaveLength(1);
+    // 다시 그려진 뒤에는 단추가 꺼져 있어 셋째 클릭은 닿지 않는다.
+    expect(screen.getByRole("button", { name: "나에게 배정" })).toBeDisabled();
+    await act(async () => { release({ ok: true, ticket: { id: "t-9" } }); });
+    expect(claims).toHaveLength(1);
   });
 });

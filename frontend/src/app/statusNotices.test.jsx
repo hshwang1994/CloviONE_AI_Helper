@@ -1,6 +1,6 @@
 import React from "react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import "@testing-library/jest-dom/vitest";
@@ -205,6 +205,32 @@ describe("StatusNoticeButton / CriticalStatusLine", () => {
     });
     await userEvent.click(within(panel).getByRole("button", { name: "닫기" }));
     await waitFor(() => expect(posted).toContain("/api/announcements/a-1/dismiss"));
+  });
+
+  it("공지의 「닫기」를 같은 틱에 두 번 눌러도 닫기 요청은 한 번이다 (P4)", async () => {
+    /* 공지는 서버가 다시 준 목록에서 빠질 때까지 제자리에 남는다. 그 사이의 둘째 클릭이 같은 요청을 또 보냈다. */
+    mockRoutes({
+      "/api/announcements": {
+        items: [{ id: "a-1", title: "정기 점검", body: "토요일 02:00~04:00", level: "warning", dismissible: true, link_url: null }],
+      },
+    });
+    renderHarness();
+    await userEvent.click(await screen.findByText(/주의 1/));
+    const panel = await screen.findByRole("dialog");
+
+    const posted = [];
+    apiMock.mockImplementation((path, opts) => {
+      if (opts && opts.method === "POST") { posted.push(path); return new Promise(() => {}); }
+      return Promise.resolve(QUIET[path] || { items: [] });
+    });
+    const close = within(panel).getByRole("button", { name: "닫기" });
+    act(() => {
+      fireEvent.click(close);
+      fireEvent.click(close);
+    });
+    await waitFor(() => expect(posted).toHaveLength(1));
+    await act(async () => {});
+    expect(posted).toEqual(["/api/announcements/a-1/dismiss"]);
   });
 
   it("닫을 수 없는 공지에는 닫기 버튼이 없다", async () => {

@@ -17,6 +17,7 @@ import { useIdleGetter } from "../lib/idle.js";
 import { Button, Callout, EmptyState, ErrorState, Skeleton, overflowMenuItems, useConfirm } from "../ui/kit.jsx";
 import { CHAT } from "../ui/chat.js";
 import { failureText } from "../lib/failure.js";
+import { useGuardedMutation } from "../lib/useGuardedMutation.js";
 import { FILTER_LISTBOX_SX } from "../ui/filters.jsx";
 import { EMOJI_GROUPS, EMOJI_LABELS, imageFromClipboard, imageRejectReason, insertAtCursor } from "./chat-compose.js";
 import { ChatBubbleText } from "./ChatBubbleText.jsx";
@@ -135,7 +136,10 @@ export function ChatPane({ roomId, compact = false, interval = 2000, idleMax = 0
     retry: false,
   });
 
-  const send = useMutation({
+  /* 보내기는 Enter 로도 나간다. 그 처리기(`doSend`)의 `send.isPending` 은 **지난 렌더의 값**이라, 첫 Enter 뒤
+     화면이 다시 그려지기 전에 온 둘째 Enter 는 같은 말을 한 번 더 보냈다 — 요청마다 새 `client_message_id` 를 붙이므로
+     서버도 둘을 다른 말로 받는다. 같은 글은 끝나기 전에 한 번만 나간다(`useGuardedMutation`). */
+  const send = useGuardedMutation({
     mutationFn: (body) => api(`/api/team-chat/rooms/${roomId}/messages`, {
       method: "POST", body: { body, client_message_id: nextClientId() },
     }),
@@ -157,7 +161,10 @@ export function ChatPane({ roomId, compact = false, interval = 2000, idleMax = 0
     },
   });
   // 붙여넣은 이미지 업로드 — FormData 라 api()가 JSON으로 감싸지 않는다(lib/api.js).
-  const sendImage = useMutation({
+  /* 올리는 동안 붙여넣은 그림은 버린다(아래 `onPaste` 의 `isPending` 과 같은 뜻). 붙여넣을 때마다 새 File 이라 값으로는
+     같은 그림인지 못 가르므로 키는 「한 번에 하나」다 — Ctrl+V 를 빠르게 두 번 누르면 같은 그림이 두 장 올라갔다. */
+  const sendImage = useGuardedMutation({
+    key: () => "image",
     mutationFn: (file) => {
       const fd = new FormData();
       fd.append("file", file, file.name || "paste.png");

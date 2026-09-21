@@ -1,6 +1,6 @@
 import React from "react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
@@ -160,5 +160,40 @@ describe("티켓 편집 — 신호", () => {
     await waitFor(() => expect(document.getElementById("te-issue")).toBeTruthy());
 
     expect(screen.queryByRole("checkbox", { name: "지연" })).toBeNull();
+  }, { timeout: 10000 });
+});
+
+describe("티켓 편집 — 같은 저장을 두 번 보내지 않는다 (P4)", () => {
+  it("제목 칸에서 Enter 를 두 번 쳐도 PATCH 는 한 번이다", async () => {
+    /* Enter 는 발의 「저장」이 아니라 폼 안의 숨은 제출 단추를 누른다. 그 단추는 저장 중에도 꺼지지 않으므로
+       예전에는 Enter 두 번이 같은 PATCH 두 번이었다. 응답을 붙잡아 두고 그 창 안에서 두 번 친다. */
+    const patches = [];
+    let release;
+    const held = new Promise((resolve) => { release = resolve; });
+    apiMock.mockImplementation((path, options) => {
+      if (path === "/api/tickets/p1" && options && options.method === "PATCH") {
+        patches.push(options.body);
+        return held;
+      }
+      if (path.startsWith("/api/tickets/assignees")) return Promise.resolve({ assignees: [] });
+      if (path.startsWith("/api/tickets/meta")) {
+        return Promise.resolve({ statuses: ["진행", "완료"], priorities: [], difficulties: [] });
+      }
+      if (path.startsWith("/api/tickets/projects")) return Promise.resolve({ projects: [] });
+      return Promise.resolve({});
+    });
+    const user = userEvent.setup();
+    renderModal(ticket());
+    await waitFor(() => expect(document.getElementById("te-title")).toBeTruthy());
+
+    const title = document.getElementById("te-title");
+    await user.clear(title);
+    await user.type(title, "고친 제목");
+    await user.keyboard("{Enter}{Enter}");
+
+    await waitFor(() => expect(patches).toHaveLength(1));
+    expect(patches[0]).toEqual({ title: "고친 제목" });
+    await act(async () => { release({ ok: true, ticket: ticket({ title: "고친 제목" }) }); });
+    expect(patches).toHaveLength(1);
   }, { timeout: 10000 });
 });

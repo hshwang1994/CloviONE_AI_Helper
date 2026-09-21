@@ -182,6 +182,10 @@ export function useStatusNotices({ enabled = true } = {}) {
   const announcements = useAnnouncements(enabled);
   const qc = useQueryClient();
   const [dismissed, setDismissed] = useState(loadDismissed);
+  /* 공지 닫기는 서버에 남는다(다른 기기에서도 닫혀 있어야 한다). 그 요청이 끝나 목록이 다시 올 때까지 공지는 제자리에
+     남아 「닫기」를 한 번 더 누를 수 있었고, 그 클릭마다 같은 요청이 나갔다. 같은 공지의 닫기는 끝나기 전에 한 번만
+     보낸다(서버도 멱등이지만 같은 요청을 두 번 보낼 이유가 없다). */
+  const closing = useRef(new Set());
 
   const all = useMemo(
     () => normalizeNotices(status.data, announcements.data),
@@ -200,7 +204,11 @@ export function useStatusNotices({ enabled = true } = {}) {
   function dismiss(notice) {
     if (notice.kind === "announcement") {
       if (!notice.dismissible) return;
-      dismissAnnouncement(qc, notice.announcementId);
+      const id = notice.announcementId;
+      if (closing.current.has(id)) return;
+      closing.current.add(id);
+      const release = () => { closing.current.delete(id); };
+      dismissAnnouncement(qc, id).then(release, release);
       return; // 서버가 다음 조회부터 목록에서 뺀다 — 로컬 dismissed에 넣지 않는다(중복 관리 방지).
     }
     setDismissed((prev) => {

@@ -13,7 +13,7 @@
  */
 import React from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
@@ -248,6 +248,26 @@ describe("곁열이 문서에 대한 것을 든다", () => {
     expect(screen.getAllByText("알파 프로젝트").length).toBeGreaterThan(0);
     expect(screen.getByText("요구사항 정의서")).toBeInTheDocument();
     expect(screen.getByText("회의자료.pdf")).toBeInTheDocument();
+  });
+
+  it("관련 문서 「삭제」를 같은 틱에 두 번 눌러도 끊는 요청은 한 번이고, 그동안 단추가 꺼진다 (P4)", async () => {
+    /* 예전에는 끊는 동안에도 단추가 살아 있어 같은 DELETE 가 두 번 나가고 「연결을 끊었습니다」가 두 번 떴다. */
+    const drops = [];
+    responses.set(`DELETE /api/knowledge/documents/${DOC_ID}/relations`, (options) => {
+      drops.push(options.body);
+      return new Promise(() => {});
+    });
+    await renderDoc();
+    const row = screen.getByRole("link", { name: "요구사항 정의서" }).parentElement;
+    const drop = within(row).getByRole("button", { name: "삭제" });
+    act(() => {
+      fireEvent.click(drop);
+      fireEvent.click(drop);
+    });
+    await waitFor(() => expect(drops).toHaveLength(1));
+    await act(async () => {});
+    expect(drops).toEqual([{ to_document_id: "doc-2", kind: "relates_to" }]);
+    expect(within(row).getByRole("button", { name: "삭제" })).toBeDisabled();
   });
 
   it("문서 잇기 창의 확정 단추는 고르기 전에도 선다 — 꺼져 있을 뿐 사라지지 않는다(핸드오프 RULES §3)", async () => {

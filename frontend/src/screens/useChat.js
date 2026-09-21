@@ -3,6 +3,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { api } from "../lib/api.js";
 import { failureText, latestMutation } from "../lib/failure.js";
+import { useGuardedMutation } from "../lib/useGuardedMutation.js";
 import { normalizeQuery } from "../lib/search.js";
 import { useConfirm, useToast } from "../ui/kit.jsx";
 import {
@@ -253,11 +254,15 @@ export function useChat({ pasteEnabled = true, screenContext = null, dataEnabled
     // 변이 변수의 id로 무효화해 정확한 스레드를 갱신한다.
     onSuccess: (_d, vars) => { qc.invalidateQueries({ queryKey: ["messages", vars.id] }); qc.invalidateQueries({ queryKey: ["conversations"] }); },
   });
-  const renameConv = useMutation({
+  /* 대화 목록의 이름 고치기와 보관은 같은 요청을 두 번 보내지 않는다(`useGuardedMutation`). 이름 칸은 Enter 로도
+     흐림(blur)으로도 저장해서, Enter 를 두 번 치거나 Enter 뒤 응답 전에 칸을 떠나면 같은 PATCH 가 한 번 더 나갔다.
+     보관 아이콘은 누르는 동안 꺼지지 않아 두 번 누르면 목록 총수가 두 번 줄었다. 진행 중인 같은 요청에는 그 약속을
+     그대로 돌려준다 — 이름 칸은 그 결과를 기다렸다가 닫힌다. */
+  const renameConv = useGuardedMutation({
     mutationFn: ({ id, title }) => api("/api/conversations/" + id, { method: "PATCH", body: { title } }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["conversations"] }),
   });
-  const archiveConv = useMutation({
+  const archiveConv = useGuardedMutation({
     mutationFn: ({ id, archived }) => api("/api/conversations/" + id, { method: "PATCH", body: { archived } }),
     // 현재 목록 캐시에서 즉시 반영한다. 그렇지 않으면 방금 보관한 대화가 stale 캐시에 남아
     // 자동 선택 이펙트가 그것을 다시 열어(보이지 않는 대화에 입력하는) 막다른 길이 된다.

@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { alpha } from "@mui/material/styles";
 import { api } from "../../lib/api.js";
 import { failureText } from "../../lib/failure.js";
+import { useGuardedMutation } from "../../lib/useGuardedMutation.js";
 import { useConfirm, useToast } from "../../ui/kit.jsx";
 import { celebrate, deriveCelebrateKey } from "./celebration.js";
 import { useCountdown } from "./timeUtils.js";
@@ -129,7 +130,9 @@ export function useGameRoomController(id) {
        성공한 것과 똑같이 보였다 — 방은 그대로인데 사용자는 파했다고 믿는다. */
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["games-rooms"] }); nav("/games"); },
   });
-  const chat = useMutation({
+  /* 채팅은 입력 칸의 Enter 로 나간다(`ChatPanel.jsx`). 그 처리기(`sendChat`)가 보는 `chat.isPending` 은 지난 렌더의
+     값이라, 다시 그려지기 전에 온 둘째 Enter 가 같은 말을 한 번 더 보냈다. 같은 말은 끝나기 전에 한 번만 나간다. */
+  const chat = useGuardedMutation({
     mutationFn: (text) => api(`/api/games/rooms/${id}/chat`, { method: "POST", body: { text } }),
     onSuccess: () => { setDraft(""); state.refetch(); },
   });

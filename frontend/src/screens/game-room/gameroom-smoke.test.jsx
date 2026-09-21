@@ -1,6 +1,6 @@
 import React from "react";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import "@testing-library/jest-dom/vitest";
@@ -84,5 +84,30 @@ describe("게임방 구조 분리 스모크", () => {
 
     // 방장 + 대기 상태 → 시작 버튼.
     expect(screen.getByRole("button", { name: "투표 시작" })).toBeInTheDocument();
+  });
+});
+
+describe("게임방 채팅 — 같은 말을 두 번 보내지 않는다 (P4)", () => {
+  it("같은 틱에 Enter 가 두 번 와도 채팅 요청은 한 번이다", async () => {
+    /* 채팅은 입력 칸의 Enter 처리기가 직접 보낸다. 그 처리기가 보는 `isPending` 은 지난 렌더의 값이라, 다시
+       그려지기 전에 온 둘째 Enter 는 같은 말을 한 번 더 보냈다. 응답을 붙잡아 그 창을 연다. */
+    const sent = [];
+    apiMock.mockImplementation((url, opts) => {
+      if (url === "/api/games/rooms/r2/chat" && opts && opts.method === "POST") {
+        sent.push(opts.body);
+        return new Promise(() => {});
+      }
+      return Promise.resolve(WAITING_VOTE);
+    });
+    renderRoom();
+    const input = await screen.findByRole("textbox", { name: "메시지 입력" });
+    fireEvent.change(input, { target: { value: "점심은 국수로 하죠" } });
+    act(() => {
+      fireEvent.keyDown(input, { key: "Enter" });
+      fireEvent.keyDown(input, { key: "Enter" });
+    });
+    await waitFor(() => expect(sent).toHaveLength(1));
+    await act(async () => {});
+    expect(sent).toEqual([{ text: "점심은 국수로 하죠" }]);
   });
 });

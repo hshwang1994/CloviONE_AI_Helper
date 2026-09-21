@@ -19,6 +19,7 @@ import {
   useToast,
 } from "../ui/kit.jsx";
 import { failureText } from "../lib/failure.js";
+import { useGuardedMutation } from "../lib/useGuardedMutation.js";
 import { useResetScrollOnKeyChange } from "../lib/useInfiniteList.js";
 import { useListMemory } from "../lib/listReturn.js";
 import { SPACES_KEY, useKnowledgeSpaces } from "../lib/knowledgeSpaces.js";
@@ -204,7 +205,10 @@ export function Knowledge() {
     qc.invalidateQueries({ queryKey: ["knowledge", "template"] });
   };
 
-  const addTag = useMutation({
+  /* 어휘 추가는 「추가」 단추뿐 아니라 이름 칸의 Enter 로도 나간다(`TaxonomyManager.jsx`). 단추는 추가 중에 꺼지지만
+     Enter 처리기는 그렇지 않아서, Enter 를 두 번 치면 같은 이름이 두 번 나가고 둘째가 「이미 있습니다」로 실패했다.
+     같은 이름은 끝나기 전에 한 번만 나간다(`useGuardedMutation`). 분류 추가도 같다. */
+  const addTag = useGuardedMutation({
     mutationFn: (name) => api("/api/knowledge/tags", { method: "POST", body: { name } }),
     onSuccess: () => { invalidateTags(); toast("태그를 추가했습니다."); },
   });
@@ -227,7 +231,7 @@ export function Knowledge() {
     },
   });
 
-  const addCategory = useMutation({
+  const addCategory = useGuardedMutation({
     mutationFn: (name) => api("/api/knowledge/categories", { method: "POST", body: { name } }),
     onSuccess: () => { invalidateCategories(); toast("분류를 추가했습니다."); },
   });
@@ -285,7 +289,9 @@ export function Knowledge() {
     },
   });
 
-  const favorite = useMutation({
+  /* 목록의 별은 누르는 동안 꺼지지 않는 맨 단추다. 두 번 누르면 둘 다 화면이 아직 모르는 옛 상태로 같은 요청을
+     만든다 — 같은 요청은 끝나기 전에 한 번만 나간다. */
+  const favorite = useGuardedMutation({
     mutationFn: ({ id, on }) =>
       api(`/api/knowledge/documents/${id}/favorite?on=${on ? "true" : "false"}`, { method: "POST" }),
     onSuccess: () => {

@@ -13,7 +13,7 @@
  */
 import React from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { act, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
@@ -254,6 +254,27 @@ describe("문서 목록의 묶음 이어 받기", () => {
       const post = apiMock.mock.calls.find(([p]) => String(p).includes("/favorite?on=false"));
       expect(post, "별을 눌렀는데 요청이 안 나갔다").toBeTruthy();
     });
+  });
+
+  it("별을 같은 틱에 두 번 눌러도 즐겨찾기 요청은 한 번이다 (P4)", async () => {
+    /* 별은 누르는 동안 꺼지지 않는 맨 단추라, 두 번 누르면 둘 다 아직 안 바뀐 옛 상태로 같은 요청을 만든다. */
+    const base = apiMock.getMockImplementation();
+    apiMock.mockImplementation((path, opts) => {
+      if (String(path).includes("/favorite?")) return new Promise(() => {});
+      return base(path, opts);
+    });
+    renderList();
+    await seeRows();
+    const star = screen.getByRole("button", { name: "문서 0 즐겨찾기 해제" });
+    act(() => {
+      fireEvent.click(star);
+      fireEvent.click(star);
+    });
+    const favorites = () => apiMock.mock.calls.filter(([p]) => String(p).includes("/favorite?"));
+    await waitFor(() => expect(favorites()).toHaveLength(1));
+    await act(async () => {});
+    expect(favorites()).toHaveLength(1);
+    expect(String(favorites()[0][0])).toContain("/favorite?on=false");
   });
 
   it("문서 줄에 종류와 태그가 보인다 — 필터만 있고 줄에는 없으면 손실처럼 보인다", async () => {
@@ -644,6 +665,29 @@ describe("분류 관리 — 태그 탭", () => {
       expect(post, "태그 추가 요청이 안 나갔다").toBeTruthy();
       expect(post[1].body.name).toBe("배포 관리");
     });
+  });
+
+  it("이름 칸에서 Enter 를 두 번 쳐도 추가 요청은 한 번이다 (P4)", async () => {
+    /* 「추가」 단추는 추가 중에 꺼지지만 이름 칸의 Enter 처리기는 꺼지지 않는다. 예전에는 Enter 두 번이 같은
+       이름의 POST 두 번이었고, 둘째가 「이미 있습니다」로 실패해 창 안에 실패 상자가 섰다. 응답을 붙잡아 그 창을 연다. */
+    const base = apiMock.getMockImplementation();
+    apiMock.mockImplementation((path, opts) => {
+      if (String(path) === "/api/knowledge/tags" && opts && opts.method === "POST") return new Promise(() => {});
+      return base(path, opts);
+    });
+    renderList();
+    await seeRows();
+
+    const dialog = await openTaxonomy("tags");
+    await userEvent.type(within(dialog).getByLabelText("새 태그"), "배포 관리");
+    await userEvent.keyboard("{Enter}{Enter}");
+
+    const posts = () => apiMock.mock.calls.filter(
+      ([p, o]) => String(p) === "/api/knowledge/tags" && o && o.method === "POST");
+    await waitFor(() => expect(posts()).toHaveLength(1));
+    await act(async () => {});
+    expect(posts()).toHaveLength(1);
+    expect(posts()[0][1].body.name).toBe("배포 관리");
   });
 
   it("🔴 지우기 전에 몇 건에서 떨어지는지 묻는다 — 0건과 3건은 다른 일이다", async () => {

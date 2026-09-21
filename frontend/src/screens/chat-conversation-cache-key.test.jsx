@@ -89,3 +89,74 @@ describe("대화 보관/삭제 낙관적 캐시 갱신이 실제 쿼리 키를 �
     expect(latestHook.convs.data.total).toBe(0);
   });
 });
+
+describe("대화 이름 고치기 · 보관은 같은 요청을 두 번 보내지 않는다 (P4)", () => {
+  /* 이름 칸은 Enter 로도 흐림으로도 저장하고, 보관 아이콘은 누르는 동안 꺼지지 않는다. 그래서 같은 요청이 응답
+     전에 두 번 올 수 있다 — 보관은 그때 목록 총수를 두 번 줄였다. 응답을 붙잡아 그 창을 연다. */
+  let release;
+  function mountHeld(initialItems) {
+    const writes = [];
+    const held = new Promise((resolve) => { release = resolve; });
+    let convFetchCount = 0;
+    apiMock.mockImplementation((url, opts) => {
+      if (opts && opts.method === "PATCH") {
+        writes.push({ url, body: opts.body });
+        return held;
+      }
+      if (url.startsWith("/api/conversations")) {
+        convFetchCount += 1;
+        if (convFetchCount === 1) return Promise.resolve({ items: initialItems, total: initialItems.length });
+        return new Promise(() => {});
+      }
+      return Promise.resolve({});
+    });
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
+    render(<QueryClientProvider client={qc}><Harness /></QueryClientProvider>);
+    return writes;
+  }
+
+  beforeEach(async () => {
+    stubMatchMedia();
+    apiMock.mockReset();
+    ({ useChat } = await import("./useChat.js"));
+  });
+
+  const two = () => [
+    { id: "c1", title: "대화1", archived: false, updated_at: "2026-01-01T00:00:00" },
+    { id: "c2", title: "대화2", archived: false, updated_at: "2026-01-01T00:00:00" },
+  ];
+
+  it("같은 이름 고치기가 응답 전에 두 번 오면 PATCH 는 한 번이고, 둘 다 같은 결과를 기다린다", async () => {
+    const writes = mountHeld(two());
+    await waitFor(() => expect(latestHook.convs.data && latestHook.convs.data.items.length).toBe(2));
+
+    let first;
+    let second;
+    act(() => {
+      first = latestHook.renameConv.mutateAsync({ id: "c1", title: "새 이름" });
+      second = latestHook.renameConv.mutateAsync({ id: "c1", title: "새 이름" });
+    });
+    expect(second).toBe(first);
+    await waitFor(() => expect(writes).toHaveLength(1));
+    /* `first` 는 끝까지 기다리지 않는다 — 성공 뒤 목록 무효화가 다시 묻는 요청을 이 대역이 일부러 영영 안 끝내므로
+       (위 AI-69 시험과 같은 대역), 그 약속은 무효화가 끝날 때까지 서 있다. 요청 수만 센다. */
+    await act(async () => { release({ conversation: { id: "c1", title: "새 이름" } }); });
+    await act(async () => {});
+    expect(writes).toEqual([{ url: "/api/conversations/c1", body: { title: "새 이름" } }]);
+  });
+
+  it("보관을 응답 전에 두 번 눌러도 PATCH 는 한 번이고 목록 총수는 한 번만 준다", async () => {
+    const writes = mountHeld(two());
+    await waitFor(() => expect(latestHook.convs.data && latestHook.convs.data.items.length).toBe(2));
+
+    act(() => {
+      latestHook.archiveConv.mutate({ id: "c1", archived: true });
+      latestHook.archiveConv.mutate({ id: "c1", archived: true });
+    });
+    await waitFor(() => expect(writes).toHaveLength(1));
+    await act(async () => { release({ conversation: { id: "c1", archived: true } }); });
+    await waitFor(() => expect(latestHook.convs.data.items.map((c) => c.id)).toEqual(["c2"]));
+    expect(latestHook.convs.data.total).toBe(1);
+    expect(writes).toHaveLength(1);
+  });
+});
