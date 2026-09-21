@@ -96,6 +96,15 @@ describe("PeopleFilter — 조건과 결과의 관계를 말한다", () => {
     expect(screen.getByText("1명 / 전체 12명")).toBeInTheDocument();
   });
 
+  it("칸 안내 글자는 자리마다 받는다 — 기본은 「이름, 이메일로 좁히기」이고 대조 규칙은 한 벌이다", () => {
+    const { unmount } = render(<PeopleFilter value="" onChange={() => {}} count={3} total={3} />);
+    expect(screen.getByRole("searchbox", { name: "사람 좁히기" })).toHaveAttribute("placeholder", "이름, 이메일로 좁히기");
+    unmount();
+    // 채팅방 참여자 명단은 줄에 이메일이 없고 부서가 보인다(`ChatRoomMembers.jsx::MemberRoster`).
+    render(<PeopleFilter value="" onChange={() => {}} count={9} total={9} placeholder="이름, 부서로 좁히기" />);
+    expect(screen.getByRole("searchbox", { name: "사람 좁히기" })).toHaveAttribute("placeholder", "이름, 부서로 좁히기");
+  });
+
   it("검색 상자에는 이름이 있다 — 스크린리더가 부를 수 있어야 한다", async () => {
     const onChange = vi.fn();
     const user = userEvent.setup();

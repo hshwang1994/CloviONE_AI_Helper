@@ -7,7 +7,7 @@ import { api } from "../lib/api.js";
 import { Button, Callout, ErrorState, Skeleton, useToast, useConfirm, Badge } from "../ui/kit.jsx";
 import { failureText } from "../lib/failure.js";
 import { ChatPane } from "./ChatPane.jsx";
-import { ManageRoomModal, MemberFaces, MemberSummary } from "./ChatRoomMembers.jsx";
+import { ManageRoomModal, MemberFaces, MemberRoster, MemberSummary, useMemberRoster } from "./ChatRoomMembers.jsx";
 
 /* 채팅방 페이지 — 헤더(방 이름·나가기·파하기·숨기기) + 폴링 채팅창(ChatPane). 방 메타는
  * 메시지 조회와 같은 쿼리 키를 써 한 번만 불러온다(react-query 중복 제거).
@@ -42,6 +42,8 @@ export function RoomDetailPanel({ id }) {
   const confirm = useConfirm();
   const qc = useQueryClient();
   const [manageOpen, setManageOpen] = React.useState(false);
+  // 참여자 명단 팝오버 — 요약 단추와 얼굴 스택이 같은 상태를 연다(`ChatRoomMembers.jsx::useMemberRoster`).
+  const roster = useMemberRoster();
 
   const meta = useQuery({
     queryKey: ["team-chat-msgs", id],
@@ -135,7 +137,8 @@ export function RoomDetailPanel({ id }) {
       {/* 방 머리 — 화면 제목(PageHeader)이 아니라 **판 안의 머리**다(핸드오프 RULES §9 · 채팅방 시안). 세 묶음이다:
           ① 이름표 두 줄 — 1줄 제목(판 제목 글자 갈래, 길면 말줄임 + 전체 이름표) + 방 종류 배지, 2줄 「참여자 N명, 보는 중 M명」(muted)
           ② 얼굴 스택 ③ 동작 단추(34). 예전에는 참여자 요약이 제목 줄 오른쪽에 한 줄로 서서 다섯 조각이 한 줄을 다퉜다(UI 3차 조합
-          계약 C-6). 폭이 모자라면 **묶음 단위로** 다음 줄로 간다 — 단추 하나만 떨어지거나 제목과 겹치지 않는다. */}
+          계약 C-6). 폭이 모자라면 **묶음 단위로** 다음 줄로 간다 — 단추 하나만 떨어지거나 제목과 겹치지 않는다.
+          2줄 요약은 참여자 명단을 여는 단추이고, 얼굴 스택을 눌러도 같은 명단이 열린다(`MemberRoster`). 묶음은 여전히 셋이다. */}
       <Box
         data-room-head=""
         sx={{
@@ -157,12 +160,13 @@ export function RoomDetailPanel({ id }) {
             {/* 방 머리는 목록 밖이다 — 정해진 축의 값(방 종류)은 면 있는 배지로 선다(핸드오프 RULES §2 · F4). */}
             {tag ? <Box component="span" sx={{ display: "inline-flex", flexShrink: 0 }}><Badge value={tag} emphasis="strong" /></Box> : null}
           </Box>
-          {/* 누가 지금 이 대화를 보고 있는지 — 글자로도 말한다(색만으로 전하지 않는다). 전체 채팅은 참여자 행이 없어 그리지 않는다. */}
-          {!meta.isPending && members.length ? <MemberSummary members={members} /> : null}
+          {/* 누가 지금 이 대화를 보고 있는지 — 글자로도 말한다(색만으로 전하지 않는다). 전체 채팅은 참여자 행이 없어 그리지 않는다.
+              그래서 전체 채팅에는 명단을 여는 자리도 없다. 그룹 · 내 팀 · 1:1 방은 방장이 아니어도 명단을 연다. */}
+          {!meta.isPending && members.length ? <MemberSummary members={members} roster={roster} /> : null}
         </Box>
         {!meta.isPending && members.length ? (
           <Box data-room-head-group="members" sx={{ flex: "0 0 auto", minWidth: 0 }}>
-            <MemberFaces members={members} people={people} />
+            <MemberFaces members={members} people={people} roster={roster} />
           </Box>
         ) : null}
         <Box data-room-head-group="actions" sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "nowrap", flex: "0 0 auto", marginInlineStart: "auto" }}>
@@ -185,6 +189,7 @@ export function RoomDetailPanel({ id }) {
           </Box>
         )}
       </Box>
+      <MemberRoster roster={roster} members={members} people={people} meId={you.user_id} />
       <ManageRoomModal
         open={manageOpen} onClose={() => setManageOpen(false)}
         roomId={id} title={room.title} members={members} meId={you.user_id} people={people}

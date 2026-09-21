@@ -7,6 +7,7 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import "@testing-library/jest-dom/vitest";
 
 /* qa-contract-change: 방 머리 참여자 줄이 이름 나열(「외 N명」 글자)에서 얼굴 스택(26 · −8, 「+N」 + 이름표 「외 N명」)으로 바뀌어(핸드오프 RULES §9 · 계획 E), 남은 수 단언을 스택의 이름표 · 글자로 옮기고 얼굴 수 · 접속 순서 · 이름표 단언을 더한다. */
+/* qa-contract-change: 요약 글자 「참여자 N명, 보는 중 M명」이 누구나 여는 참여자 명단 팝오버의 단추가 됐다(사용자 지시 2026-09-21 항목 3). 요약이 그 글자를 이름으로 가진 단추(aria-haspopup="dialog")인지와 전체 채팅에는 그 단추도 없는지를 더 잰다. 얼굴 스택 단언은 그대로다. */
 
 /* 그룹 관리 화면 — 이름 변경 · 초대 · 내보내기 · 방장 넘기기 (PLAN Phase 3 §F).
  *
@@ -238,7 +239,11 @@ describe("관리 대화상자", () => {
 describe("참여자 줄", () => {
   it("몇 명이 지금 이 대화를 보고 있는지 글자로도 말한다(색만으로 전하지 않는다)", async () => {
     mount(meta());
-    expect(await screen.findByText("참여자 2명, 보는 중 1명")).toBeInTheDocument();
+    const summary = await screen.findByText("참여자 2명, 보는 중 1명");
+    expect(summary).toBeInTheDocument();
+    // 그 글자가 참여자 명단을 여는 단추다 — 보이는 글자가 그대로 단추 이름이다(`chatroom-members-popover.test.jsx`).
+    expect(screen.getByRole("button", { name: "참여자 2명, 보는 중 1명" })).toBe(summary);
+    expect(summary).toHaveAttribute("aria-haspopup", "dialog");
   });
 
   it("사람이 많으면 얼굴을 여덟까지 겹쳐 세우고 남은 수를 「+N」(이름표 「외 N명」)으로 말한다 — 머리가 대화창을 밀어내면 안 된다", async () => {
@@ -264,5 +269,7 @@ describe("참여자 줄", () => {
     ));
     await screen.findByRole("heading", { name: /채팅|대화|방/ });
     expect(screen.queryByText(/참여자 \d+명/)).toBeNull();
+    // 명단을 여는 단추도 없다 — 서버에 명단이 없는 방에서 명단을 지어내지 않는다.
+    expect(screen.queryByRole("button", { name: /참여자/ })).toBeNull();
   });
 });

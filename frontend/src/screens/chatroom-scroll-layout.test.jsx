@@ -7,6 +7,7 @@ import "@testing-library/jest-dom/vitest";
 
 /* qa-contract-change: 방 머리가 한 줄(제목 + 종류 · 참여자 요약과 얼굴 · 동작)에서 두 줄 이름표(1줄 제목 + 종류 배지, 2줄 「참여자 N명, 보는 중 M명」) + 얼굴 스택 + 동작으로 옮겼다(UI 3차 조합 계약 C-6 · 채팅방 시안). 묶음 이름을 identity · members · actions 로 옮기고, 요약이 제목 줄 아래 · 얼굴 묶음 밖에 서는지와 선 토큰을 더 잰다. */
 /* qa-contract-change: 목록과 대화가 한 판을 가르던 두 칸에서 두 판(핸드오프 RULES §9 · 계획 E)이 되어 「대화창 머리 아래에 목록 검색줄과 같은 빈 자리」 계약이 뜻을 잃었다. 머리는 이제 세 묶음(제목 + 종류 · 참여자 · 동작)이 묶음 단위로 접히는 줄이다 — 그 구조를 잰다(스크롤 하나 계약은 그대로). */
+/* qa-contract-change: 2줄 참여자 요약이 참여자 명단 팝오버를 여는 단추가 됐다(사용자 지시 2026-09-21 항목 3). 세 묶음의 순서와 요약의 자리(제목 줄 바로 아래, 얼굴 묶음 밖)는 그대로 재고, 요약이 단추이며 넷째 묶음이 생기지 않았는지를 더 잰다. */
 
 /* 채팅방 페이지의 스크롤·헤더 정합성 회귀 테스트.
  *
@@ -131,5 +132,16 @@ describe("방 머리는 두 줄 이름표 · 얼굴 · 동작 세 묶음이다 (
     expect(head.querySelector('[data-room-head-group="members"]').contains(summary)).toBe(false);
     // 얼굴 스택은 요약과 따로 선다.
     expect(within(head.querySelector('[data-room-head-group="members"]')).getByRole("list", { name: "참여자" })).toBeInTheDocument();
+
+    // 요약은 명단 팝오버를 여는 단추다 — 자리는 그대로이고, 보이는 글자가 단추 이름이다. 닫혀 있을 때는 닫혀 있다고 말한다.
+    expect(summary.tagName).toBe("BUTTON");
+    expect(summary).toHaveAttribute("data-member-summary");
+    expect(summary).toHaveAttribute("aria-haspopup", "dialog");
+    expect(summary).toHaveAttribute("aria-expanded", "false");
+    expect(within(head).getByRole("button", { name: "참여자 2명, 보는 중 1명" })).toBe(summary);
+    // 요약 글자 모양(0.75rem muted, 한 줄 말줄임)은 단추가 되어도 그대로다.
+    expect(getComputedStyle(summary).fontSize).toBe("0.75rem");
+    expect(getComputedStyle(summary).whiteSpace).toBe("nowrap");
+    expect(getComputedStyle(summary).borderTopWidth).toMatch(/^0(px)?$/);
   });
 });

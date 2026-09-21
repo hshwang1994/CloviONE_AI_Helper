@@ -517,7 +517,7 @@ MEASURE_JS = r"""
     check('chat_layout').checked++;
     if (!near(av.getBoundingClientRect().width, C.chat.avatar)) fail('chat_layout', { what: 'avatar', w: Math.round(av.getBoundingClientRect().width) });
   }
-  for (const item of all('[data-member-strip] [role="listitem"] .k-avatar')) {
+  for (const item of all('[data-member-faces] [role="listitem"] .k-avatar')) {
     check('chat_layout').checked++;
     if (!near(item.getBoundingClientRect().width, C.chat.stack)) fail('chat_layout', { what: 'stack avatar', w: Math.round(item.getBoundingClientRect().width) });
   }

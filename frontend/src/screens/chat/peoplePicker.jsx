@@ -30,8 +30,11 @@ import { FONT_SIZE } from "../../ui/theme.js";
  *
  * 같은 디렉터리를 고르는 자리가 셋이다(그룹 초대 · 1:1 상대 · 멤버 추가). 세 벌로 두면
  * 한쪽만 고쳐지는 날이 오고, 그때 증상은 "이 모달만 검색이 안 된다"라서 원인이 안 보인다.
+ *
+ * 채팅방 참여자 명단(`ChatRoomMembers.jsx::MemberRoster`)도 같은 칸을 쓴다. 그 명단의 줄에는 이메일이 없고
+ * 부서가 보이므로, 칸 안내 글자만 자리마다 `placeholder` 로 받는다. 대조 규칙(`filterPeople`)은 한 벌 그대로다.
  */
-export function PeopleFilter({ value, onChange, count, total }) {
+export function PeopleFilter({ value, onChange, count, total, placeholder = "이름, 이메일로 좁히기" }) {
   const id = React.useId();
   return (
     <Box sx={{ mb: 1 }}>
@@ -42,7 +45,7 @@ export function PeopleFilter({ value, onChange, count, total }) {
         fullWidth
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        placeholder="이름, 이메일로 좁히기"
+        placeholder={placeholder}
         inputProps={{ "aria-label": "사람 좁히기" }}
       />
       {/* 조건과 결과의 관계를 말한다(C2 «결과 줄»). 조건이 없으면 아무 말도 하지 않는다 —
