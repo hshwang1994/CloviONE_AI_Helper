@@ -1093,8 +1093,13 @@ def _ensure_sprint_on_team(
     return sprint
 
 
+#: 판이 본 판(`base_version`)과 지금 티켓이 다를 때의 답. **누가** 바꿨는지 말하지 않는다 — 같은 사람의 다른 탭 ·
+#: 늦게 온 둘째 요청도 여기 걸리는데, 예전 문장(「다른 사람이 먼저 이 티켓을 옮겼습니다」)은 그것을 남의 일로 읽게 했다.
+TICKET_MOVED_MEANWHILE = "이 티켓이 그사이 바뀌어 옮기지 않았습니다. 새로고침한 뒤 다시 시도해 주세요."
+
+
 def _ensure_version(ticket: Ticket, base_version: int | None) -> None:
-    """그 사이 누가 먼저 옮겼는가.
+    """그 사이 티켓이 바뀌었는가.
 
     `base_version` 이 없으면(구버전 클라이언트) 예전대로 동작한다 — 새 계약을 강제해
     기존 경로를 깨뜨리지 않는다(`_ensure_body_not_changed` 와 같은 규약).
@@ -1102,9 +1107,7 @@ def _ensure_version(ticket: Ticket, base_version: int | None) -> None:
     if base_version is None:
         return
     if int(base_version) != int(ticket.version):
-        raise ConflictError(
-            "다른 사람이 먼저 이 티켓을 옮겼습니다. 새로고침한 뒤 다시 시도해 주세요."
-        )
+        raise ConflictError(TICKET_MOVED_MEANWHILE)
 
 
 def _notify_move(
