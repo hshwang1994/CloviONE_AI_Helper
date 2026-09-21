@@ -632,3 +632,127 @@ def test_the_python_twin_answers_like_the_sql_filter(client, login_as, db, searc
         assert by_python == by_sql, f"{query!r}: 파이썬 {sorted(by_python)} · SQL {sorted(by_sql)}"
     # 반례 — 판정력이 있다. 한쪽이라도 전부 통과시키면 위 비교는 아무것도 증명하지 않는다.
     assert {t.page_id for t in dtos if TicketFilters(search="%").matches(t)} == {"page-q-percent"}
+
+
+# ── 정렬: 머리에 그린 정렬 단추는 서버에서 실제로 걸린다 (D-497) ──────────────
+#
+# 표가 정렬 단추를 그린 열인데 서버 허용 표(`query.SORT_KEYS`)에 없으면 조용히 생성일 정렬로
+# 떨어진다 — 난이도가 그랬다. 그래서 행을 **생성일 순서와 다른 순서**로 심는다: 떨어졌다면 받은
+# 순서가 생성일 역순이라 아래 기대와 갈린다. 값이 없는 행과 표에 없는 값은 어느 방향이든 끝이다.
+
+
+def _sorted_ids(client, path: str, *, sort: str, order: str, q: str) -> list[str]:
+    body = client.get(
+        path, params={"active": "false", "sort": sort, "order": order, "q": q, "page_size": 100},
+    ).json()
+    assert body["ok"] is True, body
+    return _ids(body)
+
+
+def _seed_in_created_order(db, rows, *, assignees=()) -> None:
+    """`rows` 의 순서대로 하루씩 늦게 만든다 — 기본 정렬(생성일 내림차순)은 그 역순이다."""
+    for index, (uid, fields) in enumerate(rows):
+        _row(db, uid=uid, due=FAR, tid=index + 1, assignees=assignees,
+             created_at=datetime(2026, 7, 1 + index, 0, 0, 0), **fields)
+    db.commit()
+    _mirror_ready(db, len(rows))
+
+
+DIFFICULTY_ROWS = (
+    ("d-six", {"title": "난이도정렬 6", "difficulty": "6"}),
+    ("d-one", {"title": "난이도정렬 1", "difficulty": "1"}),
+    ("d-low", {"title": "난이도정렬 하", "difficulty": "하"}),
+    ("d-high", {"title": "난이도정렬 상", "difficulty": "상"}),
+    ("d-mid", {"title": "난이도정렬 중", "difficulty": "중"}),
+    ("d-three", {"title": "난이도정렬 3", "difficulty": "3"}),
+    ("d-none", {"title": "난이도정렬 없음", "difficulty": None}),
+    ("d-odd", {"title": "난이도정렬 특이", "difficulty": "특이"}),
+)
+#: 폼 드롭다운과 같은 순서다 — 숫자 등급이 숫자 크기대로 먼저, 그다음 상 · 중 · 하.
+DIFFICULTY_ASC = ["d-one", "d-three", "d-six", "d-high", "d-mid", "d-low", "d-none", "d-odd"]
+DIFFICULTY_DESC = ["d-low", "d-mid", "d-high", "d-six", "d-three", "d-one", "d-odd", "d-none"]
+
+
+def test_difficulty_sort_is_honoured_on_the_team_list(client, login_as, db, admin):
+    _seed_in_created_order(db, DIFFICULTY_ROWS)
+    login_as("system_admin", email="tf-admin@goodmit.co.kr")
+    path = "/api/tickets/team"
+    fallback = _sorted_ids(client, path, sort="created_at", order="desc", q="난이도정렬")
+    assert fallback == [f"page-{uid}" for uid, _ in reversed(DIFFICULTY_ROWS)], "전제가 깨졌다"
+    for order, want in (("asc", DIFFICULTY_ASC), ("desc", DIFFICULTY_DESC)):
+        got = _sorted_ids(client, path, sort="difficulty", order=order, q="난이도정렬")
+        assert got == [f"page-{uid}" for uid in want], f"난이도 {order}: {got}"
+        assert got != fallback, "난이도 정렬이 생성일 정렬로 떨어졌다"
+
+
+def test_difficulty_sort_is_honoured_on_my_list(client, login_as, db, me):
+    _seed_in_created_order(db, DIFFICULTY_ROWS, assignees=(NID_ME,))
+    login_as("user", email="tf-me@goodmit.co.kr")
+    for order, want in (("asc", DIFFICULTY_ASC), ("desc", DIFFICULTY_DESC)):
+        got = _sorted_ids(client, "/api/tickets/mine", sort="difficulty", order=order, q="난이도정렬")
+        assert got == [f"page-{uid}" for uid in want], f"내 티켓 난이도 {order}: {got}"
+
+
+def test_priority_sort_puts_blank_and_unknown_values_last_in_both_directions(
+    client, login_as, db, admin,
+):
+    """우선순위가 빈 티켓은 어느 방향이든 **끝**이다.
+
+    예전에는 모르는 값과 빈 값에 순위 10000 을 줘서, 내림차순을 고르면 빈 티켓이 첫 줄을
+    차지했다. 「중간」은 이관 원본의 이름이라 「보통」과 같은 자리에 선다.
+    """
+    rows = (
+        ("p-none", {"title": "우선정렬 없음", "priority": None}),
+        ("p-low", {"title": "우선정렬 낮음", "priority": "낮음"}),
+        ("p-urgent", {"title": "우선정렬 긴급", "priority": "긴급"}),
+        ("p-odd", {"title": "우선정렬 특이", "priority": "P9"}),
+        ("p-normal", {"title": "우선정렬 보통", "priority": "보통"}),
+        ("p-high", {"title": "우선정렬 높음", "priority": "높음"}),
+        ("p-mid", {"title": "우선정렬 중간", "priority": "중간"}),
+    )
+    _seed_in_created_order(db, rows)
+    login_as("system_admin", email="tf-admin@goodmit.co.kr")
+    asc = ["p-urgent", "p-high", "p-mid", "p-normal", "p-low", "p-none", "p-odd"]
+    desc = ["p-low", "p-normal", "p-mid", "p-high", "p-urgent", "p-odd", "p-none"]
+    for order, want in (("asc", asc), ("desc", desc)):
+        got = _sorted_ids(client, "/api/tickets/team", sort="priority", order=order, q="우선정렬")
+        assert got == [f"page-{uid}" for uid in want], f"우선순위 {order}: {got}"
+
+
+def test_ticket_key_sort_follows_the_visible_name(client, login_as, db, admin, make_project):
+    """티켓 열이 그리는 것은 이름(`SRTAAA-9`)이다 — 정렬도 그 이름의 순서다: 프로젝트 코드, 그 안의
+    번호(숫자로). 옛 소스의 번호(`tid`)는 이름이 아니고(D-281) 여기서는 일부러 거꾸로 심었다.
+    이름이 없는 티켓은 어느 방향이든 끝이다."""
+    first = make_project(name="이름 정렬 가", code="SRTAAA")
+    second = make_project(name="이름 정렬 나", code="SRTBBB")
+    rows = (
+        ("k-b2", second, 2, 1),
+        ("k-a10", first, 10, 2),
+        ("k-a9", first, 9, 3),
+        ("k-b1", second, 1, 4),
+        ("k-none", None, None, 5),
+    )
+    seeded = []
+    for index, (uid, project, seq, legacy) in enumerate(rows):
+        row = _row(
+            db, uid=uid, title=f"이름정렬 {uid}", due=FAR, tid=legacy,
+            project_uid=project.id if project is not None else None,
+            created_at=datetime(2026, 7, 1 + index, 0, 0, 0),
+        )
+        row.seq = seq
+        seeded.append(row)
+    db.commit()
+    _mirror_ready(db, len(rows))
+    # 이름은 트리거가 짓는다 — 다시 읽어야 ORM 쪽 값이 찬다.
+    for row in seeded:
+        db.refresh(row)
+    assert [row.canonical_key for row in seeded] == [
+        "SRTBBB-2", "SRTAAA-10", "SRTAAA-9", "SRTBBB-1", None,
+    ], "트리거가 이름을 안 지었다 — 전제가 깨졌다"
+    login_as("system_admin", email="tf-admin@goodmit.co.kr")
+    asc = ["k-a9", "k-a10", "k-b1", "k-b2", "k-none"]
+    desc = ["k-b2", "k-b1", "k-a10", "k-a9", "k-none"]
+    for sort in ("tid", "key"):
+        for order, want in (("asc", asc), ("desc", desc)):
+            got = _sorted_ids(client, "/api/tickets/team", sort=sort, order=order, q="이름정렬")
+            assert got == [f"page-{uid}" for uid in want], f"{sort} {order}: {got}"

@@ -6,13 +6,15 @@
 범위를 걸고 **같은 모듈의 단건·쓰기에는 안 걸었다.** 보드는 그 함정이 특히 크다 —
 카드를 옮기는 것은 쓰기인데 화면상으로는 목록을 만지는 것처럼 보이기 때문이다.
 
-여기서 보는 것 넷:
+여기서 보는 것 다섯:
 
 1. **판·백로그**에 남의 프로젝트 티켓이 안 나온다.
 2. **이동**이 404 다(403 이 아니다 — 존재를 알리면 id 를 찍어 목록을 열거할 수 있다).
 3. **이름 해석**(`ABCDEF-142` → 티켓)이 범위 밖 티켓의 존재를 알려 주지 않는다.
 4. **관계 잇기**가 한쪽만 보이는 상태에서 통하지 않는다 — 통하면 안 보이는 티켓의
    id 가 존재한다는 사실이 새 나간다.
+5. **여러 값 조건**(D-497)이 범위를 못 넓힌다 — 모르는 담당자는 목록을 닫고, 남의 프로젝트 ·
+   다른 팀 프로젝트를 섞어 줘도 고른 팀의 보이는 티켓만 선다.
 
 ## 양쪽을 함께 본다
 
@@ -21,6 +23,8 @@
 """
 
 from __future__ import annotations
+
+from decimal import Decimal
 
 import pytest
 
@@ -326,3 +330,138 @@ def test_a_foreign_neighbour_id_probes_no_rank(client, login_as, world, db):
     assert foreign > Decimal(100), f"범위 밖 이웃의 순위가 계산에 쓰였다: {foreign}"
     missing = move_with("00000000-0000-0000-0000-000000000000")
     assert missing > foreign, f"없는 이웃과 다른 모양이다: {missing} vs {foreign}"
+
+
+# ── 여러 값 조건도 범위를 못 넓힌다 (D-497) ───────────────────────────────────
+
+NOBODY = "00000000-0000-0000-0000-000000000000"
+
+
+def _three_lists(client, headers, params) -> dict[str, set[str]]:
+    """판 · 열(「계획」) · 백로그의 티켓 이름. 세 목록이 같은 조건 규칙을 쓰므로 같은 답이어야 한다."""
+    board = client.get("/api/work/board", params=params, headers=headers)
+    column = client.get("/api/work/board/columns/계획", params=params, headers=headers)
+    backlog = client.get("/api/work/backlog", params=params, headers=headers)
+    for name, response in (("board", board), ("column", column), ("backlog", backlog)):
+        assert response.status_code == 200, f"{name} {params}: {response.status_code} {response.text[:200]}"
+    return {
+        "board": _keys_on_board(board.json()),
+        "column": {c["key"] for c in column.json()["cards"]},
+        "backlog": {item["key"] for item in backlog.json()["items"]},
+    }
+
+
+def test_an_unknown_or_foreign_assignee_closes_the_lists_instead_of_opening_them(
+    client, login_as, world, db, make_user,
+):
+    """🔴 담당자 id 가 아무도 가리키지 못하면 목록이 **닫힌다** — 예전에는 조건이 지워져 전부 열렸다.
+
+    해석이 실패한 담당자 조건을 조용히 버리면 필터 없는 목록이 나가고, 사용자는 「그 사람의 일」을
+    본다고 믿으면서 팀 전체를 본다. 티켓 목록(`build_filters`)은 이미 닫고 있었고 판 · 백로그만
+    열려 있었다. 남의 팀 사람의 id 는 풀리지만 그 사람의 티켓이 범위 밖이라 역시 아무것도 안 나온다.
+    """
+    from app.core.models_base import join_names
+    from app.users.service import get_user_by_email
+
+    mate = get_user_by_email(db, MATE)
+    gone = make_user(
+        "board-scope-gone@goodmit.co.kr", role="user", display_name="비활성", active=False,
+    )
+    outsider = make_user("board-scope-outsider@goodmit.co.kr", role="user", display_name="남의팀원")
+    outsider.department_id = world["theirs"].dept_id
+    db.get(Ticket, world["ours_ticket"].id).assignee_notion_ids = join_names([mate.id])
+    db.get(Ticket, world["theirs_ticket"].id).assignee_notion_ids = join_names([outsider.id])
+    db.commit()
+    headers = _hdr(login_as)
+
+    # 반례 — 풀리는 사람으로 거르면 그 사람의 티켓이 세 목록에 다 보인다.
+    for name, got in _three_lists(client, headers, {"assignee_user_id": mate.id}).items():
+        assert got == {world["ours_key"]}, f"{name}: 풀리는 담당자로도 안 보인다 — 검사가 헛돈다: {got}"
+
+    for label, value in (
+        ("없는 id", NOBODY),
+        ("비활성 계정", gone.id),
+        ("남의 팀 사람", outsider.id),
+        ("없는 id 둘", [NOBODY, "11111111-1111-1111-1111-111111111111"]),
+    ):
+        for name, got in _three_lists(client, headers, {"assignee_user_id": value}).items():
+            assert got == set(), f"{label} 로 거른 {name} 이 열렸다: {got}"
+
+
+def test_an_unknown_assignee_closes_the_move_position_backlog_too(client, login_as, world, db):
+    """「맨 위로」의 기준도 같은 규칙이다 — 모르는 담당자로 거른 백로그는 빈 목록이라 첫 값을 받는다.
+
+    열렸다면 보이는 백로그(우리 티켓 순위 100)를 기준으로 그 바로 위 값이 나온다.
+    """
+    from app.work.rank import STEP
+
+    mover = Ticket(
+        title="옮길 카드", notion_page_id="page-mover", project_uid=world["ours"].id,
+        project_link=PROJECT_LINK_OK, status="계획", org_id=DEFAULT_ORG_ID, source="notion",
+        backlog_rank=Decimal(10_000),
+    )
+    db.add(mover)
+    db.get(Ticket, world["ours_ticket"].id).backlog_rank = Decimal(100)
+    db.commit()
+
+    def top(extra):
+        r = client.post(
+            f"/api/work/board/{mover.id}/move",
+            json={"reorder": True, "to_position": "top", **extra},
+            headers=_hdr(login_as),
+        )
+        assert r.status_code == 200, r.text
+        db.expire_all()
+        return db.get(Ticket, mover.id).backlog_rank
+
+    assert top({}) == Decimal(100) - STEP, "반례가 서지 않는다 — 전제가 깨졌다"
+    assert top({"position_assignee_user_id": [NOBODY]}) == STEP, "모르는 담당자가 조건을 지웠다"
+
+
+def test_multi_value_project_ids_cannot_widen_the_scope(client, login_as, world):
+    """여러 프로젝트를 한꺼번에 줘도 필터는 **좁히기만** 한다 — 남의 프로젝트 id 를 섞어 넣어도
+    그 프로젝트의 티켓은 안 나오고, 범위 밖 id 만 주면 아무것도 안 나온다."""
+    headers = _hdr(login_as)
+    mixed = {"project_id": [world["ours"].id, world["theirs"].id]}
+    for name, got in _three_lists(client, headers, mixed).items():
+        assert got == {world["ours_key"]}, f"{name}: 여러 값 프로젝트 필터로 범위가 넓어졌다: {got}"
+    outside = {"project_id": [world["theirs"].id, NOBODY]}
+    for name, got in _three_lists(client, headers, outside).items():
+        assert got == set(), f"{name}: 범위 밖 프로젝트로만 걸렀는데 나온다: {got}"
+
+
+def test_a_visible_project_of_another_team_stays_out_of_the_selected_team(
+    client, login_as, world, db,
+):
+    """팀 문맥(D-482)도 여러 값 필터 아래에서 그대로다 — **보이는** 하위 팀 프로젝트를 섞어 줘도
+    고른 팀의 판 · 백로그에는 그 팀 프로젝트의 티켓만 선다.
+
+    하위 팀을 직접 고르면 그 티켓이 보인다(반례) — 막은 것이 가시성이 아니라 팀 절이라는 뜻이다.
+    """
+    part = Department(name="우리팀 파트", org_id=DEFAULT_ORG_ID, parent_id=world["ours"].dept_id)
+    db.add(part)
+    db.commit()
+    part_project = work_codes.insert_with_code(
+        db,
+        Project(name="파트 프로젝트", org_id=DEFAULT_ORG_ID, dept_id=part.id, notion_page_id="proj-part"),
+    )
+    row = Ticket(
+        title="파트 티켓", notion_page_id="page-part", project_uid=part_project.id,
+        project_link=PROJECT_LINK_OK, status="계획", org_id=DEFAULT_ORG_ID, source="notion",
+        notion_ticket_number=33, seq=33,
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    part_key = row.canonical_key
+    headers = _hdr(login_as)
+
+    for name, got in _three_lists(client, headers, {"department_id": part.id}).items():
+        assert got == {part_key}, f"{name}: 하위 팀을 골랐는데 그 팀 티켓이 안 보인다 — 검사가 헛돈다: {got}"
+
+    both = {"project_id": [world["ours"].id, part_project.id]}
+    for name, got in _three_lists(client, headers, both).items():
+        assert got == {world["ours_key"]}, f"{name}: 다른 팀 프로젝트가 고른 팀에 섞였다: {got}"
+    only_part = {"project_id": [part_project.id]}
+    for name, got in _three_lists(client, headers, only_part).items():
+        assert got == set(), f"{name}: 다른 팀 프로젝트만 걸렀는데 고른 팀 판에 나온다: {got}"

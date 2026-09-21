@@ -13,6 +13,7 @@ from fastapi import Query
 from pydantic import BaseModel, ConfigDict, field_validator, model_validator, Field
 
 
+from app.core.errors import ValidationAppError
 from app.tickets.comments import MAX_COMMENT_CHARS
 from app.tickets.repository import DUE_BUCKETS
 
@@ -49,10 +50,19 @@ def _clean_list(values: list[str] | None, *, max_length: int, max_items: int = 4
 
 
 def _optional_date(value: str | None, label: str) -> str | None:
+    """목록 조회의 날짜 조건 — 없는 날짜는 **422** 다.
+
+    🔴 이 함수는 Pydantic 검사기가 아니라 FastAPI 의존성(`TicketListQuery.__init__`) 안에서 불린다. 거기서
+    `ValueError` 는 검증 오류로 바뀌지 않고 그대로 새어 나가 **500** 이 됐다 — `?created_from=2026-02-31` 한 줄이
+    서버 오류 화면이었다(작업 보드 API 회차가 탐침으로 확인, 2026-09-21). 같은 문장을 `ValidationAppError` 로 낸다.
+    """
     cleaned = _clean(value)
     if not cleaned:
         return None
-    return _ensure_real_date(cleaned, label)
+    try:
+        return _ensure_real_date(cleaned, label)
+    except ValueError as exc:
+        raise ValidationAppError(str(exc)) from None
 
 
 def _optional_float(value: float | None) -> float | None:

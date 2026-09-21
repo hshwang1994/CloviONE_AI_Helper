@@ -31,6 +31,7 @@ from app.work import meeting, service, triage, workflow
 from app.work.models import MigrationException, TicketStatus
 from app.work.resolve import resolve
 from app.work.schemas import (
+    BoardFilterQuery,
     BoardMove,
     DecisionCreate,
     DecisionUpdate,
@@ -41,6 +42,7 @@ from app.work.schemas import (
     SprintState,
     SprintUpdate,
     WatchToggle,
+    board_filter_query,
 )
 
 router = APIRouter(
@@ -94,16 +96,53 @@ def list_statuses(
 # ── 판과 백로그 ──────────────────────────────────────────────────────────────
 
 
-def _resolve_assignee_token(
-    db: Session, user: User, *, mine: bool, assignee_user_id: str | None
-) -> str | None:
+def _assignee_tokens(
+    db: Session, user: User, *, mine: bool, assignee_user_ids: tuple[str, ...]
+) -> tuple[str, ...] | None:
     """담당자는 **앱 user_id** 로 받는다. 브라우저는 원본 소스 토큰을 절대 모른다
-    (§12.3) — 해석은 서버가 한다. 판·백로그·이동 위치 계산 셋이 같은 규칙을 쓴다."""
+    (§12.3) — 해석은 서버가 한다. 판·열·백로그·이동 위치 계산 넷이 같은 규칙을 쓴다.
+
+    「내 티켓만」(`mine`)은 담당자 필터의 특수한 경우라 고른 담당자보다 **먼저** 본다.
+    돌려주는 값의 뜻은 셋이다: `None` 은 조건 없음, 토큰 튜플은 그중 한 명이라도 맡은 티켓,
+    **빈 튜플**은 고른 사람이 아무도 풀리지 않았다는 뜻이라 목록이 닫힌다
+    (`service._assignee_sql_clause`). 예전에는 풀리지 않은 id 가 조건을 지워서 목록이
+    전부 열렸다 — 모르는 사람으로 거른 화면이 모든 티켓을 보여 줬다.
+    """
     if mine:
-        return tickets_service.assignee_token(db, user)
-    if assignee_user_id:
-        return tickets_service.assignee_token_for_user(db, assignee_user_id)
-    return None
+        return (tickets_service.assignee_token(db, user),)
+    if not assignee_user_ids:
+        return None
+    tokens: list[str] = []
+    for user_id in assignee_user_ids:
+        token = tickets_service.assignee_token_for_user(db, user_id)
+        if token is not None and token not in tokens:
+            tokens.append(token)
+    return tuple(tokens)
+
+
+def _board_filters(
+    db: Session, user: User, request: Request, query: BoardFilterQuery, *, team_id: str | None
+) -> service.BoardFilters:
+    """화면의 조건(`BoardFilterQuery`) → 서비스의 조건(`BoardFilters`). **네 입구의 한 곳**이다.
+
+    판 · 열 · 백로그와 이동 위치 계산이 모두 이 함수를 지난다 — 담당자 해석 · 팀 · 「오늘」을
+    입구마다 따로 채우면 한 입구만 다른 규칙을 쓰는 날이 온다.
+    """
+    return service.BoardFilters(
+        project_ids=query.project_id,
+        assignee_tokens=_assignee_tokens(
+            db, user, mine=query.mine, assignee_user_ids=query.assignee_user_id,
+        ),
+        priorities=query.priority,
+        difficulties=query.difficulty,
+        est_wd_min=query.est_wd_min,
+        est_wd_max=query.est_wd_max,
+        q=query.q,
+        signal=query.signal,
+        blocked_only=query.blocked_only,
+        team_id=team_id,
+        today=local_today(request.app.state.settings, request.app.state.clock.now()),
+    )
 
 
 def _team(db: Session, user: User, department_id: str | None) -> dict:
@@ -132,20 +171,10 @@ def get_board(
     request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
-    project_id: str | None = Query(default=None, max_length=36),
+    # 판과 백로그가 **같은 축으로 좁힌다**(`BoardFilterQuery`). 예전에는 검색·우선순위·난이도가
+    # 백로그에만 있어서, 탭을 옮기면 방금 건 조건이 조용히 사라졌다.
+    query: BoardFilterQuery = Depends(board_filter_query),
     sprint_id: str | None = Query(default=None, max_length=36),
-    # 담당자는 **앱 user_id** 로 받는다. 브라우저는 원본 소스 토큰을 절대 모른다(§12.3) —
-    # 해석은 서버가 한다.
-    assignee_user_id: str | None = Query(default=None, max_length=36),
-    mine: bool = Query(default=False),
-    blocked_only: bool = Query(default=False),
-    # 판과 백로그가 **같은 축으로 좁힌다**. 예전에는 검색·우선순위·난이도가 백로그에만
-    # 있어서, 탭을 옮기면 방금 건 조건이 조용히 사라졌다.
-    department_id: str | None = Query(default=None, max_length=36),
-    q: str | None = Query(default=None, max_length=200),
-    priority: str | None = Query(default=None, max_length=64),
-    difficulty: str | None = Query(default=None, max_length=64),
-    signal: str | None = Query(default=None, pattern="^(blocked|overdue|issue)$"),
     # §8.1 — 회차 미선택 기본은 execution(종료 상태 제외). all 은 명시할 때만.
     scope: str | None = Query(default=None, pattern="^(sprint|execution|all)$"),
     # §8.5 — 열 하나가 첫 쪽에 싣는 카드 수. 나머지는 /board/columns/{status_key} 가 잇는다.
@@ -156,16 +185,12 @@ def get_board(
     「지연」의 기준일은 서버가 정한다(§불변 9) — 화면이 브라우저에서 오늘을 구하면
     KST 09:00 이전에 하루 밀린 건수를 요약 줄에 그린다.
     """
-    token = _resolve_assignee_token(db, user, mine=mine, assignee_user_id=assignee_user_id)
-    team = _team(db, user, department_id)
+    team = _team(db, user, query.department_id)
     body = service.board(
         db, user,
-        project_id=project_id, sprint_id=sprint_id, scope=scope,
-        assignee_token=token, blocked_only=blocked_only,
-        team_id=team["team_id"], q=q, priority=priority, difficulty=difficulty,
-        signal=signal,
+        filters=_board_filters(db, user, request, query, team_id=team["team_id"]),
+        sprint_id=sprint_id, scope=scope,
         column_page_size=column_page_size,
-        today=local_today(request.app.state.settings, request.app.state.clock.now()),
     )
     body["team"] = team["envelope"]
     return body
@@ -177,16 +202,8 @@ def get_board_column(
     request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
-    project_id: str | None = Query(default=None, max_length=36),
+    query: BoardFilterQuery = Depends(board_filter_query),
     sprint_id: str | None = Query(default=None, max_length=36),
-    assignee_user_id: str | None = Query(default=None, max_length=36),
-    mine: bool = Query(default=False),
-    blocked_only: bool = Query(default=False),
-    department_id: str | None = Query(default=None, max_length=36),
-    q: str | None = Query(default=None, max_length=200),
-    priority: str | None = Query(default=None, max_length=64),
-    difficulty: str | None = Query(default=None, max_length=64),
-    signal: str | None = Query(default=None, pattern="^(blocked|overdue|issue)$"),
     scope: str | None = Query(default=None, pattern="^(sprint|execution|all)$"),
     cursor: str | None = Query(default=None, max_length=200),
     limit: int = Query(default=service.DEFAULT_COLUMN_PAGE_SIZE, ge=1, le=service.MAX_COLUMN_PAGE_SIZE),
@@ -197,15 +214,12 @@ def get_board_column(
     🔴 「N건 중 앞 200건만 보여 줍니다」로 끝내지 않는다 — 커서를 끝까지 따라가면
     `total` 과 정확히 같은 수의 카드를 받는다(중복 0 · 누락 0).
     """
-    token = _resolve_assignee_token(db, user, mine=mine, assignee_user_id=assignee_user_id)
+    team_id = _team(db, user, query.department_id)["team_id"]
     return service.board_column(
         db, user,
         status_key=status_key,
-        project_id=project_id, sprint_id=sprint_id, scope=scope,
-        assignee_token=token, blocked_only=blocked_only,
-        team_id=_team(db, user, department_id)["team_id"],
-        q=q, priority=priority, difficulty=difficulty, signal=signal,
-        today=local_today(request.app.state.settings, request.app.state.clock.now()),
+        filters=_board_filters(db, user, request, query, team_id=team_id),
+        sprint_id=sprint_id, scope=scope,
         cursor=cursor, limit=limit,
     )
 
@@ -215,28 +229,24 @@ def get_backlog(
     request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
-    project_id: str | None = Query(default=None, max_length=36),
-    q: str | None = Query(default=None, max_length=200),
-    assignee_user_id: str | None = Query(default=None, max_length=36),
-    mine: bool = Query(default=False),
-    priority: str | None = Query(default=None, max_length=64),
-    difficulty: str | None = Query(default=None, max_length=64),
-    department_id: str | None = Query(default=None, max_length=36),
-    blocked_only: bool = Query(default=False),
-    signal: str | None = Query(default=None, pattern="^(blocked|overdue|issue)$"),
+    query: BoardFilterQuery = Depends(board_filter_query),
+    # D-497 — `sort` 는 `service.BACKLOG_SORTS`(rank · tid · priority · difficulty · est_wd ·
+    # due_date), `order` 는 asc · desc 다. 안 주거나 비우면 끌어 옮긴 순서(`rank` · `asc`)이고,
+    # 모르는 값은 서비스가 422 로 거절한다.
+    sort: str | None = Query(default=None, max_length=32),
+    order: str | None = Query(default=None, max_length=8),
     # §8.5 — 181행을 한 번에 받던 것을 커서로 잇는다.
     cursor: str | None = Query(default=None, max_length=200),
     limit: int = Query(default=service.DEFAULT_COLUMN_PAGE_SIZE, ge=1, le=service.MAX_COLUMN_PAGE_SIZE),
 ) -> dict:
     """백로그 — 아직 어느 회차에도 안 담긴 일. 조건은 판과 **같은 이름**을 쓴다."""
-    token = _resolve_assignee_token(db, user, mine=mine, assignee_user_id=assignee_user_id)
-    team = _team(db, user, department_id)
+    team = _team(db, user, query.department_id)
     body = service.backlog(
         db, user,
-        project_id=project_id, q=q, assignee_token=token,
-        priority=priority, difficulty=difficulty,
-        team_id=team["team_id"], signal=signal, blocked_only=blocked_only,
-        today=local_today(request.app.state.settings, request.app.state.clock.now()),
+        filters=_board_filters(db, user, request, query, team_id=team["team_id"]),
+        # 빈 값은 「고르지 않았다」다 — 화면이 정렬을 풀면 `?sort=` 로 올 수 있다.
+        sort=(sort or "").strip() or service.BACKLOG_SORT_RANK,
+        order=(order or "").strip() or "asc",
         cursor=cursor, limit=limit,
     )
     body["team"] = team["envelope"]
@@ -255,9 +265,15 @@ def move_card(
 
     감사는 서비스가 남긴다(`request` 를 넘긴다) — 라우터에서 따로 남기면 서비스가
     거절한 요청에도 기록이 생긴다.
+
+    「맨 위로 / 맨 아래로」의 조건(`position_*`)은 목록과 **같은 해석**(`_board_filters`)을
+    지난다 — 목록은 여러 값으로 거르는데 순위 계산만 한 값으로 거르면 「맨 위」가 화면에
+    보이는 맨 위가 아니다.
     """
-    position_token = _resolve_assignee_token(
-        db, user, mine=payload.position_mine, assignee_user_id=payload.position_assignee_user_id,
+    position = payload.position_query()
+    position_filters = _board_filters(
+        db, user, request, position,
+        team_id=_team(db, user, position.department_id)["team_id"],
     )
     return service.move(
         db, request.app.state.outbound_client, request.app.state.settings, user,
@@ -270,14 +286,7 @@ def move_card(
         reorder=payload.reorder,
         on_board=payload.on_board,
         to_position=payload.to_position,
-        position_project_id=payload.position_project_id,
-        position_q=payload.position_q,
-        position_assignee_token=position_token,
-        position_priority=payload.position_priority,
-        position_difficulty=payload.position_difficulty,
-        position_team_id=_team(db, user, payload.position_department_id)["team_id"],
-        position_signal=payload.position_signal,
-        position_today=local_today(request.app.state.settings, request.app.state.clock.now()),
+        position_filters=position_filters,
         base_version=payload.base_version,
         repo=_repo(request),
         request=request,

@@ -31,10 +31,11 @@ from __future__ import annotations
 
 import base64
 import logging
-from datetime import datetime
+from dataclasses import dataclass
+from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import false, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.authz.permissions import PROJECT_WRITE
@@ -52,6 +53,7 @@ from app.core.scope import MATCH_NOTHING, principal_from_user
 from app.core.search_text import LIKE_ESCAPE, contains_folded, escape_like
 from app.org import context as org_context
 from app.projects.models import Project
+from app.tickets import query as ticket_query
 from app.tickets.models import Ticket, api_page_id, api_page_id_expr
 from app.trash import repository as trash_repo
 from app.trash.models import TRASH_TICKET, TrashItem
@@ -130,18 +132,58 @@ def _not_trashed_ticket_clause():
     )
 
 
-def _assignee_sql_clause(assignee_token: str | None):
-    """담당자 한 명 — **SQL 절**로. `assignee_notion_ids` 는 앞뒤로 구분자(`NAMES_SEP`)를
-    두른 문자열이다(`join_names`) — 그래서 짧은 토큰이 더 긴 토큰 안에 우연히 끼어드는
-    부분 일치 오탐이 없다. `%`·`_`·`\\` 는 LIKE 메타문자라 이스케이프한다.
+@dataclass(frozen=True, slots=True)
+class BoardFilters:
+    """판 · 열 · 백로그 · 이동 위치 계산이 받는 **해석이 끝난 조건 한 벌** (D-497).
+
+    네 입구(`board` · `board_column` · `backlog` · `backlog_position_rank`)가 이 객체 하나를
+    받는다. 예전에는 같은 조건을 키워드 여덟 개로 네 번 적었고, 축 하나가 한 입구에서 빠지면
+    그 입구만 다른 집합을 봤다 — 오류 없이, 순서가 어긋난 화면으로만.
+
+    `assignee_tokens` 만 `None` 과 빈 튜플의 뜻이 다르다. `None` 은 조건이 없다는 뜻이고,
+    **빈 튜플**은 「사람을 골랐는데 아무도 가리키지 못했다」라서 아무것도 안 보인다
+    (`TicketFilters.project_any_of` 와 같은 규약). 둘을 같은 값으로 두면 모르는 사람으로 거른
+    목록이 조용히 전부 열린다 — 예전의 판 · 백로그가 정확히 그랬다.
+    """
+
+    project_ids: tuple[str, ...] = ()
+    assignee_tokens: tuple[str, ...] | None = None
+    priorities: tuple[str, ...] = ()
+    difficulties: tuple[str, ...] = ()
+    est_wd_min: float | None = None
+    est_wd_max: float | None = None
+    q: str | None = None
+    signal: str | None = None
+    blocked_only: bool = False
+    # 팀 문맥(D-482). 판은 회차를 고르지 않았을 때만, 백로그는 언제나 이 팀으로 좁힌다.
+    team_id: str | None = None
+    # 「지연」 신호의 기준일. 서버가 정한다(§불변 9) — 없으면 지연은 판정하지 않는다.
+    today: date | None = None
+
+
+def _assignee_sql_clause(assignee_tokens: tuple[str, ...] | None):
+    """담당자 — **SQL 절**로. 여러 명이면 그중 한 명이라도 맡은 티켓이다(OR).
+
+    `assignee_notion_ids` 는 앞뒤로 구분자(`NAMES_SEP`)를 두른 문자열이다(`join_names`) —
+    그래서 짧은 토큰이 더 긴 토큰 안에 우연히 끼어드는 부분 일치 오탐이 없다. `%`·`_`·`\\` 는
+    LIKE 메타문자라 이스케이프한다.
+
+    `None` 은 조건이 없다는 뜻이다. **빈 튜플은 닫는다**(`false()`) — 골랐는데 아무도 가리킬 수
+    없으면 걸릴 티켓이 없다. 조건을 조용히 버리면 필터가 없는 전체 목록이 나가는데, 그건
+    사용자가 알아챌 수 없는 방향의 오류다(`app/tickets/service.py::build_filters` 와 같은 판단).
 
     검색이 아니라 **정체성** 대조라 접지 않는다 — 토큰은 글자 그대로 같아야 같은 사람이다.
     escape 는 백엔드 공용 하나를 쓴다(`app/core/search_text.py::escape_like`)."""
-    if not assignee_token:
+    if assignee_tokens is None:
         return None
-    return Ticket.assignee_notion_ids.like(
-        f"%{NAMES_SEP}{escape_like(assignee_token)}{NAMES_SEP}%", escape=LIKE_ESCAPE
-    )
+    if not assignee_tokens:
+        return false()
+    return or_(*(
+        Ticket.assignee_notion_ids.like(
+            f"%{NAMES_SEP}{escape_like(token)}{NAMES_SEP}%", escape=LIKE_ESCAPE
+        )
+        for token in assignee_tokens
+    ))
 
 
 def _team_projects_clause(team_id: str):
@@ -159,17 +201,9 @@ def _board_scope_stmt(
     db: Session,
     user: User,
     *,
-    project_id: str | None,
+    filters: BoardFilters,
     sprint_id: str | None,
     scope: str,
-    assignee_token: str | None = None,
-    blocked_only: bool = False,
-    team_id: str | None = None,
-    q: str | None = None,
-    priority: str | None = None,
-    difficulty: str | None = None,
-    signal: str | None = None,
-    today: date | None = None,
 ):
     """판·백로그가 공유하는 **한 조건**(§8.5). 첫 쪽과 다음 쪽이 같은 조건을 본다 —
     안 그러면 이번 쪽에서 본 카드가 다음 쪽에서 다른 조건에 걸려 새거나 겹친다.
@@ -181,12 +215,10 @@ def _board_scope_stmt(
     회차 없이 팀만 골랐으면 그 팀의 실행분 — 팀 절은 백로그와 같은 정의다.
     """
     stmt = _visible_tickets_stmt(db, user)
-    if project_id:
-        stmt = stmt.where(Ticket.project_uid == project_id)
     if sprint_id:
         stmt = stmt.where(Ticket.sprint_id == sprint_id)
-    elif team_id:
-        stmt = stmt.where(_team_projects_clause(team_id))
+    elif filters.team_id:
+        stmt = stmt.where(_team_projects_clause(filters.team_id))
     stmt = stmt.where(
         Ticket.notion_missing_at.is_(None),
         _not_trashed_ticket_clause(),
@@ -195,13 +227,10 @@ def _board_scope_stmt(
         cat = workflow.category_sql(Ticket.status)
         # 어휘 밖 상태(`category` 가 `None`)는 실행분에 남는다 — 종료라고 알려진 것만 뺀다.
         stmt = stmt.where(cat.is_(None) | cat.notin_(workflow.TERMINAL_CATEGORIES))
-    assignee_clause = _assignee_sql_clause(assignee_token)
-    if assignee_clause is not None:
-        stmt = stmt.where(assignee_clause)
-    return _apply_shared_filters(
-        stmt, q=q, priority=priority, difficulty=difficulty,
-        signal=signal, blocked_only=blocked_only, today=today,
-    )
+    return _apply_shared_filters(stmt, filters)
+
+
+BAD_CURSOR = "잘못된 커서입니다."
 
 
 def _encode_rank_cursor(rank: Decimal | None, row_id: str) -> str:
@@ -216,7 +245,53 @@ def _decode_rank_cursor(cursor: str) -> tuple[Decimal | None, str]:
         rank_part, row_id = raw.split("|", 1)
         return (Decimal(rank_part) if rank_part else None, row_id)
     except Exception as exc:  # noqa: BLE001 — 형식이 뭐든 "잘못된 커서"로 뭉친다
-        raise ValidationAppError("잘못된 커서입니다.") from exc
+        raise ValidationAppError(BAD_CURSOR) from exc
+
+
+# 오프셋 커서의 표지. 순위 커서(`<rank>|<id>`)의 앞 칸은 숫자이거나 비어 있으므로, 이 글자로
+# 시작하는 커서는 순위 커서로 읽히지 않는다 — 두 종류가 서로의 자리에서 422 로 떨어진다.
+_OFFSET_CURSOR_TAG = "o"
+# 오프셋의 상한. 정상 커서는 `total` 을 넘지 않는다 — 그보다 큰 값은 만든 커서이고, DB 의
+# 정수 범위를 넘기면 422 가 아니라 500 이 된다.
+_MAX_CURSOR_OFFSET = 2**31 - 1
+
+
+def _encode_offset_cursor(kind: str, offset: int) -> str:
+    """고른 정렬로 본 백로그의 다음 쪽 — 역시 **불투명 문자열**이다. `kind` 는 정렬 키와
+    방향(`priority:desc`)이라, 다른 정렬로 받은 커서를 이어 붙이면 422 로 거절된다."""
+    payload = f"{_OFFSET_CURSOR_TAG}|{kind}|{offset}"
+    return base64.urlsafe_b64encode(payload.encode("utf-8")).decode("ascii")
+
+
+def _decode_offset_cursor(cursor: str, *, kind: str) -> int:
+    try:
+        raw = base64.urlsafe_b64decode(cursor.encode("ascii")).decode("utf-8")
+        tag, cursor_kind, offset_part = raw.split("|")
+        offset = int(offset_part)
+    except Exception as exc:  # noqa: BLE001 — 형식이 뭐든 "잘못된 커서"로 뭉친다
+        raise ValidationAppError(BAD_CURSOR) from exc
+    if tag != _OFFSET_CURSOR_TAG or cursor_kind != kind or not 0 <= offset <= _MAX_CURSOR_OFFSET:
+        raise ValidationAppError(BAD_CURSOR)
+    return offset
+
+
+def _offset_page(
+    db: Session, stmt, order_by: tuple, *, kind: str, cursor: str | None, limit: int
+) -> tuple[list[Ticket], str | None]:
+    """정렬해서 보는 백로그의 한 쪽 — 오프셋으로 잇는다.
+
+    끌어 옮긴 순서(순위)가 아니면 keyset 을 못 쓴다: 정렬 값이 키마다 다른 형(순위 · 날짜 ·
+    실수)이고, 커서에 그 값을 실으면 화면이 몰라도 될 모양이 커서 안으로 들어간다. 정렬이
+    **전순서**라(`ticket_query.sort_order` 가 id 를 붙인다) 자료가 그대로인 동안 커서를 끝까지
+    따라가면 `total` 과 정확히 같은 수를 중복 없이 받는다. 쪽 사이에 행이 바뀌면 건너뛸 수 있다 —
+    그래서 정렬해서 보는 동안에는 화면이 끌어 옮기기를 끈다.
+    """
+    offset = _decode_offset_cursor(cursor, kind=kind) if cursor else 0
+    rows = list(db.execute(stmt.order_by(*order_by).offset(offset).limit(limit + 1)).scalars().all())
+    has_more = len(rows) > limit
+    page = rows[:limit]
+    next_cursor = _encode_offset_cursor(kind, offset + len(page)) if has_more else None
+    return page, next_cursor
 
 
 def _rank_keyset_page(
@@ -330,37 +405,41 @@ def _signal_clause(signal: str | None, *, today: date | None):
     )
 
 
-def _apply_shared_filters(
-    stmt,
-    *,
-    q: str | None = None,
-    priority: str | None = None,
-    difficulty: str | None = None,
-    signal: str | None = None,
-    blocked_only: bool = False,
-    today: date | None = None,
-):
+def _apply_shared_filters(stmt, filters: BoardFilters):
     """판과 백로그가 **같은 말로 좁힌다**.
 
     예전에는 검색·우선순위·난이도가 백로그에만 있었다. 백로그에서 검색어를 넣고 칸반
     탭으로 옮기면 그 조건이 조용히 사라졌고, 사용자는 자기가 무엇을 지웠는지 몰랐다.
     두 목록이 같은 티켓을 다른 질문으로 볼 뿐이므로 **좁히는 말은 하나여야 한다.**
+
+    화면이 고르는 조건은 전부 여기서 걸린다 — 판 · 열 · 백로그 · 이동 위치 계산이 이 함수
+    하나를 지나므로 네 입구가 같은 집합을 본다. 같은 축의 값끼리는 OR, 축 사이는 AND 다.
     """
-    if priority:
-        stmt = stmt.where(Ticket.priority == priority)
-    if difficulty:
-        stmt = stmt.where(Ticket.difficulty == difficulty)
+    if filters.project_ids:
+        stmt = stmt.where(Ticket.project_uid.in_(filters.project_ids))
+    assignee_clause = _assignee_sql_clause(filters.assignee_tokens)
+    if assignee_clause is not None:
+        stmt = stmt.where(assignee_clause)
+    if filters.priorities:
+        stmt = stmt.where(Ticket.priority.in_(filters.priorities))
+    if filters.difficulties:
+        stmt = stmt.where(Ticket.difficulty.in_(filters.difficulties))
+    # 예상 WD 범위는 티켓 목록과 **같은 한 벌**이다 — 양 끝 포함, 범위가 걸리면 빈 값은 빠진다.
+    for clause in ticket_query.number_range_clauses(
+        Ticket.est_wd, filters.est_wd_min, filters.est_wd_max
+    ):
+        stmt = stmt.where(clause)
     # 제목과 이름(`ABC-12`) 둘 다 본다 — 사람들은 티켓을 번호로 기억한다. 티켓 목록 화면과
     # 같은 뜻 하나이고(`app/tickets/query.py::filter_clauses`), 대조 규칙도 공용 하나다 —
     # 양쪽을 접고(「현황 제외」↔「현황제외」) `%`·`_` 는 글자로 본다. 접은 뒤 빈 검색어는
     # 조건이 아니다.
-    search_clause = contains_folded((Ticket.title, Ticket.canonical_key), q)
+    search_clause = contains_folded((Ticket.title, Ticket.canonical_key), filters.q)
     if search_clause is not None:
         stmt = stmt.where(search_clause)
-    clause = _signal_clause(signal, today=today)
+    clause = _signal_clause(filters.signal, today=filters.today)
     if clause is not None:
         stmt = stmt.where(clause)
-    elif blocked_only:
+    elif filters.blocked_only:
         # 하위호환. 옛 화면과 저장된 링크가 아직 이 이름을 쓴다.
         stmt = stmt.where(Ticket.blocked_flag.is_(True) | Ticket.issue_flag.is_(True))
     return stmt
@@ -490,18 +569,10 @@ def board(
     db: Session,
     user: User,
     *,
-    project_id: str | None = None,
+    filters: BoardFilters,
     sprint_id: str | None = None,
     scope: str | None = None,
-    assignee_token: str | None = None,
-    blocked_only: bool = False,
-    team_id: str | None = None,
-    q: str | None = None,
-    priority: str | None = None,
-    difficulty: str | None = None,
-    signal: str | None = None,
     column_page_size: int = DEFAULT_COLUMN_PAGE_SIZE,
-    today: date | None = None,
 ) -> dict:
     """칸반 한 판. 열은 상태 어휘가 정하고 순서도 거기서 온다.
 
@@ -539,13 +610,10 @@ def board(
     성질은 그대로이면서 메모리에서 행이 사라진다.
     """
     resolved_scope = resolve_board_scope(scope, sprint_id)
-    _ensure_sprint_on_team(db, user, sprint_id=sprint_id, team_id=team_id)
+    _ensure_sprint_on_team(db, user, sprint_id=sprint_id, team_id=filters.team_id)
     page_size = max(1, min(column_page_size or DEFAULT_COLUMN_PAGE_SIZE, MAX_COLUMN_PAGE_SIZE))
-    base_stmt = _board_scope_stmt(
-        db, user, project_id=project_id, sprint_id=sprint_id, scope=resolved_scope,
-        assignee_token=assignee_token, blocked_only=blocked_only, team_id=team_id,
-        q=q, priority=priority, difficulty=difficulty, signal=signal, today=today,
-    )
+    base_stmt = _board_scope_stmt(db, user, filters=filters, sprint_id=sprint_id, scope=resolved_scope)
+    today = filters.today
 
     # 열은 **표에서 읽는다**(`ticket_statuses`). 어휘의 정본은 코드이고
     # (`app/work/workflow.py::STATUSES`) 이 표는 그 결과지만, 런타임이 읽는 것은 표다.
@@ -632,35 +700,23 @@ def board_column(
     user: User,
     *,
     status_key: str,
-    project_id: str | None = None,
+    filters: BoardFilters,
     sprint_id: str | None = None,
     scope: str | None = None,
-    assignee_token: str | None = None,
-    blocked_only: bool = False,
-    team_id: str | None = None,
-    q: str | None = None,
-    priority: str | None = None,
-    difficulty: str | None = None,
-    signal: str | None = None,
-    today: date | None = None,
     cursor: str | None = None,
     limit: int = DEFAULT_COLUMN_PAGE_SIZE,
 ) -> dict:
     """판의 열 하나 — **다음 쪽**(§8.5). `board()` 와 **글자까지 같은 조건**을 받아야
     한다 — 조건이 어긋나면 이 쪽에서 board() 가 안 보여준 카드가 새거나, board() 가
-    보여준 카드가 이 쪽에서 다시 나와 중복된다.
+    보여준 카드가 이 쪽에서 다시 나와 중복된다. 그래서 조건은 같은 `BoardFilters` 한 벌이다.
 
     범위(가시성) 절은 `_board_scope_stmt` 안에서 **상한(limit)보다 먼저** 걸린다
     (D-202) — 다음 쪽 요청도 그 순서를 지킨다.
     """
     resolved_scope = resolve_board_scope(scope, sprint_id)
-    _ensure_sprint_on_team(db, user, sprint_id=sprint_id, team_id=team_id)
+    _ensure_sprint_on_team(db, user, sprint_id=sprint_id, team_id=filters.team_id)
     page_size = max(1, min(limit or DEFAULT_COLUMN_PAGE_SIZE, MAX_COLUMN_PAGE_SIZE))
-    base_stmt = _board_scope_stmt(
-        db, user, project_id=project_id, sprint_id=sprint_id, scope=resolved_scope,
-        assignee_token=assignee_token, blocked_only=blocked_only, team_id=team_id,
-        q=q, priority=priority, difficulty=difficulty, signal=signal, today=today,
-    )
+    base_stmt = _board_scope_stmt(db, user, filters=filters, sprint_id=sprint_id, scope=resolved_scope)
     known_keys = [key for key in db.execute(select(TicketStatus.key)).scalars().all()]
     if status_key == UNCLASSIFIED_KEY:
         col_stmt = (
@@ -682,27 +738,17 @@ def _backlog_scope_stmt(
     db: Session,
     user: User,
     *,
-    project_id: str | None = None,
-    q: str | None = None,
-    assignee_token: str | None = None,
-    priority: str | None = None,
-    difficulty: str | None = None,
+    filters: BoardFilters,
     exclude_ticket_id: str | None = None,
-    team_id: str | None = None,
-    signal: str | None = None,
-    blocked_only: bool = False,
-    today: date | None = None,
 ):
-    """백로그의 **한 조건** — 목록(`backlog`)과 위치 이동(`_backlog_position_rank`)이
+    """백로그의 **한 조건** — 목록(`backlog`)과 위치 이동(`backlog_position_rank`)이
     같은 조건을 봐야 한다. 조건이 어긋나면 "지금 화면에 보이는 백로그"와 "맨 위로/맨
     아래로가 계산한 백로그"가 다른 집합이 되고, 그 어긋남은 카드 순서가 화면마다
     다르게 보이는 것으로만 드러난다(오류가 안 난다).
     """
     stmt = _visible_tickets_stmt(db, user)
-    if team_id:
-        stmt = stmt.where(_team_projects_clause(team_id))
-    if project_id:
-        stmt = stmt.where(Ticket.project_uid == project_id)
+    if filters.team_id:
+        stmt = stmt.where(_team_projects_clause(filters.team_id))
     cat = workflow.category_sql(Ticket.status)
     stmt = stmt.where(
         Ticket.notion_missing_at.is_(None),
@@ -714,33 +760,53 @@ def _backlog_scope_stmt(
     )
     if exclude_ticket_id:
         stmt = stmt.where(Ticket.id != exclude_ticket_id)
-    assignee_clause = _assignee_sql_clause(assignee_token)
-    if assignee_clause is not None:
-        stmt = stmt.where(assignee_clause)
-    return _apply_shared_filters(
-        stmt, q=q, priority=priority, difficulty=difficulty,
-        signal=signal, blocked_only=blocked_only, today=today,
-    )
+    return _apply_shared_filters(stmt, filters)
+
+
+# ── 백로그 정렬 (D-497) ──────────────────────────────────────────────────────
+#
+# 기본은 끌어 옮긴 순서(`rank`)이고 keyset 커서로 잇는다. 머리에서 고르는 나머지 다섯은 티켓
+# 목록과 **같은 이름 · 같은 순서**다(`app/tickets/query.py::sort_order` — 순위 표 · NULL 끝 ·
+# id 타이브레이크). 같은 「우선순위 정렬」이 두 화면에서 다른 순서를 내면 그중 하나는 틀린 것이다.
+BACKLOG_SORT_RANK = "rank"
+BACKLOG_SORTS: tuple[str, ...] = (
+    BACKLOG_SORT_RANK, "tid", "priority", "difficulty", "est_wd", "due_date",
+)
+BACKLOG_ORDERS: tuple[str, ...] = ("asc", "desc")
+
+
+def _backlog_order_by(sort: str, order: str) -> tuple:
+    """고른 정렬의 `ORDER BY` 묶음. 어느 방향이든 값이 없는 행이 끝이고, 마지막은 id 다."""
+    descending = order == "desc"
+    if sort == BACKLOG_SORT_RANK:
+        col = Ticket.backlog_rank
+        return (
+            col.desc().nulls_last() if descending else col.asc().nulls_last(),
+            Ticket.id.desc() if descending else Ticket.id.asc(),
+        )
+    return ticket_query.sort_order(sort, descending=descending)
 
 
 def backlog(
     db: Session,
     user: User,
     *,
-    project_id: str | None = None,
-    q: str | None = None,
-    assignee_token: str | None = None,
-    priority: str | None = None,
-    difficulty: str | None = None,
-    team_id: str | None = None,
-    signal: str | None = None,
-    blocked_only: bool = False,
-    today: date | None = None,
+    filters: BoardFilters,
+    sort: str = BACKLOG_SORT_RANK,
+    order: str = "asc",
     cursor: str | None = None,
     limit: int = DEFAULT_COLUMN_PAGE_SIZE,
 ) -> dict:
     """백로그 — **아직 어느 회차에도 안 담긴 일**. 서버 커서 페이징(§8.5) — 181행을
     한 번에 받던 것을 `backlog_rank` 순으로 쪽 낸다.
+
+    ## 정렬 (D-497)
+
+    기본(`rank` · `asc`)은 끌어 옮긴 순서이고 keyset 으로 잇는다 — 그 사이 카드가 옮겨져도
+    건너뛰거나 겹치지 않는다. 머리에서 다른 정렬을 고르면 오프셋으로 잇는다(`_offset_page`).
+    어느 쪽이든 커서는 불투명 문자열이고, 다른 종류의 커서를 이어 붙이면 422 다. 모르는
+    정렬은 조용히 기본으로 떨어뜨리지 않고 422 로 거절한다 — 이 목록에는 그 이름을 담은 옛
+    링크가 없으므로 살릴 것이 없고, 떨어뜨리면 「눌렀는데 순서가 그대로」가 된다.
 
     ## 「백로그」는 상태가 아니라 위치다 (D-349)
 
@@ -755,19 +821,30 @@ def backlog(
     끝난 것은 안 싣는다. 백로그는 "다음에 무엇을 하는가" 라서 완료·취소가 섞이면
     스크롤 대부분이 지나간 일이 된다.
     """
+    if sort not in BACKLOG_SORTS:
+        raise ValidationAppError("모르는 정렬입니다.")
+    if order not in BACKLOG_ORDERS:
+        raise ValidationAppError("모르는 정렬 방향입니다.")
     page_size = max(1, min(limit or DEFAULT_COLUMN_PAGE_SIZE, MAX_COLUMN_PAGE_SIZE))
-    stmt = _backlog_scope_stmt(
-        db, user, project_id=project_id, q=q, assignee_token=assignee_token,
-        priority=priority, difficulty=difficulty, team_id=team_id,
-        signal=signal, blocked_only=blocked_only, today=today,
-    )
-    page, next_cursor = _rank_keyset_page(db, stmt, Ticket.backlog_rank, cursor=cursor, limit=page_size)
+    stmt = _backlog_scope_stmt(db, user, filters=filters)
+    if sort == BACKLOG_SORT_RANK and order == "asc":
+        page, next_cursor = _rank_keyset_page(
+            db, stmt, Ticket.backlog_rank, cursor=cursor, limit=page_size,
+        )
+    else:
+        page, next_cursor = _offset_page(
+            db, stmt, _backlog_order_by(sort, order),
+            kind=f"{sort}:{order}", cursor=cursor, limit=page_size,
+        )
     total = db.execute(select(func.count()).select_from(stmt.subquery())).scalar_one()
     names = _people(db)
     return {
         "items": [_card(t, names=names) for t in page],
         "total": total,
         "next_cursor": next_cursor,
+        # 서버가 실제로 쓴 정렬. 화면은 이 값이 기본(`rank` · `asc`)일 때만 끌어 옮기기를 켠다.
+        "sort": sort,
+        "order": order,
     }
 
 
@@ -777,15 +854,7 @@ def backlog_position_rank(
     *,
     ticket_id: str,
     position: str,
-    project_id: str | None = None,
-    q: str | None = None,
-    assignee_token: str | None = None,
-    priority: str | None = None,
-    difficulty: str | None = None,
-    team_id: str | None = None,
-    signal: str | None = None,
-    blocked_only: bool = False,
-    today: date | None = None,
+    filters: BoardFilters,
 ) -> Decimal:
     """「맨 위로 / 맨 아래로」의 목표 순위 값 (§8.5).
 
@@ -803,11 +872,7 @@ def backlog_position_rank(
     """
     if position not in ("top", "bottom"):
         raise ValidationAppError(f"모르는 위치입니다: {position}")
-    stmt = _backlog_scope_stmt(
-        db, user, project_id=project_id, q=q, assignee_token=assignee_token,
-        priority=priority, difficulty=difficulty, exclude_ticket_id=ticket_id,
-        team_id=team_id, signal=signal, blocked_only=blocked_only, today=today,
-    )
+    stmt = _backlog_scope_stmt(db, user, filters=filters, exclude_ticket_id=ticket_id)
     sq = stmt.subquery()
     # 전체 순위를 파이썬으로 끌어오지 않는다 — 필요한 것은 양 끝 값 둘뿐이다.
     # MIN/MAX 는 NULL 을 무시하므로, 순위 없는 행이 섞여 있어도 「맨 아래」가
@@ -1079,15 +1144,9 @@ def move(
     on_board: bool = False,
     # 화면에 없는 카드 기준 이동(§8.5) — before_id/after_id 대신 쓴다. 백로그에서만
     # 뜻이 있다("맨 위/맨 아래"는 판의 열에는 없는 개념이다 — 열은 상태가 자리를 정한다).
+    # 목표 순위는 **지금 화면이 보는 백로그**로 잰다 — 조건은 목록과 같은 한 벌이다.
     to_position: str | None = None,
-    position_project_id: str | None = None,
-    position_q: str | None = None,
-    position_assignee_token: str | None = None,
-    position_priority: str | None = None,
-    position_difficulty: str | None = None,
-    position_team_id: str | None = None,
-    position_signal: str | None = None,
-    position_today: date | None = None,
+    position_filters: BoardFilters | None = None,
     base_version: int | None = None,
     now: datetime | None = None,
     repo=None,
@@ -1180,11 +1239,7 @@ def move(
         if to_position and not on_board:
             placed = backlog_position_rank(
                 db, user, ticket_id=ticket.id, position=to_position,
-                project_id=position_project_id, q=position_q,
-                assignee_token=position_assignee_token,
-                priority=position_priority, difficulty=position_difficulty,
-                team_id=position_team_id, signal=position_signal,
-                today=position_today,
+                filters=position_filters or BoardFilters(),
             )
         else:
             # 이웃은 가시성 범위 전역으로 읽는다 — 프로젝트가 섞인 판·백로그에서 놓은

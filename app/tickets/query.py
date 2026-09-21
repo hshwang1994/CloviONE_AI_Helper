@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from datetime import timedelta
 
-from sqlalchemy import case, false, or_
+from sqlalchemy import case, false, func, or_
 
 from app.core.dates import parse_date
 from app.core.models_base import NAMES_SEP
@@ -45,40 +45,90 @@ ORDER = (
 )
 
 # 클라이언트가 보낸 컬럼명을 SQL 에 붙이지 않는다. 이 표에 있는 키만 정렬한다.
+#
+# 화면이 머리에 정렬 단추를 그린 열은 **전부** 여기 있어야 한다. 없는 키는 조용히 생성일
+# 정렬로 떨어지고(`app/tickets/service.py::build_filters`), 사용자에게는 「눌렀는데 순서가
+# 그대로」로만 보인다 — 난이도가 그렇게 빠져 있었다. 작업 보드의 백로그도 이 표를 그대로
+# 쓴다(`app/work/service.py::backlog`).
 SORT_KEYS = frozenset({
-    "created_at", "updated_at", "due_date", "title", "status", "priority",
+    "created_at", "updated_at", "due_date", "title", "status", "priority", "difficulty",
     "est_wd", "act_wd", "tid", "key",
 })
 
 # 우선순위는 업무 순서다. 문자열 가나다(긴급이 높음보다 뒤)로 정렬하면 틀린 일이 된다.
+# 「중간」은 이관 원본의 선택지 이름이다(`docs/platform/INVENTORY/07_NOTION.md` — 높음 · 중간 ·
+# 낮음). 표에 없으면 그 값만 「모르는 값」이 되어 낮음보다 뒤로 밀린다.
 _PRIORITY_RANK = {
     "긴급": 10, "urgent": 10, "critical": 10,
     "높음": 20, "high": 20, "1": 20,
-    "보통": 30, "medium": 30, "normal": 30, "2": 30,
+    "보통": 30, "중간": 30, "medium": 30, "normal": 30, "2": 30,
     "낮음": 40, "low": 40, "3": 40,
 }
 
+# 난이도는 **폼 드롭다운과 같은 순서**로 선다(`repository_native._sorted_options`): 숫자 등급이
+# 먼저 숫자 크기대로 서고, 그다음이 상 · 중 · 하다. 이관 원본의 난이도는 1~6 선택지이고
+# (`docs/platform/INVENTORY/07_NOTION.md`), 상 · 중 · 하로 적힌 행도 있다. 이 표에 없는 값은
+# 순위가 없어서 어느 방향이든 끝에 선다.
+_DIFFICULTY_RANK = {
+    "1": 1, "2": 2, "3": 3, "4": 4, "5": 5, "6": 6,
+    "상": 11, "중": 12, "하": 13,
+}
 
+
+# 순위 표 셋은 **모르는 값에 순위를 주지 않는다**(`ELSE` 가 없다 — 결과가 NULL 이다). 예전에는
+# 모르는 값과 빈 값을 `10_000` 으로 보냈는데, 그러면 오름차순에서는 끝이지만 내림차순에서는
+# **맨 앞**이 된다 — 우선순위를 내림차순으로 고르면 우선순위가 빈 티켓이 첫 줄을 차지했다.
+# NULL 이면 아래 `sort_order` 의 `nulls_last()` 가 어느 방향이든 끝에 세운다.
 def _status_rank():
     return case(
         {s.key: s.sort_order for s in workflow.STATUSES},
         value=TicketCache.status,
-        else_=10_000,
     )
 
 
 def _priority_rank():
-    return case(_PRIORITY_RANK, value=TicketCache.priority, else_=10_000)
+    return case(_PRIORITY_RANK, value=TicketCache.priority)
 
 
-def _sort_column(key: str):
+def _difficulty_rank():
+    return case(_DIFFICULTY_RANK, value=TicketCache.difficulty)
+
+
+def _sort_columns(key: str) -> tuple:
+    """정렬 키 하나가 세우는 열들. 대부분 하나이고, 티켓 이름은 둘이다.
+
+    티켓 열이 그리는 것은 이름(`<CODE>-<SEQ>`, `canonical_key`)이다. 그래서 정렬도 그 이름의
+    두 조각 — 프로젝트 코드, 그 안의 번호 — 으로 한다. 예전에는 옛 소스의 번호
+    (`notion_ticket_number`)로 정렬했는데, 그 값은 이름이 아니고(D-281) 이 서버에서 만든
+    티켓에는 아예 없다. 그래서 새 티켓이 전부 끝으로 밀린 채 서로의 순서도 없었다. 번호는
+    숫자로 비교한다 — 문자열로 비교하면 「-10」이 「-9」 앞에 선다.
+    """
     if key in ("tid", "key"):
-        return TicketCache.notion_ticket_number
+        return (func.split_part(TicketCache.canonical_key, "-", 1), TicketCache.seq)
     if key == "status":
-        return _status_rank()
+        return (_status_rank(),)
     if key == "priority":
-        return _priority_rank()
-    return getattr(TicketCache, key)
+        return (_priority_rank(),)
+    if key == "difficulty":
+        return (_difficulty_rank(),)
+    return (getattr(TicketCache, key),)
+
+
+def sort_order(key: str, *, descending: bool) -> tuple:
+    """정렬 키 하나 → `ORDER BY` 절 묶음. **목록 정렬 계약의 한 곳**이다.
+
+    세 가지를 언제나 지킨다: 허용 표(`SORT_KEYS`) 밖의 키는 받지 않는다, 값이 없는(NULL)
+    행은 어느 방향이든 끝에 선다, 마지막에 id 를 같은 방향으로 붙여 전순서를 만든다(Z9).
+    티켓 목록(`order_clause`)과 작업 보드의 백로그가 같은 키로 같은 순서를 받는다.
+    """
+    if key not in SORT_KEYS:
+        raise ValueError(f"모르는 정렬 키입니다: {key}")
+    parts = [
+        col.desc().nulls_last() if descending else col.asc().nulls_last()
+        for col in _sort_columns(key)
+    ]
+    parts.append(TicketCache.id.desc() if descending else TicketCache.id.asc())
+    return tuple(parts)
 
 
 def order_clause(filters: TicketFilters | None):
@@ -91,11 +141,25 @@ def order_clause(filters: TicketFilters | None):
     key = filters.sort_key
     if key not in SORT_KEYS:
         return ORDER
-    col = _sort_column(key)
     descending = (filters.sort_dir or "desc").lower() != "asc"
-    primary = col.desc().nulls_last() if descending else col.asc().nulls_last()
-    tie = TicketCache.id.desc() if descending else TicketCache.id.asc()
-    return (primary, tie)
+    return sort_order(key, descending=descending)
+
+
+def number_range_clauses(column, low: float | None, high: float | None) -> list:
+    """숫자 범위 — **양 끝을 포함**한다. 범위가 걸리면 값이 없는(NULL) 행은 빠진다.
+
+    티켓 목록의 예상 · 실제 WD 와 작업 보드의 예상 WD 가 이 한 벌을 쓴다. 두 화면이 같은 범위를
+    다르게 읽으면(한쪽만 끝을 포함하거나 한쪽만 빈 값을 남기면) 같은 조건이 다른 수를 낸다.
+    """
+    out: list = []
+    if low is None and high is None:
+        return out
+    out.append(column.is_not(None))
+    if low is not None:
+        out.append(column >= low)
+    if high is not None:
+        out.append(column <= high)
+    return out
 
 
 def page_slice(items: list, page: PageSpec | None) -> list:
@@ -171,18 +235,8 @@ def filter_clauses(f: TicketFilters | None) -> list:
         out.append(TicketCache.created_at >= created_from)
     if created_to is not None:
         out.append(TicketCache.created_at < created_to + timedelta(days=1))
-    if f.est_wd_min is not None:
-        out.append(TicketCache.est_wd.is_not(None))
-        out.append(TicketCache.est_wd >= f.est_wd_min)
-    if f.est_wd_max is not None:
-        out.append(TicketCache.est_wd.is_not(None))
-        out.append(TicketCache.est_wd <= f.est_wd_max)
-    if f.act_wd_min is not None:
-        out.append(TicketCache.act_wd.is_not(None))
-        out.append(TicketCache.act_wd >= f.act_wd_min)
-    if f.act_wd_max is not None:
-        out.append(TicketCache.act_wd.is_not(None))
-        out.append(TicketCache.act_wd <= f.act_wd_max)
+    out.extend(number_range_clauses(TicketCache.est_wd, f.est_wd_min, f.est_wd_max))
+    out.extend(number_range_clauses(TicketCache.act_wd, f.act_wd_min, f.act_wd_max))
     if f.exclude_statuses:
         out.append(or_(
             TicketCache.status.is_(None),
