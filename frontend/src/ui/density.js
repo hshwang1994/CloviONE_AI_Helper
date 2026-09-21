@@ -276,6 +276,15 @@ export const GRID_GAP = rem(DENSITY_PX.gridGap);                // 24px
 export const TILE_GRID_GAP = rem(DENSITY_PX.healthGridGap);     // 16px
 export const SECTION_GAP = rem(DENSITY_PX.sectionGap);          // 32px
 
+/** 판을 **위아래로만 쌓는 화면**의 판 폭 (2026-09-21).
+ *
+ * 두 판을 나란히 두지 않고 차례로 읽게 한 화면(조직 정합성 · 초기 설정)에서 판이 본문 폭을 다 쓰면
+ * 설명 한 줄이 1,500px 를 달리고, 줄 오른쪽 끝의 값(건수 칩)이 글과 멀어져 어느 줄의 값인지 안 보인다.
+ * 세 열짜리 작은 표도 값 셋이 흩어진다. **글에 상한을 걸지 않고 판에 건다** — 판 안에서는 글이 칸을
+ * 끝까지 쓰므로 「카드는 넓은데 글만 왼쪽에 붙는」 모양(`theme.js::PROSE_MAX_WIDTH` 주석)이 되지 않는다.
+ * 1366 이하는 본문이 이보다 좁아 상한이 안 걸린다. */
+export const READ_COLUMN = "min(100%, 70rem)";
+
 /* 좌측 레일 목록 화면의 그리드 한 벌 — `BASELINE_TRACKS.listRail` 의 소비 형태.
  * 값 조정은 여기(트랙)와 위(트랙 주석) 한 곳에서만 한다. */
 export const LIST_RAIL_GRID = {

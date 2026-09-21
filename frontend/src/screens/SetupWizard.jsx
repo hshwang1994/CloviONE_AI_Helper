@@ -10,7 +10,7 @@ import {
   DotLabel, SectionTitle,
 } from "../ui/kit.jsx";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
-import { GRID_GAP } from "../ui/density.js";
+import { GRID_GAP, READ_COLUMN } from "../ui/density.js";
 
 /* 최초 실행 셋업 마법사 (9-3, P3).
  *
@@ -185,9 +185,9 @@ export function setupProgressText(data) {
  * 이 판은 남는다 — 한 번 닫으면 다시 못 보는 마법사는 설정을 미룬 사람에게 도움이 안 된다. 다 끝나면 할 차례가 없으므로
  * 끝났다는 문장 하나만 선다.
  *
- * 전폭이 되면서 **글과 단추가 한 줄**이다 — 할 일 문장이 왼쪽에서 폭을 쓰고 단추가 오른쪽 끝에 선다(메일 발송의 안내 상자와
- * 같은 어휘). 레일이던 때처럼 단추를 문장 아래 두면 1920 에서 오른쪽 1,200px 가 빈다(실측). 좁아지면 줄이 접혀 단추가
- * 문장 아래로 내려간다. 읽는 순서(항목 → 할 일 → 단추)는 어느 폭에서나 같다. */
+ * 단추는 **판 제목 줄의 동작 자리**에 선다(`SectionTitle action` — 제품의 판 머리 규칙). 글 옆에 세로 가운데로 띄우면
+ * 제목 줄과도 할 일 줄과도 안 맞는 높이에 떠 있었다(실측). 제목 줄에 두면 줄이 정확히 맞고, 좁아지면 제목 아래로
+ * 자연히 접힌다. 판 폭은 `READ_COLUMN` 이라 글이 칸을 끝까지 쓰면서도 한 줄이 1,200px 를 달리지 않는다. */
 function NowRail({ data }) {
   const items = data.items || [];
   const next = data.complete ? null : items.find((i) => i.key === data.next_key) || null;
@@ -202,17 +202,15 @@ function NowRail({ data }) {
         <>
           {next ? (
             <>
-              <SectionTitle component="h2" title="지금 할 차례" sx={{ mb: 0 }} />
-              <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 2 }}>
-                <Box data-setup-now={next.key} sx={{ display: "grid", gap: 0.5, flex: "1 1 20rem", minWidth: 0 }}>
-                  <Typography variant="body1" sx={{ fontWeight: FONT_WEIGHT.semibold, ...KO_WORD_BREAK }}>{next.label}</Typography>
-                  <NextStep item={next} />
-                </Box>
-                {link ? (
-                  <Box sx={{ flex: "0 0 auto" }}>
-                    <Button variant="primary" href={link.href}>{link.label}</Button>
-                  </Box>
-                ) : null}
+              <SectionTitle
+                component="h2"
+                title="지금 할 차례"
+                sx={{ mb: 0 }}
+                action={link ? <Button variant="primary" href={link.href}>{link.label}</Button> : null}
+              />
+              <Box data-setup-now={next.key} sx={{ display: "grid", gap: 0.5 }}>
+                <Typography variant="body1" sx={{ fontWeight: FONT_WEIGHT.semibold, ...KO_WORD_BREAK }}>{next.label}</Typography>
+                <NextStep item={next} />
               </Box>
             </>
           ) : null}
@@ -288,7 +286,7 @@ export function SetupWizard() {
           여기 주 판 + 곁열 2열 격자가 있었는데, 지금 할 일과 전체 목록은 나란히 견주는 값이 아니라
           차례로 읽는 것이다. 화면 폭에 따라 배치가 갈리지 않고 어느 폭에서나 같은 순서로 읽힌다
           (D-501 — 머리 → 지금 할 일 → 목록). 판은 제 내용만큼만 선다. */}
-      <Box sx={{ display: "grid", gap: GRID_GAP, gridTemplateColumns: "minmax(0, 1fr)", alignItems: "start" }}>
+      <Box sx={{ display: "grid", gap: GRID_GAP, gridTemplateColumns: "minmax(0, 1fr)", alignItems: "start", maxWidth: READ_COLUMN }}>
         <Card component="aside" aria-label="초기 설정 진행">
           <NowRail data={data} />
         </Card>

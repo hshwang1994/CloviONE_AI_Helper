@@ -15,7 +15,7 @@ import { SettingRow } from "../ui/adminKit.jsx";
 import { selectionColumn, useRowSelection } from "../ui/bulkSelect.jsx";
 import { OrgPath } from "../ui/OrgPath.jsx";
 import { FONT_WEIGHT } from "../ui/theme.js";
-import { GRID_GAP } from "../ui/density.js";
+import { GRID_GAP, READ_COLUMN } from "../ui/density.js";
 
 /* 조직 정합성 진단 — **닫아 버린 것을 사람에게 보여 주는 화면** (0060 §41).
  *
@@ -224,10 +224,10 @@ export function Integrity() {
       )}
 
       {/* 두 구획은 **위아래로 이어진다** — 정리할 항목 다음에 관리자 범위다(사용자 지시, 2026-09-21).
-          여기 1.6 : 1 짝 격자가 있었는데, 두 구획은 서로 견주는 값이 아니라 **차례로 읽는 것**이고
-          오른쪽 판은 세 열짜리 표를 3분의 1 폭에 넣느라 「관리 범위」 열이 좁았다. 전폭으로 두면 표가
-          제 폭을 쓰고 화면 폭에 따라 배치가 갈리지 않는다. */}
-      <Box sx={{ mt: 2.5, display: "grid", gap: GRID_GAP, gridTemplateColumns: "minmax(0, 1fr)" }}>
+          여기 1.6 : 1 짝 격자가 있었는데, 두 구획은 서로 견주는 값이 아니라 **차례로 읽는 것**이다.
+          폭은 읽는 열 하나(`READ_COLUMN`)다 — 2,560px 짜리 화면에서 줄이 끝까지 달리면 설명과 오른쪽 끝
+          건수가 서로 멀어지고 세 열짜리 표는 값 셋이 흩어진다(실측). 좁은 화면에서는 상한이 안 걸린다. */}
+      <Box sx={{ mt: 2.5, display: "grid", gap: GRID_GAP, gridTemplateColumns: "minmax(0, 1fr)", maxWidth: READ_COLUMN }}>
         <Section titleAs="h2" title="정리할 항목" rule sx={{ mb: 0 }}>
           {open.length ? (
             <Box sx={{ display: "grid", gap: GRID_GAP, mb: clear.length ? GRID_GAP : 0 }}>
@@ -271,11 +271,15 @@ export function Integrity() {
           <DataTable
               placement="surface"
               columns={[
-                { key: "display_name", label: "이름", identifier: true },
+                /* 「이름」이 그 행의 제목이다(D-501) — 홀로 왼쪽에 서고 남는 폭을 갖는다. 전폭 표에서
+                   세 열을 균등하게 나누면 짧은 값 셋이 1,300px 에 흩어진다(실측). */
+                { key: "display_name", label: "이름", type: "title", identifier: true },
                 /* 값 자체가 역할 이름이다(아래 `rows`) — 칸의 말줄임 힌트(`title`)에도 서버 값이 새지 않는다. */
-                { key: "role_label", label: "역할", type: "enum" },
+                { key: "role_label", label: "역할", type: "enum", width: "10rem" },
                 {
-                  key: "admin_scope", label: "관리 범위", nowrap: true,
+                  /* 폭을 적는다 — 이름 열이 남는 폭을 가져가면 이 열이 바닥까지 줄어 「전체 관리자」가 잘렸다(실측).
+                     조직 · 부서 범위는 이름 아래 경로 한 줄이 더 붙으므로 넉넉한 쪽으로 잡는다. */
+                  key: "admin_scope", label: "관리 범위", nowrap: true, width: "14rem",
                   render: (r) => (
                     <Box sx={{ minWidth: 0 }}>
                       <Typography variant="body2" sx={{ fontWeight: FONT_WEIGHT.semibold }}>
