@@ -464,6 +464,22 @@ def st_chat_manage_open(page, base, settle):
     return "채팅방 관리 창"
 
 
+def st_chat_members_open(page, base, settle):
+    # 방 머리의 참여자 요약 단추가 명단 팝오버를 연다(`ChatRoomMembers.jsx::MemberRoster` — 방에 든 누구나 연다, 읽기만 한다).
+    rid = _room_of(page, base, "group")
+    if not rid:
+        raise StateSkipped("그룹 방이 없다")
+    _goto(page, base, f"/chat-rooms/{rid}", settle)
+    opener = _first(page, ["#main-content [data-member-summary]"])
+    if opener is None:
+        raise StateSkipped("참여자 요약 단추가 없다")
+    _click(opener, "참여자 명단을 여는 단추")
+    page.wait_for_timeout(600)
+    if _first(page, ["[data-member-roster]"]) is None:
+        raise StateSkipped("참여자 명단이 서지 않았다")
+    return "채팅방 참여자 명단"
+
+
 def _room_of(page, base, kind: str):
     payload = _api_json(page, base, "/api/team-chat/rooms") or {}
     # 응답은 `{"items": [...], "team": {...}, "global": {...}}` 다(`app/team_chat/router.py::list_rooms`).
@@ -543,6 +559,7 @@ STATES = (
     ("chat.direct", "user_chat-room-detail", st_chat_direct, True),
     ("chat.list-search-empty", "user_chat-rooms", st_chat_list_search_empty, True),
     ("chat.manage-open", "user_chat-room-detail", st_chat_manage_open, True),
+    ("chat.members-open", "user_chat-room-detail", st_chat_members_open, True),
     ("scheduler-calendar.run-detail", "admin_scheduler-calendar", st_scheduler_run_detail, True),
     ("users.selected", "admin_users", st_users_selected, True),
     ("trash.selected", "user_team-docs-trash", st_trash_selected, True),
