@@ -12,6 +12,9 @@ import { MemoryRouter } from "react-router-dom";
  * ops/Maintenance.jsx의 toggle·saveMsg 뮤테이션은 ["settings"]만 무효화하고 저 키는 빠뜨렸다 —
  * 그래서 저장 직후 "변경 기록"/"버전 기록" 드로어를 열면 기본 staleTime(30초) 안에는 방금 만든
  * 행이 빠진 캐시를 그대로 보여줬다.
+ *
+ * qa-contract-change: 공지 입력과 「공지 저장」이 판 위에서 「수정」이 여는 창 안으로 옮겼다(D-501). 공지 저장 시험은 창을 연 뒤 같은 입력 · 같은
+ * 저장을 하고, 무효화 단언(두 버전 기록 캐시)은 한 글자도 바꾸지 않는다.
  */
 
 const apiMock = vi.fn();
@@ -98,10 +101,13 @@ describe("유지보수 — 버전 기록 캐시 무효화", () => {
     const user = userEvent.setup();
     renderMaintenance(qc);
 
-    const box = await screen.findByLabelText("점검 공지");
+    // 공지 입력은 「수정」이 여는 창 안이다(D-501).
+    await user.click(await screen.findByRole("button", { name: "점검 공지 수정" }));
+    const dialog = await screen.findByRole("dialog", { name: "점검 공지 수정" });
+    const box = within(dialog).getByLabelText("점검 공지");
     await user.clear(box);
     await user.type(box, "새 점검 공지입니다.");
-    await user.click(await screen.findByRole("button", { name: "공지 저장" }));
+    await user.click(within(dialog).getByRole("button", { name: "공지 저장" }));
 
     await waitFor(() => {
       expect(qc.getQueryState(["settings", "maintenance_message", "versions"]).isInvalidated, "공지 버전 기록").toBe(true);

@@ -130,6 +130,60 @@ describe("OS와 서비스 — 재시작의 무게 (지시 43)", () => {
   });
 });
 
+/* 도우미가 없는 설치(D-501) — 그 사실은 안내 상자 **한 번**이다. 예전에는 여섯 줄이 저마다 「서버에서만 확인할 수 있습니다」와 꺼진
+   단추를 들었고, 서비스 판이 「도우미가 없어 읽지 못했습니다」를 한 번 더 말하며 왼쪽 판 높이만큼 비어 섰다. */
+describe("OS와 서비스 — 도우미가 없으면 한 번 말하고 줄은 이름과 설명만 든다 (D-501)", () => {
+  const NO_HELPER = {
+    available: false,
+    status: "unavailable",
+    detail: "이 운영체제에서는 시스템 설정 기능을 쓸 수 없습니다.",
+    info: {},
+    certificate: { known: false, days_remaining: null, self_signed: false },
+    actions: STATE.actions,
+  };
+
+  it("도우미가 없다는 사실은 안내 상자 하나가 말하고, 줄마다 되풀이하지 않는다", async () => {
+    apiMock.mockImplementation(() => Promise.resolve(NO_HELPER));
+    renderScreen();
+    expect(await screen.findByText(/시스템 설정 도우미를\s*설치하고 실행하면/)).toBeInTheDocument();
+    expect(screen.queryByText("서버에서만 확인할 수 있습니다")).toBeNull();
+    expect(screen.queryByText(/도우미가 없어 읽지 못했습니다/)).toBeNull();
+  });
+
+  it("누를 수 없는 단추를 줄마다 세우지 않는다", async () => {
+    apiMock.mockImplementation(() => Promise.resolve(NO_HELPER));
+    renderScreen();
+    await screen.findByText("타임존");
+    for (const label of ["호스트 이름", "타임존", "시각 동기화", "DNS 서버", "아웃바운드 프록시", "TLS 인증서"]) {
+      expect(within(rowOf(label)).queryByRole("button"), label + " 줄에 단추가 남았다").toBeNull();
+    }
+  });
+
+  it("서비스는 판이 아니라 같은 목록의 한 줄이다", async () => {
+    apiMock.mockImplementation(() => Promise.resolve(NO_HELPER));
+    renderScreen();
+    const service = (await screen.findByText("서비스")).closest(".k-settingrow");
+    expect(service, "서비스가 설정 줄이 아니다").toBeTruthy();
+    // 판이 하나다 — 예전의 오른쪽 서비스 판이 없다.
+    expect(rowOf("타임존").parentElement).toBe(service.parentElement);
+    expect(screen.queryAllByRole("heading", { name: "서비스" })).toHaveLength(0);
+  });
+
+  it("인증서 상태는 도우미 없이도 읽는 값이라 그대로 말한다", async () => {
+    apiMock.mockImplementation(() => Promise.resolve({ ...NO_HELPER, certificate: { known: true, days_remaining: 12, self_signed: false } }));
+    renderScreen();
+    await screen.findByText("TLS 인증서");
+    expect(within(rowOf("TLS 인증서")).getByText("만료까지 12일 남았습니다")).toBeInTheDocument();
+  });
+
+  it("반례: 도우미가 있으면 서비스는 오른쪽 판의 목록이다", async () => {
+    renderScreen();
+    const heading = await screen.findByRole("heading", { name: "서비스" });
+    expect(heading).toBeInTheDocument();
+    expect(rowOf("웹 서버").parentElement).not.toBe(rowOf("타임존").parentElement);
+  });
+});
+
 describe("certificateText — 값을 모를 때 아는 척하지 않는다", () => {
   it("정보 자체가 없으면 확인하지 못했다고 말한다", () => {
     expect(certificateText(null)).toBe("확인하지 못했습니다");

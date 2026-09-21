@@ -19,6 +19,12 @@ import { MemoryRouter } from "react-router-dom";
  *      미룬 사람에게 아무 도움이 안 된다.
  *   ④ **없는 화면으로 보내지 않는다.** 항목마다 붙는 링크는 실제로 라우팅되는 경로여야
  *      한다. 죽은 링크는 안내가 아니라 막다른 길이다.
+ *
+ * qa-contract-change: 레일이 「지금 할 차례」 판이 됐다(D-501). 다음 항목의 이름 · 할 일 · 고치는 화면으로 가는 링크(이 화면의 주 동작)가 레일에
+ * 서고, 목록의 그 줄은 할 일과 링크를 되풀이하지 않는다 — 그래서 「안 됨에는 할 일」 단언이 레일과 다음이 아닌 항목 두 자리로 나뉜다. 남은 수는
+ * 조각 문장 + 상태 요약 카드 둘에서 한 문장(「6개 중 1개가 끝났습니다. 직접 할 일이 4개, 확인할 것이 1개 남았습니다.」)으로 모였고, 접은 뒤의
+ * 단언은 숫자 한 글자(「5」) 대신 그 문장 전체를 잰다. 레일에도 다음 항목의 이름이 서서 「조직과 부서」가 화면에 둘이므로, 불러왔는지는
+ * 항목 표식(`setup-item-*`)으로 기다린다. 「지금 할 차례」 표지 하나 단언은 목록 안으로 좁히고, 레일이 같은 항목을 가리킨다는 단언을 더한다.
  */
 
 const apiMock = vi.fn();
@@ -31,7 +37,7 @@ vi.mock("../app/auth.jsx", () => ({
   useAuth: () => ({ data: { role: mockRole, id: "u-1" } }),
 }));
 
-import { SetupWizard, SETUP_LINKS } from "./SetupWizard.jsx";
+import { SetupWizard, SETUP_LINKS, setupProgressText } from "./SetupWizard.jsx";
 import { REGISTRY } from "./registry.js";
 import { ConfirmProvider, ToastProvider } from "../ui/kit.jsx";
 import { ThemeModeProvider } from "../ui/ThemeModeProvider.jsx";
@@ -123,7 +129,7 @@ beforeEach(() => {
 describe("안내 순서", () => {
   it("서버가 준 순서를 그대로 그린다", async () => {
     renderWizard();
-    await waitFor(() => expect(screen.getByText("조직과 부서")).toBeInTheDocument());
+    await screen.findByTestId("setup-item-organization");
     const keys = Array.from(document.querySelectorAll("[data-setup-key]")).map((n) =>
       n.getAttribute("data-setup-key")
     );
@@ -142,6 +148,20 @@ describe("안내 순서", () => {
     // 끝난 admin_account 가 여전히 첫 자리다.
     expect(keys[0]).toBe("admin_account");
   });
+
+  it("끝난 항목은 한 줄이다 — 이름 · 「됨」 · 지금 상태만 서고 까닭과 이동 링크는 없다 (D-501)", async () => {
+    renderWizard();
+    const done = await screen.findByTestId("setup-item-admin_account");
+    expect(done).toHaveAttribute("data-setup-state", "done");
+    expect(within(done).getByText("관리자 계정")).toBeInTheDocument();
+    expect(within(done).getByText("됨")).toBeInTheDocument();
+    expect(within(done).getByText("관리자 계정 상태 설명")).toBeInTheDocument();
+    expect(within(done).queryByText(/화면이 빕니다/)).toBeNull();
+    expect(within(done).queryByRole("link")).toBeNull();
+    // 반례 — 남은 항목은 까닭을 그대로 펼친다.
+    const tls = screen.getByTestId("setup-item-tls");
+    expect(within(tls).getByText(/화면이 빕니다/)).toBeInTheDocument();
+  });
 });
 
 // ── ② 세 가지 상태 ────────────────────────────────────────────────────────────
@@ -149,7 +169,7 @@ describe("안내 순서", () => {
 describe("됨, 안 됨, 확인 불가", () => {
   it("세 상태를 색이 아니라 글자로 구분한다", async () => {
     renderWizard();
-    await waitFor(() => expect(screen.getByText("조직과 부서")).toBeInTheDocument());
+    await screen.findByTestId("setup-item-organization");
     expect(screen.getAllByText("됨").length).toBe(1);
     expect(screen.getAllByText("안 됨").length).toBe(4);
     expect(screen.getAllByText("확인 불가").length).toBe(1);
@@ -162,10 +182,24 @@ describe("됨, 안 됨, 확인 불가", () => {
     expect(within(tls).queryByText(/채우세요/)).toBeNull();
   });
 
-  it("안 됨에는 사람이 할 일을 보여 준다", async () => {
+  it("안 됨에는 사람이 할 일을 보여 준다 — 지금 할 차례의 할 일은 레일이 한 번 말한다", async () => {
+    // 막히지 않은 「안 됨」이 둘인 설치: 앞의 것이 지금 할 차례이고 뒤의 것은 목록에서 자기 할 일을 말한다.
+    const items = [
+      item("admin_account", "관리자 계정", "done"),
+      item("organization", "조직과 부서", "todo"),
+      item("mail", "메일(SMTP) 발송", "todo"),
+    ];
+    apiMock.mockImplementation(() => Promise.resolve(payload({ items })));
     renderWizard();
-    const org = await screen.findByTestId("setup-item-organization");
-    expect(within(org).getByText(/조직과 부서 를 채우세요/)).toBeInTheDocument();
+    const rail = await screen.findByTestId("setup-summary");
+    expect(within(rail).getByText(/조직과 부서 를 채우세요/)).toBeInTheDocument();
+    // 목록의 그 줄은 같은 할 일을 되풀이하지 않는다(한 사실은 한 곳).
+    const org = screen.getByTestId("setup-item-organization");
+    expect(within(org).queryByText(/조직과 부서 를 채우세요/)).toBeNull();
+    // 다음이 아닌 「안 됨」은 목록에서 자기 할 일을 말한다.
+    const mail = screen.getByTestId("setup-item-mail");
+    expect(within(mail).getByText(/메일\(SMTP\) 발송 를 채우세요/)).toBeInTheDocument();
+    expect(screen.getAllByText(/를 채우세요/)).toHaveLength(2);
   });
 });
 
@@ -181,11 +215,51 @@ describe("막힌 항목", () => {
 
   it("지금 할 차례는 막히지 않은 첫 항목 하나뿐이다", async () => {
     renderWizard();
-    await waitFor(() => expect(screen.getByText("조직과 부서")).toBeInTheDocument());
-    const now = screen.getAllByText("지금 할 차례");
+    const org = await screen.findByTestId("setup-item-organization");
+    const list = org.closest("ul");
+    const now = within(list).getAllByText("지금 할 차례");
     expect(now.length).toBe(1);
-    const org = screen.getByTestId("setup-item-organization");
     expect(within(org).getByText("지금 할 차례")).toBeInTheDocument();
+    // 레일의 「지금 할 차례」 판이 같은 항목을 가리킨다.
+    const rail = screen.getByTestId("setup-summary");
+    expect(within(rail).getByRole("heading", { level: 2, name: "지금 할 차례" })).toBeInTheDocument();
+    expect(rail.querySelector("[data-setup-now]").getAttribute("data-setup-now")).toBe("organization");
+  });
+});
+
+// ── 레일 — 지금 할 차례 (D-501) ────────────────────────────────────────────────
+
+describe("레일 — 지금 할 차례가 이 화면의 주 동작이다 (D-501)", () => {
+  it("다음 항목의 고치는 화면으로 가는 링크가 레일에 하나 서고, 목록의 그 줄에는 없다", async () => {
+    renderWizard();
+    const rail = await screen.findByTestId("setup-summary");
+    const go = within(rail).getByRole("link", { name: SETUP_LINKS.organization.label });
+    expect(go.getAttribute("href")).toBe(SETUP_LINKS.organization.href);
+    expect(within(rail).getAllByRole("link")).toHaveLength(1);
+    const org = screen.getByTestId("setup-item-organization");
+    expect(within(org).queryByRole("link")).toBeNull();
+  });
+
+  it("진행은 한 문장이다 — 같은 수를 조각 문장과 요약 카드로 두 번 세우지 않는다", async () => {
+    renderWizard();
+    const rail = await screen.findByTestId("setup-summary");
+    expect(rail).toHaveTextContent("6개 중 1개가 끝났습니다. 직접 할 일이 4개, 확인할 것이 1개 남았습니다.");
+    expect(within(rail).queryByText("남은 항목")).toBeNull();
+    expect(document.querySelector("[data-summary-total]")).toBeNull();
+  });
+
+  it("진행 문장은 없는 갈래를 말하지 않는다", () => {
+    const base = { items: [item("a", "가", "done"), item("b", "나", "todo")], todo: ["b"], unknown: [] };
+    expect(setupProgressText(base)).toBe("2개 중 1개가 끝났습니다. 직접 할 일이 1개 남았습니다.");
+    expect(setupProgressText({ ...base, items: [item("a", "가", "unknown")], todo: [], unknown: ["a"] }))
+      .toBe("1개 중 아직 끝난 항목이 없습니다. 확인할 것이 1개 남았습니다.");
+  });
+
+  it("레일이 문서 순서의 앞이다 — 좁은 화면에서도 할 차례가 목록 위에 선다", async () => {
+    renderWizard();
+    const rail = await screen.findByTestId("setup-summary");
+    const org = screen.getByTestId("setup-item-organization");
+    expect(rail.compareDocumentPosition(org) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });
 
@@ -195,12 +269,15 @@ describe("끝난 뒤에도 계속 보인다", () => {
   it("목록을 접어도 남은 항목 수는 사라지지 않는다", async () => {
     const user = userEvent.setup();
     renderWizard();
-    await waitFor(() => expect(screen.getByText("조직과 부서")).toBeInTheDocument());
+    await screen.findByTestId("setup-item-organization");
 
     await user.click(screen.getByRole("button", { name: /목록 접기/ }));
     expect(screen.queryByTestId("setup-item-organization")).toBeNull();
     // 접어도 요약은 남는다. 이것이 사라지면 "한 번 닫으면 끝" 인 마법사가 된다.
-    expect(screen.getByTestId("setup-summary")).toHaveTextContent("5");
+    const rail = screen.getByTestId("setup-summary");
+    expect(rail).toHaveTextContent("6개 중 1개가 끝났습니다. 직접 할 일이 4개, 확인할 것이 1개 남았습니다.");
+    // 할 차례도 남는다 — 목록을 접은 사람이 다음에 할 일을 잃지 않는다.
+    expect(within(rail).getByRole("link", { name: SETUP_LINKS.organization.label })).toBeInTheDocument();
   });
 
   it("전부 끝나도 항목 목록은 그대로 남는다", async () => {
@@ -216,6 +293,9 @@ describe("끝난 뒤에도 계속 보인다", () => {
     expect(screen.getByTestId("setup-summary")).toHaveTextContent(/끝났습니다/);
     const keys = Array.from(document.querySelectorAll("[data-setup-key]"));
     expect(keys.length).toBe(6);
+    // 다 끝나면 할 차례도 주 동작도 없다.
+    expect(screen.queryByText("지금 할 차례")).toBeNull();
+    expect(within(screen.getByTestId("setup-summary")).queryByRole("link")).toBeNull();
   });
 });
 
@@ -249,6 +329,10 @@ describe("링크", () => {
     const runners = await screen.findByTestId("setup-item-llm");
     const anchor = within(runners).getByRole("link");
     expect(anchor.getAttribute("href")).toBe(SETUP_LINKS.llm.href);
+  });
+
+  it("메일 항목은 설정 표의 메일 줄을 연다 — 메일 발송 화면의 「메일 설정 열기」와 같은 곳 · 같은 이름이다", () => {
+    expect(SETUP_LINKS.mail).toEqual({ href: "#/settings?setting=smtp", label: "메일 설정 열기" });
   });
 
   it("SYS-06: llm 항목은 AI 설정으로 보낸다 — probe_llm의 안내 문구가 실제로 말하는 곳과 같다", () => {

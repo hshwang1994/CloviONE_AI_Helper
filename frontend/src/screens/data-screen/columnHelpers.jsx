@@ -1,7 +1,7 @@
 import React from "react";
 import Box from "@mui/material/Box";
 import Link from "@mui/material/Link";
-import { Badge, DetailRow } from "../../ui/kit.jsx";
+import { Badge, DetailRow, statusText } from "../../ui/kit.jsx";
 import { DateCell } from "../../ui/cells.jsx";
 import { JsonBlock } from "./JsonBlock.jsx";
 
@@ -9,8 +9,9 @@ import { JsonBlock } from "./JsonBlock.jsx";
 /* 값이 비었는지(`isEmpty`)는 그림을 그리는 헬퍼가 스스로 말한다 — 상세는 빈 줄을 「값 없음」 한 줄로 접는데
    (`detailFields.js::partitionDetailFields`, D-501), 배지 · 시각 칸은 그린 결과가 요소라 글자로 판단할 수 없다. */
 const blankOf = (key) => (r) => r[key] == null || r[key] === "";
-export const badgeCol = (key, label) => ({ key, label, type: "status", isEmpty: blankOf(key), render: (r) => <Badge value={r[key]} /> });
-export const mapCol = (key, label, map) => ({ key, label, type: "enum", render: (r) => map[r[key]] || (r[key] == null ? "-" : String(r[key])) });
+/* 두 열은 값을 **이름으로 바꿔** 그린다 — 잘린 칸의 hover 글자도 그린 이름이어야 한다(`kit.jsx::columnCellHint` 의 `hint`). */
+export const badgeCol = (key, label) => ({ key, label, type: "status", isEmpty: blankOf(key), hint: (r) => statusText(r[key]), render: (r) => <Badge value={r[key]} /> });
+export const mapCol = (key, label, map) => ({ key, label, type: "enum", hint: (r) => map[r[key]] || (r[key] == null ? "" : String(r[key])), render: (r) => map[r[key]] || (r[key] == null ? "-" : String(r[key])) });
 /* 표의 날짜는 한 줄로 고정한다 — 접히면 행 높이가 들쭉날쭉해 세로로 훑을 수 없다(지시 16).
  *
  * 날짜 열은 **정렬 대상이다**(지시 10). "언제 추가됐나 / 무엇이 가장 오래됐나"는 목록에서

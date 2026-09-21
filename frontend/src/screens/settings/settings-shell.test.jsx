@@ -20,6 +20,10 @@ import { MemoryRouter, useLocation } from "react-router-dom";
  * 데이터베이스에서 나오게 된 뒤로 노션 토큰은 제품이 읽는 값이 아니고, 그 값을 고치는
  * 화면이 남아 있으면 없어진 쓰기 경로를 사람이 다시 열 수 있다고 말하는 셈이 된다.
  * 여기 남는 것은 그 화면이 걸려 있던 '연동' 탭이 **정말로 없다**는 단언 하나다.
+ *
+ * qa-contract-change: 「시스템 정책 탭이 그려졌다」를 잡던 표식이 유지보수 판의 「현재 상태」 줄에서 「유지보수 모드」 설정 줄로 옮긴다 —
+ * 유지보수 판 둘이 한 판의 설정 줄 둘이 되면서(D-501) 「현재 상태」 낱말이 없어졌다. 판정(그 탭이 그려졌는가 · 권한 없는 역할에게는
+ * 안 그려졌는가)은 그대로이고, 기술 정보 토글이 그릇 머리에 서는지 재는 시험 둘을 더한다.
  */
 
 const apiMock = vi.fn();
@@ -118,7 +122,7 @@ describe("설정 탭 — role별 가시성", () => {
       expect(await screen.findByText("권한이 없습니다")).toBeInTheDocument();
       expect(screen.queryByText("시스템 정보")).not.toBeInTheDocument();
       // 설정 표(시스템 정책 탭의 내용)로 조용히 안 떨어졌다 — 거부 화면만 있다.
-      expect(screen.queryByText("현재 상태")).not.toBeInTheDocument();
+      expect(screen.queryByText("유지보수 모드")).not.toBeInTheDocument();
     },
   );
 
@@ -132,7 +136,7 @@ describe("설정 탭 — role별 가시성", () => {
   it("모르는 tab 값(오타·삭제된 탭)은 주소를 정정하고 시스템 정책으로 떨어진다 — 역할 문제와 다르게 처리한다", async () => {
     currentRole = "operator";
     renderShell("/settings?tab=does-not-exist");
-    await screen.findByText("현재 상태");
+    await screen.findByText("유지보수 모드");
     expect(screen.queryByText("권한이 없습니다")).not.toBeInTheDocument();
     await waitFor(() => expect(currentPath()).not.toContain("tab=does-not-exist"));
   });
@@ -161,7 +165,7 @@ describe("설정 탭 — 전환하면 실제로 다른 화면을 그린다", () 
   it("옛 '연동' 탭 주소로 들어와도 그 화면은 다시 안 그려진다", async () => {
     currentRole = "system_admin";
     renderShell("/settings?tab=integration");
-    await screen.findByText("현재 상태");
+    await screen.findByText("유지보수 모드");
     expect(screen.queryByRole("tab", { name: "연동" })).not.toBeInTheDocument();
     expect(screen.queryByText("데이터베이스")).not.toBeInTheDocument();
     await waitFor(() => expect(currentPath()).not.toContain("tab=integration"));
@@ -170,7 +174,7 @@ describe("설정 탭 — 전환하면 실제로 다른 화면을 그린다", () 
   it("기본 탭('시스템 정책')은 설정 표와 유지보수 카드를 함께 보여준다 — 유지보수는 더는 별도 화면이 아니다", async () => {
     currentRole = "system_admin";
     renderShell();
-    expect(await screen.findByText("현재 상태")).toBeInTheDocument();
+    expect(await screen.findByText("유지보수 모드")).toBeInTheDocument();
   });
 });
 
@@ -211,5 +215,47 @@ describe("그릇의 머리 — 제목 고정·탭별 도움말 (D-452 · D-453)"
     renderShell("/settings?tab=policy");
     await screen.findByRole("tab", { name: "시스템 정책" });
     expect(screen.queryByRole("button", { name: "도움말 보기" })).toBeNull();
+  });
+});
+
+/* 설정 표의 보기 토글은 그릇 머리의 동작 자리에 선다(D-454 · D-501). 예전에는 이 단추 하나가 표 위 전폭 필터 바를 혼자
+   차지했다 — 검색도 조건 칸도 없는 1,600px 줄의 오른쪽 끝에 단추 하나였다. */
+describe("기술 정보 토글 — 그릇 머리의 동작 자리 (D-454 · D-501)", () => {
+  function withSettings() {
+    apiMock.mockImplementation((path) => (path === "/api/admin/settings"
+      ? Promise.resolve({
+        settings: {
+          conversation_retention_days: {
+            value: 90, type: "int", description: "대화 보존 기간", restart_required: false, is_default: true,
+          },
+        },
+      })
+      : Promise.resolve({})));
+  }
+
+  it("시스템 정책 탭의 「기술 정보(설정 키) 보기」는 페이지 머리에 서고, 표 위에 필터 바 줄이 없다", async () => {
+    currentRole = "system_admin";
+    withSettings();
+    renderShell();
+    const toggle = await screen.findByRole("button", { name: "기술 정보(설정 키) 보기" });
+    expect(toggle.closest(".k-page-head"), "토글이 머리 밖(본문 첫 줄)에 섰다").not.toBeNull();
+    expect(toggle).toHaveAttribute("aria-pressed", "false");
+    expect(document.querySelector("[data-filter-bar]"), "한 칸짜리 전폭 필터 바가 다시 섰다").toBeNull();
+    // 머리에 올라가도 토글은 그대로 동작한다 — 키 열이 들어온다.
+    const user = userEvent.setup();
+    await user.click(toggle);
+    expect(await screen.findByRole("columnheader", { name: "키" })).toBeInTheDocument();
+    expect(toggle).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("반례: 다른 탭으로 옮기면 그 토글도 머리에서 내려간다 — 키 열이 없는 탭에 켤 단추를 남기지 않는다", async () => {
+    currentRole = "system_admin";
+    withSettings();
+    const user = userEvent.setup();
+    renderShell();
+    await screen.findByRole("button", { name: "기술 정보(설정 키) 보기" });
+    await user.click(screen.getByRole("tab", { name: "AI" }));
+    await screen.findByText("지금 적용 중인 값");
+    expect(screen.queryByRole("button", { name: "기술 정보(설정 키) 보기" })).toBeNull();
   });
 });

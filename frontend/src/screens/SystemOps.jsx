@@ -80,6 +80,9 @@ const UNIT_ROLES = {
   "systemd-resolved.service": "도메인 이름을 주소로 바꿉니다.",
 };
 
+/* 도우미가 없을 때 서비스 한 줄의 설명 — 그 자리가 무엇을 다루는지만 말한다. 읽지 못한다는 사실은 안내 상자가 말한다. */
+const SERVICES_ROLE = "웹 서버, 워커처럼 포털을 이루는 서비스가 실행 중인지 보고 재시작합니다.";
+
 /* 이 탭의 `?` 도움말 — 그릇(`settings/SettingsShell.jsx`)이 제목 옆에 그린다(D-453).
    예전에는 어디에도 안 쓰이는 상수였다. */
 export const HELP = "이 서버의 운영체제 설정과 서비스 상태를 봅니다. 실제 변경은 서버에 설치된 시스템 설정 도우미가 정해진 동작만 수행합니다.";
@@ -262,7 +265,9 @@ export function SystemOps({ embedded = false } = {}) {
   const info = data.info || {};
   const units = info.units || {};
   const usable = !!data.available;
-  const known = (value) => (usable && value ? value : usable ? "확인하지 못했습니다" : UNKNOWN);
+  /* 도우미가 없으면 도우미가 읽어 주는 값은 줄에 서지 않는다(`null`) — 여섯 줄이 모두 「서버에서만 확인할 수 있습니다」를
+     되풀이했다(D-501). 그 사실은 위 안내 상자가 한 번 말한다. 도우미가 있는데 값이 비었으면 「확인하지 못했습니다」다. */
+  const known = (value) => (!usable ? null : value || "확인하지 못했습니다");
 
   const submit = async (action, values) => {
     const params = buildParams(action, values);
@@ -294,10 +299,12 @@ export function SystemOps({ embedded = false } = {}) {
   };
 
   // 헬퍼가 아는 동작만 그린다. 이름 하나에 줄 하나 — `변경` 카드에 버튼을 몰아 두지 않는다.
+  // 도우미가 없으면 단추를 그리지 않는다 — 여섯 줄 모두 누를 수 없는 단추를 들고 있었고, 누를 수 없는 이유는 위 안내 상자
+  // 한 곳이 말한다(D-501 — 한 사실은 한 곳). 도우미가 있는데 요청이 도는 중이면 꺼 둔다.
   const can = (name) => (data.actions || []).some((a) => a.name === name);
   const changeButton = (name, label) => (
-    can(name) && FORMS[name] ? (
-      <Button size="sm" disabled={!usable || run.isPending} onClick={() => setOpenAction(name)}>
+    usable && can(name) && FORMS[name] ? (
+      <Button size="sm" disabled={run.isPending} onClick={() => setOpenAction(name)}>
         {label || "수정"}
       </Button>
     ) : null
@@ -320,7 +327,7 @@ export function SystemOps({ embedded = false } = {}) {
     },
     {
       key: "ntp", label: "시각 동기화",
-      value: !usable ? UNKNOWN
+      value: !usable ? null
         : info.ntp_synchronized === "yes" ? "표준 시각에 맞춰져 있습니다"
         : info.ntp_synchronized === "no" ? "맞춰지지 않았습니다"
         : "확인하지 못했습니다",
@@ -329,17 +336,18 @@ export function SystemOps({ embedded = false } = {}) {
       action: changeButton("ntp.set", "서버 지정"),
     },
     {
+      /* 도우미가 있어도 DNS · 프록시의 지금 값은 아직 안 준다 — 그때는 모른다고 말한다. 도우미가 없으면 위 안내 상자가 말한다. */
       key: "dns", label: "DNS 서버",
-      value: UNKNOWN,
+      value: usable ? UNKNOWN : null,
       tone: "muted",
-      description: "도메인 이름을 주소로 바꿀 때 물어보는 서버입니다. 지금 지정된 값은 도우미가 아직 알려 주지 않습니다.",
+      description: "도메인 이름을 주소로 바꿀 때 물어보는 서버입니다." + (usable ? " 지금 지정된 값은 도우미가 아직 알려 주지 않습니다." : ""),
       action: changeButton("dns.set"),
     },
     {
       key: "proxy", label: "아웃바운드 프록시",
-      value: UNKNOWN,
+      value: usable ? UNKNOWN : null,
       tone: "muted",
-      description: "포털이 바깥으로 나갈 때 거치는 서버입니다. 지금 지정된 값은 도우미가 아직 알려 주지 않습니다.",
+      description: "포털이 바깥으로 나갈 때 거치는 서버입니다." + (usable ? " 지금 지정된 값은 도우미가 아직 알려 주지 않습니다." : ""),
       action: changeButton("proxy.set"),
     },
     {
@@ -365,11 +373,12 @@ export function SystemOps({ embedded = false } = {}) {
 
       {!usable && (
         /* 도우미가 없는 것은 오류가 아니라 이 서버의 상태다 - 사람이 할 일이 있으므로 조용한
-           안내(info)가 아니라 주의로 말하되, 오류(danger)로는 말하지 않는다(D-155). */
+           안내(info)가 아니라 주의로 말하되, 오류(danger)로는 말하지 않는다(D-155).
+           그 사실은 **여기 한 번**이다(D-501). 예전에는 아래 여섯 줄이 저마다 「서버에서만 확인할 수 있습니다」와 꺼진
+           단추를 들고 있었고, 서비스 판도 「도우미가 없어 읽지 못했습니다」를 한 번 더 말했다. */
         <Callout tone="warn">
           {data.detail || "시스템 설정 도우미를 쓸 수 없습니다."} 서버에 시스템 설정 도우미를
-          설치하고 실행하면 이 화면의 값을 읽고 바꿀 수 있습니다. 그 전까지 아래 값은 읽지
-          못하며, 여기서 바꾼 것은 아무것도 적용되지 않습니다.
+          설치하고 실행하면 아래 설정과 서비스 상태를 이 화면에서 읽고 바꿀 수 있습니다.
         </Callout>
       )}
 
@@ -383,35 +392,47 @@ export function SystemOps({ embedded = false } = {}) {
 
       {/* 🔴 두 묶음이 전폭 괘선 목록이었다 — 라벨과 「수정」 단추가 1500px 떨어져 한 줄로 읽히지
           않았다. 설정성 화면은 `/profile` 처럼 **판 2열 격자**다(D-457): 설정 묶음이 왼쪽 판,
-          서비스 묶음이 오른쪽 판. 왼쪽이 설명이 길어 폭을 더 받는다(가중치 선언, D-333). */}
-      <Box sx={pairTracks("minmax(0, 1.15fr) minmax(0, 0.85fr)")}>
+          서비스 묶음이 오른쪽 판. 왼쪽이 설명이 길어 폭을 더 받는다(가중치 선언, D-333).
+          도우미가 없으면 판 하나다(D-501). 줄마다 값과 단추가 빠져 이름과 설명만 남고, 서비스는 읽을 것이 없어 오른쪽 판이
+          왼쪽 판 높이만큼 빈 채로 섰다 — 서비스도 같은 판의 한 줄(무엇을 다루는 자리인가)로 선다. */}
+      {usable ? (
+        <Box sx={pairTracks("minmax(0, 1.15fr) minmax(0, 0.85fr)")}>
+          <Card>
+            <SettingList title="시스템 설정" sx={{ mt: 0 }}>
+              {rows.map((r, i) => (
+                <SettingRow
+                  key={r.key} label={r.label} value={r.value} description={r.description}
+                  tone={r.tone} action={r.action} last={i === rows.length - 1}
+                />
+              ))}
+            </SettingList>
+          </Card>
+          <Card>
+            <SettingList title="서비스" sx={{ mt: 0 }}>
+              {unitNames.length > 0 ? (
+                unitNames.map((unit, i) => (
+                  <ServiceRow key={unit} unit={unit} state={units[unit]} onControl={control}
+                              disabled={run.isPending} last={i === unitNames.length - 1} />
+                ))
+              ) : (
+                <EmptyState size="compact" title="서비스 상태를 읽지 못했습니다" help="새로고침한 뒤 다시 시도해 주세요." />
+              )}
+            </SettingList>
+          </Card>
+        </Box>
+      ) : (
         <Card>
           <SettingList title="시스템 설정" sx={{ mt: 0 }}>
-            {rows.map((r, i) => (
+            {rows.map((r) => (
               <SettingRow
                 key={r.key} label={r.label} value={r.value} description={r.description}
-                tone={r.tone} action={r.action} last={i === rows.length - 1}
+                tone={r.tone} action={r.action}
               />
             ))}
+            <SettingRow last label="서비스" description={SERVICES_ROLE} />
           </SettingList>
         </Card>
-        <Card>
-          <SettingList title="서비스" sx={{ mt: 0 }}>
-            {usable && unitNames.length > 0 ? (
-              unitNames.map((unit, i) => (
-                <ServiceRow key={unit} unit={unit} state={units[unit]} onControl={control}
-                            disabled={run.isPending} last={i === unitNames.length - 1} />
-              ))
-            ) : (
-              <EmptyState
-                size="compact"
-                title={usable ? "서비스 상태를 읽지 못했습니다" : "도우미가 없어 읽지 못했습니다"}
-                help={usable ? "새로고침한 뒤 다시 시도해 주세요." : undefined}
-              />
-            )}
-          </SettingList>
-        </Card>
-      </Box>
+      )}
 
       {openAction && (
         <FormModal

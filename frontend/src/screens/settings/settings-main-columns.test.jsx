@@ -5,6 +5,9 @@
    계약(12rem)을 그대로 잰다. */
 /* qa-contract-change: 남는 폭의 주인이 「항목명」에서 「현재 값」 · 「설명」으로 옮긴다(D-501). 제목 열은 폭을 안 적으면 남는 폭을 다 먹어 열네 글자짜리
    항목명이 1,000px 칸을 차지했고 설명은 스무 글자에서 잘렸다. 항목명은 13rem 을 적고 두 산문 열이 `grow` 로 남는 폭을 나눈다 — 바닥 폭 단언 둘은 그대로다. */
+/* qa-contract-change: 「적용 상태」 열이 없어지고 「수정됨 · 재시작 필요」가 「현재 값」 칸 안 값 옆의 점 + 낱말로 옮긴다(D-501). 아무것도 안 바꾼 설치에서는
+   그 열이 모든 행에서 비어 7.5rem 빈 열이 표를 가로질렀다. 반례(짧은 열은 자기 바닥 폭 그대로)는 행 동작 열(6.5rem)로 잰다. 두 표지가
+   「현재 값」 칸 안에 있다는 단언을 더한다 — 표지는 사라지지 않았고 그 값 옆으로 옮겼을 뿐이다. */
 import React from "react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
@@ -87,8 +90,11 @@ describe("설정 표 — '항목명' 열의 최소 폭 (PA-RC-0037)", () => {
     // 폭을 받지 않은 열이 남는 폭을 먹는다 — 두 산문 열이다.
     expect(widthOf("현재 값")).toBe("");
     expect(widthOf("설명")).toBe("");
-    // 반례 — 짧은 값 열은 자기 바닥 폭 그대로다(남는 폭을 나눠 갖지 않는다).
-    expect(widthOf("적용 상태")).toBe("7.5rem");
+    // 반례 — 짧은 열(행 동작)은 자기 바닥 폭 그대로다(남는 폭을 나눠 갖지 않는다).
+    expect(widthOf("")).toBe("6.5rem");
+    // 빈 「적용 상태」 열은 없다 — 그 표지는 「현재 값」 칸 안으로 옮겼다(아래 시험).
+    expect(heads).not.toContain("적용 상태");
+    expect(heads).toEqual(["항목명", "현재 값", "설명", ""]);
   });
 });
 
@@ -124,5 +130,22 @@ describe("설정 표 — 값을 어떻게 바꾸는지 보인다", () => {
     renderSettings();
     expect(await screen.findByText("재시작 필요")).toBeInTheDocument();
     expect(screen.getByText("수정됨")).toBeInTheDocument();
+    /* 두 표지는 그 값의 칸 안에 선다(D-501) — 따로 선 「적용 상태」 열이 아니다. */
+    const heads = screen.getAllByRole("columnheader").map((h) => h.textContent);
+    const valueAt = heads.indexOf("현재 값");
+    const cellOf = (el) => el.closest("td");
+    const row = cellOf(screen.getByText("재시작 필요")).closest("tr");
+    const valueCell = row.querySelectorAll("td")[valueAt];
+    expect(cellOf(screen.getByText("재시작 필요"))).toBe(valueCell);
+    expect(cellOf(screen.getByText("수정됨"))).toBe(valueCell);
+    expect(valueCell).toHaveTextContent("600");
+  });
+
+  it("기본값 그대로이고 재시작도 필요 없는 값은 칸에 값만 선다 — 빈 표지 자리를 남기지 않는다", async () => {
+    renderSettings();
+    await screen.findByRole("columnheader", { name: "현재 값" });
+    expect(screen.queryByText("수정됨")).toBeNull();
+    expect(screen.queryByText("재시작 필요")).toBeNull();
+    expect(document.querySelector("[data-dot-label]")).toBeNull();
   });
 });

@@ -5,13 +5,12 @@ import Typography from "@mui/material/Typography";
 import { EntityCombobox } from "../ui/filters.jsx";
 import { api } from "../lib/api.js";
 import { failureText } from "../lib/failure.js";
-import { CONSOLE_WRITE_ROLES } from "../lib/roles.js";
+import { CONSOLE_WRITE_ROLES, roleLabel } from "../lib/roles.js";
 import { useAuth } from "../app/auth.jsx";
 import {
   Button, Callout, Card, CountChip, DataTable, ErrorState, PageHeader,
   Section, SectionTitle, Skeleton, useToast,
 } from "../ui/kit.jsx";
-import { StatusSummaryCard } from "../ui/StatusKpi.jsx";
 import { SettingRow } from "../ui/adminKit.jsx";
 import { selectionColumn, useRowSelection } from "../ui/bulkSelect.jsx";
 import { OrgPath } from "../ui/OrgPath.jsx";
@@ -92,16 +91,21 @@ function Findings({ finding, onFix }) {
 }
 
 /* 0건 항목들 — 판 없이 줄 하나씩. 이름과 «왜 문제인가» 는 남기고 안내(remedy)는 뺀다 —
-   정리할 것이 없는 항목에 정리하는 법을 적어 두면 읽을 사람이 없다. */
+   정리할 것이 없는 항목에 정리하는 법을 적어 두면 읽을 사람이 없다.
+   줄은 **촘촘한 밀도**(`SettingRow compact`)다(D-457 · D-501 — 끝남 · 0건 · 정상은 한 줄). 정상인 설치에서는 아홉 항목이
+   전부 0건인데, 까닭 설명이 두세 줄로 이어져 목록이 700px 를 넘었다. 훑는 목록이라 이름과 까닭이 각각 한 줄에서 말줄임되고,
+   까닭 전체는 `title` 이 든다. */
 function ClearFindings({ findings }) {
+  /* 촘촘한 줄은 실선이 줄 **위**에 온다. 첫 줄 위의 선은 구획 제목 아래 실선(`Section rule`)이나 위의 판과 겹쳐 두 줄로
+     보이므로 첫 줄만 뗀다. */
   return (
-    <Box>
-      {findings.map((f, i) => (
+    <Box sx={{ "& > .k-settingrow:first-child": { borderTop: 0 } }}>
+      {findings.map((f) => (
         <SettingRow
           key={f.key}
+          compact
           label={f.title}
           description={f.why}
-          last={i === findings.length - 1}
           action={<CountChip value="0건" />}
         />
       ))}
@@ -247,31 +251,31 @@ export function Integrity() {
           {clear.length ? <ClearFindings findings={clear} /> : null}
         </Section>
 
+        {/* 관리자 수는 구획 제목 옆 건수 칩 하나다 — 정리할 항목의 건수 칩과 같은 자리다. 여기 있던 상태 요약 카드(「2 전체 ·
+            전체 관리자 2 · 조직관리자, 부서관리자 0건」)는 바로 아래 두 줄짜리 표를 다시 셌다(D-501 — 한 사실은 한 곳).
+            범위별 구성은 표의 「관리 범위」 열이 말한다. 전부 전체 관리자일 때만 그 뜻을 한 줄로 말한다 — 그때 범위 기능은
+            아직 쓰이지 않는다. */}
         <Section
           titleAs="h2"
           title="관리자 범위 현황"
-          help="조직이나 부서 관리자는 admin과 범위의 조합입니다. 전부 ‘전체’면 범위 기능은 쓰이지 않는 것입니다."
+          help="조직이나 부서 관리자는 admin과 범위의 조합입니다."
+          action={admins.total ? <CountChip value={`${admins.total}명`} /> : null}
           rule
           sx={{ mb: 0 }}
         >
-          {/* 범위 셋의 합이 관리자 전체인 구성이다 — 상태 요약 카드(계획 표 7). */}
-          <StatusSummaryCard
-            ariaLabel="관리자 범위 현황"
-            total={admins.total}
-            items={["global", "org", "dept"].map((k) => ({
-              key: k,
-              value: admins.by_scope[k] || 0,
-              label: SCOPE_KO[k],
-              kind: k === "global" && (admins.by_scope[k] || 0) === admins.total ? "warn" : undefined,
-            }))}
-            sx={{ mb: 2 }}
-          />
-          {/* 목록 판 — 판이 곧 표 상자다(조합 계약 C-3). */}
+          {admins.total > 0 && (admins.by_scope.global || 0) === admins.total ? (
+            <Callout tone="info" variant="inline" sx={{ mb: 1.5 }}>
+              모든 관리자가 전체 관리자라서 조직, 부서 범위 기능은 아직 쓰이지 않습니다.
+            </Callout>
+          ) : null}
+          {/* 목록 판 — 판이 곧 표 상자다(조합 계약 C-3). 역할은 서버 값(`system_admin`)이 아니라 관리 콘솔의 역할
+              이름으로 선다(`lib/roles.js::ROLE_LABELS` — 사용자 화면의 「역할」 열과 같은 이름). */}
           <DataTable
               placement="surface"
               columns={[
                 { key: "display_name", label: "이름", identifier: true },
-                { key: "role", label: "역할", nowrap: true },
+                /* 값 자체가 역할 이름이다(아래 `rows`) — 칸의 말줄임 힌트(`title`)에도 서버 값이 새지 않는다. */
+                { key: "role_label", label: "역할", type: "enum" },
                 {
                   key: "admin_scope", label: "관리 범위", nowrap: true,
                   render: (r) => (
@@ -284,7 +288,7 @@ export function Integrity() {
                   ),
                 },
               ]}
-              rows={admins.items}
+              rows={admins.items.map((r) => ({ ...r, role_label: roleLabel(r.role) }))}
               rowKey={(r) => r.id}
               empty="관리자 계정이 없습니다."
             />

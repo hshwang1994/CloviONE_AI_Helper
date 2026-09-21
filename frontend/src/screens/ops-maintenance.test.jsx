@@ -1,6 +1,7 @@
 import React from "react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 
@@ -14,6 +15,12 @@ import { MemoryRouter } from "react-router-dom";
  *
  * 2) errorBuckets()는 '없는 추세'를 그리지 않기 위한 가드다. 서버가 주는 건 최근 실패 20건뿐이라
  *    점이 부족하거나 전부 같은 순간이면 스파크라인을 아예 만들지 않는다(숫자만 남긴다).
+ *
+ * qa-contract-change: 유지보수가 판 둘(모드 판 · 늘 열린 공지 입력 판)에서 판 하나의 설정 줄 둘로 바뀌었다(D-501). 공지는 지금 문구가
+ * 줄의 값으로 서고, 고치는 입력 · 미리 검증 · 공지 저장은 「수정」이 여는 창 안이다. 그래서 읽기 전용 역할의 단언이 옮긴다 — 창을 여는
+ * 「수정」이 보이되 비활성이고, 이유 문장은 판 하나에 한 줄이며 두 쓰기 단추가 그 줄을 가리킨다(두 판에 한 줄씩이던 것). 공지를
+ * 선택 · 복사할 수 있어야 한다는 단언은 입력의 readOnly 대신 「공지 문구가 입력 칸이 아니라 글자로 서 있다」로 잰다.
+ * 초안 seeding 단언은 그 창 안의 입력을 잰다.
  */
 
 const apiMock = vi.fn();
@@ -72,36 +79,71 @@ describe("유지보수 — 쓰기 권한이 없는 역할", () => {
     expect(toggleBtn).toBeInTheDocument();
     expect(toggleBtn).toBeDisabled();
 
-    // 예전엔 이 버튼 자체가 렌더되지 않았다 — 존재 + 비활성 둘 다 확인한다.
-    const checkBtn = screen.getByRole("button", { name: "미리 검증" });
-    expect(checkBtn).toBeInTheDocument();
-    expect(checkBtn).toBeDisabled();
+    // 공지를 고치는 창을 여는 단추도 존재 + 비활성이다 — 예전에 「미리 검증」이 아예 안 그려졌던 것과 같은 실수를 막는다.
+    const editBtn = screen.getByRole("button", { name: "점검 공지 수정" });
+    expect(editBtn).toBeInTheDocument();
+    expect(editBtn).toBeDisabled();
+    // 창이 열리지 않으므로 창 안의 쓰기 단추도 없다.
+    expect(screen.queryByRole("dialog")).toBeNull();
 
-    const saveBtn = screen.getByRole("button", { name: "공지 저장" });
-    expect(saveBtn).toBeInTheDocument();
-    expect(saveBtn).toBeDisabled();
-
-    // 비활성 이유는 눈에 보이는 글자로 남아야 한다(모드 카드 1 + 공지 카드 1).
-    expect(screen.getAllByText(/관리자, 시스템 관리자만 변경할 수 있습니다/)).toHaveLength(2);
-    // 그 이유가 스크린리더에도 닿도록 버튼과 프로그래매틱하게 연결돼 있어야 한다.
+    // 비활성 이유는 눈에 보이는 글자로 남아야 한다 — 판이 하나라 이유 문장도 하나다.
+    expect(screen.getAllByText(/관리자, 시스템 관리자만 변경할 수 있습니다/)).toHaveLength(1);
+    // 그 이유가 스크린리더에도 닿도록 두 쓰기 단추가 같은 이유 문장을 가리킨다.
     expect(toggleBtn).toHaveAttribute("aria-describedby", "maint-locked-reason");
-    expect(checkBtn).toHaveAttribute("aria-describedby", "maint-locked-reason");
+    expect(editBtn).toHaveAttribute("aria-describedby", "maint-locked-reason");
+    expect(document.getElementById("maint-locked-reason")).toHaveTextContent(/유지보수 모드와 점검 공지는/);
 
-    // 공지는 disabled가 아니라 readOnly다 — 읽기 전용 역할도 내용을 선택·복사할 수 있어야 한다.
-    const box = screen.getByLabelText("점검 공지");
-    expect(box).toHaveAttribute("readonly");
-    expect(box).not.toBeDisabled();
+    // 공지는 입력 칸이 아니라 글자로 선다 — 읽기 전용 역할도 내용을 선택 · 복사할 수 있다.
+    const notice = screen.getByText("점검 중입니다.");
+    expect(notice.closest("textarea, input")).toBeNull();
+    expect(screen.queryByRole("textbox")).toBeNull();
   });
 
   it("쓰기 권한이 있으면 같은 버튼이 활성화되고 이유 문구가 사라진다", async () => {
     mockRole = "admin";
+    const user = userEvent.setup();
     renderMaintenance();
 
     const toggleBtn = await screen.findByRole("button", { name: "유지보수 모드 활성화" });
     expect(toggleBtn).toBeEnabled();
-    expect(screen.getByRole("button", { name: "미리 검증" })).toBeEnabled();
     expect(screen.queryByText(/관리자, 시스템 관리자만 변경할 수 있습니다/)).toBeNull();
-    expect(screen.getByLabelText("점검 공지")).not.toHaveAttribute("readonly");
+    // 「수정」이 창을 열고, 창 안에서 미리 검증 · 입력이 살아 있다.
+    await user.click(screen.getByRole("button", { name: "점검 공지 수정" }));
+    const dialog = await screen.findByRole("dialog", { name: "점검 공지 수정" });
+    expect(within(dialog).getByRole("button", { name: "미리 검증" })).toBeEnabled();
+    expect(within(dialog).getByLabelText("점검 공지")).not.toHaveAttribute("readonly");
+    // 고친 것이 없으면 저장은 닫혀 있다(같은 값을 다시 저장하면 버전 기록에 빈 줄이 쌓인다).
+    expect(within(dialog).getByRole("button", { name: "공지 저장" })).toBeDisabled();
+  });
+});
+
+describe("유지보수 — 판 하나에 설정 줄 둘 (D-501)", () => {
+  it("모드와 공지가 한 판의 두 줄이고, 공지 입력창은 「수정」을 누르기 전에는 없다", async () => {
+    mockRole = "admin";
+    renderMaintenance();
+
+    await screen.findByText("유지보수 모드");
+    const rows = document.querySelectorAll(".k-settingrow");
+    expect(rows).toHaveLength(2);
+    expect(within(rows[0]).getByText("유지보수 모드")).toBeInTheDocument();
+    expect(within(rows[0]).getByText("정상")).toBeInTheDocument();
+    expect(within(rows[0]).getByRole("button", { name: "변경 기록" })).toBeInTheDocument();
+    expect(within(rows[1]).getByText("점검 공지")).toBeInTheDocument();
+    expect(within(rows[1]).getByText("점검 중입니다.")).toBeInTheDocument();
+    expect(within(rows[1]).getByRole("button", { name: "버전 기록" })).toBeInTheDocument();
+    // 두 줄이 같은 판 안이다 — 예전의 판 둘(1.2 : 0.8 짝)이 아니다.
+    expect(rows[0].parentElement).toBe(rows[1].parentElement);
+    // 늘 열려 있던 네 줄짜리 입력창은 없다.
+    expect(screen.queryByRole("textbox")).toBeNull();
+  });
+
+  it("공지가 비어 있으면 빈칸이 아니라 비었다고 말한다", async () => {
+    mockRole = "admin";
+    apiMock.mockImplementation(() => Promise.resolve({
+      settings: { maintenance_mode: { value: false }, maintenance_message: { value: "" } },
+    }));
+    renderMaintenance();
+    expect(await screen.findByText("아직 적은 공지가 없습니다.")).toBeInTheDocument();
   });
 });
 
@@ -118,12 +160,17 @@ describe("유지보수 — 점검 공지 초안 seeding", () => {
         maintenance_message: { value: "현재 시스템 점검 중입니다." },
       },
     }), 20)));
+    const user = userEvent.setup();
     renderMaintenance();
 
-    const box = await screen.findByLabelText("점검 공지");
+    // 늦게 온 공지가 줄의 값으로 선다.
+    expect(await screen.findByText("현재 시스템 점검 중입니다.")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "점검 공지 수정" }));
+    const dialog = await screen.findByRole("dialog", { name: "점검 공지 수정" });
+    const box = within(dialog).getByLabelText("점검 공지");
     await waitFor(() => expect(box.value).toBe("현재 시스템 점검 중입니다."));
-    // 초안 == 서버 값이므로 '되돌리기'(변경 사항이 있을 때만 뜨는 버튼)는 없어야 한다.
-    expect(screen.queryByRole("button", { name: "되돌리기" })).toBeNull();
+    // 초안 == 서버 값이므로 고친 것이 없다 — 저장은 닫혀 있다.
+    expect(within(dialog).getByRole("button", { name: "공지 저장" })).toBeDisabled();
   });
 });
 

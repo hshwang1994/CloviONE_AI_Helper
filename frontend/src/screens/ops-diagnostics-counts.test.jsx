@@ -1,9 +1,13 @@
 /* qa-contract-change: 진단 화면의 «현재 리소스» 타일 셋 중 둘(활성 워크플로·추가된 러너)이 S11 로 사라졌다. 남은 하나(활성 스케줄)는 숫자뿐 아니라 **라벨까지** 단언하도록 바꿔, 줄어든 개수만큼 남은 것을 더 세게 못 박았다. */
+/* qa-contract-change: 「현재 리소스」 구획(값 하나를 든 전폭 판)이 「대시보드에서 보기」와 같은 주석 줄 한 문장으로 옮긴다(D-501). 크래시하지 않고 수를
+   보인다는 단언은 그대로이고, 라벨 단언은 그 문장(「지금 켜져 있는 스케줄은 5개입니다.」)과 실행 일정으로 가는 길로 잰다. 같은 회차의 진단 정리(디스크 두
+   값은 속성 줄, 작업 지표는 24시간 측정만, 백로그는 판정 줄에서 거른 작업 큐로)를 재는 시험을 이 파일에 더한다. */
 import React from "react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, useLocation } from "react-router-dom";
 
 /* 진단 화면 — '현재 리소스' 섹션(counts).
  *
@@ -24,8 +28,15 @@ vi.mock("../app/auth.jsx", () => ({
 }));
 
 import { Diagnostics } from "./Ops.jsx";
+import { jobMeasures } from "./ops/JobQueuePanel.jsx";
+import { healthVerdict, JOBS_BACKLOG_LINKS } from "./ops/opsHelpers.js";
 import { ConfirmProvider, ToastProvider } from "../ui/kit.jsx";
 import { ThemeModeProvider } from "../ui/ThemeModeProvider.jsx";
+
+function LocationProbe() {
+  const location = useLocation();
+  return <div data-testid="location-probe">{location.pathname + location.search}</div>;
+}
 
 function renderDiagnostics() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -34,7 +45,8 @@ function renderDiagnostics() {
       <ThemeModeProvider>
         <ToastProvider>
           <ConfirmProvider>
-            <MemoryRouter>
+            <MemoryRouter initialEntries={["/diagnostics"]}>
+              <LocationProbe />
               <Diagnostics />
             </MemoryRouter>
           </ConfirmProvider>
@@ -44,12 +56,28 @@ function renderDiagnostics() {
   );
 }
 
+/* 백업 시각은 상대값이다 — 절대 날짜면 판정(7일)이 작성 다음 주부터 뒤집힌다(ops-service-status.test.jsx 와 같은 이유). */
+const RECENT_BACKUP_AT = new Date(Date.now() - 24 * 3600 * 1000).toISOString().replace(/\.\d+Z$/, "");
+
 const BASE_DASH = {
   integrations: {}, jobs_24h: {}, recent_critical_audit: [],
   disk: {}, memory: {}, cert_days_remaining: null,
-  last_backup_at: "2026-08-01T00:00:00", last_backup_status: "succeeded",
+  last_backup_at: RECENT_BACKUP_AT, last_backup_status: "succeeded",
   components: { web: "up", worker: "up", scheduler: "up" },
 };
+
+function withBundle(dashboard) {
+  apiMock.mockImplementation((path) => {
+    if (path === "/api/admin/diagnostics/bundle") {
+      return Promise.resolve({
+        generated_at: "2026-08-03T07:00:00",
+        dashboard: { ...BASE_DASH, counts: {}, ...dashboard },
+        recent_job_errors: [],
+      });
+    }
+    return Promise.reject(new Error("unexpected api call: " + path));
+  });
+}
 
 beforeEach(() => {
   apiMock.mockReset();
@@ -58,21 +86,108 @@ beforeEach(() => {
 
 describe("진단 — 현재 리소스(counts) 섹션", () => {
   it("counts가 채워져 있으면 크래시하지 않고 인벤토리 숫자를 보여준다", async () => {
-    apiMock.mockImplementation((path) => {
-      if (path === "/api/admin/diagnostics/bundle") {
-        return Promise.resolve({
-          generated_at: "2026-08-03T07:00:00",
-          dashboard: { ...BASE_DASH, counts: { active_schedules: 5 } },
-          recent_job_errors: [],
-        });
-      }
-      return Promise.reject(new Error("unexpected api call: " + path));
-    });
+    withBundle({ counts: { active_schedules: 5 } });
     renderDiagnostics();
 
-    expect(await screen.findByText("현재 리소스")).toBeInTheDocument();
-    // S11 이 워크플로·러너 타일을 걷어내 활성 스케줄 하나가 남았다.
-    expect(screen.getByText("5")).toBeInTheDocument();
-    expect(screen.getByText("활성 스케줄")).toBeInTheDocument();
+    // S11 이 워크플로·러너 타일을 걷어내 활성 스케줄 하나가 남았고, D-501 이 그 하나를 주석 줄 한 문장으로 옮겼다.
+    expect(await screen.findByText("지금 켜져 있는 스케줄은 5개입니다.")).toBeInTheDocument();
+    // 값 하나를 든 전폭 판(「현재 리소스」 구획)은 없다.
+    expect(screen.queryByText("현재 리소스")).toBeNull();
+    expect(document.querySelector("[data-summary-single]")).toBeNull();
+  });
+
+  it("그 줄의 「스케줄에서 보기 →」가 실행 일정으로 간다", async () => {
+    withBundle({ counts: { active_schedules: 2 } });
+    const user = userEvent.setup();
+    renderDiagnostics();
+    const line = (await screen.findByText("지금 켜져 있는 스케줄은 2개입니다.")).closest("p");
+    await user.click(within(line).getByRole("button", { name: "스케줄에서 보기 →" }));
+    expect(screen.getByTestId("location-probe")).toHaveTextContent("/schedules");
+  });
+
+  it("반례: 번들이 이 수를 안 주면 줄도 없다", async () => {
+    withBundle({ counts: {} });
+    renderDiagnostics();
+    await screen.findByText("필수 서비스");
+    expect(screen.queryByText(/켜져 있는 스케줄은/)).toBeNull();
+  });
+});
+
+describe("진단 — 시스템 리소스는 값이 둘 이하이면 속성 줄이다 (D-501)", () => {
+  it("디스크 여유 · 사용 두 값은 반폭 판 둘이 아니라 속성 줄 하나다", async () => {
+    withBundle({ disk: { free_gb: 553.8, used_pct: 44.6 } });
+    renderDiagnostics();
+    const group = await screen.findByRole("group", { name: "시스템 리소스" });
+    expect(group).toHaveClass("k-metabar");
+    expect(within(group).getByText("디스크 여유")).toBeInTheDocument();
+    expect(within(group).getByText("553.8GB")).toBeInTheDocument();
+    expect(within(group).getByText("44.6%")).toBeInTheDocument();
+  });
+
+  it("반례: 값이 셋 이상이면 나란히 견주는 타일 줄이다", async () => {
+    withBundle({ disk: { free_gb: 12, used_pct: 82 }, memory: { used_pct: 40 } });
+    renderDiagnostics();
+    const group = await screen.findByLabelText("시스템 리소스");
+    expect(group).not.toHaveClass("k-metabar");
+    expect(within(group).getByText("메모리 사용")).toBeInTheDocument();
+  });
+});
+
+describe("진단 — 작업 지표는 24시간 측정만 든다 (D-501)", () => {
+  it("백로그 누계(「대기 중(전체)」 · 「미해결 실패(전체)」)는 타일이 아니다", async () => {
+    withBundle({ jobs_24h: { total: 12, success_rate_pct: 90, avg_processing_seconds: 4, queued: 7, failed_open: 3 } });
+    renderDiagnostics();
+    const group = await screen.findByLabelText("작업 지표");
+    expect(within(group).getByText("처리 요청")).toBeInTheDocument();
+    expect(within(group).getByText("성공률(종료 작업 대비)")).toBeInTheDocument();
+    expect(within(group).getByText("평균 처리")).toBeInTheDocument();
+    expect(within(group).queryByText(/\(전체\)/)).toBeNull();
+    expect(screen.queryByText("대기 중(전체)")).toBeNull();
+    expect(screen.queryByText("미해결 실패(전체)")).toBeNull();
+  });
+
+  it("잴 수 없는 값은 「-」 판이 아니라 빠지고, 남은 값이 둘 이하이면 속성 줄이다", async () => {
+    withBundle({ jobs_24h: { total: 0, success_rate_pct: null, avg_processing_seconds: null, queued: 0, failed_open: 0 } });
+    renderDiagnostics();
+    const group = await screen.findByRole("group", { name: "작업 지표" });
+    expect(group).toHaveClass("k-metabar");
+    expect(within(group).getByText("처리 요청")).toBeInTheDocument();
+    expect(within(group).queryByText("성공률(종료 작업 대비)")).toBeNull();
+    expect(within(group).queryByText("-")).toBeNull();
+  });
+
+  it("jobMeasures — 값이 없는 측정을 만들지 않는다", () => {
+    expect(jobMeasures({}).map((m) => m.key)).toEqual([]);
+    expect(jobMeasures({ total: 3, success_rate_pct: 100, avg_processing_seconds: 2 }).map((m) => m.key)).toEqual(["total", "rate", "avg"]);
+    expect(jobMeasures({ total: 3, success_rate_pct: null, avg_processing_seconds: null }).map((m) => m.key)).toEqual(["total"]);
+  });
+});
+
+describe("진단 — 백로그는 판정 줄 한 곳이 말하고 그 줄에서 거른 작업 큐로 간다", () => {
+  it("대기 · 미해결 실패 줄마다 그 상태로 거른 작업 큐 링크가 선다", async () => {
+    withBundle({ jobs_24h: { total: 1, queued: 7, failed_open: 3 } });
+    const user = userEvent.setup();
+    renderDiagnostics();
+    const queued = (await screen.findByText("대기 작업 7건")).closest("li");
+    await user.click(within(queued).getByRole("button", { name: "대기 작업 보기" }));
+    expect(screen.getByTestId("location-probe")).toHaveTextContent("/jobs?status=queued");
+  });
+
+  it("줄이 하나뿐이어도 그 줄에서 간다", async () => {
+    withBundle({ jobs_24h: { total: 1, failed_open: 2 } });
+    const user = userEvent.setup();
+    renderDiagnostics();
+    expect(await screen.findByText(/미해결 실패 작업 2건/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "실패 작업 보기" }));
+    expect(screen.getByTestId("location-probe")).toHaveTextContent("/jobs?status=failed");
+  });
+
+  it("healthVerdict — 백로그 줄만 갈 곳을 든다(대시보드 경보와 같은 곳 · 같은 이름)", () => {
+    const hv = healthVerdict({ web: "down" }, {}, {}, null, { queued: 2, failed_open: 1 }, {}, null, null);
+    const byMsg = Object.fromEntries(hv.problems.map((p) => [p.msg, p]));
+    expect(byMsg["대기 작업 2건"].link).toEqual({ to: "/jobs?status=queued", label: "대기 작업 보기" });
+    expect(byMsg["미해결 실패 작업 1건"].link).toEqual({ to: "/jobs?status=failed", label: "실패 작업 보기" });
+    expect(byMsg["웹 서버 중단"].link).toBeUndefined();
+    expect(JOBS_BACKLOG_LINKS.failed.to).toBe("/jobs?status=failed");
   });
 });

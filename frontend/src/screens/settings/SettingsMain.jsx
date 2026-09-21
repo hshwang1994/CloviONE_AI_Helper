@@ -5,8 +5,9 @@ import Typography from "@mui/material/Typography";
 import { api } from "../../lib/api.js";
 import { useAuth } from "../../app/auth.jsx";
 import { useQueryState } from "../../lib/useQueryState.js";
-import { Badge, Button, DataTable, DotLabel, EmptyState, ErrorState, RowActions, useToast } from "../../ui/kit.jsx";
-import { FilterBar, FilterToggle } from "../../ui/FilterBar.jsx";
+import { Button, DataTable, DotLabel, EmptyState, ErrorState, RowActions, useToast } from "../../ui/kit.jsx";
+import { FilterToggle } from "../../ui/FilterBar.jsx";
+import { HeaderActions } from "../../ui/HeaderSlot.jsx";
 import {
   SETTING_LABELS, settingLabel, WRITE_ROLES, MAINTENANCE_KEYS, DEDICATED_SCREEN_KEYS,
   summarizeSetting, displayValue,
@@ -35,6 +36,29 @@ import { SettingEditor } from "./SettingEditor.jsx";
  * 앞에 서서 어느 줄인지를 스스로 찾아야 했다 — 보내 준 쪽은 어느 줄인지 알고 있었는데도.
  * 스펙 상수는 **모듈에 둔다**(useQueryState 문서: 렌더마다 새 객체면 메모가 깨진다). */
 const DEEPLINK_SPEC = { setting: "" };
+
+/* 「현재 값」 칸 — 값과 그 값의 적용 상태가 **한 칸**에 선다(D-501).
+ *
+ * 적용 상태는 두 가지를 말한다(지시 45).
+ *
+ *  - **수정됨** — 기본값에서 벗어났다. 기본값 그대로면 표지가 아예 없다(PA-RC-0022: 「변경 안 됐다」는
+ *    사실 자체는 정보 가치가 낮다. 눈에 띄어야 하는 것은 누가 무언가를 바꿨다는 사실 하나다).
+ *  - **재시작 필요** — 저장해도 워커가 다시 뜨기 전에는 그 값으로 동작하지 않는다. 예전에는 이 사실이
+ *    저장 뒤 토스트에만 잠깐 떴다가 사라져서, 표를 다시 열면 「저장했는데 왜 안 바뀌지」를 알 길이 없었다.
+ *
+ * 둘은 그 값에 붙은 사실이라 값 옆에 선다. 예전에는 「적용 상태」가 따로 한 열이었는데, 아무것도 안 바꾼
+ * 설치에서는 모든 행이 비어 있어 7.5rem 짜리 빈 열이 표를 가로질렀다. 표 안 표지는 면 없는 점 + 낱말이다
+ * (핸드오프 RULES §2 · ACCEPTANCE F7). 값 글자가 길면 값만 말줄임되고 표지는 줄어들지 않는다. */
+function SettingValueCell({ text, modified, restart }) {
+  if (!modified && !restart) return text;
+  return (
+    <Box component="span" sx={{ display: "inline-flex", alignItems: "center", gap: 1, maxWidth: "100%", verticalAlign: "middle" }}>
+      <Box component="span" sx={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>{text}</Box>
+      {modified ? <DotLabel label="수정됨" tone="info" sx={{ flexShrink: 0 }} /> : null}
+      {restart ? <DotLabel label="재시작 필요" tone="warn" sx={{ flexShrink: 0 }} /> : null}
+    </Box>
+  );
+}
 
 export function Settings({ embedded = false } = {}) {
   const [sel, setSel] = useState(null);
@@ -115,21 +139,13 @@ export function Settings({ embedded = false } = {}) {
     // PA-RC-0022: 백엔드 키는 기본 숨김이다 — showKey가 꺼져 있으면 이 열 자체를 안 만든다
     // (렌더는 하고 CSS로 숨기지 않는다, 스크린리더가 안 쓰는 열까지 훑지 않게).
     ...(showKey ? [{ key: "key", label: "키", render: (r) => <Typography component="span" variant="caption" color="text.secondary">{r.key}</Typography> }] : []),
-    { key: "value", label: "현재 값", type: "text", grow: true, render: (r) => summarizeSetting(r.key, r.value) || displayValue(r.value) },
-    /* 적용 상태 (지시 45). 두 가지를 말한다.
-     *
-     *  - **수정됨** — 기본값에서 벗어났다. 기본값 그대로면 배지가 아예 없다(PA-RC-0022:
-     *    "변경 안 됐다"는 사실 자체는 정보 가치가 낮다 — 눈에 띄어야 하는 것은 누가 뭔가
-     *    바꿨다는 사실 하나다).
-     *  - **재시작 필요** — 저장해도 워커가 다시 뜨기 전에는 그 값으로 동작하지 않는다.
-     *    예전에는 이 사실이 저장 후 토스트에만 잠깐 떴다가 사라졌다 — 표를 다시 열면
-     *    "저장됐는데 왜 안 바뀌지"를 알 방법이 없었다. */
-    { key: "is_default", label: "적용 상태", type: "status", nowrap: true, render: (r) => (
-      <Box sx={{ display: "flex", gap: 0.75, alignItems: "center", flexWrap: "wrap" }}>
-        {r.is_default ? null : <Badge value="수정됨" kind="info" />}
-        {/* 표 안 표지는 면 없는 점 + 낱말이다(핸드오프 RULES §2 · ACCEPTANCE F7). */}
-        {r.restart_required ? <DotLabel label="재시작 필요" tone="warn" /> : null}
-      </Box>
+    /* 적용 상태(수정됨 · 재시작 필요)는 이 칸 안 값 옆에 선다 — 위 `SettingValueCell`. */
+    { key: "value", label: "현재 값", type: "text", grow: true, render: (r) => (
+      <SettingValueCell
+        text={summarizeSetting(r.key, r.value) || displayValue(r.value)}
+        modified={!r.is_default}
+        restart={!!r.restart_required}
+      />
     ) },
     // VIS-55: 백엔드 description이 라벨과 같은 말로 시작하는 항목이 여럿이다(예: "대화 보존
     // 기간(일)" 라벨 + "대화 보존 기간(일). 초과 시…" 설명) — 바로 왼쪽 열과 같은 문장을
@@ -162,6 +178,15 @@ export function Settings({ embedded = false } = {}) {
      그린다) 도달할 수 없는 갈래였고, `area="운영"` 은 사이드바 묶음(**설정**)과도 어긋나
      있었다. 껍데기가 머리와 `.c-screen` 을 이미 그린다 — 여기서 또 감싸면 바깥 여백이
      두 번 붙는다. */
+  /* 기술 정보 토글 (지시 36). 원시 설정 키는 운영 · 장애 분석에 필요한 값이지만 일반 사용자 언어가 아니다 — 기본은
+     숨기고 필요할 때 꺼내 본다. 켬/끔은 34 중립 단추다(`aria-pressed`, 핸드오프 RULES §3).
+     🔴 이 단추 하나가 목록 위 전폭 필터 바를 혼자 차지했다 — 검색도 조건 칸도 없는 줄의 오른쪽 끝에 단추 하나만 서서
+     1,600px 줄이 표 위에 가로놓였다(D-501 「한 칸짜리 전폭 줄 금지」). 이 단추는 목록을 좁히지 않고 표를 어떻게 볼지만
+     바꾸므로, 탭 그릇 머리의 동작 자리로 올린다(D-454 · `ui/HeaderSlot.jsx`). 그릇이 없으면(시험 · 단독 임베드) 표 위
+     오른쪽에 그대로 선다. 표가 없는 상태(불러오는 중 · 오류 · 빈 응답)에는 켤 열이 없으므로 서지 않는다. */
+  const keyToggle = (
+    <FilterToggle pressed={showKey} onClick={() => setShowKey(!showKey)}>기술 정보(설정 키) 보기</FilterToggle>
+  );
   return (
     <>
       {q.isLoading ? <DataTable placement="surface" columns={columns} rows={[]} loading />
@@ -172,13 +197,9 @@ export function Settings({ embedded = false } = {}) {
            막다른 안내 대신 원인(비어 있음)과 다시 불러오기 경로를 준다(오류에 가깝게 취급). */
         : rows.length === 0 ? <EmptyState title="설정을 표시할 수 없습니다" help="설정을 불러왔지만 항목이 비어 있습니다. 일시적인 문제일 수 있습니다." action={<Button size="sm" onClick={() => q.refetch()}>다시 불러오기</Button>} />
         : <>
-            {/* 기술 정보 토글 (지시 36). 원시 설정 키는 운영·장애 분석에 필요한 값이지만
-                일반 사용자 언어가 아니다 — 기본은 숨기고 필요할 때 꺼내 본다. */}
-            {/* 목록 위의 보기 줄도 필터 바다 — 켬/끔은 34 중립 단추이고 줄 오른쪽 끝 묶음이며, 다른 목록 화면처럼 아래
-                실선으로 목록과 갈린다(핸드오프 RULES §3 · 계획 P-14 · 조합 계약 C-1). */}
-            <FilterBar
-              end={<FilterToggle pressed={showKey} onClick={() => setShowKey(!showKey)}>기술 정보(설정 키) 보기</FilterToggle>}
-            />
+            <HeaderActions fallback={<Box sx={{ display: "flex", justifyContent: "flex-end", mb: 2 }}>{keyToggle}</Box>}>
+              {keyToggle}
+            </HeaderActions>
             {/* 목록 판 — 다른 목록 화면과 같은 판이다(판이 곧 표 상자 · 발은 판 안, 조합 계약 C-3). */}
             <DataTable placement="surface" columns={columns} rows={rows} rowKey={(r) => r.key} onRow={setSel} />
           </>}

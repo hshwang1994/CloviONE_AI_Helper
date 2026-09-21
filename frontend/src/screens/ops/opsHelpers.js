@@ -12,6 +12,14 @@ export const isWriteRole = (role) => role != null && WRITE_ROLES.includes(role);
 // 쓰기 권한이 없을 때 버튼 옆에 남기는 이유 — 버튼을 숨기지 않는다(아래 Maintenance 주석 참고).
 export const NO_WRITE_REASON = "관리자, 시스템 관리자만 변경할 수 있습니다.";
 
+/* 작업 백로그 줄에서 가는 곳 — 작업 큐를 **그 상태로 걸러서** 연다(작업 큐는 주소의 `status` 를 필터로 읽는다).
+   대시보드 경보 행(`Dashboard.jsx` 의 `JOBS_FAILED_TO` · `JOBS_QUEUED_TO` · `ACTION_LABEL`)과 같은 곳 · 같은 이름이다 —
+   두 화면이 같은 수에서 다른 곳으로 보내면 누른 사람은 전체 목록에서 그 작업을 다시 찾아야 한다. */
+export const JOBS_BACKLOG_LINKS = {
+  queued: { to: "/jobs?status=queued", label: "대기 작업 보기" },
+  failed: { to: "/jobs?status=failed", label: "실패 작업 보기" },
+};
+
 // 진단 번들의 컴포넌트(하트비트) 키와 외부 연동 키를 한국어로 — 두 화면(Dashboard.jsx/
 // Diagnostics.jsx)이 같은 8개 서비스를 각자 다른 표(COMP_LABELS 따로, SERVICE_LABELS 따로)로
 // 들고 있다가 서로 어긋날 수 있었다(PA-RC-0028 regression_risk c). 이제 한 표만 둔다 — 컴포넌트
@@ -225,14 +233,14 @@ export function errorBuckets(errors, bins = 12) {
 // (예전엔 disk/mem warn 밴드와 성공률·대기를 아예 빼먹어, 성공률 60%로 빨간 타일이 떠도 상단은 '시스템 정상'이라
 // 거짓 안심시켰다; 외부 연동 중단도 마찬가지로 빠져 있어 '외부 연동' 섹션이 빨간 배지를 보여도 상단은 정상이라 했다).
 export function healthVerdict(comps, disk, mem, certDays, jobs, integrations, backup, storage) {
-  // problems는 {msg, tone} 객체 배열이다 — 예전엔 문자열만 담아, 디스크 warn과 컴포넌트 down이
+  // problems는 {msg, tone, link?} 객체 배열이다 — 예전엔 문자열만 담아, 디스크 warn과 컴포넌트 down이
   // 동시에 나면 한 배너 안에서 둘 다 색·모양이 똑같아 어느 항목이 진짜 급한지 구분이 안 됐다.
   // dang()/warn()이 이미 그 순간의 심각도를 알고 있으므로 그 정보를 항목별로 함께 담아 아래
-  // 렌더에서 줄마다 다른 톤 글리프를 붙인다.
+  // 렌더에서 줄마다 다른 톤 글리프를 붙인다. `link` 는 그 줄에서 바로 갈 곳이다(작업 백로그 → 거른 작업 큐).
   const problems = [];
   let danger = false;
-  const warn = (msg) => { problems.push({ msg, tone: "warn" }); };
-  const dang = (msg) => { problems.push({ msg, tone: "danger" }); danger = true; };
+  const warn = (msg, link) => { problems.push({ msg, tone: "warn", ...(link ? { link } : null) }); };
+  const dang = (msg, link) => { problems.push({ msg, tone: "danger", ...(link ? { link } : null) }); danger = true; };
   Object.keys(comps).forEach((k) => {
     const v = comps[k];
     if (v && v !== "up") {
@@ -265,10 +273,11 @@ export function healthVerdict(comps, disk, mem, certDays, jobs, integrations, ba
     if (jobs.success_rate_pct < 80) dang("성공률 " + jobs.success_rate_pct + "%");
     else if (jobs.success_rate_pct < 95) warn("성공률 " + jobs.success_rate_pct + "%");
   }
-  // 대기(전체 백로그): >0 warn (아래 타일과 동일)
-  if (jobs.queued) warn("대기 작업 " + jobs.queued + "건");
-  // 미해결 실패(전체): >0 danger (아래 타일과 동일)
-  if (jobs.failed_open) dang("미해결 실패 작업 " + jobs.failed_open + "건");
+  // 대기(전체 백로그): >0 warn. 미해결 실패(전체): >0 danger.
+  // 백로그 두 수는 **이 판정 목록 한 곳**이 말한다(D-501) — 아래 「작업 지표 (최근 24시간)」 줄에 같은 수가 「(전체)」
+  // 타일로 또 섰는데, 24시간 창이 아닌 누계라 그 제목과도 맞지 않았다. 그 줄에서 바로 그 상태로 거른 작업 큐로 간다.
+  if (jobs.queued) warn("대기 작업 " + jobs.queued + "건", JOBS_BACKLOG_LINKS.queued);
+  if (jobs.failed_open) dang("미해결 실패 작업 " + jobs.failed_open + "건", JOBS_BACKLOG_LINKS.failed);
   /* 외부 연동: down(비활성·미점검 제외) — '외부 연동' 섹션 배지·대시보드 조치 목록과 같은 기준.
    *
    * 🔴 **위험이 아니라 주의다.** 예전에는 `dang()` 이라, 선택 구성요소 하나가 죽으면 필수

@@ -2,9 +2,10 @@ import React from "react";
 import Box from "@mui/material/Box";
 import Link from "@mui/material/Link";
 import Typography from "@mui/material/Typography";
-import { Badge, Callout, Section, useToast } from "../../ui/kit.jsx";
+import { Badge, Callout, MetaBar, Section, useToast } from "../../ui/kit.jsx";
 import { StatusKpiStrip } from "../../ui/StatusKpi.jsx";
 import { StatusList, StatusTile } from "../../ui/adminKit.jsx";
+import { STRIP_AS_META_MAX } from "../data-screen/SummaryView.jsx";
 import {
   fmtNum, serviceLabel, fmtCertDays, copyText,
   componentState, upSummaryText, SERVICE_STATE_LABEL, SERVICE_STATE_KIND,
@@ -34,27 +35,39 @@ export function ServiceStatusPanel({ disk, mem, certDaysRemaining, comps, nav, a
   };
   const downComponentKeys = Object.keys(comps).filter((k) => comps[k] && comps[k] !== "up");
   const downUnits = Array.from(new Set(downComponentKeys.map((k) => DOWN_UNIT_FOR[k] || "clovirassist-worker")));
+  /* Dashboard.jsx가 같은 필드(disk.free_gb)를 fmtNum()+단위-on-값으로 보여주는데
+     이 화면만 raw 숫자에 라벨 괄호 단위였다, 같은 표기 규칙으로 맞춘다. 값이 없는 측정은 서지 않는다. */
+  const resources = [
+    disk.free_gb != null ? { key: "disk_free", value: fmtNum(disk.free_gb) + "GB", label: "디스크 여유" } : null,
+    disk.used_pct != null ? { key: "disk_used", value: disk.used_pct + "%", label: "디스크 사용",
+      kind: disk.used_pct >= 85 ? "danger" : disk.used_pct >= 80 ? "warn" : undefined } : null,
+    mem.used_pct != null ? { key: "mem", value: mem.used_pct + "%", label: "메모리 사용",
+      kind: mem.used_pct >= 90 ? "danger" : mem.used_pct >= 80 ? "warn" : undefined } : null,
+    certDaysRemaining != null ? { key: "cert", value: fmtCertDays(certDaysRemaining), label: "인증서 만료",
+      kind: certDaysRemaining <= 0 ? "danger" : certDaysRemaining <= 30 ? "warn" : undefined } : null,
+  ].filter(Boolean);
 
   return (
     <>
       {/* 디스크, 메모리, 인증서가 모두 null이면(비-Linux 호스트, nginx TLS 종단 등) 섹션 자체를 숨긴다 -
-          Dashboard.jsx의 규칙(§ '영구, 죽은 타일을 남기지 않는다')과 동일하게, 값이 없는 개별 타일도 숨긴다. */}
-      {(disk.free_gb != null || disk.used_pct != null || mem.used_pct != null || certDaysRemaining != null) ? (
+          Dashboard.jsx의 규칙(§ '영구, 죽은 타일을 남기지 않는다')과 동일하게, 값이 없는 개별 타일도 숨긴다.
+          측정이 둘 이하이면 판 대신 속성 줄이다(D-501 · `SummaryView.jsx` 의 같은 규칙) — 1920 에서 디스크 여유 · 사용 두 값이
+          각자 반폭 판 하나씩을 차지해 숫자 하나 옆이 780px 비었다. 누를 곳이 없는 값이라 판을 세울 이유가 없다. 셋 이상이면
+          타일 줄이 나란한 비교를 돕는다. 경계를 넘은 값은 값 옆 배지가 톤을 말한다. */}
+      {resources.length ? (
         <Section titleAs="h2" title="시스템 리소스">
-          {/* Dashboard.jsx가 같은 필드(disk.free_gb)를 fmtNum()+단위-on-값으로 보여주는데
-              이 화면만 raw 숫자에 라벨 괄호 단위였다, 같은 표기 규칙으로 맞춘다. */}
-          <StatusKpiStrip
-            ariaLabel="시스템 리소스"
-            items={[
-              disk.free_gb != null ? { key: "disk_free", value: fmtNum(disk.free_gb) + "GB", label: "디스크 여유" } : null,
-              disk.used_pct != null ? { key: "disk_used", value: disk.used_pct + "%", label: "디스크 사용",
-                kind: disk.used_pct >= 85 ? "danger" : disk.used_pct >= 80 ? "warn" : undefined } : null,
-              mem.used_pct != null ? { key: "mem", value: mem.used_pct + "%", label: "메모리 사용",
-                kind: mem.used_pct >= 90 ? "danger" : mem.used_pct >= 80 ? "warn" : undefined } : null,
-              certDaysRemaining != null ? { key: "cert", value: fmtCertDays(certDaysRemaining), label: "인증서 만료",
-                kind: certDaysRemaining <= 0 ? "danger" : certDaysRemaining <= 30 ? "warn" : undefined } : null,
-            ].filter(Boolean)}
-          />
+          {resources.length <= STRIP_AS_META_MAX ? (
+            <MetaBar
+              ariaLabel="시스템 리소스"
+              items={resources.map((it) => ({
+                key: it.key,
+                label: it.label,
+                value: it.kind ? <Badge value={it.value} kind={it.kind} /> : it.value,
+              }))}
+            />
+          ) : (
+            <StatusKpiStrip ariaLabel="시스템 리소스" items={resources} />
+          )}
         </Section>
       ) : null}
       {/* build_dashboard()(app/health/service.py)는 components/counts/jobs_24h를 항상 고정된

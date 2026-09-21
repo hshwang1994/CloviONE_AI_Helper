@@ -19,6 +19,11 @@ import { MemoryRouter } from "react-router-dom";
  * 시험이 계속 증명한다.
  *
  * 함께 확인: 담당자별 업무량은 그림이 아니라 표가 말한다.
+ *
+ * qa-contract-change: 「팀 상태 구성」 도넛 판을 걷었다(D-501) — 도넛의 네 조각은 바로 위 팀 합계 카드가 이미 말하는 수였고, 1920 에서는 표 아래
+ * 480px 판으로 서서 오른쪽 1,100px 가 비었다. 그래서 「'3건'이 카드와 도넛 범례 양쪽에 나온다(>1)」는 단언은 대상이 사라졌고, 같은 수가 **한 곳**
+ * (합계 카드)에 있다는 단언으로 뒤집는다. 도넛이 하던 두 일(각주 · 막대의 색 범례)이 카드의 정의 목록과 구획 제목 줄로 옮겼는지, 합계에 안
+ * 드는 취소가 사라지지 않았는지, 읽기 전용 보고서의 「새로고침」이 채움이 아닌지를 재는 시험을 더한다.
  */
 
 const apiMock = vi.fn();
@@ -108,11 +113,54 @@ describe("개발자 월간 리포트 — 데이터가 있는 달", () => {
     const at = [...head.closest("table").querySelectorAll("thead th")].indexOf(head.closest("th"));
     const row = head.closest("table").querySelector("tbody tr");
     expect(row.querySelectorAll("td")[at]).toHaveTextContent("4.5");
-    // 도넛 범례도 마찬가지 — 색 조각만으로 뜻이 전해지지 않는다(WCAG 1.4.1).
-    // '3건'은 KPI 타일(완료)과 도넛 범례 양쪽에 나온다 — 둘이 같은 말을 하는 것이 규칙이다.
-    expect(screen.getAllByText("3건").length).toBeGreaterThan(1);
-    // 지연 1건은 붉은 배지로 눈에 띄게 남는다.
+    // 팀 완료 3건은 합계 카드 **한 곳**이 말한다 — 같은 수를 다시 그리던 도넛 범례는 없다(D-501).
+    const card = screen.getByLabelText("팀 합계");
+    expect(screen.getAllByText("3건")).toHaveLength(1);
+    expect(card.contains(screen.getByText("3건"))).toBe(true);
     expect(screen.getByText("담당자별 상세 티켓")).toBeInTheDocument();
+  });
+
+  it("도넛 판이 없고, 그 각주는 합계 카드의 정의 목록으로 · 막대의 색 범례는 구획 제목 줄로 옮겼다", async () => {
+    apiMock.mockResolvedValue({
+      configured: true, ok: true, period: "2026-08",
+      team: { ...EMPTY_TEAM, total: 7, done: 3, in_progress: 1, plan: 2, cancel: 1, overdue: 1, est_done_total: 4.5 },
+      developers: [DEV], unassigned: { total: 0 },
+    });
+    renderReport();
+
+    const card = await screen.findByLabelText("팀 합계");
+    expect(screen.queryByText("팀 상태 구성")).toBeNull();
+    expect(document.querySelector("[data-chart-frame='donut']")).toBeNull();
+    // 세는 단위 각주 — 도넛 판 아래 문장이었다.
+    const notes = card.querySelector("[data-summary-notes]");
+    expect(within(notes).getByText(/팀 합계는 티켓 단위로 셉니다/)).toBeInTheDocument();
+    // 합계에 안 드는 취소는 도넛만 그렸다 — 사라지지 않고 정의 목록이 수로 말한다.
+    expect(within(notes).getByText("1건은 합계에서 뺐습니다.")).toBeInTheDocument();
+    // 막대의 색 범례 — 다섯 상태가 이름으로 선다.
+    const legend = screen.getByRole("list", { name: "상태 구성 막대의 색" });
+    expect(within(legend).getAllByRole("listitem").map((li) => li.textContent)).toEqual(["완료", "진행", "검증", "계획", "취소"]);
+  });
+
+  it("반례: 취소가 0건이면 그 각주는 서지 않는다", async () => {
+    apiMock.mockResolvedValue({
+      configured: true, ok: true, period: "2026-08",
+      team: { ...EMPTY_TEAM, total: 6, done: 3, in_progress: 1, plan: 2, overdue: 1, est_done_total: 4.5 },
+      developers: [DEV], unassigned: { total: 0 },
+    });
+    renderReport();
+    await screen.findByLabelText("팀 합계");
+    expect(screen.queryByText(/건은 합계에서 뺐습니다/)).toBeNull();
+  });
+
+  it("읽기 전용 보고서라 「새로고침」은 채움이 아니다 — 이 화면에는 채움 단추가 없다", async () => {
+    apiMock.mockResolvedValue({
+      configured: true, ok: true, period: "2026-08",
+      team: EMPTY_TEAM, developers: [], unassigned: { total: 0 },
+    });
+    renderReport();
+    const refresh = await screen.findByRole("button", { name: "새로고침" });
+    expect(refresh).not.toHaveClass("MuiButton-contained");
+    expect(document.querySelector(".MuiButton-contained")).toBeNull();
   });
 
   /* 담당자별 상세 티켓이 **공용 표**로 흡수됐다. 이 화면만 자기 `<Table>` 을 그리던

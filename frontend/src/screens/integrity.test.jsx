@@ -131,6 +131,58 @@ describe("판은 정리할 것이 있는 항목에만 준다", () => {
   });
 });
 
+/* D-501 — 0건은 한 줄 · 한 사실은 한 곳 · 서버 값을 화면에 그대로 두지 않는다. */
+describe("0건 줄 · 관리자 범위 (D-501)", () => {
+  it("0건 항목은 촘촘한 줄이다 — 이름과 까닭이 각각 한 줄에 서고 까닭 전체는 title 이 든다", async () => {
+    renderScreen();
+    const row = (await screen.findByText(CLEAR_A.title)).closest(".k-settingrow");
+    expect(row).toHaveClass("k-settingrow--compact");
+    const why = within(row).getByText(CLEAR_A.why);
+    expect(why).toHaveAttribute("title", CLEAR_A.why);
+  });
+
+  it("관리자 수는 구획 제목 옆 건수 하나다 — 표를 다시 세던 요약 카드는 없다", async () => {
+    renderScreen();
+    const heading = await screen.findByRole("heading", { level: 2, name: "관리자 범위 현황" });
+    const titleRow = heading.parentElement.parentElement;
+    expect(within(titleRow).getByText("2명")).toBeInTheDocument();
+    expect(screen.queryByLabelText("관리자 범위 현황")).toBeNull();
+    expect(document.querySelector("[data-summary-total]")).toBeNull();
+  });
+
+  it("전부 전체 관리자이면 범위 기능이 아직 쓰이지 않는다고 한 줄로 말한다", async () => {
+    renderScreen();
+    expect(await screen.findByText(/모든 관리자가 전체 관리자라서/)).toBeInTheDocument();
+  });
+
+  it("반례: 조직 · 부서 관리자가 하나라도 있으면 그 줄은 서지 않는다", async () => {
+    data = {
+      ...payload([OPEN, CLEAR_A, CLEAR_B]),
+      admins: {
+        by_scope: { global: 1, org: 0, dept: 1 }, total: 2,
+        items: [
+          ADMINS.items[0],
+          { id: "a3", display_name: "이서연", role: "admin", admin_scope: "dept", scope_path: [{ id: "d1", name: "개발팀" }] },
+        ],
+      },
+    };
+    renderScreen();
+    await screen.findByText("이서연");
+    expect(screen.queryByText(/모든 관리자가 전체 관리자라서/)).toBeNull();
+  });
+
+  it("역할은 서버 값이 아니라 관리 콘솔의 역할 이름으로 선다", async () => {
+    renderScreen();
+    const table = (await screen.findByText("박민준")).closest("table");
+    expect(within(table).getByText("시스템 관리자")).toBeInTheDocument();
+    expect(within(table).getByText("관리자")).toBeInTheDocument();
+    expect(within(table).queryByText("system_admin")).toBeNull();
+    expect(within(table).queryByText("admin")).toBeNull();
+    // 말줄임 힌트에도 서버 값이 새지 않는다.
+    expect(table.querySelector("[title='system_admin']")).toBeNull();
+  });
+});
+
 /* 지정은 전역 관리자만 한다 — 서버(`POST /api/admin/integrity/membership`)가 CONSOLE_WRITE +
  * 전역 범위로 막는다. 예전에는 운영자·감사자에게도 지정 폼이 그려졌고(누르면 403), 부서
  * 후보 요청(`/api/admin/departments` 는 admin 이상)이 화면을 열 때마다 403 으로 실패했다. */

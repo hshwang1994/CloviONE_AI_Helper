@@ -2202,13 +2202,20 @@ export function columnShouldTruncate(col, ellipsis) {
   return !!(ellipsis || !c.render || c.type === "title" || c.type === "name" || c.type === "text" || c.type === "enum");
 }
 
-/** 잘린 셀 hover 시 보여 줄 전체 문자열. */
+/** 잘린 셀 hover 시 보여 줄 전체 문자열.
+ *
+ * `render` 가 있는 열은 칸에 그린 글자와 행의 원래 값이 다를 수 있다 — 역할 · 상태 배지는 `system_admin` 을 「시스템
+ * 관리자」로 그린다. 그런 열은 `hint(row)` 로 **그린 글자**를 말한다. 없으면 원래 값(`plain`)으로 떨어지는데, 예전에는
+ * 그 갈래만 있어서 사용자 목록 역할 칸에 마우스를 올리면 한국어 배지 위로 `system_admin` 이 떴다(P7b 발견). */
 export function columnCellHint(col, row, ctx, { truncate, raw, plain } = {}) {
   const c = col || {};
   if (!truncate) return undefined;
   if (raw && raw !== "-") return raw;
   if (typeof c.rowName === "function") {
     try { const v = c.rowName(row, ctx); if (v) return String(v); } catch (e) { /* ignore */ }
+  }
+  if (typeof c.hint === "function") {
+    try { const v = c.hint(row, ctx); return v != null && v !== "" ? String(v) : undefined; } catch (e) { /* ignore */ }
   }
   if (plain) return plain;
   if (c.key === "assignee_names" && row) {

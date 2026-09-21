@@ -8,6 +8,7 @@ import TextField from "@mui/material/TextField";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
+import { ROLE_LABELS } from "../lib/roles.js";
 import { expireSession } from "../lib/sessionRedirect.js";
 import { diffFields } from "../lib/diffFields.js";
 import { fmtDateTime, shortUA } from "../lib/format.js";
@@ -21,7 +22,7 @@ import { CsvTools, useUserBulk } from "./UsersBulk.jsx";
 import { buildViewQuery, hashQuery, withHashQuery } from "./datascreen-view.js";
 import { DateCell } from "../ui/cells.jsx";
 import { toggleSort } from "../ui/TableHeaderCell.jsx";
-import { FilterSelect, SearchBox, unmatchedLabel } from "../ui/filters.jsx";
+import { EntityCombobox, FilterSelect, SearchBox, unmatchedLabel } from "../ui/filters.jsx";
 
 // PA-RC-0013: /users만 검색·필터·페이지를 URL에 안 실어서 새로고침·공유에 견디지 못했다
 // (대조군 /team-docs·/board·/team-tickets·/audit은 이미 견딘다). DataScreen.jsx가 이미 쓰는
@@ -58,7 +59,8 @@ function useDebounced(value, delay) {
   return v;
 }
 
-const ROLE_KO ={ user: "일반 사용자", operator: "운영자", admin: "관리자", auditor: "감사자", system_admin: "시스템 관리자" };
+/* 역할 이름은 관리 콘솔 한 벌이다(`lib/roles.js::ROLE_LABELS`) — 조직 정합성의 관리자 표가 같은 이름을 쓴다. */
+const ROLE_KO = ROLE_LABELS;
 const ROLE_OPTS = Object.keys(ROLE_KO).map((v) => ({ value: v, label: ROLE_KO[v] }));
 /* 서버의 「부서 없음」 센티널 (P-61, `app/users/router.py::NO_DEPARTMENT`). 부서 id 는 UUID 라
    이 글자와 겹치지 않는다. 목록·CSV 가 같은 필터 문자열을 쓰므로 여기서도 값 하나다. */
@@ -547,6 +549,8 @@ export function Users() {
       // 폭이었다. width는 auto 레이아웃의 힌트일 뿐 강제 상한이 아니라(HOST-01/VIS-73
       // 참고), 두 배지가 실제로 안 들어가면 flexWrap이 다음 줄로 넘긴다.
       width: "9rem",
+      /* 잘린 칸의 hover 글자는 그린 이름이다 — 원래 값(`system_admin`)이 아니다(`kit.jsx::columnCellHint`). */
+      hint: (r) => [ROLE_KO[r.role] || r.role, adminConcept(r) && adminConcept(r).label].filter(Boolean).join(", "),
       // admin 역할은 admin_scope 조합으로 실제 성격이 갈린다(조직관리자/부서관리자/전체
       // 관리자) — 역할 배지 하나만으로는 이 화면 어디서도 그 조합이 보이지 않았다(RBAC
       // 발견성 문제). 개념이 있는 조합에만 두 번째 배지를 나란히 붙인다.
@@ -603,11 +607,20 @@ export function Users() {
   // 내용 필터만 지운다(보관함 뷰는 유지) — 툴바의 '필터 지우기'가 clearFilters를 쓰면 보관함을
   // 보던 중에도 showArchived까지 조용히 꺼져 뷰가 바뀌었다(뷰 전환과 필터 지우기는 다른 조작이다).
   function clearContentFilters() { setQ(""); setRoleFilter(""); setActiveFilter(""); setLockedFilter(""); setDeptFilter(""); }
-  // 부서 딥링크로 들어온 상태를 이름으로 알려 준다 — id만 주소에 있으면 왜 목록이 좁아졌는지
-  // 화면 어디에도 설명이 없다(필터 select에는 부서 항목이 없다).
+  // 걸린 부서 조건을 이름으로 말한다 — id 만 주소에 있으면 칩이 UUID 를 보인다.
   const deptFilterName = deptFilter
     ? ((dept.items || []).find((d) => String(d.id) === String(deptFilter)) || {}).name
     : null;
+  /* 부서 칸의 후보 — 「미지정」(서버의 「부서 없음」 센티널 `none`, P-61)이 맨 앞이고 부서가 뒤다. 비활성 부서도 후보에
+     남는다: 그 부서에 아직 사람이 있을 수 있고, 표의 「부서」 열도 그 부서를 「(비활성)」으로 보인다. 같은 이름의 부서가
+     다른 조직에 있을 수 있어 조직 이름을 보조 줄로 낸다. */
+  const deptFilterOptions = [{ value: NO_DEPARTMENT, label: "미지정" }].concat(
+    (dept.items || []).map((d) => ({
+      value: d.id,
+      label: d.name + (d.active === false ? " (비활성)" : ""),
+      secondary: d.org_name || undefined,
+    })),
+  );
   /* 예전에 여기 있던 것: 「이 쪽이 비었는데 앞 쪽엔 있으면 앞 쪽으로 되돌린다」. 쪽 번호가
      없어지면서 그 되돌리기가 필요한 상태 자체가 사라졌다 — 마지막 행이 보관되면 목록이
      그만큼 짧아질 뿐이고, 사용자는 여전히 자기가 보던 자리에 있다. */
@@ -697,7 +710,7 @@ export function Users() {
           SEM-02(PA-F-031): h1 하나뿐이라 필터·목록이 스크린리더 제목 탐색에서 구획 없는 한
           덩어리였다. 시각은 그대로(.sr-only), 다른 목록 화면과 같은 패턴. */}
       <Typography component="h2" className="sr-only">필터</Typography>
-      {/* 판이 아니다 — 지시 80. 검색 · 역할 · 활성 · 잠김이 한 줄에 서고 「보관된 계정 보기」는 보기 방식이라 그 줄 오른쪽
+      {/* 판이 아니다 — 지시 80. 검색 · 부서 · 역할 · 활성 · 잠김이 한 줄에 서고 「보관된 계정 보기」는 보기 방식이라 그 줄 오른쪽
           끝이다(조합 계약 C-1). 예전에는 검색만 한 줄을 쓰고 필터가 다음 줄로 내려갔고, 결과 수는 면 밖 한 줄이 말했다.
           걸린 조건(조직 콘솔에서 넘어온 부서 조건 포함)은 모두 조건 줄의 칩이다. */}
       <FilterBar
@@ -718,7 +731,7 @@ export function Users() {
             roleFilter ? { key: "role", label: `역할: ${(ROLE_OPTS.find((o) => o.value === roleFilter) || {}).label || roleFilter}`, onDelete: () => setRoleFilter("") } : null,
             activeFilter ? { key: "active", label: `활성: ${activeFilter === "true" ? "활성" : "비활성"}`, onDelete: () => setActiveFilter("") } : null,
             lockedFilter ? { key: "locked", label: `잠김: ${lockedFilter === "true" ? "지금 잠김" : "잠기지 않음"}`, onDelete: () => setLockedFilter("") } : null,
-            deptFilter ? { key: "dept", label: `부서: ${deptFilter === NO_DEPARTMENT ? "미지정" : (deptFilterName || unmatchedLabel(deptFilter, false))}`, onDelete: () => setDeptFilter("") } : null,
+            deptFilter ? { key: "dept", label: `부서: ${deptFilter === NO_DEPARTMENT ? "미지정" : (deptFilterName || unmatchedLabel(deptFilter, dept.isLoading))}`, onDelete: () => setDeptFilter("") } : null,
             /* 칩 낱말은 켬/끔 단추 낱말(「보관된 계정 보기」)과 다르다 — 같은 이름의 누를 것이 둘이면 낭독기가 가르지 못한다. */
             showArchived ? { key: "archived", label: "보관된 계정만", onDelete: () => setShowArchived(false) } : null,
           ].filter(Boolean),
@@ -728,6 +741,19 @@ export function Users() {
           clearLabel: "필터 지우기",
         }}
       >
+        {/* 부서는 **범위**라 조건 칸의 맨 앞이다(`FilterBar.jsx::FILTER_GROUP_ORDER` — 범위 → 대상 → 분류 → 상태). 표에 「부서」
+            열이 있는데 부서 칸이 없어서, 부서 조건은 조직 콘솔에서 넘어올 때만 걸렸고 그 사실을 칩과 안내 상자가 두 번 말했다.
+            이제 이 칸이 조건을 걸고 풀며, 걸린 조건은 조건 줄의 칩 하나가 말한다. 주소 키는 칩 · 딥링크와 같은
+            `department_id` 다. 부서는 조직이 자라면 후보도 자라는 Entity 라 검색형이고, 이름이 긴 축이라 wide 칸이다. */}
+        <EntityCombobox
+          label="부서"
+          value={deptFilter}
+          onChange={(v) => setDeptFilter(v || "")}
+          options={deptFilterOptions}
+          loading={dept.isLoading}
+          allLabel="부서: 전체"
+          size="wide"
+        />
         <FilterSelect label="역할" value={roleFilter} onChange={setRoleFilter} options={ROLE_OPTS} allLabel="역할: 전체" />
         <FilterSelect
           label="활성" value={activeFilter} onChange={setActiveFilter} allLabel="활성: 전체"
@@ -744,18 +770,9 @@ export function Users() {
         <Typography variant="caption" color="text.secondary" role="status" aria-live="polite" sx={{ display: "block", mb: 1 }}>불러오는 중…</Typography>
       ) : null}
 
-      {deptFilter ? (
-        <Box sx={{ mb: 2.5 }}>
-          <Callout tone="info">
-            {/* `none` 은 서버의 「부서 없음」 센티널이다(P-61) — 조직 콘솔의 「부서 미지정
-                N명」 링크가 이 조건으로 온다. 부서 이름 대신 그 뜻을 그대로 말한다. */}
-            {deptFilter === NO_DEPARTMENT
-              ? "부서가 지정되지 않은 사용자만 보고 있습니다. "
-              : "부서 ‘" + (deptFilterName || deptFilter) + "’ 소속만 보고 있습니다. "}
-            <LinkButton onClick={() => setDeptFilter("")}>부서 필터 해제</LinkButton>
-          </Callout>
-        </Box>
-      ) : null}
+      {/* 🔴 여기 부서 조건을 말하는 안내 상자(「부서 ‘…’ 소속만 보고 있습니다. 부서 필터 해제」)가 있었다. 같은 조건을 조건 줄의
+          칩(「부서: …」)이 이미 말하고 그 칩의 ×가 조건을 푼다 — 한 사실을 두 곳에서 말했다(D-501). 조직 콘솔의 「부서 미지정
+          N명」 링크로 온 `none` 도 칸과 칩이 「미지정」으로 말한다. */}
       {bulk.notice}
 
       <Typography component="h2" className="sr-only">목록</Typography>

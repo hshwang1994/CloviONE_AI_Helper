@@ -2,41 +2,60 @@ import React from "react";
 import Link from "@mui/material/Link";
 import Box from "@mui/material/Box";
 import { fmtDateTime, jobTypeKo } from "../../lib/format.js";
-import { DataTable, EmptyState, Section } from "../../ui/kit.jsx";
+import { Badge, DataTable, EmptyState, MetaBar, Section } from "../../ui/kit.jsx";
 import { StatusKpiStrip } from "../../ui/StatusKpi.jsx";
 import { Sparkline } from "../../ui/charts/Sparkline.jsx";
-import { Note } from "../../ui/adminKit.jsx";
+import { STRIP_AS_META_MAX } from "../data-screen/SummaryView.jsx";
 import { fmtNum, fmtProcessingTime } from "./opsHelpers.js";
+
+/* 최근 24시간에 잰 측정값 셋 — 처리 요청 · 성공률 · 평균 처리. 잴 수 없는 값(종료된 작업이 없어 성공률이 없거나,
+ * 처리 이력이 없어 평균이 없을 때)은 `null` 이라 서지 않는다(D-501 · `StatusKpi.jsx`). 「-」 한 글자를 든 판은 값이
+ * 없는 그릇이었다.
+ *
+ * 성공률의 분모는 24시간 내 종료된(성공, 실패, 취소) 작업만이며 아직 끝나지 않은 대기/실행 중 작업은 제외된다
+ * (app/health/service.py finished_24h). 라벨을 Dashboard.jsx와 동일하게 맞춰 같은 값이 화면마다 다른 의미로 읽히지
+ * 않게 한다. 평균 처리는 raw seconds 대신 Dashboard.jsx의 fmtProcessingTime()을 그대로 쓴다. */
+export function jobMeasures(jobs24) {
+  const j = jobs24 || {};
+  const rate = j.success_rate_pct;
+  return [
+    j.total != null ? { key: "total", value: fmtNum(j.total), label: "처리 요청", primary: true } : null,
+    rate != null ? {
+      key: "rate", value: rate + "%", label: "성공률(종료 작업 대비)",
+      kind: rate >= 95 ? "ok" : rate >= 80 ? "warn" : "danger",
+    } : null,
+    j.avg_processing_seconds != null
+      ? { key: "avg", value: fmtProcessingTime(j.avg_processing_seconds), label: "평균 처리" }
+      : null,
+  ].filter(Boolean);
+}
 
 /* 진단 화면의 "작업 지표 (최근 24시간)" + "최근 작업 오류" — 둘 다 작업 큐 관련 신호라 한 패널로
  * 묶는다. errorDist는 부모(Diagnostics)가 errorBuckets()로 미리 계산해 전달한다(순수 계산이라
  * 이 패널의 관심사가 아니다). */
 export function JobQueuePanel({ jobs24, jobErrors, errorDist, nav }) {
+  const measures = jobMeasures(jobs24);
   return (
     <>
-      {Object.keys(jobs24).length ? (
+      {measures.length ? (
         <Section titleAs="h2" title="작업 지표 (최근 24시간)">
-          {/* 성공률의 분모는 24시간 내 종료된(성공, 실패, 취소) 작업만이며 아직 끝나지 않은
-              대기/실행 중 작업은 제외된다(app/health/service.py finished_24h). 라벨을
-              Dashboard.jsx와 동일하게 맞춰 같은 값이 화면마다 다른 의미로 읽히지 않게 한다.
-              평균 처리는 raw seconds 대신 Dashboard.jsx의 fmtProcessingTime()을 그대로 쓴다.
-              queued/failed_open은 24시간 창이 아니라 시점 백로그 누계다(백엔드가 시간 필터 없이
-              계산) - '24시간' 프레임과 섞여 오래된 백로그가 오늘 실패처럼 읽히던 문제를 라벨의
-              '(전체)'로 구분하고, /jobs로 드릴다운해 조치할 곳을 준다. */}
-          <StatusKpiStrip
-            ariaLabel="작업 지표"
-            items={[
-              { key: "total", value: fmtNum(jobs24.total), label: "처리 요청", primary: true },
-              { key: "rate", value: jobs24.success_rate_pct != null ? jobs24.success_rate_pct + "%" : "-",
-                label: "성공률(종료 작업 대비)",
-                kind: jobs24.success_rate_pct == null ? undefined : jobs24.success_rate_pct >= 95 ? "ok" : jobs24.success_rate_pct >= 80 ? "warn" : "danger" },
-              { key: "avg", value: fmtProcessingTime(jobs24.avg_processing_seconds), label: "평균 처리" },
-              { key: "queued", value: fmtNum(jobs24.queued != null ? jobs24.queued : 0), label: "대기 중(전체)",
-                kind: jobs24.queued > 0 ? "warn" : undefined, onClick: () => nav("/jobs") },
-              { key: "failed", value: fmtNum(jobs24.failed_open != null ? jobs24.failed_open : 0), label: "미해결 실패(전체)",
-                kind: jobs24.failed_open > 0 ? "danger" : undefined, onClick: () => nav("/jobs") },
-            ]}
-          />
+          {/* 이 줄은 **24시간 창**의 측정만 든다. 여기 「대기 중(전체)」 · 「미해결 실패(전체)」 타일이 있었는데 둘은 24시간이
+              아니라 시점 백로그 누계라(백엔드가 시간 필터 없이 센다) 제목의 창과 맞지 않았고, 같은 수가 맨 위 판정 목록에도
+              섰다. 백로그는 그 판정 목록 한 곳이 말하고, 그 줄에서 상태로 거른 작업 큐로 간다(`opsHelpers.js::healthVerdict`).
+              측정이 둘 이하이면 판 대신 속성 줄이다(D-501 · `SummaryView.jsx` 의 같은 규칙) — 한가한 설치의 「0 처리 요청」
+              한 칸이 판 하나를 차지하지 않는다. */}
+          {measures.length <= STRIP_AS_META_MAX ? (
+            <MetaBar
+              ariaLabel="작업 지표"
+              items={measures.map((it) => ({
+                key: it.key,
+                label: it.label,
+                value: it.kind ? <Badge value={it.value} kind={it.kind} /> : it.value,
+              }))}
+            />
+          ) : (
+            <StatusKpiStrip ariaLabel="작업 지표" items={measures} />
+          )}
         </Section>
       ) : null}
       {/* 이력 목록은 판 없이 괘선 구획이다 — 대시보드의 「최근 주요 변경」·진단의 「설치처 설정」과

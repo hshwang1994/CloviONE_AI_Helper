@@ -52,19 +52,38 @@ import { CONSOLE_WRITE_ROLES } from "../lib/roles.js";
 const HELP = "비밀번호 재설정, 승인 알림, 백업 실패 알림 메일이 실제로 나가는지 확인합니다. 시험 발송은 내 계정 주소로만 보냅니다.";
 
 
-function ProblemsList({ problems }) {
+/* 메일 설정 한 줄을 여는 주소 — 설정 표가 `?setting=` 으로 그 항목의 편집 창을 연다(`SettingsMain.jsx`). 초기 설정의
+   메일 항목(`SetupWizard.jsx::SETUP_LINKS.mail`)과 같은 곳이다. */
+const MAIL_SETTING_HREF = "#/settings?setting=smtp";
+/* 시험 발송 단추가 가리키는 이유 문장의 자리(`aria-describedby`). */
+const PROBLEMS_ID = "mail-problems";
+
+/* 왜 못 보내는가 — 이 화면의 첫 답이다. 고칠 자리로 가는 단추(「메일 설정 열기」)가 상자의 동작 칸에 선다(D-501 —
+   발송이 꺼져 있을 때 머리의 「시험 메일 보내기」는 성공할 수 없는 일이었고, 정작 할 일은 설정을 여는 것이었다).
+   단추는 설정을 고칠 수 있는 역할에게만 선다 — 서버가 설정 쓰기를 같은 역할로 막는다. */
+function ProblemsList({ problems, canFix }) {
   if (!problems || !problems.length) {
     return <Callout tone="success">메일 발송 설정이 완성돼 있습니다. 지금 메일이 나갑니다.</Callout>;
   }
   return (
-    <Callout tone="warn">
-      <Typography component="span" sx={{ fontWeight: FONT_WEIGHT.semibold }}>메일이 나가지 않습니다.</Typography>
-      {" 아래를 고쳐야 나갑니다."}
-      <Box component="ul" sx={{ m: 0, mt: 0.5, pl: 2.5 }}>
-        {problems.map((p, i) => <li key={i}><Typography variant="body2">{p}</Typography></li>)}
-      </Box>
-    </Callout>
+    <Box id={PROBLEMS_ID}>
+      <Callout tone="warn" action={canFix ? <Button size="sm" href={MAIL_SETTING_HREF}>메일 설정 열기</Button> : null}>
+        <Typography component="span" sx={{ fontWeight: FONT_WEIGHT.semibold }}>메일이 나가지 않습니다.</Typography>
+        {" 아래를 고쳐야 나가고, 그 전에는 시험 메일도 보낼 수 없습니다."}
+        <Box component="ul" sx={{ m: 0, mt: 0.5, pl: 2.5 }}>
+          {problems.map((p, i) => <li key={i}><Typography variant="body2">{p}</Typography></li>)}
+        </Box>
+      </Callout>
+    </Box>
   );
+}
+
+/* 속성 줄에 보일 설정이 **하나라도** 있는가. 서버 주소 · 보내는 사람 · 로그인 계정이 모두 비어 있으면 여섯 칸이 전부
+   「설정 안 됨 · 사용 안 함」이고(보안 연결은 기본값이다), 그 사실은 바로 위 목록이 이미 말한다 — 빈 칸 여섯은 그릇만
+   있고 값이 없다(D-501). 하나라도 채워져 있으면 무엇이 채워졌는지가 고칠 때 필요한 정보라 줄이 선다. */
+export function mailSettingsShown(server) {
+  const s = server || {};
+  return !!(s.host || s.from_address || s.username);
 }
 
 /** 비밀번호는 값이 아니라 **상태**만 말한다 - 이름조차 화면의 주된 내용이 아니다. */
@@ -146,6 +165,10 @@ export function MailStatus() {
   const server = mail.server || {};
   const counts = data.counts || {};
   const failures = data.recent_failures || [];
+  /* 설정 문제가 남아 있으면 시험 발송은 성공할 수 없다 — 서버는 그 요청을 「발송 못 함」 한 줄로 남기고 끝낸다
+     (`app/mail/service.py::queue_mail`). 단추는 숨기지 않고 꺼 두며, 이유는 바로 아래 목록이 말한다(`aria-describedby`). */
+  const blocked = !!(mail.problems && mail.problems.length);
+  const total = (counts.failed || 0) + (counts.queued || 0) + (counts.sent || 0) + (counts.unconfigured || 0);
 
   async function sendTest() {
     if (!(await confirm(
@@ -160,14 +183,17 @@ export function MailStatus() {
       <PageHeader
         area="운영" title="메일 발송" help={HELP}
         actions={canWrite ? (
-          <Button variant="primary" loading={test.isPending} onClick={sendTest}>시험 메일 보내기</Button>
+          <Button variant="primary" loading={test.isPending} disabled={blocked} onClick={sendTest}
+            aria-describedby={blocked ? PROBLEMS_ID : undefined}>
+            시험 메일 보내기
+          </Button>
         ) : null}
       />
 
       {testNotice ? <Callout tone="danger" compact sx={{ mb: 2 }}>{testNotice}</Callout> : null}
-      <ProblemsList problems={mail.problems} />
+      <ProblemsList problems={mail.problems} canFix={canWrite} />
 
-      <MetaBar
+      {mailSettingsShown(server) ? <MetaBar
         ariaLabel="메일 서버 설정"
         sx={{ mt: 2 }}
         items={[
@@ -183,13 +209,14 @@ export function MailStatus() {
           { key: "username", label: "로그인 계정", type: "identifier", value: server.username || "사용 안 함" },
           { key: "secret", label: "비밀번호", type: "status", value: passwordState(mail, server) },
         ]}
-      />
+      /> : null}
 
-      {/* 발송 현황은 네 상태의 합이 전체 메일인 구성이다 — 상태 요약 카드(계획 표 7). */}
+      {/* 발송 현황은 네 상태의 합이 전체 메일인 구성이다 — 상태 요약 카드(계획 표 7). 한 통도 쌓인 적이 없으면(전체 0)
+          카드는 서지 않는다(D-501 · `StatusKpi.jsx`) — 그 사실은 아래 「최근 실패」의 빈 상태가 말한다. */}
       <StatusSummaryCard
         ariaLabel="발송 현황"
         sx={{ mt: 2 }}
-        total={(counts.failed || 0) + (counts.queued || 0) + (counts.sent || 0) + (counts.unconfigured || 0)}
+        total={total}
         items={[
           { key: "failed", label: "발송 실패", value: counts.failed || 0, kind: "danger" },
           { key: "queued", label: "발송 대기", value: counts.queued || 0, kind: "info" },
@@ -206,10 +233,14 @@ export function MailStatus() {
       />
 
       {/* 구획 제목 + 목록 판 — 다른 목록 화면과 같은 배치. 0건은 표 안의 평문 한 줄이 아니라
-          빈 상태다(성공 그림) — 실패가 없다는 것은 이 화면의 좋은 소식이다. */}
+          빈 상태다(성공 그림) — 실패가 없다는 것은 이 화면의 좋은 소식이다.
+          한 통도 쌓인 적이 없으면 「실패가 없다」는 좋은 소식이 아니라 아직 아무것도 안 보냈다는 뜻이다 — 위 발송 현황
+          카드가 서지 않는 그 상태를 여기서 그대로 말한다. */}
       <Section titleAs="h2" title="최근 실패" sx={{ mt: 3, mb: 0 }}>
         {failures.length ? (
           <DataTable placement="surface" columns={FAILURE_COLUMNS} rows={failures} rowKey={(r) => r.id} />
+        ) : total === 0 ? (
+          <EmptyState title="아직 보낸 메일이 없습니다" help="메일이 나가기 시작하면 그 결과가 여기에 쌓입니다." />
         ) : (
           <EmptyState art="success" title="최근 실패한 메일이 없습니다" />
         )}

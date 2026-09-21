@@ -11,6 +11,11 @@ import { MemoryRouter } from "react-router-dom";
  * 쓰기 권한이 있는 관리자가 실제로 버튼을 눌렀을 때 확인 대화상자가 뜨고, 취소하면 아무 일도
  * 일어나지 않고, 확인하면 정확한 값으로 PUT이 나가는지는 어느 테스트도 거치지 않았다.
  * 점검 공지의 '미리 검증' 실패 표시도 마찬가지로 비어 있었다.
+ *
+ * qa-contract-change: 공지 입력 · 미리 검증 · 공지 저장이 판 위에서 「수정」이 여는 창 안으로 옮겼다(D-501) — 미리 검증 실패 시험은 창을 연 뒤
+ * 같은 단언(오류가 입력 옆 alert 로 남는다)을 창 안에서 재고, 실패하면 창이 닫히지 않는다는 단언을 더한다. 옛 주석의 「토스트도 함께 뜬다」는
+ * 사실이 아니었다(그 findByText 는 같은 alert 상자를 찾았다) — 단언은 그대로 두고 주석만 걷는다. 같은 저장이 한 번만 나가는지 재는
+ * 시험을 더한다(`useGuardedMutation`).
  */
 
 const apiMock = vi.fn();
@@ -142,9 +147,46 @@ describe("점검 공지 — 미리 검증 실패 표시", () => {
     const user = userEvent.setup();
     renderMaintenance();
 
-    await user.click(await screen.findByRole("button", { name: "미리 검증" }));
+    // 공지 입력과 미리 검증은 「수정」이 여는 창 안이다(D-501).
+    await user.click(await screen.findByRole("button", { name: "점검 공지 수정" }));
+    const dialog = await screen.findByRole("dialog", { name: "점검 공지 수정" });
+    await user.click(within(dialog).getByRole("button", { name: "미리 검증" }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("공지 문구가 너무 깁니다.");
-    expect(await screen.findByText("공지 문구가 너무 깁니다.")).toBeInTheDocument(); // 토스트
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent("공지 문구가 너무 깁니다.");
+    expect(await screen.findByText("공지 문구가 너무 깁니다.")).toBeInTheDocument();
+    // 실패했으니 창은 닫히지 않는다 — 고칠 사람이 그 자리에서 문구를 고친다.
+    expect(screen.getByRole("dialog", { name: "점검 공지 수정" })).toBeInTheDocument();
+  });
+});
+
+describe("점검 공지 — 같은 저장은 한 번만 나간다 (useGuardedMutation)", () => {
+  it("「공지 저장」을 연달아 눌러도 PUT 은 하나이고, 저장되면 창이 닫힌다", async () => {
+    let puts = 0;
+    let release;
+    apiMock.mockImplementation((path, opts) => {
+      if (path === "/api/admin/settings" && (!opts || !opts.method || opts.method === "GET")) {
+        return Promise.resolve({
+          settings: { maintenance_mode: { value: false }, maintenance_message: { value: "점검 중입니다." } },
+        });
+      }
+      if (path === "/api/admin/settings/maintenance_message" && opts && opts.method === "PUT") {
+        puts += 1;
+        return new Promise((resolve) => { release = () => resolve({}); });
+      }
+      return Promise.reject(new Error("unexpected api call: " + path));
+    });
+    const user = userEvent.setup();
+    renderMaintenance();
+
+    await user.click(await screen.findByRole("button", { name: "점검 공지 수정" }));
+    const dialog = await screen.findByRole("dialog", { name: "점검 공지 수정" });
+    const box = within(dialog).getByLabelText("점검 공지");
+    await user.clear(box);
+    await user.type(box, "새 공지입니다.");
+    await user.dblClick(within(dialog).getByRole("button", { name: "공지 저장" }));
+    expect(puts).toBe(1);
+    release();
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "점검 공지 수정" })).toBeNull());
+    expect(puts).toBe(1);
   });
 });

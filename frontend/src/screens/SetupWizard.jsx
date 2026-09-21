@@ -7,9 +7,8 @@ import { api } from "../lib/api.js";
 import { useAuth } from "../app/auth.jsx";
 import {
   PageHeader, Card, Badge, Button, Callout, Skeleton, ErrorState, EmptyState,
-  DotLabel,
+  DotLabel, SectionTitle,
 } from "../ui/kit.jsx";
-import { StatusSummaryCard } from "../ui/StatusKpi.jsx";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
 import { BASELINE_TRACKS, pairTracks } from "../ui/density.js";
 
@@ -68,7 +67,9 @@ const DESCRIPTION = "처음 설치할 때 필요한 설정 중 아직 안 끝난
  * 분리와 같은 뿌리). */
 export const SETUP_LINKS = {
   admin_account: { href: "#/users", label: "사용자 화면 열기" },
-  mail: { href: "#/settings", label: "설정 화면 열기" },
+  /* 메일은 설정 표의 그 한 줄을 연다(`SettingsMain.jsx` 의 `?setting=` 딥링크) — 스무 항목짜리 표 앞에 세워 두고
+     어느 줄인지 찾게 하지 않는다. 메일 발송 화면의 「메일 설정 열기」와 같은 곳 · 같은 이름이다. */
+  mail: { href: "#/settings?setting=smtp", label: "메일 설정 열기" },
   organization: { href: "#/departments", label: "부서 화면 열기" },
   llm: { href: "#/settings?tab=ai", label: "AI 설정 열기" },
   // 「외부 연동」 관리 화면은 걷었다 — 0017 이 등록 행을 지웠고 시드 목록이 비어 있어
@@ -77,6 +78,37 @@ export const SETUP_LINKS = {
   tls: { href: "#/diagnostics", label: "진단에서 인증서 확인" },
 };
 
+/* 끝난 항목은 **한 줄**이다(D-501 — 끝남 · 0건 · 정상은 한 줄, 남은 일 · 이상만 펼친다). 이름 · 「됨」 · 지금 상태
+   한 문장이 한 줄에 선다. 예전에는 끝난 항목도 남은 항목처럼 설명 · 까닭 · 이동 링크를 다 펼쳐, 여섯 항목 중 셋이
+   끝난 설치에서 목록의 절반이 읽을 필요가 없는 글이었다. 자리(순서)와 항목은 그대로다 — 순서는 의존 순서라서
+   끝난 것을 빼거나 아래로 내리지 않는다(위 머리말 「왜 상태로 다시 정렬하지 않는가」). */
+function DoneItem({ item }) {
+  return (
+    <Box
+      data-setup-key={item.key}
+      data-testid={"setup-item-" + item.key}
+      data-setup-state="done"
+      component="li"
+      sx={{
+        listStyle: "none", display: "flex", alignItems: "baseline", columnGap: 1, rowGap: 0.25, flexWrap: "wrap",
+        py: 1.25, borderTop: 1, borderColor: "divider",
+      }}
+    >
+      <Typography component="h2" variant="body1" sx={{ fontWeight: FONT_WEIGHT.semibold, ...KO_WORD_BREAK }}>
+        {item.label}
+      </Typography>
+      <Badge value={STATE_LABEL[item.state] || item.state} kind={STATE_KIND[item.state]} />
+      {item.detail ? (
+        <Typography variant="body2" color="text.secondary" sx={{ minWidth: 0, ...KO_WORD_BREAK }}>{item.detail}</Typography>
+      ) : null}
+    </Box>
+  );
+}
+
+/* 남은 항목 하나 — 이름 · 상태 · 지금 상태 · 할 일(또는 확인할 것 · 막힌 까닭) · 그것이 왜 필요한가 · 고치는 화면.
+ *
+ * **지금 할 차례인 항목은 할 일과 이동 링크를 여기서 말하지 않는다** — 옆 레일의 「지금 할 차례」 판이 그 둘을 이 화면의
+ * 주 동작으로 든다(D-501 — 한 사실은 한 곳). 목록의 그 줄에는 「지금 할 차례」 표지가 서서 레일과 같은 항목임을 잇는다. */
 function SetupItem({ item, isNext }) {
   const link = SETUP_LINKS[item.key];
   const blocked = item.blocked_by != null;
@@ -107,19 +139,9 @@ function SetupItem({ item, isNext }) {
           {item.blocked_by_label}를 먼저 끝내야 이 항목을 진행할 수 있습니다.
           {item.requires_why ? " " + item.requires_why : ""}
         </Typography>
-      ) : item.action ? (
-        <Typography variant="body2" sx={KO_WORD_BREAK}>
-          <Box component="span" sx={{ fontWeight: FONT_WEIGHT.semibold, mr: 1 }}>할 일</Box>
-          {item.action}
-        </Typography>
-      ) : item.question ? (
-        <Typography variant="body2" sx={KO_WORD_BREAK}>
-          <Box component="span" sx={{ fontWeight: FONT_WEIGHT.semibold, mr: 1 }}>확인할 것</Box>
-          {item.question}
-        </Typography>
-      ) : null}
+      ) : isNext ? null : <NextStep item={item} />}
       <Typography variant="caption" color="text.secondary" sx={KO_WORD_BREAK}>{item.why}</Typography>
-      {link ? (
+      {link && !isNext ? (
         <Box>
           <Link href={link.href} underline="hover" variant="body2" sx={{ fontWeight: FONT_WEIGHT.semibold }}>
             {link.label}
@@ -130,34 +152,63 @@ function SetupItem({ item, isNext }) {
   );
 }
 
-/* 요약 — 목록 옆 보조 레일에 선다(`/new-ticket` 의 폼 + 레일 모양, D-458). 문장이 뜻을 말하고
-   판독 줄이 숫자를 보인다. 목록을 접어도 이 레일은 남는다. */
-function Summary({ data }) {
-  const remaining = (data.remaining || []).length;
-  const todo = (data.todo || []).length;
-  const unknown = (data.unknown || []).length;
+/* 사람이 할 일 한 줄 — 「안 됨」은 할 일이고 「확인 불가」는 확인할 것이다. 같은 말로 부르면 사람이 할 일과 물어볼
+   일이 뒤섞인다. 목록의 줄과 레일이 이 한 부품을 쓴다. */
+function NextStep({ item }) {
+  const [label, text] = item.action ? ["할 일", item.action] : item.question ? ["확인할 것", item.question] : [null, null];
+  if (!label) return null;
   return (
-    <Box data-testid="setup-summary" sx={{ display: "grid", gap: 2 }}>
+    <Typography variant="body2" sx={KO_WORD_BREAK}>
+      <Box component="span" sx={{ fontWeight: FONT_WEIGHT.semibold, mr: 1 }}>{label}</Box>
+      {text}
+    </Typography>
+  );
+}
+
+/** 진행을 말하는 한 문장 — 「6개 중 3개가 끝났습니다. 직접 할 일이 2개, 확인할 것이 1개 남았습니다.」
+ *
+ * 예전에는 같은 수가 두 번 섰다: 「남은 항목 3개입니다. 사람이 해야 할 일 2개, 확인이 필요한 것 1개.」라는 조각 문장과,
+ * 그 수를 다시 그린 상태 요약 카드(「3 남은 항목 · 할 일 2 · 확인 필요 1」)였다. 수는 이 한 문장이 말한다. */
+export function setupProgressText(data) {
+  const items = (data && data.items) || [];
+  const done = items.filter((i) => i.state === "done").length;
+  const todo = ((data && data.todo) || []).length;
+  const unknown = ((data && data.unknown) || []).length;
+  const head = done ? `${items.length}개 중 ${done}개가 끝났습니다.` : `${items.length}개 중 아직 끝난 항목이 없습니다.`;
+  const rest = [todo ? `직접 할 일이 ${todo}개` : null, unknown ? `확인할 것이 ${unknown}개` : null].filter(Boolean);
+  return rest.length ? `${head} ${rest.join(", ")} 남았습니다.` : head;
+}
+
+/* 레일 — **지금 할 차례**. 목록 옆 보조 레일에 선다(`/new-ticket` 의 폼 + 레일 모양, D-458).
+ *
+ * 다음 항목의 할 일과 그것을 고치는 화면으로 가는 단추가 이 화면의 주 동작이다(D-501 — 채움은 화면당 하나). 그 아래 진행 한
+ * 문장이 선다. 목록을 접어도 이 레일은 남는다 — 한 번 닫으면 다시 못 보는 마법사는 설정을 미룬 사람에게 도움이 안 된다.
+ * 다 끝나면 할 차례가 없으므로 끝났다는 문장 하나만 선다. */
+function NowRail({ data }) {
+  const items = data.items || [];
+  const next = data.complete ? null : items.find((i) => i.key === data.next_key) || null;
+  const link = next ? SETUP_LINKS[next.key] : null;
+  return (
+    <Box data-testid="setup-summary" sx={{ display: "grid", gap: 1.5, justifyItems: "start" }}>
       {data.complete ? (
         <Callout tone="success">
           초기 설정 항목이 모두 끝났습니다. 목록은 그대로 두어 언제든 다시 확인할 수 있습니다.
         </Callout>
       ) : (
-        <Callout tone="warn">
-          {`남은 항목 ${remaining}개입니다. 사람이 해야 할 일 ${todo}개, 확인이 필요한 것 ${unknown}개.`}
-          {" 확인이 필요한 것은 이 서버에서는 판단할 수 없어 사람에게 묻는 항목입니다."}
-        </Callout>
+        <>
+          {next ? (
+            <>
+              <SectionTitle component="h2" title="지금 할 차례" sx={{ mb: 0 }} />
+              <Box data-setup-now={next.key} sx={{ display: "grid", gap: 0.5 }}>
+                <Typography variant="body1" sx={{ fontWeight: FONT_WEIGHT.semibold, ...KO_WORD_BREAK }}>{next.label}</Typography>
+                <NextStep item={next} />
+              </Box>
+              {link ? <Button variant="primary" href={link.href}>{link.label}</Button> : null}
+            </>
+          ) : null}
+          <Typography variant="body2" color="text.secondary" sx={KO_WORD_BREAK}>{setupProgressText(data)}</Typography>
+        </>
       )}
-      {/* 남은 항목이 전체이고 할 일 · 확인 필요가 그 구성이다 — 상태 요약 카드(계획 표 7). */}
-      <StatusSummaryCard
-        ariaLabel="초기 설정 진행"
-        total={remaining}
-        totalLabel="남은 항목"
-        items={[
-          { key: "todo", label: "할 일", value: todo, kind: "warn" },
-          { key: "unknown", label: "확인 필요", value: unknown, kind: "info" },
-        ]}
-      />
     </Box>
   );
 }
@@ -216,33 +267,38 @@ export function SetupWizard() {
         area="설정"
         title="초기 설정"
         description={DESCRIPTION}
+        help="확인할 것은 이 서버가 스스로 판단할 수 없어 사람에게 묻는 항목입니다."
         actions={
           <Button onClick={() => setOpen((v) => !v)}>
             {open ? "목록 접기" : "목록 펼치기"}
           </Button>
         }
       />
-      {/* 목록 판 + 요약 레일. 예전에는 요약이 전폭 안내 상자, 목록이 전폭 판이라 1920 에서
+      {/* 목록 판 + 「지금 할 차례」 레일. 예전에는 요약이 전폭 안내 상자, 목록이 전폭 판이라 1920 에서
           항목 설명 한 줄이 1,500px 를 달렸다. 접으면 레일만 전폭으로 남는다. 레일은 제 내용만큼만
           선다(`start`) — 목록 높이로 늘리면 잉크 14% 짜리 빈 판이 된다(실측).
           2열 문턱은 뷰포트(`pairTracks`)로 둔다 — 내용 폭 짝 트랙(`contentPairTracks`, 새 티켓 · LLM 콘솔)으로 옮기면 1200 에서
-          1열이 되어 「남은 항목」 요약이 목록 아래 1,000px 밖으로 내려가 첫 화면에서 사라졌다(UI 3차 P4 실측). 목록 칸은 543px 에서도 읽힌다. */}
+          1열이 되어 레일이 목록 아래 1,000px 밖으로 내려가 첫 화면에서 사라졌다(UI 3차 P4 실측). 목록 칸은 543px 에서도 읽힌다.
+          **레일이 문서 순서의 앞이다**(D-501 — 머리 → 지금 할 일 → 목록). 1열로 접히는 좁은 화면에서도 할 차례가 목록 위에
+          서고, 낭독기도 그 순서로 읽는다. 2열에서는 격자 자리(`gridColumn`)로 오른쪽에 둔다. */}
       <Box sx={open ? { ...pairTracks(BASELINE_TRACKS.two), alignItems: "start" } : undefined}>
+        <Card component="aside" aria-label="초기 설정 진행" sx={open ? { gridColumn: { lg: 2 }, gridRow: { lg: 1 } } : undefined}>
+          <NowRail data={data} />
+        </Card>
         {open ? (
-          <Card>
+          <Card sx={{ gridColumn: { lg: 1 }, gridRow: { lg: 1 } }}>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 1, ...KO_WORD_BREAK }}>
               아래 순서는 의존 순서입니다. 앞 항목이 끝나야 뒤 항목이 실제로 동작합니다.
             </Typography>
             <Box component="ul" sx={{ m: 0, p: 0 }}>
               {items.map((item) => (
-                <SetupItem key={item.key} item={item} isNext={item.key === data.next_key} />
+                item.state === "done"
+                  ? <DoneItem key={item.key} item={item} />
+                  : <SetupItem key={item.key} item={item} isNext={item.key === data.next_key} />
               ))}
             </Box>
           </Card>
         ) : null}
-        <Card component="aside">
-          <Summary data={data} />
-        </Card>
       </Box>
     </Box>
   );

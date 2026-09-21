@@ -108,6 +108,25 @@ describe("진단 화면의 설치처 설정", () => {
     expect(screen.queryByText(/아직 설정하지 않은 항목/)).toBeNull();
   });
 
+  it("남는 폭은 「설정하지 않으면」 산문이 갖는다 — 짧은 설정 이름은 적힌 폭을 지킨다 (D-501)", async () => {
+    apiMock.mockResolvedValue(bundleWith({
+      configured: false,
+      unset_count: 1,
+      items: [
+        { key: "allowed_email_domains", label: "계정 생성 허용 도메인", env_var: "ALLOWED_EMAIL_DOMAINS", source: "env", state: "unset", when_unset: "새 계정을 만들 때 이메일 도메인을 제한하지 않습니다." },
+      ],
+    }));
+    renderDiagnostics();
+    await screen.findByText(/아직 설정하지 않은 항목이 1개 있습니다/);
+    const table = screen.getByText("설치처 설정").closest("section").querySelector("table");
+    const heads = [...table.querySelectorAll("thead th")].map((h) => h.textContent);
+    const widths = [...table.querySelectorAll("colgroup col")].map((c) => c.style.width);
+    const widthOf = (label) => widths[heads.indexOf(label)];
+    // 예전에는 제목 열이 폭을 안 적어 남는 폭을 다 먹었다(1,300px 칸에 열한 글자, 옆 산문은 스무 글자에서 잘림).
+    expect(widthOf("설정")).toBe("13rem");
+    expect(widthOf("설정하지 않으면")).toBe("");
+  });
+
   it("서버가 이 정보를 안 주면 섹션을 그리지 않는다", async () => {
     // 없는 것을 있는 척 그리지 않는다. '0개 미설정'으로 보이면 확인했다는 거짓 신호가 된다.
     apiMock.mockResolvedValue({ ...BASE_BUNDLE });

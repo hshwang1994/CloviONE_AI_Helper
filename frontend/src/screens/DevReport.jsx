@@ -1,19 +1,17 @@
 import React from "react";
 import { useQuery } from "@tanstack/react-query";
 import Box from "@mui/material/Box";
-import Typography from "@mui/material/Typography";
 import { useTheme } from "@mui/material/styles";
 import { api } from "../lib/api.js";
 import { useQueryState } from "../lib/useQueryState.js";
 import {
   PageHeader, Card, Badge, Button, Callout, Skeleton, EmptyState, ErrorState, DataTable,
-  Section, SectionTitle,
+  Section, StatusDot,
 } from "../ui/kit.jsx";
 import { StatusSummaryCard } from "../ui/StatusKpi.jsx";
 import { FilterBar } from "../ui/FilterBar.jsx";
 import { FilterSelect } from "../ui/filters.jsx";
-import { FONT_WEIGHT, KO_WORD_BREAK, PROSE_MAX_WIDTH } from "../ui/theme.js";
-import { Donut } from "../ui/charts/Donut.jsx";
+import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, PROSE_MAX_WIDTH } from "../ui/theme.js";
 import { resolveChartColor } from "../ui/charts/base.jsx";
 
 // 이번 달을 'YYYY-MM'으로. 리포트는 마감일 기준이라 월만 쓴다.
@@ -50,7 +48,7 @@ function yearOptions(count) {
 // 월 선택지 — '01'~'12'.
 const MONTH_VALUES = Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, "0"));
 
-/* 상태 세그먼트의 순서와 색 — 상태 스택 막대(담당자별)와 팀 도넛이 **같은 표를 공유한다**.
+/* 상태 세그먼트의 순서와 색 — 상태 스택 막대(담당자별)와 그 범례(`StatusLegend`)가 **같은 표를 공유한다**.
  * 예전에는 막대 색은 screens.css(.seg-done…)에, 범례 색은 또 다른 규칙(.devrep-legend i.done)에
  * 따로 적혀 있어서 한쪽만 고치면 같은 상태가 두 색으로 보였다. 색 어휘는 키트의 톤 이름
  * (ok/warn/danger/neutral)을 그대로 쓴다 — 배지·타일과 같은 말이라 나중에도 어긋나지 않는다. */
@@ -86,6 +84,23 @@ function StatusBar({ d }) {
     >
       <rect x="0" y="0" width="100" height="12" fill={theme.palette.divider} />
       {rects}
+    </Box>
+  );
+}
+
+/* 상태 막대의 범례 — 구획 제목 줄 오른쪽 끝에 한 줄로 선다. 예전에는 표 옆 도넛의 범례가 이 막대의 범례를 겸했다.
+ * 도넛을 걷으면서(D-501) 범례만 남긴다 — 점 모양은 제품의 다른 색 표지(배지 · 상태 칩)와 같은 7px 점이고, 옆 낱말이
+ * 뜻을 나르므로 색을 못 봐도 막대 옆 칸의 수로 같은 것을 읽는다(WCAG 1.4.1). */
+function StatusLegend() {
+  const theme = useTheme();
+  return (
+    <Box component="ul" aria-label="상태 구성 막대의 색" sx={{ listStyle: "none", m: 0, p: 0, display: "flex", flexWrap: "wrap", columnGap: 1.5, rowGap: 0.25 }}>
+      {SEGS.map((seg) => (
+        <Box component="li" key={seg.key} sx={{ display: "inline-flex", alignItems: "center", gap: 0.75, fontSize: FONT_SIZE.caption, color: "text.secondary" }}>
+          <StatusDot accent={resolveChartColor(theme, seg.tone)} />
+          {seg.label}
+        </Box>
+      ))}
     </Box>
   );
 }
@@ -133,7 +148,7 @@ const devNameCol = {
 const DEV_SUMMARY_COLUMNS = [
   devNameCol,
   { key: "_bar", label: "상태 구성", type: "text", minWidth: "14rem",
-    help: "담당한 티켓의 상태 비율을 색 막대로 나타냅니다. 오른쪽 도넛의 범례와 같은 색입니다.",
+    help: "담당한 티켓의 상태 비율을 색 막대로 나타냅니다. 색은 이 표 위 범례와 같습니다.",
     render: (d) => <StatusBar d={d} /> },
   { key: "done", label: "완료", type: "count", help: "이번 달 마감분 가운데 완료 상태인 티켓 수입니다.",
     render: (d) => <Box component="span" sx={{ color: "success.main", fontWeight: FONT_WEIGHT.bold }}>{d.done}</Box> },
@@ -199,9 +214,9 @@ const DEV_TICKET_COLUMNS = [
 ];
 
 /* 개발자 월간 리포트 — 마감일이 그 달인 티켓을 담당자별로 묶어 보여준다.
- * KPI 타일과 상태 구성 도넛으로 요약을 먼저 주고, 표는 그 아래에 둔다. 담당자별 업무량은
- * 그림이 아니라 표가 말한다 — 그림과 표가 같은 숫자를 두 번 말하던 자리를 W6 이 정리했다.
- * 그림은 전부 ui/charts의 의존성 없는 SVG다(차트 라이브러리를 들이지 않는다 — 번들 예산). */
+ * 팀 합계 카드로 요약을 먼저 주고, 표는 그 아래에 둔다. 담당자별 업무량은
+ * 그림이 아니라 표가 말한다 — 그림과 표가 같은 숫자를 두 번 말하던 자리를 W6 이 정리했고,
+ * 합계 카드와 같은 수를 다시 그리던 팀 도넛은 D-501 이 걷었다. 남은 그림은 담당자별 상태 막대(의존성 없는 SVG)다. */
 export function DevReport() {
   const [view, setView] = useQueryState(DEV_REPORT_SPEC);
   // 주소에 아무것도 없으면 「이번 달」이다 — 그 값은 여는 날짜에 달렸으므로 스펙이 아니라
@@ -225,21 +240,14 @@ export function DevReport() {
     _dev: d.name,
     _devNote: `완료 ${d.done}건, 진행 중 ${d.prog + d.verify}건, 완료 예상 WD ${d.est_done}인일`,
   })));
-  // 팀 상태 구성 — 백엔드가 티켓 단위(중복 없이)로 센 값이다. 다섯 상태에 속하지 않는 티켓이
-  // 있으면(작업 DB에 새 상태가 생기는 경우) 조각 합이 total보다 작아진다, 그 차이를 '기타'로
-  // 드러낸다 — 조용히 사라지면 도넛이 전체를 설명한다고 착각하게 된다.
+  // 팀 상태 구성 — 백엔드가 티켓 단위(중복 없이)로 센 값이다. 팀 합계 카드의 전체는 완료 · 진행 중 · 검증 · 계획의
+  // 합이라 취소와 다섯 상태 밖의 티켓(작업 DB에 새 상태가 생기는 경우)은 거기 안 든다. 그 둘은 조용히 사라지지 않게
+  // 카드의 정의 목록이 수로 말한다 — 예전에는 표 옆 도넛이 그 조각을 그렸다(D-501 로 걷었다).
   const team = ok ? data.team : null;
-  const teamSegs = team ? (() => {
-    const base = [
-      { label: "완료", value: team.done, color: "ok" },
-      { label: "진행 중", value: team.in_progress, color: "brand" },
-      { label: "검증", value: team.verify, color: "warn" },
-      { label: "계획", value: team.plan, color: "neutral" },
-      { label: "취소", value: team.cancel, color: "danger" },
-    ];
-    const rest = team.total - base.reduce((s, b) => s + (b.value || 0), 0);
-    return rest > 0 ? [...base, { label: "기타", value: rest, color: "info" }] : base;
-  })() : [];
+  const teamCancel = team ? (team.cancel || 0) : 0;
+  const teamRest = team
+    ? team.total - ((team.done || 0) + (team.in_progress || 0) + (team.verify || 0) + (team.plan || 0) + teamCancel)
+    : 0;
 
   return (
     <Box className="c-screen"
@@ -253,13 +261,14 @@ export function DevReport() {
       {/* 사이드바가 이 화면을 「감사」 묶음에 두는데(navConfig.js) 빵부스러기는 「자동화」
           라고 말하고 있었다 — 그 이름의 묶음은 이제 「자동화와 연동」이고 이 화면은 거기
           없다. 같은 화면이 두 자리에 있다고 읽히던 자리다(S20). */}
-      {/* 긴 설명은 제목 옆 `?` 다(D-453) — 예전에는 머리 아래 상시 문단이었다. 새로고침이 이 화면의
-          유일한 주 행동이라 브랜드 면을 그대로 둔다(기본 강도로 내리면 화면에 브랜드 색이 없어진다 —
-          `brand_presence` 실측). */}
+      {/* 긴 설명은 제목 옆 `?` 다(D-453) — 예전에는 머리 아래 상시 문단이었다.
+          🔴 「새로고침」은 채움이 아니다(D-501). 읽기 전용 보고서라 이 화면이 하라고 있는 일이 없다 — 다시 읽는 것은
+          주 동작이 아니라 보조다. 예전에는 「브랜드 면을 남기려고」 이 단추를 채움으로 두었는데, 채움은 그 화면의 일을
+          가리키는 표지라 할 일이 없는 화면에 세우면 그 표지가 거짓말을 한다. */}
       <PageHeader area="감사" title="개발자 월간 리포트"
         description={"마감일이 " + periodLabel(period) + "인 티켓을 담당자별로 모아 업무량과 위험을 봅니다."}
         help="마감일이 선택한 달인 티켓을 담당자별로 집계합니다. 각자 얼마나 일했는지는 완료 건수와 예상 WD로 보고, 지금 안고 있는 부담과 위험은 진행 중 업무와 지연으로 함께 봅니다. 예상 WD와 난이도는 티켓 내용을 바탕으로 추정한 값이고, 실제 WD는 완료한 담당자가 입력합니다."
-        actions={<Button variant="primary" onClick={() => query.refetch()}>새로고침</Button>} />
+        actions={<Button onClick={() => query.refetch()} disabled={query.isFetching} loading={query.isFetching}>새로고침</Button>} />
 
       {/* 🔴 이 줄은 테두리 있는 판이었고, 그 판이 1606×68 에 잉크 18% 로 서 있었다(P-42 ②). 작은 컨트롤 셋을
           화면 폭짜리 상자에 담으면 그 상자는 자기 폭을 설명하지 못한다. 조건 줄은 필터 바 한 벌이다 — 연도 · 월이
@@ -327,36 +336,29 @@ export function DevReport() {
               { key: "plan", label: "계획", text: "아직 착수 전" },
               { key: "overdue", label: "지연", text: "마감이 지난 미완료" },
               { key: "unassigned", label: "담당자 없음", text: "담당자가 지정되지 않음" },
+              /* 합계에 안 드는 티켓 — 예전에는 표 옆 도넛만 이 조각을 그렸다(위 `teamCancel` 주석). */
+              teamCancel > 0 ? { key: "cancel", label: "취소", text: teamCancel + "건은 합계에서 뺐습니다." } : null,
+              teamRest > 0 ? { key: "rest", label: "기타", text: "다섯 상태 밖의 " + teamRest + "건은 합계에서 뺐습니다." } : null,
+              /* 세는 단위 — 도넛 판의 각주였다. 합계 카드와 아래 담당자별 표의 수가 왜 다를 수 있는지를 그 수 옆에서 말한다. */
+              { key: "unit", label: "세는 법", text: "팀 합계는 티켓 단위로 셉니다. 담당자별 합계는 담당자가 둘인 티켓을 양쪽에 각각 세므로 이 합과 다를 수 있습니다." },
             ]}
           />
 
-          {/* 구획은 공용 `Section`(제목 + 괘선)이다 — 예전에는 h2 셋을 손으로 그렸다. */}
-          <Section titleAs="h2" title={`개발자별 상세 (${data.period})`} rule>
+          {/* 구획은 공용 `Section`(제목 + 괘선)이다 — 예전에는 h2 셋을 손으로 그렸다.
+              🔴 여기 표 옆(좁은 화면에서는 아래)에 「팀 상태 구성」 도넛 판이 있었다. 도넛의 네 조각은 바로 위 팀 합계 카드가
+              이미 말하는 수였고, 1920 에서는 표 아래 480px 판으로 서서 오른쪽 1,100px 가 비었다(D-501 — 한 사실은 한 곳).
+              판을 걷고 그 판이 하던 두 일만 남긴다: 각주는 합계 카드의 정의 목록으로, 막대의 색 범례는 이 구획 제목 줄로. */}
+          <Section titleAs="h2" title={`개발자별 상세 (${data.period})`} rule
+            action={devs.length ? <StatusLegend /> : null}>
             {devs.length === 0 ? (
               <EmptyState art="tickets" title="이 달에 집계할 담당자가 없습니다"
                 help="선택한 달에 마감일이 있는 티켓이 없거나, 앱에 활성 사용자가 추가되어 있지 않습니다."
                 situation="기간을 바꾸거나, 사용자 화면에서 담당자 계정이 활성 상태인지 확인하세요." />
             ) : (
-              /* 폭이 아주 넓을 때(xxl 이상)만 도넛을 표 옆에 세운다 — 1366·1920에서 옆에 두면
-                 열 열 개짜리 표가 눌려 가로 스크롤이 생긴다. 도넛의 범례가 곧 아래 스택 막대의
-                 색 범례라, 따로 범례 줄을 두지 않는다(예전 .devrep-legend를 대신한다).
-                 🔴 그런데 **아래로 접히는 쪽**을 아무도 안 봤다(P-42 ①): 격자 칸은 기본이
-                 늘어남이라 도넛 판이 1606×275 로 서고 그 안의 그림은 왼쪽 3분의 1만 채웠다 —
-                 잉크 17%. 판이 자기 폭을 설명하지 못하면 사람은 오른쪽에 무언가 실패한
-                 것으로 읽는다. 접힐 때는 판이 **내용만큼만** 서게 한다. */
-              <Box sx={{ display: "grid", gap: 2, alignItems: "start", gridTemplateColumns: { xs: "1fr", xxl: "minmax(0,1fr) minmax(0,26rem)" } }}>
-                <TableWrap minWidth="52rem">
-                  {/* 집계 표라 「받았다」는 건수를 말하지 않는다(`list={false}`) — 행은 받은 목록이 아니라 사람별 합이다. */}
-                  <DataTable placement="surface" list={false} columns={DEV_SUMMARY_COLUMNS} rows={devs} rowKey={(d) => d.name} />
-                </TableWrap>
-                <Card sx={{ justifySelf: "start", width: { xs: "min(100%, 30rem)", xxl: "100%" } }}>
-                  <SectionTitle component="h3" title="팀 상태 구성" />
-                  <Donut question="이 달 팀의 티켓이 어느 상태에 몰려 있는지 봅니다." segments={teamSegs} unit="건" centerLabel="티켓" emptyLabel="이 달에 집계된 티켓이 없습니다" />
-                  <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1.5 }}>
-                    팀 합계는 티켓 단위로 셉니다. 담당자별 합계는 담당자가 둘인 티켓을 양쪽에 각각 세므로 이 합과 다를 수 있습니다.
-                  </Typography>
-                </Card>
-              </Box>
+              <TableWrap minWidth="52rem">
+                {/* 집계 표라 「받았다」는 건수를 말하지 않는다(`list={false}`) — 행은 받은 목록이 아니라 사람별 합이다. */}
+                <DataTable placement="surface" list={false} columns={DEV_SUMMARY_COLUMNS} rows={devs} rowKey={(d) => d.name} />
+              </TableWrap>
             )}
           </Section>
 

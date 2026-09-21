@@ -10,7 +10,6 @@ import { Note, StatusList, StatusTile } from "../../ui/adminKit.jsx";
 import {
   PageHeader, Badge, Callout, DataTable, Section, Skeleton, ErrorState, EmptyState, Surface, TechDetail, useToast,
 } from "../../ui/kit.jsx";
-import { StatusSummaryCard } from "../../ui/StatusKpi.jsx";
 import { FONT_SIZE, FONT_WEIGHT } from "../../ui/theme.js";
 import { TILE_PADDING } from "../../ui/density.js";
 import {
@@ -26,7 +25,7 @@ import { DiagnosticActions } from "./DiagnosticActions.jsx";
  * 번들은 admin/system_admin만 조회할 수 있으므로 다른 역할에겐 수집 버튼을 감춘다.
  *
  * 이 파일은 오케스트레이터다: 수집/재시도/토스트 판단 같은 상태 관리와, 어느 섹션에도 속하지 않는
- * 작은 섹션(상단 요약 배너·외부 연동·설치처 설정·현재 리소스·백업·최근 주요 변경·원본 JSON)만
+ * 작은 섹션(상단 요약 배너·외부 연동·설치처 설정·활성 스케줄 줄·대시보드로 가는 줄·원본 JSON)만
  * 남기고, 응집도 높은 큰 덩어리(서비스 상태 카드, 작업 큐 패널, 헤더 액션)는 옆 파일로 옮겼다. */
 export function Diagnostics() {
   const toast = useToast();
@@ -174,6 +173,14 @@ export function Diagnostics() {
               // 위험으로 올리는데 이 배너만 그것을 모르면 두 화면이 같은 순간에 다른
               // 말을 한다(dashboard-diagnostics-consistency 가 지키는 성질).
               const hv = healthVerdict(comps, disk, mem, dash.cert_days_remaining, jobs24, integrations, dash, dash.storage);
+              /* 갈 곳이 있는 줄(작업 백로그)은 그 줄 끝에서 바로 간다 — 「대기 작업 보기」 · 「실패 작업 보기」는 작업 큐를
+                 그 상태로 거른다(대시보드 경보와 같은 곳 · 같은 이름, `opsHelpers.js::JOBS_BACKLOG_LINKS`). */
+              const goTo = (p) => (p.link ? (
+                <Link component="button" type="button" variant="body2" underline="hover" onClick={() => nav(p.link.to)}
+                  sx={{ flexShrink: 0, marginInlineStart: 0.5 }}>
+                  {p.link.label}
+                </Link>
+              ) : null);
               return (
                 <Box sx={{ mb: 4 }} role="status" aria-live="polite">
                   <Callout tone={hv.tone}>
@@ -186,17 +193,23 @@ export function Diagnostics() {
                               /* QAH-03(2026-08-11 하네스 실측): warning.main 글자색이
                                  4.48:1로 AA(4.5) 근소 미달이었다 — 판독 칸 배지와 같은
                                  원인이라 같은 수정(palette.{error,warning}.strong)을 쓴다. */
-                              sx={{ display: "flex", alignItems: "baseline", gap: 0.75, color: p.tone === "danger" ? "error.strong" : "warning.strong" }}>
+                              sx={{ display: "flex", alignItems: "baseline", flexWrap: "wrap", gap: 0.75, color: p.tone === "danger" ? "error.strong" : "warning.strong" }}>
                               {/* 심각도를 색만으로 전하지 않는다(WCAG 1.4.1) — 짧은 글자 라벨을 함께 둔다. */}
                               <Box component="span" sx={{ flexShrink: 0, fontWeight: FONT_WEIGHT.extrabold, fontSize: FONT_SIZE.caption }}>
                                 {p.tone === "danger" ? "위험" : "주의"}
                               </Box>
                               {p.msg}
+                              {goTo(p)}
                             </Box>
                           ))}
                         </Box>
                       </>
-                    ) : hv.msg}
+                    ) : (
+                      <>
+                        {hv.msg}
+                        {hv.problems.length === 1 ? goTo(hv.problems[0]) : null}
+                      </>
+                    )}
                   </Callout>
                 </Box>
               );
@@ -218,7 +231,7 @@ export function Diagnostics() {
               {/* 서비스 이름은 대시보드와 같은 serviceLabel()로 표기해 두 화면이 같은 연동을 다르게 부르지 않게 한다.
                   활성인데 아직 헬스체크 이력이 없으면(last_health null) 무의미한 '알 수 없음' 대신 '미점검'으로 표시한다.
                   '서비스 상태'와 같은 '지금 이 순간' 스냅샷이라 바로 옆에 둔다, 이 페이지 자신이 선언한
-                  '스냅샷 먼저, 이력 나중' 원칙(아래 '현재 리소스' 주석)을 이 섹션에도 실제로 지킨다. */}
+                  '스냅샷 먼저, 이력 나중' 원칙을 이 섹션에도 실제로 지킨다. */}
               {Object.keys(integrations).length ? (
                 <StatusList ariaLabel="외부 연동">
                   {Object.keys(integrations).map((k) => {
@@ -271,10 +284,13 @@ export function Diagnostics() {
                     columns={[
                       { key: "state", label: "상태", type: "status",
                         render: (item) => <Badge value={item.state === "set" ? "설정됨" : "설정 안 됨"} kind={item.state === "set" ? "ok" : "warn"} /> },
-                      { key: "label", label: "설정", type: "title" },
+                      /* 설정 이름은 짧다(「계정 생성 허용 도메인」) — 폭을 적어 남는 폭을 산문에 넘긴다(D-501). 폭을 안 적은 제목은
+                         남는 폭을 다 먹어 1,300px 칸에 열한 글자가 서고, 옆의 「설정하지 않으면」은 스무 글자에서 잘렸다. 설정 표의
+                         「항목명」과 같은 폭이다(`settings/SettingsMain.jsx`). */
+                      { key: "label", label: "설정", type: "title", width: "13rem" },
                       /* 안 채운 항목만 "그래서 무슨 일이 벌어지는가"를 붙인다. 다 채운 항목에까지 설명을 달면
-                         경고가 묻힌다. 고칠 자리(환경 변수 이름)도 같이 준다. */
-                      { key: "when_unset", label: "설정하지 않으면", type: "text", overflow: OVERFLOW.word,
+                         경고가 묻힌다. 고칠 자리(환경 변수 이름)도 같이 준다. 읽는 산문이라 남는 폭을 갖는다(`grow`). */
+                      { key: "when_unset", label: "설정하지 않으면", type: "text", grow: true, overflow: OVERFLOW.word,
                         render: (item) => (item.state === "set" ? "" : `${item.when_unset} (${item.env_var})`) },
                     ]}
                     rows={tenantItems}
@@ -282,25 +298,19 @@ export function Diagnostics() {
                   />
               </Section>
             ) : null}
-            {/* '현재 리소스'는 '시스템 리소스', '서비스 상태'와 같은 '지금 이 순간' 스냅샷이라, 이전엔
-                오류, 감사 이력(시간을 두고 훑는 섹션들) 사이에 끼어 있어 위쪽 두 섹션과 한눈에 묶여
-                읽히지 않았다, 같은 성격의 섹션끼리 먼저 모아 두고, 이력성 섹션은 그 아래로 둔다. */}
-            {Object.keys(counts).length ? (
-              <Section titleAs="h2" title="현재 리소스">
-                {/* Dashboard.jsx의 동일한 인벤토리 판독과 똑같이 해당 레지스트리로 드릴다운한다 -
-                    이 화면은 admin/system_admin 전용이라 항상 도달 가능하다(대시보드처럼
-                    역할별 canGo 분기가 필요 없다). */}
-                {/* 값 하나는 큰 숫자 하나다(핸드오프 RULES §10 · 계획 표 7). 가는 길은 옆의 글자 링크가 든다 —
-                    같은 화면 「최근 작업 오류」의 「작업 큐에서 보기 →」와 같은 어휘다. */}
-                <StatusSummaryCard
-                  ariaLabel="현재 리소스"
-                  total={fmtNum(counts.active_schedules)}
-                  totalLabel="활성 스케줄"
-                  action={<Link component="button" type="button" variant="body2" underline="hover" onClick={() => nav("/schedules")}>스케줄에서 보기 →</Link>}
-                />
-              </Section>
-            ) : null}
             <JobQueuePanel jobs24={jobs24} jobErrors={jobErrors} errorDist={errorDist} nav={nav} />
+            {/* 활성 스케줄 수는 **줄 하나**다(D-501). 여기 「현재 리소스」 구획이 있었고, 값 하나를 든 전폭 판(「1 활성 스케줄」)이
+                1,600px 를 가로질렀다 — 누를 곳도 경보도 아닌 값 하나는 판을 세울 이유가 없다. 바로 아래 「대시보드에서 보기」와
+                같은 주석 줄(수 한 문장 + 가는 길)로 그 줄 위에 선다. 가는 길은 실행 일정 화면이고, 이 화면에 들어오는 역할(운영자
+                이상)은 언제나 그곳에 닿는다. 번들이 이 수를 안 주는 배포에서는 줄도 없다. */}
+            {counts.active_schedules != null ? (
+              <Note sx={{ mt: 0, mb: 0.75 }}>
+                {`지금 켜져 있는 스케줄은 ${fmtNum(counts.active_schedules)}개입니다.`}{" "}
+                <Link component="button" type="button" variant="body2" underline="hover" onClick={() => nav("/schedules")}>
+                  스케줄에서 보기 →
+                </Link>
+              </Note>
+            ) : null}
             {/* PA-RC-0028: '백업'과 '최근 주요 변경'을 이 화면 본문에서 뺐다 — /dashboard가
                 이미 상시(30초 폴링)로 같은 두 섹션을 보여주고 있어(build_diagnostic_bundle이
                 build_dashboard()를 그대로 품는 구조, 데이터는 번들에 그대로 남는다·JSON

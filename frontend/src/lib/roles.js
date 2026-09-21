@@ -44,3 +44,22 @@ export const MODERATOR_ROLES = [ROLE_OPERATOR, ROLE_ADMIN, ROLE_SYSTEM_ADMIN];
 export function hasRole(roles, role) {
   return Array.isArray(roles) && roles.includes(role);
 }
+
+/* 역할 다섯의 한국어 이름 — 관리 콘솔이 사람에게 역할을 말할 때 쓰는 이름이다.
+ *
+ * 같은 표가 화면마다 따로 있었고(`screens/Users.jsx` · `screens/registry/shared.js`), 조직 정합성의 관리자 표는
+ * 그 어느 것도 안 써서 `system_admin` 같은 서버 값을 그대로 보였다(D-501 회차). 역할의 이름은 역할 묶음과 같은
+ * 어휘라 여기 둔다. 키 순서가 사용자 화면 「역할」 필터의 후보 순서다. 사용자 콘솔의 내 프로필은 자기 말
+ * (`app/navConfig.js::ROLE_KO` — 「사용자」)을 따로 쓴다. */
+export const ROLE_LABELS = {
+  [ROLE_USER]: "일반 사용자",
+  [ROLE_OPERATOR]: "운영자",
+  [ROLE_ADMIN]: "관리자",
+  [ROLE_AUDITOR]: "감사자",
+  [ROLE_SYSTEM_ADMIN]: "시스템 관리자",
+};
+
+/** 역할 값 → 이름. 모르는 값은 그대로 보인다 — 없는 이름을 지어내지 않는다. */
+export function roleLabel(role) {
+  return ROLE_LABELS[role] || (role == null ? "" : String(role));
+}

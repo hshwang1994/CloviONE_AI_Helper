@@ -20,6 +20,10 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
  *
  * qa-contract-change: 발송 현황 판독 줄(MetricStrip)이 상태 요약 카드(StatusSummaryCard)로 바뀌었다(계획 B-6, 표 7) — 각주 자리를 판독 칸에서 카드의 정의 목록으로 옮긴다.
  * 0건 상태는 한 칩으로 접히므로 이름을 정규식으로 찾고, 각주가 발송 현황 카드 안에 있다는 단언을 더한다.
+ *
+ * qa-contract-change: 설정 문제가 남아 있으면 「시험 메일 보내기」는 이유와 함께 꺼진다(D-501) — 그 상태의 시험 발송은 서버가 「발송 못 함」 한 줄로
+ * 끝내므로 성공할 수 없는 일이었다. 그래서 실제 POST 를 재는 시험은 설정이 완성된 상태(`CONFIGURED`)에서 같은 단언을 하고, 꺼짐 · 이유 연결 ·
+ * 「메일 설정 열기」 · 빈 속성 줄 숨김 · 0통 상태의 문장을 재는 시험을 더한다.
  */
 
 const apiMock = vi.fn();
@@ -55,6 +59,17 @@ const NOT_CONFIGURED = {
       created_at: "2026-08-10T00:00:00", sent_at: null,
     },
   ],
+};
+
+/* 설정이 완성된 설치 — 문제 목록이 비어 있고 시험 발송이 성공할 수 있다. */
+const CONFIGURED = {
+  ...NOT_CONFIGURED,
+  mail: {
+    configured: true,
+    problems: [],
+    server: { enabled: true, host: "smtp.internal", port: 587, security: "starttls", from_address: "portal@goodmit.co.kr", from_name: "", username: "" },
+    password_secret: null,
+  },
 };
 
 function withStatus(patch) {
@@ -131,15 +146,16 @@ describe("메일 발송 화면", () => {
 
   it("🔴 '시험 메일 보내기'가 확인 후 실제로 POST /api/admin/mail/test를 부른다", async () => {
     const user = userEvent.setup();
+    withStatus(CONFIGURED);
     renderScreen();
-    await screen.findByText(/메일 서버 주소가 비어 있습니다/);
+    await screen.findByText(/메일 발송 설정이 완성돼 있습니다/);
 
     apiMock.mockImplementation((path, opt) => {
-      if (String(path).startsWith("/api/admin/mail/status")) return Promise.resolve(NOT_CONFIGURED);
+      if (String(path).startsWith("/api/admin/mail/status")) return Promise.resolve(CONFIGURED);
       if (String(path) === "/api/admin/mail/test" && opt && opt.method === "POST") {
         return Promise.resolve({
           delivery: { id: "d-2", status: "sent" },
-          mail: NOT_CONFIGURED.mail,
+          mail: CONFIGURED.mail,
         });
       }
       return Promise.resolve({});
@@ -162,6 +178,62 @@ describe("메일 발송 화면", () => {
     renderScreen();
     await screen.findByText(/메일 서버 주소가 비어 있습니다/);
     expect(screen.queryByRole("button", { name: "시험 메일 보내기" })).toBeNull();
+    // 설정을 고칠 수 없는 역할에게는 설정을 여는 단추도 없다(서버가 설정 쓰기를 같은 역할로 막는다).
+    expect(screen.queryByRole("link", { name: "메일 설정 열기" })).toBeNull();
+  });
+
+  /* ── D-501: 성공할 수 없는 주 동작을 세우지 않는다 ─────────────────────────────── */
+
+  it("설정 문제가 남아 있으면 시험 메일은 꺼져 있고, 꺼진 이유(문제 목록)를 가리킨다", async () => {
+    renderScreen();
+    await screen.findByText(/메일 서버 주소가 비어 있습니다/);
+    const send = screen.getByRole("button", { name: "시험 메일 보내기" });
+    expect(send).toBeDisabled();
+    const reasonId = send.getAttribute("aria-describedby");
+    expect(reasonId, "꺼진 단추가 이유를 가리키지 않는다").toBeTruthy();
+    const reason = document.getElementById(reasonId);
+    expect(reason).toHaveTextContent(/메일 서버 주소가 비어 있습니다/);
+    expect(reason).toHaveTextContent(/시험 메일도 보낼 수 없습니다/);
+  });
+
+  it("반례: 설정이 완성돼 있으면 시험 메일이 켜져 있고 이유 연결도 없다", async () => {
+    withStatus(CONFIGURED);
+    renderScreen();
+    await screen.findByText(/메일 발송 설정이 완성돼 있습니다/);
+    const send = screen.getByRole("button", { name: "시험 메일 보내기" });
+    expect(send).toBeEnabled();
+    expect(send).not.toHaveAttribute("aria-describedby");
+  });
+
+  it("문제 목록 상자가 「메일 설정 열기」로 설정 표의 메일 한 줄을 연다", async () => {
+    renderScreen();
+    await screen.findByText(/메일 서버 주소가 비어 있습니다/);
+    const open = screen.getByRole("link", { name: "메일 설정 열기" });
+    expect(open.getAttribute("href")).toBe("#/settings?setting=smtp");
+    expect(open.closest(".k-callout"), "고칠 곳으로 가는 단추가 문제 목록 상자 밖에 있다").toBeTruthy();
+  });
+
+  it("설정이 하나도 없으면 「설정 안 됨」 여섯 칸의 속성 줄을 세우지 않는다", async () => {
+    renderScreen();
+    await screen.findByText(/메일 서버 주소가 비어 있습니다/);
+    expect(screen.queryByLabelText("메일 서버 설정")).toBeNull();
+    expect(screen.queryByText("설정 안 됨")).toBeNull();
+  });
+
+  it("한 통도 쌓인 적이 없으면 발송 현황 카드가 서지 않고, 빈 상태가 아직 안 보냈다고 말한다", async () => {
+    withStatus({ counts: { queued: 0, sent: 0, failed: 0, unconfigured: 0 }, recent_failures: [] });
+    renderScreen();
+    expect(await screen.findByText("아직 보낸 메일이 없습니다")).toBeInTheDocument();
+    expect(screen.queryByLabelText("발송 현황")).toBeNull();
+    // 「실패가 없다」는 좋은 소식 문장은 보낸 것이 있을 때만이다.
+    expect(screen.queryByText("최근 실패한 메일이 없습니다")).toBeNull();
+  });
+
+  it("반례: 보낸 메일이 있고 실패가 없으면 실패 없음이 좋은 소식으로 선다", async () => {
+    withStatus({ counts: { queued: 0, sent: 4, failed: 0, unconfigured: 0 }, recent_failures: [] });
+    renderScreen();
+    expect(await screen.findByText("최근 실패한 메일이 없습니다")).toBeInTheDocument();
+    expect(screen.getByLabelText("발송 현황")).toBeInTheDocument();
   });
 
   /* ── 지시 36: 내부 구현이 화면의 주된 내용이 되지 않는다 ────────────────── */
