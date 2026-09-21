@@ -16,8 +16,8 @@
 - session: 사용자가 여덟 가지를 auto 모드로 끝까지 지시했고(구현 → 표적 검증 → 문서 → 커밋), 검증이 끝난 뒤 **배포까지** 지시했다.
 - branch: `ui/mui-migration`
 - last_stable_commit: **`eec4886c`** — 이번 회차도 안 옮긴다.
-- deployed: **`1e87ec86`** (2026-09-21 21:22) — `0030_search_fold` 마이그레이션과 nginx `realip.conf`(값이 비어 있어 동작은 그대로)가 함께 올라갔다.
-  스냅샷 `/var/backups/clovirassist/20260921-212247`, 설치 로그 `/var/log/clovirassist/install-20260921-212247.log`.
+- deployed: **`9a0f578c`** (2026-09-21 21:45 — 조직 정합성 · 초기 설정을 한 방향으로 쌓은 수정 포함) — `0030_search_fold` 마이그레이션과 nginx `realip.conf`(값이 비어 있어 동작은 그대로)가 함께 올라갔다.
+  스냅샷 `/var/backups/clovirassist/20260921-214523`(그 전 `…-212247`), 설치 로그 `/var/log/clovirassist/install-20260921-214523.log`.
 - verification: 아래 「이번 회차가 잰 것」.
 - capture: 전량 정본은 **`s22-final`** 그대로다(D-306). 이번 회차의 부분 캡처는 `p8-admin` · `p8-admin2` · `p8-user` · `p8-recheck` ·
   `p8-org2` · `p8-mystats` 이고 Acceptance 정본을 옮기지 않는다. 뼈대 기준 라벨은 **`p8-geo`** 다 — 작업 보드는 D-497 이 상단을
@@ -63,7 +63,7 @@
   `.sr-only` 줄 수 · 글자 그대로인 단추 · 메뉴를 여는 「더 보기」. 다섯 다 known good/known bad 로 확인했다.
 - **면제 없는 검증**(§9.3) 중 해당분: 권한 음성(검색 범위 · AI 검색 권한 · 조직 `can_edit` · 작업 보드 모르는 담당자) ·
   마이그레이션 무결성(`0030` 왕복 + 제품 옵션 그대로의 pg_dump → pg_restore) · 동시성(회차 만들기 · 열기 · 지켜보기 · 관계 잇기).
-- **배포와 배포 후 검증**(커밋 `1e87ec86`) — `git archive` → scp → `install.sh upgrade --source local --yes`(sudo 비밀번호는 stdin).
+- **배포와 배포 후 검증**(커밋 `1e87ec86` → `9a0f578c`, 두 번) — `git archive` → scp → `install.sh upgrade --source local --yes`(sudo 비밀번호는 stdin).
   `STAGE_9_MIGRATION: OK 0029_sprint_team_owner → 0030_search_fold · public 표 96개` · 설치기 `VERIFY_OK`(유닛 7 active/enabled ·
   TLS 만료 2027-08-21 · alembic head 코드와 일치 · `vector` · `pg_trgm` 확장) · `UPGRADE_OK`.
   `scripts/verify_deploy.sh` → `DEPLOY_VERIFY_OK`(healthz · readyz 200 · 로그인 화면 제품명 · **정적 자산 51/51 새 번들** ·
@@ -108,7 +108,7 @@
 - **관리자 기능 전수 검증·수정 ✅** — D-459~D-472. 배포 `15e2335e`.
 - **작업 보드·스프린트 회의를 팀 회차 위에 재설계 ✅** — D-482~D-484. 배포 `2c8915e5`.
 - **디자인 핸드오프 A~G · UI 3차 조합 계약 ✅** — D-485~D-494. 배포 `3dfc8ef7`.
-- **제품 일관성 회차(검색 · 필터 · 작업 보드 · 재진입 · 채팅 명단 · 조직 관리 · 관리자 화면) ✅** — D-495~D-502. 배포 `1e87ec86`.
+- **제품 일관성 회차(검색 · 필터 · 작업 보드 · 재진입 · 채팅 명단 · 조직 관리 · 관리자 화면) ✅** — D-495~D-502. 배포 `9a0f578c`.
 
 ## BLOCKERS
 
