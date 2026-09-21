@@ -5,9 +5,10 @@
 페이징이 유형별로 달라진다. 사본이면 검색은 표 하나만 보면 되고, 신선도는 워커가 책임진다.
 
 검색은 이 표 **하나**만 본다. 예전에는 FTS5 가상 표(`search_index`)가 옆에 있고 SQLite
-트리거가 둘을 묶었다 — PG 에는 그 문법이 없고, 필요도 없다: `gin_trgm_ops` 인덱스가
-`title`·`body` 컬럼에 직접 걸리므로 **이 ORM 으로 쓰기만 해도 인덱스가 따라온다.**
-트리거로 지키던 성질을 인덱스가 공짜로 준다(D-209 · `app/search/query.py`).
+트리거가 둘을 묶었다 — PG 에는 그 문법이 없고, 필요도 없다: 접힌 생성 열(`title_fold`·
+`body_fold`)은 DB 가 행을 쓸 때마다 스스로 계산하고 `gin_trgm_ops` 인덱스가 그 열에 직접
+걸리므로 **이 ORM 으로 `title`·`body` 를 쓰기만 해도 접힌 값과 인덱스가 따라온다.**
+트리거로 지키던 성질을 생성 열과 인덱스가 공짜로 준다(D-209 · D-495 · `app/search/query.py`).
 
 ## v1 범위: 티켓 · 문서 · 게시판 · 사용자. 채팅은 제외한다
 
@@ -21,7 +22,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import DateTime, Index, String, Text
+from sqlalchemy import Computed, DateTime, Index, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.models_base import Base, OrgScopedMixin, UUIDPrimaryKeyMixin, utcnow
@@ -75,7 +76,7 @@ class SearchDocument(OrgScopedMixin, UUIDPrimaryKeyMixin, Base):
 
     __tablename__ = "search_documents"
     __table_args__ = (
-        # **후보 생성의 정본**(D-209). `ILIKE '%…%'` 를 이 인덱스가 받는다 —
+        # **후보 생성의 정본**(D-209). `title_fold LIKE '%…%'` 를 이 인덱스가 받는다 —
         # `app/search/query.py` 가 만드는 조건이 전부 그 모양이다.
         #
         # 한국어에서 이것 말고 다른 선택지가 없다는 것을 S1 이 실 PG16 에서 쟀다:
@@ -83,27 +84,36 @@ class SearchDocument(OrgScopedMixin, UUIDPrimaryKeyMixin, Base):
         # 아무것도 못 찾았고**(recall 0.083), `gin_trgm_ops` 는 **recall 1.000** 에
         # seqscan 보다 80배 빨랐다.
         #
-        # 제목과 본문을 따로 거는 이유: 조건이 `title ILIKE … OR body ILIKE …` 라
+        # 원문 열이 아니라 **접힌 생성 열**에 거는 이유(D-495): 질의는 파이썬이 접어서
+        # 오므로(`app/core/search_text.py::fold`) 대상도 같은 값이어야 걸린다. 질의 때
+        # `search_fold(title)` 을 계산하면 인덱스를 못 타고 행마다 접기를 다시 한다.
+        #
+        # 제목과 본문을 따로 거는 이유: 조건이 `title_fold LIKE … OR body_fold LIKE …` 라
         # PG 가 두 인덱스를 각각 타고 BitmapOr 로 합친다. 이어 붙인 한 컬럼에 걸면
         # 제목 가중치(`query.rank_expression`)를 줄 수 없다.
         #
-        # ⚠️ **플래너가 항상 이 인덱스를 고르지는 않는다.** PG 는 `ILIKE '%…%'` 의
+        # ⚠️ **플래너가 항상 이 인덱스를 고르지는 않는다.** PG 는 `LIKE '%…%'` 의
         # 선택도를 추정하지 못해 «거의 다 걸린다»로 본다(실측: 20,000행에서 추정
         # 19,998 · 실제 435). 그래서 작은 표에서는 seq scan 을 고르고, 그건 **틀린
         # 판단이 아니다** — 현 색인 규모(1~2천 행)에서 seq scan 은 3ms 다(D-209).
         #
         # 코퍼스가 자란 뒤 검색이 느려지면 **인덱스를 의심하지 말고 통계·비용
-        # 파라미터를 본다.** 인덱스 자체는 이 조건을 받는다(강제하면 6.4ms 대 23.7ms).
+        # 파라미터를 본다.** 인덱스 자체는 이 조건을 받는다 — 시험이 플래너에게 직접
+        # 물어 확인한다(`tests/regression/test_migration_0030_search_fold.py`).
         # 원장: `docs/platform/EVIDENCE/S2/search_gin_index_is_usable.txt`
         Index(
-            "ix_search_documents_title_trgm", "title",
-            postgresql_using="gin", postgresql_ops={"title": "gin_trgm_ops"},
+            "ix_search_documents_title_fold_trgm", "title_fold",
+            postgresql_using="gin", postgresql_ops={"title_fold": "gin_trgm_ops"},
         ),
         Index(
-            "ix_search_documents_body_trgm", "body",
-            postgresql_using="gin", postgresql_ops={"body": "gin_trgm_ops"},
+            "ix_search_documents_body_fold_trgm", "body_fold",
+            postgresql_using="gin", postgresql_ops={"body_fold": "gin_trgm_ops"},
         ),
     )
+    # 서버가 계산한 값을 INSERT 때 `RETURNING` 으로 되받지 않는다. SQLAlchemy 기본값("auto")은
+    # 생성 열을 행마다 돌려받아서, 재색인 한 번이 접힌 본문 수천 건을 쓸 데 없이 끌어온다.
+    # 되받지 않은 값은 만료 상태로 남고, 누가 읽으면 그때 한 번 읽어 온다.
+    __mapper_args__ = {"eager_defaults": False}
 
     kind: Mapped[str] = mapped_column(String(16), nullable=False, index=True)
     ref_id: Mapped[str] = mapped_column(String(64), nullable=False)
@@ -127,6 +137,23 @@ class SearchDocument(OrgScopedMixin, UUIDPrimaryKeyMixin, Base):
     owner_project_id: Mapped[str | None] = mapped_column(String(36))
     title: Mapped[str] = mapped_column(Text, nullable=False, default="")
     body: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    # ── 대조형 사본 (0030 · D-495) ─────────────────────────────────────────────
+    #
+    # `search_fold(title)`·`search_fold(body)` 를 DB 가 **STORED 생성 열**로 들고 있는다.
+    # 앱은 이 둘을 쓰지 않는다 — 인덱서가 `title`·`body` 를 쓰면 DB 가 같은 행 안에서 다시
+    # 계산한다. 쓰려고 하면 PG 가 거절한다(생성 열에는 값을 넣을 수 없다). 그래서 인덱서의
+    # 쓰기 목록(`indexer._FIELDS`)에 이 둘이 없다.
+    #
+    # `deferred` 인 이유: 목록·재색인은 행을 통째로 읽는데 접힌 사본은 대조에만 쓴다. 본문
+    # 2,000자를 두 번씩 끌어오는 것은 아무 데도 쓰지 않는 전송이다. 조건과 점수는 SQL 안에서
+    # 열을 직접 읽으므로 이 설정과 무관하다. 같은 이유로 INSERT 도 이 둘을 되받지 않는다
+    # (`__mapper_args__` 의 `eager_defaults`).
+    title_fold: Mapped[str] = mapped_column(
+        Text, Computed("search_fold(title)", persisted=True), nullable=False, deferred=True,
+    )
+    body_fold: Mapped[str] = mapped_column(
+        Text, Computed("search_fold(body)", persisted=True), nullable=False, deferred=True,
+    )
     subtitle: Mapped[str | None] = mapped_column(String(300))
     route: Mapped[str] = mapped_column(String(300), nullable=False, default="")
     url: Mapped[str | None] = mapped_column(String(1000))

@@ -28,6 +28,8 @@
 산출물은 `dist/ui-qa/s15-filter-chain/chain.json` 이다 — 회차마다 8단계 사슬(주소·질의·
 백엔드 조건·응답·건수)을 적어 두고, `docs/ui-renewal/FUNCTIONAL_COVERAGE.json` 의 Flow 가
 그 파일을 가리킨다.
+
+qa-contract-change: 검색어 술어가 파이썬 `in` 비교에서 공용 접기 규칙의 짝(`matches_folded`, D-495)으로 바뀌었고, 티켓 검색은 제목에 더해 티켓 이름(`key`)도 보고 사용자 검색은 이메일도 본다 — 서버가 실제로 거는 조건과 같은 뜻을 이 파일의 술어가 말해야 두 구현을 대조하는 의미가 산다.
 """
 
 from __future__ import annotations
@@ -41,6 +43,8 @@ from typing import Callable
 from urllib.parse import urlencode
 
 import pytest
+
+from app.core.search_text import matches_folded
 
 pytestmark = pytest.mark.regression
 
@@ -85,6 +89,18 @@ def _get(client, path: str, params: dict) -> dict:
 
 def _rows(body: dict) -> list[dict]:
     return body.get("items") or []
+
+
+def _ticket_matches(q: str) -> Callable[[dict], bool]:
+    """티켓 검색어의 뜻 — 제목 **또는** 티켓 이름(`ABC-12`)을 공용 접기 규칙으로 본다.
+
+    서버 쪽 정본은 `app/tickets/query.py::filter_clauses` 이고, 이 술어는 그 짝이다.
+    """
+    return lambda r: matches_folded(r.get("title"), q) or matches_folded(r.get("key"), q)
+
+
+def _field_matches(field_name: str, q: str) -> Callable[[dict], bool]:
+    return lambda r: matches_folded(r.get(field_name), q)
 
 
 def _ids(body: dict) -> set[str]:
@@ -266,8 +282,8 @@ def _ticket_cases(world) -> list[Case]:
              {"category": "인프라"}, lambda r: r.get("category") == "인프라",
              "filter_clauses: tickets.category = ?", "", base),
         Case("user_team-tickets", "검색어 단독", "/api/tickets/team",
-             {"q": "동료"}, lambda r: "동료" in (r.get("title") or ""),
-             "filter_clauses: tickets.title ILIKE %?%", "", base),
+             {"q": "동료"}, _ticket_matches("동료"),
+             "filter_clauses: search_fold(tickets.title | canonical_key) LIKE %?%", "", base),
         Case("user_team-tickets", "담당자 단독", "/api/tickets/team",
              {"assignee_user_id": mate}, lambda r: mate in (r.get("assignee_user_ids") or []),
              "filter_clauses: assignee_notion_ids ⊇ {token}",
@@ -317,8 +333,8 @@ def _scoped_ticket_cases(world) -> list[Case]:
              "list_by_assignee(나) + 두 절이 AND 로 함께 걸린다",
              "tickets.project_uid → projects.id", base),
         Case("user_my-tickets", "검색어 단독", "/api/tickets/mine",
-             {"q": "알파"}, lambda r: "알파" in (r.get("title") or ""),
-             "list_by_assignee(나) + filter_clauses(title ILIKE)", "", base),
+             {"q": "알파"}, _ticket_matches("알파"),
+             "list_by_assignee(나) + filter_clauses(title | key, 접은 LIKE)", "", base),
         Case("user_my-tickets", "우선순위 단독", "/api/tickets/mine",
              {"priority": "High"}, lambda r: r.get("priority") == "High",
              "list_by_assignee(나) + filter_clauses(priority)", "", base),
@@ -339,8 +355,8 @@ def _scoped_ticket_cases(world) -> list[Case]:
              "list_unassigned(담당자 없음) + filter_clauses(project)",
              "tickets.project_uid → projects.id", base),
         Case("user_unassigned", "검색어 단독", "/api/tickets/unassigned",
-             {"q": "알파"}, lambda r: "알파" in (r.get("title") or ""),
-             "list_unassigned(담당자 없음) + filter_clauses(title ILIKE)", "", base),
+             {"q": "알파"}, _ticket_matches("알파"),
+             "list_unassigned(담당자 없음) + filter_clauses(title | key, 접은 LIKE)", "", base),
         Case("user_unassigned", "우선순위 단독", "/api/tickets/unassigned",
              {"priority": "High"}, lambda r: r.get("priority") == "High",
              "list_unassigned(담당자 없음) + filter_clauses(priority)", "", base),
@@ -429,8 +445,8 @@ def test_ticket_pages_cover_every_row_exactly_once(client, signed_in):
 def test_document_filters_return_exactly_the_matching_documents(client, signed_in):
     cases = [
         Case("user_knowledge", "검색어 단독", "/api/knowledge/documents",
-             {"q": "회의록"}, lambda r: "회의록" in (r.get("title") or ""),
-             "list_documents: documents.title ILIKE %?%"),
+             {"q": "회의록"}, _field_matches("title", "회의록"),
+             "list_documents: search_fold(documents.title | 현재 판 본문) LIKE %?%"),
         Case("user_knowledge", "분류(태그) 단독", "/api/knowledge/documents",
              {"tags": "meeting"},
              lambda r: any(t.get("slug") == "meeting" or t.get("name") == "회의록"
@@ -439,7 +455,7 @@ def test_document_filters_return_exactly_the_matching_documents(client, signed_i
              "document_tags → tags.slug"),
         Case("user_knowledge", "복합 — 검색어 × 분류", "/api/knowledge/documents",
              {"q": "배포", "tags": "meeting"},
-             lambda r: "배포" in (r.get("title") or "")
+             lambda r: matches_folded(r.get("title"), "배포")
              and any(t.get("slug") == "meeting" or t.get("name") == "회의록"
                      for t in (r.get("tags") or [])),
              "list_documents: 두 절이 AND 로 함께 걸린다", "document_tags → tags.slug"),
@@ -455,8 +471,8 @@ def test_board_filters_return_exactly_the_matching_posts(client, signed_in):
              {"category": "공지"}, lambda r: r.get("category") == "공지",
              "list_posts: board_posts.category = ?"),
         Case("user_board", "검색어 단독", "/api/board/posts",
-             {"q": "자유"}, lambda r: "자유" in (r.get("title") or ""),
-             "list_posts: title/body/author ILIKE %?%"),
+             {"q": "자유"}, _field_matches("title", "자유"),
+             "list_posts: search_fold(title/body/author) LIKE %?%"),
     ]
     for case in cases:
         _run(client, case, page_param="page_size", page_size=100)
@@ -512,8 +528,9 @@ def test_admin_user_filters_return_exactly_the_matching_users(client, signed_in)
              "list_users: users.role = ?"),
         Case("admin_users", "검색어 단독", "/api/admin/users",
              {"q": "체인 동료"},
-             lambda r: "체인 동료" in (r.get("display_name") or ""),
-             "list_users: display_name/email ILIKE %?%"),
+             lambda r: matches_folded(r.get("display_name"), "체인 동료")
+             or matches_folded(r.get("email"), "체인 동료"),
+             "list_users: search_fold(display_name/email) LIKE %?%"),
     ]
     for case in cases:
         _run(client, case, page_param="page_size", page_size=100)

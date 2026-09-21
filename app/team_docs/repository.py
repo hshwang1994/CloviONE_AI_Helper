@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.core.search_text import contains_folded
 from app.team_docs.models import (
     NAMES_SEP,
     DocumentCache,
@@ -40,16 +41,20 @@ def list_documents(
     stmt = select(DocumentCache).where(DocumentCache.archived.is_(False))
     if exclude_page_ids:
         stmt = stmt.where(DocumentCache.notion_page_id.notin_(exclude_page_ids))
-    if search:
-        like = f"%{search.strip()}%"
-        stmt = stmt.where(
-            or_(
-                DocumentCache.title.ilike(like),
-                DocumentCache.memo.ilike(like),
-                DocumentCache.owner.ilike(like),
-                DocumentCache.author_names.ilike(like),
-            )
-        )
+    # 제목·메모·담당·작성자 검색. 대조는 공용 접기 규칙이다(`app/core/search_text.py`) —
+    # 양쪽 공백·대소문자·표기를 맞추고 `%`·`_` 는 글자로 본다. 예전에는 escape 가 없어 `%`
+    # 한 글자가 전 문서를 돌려줬다. 접은 뒤 빈 검색어는 조건이 아니다.
+    search_clause = contains_folded(
+        (
+            DocumentCache.title,
+            DocumentCache.memo,
+            DocumentCache.owner,
+            DocumentCache.author_names,
+        ),
+        search,
+    )
+    if search_clause is not None:
+        stmt = stmt.where(search_clause)
     if doc_type_f:
         stmt = stmt.where(DocumentCache.document_type == doc_type_f)
     if work_field_f:

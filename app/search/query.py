@@ -10,40 +10,65 @@ S1 이 실 PG16 에서 쟀다(D-209): 어절 내부 질의 20건 중 **19건이 
 (recall 0.083). 같은 질의에서 `pg_trgm` GIN 은 **recall 1.000** 이고 seqscan 보다 80배 빠르다.
 
 **그래서 후보 생성은 `pg_trgm` GIN 하나가 책임진다.** 이 모듈이 만드는 조건은 전부
-`ILIKE '%…%'` 이고, `search_documents` 의 `gin_trgm_ops` 인덱스가 그것을 받는다
-(`app/search/models.py`).
+`title_fold LIKE '%…%'` 모양이고, `search_documents` 의 접힌 생성 열 위 `gin_trgm_ops`
+인덱스가 그것을 받는다(`app/search/models.py`).
 
 그 대가는 FTS5 `trigram` 토크나이저 때와 **똑같다**: 3글자 미만은 만들 트라이그램 자체가
 없어서 인덱스가 못 받는다. 그때는 전량 스캔으로 내려간다 — 예외도 오류도 아니고, 코퍼스가
 작아(수천 건) 사람 눈에 안 보인다(D-209 실측 3ms). 조용히 0건을 돌려주는 것보다 훨씬 낫다.
 
-## `ILIKE` 인 이유
+## 대소문자 · 공백 · 표기를 어떻게 맞추는가 (D-495)
 
-PG 의 `LIKE` 는 **대소문자를 구분한다**(SQLite 는 ASCII 범위에서 구분하지 않았다). 그대로
-옮기면 `Sprint` 로 검색한 사람이 `sprint` 를 못 찾고, 한글만 쓰는 화면에서는 그 차이가
-한참 뒤에야 드러난다.
+질의와 색인 **양쪽**을 같은 규칙으로 접는다(`app/core/search_text.py::fold`). 질의는 파이썬이
+접고, 색인은 DB 가 `search_fold()` 로 접어 생성 열(`title_fold`·`body_fold`)에 저장한다. 그래서
+「현황 제외」가 「현황제외」에 걸리고, 「ClovirONE」·「clovirone」·전각 표기가 서로를 찾는다.
+
+예전에는 `ILIKE` 로 대소문자만 맞췄다. 공백은 질의 쪽에서만 정리했기 때문에 대상의 공백
+하나가 검색을 통째로 빗나가게 했다. 이제 양쪽이 이미 소문자라 `ILIKE` 가 할 일이 없다 —
+조건은 `LIKE` 다.
+
+화면에 돌려주는 검색어는 표시형(`normalize`)이다. 접힌 값은 대조에만 쓴다.
 
 ## 주입 경로
 
-`ILIKE` 패턴의 `%`·`_`·`\\` 를 escape 한다. FTS5 시절의 `MATCH` 질의 문법(NEAR·컬럼 필터)은
-이제 존재하지 않으므로 그 경로 자체가 사라졌다.
+LIKE 패턴의 `%`·`_`·`\\` 를 escape 한다(`search_text.escape_like` — 백엔드의 유일한 escape).
+FTS5 시절의 `MATCH` 질의 문법(NEAR·컬럼 필터)은 이제 존재하지 않으므로 그 경로 자체가 사라졌다.
 """
 
 from __future__ import annotations
 
-from sqlalchemy import and_, func, or_
+from sqlalchemy import and_, false, func, or_
 
+from app.core.search_text import (
+    MAX_QUERY_CHARS,
+    MIN_TRGM_CHARS,
+    fold,
+    like_folded,
+    like_pattern,
+    normalize_query,
+)
 from app.search.models import SearchDocument
 
-# 트라이그램 인덱스가 답할 수 있는 최소 길이. 이 값을 낮추면 인덱스를 못 타고 전량 스캔이 된다.
-MIN_TRGM_CHARS = 3
+__all__ = [
+    "MAX_QUERY_CHARS",
+    "MIN_FTS_CHARS",
+    "MIN_TRGM_CHARS",
+    "MODE_EMPTY",
+    "MODE_FTS",
+    "MODE_LIKE",
+    "MODE_TRGM",
+    "clause_for",
+    "ilike_pattern",
+    "like_clause",
+    "mode_for",
+    "normalize",
+    "rank_expression",
+    "trgm_clause",
+    "trgm_condition",
+]
 
 # 옛 이름. `mode_for` 의 판정 근거가 "trigram 이 만들어지는가" 라는 뜻은 그대로다.
 MIN_FTS_CHARS = MIN_TRGM_CHARS
-
-# 사람이 검색창에 칠 만한 길이의 상한. 넘으면 자른다 — 긴 문자열은 결과를 좁히지 못하고
-# 트라이그램 질의만 비싸게 만든다.
-MAX_QUERY_CHARS = 100
 
 # 응답의 `mode` 값. **문자열은 옛 값 그대로 둔다** — 화면이 `mode === "like"` 하나로
 # "짧은 검색어라 부분 일치로 찾았습니다" 안내를 켜고(`frontend/src/screens/Search.jsx`),
@@ -58,43 +83,39 @@ MODE_FTS = MODE_TRGM
 
 
 def normalize(raw: str | None) -> str:
-    """앞뒤 공백 제거 + 연속 공백 1칸 + **한글 표기 통일(NFC)**. 판정과 표시에 같은 값을 쓴다.
+    """표시형 — 앞뒤 공백 제거 + 연속 공백 1칸 + **한글 표기 통일(NFC)** + 상한.
 
-    NFC 를 여기서 하는 이유 (Z4): `한`(1코드포인트)과 `한`(ㅎ+ㅏ+ㄴ)은 화면에서 같아 보이지만
-    바이트가 다르다. macOS 에서 복사한 글이나 파일 이름은 NFD 로 들어오는 일이 흔하다.
-    색인 쪽(`indexer._clip`)도 같은 정규화를 지나므로 **두 쪽 표기가 항상 같아진다** —
-    한쪽만 하면 고친 것이 아니라 어긋나는 방향만 바뀐다.
+    화면과 주소에 다시 싣는 값이다. 대조는 이 값을 한 번 더 접어서 한다(`fold`). 규칙의 정본은
+    `app/core/search_text.py::normalize_query` 이고, 여기는 옛 이름을 지키는 자리다.
 
     ⚠️ 글자 수를 세기 **전에** 정규화해야 한다. NFD 로 온 두 글자는 코드포인트로는 여섯이라,
     정규화 전에 세면 `MIN_TRGM_CHARS` 판정이 뒤집혀 2자 질의가 인덱스 경로로 간다.
     """
-    import unicodedata
-
-    text = unicodedata.normalize("NFC", str(raw or ""))
-    return " ".join(text.split())[:MAX_QUERY_CHARS]
+    return normalize_query(raw)
 
 
 def mode_for(query: str) -> str:
     """이 질의를 트라이그램 인덱스로 답할지 전량 스캔으로 답할지.
 
-    공백을 뺀 글자 수로 센다 — `"가 나"` 는 3자처럼 보이지만 트라이그램에는 2글자 두 덩이라
-    만들어지는 트라이그램이 `"가 "`, `" 나"` 뿐이다. 실제로는 걸리지만 의도한 검색이 아니고,
-    전량 스캔으로 답하는 편이 사용자가 기대한 결과에 가깝다.
+    **접은 길이**로 센다. 색인이 접힌 값이므로 트라이그램도 접힌 글자에서 만들어진다 —
+    `"가 나"` 는 공백이 지워져 `"가나"` 두 글자라 인덱스가 받지 못한다. 접은 뒤 아무것도 안
+    남으면(공백·제로폭 공백만 친 경우) 빈 질의다. 그 질의를 `LIKE '%%'` 로 보내면 전 행이 걸린다.
     """
-    if not query:
+    length = len(fold(query))
+    if length == 0:
         return MODE_EMPTY
-    return MODE_TRGM if len(query.replace(" ", "")) >= MIN_TRGM_CHARS else MODE_LIKE
+    return MODE_TRGM if length >= MIN_TRGM_CHARS else MODE_LIKE
 
 
 def ilike_pattern(text: str) -> str:
-    """`ILIKE` 패턴 하나. `\\`·`%`·`_` 를 escape 한다(순서가 중요하다 — `\\` 가 먼저다).
+    """부분일치 패턴 하나. `\\`·`%`·`_` 를 escape 한다(순서가 중요하다 — `\\` 가 먼저다).
 
-    **공개 이름인 이유**: AI Retrieval 의 트라이그램 레인이 같은 escape 를 쓴다
-    (`app/ai/retrieval/query.py`). 두 벌로 적으면 한쪽만 `\\` 를 먼저 바꾸는 날이 오고,
-    그때 `%` 하나가 든 질의가 조용히 전 행에 걸린다.
+    이름은 옛것이다. 이제 조건은 `ILIKE` 가 아니라 접힌 값 위의 `LIKE` 이고, 넘기는 글자도
+    이미 접힌 값이어야 한다. escape 의 정본은 `app/core/search_text.py::escape_like` 하나다 —
+    두 벌로 적으면 한쪽만 `\\` 를 먼저 바꾸는 날이 오고, 그때 `%` 하나가 든 질의가 조용히
+    전 행에 걸린다.
     """
-    escaped = text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-    return f"%{escaped}%"
+    return like_pattern(text)
 
 
 #: 옛 이름. 이 파일 안에서만 쓴다.
@@ -102,10 +123,10 @@ _pattern = ilike_pattern
 
 
 def _contains(pattern: str):
-    """제목 또는 본문에 이 패턴이 들어 있는가. `gin_trgm_ops` 인덱스가 받는 모양이다."""
+    """제목 또는 본문에 이 패턴이 들어 있는가. 접힌 생성 열 위 `gin_trgm_ops` 인덱스가 받는다."""
     return or_(
-        SearchDocument.title.ilike(pattern, escape="\\"),
-        SearchDocument.body.ilike(pattern, escape="\\"),
+        like_folded(SearchDocument.title_fold, pattern, stored=True),
+        like_folded(SearchDocument.body_fold, pattern, stored=True),
     )
 
 
@@ -117,18 +138,23 @@ def trgm_condition(query: str, contains):
     「검색에서는 나오는데 AI 는 못 찾는다」가 된다 — 실제로 S10 이 그 상태를 한 번
     만들었고 융합 실측에서 「기억나는 대로」 질의의 MRR 이 0.01 로 나왔다.
 
-    기본은 **질의 전체를 한 덩이로** 본다 — 트라이그램은 공백까지 포함해 색인하므로
-    `린트 회` 가 `스프린트 회의록 정리` 에 걸린다.
+    `query` 는 표시형이다. 기본은 **질의 전체를 접은 한 덩이**다 — 공백이 지워지므로
+    `린트 회` 가 `스프린트 회의록 정리`(접으면 `스프린트회의록정리`)에 걸린다.
 
-    거기에 더해, 낱말이 여럿이고 **각 낱말이 3자 이상**이면 낱말별 AND 조합을 OR 로 덧붙인다.
-    `스프린트 정리` 처럼 원문에서 떨어져 있는 두 낱말도 찾게 하기 위해서다. 3자 미만 낱말이
-    하나라도 섞이면 그 조합은 붙이지 않는다 — 그 낱말은 인덱스를 못 타서 AND 전체를
-    전량 스캔으로 끌어내린다.
+    거기에 더해, 표시형의 낱말이 여럿이고 **접은 낱말이 각각 3자 이상**이면 낱말별 AND 조합을
+    OR 로 덧붙인다. `스프린트 정리` 처럼 원문에서 떨어져 있는 두 낱말도 찾게 하기 위해서다.
+    3자 미만 낱말이 하나라도 섞이면 그 조합은 붙이지 않는다 — 그 낱말은 인덱스를 못 타서
+    AND 전체를 전량 스캔으로 끌어내린다.
+
+    접은 뒤 빈 질의는 **거짓**이다. 빈 바늘은 `LIKE '%%'` 가 되어 전 행에 걸린다.
     """
-    branches = [contains(ilike_pattern(query))]
-    words = query.split()
-    if len(words) > 1 and all(len(w) >= MIN_TRGM_CHARS for w in words):
-        branches.append(and_(*[contains(ilike_pattern(w)) for w in words]))
+    needle = fold(query)
+    if not needle:
+        return false()
+    branches = [contains(like_pattern(needle))]
+    words = [fold(word) for word in query.split()]
+    if len(words) > 1 and all(len(word) >= MIN_TRGM_CHARS for word in words):
+        branches.append(and_(*[contains(like_pattern(word)) for word in words]))
     return or_(*branches)
 
 
@@ -139,7 +165,10 @@ def trgm_clause(query: str):
 
 def like_clause(query: str):
     """1~2자 폴백. 조건 자체는 같고, 다만 인덱스가 못 받아 전량 스캔이 된다."""
-    return _contains(_pattern(query))
+    needle = fold(query)
+    if not needle:
+        return false()
+    return _contains(like_pattern(needle))
 
 
 def clause_for(query: str, mode: str):
@@ -154,9 +183,13 @@ def rank_expression(query: str):
     본문 어딘가에 스친 문서가 제목이 정확히 맞는 문서를 밀어내면 검색이 쓸모없어진다.
     제목 점수에 가중치를 곱하므로 값이 1을 넘을 수 있다 — 정렬에만 쓰므로 상관없다.
 
+    점수도 접힌 값끼리 잰다. 조건은 접힌 값으로 걸고 점수만 원문으로 재면, 걸린 행의 순위가
+    공백과 대소문자에 따라 흔들린다.
+
     `similarity()` 는 `pg_trgm` 이 준다. 옛 FTS5 `rank` 자리이고, 역할이 같다.
     """
+    needle = fold(query)
     return func.greatest(
-        func.similarity(SearchDocument.title, query) * 2.0,
-        func.similarity(SearchDocument.body, query),
+        func.similarity(SearchDocument.title_fold, needle) * 2.0,
+        func.similarity(SearchDocument.body_fold, needle),
     )

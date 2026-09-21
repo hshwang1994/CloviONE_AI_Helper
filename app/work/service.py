@@ -49,6 +49,7 @@ from app.core.errors import ConflictError, ForbiddenError, NotFoundError, Valida
 from app.core.models_base import NAMES_SEP, split_names, utcnow
 from app.core.org_tree import DeptTree
 from app.core.scope import MATCH_NOTHING, principal_from_user
+from app.core.search_text import LIKE_ESCAPE, contains_folded, escape_like
 from app.org import context as org_context
 from app.projects.models import Project
 from app.tickets.models import Ticket, api_page_id, api_page_id_expr
@@ -132,21 +133,15 @@ def _not_trashed_ticket_clause():
 def _assignee_sql_clause(assignee_token: str | None):
     """담당자 한 명 — **SQL 절**로. `assignee_notion_ids` 는 앞뒤로 구분자(`NAMES_SEP`)를
     두른 문자열이다(`join_names`) — 그래서 짧은 토큰이 더 긴 토큰 안에 우연히 끼어드는
-    부분 일치 오탐이 없다. `%`·`_`·`\\` 는 LIKE 메타문자라 이스케이프한다."""
+    부분 일치 오탐이 없다. `%`·`_`·`\\` 는 LIKE 메타문자라 이스케이프한다.
+
+    검색이 아니라 **정체성** 대조라 접지 않는다 — 토큰은 글자 그대로 같아야 같은 사람이다.
+    escape 는 백엔드 공용 하나를 쓴다(`app/core/search_text.py::escape_like`)."""
     if not assignee_token:
         return None
-    escaped = (
-        assignee_token.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-    )
     return Ticket.assignee_notion_ids.like(
-        f"%{NAMES_SEP}{escaped}{NAMES_SEP}%", escape="\\"
+        f"%{NAMES_SEP}{escape_like(assignee_token)}{NAMES_SEP}%", escape=LIKE_ESCAPE
     )
-
-
-def _ilike_escape(text: str) -> str:
-    """검색어를 LIKE 패턴 자리에 안전하게 넣는다. 사용자가 적은 글자라 `%`·`_` 가
-    실제로 들어올 수 있다(담당자 토큰과 달리 이건 **사람이 타이핑한 값**이다)."""
-    return text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
 def _team_projects_clause(team_id: str):
@@ -355,14 +350,13 @@ def _apply_shared_filters(
         stmt = stmt.where(Ticket.priority == priority)
     if difficulty:
         stmt = stmt.where(Ticket.difficulty == difficulty)
-    needle = (q or "").strip()
-    if needle:
-        # 제목과 이름(`ABC-12`) 둘 다 본다 — 사람들은 티켓을 번호로 기억한다.
-        pattern = f"%{_ilike_escape(needle)}%"
-        stmt = stmt.where(
-            Ticket.title.ilike(pattern, escape="\\")
-            | Ticket.canonical_key.ilike(pattern, escape="\\")
-        )
+    # 제목과 이름(`ABC-12`) 둘 다 본다 — 사람들은 티켓을 번호로 기억한다. 티켓 목록 화면과
+    # 같은 뜻 하나이고(`app/tickets/query.py::filter_clauses`), 대조 규칙도 공용 하나다 —
+    # 양쪽을 접고(「현황 제외」↔「현황제외」) `%`·`_` 는 글자로 본다. 접은 뒤 빈 검색어는
+    # 조건이 아니다.
+    search_clause = contains_folded((Ticket.title, Ticket.canonical_key), q)
+    if search_clause is not None:
+        stmt = stmt.where(search_clause)
     clause = _signal_clause(signal, today=today)
     if clause is not None:
         stmt = stmt.where(clause)

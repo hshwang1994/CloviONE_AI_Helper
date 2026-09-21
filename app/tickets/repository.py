@@ -22,6 +22,8 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from typing import Protocol
 
+from app.core.search_text import matches_folded
+
 
 def as_filter_values(value) -> tuple[str, ...]:
     """필터 값 하나와 여러 개를 같은 튜플로 편다.
@@ -128,7 +130,7 @@ class TicketFilters:
     difficulty: str | tuple[str, ...] | None = None
     project_id: str | tuple[str, ...] | None = None
     category: str | None = None
-    search: str | None = None                       # 제목 부분일치
+    search: str | None = None                       # 제목 · 티켓 이름 부분일치(공용 접기 규칙)
     due_bucket: str | None = None                   # DUE_BUCKETS 중 하나
     today: str | None = None                        # 기한 버킷 기준일 'YYYY-MM-DD'
     assignee_id: str | tuple[str, ...] | None = None  # 소스 user id (서비스가 해석해 넣는다)
@@ -152,7 +154,7 @@ class TicketFilters:
     def matches(self, ticket: "TicketDTO") -> bool:
         """DTO 한 건이 이 조건을 지나는가 — **실시간 폴백 경로 전용**.
 
-        미러 경로는 같은 조건을 SQL 로 건다(`repository_notion._filter_clauses`). 두 벌인 것이
+        미러 경로는 같은 조건을 SQL 로 건다(`app/tickets/query.py::filter_clauses`). 두 벌인 것이
         마음에 들지는 않지만, 대안은 킬 스위치(`ticket_source=notion`)와 첫 기동 직후에
         **필터와 페이지가 조용히 무시되는 것**이다 - 그건 "필터가 걸린 줄 알았는데 안 걸렸다"
         라서 사용자가 못 알아챈다. 두 경로가 같은 답을 내는지는 테스트가 고정한다
@@ -179,7 +181,10 @@ class TicketFilters:
         assignees = as_filter_values(self.assignee_id)
         if assignees and not set(ticket.assignee_ids).intersection(assignees):
             return False
-        if self.search and self.search.lower() not in (ticket.title or "").lower():
+        # SQL 쪽(`query.filter_clauses`)과 같은 뜻이다 — 제목 또는 티켓 이름, 공용 접기 규칙.
+        if self.search and not (
+            matches_folded(ticket.title, self.search) or matches_folded(ticket.key, self.search)
+        ):
             return False
         start, end = self.due_range
         if start is not None or end is not None:

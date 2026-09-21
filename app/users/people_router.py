@@ -43,12 +43,13 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.authz import CONSOLE_READ_ROLES
 from app.core.deps import get_db, get_principal, require_csrf, require_roles
 from app.core.scope import Principal, apply_user_scope
+from app.core.search_text import contains_folded
 from app.users.models import User
 
 # 화면의 선택 상자가 한 번에 받는 상한. 사용자 수가 1000명 규모라 500 이면 한 조직이
@@ -102,15 +103,11 @@ def list_people(
         stmt = stmt.where(User.archived_at.is_(None))
     if not include_inactive:
         stmt = stmt.where(User.active.is_(True))
-    needle = (q or "").strip().lower()
-    if needle:
-        pattern = f"%{needle}%"
-        stmt = stmt.where(
-            or_(
-                func.lower(User.display_name).like(pattern),
-                func.lower(User.email).like(pattern),
-            )
-        )
+    # 이름·이메일 검색. 대조는 공용 접기 규칙이다(`app/core/search_text.py`) — 「김 지혜」로
+    # 「김지혜」를 찾고, `%`·`_` 는 글자로 본다. 접은 뒤 빈 검색어는 조건이 아니다.
+    search_clause = contains_folded((User.display_name, User.email), q)
+    if search_clause is not None:
+        stmt = stmt.where(search_clause)
     # 상한보다 **한 행 더** 읽는다 — 잘렸는지는 그 한 행이 있는지로 안다(추가 질의 없이).
     rows = (
         db.execute(

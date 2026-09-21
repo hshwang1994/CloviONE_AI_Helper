@@ -30,6 +30,7 @@ from sqlalchemy import Select, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.core.dates import parse_date
+from app.core.search_text import contains_folded
 from app.authz.visibility import (
     RESOURCE_PROJECT,
     VisibilityContext,
@@ -100,11 +101,11 @@ def list_in_scope(
     stmt = apply_scope(select(Project), ctx)
     if not include_archived:
         stmt = stmt.where(Project.archived_at.is_(None))
-    needle = (q or "").strip()
-    if needle:
-        # `ilike` 다 — 코드는 대문자이고 사람들은 소문자로 친다.
-        like = f"%{needle}%"
-        stmt = stmt.where(Project.name.ilike(like) | Project.code.ilike(like))
+    # 코드는 대문자이고 사람들은 소문자로 친다 — 공용 접기 규칙이 대소문자·공백·전각을 함께
+    # 맞추고 `%`·`_` 를 글자로 본다(`app/core/search_text.py`). 접은 뒤 빈 검색어는 조건이 아니다.
+    search_clause = contains_folded((Project.name, Project.code), q)
+    if search_clause is not None:
+        stmt = stmt.where(search_clause)
     if status:
         stmt = stmt.where(Project.status == status)
     if trouble:

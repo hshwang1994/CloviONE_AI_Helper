@@ -571,3 +571,64 @@ def test_act_wd_zero_is_not_missing_and_null_is_missing(client, login_as, db, ad
     assert by_title["공수0"] == 0
     assert by_title["공수없음"] is None
 
+
+
+# ── 검색어: 제목 + 티켓 이름 · 공용 접기 규칙 (D-495) ────────────────────────
+
+
+KEY_CODE = "KYSRCH"
+
+
+@pytest.fixture()
+def search_catalog(db, admin, make_project):
+    """검색어 한 축만 다른 티켓 묶음. 하나는 **이름(`KYSRCH-7`)으로만** 걸린다."""
+    project = make_project(name="이름 검색 프로젝트", code=KEY_CODE)
+    _row(db, uid="q-spaced", title="현황 제외 보고서", due=FAR, tid=1)
+    _row(db, uid="q-joined", title="현황제외 목록", due=FAR, tid=2)
+    _row(db, uid="q-brand", title="ClovirONE 배포", due=FAR, tid=3)
+    _row(db, uid="q-percent", title="달성률 100% 확인", due=FAR, tid=4)
+    _row(db, uid="q-plain", title="평범한 제목", due=FAR, tid=5)
+    keyed = _row(db, uid="q-keyed", title="번호로 찾는 티켓", due=FAR, tid=6, project_uid=project.id)
+    keyed.seq = 7
+    db.commit()
+    _mirror_ready(db, 6)
+    db.refresh(keyed)
+    assert keyed.canonical_key == f"{KEY_CODE}-7", "트리거가 이름을 안 지었다 — 전제가 깨졌다"
+    return keyed
+
+
+def test_search_matches_the_ticket_key_as_well_as_the_title(client, login_as, search_catalog):
+    """티켓 목록의 검색어는 작업 보드와 같은 뜻이다 — 제목 **또는** 티켓 이름을 본다.
+
+    사람들은 티켓을 번호로 기억한다. 이름으로 찾는 화면과 못 찾는 화면이 섞여 있으면 검색이
+    아니라 고장으로 보인다. 이름도 같은 접기 규칙을 지나므로 소문자로 쳐도 걸린다.
+    """
+    login_as("system_admin", email="tf-admin@goodmit.co.kr")
+    for query in (f"{KEY_CODE}-7", "kysrch-7", " KYSRCH -7 "):
+        body = client.get("/api/tickets/team", params={"active": "false", "q": query}).json()
+        assert _ids(body) == ["page-q-keyed"], f"{query!r} 가 이름으로 안 걸렸다: {_ids(body)}"
+    body = client.get("/api/tickets/team", params={"active": "false", "q": "현황제외"}).json()
+    assert sorted(_ids(body)) == ["page-q-joined", "page-q-spaced"]
+
+
+def test_the_python_twin_answers_like_the_sql_filter(client, login_as, db, search_catalog):
+    """`TicketFilters.matches` 가 SQL(`query.filter_clauses`)과 **같은 행**을 고른다.
+
+    파이썬 쪽은 지금 부르는 곳이 없다. 그래도 남아 있는 한 같은 뜻이어야 한다 — 다시 쓰이는
+    날 한쪽만 옛 규칙이면 「목록에서는 걸리는데 여기서는 안 걸린다」가 오류 없이 생긴다.
+    """
+    from app.tickets.repository import TicketFilters
+
+    login_as("system_admin", email="tf-admin@goodmit.co.kr")
+    dtos = client.app.state.repositories.tickets.list_all(db).tickets
+    universe = {t.page_id for t in dtos}
+    assert {"page-q-spaced", "page-q-keyed"} <= universe, "전제가 깨졌다 — 표본이 없다"
+    for query in ("현황제외", "  현황   제외 ", "clovirone", "%", "kysrch-7", chr(0x200B)):
+        by_python = {t.page_id for t in dtos if TicketFilters(search=query).matches(t)}
+        body = client.get(
+            "/api/tickets/team", params={"active": "false", "q": query, "page_size": 100},
+        ).json()
+        by_sql = set(_ids(body)) & universe
+        assert by_python == by_sql, f"{query!r}: 파이썬 {sorted(by_python)} · SQL {sorted(by_sql)}"
+    # 반례 — 판정력이 있다. 한쪽이라도 전부 통과시키면 위 비교는 아무것도 증명하지 않는다.
+    assert {t.page_id for t in dtos if TicketFilters(search="%").matches(t)} == {"page-q-percent"}

@@ -9,6 +9,8 @@
     그대로 쌓이므로 **검색이 조용히 키워드 전용이 된다.**
 
 그리고 이 파일은 D-203 의 구조적 성질도 함께 지킨다: **chunk 표에 권한 컬럼이 없다.**
+
+qa-contract-change: 트라이그램 인덱스가 원문(`text`)에서 접힌 생성 열(`text_fold`, 0030 · D-495)로 옮겨 가 인덱스 이름이 `ix_chunk_text_fold_trgm` 으로 바뀌었다 — 「키워드 두 레인에 인덱스가 있고 트라이그램 레인이 그것을 쓸 수 있다」는 계약은 그대로이고, 바인드를 보존하는 EXPLAIN 은 공용 `tests/fakes/explain.py` 로 옮겼다.
 """
 
 from __future__ import annotations
@@ -18,11 +20,10 @@ import re
 
 import pytest
 from sqlalchemy import inspect, text
-from sqlalchemy.ext.compiler import compiles
-from sqlalchemy.sql.expression import ClauseElement, Executable
 
 from app.ai import catalog
 from app.ai.models import ANCHOR_KINDS, SOURCE_KINDS, STATES
+from tests.fakes.explain import plan_for
 
 pytestmark = pytest.mark.unit
 
@@ -163,39 +164,18 @@ def test_both_keyword_lanes_have_an_index(db):
             )
         ).all()
     }
-    assert "gin_trgm_ops" in defs["ix_chunk_text_trgm"]
+    assert "gin_trgm_ops" in defs["ix_chunk_text_fold_trgm"]
+    assert "(text_fold gin_trgm_ops)" in defs["ix_chunk_text_fold_trgm"]
     assert "to_tsvector" in defs["ix_chunk_text_fts"]
     assert f"'{catalog.FTS_CONFIG}'" in defs["ix_chunk_text_fts"]
 
 
-class _Explain(Executable, ClauseElement):
-    """`EXPLAIN <select>` — **바인드 파라미터를 그대로 둔 채** 계획을 묻는다.
-
-    SQL 을 문자열로 렌더링해서 묻지 않는다. `literal_binds` 는 `%` 와 escape 문자를
-    이스케이프하므로 `ILIKE '%…%' ESCAPE '\'` 가 **문법 오류**가 된다 — 그러면 검사가
-    제품이 아니라 렌더링을 시험하게 된다(실제로 한 번 그렇게 빨개졌다).
-    """
-
-    inherit_cache = False
-
-    def __init__(self, statement):
-        self.statement = statement
-
-
-@compiles(_Explain, "postgresql")
-def _compile_explain(element, compiler, **kw):  # pragma: no cover - 컴파일러 훅
-    return "EXPLAIN " + compiler.process(element.statement, **kw)
-
-
 def _plan_for(db, statement) -> str:
-    """이 질의의 계획. `enable_seqscan=off` 로 강제한다.
+    """이 질의의 계획. seq scan 을 끄고 묻는다 — 「지금 쓰는가」가 아니라 **「쓸 수 있는가」**다.
 
-    현 코퍼스가 작아서 플래너가 seq scan 을 고르는 것은 **맞는 판단**이다(D-209).
-    우리가 확인하려는 것은 「지금 쓰는가」가 아니라 **「쓸 수 있는가」**다 — 인덱스 식과
-    질의 식이 어긋나면 강제해도 못 쓴다.
+    바인드를 보존하는 EXPLAIN 과 그 이유는 공용 `tests/fakes/explain.py` 가 들고 있다.
     """
-    db.execute(text("SET LOCAL enable_seqscan = off"))
-    return "\n".join(db.execute(_Explain(statement)).scalars().all())
+    return plan_for(db, statement, force_index=True)
 
 
 def test_the_query_expression_is_the_indexed_expression(db):
@@ -206,7 +186,9 @@ def test_the_query_expression_is_the_indexed_expression(db):
 
 
 def test_the_trigram_lane_can_use_its_index_too(db):
-    """`ILIKE '%…%'` 를 `gin_trgm_ops` 가 받는다 (D-209 · S2 원장)."""
+    """`text_fold LIKE '%…%'` 를 접힌 열 위 `gin_trgm_ops` 가 받는다 (D-209 · D-495 · S2 원장)."""
     from app.ai.retrieval import query as query_mod
 
-    assert "ix_chunk_text_trgm" in _plan_for(db, query_mod.trgm_lane("연차 규정", limit=5))
+    assert "ix_chunk_text_fold_trgm" in _plan_for(
+        db, query_mod.trgm_lane("연차 규정", limit=5)
+    )

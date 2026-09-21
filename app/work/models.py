@@ -291,7 +291,7 @@ class Sprint(OrgScopedMixin, TimestampMixin, UUIDPrimaryKeyMixin, Base):
     담기·열기가 막힌다.
 
     `project_id` 는 **읽기 전용 레거시**다. 0029 가 팀 소유를 세운 뒤로 어떤 코드도
-    읽거나 쓰지 않는다 — 롤백과 대조를 위해 한 릴리스 동안 남기고 0030 이 걷는다.
+    읽거나 쓰지 않는다 — 롤백과 대조를 위해 한 릴리스 동안 남기고 0031 이 걷는다.
     """
 
     __tablename__ = "sprints"
@@ -300,7 +300,7 @@ class Sprint(OrgScopedMixin, TimestampMixin, UUIDPrimaryKeyMixin, Base):
     department_id: Mapped[str | None] = mapped_column(
         String(36), ForeignKey("org_units.id", ondelete="SET NULL"), index=True
     )
-    # 레거시(0030 에서 삭제). 앱 코드는 이 칸을 읽지도 쓰지도 않는다.
+    # 레거시(0031 에서 삭제). 앱 코드는 이 칸을 읽지도 쓰지도 않는다.
     project_id: Mapped[str | None] = mapped_column(
         String(36), ForeignKey("projects.id", ondelete="CASCADE"), index=True
     )

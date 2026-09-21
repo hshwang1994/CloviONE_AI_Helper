@@ -21,6 +21,8 @@ SQLite 는 이런 `IN (SELECT ...)` 를 임시 표로 **구체화(materialize)**
 
 행동이 그대로인지는 아래 두 테스트가 따로 못박는다 — 계획만 보면 "빠르지만 틀린" 질의로
 바뀌어도 초록불이다.
+
+qa-contract-change: 검색 대조가 공용 접기 규칙(D-495)으로 바뀌어 조건에 `LIKE … ESCAPE` 가 붙었고, 옛 `literal_binds` 렌더링은 그 escape 문자를 문법 오류로 만든다 — 계획은 바인드를 보존하는 EXPLAIN(`tests/fakes/explain.py`)으로 묻는다. 접힌 조건에서 PG 는 users 를 바깥쪽에서 한 번 훑는 Nested Loop 를 고르므로 「Nested Loop 가 없다」는 대리 단언을 「Nested Loop 안쪽에 users 전수 스캔이 없다」로 정확히 고쳐 쓰고 그 판정의 반례 시험을 더했으며, 행동 시험 셋은 그대로 두고 공백을 무시하는 작성자 검색 한 건을 더한다.
 """
 
 from __future__ import annotations
@@ -28,10 +30,12 @@ from __future__ import annotations
 from datetime import datetime
 
 import pytest
-from sqlalchemy import select, text
+from sqlalchemy import select
 
 from app.board.models import Post
 from app.board.repository import author_search_clause, list_posts
+from app.core.search_text import pattern_for
+from tests.fakes.explain import plan_for, plan_tree, walk
 
 pytestmark = pytest.mark.unit
 
@@ -41,12 +45,9 @@ NOW = datetime(2026, 8, 3, 9, 0, 0)
 def _plan(db, stmt) -> list[str]:
     """실행 계획의 각 줄. PG 는 `EXPLAIN` 이다(SQLite 의 `EXPLAIN QUERY PLAN` 이 아니다).
 
-    실행은 하지 않는다 — 계획만 본다.
+    실행은 하지 않는다 — 계획만 본다. 값은 바인드로 넘긴다(`tests/fakes/explain.py`).
     """
-    compiled = stmt.compile(
-        db.get_bind(), compile_kwargs={"literal_binds": True}
-    )
-    return [row[0] for row in db.execute(text("EXPLAIN " + str(compiled))).all()]
+    return plan_for(db, stmt).splitlines()
 
 
 def test_author_search_does_not_rescan_users_per_post(db):
@@ -65,19 +66,56 @@ def test_author_search_does_not_rescan_users_per_post(db):
     않는다.** 그 실패 모양이 `Nested Loop` 안쪽의 `users` 스캔이고, 원래 이 시험이
     막으려던 것도 정확히 그것이다(매 검색마다 사람 표를 반복해서 읽는 것).
 
+    `Nested Loop` 가 있다는 것만으로는 실패가 아니다. 접힌 이름 조건(`search_fold(...)
+    LIKE`)이 걸리자 PG 는 `users` 를 **바깥쪽에서 한 번** 훑어 걸린 사람만 고르고, 그 사람의
+    글을 `ix_board_posts_author_user_id` 로 찾는 계획을 고른다 — 사람 표는 한 번만 읽힌다.
+    그래서 계획을 나무로 받아 **안쪽**에 `users` 전수 스캔이 있는지를 본다.
+
     `display_name ILIKE '%…%'` 자체는 어느 DB 에서도 인덱스를 못 탄다(선행 와일드카드) —
     그러니 "users 를 한 번도 안 읽는다" 는 애초에 요구할 수 없는 성질이다.
     """
-    stmt = select(Post.id).where(author_search_clause("%김%"))
+    stmt = select(Post.id).where(author_search_clause(pattern_for("김")))
     steps = _plan(db, stmt)
     joined = chr(10).join(steps)
+    assert steps, "계획이 비었다 — 아무것도 안 보고 통과한다"
 
-    assert "Nested Loop" not in joined, (
-        f"작성자 검색이 users 를 글마다 다시 읽는다: {joined}"
-    )
+    tree = plan_tree(db, stmt)
+    users = [node for node in walk(tree) if node.get("Relation Name") == "users"]
+    assert users, f"계획에 users 가 없다 — 작성자 조건이 빠졌다: {joined}"
+    assert _inner_users_scans(tree) == [], f"작성자 검색이 users 를 글마다 다시 읽는다: {joined}"
     assert joined.count("on users") <= 1, (
         f"users 를 두 번 이상 읽는다: {joined}"
     )
+
+
+def _inner_users_scans(tree: dict) -> list[dict]:
+    """`Nested Loop` 의 **안쪽**에 붙은 `users` 전수 스캔 — 바깥 행마다 사람 표를 다시 훑는 자리."""
+    return [
+        child
+        for node in walk(tree) if node["Node Type"] == "Nested Loop"
+        for child in node.get("Plans", ())
+        if child.get("Parent Relationship") == "Inner"
+        and child.get("Relation Name") == "users"
+        and child["Node Type"] == "Seq Scan"
+    ]
+
+
+def test_the_rescan_detector_flags_a_per_post_users_scan(db):
+    """반례 — 위 판정이 **정말로 잡는가.** 잡지 못하면 위 시험은 아무것도 안 보고 초록이다.
+
+    작성자 조건을 키 없이(`display_name LIKE title`) 걸면 해시로 받을 수 없어 PG 는 글마다
+    `users` 를 다시 훑는다. 중간 저장(Materialize)을 끄면 그 모양이 계획에 그대로 드러난다.
+    """
+    from sqlalchemy import exists, text
+
+    from app.users.models import User
+
+    db.execute(text("SET LOCAL enable_material = off"))
+    bad = select(Post.id).where(
+        exists(select(User.id).where(User.display_name.like(Post.title)))
+    )
+    tree = plan_tree(db, bad)
+    assert _inner_users_scans(tree), f"반례를 못 잡는다 — 판정이 헛돈다: {tree}"
 
 
 # ── 행동은 그대로여야 한다 ────────────────────────────────────────────────────
@@ -122,3 +160,11 @@ def test_a_name_nobody_has_returns_nothing(db, posts):
         db, category=None, search="박영희", sort="recent", offset=0, limit=20
     )
     assert rows == [] and total == 0
+
+
+def test_the_author_name_matches_with_spaces_folded_on_both_sides(db, posts):
+    """작성자 이름도 공용 접기 규칙을 지난다 — 「김 지혜」로 「김지혜」의 글을 찾는다."""
+    rows, total = list_posts(
+        db, category=None, search="  김  지혜 ", sort="recent", offset=0, limit=20
+    )
+    assert {row.id for row in rows} == {"bs-p1"} and total == 1

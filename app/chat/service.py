@@ -11,7 +11,7 @@ import re
 from datetime import datetime
 
 from sqlalchemy import delete, func, or_, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 
 from app.conversations.models import (
     PROC_DONE,
@@ -24,6 +24,7 @@ from app.conversations.models import (
 )
 from app.core.config import Settings
 from app.core.errors import ConflictError, ForbiddenError, NotFoundError, ValidationAppError
+from app.core.search_text import like_folded, pattern_for
 from app.jobs import repository as jobs_repo
 from app.jobs.models import JOB_TYPE_CHAT_MESSAGE, Job
 from app.users.models import User
@@ -71,17 +72,27 @@ def list_conversations(
     stmt = select(Conversation).where(Conversation.user_id == user.id)
     if not include_archived:
         stmt = stmt.where(Conversation.archived.is_(False))
-    if q and q.strip():
+    pattern = pattern_for(q)
+    if pattern is not None:
         # AI-38: 제목 부분일치만으로는 "내가 만든 티켓 보여줘" 같은 흔한 제목 아래 묻힌
-        # 대화를 못 찾는다. 본문(사용자 메시지) 부분일치도 함께 본다 — 대화 소유권은 위
-        # user_id 필터가 이미 보장하므로 서브쿼리에 따로 걸지 않는다.
-        like = f"%{q.strip()}%"
+        # 대화를 못 찾는다. 본문(메시지) 부분일치도 함께 본다. 대조는 공용 접기 규칙이다 —
+        # 양쪽 공백·대소문자·표기를 맞추고 `%`·`_` 는 글자로 본다.
+        #
+        # 메시지 서브쿼리도 **내 대화로 좁힌다.** 결과의 소유권은 위 user_id 필터가 이미
+        # 보장하지만, 좁히지 않으면 검색 한 번이 전 사용자의 메시지를 전부 접어 본다 —
+        # 비용이 내 대화가 아니라 제품 전체 메시지 수에 비례한다.
+        # 바깥 질의도 `conversations` 를 읽는다. 별칭을 안 쓰면 SQLAlchemy 가 안쪽을 바깥
+        # 행에 상관시켜 버릴 수 있어서, 「내 대화」 판정이 따로 서도록 별칭으로 분리한다.
+        mine = aliased(Conversation)
+        own_messages = (
+            select(Message.conversation_id)
+            .join(mine, mine.id == Message.conversation_id)
+            .where(mine.user_id == user.id, like_folded(Message.content, pattern))
+        )
         stmt = stmt.where(
             or_(
-                Conversation.title.ilike(like),
-                Conversation.id.in_(
-                    select(Message.conversation_id).where(Message.content.ilike(like))
-                ),
+                like_folded(Conversation.title, pattern),
+                Conversation.id.in_(own_messages),
             )
         )
     # AI-18: total은 limit과 무관하게 "이 필터에 맞는 전체 개수" — 화면이 이걸로 상한

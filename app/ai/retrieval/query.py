@@ -11,7 +11,7 @@
 
 | 레인 | 무엇을 하나 | 왜 필요한가 |
 |---|---|---|
-| `trgm` | `text ILIKE '%질의%'` | **후보 생성의 정본.** 한국어 어절 내부 부분일치를 이것만 한다 |
+| `trgm` | `text_fold LIKE '%접은 질의%'` | **후보 생성의 정본.** 한국어 어절 내부 부분일치를 이것만 한다 |
 | `fts` | `to_tsvector @@ plainto_tsquery` | 어절 단위로 걸고 **낱말 뭉치의 순위를 매긴다.** 사람이 기억나는 대로 친 질의를 이 레인이 혼자 짊어진다(D-260) |
 | `vector` | `embedding <=> 질의벡터` | 글자가 안 겹쳐도 뜻이 가까운 것. 모델이 없으면 이 레인은 그냥 없다 |
 
@@ -31,8 +31,9 @@ from sqlalchemy.sql import Select
 from app.ai.catalog import FTS_CONFIG, VECTOR_DIM
 from app.ai.models import DocumentChunk, Vector
 from app.ai.retrieval import fusion
+from app.core.search_text import fold, like_folded
 
-# 질의 정규화와 `ILIKE` escape 의 정본은 검색 모듈이다. 두 검색창이 같은 문장을 다르게
+# 질의 정규화와 트라이그램 가지의 정본은 검색 모듈이다. 두 검색창이 같은 문장을 다르게
 # 다루면 「검색에서는 나오는데 AI 는 못 찾는다」가 되고, 그 차이는 아무 오류도 안 낸다.
 from app.search.query import MAX_QUERY_CHARS, normalize, trgm_condition
 
@@ -54,11 +55,13 @@ LANE_CANDIDATES = 50
 
 
 def normalize_query(raw: str | None) -> str:
-    """앞뒤 공백 · 연속 공백 · **NFC**. 검색창과 같은 정규화를 지난다.
+    """앞뒤 공백 · 연속 공백 · **NFC** · 상한. 검색창과 같은 표시형이다.
 
-    NFC 를 여기서도 하는 이유는 `app/search/query.py` 와 같다: macOS 에서 복사한 글은
-    NFD 로 들어오고, 색인 쪽(`chunking`)이 지나는 정규화와 표기가 다르면 눈에 같아
-    보이는 글자가 안 걸린다.
+    chunk 원문은 유니코드 표기를 맞추지 않은 채 저장된다(`app/ai/chunking.py` 는 글을 자르고
+    앞뒤 공백을 걷을 뿐 NFC 로 바꾸지 않는다). 그래서 표기를 맞추는 일은 레인마다 다르다.
+    트라이그램 레인은 양쪽을 접은 값으로 비교한다 — 질의는 `fold()` 를 지나고 원문은 DB 의
+    접힌 사본(`text_fold`)으로 온다. FTS 레인은 이 표시형을 원문에 그대로 대므로 NFD 로
+    저장된 chunk 는 그 레인에서 안 걸리고, 그 몫을 트라이그램 레인이 찾는다.
     """
     return normalize(raw)
 
@@ -73,20 +76,20 @@ def _ordered(stmt: Select) -> Select:
 
 
 def _contains(pattern: str):
-    return DocumentChunk.text_body.ilike(pattern, escape="\\")
+    return like_folded(DocumentChunk.text_fold, pattern, stored=True)
 
 
 def trgm_lane(query: str, *, narrowing=None, limit: int = LANE_CANDIDATES) -> Select:
-    """트라이그램 레인. `ix_chunk_text_trgm` 이 받는 모양이다.
+    """트라이그램 레인. `ix_chunk_text_fold_trgm` 이 받는 모양이다.
 
-    조건은 검색창과 **같은 가지**를 쓴다(`trgm_condition`): 질의 전체 한 덩이, 그리고
-    낱말이 여럿이고 전부 3자 이상이면 낱말별 AND 조합. 두 번째 가지가 없으면 사람이
-    기억나는 대로 친 질의(`스프린트 정리`)를 이 레인이 통째로 놓친다 — S10 실측에서
-    그 질의군의 MRR 이 **0.01** 이었다.
+    조건은 검색창과 **같은 가지**를 쓴다(`trgm_condition`): 접은 질의 전체 한 덩이, 그리고
+    낱말이 여럿이고 접은 낱말이 전부 3자 이상이면 낱말별 AND 조합. 두 번째 가지가 없으면
+    사람이 기억나는 대로 친 질의(`스프린트 정리`)를 이 레인이 통째로 놓친다 — S10 실측에서
+    그 질의군의 MRR 이 **0.01** 이었다. 점수도 접힌 값끼리 잰다.
 
     `narrowing` 은 권한 조건이고 **`LIMIT` 앞에** 들어간다. 없으면(전역 관리자) 안 건다.
     """
-    score = func.similarity(DocumentChunk.text_body, query)
+    score = func.similarity(DocumentChunk.text_fold, fold(query))
     stmt = select(DocumentChunk.id, cast(score, Float).label("score")).where(
         trgm_condition(query, _contains)
     )

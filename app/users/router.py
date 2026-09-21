@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Query, Request, Response
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import and_, func, select
 from sqlalchemy.orm import Session
 
 from app.auth.models import UserSession
@@ -13,6 +13,7 @@ from app.core.deps import get_db, get_principal, require_csrf, require_permissio
 from app.core.errors import ForbiddenError, ValidationAppError
 from app.core.pagination import PageParams
 from app.core.scope import Principal, apply_user_scope, scope_allows_user
+from app.core.search_text import contains_folded
 from app.mail.models import MAIL_QUEUED
 from app.org.models import Department, JobTitle
 from app.users import bulk
@@ -123,14 +124,12 @@ def _filtered_users_stmt(
     # 바이트 단위로 같다. 조직/부서 관리자면 여기서 좁혀지고, 같은 규칙을 단건 조회
     # (get_scoped_user_or_404)가 다시 쓴다 — 목록과 단건이 갈라지지 않게.
     stmt = apply_user_scope(stmt, scope)
-    if q:
-        needle = f"%{q.strip().lower()}%"
-        stmt = stmt.where(
-            or_(
-                func.lower(User.email).like(needle),
-                func.lower(User.display_name).like(needle),
-            )
-        )
+    # 이메일·표시명 검색. 대조는 공용 접기 규칙이다(`app/core/search_text.py`) — 양쪽
+    # 공백·대소문자·표기를 맞추고 `%`·`_` 는 글자로 본다. 예전에는 escape 가 없어 `%` 한
+    # 글자가 전 직원을 돌려줬고, CSV 내보내기도 같은 문장이라 함께 새었다.
+    search_clause = contains_folded((User.email, User.display_name), q)
+    if search_clause is not None:
+        stmt = stmt.where(search_clause)
     if role is not None:
         if role not in ALL_ROLES:
             raise ValidationAppError(f"알 수 없는 역할입니다: {role}")

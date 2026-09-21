@@ -35,6 +35,7 @@ from datetime import datetime
 
 from sqlalchemy import (
     CheckConstraint,
+    Computed,
     DateTime,
     ForeignKey,
     Index,
@@ -170,6 +171,13 @@ class DocumentChunk(UUIDPrimaryKeyMixin, Base):
     anchor_label: Mapped[str] = mapped_column(String(200), nullable=False, default="")
 
     text_body: Mapped[str] = mapped_column("text", Text, nullable=False)
+    #: 대조형 사본 `search_fold(text)` — **DB 가 계산하는 STORED 생성 열**이다(0030 · D-495).
+    #: 트라이그램 레인이 이 열에 조건을 걸고, 질의도 같은 규칙으로 접혀 온다
+    #: (`app/core/search_text.py::fold`). 색인 레인은 이 열을 쓰지 않는다 — `text` 를 쓰면
+    #: 같은 행 안에서 따라 바뀐다. 인용에는 원문(`text`)을 쓰므로 목록 조회에서는 읽지 않는다.
+    text_fold: Mapped[str] = mapped_column(
+        Text, Computed("search_fold(text)", persisted=True), nullable=False, deferred=True,
+    )
     #: 같은 글이면 다시 임베딩하지 않는다. 판이 올라도 안 바뀐 chunk 가 대부분이다.
     text_sha256: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     token_estimate: Mapped[int] = mapped_column(
@@ -238,9 +246,13 @@ class DocumentChunk(UUIDPrimaryKeyMixin, Base):
         #
         # S9 가 이 둘을 안 만든 이유도 적어 둔다: 그때는 아무도 이 컬럼으로 검색하지
         # 않았고, 안 쓰는 인덱스는 chunk 를 넣을 때마다 쓰기만 늘린다.
+        #
+        # 트라이그램 인덱스는 원문이 아니라 **접힌 사본**(`text_fold`)에 건다(0030 · D-495).
+        # 질의가 접혀 오므로 원문 위 인덱스는 받을 조건이 없다 — 0030 이 그 인덱스를 지웠다.
+        # FTS 는 원문 그대로다: 어절 경계를 보는 레인이라 공백을 지우면 할 일이 없어진다.
         Index(
-            "ix_chunk_text_trgm", "text",
-            postgresql_using="gin", postgresql_ops={"text": "gin_trgm_ops"},
+            "ix_chunk_text_fold_trgm", "text_fold",
+            postgresql_using="gin", postgresql_ops={"text_fold": "gin_trgm_ops"},
         ),
         Index(
             "ix_chunk_text_fts",
@@ -248,6 +260,9 @@ class DocumentChunk(UUIDPrimaryKeyMixin, Base):
             postgresql_using="gin",
         ),
     )
+    # 접힌 사본(`text_fold`)을 INSERT 때 `RETURNING` 으로 되받지 않는다 — 문서 하나가 chunk
+    # 수십 개를 한 번에 넣는 자리라, 기본값("auto")이면 그 글을 전부 다시 끌어온다.
+    __mapper_args__ = {"eager_defaults": False}
 
 
 class AiIndexState(UUIDPrimaryKeyMixin, Base):

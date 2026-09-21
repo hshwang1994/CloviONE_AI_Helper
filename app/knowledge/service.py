@@ -31,6 +31,7 @@ from app.authz.visibility import (
 )
 from app.core.errors import ConflictError, NotFoundError, ValidationAppError
 from app.core.models_base import utcnow
+from app.core.search_text import like_folded, pattern_for
 from app.core.ownership import (
     OWNER_DEPARTMENT,
     OWNER_ORGANIZATION,
@@ -632,16 +633,18 @@ def list_documents(
         # `utcnow()` 를 부르면 타일과 목록이 서로 다른 순간을 재고, 경계에 걸친 문서
         # 한 건이 수와 목록에서 갈린다.
         stmt = stmt.where(recently_updated_since(now or utcnow(), updated_within_hours))
-    if q and q.strip():
-        needle = f"%{q.strip()}%"
+    pattern = pattern_for(q)
+    if pattern is not None:
         # 제목**과 본문**을 본다 (지시 22.4). 본문은 현재 판의 파생 텍스트에서 찾는다 —
-        # Block JSON 을 뒤지면 서식 속성까지 걸려서 「없는 말」이 찾아진다.
+        # Block JSON 을 뒤지면 서식 속성까지 걸려서 「없는 말」이 찾아진다. 대조는 공용 접기
+        # 규칙이다(`app/core/search_text.py`): 양쪽 공백·대소문자·표기를 맞추고 `%`·`_` 는
+        # 글자로 본다. 접은 뒤 빈 검색어는 조건이 아니다.
         from app.knowledge.models import DocumentVersion
 
         stmt = stmt.where(
-            Document.title.ilike(needle)
+            like_folded(Document.title, pattern)
             | Document.current_version_id.in_(
-                select(DocumentVersion.id).where(DocumentVersion.body_text.ilike(needle))
+                select(DocumentVersion.id).where(like_folded(DocumentVersion.body_text, pattern))
             )
         )
     clean_tags = [t.strip() for t in (tags or []) if t and t.strip()]

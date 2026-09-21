@@ -14,7 +14,7 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, Query, Request
 from pydantic import Field
-from sqlalchemy import case, func, or_, select
+from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session
 
 from app.announcements import service
@@ -32,6 +32,7 @@ from app.core.errors import ForbiddenError, NotFoundError, ValidationAppError
 from app.core.pagination import PageParams
 from app.core.safe_url import normalize_external_url
 from app.core.scope import Principal
+from app.core.search_text import contains_folded
 from app.core.text import NulFreeModel, clean_required_text, topic_particle
 from app.users.models import ROLE_USER, User
 
@@ -179,13 +180,11 @@ def list_announcements(
         stmt = stmt.where(Announcement.level == level)
     # UB-24: 화면 설정(registry/platform.js)에 searchFields/searchPlaceholder가 이미
     # 있었는데 searchable이 빠져 있어 DataScreen.jsx가 검색창 자체를 안 그렸다 — 죽은
-    # 설정이었다. notion_mapping/router.py::list_mappings의 q 처리와 같은 모양으로
-    # 제목·본문을 대소문자 무시 부분일치로 검색한다.
-    if q:
-        needle = f"%{q.strip().lower()}%"
-        stmt = stmt.where(
-            or_(func.lower(Announcement.title).like(needle), func.lower(Announcement.body).like(needle))
-        )
+    # 설정이었다. 제목·본문을 공용 접기 규칙으로 찾는다(`app/core/search_text.py`) — 양쪽
+    # 공백·대소문자·표기를 맞추고 `%`·`_` 는 글자로 본다. 접은 뒤 빈 검색어는 조건이 아니다.
+    search_clause = contains_folded((Announcement.title, Announcement.body), q)
+    if search_clause is not None:
+        stmt = stmt.where(search_clause)
     total = db.execute(select(func.count()).select_from(stmt.subquery())).scalar_one()
     rows = (
         db.execute(

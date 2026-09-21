@@ -19,6 +19,7 @@ from sqlalchemy import case, false, or_
 
 from app.core.dates import parse_date
 from app.core.models_base import NAMES_SEP
+from app.core.search_text import contains_folded
 from app.tickets.models import PROJECT_LINK_OK, TicketCache
 from app.tickets.repository import PageSpec, TicketFilters, as_filter_values
 from app.work import workflow
@@ -150,10 +151,13 @@ def filter_clauses(f: TicketFilters | None) -> list:
             TicketCache.assignee_notion_ids.contains(token(aid), autoescape=True)
             for aid in assignees
         )))
-    if f.search:
-        # icontains = 대소문자 무시 LIKE. autoescape 로 사용자가 넣은 %/_ 가 와일드카드가
-        # 되지 않게 막는다(안 막으면 '%' 한 글자가 전체 조회가 된다).
-        out.append(TicketCache.title.icontains(f.search, autoescape=True))
+    # 검색어는 제목 **과 티켓 이름**(`ABC-12`)을 본다 — 작업 보드와 같은 뜻 하나다. 사람들은
+    # 티켓을 번호로 기억하고, 한 화면에서 찾던 이름이 다른 화면에서 안 걸리면 검색이 아니라
+    # 고장으로 보인다. 대조 규칙은 공용 하나다(`app/core/search_text.py` — 양쪽 접기 · escape).
+    # 접은 뒤 빈 검색어(공백·제로폭 공백만)는 조건이 아니다.
+    search_clause = contains_folded((TicketCache.title, TicketCache.canonical_key), f.search)
+    if search_clause is not None:
+        out.append(search_clause)
     start, end = (parse_date(v) for v in f.due_range)
     if start is not None or end is not None:
         out.append(TicketCache.due_date.is_not(None))

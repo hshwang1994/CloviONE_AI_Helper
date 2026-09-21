@@ -29,7 +29,7 @@
 ## 기존 행
 
 `project_id` 는 **남긴다.** 앱은 더 이상 읽지도 쓰지도 않지만, 되돌리기와 대조를 위해
-한 릴리스 동안 값을 보존한다. 삭제는 `0030` 이 한다. 미정으로 남은 건수는 NOTICE 로
+한 릴리스 동안 값을 보존한다. 삭제는 `0031` 이 한다(`0030` 은 검색 접기가 먼저 썼다). 미정으로 남은 건수는 NOTICE 로
 보고하고, 운영에서는 `/api/admin/integrity` 의 「팀이 정해지지 않은 회차」가 같은 사실을
 보여 준다 — 관리자가 회차 수정에서 팀을 정한다.
 
@@ -288,7 +288,7 @@ def upgrade() -> None:
     ).replace("'", "")
     conn.execute(sa.text(f"DO $$ BEGIN RAISE NOTICE '{summary}'; END $$"))
 
-    # 유일 축을 프로젝트에서 팀으로. `project_id` 칼럼·FK·인덱스는 남긴다(0030 이 걷는다).
+    # 유일 축을 프로젝트에서 팀으로. `project_id` 칼럼·FK·인덱스는 남긴다(0031 이 걷는다).
     op.execute("DROP INDEX IF EXISTS uq_sprints_active")
     op.drop_index("uq_sprints_name", table_name="sprints")
     op.execute(

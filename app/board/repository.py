@@ -17,6 +17,7 @@ from app.board.models import (
     PostAttachment,
     Reaction,
 )
+from app.core.search_text import like_folded, pattern_for
 from app.users.models import User
 
 
@@ -84,8 +85,11 @@ def like_counts(db: Session, post_ids: list[str]) -> dict[str, int]:
     return {pid: int(n) for pid, n in rows}
 
 
-def author_search_clause(like: str):
+def author_search_clause(pattern: str):
     """작성자 표시명이 검색어에 걸리는가 — **상관** 서브쿼리(EXISTS)로.
+
+    `pattern` 은 **접힌 대조 패턴**이다(`app/core/search_text.py::pattern_for`). 표시명도 같은
+    규칙으로 접어 비교하므로 「김 지혜」로 「김지혜」를 찾는다.
 
     예전에는 비상관 서브쿼리였다:
 
@@ -95,16 +99,17 @@ def author_search_clause(like: str):
     `users` 를 통째로 훑어 임시 인덱스를 만든다는 뜻이다 — 비용이 게시글이 아니라 **사람
     수**에 비례하는데, 정작 필요한 것은 "이 글의 작성자가 그 이름인가" 하나다.
 
-    EXISTS 로 상관시키면 글 한 줄마다 `users.id` 기본키를 한 번 찍는다. 실행 계획이
-    `SCAN users` 에서 `SEARCH users ... (id=?)` 로 바뀐다
-    (`tests/unit/test_board_search_query_plan.py` 가 그 문자열을 못박는다 — 결과가 같고
+    EXISTS 로 상관시키면 PG 는 `users` 를 **한 번** 훑어 걸린 사람의 글을
+    `ix_board_posts_author_user_id` 로 찾거나(해시로 받는 계획도 같은 모양이다), 글마다 기본키를
+    한 번 찍는다 — 어느 쪽이든 **글마다 사람 표를 다시 훑지는 않는다**
+    (`tests/unit/test_board_search_query_plan.py` 가 계획으로 못박는다 — 결과가 같고
     속도만 다른 결함이라 결과만 보는 테스트로는 잡히지 않는다).
 
     결과는 같다. `author_user_id` 가 NULL 이면 양쪽 다 거짓이다.
     """
     return (
         select(literal(1))
-        .where(User.id == Post.author_user_id, User.display_name.ilike(like))
+        .where(User.id == Post.author_user_id, like_folded(User.display_name, pattern))
         .exists()
     )
 
@@ -142,14 +147,16 @@ def list_posts(
         stmt = stmt.where(Post.idea_status == idea_status)
     if category:
         stmt = stmt.where(Post.category == category)
-    if search:
-        like = f"%{search.strip()}%"
-        # 제목·본문·작성자 표시명 검색(§18).
+    pattern = pattern_for(search)
+    if pattern is not None:
+        # 제목·본문·작성자 표시명 검색(§18). 대조는 공용 접기 규칙이다 — 양쪽 공백·대소문자·
+        # 표기를 맞추고 `%`·`_` 는 글자로 본다. 예전에는 escape 가 없어 `%` 한 글자가 전
+        # 글을 돌려줬다. 접은 뒤 빈 검색어는 조건이 아니다.
         stmt = stmt.where(
             or_(
-                Post.title.ilike(like),
-                Post.body.ilike(like),
-                author_search_clause(like),
+                like_folded(Post.title, pattern),
+                like_folded(Post.body, pattern),
+                author_search_clause(pattern),
             )
         )
     total = db.execute(

@@ -4,7 +4,7 @@
 
 1. **스키마가 모델과 같은 모양이다** — `department_id` 칼럼·SET NULL FK·인덱스, 유일 축이
    프로젝트에서 팀(`coalesce(department_id, '')`)으로 옮겨졌고 `project_id` 는 아직 남아 있다
-   (0030 이 걷는다). 시험 DB 는 conftest 가 `alembic upgrade head` 로 만들므로 이 단언이
+   (0031 이 걷는다). 시험 DB 는 conftest 가 `alembic upgrade head` 로 만들므로 이 단언이
    통과하면 0029 의 DDL 이 실제로 그 모양을 만들었다는 뜻이다.
 2. **SET NULL 이 실제로 동작한다** — 팀을 지우면 회차는 남고 팀만 풀린다(팀 미정).
 3. **백필이 추측하지 않는다** — 열린 회차는 지금의 업무 소유(O1·O2)를 따르고, 닫힌 회차는
@@ -65,7 +65,7 @@ def _indexdefs(db, table: str) -> dict[str, str]:
 def test_sprints_have_a_team_column_and_still_carry_the_legacy_project(db):
     cols = _cols(db, "sprints")
     assert "department_id" in cols, "팀 칸이 없다 — 0029 가 안 돌았다"
-    assert "project_id" in cols, "project_id 는 0030 까지 남아야 한다(되돌리기·대조용)"
+    assert "project_id" in cols, "project_id 는 0031 까지 남아야 한다(되돌리기·대조용)"
 
 
 def test_the_team_fk_sets_null_and_is_indexed(db):
