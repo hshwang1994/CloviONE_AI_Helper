@@ -1119,7 +1119,7 @@ export function WorkBoard() {
                   overlay={dragOverlay}
                   onMove={handleBoardMove}
                   // 닫힌 회차의 판은 기록이다 — 끌 수 없다(서버도 422 로 막는다).
-                  disabled={moveBusy || (sprint && sprint.state === "closed")}
+                  disabled={moveBusy || (!!sprint && sprint.state === "closed")}
                   columnMaxHeight={COLUMN_BODY_MAX}
                   virtualize={{
                     estimateSize: 160, overscan: 4, rowGap: 8,

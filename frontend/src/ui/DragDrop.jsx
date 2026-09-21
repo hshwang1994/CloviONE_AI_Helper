@@ -74,11 +74,25 @@ function announcements(labelOf) {
   };
 }
 
+/* 🔴 dnd-kit 에 넘기는 `disabled` 는 **참/거짓 하나**로 굳힌다.
+ *
+ * `SortableContext` 는 참/거짓이 아닌 값을 `{ draggable, droppable }` 객체로 읽는다(`normalizeDisabled`).
+ * 그래서 `null` 이 들어가면 `null.draggable` 을 읽다가 렌더 중에 `TypeError` 로 죽는다. 작업 보드가
+ * `moveBusy || (sprint && …)` 를 넘기고 있었고, 회차 없는 판(`sprint` 가 `null`)에서 그 값이 `null` 이었다.
+ * 같은 메뉴를 두 번 누르면 회차가 빠진 판이 서서 곧바로 오류 경계가 화면을 대신 그렸다 — 사용자가 본
+ * 「500」 화면이다(2026-09-21, `scripts/ui_qa/reactivate_e2e.py` 로 Chromium · Firefox 둘 다에서 재현).
+ * 이 부품의 소비처는 켬/끔만 쓰므로 경계에서 한 번 굳히면 어떤 식을 넘겨도 안전하다. */
+function dragDisabled(value) {
+  return Boolean(value);
+}
+
 /* 끌 수 있는 한 칸. `children` 은 카드 내용이고, 손잡이 속성은 카드 전체에 붙는다 —
  * 작은 손잡이 아이콘만 잡게 하면 터치 화면에서 사실상 못 쓴다. */
 export function DragItem({ id, label, disabled, children }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id,
+    /* 칸 하나의 `disabled` 는 굳히지 않는다 — 안 주면(`undefined` · `null`) 목록(`SortableContext`)의 값을 물려받는
+       것이 dnd-kit 의 뜻이다. 거짓으로 굳히면 판 전체를 막아 둔 동안에도 카드가 끌린다. */
     disabled,
   });
   return (
@@ -323,7 +337,7 @@ export function SortableList({ items, labelOf, onReorder, disabled, children, vi
       onDragCancel={() => setActiveId(null)}
       onDragEnd={handleEnd}
     >
-      <SortableContext items={ids} strategy={verticalListSortingStrategy} disabled={disabled}>
+      <SortableContext items={ids} strategy={verticalListSortingStrategy} disabled={dragDisabled(disabled)}>
         {list}
       </SortableContext>
       {/* 끌리는 것의 얼굴. `overlay` 를 주면 실제 카드 모양이 따라온다 — 맨 텍스트가
@@ -439,7 +453,7 @@ export function DragBoard({ columns, labelOf, onMove, disabled, children, sx, co
             <SortableContext
               items={column.items.map((it) => it.id)}
               strategy={verticalListSortingStrategy}
-              disabled={disabled}
+              disabled={dragDisabled(disabled)}
             >
               {virtualize ? (
                 <VirtualRows
