@@ -207,7 +207,14 @@ PROBE_JS = r"""
       const range = document.createRange();
       range.selectNodeContents(el);
       for (const r of range.getClientRects()) {
-        if (r.width > 0.5 && r.height > 0.5) rects.push(r);
+        /* **낭독 전용 글은 사람이 보는 줄이 아니다** (2026-09-21 정정).
+         *
+         * `.sr-only` 는 1px 상자에 `clip` 을 걸어 화면에서 지운다(`styles/screens.css`).
+         * 그 상자도 Range 사각형으로 돌아오므로 그대로 세면 줄이 늘어난다 — 조직 트리의
+         * 「구성원 6명」(화면 글자는 「6명」)이 28px 상자에서 **3줄 2자**로 읽혀
+         * `vertical_text_collapse` 가 멀쩡한 줄을 으스러짐이라 불렀다. 글꼴 바닥이 11px 라
+         * 진짜 줄상자는 이보다 낮을 수 없다. */
+        if (r.width > 0.5 && r.height > 4) rects.push(r);
       }
     } catch (e) { return { lines: 0, span: 0 }; }
     if (!rects.length) return { lines: 0, span: 0 };
@@ -467,7 +474,16 @@ PROBE_JS = r"""
     for (const el of document.querySelectorAll('#main-content div, #main-content section')) {
       const cs = getComputedStyle(el);
       if (cs.display !== 'grid') continue;
-      const kids = [...el.children].filter((k) => k.getBoundingClientRect().width > 0);
+      /* **문서 순서가 아니라 보이는 순서로 짝짓는다** (2026-09-21 정정).
+       *
+       * 화면은 낭독 순서 때문에 곁열을 DOM 의 앞에 두고 `grid-column` 으로 오른쪽에 놓을 수
+       * 있다(초기 설정의 「지금 할 차례」 — D-501 이 「머리 → 지금 할 일 → 목록」 순서를
+       * 요구한다). 그때 자식 순서로 읽으면 **곁열을 본문이라 부르고** 본문을 곁열이라 불러
+       * 비율이 뒤집힌다 — 실제 화면은 목록 979 · 레일 605 인데 「곁열이 1.62배」라고 적었다.
+       * 왼쪽 가장자리로 정렬해 보이는 대로 잰다. */
+      const kids = [...el.children]
+        .filter((k) => k.getBoundingClientRect().width > 0)
+        .sort((p, q) => p.getBoundingClientRect().left - q.getBoundingClientRect().left);
       if (kids.length !== 2) continue;
       const a = Math.round(kids[0].getBoundingClientRect().width);
       const b = Math.round(kids[1].getBoundingClientRect().width);
@@ -1194,6 +1210,20 @@ PROBE_JS = r"""
       if ((ccs.flexDirection || 'row').indexOf('column') === 0) continue;
       if (ccs.flexWrap === 'nowrap') continue;
     }
+    /* **칸이 하나인 격자는 쌓인 것이다** (2026-09-21 정정 — 블록 흐름과 같은 이유).
+     *
+     * 한 칸짜리 격자에서는 자식이 옆에 설 자리가 애초에 없다. 그런데 `justify-items: start`
+     * 라 칸이 내용만큼만 넓어 「줄이 절반 넘게 비었다」가 언제나 참이 된다 — 산문 아래
+     * 단추 하나를 둔 모든 레일 · 카드가 고아 줄로 잡혔다(초기 설정의 「지금 할 차례」에서
+     * 실제로 그랬다). 흐름이 가로인 격자(`grid-auto-flow: column`)는 옆에 설 수 있으므로
+     * 그대로 본다. 기각은 `startedRight` 와 같은 자리에서 한다 — 후보로 세고 나서 떨어뜨려야
+     * 「봤고 통과했다」가 표본 수에 남는다. */
+    const stackedGrid = ccs.display === 'grid'
+      && (ccs.gridAutoFlow || '').indexOf('column') < 0
+      && (() => {
+        const gtc = (ccs.gridTemplateColumns || 'none').trim();
+        return (gtc === 'none' || gtc === '') ? true : gtc.split(/\s+/).length < 2;
+      })();
     const cr = container.getBoundingClientRect();
     const inner = cr.width - (parseFloat(ccs.paddingLeft) || 0) - (parseFloat(ccs.paddingRight) || 0);
     if (inner < 320) continue;
@@ -1223,6 +1253,7 @@ PROBE_JS = r"""
       const usedR = R.right - R.left;
       if (!(R.items.length === 1 || usedR < inner * 0.4)) continue;
       out.isolatedControlRowChecked++;
+      if (stackedGrid) continue;
       /* ── 무엇을 물어야 하는가 (W5 정정) ────────────────────────────────────
        *
        * 예전 질문은 «윗줄에 들어갈 자리가 있었나»(`freeP = inner − 윗줄 폭`)였다.
@@ -1460,6 +1491,18 @@ PROBE_JS = r"""
              줄에 서는 컨트롤은 전부 40 이하다(CONTROL 토큰) — 64 는 그 위의 넉넉한 문턱이다. */
           if (box.height > 64) continue;
           if (textLineCount(ctl) >= 2) continue;
+          /* **글자 그대로인 단추는 컨트롤 치수가 아니다** (2026-09-21 정정).
+             면도 테두리도 세로 여백도 없는 단추는 누를 수 있는 **글자**이고, 그 높이는 컨트롤
+             트랙이 아니라 글줄 상자다. 채팅방 머리 둘째 줄의 「참여자 N명, 보는 중 M명」(19px
+             글줄, D-502 가 글자 그대로 둔 단추)이 오른쪽 34 단추와 짝지어져 「높이 14.8px 차이」로
+             잡혔다 — 둘은 두 줄 머리의 서로 다른 줄이라 같은 축에 설 이유가 없다. 면이나 여백을
+             가진 단추(제품의 글자 단추는 34 트랙이다)는 그대로 컨트롤이라 진짜 어긋남은 계속 잡힌다. */
+          const ctlCs = getComputedStyle(ctl);
+          const bgFlat = ctlCs.backgroundColor === 'transparent'
+            || ctlCs.backgroundColor.replace(/\s/g, '') === 'rgba(0,0,0,0)';
+          const padY = (parseFloat(ctlCs.paddingTop) || 0) + (parseFloat(ctlCs.paddingBottom) || 0);
+          const borderY = (parseFloat(ctlCs.borderTopWidth) || 0) + (parseFloat(ctlCs.borderBottomWidth) || 0);
+          if (kindOf(ctl) === '버튼' && bgFlat && padY < 2 && borderY === 0 && box.height < 24) continue;
           controls.push({ el: ctl, kind: kindOf(ctl), box: box, item: ii });
         }
       }

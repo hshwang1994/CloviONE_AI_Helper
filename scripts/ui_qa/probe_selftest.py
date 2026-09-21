@@ -77,6 +77,88 @@ CASES: list[dict] = [
         </div>""",
     },
     {
+        "name": "isolated_control_row/한 칸짜리 격자에 쌓인 단추는 안 잡힌다",
+        "assertion": "isolated_control_row",
+        "expect": "pass",
+        "why": ("칸이 하나면 옆에 설 자리가 애초에 없다 — 블록 흐름을 빼는 것과 같은 이유다. "
+                "`justify-items: start` 라 단추 줄은 언제나 절반 넘게 비므로, 이 갈래가 없으면 "
+                "산문 아래 단추 하나를 둔 레일 · 카드가 전부 고아 줄이 된다(초기 설정의 "
+                "「지금 할 차례」가 그렇게 잡혔다)."),
+        "html": """
+        <div style="width:1200px">
+          <div style="display:grid;gap:12px;justify-items:start;width:600px">
+            <div style="width:560px">할 일 한 문장이 여기 선다.</div>
+            <button style="height:36px;width:110px">메일 설정 열기</button>
+          </div>
+        </div>""",
+    },
+    {
+        "name": "control_baseline_mismatch/글자 그대로인 단추는 34 단추와 짝지어지지 않는다",
+        "assertion": "control_baseline_mismatch",
+        "expect": "pass",
+        "why": ("면 · 테두리 · 세로 여백이 없는 단추는 누를 수 있는 **글자**다 — 높이가 글줄 상자다. "
+                "채팅방 머리 둘째 줄의 「참여자 N명, 보는 중 M명」이 오른쪽 34 단추와 짝지어져 "
+                "「높이 14.8px 차이」로 잡혔다(두 줄 머리의 서로 다른 줄이다)."),
+        "html": """
+        <div style="display:flex;align-items:center;gap:12px;width:900px">
+          <div style="display:grid;row-gap:4px;flex:1 1 auto">
+            <div style="font:15px/22px sans-serif">김지훈</div>
+            <button style="margin:0;padding:0;border:0;background:transparent;font:12px/19px sans-serif;text-align:start">참여자 2명, 보는 중 1명</button>
+          </div>
+          <button style="height:34px;padding:0 12px;border:1px solid #ccc;background:#fff">숨기기</button>
+          <button style="height:34px;padding:0 12px;border:1px solid #ccc;background:#fff">나가기</button>
+        </div>""",
+    },
+    {
+        "name": "vertical_text_collapse/으스러진 칸은 잡힌다",
+        "assertion": "vertical_text_collapse",
+        "expect": "fail",
+        "why": ("표의 한 열이 몇 px 로 굶어 칸마다 두어 자씩 끊기는 형태 — 이 검사가 원래 "
+                "잡으려던 결함이다."),
+        "html": """
+        <div style="width:1200px">
+          <div style="width:22px;font:14px/20px sans-serif;word-break:break-all">서비스운영팀 담당</div>
+        </div>""",
+    },
+    {
+        "name": "vertical_text_collapse/낭독 전용 글이 붙은 한 줄은 안 잡힌다",
+        "assertion": "vertical_text_collapse",
+        "expect": "pass",
+        "why": ("`.sr-only` 1px 상자가 Range 사각형으로 딸려 와 줄 수를 부풀렸다 — 조직 트리의 "
+                "「6명」(낭독은 「구성원 6명」)이 3줄 2자로 읽혀 멀쩡한 줄이 으스러짐으로 잡혔다."),
+        "html": """
+        <div style="width:1200px">
+          <span style="display:inline-block;width:28px;white-space:nowrap;font:13px/22px sans-serif">
+            <span style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">구성원 </span>6명
+          </span>
+        </div>""",
+    },
+    {
+        "name": "rail_wider_than_prose/곁열이 본문을 이기면 잡힌다",
+        "assertion": "rail_wider_than_prose",
+        "expect": "fail",
+        "why": ("사용자가 지적한 형태 — 남는 폭을 곁열이 전부 가져가 본문이 더 좁다"
+                "(티켓 상세 1920 에서 본문 743 · 레일 825 였다)."),
+        "html": """
+        <div style="display:grid;grid-template-columns:600px 900px;width:1500px">
+          <div style="height:200px">본문</div>
+          <aside style="height:200px">곁열</aside>
+        </div>""",
+    },
+    {
+        "name": "rail_wider_than_prose/낭독 순서로 곁열을 앞에 둔 격자는 안 잡힌다",
+        "assertion": "rail_wider_than_prose",
+        "expect": "pass",
+        "why": ("곁열을 DOM 앞에 두고 `grid-column` 으로 오른쪽에 놓는 화면이 있다"
+                "(초기 설정 — 「머리 → 지금 할 일 → 목록」). 문서 순서로 읽으면 본문과 곁열이 "
+                "뒤바뀌어 멀쩡한 화면이 1.62배 위반으로 잡혔다. 보이는 순서로 잰다."),
+        "html": """
+        <div style="display:grid;grid-template-columns:900px 600px;width:1500px">
+          <aside style="grid-column:2;grid-row:1;height:200px">지금 할 차례</aside>
+          <div style="grid-column:1;grid-row:1;height:200px">목록</div>
+        </div>""",
+    },
+    {
         "name": "control_baseline_mismatch/같은 줄의 높이 차는 잡힌다",
         "assertion": "control_baseline_mismatch",
         "expect": "fail",
