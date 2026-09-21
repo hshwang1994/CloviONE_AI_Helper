@@ -556,6 +556,17 @@ else
   echo "$PSELF" | tail -15; fail "프로브 판정 규칙이 반례를 통과하지 못한다"
 fi
 
+step "재진입 하네스 판정 «규칙» 반례 (브라우저 없이 — P0)"
+# `reactivate_e2e` 는 「두 번 누른 끝 상태 ≠ 한 번 누른 끝 상태」 · 「첫 클릭 뒤 누른 자리의 항목이 바뀜」 · 렌더 예외
+# 폴백을 가르는 판정을 측정과 떼어 둔 순수 함수로 갖는다. 그 규칙이 결함은 잡고 정상은 안 잡는지를 합성 관측값으로
+# 여기서 매번 증명한다(표본이 모자란 포인터 판정이 통과로 새지 않는 것까지). 합성 DOM 반례(밀리는 목록 · 폴백 ·
+# 질의 변경 · 안 움직이는 목록)는 브라우저가 필요해 `python -m scripts.ui_qa.reactivate_e2e --selftest` 로 따로 돈다.
+if RSELF="$("$PY" -m scripts.ui_qa.reactivate_e2e --selftest --logic-only 2>&1)"; then
+  ok "$(echo "$RSELF" | tail -1)"
+else
+  echo "$RSELF" | tail -15; fail "재진입 하네스의 판정 규칙이 반례를 통과하지 못한다"
+fi
+
 if [ "$SCOPE" = "full" ] || changed_match '^(docs/ui-renewal/|scripts/check_ui_renewal_coverage\.py|scripts/ui_qa/)'; then
 step "UI 리뉴얼 Control Plane Gate — 계획 구조 · 요구사항 추적표 (지시 56 · R-96)"
 # `check_traceability.py`(174줄)가 이 자리에 있었고, 삭제된 `docs/UI_RENEWAL_TRACEABILITY.md`
